@@ -86,7 +86,7 @@ static inline __u32 inotify_arg_to_mask(u32 arg)
 	mask = (FS_IN_IGNORED | FS_EVENT_ON_CHILD | FS_UNMOUNT);
 
 	/* mask off the flags used to open the fd */
-	mask |= (arg & (IN_ALL_EVENTS | IN_ONESHOT | IN_EXCL_UNLINK));
+	mask |= (arg & INOTIFY_USER_MASK);
 
 	return mask;
 }
@@ -748,11 +748,12 @@ SYSCALL_DEFINE3(inotify_add_watch, int, fd, const char __user *, pathname,
 			(mask & IN_ALL_EVENTS));
 	if (ret)
 		goto fput_and_out;
-	
+
 	/* support stacked filesystems */
-	if(path.dentry && path.dentry->d_op) {
+	if (path.dentry && path.dentry->d_op) {
 		if (path.dentry->d_op->d_canonical_path) {
-			path.dentry->d_op->d_canonical_path(&path, &alteredpath);
+			path.dentry->d_op->d_canonical_path(&path,
+							    &alteredpath);
 			canonical_path = &alteredpath;
 			path_put(&path);
 		}
@@ -764,7 +765,6 @@ SYSCALL_DEFINE3(inotify_add_watch, int, fd, const char __user *, pathname,
 
 	/* create/update an inode mark */
 	ret = inotify_update_watch(group, inode, mask);
-
 	path_put(canonical_path);
 fput_and_out:
 	fdput(f);

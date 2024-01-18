@@ -69,6 +69,7 @@ int32_t cam_actuator_power_down(struct cam_actuator_ctrl_t *a_ctrl);
 #endif
 #if defined(CONFIG_SAMSUNG_OIS_MCU_STM32)
 int16_t cam_actuator_move_for_ois_test(struct cam_actuator_ctrl_t *a_ctrl);
+int16_t cam_actuator_move_for_ois_read_hall_cal_test(struct cam_actuator_ctrl_t *a_ctrl, uint16_t af_position);
 #endif
 #if defined(CONFIG_SAMSUNG_ACTUATOR_PREVENT_SHAKING)
 int32_t cam_actuator_default_init_setting(struct cam_actuator_ctrl_t *a_ctrl);

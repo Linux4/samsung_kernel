@@ -141,6 +141,7 @@
 #define DWC3_GEVNTCOUNT(n)	(0xc40c + ((n) * 0x10))
 
 #define DWC3_GHWPARAMS8		0xc600
+#define DWC3_GUCTL3		0xc60c
 #define DWC3_GFLADJ		0xc630
 
 /* Device Registers */
@@ -173,7 +174,7 @@
 #define GEN2_U3_EXIT_RSP_RX_CLK_MASK	GEN2_U3_EXIT_RSP_RX_CLK(0xff)
 #define GEN1_U3_EXIT_RSP_RX_CLK(n)	(n)
 #define GEN1_U3_EXIT_RSP_RX_CLK_MASK	GEN1_U3_EXIT_RSP_RX_CLK(0xff)
-#define DWC31_LINK_GDBGLTSSM	0xd050
+#define DWC31_LINK_GDBGLTSSM(n)		(0xd050 + ((n) * 0x80))
 
 /* DWC 3.1 Tx De-emphasis Registers */
 #define DWC31_LCSR_TX_DEEMPH(n)	(0xd060 + ((n) * 0x80))
@@ -316,6 +317,7 @@
 
 /* Global USB2 PHY Vendor Control Register */
 #define DWC3_GUSB2PHYACC_NEWREGREQ	BIT(25)
+#define DWC3_GUSB2PHYACC_DONE		BIT(24)
 #define DWC3_GUSB2PHYACC_BUSY		BIT(23)
 #define DWC3_GUSB2PHYACC_WRITE		BIT(22)
 #define DWC3_GUSB2PHYACC_ADDR(n)	(n << 16)
@@ -324,6 +326,7 @@
 
 /* Global USB3 PIPE Control Register */
 #define DWC3_GUSB3PIPECTL_PHYSOFTRST	BIT(31)
+#define DWC3_GUSB3PIPECTL_HSTPRTCMPL	BIT(30)
 #define DWC3_GUSB3PIPECTL_U2SSINP3OK	BIT(29)
 #define DWC3_GUSB3PIPECTL_DISRXDETINP3	BIT(28)
 #define DWC3_GUSB3PIPECTL_UX_EXIT_PX	BIT(27)
@@ -411,6 +414,10 @@
 
 /* Global User Control Register 2 */
 #define DWC3_GUCTL2_RST_ACTBITLATER		BIT(14)
+
+/* Global User Control Register 3 */
+#define DWC3_GUCTL3_USB20_RETRY_DISABLE		BIT(16)
+#define DWC3_GUCTL3_SPLITDISABLE		BIT(14)
 
 /* Device Configuration Register */
 #define DWC3_DCFG_DEVADDR(addr)	((addr) << 3)
@@ -775,6 +782,7 @@ struct dwc3_ep {
 #define DWC3_EP_END_TRANSFER_PENDING BIT(4)
 #define DWC3_EP_PENDING_REQUEST	BIT(5)
 #define DWC3_EP_DELAY_START	BIT(6)
+#define DWC3_EP_PENDING_CLEAR_STALL	BIT(11)
 
 	/* This last one is specific to EP0 */
 #define DWC3_EP0_DIR_IN		BIT(31)
@@ -851,6 +859,13 @@ enum dwc3_link_state {
 	DWC3_LINK_STATE_RESET		= 0x0e,
 	DWC3_LINK_STATE_RESUME		= 0x0f,
 	DWC3_LINK_STATE_MASK		= 0x0f,
+};
+
+enum gadget_state {
+	DWC3_GADGET_INACTIVE,
+	DWC3_GADGET_SOFT_CONN,
+	DWC3_GADGET_CABLE_CONN,
+	DWC3_GADGET_ACTIVE,
 };
 
 enum {
@@ -1056,8 +1071,10 @@ struct dwc3_scratchpad_array {
  * @role_sw: usb_role_switch handle
  * @role_switch_default_mode: default operation mode of controller while
  *			usb role is USB_ROLE_NONE.
- * @usb2_phy: pointer to USB2 PHY
- * @usb3_phy: pointer to USB3 PHY
+ * @usb2_phy: pointer to USB2 PHY 0
+ * @usb2_phy1: pointer to USB2 PHY 1
+ * @usb3_phy: pointer to USB3 PHY 0
+ * @usb3_phy: pointer to USB3 PHY 1
  * @usb2_generic_phy: pointer to USB2 PHY
  * @usb3_generic_phy: pointer to USB3 PHY
  * @phys_ready: flag to indicate that PHYs are ready
@@ -1073,7 +1090,6 @@ struct dwc3_scratchpad_array {
  * @link_state: link state
  * @speed: device speed (super, high, full, low)
  * @hwparams: copy of hwparams registers
- * @root: debugfs root folder pointer
  * @regset: debugfs pointer to regdump file
  * @dbg_lsp_select: current debug lsp mux register selection
  * @test_mode: true when we're entering a USB test mode
@@ -1146,6 +1162,7 @@ struct dwc3_scratchpad_array {
  * @bh_handled_evt_cnt: no. of events handled per IRQ bottom-half
  * @irq_dbg_index: index for capturing IRQ stats
  * @vbus_draw: current to be drawn from USB
+ * @dis_split_quirk: set to disable split boundary.
  * @imod_interval: set the interrupt moderation interval in 250ns
  *                 increments or 0 to disable.
  * @xhci_imod_value: imod value to use with xhci
@@ -1158,6 +1175,10 @@ struct dwc3_scratchpad_array {
  * @bh_handled_evt_cnt: no. of events handled by tasklet per interrupt
  * @bh_dbg_index: index for capturing bh_completion_time and bh_handled_evt_cnt
  * @last_run_stop: timestamp denoting the last run_stop update
+ * @is_remote_wakeup_enabled: remote wakeup status from host perspective
+ * @wait_linkstate: waitqueue for waiting LINK to move into required state
+ * @remote_wakeup_work: use to perform remote wakeup from this context
+ * @dual_port: If true, this core supports two ports
  */
 struct dwc3 {
 	struct work_struct	drd_work;
@@ -1191,8 +1212,8 @@ struct dwc3 {
 
 	struct reset_control	*reset;
 
-	struct usb_phy		*usb2_phy;
-	struct usb_phy		*usb3_phy;
+	struct usb_phy		*usb2_phy, *usb2_phy1;
+	struct usb_phy		*usb3_phy, *usb3_phy1;
 
 	struct phy		*usb2_generic_phy;
 	struct phy		*usb3_generic_phy;
@@ -1294,7 +1315,6 @@ struct dwc3 {
 	u8			num_eps;
 
 	struct dwc3_hwparams	hwparams;
-	struct dentry		*root;
 	struct debugfs_regset32	*regset;
 
 	u32			dbg_lsp_select;
@@ -1307,6 +1327,7 @@ struct dwc3 {
 	u8			rx_max_burst_prd;
 	u8			tx_thr_num_pkt_prd;
 	u8			tx_max_burst_prd;
+	u8			clear_stall_protocol;
 
 	const char		*hsphy_interface;
 
@@ -1327,6 +1348,7 @@ struct dwc3 {
 	unsigned		dis_start_transfer_quirk:1;
 	unsigned		usb3_lpm_capable:1;
 	unsigned		usb2_lpm_disable:1;
+	unsigned		usb2_gadget_lpm_disable:1;
 
 	unsigned		disable_scramble_quirk:1;
 	unsigned		u2exit_lfps_quirk:1;
@@ -1359,6 +1381,8 @@ struct dwc3 {
 	unsigned		dis_metastability_quirk:1;
 	unsigned		ssp_u3_u0_quirk:1;
 
+	unsigned		dis_split_quirk:1;
+
 	u16			imod_interval;
 	u32			xhci_imod_value;
 
@@ -1376,7 +1400,7 @@ struct dwc3 {
 
 	/* IRQ timing statistics */
 	int			irq;
-	unsigned long		irq_cnt;
+	atomic_t		irq_cnt;
 	ktime_t			bh_start_time[MAX_INTR_STATS];
 	unsigned int		bh_completion_time[MAX_INTR_STATS];
 	unsigned int		bh_handled_evt_cnt[MAX_INTR_STATS];
@@ -1387,22 +1411,29 @@ struct dwc3 {
 	unsigned int		irq_event_count[MAX_INTR_STATS];
 	unsigned int		irq_dbg_index;
 
+	enum gadget_state	gadget_state;
 	/* Indicate if the gadget was powered by the otg driver */
 	unsigned int		vbus_active:1;
 	/* Indicate if software connect was issued by the usb_gadget_driver */
 	unsigned int		softconnect:1;
 	/*
-	 * If true, PM suspend allowed irrespective of host runtimePM state
-	 * and core will power collapse. This also leads to reset-resume of
-	 * connected devices on PM resume.
+	 * If true, PM suspend/freeze allowed irrespective of host runtimePM
+	 * state. In PM suspend/resume case, core will stay powered and
+	 * connected devices will just be suspended/resumed.
+	 * In hibernation, core will power collapse and connected devices will
+	 * reset-resume on PM restore.
 	 */
-	bool			host_poweroff_in_pm_suspend;
+	bool			ignore_wakeup_src_in_hostmode;
 	int			retries_on_error;
 	u32			gen2_tx_de_emph;
 	u32			gen2_tx_de_emph1;
 	u32			gen2_tx_de_emph2;
 	u32			gen2_tx_de_emph3;
 	ktime_t			last_run_stop;
+	bool			is_remote_wakeup_enabled;
+	wait_queue_head_t	wait_linkstate;
+	struct work_struct	remote_wakeup_work;
+	bool			dual_port;
 
 #if IS_ENABLED(CONFIG_USB_CHARGING_EVENT)
 	struct work_struct	set_vbus_current_work;
@@ -1719,13 +1750,13 @@ static inline void dwc3_ulpi_exit(struct dwc3 *dwc)
 enum dwc3_notify_event {
 	DWC3_CONTROLLER_ERROR_EVENT,
 	DWC3_CONTROLLER_RESET_EVENT,
-	DWC3_CONTROLLER_POST_RESET_EVENT,
 	DWC3_CORE_PM_SUSPEND_EVENT,
 	DWC3_CORE_PM_RESUME_EVENT,
 	DWC3_CONTROLLER_CONNDONE_EVENT,
 	DWC3_CONTROLLER_NOTIFY_OTG_EVENT,
 	DWC3_CONTROLLER_SET_CURRENT_DRAW_EVENT,
 	DWC3_CONTROLLER_NOTIFY_DISABLE_UPDXFER,
+	DWC3_CONTROLLER_PULLUP,
 
 	/* USB GSI event buffer related notification */
 	DWC3_GSI_EVT_BUF_ALLOC,

@@ -107,10 +107,10 @@ static struct stmmac_axi *stmmac_axi_setup(struct platform_device *pdev)
 
 	axi->axi_lpi_en = of_property_read_bool(np, "snps,lpi_en");
 	axi->axi_xit_frm = of_property_read_bool(np, "snps,xit_frm");
-	axi->axi_kbbe = of_property_read_bool(np, "snps,axi_kbbe");
-	axi->axi_fb = of_property_read_bool(np, "snps,axi_fb");
-	axi->axi_mb = of_property_read_bool(np, "snps,axi_mb");
-	axi->axi_rb =  of_property_read_bool(np, "snps,axi_rb");
+	axi->axi_kbbe = of_property_read_bool(np, "snps,kbbe");
+	axi->axi_fb = of_property_read_bool(np, "snps,fb");
+	axi->axi_mb = of_property_read_bool(np, "snps,mb");
+	axi->axi_rb =  of_property_read_bool(np, "snps,rb");
 
 	if (of_property_read_u32(np, "snps,wr_osr_lmt", &axi->axi_wr_osr_lmt))
 		axi->axi_wr_osr_lmt = 1;
@@ -212,12 +212,13 @@ static int stmmac_mtl_setup(struct platform_device *pdev,
 
 		queue++;
 	}
+#ifndef CONFIG_DWMAC_QCOM_ETHQOS
 	if (queue != plat->rx_queues_to_use) {
 		ret = -EINVAL;
 		dev_err(&pdev->dev, "Not all RX queues were configured\n");
 		goto out;
 	}
-
+#endif
 	/* Processing TX queues common config */
 	if (of_property_read_u32(tx_node, "snps,tx-queues-to-use",
 				 &plat->tx_queues_to_use))
@@ -278,6 +279,7 @@ static int stmmac_mtl_setup(struct platform_device *pdev,
 
 		queue++;
 	}
+#ifndef CONFIG_DWMAC_QCOM_ETHQOS
 	if (queue != plat->tx_queues_to_use) {
 		ret = -EINVAL;
 		dev_err(&pdev->dev, "Not all TX queues were configured\n");
@@ -285,6 +287,7 @@ static int stmmac_mtl_setup(struct platform_device *pdev,
 	}
 
 out:
+#endif
 	of_node_put(rx_node);
 	of_node_put(tx_node);
 	of_node_put(q_node);
@@ -428,8 +431,7 @@ stmmac_probe_config_dt(struct platform_device *pdev, const char **mac)
 	plat->phylink_node = np;
 
 	/* Get max speed of operation from device tree */
-	if (of_property_read_u32(np, "max-speed", &plat->max_speed))
-		plat->max_speed = -1;
+	of_property_read_u32(np, "max-speed", &plat->max_speed);
 
 	plat->bus_id = of_alias_get_id(np, "ethernet");
 	if (plat->bus_id < 0)
@@ -505,6 +507,14 @@ stmmac_probe_config_dt(struct platform_device *pdev, const char **mac)
 		plat->pmt = 1;
 	}
 
+	if (of_device_is_compatible(np, "snps,dwmac-3.40a")) {
+		plat->has_gmac = 1;
+		plat->enh_desc = 1;
+		plat->tx_coe = 1;
+		plat->bugged_jumbo = 1;
+		plat->pmt = 1;
+	}
+
 	if (of_device_is_compatible(np, "snps,dwmac-4.00") ||
 	    of_device_is_compatible(np, "snps,dwmac-4.10a") ||
 	    of_device_is_compatible(np, "snps,dwmac-4.20a")) {
@@ -547,7 +557,7 @@ stmmac_probe_config_dt(struct platform_device *pdev, const char **mac)
 	dma_cfg->mixed_burst = of_property_read_bool(np, "snps,mixed-burst");
 
 	plat->force_thresh_dma_mode = of_property_read_bool(np, "snps,force_thresh_dma_mode");
-	if (plat->force_thresh_dma_mode) {
+	if (plat->force_thresh_dma_mode && plat->force_sf_dma_mode) {
 		plat->force_sf_dma_mode = 0;
 		dev_warn(&pdev->dev,
 			 "force_sf_dma_mode is ignored if force_thresh_dma_mode is set.\n");
@@ -594,6 +604,12 @@ stmmac_probe_config_dt(struct platform_device *pdev, const char **mac)
 		dev_dbg(&pdev->dev, "PTP rate %d\n", plat->clk_ptp_rate);
 	}
 
+	of_property_read_u32(np,
+			     "snps,ptp-ref-clk-rate", &plat->clk_ptp_rate);
+
+	of_property_read_u32(np,
+			     "snps,ptp-req-clk-rate", &plat->clk_ptp_req_rate);
+
 	plat->stmmac_rst = devm_reset_control_get(&pdev->dev,
 						  STMMAC_RESOURCE_NAME);
 	if (IS_ERR(plat->stmmac_rst)) {
@@ -624,6 +640,8 @@ error_pclk_get:
 void stmmac_remove_config_dt(struct platform_device *pdev,
 			     struct plat_stmmacenet_data *plat)
 {
+	clk_disable_unprepare(plat->stmmac_clk);
+	clk_disable_unprepare(plat->pclk);
 	of_node_put(plat->phy_node);
 	of_node_put(plat->mdio_node);
 }

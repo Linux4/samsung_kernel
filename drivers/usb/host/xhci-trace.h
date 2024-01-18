@@ -25,8 +25,6 @@
 #include "xhci.h"
 #include "xhci-dbgcap.h"
 
-#define XHCI_MSG_MAX	500
-
 DECLARE_EVENT_CLASS(xhci_log_msg,
 	TP_PROTO(struct va_format *vaf),
 	TP_ARGS(vaf),
@@ -122,6 +120,7 @@ DECLARE_EVENT_CLASS(xhci_log_trb,
 		__field(u32, field1)
 		__field(u32, field2)
 		__field(u32, field3)
+		__dynamic_array(char, str, XHCI_MSG_MAX)
 	),
 	TP_fast_assign(
 		__entry->type = ring->type;
@@ -131,7 +130,7 @@ DECLARE_EVENT_CLASS(xhci_log_trb,
 		__entry->field3 = le32_to_cpu(trb->field[3]);
 	),
 	TP_printk("%s: %s", xhci_ring_type_string(__entry->type),
-			xhci_decode_trb(__entry->field0, __entry->field1,
+		  xhci_decode_trb(__get_str(str), XHCI_MSG_MAX, __entry->field0, __entry->field1,
 					__entry->field2, __entry->field3)
 	)
 );
@@ -523,6 +522,7 @@ DECLARE_EVENT_CLASS(xhci_log_portsc,
 		    TP_STRUCT__entry(
 				     __field(u32, portnum)
 				     __field(u32, portsc)
+				     __dynamic_array(char, str, XHCI_MSG_MAX)
 				     ),
 		    TP_fast_assign(
 				   __entry->portnum = portnum;
@@ -530,7 +530,7 @@ DECLARE_EVENT_CLASS(xhci_log_portsc,
 				   ),
 		    TP_printk("port-%d: %s",
 			      __entry->portnum,
-			      xhci_decode_portsc(__entry->portsc)
+			      xhci_decode_portsc(__get_str(str), __entry->portsc)
 			      )
 );
 
@@ -540,6 +540,11 @@ DEFINE_EVENT(xhci_log_portsc, xhci_handle_port_status,
 );
 
 DEFINE_EVENT(xhci_log_portsc, xhci_get_port_status,
+	     TP_PROTO(u32 portnum, u32 portsc),
+	     TP_ARGS(portnum, portsc)
+);
+
+DEFINE_EVENT(xhci_log_portsc, xhci_hub_status_data,
 	     TP_PROTO(u32 portnum, u32 portsc),
 	     TP_ARGS(portnum, portsc)
 );
@@ -568,11 +573,6 @@ DEFINE_EVENT(xhci_log_doorbell, xhci_ring_ep_doorbell,
 DEFINE_EVENT(xhci_log_doorbell, xhci_ring_host_doorbell,
 	     TP_PROTO(u32 slot, u32 doorbell),
 	     TP_ARGS(slot, doorbell)
-);
-
-DEFINE_EVENT(xhci_log_portsc, xhci_hub_status_data,
-	     TP_PROTO(u32 portnum, u32 portsc),
-	     TP_ARGS(portnum, portsc)
 );
 
 DECLARE_EVENT_CLASS(xhci_dbc_log_request,

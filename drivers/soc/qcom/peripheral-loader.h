@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
- * Copyright (c) 2010-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2010-2021, The Linux Foundation. All rights reserved.
  */
 #ifndef __MSM_PERIPHERAL_LOADER_H
 #define __MSM_PERIPHERAL_LOADER_H
@@ -8,7 +8,9 @@
 #include <linux/mailbox_client.h>
 #include <linux/mailbox/qmp.h>
 #include "minidump_private.h"
-
+#ifdef CONFIG_QGKI_MSM_BOOT_TIME_MARKER
+#include <soc/qcom/boot_stats.h>
+#endif
 #define SECURE_PAGE_MAGIC 0xEEEEEEEE
 struct device;
 struct module;
@@ -91,6 +93,7 @@ struct pil_desc {
 	bool shutdown_fail;
 	bool modem_ssr;
 	bool clear_fw_region;
+	bool sequential_loading;
 	u32 subsys_vmid;
 	bool signal_aop;
 	struct mbox_client cl;

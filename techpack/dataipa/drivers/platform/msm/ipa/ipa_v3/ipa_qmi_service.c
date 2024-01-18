@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2013-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2013-2021, The Linux Foundation. All rights reserved.
  */
 
 #include <linux/module.h>
@@ -27,7 +27,7 @@
 #define IPA_Q6_SERVICE_INS_ID 2
 
 #define QMI_SEND_STATS_REQ_TIMEOUT_MS 5000
-#define QMI_SEND_REQ_TIMEOUT_MS 60000
+#define QMI_SEND_REQ_TIMEOUT_MS 10000
 #define QMI_MHI_SEND_REQ_TIMEOUT_MS 1000
 
 #define QMI_IPA_FORCE_CLEAR_DATAPATH_TIMEOUT_MS 1000
@@ -467,10 +467,19 @@ static int ipa3_qmi_send_req_wait(struct qmi_handle *client_handle,
 	struct qmi_txn txn;
 	int ret;
 
+	mutex_lock(&ipa3_qmi_lock);
+
+	if (client_handle != ipa_q6_clnt) {
+		IPADBG("Q6 QMI clinet pointer already freed\n");
+		mutex_unlock(&ipa3_qmi_lock);
+		return -EINVAL;
+	}
+
 	ret = qmi_txn_init(client_handle, &txn, resp_desc->ei_array, resp);
 
 	if (ret < 0) {
 		IPAWANERR("QMI txn init failed, ret= %d\n", ret);
+		mutex_unlock(&ipa3_qmi_lock);
 		return ret;
 	}
 
@@ -482,12 +491,16 @@ static int ipa3_qmi_send_req_wait(struct qmi_handle *client_handle,
 		req_desc->ei_array,
 		req);
 
+
+
 	if (ret < 0) {
 		qmi_txn_cancel(&txn);
+		mutex_unlock(&ipa3_qmi_lock);
 		return ret;
 	}
-	ret = qmi_txn_wait(&txn, msecs_to_jiffies(timeout_ms));
 
+	ret = qmi_txn_wait(&txn, msecs_to_jiffies(timeout_ms));
+	mutex_unlock(&ipa3_qmi_lock);
 	return ret;
 }
 
@@ -884,7 +897,6 @@ int ipa3_qmi_add_offload_request_send(
 		return -EINVAL;
 	}
 
-	/* check if the filter rules from IPACM is valid */
 	if (req->filter_spec_ex2_list_len == 0) {
 		IPAWANDBG("IPACM pass zero rules to Q6\n");
 	} else {
@@ -893,9 +905,10 @@ int ipa3_qmi_add_offload_request_send(
 	}
 
 	/* currently set total max to 64 */
-	if (req->filter_spec_ex2_list_len +
-		ipa3_qmi_ctx->num_ipa_offload_connection
-		>= QMI_IPA_MAX_FILTERS_V01) {
+	if ((ipa3_qmi_ctx->num_ipa_offload_connection < 0) ||
+		(req->filter_spec_ex2_list_len >=
+		(QMI_IPA_MAX_FILTERS_V01 -
+			ipa3_qmi_ctx->num_ipa_offload_connection))) {
 		IPAWANERR_RL(
 		"cur(%d), req(%d), exceed limit (%d)\n",
 			ipa3_qmi_ctx->num_ipa_offload_connection,
@@ -1507,9 +1520,15 @@ static void ipa3_q6_clnt_svc_arrive(struct work_struct *work)
 		IPAWANERR(
 		"ipa3_qmi_init_modem_send_sync_msg failed due to SSR!\n");
 		/* Cleanup when ipa3_wwan_remove is called */
-		qmi_handle_release(ipa_q6_clnt);
-		vfree(ipa_q6_clnt);
-		ipa_q6_clnt = NULL;
+		mutex_lock(&ipa3_qmi_lock);
+		if (ipa_q6_clnt != NULL) {
+			mutex_lock(&ipa3_qmi_lock);
+			qmi_handle_release(ipa_q6_clnt);
+			vfree(ipa_q6_clnt);
+			ipa_q6_clnt = NULL;
+		}
+		mutex_unlock(&ipa3_qmi_lock);
+		IPAWANERR("Exit from service arrive fun\n");
 		return;
 	}
 
@@ -1839,6 +1858,7 @@ void ipa3_qmi_service_exit(void)
 
 	workqueues_stopped = true;
 
+	IPADBG("Entry\n");
 	/* qmi-service */
 	if (ipa3_svc_handle != NULL) {
 		qmi_handle_release(ipa3_svc_handle);
@@ -1849,6 +1869,7 @@ void ipa3_qmi_service_exit(void)
 	/* qmi-client */
 
 	/* Release client handle */
+	mutex_lock(&ipa3_qmi_lock);
 	if (ipa_q6_clnt != NULL) {
 		qmi_handle_release(ipa_q6_clnt);
 		vfree(ipa_q6_clnt);
@@ -1860,7 +1881,6 @@ void ipa3_qmi_service_exit(void)
 	}
 
 	/* clean the QMI msg cache */
-	mutex_lock(&ipa3_qmi_lock);
 	if (ipa3_qmi_ctx != NULL) {
 		vfree(ipa3_qmi_ctx);
 		ipa3_qmi_ctx = NULL;
@@ -1871,6 +1891,7 @@ void ipa3_qmi_service_exit(void)
 	ipa3_qmi_indication_fin = false;
 	ipa3_modem_init_cmplt = false;
 	send_qmi_init_q6 = true;
+	IPADBG("Exit\n");
 }
 
 void ipa3_qmi_stop_workqueues(void)
@@ -2136,6 +2157,8 @@ int ipa3_qmi_enable_per_client_stats(
 
 	IPAWANDBG("Sending QMI_IPA_ENABLE_PER_CLIENT_STATS_REQ_V01\n");
 
+	if (unlikely(!ipa_q6_clnt))
+		return -ETIMEDOUT;
 	rc = ipa3_qmi_send_req_wait(ipa_q6_clnt,
 		&req_desc, req,
 		&resp_desc, resp,
@@ -2173,6 +2196,8 @@ int ipa3_qmi_get_per_client_packet_stats(
 
 	IPAWANDBG("Sending QMI_IPA_GET_STATS_PER_CLIENT_REQ_V01\n");
 
+	if (unlikely(!ipa_q6_clnt))
+		return -ETIMEDOUT;
 	rc = ipa3_qmi_send_req_wait(ipa_q6_clnt,
 		&req_desc, req,
 		&resp_desc, resp,
@@ -2230,6 +2255,8 @@ int ipa3_qmi_send_mhi_cleanup_request(struct ipa_mhi_cleanup_req_msg_v01 *req)
 	resp_desc.msg_id = QMI_IPA_MHI_CLEANUP_RESP_V01;
 	resp_desc.ei_array = ipa_mhi_cleanup_resp_msg_v01_ei;
 
+	if (unlikely(!ipa_q6_clnt))
+		return -ETIMEDOUT;
 	rc = ipa3_qmi_send_req_wait(ipa_q6_clnt,
 		&req_desc, req,
 		&resp_desc, &resp,

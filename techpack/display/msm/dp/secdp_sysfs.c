@@ -1,5 +1,6 @@
+// SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2017, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -16,7 +17,7 @@
 #include <linux/device.h>
 #include <drm/drm_edid.h>
 #include <linux/string.h>
-#ifdef CONFIG_SEC_DISPLAYPORT_BIGDATA
+#if defined(CONFIG_SEC_DISPLAYPORT_BIGDATA)
 #include <linux/displayport_bigdata.h>
 #endif
 
@@ -101,6 +102,8 @@ exit:
 static CLASS_ATTR_WO(dp_sbu_sw_sel);
 #endif
 
+#define SECDP_DEX_ADAPTER_SKIP	"SkipAdapterCheck"
+
 static ssize_t dex_show(struct class *class,
 				struct class_attribute *attr, char *buf)
 {
@@ -115,8 +118,9 @@ static ssize_t dex_show(struct class *class,
 		dex->prev = dex->curr = dex->status = DEX_DISABLED;
 	}
 
-	DP_INFO("prev: %d, curr: %d, status: %d\n",
-			dex->prev, dex->curr, dex->status);
+	DP_INFO("prev:%d, curr:%d, status:%d, %s:%d\n",
+			dex->prev, dex->curr, dex->status,
+			SECDP_DEX_ADAPTER_SKIP, secdp_dex_adapter_skip_show());
 	rc = scnprintf(buf, PAGE_SIZE, "%d\n", dex->status);
 
 	if (dex->status == DEX_DURING_MODE_CHANGE)
@@ -166,28 +170,19 @@ static ssize_t dex_store(struct class *class,
 	len = strlen(tok);
 	DP_DEBUG("tok: %s, len: %d\n", tok, len);
 
-	if (!strncmp(DEX_TAG_HMD, tok, len)) {
-		/* called by HmtManager to inform list of supported HMD devices
-		 *
-		 * Format :
-		 *   HMD,NUM,NAME01,VID01,PID01,NAME02,VID02,PID02,...
-		 *
-		 *   HMD  : tag
-		 *   NUM  : num of HMD dev ..... max 2 bytes to decimal (max 32)
-		 *   NAME : name of HMD ...... max 14 bytes, char string
-		 *   VID  : vendor  id ....... 4 bytes to hexadecimal
-		 *   PID  : product id ....... 4 bytes to hexadecimal
-		 *
-		 * ex) HMD,2,PicoVR,2d40,0000,Nreal light,0486,573c
-		 *
-		 * call hmd store function with tag(HMD),NUM removed
-		 */
+	if (len && !strncmp(DEX_TAG_HMD, tok, len)) {
 		int num_hmd = 0, sz = 0, ret;
 
 		tok = strsep(&p, ",");
+		if (!tok) {
+			DP_ERR("wrong input!\n");
+			mutex_unlock(&sec->hmd.lock);
+			goto exit;
+		}
 		sz  = strlen(tok);
 		ret = kstrtouint(tok, 10, &num_hmd);
-		DP_DEBUG("HMD num: %d, sz:%d, ret:%d\n", num_hmd, sz, ret);
+		DP_DEBUG("[%s] num:%d,sz:%d,ret:%d\n", DEX_TAG_HMD,
+			num_hmd, sz, ret);
 		if (!ret) {
 			ret = secdp_store_hmd_dev(str + (len + sz + 2),
 					size - (len + sz + 2), num_hmd);
@@ -200,12 +195,33 @@ static ssize_t dex_store(struct class *class,
 	}
 	mutex_unlock(&sec->hmd.lock);
 
+	if (len && !strncmp(SECDP_DEX_ADAPTER_SKIP, tok, len)) {
+		int param = 0, sz = 0, ret;
+
+		tok = strsep(&p, ",");
+		if (!tok) {
+			DP_ERR("wrong input!\n");
+			goto exit;
+		}
+		sz  = strlen(tok);
+		ret = kstrtouint(tok, 2, &param);
+		if (ret) {
+			DP_ERR("error:%d\n", ret);
+			goto exit;
+		}
+
+		DP_DEBUG("[%s] param:%d,sz:%d,ret:%d\n", SECDP_DEX_ADAPTER_SKIP,
+			param, sz, ret);
+
+		secdp_dex_adapter_skip_store((!param) ? false : true);
+		goto exit;
+	}
+
 	get_options(buf, ARRAY_SIZE(val), val);
-	DP_INFO("%d(0x%02x)\n", val[1], val[1]);
 	setting_ui = (val[1] & 0xf0) >> 4;
 	run = (val[1] & 0x0f);
 
-	DP_INFO("setting_ui: %d, run: %d, cable: %d\n",
+	DP_INFO("0x%02x setting_ui:%d run:%d cable:%d\n", val[1],
 		setting_ui, run, sec->cable_connected);
 
 	dex->setting_ui = setting_ui;
@@ -215,17 +231,15 @@ static ssize_t dex_store(struct class *class,
 	if (!pdic_noti->registered) {
 		int rc;
 
-		DP_DEBUG("notifier get registered by dex\n");
-
 		/* cancel immediately */
 		rc = cancel_delayed_work(&pdic_noti->reg_work);
-		DP_DEBUG("cancel_work, rc(%d)\n", rc);
+		DP_DEBUG("notifier get registered by dex, cancel:%d\n", rc);
 		destroy_delayed_work_on_stack(&pdic_noti->reg_work);
 
 		/* register */
 		rc = secdp_pdic_noti_register_ex(sec, false);
 		if (rc)
-			DP_ERR("noti register fail, rc(%d)\n", rc);
+			DP_ERR("noti register fail, rc:%d\n", rc);
 
 		mutex_unlock(&sec->notifier_lock);
 		goto exit;
@@ -253,12 +267,12 @@ static ssize_t dex_store(struct class *class,
 	}
 
 	if (dex->curr != dex->setting_ui) {
-		DP_INFO("values of cur(%d) and setting_ui(%d) are difference\n",
+		DP_INFO("values of cur(%d) and setting_ui(%d) are different\n",
 			dex->curr, dex->setting_ui);
 		goto exit;
 	}
 
-#ifdef CONFIG_SEC_DISPLAYPORT_BIGDATA
+#if defined(CONFIG_SEC_DISPLAYPORT_BIGDATA)
 	if (run)
 		secdp_bigdata_save_item(BD_DP_MODE, "DEX");
 	else
@@ -270,13 +284,12 @@ static ssize_t dex_store(struct class *class,
 		goto exit;
 	}
 
-	if (!secdp_check_dex_reconnect()) {
+	if (!secdp_check_reconnect()) {
 		DP_INFO("not need reconnect\n");
 		goto exit;
 	}
 
-	secdp_dex_do_reconnecting();
-
+	secdp_reconnect();
 	dex->prev = run;
 exit:
 	return size;
@@ -288,15 +301,14 @@ static ssize_t dex_ver_show(struct class *class,
 				struct class_attribute *attr, char *buf)
 {
 	struct secdp_sysfs_private *sysfs = g_secdp_sysfs;
-	struct secdp_misc *sec = sysfs->sec;
-	struct secdp_dex *dex = &sec->dex;
+	struct secdp_adapter *adapter = &sysfs->sec->adapter;
 	int rc;
 
 	DP_INFO("branch revision: HW(0x%X), SW(0x%X, 0x%X)\n",
-		dex->fw_ver[0], dex->fw_ver[1], dex->fw_ver[2]);
+		adapter->fw_ver[0], adapter->fw_ver[1], adapter->fw_ver[2]);
 
 	rc = scnprintf(buf, PAGE_SIZE, "%02X%02X\n",
-		dex->fw_ver[1], dex->fw_ver[2]);
+		adapter->fw_ver[1], adapter->fw_ver[2]);
 
 	return rc;
 }
@@ -343,7 +355,7 @@ exit:
 
 static CLASS_ATTR_RO(monitor_info);
 
-#ifdef CONFIG_SEC_DISPLAYPORT_BIGDATA
+#if defined(CONFIG_SEC_DISPLAYPORT_BIGDATA)
 static ssize_t dp_error_info_show(struct class *class,
 		struct class_attribute *attr, char *buf)
 {
@@ -657,7 +669,7 @@ error:
 static CLASS_ATTR_RW(dp_edid);
 #endif
 
-#ifdef CONFIG_SEC_DISPLAYPORT_ENG
+#if defined(CONFIG_SEC_DISPLAYPORT_ENG)
 static ssize_t dp_forced_resolution_show(struct class *class,
 				struct class_attribute *attr, char *buf)
 {
@@ -681,9 +693,12 @@ static ssize_t dp_forced_resolution_show(struct class *class,
 	rc += scnprintf(buf + rc, PAGE_SIZE - rc, "\n< HMD >\n%s\n", tmp);
 
 	memset(tmp, 0, ARRAY_SIZE(tmp));
-
 	secdp_show_phy_param(tmp);
 	rc += scnprintf(buf + rc, PAGE_SIZE - rc, "\n< DP-PHY >\n%s\n", tmp);
+
+	memset(tmp, 0, ARRAY_SIZE(tmp));
+	secdp_show_link_param(tmp);
+	rc += scnprintf(buf + rc, PAGE_SIZE - rc, "\n< link params >\n%s\n", tmp);
 
 	return rc;
 }
@@ -700,11 +715,34 @@ static ssize_t dp_forced_resolution_store(struct class *dev,
 
 	get_options(buf, ARRAY_SIZE(val), val);
 
+#if 0/*blocked for future test*/
+{
+	char str[MAX_DEX_STORE_LEN] = {0,}, *p, *tok;
+	int len;
+
+	if (size >= MAX_DEX_STORE_LEN) {
+		DP_ERR("too long args! %d\n", size);
+		goto exit;
+	}
+
+	memcpy(str, buf, size);
+	p   = str;
+	tok = strsep(&p, ",");
+	if (!p)
+		goto exit;
+
+	len = strlen(tok);
+	if (!len)
+		goto exit;
+
+	DP_DEBUG("tok:%s, len:%d\n", tok, len);
+}
+#endif
+
 	if (val[1] <= 0)
 		forced_resolution = 0;
 	else
 		forced_resolution = val[1];
-
 exit:
 	return size;
 }
@@ -822,10 +860,17 @@ static ssize_t dp_vx_lvl_store(struct class *dev,
 		struct class_attribute *attr, const char *buf, size_t size)
 {
 	char tmp[SZ_64] = {0,};
+	int len = min(sizeof(tmp), size);
 
-	memcpy(tmp, buf, min(ARRAY_SIZE(tmp), size));
+	if (!len || len >= SZ_64) {
+		DP_ERR("wrong length! %d\n", len);
+		goto end;
+	}
+
+	memcpy(tmp, buf, len);
+	tmp[SZ_64 - 1] = '\0';
 	secdp_parse_vxpx_store(DP_HW_LEGACY, DP_PARAM_VX, tmp);
-
+end:
 	return size;
 }
 
@@ -847,10 +892,17 @@ static ssize_t dp_px_lvl_store(struct class *dev,
 		struct class_attribute *attr, const char *buf, size_t size)
 {
 	char tmp[SZ_64] = {0,};
+	int len = min(sizeof(tmp), size);
 
-	memcpy(tmp, buf, min(ARRAY_SIZE(tmp), size));
+	if (!len || len >= SZ_64) {
+		DP_ERR("wrong length! %d\n", len);
+		goto end;
+	}
+
+	memcpy(tmp, buf, len);
+	tmp[SZ_64 - 1] = '\0';
 	secdp_parse_vxpx_store(DP_HW_LEGACY, DP_PARAM_PX, tmp);
-
+end:
 	return size;
 }
 
@@ -872,10 +924,17 @@ static ssize_t dp_vx_lvl_hbr2_hbr3_store(struct class *dev,
 		struct class_attribute *attr, const char *buf, size_t size)
 {
 	char tmp[SZ_64] = {0,};
+	int len = min(sizeof(tmp), size);
 
-	memcpy(tmp, buf, min(ARRAY_SIZE(tmp), size));
+	if (!len || len >= SZ_64) {
+		DP_ERR("wrong length! %d\n", len);
+		goto end;
+	}
+
+	memcpy(tmp, buf, len);
+	tmp[SZ_64 - 1] = '\0';
 	secdp_parse_vxpx_store(DP_HW_V123_HBR2_HBR3, DP_PARAM_VX, tmp);
-
+end:
 	return size;
 
 }
@@ -898,10 +957,17 @@ static ssize_t dp_px_lvl_hbr2_hbr3_store(struct class *dev,
 		struct class_attribute *attr, const char *buf, size_t size)
 {
 	char tmp[SZ_64] = {0,};
+	int len = min(sizeof(tmp), size);
 
-	memcpy(tmp, buf, min(ARRAY_SIZE(tmp), size));
+	if (!len || len >= SZ_64) {
+		DP_ERR("wrong length! %d\n", len);
+		goto end;
+	}
+
+	memcpy(tmp, buf, len);
+	tmp[SZ_64 - 1] = '\0';
 	secdp_parse_vxpx_store(DP_HW_V123_HBR2_HBR3, DP_PARAM_PX, tmp);
-
+end:
 	return size;
 }
 
@@ -923,10 +989,17 @@ static ssize_t dp_vx_lvl_hbr_rbr_store(struct class *dev,
 		struct class_attribute *attr, const char *buf, size_t size)
 {
 	char tmp[SZ_64] = {0,};
+	int len = min(sizeof(tmp), size);
 
-	memcpy(tmp, buf, min(ARRAY_SIZE(tmp), size));
+	if (!len || len >= SZ_64) {
+		DP_ERR("wrong length! %d\n", len);
+		goto end;
+	}
+
+	memcpy(tmp, buf, len);
+	tmp[SZ_64 - 1] = '\0';
 	secdp_parse_vxpx_store(DP_HW_V123_HBR_RBR, DP_PARAM_VX, tmp);
-
+end:
 	return size;
 }
 
@@ -948,10 +1021,17 @@ static ssize_t dp_px_lvl_hbr_rbr_store(struct class *dev,
 		struct class_attribute *attr, const char *buf, size_t size)
 {
 	char tmp[SZ_64] = {0,};
+	int len = min(sizeof(tmp), size);
 
-	memcpy(tmp, buf, min(ARRAY_SIZE(tmp), size));
+	if (!len || len >= SZ_64) {
+		DP_ERR("wrong length! %d\n", len);
+		goto end;
+	}
+
+	memcpy(tmp, buf, len);
+	tmp[SZ_64 - 1] = '\0';
 	secdp_parse_vxpx_store(DP_HW_V123_HBR_RBR, DP_PARAM_PX, tmp);
-
+end:
 	return size;
 }
 
@@ -1038,7 +1118,7 @@ enum {
 	DEX = 0,
 	DEX_VER,
 	MONITOR_INFO,
-#ifdef CONFIG_SEC_DISPLAYPORT_BIGDATA
+#if defined(CONFIG_SEC_DISPLAYPORT_BIGDATA)
 	DP_ERROR_INFO,
 #endif
 #ifdef CONFIG_SEC_FACTORY
@@ -1048,7 +1128,7 @@ enum {
 	DP_SELF_TEST,
 	DP_EDID,
 #endif
-#ifdef CONFIG_SEC_DISPLAYPORT_ENG
+#if defined(CONFIG_SEC_DISPLAYPORT_ENG)
 	DP_FORCED_RES,
 	DP_UNIT_TEST,
 	DP_AUX_CFG,
@@ -1068,7 +1148,7 @@ static struct attribute *secdp_class_attrs[] = {
 	[DEX]		= &class_attr_dex.attr,
 	[DEX_VER]	= &class_attr_dex_ver.attr,
 	[MONITOR_INFO]	= &class_attr_monitor_info.attr,
-#ifdef CONFIG_SEC_DISPLAYPORT_BIGDATA
+#if defined(CONFIG_SEC_DISPLAYPORT_BIGDATA)
 	[DP_ERROR_INFO] = &class_attr_dp_error_info.attr,
 #endif
 #ifdef CONFIG_SEC_FACTORY
@@ -1078,7 +1158,7 @@ static struct attribute *secdp_class_attrs[] = {
 	[DP_SELF_TEST]	= &class_attr_dp_self_test.attr,
 	[DP_EDID]	= &class_attr_dp_edid.attr,
 #endif
-#ifdef CONFIG_SEC_DISPLAYPORT_ENG
+#if defined(CONFIG_SEC_DISPLAYPORT_ENG)
 	[DP_FORCED_RES]	= &class_attr_dp_forced_resolution.attr,
 	[DP_UNIT_TEST]	= &class_attr_dp_unit_test.attr,
 	[DP_AUX_CFG]	= &class_attr_dp_aux_cfg.attr,
@@ -1126,7 +1206,7 @@ struct secdp_sysfs *secdp_sysfs_init(void)
 
 	sysfs->dp_class = dp_class;
 
-#ifdef CONFIG_SEC_DISPLAYPORT_BIGDATA
+#if defined(CONFIG_SEC_DISPLAYPORT_BIGDATA)
 	secdp_bigdata_init(dp_class);
 #endif
 

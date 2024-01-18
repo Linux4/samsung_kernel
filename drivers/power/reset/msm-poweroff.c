@@ -440,6 +440,10 @@ static void msm_restart_prepare(const char *cmd)
 		if (!strncmp(cmd, "bootloader", 10)) {
 			reason = PON_RESTART_REASON_BOOTLOADER;
 			__raw_writel(0x77665500, restart_reason);
+		} else if (!strncmp(cmd, "recovery-update", 15)) {
+			qpnp_pon_set_restart_reason(
+				PON_RESTART_REASON_RECOVERY_UPDATE);
+			__raw_writel(0x776655cc, restart_reason);
 		} else if (!strncmp(cmd, "recovery", 8)) {
 			reason = PON_RESTART_REASON_RECOVERY;
 			__raw_writel(0x77665502, restart_reason);

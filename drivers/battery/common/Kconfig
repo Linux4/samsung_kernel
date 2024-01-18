@@ -142,14 +142,14 @@ config LIMIT_CHARGING_DURING_CALL
 	  some models support this for limiting charging current,
 	  then it make Y.
 
-config DUAL_BATTERY
-    bool "DUAL BATTERY support"
-    depends on I2C
-    help
+config TABLET_MODEL_CONCEPT
+	bool "tablet model concept"
+	default n
+	help
 	  Say Y here to enable
-	  support for dual battery.
-	  This integrated all dual-battery related functions.
-	  it needs dual battery tables.
+	  do not enable for cellphone models.
+	  tablet models support this for charging,
+	  then it make Y.
 
 config PREVENT_USB_CONN_OVERHEAT
     bool "enable prevent usb conn overheat"
@@ -186,13 +186,120 @@ config SUPPORT_SHIP_MODE
 	  If this is N in models,
 	  not support to ship mode.
 
-endmenu
+config SUPPORT_HV_CTRL
+    bool "support for controlling voltage"
+    default n
+    help
+	  Say Y here to enable
+	  support for controlling voltage
+	  If this is N in models,
+	  not support to control voltage.
+
+config SEC_BATTERY_TEST
+	bool "KUnit test for sec_battery_test"
+	depends on SEC_KUNIT
+	help
+    	  Say Y here to enable
+	  support to kunit test.
+	  for kunitest
+          for sec_battery_test
+
+config SEC_BATTERY_WC_TEST
+	bool "KUnit test for sec_battery_wc_test"
+	depends on SEC_KUNIT
+	help
+    	  Say Y here to enable
+	  support to kunit test.
+	  for kunitest
+          for sec_battery_wc_test
+
+config SEC_BATTERY_THERMAL_TEST
+	bool "KUnit test for sec_battery_thermal_test"
+	depends on SEC_KUNIT
+	help
+    	  Say Y here to enable
+	  support to kunit test.
+	  for kunitest
+          for sec_battery_thermal_test
 
 config SEC_BATTERY_VOTE_TEST
     bool "KUnit test for sec_battery_vote_test"
-    depends on KUNIT
+    depends on SEC_KUNIT
     help
     	  Say Y here to enable
+	  support to kunit test.
 	  for kunitest
           for sec_battery_vote_test
 
+config SEC_CISD_TEST
+	bool "KUnit test for sec_cisd_test"
+	depends on SEC_KUNIT
+	help
+    	  Say Y here to enable
+	  support to kunit test.
+	  for kunitest
+          for sec_cisd_test
+
+config SEC_ADC_TEST
+	bool "KUnit test for sec_adc_test"
+	depends on SEC_KUNIT
+	help
+    	  Say Y here to enable
+	  support to kunit test.
+	  for kunitest
+          for sec_adc_test
+
+config SEC_BATTERY_SYSFS_TEST
+	bool "KUnit test for sec_battery_sysfs_test"
+	depends on SEC_KUNIT
+	help
+    	  Say Y here to enable
+	  support to kunit test.
+	  for kunitest
+          for sec_battery_sysfs_test
+
+config SEC_BATTERY_TTF_TEST
+	bool "KUnit test for sec_battery_ttf_test"
+	depends on SEC_KUNIT
+	help
+    	  Say Y here to enable
+	  support to kunit test.
+	  for kunitest
+          for sec_battery_ttf_test
+
+config SEC_STEP_CHARGING_TEST
+	tristate "KUnit test for sec_step_charging_test"
+	depends on SEC_KUNIT
+	help
+    	  Say Y here to enable
+	  support to kunit test.
+	  for kunitest
+          for sec_step_charging_test
+
+config SEC_PD_TEST
+	bool "KUnit test for sec_pd_test"
+	depends on SEC_KUNIT
+	help
+    	  Say Y here to enable
+	  support to kunit test.
+	  for kunitest
+          for sec_pd_test
+
+config SEC_BATTERY_DT_TEST
+	bool "KUnit test for sec_battery_dt_test"
+	depends on SEC_KUNIT
+	help
+    	  Say Y here to enable
+	  support to kunit test.
+	  for kunitest
+          for sec_pd_test
+
+config SEC_BATTERY_MISC_TEST
+	bool "KUnit test for sec_battery_misc_test"
+	depends on SEC_KUNIT
+	help
+    	  Say Y here to enable
+	  support to kunit test.
+	  for kunitest
+          for sec_pd_test
+endmenu

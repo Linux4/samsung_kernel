@@ -25,6 +25,9 @@
 #endif
 
 #include <soc/qcom/subsystem_restart.h>
+#ifdef CONFIG_SENSORS_SSC
+#include <linux/adsp/ssc_ssr_reason.h>
+#endif
 #if defined(CONFIG_SEC_FACTORY) && defined(CONFIG_SUPPORT_DUAL_6AXIS)
 static bool pretest = false;
 #endif
@@ -269,6 +272,9 @@ static ssize_t slpi_ssr_store(struct kobject *kobj,
 	struct subsys_device *sns_dev = NULL;
 	struct platform_device *pdev = slpi_private;
 	struct slpi_loader_private *priv = NULL;
+#ifdef CONFIG_SENSORS_SSC
+	char *reason = "slpi_ssr_store";
+#endif
 
 	pr_debug("%s: going to call slpi_ssr\n", __func__);
 
@@ -330,6 +336,9 @@ static ssize_t slpi_ssr_store(struct kobject *kobj,
 		fw_idx = SSC_SPU;
 		spu_update_done = true;
 	}
+#endif
+#ifdef CONFIG_SENSORS_SSC
+	ssr_reason_call_back(reason, strlen(reason) + 1);
 #endif
 	/* subsystem_restart_dev has worker queue to handle */
 	if (subsystem_restart_dev(sns_dev) != 0) {

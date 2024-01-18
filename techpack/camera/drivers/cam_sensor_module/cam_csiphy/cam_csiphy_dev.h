@@ -233,6 +233,7 @@ struct cam_csiphy_param {
 	uint16_t                   mipi_flags;
 	uint64_t                   csiphy_cpas_cp_reg_mask;
 	struct csiphy_hdl_tbl      hdl_data;
+	uint16_t                   shooting_mode;
 };
 
 /**

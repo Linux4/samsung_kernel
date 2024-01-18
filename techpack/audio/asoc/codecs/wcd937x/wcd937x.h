@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /* Copyright (c) 2018, 2020 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _WCD937X_H
@@ -15,6 +16,11 @@
 struct wcd937x_swr_slave_ch_map {
 	u8 ch_type;
 	u8 index;
+};
+
+enum {
+	WCD9370_VARIANT = 0,
+	WCD9375_VARIANT = 5,
 };
 
 static const struct wcd937x_swr_slave_ch_map wcd937x_swr_slv_tx_ch_idx[] = {
@@ -45,11 +51,23 @@ static int wcd937x_swr_master_ch_map[] = {
 	SWRM_TX3_CH3,
 	SWRM_TX3_CH4,
 	SWRM_PCM_IN,
+	ADC1,
+	ADC3,
+	ADC4,
+	DMIC0,
+	DMIC1,
+	DMIC2,
+	DMIC4,
+	DMIC5,
+	DMIC6,
+	DMIC7,
 };
 
 #ifdef CONFIG_SND_SOC_WCD937X
 extern int wcd937x_info_create_codec_entry(struct snd_info_entry *codec_root,
 				    struct snd_soc_component *component);
+
+extern int wcd937x_get_codec_variant(struct snd_soc_component *component);
 
 static inline int wcd937x_slave_get_master_ch_val(int ch)
 {
@@ -91,6 +109,10 @@ static inline int wcd937x_slave_get_master_ch(int idx)
 	return 0;
 }
 static inline int wcd937x_slave_get_slave_ch_val(int ch)
+{
+	return 0;
+}
+static inline int wcd937x_get_codec_variant(struct snd_soc_component *component)
 {
 	return 0;
 }

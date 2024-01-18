@@ -399,6 +399,10 @@ static int cam_a5_power_resume(struct cam_hw_info *a5_info, bool debug_enabled)
 {
 	uint32_t val = A5_CSR_FULL_CPU_EN;
 	void __iomem *base;
+#if defined(CONFIG_SEC_B2Q_PROJECT) || defined(CONFIG_SEC_Q2Q_PROJECT)
+	struct cam_hw_soc_info *soc_info = NULL;
+	struct a5_soc_info *a5_soc_info;
+#endif
 
 	if (!a5_info) {
 		CAM_ERR(CAM_ICP, "invalid A5 device info");
@@ -406,6 +410,10 @@ static int cam_a5_power_resume(struct cam_hw_info *a5_info, bool debug_enabled)
 	}
 
 	base = a5_info->soc_info.reg_map[A5_SIERRA_BASE].mem_base;
+#if defined(CONFIG_SEC_B2Q_PROJECT) || defined(CONFIG_SEC_Q2Q_PROJECT)
+	soc_info = &a5_info->soc_info;
+	a5_soc_info = soc_info->soc_private;
+#endif
 
 	cam_io_w_mb(A5_CSR_A5_CPU_EN, base + ICP_SIERRA_A5_CSR_A5_CONTROL);
 	cam_io_w_mb(A5_CSR_FUNC_RESET, base + ICP_SIERRA_A5_CSR_NSEC_RESET);
@@ -414,6 +422,13 @@ static int cam_a5_power_resume(struct cam_hw_info *a5_info, bool debug_enabled)
 		val |= A5_CSR_FULL_DBG_EN;
 
 	cam_io_w_mb(val, base + ICP_SIERRA_A5_CSR_A5_CONTROL);
+#if defined(CONFIG_SEC_B2Q_PROJECT) || defined(CONFIG_SEC_Q2Q_PROJECT)
+	cam_io_w_mb(a5_soc_info->a5_qos_val,
+		base + ICP_SIERRA_A5_CSR_ACCESS);
+
+	CAM_DBG(CAM_ICP, "a5 qos-val : 0x%x",
+		cam_io_r_mb(base + ICP_SIERRA_A5_CSR_ACCESS));
+#endif
 
 	return 0;
 }

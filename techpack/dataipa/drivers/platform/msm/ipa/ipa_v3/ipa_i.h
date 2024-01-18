@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
- * Copyright (c) 2012-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2012-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _IPA3_I_H_
@@ -454,6 +455,8 @@ enum {
 
 #define MBOX_TOUT_MS 100
 
+#define IPA_RULE_CNT_MAX 512
+
 /* miscellaneous for rmnet_ipa and qmi_service */
 enum ipa_type_mode {
 	IPA_HW_TYPE,
@@ -504,11 +507,13 @@ enum ipa3_wdi_polling_mode {
  * @page: skb page
  * @dma_addr: DMA address of this Rx packet
  * @is_tmp_alloc: skb page from tmp_alloc or recycle_list
+ * @page_order: page order associated with the page.
  */
 struct ipa_rx_page_data {
 	struct page *page;
 	dma_addr_t dma_addr;
 	bool is_tmp_alloc;
+	u32 page_order;
 };
 
 struct ipa3_active_client_htable_entry {
@@ -542,6 +547,7 @@ struct ipa_smmu_cb_ctx {
 	u32 va_end;
 	bool shared;
 	bool is_cache_coherent;
+	bool done;
 };
 
 /**
@@ -1442,7 +1448,9 @@ struct ipa3_stats {
 	u32 flow_disable;
 	u32 tx_non_linear;
 	u32 rx_page_drop_cnt;
+	u64 lower_order;
 	struct ipa3_page_recycle_stats page_recycle_stats[2];
+	u32 pipe_setup_fail_cnt;
 };
 
 /* offset for each stats */
@@ -1702,6 +1710,7 @@ struct ipa3_smp2p_info {
 	u32 in_base_id;
 	bool ipa_clk_on;
 	bool res_sent;
+	bool disabled;
 	unsigned int smem_bit;
 	struct qcom_smem_state *smem_state;
 };
@@ -1793,9 +1802,9 @@ enum ipa_client_cb_type {
  */
 struct ipa_flt_rt_counter {
 	struct idr hdl;
+	spinlock_t hdl_lock;
 	bool used_hw[IPA_FLT_RT_HW_COUNTER];
 	bool used_sw[IPA_FLT_RT_SW_COUNTER];
-	spinlock_t hdl_lock;
 };
 
 /**
@@ -1946,6 +1955,11 @@ struct ipa3_app_clock_vote {
  * @rmnet_ctl_enable: enable pipe support fow low latency data
  * @gsi_fw_file_name: GSI IPA fw file name
  * @uc_fw_file_name: uC IPA fw file name
+ * @manual_fw_load: bool,if fw load is done manually
+ * @max_num_smmu_cb: number of smmu s1 cb supported
+ * @ipa_config_is_auto: flag to indicate auto config 
+ * @is_eth_bridging_supported: Flag to check eth bridging supported or not
+ * @is_bw_monitor_supported: Flag to check BW monitor supported or not.
  */
 struct ipa3_context {
 	struct ipa3_char_device_context cdev;
@@ -2024,6 +2038,7 @@ struct ipa3_context {
 	enum gsi_ver gsi_ver;
 	enum ipa3_platform_type platform_type;
 	bool ipa_config_is_mhi;
+	bool ipa_config_is_auto;
 	bool use_ipa_teth_bridge;
 	bool modem_cfg_emb_pipe_flt;
 	bool ipa_wdi2;
@@ -2115,6 +2130,8 @@ struct ipa3_context {
 	bool (*get_teth_port_state[IPA_MAX_CLNT])(void);
 
 	atomic_t is_ssr;
+	bool deepsleep;
+	void *subsystem_get_retval;
 	struct IpaHwOffloadStatsAllocCmdData_t
 		gsi_info[IPA_HW_PROTOCOL_MAX];
 	bool ipa_wan_skb_page;
@@ -2137,6 +2154,17 @@ struct ipa3_context {
 	char *uc_fw_file_name;
 	bool gsi_wdi_db_polling;
 	u32 ipa_wan_aggr_pkt_cnt;
+	bool manual_fw_load;
+	u32 num_smmu_cb_probed;
+	u32 max_num_smmu_cb;
+	bool ipa_endp_delay_wa_v2;
+	bool is_eth_bridging_supported;
+	bool is_bw_monitor_supported;
+	bool modem_load_ipa_fw;
+	bool fnr_stats_not_supported;
+	bool is_device_crashed;
+	int ipa_pil_load;
+
 };
 
 struct ipa3_plat_drv_res {
@@ -2202,6 +2230,14 @@ struct ipa3_plat_drv_res {
 	u32 tx_wrapper_cache_max_size;
 	bool gsi_wdi_db_polling;
 	u32 ipa_wan_aggr_pkt_cnt;
+	bool manual_fw_load;
+	bool ipa_config_is_auto;
+	u32 max_num_smmu_cb;
+	bool ipa_endp_delay_wa_v2;
+	bool is_eth_bridging_supported;
+	bool is_bw_monitor_supported;
+	bool modem_load_ipa_fw;
+	bool fnr_stats_not_supported;
 };
 
 /**
@@ -2477,8 +2513,7 @@ int ipa3_start_stop_client_prod_gsi_chnl(enum ipa_client_type client,
 		bool start_chnl);
 void ipa3_client_prod_post_shutdown_cleanup(void);
 
-
-int ipa3_set_reset_client_cons_pipe_sus_holb(bool set_reset,
+int ipa3_set_reset_client_cons_pipe_sus_holb(bool set_reset, u32 tmr_val,
 		enum ipa_client_type client);
 
 int ipa3_xdci_suspend(u32 ul_clnt_hdl, u32 dl_clnt_hdl,
@@ -2780,6 +2815,7 @@ bool ipa3_is_client_handle_valid(u32 clnt_hdl);
 
 enum ipa_client_type ipa3_get_client_mapping(int pipe_idx);
 enum ipa_client_type ipa3_get_client_by_pipe(int pipe_idx);
+u32 ipa3_get_qmap_id(int pipe_idx);
 
 void ipa_init_ep_flt_bitmap(void);
 
@@ -2840,6 +2876,8 @@ int ipa3_inc_client_enable_clks_no_block(struct ipa_active_client_logging_info
 		*id);
 void ipa3_dec_client_disable_clks_no_block(
 	struct ipa_active_client_logging_info *id);
+void ipa3_dec_client_disable_clks_delay_wq(
+		struct ipa_active_client_logging_info *id, unsigned long delay);
 void ipa3_active_clients_log_dec(struct ipa_active_client_logging_info *id,
 		bool int_ctx);
 void ipa3_active_clients_log_inc(struct ipa_active_client_logging_info *id,
@@ -2894,6 +2932,7 @@ void ipa3_skb_recycle(struct sk_buff *skb);
 void ipa3_install_dflt_flt_rules(u32 ipa_ep_idx);
 void ipa3_delete_dflt_flt_rules(u32 ipa_ep_idx);
 
+int ipa3_remove_secondary_flow_ctrl(int gsi_chan_hdl);
 int ipa3_enable_data_path(u32 clnt_hdl);
 int ipa3_disable_data_path(u32 clnt_hdl);
 int ipa3_disable_gsi_data_path(u32 clnt_hdl);
@@ -2942,6 +2981,7 @@ int ipa3_uc_send_cmd(u32 cmd, u32 opcode, u32 expected_status,
 void ipa3_uc_register_handlers(enum ipa3_hw_features feature,
 			      struct ipa3_uc_hdlrs *hdlrs);
 int ipa3_uc_notify_clk_state(bool enabled);
+void ipa3_uc_interface_destroy(void);
 int ipa3_dma_setup(void);
 void ipa3_dma_shutdown(void);
 void ipa3_dma_async_memcpy_notify_cb(void *priv,
@@ -3084,12 +3124,15 @@ int ipa3_smmu_map_peer_reg(phys_addr_t phys_addr, bool map,
 	enum ipa_smmu_cb_type cb_type);
 int ipa3_smmu_map_peer_buff(u64 iova, u32 size, bool map, struct sg_table *sgt,
 	enum ipa_smmu_cb_type cb_type);
+int ipa3_smmu_map_ctg(u64 iova, u32 size, bool map, phys_addr_t pa,
+	enum ipa_smmu_cb_type cb_type);
 void ipa3_reset_freeze_vote(void);
 int ipa3_ntn_init(void);
 int ipa3_get_ntn_stats(struct Ipa3HwStatsNTNInfoData_t *stats);
 struct dentry *ipa_debugfs_get_root(void);
 void ipa3_enable_dcd(void);
 void ipa3_disable_prefetch(enum ipa_client_type client);
+void ipa3_dealloc_common_event_ring(void);
 int ipa3_alloc_common_event_ring(void);
 int ipa3_allocate_dma_task_for_gsi(void);
 void ipa3_free_dma_task_for_gsi(void);

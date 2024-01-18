@@ -662,7 +662,7 @@ int mock_in_sequence(struct test *test, struct mock_expectation *first, ...);
 			RETURN(return_type, retval);			       \
 		}
 
-#if IS_ENABLED(CONFIG_KUNIT)
+#if IS_ENABLED(CONFIG_SEC_KUNIT)
 #define DEFINE_INVOKABLE(name, return_type, RETURN_ASSIGN, param_types...)     \
 		void *INVOKE_ID(name)(struct test *test,		       \
 				      const void *params[],		       \
@@ -1053,7 +1053,7 @@ DECLARE_STRUCT_CLASS_MOCK_INIT(void);
 #define DEFINE_FUNCTION_MOCK_VOID_RETURN(name, param_types...) \
 		DEFINE_FUNCTION_MOCK_VOID_RETURN_INTERNAL(name, param_types)
 
-#if IS_ENABLED(CONFIG_KUNIT)
+#if IS_ENABLED(CONFIG_SEC_KUNIT)
 
 /**
  * __mockable - A function decorator that allows the function to be mocked.
@@ -1479,4 +1479,8 @@ struct mock_param_formatter *mock_find_formatter(const char *type_name);
 
 extern struct mock_param_formatter unknown_formatter[];
 
+/*
+ * separate wrapper macro and functions to support 5.10 Kunit
+ */
+#include <kunit/mock_wrapper.h>
 #endif /* _TEST_MOCK_H */

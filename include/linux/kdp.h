@@ -79,6 +79,7 @@ struct ro_rcu_head {
 		struct rcu_head	rcu;	/* RCU deletion hook */
 	};
 	void *bp_cred;
+	void *reflected_cred;
 };
 
 struct cred_param {
@@ -131,9 +132,6 @@ extern inline struct cred *get_new_cred(struct cred *cred);
 extern inline void put_cred(const struct cred *_cred);
 extern void put_rocred_rcu(struct rcu_head *rcu);
 extern unsigned int kdp_get_usecount(struct cred *cred);
-
-#define override_creds(x) kdp_override_creds((struct cred **)&x)
-extern const struct cred *kdp_override_creds(struct cred **);
 extern struct cred *prepare_ro_creds(struct cred *old, int kdp_cmd, u64 p);
 
 extern int security_integrity_current(void);

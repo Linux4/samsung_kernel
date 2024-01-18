@@ -24,65 +24,85 @@ ifeq ($(CONFIG_SND_SOC_AUTO), y)
 		export
 		INCS    +=  -include $(AUDIO_ROOT)/config/sa6155autoconf.h
 	endif
-else
-ifeq ($(KERNEL_BUILD), 0)
-	ifeq ($(CONFIG_ARCH_SM8150), y)
-		ifdef CONFIG_SND_SOC_SA8155
-			include $(AUDIO_ROOT)/config/sa8155auto.conf
-			export
-			INCS    +=  -include $(AUDIO_ROOT)/config/sa8155autoconf.h
-		else
-			include $(AUDIO_ROOT)/config/sm8150auto.conf
-			export
-			INCS    +=  -include $(AUDIO_ROOT)/config/sm8150autoconf.h
-		endif
-	endif
-	ifeq ($(CONFIG_ARCH_SM6150), y)
-		ifdef CONFIG_SND_SOC_SA6155
-			include $(AUDIO_ROOT)/config/sa6155auto.conf
-			export
-			INCS    +=  -include $(AUDIO_ROOT)/config/sa6155autoconf.h
-		else
-			include $(AUDIO_ROOT)/config/sm6150auto.conf
-			export
-			INCS    +=  -include $(AUDIO_ROOT)/config/sm6150autoconf.h
-		endif
-	endif
-	ifeq ($(CONFIG_ARCH_TRINKET), y)
-		include $(AUDIO_ROOT)/config/sm6150auto.conf
-		export
-		INCS    +=  -include $(AUDIO_ROOT)/config/sm6150autoconf.h
-	endif
-	ifeq ($(CONFIG_ARCH_KONA), y)
-		include $(AUDIO_ROOT)/config/konaauto.conf
-		INCS    +=  -include $(AUDIO_ROOT)/config/konaautoconf.h
-	endif
-	ifeq ($(CONFIG_ARCH_LITO), y)
-		include $(AUDIO_ROOT)/config/litoauto.conf
-		export
-		INCS    +=  -include $(AUDIO_ROOT)/config/litoautoconf.h
-	endif
-	ifeq ($(CONFIG_ARCH_BENGAL), y)
-		include $(AUDIO_ROOT)/config/bengalauto.conf
-		export
-		INCS    +=  -include $(AUDIO_ROOT)/config/bengalautoconf.h
-	endif
-	ifeq ($(CONFIG_ARCH_SDMSHRIKE), y)
-		include $(AUDIO_ROOT)/config/sm8150auto.conf
-		export
-		INCS    +=  -include $(AUDIO_ROOT)/config/sm8150autoconf.h
-	endif
-	ifeq ($(CONFIG_ARCH_QCS405), y)
-		include $(AUDIO_ROOT)/config/qcs405auto.conf
-		export
-		INCS    +=  -include $(AUDIO_ROOT)/config/qcs405autoconf.h
-	endif
-	ifeq ($(CONFIG_QTI_QUIN_GVM), y)
+	ifdef CONFIG_SND_SOC_GVM
 		include $(AUDIO_ROOT)/config/gvmauto.conf
 		export
 		INCS    +=  -include $(AUDIO_ROOT)/config/gvmautoconf.h
 	endif
-endif
+	ifdef CONFIG_SND_SOC_AR
+		include $(AUDIO_ROOT)/config/arauto.conf
+		export
+		INCS    +=  -include $(AUDIO_ROOT)/config/arautoconf.h
+	endif
+	ifdef CONFIG_SND_SOC_GVM_SA8295
+		include $(AUDIO_ROOT)/config/sa8295gvmauto.conf
+		export
+		INCS    +=  -include $(AUDIO_ROOT)/config/sa8295gvmautoconf.h
+	endif
+else
+	ifeq ($(KERNEL_BUILD), 0)
+		ifeq ($(CONFIG_ARCH_SM8150), y)
+			ifdef CONFIG_SND_SOC_SA8155
+				include $(AUDIO_ROOT)/config/sa8155auto.conf
+				export
+				INCS    +=  -include $(AUDIO_ROOT)/config/sa8155autoconf.h
+			else
+				include $(AUDIO_ROOT)/config/sm8150auto.conf
+				export
+				INCS    +=  -include $(AUDIO_ROOT)/config/sm8150autoconf.h
+			endif
+		endif
+		ifeq ($(CONFIG_ARCH_SM6150), y)
+			ifdef CONFIG_SND_SOC_SA6155
+				include $(AUDIO_ROOT)/config/sa6155auto.conf
+				export
+				INCS    +=  -include $(AUDIO_ROOT)/config/sa6155autoconf.h
+			else
+				include $(AUDIO_ROOT)/config/sm6150auto.conf
+				export
+				INCS    +=  -include $(AUDIO_ROOT)/config/sm6150autoconf.h
+			endif
+		endif
+		ifeq ($(CONFIG_ARCH_TRINKET), y)
+			include $(AUDIO_ROOT)/config/sm6150auto.conf
+			export
+			INCS    +=  -include $(AUDIO_ROOT)/config/sm6150autoconf.h
+		endif
+		ifeq ($(CONFIG_ARCH_KONA), y)
+			include $(AUDIO_ROOT)/config/konaauto.conf
+			INCS    +=  -include $(AUDIO_ROOT)/config/konaautoconf.h
+		endif
+		ifeq ($(CONFIG_ARCH_LAHAINA), y)
+			include $(AUDIO_ROOT)/config/lahainaauto.conf
+			export
+			INCS    +=  -include $(AUDIO_ROOT)/config/lahainaautoconf.h
+		endif
+		ifeq ($(CONFIG_ARCH_LITO), y)
+			include $(AUDIO_ROOT)/config/litoauto.conf
+			export
+			INCS    +=  -include $(AUDIO_ROOT)/config/litoautoconf.h
+		endif
+		ifeq ($(CONFIG_ARCH_BENGAL), y)
+			include $(AUDIO_ROOT)/config/bengalauto.conf
+			export
+			INCS    +=  -include $(AUDIO_ROOT)/config/bengalautoconf.h
+		endif
+		ifeq ($(CONFIG_ARCH_SDMSHRIKE), y)
+			include $(AUDIO_ROOT)/config/sm8150auto.conf
+			export
+			INCS    +=  -include $(AUDIO_ROOT)/config/sm8150autoconf.h
+		endif
+		ifeq ($(CONFIG_ARCH_QCS405), y)
+			include $(AUDIO_ROOT)/config/qcs405auto.conf
+			export
+			INCS    +=  -include $(AUDIO_ROOT)/config/qcs405autoconf.h
+		endif
+		ifeq ($(CONFIG_QTI_QUIN_GVM), y)
+			include $(AUDIO_ROOT)/config/gvmauto.conf
+			export
+			INCS    +=  -include $(AUDIO_ROOT)/config/gvmautoconf.h
+		endif
+	endif
 endif
 
 # As per target team, build is done as follows:
@@ -137,6 +157,7 @@ ifdef CONFIG_WCD9XXX_CODEC_CORE
 	WCD9XXX_OBJS += wcd9xxx-resmgr-v2.o
 	WCD9XXX_OBJS += wcd-dsp-utils.o
 	WCD9XXX_OBJS += wcd-dsp-mgr.o
+	WCD9XXX_OBJS += wcd-clsh.o
 else
 	WCD9XXX_OBJS += wcd-clsh.o
 endif
@@ -240,8 +261,8 @@ ifeq ($(call cc-option-yn, -Wheader-guard),y)
 EXTRA_CFLAGS += -Wheader-guard
 endif
 
-
 ifeq ($(KERNEL_BUILD), 0)
+KBUILD_EXTRA_SYMBOLS +=$(OUT)/obj/vendor/qcom/opensource/audio-kernel/ipc/Module.symvers
 KBUILD_EXTRA_SYMBOLS +=$(OUT)/obj/vendor/qcom/opensource/audio-kernel/dsp/Module.symvers
 KBUILD_EXTRA_SYMBOLS +=$(OUT)/obj/vendor/qcom/opensource/audio-kernel/soc/Module.symvers
 endif
@@ -254,6 +275,19 @@ ifeq ($(KERNEL_BUILD), 1)
 	obj-y	+= wsa883x/
 	obj-y	+= rouleur/
 endif
+
+ifdef CONFIG_SND_SOC_TAS256x
+	obj-y	 += tas256x/
+endif
+
+ifdef CONFIG_SND_SOC_TAS256x
+	obj-y	 += tas256x/
+endif
+
+ifdef CONFIG_SND_SOC_AW882XX
+	obj-y += aw882xx/
+endif
+
 # Module information used by KBuild framework
 obj-$(CONFIG_WCD9XXX_CODEC_CORE) += wcd_core_dlkm.o
 obj-$(CONFIG_WCD9XXX_CODEC_CORE_V2) += wcd_core_dlkm.o

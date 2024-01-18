@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 
 /*
- * Copyright (c) 2016-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
  */
 
 #undef TRACE_SYSTEM
@@ -14,27 +14,27 @@
 
 TRACE_EVENT(cpu_power_select,
 
-	TP_PROTO(int index, u32 sleep_us, u32 latency, u32 next_event_us),
+	TP_PROTO(int index, u32 sleep_us, u32 latency, u64 sched_bias),
 
-	TP_ARGS(index, sleep_us, latency, next_event_us),
+	TP_ARGS(index, sleep_us, latency, sched_bias),
 
 	TP_STRUCT__entry(
 		__field(int, index)
 		__field(u32, sleep_us)
 		__field(u32, latency)
-		__field(u32, next_event_us)
+		__field(u64, sched_bias)
 	),
 
 	TP_fast_assign(
 		__entry->index = index;
 		__entry->sleep_us = sleep_us;
 		__entry->latency = latency;
-		__entry->next_event_us = next_event_us;
+		__entry->sched_bias = sched_bias;
 	),
 
-	TP_printk("idx:%d sleep_time:%u latency:%u next_event:%u",
+	TP_printk("idx:%d sleep_time:%u latency:%u sched_bias:%lu",
 		__entry->index, __entry->sleep_us, __entry->latency,
-		__entry->next_event_us)
+		__entry->sched_bias)
 );
 
 TRACE_EVENT(cpu_pred_select,
@@ -242,6 +242,42 @@ TRACE_EVENT(cluster_pred_hist,
 	TP_printk("name:%s idx:%d resi:%u sample:%u tmr:%u",
 		__get_str(name), __entry->idx, __entry->resi,
 		__entry->sample, __entry->tmr)
+);
+
+TRACE_EVENT(ipi_wakeup_time,
+
+	TP_PROTO(u64 wakeup),
+
+	TP_ARGS(wakeup),
+
+	TP_STRUCT__entry(
+		__field(u64, wakeup)
+	),
+
+	TP_fast_assign(
+		__entry->wakeup = wakeup;
+	),
+
+	TP_printk("wakeup:%llu", __entry->wakeup)
+);
+
+TRACE_EVENT(pre_pc_cb,
+
+	TP_PROTO(int tzflag),
+
+	TP_ARGS(tzflag),
+
+	TP_STRUCT__entry(
+		__field(int, tzflag)
+	),
+
+	TP_fast_assign(
+		__entry->tzflag = tzflag;
+	),
+
+	TP_printk("tzflag:%d",
+		__entry->tzflag
+	)
 );
 
 #endif

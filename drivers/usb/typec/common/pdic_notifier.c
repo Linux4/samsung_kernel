@@ -119,6 +119,16 @@ const char *pdic_event_id_string(pdic_notifier_id_t id)
 		return "ID_WATER_CABLE";
 	case PDIC_NOTIFY_ID_POFF_WATER:
 		return "ID_POFF_WATER";
+	case PDIC_NOTIFY_ID_DEVICE_INFO:
+		return "ID_DEVICE_INFO";
+	case PDIC_NOTIFY_ID_SVID_INFO:
+		return "ID_SVID_INFO";
+	case PDIC_NOTIFY_ID_CLEAR_INFO:
+		return "ID_CLEAR_INFO";
+#if IS_ENABLED(CONFIG_MUIC_SM5504_POGO)
+	case PDIC_NOTIFY_ID_POGO:
+		return "ID_POGO";
+#endif
 	default:
 		return "UNDEFINED";
 	}
@@ -186,6 +196,8 @@ const char *pdic_ccpinstatus_string(pdic_notifier_pin_status_t ccpinstatus)
 		return "DISABLED";
 	case PDIC_NOTIFY_PIN_STATUS_RFU:
 		return "RFU";
+	case PDIC_NOTIFY_PIN_STATUS_NOCC_USB_ACTIVE:
+		return "NOCC_USB_ACTIVE";
 	default:
 		return "NO_DETERMINATION";
 	}
@@ -310,14 +322,7 @@ int pdic_notifier_notify(PD_NOTI_TYPEDEF *p_noti, void *pd, int pdic_attach)
 			((PD_NOTI_ATTACH_TYPEDEF *)p_noti)->rprd);
 
 		if (pd != NULL) {
-#if !defined(CONFIG_CABLE_TYPE_NOTIFIER)
-			if (!((PD_NOTI_ATTACH_TYPEDEF *)p_noti)->attach &&
-				((struct pdic_notifier_struct *)pd)->event != PDIC_NOTIFY_EVENT_PDIC_ATTACH) {
-				((struct pdic_notifier_struct *)pd)->event = PDIC_NOTIFY_EVENT_DETACH;
-			}
-#endif
 			pdic_notifier.pdic_template.pd = pd;
-
 			pr_info("%s: PD event:%d, num:%d, sel:%d \n", __func__,
 				((struct pdic_notifier_struct *)pd)->event,
 				((struct pdic_notifier_struct *)pd)->sink_status.available_pdo_num,
@@ -381,6 +386,33 @@ int pdic_notifier_notify(PD_NOTI_TYPEDEF *p_noti, void *pd, int pdic_attach)
 			pdic_uevent_work(PDIC_NOTIFY_ID_CC_PIN_STATUS, p_noti->sub1);
 			return 0;
 #endif
+	case PDIC_NOTIFY_ID_DEVICE_INFO:
+		pr_info("%s: src:%01x dest:%01x id:%02x vendor_id:%04x product_id:%04x ifpmic_index:%02x version:%02x\n",
+			__func__,
+			((PD_NOTI_DEVICE_INFO_TYPEDEF *)p_noti)->src,
+			((PD_NOTI_DEVICE_INFO_TYPEDEF *)p_noti)->dest,
+			((PD_NOTI_DEVICE_INFO_TYPEDEF *)p_noti)->id,
+			((PD_NOTI_DEVICE_INFO_TYPEDEF *)p_noti)->vendor_id,
+			((PD_NOTI_DEVICE_INFO_TYPEDEF *)p_noti)->product_id,
+			((PD_NOTI_DEVICE_INFO_TYPEDEF *)p_noti)->ifpmic_index,
+			((PD_NOTI_DEVICE_INFO_TYPEDEF *)p_noti)->version);
+		break;
+	case PDIC_NOTIFY_ID_SVID_INFO:
+		pr_info("%s: src:%01x dest:%01x id:%02x standard_vendor_id:%04x\n",
+			__func__,
+			((PD_NOTI_SVID_INFO_TYPEDEF *)p_noti)->src,
+			((PD_NOTI_SVID_INFO_TYPEDEF *)p_noti)->dest,
+			((PD_NOTI_SVID_INFO_TYPEDEF *)p_noti)->id,
+			((PD_NOTI_SVID_INFO_TYPEDEF *)p_noti)->standard_vendor_id);
+		break;
+	case PDIC_NOTIFY_ID_CLEAR_INFO:
+		pr_info("%s: src:%01x dest:%01x id:%02x clear_id:%04x\n",
+			__func__,
+			((PD_NOTI_CLEAR_INFO_TYPEDEF *)p_noti)->src,
+			((PD_NOTI_CLEAR_INFO_TYPEDEF *)p_noti)->dest,
+			((PD_NOTI_CLEAR_INFO_TYPEDEF *)p_noti)->id,
+			((PD_NOTI_CLEAR_INFO_TYPEDEF *)p_noti)->clear_id);
+		break;
 	default:
 		pr_info("%s: src:%01x dest:%01x id:%02x "
 			"sub1:%d sub2:%02x sub3:%02x\n", __func__,

@@ -103,6 +103,12 @@ static enum blk_eh_timer_return mmc_cqe_timed_out(struct request *req)
 	enum mmc_issue_type issue_type = mmc_issue_type(mq, req);
 	bool recovery_needed = false;
 
+#if defined(CONFIG_SDC_QTI)
+	host->err_stats[MMC_ERR_CMDQ_REQ_TIMEOUT]++;
+#endif
+	mmc_log_string(host,
+		"Request timed out! Active reqs: %d Req: %p Tag: %d\n",
+		mmc_cqe_qcnt(mq), req, req->tag);
 	switch (issue_type) {
 	case MMC_ISSUE_ASYNC:
 	case MMC_ISSUE_DCMD:
@@ -111,6 +117,9 @@ static enum blk_eh_timer_return mmc_cqe_timed_out(struct request *req)
 				mmc_cqe_recovery_notifier(mrq);
 			return BLK_EH_RESET_TIMER;
 		}
+		mmc_log_string(host,
+			"Timeout even before req reaching LDD,completing the req. Active reqs: %d Req: %p Tag: %d\n",
+			mmc_cqe_qcnt(mq), req, req->tag);
 		/* The request has gone already */
 		return BLK_EH_DONE;
 	default:
@@ -192,7 +201,7 @@ static void mmc_queue_setup_discard(struct request_queue *q,
 	q->limits.discard_granularity = card->pref_erase << 9;
 	/* granularity must not be greater than max. discard */
 	if (card->pref_erase > max_discard)
-		q->limits.discard_granularity = 0;
+		q->limits.discard_granularity = SECTOR_SIZE;
 	if (mmc_can_secure_erase_trim(card))
 		blk_queue_flag_set(QUEUE_FLAG_SECERASE, q);
 }
@@ -392,8 +401,10 @@ static void mmc_setup_queue(struct mmc_queue *mq, struct mmc_card *card)
 		     "merging was advertised but not possible");
 	blk_queue_max_segments(mq->queue, mmc_get_max_segments(host));
 
-	if (mmc_card_mmc(card))
+	if (mmc_card_mmc(card) && card->ext_csd.data_sector_size) {
 		block_size = card->ext_csd.data_sector_size;
+		WARN_ON(block_size != 512 && block_size != 4096);
+	}
 
 	blk_queue_logical_block_size(mq->queue, block_size);
 	/*
@@ -414,7 +425,7 @@ static void mmc_setup_queue(struct mmc_queue *mq, struct mmc_card *card)
 
 	init_waitqueue_head(&mq->wait);
 
-#if defined(CONFIG_SDC_QTI)
+#if defined(CONFIG_SDC_QTI) && defined(CONFIG_MMC_CQHCI_CRYPTO)
 	if (host->cqe_ops && host->cqe_ops->cqe_crypto_update_queue)
 		host->cqe_ops->cqe_crypto_update_queue(host, mq->queue);
 #endif
@@ -489,7 +500,7 @@ int mmc_init_queue(struct mmc_queue *mq, struct mmc_card *card)
 			BDI_CAP_STABLE_WRITES;
 
 	mq->queue->queuedata = mq;
-	blk_queue_rq_timeout(mq->queue, 60 * HZ);
+	blk_queue_rq_timeout(mq->queue, 20 * HZ);
 
 	mmc_setup_queue(mq, card);
 	mmc_crypto_setup_queue(host, mq->queue);

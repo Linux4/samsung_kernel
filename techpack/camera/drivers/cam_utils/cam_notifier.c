@@ -31,6 +31,7 @@ static RAW_NOTIFIER_HEAD(dev_cam_eeprom_noti_chain);
  */
 static char checkCamera[] = { 'S', 'C', 'P', 'M', 'V', 'N', 'A', 'Y', 'H' };
 
+#if defined(CONFIG_SEC_P3Q_PROJECT)
 uint32_t notifyCameraList[] = {
 	SEC_WIDE_SENSOR,
 	SEC_ULTRA_WIDE_SENSOR,
@@ -38,6 +39,18 @@ uint32_t notifyCameraList[] = {
 	SEC_TELE2_SENSOR,
 	SEC_FRONT_SENSOR,
 };
+#elif defined(CONFIG_SEC_Q2Q_PROJECT) || defined(CONFIG_SEC_V2Q_PROJECT)
+uint32_t notifyCameraList[] = {
+	SEC_WIDE_SENSOR,
+	SEC_ULTRA_WIDE_SENSOR,
+	SEC_FRONT_SENSOR,
+	SEC_FRONT_TOP_SENSOR,
+};
+#else
+uint32_t notifyCameraList[] = {
+};
+#endif	/* CONFIG_SAMSUNG_WACOM_NOTIFIER */
+
 static unsigned long wacom_notify_value = 0;
 
 /**
@@ -81,7 +94,7 @@ int is_eeprom_info_update(uint32_t type, char *header_ver)
 		}
 	}
 
-	// pr_info("[NOTI_DBG] notify header info:0x%llx(%c)", wacom_notify_value, header_ver[9]);
+	// pr_info("[NOTI_DBG] notify header info:0x%llx(%d, %c)", wacom_notify_value, type, header_ver[9]);
 
 	return result;
 }

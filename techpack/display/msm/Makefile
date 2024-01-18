@@ -98,7 +98,8 @@ msm_drm-$(CONFIG_DRM_MSM_SDE) += sde/sde_crtc.o \
 
 msm_drm-$(CONFIG_DRM_SDE_VM) += sde/sde_vm_common.o \
 	sde/sde_vm_primary.o \
-	sde/sde_vm_trusted.o
+	sde/sde_vm_trusted.o \
+	sde/sde_vm_msgq.o
 
 msm_drm-$(CONFIG_DRM_SDE_WB) += sde/sde_wb.o \
 	sde/sde_encoder_phys_wb.o
@@ -189,7 +190,25 @@ msm_drm-$(CONFIG_DISPLAY_SAMSUNG) += samsung/ss_dsi_panel_sysfs.o \
 	samsung/ss_dpui_common.o \
 	samsung/ss_ddi_poc_common.o \
 	samsung/ss_ddi_spi_common.o \
-	samsung/ss_copr_common.o
+	samsung/ss_copr_common.o \
+	samsung/ss_wrapper_common.o
+
+ifeq ($(CONFIG_SEC_KUNIT), y)
+ifeq ($(CONFIG_UML), y)
+
+# To report to Sherlock server, add GCOV_PROFILE_($target_file_name)
+GCOV_PROFILE_ss_dsi_panel_common.o := $(CONFIG_SEC_KUNIT)
+GCOV_PROFILE_ss_dsi_panel_debug.o := $(CONFIG_SEC_KUNIT)
+endif
+endif
+
+
+# LEGO
+subdir-ccflags-$(CONFIG_SEC_KUNIT) += \
+	-Wno-unused-variable \
+	-Wno-unused-function \
+	-Wno-format
+
 
 msm_drm-$(CONFIG_DISPLAY_SAMSUNG) += samsung/SELF_DISPLAY/self_display_6W3.o \
 	samsung/SELF_DISPLAY/self_display_FA7.o \
@@ -203,10 +222,22 @@ msm_drm-$(CONFIG_DISPLAY_SAMSUNG) += samsung/SELF_DISPLAY/self_display_6W3.o \
 	samsung/SELF_DISPLAY/self_display_UM1.o \
 	samsung/SELF_DISPLAY/self_display_XA0.o \
 	samsung/SELF_DISPLAY/self_display_XA1.o \
-	samsung/SELF_DISPLAY/self_display_FC1.o
+	samsung/SELF_DISPLAY/self_display_XA2.o \
+	samsung/SELF_DISPLAY/self_display_FC1.o \
+	samsung/SELF_DISPLAY/self_display_SW83109.o \
+	samsung/SELF_DISPLAY/self_display_SW83109_A73.o \
+	samsung/SELF_DISPLAY/self_display_SW83109_WM6676Z21.o \
+	samsung/SELF_DISPLAY/self_display_HAB_AMB667AN01.o \
+	samsung/SELF_DISPLAY/self_display_HAB_AMB667AN01_A73.o \
+	samsung/SELF_DISPLAY/self_display_A73_S6E3FC3_AMB667BV01.o \
+	samsung/SELF_DISPLAY/self_display_FC3.o \
+	samsung/SELF_DISPLAY/self_display_FAC_AMF670BS01.o
+
 
 msm_drm-$(CONFIG_DISPLAY_SAMSUNG) += samsung/MAFPC/ss_dsi_mafpc_FAB.o \
 	samsung/MAFPC/ss_dsi_mafpc_HAB.o \
 	samsung/MAFPC/ss_dsi_mafpc_HAC.o \
 	samsung/MAFPC/ss_dsi_mafpc_HAD.o \
-	samsung/MAFPC/ss_dsi_mafpc_XA1.o
+	samsung/MAFPC/ss_dsi_mafpc_XA1.o \
+	samsung/MAFPC/ss_dsi_mafpc_XA2.o \
+	samsung/MAFPC/ss_dsi_mafpc_FAC_AMF670BS01.o

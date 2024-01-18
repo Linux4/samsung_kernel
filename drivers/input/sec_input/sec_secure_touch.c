@@ -209,9 +209,42 @@ static void sec_secure_touch_hall_ic_work(struct work_struct *work)
 	mutex_unlock(&data->lock);
 }
 
+#if IS_ENABLED(CONFIG_HALL_NOTIFIER)
 static int sec_secure_touch_hall_ic_notifier(struct notifier_block *nb, unsigned long hall_ic, void *ptr)
 {
 	struct sec_secure_touch *data = container_of(nb, struct sec_secure_touch, nb);
+	struct hall_notifier_context *hall_notifier;
+
+	if (!data)
+		return -ENOMEM;
+
+	if (data->device_number < 1)
+		return -ENODEV;
+
+	hall_notifier = ptr;
+
+	if (strncmp(hall_notifier->name, "flip", 4) != 0) {
+		pr_info("%s: %s\n", __func__, hall_notifier->name);
+		return 0;
+	}
+
+	data->hall_ic = hall_ic;
+
+	pr_info("%s %s: device number:%d,%s %s%s\n", SECLOG, __func__, data->device_number,
+			data->hall_ic ? "CLOSE" : "OPEN",
+			data->touch_driver[SECURE_TOUCH_MAIN_DEV].is_running ? "tsp1" : "",
+			data->touch_driver[SECURE_TOUCH_SUB_DEV].is_running ? "tsp2" : "");
+
+	schedule_work(&data->folder_work.work);
+
+	return 0;
+}
+#endif
+
+#if IS_ENABLED(CONFIG_SUPPORT_SENSOR_FOLD)
+static int sec_secure_touch_hall_ic_ssh_notifier(struct notifier_block *nb, unsigned long hall_ic, void *ptr)
+{
+	struct sec_secure_touch *data = container_of(nb, struct sec_secure_touch, nb_ssh);
 
 	if (!data)
 		return -ENOMEM;
@@ -231,12 +264,17 @@ static int sec_secure_touch_hall_ic_notifier(struct notifier_block *nb, unsigned
 	return 0;
 }
 #endif
+#endif
 
 static int sec_secure_touch_probe(struct platform_device *pdev)
 {
 	struct sec_secure_touch *data;
 	int ret;
 
+#if !IS_ENABLED(CONFIG_DRV_SAMSUNG)
+	pr_info("%s %s: sec_class is not support\n", SECLOG, __func__);
+	return -ENOENT;
+#endif
 	data = kzalloc(sizeof(struct sec_secure_touch), GFP_KERNEL);
 	if (!data) {
 		pr_info("%s %s: failed probe: mem\n", SECLOG, __func__);
@@ -244,13 +282,14 @@ static int sec_secure_touch_probe(struct platform_device *pdev)
 	}
 	data->pdev = pdev;
 
+#if IS_ENABLED(CONFIG_DRV_SAMSUNG)
 	data->device = sec_device_create(data, SECURE_TOUCH_DEV_NAME);
 	if (IS_ERR(data->device)) {
 		pr_info("%s %s: failed probe: create\n", SECLOG, __func__);
 		kfree(data);
 		return -ENODEV;
 	}
-
+#endif
 	g_ss_touch = data;
 
 	dev_set_drvdata(data->device, data);
@@ -262,16 +301,25 @@ static int sec_secure_touch_probe(struct platform_device *pdev)
 	ret = sysfs_create_group(&data->device->kobj, &sec_secure_touch_attr_group);
 	if (ret < 0) {
 		pr_info("%s %s: failed probe: create sysfs\n", SECLOG, __func__);
+#if IS_ENABLED(CONFIG_DRV_SAMSUNG)
 		sec_device_destroy(data->device->devt);
+#endif
 		g_ss_touch = NULL;
 		kfree(data);
 		return -ENODEV;
 	}
 
 #if IS_ENABLED(CONFIG_TOUCHSCREEN_DUAL_FOLDABLE)
+#if IS_ENABLED(CONFIG_HALL_NOTIFIER)
 	data->nb.notifier_call = sec_secure_touch_hall_ic_notifier;
 	data->nb.priority = 1;
-	hall_ic_register_notify(&data->nb);
+	hall_notifier_register(&data->nb);
+#endif
+#if IS_ENABLED(CONFIG_SUPPORT_SENSOR_FOLD)
+	data->nb_ssh.notifier_call = sec_secure_touch_hall_ic_ssh_notifier;
+	data->nb_ssh.priority = 1;
+	sensorfold_notifier_register(&data->nb_ssh);
+#endif
 	INIT_DELAYED_WORK(&data->folder_work, sec_secure_touch_hall_ic_work);	
 #else
 	sec_secure_touch_set_device(data, 1);
@@ -289,7 +337,9 @@ static int sec_secure_touch_remove(struct platform_device *pdev)
 	pr_info("%s: %s\n", SECLOG, __func__);
 #if IS_ENABLED(CONFIG_TOUCHSCREEN_DUAL_FOLDABLE)
 	mutex_lock(&data->lock);
-	hall_ic_unregister_notify(&data->nb);
+#if IS_ENABLED(CONFIG_HALL_NOTIFIER)
+	hall_notifier_unregister(&data->nb);
+#endif
 	mutex_unlock(&data->lock);
 #endif
 	for (ii = 0; ii < data->device_number; ii++) {
@@ -300,8 +350,9 @@ static int sec_secure_touch_remove(struct platform_device *pdev)
 	}
 
 	mutex_destroy(&data->lock);
+#if IS_ENABLED(CONFIG_DRV_SAMSUNG)
 	sec_device_destroy(data->device->devt);
-
+#endif
 	g_ss_touch = NULL;
 	kfree(data);
 	return 0;

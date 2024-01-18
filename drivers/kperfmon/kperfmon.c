@@ -11,6 +11,7 @@
 #include <linux/ologk.h>
 #undef KPERFMON_KERNEL
 
+#include <linux/version.h>
 #include <linux/module.h>
 #include <linux/moduleparam.h>
 #include <linux/kernel.h>
@@ -23,7 +24,13 @@
 #include <linux/workqueue.h>
 #include <linux/slab.h>
 #include <linux/sec_debug.h>
-#include <linux/perflog.h>
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0)
+#define KPERFMON_KERNEL
+#include "perflog.h"
+#undef KPERFMON_KERNEL
+#else
+#include "perflog.h"
+#endif
 #if !defined(KPERFMON_KMALLOC)
 #include <linux/vmalloc.h>
 #endif
@@ -31,6 +38,17 @@
 #include <linux/sched/signal.h>
 #include <asm/uaccess.h>
 #include <asm/stacktrace.h>
+
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0)
+#define rtc_time_to_tm(a, b) rtc_time64_to_tm(a, b)
+
+struct timeval {
+	time64_t    tv_sec;
+	long        tv_usec;
+};
+#endif
+
 
 #include "kperfmon.h"
 
@@ -57,6 +75,7 @@
 #define DIGIT_UNIT			100000000
 #endif
 
+#define KPERFMON_VERSION_LENGTH		100
 
 struct tRingBuffer buffer = {0, };
 //const struct file_operations;
@@ -177,11 +196,25 @@ void ReadBufferByPosition(struct tRingBuffer *buffer,
 {
 	if (start < end) {
 		*length = end - start;
+
+		if (*length >= PERFLOG_PACKET_SIZE) {
+			*length = 0;
+			return;
+		}
+
 		memcpy(data, buffer->data + start, *length);
-	} else {
+	} else if (buffer->length > start) {
 		*length = buffer->length - start;
+
+		if ((*length + end) >= PERFLOG_PACKET_SIZE) {
+			*length = 0;
+			return;
+		}
+
 		memcpy(data, buffer->data + start, *length);
 		memcpy(data + *length, buffer->data, end);
+	} else {
+		*length = 0;
 	}
 }
 
@@ -194,10 +227,18 @@ void GetNext(struct tRingBuffer *buffer)
 	buffer->position %= buffer->length;
 }
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0)
+static const struct proc_ops kperfmon_fops = {
+	.proc_open = kperfmon_open,
+	.proc_read = kperfmon_read,
+	.proc_write = kperfmon_write,
+};
+#else
 static const struct file_operations kperfmon_fops = {
 	.read = kperfmon_read,
 	.write = kperfmon_write,
 };
+#endif
 
 void set_kperfmon_debugger_function(char *writebuffer)
 {
@@ -288,6 +329,11 @@ int ops_process_command(struct tRingBuffer *buffer,
 	return length;
 }
 
+int kperfmon_open(struct inode *finode, struct file *filp)
+{
+	return 0;
+}
+
 ssize_t kperfmon_write(struct file *filp,
 				const char __user *data,
 				size_t length,
@@ -305,7 +351,7 @@ ssize_t kperfmon_write(struct file *filp,
 	}
 
 	if (length <= 0) {
-		pr_info("%s() - Error length : %d", __func__, length);
+		pr_info("%s() - Error length : %d", __func__, (int) length);
 		return length;
 	}
 
@@ -419,9 +465,9 @@ ssize_t kperfmon_read(struct file *filp,
 				int length = snprintf(readbuffer,
 							READ_BUFFER_SIZE,
 							"%s\n",
-							before_list_cur_pos->pdata);
+							(char *) before_list_cur_pos->pdata);
 
-				if (copy_to_user(data, readbuffer, length)) {
+				if (length <= 0 || copy_to_user(data, readbuffer, length)) {
 					pr_info("%s(copy_to_user(4) returned > 0)\n", __func__);
 					mutex_unlock(&buffer.mutex);
 					buffer.status = FLAG_NOTHING;
@@ -461,6 +507,13 @@ ssize_t kperfmon_read(struct file *filp,
 	mutex_unlock(&buffer.mutex);
 	//printk(KERN_INFO "kperfmon_read(length : %d)\n", (int)length);
 	//readlogpacket.stream[length++] = '\n';
+
+	if (length >= PERFLOG_PACKET_SIZE) {
+		length = PERFLOG_PACKET_SIZE - 1;
+	} else if (length == 0) {
+		return 0;
+	}
+
 	readlogpacket.stream[length] = 0;
 
 #if NOT_USED
@@ -519,7 +572,7 @@ ssize_t kperfmon_read(struct file *filp,
 
 		length += DEBUGGER_SIZE;
 	} else {
-		if (copy_to_user(data, readbuffer, length)) {
+		if (length <= 0 || copy_to_user(data, readbuffer, length)) {
 			pr_info("%s(copy_to_user(3) returned > 0)\n", __func__);
 			return 0;
 		}
@@ -535,6 +588,7 @@ ssize_t kperfmon_read(struct file *filp,
 static int __init kperfmon_init(void)
 {
 	struct proc_dir_entry *entry;
+	// char kperfmon_version[KPERFMON_VERSION_LENGTH] = {0, };
 
 	CreateBuffer(&buffer, BUFFER_SIZE);
 
@@ -557,7 +611,8 @@ static int __init kperfmon_init(void)
 	before_list_cur_pos =
 		list_first_entry(&before_print_list, typeof(*before_list_cur_pos), list);
 	process_version_function("  ");
-	process_version_function("kperfmon_version [1.0]");
+	// snprintf(kperfmon_version, KPERFMON_VERSION_LENGTH, "kperfmon_version [1.0.1]   kperfmon_read : 0x%x,  kperfmon_write : 0x%x", kperfmon_read, kperfmon_write);
+	// process_version_function(kperfmon_version);
 
 	pr_info("%s()\n", __func__);
 
@@ -588,7 +643,7 @@ static void ologk_workqueue_func(struct work_struct *work)
 #endif
 
 //#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 0, 0)
-static inline void do_gettimeofday(struct timeval *tv)
+static inline void do_gettimeofday2(struct timeval *tv)
 {
 	struct timespec64 now;
 
@@ -626,7 +681,7 @@ void _perflog(int type, int logid, const char *fmt, ...)
 
 		INIT_WORK((struct work_struct *)workqueue, ologk_workqueue_func);
 
-		do_gettimeofday(&time);
+		do_gettimeofday2(&time);
 		local_time = (u32)(time.tv_sec - (sys_tz.tz_minuteswest * 60));
 		rtc_time_to_tm(local_time, &tm);
 
@@ -661,7 +716,7 @@ void _perflog(int type, int logid, const char *fmt, ...)
 
 		//{
 		//	struct timeval end_time;
-		//	do_gettimeofday(&end_time);
+		//	do_gettimeofday2(&end_time);
 		//	printk("ologk() execution time with workqueue : %ld us ( %ld - %ld )\n",
 		//			end_time.tv_usec - time.tv_usec,
 		//			end_time.tv_usec,
@@ -672,7 +727,7 @@ void _perflog(int type, int logid, const char *fmt, ...)
 	}
 
 #else
-	do_gettimeofday(&time);
+	do_gettimeofday2(&time);
 	local_time = (u32)(time.tv_sec - (sys_tz.tz_minuteswest * 60));
 	rtc_time_to_tm(local_time, &tm);
 
@@ -710,7 +765,7 @@ void _perflog(int type, int logid, const char *fmt, ...)
 
 	//{
 	//	struct timeval end_time;
-	//	do_gettimeofday(&end_time);
+	//	do_gettimeofday2(&end_time);
 	//	printk(KERN_INFO "ologk() execution time : %ld us ( %ld - %ld )\n",
 	//			end_time.tv_usec - time.tv_usec,
 	//			end_time.tv_usec, time.tv_usec);
@@ -720,43 +775,43 @@ void _perflog(int type, int logid, const char *fmt, ...)
 	va_end(args);
 }
 
-void get_callstack(char *buffer, int max_size, int max_count)
-{
-	struct stackframe frame;
-	struct task_struct *tsk = current;
-	//int len;
+// void get_callstack(char *buffer, int max_size, int max_count)
+// {
+// 	struct stackframe frame;
+// 	struct task_struct *tsk = current;
+// 	//int len;
 
-	if (!try_get_task_stack(tsk))
-		return;
+// 	if (!try_get_task_stack(tsk))
+// 		return;
 
-	frame.fp = (unsigned long)__builtin_frame_address(0);
-	frame.pc = (unsigned long)get_callstack;
+// 	frame.fp = (unsigned long)__builtin_frame_address(0);
+// 	frame.pc = (unsigned long)get_callstack;
 
-#if defined(CONFIG_FUNCTION_GRAPH_TRACER)
-	frame.graph = tsk->curr_ret_stack;
-#endif
-#if NOT_USED // temporary for GKI
-	if (max_size > 0) {
-		int count = 0;
+// #if defined(CONFIG_FUNCTION_GRAPH_TRACER)
+// 	frame.graph = tsk->curr_ret_stack;
+// #endif
+// #if NOT_USED // temporary for GKI
+// 	if (max_size > 0) {
+// 		int count = 0;
 
-		max_count += 3;
+// 		max_count += 3;
 
-		do {
-			if (count > 2) {
-				int len = snprintf(buffer, max_size, " %pS", (void *)frame.pc);
+// 		do {
+// 			if (count > 2) {
+// 				int len = snprintf(buffer, max_size, " %pS", (void *)frame.pc);
 
-				max_size -= len;
-				buffer += len;
-			}
-			count++;
-		} while (!unwind_frame(tsk, &frame) &&
-				max_size > 0 &&
-				max_count > count);
+// 				max_size -= len;
+// 				buffer += len;
+// 			}
+// 			count++;
+// 		} while (!unwind_frame(tsk, &frame) &&
+// 				max_size > 0 &&
+// 				max_count > count);
 
-		put_task_stack(tsk);
-	}
-#endif
-}
+// 		put_task_stack(tsk);
+// 	}
+// #endif
+// }
 
 void send_signal(void)
 {
@@ -778,7 +833,7 @@ void perflog_evt(int logid, int arg1)
 
 	int digit = 0;
 
-	do_gettimeofday(&start_time);
+	do_gettimeofday2(&start_time);
 #endif
 	if (arg1 < 0 || buffer.status != FLAG_NOTHING)
 		return;
@@ -800,13 +855,13 @@ void perflog_evt(int logid, int arg1)
 			// Refer to P200523-00343, P200523-01815.
 			/*send_signal();*/
 
-			get_callstack(log_buffer + len,
-					PERFLOG_BUFF_STR_MAX_SIZE - len,
-					/*(dbg_level_is_low ? 1 : 3)*/MAX_DEPTH_OF_CALLSTACK);
+			// get_callstack(log_buffer + len,
+			// 		PERFLOG_BUFF_STR_MAX_SIZE - len,
+			// 		/*(dbg_level_is_low ? 1 : 3)*/MAX_DEPTH_OF_CALLSTACK);
 			_perflog(PERFLOG_EVT, PERFLOG_MUTEX, log_buffer);
 			arg1 = MAX_MUTEX_RAWDATA;
 
-			//do_gettimeofday(&end_time);
+			//do_gettimeofday2(&end_time);
 			//_perflog(PERFLOG_EVT,
 			//		PERFLOG_MUTEX,
 			//		"[MUTEX] processing time : %d",

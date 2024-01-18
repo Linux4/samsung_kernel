@@ -979,10 +979,12 @@ int32_t msm_camera_fill_vreg_params(
 
 	num_vreg = soc_info->num_rgltr;
 
+#if !defined(CONFIG_SEC_M44X_PROJECT)
 	if ((num_vreg <= 0) || (num_vreg > CAM_SOC_MAX_REGULATOR)) {
 		CAM_ERR(CAM_SENSOR, "failed: num_vreg %d", num_vreg);
 		return -EINVAL;
 	}
+#endif
 
 	for (i = 0; i < power_setting_size; i++) {
 
@@ -2070,10 +2072,12 @@ int cam_sensor_core_power_up(struct cam_sensor_power_ctrl_t *ctrl,
 	gpio_num_info = ctrl->gpio_num_info;
 	num_vreg = soc_info->num_rgltr;
 
+#if !defined(CONFIG_SEC_M44X_PROJECT)
 	if ((num_vreg <= 0) || (num_vreg > CAM_SOC_MAX_REGULATOR)) {
 		CAM_ERR(CAM_SENSOR, "failed: num_vreg %d", num_vreg);
 		return -EINVAL;
 	}
+#endif
 
 	ret = msm_camera_pinctrl_init(&(ctrl->pinctrl_info), ctrl->dev);
 	if (ret < 0) {
@@ -2109,6 +2113,18 @@ int cam_sensor_core_power_up(struct cam_sensor_power_ctrl_t *ctrl,
 			return -EINVAL;
 		}
 
+#if defined(CONFIG_SEC_R9Q_PROJECT)
+		if ((power_setting->seq_type == SENSOR_VIO || power_setting->seq_type == SENSOR_CUSTOM_REG1)
+			&& (NULL  != strstr(soc_info->dev_name, "eeprom"))) {
+			msleep(20);
+		}
+#endif
+#if defined(CONFIG_SEC_M44X_PROJECT)
+                if ((power_setting->seq_type == SENSOR_VIO || power_setting->seq_type == SENSOR_CUSTOM_GPIO1)
+                        && (NULL  != strstr(soc_info->dev_name, "eeprom"))) {
+                        msleep(20);
+                }
+#endif
 		CAM_DBG(CAM_SENSOR, "seq_type %d", power_setting->seq_type);
 
 		switch (power_setting->seq_type) {
@@ -2224,6 +2240,12 @@ int cam_sensor_core_power_up(struct cam_sensor_power_ctrl_t *ctrl,
 			if (power_setting->seq_val < num_vreg) {
 				CAM_DBG(CAM_SENSOR, "Enable Regulator");
 				vreg_idx = power_setting->seq_val;
+				CAM_INFO(CAM_SENSOR,
+					"slot[%d] enable[%s] min[%d] max[%d]",
+					soc_info->index,
+					soc_info->rgltr_name[vreg_idx],
+					soc_info->rgltr_min_volt[vreg_idx],
+					soc_info->rgltr_max_volt[vreg_idx]);
 
 				soc_info->rgltr[vreg_idx] =
 					regulator_get(soc_info->dev,
@@ -2238,7 +2260,9 @@ int cam_sensor_core_power_up(struct cam_sensor_power_ctrl_t *ctrl,
 						rc);
 
 					soc_info->rgltr[vreg_idx] = NULL;
+#if !defined(CONFIG_SEC_Q2Q_PROJECT)&& !defined(CONFIG_SEC_V2Q_PROJECT)
 					goto power_up_failed;
+#endif
 				}
 
 				rc =  cam_soc_util_regulator_enable(
@@ -2252,7 +2276,9 @@ int cam_sensor_core_power_up(struct cam_sensor_power_ctrl_t *ctrl,
 					CAM_ERR(CAM_SENSOR,
 						"Reg Enable failed for %s",
 						soc_info->rgltr_name[vreg_idx]);
+#if !defined(CONFIG_SEC_Q2Q_PROJECT)&& !defined(CONFIG_SEC_V2Q_PROJECT)
 					goto power_up_failed;
+#endif
 				}
 				power_setting->data[0] =
 						soc_info->rgltr[vreg_idx];
@@ -2267,7 +2293,9 @@ int cam_sensor_core_power_up(struct cam_sensor_power_ctrl_t *ctrl,
 			if (rc < 0) {
 				CAM_ERR(CAM_SENSOR,
 					"Error in handling VREG GPIO");
+#if !defined(CONFIG_SEC_Q2Q_PROJECT)&& !defined(CONFIG_SEC_V2Q_PROJECT)
 				goto power_up_failed;
+#endif
 			}
 			break;
 		default:
@@ -2429,10 +2457,12 @@ int cam_sensor_util_power_down(struct cam_sensor_power_ctrl_t *ctrl,
 	gpio_num_info = ctrl->gpio_num_info;
 	num_vreg = soc_info->num_rgltr;
 
+#if !defined(CONFIG_SEC_M44X_PROJECT)
 	if ((num_vreg <= 0) || (num_vreg > CAM_SOC_MAX_REGULATOR)) {
 		CAM_ERR(CAM_SENSOR, "failed: num_vreg %d", num_vreg);
 		return -EINVAL;
 	}
+#endif
 
 	if (ctrl->power_down_setting_size > MAX_POWER_CONFIG) {
 		CAM_ERR(CAM_SENSOR, "Invalid: power setting size %d",

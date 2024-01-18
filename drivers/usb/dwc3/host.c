@@ -115,10 +115,6 @@ int dwc3_host_init(struct dwc3 *dwc)
 	if (dwc->revision <= DWC3_REVISION_300A)
 		props[prop_idx++] = PROPERTY_ENTRY_BOOL("quirk-broken-port-ped");
 
-	if (dwc->host_poweroff_in_pm_suspend)
-		props[prop_idx++] =
-			PROPERTY_ENTRY_BOOL("host-poweroff-in-pm-suspend");
-
 	if (prop_idx) {
 		ret = platform_device_add_properties(xhci, props);
 		if (ret) {
@@ -143,6 +139,7 @@ EXPORT_SYMBOL(dwc3_host_init);
 void dwc3_host_exit(struct dwc3 *dwc)
 {
 	platform_device_unregister(dwc->xhci);
+	dwc->xhci = NULL;
 }
 EXPORT_SYMBOL(dwc3_host_exit);
 

@@ -53,7 +53,11 @@
 #define ISG5320A_TAG             "[ISG5320A_SUB]"
 
 #define HALLIC_PATH            "/sys/class/sec/hall_ic/hall_detect"
-#define HALLIC_CERT_PATH       "/sys/class/sec/hall_ic/certify_hall_detect"
+#if defined(CONFIG_FLIP_COVER_DETECTOR_FACTORY)
+#define HALLIC_CERT_PATH	"/sys/class/sensors/flip_cover_detector_sensor/nfc_cover_status"
+#else
+#define HALLIC_CERT_PATH	"/sys/class/sec/hall_ic/certify_hall_detect"
+#endif
 
 #define ISG5320A_INIT_DELAYEDWORK
 #define GRIP_LOG_TIME            40 /* 20 sec */
@@ -289,27 +293,22 @@ static void isg5320a_force_calibration(struct isg5320a_data *data,
 	pr_info("%s %s(%d)\n", ISG5320A_TAG, __func__, only_bfcal ? 1 : 0);
 
 	if (!only_bfcal) {
-		isg5320a_i2c_write_one(data, ISG5320A_SCANCTRL1_REG,
-				       ISG5320A_SCAN_STOP);
-
-		isg5320a_i2c_write_one(data, ISG5320A_BS_ON_WD_REG, ISG5320A_BS_WD_OFF);
-		isg5320a_i2c_write_one(data, ISG5320A_SCANCTRL2_REG,
-				       ISG5320A_SCAN2_CLEAR);
-		msleep(100);
-		isg5320a_i2c_write_one(data, ISG5320A_OSCCON_REG, ISG5320A_OSC_NOMAL);
-
-		isg5320a_i2c_write_one(data, ISG5320A_BS_ON_WD_REG, ISG5320A_BS_WD_ON);
-		isg5320a_i2c_write_one(data, ISG5320A_SCANCTRL2_REG,
-				       ISG5320A_SCAN2_RESET);
-
-		isg5320a_i2c_write_one(data, ISG5320A_SCANCTRL1_REG,
-				       ISG5320A_CFCAL_START);
-		msleep(300);
+		isg5320a_i2c_write_one(data, 0x38, 0x80);
+		isg5320a_i2c_write_one(data, 0x38, 0x00);
+		isg5320a_i2c_write_one(data, 0x19, 0x0A);
+		msleep(20);
+		isg5320a_i2c_write_one(data, 0xCD, 0xDE);
+		isg5320a_i2c_write_one(data, 0xC9, 0x18);
+		msleep(20);
+		isg5320a_i2c_write_one(data, 0xCD, 0xDE);
+		isg5320a_i2c_write_one(data, 0xC9, 0x00);
+		msleep(20);
+		isg5320a_i2c_write_one(data, 0x19, 0x8A);
+		isg5320a_i2c_write_one(data, 0x38, 0xDD);
+		msleep(400);
 	}
 
 	isg5320a_i2c_write_one(data, ISG5320A_SCANCTRL2_REG, ISG5320A_BFCAL_START);
-
-	msleep(100);
 
 	mutex_unlock(&data->lock);
 }
@@ -395,7 +394,7 @@ static int isg5320a_setup_reg(struct isg5320a_data *data)
 	return 0;
 }
 
-static void isg5320a_get_raw_data(struct isg5320a_data *data, bool log_print)
+static int isg5320a_get_raw_data(struct isg5320a_data *data, bool log_print)
 {
 	int ret = 0;
 	u8 buf[4];
@@ -409,20 +408,20 @@ static void isg5320a_get_raw_data(struct isg5320a_data *data, bool log_print)
 		pr_info("%s fail to get data\n", ISG5320A_TAG);
 	} else {
 		temp = ((u32)buf[0] << 8) | (u32)buf[1];
-		if ((temp != 0) && (temp != 0xFFFF))
+		if ((temp != 0) && ((temp & 0xFFF) != 0xFFF))
 			data->cdc = temp;
 
 		temp = ((u32)buf[2] << 8) | (u32)buf[3];
 		if ((temp != 0) && (temp != 0xFFFF))
 			data->base = temp;
 		data->diff = (s32)data->cdc - (s32)data->base;
-	}
 
-	ret = isg5320a_i2c_read(data, ISG5320A_COARSE_OUT_B_REG, (u8 *)&cpbuf, 2);
-	if (ret < 0)
-		pr_info("%s fail to get capMain\n", ISG5320A_TAG);
-	else
-		data->fine_coarse = cpbuf;
+		ret = isg5320a_i2c_read(data, ISG5320A_COARSE_OUT_B_REG, (u8 *)&cpbuf, 2);
+		if (ret < 0)
+			pr_info("%s fail to get capMain\n", ISG5320A_TAG);
+		else
+			data->fine_coarse = cpbuf;
+	}
 
 	mutex_unlock(&data->lock);
 
@@ -442,6 +441,7 @@ static void isg5320a_get_raw_data(struct isg5320a_data *data, bool log_print)
 			data->debug_cnt++;
 		}
 	}
+	return ret;
 }
 
 static void force_far_grip(struct isg5320a_data *data)
@@ -520,17 +520,31 @@ static irqreturn_t isg5320a_irq_thread(int irq, void *ptr)
 
 	__pm_stay_awake(data->grip_ws);
 
-	isg5320a_get_raw_data(data, true);
+	ret = isg5320a_get_raw_data(data, true);
+	if (ret < 0) {
+		pr_err("%s fail to read state(%d)\n", ISG5320A_TAG, ret);
+		goto irq_end;
+	}
 
-	isg5320a_i2c_read(data, ISG5320A_IRQSRC_REG, &intr_msg, 1);
+	ret = isg5320a_i2c_read(data, ISG5320A_IRQSRC_REG, &intr_msg, 1);
+	if (ret < 0) {
+		pr_err("%s fail to read state(%d)\n", ISG5320A_TAG, ret);
+		goto irq_end;
+	}
 
 	if (data->intr_debug_size > 0) {
 		buf8 = kzalloc(data->intr_debug_size, GFP_KERNEL);
 		if (buf8) {
 			pr_info("%s Intr_debug1 (0x%02X)\n", ISG5320A_TAG,
 				data->intr_debug_addr);
-			isg5320a_i2c_read(data, data->intr_debug_addr, buf8,
+			ret = isg5320a_i2c_read(data, data->intr_debug_addr, buf8,
 					  data->intr_debug_size);
+			if (ret < 0) {
+				pr_err("%s fail to read state(%d)\n", ISG5320A_TAG, ret);
+				kfree(buf8);
+				goto irq_end;
+			}
+
 			for (i = 0; i < data->intr_debug_size; i++)
 				pr_info("%s \t%02X\n", ISG5320A_TAG, buf8[i]);
 			kfree(buf8);
@@ -759,10 +773,21 @@ static ssize_t isg5320a_onoff_show(struct device *dev,
 static ssize_t isg5320a_sw_reset_show(struct device *dev,
 				      struct device_attribute *attr, char *buf)
 {
+	u8 buf8;
 	struct isg5320a_data *data = dev_get_drvdata(dev);
 
 	pr_info("%s %s\n", ISG5320A_TAG, __func__);
-	isg5320a_force_calibration(data, true);
+
+	//for check if registers need recovery
+	isg5320a_i2c_read(data, ISG5320A_CHANNEL_REG, &buf8, sizeof(buf8));
+	if (buf8 == 0x41) {
+		pr_err("%s the power was off\n", ISG5320A_TAG);
+		isg5320a_reset(data);
+		isg5320a_initialize(data);
+		isg5320a_set_mode(data, ISG5320A_MODE_NORMAL);
+	}
+
+	isg5320a_force_calibration(data, false);
 	msleep(300);
 	isg5320a_get_raw_data(data, true);
 
@@ -1438,12 +1463,20 @@ static void cal_work_func(struct work_struct *work)
 	struct isg5320a_data *data = container_of(delayed_work,
 						  struct isg5320a_data, cal_work);
 	bool force_cal = false;
+	int ret;
+	u8 buf;
 
 	isg5320a_get_raw_data(data, false);
 	// check cfcal
-	if (data->cdc < data->cfcal_th) {
-		pr_info("%s cdc : %d, cfcal_th %d\n", ISG5320A_TAG, data->cdc,
-			data->cfcal_th);
+	ret = isg5320a_i2c_read(data, ISG5320A_CFCAL_RTN_REG, &buf, 1);
+	if (ret < 0) {
+		pr_info("%s fail to get Cal_OK\n", ISG5320A_TAG);
+		schedule_delayed_work(&data->cal_work, msecs_to_jiffies(500));
+		return;
+	}
+	if ((data->cdc < data->cfcal_th) || !(buf & 0x1)) {
+		pr_info("%s cdc : %d, cfcal_th %d, cal_ok = %d\n", ISG5320A_TAG, data->cdc,
+			data->cfcal_th, buf & 1);
 		isg5320a_force_calibration(data, false);
 		force_cal = true;
 	}
@@ -1456,12 +1489,12 @@ static void cal_work_func(struct work_struct *work)
 			data->bfcal_chk_cdc = data->cdc;
 			data->bfcal_chk_diff =
 				data->diff / ISG5320A_BFCAL_CHK_DIFF_RATIO;
-		} else if (data->bfcal_chk_count > ISG5320A_BFCAL_CHK_RDY_TIME) {
+		} else if (data->bfcal_chk_ready) {
 			if (((data->bfcal_chk_count - ISG5320A_BFCAL_CHK_RDY_TIME) %
 			     ISG5320A_BFCAL_CHK_CYCLE_TIME) == 0) {
 				if (((s32)data->bfcal_chk_cdc - (s32)data->cdc) >=
 				    data->bfcal_chk_diff) {
-					isg5320a_force_calibration(data, true);
+					isg5320a_force_calibration(data, false);
 					force_cal = true;
 					data->bfcal_chk_start = false;
 					data->bfcal_chk_ready = false;
@@ -1496,7 +1529,7 @@ static void debug_work_func(struct work_struct *work)
 		if (strcmp(data->hall_ic, "CLOSE") == 0) {
 			if (data->hall_flag) {
 				pr_info("%s hall IC is closed\n", ISG5320A_TAG);
-				isg5320a_force_calibration(data, true);
+				isg5320a_force_calibration(data, false);
 				data->hall_flag = 0;
 			}
 		} else {
@@ -1512,7 +1545,7 @@ static void debug_work_func(struct work_struct *work)
 		if (strcmp(data->hall_ic, "CLOSE") == 0) {
 			if (data->hall_cert_flag) {
 				pr_info("%s Cert hall IC is closed\n", ISG5320A_TAG);
-				isg5320a_force_calibration(data, true);
+				isg5320a_force_calibration(data, false);
 				data->hall_cert_flag = 0;
 			}
 		} else {

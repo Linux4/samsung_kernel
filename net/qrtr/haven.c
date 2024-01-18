@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0-only
-/* Copyright (c) 2020, The Linux Foundation. All rights reserved. */
+/* Copyright (c) 2020-2021, The Linux Foundation. All rights reserved. */
 
 #define pr_fmt(fmt) "%s: " fmt, __func__
 
@@ -148,6 +148,9 @@ static void haven_rx_peak(struct haven_pipe *pipe, void *data,
 	if (tail >= pipe->length)
 		tail -= pipe->length;
 
+	if (WARN_ON_ONCE(tail > pipe->length))
+		return;
+
 	len = min_t(size_t, count, pipe->length - tail);
 	if (len)
 		memcpy_fromio(data, pipe->fifo + tail, len);
@@ -188,6 +191,9 @@ static size_t haven_tx_avail(struct haven_pipe *pipe)
 	else
 		avail -= FIFO_FULL_RESERVE;
 
+	if (WARN_ON_ONCE(avail > pipe->length))
+		avail = 0;
+
 	return avail;
 }
 
@@ -198,6 +204,8 @@ static void haven_tx_write(struct haven_pipe *pipe,
 	u32 head;
 
 	head = le32_to_cpu(*pipe->head);
+	if (WARN_ON_ONCE(head > pipe->length))
+		return;
 
 	len = min_t(size_t, count, pipe->length - head);
 	if (len)
@@ -603,6 +611,11 @@ static int qrtr_haven_probe(struct platform_device *pdev)
 	}
 	INIT_WORK(&qdev->work, qrtr_haven_retry_work);
 
+	qdev->ep.xmit = qrtr_haven_send;
+	ret = qrtr_endpoint_register(&qdev->ep, QRTR_EP_NET_ID_AUTO, false, NULL);
+	if (ret)
+		goto register_fail;
+
 	qdev->rx_dbl = hh_dbl_rx_register(dbl_label, qrtr_haven_cb, qdev);
 	if (IS_ERR_OR_NULL(qdev->rx_dbl)) {
 		ret = PTR_ERR(qdev->rx_dbl);
@@ -610,19 +623,14 @@ static int qrtr_haven_probe(struct platform_device *pdev)
 		goto fail_rx_dbl;
 	}
 
-	qdev->ep.xmit = qrtr_haven_send;
-	ret = qrtr_endpoint_register(&qdev->ep, QRTR_EP_NET_ID_AUTO, false);
-	if (ret)
-		goto register_fail;
-
 	if (haven_rx_avail(&qdev->rx_pipe))
 		qrtr_haven_read(qdev);
 
 	return 0;
 
-register_fail:
-	hh_dbl_rx_unregister(qdev->rx_dbl);
 fail_rx_dbl:
+	qrtr_endpoint_unregister(&qdev->ep);
+register_fail:
 	cancel_work_sync(&qdev->work);
 	hh_dbl_tx_unregister(qdev->tx_dbl);
 

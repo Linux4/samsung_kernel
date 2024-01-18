@@ -20,6 +20,10 @@ extern int sched_set_boost(int enable);
 #define CONSERVATIVE_BOOST 2
 #define RESTRAINED_BOOST 3
 
+/* voltage based freq table */
+#define NUM_THM_CPUS	2
+#define NUM_MAX_FREQS	20
+
 enum {
 	CFLM_USERSPACE		= 0,	/* user(/sys/power/cpufreq*limit) */
 	CFLM_TOUCH		= 1,	/* touch */

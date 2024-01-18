@@ -13,11 +13,11 @@ $(warning DHDMAKEFILE CONFIG_BCM4389 = $(CONFIG_BCM4389))
 $(warning DHDMAKEFILE CONFIG_BCM4375 = $(CONFIG_BCM4375))
 
 ifneq ($(filter m y, $(CONFIG_BCM4389)),)
-obj-$(CONFIG_BCM4389)   += bcmdhd_101_10/
+obj-$(CONFIG_BCM4389)   += bcmdhd_101_18/
 endif
 ifneq ($(filter y, $(CONFIG_BCM4389)),)
-obj-$(CONFIG_ARCH_LAHAINA) += bcmdhd_101_10/dhd_custom_memprealloc.o
-obj-$(CONFIG_ARCH_LAHAINA) += bcmdhd_101_10/dhd_custom_msm.o
+obj-$(CONFIG_ARCH_LAHAINA) += bcmdhd_101_18/dhd_custom_memprealloc.o
+obj-$(CONFIG_ARCH_LAHAINA) += bcmdhd_101_18/dhd_custom_msm.o
 endif
 
 ifneq ($(filter m y, $(CONFIG_BCM4375)),)

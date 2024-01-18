@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0
 /*
- * Copyright (c) 2009-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2009-2021, The Linux Foundation. All rights reserved.
  * Copyright (c) 2017-2019, Linaro Ltd.
  */
 
@@ -55,6 +55,7 @@ enum {
 	HW_PLATFORM_RCM	= 21,
 	HW_PLATFORM_STP = 23,
 	HW_PLATFORM_SBC = 24,
+	HW_PLATFORM_ADP = 25,
 	HW_PLATFORM_HDK = 31,
 	HW_PLATFORM_ATP = 33,
 	HW_PLATFORM_IDP = 34,
@@ -78,6 +79,7 @@ static const char * const hw_platform[] = {
 	[HW_PLATFORM_DTV] = "DTV",
 	[HW_PLATFORM_STP] = "STP",
 	[HW_PLATFORM_SBC] = "SBC",
+	[HW_PLATFORM_ADP] = "ADP",
 	[HW_PLATFORM_HDK] = "HDK",
 	[HW_PLATFORM_ATP] = "ATP",
 	[HW_PLATFORM_IDP] = "IDP",
@@ -99,6 +101,10 @@ static const char * const qrd_hw_platform_subtype[] = {
 	[PLATFORM_SUBTYPE_SKUAB] = "SKUAB",
 	[PLATFORM_SUBTYPE_SKUG] = "SKUG",
 	[PLATFORM_SUBTYPE_QRD_INVALID] = "INVALID",
+};
+
+static const char * const adp_hw_platform_subtype[] = {
+	[0] = "ADP",
 };
 
 enum {
@@ -182,6 +188,9 @@ static struct socinfo {
 #define SMEM_IMAGE_VERSION_OEM_SIZE 33
 #define SMEM_IMAGE_VERSION_OEM_OFFSET 95
 #define SMEM_IMAGE_VERSION_PARTITION_APPS 10
+
+int softsku_idx;
+module_param_named(softsku_idx, softsku_idx, int, 0644);
 
 /* Version 2 */
 static uint32_t socinfo_get_raw_id(void)
@@ -442,6 +451,9 @@ msm_get_platform_subtype(struct device *dev,
 		}
 		return snprintf(buf, PAGE_SIZE, "%-.32s\n",
 					qrd_hw_platform_subtype[hw_subtype]);
+	} else if (socinfo_get_platform_type() == HW_PLATFORM_ADP) {
+		return scnprintf(buf, PAGE_SIZE, "%-.32s\n",
+					adp_hw_platform_subtype[0]);
 	} else {
 		if (hw_subtype >= PLATFORM_SUBTYPE_INVALID) {
 			pr_err("Invalid hardware platform subtype\n");
@@ -654,13 +666,35 @@ static const struct soc_id soc_id[] = {
 	{ 311, "APQ8096AU" },
 	{ 312, "APQ8096SG" },
 	{ 356, "KONA" },
+	{ 362, "SA8155" },
+	{ 367, "SA8155P" },
+	{ 377, "SA6155P" },
+	{ 384, "SA6155"},
+	{ 405, "SA8195P" },
 	{ 415, "LAHAINA" },
 	{ 439, "LAHAINAP" },
+	{ 449, "SC_DIREWOLF"},
 	{ 456, "LAHAINA-ATP" },
+	{ 460, "SA_DIREWOLF_IVI"},
+	{ 461, "SA_DIREWOLF_ADAS"},
+	{ 501, "SM8325" },
+	{ 502, "SM8325P" },
 	{ 450, "SHIMA" },
 	{ 454, "HOLI" },
+	{ 507, "BLAIR" },
+	{ 486, "MONACO" },
 	{ 458, "SDXLEMUR" },
+	{ 483, "SDXLEMUR-SD"},
+	{ 509, "SDXLEMUR-LITE"},
 	{ 475, "YUPIK" },
+	{ 484, "SDXNIGHTJAR" },
+	{ 441, "SCUBA" },
+	{ 497, "YUPIK-IOT" },
+	{ 498, "YUPIKP-IOT" },
+	{ 499, "YUPIKP" },
+	{ 515, "YUPIK-LTE" },
+	{ 575, "KATMAI" },
+	{ 576, "KATMAIP" },
 };
 
 static struct qcom_socinfo *qsocinfo;
@@ -907,7 +941,7 @@ msm_get_crash(struct device *dev,
 
 	if (!is_debug_level_low) {
 #ifndef CONFIG_SEC_CDSP_NO_CRASH_FOR_ENG
-	//BUG_ON(1);
+	BUG_ON(1);
 #endif /* CONFIG_SEC_CDSP_NO_CRASH_FOR_ENG */
 	}
 	return ret;
@@ -1012,7 +1046,7 @@ static void socinfo_populate_sysfs(struct qcom_socinfo *qcom_socinfo)
 	msm_custom_socinfo_attrs[i++] = NULL;
 	qcom_socinfo->attr.custom_attr_group = &custom_soc_attr_group;
 }
-
+#ifndef CONFIG_SAMSUNG_PRODUCT_SHIP
 static void socinfo_print(void)
 {
 	uint32_t f_maj = SOCINFO_MAJOR(socinfo_format);
@@ -1199,6 +1233,7 @@ static void socinfo_print(void)
 		break;
 	}
 }
+#endif
 
 static const char *socinfo_machine(unsigned int id)
 {
@@ -1258,7 +1293,9 @@ static int qcom_socinfo_probe(struct platform_device *pdev)
 	qsocinfo = qs;
 	init_rwsem(&qs->current_image_rwsem);
 	socinfo_populate_sysfs(qs);
+#ifndef CONFIG_SAMSUNG_PRODUCT_SHIP
 	socinfo_print();
+#endif
 
 	qs->soc_dev = soc_device_register(&qs->attr);
 	if (IS_ERR(qs->soc_dev))

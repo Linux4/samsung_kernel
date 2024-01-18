@@ -14,6 +14,9 @@
 #include <kunit/strerror.h>
 #include <kunit/test-stream.h>
 #include <kunit/try-catch.h>
+#include <linux/kernel.h>
+#include <linux/module.h>
+#include <linux/notifier.h>
 
 /**
  * struct test_resource - represents a *test managed resource*
@@ -142,8 +145,10 @@ struct test_case {
  * Every &struct test_case must be associated with a test_module for KUnit to
  * run it.
  */
+
 struct test_module {
 	const char name[256];
+	char *log;
 	int (*init)(struct test *test);
 	void (*exit)(struct test *test);
 	struct test_case *test_cases;
@@ -200,14 +205,8 @@ int test_init_test(struct test *test, const char *name);
 
 int test_run_tests(struct test_module *module);
 
-#if IS_ENABLED(CONFIG_KUNIT)
-int test_executor_init(void);
-#else
-static inline int test_executor_init(void)
-{
-	return 0;
-}
-#endif
+extern int register_kunit_notifier(struct notifier_block *nb);
+extern int unregister_kunit_notifier(struct notifier_block *nb);
 
 void test_install_initcall(struct test_initcall *initcall);
 
@@ -221,6 +220,22 @@ void test_install_initcall(struct test_initcall *initcall);
 			return 0; \
 		} \
 		test_pure_initcall(register_test_initcall_##initcall)
+
+#ifdef MODULE
+#define kunit_test_suites_for_module(module)				\
+	static int __init kunit_test_suites_init(void)			\
+	{								\
+		return 0;						\
+	}								\
+	module_init(kunit_test_suites_init);				\
+									\
+	static void __exit kunit_test_suites_exit(void)			\
+	{								\
+	}								\
+	module_exit(kunit_test_suites_exit)
+#else
+#define kunit_test_suites_for_module(module)
+#endif /* MODULE */
 
 /**
  * module_test() - used to register a &struct test_module with KUnit.
@@ -237,10 +252,12 @@ void test_install_initcall(struct test_initcall *initcall);
  * (test_module *) starting at __test_modules_start.
  */
 #define module_test(module) \
+		kunit_test_suites_for_module(module); \
 		static struct test_module *__test_module_##module __used       \
 		__aligned(8) __attribute__((__section__(".test_modules"))) = \
 			&module
 
+#define module_test_for_module(module)	module_test(module)
 /**
  * test_alloc_resource() - Allocates a *test managed resource*.
  * @test: The test context object.
@@ -448,16 +465,16 @@ static inline void test_expect_end(struct test *test,
 	typeof(expression) __result = (expression);			       \
 	char buf[64];							       \
 									       \
-	if (result != 0)						       \
+	if (__result != 0)						       \
 		__stream->add(__stream,					       \
 			      "Expected " #expression " is not error, "	       \
 			      "but is: %s.",				       \
-			      strerror_r(-result, buf, sizeof(buf)));	       \
-	EXPECT_END(test, result != 0, __stream);			       \
+			      strerror_r(-__result, buf, sizeof(buf)));	       \
+	EXPECT_END(test, __result == 0, __stream);			       \
 } while (0)
 
 /**
- * EXPECT_ERROR() - Causes a test failure when @expression evaluates to @errno.
+ * EXPECT_ERROR() - Causes a test failure when @expression does not evaluate to @errno.
  * @test: The test context object.
  * @expression: an arbitrary expression evaluating to an int error code. The
  * test fails when this does not evaluate to @errno.
@@ -472,12 +489,12 @@ static inline void test_expect_end(struct test *test,
 	char buf1[64];							       \
 	char buf2[64];							       \
 									       \
-	if (result != errno)						       \
+	if (__result != errno)						       \
 		__stream->add(__stream,					       \
 			      "Expected " #expression " is %s, but is: %s.",   \
-			      strerror_t(-errno, buf1, sizeof(buf1)),	       \
-			      strerror_r(-result, buf2, sizeof(buf2)));	       \
-	EXPECT_END(test, result == errno, __stream);			       \
+			      strerror_r(-errno, buf1, sizeof(buf1)),	       \
+			      strerror_r(-__result, buf2, sizeof(buf2)));	       \
+	EXPECT_END(test, __result == errno, __stream);			       \
 } while (0)
 
 static inline void test_expect_binary(struct test *test,
@@ -534,6 +551,7 @@ static inline void test_expect_binary(struct test *test,
  * (@right)).  See EXPECT_TRUE() for more information.
  */
 #define EXPECT_EQ(test, left, right) EXPECT_BINARY(test, left, ==, right)
+#define EXPECT_PTR_EQ(test, left, right) EXPECT_BINARY(test, left, ==, right)
 
 /**
  * EXPECT_NE() - An expectation that @left and @right are not equal.
@@ -546,6 +564,7 @@ static inline void test_expect_binary(struct test *test,
  * (@right)).  See EXPECT_TRUE() for more information.
  */
 #define EXPECT_NE(test, left, right) EXPECT_BINARY(test, left, !=, right)
+#define EXPECT_PTR_NE(test, left, right) EXPECT_BINARY(test, left, !=, right)
 
 /**
  * EXPECT_LT() - An expectation that @left is less than @right.
@@ -749,12 +768,12 @@ static inline void test_assert_end(struct test *test,
 	typeof(expression) __result = (expression);			       \
 	char buf[64];							       \
 									       \
-	if (result != 0)						       \
+	if (__result != 0)						       \
 		__stream->add(__stream,					       \
 			      "Asserted " #expression " is not error, "	       \
 			      "but is: %s.",				       \
-			      strerror_r(-result, buf, sizeof(buf)));	       \
-	ASSERT_END(test, result != 0, __stream);			       \
+			      strerror_r(-__result, buf, sizeof(buf)));	       \
+	ASSERT_END(test, __result == 0, __stream);			       \
 } while (0)
 
 /**
@@ -773,12 +792,12 @@ static inline void test_assert_end(struct test *test,
 	char buf1[64];							       \
 	char buf2[64];							       \
 									       \
-	if (result != errno)						       \
+	if (__result != errno)						       \
 		__stream->add(__stream,					       \
 			      "Expected " #expression " is %s, but is: %s.",   \
-			      strerror_t(-errno, buf1, sizeof(buf1)),	       \
-			      strerror_r(-result, buf2, sizeof(buf2)));	       \
-	ASSERT_END(test, result == errno, __stream);			       \
+			      strerror_r(-errno, buf1, sizeof(buf1)),	       \
+			      strerror_r(-__result, buf2, sizeof(buf2)));	       \
+	ASSERT_END(test, __result == errno, __stream);			       \
 } while (0)
 
 static inline void test_assert_binary(struct test *test,
@@ -835,6 +854,7 @@ static inline void test_assert_binary(struct test *test,
  * (see ASSERT_TRUE()) when the assertion is not met.
  */
 #define ASSERT_EQ(test, left, right) ASSERT_BINARY(test, left, ==, right)
+#define ASSERT_PTR_EQ(test, left, right) ASSERT_BINARY(test, left, ==, right)
 
 /**
  * ASSERT_NE() - An assertion that @left and @right are not equal.
@@ -847,6 +867,7 @@ static inline void test_assert_binary(struct test *test,
  * (see ASSERT_TRUE()) when the assertion is not met.
  */
 #define ASSERT_NE(test, left, right) ASSERT_BINARY(test, left, !=, right)
+#define ASSERT_PTR_NE(test, left, right) ASSERT_BINARY(test, left, !=, right)
 
 /**
  * ASSERT_LT() - An assertion that @left is less than @right.
@@ -972,4 +993,8 @@ static inline void test_assert_binary(struct test *test,
 		       "Asserted that " #expr " would cause death, but did not.");\
 } while (0)
 
+/*
+ * separate wrapper macro and functions to support 5.10 Kunit
+ */
+#include <kunit/test_wrapper.h>
 #endif /* _TEST_TEST_H */

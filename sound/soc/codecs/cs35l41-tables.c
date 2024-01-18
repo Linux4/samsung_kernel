@@ -603,6 +603,7 @@ bool cs35l41_readable_reg(struct device *dev, unsigned int reg)
 		return false;
 	}
 }
+EXPORT_SYMBOL_GPL(cs35l41_readable_reg);
 
 bool cs35l41_volatile_reg(struct device *dev, unsigned int reg)
 {
@@ -664,6 +665,7 @@ bool cs35l41_volatile_reg(struct device *dev, unsigned int reg)
 		return false;
 	}
 }
+EXPORT_SYMBOL_GPL(cs35l41_volatile_reg);
 
 static const struct otp_packed_element_t otp_map_1[CS35L41_NUM_OTP_ELEM] = {
 	/* addr         shift   size */

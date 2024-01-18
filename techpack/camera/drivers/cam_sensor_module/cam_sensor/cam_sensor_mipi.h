@@ -57,6 +57,7 @@ enum {
 	FRONT,
 	UW,
 	TELE,
+	FRONT_TOP,
 };
 
 /* RAT */

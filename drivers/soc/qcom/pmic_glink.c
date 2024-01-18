@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2019-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
  */
 
 #define pr_fmt(fmt)	"PMIC_GLINK: %s: " fmt, __func__
@@ -171,16 +171,10 @@ static int pmic_glink_pdr_notifier_cb(struct notifier_block *nb,
 	pr_debug("code: %#lx\n", code);
 
 	switch (code) {
-	case SERVREG_NOTIF_SERVICE_STATE_EARLY_DOWN_V01:
+	case SERVREG_NOTIF_SERVICE_STATE_DOWN_V01:
 		pr_debug("PD state down for %s\n", pgdev->pdr_service_name);
 		pmic_glink_notify_clients(pgdev, PMIC_GLINK_STATE_DOWN);
 		atomic_set(&pgdev->pdr_state, code);
-		break;
-	case SERVREG_NOTIF_SERVICE_STATE_DOWN_V01:
-		/*
-		 * PMIC Glink clients have been notified already. So do
-		 * nothing here.
-		 */
 		break;
 	case SERVREG_NOTIF_SERVICE_STATE_UP_V01:
 		/*
@@ -474,15 +468,17 @@ static void pmic_glink_rx_work(struct work_struct *work)
 	struct pmic_glink_buf *pbuf, *tmp;
 	unsigned long flags;
 
+	spin_lock_irqsave(&pdev->rx_lock, flags);
 	if (!list_empty(&pdev->rx_list)) {
 		list_for_each_entry_safe(pbuf, tmp, &pdev->rx_list, node) {
+			spin_unlock_irqrestore(&pdev->rx_lock, flags);
 			pmic_glink_rx_callback(pdev, pbuf);
 			spin_lock_irqsave(&pdev->rx_lock, flags);
 			list_del(&pbuf->node);
-			spin_unlock_irqrestore(&pdev->rx_lock, flags);
 			kfree(pbuf);
 		}
 	}
+	spin_unlock_irqrestore(&pdev->rx_lock, flags);
 }
 
 static int pmic_glink_rpmsg_callback(struct rpmsg_device *rpdev, void *data,
@@ -606,7 +602,7 @@ static void pmic_glink_init_work(struct work_struct *work)
 	int rc;
 
 	if (atomic_read(&pgdev->pdr_state) ==
-	    SERVREG_NOTIF_SERVICE_STATE_EARLY_DOWN_V01 ||
+	    SERVREG_NOTIF_SERVICE_STATE_DOWN_V01 ||
 	    atomic_read(&pgdev->prev_state) == SUBSYS_BEFORE_SHUTDOWN) {
 		pmic_glink_notify_clients(pgdev, PMIC_GLINK_STATE_UP);
 		atomic_set(&pgdev->pdr_state,

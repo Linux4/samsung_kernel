@@ -13,19 +13,17 @@ struct cnss_qmi_event_server_arrive_data {
 	unsigned int port;
 };
 
-#define QDSS_TRACE_SEG_LEN_MAX 32
-#define QDSS_TRACE_FILE_NAME_MAX 16
-
 struct cnss_mem_seg {
 	u64 addr;
 	u32 size;
 };
 
-struct cnss_qmi_event_qdss_trace_save_data {
+struct cnss_qmi_event_fw_mem_file_save_data {
 	u32 total_size;
 	u32 mem_seg_len;
-	struct cnss_mem_seg mem_seg[QDSS_TRACE_SEG_LEN_MAX];
-	char file_name[QDSS_TRACE_FILE_NAME_MAX + 1];
+	enum wlfw_mem_type_enum_v01 mem_type;
+	struct cnss_mem_seg mem_seg[QMI_WLFW_MAX_NUM_MEM_SEG_V01];
+	char file_name[QMI_WLFW_MAX_STR_LEN_V01 + 1];
 };
 
 #ifdef CONFIG_CNSS2_QMI
@@ -77,10 +75,15 @@ void cnss_ignore_qmi_failure(bool ignore);
 int cnss_qmi_get_dms_mac(struct cnss_plat_data *plat_priv);
 int cnss_wlfw_wlan_mac_req_send_sync(struct cnss_plat_data *plat_priv,
 				     u8 *mac, u32 mac_len);
-int cnss_dms_server_arrive(struct cnss_plat_data *plat_priv, void *data);
-int cnss_dms_server_exit(struct cnss_plat_data *plat_priv);
 int cnss_dms_init(struct cnss_plat_data *plat_priv);
 void cnss_dms_deinit(struct cnss_plat_data *plat_priv);
+int cnss_wlfw_qdss_dnld_send_sync(struct cnss_plat_data *plat_priv);
+int cnss_wlfw_qdss_data_send_sync(struct cnss_plat_data *plat_priv, char *file_name,
+				  u32 total_size);
+int wlfw_qdss_trace_send_start(struct cnss_plat_data *plat_priv);
+int wlfw_qdss_trace_send_stop(struct cnss_plat_data *plat_priv, unsigned long long option);
+int cnss_wlfw_send_host_wfc_call_status(struct cnss_plat_data *plat_priv,
+					struct cnss_wfc_cfg cfg);
 #else
 #define QMI_WLFW_TIMEOUT_MS		10000
 
@@ -259,23 +262,37 @@ int cnss_wlfw_wlan_mac_req_send_sync(struct cnss_plat_data *plat_priv,
 	return 0;
 }
 
-static inline
-int cnss_dms_server_arrive(struct cnss_plat_data *plat_priv, void *data)
-{
-	return 0;
-}
-
-static inline int cnss_dms_server_exit(struct cnss_plat_data *plat_priv)
-{
-	return 0;
-}
-
 static inline int cnss_dms_init(struct cnss_plat_data *plat_priv)
 {
 	return 0;
 }
 
+int cnss_wlfw_qdss_dnld_send_sync(struct cnss_plat_data *plat_priv)
+{
+	return 0;
+}
+
+int cnss_wlfw_qdss_data_send_sync(struct cnss_plat_data *plat_priv, char *file_name,
+				  u32 total_size)
+{
+	return 0;
+}
 static inline void cnss_dms_deinit(struct cnss_plat_data *plat_priv) {}
+int wlfw_qdss_trace_send_start(struct cnss_plat_data *plat_priv)
+{
+	return 0;
+}
+
+int wlfw_qdss_trace_send_stop(struct cnss_plat_data *plat_priv, unsigned long long option)
+{
+	return 0;
+}
+
+int cnss_wlfw_send_host_wfc_call_status(struct cnss_plat_data *plat_priv,
+					struct cnss_wfc_cfg cfg)
+{
+	return 0;
+}
 #endif /* CONFIG_CNSS2_QMI */
 
 #ifdef CONFIG_CNSS2_DEBUG

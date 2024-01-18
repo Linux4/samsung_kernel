@@ -617,8 +617,9 @@ static struct ipahal_imm_cmd_pyld *ipa_imm_cmd_construct_ip_v4_filter_init(
 static struct ipahal_imm_cmd_pyld *ipa_imm_cmd_construct_dummy(
 	enum ipahal_imm_cmd_name cmd, const void *params, bool is_atomic_ctx)
 {
-	IPAHAL_ERR("no construct function for IMM_CMD=%s, IPA ver %d\n",
-		ipahal_imm_cmd_name_str(cmd), ipahal_ctx->hw_type);
+	IPAHAL_ERR("no construct function for IMM_CMD=%s IPA ver=%d\n",
+		ipahal_imm_cmd_name_str(cmd), ipahal_ctx?ipahal_ctx->hw_type:-1);
+
 	WARN_ON(1);
 	return NULL;
 }
@@ -779,6 +780,11 @@ static u16 ipahal_imm_cmd_get_opcode(enum ipahal_imm_cmd_name cmd)
 {
 	u32 opcode;
 
+	if (!ipahal_ctx) {
+		IPAHAL_ERR("Invalid ctx\n");
+		return -EFAULT;
+	}
+
 	if (cmd >= IPA_IMM_CMD_MAX) {
 		IPAHAL_ERR("Invalid immediate command imm_cmd=%u\n", cmd);
 		ipa_assert();
@@ -813,8 +819,8 @@ struct ipahal_imm_cmd_pyld *ipahal_construct_imm_cmd(
 		return NULL;
 	}
 
-	if (cmd >= IPA_IMM_CMD_MAX) {
-		IPAHAL_ERR("Invalid immediate command %u\n", cmd);
+	if (!ipahal_ctx || cmd >= IPA_IMM_CMD_MAX) {
+		IPAHAL_ERR("Invalid ctx/immediate command %u\n", cmd);
 		return NULL;
 	}
 
@@ -1196,7 +1202,7 @@ u32 ipahal_pkt_status_get_size(void)
 void ipahal_pkt_status_parse(const void *unparsed_status,
 	struct ipahal_pkt_status *status)
 {
-	if (!unparsed_status || !status) {
+	if (!ipahal_ctx || !unparsed_status || !status) {
 		IPAHAL_ERR("Input Error: unparsed_status=%pK status=%pK\n",
 			unparsed_status, status);
 		return;
@@ -1218,7 +1224,7 @@ void ipahal_pkt_status_parse(const void *unparsed_status,
 void ipahal_pkt_status_parse_thin(const void *unparsed_status,
 	struct ipahal_pkt_status_thin *status)
 {
-	if (!unparsed_status || !status) {
+	if (!ipahal_ctx || !unparsed_status || !status) {
 		IPAHAL_ERR("Input Error: unparsed_status=%pK status=%pK\n",
 			unparsed_status, status);
 		return;
@@ -1477,6 +1483,9 @@ static int ipahal_cp_proc_ctx_to_hw_buff_v3(enum ipa_hdr_proc_type type,
 		case IPA_HDR_PROC_802_3_TO_802_3:
 			ctx->cmd.value = IPA_HDR_UCP_802_3_TO_802_3;
 			break;
+		case IPA_HDR_PROC_SET_DSCP:
+			ctx->cmd.value = IPA_HDR_UCP_SET_DSCP;
+			break;
 		default:
 			IPAHAL_ERR("unknown ipa_hdr_proc_type %d", type);
 			WARN_ON(1);
@@ -1521,6 +1530,9 @@ static int ipahal_get_proc_ctx_needed_len_v3(enum ipa_hdr_proc_type type)
 		break;
 	case IPA_HDR_PROC_ETHII_TO_ETHII_EX:
 		ret = sizeof(struct ipa_hw_hdr_proc_ctx_add_hdr_cmd_seq_ex);
+		break;
+	case IPA_HDR_PROC_SET_DSCP:
+		ret = sizeof(struct ipa_hw_hdr_proc_ctx_add_hdr_cmd_seq);
 		break;
 	default:
 		/* invalid value to make sure failure */

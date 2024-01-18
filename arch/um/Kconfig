@@ -27,11 +27,11 @@ config MMU
 
 config NO_IOMEM
 	bool
-	default y if !KUNIT
+	default y if !SEC_KUNIT
 
 config HAS_IOMEM
 	bool "Turns on fake IOMEM support for KUnit"
-	depends on KUNIT
+	depends on SEC_KUNIT
 	select MOCK_IOMEM
 
 config ISA
@@ -194,7 +194,7 @@ config SECCOMP
 
 config PLATFORM_MOCK
 	bool "Enable a mock architecture used for unit testing."
-	depends on KUNIT && OF
+	depends on SEC_KUNIT && OF
 	default n
 
 endmenu

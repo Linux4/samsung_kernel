@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2016-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
  */
 
 #include <linux/list.h>
@@ -39,6 +40,8 @@
 #define MAX_TE_SOURCE_ID  2
 
 #define SEC_PANEL_NAME_MAX_LEN  256
+
+u8 dbgfs_tx_cmd_buf[SZ_4K];
 
 #if defined(CONFIG_DISPLAY_SAMSUNG)
 char dsi_display_primary[MAX_CMDLINE_PARAM_LEN];
@@ -237,7 +240,7 @@ int dsi_display_set_backlight(struct drm_connector *connector,
 	if (vdd->br_info.flash_gamma_support &&
 			!vdd->br_info.flash_gamma_init_done) {
 		vdd->br_info.common_br.bl_level = bl_lvl;
-		LCD_ERR("flash_gamme not ready, save level(%d) \n", bl_lvl);
+		LCD_ERR(vdd, "flash_gamme not ready, save level(%d) \n", bl_lvl);
 		return rc;
 	}
 
@@ -640,9 +643,6 @@ static bool dsi_display_validate_reg_read(struct dsi_panel *panel)
 	for (i = 0; i < count; i++)
 		len += lenp[i];
 
-	for (i = 0; i < len; i++)
-		j += len;
-
 	for (j = 0; j < config->groups; ++j) {
 		for (i = 0; i < len; ++i) {
 			if (config->return_buf[i] !=
@@ -845,6 +845,9 @@ static int dsi_display_status_check_te(struct dsi_display *display,
 	int rc = 1, i = 0;
 	int const esd_te_timeout = msecs_to_jiffies(3*20);
 
+	if (!rechecks)
+		return rc;
+
 	dsi_display_change_te_irq_status(display, true);
 
 	for (i = 0; i < rechecks; i++) {
@@ -903,7 +906,8 @@ int dsi_display_check_status(struct drm_connector *connector, void *display,
 	if (te_check_override)
 		te_rechecks = MAX_TE_RECHECKS;
 
-	if (panel->panel_mode == DSI_OP_VIDEO_MODE)
+	if ((dsi_display->trusted_vm_env) ||
+			(panel->panel_mode == DSI_OP_VIDEO_MODE))
 		te_rechecks = 0;
 
 	ret = dsi_display_clk_ctrl(dsi_display->dsi_clk_handle,
@@ -935,16 +939,17 @@ int dsi_display_check_status(struct drm_connector *connector, void *display,
 		panel->esd_config.esd_enabled = false;
 	}
 
-	if (rc <= 0 && te_check_override)
+	/*
+	 * TE check may fail even if status read is passing. In case of
+	 * te_check_override, check the status both from reg read and TE.
+	 */
+	if (rc > 0 && te_check_override)
 		rc = dsi_display_status_check_te(dsi_display, te_rechecks);
 	/* Unmask error interrupts if check passed*/
 	if (rc > 0) {
 		dsi_display_set_ctrl_esd_check_flag(dsi_display, false);
 		dsi_display_mask_ctrl_error_interrupts(dsi_display, mask,
 							false);
-		if (te_check_override && panel->esd_config.esd_enabled == false)
-			rc = dsi_display_status_check_te(dsi_display,
-					te_rechecks);
 	}
 
 	dsi_display_clk_ctrl(dsi_display->dsi_clk_handle,
@@ -1043,7 +1048,7 @@ static int dsi_display_cmd_rx(struct dsi_display *display,
 	flags |= (DSI_CTRL_CMD_FETCH_MEMORY | DSI_CTRL_CMD_READ);
 	if ((m_ctrl->ctrl->host_config.panel_mode == DSI_OP_VIDEO_MODE) ||
 			((cmd->msg.flags & MIPI_DSI_MSG_CMD_DMA_SCHED) &&
-			 (display->panel->panel_initialized)))
+			 (display->enabled)))
 		flags |= DSI_CTRL_CMD_CUSTOM_DMA_SCHED;
 
 	rc = dsi_ctrl_cmd_transfer(m_ctrl->ctrl, &cmd->msg, &flags);
@@ -1067,24 +1072,20 @@ int dsi_display_cmd_transfer(struct drm_connector *connector,
 		u32 cmd_buf_len)
 {
 	struct dsi_display *dsi_display = display;
-	struct dsi_cmd_desc cmd;
-	u8 cmd_payload[MAX_CMD_PAYLOAD_SIZE];
-	int rc = 0;
-	bool state = false;
+	int rc = 0, cnt = 0, i = 0;
+	bool state = false, transfer = false;
+	struct dsi_panel_cmd_set *set;
 
 	if (!dsi_display || !cmd_buf) {
 		DSI_ERR("[DSI] invalid params\n");
 		return -EINVAL;
 	}
 
+	SDE_EVT32(dsi_display->tx_cmd_buf_ndx, cmd_buf_len);
 	DSI_DEBUG("[DSI] Display command transfer\n");
 
-	rc = dsi_display_cmd_prepare(cmd_buf, cmd_buf_len,
-			&cmd, cmd_payload, MAX_CMD_PAYLOAD_SIZE);
-	if (rc) {
-		DSI_ERR("[DSI] command prepare failed. rc %d\n", rc);
-		return rc;
-	}
+	if ((cmd_buf[1]) || (cmd_buf[3] & MIPI_DSI_MSG_LASTCOMMAND))
+		transfer = true;
 
 	mutex_lock(&dsi_display->display_lock);
 	rc = dsi_display_ctrl_get_host_init_state(dsi_display, &state);
@@ -1106,8 +1107,59 @@ int dsi_display_cmd_transfer(struct drm_connector *connector,
 		goto end;
 	}
 
-	rc = dsi_display->host.ops->transfer(&dsi_display->host,
-			&cmd.msg);
+	/*
+	 * Reset the dbgfs buffer if the commands sent exceed the available
+	 * buffer size. For video mode, limiting the buffer size to 2K to
+	 * ensure no performance issues.
+	 */
+	if (dsi_display->panel->panel_mode == DSI_OP_CMD_MODE) {
+		if ((dsi_display->tx_cmd_buf_ndx + cmd_buf_len) > SZ_4K) {
+			memset(dbgfs_tx_cmd_buf, 0, SZ_4K);
+			dsi_display->tx_cmd_buf_ndx = 0;
+		}
+	} else {
+		if ((dsi_display->tx_cmd_buf_ndx + cmd_buf_len) > SZ_2K) {
+			memset(dbgfs_tx_cmd_buf, 0, SZ_4K);
+			dsi_display->tx_cmd_buf_ndx = 0;
+		}
+	}
+
+	memcpy(&dbgfs_tx_cmd_buf[dsi_display->tx_cmd_buf_ndx], cmd_buf,
+			cmd_buf_len);
+	dsi_display->tx_cmd_buf_ndx += cmd_buf_len;
+	if (transfer) {
+		struct dsi_cmd_desc *cmds;
+
+		set = &dsi_display->cmd_set;
+		set->count = 0;
+		dsi_panel_get_cmd_pkt_count(dbgfs_tx_cmd_buf,
+				dsi_display->tx_cmd_buf_ndx, &cnt);
+		dsi_panel_alloc_cmd_packets(set, cnt);
+		dsi_panel_create_cmd_packets(dbgfs_tx_cmd_buf,
+				dsi_display->tx_cmd_buf_ndx, cnt, set->cmds);
+		cmds = set->cmds;
+		dsi_display->tx_cmd_buf_ndx = 0;
+
+		for (i = 0; i < cnt; i++) {
+			if (cmds->last_command)
+				cmds->msg.flags |= MIPI_DSI_MSG_LASTCOMMAND;
+			rc = dsi_display->host.ops->transfer(&dsi_display->host,
+					&cmds->msg);
+			if (rc < 0) {
+				DSI_ERR("failed to send command, rc=%d\n", rc);
+				break;
+			}
+			if (cmds->post_wait_ms)
+				usleep_range(cmds->post_wait_ms*1000,
+						((cmds->post_wait_ms*1000)+10));
+			cmds++;
+		}
+
+		memset(dbgfs_tx_cmd_buf, 0, SZ_4K);
+		dsi_panel_destroy_cmd_packets(set);
+		dsi_panel_dealloc_cmd_packets(set);
+	}
+
 end:
 	mutex_unlock(&dsi_display->display_lock);
 	return rc;
@@ -1153,6 +1205,8 @@ int dsi_display_cmd_receive(void *display, const char *cmd_buf,
 		DSI_ERR("[DSI] invalid params\n");
 		return -EINVAL;
 	}
+
+	SDE_EVT32(cmd_buf_len, recv_buf_len);
 
 	rc = dsi_display_cmd_prepare(cmd_buf, cmd_buf_len,
 			&cmd, cmd_payload, MAX_CMD_PAYLOAD_SIZE);
@@ -1241,6 +1295,9 @@ int dsi_display_set_power(struct drm_connector *connector,
 {
 	struct dsi_display *display = disp;
 	int rc = 0;
+#if defined(CONFIG_DISPLAY_SAMSUNG)
+	struct samsung_display_driver_data *vdd;
+#endif
 
 	if (!display || !display->panel) {
 		DSI_ERR("invalid display/panel\n");
@@ -1248,24 +1305,40 @@ int dsi_display_set_power(struct drm_connector *connector,
 	}
 
 #if defined(CONFIG_DISPLAY_SAMSUNG)
-	LCD_INFO("%s ++\n", power_mode == SDE_MODE_DPMS_LP1 ? "LP1" :
+	vdd = display->panel->panel_private;
+	LCD_INFO(vdd, "%s ++\n", power_mode == SDE_MODE_DPMS_LP1 ? "LP1" :
 			power_mode == SDE_MODE_DPMS_LP2 ? "LP2" : "NO_LP");
 	SDE_EVT32(power_mode);
 #endif
 
 	switch (power_mode) {
 	case SDE_MODE_DPMS_LP1:
+		if (display->panel->power_mode == SDE_MODE_DPMS_LP2) {
+			if (dsi_display_set_ulp_load(display, false) < 0)
+				DSI_WARN("failed to set load for lp1 state\n");
+		}
 		rc = dsi_panel_set_lp1(display->panel);
 		break;
 	case SDE_MODE_DPMS_LP2:
 		rc = dsi_panel_set_lp2(display->panel);
+		if (dsi_display_set_ulp_load(display, true) < 0)
+			DSI_WARN("failed to set load for lp2 state\n");
 		break;
 	case SDE_MODE_DPMS_ON:
+#if defined(CONFIG_DISPLAY_SAMSUNG)
+	case SDE_MODE_DPMS_OFF:
+#endif
+		if (display->panel->power_mode == SDE_MODE_DPMS_LP2) {
+			if (dsi_display_set_ulp_load(display, false) < 0)
+				DSI_WARN("failed to set load for on state\n");
+		}
 		if ((display->panel->power_mode == SDE_MODE_DPMS_LP1) ||
 			(display->panel->power_mode == SDE_MODE_DPMS_LP2))
 			rc = dsi_panel_set_nolp(display->panel);
 		break;
+#if !defined(CONFIG_DISPLAY_SAMSUNG)
 	case SDE_MODE_DPMS_OFF:
+#endif
 	default:
 		return rc;
 	}
@@ -1278,7 +1351,7 @@ int dsi_display_set_power(struct drm_connector *connector,
 		display->panel->power_mode = power_mode;
 
 #if defined(CONFIG_DISPLAY_SAMSUNG)
-	LCD_INFO("%s %s --\n", power_mode == SDE_MODE_DPMS_LP1 ? "LP1" :
+	LCD_INFO(vdd, "%s %s --\n", power_mode == SDE_MODE_DPMS_LP1 ? "LP1" :
 			power_mode == SDE_MODE_DPMS_LP2 ? "LP2" : "NO_LP",
 			rc ? "failed" : "successful");
 #endif
@@ -1397,6 +1470,14 @@ static ssize_t debugfs_misr_setup(struct file *file,
 	display->misr_frame_count = frame_count;
 
 	mutex_lock(&display->display_lock);
+
+	if (!display->hw_ownership) {
+		DSI_DEBUG("[%s] op not supported due to HW unavailability\n",
+				display->name);
+		rc = -EOPNOTSUPP;
+		goto unlock;
+	}
+
 	rc = dsi_display_clk_ctrl(display->dsi_clk_handle,
 			DSI_CORE_CLK, DSI_CLK_ON);
 	if (rc) {
@@ -1448,6 +1529,14 @@ static ssize_t debugfs_misr_read(struct file *file,
 		return -ENOMEM;
 
 	mutex_lock(&display->display_lock);
+
+	if (!display->hw_ownership) {
+		DSI_DEBUG("[%s] op not supported due to HW unavailability\n",
+				display->name);
+		rc = -EOPNOTSUPP;
+		goto error;
+	}
+
 	rc = dsi_display_clk_ctrl(display->dsi_clk_handle,
 			DSI_CORE_CLK, DSI_CLK_ON);
 	if (rc) {
@@ -1545,16 +1634,28 @@ static ssize_t debugfs_esd_trigger_check(struct file *file,
 
 	display->esd_trigger = esd_trigger;
 
+	mutex_lock(&display->display_lock);
+
+	if (!display->hw_ownership) {
+		DSI_DEBUG("[%s] op not supported due to HW unavailability\n",
+				display->name);
+		rc = -EOPNOTSUPP;
+		goto unlock;
+	}
+
 	if (display->esd_trigger) {
 		DSI_INFO("ESD attack triggered by user\n");
-		rc = dsi_panel_trigger_esd_attack(display->panel);
+		rc = dsi_panel_trigger_esd_attack(display->panel,
+						display->trusted_vm_env);
 		if (rc) {
 			DSI_ERR("Failed to trigger ESD attack\n");
-			goto error;
+			goto unlock;
 		}
 	}
 
 	rc = len;
+unlock:
+	mutex_unlock(&display->display_lock);
 error:
 	kfree(buf);
 	return rc;
@@ -2429,6 +2530,63 @@ void dsi_display_enable_event(struct drm_connector *connector,
 	}
 }
 
+int dsi_display_ctrl_vreg_on(struct dsi_display *display)
+{
+	int rc = 0;
+	int i;
+	struct dsi_display_ctrl *ctrl;
+	struct dsi_ctrl *dsi_ctrl;
+
+	display_for_each_ctrl(i, display) {
+		ctrl = &display->ctrl[i];
+		if (!ctrl->ctrl)
+			continue;
+
+		dsi_ctrl = ctrl->ctrl;
+		if (dsi_ctrl->current_state.host_initialized) {
+			rc = dsi_pwr_enable_regulator(
+					&dsi_ctrl->pwr_info.host_pwr, true);
+			if (rc) {
+				DSI_ERR("[%s] Failed to enable vreg, rc=%d\n",
+				       dsi_ctrl->name, rc);
+				goto error;
+			}
+			DSI_DEBUG("[%s] Enable ctrl vreg\n", dsi_ctrl->name);
+		}
+	}
+error:
+	return rc;
+}
+
+int dsi_display_ctrl_vreg_off(struct dsi_display *display)
+{
+	int rc = 0;
+	int i;
+	struct dsi_display_ctrl *ctrl;
+	struct dsi_ctrl *dsi_ctrl;
+
+	display_for_each_ctrl(i, display) {
+		ctrl = &display->ctrl[i];
+		if (!ctrl->ctrl)
+			continue;
+
+		dsi_ctrl = ctrl->ctrl;
+		if (dsi_ctrl->current_state.host_initialized) {
+			rc = dsi_pwr_enable_regulator(
+				&dsi_ctrl->pwr_info.host_pwr, false);
+			if (rc) {
+				DSI_ERR("[%s] Failed to disable vreg, rc=%d\n",
+				       dsi_ctrl->name, rc);
+				goto error;
+			}
+			DSI_DEBUG("[%s] Disable ctrl vreg\n", dsi_ctrl->name);
+		}
+	}
+error:
+	return rc;
+}
+
+
 #if defined(CONFIG_DISPLAY_SAMSUNG)
 /**
  * dsi_config_host_engine_state_for_cont_splash()- update host engine state
@@ -2591,11 +2749,11 @@ static int dsi_display_parse_boot_display_selection(void)
 		strlcpy(disp_buf, boot_displays[i].boot_param,
 			MAX_CMDLINE_PARAM_LEN);
 
-		pos = strnstr(disp_buf, ":", MAX_CMDLINE_PARAM_LEN);
+		pos = strnstr(disp_buf, ":", strlen(disp_buf));
 
 		/* Use ':' as a delimiter to retrieve the display name */
 		if (!pos) {
-			DSI_DEBUG("display name[%s]is not valid\n", disp_buf);
+			DSI_ERR("display name[%s]is not valid\n", disp_buf);
 			continue;
 		}
 
@@ -2606,7 +2764,8 @@ static int dsi_display_parse_boot_display_selection(void)
 
 		boot_displays[i].boot_disp_en = true;
 
-		pr_err("dsi_display_parse_boot_display_selection : boot_displays[i].boot_disp_en = %d\n", boot_displays[i].boot_disp_en);
+		pr_err("dsi_display_parse_boot_display_selection : boot_displays[%d].boot_disp_en = %d\n",
+				i, boot_displays[i].boot_disp_en);
 	}
 
 	return 0;
@@ -2666,7 +2825,39 @@ error:
 	return rc;
 }
 
-static int dsi_display_set_clk_src(struct dsi_display *display)
+#ifdef CONFIG_DEEPSLEEP
+int dsi_display_unset_clk_src(struct dsi_display *display)
+{
+	int rc = 0;
+	int i;
+	struct dsi_display_ctrl *ctrl;
+
+	DSI_DEBUG("[%s] unset source clocks\n", display->name);
+
+	display_for_each_ctrl(i, display) {
+		ctrl = &display->ctrl[i];
+		if (!ctrl->ctrl)
+			continue;
+
+		/* set ctrl clocks to xo source */
+		rc = dsi_ctrl_set_clock_source(ctrl->ctrl,
+			   &display->clock_info.xo_clks);
+		if (rc) {
+			DSI_ERR("[%s] failed to set source clocks, rc=%d\n",
+				   display->name, rc);
+			return rc;
+		}
+	}
+	return 0;
+}
+#else
+inline int dsi_display_unset_clk_src(struct dsi_display *display)
+{
+	return 0;
+}
+#endif
+
+int dsi_display_set_clk_src(struct dsi_display *display)
 {
 	int rc = 0;
 	int i;
@@ -3138,8 +3329,12 @@ static int dsi_display_broadcast_cmd(struct dsi_display *display,
 		m_flags |= DSI_CTRL_CMD_LAST_COMMAND;
 	}
 
-	if ((msg->flags & MIPI_DSI_MSG_CMD_DMA_SCHED) &&
-				(display->panel->panel_initialized)) {
+	/*
+	 * During broadcast command dma scheduling is always recommended.
+	 * As long as the display is enabled and TE is running the
+	 * DSI_CTRL_CMD_CUSTOM_DMA_SCHED flag should be set.
+	 */
+	if (display->enabled) {
 		flags |= DSI_CTRL_CMD_CUSTOM_DMA_SCHED;
 		m_flags |= DSI_CTRL_CMD_CUSTOM_DMA_SCHED;
 	}
@@ -3318,7 +3513,7 @@ static ssize_t dsi_host_transfer(struct mipi_dsi_host *host,
 			cmd_flags |= DSI_CTRL_CMD_ASYNC_WAIT;
 
 		if ((msg->flags & MIPI_DSI_MSG_CMD_DMA_SCHED) &&
-				(display->panel->panel_initialized))
+				(display->enabled))
 			cmd_flags |= DSI_CTRL_CMD_CUSTOM_DMA_SCHED;
 
 #if defined(CONFIG_DISPLAY_SAMSUNG)
@@ -3338,7 +3533,7 @@ static ssize_t dsi_host_transfer(struct mipi_dsi_host *host,
 
 		if (((cmd_flags & DSI_CTRL_CMD_READ) && rc <= 0) ||
 				(!(cmd_flags & DSI_CTRL_CMD_READ) && rc)) {
-			LCD_ERR("[%s] cmd transfer failed, rc=%d, cmd_flags=%x cmd = %x\n",
+			LCD_ERR(vdd, "[%s] cmd transfer failed, rc=%d, cmd_flags=%x cmd = %x\n",
 				   ss_get_cmd_name(vdd->cmd_type), rc, cmd_flags, (u8 *)msg->tx_buf + 0);
 /*
 			SDE_DBG_DUMP("sde", "dsi0_ctrl", "dsi0_phy", "dsi1_ctrl",
@@ -3351,7 +3546,7 @@ static ssize_t dsi_host_transfer(struct mipi_dsi_host *host,
 #else
 		rc = dsi_ctrl_cmd_transfer(display->ctrl[ctrl_idx].ctrl, msg,
 				&cmd_flags);
-		if (rc) {
+		if (rc < 0) {
 			DSI_ERR("[%s] cmd transfer failed, rc=%d\n",
 			       display->name, rc);
 			goto error_disable_cmd_engine;
@@ -3487,6 +3682,7 @@ static int dsi_display_clocks_init(struct dsi_display *display)
 {
 	int i, rc = 0, num_clk = 0;
 	const char *clk_name;
+	const char *xo_byte = "xo_byte", *xo_pixel = "xo_pixel";
 	const char *src_byte = "src_byte", *src_pixel = "src_pixel";
 	const char *mux_byte = "mux_byte", *mux_pixel = "mux_pixel";
 	const char *cphy_byte = "cphy_byte", *cphy_pixel = "cphy_pixel";
@@ -3494,6 +3690,7 @@ static int dsi_display_clocks_init(struct dsi_display *display)
 	const char *shadow_cphybyte = "shadow_cphybyte",
 		   *shadow_cphypixel = "shadow_cphypixel";
 	struct clk *dsi_clk;
+	struct dsi_clk_link_set *xo = &display->clock_info.xo_clks;
 	struct dsi_clk_link_set *src = &display->clock_info.src_clks;
 	struct dsi_clk_link_set *mux = &display->clock_info.mux_clks;
 	struct dsi_clk_link_set *cphy = &display->clock_info.cphy_clks;
@@ -3510,6 +3707,12 @@ static int dsi_display_clocks_init(struct dsi_display *display)
 
 	num_clk = dsi_display_get_clocks_count(display, dsi_clock_name);
 
+	if (num_clk <= 0) {
+		rc = num_clk;
+		DSI_WARN("failed to read %s, rc = %d\n", dsi_clock_name, num_clk);
+		goto error;
+	}
+
 	DSI_DEBUG("clk count=%d\n", num_clk);
 
 	for (i = 0; i < num_clk; i++) {
@@ -3523,6 +3726,15 @@ static int dsi_display_clocks_init(struct dsi_display *display)
 			rc = PTR_ERR(dsi_clk);
 
 			DSI_ERR("failed to get %s, rc=%d\n", clk_name, rc);
+
+			if (dsi_display_check_prefix(xo_byte, clk_name)) {
+				xo->byte_clk = NULL;
+				goto error;
+			}
+			if (dsi_display_check_prefix(xo_pixel, clk_name)) {
+				xo->pixel_clk = NULL;
+				goto error;
+			}
 
 			if (dsi_display_check_prefix(mux_byte, clk_name)) {
 				mux->byte_clk = NULL;
@@ -3567,6 +3779,16 @@ static int dsi_display_clocks_init(struct dsi_display *display)
 
 				dyn_clk_caps->dyn_clk_support = false;
 			}
+		}
+
+		if (dsi_display_check_prefix(xo_byte, clk_name)) {
+			xo->byte_clk = dsi_clk;
+			continue;
+		}
+
+		if (dsi_display_check_prefix(xo_pixel, clk_name)) {
+			xo->pixel_clk = dsi_clk;
+			continue;
 		}
 
 		if (dsi_display_check_prefix(src_byte, clk_name)) {
@@ -3975,6 +4197,35 @@ int dsi_pre_clkon_cb(void *priv,
 	return rc;
 }
 
+int dsi_display_set_ulp_load(struct dsi_display *display, bool enable)
+{
+	int i, rc = 0;
+	struct dsi_display_ctrl *display_ctrl;
+	struct dsi_ctrl *ctrl;
+	struct dsi_panel *panel;
+
+	display_for_each_ctrl(i, display) {
+		display_ctrl = &display->ctrl[i];
+		if (!display_ctrl->ctrl)
+			continue;
+		ctrl = display_ctrl->ctrl;
+
+		rc = dsi_pwr_config_vreg_opt_mode(&ctrl->pwr_info.host_pwr, enable);
+		if (rc) {
+			DSI_ERR("failed to set ctrl load\n");
+			return rc;
+		}
+	}
+
+	panel = display->panel;
+	rc = dsi_pwr_config_vreg_opt_mode(&panel->power_info, enable);
+	if (rc) {
+		DSI_ERR("failed to set panel load\n");
+		return rc;
+	}
+	return rc;
+}
+
 static void __set_lane_map_v2(u8 *lane_map_v2,
 	enum dsi_phy_data_lanes lane0,
 	enum dsi_phy_data_lanes lane1,
@@ -4178,6 +4429,12 @@ static int dsi_display_parse_dt(struct dsi_display *display)
 	/* Parse TE data */
 	dsi_display_parse_te_data(display);
 
+	display->needs_clk_src_reset = of_property_read_bool(of_node,
+				"qcom,needs-clk-src-reset");
+
+	display->needs_ctrl_vreg_disable = of_property_read_bool(of_node,
+				"qcom,needs-ctrl-vreg-disable");
+
 	/* Parse all external bridges from port 0 */
 	display_for_each_ctrl(i, display) {
 		display->ext_bridge[i].node_of =
@@ -4279,10 +4536,13 @@ static int dsi_display_res_init(struct dsi_display *display)
 	 * In trusted vm, the connectors will not be enabled
 	 * until the HW resources are assigned and accepted.
 	 */
-	if (display->trusted_vm_env)
+	if (display->trusted_vm_env) {
 		display->is_active = false;
-	else
+		display->hw_ownership = false;
+	} else {
 		display->is_active = true;
+		display->hw_ownership = true;
+	}
 
 	return 0;
 error_ctrl_put:
@@ -4715,7 +4975,6 @@ static int _dsi_display_dyn_update_clks(struct dsi_display *display,
 		dsi_phy_dynamic_refresh_clear(ctrl->phy);
 	}
 
-defer_dfps_wait:
 	rc = dsi_clk_update_parent(enable_clk,
 			&display->clock_info.mux_clks);
 	if (rc)
@@ -4747,7 +5006,20 @@ recover_byte_clk:
 exit:
 	dsi_clk_disable_unprepare(&display->clock_info.src_clks);
 
+defer_dfps_wait:
 	return rc;
+}
+
+void dsi_display_dfps_update_parent(struct dsi_display *display)
+{
+	int rc = 0;
+
+	rc = dsi_clk_update_parent(&display->clock_info.src_clks,
+			      &display->clock_info.mux_clks);
+	if (rc)
+		DSI_ERR("could not switch back to src clks %d\n", rc);
+
+	dsi_clk_disable_unprepare(&display->clock_info.src_clks);
 }
 
 static int dsi_display_dynamic_clk_switch_vid(struct dsi_display *display,
@@ -4918,6 +5190,10 @@ static int dsi_display_dfps_update(struct dsi_display *display,
 	 * active mode.
 	 */
 	panel_mode->dsi_mode_flags = 0;
+
+#if defined(CONFIG_DISPLAY_SAMSUNG)
+	DSI_INFO("%s] success configuring dynamic-fps\n", __func__);
+#endif
 
 error:
 	SDE_EVT32(SDE_EVTLOG_FUNC_EXIT);
@@ -5379,6 +5655,8 @@ int dsi_display_cont_splash_config(void *dsi_display)
 #if defined(CONFIG_DISPLAY_SAMSUNG)
 	struct samsung_display_driver_data *vdd;
 	struct drm_encoder *drm_enc;
+	struct dsi_display_ctrl *ctrl;
+	int i;
 #endif
 
 	/* Vote for gdsc required to read register address space */
@@ -5402,7 +5680,7 @@ int dsi_display_cont_splash_config(void *dsi_display)
 	vdd = display->panel->panel_private;
 	if (display->is_cont_splash_enabled) {
 		vdd->samsung_splash_enabled = true;
-		LCD_INFO("set samsung splash (%d)\n", vdd->samsung_splash_enabled);
+		LCD_INFO(vdd, "set samsung splash (%d)\n", vdd->samsung_splash_enabled);
 	}
 #endif
 
@@ -5431,6 +5709,24 @@ int dsi_display_cont_splash_config(void *dsi_display)
 	dsi_panel_bl_handoff(display->panel);
 
 #if defined(CONFIG_DISPLAY_SAMSUNG)
+	/* Splash boot && pba_reuglator_control && PBA panel => PBA regulators off */
+	if (!strcmp(display->panel->name, "ss_dsi_panel_PBA_BOOTING_FHD") ||
+		(!strcmp(display->panel->name, "ss_dsi_panel_PBA_BOOTING_FHD_DSI1"))) {
+		LCD_INFO(vdd, "splash && pba_regulator && PBA panel => regulator OFF\n");
+
+		/* Reset off  */
+		if (gpio_is_valid(display->panel->reset_config.reset_gpio))
+			gpio_set_value(display->panel->reset_config.reset_gpio, 0);
+		else
+			LCD_ERR(vdd, "reset_gpio is invalid\n");
+
+		/* Regulators off : including reset regulator off */
+		rc = dsi_pwr_enable_regulator(&display->panel->power_info, false);
+		if (rc)
+			DSI_ERR("[%s] failed to disable vregs, rc=%d\n",
+				display->panel->name, rc);
+	}
+
 	if (vdd->br_info.support_early_gamma_flash || vdd->support_early_id_read) {
 		drm_enc = display->bridge->base.encoder;
 
@@ -5444,6 +5740,21 @@ int dsi_display_cont_splash_config(void *dsi_display)
 		mutex_lock(&display->display_lock);
 		dsi_config_host_engine_state_for_cont_splash(display, true);
 		dsi_display_ctrl_init(display);
+
+		display_for_each_ctrl(i, display) {
+			ctrl = &display->ctrl[i];
+			if (!ctrl || !ctrl->ctrl)
+				continue;
+
+			/* Copy dma_cmd_trigger of panel (parsed from dtsi) of dma_cmd_trigger of dsi_ctrl
+			 * dma_cmd_trigger of dsi_ctrl will be copied at set_mode.
+			 * to read opertaion before that, we have to copy the value by force.
+			 */
+
+			LCD_INFO(vdd, "assign ctrl : dma_cmd_trigger %d <- panel dma_cmd_trigger : %d\n",
+				ctrl->ctrl->host_config.common_config.dma_cmd_trigger, display->panel->host_config.dma_cmd_trigger);
+			ctrl->ctrl->host_config.common_config.dma_cmd_trigger = display->panel->host_config.dma_cmd_trigger;
+		}
 
 		ss_early_display_init(display->panel->panel_private);
 
@@ -5609,18 +5920,32 @@ end:
 
 static int dsi_display_pre_release(void *data)
 {
+	struct dsi_display *display;
+
 	if (!data)
 		return -EINVAL;
 
-	dsi_display_ctrl_irq_update((struct dsi_display *)data, false);
+	display = (struct dsi_display *)data;
+	mutex_lock(&display->display_lock);
+	display->hw_ownership = false;
+	mutex_unlock(&display->display_lock);
+
+	dsi_display_ctrl_irq_update(display, false);
 
 	return 0;
 }
 
 static int dsi_display_pre_acquire(void *data)
 {
+	struct dsi_display *display;
+
 	if (!data)
 		return -EINVAL;
+
+	display = (struct dsi_display *)data;
+	mutex_lock(&display->display_lock);
+	display->hw_ownership = true;
+	mutex_unlock(&display->display_lock);
 
 	dsi_display_ctrl_irq_update((struct dsi_display *)data, true);
 
@@ -5849,6 +6174,8 @@ error_ctrl_deinit:
 		display_ctrl = &display->ctrl[i];
 		(void)dsi_phy_drv_deinit(display_ctrl->phy);
 		(void)dsi_ctrl_drv_deinit(display_ctrl->ctrl);
+		dsi_ctrl_put(display_ctrl->ctrl);
+		dsi_phy_put(display_ctrl->phy);
 	}
 	(void)dsi_display_debugfs_deinit(display);
 error:
@@ -6083,7 +6410,8 @@ int dsi_display_dev_probe(struct platform_device *pdev)
 	platform_set_drvdata(pdev, display);
 
 	/* initialize display in firmware callback */
-	if (!boot_disp->boot_disp_en &&
+	if (!(boot_displays[DSI_PRIMARY].boot_disp_en ||
+			boot_displays[DSI_SECONDARY].boot_disp_en) &&
 			IS_ENABLED(CONFIG_DSI_PARSER) &&
 			!display->trusted_vm_env) {
 		if (!strcmp(display->display_type, "primary"))
@@ -6230,6 +6558,12 @@ int dsi_display_drm_bridge_init(struct dsi_display *display,
 
 	display->bridge = bridge;
 	priv->bridges[priv->num_bridges++] = &bridge->base;
+
+	if (display->tx_cmd_buf == NULL) {
+		rc = dsi_host_alloc_cmd_tx_buffer(display);
+		if (rc)
+			DSI_ERR("failed to allocate cmd tx buffer memory\n");
+	}
 
 error:
 	mutex_unlock(&display->display_lock);
@@ -7032,6 +7366,20 @@ int dsi_display_get_modes(struct dsi_display *display,
 			goto error;
 		}
 
+		/*
+		 * Update the host_config.dst_format for compressed RGB101010
+		 * pixel format.
+		 */
+		if (display->panel->host_config.dst_format ==
+			DSI_PIXEL_FORMAT_RGB101010 &&
+			display_mode.timing.dsc_enabled) {
+			display->panel->host_config.dst_format =
+				DSI_PIXEL_FORMAT_RGB888;
+			DSI_DEBUG("updated dst_format from %d to %d\n",
+				DSI_PIXEL_FORMAT_RGB101010,
+				display->panel->host_config.dst_format);
+		}
+
 		is_cmd_mode = (display_mode.panel_mode == DSI_OP_CMD_MODE);
 
 		/* Setup widebus support */
@@ -7522,7 +7870,8 @@ static int dsi_display_pre_switch(struct dsi_display *display)
 	int rc = 0;
 
 #if defined(CONFIG_DISPLAY_SAMSUNG)
-	LCD_INFO("DMS : update dsi ctrl for new mode\n");
+	struct samsung_display_driver_data *vdd = display->panel->panel_private;
+	LCD_INFO(vdd, "DMS : update dsi ctrl for new mode\n");
 #endif
 
 	rc = dsi_display_clk_ctrl(display->dsi_clk_handle,
@@ -7721,18 +8070,18 @@ static void dsi_display_handle_lp_rx_timeout(struct work_struct *work)
 
 		vdd = display->panel->panel_private;
 		if (!vdd) {
-			LCD_ERR("invalid vdd\n");
+			LCD_ERR(vdd, "invalid vdd\n");
 			return;
 		}
 
 		if (!vdd->support_lp_rx_err_recovery) {
-			LCD_INFO("do not support LP RX timeout recovery\n");
+			LCD_INFO(vdd, "do not support LP RX timeout recovery\n");
 			return;
 		}
 
 		conn = GET_SDE_CONNECTOR(vdd);
 		if (!conn) {
-			LCD_ERR("invalid conn\n");
+			LCD_ERR(vdd, "invalid conn\n");
 			return;
 		}
 
@@ -7743,7 +8092,7 @@ static void dsi_display_handle_lp_rx_timeout(struct work_struct *work)
 		schedule_work(&conn->status_work.work);
 		vdd->panel_recovery_cnt++;
 
-		LCD_INFO("Panel Recovery, Trial Count = %d\n", vdd->panel_recovery_cnt);
+		LCD_INFO(vdd, "Panel Recovery, Trial Count = %d\n", vdd->panel_recovery_cnt);
 		SS_XLOG(vdd->panel_recovery_cnt);
 		inc_dpui_u32_field(DPUI_KEY_QCT_RCV_CNT, 1);
 
@@ -7905,7 +8254,7 @@ int dsi_display_prepare(struct dsi_display *display)
 	struct dsi_display_mode *mode;
 
 #if defined(CONFIG_DISPLAY_SAMSUNG)
-	LCD_ERR("++\n");
+	struct samsung_display_driver_data *vdd;
 #endif
 
 	if (!display) {
@@ -7918,9 +8267,15 @@ int dsi_display_prepare(struct dsi_display *display)
 		return -EINVAL;
 	}
 
+#if defined(CONFIG_DISPLAY_SAMSUNG)
+	vdd = display->panel->panel_private;
+	LCD_INFO(vdd, "++\n");
+#endif
+
 	SDE_EVT32(SDE_EVTLOG_FUNC_ENTRY);
 	mutex_lock(&display->display_lock);
 
+	display->hw_ownership = true;
 	mode = display->panel->cur_mode;
 
 	dsi_display_set_ctrl_esd_check_flag(display, false);
@@ -7940,13 +8295,13 @@ int dsi_display_prepare(struct dsi_display *display)
 		if (!display->is_cont_splash_enabled) {
 			rc = dsi_display_pre_switch(display);
 			if (rc)
-				LCD_ERR("[%s] panel pre-prepare-res-switch failed, rc=%d\n",
+				LCD_ERR(vdd, "[%s] panel pre-prepare-res-switch failed, rc=%d\n",
 						display->name, rc);
 
 			goto error;
 		}
 
-		LCD_INFO("DMS was not supposed to be set on first frame, but now it is OK in SS feature!!!\n");
+		LCD_INFO(vdd, "DMS was not supposed to be set on first frame, but now it is OK in SS feature!!!\n");
 #else
 		if (display->is_cont_splash_enabled &&
 		    display->config.panel_mode == DSI_OP_VIDEO_MODE) {
@@ -8075,7 +8430,7 @@ int dsi_display_prepare(struct dsi_display *display)
 		 * which are not configured in bootloader, would be unpredictable state.
 		 * Configure display pins here, in case of cont. splash on mode.
 		 */
-		LCD_INFO("set display pinctrl in con_splash on mode\n");
+		LCD_INFO(vdd, "set display pinctrl in con_splash on mode\n");
 		rc = dsi_panel_set_pinctrl_state(display->panel, true);
 	}
 #endif
@@ -8100,7 +8455,7 @@ error:
 	SDE_EVT32(SDE_EVTLOG_FUNC_EXIT);
 
 #if defined(CONFIG_DISPLAY_SAMSUNG)
-	LCD_ERR("--\n");
+	LCD_INFO(vdd, "--\n");
 #endif
 
 	return rc;
@@ -8444,7 +8799,7 @@ int dsi_display_enable(struct dsi_display *display)
 		/* Initialize samsung display driver in continuous splash mode,
 		 * like smart dimming, mdnie, and etc.
 		 */
-		LCD_INFO("%s : is_cont_splash_enabled, support_vrr_based_bl: %d, vrr_change: %d, multi_res_change: %d\n",
+		LCD_INFO(vdd, "%s : is_cont_splash_enabled, support_vrr_based_bl: %d, vrr_change: %d, multi_res_change: %d\n",
 				__func__, vdd->vrr.support_vrr_based_bl,
 				vdd->vrr.is_vrr_changing,
 				vdd->vrr.is_multi_resolution_changing);
@@ -8463,7 +8818,7 @@ int dsi_display_enable(struct dsi_display *display)
 		 */
 		if (vdd->vrr.support_vrr_based_bl &&
 				(vdd->vrr.is_vrr_changing || vdd->vrr.is_multi_resolution_changing)) {
-			LCD_INFO("DMS: VRR: trigger dms switch in splash on mode\n");
+			LCD_INFO(vdd, "DMS: VRR: trigger dms switch in splash on mode\n");
 			dsi_panel_switch(display->panel);
 		}
 
@@ -8478,7 +8833,7 @@ int dsi_display_enable(struct dsi_display *display)
 		mutex_unlock(&display->display_lock);
 
 		vdd->samsung_splash_enabled = false;
-		LCD_INFO("%s : samsung splash disable! \n", __func__);
+		LCD_INFO(vdd, "%s : samsung splash disable! \n", __func__);
 #else
 		display->panel->panel_initialized = true;
 		DSI_DEBUG("cont splash enabled, display enable not required\n");
@@ -8489,7 +8844,7 @@ int dsi_display_enable(struct dsi_display *display)
 	}
 
 #if defined(CONFIG_DISPLAY_SAMSUNG)
-	LCD_ERR("++ : ndx=%d\n", vdd->ndx);
+	LCD_INFO(vdd, "++ : ndx=%d\n", vdd->ndx);
 #endif
 
 	mutex_lock(&display->display_lock);
@@ -8570,7 +8925,7 @@ error:
 	mutex_unlock(&display->display_lock);
 	SDE_EVT32(SDE_EVTLOG_FUNC_EXIT);
 #if defined(CONFIG_DISPLAY_SAMSUNG)
-	LCD_ERR("-- : ndx=%d\n", vdd->ndx);
+	LCD_INFO(vdd, "-- : ndx=%d\n", vdd->ndx);
 #endif
 	return rc;
 }
@@ -8581,7 +8936,7 @@ int dsi_display_post_enable(struct dsi_display *display)
 #if defined(CONFIG_DISPLAY_SAMSUNG)
 	struct samsung_display_driver_data *vdd = display->panel->panel_private;
 
-	LCD_ERR("++ : ndx=%d\n", vdd->ndx);
+	LCD_INFO(vdd, "++ : ndx=%d\n", vdd->ndx);
 #endif
 
 	if (!display) {
@@ -8623,7 +8978,7 @@ int dsi_display_post_enable(struct dsi_display *display)
 	mutex_unlock(&display->display_lock);
 
 #if defined(CONFIG_DISPLAY_SAMSUNG)
-	LCD_ERR("-- : ndx=%d\n", vdd->ndx);
+	LCD_INFO(vdd, "-- : ndx=%d\n", vdd->ndx);
 #endif
 	return rc;
 }
@@ -8746,7 +9101,7 @@ int dsi_display_disable(struct dsi_display *display)
 	}
 
 #if defined(CONFIG_DISPLAY_SAMSUNG)
-	LCD_ERR("++ : ndx=%d\n", vdd->ndx);
+	LCD_INFO(vdd, "++ : ndx=%d\n", vdd->ndx);
 #endif
 
 	SDE_EVT32(SDE_EVTLOG_FUNC_ENTRY);
@@ -8804,7 +9159,7 @@ int dsi_display_disable(struct dsi_display *display)
 	mutex_unlock(&display->display_lock);
 	SDE_EVT32(SDE_EVTLOG_FUNC_EXIT);
 #if defined(CONFIG_DISPLAY_SAMSUNG)
-	LCD_ERR("-- : ndx=%d\n", vdd->ndx);
+	LCD_INFO(vdd, "-- : ndx=%d\n", vdd->ndx);
 #endif
 	return rc;
 }
@@ -8868,6 +9223,9 @@ int dsi_display_unprepare(struct dsi_display *display)
 {
 	int rc = 0, i;
 	struct dsi_display_ctrl *ctrl;
+#if defined(CONFIG_DISPLAY_SAMSUNG)
+	struct samsung_display_driver_data *vdd;
+#endif
 
 	if (!display) {
 		DSI_ERR("Invalid params\n");
@@ -8875,7 +9233,8 @@ int dsi_display_unprepare(struct dsi_display *display)
 	}
 
 #if defined(CONFIG_DISPLAY_SAMSUNG)
-	LCD_ERR("++\n");
+	vdd = display->panel->panel_private;
+	LCD_INFO(vdd, "++\n");
 #endif
 
 	SDE_EVT32(SDE_EVTLOG_FUNC_ENTRY);
@@ -8920,6 +9279,12 @@ int dsi_display_unprepare(struct dsi_display *display)
 		DSI_ERR("[%s] failed to disable Link clocks, rc=%d\n",
 		       display->name, rc);
 
+	/* set to dsi clocks to xo clocks */
+	rc = dsi_display_unset_clk_src(display);
+	if (rc)
+		DSI_ERR("[%s] failed to unset clocks, rc=%d\n",
+		       display->name, rc);
+
 	rc = dsi_display_ctrl_deinit(display);
 	if (rc)
 		DSI_ERR("[%s] failed to deinit controller, rc=%d\n",
@@ -8948,6 +9313,7 @@ int dsi_display_unprepare(struct dsi_display *display)
 			DSI_ERR("[%s] panel post-unprepare failed, rc=%d\n",
 			       display->name, rc);
 	}
+	display->hw_ownership = false;
 
 	mutex_unlock(&display->display_lock);
 
@@ -8956,7 +9322,7 @@ int dsi_display_unprepare(struct dsi_display *display)
 
 	SDE_EVT32(SDE_EVTLOG_FUNC_EXIT);
 #if defined(CONFIG_DISPLAY_SAMSUNG)
-	LCD_ERR("--\n");
+	LCD_INFO(vdd, "--\n");
 #endif
 	return rc;
 }

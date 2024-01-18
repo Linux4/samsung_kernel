@@ -1,7 +1,7 @@
 /*
  * Wifi Virtual Interface implementaion
  *
- * Copyright (C) 2020, Broadcom.
+ * Copyright (C) 2021, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -3577,12 +3577,12 @@ wl_cfg80211_stop_ap(
 			}
 		}
 
-#ifdef WL_DISABLE_HE_SOFTAP
+#if defined(WL_DISABLE_HE_SOFTAP) || defined(WL_6G_BAND)
 		if (wl_cfg80211_set_he_mode(dev, cfg, bssidx, WL_HE_FEATURES_HE_AP,
 			TRUE) != BCME_OK) {
 			WL_ERR(("failed to set he features\n"));
 		}
-#endif /* WL_DISABLE_HE_SOFTAP */
+#endif /* defined(WL_DISABLE_HE_SOFTAP) || defined(WL_6G_BAND) */
 
 		wl_cfg80211_clear_per_bss_ies(cfg, dev->ieee80211_ptr);
 #ifdef SUPPORT_AP_RADIO_PWRSAVE

@@ -742,6 +742,7 @@ static void ipa_release_ap_smmu_mappings(enum ipa_client_type client)
 				ipa3_ctx->wdi_map_cnt--;
 			}
 			kfree(wdi_res[i].res);
+			wdi_res[i].res = NULL;
 			wdi_res[i].valid = false;
 		}
 	}
@@ -778,6 +779,7 @@ static void ipa_release_uc_smmu_mappings(enum ipa_client_type client)
 				ipa3_ctx->wdi_map_cnt--;
 			}
 			kfree(wdi_res[i].res);
+			wdi_res[i].res = NULL;
 			wdi_res[i].valid = false;
 		}
 	}
@@ -929,6 +931,7 @@ void ipa3_release_wdi3_gsi_smmu_mappings(u8 dir)
 				ipa3_ctx->wdi_map_cnt--;
 			}
 			kfree(wdi_res[i].res);
+			wdi_res[i].res = NULL;
 			wdi_res[i].valid = false;
 		}
 	}
@@ -1402,12 +1405,6 @@ int ipa3_connect_gsi_wdi_pipe(struct ipa_wdi_in_params *in,
 	ep->skip_ep_cfg = in->sys.skip_ep_cfg;
 	ep->client_notify = in->sys.notify;
 	ep->priv = in->sys.priv;
-	if (IPA_CLIENT_IS_PROD(in->sys.client)) {
-		memset(&ep_cfg_ctrl, 0, sizeof(struct ipa_ep_cfg_ctrl));
-		ep_cfg_ctrl.ipa_ep_delay = true;
-		ipa3_cfg_ep_ctrl(ipa_ep_idx, &ep_cfg_ctrl);
-	}
-
 	if (IPA_CLIENT_IS_CONS(in->sys.client)) {
 		in->sys.ipa_ep_cfg.aggr.aggr_en = IPA_ENABLE_AGGR;
 		in->sys.ipa_ep_cfg.aggr.aggr = IPA_GENERIC;
@@ -1444,6 +1441,13 @@ int ipa3_connect_gsi_wdi_pipe(struct ipa_wdi_in_params *in,
 				&ep->gsi_chan_hdl, ep->gsi_evt_ring_hdl);
 	if (result)
 		goto fail_alloc_channel;
+
+	if (IPA_CLIENT_IS_PROD(in->sys.client)) {
+		memset(&ep_cfg_ctrl, 0, sizeof(struct ipa_ep_cfg_ctrl));
+		ep_cfg_ctrl.ipa_ep_delay = true;
+		ipa3_cfg_ep_ctrl(ipa_ep_idx, &ep_cfg_ctrl);
+	}
+
 	ep->gsi_mem_info.chan_ring_len = gsi_channel_props.ring_len;
 	ep->gsi_mem_info.chan_ring_base_addr = gsi_channel_props.ring_base_addr;
 	ep->gsi_mem_info.chan_ring_base_vaddr =
@@ -2198,6 +2202,7 @@ int ipa3_enable_gsi_wdi_pipe(u32 clnt_hdl)
 	struct ipa3_ep_context *ep;
 	struct ipa_ep_cfg_ctrl ep_cfg_ctrl;
 	int ipa_ep_idx;
+	struct ipa_ep_cfg_holb holb_cfg;
 
 	IPADBG("ep=%d\n", clnt_hdl);
 
@@ -2217,6 +2222,14 @@ int ipa3_enable_gsi_wdi_pipe(u32 clnt_hdl)
 
 	memset(&ep_cfg_ctrl, 0, sizeof(struct ipa_ep_cfg_ctrl));
 	ipa3_cfg_ep_ctrl(ipa_ep_idx, &ep_cfg_ctrl);
+
+	if (IPA_CLIENT_IS_CONS(ep->client)) {
+		memset(&holb_cfg, 0, sizeof(holb_cfg));
+		holb_cfg.en = IPA_HOLB_TMR_DIS;
+		holb_cfg.tmr_val = 0;
+		ipa3_cfg_ep_holb(clnt_hdl, &holb_cfg);
+	}
+
 
 	IPA_ACTIVE_CLIENTS_DEC_EP(ipa3_get_client_mapping(clnt_hdl));
 	ep->gsi_offload_state |= IPA_WDI_ENABLED;
@@ -2648,10 +2661,15 @@ int ipa3_suspend_gsi_wdi_pipe(u32 clnt_hdl)
 				 */
 				IPAERR("failed to force clear %d\n", res);
 				IPAERR("remove delay from SCND reg\n");
-				ep_ctrl_scnd.endp_delay = false;
-				ipahal_write_reg_n_fields(
-						IPA_ENDP_INIT_CTRL_SCND_n, clnt_hdl,
-						&ep_ctrl_scnd);
+				if (ipa3_ctx->ipa_endp_delay_wa_v2) {
+					ipa3_remove_secondary_flow_ctrl(
+							ep->gsi_chan_hdl);
+				} else {
+					ep_ctrl_scnd.endp_delay = false;
+					ipahal_write_reg_n_fields(
+						IPA_ENDP_INIT_CTRL_SCND_n,
+						clnt_hdl, &ep_ctrl_scnd);
+				}
 			} else {
 				disable_force_clear = true;
 			}
@@ -2776,10 +2794,15 @@ int ipa3_suspend_wdi_pipe(u32 clnt_hdl)
 				 */
 				IPAERR("failed to force clear %d\n", result);
 				IPAERR("remove delay from SCND reg\n");
-				ep_ctrl_scnd.endp_delay = false;
-				ipahal_write_reg_n_fields(
+				if (ipa3_ctx->ipa_endp_delay_wa_v2) {
+					ipa3_remove_secondary_flow_ctrl(
+							ep->gsi_chan_hdl);
+				} else {
+					ep_ctrl_scnd.endp_delay = false;
+					ipahal_write_reg_n_fields(
 					IPA_ENDP_INIT_CTRL_SCND_n, clnt_hdl,
 					&ep_ctrl_scnd);
+				}
 			} else {
 				disable_force_clear = true;
 			}
@@ -2992,7 +3015,7 @@ int ipa3_uc_dereg_rdyCB(void)
 
 	return 0;
 }
-
+EXPORT_SYMBOL(ipa3_uc_dereg_rdyCB);
 
 /**
  * ipa3_uc_wdi_get_dbpa() - To retrieve

@@ -215,6 +215,7 @@ static int cam_ois_i2c_driver_probe(struct i2c_client *client,
 	INIT_LIST_HEAD(&(o_ctrl->i2c_init_data.list_head));
 	INIT_LIST_HEAD(&(o_ctrl->i2c_calib_data.list_head));
 	INIT_LIST_HEAD(&(o_ctrl->i2c_mode_data.list_head));
+	INIT_LIST_HEAD(&(o_ctrl->i2c_time_data.list_head));
 	mutex_init(&(o_ctrl->ois_mutex));
 #endif
 	rc = cam_ois_driver_soc_init(o_ctrl);
@@ -240,17 +241,22 @@ static int cam_ois_i2c_driver_probe(struct i2c_client *client,
 
 	o_ctrl->gyro_raw_x = 0;
 	o_ctrl->gyro_raw_y = 0;
+#if defined(CONFIG_SAMSUNG_OIS_Z_AXIS_CAL)
+	o_ctrl->gyro_raw_z = 0;
+#endif
 	o_ctrl->efs_cal    = 0;
 
 	mutex_init(&(o_ctrl->ois_mode_mutex));
 	o_ctrl->is_thread_started = false;
 	o_ctrl->ois_thread = NULL;
 	INIT_LIST_HEAD(&(o_ctrl->i2c_mode_data.list_head));
+	INIT_LIST_HEAD(&(o_ctrl->i2c_time_data.list_head));
 	INIT_LIST_HEAD(&(o_ctrl->list_head_thread.list));
 	init_waitqueue_head(&(o_ctrl->wait));
 	spin_lock_init(&(o_ctrl->thread_spinlock));
 	mutex_init(&(o_ctrl->i2c_init_data_mutex));
 	mutex_init(&(o_ctrl->i2c_mode_data_mutex));
+	mutex_init(&(o_ctrl->i2c_time_data_mutex));
 
 	g_o_ctrl = o_ctrl;
 
@@ -346,6 +352,7 @@ static int cam_ois_component_bind(struct device *dev,
 	INIT_LIST_HEAD(&(o_ctrl->i2c_init_data.list_head));
 	INIT_LIST_HEAD(&(o_ctrl->i2c_calib_data.list_head));
 	INIT_LIST_HEAD(&(o_ctrl->i2c_mode_data.list_head));
+	INIT_LIST_HEAD(&(o_ctrl->i2c_time_data.list_head));
 	mutex_init(&(o_ctrl->ois_mutex));
 	rc = cam_ois_driver_soc_init(o_ctrl);
 	if (rc) {
@@ -380,6 +387,9 @@ static int cam_ois_component_bind(struct device *dev,
 
 	o_ctrl->gyro_raw_x = 0;
 	o_ctrl->gyro_raw_y = 0;
+#if defined(CONFIG_SAMSUNG_OIS_Z_AXIS_CAL)
+	o_ctrl->gyro_raw_z = 0;
+#endif
 	o_ctrl->efs_cal    = 0;
 
 	mutex_init(&(o_ctrl->ois_mode_mutex));
@@ -390,6 +400,7 @@ static int cam_ois_component_bind(struct device *dev,
 	spin_lock_init(&(o_ctrl->thread_spinlock));
 	mutex_init(&(o_ctrl->i2c_init_data_mutex));
 	mutex_init(&(o_ctrl->i2c_mode_data_mutex));
+	mutex_init(&(o_ctrl->i2c_time_data_mutex));
 
 	g_o_ctrl = o_ctrl;
 

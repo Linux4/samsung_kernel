@@ -7,12 +7,14 @@
 #include <linux/device.h>
 #include <linux/module.h>
 #include <linux/i2c.h>
+#include <linux/spi/spi.h>
 
 /* TCLM_CONCEPT  - start */
 #define TCLM_LEVEL_NONE			0x00
 #define TCLM_LEVEL_CLEAR_NV		0x01
 #define TCLM_LEVEL_LOCKDOWN		0x02
-#define TCLM_LEVEL_EVERYTIME	0x05
+#define TCLM_LEVEL_EVERYTIME		0x05
+#define TCLM_LEVEL_NOT_SUPPORT		0xFF
 
 #define CAL_HISTORY_QUEUE_MAX				10
 #define CAL_HISTORY_QUEUE_SHORT_DISPLAY		3
@@ -70,8 +72,8 @@ struct sec_tclm_nvdata {
 	u8 cal_pos_hist_cnt;
 	u8 cal_pos_hist_lastp;
 	u8 cal_pos_hist_queue[2 * CAL_HISTORY_QUEUE_MAX];
-	u8 cal_fail_falg; /* pass : 1 fail : etc */ 
-	u8 cal_fail_cnt; /* history cnt */ 
+	u8 cal_fail_falg; /* pass : 1 fail : etc */
+	u8 cal_fail_cnt; /* history cnt */
 } __attribute__ ((packed));
 
 /* TCLM_CONCEPT  - end */
@@ -84,9 +86,15 @@ struct sec_tclm_data {
 	u8 cal_pos_hist_last3[2 * CAL_HISTORY_QUEUE_SHORT_DISPLAY + 1];	/* 7 */
 	struct i2c_client *client;
 	int (*tclm_read)(struct i2c_client *client, int address);
-	int (*tclm_write)(struct i2c_client *client,int address);
+	int (*tclm_write)(struct i2c_client *client, int address);
 	int (*tclm_execute_force_calibration)(struct i2c_client *client, int cal_mode);
-	void (*tclm_parse_dt)(struct i2c_client *client, struct sec_tclm_data *tdata);
+	void (*tclm_parse_dt)(struct device *dev, struct sec_tclm_data *tdata);
+	struct spi_device *spi;
+	int (*tclm_read_spi)(struct spi_device *spi, int address);
+	int (*tclm_write_spi)(struct spi_device *spit, int address);
+	int (*tclm_execute_force_calibration_spi)(struct spi_device *spi, int cal_mode);
+	void (*tclm_parse_dt_dev)(struct device *dev, struct sec_tclm_data *tdata);
+
 	struct sec_tclm_nvdata nvdata;
 	u8 tclm[SEC_TCLM_NVM_OFFSET_LENGTH];
 	bool support_tclm_test;

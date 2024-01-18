@@ -284,8 +284,7 @@ static irqreturn_t max77705_irq_thread(int irq, void *data)
 		pr_debug("[%s] fuelgauge interrupt\n", __func__);
 		pr_debug("[%s]IRQ_BASE(%d), NESTED_IRQ(%d)\n",
 			__func__, max77705->irq_base, max77705->irq_base + MAX77705_FG_IRQ_ALERT);
-		handle_nested_irq(max77705->irq_base + MAX77705_FG_IRQ_ALERT);
-		goto done;
+		irq_reg[FUEL_INT] = 1 << 1;
 	}
 
 	if (irq_src & MAX77705_IRQSRC_TOP) {
@@ -393,10 +392,10 @@ static irqreturn_t max77705_irq_thread(int irq, void *data)
 			handle_nested_irq(max77705->irq_base + i);
 	}
 
-done:
 #if defined(CONFIG_QCOM_IFPMIC_SUSPEND)
 	max77705->doing_irq = 0;
-	max77705->is_usbc_queue = !(max77705->check_usbc_opcode_queue());
+	if (max77705->check_usbc_opcode_queue)
+		max77705->is_usbc_queue = !(max77705->check_usbc_opcode_queue());
 
 	pr_info("%s doing_irq = %d, is_usbc_queue=%d\n", __func__,
 				max77705->doing_irq, max77705->is_usbc_queue);
@@ -413,13 +412,13 @@ int max77705_irq_init(struct max77705_dev *max77705)
 	u8 i2c_data;
 	int cur_irq;
 
-	if (!max77705->irq_gpio) {
+	if (!gpio_is_valid(max77705->irq_gpio)) {
 		dev_warn(max77705->dev, "No interrupt specified.\n");
 		max77705->irq_base = 0;
 		return 0;
 	}
 
-	if (!max77705->irq_base) {
+	if (max77705->irq_base < 0) {
 		dev_err(max77705->dev, "No interrupt base specified.\n");
 		return 0;
 	}

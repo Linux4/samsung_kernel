@@ -368,7 +368,7 @@ void coordinate_tunning_calculate(struct samsung_display_driver_data *vdd,
 
 void coordinate_tunning_multi(struct samsung_display_driver_data *vdd,
     char (*coordinate_data_multi[MAX_MODE])[COORDINATE_DATA_SIZE], int mdnie_tune_index, int scr_wr_addr, int data_size);
-    
+
 /* COMMON FUNCTION END*/
 
 #endif /*_DSI_TCON_MDNIE_H_*/

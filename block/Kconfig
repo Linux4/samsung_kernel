@@ -203,6 +203,7 @@ menu "Partition Types"
 
 source "block/partitions/Kconfig"
 
+
 endmenu
 
 endif # BLOCK

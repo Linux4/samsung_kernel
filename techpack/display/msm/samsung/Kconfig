@@ -8,6 +8,12 @@ config DISPLAY_SAMSUNG
 	---help---
 	Mdss config signature for samsung product
 
+config PANEL_KUNIT
+    bool "KUnit test for panel"
+    depends on SEC_KUNIT
+	---help---
+	config for Panel KUnit Test
+
 #
 #	PANEL UNIQUE FEATURE
 #

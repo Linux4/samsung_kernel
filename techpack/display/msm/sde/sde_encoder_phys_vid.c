@@ -30,9 +30,6 @@
 #define to_sde_encoder_phys_vid(x) \
 	container_of(x, struct sde_encoder_phys_vid, base)
 
-/* maximum number of consecutive kickoff errors */
-#define KICKOFF_MAX_ERRORS	2
-
 /* Poll time to do recovery during active region */
 #define POLL_TIME_USEC_FOR_LN_CNT 500
 #define MAX_POLL_CNT 10
@@ -212,6 +209,7 @@ static u32 programmable_fetch_get_num_lines(
 		const struct intf_timing_params *timing)
 {
 	struct sde_encoder_phys *phys_enc = &vid_enc->base;
+	struct sde_mdss_cfg *m;
 
 	u32 needed_prefill_lines, needed_vfp_lines, actual_vfp_lines;
 	const u32 fixed_prefill_fps = DEFAULT_FPS;
@@ -220,18 +218,23 @@ static u32 programmable_fetch_get_num_lines(
 	u32 start_of_frame_lines =
 	    timing->v_back_porch + timing->vsync_pulse_width;
 	u32 v_front_porch = timing->v_front_porch;
+	u32 vrefresh, max_fps;
+
+	m = phys_enc->sde_kms->catalog;
+	max_fps = sde_encoder_get_dfps_maxfps(phys_enc->parent);
+	vrefresh = (max_fps > timing->vrefresh) ? max_fps : timing->vrefresh;
 
 	/* minimum prefill lines are defined based on 60fps */
-	needed_prefill_lines = (timing->vrefresh > fixed_prefill_fps) ?
-		((default_prefill_lines * timing->vrefresh) /
+	needed_prefill_lines = (vrefresh > fixed_prefill_fps) ?
+		((default_prefill_lines * vrefresh) /
 			fixed_prefill_fps) : default_prefill_lines;
 	needed_vfp_lines = needed_prefill_lines - start_of_frame_lines;
 
 	/* Fetch must be outside active lines, otherwise undefined. */
 	if (start_of_frame_lines >= needed_prefill_lines) {
 		SDE_DEBUG_VIDENC(vid_enc,
-				"prog fetch is not needed, large vbp+vsw\n");
-		actual_vfp_lines = 0;
+				"prog fetch always enabled case\n");
+		actual_vfp_lines = (m->delay_prg_fetch_start) ? 2 : 1;
 	} else if (v_front_porch < needed_vfp_lines) {
 		/* Warn fetch needed, but not enough porch in panel config */
 		pr_warn_once
@@ -246,7 +249,7 @@ static u32 programmable_fetch_get_num_lines(
 
 	SDE_DEBUG_VIDENC(vid_enc,
 		"vrefresh:%u v_front_porch:%u v_back_porch:%u vsync_pulse_width:%u\n",
-		timing->vrefresh, v_front_porch, timing->v_back_porch,
+		vrefresh, v_front_porch, timing->v_back_porch,
 		timing->vsync_pulse_width);
 	SDE_DEBUG_VIDENC(vid_enc,
 		"prefill_lines:%u needed_vfp_lines:%u actual_vfp_lines:%u\n",
@@ -494,6 +497,24 @@ static void sde_encoder_phys_vid_vblank_irq(void *arg, int irq_idx)
 	int new_cnt = -1, old_cnt = -1;
 	u32 event = 0;
 	int pend_ret_fence_cnt = 0;
+#if defined(CONFIG_DISPLAY_SAMSUNG)
+	struct drm_connector *conn = phys_enc ? phys_enc->connector : NULL;
+	struct sde_connector *sde_conn;
+	struct dsi_display *disp;
+	struct samsung_display_driver_data *vdd;
+
+	if (conn) {
+		if (phys_enc->parent->encoder_type == DRM_MODE_ENCODER_DSI) {
+			sde_conn = to_sde_connector(conn);
+			if (sde_conn) {
+				disp = sde_conn->display;
+				if (disp) {
+					vdd = disp->panel->panel_private;
+				}
+			}
+		}
+	}
+#endif
 
 	if (!phys_enc)
 		return;
@@ -504,6 +525,15 @@ static void sde_encoder_phys_vid_vblank_irq(void *arg, int irq_idx)
 
 #if defined(CONFIG_DISPLAY_SAMSUNG)
 	SDE_DEBUG_VIDENC(to_sde_encoder_phys_vid(phys_enc), "\n");
+
+	if (vdd) {
+		if (atomic_add_unless(&vdd->ss_vsync_cnt, -1, 0) &&
+			(atomic_read(&vdd->ss_vsync_cnt) == 0)) {
+			wake_up_all(&vdd->ss_vync_wq);
+			pr_info("sde_encoder_phys_vid_vblank_irq  ss_vsync_cnt: %d\n", atomic_read(&vdd->ss_vsync_cnt));
+		}
+		vdd->vblank_irq_time = ktime_to_us(ktime_get());
+	}
 #endif
 
 	SDE_ATRACE_BEGIN("vblank_irq");
@@ -564,13 +594,42 @@ not_flushed:
 	SDE_ATRACE_END("vblank_irq");
 }
 
+#if IS_ENABLED(CONFIG_SEC_DISPLAYPORT)
+extern int secdp_get_hpd_status(void);
+#endif
+
 static void sde_encoder_phys_vid_underrun_irq(void *arg, int irq_idx)
 {
 	struct sde_encoder_phys *phys_enc = arg;
+#if defined(CONFIG_DISPLAY_SAMSUNG)
+	struct drm_connector *conn = phys_enc ? phys_enc->connector : NULL;
+	struct sde_connector *sde_conn;
+	struct dsi_display *disp;
+	struct samsung_display_driver_data *vdd;
+
+	if (conn) {
+		if (phys_enc->parent->encoder_type == DRM_MODE_ENCODER_DSI) {
+			sde_conn = to_sde_connector(conn);
+			if (sde_conn) {
+				disp = sde_conn->display;
+				if (disp) {
+					vdd = disp->panel->panel_private;
+				}
+			}
+		}
+	}
+#endif
 
 	if (!phys_enc)
 		return;
 
+#if IS_ENABLED(CONFIG_SEC_DISPLAYPORT)
+	if (secdp_get_hpd_status()) {
+		/* prints underrun log in case of DP connection */
+		SDE_ERROR("underrun while DP connection, intf:%d, type:%d\n",
+			phys_enc->intf_idx, phys_enc->parent->encoder_type);
+	}
+#endif
 	if (phys_enc->parent_ops.handle_underrun_virt)
 		phys_enc->parent_ops.handle_underrun_virt(phys_enc->parent,
 			phys_enc);
@@ -578,9 +637,9 @@ static void sde_encoder_phys_vid_underrun_irq(void *arg, int irq_idx)
 	if (phys_enc->parent->encoder_type == DRM_MODE_ENCODER_DSI) {
 		SDE_DEBUG_VIDENC(to_sde_encoder_phys_vid(phys_enc), "underrun\n");
 #if defined(CONFIG_SEC_DEBUG)
-		if (sec_debug_is_enabled()) {
+		if (sec_debug_is_enabled() && ss_panel_attach_get(vdd)) {
 			SDE_EVT32(DRMID(phys_enc->parent), SDE_EVTLOG_FATAL);
-			SDE_DBG_DUMP_WQ("all", "dbg_bus", "vbif_dbg_bus", "panic");
+			/*SDE_DBG_DUMP_WQ("all", "dbg_bus", "vbif_dbg_bus", "panic");*/
 		}
 #endif
 	}
@@ -896,11 +955,14 @@ static int _sde_encoder_phys_vid_wait_for_vblank(
 	u32 event = SDE_ENCODER_FRAME_EVENT_ERROR |
 		SDE_ENCODER_FRAME_EVENT_SIGNAL_RELEASE_FENCE |
 		SDE_ENCODER_FRAME_EVENT_SIGNAL_RETIRE_FENCE;
+	struct drm_connector *conn;
 
 	if (!phys_enc) {
 		pr_err("invalid encoder\n");
 		return -EINVAL;
 	}
+
+	conn = phys_enc->connector;
 
 	wait_info.wq = &phys_enc->pending_kickoff_wq;
 	wait_info.atomic_cnt = &phys_enc->pending_kickoff_cnt;
@@ -912,9 +974,15 @@ static int _sde_encoder_phys_vid_wait_for_vblank(
 
 	if (notify && (ret == -ETIMEDOUT) &&
 	    atomic_add_unless(&phys_enc->pending_retire_fence_cnt, -1, 0) &&
-	    phys_enc->parent_ops.handle_frame_done)
+	    phys_enc->parent_ops.handle_frame_done) {
 		phys_enc->parent_ops.handle_frame_done(
 			phys_enc->parent, phys_enc, event);
+
+		if (sde_encoder_recovery_events_enabled(phys_enc->parent))
+			sde_connector_event_notify(conn,
+				DRM_EVENT_SDE_HW_RECOVERY,
+				sizeof(uint8_t), SDE_RECOVERY_HARD_RESET);
+	}
 
 	SDE_EVT32(DRMID(phys_enc->parent), event, notify, ret,
 			ret ? SDE_EVTLOG_FATAL : 0);
@@ -941,8 +1009,8 @@ static int sde_encoder_phys_vid_prepare_for_kickoff(
 	struct sde_hw_ctl *ctl;
 	bool recovery_events;
 	struct drm_connector *conn;
-	int event;
 	int rc;
+	int irq_enable;
 
 	if (!phys_enc || !params || !phys_enc->hw_ctl) {
 		SDE_ERROR("invalid encoder/parameters\n");
@@ -971,27 +1039,32 @@ static int sde_encoder_phys_vid_prepare_for_kickoff(
 		/* to avoid flooding, only log first time, and "dead" time */
 		if (vid_enc->error_count == 1) {
 			SDE_EVT32(DRMID(phys_enc->parent), SDE_EVTLOG_FATAL);
+			mutex_lock(phys_enc->vblank_ctl_lock);
 
-			sde_encoder_helper_unregister_irq(
+			irq_enable = atomic_read(&phys_enc->vblank_refcount);
+
+			if (irq_enable)
+				sde_encoder_helper_unregister_irq(
 					phys_enc, INTR_IDX_VSYNC);
+
 			SDE_DBG_DUMP("all", "dbg_bus", "vbif_dbg_bus");
-			sde_encoder_helper_register_irq(
+
+			if (irq_enable)
+				sde_encoder_helper_register_irq(
 					phys_enc, INTR_IDX_VSYNC);
+
+			mutex_unlock(phys_enc->vblank_ctl_lock);
 		}
 
 		/*
 		 * if the recovery event is registered by user, don't panic
 		 * trigger panic on first timeout if no listener registered
 		 */
-		if (recovery_events) {
-			event = vid_enc->error_count > KICKOFF_MAX_ERRORS ?
-				SDE_RECOVERY_HARD_RESET : SDE_RECOVERY_CAPTURE;
-			sde_connector_event_notify(conn,
-					DRM_EVENT_SDE_HW_RECOVERY,
-					sizeof(uint8_t), event);
-		} else {
+		if (recovery_events)
+			sde_connector_event_notify(conn, DRM_EVENT_SDE_HW_RECOVERY,
+					sizeof(uint8_t), SDE_RECOVERY_CAPTURE);
+		else
 			SDE_DBG_DUMP("panic");
-		}
 
 		/* request a ctl reset before the next flush */
 		phys_enc->enable_state = SDE_ENC_ERR_NEEDS_HW_RESET;
@@ -1053,6 +1126,24 @@ static void sde_encoder_phys_vid_disable(struct sde_encoder_phys *phys_enc)
 	struct sde_encoder_phys_vid *vid_enc;
 	unsigned long lock_flags;
 	struct intf_status intf_status = {0};
+#if defined(CONFIG_DISPLAY_SAMSUNG)
+	struct drm_connector *conn = phys_enc ? phys_enc->connector : NULL;
+	struct sde_connector *sde_conn;
+	struct dsi_display *disp;
+	struct samsung_display_driver_data *vdd;
+
+	if (conn) {
+		if (phys_enc->parent->encoder_type == DRM_MODE_ENCODER_DSI) {
+			sde_conn = to_sde_connector(conn);
+			if (sde_conn) {
+				disp = sde_conn->display;
+				if (disp) {
+					vdd = disp->panel->panel_private;
+				}
+			}
+		}
+	}
+#endif
 
 	if (!phys_enc || !phys_enc->parent || !phys_enc->parent->dev ||
 			!phys_enc->parent->dev->dev_private) {
@@ -1067,6 +1158,16 @@ static void sde_encoder_phys_vid_disable(struct sde_encoder_phys *phys_enc)
 				!phys_enc->hw_intf, !phys_enc->hw_ctl);
 		return;
 	}
+
+#if defined(CONFIG_DISPLAY_SAMSUNG)
+	/*
+	 * To guarantee ss_wait_for_vsync operation on power off & suspend sequence.
+	 * Timing generator & dsi clock should be enabled to use vsync irq.
+	 */
+	if (vdd)
+		wait_event_timeout(vdd->ss_vync_wq,
+			atomic_read(&vdd->ss_vsync_cnt) == 0, msecs_to_jiffies(500));
+#endif
 
 	SDE_DEBUG_VIDENC(vid_enc, "\n");
 
@@ -1117,12 +1218,41 @@ exit:
 	phys_enc->enable_state = SDE_ENC_DISABLED;
 }
 
+static int sde_encoder_phys_vid_poll_for_active_region(struct sde_encoder_phys *phys_enc)
+{
+	struct sde_encoder_phys_vid *vid_enc;
+	struct intf_timing_params *timing;
+	u32 line_cnt, v_inactive, poll_time_us, trial = 0;
+
+	if (!phys_enc || !phys_enc->hw_intf || !phys_enc->hw_intf->ops.get_line_count)
+		return -EINVAL;
+
+	vid_enc = to_sde_encoder_phys_vid(phys_enc);
+	timing = &vid_enc->timing_params;
+
+	/* if programmable fetch is not enabled return early */
+	if (!programmable_fetch_get_num_lines(vid_enc, timing))
+		return 0;
+
+	poll_time_us = DIV_ROUND_UP(1000000, timing->vrefresh) / MAX_POLL_CNT;
+	v_inactive = timing->v_front_porch + timing->v_back_porch + timing->vsync_pulse_width;
+
+	do {
+		usleep_range(poll_time_us, poll_time_us + 5);
+		line_cnt = phys_enc->hw_intf->ops.get_line_count(phys_enc->hw_intf);
+		trial++;
+	} while ((trial < MAX_POLL_CNT) || (line_cnt < v_inactive));
+
+	return (trial >= MAX_POLL_CNT) ? -ETIMEDOUT : 0;
+}
+
 static void sde_encoder_phys_vid_handle_post_kickoff(
 		struct sde_encoder_phys *phys_enc)
 {
 	unsigned long lock_flags;
 	struct sde_encoder_phys_vid *vid_enc;
 	u32 avr_mode;
+	u32 ret;
 
 	if (!phys_enc) {
 		SDE_ERROR("invalid encoder\n");
@@ -1145,6 +1275,10 @@ static void sde_encoder_phys_vid_handle_post_kickoff(
 				1);
 			spin_unlock_irqrestore(phys_enc->enc_spinlock,
 				lock_flags);
+
+			ret = sde_encoder_phys_vid_poll_for_active_region(phys_enc);
+			if (ret)
+				SDE_DEBUG_VIDENC(vid_enc, "poll for active failed ret:%d\n", ret);
 		}
 		phys_enc->enable_state = SDE_ENC_ENABLED;
 	}

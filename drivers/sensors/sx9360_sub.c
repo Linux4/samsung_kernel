@@ -42,6 +42,14 @@
 #include <linux/vbus_notifier.h>
 #endif
 
+#if IS_ENABLED(CONFIG_SUPPORT_SENSOR_FOLD)
+#include <linux/sensor/sensors_core.h>
+#if IS_ENABLED(CONFIG_HALL_NOTIFIER)
+#include <linux/hall/hall_ic_notifier.h>
+#define FLIP_HALL_NAME "flip"
+#endif
+#endif
+
 #define VENDOR_NAME              "SEMTECH"
 #define MODEL_NAME               "SX9360_SUB"
 #define MODULE_NAME              "grip_sensor_sub"
@@ -54,6 +62,9 @@
 
 #define SX9360_MODE_SLEEP        0
 #define SX9360_MODE_NORMAL       1
+
+#define HALL_CLOSE               0
+#define HALL_OPEN                1
 
 #define DIFF_READ_NUM            10
 #define GRIP_LOG_TIME            15 /* 30 sec */
@@ -69,12 +80,11 @@
 				| SX9360_IRQSTAT_RELEASE_FLAG	\
 				| SX9360_IRQSTAT_COMPDONE_FLAG)
 
-#if defined(CONFIG_FOLDER_HALL)
-#define HALLIC_PATH		"/sys/class/sec/sec_flip/flipStatus"
-#else
 #define HALLIC_PATH		"/sys/class/sec/hall_ic/hall_detect"
-#endif
 #define HALLIC_CERT_PATH	"/sys/class/sec/hall_ic/certify_hall_detect"
+#ifndef CONFIG_SUPPORT_SENSOR_FOLD
+#define HALLIC_FOLD_PATH	"/sys/class/sec/hall_ic/flip_status"
+#endif
 
 struct sx9360_p {
 	struct i2c_client *client;
@@ -92,7 +102,12 @@ struct sx9360_p {
 #if IS_ENABLED(CONFIG_VBUS_NOTIFIER)
 	struct notifier_block vbus_nb;
 #endif
-
+#if IS_ENABLED(CONFIG_SUPPORT_SENSOR_FOLD)
+	struct notifier_block sensorfold_nb;
+#if IS_ENABLED(CONFIG_HALL_NOTIFIER)
+	struct notifier_block hall_nb;
+#endif
+#endif
 	bool skip_data;
 
 	int irq;
@@ -123,12 +138,19 @@ struct sx9360_p {
 
 	int debug_count;
 	int debug_zero_count;
-	char hall_ic[6];
 
 	u32 hallic_cert_detect;
+	u32 hallic_fold_detect;
+
+	char hall_ic[6];
+	bool hall_ic_status;
+	char hall_ic_cert[6];
+	bool hall_ic_cert_status;
+	char hall_ic_fold[2];
+	bool hall_ic_fold_status;
 };
 
-static int sx9360_check_hallic_state(char *file_path, char hall_ic_status[])
+static int sx9360_check_hallic_state(char *file_path, char hall_ic_status[], int size)
 {
 	int iRet = 0;
 	mm_segment_t old_fs;
@@ -141,21 +163,21 @@ static int sx9360_check_hallic_state(char *file_path, char hall_ic_status[])
 	filep = filp_open(file_path, O_RDONLY, 0440);
 	if (IS_ERR(filep)) {
 		iRet = PTR_ERR(filep);
-		GRIP_ERR("file open fail %d\n", iRet);
+		GRIP_ERR("%s file open fail %d\n", file_path, iRet);
 		set_fs(old_fs);
 		return iRet;
 	}
 
 	iRet = filep->f_op->read(filep, hall_sysfs,
-				 sizeof(hall_sysfs), &filep->f_pos);
+		size, &filep->f_pos);
 
 	if (iRet <= 0) {
-		GRIP_ERR("file read fail %d\n", iRet);
+		GRIP_ERR("%s file read fail %d\n", file_path, iRet);
 		filp_close(filep, current->files);
 		set_fs(old_fs);
 		return -EIO;
 	} else {
-		strncpy(hall_ic_status, hall_sysfs, sizeof(hall_sysfs));
+		strncpy(hall_ic_status, hall_sysfs, size);
 	}
 
 	filp_close(filep, current->files);
@@ -1153,47 +1175,49 @@ static void sx9360_debug_work_func(struct work_struct *work)
 {
 	struct sx9360_p *data = container_of((struct delayed_work *)work,
 					     struct sx9360_p, debug_work);
-	static int hall_flag = 1;
-	static int hall_cert_flag = 1;
 	int ret;
 	u8 value = 0;
 
-#if defined(CONFIG_FOLDER_HALL)
-	char str[2] = "0";
-#else
-	char str[6] = "CLOSE";
-#endif
-
-	sx9360_check_hallic_state(HALLIC_PATH, data->hall_ic);
-
-	data->hall_ic[sizeof(str) - 1] = '\0';
-
-	if (strcmp(data->hall_ic, str) == 0) {
-		if (hall_flag) {
+	sx9360_check_hallic_state(HALLIC_PATH, data->hall_ic, sizeof(data->hall_ic)-1);
+	data->hall_ic[sizeof(data->hall_ic)-1] = '\0';
+	if (strcmp(data->hall_ic, "CLOSE") == 0) {
+		if (data->hall_ic_status == HALL_OPEN) {
 			GRIP_INFO("hall IC is closed\n");
 			sx9360_set_offset_calibration(data);
-			hall_flag = 0;
+			data->hall_ic_status = HALL_CLOSE;
 		}
 	} else {
-		hall_flag = 1;
+		data->hall_ic_status = HALL_OPEN;
 	}
 
 	if (data->hallic_cert_detect) {
-		sx9360_check_hallic_state(HALLIC_CERT_PATH, data->hall_ic);
-
-		data->hall_ic[sizeof(str) - 1] = '\0';
-
-		if (strcmp(data->hall_ic, str) == 0) {
-			if (hall_cert_flag) {
+		sx9360_check_hallic_state(HALLIC_CERT_PATH, data->hall_ic_cert, sizeof(data->hall_ic_cert)-1);
+		data->hall_ic_cert[sizeof(data->hall_ic_cert)-1] = '\0';
+		if (strcmp(data->hall_ic_cert, "CLOSE") == 0) {
+			if (data->hall_ic_cert_status == HALL_OPEN) {
 				GRIP_INFO("cert hall IC is closed\n");
 				sx9360_set_offset_calibration(data);
-				hall_cert_flag = 0;
+				data->hall_ic_cert_status = HALL_CLOSE;
 			}
 		} else {
-			hall_cert_flag = 1;
+			data->hall_ic_cert_status = HALL_OPEN;
 		}
 	}
-
+#ifndef CONFIG_SUPPORT_SENSOR_FOLD
+	if (data->hallic_fold_detect) {
+		sx9360_check_hallic_state(HALLIC_FOLD_PATH, data->hall_ic_fold, sizeof(data->hall_ic_fold)-1);
+		data->hall_ic_fold[sizeof(data->hall_ic_fold)-1] = '\0';
+		if (strcmp(data->hall_ic_fold, "0") == 0) {
+			if (data->hall_ic_fold_status == HALL_OPEN) {
+				GRIP_INFO("fold hall IC is closed\n");
+				sx9360_set_offset_calibration(data);
+				data->hall_ic_fold_status = HALL_CLOSE;
+			}
+		} else {
+			data->hall_ic_fold_status = HALL_OPEN;
+		}
+	}
+#endif
 	if (atomic_read(&data->enable) == ON) {
 		if (data->abnormal_mode) {
 			sx9360_get_data(data);
@@ -1311,6 +1335,10 @@ static void sx9360_initialize_variable(struct sx9360_p *data)
 	data->skip_data = false;
 	data->state = IDLE;
 
+	data->hall_ic_status = HALL_OPEN;
+	data->hall_ic_cert_status = HALL_OPEN;
+	data->hall_ic_fold_status = HALL_OPEN;
+
 	atomic_set(&data->enable, OFF);
 }
 
@@ -1370,6 +1398,8 @@ static int sx9360_parse_dt(struct sx9360_p *data, struct device *dev)
 		setup_reg[SX9360_PROXTHRESH_REG_IDX].val = (u8)val;
 	if (sx9360_read_setupreg(dNode, SX9360_HALLIC_CERT, &data->hallic_cert_detect))
 		data->hallic_cert_detect = 0;
+	if (sx9360_read_setupreg(dNode, SX9360_HALLIC_FOLD, &data->hallic_fold_detect))
+		data->hallic_fold_detect = 0;
 
 	return 0;
 }
@@ -1439,7 +1469,51 @@ static int sx9360_vbus_handle_notification(struct notifier_block *nb,
 	return 0;
 }
 #endif
+#if IS_ENABLED(CONFIG_SUPPORT_SENSOR_FOLD)
+static int sensorfold_notify(struct notifier_block *nb,
+			unsigned long flip_cover, void *v)
+{
+	struct sx9360_p *pdata =
+		container_of(nb, struct sx9360_p, sensorfold_nb);
 
+	if (pdata->hall_ic_fold_status == HALL_OPEN && flip_cover == 1) {
+		GRIP_INFO("sw fold hall IC is closed\n");
+		sx9360_set_offset_calibration(pdata);
+	}
+
+	if (flip_cover)
+	  pdata->hall_ic_fold_status = HALL_CLOSE;
+	else
+	  pdata->hall_ic_fold_status = HALL_OPEN;
+
+	return 0;
+}
+#if IS_ENABLED(CONFIG_HALL_NOTIFIER)
+static struct hall_notifier_context *hall_notifier;
+static int hall_notify(struct notifier_block *nb,
+		unsigned long flip_state, void *v)
+{
+	struct sx9360_p *pdata =
+		container_of(nb, struct sx9360_p, hall_nb);
+	hall_notifier = v;
+
+	if (strncmp(hall_notifier->name, FLIP_HALL_NAME, 4))
+		return 0;
+
+	if (pdata->hall_ic_fold_status == HALL_OPEN && flip_state == 1) {
+		GRIP_INFO("fold hall IC is closed\n");
+		sx9360_set_offset_calibration(pdata);
+	}
+
+	if (flip_state)
+		pdata->hall_ic_fold_status = HALL_CLOSE;
+	else
+		pdata->hall_ic_fold_status = HALL_OPEN;
+
+	return 0;
+}
+#endif
+#endif
 static int sx9360_check_chip_id(struct sx9360_p *data)
 {
 	int ret;
@@ -1553,6 +1627,18 @@ static int sx9360_probe(struct i2c_client *client,
 	GRIP_INFO("register vbus notifier\n");
 	vbus_notifier_register(&data->vbus_nb, sx9360_vbus_handle_notification,
 			       VBUS_NOTIFY_DEV_CHARGER);
+#endif
+#if IS_ENABLED(CONFIG_SUPPORT_SENSOR_FOLD)
+	GRIP_INFO("register sensorfold notifier\n");
+	data->sensorfold_nb.priority = 1;
+	data->sensorfold_nb.notifier_call = sensorfold_notify;
+	sensorfold_notifier_register(&data->sensorfold_nb);
+#if IS_ENABLED(CONFIG_HALL_NOTIFIER)
+	GRIP_INFO("register hall notifier\n");
+	data->hall_nb.priority = 1;
+	data->hall_nb.notifier_call = hall_notify;
+	hall_notifier_register(&data->hall_nb);
+#endif
 #endif
 
 	GRIP_INFO("Probe done!\n");

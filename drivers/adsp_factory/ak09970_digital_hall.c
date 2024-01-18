@@ -40,6 +40,9 @@
 #define SPEC_MAX_IDX 1
 #define PASS 0
 #define FAIL (-1)
+#define ERR_NO_CNT_CNTL2 (-2)
+#define ERR_NO_CNT_WAIT (-3)
+#define ERR_NO_CNT_READ (-4)
 #define DEGREE_180 180
 #define DEGREE_90 90
 #define DEGREE_0 0
@@ -91,6 +94,8 @@ struct autocal_data_force_update {
 	int32_t max_angle;
 	int32_t init_angle;
 	short rftest_timer_enabled;
+	int32_t flex_low;
+	int32_t flex_cover_hi;
 };
 static struct autocal_data_force_update *auto_cal_data;
 
@@ -144,6 +149,8 @@ static ssize_t digital_hall_selftest_show(struct device *dev,
 	uint8_t cnt = 0;
 
 	pr_info("[FACTORY] %s - start", __func__);
+
+	mutex_lock(&data->digital_hall_mutex);
 	adsp_unicast(NULL, 0, MSG_DIGITAL_HALL, 0, MSG_TYPE_ST_SHOW_DATA);
 
 	while (!(data->ready_flag[MSG_TYPE_ST_SHOW_DATA] & 1 << MSG_DIGITAL_HALL) &&
@@ -151,6 +158,7 @@ static ssize_t digital_hall_selftest_show(struct device *dev,
 		msleep(20);
 
 	data->ready_flag[MSG_TYPE_ST_SHOW_DATA] &= ~(1 << MSG_DIGITAL_HALL);
+	mutex_unlock(&data->digital_hall_mutex);
 
 	if (cnt >= TIMEOUT_CNT) {
 		pr_err("[FACTORY] %s: Timeout!!!\n", __func__);
@@ -164,6 +172,9 @@ static ssize_t digital_hall_selftest_show(struct device *dev,
 		data->msg_buf[MSG_DIGITAL_HALL][6], data->msg_buf[MSG_DIGITAL_HALL][7],
 		data->msg_buf[MSG_DIGITAL_HALL][8], data->msg_buf[MSG_DIGITAL_HALL][9],
 		data->msg_buf[MSG_DIGITAL_HALL][10]);
+
+	if (data->msg_buf[MSG_DIGITAL_HALL][1] != PASS)
+		data->msg_buf[MSG_DIGITAL_HALL][1] = FAIL;
 
 	return snprintf(buf, PAGE_SIZE, "%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d\n",
 		data->msg_buf[MSG_DIGITAL_HALL][0], data->msg_buf[MSG_DIGITAL_HALL][1],
@@ -206,6 +217,7 @@ static ssize_t digital_hall_ref_angle_show(struct device *dev,
 	max = curr_angle + 10;
 	result = PASS;
 
+	mutex_lock(&data->digital_hall_mutex);
 	adsp_unicast(NULL, 0, MSG_DIGITAL_HALL_ANGLE, 0, MSG_TYPE_GET_RAW_DATA);
 
 	while (!(data->ready_flag[MSG_TYPE_GET_RAW_DATA] & 1 << MSG_DIGITAL_HALL_ANGLE) &&
@@ -213,6 +225,7 @@ static ssize_t digital_hall_ref_angle_show(struct device *dev,
 		msleep(20);
 
 	data->ready_flag[MSG_TYPE_GET_RAW_DATA] &= ~(1 << MSG_DIGITAL_HALL_ANGLE);
+	mutex_unlock(&data->digital_hall_mutex);
 
 	if (cnt >= TIMEOUT_CNT) {
 		pr_err("[FACTORY] %s: Timeout!!!\n", __func__);
@@ -244,6 +257,7 @@ static ssize_t digital_hall_read_data_show(struct device *dev,
 	struct adsp_data *data = dev_get_drvdata(dev);
 	uint8_t cnt = 0;
 
+	mutex_lock(&data->digital_hall_mutex);
 	adsp_unicast(NULL, 0, MSG_DIGITAL_HALL_ANGLE, 0, MSG_TYPE_GET_RAW_DATA);
 
 	while (!(data->ready_flag[MSG_TYPE_GET_RAW_DATA] & 1 << MSG_DIGITAL_HALL_ANGLE) &&
@@ -251,6 +265,7 @@ static ssize_t digital_hall_read_data_show(struct device *dev,
 		msleep(20);
 
 	data->ready_flag[MSG_TYPE_GET_RAW_DATA] &= ~(1 << MSG_DIGITAL_HALL_ANGLE);
+	mutex_unlock(&data->digital_hall_mutex);
 
 	if (cnt >= TIMEOUT_CNT) {
 		pr_err("[FACTORY] %s: Timeout!!!\n", __func__);
@@ -267,7 +282,6 @@ static ssize_t digital_hall_read_data_show(struct device *dev,
 		data->msg_buf[MSG_DIGITAL_HALL_ANGLE][6],
 		data->msg_buf[MSG_DIGITAL_HALL_ANGLE][7],
 		data->msg_buf[MSG_DIGITAL_HALL_ANGLE][8]);
-
 
 	return snprintf(buf, PAGE_SIZE, "%d,%d,%d,%d,%d,%d,%d,%d,%d\n",
 		data->msg_buf[MSG_DIGITAL_HALL_ANGLE][0],
@@ -291,6 +305,7 @@ static ssize_t digital_hall_test_read_show(struct device *dev,
 	int min = curr_angle - HALL_ANGLE_SPEC;
 	int max = curr_angle + HALL_ANGLE_SPEC;
 
+	mutex_lock(&data->digital_hall_mutex);
 	adsp_unicast(NULL, 0, MSG_DIGITAL_HALL_ANGLE, 0, MSG_TYPE_GET_RAW_DATA);
 
 	while (!(data->ready_flag[MSG_TYPE_GET_RAW_DATA] & 1 << MSG_DIGITAL_HALL_ANGLE) &&
@@ -298,6 +313,7 @@ static ssize_t digital_hall_test_read_show(struct device *dev,
 		msleep(20);
 
 	data->ready_flag[MSG_TYPE_GET_RAW_DATA] &= ~(1 << MSG_DIGITAL_HALL_ANGLE);
+	mutex_unlock(&data->digital_hall_mutex);
 
 	if (cnt >= TIMEOUT_CNT) {
 		pr_err("[FACTORY] %s: Timeout!!!\n", __func__);
@@ -357,6 +373,7 @@ static ssize_t reset_auto_cal_show(struct device *dev,
 	int reset_data[58] = { 0, };
 	uint8_t cnt = 0;
 
+	mutex_lock(&data->digital_hall_mutex);
 	/* reset */
 	adsp_unicast(reset_data, sizeof(reset_data),
 		MSG_DIGITAL_HALL_ANGLE, 0, MSG_TYPE_SET_REGISTER);
@@ -369,6 +386,7 @@ static ssize_t reset_auto_cal_show(struct device *dev,
 		msleep(30);
 
 	data->ready_flag[MSG_TYPE_GET_CAL_DATA] &= ~(1 << MSG_DIGITAL_HALL_ANGLE);
+	mutex_unlock(&data->digital_hall_mutex);
 
 	if (cnt >= 3) {
 		pr_err("[FACTORY] %s: Timeout!!!\n", __func__);
@@ -527,6 +545,7 @@ static ssize_t check_auto_cal_show(struct device *dev,
 
 	pr_info("[FACTORY] %s\n", __func__);
 
+	mutex_lock(&data->digital_hall_mutex);
 	/* Try to backup auto cal table */
 	adsp_unicast(NULL, 0, MSG_DIGITAL_HALL_ANGLE, 0, MSG_TYPE_GET_CAL_DATA);
 
@@ -535,6 +554,7 @@ static ssize_t check_auto_cal_show(struct device *dev,
 		msleep(30);
 
 	data->ready_flag[MSG_TYPE_GET_CAL_DATA] &= ~(1 << MSG_DIGITAL_HALL_ANGLE);
+	mutex_unlock(&data->digital_hall_mutex);
 
 	if (cnt >= 10) {
 		pr_err("[FACTORY] %s: Timeout!!!\n", __func__);
@@ -578,6 +598,7 @@ static ssize_t backup_restore_auto_cal_store(struct device *dev,
 	pr_info("[FACTORY] %s: new_value %d\n", __func__, new_value);
 
 	if (new_value) {
+		mutex_lock(&data->digital_hall_mutex);
 		adsp_unicast(NULL, 0, MSG_DIGITAL_HALL_ANGLE, 0, MSG_TYPE_GET_CAL_DATA);
 
 		while (!(data->ready_flag[MSG_TYPE_GET_CAL_DATA] & 1 << MSG_DIGITAL_HALL_ANGLE) &&
@@ -585,6 +606,7 @@ static ssize_t backup_restore_auto_cal_store(struct device *dev,
 			msleep(30);
 
 		data->ready_flag[MSG_TYPE_GET_CAL_DATA] &= ~(1 << MSG_DIGITAL_HALL_ANGLE);
+		mutex_unlock(&data->digital_hall_mutex);
 
 		if (cnt >= 3) {
 			pr_err("[FACTORY] %s: Timeout!!!\n", __func__);
@@ -689,6 +711,7 @@ static ssize_t lf_stream_reset_auto_cal_show(struct device *dev,
 	int reset_data[58] = { 0, };
 	uint8_t cnt = 0;
 
+	mutex_lock(&data->digital_hall_mutex);
 	/* reset */
 	adsp_unicast(reset_data, sizeof(reset_data),
 		MSG_LF_STREAM, 0, MSG_TYPE_SET_REGISTER);
@@ -701,6 +724,7 @@ static ssize_t lf_stream_reset_auto_cal_show(struct device *dev,
 		msleep(30);
 
 	data->ready_flag[MSG_TYPE_GET_CAL_DATA] &= ~(1 << MSG_LF_STREAM);
+	mutex_unlock(&data->digital_hall_mutex);
 
 	if (cnt >= 3) {
 		pr_err("[FACTORY] %s: Timeout!!!\n", __func__);
@@ -848,6 +872,7 @@ static ssize_t lf_stream_auto_cal_show(struct device *dev,
 
 	pr_info("[FACTORY] %s\n", __func__);
 
+	mutex_lock(&data->digital_hall_mutex);
 	adsp_unicast(NULL, 0, MSG_LF_STREAM, 0, MSG_TYPE_GET_CAL_DATA);
 
 	while (!(data->ready_flag[MSG_TYPE_GET_CAL_DATA] & 1 << MSG_LF_STREAM) &&
@@ -855,6 +880,7 @@ static ssize_t lf_stream_auto_cal_show(struct device *dev,
 		msleep(30);
 
 	data->ready_flag[MSG_TYPE_GET_CAL_DATA] &= ~(1 << MSG_LF_STREAM);
+	mutex_unlock(&data->digital_hall_mutex);
 
 	if (cnt >= 3) {
 		pr_err("[FACTORY] %s: Timeout!!!\n", __func__);
@@ -1045,6 +1071,57 @@ static ssize_t lf_stream_auto_cal_store(struct device *dev,
 	pr_info("[FACTORY] %s - lf_stream autocal was restored!!!\n", __func__);
 	return size;
 }
+
+static ssize_t flexcover_thd_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	pr_info("[FACTORY] %s: Curr THD %d/%d\n", __func__,
+		auto_cal_data->flex_low, auto_cal_data->flex_cover_hi);
+
+	return snprintf(buf, PAGE_SIZE,	"%d,%d\n",
+		auto_cal_data->flex_low, auto_cal_data->flex_cover_hi);
+}
+
+static ssize_t flexcover_thd_store(struct device *dev,
+	struct device_attribute *attr, const char *buf, size_t size)
+{
+	struct adsp_data *data = dev_get_drvdata(dev);
+	int cnt = 0;
+	int32_t msg_buf[1];
+
+	if (sscanf(buf, "%2d", &msg_buf[0]) != 1) {
+		pr_err("[FACTORY]: %s - The number of data are wrong\n",
+			__func__);
+		return -EINVAL;
+	}
+
+	pr_info("[FACTORY] %s: msg_buf[0] = %d\n", __func__, msg_buf[0]);
+
+	mutex_lock(&data->digital_hall_mutex);
+	adsp_unicast(msg_buf, sizeof(msg_buf),
+		MSG_DIGITAL_HALL_ANGLE, 0, MSG_TYPE_SET_THRESHOLD);
+
+	while (!(data->ready_flag[MSG_TYPE_SET_THRESHOLD] & 1 << MSG_DIGITAL_HALL_ANGLE) &&
+		cnt++ < TIMEOUT_CNT)
+		usleep_range(500, 550);
+
+	data->ready_flag[MSG_TYPE_SET_THRESHOLD] &= ~(1 << MSG_DIGITAL_HALL_ANGLE);
+
+	if (cnt >= TIMEOUT_CNT) {
+		pr_err("[FACTORY] %s: Timeout!!!\n", __func__);
+	} else {
+		auto_cal_data->flex_low = data->msg_buf[MSG_DIGITAL_HALL_ANGLE][0];
+		auto_cal_data->flex_cover_hi = data->msg_buf[MSG_DIGITAL_HALL_ANGLE][1];
+	}
+
+	pr_info("[FACTORY] %s: New THD %d/%d\n", __func__,
+		auto_cal_data->flex_low, auto_cal_data->flex_cover_hi);
+
+	mutex_unlock(&data->digital_hall_mutex);
+
+	return size;
+}
+
 static DEVICE_ATTR(name, 0444, digital_hall_name_show, NULL);
 static DEVICE_ATTR(vendor, 0444, digital_hall_vendor_show, NULL);
 static DEVICE_ATTR(selftest, 0440, digital_hall_selftest_show, NULL);
@@ -1063,6 +1140,7 @@ static DEVICE_ATTR(lf_stream_reset_auto_cal, 0440,
 static DEVICE_ATTR(lf_stream_auto_cal, 0660,
 	lf_stream_auto_cal_show, lf_stream_auto_cal_store);
 static DEVICE_ATTR(rf_test, 0660, rf_test_show, rf_test_store);
+static DEVICE_ATTR(flexcover_thd, 0660, flexcover_thd_show, flexcover_thd_store);
 
 static struct device_attribute *digital_hall_attrs[] = {
 	&dev_attr_name,
@@ -1079,6 +1157,7 @@ static struct device_attribute *digital_hall_attrs[] = {
 	&dev_attr_lf_stream_auto_cal,
 	&dev_attr_lf_stream_reset_auto_cal,
 	&dev_attr_rf_test,
+	&dev_attr_flexcover_thd,
 	NULL,
 };
 
@@ -1099,6 +1178,8 @@ static int __init ak09970_factory_init(void)
 	auto_cal_data->min_angle = 180;
 	auto_cal_data->max_angle = 0;
 	auto_cal_data->rftest_timer_enabled = 0;
+	auto_cal_data->flex_low = 80;
+	auto_cal_data->flex_cover_hi = 70;
 
 #ifdef CONFIG_SEC_FACTORY
 	auto_cal_data->autocal_debug_wq =

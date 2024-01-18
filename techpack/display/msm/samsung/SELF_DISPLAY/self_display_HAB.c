@@ -38,12 +38,12 @@ void make_self_dispaly_img_cmds_HAB(struct samsung_display_driver_data *vdd,
 	u32 cmd_size = 0;
 
 	if (!data) {
-		LCD_ERR("data is null..\n");
+		LCD_ERR(vdd, "data is null..\n");
 		return;
 	}
 
 	if (!data_size) {
-		LCD_ERR("data size is zero..\n");
+		LCD_ERR(vdd, "data size is zero..\n");
 		return;
 	}
 
@@ -57,15 +57,15 @@ void make_self_dispaly_img_cmds_HAB(struct samsung_display_driver_data *vdd,
 	/* cmd size */
 	cmd_size = data_size / paylod_size;
 
-	LCD_INFO("[%d] total data size [%d]\n", cmd, data_size);
-	LCD_INFO("cmd size [%d] ss_txbuf size [%d]\n", cmd_size, paylod_size);
+	LCD_INFO(vdd, "[%d] total data size [%d]\n", cmd, data_size);
+	LCD_INFO(vdd, "cmd size [%d] ss_txbuf size [%d]\n", cmd_size, paylod_size);
 
 	pcmds = ss_get_cmds(vdd, cmd);
 	if (IS_ERR_OR_NULL(pcmds->cmds)) {
-		LCD_ERR("pcmds->cmds is null!!\n");
+		LCD_INFO(vdd, "allocate pcmds->cmds\n");
 		pcmds->cmds = kzalloc(cmd_size * sizeof(struct dsi_cmd_desc), GFP_KERNEL);
 		if (IS_ERR_OR_NULL(pcmds->cmds)) {
-			LCD_ERR("fail to kzalloc for self_mask cmds \n");
+			LCD_ERR(vdd, "fail to kzalloc for self_mask cmds \n");
 			return;
 		}
 	}
@@ -75,7 +75,7 @@ void make_self_dispaly_img_cmds_HAB(struct samsung_display_driver_data *vdd,
 
 	tcmds = pcmds->cmds;
 	if (tcmds == NULL) {
-		LCD_ERR("tcmds is NULL \n");
+		LCD_ERR(vdd, "tcmds is NULL \n");
 		return;
 	}
 
@@ -88,7 +88,7 @@ void make_self_dispaly_img_cmds_HAB(struct samsung_display_driver_data *vdd,
 			/* +1 means HEADER TYPE 0x4C or 0x5C */
 			tcmds[i].ss_txbuf = kzalloc(paylod_size + 1, GFP_KERNEL);
 			if (tcmds[i].ss_txbuf == NULL) {
-				LCD_ERR("fail to kzalloc for self_mask cmds ss_txbuf \n");
+				LCD_ERR(vdd, "fail to kzalloc for self_mask cmds ss_txbuf \n");
 				return;
 			}
 		}
@@ -102,7 +102,7 @@ void make_self_dispaly_img_cmds_HAB(struct samsung_display_driver_data *vdd,
 
 		ss_alloc_ss_txbuf(&tcmds[i], tcmds[i].ss_txbuf);
 
-		LCD_DEBUG("dlen (%d), data_idx (%d)\n", j, data_idx);
+		LCD_DEBUG(vdd, "dlen (%d), data_idx (%d)\n", j, data_idx);
 	}
 
 	/* Image Check Sum Calculation */
@@ -118,7 +118,7 @@ void make_self_dispaly_img_cmds_HAB(struct samsung_display_driver_data *vdd,
 	for (i = 3; i < data_size; i=i+4)
 		check_sum_3 += data[i];
 
-	LCD_INFO("[CheckSum] cmd=%d, data_size = %d, cs_0 = 0x%X, cs_1 = 0x%X, cs_2 = 0x%X, cs_3 = 0x%X\n", cmd, data_size, check_sum_0, check_sum_1, check_sum_2, check_sum_3);
+	LCD_INFO(vdd, "[CheckSum] cmd=%d, data_size = %d, cs_0 = 0x%X, cs_1 = 0x%X, cs_2 = 0x%X, cs_3 = 0x%X\n", cmd, data_size, check_sum_0, check_sum_1, check_sum_2, check_sum_3);
 
 	vdd->self_disp.operation[op].img_checksum_cal = (check_sum_3 & 0xFF);
 	vdd->self_disp.operation[op].img_checksum_cal |= ((check_sum_2 & 0xFF) << 8);
@@ -148,26 +148,26 @@ void make_mass_self_display_img_cmds_HAB(struct samsung_display_driver_data *vdd
 	u32 check_sum_3 = 0;
 
 	if (!data) {
-		LCD_ERR("data is null..\n");
+		LCD_ERR(vdd, "data is null..\n");
 		return;
 	}
 
 	if (!data_size) {
-		LCD_ERR("data size is zero..\n");
+		LCD_ERR(vdd, "data size is zero..\n");
 		return;
 	}
 
 	payload_len = data_size + (data_size + MASS_CMD_ALIGN - 1)/MASS_CMD_ALIGN;
 	cmd_cnt = (payload_len + MAX_PAYLOAD_SIZE_MASS - 1) / MAX_PAYLOAD_SIZE_MASS;
-	LCD_INFO("[%d] total data size [%d], total cmd len[%d], cmd count [%d]\n",
+	LCD_INFO(vdd, "[%d] total data size [%d], total cmd len[%d], cmd count [%d]\n",
 					cmd, data_size, payload_len, cmd_cnt);
 
 	pcmds = ss_get_cmds(vdd, cmd);
 	if (IS_ERR_OR_NULL(pcmds->cmds)) {
-		LCD_ERR("pcmds->cmds is null!!\n");
+		LCD_INFO(vdd, "allocate pcmds->cmds\n");
 		pcmds->cmds = kzalloc(cmd_cnt * sizeof(struct dsi_cmd_desc), GFP_KERNEL);
 		if (IS_ERR_OR_NULL(pcmds->cmds)) {
-			LCD_ERR("fail to kzalloc for self_mask cmds \n");
+			LCD_ERR(vdd, "fail to kzalloc for self_mask cmds \n");
 			return;
 		}
 	}
@@ -177,7 +177,7 @@ void make_mass_self_display_img_cmds_HAB(struct samsung_display_driver_data *vdd
 
 	tcmds = pcmds->cmds;
 	if (tcmds == NULL) {
-		LCD_ERR("tcmds is NULL \n");
+		LCD_ERR(vdd, "tcmds is NULL \n");
 		return;
 	}
 	/* fill image data */
@@ -192,7 +192,7 @@ void make_mass_self_display_img_cmds_HAB(struct samsung_display_driver_data *vdd
 			/* HEADER TYPE 0x4C or 0x5C */
 			tcmds[c_cnt].ss_txbuf = vzalloc(MAX_PAYLOAD_SIZE_MASS);
 			if (tcmds[c_cnt].ss_txbuf == NULL) {
-				LCD_ERR("fail to vzalloc for self_mask cmds ss_txbuf \n");
+				LCD_ERR(vdd, "fail to vzalloc for self_mask cmds ss_txbuf \n");
 				return;
 			}
 		}
@@ -223,7 +223,7 @@ void make_mass_self_display_img_cmds_HAB(struct samsung_display_driver_data *vdd
 	for (i = 3; i < data_size; i=i+4)
 		check_sum_3 += data[i];
 
-	LCD_INFO("[CheckSum] cmd=%d, data_size = %d, cs_0 = 0x%X, cs_1 = 0x%X, cs_2 = 0x%X, cs_3 = 0x%X\n", cmd, data_size, check_sum_0, check_sum_1, check_sum_2, check_sum_3);
+	LCD_INFO(vdd, "[CheckSum] cmd=%d, data_size = %d, cs_0 = 0x%X, cs_1 = 0x%X, cs_2 = 0x%X, cs_3 = 0x%X\n", cmd, data_size, check_sum_0, check_sum_1, check_sum_2, check_sum_3);
 
 	vdd->self_disp.operation[op].img_checksum_cal = (check_sum_3 & 0xFF);
 	vdd->self_disp.operation[op].img_checksum_cal |= ((check_sum_2 & 0xFF) << 8);
@@ -232,7 +232,7 @@ void make_mass_self_display_img_cmds_HAB(struct samsung_display_driver_data *vdd
 
 	SDE_ATRACE_END("mass_cmd_generation");
 
-	LCD_INFO("Total Cmd Count(%d), Last Cmd Payload Len(%d)\n", c_cnt, tcmds[c_cnt-1].msg.tx_len);
+	LCD_INFO(vdd, "Total Cmd Count(%d), Last Cmd Payload Len(%d)\n", c_cnt, tcmds[c_cnt-1].msg.tx_len);
 
 	return;
 }
@@ -244,21 +244,21 @@ static int self_time_set(struct samsung_display_driver_data *vdd, int from_self_
 	struct dsi_panel_cmd_set *pcmds;
 
 	if (IS_ERR_OR_NULL(vdd)) {
-		LCD_ERR("vdd is null or error\n");
+		LCD_ERR(vdd, "vdd is null or error\n");
 		return -ENODEV;
 	}
 
-	LCD_ERR("++\n");
+	LCD_INFO(vdd, "++\n");
 
 	st_info = vdd->self_disp.st_info;
 
-	LCD_INFO("Self Time Set h(%d):m(%d):s(%d).ms(%d) / 24h(%d) / Interval(%d) / Time Set(%d)\n",
+	LCD_INFO(vdd, "Self Time Set h(%d):m(%d):s(%d).ms(%d) / 24h(%d) / Interval(%d) / Time Set(%d)\n",
 		st_info.cur_h, st_info.cur_m, st_info.cur_s,
 		st_info.cur_ms, st_info.disp_24h, st_info.interval, vdd->self_disp.time_set);
 
 	pcmds = ss_get_cmds(vdd, TX_SELF_TIME_SET);
 	if (SS_IS_CMDS_NULL(pcmds)) {
-		LCD_ERR("No cmds for TX_SELF_TIME_SET..\n");
+		LCD_ERR(vdd, "No cmds for TX_SELF_TIME_SET..\n");
 		return -ENODEV;
 	}
 
@@ -311,11 +311,11 @@ static int self_time_set(struct samsung_display_driver_data *vdd, int from_self_
 			cmd_pload[8] = 0x13;
 		else
 			cmd_pload[8] = 0x03;
-		LCD_ERR("Invalid Time Interval (%d)\n", vdd->self_disp.st_info.interval);
+		LCD_ERR(vdd, "Invalid Time Interval (%d)\n", vdd->self_disp.st_info.interval);
 	}
 
 	if (from_self_move) {
-		LCD_INFO("Self Move Without Any Clock Enabled\n");
+		LCD_INFO(vdd, "Self Move Without Any Clock Enabled\n");
 		cmd_pload[1] = cmd_pload[3] = cmd_pload[4] = cmd_pload[5] = 0x00;
 		cmd_pload[6] = cmd_pload[8] = cmd_pload[9] = cmd_pload[10] = 0x00;
 		cmd_pload[2] = 0x01; /* SC_TIME_EN */
@@ -324,7 +324,7 @@ static int self_time_set(struct samsung_display_driver_data *vdd, int from_self_
 
 	ss_send_cmd(vdd, TX_SELF_TIME_SET);
 
-	LCD_ERR("--\n");
+	LCD_INFO(vdd, "--\n");
 
 	return 0;
 }
@@ -332,11 +332,11 @@ static int self_time_set(struct samsung_display_driver_data *vdd, int from_self_
 static void self_move_set(struct samsung_display_driver_data *vdd, int ctrl)
 {
 	if (IS_ERR_OR_NULL(vdd)) {
-		LCD_ERR("vdd is null or error\n");
+		LCD_ERR(vdd, "vdd is null or error\n");
 		return;
 	}
 
-	LCD_ERR("++ Control(%s), Interval(%d)\n", ctrl == SELF_MOVE_ON ? "SELF_MOVE_ON" :
+	LCD_INFO(vdd, "++ Control(%s), Interval(%d)\n", ctrl == SELF_MOVE_ON ? "SELF_MOVE_ON" :
 						ctrl == SELF_MOVE_RESET ? "SELF_MOVE_RESET" :
 						ctrl == SELF_MOVE_OFF ? "SELF_MOVE_OFF" : "Unknown Self Move"
 						, vdd->self_disp.st_info.interval);
@@ -357,7 +357,7 @@ static void self_move_set(struct samsung_display_driver_data *vdd, int ctrl)
 			break;
 		default:
 			ss_send_cmd(vdd, TX_SELF_MOVE_ON);
-			LCD_ERR("Invalid Time Interval (%d)\n", vdd->self_disp.st_info.interval);
+			LCD_ERR(vdd, "Invalid Time Interval (%d)\n", vdd->self_disp.st_info.interval);
 		}
 		break;
 	case SELF_MOVE_RESET:
@@ -367,12 +367,12 @@ static void self_move_set(struct samsung_display_driver_data *vdd, int ctrl)
 		ss_send_cmd(vdd, TX_SELF_MOVE_OFF);
 		break;
 	default:
-		LCD_ERR("Invalid Self Move Control (%d)\n", ctrl);
+		LCD_ERR(vdd, "Invalid Self Move Control (%d)\n", ctrl);
 	}
 
 	mutex_unlock(&vdd->self_disp.vdd_self_display_lock);
 
-	LCD_ERR("-- \n");
+	LCD_INFO(vdd, "-- \n");
 
 	return;
 }
@@ -381,7 +381,7 @@ static void self_icon_img_write(struct samsung_display_driver_data *vdd)
 {
 	int wait_cnt = 1000; /* 1000 * 0.5ms = 500ms */
 
-	LCD_ERR("++\n");
+	LCD_INFO(vdd, "++\n");
 
 	vdd->exclusive_tx.enable = 1;
 	while (!list_empty(&vdd->cmd_lock.wait_list) && --wait_cnt)
@@ -408,7 +408,7 @@ static void self_icon_img_write(struct samsung_display_driver_data *vdd)
 	vdd->exclusive_tx.enable = 0;
 	wake_up_all(&vdd->exclusive_tx.ex_tx_waitq);
 
-	LCD_ERR("--\n");
+	LCD_INFO(vdd, "--\n");
 }
 
 static int self_icon_set(struct samsung_display_driver_data *vdd)
@@ -418,21 +418,21 @@ static int self_icon_set(struct samsung_display_driver_data *vdd)
 	struct dsi_panel_cmd_set *pcmds;
 
 	if (IS_ERR_OR_NULL(vdd)) {
-		LCD_ERR("vdd is null or error\n");
+		LCD_ERR(vdd, "vdd is null or error\n");
 		return -ENODEV;
 	}
 
-	LCD_ERR("++\n");
+	LCD_INFO(vdd, "++\n");
 
 	si_info = vdd->self_disp.si_info;
 
-	LCD_INFO("Self Icon Enable(%d), x(%d), y(%d), w(%d), h(%d), Color(0x%x)\n",
+	LCD_INFO(vdd, "Self Icon Enable(%d), x(%d), y(%d), w(%d), h(%d), Color(0x%x)\n",
 		si_info.en, si_info.pos_x, si_info.pos_y,
 		si_info.width, si_info.height, si_info.color);
 
 	pcmds = ss_get_cmds(vdd, TX_SELF_ICON_ON);
 	if (SS_IS_CMDS_NULL(pcmds)) {
-		LCD_ERR("No cmds for TX_SELF_ICON_ON..\n");
+		LCD_ERR(vdd, "No cmds for TX_SELF_ICON_ON..\n");
 		return -ENODEV;
 	}
 
@@ -463,7 +463,7 @@ static int self_icon_set(struct samsung_display_driver_data *vdd)
 
 	ss_send_cmd(vdd, TX_SELF_ICON_ON);
 
-	LCD_ERR("--\n");
+	LCD_INFO(vdd, "--\n");
 
 	return 0;
 }
@@ -475,21 +475,21 @@ static int self_grid_set(struct samsung_display_driver_data *vdd)
 	struct dsi_panel_cmd_set *pcmds;
 
 	if (IS_ERR_OR_NULL(vdd)) {
-		LCD_ERR("vdd is null or error\n");
+		LCD_ERR(vdd, "vdd is null or error\n");
 		return -ENODEV;
 	}
 
-	LCD_ERR("++\n");
+	LCD_INFO(vdd, "++\n");
 
 	sg_info = vdd->self_disp.sg_info;
 
-	LCD_INFO("Self Grid Enable(%d), s_x(%d), s_y(%d), e_x(%d), e_y(%d)\n",
+	LCD_INFO(vdd, "Self Grid Enable(%d), s_x(%d), s_y(%d), e_x(%d), e_y(%d)\n",
 		sg_info.en, sg_info.s_pos_x, sg_info.s_pos_y,
 		sg_info.e_pos_x, sg_info.e_pos_y);
 
 	pcmds = ss_get_cmds(vdd, TX_SELF_ICON_GRID);
 	if (SS_IS_CMDS_NULL(pcmds)) {
-		LCD_ERR("No cmds for TX_SELF_ICON_GRID..\n");
+		LCD_ERR(vdd, "No cmds for TX_SELF_ICON_GRID..\n");
 		return -ENODEV;
 	}
 
@@ -533,18 +533,18 @@ static int self_grid_set(struct samsung_display_driver_data *vdd)
 
 	ss_send_cmd(vdd, TX_SELF_ICON_GRID);
 
-	LCD_ERR("--\n");
+	LCD_INFO(vdd, "--\n");
 
 	return 0;
 }
 static void self_aclock_on(struct samsung_display_driver_data *vdd, int enable)
 {
 	if (IS_ERR_OR_NULL(vdd)) {
-		LCD_ERR("vdd is null or error\n");
+		LCD_ERR(vdd, "vdd is null or error\n");
 		return;
 	}
 
-	LCD_ERR("++ (%d)\n", enable);
+	LCD_INFO(vdd, "++ (%d)\n", enable);
 
 	mutex_lock(&vdd->self_disp.vdd_self_display_lock);
 
@@ -558,7 +558,7 @@ static void self_aclock_on(struct samsung_display_driver_data *vdd, int enable)
 
 	mutex_unlock(&vdd->self_disp.vdd_self_display_lock);
 
-	LCD_ERR("-- \n");
+	LCD_INFO(vdd, "-- \n");
 
 	return;
 }
@@ -567,7 +567,7 @@ static void self_aclock_img_write(struct samsung_display_driver_data *vdd)
 {
 	int wait_cnt = 1000; /* 1000 * 0.5ms = 500ms */
 
-	LCD_ERR("++\n");
+	LCD_INFO(vdd, "++\n");
 
 	/* Memory BW Boost Enable to prevent DMA Timeout */
 	ss_set_max_mem_bw(vdd, true);
@@ -602,7 +602,7 @@ static void self_aclock_img_write(struct samsung_display_driver_data *vdd)
 	/* Memory BW Boost Disable */
 	ss_set_max_mem_bw(vdd, false);
 
-	LCD_ERR("--\n");
+	LCD_INFO(vdd, "--\n");
 }
 
 static int self_aclock_set(struct samsung_display_driver_data *vdd)
@@ -613,15 +613,15 @@ static int self_aclock_set(struct samsung_display_driver_data *vdd)
 	struct dsi_panel_cmd_set *pcmds;
 
 	if (IS_ERR_OR_NULL(vdd)) {
-		LCD_ERR("vdd is null or error\n");
+		LCD_ERR(vdd, "vdd is null or error\n");
 		return -ENODEV;
 	}
 
-	LCD_ERR("++\n");
+	LCD_INFO(vdd, "++\n");
 
 	sa_info = vdd->self_disp.sa_info;
 
-	LCD_INFO("Self Analog Clock Enable(%d), x(%d), y(%d), rot(%d), mem_mask_en(%d), mem_reuse_en(%d)\n",
+	LCD_INFO(vdd, "Self Analog Clock Enable(%d), x(%d), y(%d), rot(%d), mem_mask_en(%d), mem_reuse_en(%d)\n",
 		sa_info.en, sa_info.pos_x, sa_info.pos_y, sa_info.rotate, sa_info.mem_mask_en, sa_info.mem_reuse_en);
 
 	if (!sa_info.en)
@@ -629,7 +629,7 @@ static int self_aclock_set(struct samsung_display_driver_data *vdd)
 
 	pcmds = ss_get_cmds(vdd, TX_SELF_ACLOCK_ON);
 	if (SS_IS_CMDS_NULL(pcmds)) {
-		LCD_ERR("No cmds for TX_SELF_ACLOCK_ON..\n");
+		LCD_ERR(vdd, "No cmds for TX_SELF_ACLOCK_ON..\n");
 		return -ENODEV;
 	}
 
@@ -663,7 +663,7 @@ static int self_aclock_set(struct samsung_display_driver_data *vdd)
 		cmd_pload[7] |= BIT(1);
 		break;
 	default:
-		LCD_ERR("Invalid Rotation Setting, (%d)\n", sa_info.rotate);
+		LCD_ERR(vdd, "Invalid Rotation Setting, (%d)\n", sa_info.rotate);
 	}
 
 	/* Clock Memory Mask for Power Saving */
@@ -714,7 +714,7 @@ static int self_aclock_set(struct samsung_display_driver_data *vdd)
 skip_update:
 	self_aclock_on(vdd, sa_info.en);
 
-	LCD_ERR("-- \n");
+	LCD_INFO(vdd, "-- \n");
 
 	return 0;
 }
@@ -722,11 +722,11 @@ skip_update:
 static void self_dclock_on(struct samsung_display_driver_data *vdd, int enable)
 {
 	if (IS_ERR_OR_NULL(vdd)) {
-		LCD_ERR("vdd is null or error\n");
+		LCD_ERR(vdd, "vdd is null or error\n");
 		return;
 	}
 
-	LCD_ERR("++ (%d)\n", enable);
+	LCD_INFO(vdd, "++ (%d)\n", enable);
 
 	mutex_lock(&vdd->self_disp.vdd_self_display_lock);
 
@@ -737,7 +737,7 @@ static void self_dclock_on(struct samsung_display_driver_data *vdd, int enable)
 
 	mutex_unlock(&vdd->self_disp.vdd_self_display_lock);
 
-	LCD_ERR("-- \n");
+	LCD_INFO(vdd, "-- \n");
 
 	return;
 }
@@ -746,7 +746,7 @@ static void self_dclock_img_write(struct samsung_display_driver_data *vdd)
 {
 	int wait_cnt = 1000; /* 1000 * 0.5ms = 500ms */
 
-	LCD_ERR("++\n");
+	LCD_INFO(vdd, "++\n");
 
 	/* Memory BW Boost Enable to prevent DMA Timeout */
 	ss_set_max_mem_bw(vdd, true);
@@ -781,7 +781,7 @@ static void self_dclock_img_write(struct samsung_display_driver_data *vdd)
 	/* Memory BW Boost Disable */
 	ss_set_max_mem_bw(vdd, false);
 
-	LCD_ERR("--\n");
+	LCD_INFO(vdd, "--\n");
 }
 
 static int self_dclock_set(struct samsung_display_driver_data *vdd)
@@ -791,15 +791,15 @@ static int self_dclock_set(struct samsung_display_driver_data *vdd)
 	struct dsi_panel_cmd_set *pcmds;
 
 	if (IS_ERR_OR_NULL(vdd)) {
-		LCD_ERR("vdd is null or error\n");
+		LCD_ERR(vdd, "vdd is null or error\n");
 		return -ENODEV;
 	}
 
-	LCD_ERR("++\n");
+	LCD_INFO(vdd, "++\n");
 
 	sd_info = vdd->self_disp.sd_info;
 
-	LCD_INFO("Self Digital Clock Enable(%d), 24H(%d), EN_HH(%d), EN_MM(%d), POS_1(%d,%d), POS_2(%d,%d), POS_3(%d,%d), POS_4(%d,%d), W(%d), H(%d), Color(0x%x), UNI_ATTR(%d), UNI_W(%d)\n",
+	LCD_INFO(vdd, "Self Digital Clock Enable(%d), 24H(%d), EN_HH(%d), EN_MM(%d), POS_1(%d,%d), POS_2(%d,%d), POS_3(%d,%d), POS_4(%d,%d), W(%d), H(%d), Color(0x%x), UNI_ATTR(%d), UNI_W(%d)\n",
 				sd_info.en, vdd->self_disp.st_info.disp_24h,
 				sd_info.en_hh, sd_info.en_mm,
 				sd_info.pos1_x, sd_info.pos1_y,
@@ -814,7 +814,7 @@ static int self_dclock_set(struct samsung_display_driver_data *vdd)
 
 	pcmds = ss_get_cmds(vdd, TX_SELF_DCLOCK_ON);
 	if (SS_IS_CMDS_NULL(pcmds)) {
-		LCD_ERR("No cmds for TX_SELF_DCLOCK_ON..\n");
+		LCD_ERR(vdd, "No cmds for TX_SELF_DCLOCK_ON..\n");
 		return -ENODEV;
 	}
 	cmd_pload = pcmds->cmds[2].ss_txbuf;
@@ -896,7 +896,7 @@ static int self_dclock_set(struct samsung_display_driver_data *vdd)
 skip_update:
 	self_dclock_on(vdd, sd_info.en);
 
-	LCD_ERR("-- \n");
+	LCD_INFO(vdd, "-- \n");
 
 	return 0;
 }
@@ -904,11 +904,11 @@ skip_update:
 static void self_blinking_on(struct samsung_display_driver_data *vdd, int enable)
 {
 	if (IS_ERR_OR_NULL(vdd)) {
-		LCD_ERR("vdd is null or error\n");
+		LCD_ERR(vdd, "vdd is null or error\n");
 		return;
 	}
 
-	LCD_ERR("++ (%d)\n", enable);
+	LCD_INFO(vdd, "++ (%d)\n", enable);
 
 	mutex_lock(&vdd->self_disp.vdd_self_display_lock);
 
@@ -920,7 +920,7 @@ static void self_blinking_on(struct samsung_display_driver_data *vdd, int enable
 
 	mutex_unlock(&vdd->self_disp.vdd_self_display_lock);
 
-	LCD_ERR("-- \n");
+	LCD_INFO(vdd, "-- \n");
 
 	return;
 }
@@ -930,12 +930,12 @@ static void self_mask_img_write(struct samsung_display_driver_data *vdd)
 	int wait_cnt = 1000; /* 1000 * 0.5ms = 500ms */
 
 	if (!vdd->self_disp.is_support) {
-		LCD_ERR("self display is not supported..(%d) \n",
+		LCD_ERR(vdd, "self display is not supported..(%d) \n",
 						vdd->self_disp.is_support);
 		return;
 	}
 
-	LCD_ERR("++\n");
+	LCD_INFO(vdd, "++\n");
 
 	mutex_lock(&vdd->exclusive_tx.ex_tx_lock);
 	vdd->exclusive_tx.enable = 1;
@@ -963,23 +963,25 @@ static void self_mask_img_write(struct samsung_display_driver_data *vdd)
 	wake_up_all(&vdd->exclusive_tx.ex_tx_waitq);
 	mutex_unlock(&vdd->exclusive_tx.ex_tx_lock);
 
-	LCD_ERR("--\n");
+	LCD_INFO(vdd, "--\n");
 }
 
-static void self_mask_on(struct samsung_display_driver_data *vdd, int enable)
+static int self_mask_on(struct samsung_display_driver_data *vdd, int enable)
 {
+	int ret = 0;
+
 	if (IS_ERR_OR_NULL(vdd)) {
-		LCD_ERR("vdd is null or error\n");
-		return;
+		LCD_ERR(vdd, "vdd is null or error\n");
+		return -ENODEV;
 	}
 
 	if (!vdd->self_disp.is_support) {
-		LCD_ERR("self display is not supported..(%d) \n",
+		LCD_ERR(vdd, "self display is not supported..(%d) \n",
 						vdd->self_disp.is_support);
-		return;
+		return -EACCES;
 	}
 
-	LCD_ERR("++ (%d)\n", enable);
+	LCD_INFO(vdd, "++ (%d)\n", enable);
 
 	mutex_lock(&vdd->self_disp.vdd_self_display_lock);
 
@@ -993,9 +995,9 @@ static void self_mask_on(struct samsung_display_driver_data *vdd, int enable)
 
 	mutex_unlock(&vdd->self_disp.vdd_self_display_lock);
 
-	LCD_ERR("-- \n");
+	LCD_INFO(vdd, "-- \n");
 
-	return;
+	return ret;
 }
 
 static int self_mask_check(struct samsung_display_driver_data *vdd)
@@ -1004,30 +1006,30 @@ static int self_mask_check(struct samsung_display_driver_data *vdd)
 	int wait_cnt = 1000; /* 1000 * 0.5ms = 500ms */
 
 	if (IS_ERR_OR_NULL(vdd)) {
-		LCD_ERR("vdd is null or error\n");
+		LCD_ERR(vdd, "vdd is null or error\n");
 		return 0;
 	}
 
 	if (!vdd->self_disp.is_support) {
-		LCD_ERR("self display is not supported..(%d) \n",
+		LCD_ERR(vdd, "self display is not supported..(%d) \n",
 						vdd->self_disp.is_support);
 		return 0;
 	}
 
 	if (!vdd->self_disp.mask_crc_size) {
-		LCD_ERR("mask crc size is zero..\n\n");
+		LCD_ERR(vdd, "mask crc size is zero..\n\n");
 		return 0;
 	}
 
 	if (!vdd->self_disp.mask_crc_read_data) {
 		vdd->self_disp.mask_crc_read_data = kzalloc(vdd->self_disp.mask_crc_size, GFP_KERNEL);
 		if (!vdd->self_disp.mask_crc_read_data) {
-			LCD_ERR("fail to alloc for mask_crc_read_data \n");
+			LCD_ERR(vdd, "fail to alloc for mask_crc_read_data \n");
 			return 0;
 		}
 	}
 
-	LCD_ERR("++ \n");
+	LCD_INFO(vdd, "++ \n");
 
 	mutex_lock(&vdd->self_disp.vdd_self_display_lock);
 
@@ -1063,7 +1065,7 @@ static int self_mask_check(struct samsung_display_driver_data *vdd)
 
 	for (i = 0; i < vdd->self_disp.mask_crc_size; i++) {
 		if (vdd->self_disp.mask_crc_read_data[i] != vdd->self_disp.mask_crc_pass_data[i]) {
-			LCD_ERR("self mask check fail !!\n");
+			LCD_ERR(vdd, "self mask check fail !!\n");
 			ret = 0;
 			break;
 		}
@@ -1071,7 +1073,7 @@ static int self_mask_check(struct samsung_display_driver_data *vdd)
 
 	mutex_unlock(&vdd->self_disp.vdd_self_display_lock);
 
-	LCD_ERR("-- \n");
+	LCD_INFO(vdd, "-- \n");
 
 	return ret;
 }
@@ -1083,15 +1085,15 @@ static int self_partial_hlpm_scan_set(struct samsung_display_driver_data *vdd)
 	struct dsi_panel_cmd_set *pcmds;
 
 	if (IS_ERR_OR_NULL(vdd)) {
-		LCD_ERR("vdd is null or error\n");
+		LCD_ERR(vdd, "vdd is null or error\n");
 		return -ENODEV;
 	}
 
-	LCD_ERR("++\n");
+	LCD_INFO(vdd, "++\n");
 
 	sphs_info = vdd->self_disp.sphs_info;
 
-	LCD_INFO("Self Partial HLPM/Scan hlpm_En(%d), hlpm_mode_sel(0x%x), hlpm a1(%d)a2(%d)a3(%d)a4(%d) / scan_en(%d), scan_line(%d_%d)\n",
+	LCD_INFO(vdd, "Self Partial HLPM/Scan hlpm_En(%d), hlpm_mode_sel(0x%x), hlpm a1(%d)a2(%d)a3(%d)a4(%d) / scan_en(%d), scan_line(%d_%d)\n",
 			sphs_info.hlpm_en, sphs_info.hlpm_mode_sel,
 			sphs_info.hlpm_area_1, sphs_info.hlpm_area_2,
 			sphs_info.hlpm_area_3, sphs_info.hlpm_area_4,
@@ -1099,7 +1101,7 @@ static int self_partial_hlpm_scan_set(struct samsung_display_driver_data *vdd)
 
 	pcmds = ss_get_cmds(vdd, TX_SELF_PARTIAL_HLPM_SCAN_SET);
 	if (SS_IS_CMDS_NULL(pcmds)) {
-		LCD_ERR("No cmds for TX_SELF_PARTIAL_HLPM_SCAN_SET..\n");
+		LCD_ERR(vdd, "No cmds for TX_SELF_PARTIAL_HLPM_SCAN_SET..\n");
 		return -ENODEV;
 	}
 	cmd_pload = pcmds->cmds[1].ss_txbuf;
@@ -1139,7 +1141,7 @@ static int self_partial_hlpm_scan_set(struct samsung_display_driver_data *vdd)
 
 	ss_send_cmd(vdd, TX_SELF_PARTIAL_HLPM_SCAN_SET);
 
-	LCD_ERR("--\n");
+	LCD_INFO(vdd, "--\n");
 
 	return 0;
 }
@@ -1168,7 +1170,7 @@ static int self_display_debug(struct samsung_display_driver_data *vdd)
 		vdd->self_disp.debug.MEM_SUM_O |= ((buf[12] & 0xFF) << 8);
 		vdd->self_disp.debug.MEM_SUM_O |= (buf[13] & 0xFF);
 
-		LCD_INFO("SI_X_O(%u) SI_Y_O(%u) MEM_SUM_O(0x%X) SM_SUM_O(0x%X)\n",
+		LCD_INFO(vdd, "SI_X_O(%u) SI_Y_O(%u) MEM_SUM_O(0x%X) SM_SUM_O(0x%X)\n",
 			vdd->self_disp.debug.SI_X_O,
 			vdd->self_disp.debug.SI_Y_O,
 			vdd->self_disp.debug.MEM_SUM_O,
@@ -1176,7 +1178,7 @@ static int self_display_debug(struct samsung_display_driver_data *vdd)
 
 		if (vdd->self_disp.operation[FLAG_SELF_MASK].img_checksum !=
 					vdd->self_disp.debug.SM_SUM_O) {
-			LCD_ERR("self mask img checksum fail!!\n");
+			LCD_ERR(vdd, "self mask img checksum fail!!\n");
 			return -1;
 		}
 	}
@@ -1189,31 +1191,31 @@ static int self_display_aod_enter(struct samsung_display_driver_data *vdd)
 	int ret = 0;
 
 	if (IS_ERR_OR_NULL(vdd)) {
-		LCD_ERR("vdd is null or error\n");
+		LCD_ERR(vdd, "vdd is null or error\n");
 		return -ENODEV;
 	}
 
 	if (!vdd->self_disp.is_support) {
-		LCD_DEBUG("self display is not supported..(%d) \n",
+		LCD_DEBUG(vdd, "self display is not supported..(%d) \n",
 								vdd->self_disp.is_support);
 		return -ENODEV;
 	}
 
-	LCD_INFO("++\n");
+	LCD_INFO(vdd, "++\n");
 
 	if (!vdd->self_disp.on) {
 		if (vdd->self_disp.operation[FLAG_SELF_ICON].select) {
-			LCD_INFO("SELF_ICON CAL CheckSum = 0x%X\n", vdd->self_disp.operation[FLAG_SELF_ICON].img_checksum_cal);
+			LCD_INFO(vdd, "SELF_ICON CAL CheckSum = 0x%X\n", vdd->self_disp.operation[FLAG_SELF_ICON].img_checksum_cal);
 			self_icon_img_write(vdd);
 		}
 
 		if (vdd->self_disp.operation[FLAG_SELF_ACLK].select) {
-			LCD_INFO("SELF_ACLK CAL CheckSum = 0x%X\n", vdd->self_disp.operation[FLAG_SELF_ACLK].img_checksum_cal);
+			LCD_INFO(vdd, "SELF_ACLK CAL CheckSum = 0x%X\n", vdd->self_disp.operation[FLAG_SELF_ACLK].img_checksum_cal);
 			self_aclock_img_write(vdd);
 		}
 
 		if (vdd->self_disp.operation[FLAG_SELF_DCLK].select) {
-			LCD_INFO("SELF_DCLK CAL CheckSum = 0x%X\n", vdd->self_disp.operation[FLAG_SELF_DCLK].img_checksum_cal);
+			LCD_INFO(vdd, "SELF_DCLK CAL CheckSum = 0x%X\n", vdd->self_disp.operation[FLAG_SELF_DCLK].img_checksum_cal);
 			self_dclock_img_write(vdd);
 		}
 
@@ -1225,7 +1227,7 @@ static int self_display_aod_enter(struct samsung_display_driver_data *vdd)
 
 	vdd->self_disp.on = true;
 
-	LCD_INFO("--\n");
+	LCD_INFO(vdd, "--\n");
 
 	return ret;
 }
@@ -1235,17 +1237,17 @@ static int self_display_aod_exit(struct samsung_display_driver_data *vdd)
 	int ret = 0;
 
 	if (IS_ERR_OR_NULL(vdd)) {
-		LCD_ERR("vdd is null or error\n");
+		LCD_ERR(vdd, "vdd is null or error\n");
 		return -ENODEV;
 	}
 
 	if (!vdd->self_disp.is_support) {
-		LCD_DEBUG("self display is not supported..(%d) \n",
+		LCD_DEBUG(vdd, "self display is not supported..(%d) \n",
 								vdd->self_disp.is_support);
 		return -ENODEV;
 	}
 
-	LCD_INFO("++\n");
+	LCD_INFO(vdd, "++\n");
 
 	/* self display off */
 	ss_send_cmd(vdd, TX_SELF_DISP_OFF);
@@ -1255,7 +1257,7 @@ static int self_display_aod_exit(struct samsung_display_driver_data *vdd)
 	if (vdd->self_disp.reset_status)
 		vdd->self_disp.reset_status(vdd);
 
-	LCD_INFO("--\n");
+	LCD_INFO(vdd, "--\n");
 
 	return ret;
 }
@@ -1263,12 +1265,12 @@ static int self_display_aod_exit(struct samsung_display_driver_data *vdd)
 static void self_display_reset_status(struct samsung_display_driver_data *vdd)
 {
 	if (IS_ERR_OR_NULL(vdd)) {
-		LCD_ERR("vdd is null or error\n");
+		LCD_ERR(vdd, "vdd is null or error\n");
 		return;
 	}
 
 	if (!vdd->self_disp.is_support) {
-		LCD_DEBUG("self display is not supported..(%d) \n",
+		LCD_DEBUG(vdd, "self display is not supported..(%d) \n",
 								vdd->self_disp.is_support);
 		return;
 	}
@@ -1297,30 +1299,30 @@ static long self_display_ioctl(struct file *file, unsigned int cmd, unsigned lon
 	int ret = 0;
 
 	if (IS_ERR_OR_NULL(vdd)) {
-		LCD_ERR("vdd is null or error\n");
+		LCD_ERR(vdd, "vdd is null or error\n");
 		return -ENODEV;
 	}
 
 	if (!ss_is_ready_to_send_cmd(vdd)) {
-		LCD_ERR("Panel is not ready. Panel State(%d)\n", vdd->panel_state);
+		LCD_ERR(vdd, "Panel is not ready. Panel State(%d)\n", vdd->panel_state);
 		return -ENODEV;
 	}
 
 	if (!vdd->self_disp.on) {
-		LCD_ERR("self_display was turned off\n");
+		LCD_ERR(vdd, "self_display was turned off\n");
 		return -EPERM;
 	}
 
 	if ((_IOC_TYPE(cmd) != SELF_DISPLAY_IOCTL_MAGIC) ||
 				(_IOC_NR(cmd) >= IOCTL_SELF_MAX)) {
-		LCD_ERR("TYPE(%u) NR(%u) is wrong..\n",
+		LCD_ERR(vdd, "TYPE(%u) NR(%u) is wrong..\n",
 			_IOC_TYPE(cmd), _IOC_NR(cmd));
 		return -EINVAL;
 	}
 
 	mutex_lock(&vdd->self_disp.vdd_self_display_ioctl_lock);
 
-	LCD_INFO("cmd = %s\n", cmd == IOCTL_SELF_MOVE_EN ? "IOCTL_SELF_MOVE_EN" :
+	LCD_INFO(vdd, "cmd = %s\n", cmd == IOCTL_SELF_MOVE_EN ? "IOCTL_SELF_MOVE_EN" :
 				cmd == IOCTL_SELF_MOVE_OFF ? "IOCTL_SELF_MOVE_OFF" :
 				cmd == IOCTL_SET_ICON ? "IOCTL_SET_ICON" :
 				cmd == IOCTL_SET_GRID ? "IOCTL_SET_GRID" :
@@ -1343,7 +1345,7 @@ static long self_display_ioctl(struct file *file, unsigned int cmd, unsigned lon
 		ret = copy_from_user(&vdd->self_disp.si_info, argp,
 					sizeof(vdd->self_disp.si_info));
 		if (ret) {
-			LCD_ERR("fail to copy_from_user.. (%d)\n", ret);
+			LCD_ERR(vdd, "fail to copy_from_user.. (%d)\n", ret);
 			goto error;
 		}
 
@@ -1353,7 +1355,7 @@ static long self_display_ioctl(struct file *file, unsigned int cmd, unsigned lon
 		ret = copy_from_user(&vdd->self_disp.sg_info, argp,
 					sizeof(vdd->self_disp.sg_info));
 		if (ret) {
-			LCD_ERR("fail to copy_from_user.. (%d)\n", ret);
+			LCD_ERR(vdd, "fail to copy_from_user.. (%d)\n", ret);
 			goto error;
 		}
 
@@ -1363,7 +1365,7 @@ static long self_display_ioctl(struct file *file, unsigned int cmd, unsigned lon
 		ret = copy_from_user(&vdd->self_disp.sa_info, argp,
 					sizeof(vdd->self_disp.sa_info));
 		if (ret) {
-			LCD_ERR("fail to copy_from_user.. (%d)\n", ret);
+			LCD_ERR(vdd, "fail to copy_from_user.. (%d)\n", ret);
 			goto error;
 		}
 
@@ -1373,7 +1375,7 @@ static long self_display_ioctl(struct file *file, unsigned int cmd, unsigned lon
 		ret = copy_from_user(&vdd->self_disp.sd_info, argp,
 					sizeof(vdd->self_disp.sd_info));
 		if (ret) {
-			LCD_ERR("fail to copy_from_user.. (%d)\n", ret);
+			LCD_ERR(vdd, "fail to copy_from_user.. (%d)\n", ret);
 			goto error;
 		}
 
@@ -1383,7 +1385,7 @@ static long self_display_ioctl(struct file *file, unsigned int cmd, unsigned lon
 		ret = copy_from_user(&vdd->self_disp.st_info, argp,
 					sizeof(vdd->self_disp.st_info));
 		if (ret) {
-			LCD_ERR("fail to copy_from_user.. (%d)\n", ret);
+			LCD_ERR(vdd, "fail to copy_from_user.. (%d)\n", ret);
 			goto error;
 		}
 
@@ -1393,14 +1395,14 @@ static long self_display_ioctl(struct file *file, unsigned int cmd, unsigned lon
 		ret = copy_from_user(&vdd->self_disp.sphs_info, argp,
 					sizeof(vdd->self_disp.sphs_info));
 		if (ret) {
-			LCD_ERR("fail to copy_from_user.. (%d)\n", ret);
+			LCD_ERR(vdd, "fail to copy_from_user.. (%d)\n", ret);
 			goto error;
 		}
 
 		ret = self_partial_hlpm_scan_set(vdd);
 		break;
 	default:
-		LCD_ERR("invalid cmd : %u \n", cmd);
+		LCD_ERR(vdd, "invalid cmd : %u \n", cmd);
 		break;
 	}
 error:
@@ -1424,17 +1426,17 @@ static ssize_t self_display_write(struct file *file, const char __user *buf,
 	int ret = 0;
 
 	if (IS_ERR_OR_NULL(vdd)) {
-		LCD_ERR("no vdd");
+		LCD_ERR(vdd, "no vdd");
 		return -ENODEV;
 	}
 
 	if (unlikely(!buf)) {
-		LCD_ERR("invalid read buffer\n");
+		LCD_ERR(vdd, "invalid read buffer\n");
 		return -EINVAL;
 	}
 
 	if (count <= IMAGE_HEADER_SIZE) {
-		LCD_ERR("Invalid Buffer Size (%d)\n", (int)count);
+		LCD_ERR(vdd, "Invalid Buffer Size (%d)\n", (int)count);
 		return -EINVAL;
 	}
 
@@ -1443,11 +1445,11 @@ static ssize_t self_display_write(struct file *file, const char __user *buf,
 	 */
 	ret = copy_from_user(op_buf, buf, IMAGE_HEADER_SIZE);
 	if (unlikely(ret < 0)) {
-		LCD_ERR("failed to copy_from_user (header)\n");
+		LCD_ERR(vdd, "failed to copy_from_user (header)\n");
 		return ret;
 	}
 
-	LCD_INFO("Header Buffer = %c%c\n", op_buf[0], op_buf[1]);
+	LCD_INFO(vdd, "Header Buffer = %c%c\n", op_buf[0], op_buf[1]);
 
 	if (op_buf[0] == 'I' && op_buf[1] == 'C')
 		op = FLAG_SELF_ICON;
@@ -1456,19 +1458,19 @@ static ssize_t self_display_write(struct file *file, const char __user *buf,
 	else if (op_buf[0] == 'D' && op_buf[1] == 'C')
 		op = FLAG_SELF_DCLK;
 	else {
-		LCD_ERR("Invalid Header, (%c%c)\n", op_buf[0], op_buf[1]);
+		LCD_ERR(vdd, "Invalid Header, (%c%c)\n", op_buf[0], op_buf[1]);
 		return -EINVAL;
 	}
 
-	LCD_INFO("flag (%d) \n", op);
+	LCD_INFO(vdd, "flag (%d) \n", op);
 
 	if (op >= FLAG_SELF_DISP_MAX) {
-		LCD_ERR("invalid data flag : %d \n", op);
+		LCD_ERR(vdd, "invalid data flag : %d \n", op);
 		return -EINVAL;
 	}
 
 	if (count > vdd->self_disp.operation[op].img_size+IMAGE_HEADER_SIZE) {
-		LCD_ERR("Buffer OverFlow Detected!! Buffer_Size(%d) Write_Size(%d)\n",
+		LCD_ERR(vdd, "Buffer OverFlow Detected!! Buffer_Size(%d) Write_Size(%d)\n",
 			vdd->self_disp.operation[op].img_size, (int)count);
 		return -EINVAL;
 	}
@@ -1478,7 +1480,7 @@ static ssize_t self_display_write(struct file *file, const char __user *buf,
 
 	ret = copy_from_user(vdd->self_disp.operation[op].img_buf, buf+IMAGE_HEADER_SIZE, count-IMAGE_HEADER_SIZE);
 	if (unlikely(ret < 0)) {
-		LCD_ERR("failed to copy_from_user (data)\n");
+		LCD_ERR(vdd, "failed to copy_from_user (data)\n");
 		return ret;
 	}
 
@@ -1508,7 +1510,7 @@ static ssize_t self_display_write(struct file *file, const char __user *buf,
 		vdd->self_disp.operation[FLAG_SELF_ACLK].select = false;
 		break;
 	default:
-		LCD_ERR("invalid data flag %d \n", op);
+		LCD_ERR(vdd, "invalid data flag %d \n", op);
 		break;
 	}
 
@@ -1523,13 +1525,13 @@ static int self_display_open(struct inode *inode, struct file *file)
 	struct samsung_display_driver_data *vdd = panel->panel_private;
 
 	if (IS_ERR_OR_NULL(vdd)) {
-		LCD_ERR("vdd is null or error\n");
+		LCD_ERR(vdd, "vdd is null or error\n");
 		return -ENODEV;
 	}
 
 	vdd->self_disp.file_open = 1;
 
-	LCD_DEBUG("[open]\n");
+	LCD_DEBUG(vdd, "[open]\n");
 
 	return 0;
 }
@@ -1542,13 +1544,13 @@ static int self_display_release(struct inode *inode, struct file *file)
 	struct samsung_display_driver_data *vdd = panel->panel_private;
 
 	if (IS_ERR_OR_NULL(vdd)) {
-		LCD_ERR("vdd is null or error\n");
+		LCD_ERR(vdd, "vdd is null or error\n");
 		return -ENODEV;
 	}
 
 	vdd->self_disp.file_open = 0;
 
-	LCD_DEBUG("[release]\n");
+	LCD_DEBUG(vdd, "[release]\n");
 
 	return 0;
 }
@@ -1572,12 +1574,12 @@ int self_display_init_HAB(struct samsung_display_driver_data *vdd)
 	struct dsi_display *display = NULL;
 
 	if (IS_ERR_OR_NULL(vdd)) {
-		LCD_ERR("vdd is null or error\n");
+		LCD_ERR(vdd, "vdd is null or error\n");
 		return -ENODEV;
 	}
 
 	if (!vdd->self_disp.is_support) {
-		LCD_ERR("Self Display is not supported\n");
+		LCD_ERR(vdd, "Self Display is not supported\n");
 		return -EINVAL;
 	}
 
@@ -1613,14 +1615,14 @@ int self_display_init_HAB(struct samsung_display_driver_data *vdd)
 	vdd->self_disp.self_blinking_on = self_blinking_on;
 	vdd->self_disp.self_display_debug = self_display_debug;
 
-	ret = misc_register(&vdd->self_disp.dev);
+	ret = ss_wrapper_misc_register(vdd, &vdd->self_disp.dev);
 	if (ret) {
-		LCD_ERR("failed to register driver : %d\n", ret);
+		LCD_ERR(vdd, "failed to register driver : %d\n", ret);
 		vdd->self_disp.is_support = false;
 		return -ENODEV;
 	}
 
-	LCD_INFO("Success to register self_disp device..(%d)\n", ret);
+	LCD_INFO(vdd, "Success to register self_disp device..(%d)\n", ret);
 
 	return ret;
 }

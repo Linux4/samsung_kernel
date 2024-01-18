@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2014-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/sysfs.h>
@@ -49,7 +50,8 @@ static unsigned int _ft_pagefault_policy_show(struct adreno_device *adreno_dev)
 static int _gpu_llc_slice_enable_store(struct adreno_device *adreno_dev,
 		bool val)
 {
-	adreno_dev->gpu_llc_slice_enable = val;
+	if (!IS_ERR_OR_NULL(adreno_dev->gpu_llc_slice))
+		adreno_dev->gpu_llc_slice_enable = val;
 	return 0;
 }
 
@@ -61,7 +63,8 @@ static bool _gpu_llc_slice_enable_show(struct adreno_device *adreno_dev)
 static int _gpuhtw_llc_slice_enable_store(struct adreno_device *adreno_dev,
 		bool val)
 {
-	adreno_dev->gpuhtw_llc_slice_enable = val;
+	if (!IS_ERR_OR_NULL(adreno_dev->gpuhtw_llc_slice))
+		adreno_dev->gpuhtw_llc_slice_enable = val;
 	return 0;
 }
 
@@ -186,11 +189,24 @@ static int _bcl_store(struct adreno_device *adreno_dev, bool val)
 					val);
 }
 
+static bool _perfcounter_show(struct adreno_device *adreno_dev)
+{
+	return adreno_dev->perfcounter;
+}
+
+static int _perfcounter_store(struct adreno_device *adreno_dev, bool val)
+{
+	if (adreno_dev->perfcounter == val)
+		return 0;
+
+	return adreno_power_cycle_bool(adreno_dev, &adreno_dev->perfcounter, val);
+}
+
 ssize_t adreno_sysfs_store_u32(struct device *dev,
 		struct device_attribute *attr, const char *buf, size_t count)
 {
 	struct adreno_device *adreno_dev = ADRENO_DEVICE(dev_get_drvdata(dev));
-	struct adreno_sysfs_attribute_u32 *_attr =
+	const struct adreno_sysfs_attribute_u32 *_attr =
 		container_of(attr, struct adreno_sysfs_attribute_u32, attr);
 	u32 val;
 	int ret;
@@ -210,7 +226,7 @@ ssize_t adreno_sysfs_show_u32(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
 	struct adreno_device *adreno_dev = ADRENO_DEVICE(dev_get_drvdata(dev));
-	struct adreno_sysfs_attribute_u32 *_attr =
+	const struct adreno_sysfs_attribute_u32 *_attr =
 		container_of(attr, struct adreno_sysfs_attribute_u32, attr);
 
 	return scnprintf(buf, PAGE_SIZE, "0x%X\n", _attr->show(adreno_dev));
@@ -220,7 +236,7 @@ ssize_t adreno_sysfs_store_bool(struct device *dev,
 		struct device_attribute *attr, const char *buf, size_t count)
 {
 	struct adreno_device *adreno_dev = ADRENO_DEVICE(dev_get_drvdata(dev));
-	struct adreno_sysfs_attribute_bool *_attr =
+	const struct adreno_sysfs_attribute_bool *_attr =
 		container_of(attr, struct adreno_sysfs_attribute_bool, attr);
 	bool val;
 	int ret;
@@ -240,11 +256,12 @@ ssize_t adreno_sysfs_show_bool(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
 	struct adreno_device *adreno_dev = ADRENO_DEVICE(dev_get_drvdata(dev));
-	struct adreno_sysfs_attribute_bool *_attr =
+	const struct adreno_sysfs_attribute_bool *_attr =
 		container_of(attr, struct adreno_sysfs_attribute_bool, attr);
 
 	return scnprintf(buf, PAGE_SIZE, "%d\n", _attr->show(adreno_dev));
 }
+
 static ADRENO_SYSFS_U32(ft_policy);
 static ADRENO_SYSFS_U32(ft_pagefault_policy);
 static ADRENO_SYSFS_BOOL(ft_long_ib_detect);
@@ -263,6 +280,7 @@ static ADRENO_SYSFS_BOOL(ifpc);
 static ADRENO_SYSFS_RO_U32(ifpc_count);
 static ADRENO_SYSFS_BOOL(acd);
 static ADRENO_SYSFS_BOOL(bcl);
+static ADRENO_SYSFS_BOOL(perfcounter);
 
 
 static const struct attribute *_attr_list[] = {
@@ -282,6 +300,7 @@ static const struct attribute *_attr_list[] = {
 	&adreno_attr_ifpc_count.attr.attr,
 	&adreno_attr_acd.attr.attr,
 	&adreno_attr_bcl.attr.attr,
+	&adreno_attr_perfcounter.attr.attr,
 	NULL,
 };
 
@@ -308,7 +327,14 @@ void adreno_sysfs_close(struct adreno_device *adreno_dev)
 int adreno_sysfs_init(struct adreno_device *adreno_dev)
 {
 	struct kgsl_device *device = KGSL_DEVICE(adreno_dev);
+	int ret;
 
-	return sysfs_create_files(&device->dev->kobj, _attr_list);
+	ret = sysfs_create_files(&device->dev->kobj, _attr_list);
+
+	/* Notify userspace */
+	if (!ret)
+		kobject_uevent(&device->dev->kobj, KOBJ_ADD);
+
+	return ret;
 }
 

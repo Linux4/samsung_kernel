@@ -655,6 +655,33 @@ unlock:
 	return ret;
 }
 
+static int atl_fw2_set_downshift(struct atl_hw *hw, bool on)
+{
+	uint32_t req;
+	int res = 0;
+	int ret = 0;
+
+	atl_lock_fw(hw);
+
+	if (on)
+		hw->mcp.req_high |= atl_fw2_downshift;
+	else
+		hw->mcp.req_high &= ~atl_fw2_downshift;
+	req = hw->mcp.req_high;
+	atl_write(hw, ATL_MCP_SCRATCH(FW2_LINK_REQ_HIGH), req);
+
+	busy_wait(10000, udelay(10), res,
+		atl_read(hw, ATL_MCP_SCRATCH(FW2_LINK_RES_HIGH)),
+		((res ^ req) & atl_fw2_downshift) != 0);
+	if (((res ^ req) & atl_fw2_downshift) != 0) {
+		atl_dev_err("Timeout waiting for statistics\n");
+		ret = -EIO;
+	}
+
+	atl_unlock_fw(hw);
+	return ret;
+}
+
 static int __atl_fw2x_apply_msm_settings(struct atl_hw *hw)
 {
 
@@ -982,7 +1009,8 @@ static struct atl_fw_ops atl_fw_ops[2] = {
 		.dump_cfg = atl_fw1_unsupported,
 		.restore_cfg = atl_fw1_unsupported,
 		.set_phy_loopback = (void *)atl_fw1_unsupported,
-		.set_mediadetect =  (void *)atl_fw1_unsupported,
+		.set_mediadetect = (void *)atl_fw1_unsupported,
+		.set_downshift = (void *)atl_fw1_unsupported,
 		.send_macsec_req = (void *)atl_fw1_unsupported,
 		.set_pad_stripping = (void *)atl_fw1_unsupported,
 		.__get_hbeat = (void *)atl_fw1_unsupported,
@@ -1003,6 +1031,7 @@ static struct atl_fw_ops atl_fw_ops[2] = {
 		.restore_cfg = atl_fw2_restore_cfg,
 		.set_phy_loopback = atl_fw2_set_phy_loopback,
 		.set_mediadetect = atl_fw2_set_mediadetect,
+		.set_downshift = atl_fw2_set_downshift,
 		.send_macsec_req = atl_fw2_send_macsec_request,
 		.set_pad_stripping = atl_fw2_set_pad_stripping,
 		.__get_hbeat = __atl_fw2_get_hbeat,
@@ -1143,6 +1172,39 @@ int atl_update_thermal_flag(struct atl_hw *hw, int bit, bool val)
 static unsigned int atl_wdog_period = 1100;
 module_param_named(wdog_period, atl_wdog_period, uint, 0644);
 
+static int atl_fw_rev_check_and_warn(int fw_rev)
+{
+	int major = (fw_rev >> 24) & 0xFFU;
+	bool ret = true;
+
+	switch (major) {
+	case 2:
+		if ((((fw_rev >> 16) & 0xFFU) < 12) &&
+			    ((fw_rev & 0xFFFFU) < 12))
+			ret = false;
+		break;
+
+	case 3:
+		if ((((fw_rev >> 16) & 0xFFU) < 1) &&
+			    ((fw_rev & 0xFFFFU) < 102))
+			ret = false;
+
+		break;
+
+	case 4:
+		if ((((fw_rev >> 16) & 0xFFU) < 2) &&
+			    ((fw_rev & 0xFFFFU) < 37))
+			ret = false;
+
+		break;
+
+	default:
+		ret = false;
+	}
+
+	return ret;
+}
+
 int atl_fw_init(struct atl_hw *hw)
 {
 	uint32_t tries, reg, major;
@@ -1157,6 +1219,13 @@ int atl_fw_init(struct atl_hw *hw)
 	atl_dev_dbg("FW startup took %d ms\n", tries);
 
 	major = (reg >> 24) & 0xff;
+
+	/* Warn if FW is lower than 2.12.12, 3.1.102 and 4.2.37 */
+	if (!atl_fw_rev_check_and_warn(reg))
+		atl_dev_warn("FW_version: %u.%u.%u, is not stable version",
+			    (reg >> 24), ((reg >> 16) & 0xFFU),
+			    (reg & 0xFFFFU));
+
 	if (!major || major > 3) {
 		atl_dev_err("Unsupported FW major version: %u\n", major);
 		return -EINVAL;

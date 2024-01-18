@@ -1,4 +1,6 @@
 # SPDX-License-Identifier: GPL-2.0
+ccflags-y := $(KBUILD_SEP_VERSION)
+
 obj-$(CONFIG_POWER_RESET_AS3722) += as3722-poweroff.o
 obj-$(CONFIG_POWER_RESET_AT91_POWEROFF) += at91-poweroff.o
 obj-$(CONFIG_POWER_RESET_AT91_RESET) += at91-reset.o
@@ -11,6 +13,7 @@ obj-$(CONFIG_POWER_RESET_GPIO) += gpio-poweroff.o
 obj-$(CONFIG_POWER_RESET_GPIO_RESTART) += gpio-restart.o
 obj-$(CONFIG_POWER_RESET_HISI) += hisi-reboot.o
 obj-$(CONFIG_POWER_RESET_MSM) += msm-poweroff.o
+obj-$(CONFIG_POWER_RESET_QCOM_VM) += msm-vm-poweroff.o
 obj-$(CONFIG_POWER_RESET_QCOM_DOWNLOAD_MODE) += qcom-dload-mode.o
 obj-$(CONFIG_POWER_RESET_QCOM_PON) += qcom-pon.o
 obj-$(CONFIG_POWER_RESET_QCOM_REBOOT_REASON) += qcom-reboot-reason.o

@@ -21,7 +21,7 @@
 	qcom,vdd-io-always-on;
 	qcom,vdd-io-lpm-sup;
 	qcom,vdd-io-voltage-level = <1800000 1800000>;
-	qcom,vdd-io-current-level = <0 325000>;
+	qcom,vdd-io-current-level = <325000 325000>;
 };
 
 &sdhc_2 {
@@ -295,7 +295,7 @@
 };
 
 &usb0 {
-	extcon = <&pm7250b_pdphy>, <&eud>;
+	extcon = <&pm7250b_pdphy>, <&pm7250b_charger>, <&eud>;
 
 	#io-channel-cells = <1>;
 	io-channels= <&pm7250b_charger PSY_IIO_USB_REAL_TYPE>;

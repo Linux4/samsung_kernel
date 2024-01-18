@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2019-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023, Qualcomm Innovation Center, Inc. All rights reserved.
  *
  */
 
@@ -2795,6 +2796,12 @@ static int qnoc_probe(struct platform_device *pdev)
 	qp->num_clks = devm_clk_bulk_get_all(qp->dev, &qp->clks);
 	if (qp->num_clks < 0)
 		return qp->num_clks;
+		
+	ret = clk_bulk_prepare_enable(qp->num_clks, qp->clks);
+	if (ret) {
+		dev_err(&pdev->dev, "failed to enable clocks\n");
+		return ret;
+	}
 
 	for (i = 0; i < num_nodes; i++) {
 		size_t j;
@@ -2808,6 +2815,10 @@ static int qnoc_probe(struct platform_device *pdev)
 		if (IS_ERR(node)) {
 			ret = PTR_ERR(node);
 			goto err;
+		}
+		if (qnodes[i]->qosbox) {
+			qnodes[i]->noc_ops->set_qos(qnodes[i]);
+			qnodes[i]->qosbox->initialized = true;
 		}
 
 		node->name = qnodes[i]->name;
@@ -2824,6 +2835,9 @@ static int qnoc_probe(struct platform_device *pdev)
 		data->nodes[i] = node;
 	}
 	data->num_nodes = num_nodes;
+	
+
+	clk_bulk_disable_unprepare(qp->num_clks, qp->clks);
 
 	for (i = 0; i < qp->num_bcms; i++)
 		qcom_icc_bcm_init(qp->bcms[i], &pdev->dev);
@@ -2842,7 +2856,7 @@ err:
 		icc_node_del(node);
 		icc_node_destroy(node->id);
 	}
-
+	clk_bulk_disable_unprepare(qp->num_clks, qp->clks);
 	clk_bulk_put_all(qp->num_clks, qp->clks);
 
 	icc_provider_del(provider);
@@ -2942,12 +2956,6 @@ static int __init qnoc_driver_init(void)
 	return platform_driver_register(&qnoc_driver);
 }
 core_initcall(qnoc_driver_init);
-
-static void __exit qnoc_driver_exit(void)
-{
-	platform_driver_unregister(&qnoc_driver);
-}
-module_exit(qnoc_driver_exit);
 
 MODULE_DESCRIPTION("Lahaina NoC driver");
 MODULE_LICENSE("GPL v2");

@@ -53,10 +53,18 @@
 		qcom,vreg-0p9-voltage-level = <880000 880000 47900>;
 		qcom,vreg-cx-voltage-level = <RPMH_REGULATOR_LEVEL_MAX
 						RPMH_REGULATOR_LEVEL_NOM 0>;
-		qcom,bw-scale =
-			<RPMH_REGULATOR_LEVEL_LOW_SVS 19200000 /* Gen1 */
-			RPMH_REGULATOR_LEVEL_LOW_SVS 19200000 /* Gen2 */
-			RPMH_REGULATOR_LEVEL_NOM 100000000>; /* Gen3 */
+		qcom,bw-scale = /* Gen1 */
+				<RPMH_REGULATOR_LEVEL_LOW_SVS
+				RPMH_REGULATOR_LEVEL_LOW_SVS
+				19200000
+				/* Gen2 */
+				RPMH_REGULATOR_LEVEL_LOW_SVS
+				RPMH_REGULATOR_LEVEL_LOW_SVS
+				19200000
+				/* Gen3 */
+				RPMH_REGULATOR_LEVEL_NOM
+				RPMH_REGULATOR_LEVEL_LOW_SVS
+				100000000>;
 
 		interconnect-names = "icc_path";
 		interconnects = <&aggre1_noc MASTER_PCIE_0 &mc_virt SLAVE_EBI1>;
@@ -67,7 +75,7 @@
 			<&gcc GCC_PCIE_0_CFG_AHB_CLK>,
 			<&gcc GCC_PCIE_0_MSTR_AXI_CLK>,
 			<&gcc GCC_PCIE_0_SLV_AXI_CLK>,
-			<&rpmhcc RPMH_CXO_CLK>,
+			<&rpmhcc RPMH_CXO_CLK_A>,
 			<&gcc GCC_PCIE_0_SLV_Q2A_AXI_CLK>,
 			<&gcc GCC_PCIE0_PHY_RCHNG_CLK>,
 			<&gcc GCC_AGGRE_NOC_PCIE_0_AXI_CLK>,
@@ -105,6 +113,9 @@
 		qcom,l1-2-th-value = <70>;
 		qcom,slv-addr-space-size = <0x4000000>;
 		qcom,ep-latency = <10>;
+		qcom,num-parf-testbus-sel = <0xb9>;
+		qcom,msi_mask_disable;
+		qcom,config-recovery;
 
 		qcom,phy-manage-pll = <1>;
 		qcom,phy-resetsm-cntrl2 = <0xa0>;

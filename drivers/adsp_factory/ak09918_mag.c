@@ -115,7 +115,7 @@ RETRY_MAG_SELFTEST:
 
 	while (!(data->ready_flag[MSG_TYPE_ST_SHOW_DATA] & 1 << MSG_MAG) &&
 		cnt++ < TIMEOUT_CNT)
-		msleep(20);
+		msleep(26);
 
 	data->ready_flag[MSG_TYPE_ST_SHOW_DATA] &= ~(1 << MSG_MAG);
 
@@ -151,7 +151,7 @@ RETRY_MAG_SELFTEST:
 		pr_info("[FACTORY] %s - msg_buf[1] 0x%x", __func__, data->msg_buf[MSG_MAG][1]);
 		st_status = AKM_ST_FAIL;
 	}
-	pr_info("[FACTORY] status=%d, st_status=%d, st_x=%d, st_y=%d, st_z=%d\n dac=%d, adc=%d, adc_x=%d, adc_y=%d, adc_z=%d\n",
+	pr_info("[FACTORY] status=%d, st_status=%d, st_xyz=%d,%d,%d, dac=%d, adc=%d, adc_xyz=%d,%d,%d\n",
 		data->msg_buf[MSG_MAG][0], st_status,
 		data->msg_buf[MSG_MAG][2], data->msg_buf[MSG_MAG][3],
 		data->msg_buf[MSG_MAG][4], data->msg_buf[MSG_MAG][5],
@@ -215,7 +215,6 @@ static ssize_t mag_dhr_sensor_info_show(struct device *dev,
 static DEVICE_ATTR(name, 0444, mag_name_show, NULL);
 static DEVICE_ATTR(vendor, 0444, mag_vendor_show, NULL);
 static DEVICE_ATTR(raw_data, 0664, mag_raw_data_show, mag_raw_data_store);
-static DEVICE_ATTR(adc, 0444, mag_raw_data_show, NULL);
 static DEVICE_ATTR(dac, 0444, mag_check_cntl, NULL);
 static DEVICE_ATTR(chk_registers, 0444, mag_check_registers, NULL);
 static DEVICE_ATTR(selftest, 0440, mag_selftest_show, NULL);
@@ -231,7 +230,6 @@ static struct device_attribute *mag_attrs[] = {
 	&dev_attr_name,
 	&dev_attr_vendor,
 	&dev_attr_raw_data,
-	&dev_attr_adc,
 	&dev_attr_dac,
 	&dev_attr_chk_registers,
 	&dev_attr_selftest,

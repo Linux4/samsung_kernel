@@ -13,6 +13,8 @@
 #include "sde_kms.h"
 #include "sde_vm_common.h"
 #include "sde_vm.h"
+#include "sde_vm_msgq.h"
+
 
 #define to_vm_trusted(vm) ((struct sde_vm_trusted *)vm)
 
@@ -188,6 +190,18 @@ end:
 	return rc;
 }
 
+int _sde_vm_resource_init(struct sde_kms *sde_kms,
+		struct drm_atomic_state *state)
+{
+	int rc = 0;
+
+	rc = sde_kms_vm_trusted_resource_init(sde_kms, state);
+	if (rc)
+		SDE_ERROR("vm resource init failed\n");
+
+	return rc;
+}
+
 int _sde_vm_populate_res(struct sde_kms *sde_kms, struct sde_vm_trusted *vm)
 {
 	struct msm_io_res io_res;
@@ -246,6 +260,8 @@ static void  _sde_vm_deinit(struct sde_kms *kms, struct sde_vm_ops *ops)
 	sde_vm = to_vm_trusted(kms->vm);
 
 	memset(ops, 0, sizeof(*ops));
+
+	sde_vm_msgq_deinit(kms->vm);
 
 	if (sde_vm->base.mem_notification_cookie)
 		hh_mem_notifier_unregister(
@@ -380,18 +396,12 @@ static int _sde_vm_accept(struct sde_kms *kms)
 	if (rc)
 		goto res_accept_fail;
 
-	rc = sde_kms_vm_trusted_resource_init(kms);
-	if (rc) {
-		SDE_ERROR("vm resource init failed\n");
-		goto res_accept_fail;
-	}
-
-	goto end;
+	return 0;
 
 res_accept_fail:
 	_sde_vm_release_irq(kms->vm);
 	_sde_vm_release_mem(kms->vm);
-end:
+
 	return rc;
 }
 
@@ -409,6 +419,8 @@ static void _sde_vm_set_ops(struct sde_vm_ops *ops)
 	ops->vm_post_commit = sde_kms_vm_trusted_post_commit;
 	ops->vm_request_valid = sde_vm_request_valid;
 	ops->vm_acquire_fail_handler = _sde_vm_release;
+	ops->vm_msg_send = sde_vm_msg_send;
+	ops->vm_resource_init = _sde_vm_resource_init;
 }
 
 int sde_vm_trusted_init(struct sde_kms *kms)
@@ -459,6 +471,12 @@ int sde_vm_trusted_init(struct sde_kms *kms)
 	kms->vm = &sde_vm->base;
 
 	atomic_set(&sde_vm->base.n_irq_lent, 0);
+
+	rc = sde_vm_msgq_init(kms->vm);
+	if (rc) {
+		SDE_ERROR("failed to initialize the msgq, rc=%d\n", rc);
+		goto init_fail;
+	}
 
 	return 0;
 init_fail:

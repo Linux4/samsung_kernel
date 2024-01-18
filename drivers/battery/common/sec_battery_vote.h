@@ -8,6 +8,19 @@ enum {
 	SEC_VOTE_EN,
 };
 
+enum {
+	VOTE_PRI_0 = 0,
+	VOTE_PRI_1,
+	VOTE_PRI_2,
+	VOTE_PRI_3,
+	VOTE_PRI_4,
+	VOTE_PRI_5,
+	VOTE_PRI_6,
+	VOTE_PRI_7,
+	VOTE_PRI_8,
+	VOTE_PRI_9,
+	VOTE_PRI_10,
+};
 struct sec_vote;
 
 extern int get_sec_vote(struct sec_vote *vote, const char **name, int *value);

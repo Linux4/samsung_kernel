@@ -1399,6 +1399,7 @@ static int usb_resume_both(struct usb_device *udev, pm_message_t msg)
 
 	if (udev->state == USB_STATE_NOTATTACHED) {
 		status = -ENODEV;
+		dev_err(&udev->dev, "%s: status %d\n", __func__, status);
 		goto done;
 	}
 	udev->can_submit = 1;
@@ -1415,10 +1416,13 @@ static int usb_resume_both(struct usb_device *udev, pm_message_t msg)
 					udev->reset_resume);
 		}
 	}
+	if (!udev)
+		goto done;
+
 	usb_mark_last_busy(udev);
+	dev_vdbg(&udev->dev, "%s: status %d\n", __func__, status);
 
  done:
-	dev_vdbg(&udev->dev, "%s: status %d\n", __func__, status);
 	if (!status)
 		udev->reset_resume = 0;
 	return status;

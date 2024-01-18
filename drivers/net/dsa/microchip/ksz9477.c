@@ -515,9 +515,6 @@ static int ksz9477_port_vlan_filtering(struct dsa_switch *ds, int port,
 			     PORT_VLAN_LOOKUP_VID_0, false);
 	}
 
-	/* set the real number of ports */
-	dev->ds->num_ports = dev->port_cnt;
-
 	return 0;
 }
 
@@ -685,10 +682,10 @@ static int ksz9477_port_fdb_del(struct dsa_switch *ds, int port,
 		ksz_read32(dev, REG_SW_ALU_VAL_D, &alu_table[3]);
 
 		/* clear forwarding port */
-		alu_table[2] &= ~BIT(port);
+		alu_table[1] &= ~BIT(port);
 
 		/* if there is no port to forward, clear table */
-		if ((alu_table[2] & ALU_V_PORT_MAP) == 0) {
+		if ((alu_table[1] & ALU_V_PORT_MAP) == 0) {
 			alu_table[0] = 0;
 			alu_table[1] = 0;
 			alu_table[2] = 0;
@@ -768,6 +765,9 @@ static int ksz9477_port_fdb_dump(struct dsa_switch *ds, int port,
 			ret = -ETIMEDOUT;
 			goto exit;
 		}
+
+		if (!(ksz_data & ALU_VALID))
+			continue;
 
 		/* read ALU table */
 		ksz9477_read_table(dev, alu_table);
@@ -1523,6 +1523,7 @@ static const struct ksz_chip_data ksz9477_switch_chips[] = {
 		.num_statics = 16,
 		.cpu_ports = 0x7F,	/* can be configured as cpu port */
 		.port_cnt = 7,		/* total physical port count */
+		.phy_errata_9477 = true,
 	},
 };
 

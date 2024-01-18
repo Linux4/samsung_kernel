@@ -14,21 +14,36 @@
 #include <linux/spinlock.h>
 #include <linux/kobject.h>
 #include <linux/slab.h>
-#include "../../../techpack/display/msm/samsung/ss_panel_notify.h"
 
 #define MAX_INSERT_DIGIT 4
 
+#ifdef CONFIG_SEC_PERF_MANAGER_QC
+
+#if IS_ENABLED(CONFIG_SEC_PANEL_NOTIFIER)
+#include <linux/sec_panel_notifier.h>
+#else
+#include "../../../techpack/display/msm/samsung/ss_panel_notify.h"
+#endif
+
+
 extern int ss_panel_notifier_register(struct notifier_block *nb);
 extern int ss_panel_notifier_unregister(struct notifier_block *nb);
+#endif
+
+#ifdef CONFIG_SEC_PERF_MANAGER_QC
 extern unsigned long get_task_util(struct task_struct *p);
+#endif
+#ifdef CONFIG_SEC_PERF_MANAGER_MTK
+extern unsigned long get_boosted_task_util(struct task_struct *p);
+#endif
+
 extern unsigned long get_max_capacity(int cpu);
 
 static unsigned long calc_fps_required_util(unsigned long max_cap, unsigned long dur);
 static struct task_fps_util_info *get_target_task(int tid);
 
 static spinlock_t write_slock;
-unsigned long fps_required_util;
-struct list_head head_list;
+struct list_head gpis_hlist;
 int fps_task_count;
 unsigned long us_frame_time;
 int g_fps;
@@ -42,6 +57,7 @@ static long perf_mgr_ioctl(struct file *file, unsigned int cmd, unsigned long ar
 	void __user *uarg = (void __user *)arg;
 	long ret = -EINVAL;
 	int target_tid;
+	int pFps;
 	struct fps_info fps_info_val, ofi;
 	struct task_struct *task, *tmp_task;
 
@@ -58,8 +74,27 @@ static long perf_mgr_ioctl(struct file *file, unsigned int cmd, unsigned long ar
 	}
 
 	switch (cmd) {
-	case PERF_MGR_FPS_NUM:
-		return g_fps;
+	case PERF_MGR_FPS_CHANGE:
+		if (copy_from_user(&pFps, uarg, sizeof(int))) {
+			pr_err("[GPIS] :prsc kill: fail to copy from user");
+			return -EFAULT;
+		}
+
+#ifdef CONFIG_SEC_PERF_MANAGER_MTK
+		if (pFps < 30)
+			return -EFAULT;
+
+		trace_printk("[GPIS] ::: FPS Changed (%d -> %d)\n",
+			g_fps, pFps);
+
+		g_fps = pFps;
+
+		if (g_fps <= 60)
+			fps_margin_percent = 10;
+
+		us_frame_time = 1000000 / g_fps;
+#endif
+		break;
 
 	/*
 	 * There are two cases removing the task from the list.
@@ -74,32 +109,35 @@ static long perf_mgr_ioctl(struct file *file, unsigned int cmd, unsigned long ar
 		if (fps_task_count <= 1)
 			break;
 
-		 /* Sometimes All Task Clear in the list. */
+		 /* When drawing action get finished, init boost information */
 		if (target_tid < 0) {
-			/*
-			spin_lock(&write_slock);
-			list_for_each_entry_rcu(fi, &head_list, list){
+			rcu_read_lock();
+			list_for_each_entry_rcu(fi, &gpis_hlist, list) {
+				if ( fi == NULL )
+					continue;
 
-				if ( fi == NULL ) continue;
+				fi->last_update_frame = 0;
+				fi->updated_fps_util = 0;
+				task = find_task_by_vpid( fi->orig_fps_info.tid);
 
-				task = find_task_by_vpid(fi->orig_fps_info.tid);
-				if (task != NULL) task->drawing_flag = 0;
+				if (task == NULL ||  fi->orig_fps_info.tid != task->pid)
+					continue;
 
-				//Drawing Flag OFF on Task Struct.
-				//Delete Task Info From Drawing Tasks List.
-				list_del_rcu(&(fi->list));
-				fps_task_count--;
-
+				get_task_struct(task);
+				task->drawing_mig_boost = 0;
+				put_task_struct(task);
 			}
-			spin_unlock(&write_slock);
-			synchronize_rcu();
-			kfree(fi);
-			*/
+			rcu_read_unlock();
 		} else {
 			//Drawing Flag OFF on Task Struct
+			rcu_read_lock();
 			task = find_task_by_vpid(target_tid);
-			if (task != NULL)
+			if (task != NULL) {
+				get_task_struct(task);
 				task->drawing_flag = 0;
+				put_task_struct(task);
+			}
+			rcu_read_unlock();
 
 			fi = get_target_task(target_tid);
 			if (fi == NULL)
@@ -148,7 +186,7 @@ static long perf_mgr_ioctl(struct file *file, unsigned int cmd, unsigned long ar
 		fi->orig_fps_info.boosting_lvl = BOOST_OFF;
 
 		spin_lock(&write_slock);
-		list_add_tail_rcu(&(fi->list), &head_list);
+		list_add_tail_rcu(&(fi->list), &gpis_hlist);
 		spin_unlock(&write_slock);
 		fps_task_count++;
 		trace_printk("[GPIS] ::: Add Tid : %d in Group %d, Cnt : %d\n",
@@ -171,11 +209,11 @@ static long perf_mgr_ioctl(struct file *file, unsigned int cmd, unsigned long ar
 		}
 		task = find_task_by_vpid(fps_info_val.tid);
 
-		if (list_empty(&head_list) || !task || !task->drawing_flag)
+		if (list_empty(&gpis_hlist) || !task || !task->drawing_flag)
 			break;
 
 		rcu_read_lock();
-		list_for_each_entry_rcu(fi, &head_list, list) {
+		list_for_each_entry_rcu(fi, &gpis_hlist, list) {
 			if (fi == NULL)
 				continue;
 
@@ -189,17 +227,24 @@ static long perf_mgr_ioctl(struct file *file, unsigned int cmd, unsigned long ar
 		 *If the drawing task keeps boosting value more than 2 frames,
 		 *we initialize boosting information of the task.
 		 */
+			tmp_task = find_task_by_vpid(ofi.tid);
 
+			if (tmp_task == NULL ||
+				tmp_task->drawing_flag != task->drawing_flag)
+				continue;
+				
 			if (++(fi->last_update_frame) > hold_frame_count) {
 				fi->last_update_frame = 0;
 				fi->updated_fps_util = 0;
-				task->drawing_mig_boost = 0;
+				tmp_task->drawing_mig_boost = 0;
 			}
 
-			tmp_task = find_task_by_vpid(ofi.tid);
-			if (tmp_task != NULL &&
-				tmp_task->drawing_flag == task->drawing_flag)
-				rn_sum += get_task_util(tmp_task);
+#ifdef CONFIG_SEC_PERF_MANAGER_MTK
+			rn_sum += get_boosted_task_util(tmp_task);
+#endif
+#ifdef CONFIG_SEC_PERF_MANAGER_QC
+			rn_sum += get_task_util(tmp_task);
+#endif
 		}
 		rcu_read_unlock();
 
@@ -220,7 +265,7 @@ static long perf_mgr_ioctl(struct file *file, unsigned int cmd, unsigned long ar
 		if (new_fps_util > 0 &&
 			fps_info_val.boosting_lvl != BOOST_LOW) {
 			rcu_read_lock();
-			list_for_each_entry_rcu(fi, &head_list, list) {
+			list_for_each_entry_rcu(fi, &gpis_hlist, list) {
 				ofi = fi->orig_fps_info;
 				if (ofi.group_id == task->drawing_flag) {
 					tmp_task = find_task_by_vpid(ofi.tid);
@@ -247,7 +292,7 @@ static long perf_mgr_ioctl(struct file *file, unsigned int cmd, unsigned long ar
 
 		trace_printk("[GPIS] FPS, Tid, Mig, CalUtil = %d, %d, %d, %lu\n",
 			g_fps, target_fi->orig_fps_info.tid,
-			task->drawing_mig_boost, fps_required_util);
+			task->drawing_mig_boost, new_fps_util);
 
 		break;
 	default:
@@ -261,11 +306,11 @@ static struct task_fps_util_info *get_target_task(pid_t tid)
 
 	struct task_fps_util_info *fi = NULL, *ret_fi = NULL;
 
-	if (list_empty(&head_list))
+	if (list_empty(&gpis_hlist))
 		return NULL;
 
 	rcu_read_lock();
-	list_for_each_entry_rcu(fi, &head_list, list) {
+	list_for_each_entry_rcu(fi, &gpis_hlist, list) {
 		if (fi != NULL && fi->orig_fps_info.tid == tid) {
 			ret_fi = fi;
 			break;
@@ -276,23 +321,17 @@ static struct task_fps_util_info *get_target_task(pid_t tid)
 	return ret_fi;
 }
 
-unsigned long get_fps_req_util(void)
-{
-	return fps_required_util;
-}
-EXPORT_SYMBOL_GPL(get_fps_req_util);
-
 unsigned long get_max_fps_util(int group_id)
 {
 
 	struct task_fps_util_info *fi = NULL;
 	unsigned long max_util = 0;
 
-	if (fps_task_count <= 1 || list_empty(&head_list))
+	if (fps_task_count <= 1 || list_empty(&gpis_hlist))
 		return 0;
 
 	rcu_read_lock();
-		list_for_each_entry_rcu(fi, &head_list, list) {
+		list_for_each_entry_rcu(fi, &gpis_hlist, list) {
 			if (fi != NULL &&
 				fi->orig_fps_info.group_id == group_id &&
 				fi->updated_fps_util > max_util)
@@ -332,6 +371,7 @@ unsigned long calc_fps_required_util(unsigned long rn_sum, unsigned long dur)
 	return required_cap;
 }
 
+#ifdef CONFIG_SEC_PERF_MANAGER_QC
 int panel_timing_changed_data_notify(struct notifier_block *nb,
 	unsigned long event_type, void *data)
 {
@@ -356,6 +396,7 @@ static struct notifier_block panel_timing_changed_data_notifier = {
 	.notifier_call = panel_timing_changed_data_notify,
 	.priority = 1,
 };
+#endif
 
 static int perf_mgr_open(struct inode *inode, struct file *file)
 {
@@ -432,7 +473,10 @@ static int __init perf_mgr_dev_init(void)
 	if (err)
 		return err;
 
+
+#ifdef CONFIG_SEC_PERF_MANAGER_QC
 	ss_panel_notifier_register(&panel_timing_changed_data_notifier);
+#endif
 
 	//Tunable Sysfs Init.
 	perf_kobject = kobject_create_and_add("gpis", NULL);
@@ -444,14 +488,13 @@ static int __init perf_mgr_dev_init(void)
 		return err;
 	}
 
-	INIT_LIST_HEAD(&head_list);
+	INIT_LIST_HEAD(&gpis_hlist);
 	spin_lock_init(&write_slock);
 
 	s = kmalloc(sizeof(struct task_fps_util_info), GFP_KERNEL);
 	if (s == NULL)
 		return -EAGAIN;
 
-	fps_required_util = 0;
 	fps_task_count = 0;
 	us_frame_time = 0;
 	g_fps = 0;
@@ -463,7 +506,7 @@ static int __init perf_mgr_dev_init(void)
 	s->updated_fps_util = 0;
 	s->running_cpu = 9999;
 	fps_task_count++;
-	list_add_tail(&(s->list), &head_list);
+	list_add_tail(&(s->list), &gpis_hlist);
 
 	return 0;
 }
@@ -471,7 +514,9 @@ static int __init perf_mgr_dev_init(void)
 static void  __exit perf_mgr_dev_exit(void)
 {
 	misc_deregister(&perf_mgr_device);
+#ifdef CONFIG_SEC_PERF_MANAGER_QC
 	ss_panel_notifier_unregister(&panel_timing_changed_data_notifier);
+#endif
 }
 
 module_init(perf_mgr_dev_init);

@@ -1,5 +1,6 @@
+// SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2017 Samsung Electronics Co., Ltd.
+ * Copyright (c) 2017-2021 Samsung Electronics Co., Ltd.
  *		http://www.samsung.com
  *
  * DP bigdata
@@ -297,7 +298,9 @@ static void secdp_bigdata_save_data(void)
 			break;
 		}
 	}
-	err_data_buf[ret-1] = '\n';
+
+	if (ret > 0)
+		err_data_buf[ret - 1] = '\n';
 }
 
 static int secdp_bigdata_check_err(void)

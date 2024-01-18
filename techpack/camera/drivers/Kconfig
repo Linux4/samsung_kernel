@@ -16,6 +16,12 @@ config SAMSUNG_OIS_MCU_STM32
 	help
 	Enables support for external ois module.
 
+config SAMSUNG_OIS_Z_AXIS_CAL
+	tristate "OIS Z axis calibraion support"
+	default n
+	help
+	Enables support for Z axis calibration.
+
 config CAMERA_SYSFS_V2
 	bool "CAMERA SYS"
 	help
@@ -56,7 +62,7 @@ config SAMSUNG_SBI
 config CAMERA_ADAPTIVE_MIPI
 	tristate "adaptive mipi support"
 	default n
-	---help---
+	help
 	Enables support for adaptive mipi.
 
 config SAMSUNG_ACTUATOR_PREVENT_SHAKING
@@ -74,7 +80,7 @@ config SAMSUNG_SUPPORT_MULTI_MODULE
 config USE_CAMERA_HW_BIG_DATA
 	bool "CAMERA HW SYS"
 	default n
-	---help---
+	help
 	CAMERA HW SYS
 
 config SENSOR_RETENTION
@@ -92,11 +98,43 @@ config SAMSUNG_WACOM_NOTIFIER
 config CAMERA_SSM_I2C_ENV
 	tristate "SSM GMC feature support"
 	default n
-	---help---
+	help
 	Enables support for SSM I2C test
 
 config FLASH_CURRENT_JAPAN
 	tristate "flash current for jpn"
 	default n
-	---help---
+	help
 	Enables support for JPN
+
+config SAMSUNG_FRONT_TOP
+	tristate "Front top support"
+	default n
+	help
+	Enables support for front top
+
+config SAMSUNG_FRONT_TOP_EEPROM
+	tristate "Front top eeprom support"
+	default n
+	help
+	Enables support for front top eeprom
+
+config SAMSUNG_CAMERA_OTP
+	tristate "Sensor OTP support"
+	default n
+	help
+	Enables support for SENSOR OTP
+	
+
+config CAMERA_HYPERLAPSE_300X
+    tristate "Camera HYPERLAPSE 300x support"
+    default n
+    help
+    Enables support for Camera HYPERLAPSE 300x
+	
+config CAMERA_CDR_TEST
+    tristate "Camera CDR Test support"
+    default n
+    help
+    Enables support for Camera CDR Test
+

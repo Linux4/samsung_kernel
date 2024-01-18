@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2009-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2009-2021, The Linux Foundation. All rights reserved.
  */
 
 #define pr_fmt(fmt)	"[drm:%s:%d] " fmt, __func__, __LINE__
@@ -37,24 +38,24 @@
 #define RANGE_NAME_LEN		40
 #define REG_BASE_NAME_LEN	80
 
-#define DBGBUS_FLAGS_DSPP	BIT(0)
-#define DBGBUS_DSPP_STATUS	0x34C
-
 #define DBGBUS_NAME_SDE		"sde"
 #define DBGBUS_NAME_VBIF_RT	"vbif_rt"
 #define DBGBUS_NAME_DSI		"dsi"
 #define DBGBUS_NAME_LUTDMA	"reg_dma"
 
 /* offsets from LUTDMA top address for the debug buses */
-#define DBGBUS_LUTDMA_0	0x1E8
-#define DBGBUS_LUTDMA_1	0x5E8
+#define LUTDMA_0_DEBUG_BUS_CTRL		0x1e8
+#define LUTDMA_0_DEBUG_BUS_STATUS	0x1ec
+#define LUTDMA_1_DEBUG_BUS_CTRL		0x5e8
+#define LUTDMA_1_DEBUG_BUS_STATUS	0x5ec
 
 /* offsets from sde top address for the debug buses */
-#define DBGBUS_SSPP0	0x188
-#define DBGBUS_AXI_INTF	0x194
-#define DBGBUS_SSPP1	0x298
-#define DBGBUS_DSPP	0x348
-#define DBGBUS_PERIPH	0x418
+#define DBGBUS_SSPP0		0x188
+#define DBGBUS_AXI_INTF		0x194
+#define DBGBUS_SSPP1		0x298
+#define DBGBUS_DSPP		0x348
+#define DBGBUS_DSPP_STATUS	0x34C
+#define DBGBUS_PERIPH		0x418
 
 /* offsets from DSI CTRL base address for the DSI debug buses */
 #define DSI_DEBUG_BUS_CTRL	0x0124
@@ -67,6 +68,8 @@
 /* following offsets are with respect to MDP VBIF base for DBG BUS access */
 #define MMSS_VBIF_CLKON			0x4
 #define MMSS_VBIF_TEST_BUS_OUT_CTRL	0x210
+#define MMSS_VBIF_TEST_BUS1_CTRL0	0x214
+#define MMSS_VBIF_TEST_BUS2_CTRL0	0x21c
 #define MMSS_VBIF_TEST_BUS_OUT		0x230
 
 /* Vbif error info */
@@ -91,8 +94,27 @@
 #define DUMP_CLMN_COUNT			4
 #define DUMP_LINE_SIZE			256
 #define DUMP_MAX_LINES_PER_BLK		512
+#define EXT_TEST_GROUP_SEL_EN		0x7
+#define DSPP_DEBUGBUS_CTRL_EN		0x7001
 
 #define SDE_HW_REV_MAJOR(rev) ((rev) >> 28)
+
+#define SDE_DBG_LOG_START "start"
+#define SDE_DBG_LOG_END "end"
+
+#define SDE_DBG_LOG_MARKER(name, marker) \
+	dev_info(sde_dbg_base.dev, "======== %s %s dump =========\n", marker, name)
+
+#define SDE_DBG_LOG_ENTRY(off, x0, x4, x8, xc) \
+	dev_info(sde_dbg_base.dev, "0x%lx : %08x %08x %08x %08x\n", off, x0, x4, x8, xc)
+
+#define SDE_DBG_LOG_DUMP_ADDR(name, addr, size, off) \
+	dev_info(sde_dbg_base.dev, "%s: start_addr:0x%pK len:0x%x offset=0x%lx\n", \
+			name, addr, size, off)
+
+#define SDE_DBG_LOG_DEBUGBUS(name, addr, block_id, test_id, val) \
+	dev_err(sde_dbg_base.dev, "%s 0x%x %d %d 0x%x\n", \
+			name, addr, block_id, test_id, val)
 
 #ifdef CONFIG_DISPLAY_SAMSUNG
 /**
@@ -102,9 +124,13 @@
 #undef DEFAULT_DBGBUS_SDE
 #undef DEFAULT_DBGBUS_VBIFRT
 
-#define DEFAULT_REGDUMP		SDE_DBG_DUMP_IN_LOG
+/*#define DEFAULT_REGDUMP		SDE_DBG_DUMP_IN_LOG
 #define DEFAULT_DBGBUS_SDE	SDE_DBG_DUMP_IN_LOG
 #define DEFAULT_DBGBUS_VBIFRT	SDE_DBG_DUMP_IN_LOG
+*/
+#define DEFAULT_REGDUMP			SDE_DBG_DUMP_IN_LOG_LIMITED
+#define DEFAULT_DBGBUS_SDE		SDE_DBG_DUMP_IN_LOG_LIMITED
+#define DEFAULT_DBGBUS_VBIFRT	SDE_DBG_DUMP_IN_LOG_LIMITED
 #endif
 
 /**
@@ -167,30 +193,12 @@ struct sde_dbg_reg_base {
 
 struct sde_debug_bus_entry {
 	u32 wr_addr;
+	u32 rd_addr;
 	u32 block_id;
+	u32 block_id_max;
 	u32 test_id;
-	void (*analyzer)(void __iomem *mem_base,
-				struct sde_debug_bus_entry *entry, u32 val);
-};
-
-struct vbif_debug_bus_entry {
-	u32 disable_bus_addr;
-	u32 block_bus_addr;
-	u32 bit_offset;
-	u32 block_cnt;
-	u32 test_pnt_start;
-	u32 test_pnt_cnt;
-};
-
-struct dsi_debug_bus_entry {
-	u32 mux;
-	u32 sel;
-};
-
-struct lutdma_debug_bus_entry {
-	u32 wr_addr;
-	bool read_engine;
-	u32 indicies;
+	u32 test_id_max;
+	void (*analyzer)(u32 wr_addr, u32 block_id, u32 test_id, u32 val);
 };
 
 struct sde_dbg_dsi_ctrl_list_entry {
@@ -203,8 +211,8 @@ struct sde_dbg_debug_bus_common {
 	char *name;
 	u32 enable_mask;
 	bool include_in_deferred_work;
-	u32 flags;
 	u32 entries_size;
+	u32 limited_entries_size;
 	u32 *dumped_content;
 	u32 content_idx;
 	u32 content_size;
@@ -213,22 +221,11 @@ struct sde_dbg_debug_bus_common {
 struct sde_dbg_sde_debug_bus {
 	struct sde_dbg_debug_bus_common cmn;
 	struct sde_debug_bus_entry *entries;
+	struct sde_debug_bus_entry *limited_entries;
 	u32 top_blk_off;
-};
-
-struct sde_dbg_vbif_debug_bus {
-	struct sde_dbg_debug_bus_common cmn;
-	struct vbif_debug_bus_entry *entries;
-};
-
-struct sde_dbg_dsi_debug_bus {
-	struct sde_dbg_debug_bus_common cmn;
-	struct dsi_debug_bus_entry *entries;
-};
-
-struct sde_dbg_lutdma_debug_bus {
-	struct sde_dbg_debug_bus_common cmn;
-	struct lutdma_debug_bus_entry *entries;
+	u32 (*read_tp)(void __iomem *mem_base, u32 wr_addr, u32 rd_addr, u32 block_id, u32 test_id);
+	void (*clear_tp)(void __iomem *mem_base, u32 wr_addr);
+	void (*disable_block)(void __iomem *mem_base, u32 wr_addr);
 };
 
 /**
@@ -252,6 +249,8 @@ struct sde_dbg_regbuf {
 /**
  * struct sde_dbg_base - global sde debug base structure
  * @evtlog: event log instance
+ * @reglog: reg log instance
+ * @reg_dump_base: base address of register dump region
  * @reg_base_list: list of register dumping regions
  * @dev: device pointer
  * @mutex: mutex to serialize access to serialze dumps, debugfs access
@@ -262,18 +261,23 @@ struct sde_dbg_regbuf {
  * @enable_reg_dump: whether to dump registers into memory, kernel log, or both
  * @dbgbus_sde: debug bus structure for the sde
  * @dbgbus_vbif_rt: debug bus structure for the realtime vbif
+ * @dbgbus_dsi: debug bus structure for the dsi
  * @dbgbus_lutdma: debug bus structure for the lutdma hw
  * @dump_all: dump all entries in register dump
  * @dump_secure: dump entries excluding few as it is in secure-session
- * @dsi_dbg_bus: dump dsi debug bus register
  * @regbuf: buffer data to track the register dumping in hw recovery
  * @cur_evt_index: index used for tracking event logs dump in hw recovery
+ * @cur_reglog_index: index used for tracking register logs dump in hw recovery
  * @dbgbus_dump_idx: index used for tracking dbg-bus dump in hw recovery
  * @vbif_dbgbus_dump_idx: index for tracking vbif dumps in hw recovery
+ * @hw_ownership: indicates if the VM owns the HW resources
  */
-static struct sde_dbg_base {
+struct sde_dbg_base {
 	struct sde_dbg_evtlog *evtlog;
+	struct sde_dbg_reglog *reglog;
 	struct list_head reg_base_list;
+	void *reg_dump_base;
+	void *reg_dump_addr;
 	struct device *dev;
 	struct mutex mutex;
 
@@ -285,16 +289,18 @@ static struct sde_dbg_base {
 	u32 enable_reg_dump;
 
 	struct sde_dbg_sde_debug_bus dbgbus_sde;
-	struct sde_dbg_vbif_debug_bus dbgbus_vbif_rt;
-	struct sde_dbg_dsi_debug_bus dbgbus_dsi;
-	struct sde_dbg_lutdma_debug_bus dbgbus_lutdma;
+	struct sde_dbg_sde_debug_bus dbgbus_vbif_rt;
+	struct sde_dbg_sde_debug_bus dbgbus_dsi;
+	struct sde_dbg_sde_debug_bus dbgbus_lutdma;
 	bool dump_all;
 	bool dump_secure;
 	u32 debugfs_ctrl;
 
 	struct sde_dbg_regbuf regbuf;
 	u32 cur_evt_index;
+	u32 cur_reglog_index;
 	enum sde_dbg_dump_context dump_mode;
+	bool hw_ownership;
 } sde_dbg_base;
 
 static LIST_HEAD(sde_dbg_dsi_list);
@@ -303,4035 +309,155 @@ static DEFINE_MUTEX(sde_dbg_dsi_mutex);
 /* sde_dbg_base_evtlog - global pointer to main sde event log for macro use */
 struct sde_dbg_evtlog *sde_dbg_base_evtlog;
 
-static void _sde_debug_bus_xbar_dump(void __iomem *mem_base,
-		struct sde_debug_bus_entry *entry, u32 val)
+/* sde_dbg_base_reglog - global pointer to main sde reg log for macro use */
+struct sde_dbg_reglog *sde_dbg_base_reglog;
+
+u32 sde_mini_dump_add_region(const char *name, u32 size, void *virt_addr)
 {
-	dev_err(sde_dbg_base.dev, "xbar 0x%x %d %d 0x%x\n",
-			entry->wr_addr, entry->block_id, entry->test_id, val);
+	struct md_region md_entry;
+
+	strlcpy(md_entry.name, name, sizeof(md_entry.name));
+	md_entry.virt_addr = (uintptr_t)virt_addr;
+	md_entry.phys_addr = virt_to_phys(virt_addr);
+	md_entry.size = size;
+
+	return msm_minidump_add_region(&md_entry);
 }
 
-static void _sde_debug_bus_lm_dump(void __iomem *mem_base,
-		struct sde_debug_bus_entry *entry, u32 val)
+static void _sde_debug_bus_xbar_dump(u32 wr_addr, u32 block_id, u32 test_id, u32 val)
+{
+	SDE_DBG_LOG_DEBUGBUS("xbar", wr_addr, block_id, test_id, val);
+}
+
+static void _sde_debug_bus_lm_dump(u32 wr_addr, u32 block_id, u32 test_id, u32 val)
 {
 	if (!(val & 0xFFF000))
 		return;
 
-	dev_err(sde_dbg_base.dev, "lm 0x%x %d %d 0x%x\n",
-			entry->wr_addr, entry->block_id, entry->test_id, val);
+	SDE_DBG_LOG_DEBUGBUS("lm", wr_addr, block_id, test_id, val);
 }
 
-static void _sde_debug_bus_ppb0_dump(void __iomem *mem_base,
-		struct sde_debug_bus_entry *entry, u32 val)
+static void _sde_debug_bus_ppb0_dump(u32 wr_addr, u32 block_id, u32 test_id, u32 val)
 {
 	if (!(val & BIT(15)))
 		return;
 
-	dev_err(sde_dbg_base.dev, "ppb0 0x%x %d %d 0x%x\n",
-			entry->wr_addr, entry->block_id, entry->test_id, val);
+	SDE_DBG_LOG_DEBUGBUS("pp0", wr_addr, block_id, test_id, val);
 }
 
-static void _sde_debug_bus_ltm_dump(void __iomem *mem_base,
-		struct sde_debug_bus_entry *entry, u32 val)
-{
-	dev_info(sde_dbg_base.dev, "ltm 0x%x %d %d 0x%x\n",
-			entry->wr_addr, entry->block_id, entry->test_id, val);
-}
-
-static void _sde_debug_bus_ppb1_dump(void __iomem *mem_base,
-		struct sde_debug_bus_entry *entry, u32 val)
+static void _sde_debug_bus_ppb1_dump(u32 wr_addr, u32 block_id, u32 test_id, u32 val)
 {
 	if (!(val & BIT(15)))
 		return;
 
-	dev_err(sde_dbg_base.dev, "ppb1 0x%x %d %d 0x%x\n",
-			entry->wr_addr, entry->block_id, entry->test_id, val);
+	SDE_DBG_LOG_DEBUGBUS("pp1", wr_addr, block_id, test_id, val);
 }
 
-static struct sde_debug_bus_entry dbg_bus_sde_sm8150[] = {
+static struct sde_debug_bus_entry dbg_bus_sde_limited[] = {
+	{ DBGBUS_SSPP0, DBGBUS_DSPP_STATUS, 0, 9, 0, 8 },
+	{ DBGBUS_SSPP0, DBGBUS_DSPP_STATUS, 20, 34, 0, 8 },
+	{ DBGBUS_SSPP0, DBGBUS_DSPP_STATUS, 60, 4, 0, 8 },
+	{ DBGBUS_SSPP0, DBGBUS_DSPP_STATUS, 70, 4, 0, 8 },
 
-	/* Unpack 0 sspp 0*/
-	{ DBGBUS_SSPP0, 35, 2 },
-	{ DBGBUS_SSPP0, 50, 2 },
-	{ DBGBUS_SSPP0, 60, 2 },
-	{ DBGBUS_SSPP0, 70, 2 },
+	{ DBGBUS_SSPP1, DBGBUS_DSPP_STATUS, 0, 9, 0, 8 },
+	{ DBGBUS_SSPP1, DBGBUS_DSPP_STATUS, 20, 34, 0, 8 },
+	{ DBGBUS_SSPP1, DBGBUS_DSPP_STATUS, 60, 4, 0, 8 },
+	{ DBGBUS_SSPP1, DBGBUS_DSPP_STATUS, 70, 4, 0, 8 },
 
-	/* Unpack 1 sspp 0*/
-	{ DBGBUS_SSPP0, 36, 2 },
-	{ DBGBUS_SSPP0, 51, 2 },
-	{ DBGBUS_SSPP0, 61, 2 },
-	{ DBGBUS_SSPP0, 71, 2 },
+	{ DBGBUS_DSPP, DBGBUS_DSPP_STATUS, 0, 1, 0, 8 },
+	{ DBGBUS_DSPP, DBGBUS_DSPP_STATUS, 9, 1, 0, 8 },
+	{ DBGBUS_DSPP, DBGBUS_DSPP_STATUS, 13, 2, 0, 8 },
+	{ DBGBUS_DSPP, DBGBUS_DSPP_STATUS, 19, 2, 0, 8 },
+	{ DBGBUS_DSPP, DBGBUS_DSPP_STATUS, 24, 2, 0, 8 },
+	{ DBGBUS_DSPP, DBGBUS_DSPP_STATUS, 31, 8, 0, 8 },
+	{ DBGBUS_DSPP, DBGBUS_DSPP_STATUS, 42, 12, 0, 8 },
+	{ DBGBUS_DSPP, DBGBUS_DSPP_STATUS, 54, 2, 0, 32 },
+	{ DBGBUS_DSPP, DBGBUS_DSPP_STATUS, 56, 2, 0, 8 },
+	{ DBGBUS_DSPP, DBGBUS_DSPP_STATUS, 63, 73, 0, 8 },
 
-	/* Unpack 2 sspp 0*/
-	{ DBGBUS_SSPP0, 37, 2 },
-	{ DBGBUS_SSPP0, 52, 2 },
-	{ DBGBUS_SSPP0, 62, 2 },
-	{ DBGBUS_SSPP0, 72, 2 },
+	{ DBGBUS_PERIPH, DBGBUS_DSPP_STATUS, 0, 1, 0, 8 },
+	{ DBGBUS_PERIPH, DBGBUS_DSPP_STATUS, 47, 7, 0, 8 },
+	{ DBGBUS_PERIPH, DBGBUS_DSPP_STATUS, 60, 14, 0, 8 },
+	{ DBGBUS_PERIPH, DBGBUS_DSPP_STATUS, 80, 3, 0, 8 },
+};
 
-
-	/* Unpack 3 sspp 0*/
-	{ DBGBUS_SSPP0, 38, 2 },
-	{ DBGBUS_SSPP0, 53, 2 },
-	{ DBGBUS_SSPP0, 63, 2 },
-	{ DBGBUS_SSPP0, 73, 2 },
-
-	/* Unpack 0 sspp 1*/
-	{ DBGBUS_SSPP1, 35, 2 },
-	{ DBGBUS_SSPP1, 50, 2 },
-	{ DBGBUS_SSPP1, 60, 2 },
-	{ DBGBUS_SSPP1, 70, 2 },
-
-	/* Unpack 1 sspp 1*/
-	{ DBGBUS_SSPP1, 36, 2 },
-	{ DBGBUS_SSPP1, 51, 2 },
-	{ DBGBUS_SSPP1, 61, 2 },
-	{ DBGBUS_SSPP1, 71, 2 },
-
-	/* Unpack 2 sspp 1*/
-	{ DBGBUS_SSPP1, 37, 2 },
-	{ DBGBUS_SSPP1, 52, 2 },
-	{ DBGBUS_SSPP1, 62, 2 },
-	{ DBGBUS_SSPP1, 72, 2 },
-
-
-	/* Unpack 3 sspp 1*/
-	{ DBGBUS_SSPP1, 38, 2 },
-	{ DBGBUS_SSPP1, 53, 2 },
-	{ DBGBUS_SSPP1, 63, 2 },
-	{ DBGBUS_SSPP1, 73, 2 },
-
-	/* scheduler */
-	{ DBGBUS_DSPP, 130, 0 },
-	{ DBGBUS_DSPP, 130, 1 },
-	{ DBGBUS_DSPP, 130, 2 },
-	{ DBGBUS_DSPP, 130, 3 },
-	{ DBGBUS_DSPP, 130, 4 },
-	{ DBGBUS_DSPP, 130, 5 },
-
-
-	/* fetch sspp0 */
-
-	/* vig 0 */
-	{ DBGBUS_SSPP0, 0, 0 },
-	{ DBGBUS_SSPP0, 0, 1 },
-	{ DBGBUS_SSPP0, 0, 2 },
-	{ DBGBUS_SSPP0, 0, 3 },
-	{ DBGBUS_SSPP0, 0, 4 },
-	{ DBGBUS_SSPP0, 0, 5 },
-	{ DBGBUS_SSPP0, 0, 6 },
-	{ DBGBUS_SSPP0, 0, 7 },
-
-	{ DBGBUS_SSPP0, 1, 0 },
-	{ DBGBUS_SSPP0, 1, 1 },
-	{ DBGBUS_SSPP0, 1, 2 },
-	{ DBGBUS_SSPP0, 1, 3 },
-	{ DBGBUS_SSPP0, 1, 4 },
-	{ DBGBUS_SSPP0, 1, 5 },
-	{ DBGBUS_SSPP0, 1, 6 },
-	{ DBGBUS_SSPP0, 1, 7 },
-
-	{ DBGBUS_SSPP0, 2, 0 },
-	{ DBGBUS_SSPP0, 2, 1 },
-	{ DBGBUS_SSPP0, 2, 2 },
-	{ DBGBUS_SSPP0, 2, 3 },
-	{ DBGBUS_SSPP0, 2, 4 },
-	{ DBGBUS_SSPP0, 2, 5 },
-	{ DBGBUS_SSPP0, 2, 6 },
-	{ DBGBUS_SSPP0, 2, 7 },
-
-	{ DBGBUS_SSPP0, 4, 0 },
-	{ DBGBUS_SSPP0, 4, 1 },
-	{ DBGBUS_SSPP0, 4, 2 },
-	{ DBGBUS_SSPP0, 4, 3 },
-	{ DBGBUS_SSPP0, 4, 4 },
-	{ DBGBUS_SSPP0, 4, 5 },
-	{ DBGBUS_SSPP0, 4, 6 },
-	{ DBGBUS_SSPP0, 4, 7 },
-
-	{ DBGBUS_SSPP0, 5, 0 },
-	{ DBGBUS_SSPP0, 5, 1 },
-	{ DBGBUS_SSPP0, 5, 2 },
-	{ DBGBUS_SSPP0, 5, 3 },
-	{ DBGBUS_SSPP0, 5, 4 },
-	{ DBGBUS_SSPP0, 5, 5 },
-	{ DBGBUS_SSPP0, 5, 6 },
-	{ DBGBUS_SSPP0, 5, 7 },
-
-	/* vig 2 */
-	{ DBGBUS_SSPP0, 20, 0 },
-	{ DBGBUS_SSPP0, 20, 1 },
-	{ DBGBUS_SSPP0, 20, 2 },
-	{ DBGBUS_SSPP0, 20, 3 },
-	{ DBGBUS_SSPP0, 20, 4 },
-	{ DBGBUS_SSPP0, 20, 5 },
-	{ DBGBUS_SSPP0, 20, 6 },
-	{ DBGBUS_SSPP0, 20, 7 },
-
-	{ DBGBUS_SSPP0, 21, 0 },
-	{ DBGBUS_SSPP0, 21, 1 },
-	{ DBGBUS_SSPP0, 21, 2 },
-	{ DBGBUS_SSPP0, 21, 3 },
-	{ DBGBUS_SSPP0, 21, 4 },
-	{ DBGBUS_SSPP0, 21, 5 },
-	{ DBGBUS_SSPP0, 21, 6 },
-	{ DBGBUS_SSPP0, 21, 7 },
-
-	{ DBGBUS_SSPP0, 22, 0 },
-	{ DBGBUS_SSPP0, 22, 1 },
-	{ DBGBUS_SSPP0, 22, 2 },
-	{ DBGBUS_SSPP0, 22, 3 },
-	{ DBGBUS_SSPP0, 22, 4 },
-	{ DBGBUS_SSPP0, 22, 5 },
-	{ DBGBUS_SSPP0, 22, 6 },
-	{ DBGBUS_SSPP0, 22, 7 },
-
-	{ DBGBUS_SSPP0, 24, 0 },
-	{ DBGBUS_SSPP0, 24, 1 },
-	{ DBGBUS_SSPP0, 24, 2 },
-	{ DBGBUS_SSPP0, 24, 3 },
-	{ DBGBUS_SSPP0, 24, 4 },
-	{ DBGBUS_SSPP0, 24, 5 },
-	{ DBGBUS_SSPP0, 24, 6 },
-	{ DBGBUS_SSPP0, 24, 7 },
-
-	{ DBGBUS_SSPP0, 25, 0 },
-	{ DBGBUS_SSPP0, 25, 1 },
-	{ DBGBUS_SSPP0, 25, 2 },
-	{ DBGBUS_SSPP0, 25, 3 },
-	{ DBGBUS_SSPP0, 25, 4 },
-	{ DBGBUS_SSPP0, 25, 5 },
-	{ DBGBUS_SSPP0, 25, 6 },
-	{ DBGBUS_SSPP0, 25, 7 },
-
-	/* dma 2 */
-	{ DBGBUS_SSPP0, 30, 0 },
-	{ DBGBUS_SSPP0, 30, 1 },
-	{ DBGBUS_SSPP0, 30, 2 },
-	{ DBGBUS_SSPP0, 30, 3 },
-	{ DBGBUS_SSPP0, 30, 4 },
-	{ DBGBUS_SSPP0, 30, 5 },
-	{ DBGBUS_SSPP0, 30, 6 },
-	{ DBGBUS_SSPP0, 30, 7 },
-
-	{ DBGBUS_SSPP0, 31, 0 },
-	{ DBGBUS_SSPP0, 31, 1 },
-	{ DBGBUS_SSPP0, 31, 2 },
-	{ DBGBUS_SSPP0, 31, 3 },
-	{ DBGBUS_SSPP0, 31, 4 },
-	{ DBGBUS_SSPP0, 31, 5 },
-	{ DBGBUS_SSPP0, 31, 6 },
-	{ DBGBUS_SSPP0, 31, 7 },
-
-	{ DBGBUS_SSPP0, 32, 0 },
-	{ DBGBUS_SSPP0, 32, 1 },
-	{ DBGBUS_SSPP0, 32, 2 },
-	{ DBGBUS_SSPP0, 32, 3 },
-	{ DBGBUS_SSPP0, 32, 4 },
-	{ DBGBUS_SSPP0, 32, 5 },
-	{ DBGBUS_SSPP0, 32, 6 },
-	{ DBGBUS_SSPP0, 32, 7 },
-
-	{ DBGBUS_SSPP0, 33, 0 },
-	{ DBGBUS_SSPP0, 33, 1 },
-	{ DBGBUS_SSPP0, 33, 2 },
-	{ DBGBUS_SSPP0, 33, 3 },
-	{ DBGBUS_SSPP0, 33, 4 },
-	{ DBGBUS_SSPP0, 33, 5 },
-	{ DBGBUS_SSPP0, 33, 6 },
-	{ DBGBUS_SSPP0, 33, 7 },
-
-	{ DBGBUS_SSPP0, 34, 0 },
-	{ DBGBUS_SSPP0, 34, 1 },
-	{ DBGBUS_SSPP0, 34, 2 },
-	{ DBGBUS_SSPP0, 34, 3 },
-	{ DBGBUS_SSPP0, 34, 4 },
-	{ DBGBUS_SSPP0, 34, 5 },
-	{ DBGBUS_SSPP0, 34, 6 },
-	{ DBGBUS_SSPP0, 34, 7 },
-
-	/* dma 0 */
-	{ DBGBUS_SSPP0, 40, 0 },
-	{ DBGBUS_SSPP0, 40, 1 },
-	{ DBGBUS_SSPP0, 40, 2 },
-	{ DBGBUS_SSPP0, 40, 3 },
-	{ DBGBUS_SSPP0, 40, 4 },
-	{ DBGBUS_SSPP0, 40, 5 },
-	{ DBGBUS_SSPP0, 40, 6 },
-	{ DBGBUS_SSPP0, 40, 7 },
-
-	{ DBGBUS_SSPP0, 41, 0 },
-	{ DBGBUS_SSPP0, 41, 1 },
-	{ DBGBUS_SSPP0, 41, 2 },
-	{ DBGBUS_SSPP0, 41, 3 },
-	{ DBGBUS_SSPP0, 41, 4 },
-	{ DBGBUS_SSPP0, 41, 5 },
-	{ DBGBUS_SSPP0, 41, 6 },
-	{ DBGBUS_SSPP0, 41, 7 },
-
-	{ DBGBUS_SSPP0, 42, 0 },
-	{ DBGBUS_SSPP0, 42, 1 },
-	{ DBGBUS_SSPP0, 42, 2 },
-	{ DBGBUS_SSPP0, 42, 3 },
-	{ DBGBUS_SSPP0, 42, 4 },
-	{ DBGBUS_SSPP0, 42, 5 },
-	{ DBGBUS_SSPP0, 42, 6 },
-	{ DBGBUS_SSPP0, 42, 7 },
-
-	{ DBGBUS_SSPP0, 44, 0 },
-	{ DBGBUS_SSPP0, 44, 1 },
-	{ DBGBUS_SSPP0, 44, 2 },
-	{ DBGBUS_SSPP0, 44, 3 },
-	{ DBGBUS_SSPP0, 44, 4 },
-	{ DBGBUS_SSPP0, 44, 5 },
-	{ DBGBUS_SSPP0, 44, 6 },
-	{ DBGBUS_SSPP0, 44, 7 },
-
-	{ DBGBUS_SSPP0, 45, 0 },
-	{ DBGBUS_SSPP0, 45, 1 },
-	{ DBGBUS_SSPP0, 45, 2 },
-	{ DBGBUS_SSPP0, 45, 3 },
-	{ DBGBUS_SSPP0, 45, 4 },
-	{ DBGBUS_SSPP0, 45, 5 },
-	{ DBGBUS_SSPP0, 45, 6 },
-	{ DBGBUS_SSPP0, 45, 7 },
-
-	/* fetch sspp1 */
-	/* vig 1 */
-	{ DBGBUS_SSPP1, 0, 0 },
-	{ DBGBUS_SSPP1, 0, 1 },
-	{ DBGBUS_SSPP1, 0, 2 },
-	{ DBGBUS_SSPP1, 0, 3 },
-	{ DBGBUS_SSPP1, 0, 4 },
-	{ DBGBUS_SSPP1, 0, 5 },
-	{ DBGBUS_SSPP1, 0, 6 },
-	{ DBGBUS_SSPP1, 0, 7 },
-
-	{ DBGBUS_SSPP1, 1, 0 },
-	{ DBGBUS_SSPP1, 1, 1 },
-	{ DBGBUS_SSPP1, 1, 2 },
-	{ DBGBUS_SSPP1, 1, 3 },
-	{ DBGBUS_SSPP1, 1, 4 },
-	{ DBGBUS_SSPP1, 1, 5 },
-	{ DBGBUS_SSPP1, 1, 6 },
-	{ DBGBUS_SSPP1, 1, 7 },
-
-	{ DBGBUS_SSPP1, 2, 0 },
-	{ DBGBUS_SSPP1, 2, 1 },
-	{ DBGBUS_SSPP1, 2, 2 },
-	{ DBGBUS_SSPP1, 2, 3 },
-	{ DBGBUS_SSPP1, 2, 4 },
-	{ DBGBUS_SSPP1, 2, 5 },
-	{ DBGBUS_SSPP1, 2, 6 },
-	{ DBGBUS_SSPP1, 2, 7 },
-
-	{ DBGBUS_SSPP1, 4, 0 },
-	{ DBGBUS_SSPP1, 4, 1 },
-	{ DBGBUS_SSPP1, 4, 2 },
-	{ DBGBUS_SSPP1, 4, 3 },
-	{ DBGBUS_SSPP1, 4, 4 },
-	{ DBGBUS_SSPP1, 4, 5 },
-	{ DBGBUS_SSPP1, 4, 6 },
-	{ DBGBUS_SSPP1, 4, 7 },
-
-	{ DBGBUS_SSPP1, 5, 0 },
-	{ DBGBUS_SSPP1, 5, 1 },
-	{ DBGBUS_SSPP1, 5, 2 },
-	{ DBGBUS_SSPP1, 5, 3 },
-	{ DBGBUS_SSPP1, 5, 4 },
-	{ DBGBUS_SSPP1, 5, 5 },
-	{ DBGBUS_SSPP1, 5, 6 },
-	{ DBGBUS_SSPP1, 5, 7 },
-
-	/* vig 3 */
-	{ DBGBUS_SSPP1, 20, 0 },
-	{ DBGBUS_SSPP1, 20, 1 },
-	{ DBGBUS_SSPP1, 20, 2 },
-	{ DBGBUS_SSPP1, 20, 3 },
-	{ DBGBUS_SSPP1, 20, 4 },
-	{ DBGBUS_SSPP1, 20, 5 },
-	{ DBGBUS_SSPP1, 20, 6 },
-	{ DBGBUS_SSPP1, 20, 7 },
-
-	{ DBGBUS_SSPP1, 21, 0 },
-	{ DBGBUS_SSPP1, 21, 1 },
-	{ DBGBUS_SSPP1, 21, 2 },
-	{ DBGBUS_SSPP1, 21, 3 },
-	{ DBGBUS_SSPP1, 21, 4 },
-	{ DBGBUS_SSPP1, 21, 5 },
-	{ DBGBUS_SSPP1, 21, 6 },
-	{ DBGBUS_SSPP1, 21, 7 },
-
-	{ DBGBUS_SSPP1, 22, 0 },
-	{ DBGBUS_SSPP1, 22, 1 },
-	{ DBGBUS_SSPP1, 22, 2 },
-	{ DBGBUS_SSPP1, 22, 3 },
-	{ DBGBUS_SSPP1, 22, 4 },
-	{ DBGBUS_SSPP1, 22, 5 },
-	{ DBGBUS_SSPP1, 22, 6 },
-	{ DBGBUS_SSPP1, 22, 7 },
-
-	{ DBGBUS_SSPP1, 24, 0 },
-	{ DBGBUS_SSPP1, 24, 1 },
-	{ DBGBUS_SSPP1, 24, 2 },
-	{ DBGBUS_SSPP1, 24, 3 },
-	{ DBGBUS_SSPP1, 24, 4 },
-	{ DBGBUS_SSPP1, 24, 5 },
-	{ DBGBUS_SSPP1, 24, 6 },
-	{ DBGBUS_SSPP1, 24, 7 },
-
-	{ DBGBUS_SSPP1, 25, 0 },
-	{ DBGBUS_SSPP1, 25, 1 },
-	{ DBGBUS_SSPP1, 25, 2 },
-	{ DBGBUS_SSPP1, 25, 3 },
-	{ DBGBUS_SSPP1, 25, 4 },
-	{ DBGBUS_SSPP1, 25, 5 },
-	{ DBGBUS_SSPP1, 25, 6 },
-	{ DBGBUS_SSPP1, 25, 7 },
-
-	/* dma 3 */
-	{ DBGBUS_SSPP1, 30, 0 },
-	{ DBGBUS_SSPP1, 30, 1 },
-	{ DBGBUS_SSPP1, 30, 2 },
-	{ DBGBUS_SSPP1, 30, 3 },
-	{ DBGBUS_SSPP1, 30, 4 },
-	{ DBGBUS_SSPP1, 30, 5 },
-	{ DBGBUS_SSPP1, 30, 6 },
-	{ DBGBUS_SSPP1, 30, 7 },
-
-	{ DBGBUS_SSPP1, 31, 0 },
-	{ DBGBUS_SSPP1, 31, 1 },
-	{ DBGBUS_SSPP1, 31, 2 },
-	{ DBGBUS_SSPP1, 31, 3 },
-	{ DBGBUS_SSPP1, 31, 4 },
-	{ DBGBUS_SSPP1, 31, 5 },
-	{ DBGBUS_SSPP1, 31, 6 },
-	{ DBGBUS_SSPP1, 31, 7 },
-
-	{ DBGBUS_SSPP1, 32, 0 },
-	{ DBGBUS_SSPP1, 32, 1 },
-	{ DBGBUS_SSPP1, 32, 2 },
-	{ DBGBUS_SSPP1, 32, 3 },
-	{ DBGBUS_SSPP1, 32, 4 },
-	{ DBGBUS_SSPP1, 32, 5 },
-	{ DBGBUS_SSPP1, 32, 6 },
-	{ DBGBUS_SSPP1, 32, 7 },
-
-	{ DBGBUS_SSPP1, 33, 0 },
-	{ DBGBUS_SSPP1, 33, 1 },
-	{ DBGBUS_SSPP1, 33, 2 },
-	{ DBGBUS_SSPP1, 33, 3 },
-	{ DBGBUS_SSPP1, 33, 4 },
-	{ DBGBUS_SSPP1, 33, 5 },
-	{ DBGBUS_SSPP1, 33, 6 },
-	{ DBGBUS_SSPP1, 33, 7 },
-
-	{ DBGBUS_SSPP1, 34, 0 },
-	{ DBGBUS_SSPP1, 34, 1 },
-	{ DBGBUS_SSPP1, 34, 2 },
-	{ DBGBUS_SSPP1, 34, 3 },
-	{ DBGBUS_SSPP1, 34, 4 },
-	{ DBGBUS_SSPP1, 34, 5 },
-	{ DBGBUS_SSPP1, 34, 6 },
-	{ DBGBUS_SSPP1, 34, 7 },
-
-	/* dma 1 */
-	{ DBGBUS_SSPP1, 40, 0 },
-	{ DBGBUS_SSPP1, 40, 1 },
-	{ DBGBUS_SSPP1, 40, 2 },
-	{ DBGBUS_SSPP1, 40, 3 },
-	{ DBGBUS_SSPP1, 40, 4 },
-	{ DBGBUS_SSPP1, 40, 5 },
-	{ DBGBUS_SSPP1, 40, 6 },
-	{ DBGBUS_SSPP1, 40, 7 },
-
-	{ DBGBUS_SSPP1, 41, 0 },
-	{ DBGBUS_SSPP1, 41, 1 },
-	{ DBGBUS_SSPP1, 41, 2 },
-	{ DBGBUS_SSPP1, 41, 3 },
-	{ DBGBUS_SSPP1, 41, 4 },
-	{ DBGBUS_SSPP1, 41, 5 },
-	{ DBGBUS_SSPP1, 41, 6 },
-	{ DBGBUS_SSPP1, 41, 7 },
-
-	{ DBGBUS_SSPP1, 42, 0 },
-	{ DBGBUS_SSPP1, 42, 1 },
-	{ DBGBUS_SSPP1, 42, 2 },
-	{ DBGBUS_SSPP1, 42, 3 },
-	{ DBGBUS_SSPP1, 42, 4 },
-	{ DBGBUS_SSPP1, 42, 5 },
-	{ DBGBUS_SSPP1, 42, 6 },
-	{ DBGBUS_SSPP1, 42, 7 },
-
-	{ DBGBUS_SSPP1, 44, 0 },
-	{ DBGBUS_SSPP1, 44, 1 },
-	{ DBGBUS_SSPP1, 44, 2 },
-	{ DBGBUS_SSPP1, 44, 3 },
-	{ DBGBUS_SSPP1, 44, 4 },
-	{ DBGBUS_SSPP1, 44, 5 },
-	{ DBGBUS_SSPP1, 44, 6 },
-	{ DBGBUS_SSPP1, 44, 7 },
-
-	{ DBGBUS_SSPP1, 45, 0 },
-	{ DBGBUS_SSPP1, 45, 1 },
-	{ DBGBUS_SSPP1, 45, 2 },
-	{ DBGBUS_SSPP1, 45, 3 },
-	{ DBGBUS_SSPP1, 45, 4 },
-	{ DBGBUS_SSPP1, 45, 5 },
-	{ DBGBUS_SSPP1, 45, 6 },
-	{ DBGBUS_SSPP1, 45, 7 },
+static struct sde_debug_bus_entry dbg_bus_sde[] = {
+	{ DBGBUS_SSPP0, DBGBUS_DSPP_STATUS, 0, 74, 0, 32 },
+	{ DBGBUS_SSPP1, DBGBUS_DSPP_STATUS, 0, 74, 0, 32 },
+	{ DBGBUS_DSPP, DBGBUS_DSPP_STATUS, 0, 137, 0, 32 },
+	{ DBGBUS_PERIPH, DBGBUS_DSPP_STATUS, 0, 78, 0, 32 },
+	{ DBGBUS_AXI_INTF, DBGBUS_DSPP_STATUS, 0, 63, 0, 32 },
 
 	/* ppb_0 */
-	{ DBGBUS_DSPP, 31, 0, _sde_debug_bus_ppb0_dump },
-	{ DBGBUS_DSPP, 33, 0, _sde_debug_bus_ppb0_dump },
-	{ DBGBUS_DSPP, 35, 0, _sde_debug_bus_ppb0_dump },
-	{ DBGBUS_DSPP, 42, 0, _sde_debug_bus_ppb0_dump },
-	{ DBGBUS_DSPP, 47, 0, _sde_debug_bus_ppb0_dump },
-	{ DBGBUS_DSPP, 49, 0, _sde_debug_bus_ppb0_dump },
+	{ DBGBUS_DSPP, DBGBUS_DSPP_STATUS, 31, 1, 0, 1, _sde_debug_bus_ppb0_dump },
+	{ DBGBUS_DSPP, DBGBUS_DSPP_STATUS, 33, 1, 0, 1, _sde_debug_bus_ppb0_dump },
+	{ DBGBUS_DSPP, DBGBUS_DSPP_STATUS, 35, 1, 0, 1, _sde_debug_bus_ppb0_dump },
+	{ DBGBUS_DSPP, DBGBUS_DSPP_STATUS, 42, 1, 0, 1, _sde_debug_bus_ppb0_dump },
+	{ DBGBUS_DSPP, DBGBUS_DSPP_STATUS, 47, 1, 0, 1, _sde_debug_bus_ppb0_dump },
+	{ DBGBUS_DSPP, DBGBUS_DSPP_STATUS, 49, 1, 0, 1, _sde_debug_bus_ppb0_dump },
 
 	/* ppb_1 */
-	{ DBGBUS_DSPP, 32, 0, _sde_debug_bus_ppb1_dump },
-	{ DBGBUS_DSPP, 34, 0, _sde_debug_bus_ppb1_dump },
-	{ DBGBUS_DSPP, 36, 0, _sde_debug_bus_ppb1_dump },
-	{ DBGBUS_DSPP, 43, 0, _sde_debug_bus_ppb1_dump },
-	{ DBGBUS_DSPP, 48, 0, _sde_debug_bus_ppb1_dump },
-	{ DBGBUS_DSPP, 50, 0, _sde_debug_bus_ppb1_dump },
+	{ DBGBUS_DSPP, DBGBUS_DSPP_STATUS, 32, 1, 0, 1, _sde_debug_bus_ppb1_dump },
+	{ DBGBUS_DSPP, DBGBUS_DSPP_STATUS, 34, 1, 0, 1, _sde_debug_bus_ppb1_dump },
+	{ DBGBUS_DSPP, DBGBUS_DSPP_STATUS, 36, 1, 0, 1, _sde_debug_bus_ppb1_dump },
+	{ DBGBUS_DSPP, DBGBUS_DSPP_STATUS, 43, 1, 0, 1, _sde_debug_bus_ppb1_dump },
+	{ DBGBUS_DSPP, DBGBUS_DSPP_STATUS, 48, 1, 0, 1, _sde_debug_bus_ppb1_dump },
+	{ DBGBUS_DSPP, DBGBUS_DSPP_STATUS, 50, 1, 0, 1, _sde_debug_bus_ppb1_dump },
 
 	/* crossbar */
-	{ DBGBUS_DSPP, 0, 0, _sde_debug_bus_xbar_dump },
-
-	/* rotator */
-	{ DBGBUS_DSPP, 9, 0},
+	{ DBGBUS_DSPP, DBGBUS_DSPP_STATUS, 0, 1, 0, 1, _sde_debug_bus_xbar_dump },
 
 	/* blend */
-	/* LM0 */
-	{ DBGBUS_DSPP, 63, 1},
-	{ DBGBUS_DSPP, 63, 2},
-	{ DBGBUS_DSPP, 63, 3},
-	{ DBGBUS_DSPP, 63, 4},
-	{ DBGBUS_DSPP, 63, 5},
-	{ DBGBUS_DSPP, 63, 6},
-	{ DBGBUS_DSPP, 63, 7, _sde_debug_bus_lm_dump },
-
-	{ DBGBUS_DSPP, 64, 1},
-	{ DBGBUS_DSPP, 64, 2},
-	{ DBGBUS_DSPP, 64, 3},
-	{ DBGBUS_DSPP, 64, 4},
-	{ DBGBUS_DSPP, 64, 5},
-	{ DBGBUS_DSPP, 64, 6},
-	{ DBGBUS_DSPP, 64, 7, _sde_debug_bus_lm_dump },
-
-	{ DBGBUS_DSPP, 65, 1},
-	{ DBGBUS_DSPP, 65, 2},
-	{ DBGBUS_DSPP, 65, 3},
-	{ DBGBUS_DSPP, 65, 4},
-	{ DBGBUS_DSPP, 65, 5},
-	{ DBGBUS_DSPP, 65, 6},
-	{ DBGBUS_DSPP, 65, 7, _sde_debug_bus_lm_dump },
-
-	{ DBGBUS_DSPP, 66, 1},
-	{ DBGBUS_DSPP, 66, 2},
-	{ DBGBUS_DSPP, 66, 3},
-	{ DBGBUS_DSPP, 66, 4},
-	{ DBGBUS_DSPP, 66, 5},
-	{ DBGBUS_DSPP, 66, 6},
-	{ DBGBUS_DSPP, 66, 7, _sde_debug_bus_lm_dump },
-
-	{ DBGBUS_DSPP, 67, 1},
-	{ DBGBUS_DSPP, 67, 2},
-	{ DBGBUS_DSPP, 67, 3},
-	{ DBGBUS_DSPP, 67, 4},
-	{ DBGBUS_DSPP, 67, 5},
-	{ DBGBUS_DSPP, 67, 6},
-	{ DBGBUS_DSPP, 67, 7, _sde_debug_bus_lm_dump },
-
-	{ DBGBUS_DSPP, 68, 1},
-	{ DBGBUS_DSPP, 68, 2},
-	{ DBGBUS_DSPP, 68, 3},
-	{ DBGBUS_DSPP, 68, 4},
-	{ DBGBUS_DSPP, 68, 5},
-	{ DBGBUS_DSPP, 68, 6},
-	{ DBGBUS_DSPP, 68, 7, _sde_debug_bus_lm_dump },
-
-	{ DBGBUS_DSPP, 69, 1},
-	{ DBGBUS_DSPP, 69, 2},
-	{ DBGBUS_DSPP, 69, 3},
-	{ DBGBUS_DSPP, 69, 4},
-	{ DBGBUS_DSPP, 69, 5},
-	{ DBGBUS_DSPP, 69, 6},
-	{ DBGBUS_DSPP, 69, 7, _sde_debug_bus_lm_dump },
-
-	{ DBGBUS_DSPP, 84, 1},
-	{ DBGBUS_DSPP, 84, 2},
-	{ DBGBUS_DSPP, 84, 3},
-	{ DBGBUS_DSPP, 84, 4},
-	{ DBGBUS_DSPP, 84, 5},
-	{ DBGBUS_DSPP, 84, 6},
-	{ DBGBUS_DSPP, 84, 7, _sde_debug_bus_lm_dump },
-
-
-	{ DBGBUS_DSPP, 85, 1},
-	{ DBGBUS_DSPP, 85, 2},
-	{ DBGBUS_DSPP, 85, 3},
-	{ DBGBUS_DSPP, 85, 4},
-	{ DBGBUS_DSPP, 85, 5},
-	{ DBGBUS_DSPP, 85, 6},
-	{ DBGBUS_DSPP, 85, 7, _sde_debug_bus_lm_dump },
-
-
-	{ DBGBUS_DSPP, 86, 1},
-	{ DBGBUS_DSPP, 86, 2},
-	{ DBGBUS_DSPP, 86, 3},
-	{ DBGBUS_DSPP, 86, 4},
-	{ DBGBUS_DSPP, 86, 5},
-	{ DBGBUS_DSPP, 86, 6},
-	{ DBGBUS_DSPP, 86, 7, _sde_debug_bus_lm_dump },
-
-
-	{ DBGBUS_DSPP, 87, 1},
-	{ DBGBUS_DSPP, 87, 2},
-	{ DBGBUS_DSPP, 87, 3},
-	{ DBGBUS_DSPP, 87, 4},
-	{ DBGBUS_DSPP, 87, 5},
-	{ DBGBUS_DSPP, 87, 6},
-	{ DBGBUS_DSPP, 87, 7, _sde_debug_bus_lm_dump },
-
-	/* LM1 */
-	{ DBGBUS_DSPP, 70, 1},
-	{ DBGBUS_DSPP, 70, 2},
-	{ DBGBUS_DSPP, 70, 3},
-	{ DBGBUS_DSPP, 70, 4},
-	{ DBGBUS_DSPP, 70, 5},
-	{ DBGBUS_DSPP, 70, 6},
-	{ DBGBUS_DSPP, 70, 7, _sde_debug_bus_lm_dump },
-
-	{ DBGBUS_DSPP, 71, 1},
-	{ DBGBUS_DSPP, 71, 2},
-	{ DBGBUS_DSPP, 71, 3},
-	{ DBGBUS_DSPP, 71, 4},
-	{ DBGBUS_DSPP, 71, 5},
-	{ DBGBUS_DSPP, 71, 6},
-	{ DBGBUS_DSPP, 71, 7, _sde_debug_bus_lm_dump },
-
-	{ DBGBUS_DSPP, 72, 1},
-	{ DBGBUS_DSPP, 72, 2},
-	{ DBGBUS_DSPP, 72, 3},
-	{ DBGBUS_DSPP, 72, 4},
-	{ DBGBUS_DSPP, 72, 5},
-	{ DBGBUS_DSPP, 72, 6},
-	{ DBGBUS_DSPP, 72, 7, _sde_debug_bus_lm_dump },
-
-	{ DBGBUS_DSPP, 73, 1},
-	{ DBGBUS_DSPP, 73, 2},
-	{ DBGBUS_DSPP, 73, 3},
-	{ DBGBUS_DSPP, 73, 4},
-	{ DBGBUS_DSPP, 73, 5},
-	{ DBGBUS_DSPP, 73, 6},
-	{ DBGBUS_DSPP, 73, 7, _sde_debug_bus_lm_dump },
-
-	{ DBGBUS_DSPP, 74, 1},
-	{ DBGBUS_DSPP, 74, 2},
-	{ DBGBUS_DSPP, 74, 3},
-	{ DBGBUS_DSPP, 74, 4},
-	{ DBGBUS_DSPP, 74, 5},
-	{ DBGBUS_DSPP, 74, 6},
-	{ DBGBUS_DSPP, 74, 7, _sde_debug_bus_lm_dump },
-
-	{ DBGBUS_DSPP, 75, 1},
-	{ DBGBUS_DSPP, 75, 2},
-	{ DBGBUS_DSPP, 75, 3},
-	{ DBGBUS_DSPP, 75, 4},
-	{ DBGBUS_DSPP, 75, 5},
-	{ DBGBUS_DSPP, 75, 6},
-	{ DBGBUS_DSPP, 75, 7, _sde_debug_bus_lm_dump },
-
-	{ DBGBUS_DSPP, 76, 1},
-	{ DBGBUS_DSPP, 76, 2},
-	{ DBGBUS_DSPP, 76, 3},
-	{ DBGBUS_DSPP, 76, 4},
-	{ DBGBUS_DSPP, 76, 5},
-	{ DBGBUS_DSPP, 76, 6},
-	{ DBGBUS_DSPP, 76, 7, _sde_debug_bus_lm_dump },
-
-	{ DBGBUS_DSPP, 88, 1},
-	{ DBGBUS_DSPP, 88, 2},
-	{ DBGBUS_DSPP, 88, 3},
-	{ DBGBUS_DSPP, 88, 4},
-	{ DBGBUS_DSPP, 88, 5},
-	{ DBGBUS_DSPP, 88, 6},
-	{ DBGBUS_DSPP, 88, 7, _sde_debug_bus_lm_dump },
-
-	{ DBGBUS_DSPP, 89, 1},
-	{ DBGBUS_DSPP, 89, 2},
-	{ DBGBUS_DSPP, 89, 3},
-	{ DBGBUS_DSPP, 89, 4},
-	{ DBGBUS_DSPP, 89, 5},
-	{ DBGBUS_DSPP, 89, 6},
-	{ DBGBUS_DSPP, 89, 7, _sde_debug_bus_lm_dump },
-
-	{ DBGBUS_DSPP, 90, 1},
-	{ DBGBUS_DSPP, 90, 2},
-	{ DBGBUS_DSPP, 90, 3},
-	{ DBGBUS_DSPP, 90, 4},
-	{ DBGBUS_DSPP, 90, 5},
-	{ DBGBUS_DSPP, 90, 6},
-	{ DBGBUS_DSPP, 90, 7, _sde_debug_bus_lm_dump },
-
-	{ DBGBUS_DSPP, 91, 1},
-	{ DBGBUS_DSPP, 91, 2},
-	{ DBGBUS_DSPP, 91, 3},
-	{ DBGBUS_DSPP, 91, 4},
-	{ DBGBUS_DSPP, 91, 5},
-	{ DBGBUS_DSPP, 91, 6},
-	{ DBGBUS_DSPP, 91, 7, _sde_debug_bus_lm_dump },
-
-	/* LM2 */
-	{ DBGBUS_DSPP, 77, 0},
-	{ DBGBUS_DSPP, 77, 1},
-	{ DBGBUS_DSPP, 77, 2},
-	{ DBGBUS_DSPP, 77, 3},
-	{ DBGBUS_DSPP, 77, 4},
-	{ DBGBUS_DSPP, 77, 5},
-	{ DBGBUS_DSPP, 77, 6},
-	{ DBGBUS_DSPP, 77, 7, _sde_debug_bus_lm_dump },
-
-	{ DBGBUS_DSPP, 78, 0},
-	{ DBGBUS_DSPP, 78, 1},
-	{ DBGBUS_DSPP, 78, 2},
-	{ DBGBUS_DSPP, 78, 3},
-	{ DBGBUS_DSPP, 78, 4},
-	{ DBGBUS_DSPP, 78, 5},
-	{ DBGBUS_DSPP, 78, 6},
-	{ DBGBUS_DSPP, 78, 7, _sde_debug_bus_lm_dump },
-
-	{ DBGBUS_DSPP, 79, 0},
-	{ DBGBUS_DSPP, 79, 1},
-	{ DBGBUS_DSPP, 79, 2},
-	{ DBGBUS_DSPP, 79, 3},
-	{ DBGBUS_DSPP, 79, 4},
-	{ DBGBUS_DSPP, 79, 5},
-	{ DBGBUS_DSPP, 79, 6},
-	{ DBGBUS_DSPP, 79, 7, _sde_debug_bus_lm_dump },
-
-	{ DBGBUS_DSPP, 80, 0},
-	{ DBGBUS_DSPP, 80, 1},
-	{ DBGBUS_DSPP, 80, 2},
-	{ DBGBUS_DSPP, 80, 3},
-	{ DBGBUS_DSPP, 80, 4},
-	{ DBGBUS_DSPP, 80, 5},
-	{ DBGBUS_DSPP, 80, 6},
-	{ DBGBUS_DSPP, 80, 7, _sde_debug_bus_lm_dump },
-
-	{ DBGBUS_DSPP, 81, 0},
-	{ DBGBUS_DSPP, 81, 1},
-	{ DBGBUS_DSPP, 81, 2},
-	{ DBGBUS_DSPP, 81, 3},
-	{ DBGBUS_DSPP, 81, 4},
-	{ DBGBUS_DSPP, 81, 5},
-	{ DBGBUS_DSPP, 81, 6},
-	{ DBGBUS_DSPP, 81, 7, _sde_debug_bus_lm_dump },
-
-	{ DBGBUS_DSPP, 82, 0},
-	{ DBGBUS_DSPP, 82, 1},
-	{ DBGBUS_DSPP, 82, 2},
-	{ DBGBUS_DSPP, 82, 3},
-	{ DBGBUS_DSPP, 82, 4},
-	{ DBGBUS_DSPP, 82, 5},
-	{ DBGBUS_DSPP, 82, 6},
-	{ DBGBUS_DSPP, 82, 7, _sde_debug_bus_lm_dump },
-
-	{ DBGBUS_DSPP, 83, 0},
-	{ DBGBUS_DSPP, 83, 1},
-	{ DBGBUS_DSPP, 83, 2},
-	{ DBGBUS_DSPP, 83, 3},
-	{ DBGBUS_DSPP, 83, 4},
-	{ DBGBUS_DSPP, 83, 5},
-	{ DBGBUS_DSPP, 83, 6},
-	{ DBGBUS_DSPP, 83, 7, _sde_debug_bus_lm_dump },
-
-	{ DBGBUS_DSPP, 92, 1},
-	{ DBGBUS_DSPP, 92, 2},
-	{ DBGBUS_DSPP, 92, 3},
-	{ DBGBUS_DSPP, 92, 4},
-	{ DBGBUS_DSPP, 92, 5},
-	{ DBGBUS_DSPP, 92, 6},
-	{ DBGBUS_DSPP, 92, 7, _sde_debug_bus_lm_dump },
-
-	{ DBGBUS_DSPP, 93, 1},
-	{ DBGBUS_DSPP, 93, 2},
-	{ DBGBUS_DSPP, 93, 3},
-	{ DBGBUS_DSPP, 93, 4},
-	{ DBGBUS_DSPP, 93, 5},
-	{ DBGBUS_DSPP, 93, 6},
-	{ DBGBUS_DSPP, 93, 7, _sde_debug_bus_lm_dump },
-
-	{ DBGBUS_DSPP, 94, 1},
-	{ DBGBUS_DSPP, 94, 2},
-	{ DBGBUS_DSPP, 94, 3},
-	{ DBGBUS_DSPP, 94, 4},
-	{ DBGBUS_DSPP, 94, 5},
-	{ DBGBUS_DSPP, 94, 6},
-	{ DBGBUS_DSPP, 94, 7, _sde_debug_bus_lm_dump },
-
-	{ DBGBUS_DSPP, 95, 1},
-	{ DBGBUS_DSPP, 95, 2},
-	{ DBGBUS_DSPP, 95, 3},
-	{ DBGBUS_DSPP, 95, 4},
-	{ DBGBUS_DSPP, 95, 5},
-	{ DBGBUS_DSPP, 95, 6},
-	{ DBGBUS_DSPP, 95, 7, _sde_debug_bus_lm_dump },
-
-
-	/* LM3 */
-	{ DBGBUS_DSPP, 110, 1},
-	{ DBGBUS_DSPP, 110, 2},
-	{ DBGBUS_DSPP, 110, 3},
-	{ DBGBUS_DSPP, 110, 4},
-	{ DBGBUS_DSPP, 110, 5},
-	{ DBGBUS_DSPP, 110, 6},
-	{ DBGBUS_DSPP, 110, 7, _sde_debug_bus_lm_dump },
-
-	{ DBGBUS_DSPP, 111, 1},
-	{ DBGBUS_DSPP, 111, 2},
-	{ DBGBUS_DSPP, 111, 3},
-	{ DBGBUS_DSPP, 111, 4},
-	{ DBGBUS_DSPP, 111, 5},
-	{ DBGBUS_DSPP, 111, 6},
-	{ DBGBUS_DSPP, 111, 7, _sde_debug_bus_lm_dump },
-
-	{ DBGBUS_DSPP, 112, 1},
-	{ DBGBUS_DSPP, 112, 2},
-	{ DBGBUS_DSPP, 112, 3},
-	{ DBGBUS_DSPP, 112, 4},
-	{ DBGBUS_DSPP, 112, 5},
-	{ DBGBUS_DSPP, 112, 6},
-	{ DBGBUS_DSPP, 112, 7, _sde_debug_bus_lm_dump },
-
-	{ DBGBUS_DSPP, 113, 1},
-	{ DBGBUS_DSPP, 113, 2},
-	{ DBGBUS_DSPP, 113, 3},
-	{ DBGBUS_DSPP, 113, 4},
-	{ DBGBUS_DSPP, 113, 5},
-	{ DBGBUS_DSPP, 113, 6},
-	{ DBGBUS_DSPP, 113, 7, _sde_debug_bus_lm_dump },
-
-	{ DBGBUS_DSPP, 114, 1},
-	{ DBGBUS_DSPP, 114, 2},
-	{ DBGBUS_DSPP, 114, 3},
-	{ DBGBUS_DSPP, 114, 4},
-	{ DBGBUS_DSPP, 114, 5},
-	{ DBGBUS_DSPP, 114, 6},
-	{ DBGBUS_DSPP, 114, 7, _sde_debug_bus_lm_dump },
-
-	{ DBGBUS_DSPP, 115, 1},
-	{ DBGBUS_DSPP, 115, 2},
-	{ DBGBUS_DSPP, 115, 3},
-	{ DBGBUS_DSPP, 115, 4},
-	{ DBGBUS_DSPP, 115, 5},
-	{ DBGBUS_DSPP, 115, 6},
-	{ DBGBUS_DSPP, 115, 7, _sde_debug_bus_lm_dump },
-
-	{ DBGBUS_DSPP, 116, 1},
-	{ DBGBUS_DSPP, 116, 2},
-	{ DBGBUS_DSPP, 116, 3},
-	{ DBGBUS_DSPP, 116, 4},
-	{ DBGBUS_DSPP, 116, 5},
-	{ DBGBUS_DSPP, 116, 6},
-	{ DBGBUS_DSPP, 116, 7, _sde_debug_bus_lm_dump },
-
-	{ DBGBUS_DSPP, 117, 1},
-	{ DBGBUS_DSPP, 117, 2},
-	{ DBGBUS_DSPP, 117, 3},
-	{ DBGBUS_DSPP, 117, 4},
-	{ DBGBUS_DSPP, 117, 5},
-	{ DBGBUS_DSPP, 117, 6},
-	{ DBGBUS_DSPP, 117, 7, _sde_debug_bus_lm_dump },
-
-	{ DBGBUS_DSPP, 118, 1},
-	{ DBGBUS_DSPP, 118, 2},
-	{ DBGBUS_DSPP, 118, 3},
-	{ DBGBUS_DSPP, 118, 4},
-	{ DBGBUS_DSPP, 118, 5},
-	{ DBGBUS_DSPP, 118, 6},
-	{ DBGBUS_DSPP, 118, 7, _sde_debug_bus_lm_dump },
-
-	{ DBGBUS_DSPP, 119, 1},
-	{ DBGBUS_DSPP, 119, 2},
-	{ DBGBUS_DSPP, 119, 3},
-	{ DBGBUS_DSPP, 119, 4},
-	{ DBGBUS_DSPP, 119, 5},
-	{ DBGBUS_DSPP, 119, 6},
-	{ DBGBUS_DSPP, 119, 7, _sde_debug_bus_lm_dump },
-
-	{ DBGBUS_DSPP, 120, 1},
-	{ DBGBUS_DSPP, 120, 2},
-	{ DBGBUS_DSPP, 120, 3},
-	{ DBGBUS_DSPP, 120, 4},
-	{ DBGBUS_DSPP, 120, 5},
-	{ DBGBUS_DSPP, 120, 6},
-	{ DBGBUS_DSPP, 120, 7, _sde_debug_bus_lm_dump },
-
-	/* LM4 */
-	{ DBGBUS_DSPP, 96, 1},
-	{ DBGBUS_DSPP, 96, 2},
-	{ DBGBUS_DSPP, 96, 3},
-	{ DBGBUS_DSPP, 96, 4},
-	{ DBGBUS_DSPP, 96, 5},
-	{ DBGBUS_DSPP, 96, 6},
-	{ DBGBUS_DSPP, 96, 7, _sde_debug_bus_lm_dump },
-
-	{ DBGBUS_DSPP, 97, 1},
-	{ DBGBUS_DSPP, 97, 2},
-	{ DBGBUS_DSPP, 97, 3},
-	{ DBGBUS_DSPP, 97, 4},
-	{ DBGBUS_DSPP, 97, 5},
-	{ DBGBUS_DSPP, 97, 6},
-	{ DBGBUS_DSPP, 97, 7, _sde_debug_bus_lm_dump },
-
-	{ DBGBUS_DSPP, 98, 1},
-	{ DBGBUS_DSPP, 98, 2},
-	{ DBGBUS_DSPP, 98, 3},
-	{ DBGBUS_DSPP, 98, 4},
-	{ DBGBUS_DSPP, 98, 5},
-	{ DBGBUS_DSPP, 98, 6},
-	{ DBGBUS_DSPP, 98, 7, _sde_debug_bus_lm_dump },
-
-	{ DBGBUS_DSPP, 99, 1},
-	{ DBGBUS_DSPP, 99, 2},
-	{ DBGBUS_DSPP, 99, 3},
-	{ DBGBUS_DSPP, 99, 4},
-	{ DBGBUS_DSPP, 99, 5},
-	{ DBGBUS_DSPP, 99, 6},
-	{ DBGBUS_DSPP, 99, 7, _sde_debug_bus_lm_dump },
-
-	{ DBGBUS_DSPP, 100, 1},
-	{ DBGBUS_DSPP, 100, 2},
-	{ DBGBUS_DSPP, 100, 3},
-	{ DBGBUS_DSPP, 100, 4},
-	{ DBGBUS_DSPP, 100, 5},
-	{ DBGBUS_DSPP, 100, 6},
-	{ DBGBUS_DSPP, 100, 7, _sde_debug_bus_lm_dump },
-
-	{ DBGBUS_DSPP, 101, 1},
-	{ DBGBUS_DSPP, 101, 2},
-	{ DBGBUS_DSPP, 101, 3},
-	{ DBGBUS_DSPP, 101, 4},
-	{ DBGBUS_DSPP, 101, 5},
-	{ DBGBUS_DSPP, 101, 6},
-	{ DBGBUS_DSPP, 101, 7, _sde_debug_bus_lm_dump },
-
-	{ DBGBUS_DSPP, 103, 1},
-	{ DBGBUS_DSPP, 103, 2},
-	{ DBGBUS_DSPP, 103, 3},
-	{ DBGBUS_DSPP, 103, 4},
-	{ DBGBUS_DSPP, 103, 5},
-	{ DBGBUS_DSPP, 103, 6},
-	{ DBGBUS_DSPP, 103, 7, _sde_debug_bus_lm_dump },
-
-	{ DBGBUS_DSPP, 105, 1},
-	{ DBGBUS_DSPP, 105, 2},
-	{ DBGBUS_DSPP, 105, 3},
-	{ DBGBUS_DSPP, 105, 4},
-	{ DBGBUS_DSPP, 105, 5},
-	{ DBGBUS_DSPP, 105, 6},
-	{ DBGBUS_DSPP, 105, 7, _sde_debug_bus_lm_dump },
-
-	{ DBGBUS_DSPP, 106, 1},
-	{ DBGBUS_DSPP, 106, 2},
-	{ DBGBUS_DSPP, 106, 3},
-	{ DBGBUS_DSPP, 106, 4},
-	{ DBGBUS_DSPP, 106, 5},
-	{ DBGBUS_DSPP, 106, 6},
-	{ DBGBUS_DSPP, 106, 7, _sde_debug_bus_lm_dump },
-
-	{ DBGBUS_DSPP, 109, 1},
-	{ DBGBUS_DSPP, 109, 2},
-	{ DBGBUS_DSPP, 109, 3},
-	{ DBGBUS_DSPP, 109, 4},
-	{ DBGBUS_DSPP, 109, 5},
-	{ DBGBUS_DSPP, 109, 6},
-	{ DBGBUS_DSPP, 109, 7, _sde_debug_bus_lm_dump },
-
-	{ DBGBUS_DSPP, 122, 1},
-	{ DBGBUS_DSPP, 122, 2},
-	{ DBGBUS_DSPP, 122, 3},
-	{ DBGBUS_DSPP, 122, 4},
-	{ DBGBUS_DSPP, 122, 5},
-	{ DBGBUS_DSPP, 122, 6},
-	{ DBGBUS_DSPP, 122, 7, _sde_debug_bus_lm_dump },
-
-	/* LM5 */
-	{ DBGBUS_DSPP, 124, 1},
-	{ DBGBUS_DSPP, 124, 2},
-	{ DBGBUS_DSPP, 124, 3},
-	{ DBGBUS_DSPP, 124, 4},
-	{ DBGBUS_DSPP, 124, 5},
-	{ DBGBUS_DSPP, 124, 6},
-	{ DBGBUS_DSPP, 124, 7, _sde_debug_bus_lm_dump },
-
-	{ DBGBUS_DSPP, 125, 1},
-	{ DBGBUS_DSPP, 125, 2},
-	{ DBGBUS_DSPP, 125, 3},
-	{ DBGBUS_DSPP, 125, 4},
-	{ DBGBUS_DSPP, 125, 5},
-	{ DBGBUS_DSPP, 125, 6},
-	{ DBGBUS_DSPP, 125, 7, _sde_debug_bus_lm_dump },
-
-	{ DBGBUS_DSPP, 126, 1},
-	{ DBGBUS_DSPP, 126, 2},
-	{ DBGBUS_DSPP, 126, 3},
-	{ DBGBUS_DSPP, 126, 4},
-	{ DBGBUS_DSPP, 126, 5},
-	{ DBGBUS_DSPP, 126, 6},
-	{ DBGBUS_DSPP, 126, 7, _sde_debug_bus_lm_dump },
-
-	{ DBGBUS_DSPP, 127, 1},
-	{ DBGBUS_DSPP, 127, 2},
-	{ DBGBUS_DSPP, 127, 3},
-	{ DBGBUS_DSPP, 127, 4},
-	{ DBGBUS_DSPP, 127, 5},
-	{ DBGBUS_DSPP, 127, 6},
-	{ DBGBUS_DSPP, 127, 7, _sde_debug_bus_lm_dump },
-
-	{ DBGBUS_DSPP, 128, 1},
-	{ DBGBUS_DSPP, 128, 2},
-	{ DBGBUS_DSPP, 128, 3},
-	{ DBGBUS_DSPP, 128, 4},
-	{ DBGBUS_DSPP, 128, 5},
-	{ DBGBUS_DSPP, 128, 6},
-	{ DBGBUS_DSPP, 128, 7, _sde_debug_bus_lm_dump },
-
-	{ DBGBUS_DSPP, 129, 1},
-	{ DBGBUS_DSPP, 129, 2},
-	{ DBGBUS_DSPP, 129, 3},
-	{ DBGBUS_DSPP, 129, 4},
-	{ DBGBUS_DSPP, 129, 5},
-	{ DBGBUS_DSPP, 129, 6},
-	{ DBGBUS_DSPP, 129, 7, _sde_debug_bus_lm_dump },
-
-	{ DBGBUS_DSPP, 131, 1},
-	{ DBGBUS_DSPP, 131, 2},
-	{ DBGBUS_DSPP, 131, 3},
-	{ DBGBUS_DSPP, 131, 4},
-	{ DBGBUS_DSPP, 131, 5},
-	{ DBGBUS_DSPP, 131, 6},
-	{ DBGBUS_DSPP, 131, 7, _sde_debug_bus_lm_dump },
-
-	{ DBGBUS_DSPP, 132, 1},
-	{ DBGBUS_DSPP, 132, 2},
-	{ DBGBUS_DSPP, 132, 3},
-	{ DBGBUS_DSPP, 132, 4},
-	{ DBGBUS_DSPP, 132, 5},
-	{ DBGBUS_DSPP, 132, 6},
-	{ DBGBUS_DSPP, 132, 7, _sde_debug_bus_lm_dump },
-
-	{ DBGBUS_DSPP, 133, 1},
-	{ DBGBUS_DSPP, 133, 2},
-	{ DBGBUS_DSPP, 133, 3},
-	{ DBGBUS_DSPP, 133, 4},
-	{ DBGBUS_DSPP, 133, 5},
-	{ DBGBUS_DSPP, 133, 6},
-	{ DBGBUS_DSPP, 133, 7, _sde_debug_bus_lm_dump },
-
-	{ DBGBUS_DSPP, 134, 1},
-	{ DBGBUS_DSPP, 134, 2},
-	{ DBGBUS_DSPP, 134, 3},
-	{ DBGBUS_DSPP, 134, 4},
-	{ DBGBUS_DSPP, 134, 5},
-	{ DBGBUS_DSPP, 134, 6},
-	{ DBGBUS_DSPP, 134, 7, _sde_debug_bus_lm_dump },
-
-	{ DBGBUS_DSPP, 135, 1},
-	{ DBGBUS_DSPP, 135, 2},
-	{ DBGBUS_DSPP, 135, 3},
-	{ DBGBUS_DSPP, 135, 4},
-	{ DBGBUS_DSPP, 135, 5},
-	{ DBGBUS_DSPP, 135, 6},
-	{ DBGBUS_DSPP, 135, 7, _sde_debug_bus_lm_dump },
-
-	/* csc */
-	{ DBGBUS_SSPP0, 7, 0},
-	{ DBGBUS_SSPP0, 7, 1},
-	{ DBGBUS_SSPP0, 7, 2},
-	{ DBGBUS_SSPP0, 27, 0},
-	{ DBGBUS_SSPP0, 27, 1},
-	{ DBGBUS_SSPP0, 27, 2},
-	{ DBGBUS_SSPP1, 7, 0},
-	{ DBGBUS_SSPP1, 7, 1},
-	{ DBGBUS_SSPP1, 7, 2},
-	{ DBGBUS_SSPP1, 27, 0},
-	{ DBGBUS_SSPP1, 27, 1},
-	{ DBGBUS_SSPP1, 27, 2},
-
-	/* pcc */
-	{ DBGBUS_SSPP0, 43, 3},
-	{ DBGBUS_SSPP0, 47, 3},
-	{ DBGBUS_SSPP1, 43, 3},
-	{ DBGBUS_SSPP1, 47, 3},
-
-	/* spa */
-	{ DBGBUS_SSPP0, 8,  0},
-	{ DBGBUS_SSPP0, 28, 0},
-	{ DBGBUS_SSPP1, 8,  0},
-	{ DBGBUS_SSPP1, 28, 0},
-
-	/* dspp pa */
-	{ DBGBUS_DSPP, 13, 0},
-	{ DBGBUS_DSPP, 19, 0},
-	{ DBGBUS_DSPP, 24, 0},
-	{ DBGBUS_DSPP, 37, 0},
-
-	/* igc */
-	{ DBGBUS_SSPP0, 39, 0},
-	{ DBGBUS_SSPP0, 39, 1},
-	{ DBGBUS_SSPP0, 39, 2},
-
-	{ DBGBUS_SSPP1, 39, 0},
-	{ DBGBUS_SSPP1, 39, 1},
-	{ DBGBUS_SSPP1, 39, 2},
-
-	{ DBGBUS_SSPP0, 46, 0},
-	{ DBGBUS_SSPP0, 46, 1},
-	{ DBGBUS_SSPP0, 46, 2},
-
-	{ DBGBUS_SSPP1, 46, 0},
-	{ DBGBUS_SSPP1, 46, 1},
-	{ DBGBUS_SSPP1, 46, 2},
-
-	{ DBGBUS_DSPP, 14, 0},
-	{ DBGBUS_DSPP, 14, 1},
-	{ DBGBUS_DSPP, 14, 2},
-	{ DBGBUS_DSPP, 20, 0},
-	{ DBGBUS_DSPP, 20, 1},
-	{ DBGBUS_DSPP, 20, 2},
-	{ DBGBUS_DSPP, 25, 0},
-	{ DBGBUS_DSPP, 25, 1},
-	{ DBGBUS_DSPP, 25, 2},
-	{ DBGBUS_DSPP, 38, 0},
-	{ DBGBUS_DSPP, 38, 1},
-	{ DBGBUS_DSPP, 38, 2},
-
-	/* intf0-3 */
-	{ DBGBUS_PERIPH, 0, 0},
-	{ DBGBUS_PERIPH, 1, 0},
-	{ DBGBUS_PERIPH, 2, 0},
-	{ DBGBUS_PERIPH, 3, 0},
-	{ DBGBUS_PERIPH, 4, 0},
-	{ DBGBUS_PERIPH, 5, 0},
-
-	/* te counter wrapper */
-	{ DBGBUS_PERIPH, 60, 0},
-	{ DBGBUS_PERIPH, 60, 1},
-	{ DBGBUS_PERIPH, 60, 2},
-	{ DBGBUS_PERIPH, 60, 3},
-	{ DBGBUS_PERIPH, 60, 4},
-	{ DBGBUS_PERIPH, 60, 5},
-
-	/* dsc0 */
-	{ DBGBUS_PERIPH, 47, 0},
-	{ DBGBUS_PERIPH, 47, 1},
-	{ DBGBUS_PERIPH, 47, 2},
-	{ DBGBUS_PERIPH, 47, 3},
-	{ DBGBUS_PERIPH, 47, 4},
-	{ DBGBUS_PERIPH, 47, 5},
-	{ DBGBUS_PERIPH, 47, 6},
-	{ DBGBUS_PERIPH, 47, 7},
-
-	/* dsc1 */
-	{ DBGBUS_PERIPH, 48, 0},
-	{ DBGBUS_PERIPH, 48, 1},
-	{ DBGBUS_PERIPH, 48, 2},
-	{ DBGBUS_PERIPH, 48, 3},
-	{ DBGBUS_PERIPH, 48, 4},
-	{ DBGBUS_PERIPH, 48, 5},
-	{ DBGBUS_PERIPH, 48, 6},
-	{ DBGBUS_PERIPH, 48, 7},
-
-	/* dsc2 */
-	{ DBGBUS_PERIPH, 50, 0},
-	{ DBGBUS_PERIPH, 50, 1},
-	{ DBGBUS_PERIPH, 50, 2},
-	{ DBGBUS_PERIPH, 50, 3},
-	{ DBGBUS_PERIPH, 50, 4},
-	{ DBGBUS_PERIPH, 50, 5},
-	{ DBGBUS_PERIPH, 50, 6},
-	{ DBGBUS_PERIPH, 50, 7},
-
-	/* dsc3 */
-	{ DBGBUS_PERIPH, 51, 0},
-	{ DBGBUS_PERIPH, 51, 1},
-	{ DBGBUS_PERIPH, 51, 2},
-	{ DBGBUS_PERIPH, 51, 3},
-	{ DBGBUS_PERIPH, 51, 4},
-	{ DBGBUS_PERIPH, 51, 5},
-	{ DBGBUS_PERIPH, 51, 6},
-	{ DBGBUS_PERIPH, 51, 7},
-
-	/* dsc4 */
-	{ DBGBUS_PERIPH, 52, 0},
-	{ DBGBUS_PERIPH, 52, 1},
-	{ DBGBUS_PERIPH, 52, 2},
-	{ DBGBUS_PERIPH, 52, 3},
-	{ DBGBUS_PERIPH, 52, 4},
-	{ DBGBUS_PERIPH, 52, 5},
-	{ DBGBUS_PERIPH, 52, 6},
-	{ DBGBUS_PERIPH, 52, 7},
-
-	/* dsc5 */
-	{ DBGBUS_PERIPH, 53, 0},
-	{ DBGBUS_PERIPH, 53, 1},
-	{ DBGBUS_PERIPH, 53, 2},
-	{ DBGBUS_PERIPH, 53, 3},
-	{ DBGBUS_PERIPH, 53, 4},
-	{ DBGBUS_PERIPH, 53, 5},
-	{ DBGBUS_PERIPH, 53, 6},
-	{ DBGBUS_PERIPH, 53, 7},
-
-	/* tear-check */
-	/* INTF_0 */
-	{ DBGBUS_PERIPH, 63, 0 },
-	{ DBGBUS_PERIPH, 63, 1 },
-	{ DBGBUS_PERIPH, 63, 2 },
-	{ DBGBUS_PERIPH, 63, 3 },
-	{ DBGBUS_PERIPH, 63, 4 },
-	{ DBGBUS_PERIPH, 63, 5 },
-	{ DBGBUS_PERIPH, 63, 6 },
-	{ DBGBUS_PERIPH, 63, 7 },
-
-	/* INTF_1 */
-	{ DBGBUS_PERIPH, 64, 0 },
-	{ DBGBUS_PERIPH, 64, 1 },
-	{ DBGBUS_PERIPH, 64, 2 },
-	{ DBGBUS_PERIPH, 64, 3 },
-	{ DBGBUS_PERIPH, 64, 4 },
-	{ DBGBUS_PERIPH, 64, 5 },
-	{ DBGBUS_PERIPH, 64, 6 },
-	{ DBGBUS_PERIPH, 64, 7 },
-
-	/* INTF_2 */
-	{ DBGBUS_PERIPH, 65, 0 },
-	{ DBGBUS_PERIPH, 65, 1 },
-	{ DBGBUS_PERIPH, 65, 2 },
-	{ DBGBUS_PERIPH, 65, 3 },
-	{ DBGBUS_PERIPH, 65, 4 },
-	{ DBGBUS_PERIPH, 65, 5 },
-	{ DBGBUS_PERIPH, 65, 6 },
-	{ DBGBUS_PERIPH, 65, 7 },
-
-	/* INTF_4 */
-	{ DBGBUS_PERIPH, 66, 0 },
-	{ DBGBUS_PERIPH, 66, 1 },
-	{ DBGBUS_PERIPH, 66, 2 },
-	{ DBGBUS_PERIPH, 66, 3 },
-	{ DBGBUS_PERIPH, 66, 4 },
-	{ DBGBUS_PERIPH, 66, 5 },
-	{ DBGBUS_PERIPH, 66, 6 },
-	{ DBGBUS_PERIPH, 66, 7 },
-
-	/* INTF_5 */
-	{ DBGBUS_PERIPH, 67, 0 },
-	{ DBGBUS_PERIPH, 67, 1 },
-	{ DBGBUS_PERIPH, 67, 2 },
-	{ DBGBUS_PERIPH, 67, 3 },
-	{ DBGBUS_PERIPH, 67, 4 },
-	{ DBGBUS_PERIPH, 67, 5 },
-	{ DBGBUS_PERIPH, 67, 6 },
-	{ DBGBUS_PERIPH, 67, 7 },
-
-	/* INTF_3 */
-	{ DBGBUS_PERIPH, 73, 0 },
-	{ DBGBUS_PERIPH, 73, 1 },
-	{ DBGBUS_PERIPH, 73, 2 },
-	{ DBGBUS_PERIPH, 73, 3 },
-	{ DBGBUS_PERIPH, 73, 4 },
-	{ DBGBUS_PERIPH, 73, 5 },
-	{ DBGBUS_PERIPH, 73, 6 },
-	{ DBGBUS_PERIPH, 73, 7 },
-
-	/* cdwn */
-	{ DBGBUS_PERIPH, 80, 0},
-	{ DBGBUS_PERIPH, 80, 1},
-	{ DBGBUS_PERIPH, 80, 2},
-
-	{ DBGBUS_PERIPH, 81, 0},
-	{ DBGBUS_PERIPH, 81, 1},
-	{ DBGBUS_PERIPH, 81, 2},
-
-	{ DBGBUS_PERIPH, 82, 0},
-	{ DBGBUS_PERIPH, 82, 1},
-	{ DBGBUS_PERIPH, 82, 2},
-	{ DBGBUS_PERIPH, 82, 3},
-	{ DBGBUS_PERIPH, 82, 4},
-	{ DBGBUS_PERIPH, 82, 5},
-	{ DBGBUS_PERIPH, 82, 6},
-	{ DBGBUS_PERIPH, 82, 7},
-
-	/* DPTX1 */
-	{ DBGBUS_PERIPH, 68, 0},
-	{ DBGBUS_PERIPH, 68, 1},
-	{ DBGBUS_PERIPH, 68, 2},
-	{ DBGBUS_PERIPH, 68, 3},
-	{ DBGBUS_PERIPH, 68, 4},
-	{ DBGBUS_PERIPH, 68, 5},
-	{ DBGBUS_PERIPH, 68, 6},
-	{ DBGBUS_PERIPH, 68, 7},
-
-	/* DP */
-	{ DBGBUS_PERIPH, 69, 0},
-	{ DBGBUS_PERIPH, 69, 1},
-	{ DBGBUS_PERIPH, 69, 2},
-	{ DBGBUS_PERIPH, 69, 3},
-	{ DBGBUS_PERIPH, 69, 4},
-	{ DBGBUS_PERIPH, 69, 5},
-
-	/* dsi0 */
-	{ DBGBUS_PERIPH, 70, 0},
-	{ DBGBUS_PERIPH, 70, 1},
-	{ DBGBUS_PERIPH, 70, 2},
-	{ DBGBUS_PERIPH, 70, 3},
-	{ DBGBUS_PERIPH, 70, 4},
-	{ DBGBUS_PERIPH, 70, 5},
-
-	/* dsi1 */
-	{ DBGBUS_PERIPH, 71, 0},
-	{ DBGBUS_PERIPH, 71, 1},
-	{ DBGBUS_PERIPH, 71, 2},
-	{ DBGBUS_PERIPH, 71, 3},
-	{ DBGBUS_PERIPH, 71, 4},
-	{ DBGBUS_PERIPH, 71, 5},
-
-	/* eDP */
-	{ DBGBUS_PERIPH, 72, 0},
-	{ DBGBUS_PERIPH, 72, 1},
-	{ DBGBUS_PERIPH, 72, 2},
-	{ DBGBUS_PERIPH, 72, 3},
-	{ DBGBUS_PERIPH, 72, 4},
-	{ DBGBUS_PERIPH, 72, 5},
-
+	{ DBGBUS_DSPP, DBGBUS_DSPP_STATUS, 63, 1, 7, 1, _sde_debug_bus_lm_dump },
+	{ DBGBUS_DSPP, DBGBUS_DSPP_STATUS, 70, 1, 7, 1, _sde_debug_bus_lm_dump },
+	{ DBGBUS_DSPP, DBGBUS_DSPP_STATUS, 77, 1, 7, 1, _sde_debug_bus_lm_dump },
+	{ DBGBUS_DSPP, DBGBUS_DSPP_STATUS, 110, 1, 7, 1, _sde_debug_bus_lm_dump },
+	{ DBGBUS_DSPP, DBGBUS_DSPP_STATUS, 96, 1, 7, 1, _sde_debug_bus_lm_dump },
+	{ DBGBUS_DSPP, DBGBUS_DSPP_STATUS, 124, 1, 7, 1, _sde_debug_bus_lm_dump }
 };
 
-static struct sde_debug_bus_entry dbg_bus_sde_kona[] = {
-
-	/* Unpack 0 sspp 0*/
-	{ DBGBUS_SSPP0, 35, 2 },
-	{ DBGBUS_SSPP0, 50, 2 },
-	{ DBGBUS_SSPP0, 60, 2 },
-	{ DBGBUS_SSPP0, 70, 2 },
-
-	/* Unpack 1 sspp 0*/
-	{ DBGBUS_SSPP0, 36, 2 },
-	{ DBGBUS_SSPP0, 51, 2 },
-	{ DBGBUS_SSPP0, 61, 2 },
-	{ DBGBUS_SSPP0, 71, 2 },
-
-	/* Unpack 2 sspp 0*/
-	{ DBGBUS_SSPP0, 37, 2 },
-	{ DBGBUS_SSPP0, 52, 2 },
-	{ DBGBUS_SSPP0, 62, 2 },
-	{ DBGBUS_SSPP0, 72, 2 },
-
-
-	/* Unpack 3 sspp 0*/
-	{ DBGBUS_SSPP0, 38, 2 },
-	{ DBGBUS_SSPP0, 53, 2 },
-	{ DBGBUS_SSPP0, 63, 2 },
-	{ DBGBUS_SSPP0, 73, 2 },
-
-	/* Unpack 0 sspp 1*/
-	{ DBGBUS_SSPP1, 35, 2 },
-	{ DBGBUS_SSPP1, 50, 2 },
-	{ DBGBUS_SSPP1, 60, 2 },
-	{ DBGBUS_SSPP1, 70, 2 },
-
-	/* Unpack 1 sspp 1*/
-	{ DBGBUS_SSPP1, 36, 2 },
-	{ DBGBUS_SSPP1, 51, 2 },
-	{ DBGBUS_SSPP1, 61, 2 },
-	{ DBGBUS_SSPP1, 71, 2 },
-
-	/* Unpack 2 sspp 1*/
-	{ DBGBUS_SSPP1, 37, 2 },
-	{ DBGBUS_SSPP1, 52, 2 },
-	{ DBGBUS_SSPP1, 62, 2 },
-	{ DBGBUS_SSPP1, 72, 2 },
-
-
-	/* Unpack 3 sspp 1*/
-	{ DBGBUS_SSPP1, 38, 2 },
-	{ DBGBUS_SSPP1, 53, 2 },
-	{ DBGBUS_SSPP1, 63, 2 },
-	{ DBGBUS_SSPP1, 73, 2 },
-
-	/* scheduler */
-	{ DBGBUS_DSPP, 130, 0 },
-	{ DBGBUS_DSPP, 130, 1 },
-	{ DBGBUS_DSPP, 130, 2 },
-	{ DBGBUS_DSPP, 130, 3 },
-	{ DBGBUS_DSPP, 130, 4 },
-	{ DBGBUS_DSPP, 130, 5 },
-
-
-	/* fetch sspp0 */
-
-	/* vig 0 */
-	{ DBGBUS_SSPP0, 0, 0 },
-	{ DBGBUS_SSPP0, 0, 1 },
-	{ DBGBUS_SSPP0, 0, 2 },
-	{ DBGBUS_SSPP0, 0, 3 },
-	{ DBGBUS_SSPP0, 0, 4 },
-	{ DBGBUS_SSPP0, 0, 5 },
-	{ DBGBUS_SSPP0, 0, 6 },
-	{ DBGBUS_SSPP0, 0, 7 },
-
-	{ DBGBUS_SSPP0, 1, 0 },
-	{ DBGBUS_SSPP0, 1, 1 },
-	{ DBGBUS_SSPP0, 1, 2 },
-	{ DBGBUS_SSPP0, 1, 3 },
-	{ DBGBUS_SSPP0, 1, 4 },
-	{ DBGBUS_SSPP0, 1, 5 },
-	{ DBGBUS_SSPP0, 1, 6 },
-	{ DBGBUS_SSPP0, 1, 7 },
-
-	{ DBGBUS_SSPP0, 2, 0 },
-	{ DBGBUS_SSPP0, 2, 1 },
-	{ DBGBUS_SSPP0, 2, 2 },
-	{ DBGBUS_SSPP0, 2, 3 },
-	{ DBGBUS_SSPP0, 2, 4 },
-	{ DBGBUS_SSPP0, 2, 5 },
-	{ DBGBUS_SSPP0, 2, 6 },
-	{ DBGBUS_SSPP0, 2, 7 },
-
-	{ DBGBUS_SSPP0, 4, 0 },
-	{ DBGBUS_SSPP0, 4, 1 },
-	{ DBGBUS_SSPP0, 4, 2 },
-	{ DBGBUS_SSPP0, 4, 3 },
-	{ DBGBUS_SSPP0, 4, 4 },
-	{ DBGBUS_SSPP0, 4, 5 },
-	{ DBGBUS_SSPP0, 4, 6 },
-	{ DBGBUS_SSPP0, 4, 7 },
-
-	{ DBGBUS_SSPP0, 5, 0 },
-	{ DBGBUS_SSPP0, 5, 1 },
-	{ DBGBUS_SSPP0, 5, 2 },
-	{ DBGBUS_SSPP0, 5, 3 },
-	{ DBGBUS_SSPP0, 5, 4 },
-	{ DBGBUS_SSPP0, 5, 5 },
-	{ DBGBUS_SSPP0, 5, 6 },
-	{ DBGBUS_SSPP0, 5, 7 },
-
-	/* vig 2 */
-	{ DBGBUS_SSPP0, 20, 0 },
-	{ DBGBUS_SSPP0, 20, 1 },
-	{ DBGBUS_SSPP0, 20, 2 },
-	{ DBGBUS_SSPP0, 20, 3 },
-	{ DBGBUS_SSPP0, 20, 4 },
-	{ DBGBUS_SSPP0, 20, 5 },
-	{ DBGBUS_SSPP0, 20, 6 },
-	{ DBGBUS_SSPP0, 20, 7 },
-
-	{ DBGBUS_SSPP0, 21, 0 },
-	{ DBGBUS_SSPP0, 21, 1 },
-	{ DBGBUS_SSPP0, 21, 2 },
-	{ DBGBUS_SSPP0, 21, 3 },
-	{ DBGBUS_SSPP0, 21, 4 },
-	{ DBGBUS_SSPP0, 21, 5 },
-	{ DBGBUS_SSPP0, 21, 6 },
-	{ DBGBUS_SSPP0, 21, 7 },
-
-	{ DBGBUS_SSPP0, 22, 0 },
-	{ DBGBUS_SSPP0, 22, 1 },
-	{ DBGBUS_SSPP0, 22, 2 },
-	{ DBGBUS_SSPP0, 22, 3 },
-	{ DBGBUS_SSPP0, 22, 4 },
-	{ DBGBUS_SSPP0, 22, 5 },
-	{ DBGBUS_SSPP0, 22, 6 },
-	{ DBGBUS_SSPP0, 22, 7 },
-
-	{ DBGBUS_SSPP0, 24, 0 },
-	{ DBGBUS_SSPP0, 24, 1 },
-	{ DBGBUS_SSPP0, 24, 2 },
-	{ DBGBUS_SSPP0, 24, 3 },
-	{ DBGBUS_SSPP0, 24, 4 },
-	{ DBGBUS_SSPP0, 24, 5 },
-	{ DBGBUS_SSPP0, 24, 6 },
-	{ DBGBUS_SSPP0, 24, 7 },
-
-	{ DBGBUS_SSPP0, 25, 0 },
-	{ DBGBUS_SSPP0, 25, 1 },
-	{ DBGBUS_SSPP0, 25, 2 },
-	{ DBGBUS_SSPP0, 25, 3 },
-	{ DBGBUS_SSPP0, 25, 4 },
-	{ DBGBUS_SSPP0, 25, 5 },
-	{ DBGBUS_SSPP0, 25, 6 },
-	{ DBGBUS_SSPP0, 25, 7 },
-
-	/* dma 2 */
-	{ DBGBUS_SSPP0, 30, 0 },
-	{ DBGBUS_SSPP0, 30, 1 },
-	{ DBGBUS_SSPP0, 30, 2 },
-	{ DBGBUS_SSPP0, 30, 3 },
-	{ DBGBUS_SSPP0, 30, 4 },
-	{ DBGBUS_SSPP0, 30, 5 },
-	{ DBGBUS_SSPP0, 30, 6 },
-	{ DBGBUS_SSPP0, 30, 7 },
-
-	{ DBGBUS_SSPP0, 31, 0 },
-	{ DBGBUS_SSPP0, 31, 1 },
-	{ DBGBUS_SSPP0, 31, 2 },
-	{ DBGBUS_SSPP0, 31, 3 },
-	{ DBGBUS_SSPP0, 31, 4 },
-	{ DBGBUS_SSPP0, 31, 5 },
-	{ DBGBUS_SSPP0, 31, 6 },
-	{ DBGBUS_SSPP0, 31, 7 },
-
-	{ DBGBUS_SSPP0, 32, 0 },
-	{ DBGBUS_SSPP0, 32, 1 },
-	{ DBGBUS_SSPP0, 32, 2 },
-	{ DBGBUS_SSPP0, 32, 3 },
-	{ DBGBUS_SSPP0, 32, 4 },
-	{ DBGBUS_SSPP0, 32, 5 },
-	{ DBGBUS_SSPP0, 32, 6 },
-	{ DBGBUS_SSPP0, 32, 7 },
-
-	{ DBGBUS_SSPP0, 33, 0 },
-	{ DBGBUS_SSPP0, 33, 1 },
-	{ DBGBUS_SSPP0, 33, 2 },
-	{ DBGBUS_SSPP0, 33, 3 },
-	{ DBGBUS_SSPP0, 33, 4 },
-	{ DBGBUS_SSPP0, 33, 5 },
-	{ DBGBUS_SSPP0, 33, 6 },
-	{ DBGBUS_SSPP0, 33, 7 },
-
-	{ DBGBUS_SSPP0, 34, 0 },
-	{ DBGBUS_SSPP0, 34, 1 },
-	{ DBGBUS_SSPP0, 34, 2 },
-	{ DBGBUS_SSPP0, 34, 3 },
-	{ DBGBUS_SSPP0, 34, 4 },
-	{ DBGBUS_SSPP0, 34, 5 },
-	{ DBGBUS_SSPP0, 34, 6 },
-	{ DBGBUS_SSPP0, 34, 7 },
-
-	/* dma 0 */
-	{ DBGBUS_SSPP0, 40, 0 },
-	{ DBGBUS_SSPP0, 40, 1 },
-	{ DBGBUS_SSPP0, 40, 2 },
-	{ DBGBUS_SSPP0, 40, 3 },
-	{ DBGBUS_SSPP0, 40, 4 },
-	{ DBGBUS_SSPP0, 40, 5 },
-	{ DBGBUS_SSPP0, 40, 6 },
-	{ DBGBUS_SSPP0, 40, 7 },
-
-	{ DBGBUS_SSPP0, 41, 0 },
-	{ DBGBUS_SSPP0, 41, 1 },
-	{ DBGBUS_SSPP0, 41, 2 },
-	{ DBGBUS_SSPP0, 41, 3 },
-	{ DBGBUS_SSPP0, 41, 4 },
-	{ DBGBUS_SSPP0, 41, 5 },
-	{ DBGBUS_SSPP0, 41, 6 },
-	{ DBGBUS_SSPP0, 41, 7 },
-
-	{ DBGBUS_SSPP0, 42, 0 },
-	{ DBGBUS_SSPP0, 42, 1 },
-	{ DBGBUS_SSPP0, 42, 2 },
-	{ DBGBUS_SSPP0, 42, 3 },
-	{ DBGBUS_SSPP0, 42, 4 },
-	{ DBGBUS_SSPP0, 42, 5 },
-	{ DBGBUS_SSPP0, 42, 6 },
-	{ DBGBUS_SSPP0, 42, 7 },
-
-	{ DBGBUS_SSPP0, 44, 0 },
-	{ DBGBUS_SSPP0, 44, 1 },
-	{ DBGBUS_SSPP0, 44, 2 },
-	{ DBGBUS_SSPP0, 44, 3 },
-	{ DBGBUS_SSPP0, 44, 4 },
-	{ DBGBUS_SSPP0, 44, 5 },
-	{ DBGBUS_SSPP0, 44, 6 },
-	{ DBGBUS_SSPP0, 44, 7 },
-
-	{ DBGBUS_SSPP0, 45, 0 },
-	{ DBGBUS_SSPP0, 45, 1 },
-	{ DBGBUS_SSPP0, 45, 2 },
-	{ DBGBUS_SSPP0, 45, 3 },
-	{ DBGBUS_SSPP0, 45, 4 },
-	{ DBGBUS_SSPP0, 45, 5 },
-	{ DBGBUS_SSPP0, 45, 6 },
-	{ DBGBUS_SSPP0, 45, 7 },
-
-	/* fetch sspp1 */
-	/* vig 1 */
-	{ DBGBUS_SSPP1, 0, 0 },
-	{ DBGBUS_SSPP1, 0, 1 },
-	{ DBGBUS_SSPP1, 0, 2 },
-	{ DBGBUS_SSPP1, 0, 3 },
-	{ DBGBUS_SSPP1, 0, 4 },
-	{ DBGBUS_SSPP1, 0, 5 },
-	{ DBGBUS_SSPP1, 0, 6 },
-	{ DBGBUS_SSPP1, 0, 7 },
-
-	{ DBGBUS_SSPP1, 1, 0 },
-	{ DBGBUS_SSPP1, 1, 1 },
-	{ DBGBUS_SSPP1, 1, 2 },
-	{ DBGBUS_SSPP1, 1, 3 },
-	{ DBGBUS_SSPP1, 1, 4 },
-	{ DBGBUS_SSPP1, 1, 5 },
-	{ DBGBUS_SSPP1, 1, 6 },
-	{ DBGBUS_SSPP1, 1, 7 },
-
-	{ DBGBUS_SSPP1, 2, 0 },
-	{ DBGBUS_SSPP1, 2, 1 },
-	{ DBGBUS_SSPP1, 2, 2 },
-	{ DBGBUS_SSPP1, 2, 3 },
-	{ DBGBUS_SSPP1, 2, 4 },
-	{ DBGBUS_SSPP1, 2, 5 },
-	{ DBGBUS_SSPP1, 2, 6 },
-	{ DBGBUS_SSPP1, 2, 7 },
-
-	{ DBGBUS_SSPP1, 4, 0 },
-	{ DBGBUS_SSPP1, 4, 1 },
-	{ DBGBUS_SSPP1, 4, 2 },
-	{ DBGBUS_SSPP1, 4, 3 },
-	{ DBGBUS_SSPP1, 4, 4 },
-	{ DBGBUS_SSPP1, 4, 5 },
-	{ DBGBUS_SSPP1, 4, 6 },
-	{ DBGBUS_SSPP1, 4, 7 },
-
-	{ DBGBUS_SSPP1, 5, 0 },
-	{ DBGBUS_SSPP1, 5, 1 },
-	{ DBGBUS_SSPP1, 5, 2 },
-	{ DBGBUS_SSPP1, 5, 3 },
-	{ DBGBUS_SSPP1, 5, 4 },
-	{ DBGBUS_SSPP1, 5, 5 },
-	{ DBGBUS_SSPP1, 5, 6 },
-	{ DBGBUS_SSPP1, 5, 7 },
-
-	/* vig 3 */
-	{ DBGBUS_SSPP1, 20, 0 },
-	{ DBGBUS_SSPP1, 20, 1 },
-	{ DBGBUS_SSPP1, 20, 2 },
-	{ DBGBUS_SSPP1, 20, 3 },
-	{ DBGBUS_SSPP1, 20, 4 },
-	{ DBGBUS_SSPP1, 20, 5 },
-	{ DBGBUS_SSPP1, 20, 6 },
-	{ DBGBUS_SSPP1, 20, 7 },
-
-	{ DBGBUS_SSPP1, 21, 0 },
-	{ DBGBUS_SSPP1, 21, 1 },
-	{ DBGBUS_SSPP1, 21, 2 },
-	{ DBGBUS_SSPP1, 21, 3 },
-	{ DBGBUS_SSPP1, 21, 4 },
-	{ DBGBUS_SSPP1, 21, 5 },
-	{ DBGBUS_SSPP1, 21, 6 },
-	{ DBGBUS_SSPP1, 21, 7 },
-
-	{ DBGBUS_SSPP1, 22, 0 },
-	{ DBGBUS_SSPP1, 22, 1 },
-	{ DBGBUS_SSPP1, 22, 2 },
-	{ DBGBUS_SSPP1, 22, 3 },
-	{ DBGBUS_SSPP1, 22, 4 },
-	{ DBGBUS_SSPP1, 22, 5 },
-	{ DBGBUS_SSPP1, 22, 6 },
-	{ DBGBUS_SSPP1, 22, 7 },
-
-	{ DBGBUS_SSPP1, 24, 0 },
-	{ DBGBUS_SSPP1, 24, 1 },
-	{ DBGBUS_SSPP1, 24, 2 },
-	{ DBGBUS_SSPP1, 24, 3 },
-	{ DBGBUS_SSPP1, 24, 4 },
-	{ DBGBUS_SSPP1, 24, 5 },
-	{ DBGBUS_SSPP1, 24, 6 },
-	{ DBGBUS_SSPP1, 24, 7 },
-
-	{ DBGBUS_SSPP1, 25, 0 },
-	{ DBGBUS_SSPP1, 25, 1 },
-	{ DBGBUS_SSPP1, 25, 2 },
-	{ DBGBUS_SSPP1, 25, 3 },
-	{ DBGBUS_SSPP1, 25, 4 },
-	{ DBGBUS_SSPP1, 25, 5 },
-	{ DBGBUS_SSPP1, 25, 6 },
-	{ DBGBUS_SSPP1, 25, 7 },
-
-	/* dma 3 */
-	{ DBGBUS_SSPP1, 30, 0 },
-	{ DBGBUS_SSPP1, 30, 1 },
-	{ DBGBUS_SSPP1, 30, 2 },
-	{ DBGBUS_SSPP1, 30, 3 },
-	{ DBGBUS_SSPP1, 30, 4 },
-	{ DBGBUS_SSPP1, 30, 5 },
-	{ DBGBUS_SSPP1, 30, 6 },
-	{ DBGBUS_SSPP1, 30, 7 },
-
-	{ DBGBUS_SSPP1, 31, 0 },
-	{ DBGBUS_SSPP1, 31, 1 },
-	{ DBGBUS_SSPP1, 31, 2 },
-	{ DBGBUS_SSPP1, 31, 3 },
-	{ DBGBUS_SSPP1, 31, 4 },
-	{ DBGBUS_SSPP1, 31, 5 },
-	{ DBGBUS_SSPP1, 31, 6 },
-	{ DBGBUS_SSPP1, 31, 7 },
-
-	{ DBGBUS_SSPP1, 32, 0 },
-	{ DBGBUS_SSPP1, 32, 1 },
-	{ DBGBUS_SSPP1, 32, 2 },
-	{ DBGBUS_SSPP1, 32, 3 },
-	{ DBGBUS_SSPP1, 32, 4 },
-	{ DBGBUS_SSPP1, 32, 5 },
-	{ DBGBUS_SSPP1, 32, 6 },
-	{ DBGBUS_SSPP1, 32, 7 },
-
-	{ DBGBUS_SSPP1, 33, 0 },
-	{ DBGBUS_SSPP1, 33, 1 },
-	{ DBGBUS_SSPP1, 33, 2 },
-	{ DBGBUS_SSPP1, 33, 3 },
-	{ DBGBUS_SSPP1, 33, 4 },
-	{ DBGBUS_SSPP1, 33, 5 },
-	{ DBGBUS_SSPP1, 33, 6 },
-	{ DBGBUS_SSPP1, 33, 7 },
-
-	{ DBGBUS_SSPP1, 34, 0 },
-	{ DBGBUS_SSPP1, 34, 1 },
-	{ DBGBUS_SSPP1, 34, 2 },
-	{ DBGBUS_SSPP1, 34, 3 },
-	{ DBGBUS_SSPP1, 34, 4 },
-	{ DBGBUS_SSPP1, 34, 5 },
-	{ DBGBUS_SSPP1, 34, 6 },
-	{ DBGBUS_SSPP1, 34, 7 },
-
-	/* dma 1 */
-	{ DBGBUS_SSPP1, 40, 0 },
-	{ DBGBUS_SSPP1, 40, 1 },
-	{ DBGBUS_SSPP1, 40, 2 },
-	{ DBGBUS_SSPP1, 40, 3 },
-	{ DBGBUS_SSPP1, 40, 4 },
-	{ DBGBUS_SSPP1, 40, 5 },
-	{ DBGBUS_SSPP1, 40, 6 },
-	{ DBGBUS_SSPP1, 40, 7 },
-
-	{ DBGBUS_SSPP1, 41, 0 },
-	{ DBGBUS_SSPP1, 41, 1 },
-	{ DBGBUS_SSPP1, 41, 2 },
-	{ DBGBUS_SSPP1, 41, 3 },
-	{ DBGBUS_SSPP1, 41, 4 },
-	{ DBGBUS_SSPP1, 41, 5 },
-	{ DBGBUS_SSPP1, 41, 6 },
-	{ DBGBUS_SSPP1, 41, 7 },
-
-	{ DBGBUS_SSPP1, 42, 0 },
-	{ DBGBUS_SSPP1, 42, 1 },
-	{ DBGBUS_SSPP1, 42, 2 },
-	{ DBGBUS_SSPP1, 42, 3 },
-	{ DBGBUS_SSPP1, 42, 4 },
-	{ DBGBUS_SSPP1, 42, 5 },
-	{ DBGBUS_SSPP1, 42, 6 },
-	{ DBGBUS_SSPP1, 42, 7 },
-
-	{ DBGBUS_SSPP1, 44, 0 },
-	{ DBGBUS_SSPP1, 44, 1 },
-	{ DBGBUS_SSPP1, 44, 2 },
-	{ DBGBUS_SSPP1, 44, 3 },
-	{ DBGBUS_SSPP1, 44, 4 },
-	{ DBGBUS_SSPP1, 44, 5 },
-	{ DBGBUS_SSPP1, 44, 6 },
-	{ DBGBUS_SSPP1, 44, 7 },
-
-	{ DBGBUS_SSPP1, 45, 0 },
-	{ DBGBUS_SSPP1, 45, 1 },
-	{ DBGBUS_SSPP1, 45, 2 },
-	{ DBGBUS_SSPP1, 45, 3 },
-	{ DBGBUS_SSPP1, 45, 4 },
-	{ DBGBUS_SSPP1, 45, 5 },
-	{ DBGBUS_SSPP1, 45, 6 },
-	{ DBGBUS_SSPP1, 45, 7 },
-
-	/* ppb_0 */
-	{ DBGBUS_DSPP, 31, 0, _sde_debug_bus_ppb0_dump },
-	{ DBGBUS_DSPP, 33, 0, _sde_debug_bus_ppb0_dump },
-	{ DBGBUS_DSPP, 35, 0, _sde_debug_bus_ppb0_dump },
-	{ DBGBUS_DSPP, 42, 0, _sde_debug_bus_ppb0_dump },
-	{ DBGBUS_DSPP, 47, 0, _sde_debug_bus_ppb0_dump },
-	{ DBGBUS_DSPP, 49, 0, _sde_debug_bus_ppb0_dump },
-
-	/* ppb_1 */
-	{ DBGBUS_DSPP, 32, 0, _sde_debug_bus_ppb1_dump },
-	{ DBGBUS_DSPP, 34, 0, _sde_debug_bus_ppb1_dump },
-	{ DBGBUS_DSPP, 36, 0, _sde_debug_bus_ppb1_dump },
-	{ DBGBUS_DSPP, 43, 0, _sde_debug_bus_ppb1_dump },
-	{ DBGBUS_DSPP, 48, 0, _sde_debug_bus_ppb1_dump },
-	{ DBGBUS_DSPP, 50, 0, _sde_debug_bus_ppb1_dump },
-
-	/* crossbar */
-	{ DBGBUS_DSPP, 0, 0, _sde_debug_bus_xbar_dump },
-
-	/* rotator */
-	{ DBGBUS_DSPP, 9, 0},
-
-	/* ltm */
-	{ DBGBUS_DSPP, 45, 0, _sde_debug_bus_ltm_dump},
-	{ DBGBUS_DSPP, 45, 1, _sde_debug_bus_ltm_dump},
-	{ DBGBUS_DSPP, 45, 2, _sde_debug_bus_ltm_dump},
-	{ DBGBUS_DSPP, 45, 3, _sde_debug_bus_ltm_dump},
-	{ DBGBUS_DSPP, 45, 4, _sde_debug_bus_ltm_dump},
-	{ DBGBUS_DSPP, 45, 5, _sde_debug_bus_ltm_dump},
-	{ DBGBUS_DSPP, 45, 6, _sde_debug_bus_ltm_dump},
-	{ DBGBUS_DSPP, 45, 7, _sde_debug_bus_ltm_dump},
-	{ DBGBUS_DSPP, 45, 8, _sde_debug_bus_ltm_dump},
-	{ DBGBUS_DSPP, 45, 9, _sde_debug_bus_ltm_dump},
-	{ DBGBUS_DSPP, 45, 10, _sde_debug_bus_ltm_dump},
-	{ DBGBUS_DSPP, 45, 11, _sde_debug_bus_ltm_dump},
-	{ DBGBUS_DSPP, 45, 12, _sde_debug_bus_ltm_dump},
-	{ DBGBUS_DSPP, 45, 13, _sde_debug_bus_ltm_dump},
-	{ DBGBUS_DSPP, 45, 14, _sde_debug_bus_ltm_dump},
-	{ DBGBUS_DSPP, 45, 15, _sde_debug_bus_ltm_dump},
-	{ DBGBUS_DSPP, 45, 16, _sde_debug_bus_ltm_dump},
-	{ DBGBUS_DSPP, 45, 17, _sde_debug_bus_ltm_dump},
-	{ DBGBUS_DSPP, 45, 18, _sde_debug_bus_ltm_dump},
-	{ DBGBUS_DSPP, 45, 31, _sde_debug_bus_ltm_dump},
-
-	{ DBGBUS_DSPP, 46, 0, _sde_debug_bus_ltm_dump},
-	{ DBGBUS_DSPP, 46, 1, _sde_debug_bus_ltm_dump},
-	{ DBGBUS_DSPP, 46, 2, _sde_debug_bus_ltm_dump},
-	{ DBGBUS_DSPP, 46, 3, _sde_debug_bus_ltm_dump},
-	{ DBGBUS_DSPP, 46, 4, _sde_debug_bus_ltm_dump},
-	{ DBGBUS_DSPP, 46, 5, _sde_debug_bus_ltm_dump},
-	{ DBGBUS_DSPP, 46, 6, _sde_debug_bus_ltm_dump},
-	{ DBGBUS_DSPP, 46, 7, _sde_debug_bus_ltm_dump},
-	{ DBGBUS_DSPP, 46, 8, _sde_debug_bus_ltm_dump},
-	{ DBGBUS_DSPP, 46, 9, _sde_debug_bus_ltm_dump},
-	{ DBGBUS_DSPP, 46, 10, _sde_debug_bus_ltm_dump},
-	{ DBGBUS_DSPP, 46, 11, _sde_debug_bus_ltm_dump},
-	{ DBGBUS_DSPP, 46, 12, _sde_debug_bus_ltm_dump},
-	{ DBGBUS_DSPP, 46, 13, _sde_debug_bus_ltm_dump},
-	{ DBGBUS_DSPP, 46, 14, _sde_debug_bus_ltm_dump},
-	{ DBGBUS_DSPP, 46, 15, _sde_debug_bus_ltm_dump},
-	{ DBGBUS_DSPP, 46, 16, _sde_debug_bus_ltm_dump},
-	{ DBGBUS_DSPP, 46, 17, _sde_debug_bus_ltm_dump},
-	{ DBGBUS_DSPP, 46, 18, _sde_debug_bus_ltm_dump},
-	{ DBGBUS_DSPP, 46, 31, _sde_debug_bus_ltm_dump},
-
-	/* blend */
-	/* LM0 */
-	{ DBGBUS_DSPP, 63, 1},
-	{ DBGBUS_DSPP, 63, 2},
-	{ DBGBUS_DSPP, 63, 3},
-	{ DBGBUS_DSPP, 63, 4},
-	{ DBGBUS_DSPP, 63, 5},
-	{ DBGBUS_DSPP, 63, 6},
-	{ DBGBUS_DSPP, 63, 7, _sde_debug_bus_lm_dump },
-
-	{ DBGBUS_DSPP, 64, 1},
-	{ DBGBUS_DSPP, 64, 2},
-	{ DBGBUS_DSPP, 64, 3},
-	{ DBGBUS_DSPP, 64, 4},
-	{ DBGBUS_DSPP, 64, 5},
-	{ DBGBUS_DSPP, 64, 6},
-	{ DBGBUS_DSPP, 64, 7},
-
-	{ DBGBUS_DSPP, 65, 1},
-	{ DBGBUS_DSPP, 65, 2},
-	{ DBGBUS_DSPP, 65, 3},
-	{ DBGBUS_DSPP, 65, 4},
-	{ DBGBUS_DSPP, 65, 5},
-	{ DBGBUS_DSPP, 65, 6},
-	{ DBGBUS_DSPP, 65, 7},
-
-	{ DBGBUS_DSPP, 66, 1},
-	{ DBGBUS_DSPP, 66, 2},
-	{ DBGBUS_DSPP, 66, 3},
-	{ DBGBUS_DSPP, 66, 4},
-	{ DBGBUS_DSPP, 66, 5},
-	{ DBGBUS_DSPP, 66, 6},
-	{ DBGBUS_DSPP, 66, 7},
-
-	{ DBGBUS_DSPP, 67, 1},
-	{ DBGBUS_DSPP, 67, 2},
-	{ DBGBUS_DSPP, 67, 3},
-	{ DBGBUS_DSPP, 67, 4},
-	{ DBGBUS_DSPP, 67, 5},
-	{ DBGBUS_DSPP, 67, 6},
-	{ DBGBUS_DSPP, 67, 7},
-
-	{ DBGBUS_DSPP, 68, 1},
-	{ DBGBUS_DSPP, 68, 2},
-	{ DBGBUS_DSPP, 68, 3},
-	{ DBGBUS_DSPP, 68, 4},
-	{ DBGBUS_DSPP, 68, 5},
-	{ DBGBUS_DSPP, 68, 6},
-	{ DBGBUS_DSPP, 68, 7},
-
-	{ DBGBUS_DSPP, 69, 1},
-	{ DBGBUS_DSPP, 69, 2},
-	{ DBGBUS_DSPP, 69, 3},
-	{ DBGBUS_DSPP, 69, 4},
-	{ DBGBUS_DSPP, 69, 5},
-	{ DBGBUS_DSPP, 69, 6},
-	{ DBGBUS_DSPP, 69, 7},
-
-	{ DBGBUS_DSPP, 84, 1},
-	{ DBGBUS_DSPP, 84, 2},
-	{ DBGBUS_DSPP, 84, 3},
-	{ DBGBUS_DSPP, 84, 4},
-	{ DBGBUS_DSPP, 84, 5},
-	{ DBGBUS_DSPP, 84, 6},
-	{ DBGBUS_DSPP, 84, 7},
-
-	{ DBGBUS_DSPP, 85, 1},
-	{ DBGBUS_DSPP, 85, 2},
-	{ DBGBUS_DSPP, 85, 3},
-	{ DBGBUS_DSPP, 85, 4},
-	{ DBGBUS_DSPP, 85, 5},
-	{ DBGBUS_DSPP, 85, 6},
-	{ DBGBUS_DSPP, 85, 7},
-
-	{ DBGBUS_DSPP, 86, 1},
-	{ DBGBUS_DSPP, 86, 2},
-	{ DBGBUS_DSPP, 86, 3},
-	{ DBGBUS_DSPP, 86, 4},
-	{ DBGBUS_DSPP, 86, 5},
-	{ DBGBUS_DSPP, 86, 6},
-	{ DBGBUS_DSPP, 86, 7},
-
-	{ DBGBUS_DSPP, 87, 1},
-	{ DBGBUS_DSPP, 87, 2},
-	{ DBGBUS_DSPP, 87, 3},
-	{ DBGBUS_DSPP, 87, 4},
-	{ DBGBUS_DSPP, 87, 5},
-	{ DBGBUS_DSPP, 87, 6},
-	{ DBGBUS_DSPP, 87, 7},
-
-	/* LM1 */
-	{ DBGBUS_DSPP, 70, 1},
-	{ DBGBUS_DSPP, 70, 2},
-	{ DBGBUS_DSPP, 70, 3},
-	{ DBGBUS_DSPP, 70, 4},
-	{ DBGBUS_DSPP, 70, 5},
-	{ DBGBUS_DSPP, 70, 6},
-	{ DBGBUS_DSPP, 70, 7, _sde_debug_bus_lm_dump },
-
-	{ DBGBUS_DSPP, 71, 1},
-	{ DBGBUS_DSPP, 71, 2},
-	{ DBGBUS_DSPP, 71, 3},
-	{ DBGBUS_DSPP, 71, 4},
-	{ DBGBUS_DSPP, 71, 5},
-	{ DBGBUS_DSPP, 71, 6},
-	{ DBGBUS_DSPP, 71, 7},
-
-	{ DBGBUS_DSPP, 72, 1},
-	{ DBGBUS_DSPP, 72, 2},
-	{ DBGBUS_DSPP, 72, 3},
-	{ DBGBUS_DSPP, 72, 4},
-	{ DBGBUS_DSPP, 72, 5},
-	{ DBGBUS_DSPP, 72, 6},
-	{ DBGBUS_DSPP, 72, 7},
-
-	{ DBGBUS_DSPP, 73, 1},
-	{ DBGBUS_DSPP, 73, 2},
-	{ DBGBUS_DSPP, 73, 3},
-	{ DBGBUS_DSPP, 73, 4},
-	{ DBGBUS_DSPP, 73, 5},
-	{ DBGBUS_DSPP, 73, 6},
-	{ DBGBUS_DSPP, 73, 7},
-
-	{ DBGBUS_DSPP, 74, 1},
-	{ DBGBUS_DSPP, 74, 2},
-	{ DBGBUS_DSPP, 74, 3},
-	{ DBGBUS_DSPP, 74, 4},
-	{ DBGBUS_DSPP, 74, 5},
-	{ DBGBUS_DSPP, 74, 6},
-	{ DBGBUS_DSPP, 74, 7},
-
-	{ DBGBUS_DSPP, 75, 1},
-	{ DBGBUS_DSPP, 75, 2},
-	{ DBGBUS_DSPP, 75, 3},
-	{ DBGBUS_DSPP, 75, 4},
-	{ DBGBUS_DSPP, 75, 5},
-	{ DBGBUS_DSPP, 75, 6},
-	{ DBGBUS_DSPP, 75, 7},
-
-	{ DBGBUS_DSPP, 76, 1},
-	{ DBGBUS_DSPP, 76, 2},
-	{ DBGBUS_DSPP, 76, 3},
-	{ DBGBUS_DSPP, 76, 4},
-	{ DBGBUS_DSPP, 76, 5},
-	{ DBGBUS_DSPP, 76, 6},
-	{ DBGBUS_DSPP, 76, 7},
-
-	{ DBGBUS_DSPP, 88, 1},
-	{ DBGBUS_DSPP, 88, 2},
-	{ DBGBUS_DSPP, 88, 3},
-	{ DBGBUS_DSPP, 88, 4},
-	{ DBGBUS_DSPP, 88, 5},
-	{ DBGBUS_DSPP, 88, 6},
-	{ DBGBUS_DSPP, 88, 7},
-
-	{ DBGBUS_DSPP, 89, 1},
-	{ DBGBUS_DSPP, 89, 2},
-	{ DBGBUS_DSPP, 89, 3},
-	{ DBGBUS_DSPP, 89, 4},
-	{ DBGBUS_DSPP, 89, 5},
-	{ DBGBUS_DSPP, 89, 6},
-	{ DBGBUS_DSPP, 89, 7},
-
-	{ DBGBUS_DSPP, 90, 1},
-	{ DBGBUS_DSPP, 90, 2},
-	{ DBGBUS_DSPP, 90, 3},
-	{ DBGBUS_DSPP, 90, 4},
-	{ DBGBUS_DSPP, 90, 5},
-	{ DBGBUS_DSPP, 90, 6},
-	{ DBGBUS_DSPP, 90, 7},
-
-	{ DBGBUS_DSPP, 91, 1},
-	{ DBGBUS_DSPP, 91, 2},
-	{ DBGBUS_DSPP, 91, 3},
-	{ DBGBUS_DSPP, 91, 4},
-	{ DBGBUS_DSPP, 91, 5},
-	{ DBGBUS_DSPP, 91, 6},
-	{ DBGBUS_DSPP, 91, 7},
-
-	/* LM2 */
-	{ DBGBUS_DSPP, 77, 0},
-	{ DBGBUS_DSPP, 77, 1},
-	{ DBGBUS_DSPP, 77, 2},
-	{ DBGBUS_DSPP, 77, 3},
-	{ DBGBUS_DSPP, 77, 4},
-	{ DBGBUS_DSPP, 77, 5},
-	{ DBGBUS_DSPP, 77, 6},
-	{ DBGBUS_DSPP, 77, 7, _sde_debug_bus_lm_dump },
-
-	{ DBGBUS_DSPP, 78, 0},
-	{ DBGBUS_DSPP, 78, 1},
-	{ DBGBUS_DSPP, 78, 2},
-	{ DBGBUS_DSPP, 78, 3},
-	{ DBGBUS_DSPP, 78, 4},
-	{ DBGBUS_DSPP, 78, 5},
-	{ DBGBUS_DSPP, 78, 6},
-	{ DBGBUS_DSPP, 78, 7},
-
-	{ DBGBUS_DSPP, 79, 0},
-	{ DBGBUS_DSPP, 79, 1},
-	{ DBGBUS_DSPP, 79, 2},
-	{ DBGBUS_DSPP, 79, 3},
-	{ DBGBUS_DSPP, 79, 4},
-	{ DBGBUS_DSPP, 79, 5},
-	{ DBGBUS_DSPP, 79, 6},
-	{ DBGBUS_DSPP, 79, 7},
-
-	{ DBGBUS_DSPP, 80, 0},
-	{ DBGBUS_DSPP, 80, 1},
-	{ DBGBUS_DSPP, 80, 2},
-	{ DBGBUS_DSPP, 80, 3},
-	{ DBGBUS_DSPP, 80, 4},
-	{ DBGBUS_DSPP, 80, 5},
-	{ DBGBUS_DSPP, 80, 6},
-	{ DBGBUS_DSPP, 80, 7},
-
-	{ DBGBUS_DSPP, 81, 0},
-	{ DBGBUS_DSPP, 81, 1},
-	{ DBGBUS_DSPP, 81, 2},
-	{ DBGBUS_DSPP, 81, 3},
-	{ DBGBUS_DSPP, 81, 4},
-	{ DBGBUS_DSPP, 81, 5},
-	{ DBGBUS_DSPP, 81, 6},
-	{ DBGBUS_DSPP, 81, 7},
-
-	{ DBGBUS_DSPP, 82, 0},
-	{ DBGBUS_DSPP, 82, 1},
-	{ DBGBUS_DSPP, 82, 2},
-	{ DBGBUS_DSPP, 82, 3},
-	{ DBGBUS_DSPP, 82, 4},
-	{ DBGBUS_DSPP, 82, 5},
-	{ DBGBUS_DSPP, 82, 6},
-	{ DBGBUS_DSPP, 82, 7},
-
-	{ DBGBUS_DSPP, 83, 0},
-	{ DBGBUS_DSPP, 83, 1},
-	{ DBGBUS_DSPP, 83, 2},
-	{ DBGBUS_DSPP, 83, 3},
-	{ DBGBUS_DSPP, 83, 4},
-	{ DBGBUS_DSPP, 83, 5},
-	{ DBGBUS_DSPP, 83, 6},
-	{ DBGBUS_DSPP, 83, 7},
-
-	{ DBGBUS_DSPP, 92, 1},
-	{ DBGBUS_DSPP, 92, 2},
-	{ DBGBUS_DSPP, 92, 3},
-	{ DBGBUS_DSPP, 92, 4},
-	{ DBGBUS_DSPP, 92, 5},
-	{ DBGBUS_DSPP, 92, 6},
-	{ DBGBUS_DSPP, 92, 7},
-
-	{ DBGBUS_DSPP, 93, 1},
-	{ DBGBUS_DSPP, 93, 2},
-	{ DBGBUS_DSPP, 93, 3},
-	{ DBGBUS_DSPP, 93, 4},
-	{ DBGBUS_DSPP, 93, 5},
-	{ DBGBUS_DSPP, 93, 6},
-	{ DBGBUS_DSPP, 93, 7},
-
-	{ DBGBUS_DSPP, 94, 1},
-	{ DBGBUS_DSPP, 94, 2},
-	{ DBGBUS_DSPP, 94, 3},
-	{ DBGBUS_DSPP, 94, 4},
-	{ DBGBUS_DSPP, 94, 5},
-	{ DBGBUS_DSPP, 94, 6},
-	{ DBGBUS_DSPP, 94, 7},
-
-	{ DBGBUS_DSPP, 95, 1},
-	{ DBGBUS_DSPP, 95, 2},
-	{ DBGBUS_DSPP, 95, 3},
-	{ DBGBUS_DSPP, 95, 4},
-	{ DBGBUS_DSPP, 95, 5},
-	{ DBGBUS_DSPP, 95, 6},
-	{ DBGBUS_DSPP, 95, 7},
-
-	/* LM3 */
-	{ DBGBUS_DSPP, 110, 1},
-	{ DBGBUS_DSPP, 110, 2},
-	{ DBGBUS_DSPP, 110, 3},
-	{ DBGBUS_DSPP, 110, 4},
-	{ DBGBUS_DSPP, 110, 5},
-	{ DBGBUS_DSPP, 110, 6},
-	{ DBGBUS_DSPP, 110, 7, _sde_debug_bus_lm_dump },
-
-	{ DBGBUS_DSPP, 111, 1},
-	{ DBGBUS_DSPP, 111, 2},
-	{ DBGBUS_DSPP, 111, 3},
-	{ DBGBUS_DSPP, 111, 4},
-	{ DBGBUS_DSPP, 111, 5},
-	{ DBGBUS_DSPP, 111, 6},
-	{ DBGBUS_DSPP, 111, 7},
-
-	{ DBGBUS_DSPP, 112, 1},
-	{ DBGBUS_DSPP, 112, 2},
-	{ DBGBUS_DSPP, 112, 3},
-	{ DBGBUS_DSPP, 112, 4},
-	{ DBGBUS_DSPP, 112, 5},
-	{ DBGBUS_DSPP, 112, 6},
-	{ DBGBUS_DSPP, 112, 7},
-
-	{ DBGBUS_DSPP, 113, 1},
-	{ DBGBUS_DSPP, 113, 2},
-	{ DBGBUS_DSPP, 113, 3},
-	{ DBGBUS_DSPP, 113, 4},
-	{ DBGBUS_DSPP, 113, 5},
-	{ DBGBUS_DSPP, 113, 6},
-	{ DBGBUS_DSPP, 113, 7},
-
-	{ DBGBUS_DSPP, 114, 1},
-	{ DBGBUS_DSPP, 114, 2},
-	{ DBGBUS_DSPP, 114, 3},
-	{ DBGBUS_DSPP, 114, 4},
-	{ DBGBUS_DSPP, 114, 5},
-	{ DBGBUS_DSPP, 114, 6},
-	{ DBGBUS_DSPP, 114, 7},
-
-	{ DBGBUS_DSPP, 115, 1},
-	{ DBGBUS_DSPP, 115, 2},
-	{ DBGBUS_DSPP, 115, 3},
-	{ DBGBUS_DSPP, 115, 4},
-	{ DBGBUS_DSPP, 115, 5},
-	{ DBGBUS_DSPP, 115, 6},
-	{ DBGBUS_DSPP, 115, 7},
-
-	{ DBGBUS_DSPP, 116, 1},
-	{ DBGBUS_DSPP, 116, 2},
-	{ DBGBUS_DSPP, 116, 3},
-	{ DBGBUS_DSPP, 116, 4},
-	{ DBGBUS_DSPP, 116, 5},
-	{ DBGBUS_DSPP, 116, 6},
-	{ DBGBUS_DSPP, 116, 7},
-
-	{ DBGBUS_DSPP, 117, 1},
-	{ DBGBUS_DSPP, 117, 2},
-	{ DBGBUS_DSPP, 117, 3},
-	{ DBGBUS_DSPP, 117, 4},
-	{ DBGBUS_DSPP, 117, 5},
-	{ DBGBUS_DSPP, 117, 6},
-	{ DBGBUS_DSPP, 117, 7},
-
-	{ DBGBUS_DSPP, 118, 1},
-	{ DBGBUS_DSPP, 118, 2},
-	{ DBGBUS_DSPP, 118, 3},
-	{ DBGBUS_DSPP, 118, 4},
-	{ DBGBUS_DSPP, 118, 5},
-	{ DBGBUS_DSPP, 118, 6},
-	{ DBGBUS_DSPP, 118, 7},
-
-	{ DBGBUS_DSPP, 119, 1},
-	{ DBGBUS_DSPP, 119, 2},
-	{ DBGBUS_DSPP, 119, 3},
-	{ DBGBUS_DSPP, 119, 4},
-	{ DBGBUS_DSPP, 119, 5},
-	{ DBGBUS_DSPP, 119, 6},
-	{ DBGBUS_DSPP, 119, 7},
-
-	{ DBGBUS_DSPP, 120, 1},
-	{ DBGBUS_DSPP, 120, 2},
-	{ DBGBUS_DSPP, 120, 3},
-	{ DBGBUS_DSPP, 120, 4},
-	{ DBGBUS_DSPP, 120, 5},
-	{ DBGBUS_DSPP, 120, 6},
-	{ DBGBUS_DSPP, 120, 7},
-
-	/* LM4 */
-	{ DBGBUS_DSPP, 96, 1},
-	{ DBGBUS_DSPP, 96, 2},
-	{ DBGBUS_DSPP, 96, 3},
-	{ DBGBUS_DSPP, 96, 4},
-	{ DBGBUS_DSPP, 96, 5},
-	{ DBGBUS_DSPP, 96, 6},
-	{ DBGBUS_DSPP, 96, 7, _sde_debug_bus_lm_dump },
-
-	{ DBGBUS_DSPP, 97, 1},
-	{ DBGBUS_DSPP, 97, 2},
-	{ DBGBUS_DSPP, 97, 3},
-	{ DBGBUS_DSPP, 97, 4},
-	{ DBGBUS_DSPP, 97, 5},
-	{ DBGBUS_DSPP, 97, 6},
-	{ DBGBUS_DSPP, 97, 7},
-
-	{ DBGBUS_DSPP, 98, 1},
-	{ DBGBUS_DSPP, 98, 2},
-	{ DBGBUS_DSPP, 98, 3},
-	{ DBGBUS_DSPP, 98, 4},
-	{ DBGBUS_DSPP, 98, 5},
-	{ DBGBUS_DSPP, 98, 6},
-	{ DBGBUS_DSPP, 98, 7},
-
-	{ DBGBUS_DSPP, 99, 1},
-	{ DBGBUS_DSPP, 99, 2},
-	{ DBGBUS_DSPP, 99, 3},
-	{ DBGBUS_DSPP, 99, 4},
-	{ DBGBUS_DSPP, 99, 5},
-	{ DBGBUS_DSPP, 99, 6},
-	{ DBGBUS_DSPP, 99, 7},
-
-	{ DBGBUS_DSPP, 100, 1},
-	{ DBGBUS_DSPP, 100, 2},
-	{ DBGBUS_DSPP, 100, 3},
-	{ DBGBUS_DSPP, 100, 4},
-	{ DBGBUS_DSPP, 100, 5},
-	{ DBGBUS_DSPP, 100, 6},
-	{ DBGBUS_DSPP, 100, 7},
-
-	{ DBGBUS_DSPP, 101, 1},
-	{ DBGBUS_DSPP, 101, 2},
-	{ DBGBUS_DSPP, 101, 3},
-	{ DBGBUS_DSPP, 101, 4},
-	{ DBGBUS_DSPP, 101, 5},
-	{ DBGBUS_DSPP, 101, 6},
-	{ DBGBUS_DSPP, 101, 7},
-
-	{ DBGBUS_DSPP, 103, 1},
-	{ DBGBUS_DSPP, 103, 2},
-	{ DBGBUS_DSPP, 103, 3},
-	{ DBGBUS_DSPP, 103, 4},
-	{ DBGBUS_DSPP, 103, 5},
-	{ DBGBUS_DSPP, 103, 6},
-	{ DBGBUS_DSPP, 103, 7},
-
-	{ DBGBUS_DSPP, 105, 1},
-	{ DBGBUS_DSPP, 105, 2},
-	{ DBGBUS_DSPP, 105, 3},
-	{ DBGBUS_DSPP, 105, 4},
-	{ DBGBUS_DSPP, 105, 5},
-	{ DBGBUS_DSPP, 105, 6},
-	{ DBGBUS_DSPP, 105, 7},
-
-	{ DBGBUS_DSPP, 106, 1},
-	{ DBGBUS_DSPP, 106, 2},
-	{ DBGBUS_DSPP, 106, 3},
-	{ DBGBUS_DSPP, 106, 4},
-	{ DBGBUS_DSPP, 106, 5},
-	{ DBGBUS_DSPP, 106, 6},
-	{ DBGBUS_DSPP, 106, 7},
-
-	{ DBGBUS_DSPP, 109, 1},
-	{ DBGBUS_DSPP, 109, 2},
-	{ DBGBUS_DSPP, 109, 3},
-	{ DBGBUS_DSPP, 109, 4},
-	{ DBGBUS_DSPP, 109, 5},
-	{ DBGBUS_DSPP, 109, 6},
-	{ DBGBUS_DSPP, 109, 7},
-
-	{ DBGBUS_DSPP, 122, 1},
-	{ DBGBUS_DSPP, 122, 2},
-	{ DBGBUS_DSPP, 122, 3},
-	{ DBGBUS_DSPP, 122, 4},
-	{ DBGBUS_DSPP, 122, 5},
-	{ DBGBUS_DSPP, 122, 6},
-	{ DBGBUS_DSPP, 122, 7},
-
-	/* LM5 */
-	{ DBGBUS_DSPP, 124, 1},
-	{ DBGBUS_DSPP, 124, 2},
-	{ DBGBUS_DSPP, 124, 3},
-	{ DBGBUS_DSPP, 124, 4},
-	{ DBGBUS_DSPP, 124, 5},
-	{ DBGBUS_DSPP, 124, 6},
-	{ DBGBUS_DSPP, 124, 7, _sde_debug_bus_lm_dump },
-
-	{ DBGBUS_DSPP, 125, 1},
-	{ DBGBUS_DSPP, 125, 2},
-	{ DBGBUS_DSPP, 125, 3},
-	{ DBGBUS_DSPP, 125, 4},
-	{ DBGBUS_DSPP, 125, 5},
-	{ DBGBUS_DSPP, 125, 6},
-	{ DBGBUS_DSPP, 125, 7},
-
-	{ DBGBUS_DSPP, 126, 1},
-	{ DBGBUS_DSPP, 126, 2},
-	{ DBGBUS_DSPP, 126, 3},
-	{ DBGBUS_DSPP, 126, 4},
-	{ DBGBUS_DSPP, 126, 5},
-	{ DBGBUS_DSPP, 126, 6},
-	{ DBGBUS_DSPP, 126, 7},
-
-	{ DBGBUS_DSPP, 127, 1},
-	{ DBGBUS_DSPP, 127, 2},
-	{ DBGBUS_DSPP, 127, 3},
-	{ DBGBUS_DSPP, 127, 4},
-	{ DBGBUS_DSPP, 127, 5},
-	{ DBGBUS_DSPP, 127, 6},
-	{ DBGBUS_DSPP, 127, 7},
-
-	{ DBGBUS_DSPP, 128, 1},
-	{ DBGBUS_DSPP, 128, 2},
-	{ DBGBUS_DSPP, 128, 3},
-	{ DBGBUS_DSPP, 128, 4},
-	{ DBGBUS_DSPP, 128, 5},
-	{ DBGBUS_DSPP, 128, 6},
-	{ DBGBUS_DSPP, 128, 7},
-
-	{ DBGBUS_DSPP, 129, 1},
-	{ DBGBUS_DSPP, 129, 2},
-	{ DBGBUS_DSPP, 129, 3},
-	{ DBGBUS_DSPP, 129, 4},
-	{ DBGBUS_DSPP, 129, 5},
-	{ DBGBUS_DSPP, 129, 6},
-	{ DBGBUS_DSPP, 129, 7},
-
-	{ DBGBUS_DSPP, 131, 1},
-	{ DBGBUS_DSPP, 131, 2},
-	{ DBGBUS_DSPP, 131, 3},
-	{ DBGBUS_DSPP, 131, 4},
-	{ DBGBUS_DSPP, 131, 5},
-	{ DBGBUS_DSPP, 131, 6},
-	{ DBGBUS_DSPP, 131, 7},
-
-	{ DBGBUS_DSPP, 132, 1},
-	{ DBGBUS_DSPP, 132, 2},
-	{ DBGBUS_DSPP, 132, 3},
-	{ DBGBUS_DSPP, 132, 4},
-	{ DBGBUS_DSPP, 132, 5},
-	{ DBGBUS_DSPP, 132, 6},
-	{ DBGBUS_DSPP, 132, 7},
-
-	{ DBGBUS_DSPP, 133, 1},
-	{ DBGBUS_DSPP, 133, 2},
-	{ DBGBUS_DSPP, 133, 3},
-	{ DBGBUS_DSPP, 133, 4},
-	{ DBGBUS_DSPP, 133, 5},
-	{ DBGBUS_DSPP, 133, 6},
-	{ DBGBUS_DSPP, 133, 7},
-
-	{ DBGBUS_DSPP, 134, 1},
-	{ DBGBUS_DSPP, 134, 2},
-	{ DBGBUS_DSPP, 134, 3},
-	{ DBGBUS_DSPP, 134, 4},
-	{ DBGBUS_DSPP, 134, 5},
-	{ DBGBUS_DSPP, 134, 6},
-	{ DBGBUS_DSPP, 134, 7},
-
-	{ DBGBUS_DSPP, 135, 1},
-	{ DBGBUS_DSPP, 135, 2},
-	{ DBGBUS_DSPP, 135, 3},
-	{ DBGBUS_DSPP, 135, 4},
-	{ DBGBUS_DSPP, 135, 5},
-	{ DBGBUS_DSPP, 135, 6},
-	{ DBGBUS_DSPP, 135, 7},
-
-	/* csc */
-	{ DBGBUS_SSPP0, 7, 0},
-	{ DBGBUS_SSPP0, 7, 1},
-	{ DBGBUS_SSPP0, 7, 2},
-	{ DBGBUS_SSPP0, 27, 0},
-	{ DBGBUS_SSPP0, 27, 1},
-	{ DBGBUS_SSPP0, 27, 2},
-	{ DBGBUS_SSPP1, 7, 0},
-	{ DBGBUS_SSPP1, 7, 1},
-	{ DBGBUS_SSPP1, 7, 2},
-	{ DBGBUS_SSPP1, 27, 0},
-	{ DBGBUS_SSPP1, 27, 1},
-	{ DBGBUS_SSPP1, 27, 2},
-
-	/* pcc */
-	{ DBGBUS_SSPP0, 43, 3},
-	{ DBGBUS_SSPP0, 47, 3},
-	{ DBGBUS_SSPP1, 43, 3},
-	{ DBGBUS_SSPP1, 47, 3},
-
-	/* spa */
-	{ DBGBUS_SSPP0, 8,  0},
-	{ DBGBUS_SSPP0, 28, 0},
-	{ DBGBUS_SSPP1, 8,  0},
-	{ DBGBUS_SSPP1, 28, 0},
-
-	/* dspp pa */
-	{ DBGBUS_DSPP, 13, 0},
-	{ DBGBUS_DSPP, 19, 0},
-	{ DBGBUS_DSPP, 24, 0},
-	{ DBGBUS_DSPP, 37, 0},
-
-	/* igc */
-	{ DBGBUS_SSPP0, 39, 0},
-	{ DBGBUS_SSPP0, 39, 1},
-	{ DBGBUS_SSPP0, 39, 2},
-
-	{ DBGBUS_SSPP1, 39, 0},
-	{ DBGBUS_SSPP1, 39, 1},
-	{ DBGBUS_SSPP1, 39, 2},
-
-	{ DBGBUS_SSPP0, 46, 0},
-	{ DBGBUS_SSPP0, 46, 1},
-	{ DBGBUS_SSPP0, 46, 2},
-
-	{ DBGBUS_SSPP1, 46, 0},
-	{ DBGBUS_SSPP1, 46, 1},
-	{ DBGBUS_SSPP1, 46, 2},
-
-	{ DBGBUS_DSPP, 14, 0},
-	{ DBGBUS_DSPP, 14, 1},
-	{ DBGBUS_DSPP, 14, 2},
-	{ DBGBUS_DSPP, 20, 0},
-	{ DBGBUS_DSPP, 20, 1},
-	{ DBGBUS_DSPP, 20, 2},
-	{ DBGBUS_DSPP, 25, 0},
-	{ DBGBUS_DSPP, 25, 1},
-	{ DBGBUS_DSPP, 25, 2},
-	{ DBGBUS_DSPP, 38, 0},
-	{ DBGBUS_DSPP, 38, 1},
-	{ DBGBUS_DSPP, 38, 2},
-
-	/* intf0-3 */
-	{ DBGBUS_PERIPH, 0, 0},
-	{ DBGBUS_PERIPH, 1, 0},
-	{ DBGBUS_PERIPH, 2, 0},
-	{ DBGBUS_PERIPH, 3, 0},
-	{ DBGBUS_PERIPH, 4, 0},
-	{ DBGBUS_PERIPH, 5, 0},
-
-	/* te counter wrapper */
-	{ DBGBUS_PERIPH, 60, 0},
-	{ DBGBUS_PERIPH, 60, 1},
-	{ DBGBUS_PERIPH, 60, 2},
-	{ DBGBUS_PERIPH, 60, 3},
-	{ DBGBUS_PERIPH, 60, 4},
-	{ DBGBUS_PERIPH, 60, 5},
-
-	/* dsc0 */
-	{ DBGBUS_PERIPH, 47, 0},
-	{ DBGBUS_PERIPH, 47, 1},
-	{ DBGBUS_PERIPH, 47, 2},
-	{ DBGBUS_PERIPH, 47, 3},
-	{ DBGBUS_PERIPH, 47, 4},
-	{ DBGBUS_PERIPH, 47, 5},
-	{ DBGBUS_PERIPH, 47, 6},
-	{ DBGBUS_PERIPH, 47, 7},
-
-	/* dsc1 */
-	{ DBGBUS_PERIPH, 48, 0},
-	{ DBGBUS_PERIPH, 48, 1},
-	{ DBGBUS_PERIPH, 48, 2},
-	{ DBGBUS_PERIPH, 48, 3},
-	{ DBGBUS_PERIPH, 48, 4},
-	{ DBGBUS_PERIPH, 48, 5},
-	{ DBGBUS_PERIPH, 48, 6},
-	{ DBGBUS_PERIPH, 48, 7},
-
-	/* dsc2 */
-	{ DBGBUS_PERIPH, 50, 0},
-	{ DBGBUS_PERIPH, 50, 1},
-	{ DBGBUS_PERIPH, 50, 2},
-	{ DBGBUS_PERIPH, 50, 3},
-	{ DBGBUS_PERIPH, 50, 4},
-	{ DBGBUS_PERIPH, 50, 5},
-	{ DBGBUS_PERIPH, 50, 6},
-	{ DBGBUS_PERIPH, 50, 7},
-
-	/* dsc3 */
-	{ DBGBUS_PERIPH, 51, 0},
-	{ DBGBUS_PERIPH, 51, 1},
-	{ DBGBUS_PERIPH, 51, 2},
-	{ DBGBUS_PERIPH, 51, 3},
-	{ DBGBUS_PERIPH, 51, 4},
-	{ DBGBUS_PERIPH, 51, 5},
-	{ DBGBUS_PERIPH, 51, 6},
-	{ DBGBUS_PERIPH, 51, 7},
-
-	/* dsc4 */
-	{ DBGBUS_PERIPH, 52, 0},
-	{ DBGBUS_PERIPH, 52, 1},
-	{ DBGBUS_PERIPH, 52, 2},
-	{ DBGBUS_PERIPH, 52, 3},
-	{ DBGBUS_PERIPH, 52, 4},
-	{ DBGBUS_PERIPH, 52, 5},
-	{ DBGBUS_PERIPH, 52, 6},
-	{ DBGBUS_PERIPH, 52, 7},
-
-	/* dsc5 */
-	{ DBGBUS_PERIPH, 53, 0},
-	{ DBGBUS_PERIPH, 53, 1},
-	{ DBGBUS_PERIPH, 53, 2},
-	{ DBGBUS_PERIPH, 53, 3},
-	{ DBGBUS_PERIPH, 53, 4},
-	{ DBGBUS_PERIPH, 53, 5},
-	{ DBGBUS_PERIPH, 53, 6},
-	{ DBGBUS_PERIPH, 53, 7},
-
-	/* tear-check */
-	/* INTF_0 */
-	{ DBGBUS_PERIPH, 63, 0 },
-	{ DBGBUS_PERIPH, 63, 1 },
-	{ DBGBUS_PERIPH, 63, 2 },
-	{ DBGBUS_PERIPH, 63, 3 },
-	{ DBGBUS_PERIPH, 63, 4 },
-	{ DBGBUS_PERIPH, 63, 5 },
-	{ DBGBUS_PERIPH, 63, 6 },
-	{ DBGBUS_PERIPH, 63, 7 },
-
-	/* INTF_1 */
-	{ DBGBUS_PERIPH, 64, 0 },
-	{ DBGBUS_PERIPH, 64, 1 },
-	{ DBGBUS_PERIPH, 64, 2 },
-	{ DBGBUS_PERIPH, 64, 3 },
-	{ DBGBUS_PERIPH, 64, 4 },
-	{ DBGBUS_PERIPH, 64, 5 },
-	{ DBGBUS_PERIPH, 64, 6 },
-	{ DBGBUS_PERIPH, 64, 7 },
-
-	/* INTF_2 */
-	{ DBGBUS_PERIPH, 65, 0 },
-	{ DBGBUS_PERIPH, 65, 1 },
-	{ DBGBUS_PERIPH, 65, 2 },
-	{ DBGBUS_PERIPH, 65, 3 },
-	{ DBGBUS_PERIPH, 65, 4 },
-	{ DBGBUS_PERIPH, 65, 5 },
-	{ DBGBUS_PERIPH, 65, 6 },
-	{ DBGBUS_PERIPH, 65, 7 },
-
-	/* INTF_4 */
-	{ DBGBUS_PERIPH, 66, 0 },
-	{ DBGBUS_PERIPH, 66, 1 },
-	{ DBGBUS_PERIPH, 66, 2 },
-	{ DBGBUS_PERIPH, 66, 3 },
-	{ DBGBUS_PERIPH, 66, 4 },
-	{ DBGBUS_PERIPH, 66, 5 },
-	{ DBGBUS_PERIPH, 66, 6 },
-	{ DBGBUS_PERIPH, 66, 7 },
-
-	/* INTF_5 */
-	{ DBGBUS_PERIPH, 67, 0 },
-	{ DBGBUS_PERIPH, 67, 1 },
-	{ DBGBUS_PERIPH, 67, 2 },
-	{ DBGBUS_PERIPH, 67, 3 },
-	{ DBGBUS_PERIPH, 67, 4 },
-	{ DBGBUS_PERIPH, 67, 5 },
-	{ DBGBUS_PERIPH, 67, 6 },
-	{ DBGBUS_PERIPH, 67, 7 },
-
-	/* INTF_3 */
-	{ DBGBUS_PERIPH, 73, 0 },
-	{ DBGBUS_PERIPH, 73, 1 },
-	{ DBGBUS_PERIPH, 73, 2 },
-	{ DBGBUS_PERIPH, 73, 3 },
-	{ DBGBUS_PERIPH, 73, 4 },
-	{ DBGBUS_PERIPH, 73, 5 },
-	{ DBGBUS_PERIPH, 73, 6 },
-	{ DBGBUS_PERIPH, 73, 7 },
-
-	/* cdwn */
-	{ DBGBUS_PERIPH, 80, 0},
-	{ DBGBUS_PERIPH, 80, 1},
-	{ DBGBUS_PERIPH, 80, 2},
-
-	{ DBGBUS_PERIPH, 81, 0},
-	{ DBGBUS_PERIPH, 81, 1},
-	{ DBGBUS_PERIPH, 81, 2},
-
-	{ DBGBUS_PERIPH, 82, 0},
-	{ DBGBUS_PERIPH, 82, 1},
-	{ DBGBUS_PERIPH, 82, 2},
-	{ DBGBUS_PERIPH, 82, 3},
-	{ DBGBUS_PERIPH, 82, 4},
-	{ DBGBUS_PERIPH, 82, 5},
-	{ DBGBUS_PERIPH, 82, 6},
-	{ DBGBUS_PERIPH, 82, 7},
-
-	/* DPTX1 */
-	{ DBGBUS_PERIPH, 68, 0},
-	{ DBGBUS_PERIPH, 68, 1},
-	{ DBGBUS_PERIPH, 68, 2},
-	{ DBGBUS_PERIPH, 68, 3},
-	{ DBGBUS_PERIPH, 68, 4},
-	{ DBGBUS_PERIPH, 68, 5},
-	{ DBGBUS_PERIPH, 68, 6},
-	{ DBGBUS_PERIPH, 68, 7},
-
-	/* DP */
-	{ DBGBUS_PERIPH, 69, 0},
-	{ DBGBUS_PERIPH, 69, 1},
-	{ DBGBUS_PERIPH, 69, 2},
-	{ DBGBUS_PERIPH, 69, 3},
-	{ DBGBUS_PERIPH, 69, 4},
-	{ DBGBUS_PERIPH, 69, 5},
-
-	/* dsi0 */
-	{ DBGBUS_PERIPH, 70, 0},
-	{ DBGBUS_PERIPH, 70, 1},
-	{ DBGBUS_PERIPH, 70, 2},
-	{ DBGBUS_PERIPH, 70, 3},
-	{ DBGBUS_PERIPH, 70, 4},
-	{ DBGBUS_PERIPH, 70, 5},
-
-	/* dsi1 */
-	{ DBGBUS_PERIPH, 71, 0},
-	{ DBGBUS_PERIPH, 71, 1},
-	{ DBGBUS_PERIPH, 71, 2},
-	{ DBGBUS_PERIPH, 71, 3},
-	{ DBGBUS_PERIPH, 71, 4},
-	{ DBGBUS_PERIPH, 71, 5},
-
-	/* eDP */
-	{ DBGBUS_PERIPH, 72, 0},
-	{ DBGBUS_PERIPH, 72, 1},
-	{ DBGBUS_PERIPH, 72, 2},
-	{ DBGBUS_PERIPH, 72, 3},
-	{ DBGBUS_PERIPH, 72, 4},
-	{ DBGBUS_PERIPH, 72, 5},
-
+static struct sde_debug_bus_entry vbif_dbg_bus_limited[] = {
+	{ MMSS_VBIF_TEST_BUS1_CTRL0, MMSS_VBIF_TEST_BUS_OUT, 0, 2, 0, 12},
+	{ MMSS_VBIF_TEST_BUS1_CTRL0, MMSS_VBIF_TEST_BUS_OUT, 4, 6, 0, 12},
+	{ MMSS_VBIF_TEST_BUS1_CTRL0, MMSS_VBIF_TEST_BUS_OUT, 12, 2, 0, 12},
+
+	{ MMSS_VBIF_TEST_BUS2_CTRL0, MMSS_VBIF_TEST_BUS_OUT, 0, 2, 0, 16},
+	{ MMSS_VBIF_TEST_BUS2_CTRL0, MMSS_VBIF_TEST_BUS_OUT, 0, 2, 128, 208},
+	{ MMSS_VBIF_TEST_BUS2_CTRL0, MMSS_VBIF_TEST_BUS_OUT, 4, 6, 0, 16},
+	{ MMSS_VBIF_TEST_BUS2_CTRL0, MMSS_VBIF_TEST_BUS_OUT, 4, 6, 128, 208},
+	{ MMSS_VBIF_TEST_BUS2_CTRL0, MMSS_VBIF_TEST_BUS_OUT, 12, 2, 0, 16},
+	{ MMSS_VBIF_TEST_BUS2_CTRL0, MMSS_VBIF_TEST_BUS_OUT, 12, 2, 128, 208},
+	{ MMSS_VBIF_TEST_BUS2_CTRL0, MMSS_VBIF_TEST_BUS_OUT, 16, 2, 0, 16},
+	{ MMSS_VBIF_TEST_BUS2_CTRL0, MMSS_VBIF_TEST_BUS_OUT, 16, 2, 128, 208},
 };
 
-static struct sde_debug_bus_entry dbg_bus_sde_lahaina[] = {
-	/* Unpack 0 sspp 0*/
-	{ DBGBUS_SSPP0, 35, 2 },
-	{ DBGBUS_SSPP0, 50, 2 },
-	{ DBGBUS_SSPP0, 60, 2 },
-	{ DBGBUS_SSPP0, 70, 2 },
-
-	/* Unpack 1 sspp 0*/
-	{ DBGBUS_SSPP0, 36, 2 },
-	{ DBGBUS_SSPP0, 51, 2 },
-	{ DBGBUS_SSPP0, 61, 2 },
-	{ DBGBUS_SSPP0, 71, 2 },
-
-	/* Unpack 2 sspp 0*/
-	{ DBGBUS_SSPP0, 37, 2 },
-	{ DBGBUS_SSPP0, 52, 2 },
-	{ DBGBUS_SSPP0, 62, 2 },
-	{ DBGBUS_SSPP0, 72, 2 },
-
-	/* Unpack 3 sspp 0*/
-	{ DBGBUS_SSPP0, 38, 2 },
-	{ DBGBUS_SSPP0, 53, 2 },
-	{ DBGBUS_SSPP0, 63, 2 },
-	{ DBGBUS_SSPP0, 73, 2 },
-
-	/* Unpack 0 sspp 1*/
-	{ DBGBUS_SSPP1, 35, 2 },
-	{ DBGBUS_SSPP1, 50, 2 },
-	{ DBGBUS_SSPP1, 60, 2 },
-	{ DBGBUS_SSPP1, 70, 2 },
-
-	/* Unpack 1 sspp 1*/
-	{ DBGBUS_SSPP1, 36, 2 },
-	{ DBGBUS_SSPP1, 51, 2 },
-	{ DBGBUS_SSPP1, 61, 2 },
-	{ DBGBUS_SSPP1, 71, 2 },
-
-	/* Unpack 2 sspp 1*/
-	{ DBGBUS_SSPP1, 37, 2 },
-	{ DBGBUS_SSPP1, 52, 2 },
-	{ DBGBUS_SSPP1, 62, 2 },
-	{ DBGBUS_SSPP1, 72, 2 },
-
-	/* Unpack 3 sspp 1*/
-	{ DBGBUS_SSPP1, 38, 2 },
-	{ DBGBUS_SSPP1, 53, 2 },
-	{ DBGBUS_SSPP1, 63, 2 },
-	{ DBGBUS_SSPP1, 73, 2 },
-
-	/* scheduler */
-	{ DBGBUS_DSPP, 130, 0 },
-	{ DBGBUS_DSPP, 130, 1 },
-	{ DBGBUS_DSPP, 130, 2 },
-	{ DBGBUS_DSPP, 130, 3 },
-	{ DBGBUS_DSPP, 130, 4 },
-	{ DBGBUS_DSPP, 130, 5 },
-
-	/* fetch sspp0 */
-	/* vig 0 */
-	{ DBGBUS_SSPP0, 0, 0 },
-	{ DBGBUS_SSPP0, 0, 1 },
-	{ DBGBUS_SSPP0, 0, 2 },
-	{ DBGBUS_SSPP0, 0, 3 },
-	{ DBGBUS_SSPP0, 0, 4 },
-	{ DBGBUS_SSPP0, 0, 5 },
-	{ DBGBUS_SSPP0, 0, 6 },
-	{ DBGBUS_SSPP0, 0, 7 },
-
-	{ DBGBUS_SSPP0, 1, 0 },
-	{ DBGBUS_SSPP0, 1, 1 },
-	{ DBGBUS_SSPP0, 1, 2 },
-	{ DBGBUS_SSPP0, 1, 3 },
-	{ DBGBUS_SSPP0, 1, 4 },
-	{ DBGBUS_SSPP0, 1, 5 },
-	{ DBGBUS_SSPP0, 1, 6 },
-	{ DBGBUS_SSPP0, 1, 7 },
-
-	{ DBGBUS_SSPP0, 2, 0 },
-	{ DBGBUS_SSPP0, 2, 1 },
-	{ DBGBUS_SSPP0, 2, 2 },
-	{ DBGBUS_SSPP0, 2, 3 },
-	{ DBGBUS_SSPP0, 2, 4 },
-	{ DBGBUS_SSPP0, 2, 5 },
-	{ DBGBUS_SSPP0, 2, 6 },
-	{ DBGBUS_SSPP0, 2, 7 },
-
-	{ DBGBUS_SSPP0, 4, 0 },
-	{ DBGBUS_SSPP0, 4, 1 },
-	{ DBGBUS_SSPP0, 4, 2 },
-	{ DBGBUS_SSPP0, 4, 3 },
-	{ DBGBUS_SSPP0, 4, 4 },
-	{ DBGBUS_SSPP0, 4, 5 },
-	{ DBGBUS_SSPP0, 4, 6 },
-	{ DBGBUS_SSPP0, 4, 7 },
-
-	{ DBGBUS_SSPP0, 5, 0 },
-	{ DBGBUS_SSPP0, 5, 1 },
-	{ DBGBUS_SSPP0, 5, 2 },
-	{ DBGBUS_SSPP0, 5, 3 },
-	{ DBGBUS_SSPP0, 5, 4 },
-	{ DBGBUS_SSPP0, 5, 5 },
-	{ DBGBUS_SSPP0, 5, 6 },
-	{ DBGBUS_SSPP0, 5, 7 },
-
-	/* vig 2 */
-	{ DBGBUS_SSPP0, 20, 0 },
-	{ DBGBUS_SSPP0, 20, 1 },
-	{ DBGBUS_SSPP0, 20, 2 },
-	{ DBGBUS_SSPP0, 20, 3 },
-	{ DBGBUS_SSPP0, 20, 4 },
-	{ DBGBUS_SSPP0, 20, 5 },
-	{ DBGBUS_SSPP0, 20, 6 },
-	{ DBGBUS_SSPP0, 20, 7 },
-
-	{ DBGBUS_SSPP0, 21, 0 },
-	{ DBGBUS_SSPP0, 21, 1 },
-	{ DBGBUS_SSPP0, 21, 2 },
-	{ DBGBUS_SSPP0, 21, 3 },
-	{ DBGBUS_SSPP0, 21, 4 },
-	{ DBGBUS_SSPP0, 21, 5 },
-	{ DBGBUS_SSPP0, 21, 6 },
-	{ DBGBUS_SSPP0, 21, 7 },
-
-	{ DBGBUS_SSPP0, 22, 0 },
-	{ DBGBUS_SSPP0, 22, 1 },
-	{ DBGBUS_SSPP0, 22, 2 },
-	{ DBGBUS_SSPP0, 22, 3 },
-	{ DBGBUS_SSPP0, 22, 4 },
-	{ DBGBUS_SSPP0, 22, 5 },
-	{ DBGBUS_SSPP0, 22, 6 },
-	{ DBGBUS_SSPP0, 22, 7 },
-
-	{ DBGBUS_SSPP0, 24, 0 },
-	{ DBGBUS_SSPP0, 24, 1 },
-	{ DBGBUS_SSPP0, 24, 2 },
-	{ DBGBUS_SSPP0, 24, 3 },
-	{ DBGBUS_SSPP0, 24, 4 },
-	{ DBGBUS_SSPP0, 24, 5 },
-	{ DBGBUS_SSPP0, 24, 6 },
-	{ DBGBUS_SSPP0, 24, 7 },
-
-	{ DBGBUS_SSPP0, 25, 0 },
-	{ DBGBUS_SSPP0, 25, 1 },
-	{ DBGBUS_SSPP0, 25, 2 },
-	{ DBGBUS_SSPP0, 25, 3 },
-	{ DBGBUS_SSPP0, 25, 4 },
-	{ DBGBUS_SSPP0, 25, 5 },
-	{ DBGBUS_SSPP0, 25, 6 },
-	{ DBGBUS_SSPP0, 25, 7 },
-
-	/* dma 2 */
-	{ DBGBUS_SSPP0, 30, 0 },
-	{ DBGBUS_SSPP0, 30, 1 },
-	{ DBGBUS_SSPP0, 30, 2 },
-	{ DBGBUS_SSPP0, 30, 3 },
-	{ DBGBUS_SSPP0, 30, 4 },
-	{ DBGBUS_SSPP0, 30, 5 },
-	{ DBGBUS_SSPP0, 30, 6 },
-	{ DBGBUS_SSPP0, 30, 7 },
-
-	{ DBGBUS_SSPP0, 31, 0 },
-	{ DBGBUS_SSPP0, 31, 1 },
-	{ DBGBUS_SSPP0, 31, 2 },
-	{ DBGBUS_SSPP0, 31, 3 },
-	{ DBGBUS_SSPP0, 31, 4 },
-	{ DBGBUS_SSPP0, 31, 5 },
-	{ DBGBUS_SSPP0, 31, 6 },
-	{ DBGBUS_SSPP0, 31, 7 },
-
-	{ DBGBUS_SSPP0, 32, 0 },
-	{ DBGBUS_SSPP0, 32, 1 },
-	{ DBGBUS_SSPP0, 32, 2 },
-	{ DBGBUS_SSPP0, 32, 3 },
-	{ DBGBUS_SSPP0, 32, 4 },
-	{ DBGBUS_SSPP0, 32, 5 },
-	{ DBGBUS_SSPP0, 32, 6 },
-	{ DBGBUS_SSPP0, 32, 7 },
-
-	{ DBGBUS_SSPP0, 33, 0 },
-	{ DBGBUS_SSPP0, 33, 1 },
-	{ DBGBUS_SSPP0, 33, 2 },
-	{ DBGBUS_SSPP0, 33, 3 },
-	{ DBGBUS_SSPP0, 33, 4 },
-	{ DBGBUS_SSPP0, 33, 5 },
-	{ DBGBUS_SSPP0, 33, 6 },
-	{ DBGBUS_SSPP0, 33, 7 },
-
-	{ DBGBUS_SSPP0, 34, 0 },
-	{ DBGBUS_SSPP0, 34, 1 },
-	{ DBGBUS_SSPP0, 34, 2 },
-	{ DBGBUS_SSPP0, 34, 3 },
-	{ DBGBUS_SSPP0, 34, 4 },
-	{ DBGBUS_SSPP0, 34, 5 },
-	{ DBGBUS_SSPP0, 34, 6 },
-	{ DBGBUS_SSPP0, 34, 7 },
-
-	/* dma 0 */
-	{ DBGBUS_SSPP0, 40, 0 },
-	{ DBGBUS_SSPP0, 40, 1 },
-	{ DBGBUS_SSPP0, 40, 2 },
-	{ DBGBUS_SSPP0, 40, 3 },
-	{ DBGBUS_SSPP0, 40, 4 },
-	{ DBGBUS_SSPP0, 40, 5 },
-	{ DBGBUS_SSPP0, 40, 6 },
-	{ DBGBUS_SSPP0, 40, 7 },
-
-	{ DBGBUS_SSPP0, 41, 0 },
-	{ DBGBUS_SSPP0, 41, 1 },
-	{ DBGBUS_SSPP0, 41, 2 },
-	{ DBGBUS_SSPP0, 41, 3 },
-	{ DBGBUS_SSPP0, 41, 4 },
-	{ DBGBUS_SSPP0, 41, 5 },
-	{ DBGBUS_SSPP0, 41, 6 },
-	{ DBGBUS_SSPP0, 41, 7 },
-
-	{ DBGBUS_SSPP0, 42, 0 },
-	{ DBGBUS_SSPP0, 42, 1 },
-	{ DBGBUS_SSPP0, 42, 2 },
-	{ DBGBUS_SSPP0, 42, 3 },
-	{ DBGBUS_SSPP0, 42, 4 },
-	{ DBGBUS_SSPP0, 42, 5 },
-	{ DBGBUS_SSPP0, 42, 6 },
-	{ DBGBUS_SSPP0, 42, 7 },
-
-	{ DBGBUS_SSPP0, 44, 0 },
-	{ DBGBUS_SSPP0, 44, 1 },
-	{ DBGBUS_SSPP0, 44, 2 },
-	{ DBGBUS_SSPP0, 44, 3 },
-	{ DBGBUS_SSPP0, 44, 4 },
-	{ DBGBUS_SSPP0, 44, 5 },
-	{ DBGBUS_SSPP0, 44, 6 },
-	{ DBGBUS_SSPP0, 44, 7 },
-
-	{ DBGBUS_SSPP0, 45, 0 },
-	{ DBGBUS_SSPP0, 45, 1 },
-	{ DBGBUS_SSPP0, 45, 2 },
-	{ DBGBUS_SSPP0, 45, 3 },
-	{ DBGBUS_SSPP0, 45, 4 },
-	{ DBGBUS_SSPP0, 45, 5 },
-	{ DBGBUS_SSPP0, 45, 6 },
-	{ DBGBUS_SSPP0, 45, 7 },
-
-	/* fetch sspp1 */
-	/* vig 1 */
-	{ DBGBUS_SSPP1, 0, 0 },
-	{ DBGBUS_SSPP1, 0, 1 },
-	{ DBGBUS_SSPP1, 0, 2 },
-	{ DBGBUS_SSPP1, 0, 3 },
-	{ DBGBUS_SSPP1, 0, 4 },
-	{ DBGBUS_SSPP1, 0, 5 },
-	{ DBGBUS_SSPP1, 0, 6 },
-	{ DBGBUS_SSPP1, 0, 7 },
-
-	{ DBGBUS_SSPP1, 1, 0 },
-	{ DBGBUS_SSPP1, 1, 1 },
-	{ DBGBUS_SSPP1, 1, 2 },
-	{ DBGBUS_SSPP1, 1, 3 },
-	{ DBGBUS_SSPP1, 1, 4 },
-	{ DBGBUS_SSPP1, 1, 5 },
-	{ DBGBUS_SSPP1, 1, 6 },
-	{ DBGBUS_SSPP1, 1, 7 },
-
-	{ DBGBUS_SSPP1, 2, 0 },
-	{ DBGBUS_SSPP1, 2, 1 },
-	{ DBGBUS_SSPP1, 2, 2 },
-	{ DBGBUS_SSPP1, 2, 3 },
-	{ DBGBUS_SSPP1, 2, 4 },
-	{ DBGBUS_SSPP1, 2, 5 },
-	{ DBGBUS_SSPP1, 2, 6 },
-	{ DBGBUS_SSPP1, 2, 7 },
-
-	{ DBGBUS_SSPP1, 4, 0 },
-	{ DBGBUS_SSPP1, 4, 1 },
-	{ DBGBUS_SSPP1, 4, 2 },
-	{ DBGBUS_SSPP1, 4, 3 },
-	{ DBGBUS_SSPP1, 4, 4 },
-	{ DBGBUS_SSPP1, 4, 5 },
-	{ DBGBUS_SSPP1, 4, 6 },
-	{ DBGBUS_SSPP1, 4, 7 },
-
-	{ DBGBUS_SSPP1, 5, 0 },
-	{ DBGBUS_SSPP1, 5, 1 },
-	{ DBGBUS_SSPP1, 5, 2 },
-	{ DBGBUS_SSPP1, 5, 3 },
-	{ DBGBUS_SSPP1, 5, 4 },
-	{ DBGBUS_SSPP1, 5, 5 },
-	{ DBGBUS_SSPP1, 5, 6 },
-	{ DBGBUS_SSPP1, 5, 7 },
-
-	/* vig 3 */
-	{ DBGBUS_SSPP1, 20, 0 },
-	{ DBGBUS_SSPP1, 20, 1 },
-	{ DBGBUS_SSPP1, 20, 2 },
-	{ DBGBUS_SSPP1, 20, 3 },
-	{ DBGBUS_SSPP1, 20, 4 },
-	{ DBGBUS_SSPP1, 20, 5 },
-	{ DBGBUS_SSPP1, 20, 6 },
-	{ DBGBUS_SSPP1, 20, 7 },
-
-	{ DBGBUS_SSPP1, 21, 0 },
-	{ DBGBUS_SSPP1, 21, 1 },
-	{ DBGBUS_SSPP1, 21, 2 },
-	{ DBGBUS_SSPP1, 21, 3 },
-	{ DBGBUS_SSPP1, 21, 4 },
-	{ DBGBUS_SSPP1, 21, 5 },
-	{ DBGBUS_SSPP1, 21, 6 },
-	{ DBGBUS_SSPP1, 21, 7 },
-
-	{ DBGBUS_SSPP1, 22, 0 },
-	{ DBGBUS_SSPP1, 22, 1 },
-	{ DBGBUS_SSPP1, 22, 2 },
-	{ DBGBUS_SSPP1, 22, 3 },
-	{ DBGBUS_SSPP1, 22, 4 },
-	{ DBGBUS_SSPP1, 22, 5 },
-	{ DBGBUS_SSPP1, 22, 6 },
-	{ DBGBUS_SSPP1, 22, 7 },
-
-	{ DBGBUS_SSPP1, 24, 0 },
-	{ DBGBUS_SSPP1, 24, 1 },
-	{ DBGBUS_SSPP1, 24, 2 },
-	{ DBGBUS_SSPP1, 24, 3 },
-	{ DBGBUS_SSPP1, 24, 4 },
-	{ DBGBUS_SSPP1, 24, 5 },
-	{ DBGBUS_SSPP1, 24, 6 },
-	{ DBGBUS_SSPP1, 24, 7 },
-
-	{ DBGBUS_SSPP1, 25, 0 },
-	{ DBGBUS_SSPP1, 25, 1 },
-	{ DBGBUS_SSPP1, 25, 2 },
-	{ DBGBUS_SSPP1, 25, 3 },
-	{ DBGBUS_SSPP1, 25, 4 },
-	{ DBGBUS_SSPP1, 25, 5 },
-	{ DBGBUS_SSPP1, 25, 6 },
-	{ DBGBUS_SSPP1, 25, 7 },
-
-	/* dma 3 */
-	{ DBGBUS_SSPP1, 30, 0 },
-	{ DBGBUS_SSPP1, 30, 1 },
-	{ DBGBUS_SSPP1, 30, 2 },
-	{ DBGBUS_SSPP1, 30, 3 },
-	{ DBGBUS_SSPP1, 30, 4 },
-	{ DBGBUS_SSPP1, 30, 5 },
-	{ DBGBUS_SSPP1, 30, 6 },
-	{ DBGBUS_SSPP1, 30, 7 },
-
-	{ DBGBUS_SSPP1, 31, 0 },
-	{ DBGBUS_SSPP1, 31, 1 },
-	{ DBGBUS_SSPP1, 31, 2 },
-	{ DBGBUS_SSPP1, 31, 3 },
-	{ DBGBUS_SSPP1, 31, 4 },
-	{ DBGBUS_SSPP1, 31, 5 },
-	{ DBGBUS_SSPP1, 31, 6 },
-	{ DBGBUS_SSPP1, 31, 7 },
-
-	{ DBGBUS_SSPP1, 32, 0 },
-	{ DBGBUS_SSPP1, 32, 1 },
-	{ DBGBUS_SSPP1, 32, 2 },
-	{ DBGBUS_SSPP1, 32, 3 },
-	{ DBGBUS_SSPP1, 32, 4 },
-	{ DBGBUS_SSPP1, 32, 5 },
-	{ DBGBUS_SSPP1, 32, 6 },
-	{ DBGBUS_SSPP1, 32, 7 },
-
-	{ DBGBUS_SSPP1, 33, 0 },
-	{ DBGBUS_SSPP1, 33, 1 },
-	{ DBGBUS_SSPP1, 33, 2 },
-	{ DBGBUS_SSPP1, 33, 3 },
-	{ DBGBUS_SSPP1, 33, 4 },
-	{ DBGBUS_SSPP1, 33, 5 },
-	{ DBGBUS_SSPP1, 33, 6 },
-	{ DBGBUS_SSPP1, 33, 7 },
-
-	{ DBGBUS_SSPP1, 34, 0 },
-	{ DBGBUS_SSPP1, 34, 1 },
-	{ DBGBUS_SSPP1, 34, 2 },
-	{ DBGBUS_SSPP1, 34, 3 },
-	{ DBGBUS_SSPP1, 34, 4 },
-	{ DBGBUS_SSPP1, 34, 5 },
-	{ DBGBUS_SSPP1, 34, 6 },
-	{ DBGBUS_SSPP1, 34, 7 },
-
-	/* dma 1 */
-	{ DBGBUS_SSPP1, 40, 0 },
-	{ DBGBUS_SSPP1, 40, 1 },
-	{ DBGBUS_SSPP1, 40, 2 },
-	{ DBGBUS_SSPP1, 40, 3 },
-	{ DBGBUS_SSPP1, 40, 4 },
-	{ DBGBUS_SSPP1, 40, 5 },
-	{ DBGBUS_SSPP1, 40, 6 },
-	{ DBGBUS_SSPP1, 40, 7 },
-
-	{ DBGBUS_SSPP1, 41, 0 },
-	{ DBGBUS_SSPP1, 41, 1 },
-	{ DBGBUS_SSPP1, 41, 2 },
-	{ DBGBUS_SSPP1, 41, 3 },
-	{ DBGBUS_SSPP1, 41, 4 },
-	{ DBGBUS_SSPP1, 41, 5 },
-	{ DBGBUS_SSPP1, 41, 6 },
-	{ DBGBUS_SSPP1, 41, 7 },
-
-	{ DBGBUS_SSPP1, 42, 0 },
-	{ DBGBUS_SSPP1, 42, 1 },
-	{ DBGBUS_SSPP1, 42, 2 },
-	{ DBGBUS_SSPP1, 42, 3 },
-	{ DBGBUS_SSPP1, 42, 4 },
-	{ DBGBUS_SSPP1, 42, 5 },
-	{ DBGBUS_SSPP1, 42, 6 },
-	{ DBGBUS_SSPP1, 42, 7 },
-
-	{ DBGBUS_SSPP1, 44, 0 },
-	{ DBGBUS_SSPP1, 44, 1 },
-	{ DBGBUS_SSPP1, 44, 2 },
-	{ DBGBUS_SSPP1, 44, 3 },
-	{ DBGBUS_SSPP1, 44, 4 },
-	{ DBGBUS_SSPP1, 44, 5 },
-	{ DBGBUS_SSPP1, 44, 6 },
-	{ DBGBUS_SSPP1, 44, 7 },
-
-	{ DBGBUS_SSPP1, 45, 0 },
-	{ DBGBUS_SSPP1, 45, 1 },
-	{ DBGBUS_SSPP1, 45, 2 },
-	{ DBGBUS_SSPP1, 45, 3 },
-	{ DBGBUS_SSPP1, 45, 4 },
-	{ DBGBUS_SSPP1, 45, 5 },
-	{ DBGBUS_SSPP1, 45, 6 },
-	{ DBGBUS_SSPP1, 45, 7 },
-
-	/* ppb_0 */
-	{ DBGBUS_DSPP, 31, 0, _sde_debug_bus_ppb0_dump },
-	{ DBGBUS_DSPP, 33, 0, _sde_debug_bus_ppb0_dump },
-	{ DBGBUS_DSPP, 35, 0, _sde_debug_bus_ppb0_dump },
-	{ DBGBUS_DSPP, 42, 0, _sde_debug_bus_ppb0_dump },
-	{ DBGBUS_DSPP, 47, 0, _sde_debug_bus_ppb0_dump },
-	{ DBGBUS_DSPP, 49, 0, _sde_debug_bus_ppb0_dump },
-
-	/* ppb_1 */
-	{ DBGBUS_DSPP, 32, 0, _sde_debug_bus_ppb1_dump },
-	{ DBGBUS_DSPP, 34, 0, _sde_debug_bus_ppb1_dump },
-	{ DBGBUS_DSPP, 36, 0, _sde_debug_bus_ppb1_dump },
-	{ DBGBUS_DSPP, 43, 0, _sde_debug_bus_ppb1_dump },
-	{ DBGBUS_DSPP, 48, 0, _sde_debug_bus_ppb1_dump },
-	{ DBGBUS_DSPP, 50, 0, _sde_debug_bus_ppb1_dump },
-
-	/* crossbar */
-	{ DBGBUS_DSPP, 0, 0, _sde_debug_bus_xbar_dump },
-
-	/* rotator */
-	{ DBGBUS_DSPP, 9, 0},
-
-	/* ltm */
-	{ DBGBUS_DSPP, 45, 0 },
-	{ DBGBUS_DSPP, 45, 1 },
-	{ DBGBUS_DSPP, 45, 2 },
-	{ DBGBUS_DSPP, 45, 3 },
-	{ DBGBUS_DSPP, 45, 4 },
-	{ DBGBUS_DSPP, 45, 5 },
-	{ DBGBUS_DSPP, 45, 6 },
-	{ DBGBUS_DSPP, 45, 7 },
-	{ DBGBUS_DSPP, 45, 8 },
-	{ DBGBUS_DSPP, 45, 9 },
-	{ DBGBUS_DSPP, 45, 10 },
-	{ DBGBUS_DSPP, 45, 11 },
-	{ DBGBUS_DSPP, 45, 12 },
-	{ DBGBUS_DSPP, 45, 13 },
-	{ DBGBUS_DSPP, 45, 14 },
-	{ DBGBUS_DSPP, 45, 15 },
-	{ DBGBUS_DSPP, 45, 16 },
-	{ DBGBUS_DSPP, 45, 17 },
-	{ DBGBUS_DSPP, 45, 18 },
-	{ DBGBUS_DSPP, 45, 31 },
-
-	{ DBGBUS_DSPP, 46, 0 },
-	{ DBGBUS_DSPP, 46, 1 },
-	{ DBGBUS_DSPP, 46, 2 },
-	{ DBGBUS_DSPP, 46, 3 },
-	{ DBGBUS_DSPP, 46, 4 },
-	{ DBGBUS_DSPP, 46, 5 },
-	{ DBGBUS_DSPP, 46, 6 },
-	{ DBGBUS_DSPP, 46, 7 },
-	{ DBGBUS_DSPP, 46, 8 },
-	{ DBGBUS_DSPP, 46, 9 },
-	{ DBGBUS_DSPP, 46, 10 },
-	{ DBGBUS_DSPP, 46, 11 },
-	{ DBGBUS_DSPP, 46, 12 },
-	{ DBGBUS_DSPP, 46, 13 },
-	{ DBGBUS_DSPP, 46, 14 },
-	{ DBGBUS_DSPP, 46, 15 },
-	{ DBGBUS_DSPP, 46, 16 },
-	{ DBGBUS_DSPP, 46, 17 },
-	{ DBGBUS_DSPP, 46, 18 },
-	{ DBGBUS_DSPP, 46, 31 },
-
-	/* blend */
-	/* LM0 */
-	{ DBGBUS_DSPP, 63, 1},
-	{ DBGBUS_DSPP, 63, 2},
-	{ DBGBUS_DSPP, 63, 3},
-	{ DBGBUS_DSPP, 63, 4},
-	{ DBGBUS_DSPP, 63, 5},
-	{ DBGBUS_DSPP, 63, 6},
-	{ DBGBUS_DSPP, 63, 7, _sde_debug_bus_lm_dump },
-
-	{ DBGBUS_DSPP, 64, 1},
-	{ DBGBUS_DSPP, 64, 2},
-	{ DBGBUS_DSPP, 64, 3},
-	{ DBGBUS_DSPP, 64, 4},
-	{ DBGBUS_DSPP, 64, 5},
-	{ DBGBUS_DSPP, 64, 6},
-	{ DBGBUS_DSPP, 64, 7},
-
-	{ DBGBUS_DSPP, 65, 1},
-	{ DBGBUS_DSPP, 65, 2},
-	{ DBGBUS_DSPP, 65, 3},
-	{ DBGBUS_DSPP, 65, 4},
-	{ DBGBUS_DSPP, 65, 5},
-	{ DBGBUS_DSPP, 65, 6},
-	{ DBGBUS_DSPP, 65, 7},
-
-	{ DBGBUS_DSPP, 66, 1},
-	{ DBGBUS_DSPP, 66, 2},
-	{ DBGBUS_DSPP, 66, 3},
-	{ DBGBUS_DSPP, 66, 4},
-	{ DBGBUS_DSPP, 66, 5},
-	{ DBGBUS_DSPP, 66, 6},
-	{ DBGBUS_DSPP, 66, 7},
-
-	{ DBGBUS_DSPP, 67, 1},
-	{ DBGBUS_DSPP, 67, 2},
-	{ DBGBUS_DSPP, 67, 3},
-	{ DBGBUS_DSPP, 67, 4},
-	{ DBGBUS_DSPP, 67, 5},
-	{ DBGBUS_DSPP, 67, 6},
-	{ DBGBUS_DSPP, 67, 7},
-
-	{ DBGBUS_DSPP, 68, 1},
-	{ DBGBUS_DSPP, 68, 2},
-	{ DBGBUS_DSPP, 68, 3},
-	{ DBGBUS_DSPP, 68, 4},
-	{ DBGBUS_DSPP, 68, 5},
-	{ DBGBUS_DSPP, 68, 6},
-	{ DBGBUS_DSPP, 68, 7},
-
-	{ DBGBUS_DSPP, 69, 1},
-	{ DBGBUS_DSPP, 69, 2},
-	{ DBGBUS_DSPP, 69, 3},
-	{ DBGBUS_DSPP, 69, 4},
-	{ DBGBUS_DSPP, 69, 5},
-	{ DBGBUS_DSPP, 69, 6},
-	{ DBGBUS_DSPP, 69, 7},
-
-	{ DBGBUS_DSPP, 84, 1},
-	{ DBGBUS_DSPP, 84, 2},
-	{ DBGBUS_DSPP, 84, 3},
-	{ DBGBUS_DSPP, 84, 4},
-	{ DBGBUS_DSPP, 84, 5},
-	{ DBGBUS_DSPP, 84, 6},
-	{ DBGBUS_DSPP, 84, 7},
-
-	{ DBGBUS_DSPP, 85, 1},
-	{ DBGBUS_DSPP, 85, 2},
-	{ DBGBUS_DSPP, 85, 3},
-	{ DBGBUS_DSPP, 85, 4},
-	{ DBGBUS_DSPP, 85, 5},
-	{ DBGBUS_DSPP, 85, 6},
-	{ DBGBUS_DSPP, 85, 7},
-
-	{ DBGBUS_DSPP, 86, 1},
-	{ DBGBUS_DSPP, 86, 2},
-	{ DBGBUS_DSPP, 86, 3},
-	{ DBGBUS_DSPP, 86, 4},
-	{ DBGBUS_DSPP, 86, 5},
-	{ DBGBUS_DSPP, 86, 6},
-	{ DBGBUS_DSPP, 86, 7},
-
-	{ DBGBUS_DSPP, 87, 1},
-	{ DBGBUS_DSPP, 87, 2},
-	{ DBGBUS_DSPP, 87, 3},
-	{ DBGBUS_DSPP, 87, 4},
-	{ DBGBUS_DSPP, 87, 5},
-	{ DBGBUS_DSPP, 87, 6},
-	{ DBGBUS_DSPP, 87, 7},
-
-	/* LM1 */
-	{ DBGBUS_DSPP, 70, 1},
-	{ DBGBUS_DSPP, 70, 2},
-	{ DBGBUS_DSPP, 70, 3},
-	{ DBGBUS_DSPP, 70, 4},
-	{ DBGBUS_DSPP, 70, 5},
-	{ DBGBUS_DSPP, 70, 6},
-	{ DBGBUS_DSPP, 70, 7, _sde_debug_bus_lm_dump },
-
-	{ DBGBUS_DSPP, 71, 1},
-	{ DBGBUS_DSPP, 71, 2},
-	{ DBGBUS_DSPP, 71, 3},
-	{ DBGBUS_DSPP, 71, 4},
-	{ DBGBUS_DSPP, 71, 5},
-	{ DBGBUS_DSPP, 71, 6},
-	{ DBGBUS_DSPP, 71, 7},
-
-	{ DBGBUS_DSPP, 72, 1},
-	{ DBGBUS_DSPP, 72, 2},
-	{ DBGBUS_DSPP, 72, 3},
-	{ DBGBUS_DSPP, 72, 4},
-	{ DBGBUS_DSPP, 72, 5},
-	{ DBGBUS_DSPP, 72, 6},
-	{ DBGBUS_DSPP, 72, 7},
-
-	{ DBGBUS_DSPP, 73, 1},
-	{ DBGBUS_DSPP, 73, 2},
-	{ DBGBUS_DSPP, 73, 3},
-	{ DBGBUS_DSPP, 73, 4},
-	{ DBGBUS_DSPP, 73, 5},
-	{ DBGBUS_DSPP, 73, 6},
-	{ DBGBUS_DSPP, 73, 7},
-
-	{ DBGBUS_DSPP, 74, 1},
-	{ DBGBUS_DSPP, 74, 2},
-	{ DBGBUS_DSPP, 74, 3},
-	{ DBGBUS_DSPP, 74, 4},
-	{ DBGBUS_DSPP, 74, 5},
-	{ DBGBUS_DSPP, 74, 6},
-	{ DBGBUS_DSPP, 74, 7},
-
-	{ DBGBUS_DSPP, 75, 1},
-	{ DBGBUS_DSPP, 75, 2},
-	{ DBGBUS_DSPP, 75, 3},
-	{ DBGBUS_DSPP, 75, 4},
-	{ DBGBUS_DSPP, 75, 5},
-	{ DBGBUS_DSPP, 75, 6},
-	{ DBGBUS_DSPP, 75, 7},
-
-	{ DBGBUS_DSPP, 76, 1},
-	{ DBGBUS_DSPP, 76, 2},
-	{ DBGBUS_DSPP, 76, 3},
-	{ DBGBUS_DSPP, 76, 4},
-	{ DBGBUS_DSPP, 76, 5},
-	{ DBGBUS_DSPP, 76, 6},
-	{ DBGBUS_DSPP, 76, 7},
-
-	{ DBGBUS_DSPP, 88, 1},
-	{ DBGBUS_DSPP, 88, 2},
-	{ DBGBUS_DSPP, 88, 3},
-	{ DBGBUS_DSPP, 88, 4},
-	{ DBGBUS_DSPP, 88, 5},
-	{ DBGBUS_DSPP, 88, 6},
-	{ DBGBUS_DSPP, 88, 7},
-
-	{ DBGBUS_DSPP, 89, 1},
-	{ DBGBUS_DSPP, 89, 2},
-	{ DBGBUS_DSPP, 89, 3},
-	{ DBGBUS_DSPP, 89, 4},
-	{ DBGBUS_DSPP, 89, 5},
-	{ DBGBUS_DSPP, 89, 6},
-	{ DBGBUS_DSPP, 89, 7},
-
-	{ DBGBUS_DSPP, 90, 1},
-	{ DBGBUS_DSPP, 90, 2},
-	{ DBGBUS_DSPP, 90, 3},
-	{ DBGBUS_DSPP, 90, 4},
-	{ DBGBUS_DSPP, 90, 5},
-	{ DBGBUS_DSPP, 90, 6},
-	{ DBGBUS_DSPP, 90, 7},
-
-	{ DBGBUS_DSPP, 91, 1},
-	{ DBGBUS_DSPP, 91, 2},
-	{ DBGBUS_DSPP, 91, 3},
-	{ DBGBUS_DSPP, 91, 4},
-	{ DBGBUS_DSPP, 91, 5},
-	{ DBGBUS_DSPP, 91, 6},
-	{ DBGBUS_DSPP, 91, 7},
-
-	/* LM2 */
-	{ DBGBUS_DSPP, 77, 0},
-	{ DBGBUS_DSPP, 77, 1},
-	{ DBGBUS_DSPP, 77, 2},
-	{ DBGBUS_DSPP, 77, 3},
-	{ DBGBUS_DSPP, 77, 4},
-	{ DBGBUS_DSPP, 77, 5},
-	{ DBGBUS_DSPP, 77, 6},
-	{ DBGBUS_DSPP, 77, 7, _sde_debug_bus_lm_dump },
-
-	{ DBGBUS_DSPP, 78, 0},
-	{ DBGBUS_DSPP, 78, 1},
-	{ DBGBUS_DSPP, 78, 2},
-	{ DBGBUS_DSPP, 78, 3},
-	{ DBGBUS_DSPP, 78, 4},
-	{ DBGBUS_DSPP, 78, 5},
-	{ DBGBUS_DSPP, 78, 6},
-	{ DBGBUS_DSPP, 78, 7},
-
-	{ DBGBUS_DSPP, 79, 0},
-	{ DBGBUS_DSPP, 79, 1},
-	{ DBGBUS_DSPP, 79, 2},
-	{ DBGBUS_DSPP, 79, 3},
-	{ DBGBUS_DSPP, 79, 4},
-	{ DBGBUS_DSPP, 79, 5},
-	{ DBGBUS_DSPP, 79, 6},
-	{ DBGBUS_DSPP, 79, 7},
-
-	{ DBGBUS_DSPP, 80, 0},
-	{ DBGBUS_DSPP, 80, 1},
-	{ DBGBUS_DSPP, 80, 2},
-	{ DBGBUS_DSPP, 80, 3},
-	{ DBGBUS_DSPP, 80, 4},
-	{ DBGBUS_DSPP, 80, 5},
-	{ DBGBUS_DSPP, 80, 6},
-	{ DBGBUS_DSPP, 80, 7},
-
-	{ DBGBUS_DSPP, 81, 0},
-	{ DBGBUS_DSPP, 81, 1},
-	{ DBGBUS_DSPP, 81, 2},
-	{ DBGBUS_DSPP, 81, 3},
-	{ DBGBUS_DSPP, 81, 4},
-	{ DBGBUS_DSPP, 81, 5},
-	{ DBGBUS_DSPP, 81, 6},
-	{ DBGBUS_DSPP, 81, 7},
-
-	{ DBGBUS_DSPP, 82, 0},
-	{ DBGBUS_DSPP, 82, 1},
-	{ DBGBUS_DSPP, 82, 2},
-	{ DBGBUS_DSPP, 82, 3},
-	{ DBGBUS_DSPP, 82, 4},
-	{ DBGBUS_DSPP, 82, 5},
-	{ DBGBUS_DSPP, 82, 6},
-	{ DBGBUS_DSPP, 82, 7},
-
-	{ DBGBUS_DSPP, 83, 0},
-	{ DBGBUS_DSPP, 83, 1},
-	{ DBGBUS_DSPP, 83, 2},
-	{ DBGBUS_DSPP, 83, 3},
-	{ DBGBUS_DSPP, 83, 4},
-	{ DBGBUS_DSPP, 83, 5},
-	{ DBGBUS_DSPP, 83, 6},
-	{ DBGBUS_DSPP, 83, 7},
-
-	{ DBGBUS_DSPP, 92, 1},
-	{ DBGBUS_DSPP, 92, 2},
-	{ DBGBUS_DSPP, 92, 3},
-	{ DBGBUS_DSPP, 92, 4},
-	{ DBGBUS_DSPP, 92, 5},
-	{ DBGBUS_DSPP, 92, 6},
-	{ DBGBUS_DSPP, 92, 7},
-
-	{ DBGBUS_DSPP, 93, 1},
-	{ DBGBUS_DSPP, 93, 2},
-	{ DBGBUS_DSPP, 93, 3},
-	{ DBGBUS_DSPP, 93, 4},
-	{ DBGBUS_DSPP, 93, 5},
-	{ DBGBUS_DSPP, 93, 6},
-	{ DBGBUS_DSPP, 93, 7},
-
-	{ DBGBUS_DSPP, 94, 1},
-	{ DBGBUS_DSPP, 94, 2},
-	{ DBGBUS_DSPP, 94, 3},
-	{ DBGBUS_DSPP, 94, 4},
-	{ DBGBUS_DSPP, 94, 5},
-	{ DBGBUS_DSPP, 94, 6},
-	{ DBGBUS_DSPP, 94, 7},
-
-	{ DBGBUS_DSPP, 95, 1},
-	{ DBGBUS_DSPP, 95, 2},
-	{ DBGBUS_DSPP, 95, 3},
-	{ DBGBUS_DSPP, 95, 4},
-	{ DBGBUS_DSPP, 95, 5},
-	{ DBGBUS_DSPP, 95, 6},
-	{ DBGBUS_DSPP, 95, 7},
-
-	/* LM3 */
-	{ DBGBUS_DSPP, 110, 1},
-	{ DBGBUS_DSPP, 110, 2},
-	{ DBGBUS_DSPP, 110, 3},
-	{ DBGBUS_DSPP, 110, 4},
-	{ DBGBUS_DSPP, 110, 5},
-	{ DBGBUS_DSPP, 110, 6},
-	{ DBGBUS_DSPP, 110, 7, _sde_debug_bus_lm_dump },
-
-	{ DBGBUS_DSPP, 111, 1},
-	{ DBGBUS_DSPP, 111, 2},
-	{ DBGBUS_DSPP, 111, 3},
-	{ DBGBUS_DSPP, 111, 4},
-	{ DBGBUS_DSPP, 111, 5},
-	{ DBGBUS_DSPP, 111, 6},
-	{ DBGBUS_DSPP, 111, 7},
-
-	{ DBGBUS_DSPP, 112, 1},
-	{ DBGBUS_DSPP, 112, 2},
-	{ DBGBUS_DSPP, 112, 3},
-	{ DBGBUS_DSPP, 112, 4},
-	{ DBGBUS_DSPP, 112, 5},
-	{ DBGBUS_DSPP, 112, 6},
-	{ DBGBUS_DSPP, 112, 7},
-
-	{ DBGBUS_DSPP, 113, 1},
-	{ DBGBUS_DSPP, 113, 2},
-	{ DBGBUS_DSPP, 113, 3},
-	{ DBGBUS_DSPP, 113, 4},
-	{ DBGBUS_DSPP, 113, 5},
-	{ DBGBUS_DSPP, 113, 6},
-	{ DBGBUS_DSPP, 113, 7},
-
-	{ DBGBUS_DSPP, 114, 1},
-	{ DBGBUS_DSPP, 114, 2},
-	{ DBGBUS_DSPP, 114, 3},
-	{ DBGBUS_DSPP, 114, 4},
-	{ DBGBUS_DSPP, 114, 5},
-	{ DBGBUS_DSPP, 114, 6},
-	{ DBGBUS_DSPP, 114, 7},
-
-	{ DBGBUS_DSPP, 115, 1},
-	{ DBGBUS_DSPP, 115, 2},
-	{ DBGBUS_DSPP, 115, 3},
-	{ DBGBUS_DSPP, 115, 4},
-	{ DBGBUS_DSPP, 115, 5},
-	{ DBGBUS_DSPP, 115, 6},
-	{ DBGBUS_DSPP, 115, 7},
-
-	{ DBGBUS_DSPP, 116, 1},
-	{ DBGBUS_DSPP, 116, 2},
-	{ DBGBUS_DSPP, 116, 3},
-	{ DBGBUS_DSPP, 116, 4},
-	{ DBGBUS_DSPP, 116, 5},
-	{ DBGBUS_DSPP, 116, 6},
-	{ DBGBUS_DSPP, 116, 7},
-
-	{ DBGBUS_DSPP, 117, 1},
-	{ DBGBUS_DSPP, 117, 2},
-	{ DBGBUS_DSPP, 117, 3},
-	{ DBGBUS_DSPP, 117, 4},
-	{ DBGBUS_DSPP, 117, 5},
-	{ DBGBUS_DSPP, 117, 6},
-	{ DBGBUS_DSPP, 117, 7},
-
-	{ DBGBUS_DSPP, 118, 1},
-	{ DBGBUS_DSPP, 118, 2},
-	{ DBGBUS_DSPP, 118, 3},
-	{ DBGBUS_DSPP, 118, 4},
-	{ DBGBUS_DSPP, 118, 5},
-	{ DBGBUS_DSPP, 118, 6},
-	{ DBGBUS_DSPP, 118, 7},
-
-	{ DBGBUS_DSPP, 119, 1},
-	{ DBGBUS_DSPP, 119, 2},
-	{ DBGBUS_DSPP, 119, 3},
-	{ DBGBUS_DSPP, 119, 4},
-	{ DBGBUS_DSPP, 119, 5},
-	{ DBGBUS_DSPP, 119, 6},
-	{ DBGBUS_DSPP, 119, 7},
-
-	{ DBGBUS_DSPP, 120, 1},
-	{ DBGBUS_DSPP, 120, 2},
-	{ DBGBUS_DSPP, 120, 3},
-	{ DBGBUS_DSPP, 120, 4},
-	{ DBGBUS_DSPP, 120, 5},
-	{ DBGBUS_DSPP, 120, 6},
-	{ DBGBUS_DSPP, 120, 7},
-
-	/* LM4 */
-	{ DBGBUS_DSPP, 96, 1},
-	{ DBGBUS_DSPP, 96, 2},
-	{ DBGBUS_DSPP, 96, 3},
-	{ DBGBUS_DSPP, 96, 4},
-	{ DBGBUS_DSPP, 96, 5},
-	{ DBGBUS_DSPP, 96, 6},
-	{ DBGBUS_DSPP, 96, 7, _sde_debug_bus_lm_dump },
-
-	{ DBGBUS_DSPP, 97, 1},
-	{ DBGBUS_DSPP, 97, 2},
-	{ DBGBUS_DSPP, 97, 3},
-	{ DBGBUS_DSPP, 97, 4},
-	{ DBGBUS_DSPP, 97, 5},
-	{ DBGBUS_DSPP, 97, 6},
-	{ DBGBUS_DSPP, 97, 7},
-
-	{ DBGBUS_DSPP, 98, 1},
-	{ DBGBUS_DSPP, 98, 2},
-	{ DBGBUS_DSPP, 98, 3},
-	{ DBGBUS_DSPP, 98, 4},
-	{ DBGBUS_DSPP, 98, 5},
-	{ DBGBUS_DSPP, 98, 6},
-	{ DBGBUS_DSPP, 98, 7},
-
-	{ DBGBUS_DSPP, 99, 1},
-	{ DBGBUS_DSPP, 99, 2},
-	{ DBGBUS_DSPP, 99, 3},
-	{ DBGBUS_DSPP, 99, 4},
-	{ DBGBUS_DSPP, 99, 5},
-	{ DBGBUS_DSPP, 99, 6},
-	{ DBGBUS_DSPP, 99, 7},
-
-	{ DBGBUS_DSPP, 100, 1},
-	{ DBGBUS_DSPP, 100, 2},
-	{ DBGBUS_DSPP, 100, 3},
-	{ DBGBUS_DSPP, 100, 4},
-	{ DBGBUS_DSPP, 100, 5},
-	{ DBGBUS_DSPP, 100, 6},
-	{ DBGBUS_DSPP, 100, 7},
-
-	{ DBGBUS_DSPP, 101, 1},
-	{ DBGBUS_DSPP, 101, 2},
-	{ DBGBUS_DSPP, 101, 3},
-	{ DBGBUS_DSPP, 101, 4},
-	{ DBGBUS_DSPP, 101, 5},
-	{ DBGBUS_DSPP, 101, 6},
-	{ DBGBUS_DSPP, 101, 7},
-
-	{ DBGBUS_DSPP, 103, 1},
-	{ DBGBUS_DSPP, 103, 2},
-	{ DBGBUS_DSPP, 103, 3},
-	{ DBGBUS_DSPP, 103, 4},
-	{ DBGBUS_DSPP, 103, 5},
-	{ DBGBUS_DSPP, 103, 6},
-	{ DBGBUS_DSPP, 103, 7},
-
-	{ DBGBUS_DSPP, 105, 1},
-	{ DBGBUS_DSPP, 105, 2},
-	{ DBGBUS_DSPP, 105, 3},
-	{ DBGBUS_DSPP, 105, 4},
-	{ DBGBUS_DSPP, 105, 5},
-	{ DBGBUS_DSPP, 105, 6},
-	{ DBGBUS_DSPP, 105, 7},
-
-	{ DBGBUS_DSPP, 106, 1},
-	{ DBGBUS_DSPP, 106, 2},
-	{ DBGBUS_DSPP, 106, 3},
-	{ DBGBUS_DSPP, 106, 4},
-	{ DBGBUS_DSPP, 106, 5},
-	{ DBGBUS_DSPP, 106, 6},
-	{ DBGBUS_DSPP, 106, 7},
-
-	{ DBGBUS_DSPP, 109, 1},
-	{ DBGBUS_DSPP, 109, 2},
-	{ DBGBUS_DSPP, 109, 3},
-	{ DBGBUS_DSPP, 109, 4},
-	{ DBGBUS_DSPP, 109, 5},
-	{ DBGBUS_DSPP, 109, 6},
-	{ DBGBUS_DSPP, 109, 7},
-
-	{ DBGBUS_DSPP, 122, 1},
-	{ DBGBUS_DSPP, 122, 2},
-	{ DBGBUS_DSPP, 122, 3},
-	{ DBGBUS_DSPP, 122, 4},
-	{ DBGBUS_DSPP, 122, 5},
-	{ DBGBUS_DSPP, 122, 6},
-	{ DBGBUS_DSPP, 122, 7},
-
-	/* LM5 */
-	{ DBGBUS_DSPP, 124, 1},
-	{ DBGBUS_DSPP, 124, 2},
-	{ DBGBUS_DSPP, 124, 3},
-	{ DBGBUS_DSPP, 124, 4},
-	{ DBGBUS_DSPP, 124, 5},
-	{ DBGBUS_DSPP, 124, 6},
-	{ DBGBUS_DSPP, 124, 7, _sde_debug_bus_lm_dump },
-
-	{ DBGBUS_DSPP, 125, 1},
-	{ DBGBUS_DSPP, 125, 2},
-	{ DBGBUS_DSPP, 125, 3},
-	{ DBGBUS_DSPP, 125, 4},
-	{ DBGBUS_DSPP, 125, 5},
-	{ DBGBUS_DSPP, 125, 6},
-	{ DBGBUS_DSPP, 125, 7},
-
-	{ DBGBUS_DSPP, 126, 1},
-	{ DBGBUS_DSPP, 126, 2},
-	{ DBGBUS_DSPP, 126, 3},
-	{ DBGBUS_DSPP, 126, 4},
-	{ DBGBUS_DSPP, 126, 5},
-	{ DBGBUS_DSPP, 126, 6},
-	{ DBGBUS_DSPP, 126, 7},
-
-	{ DBGBUS_DSPP, 127, 1},
-	{ DBGBUS_DSPP, 127, 2},
-	{ DBGBUS_DSPP, 127, 3},
-	{ DBGBUS_DSPP, 127, 4},
-	{ DBGBUS_DSPP, 127, 5},
-	{ DBGBUS_DSPP, 127, 6},
-	{ DBGBUS_DSPP, 127, 7},
-
-	{ DBGBUS_DSPP, 128, 1},
-	{ DBGBUS_DSPP, 128, 2},
-	{ DBGBUS_DSPP, 128, 3},
-	{ DBGBUS_DSPP, 128, 4},
-	{ DBGBUS_DSPP, 128, 5},
-	{ DBGBUS_DSPP, 128, 6},
-	{ DBGBUS_DSPP, 128, 7},
-
-	{ DBGBUS_DSPP, 129, 1},
-	{ DBGBUS_DSPP, 129, 2},
-	{ DBGBUS_DSPP, 129, 3},
-	{ DBGBUS_DSPP, 129, 4},
-	{ DBGBUS_DSPP, 129, 5},
-	{ DBGBUS_DSPP, 129, 6},
-	{ DBGBUS_DSPP, 129, 7},
-
-	{ DBGBUS_DSPP, 131, 1},
-	{ DBGBUS_DSPP, 131, 2},
-	{ DBGBUS_DSPP, 131, 3},
-	{ DBGBUS_DSPP, 131, 4},
-	{ DBGBUS_DSPP, 131, 5},
-	{ DBGBUS_DSPP, 131, 6},
-	{ DBGBUS_DSPP, 131, 7},
-
-	{ DBGBUS_DSPP, 132, 1},
-	{ DBGBUS_DSPP, 132, 2},
-	{ DBGBUS_DSPP, 132, 3},
-	{ DBGBUS_DSPP, 132, 4},
-	{ DBGBUS_DSPP, 132, 5},
-	{ DBGBUS_DSPP, 132, 6},
-	{ DBGBUS_DSPP, 132, 7},
-
-	{ DBGBUS_DSPP, 133, 1},
-	{ DBGBUS_DSPP, 133, 2},
-	{ DBGBUS_DSPP, 133, 3},
-	{ DBGBUS_DSPP, 133, 4},
-	{ DBGBUS_DSPP, 133, 5},
-	{ DBGBUS_DSPP, 133, 6},
-	{ DBGBUS_DSPP, 133, 7},
-
-	{ DBGBUS_DSPP, 134, 1},
-	{ DBGBUS_DSPP, 134, 2},
-	{ DBGBUS_DSPP, 134, 3},
-	{ DBGBUS_DSPP, 134, 4},
-	{ DBGBUS_DSPP, 134, 5},
-	{ DBGBUS_DSPP, 134, 6},
-	{ DBGBUS_DSPP, 134, 7},
-
-	{ DBGBUS_DSPP, 135, 1},
-	{ DBGBUS_DSPP, 135, 2},
-	{ DBGBUS_DSPP, 135, 3},
-	{ DBGBUS_DSPP, 135, 4},
-	{ DBGBUS_DSPP, 135, 5},
-	{ DBGBUS_DSPP, 135, 6},
-	{ DBGBUS_DSPP, 135, 7},
-
-	/* csc */
-	{ DBGBUS_SSPP0, 7, 0},
-	{ DBGBUS_SSPP0, 7, 1},
-	{ DBGBUS_SSPP0, 7, 2},
-	{ DBGBUS_SSPP0, 27, 0},
-	{ DBGBUS_SSPP0, 27, 1},
-	{ DBGBUS_SSPP0, 27, 2},
-	{ DBGBUS_SSPP1, 7, 0},
-	{ DBGBUS_SSPP1, 7, 1},
-	{ DBGBUS_SSPP1, 7, 2},
-	{ DBGBUS_SSPP1, 27, 0},
-	{ DBGBUS_SSPP1, 27, 1},
-	{ DBGBUS_SSPP1, 27, 2},
-
-	/* pcc */
-	{ DBGBUS_SSPP0, 43, 3},
-	{ DBGBUS_SSPP0, 47, 3},
-	{ DBGBUS_SSPP1, 43, 3},
-	{ DBGBUS_SSPP1, 47, 3},
-
-	/* spa */
-	{ DBGBUS_SSPP0, 8,  0},
-	{ DBGBUS_SSPP0, 28, 0},
-	{ DBGBUS_SSPP1, 8,  0},
-	{ DBGBUS_SSPP1, 28, 0},
-
-	/* dspp pa */
-	{ DBGBUS_DSPP, 13, 0},
-	{ DBGBUS_DSPP, 19, 0},
-	{ DBGBUS_DSPP, 24, 0},
-	{ DBGBUS_DSPP, 37, 0},
-
-	/* igc */
-	{ DBGBUS_SSPP0, 39, 0},
-	{ DBGBUS_SSPP0, 39, 1},
-	{ DBGBUS_SSPP0, 39, 2},
-
-	{ DBGBUS_SSPP1, 39, 0},
-	{ DBGBUS_SSPP1, 39, 1},
-	{ DBGBUS_SSPP1, 39, 2},
-
-	{ DBGBUS_SSPP0, 46, 0},
-	{ DBGBUS_SSPP0, 46, 1},
-	{ DBGBUS_SSPP0, 46, 2},
-
-	{ DBGBUS_SSPP1, 46, 0},
-	{ DBGBUS_SSPP1, 46, 1},
-	{ DBGBUS_SSPP1, 46, 2},
-
-	{ DBGBUS_DSPP, 14, 0},
-	{ DBGBUS_DSPP, 14, 1},
-	{ DBGBUS_DSPP, 14, 2},
-	{ DBGBUS_DSPP, 20, 0},
-	{ DBGBUS_DSPP, 20, 1},
-	{ DBGBUS_DSPP, 20, 2},
-	{ DBGBUS_DSPP, 25, 0},
-	{ DBGBUS_DSPP, 25, 1},
-	{ DBGBUS_DSPP, 25, 2},
-	{ DBGBUS_DSPP, 38, 0},
-	{ DBGBUS_DSPP, 38, 1},
-	{ DBGBUS_DSPP, 38, 2},
-
-	/* rc0 */
-	{ DBGBUS_DSPP, 52, 0},
-	{ DBGBUS_DSPP, 52, 1},
-	{ DBGBUS_DSPP, 52, 2},
-	{ DBGBUS_DSPP, 52, 7},
-
-	/* rc1 */
-	{ DBGBUS_DSPP, 53, 0},
-	{ DBGBUS_DSPP, 53, 1},
-	{ DBGBUS_DSPP, 53, 2},
-	{ DBGBUS_DSPP, 53, 7},
-
-	/* spr0 */
-	{ DBGBUS_DSPP, 54, 2},
-	{ DBGBUS_DSPP, 54, 3},
-	{ DBGBUS_DSPP, 54, 4},
-	{ DBGBUS_DSPP, 54, 5},
-	{ DBGBUS_DSPP, 54, 6},
-	{ DBGBUS_DSPP, 54, 7},
-	{ DBGBUS_DSPP, 54, 8},
-	{ DBGBUS_DSPP, 54, 9},
-	{ DBGBUS_DSPP, 54, 10},
-	{ DBGBUS_DSPP, 54, 11},
-	{ DBGBUS_DSPP, 54, 12},
-	{ DBGBUS_DSPP, 54, 13},
-	{ DBGBUS_DSPP, 54, 31},
-
-	/* spr1 */
-	{ DBGBUS_DSPP, 55, 2},
-	{ DBGBUS_DSPP, 55, 3},
-	{ DBGBUS_DSPP, 55, 4},
-	{ DBGBUS_DSPP, 55, 5},
-	{ DBGBUS_DSPP, 55, 6},
-	{ DBGBUS_DSPP, 55, 7},
-	{ DBGBUS_DSPP, 55, 8},
-	{ DBGBUS_DSPP, 55, 9},
-	{ DBGBUS_DSPP, 55, 10},
-	{ DBGBUS_DSPP, 55, 11},
-	{ DBGBUS_DSPP, 55, 12},
-	{ DBGBUS_DSPP, 55, 13},
-	{ DBGBUS_DSPP, 55, 31},
-
-	/* demura0 */
-	{ DBGBUS_DSPP, 56, 0},
-	{ DBGBUS_DSPP, 56, 1},
-	{ DBGBUS_DSPP, 56, 2},
-	{ DBGBUS_DSPP, 56, 3},
-	{ DBGBUS_DSPP, 56, 4},
-	{ DBGBUS_DSPP, 56, 5},
-	{ DBGBUS_DSPP, 56, 6},
-	{ DBGBUS_DSPP, 56, 7},
-
-	/* demura1 */
-	{ DBGBUS_DSPP, 57, 0},
-	{ DBGBUS_DSPP, 57, 1},
-	{ DBGBUS_DSPP, 57, 2},
-	{ DBGBUS_DSPP, 57, 3},
-	{ DBGBUS_DSPP, 57, 4},
-	{ DBGBUS_DSPP, 57, 5},
-	{ DBGBUS_DSPP, 57, 6},
-	{ DBGBUS_DSPP, 57, 7},
-
-	/* intf0-3 */
-	{ DBGBUS_PERIPH, 0, 0},
-	{ DBGBUS_PERIPH, 1, 0},
-	{ DBGBUS_PERIPH, 2, 0},
-	{ DBGBUS_PERIPH, 3, 0},
-	{ DBGBUS_PERIPH, 4, 0},
-	{ DBGBUS_PERIPH, 5, 0},
-
-	/* te counter wrapper */
-	{ DBGBUS_PERIPH, 60, 0},
-	{ DBGBUS_PERIPH, 60, 1},
-	{ DBGBUS_PERIPH, 60, 2},
-	{ DBGBUS_PERIPH, 60, 3},
-	{ DBGBUS_PERIPH, 60, 4},
-	{ DBGBUS_PERIPH, 60, 5},
-
-	/* dsc0 */
-	{ DBGBUS_PERIPH, 47, 0},
-	{ DBGBUS_PERIPH, 47, 1},
-	{ DBGBUS_PERIPH, 47, 2},
-	{ DBGBUS_PERIPH, 47, 3},
-	{ DBGBUS_PERIPH, 47, 4},
-	{ DBGBUS_PERIPH, 47, 5},
-	{ DBGBUS_PERIPH, 47, 6},
-	{ DBGBUS_PERIPH, 47, 7},
-
-	/* dsc1 */
-	{ DBGBUS_PERIPH, 48, 0},
-	{ DBGBUS_PERIPH, 48, 1},
-	{ DBGBUS_PERIPH, 48, 2},
-	{ DBGBUS_PERIPH, 48, 3},
-	{ DBGBUS_PERIPH, 48, 4},
-	{ DBGBUS_PERIPH, 48, 5},
-	{ DBGBUS_PERIPH, 48, 6},
-	{ DBGBUS_PERIPH, 48, 7},
-
-	/* dsc2 */
-	{ DBGBUS_PERIPH, 50, 0},
-	{ DBGBUS_PERIPH, 50, 1},
-	{ DBGBUS_PERIPH, 50, 2},
-	{ DBGBUS_PERIPH, 50, 3},
-	{ DBGBUS_PERIPH, 50, 4},
-	{ DBGBUS_PERIPH, 50, 5},
-	{ DBGBUS_PERIPH, 50, 6},
-	{ DBGBUS_PERIPH, 50, 7},
-
-	/* dsc3 */
-	{ DBGBUS_PERIPH, 51, 0},
-	{ DBGBUS_PERIPH, 51, 1},
-	{ DBGBUS_PERIPH, 51, 2},
-	{ DBGBUS_PERIPH, 51, 3},
-	{ DBGBUS_PERIPH, 51, 4},
-	{ DBGBUS_PERIPH, 51, 5},
-	{ DBGBUS_PERIPH, 51, 6},
-	{ DBGBUS_PERIPH, 51, 7},
-
-	/* dsc4 */
-	{ DBGBUS_PERIPH, 52, 0},
-	{ DBGBUS_PERIPH, 52, 1},
-	{ DBGBUS_PERIPH, 52, 2},
-	{ DBGBUS_PERIPH, 52, 3},
-	{ DBGBUS_PERIPH, 52, 4},
-	{ DBGBUS_PERIPH, 52, 5},
-	{ DBGBUS_PERIPH, 52, 6},
-	{ DBGBUS_PERIPH, 52, 7},
-
-	/* dsc5 */
-	{ DBGBUS_PERIPH, 53, 0},
-	{ DBGBUS_PERIPH, 53, 1},
-	{ DBGBUS_PERIPH, 53, 2},
-	{ DBGBUS_PERIPH, 53, 3},
-	{ DBGBUS_PERIPH, 53, 4},
-	{ DBGBUS_PERIPH, 53, 5},
-	{ DBGBUS_PERIPH, 53, 6},
-	{ DBGBUS_PERIPH, 53, 7},
-
-	/* tear-check */
-	/* INTF_0 */
-	{ DBGBUS_PERIPH, 63, 0 },
-	{ DBGBUS_PERIPH, 63, 1 },
-	{ DBGBUS_PERIPH, 63, 2 },
-	{ DBGBUS_PERIPH, 63, 3 },
-	{ DBGBUS_PERIPH, 63, 4 },
-	{ DBGBUS_PERIPH, 63, 5 },
-	{ DBGBUS_PERIPH, 63, 6 },
-	{ DBGBUS_PERIPH, 63, 7 },
-
-	/* INTF_1 */
-	{ DBGBUS_PERIPH, 64, 0 },
-	{ DBGBUS_PERIPH, 64, 1 },
-	{ DBGBUS_PERIPH, 64, 2 },
-	{ DBGBUS_PERIPH, 64, 3 },
-	{ DBGBUS_PERIPH, 64, 4 },
-	{ DBGBUS_PERIPH, 64, 5 },
-	{ DBGBUS_PERIPH, 64, 6 },
-	{ DBGBUS_PERIPH, 64, 7 },
-
-	/* INTF_2 */
-	{ DBGBUS_PERIPH, 65, 0 },
-	{ DBGBUS_PERIPH, 65, 1 },
-	{ DBGBUS_PERIPH, 65, 2 },
-	{ DBGBUS_PERIPH, 65, 3 },
-	{ DBGBUS_PERIPH, 65, 4 },
-	{ DBGBUS_PERIPH, 65, 5 },
-	{ DBGBUS_PERIPH, 65, 6 },
-	{ DBGBUS_PERIPH, 65, 7 },
-
-	/* INTF_4 */
-	{ DBGBUS_PERIPH, 66, 0 },
-	{ DBGBUS_PERIPH, 66, 1 },
-	{ DBGBUS_PERIPH, 66, 2 },
-	{ DBGBUS_PERIPH, 66, 3 },
-	{ DBGBUS_PERIPH, 66, 4 },
-	{ DBGBUS_PERIPH, 66, 5 },
-	{ DBGBUS_PERIPH, 66, 6 },
-	{ DBGBUS_PERIPH, 66, 7 },
-
-	/* INTF_5 */
-	{ DBGBUS_PERIPH, 67, 0 },
-	{ DBGBUS_PERIPH, 67, 1 },
-	{ DBGBUS_PERIPH, 67, 2 },
-	{ DBGBUS_PERIPH, 67, 3 },
-	{ DBGBUS_PERIPH, 67, 4 },
-	{ DBGBUS_PERIPH, 67, 5 },
-	{ DBGBUS_PERIPH, 67, 6 },
-	{ DBGBUS_PERIPH, 67, 7 },
-
-	/* INTF_3 */
-	{ DBGBUS_PERIPH, 73, 0 },
-	{ DBGBUS_PERIPH, 73, 1 },
-	{ DBGBUS_PERIPH, 73, 2 },
-	{ DBGBUS_PERIPH, 73, 3 },
-	{ DBGBUS_PERIPH, 73, 4 },
-	{ DBGBUS_PERIPH, 73, 5 },
-	{ DBGBUS_PERIPH, 73, 6 },
-	{ DBGBUS_PERIPH, 73, 7 },
-
-	/* cdwn */
-	{ DBGBUS_PERIPH, 80, 0},
-	{ DBGBUS_PERIPH, 80, 1},
-	{ DBGBUS_PERIPH, 80, 2},
-
-	{ DBGBUS_PERIPH, 81, 0},
-	{ DBGBUS_PERIPH, 81, 1},
-	{ DBGBUS_PERIPH, 81, 2},
-
-	{ DBGBUS_PERIPH, 82, 0},
-	{ DBGBUS_PERIPH, 82, 1},
-	{ DBGBUS_PERIPH, 82, 2},
-	{ DBGBUS_PERIPH, 82, 3},
-	{ DBGBUS_PERIPH, 82, 4},
-	{ DBGBUS_PERIPH, 82, 5},
-	{ DBGBUS_PERIPH, 82, 6},
-	{ DBGBUS_PERIPH, 82, 7},
-
-	/* DPTX1 */
-	{ DBGBUS_PERIPH, 68, 0},
-	{ DBGBUS_PERIPH, 68, 1},
-	{ DBGBUS_PERIPH, 68, 2},
-	{ DBGBUS_PERIPH, 68, 3},
-	{ DBGBUS_PERIPH, 68, 4},
-	{ DBGBUS_PERIPH, 68, 5},
-	{ DBGBUS_PERIPH, 68, 6},
-	{ DBGBUS_PERIPH, 68, 7},
-
-	/* DP */
-	{ DBGBUS_PERIPH, 69, 0},
-	{ DBGBUS_PERIPH, 69, 1},
-	{ DBGBUS_PERIPH, 69, 2},
-	{ DBGBUS_PERIPH, 69, 3},
-	{ DBGBUS_PERIPH, 69, 4},
-	{ DBGBUS_PERIPH, 69, 5},
-
-	/* dsi0 */
-	{ DBGBUS_PERIPH, 70, 0},
-	{ DBGBUS_PERIPH, 70, 1},
-	{ DBGBUS_PERIPH, 70, 2},
-	{ DBGBUS_PERIPH, 70, 3},
-	{ DBGBUS_PERIPH, 70, 4},
-	{ DBGBUS_PERIPH, 70, 5},
-
-	/* dsi1 */
-	{ DBGBUS_PERIPH, 71, 0},
-	{ DBGBUS_PERIPH, 71, 1},
-	{ DBGBUS_PERIPH, 71, 2},
-	{ DBGBUS_PERIPH, 71, 3},
-	{ DBGBUS_PERIPH, 71, 4},
-	{ DBGBUS_PERIPH, 71, 5},
-
-	/* eDP */
-	{ DBGBUS_PERIPH, 72, 0},
-	{ DBGBUS_PERIPH, 72, 1},
-	{ DBGBUS_PERIPH, 72, 2},
-	{ DBGBUS_PERIPH, 72, 3},
-	{ DBGBUS_PERIPH, 72, 4},
-	{ DBGBUS_PERIPH, 72, 5},
-
+static struct sde_debug_bus_entry vbif_dbg_bus[] = {
+	{ MMSS_VBIF_TEST_BUS1_CTRL0, MMSS_VBIF_TEST_BUS_OUT, 0, 15, 0, 512},
+	{ MMSS_VBIF_TEST_BUS2_CTRL0, MMSS_VBIF_TEST_BUS_OUT, 0, 18, 0, 512},
 };
 
-static struct vbif_debug_bus_entry vbif_dbg_bus_msm8998[] = {
-	{0x214, 0x21c, 16, 2, 0x0, 0xd},     /* arb clients */
-	{0x214, 0x21c, 16, 2, 0x80, 0xc0},   /* arb clients */
-	{0x214, 0x21c, 16, 2, 0x100, 0x140}, /* arb clients */
-	{0x214, 0x21c, 0, 16, 0x0, 0xf},     /* xin blocks - axi side */
-	{0x214, 0x21c, 0, 16, 0x80, 0xa4},   /* xin blocks - axi side */
-	{0x214, 0x21c, 0, 15, 0x100, 0x124}, /* xin blocks - axi side */
-	{0x21c, 0x214, 0, 14, 0, 0xc}, /* xin blocks - clock side */
+static struct sde_debug_bus_entry dsi_dbg_bus[] = {
+	{DSI_DEBUG_BUS_CTRL, DSI_DEBUG_BUS, 0, 4, 0, 64},
 };
 
-static struct dsi_debug_bus_entry dsi_dbg_bus_kona[] = {
-	{0, 0x00}, {1, 0x00}, {2, 0x00}, {3, 0x00},
-	{0, 0x01}, {1, 0x01}, {2, 0x01}, {3, 0x01},
-	{0, 0x02}, {1, 0x02}, {2, 0x02}, {3, 0x02},
-	{0, 0x03}, {1, 0x03}, {2, 0x03}, {3, 0x03},
-	{0, 0x04}, {1, 0x04}, {2, 0x04}, {3, 0x04},
-	{0, 0x05}, {1, 0x05}, {2, 0x05}, {3, 0x05},
-	{0, 0x06}, {1, 0x06}, {2, 0x06}, {3, 0x06},
-	{0, 0x07}, {1, 0x07}, {2, 0x07}, {3, 0x07},
-	{0, 0x08}, {1, 0x08}, {2, 0x08}, {3, 0x08},
-	{0, 0x0a}, {1, 0x0a}, {2, 0x0a}, {3, 0x0a},
-	{0, 0x0b}, {1, 0x0b}, {2, 0x0b}, {3, 0x0b},
-	{0, 0x0c}, {1, 0x0c}, {2, 0x0c}, {3, 0x0c},
-	{0, 0x0d}, {1, 0x0d}, {2, 0x0d}, {3, 0x0d},
-	{0, 0x0e}, {1, 0x0e}, {2, 0x0e}, {3, 0x0e},
-	{0, 0x0f}, {1, 0x0f}, {2, 0x0f}, {3, 0x0f},
-	{0, 0x10}, {1, 0x10}, {2, 0x10}, {3, 0x10},
-	{0, 0x11}, {1, 0x11}, {2, 0x11}, {3, 0x11},
-	{0, 0x14}, {1, 0x14}, {2, 0x14}, {3, 0x14},
-	{0, 0x15}, {1, 0x15}, {2, 0x15}, {3, 0x15},
-	{0, 0x16}, {1, 0x16}, {2, 0x16}, {3, 0x16},
-	{0, 0x17}, {1, 0x17}, {2, 0x17}, {3, 0x17},
-	{0, 0x18}, {1, 0x18}, {2, 0x18}, {3, 0x18},
-	{0, 0x19}, {1, 0x19}, {2, 0x19}, {3, 0x19},
-	{0, 0x1a}, {1, 0x1a}, {2, 0x1a}, {3, 0x1a},
-	{0, 0x1b}, {1, 0x1b}, {2, 0x1b}, {3, 0x1b},
-	{0, 0x1c}, {1, 0x1c}, {2, 0x1c}, {3, 0x1c},
-	{0, 0x1d}, {1, 0x1d}, {2, 0x1d}, {3, 0x1d},
-	{0, 0x1e}, {1, 0x1e}, {2, 0x1e}, {3, 0x1e},
-	{0, 0x1f}, {1, 0x1f}, {2, 0x1f}, {3, 0x1f},
-	{0, 0x20}, {1, 0x20}, {2, 0x20}, {3, 0x20},
-	{0, 0x21}, {1, 0x21}, {2, 0x21}, {3, 0x21},
-	{0, 0x22}, {1, 0x22}, {2, 0x22}, {3, 0x22},
-	{0, 0x23}, {1, 0x23}, {2, 0x23}, {3, 0x23},
-	{0, 0x24}, {1, 0x24}, {2, 0x24}, {3, 0x24},
-	{0, 0x25}, {1, 0x25}, {2, 0x25}, {3, 0x25},
-	{0, 0x28}, {1, 0x28}, {2, 0x28}, {3, 0x28},
-	{0, 0x29}, {1, 0x29}, {2, 0x29}, {3, 0x29},
-	{0, 0x2a}, {1, 0x2a}, {2, 0x2a}, {3, 0x2a},
-	{0, 0x2b}, {1, 0x2b}, {2, 0x2b}, {3, 0x2b},
-	{0, 0x2c}, {1, 0x2c}, {2, 0x2c}, {3, 0x2c},
-	{0, 0x32}, {1, 0x32}, {2, 0x32}, {3, 0x32},
-	{0, 0x33}, {1, 0x33}, {2, 0x33}, {3, 0x33},
-	{0, 0x34}, {1, 0x34}, {2, 0x34}, {3, 0x34},
-	{0, 0x35}, {1, 0x35}, {2, 0x35}, {3, 0x35},
-	{0, 0x36}, {1, 0x36}, {2, 0x36}, {3, 0x36},
-	{0, 0x37}, {1, 0x37}, {2, 0x37}, {3, 0x37},
-	{0, 0x38}, {1, 0x38}, {2, 0x38}, {3, 0x38},
-	{0, 0x39}, {1, 0x39}, {2, 0x39}, {3, 0x39},
-	{0, 0x3c}, {0, 0x3d}, {0, 0x3e}, {0, 0x3f},
-};
+static struct sde_debug_bus_entry dbg_bus_lutdma[] = {
+	{ LUTDMA_0_DEBUG_BUS_CTRL, LUTDMA_0_DEBUG_BUS_STATUS, 0, 1, 0, 12 },
+	{ LUTDMA_0_DEBUG_BUS_CTRL, LUTDMA_0_DEBUG_BUS_STATUS, 0, 1, 256, 1 },
+	{ LUTDMA_0_DEBUG_BUS_CTRL, LUTDMA_0_DEBUG_BUS_STATUS, 0, 1, 512, 4 },
+	{ LUTDMA_0_DEBUG_BUS_CTRL, LUTDMA_0_DEBUG_BUS_STATUS, 0, 1, 768, 1 },
+	{ LUTDMA_0_DEBUG_BUS_CTRL, LUTDMA_0_DEBUG_BUS_STATUS, 0, 1, 8192, 2 },
+	{ LUTDMA_0_DEBUG_BUS_CTRL, LUTDMA_0_DEBUG_BUS_STATUS, 0, 1, 8448, 1 },
+	{ LUTDMA_0_DEBUG_BUS_CTRL, LUTDMA_0_DEBUG_BUS_STATUS, 0, 1, 8704, 1 },
+	{ LUTDMA_0_DEBUG_BUS_CTRL, LUTDMA_0_DEBUG_BUS_STATUS, 0, 1, 8960, 1 },
 
-static struct lutdma_debug_bus_entry dbg_bus_lutdma_lahaina[] = {
-	{ DBGBUS_LUTDMA_0, false, 1024 },
-	{ DBGBUS_LUTDMA_0, true, 1024 },
-	{ DBGBUS_LUTDMA_1, false, 1024 },
-	{ DBGBUS_LUTDMA_1, true, 1024 },
+	{ LUTDMA_1_DEBUG_BUS_CTRL, LUTDMA_1_DEBUG_BUS_STATUS, 0, 1, 0, 12 },
+	{ LUTDMA_1_DEBUG_BUS_CTRL, LUTDMA_1_DEBUG_BUS_STATUS, 0, 1, 256, 1 },
+	{ LUTDMA_1_DEBUG_BUS_CTRL, LUTDMA_1_DEBUG_BUS_STATUS, 0, 1, 512, 4 },
+	{ LUTDMA_1_DEBUG_BUS_CTRL, LUTDMA_1_DEBUG_BUS_STATUS, 0, 1, 768, 1 },
+	{ LUTDMA_1_DEBUG_BUS_CTRL, LUTDMA_1_DEBUG_BUS_STATUS, 0, 1, 8192, 2 },
+	{ LUTDMA_1_DEBUG_BUS_CTRL, LUTDMA_1_DEBUG_BUS_STATUS, 0, 1, 8448, 1 },
+	{ LUTDMA_1_DEBUG_BUS_CTRL, LUTDMA_1_DEBUG_BUS_STATUS, 0, 1, 8704, 1 },
+	{ LUTDMA_1_DEBUG_BUS_CTRL, LUTDMA_1_DEBUG_BUS_STATUS, 0, 1, 8960, 1 },
 };
 
 /**
@@ -4359,48 +485,37 @@ static void _sde_dump_reg(const char *dump_name, u32 reg_dump_flag,
 		char *base_addr, char *addr, size_t len_bytes, u32 **dump_mem)
 {
 	u32 in_log, in_mem, len_align, len_padded;
+	struct sde_dbg_base *dbg_base = &sde_dbg_base;
 	u32 *dump_addr = NULL;
 	char *end_addr;
 	int i;
 	int rc;
 
-	if (!len_bytes)
+	if (!len_bytes || !dump_mem)
 		return;
 
-	in_log = (reg_dump_flag & SDE_DBG_DUMP_IN_LOG);
+	in_log = (reg_dump_flag & SDE_DBG_DUMP_IN_LOG)
+				| (reg_dump_flag & SDE_DBG_DUMP_IN_LOG_LIMITED);
 	in_mem = (reg_dump_flag & SDE_DBG_DUMP_IN_MEM);
 
 	pr_debug("%s: reg_dump_flag=%d in_log=%d in_mem=%d\n",
 		dump_name, reg_dump_flag, in_log, in_mem);
 
+	if (!dbg_base->reg_dump_addr)
+		in_mem = 0;
+
 	if (!in_log && !in_mem)
 		return;
-
-	if (in_log)
-		dev_info(sde_dbg_base.dev, "%s: start_offset 0x%lx len 0x%zx\n",
-				dump_name, (unsigned long)(addr - base_addr),
-					len_bytes);
 
 	len_align = (len_bytes + REG_DUMP_ALIGN - 1) / REG_DUMP_ALIGN;
 	len_padded = len_align * REG_DUMP_ALIGN;
 	end_addr = addr + len_bytes;
 
-	if (in_mem) {
-		if (dump_mem && !(*dump_mem))
-			*dump_mem = devm_kzalloc(sde_dbg_base.dev, len_padded,
-					GFP_KERNEL);
+	*dump_mem = dbg_base->reg_dump_addr;
+	dbg_base->reg_dump_addr += len_padded;
 
-		if (dump_mem && *dump_mem) {
-			dump_addr = *dump_mem;
-			dev_info(sde_dbg_base.dev,
-				"%s: start_addr:0x%pK len:0x%x reg_offset=0x%lx\n",
-				dump_name, dump_addr, len_padded,
-				(unsigned long)(addr - base_addr));
-		} else {
-			in_mem = 0;
-			pr_err("dump_mem: kzalloc fails!\n");
-		}
-	}
+	dump_addr = *dump_mem;
+	SDE_DBG_LOG_DUMP_ADDR(dump_name, dump_addr, len_padded, (unsigned long)(addr - base_addr));
 
 	if (_sde_power_check(sde_dbg_base.dump_mode)) {
 		rc = pm_runtime_get_sync(sde_dbg_base.dev);
@@ -4419,10 +534,7 @@ static void _sde_dump_reg(const char *dump_name, u32 reg_dump_flag,
 		xc = (addr + 0xc < end_addr) ? readl_relaxed(addr + 0xc) : 0;
 
 		if (in_log)
-			dev_info(sde_dbg_base.dev,
-					"0x%lx : %08x %08x %08x %08x\n",
-					(unsigned long)(addr - base_addr),
-					x0, x4, x8, xc);
+			SDE_DBG_LOG_ENTRY((unsigned long)(addr - base_addr), x0, x4, x8, xc);
 
 		if (dump_addr) {
 			dump_addr[i * 4] = x0;
@@ -4459,6 +571,49 @@ static u32 _sde_dbg_get_dump_range(struct sde_dbg_reg_offset *range_node,
 	}
 
 	return length;
+}
+
+static u32 _sde_dbg_get_reg_blk_size(struct sde_dbg_reg_base *dbg)
+{
+	u32 len, len_align, len_padded;
+	u32 size = 0;
+	struct sde_dbg_reg_range *range_node;
+
+	if (!dbg || !dbg->base) {
+		pr_err("dbg base is null!\n");
+		return 0;
+	}
+
+	if (!list_empty(&dbg->sub_range_list)) {
+		list_for_each_entry(range_node, &dbg->sub_range_list, head) {
+			len = _sde_dbg_get_dump_range(&range_node->offset,
+					dbg->max_offset);
+			len_align = (len + REG_DUMP_ALIGN - 1) / REG_DUMP_ALIGN;
+			len_padded = len_align * REG_DUMP_ALIGN;
+			size += REG_BASE_NAME_LEN + RANGE_NAME_LEN + len_padded;
+		}
+	} else {
+		len = dbg->max_offset;
+		len_align = (len + REG_DUMP_ALIGN - 1) / REG_DUMP_ALIGN;
+		len_padded = len_align * REG_DUMP_ALIGN;
+		size += REG_BASE_NAME_LEN + RANGE_NAME_LEN + len_padded;
+	}
+	return size;
+}
+
+static u32 _sde_dbg_get_reg_dump_size(void)
+{
+	struct sde_dbg_base *dbg_base = &sde_dbg_base;
+	struct sde_dbg_reg_base *blk_base;
+	u32 size = 0;
+
+	if (!dbg_base)
+		return 0;
+
+	list_for_each_entry(blk_base, &dbg_base->reg_base_list, reg_base_head) {
+		size += _sde_dbg_get_reg_blk_size(blk_base);
+	}
+	return size;
 }
 
 static int _sde_dump_reg_range_cmp(void *priv, struct list_head *a,
@@ -4506,14 +661,14 @@ static void _sde_dump_reg_by_ranges(struct sde_dbg_reg_base *dbg,
 	char *addr;
 	size_t len;
 	struct sde_dbg_reg_range *range_node;
+	struct sde_dbg_base *dbg_base = &sde_dbg_base;
 
 	if (!dbg || !(dbg->base || dbg->cb)) {
 		pr_err("dbg base is null!\n");
 		return;
 	}
 
-	dev_info(sde_dbg_base.dev, "%s:=========%s DUMP=========\n", __func__,
-			dbg->name);
+	SDE_DBG_LOG_MARKER(dbg->name, SDE_DBG_LOG_START);
 	if (dbg->cb) {
 		dbg->cb(dbg->cb_ptr);
 	/* If there is a list to dump the registers by ranges, use the ranges */
@@ -4535,6 +690,15 @@ static void _sde_dump_reg_by_ranges(struct sde_dbg_reg_base *dbg,
 				addr, range_node->offset.start,
 				range_node->offset.end);
 
+			if (dbg_base->reg_dump_addr) {
+				scnprintf(dbg_base->reg_dump_addr, REG_BASE_NAME_LEN,
+						dbg->name);
+				dbg_base->reg_dump_addr += REG_BASE_NAME_LEN;
+				scnprintf(dbg_base->reg_dump_addr, RANGE_NAME_LEN,
+						range_node->range_name);
+				dbg_base->reg_dump_addr += RANGE_NAME_LEN;
+			}
+
 			_sde_dump_reg(range_node->range_name, reg_dump_flag,
 					dbg->base, addr, len,
 					&range_node->reg_dump);
@@ -4543,10 +707,16 @@ static void _sde_dump_reg_by_ranges(struct sde_dbg_reg_base *dbg,
 		/* If there is no list to dump ranges, dump all registers */
 		dev_info(sde_dbg_base.dev,
 				"Ranges not found, will dump full registers\n");
-		dev_info(sde_dbg_base.dev, "base:0x%pK len:0x%zx\n", dbg->base,
-				dbg->max_offset);
+		SDE_DBG_LOG_DUMP_ADDR("base", dbg->base, dbg->max_offset, 0);
 		addr = dbg->base;
 		len = dbg->max_offset;
+		if (dbg_base->reg_dump_addr) {
+			scnprintf(dbg_base->reg_dump_addr, REG_BASE_NAME_LEN,
+					dbg->name);
+			dbg_base->reg_dump_addr += REG_BASE_NAME_LEN;
+			dbg_base->reg_dump_addr += RANGE_NAME_LEN;
+		}
+
 		_sde_dump_reg(dbg->name, reg_dump_flag, dbg->base, addr, len,
 				&dbg->reg_dump);
 	}
@@ -4617,244 +787,94 @@ static struct sde_dbg_reg_base *_sde_dump_get_blk_addr(const char *blk_name)
 	return NULL;
 }
 
-static void _sde_dbg_dump_sde_dbg_bus(struct sde_dbg_sde_debug_bus *bus)
+static u32 _sde_dbg_cmn_read_test_point(void __iomem *mem_base, u32 wr_addr, u32 rd_addr, u32 val)
 {
-	bool in_log, in_mem;
-	u32 **dump_mem = NULL;
-	u32 *dump_addr = NULL;
-	u32 status = 0;
-	struct sde_debug_bus_entry *head;
-	int list_size;
-	int i;
-	u32 offset;
-	void __iomem *mem_base = NULL;
-	struct sde_dbg_reg_base *reg_base;
-	int rc;
-
-	if (!bus || !bus->cmn.entries_size)
-		return;
-
-	list_for_each_entry(reg_base, &sde_dbg_base.reg_base_list,
-			reg_base_head)
-		if (strlen(reg_base->name) &&
-			!strcmp(reg_base->name, bus->cmn.name))
-			mem_base = reg_base->base + bus->top_blk_off;
-
-	if (!mem_base) {
-		pr_err("unable to find mem_base for %s\n", bus->cmn.name);
-		return;
-	}
-
-	dump_mem = &bus->cmn.dumped_content;
-
-	/* will keep in memory 4 entries of 4 bytes each */
-	list_size = (bus->cmn.entries_size * 4 * 4);
-
-	in_log = (bus->cmn.enable_mask & SDE_DBG_DUMP_IN_LOG);
-	in_mem = (bus->cmn.enable_mask & SDE_DBG_DUMP_IN_MEM);
-
-	if (!in_log && !in_mem)
-		return;
-
-	dev_info(sde_dbg_base.dev, "======== start %s dump =========\n",
-			bus->cmn.name);
-
-	if (in_mem) {
-		if (!(*dump_mem)) {
-			*dump_mem = devm_kzalloc(sde_dbg_base.dev, list_size,
-					GFP_KERNEL);
-			bus->cmn.content_size = list_size / sizeof(u32);
-		}
-
-		if (*dump_mem) {
-			dump_addr = *dump_mem;
-			dev_info(sde_dbg_base.dev,
-				"%s: start_addr:0x%pK len:0x%x\n",
-				__func__, dump_addr, list_size);
-		} else {
-			in_mem = false;
-			pr_err("dump_mem: allocation fails\n");
-		}
-	}
-
-	rc = pm_runtime_get_sync(sde_dbg_base.dev);
-	if (rc < 0) {
-		pr_err("failed to enable power %d\n", rc);
-		return;
-	}
-
-	for (i = 0; i < bus->cmn.entries_size; i++) {
-		head = bus->entries + i;
-		if (head->test_id > 0x7)
-			writel_relaxed(TEST_EXT_MASK(head->block_id,
-				head->test_id), mem_base + head->wr_addr);
-		else
-			writel_relaxed(TEST_MASK(head->block_id, head->test_id),
-				mem_base + head->wr_addr);
-		wmb(); /* make sure test bits were written */
-
-		if (bus->cmn.flags & DBGBUS_FLAGS_DSPP) {
-			offset = DBGBUS_DSPP_STATUS;
-			/* keep DSPP test point enabled */
-			if (head->wr_addr != DBGBUS_DSPP)
-				writel_relaxed(0x7001, mem_base + DBGBUS_DSPP);
-		} else {
-			offset = head->wr_addr + 0x4;
-		}
-
-		status = readl_relaxed(mem_base + offset);
-
-		if (in_log)
-			dev_info(sde_dbg_base.dev,
-					"waddr=0x%x blk=%d tst=%d val=0x%x\n",
-					head->wr_addr, head->block_id,
-					head->test_id, status);
-
-		if (dump_addr && in_mem) {
-			dump_addr[i*4]     = head->wr_addr;
-			dump_addr[i*4 + 1] = head->block_id;
-			dump_addr[i*4 + 2] = head->test_id;
-			dump_addr[i*4 + 3] = status;
-		}
-
-		if (head->analyzer)
-			head->analyzer(mem_base, head, status);
-
-		/* Disable debug bus once we are done */
-		writel_relaxed(0, mem_base + head->wr_addr);
-		if (bus->cmn.flags & DBGBUS_FLAGS_DSPP &&
-						head->wr_addr != DBGBUS_DSPP)
-			writel_relaxed(0x0, mem_base + DBGBUS_DSPP);
-	}
-	pm_runtime_put_sync(sde_dbg_base.dev);
-
-	dev_info(sde_dbg_base.dev, "======== end %s dump =========\n",
-			bus->cmn.name);
+	writel_relaxed(val, mem_base + wr_addr);
+	wmb(); /* make sure debug-bus test point is enabled */
+	return readl_relaxed(mem_base + rd_addr);
 }
 
-static int _sde_dbg_dump_vbif_debug_bus_entry(
-		struct vbif_debug_bus_entry *head, void __iomem *mem_base,
-		u32 *dump_addr, bool in_log)
+static void _sde_dbg_cmn_clear_test_point(void __iomem *mem_base, u32 wr_addr)
 {
-	int i, j, count = 0;
-	u32 val;
-
-	if (!dump_addr && !in_log)
-		return 0;
-
-	for (i = 0; i < head->block_cnt; i++) {
-		writel_relaxed(1 << (i + head->bit_offset),
-				mem_base + head->block_bus_addr);
-		/* make sure that current bus blcok enable */
-		wmb();
-		for (j = head->test_pnt_start; j < head->test_pnt_cnt; j++) {
-			writel_relaxed(j, mem_base + head->block_bus_addr + 4);
-			/* make sure that test point is enabled */
-			wmb();
-			val = readl_relaxed(mem_base + MMSS_VBIF_TEST_BUS_OUT);
-			if (dump_addr) {
-				*dump_addr++ = head->block_bus_addr;
-				*dump_addr++ = i;
-				*dump_addr++ = j;
-				*dump_addr++ = val;
-				count += DUMP_CLMN_COUNT;
-			}
-			if (in_log)
-				dev_info(sde_dbg_base.dev,
-					"testpoint:%x arb/xin id=%d index=%d val=0x%x\n",
-					head->block_bus_addr, i, j, val);
-		}
-	}
-
-	return count;
+	writel_relaxed(0, mem_base + wr_addr);
 }
 
-static void _sde_dbg_dump_vbif_dbg_bus(struct sde_dbg_vbif_debug_bus *bus)
+static u32 _sde_dbg_lutdma_read_test_point(void __iomem *mem_base, u32 wr_addr, u32 rd_addr,
+			u32 block_id, u32 test_id)
 {
-	bool in_log, in_mem;
-	u32 **dump_mem = NULL;
-	u32 *dump_addr = NULL;
+	u32 val = (BIT(0) | (test_id << 1)) & 0xFFFF;
+
+	return _sde_dbg_cmn_read_test_point(mem_base, wr_addr, rd_addr, val);
+}
+
+static u32 _sde_dbg_dsi_read_test_point(void __iomem *mem_base, u32 wr_addr, u32 rd_addr,
+			u32 block_id, u32 test_id)
+{
+	u32 val = (((block_id & 0x3) << 12) | ((test_id & 0x3f) << 4) | BIT(0));
+
+	return _sde_dbg_cmn_read_test_point(mem_base, wr_addr, rd_addr, val);
+}
+
+static void _sde_dbg_vbif_disable_block(void __iomem *mem_base, u32 wr_addr)
+{
+	u32 disable_addr;
+
+	/* make sure that other bus is off */
+	disable_addr = (wr_addr == MMSS_VBIF_TEST_BUS1_CTRL0) ?
+			MMSS_VBIF_TEST_BUS2_CTRL0 : MMSS_VBIF_TEST_BUS1_CTRL0;
+	writel_relaxed(0, mem_base + disable_addr);
+	writel_relaxed(BIT(0), mem_base + MMSS_VBIF_TEST_BUS_OUT_CTRL);
+}
+
+static u32 _sde_dbg_vbif_read_test_point(void __iomem *mem_base, u32 wr_addr, u32 rd_addr,
+			u32 block_id, u32 test_id)
+{
+	writel_relaxed((1 << block_id), mem_base + wr_addr);
+	writel_relaxed(test_id, mem_base + wr_addr + 0x4);
+	wmb(); /* make sure debug-bus test point is enabled */
+	return readl_relaxed(mem_base + rd_addr);
+}
+
+static void _sde_dbg_vbif_clear_test_point(void __iomem *mem_base, u32 wr_addr)
+{
+	writel_relaxed(0, mem_base + wr_addr);
+	writel_relaxed(0, mem_base + wr_addr + 0x4);
+}
+
+static u32 _sde_dbg_sde_read_test_point(void __iomem *mem_base, u32 wr_addr, u32 rd_addr,
+			u32 block_id, u32 test_id)
+{
+	if (block_id > EXT_TEST_GROUP_SEL_EN)
+		writel_relaxed(TEST_EXT_MASK(block_id, test_id), mem_base + wr_addr);
+	else
+		writel_relaxed(TEST_MASK(block_id, test_id), mem_base + wr_addr);
+
+	/* keep DSPP test point enabled */
+	if (wr_addr != DBGBUS_DSPP)
+		writel_relaxed(DSPP_DEBUGBUS_CTRL_EN, mem_base + DBGBUS_DSPP);
+	wmb(); /* make sure test bits were written */
+
+	return readl_relaxed(mem_base + rd_addr);
+}
+
+static void _sde_dbg_sde_clear_test_point(void __iomem *mem_base, u32 wr_addr)
+{
+	writel_relaxed(0x0, mem_base + wr_addr);
+	if (wr_addr != DBGBUS_DSPP)
+		writel_relaxed(0x0, mem_base + DBGBUS_DSPP);
+}
+
+static void _sde_dbg_dump_vbif_err_info(void __iomem *mem_base)
+{
 	u32 value, d0, d1;
 	unsigned long reg, reg1, reg2;
-	struct vbif_debug_bus_entry *head;
-	int i, list_size = 0;
-	void __iomem *mem_base = NULL;
-	struct vbif_debug_bus_entry *dbg_bus;
-	u32 bus_size;
-	struct sde_dbg_reg_base *reg_base;
-	int rc, count;
-
-	if (!bus || !bus->cmn.entries_size)
-		return;
-
-	list_for_each_entry(reg_base, &sde_dbg_base.reg_base_list,
-			reg_base_head)
-		if (strlen(reg_base->name) &&
-			!strcmp(reg_base->name, bus->cmn.name))
-			mem_base = reg_base->base;
-
-	if (!mem_base) {
-		pr_err("unable to find mem_base for %s\n", bus->cmn.name);
-		return;
-	}
-
-	dbg_bus = bus->entries;
-	bus_size = bus->cmn.entries_size;
-	dump_mem = &bus->cmn.dumped_content;
-
-	dev_info(sde_dbg_base.dev, "======== start %s dump =========\n",
-			bus->cmn.name);
-
-	if (!dump_mem || !dbg_bus || !bus_size)
-		return;
-
-	/* allocate memory for each test point */
-	for (i = 0; i < bus_size; i++) {
-		head = dbg_bus + i;
-		list_size += (head->block_cnt * (head->test_pnt_cnt -
-				head->test_pnt_start));
-	}
-
-	/* 4 bytes * 4 entries for each test point*/
-	list_size *= DUMP_CLMN_COUNT * sizeof(u32);
-
-	in_log = (bus->cmn.enable_mask & SDE_DBG_DUMP_IN_LOG);
-	in_mem = (bus->cmn.enable_mask & SDE_DBG_DUMP_IN_MEM);
-
-	if (!in_log && !in_mem)
-		return;
-
-	if (in_mem) {
-		if (!(*dump_mem)) {
-			*dump_mem = devm_kzalloc(sde_dbg_base.dev, list_size,
-					GFP_KERNEL);
-			bus->cmn.content_size = list_size  / sizeof(u32);
-		}
-
-		if (*dump_mem) {
-			dump_addr = *dump_mem;
-			dev_info(sde_dbg_base.dev,
-				"%s: start_addr:0x%pK len:0x%x\n",
-				__func__, dump_addr, list_size);
-		} else {
-			in_mem = false;
-			pr_err("dump_mem: allocation fails\n");
-		}
-	}
-
-	rc = pm_runtime_get_sync(sde_dbg_base.dev);
-	if (rc < 0) {
-		pr_err("failed to enable power %d\n", rc);
-		return;
-	}
+	int i;
 
 	value = readl_relaxed(mem_base + MMSS_VBIF_CLKON);
 	writel_relaxed(value | BIT(1), mem_base + MMSS_VBIF_CLKON);
+	wmb(); /* make sure that vbif core is on */
 
-	/* make sure that vbif core is on */
-	wmb();
-
-	/**
+	/*
 	 * Extract VBIF error info based on XIN halt and error status.
 	 * If the XIN client is not in HALT state, or an error is detected,
 	 * then retrieve the VBIF error info for it.
@@ -4862,242 +882,211 @@ static void _sde_dbg_dump_vbif_dbg_bus(struct sde_dbg_vbif_debug_bus *bus)
 	reg = readl_relaxed(mem_base + MMSS_VBIF_XIN_HALT_CTRL1);
 	reg1 = readl_relaxed(mem_base + MMSS_VBIF_PND_ERR);
 	reg2 = readl_relaxed(mem_base + MMSS_VBIF_SRC_ERR);
-	dev_err(sde_dbg_base.dev,
-			"XIN HALT:0x%lX, PND ERR:0x%lX, SRC ERR:0x%lX\n",
-			reg, reg1, reg2);
+	dev_err(sde_dbg_base.dev, "xin halt:0x%lx, pnd err:0x%lx, src err:0x%lx\n",
+				reg, reg1, reg2);
 	reg >>= 16;
 	reg &= ~(reg1 | reg2);
 	for (i = 0; i < MMSS_VBIF_CLIENT_NUM; i++) {
 		if (!test_bit(0, &reg)) {
 			writel_relaxed(i, mem_base + MMSS_VBIF_ERR_INFO);
-			/* make sure reg write goes through */
-			wmb();
+			wmb(); /* make sure reg write goes through */
 
 			d0 = readl_relaxed(mem_base + MMSS_VBIF_ERR_INFO);
 			d1 = readl_relaxed(mem_base + MMSS_VBIF_ERR_INFO_1);
-
-			dev_err(sde_dbg_base.dev,
-					"Client:%d, errinfo=0x%X, errinfo1=0x%X\n",
-					i, d0, d1);
+			dev_err(sde_dbg_base.dev, "Client:%d, errinfo=0x%x, errinfo1=0x%x\n",
+						i, d0, d1);
 		}
 		reg >>= 1;
 	}
-
-	for (i = 0; i < bus_size; i++) {
-		head = dbg_bus + i;
-
-		writel_relaxed(0, mem_base + head->disable_bus_addr);
-		writel_relaxed(BIT(0), mem_base + MMSS_VBIF_TEST_BUS_OUT_CTRL);
-		/* make sure that other bus is off */
-		wmb();
-
-		count = _sde_dbg_dump_vbif_debug_bus_entry(head, mem_base,
-				dump_addr, in_log);
-		if (dump_addr && (count > 0))
-			dump_addr += count;
-	}
-
-	pm_runtime_put_sync(sde_dbg_base.dev);
-
-	dev_info(sde_dbg_base.dev, "======== end %s dump =========\n",
-			bus->cmn.name);
 }
 
-static void _sde_dbg_dump_dsi_dbg_bus(struct sde_dbg_dsi_debug_bus *bus)
+static bool _is_dbg_bus_limited_valid(struct sde_dbg_sde_debug_bus *bus,
+				u32 wr_addr, u32 block_id, u32 test_id)
 {
-	struct sde_dbg_dsi_ctrl_list_entry *entry;
-	struct list_head *list;
-	int list_size = 0;
-	u32 reg;
-	bool in_log, in_mem;
+	struct sde_debug_bus_entry *entry;
+	u32 block_id_max, test_id_max;
+	int i;
+
+	if (!bus->limited_entries || !bus->cmn.limited_entries_size)
+		return true;
+
+	for (i = 0; i < bus->cmn.limited_entries_size; i++) {
+		entry = bus->limited_entries + i;
+		block_id_max = entry->block_id + entry->block_id_max;
+		test_id_max = entry->test_id + entry->test_id_max;
+
+		if ((wr_addr == entry->wr_addr)
+		    && ((block_id >= entry->block_id) && (block_id < block_id_max))
+		    && ((test_id >= entry->test_id) && (test_id < test_id_max)))
+			return true;
+	}
+
+	return false;
+}
+
+static void _sde_dbg_dump_bus_entry(struct sde_dbg_sde_debug_bus *bus,
+		struct sde_debug_bus_entry *entries, u32 bus_size,
+		void __iomem *mem_base, u32 *dump_addr)
+{
+	u32 status = 0;
+	int i, j, k;
+	bool in_mem, in_log, in_log_limited;
+	struct sde_debug_bus_entry *entry;
+
+	if (!bus->read_tp || !bus->clear_tp)
+		return;
+
+	in_mem = (bus->cmn.enable_mask & SDE_DBG_DUMP_IN_MEM);
+	in_log = (bus->cmn.enable_mask & SDE_DBG_DUMP_IN_LOG);
+	in_log_limited = (bus->cmn.enable_mask & SDE_DBG_DUMP_IN_LOG_LIMITED);
+
+	for (k = 0; k < bus_size; k++) {
+		entry = entries + k;
+		if (bus->disable_block)
+			bus->disable_block(mem_base, entry->wr_addr);
+
+		for (i = entry->block_id; i < (entry->block_id + entry->block_id_max); i++) {
+			for (j = entry->test_id; j < (entry->test_id + entry->test_id_max); j++) {
+
+				status = bus->read_tp(mem_base, entry->wr_addr,
+							entry->rd_addr, i, j);
+
+				if (!entry->analyzer && (in_log || (in_log_limited &&
+					    _is_dbg_bus_limited_valid(bus, entry->wr_addr, i, j))))
+					SDE_DBG_LOG_ENTRY(0, entry->wr_addr, i, j, status);
+
+				if (dump_addr && in_mem) {
+					*dump_addr++ = entry->wr_addr;
+					*dump_addr++ = i;
+					*dump_addr++ = j;
+					*dump_addr++ = status;
+				}
+
+				if (entry->analyzer)
+					entry->analyzer(entry->wr_addr, i, j, status);
+			}
+		}
+		/* Disable debug bus once we are done */
+		bus->clear_tp(mem_base, entry->wr_addr);
+	}
+}
+
+static void _sde_dbg_dump_sde_dbg_bus(struct sde_dbg_sde_debug_bus *bus)
+{
+	bool in_mem;
 	u32 **dump_mem = NULL;
 	u32 *dump_addr = NULL;
-	u32 *end_addr;
-	struct dsi_debug_bus_entry *dbg_bus;
-	u32 bus_size;
-	int i, rc, dsi_idx = 0;
-
-	if (!bus || !bus->cmn.entries_size)
-		return;
-
-	dbg_bus = bus->entries;
-	bus_size = bus->cmn.entries_size;
-	dump_mem = &bus->cmn.dumped_content;
-
-	if (!dump_mem || !dbg_bus || list_empty(&sde_dbg_dsi_list))
-		return;
-
-	in_log = (bus->cmn.enable_mask & SDE_DBG_DUMP_IN_LOG);
-	in_mem = (bus->cmn.enable_mask & SDE_DBG_DUMP_IN_MEM);
-
-	if (!in_log && !in_mem)
-		return;
-
-	rc = pm_runtime_get_sync(sde_dbg_base.dev);
-	if (rc < 0) {
-		pr_err("failed to enable power %d\n", rc);
-		return;
-	}
-
-	dev_info(sde_dbg_base.dev, "======== start %s dump =========\n",
-				bus->cmn.name);
-
-	mutex_lock(&sde_dbg_dsi_mutex);
-	if (in_mem) {
-		/* 4 fields of 4 bytes each, per table entry, per dsi ctrl*/
-		list_for_each(list, &sde_dbg_dsi_list)
-			list_size++;
-		list_size *= bus_size * sizeof(u32) * DUMP_CLMN_COUNT;
-
-		if (!(*dump_mem)) {
-			*dump_mem = devm_kzalloc(sde_dbg_base.dev, list_size,
-					GFP_KERNEL);
-			bus->cmn.content_size = list_size  / sizeof(u32);
-		}
-
-		if (*dump_mem) {
-			dump_addr = *dump_mem;
-			end_addr = *dump_mem + bus->cmn.content_size;
-			dev_info(sde_dbg_base.dev,
-				"%s: start_addr:0x%pK len:0x%x\n",
-				__func__, dump_addr, list_size);
-		} else {
-			in_mem = false;
-			pr_err("dump_mem: allocation fails\n");
-		}
-	}
-
-	list_for_each_entry(entry, &sde_dbg_dsi_list, list) {
-		dev_info(sde_dbg_base.dev, "%s start_addr:0x%pK\n",
-				entry->name, dump_addr);
-
-		for (i = 0; i < bus_size; i++) {
-			if (!entry->base)
-				break;
-
-			reg = ((dbg_bus[i].mux << 12) |
-					(dbg_bus[i].sel << 4) | BIT(0));
-			writel_relaxed(reg, entry->base + DSI_DEBUG_BUS_CTRL);
-			wmb(); /* make sure debug-bus test point is enabled */
-			reg = readl_relaxed(entry->base + DSI_DEBUG_BUS);
-			if (dump_addr && (dump_addr < end_addr)) {
-				*dump_addr++ = dsi_idx;
-				*dump_addr++ = dbg_bus[i].mux;
-				*dump_addr++ = dbg_bus[i].sel;
-				*dump_addr++ = reg;
-			}
-			if (in_log)
-				dev_info(sde_dbg_base.dev,
-					"mux:0x%x sel:0x%x status:0x%x\n",
-					dbg_bus[i].mux, dbg_bus[i].sel, reg);
-		}
-
-		/* Disable debug bus once we are done */
-		writel_relaxed(0, entry->base + DSI_DEBUG_BUS_CTRL);
-		dsi_idx++;
-	}
-	mutex_unlock(&sde_dbg_dsi_mutex);
-
-	pm_runtime_put_sync(sde_dbg_base.dev);
-	dev_info(sde_dbg_base.dev, "======== end %s dump =========\n",
-			bus->cmn.name);
-}
-
-static void _sde_dbg_dump_lutdma_dbg_bus(struct sde_dbg_lutdma_debug_bus *bus)
-{
+	int i, list_size = 0;
 	void __iomem *mem_base = NULL;
 	struct sde_dbg_reg_base *reg_base;
-	struct lutdma_debug_bus_entry *entries;
-	bool dump_in_log, dump_in_mem;
-	u32 **dump_mem = NULL;
-	u32 *dump_addr = NULL;
-	u32 i, j, entry_count, addr, count, val, engine_bit, dump_mem_size = 0;
-	int rc;
+	struct sde_debug_bus_entry *entries;
+	u32 bus_size;
+	char name[20];
 
 	if (!bus || !bus->cmn.entries_size)
 		return;
 
-	list_for_each_entry(reg_base, &sde_dbg_base.reg_base_list,
-			reg_base_head) {
-		if (strlen(reg_base->name) &&
-			!strcmp(reg_base->name, bus->cmn.name))
-			mem_base = reg_base->base;
-	}
-
-	if (!mem_base) {
+	reg_base = _sde_dump_get_blk_addr(bus->cmn.name);
+	if (!reg_base || !reg_base->base) {
 		pr_err("unable to find mem_base for %s\n", bus->cmn.name);
 		return;
 	}
 
-	entries = bus->entries;
-	entry_count = bus->cmn.entries_size;
+	mem_base = reg_base->base;
+	if (!strcmp(bus->cmn.name, DBGBUS_NAME_SDE))
+		mem_base += bus->top_blk_off;
 
-	dump_in_log = (bus->cmn.enable_mask & SDE_DBG_DUMP_IN_LOG);
-	dump_in_mem = (bus->cmn.enable_mask & SDE_DBG_DUMP_IN_MEM);
+	if (!strcmp(bus->cmn.name, DBGBUS_NAME_VBIF_RT))
+		_sde_dbg_dump_vbif_err_info(mem_base);
+
+	entries = bus->entries;
+	bus_size = bus->cmn.entries_size;
 	dump_mem = &bus->cmn.dumped_content;
 
-	if (!dump_in_log && !dump_in_mem)
+	if (!dump_mem || !entries || !bus_size)
 		return;
 
-	rc = pm_runtime_get_sync(sde_dbg_base.dev);
-	if (rc < 0) {
-		pr_err("failed to enable power %d\n", rc);
+	/* allocate memory for each test id */
+	for (i = 0; i < bus_size; i++)
+		list_size += (entries[i].block_id_max * entries[i].test_id_max);
+	list_size *= sizeof(u32) * DUMP_CLMN_COUNT;
+
+	snprintf(name, sizeof(name), "%s-debugbus", bus->cmn.name);
+	SDE_DBG_LOG_MARKER(name, SDE_DBG_LOG_START);
+
+	in_mem = (bus->cmn.enable_mask & SDE_DBG_DUMP_IN_MEM);
+	if (in_mem && (!(*dump_mem))) {
+		*dump_mem = vzalloc(list_size);
+		bus->cmn.content_size = list_size / sizeof(u32);
+	}
+
+#ifdef CONFIG_QCOM_VA_MINIDUMP
+	if (sde_mini_dump_add_region(bus->cmn.name, list_size, *dump_mem) < 0)
+		pr_err("minidump add %s failed\n", bus->cmn.name);
+#endif
+
+	dump_addr = *dump_mem;
+	SDE_DBG_LOG_DUMP_ADDR(bus->cmn.name, dump_addr, list_size, 0);
+
+	_sde_dbg_dump_bus_entry(bus, entries, bus_size, mem_base, dump_addr);
+
+	SDE_DBG_LOG_MARKER(name, SDE_DBG_LOG_END);
+}
+
+static void _sde_dbg_dump_dsi_dbg_bus(struct sde_dbg_sde_debug_bus *bus)
+{
+	struct sde_dbg_dsi_ctrl_list_entry *ctl_entry;
+	struct list_head *list;
+	int list_size = 0;
+	bool in_mem;
+	int i, dsi_count = 0;
+	u32 **dump_mem = NULL;
+	u32 *dump_addr = NULL;
+	struct sde_debug_bus_entry *entries;
+	u32 bus_size;
+	char name[20];
+
+	entries = bus->entries;
+	bus_size = bus->cmn.entries_size;
+	dump_mem = &bus->cmn.dumped_content;
+
+	if (!dump_mem || !entries || !bus_size || list_empty(&sde_dbg_dsi_list))
 		return;
+
+	list_for_each(list, &sde_dbg_dsi_list)
+		dsi_count++;
+
+	for (i = 0; i < bus_size; i++)
+		list_size += (entries[i].block_id_max * entries[i].test_id_max);
+	list_size *= sizeof(u32) * DUMP_CLMN_COUNT * dsi_count;
+
+	snprintf(name, sizeof(name), "%s-debugbus", bus->cmn.name);
+	SDE_DBG_LOG_MARKER(name, SDE_DBG_LOG_START);
+
+	mutex_lock(&sde_dbg_dsi_mutex);
+	in_mem = (bus->cmn.enable_mask & SDE_DBG_DUMP_IN_MEM);
+	if (in_mem && (!(*dump_mem))) {
+		*dump_mem = vzalloc(list_size);
+		bus->cmn.content_size = list_size / sizeof(u32);
 	}
 
-	dev_info(sde_dbg_base.dev, "======== start %s dump =========\n",
-			bus->cmn.name);
+#ifdef CONFIG_QCOM_VA_MINIDUMP
+	if (sde_mini_dump_add_region(bus->cmn.name, list_size, *dump_mem) < 0)
+		pr_err("minidump add %s failed\n", bus->cmn.name);
+#endif
 
-	if (dump_in_mem) {
-		if (*dump_mem == NULL) {
-			for (i = 0; i < entry_count; i++)
-				dump_mem_size += (entries[i].indicies *
-					sizeof(u32));
+	dump_addr = *dump_mem;
 
-			//Ensure enough chunks for debugfs dumping
-			dump_mem_size += dump_mem_size % (DUMP_CLMN_COUNT * 4);
-			*dump_mem = devm_kzalloc(sde_dbg_base.dev,
-					dump_mem_size, GFP_KERNEL);
-			bus->cmn.content_size = dump_mem_size / sizeof(u32);
-		}
+	list_for_each_entry(ctl_entry, &sde_dbg_dsi_list, list) {
+		SDE_DBG_LOG_DUMP_ADDR(ctl_entry->name, dump_addr, list_size / dsi_count, 0);
 
-		if (*dump_mem) {
-			dump_addr = *dump_mem;
-			dev_info(sde_dbg_base.dev,
-				"%s: start_addr:0x%pK len:0x%x\n",
-				__func__, dump_addr, dump_mem_size);
-		} else {
-			dump_in_mem = false;
-			pr_err("dump_mem: allocation fails\n");
-		}
+		_sde_dbg_dump_bus_entry(bus, entries, bus_size, ctl_entry->base, dump_addr);
+		if (dump_addr)
+			dump_addr += list_size / (sizeof(u32) * dsi_count);
 	}
+	mutex_unlock(&sde_dbg_dsi_mutex);
 
-	for (i = 0; i < entry_count; i++) {
-		addr = entries[i].wr_addr;
-		count = entries[i].indicies;
-		engine_bit  = entries[i].read_engine ? BIT(14) : 0;
-
-		for (j = 0 ; j < count; j++) {
-			val = (BIT(0) | engine_bit | (j << 1)) & 0xFFFF;
-			writel_relaxed(val, mem_base + addr);
-			wmb(); /* Ensure dbgbus setup occurs before read */
-			val = readl_relaxed(mem_base + addr + 0x4);
-
-			if (dump_in_log)
-				dev_info(sde_dbg_base.dev,
-					"lutdma_waddr=0x%x index=0x%x val=0x%x\n",
-					addr, j, val);
-
-			if (dump_in_mem)
-				dump_addr[i * count +  j] = val;
-		}
-
-		//Disable debug bus when done
-		writel_relaxed(0, mem_base + addr);
-	}
-
-	dev_info(sde_dbg_base.dev, "======== end %s dump =========\n",
-			bus->cmn.name);
+	SDE_DBG_LOG_MARKER(name, SDE_DBG_LOG_END);
 }
 
 /**
@@ -5117,9 +1106,29 @@ static void _sde_dump_array(struct sde_dbg_reg_base *blk_arr[],
 	bool dump_dbgbus_vbif_rt,  bool dump_dbgbus_dsi, bool dump_all,
 	bool dump_secure)
 {
-	int i;
+	int i, rc;
+	u32 reg_dump_size;
+	struct sde_dbg_base *dbg_base = &sde_dbg_base;
+	ktime_t start, end;
 
 	mutex_lock(&sde_dbg_base.mutex);
+
+	reg_dump_size =  _sde_dbg_get_reg_dump_size();
+	if (!dbg_base->reg_dump_base)
+		dbg_base->reg_dump_base = vzalloc(reg_dump_size);
+
+	dbg_base->reg_dump_addr =  dbg_base->reg_dump_base;
+
+	if (!dbg_base->reg_dump_addr)
+		pr_err("Failed to allocate memory for reg_dump_addr size:%d\n",
+				reg_dump_size);
+
+#ifdef CONFIG_QCOM_VA_MINIDUMP
+	if (dbg_base->reg_dump_addr &&
+			sde_mini_dump_add_region("reg_dump",
+			reg_dump_size, dbg_base->reg_dump_addr) < 0)
+		pr_err("minidump add regdump failed\n");
+#endif
 
 	if (dump_all)
 		sde_evtlog_dump_all(sde_dbg_base.evtlog);
@@ -5135,17 +1144,33 @@ static void _sde_dump_array(struct sde_dbg_reg_base *blk_arr[],
 		}
 	}
 
-	if (dump_dbgbus_sde)
+	if (_sde_power_check(sde_dbg_base.dump_mode)) {
+		rc = pm_runtime_get_sync(sde_dbg_base.dev);
+		if (rc < 0) {
+			pr_err("failed to enable power %d\n", rc);
+			return;
+		}
+	}
+
+	start = ktime_get();
+	if (dump_dbgbus_sde) {
 		_sde_dbg_dump_sde_dbg_bus(&sde_dbg_base.dbgbus_sde);
+		_sde_dbg_dump_sde_dbg_bus(&sde_dbg_base.dbgbus_lutdma);
+	}
 
 	if (dump_dbgbus_vbif_rt)
-		_sde_dbg_dump_vbif_dbg_bus(&sde_dbg_base.dbgbus_vbif_rt);
+		_sde_dbg_dump_sde_dbg_bus(&sde_dbg_base.dbgbus_vbif_rt);
 
-	if (dump_all || dump_dbgbus_dsi)
+	if (dump_dbgbus_dsi)
 		_sde_dbg_dump_dsi_dbg_bus(&sde_dbg_base.dbgbus_dsi);
 
-	if (dump_all || dump_dbgbus_sde)
-		_sde_dbg_dump_lutdma_dbg_bus(&sde_dbg_base.dbgbus_lutdma);
+	end = ktime_get();
+	dev_info(sde_dbg_base.dev,
+			"debug-bus logging time start_us:%llu, end_us:%llu , duration_us:%llu\n",
+			ktime_to_us(start), ktime_to_us(end), ktime_us_delta(end, start));
+
+	if (_sde_power_check(sde_dbg_base.dump_mode))
+		pm_runtime_put_sync(sde_dbg_base.dev);
 
 #if defined(CONFIG_DISPLAY_SAMSUNG)
 	if (do_panic && sde_dbg_base.panic_on_err)
@@ -5194,6 +1219,13 @@ void sde_dbg_dump(enum sde_dbg_dump_context dump_mode, const char *name, ...)
 	if ((dump_mode == SDE_DBG_DUMP_IRQ_CTX) &&
 		work_pending(&sde_dbg_base.dump_work))
 		return;
+
+#if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG) && IS_ENABLED(CONFIG_SEC_DEBUG)
+        if (!sec_debug_is_enabled())
+		return;
+#else
+	return;
+#endif
 
 	blk_arr = &sde_dbg_base.req_dump_blks[0];
 	blk_len = ARRAY_SIZE(sde_dbg_base.req_dump_blks);
@@ -5319,7 +1351,6 @@ void ss_sde_dbg_debugfs_open(void)
 		sde_dbg_base.evtlog->first + SDE_EVTLOG_ENTRY;
 	mutex_unlock(&sde_dbg_base.mutex);
 }
-
 ssize_t ss_sde_evtlog_dump_read(struct file *file, char __user *buff,
 		size_t count, loff_t *ppos)
 {
@@ -5672,9 +1703,15 @@ static ssize_t sde_recovery_regdump_read(struct file *file, char __user *ubuf,
 	struct sde_dbg_regbuf *rbuf = &dbg_base->regbuf;
 
 	mutex_lock(&sde_dbg_base.mutex);
+	if (!sde_dbg_base.hw_ownership) {
+		pr_debug("op not supported due to HW unavailablity\n");
+		len = -EOPNOTSUPP;
+		goto err;
+	}
+
 	if (!rbuf->dump_done && !rbuf->cur_blk) {
 		if (!rbuf->buf)
-			rbuf->buf = kzalloc(DUMP_BUF_SIZE, GFP_KERNEL);
+			rbuf->buf = vzalloc(DUMP_BUF_SIZE);
 		if (!rbuf->buf) {
 			len =  -ENOMEM;
 			goto err;
@@ -5752,6 +1789,12 @@ static ssize_t sde_recovery_dbgbus_dump_read(struct file *file,
 
 	memset(log_buf,  0, sizeof(log_buf));
 	mutex_lock(&sde_dbg_base.mutex);
+	if (!sde_dbg_base.hw_ownership) {
+		pr_debug("op not supported due to HW unavailablity\n");
+		len = -EOPNOTSUPP;
+		goto dump_done;
+	}
+
 	if (!cmn->dumped_content || !cmn->entries_size)
 		goto dump_done;
 
@@ -6074,31 +2117,40 @@ static ssize_t sde_dbg_reg_base_reg_write(struct file *file,
 		return -EFAULT;
 
 	mutex_lock(&sde_dbg_base.mutex);
+	if (!sde_dbg_base.hw_ownership) {
+		pr_debug("op not supported due to hw unavailablity\n");
+		count = -EOPNOTSUPP;
+		goto end;
+	}
+
 	if (off >= dbg->max_offset) {
-		mutex_unlock(&sde_dbg_base.mutex);
-		return -EFAULT;
+		count = -EFAULT;
+		goto end;
 	}
 
 	if (!list_empty(&dbg->sub_range_list)) {
 		rc = sde_dbg_reg_base_is_valid_range(dbg, off, cnt);
-		if (!rc)
-			return -EINVAL;
+		if (!rc) {
+			count = -EINVAL;
+			goto end;
+		}
 	}
 
 	rc = pm_runtime_get_sync(sde_dbg_base.dev);
 	if (rc < 0) {
-		mutex_unlock(&sde_dbg_base.mutex);
 		pr_err("failed to enable power %d\n", rc);
-		return rc;
+		count = rc;
+		goto end;
 	}
 
 	writel_relaxed(data, dbg->base + off);
 
 	pm_runtime_put_sync(sde_dbg_base.dev);
 
-	mutex_unlock(&sde_dbg_base.mutex);
-
 	pr_debug("addr=%zx data=%x\n", off, data);
+
+end:
+	mutex_unlock(&sde_dbg_base.mutex);
 
 	return count;
 }
@@ -6131,6 +2183,12 @@ static ssize_t sde_dbg_reg_base_reg_read(struct file *file,
 		return -EINVAL;
 
 	mutex_lock(&sde_dbg_base.mutex);
+	if (!sde_dbg_base.hw_ownership) {
+		pr_debug("op not supported due to hw unavailablity\n");
+		len = -EOPNOTSUPP;
+		goto end;
+	}
+
 	if (!dbg->buf) {
 		char dump_buf[64];
 		char *ptr;
@@ -6141,13 +2199,13 @@ static ssize_t sde_dbg_reg_base_reg_read(struct file *file,
 		dbg->buf = kzalloc(dbg->buf_len, GFP_KERNEL);
 
 		if (!dbg->buf) {
-			mutex_unlock(&sde_dbg_base.mutex);
-			return -ENOMEM;
+			len = -ENOMEM;
+			goto end;
 		}
 
 		if (dbg->off % sizeof(u32)) {
-			mutex_unlock(&sde_dbg_base.mutex);
-			return -EFAULT;
+			len = -EFAULT;
+			goto end;
 		}
 
 		ptr = dbg->base + dbg->off;
@@ -6155,9 +2213,9 @@ static ssize_t sde_dbg_reg_base_reg_read(struct file *file,
 
 		rc = pm_runtime_get_sync(sde_dbg_base.dev);
 		if (rc < 0) {
-			mutex_unlock(&sde_dbg_base.mutex);
 			pr_err("failed to enable power %d\n", rc);
-			return rc;
+			len = rc;
+			goto end;
 		}
 
 		for (cnt = dbg->cnt; cnt > 0; cnt -= ROW_BYTES) {
@@ -6182,18 +2240,20 @@ static ssize_t sde_dbg_reg_base_reg_read(struct file *file,
 	}
 
 	if (*ppos >= dbg->buf_len) {
-		mutex_unlock(&sde_dbg_base.mutex);
-		return 0; /* done reading */
+		len = 0; /* done reading */
+		goto end;
 	}
 
 	len = min(count, dbg->buf_len - (size_t) *ppos);
 	if (copy_to_user(user_buf, dbg->buf + *ppos, len)) {
-		mutex_unlock(&sde_dbg_base.mutex);
 		pr_err("failed to copy to user\n");
-		return -EFAULT;
+		len = -EFAULT;
+		goto end;
 	}
 
 	*ppos += len; /* increase offset */
+
+end:
 	mutex_unlock(&sde_dbg_base.mutex);
 
 	return len;
@@ -6335,70 +2395,43 @@ void sde_dbg_init_dbg_buses(u32 hwversion)
 
 	memset(&dbg->dbgbus_sde, 0, sizeof(dbg->dbgbus_sde));
 	memset(&dbg->dbgbus_vbif_rt, 0, sizeof(dbg->dbgbus_vbif_rt));
+	memset(&dbg->dbgbus_dsi, 0, sizeof(dbg->dbgbus_dsi));
 
-	if (SDE_HW_REV_MAJOR(hwversion) == 0x7) {
-		dbg->dbgbus_sde.entries = dbg_bus_sde_lahaina;
-		dbg->dbgbus_sde.cmn.entries_size =
-				ARRAY_SIZE(dbg_bus_sde_lahaina);
-		dbg->dbgbus_sde.cmn.flags = DBGBUS_FLAGS_DSPP;
-		dbg->dbgbus_sde.cmn.name = DBGBUS_NAME_SDE;
-		dbg->dbgbus_sde.cmn.enable_mask = DEFAULT_DBGBUS_SDE;
+	dbg->dbgbus_sde.entries = dbg_bus_sde;
+	dbg->dbgbus_sde.cmn.entries_size = ARRAY_SIZE(dbg_bus_sde);
+	dbg->dbgbus_sde.limited_entries = dbg_bus_sde_limited;
+	dbg->dbgbus_sde.cmn.limited_entries_size = ARRAY_SIZE(dbg_bus_sde_limited);
+	dbg->dbgbus_sde.cmn.name = DBGBUS_NAME_SDE;
+	dbg->dbgbus_sde.cmn.enable_mask = DEFAULT_DBGBUS_SDE;
+	dbg->dbgbus_sde.read_tp = _sde_dbg_sde_read_test_point;
+	dbg->dbgbus_sde.clear_tp = _sde_dbg_sde_clear_test_point;
 
-		dbg->dbgbus_vbif_rt.entries = vbif_dbg_bus_msm8998;
-		dbg->dbgbus_vbif_rt.cmn.entries_size =
-				ARRAY_SIZE(vbif_dbg_bus_msm8998);
-		dbg->dbgbus_vbif_rt.cmn.name = DBGBUS_NAME_VBIF_RT;
-		dbg->dbgbus_vbif_rt.cmn.enable_mask = DEFAULT_DBGBUS_VBIFRT;
+	dbg->dbgbus_vbif_rt.entries = vbif_dbg_bus;
+	dbg->dbgbus_vbif_rt.cmn.entries_size = ARRAY_SIZE(vbif_dbg_bus);
+	dbg->dbgbus_vbif_rt.limited_entries = vbif_dbg_bus_limited;
+	dbg->dbgbus_vbif_rt.cmn.limited_entries_size = ARRAY_SIZE(vbif_dbg_bus_limited);
+	dbg->dbgbus_vbif_rt.cmn.name = DBGBUS_NAME_VBIF_RT;
+	dbg->dbgbus_vbif_rt.cmn.enable_mask = DEFAULT_DBGBUS_VBIFRT;
+	dbg->dbgbus_vbif_rt.read_tp = _sde_dbg_vbif_read_test_point;
+	dbg->dbgbus_vbif_rt.clear_tp = _sde_dbg_vbif_clear_test_point;
+	dbg->dbgbus_vbif_rt.disable_block = _sde_dbg_vbif_disable_block;
 
-		dbg->dbgbus_dsi.entries = dsi_dbg_bus_kona;
-		dbg->dbgbus_dsi.cmn.entries_size =
-				ARRAY_SIZE(dsi_dbg_bus_kona);
-		dbg->dbgbus_dsi.cmn.name = DBGBUS_NAME_DSI;
-		dbg->dbgbus_dsi.cmn.enable_mask = DEFAULT_DBGBUS_DSI;
+	dbg->dbgbus_dsi.entries = dsi_dbg_bus;
+	dbg->dbgbus_dsi.cmn.entries_size = ARRAY_SIZE(dsi_dbg_bus);
+	dbg->dbgbus_dsi.cmn.name = DBGBUS_NAME_DSI;
+	dbg->dbgbus_dsi.cmn.enable_mask = DEFAULT_DBGBUS_DSI;
+	dbg->dbgbus_dsi.read_tp = _sde_dbg_dsi_read_test_point;
+	dbg->dbgbus_dsi.clear_tp = _sde_dbg_cmn_clear_test_point;
 
-		dbg->dbgbus_lutdma.entries = dbg_bus_lutdma_lahaina;
+	if (SDE_HW_REV_MAJOR(hwversion) >= 0x7) {
+		dbg->dbgbus_lutdma.entries = dbg_bus_lutdma;
 		dbg->dbgbus_lutdma.cmn.name = DBGBUS_NAME_LUTDMA;
 		dbg->dbgbus_lutdma.cmn.entries_size =
-				ARRAY_SIZE(dbg_bus_lutdma_lahaina);
+				ARRAY_SIZE(dbg_bus_lutdma);
 		dbg->dbgbus_lutdma.cmn.enable_mask = DEFAULT_DBGBUS_LUTDMA;
 		dbg->dbgbus_lutdma.cmn.include_in_deferred_work = true;
-	} else if (SDE_HW_REV_MAJOR(hwversion) == 0x6) {
-		dbg->dbgbus_sde.entries = dbg_bus_sde_kona;
-		dbg->dbgbus_sde.cmn.entries_size =
-				ARRAY_SIZE(dbg_bus_sde_kona);
-		dbg->dbgbus_sde.cmn.flags = DBGBUS_FLAGS_DSPP;
-		dbg->dbgbus_sde.cmn.name = DBGBUS_NAME_SDE;
-		dbg->dbgbus_sde.cmn.enable_mask = DEFAULT_DBGBUS_SDE;
-
-		dbg->dbgbus_vbif_rt.entries = vbif_dbg_bus_msm8998;
-		dbg->dbgbus_vbif_rt.cmn.entries_size =
-				ARRAY_SIZE(vbif_dbg_bus_msm8998);
-		dbg->dbgbus_vbif_rt.cmn.name = DBGBUS_NAME_VBIF_RT;
-		dbg->dbgbus_vbif_rt.cmn.enable_mask = DEFAULT_DBGBUS_VBIFRT;
-
-		dbg->dbgbus_dsi.entries = dsi_dbg_bus_kona;
-		dbg->dbgbus_dsi.cmn.entries_size =
-				ARRAY_SIZE(dsi_dbg_bus_kona);
-		dbg->dbgbus_dsi.cmn.name = DBGBUS_NAME_DSI;
-		dbg->dbgbus_dsi.cmn.enable_mask = DEFAULT_DBGBUS_DSI;
-	} else if (SDE_HW_REV_MAJOR(hwversion) == 0x5) {
-		dbg->dbgbus_sde.entries = dbg_bus_sde_sm8150;
-		dbg->dbgbus_sde.cmn.entries_size =
-				ARRAY_SIZE(dbg_bus_sde_sm8150);
-		dbg->dbgbus_sde.cmn.flags = DBGBUS_FLAGS_DSPP;
-		dbg->dbgbus_sde.cmn.name = DBGBUS_NAME_SDE;
-		dbg->dbgbus_sde.cmn.enable_mask = DEFAULT_DBGBUS_SDE;
-
-		dbg->dbgbus_vbif_rt.entries = vbif_dbg_bus_msm8998;
-		dbg->dbgbus_vbif_rt.cmn.entries_size =
-				ARRAY_SIZE(vbif_dbg_bus_msm8998);
-		dbg->dbgbus_vbif_rt.cmn.name = DBGBUS_NAME_VBIF_RT;
-		dbg->dbgbus_vbif_rt.cmn.enable_mask = DEFAULT_DBGBUS_VBIFRT;
-
-		dbg->dbgbus_dsi.entries = NULL;
-		dbg->dbgbus_dsi.cmn.entries_size = 0;
-	} else {
-		pr_err("unsupported chipset id %X\n", hwversion);
+		dbg->dbgbus_lutdma.read_tp = _sde_dbg_lutdma_read_test_point;
+		dbg->dbgbus_lutdma.clear_tp = _sde_dbg_cmn_clear_test_point;
 	}
 }
 
@@ -6418,6 +2451,12 @@ int sde_dbg_init(struct device *dev)
 		return PTR_ERR(sde_dbg_base.evtlog);
 
 	sde_dbg_base_evtlog = sde_dbg_base.evtlog;
+
+	sde_dbg_base.reglog = sde_reglog_init();
+	if (IS_ERR_OR_NULL(sde_dbg_base.reglog))
+		return PTR_ERR(sde_dbg_base.reglog);
+
+	sde_dbg_base_reglog = sde_dbg_base.reglog;
 
 	INIT_WORK(&sde_dbg_base.dump_work, _sde_dump_work);
 	sde_dbg_base.work_panic = false;
@@ -6458,6 +2497,7 @@ static void sde_dbg_reg_base_destroy(void)
 		list_del(&blk_base->reg_base_head);
 		kfree(blk_base);
 	}
+	vfree(dbg_base->reg_dump_base);
 }
 
 static void sde_dbg_dsi_ctrl_destroy(void)
@@ -6472,19 +2512,32 @@ static void sde_dbg_dsi_ctrl_destroy(void)
 	mutex_unlock(&sde_dbg_dsi_mutex);
 }
 
+static void sde_dbg_buses_destroy(void)
+{
+	struct sde_dbg_base *dbg_base = &sde_dbg_base;
+
+	vfree(dbg_base->dbgbus_sde.cmn.dumped_content);
+	vfree(dbg_base->dbgbus_vbif_rt.cmn.dumped_content);
+	vfree(dbg_base->dbgbus_dsi.cmn.dumped_content);
+	vfree(dbg_base->dbgbus_lutdma.cmn.dumped_content);
+}
+
 /**
  * sde_dbg_destroy - destroy sde debug facilities
  */
 void sde_dbg_destroy(void)
 {
-	kfree(sde_dbg_base.regbuf.buf);
+	vfree(sde_dbg_base.regbuf.buf);
 	memset(&sde_dbg_base.regbuf, 0, sizeof(sde_dbg_base.regbuf));
 	_sde_dbg_debugfs_destroy();
 	sde_dbg_base_evtlog = NULL;
 	sde_evtlog_destroy(sde_dbg_base.evtlog);
 	sde_dbg_base.evtlog = NULL;
+	sde_reglog_destroy(sde_dbg_base.reglog);
+	sde_dbg_base.reglog = NULL;
 	sde_dbg_reg_base_destroy();
 	sde_dbg_dsi_ctrl_destroy();
+	sde_dbg_buses_destroy();
 	mutex_destroy(&sde_dbg_base.mutex);
 }
 
@@ -6635,6 +2688,13 @@ void sde_dbg_reg_register_dump_range(const char *base_name,
 	pr_debug("base %s, range %s, start 0x%X, end 0x%X\n",
 			base_name, range->range_name,
 			range->offset.start, range->offset.end);
+}
+
+void sde_dbg_set_hw_ownership_status(bool enable)
+{
+	mutex_lock(&sde_dbg_base.mutex);
+	sde_dbg_base.hw_ownership = enable;
+	mutex_unlock(&sde_dbg_base.mutex);
 }
 
 void sde_dbg_set_sde_top_offset(u32 blk_off)

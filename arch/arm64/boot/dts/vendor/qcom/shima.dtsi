@@ -31,7 +31,13 @@
 
 	#address-cells = <2>;
 	#size-cells = <2>;
+
+	chosen {
+		bootargs = "log_buf_len=256K earlycon=msm_geni_serial,0x994000 rcupdate.rcu_expedited=1 rcu_nocbs=0-7 kpti=off";
+	};
+
 	memory { device_type = "memory"; reg = <0 0 0 0>; };
+	reserved_memory: reserved-memory { };
 
 	mem-offline {
 		compatible = "qcom,mem-offline";
@@ -44,14 +50,16 @@
 
 	aliases {
 			ufshc1 = &ufshc_mem; /* Embedded UFS Slot */
-			sdhc1 = &sdhc_1; /*SDC1 eMMC slot*/
-			sdhc2 = &sdhc_2; /* SDC2 SD card slot */
+			sdhc0 = &sdhc_1; /*SDC1 eMMC slot*/
+			sdhc1 = &sdhc_2; /* SDC2 SD card slot */
 			swr0 = &swr0;
 			swr1 = &swr1;
 			swr2 = &swr2;
 			serial0 = &qupv3_se13_2uart;
 			hsuart0 = &qupv3_se15_4uart;
-		};
+	};
+
+	firmware: firmware {};
 
 	cpus {
 		#address-cells = <2>;
@@ -248,269 +256,267 @@
 		};
 	};
 
-	reserved-memory {
-		#address-cells = <2>;
-		#size-cells = <2>;
-		ranges;
-
-		hyp_mem: hyp@80000000 {
-			no-map;
-			reg = <0x0 0x80000000 0x0 0x600000>;
-		};
-
-		xbl_aop_mem: xbl_aop_mem@80700000 {
-			no-map;
-			reg = <0x0 0x80700000 0x0 0x160000>;
-		};
-
-		cmd_db: reserved-memory@80860000 {
-			compatible = "qcom,cmd-db";
-			no-map;
-			reg = <0x0 0x80860000 0x0 0x20000>;
-		};
-
-		reserved_xbl_uefi: reserved_xbl_uefi@80880000 {
-			no-map;
-			reg = <0x0 0x80880000 0x0 0x14000>;
-		};
-
-		smem_mem: smem@80900000 {
-			no-map;
-			reg = <0x0 0x80900000 0x0 0x200000>;
-		};
-
-		fw_mem: fw_mem@80b00000 {
-			no-map;
-			reg = <0x0 0x80b00000 0x0 0x100000>;
-		};
-
-		cdsp_secure_heap_mem: cdsp_secure_heap_mem@80c00000 {
-			no-map;
-			reg = <0x0 0x80c00000 0x0 0x4600000>;
-		};
-
-		pil_camera_mem: camera@85800000 {
-			no-map;
-			reg = <0x0 0x85800000 0x0 0x500000>;
-		};
-
-		pil_video_mem: video@85d00000 {
-			no-map;
-			reg = <0x0 0x85d00000 0x0 0x500000>;
-		};
-
-		pil_cvp_mem: cvp@86200000 {
-			no-map;
-			reg = <0x0 0x86200000 0x0 0x500000>;
-		};
-
-		pil_adsp_mem: adsp@86700000 {
-			no-map;
-			reg = <0x0 0x86700000 0x0 0x2800000>;
-		};
-
-		pil_cdsp_mem: cdsp@88f00000 {
-			no-map;
-			reg = <0x0 0x88f00000 0x0 0x1e00000>;
-		};
-
-		adsp_mem: adsp_region {
-			compatible = "shared-dma-pool";
-			alloc-ranges = <0x0 0x00000000 0x0 0xffffffff>;
-			reusable;
-			alignment = <0x0 0x400000>;
-			size = <0x0 0xC00000>;
-		};
-
-		pil_wlan_mem: wlan@8ad00000 {
-			no-map;
-			reg = <0x0 0x8ad00000 0x0 0xa00000>;
-		};
-
-		pil_ipa_fw_mem: ipa_fw@8b700000 {
-			no-map;
-			reg = <0x0 0x8b700000 0x0 0x10000>;
-		};
-
-		pil_ipa_gsi_mem: ipa_gsi@8b710000 {
-			no-map;
-			reg = <0x0 0x8b710000 0x0 0xa000>;
-		};
-
-		pil_gpu_micro_code_mem: gpu_micro_code@8b71a000 {
-			no-map;
-			reg = <0x0 0x8b71a000 0x0 0x2000>;
-		};
-
-		pil_mpss_wlan_mem: mpss_wlan@8b800000 {
-			no-map;
-			reg = <0x0 0x8b800000 0x0 0x10000000>;
-		};
-
-		removed_mem: removed_region@c0000000 {
-			no-map;
-			reg = <0x0 0xc0000000 0x0 0x5100000>;
-		};
-
-		pil_trustedvm_mem: pil_trustedvm_region@d0800000 {
-			no-map;
-			reg = <0x0 0xd0800000 0x0 0x76f7000>;
-		};
-
-		qrtr_shbuf: qrtr-shmem {
-			no-map;
-			reg = <0x0 0xd7ef7000 0x0 0x9000>;
-		};
-
-		chan0_shbuf: neuron_block@0 {
-			no-map;
-			reg = <0x0 0xd7f00000 0x0 0x80000>;
-		};
-
-		chan1_shbuf: neuron_block@1 {
-			no-map;
-			reg = <0x0 0xd7f80000 0x0 0x80000>;
-		};
-
-		user_contig_mem: user_contig_region {
-			compatible = "shared-dma-pool";
-			alloc-ranges = <0x0 0x00000000 0x0 0xffffffff>;
-			reusable;
-			alignment = <0x0 0x400000>;
-			size = <0x0 0x1000000>;
-		};
-
-		qseecom_mem: qseecom_region {
-			compatible = "shared-dma-pool";
-			alloc-ranges = <0x0 0x00000000 0x0 0xffffffff>;
-			reusable;
-			alignment = <0x0 0x400000>;
-			size = <0x0 0x1400000>;
-		};
-
-		qseecom_ta_mem: qseecom_ta_region {
-			compatible = "shared-dma-pool";
-			alloc-ranges = <0x0 0x00000000 0x0 0xffffffff>;
-			reusable;
-			alignment = <0x0 0x400000>;
-			size = <0x0 0x1000000>;
-		};
-
-		secure_display_memory: secure_display_region {
-			compatible = "shared-dma-pool";
-			alloc-ranges = <0 0x00000000 0 0xffffffff>;
-			reusable;
-			alignment = <0 0x400000>;
-			size = <0 0xA000000>;
-		};
-
-		cnss_wlan_mem: cnss_wlan_region {
-			compatible = "shared-dma-pool";
-			alloc-ranges = <0x0 0x00000000 0x0 0xffffffff>;
-			reusable;
-			alignment = <0x0 0x400000>;
-			size = <0x0 0x1400000>;
-		};
-
-		qcom: ramoops {
-			compatible = "ramoops";
-			reg = <0x0 0xa9000000 0x0 0x200000>;
-			pmsg-size = <0x200000>;
-			mem-type = <2>;
-		};
-
-		/* global autoconfigured region for contiguous allocations */
-		linux,cma {
-			compatible = "shared-dma-pool";
-			alloc-ranges = <0x0 0x00000000 0x0 0xffffffff>;
-			reusable;
-			alignment = <0x0 0x400000>;
-			size = <0x0 0x2000000>;
-			linux,cma-default;
-		};
-
-		cdsp_mem: cdsp_region {
-			compatible = "shared-dma-pool";
-			alloc-ranges = <0x0 0x00000000 0x0 0xffffffff>;
-			reusable;
-			alignment = <0x0 0x400000>;
-			size = <0x0 0x400000>;
-		};
-
-		memshare_mem: memshare_region {
-			compatible = "shared-dma-pool";
-			no-map;
-			alloc-ranges = <0x0 0x00000000 0x0 0xffffffff>;
-			alignment = <0x0 0x100000>;
-			size = <0x0 0x800000>;
-		};
-
-		dump_mem: mem_dump_region {
-			compatible = "shared-dma-pool";
-			alloc-ranges = <0x0 0x00000000 0x0 0xffffffff>;
-			reusable;
-			size = <0 0x2c00000>;
-		};
-
-		audio_cma_mem: audio_cma_region {
-			compatible = "shared-dma-pool";
-			alloc-ranges = <0x0 0x00000000 0x0 0xffffffff>;
-			reusable;
-			alignment = <0x0 0x400000>;
-			size = <0x0 0x1C00000>;
-		};
-
-		splash_memory: splash_region {
-			reg = <0x0 0xe1000000 0x0 0x02300000>;
-			label = "cont_splash_region";
-		};
-
-		dfps_data_memory: dfps_data_memory {
-			reg = <0x0 0xe3300000 0x0 0x0100000>;
-			label = "dfps_data_memory";
-		};
-
-		non_secure_display_memory: non_secure_display_region {
-			compatible = "shared-dma-pool";
-			alloc-ranges = <0x0 0x00000000 0x0 0xffffffff>;
-			reusable;
-			alignment = <0x0 0x400000>;
-			size = <0x0 0x6400000>;
-		};
-	};
-
-	chosen {
-		bootargs = "log_buf_len=256K earlycon=msm_geni_serial,0x994000 rcupdate.rcu_expedited=1 rcu_nocbs=0-7  mem_offline.bypass_send_msg=1";
-	};
 
 	soc: soc { };
 
-	firmware: firmware {
-		scm {
-			compatible = "qcom,scm";
-			qcom,dload-mode = <&tcsr 0x13000>;
+};
+
+&firmware {
+	scm {
+		compatible = "qcom,scm";
+		qcom,dload-mode = <&tcsr 0x13000>;
+	};
+
+	android {
+		compatible = "android,firmware";
+		vbmeta {
+			compatible = "android,vbmeta";
+			parts = "vbmeta,boot,system,vendor,dtbo";
 		};
 
-		android {
-			compatible = "android,firmware";
-			vbmeta {
-				compatible = "android,vbmeta";
-				parts = "vbmeta,boot,system,vendor,dtbo";
-			};
+		fstab {
+			compatible = "android,fstab";
+			vendor {
+				compatible = "android,vendor";
+				dev = "/dev/block/platform/soc/1d84000.ufshc/by-name/vendor";
 
-			fstab {
-				compatible = "android,fstab";
-				vendor {
-					compatible = "android,vendor";
-					dev = "/dev/block/platform/soc/1d84000.ufshc/by-name/vendor";
-
-					type = "ext4";
-					mnt_flags = "ro,barrier=1,discard";
-					fsmgr_flags = "wait,slotselect,avb";
-					status = "ok";
-				};
+				type = "ext4";
+				mnt_flags = "ro,barrier=1,discard";
+				fsmgr_flags = "wait,slotselect,avb";
+				status = "ok";
 			};
 		};
+	};
+};
+
+&reserved_memory {
+	#address-cells = <2>;
+	#size-cells = <2>;
+	ranges;
+
+	hyp_mem: hyp@80000000 {
+		no-map;
+		reg = <0x0 0x80000000 0x0 0x600000>;
+	};
+
+	xbl_aop_mem: xbl_aop_mem@80700000 {
+		no-map;
+		reg = <0x0 0x80700000 0x0 0x160000>;
+	};
+
+	cmd_db: reserved-memory@80860000 {
+		compatible = "qcom,cmd-db";
+		no-map;
+		reg = <0x0 0x80860000 0x0 0x20000>;
+	};
+
+	reserved_xbl_uefi: reserved_xbl_uefi@80880000 {
+		no-map;
+		reg = <0x0 0x80880000 0x0 0x14000>;
+	};
+
+	smem_mem: smem@80900000 {
+		no-map;
+		reg = <0x0 0x80900000 0x0 0x200000>;
+	};
+
+	fw_mem: fw_mem@80b00000 {
+		no-map;
+		reg = <0x0 0x80b00000 0x0 0x100000>;
+	};
+
+	cdsp_secure_heap_mem: cdsp_secure_heap_mem@80c00000 {
+		no-map;
+		reg = <0x0 0x80c00000 0x0 0x4600000>;
+	};
+
+	pil_camera_mem: camera@85800000 {
+		no-map;
+		reg = <0x0 0x85800000 0x0 0x500000>;
+	};
+
+	pil_video_mem: video@85d00000 {
+		no-map;
+		reg = <0x0 0x85d00000 0x0 0x500000>;
+	};
+
+	pil_cvp_mem: cvp@86200000 {
+		no-map;
+		reg = <0x0 0x86200000 0x0 0x500000>;
+	};
+
+	pil_adsp_mem: adsp@86700000 {
+		no-map;
+		reg = <0x0 0x86700000 0x0 0x2800000>;
+	};
+
+	pil_cdsp_mem: cdsp@88f00000 {
+		no-map;
+		reg = <0x0 0x88f00000 0x0 0x1e00000>;
+	};
+
+	adsp_mem: adsp_region {
+		compatible = "shared-dma-pool";
+		alloc-ranges = <0x0 0x00000000 0x0 0xffffffff>;
+		reusable;
+		alignment = <0x0 0x400000>;
+		size = <0x0 0xC00000>;
+	};
+
+	pil_wlan_mem: wlan@8ad00000 {
+		no-map;
+		reg = <0x0 0x8ad00000 0x0 0xa00000>;
+	};
+
+	pil_ipa_fw_mem: ipa_fw@8b700000 {
+		no-map;
+		reg = <0x0 0x8b700000 0x0 0x10000>;
+	};
+
+	pil_ipa_gsi_mem: ipa_gsi@8b710000 {
+		no-map;
+		reg = <0x0 0x8b710000 0x0 0xa000>;
+	};
+
+	pil_gpu_micro_code_mem: gpu_micro_code@8b71a000 {
+		no-map;
+		reg = <0x0 0x8b71a000 0x0 0x2000>;
+	};
+
+	pil_mpss_wlan_mem: mpss_wlan@8b800000 {
+		no-map;
+		reg = <0x0 0x8b800000 0x0 0x10000000>;
+	};
+
+	removed_mem: removed_region@c0000000 {
+		no-map;
+		reg = <0x0 0xc0000000 0x0 0x5100000>;
+	};
+
+	pil_trustedvm_mem: pil_trustedvm_region@d0800000 {
+		no-map;
+		reg = <0x0 0xd0800000 0x0 0x76f7000>;
+	};
+
+	qrtr_shbuf: qrtr-shmem {
+		no-map;
+		reg = <0x0 0xd7ef7000 0x0 0x9000>;
+	};
+
+	chan0_shbuf: neuron_block@0 {
+		no-map;
+		reg = <0x0 0xd7f00000 0x0 0x80000>;
+	};
+
+	chan1_shbuf: neuron_block@1 {
+		no-map;
+		reg = <0x0 0xd7f80000 0x0 0x80000>;
+	};
+
+	user_contig_mem: user_contig_region {
+		compatible = "shared-dma-pool";
+		alloc-ranges = <0x0 0x00000000 0x0 0xffffffff>;
+		reusable;
+		alignment = <0x0 0x400000>;
+		size = <0x0 0x1000000>;
+	};
+
+	qseecom_mem: qseecom_region {
+		compatible = "shared-dma-pool";
+		alloc-ranges = <0x0 0x00000000 0x0 0xffffffff>;
+		reusable;
+		alignment = <0x0 0x400000>;
+		size = <0x0 0x1400000>;
+	};
+
+	qseecom_ta_mem: qseecom_ta_region {
+		compatible = "shared-dma-pool";
+		alloc-ranges = <0x0 0x00000000 0x0 0xffffffff>;
+		reusable;
+		alignment = <0x0 0x400000>;
+		size = <0x0 0x1000000>;
+	};
+
+	secure_display_memory: secure_display_region {
+		compatible = "shared-dma-pool";
+		alloc-ranges = <0 0x00000000 0 0xffffffff>;
+		reusable;
+		alignment = <0 0x400000>;
+		size = <0 0xA000000>;
+	};
+
+	cnss_wlan_mem: cnss_wlan_region {
+		compatible = "shared-dma-pool";
+		alloc-ranges = <0x0 0x00000000 0x0 0xffffffff>;
+		reusable;
+		alignment = <0x0 0x400000>;
+		size = <0x0 0x1400000>;
+	};
+
+	qcom: ramoops {
+		compatible = "ramoops";
+		reg = <0x0 0xa9000000 0x0 0x200000>;
+		pmsg-size = <0x200000>;
+		mem-type = <2>;
+	};
+
+	/* global autoconfigured region for contiguous allocations */
+	linux,cma {
+		compatible = "shared-dma-pool";
+		alloc-ranges = <0x0 0x00000000 0x0 0xffffffff>;
+		reusable;
+		alignment = <0x0 0x400000>;
+		size = <0x0 0x2000000>;
+		linux,cma-default;
+	};
+
+	cdsp_mem: cdsp_region {
+		compatible = "shared-dma-pool";
+		alloc-ranges = <0x0 0x00000000 0x0 0xffffffff>;
+		reusable;
+		alignment = <0x0 0x400000>;
+		size = <0x0 0x400000>;
+	};
+
+	memshare_mem: memshare_region {
+		compatible = "shared-dma-pool";
+		no-map;
+		alloc-ranges = <0x0 0x00000000 0x0 0xffffffff>;
+		alignment = <0x0 0x100000>;
+		size = <0x0 0x800000>;
+	};
+
+	dump_mem: mem_dump_region {
+		compatible = "shared-dma-pool";
+		alloc-ranges = <0x0 0x00000000 0x0 0xffffffff>;
+		reusable;
+		size = <0 0x2c00000>;
+	};
+
+	audio_cma_mem: audio_cma_region {
+		compatible = "shared-dma-pool";
+		alloc-ranges = <0x0 0x00000000 0x0 0xffffffff>;
+		reusable;
+		alignment = <0x0 0x400000>;
+		size = <0x0 0x1C00000>;
+	};
+
+	splash_memory: splash_region {
+		reg = <0x0 0xe1000000 0x0 0x02300000>;
+		label = "cont_splash_region";
+	};
+
+	dfps_data_memory: dfps_data_memory {
+		reg = <0x0 0xe3300000 0x0 0x0100000>;
+		label = "dfps_data_memory";
+	};
+
+	non_secure_display_memory: non_secure_display_region {
+		compatible = "shared-dma-pool";
+		alloc-ranges = <0x0 0x00000000 0x0 0xffffffff>;
+		reusable;
+		alignment = <0x0 0x400000>;
+		size = <0x0 0x6400000>;
 	};
 };
 
@@ -537,7 +543,8 @@
 		qcom,apps-ch-pipes = <0x0>;
 		qcom,ea-pc = <0x3d0>;
 		iommus = <&apps_smmu 0x2026 0x0>;
-		qcom,iommu-dma-addr-pool = <0x40000000 0xc0000000>;
+		qcom,iommu-dma-addr-pool = <0x40000000 0x10000000>;
+		qcom,iommu-geometry = <0x40000000 0x10000000>;
 		qcom,iommu-dma = "fastmap";
 		status = "ok";
 
@@ -1167,6 +1174,8 @@
 	qcom,guestvm_loader {
 		compatible = "qcom,guestvm-loader";
 		image_to_be_loaded = "trustedvm";
+		qcom,reserved-cpus = <4 5>;
+		qcom,unisolate-timeout-ms = <8000>;
 	};
 
 
@@ -1614,8 +1623,9 @@
 	ufshc_mem: ufshc@1d84000 {
 		compatible = "qcom,ufshc";
 		reg = <0x1d84000 0x3000>,
-		      <0x1d88000 0x8000>;
-		reg-names = "ufs_mem", "ufs_ice";
+		      <0x1d88000 0x8000>,
+		      <0x1d90000 0x9000>;
+		reg-names = "ufs_mem", "ufs_ice", "ufs_ice_hwkm";
 		interrupts = <GIC_SPI 265 IRQ_TYPE_LEVEL_HIGH>;
 		phys = <&ufsphy_mem>;
 		phy-names = "ufsphy";
@@ -1751,12 +1761,14 @@
 
 	sdhc_1: sdhci@7C4000 {
 		compatible = "qcom,sdhci-msm-v5";
-		reg = <0x007C4000 0x1000>, <0x007C5000 0x1000>;
-		reg-names = "hc_mem", "cqhci_mem";
+		reg = <0x007C4000 0x1000>, <0x007C5000 0x1000>,
+		      <0x007c8000 0x8000>, <0x7d0000 0x9000>;
+		reg-names = "hc_mem", "cqhci_mem", "cqhci_ice",
+			    "cqhci_ice_hwkm";
 
 		iommus = <&apps_smmu 0xc0 0x0>;
 		dma-coherent;
-		qcom,iommu-dma = "bypass";
+		qcom,iommu-dma = "fastmap";
 
 		interrupts = <GIC_SPI 652 IRQ_TYPE_LEVEL_HIGH>,
 				<GIC_SPI 656 IRQ_TYPE_LEVEL_HIGH>;
@@ -2293,6 +2305,28 @@
 		qcom,count-unit = <0x10000>;
 	};
 
+	snoop_l3_bw: qcom,snoop-l3-bw {
+		compatible = "qcom,devfreq-icc-l3bw";
+		reg = <0x18590100 0xa0>;
+		reg-names = "ftbl-base";
+		qcom,bus-width = <32>;
+		governor = "bw_hwmon";
+		interconnects =
+			<&epss_l3_cpu MASTER_EPSS_L3_APPS
+			 &epss_l3_cpu SLAVE_EPSS_L3_SHARED>;
+	};
+
+	snoop_l3_bwmon: qcom,snoop-l3-bwmon@9091000 {
+		compatible = "qcom,bimc-bwmon4";
+		reg = <0x90b9100 0x300>, <0x90b9000 0x200>;
+		reg-names = "base", "global_base";
+		interrupts = <GIC_SPI 226 IRQ_TYPE_LEVEL_HIGH>;
+		qcom,mport = <0>;
+		qcom,hw-timer-hz = <19200000>;
+		qcom,target-dev = <&snoop_l3_bw>;
+		qcom,count-unit = <0x10000>;
+	};
+
 	cpu0_cpu_l3_lat: qcom,cpu0-cpu-l3-lat {
 		compatible = "qcom,devfreq-icc-l3";
 		reg = <0x18590100 0xa0>;
@@ -2373,6 +2407,16 @@
 			 &epss_l3_cpu SLAVE_EPSS_L3_CPU7>;
 	};
 
+	cpu7_cpu_l3_latfloor: qcom,cpu7-cpu-l3-latfloor {
+		compatible = "qcom,devfreq-icc-l3";
+		reg = <0x18590100 0xa0>;
+		reg-names = "ftbl-base";
+		governor = "compute";
+		interconnects =
+			<&epss_l3_cpu MASTER_EPSS_L3_APPS
+			 &epss_l3_cpu SLAVE_EPSS_L3_SHARED>;
+	};
+
 	cpu0_cpu_llcc_lat: qcom,cpu0-cpu-llcc-lat {
 		compatible = "qcom,devfreq-icc";
 		governor = "mem_latency";
@@ -2438,6 +2482,13 @@
 	};
 
 	cpu4_cpu_ddr_qoslat: qcom,cpu4-cpu-ddr-qoslat {
+		compatible = "qcom,devfreq-qoslat";
+		governor = "mem_latency";
+		operating-points-v2 = <&qoslat_opp_table>;
+		mboxes = <&qmp_aop 0>;
+	};
+
+	cpu7_cpu_ddr_qoslatfloor: qcom,cpu7-cpu-ddr-qoslatfloor {
 		compatible = "qcom,devfreq-qoslat";
 		governor = "mem_latency";
 		operating-points-v2 = <&qoslat_opp_table>;
@@ -2547,6 +2598,15 @@
 			qcom,access-ev = <0x2B>;
 			qcom,wb-ev = <0x18>;
 			qcom,core-dev-table = <&cpu7_cpu_l3_tbl>;
+		};
+
+		cpu7_l3_computemon: qcom,cpu7-l3-computemon {
+			compatible = "qcom,arm-compute-mon";
+			qcom,cpulist = <&CPU7>;
+			qcom,target-dev = <&cpu7_cpu_l3_latfloor>;
+			qcom,core-dev-table =
+				< 2169600  300000000 >,
+				< 2707200 1420800000 >;
 		};
 
 		cpu0_cpu_llcc_latmon: qcom,cpu0-cpu-llcc-latmon {
@@ -2703,6 +2763,16 @@
 			qcom,core-dev-table =
 				<  300000 1 >,
 				< 3000000 2 >;
+		};
+
+		cpu7_qoslatmon: qcom,cpu7-qoslatmon {
+			compatible = "qcom,arm-memlat-mon";
+			qcom,cpulist = <&CPU7>;
+			qcom,target-dev = <&cpu7_cpu_ddr_qoslatfloor>;
+			qcom,cachemiss-ev = <0x1000>;
+			qcom,core-dev-table =
+				< 2169600 1 >,
+				< 2707200 2 >;
 		};
 	};
 
@@ -3506,7 +3576,7 @@
 		vdd-wlan-io-supply = <&S10B>;
 		qcom,vdd-wlan-io-config = <1800000 1800000 0 0 1>;
 		vdd-wlan-rfa1-supply = <&S11B>;
-		qcom,vdd-wlan-rfa1-config = <1880000 1880000 0 0 1>;
+		qcom,vdd-wlan-rfa1-config = <1880000 2040000 0 0 1>;
 		vdd-wlan-rfa2-supply = <&S12B>;
 		qcom,vdd-wlan-rfa2-config = <1350000 1350000 0 0 1>;
 		wlan-ant-switch-supply = <&L11C>;
@@ -3684,7 +3754,7 @@
 		qcom,bt-vdd-dig-config = <950000 952000 0 1>;
 		qcom,bt-vdd-rfacmn-config  = <950000 952000 0 1>;
 		qcom,bt-vdd-rfa-0p8-config  = <950000 952000 0 1>;
-		qcom,bt-vdd-rfa1-config = <1880000 1880000 0 1>;
+		qcom,bt-vdd-rfa1-config = <1880000 2040000 0 1>;
 		qcom,bt-vdd-rfa2-config = <1350000 1350000 0 1>;
 		qcom,bt-vdd-asd-config = <2800000 2800000 0 1>;
 	};
@@ -3742,8 +3812,6 @@
 		qcom,ipa-holb-monitor-max-cnt-usb = <10>;
 		qcom,ipa-holb-monitor-max-cnt-11ad = <10>;
 		qcom,tx-wrapper-cache-max-size = <400>;
-		/* Entry will be removed once shadow stack changes checked-in */
-		qcom,ipa-wan-aggr-pkt-cnt = <2>;
 		qcom,ipa-gpi-event-rp-ddr;
 		clock-names = "core_clk";
 		clocks = <&rpmhcc RPMH_IPA_CLK>;
@@ -3869,22 +3937,18 @@
 };
 
 &gcc_pcie_0_gdsc {
-	qcom,retain-regs;
 	status = "ok";
 };
 
 &gcc_pcie_1_gdsc {
-	qcom,retain-regs;
 	status = "ok";
 };
 
 &gcc_ufs_phy_gdsc {
-	qcom,retain-regs;
 	status = "ok";
 };
 
 &gcc_usb30_prim_gdsc {
-	qcom,retain-regs;
 	status = "ok";
 };
 
@@ -3924,7 +3988,6 @@
 	clocks = <&gcc GCC_CAMERA_AHB_CLK>;
 	clock-names = "ahb_clk";
 	parent-supply = <&VDD_CX_LEVEL>;
-	qcom,retain-regs;
 	status = "ok";
 };
 
@@ -3933,7 +3996,6 @@
 	clock-names = "ahb_clk";
 	qcom,support-hw-trigger;
 	parent-supply = <&VDD_CX_LEVEL>;
-	qcom,retain-regs;
 	status = "ok";
 };
 
@@ -3941,7 +4003,6 @@
 	clocks = <&gcc GCC_CAMERA_AHB_CLK>;
 	clock-names = "ahb_clk";
 	parent-supply = <&VDD_CX_LEVEL>;
-	qcom,retain-regs;
 	status = "ok";
 };
 
@@ -3949,7 +4010,6 @@
 	clocks = <&gcc GCC_CAMERA_AHB_CLK>;
 	clock-names = "ahb_clk";
 	parent-supply = <&VDD_CX_LEVEL>;
-	qcom,retain-regs;
 	status = "ok";
 };
 
@@ -3957,7 +4017,6 @@
 	clocks = <&gcc GCC_CAMERA_AHB_CLK>;
 	clock-names = "ahb_clk";
 	parent-supply = <&VDD_CX_LEVEL>;
-	qcom,retain-regs;
 	status = "ok";
 };
 
@@ -3966,7 +4025,6 @@
 	clock-names = "ahb_clk";
 	qcom,support-hw-trigger;
 	parent-supply = <&VDD_CX_LEVEL>;
-	qcom,retain-regs;
 	status = "ok";
 };
 
@@ -3975,7 +4033,6 @@
 	clock-names = "ahb_clk";
 	qcom,support-hw-trigger;
 	parent-supply = <&VDD_CX_LEVEL>;
-	qcom,retain-regs;
 	status = "ok";
 };
 
@@ -3983,7 +4040,6 @@
 	clocks = <&gcc GCC_GPU_CFG_AHB_CLK>;
 	clock-names = "ahb_clk";
 	parent-supply = <&VDD_CX_LEVEL>;
-	qcom,retain-regs;
 	status = "ok";
 };
 
@@ -3991,7 +4047,6 @@
 	clocks = <&gcc GCC_GPU_CFG_AHB_CLK>;
 	clock-names = "ahb_clk";
 	parent-supply = <&VDD_GFX_LEVEL>;
-	qcom,retain-regs;
 	qcom,skip-disable-before-sw-enable;
 	status = "ok";
 };
@@ -4001,7 +4056,6 @@
 	clock-names = "ahb_clk";
 	qcom,support-hw-trigger;
 	parent-supply = <&VDD_CX_LEVEL>;
-	qcom,retain-regs;
 	status = "ok";
 };
 
@@ -4009,7 +4063,6 @@
 	clocks = <&gcc GCC_VIDEO_AHB_CLK>;
 	clock-names = "ahb_clk";
 	parent-supply = <&VDD_CX_LEVEL>;
-	qcom,retain-regs;
 	status = "ok";
 };
 
@@ -4018,7 +4071,6 @@
 	clock-names = "ahb_clk";
 	qcom,support-hw-trigger;
 	parent-supply = <&VDD_CX_LEVEL>;
-	qcom,retain-regs;
 	status = "ok";
 };
 
@@ -4026,7 +4078,6 @@
 	clocks = <&gcc GCC_VIDEO_AHB_CLK>;
 	clock-names = "ahb_clk";
 	parent-supply = <&VDD_CX_LEVEL>;
-	qcom,retain-regs;
 	status = "ok";
 };
 
@@ -4038,6 +4089,7 @@
 		fmint-gpio = <&tlmm 50 0>;
 		vdd-supply = <&L11C>;
 		rtc6226,vdd-supply-voltage = <2800000 2800000>;
+		rtc6226,vdd-load = <30000>;
 		vio-supply = <&S10B>;
 		rtc6226,vio-supply-voltage = <1800000 1800000 >;
 	};

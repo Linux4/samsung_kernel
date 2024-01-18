@@ -31,7 +31,7 @@ struct task_fps_util_info{
 	struct list_head list;
 };
 
-#define PERF_MGR_FPS_NUM				_IOWR(PERF_MGR_MAGIC, FPS_NUM, int*)
+#define PERF_MGR_FPS_CHANGE				_IOWR(PERF_MGR_MAGIC, FPS_NUM, int*)
 #define PERF_MGR_PROCESS_KILL			_IOWR(PERF_MGR_MAGIC, PROCESS_KILL, int*)
 #define PERF_MGR_TASK_ADD				_IOWR(PERF_MGR_MAGIC, TASK_ADD, int*)
 #define PERF_MGR_FRAME_END				_IOWR(PERF_MGR_MAGIC, FRAME_END, struct fps_info)

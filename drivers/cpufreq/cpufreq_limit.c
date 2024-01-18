@@ -18,10 +18,17 @@
 #include <linux/suspend.h>
 #include <linux/cpu.h>
 #include <linux/kobject.h>
+#include <linux/timer.h>
+#ifdef CONFIG_OF
+#include <linux/of.h>
+#endif
 
 #define MAX_BUF_SIZE	1024
 #define MIN(a, b)     (((a) < (b)) ? (a) : (b))
 #define MAX(a, b)     (((a) > (b)) ? (a) : (b))
+
+/* voltage based freq table */
+unsigned int cflm_vf_tbl[NUM_THM_CPUS][NUM_MAX_FREQS];
 
 static DEFINE_MUTEX(cflm_mutex);
 #define LIMIT_RELEASE	-1
@@ -34,6 +41,12 @@ struct freq_qos_request min_req[NUM_CPUS][CFLM_MAX_ITEM];
 struct input_info {
 	int min;
 	int max;
+	u64 time_in_min_limit;
+	u64 time_in_max_limit;
+	u64 time_in_over_limit;
+	ktime_t last_min_limit_time;
+	ktime_t last_max_limit_time;
+	ktime_t last_over_limit_time;
 };
 struct input_info freq_input[CFLM_MAX_ITEM];
 
@@ -56,6 +69,9 @@ struct cflm_parameter {
 	unsigned int	p_fmin;
 	unsigned int	p_fmax;
 
+	/* exceptional case */
+	unsigned int g_fmin_up;	/* fixed gold clock for performance */
+
 	/* in virtual table little(silver)/big(gold & prime) */
 	unsigned int	big_min_freq;
 	unsigned int	big_max_freq;
@@ -64,6 +80,7 @@ struct cflm_parameter {
 
 	/* pre-defined value */
 	unsigned int	silver_min_lock;
+	unsigned int	silver_max_lock;
 	unsigned int	silver_divider;
 
 	/* current freq in virtual table */
@@ -77,6 +94,9 @@ struct cflm_parameter {
 
 	/* over limit */
 	unsigned int	over_limit;
+
+	/* voltage based clock */
+	bool		vol_based_clk;
 };
 
 
@@ -89,12 +109,15 @@ struct cflm_parameter param = {
 	.g_first		= 4,
 	.p_first		= 7,
 
+	.g_fmin_up		= 844800,	/* fixed gold clock for performance */
+
 	.ltl_min_freq		= 0,		/* will be auto updated */
 	.ltl_max_freq		= 0,		/* will be auto updated */
 	.big_min_freq		= 0,		/* will be auto updated */
 	.big_max_freq		= 0,		/* will be auto updated */
 
 	.silver_min_lock	= 1209600,	/* real silver clock */
+	.silver_max_lock	= 1612800,
 	.silver_divider		= 2,
 
 	.min_limit_val		= -1,
@@ -105,6 +128,8 @@ struct cflm_parameter param = {
 	.sched_boost_enabled	= false,
 
 	.over_limit		= 0,
+
+	.vol_based_clk		= false,
 };
 
 bool cflm_make_table(void)
@@ -269,7 +294,7 @@ static void cflm_update_boost(void)
 	/* sched boost */
 	if (param.sched_boost_cond) {
 		if (!param.sched_boost_enabled) {
-			pr_info("%s: sched boost on\n", __func__);
+			pr_debug("%s: sched boost on\n", __func__);
 
 			sched_set_boost(param.sched_boost_type);
 			param.sched_boost_enabled = true;
@@ -278,7 +303,7 @@ static void cflm_update_boost(void)
 		}
 	} else {
 		if (param.sched_boost_enabled) {
-			pr_info("%s: sched boost off\n", __func__);
+			pr_debug("%s: sched boost off\n", __func__);
 			sched_set_boost(NO_BOOST);
 			param.sched_boost_enabled = false;
 		} else {
@@ -332,7 +357,7 @@ static bool cflm_max_lock_need_restore(void)
 
 	if (freq_input[CFLM_USERSPACE].min > 0) {
 		if (freq_input[CFLM_USERSPACE].min > (int)param.ltl_max_freq) {
-			pr_info("%s: userspace minlock (%d) > ltl max (%d)\n",
+			pr_debug("%s: userspace minlock (%d) > ltl max (%d)\n",
 					__func__, freq_input[CFLM_USERSPACE], param.ltl_max_freq);
 			return false;
 		}
@@ -340,7 +365,7 @@ static bool cflm_max_lock_need_restore(void)
 
 	if (freq_input[CFLM_TOUCH].min > 0) {
 		if (freq_input[CFLM_TOUCH].min > (int)param.ltl_max_freq) {
-			pr_info("%s: touch minlock (%d) > ltl max (%d)\n",
+			pr_debug("%s: touch minlock (%d) > ltl max (%d)\n",
 					__func__, freq_input[CFLM_TOUCH], param.ltl_max_freq);
 			return false;
 		}
@@ -349,14 +374,14 @@ static bool cflm_max_lock_need_restore(void)
 	return true;
 }
 
-static bool cflm_high_pri_min_lock_required(void) 
+static bool cflm_high_pri_min_lock_required(void)
 {
 	if ((int)param.over_limit <= 0)
 		return false;
 
 	if (freq_input[CFLM_USERSPACE].min > 0) {
 		if (freq_input[CFLM_USERSPACE].min > (int)param.ltl_max_freq) {
-			pr_info("%s: userspace minlock (%d) > ltl max (%d)\n",
+			pr_debug("%s: userspace minlock (%d) > ltl max (%d)\n",
 					__func__, freq_input[CFLM_USERSPACE], param.ltl_max_freq);
 			return true;
 		}
@@ -364,13 +389,28 @@ static bool cflm_high_pri_min_lock_required(void)
 
 	if (freq_input[CFLM_TOUCH].min > 0) {
 		if (freq_input[CFLM_TOUCH].min > (int)param.ltl_max_freq) {
-			pr_info("%s: touch minlock (%d) > ltl max (%d)\n",
+			pr_debug("%s: touch minlock (%d) > ltl max (%d)\n",
 					__func__, freq_input[CFLM_TOUCH], param.ltl_max_freq);
 			return true;
 		}
 	}
 
 	return false;
+}
+
+unsigned int cflm_get_vol_matched_freq(unsigned int in_freq)
+{
+	int i;
+	unsigned int out_freq = in_freq;
+
+	for (i = 1; i < NUM_MAX_FREQS; i++) {
+		if ((unsigned int)cflm_vf_tbl[0][i] == in_freq)
+				out_freq = (unsigned int)cflm_vf_tbl[1][i - 1];	/* prime - gold offset 1 */
+	}
+
+	pr_debug("%s: in(%d), out(%d)\n", __func__, in_freq, out_freq);
+
+	return out_freq;
 }
 
 static void cflm_freq_decision(int type, int new_min, int new_max)
@@ -390,27 +430,49 @@ static void cflm_freq_decision(int type, int new_min, int new_max)
 			__func__, type, new_min, new_max);
 
 	/* update input freq */
-	if (new_min != 0) 
+	if (new_min != 0) {
 		freq_input[type].min = new_min;
+		if ((new_min == LIMIT_RELEASE || new_min == param.ltl_min_freq) &&
+			freq_input[type].last_min_limit_time != 0) {
+			freq_input[type].time_in_min_limit += ktime_to_ms(ktime_get()-
+				freq_input[type].last_min_limit_time);
+			freq_input[type].last_min_limit_time = 0;
+		}
+		if (new_min != LIMIT_RELEASE && new_min != param.ltl_min_freq &&
+			freq_input[type].last_min_limit_time == 0) {
+			freq_input[type].last_min_limit_time = ktime_get();
+		}
+	}
 
-	if (new_max != 0)
+	if (new_max != 0) {
 		freq_input[type].max = new_max;
+		if ((new_max == LIMIT_RELEASE || new_max == param.big_max_freq) &&
+			freq_input[type].last_max_limit_time != 0) {
+			freq_input[type].time_in_max_limit += ktime_to_ms(ktime_get() -
+				freq_input[type].last_max_limit_time);
+			freq_input[type].last_max_limit_time = 0;
+		}
+		if (new_max != LIMIT_RELEASE && new_max != param.big_max_freq &&
+			freq_input[type].last_max_limit_time == 0) {
+			freq_input[type].last_max_limit_time = ktime_get();
+		}
+	}
 
 	if (new_min > 0) {
 		if (new_min < param.ltl_min_freq) {
-			pr_info("%s: too low freq(%d), set to %d\n",
+			pr_err("%s: too low freq(%d), set to %d\n",
 				__func__, new_min, param.ltl_min_freq);
 			new_min = param.ltl_min_freq;
 		}
 
-		pr_info("%s: new_min=%d, ltl_max=%d, over_limit=%d\n", __func__,
+		pr_debug("%s: new_min=%d, ltl_max=%d, over_limit=%d\n", __func__,
 				new_min, param.ltl_max_freq, param.over_limit);
 		if ((type == CFLM_USERSPACE || type == CFLM_TOUCH) &&
-			cflm_high_pri_min_lock_required()) { // if high-priority min lock is requested 
+			cflm_high_pri_min_lock_required()) {
 			if (freq_input[CFLM_USERSPACE].max > 0) {
 				need_update_user_max = true;
 				new_user_max = MAX((int)param.over_limit, freq_input[CFLM_USERSPACE].max);
-				pr_info("%s: override new_max %d => %d,  userspace_min=%d, touch_min=%d, ltl_max=%d\n",
+				pr_debug("%s: override new_max %d => %d,  userspace_min=%d, touch_min=%d, ltl_max=%d\n",
 						__func__, freq_input[CFLM_USERSPACE].max, new_user_max, freq_input[CFLM_USERSPACE].min,
 						freq_input[CFLM_TOUCH].min, param.ltl_max_freq);
 			}
@@ -441,7 +503,7 @@ static void cflm_freq_decision(int type, int new_min, int new_max)
 			if (freq_input[CFLM_USERSPACE].max > 0) {
 				need_update_user_max = true;
 				new_user_max = freq_input[CFLM_USERSPACE].max;
-				pr_info("%s: restore new_max => %d\n",
+				pr_debug("%s: restore new_max => %d\n",
 						__func__, new_user_max);
 			}
 		}
@@ -449,25 +511,39 @@ static void cflm_freq_decision(int type, int new_min, int new_max)
 
 	if (new_max > 0) {
 		if (new_max > param.big_max_freq) {
-			pr_info("%s: too high freq(%d), set to %d\n",
+			pr_err("%s: too high freq(%d), set to %d\n",
 				__func__, new_max, param.big_max_freq);
 			new_max = param.big_max_freq;
 		}
 
 		if ((type == CFLM_USERSPACE) && // if userspace maxlock is being set
-			cflm_high_pri_min_lock_required()) { // if high priority min lock is already set 
+			cflm_high_pri_min_lock_required()) {
 			need_update_user_max = true;
 			new_user_max = MAX((int)param.over_limit, freq_input[CFLM_USERSPACE].max);
-			pr_info("%s: force up new_max %d => %d, userspace_min=%d, touch_min=%d, ltl_max=%d\n",
-					__func__, new_max, new_user_max, freq_input[CFLM_USERSPACE].min, 
+			pr_debug("%s: force up new_max %d => %d, userspace_min=%d, touch_min=%d, ltl_max=%d\n",
+					__func__, new_max, new_user_max, freq_input[CFLM_USERSPACE].min,
 					freq_input[CFLM_TOUCH].min, param.ltl_max_freq);
 		}
 
-		if (new_max < param.big_min_freq)
-			s_max = new_max * param.silver_divider;
+		if (new_max < param.big_min_freq) {
+			s_max = MIN(param.silver_max_lock, new_max * param.silver_divider);
 
-		g_max = MIN(new_max, param.g_fmax);
-		p_max = MIN(new_max, param.p_fmax);
+			/* if silver clock is limited as fmax,
+			 * set promised clock for gold cluster
+			 */
+			if (new_max == param.s_fmax / param.silver_divider)
+				g_max = param.g_fmin_up;
+			else
+				g_max = param.g_fmin;
+
+			p_max = param.p_fmin;
+		} else {
+			p_max = MIN(new_max, param.p_fmax);
+			if (param.vol_based_clk == true)
+				g_max = MIN(cflm_get_vol_matched_freq(p_max), param.g_fmax);
+			else
+				g_max = MIN(new_max, param.g_fmax);
+		}
 
 		freq_qos_update_request(&max_req[param.s_first][type], s_max);
 		freq_qos_update_request(&max_req[param.g_first][type], g_max);
@@ -478,19 +554,44 @@ static void cflm_freq_decision(int type, int new_min, int new_max)
 						FREQ_QOS_MAX_DEFAULT_VALUE);
 	}
 
+	if ((freq_input[type].min <= (int)param.ltl_max_freq || new_user_max != (int)param.over_limit) &&
+		freq_input[type].last_over_limit_time != 0) {
+		freq_input[type].time_in_over_limit += ktime_to_ms(ktime_get() -
+			freq_input[type].last_over_limit_time);
+		freq_input[type].last_over_limit_time = 0;
+	}
+	if (freq_input[type].min > (int)param.ltl_max_freq && new_user_max == (int)param.over_limit &&
+		freq_input[type].last_over_limit_time == 0) {
+		freq_input[type].last_over_limit_time = ktime_get();
+	}
+
 	if (need_update_user_max) {
-		pr_info("%s: update_user_max is true\n", __func__); 
+		pr_debug("%s: update_user_max is true\n", __func__);
 		if (new_user_max > param.big_max_freq) {
-			pr_info("%s: too high freq(%d), set to %d\n",
+			pr_debug("%s: too high freq(%d), set to %d\n",
 			__func__, new_user_max, param.big_max_freq);
 			new_user_max = param.big_max_freq;
 		}
 
-		if (new_user_max < param.big_min_freq)
-			s_max = new_user_max * param.silver_divider;
+		if (new_user_max < param.big_min_freq) {
+			s_max = MIN(param.silver_max_lock, new_user_max * param.silver_divider);
 
-		g_max = MIN(new_user_max, param.g_fmax);
-		p_max = MIN(new_user_max, param.p_fmax);
+			/* if silver clock is limited as fmax,
+			 * set promised clock for gold cluster
+			 */
+			if (new_user_max == param.s_fmax / param.silver_divider)
+				g_max = param.g_fmin_up;
+			else
+				g_max = param.g_fmin;
+
+			p_max = param.p_fmin;
+		} else {
+			p_max = MIN(new_user_max, param.p_fmax);
+			if (param.vol_based_clk == true)
+				g_max = MIN(cflm_get_vol_matched_freq(p_max), param.g_fmax);
+			else
+				g_max = MIN(new_user_max, param.g_fmax);
+		}
 
 		pr_info("%s: freq_update_request : new userspace max %d %d %d\n", __func__, s_max, g_max, p_max);
 		freq_qos_update_request(&max_req[param.s_first][CFLM_USERSPACE], s_max);
@@ -610,6 +711,44 @@ out:
 	return ret;
 }
 
+static ssize_t limit_stat_show(struct kobject *kobj,
+					struct kobj_attribute *attr,
+					char *buf)
+{
+
+	ssize_t len = 0;
+	int i, j = 0;
+
+	mutex_lock(&cflm_mutex);
+	for (i = 0; i < CFLM_MAX_ITEM; i++) {
+		if (freq_input[i].last_min_limit_time != 0) {
+			freq_input[i].time_in_min_limit += ktime_to_ms(ktime_get() -
+				freq_input[i].last_min_limit_time);
+			freq_input[i].last_min_limit_time = ktime_get();
+		}
+
+		if (freq_input[i].last_max_limit_time != 0) {
+			freq_input[i].time_in_max_limit += ktime_to_ms(ktime_get() -
+				freq_input[i].last_max_limit_time);
+			freq_input[i].last_max_limit_time = ktime_get();
+		}
+
+		if (freq_input[i].last_over_limit_time != 0) {
+			freq_input[i].time_in_over_limit += ktime_to_ms(ktime_get() -
+				freq_input[i].last_over_limit_time);
+			freq_input[i].last_over_limit_time = ktime_get();
+		}
+	}
+
+	for (j = 0; j < CFLM_MAX_ITEM; j++) {
+		len += snprintf(buf + len, MAX_BUF_SIZE - len, "%llu %llu %llu\n",
+				freq_input[j].time_in_min_limit, freq_input[j].time_in_max_limit,
+				freq_input[j].time_in_over_limit);
+	}
+
+	mutex_unlock(&cflm_mutex);
+	return len;
+}
 
 /* sysfs in /sys/power */
 static struct kobj_attribute cpufreq_table = {
@@ -646,7 +785,15 @@ static struct kobj_attribute over_limit = {
 	},
 	.show	= over_limit_show,
 	.store	= over_limit_store,
-}; 
+};
+
+static struct kobj_attribute limit_stat = {
+	.attr	= {
+		.name = "limit_stat",
+		.mode = 0644
+	},
+	.show	= limit_stat_show,
+};
 
 int set_freq_limit(unsigned int id, unsigned int freq)
 {
@@ -718,6 +865,9 @@ static ssize_t show_cflm_info(struct kobject *kobj,
 			param.silver_min_lock, param.silver_divider,
 					param.sched_boost_type);
 
+	len += snprintf(buf + len, MAX_BUF_SIZE - len,
+			"param: vbaedc(%d)\n", param.vol_based_clk);
+
 	for (i = 0; i < CFLM_MAX_ITEM; i++) {
 		len += snprintf(buf + len, MAX_BUF_SIZE - len,
 				"requested: [%d] min(%d), max(%d)\n",
@@ -742,6 +892,21 @@ static struct attribute *cflm_attributes[] = {
 static struct attribute_group cflm_attr_group = {
 	.attrs = cflm_attributes,
 };
+
+#ifdef CONFIG_OF
+static void cflm_parse_dt(void)
+{
+	struct device_node *np;
+
+	np = of_find_node_by_name(NULL, "cpufreq_limit");
+
+	param.vol_based_clk = of_property_read_bool(np, "limit,vol_based_clk");
+	pr_info("%s: param: voltage based clock: %s\n",
+		__func__, param.vol_based_clk ? "true" : "false");
+
+	return;
+};
+#endif
 
 struct kobject *cflm_kobj;
 static int __init cflm_init(void)
@@ -796,6 +961,10 @@ static int __init cflm_init(void)
 		cpufreq_cpu_put(policy);
 	}
 
+#ifdef CONFIG_OF
+	cflm_parse_dt();
+#endif
+
 	/* /sys/power/ */
 	ret = sysfs_create_file(power_kobj, &cpufreq_table.attr);
 	if (ret) {
@@ -818,6 +987,12 @@ static int __init cflm_init(void)
 	ret = sysfs_create_file(power_kobj, &over_limit.attr);
 	if (ret) {
 		pr_err("Unable to create over_limit\n");
+		goto probe_failed;
+	}
+
+	ret = sysfs_create_file(power_kobj, &limit_stat.attr);
+	if (ret) {
+		pr_err("Unable to create limit_stat\n");
 		goto probe_failed;
 	}
 

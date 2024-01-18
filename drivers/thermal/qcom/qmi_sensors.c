@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2018-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2018-2021, The Linux Foundation. All rights reserved.
  */
 
 #define pr_fmt(fmt) "%s:%s " fmt, KBUILD_MODNAME, __func__
@@ -70,6 +70,38 @@ enum qmi_ts_sensor {
 	QMI_TS_QFE_WTR_PA2_FR1,
 	QMI_TS_QFE_WTR_PA3_FR1,
 	QMI_TS_QFE_WTR0_FR1,
+	QMI_TS_QTM_THERM,
+	QMI_TS_BCL_WARN,
+	QMI_TS_SDR0_PA0,
+	QMI_TS_SDR0_PA1,
+	QMI_TS_SDR0_PA2,
+	QMI_TS_SDR0_PA3,
+	QMI_TS_SDR0_PA4,
+	QMI_TS_SDR0_PA5,
+	QMI_TS_SDR0,
+	QMI_TS_SDR1_PA0,
+	QMI_TS_SDR1_PA1,
+	QMI_TS_SDR1_PA2,
+	QMI_TS_SDR1_PA3,
+	QMI_TS_SDR1_PA4,
+	QMI_TS_SDR1_PA5,
+	QMI_TS_SDR1,
+	QMI_TS_MMW0,
+	QMI_TS_MMW1,
+	QMI_TS_MMW2,
+	QMI_TS_MMW3,
+	QMI_TS_MMW_IFIC0,
+	QMI_TS_RF_CAL,
+	QMI_TS_WTR_PA_4,
+	QMI_TS_WTR_PA_5,
+	QMI_TS_WTR_PA_6,
+	QMI_TS_QFE_WTR_PA4_FR1,
+	QMI_TS_QFE_WTR_PA5_FR1,
+	QMI_TS_QFE_WTR_PA6_FR1,
+	QMI_TS_RET_PA_1,
+	QMI_TS_QFE_RET_PA1_FR1,
+	QMI_TS_SDR0_PA,
+	QMI_TS_SDR1_PA,
 	QMI_TS_MAX_NR
 };
 
@@ -141,12 +173,44 @@ static char sensor_clients[QMI_TS_MAX_NR][QMI_CLIENT_NAME_LENGTH] = {
 	{"qfe_wtr_pa2_fr1"},
 	{"qfe_wtr_pa3_fr1"},
 	{"qfe_wtr0_fr1"},
+	{"qtm_therm"},
+	{"modem_bcl_warn"},
+	{"sdr0_pa0"},
+	{"sdr0_pa1"},
+	{"sdr0_pa2"},
+	{"sdr0_pa3"},
+	{"sdr0_pa4"},
+	{"sdr0_pa5"},
+	{"sdr0"},
+	{"sdr1_pa0"},
+	{"sdr1_pa1"},
+	{"sdr1_pa2"},
+	{"sdr1_pa3"},
+	{"sdr1_pa4"},
+	{"sdr1_pa5"},
+	{"sdr1"},
+	{"mmw0"},
+	{"mmw1"},
+	{"mmw2"},
+	{"mmw3"},
+	{"mmw_ific0"},
+	{"rf_cal"},
+	{"qfe_wtr_pa4"},
+	{"qfe_wtr_pa5"},
+	{"qfe_wtr_pa6"},
+	{"qfe_wtr_pa4_fr1"},
+	{"qfe_wtr_pa5_fr1"},
+	{"qfe_wtr_pa6_fr1"},
+	{"qfe_ret_pa1"},
+	{"qfe_ret_pa1_fr1"},
+	{"sdr0_pa"},
+	{"sdr1_pa"},
 };
 
 static int32_t encode_qmi(int32_t val)
 {
 	uint32_t shift = 0, local_val = 0;
-	int32_t temp_val = 0;
+	unsigned long temp_val = 0;
 
 	if (val == INT_MAX || val == INT_MIN)
 		return 0;
@@ -156,8 +220,7 @@ static int32_t encode_qmi(int32_t val)
 		temp_val *= -1;
 		local_val |= 1 << QMI_FL_SIGN_BIT;
 	}
-	shift = find_last_bit((const unsigned long *)&temp_val,
-			sizeof(temp_val) * 8);
+	shift = find_last_bit(&temp_val, sizeof(temp_val) * 8);
 	local_val |= ((shift + 127) << QMI_MANTISSA_MSB);
 	temp_val &= ~(1 << shift);
 
@@ -302,6 +365,13 @@ static int qmi_ts_request(struct qmi_sensor *qmi_sens,
 			qmi_sens->low_thresh != INT_MIN;
 		req.temp_threshold_low =
 			encode_qmi(qmi_sens->low_thresh);
+
+		pr_debug("Sensor:%s set high_trip:%d, low_trip:%d, high_valid:%d, low_valid:%d\n",
+			qmi_sens->qmi_name,
+			qmi_sens->high_thresh,
+			qmi_sens->low_thresh,
+			req.temp_threshold_high_valid,
+			req.temp_threshold_low_valid);
 	}
 
 	mutex_lock(&ts->mutex);
@@ -463,11 +533,34 @@ static int verify_sensor_and_register(struct qmi_ts_instance *ts)
 
 	for (i = 0; i < ts_resp->sensor_list_len; i++) {
 		struct qmi_sensor *qmi_sens = NULL;
-
+		pr_debug("QMI sensor:%s\n", ts_resp->sensor_list[i].sensor_id);
 		list_for_each_entry(qmi_sens, &ts->ts_sensor_list,
 					ts_node) {
 			if ((strncasecmp(qmi_sens->qmi_name,
 				ts_resp->sensor_list[i].sensor_id,
+				QMI_TS_SENSOR_ID_LENGTH_MAX_V01)))
+				continue;
+
+			qmi_sens->connection_active = true;
+			/*
+			 * Send a temperature request notification.
+			 */
+			qmi_ts_request(qmi_sens, true);
+			if (!qmi_sens->tz_dev)
+				ret = qmi_register_sensor_device(qmi_sens);
+			break;
+		}
+	}
+
+	/* Check and get sensor list extended */
+	for (i = 0; ts_resp->sensor_list_ext01_valid &&
+		 (i < ts_resp->sensor_list_ext01_len); i++) {
+		struct qmi_sensor *qmi_sens = NULL;
+
+		list_for_each_entry(qmi_sens, &ts->ts_sensor_list,
+					ts_node) {
+			if ((strncasecmp(qmi_sens->qmi_name,
+				ts_resp->sensor_list_ext01[i].sensor_id,
 				QMI_TS_SENSOR_ID_LENGTH_MAX_V01)))
 				continue;
 

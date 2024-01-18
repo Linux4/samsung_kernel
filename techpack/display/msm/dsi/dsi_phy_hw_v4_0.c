@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2016-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2021 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/math64.h>
@@ -214,6 +215,7 @@ void dsi_phy_hw_v4_0_store_str(struct dsi_phy_hw *phy, u32 *val)
 {
 	u32 read[1];
 
+	/* The register setting range is from 'b0000 (weakest) to 'b1111 (strongest). */
 	DSI_PHY_INFO(phy, "val: %x (ndx:%x)\n", *val, phy->index);
 	DSI_W32(phy, DSIPHY_CMN_GLBL_HSTX_STR_CTRL_0, *val);
 
@@ -361,21 +363,21 @@ static void dsi_phy_hw_cphy_enable(struct dsi_phy_hw *phy,
 		DSI_W32(phy, DSIPHY_CMN_VREG_CTRL_0,
 			vdd->ss_phy_ctrl_data[SS_PHY_CMN_VREG_CTRL_0]);
 
-		LCD_DEBUG("DSIPHY_CMN_VREG_CTRL_0 : 0x%x\n", DSI_R32(phy, DSIPHY_CMN_VREG_CTRL_0));
+		LCD_DEBUG(vdd, "DSIPHY_CMN_VREG_CTRL_0 : 0x%x\n", DSI_R32(phy, DSIPHY_CMN_VREG_CTRL_0));
 	}
 
 	if (test_bit(SS_PHY_CMN_CTRL_2, vdd->ss_phy_ctrl_bit)) {
 		DSI_W32(phy, DSIPHY_CMN_CTRL_2,
 			vdd->ss_phy_ctrl_data[SS_PHY_CMN_CTRL_2]);
 
-		LCD_DEBUG("DSIPHY_CMN_CTRL_2 : 0x%x\n", DSI_R32(phy, DSIPHY_CMN_CTRL_2));
+		LCD_DEBUG(vdd, "DSIPHY_CMN_CTRL_2 : 0x%x\n", DSI_R32(phy, DSIPHY_CMN_CTRL_2));
 	}
 
 	if (test_bit(SS_PHY_CMN_GLBL_RESCODE_OFFSET_TOP_CTRL, vdd->ss_phy_ctrl_bit)) {
 		DSI_W32(phy, DSIPHY_CMN_GLBL_RESCODE_OFFSET_TOP_CTRL,
 			vdd->ss_phy_ctrl_data[SS_PHY_CMN_GLBL_RESCODE_OFFSET_TOP_CTRL]);
 
-		LCD_DEBUG("DSIPHY_CMN_GLBL_RESCODE_OFFSET_TOP_CTRL : 0x%x\n",
+		LCD_DEBUG(vdd, "DSIPHY_CMN_GLBL_RESCODE_OFFSET_TOP_CTRL : 0x%x\n",
 				DSI_R32(phy, DSIPHY_CMN_GLBL_RESCODE_OFFSET_TOP_CTRL));
 	}
 
@@ -383,7 +385,7 @@ static void dsi_phy_hw_cphy_enable(struct dsi_phy_hw *phy,
 		DSI_W32(phy, DSIPHY_CMN_GLBL_RESCODE_OFFSET_BOT_CTRL,
 			vdd->ss_phy_ctrl_data[SS_PHY_CMN_GLBL_RESCODE_OFFSET_BOT_CTRL]);
 
-		LCD_DEBUG("DSIPHY_CMN_GLBL_RESCODE_OFFSET_BOT_CTRL : 0x%x\n",
+		LCD_DEBUG(vdd, "DSIPHY_CMN_GLBL_RESCODE_OFFSET_BOT_CTRL : 0x%x\n",
 				DSI_R32(phy, DSIPHY_CMN_GLBL_RESCODE_OFFSET_BOT_CTRL));
 	}
 
@@ -391,7 +393,7 @@ static void dsi_phy_hw_cphy_enable(struct dsi_phy_hw *phy,
 		DSI_W32(phy, DSIPHY_CMN_GLBL_RESCODE_OFFSET_MID_CTRL,
 				vdd->ss_phy_ctrl_data[SS_PHY_CMN_GLBL_RESCODE_OFFSET_MID_CTRL]);
 
-		LCD_DEBUG("DSIPHY_CMN_GLBL_RESCODE_OFFSET_MID_CTRL : 0x%x\n",
+		LCD_DEBUG(vdd, "DSIPHY_CMN_GLBL_RESCODE_OFFSET_MID_CTRL : 0x%x\n",
 				DSI_R32(phy, DSIPHY_CMN_GLBL_RESCODE_OFFSET_MID_CTRL));
 	}
 
@@ -399,7 +401,7 @@ static void dsi_phy_hw_cphy_enable(struct dsi_phy_hw *phy,
 		DSI_W32(phy, DSIPHY_CMN_GLBL_STR_SWI_CAL_SEL_CTRL,
 			vdd->ss_phy_ctrl_data[SS_PHY_CMN_GLBL_STR_SWI_CAL_SEL_CTRL]);
 
-		LCD_DEBUG("DSIPHY_CMN_GLBL_STR_SWI_CAL_SEL_CTRL : 0x%x\n",
+		LCD_DEBUG(vdd, "DSIPHY_CMN_GLBL_STR_SWI_CAL_SEL_CTRL : 0x%x\n",
 				DSI_R32(phy, DSIPHY_CMN_GLBL_STR_SWI_CAL_SEL_CTRL));
 	}
 }
@@ -500,6 +502,10 @@ static void dsi_phy_hw_dphy_enable(struct dsi_phy_hw *phy,
 	/* Set if Motto values had set */
 	if (vdd->motto_info.motto_swing) {
 		glbl_hstx_str_ctrl_0 = vdd->motto_info.motto_swing;
+		/* DSIPHY_CMN_GLBL_STR_SWI_CAL_SEL_CTRL[0] needs to be set to 'b1
+		 * to select strength override value from DSIPHY_CMN_GLBL_HSTX_STR_CTRL_0.
+		 */
+		glbl_str_swi_cal_sel_ctrl |= 0x01;
 		DSI_PHY_DBG(phy, "motto_swing:%x\n", vdd->motto_info.motto_swing);
 	}
 	if (vdd->motto_info.motto_emphasis) {
@@ -1017,4 +1023,12 @@ void dsi_phy_hw_v4_0_set_continuous_clk(struct dsi_phy_hw *phy, bool enable)
 
 	DSI_W32(phy, DSIPHY_CMN_LANE_CTRL1, reg);
 	wmb(); /* make sure request is set */
+}
+
+void dsi_phy_hw_v4_0_phy_idle_off(struct dsi_phy_hw *phy)
+{
+	if (phy->version >= DSI_PHY_VERSION_4_2 && phy->clamp_enable) {
+		DSI_W32(phy, DSIPHY_CMN_CTRL_4, 0x1);
+		DSI_W32(phy, DSIPHY_CMN_CTRL_3, 0x0);
+	}
 }

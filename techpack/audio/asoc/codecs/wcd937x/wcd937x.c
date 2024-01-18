@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2018-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2018-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/module.h>
@@ -27,8 +28,6 @@
 #include "internal.h"
 #include "asoc/bolero-slave-internal.h"
 
-#define WCD9370_VARIANT 0
-#define WCD9375_VARIANT 5
 #define WCD937X_VARIANT_ENTRY_SIZE 32
 
 #define NUM_SWRS_DT_PARAMS 5
@@ -152,8 +151,18 @@ static int wcd937x_handle_post_irq(void *data)
 
 static int wcd937x_init_reg(struct snd_soc_component *component)
 {
-	snd_soc_component_update_bits(component, WCD937X_SLEEP_CTL,
+	u32 val =0;
+	val = snd_soc_component_read32(component, WCD937X_DIGITAL_EFUSE_REG_29)
+	     & 0x0F;
+	if (snd_soc_component_read32(component, WCD937X_DIGITAL_EFUSE_REG_16)
+	    == 0x02 || snd_soc_component_read32(component,
+	    WCD937X_DIGITAL_EFUSE_REG_17) > 0x09) {
+		snd_soc_component_update_bits(component, WCD937X_SLEEP_CTL,
+				0x0E, val);
+	} else {
+		snd_soc_component_update_bits(component, WCD937X_SLEEP_CTL,
 				0x0E, 0x0E);
+	}
 	snd_soc_component_update_bits(component, WCD937X_SLEEP_CTL,
 				0x80, 0x80);
 	usleep_range(1000, 1010);
@@ -180,6 +189,28 @@ static int wcd937x_init_reg(struct snd_soc_component *component)
 				0xFF, 0xFA);
 	snd_soc_component_update_bits(component, WCD937X_MICB3_TEST_CTL_1,
 				0xFF, 0xFA);
+	snd_soc_component_update_bits(component, WCD937X_MICB1_TEST_CTL_2,
+				      0x38, 0x00);
+	snd_soc_component_update_bits(component, WCD937X_MICB2_TEST_CTL_2,
+				      0x38, 0x00);
+	snd_soc_component_update_bits(component, WCD937X_MICB3_TEST_CTL_2,
+				      0x38, 0x00);
+	/* Set Bandgap Fine Adjustment to +5mV for Tanggu SMIC part */
+	if (snd_soc_component_read32(component, WCD937X_DIGITAL_EFUSE_REG_16)
+	    == 0x01) {
+		snd_soc_component_update_bits(component,
+				WCD937X_BIAS_VBG_FINE_ADJ, 0xF0, 0xB0);
+	} else if (snd_soc_component_read32(component,
+		WCD937X_DIGITAL_EFUSE_REG_16) == 0x02) {
+		snd_soc_component_update_bits(component,
+				WCD937X_HPH_NEW_INT_RDAC_HD2_CTL_L, 0x1F, 0x04);
+		snd_soc_component_update_bits(component,
+				WCD937X_HPH_NEW_INT_RDAC_HD2_CTL_R, 0x1F, 0x04);
+		snd_soc_component_update_bits(component,
+				WCD937X_BIAS_VBG_FINE_ADJ, 0xF0, 0xB0);
+		snd_soc_component_update_bits(component,
+				WCD937X_HPH_NEW_INT_RDAC_GAIN_CTL , 0xF0, 0x50);
+	}
 	return 0;
 }
 
@@ -472,6 +503,12 @@ static int wcd937x_codec_hphl_dac_event(struct snd_soc_dapm_widget *w,
 		set_bit(HPH_COMP_DELAY, &wcd937x->status_mask);
 		break;
 	case SND_SOC_DAPM_POST_PMU:
+		if ((snd_soc_component_read32(component,
+		   WCD937X_DIGITAL_EFUSE_REG_16) == 0x02) &&
+		   ((snd_soc_component_read32(component,
+			WCD937X_ANA_HPH) & 0x0C) == 0x0C))
+			snd_soc_component_update_bits(component,
+			WCD937X_RX_BIAS_HPH_LOWPOWER, 0xF0, 0x90);
 		if (hph_mode == CLS_AB_HIFI || hph_mode == CLS_H_HIFI)
 			snd_soc_component_update_bits(component,
 				WCD937X_HPH_NEW_INT_RDAC_HD2_CTL_L,
@@ -513,6 +550,12 @@ static int wcd937x_codec_hphl_dac_event(struct snd_soc_dapm_widget *w,
 				WCD937X_HPH_NEW_INT_HPH_TIMER1, 0x02, 0x00);
 		break;
 	case SND_SOC_DAPM_POST_PMD:
+		if ((snd_soc_component_read32(component,
+		   WCD937X_DIGITAL_EFUSE_REG_16) == 0x02) &&
+		   ((snd_soc_component_read32(component,
+			WCD937X_ANA_HPH) & 0x0C) == 0x0C))
+			snd_soc_component_update_bits(component,
+			WCD937X_RX_BIAS_HPH_LOWPOWER, 0xF0, 0x80);
 		snd_soc_component_update_bits(component,
 			WCD937X_HPH_NEW_INT_RDAC_HD2_CTL_L,
 			0x0F, 0x01);
@@ -546,6 +589,12 @@ static int wcd937x_codec_hphr_dac_event(struct snd_soc_dapm_widget *w,
 		set_bit(HPH_COMP_DELAY, &wcd937x->status_mask);
 		break;
 	case SND_SOC_DAPM_POST_PMU:
+		if ((snd_soc_component_read32(component,
+		   WCD937X_DIGITAL_EFUSE_REG_16) == 0x02) &&
+		   ((snd_soc_component_read32(component,
+			WCD937X_ANA_HPH) & 0x0C) == 0x0C))
+			snd_soc_component_update_bits(component,
+			WCD937X_RX_BIAS_HPH_LOWPOWER, 0xF0, 0x90);
 		if (hph_mode == CLS_AB_HIFI || hph_mode == CLS_H_HIFI)
 			snd_soc_component_update_bits(component,
 				WCD937X_HPH_NEW_INT_RDAC_HD2_CTL_R,
@@ -587,6 +636,12 @@ static int wcd937x_codec_hphr_dac_event(struct snd_soc_dapm_widget *w,
 				WCD937X_HPH_NEW_INT_HPH_TIMER1, 0x02, 0x00);
 		break;
 	case SND_SOC_DAPM_POST_PMD:
+		if ((snd_soc_component_read32(component,
+		   WCD937X_DIGITAL_EFUSE_REG_16) == 0x02) &&
+		   ((snd_soc_component_read32(component,
+			WCD937X_ANA_HPH) & 0x0C) == 0x0C))
+			snd_soc_component_update_bits(component,
+			WCD937X_RX_BIAS_HPH_LOWPOWER, 0xF0, 0x80);
 		snd_soc_component_update_bits(component,
 			WCD937X_HPH_NEW_INT_RDAC_HD2_CTL_R,
 			0x0F, 0x01);
@@ -1031,6 +1086,22 @@ static int wcd937x_codec_enable_ear_pa(struct snd_soc_dapm_widget *w,
 			snd_soc_component_update_bits(component,
 					WCD937X_DIGITAL_PDM_WD_CTL0,
 					0x17, 0x00);
+		usleep_range(10000, 10010);
+		/* disable EAR CnP FSM */
+		snd_soc_component_update_bits(component,
+					WCD937X_EAR_EAR_EN_REG,
+					0x02, 0x00);
+		/* toggle EAR PA to let PA control registers take effect */
+		snd_soc_component_update_bits(component,
+					WCD937X_ANA_EAR,
+					0x80, 0x80);
+		snd_soc_component_update_bits(component,
+					WCD937X_ANA_EAR,
+					0x80, 0x00);
+		/* enable EAR CnP FSM */
+		snd_soc_component_update_bits(component,
+					WCD937X_EAR_EAR_EN_REG,
+					0x02, 0x02);
 		break;
 	};
 	return ret;
@@ -1663,8 +1734,9 @@ static int wcd937x_event_notify(struct notifier_block *block,
 	case BOLERO_SLV_EVT_SSR_DOWN:
 		wcd937x->mbhc->wcd_mbhc.deinit_in_progress = true;
 		mbhc = &wcd937x->mbhc->wcd_mbhc;
-		wcd937x->usbc_hs_status = get_usbc_hs_status(component,
-						mbhc->mbhc_cfg);
+		if(mbhc->mbhc_cfg)
+			wcd937x->usbc_hs_status = get_usbc_hs_status(component,
+							mbhc->mbhc_cfg);
 		wcd937x_mbhc_ssr_down(wcd937x->mbhc, component);
 		wcd937x_reset_low(wcd937x->dev);
 		break;
@@ -1684,7 +1756,8 @@ static int wcd937x_event_notify(struct notifier_block *block,
 			dev_err(component->dev, "%s: mbhc initialization failed\n",
 				__func__);
 		} else {
-			wcd937x_mbhc_hs_detect(component, mbhc->mbhc_cfg);
+			if(mbhc->mbhc_cfg)
+				wcd937x_mbhc_hs_detect(component, mbhc->mbhc_cfg);
 			if (wcd937x->usbc_hs_status)
 				mdelay(500);
 		}
@@ -2003,7 +2076,8 @@ const char * const tx_master_ch_text[] = {
 	"ZERO", "SWRM_TX1_CH1", "SWRM_TX1_CH2", "SWRM_TX1_CH3", "SWRM_TX1_CH4",
 	"SWRM_TX2_CH1", "SWRM_TX2_CH2", "SWRM_TX2_CH3", "SWRM_TX2_CH4",
 	"SWRM_TX3_CH1", "SWRM_TX3_CH2", "SWRM_TX3_CH3", "SWRM_TX3_CH4",
-	"SWRM_PCM_IN",
+	"SWRM_PCM_IN", "ADC1", "ADC3", "ADC4", "DMIC0", "DMIC1", "DMIC2",
+	"DMIC4", "DMIC5", "DMIC6", "DMIC7",
 };
 
 const struct soc_enum tx_master_ch_enum =
@@ -2048,15 +2122,24 @@ static int wcd937x_tx_master_ch_get(struct snd_kcontrol *kcontrol,
 {
 	struct snd_soc_component *component =
 				snd_soc_kcontrol_component(kcontrol);
-	struct wcd937x_priv *wcd937x = snd_soc_component_get_drvdata(component);
-	int slave_ch_idx;
+	struct wcd937x_priv *wcd937x = NULL;
+	int slave_ch_idx = -EINVAL;
+
+	if (component == NULL)
+		return -EINVAL;
+
+	wcd937x = snd_soc_component_get_drvdata(component);
+	if (wcd937x == NULL)
+		return -EINVAL;
 
 	wcd937x_tx_get_slave_ch_type_idx(kcontrol->id.name, &slave_ch_idx);
 
-	if (slave_ch_idx != -EINVAL)
-		ucontrol->value.integer.value[0] =
-				wcd937x_slave_get_master_ch_val(
-				wcd937x->tx_master_ch_map[slave_ch_idx]);
+	if (slave_ch_idx < 0 || slave_ch_idx >= WCD937X_MAX_SLAVE_CH_TYPES)
+		return -EINVAL;
+
+	ucontrol->value.integer.value[0] =
+			wcd937x_slave_get_master_ch_val(
+			wcd937x->tx_master_ch_map[slave_ch_idx]);
 
 	dev_dbg(component->dev, "%s: ucontrol->value.integer.value[0] = %ld\n",
 			__func__, ucontrol->value.integer.value[0]);
@@ -2068,19 +2151,31 @@ static int wcd937x_tx_master_ch_put(struct snd_kcontrol *kcontrol,
 {
 	struct snd_soc_component *component =
 				snd_soc_kcontrol_component(kcontrol);
-	struct wcd937x_priv *wcd937x = snd_soc_component_get_drvdata(component);
-	int slave_ch_idx;
+	struct wcd937x_priv *wcd937x;
+	int slave_ch_idx = -EINVAL, idx = 0;
+
+	if (component == NULL)
+		return -EINVAL;
+
+	wcd937x = snd_soc_component_get_drvdata(component);
+	if (wcd937x == NULL)
+		return -EINVAL;
 
 	wcd937x_tx_get_slave_ch_type_idx(kcontrol->id.name, &slave_ch_idx);
+
+	if (slave_ch_idx < 0 || slave_ch_idx >= WCD937X_MAX_SLAVE_CH_TYPES)
+		return -EINVAL;
 
 	dev_dbg(component->dev, "%s: slave_ch_idx: %d", __func__, slave_ch_idx);
 	dev_dbg(component->dev, "%s: ucontrol->value.enumerated.item[0] = %ld\n",
 			__func__, ucontrol->value.enumerated.item[0]);
 
-	if (slave_ch_idx != -EINVAL)
-		wcd937x->tx_master_ch_map[slave_ch_idx] =
-				wcd937x_slave_get_master_ch(
-					ucontrol->value.enumerated.item[0]);
+	idx = ucontrol->value.enumerated.item[0];
+	if (idx < 0 || idx >= ARRAY_SIZE(wcd937x_swr_master_ch_map))
+		return -EINVAL;
+
+	wcd937x->tx_master_ch_map[slave_ch_idx] =
+			wcd937x_slave_get_master_ch(idx);
 
 	return 0;
 }
@@ -2604,6 +2699,30 @@ static struct snd_info_entry_ops wcd937x_variant_ops = {
 };
 
 /*
+ * wcd937x_get_codec_variant
+ * @component: component instance
+ *
+ * Return: codec variant or -EINVAL in error.
+ */
+int wcd937x_get_codec_variant(struct snd_soc_component *component)
+{
+	struct wcd937x_priv *priv = NULL;
+
+	if (!component)
+		return -EINVAL;
+
+	priv = snd_soc_component_get_drvdata(component);
+	if (!priv) {
+		dev_err(component->dev,
+			"%s:wcd937x not probed\n", __func__);
+		return -EINVAL;
+	}
+
+	return priv->variant;
+}
+EXPORT_SYMBOL(wcd937x_get_codec_variant);
+
+/*
  * wcd937x_info_create_codec_entry - creates wcd937x module
  * @codec_root: The parent directory
  * @component: component instance
@@ -2845,6 +2964,8 @@ static void wcd937x_soc_codec_remove(struct snd_soc_component *component)
 		wcd937x->register_notifier(wcd937x->handle,
 						&wcd937x->nblock,
 						false);
+	wcd937x_mbhc_deinit(component);
+
 	return;
 }
 

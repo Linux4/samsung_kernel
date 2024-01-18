@@ -4,6 +4,7 @@ config QCOM_KGSL
 	depends on ARCH_QCOM
 	depends on QCOM_QFPROM
 	select MSM_SUBSYSTEM_RESTART
+	select TRACE_GPU_MEM
 	help
 	  3D graphics driver for the Adreno family of GPUs from QTI.
 	  Required to use hardware accelerated OpenGL, compute and Vulkan
@@ -58,5 +59,21 @@ config QCOM_KGSL_IDLE_TIMEOUT
 	default 80
 	help
 	  GPU idle timeout for Adreno GPU. This value decides after how
-	  long the GPU will go into slumber. This value is 100 seconds for
-	  a GKI enabled build else it is 80ms.
+	  long the GPU will go into slumber. A higher value will mean that
+	  the GPU is powered ON for a longer duration which will have
+	  power costs.
+
+config QCOM_KGSL_CONTEXT_DEBUG
+	bool "Log kgsl context information for all processes"
+	depends on QCOM_KGSL
+	help
+	  When enabled, total number of KGSL contexts, number of attached and
+	  detached contexts are dumped into kernel log for all the processes.
+
+config QCOM_KGSL_QDSS_STM
+	bool "Enable support for QDSS STM for Adreno GPU"
+	depends on QCOM_KGSL && CORESIGHT
+	help
+	 When enabled, the Adreno GPU QDSS STM support is enabled. GPU QDSS STM
+	 memory will be mapped to GPU and QDSS clock needed to access this memory
+	 is voted. Debug kernels should say 'Y' here.	    

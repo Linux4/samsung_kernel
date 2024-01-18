@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0-only
-/* Copyright (c) 2018-2020, The Linux Foundation. All rights reserved. */
+/* Copyright (c) 2018-2021, The Linux Foundation. All rights reserved. */
 
 #include <linux/debugfs.h>
 #include <linux/device.h>
@@ -265,6 +265,19 @@ enum mhi_dev_state mhi_get_mhi_state(struct mhi_controller *mhi_cntrl)
 	return ret ? MHI_STATE_MAX : state;
 }
 EXPORT_SYMBOL(mhi_get_mhi_state);
+
+void mhi_soc_reset(struct mhi_controller *mhi_cntrl)
+{
+	if (mhi_cntrl->reset) {
+		mhi_cntrl->reset(mhi_cntrl);
+		return;
+	}
+
+	/* Generic MHI SoC reset */
+	mhi_write_reg(mhi_cntrl, mhi_cntrl->regs, MHI_SOC_RESET_REQ_OFFSET,
+		      MHI_SOC_RESET_REQ);
+}
+EXPORT_SYMBOL(mhi_soc_reset);
 
 int mhi_queue_sclist(struct mhi_device *mhi_dev,
 		     struct mhi_chan *mhi_chan,
@@ -1479,7 +1492,8 @@ int mhi_process_bw_scale_ev_ring(struct mhi_controller *mhi_cntrl,
 	struct mhi_event_ctxt *er_ctxt =
 		&mhi_cntrl->mhi_ctxt->er_ctxt[mhi_event->er_index];
 	struct mhi_link_info link_info, *cur_info = &mhi_cntrl->mhi_link_info;
-	int result, ret = 0;
+	u32 result = MHI_BW_SCALE_NACK;
+	int ret = 0;
 
 	spin_lock_bh(&mhi_event->lock);
 	dev_rp = mhi_to_virtual(ev_ring, er_ctxt->rp);
@@ -1527,17 +1541,23 @@ int mhi_process_bw_scale_ev_ring(struct mhi_controller *mhi_cntrl,
 	mutex_lock(&mhi_cntrl->pm_mutex);
 
 	ret = mhi_cntrl->bw_scale(mhi_cntrl, &link_info);
-	if (!ret)
+	if (!ret) {
 		*cur_info = link_info;
+		result = 0;
+	}
 
-	result = ret ? MHI_BW_SCALE_NACK : 0;
-
-	read_lock_bh(&mhi_cntrl->pm_lock);
-	if (likely(MHI_DB_ACCESS_VALID(mhi_cntrl)))
+	write_lock_bh(&mhi_cntrl->pm_lock);
+	cur_info->last_response = MHI_BW_SCALE_RESULT(result,
+						      link_info.sequence_num);
+	if (likely(MHI_DB_ACCESS_VALID(mhi_cntrl))) {
 		mhi_cntrl->write_reg(mhi_cntrl, mhi_cntrl->bw_scale_db, 0,
-				     MHI_BW_SCALE_RESULT(result,
-				     link_info.sequence_num));
-	read_unlock_bh(&mhi_cntrl->pm_lock);
+				     cur_info->last_response);
+		cur_info->last_response = 0;
+	} else {
+		MHI_VERB("Cached response to BW_REQ seq: %d, ret: %d\n",
+			 link_info.sequence_num, ret);
+	}
+	write_unlock_bh(&mhi_cntrl->pm_lock);
 
 	mhi_device_put(mhi_cntrl->mhi_dev, MHI_VOTE_DEVICE | MHI_VOTE_BUS);
 
@@ -1549,17 +1569,32 @@ exit_bw_scale_process:
 	return ret;
 }
 
+void mhi_special_dbs_pending(struct mhi_controller *mhi_cntrl)
+{
+	struct mhi_link_info *link_info = &mhi_cntrl->mhi_link_info;
+
+	/* last_response cannot be empty as sequence numbers are non-zero */
+	if (mhi_cntrl->bw_scale && link_info->last_response) {
+		mhi_cntrl->write_reg(mhi_cntrl, mhi_cntrl->bw_scale_db, 0,
+				     link_info->last_response);
+		MHI_VERB("Completed cached BW switch response: %d\n",
+			 link_info->last_response);
+		link_info->last_response = 0;
+	}
+}
+
 void mhi_ev_task(unsigned long data)
 {
 	struct mhi_event *mhi_event = (struct mhi_event *)data;
 	struct mhi_controller *mhi_cntrl = mhi_event->mhi_cntrl;
+	unsigned long flags;
 
 	MHI_VERB("Enter for ev_index:%d\n", mhi_event->er_index);
 
 	/* process all pending events */
-	spin_lock_bh(&mhi_event->lock);
+	spin_lock_irqsave(&mhi_event->lock, flags);
 	mhi_event->process_event(mhi_cntrl, mhi_event, U32_MAX);
-	spin_unlock_bh(&mhi_event->lock);
+	spin_unlock_irqrestore(&mhi_event->lock, flags);
 }
 
 void mhi_ctrl_ev_task(unsigned long data)

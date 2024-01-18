@@ -4115,21 +4115,7 @@ static int ams_deviceEventHandler(ams_deviceCtx_t *ctx)
         ALS_info("%s - ctx->shadowStatus1Reg %x, status5 %x, mode %x", __func__, ctx->shadowStatus1Reg, status5, ctx->mode);
     }
 
-    if (ctx->shadowStatus1Reg != 0) {
-        /* this clears interrupt(s) and STATUS5 */
-        ret = ams_setByte(ctx->portHndl, DEVREG_STATUS, ctx->shadowStatus1Reg);
-        if (ret < 0) {
-            ALS_err("%s - failed to set DEVREG_STATUS\n", __func__);
-            return ret;
-        }
-    }
-    else {
-        //ALS_err("%s - ams_devEventHd Error Case!!!!\n", __func__);
-        //ams_setByte(ctx->portHndl, DEVREG_STATUS, 0xff);
-        return ret;
-    }
-
-#if 0
+#if 1
 loop:
 #endif
     ALS_info("%s - loop: DCB 0x%02x, STATUS 0x%02x, ALS_STATUS 0x%02x, ALS_STATUS2 0x%02x\n", __func__, ctx->mode, ctx->shadowStatus1Reg, ctx->shadowAlsStatusReg, ctx->shadowAlsStatus2Reg);
@@ -4150,9 +4136,7 @@ loop:
 #endif
 
     //if ((ctx->shadowStatus1Reg & AINT) /*|| ctx->alwaysReadAls*/) {
-
     if ((ctx->shadowStatus2Reg & ALS_DATA_VALID) /*|| ctx->alwaysReadAls*/) {
-
             ret = ams_getByte(ctx->portHndl, DEVREG_ALS_STATUS, &ctx->shadowAlsStatusReg);
             if (ret < 0) {
                 ALS_err("%s - failed to get DEVREG_ALS_STATUS\n", __func__);
@@ -4172,11 +4156,9 @@ loop:
                 }
             }
         }
-        ret = ams_getByte(ctx->portHndl, DEVREG_STATUS, &ctx->shadowStatus1Reg);
-        if (ret < 0) {
-            ALS_err("%s - failed to get DEVREG_STATUS\n", __func__);
-            return ret;
-        }
+
+        /* Clear Processed Interrupt */
+        /* this clears interrupt(s) and STATUS5 */
         if (ctx->shadowStatus1Reg != 0) {
             /* this clears interrupt(s) and STATUS5 */
             ret = ams_setByte(ctx->portHndl, DEVREG_STATUS, ctx->shadowStatus1Reg);
@@ -4187,7 +4169,6 @@ loop:
         }
 
         if (status5 != 0) {
-            /* this clears interrupt(s) and STATUS5 */
             ret = ams_setByte(ctx->portHndl, DEVREG_STATUS5, status5);
             if (ret < 0) {
                 ALS_err("%s - failed to set DEVREG_STATUS5\n", __func__);
@@ -4195,6 +4176,16 @@ loop:
             }
         }
 
+        /* Check Remainning Interrupt */
+        ret = ams_getByte(ctx->portHndl, DEVREG_STATUS, &ctx->shadowStatus1Reg);
+        if (ret < 0) {
+            ALS_err("%s - failed to get DEVREG_STATUS\n", __func__);
+            return ret;
+        }
+        if (ctx->shadowStatus1Reg != 0) {
+            ALS_err("%s - goto loop", __func__);
+            goto loop;
+        }
 
     /*
      *	the individual handlers may have temporarily disabled things

@@ -42,6 +42,7 @@ static struct poweroff_reason reasons[] = {
 #if !defined(CONFIG_QGKI)
 	{ "download",			0x15 },
 #endif
+	{ "recovery-update",    0x60 },
 	{}
 };
 

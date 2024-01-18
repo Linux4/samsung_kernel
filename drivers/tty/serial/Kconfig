@@ -10,6 +10,7 @@ menu "Serial drivers"
 
 config SERIAL_EARLYCON
 	bool
+	depends on SERIAL_CORE
 	help
 	  Support for early consoles with the earlycon parameter. This enables
 	  the console before standard serial driver is probed. The console is
@@ -1599,6 +1600,11 @@ config SERIAL_MILBEAUT_USIO_CONSOLE
 	  SoCs as the system console (the system console is the device which
 	  receives all kernel messages and warnings and which allows logins in
 	  single user mode).
+
+config QC_BT_UART
+	bool "QC IBS UART driver"
+	help
+	  This is a config for Qualcomm bt using inband sleep control.
 
 endmenu
 

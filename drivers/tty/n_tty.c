@@ -1377,7 +1377,7 @@ handle_newline:
 			put_tty_queue(c, ldata);
 			smp_store_release(&ldata->canon_head, ldata->read_head);
 			kill_fasync(&tty->fasync, SIGIO, POLL_IN);
-			wake_up_interruptible_poll(&tty->read_wait, EPOLLIN);
+			wake_up_interruptible_poll(&tty->read_wait, EPOLLIN | EPOLLRDNORM);
 			return 0;
 		}
 	}
@@ -1658,7 +1658,7 @@ static void __receive_buf(struct tty_struct *tty, const unsigned char *cp,
 
 	if (read_cnt(ldata)) {
 		kill_fasync(&tty->fasync, SIGIO, POLL_IN);
-		wake_up_interruptible_poll(&tty->read_wait, EPOLLIN);
+		wake_up_interruptible_poll(&tty->read_wait, EPOLLIN | EPOLLRDNORM);
 	}
 }
 
@@ -2321,6 +2321,7 @@ static ssize_t n_tty_write(struct tty_struct *tty, struct file *file,
 	add_wait_queue(&tty->write_wait, &wait);
 	while (1) {
 		if (signal_pending(current)) {
+			pr_err("%s TTY-%d signal_pending\n", __func__, tty->index);
 			retval = -ERESTARTSYS;
 			break;
 		}

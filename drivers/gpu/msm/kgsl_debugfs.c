@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2002,2008-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2002,2008-2021, The Linux Foundation. All rights reserved.
  */
 
 #include <linux/debugfs.h>
@@ -177,6 +177,8 @@ static int print_mem_entry(void *data, void *ptr)
 	struct kgsl_memdesc *m = &entry->memdesc;
 	unsigned int usermem_type = kgsl_memdesc_usermem_type(m);
 	int egl_surface_count = 0, egl_image_count = 0;
+	unsigned long inode_number = 0;
+	u32 map_count = atomic_read(&entry->map_count);
 
 	flags[0] = kgsl_memdesc_is_global(m) ?  'g' : '-';
 	flags[1] = '-';
@@ -184,34 +186,37 @@ static int print_mem_entry(void *data, void *ptr)
 	flags[3] = get_alignflag(m);
 	flags[4] = get_cacheflag(m);
 	flags[5] = kgsl_memdesc_use_cpu_map(m) ? 'p' : '-';
-	flags[6] = (m->useraddr) ? 'Y' : 'N';
+	/* Show Y if at least one vma has this entry mapped (could be multiple) */
+	flags[6] = map_count ? 'Y' : 'N';
 	flags[7] = kgsl_memdesc_is_secured(m) ?  's' : '-';
 	flags[8] = '-';
 	flags[9] = '\0';
 
 	kgsl_get_memory_usage(usage, sizeof(usage), m->flags);
 
-	if (usermem_type == KGSL_MEM_ENTRY_ION)
+	if (usermem_type == KGSL_MEM_ENTRY_ION) {
 		kgsl_get_egl_counts(entry, &egl_surface_count,
 						&egl_image_count);
+		inode_number = kgsl_get_dmabuf_inode_number(entry);
+	}
 
 #if defined(CONFIG_DISPLAY_SAMSUNG) && !defined(CONFIG_SAMSUNG_PRODUCT_SHIP)
-	seq_printf(s, m->useraddr ? "%p %p %16llu %5d %9s %10s %16s %5d %16ld %6d %6d" :
-			"%p %pK %16llu %5d %9s %10s %16s %5d %16ld %6d %6d",
+	seq_printf(s, "%p %16llu %5d %9s %10s %16s %5d %6d %6d",
 			(uint64_t *)(uintptr_t) m->gpuaddr,
-			(unsigned long *) m->useraddr,
 			m->size, entry->id, flags,
 			memtype_str(usermem_type),
 			usage, (m->sgt ? m->sgt->nents : 0),
-			m->mapsize,
 			egl_surface_count, egl_image_count);
 #else
 	seq_printf(s, "%pK %pK %16llu %5d %9s %10s %16s %5d %16llu %6d %6d",
 			(uint64_t *)(uintptr_t) m->gpuaddr,
-			(unsigned long *) m->useraddr,
-			m->size, entry->id, flags,
+			/*
+			 * Show zero for the useraddr - we can't reliably track
+			 * that value for multiple vmas anyway
+			 */
+			0, m->size, entry->id, flags,
 			memtype_str(usermem_type),
-			usage, (m->sgt ? m->sgt->nents : 0), m->mapsize,
+			usage, (m->sgt ? m->sgt->nents : 0), m->size,
 			egl_surface_count, egl_image_count);
 #endif
 
@@ -281,9 +286,9 @@ static void *process_mem_seq_next(struct seq_file *s, void *ptr,
 static int process_mem_seq_show(struct seq_file *s, void *ptr)
 {
 	if (ptr == SEQ_START_TOKEN) {
-		seq_printf(s, "%16s %16s %16s %5s %9s %10s %16s %5s %16s %6s %6s\n",
+		seq_printf(s, "%16s %16s %16s %5s %10s %10s %16s %5s %10s %6s %6s %10s\n",
 			"gpuaddr", "useraddr", "size", "id", "flags", "type",
-			"usage", "sglen", "mapsize", "eglsrf", "eglimg");
+			"usage", "sglen", "mapcnt", "eglsrf", "eglimg", "inode");
 		return 0;
 	} else
 		return print_mem_entry(s, ptr);
@@ -351,7 +356,7 @@ void kgsl_process_init_debugfs(struct kgsl_process_private *private)
 	unsigned char name[16];
 	struct dentry *dentry;
 
-	snprintf(name, sizeof(name), "%d", private->pid);
+	snprintf(name, sizeof(name), "%d", pid_nr(private->pid));
 
 	private->debug_root = debugfs_create_dir(name, proc_d_debugfs);
 
@@ -371,7 +376,7 @@ void kgsl_process_init_debugfs(struct kgsl_process_private *private)
 	}
 
 	dentry = debugfs_create_file("mem", 0444, private->debug_root,
-		(void *) ((unsigned long) private->pid), &process_mem_fops);
+		(void *) ((unsigned long) pid_nr(private->pid)), &process_mem_fops);
 
 	if (IS_ERR_OR_NULL(dentry))
 		WARN((dentry == NULL),

@@ -24,8 +24,7 @@ Main node
 		- "elbi"	External local bus interface registers
 		- "iatu"	Internal translation unit registers
 		- "config"	PCIe device configuration space
-		- "io"		PCIe device I/O registers
-		- "bars"	PCIe device base address registers
+		- "mhi" (opt)	PCIe MHI registers
 		- "tcsr" (opt)	PCIe clock scheme register
 		- "rumi" (opt)	PCIe RUMI register
 
@@ -123,6 +122,7 @@ Main node
 		- "vreg-1.8-supply"		power supply for PCIe PHY
 		- "vreg-0.9-supply"		power supply for PCIe PHY
 		- "vreg-cx-supply"		power supply for PCIe core
+		- "vreg-mx-supply"		power supply for PCIe core/PHY
 		- "vreg-3.3-supply" (opt)	power supply for PCIe endpoint
 
 - qcom,<supply-name>-voltage-level:
@@ -134,8 +134,10 @@ Main node
 - qcom,bw-scale:
 	Usage: optional
 	Value type: <prop-encoded-array>
-	Definition: List of CX voltage corner and rate change clock frequency
-		pair for each PCIe GEN speed
+	Definition: Tuple consisting of CX and MX voltage corners, and rate
+		change clock frequencies for each supported PCIe Gen speed.
+		ex:
+		<[min CX voltage] [min MX voltage] [Rate change clk frequency]>
 
 interconnect-names:
 	Usage: optional
@@ -290,6 +292,13 @@ interconnects:
 	Definition: L1.2 LTR threshold value to be multipled with scale to
 		define L1.2 latency tolerance reporting (LTR)
 
+- qcom,eq-fmdc-t-min-phase23:
+	Usage: optional
+	Value type: <u32>
+	Definition: Determines minimum time (ms) to remain in equalization
+		master phase before checking for convergence of the
+		coefficients.
+
 - qcom,slv-addr-space-size:
 	Usage: required
 	Value type: <u32>
@@ -341,10 +350,22 @@ interconnects:
 		de-asserted. This guarantees the 100MHz clock is available for
 		the PCIe devices
 
+- qcom,num-parf-testbus-sel:
+	Usage: optional
+	Value type: <u32>
+	Definition: Defines the number of testbus selectors available for PARF
+		for a given PCIe controller.
+
 - qcom,switch-latency:
 	Usage: optional
 	Definition: The latency(ms) between when PCIe link is up and before
 		any device over the switch is accessed
+
+- qcom,eq-pset-req-vec:
+	Usage: optional
+	Definition: EQ preset request vector. Determines which preset is
+		requested and evauluated during initial part of the EQ master
+		phase. Default will be 0 if entry is not present.
 
 - qcom,core-preset:
 	Usage: optional
@@ -378,6 +399,19 @@ interconnects:
 	Value type: <prop-encoded array>
 	Definition: PCIe PHY initialization sequence
 
+- qcom,msi_mask_disable:
+	Usage: optional
+	Definition: Disable masking MSI interrupts at EP side
+
+- qcom,filtered-bdfs:
+	Usage: optional
+	Value type: <u32 array of bdfs>
+	Definition: Skip enumeration for the list of 32-bit BDFs.
+- qcom,config-recovery:
+	Usage: optional
+	Value type : <bool>
+	Definition: Enable to notify the client driver for recovery when
+		config space is not accessible
 
 ==============
 Root port node
@@ -418,11 +452,8 @@ Example
 			<0x60000000 0xf1d>,
 			<0x60000f20 0xa8>,
 			<0x60001000 0x1000>,
-			<0x60100000 0x100000>,
-			<0x60200000 0x100000>,
-			<0x60300000 0x3d00000>;
-		reg-names = "parf", "phy", "dm_core", "elbi", "iatu", "conf",
-				"io", "bars", "tcsr", "rumi";
+			<0x60100000 0x100000>;
+		reg-names = "parf", "phy", "dm_core", "elbi", "iatu", "conf";
 
 		cell-index = <0>;
 		device_type = "pci";
@@ -461,14 +492,30 @@ Example
 		vreg-1.8-supply = <&pm8150l_l3>;
 		vreg-0.9-supply = <&pm8150_l5>;
 		vreg-cx-supply = <&VDD_CX_LEVEL>;
+		vreg-mx-supply = <&VDD_MXA_LEVEL>;
 		vreg-3.3-supply = <&pm8150_l1>;
 		qcom,vreg-1.8-voltage-level = <1800000 1800000 1000>;
 		qcom,vreg-0.9-voltage-level = <950000 950000 24000>;
 		qcom,vreg-cx-voltage-level = <RPMH_REGULATOR_LEVEL_MAX
 						RPMH_REGULATOR_LEVEL_NOM 0>;
-		qcom,bw-scale = <RPMH_REGULATOR_LEVEL_LOW_SVS 19200000 /* Gen1 */
-				RPMH_REGULATOR_LEVEL_LOW_SVS 19200000 /* Gen2 */
-				RPMH_REGULATOR_LEVEL_NOM 100000000>; /* Gen3 */
+		qcom,vreg-mx-voltage-level = <RPMH_REGULATOR_LEVEL_MAX
+						RPMH_REGULATOR_LEVEL_NOM 0>;
+		qcom,bw-scale = /* Gen1 */
+				<RPMH_REGULATOR_LEVEL_LOW_SVS
+				RPMH_REGULATOR_LEVEL_LOW_SVS
+				19200000
+				/* Gen2 */
+				RPMH_REGULATOR_LEVEL_LOW_SVS
+				RPMH_REGULATOR_LEVEL_LOW_SVS
+				19200000
+				/* Gen3 */
+				RPMH_REGULATOR_LEVEL_NOM
+				RPMH_REGULATOR_LEVEL_LOW_SVS
+				100000000
+				/* Gen4 */
+				RPMH_REGULATOR_LEVEL_NOM
+				RPMH_REGULATOR_LEVEL_NOM
+				100000000>;
 
 		interconnect-names = "icc_path";
 		interconnects = <&aggre2_noc MASTER_PCIE_0 &mc_virt SLAVE_EBI1>;
@@ -513,6 +560,7 @@ Example
 		qcom,no-l1-supported;
 		qcom,no-l1ss-supported;
 		qcom,no-aux-clk-sync;
+		qcom,eq-fmdc-t-min-phase23 = <1>; /* 1ms */
 		qcom,slv-addr-space-size = <0x1000000>; /* 16MB */
 		qcom,wr-halt-size = <0xa>; /* 1KB */
 		qcom,tlp-rd-size = <0x5>; /* 4KB */
@@ -520,8 +568,11 @@ Example
 		qcom,perst-delay-us-min = <10>;
 		qcom,perst-delay-us-max = <15>;
 		qcom,ep-latency = <20>;
+		qcom,num-parf-testbus-sel = <0xb9>;
 		qcom,switch-latency = <25>;
+		qcom,filtered-bdfs = <0x02080000>;
 
+		qcom,eq-pset-req-vec = <0>;
 		qcom,core-preset = <0x55555555> /* short channel */
 		qcom,pcie-phy-ver = <0x2101>; /* v2 version 1.01 */
 		qcom,phy-status-offset = <0x814>;
@@ -542,3 +593,53 @@ Example
 			qcom,iommu-cfg = <0x3> /* SMMU PRESENT. SET S1 BYPASS */
 			qcom,iommu-range = <0x0 0x10000000 0x0 0x40000000>;
 		};
+
+==============
+i2c child node
+==============
+
+- compatible:
+	Usage: required
+	Value type: <stringlist>
+	Definition: Compatible list, contains
+		- "qcom,pcie0-i2c-ntn3" for NTN3 switch attached to Root port 0
+
+- reg:
+	Usage: required
+	Value type: <u16>
+	Definition: i2c slave id
+
+- gpio-config-reg:
+	Usage: optional
+	Value type: <u32>
+	Definition: Slave GPIO configuration register address
+
+- ep-reset-reg:
+	Usage: optional
+	Value type: <u32>
+	Definition: Slave endpoint reset register address
+
+- ep-reset-gpio-mask:
+	Usage: optional
+	Value type: <u32>
+	Definition: Slave GPIO number as 32-bit mask
+
+- dump-regs:
+	Usage: optional
+	Value Type: Array of <u32>
+	Definition: List of slave registers to dump by i2c read
+
+=======
+Example
+=======
+
+&i2c_3 {
+	pcie_i2c_ctrl: pcie_i2c_ctrl {
+		compatible = "qcom,pcie0-i2c-ntn3";
+		reg = <0x77>;
+		gpio-config-reg = <0x801208>;
+		ep-reset-reg = <0x801210>;
+		ep-reset-gpio-mask = <0xf>;
+		dump-regs = <0x801330 0x801350 0x801370>;
+	};
+};

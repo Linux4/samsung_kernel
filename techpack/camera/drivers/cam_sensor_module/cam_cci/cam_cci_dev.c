@@ -121,7 +121,7 @@ irqreturn_t cam_cci_irq(int irq_num, void *data)
 		(!rd_done_th_assert)) {
 		cci_dev->cci_master_info[MASTER_0].status = 0;
 		rd_done_th_assert = true;
-		if (cci_dev->is_burst_read)
+		if (cci_dev->is_burst_read[MASTER_0])
 			complete(
 			&cci_dev->cci_master_info[MASTER_0].th_complete);
 		complete(&cci_dev->cci_master_info[MASTER_0].rd_done);
@@ -177,7 +177,7 @@ irqreturn_t cam_cci_irq(int irq_num, void *data)
 		(!rd_done_th_assert)) {
 		cci_dev->cci_master_info[MASTER_1].status = 0;
 		rd_done_th_assert = true;
-		if (cci_dev->is_burst_read)
+		if (cci_dev->is_burst_read[MASTER_1])
 			complete(
 			&cci_dev->cci_master_info[MASTER_1].th_complete);
 		complete(&cci_dev->cci_master_info[MASTER_1].rd_done);
@@ -243,8 +243,8 @@ irqreturn_t cam_cci_irq(int irq_num, void *data)
 			CAM_ERR(CAM_CCI,
 				"Base:%pK,cci: %d, M0_Q0 NACK ERROR: 0x%x",
 				base, cci_dev->soc_info.index, irq_status0);
-			cam_cci_dump_registers(cci_dev, MASTER_0,
-					QUEUE_0);
+			// cam_cci_dump_registers(cci_dev, MASTER_0,
+			// 		QUEUE_0);
 			complete_all(&cci_dev->cci_master_info[MASTER_0]
 				.report_q[QUEUE_0]);
 		}
@@ -252,8 +252,8 @@ irqreturn_t cam_cci_irq(int irq_num, void *data)
 			CAM_ERR(CAM_CCI,
 				"Base:%pK,cci: %d, M0_Q1 NACK ERROR: 0x%x",
 				base, cci_dev->soc_info.index, irq_status0);
-			cam_cci_dump_registers(cci_dev, MASTER_0,
-					QUEUE_1);
+			// cam_cci_dump_registers(cci_dev, MASTER_0,
+			// 		QUEUE_1);
 			complete_all(&cci_dev->cci_master_info[MASTER_0]
 			.report_q[QUEUE_1]);
 		}
@@ -275,8 +275,8 @@ irqreturn_t cam_cci_irq(int irq_num, void *data)
 			CAM_ERR(CAM_CCI,
 				"Base:%pK, cci: %d, M1_Q0 NACK ERROR: 0x%x",
 				base, cci_dev->soc_info.index, irq_status0);
-			cam_cci_dump_registers(cci_dev, MASTER_1,
-					QUEUE_0);
+			// cam_cci_dump_registers(cci_dev, MASTER_1,
+			// 		QUEUE_0);
 			complete_all(&cci_dev->cci_master_info[MASTER_1]
 			.report_q[QUEUE_0]);
 		}
@@ -284,8 +284,8 @@ irqreturn_t cam_cci_irq(int irq_num, void *data)
 			CAM_ERR(CAM_CCI,
 				"Base:%pK, cci: %d, M1_Q1 NACK ERROR: 0x%x",
 				base, cci_dev->soc_info.index, irq_status0);
-			cam_cci_dump_registers(cci_dev, MASTER_1,
-				QUEUE_1);
+			// cam_cci_dump_registers(cci_dev, MASTER_1,
+			// 	QUEUE_1);
 			complete_all(&cci_dev->cci_master_info[MASTER_1]
 			.report_q[QUEUE_1]);
 		}

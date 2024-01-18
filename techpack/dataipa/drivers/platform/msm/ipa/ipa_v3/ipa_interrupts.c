@@ -9,6 +9,7 @@
 #define INTERRUPT_WORKQUEUE_NAME "ipa_interrupt_wq"
 #define DIS_SUSPEND_INTERRUPT_TIMEOUT 5
 #define IPA_IRQ_NUM_MAX 32
+#define IPA_AGG_BUSY_TIMEOUT (msecs_to_jiffies(5))
 
 struct ipa3_interrupt_info {
 	ipa_irq_handler_t handler;
@@ -322,10 +323,14 @@ static void ipa3_process_interrupts(bool isr_context)
 
 static void ipa3_interrupt_defer(struct work_struct *work)
 {
+	struct ipa_active_client_logging_info log_info;
+
 	IPADBG("processing interrupts in wq\n");
 	IPA_ACTIVE_CLIENTS_INC_SIMPLE();
 	ipa3_process_interrupts(false);
-	IPA_ACTIVE_CLIENTS_DEC_SIMPLE();
+	IPA_ACTIVE_CLIENTS_PREP_SIMPLE(log_info);
+	/* Delay the devote process to have time to get gsi ieob irq */
+	ipa3_dec_client_disable_clks_delay_wq(&log_info, IPA_AGG_BUSY_TIMEOUT);
 	IPADBG("Done\n");
 }
 
@@ -449,7 +454,9 @@ int ipa3_remove_interrupt_handler(enum ipa_irq_type interrupt)
 		return -EFAULT;
 	}
 
-	kfree(ipa_interrupt_to_cb[irq_num].private_data);
+	/*If free ipa3_ctx pointer causing device crash during remove interrupt*/
+	if(ipa_interrupt_to_cb[irq_num].private_data != ipa3_ctx)
+		kfree(ipa_interrupt_to_cb[irq_num].private_data);
 	ipa_interrupt_to_cb[irq_num].deferred_flag = false;
 	ipa_interrupt_to_cb[irq_num].handler = NULL;
 	ipa_interrupt_to_cb[irq_num].private_data = NULL;

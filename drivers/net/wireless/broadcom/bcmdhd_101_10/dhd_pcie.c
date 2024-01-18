@@ -1,7 +1,7 @@
 /*
  * DHD Bus Module for PCIE
  *
- * Copyright (C) 2020, Broadcom.
+ * Copyright (C) 2021, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -2199,8 +2199,8 @@ dhdpcie_advertise_bus_cleanup(dhd_pub_t *dhdp)
 				DHD_ERROR(("%s : Did not recieve DB7\n", __FUNCTION__));
 #ifdef WBRC
 				if (dhdp->fw_mode_changed == FALSE) {
-				DHD_ERROR(("%s : Set do_chip_bighammer\n", __FUNCTION__));
-				dhdp->do_chip_bighammer = TRUE;
+					DHD_ERROR(("%s : Set do_chip_bighammer\n", __FUNCTION__));
+					dhdp->do_chip_bighammer = TRUE;
 				}
 #endif /* WBRC */
 			}

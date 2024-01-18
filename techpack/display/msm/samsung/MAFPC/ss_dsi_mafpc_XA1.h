@@ -19,6 +19,7 @@
 #include "ss_dsi_mafpc_common.h"
 
 int ss_mafpc_init_XA1(struct samsung_display_driver_data *vdd);
+struct dsi_panel_cmd_set *ss_mafpc_brightness_scale_XA1(struct samsung_display_driver_data *vdd, int *level_key);
 
 #define MAFPC_ENABLE_COMMAND_LEN_XA1 39
 #define MAFPC_BRIGHTNESS_SCALE_STEP 75

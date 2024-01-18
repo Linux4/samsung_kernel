@@ -16,7 +16,7 @@
 /*
  * make dsi_panel_cmds using image data
  */
-void ss_mafpc_make_img_cmds_HAD(struct samsung_display_driver_data *vdd, char *data,
+int ss_mafpc_make_img_cmds_HAD(struct samsung_display_driver_data *vdd, char *data,
 									u32 data_size, int cmd_type)
 {
 	struct dsi_cmd_desc *tcmds;
@@ -24,19 +24,20 @@ void ss_mafpc_make_img_cmds_HAD(struct samsung_display_driver_data *vdd, char *d
 
 	int i, j;
 	int data_idx = 0;
+	int ret = 0;
 
 	u32 p_size = MAFPC_CMD_ALIGN;
 	u32 paylod_size = 0;
 	u32 cmd_size = 0;
 
 	if (!data) {
-		LCD_ERR("data is null..\n");
-		return;
+		LCD_ERR(vdd, "data is null..\n");
+		return -EINVAL;
 	}
 
 	if (!data_size) {
-		LCD_ERR("data size is zero..\n");
-		return;
+		LCD_ERR(vdd, "data size is zero..\n");
+		return -EINVAL;
 	}
 
 	/* ss_txbuf size */
@@ -47,18 +48,22 @@ void ss_mafpc_make_img_cmds_HAD(struct samsung_display_driver_data *vdd, char *d
 		 p_size += MAFPC_CMD_ALIGN;
 	}
 	/* cmd size */
+	if(!paylod_size) {
+		LCD_ERR(vdd, "invalid data size..\n");
+		return -EINVAL;
+	}
 	cmd_size = data_size / paylod_size;
 
-	LCD_INFO("Command[%d] Total data size [%d]\n", cmd_type, data_size);
-	LCD_INFO("cmd size [%d] ss_txbuf size [%d]\n", cmd_size, paylod_size);
+	LCD_INFO(vdd, "Command[%d] Total data size [%d]\n", cmd_type, data_size);
+	LCD_INFO(vdd, "cmd size [%d] ss_txbuf size [%d]\n", cmd_size, paylod_size);
 
 	pcmds = ss_get_cmds(vdd, cmd_type);
 	if (IS_ERR_OR_NULL(pcmds->cmds)) {
-		LCD_ERR("pcmds->cmds is null!!\n");
+		LCD_ERR(vdd, "pcmds->cmds is null!!\n");
 		pcmds->cmds = kzalloc(cmd_size * sizeof(struct dsi_cmd_desc), GFP_KERNEL);
 		if (IS_ERR_OR_NULL(pcmds->cmds)) {
-			LCD_ERR("fail to kzalloc for mafpc cmds \n");
-			return;
+			LCD_ERR(vdd, "fail to kzalloc for mafpc cmds \n");
+			return -ENOMEM;
 		}
 	}
 
@@ -67,8 +72,8 @@ void ss_mafpc_make_img_cmds_HAD(struct samsung_display_driver_data *vdd, char *d
 
 	tcmds = pcmds->cmds;
 	if (tcmds == NULL) {
-		LCD_ERR("tcmds is NULL \n");
-		return;
+		LCD_ERR(vdd, "tcmds is NULL \n");
+		return -ENOMEM;
 	}
 
 	for (i = 0; i < pcmds->count; i++) {
@@ -80,8 +85,8 @@ void ss_mafpc_make_img_cmds_HAD(struct samsung_display_driver_data *vdd, char *d
 			/* +1 means HEADER TYPE 0x4C or 0x5C */
 			tcmds[i].ss_txbuf = kzalloc(paylod_size + 1, GFP_KERNEL);
 			if (tcmds[i].ss_txbuf == NULL) {
-				LCD_ERR("fail to kzalloc for mafpc cmds ss_txbuf \n");
-				return;
+				LCD_ERR(vdd, "fail to kzalloc for mafpc cmds ss_txbuf \n");
+				return -ENOMEM;
 			}
 		}
 
@@ -94,17 +99,18 @@ void ss_mafpc_make_img_cmds_HAD(struct samsung_display_driver_data *vdd, char *d
 
 		ss_alloc_ss_txbuf(&tcmds[i], tcmds[i].ss_txbuf);
 
-		LCD_DEBUG("dlen (%d), data_idx (%d)\n", j, data_idx);
+		LCD_DEBUG(vdd, "dlen (%d), data_idx (%d)\n", j, data_idx);
 	}
 
-	return;
+	return ret;
 }
 
-void ss_mafpc_make_img_mass_cmds_HAD(struct samsung_display_driver_data *vdd, char* data,
+int ss_mafpc_make_img_mass_cmds_HAD(struct samsung_display_driver_data *vdd, char* data,
 									u32 data_size, int cmd_type)
 {
 	struct dsi_cmd_desc *tcmds;
 	struct dsi_panel_cmd_set *pcmds;
+	int ret = 0;
 
 	u32 data_idx = 0;
 	u32 payload_len = 0;
@@ -113,27 +119,27 @@ void ss_mafpc_make_img_mass_cmds_HAD(struct samsung_display_driver_data *vdd, ch
 	u32 c_cnt = 0;
 
 	if (!data) {
-		LCD_ERR("data is null..\n");
-		return;
+		LCD_ERR(vdd, "data is null..\n");
+		return -EINVAL;
 	}
 
 	if (!data_size) {
-		LCD_ERR("data size is zero..\n");
-		return;
+		LCD_ERR(vdd, "data size is zero..\n");
+		return -EINVAL;
 	}
 
 	payload_len = data_size + (data_size + MAFPC_MASS_CMD_ALIGN - 1)/MAFPC_MASS_CMD_ALIGN;
 	cmd_cnt = (payload_len + MAFPC_MAX_PAYLOAD_SIZE_MASS - 1) / MAFPC_MAX_PAYLOAD_SIZE_MASS;
-	LCD_INFO("Command [%s], Total data size [%d], total cmd len [%d], cmd count [%d]\n",
+	LCD_INFO(vdd, "Command [%s], Total data size [%d], total cmd len [%d], cmd count [%d]\n",
 			ss_get_cmd_name(cmd_type), data_size, payload_len, cmd_cnt);
 
 	pcmds = ss_get_cmds(vdd, cmd_type);
 	if (IS_ERR_OR_NULL(pcmds->cmds)) {
-		LCD_INFO("alloc mem for mafpc cmd\n");
+		LCD_INFO(vdd, "alloc mem for mafpc cmd\n");
 		pcmds->cmds = kzalloc(cmd_cnt * sizeof(struct dsi_cmd_desc), GFP_KERNEL);
 		if (IS_ERR_OR_NULL(pcmds->cmds)) {
-			LCD_ERR("fail to kzalloc for mafpc cmds \n");
-			return;
+			LCD_ERR(vdd, "fail to kzalloc for mafpc cmds \n");
+			return -ENOMEM;
 		}
 	}
 
@@ -142,8 +148,8 @@ void ss_mafpc_make_img_mass_cmds_HAD(struct samsung_display_driver_data *vdd, ch
 
 	tcmds = pcmds->cmds;
 	if (tcmds == NULL) {
-		LCD_ERR("tcmds is NULL \n");
-		return;
+		LCD_ERR(vdd, "tcmds is NULL \n");
+		return -ENOMEM;
 	}
 	/* fill image data */
 
@@ -158,9 +164,9 @@ void ss_mafpc_make_img_mass_cmds_HAD(struct samsung_display_driver_data *vdd, ch
 			/* HEADER TYPE 0x4C or 0x5C */
 			tcmds[c_cnt].ss_txbuf = vzalloc(MAFPC_MAX_PAYLOAD_SIZE_MASS);
 			if (tcmds[c_cnt].ss_txbuf == NULL) {
-				LCD_ERR("fail to vzalloc for mafpc cmds ss_txbuf \n");
+				LCD_ERR(vdd, "fail to vzalloc for mafpc cmds ss_txbuf \n");
 				mutex_unlock(&vdd->mafpc.vdd_mafpc_lock);
-				return;
+				return -ENOMEM;
 			}
 		}
 
@@ -179,16 +185,15 @@ void ss_mafpc_make_img_mass_cmds_HAD(struct samsung_display_driver_data *vdd, ch
 	mutex_unlock(&vdd->mafpc.vdd_mafpc_lock);
 	SDE_ATRACE_END("mafpc_mass_cmd_generation");
 
-	LCD_INFO("Total Cmd Count(%d), Last Cmd Payload Len(%d)\n", c_cnt, tcmds[c_cnt-1].msg.tx_len);
+	LCD_INFO(vdd, "Total Cmd Count(%d), Last Cmd Payload Len(%d)\n", c_cnt, tcmds[c_cnt-1].msg.tx_len);
 
-	return;
+	return ret;
 }
 
 #define BUF_LEN 200
-void ss_mafpc_update_enable_cmds_HAD(struct samsung_display_driver_data *vdd)
+int ss_mafpc_update_enable_cmds_HAD(struct samsung_display_driver_data *vdd)
 {
 	struct dsi_panel_cmd_set *pcmds;
-
 	u32 cmd_size = vdd->mafpc.enable_cmd_size;
 	char *cmd_buf = vdd->mafpc.enable_cmd_buf;
 	char *cmd_pload = NULL;
@@ -196,8 +201,8 @@ void ss_mafpc_update_enable_cmds_HAD(struct samsung_display_driver_data *vdd)
 	int loop, pos;
 
 	if (!cmd_buf) {
-		LCD_ERR("Enable cmd buffer is null..\n");
-		return;
+		LCD_ERR(vdd, "Enable cmd buffer is null..\n");
+		return -ENOMEM;
 	}
 
 	mutex_lock(&vdd->mafpc.vdd_mafpc_lock);
@@ -213,34 +218,34 @@ void ss_mafpc_update_enable_cmds_HAD(struct samsung_display_driver_data *vdd)
 
 	mutex_unlock(&vdd->mafpc.vdd_mafpc_lock);
 
-	LCD_INFO("Enable Cmd = %s\n", show_buf);
+	LCD_INFO(vdd, "Enable Cmd = %s\n", show_buf);
 
-	return;
+	return 0;
 }
 
-static struct dsi_panel_cmd_set *ss_mafpc_brightness_scale(struct samsung_display_driver_data *vdd, int *level_key)
+struct dsi_panel_cmd_set *ss_mafpc_brightness_scale_HAD(struct samsung_display_driver_data *vdd, int *level_key)
 {
 	struct dsi_panel_cmd_set *scale_cmds = ss_get_cmds(vdd, TX_MAFPC_BRIGHTNESS_SCALE);
 	int bl_level;
 	int idx;
 
 	if (!vdd->mafpc.is_support) {
-		LCD_ERR("mafpc is not supported..(%d) \n", vdd->mafpc.is_support);
+		LCD_ERR(vdd, "mafpc is not supported..(%d) \n", vdd->mafpc.is_support);
 		return NULL;
 	}
 
 	if (SS_IS_CMDS_NULL(scale_cmds)) {
-		LCD_DEBUG("no Brightness Scale cmd\n");
+		LCD_DEBUG(vdd, "no Brightness Scale cmd\n");
 		return NULL;
 	}
 
 	if (!vdd->mafpc.en) {
-		LCD_ERR("mAFPC is not enabled\n");
+		LCD_ERR(vdd, "mAFPC is not enabled\n");
 		return NULL;
 	}
 
 	if (!vdd->mafpc.is_br_table_updated) {
-		LCD_ERR("Brightness Table for mAFPC is not updated yet\n");
+		LCD_ERR(vdd, "Brightness Table for mAFPC is not updated yet\n");
 		return NULL;
 	}
 
@@ -253,35 +258,36 @@ static struct dsi_panel_cmd_set *ss_mafpc_brightness_scale(struct samsung_displa
 
 	idx = brightness_scale_idx[bl_level];
 
-	scale_cmds->cmds[2].ss_txbuf[1] = brightness_scale_table[idx][0];
-	scale_cmds->cmds[2].ss_txbuf[2] = brightness_scale_table[idx][1];
-	scale_cmds->cmds[2].ss_txbuf[3] = brightness_scale_table[idx][2];
+	scale_cmds->cmds[1].ss_txbuf[1] = brightness_scale_table[idx][0];
+	scale_cmds->cmds[1].ss_txbuf[2] = brightness_scale_table[idx][1];
+	scale_cmds->cmds[1].ss_txbuf[3] = brightness_scale_table[idx][2];
 
-	LCD_INFO("Brightness idx(%d), candela(%d), cmd(0x%x 0x%x 0x%x)\n",
+	LCD_INFO(vdd, "Brightness idx(%d), candela(%d), cmd(0x%x 0x%x 0x%x)\n",
 			idx, vdd->br_info.common_br.cd_level,
-			scale_cmds->cmds[2].ss_txbuf[1],
-			scale_cmds->cmds[2].ss_txbuf[2],
-			scale_cmds->cmds[2].ss_txbuf[3]);
+			scale_cmds->cmds[1].ss_txbuf[1],
+			scale_cmds->cmds[1].ss_txbuf[2],
+			scale_cmds->cmds[1].ss_txbuf[3]);
 
 	return scale_cmds;
 }
 
 #define WAIT_FRAME (1)
 
-static void ss_mafpc_img_write(struct samsung_display_driver_data *vdd, bool is_instant)
+static int ss_mafpc_img_write(struct samsung_display_driver_data *vdd, bool is_instant)
 {
 	struct dsi_panel_cmd_set *pcmds;
 	int fps, wait_time;
 	int wait_cnt = 1000; /* 1000 * 0.5ms = 500ms */
+	int ret = 0;
 
 	if (!vdd->mafpc.is_support) {
-		LCD_ERR("mafpc is not supported..(%d) \n", vdd->mafpc.is_support);
-		return;
+		LCD_ERR(vdd, "mafpc is not supported..(%d) \n", vdd->mafpc.is_support);
+		return -EACCES;
 	}
 
 	fps = vdd->vrr.cur_refresh_rate;
 
-	LCD_ERR("++(%d)\n", is_instant);
+	LCD_INFO(vdd, "++(%d)\n", is_instant);
 
 	mutex_lock(&vdd->self_disp.vdd_self_display_ioctl_lock);
 
@@ -314,7 +320,7 @@ static void ss_mafpc_img_write(struct samsung_display_driver_data *vdd, bool is_
 		 * TE-> frame tx -> frame flush -> lock exclusive_tx -> max wait 16ms -> TE -> frame tx.
 		 */
 		wait_time = ((1000 / fps) + 1) * WAIT_FRAME;
-		LCD_INFO("fps : %d wait %d ms\n", fps, wait_time);
+		LCD_INFO(vdd, "fps : %d wait %d ms\n", fps, wait_time);
 		usleep_range(wait_time*1000, wait_time*1000);
 		vdd->mafpc.force_delay = false;
 	}
@@ -330,10 +336,10 @@ static void ss_mafpc_img_write(struct samsung_display_driver_data *vdd, bool is_
 
 	pcmds = ss_get_cmds(vdd, TX_MAFPC_SET_POST);
 	if (vdd->self_disp.sd_info.en | vdd->self_disp.sa_info.en) {
-		LCD_INFO("AOD Analog(Digital) Clock is enabled!\n");
+		LCD_INFO(vdd, "AOD Analog(Digital) Clock is enabled!\n");
 		pcmds->cmds[0].ss_txbuf[1] = 0x00;
 	} else {
-		LCD_INFO("AOD Analog(Digital) Clock is disabled!\n");
+		LCD_INFO(vdd, "AOD Analog(Digital) Clock is disabled!\n");
 		pcmds->cmds[0].ss_txbuf[1] = 0x01;
 	}
 
@@ -363,19 +369,21 @@ static void ss_mafpc_img_write(struct samsung_display_driver_data *vdd, bool is_
 
 	mutex_unlock(&vdd->self_disp.vdd_self_display_ioctl_lock);
 
-	LCD_ERR("--(%d)\n", is_instant);
+	LCD_INFO(vdd, "--(%d)\n", is_instant);
+
+	return ret;
 }
 
-static void ss_mafpc_enable(struct samsung_display_driver_data *vdd, int enable)
+static int ss_mafpc_enable(struct samsung_display_driver_data *vdd, int enable)
 {
 	if (IS_ERR_OR_NULL(vdd)) {
-		LCD_ERR("vdd is null or error\n");
-		return;
+		LCD_ERR(vdd, "vdd is null or error\n");
+		return -ENODEV;
 	}
 
 	if (!vdd->mafpc.is_support) {
-		LCD_ERR("mafpc is not supported..(%d) \n", vdd->mafpc.is_support);
-		return;
+		LCD_ERR(vdd, "mafpc is not supported..(%d) \n", vdd->mafpc.is_support);
+		return -EACCES;
 	}
 
 	mutex_lock(&vdd->mafpc.vdd_mafpc_lock);
@@ -389,45 +397,45 @@ static void ss_mafpc_enable(struct samsung_display_driver_data *vdd, int enable)
 
 	mutex_unlock(&vdd->mafpc.vdd_mafpc_lock);
 
-	LCD_ERR("%s\n", enable ? "Enable" : "Disable");
+	LCD_INFO(vdd, "%s\n", enable ? "Enable" : "Disable");
 
-	return;
+	return 0;
 }
 
 static int ss_mafpc_crc_check(struct samsung_display_driver_data *vdd)
 {
-	int i, ret = 1;
+	int i, ret = 0;
 	int wait_cnt = 1000; /* 1000 * 0.5ms = 500ms */
 
 	if (IS_ERR_OR_NULL(vdd)) {
-		LCD_ERR("vdd is null or error\n");
+		LCD_ERR(vdd, "vdd is null or error\n");
 		return -ENODEV;
 	}
 
 	if (!vdd->mafpc.is_support) {
-		LCD_ERR("mafpc is not supported..(%d) \n", vdd->mafpc.is_support);
+		LCD_ERR(vdd, "mafpc is not supported..(%d) \n", vdd->mafpc.is_support);
 		return -ENODEV;
 	}
 
 
 	if (!vdd->mafpc.crc_size) {
-		LCD_ERR("mAFPC crc size is zero..\n\n");
+		LCD_ERR(vdd, "mAFPC crc size is zero..\n\n");
 		return -EINVAL;
 	}
 
 	if (!vdd->mafpc.crc_read_data) {
 		vdd->mafpc.crc_read_data = kzalloc(vdd->mafpc.crc_size, GFP_KERNEL);
 		if (!vdd->mafpc.crc_read_data) {
-			LCD_ERR("fail to alloc for mAFPC crc_read_data \n");
+			LCD_ERR(vdd, "fail to alloc for mAFPC crc_read_data \n");
 			return -ENOMEM;
 		}
 	}
 
-	LCD_ERR("++ \n");
+	LCD_INFO(vdd, "++ \n");
 	mutex_lock(&vdd->mafpc.vdd_mafpc_crc_check_lock);
 
 	/* prevent sw reset to trigger esd recovery */
-	LCD_INFO("disable esd interrupt\n");
+	LCD_INFO(vdd, "disable esd interrupt\n");
 	if (vdd->esd_recovery.esd_irq_enable)
 		vdd->esd_recovery.esd_irq_enable(false, true, (void *)vdd);
 
@@ -468,19 +476,19 @@ static int ss_mafpc_crc_check(struct samsung_display_driver_data *vdd)
 
 	for (i = 0; i < vdd->mafpc.crc_size; i++) {
 		if (vdd->mafpc.crc_read_data[i] != vdd->mafpc.crc_pass_data[i]) {
-			LCD_ERR("mAFPC CRC check fail !!\n");
-			ret = 0;
+			LCD_ERR(vdd, "mAFPC CRC check fail !!\n");
+			ret = -EFAULT;
 			break;
 		}
 	}
 
 	/* enable esd interrupt */
-	LCD_INFO("enable esd interrupt\n");
+	LCD_INFO(vdd, "enable esd interrupt\n");
 	if (vdd->esd_recovery.esd_irq_enable)
 		vdd->esd_recovery.esd_irq_enable(true, true, (void *)vdd);
 
 	mutex_unlock(&vdd->mafpc.vdd_mafpc_crc_check_lock);
-	LCD_ERR("-- \n");
+	LCD_INFO(vdd, "-- \n");
 
 	return ret;
 }
@@ -504,18 +512,18 @@ static long ss_mafpc_ioctl(struct file *file, unsigned int cmd, unsigned long ar
 	int ret = 0;
 
 	if (IS_ERR_OR_NULL(vdd)) {
-		LCD_ERR("vdd is null or error\n");
+		LCD_ERR(vdd, "vdd is null or error\n");
 		return -ENODEV;
 	}
 
 	if ((_IOC_TYPE(cmd) != MAFPC_IOCTL_MAGIC) ||
 				(_IOC_NR(cmd) >= IOCTL_MAFPC_MAX)) {
-		LCD_ERR("TYPE(%u) NR(%u) is wrong..\n",
+		LCD_ERR(vdd, "TYPE(%u) NR(%u) is wrong..\n",
 			_IOC_TYPE(cmd), _IOC_NR(cmd));
 		return -EINVAL;
 	}
 
-	LCD_INFO("cmd = %s\n", cmd == IOCTL_MAFPC_ON ? "IOCTL_MAFPC_ON" :
+	LCD_INFO(vdd, "cmd = %s\n", cmd == IOCTL_MAFPC_ON ? "IOCTL_MAFPC_ON" :
 				cmd == IOCTL_MAFPC_OFF ? "IOCTL_MAFPC_OFF" :
 				cmd == IOCTL_MAFPC_ON_INSTANT ? "IOCTL_MAFPC_ON_INSTANT" :
 				cmd == IOCTL_MAFPC_OFF_INSTANT ? "IOCTL_MAFPC_OFF_INSTANT" : "IOCTL_ERR");
@@ -527,9 +535,9 @@ static long ss_mafpc_ioctl(struct file *file, unsigned int cmd, unsigned long ar
 	case IOCTL_MAFPC_ON_INSTANT:
 		vdd->mafpc.en = true;
 		if (!ss_is_ready_to_send_cmd(vdd)) {
-			LCD_INFO("Panel is not ready(%d), will apply next display on\n",
+			LCD_INFO(vdd, "Panel is not ready(%d), will apply next display on\n",
 					vdd->panel_state);
-			break;
+			return -ENODEV;
 		}
 
 		ss_mafpc_img_write(vdd, true);
@@ -540,14 +548,14 @@ static long ss_mafpc_ioctl(struct file *file, unsigned int cmd, unsigned long ar
 		break;
 	case IOCTL_MAFPC_OFF_INSTANT:
 		if (!ss_is_ready_to_send_cmd(vdd)) {
-			LCD_ERR("Panel is not ready. Panel State(%d)\n", vdd->panel_state);
+			LCD_ERR(vdd, "Panel is not ready. Panel State(%d)\n", vdd->panel_state);
 			return -ENODEV;
 		}
 		vdd->mafpc.en = false;
 		ss_mafpc_enable(vdd, false);
 		break;
 	default:
-		LCD_ERR("invalid cmd : %u \n", cmd);
+		LCD_ERR(vdd, "invalid cmd : %u \n", cmd);
 		break;
 	}
 
@@ -575,32 +583,32 @@ static ssize_t ss_mafpc_write_from_user(struct file *file, const char __user *us
 	u32 br_table_size = vdd->mafpc.brightness_scale_table_size;
 
 	if (IS_ERR_OR_NULL(vdd)) {
-		LCD_ERR("no vdd");
+		LCD_ERR(vdd, "no vdd");
 		return -ENODEV;
 	}
 
 	if (unlikely(!enable_cmd_buf)) {
-		LCD_ERR("No mafpc Enable cmd Buffer\n");
+		LCD_ERR(vdd, "No mafpc Enable cmd Buffer\n");
 		return -ENODEV;
 	}
 
 	if (unlikely(!img_buf)) {
-		LCD_ERR("No mafpc Image Buffer\n");
+		LCD_ERR(vdd, "No mafpc Image Buffer\n");
 		return -ENODEV;
 	}
 
 	if (unlikely(!user_buf)) {
-		LCD_ERR("invalid user buffer\n");
+		LCD_ERR(vdd, "invalid user buffer\n");
 		return -EINVAL;
 	}
 
 	if (total_count != (enable_cmd_size + 1 + img_size + br_table_size)) {
-		LCD_ERR("Invalid size %zu, should be %u\n",
+		LCD_ERR(vdd, "Invalid size %zu, should be %u\n",
 				total_count, (enable_cmd_size + 1 + img_size + br_table_size));
 		return -EINVAL;
 	}
 
-	LCD_INFO("Total_Count(%zu), cmd_size(%u), img_size(%u), br_table_size(%u)\n",
+	LCD_INFO(vdd, "Total_Count(%zu), cmd_size(%u), img_size(%u), br_table_size(%u)\n",
 			total_count, enable_cmd_size + 1, img_size, br_table_size);
 
 	/*
@@ -609,27 +617,35 @@ static ssize_t ss_mafpc_write_from_user(struct file *file, const char __user *us
 	 */
 	ret = copy_from_user(enable_cmd_buf, user_buf + 1, enable_cmd_size);
 	if (unlikely(ret < 0)) {
-		LCD_ERR("failed to copy_from_user (Enable Command)\n");
+		LCD_ERR(vdd, "failed to copy_from_user (Enable Command)\n");
 		return -EINVAL;
 	}
 
 	/* Get 865,080 Bytes for mAFPC Image Data from user space (mDNIE Service) */
 	ret = copy_from_user(img_buf, user_buf + enable_cmd_size + 1, img_size);
 	if (unlikely(ret < 0)) {
-		LCD_ERR("failed to copy_from_user (Image Data)\n");
+		LCD_ERR(vdd, "failed to copy_from_user (Image Data)\n");
 		return -EINVAL;
 	}
 
 	/* Get 225(75 x 3)Bytes for brightness scale cmd table from user space (mDNIE Service) */
 	ret = copy_from_user(brightness_scale_table, user_buf + enable_cmd_size + 1 + img_size, br_table_size);
 	if (unlikely(ret < 0)) {
-		LCD_ERR("failed to copy_from_user (Brightness Scale Table)\n");
+		LCD_ERR(vdd, "failed to copy_from_user (Brightness Scale Table)\n");
 		return -EINVAL;
 	}
 	vdd->mafpc.is_br_table_updated = true;
 
-	ss_mafpc_update_enable_cmds_HAD(vdd);
-	ss_mafpc_make_img_mass_cmds_HAD(vdd, vdd->mafpc.img_buf, vdd->mafpc.img_size, TX_MAFPC_IMAGE);
+	ret = ss_mafpc_update_enable_cmds_HAD(vdd);
+	if (unlikely(ret < 0)) {
+		LCD_ERR(vdd, "failed to ss_mafpc_update_enable_cmds_HAD\n");
+		return ret;
+	}
+	ret = ss_mafpc_make_img_mass_cmds_HAD(vdd, vdd->mafpc.img_buf, vdd->mafpc.img_size, TX_MAFPC_IMAGE);
+	if (unlikely(ret < 0)) {
+		LCD_ERR(vdd, "failed to ss_mafpc_make_img_mass_cmds_HAD\n");
+		return ret;
+	}
 
 	return total_count;
 }
@@ -642,13 +658,13 @@ static int ss_mafpc_open(struct inode *inode, struct file *file)
 	struct samsung_display_driver_data *vdd = panel->panel_private;
 
 	if (IS_ERR_OR_NULL(vdd)) {
-		LCD_ERR("vdd is null or error\n");
+		LCD_ERR(vdd, "vdd is null or error\n");
 		return -ENODEV;
 	}
 
 	vdd->mafpc.file_open = true;
 
-	LCD_DEBUG("[OPEN]\n");
+	LCD_DEBUG(vdd, "[OPEN]\n");
 
 	return 0;
 }
@@ -661,13 +677,13 @@ static int ss_mafpc_release(struct inode *inode, struct file *file)
 	struct samsung_display_driver_data *vdd = panel->panel_private;
 
 	if (IS_ERR_OR_NULL(vdd)) {
-		LCD_ERR("vdd is null or error\n");
+		LCD_ERR(vdd, "vdd is null or error\n");
 		return -ENODEV;
 	}
 
 	vdd->mafpc.file_open = false;
 
-	LCD_DEBUG("[RELEASE]\n");
+	LCD_DEBUG(vdd, "[RELEASE]\n");
 
 	return 0;
 }
@@ -691,12 +707,12 @@ int ss_mafpc_init_HAD(struct samsung_display_driver_data *vdd)
 	struct dsi_display *display = NULL;
 
 	if (IS_ERR_OR_NULL(vdd)) {
-		LCD_ERR("vdd is null or error\n");
+		LCD_ERR(vdd, "vdd is null or error\n");
 		return -ENODEV;
 	}
 
 	if (!vdd->mafpc.is_support) {
-		LCD_ERR("mAFPC is not supported\n");
+		LCD_ERR(vdd, "mAFPC is not supported\n");
 		return -EINVAL;
 	}
 
@@ -723,23 +739,23 @@ int ss_mafpc_init_HAD(struct samsung_display_driver_data *vdd)
 	vdd->mafpc.make_img_cmds = ss_mafpc_make_img_cmds_HAD;
 	vdd->mafpc.img_write = ss_mafpc_img_write;
 	vdd->mafpc.debug = ss_mafpc_debug;
-	vdd->panel_func.br_func[BR_FUNC_MAFPC_SCALE] = ss_mafpc_brightness_scale;
+	vdd->panel_func.br_func[BR_FUNC_MAFPC_SCALE] = ss_mafpc_brightness_scale_HAD;
 
 	vdd->mafpc.brightness_scale_table_size = sizeof(brightness_scale_table);
 
 	vdd->mafpc.enable_cmd_size = MAFPC_ENABLE_COMMAND_LEN_HAD;
 	vdd->mafpc.enable_cmd_buf = kzalloc(MAFPC_ENABLE_COMMAND_LEN_HAD, GFP_KERNEL);
 	if (IS_ERR_OR_NULL(vdd->mafpc.enable_cmd_buf))
-		LCD_ERR("Failed to alloc mafpc enable cmd buffer\n");
+		LCD_ERR(vdd, "Failed to alloc mafpc enable cmd buffer\n");
 
-	ret = misc_register(&vdd->mafpc.dev);
+	ret = ss_wrapper_misc_register(vdd, &vdd->mafpc.dev);
 	if (ret) {
-		LCD_ERR("failed to register driver : %d\n", ret);
+		LCD_ERR(vdd, "failed to register driver : %d\n", ret);
 		vdd->mafpc.is_support = false;
 		return -ENODEV;
 	}
 
-	LCD_INFO("Success to register mafpc device..(%d)\n", ret);
+	LCD_INFO(vdd, "Success to register mafpc device..(%d)\n", ret);
 
 	return ret;
 }

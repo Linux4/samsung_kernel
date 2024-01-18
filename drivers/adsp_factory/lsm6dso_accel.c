@@ -257,6 +257,12 @@ static ssize_t accel_selftest_show(struct device *dev,
 	struct adsp_data *data = dev_get_drvdata(dev);
 	uint8_t cnt = 0;
 	int retry = 0;
+#ifdef CONFIG_SUPPORT_DUAL_6AXIS
+	int msg_buf = LSM6DSO_SELFTEST_TRUE;
+
+	adsp_unicast(&msg_buf, sizeof(msg_buf),
+		MSG_DIGITAL_HALL_ANGLE, 0, MSG_TYPE_OPTION_DEFINE);
+#endif
 
 	pdata->st_complete = false;
 RETRY_ACCEL_SELFTEST:
@@ -264,7 +270,7 @@ RETRY_ACCEL_SELFTEST:
 
 	while (!(data->ready_flag[MSG_TYPE_ST_SHOW_DATA] & 1 << MSG_ACCEL) &&
 		cnt++ < TIMEOUT_CNT)
-		msleep(25);
+		msleep(26);
 
 	data->ready_flag[MSG_TYPE_ST_SHOW_DATA] &= ~(1 << MSG_ACCEL);
 
@@ -303,6 +309,9 @@ RETRY_ACCEL_SELFTEST:
 
 	pdata->st_complete = true;
 
+#ifdef CONFIG_SUPPORT_DUAL_6AXIS
+	schedule_delayed_work(&data->lsm6dso_selftest_stop_work, msecs_to_jiffies(300));
+#endif
 	return snprintf(buf, PAGE_SIZE, "%d,%d,%d,%d,%d,%d,%d\n",
 			data->msg_buf[MSG_ACCEL][1],
 			(int)abs(data->msg_buf[MSG_ACCEL][2]),
@@ -343,7 +352,7 @@ static ssize_t accel_raw_data_show(struct device *dev,
 		prev_raw_data[2] == raw_data[2]) {
 		same_cnt++;
 		pr_info("[FACTORY] %s: same_cnt %d\n", __func__, same_cnt);
-		if (same_cnt >= 5)
+		if (same_cnt >= 20)
 			panic("force crash : raw_data stuck\n");
 	} else
 		same_cnt = 0;
@@ -623,6 +632,39 @@ static ssize_t accel_dhr_sensor_info_show(struct device *dev,
 	return snprintf(buf, PAGE_SIZE, "\"FULL_SCALE\":\"%uG\"\n", fullscale);
 }
 
+static ssize_t accel_turn_over_crash_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	struct adsp_data *data = dev_get_drvdata(dev);
+
+	pr_info("[FACTORY] %s: %d, \n", __func__, data->turn_over_crash);
+	return snprintf(buf, PAGE_SIZE, "%d\n", data->turn_over_crash);
+}
+
+static ssize_t accel_turn_over_crash_store(struct device *dev,
+	struct device_attribute *attr, const char *buf, size_t size)
+{
+	struct adsp_data *data = dev_get_drvdata(dev);
+	int32_t msg_buf[2] = {0, };
+
+	if (sysfs_streq(buf, "1")) {
+		data->turn_over_crash = 1;
+		msg_buf[1] = 1;
+	} else if (sysfs_streq(buf, "0")) {
+		data->turn_over_crash = 0;
+		msg_buf[1] = 0;
+	} else {
+		pr_info("[FACTORY] %s: wrong value\n", __func__);
+		return size;
+	}
+
+	adsp_unicast(msg_buf, sizeof(msg_buf), MSG_ACCEL,
+		0, MSG_TYPE_OPTION_DEFINE);
+	pr_info("[FACTORY] %s: %d, \n", __func__, msg_buf[1]);
+
+	return size;
+}
+
 static DEVICE_ATTR(name, 0444, accel_name_show, NULL);
 static DEVICE_ATTR(vendor, 0444, accel_vendor_show, NULL);
 static DEVICE_ATTR(type, 0444, sensor_type_show, NULL);
@@ -642,6 +684,8 @@ static DEVICE_ATTR(dhr_sensor_info, 0444,
 static DEVICE_ATTR(dhr_sensor_info, 0440,
 	accel_dhr_sensor_info_show, NULL);
 #endif
+static DEVICE_ATTR(turn_over_crash, 0664,
+	accel_turn_over_crash_show, accel_turn_over_crash_store);
 
 static struct device_attribute *acc_attrs[] = {
 	&dev_attr_name,
@@ -653,6 +697,7 @@ static struct device_attribute *acc_attrs[] = {
 	&dev_attr_reactive_alert,
 	&dev_attr_lowpassfilter,
 	&dev_attr_dhr_sensor_info,
+	&dev_attr_turn_over_crash,
 	NULL,
 };
 

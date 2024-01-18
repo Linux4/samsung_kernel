@@ -75,19 +75,9 @@ int pressure_open_calibration(struct adsp_data *data)
 static ssize_t pressure_cabratioin_store(struct device *dev,
 	struct device_attribute *attr, const char *buf, size_t size)
 {
-	int temp = 0, error = 0;
+	struct adsp_data *data = dev_get_drvdata(dev);
 
-	error = kstrtoint(buf, 10, &temp);
-	if (error < 0) {
-		pr_err("[FACTORY] %s : kstrtoint failed.(%d)", __func__, error);
-		return error;
-	}
-
-	if (temp < PR_MIN || temp > PR_MAX)
-		return -EINVAL;
-
-	pressure_cal = temp;
-
+	schedule_delayed_work(&data->pressure_cal_work, 0);
 	return size;
 }
 
@@ -133,7 +123,7 @@ static ssize_t selftest_show(struct device *dev,
 
 	while (!(data->ready_flag[MSG_TYPE_ST_SHOW_DATA] &
 		1 << MSG_PRESSURE) && cnt++ < TIMEOUT_CNT)
-		msleep(20);
+		msleep(26);
 
 	data->ready_flag[MSG_TYPE_ST_SHOW_DATA] &= ~(1 << MSG_PRESSURE);
 
@@ -169,7 +159,7 @@ static ssize_t pressure_dhr_sensor_info_show(struct device *dev,
 	if (cnt >= TIMEOUT_CNT) {
 		pr_err("[FACTORY] %s: Timeout!!!\n", __func__);
 	} else {
-		for (i = 0; i < 7; i++) {
+		for (i = 0; i < 8; i++) {
 			pr_info("[FACTORY] %s - %02x,%02x,%02x,%02x,%02x,%02x,%02x,%02x,%02x,%02x,%02x,%02x,%02x,%02x,%02x,%02x\n",
 				__func__,
 				data->msg_buf[MSG_PRESSURE][i * 16 + 0],
@@ -189,15 +179,6 @@ static ssize_t pressure_dhr_sensor_info_show(struct device *dev,
 				data->msg_buf[MSG_PRESSURE][i * 16 + 14],
 				data->msg_buf[MSG_PRESSURE][i * 16 + 15]);
 		}
-		pr_info("[FACTORY] %s - %02x,%02x,%02x,%02x,%02x,%02x,%02x,%02x\n",
-			__func__, data->msg_buf[MSG_PRESSURE][i * 16 + 0],
-			data->msg_buf[MSG_PRESSURE][i * 16 + 1],
-			data->msg_buf[MSG_PRESSURE][i * 16 + 2],
-			data->msg_buf[MSG_PRESSURE][i * 16 + 3],
-			data->msg_buf[MSG_PRESSURE][i * 16 + 4],
-			data->msg_buf[MSG_PRESSURE][i * 16 + 5],
-			data->msg_buf[MSG_PRESSURE][i * 16 + 6],
-			data->msg_buf[MSG_PRESSURE][i * 16 + 7]);
 	}
 
 	return snprintf(buf, PAGE_SIZE, "%s\n", "Done");
@@ -229,6 +210,35 @@ static struct device_attribute *pressure_attrs[] = {
 	&dev_attr_dhr_sensor_info,
 	NULL,
 };
+
+void pressure_cal_work_func(struct work_struct *work)
+{
+	struct adsp_data *data = container_of((struct delayed_work *)work,
+		struct adsp_data, pressure_cal_work);
+	int cnt = 0;
+	int temp = 0;
+	
+	adsp_unicast(&temp, sizeof(temp), MSG_PRESSURE, 0, MSG_TYPE_SET_CAL_DATA);
+
+	while (!(data->ready_flag[MSG_TYPE_SET_CAL_DATA] & 1 << MSG_PRESSURE) &&
+		cnt++ < 3)
+		msleep(30);
+
+	data->ready_flag[MSG_TYPE_SET_CAL_DATA] &= ~(1 << MSG_PRESSURE);
+
+	if (cnt >= 3) {
+		pr_err("[FACTORY] %s: Timeout!!!\n", __func__);
+		return;
+	}
+
+	pressure_cal = data->msg_buf[MSG_PRESSURE][0];
+	pr_info("[FACTORY] %s: pressure_cal = %d (lsb)\n", __func__, data->msg_buf[MSG_PRESSURE][0]);
+}
+void pressure_factory_init_work(struct adsp_data *data)
+{
+	schedule_delayed_work(&data->pressure_cal_work, msecs_to_jiffies(8000));
+}
+
 
 static int __init lps22hh_pressure_factory_init(void)
 {

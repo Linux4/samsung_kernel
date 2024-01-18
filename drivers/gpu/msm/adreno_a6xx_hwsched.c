@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
  */
 
 #include <linux/clk.h>
@@ -217,8 +217,9 @@ clks_gdsc_off:
 
 gdsc_off:
 	/* Poll to make sure that the CX is off */
-	if (!a6xx_cx_regulator_disable_wait(gmu->cx_gdsc, device, 5000))
-		dev_err(&gmu->pdev->dev, "GMU CX gdsc off timeout\n");
+	a6xx_cx_regulator_disable_wait(gmu->cx_gdsc, device, 5000);
+
+	a6xx_rdpm_cx_freq_update(gmu, 0);
 
 	return ret;
 }
@@ -278,8 +279,9 @@ clks_gdsc_off:
 
 gdsc_off:
 	/* Poll to make sure that the CX is off */
-	if (!a6xx_cx_regulator_disable_wait(gmu->cx_gdsc, device, 5000))
-		dev_err(&gmu->pdev->dev, "GMU CX gdsc off timeout\n");
+	a6xx_cx_regulator_disable_wait(gmu->cx_gdsc, device, 5000);
+
+	a6xx_rdpm_cx_freq_update(gmu, 0);
 
 	return ret;
 }
@@ -298,8 +300,7 @@ static void a6xx_hwsched_active_count_put(struct adreno_device *adreno_dev)
 	if (atomic_dec_and_test(&device->active_cnt)) {
 		kgsl_pwrscale_update_stats(device);
 		kgsl_pwrscale_update(device);
-		mod_timer(&device->idle_timer,
-			jiffies + device->pwrctrl.interval_timeout);
+		kgsl_start_idle_timer(device);
 	}
 
 	trace_kgsl_active_count(device,
@@ -366,8 +367,12 @@ static int a6xx_hwsched_gmu_power_off(struct adreno_device *adreno_dev)
 
 	ret = a6xx_rscc_sleep_sequence(adreno_dev);
 
+	a6xx_rdpm_mx_freq_update(gmu, 0);
+
 	/* Now that we are done with GMU and GPU, Clear the GBIF */
 	ret = a6xx_halt_gbif(adreno_dev);
+	/* De-assert the halts */
+	kgsl_regwrite(device, A6XX_GBIF_HALT, 0x0);
 
 	a6xx_gmu_irq_disable(adreno_dev);
 
@@ -376,8 +381,9 @@ static int a6xx_hwsched_gmu_power_off(struct adreno_device *adreno_dev)
 	clk_bulk_disable_unprepare(gmu->num_clks, gmu->clks);
 
 	/* Poll to make sure that the CX is off */
-	if (!a6xx_cx_regulator_disable_wait(gmu->cx_gdsc, device, 5000))
-		dev_err(&gmu->pdev->dev, "GMU CX gdsc off timeout\n");
+	a6xx_cx_regulator_disable_wait(gmu->cx_gdsc, device, 5000);
+
+	a6xx_rdpm_cx_freq_update(gmu, 0);
 
 	return ret;
 
@@ -491,6 +497,7 @@ static void a6xx_hwsched_touch_wakeup(struct adreno_device *adreno_dev)
 
 	set_bit(GMU_PRIV_GPU_STARTED, &gmu->flags);
 
+	device->pwrctrl.last_stat_updated = ktime_get();
 	device->state = KGSL_STATE_ACTIVE;
 
 	trace_kgsl_pwr_set_state(device, KGSL_STATE_ACTIVE);
@@ -527,12 +534,13 @@ static int a6xx_hwsched_boot(struct adreno_device *adreno_dev)
 	if (ret)
 		return ret;
 
-	mod_timer(&device->idle_timer, jiffies +
-			device->pwrctrl.interval_timeout);
+	kgsl_start_idle_timer(device);
 
 	kgsl_pwrscale_wake(device);
 
 	set_bit(GMU_PRIV_GPU_STARTED, &gmu->flags);
+
+	device->pwrctrl.last_stat_updated = ktime_get();
 	device->state = KGSL_STATE_ACTIVE;
 
 	trace_kgsl_pwr_set_state(device, KGSL_STATE_ACTIVE);
@@ -581,6 +589,7 @@ static int a6xx_hwsched_first_boot(struct adreno_device *adreno_dev)
 	set_bit(GMU_PRIV_FIRST_BOOT_DONE, &gmu->flags);
 	set_bit(GMU_PRIV_GPU_STARTED, &gmu->flags);
 
+	device->pwrctrl.last_stat_updated = ktime_get();
 	device->state = KGSL_STATE_ACTIVE;
 
 	trace_kgsl_pwr_set_state(device, KGSL_STATE_ACTIVE);
@@ -646,6 +655,8 @@ no_gx_power:
 
 	kgsl_pwrscale_sleep(device);
 
+	kgsl_pwrctrl_clear_l3_vote(device);
+
 	trace_kgsl_pwr_set_state(device, KGSL_STATE_SLUMBER);
 
 	return ret;
@@ -666,8 +677,7 @@ static void hwsched_idle_check(struct work_struct *work)
 		a6xx_hwsched_power_off(adreno_dev);
 	} else {
 		kgsl_pwrscale_update(device);
-		mod_timer(&device->idle_timer,
-			jiffies + device->pwrctrl.interval_timeout);
+		kgsl_start_idle_timer(device);
 	}
 
 done:
@@ -778,6 +788,10 @@ static int a6xx_hwsched_dcvs_set(struct adreno_device *adreno_dev,
 		}
 
 	}
+
+	if (req.freq != INVALID_DCVS_IDX)
+		a6xx_rdpm_mx_freq_update(gmu,
+			gmu->hfi.dcvs_table.gx_votes[req.freq].freq);
 
 	return ret;
 }

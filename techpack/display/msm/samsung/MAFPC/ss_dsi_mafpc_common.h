@@ -68,10 +68,10 @@ struct MAFPC {
 	/* mafpc Function */
 	int (*init)(struct samsung_display_driver_data *vdd);
 	int (*data_init)(struct samsung_display_driver_data *vdd);
-	void (*make_img_cmds)(struct samsung_display_driver_data *vdd, char *data, u32 data_size, int cmd_type);
-	void (*make_img_mass_cmds)(struct samsung_display_driver_data *vdd, char *data, u32 data_size, int cmd_type);
-	void (*img_write)(struct samsung_display_driver_data *vdd, bool is_instant);
-	void (*enable)(struct samsung_display_driver_data *vdd, int enable);
+	int (*make_img_cmds)(struct samsung_display_driver_data *vdd, char *data, u32 data_size, int cmd_type);
+	int (*make_img_mass_cmds)(struct samsung_display_driver_data *vdd, char *data, u32 data_size, int cmd_type);
+	int (*img_write)(struct samsung_display_driver_data *vdd, bool is_instant);
+	int (*enable)(struct samsung_display_driver_data *vdd, int enable);
 	int (*crc_check)(struct samsung_display_driver_data *vdd);
 	int (*debug)(struct samsung_display_driver_data *vdd);
 };

@@ -216,9 +216,9 @@ static ssize_t slsi_ts_enter_recovery_store(struct device *dev, struct device_at
 			return -EINVAL;
 		}
 
-		pdata->power(ts, false);
+		pdata->power(&ts->client->dev, false);
 		sec_delay(100);
-		pdata->power(ts, true);
+		pdata->power(&ts->client->dev, true);
 	} else {
 		gpio_free(pdata->irq_gpio);
 
@@ -233,9 +233,9 @@ static ssize_t slsi_ts_enter_recovery_store(struct device *dev, struct device_at
 			return -EINVAL;
 		}
 
-		pdata->power(ts, false);
+		pdata->power(&ts->client->dev, false);
 		sec_delay(500);
-		pdata->power(ts, true);
+		pdata->power(&ts->client->dev, true);
 		sec_delay(500);
 
 		/* AFE Calibration */

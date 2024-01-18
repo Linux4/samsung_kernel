@@ -47,7 +47,7 @@ static struct ss_interpolation_brightness_table hbm_interpolation_table[] = {
 	{486, 5, 800},
 };
 
-#if defined(CONFIG_MACH_X1Q_JPN_SINGLE)
+#if IS_ENABLED(CONFIG_MACH_X1Q_JPN_SINGLE)
 static struct ss_interpolation_brightness_table normal_interpolation_table[] = {
 	{0, 	1,	2},
 	{7, 	7,	3},
@@ -715,17 +715,17 @@ static int table_parsing_data_S6E3HAB_AMB623TS01(struct samsung_display_driver_d
 
 	input_table_size = sizeof(table_hbm_br_info) + sizeof(table_normal_br_info) + sizeof(table_hmd_br_info);
 
-	LCD_INFO("input_table_size (%d) = table_hbm_br_info (%d) + table_normal_br_info (%d) + table_hmd_br_info (%d)\n",
+	LCD_INFO(vdd, "input_table_size (%d) = table_hbm_br_info (%d) + table_normal_br_info (%d) + table_hmd_br_info (%d)\n",
 		input_table_size, sizeof(table_hbm_br_info), sizeof(table_normal_br_info), sizeof(table_hmd_br_info));
 
 	if (input_table_size != gamma_tbl->br_data_size) {
-		LCD_ERR("input_table_size : %d br_tbl->gamma_tbl->br_data_size : %d\n",
+		LCD_ERR(vdd, "input_table_size : %d br_tbl->gamma_tbl->br_data_size : %d\n",
 			input_table_size, br_tbl->gamma_tbl->br_data_size);
 
 		panic("table size mismatch");
 	}
 
-	LCD_INFO("hbm_step : %d normal_step : %d hmd_step : %d", hbm_step, normal_step, hmd_step);
+	LCD_INFO(vdd, "hbm_step : %d normal_step : %d hmd_step : %d", hbm_step, normal_step, hmd_step);
 
 	/* hbm data update */
 	for (loop = 0; loop < hbm_step; loop++) {
@@ -782,7 +782,7 @@ static int table_parsing_data_hmd_S6E3HAB_AMB623TS01(struct samsung_display_driv
 	hmd_table = (struct hmd_table_format *)table_hmd_br_info;
 	hmd_step = (int)sizeof(table_hmd_br_info) / (int)sizeof(struct hmd_table_format);
 
-	LCD_INFO("hmd_step : %d", hmd_step);
+	LCD_INFO(vdd, "hmd_step : %d", hmd_step);
 
 	/* hmd data update */
 	for (loop = 0; loop < hmd_step; loop++) {
@@ -790,7 +790,7 @@ static int table_parsing_data_hmd_S6E3HAB_AMB623TS01(struct samsung_display_driv
 		memcpy(dst + gamma_tbl->flash_table_hmd_aor_offset + (AOR_SIZE * loop), hmd_table[loop].aor, AOR_SIZE);
 	}
 
-	LCD_INFO("hmd_step : %d --", hmd_step);
+	LCD_INFO(vdd, "hmd_step : %d --", hmd_step);
 
 	return 0;
 }
@@ -854,7 +854,7 @@ static int table_gamma_update_S6E3HAB_AMB623TS01(struct samsung_display_driver_d
 					hmd_candela_table[loop],
 					hmd_tbl->gamma[loop]);
 	} else {
-		LCD_ERR("hmt is not support..\n");
+		LCD_ERR(vdd, "hmt is not support..\n");
 	}
 
 	return 0;
@@ -868,7 +868,7 @@ int table_gamma_update_hmd_S6E3HAB_AMB623TS01(struct samsung_display_driver_data
 	int *hmd_candela_table = hmd_tbl->candela_table;
 	int loop;
 
-	LCD_ERR("++\n");
+	LCD_INFO(vdd, "++\n");
 
 	if (vdd->hmt.is_support) {
 		/* 2st : hmd gamma update */
@@ -878,10 +878,10 @@ int table_gamma_update_hmd_S6E3HAB_AMB623TS01(struct samsung_display_driver_data
 					hmd_candela_table[loop],
 					hmd_tbl->gamma[loop]);
 	} else {
-		LCD_ERR("hmt is not support..\n");
+		LCD_ERR(vdd, "hmt is not support..\n");
 	}
 
-	LCD_ERR("--\n");
+	LCD_INFO(vdd, "--\n");
 
 	return 0;
 }
@@ -935,7 +935,7 @@ int init_interpolation_S6E3HAB_AMB623TS01(struct samsung_display_driver_data *vd
 		{"IRC", 0x92, 33, 10},
 	};
 
-	LCD_INFO("mode [%d] ++ : RR: %dhz, HS: %d\n",
+	LCD_INFO(vdd, "mode [%d] ++ : RR: %dhz, HS: %d\n",
 			mode, br_tbl->refresh_rate, br_tbl->is_sot_hs_mode);
 
 	/* TODO: this function is called for each vrr mode..
@@ -1014,7 +1014,7 @@ int init_interpolation_S6E3HAB_AMB623TS01(struct samsung_display_driver_data *vd
 		else	/* 96HS/120HS */
 			memcpy(br_tbl->print_table, print_table_120hz, sizeof(print_table_120hz));
 	} else {
-		LCD_ERR("Fail to alloc print_table\n");
+		LCD_ERR(vdd, "Fail to alloc print_table\n");
 	}
 
 	/* hbm brightness */
@@ -1026,10 +1026,10 @@ int init_interpolation_S6E3HAB_AMB623TS01(struct samsung_display_driver_data *vd
 		else	/* 96HS/120HS */
 			memcpy(br_tbl->print_table_hbm, print_table_hbm_120hz, sizeof(print_table_hbm_120hz));
 	} else {
-		LCD_ERR("Fail to alloc print_table_hbm\n");
+		LCD_ERR(vdd, "Fail to alloc print_table_hbm\n");
 	}
 
-	LCD_INFO("mode [%d] -- : RR: %dhz, HS: %d\n",
+	LCD_INFO(vdd, "mode [%d] -- : RR: %dhz, HS: %d\n",
 			mode, br_tbl->refresh_rate, br_tbl->is_sot_hs_mode);
 
 	return 1;
@@ -1048,11 +1048,11 @@ int flash_gamma_support_S6E3HAB_AMB623TS01(struct samsung_display_driver_data *v
 }
 
 /*
- * convert_GAMMA_to_V : convert CA gamma reg to V format
+ * convert_GAMMA_to_V_S6E3HAB_AMB623TS01 : convert CA gamma reg to V format
  * src : packed gamma value (CAh)
  * dst : extened V values (V255 ~ VT)
  */
-void convert_GAMMA_to_V(unsigned char* src, unsigned int *dst)
+void convert_GAMMA_to_V_S6E3HAB_AMB623TS01(unsigned char *src, unsigned int *dst)
 {
 	/* i : V index
 	 * j : RGB index
@@ -1097,18 +1097,18 @@ void convert_GAMMA_to_V(unsigned char* src, unsigned int *dst)
 		}
 	}
 
-	LCD_DEBUG("src[0~3] = %02x %02x %02x %02x\n", src[0], src[1], src[2], src[3]);
-	LCD_DEBUG("src[31~33] = %02x %02x %02x \n", src[31], src[32], src[33]);
+	pr_debug("[SDE] src[0~3] = %02x %02x %02x %02x\n", src[0], src[1], src[2], src[3]);
+	pr_debug("[SDE] src[31~33] = %02x %02x %02x\n", src[31], src[32], src[33]);
 
 	return;
 }
 
 /*
- * convert_V_to_GAMMA : convert V format to CAh gamma reg
+ * convert_V_to_GAMMA_S6E3HAB_AMB623TS01 : convert V format to CAh gamma reg
  * src : extened V values (V255 ~ VT)
  * dst : packed gamma values (CAh)
  */
-void convert_V_to_GAMMA(unsigned int *src, unsigned char* dst)
+void convert_V_to_GAMMA_S6E3HAB_AMB623TS01(unsigned int *src, unsigned char *dst)
 {
 	/* i : gamma index
 	 * k : packed gamma index
@@ -1131,8 +1131,8 @@ void convert_V_to_GAMMA(unsigned int *src, unsigned char* dst)
 		}
 	}
 
-	LCD_DEBUG("src[0~2] = %02x %02x %02x \n", src[0], src[1], src[2]);
-	LCD_DEBUG("dst[0] = %02x \n", dst[0]);
+	pr_debug("[SDE] src[0~2] = %02x %02x %02x \n", src[0], src[1], src[2]);
+	pr_debug("[SDE] dst[0] = %02x \n", dst[0]);
 
 	return;
 }
@@ -1174,20 +1174,20 @@ void gen_hbm_interpolation_gamma_S6E3HAB_AMB623TS01(struct samsung_display_drive
 
 	normal_max_gammaV = kzalloc(gamma_V_size * sizeof(int), GFP_KERNEL);
 	if (!normal_max_gammaV) {
-		LCD_ERR("fail to alloc normal_max_gammaV %d\n", __LINE__);
+		LCD_ERR(vdd, "fail to alloc normal_max_gammaV %d\n", __LINE__);
 		return;
 	}
 
 	hbm_max_gammaV = kzalloc(gamma_V_size * sizeof(int), GFP_KERNEL);
 	if (!hbm_max_gammaV) {
-		LCD_ERR("fail to alloc hbm_max_gammaV %d\n", __LINE__);
+		LCD_ERR(vdd, "fail to alloc hbm_max_gammaV %d\n", __LINE__);
 		goto alloc_fail1;
 	}
 
 	/* alloc 2 dimenstion matrix */
 	hbm_temp_gamma = kzalloc(hbm_itp_step * sizeof(void *), GFP_KERNEL);
 	if (!hbm_temp_gamma) {
-		LCD_ERR("fail to alloc hbm_temp_gamma %d\n", __LINE__);
+		LCD_ERR(vdd, "fail to alloc hbm_temp_gamma %d\n", __LINE__);
 		goto alloc_fail2;
 	}
 
@@ -1195,29 +1195,29 @@ void gen_hbm_interpolation_gamma_S6E3HAB_AMB623TS01(struct samsung_display_drive
 		hbm_temp_gamma[i] = kzalloc(gamma_V_size * sizeof(int), GFP_KERNEL);
 
 		if (!hbm_temp_gamma[i]) {
-			LCD_ERR("fail to alloc  hbm_temp_gamma %d\n", __LINE__);
+			LCD_ERR(vdd, "fail to alloc  hbm_temp_gamma %d\n", __LINE__);
 			goto alloc_fail3;
 		}
 	}
 
 	hbm_itp_cd = kzalloc(hbm_itp_step * sizeof(int), GFP_KERNEL);
 	if (!hbm_itp_cd) {
-		LCD_ERR("fail to alloc hbm_itp_cd %d\n", __LINE__);
+		LCD_ERR(vdd, "fail to alloc hbm_itp_cd %d\n", __LINE__);
 		goto alloc_fail3;
 	}
 
 	for (i = 0; i < hbm_itp_step; i++) {
 		hbm_itp_cd[i] = ss_itp->hbm.br_table[i].interpolation_br_x10000;
-		LCD_DEBUG("%d candela : %d\n", i, hbm_itp_cd[i]);
+		LCD_DEBUG(vdd, "%d candela : %d\n", i, hbm_itp_cd[i]);
 	}
 
 	/* 1. Make V format from GAMMA format */
-	convert_GAMMA_to_V(normal_max_gamma, normal_max_gammaV);
-	convert_GAMMA_to_V(hbm_max_gamma, hbm_max_gammaV);
+	convert_GAMMA_to_V_S6E3HAB_AMB623TS01(normal_max_gamma, normal_max_gammaV);
+	convert_GAMMA_to_V_S6E3HAB_AMB623TS01(hbm_max_gamma, hbm_max_gammaV);
 
-	LCD_DEBUG("gamma_size %d / gamma_V_size %d \n", gamma_size, gamma_V_size);
+	LCD_DEBUG(vdd, "gamma_size %d / gamma_V_size %d \n", gamma_size, gamma_V_size);
 	for (i = 0; i < gamma_V_size; i++)
-		LCD_DEBUG("[%d] 0x%x 0x%x\n", i, hbm_max_gammaV[i], normal_max_gammaV[i]);
+		LCD_DEBUG(vdd, "[%d] 0x%x 0x%x\n", i, hbm_max_gammaV[i], normal_max_gammaV[i]);
 
 	/*
 	 * 2. HBM GAMMA Interpolation. (V format base)
@@ -1235,7 +1235,7 @@ void gen_hbm_interpolation_gamma_S6E3HAB_AMB623TS01(struct samsung_display_drive
 
 	/* 3. Make GAMMA format from V format */
 	for (i = 0; i < hbm_itp_step; i++)
-		convert_V_to_GAMMA(hbm_temp_gamma[i], hbm_itp_gamma[i]);
+		convert_V_to_GAMMA_S6E3HAB_AMB623TS01(hbm_temp_gamma[i], hbm_itp_gamma[i]);
 
 	kfree(hbm_itp_cd);
 
@@ -1276,7 +1276,7 @@ void gen_hbm_interpolation_irc_S6E3HAB_AMB623TS01(struct samsung_display_driver_
 	hbm_interpolation_step = hbm_itp->brightness_step;
 	dest_irc = hbm_itp->irc;
 
-	LCD_DEBUG("hbm_interpolation_step : %d \n", hbm_interpolation_step);
+	LCD_DEBUG(vdd, "hbm_interpolation_step : %d \n", hbm_interpolation_step);
 
 	for (loop = 0; loop < hbm_interpolation_step; loop++) {
 		/* copy default irc string */
@@ -1305,7 +1305,7 @@ void gen_hbm_interpolation_irc_S6E3HAB_AMB623TS01(struct samsung_display_driver_
 
 				dest_irc[loop][reg_idx] = res;
 
-				LCD_DEBUG("[%d][%d] %x(%d) %d %d %d => %x(%d)\n", loop, reg_idx,
+				LCD_DEBUG(vdd, "[%d][%d] %x(%d) %d %d %d => %x(%d)\n", loop, reg_idx,
 					irc, irc, cur_br_x10000, normal_max_br, hbm_max_br, dest_irc[loop][reg_idx], dest_irc[loop][reg_idx]);
 			}
 		}
@@ -1337,7 +1337,7 @@ void gen_normal_interpolation_irc_S6E3HAB_AMB623TS01(struct samsung_display_driv
 	normal_interpolation_step = normal_itp->brightness_step;
 	dest_irc = normal_itp->irc;
 
-	LCD_DEBUG("normal_interpolation_step : %d \n", normal_interpolation_step);
+	LCD_DEBUG(vdd, "normal_interpolation_step : %d \n", normal_interpolation_step);
 
 	for (loop = 0; loop < normal_interpolation_step; loop++) {
 		/* copy default irc string */
@@ -1354,7 +1354,7 @@ void gen_normal_interpolation_irc_S6E3HAB_AMB623TS01(struct samsung_display_driv
 
 				dest_irc[loop][reg_idx] = ROUNDING(val1 / MULTIPLY_x100, MULTIPLY_x100) / MULTIPLY_x100;
 
-				LCD_DEBUG("[%d][%d] %x(%d) %d %d => %x(%d)\n", loop, reg_idx,
+				LCD_DEBUG(vdd, "[%d][%d] %x(%d) %d %d => %x(%d)\n", loop, reg_idx,
 					irc, irc, cur_br_x10000, normal_max_br, dest_irc[loop][reg_idx], dest_irc[loop][reg_idx]);
 			}
 		}

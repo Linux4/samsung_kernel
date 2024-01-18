@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
- * Copyright (c) 2017-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
  */
 
 #ifndef _ADRENO_A6XX_H_
@@ -283,10 +283,8 @@ static inline bool a6xx_is_smmu_stalled(struct kgsl_device *device)
  *
  * Disable the regulator and wait @timeout milliseconds for it to enter the
  * disabled state.
- *
- * Return: True if the regulator was disabled or false if it timed out
  */
-bool a6xx_cx_regulator_disable_wait(struct regulator *reg,
+void a6xx_cx_regulator_disable_wait(struct regulator *reg,
 				struct kgsl_device *device, u32 timeout);
 
 /* Preemption functions */
@@ -315,18 +313,12 @@ void a6xx_snapshot(struct adreno_device *adreno_dev,
 void a6xx_crashdump_init(struct adreno_device *adreno_dev);
 int a6xx_gmu_sptprac_enable(struct adreno_device *adreno_dev);
 void a6xx_gmu_sptprac_disable(struct adreno_device *adreno_dev);
-bool a6xx_gmu_sptprac_is_on(struct adreno_device *adreno_dev);
+int a6xx_holi_gmu_sptprac_enable(struct adreno_device *adreno_dev);
+void a6xx_holi_gmu_sptprac_disable(struct adreno_device *adreno_dev);
 
-/**
- * a6xx_do_gbif_halt - halt gbif traffic and wait for ack
- * @adreno_dev: An Adreno GPU handle
- * @halt_reg: reg to trigger gbif halt
- * @ack_reg: status register to check for ack
- * @mask: mask for ack
- * @client: client name - "GX" or "CX"
- */
-void a6xx_do_gbif_halt(struct adreno_device *adreno_dev,
-	u32 halt_reg, u32 ack_reg, u32 mask, const char *client);
+bool a6xx_gmu_sptprac_is_on(struct adreno_device *adreno_dev);
+bool a6xx_holi_gmu_sptprac_is_on(struct adreno_device *adreno_dev);
+
 
 /**
  * a6xx_read_alwayson - Read the current always on clock value
@@ -433,4 +425,22 @@ int a6xx_perfcounter_update(struct adreno_device *adreno_dev,
 extern const struct adreno_perfcounters adreno_a630_perfcounters;
 extern const struct adreno_perfcounters adreno_a6xx_perfcounters;
 extern const struct adreno_perfcounters adreno_a6xx_legacy_perfcounters;
+
+/**
+ * a6xx_rdpm_mx_freq_update - Update the mx frequency
+ * @gmu: An Adreno GMU handle
+ * @freq: Frequency in KHz
+ *
+ * This function communicates GPU mx frequency(in Mhz) changes to rdpm.
+ */
+void a6xx_rdpm_mx_freq_update(struct a6xx_gmu_device *gmu, u32 freq);
+
+/**
+ * a6xx_rdpm_cx_freq_update - Update the cx frequency
+ * @gmu: An Adreno GMU handle
+ * @freq: Frequency in KHz
+ *
+ * This function communicates GPU cx frequency(in Mhz) changes to rdpm.
+ */
+void a6xx_rdpm_cx_freq_update(struct a6xx_gmu_device *gmu, u32 freq);
 #endif

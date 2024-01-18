@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
- * Copyright (c) 2002,2007-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2002,2007-2021, The Linux Foundation. All rights reserved.
  */
 #ifndef __KGSL_MMU_H
 #define __KGSL_MMU_H
@@ -70,7 +70,7 @@ struct kgsl_mmu_ops {
 	struct kgsl_pagetable * (*mmu_getpagetable)(struct kgsl_mmu *mmu,
 			unsigned long name);
 	void (*mmu_map_global)(struct kgsl_mmu *mmu,
-		struct kgsl_memdesc *memdesc);
+		struct kgsl_memdesc *memdesc, u32 padding);
 };
 
 struct kgsl_mmu_pt_ops {
@@ -92,7 +92,7 @@ struct kgsl_mmu_pt_ops {
 	int (*svm_range)(struct kgsl_pagetable *pt, uint64_t *lo, uint64_t *hi,
 			uint64_t memflags);
 	bool (*addr_in_range)(struct kgsl_pagetable *pagetable,
-			uint64_t gpuaddr);
+			uint64_t gpuaddr, uint64_t size);
 };
 
 enum kgsl_mmu_feature {
@@ -174,7 +174,8 @@ void kgsl_mmu_put_gpuaddr(struct kgsl_memdesc *memdesc);
 unsigned int kgsl_virtaddr_to_physaddr(void *virtaddr);
 unsigned int kgsl_mmu_log_fault_addr(struct kgsl_mmu *mmu,
 		u64 ttbr0, uint64_t addr);
-bool kgsl_mmu_gpuaddr_in_range(struct kgsl_pagetable *pt, uint64_t gpuaddr);
+bool kgsl_mmu_gpuaddr_in_range(struct kgsl_pagetable *pt, uint64_t gpuaddr,
+		uint64_t size);
 
 int kgsl_mmu_get_region(struct kgsl_pagetable *pagetable,
 		uint64_t gpuaddr, uint64_t size);
@@ -325,11 +326,12 @@ kgsl_mmu_pagetable_get_contextidr(struct kgsl_pagetable *pagetable)
  * kgsl_mmu_map_global - Map a memdesc as a global buffer
  * @device: A KGSL GPU device handle
  * @memdesc: Pointer to a GPU memory descriptor
+ * @padding: Any padding to add to the end of the VA allotment (in bytes)
  *
  * Map a buffer as globally accessible in all pagetable contexts
  */
 void kgsl_mmu_map_global(struct kgsl_device *device,
-		struct kgsl_memdesc *memdesc);
+		struct kgsl_memdesc *memdesc, u32 padding);
 
 /**
  * kgsl_mmu_pagetable_get_context_bank - Return the context bank number

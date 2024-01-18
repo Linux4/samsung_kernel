@@ -33,7 +33,7 @@ enum {
 	OPTION_TYPE_MAX
 };
 
-#ifdef CONFIG_SUPPORT_BRIGHTNESS_NOTIFY_FOR_LIGHT_SENSOR
+#if defined(CONFIG_SUPPORT_BRIGHTNESS_NOTIFY_FOR_LIGHT_SENSOR) && defined(CONFIG_DISPLAY_SAMSUNG)
 #include "../../../techpack/display/msm/samsung/ss_panel_notify.h"
 #endif
 #ifdef CONFIG_SUPPORT_LIGHT_CALIBRATION
@@ -219,7 +219,7 @@ static ssize_t light_register_write_store(struct device *dev,
 	return size;
 }
 
-#ifdef CONFIG_SUPPORT_BRIGHTNESS_NOTIFY_FOR_LIGHT_SENSOR
+#if defined(CONFIG_SUPPORT_BRIGHTNESS_NOTIFY_FOR_LIGHT_SENSOR) && defined(CONFIG_DISPLAY_SAMSUNG)
 void light_brightness_work_func(struct work_struct *work)
 {
 	struct adsp_data *data = container_of((struct work_struct*)work,
@@ -244,27 +244,6 @@ void light_brightness_work_func(struct work_struct *work)
 
 	mutex_unlock(&data->light_factory_mutex);
 }
-
-#ifdef CONFIG_SUPPORT_SSC_AOD_RECT
-static ssize_t light_set_aod_rect_store(struct device *dev,
-	struct device_attribute *attr, const char *buf, size_t size)
-{
-	int32_t msg_buf[5] = {OPTION_TYPE_SSC_AOD_RECT, 0, 0, 0, 0};
-
-	if (sscanf(buf, "%3d,%3d,%3d,%3d",
-		&msg_buf[1], &msg_buf[2], &msg_buf[3], &msg_buf[4]) != 4) {
-		pr_err("[SSC_FAC]: %s - The number of data are wrong\n",
-			__func__);
-		return -EINVAL;
-	}
-
-	pr_info("[SSC_FAC] %s: rect:%d,%d,%d,%d \n", __func__,
-		msg_buf[1], msg_buf[2], msg_buf[3], msg_buf[4]);
-	adsp_unicast(msg_buf, sizeof(msg_buf),
-			MSG_SSC_CORE, 0, MSG_TYPE_OPTION_DEFINE);
-	return size;
-}
-#endif
 
 int light_panel_data_notify(struct notifier_block *nb,
 	unsigned long val, void *v)
@@ -371,6 +350,7 @@ static ssize_t light_lcd_onoff_store(struct device *dev,
 	msg_buf[0] = OPTION_TYPE_LCD_ONOFF;
 	msg_buf[1] = new_value;
 
+#ifdef CONFIG_SUPPORT_DDI_COPR_FOR_LIGHT_SENSOR
 	if (new_value == 1) {
 		schedule_delayed_work(&data->light_copr_debug_work,
 			msecs_to_jiffies(1000));
@@ -378,6 +358,7 @@ static ssize_t light_lcd_onoff_store(struct device *dev,
 	} else {
 		cancel_delayed_work_sync(&data->light_copr_debug_work);
 	}
+#endif
 	mutex_lock(&data->light_factory_mutex);
 	adsp_unicast(msg_buf, sizeof(msg_buf),
 		light_idx, 0, MSG_TYPE_OPTION_DEFINE);
@@ -598,9 +579,65 @@ static ssize_t light_boled_enable_store(struct device *dev,
 
 	return size;
 }
+
+void light_copr_debug_work_func(struct work_struct *work)
+{
+	struct adsp_data *data = container_of((struct delayed_work *)work,
+		struct adsp_data, light_copr_debug_work);
+	uint16_t light_idx = get_light_sidx(data);
+	uint8_t cnt = 0;
+
+	mutex_lock(&data->light_factory_mutex);
+	adsp_unicast(NULL, 0, light_idx, 0, MSG_TYPE_GET_DUMP_REGISTER);
+
+	while (!(data->ready_flag[MSG_TYPE_GET_DUMP_REGISTER] & 1 << light_idx)
+		&& cnt++ < TIMEOUT_CNT)
+		usleep_range(500, 550);
+
+	data->ready_flag[MSG_TYPE_GET_DUMP_REGISTER] &= ~(1 << light_idx);
+
+	if (cnt >= TIMEOUT_CNT) {
+		pr_err("[SSC_FAC] %s: Timeout!!!\n", __func__);
+		mutex_unlock(&data->light_factory_mutex);
+		return;
+	}
+
+	pr_info("[SSC_FAC] %s: %d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d\n", __func__,
+		data->msg_buf[light_idx][0], data->msg_buf[light_idx][1],
+		data->msg_buf[light_idx][2], data->msg_buf[light_idx][3],
+		data->msg_buf[light_idx][4], data->msg_buf[light_idx][5],
+		data->msg_buf[light_idx][6], data->msg_buf[light_idx][7],
+		data->msg_buf[light_idx][8], data->msg_buf[light_idx][9],
+		data->msg_buf[light_idx][10], data->msg_buf[light_idx][11]);
+
+	mutex_unlock(&data->light_factory_mutex);
+
+	if (data->light_copr_debug_count++ < 5)
+		schedule_delayed_work(&data->light_copr_debug_work,
+			msecs_to_jiffies(1000));
+}
 #endif /* CONFIG_SUPPORT_DDI_COPR_FOR_LIGHT_SENSOR */
 
 #ifdef CONFIG_SUPPORT_SSC_AOD_RECT
+static ssize_t light_set_aod_rect_store(struct device *dev,
+	struct device_attribute *attr, const char *buf, size_t size)
+{
+	int32_t msg_buf[5] = {OPTION_TYPE_SSC_AOD_RECT, 0, 0, 0, 0};
+
+	if (sscanf(buf, "%3d,%3d,%3d,%3d",
+		&msg_buf[1], &msg_buf[2], &msg_buf[3], &msg_buf[4]) != 4) {
+		pr_err("[SSC_FAC]: %s - The number of data are wrong\n",
+			__func__);
+		return -EINVAL;
+	}
+
+	pr_info("[SSC_FAC] %s: rect:%d,%d,%d,%d\n", __func__,
+		msg_buf[1], msg_buf[2], msg_buf[3], msg_buf[4]);
+	adsp_unicast(msg_buf, sizeof(msg_buf),
+			MSG_SSC_CORE, 0, MSG_TYPE_OPTION_DEFINE);
+	return size;
+}
+
 void light_rect_init_work(void)
 {
 	int32_t rect_msg[5] = {OPTION_TYPE_SSC_AOD_LIGHT_CIRCLE, 546, 170, 576, 200};
@@ -764,43 +801,6 @@ int light_save_ub_cell_id_to_efs(char *data_str, bool first_booting)
 		LIGHT_UB_CELL_ID_PATH, data_str);
 
 	return ret;
-}
-
-void light_copr_debug_work_func(struct work_struct *work)
-{
-	struct adsp_data *data = container_of((struct delayed_work *)work,
-		struct adsp_data, light_copr_debug_work);
-	uint16_t light_idx = get_light_sidx(data);
-	uint8_t cnt = 0;
-
-	mutex_lock(&data->light_factory_mutex);
-	adsp_unicast(NULL, 0, light_idx, 0, MSG_TYPE_GET_DUMP_REGISTER);
-
-	while (!(data->ready_flag[MSG_TYPE_GET_DUMP_REGISTER] & 1 << light_idx)
-		&& cnt++ < TIMEOUT_CNT)
-		usleep_range(500, 550);
-
-	data->ready_flag[MSG_TYPE_GET_DUMP_REGISTER] &= ~(1 << light_idx);
-
-	if (cnt >= TIMEOUT_CNT) {
-		pr_err("[SSC_FAC] %s: Timeout!!!\n", __func__);
-		mutex_unlock(&data->light_factory_mutex);
-		return;
-	}
-
-	pr_info("[SSC_FAC] %s: %d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d\n", __func__,
-		data->msg_buf[light_idx][0], data->msg_buf[light_idx][1],
-		data->msg_buf[light_idx][2], data->msg_buf[light_idx][3],
-		data->msg_buf[light_idx][4], data->msg_buf[light_idx][5],
-		data->msg_buf[light_idx][6], data->msg_buf[light_idx][7],
-		data->msg_buf[light_idx][8], data->msg_buf[light_idx][9],
-		data->msg_buf[light_idx][10], data->msg_buf[light_idx][11]);
-
-	mutex_unlock(&data->light_factory_mutex);
-
-	if (data->light_copr_debug_count++ < 5)
-		schedule_delayed_work(&data->light_copr_debug_work,
-			msecs_to_jiffies(1000));
 }
 
 void light_cal_read_work_func(struct work_struct *work)
@@ -1154,7 +1154,7 @@ static struct device_attribute *light_attrs[] = {
 static int __init tmd49xx_light_factory_init(void)
 {
 	adsp_factory_register(MSG_LIGHT, light_attrs);
-#ifdef CONFIG_SUPPORT_BRIGHTNESS_NOTIFY_FOR_LIGHT_SENSOR
+#if defined(CONFIG_SUPPORT_BRIGHTNESS_NOTIFY_FOR_LIGHT_SENSOR) && defined(CONFIG_DISPLAY_SAMSUNG)
 	ss_panel_notifier_register(&light_panel_data_notifier);
 #endif
 	pr_info("[SSC_FAC] %s\n", __func__);
@@ -1165,7 +1165,7 @@ static int __init tmd49xx_light_factory_init(void)
 static void __exit tmd49xx_light_factory_exit(void)
 {
 	adsp_factory_unregister(MSG_LIGHT);
-#ifdef CONFIG_SUPPORT_BRIGHTNESS_NOTIFY_FOR_LIGHT_SENSOR
+#if defined(CONFIG_SUPPORT_BRIGHTNESS_NOTIFY_FOR_LIGHT_SENSOR) && defined(CONFIG_DISPLAY_SAMSUNG)
 	ss_panel_notifier_unregister(&light_panel_data_notifier);
 #endif
 	pr_info("[SSC_FAC] %s\n", __func__);

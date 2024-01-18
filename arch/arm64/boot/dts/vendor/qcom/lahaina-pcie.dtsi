@@ -9,8 +9,9 @@
 			<0x60000000 0xf1d>,
 			<0x60000f20 0xa8>,
 			<0x60001000 0x1000>,
-			<0x60100000 0x100000>;
-		reg-names = "parf", "phy", "dm_core", "elbi", "iatu", "conf";
+			<0x60100000 0x100000>,
+			<0x01c03000 0x1000>;
+		reg-names = "parf", "phy", "dm_core", "elbi", "iatu", "conf", "mhi";
 
 		cell-index = <0>;
 		linux,pci-domain = <0>;
@@ -53,10 +54,18 @@
 		qcom,vreg-0p9-voltage-level = <880000 880000 47900>;
 		qcom,vreg-cx-voltage-level = <RPMH_REGULATOR_LEVEL_MAX
 						RPMH_REGULATOR_LEVEL_NOM 0>;
-		qcom,bw-scale =
-			<RPMH_REGULATOR_LEVEL_LOW_SVS 19200000 /* Gen1 */
-			RPMH_REGULATOR_LEVEL_LOW_SVS 19200000 /* Gen2 */
-			RPMH_REGULATOR_LEVEL_NOM 100000000>; /* Gen3 */
+		qcom,bw-scale = /* Gen1 */
+				<RPMH_REGULATOR_LEVEL_LOW_SVS
+				RPMH_REGULATOR_LEVEL_LOW_SVS
+				19200000
+				/* Gen2 */
+				RPMH_REGULATOR_LEVEL_LOW_SVS
+				RPMH_REGULATOR_LEVEL_LOW_SVS
+				19200000
+				/* Gen3 */
+				RPMH_REGULATOR_LEVEL_NOM
+				RPMH_REGULATOR_LEVEL_LOW_SVS
+				100000000>;
 
 		interconnect-names = "icc_path";
 		interconnects = <&aggre2_noc MASTER_PCIE_0 &mc_virt SLAVE_EBI1>;
@@ -100,14 +109,18 @@
 			<0x100 &apps_smmu 0x1c01 0x1>;
 
 		qcom,boot-option = <0x1>;
-		qcom,drv-supported;
+		qcom,aux-clk-freq = <20>; /* 19.2 MHz */
+		/* qcom,drv-supported; */
 		qcom,l1ss-sleep-disable = <0x1>;
 		qcom,drv-l1ss-timeout-us = <5000>;
 		qcom,no-l0s-supported;
-		qcom,l1-2-th-scale = <2>;
-		qcom,l1-2-th-value = <70>;
+		qcom,tpwr-on-scale = <1>;
+		qcom,tpwr-on-value = <9>;
 		qcom,slv-addr-space-size = <0x4000000>;
 		qcom,ep-latency = <10>;
+		qcom,num-parf-testbus-sel = <0xb9>;
+		qcom,msi_mask_disable;
+		qcom,config-recovery;
 
 		qcom,pcie-phy-ver = <10100>;
 		qcom,phy-status-offset = <0x214>;
@@ -283,10 +296,18 @@
 		qcom,vreg-0p9-voltage-level = <880000 880000 99000>;
 		qcom,vreg-cx-voltage-level = <RPMH_REGULATOR_LEVEL_MAX
 						RPMH_REGULATOR_LEVEL_NOM 0>;
-		qcom,bw-scale =
-			<RPMH_REGULATOR_LEVEL_LOW_SVS 19200000 /* Gen1 */
-			RPMH_REGULATOR_LEVEL_LOW_SVS 19200000 /* Gen2 */
-			RPMH_REGULATOR_LEVEL_NOM 100000000>; /* Gen3 */
+		qcom,bw-scale = /* Gen1 */
+				<RPMH_REGULATOR_LEVEL_LOW_SVS
+				RPMH_REGULATOR_LEVEL_LOW_SVS
+				19200000
+				/* Gen2 */
+				RPMH_REGULATOR_LEVEL_LOW_SVS
+				RPMH_REGULATOR_LEVEL_LOW_SVS
+				19200000
+				/* Gen3 */
+				RPMH_REGULATOR_LEVEL_NOM
+				RPMH_REGULATOR_LEVEL_LOW_SVS
+				100000000>;
 
 		interconnect-names = "icc_path";
 		interconnects = <&aggre2_noc MASTER_PCIE_1 &mc_virt SLAVE_EBI1>;
@@ -328,11 +349,13 @@
 			<0x100 &apps_smmu 0x1c81 0x1>;
 
 		qcom,boot-option = <0x1>;
+		qcom,aux-clk-freq = <20>; /* 19.2 MHz */
 		qcom,drv-supported;
 		qcom,wr-halt-size = <0x8>;
 		qcom,no-l0s-supported;
 		qcom,slv-addr-space-size = <0x20000000>;
 		qcom,ep-latency = <10>;
+		qcom,num-parf-testbus-sel = <0xb9>;
 
 		qcom,pcie-phy-ver = <1106>;
 		qcom,phy-status-offset = <0x214>;

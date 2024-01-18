@@ -187,16 +187,6 @@ static int qcedev_release(struct inode *inode, struct file *file);
 static int start_cipher_req(struct qcedev_control *podev);
 static int start_sha_req(struct qcedev_control *podev);
 
-static const struct file_operations qcedev_fops = {
-	.owner = THIS_MODULE,
-	.unlocked_ioctl = qcedev_ioctl,
-#ifdef CONFIG_COMPAT
-	.compat_ioctl = compat_qcedev_ioctl,
-#endif
-	.open = qcedev_open,
-	.release = qcedev_release,
-};
-
 static struct qcedev_control qce_dev[] = {
 	{
 		.magic = QCEDEV_MAGIC,
@@ -1926,7 +1916,9 @@ long qcedev_ioctl(struct file *file,
 				goto exit_free_qcedev_areq;
 			}
 
-			if (map_buf.num_fds > QCEDEV_MAX_BUFFERS) {
+			if (map_buf.num_fds > ARRAY_SIZE(map_buf.fd)) {
+				pr_err("%s: err: num_fds = %d exceeds max value\n",
+							__func__, map_buf.num_fds);
 				err = -EINVAL;
 				goto exit_free_qcedev_areq;
 			}
@@ -1966,6 +1958,12 @@ long qcedev_ioctl(struct file *file,
 				err = -EFAULT;
 				goto exit_free_qcedev_areq;
 			}
+			if (unmap_buf.num_fds > ARRAY_SIZE(unmap_buf.fd)) {
+				pr_err("%s: err: num_fds = %d exceeds max value\n",
+							__func__, unmap_buf.num_fds);
+				err = -EINVAL;
+				goto exit_free_qcedev_areq;
+			}
 
 			for (i = 0; i < unmap_buf.num_fds; i++) {
 				err = qcedev_check_and_unmap_buffer(handle,
@@ -1993,6 +1991,16 @@ exit_free_qcedev_areq:
 	kfree(qcedev_areq);
 	return err;
 }
+
+static const struct file_operations qcedev_fops = {
+	.owner = THIS_MODULE,
+	.unlocked_ioctl = qcedev_ioctl,
+#ifdef CONFIG_COMPAT
+	.compat_ioctl = compat_qcedev_ioctl,
+#endif
+	.open = qcedev_open,
+	.release = qcedev_release,
+};
 
 static int qcedev_probe_device(struct platform_device *pdev)
 {
@@ -2155,8 +2163,11 @@ static int qcedev_remove(struct platform_device *pdev)
 	podev = platform_get_drvdata(pdev);
 	if (!podev)
 		return 0;
+
+	qcedev_ce_high_bw_req(podev, true);
 	if (podev->qce)
 		qce_close(podev->qce);
+	qcedev_ce_high_bw_req(podev, false);
 
 	if (podev->icc_path)
 		icc_put(podev->icc_path);

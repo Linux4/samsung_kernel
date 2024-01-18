@@ -131,6 +131,7 @@ struct cam_ois_opcode {
  * @ois_name              :    OIS name
  * @gyro_raw_x            :    gyro_raw_x
  * @gyro_raw_y            :    gyro_raw_y
+ * @gyro_raw_z            :    gyro_raw_z
  * @efs_cal               :    EFS CAL
  * @opcode                :    opcode
  */
@@ -143,6 +144,7 @@ struct cam_cmd_ois_info {
 #if 1
 	__u32                 gyro_raw_x;
 	__u32                 gyro_raw_y;
+	__u32                 gyro_raw_z;
 	__u32                 efs_cal;
 #endif
 	char                  ois_name[MAX_OIS_NAME_SIZE];
@@ -349,6 +351,7 @@ struct cam_csiphy_info {
 	__u8     secure_mode;
 	__u64    settle_time;
 	__u64    data_rate;
+	__u16    shooting_mode;
 } __attribute__((packed));
 
 /**

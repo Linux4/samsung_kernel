@@ -6,7 +6,7 @@
 #include "dp_catalog.h"
 #include "dp_reg.h"
 #include "dp_debug.h"
-#ifdef CONFIG_SEC_DISPLAYPORT
+#if defined(CONFIG_SEC_DISPLAYPORT)
 #include "secdp.h"
 #endif
 
@@ -28,7 +28,7 @@
 #define MAX_VOLTAGE_LEVELS 4
 #define MAX_PRE_EMP_LEVELS 4
 
-#ifndef CONFIG_SEC_DISPLAYPORT
+#if !defined(CONFIG_SEC_DISPLAYPORT)
 static u8 const vm_pre_emphasis[MAX_VOLTAGE_LEVELS][MAX_PRE_EMP_LEVELS] = {
 	{0x00, 0x0E, 0x16, 0xFF},       /* pe0, 0 db */
 	{0x00, 0x0E, 0x16, 0xFF},       /* pe1, 3.5 db */
@@ -81,12 +81,12 @@ struct dp_catalog_private_v420 {
 	struct dp_catalog_io *io;
 	struct dp_catalog *dpc;
 
-#ifdef CONFIG_SEC_DISPLAYPORT_ENG
+#if defined(CONFIG_SEC_DISPLAYPORT_ENG)
 	char preshoot[DP_HW_PRESHOOT_MAX];
 #endif
 };
 
-#ifdef CONFIG_SEC_DISPLAYPORT_ENG
+#if defined(CONFIG_SEC_DISPLAYPORT_ENG)
 struct dp_catalog_private_v420 *g_catalog_priv;
 
 int secdp_catalog_preshoot_show(char *buf)
@@ -324,7 +324,7 @@ static void dp_catalog_ctrl_update_vx_px_v420(struct dp_catalog_ctrl *ctrl,
 	struct dp_io_data *io_data;
 	u8 value0, value1;
 	u32 version;
-#ifdef CONFIG_SEC_DISPLAYPORT
+#if defined(CONFIG_SEC_DISPLAYPORT)
 	struct dp_parser *parser;
 	u8 *dp_swing_hbr2_hbr3[MAX_VOLTAGE_LEVELS];
 	u8 *dp_pre_emp_hbr2_hbr3[MAX_PRE_EMP_LEVELS];
@@ -348,7 +348,7 @@ static void dp_catalog_ctrl_update_vx_px_v420(struct dp_catalog_ctrl *ctrl,
 	io_data = catalog->io->dp_ahb;
 	version = dp_read(DP_HW_VERSION);
 
-#ifdef CONFIG_SEC_DISPLAYPORT
+#if defined(CONFIG_SEC_DISPLAYPORT)
 	parser = catalog->dpc->parser;
 
 	for (i = 0; i < MAX_VOLTAGE_LEVELS; i++) {
@@ -425,7 +425,7 @@ static void dp_catalog_ctrl_update_vx_px_v420(struct dp_catalog_ctrl *ctrl,
 			v_level, value0, p_level, value1);
 	}
 
-#ifdef CONFIG_SEC_DISPLAYPORT_ENG
+#if defined(CONFIG_SEC_DISPLAYPORT_ENG)
 	_secdp_catalog_preshoot_adjust(catalog);
 #endif
 }
@@ -488,7 +488,7 @@ struct dp_catalog_sub *dp_catalog_get_v420(struct device *dev,
 
 	catalog_priv->sub.put      = dp_catalog_put_v420;
 
-#ifdef CONFIG_SEC_DISPLAYPORT_ENG
+#if defined(CONFIG_SEC_DISPLAYPORT_ENG)
 	_secdp_catalog_preshoot_init(catalog_priv);
 	g_catalog_priv = catalog_priv;
 #endif

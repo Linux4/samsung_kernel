@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
-/* Copyright (c) 2014-2020, The Linux Foundation. All rights reserved.*/
+/* Copyright (c) 2014-2021, The Linux Foundation. All rights reserved.*/
 
 #ifndef __MSM_PCIE_H
 #define __MSM_PCIE_H
@@ -9,11 +9,10 @@
 
 enum msm_pcie_config {
 	MSM_PCIE_CONFIG_INVALID = 0,
-	MSM_PCIE_CONFIG_NO_CFG_RESTORE = 0x1,
-	MSM_PCIE_CONFIG_LINKDOWN = 0x2,
-	MSM_PCIE_CONFIG_NO_RECOVERY = 0x4,
-	MSM_PCIE_CONFIG_NO_L1SS_TO = 0x8,
-	MSM_PCIE_CONFIG_NO_DRV_PC = 0x10,
+	MSM_PCIE_CONFIG_LINKDOWN = BIT(0),
+	MSM_PCIE_CONFIG_NO_RECOVERY = BIT(1),
+	MSM_PCIE_CONFIG_NO_L1SS_TO = BIT(2),
+	MSM_PCIE_CONFIG_NO_DRV_PC = BIT(3),
 };
 
 enum msm_pcie_pm_opt {
@@ -23,6 +22,7 @@ enum msm_pcie_pm_opt {
 	MSM_PCIE_DISABLE_PC,
 	MSM_PCIE_ENABLE_PC,
 	MSM_PCIE_HANDLE_LINKDOWN,
+	MSM_PCIE_DRV_PC_CTRL,
 };
 
 enum msm_pcie_event {
@@ -33,6 +33,7 @@ enum msm_pcie_event {
 	MSM_PCIE_EVENT_L1SS_TIMEOUT = BIT(3),
 	MSM_PCIE_EVENT_DRV_CONNECT = BIT(4),
 	MSM_PCIE_EVENT_DRV_DISCONNECT = BIT(5),
+	MSM_PCIE_EVENT_LINK_RECOVER = BIT(6),
 };
 
 enum msm_pcie_trigger {
@@ -48,6 +49,7 @@ struct msm_pcie_notify {
 };
 
 struct msm_pcie_register_event {
+	struct list_head node;
 	u32 events;
 	void *user;
 	enum msm_pcie_trigger mode;
@@ -62,6 +64,24 @@ void msm_msi_config(struct irq_domain *domain);
 int msm_msi_init(struct device *dev);
 
 #if IS_ENABLED(CONFIG_PCI_MSM)
+
+/**
+ * msm_pcie_set_target_link_speed - sets the upper bound of GEN speed PCIe can
+ * link up with
+ * @rc_idx:		root complex port number that endpoint is connected to
+ * @target_link_speed:	new target link speed PCIe can link up with
+ *
+ * Provide PCIe clients the option to control upper bound of GEN speed PCIe
+ * can link up with. Clients may choose only GEN speed within root complex's
+ * controller capability or up to what is defined in devicetree,
+ * qcom,target-link-speed.
+ *
+ * Client may also pass 0 for target_link_speed to have PCIe root complex
+ * reset and use the default TLS.
+ *
+ * Return 0 on success, negative value on error
+ */
+int msm_pcie_set_target_link_speed(u32 rc_idx, u32 target_link_speed);
 
 /**
  * msm_pcie_allow_l1 - allow PCIe link to re-enter L1
@@ -155,16 +175,6 @@ int msm_pcie_register_event(struct msm_pcie_register_event *reg);
 int msm_pcie_deregister_event(struct msm_pcie_register_event *reg);
 
 /**
- * msm_pcie_recover_config - recover config space.
- * @dev:	pci device structure
- *
- * This function recovers the config space of both RC and Endpoint.
- *
- * Return: 0 on success, negative value on error
- */
-int msm_pcie_recover_config(struct pci_dev *dev);
-
-/**
  * msm_pcie_enumerate - enumerate Endpoints.
  * @rc_idx:	RC that Endpoints connect to.
  *
@@ -173,28 +183,6 @@ int msm_pcie_recover_config(struct pci_dev *dev);
  * Return: 0 on success, negative value on error
  */
 int msm_pcie_enumerate(u32 rc_idx);
-
-/**
- * msm_pcie_recover_config - recover config space.
- * @dev:	pci device structure
- *
- * This function recovers the config space of both RC and Endpoint.
- *
- * Return: 0 on success, negative value on error
- */
-int msm_pcie_recover_config(struct pci_dev *dev);
-
-/**
- * msm_pcie_shadow_control - control the shadowing of PCIe config space.
- * @dev:	pci device structure
- * @enable:	shadowing should be enabled or disabled
- *
- * This function gives PCIe endpoint device drivers the control to enable
- * or disable the shadowing of PCIe config space.
- *
- * Return: 0 on success, negative value on error
- */
-int msm_pcie_shadow_control(struct pci_dev *dev, bool enable);
 
 /*
  * msm_pcie_debug_info - run a PCIe specific debug testcase.
@@ -213,9 +201,37 @@ int msm_pcie_shadow_control(struct pci_dev *dev, bool enable);
 int msm_pcie_debug_info(struct pci_dev *dev, u32 option, u32 base,
 			u32 offset, u32 mask, u32 value);
 
+/*
+ * msm_pcie_reg_dump - dump pcie regsters for debug
+ * @pci_dev:	pci device structure
+ * @buffer:	destination buffer address
+ * @len:		length of buffer
+ *
+ * This functions dumps PCIE registers for debug. Sould be used when
+ * link is already enabled
+ */
+int msm_pcie_reg_dump(struct pci_dev *pci_dev, u8 *buff, u32 len);
+
+/*
+ * msm_pcie_dsp_link_control - enable/disable DSP link
+ * @pci_dev:	pci device structure, endpoint of this DSP
+ * @link_enable true to enable, false to disable
+ *
+ * This function enable(include training)/disable link between PCIe
+ * switch DSP and endpoint attached.
+ * Return: 0 on success, negative value on error
+ */
+int msm_pcie_dsp_link_control(struct pci_dev *pci_dev,
+				    bool link_enable);
 #else /* !CONFIG_PCI_MSM */
 static inline int msm_pcie_pm_control(enum msm_pcie_pm_opt pm_opt, u32 busnr,
 			void *user, void *data, u32 options)
+{
+	return -ENODEV;
+}
+
+static inline int msm_pcie_set_target_link_speed(u32 rc_idx,
+						u32 target_link_speed)
 {
 	return -ENODEV;
 }
@@ -249,23 +265,24 @@ static inline int msm_pcie_deregister_event(struct msm_pcie_register_event *reg)
 	return -ENODEV;
 }
 
-static inline int msm_pcie_recover_config(struct pci_dev *dev)
-{
-	return -ENODEV;
-}
-
 static inline int msm_pcie_enumerate(u32 rc_idx)
-{
-	return -ENODEV;
-}
-
-static inline int msm_pcie_shadow_control(struct pci_dev *dev, bool enable)
 {
 	return -ENODEV;
 }
 
 static inline int msm_pcie_debug_info(struct pci_dev *dev, u32 option, u32 base,
 			u32 offset, u32 mask, u32 value)
+{
+	return -ENODEV;
+}
+
+static inline int msm_pcie_reg_dump(struct pci_dev *pci_dev, u8 *buff, u32 len)
+{
+	return -ENODEV;
+}
+
+static inline int msm_pcie_dsp_link_control(struct pci_dev *pci_dev,
+						  bool link_enable)
 {
 	return -ENODEV;
 }

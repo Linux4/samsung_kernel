@@ -34,12 +34,12 @@ static void samsung_pba_config(struct samsung_display_driver_data *vdd, void *ar
 	 * No effect of has_src_split setting in PBA booting mode.
 	 * After verifying it on picasso board, remove below depricated code..
 	 */
-	LCD_INFO("skip to disable source split for pba\n");
+	LCD_INFO(vdd, "skip to disable source split for pba\n");
 #else
 	struct sde_mdss_cfg *sde_cfg = (struct sde_mdss_cfg *)arg;
 
 	if (!IS_ERR_OR_NULL(sde_cfg)) {
-		LCD_INFO("Disable source split\n");
+		LCD_INFO(vdd, "Disable source split\n");
 		sde_cfg->has_src_split = false;
 	}
 #endif
@@ -47,7 +47,7 @@ static void samsung_pba_config(struct samsung_display_driver_data *vdd, void *ar
 
 void PBA_BOOTING_FHD_init(struct samsung_display_driver_data *vdd)
 {
-	LCD_INFO("%s\n", ss_get_panel_name(vdd));
+	LCD_INFO(vdd, "%s\n", ss_get_panel_name(vdd));
 
 	vdd->mdnie.support_mdnie = false;
 	vdd->dtsi_data.tft_common_support = true;

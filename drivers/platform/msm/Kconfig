@@ -42,6 +42,37 @@ config SPS_SUPPORT_NDP_BAM
 	  to do the actual data transfer themselves, instead of the
 	  BAM.
 
+config EP_PCIE
+	bool "PCIe Endpoint mode support"
+	select GENERIC_ALLOCATOR
+	help
+	  PCIe controller is in endpoint mode.
+	  It supports the APIs to clients as a service layer, and allows
+	  clients to enable/disable PCIe link, configure the address
+	  mapping for the access to host memory, trigger wake interrupt
+	  on host side to wake up host, and trigger MSI to host side.
+
+config EP_PCIE_HW
+	bool "PCIe Endpoint HW driver"
+	depends on EP_PCIE
+	help
+	  PCIe endpoint HW specific implementation.
+	  It supports:
+		1. link training with Root Complex.
+		2. Address mapping.
+		3. Sideband signaling.
+		4. Power management.
+
+config MSM_MHI_DEV
+        tristate "Modem Device Interface Driver"
+	depends on EP_PCIE && IPA3
+        help
+          This kernel module is used to interact with PCIe Root complex
+          supporting MHI protocol. MHI is a data transmission protocol
+          involving communication between a host and a device over shared
+          memory. MHI interacts with the IPA for supporting transfers
+	  on the HW accelerated channels between Host and device.
+
 config IPA3
 	tristate "IPA3 support"
 	depends on NET
@@ -64,6 +95,15 @@ config IPA_WDI_UNIFIED_API
 	  It is designed to support IPA HW accelerating path for WLAN use case.
 	  The IPA WDI unified API supports all WDI versions through a unified
 	  interface.
+
+config VETH_IPA
+        tristate "VETH_IPA Network Interface Driver Support"
+        depends on MSM_HAB
+        help
+          Enables EMAC Ethernet Front end driver.
+          Register net device and configure VETH0 iface. This driver will
+          configure EMAC IPA offload channels with help of a backend driver
+          running on GVM Host.
 
 config USB_BAM
 	tristate "USB BAM Driver"
@@ -101,5 +141,68 @@ config MSM_11AD
 
 	  If you choose to build it as a module, it will be called
 	  msm_11ad_proxy.
+
+# Ethernet configuration options
+
+config IOSS
+	tristate "IPA Offload Sub-system v2"
+	depends on IPA3
+	help
+	  IPA Offload Sub-system is a generic kernel framework that enables a
+	  third-party ethernet driver to attach an ethernet peripheral to IPA
+	  for hardware offloading of tethered data paths. The framework
+	  provides a generic API interface that ethernet drivers can use to
+	  register their hardware functionality with the sub-system in order
+	  to enable IPA offload.
+
+	  To compile this driver as a module, choose M here. Module will be
+	  called ioss.
+
+config R8125
+	tristate "Realtek R8125 driver"
+	depends on PCI
+	help
+	  This is a 2.5Gbps ethernet driver for the PCI network cards based on
+	  the Realtek 8125B chip. If you have one of those, say Y here.
+
+	  To compile this driver as a module, choose M here: the module
+	  will be called r8125.
+
+config R8168
+	tristate "Realtek R8168 driver"
+	depends on PCI
+	help
+	  This is a 1Gbps ethernet driver for the PCI network cards based on
+	  the Realtek RTL8111K chip. If you have one of those, say Y here.
+
+	  To compile this driver as a module, choose M here: the module
+	  will be called r8168.
+
+config R8125_IOSS
+	tristate "Realtek R8125 IOSS glue driver"
+	depends on R8125
+	depends on IOSS
+	help
+	  Enables IPA Ethernet Offload path on Realtek R8125 NIC. It is
+	  designed to support generic HW processing of UL/DL IP packets for
+	  various use cases to reduce the CPU load during E2E IP traffic.
+
+	  To compile this driver as a module, choose M here. Module will be
+	  called r8125_ioss. If unsure, say N.
+
+config AQFWD_IOSS
+	tristate "AQC glue driver for IOSS v2"
+	depends on AQFWD
+	depends on IOSS
+	select ATLFWD_FWD
+	help
+	  Enables IPA Ethernet Offload path on atlantic-fwd driver. It is
+	  designed to support generic HW processing of UL/DL IP packets for
+	  various use cases to reduce the cpu load during E2E IP traffic.
+	  When this is disabled, atlantic-fwd driver switches to embedded software path.
+
+	  To compile this driver as a module, choose M here. Module will be called
+	  aqc_ioss.
+	  If unsure, say N.
 
 endmenu

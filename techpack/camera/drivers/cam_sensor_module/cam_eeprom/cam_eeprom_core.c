@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2017-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/module.h>
 #include <linux/crc32.h>
+#include <linux/firmware.h>
 #include <media/cam_sensor.h>
 
 #include "cam_eeprom_core.h"
@@ -15,6 +16,10 @@
 #include <linux/ctype.h>
 
 #include "cam_notifier.h"
+
+#if defined(CONFIG_SEC_R9Q_PROJECT) || defined(CONFIG_SEC_M44X_PROJECT)
+#define REAR3_DUAL_CAL_FW_NAME "multical.bin"
+#endif
 
 #if defined(CONFIG_SEC_P3Q_PROJECT)
 #define FORCE_DISABLE_REGULATOR
@@ -31,6 +36,51 @@
 #define TRUE 1
 #endif
 
+#if defined(CONFIG_SAMSUNG_CAMERA_OTP)
+#include "hi1336c_otp.h"
+static int cam_otp_hi1336c_read_memory(struct cam_eeprom_ctrl_t *e_ctrl,
+                               struct cam_eeprom_memory_block_t *block);
+
+struct cam_sensor_i2c_reg_setting load_hi1336c_otp_setfile = {
+	load_sensor_hi1336c_otp_setfile_reg,
+	sizeof(load_sensor_hi1336c_otp_setfile_reg)/sizeof(load_sensor_hi1336c_otp_setfile_reg[0]),
+	CAMERA_SENSOR_I2C_TYPE_WORD,
+	CAMERA_SENSOR_I2C_TYPE_WORD,
+	50
+};
+
+struct cam_sensor_i2c_reg_setting hi1336c_otp_init_setting1 = {
+	hi1336c_otp_init_reg1,
+	sizeof(hi1336c_otp_init_reg1)/sizeof(hi1336c_otp_init_reg1[0]),
+	CAMERA_SENSOR_I2C_TYPE_WORD,
+	CAMERA_SENSOR_I2C_TYPE_BYTE,
+	10
+};
+
+struct cam_sensor_i2c_reg_setting hi1336c_otp_init_setting2 = {
+	hi1336c_otp_init_reg2,
+	sizeof(hi1336c_otp_init_reg2)/sizeof(hi1336c_otp_init_reg2[0]),
+	CAMERA_SENSOR_I2C_TYPE_WORD,
+	CAMERA_SENSOR_I2C_TYPE_BYTE,
+	10
+};
+
+struct cam_sensor_i2c_reg_setting hi1336c_otp_finish_setting1 = {
+	hi1336c_otp_finish_reg1,
+	sizeof(hi1336c_otp_finish_reg1)/sizeof(hi1336c_otp_finish_reg1[0]),
+	CAMERA_SENSOR_I2C_TYPE_WORD,
+	CAMERA_SENSOR_I2C_TYPE_BYTE,
+	10
+};
+
+struct cam_sensor_i2c_reg_setting hi1336c_otp_finish_setting2 = {
+	hi1336c_otp_finish_reg2,
+	sizeof(hi1336c_otp_finish_reg2)/sizeof(hi1336c_otp_finish_reg2[0]),
+	CAMERA_SENSOR_I2C_TYPE_WORD,
+	CAMERA_SENSOR_I2C_TYPE_BYTE,
+	10
+};
+#endif
 char rear_cam_cal_check[SYSFS_FW_VER_SIZE] = "NULL";
 char front_cam_cal_check[SYSFS_FW_VER_SIZE] = "NULL";
 
@@ -70,7 +120,7 @@ char front_tof_cam_cal_check[SYSFS_FW_VER_SIZE] = "NULL";
 char bokeh_module_fw_ver[FROM_MODULE_FW_INFO_SIZE+1];
 #endif
 
-#if defined(CONFIG_SEC_P3Q_PROJECT) || defined(CONFIG_SEC_O3Q_PROJECT)
+#if defined(CONFIG_SEC_P3Q_PROJECT) || defined(CONFIG_SEC_O3Q_PROJECT) || defined(CONFIG_SEC_R9Q_PROJECT)
 char rear3_module_fw_ver[FROM_MODULE_FW_INFO_SIZE+1];
 #endif
 
@@ -134,8 +184,6 @@ extern int ois_gain_rear4_result;
 extern int ois_sr_rear4_result;
 #endif
 #endif
-
-uint32_t CAMERA_NORMAL_CAL_CRC;
 
 ConfigInfo_t ConfigInfo[MAX_CONFIG_INFO_IDX];
 
@@ -258,7 +306,7 @@ static int cam_eeprom_module_info_set_module_id(ModuleInfo_t *mInfo, uint8_t *pM
 }
 
 static int cam_eeprom_module_info_set_load_version(int rev, uint32_t hasSubCaldata,
-	uint32_t is_supported, uint8_t *pMapData, ModuleInfo_t *mInfo)
+	uint32_t is_supported, uint8_t *pMapData, uint32_t camera_normal_cal_crc, ModuleInfo_t *mInfo)
 {
 	int         rc                  = 0;
 	int         i                   = 0;
@@ -372,7 +420,7 @@ static int cam_eeprom_module_info_set_load_version(int rev, uint32_t hasSubCalda
 	sprintf(rear3_fw_full_ver, "%s %s %s\n", bokeh_module_fw_ver, bokeh_module_fw_ver,bokeh_module_fw_ver);
 #endif
 
-#if defined(CONFIG_SEC_P3Q_PROJECT) || defined(CONFIG_SEC_O3Q_PROJECT)
+#if defined(CONFIG_SEC_P3Q_PROJECT) || defined(CONFIG_SEC_O3Q_PROJECT) || defined(CONFIG_SEC_R9Q_PROJECT)
 	if (mInfo->type == SEC_TELE_SENSOR) {
 		ConfIdx = ADDR_M_FW_VER;
 		memset(rear3_module_fw_ver, 0x00, sizeof(rear3_module_fw_ver));
@@ -529,7 +577,7 @@ static int cam_eeprom_module_info_set_load_version(int rev, uint32_t hasSubCalda
 		}
 	}
 
-	normal_is_supported = CAMERA_NORMAL_CAL_CRC;
+	normal_is_supported = camera_normal_cal_crc;
 
 	if (isValidIdx(DEF_M_CHK_VER, &ConfAddr) == 1)
 	{
@@ -648,6 +696,18 @@ static int cam_eeprom_module_info_set_dual_tilt(eDualTiltMode tiltMode, uint32_t
 				offset_max_err          = 0x07E4;
 				offset_avg_err          = 0x07E8;
 				offset_project_cal_type = 0x0108;
+#if defined(CONFIG_SEC_B2Q_PROJECT)
+				offset_dll_ver          = 0x007A;
+				offset_x                = 0x00B8;
+				offset_y                = 0x00BC;
+				offset_z                = 0x00C0;
+				offset_sx               = 0x00DC;
+				offset_sy               = 0x00E0;
+				offset_range            = 0x02D2;
+				offset_max_err          = 0x02D6;
+				offset_avg_err          = 0x02DA;
+				offset_project_cal_type = 0x02DE;
+#endif
 				break;
 
 			case DUAL_TILT_FRONT:
@@ -919,13 +979,18 @@ static int cam_eeprom_update_module_info(struct cam_eeprom_ctrl_t *e_ctrl)
 	int             rc = 0;
 
 	uint32_t        ConfAddr 	  = 0;
-#if defined(CONFIG_SAMSUNG_REAR_DUAL) || defined(CONFIG_SAMSUNG_REAR_TRIPLE) || defined(CONFIG_SAMSUNG_REAR_TOF) || defined(CONFIG_SAMSUNG_FRONT_DUAL) || defined(CONFIG_SAMSUNG_FRONT_TOF) || defined(CONFIG_SAMSUNG_REAR_QUADRA)
+#if defined(CONFIG_SAMSUNG_REAR_TRIPLE) || defined(CONFIG_SAMSUNG_REAR_TOF) || defined(CONFIG_SAMSUNG_FRONT_DUAL) || defined(CONFIG_SAMSUNG_FRONT_TOF) || defined(CONFIG_SAMSUNG_REAR_QUADRA)
 	uint32_t        ConfSize      = 0;
 #endif
 	uint32_t        hasSubCaldata = 0;
 
 	ModuleInfo_t 	mInfo;
 	ModuleInfo_t 	mInfoSub;
+#if defined(CONFIG_SEC_R9Q_PROJECT) || defined(CONFIG_SEC_M44X_PROJECT)
+	const struct firmware *fw = NULL;
+	struct device         *dev = e_ctrl->soc_info.dev;
+	uint32_t               fw_size;
+#endif
 
 #if 0//TEMP_8350
 	unsigned int rev = sec_hw_rev();
@@ -970,7 +1035,7 @@ static int cam_eeprom_update_module_info(struct cam_eeprom_ctrl_t *e_ctrl)
 			mInfo.mVer.fw_user_ver             = rear_fw_user_ver;
 			mInfo.mVer.fw_factory_ver          = rear_fw_factory_ver;
 
-#if defined(CONFIG_SAMSUNG_REAR_TRIPLE)
+#if defined(CONFIG_SAMSUNG_REAR_TRIPLE) && !defined(CONFIG_SEC_R9Q_PROJECT) && !defined(CONFIG_SEC_M44X_PROJECT)
 			mInfo.mVer.sensor2_id              = rear3_sensor_id;
 
 			hasSubCaldata                      = 1;
@@ -993,7 +1058,7 @@ static int cam_eeprom_update_module_info(struct cam_eeprom_ctrl_t *e_ctrl)
 #endif
 			break;
 
-#if defined(CONFIG_SEC_P3Q_PROJECT) || defined(CONFIG_SEC_O3Q_PROJECT)
+#if defined(CONFIG_SEC_P3Q_PROJECT) || defined(CONFIG_SEC_O3Q_PROJECT) || defined(CONFIG_SEC_R9Q_PROJECT)
 		case SEC_TELE_SENSOR:
 			strlcpy(mInfo.typeStr, "Rear3", FROM_MODULE_FW_INFO_SIZE);
 			mInfo.typeStr[FROM_MODULE_FW_INFO_SIZE-1] = '\0';
@@ -1207,7 +1272,7 @@ static int cam_eeprom_update_module_info(struct cam_eeprom_ctrl_t *e_ctrl)
 	memcpy(mInfo.mVer.phone_process_info, M_PROCESS_INFO, PROCESS_INFO_MAX_SIZE);
 
 	cam_eeprom_module_info_set_load_version(rev, hasSubCaldata,
-		e_ctrl->is_supported, e_ctrl->cal_data.mapdata,	&mInfo);
+		e_ctrl->is_supported, e_ctrl->cal_data.mapdata, e_ctrl->camera_normal_cal_crc, &mInfo);
 
 	if (hasSubCaldata == 1)
 	{
@@ -1217,7 +1282,7 @@ static int cam_eeprom_update_module_info(struct cam_eeprom_ctrl_t *e_ctrl)
 		memcpy(mInfoSub.mVer.phone_process_info, S_PROCESS_INFO, PROCESS_INFO_MAX_SIZE);
 
 		cam_eeprom_module_info_set_load_version(rev, hasSubCaldata,
-			e_ctrl->is_supported, e_ctrl->cal_data.mapdata, &mInfoSub);
+			e_ctrl->is_supported, e_ctrl->cal_data.mapdata, e_ctrl->camera_normal_cal_crc, &mInfoSub);
 	}
 
 	if (e_ctrl->soc_info.index == SEC_FRONT_SENSOR) {
@@ -1277,7 +1342,7 @@ static int cam_eeprom_update_module_info(struct cam_eeprom_ctrl_t *e_ctrl)
 #endif //!defined(CONFIG_SAMSUNG_FRONT_TOP_EEPROM)
 	}
 #endif //#if defined(CONFIG_SAMSUNG_FRONT_TOP)
-#if defined(CONFIG_SEC_P3Q_PROJECT) || defined(CONFIG_SEC_O3Q_PROJECT)
+#if defined(CONFIG_SEC_P3Q_PROJECT) || defined(CONFIG_SEC_O3Q_PROJECT) || defined(CONFIG_SEC_R9Q_PROJECT)
 	else if ((e_ctrl->soc_info.index == SEC_WIDE_SENSOR)
 		|| (e_ctrl->soc_info.index == SEC_ULTRA_WIDE_SENSOR)
 		|| (e_ctrl->soc_info.index == SEC_TELE_SENSOR)
@@ -1285,6 +1350,9 @@ static int cam_eeprom_update_module_info(struct cam_eeprom_ctrl_t *e_ctrl)
 		|| (e_ctrl->soc_info.index == SEC_TELE2_SENSOR)
 #endif
 	)
+#elif defined(CONFIG_SEC_M44X_PROJECT)
+	else if ((e_ctrl->soc_info.index == SEC_WIDE_SENSOR)
+		|| (e_ctrl->soc_info.index == SEC_ULTRA_WIDE_SENSOR))
 #else
 	else if (e_ctrl->soc_info.index == SEC_WIDE_SENSOR)
 #endif
@@ -1353,6 +1421,17 @@ static int cam_eeprom_update_module_info(struct cam_eeprom_ctrl_t *e_ctrl)
 						SIZE_S_DUAL_CAL, e_ctrl->cal_data.mapdata, "rear3 tele", &mInfo);
 				}
 			}
+#if defined(CONFIG_SEC_R9Q_PROJECT) || defined(CONFIG_SEC_M44X_PROJECT)
+			/* Load FW */
+			rc = request_firmware(&fw, REAR3_DUAL_CAL_FW_NAME, dev);
+			if (rc) {
+				CAM_ERR(CAM_EEPROM, "Failed to locate %s", REAR3_DUAL_CAL_FW_NAME);
+				return rc;
+			} else {
+				fw_size = fw->size;
+				memcpy(rear3_dual_cal,fw->data,fw_size);
+			}
+#endif
 		}
 #endif  // defined(CONFIG_SEC_P3Q_PROJECT) || defined(CONFIG_SEC_O3Q_PROJECT)
 #endif  // defined(CONFIG_SAMSUNG_REAR_TRIPLE) || defined(CONFIG_SAMSUNG_REAR_QUADRA)
@@ -1409,25 +1488,47 @@ static int cam_eeprom_update_module_info(struct cam_eeprom_ctrl_t *e_ctrl)
 			AfIdx_t rear_idx[] = {
 				{AF_CAL_NEAR_IDX, AF_CAL_NEAR_OFFSET_FROM_AF},
 				{AF_CAL_FAR_IDX, AF_CAL_FAR_OFFSET_FROM_AF},
+#if !defined(CONFIG_SEC_R9Q_PROJECT) && !defined(CONFIG_SEC_M44X_PROJECT)
 				{AF_CAL_M1_IDX, AF_CAL_M1_OFFSET_FROM_AF}
+#endif
 			};
 
+#if !defined(CONFIG_SEC_M44X_PROJECT)
 			AfIdx_t rear3_idx[] = {
 				{AF_CAL_NEAR_IDX, AF_CAL_NEAR_OFFSET_FROM_AF},
 				{AF_CAL_FAR_IDX, AF_CAL_FAR_OFFSET_FROM_AF},
+#if !defined(CONFIG_SEC_R9Q_PROJECT) && !defined(CONFIG_SEC_Q2Q_PROJECT) && !defined(CONFIG_SEC_V2Q_PROJECT)
 				{AF_CAL_M1_IDX, AF_CAL_M1_OFFSET_FROM_AF}
+#endif
 			};
+#endif
 
 			cam_eeprom_module_info_set_afcal(ADDR_M_AF, rear_idx, sizeof(rear_idx)/sizeof(rear_idx[0]),
 				e_ctrl->cal_data.mapdata, rear_af_cal_str, sizeof(rear_af_cal_str));
 
+#if !defined(CONFIG_SEC_M44X_PROJECT)
 			cam_eeprom_module_info_set_afcal(ADDR_S0_AF, rear3_idx, sizeof(rear3_idx)/sizeof(rear3_idx[0]),
 				e_ctrl->cal_data.mapdata, rear3_af_cal_str, sizeof(rear3_af_cal_str));
+#endif
 #endif
 		}
 #endif
 
-#if defined(CONFIG_SAMSUNG_REAR_DUAL)
+#if defined(CONFIG_SAMSUNG_REAR_DUAL) && !defined(CONFIG_SEC_M44X_PROJECT)
+		/* AF Cal. data read */
+		{
+                        AfIdx_t rear_idx[] = {
+                                {AF_CAL_NEAR_IDX, AF_CAL_NEAR_OFFSET_FROM_AF},
+                                {AF_CAL_FAR_IDX, AF_CAL_FAR_OFFSET_FROM_AF},
+#if !defined(CONFIG_SEC_B2Q_PROJECT)
+                                {AF_CAL_M1_IDX, AF_CAL_M1_OFFSET_FROM_AF}
+#endif
+                        };
+
+                        cam_eeprom_module_info_set_afcal(ADDR_M_AF, rear_idx, sizeof(rear_idx)/sizeof(rear_idx[0]),
+                                e_ctrl->cal_data.mapdata, rear_af_cal_str, sizeof(rear_af_cal_str));
+		}
+
 		/* rear2 sw dual cal */
 		mInfo.mVer.dual_cal = rear2_dual_cal;
 		mInfo.mVer.DualTilt = &rear2_dual;
@@ -1463,7 +1564,7 @@ static int cam_eeprom_update_module_info(struct cam_eeprom_ctrl_t *e_ctrl)
 			memcpy(&f2_paf_err_data_result, &e_ctrl->cal_data.mapdata[ConfAddr], 4);
 		}
 
-#if defined(CONFIG_SAMSUNG_REAR_TRIPLE)
+#if defined(CONFIG_SAMSUNG_REAR_TRIPLE) && !defined(CONFIG_SEC_M44X_PROJECT)
 		if (isValidIdx(ADDR_S0_PAF, &ConfAddr) == 1)
 		{
 			ConfAddr += PAF_CAL_ERR_CHECK_OFFSET;
@@ -1621,7 +1722,7 @@ static int cam_eeprom_update_module_info(struct cam_eeprom_ctrl_t *e_ctrl)
 	}
 #endif
 
-	rc = cam_eeprom_check_firmware_cal(e_ctrl->is_supported, &mInfo);
+	rc = cam_eeprom_check_firmware_cal(e_ctrl->is_supported, e_ctrl->camera_normal_cal_crc, &mInfo);
 
 #if defined(CONFIG_SAMSUNG_WACOM_NOTIFIER)
 	// Update for each module
@@ -1631,11 +1732,19 @@ static int cam_eeprom_update_module_info(struct cam_eeprom_ctrl_t *e_ctrl)
 	}
 
 	// Probe Timing different for each model
+#if defined(CONFIG_SEC_P3Q_PROJECT)
 	if (SEC_TELE2_SENSOR == e_ctrl->soc_info.index)
 	{
 		is_eeprom_wacom_update_notifier();
 	}
+#elif defined(CONFIG_SEC_Q2Q_PROJECT) || defined(CONFIG_SEC_V2Q_PROJECT)
+	if (SEC_FRONT_TOP_SENSOR == e_ctrl->soc_info.index)
+	{
+		is_eeprom_wacom_update_notifier();
+	}
+#else
 #endif
+#endif	/* CONFIG_SAMSUNG_WACOM_NOTIFIER */
 
 	return rc;
 }
@@ -1767,7 +1876,7 @@ void cam_eeprom_update_sysfs_fw_version(
 #endif
 }
 
-int32_t cam_eeprom_check_firmware_cal(uint32_t camera_cal_crc, ModuleInfo_t *mInfo)
+int32_t cam_eeprom_check_firmware_cal(uint32_t camera_cal_crc, uint32_t camera_normal_cal_crc, ModuleInfo_t *mInfo)
 {
 	int rc = 0, offset = 0, cnt = 0;
 	char final_cmd_ack[SYSFS_FW_VER_SIZE] = "NG_";
@@ -1814,7 +1923,7 @@ int32_t cam_eeprom_check_firmware_cal(uint32_t camera_cal_crc, ModuleInfo_t *mIn
 		camera_fw_ack = OK;
 	}
 
-	if (camera_cal_crc == CAMERA_NORMAL_CAL_CRC) {
+	if (camera_cal_crc == camera_normal_cal_crc) {
 		camera_cal_ack = OK;
 		strncpy(cam_cal_ack, "Normal", SYSFS_FW_VER_SIZE);
 	} else {
@@ -1874,7 +1983,7 @@ int32_t cam_eeprom_check_firmware_cal(uint32_t camera_cal_crc, ModuleInfo_t *mIn
 	else
 		CAM_INFO(CAM_EEPROM, "ISP Ver : %c", version_isp);
 
-	if (version_isp != 'Q' && version_isp != 'U' && version_isp != 'A' && version_isp != 'X') {
+	if (version_isp != 'Q' && version_isp != 'U' && version_isp != 'A' && version_isp != 'X' && version_isp != 'E' && version_isp != 'L') {
 		CAM_ERR(CAM_EEPROM, "This is not Qualcomm module!");
 
 		if (mInfo->type == SEC_WIDE_SENSOR) {
@@ -2117,6 +2226,425 @@ static uint32_t cam_eeprom_match_crc(struct cam_eeprom_memory_block_t *data, uin
 	return ret;
 }
 
+#if defined(CONFIG_SAMSUNG_CAMERA_OTP)
+/*
+ * cam_otp_read_memory() - read map data into buffer
+ * @e_ctrl:	otp control struct
+ * @block:	block to be read
+ *
+ * This function iterates through blocks stored in block->map, reads each
+ * region and concatenate them into the pre-allocated block->mapdata
+ */
+static int cam_otp_read_memory(struct cam_eeprom_ctrl_t *e_ctrl,
+							   struct cam_eeprom_memory_block_t *block)
+{
+	int rc = 0;
+	struct cam_eeprom_soc_private  *soc_private;
+
+	soc_private =
+		(struct cam_eeprom_soc_private *)e_ctrl->soc_info.soc_private;
+
+	if((e_ctrl->soc_info.index == SEC_ULTRA_WIDE_SENSOR || e_ctrl->soc_info.index == SEC_FRONT_SENSOR || e_ctrl->soc_info.index == SEC_FRONT_FULL_SENSOR) &&
+		soc_private->i2c_info.slave_addr == 0x42){
+			rc = cam_otp_hi1336c_read_memory(e_ctrl, block);
+	}
+
+	return rc;
+}
+/**
+ * cam_otp_hi1336c_init() - init for hi1336C OTP
+ * @io_master_info:	otp io struct
+ *
+ * This function is used for initilize hi1336c OTP to read/write data from OTP
+ */
+
+static int cam_otp_hi1336c_init( struct camera_io_master *io_master_info)
+{
+    int	rc = 0;
+
+    if ( !io_master_info )
+    {
+        CAM_ERR( CAM_EEPROM, "io_master_info is NULL" );
+        return(-EINVAL);
+    }
+
+    /* load otp global setfile */
+    rc = camera_io_dev_write( io_master_info, &load_hi1336c_otp_setfile );
+    if ( rc < 0 )
+    {
+        CAM_ERR( CAM_EEPROM, "load otp globle setfile failed" );
+        return(rc);
+    }
+
+    /* OTP initial setting1 write */
+    rc = camera_io_dev_write( io_master_info, &hi1336c_otp_init_setting1 );
+    if ( rc < 0 )
+    {
+        CAM_ERR( CAM_EEPROM, "load otp initial setfile1 failed" );
+        return(rc);
+    }
+
+    msleep(10);
+
+    /* OTP initial setting2 write */
+    rc = camera_io_dev_write( io_master_info, &hi1336c_otp_init_setting2 );
+    if ( rc < 0 )
+    {
+        CAM_ERR( CAM_EEPROM, "load otp initial setfile2 failed" );
+        return(rc);
+    }
+
+    CAM_INFO( CAM_EEPROM, "load otp init setting done!");
+    return rc;
+}
+
+/**
+ * cam_otp_hi1336c_read() - read map data into buffer for hi1336c
+ * @io_master_info:	otp io struct
+ * @addr:	memory address to be read
+ * @memptr	memory address to be stored
+ *
+ * This function iterates through blocks stored in block->map, reads each
+ * region and concatenate them into the pre-allocated block->mapdata
+ */
+
+static int cam_otp_hi1336c_read( struct camera_io_master *io_master_info, uint32_t addr,
+                                uint8_t *memptr )
+{
+    int					rc = 0;
+    struct cam_sensor_i2c_reg_setting	i2c_reg_settings;
+    struct cam_sensor_i2c_reg_array		i2c_reg_array;
+    enum camera_sensor_i2c_type		addr_type	= CAMERA_SENSOR_I2C_TYPE_WORD;
+    enum camera_sensor_i2c_type		data_type	= CAMERA_SENSOR_I2C_TYPE_BYTE;
+    uint32_t				read_addr		= 0;
+
+    if ( !io_master_info )
+    {
+        CAM_ERR( CAM_EEPROM, "io_master_info is NULL" );
+        return(-EINVAL);
+    }
+
+    i2c_reg_settings.addr_type	= addr_type;
+    i2c_reg_settings.data_type	= data_type;
+    i2c_reg_settings.size		= 1;
+    i2c_reg_settings.delay		= 4;
+    i2c_reg_array.delay		= 4;
+
+    /* high address */
+    i2c_reg_array.reg_addr		= 0x030a;
+    i2c_reg_array.reg_data		= (addr >> 8) & 0xff;
+    i2c_reg_settings.reg_setting	= &i2c_reg_array;
+
+    rc = camera_io_dev_write( io_master_info, &i2c_reg_settings );
+    if ( rc < 0 )
+    {
+        CAM_ERR( CAM_EEPROM, "write high address failed" );
+        goto err;
+    }
+
+    /* low address */
+    i2c_reg_array.reg_addr		= 0x030b;
+    i2c_reg_array.reg_data		= addr & 0xff;
+    i2c_reg_settings.reg_setting	= &i2c_reg_array;
+
+    rc = camera_io_dev_write( io_master_info, &i2c_reg_settings );
+    if ( rc < 0 )
+    {
+        CAM_ERR( CAM_EEPROM, "write low address failed" );
+        goto err;
+    }
+
+    /* OTP continue read mode */
+    i2c_reg_array.reg_addr		= 0x0302;
+    i2c_reg_array.reg_data		= 0x01;
+    i2c_reg_settings.reg_setting	= &i2c_reg_array;
+
+    rc = camera_io_dev_write( io_master_info, &i2c_reg_settings );
+    if ( rc < 0 )
+    {
+        CAM_ERR( CAM_EEPROM, "continuous read failed" );
+        goto err;
+    }
+
+    /* OTP data verify */
+    rc = camera_io_dev_read( io_master_info, 0x030a, &read_addr, addr_type, addr_type );
+    if ( rc < 0 )
+    {
+        CAM_ERR( CAM_EEPROM, "read failed rc %d", rc );
+    }
+    if(read_addr != addr)
+		CAM_INFO( CAM_EEPROM, "addr=0x%x read_addr=0x%x", addr, read_addr );
+
+    /* OTP data read */
+    rc = camera_io_dev_read_seq( io_master_info, 0x0308, memptr, addr_type, data_type, 1 );
+    if ( rc < 0 )
+    {
+        CAM_ERR( CAM_EEPROM, "read failed rc %d", rc );
+    }
+
+    CAM_INFO( CAM_EEPROM, "addr=0x%x  read_addr=0x%x  *memptr=0x%x", addr, read_addr, *memptr );
+
+err:
+    return(rc);
+}
+
+/**
+ * cam_otp_hi1336c_burst_read() - read map data into buffer with burst mode
+ * @io_master_info:	otp io struct
+ * @addr: start memory for reading
+ * @memptr:	block to be read
+ * @read_size: buffer count to be read
+ *
+ * This function iterates through blocks stored in block->map, reads each
+ * region and concatenate them into the pre-allocated block->mapdata
+ */
+
+static int cam_otp_hi1336c_burst_read( struct camera_io_master *io_master_info, uint32_t addr,
+                                      uint8_t *memptr, uint32_t read_size )
+{
+    int					rc = 0;
+    struct cam_sensor_i2c_reg_setting	i2c_reg_settings;
+    struct cam_sensor_i2c_reg_array		i2c_reg_array;
+    enum camera_sensor_i2c_type		addr_type	= CAMERA_SENSOR_I2C_TYPE_WORD;
+    enum camera_sensor_i2c_type		data_type	= CAMERA_SENSOR_I2C_TYPE_BYTE;
+    uint32_t				read_addr		= 0;
+
+    if ( !io_master_info )
+    {
+        CAM_ERR( CAM_EEPROM, "io_master_info is NULL" );
+        return(-EINVAL);
+    }
+
+    i2c_reg_settings.addr_type	= addr_type;
+    i2c_reg_settings.data_type	= data_type;
+    i2c_reg_settings.size		= 1;
+    i2c_reg_settings.delay		= 4;
+    i2c_reg_array.delay		= 4;
+
+    /* high address */
+    i2c_reg_array.reg_addr		= 0x030a;
+    i2c_reg_array.reg_data		= (addr >> 8) & 0xff;
+    i2c_reg_settings.reg_setting	= &i2c_reg_array;
+
+    rc = camera_io_dev_write( io_master_info, &i2c_reg_settings );
+    if ( rc < 0 )
+    {
+        CAM_ERR( CAM_EEPROM, "write high address failed" );
+        goto err;
+    }
+
+    /* low address */
+    i2c_reg_array.reg_addr		= 0x030b;
+    i2c_reg_array.reg_data		= addr & 0xff;
+    i2c_reg_settings.reg_setting	= &i2c_reg_array;
+
+    rc = camera_io_dev_write( io_master_info, &i2c_reg_settings );
+    if ( rc < 0 )
+    {
+        CAM_ERR( CAM_EEPROM, "write low address failed" );
+        goto err;
+    }
+
+    /* OTP read mode */
+    i2c_reg_array.reg_addr		= 0x0302;
+    i2c_reg_array.reg_data		= 0x01;
+    i2c_reg_settings.reg_setting	= &i2c_reg_array;
+
+    rc = camera_io_dev_write( io_master_info, &i2c_reg_settings );
+    if ( rc < 0 )
+    {
+        CAM_ERR( CAM_EEPROM, "continuous read failed" );
+        goto err;
+    }
+
+    /* OTP data verify*/
+    rc = camera_io_dev_read( io_master_info, 0x030a, &read_addr, addr_type, addr_type );
+    if ( rc < 0 )
+    {
+        CAM_ERR( CAM_EEPROM, "read failed rc %d", rc );
+    }
+
+    if(read_addr != addr)
+		CAM_INFO( CAM_EEPROM, "addr=0x%x read_addr=0x%x", addr, read_addr );
+
+    /* burst read on */
+    i2c_reg_array.reg_addr		= 0x0712;
+    i2c_reg_array.reg_data		= 0x01;
+    i2c_reg_settings.reg_setting	= &i2c_reg_array;
+
+    rc = camera_io_dev_write( io_master_info, &i2c_reg_settings );
+    if ( rc < 0 )
+    {
+        CAM_ERR( CAM_EEPROM, "continuous read failed" );
+        goto err;
+    }
+
+    /* OTP data burst read */
+    rc = camera_io_dev_read_seq( io_master_info, 0x0308, memptr, addr_type, data_type, read_size );
+    if ( rc < 0 )
+    {
+        CAM_ERR( CAM_EEPROM, "read failed rc %d", rc );
+    }
+
+    /* burst read off */
+    i2c_reg_array.reg_addr		= 0x0712;
+    i2c_reg_array.reg_data		= 0x00;
+    i2c_reg_settings.reg_setting	= &i2c_reg_array;
+
+    rc = camera_io_dev_write( io_master_info, &i2c_reg_settings );
+    if ( rc < 0 )
+    {
+        CAM_ERR( CAM_EEPROM, "continuous read failed" );
+        goto err;
+    }
+
+err:
+    return(rc);
+}
+
+/**
+ * cam_otp_hi1336c_read_memory() - read map data into buffer
+ * @e_ctrl:	otp control struct
+ * @block:	block to be read
+ *
+ * This function iterates through blocks stored in block->map, reads each
+ * region and concatenate them into the pre-allocated block->mapdata
+ */
+
+static int cam_otp_hi1336c_read_memory( struct cam_eeprom_ctrl_t *e_ctrl,
+                                       struct cam_eeprom_memory_block_t *block )
+
+{
+    struct cam_eeprom_memory_map_t	*emap	= block->map;
+    struct cam_eeprom_soc_private	*eb_info;
+    uint32_t	addr		= 0;
+    uint32_t	read_size	= 0;
+    uint32_t	offset = 0;
+    uint8_t		OTP_Bank	= 0;
+    uint8_t				*memptr = block->mapdata;
+    int		read_bytes	= 0;
+    int		rc	= 0;
+    int		j	= 0;
+
+    if ( !e_ctrl )
+    {
+        CAM_ERR( CAM_EEPROM, "e_ctrl is NULL" );
+        return(-EINVAL);
+    }
+
+    eb_info = (struct cam_eeprom_soc_private *) e_ctrl->soc_info.soc_private;
+
+    rc = cam_otp_hi1336c_init(&e_ctrl->io_master_info);
+    if ( rc < 0 )
+    {
+        CAM_ERR( CAM_EEPROM, "OTP init failed" );
+        goto err;
+    }
+
+    /* select bank */
+    rc = cam_otp_hi1336c_read( &e_ctrl->io_master_info, SENSOR_HI1336C_OTP_BANK_SELECT_REGISTER, &OTP_Bank );
+
+    if ( rc < 0 )
+    {
+        CAM_ERR( CAM_EEPROM, "read data failed" );
+        goto err;
+    }
+    CAM_INFO( CAM_EEPROM, "current OTP_Bank: %d", OTP_Bank );
+
+#if defined(CONFIG_SEC_M44X_PROJECT)
+    switch ( OTP_Bank )
+    {
+    /* Refer to OTP document */
+    case 0:
+    case 1:
+        offset = 0x0400;
+        break;
+
+    case 3:
+        offset = 0x07A0;
+        break;
+
+    case 7:
+        offset = 0x0B40;
+        break;
+
+    case 0xF:
+        offset = 0x0EE0;
+        break;
+
+    case 0x1F:
+        offset = 0x1280;
+        break;
+
+    default:
+        CAM_INFO( CAM_EEPROM, "Bank error : Bank(%d)", OTP_Bank );
+        return EINVAL;
+    }
+#else
+    switch ( OTP_Bank )
+    {
+    /* Refer to OTP document */
+    case 0:
+    case 1:
+        offset = 0x0400;
+        break;
+
+    case 3:
+        offset = 0x0900;
+        break;
+
+    case 7:
+        offset = 0x0E00;
+        break;
+
+    case 0xF:
+        offset = 0x1300;
+        break;
+
+    default:
+        CAM_INFO( CAM_EEPROM, "Bank error : Bank(%d)", OTP_Bank );
+        return EINVAL;
+    }
+#endif
+
+    CAM_INFO( CAM_EEPROM, "read OTP offset: 0x%x", offset );
+
+    for ( j = 1; j < block->num_map; j++ )
+    {
+        read_size	= emap[j].mem.valid_size;
+        memptr		= block->mapdata + emap[j].mem.addr;
+        addr		= emap[j].mem.addr + offset;
+
+        CAM_INFO( CAM_EEPROM, "emap[%d / %d].mem.addr=0x%x OTP addr=0x%x read_size=0x%x mapdata=%pK memptr=%pK subdev=%d type=%d",
+                  j, block->num_map, emap[j].mem.addr, addr, read_size, block->mapdata, memptr, e_ctrl->soc_info.index, e_ctrl->eeprom_device_type );
+
+        cam_otp_hi1336c_burst_read( &e_ctrl->io_master_info, addr, memptr, read_size );
+        memptr		+= read_size;
+    }
+    CAM_INFO( CAM_EEPROM, "read data done memptr=%pK VR:: End read_bytes=0x%x\n", memptr, read_bytes );
+
+    /* OTP finish setting1 write */
+    rc = camera_io_dev_write( &e_ctrl->io_master_info, &hi1336c_otp_finish_setting1 );
+    if ( rc < 0 )
+    {
+        CAM_ERR( CAM_EEPROM, "load otp finish setfile1 failed" );
+        return(rc);
+    }
+
+    msleep(10);
+
+    /* OTP finish setting2 write */
+    rc = camera_io_dev_write( &e_ctrl->io_master_info, &hi1336c_otp_finish_setting2 );
+    if ( rc < 0 )
+    {
+        CAM_ERR( CAM_EEPROM, "load otp finish setfile2 failed" );
+        return(rc);
+    }
+
+err:
+    return(rc);
+}
+#endif
 
 /**
  * cam_eeprom_read_memory() - read map data into buffer
@@ -2301,22 +2829,26 @@ static int cam_eeprom_power_up(struct cam_eeprom_ctrl_t *e_ctrl,
 		&e_ctrl->soc_info,
 		power_info->power_setting,
 		power_info->power_setting_size);
+#if !defined(CONFIG_SEC_M44X_PROJECT)
 	if (rc) {
 		CAM_ERR(CAM_EEPROM,
 			"failed to fill power up vreg params rc:%d", rc);
 		return rc;
 	}
+#endif
 
 	/* Parse and fill vreg params for power down settings*/
 	rc = msm_camera_fill_vreg_params(
 		&e_ctrl->soc_info,
 		power_info->power_down_setting,
 		power_info->power_down_setting_size);
+#if !defined(CONFIG_SEC_M44X_PROJECT)
 	if (rc) {
 		CAM_ERR(CAM_EEPROM,
 			"failed to fill power down vreg params  rc:%d", rc);
 		return rc;
 	}
+#endif
 
 	power_info->dev = soc_info->dev;
 
@@ -2491,15 +3023,22 @@ int32_t cam_eeprom_parse_read_memory_map(struct device_node *of_node,
 	for (i = 0; i < e_ctrl->cal_data.num_map>>1; i++)
 		normal_crc_value |= (1 << i);
 
-	CAMERA_NORMAL_CAL_CRC = normal_crc_value;
+	e_ctrl->camera_normal_cal_crc = normal_crc_value;
 	CAM_INFO(CAM_EEPROM, "num_map = %d, CAMERA_NORMAL_CAL_CRC = 0x%X",
-		e_ctrl->cal_data.num_map, CAMERA_NORMAL_CAL_CRC);
+		e_ctrl->cal_data.num_map, e_ctrl->camera_normal_cal_crc);
 
 	rc = cam_eeprom_read_memory(e_ctrl, &e_ctrl->cal_data);
 	if (rc < 0) {
 		CAM_ERR(CAM_EEPROM, "read_eeprom_memory failed");
 		goto power_down;
 	}
+#if defined(CONFIG_SAMSUNG_CAMERA_OTP)
+	if((e_ctrl->soc_info.index == SEC_ULTRA_WIDE_SENSOR || e_ctrl->soc_info.index == SEC_FRONT_SENSOR || e_ctrl->soc_info.index == SEC_FRONT_FULL_SENSOR) &&
+		soc_private->i2c_info.slave_addr == 0x42){
+		e_ctrl->is_supported = 0;
+	}
+	else
+#endif
 	e_ctrl->is_supported |= cam_eeprom_match_crc(&e_ctrl->cal_data, e_ctrl->soc_info.index);
 
 	if (e_ctrl->is_supported != normal_crc_value)
@@ -2602,6 +3141,13 @@ static int32_t cam_eeprom_update_slaveInfo(struct cam_eeprom_ctrl_t *e_ctrl,
 	soc_private->i2c_info.slave_addr = cmd_i2c_info->slave_addr;
 	soc_private->i2c_info.i2c_freq_mode = cmd_i2c_info->i2c_freq_mode;
 
+#if defined(CONFIG_SAMSUNG_CAMERA_OTP)
+	if(e_ctrl->soc_info.index == SEC_ULTRA_WIDE_SENSOR &&
+		soc_private->i2c_info.slave_addr == 0xA8){
+		e_ctrl->io_master_info.cci_client->cci_i2c_master = MASTER_1;
+		e_ctrl->cci_i2c_master = MASTER_1;
+	}
+#endif
 	rc = cam_eeprom_update_i2c_info(e_ctrl,
 		&soc_private->i2c_info);
 	CAM_DBG(CAM_EEPROM, "Slave addr: 0x%x Freq Mode: %d",
@@ -3252,7 +3798,16 @@ static int32_t cam_eeprom_init_pkt_parser(struct cam_eeprom_ctrl_t *e_ctrl,
 					rc = -EINVAL;
 					goto end;
 				}
+
+				if ((num_map + 1) >=
+					(MSM_EEPROM_MAX_MEM_MAP_CNT *
+					MSM_EEPROM_MEMORY_MAP_MAX_SIZE)) {
+					CAM_ERR(CAM_EEPROM, "OOB error");
+					rc = -EINVAL;
+					goto end;
+				}
 				/* Configure the following map slave address */
+
 				map[num_map + 1].saddr = i2c_info->slave_addr;
 				rc = cam_eeprom_update_slaveInfo(e_ctrl,
 					cmd_buf);
@@ -3862,6 +4417,7 @@ static int32_t cam_eeprom_pkt_parse(struct cam_eeprom_ctrl_t *e_ctrl, void *arg)
 	struct cam_eeprom_soc_private  *soc_private =
 		(struct cam_eeprom_soc_private *)e_ctrl->soc_info.soc_private;
 	struct cam_sensor_power_ctrl_t *power_info = &soc_private->power_info;
+	uint8_t                         crc_check_retry_cnt = 0;
 
 	ioctl_ctrl = (struct cam_control *)arg;
 
@@ -3953,6 +4509,14 @@ static int32_t cam_eeprom_pkt_parse(struct cam_eeprom_ctrl_t *e_ctrl, void *arg)
 			goto error;
 		}
 
+eeropm_crc_check :
+		rc = cam_eeprom_power_up(e_ctrl,
+			&soc_private->power_info);
+		if (rc) {
+			CAM_ERR(CAM_EEPROM, "failed rc %d", rc);
+			goto memdata_free;
+		}
+
 		if (e_ctrl->eeprom_device_type == MSM_CAMERA_SPI_DEVICE) {
 			rc = cam_eeprom_match_id(e_ctrl);
 			if (rc) {
@@ -3960,13 +4524,6 @@ static int32_t cam_eeprom_pkt_parse(struct cam_eeprom_ctrl_t *e_ctrl, void *arg)
 					"eeprom not matching %d", rc);
 				goto memdata_free;
 			}
-		}
-
-		rc = cam_eeprom_power_up(e_ctrl,
-			&soc_private->power_info);
-		if (rc) {
-			CAM_ERR(CAM_EEPROM, "failed rc %d", rc);
-			goto memdata_free;
 		}
 
 		e_ctrl->cam_eeprom_state = CAM_EEPROM_CONFIG;
@@ -3987,10 +4544,16 @@ static int32_t cam_eeprom_pkt_parse(struct cam_eeprom_ctrl_t *e_ctrl, void *arg)
 			for (i = 0; i < e_ctrl->cal_data.num_map>>1; i++)
 				normal_crc_value |= (1 << i);
 
-			CAMERA_NORMAL_CAL_CRC = normal_crc_value;
+			e_ctrl->camera_normal_cal_crc = normal_crc_value;
 			CAM_INFO(CAM_EEPROM, "num_map = %d, CAMERA_NORMAL_CAL_CRC = 0x%X",
-				e_ctrl->cal_data.num_map, CAMERA_NORMAL_CAL_CRC);
-
+				e_ctrl->cal_data.num_map, e_ctrl->camera_normal_cal_crc);
+#if defined(CONFIG_SAMSUNG_CAMERA_OTP)
+			if ((e_ctrl->soc_info.index == SEC_ULTRA_WIDE_SENSOR || e_ctrl->soc_info.index == SEC_FRONT_SENSOR || e_ctrl->soc_info.index == SEC_FRONT_FULL_SENSOR) &&
+				soc_private->i2c_info.slave_addr == 0x42){
+				rc = cam_otp_read_memory(e_ctrl, &e_ctrl->cal_data);
+			}
+			else
+#endif
 			rc = cam_eeprom_read_memory(e_ctrl, &e_ctrl->cal_data);
 			if (rc < 0) {
 				CAM_ERR(CAM_EEPROM,
@@ -3999,15 +4562,36 @@ static int32_t cam_eeprom_pkt_parse(struct cam_eeprom_ctrl_t *e_ctrl, void *arg)
 			}
 
 			if (1 < e_ctrl->cal_data.num_map) {
-				rc = cam_eeprom_get_customInfo(e_ctrl, csl_packet);
-
+				if (crc_check_retry_cnt == 0) {
+					rc = cam_eeprom_get_customInfo(e_ctrl, csl_packet);
+				}
+#if defined(CONFIG_SAMSUNG_CAMERA_OTP)
+				if((e_ctrl->soc_info.index == SEC_ULTRA_WIDE_SENSOR || e_ctrl->soc_info.index == SEC_FRONT_SENSOR || e_ctrl->soc_info.index == SEC_FRONT_FULL_SENSOR) &&
+					soc_private->i2c_info.slave_addr  == 0x42){
+				    e_ctrl->is_supported = e_ctrl->camera_normal_cal_crc;
+				}
+				else
+#endif
 				e_ctrl->is_supported |= cam_eeprom_match_crc(&e_ctrl->cal_data,
 					e_ctrl->soc_info.index);
-
-				if (e_ctrl->is_supported != normal_crc_value)
+				
+				if (e_ctrl->is_supported != normal_crc_value) {
 					CAM_ERR(CAM_EEPROM, "Any CRC values at F-ROM are not matched.");
-				else
+					if (crc_check_retry_cnt < 3) {
+						crc_check_retry_cnt++;
+						CAM_ERR(CAM_EEPROM, "Retry to read F-ROM : %d", crc_check_retry_cnt);
+#if defined(FORCE_DISABLE_REGULATOR)
+						cam_eeprom_force_power_down(e_ctrl);
+#else
+						cam_eeprom_power_down(e_ctrl);
+#endif
+						goto eeropm_crc_check;
+
+					}
+ 				} else {
 					CAM_INFO(CAM_EEPROM, "All CRC values are matched.");
+					crc_check_retry_cnt = 0;
+				}
 
 				rc = cam_eeprom_update_module_info(e_ctrl);
 				if (rc < 0) {

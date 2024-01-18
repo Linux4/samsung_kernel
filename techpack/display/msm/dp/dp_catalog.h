@@ -149,6 +149,7 @@ struct dp_catalog_audio {
 
 struct dp_dsc_cfg_data {
 	bool dsc_en;
+	bool continuous_pps;
 	char pps[128];
 	u32 pps_len;
 	u32 pps_word[32];
@@ -256,7 +257,7 @@ struct dp_catalog {
 
 	struct dp_catalog_sub *sub;
 
-#ifdef CONFIG_SEC_DISPLAYPORT
+#if defined(CONFIG_SEC_DISPLAYPORT)
 	struct dp_parser *parser;
 #endif
 

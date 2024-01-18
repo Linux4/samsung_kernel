@@ -26,12 +26,18 @@
 #include "cam_ois_rumba_s4.h"
 #endif
 
-#if defined(CONFIG_USE_CAMERA_HW_BIG_DATA)
+#if defined(CONFIG_USE_CAMERA_HW_BIG_DATA) || defined(CONFIG_SAMSUNG_OIS_MCU_STM32)
 #include "cam_sensor_cmn_header.h"
 #include "cam_debug_util.h"
 #endif
 #if IS_REACHABLE(CONFIG_LEDS_S2MPB02)
 #include <linux/leds-s2mpb02.h>
+#endif
+#if IS_REACHABLE(CONFIG_LEDS_KTD2692)
+#include <linux/leds-ktd2692.h>
+#endif
+#if IS_REACHABLE(CONFIG_LEDS_SM5714)
+#include <linux/sm5714.h>
 #endif
 
 #if 0 //EARLY_RETENTION
@@ -136,6 +142,64 @@ static ssize_t rear_ssm_flicker_state_store(struct device *dev,
 }
 #endif
 
+#if defined(CONFIG_CAMERA_CDR_TEST)
+int cdr_value_exist = 0;
+uint64_t cdr_start_ts;
+uint64_t cdr_end_ts;
+char cdr_value[50] = "";
+static ssize_t rear_cam_cdr_value_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	int rc = 0;
+
+	rc = scnprintf(buf, PAGE_SIZE, "%s", cdr_value);
+	if (rc)
+		return rc;
+	return 0;
+}
+
+static ssize_t rear_cam_cdr_value_store(struct device *dev,
+	struct device_attribute *attr, const char *buf, size_t size)
+{
+	cdr_value_exist = 1;
+	scnprintf(cdr_value, sizeof(cdr_value), "%s", buf);
+
+	return size;
+}
+
+char cdr_result[40] = "\n";
+static ssize_t rear_cam_cdr_result_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	int rc = 0;
+
+	rc = scnprintf(buf, PAGE_SIZE, "%s", cdr_result);
+	if (rc)
+		return rc;
+	return 0;
+}
+
+char cdr_fastaec[5] = "";
+static ssize_t rear_cam_cdr_fastaec_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	int rc = 0;
+
+	rc = scnprintf(buf, PAGE_SIZE, "%s", cdr_fastaec);
+	if (rc)
+		return rc;
+	return 0;
+}
+
+static ssize_t rear_cam_cdr_fastaec_store(struct device *dev,
+	struct device_attribute *attr, const char *buf, size_t size)
+{
+	scnprintf(cdr_fastaec, sizeof(cdr_fastaec), "%s", buf);
+
+	return size;
+}
+#endif
+
 char rear_fw_ver[SYSFS_FW_VER_SIZE] = "NULL NULL\n";//multi module
 static ssize_t rear_firmware_show(struct device *dev,
 	struct device_attribute *attr, char *buf)
@@ -165,11 +229,26 @@ static ssize_t rear_type_show(struct device *dev,
 
 #if defined(CONFIG_SEC_P3Q_PROJECT) || defined(CONFIG_SEC_O3Q_PROJECT)
 	char cam_type[] = "SLSI_S5KHM3\n";
+#elif defined(CONFIG_SEC_B2Q_PROJECT)
+	char cam_type[] = "SONY_IMX563\n";
+#elif defined(CONFIG_SEC_R9Q_PROJECT)
+	char cam_type_sony[] = "SONY_IMX555\n";
+	char cam_type_slsi[] = "SLSI_S5K2LD\n";
+#elif defined(CONFIG_SEC_M44X_PROJECT)
+char cam_type[] = "SLSI_S5KJN1\n";
+
 #else
 	char cam_type[] = "SONY_IMX555\n";
 #endif
 
+#if defined(CONFIG_SEC_R9Q_PROJECT)
+	if (rear_fw_ver[4] == 'S')
+		rc = scnprintf(buf, PAGE_SIZE, "%s", cam_type_sony);
+	else
+		rc = scnprintf(buf, PAGE_SIZE, "%s", cam_type_slsi);
+#else
 	rc = scnprintf(buf, PAGE_SIZE, "%s", cam_type);
+#endif
 
 	if (rc)
 		return rc;
@@ -182,6 +261,13 @@ static ssize_t front_camera_type_show(struct device *dev,
 	int rc = 0;
 #if defined(CONFIG_SEC_P3Q_PROJECT) || defined(CONFIG_SEC_O3Q_PROJECT)
 	char cam_type[] = "SLSI_S5KGH1\n";
+#elif defined(CONFIG_SEC_R9Q_PROJECT)
+	char cam_type[] = "SONY_IMX616\n";
+#elif defined(CONFIG_SEC_Q2Q_PROJECT) || defined(CONFIG_SEC_V2Q_PROJECT)
+	char cam_type[] = "SONY_IMX471\n";
+#elif defined(CONFIG_SEC_M44X_PROJECT)
+char cam_type[] = "HYNIX_HI1336\n";
+
 #else
 	char cam_type[] = "SONY_IMX374\n";
 #endif
@@ -275,7 +361,7 @@ static ssize_t rear_firmware_factory_store(struct device *dev,
 	return size;
 }
 
-#if defined(CONFIG_SEC_P3Q_PROJECT) || defined(CONFIG_SEC_O3Q_PROJECT)
+#if defined(CONFIG_SEC_P3Q_PROJECT) || defined(CONFIG_SEC_O3Q_PROJECT) || defined(CONFIG_SEC_R9Q_PROJECT)
 char rear3_fw_user_ver[SYSFS_FW_VER_SIZE] = "NULL\n";//multi module
 static ssize_t rear3_firmware_user_show(struct device *dev,
 	struct device_attribute *attr, char *buf)
@@ -1606,11 +1692,25 @@ static ssize_t rear3_type_show(struct device *dev,
 	int rc = 0;
 #if defined(CONFIG_SEC_P3Q_PROJECT) || defined(CONFIG_SEC_O3Q_PROJECT)
 	char cam_type[] = "SLSI_S5K3J1\n";
+#elif defined(CONFIG_SEC_R9Q_PROJECT)
+	char cam_type[] = "HYNIX_HI847\n";
+#elif defined(CONFIG_SEC_Q2Q_PROJECT) || defined(CONFIG_SEC_V2Q_PROJECT)
+	char cam_type_lsi[] = "SLSI_S5K3M5\n";
+	char cam_type_hynix[] = "HYNIX_HI1337\n";
+#elif defined(CONFIG_SEC_M44X_PROJECT)
+    char cam_type[] = "SLSI_GCO2M2\n";
 #else
 	char cam_type[] = "SLSI_S5KGW2\n";
 #endif
 
+#if defined(CONFIG_SEC_Q2Q_PROJECT) || defined(CONFIG_SEC_V2Q_PROJECT)
+	if (rear3_fw_ver[4] == 'L')
+		rc = scnprintf(buf, PAGE_SIZE, "%s", cam_type_lsi);
+	else
+		rc = scnprintf(buf, PAGE_SIZE, "%s", cam_type_hynix);
+#else
 	rc = scnprintf(buf, PAGE_SIZE, "%s", cam_type);
+#endif
 	if (rc)
 		return rc;
 	return 0;
@@ -1709,7 +1809,7 @@ static ssize_t rear3_tilt_show(struct device *dev,
 }
 
 uint8_t rear3_module_id[FROM_MODULE_ID_SIZE + 1] = "\0";
-#if defined(CONFIG_SEC_P3Q_PROJECT) || defined(CONFIG_SEC_O3Q_PROJECT)
+#if defined(CONFIG_SEC_P3Q_PROJECT) || defined(CONFIG_SEC_O3Q_PROJECT) || defined(CONFIG_SEC_R9Q_PROJECT)
 static ssize_t rear3_moduleid_show(struct device *dev,
 	struct device_attribute *attr, char *buf)
 {
@@ -2018,9 +2118,27 @@ static ssize_t rear2_type_show(struct device *dev,
 	struct device_attribute *attr, char *buf)
 {
 	int rc = 0;
+#if defined(CONFIG_SEC_Q2Q_PROJECT)|| defined(CONFIG_SEC_B2Q_PROJECT) || defined(CONFIG_SEC_V2Q_PROJECT)
+	char cam_type[] = "SONY_IMX258\n";
+#elif defined(CONFIG_SEC_R9Q_PROJECT)
+	char cam_type_sony[] = "SONY_IMX258\n";
+	char cam_type_hynix[] = "HYNIX_HI1336C\n";
+#elif defined(CONFIG_SEC_O1Q_PROJECT) || defined(CONFIG_SEC_T2Q_PROJECT) || defined(CONFIG_SEC_P3Q_PROJECT)
 	char cam_type[] = "SONY_IMX563\n";
+#elif defined(CONFIG_SEC_M44X_PROJECT)
+char cam_type[] = "SLSI_SC201CS\n";
+#else
+	char cam_type[] = "";
+#endif
 
+#if defined(CONFIG_SEC_R9Q_PROJECT)
+	if (rear2_fw_ver[4] == 'S')
+		rc = scnprintf(buf, PAGE_SIZE, "%s", cam_type_sony);
+	else
+		rc = scnprintf(buf, PAGE_SIZE, "%s", cam_type_hynix);
+#else
 	rc = scnprintf(buf, PAGE_SIZE, "%s", cam_type);
+#endif
 	if (rc)
 		return rc;
 	return 0;
@@ -2402,25 +2520,108 @@ static ssize_t gyro_calibration_show(struct device *dev,
 	int result = 0;
 	long raw_data_x = 0, raw_data_y = 0;
 
+#if defined(CONFIG_SAMSUNG_OIS_Z_AXIS_CAL)
+	long raw_data_z = 0;
+
+	result = cam_ois_gyro_sensor_calibration(g_o_ctrl, &raw_data_x, &raw_data_y, &raw_data_z);
+#else
 	result = cam_ois_gyro_sensor_calibration(g_o_ctrl, &raw_data_x, &raw_data_y);
+#endif
 
 	if (raw_data_x < 0 && raw_data_y < 0) {
+#if defined(CONFIG_SAMSUNG_OIS_Z_AXIS_CAL)
+		if (raw_data_z < 0) {
+			return scnprintf(buf, PAGE_SIZE, "%d,-%ld.%03ld,-%ld.%03ld,-%ld.%03ld\n", result, abs(raw_data_x / 1000),
+			abs(raw_data_x % 1000), abs(raw_data_y / 1000), abs(raw_data_y % 1000),
+			abs(raw_data_z / 1000), abs(raw_data_z % 1000));
+		}
+		else {
+			return scnprintf(buf, PAGE_SIZE, "%d,-%ld.%03ld,-%ld.%03ld,%ld.%03ld\n", result, abs(raw_data_x / 1000),
+			abs(raw_data_x % 1000), abs(raw_data_y / 1000), abs(raw_data_y % 1000),
+			abs(raw_data_z / 1000), abs(raw_data_z % 1000));
+		}
+#else
 		return scnprintf(buf, PAGE_SIZE, "%d,-%ld.%03ld,-%ld.%03ld\n", result, abs(raw_data_x / 1000),
 			abs(raw_data_x % 1000), abs(raw_data_y / 1000), abs(raw_data_y % 1000));
+#endif
 	} else if (raw_data_x < 0) {
+#if defined(CONFIG_SAMSUNG_OIS_Z_AXIS_CAL)
+		if (raw_data_z < 0) {
+			return scnprintf(buf, PAGE_SIZE, "%d,-%ld.%03ld,%ld.%03ld,-%ld.%03ld\n", result, abs(raw_data_x / 1000),
+			abs(raw_data_x % 1000), abs(raw_data_y / 1000), abs(raw_data_y % 1000),
+			abs(raw_data_z / 1000), abs(raw_data_z % 1000));
+		}
+		else {
+			return scnprintf(buf, PAGE_SIZE, "%d,-%ld.%03ld,%ld.%03ld,%ld.%03ld\n", result, abs(raw_data_x / 1000),
+			abs(raw_data_x % 1000), abs(raw_data_y / 1000), abs(raw_data_y % 1000),
+			abs(raw_data_z / 1000), abs(raw_data_z % 1000));
+		}
+#else
 		return scnprintf(buf, PAGE_SIZE, "%d,-%ld.%03ld,%ld.%03ld\n", result, abs(raw_data_x / 1000),
 			abs(raw_data_x % 1000), raw_data_y / 1000, raw_data_y % 1000);
+#endif
 	} else if (raw_data_y < 0) {
+#if defined(CONFIG_SAMSUNG_OIS_Z_AXIS_CAL)
+		if (raw_data_z < 0) {
+			return scnprintf(buf, PAGE_SIZE, "%d,%ld.%03ld,-%ld.%03ld,-%ld.%03ld\n", result, abs(raw_data_x / 1000),
+			abs(raw_data_x % 1000), abs(raw_data_y / 1000), abs(raw_data_y % 1000),
+			abs(raw_data_z / 1000), abs(raw_data_z % 1000));
+		}
+		else {
+			return scnprintf(buf, PAGE_SIZE, "%d,%ld.%03ld,-%ld.%03ld,%ld.%03ld\n", result, abs(raw_data_x / 1000),
+			abs(raw_data_x % 1000), abs(raw_data_y / 1000), abs(raw_data_y % 1000),
+			abs(raw_data_z / 1000), abs(raw_data_z % 1000));
+		}
+#else
 		return scnprintf(buf, PAGE_SIZE, "%d,%ld.%03ld,-%ld.%03ld\n", result, raw_data_x / 1000,
 			raw_data_x % 1000, abs(raw_data_y / 1000), abs(raw_data_y % 1000));
+#endif
 	} else {
+#if defined(CONFIG_SAMSUNG_OIS_Z_AXIS_CAL)
+		if (raw_data_z < 0) {
+			return scnprintf(buf, PAGE_SIZE, "%d,%ld.%03ld,%ld.%03ld,-%ld.%03ld\n", result, abs(raw_data_x / 1000),
+			abs(raw_data_x % 1000), abs(raw_data_y / 1000), abs(raw_data_y % 1000),
+			abs(raw_data_z / 1000), abs(raw_data_z % 1000));
+		}
+		else {
+			return scnprintf(buf, PAGE_SIZE, "%d,%ld.%03ld,%ld.%03ld,%ld.%03ld\n", result, abs(raw_data_x / 1000),
+			abs(raw_data_x % 1000), abs(raw_data_y / 1000), abs(raw_data_y % 1000),
+			abs(raw_data_z / 1000), abs(raw_data_z % 1000));
+		}
+#else
 		return scnprintf(buf, PAGE_SIZE, "%d,%ld.%03ld,%ld.%03ld\n", result, raw_data_x / 1000,
 			raw_data_x % 1000, raw_data_y / 1000, raw_data_y % 1000);
+#endif
+	}
+}
+
+static ssize_t gyro_noise_stdev_show(struct device *dev,
+			struct device_attribute *attr, char *buf)
+{
+	int result = 0;
+	long stdev_data_x = 0, stdev_data_y = 0;
+
+	result = cam_ois_gyro_sensor_noise_check(g_o_ctrl, &stdev_data_x, &stdev_data_y);
+
+	if (stdev_data_x < 0 && stdev_data_y < 0) {
+		return scnprintf(buf, PAGE_SIZE, "%d,-%ld.%03ld,-%ld.%03ld\n", result, abs(stdev_data_x / 1000),
+			abs(stdev_data_x % 1000), abs(stdev_data_y / 1000), abs(stdev_data_y % 1000));
+	} else if (stdev_data_x < 0) {
+		return scnprintf(buf, PAGE_SIZE, "%d,-%ld.%03ld,%ld.%03ld\n", result, abs(stdev_data_x / 1000),
+			abs(stdev_data_x % 1000), stdev_data_y / 1000, stdev_data_y % 1000);
+	} else if (stdev_data_y < 0) {
+		return scnprintf(buf, PAGE_SIZE, "%d,%ld.%03ld,-%ld.%03ld\n", result, stdev_data_x / 1000,
+			stdev_data_x % 1000, abs(stdev_data_y / 1000), abs(stdev_data_y % 1000));
+	} else {
+		return scnprintf(buf, PAGE_SIZE, "%d,%ld.%03ld,%ld.%03ld\n", result, stdev_data_x / 1000,
+			stdev_data_x % 1000, stdev_data_y / 1000, stdev_data_y % 1000);
 	}
 }
 
 long raw_init_x = 0, raw_init_y = 0;
-
+#if defined(CONFIG_SAMSUNG_OIS_Z_AXIS_CAL)
+long raw_init_z = 0;
+#endif
 static ssize_t gyro_selftest_show(struct device *dev, struct device_attribute *attr, char *buf)
 {
 	int rc = 0;
@@ -2431,7 +2632,12 @@ static ssize_t gyro_selftest_show(struct device *dev, struct device_attribute *a
 	int OIS_GYRO_OFFSET_SPEC = 10000;
 
 #if defined(CONFIG_SAMSUNG_OIS_MCU_STM32)
+#if defined(CONFIG_SAMSUNG_OIS_Z_AXIS_CAL)
+	long raw_data_z = 0;
+	result = cam_ois_offset_test(g_o_ctrl, &raw_data_x, &raw_data_y, &raw_data_z, 1);
+#else
 	result = cam_ois_offset_test(g_o_ctrl, &raw_data_x, &raw_data_y, 1);
+#endif
 #else
 	cam_ois_offset_test(g_o_ctrl, &raw_data_x, &raw_data_y, 1);
 #endif
@@ -2445,6 +2651,9 @@ static ssize_t gyro_selftest_show(struct device *dev, struct device_attribute *a
 
 	if ((result < 0) ||
 		abs(raw_init_x - raw_data_x) > OIS_GYRO_OFFSET_SPEC ||
+#if defined(CONFIG_SAMSUNG_OIS_Z_AXIS_CAL)
+		abs(raw_init_z - raw_data_z) > OIS_GYRO_OFFSET_SPEC ||
+#endif
 		abs(raw_init_y - raw_data_y) > OIS_GYRO_OFFSET_SPEC)
 		result_offset = false;
 	else
@@ -2460,27 +2669,95 @@ static ssize_t gyro_selftest_show(struct device *dev, struct device_attribute *a
 		result_total = 2;
 
 	pr_info("%s: Result : 0 (success), 1 (offset fail), 2 (selftest fail) , 3 (both fail)\n", __func__);
+
+#if defined(CONFIG_SAMSUNG_OIS_Z_AXIS_CAL)
+	sprintf(buf, "Result : %d, result x = %ld.%03ld, result y = %ld.%03ld, result z = %ld.%03ld\n",
+		result_total, raw_data_x / 1000, (long int)abs(raw_data_x % 1000),
+		raw_data_y / 1000, (long int)abs(raw_data_y % 1000),
+		raw_data_z / 1000, (long int)abs(raw_data_z % 1000));
+#else
 	sprintf(buf, "Result : %d, result x = %ld.%03ld, result y = %ld.%03ld\n",
 		result_total, raw_data_x / 1000, (long int)abs(raw_data_x % 1000),
 		raw_data_y / 1000, (long int)abs(raw_data_y % 1000));
+#endif
 	pr_info("%s", buf);
 
 	if (raw_data_x < 0 && raw_data_y < 0) {
+#if defined(CONFIG_SAMSUNG_OIS_Z_AXIS_CAL)
+		if (raw_data_z < 0) {
+			rc = scnprintf(buf, PAGE_SIZE, "%d,-%ld.%03ld,-%ld.%03ld,-%ld.%03ld\n", result_total,
+				(long int)abs(raw_data_x / 1000), (long int)abs(raw_data_x % 1000),
+				(long int)abs(raw_data_y / 1000), (long int)abs(raw_data_y % 1000),
+				(long int)abs(raw_data_z / 1000), (long int)abs(raw_data_z % 1000));
+		}
+		else {
+			rc = scnprintf(buf, PAGE_SIZE, "%d,-%ld.%03ld,-%ld.%03ld,%ld.%03ld\n", result_total,
+				(long int)abs(raw_data_x / 1000), (long int)abs(raw_data_x % 1000),
+				(long int)abs(raw_data_y / 1000), (long int)abs(raw_data_y % 1000),
+				(long int)abs(raw_data_z / 1000), (long int)abs(raw_data_z % 1000));
+		}
+#else
 		rc = scnprintf(buf, PAGE_SIZE, "%d,-%ld.%03ld,-%ld.%03ld\n", result_total,
 			(long int)abs(raw_data_x / 1000), (long int)abs(raw_data_x % 1000),
 			(long int)abs(raw_data_y / 1000), (long int)abs(raw_data_y % 1000));
+#endif
 	} else if (raw_data_x < 0) {
+#if defined(CONFIG_SAMSUNG_OIS_Z_AXIS_CAL)
+		if (raw_data_z < 0) {
+			rc = scnprintf(buf, PAGE_SIZE, "%d,-%ld.%03ld,%ld.%03ld,-%ld.%03ld\n", result_total,
+				(long int)abs(raw_data_x / 1000), (long int)abs(raw_data_x % 1000),
+				(long int)abs(raw_data_y / 1000), (long int)abs(raw_data_y % 1000),
+				(long int)abs(raw_data_z / 1000), (long int)abs(raw_data_z % 1000));
+		}
+		else {
+			rc = scnprintf(buf, PAGE_SIZE, "%d,-%ld.%03ld,%ld.%03ld,%ld.%03ld\n", result_total,
+				(long int)abs(raw_data_x / 1000), (long int)abs(raw_data_x % 1000),
+				(long int)abs(raw_data_y / 1000), (long int)abs(raw_data_y % 1000),
+				(long int)abs(raw_data_z / 1000), (long int)abs(raw_data_z % 1000));
+		}
+#else
 		rc = scnprintf(buf, PAGE_SIZE, "%d,-%ld.%03ld,%ld.%03ld\n", result_total,
 			(long int)abs(raw_data_x / 1000), (long int)abs(raw_data_x % 1000),
 			raw_data_y / 1000, raw_data_y % 1000);
+#endif
 	} else if (raw_data_y < 0) {
+#if defined(CONFIG_SAMSUNG_OIS_Z_AXIS_CAL)
+		if (raw_data_z < 0) {
+			rc = scnprintf(buf, PAGE_SIZE, "%d,%ld.%03ld,-%ld.%03ld,-%ld.%03ld\n", result_total,
+				(long int)abs(raw_data_x / 1000), (long int)abs(raw_data_x % 1000),
+				(long int)abs(raw_data_y / 1000), (long int)abs(raw_data_y % 1000),
+				(long int)abs(raw_data_z / 1000), (long int)abs(raw_data_z % 1000));
+		}
+		else {
+			rc = scnprintf(buf, PAGE_SIZE, "%d,%ld.%03ld,-%ld.%03ld,%ld.%03ld\n", result_total,
+				(long int)abs(raw_data_x / 1000), (long int)abs(raw_data_x % 1000),
+				(long int)abs(raw_data_y / 1000), (long int)abs(raw_data_y % 1000),
+				(long int)abs(raw_data_z / 1000), (long int)abs(raw_data_z % 1000));
+		}
+#else
 		rc = scnprintf(buf, PAGE_SIZE, "%d,%ld.%03ld,-%ld.%03ld\n", result_total,
 			raw_data_x / 1000, raw_data_x % 1000,
 			(long int)abs(raw_data_y / 1000), (long int)abs(raw_data_y % 1000));
+#endif
 	} else {
+#if defined(CONFIG_SAMSUNG_OIS_Z_AXIS_CAL)
+		if (raw_data_z < 0) {
+			rc = scnprintf(buf, PAGE_SIZE, "%d,%ld.%03ld,%ld.%03ld,-%ld.%03ld\n", result_total,
+				(long int)abs(raw_data_x / 1000), (long int)abs(raw_data_x % 1000),
+				(long int)abs(raw_data_y / 1000), (long int)abs(raw_data_y % 1000),
+				(long int)abs(raw_data_z / 1000), (long int)abs(raw_data_z % 1000));
+		}
+		else {
+			rc = scnprintf(buf, PAGE_SIZE, "%d,%ld.%03ld,%ld.%03ld,%ld.%03ld\n", result_total,
+				(long int)abs(raw_data_x / 1000), (long int)abs(raw_data_x % 1000),
+				(long int)abs(raw_data_y / 1000), (long int)abs(raw_data_y % 1000),
+				(long int)abs(raw_data_z / 1000), (long int)abs(raw_data_z % 1000));
+		}
+#else
 		rc = scnprintf(buf, PAGE_SIZE, "%d,%ld.%03ld,%ld.%03ld\n",
 			result_total, raw_data_x / 1000, raw_data_x % 1000,
 			raw_data_y / 1000, raw_data_y % 1000);
+#endif
 	}
 
 	if (rc)
@@ -2493,6 +2770,9 @@ static ssize_t gyro_rawdata_test_store(struct device *dev,
 {
 	uint8_t raw_data[MAX_EFS_DATA_LENGTH] = {0, };
 	long raw_data_x = 0, raw_data_y = 0;
+#if defined(CONFIG_SAMSUNG_OIS_Z_AXIS_CAL)
+	long raw_data_z = 0;
+#endif
 	long efs_size = 0;
 
 	if (ois_power) {
@@ -2503,14 +2783,22 @@ static ssize_t gyro_rawdata_test_store(struct device *dev,
 
 		scnprintf(raw_data, sizeof(raw_data), "%s", buf);
 		efs_size = strlen(raw_data);
-
+#if defined(CONFIG_SAMSUNG_OIS_Z_AXIS_CAL)
+		cam_ois_parsing_raw_data(g_o_ctrl, raw_data, efs_size, &raw_data_x, &raw_data_y, &raw_data_z);
+#else
 		cam_ois_parsing_raw_data(g_o_ctrl, raw_data, efs_size, &raw_data_x, &raw_data_y);
-
+#endif
 		raw_init_x = raw_data_x;
 		raw_init_y = raw_data_y;
+#if defined(CONFIG_SAMSUNG_OIS_Z_AXIS_CAL)
+		raw_init_z = raw_data_z;
 
+		pr_info("%s efs data = %s, size = %ld, raw x = %ld, raw y = %ld, raw z = %ld",
+			__func__, buf, efs_size, raw_data_x, raw_data_y, raw_data_z);
+#else
 		pr_info("%s efs data = %s, size = %ld, raw x = %ld, raw y = %ld",
 			__func__, buf, efs_size, raw_data_x, raw_data_y);
+#endif
 	} else {
 		pr_err("%s OIS power is not enabled.", __func__);
 	}
@@ -2522,30 +2810,102 @@ static ssize_t gyro_rawdata_test_show(struct device *dev,
 {
 	int rc = 0;
 	long raw_data_x = 0, raw_data_y = 0;
+#if defined(CONFIG_SAMSUNG_OIS_Z_AXIS_CAL)
+	long raw_data_z = 0;
+#endif
 
 	raw_data_x = raw_init_x;
 	raw_data_y = raw_init_y;
+#if defined(CONFIG_SAMSUNG_OIS_Z_AXIS_CAL)
+	raw_data_z = raw_init_z;
 
+	pr_info("%s: raw data x = %ld.%03ld, raw data y = %ld.%03ld, raw data z = %ld.%03ld\n", __func__,
+		raw_data_x / 1000, raw_data_x % 1000,
+		raw_data_y / 1000, raw_data_y % 1000,
+		raw_data_z / 1000, raw_data_z % 1000);
+#else
 	pr_info("%s: raw data x = %ld.%03ld, raw data y = %ld.%03ld\n", __func__,
 		raw_data_x / 1000, raw_data_x % 1000,
 		raw_data_y / 1000, raw_data_y % 1000);
+#endif
 
 	if (raw_data_x < 0 && raw_data_y < 0) {
+#if defined(CONFIG_SAMSUNG_OIS_Z_AXIS_CAL)
+		if (raw_data_z < 0) {
+			rc = scnprintf(buf, PAGE_SIZE, "-%ld.%03ld,-%ld.%03ld,-%ld.%03ld\n",
+				(long int)abs(raw_data_x / 1000), (long int)abs(raw_data_x % 1000),
+				(long int)abs(raw_data_y / 1000), (long int)abs(raw_data_y % 1000),
+				(long int)abs(raw_data_z / 1000), (long int)abs(raw_data_z % 1000));
+		}
+		else {
+			rc = scnprintf(buf, PAGE_SIZE, "-%ld.%03ld,-%ld.%03ld,%ld.%03ld\n",
+				(long int)abs(raw_data_x / 1000), (long int)abs(raw_data_x % 1000),
+				(long int)abs(raw_data_y / 1000), (long int)abs(raw_data_y % 1000),
+				(long int)abs(raw_data_z / 1000), (long int)abs(raw_data_z % 1000));
+		}
+#else
 		rc = scnprintf(buf, PAGE_SIZE, "-%ld.%03ld,-%ld.%03ld\n",
 			(long int)abs(raw_data_x / 1000), (long int)abs(raw_data_x % 1000),
 			(long int)abs(raw_data_y / 1000), (long int)abs(raw_data_y % 1000));
+#endif
 	} else if (raw_data_x < 0) {
+#if defined(CONFIG_SAMSUNG_OIS_Z_AXIS_CAL)
+		if (raw_data_z < 0) {
+			rc = scnprintf(buf, PAGE_SIZE, "-%ld.%03ld,%ld.%03ld,-%ld.%03ld\n",
+				(long int)abs(raw_data_x / 1000), (long int)abs(raw_data_x % 1000),
+				(long int)abs(raw_data_y / 1000), (long int)abs(raw_data_y % 1000),
+				(long int)abs(raw_data_z / 1000), (long int)abs(raw_data_z % 1000));
+		}
+		else {
+			rc = scnprintf(buf, PAGE_SIZE, "-%ld.%03ld,%ld.%03ld,%ld.%03ld\n",
+				(long int)abs(raw_data_x / 1000), (long int)abs(raw_data_x % 1000),
+				(long int)abs(raw_data_y / 1000), (long int)abs(raw_data_y % 1000),
+				(long int)abs(raw_data_z / 1000), (long int)abs(raw_data_z % 1000));
+		}
+#else
 		rc = scnprintf(buf, PAGE_SIZE, "-%ld.%03ld,%ld.%03ld\n",
 			(long int)abs(raw_data_x / 1000), (long int)abs(raw_data_x % 1000),
 			raw_data_y / 1000, raw_data_y % 1000);
+#endif
 	} else if (raw_data_y < 0) {
+#if defined(CONFIG_SAMSUNG_OIS_Z_AXIS_CAL)
+		if (raw_data_z < 0) {
+			rc = scnprintf(buf, PAGE_SIZE, "%ld.%03ld,-%ld.%03ld,-%ld.%03ld\n",
+				(long int)abs(raw_data_x / 1000), (long int)abs(raw_data_x % 1000),
+				(long int)abs(raw_data_y / 1000), (long int)abs(raw_data_y % 1000),
+				(long int)abs(raw_data_z / 1000), (long int)abs(raw_data_z % 1000));
+		}
+		else {
+			rc = scnprintf(buf, PAGE_SIZE, "%ld.%03ld,-%ld.%03ld,%ld.%03ld\n",
+				(long int)abs(raw_data_x / 1000), (long int)abs(raw_data_x % 1000),
+				(long int)abs(raw_data_y / 1000), (long int)abs(raw_data_y % 1000),
+				(long int)abs(raw_data_z / 1000), (long int)abs(raw_data_z % 1000));
+		}
+#else
 		rc = scnprintf(buf, PAGE_SIZE, "%ld.%03ld,-%ld.%03ld\n",
 			raw_data_x / 1000, raw_data_x % 1000,
 			(long int)abs(raw_data_y / 1000), (long int)abs(raw_data_y % 1000));
+#endif
 	} else {
+
+#if defined(CONFIG_SAMSUNG_OIS_Z_AXIS_CAL)
+		if (raw_data_z < 0) {
+			rc = scnprintf(buf, PAGE_SIZE, "%ld.%03ld,%ld.%03ld,-%ld.%03ld\n",
+				(long int)abs(raw_data_x / 1000), (long int)abs(raw_data_x % 1000),
+				(long int)abs(raw_data_y / 1000), (long int)abs(raw_data_y % 1000),
+				(long int)abs(raw_data_z / 1000), (long int)abs(raw_data_z % 1000));
+		}
+		else {
+			rc = scnprintf(buf, PAGE_SIZE, "%ld.%03ld,%ld.%03ld,%ld.%03ld\n",
+				(long int)abs(raw_data_x / 1000), (long int)abs(raw_data_x % 1000),
+				(long int)abs(raw_data_y / 1000), (long int)abs(raw_data_y % 1000),
+				(long int)abs(raw_data_z / 1000), (long int)abs(raw_data_z % 1000));
+		}
+#else
 		rc = scnprintf(buf, PAGE_SIZE, "%ld.%03ld,%ld.%03ld\n",
 			raw_data_x / 1000, raw_data_x % 1000,
 			raw_data_y / 1000, raw_data_y % 1000);
+#endif
 	}
 
 	if (rc)
@@ -2902,6 +3262,47 @@ static ssize_t ois_check_cross_talk_show(struct device *dev,
 	return 0;
 }
 
+static ssize_t check_ois_valid_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	int rc = 0;
+	uint16_t result[MAX_MODULE_NUM] = { 1, 1, 1 };
+
+	rc = cam_ois_check_ois_valid_show(g_o_ctrl, result);
+	if (rc < 0)
+		pr_err("ois check ois valid fail\n");
+
+	rc = scnprintf(buf, PAGE_SIZE, "%u,%u,%u\n", result[0], result[1], result[2]);
+
+	if (rc)
+		return rc;
+	return 0;
+}
+
+#if defined(CONFIG_SAMSUNG_OIS_MCU_STM32)
+static ssize_t ois_check_hall_cal_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	int rc = 0;
+
+	uint16_t subdev_id = SEC_TELE_SENSOR;
+
+	uint16_t result[HALL_CAL_COUNT] = { 0, };
+
+	rc = cam_ois_read_hall_cal(g_o_ctrl, subdev_id, result);
+	if (rc < 0)
+		pr_err("ois check hall cal fail\n");
+
+	rc = scnprintf(buf, PAGE_SIZE, "%d,%d,%d,%d,%d,%d,%d,%d,%d",
+		(rc < 0 ? 0 : 1), result[0], result[1], result[2], result[3], result[4],
+		result[5], result[6], result[7]);
+
+	if (rc)
+		return rc;
+	return 0;
+}
+#endif
+
 static ssize_t ois_ext_clk_show(struct device *dev,
 	struct device_attribute *attr, char *buf)
 {
@@ -2927,7 +3328,7 @@ static ssize_t ois_ext_clk_store(struct device *dev,
 
 	if (buf == NULL || kstrtouint(buf, 10, &clk))
 		return -1;
-	pr_info("new ois ext clk %a\n", clk);
+	pr_info("new ois ext clk %u\n", clk);
 
 	rc = cam_ois_set_ext_clk(g_o_ctrl, clk);
 	if (rc < 0) {
@@ -2964,12 +3365,16 @@ static ssize_t rear_actuator_power_store(struct device *dev,
 				if (g_a_ctrls[index]->use_mcu)
 				{
 					mutex_lock(&(g_o_ctrl->ois_mutex));
-					rc = cam_ois_power_down(g_o_ctrl);
+					rc |= cam_ois_power_down(g_o_ctrl);
 					mutex_unlock(&(g_o_ctrl->ois_mutex));
 				}
 				else
 #endif
+				{
+					mutex_lock(&(g_a_ctrls[index]->actuator_mutex));
 					rc |= cam_actuator_power_down(g_a_ctrls[index]);
+					mutex_unlock(&(g_a_ctrls[index]->actuator_mutex));
+				}
 				pr_info("%s: actuator %u power down", __func__, index);
 			}
 		}
@@ -3003,7 +3408,11 @@ static ssize_t rear_actuator_power_store(struct device *dev,
 				}
 				else
 #endif
-				cam_actuator_power_up(g_a_ctrls[index]);
+				{
+					mutex_lock(&(g_a_ctrls[index]->actuator_mutex));
+					cam_actuator_power_up(g_a_ctrls[index]);
+					mutex_unlock(&(g_a_ctrls[index]->actuator_mutex));
+				}
 				cam_actuator_default_init_setting(g_a_ctrls[index]);
 				pr_info("%s: actuator %u power up", __func__, index);
 			}
@@ -3657,6 +4066,10 @@ ssize_t rear_flash_store(struct device *dev,
 {
 #if IS_REACHABLE(CONFIG_LEDS_S2MPB02)
 	s2mpb02_store(buf);
+#elif IS_REACHABLE(CONFIG_LEDS_KTD2692)
+	ktd2692_store(buf);
+#elif IS_REACHABLE(CONFIG_LEDS_SM5714)
+	sm5714_rear_flash_store(buf);
 #endif
 	return count;
 }
@@ -3666,6 +4079,10 @@ ssize_t rear_flash_show(struct device *dev,
 {
 #if IS_REACHABLE(CONFIG_LEDS_S2MPB02)
 	return s2mpb02_show(buf);
+#elif IS_REACHABLE(CONFIG_LEDS_KTD2692)
+	return ktd2692_show(buf);
+#elif IS_REACHABLE(CONFIG_LEDS_SM5714)
+	return sm5714_rear_flash_show(buf);
 #else
 	return 0;
 #endif
@@ -3682,7 +4099,13 @@ static DEVICE_ATTR(ssm_gmc_state, S_IRUGO|S_IWUSR|S_IWGRP,
 static DEVICE_ATTR(ssm_flicker_state, S_IRUGO|S_IWUSR|S_IWGRP,
 	rear_ssm_flicker_state_show, rear_ssm_flicker_state_store);
 #endif
-
+#if defined(CONFIG_CAMERA_CDR_TEST)
+static DEVICE_ATTR(cam_cdr_value, S_IRUGO|S_IWUSR|S_IWGRP,
+	rear_cam_cdr_value_show, rear_cam_cdr_value_store);
+static DEVICE_ATTR(cam_cdr_result, S_IRUGO, rear_cam_cdr_result_show, NULL);
+static DEVICE_ATTR(cam_cdr_fastaec, S_IRUGO|S_IWUSR|S_IWGRP,
+	rear_cam_cdr_fastaec_show, rear_cam_cdr_fastaec_store);
+#endif
 static DEVICE_ATTR(rear_camtype, S_IRUGO, rear_type_show, NULL);
 static DEVICE_ATTR(rear_camfw, S_IRUGO|S_IWUSR|S_IWGRP,
 	rear_firmware_show, rear_firmware_store);
@@ -3839,7 +4262,7 @@ static DEVICE_ATTR(rear3_camfw, S_IRUGO|S_IWUSR|S_IWGRP,
 	rear3_firmware_show, rear3_firmware_store);
 static DEVICE_ATTR(rear3_camfw_full, S_IRUGO|S_IWUSR|S_IWGRP,
 	rear3_firmware_full_show, rear3_firmware_full_store);
-#if defined(CONFIG_SEC_P3Q_PROJECT) || defined(CONFIG_SEC_O3Q_PROJECT)
+#if defined(CONFIG_SEC_P3Q_PROJECT) || defined(CONFIG_SEC_O3Q_PROJECT) || defined(CONFIG_SEC_R9Q_PROJECT)
 static DEVICE_ATTR(rear3_checkfw_user, S_IRUGO|S_IWUSR|S_IWGRP,
 	rear3_firmware_user_show, rear3_firmware_user_store);
 static DEVICE_ATTR(rear3_checkfw_factory, S_IRUGO|S_IWUSR|S_IWGRP,
@@ -3861,7 +4284,7 @@ static DEVICE_ATTR(rear3_dualcal_size, S_IRUGO, rear3_dual_cal_size_show, NULL);
 static DEVICE_ATTR(rear3_tilt, S_IRUGO, rear3_tilt_show, NULL);
 static DEVICE_ATTR(rear3_paf_cal_check, S_IRUGO,
 	rear3_paf_cal_check_show, NULL);
-#if defined(CONFIG_SEC_P3Q_PROJECT) || defined(CONFIG_SEC_O3Q_PROJECT)
+#if defined(CONFIG_SEC_P3Q_PROJECT) || defined(CONFIG_SEC_O3Q_PROJECT) || defined(CONFIG_SEC_R9Q_PROJECT)
 static DEVICE_ATTR(rear3_moduleid, S_IRUGO, rear3_moduleid_show, NULL);
 static DEVICE_ATTR(SVC_rear_module3, S_IRUGO, rear3_moduleid_show, NULL);
 #endif
@@ -3967,6 +4390,7 @@ static DEVICE_ATTR(rear_actuator_power, S_IWUSR|S_IWGRP, NULL, rear_actuator_pow
 static DEVICE_ATTR(ois_power, S_IWUSR, NULL, ois_power_store);
 static DEVICE_ATTR(autotest, S_IRUGO|S_IWUSR|S_IWGRP, ois_autotest_show, ois_autotest_store);
 static DEVICE_ATTR(calibrationtest, S_IRUGO, gyro_calibration_show, NULL);
+static DEVICE_ATTR(ois_noise_stdev, S_IRUGO, gyro_noise_stdev_show, NULL);
 static DEVICE_ATTR(selftest, S_IRUGO, gyro_selftest_show, NULL);
 static DEVICE_ATTR(ois_rawdata, S_IRUGO|S_IWUSR|S_IWGRP, gyro_rawdata_test_show, gyro_rawdata_test_store);
 static DEVICE_ATTR(oisfw, S_IRUGO|S_IWUSR|S_IWGRP, ois_fw_full_show, ois_fw_full_store);
@@ -3980,6 +4404,7 @@ static DEVICE_ATTR(ois_hall_position, S_IRUGO, ois_hall_position_show, NULL);
 #if defined(CONFIG_SAMSUNG_OIS_MCU_STM32)
 static DEVICE_ATTR(ois_gain_rear, S_IRUGO, ois_gain_rear_show, NULL);
 static DEVICE_ATTR(ois_supperssion_ratio_rear, S_IRUGO, ois_supperssion_ratio_rear_show, NULL);
+static DEVICE_ATTR(check_hall_cal, S_IRUGO, ois_check_hall_cal_show, NULL);
 #if defined(CONFIG_SAMSUNG_REAR_TRIPLE)
 static DEVICE_ATTR(ois_gain_rear3, S_IRUGO, ois_gain_rear3_show, NULL);
 static DEVICE_ATTR(ois_supperssion_ratio_rear3, S_IRUGO, ois_supperssion_ratio_rear3_show, NULL);
@@ -3992,6 +4417,7 @@ static DEVICE_ATTR(rear4_read_cross_talk, S_IRUGO, ois_rear4_read_cross_talk_sho
 #endif
 
 static DEVICE_ATTR(check_cross_talk, S_IRUGO, ois_check_cross_talk_show, NULL);
+static DEVICE_ATTR(check_ois_valid, S_IRUGO, check_ois_valid_show, NULL);
 static DEVICE_ATTR(ois_ext_clk, S_IRUGO|S_IWUSR|S_IWGRP, ois_ext_clk_show, ois_ext_clk_store);
 #endif
 
@@ -4131,7 +4557,7 @@ const struct device_attribute *rear_attrs[] = {
 	&dev_attr_rear3_dualcal,
 	&dev_attr_rear3_dualcal_size,
 	&dev_attr_rear3_paf_cal_check,
-#if defined(CONFIG_SEC_P3Q_PROJECT) || defined(CONFIG_SEC_O3Q_PROJECT)
+#if defined(CONFIG_SEC_P3Q_PROJECT) || defined(CONFIG_SEC_O3Q_PROJECT) || defined(CONFIG_SEC_R9Q_PROJECT)
 	&dev_attr_rear3_moduleid,
 	&dev_attr_rear3_checkfw_user,
 	&dev_attr_rear3_checkfw_factory,
@@ -4187,6 +4613,11 @@ const struct device_attribute *rear_attrs[] = {
 #endif
 #if defined(CONFIG_CAMERA_FAC_LN_TEST)
 	&dev_attr_cam_ln_test,
+#endif
+#if defined(CONFIG_CAMERA_CDR_TEST)
+	&dev_attr_cam_cdr_value,
+	&dev_attr_cam_cdr_result,
+	&dev_attr_cam_cdr_fastaec,
 #endif
 	NULL, // DO NOT REMOVE
 };
@@ -4301,6 +4732,7 @@ const struct device_attribute *ois_attrs[] = {
 	&dev_attr_oisfw,
 	&dev_attr_ois_exif,
 	&dev_attr_calibrationtest,
+	&dev_attr_ois_noise_stdev,
 	&dev_attr_reset_check,
 #if defined(CONFIG_SAMSUNG_REAR_TRIPLE)
 	&dev_attr_ois_hall_position,
@@ -4320,7 +4752,9 @@ const struct device_attribute *ois_attrs[] = {
 	&dev_attr_rear4_read_cross_talk,
 #endif
 	&dev_attr_check_cross_talk,
+	&dev_attr_check_ois_valid,
 	&dev_attr_ois_ext_clk,
+	&dev_attr_check_hall_cal,
 #endif
 	NULL, // DO NOT REMOVE
 };
@@ -4338,7 +4772,7 @@ static struct attribute *svc_cam_attrs[] = {
 #if defined(CONFIG_SAMSUNG_REAR_DUAL)
 	&dev_attr_SVC_rear_module2.attr,
 #endif
-#if defined(CONFIG_SEC_P3Q_PROJECT) || defined(CONFIG_SEC_O3Q_PROJECT)
+#if defined(CONFIG_SEC_P3Q_PROJECT) || defined(CONFIG_SEC_O3Q_PROJECT) || defined(CONFIG_SEC_R9Q_PROJECT)
 	&dev_attr_SVC_rear_module3.attr,
 #endif
 #if defined(CONFIG_SAMSUNG_REAR_QUADRA)
@@ -4349,7 +4783,7 @@ static struct attribute *svc_cam_attrs[] = {
 	&dev_attr_SVC_front_module2.attr,
 #endif
 #if defined(CONFIG_SAMSUNG_FRONT_TOP)
-	&dev_attr_SVC_upper_module,
+	&dev_attr_SVC_upper_module.attr,
 #endif
 	NULL, // DO NOT REMOVE
 };

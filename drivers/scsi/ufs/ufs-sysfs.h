@@ -94,6 +94,14 @@ struct SEC_SCSI_SENSE_count {
 	unsigned int scsi_hw_err;
 };
 
+#define SEC_MAX_LBA_LOGGING     10
+#define SEC_ISSUE_REGION_STEP   (250*1024/4)    /* 250MB : 1 LBA = 4KB */
+struct SEC_SCSI_SENSE_err_log {
+	unsigned long issue_LBA_list[SEC_MAX_LBA_LOGGING];
+	unsigned int issue_LBA_count;
+	u64 issue_region_map;
+};
+
 struct SEC_UFS_counting {
 	struct SEC_UFS_op_count op_count;
 	struct SEC_UFS_UIC_cmd_count UIC_cmd_count;
@@ -102,6 +110,7 @@ struct SEC_UFS_counting {
 	struct SEC_UFS_UTP_count UTP_count;
 	struct SEC_UFS_QUERY_count query_count;
 	struct SEC_SCSI_SENSE_count sense_count;
+	struct SEC_SCSI_SENSE_err_log sense_err_log;
 };
 
 void SEC_ufs_operation_check(u32 command);

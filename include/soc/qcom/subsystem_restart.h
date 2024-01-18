@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
- * Copyright (c) 2014-2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2014-2019 2021, The Linux Foundation. All rights reserved.
  */
 
 #ifndef __SUBSYS_RESTART_H
@@ -112,7 +112,6 @@ struct subsys_desc {
 	struct subsys_notif_timeout timeout_data;
 #endif /* CONFIG_SETUP_SSR_NOTIF_TIMEOUTS */
 	bool run_fssr;
-	bool run_fssr_prev;
 };
 
 /**
@@ -155,13 +154,13 @@ struct msm_ipc_subsys_request {
 };
 #endif
 
+extern int subsys_get_restart_level(struct subsys_device *dev);
 extern int subsystem_restart_dev(struct subsys_device *dev);
 extern int subsystem_restart(const char *name);
 extern int subsys_force_stop(struct msm_ipc_subsys_request *req);
 extern int subsystem_crashed(const char *name);
 extern void subsys_set_cdsp_silent_ssr(bool value);
 void subsys_set_fssr(struct subsys_device *dev, bool value);
-bool subsys_get_prev_fssr(struct subsys_device *dev);
 void subsys_set_adsp_silent_ssr(bool value);
 int subsys_restart_adsp(void);
 void subsys_set_voice_state(bool value);
@@ -192,6 +191,11 @@ extern bool is_subsystem_crash(const char *name);
 extern int is_subsystem_online(const char *name);
 #endif
 #else
+
+static inline int subsys_get_restart_level(struct subsys_device *dev)
+{
+	return 0;
+}
 
 static inline int subsystem_restart_dev(struct subsys_device *dev)
 {
@@ -271,4 +275,7 @@ static inline void wakeup_source_trash(struct wakeup_source *ws)
 	__pm_relax(ws);
 }
 
+#if defined(CONFIG_SUPPORT_DUAL_6AXIS) && defined(CONFIG_SEC_FACTORY)
+extern bool is_pretest(void);
+#endif
 #endif

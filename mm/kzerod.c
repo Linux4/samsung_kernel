@@ -47,7 +47,7 @@ static bool app_launch;
 
 static bool need_pause(void)
 {
-	if (app_launch || need_memory_boosting(NULL))
+	if (app_launch || need_memory_boosting())
 		return true;
 
 	return false;

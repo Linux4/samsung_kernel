@@ -68,7 +68,7 @@ struct COPR_REG_OSSET copr_offset_list[] = {
 void ss_copr_enable(struct samsung_display_driver_data *vdd, int enable)
 {
 	if (vdd->copr.copr_on == enable) {
-		LCD_ERR("copr already %d..\n", vdd->copr.copr_on);
+		LCD_ERR(vdd,   "copr already %d..\n", vdd->copr.copr_on);
 		return;
 	}
 
@@ -87,27 +87,28 @@ void ss_copr_enable(struct samsung_display_driver_data *vdd, int enable)
 
 	vdd->copr.copr_on = enable;
 
-	LCD_INFO("copr %s .. \n", vdd->copr.copr_on?"enabled..":"disabled..");
+	LCD_INFO(vdd,  "copr %s .. \n", vdd->copr.copr_on?"enabled..":"disabled..");
 
 	mutex_unlock(&vdd->copr.copr_lock);
 
 	return;
 }
 
-void print_copr_cmd(struct COPR_CMD cmd)
+void print_copr_cmd(struct samsung_display_driver_data *vdd)
 {
 	int i;
+	struct COPR_CMD cmd = vdd->copr.cur_cmd;
 
-	LCD_INFO("MASK(%d) RE(%d) ILC(%d) GAMMA(%d) EN(%d)\n",
+	LCD_INFO(vdd,  "MASK(%d) RE(%d) ILC(%d) GAMMA(%d) EN(%d)\n",
 		cmd.COPR_MASK, cmd.CNT_RE, cmd.COPR_ILC, cmd.COPR_GAMMA, cmd.COPR_EN);
-	LCD_INFO("ER(%d) EG(%d) EB(%d) ERC(%d) EGC(%d) EBC(%d)\n",
+	LCD_INFO(vdd,  "ER(%d) EG(%d) EB(%d) ERC(%d) EGC(%d) EBC(%d)\n",
 		cmd.COPR_ER, cmd.COPR_EG, cmd.COPR_EB,
 		cmd.COPR_ERC, cmd.COPR_EGC, cmd.COPR_EBC);
-	LCD_INFO("MAX_CNT(%d) ROI_EN(%d) ROI_CTRL(%d)\n",
+	LCD_INFO(vdd,  "MAX_CNT(%d) ROI_EN(%d) ROI_CTRL(%d)\n",
 		cmd.MAX_CNT, cmd.ROI_ON, cmd.COPR_ROI_CTRL);
 
 	for (i = 0; i < MAX_COPR_ROI_CNT; i++)
-		LCD_INFO("ROI[%d] X_S(%d) Y_S(%d) X_E(%d) Y_E(%d)\n", i + 1,
+		LCD_INFO(vdd,  "ROI[%d] X_S(%d) Y_S(%d) X_E(%d) Y_E(%d)\n", i + 1,
 			cmd.roi[i].ROI_X_S, cmd.roi[i].ROI_Y_S, cmd.roi[i].ROI_X_E, cmd.roi[i].ROI_Y_E);
 }
 
@@ -187,7 +188,7 @@ void ss_copr_set_roi(struct samsung_display_driver_data *vdd, struct COPR_CMD *c
 		roi_idx = idx;
 
 	if (vdd->copr.afc_roi[idx].ROI_X_S == -1) {
-		LCD_ERR("Do not set for idx[%d] - %d %d %d %d\n", idx,
+		LCD_ERR(vdd,   "Do not set for idx[%d] - %d %d %d %d\n", idx,
 			vdd->copr.afc_roi[idx].ROI_X_S,
 			vdd->copr.afc_roi[idx].ROI_Y_S,
 			vdd->copr.afc_roi[idx].ROI_X_E,
@@ -366,7 +367,7 @@ void ss_copr_set_cmd(struct samsung_display_driver_data *vdd, struct COPR_CMD *c
 
 	pcmds = ss_get_cmds(vdd, TX_COPR_ENABLE);
 	if (SS_IS_CMDS_NULL(pcmds)) {
-		LCD_ERR("No cmds for TX_COPR_ENABLE..\n");
+		LCD_ERR(vdd,   "No cmds for TX_COPR_ENABLE..\n");
 		return;
 	}
 
@@ -380,14 +381,14 @@ void ss_copr_set_cmd(struct samsung_display_driver_data *vdd, struct COPR_CMD *c
 	else if (vdd->copr.ver == COPR_VER_1P0)
 		ss_copr_set_cmd_1P0(cmd, cmd_pload);
 	else {
-		LCD_ERR("Do not use copr in display driver.\n");
+		LCD_ERR(vdd,   "Do not use copr in display driver.\n");
 		return;
 	}
 
 	for (i = 0; i < cmd_len; i++)
 		len += snprintf(buf + len, sizeof(buf) - len,
 						"%02x ", cmd_pload[i]);
-	LCD_ERR("cmd[%d] : %s\n", cmd_len, buf);
+	LCD_ERR(vdd,   "cmd[%d] : %s\n", cmd_len, buf);
 
 	/* reset current copr cmds */
 	memcpy(&vdd->copr.cur_cmd, cmd, sizeof(struct COPR_CMD));
@@ -496,7 +497,7 @@ int ss_get_copr_orig_cmd(struct samsung_display_driver_data *vdd)
 
 	pcmds = ss_get_cmds(vdd, TX_COPR_ENABLE);
 	if (SS_IS_CMDS_NULL(pcmds)) {
-		LCD_ERR("No cmds for TX_COPR_ENABLE..\n");
+		LCD_ERR(vdd,   "No cmds for TX_COPR_ENABLE..\n");
 		return -EINVAL;
 	}
 
@@ -510,19 +511,19 @@ int ss_get_copr_orig_cmd(struct samsung_display_driver_data *vdd)
 	else if (vdd->copr.ver == COPR_VER_1P0)
 		ss_get_copr_orig_cmd_1P0(cmd, cmd_pload);
 	else {
-		LCD_ERR("Do not use copr in display driver.\n");
+		LCD_ERR(vdd,   "Do not use copr in display driver.\n");
 		return -EINVAL;
 	}
 
 	/* init current cmd with origianl cmd */
 	memcpy(&vdd->copr.cur_cmd, cmd, sizeof(struct COPR_CMD));
 
-	print_copr_cmd(vdd->copr.cur_cmd);
+	print_copr_cmd(vdd);
 
 	for (i = 0; i < cmd_len; i++)
 		len += snprintf(buf + len, sizeof(buf) - len,
 						"%02x ", cmd_pload[i]);
-	LCD_ERR("cmd[%d] : %s\n", cmd_len, buf);
+	LCD_ERR(vdd,   "cmd[%d] : %s\n", cmd_len, buf);
 
 	return 1;
 }
@@ -537,7 +538,7 @@ int ss_copr_get_roi_opr_2P0(struct samsung_display_driver_data *vdd)
 	struct COPR_CMD cmd_backup;
 	struct COPR_CMD *cur_cmd;
 
-	LCD_DEBUG("++ (%d)\n", vdd->copr.afc_roi_cnt);
+	LCD_DEBUG(vdd, "++ (%d)\n", vdd->copr.afc_roi_cnt);
 
 	/* backup copr current cmd */
 	memcpy(&cmd_backup, &vdd->copr.cur_cmd, sizeof(cmd_backup));
@@ -595,7 +596,7 @@ int ss_copr_get_roi_opr_2P0(struct samsung_display_driver_data *vdd)
 		vdd->copr.roi_opr[i].B_OPR = vdd->copr.current_copr;
 		/* --------------------------------------------- */
 
-		LCD_INFO("R (%d) G (%d) B (%d)\n",
+		LCD_INFO(vdd,  "R (%d) G (%d) B (%d)\n",
 			vdd->copr.roi_opr[i].R_OPR,
 			vdd->copr.roi_opr[i].G_OPR,
 			vdd->copr.roi_opr[i].B_OPR);
@@ -605,7 +606,7 @@ err:
 	/* restore copr cmd */
 	ss_copr_set_cmd(vdd, &cmd_backup);
 
-	LCD_DEBUG("--\n");
+	LCD_DEBUG(vdd, "--\n");
 
 	return ret;
 }
@@ -620,7 +621,7 @@ int ss_copr_get_roi_opr_3P0(struct samsung_display_driver_data *vdd)
 	struct COPR_CMD cmd_backup;
 	struct COPR_CMD *cur_cmd;
 
-	LCD_DEBUG("++ (%d)\n", vdd->copr.afc_roi_cnt);
+	LCD_DEBUG(vdd, "++ (%d)\n", vdd->copr.afc_roi_cnt);
 
 	/* backup copr current cmd */
 	memcpy(&cmd_backup, &vdd->copr.cur_cmd, sizeof(cmd_backup));
@@ -635,16 +636,16 @@ int ss_copr_get_roi_opr_3P0(struct samsung_display_driver_data *vdd)
 
 	ret = ss_send_cmd(vdd, TX_COPR_ENABLE);
 	if (ret)
-		LCD_ERR("fail to TX_COPR_ENABLE .. \n");
+		LCD_ERR(vdd,   "fail to TX_COPR_ENABLE .. \n");
 
 	ret = ss_copr_read(vdd);
 	if (ret)
-		LCD_ERR("fail to read copr .. \n");
+		LCD_ERR(vdd,   "fail to read copr .. \n");
 
 	/* restore copr cmd */
 	ss_copr_set_cmd(vdd, &cmd_backup);
 
-	LCD_DEBUG("--\n");
+	LCD_DEBUG(vdd, "--\n");
 
 	return ret;
 }
@@ -665,7 +666,7 @@ int ss_copr_get_roi_opr(struct samsung_display_driver_data *vdd)
 	else if (vdd->copr.ver == COPR_VER_3P0) /* copr ver 3.0 */
 		ret = ss_copr_get_roi_opr_3P0(vdd);
 	else {
-		LCD_ERR("Do not use copr in display driver.\n");
+		LCD_ERR(vdd,   "Do not use copr in display driver.\n");
 		return -EINVAL;
 	}
 
@@ -687,7 +688,7 @@ void ss_set_copr_sum(struct samsung_display_driver_data *vdd, enum COPR_CD_INDEX
 		vdd->copr.copr_cd[idx].cd_sum += (vdd->br_info.common_br.interpolation_cd * delta);
 	mutex_unlock(&vdd->copr.copr_val_lock);
 
-	LCD_DEBUG("[%d] cd (%d) delta (%lld) cd_sum (%lld) total_t (%lld)\n",
+	LCD_DEBUG(vdd, "[%d] cd (%d) delta (%lld) cd_sum (%lld) total_t (%lld)\n",
 			idx,
 			vdd->br_info.common_br.gamma_mode2_support ?
 				vdd->br_info.common_br.interpolation_cd :
@@ -707,7 +708,7 @@ void ss_copr_reset_cnt(struct samsung_display_driver_data *vdd)
 
 	pcmds = ss_get_cmds(vdd, TX_COPR_ENABLE);
 	if (SS_IS_CMDS_NULL(pcmds)) {
-		LCD_ERR("No cmds for TX_COPR_ENABLE..\n");
+		LCD_ERR(vdd,   "No cmds for TX_COPR_ENABLE..\n");
 		return;
 	}
 
@@ -777,15 +778,15 @@ int ss_copr_read(struct samsung_display_driver_data *vdd)
 	int i;
 	u8 tx_buf[1];
 
-	LCD_DEBUG("%s ++ \n", __func__);
+	LCD_DEBUG(vdd, "%s ++ \n", __func__);
 
 	if (!ss_is_panel_on(vdd)) {
-		LCD_ERR("panel stste (%d) \n", vdd->panel_state);
+		LCD_ERR(vdd,   "panel stste (%d) \n", vdd->panel_state);
 		return -ENODEV;
 	}
 
 	if (!vdd->copr.display_read) {
-		LCD_ERR("copr read is not from display driver (%d) \n", vdd->copr.display_read);
+		LCD_ERR(vdd,   "copr read is not from display driver (%d) \n", vdd->copr.display_read);
 		return -ENODEV;
 	}
 
@@ -798,7 +799,7 @@ int ss_copr_read(struct samsung_display_driver_data *vdd)
 
 	rxbuf = kzalloc(rx_size, GFP_KERNEL);
 	if (rxbuf == NULL) {
-		LCD_ERR("fail to kzalloc for rxbuf \n");
+		LCD_ERR(vdd,   "fail to kzalloc for rxbuf \n");
 		ret = -ENOMEM;
 		goto err;
 	}
@@ -807,29 +808,29 @@ int ss_copr_read(struct samsung_display_driver_data *vdd)
 
 	ret = ss_spi_read(vdd->spi_dev, rxbuf, tx_bpw, rx_bpw, tx_buf, tx_size, rx_size);
 	if (ret) {
-		LCD_ERR("[SDE SPI] %s : spi read fail..(%x)\n", __func__, rx_addr);
+		LCD_ERR(vdd,   "[SDE SPI] %s : spi read fail..(%x)\n", __func__, rx_addr);
 		goto err;
 	}
 
 	for (i = 0; i < rx_size; i++)
-		LCD_DEBUG("[%02d] %02x \n", i, rxbuf[i]);
+		LCD_DEBUG(vdd, "[%02d] %02x \n", i, rxbuf[i]);
 
 	ss_copr_parse_spi_data(vdd, rxbuf);
 
 	if (vdd->copr.ver == COPR_VER_3P0)
-		LCD_DEBUG("[%d] current_copr (%d), avg_copr (%d) sld_avg (%d) \n",
+		LCD_DEBUG(vdd, "[%d] current_copr (%d), avg_copr (%d) sld_avg (%d) \n",
 			vdd->copr.current_cnt, vdd->copr.current_copr, vdd->copr.avg_copr, vdd->copr.sliding_avg_copr);
 	else
-		LCD_DEBUG("[%d] current_copr (%d), avg_copr (%d) , comp_copr(%d)\n",
+		LCD_DEBUG(vdd, "[%d] current_copr (%d), avg_copr (%d) , comp_copr(%d)\n",
 			vdd->copr.current_cnt, vdd->copr.current_copr, vdd->copr.avg_copr, vdd->copr.comp_copr);
 
 	/* If current_copr is over 0, copr work thread will be stopped */
 	if (vdd->display_status_dsi.wait_actual_disp_on) {
-		LCD_INFO("ACTUAL_DISPLAY_ON\n");
+		LCD_INFO(vdd,  "ACTUAL_DISPLAY_ON\n");
 		vdd->display_status_dsi.wait_actual_disp_on = false;
 	}
 
-	LCD_DEBUG("%s -- data (%d)\n", __func__, vdd->copr.current_copr);
+	LCD_DEBUG(vdd, "%s -- data (%d)\n", __func__, vdd->copr.current_copr);
 
 err:
 	kfree(rxbuf);
@@ -851,25 +852,25 @@ void ss_read_copr_work(struct work_struct *work)
 	copr = container_of(work, struct COPR, read_copr_work);
 	vdd = container_of(copr, struct samsung_display_driver_data, copr);
 
-	LCD_DEBUG("copr_calc work!!\n");
+	LCD_DEBUG(vdd, "copr_calc work!!\n");
 
 	mutex_lock(&vdd->copr.copr_lock);
 
 	//ss_set_copr_sum(vdd);
 	ss_copr_read(vdd);
 
-	LCD_DEBUG("COPR : %02x (%d) \n", vdd->copr.current_copr, vdd->copr.current_copr);
+	LCD_DEBUG(vdd, "COPR : %02x (%d) \n", vdd->copr.current_copr, vdd->copr.current_copr);
 
 	mutex_unlock(&vdd->copr.copr_lock);
 
 	return;
 }
 
-void ss_copr_init(struct samsung_display_driver_data *vdd)
+int ss_copr_init(struct samsung_display_driver_data *vdd)
 {
 	if (IS_ERR_OR_NULL(vdd)) {
-		LCD_ERR("vdd is null or error\n");
-		return;
+		LCD_ERR(vdd,   "vdd is null or error\n");
+		return -ENODEV;
 	}
 
 	mutex_init(&vdd->copr.copr_val_lock);
@@ -879,8 +880,8 @@ void ss_copr_init(struct samsung_display_driver_data *vdd)
 		/* read_copr_wq is used for checking real frame is entered into ddi with opr value */
 		vdd->copr.read_copr_wq = create_singlethread_workqueue("read_copr_wq");
 		if (vdd->copr.read_copr_wq == NULL) {
-			LCD_ERR("failed to create read copr workqueue..\n");
-			return;
+			LCD_ERR(vdd,   "failed to create read copr workqueue..\n");
+			return -ENOENT;
 		}
 
 		INIT_WORK(&vdd->copr.read_copr_work, (work_func_t)ss_read_copr_work);
@@ -888,12 +889,12 @@ void ss_copr_init(struct samsung_display_driver_data *vdd)
 
 	vdd->copr.copr_on = 1;
 
-	LCD_INFO("ver[%d] display_read[%d] tx_bpw(%d) rx_bpw(%d) tx_size(%d) rx_size(%d) rx_addr(%x) on(%d)\n",
+	LCD_INFO(vdd,  "ver[%d] display_read[%d] tx_bpw(%d) rx_bpw(%d) tx_size(%d) rx_size(%d) rx_addr(%x) on(%d)\n",
 		vdd->copr.ver, vdd->copr.display_read,
 		vdd->copr.tx_bpw, vdd->copr.rx_bpw, vdd->copr.tx_size, vdd->copr.rx_size,
 		vdd->copr.rx_addr, vdd->copr.copr_on);
 
-	LCD_INFO("Success to initialized copr ..\n");
+	LCD_INFO(vdd,  "Success to initialized copr ..\n");
 
-	return;
+	return 0;
 }

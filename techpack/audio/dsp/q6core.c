@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2012-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/kernel.h>
@@ -204,7 +205,7 @@ EXPORT_SYMBOL(q6core_send_uevent);
 static int parse_fwk_version_info(uint32_t *payload, uint16_t payload_size)
 {
 	size_t ver_size;
-	int num_services;
+	uint16_t num_services;
 
 	pr_debug("%s: Payload info num services %d\n",
 		 __func__, payload[4]);
@@ -474,6 +475,12 @@ static int32_t aprv2_core_fn_q(struct apr_client_data *data, void *priv)
 	case AVCS_CMD_RSP_LOAD_MODULES:
 		pr_debug("%s: Received AVCS_CMD_RSP_LOAD_MODULES\n",
 			 __func__);
+		if (data->payload_size != ((sizeof(struct avcs_load_unload_modules_sec_payload)
+			* rsp_payload->num_modules) + sizeof(uint32_t))) {
+			pr_err("%s: payload size greater than expected size %d\n",
+				__func__,data->payload_size);
+			return -EINVAL;
+		}
 		memcpy(rsp_payload, data->payload, data->payload_size);
 		q6core_lcl.avcs_module_resp_received = 1;
 		wake_up(&q6core_lcl.avcs_module_load_unload_wait);
@@ -1035,6 +1042,8 @@ int32_t q6core_avcs_load_unload_modules(struct avcs_load_unload_modules_payload
 		mutex_unlock(&(q6core_lcl.cmd_lock));
 		return -ENOMEM;
 	}
+
+	rsp_payload->num_modules = num_modules;
 
 	memcpy((uint8_t *)mod + sizeof(struct apr_hdr) +
 		sizeof(struct avcs_load_unload_modules_meminfo),
@@ -1762,12 +1771,33 @@ static int q6core_send_custom_topologies(void)
 {
 	int ret = 0;
 	int ret2 = 0;
+	int32_t adsp_ready = 0;
+	unsigned long timeout;
 	struct cal_block_data *cal_block = NULL;
 	struct avcs_cmd_register_topologies reg_top;
 
+	/*  If ADSP is down, retry till ADSP is up */
 	if (!q6core_is_adsp_ready()) {
-		pr_err("%s: ADSP is not ready!\n", __func__);
-		return -ENODEV;
+		pr_err("%s: ADSP is not ready.proceed with retry!\n",
+				 __func__);
+
+		timeout = jiffies +
+			msecs_to_jiffies(ADSP_STATE_READY_TIMEOUT_MS);
+
+		do {
+			adsp_ready = q6core_is_adsp_ready();
+			pr_debug("%s: ADSP Audio is %s\n", __func__,
+				adsp_ready ? "ready" : "not ready");
+			if (adsp_ready)
+				break;
+			msleep(50);
+		} while (time_after(timeout, jiffies));
+
+		if (!adsp_ready) {
+			pr_err_ratelimited("%s: Timeout. ADSP Audio is not ready\n",
+					__func__);
+			return -ENODEV;
+		}
 	}
 
 	memset(&reg_top, 0, sizeof(reg_top));

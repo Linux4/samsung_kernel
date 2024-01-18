@@ -41,6 +41,8 @@ struct sec_audio_sysfs_data {
 	int (*get_amp_temperature_overcount)(enum amp_id);
 	int (*get_amp_excursion_max)(enum amp_id);
 	int (*get_amp_excursion_overcount)(enum amp_id);
+	int (*get_amp_curr_temperature)(enum amp_id);
+	int (*set_amp_surface_temperature)(enum amp_id, int);
 };
 
 #if IS_ENABLED(CONFIG_SND_SOC_SAMSUNG_AUDIO)
@@ -58,6 +60,8 @@ int audio_register_temperature_keep_max_cb(int (*temperature_keep_max) (enum amp
 int audio_register_temperature_overcount_cb(int (*temperature_overcount) (enum amp_id));
 int audio_register_excursion_max_cb(int (*excursion_max) (enum amp_id));
 int audio_register_excursion_overcount_cb(int (*excursion_overcount) (enum amp_id));
+int audio_register_curr_temperature_cb(int (*curr_temperature) (enum amp_id));
+int audio_register_surface_temperature_cb(int (*surface_temperature) (enum amp_id, int temperature));
 #else
 inline int audio_register_jack_select_cb(int (*set_jack) (int))
 {
@@ -115,6 +119,16 @@ inline int audio_register_excursion_max_cb(int (*excursion_max) (enum amp_id))
 }
 
 inline int audio_register_excursion_overcount_cb(int (*excursion_overcount) (enum amp_id))
+{
+	return -EACCES;
+}
+
+inline int audio_register_curr_temperature_cb(int (*curr_temperature) (enum amp_id))
+{
+	return -EACCES;
+}
+
+int audio_register_surface_temperature_cb(int (*surface_temperature) (enum amp_id, int temperature))
 {
 	return -EACCES;
 }

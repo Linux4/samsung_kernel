@@ -243,14 +243,16 @@ struct cam_hw_stream_setttings {
 /**
  * struct cam_hw_config_args - Payload for config command
  *
- * @ctxt_to_hw_map:        HW context from the acquire
- * @num_hw_update_entries: Number of hardware update entries
- * @hw_update_entries:     Hardware update list
- * @out_map_entries:       Out map info
- * @num_out_map_entries:   Number of out map entries
- * @priv:                  Private pointer
- * @request_id:            Request ID
- * @reapply                True if reapplying after bubble
+ * @ctxt_to_hw_map:            HW context from the acquire
+ * @num_hw_update_entries:     Number of hardware update entries
+ * @hw_update_entries:         Hardware update list
+ * @out_map_entries:           Out map info
+ * @num_out_map_entries:       Number of out map entries
+ * @priv:                      Private pointer
+ * @request_id:                Request ID
+ * @reapply:                   True if reapplying after bubble
+ * @cdm_reset_before_apply:    True is need to reset CDM before re-apply bubble
+ *                             request
  *
  */
 struct cam_hw_config_args {
@@ -263,6 +265,7 @@ struct cam_hw_config_args {
 	uint64_t                        request_id;
 	bool                            init_packet;
 	bool                            reapply;
+	bool                            cdm_reset_before_apply;
 };
 
 /**
@@ -281,9 +284,9 @@ struct cam_hw_config_args {
 struct cam_hw_flush_args {
 	void                           *ctxt_to_hw_map;
 	uint32_t                        num_req_pending;
-	void                           *flush_req_pending[20];
+	void                           *flush_req_pending[40];
 	uint32_t                        num_req_active;
-	void                           *flush_req_active[20];
+	void                           *flush_req_active[40];
 	enum flush_type_t               flush_type;
 	uint32_t                        last_flush_req;
 };

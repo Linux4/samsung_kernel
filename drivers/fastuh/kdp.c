@@ -99,6 +99,7 @@ struct cred_kdp_init init_cred_use_cnt = {
 	.use_cnt					= ATOMIC_INIT(4),
 	.ro_rcu_head_init.non_rcu	= 0,
 	.ro_rcu_head_init.bp_cred	= (void *)0,
+	.ro_rcu_head_init.reflected_cred    = (void *)0,
 };
 
 struct cred_kdp init_cred_kdp __kdp_ro = {
@@ -246,9 +247,9 @@ void put_rocred_rcu(struct rcu_head *rcu)
 struct cred *prepare_ro_creds(struct cred *old, int kdp_cmd, u64 p)
 {
 	u64 pgd = (u64)(current->mm? current->mm->pgd: swapper_pg_dir);
-	struct cred_kdp temp_old;
+	struct cred_kdp *temp_old;
 	struct cred_kdp *new_ro = NULL;
-	struct cred_param param_data;
+	struct cred_param *param_data;
 	void *use_cnt_ptr = NULL;
 	void *rcu_ptr = NULL;
 	void *tsec = NULL;
@@ -261,6 +262,14 @@ struct cred *prepare_ro_creds(struct cred *old, int kdp_cmd, u64 p)
 	if (!use_cnt_ptr)
 		panic("[%d] : Unable to allocate usage pointer\n", kdp_cmd);
 
+	param_data = kzalloc(sizeof(struct cred_param), GFP_KERNEL);
+	if (!param_data)
+		panic("[%d] : Unable to allocate param_data\n", kdp_cmd);
+
+	temp_old = kmalloc(sizeof(struct cred_kdp), GFP_KERNEL);
+	if (!temp_old)
+		panic("[%d] : Unable to allocate temp_old\n", kdp_cmd);
+
 	// get_usecnt_rcu
 	rcu_ptr = (struct ro_rcu_head *)((atomic_t *)use_cnt_ptr + 1);
 	((struct ro_rcu_head*)rcu_ptr)->bp_cred = (void *)new_ro;
@@ -271,26 +280,26 @@ struct cred *prepare_ro_creds(struct cred *old, int kdp_cmd, u64 p)
 
 	// make cred_kdp 'temp_old'
 	if ((u64)current->cred == (u64)&init_cred)
-		memcpy(&temp_old, &init_cred_kdp, sizeof(struct cred_kdp));
+		memcpy(temp_old, &init_cred_kdp, sizeof(struct cred_kdp));
 	else
-		memcpy(&temp_old, current->cred, sizeof(struct cred_kdp));
+		memcpy(temp_old, current->cred, sizeof(struct cred_kdp));
 
-	memcpy(&temp_old, old, sizeof(struct cred));
+	memcpy(temp_old, old, sizeof(struct cred));
 
-	// init
-	memset((void *)&param_data, 0, sizeof(struct cred_param));
-	param_data.cred = &temp_old;
-	param_data.cred_ro = new_ro;
-	param_data.use_cnt_ptr = use_cnt_ptr;
-	param_data.sec_ptr = tsec;
-	param_data.type = kdp_cmd;
-	param_data.use_cnt = (u64)p;
+	param_data->cred = temp_old;
+	param_data->cred_ro = new_ro;
+	param_data->use_cnt_ptr = use_cnt_ptr;
+	param_data->sec_ptr = tsec;
+	param_data->type = kdp_cmd;
+	param_data->use_cnt = (u64)p;
 
 	/*
 	 * Caution! This fastuh_call is different QC and slsi.
 	 * param - current value
 	 */
-	fastuh_call(FASTUH_APP_KDP, PREPARE_RO_CRED, (u64)&param_data, (u64)current, (u64)&init_cred, (u64)&init_cred_kdp);
+	fastuh_call(FASTUH_APP_KDP, PREPARE_RO_CRED, (u64)param_data, (u64)current, (u64)&init_cred, (u64)&init_cred_kdp);
+	kfree(param_data);
+	kfree(temp_old);
 	if (kdp_cmd == CMD_COPY_CREDS) {
 		if ((new_ro->bp_task != (void *)p) ||
 			new_ro->cred.security != tsec ||
@@ -311,6 +320,7 @@ struct cred *prepare_ro_creds(struct cred *old, int kdp_cmd, u64 p)
 	}
 
 	GET_ROCRED_RCU(new_ro)->non_rcu = old->non_rcu;
+	GET_ROCRED_RCU(new_ro)->reflected_cred = 0;
 	atomic_set(new_ro->use_cnt, 2);
 
 	set_cred_subscribers((struct cred *)new_ro, 0);
@@ -591,6 +601,46 @@ static int kdp_check_sb_mismatch(struct super_block *sb)
 	return 0;
 }
 
+static int kdp_check_path_mismatch(struct kdp_vfsmount *vfsmnt)
+{
+	int i = 0;
+	int ret = -1;
+	char *buf = NULL;
+	char *path_name = NULL;
+	const char* skip_path[] = {
+		"/com.android.runtime",
+		"/com.android.conscrypt",
+		"/com.android.art",
+		"/com.android.adbd",
+		"/com.android.sdkext",
+		"/com.samsung.hardware.hyper",
+	};
+
+	if (!vfsmnt->bp_mount) {
+		printk(KERN_ERR "vfsmnt->bp_mount is NULL");
+		return -ENOMEM;
+	}
+
+	buf = kzalloc(PATH_MAX, GFP_KERNEL);
+	if (!buf)
+		return -ENOMEM;
+
+	path_name = dentry_path_raw(vfsmnt->bp_mount->mnt_mountpoint, buf, PATH_MAX);
+	if (IS_ERR(path_name))
+		goto out;
+
+	for (; i < ARRAY_SIZE(skip_path); ++i) {
+		if (!strncmp(path_name, skip_path[i], strlen(skip_path[i]))) {
+			ret = 0;
+			break;
+		}
+	}
+out:
+	kfree(buf);
+
+	return ret;
+}
+
 int invalid_drive(struct linux_binprm * bprm)
 {
 	struct super_block *sb =  NULL;
@@ -601,6 +651,10 @@ int invalid_drive(struct linux_binprm * bprm)
 		printk(KERN_ERR "[KDP] Invalid Drive : %s, vfsmnt: 0x%lx\n",
 				bprm->filename, (unsigned long)vfsmnt);
 		return 1;
+	}
+
+	if (!kdp_check_path_mismatch((struct kdp_vfsmount *)vfsmnt)) {
+		return 0;
 	}
 
 	sb = vfsmnt->mnt_sb;

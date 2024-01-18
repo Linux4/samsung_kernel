@@ -120,7 +120,7 @@ static irqreturn_t s2mpb02_irq_thread(int irq, void *data)
 	/* LED_INT */
 	ret = s2mpb02_read_reg(s2mpb02->i2c,
 			S2MPB02_REG_INT1, &irq_reg[LED_INT]);
-	pr_info("%s: led interrupt(0x%02x)\n",
+	pr_info("%s: led interrupt(0x%02hhx)\n",
 			__func__, irq_reg[LED_INT]);
 
 	pr_debug("%s: irq gpio post-state(0x%02x)\n", __func__,

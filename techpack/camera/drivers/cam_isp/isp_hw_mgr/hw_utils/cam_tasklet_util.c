@@ -405,7 +405,7 @@ static void cam_tasklet_delay_detect(
 	cur_ts = ktime_to_timespec64(cur_time);
 
 	if (diff > threshold) {
-			CAM_ERR(CAM_ISP,
+			CAM_WARN_RATE_LIMIT_CUSTOM(CAM_ISP, 1, 1,
 				"tasklet %u %s delay detected %ld:%06ld, curr %ld:%06ld, diff %ld:",
 				idx,
 				(threshold == CAM_TASKLET_EXE_TIME_THRESHOLD) ? "execution" : "scheduling",

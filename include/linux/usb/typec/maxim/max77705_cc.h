@@ -15,6 +15,8 @@
 
 #ifndef __LINUX_MFD_MAX77705_CC_H
 #define __LINUX_MFD_MAX77705_CC_H
+
+#include <linux/pm_wakeup.h>
 #define MAX77705_CC_NAME	"max77705_CC"
 #define MAX77865_IRQSRC_CHG		(1 << 0)
 #define MAX77865_IRQSRC_FG      (1 << 2)
@@ -62,5 +64,7 @@ struct max77705_cc_data {
 	enum max77705_vcon_role	previous_vcon;
 	enum max77705_power_role current_pr;
 	enum max77705_power_role previous_pr;
+
+	struct wakeup_source ccstat_ws;
 };
 #endif

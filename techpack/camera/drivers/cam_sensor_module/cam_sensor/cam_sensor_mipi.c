@@ -21,6 +21,7 @@
 #include "cam_sensor_adaptive_mipi_uw.h"
 #include "cam_sensor_adaptive_mipi_tele.h"
 #include "cam_sensor_adaptive_mipi_front.h"
+#include "cam_sensor_adaptive_mipi_front_top.h"
 #include "cam_sensor_dev.h"
 
 static struct cam_cp_noti_info g_cp_noti_info;
@@ -49,14 +50,14 @@ static int cam_mipi_ril_notifier(struct notifier_block *nb,
 	struct cam_cp_noti_info *cp_noti_info;
 
 	if (!g_init_notifier) {
-		CAM_ERR(CAM_SENSOR, "[AM_DBG] not init ril notifier");
+		CAM_ERR(CAM_SENSOR, "[CAM_DBG] not init ril notifier");
 		return NOTIFY_DONE;
 	}
 
-	CAM_INFO(CAM_SENSOR, "[AM_DBG] ril notification size [%ld]", size);
+	CAM_INFO(CAM_SENSOR, "[CAM_DBG] ril notification size [%ld]", size);
 
 	msg = (struct dev_ril_bridge_msg *)buf;
-	CAM_INFO(CAM_SENSOR, "[AM_DBG] dev_id : %d, data_len : %d",
+	CAM_INFO(CAM_SENSOR, "[CAM_DBG] dev_id : %d, data_len : %d",
 		msg->dev_id, msg->data_len);
 
 	if (msg->dev_id == IPC_SYSTEM_CP_CHANNEL_INFO
@@ -66,7 +67,7 @@ static int cam_mipi_ril_notifier(struct notifier_block *nb,
 	   memcpy(&g_cp_noti_info, cp_noti_info, sizeof(struct cam_cp_noti_info));
 	   mutex_unlock(&g_mipi_mutex);
 
-	   CAM_INFO(CAM_SENSOR, "[AM_DBG] update mipi channel [%d,%d,%d]",
+	   CAM_INFO(CAM_SENSOR, "[CAM_DBG] update mipi channel [%d,%d,%d]",
 		   g_cp_noti_info.rat, g_cp_noti_info.band, g_cp_noti_info.channel);
 	   return NOTIFY_OK;
 	}
@@ -81,7 +82,7 @@ static struct notifier_block g_ril_notifier_block = {
 void cam_mipi_register_ril_notifier(void)
 {
 	if (!g_init_notifier) {
-		CAM_INFO(CAM_SENSOR, "[AM_DBG] register ril notifier");
+		CAM_INFO(CAM_SENSOR, "[CAM_DBG] register ril notifier");
 
 		mutex_init(&g_mipi_mutex);
 		memset(&g_cp_noti_info, 0, sizeof(struct cam_cp_noti_info));
@@ -94,7 +95,7 @@ void cam_mipi_register_ril_notifier(void)
 static void cam_mipi_get_rf_channel(struct cam_cp_noti_info *ch)
 {
 	if (!g_init_notifier) {
-		CAM_ERR(CAM_SENSOR, "[AM_DBG] not init ril notifier");
+		CAM_ERR(CAM_SENSOR, "[CAM_DBG] not init ril notifier");
 		memset(ch, 0, sizeof(struct cam_cp_noti_info));
 		return;
 	}
@@ -156,7 +157,7 @@ int cam_mipi_select_mipi_by_rf_channel(const struct cam_mipi_channel *channel_li
 	key.channel_min = input_ch.channel;
 	key.channel_max = input_ch.channel;
 
-	CAM_INFO(CAM_SENSOR, "[AM_DBG] searching rf channel s [%d,%d,%d]",
+	CAM_INFO(CAM_SENSOR, "[CAM_DBG] searching rf channel s [%d,%d,%d]",
 		input_ch.rat, input_ch.band, input_ch.channel);
 
 	result = bsearch(&key,
@@ -166,11 +167,11 @@ int cam_mipi_select_mipi_by_rf_channel(const struct cam_mipi_channel *channel_li
 			compare_rf_channel);
 
 	if (result == NULL) {
-		CAM_INFO(CAM_SENSOR, "[AM_DBG] searching result : not found");
+		CAM_INFO(CAM_SENSOR, "[CAM_DBG] searching result : not found");
 		return -1;
 	}
 
-	CAM_DBG(CAM_SENSOR, "[AM_DBG] searching result : [0x%x,(%d-%d)]->(%d)",
+	CAM_DBG(CAM_SENSOR, "[CAM_DBG] searching result : [0x%x,(%d-%d)]->(%d)",
 		result->rat_band, result->channel_min, result->channel_max, result->setting_index);
 
 	return result->setting_index;
@@ -183,17 +184,30 @@ int32_t cam_check_sensor_type(uint16_t sensor_id)
 	switch (sensor_id) {
  		case SENSOR_ID_IMX555:
 		case SENSOR_ID_S5KHM3:
+#if defined(CONFIG_SEC_B2Q_PROJECT)
+		case SENSOR_ID_IMX563:
+#endif
+		case SENSOR_ID_S5KJN1:
+		case SENSOR_ID_S5KJN1_1:
 			sensor_type = WIDE;
 			break;
-
+#if !defined(CONFIG_SEC_Q2Q_PROJECT) && !defined(CONFIG_SEC_V2Q_PROJECT)
 		case FRONT_SENSOR_ID_IMX374:
+#endif
+		case FRONT_SENSOR_ID_IMX471:
 		case SENSOR_ID_S5KGH1:
+#if defined(CONFIG_SEC_M44X_PROJECT)
+		case SENSOR_ID_HI1336:
+#endif
  			sensor_type = FRONT;
 			break;
 
 		case SENSOR_ID_S5K2L3:
 		case SENSOR_ID_S5K2LA:
+#if !defined(CONFIG_SEC_B2Q_PROJECT)
 		case SENSOR_ID_IMX563:
+#endif
+		case SENSOR_ID_IMX258:
 			sensor_type = UW;
 			break;
 
@@ -201,14 +215,21 @@ int32_t cam_check_sensor_type(uint16_t sensor_id)
 		case SENSOR_ID_IMX586:
 		case SENSOR_ID_S5KGW2:
 		case SENSOR_ID_S5K3J1:
+#if defined(CONFIG_SEC_Q2Q_PROJECT) || defined(CONFIG_SEC_V2Q_PROJECT)
+		case SENSOR_ID_HI1337:
+#endif
 			sensor_type = TELE;
 			break;
-
+#if defined(CONFIG_SEC_Q2Q_PROJECT) || defined(CONFIG_SEC_V2Q_PROJECT)
+		case FRONT_SENSOR_ID_IMX374:
+ 			sensor_type = FRONT_TOP;
+			break;
+#endif
 		default:
 			sensor_type = INVALID;
 			break;
 	}
-	CAM_INFO(CAM_SENSOR, "[AM_DBG] sensor_type : %d, 0x%x", sensor_type, sensor_id);
+	CAM_INFO(CAM_SENSOR, "[CAM_DBG] sensor_type : %d, 0x%x", sensor_type, sensor_id);
 
 	return sensor_type;
 }
@@ -224,7 +245,7 @@ void cam_mipi_init_setting(struct cam_sensor_ctrl_t *s_ctrl)
 	if (rear_frs_test_mode == 0) {
 #endif
 	if (sensor_type == WIDE) {
-		CAM_INFO(CAM_SENSOR, "[AM_DBG] Wide sensor_mode : %d / %d", s_ctrl->sensor_mode, num_wide_mipi_setting);
+		CAM_INFO(CAM_SENSOR, "[CAM_DBG] Wide sensor_mode : %d / %d", s_ctrl->sensor_mode, num_wide_mipi_setting);
 		if (s_ctrl->sensor_mode == 0) {
 			s_ctrl->mipi_info = sensor_wide_mipi_A_mode;
 		} else if (s_ctrl->sensor_mode == 1 && s_ctrl->sensor_mode <= num_wide_mipi_setting) {
@@ -236,9 +257,9 @@ void cam_mipi_init_setting(struct cam_sensor_ctrl_t *s_ctrl)
 		} else {
 			s_ctrl->mipi_info = sensor_wide_mipi_A_mode;
 		}
-    }
+	}
 	else if (sensor_type == FRONT) {
-		CAM_INFO(CAM_SENSOR, "[AM_DBG] Front sensor_mode : %d / %d", s_ctrl->sensor_mode, num_front_mipi_setting);
+		CAM_INFO(CAM_SENSOR, "[CAM_DBG] Front sensor_mode : %d / %d", s_ctrl->sensor_mode, num_front_mipi_setting);
 		if (s_ctrl->sensor_mode == 0) {
 			s_ctrl->mipi_info = sensor_front_mipi_A_mode;
 		} else if (s_ctrl->sensor_mode == 1 && s_ctrl->sensor_mode <= num_front_mipi_setting) {
@@ -252,7 +273,7 @@ void cam_mipi_init_setting(struct cam_sensor_ctrl_t *s_ctrl)
 		}
 	}
 	else if (sensor_type == UW) {
-		CAM_INFO(CAM_SENSOR, "[AM_DBG] UW sensor_mode : %d / %d", s_ctrl->sensor_mode, num_uw_mipi_setting);
+		CAM_INFO(CAM_SENSOR, "[CAM_DBG] UW sensor_mode : %d / %d", s_ctrl->sensor_mode, num_uw_mipi_setting);
 		if (s_ctrl->sensor_mode == 0) {
 			s_ctrl->mipi_info = sensor_uw_mipi_A_mode;
 		} else if (s_ctrl->sensor_mode == 1 && s_ctrl->sensor_mode <= num_uw_mipi_setting) {
@@ -266,7 +287,7 @@ void cam_mipi_init_setting(struct cam_sensor_ctrl_t *s_ctrl)
 		}
 	}
 	else if (sensor_type == TELE) {
-		CAM_INFO(CAM_SENSOR, "[AM_DBG] Tele sensor_mode : %d / %d", s_ctrl->sensor_mode, num_tele_mipi_setting);
+		CAM_INFO(CAM_SENSOR, "[CAM_DBG] Tele sensor_mode : %d / %d", s_ctrl->sensor_mode, num_tele_mipi_setting);
 		if (s_ctrl->sensor_mode == 0) {
 			s_ctrl->mipi_info = sensor_tele_mipi_A_mode;
 		} else if (s_ctrl->sensor_mode == 1 && s_ctrl->sensor_mode <= num_tele_mipi_setting) {
@@ -278,9 +299,23 @@ void cam_mipi_init_setting(struct cam_sensor_ctrl_t *s_ctrl)
 		} else {
 			s_ctrl->mipi_info = sensor_tele_mipi_A_mode;
 		}
-    }
+	}
+	else if (sensor_type == FRONT_TOP) {
+		CAM_INFO(CAM_SENSOR, "[CAM_DBG] Front_Top sensor_mode : %d / %d", s_ctrl->sensor_mode, num_front_top_mipi_setting);
+		if (s_ctrl->sensor_mode == 0) {
+			s_ctrl->mipi_info = sensor_front_top_mipi_A_mode;
+		} else if (s_ctrl->sensor_mode == 1 && s_ctrl->sensor_mode <= num_front_top_mipi_setting) {
+			s_ctrl->mipi_info = sensor_front_top_mipi_B_mode;
+		} else if (s_ctrl->sensor_mode == 2 && s_ctrl->sensor_mode <= num_front_top_mipi_setting) {
+			s_ctrl->mipi_info = sensor_front_top_mipi_C_mode;
+		} else if (s_ctrl->sensor_mode == 3 && s_ctrl->sensor_mode <= num_front_top_mipi_setting) {
+			s_ctrl->mipi_info = sensor_front_top_mipi_D_mode;
+		} else {
+			s_ctrl->mipi_info = sensor_front_top_mipi_A_mode;
+		}
+	}
 	else {
-		CAM_ERR(CAM_SENSOR, "[AM_DBG] Not support sensor_type : %d", sensor_type);
+		CAM_ERR(CAM_SENSOR, "[CAM_DBG] Not support sensor_type : %d", sensor_type);
 		s_ctrl->mipi_info = sensor_wide_mipi_A_mode;
 	}
 	cur_mipi_sensor_mode = &(s_ctrl->mipi_info[0]);
@@ -299,10 +334,10 @@ void cam_mipi_update_info(struct cam_sensor_ctrl_t *s_ctrl)
 
 	cur_mipi_sensor_mode = &(s_ctrl->mipi_info[0]);
 
-	CAM_DBG(CAM_SENSOR, "[AM_DBG] cur rat : %d", cur_mipi_sensor_mode->mipi_channel->rat_band);
-	CAM_DBG(CAM_SENSOR, "[AM_DBG] cur channel_min : %d", cur_mipi_sensor_mode->mipi_channel->channel_min);
-	CAM_DBG(CAM_SENSOR, "[AM_DBG] cur channel_max : %d", cur_mipi_sensor_mode->mipi_channel->channel_max);
-	CAM_DBG(CAM_SENSOR, "[AM_DBG] cur setting_index : %d", cur_mipi_sensor_mode->mipi_channel->setting_index);
+	CAM_DBG(CAM_SENSOR, "[CAM_DBG] cur rat : %d", cur_mipi_sensor_mode->mipi_channel->rat_band);
+	CAM_DBG(CAM_SENSOR, "[CAM_DBG] cur channel_min : %d", cur_mipi_sensor_mode->mipi_channel->channel_min);
+	CAM_DBG(CAM_SENSOR, "[CAM_DBG] cur channel_max : %d", cur_mipi_sensor_mode->mipi_channel->channel_max);
+	CAM_DBG(CAM_SENSOR, "[CAM_DBG] cur setting_index : %d", cur_mipi_sensor_mode->mipi_channel->setting_index);
 
 	found = cam_mipi_select_mipi_by_rf_channel(cur_mipi_sensor_mode->mipi_channel,
 				cur_mipi_sensor_mode->mipi_channel_size);
@@ -310,7 +345,7 @@ void cam_mipi_update_info(struct cam_sensor_ctrl_t *s_ctrl)
 		if (found < cur_mipi_sensor_mode->sensor_setting_size) {
 			s_ctrl->mipi_clock_index_new = found;
 
-			CAM_DBG(CAM_SENSOR, "[AM_DBG] mipi_clock_index_new : %d",
+			CAM_DBG(CAM_SENSOR, "[CAM_DBG] mipi_clock_index_new : %d",
 				s_ctrl->mipi_clock_index_new);
 		} else {
 			CAM_ERR(CAM_SENSOR, "sensor setting size is out of bound");
@@ -335,7 +370,7 @@ void cam_mipi_get_clock_string(struct cam_sensor_ctrl_t *s_ctrl)
 	sprintf(mipi_string, "%s",
 		cur_mipi_sensor_mode->mipi_setting[s_ctrl->mipi_clock_index_new].str_mipi_clk);
 
-	CAM_DBG(CAM_SENSOR, "[AM_DBG] cam_mipi_get_clock_string : %d", s_ctrl->mipi_clock_index_new);
-	CAM_DBG(CAM_SENSOR, "[AM_DBG] mipi_string : %s", mipi_string);
+	CAM_DBG(CAM_SENSOR, "[CAM_DBG] cam_mipi_get_clock_string : %d", s_ctrl->mipi_clock_index_new);
+	CAM_DBG(CAM_SENSOR, "[CAM_DBG] mipi_string : %s", mipi_string);
  }
 #endif

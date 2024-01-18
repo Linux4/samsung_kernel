@@ -269,8 +269,11 @@ int irq_startup(struct irq_desc *desc, bool resend, bool force)
 	} else {
 		switch (__irq_startup_managed(desc, aff, force)) {
 		case IRQ_STARTUP_NORMAL:
+			if (d->chip->flags & IRQCHIP_AFFINITY_PRE_STARTUP)
+				irq_setup_affinity(desc);
 			ret = __irq_startup(desc);
-			irq_setup_affinity(desc);
+			if (!(d->chip->flags & IRQCHIP_AFFINITY_PRE_STARTUP))
+				irq_setup_affinity(desc);
 			break;
 		case IRQ_STARTUP_MANAGED:
 			irq_do_set_affinity(d, aff, false);
@@ -955,16 +958,24 @@ void handle_percpu_devid_irq(struct irq_desc *desc)
 		chip->irq_ack(&desc->irq_data);
 
 	if (likely(action)) {
-#if IS_ENABLED(CONFIG_SEC_DEBUG_SCHED_LOG)
+#if defined(CONFIG_SEC_DEBUG_SCHED_LOG)
+#if defined(CONFIG_SEC_DEBUG_SCHED_LOG_IRQ_V2)
+		sec_debug_irq_sched_log(irq, desc, action, IRQ_ENTRY_V2);
+#else
 		sec_debug_irq_sched_log(irq, action->handler,
 				(char *)action->name, IRQ_ENTRY);
+#endif
 #endif
 		trace_irq_handler_entry(irq, action);
 		res = action->handler(irq, raw_cpu_ptr(action->percpu_dev_id));
 		trace_irq_handler_exit(irq, action, res);
-#if IS_ENABLED(CONFIG_SEC_DEBUG_SCHED_LOG)
+#if defined(CONFIG_SEC_DEBUG_SCHED_LOG)
+#if defined(CONFIG_SEC_DEBUG_SCHED_LOG_IRQ_V2)
+		sec_debug_irq_sched_log(irq, desc, action, IRQ_EXIT_V2);
+#else
 		sec_debug_irq_sched_log(irq, action->handler,
 				(char *)action->name, IRQ_EXIT);
+#endif
 #endif
 	} else {
 		unsigned int cpu = smp_processor_id();
@@ -1552,7 +1563,8 @@ int irq_chip_request_resources_parent(struct irq_data *data)
 	if (data->chip->irq_request_resources)
 		return data->chip->irq_request_resources(data);
 
-	return -ENOSYS;
+	/* no error on missing optional irq_chip::irq_request_resources */
+	return 0;
 }
 EXPORT_SYMBOL_GPL(irq_chip_request_resources_parent);
 

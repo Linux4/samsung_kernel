@@ -29,19 +29,32 @@
 #define MSG_MOBEAM_MAX	1
 #define MSG_GYRO_TEMP_MAX	3
 #define MSG_PRESSURE_TEMP_MAX	1
-#define MSG_PRESSURE_MAX	120
+#define MSG_PRESSURE_MAX	128
+#define MSG_FLIP_COVER_DETECTOR_MAX	3
 #define MSG_VOPTIC_MAX	2
 #define MSG_REG_SNS_MAX	18 /* 6 * 3 */
-#ifdef CONFIG_SUPPORT_AK0997X
-#define MSG_DIGITAL_HALL_MAX 11
+#ifdef CONFIG_SUPPORT_AK09973
+#define MSG_DIGITAL_HALL_MAX 15
 #define MSG_DIGITAL_HALL_ANGLE_MAX 58
 #endif
 #ifdef CONFIG_SUPPORT_DUAL_DDI_COPR_FOR_LIGHT_SENSOR
-#define MSG_DDI_MAX 2
+#define MSG_DDI_MAX 12
+#endif
+#ifdef CONFIG_TCS340X_FLICKER_FACTORY
+#define MSG_FLICKER_MAX 12
 #endif
 
 #define ACCEL_FACTORY_CAL_PATH "/efs/FactoryApp/accel_factory_cal"
 #define SUB_ACCEL_FACTORY_CAL_PATH "/efs/FactoryApp/sub_accel_factory_cal"
+
+#ifdef CONFIG_SUPPORT_AK09973
+#define AUTO_CAL_DATA_NUM 19
+#define AUTO_CAL_FILE_BUF_LEN 140
+#define DIGITAL_HALL_AUTO_CAL_X_PATH "/efs/FactoryApp/digital_hall_auto_cal_x"
+#define DIGITAL_HALL_AUTO_CAL_Y_PATH "/efs/FactoryApp/digital_hall_auto_cal_y"
+#define DIGITAL_HALL_AUTO_CAL_Z_PATH "/efs/FactoryApp/digital_hall_auto_cal_z"
+#define ENABLE_LF_STREAM 0
+#endif
 
 enum {
 	MSG_ACCEL,
@@ -63,6 +76,9 @@ enum {
 #ifdef CONFIG_SUPPORT_SUB_MOBEAM
 	MSG_MOBEAM_SUB,
 #endif
+#ifdef CONFIG_TCS340X_FLICKER_FACTORY
+	MSG_FLICKER,
+#endif
 	PHYSICAL_SENSOR_SYSFS,//MSG_TYPE_SIZE_ZERO
 	MSG_GYRO_TEMP,
 #ifdef CONFIG_SUPPORT_DUAL_6AXIS
@@ -70,14 +86,19 @@ enum {
 #endif
 	MSG_PRESSURE_TEMP,
 	MSG_MAG_CAL,//MSG_TYPE_SIZE_ZERO
+#ifdef CONFIG_FLIP_COVER_DETECTOR_FACTORY
+	MSG_FLIP_COVER_DETECTOR,
+#endif
 #ifdef CONFIG_SUPPORT_VIRTUAL_OPTIC
 	MSG_VIR_OPTIC,//MSG_TYPE_SIZE_ZERO
 #endif
 	MSG_REG_SNS,//MSG_TYPE_SIZE_ZERO
-#ifdef CONFIG_SUPPORT_AK0997X
+#ifdef CONFIG_SUPPORT_AK09973
 	MSG_DIGITAL_HALL,
 	MSG_DIGITAL_HALL_ANGLE,
+#if ENABLE_LF_STREAM
 	MSG_LF_STREAM,
+#endif
 #endif
 #ifdef CONFIG_SUPPORT_DUAL_DDI_COPR_FOR_LIGHT_SENSOR
 	MSG_DDI,
@@ -132,15 +153,32 @@ enum {
 };
 #endif
 
+enum {
+	COMMON_DATA_SET_ABS_OFF,		// 0x00 00 47 C1
+	COMMON_DATA_SET_ABS_ON,			// 0x01 00 47 C1
+#ifdef CONFIG_SUPPORT_VFOLD_FLEX
+	COMMON_DATA_SET_MAIN_ON,		// 0x02 00 47 C1
+	COMMON_DATA_SET_SUB_ON,			// 0x03 00 47 C1
+#endif
+	COMMON_DATA_SET_LCD_INTENT_ON = 0xf1,	// 0xf1 00 47 C1
+	COMMON_DATA_SET_LCD_INTENT_OFF,		// 0xf2 00 47 C1
+};
+
 // for ssc_core sensor type
 enum {
 	OPTION_TYPE_SSC_CHARGING_STATE,    // for pocket mode
 	OPTION_TYPE_SSC_ABS_LCD_TYPE,      // for pocket mode
-	OPTION_TYPE_SSC_LCD_TYPE,          // for pocket mode
+	OPTION_TYPE_SSC_LCD_TYPE,          // for pocket mode + auto roation
+	OPTION_TYPE_SSC_LCD_INTENT_TYPE,   // for auto rotation
 	OPTION_TYPE_SSC_DUMP_TYPE,         // for pocket mode
 	OPTION_TYPE_SSC_AOD_RECT,          // for AOD
 	OPTION_TYPE_SSC_AOD_LIGHT_CIRCLE,  // for AOD
 	OPTION_TYPE_SSC_LIGHT_SEAMLESS,    // for light seamless
+	OPTION_TYPE_SSC_AUTO_ROTATION_MODE,  // for auto rotation
+	OPTION_TYPE_SSC_SBM_INIT,          // for sar backoff motion
+	OPTION_TYPE_SSC_WAKEUP_REASON,       // for commoninfo
+	OPTION_TYPE_SSC_RECOVERY,            // for commoninfo
+	OPTION_TYPE_SSC_POCKET_INJECT,       // for pocket mode
 	OPTION_TYPE_SSC_MAX
 };
 #endif

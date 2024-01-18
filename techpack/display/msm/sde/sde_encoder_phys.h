@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
- * Copyright (c) 2015-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2015-2021, The Linux Foundation. All rights reserved.
  */
 
 #ifndef __SDE_ENCODER_PHYS_H__
@@ -275,7 +276,6 @@ struct sde_encoder_irq {
  * @enc_spinlock:	Virtual-Encoder-Wide Spin Lock for IRQ purposes
  * @enable_state:	Enable state tracking
  * @vblank_refcount:	Reference count of vblank request
- * @vblank_cached_refcount:	Reference count of vblank cached request
  * @wbirq_refcount:	Reference count of wb irq request
  * @vsync_cnt:		Vsync count for the physical encoder
  * @underrun_cnt:	Underrun count for the physical encoder
@@ -325,7 +325,6 @@ struct sde_encoder_phys {
 	enum sde_enc_enable_state enable_state;
 	struct mutex *vblank_ctl_lock;
 	atomic_t vblank_refcount;
-	atomic_t vblank_cached_refcount;
 	atomic_t wbirq_refcount;
 	atomic_t vsync_cnt;
 	atomic_t underrun_cnt;
@@ -394,6 +393,7 @@ struct sde_encoder_phys_cmd_te_timestamp {
  * @wr_ptr_wait_success: log wr_ptr_wait success for release fence trigger
  * @te_timestamp_list: List head for the TE timestamp list
  * @te_timestamp: Array of size MAX_TE_PROFILE_COUNT te_timestamp_list elements
+ * @frame_trigger_count: atomic counter tracking number of frame triggers per TE interval
  */
 struct sde_encoder_phys_cmd {
 	struct sde_encoder_phys base;
@@ -406,6 +406,7 @@ struct sde_encoder_phys_cmd {
 	struct list_head te_timestamp_list;
 	struct sde_encoder_phys_cmd_te_timestamp
 			te_timestamp[MAX_TE_PROFILE_COUNT];
+	atomic_t frame_trigger_count;
 };
 
 /**
@@ -538,14 +539,6 @@ void sde_encoder_phys_setup_cdm(struct sde_encoder_phys *phys_enc,
  */
 void sde_encoder_helper_get_pp_line_count(struct drm_encoder *drm_enc,
 		struct sde_hw_pp_vsync_info *info);
-
-/**
- * sde_encoder_helper_get_transfer_time - get the mdp transfer time in usecs
- * @drm_enc: Pointer to drm encoder structure
- * @transfer_time_us: Pointer to store the output value
- */
-void sde_encoder_helper_get_transfer_time(struct drm_encoder *drm_enc,
-		u32 *transfer_time_us);
 
 /**
  * sde_encoder_helper_trigger_flush - control flush helper function

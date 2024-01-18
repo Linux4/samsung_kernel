@@ -8,6 +8,10 @@
  * published by the Free Software Foundation.
  */
 
+#if IS_ENABLED(CONFIG_SEC_KUNIT)
+#include <kunit/test.h>
+#include <kunit/mock.h>
+#endif
 #include <asm/unaligned.h>
 #include <linux/completion.h>
 #include <linux/ctype.h>
@@ -23,6 +27,7 @@
 #include <linux/io.h>
 #include <linux/irq.h>
 #include <linux/kernel.h>
+#include <linux/limits.h>
 #include <linux/module.h>
 #include <linux/of_gpio.h>
 #include <linux/platform_device.h>
@@ -36,10 +41,43 @@
 #include <linux/workqueue.h>
 #include <linux/power_supply.h>
 #include <linux/proc_fs.h>
+#include <linux/version.h>
+#if IS_ENABLED(CONFIG_SEC_ABC)
+#include <linux/sti/abc_common.h>
+#endif
+#include <linux/notifier.h>
+#if IS_ENABLED(CONFIG_VBUS_NOTIFIER)
+#include <linux/vbus_notifier.h>
+#if IS_ENABLED(CONFIG_USB_TYPEC_MANAGER_NOTIFIER)
+#include <linux/usb/typec/manager/usb_typec_manager_notifier.h>
+#endif
+#endif
 
 #include "sec_cmd.h"
 #include "sec_tclm_v2.h"
 
+#if !IS_ENABLED(CONFIG_QGKI) && IS_ENABLED(CONFIG_TOUCHSCREEN_DUAL_FOLDABLE)
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 10, 43))	/* default gki */
+#define DUAL_FOLDABLE_GKI
+#endif
+#endif
+
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5,6,0))
+#define sec_input_proc_ops(ops_owner, ops_name, read_fn, write_fn)	\
+const struct proc_ops ops_name = {					\
+	.proc_read = read_fn,						\
+	.proc_write = write_fn,						\
+	.proc_lseek = generic_file_llseek,				\
+}
+#else
+#define sec_input_proc_ops(ops_owner, ops_name, read_fn, write_fn)	\
+const struct file_operations ops_name = {				\
+	.owner = ops_owner,						\
+	.read = read_fn,						\
+	.write = write_fn,						\
+	.llseek = generic_file_llseek,					\
+}
+#endif
 /*
  * sys/class/sec/tsp/support_feature
  * bit value should be made a promise with InputFramework.
@@ -49,9 +87,17 @@
 #define INPUT_FEATURE_ENABLE_SYNC_RR120		(1 << 2) /* sync reportrate 120hz */
 #define INPUT_FEATURE_ENABLE_VRR		(1 << 3) /* variable refresh rate (support 240hz) */
 #define INPUT_FEATURE_SUPPORT_WIRELESS_TX		(1 << 4) /* enable call wireless cmd during wireless power sharing */
+#define INPUT_FEATURE_ENABLE_SYSINPUT_ENABLED		(1 << 5) /* resume/suspend called by system input service */
+#define INPUT_FEATURE_ENABLE_PROX_LP_SCAN_ENABLED	(1 << 6) /* prox_lp_scan_mode called by system input service */
 
 #define INPUT_FEATURE_SUPPORT_OPEN_SHORT_TEST		(1 << 8) /* open/short test support */
 #define INPUT_FEATURE_SUPPORT_MIS_CALIBRATION_TEST	(1 << 9) /* mis-calibration test support */
+#define INPUT_FEATURE_ENABLE_MULTI_CALIBRATION		(1 << 10) /* multi calibration support */
+
+#define INPUT_FEATURE_SUPPORT_INPUT_MONITOR			(1 << 16) /* input monitor support */
+
+#define INPUT_FEATURE_SUPPORT_MOTION_PALM			(1 << 20) /* rawdata motion control: palm */
+#define INPUT_FEATURE_SUPPORT_MOTION_AIVF			(1 << 21) /* rawdata motion control: aivf */
 
 /*
  * sec Log
@@ -60,14 +106,17 @@
 #define INPUT_LOG_BUF_SIZE		512
 #define INPUT_TCLM_LOG_BUF_SIZE		64
 
+#define MAIN_TOUCH	1
+#define SUB_TOUCH	2
+
 #if IS_ENABLED(CONFIG_SEC_DEBUG_TSP_LOG)
-#include <linux/sec_debug.h>		/* exynos */
+//#include <linux/sec_debug.h>		/* exynos */
 #include "sec_tsp_log.h"
 
 #define input_dbg(mode, dev, fmt, ...)						\
 ({										\
 	static char input_log_buf[INPUT_LOG_BUF_SIZE];				\
-	dev_dbg(dev, SECLOG fmt, ## __VA_ARGS__);				\
+	dev_dbg(dev, SECLOG " " fmt, ## __VA_ARGS__);				\
 	if (mode) {								\
 		if (dev)							\
 			snprintf(input_log_buf, sizeof(input_log_buf), "%s %s",	\
@@ -80,7 +129,7 @@
 #define input_info(mode, dev, fmt, ...)						\
 ({										\
 	static char input_log_buf[INPUT_LOG_BUF_SIZE];				\
-	dev_info(dev, SECLOG fmt, ## __VA_ARGS__);				\
+	dev_info(dev, SECLOG " " fmt, ## __VA_ARGS__);				\
 	if (mode) {								\
 		if (dev)							\
 			snprintf(input_log_buf, sizeof(input_log_buf), "%s %s",	\
@@ -93,7 +142,7 @@
 #define input_err(mode, dev, fmt, ...)						\
 ({										\
 	static char input_log_buf[INPUT_LOG_BUF_SIZE];				\
-	dev_err(dev, SECLOG fmt, ## __VA_ARGS__);				\
+	dev_err(dev, SECLOG " " fmt, ## __VA_ARGS__);				\
 	if (mode) {								\
 		if (dev)							\
 			snprintf(input_log_buf, sizeof(input_log_buf), "%s %s",	\
@@ -105,13 +154,10 @@
 })
 
 #if IS_ENABLED(CONFIG_TOUCHSCREEN_DUAL_FOLDABLE)
-#define MAIN_TOUCH	0
-#define SUB_TOUCH	1
-
 #define input_raw_info(mode, dev, fmt, ...)					\
 ({										\
 	static char input_log_buf[INPUT_LOG_BUF_SIZE];				\
-	dev_info(dev, SECLOG fmt, ## __VA_ARGS__);				\
+	dev_info(dev, SECLOG " " fmt, ## __VA_ARGS__);				\
 	if (mode == SUB_TOUCH) {						\
  		if (dev)							\
 			snprintf(input_log_buf, sizeof(input_log_buf), "%s %s", \
@@ -135,7 +181,7 @@
 #define input_raw_info(mode, dev, fmt, ...)					\
 ({										\
 	static char input_log_buf[INPUT_LOG_BUF_SIZE];				\
-	dev_info(dev, SECLOG fmt, ## __VA_ARGS__);				\
+	dev_info(dev, SECLOG " " fmt, ## __VA_ARGS__);				\
 	if (mode) {								\
 		if (dev)							\
 			snprintf(input_log_buf, sizeof(input_log_buf), "%s %s", \
@@ -152,15 +198,15 @@
 #else
 #define input_dbg(mode, dev, fmt, ...)						\
 ({										\
-	dev_dbg(dev, SECLOG fmt, ## __VA_ARGS__);				\
+	dev_dbg(dev, SECLOG " " fmt, ## __VA_ARGS__);				\
 })
 #define input_info(mode, dev, fmt, ...)						\
 ({										\
-	dev_info(dev, SECLOG fmt, ## __VA_ARGS__);				\
+	dev_info(dev, SECLOG " " fmt, ## __VA_ARGS__);				\
 })
 #define input_err(mode, dev, fmt, ...)						\
 ({										\
-	dev_err(dev, SECLOG fmt, ## __VA_ARGS__);				\
+	dev_err(dev, SECLOG " " fmt, ## __VA_ARGS__);				\
 })
 #define input_raw_info(mode, dev, fmt, ...) input_info(mode, dev, fmt, ## __VA_ARGS__)
 #define input_log_fix()	{}
@@ -170,20 +216,37 @@
 /*
  * for input_event_codes.h
  */
+#define KEY_HOT			252
 #define KEY_WAKEUP_UNLOCK	253	/* Wake-up to recent view, ex: AOP */
 #define KEY_RECENT		254
 
+#define KEY_WATCH		550	/* Premium watch: 2finger double tap */
+
 #define BTN_PALM		0x118	/* palm flag */
+#define BTN_LARGE_PALM		0x119	/* large palm flag */
 
 #define KEY_BLACK_UI_GESTURE	0x1c7
+#define KEY_EMERGENCY		0x2a0
 #define KEY_INT_CANCEL		0x2be	/* for touch event skip */
-#define KEY_WINK			0x2bf	/* Intelligence Key */
+#define KEY_DEX_ON		0x2bd
+#define KEY_WINK		0x2bf	/* Intelligence Key */
+#define KEY_APPS		0x2c1	/* APPS key */
+#define KEY_SIP			0x2c2	/* Sip key */
+#define KEY_SETTING		0x2c5	/* Setting */
+#define KEY_SFINDER		0x2c6	/* Sfinder key */
+#define KEY_SHARE		0x2c9	/* keyboard share */
+#define KEY_FN_LOCK		0x2ca	/* fn_lock key */
+#define KEY_FN_UNLOCK		0x2cb	/* fn_unlock key */
 
 #define ABS_MT_CUSTOM		0x3e	/* custom event */
 
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0))
+#define SW_PEN_INSERT		0x0f  /* set = pen insert, remove */
+#else
 #define SW_PEN_INSERT		0x13  /* set = pen insert, remove */
-#define SW_GLOVE		0x20  /* set = glove mode */
+#endif
 
+#define EXYNOS_DISPLAY_INPUT_NOTIFIER ((IS_ENABLED(CONFIG_EXYNOS_DPU30) || IS_ENABLED(CONFIG_DRM_SAMSUNG_DPU)) && IS_ENABLED(CONFIG_PANEL_NOTIFY))
 
 enum grip_write_mode {
 	G_NONE				= 0,
@@ -208,6 +271,11 @@ enum wireless_charger_param {
 	TYPE_WIRELESS_CHARGER_NONE	= 0,
 	TYPE_WIRELESS_CHARGER		= 1,
 	TYPE_WIRELESS_BATTERY_PACK	= 3,
+};
+
+enum charger_param {
+	TYPE_WIRE_CHARGER_NONE	= 0,
+	TYPE_WIRE_CHARGER		= 1,
 };
 
 enum set_temperature_state {
@@ -272,6 +340,7 @@ typedef enum {
 	SPONGE_EVENT_TYPE_FOD_PRESS		= 0x0F,
 	SPONGE_EVENT_TYPE_FOD_RELEASE		= 0x10,
 	SPONGE_EVENT_TYPE_FOD_OUT		= 0x11,
+	SPONGE_EVENT_TYPE_LONG_PRESS		= 0x12,
 	SPONGE_EVENT_TYPE_TSP_SCAN_UNBLOCK	= 0xE1,
 	SPONGE_EVENT_TYPE_TSP_SCAN_BLOCK	= 0xE2,
 } SPONGE_EVENT_TYPE;
@@ -279,9 +348,8 @@ typedef enum {
 /* SEC_TS_DEBUG : Print event contents */
 #define SEC_TS_DEBUG_PRINT_ALLEVENT  0x01
 #define SEC_TS_DEBUG_PRINT_ONEEVENT  0x02
-#define SEC_TS_DEBUG_PRINT_I2C_READ_CMD  0x04
-#define SEC_TS_DEBUG_PRINT_I2C_WRITE_CMD 0x08
-#define SEC_TS_DEBUG_SEND_UEVENT  0x80
+#define SEC_TS_DEBUG_PRINT_READ_CMD  0x04
+#define SEC_TS_DEBUG_PRINT_WRITE_CMD 0x08
 
 #define CMD_RESULT_WORD_LEN		10
 
@@ -292,11 +360,18 @@ typedef enum {
 #define SEC_TS_SUPPORT_TOUCH_COUNT		10
 #define SEC_TS_GESTURE_REPORT_BUFF_SIZE		20
 
+/* SPONGE MODE 0x00 */
 #define SEC_TS_MODE_SPONGE_SWIPE		(1 << 1)
 #define SEC_TS_MODE_SPONGE_AOD			(1 << 2)
 #define SEC_TS_MODE_SPONGE_SINGLE_TAP		(1 << 3)
 #define SEC_TS_MODE_SPONGE_PRESS		(1 << 4)
 #define SEC_TS_MODE_SPONGE_DOUBLETAP_TO_WAKEUP	(1 << 5)
+#define SEC_TS_MODE_SPONGE_TWO_FINGER_DOUBLETAP	(1 << 7)
+#define SEC_TS_MODE_SPONGE_VVC			(1 << 8)
+
+/* SPONGE MODE 0x01 */
+#define SEC_TS_MODE_SPONGE_INF_DUMP_CLEAR	(1 << 0)
+#define SEC_TS_MODE_SPONGE_INF_DUMP		(1 << 1)
 
 /*SPONGE library parameters*/
 #define SEC_TS_MAX_SPONGE_DUMP_BUFFER	512
@@ -324,6 +399,29 @@ typedef enum {
 #define TSP_EXTERNAL_FW_SIGNED	"tsp_signed.bin"
 #define TSP_SPU_FW_SIGNED		"/TSP/ffu_tsp.bin"
 
+#if IS_ENABLED(CONFIG_SEC_ABC)
+#define SEC_ABC_SEND_EVENT_TYPE "MODULE=tsp@WARN=tsp_int_fault"
+#define SEC_ABC_SEND_EVENT_TYPE_SUB "MODULE=tsp_sub@WARN=tsp_int_fault"
+#define SEC_ABC_SEND_EVENT_TYPE_WACOM_DIGITIZER_NOT_CONNECTED "MODULE=wacom@WARN=digitizer_not_connected"
+#endif
+
+enum display_state {
+	DISPLAY_STATE_SERVICE_SHUTDOWN = -1,
+	DISPLAY_STATE_NONE = 0,
+	DISPLAY_STATE_OFF,
+	DISPLAY_STATE_ON,
+	DISPLAY_STATE_DOZE,
+	DISPLAY_STATE_DOZE_SUSPEND,
+	DISPLAY_STATE_LPM_OFF = 20,
+	DISPLAY_STATE_FORCE_OFF,
+	DISPLAY_STATE_FORCE_ON,
+};
+
+enum display_event {
+	DISPLAY_EVENT_EARLY = 0,
+	DISPLAY_EVENT_LATE,
+};
+
 enum power_mode {
 	SEC_INPUT_STATE_POWER_OFF = 0,
 	SEC_INPUT_STATE_LPM,
@@ -349,6 +447,7 @@ enum sec_ts_cover_id {
 	SEC_TS_LED_BACK_COVER,
 	SEC_TS_CLEAR_SIDE_VIEW_COVER,
 	SEC_TS_MINI_SVIEW_WALLET_COVER,
+	SEC_TS_CLEAR_CAMERA_VIEW_COVER,
 
 	SEC_TS_MONTBLANC_COVER = 100,
 	SEC_TS_NFC_SMART_COVER = 255,
@@ -397,10 +496,17 @@ enum sec_input_notify_t {
 	NOTIFIER_WACOM_PEN_CHARGING_STARTED,	/* to tsp: pen charging started */
 	NOTIFIER_WACOM_PEN_INSERT,		/* to tsp: pen is inserted */
 	NOTIFIER_WACOM_PEN_REMOVE,		/* to tsp: pen is removed */
+	NOTIFIER_WACOM_PEN_HOVER_IN,		/* to tsp: pen hover is in */
+	NOTIFIER_WACOM_PEN_HOVER_OUT,		/* to tsp: pen hover is out */
 	NOTIFIER_LCD_VRR_LFD_LOCK_REQUEST,	/* to LCD: set LFD min lock */
 	NOTIFIER_LCD_VRR_LFD_LOCK_RELEASE,	/* to LCD: unset LFD min lock */
 	NOTIFIER_LCD_VRR_LFD_OFF_REQUEST,	/* to LCD: set LFD OFF */
 	NOTIFIER_LCD_VRR_LFD_OFF_RELEASE,	/* to LCD: unset LFD OFF */
+	NOTIFIER_TSP_ESD_INTERRUPT,
+	NOTIFIER_WACOM_SAVING_MODE_ON,		/* to tsp: multi spen enable cmd on */
+	NOTIFIER_WACOM_SAVING_MODE_OFF,		/* to tsp: multi spen enable cmd off */
+	NOTIFIER_WACOM_KEYBOARDCOVER_FLIP_OPEN,
+	NOTIFIER_WACOM_KEYBOARDCOVER_FLIP_CLOSE,
 	NOTIFIER_VALUE_MAX,
 };
 
@@ -421,7 +527,8 @@ enum coord_action {
 	SEC_TS_COORDINATE_ACTION_FORCE_RELEASE = 4,
 };
 
-#define SEC_TS_LFD_CTRL_LOCK_TIME	500	//msec
+#define SEC_TS_LFD_CTRL_LOCK_TIME	500	/* msec */
+#define SEC_TS_WAKE_LOCK_TIME		500	/* msec */
 
 enum lfd_lock_ctrl {
 	SEC_TS_LFD_CTRL_LOCK = 0,
@@ -484,6 +591,7 @@ struct sec_ts_coordinate {
 	u8 max_strength;
 	u8 hover_id_num;
 	u8 noise_status;
+	u8 freq_id;
 };
 
 struct sec_ts_aod_data {
@@ -498,8 +606,14 @@ struct sec_ts_fod_data {
 	u8 vi_x;
 	u8 vi_y;
 	u8 vi_size;
-
+	u8 vi_data[SEC_CMD_STR_LEN];
+	u8 vi_event;
 	u8 press_prop;
+};
+
+enum sec_ts_fod_vi_method {
+	CMD_SYSFS = 0,
+	CMD_IRQ = 1,
 };
 
 #define SEC_INPUT_HW_PARAM_SIZE		512
@@ -523,6 +637,7 @@ struct sec_ts_plat_data {
 	struct input_dev *input_dev;
 	struct input_dev *input_dev_pad;
 	struct input_dev *input_dev_proximity;
+	struct device *dev;
 
 	int max_x;
 	int max_y;
@@ -532,6 +647,8 @@ struct sec_ts_plat_data {
 	int y_node_num;
 
 	unsigned irq_gpio;
+	unsigned int irq_flag;
+	int gpio_spi_cs;
 	int i2c_burstmax;
 	int bringup;
 	u32 area_indicator;
@@ -540,9 +657,12 @@ struct sec_ts_plat_data {
 	char location[SEC_TS_LOCATION_DETECT_SIZE];
 
 	u8 prox_power_off;
+	bool power_enabled;
 
 	struct sec_ts_coordinate coord[SEC_TS_SUPPORT_TOUCH_COUNT];
 	struct sec_ts_coordinate prev_coord[SEC_TS_SUPPORT_TOUCH_COUNT];
+	bool fill_slot;
+
 	int touch_count;
 	unsigned int palm_flag;
 	volatile u8 touch_noise_status;
@@ -567,21 +687,24 @@ struct sec_ts_plat_data {
 
 	struct pinctrl *pinctrl;
 
-	int (*pinctrl_configure)(void *data, bool on);
-	int (*power)(void *data, bool on);
+	int (*pinctrl_configure)(struct device *dev, bool on);
+	int (*power)(struct device *dev, bool on);
 	int (*start_device)(void *data);
 	int (*stop_device)(void *data);
 	int (*lpmode)(void *data, u8 mode);
 	void (*init)(void *data);
+	int (*stui_tsp_enter)(void);
+	int (*stui_tsp_exit)(void);
+	int (*stui_tsp_type)(void);
 
 	union power_supply_propval psy_value;
 	struct power_supply *psy;
 	u8 tsp_temperature_data;
 	bool tsp_temperature_data_skip;
-	int (*set_temperature)(struct i2c_client *client, u8 temperature_data);
+	int (*set_temperature)(struct device *dev, u8 temperature_data);
 
 	struct sec_input_grip_data grip_data;
-	void (*set_grip_data)(struct i2c_client *client, u8 flag);
+	void (*set_grip_data)(struct device *dev, u8 flag);
 
 	int tsp_icid;
 	int tsp_id;
@@ -590,18 +713,24 @@ struct sec_ts_plat_data {
 
 	volatile bool enabled;
 	volatile int power_state;
+	volatile int display_state;
 	volatile bool shutdown_called;
 
 	u16 touch_functions;
 	u16 ic_status;
 	u8 lowpower_mode;
+	u8 sponge_mode;
 	u8 external_noise_mode;
 	u8 touchable_area;
 	u8 ed_enable;
+	u8 pocket_mode;
+	u8 lightsensor_detect;
+	u8 fod_lp_mode;
 	int cover_type;
 	u8 wirelesscharger_mode;
 	bool force_wirelesscharger_mode;
 	int wet_mode;
+	int low_sensitivity_mode;
 
 	bool regulator_boot_on;
 	bool support_mt_pressure;
@@ -611,20 +740,59 @@ struct sec_ts_plat_data {
 	int ss_touch_num;
 #endif
 	bool support_fod;
+	bool support_fod_lp_mode;
 	bool enable_settings_aot;
 	bool sync_reportrate_120;
+	bool support_refresh_rate_mode;
 	bool support_vrr;
 	bool support_open_short_test;
 	bool support_mis_calibration_test;
 	bool support_wireless_tx;
+	bool support_flex_mode;
+	bool support_lightsensor_detect;
+	bool support_input_monitor;
+	int support_dual_foldable;
+	int support_sensor_hall;
+	int support_rawdata_map_num;
+	int dump_ic_ver;
+	bool disable_vsync_scan;
+	bool unuse_dvdd_power;
+	bool chip_on_board;
+	bool enable_sysinput_enabled;
+	bool support_rawdata_motion_aivf;
+	bool support_rawdata_motion_palm;
+	bool not_support_io_ldo;
+	bool not_support_vdd;
+	bool sense_off_when_cover_closed;
+	bool not_support_temp_noti;
+	bool support_vbus_notifier;
+
+	struct work_struct irq_work;
+	struct workqueue_struct *irq_workqueue;
 	struct completion resume_done;
 	struct wakeup_source *sec_ws;
 
 	struct sec_ts_hw_param_data hw_param;
 
+	struct delayed_work interrupt_notify_work;
+
+	int (*set_charger_mode)(struct device *dev, bool on);
+	bool charger_flag;
+	struct work_struct vbus_notifier_work;
+	struct workqueue_struct *vbus_notifier_workqueue;
+	struct notifier_block vbus_nb;
+	struct notifier_block ccic_nb;
+	bool otg_flag;
+
 	u32 print_info_cnt_release;
 	u32 print_info_cnt_open;
 	u16 print_info_currnet_mode;
+};
+
+struct sec_ts_secure_data {
+	int (*stui_tsp_enter)(void);
+	int (*stui_tsp_exit)(void);
+	int (*stui_tsp_type)(void);
 };
 
 #ifdef TCLM_CONCEPT
@@ -637,41 +805,53 @@ int sec_tclm_execute_force_calibration(struct i2c_client *client, int cal_mode);
 extern int get_lcd_attached(char *mode);
 #endif
 
-#if IS_ENABLED(CONFIG_EXYNOS_DPU30)
+#if IS_ENABLED(CONFIG_EXYNOS_DPU30) || IS_ENABLED(CONFIG_MCD_PANEL) || IS_ENABLED(CONFIG_USDM_PANEL)
 extern int get_lcd_info(char *arg);
 #endif
 
-int sec_input_handler_start(void *data);
+#if IS_ENABLED(CONFIG_SMCDSD_PANEL)
+extern unsigned int lcdtype;
+#endif
+
+int sec_input_get_lcd_id(struct device *dev);
+int sec_input_handler_start(struct device *dev);
 void sec_delay(unsigned int ms);
-int sec_input_set_temperature(struct i2c_client *client, int state);
-void sec_input_set_grip_type(struct i2c_client *client, u8 set_type);
-int sec_input_check_cover_type(struct i2c_client *client);
-void sec_input_set_fod_info(struct i2c_client *client, int vi_x, int vi_y, int vi_size);
-ssize_t sec_input_get_fod_info(struct i2c_client *client, char *buf);
-bool sec_input_set_fod_rect(struct i2c_client *client, int *rect_data);
-int sec_input_check_wirelesscharger_mode(struct i2c_client *client, int mode, int force);
+int sec_input_set_temperature(struct device *dev, int state);
+void sec_input_set_grip_type(struct device *dev, u8 set_type);
+int sec_input_check_cover_type(struct device *dev);
+void sec_input_set_fod_info(struct device *dev, int vi_x, int vi_y, int vi_size, int vi_event);
+ssize_t sec_input_get_fod_info(struct device *dev, char *buf);
+bool sec_input_set_fod_rect(struct device *dev, int *rect_data);
+int sec_input_check_wirelesscharger_mode(struct device *dev, int mode, int force);
 
 ssize_t sec_input_get_common_hw_param(struct sec_ts_plat_data *pdata, char *buf);
 void sec_input_clear_common_hw_param(struct sec_ts_plat_data *pdata);
 
-void sec_input_print_info(struct i2c_client *client, struct sec_tclm_data *tdata);
+void sec_input_print_info(struct device *dev, struct sec_tclm_data *tdata);
 
-void sec_input_proximity_report(struct i2c_client *client, int data);
-void sec_input_gesture_report(struct i2c_client *client, int id, int x, int y);
-void sec_input_coord_event(struct i2c_client *client, int t_id);
-void sec_input_release_all_finger(struct i2c_client *client);
-int sec_input_device_register(struct i2c_client *client, void *data);
-void sec_tclm_parse_dt(struct i2c_client *client, struct sec_tclm_data *tdata);
-int sec_input_parse_dt(struct i2c_client *client);
-int sec_input_pinctrl_configure(void *data, bool on);
-int sec_input_power(void *data, bool on);
+void sec_input_proximity_report(struct device *dev, int data);
+void sec_input_gesture_report(struct device *dev, int id, int x, int y);
+void sec_input_coord_event_fill_slot(struct device *dev, int t_id);
+void sec_input_coord_event_sync_slot(struct device *dev);
+void sec_input_release_all_finger(struct device *dev);
+int sec_input_device_register(struct device *dev, void *data);
+void sec_tclm_parse_dt(struct device *dev, struct sec_tclm_data *tdata);
+int sec_input_parse_dt(struct device *dev);
+void sec_tclm_parse_dt_dev(struct device *dev, struct sec_tclm_data *tdata);
+int sec_input_pinctrl_configure(struct device *dev, bool on);
+int sec_input_power(struct device *dev, bool on);
 int sec_input_sysfs_create(struct kobject *kobj);
-
-#if IS_ENABLED(CONFIG_BATTERY_SAMSUNG)
-extern unsigned int lpcharge;
-#endif
+void sec_input_sysfs_remove(struct kobject *kobj);
+void sec_input_register_vbus_notifier(struct device *dev);
+void sec_input_unregister_vbus_notifier(struct device *dev);
 
 void sec_input_register_notify(struct notifier_block *nb, notifier_fn_t notifier_call, int priority);
 void sec_input_unregister_notify(struct notifier_block *nb);
 int sec_input_notify(struct notifier_block *nb, unsigned long noti, void *v);
 int sec_input_self_request_notify(struct notifier_block *nb);
+int sec_input_enable_device(struct input_dev *dev);
+int sec_input_disable_device(struct input_dev *dev);
+void stui_tsp_init(int (*stui_tsp_enter)(void), int (*stui_tsp_exit)(void), int (*stui_tsp_type)(void));
+int stui_tsp_enter(void);
+int stui_tsp_exit(void);
+int stui_tsp_type(void);

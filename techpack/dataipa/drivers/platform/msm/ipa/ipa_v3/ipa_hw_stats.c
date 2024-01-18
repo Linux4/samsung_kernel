@@ -1533,6 +1533,9 @@ int ipa_drop_stats_init(void)
 	/* Always enable drop stats for USB DPL Pipe. */
 	pipe_bitmask |= IPA_CLIENT_BIT_32(IPA_CLIENT_USB_DPL_CONS);
 
+	/* Always enable drop stats for ODL DPL Pipe. */
+	pipe_bitmask |= IPA_CLIENT_BIT_32(IPA_CLIENT_ODL_DPL_CONS);
+
 	/* Currently we have option to enable drop stats using debugfs.
 	 * To enable drop stats for a different pipe, first user needs
 	 * to query drop stats to get the current stats and enable.
@@ -2308,7 +2311,7 @@ static ssize_t ipa_debugfs_enable_disable_drop_stats(struct file *file,
 			is_pipe = true;
 		}
 		if (dbg_buff[i] == seprator) {
-			if (pipe_num >= 0 && pipe_num < ipa3_ctx->ipa_num_pipes
+			if (pipe_num < ipa3_ctx->ipa_num_pipes
 				&& ipa3_get_client_by_pipe(pipe_num) <
 				IPA_CLIENT_MAX) {
 				IPADBG("pipe number %u\n", pipe_num);
@@ -2323,7 +2326,7 @@ static ssize_t ipa_debugfs_enable_disable_drop_stats(struct file *file,
 			is_pipe = false;
 		}
 	}
-	if (is_pipe && pipe_num >= 0 && pipe_num < ipa3_ctx->ipa_num_pipes &&
+	if (is_pipe && pipe_num < ipa3_ctx->ipa_num_pipes &&
 		ipa3_get_client_by_pipe(pipe_num) < IPA_CLIENT_MAX) {
 		IPADBG("pipe number %u\n", pipe_num);
 		if (enable_pipe)

@@ -133,3 +133,4 @@ struct test_stream *test_new_stream(struct test *test)
 	else
 		return NULL;
 }
+EXPORT_SYMBOL(test_new_stream);

@@ -2,7 +2,7 @@
 /*
  * UFS Crypto ops QTI implementation.
  *
- * Copyright (c) 2020, Linux Foundation. All rights reserved.
+ * Copyright (c) 2020-2021, Linux Foundation. All rights reserved.
  */
 
 #include <crypto/algapi.h>
@@ -22,6 +22,9 @@ static struct ufs_hba_crypto_variant_ops ufshcd_crypto_qti_variant_ops = {
 	.disable = ufshcd_crypto_qti_disable,
 	.resume = ufshcd_crypto_qti_resume,
 	.debug = ufshcd_crypto_qti_debug,
+#if IS_ENABLED(CONFIG_QTI_CRYPTO_FDE)
+	.prepare_lrbp_crypto = ufshcd_crypto_qti_prep_lrbp_crypto,
+#endif
 };
 
 static uint8_t get_data_unit_size_mask(unsigned int data_unit_size)
@@ -33,6 +36,59 @@ static uint8_t get_data_unit_size_mask(unsigned int data_unit_size)
 
 	return data_unit_size / MINIMUM_DUN_SIZE;
 }
+
+#if IS_ENABLED(CONFIG_QTI_CRYPTO_FDE)
+int ufshcd_crypto_qti_prep_lrbp_crypto(struct ufs_hba *hba,
+				       struct scsi_cmnd *cmd,
+				       struct ufshcd_lrb *lrbp)
+{
+	struct bio_crypt_ctx *bc;
+	int ret = 0;
+	struct ice_data_setting setting;
+	bool bypass = true;
+	short key_index = 0;
+	struct request *req;
+
+	lrbp->crypto_enable = false;
+	req = cmd->request;
+	if (!req || !req->bio)
+		return ret;
+
+	if (!bio_crypt_should_process(req)) {
+		ret = crypto_qti_ice_config_start(req, &setting);
+		if (!ret) {
+			key_index = setting.crypto_data.key_index;
+			bypass = (rq_data_dir(req) == WRITE) ?
+				 setting.encr_bypass : setting.decr_bypass;
+			lrbp->crypto_enable = !bypass;
+			lrbp->crypto_key_slot = key_index;
+			lrbp->data_unit_num = req->bio->bi_iter.bi_sector >>
+					      ICE_CRYPTO_DATA_UNIT_4_KB;
+		} else {
+			pr_err("%s crypto config failed err = %d\n", __func__,
+			       ret);
+		}
+		return ret;
+	}
+	bc = req->bio->bi_crypt_context;
+
+	if (WARN_ON(!ufshcd_is_crypto_enabled(hba))) {
+		/*
+		 * Upper layer asked us to do inline encryption
+		 * but that isn't enabled, so we fail this request.
+		 */
+		return -EINVAL;
+	}
+	if (!ufshcd_keyslot_valid(hba, bc->bc_keyslot))
+		return -EINVAL;
+
+	lrbp->crypto_enable = true;
+	lrbp->crypto_key_slot = bc->bc_keyslot;
+	lrbp->data_unit_num = bc->bc_dun[0];
+
+	return 0;
+}
+#endif	//IS_ENABLED(CONFIG_QTI_CRYPTO_FDE)
 
 static bool ice_cap_idx_valid(struct ufs_hba *hba,
 			      unsigned int cap_idx)
@@ -194,6 +250,7 @@ static int ufshcd_hba_init_crypto_qti_spec(struct ufs_hba *hba,
 	int err = 0;
 	unsigned int crypto_modes_supported[BLK_ENCRYPTION_MODE_MAX];
 	enum blk_crypto_mode_num blk_mode_num;
+	unsigned int num_slots = 0;
 
 	/* Default to disabling crypto */
 	hba->caps &= ~UFSHCD_CAP_CRYPTO;
@@ -242,7 +299,12 @@ static int ufshcd_hba_init_crypto_qti_spec(struct ufs_hba *hba,
 			hba->crypto_cap_array[cap_idx].sdus_mask * 512;
 	}
 
-	hba->ksm = keyslot_manager_create(hba->dev, ufshcd_num_keyslots(hba),
+	num_slots = ufshcd_num_keyslots(hba);
+#if IS_ENABLED(CONFIG_QTI_CRYPTO_FDE)
+	if (num_slots > 0)
+		--num_slots;
+#endif
+	hba->ksm = keyslot_manager_create(hba->dev, num_slots,
 				ksm_ops,
 				BLK_CRYPTO_FEATURE_STANDARD_KEYS |
 				BLK_CRYPTO_FEATURE_WRAPPED_KEYS,
@@ -269,13 +331,35 @@ int ufshcd_crypto_qti_init_crypto(struct ufs_hba *hba,
 	struct platform_device *pdev = to_platform_device(hba->dev);
 	void __iomem *mmio_base;
 	struct resource *mem_res;
+	void __iomem *hwkm_ice_mmio = NULL;
+	struct resource *hwkm_ice_memres = NULL;
 
 	mem_res = platform_get_resource_byname(pdev, IORESOURCE_MEM,
 								"ufs_ice");
 	mmio_base = devm_ioremap_resource(hba->dev, mem_res);
 	if (IS_ERR(mmio_base)) {
 		pr_err("%s: Unable to get ufs_crypto mmio base\n", __func__);
-		return PTR_ERR(mmio_base);
+		hba->caps &= ~UFSHCD_CAP_CRYPTO;
+		hba->quirks |= UFSHCD_QUIRK_BROKEN_CRYPTO;
+		return err;
+	}
+
+	hwkm_ice_memres = platform_get_resource_byname(pdev, IORESOURCE_MEM,
+						       "ufs_ice_hwkm");
+
+	if (!hwkm_ice_memres) {
+		pr_err("%s: Either no entry in dtsi or no memory available for IORESOURCE\n",
+		       __func__);
+	} else {
+		hwkm_ice_mmio = devm_ioremap_resource(hba->dev,
+						      hwkm_ice_memres);
+
+		if (IS_ERR(hwkm_ice_mmio)) {
+			err = PTR_ERR(hwkm_ice_mmio);
+			pr_err("%s: Error = %d mapping HWKM memory\n",
+				__func__, err);
+			return err;
+		}
 	}
 
 	err = ufshcd_hba_init_crypto_qti_spec(hba, &ufshcd_crypto_qti_ksm_ops);
@@ -285,8 +369,8 @@ int ufshcd_crypto_qti_init_crypto(struct ufs_hba *hba,
 		return err;
 	}
 
-	err = crypto_qti_init_crypto(hba->dev,
-			mmio_base, (void **)&hba->crypto_vops->priv);
+	err = crypto_qti_init_crypto(hba->dev, mmio_base, hwkm_ice_mmio,
+				     (void **)&hba->crypto_vops->priv);
 	if (err) {
 		pr_err("%s: Error initiating crypto, err %d\n",
 					__func__, err);

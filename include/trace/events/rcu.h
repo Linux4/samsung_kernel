@@ -31,14 +31,14 @@ TRACE_EVENT(rcu_utilization,
 	TP_ARGS(s),
 
 	TP_STRUCT__entry(
-		__field(const char *, s)
+		__string(tpstr, s)
 	),
 
 	TP_fast_assign(
-		__entry->s = s;
+		__assign_str(tpstr, s)
 	),
 
-	TP_printk("%s", __entry->s)
+	TP_printk("%s", __get_str(tpstr))
 );
 
 #if defined(CONFIG_TREE_RCU) || defined(CONFIG_PREEMPT_RCU)
@@ -73,19 +73,19 @@ TRACE_EVENT_RCU(rcu_grace_period,
 	TP_ARGS(rcuname, gp_seq, gpevent),
 
 	TP_STRUCT__entry(
-		__field(const char *, rcuname)
+		__string(rcuname_str, rcuname)
 		__field(unsigned long, gp_seq)
-		__field(const char *, gpevent)
+		__string(gpevent_str, gpevent)
 	),
 
 	TP_fast_assign(
-		__entry->rcuname = rcuname;
+		__assign_str(rcuname_str, rcuname);
 		__entry->gp_seq = gp_seq;
-		__entry->gpevent = gpevent;
+		__assign_str(gpevent_str, gpevent);
 	),
 
 	TP_printk("%s %lu %s",
-		  __entry->rcuname, __entry->gp_seq, __entry->gpevent)
+		  __get_str(rcuname_str), __entry->gp_seq, __get_str(gpevent_str))
 );
 
 /*
@@ -113,28 +113,28 @@ TRACE_EVENT_RCU(rcu_future_grace_period,
 	TP_ARGS(rcuname, gp_seq, gp_seq_req, level, grplo, grphi, gpevent),
 
 	TP_STRUCT__entry(
-		__field(const char *, rcuname)
+		__string(rcuname_str, rcuname)
 		__field(unsigned long, gp_seq)
 		__field(unsigned long, gp_seq_req)
 		__field(u8, level)
 		__field(int, grplo)
 		__field(int, grphi)
-		__field(const char *, gpevent)
+		__string(gpevent_str, gpevent)
 	),
 
 	TP_fast_assign(
-		__entry->rcuname = rcuname;
+		__assign_str(rcuname_str, rcuname);
 		__entry->gp_seq = gp_seq;
 		__entry->gp_seq_req = gp_seq_req;
 		__entry->level = level;
 		__entry->grplo = grplo;
 		__entry->grphi = grphi;
-		__entry->gpevent = gpevent;
+		__assign_str(gpevent_str, gpevent);
 	),
 
 	TP_printk("%s %lu %lu %u %d %d %s",
-		  __entry->rcuname, __entry->gp_seq, __entry->gp_seq_req, __entry->level,
-		  __entry->grplo, __entry->grphi, __entry->gpevent)
+		  __get_str(rcuname_str), __entry->gp_seq, __entry->gp_seq_req, __entry->level,
+		  __entry->grplo, __entry->grphi, __get_str(gpevent_str))
 );
 
 /*
@@ -152,7 +152,7 @@ TRACE_EVENT_RCU(rcu_grace_period_init,
 	TP_ARGS(rcuname, gp_seq, level, grplo, grphi, qsmask),
 
 	TP_STRUCT__entry(
-		__field(const char *, rcuname)
+		__string(rcuname_str, rcuname)
 		__field(unsigned long, gp_seq)
 		__field(u8, level)
 		__field(int, grplo)
@@ -161,7 +161,7 @@ TRACE_EVENT_RCU(rcu_grace_period_init,
 	),
 
 	TP_fast_assign(
-		__entry->rcuname = rcuname;
+		__assign_str(rcuname_str, rcuname);
 		__entry->gp_seq = gp_seq;
 		__entry->level = level;
 		__entry->grplo = grplo;
@@ -170,7 +170,7 @@ TRACE_EVENT_RCU(rcu_grace_period_init,
 	),
 
 	TP_printk("%s %lu %u %d %d %lx",
-		  __entry->rcuname, __entry->gp_seq, __entry->level,
+		  __get_str(rcuname_str), __entry->gp_seq, __entry->level,
 		  __entry->grplo, __entry->grphi, __entry->qsmask)
 );
 
@@ -196,19 +196,19 @@ TRACE_EVENT_RCU(rcu_exp_grace_period,
 	TP_ARGS(rcuname, gpseq, gpevent),
 
 	TP_STRUCT__entry(
-		__field(const char *, rcuname)
+		__string(rcuname_str, rcuname)
 		__field(unsigned long, gpseq)
-		__field(const char *, gpevent)
+		__string(gpevent_str, gpevent)
 	),
 
 	TP_fast_assign(
-		__entry->rcuname = rcuname;
+		__assign_str(rcuname_str, rcuname);
 		__entry->gpseq = gpseq;
-		__entry->gpevent = gpevent;
+		__assign_str(gpevent_str, gpevent);
 	),
 
 	TP_printk("%s %lu %s",
-		  __entry->rcuname, __entry->gpseq, __entry->gpevent)
+		  __get_str(rcuname_str), __entry->gpseq, __get_str(gpevent_str))
 );
 
 /*
@@ -229,24 +229,24 @@ TRACE_EVENT_RCU(rcu_exp_funnel_lock,
 	TP_ARGS(rcuname, level, grplo, grphi, gpevent),
 
 	TP_STRUCT__entry(
-		__field(const char *, rcuname)
+		__string(rcuname_str, rcuname)
 		__field(u8, level)
 		__field(int, grplo)
 		__field(int, grphi)
-		__field(const char *, gpevent)
+		__string(gpevent_str, gpevent)
 	),
 
 	TP_fast_assign(
-		__entry->rcuname = rcuname;
+		__assign_str(rcuname_str, rcuname);
 		__entry->level = level;
 		__entry->grplo = grplo;
 		__entry->grphi = grphi;
-		__entry->gpevent = gpevent;
+		__assign_str(gpevent_str, gpevent);
 	),
 
 	TP_printk("%s %d %d %d %s",
-		  __entry->rcuname, __entry->level, __entry->grplo,
-		  __entry->grphi, __entry->gpevent)
+		  __get_str(rcuname_str), __entry->level, __entry->grplo,
+		  __entry->grphi, __get_str(gpevent_str))
 );
 
 #ifdef CONFIG_RCU_NOCB_CPU
@@ -280,18 +280,18 @@ TRACE_EVENT_RCU(rcu_nocb_wake,
 	TP_ARGS(rcuname, cpu, reason),
 
 	TP_STRUCT__entry(
-		__field(const char *, rcuname)
+		__string(rcuname_str, rcuname)
 		__field(int, cpu)
-		__field(const char *, reason)
+		__string(reason_str, reason)
 	),
 
 	TP_fast_assign(
-		__entry->rcuname = rcuname;
+		__assign_str(rcuname_str, rcuname);
 		__entry->cpu = cpu;
-		__entry->reason = reason;
+		__assign_str(reason_str, reason);
 	),
 
-	TP_printk("%s %d %s", __entry->rcuname, __entry->cpu, __entry->reason)
+	TP_printk("%s %d %s", __get_str(rcuname_str), __entry->cpu, __get_str(reason_str))
 );
 #endif
 
@@ -308,19 +308,19 @@ TRACE_EVENT_RCU(rcu_preempt_task,
 	TP_ARGS(rcuname, pid, gp_seq),
 
 	TP_STRUCT__entry(
-		__field(const char *, rcuname)
+		__string(rcuname_str, rcuname)
 		__field(unsigned long, gp_seq)
 		__field(int, pid)
 	),
 
 	TP_fast_assign(
-		__entry->rcuname = rcuname;
+		__assign_str(rcuname_str, rcuname);
 		__entry->gp_seq = gp_seq;
 		__entry->pid = pid;
 	),
 
 	TP_printk("%s %lu %d",
-		  __entry->rcuname, __entry->gp_seq, __entry->pid)
+		  __get_str(rcuname_str), __entry->gp_seq, __entry->pid)
 );
 
 /*
@@ -335,18 +335,18 @@ TRACE_EVENT_RCU(rcu_unlock_preempted_task,
 	TP_ARGS(rcuname, gp_seq, pid),
 
 	TP_STRUCT__entry(
-		__field(const char *, rcuname)
+		__string(rcuname_str, rcuname)
 		__field(unsigned long, gp_seq)
 		__field(int, pid)
 	),
 
 	TP_fast_assign(
-		__entry->rcuname = rcuname;
+		__assign_str(rcuname_str, rcuname);
 		__entry->gp_seq = gp_seq;
 		__entry->pid = pid;
 	),
 
-	TP_printk("%s %lu %d", __entry->rcuname, __entry->gp_seq, __entry->pid)
+	TP_printk("%s %lu %d", __get_str(rcuname_str), __entry->gp_seq, __entry->pid)
 );
 
 /*
@@ -366,7 +366,7 @@ TRACE_EVENT_RCU(rcu_quiescent_state_report,
 	TP_ARGS(rcuname, gp_seq, mask, qsmask, level, grplo, grphi, gp_tasks),
 
 	TP_STRUCT__entry(
-		__field(const char *, rcuname)
+		__string(rcuname_str, rcuname)
 		__field(unsigned long, gp_seq)
 		__field(unsigned long, mask)
 		__field(unsigned long, qsmask)
@@ -377,7 +377,7 @@ TRACE_EVENT_RCU(rcu_quiescent_state_report,
 	),
 
 	TP_fast_assign(
-		__entry->rcuname = rcuname;
+		__assign_str(rcuname_str, rcuname);
 		__entry->gp_seq = gp_seq;
 		__entry->mask = mask;
 		__entry->qsmask = qsmask;
@@ -388,7 +388,7 @@ TRACE_EVENT_RCU(rcu_quiescent_state_report,
 	),
 
 	TP_printk("%s %lu %lx>%lx %u %d %d %u",
-		  __entry->rcuname, __entry->gp_seq,
+		  __get_str(rcuname_str), __entry->gp_seq,
 		  __entry->mask, __entry->qsmask, __entry->level,
 		  __entry->grplo, __entry->grphi, __entry->gp_tasks)
 );
@@ -407,22 +407,22 @@ TRACE_EVENT_RCU(rcu_fqs,
 	TP_ARGS(rcuname, gp_seq, cpu, qsevent),
 
 	TP_STRUCT__entry(
-		__field(const char *, rcuname)
+		__string(rcuname_str, rcuname)
 		__field(unsigned long, gp_seq)
 		__field(int, cpu)
-		__field(const char *, qsevent)
+		__string(qsevent_str, qsevent)
 	),
 
 	TP_fast_assign(
-		__entry->rcuname = rcuname;
+		__assign_str(rcuname_str, rcuname);
 		__entry->gp_seq = gp_seq;
 		__entry->cpu = cpu;
-		__entry->qsevent = qsevent;
+		__assign_str(qsevent_str, qsevent);
 	),
 
 	TP_printk("%s %lu %d %s",
-		  __entry->rcuname, __entry->gp_seq,
-		  __entry->cpu, __entry->qsevent)
+		  __get_str(rcuname_str), __entry->gp_seq,
+		  __entry->cpu, __get_str(qsevent_str))
 );
 
 #endif /* #if defined(CONFIG_TREE_RCU) || defined(CONFIG_PREEMPT_RCU) */
@@ -447,20 +447,20 @@ TRACE_EVENT_RCU(rcu_dyntick,
 	TP_ARGS(polarity, oldnesting, newnesting, dynticks),
 
 	TP_STRUCT__entry(
-		__field(const char *, polarity)
+		__string(polarity_str, polarity)
 		__field(long, oldnesting)
 		__field(long, newnesting)
 		__field(int, dynticks)
 	),
 
 	TP_fast_assign(
-		__entry->polarity = polarity;
+		__assign_str(polarity_str, polarity);
 		__entry->oldnesting = oldnesting;
 		__entry->newnesting = newnesting;
 		__entry->dynticks = dynticks;
 	),
 
-	TP_printk("%s %lx %lx %#3x", __entry->polarity,
+	TP_printk("%s %lx %lx %#3x", __get_str(polarity_str),
 		  __entry->oldnesting, __entry->newnesting,
 		  __entry->dynticks & 0xfff)
 );
@@ -480,7 +480,7 @@ TRACE_EVENT_RCU(rcu_callback,
 	TP_ARGS(rcuname, rhp, qlen_lazy, qlen),
 
 	TP_STRUCT__entry(
-		__field(const char *, rcuname)
+		__string(rcuname_str, rcuname)
 		__field(void *, rhp)
 		__field(void *, func)
 		__field(long, qlen_lazy)
@@ -488,7 +488,7 @@ TRACE_EVENT_RCU(rcu_callback,
 	),
 
 	TP_fast_assign(
-		__entry->rcuname = rcuname;
+		__assign_str(rcuname_str, rcuname);
 		__entry->rhp = rhp;
 		__entry->func = rhp->func;
 		__entry->qlen_lazy = qlen_lazy;
@@ -496,7 +496,7 @@ TRACE_EVENT_RCU(rcu_callback,
 	),
 
 	TP_printk("%s rhp=%p func=%ps %ld/%ld",
-		  __entry->rcuname, __entry->rhp, __entry->func,
+		  __get_str(rcuname_str), __entry->rhp, __entry->func,
 		  __entry->qlen_lazy, __entry->qlen)
 );
 
@@ -516,7 +516,7 @@ TRACE_EVENT_RCU(rcu_kfree_callback,
 	TP_ARGS(rcuname, rhp, offset, qlen_lazy, qlen),
 
 	TP_STRUCT__entry(
-		__field(const char *, rcuname)
+		__string(rcuname_str, rcuname)
 		__field(void *, rhp)
 		__field(unsigned long, offset)
 		__field(long, qlen_lazy)
@@ -524,7 +524,7 @@ TRACE_EVENT_RCU(rcu_kfree_callback,
 	),
 
 	TP_fast_assign(
-		__entry->rcuname = rcuname;
+		__assign_str(rcuname_str, rcuname);
 		__entry->rhp = rhp;
 		__entry->offset = offset;
 		__entry->qlen_lazy = qlen_lazy;
@@ -532,7 +532,7 @@ TRACE_EVENT_RCU(rcu_kfree_callback,
 	),
 
 	TP_printk("%s rhp=%p func=%ld %ld/%ld",
-		  __entry->rcuname, __entry->rhp, __entry->offset,
+		  __get_str(rcuname_str), __entry->rhp, __entry->offset,
 		  __entry->qlen_lazy, __entry->qlen)
 );
 
@@ -550,21 +550,21 @@ TRACE_EVENT_RCU(rcu_batch_start,
 	TP_ARGS(rcuname, qlen_lazy, qlen, blimit),
 
 	TP_STRUCT__entry(
-		__field(const char *, rcuname)
+		__string(rcuname_str, rcuname)
 		__field(long, qlen_lazy)
 		__field(long, qlen)
 		__field(long, blimit)
 	),
 
 	TP_fast_assign(
-		__entry->rcuname = rcuname;
+		__assign_str(rcuname_str, rcuname);
 		__entry->qlen_lazy = qlen_lazy;
 		__entry->qlen = qlen;
 		__entry->blimit = blimit;
 	),
 
 	TP_printk("%s CBs=%ld/%ld bl=%ld",
-		  __entry->rcuname, __entry->qlen_lazy, __entry->qlen,
+		  __get_str(rcuname_str), __entry->qlen_lazy, __entry->qlen,
 		  __entry->blimit)
 );
 
@@ -580,19 +580,19 @@ TRACE_EVENT_RCU(rcu_invoke_callback,
 	TP_ARGS(rcuname, rhp),
 
 	TP_STRUCT__entry(
-		__field(const char *, rcuname)
+		__string(rcuname_str, rcuname)
 		__field(void *, rhp)
 		__field(void *, func)
 	),
 
 	TP_fast_assign(
-		__entry->rcuname = rcuname;
+		__assign_str(rcuname_str, rcuname);
 		__entry->rhp = rhp;
 		__entry->func = rhp->func;
 	),
 
 	TP_printk("%s rhp=%p func=%ps",
-		  __entry->rcuname, __entry->rhp, __entry->func)
+		  __get_str(rcuname_str), __entry->rhp, __entry->func)
 );
 
 /*
@@ -609,19 +609,19 @@ TRACE_EVENT_RCU(rcu_invoke_kfree_callback,
 	TP_ARGS(rcuname, rhp, offset),
 
 	TP_STRUCT__entry(
-		__field(const char *, rcuname)
+		__string(rcuname_str, rcuname)
 		__field(void *, rhp)
 		__field(unsigned long, offset)
 	),
 
 	TP_fast_assign(
-		__entry->rcuname = rcuname;
+		__assign_str(rcuname_str, rcuname);
 		__entry->rhp = rhp;
 		__entry->offset	= offset;
 	),
 
 	TP_printk("%s rhp=%p func=%ld",
-		  __entry->rcuname, __entry->rhp, __entry->offset)
+		  __get_str(rcuname_str), __entry->rhp, __entry->offset)
 );
 
 /*
@@ -638,34 +638,44 @@ TRACE_EVENT_RCU(rcu_invoke_kfree_callback,
 TRACE_EVENT_RCU(rcu_batch_end,
 
 	TP_PROTO(const char *rcuname, int callbacks_invoked,
-		 char cb, char nr, char iit, char risk),
+		 bool cb, bool nr, bool iit, bool risk),
 
 	TP_ARGS(rcuname, callbacks_invoked, cb, nr, iit, risk),
 
 	TP_STRUCT__entry(
-		__field(const char *, rcuname)
+		__string(rcuname_str, rcuname)
 		__field(int, callbacks_invoked)
-		__field(char, cb)
-		__field(char, nr)
-		__field(char, iit)
-		__field(char, risk)
+		__field(bool, cb)
+		__field(bool, nr)
+		__field(bool, iit)
+		__field(bool, risk)
+		__string(cb_str, "C")
+		__string(nr_str, "S")
+		__string(iit_str, "I")
+		__string(risk_str, "R")
+		__string(dot_str, ".")
 	),
 
 	TP_fast_assign(
-		__entry->rcuname = rcuname;
+		__assign_str(rcuname_str, rcuname);
 		__entry->callbacks_invoked = callbacks_invoked;
 		__entry->cb = cb;
 		__entry->nr = nr;
 		__entry->iit = iit;
 		__entry->risk = risk;
+		__assign_str(cb_str, "C");
+		__assign_str(nr_str, "S");
+		__assign_str(iit_str, "I");
+		__assign_str(risk_str, "R");
+		__assign_str(dot_str, ".");
 	),
 
-	TP_printk("%s CBs-invoked=%d idle=%c%c%c%c",
-		  __entry->rcuname, __entry->callbacks_invoked,
-		  __entry->cb ? 'C' : '.',
-		  __entry->nr ? 'S' : '.',
-		  __entry->iit ? 'I' : '.',
-		  __entry->risk ? 'R' : '.')
+	TP_printk("%s CBs-invoked=%d idle=%s%s%s%s",
+		  __get_str(rcuname_str), __entry->callbacks_invoked,
+		  __entry->cb ? __get_str(cb_str) : __get_str(dot_str),
+		  __entry->nr ? __get_str(nr_str) : __get_str(dot_str),
+		  __entry->iit ? __get_str(iit_str) : __get_str(dot_str),
+		  __entry->risk ? __get_str(risk_str) : __get_str(dot_str))
 );
 
 /*
@@ -732,23 +742,23 @@ TRACE_EVENT_RCU(rcu_barrier,
 	TP_ARGS(rcuname, s, cpu, cnt, done),
 
 	TP_STRUCT__entry(
-		__field(const char *, rcuname)
-		__field(const char *, s)
+		__string(rcuname_str, rcuname)
+		__string(phase, s)
 		__field(int, cpu)
 		__field(int, cnt)
 		__field(unsigned long, done)
 	),
 
 	TP_fast_assign(
-		__entry->rcuname = rcuname;
-		__entry->s = s;
+		__assign_str(rcuname_str, rcuname);
+		__assign_str(phase, s);
 		__entry->cpu = cpu;
 		__entry->cnt = cnt;
 		__entry->done = done;
 	),
 
 	TP_printk("%s %s cpu %d remaining %d # %lu",
-		  __entry->rcuname, __entry->s, __entry->cpu, __entry->cnt,
+		  __get_str(rcuname_str), __get_str(phase), __entry->cpu, __entry->cnt,
 		  __entry->done)
 );
 

@@ -13,6 +13,12 @@
 #if IS_REACHABLE(CONFIG_LEDS_S2MPB02)
 #include <linux/leds-s2mpb02.h>
 #endif
+#if IS_REACHABLE(CONFIG_LEDS_KTD2692)
+#include <linux/leds-ktd2692.h>
+#endif
+#if IS_REACHABLE(CONFIG_LEDS_SM5714)
+#include <linux/sm5714.h>
+#endif
 
 static uint default_on_timer = 2;
 module_param(default_on_timer, uint, 0644);
@@ -483,6 +489,90 @@ static int cam_flash_torch(
 
 	return rc;
 }
+#elif IS_REACHABLE(CONFIG_LEDS_KTD2692)
+int cam_flash_off(struct cam_flash_ctrl *flash_ctrl)
+{
+	if (!flash_ctrl) {
+		CAM_ERR(CAM_FLASH, "Flash control Null");
+		return -EINVAL;
+	}
+
+	CAM_INFO(CAM_FLASH, "CAM Flash OFF");
+	ktd2692_led_mode_ctrl(KTD2692_DISABLES_TORCH_FLASH_MODE, 0);
+
+	flash_ctrl->flash_state = CAM_FLASH_STATE_START;
+	return 0;
+}
+
+static int cam_flash_low(
+	struct cam_flash_ctrl *flash_ctrl,
+	struct cam_flash_frame_setting *flash_data)
+{
+	int rc = 0;
+
+	if (!flash_data) {
+		CAM_ERR(CAM_FLASH, "Flash Data Null");
+		return -EINVAL;
+	}
+
+	CAM_INFO(CAM_FLASH, "CAM Low Flash ON");
+	rc =  ktd2692_led_mode_ctrl(KTD2692_ENABLE_TORCH_MODE, 200);
+	if (rc)
+		CAM_ERR(CAM_FLASH, "Fire Low Flash failed: %d", rc);
+
+	return rc;
+}
+
+static int cam_flash_high(
+	struct cam_flash_ctrl *flash_ctrl,
+	struct cam_flash_frame_setting *flash_data)
+{
+	int rc = 0;
+
+	if (flash_data->led_current_ma[0] == 100) {
+		rc =  ktd2692_led_mode_ctrl(KTD2692_ENABLE_TORCH_MODE, 125);
+	}
+	else if (flash_data->led_current_ma[0] == 240) {
+		rc =  ktd2692_led_mode_ctrl(KTD2692_ENABLE_TORCH_MODE, 225);
+	}
+	else {
+		rc = ktd2692_led_mode_ctrl(KTD2692_ENABLE_FLASH_MODE, 1400);
+	}
+
+	CAM_INFO(CAM_FLASH, "CAM Flash ON, current = %d",flash_data->led_current_ma[0]);
+	if (rc)
+		CAM_ERR(CAM_FLASH, "Fire Flash Failed: %d", rc);
+
+	return rc;
+}
+
+static int cam_flash_torch(
+	struct cam_flash_ctrl *flash_ctrl,
+	struct cam_flash_frame_setting *flash_data)
+{
+	int rc = 0;
+
+	if (!flash_data) {
+		CAM_ERR(CAM_FLASH, "Flash Data Null");
+		return -EINVAL;
+	}
+
+	CAM_INFO(CAM_FLASH, "CAM Torch Flash ON, %d mA", flash_data->led_current_ma[0]);
+#if defined(CONFIG_FLASH_CURRENT_JAPAN)
+		rc =  ktd2692_led_mode_ctrl(KTD2692_ENABLE_TORCH_MODE, 50);
+#else
+	if (flash_data->led_current_ma[0] == 140) {
+		rc =  ktd2692_led_mode_ctrl(KTD2692_ENABLE_TORCH_MODE, 100);
+	} else {
+		rc =  ktd2692_led_mode_ctrl(KTD2692_ENABLE_TORCH_MODE, 175);
+	}
+#endif
+
+	if (rc)
+		CAM_ERR(CAM_FLASH, "Fire Torch failed: %d", rc);
+
+	return rc;
+}
 #else
 static int cam_flash_ops(struct cam_flash_ctrl *flash_ctrl,
 	struct cam_flash_frame_setting *flash_data, enum camera_flash_opcode op)
@@ -491,10 +581,12 @@ static int cam_flash_ops(struct cam_flash_ctrl *flash_ctrl,
 	struct cam_flash_private_soc *soc_private = NULL;
 	int i = 0;
 
+#if !IS_REACHABLE(CONFIG_LEDS_SM5714)
 	if (!flash_ctrl || !flash_data) {
 		CAM_ERR(CAM_FLASH, "Fctrl or Data NULL");
 		return -EINVAL;
 	}
+#endif
 
 	soc_private = (struct cam_flash_private_soc *)
 		flash_ctrl->soc_info.soc_private;
@@ -578,6 +670,11 @@ int cam_flash_off(struct cam_flash_ctrl *flash_ctrl)
 		CAM_ERR(CAM_FLASH, "Flash control Null");
 		return -EINVAL;
 	}
+#if IS_REACHABLE(CONFIG_LEDS_SM5714)
+	sm5714_fled_mode_ctrl(SM5714_FLED_MODE_OFF, 0);
+	sm5714_fled_mode_ctrl(SM5714_FLED_MODE_CLOSE_FLASH, 0);
+	return 0;
+#endif
 	CAM_DBG(CAM_FLASH, "Flash OFF Triggered");
 	if (flash_ctrl->switch_trigger)
 		cam_res_mgr_led_trigger_event(flash_ctrl->switch_trigger,
@@ -595,6 +692,11 @@ static int cam_flash_low(
 		CAM_ERR(CAM_FLASH, "Flash Data Null");
 		return -EINVAL;
 	}
+
+#if IS_REACHABLE(CONFIG_LEDS_SM5714)
+	sm5714_fled_mode_ctrl(SM5714_FLED_MODE_PRE_FLASH, flash_data->led_current_ma[0]);
+	return 0;
+#endif
 
 	for (i = 0; i < flash_ctrl->flash_num_sources; i++)
 		if (flash_ctrl->flash_trigger[i])
@@ -620,6 +722,11 @@ static int cam_flash_high(
 		CAM_ERR(CAM_FLASH, "Flash Data Null");
 		return -EINVAL;
 	}
+
+#if IS_REACHABLE(CONFIG_LEDS_SM5714)
+	sm5714_fled_mode_ctrl(SM5714_FLED_MODE_MAIN_FLASH, flash_data->led_current_ma[0]);
+	return 0;
+#endif
 
 	for (i = 0; i < flash_ctrl->torch_num_sources; i++)
 		if (flash_ctrl->torch_trigger[i])
@@ -658,6 +765,30 @@ static int cam_flash_duration(struct cam_flash_ctrl *fctrl,
 
 	return rc;
 }
+#if IS_REACHABLE(CONFIG_LEDS_SM5714)
+static int cam_flash_torch(
+	struct cam_flash_ctrl *flash_ctrl,
+	struct cam_flash_frame_setting *flash_data)
+{
+	int rc = 0;
+
+	if (!flash_data) {
+		CAM_ERR(CAM_FLASH, "Flash Data Null");
+		return -EINVAL;
+	}
+
+	CAM_INFO(CAM_FLASH, "CAM Torch Flash ON, %d mA", flash_data->led_current_ma[0]);
+	if (flash_data->led_current_ma[0] == 140) {
+		rc =  sm5714_fled_mode_ctrl(SM5714_FLED_MODE_TORCH_FLASH, 100);
+	} else {
+		rc =  sm5714_fled_mode_ctrl(SM5714_FLED_MODE_TORCH_FLASH, 175);
+	}
+	if (rc)
+		CAM_ERR(CAM_FLASH, "Fire Torch failed: %d", rc);
+
+	return rc;
+}
+#endif
 #endif
 
 static int cam_flash_i2c_delete_req(struct cam_flash_ctrl *fctrl,
@@ -911,7 +1042,7 @@ int cam_flash_pmic_apply_setting(struct cam_flash_ctrl *fctrl,
 					return rc;
 				}
 			}
-#if IS_REACHABLE(CONFIG_LEDS_S2MPB02) || defined(CONFIG_LEDS_RT8547)
+#if IS_REACHABLE(CONFIG_LEDS_S2MPB02) || defined(CONFIG_LEDS_RT8547) || IS_REACHABLE(CONFIG_LEDS_KTD2692) || IS_REACHABLE(CONFIG_LEDS_SM5714)
 			if (flash_data->opcode ==
 				CAMERA_SENSOR_FLASH_OP_FIRETORCH) {
 				rc = cam_flash_torch(fctrl, flash_data);
@@ -947,7 +1078,7 @@ int cam_flash_pmic_apply_setting(struct cam_flash_ctrl *fctrl,
 					"LED off failed: %d",
 					rc);
 			}
-#if IS_REACHABLE(CONFIG_LEDS_S2MPB02) || defined(CONFIG_LEDS_RT8547)
+#if IS_REACHABLE(CONFIG_LEDS_S2MPB02) || defined(CONFIG_LEDS_RT8547) || IS_REACHABLE(CONFIG_LEDS_KTD2692) || IS_REACHABLE(CONFIG_LEDS_SM5714)
 			if (flash_data->opcode ==
 				CAMERA_SENSOR_FLASH_OP_FIRETORCH) {
 				rc = cam_flash_torch(fctrl, flash_data);
@@ -1023,7 +1154,7 @@ int cam_flash_pmic_apply_setting(struct cam_flash_ctrl *fctrl,
 				}
 			}
 		}
-#if IS_REACHABLE(CONFIG_LEDS_S2MPB02)
+#if IS_REACHABLE(CONFIG_LEDS_S2MPB02) || IS_REACHABLE(CONFIG_LEDS_KTD2692) || IS_REACHABLE(CONFIG_LEDS_SM5714)
 		else if ((flash_data->opcode ==
 			CAMERA_SENSOR_FLASH_OP_FIRETORCH) &&
 			(flash_data->cmn_attr.is_settings_valid) &&
@@ -1068,6 +1199,7 @@ int cam_flash_pmic_apply_setting(struct cam_flash_ctrl *fctrl,
 			(flash_data->cmn_attr.is_settings_valid) &&
 			(flash_data->cmn_attr.request_id == req_id)) {
 			if (fctrl->flash_state == CAM_FLASH_STATE_START) {
+#if !IS_REACHABLE(CONFIG_LEDS_KTD2692)
 				rc = cam_flash_duration(fctrl, flash_data);
 				if (rc) {
 					CAM_ERR(CAM_FLASH,
@@ -1075,6 +1207,7 @@ int cam_flash_pmic_apply_setting(struct cam_flash_ctrl *fctrl,
 						rc);
 					goto apply_setting_err;
 				}
+#endif
 			}
 		} else if (flash_data->opcode == CAM_PKT_NOP_OPCODE) {
 			CAM_DBG(CAM_FLASH, "NOP Packet");
@@ -1603,6 +1736,16 @@ int cam_flash_pmic_pkt_parser(struct cam_flash_ctrl *fctrl, void *arg)
 				i < flash_operation_info->count; i++)
 				fctrl->nrt_info.led_current_ma[i] =
 				flash_operation_info->led_current_ma[i];
+				
+#if IS_REACHABLE(CONFIG_LEDS_SM5714)
+			CAM_INFO(CAM_FLASH, "CAMERA_SENSOR_FLASH_CMD_TYPE_INIT_INFO led_current_ma = %d", fctrl->nrt_info.led_current_ma[0]);
+			if(flash_operation_info->opcode == CAMERA_SENSOR_FLASH_OP_FIRELOW || flash_operation_info->opcode == CAMERA_SENSOR_FLASH_OP_FIRETORCH) {
+				sm5714_fled_mode_ctrl(SM5714_FLED_MODE_PREPARE_FLASH, 0);
+			}
+			if(fctrl->nrt_info.led_current_ma[0] > 0) {
+				sm5714_fled_mode_ctrl(SM5714_FLED_MODE_TORCH_FLASH, fctrl->nrt_info.led_current_ma[0] & 0x0FFF);
+			}
+#endif				
 
 			rc = fctrl->func_tbl.apply_setting(fctrl, 0);
 			if (rc)
@@ -1702,6 +1845,15 @@ int cam_flash_pmic_pkt_parser(struct cam_flash_ctrl *fctrl, void *arg)
 			for (i = 0; i < flash_operation_info->count; i++)
 				flash_data->led_current_ma[i]
 				= flash_operation_info->led_current_ma[i];
+
+#if IS_REACHABLE(CONFIG_LEDS_SM5714)
+			if(flash_data->opcode == CAMERA_SENSOR_FLASH_OP_FIRELOW || flash_data->opcode == CAMERA_SENSOR_FLASH_OP_FIRETORCH) {
+					sm5714_fled_mode_ctrl(SM5714_FLED_MODE_PREPARE_FLASH, 0);
+					sm5714_fled_mode_ctrl(SM5714_FLED_MODE_TORCH_FLASH, flash_data->led_current_ma[0] & 0x0FFF);
+			}
+			else if(flash_data->opcode == CAMERA_SENSOR_FLASH_OP_FIREHIGH)
+					sm5714_fled_mode_ctrl(SM5714_FLED_MODE_MAIN_FLASH, flash_data->led_current_ma[0] & 0x0FFF);
+#endif
 
 			CAM_DBG(CAM_FLASH,
 				"FLASH_CMD_TYPE op:%d", flash_data->opcode);
@@ -1805,7 +1957,7 @@ int cam_flash_pmic_pkt_parser(struct cam_flash_ctrl *fctrl, void *arg)
 			flash_query_info =
 				(struct cam_flash_query_curr *)cmd_buf;
 
-#if !IS_REACHABLE(CONFIG_LEDS_S2MPB02)
+#if !IS_REACHABLE(CONFIG_LEDS_S2MPB02) && !IS_REACHABLE(CONFIG_LEDS_KTD2692) && !IS_REACHABLE(CONFIG_LEDS_SM5714)
 			rc = cam_flash_led_prepare(fctrl->switch_trigger,
 				QUERY_MAX_AVAIL_CURRENT, &query_curr_ma,
 				soc_private->is_wled_flash);
@@ -1969,6 +2121,10 @@ int cam_flash_release_dev(struct cam_flash_ctrl *fctrl)
 {
 	int rc = 0;
 
+// Re-Set the PMIC voltage 5V -> 9V
+#if IS_REACHABLE(CONFIG_LEDS_SM5714)
+	sm5714_fled_mode_ctrl(SM5714_FLED_MODE_CLOSE_FLASH, 0);
+#endif
 	if (fctrl->bridge_intf.device_hdl != 1) {
 		rc = cam_destroy_device_hdl(fctrl->bridge_intf.device_hdl);
 		if (rc)
@@ -1993,6 +2149,11 @@ void cam_flash_shutdown(struct cam_flash_ctrl *fctrl)
 	s2mpb02_led_en(S2MPB02_TORCH_LED_1, 0, S2MPB02_LED_TURN_WAY_I2C);/* torch, off */
 	s2mpb02_led_en(S2MPB02_FLASH_LED_1, 0, S2MPB02_LED_TURN_WAY_GPIO);/* flash, off */
 	s2mpb02_led_en(S2MPB02_TORCH_LED_1, 0, S2MPB02_LED_TURN_WAY_GPIO);/* torch, off */
+#elif IS_REACHABLE(CONFIG_LEDS_KTD2692)
+	ktd2692_led_mode_ctrl(KTD2692_DISABLES_TORCH_FLASH_MODE, 0);
+#endif
+#if IS_REACHABLE(CONFIG_LEDS_SM5714)
+        sm5714_fled_mode_ctrl(FLED_MODE_OFF,0);
 #endif
 
 	if (fctrl->flash_state == CAM_FLASH_STATE_INIT)

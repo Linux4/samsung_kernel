@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2016-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
  */
 
 #define pr_fmt(fmt)	"[drm:%s:%d] " fmt, __func__, __LINE__
@@ -498,7 +498,7 @@ static void _sde_core_uidle_setup_cfg(struct sde_kms *kms,
 		uidle->ops.set_uidle_ctl(uidle, &cfg);
 }
 
-static void _sde_core_uidle_setup_ctl(struct drm_crtc *crtc,
+void sde_core_uidle_setup_ctl(struct drm_crtc *crtc,
 	bool enable)
 {
 	struct drm_encoder *drm_enc;
@@ -526,7 +526,7 @@ static int _sde_core_perf_enable_uidle(struct sde_kms *kms,
 	SDE_EVT32(enable);
 	_sde_core_uidle_setup_wd(kms, enable);
 	_sde_core_uidle_setup_cfg(kms, enable);
-	_sde_core_uidle_setup_ctl(crtc, enable);
+	sde_core_uidle_setup_ctl(crtc, true);
 
 	kms->perf.uidle_enabled = enable;
 
@@ -581,7 +581,7 @@ void sde_core_perf_crtc_update_uidle(struct drm_crtc *crtc,
 	struct drm_crtc *tmp_crtc;
 	struct sde_kms *kms;
 	bool disable_uidle = false;
-	u32 fps;
+	u32 fps, num_crtc = 0;
 
 	if (!crtc) {
 		SDE_ERROR("invalid crtc\n");
@@ -607,6 +607,7 @@ void sde_core_perf_crtc_update_uidle(struct drm_crtc *crtc,
 	drm_for_each_crtc(tmp_crtc, crtc->dev) {
 		if (_sde_core_perf_crtc_is_power_on(tmp_crtc)) {
 
+			num_crtc++;
 			/*
 			 * If DFPS is enabled with VFP, SDE clock and
 			 * transfer time will get fixed at max FPS
@@ -624,7 +625,7 @@ void sde_core_perf_crtc_update_uidle(struct drm_crtc *crtc,
 				_sde_core_perf_is_cwb(tmp_crtc),
 				disable_uidle, enable);
 
-			if (_sde_core_perf_is_wb(tmp_crtc) ||
+			if ((num_crtc > 1) || _sde_core_perf_is_wb(tmp_crtc) ||
 				_sde_core_perf_is_cwb(tmp_crtc) || (!fps ||
 				 fps > kms->perf.catalog->uidle_cfg.max_fps)) {
 				disable_uidle = true;
@@ -635,6 +636,8 @@ void sde_core_perf_crtc_update_uidle(struct drm_crtc *crtc,
 
 	_sde_core_perf_enable_uidle(kms, crtc,
 		(enable && !disable_uidle) ? true : false);
+
+	kms->perf.catalog->uidle_cfg.dirty = !enable;
 
 	/* If perf counters enabled, set them up now */
 	if (kms->catalog->uidle_cfg.debugfs_perf)
@@ -1006,7 +1009,19 @@ void sde_core_perf_crtc_update(struct drm_crtc *crtc,
 			struct samsung_display_driver_data *vdd = ss_get_vdd(PRIMARY_DISPLAY_NDX);
 			if (vdd->vrr.support_vrr_based_bl &&
 					(vdd->vrr.running_vrr_mdp || vdd->vrr.running_vrr)) {
-				SDE_INFO("During VRR (%d|%d): keep max SDE core clock (%lld -> %lld hz)\n",
+				SDE_INFO("[SDE_0] During VRR (%d|%d): keep max SDE core clock (%lld -> %lld hz)\n",
+						vdd->vrr.running_vrr_mdp,
+						vdd->vrr.running_vrr,
+						clk_rate, kms->perf.max_core_clk_rate);
+				clk_rate = kms->perf.max_core_clk_rate;
+			}
+		}
+
+		{
+			struct samsung_display_driver_data *vdd = ss_get_vdd(SECONDARY_DISPLAY_NDX);
+			if (vdd->vrr.support_vrr_based_bl &&
+					(vdd->vrr.running_vrr_mdp || vdd->vrr.running_vrr)) {
+				SDE_INFO("[SDE_1] During VRR (%d|%d): keep max SDE core clock (%lld -> %lld hz)\n",
 						vdd->vrr.running_vrr_mdp,
 						vdd->vrr.running_vrr,
 						clk_rate, kms->perf.max_core_clk_rate);
@@ -1352,7 +1367,7 @@ static ssize_t sysfs_sde_core_perf_mode_write(struct device *dev,
 
 #if defined(CONFIG_DISPLAY_SAMSUNG)
 	/* This causes unexpected mdp clock issue.. disable the function until fix the issue.. */
-	LCD_INFO("skip sysfs perf_mode\n");
+	LCD_INFO(vdd, "skip sysfs perf_mode\n");
 	return count;
 #endif
 

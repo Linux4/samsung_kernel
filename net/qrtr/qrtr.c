@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2015, Sony Mobile Communications Inc.
- * Copyright (c) 2013, 2018-2019 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2013, 2018-2019, 2021, The Linux Foundation. All rights reserved.
  */
 #include <linux/kthread.h>
 #include <linux/module.h>
@@ -18,6 +18,7 @@
 
 #include <net/sock.h>
 #include <uapi/linux/sched/types.h>
+#include <soc/qcom/boot_stats.h>
 
 #if IS_ENABLED(CONFIG_MSM_SUBSYSTEM_RESTART)
 #include <soc/qcom/subsystem_restart.h>
@@ -44,6 +45,11 @@
 
 #define AID_VENDOR_QRTR	KGIDT_INIT(2906)
 
+#if defined(CONFIG_RPMSG_QCOM_GLINK_NATIVE)
+extern bool glink_resume_pkt;
+#endif
+extern unsigned int qrtr_get_service_id(unsigned int node_id,
+					unsigned int port_id);
 /**
  * struct qrtr_hdr_v1 - (I|R)PCrouter packet header version 1
  * @version: protocol version
@@ -112,6 +118,12 @@ struct qrtr_sock {
 	struct sockaddr_qrtr peer;
 
 	int state;
+
+#if IS_ENABLED(CONFIG_QRTR_WS_DEBUG)
+	/* qrtr_ws debugging */
+	char sent_name[TASK_COMM_LEN];
+	pid_t sent_pid;
+#endif
 };
 
 static inline struct qrtr_sock *qrtr_sk(struct sock *sk)
@@ -121,6 +133,7 @@ static inline struct qrtr_sock *qrtr_sk(struct sock *sk)
 }
 
 static unsigned int qrtr_local_nid = CONFIG_QRTR_NODE_ID;
+static unsigned int qrtr_wakeup_ms = CONFIG_QRTR_WAKEUP_MS;
 
 /* for node ids */
 static RADIX_TREE(qrtr_nodes, GFP_ATOMIC);
@@ -139,6 +152,7 @@ static DEFINE_SPINLOCK(qrtr_port_lock);
 #define QRTR_BACKUP_HI_SIZE	SZ_16K
 #define QRTR_BACKUP_LO_NUM	20
 #define QRTR_BACKUP_LO_SIZE	SZ_1K
+
 static struct sk_buff_head qrtr_backup_lo;
 static struct sk_buff_head qrtr_backup_hi;
 static struct work_struct qrtr_backup_work;
@@ -187,6 +201,8 @@ struct qrtr_node {
 
 	struct wakeup_source *ws;
 	void *ilc;
+
+	u32 nonwake_svc[MAX_NON_WAKE_SVC_LEN];
 };
 
 struct qrtr_tx_flow_waiter {
@@ -256,16 +272,40 @@ static void qrtr_log_tx_msg(struct qrtr_node *node, struct qrtr_hdr_v1 *hdr,
 				  type, le32_to_cpu(pkt.client.node),
 				  le32_to_cpu(pkt.client.port));
 		else if (type == QRTR_TYPE_HELLO ||
-			 type == QRTR_TYPE_BYE)
+			 type == QRTR_TYPE_BYE) {
 			QRTR_INFO(node->ilc,
 				  "TX CTRL: cmd:0x%x node[0x%x]\n",
 				  type, hdr->src_node_id);
+			if (le32_to_cpu(hdr->dst_node_id) == 0 ||
+			    le32_to_cpu(hdr->dst_node_id) == 3) {
+				place_marker("M - Modem QMI Readiness TX");
+				pr_err("qrtr: Modem QMI Readiness TX cmd:0x%x node[0x%x]\n",
+				       type, hdr->src_node_id);
+			}
+		}
 		else if (type == QRTR_TYPE_DEL_PROC)
 			QRTR_INFO(node->ilc,
 				  "TX CTRL: cmd:0x%x node[0x%x]\n",
 				  type, pkt.proc.node);
 	}
 }
+
+#if defined(CONFIG_RPMSG_QCOM_GLINK_NATIVE)
+static void qrtr_log_resume_pkt(struct qrtr_cb *cb, u64 pl_buf)
+{
+	unsigned int service_id;
+
+	if (glink_resume_pkt) {
+		glink_resume_pkt = false;
+		service_id = qrtr_get_service_id(cb->src_node, cb->src_port);
+		pr_info("[QRTR RESUME PKT]:src[0x%x:0x%x] dst[0x%x:0x%x] [%08x %08x]: service[0x%x]\n",
+			cb->src_node, cb->src_port,
+			cb->dst_node, cb->dst_port,
+			(unsigned int)pl_buf, (unsigned int)(pl_buf >> 32),
+			service_id);
+	}
+}
+#endif
 
 static void qrtr_log_rx_msg(struct qrtr_node *node, struct sk_buff *skb)
 {
@@ -285,6 +325,9 @@ static void qrtr_log_rx_msg(struct qrtr_node *node, struct sk_buff *skb)
 			  skb->len, cb->confirm_rx, cb->src_node, cb->src_port,
 			  cb->dst_node, cb->dst_port,
 			  (unsigned int)pl_buf, (unsigned int)(pl_buf >> 32));
+#if defined(CONFIG_RPMSG_QCOM_GLINK_NATIVE)
+		qrtr_log_resume_pkt(cb, pl_buf);
+#endif
 	} else {
 		skb_copy_bits(skb, 0, &pkt, sizeof(pkt));
 		if (cb->type == QRTR_TYPE_NEW_SERVER ||
@@ -302,10 +345,16 @@ static void qrtr_log_rx_msg(struct qrtr_node *node, struct sk_buff *skb)
 				  cb->type, le32_to_cpu(pkt.client.node),
 				  le32_to_cpu(pkt.client.port));
 		else if (cb->type == QRTR_TYPE_HELLO ||
-			 cb->type == QRTR_TYPE_BYE)
+			 cb->type == QRTR_TYPE_BYE) {
 			QRTR_INFO(node->ilc,
 				  "RX CTRL: cmd:0x%x node[0x%x]\n",
 				  cb->type, cb->src_node);
+			if (cb->src_node == 0 || cb->src_node == 3) {
+				place_marker("M - Modem QMI Readiness RX");
+				pr_err("qrtr: Modem QMI Readiness RX cmd:0x%x node[0x%x]\n",
+				       cb->type, cb->src_node);
+			}
+		}
 	}
 }
 
@@ -373,7 +422,7 @@ static void __qrtr_node_release(struct kref *kref)
 			kfree(waiter);
 		}
 		radix_tree_iter_delete(&node->qrtr_tx_flow, &iter, slot);
-		kfree(*slot);
+		kfree(flow);
 	}
 	mutex_unlock(&node->qrtr_tx_lock);
 
@@ -782,6 +831,27 @@ static void qrtr_backup_deinit(void)
 	skb_queue_purge(&qrtr_backup_hi);
 }
 
+#if IS_ENABLED(CONFIG_QRTR_WS_DEBUG)
+/**
+ * change qrtr_ws name to last changed one who's net_id/port
+ */
+#define MAX_QRTR_WS_NAME	64
+
+static void qrtr_debug_change_ws_name(struct qrtr_node *node,
+							int src_node, int src_port,
+							int dst_node, int dst_port,
+							char *sent_name, pid_t sent_pid)
+{
+	if (!node->ws || !node->ws->name)
+		return;
+
+	snprintf((char *)node->ws->name, MAX_QRTR_WS_NAME - 1,
+			"qrtr_ws_src_%d_%d_dst_%d_%d_sent_%d_%s",
+			src_node, src_port, dst_node, dst_port,
+			sent_pid, (sent_name ? sent_name : ""));
+}
+#endif
+
 /**
  * qrtr_endpoint_post() - post incoming data
  * @ep: endpoint handle
@@ -799,10 +869,12 @@ int qrtr_endpoint_post(struct qrtr_endpoint *ep, const void *data, size_t len)
 	struct qrtr_sock *ipc;
 	struct sk_buff *skb;
 	struct qrtr_cb *cb;
-	unsigned int size;
+	size_t size;
 	unsigned int ver;
 	size_t hdrlen;
-	int errcode;
+	int errcode, i;
+	bool wake = true;
+	int svc_id;
 
 	if (len == 0 || len & 3)
 		return -EINVAL;
@@ -866,7 +938,7 @@ int qrtr_endpoint_post(struct qrtr_endpoint *ep, const void *data, size_t len)
 	if (cb->dst_port == QRTR_PORT_CTRL_LEGACY)
 		cb->dst_port = QRTR_PORT_CTRL;
 
-	if (len != ALIGN(size, 4) + hdrlen)
+	if (!size || len != ALIGN(size, 4) + hdrlen)
 		goto err;
 
 	if (cb->dst_port != QRTR_PORT_CTRL && cb->type != QRTR_TYPE_DATA &&
@@ -888,23 +960,56 @@ int qrtr_endpoint_post(struct qrtr_endpoint *ep, const void *data, size_t len)
 	 * queued to the worker for forwarding handling.
 	 */
 	if (cb->type != QRTR_TYPE_DATA || cb->dst_node != qrtr_local_nid) {
+#if IS_ENABLED(CONFIG_QRTR_WS_DEBUG)
+		qrtr_debug_change_ws_name(node, cb->src_node, cb->src_port,
+						cb->dst_node, cb->dst_port,
+						NULL, -1);
+#endif
 		skb_queue_tail(&node->rx_queue, skb);
 		kthread_queue_work(&node->kworker, &node->read_data);
-		__pm_wakeup_event(node->ws, 0);
+		pm_wakeup_ws_event(node->ws, qrtr_wakeup_ms, true);
 	} else {
+#if IS_ENABLED(CONFIG_QRTR_WS_DEBUG)
+		struct qrtr_cb copied_cb = *cb;
+#endif
 		ipc = qrtr_port_lookup(cb->dst_port);
 		if (!ipc) {
 			kfree_skb(skb);
 			return -ENODEV;
 		}
 
+		if (node->nid == 5) {
+			svc_id = qrtr_get_service_id(cb->src_node, cb->src_port);
+			if (svc_id > 0) {
+				for (i = 0; i < MAX_NON_WAKE_SVC_LEN; i++) {
+					if (svc_id == node->nonwake_svc[i]) {
+						wake = false;
+						break;
+					}
+				}
+			}
+		}
+
 		if (sock_queue_rcv_skb(&ipc->sk, skb))
 			goto err;
 		
 
-		/* Force wakeup for all packets except for sensors */
-		if (node->nid != 9)
-			__pm_wakeup_event(node->ws, 0);
+		/**
+		 * Force wakeup for all packets except for sensors and blacklisted services
+		 * from adsp side
+		 */
+		if ((node->nid != 9 && node->nid != 5) ||
+		    (node->nid == 5 && wake)) {
+#if IS_ENABLED(CONFIG_QRTR_WS_DEBUG)
+			qrtr_debug_change_ws_name(node, copied_cb.src_node,
+							copied_cb.src_port,
+							copied_cb.dst_node,
+							copied_cb.dst_port,
+							ipc->sent_name,
+							ipc->sent_pid);
+#endif
+			pm_wakeup_ws_event(node->ws, qrtr_wakeup_ms, true);
+		}
 
 		qrtr_port_put(ipc);
 	}
@@ -1104,6 +1209,28 @@ static void qrtr_hello_work(struct kthread_work *work)
 	qrtr_port_put(ctrl);
 }
 
+#if IS_ENABLED(CONFIG_QRTR_WS_DEBUG)
+void qrtr_ws_change_name_buffer(struct qrtr_node *node)
+{
+	char *ws_name = NULL;
+
+	if (!node->ws)
+		return;
+
+	ws_name = kzalloc(MAX_QRTR_WS_NAME, GFP_KERNEL);
+
+	if (ws_name) {
+		if (node->ws->name)
+			kfree_const(node->ws->name);
+		strcpy(ws_name, "qrtr_ws");
+		node->ws->name = ws_name;
+
+		pr_info("qrtr: ws name buffer initialized\n");
+	} else
+		pr_err("qrtr: couldn't alloc enough memory for ws name\n");
+}
+#endif
+
 /**
  * qrtr_endpoint_register() - register a new endpoint
  * @ep: endpoint to register
@@ -1114,7 +1241,7 @@ static void qrtr_hello_work(struct kthread_work *work)
  * The specified endpoint must have the xmit function pointer set on call.
  */
 int qrtr_endpoint_register(struct qrtr_endpoint *ep, unsigned int net_id,
-			   bool rt)
+			   bool rt, u32 *svc_arr)
 {
 	struct qrtr_node *node;
 	struct sched_param param = {.sched_priority = 1};
@@ -1145,6 +1272,9 @@ int qrtr_endpoint_register(struct qrtr_endpoint *ep, unsigned int net_id,
 	if (rt)
 		sched_setscheduler(node->task, SCHED_FIFO, &param);
 
+	if (svc_arr)
+		memcpy(node->nonwake_svc, svc_arr, MAX_NON_WAKE_SVC_LEN * sizeof(int));
+
 	mutex_init(&node->qrtr_tx_lock);
 	INIT_RADIX_TREE(&node->qrtr_tx_flow, GFP_KERNEL);
 	init_waitqueue_head(&node->resume_tx);
@@ -1158,6 +1288,10 @@ int qrtr_endpoint_register(struct qrtr_endpoint *ep, unsigned int net_id,
 	ep->node = node;
 
 	node->ws = wakeup_source_register(NULL, "qrtr_ws");
+
+#if IS_ENABLED(CONFIG_QRTR_WS_DEBUG)
+	qrtr_ws_change_name_buffer(node);
+#endif
 
 	kthread_queue_work(&node->kworker, &node->say_hello);
 	return 0;
@@ -1384,9 +1518,9 @@ static int qrtr_port_assign(struct qrtr_sock *ipc, int *port)
 		if (rc >= 0)
 			*port = rc;
 	} else if (*port < QRTR_MIN_EPH_SOCKET &&
-		   !(capable(CAP_NET_ADMIN) ||
-		   in_egroup_p(AID_VENDOR_QRTR) ||
-		   in_egroup_p(GLOBAL_ROOT_GID))) {
+			!(capable(CAP_NET_ADMIN) ||
+			in_egroup_p(AID_VENDOR_QRTR) ||
+			in_egroup_p(GLOBAL_ROOT_GID))) {
 		rc = -EACCES;
 	} else if (*port == QRTR_PORT_CTRL) {
 		rc = idr_alloc(&qrtr_ports, ipc, 0, 1, GFP_ATOMIC);
@@ -1657,8 +1791,10 @@ static int qrtr_sendmsg(struct socket *sock, struct msghdr *msg, size_t len)
 	plen = (len + 3) & ~3;
 	skb = sock_alloc_send_skb(sk, plen + QRTR_HDR_MAX_SIZE,
 				  msg->msg_flags & MSG_DONTWAIT, &rc);
-	if (!skb)
+	if (!skb) {
+		rc = -ENOMEM;
 		goto out_node;
+	}
 
 	skb_reserve(skb, QRTR_HDR_MAX_SIZE);
 
@@ -1695,6 +1831,12 @@ static int qrtr_sendmsg(struct socket *sock, struct msghdr *msg, size_t len)
 		}
 		qrtr_node_release(srv_node);
 	}
+
+#if IS_ENABLED(CONFIG_QRTR_WS_DEBUG)
+	/* store who sent ipc */
+	strncpy(ipc->sent_name, current->comm, TASK_COMM_LEN - 1);
+	ipc->sent_pid = current->pid;
+#endif
 
 	rc = enqueue_fn(node, skb, type, &ipc->us, addr, msg->msg_flags);
 	if (rc >= 0)
@@ -1745,10 +1887,10 @@ static int qrtr_recvmsg(struct socket *sock, struct msghdr *msg,
 	struct qrtr_cb *cb;
 	int copied, rc;
 
-
-	if (sock_flag(sk, SOCK_ZAPPED))
+	if (sock_flag(sk, SOCK_ZAPPED)) {
+		pr_err("%s: Invalid addr error\n", __func__);
 		return -EADDRNOTAVAIL;
-
+	}
 	skb = skb_recv_datagram(sk, flags & ~MSG_DONTWAIT,
 				flags & MSG_DONTWAIT, &rc);
 	if (!skb)
@@ -1764,11 +1906,18 @@ static int qrtr_recvmsg(struct socket *sock, struct msghdr *msg,
 	}
 
 	rc = skb_copy_datagram_msg(skb, 0, msg, copied);
-	if (rc < 0)
+	if (rc < 0) {
+		pr_err("%s: Failed to copy skb rc[%d]\n", __func__, rc);
 		goto out;
+	}
 	rc = copied;
 
 	if (addr) {
+		/* There is an anonymous 2-byte hole after sq_family,
+		 * make sure to clear it.
+		 */
+		memset(addr, 0, sizeof(*addr));
+
 		addr->sq_family = AF_QIPCRTR;
 		addr->sq_node = cb->src_node;
 		addr->sq_port = cb->src_port;
@@ -1898,7 +2047,7 @@ static int qrtr_ioctl(struct socket *sock, unsigned int cmd, unsigned long arg)
 		rc = -EINVAL;
 		break;
 #if IS_ENABLED(CONFIG_MSM_SUBSYSTEM_RESTART)
-	case IPC_SUB_IOCTL_SUBSYS_GET_RESTART: 
+	case IPC_SUB_IOCTL_SUBSYS_GET_RESTART:
 	{
 		struct msm_ipc_subsys_request subsys_req;
 
@@ -1909,9 +2058,9 @@ static int qrtr_ioctl(struct socket *sock, unsigned int cmd, unsigned long arg)
 		}
 
 		rc = subsys_force_stop(&subsys_req);
-		break;	
+		break;
 	}
-#endif		
+#endif
 	default:
 		rc = -ENOIOCTLCMD;
 		break;

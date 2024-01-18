@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2014-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2014-2021, The Linux Foundation. All rights reserved.
  */
+
+#define pr_fmt(fmt) "subsys-pil-tz: %s(): " fmt, __func__
 
 #include <linux/kernel.h>
 #include <linux/err.h>
@@ -56,6 +58,9 @@ struct reg_info {
 	struct regulator *reg;
 	int uV;
 	int uA;
+#if defined(CONFIG_SUB_SENSOR_VDD)
+	bool valid;
+#endif
 };
 
 /**
@@ -146,6 +151,7 @@ enum pas_id {
 static struct icc_path *scm_perf_client;
 static int scm_pas_bw_count;
 static DEFINE_MUTEX(scm_pas_bw_mutex);
+static int is_inited;
 
 static void subsys_disable_all_irqs(struct pil_tz_data *d);
 static void subsys_enable_all_irqs(struct pil_tz_data *d);
@@ -183,7 +189,7 @@ static int scm_pas_enable_bw(void)
 {
 	int ret = 0;
 
-	if (!scm_perf_client)
+	if (IS_ERR(scm_perf_client))
 		return -EINVAL;
 
 	mutex_lock(&scm_pas_bw_mutex);
@@ -304,12 +310,23 @@ static int of_read_regs(struct device *dev, struct reg_info **regs_ref,
 					      &reg_name);
 
 		regs[i].reg = devm_regulator_get(dev, reg_name);
+#if defined(CONFIG_SUB_SENSOR_VDD)
+		regs[i].valid = true;
+#endif
 		if (IS_ERR(regs[i].reg)) {
 			int rc = PTR_ERR(regs[i].reg);
 
 			if (rc != -EPROBE_DEFER)
 				dev_err(dev, "Failed to get %s\n regulator\n",
 								reg_name);
+#if defined(CONFIG_SUB_SENSOR_VDD)
+			if (!strcmp(reg_name, "subsensor_vdd")) {
+				regs[i].valid = false;
+				continue;
+			} else {
+				dev_err(dev, "Failed to get %s regulator\n", reg_name);
+			}
+#endif
 			return rc;
 		}
 
@@ -447,6 +464,12 @@ static int enable_regulators(struct pil_tz_data *d, struct device *dev,
 	int i, rc = 0;
 
 	for (i = 0; i < reg_count; i++) {
+#if defined(CONFIG_SUB_SENSOR_VDD)
+		if (!regs[i].valid) {
+			dev_err(dev, "reg[%d] invalid", i);
+			continue;
+		}
+#endif
 		if (regs[i].uV > 0) {
 			rc = regulator_set_voltage(regs[i].reg,
 					regs[i].uV, INT_MAX);
@@ -508,6 +531,10 @@ static void disable_regulators(struct pil_tz_data *d, struct reg_info *regs,
 	int i;
 
 	for (i = 0; i < reg_count; i++) {
+#if defined(CONFIG_SUB_SENSOR_VDD)
+		if (!regs[i].valid)
+			continue;
+#endif
 		if (regs[i].uV > 0)
 			regulator_set_voltage(regs[i].reg, 0, INT_MAX);
 
@@ -786,9 +813,7 @@ static void log_failure_reason(const struct pil_tz_data *d)
 #ifdef CONFIG_SENSORS_SSC
 	if (!strncmp(name, "slpi", 4)) {
 		ssr_reason_call_back(reason, min(size, (size_t)MAX_SSR_REASON_LEN));
-		if (strstr(reason, "IPLSREVOCER") 
-			|| (subsys_get_prev_fssr(d->subsys) 
-				&& strstr(reason, "APPS force stop")))
+		if (strstr(reason, "IPLSREVOCER"))
 			subsys_set_fssr(d->subsys, true);
 	}
 #endif
@@ -1362,7 +1387,7 @@ static int pil_tz_generic_probe(struct platform_device *pdev)
 	 * is not yet registered. Return error if that driver returns with
 	 * any error other than EPROBE_DEFER.
 	 */
-	if (!scm_perf_client)
+	if (!is_inited)
 		return -EPROBE_DEFER;
 	if (IS_ERR(scm_perf_client))
 		return PTR_ERR(scm_perf_client);
@@ -1458,7 +1483,7 @@ static int pil_tz_generic_probe(struct platform_device *pdev)
 		if (IS_ERR(d->rmb_gp_reg)) {
 			dev_err(&pdev->dev, "Invalid resource for rmb_gp_reg\n");
 			rc = PTR_ERR(d->rmb_gp_reg);
-			goto err_ramdump;
+			goto load_from_pil;
 		}
 
 		rmb_gp_reg_val = __raw_readl(d->rmb_gp_reg);
@@ -1473,7 +1498,7 @@ static int pil_tz_generic_probe(struct platform_device *pdev)
 			pr_info("spss is brought out of reset by UEFI\n");
 			d->subsys_desc.powerup = subsys_powerup_boot_enabled;
 		}
-
+load_from_pil:
 		res = platform_get_resource_byname(pdev, IORESOURCE_MEM,
 						"sp2soc_irq_status");
 		d->irq_status = devm_ioremap_resource(&pdev->dev, res);
@@ -1604,6 +1629,7 @@ static int pil_tz_scm_pas_probe(struct platform_device *pdev)
 		ret = PTR_ERR(scm_perf_client);
 		pr_err("scm-pas: Unable to register bus client: %d\n", ret);
 	}
+	is_inited = 1;
 
 	return ret;
 }

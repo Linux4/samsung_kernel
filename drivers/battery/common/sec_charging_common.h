@@ -76,13 +76,6 @@ enum power_supply_ext_health {
 	POWER_SUPPLY_EXT_HEALTH_MAX,
 };
 
-enum sec_battery_voltage_mode {
-	/* average voltage */
-	SEC_BATTERY_VOLTAGE_AVERAGE = 0,
-	/* open circuit voltage */
-	SEC_BATTERY_VOLTAGE_OCV,
-};
-
 enum sec_battery_current_type {
 	/* uA */
 	SEC_BATTERY_CURRENT_UA = 0,
@@ -97,7 +90,7 @@ enum sec_battery_voltage_type {
 	SEC_BATTERY_VOLTAGE_MV,
 };
 
-#if defined(CONFIG_DUAL_BATTERY)
+#if IS_ENABLED(CONFIG_DUAL_BATTERY)
 enum sec_battery_dual_mode {
 	SEC_DUAL_BATTERY_MAIN = 0,
 	SEC_DUAL_BATTERY_SUB,
@@ -132,21 +125,16 @@ enum sec_wireless_info_mode {
 	SEC_WIRELESS_IC_CHIP_ID,
 	SEC_WIRELESS_OTP_FIRM_VER_BIN,
 	SEC_WIRELESS_OTP_FIRM_VER,
-	SEC_WIRELESS_TX_FIRM_RESULT,
-	SEC_WIRELESS_TX_FIRM_VER,
-	SEC_TX_FIRMWARE,
 	SEC_WIRELESS_OTP_FIRM_VERIFY,
 	SEC_WIRELESS_MST_SWITCH_VERIFY,
 };
 
-enum sec_wireless_firm_update_mode {
-	SEC_WIRELESS_RX_SDCARD_MODE = 0,
-	SEC_WIRELESS_RX_BUILT_IN_MODE,
-	SEC_WIRELESS_TX_ON_MODE,
-	SEC_WIRELESS_TX_OFF_MODE,
-	SEC_WIRELESS_RX_INIT,
-	SEC_WIRELESS_RX_SPU_MODE,
-	SEC_WIRELESS_RX_SPU_VERIFY_MODE,	/* for automation test */
+enum sec_wireless_firmware_update_mode {
+	SEC_WIRELESS_FW_UPDATE_SDCARD_MODE = 0,		/* manual update mode , firmware file must be in sdcard */
+	SEC_WIRELESS_FW_UPDATE_BUILTIN_MODE,		/* factory line update mode, MSP wirtes only this mode */
+	SEC_WIRELESS_FW_UPDATE_AUTO_MODE,			/* auto update mode, it works during kernel on, very similar to BUILTIN MODE */
+	SEC_WIRELESS_FW_UPDATE_SPU_MODE,			/* spu update mode */
+	SEC_WIRELESS_FW_UPDATE_SPU_VERIFY_MODE,		/* for automation test */
 };
 
 enum sec_tx_sharing_mode {
@@ -165,24 +153,8 @@ enum sec_wireless_auth_mode {
 	WIRELESS_AUTH_PASS,
 };
 
-enum sec_wireless_vout_control_mode {
-	WIRELESS_VOUT_OFF = 0,
-	WIRELESS_VOUT_NORMAL_VOLTAGE,	/* 5V , reserved by factory */
-	WIRELESS_VOUT_RESERVED,			/* 6V */
-	WIRELESS_VOUT_HIGH_VOLTAGE,		/* 9V , reserved by factory */
-	WIRELESS_VOUT_CC_CV_VOUT, /* 4 */
-	WIRELESS_VOUT_CALL, /* 5 */
-	WIRELESS_VOUT_5V, /* 6 */
-	WIRELESS_VOUT_9V, /* 7 */
-	WIRELESS_VOUT_10V, /* 8 */
-	WIRELESS_VOUT_11V, /* 9 */
-	WIRELESS_VOUT_12V, /* 10 */
-	WIRELESS_VOUT_12_5V, /* 11 */
-	WIRELESS_VOUT_5V_STEP, /* 12 */
-	WIRELESS_VOUT_5_5V_STEP, /* 13 */
-	WIRELESS_VOUT_9V_STEP, /* 14 */
-	WIRELESS_VOUT_10V_STEP, /* 15 */
-	WIRELESS_PAD_FAN_OFF,
+enum sec_wireless_rx_control_mode {
+	WIRELESS_PAD_FAN_OFF = 0,
 	WIRELESS_PAD_FAN_ON,
 	WIRELESS_PAD_LED_OFF,
 	WIRELESS_PAD_LED_ON,
@@ -201,35 +173,19 @@ enum sec_wireless_vout_control_mode {
 };
 
 enum sec_wireless_tx_vout {
-	WC_TX_VOUT_5_0V = 0,
-	WC_TX_VOUT_5_5V,
-	WC_TX_VOUT_6_0V,
-	WC_TX_VOUT_6_5V,
-	WC_TX_VOUT_7_0V,
-	WC_TX_VOUT_7_5V,
-	WC_TX_VOUT_8_0V,
-	WC_TX_VOUT_8_5V,
-	WC_TX_VOUT_9_0V,
-	WC_TX_VOUT_OFF=100,
-};
-
-enum sec_wireless_pad_mode {
-	SEC_WIRELESS_PAD_NONE = 0,
-	SEC_WIRELESS_PAD_WPC,
-	SEC_WIRELESS_PAD_WPC_HV,
-	SEC_WIRELESS_PAD_WPC_PACK,
-	SEC_WIRELESS_PAD_WPC_PACK_HV,
-	SEC_WIRELESS_PAD_WPC_STAND,
-	SEC_WIRELESS_PAD_WPC_STAND_HV,
-	SEC_WIRELESS_PAD_PMA,
-	SEC_WIRELESS_PAD_VEHICLE,
-	SEC_WIRELESS_PAD_VEHICLE_HV,
-	SEC_WIRELESS_PAD_PREPARE_HV,
-	SEC_WIRELESS_PAD_TX,
-	SEC_WIRELESS_PAD_WPC_PREPARE_HV_20,
-	SEC_WIRELESS_PAD_WPC_HV_20,
-	SEC_WIRELESS_PAD_WPC_DUO_HV_20_LIMIT,
-	SEC_WIRELESS_PAD_FAKE,
+	WC_TX_VOUT_OFF = 0,
+	WC_TX_VOUT_5000MV = 5000,
+	WC_TX_VOUT_5500MV = 5500,
+	WC_TX_VOUT_6000MV = 6000,
+	WC_TX_VOUT_6500MV = 6500,
+	WC_TX_VOUT_7000MV = 7000,
+	WC_TX_VOUT_7500MV = 7500,
+	WC_TX_VOUT_8000MV = 8000,
+	WC_TX_VOUT_8500MV = 8500,
+	WC_TX_VOUT_9000MV = 9000,
+	WC_TX_VOUT_MIN = WC_TX_VOUT_5000MV,
+	WC_TX_VOUT_MAX = WC_TX_VOUT_9000MV,
+	WC_TX_VOUT_STEP_AOV = 500,
 };
 
 enum sec_wireless_pad_id {
@@ -291,6 +247,7 @@ enum sec_battery_charge_mode {
 	SEC_BAT_CHG_MODE_UNO_ON,
 	SEC_BAT_CHG_MODE_UNO_OFF,
 	SEC_BAT_CHG_MODE_UNO_ONLY,
+	SEC_BAT_CHG_MODE_NOT_SET,
 	SEC_BAT_CHG_MODE_MAX,
 };
 
@@ -428,7 +385,7 @@ enum sec_battery_check {
 	SEC_BATTERY_CHECK_CHARGER,
 	/* by interrupt (use check_battery_callback() to check battery) */
 	SEC_BATTERY_CHECK_INT,
-#if defined(CONFIG_DUAL_BATTERY)
+#if IS_ENABLED(CONFIG_DUAL_BATTERY)
 	/* by dual battery */
 	SEC_BATTERY_CHECK_DUAL_BAT_GPIO,
 #endif
@@ -506,29 +463,8 @@ typedef struct {
 	unsigned int asoc;
 } battery_health_condition;
 
-#define is_hv_wireless_pad_type(cable_type) ( \
-	cable_type == SEC_WIRELESS_PAD_WPC_HV || \
-	cable_type == SEC_WIRELESS_PAD_WPC_PACK_HV || \
-	cable_type == SEC_WIRELESS_PAD_WPC_STAND_HV || \
-	cable_type == SEC_WIRELESS_PAD_VEHICLE_HV || \
-	cable_type == SEC_WIRELESS_PAD_WPC_HV_20 || \
-	cable_type == SEC_WIRELESS_PAD_WPC_DUO_HV_20_LIMIT)
-
-#define is_nv_wireless_pad_type(cable_type) ( \
-	cable_type == SEC_WIRELESS_PAD_WPC || \
-	cable_type == SEC_WIRELESS_PAD_WPC_PACK || \
-	cable_type == SEC_WIRELESS_PAD_WPC_STAND || \
-	cable_type == SEC_WIRELESS_PAD_PMA || \
-	cable_type == SEC_WIRELESS_PAD_VEHICLE || \
-	cable_type == SEC_WIRELESS_PAD_WPC_PREPARE_HV_20 || \
-	cable_type == SEC_WIRELESS_PAD_PREPARE_HV)
-
-#define is_wireless_pad_type(cable_type) \
-	(is_hv_wireless_pad_type(cable_type) || is_nv_wireless_pad_type(cable_type))
-
 #define is_hv_wireless_type(cable_type) ( \
 	cable_type == SEC_BATTERY_CABLE_HV_WIRELESS || \
-	cable_type == SEC_BATTERY_CABLE_HV_WIRELESS_ETX || \
 	cable_type == SEC_BATTERY_CABLE_WIRELESS_HV_STAND || \
 	cable_type == SEC_BATTERY_CABLE_HV_WIRELESS_20 || \
 	cable_type == SEC_BATTERY_CABLE_HV_WIRELESS_20_LIMIT || \
@@ -557,7 +493,6 @@ typedef struct {
 	cable_type != SEC_BATTERY_CABLE_WIRELESS_PACK && \
 	cable_type != SEC_BATTERY_CABLE_WIRELESS_STAND && \
 	cable_type != SEC_BATTERY_CABLE_HV_WIRELESS && \
-	cable_type != SEC_BATTERY_CABLE_HV_WIRELESS_ETX && \
 	cable_type != SEC_BATTERY_CABLE_PREPARE_WIRELESS_HV && \
 	cable_type != SEC_BATTERY_CABLE_WIRELESS_HV_STAND && \
 	cable_type != SEC_BATTERY_CABLE_WIRELESS_VEHICLE && \
@@ -618,4 +553,9 @@ typedef struct {
 
 #define is_pd_fpdo_wire_type(cable_type) ( \
 	cable_type == SEC_BATTERY_CABLE_PDIC)
+
+#define is_hv_pdo_wire_type(cable_type, hv_pdo) ( \
+	(cable_type == SEC_BATTERY_CABLE_PDIC || \
+	cable_type == SEC_BATTERY_CABLE_PDIC_APDO) && \
+	hv_pdo)
 #endif /* __SEC_CHARGING_COMMON_H */

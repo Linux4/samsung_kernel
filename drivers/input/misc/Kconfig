@@ -914,4 +914,13 @@ config INPUT_STPMIC1_ONKEY
 	  To compile this driver as a module, choose M here: the
 	  module will be called stpmic1_onkey.
 
+config INPUT_DIGITAL_HALL_IC_AKM
+	tristate "skm support"
+	depends on I2C
+	help
+	  Say Y to enable support of akm digital hall ic.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called akm.
+
 endif

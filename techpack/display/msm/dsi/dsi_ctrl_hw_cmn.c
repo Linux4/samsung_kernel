@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2015-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2015-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/delay.h>
@@ -41,9 +42,9 @@ static bool dsi_compression_enabled(struct dsi_mode_info *mode)
 
 /* Unsupported formats default to RGB888 */
 static const u8 cmd_mode_format_map[DSI_PIXEL_FORMAT_MAX] = {
-	0x6, 0x7, 0x8, 0x8, 0x0, 0x3, 0x4 };
+	0x6, 0x7, 0x8, 0x8, 0x0, 0x3, 0x4, 0x9 };
 static const u8 video_mode_format_map[DSI_PIXEL_FORMAT_MAX] = {
-	0x0, 0x1, 0x2, 0x3, 0x3, 0x3, 0x3 };
+	0x0, 0x1, 0x2, 0x3, 0x3, 0x3, 0x3, 0x4 };
 
 /**
  * dsi_split_link_setup() - setup dsi split link configurations
@@ -86,13 +87,20 @@ static void dsi_split_link_setup(struct dsi_ctrl_hw *ctrl,
 static void dsi_setup_trigger_controls(struct dsi_ctrl_hw *ctrl,
 				       struct dsi_host_common_cfg *cfg)
 {
-	u32 reg = 0;
+	u32 reg;
 	const u8 trigger_map[DSI_TRIGGER_MAX] = {
 		0x0, 0x2, 0x1, 0x4, 0x5, 0x6 };
 
-	reg |= (cfg->te_mode == DSI_TE_ON_EXT_PIN) ? BIT(31) : 0;
-	reg |= (trigger_map[cfg->dma_cmd_trigger] & 0x7);
+	reg = DSI_R32(ctrl, DSI_TRIG_CTRL);
+
+	if (cfg->te_mode == DSI_TE_ON_EXT_PIN)
+		reg |= BIT(31);
+	else
+		reg &= ~BIT(31);
+
+	reg &= ~(0x7 << 4);
 	reg |= (trigger_map[cfg->mdp_cmd_trigger] & 0x7) << 4;
+
 	DSI_W32(ctrl, DSI_TRIG_CTRL, reg);
 }
 
@@ -421,9 +429,12 @@ void dsi_ctrl_hw_cmn_setup_cmd_stream(struct dsi_ctrl_hw *ctrl,
 	u32 reg = 0, offset = 0;
 	int pic_width = 0, this_frame_slices = 0, intf_ip_w = 0;
 	u32 pkt_per_line = 0, eol_byte_num = 0, bytes_in_slice = 0;
+	u32 bpp;
 
 	if (roi && (!roi->w || !roi->h))
 		return;
+
+	bpp = dsi_pixel_format_to_bpp(cfg->dst_format);
 
 	if (dsi_dsc_compression_enabled(mode)) {
 		struct msm_display_dsc_info dsc;
@@ -458,11 +469,11 @@ void dsi_ctrl_hw_cmn_setup_cmd_stream(struct dsi_ctrl_hw *ctrl,
 		bytes_in_slice = vdc.bytes_in_slice;
 	} else if (roi) {
 		width_final = roi->w;
-		stride_final = roi->w * 3;
+		stride_final = DIV_ROUND_UP(roi->w * bpp, 8);
 		height_final = roi->h;
 	} else {
 		width_final = mode->h_active;
-		stride_final = mode->h_active * 3;
+		stride_final = DIV_ROUND_UP(mode->h_active * bpp, 8);
 		height_final = mode->v_active;
 	}
 
@@ -579,7 +590,7 @@ void dsi_ctrl_hw_cmn_video_engine_setup(struct dsi_ctrl_hw *ctrl,
 	reg |= (cfg->bllp_lp11_en ? BIT(12) : 0);
 	reg |= (cfg->traffic_mode & 0x3) << 8;
 	reg |= (cfg->vc_id & 0x3);
-	reg |= (video_mode_format_map[common_cfg->dst_format] & 0x3) << 4;
+	reg |= (video_mode_format_map[common_cfg->dst_format] & 0x7) << 4;
 	DSI_W32(ctrl, DSI_VIDEO_MODE_CTRL, reg);
 
 	reg = (common_cfg->swap_mode & 0x7) << 12;
@@ -615,14 +626,22 @@ void dsi_ctrl_hw_cmn_cmd_engine_setup(struct dsi_ctrl_hw *ctrl,
 	reg |= cmd_mode_format_map[common_cfg->dst_format];
 	DSI_W32(ctrl, DSI_COMMAND_MODE_MDP_CTRL, reg);
 
-	reg = DSI_R32(ctrl, DSI_COMMAND_MODE_MDP_CTRL2);
-	reg |= BIT(16);
-	DSI_W32(ctrl, DSI_COMMAND_MODE_MDP_CTRL2, reg);
+	if (!cfg->mdp_idle_ctrl_en) {
+		reg = DSI_R32(ctrl, DSI_COMMAND_MODE_MDP_CTRL2);
+		reg |= BIT(16);
+		DSI_W32(ctrl, DSI_COMMAND_MODE_MDP_CTRL2, reg);
+	}
 
 	reg = cfg->wr_mem_start & 0xFF;
 	reg |= (cfg->wr_mem_continue & 0xFF) << 8;
 	reg |= (cfg->insert_dcs_command ? BIT(16) : 0);
 	DSI_W32(ctrl, DSI_COMMAND_MODE_MDP_DCS_CMD_CTRL, reg);
+
+	if (cfg->mdp_idle_ctrl_en) {
+		reg = cfg->mdp_idle_ctrl_len & 0x3FF;
+		reg |= BIT(12);
+		DSI_W32(ctrl, DSI_COMMAND_MODE_MDP_IDLE_CTRL, reg);
+	}
 
 	DSI_CTRL_HW_DBG(ctrl, "Cmd engine setup done\n");
 }
@@ -752,6 +771,8 @@ void dsi_ctrl_hw_cmn_kickoff_command(struct dsi_ctrl_hw *ctrl,
 
 	if (!(flags & DSI_CTRL_HW_CMD_WAIT_FOR_TRIGGER))
 		DSI_W32(ctrl, DSI_CMD_MODE_DMA_SW_TRIGGER, 0x1);
+
+	SDE_EVT32(ctrl->index, cmd->length, flags);
 }
 
 /**
@@ -845,7 +866,6 @@ void dsi_ctrl_hw_cmn_reset_cmd_fifo(struct dsi_ctrl_hw *ctrl)
 void dsi_ctrl_hw_cmn_trigger_command_dma(struct dsi_ctrl_hw *ctrl)
 {
 	DSI_W32(ctrl, DSI_CMD_MODE_DMA_SW_TRIGGER, 0x1);
-	DSI_CTRL_HW_DBG(ctrl, "CMD DMA triggered\n");
 }
 
 /**
@@ -936,6 +956,33 @@ u32 dsi_ctrl_hw_cmn_get_cmd_read_data(struct dsi_ctrl_hw *ctrl,
 	*hw_read_cnt = read_cnt;
 	DSI_CTRL_HW_DBG(ctrl, "Read %d bytes\n", rx_byte);
 	return rx_byte;
+}
+
+/**
+ * poll_slave_dma_status() - API to clear poll DMA status
+ * @ctrl:          Pointer to the controller host hardware.
+ *
+ * Return: DMA status.
+ */
+u32 dsi_ctrl_hw_cmn_poll_slave_dma_status(struct dsi_ctrl_hw *ctrl)
+{
+	int rc = 0;
+	u32 status;
+	u32 const delay_us = 10;
+	u32 const timeout_us = 5000;
+
+	rc = readl_poll_timeout_atomic(ctrl->base + DSI_INT_CTRL,
+				      status,
+				      ((status & DSI_CMD_MODE_DMA_DONE)
+					> 0),
+				      delay_us,
+				      timeout_us);
+	if (rc) {
+		DSI_CTRL_HW_DBG(ctrl, "DSI1 CMD_MODE_DMA_DONE failed\n");
+		status = 0;
+	}
+
+	return status;
 }
 
 /**
@@ -1686,4 +1733,34 @@ int dsi_ctrl_hw_cmn_wait4dynamic_refresh_done(struct dsi_ctrl_hw *ctrl)
 	DSI_W32(ctrl, DSI_INT_CTRL, reg);
 
 	return 0;
+}
+
+bool dsi_ctrl_hw_cmn_vid_engine_busy(struct dsi_ctrl_hw *ctrl)
+{
+	u32 reg = 0, video_engine_busy = BIT(3);
+	int rc;
+	u32 const sleep_us = 1000;
+	u32 const timeout_us = 50000;
+
+	rc = readl_poll_timeout(ctrl->base + DSI_STATUS, reg,
+			!(reg & video_engine_busy), sleep_us, timeout_us);
+	if (rc)
+		return true;
+
+	return false;
+}
+
+void dsi_ctrl_hw_cmn_init_cmddma_trig_ctrl(struct dsi_ctrl_hw *ctrl,
+					   struct dsi_host_common_cfg *cfg)
+{
+	u32 reg;
+	const u8 trigger_map[DSI_TRIGGER_MAX] = {
+		0x0, 0x2, 0x1, 0x4, 0x5, 0x6 };
+
+	/* Initialize the default trigger used for Command Mode DMA path. */
+	reg = DSI_R32(ctrl, DSI_TRIG_CTRL);
+	reg &= ~BIT(16); /* Reset DMA_TRG_MUX */
+	reg &= ~(0xF); /* Reset DMA_TRIGGER_SEL */
+	reg |= (trigger_map[cfg->dma_cmd_trigger] & 0xF);
+	DSI_W32(ctrl, DSI_TRIG_CTRL, reg);
 }

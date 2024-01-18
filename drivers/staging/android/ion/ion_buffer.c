@@ -10,6 +10,8 @@
 #include <linux/slab.h>
 #include <linux/vmalloc.h>
 #include <linux/dma-noncoherent.h>
+#include <linux/jiffies.h>
+#include <linux/sched/cputime.h>
 
 #define CREATE_TRACE_POINTS
 #include "ion_trace.h"
@@ -139,6 +141,9 @@ struct ion_buffer *ion_buffer_alloc(struct ion_device *dev, size_t len,
 	struct ion_buffer *buffer = NULL;
 	struct ion_heap *heap;
 	char task_comm[TASK_COMM_LEN];
+	unsigned long jiffies_s = jiffies;
+	u64 utime, stime_s, stime_e, stime_d;
+	static DEFINE_RATELIMIT_STATE(show_mem_ratelimit, HZ * 10, 1);
 
 	if (!dev || !len) {
 		return ERR_PTR(-EINVAL);
@@ -168,6 +173,8 @@ struct ion_buffer *ion_buffer_alloc(struct ion_device *dev, size_t len,
 	if (!len)
 		return ERR_PTR(-EINVAL);
 
+	task_cputime(current, &utime, &stime_s);
+
 	down_read(&dev->lock);
 	plist_for_each_entry(heap, &dev->heaps, node) {
 		/* if the caller didn't specify this heap id */
@@ -187,6 +194,17 @@ struct ion_buffer *ion_buffer_alloc(struct ion_device *dev, size_t len,
 
 	if (IS_ERR(buffer))
 		return ERR_CAST(buffer);
+
+	task_cputime(current, &utime, &stime_e);
+	stime_d = stime_e - stime_s;
+	if (stime_d / NSEC_PER_MSEC > 100) {
+		pr_info("%s ion_heap_id: %d mask=0x%x timeJS(ms):%u/%llu len:%zu\n",
+			__func__, heap->id, heap_id_mask,
+			jiffies_to_msecs(jiffies - jiffies_s),
+			stime_d / NSEC_PER_MSEC, len);
+		if (__ratelimit(&show_mem_ratelimit))
+			show_mem(0, NULL);
+	}
 
 	return buffer;
 }
@@ -271,6 +289,9 @@ void *ion_buffer_kmap_get(struct ion_buffer *buffer)
 	void *vaddr;
 
 	if (buffer->kmap_cnt) {
+		if (buffer->kmap_cnt == INT_MAX)
+			return ERR_PTR(-EOVERFLOW);
+
 		buffer->kmap_cnt++;
 		return buffer->vaddr;
 	}

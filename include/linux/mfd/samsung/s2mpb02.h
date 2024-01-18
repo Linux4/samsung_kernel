@@ -39,6 +39,12 @@ enum s2mpb02_types {
 	TYPE_S2MPB02,
 };
 
+enum s2mpb02_reg_types {
+	TYPE_S2MPB02_REG_MAIN = 0,
+	TYPE_S2MPB02_REG_SUB,
+	TYPE_S2MPB02_REG_MAX
+};
+
 enum s2mpb02_irq_source {
 	LED_INT = 0,
 	S2MPB02_IRQ_GROUP_NR,
@@ -84,8 +90,10 @@ struct s2mpb02_platform_data {
 	int irq_base;
 	int irq_gpio;
 	bool wakeup;
+	bool need_recovery;;	
 
 	int num_regulators;
+	int num_rdata;
 	struct s2mpb02_regulator_data *regulators;
 #ifdef CONFIG_LEDS_S2MPB02
 	/* led (flash/torch) data */

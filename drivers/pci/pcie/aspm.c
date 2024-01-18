@@ -354,6 +354,34 @@ static u32 calc_l1ss_pwron(struct pci_dev *pdev, u32 scale, u32 val)
 	return 0;
 }
 
+#ifdef CONFIG_SEC_PCIE
+static void encode_l12_threshold(u32 threshold_us, u32 *scale, u32 *value)
+{
+	u64 threshold_ns = threshold_us * 1000UL;
+	u64 value_mask = PCI_L1SS_CTL1_LTR_L12_TH_VALUE >> 16;
+
+	/* See PCIe r3.1, sec 7.33.3 and sec 6.18 */
+	if (threshold_ns <= value_mask) {
+		*scale = 0;
+		*value = threshold_ns;
+	} else if ((roundup(threshold_ns, 32) >> 5) <= value_mask) {
+		*scale = 1;
+		*value = roundup(threshold_ns, 32) >> 5;
+	} else if ((roundup(threshold_ns, 1024) >> 10) <= value_mask) {
+		*scale = 2;
+		*value = roundup(threshold_ns, 1024) >> 10;
+	} else if ((roundup(threshold_ns, 32768) >> 15) <= value_mask) {
+		*scale = 3;
+		*value = roundup(threshold_ns, 32768) >> 15;
+	} else if ((roundup(threshold_ns, 1048576) >> 20) <= value_mask) {
+		*scale = 4;
+		*value = roundup(threshold_ns, 1048576) >> 20;
+	} else {
+		*scale = 5;
+		*value = roundup(threshold_ns, 33554432) >> 25;
+	}
+}
+#else
 static void encode_l12_threshold(u32 threshold_us, u32 *scale, u32 *value)
 {
 	u32 threshold_ns = threshold_us * 1000;
@@ -379,6 +407,7 @@ static void encode_l12_threshold(u32 threshold_us, u32 *scale, u32 *value)
 		*value = threshold_ns >> 25;
 	}
 }
+#endif
 
 struct aspm_register_info {
 	u32 support:2;
@@ -741,6 +770,49 @@ static void pcie_config_aspm_l1ss(struct pcie_link_state *link, u32 state)
 	pci_clear_and_set_dword(child, dw_cap_ptr + PCI_L1SS_CTL1,
 				PCI_L1SS_CTL1_L1SS_MASK, val);
 }
+
+#ifdef CONFIG_PCI_QTI
+void pci_save_aspm_l1ss_state(struct pci_dev *dev)
+{
+	struct pci_cap_saved_state *save_state;
+	int aspm_l1ss;
+	u32 *cap;
+
+	if (!pci_is_pcie(dev))
+		return;
+
+	aspm_l1ss = pci_find_ext_capability(dev, PCI_EXT_CAP_ID_L1SS);
+	if (!aspm_l1ss)
+		return;
+
+	save_state = pci_find_saved_ext_cap(dev, PCI_EXT_CAP_ID_L1SS);
+	if (!save_state)
+		return;
+
+	cap = (u32 *)&save_state->cap.data[0];
+	pci_read_config_dword(dev, aspm_l1ss + PCI_L1SS_CTL2, cap++);
+	pci_read_config_dword(dev, aspm_l1ss + PCI_L1SS_CTL1, cap);
+}
+
+void pci_restore_aspm_l1ss_state(struct pci_dev *dev)
+{
+	struct pci_cap_saved_state *save_state;
+	int aspm_l1ss;
+	u32 *cap;
+
+	if (!pci_is_pcie(dev))
+		return;
+
+	save_state = pci_find_saved_ext_cap(dev, PCI_EXT_CAP_ID_L1SS);
+	aspm_l1ss = pci_find_ext_capability(dev, PCI_EXT_CAP_ID_L1SS);
+	if (!save_state || !aspm_l1ss)
+		return;
+
+	cap = (u32 *)&save_state->cap.data[0];
+	pci_write_config_dword(dev, aspm_l1ss + PCI_L1SS_CTL2, *cap++);
+	pci_write_config_dword(dev, aspm_l1ss + PCI_L1SS_CTL1, *cap);
+}
+#endif
 
 static void pcie_config_aspm_dev(struct pci_dev *pdev, u32 val)
 {

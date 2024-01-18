@@ -1,7 +1,6 @@
-
-
+/* SPDX-License-Identifier: GPL-2.0-only */
 /*
- * Copyright (c) 2017, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -24,4 +23,3 @@ int secdp_aux_dev_init(ssize_t (*secdp_i2c_write)(void *buffer, size_t size),
 
 bool secdp_get_fw_update_status(void);
 #endif /* _SECDP_AUX_CONTROL_H_ */
-

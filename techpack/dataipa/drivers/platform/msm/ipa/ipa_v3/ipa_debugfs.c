@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2012-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifdef CONFIG_DEBUG_FS
@@ -75,6 +76,7 @@ const char *ipa3_event_name[IPA_EVENT_MAX_NUM] = {
 	__stringify(IPA_GSB_DISCONNECT),
 	__stringify(IPA_COALESCE_ENABLE),
 	__stringify(IPA_COALESCE_DISABLE),
+	__stringify(IPA_SET_MTU),
 	__stringify_1(WIGIG_CLIENT_CONNECT),
 	__stringify_1(WIGIG_FST_SWITCH),
 };
@@ -95,6 +97,7 @@ const char *ipa3_hdr_proc_type_name[] = {
 	__stringify(IPA_HDR_PROC_L2TP_HEADER_ADD),
 	__stringify(IPA_HDR_PROC_L2TP_HEADER_REMOVE),
 	__stringify(IPA_HDR_PROC_ETHII_TO_ETHII_EX),
+	__stringify(IPA_HDR_PROC_SET_DSCP),
 };
 
 static struct dentry *dent;
@@ -426,6 +429,49 @@ static ssize_t ipa3_read_ep_reg(struct file *file, char __user *ubuf,
 
 	*ppos = pos + size;
 	return size;
+}
+
+static ssize_t ipa3_set_clk_index(struct file *file, const char __user *buf,
+	size_t count, loff_t *ppos)
+{
+	s8 option = 0;
+	int ret;
+	uint32_t bw_idx = 0;
+
+	ret = kstrtos8_from_user(buf, count, 0, &option);
+	if (ret)
+		return ret;
+
+	switch (option) {
+	case 0:
+		bw_idx = 0;
+		break;
+	case 1:
+		bw_idx = 1;
+		break;
+	case 2:
+		bw_idx = 2;
+		break;
+	case 3:
+		bw_idx = 3;
+		break;
+	case 4:
+		bw_idx = 4;
+		break;
+	default:
+		pr_err("Not support this vote (%d)\n", option);
+		return -EFAULT;
+	}
+	pr_info("Make sure some client connected before scaling the BW\n");
+	ipa3_ctx->enable_clock_scaling = 1;
+	if (ipa3_set_clock_plan_from_pm(bw_idx)) {
+		IPAERR("Failed to vote for bus BW (%u)\n", bw_idx);
+		return -EFAULT;
+	}
+	ipa3_ctx->enable_clock_scaling = 0;
+	IPAERR("Clock scaling is done sucessful\n");
+
+	return count;
 }
 
 static ssize_t ipa3_write_keep_awake(struct file *file, const char __user *buf,
@@ -1311,8 +1357,10 @@ static ssize_t ipa3_read_stats(struct file *file, char __user *ubuf,
 		"lan_rx_empty=%u\n"
 		"lan_repl_rx_empty=%u\n"
 		"flow_enable=%u\n"
-		"flow_disable=%u\n",
-		"rx_page_drop_cnt=%u\n",
+		"flow_disable=%u\n"
+		"rx_page_drop_cnt=%u\n"
+		"lower_order=%u\n",
+		"pipe_setup_fail_cnt=%u\n",
 		ipa3_ctx->stats.tx_sw_pkts,
 		ipa3_ctx->stats.tx_hw_pkts,
 		ipa3_ctx->stats.tx_non_linear,
@@ -1329,7 +1377,10 @@ static ssize_t ipa3_read_stats(struct file *file, char __user *ubuf,
 		ipa3_ctx->stats.lan_repl_rx_empty,
 		ipa3_ctx->stats.flow_enable,
 		ipa3_ctx->stats.flow_disable,
-		ipa3_ctx->stats.rx_page_drop_cnt);
+		ipa3_ctx->stats.rx_page_drop_cnt,
+		ipa3_ctx->stats.lower_order,
+		ipa3_ctx->stats.pipe_setup_fail_cnt
+		);
 	cnt += nbytes;
 
 	for (i = 0; i < IPAHAL_PKT_STATUS_EXCEPTION_MAX; i++) {
@@ -1349,6 +1400,11 @@ static ssize_t ipa3_read_odlstats(struct file *file, char __user *ubuf,
 {
 	int nbytes;
 	int cnt = 0;
+
+	if (!ipa3_odl_ctx) {
+                IPADBG("ODL stats not supported\n");
+                return 0;
+	}
 
 	nbytes = scnprintf(dbg_buff, IPA_MAX_MSG_LEN,
 			"ODL received pkt =%u\n"
@@ -2767,6 +2823,10 @@ static const struct ipa3_debugfs_file debugfs_files[] = {
 		"keep_awake", IPA_READ_WRITE_MODE, NULL, {
 			.read = ipa3_read_keep_awake,
 			.write = ipa3_write_keep_awake,
+		}
+	}, {
+		"set_clk_idx", IPA_READ_WRITE_MODE, NULL, {
+			.write = ipa3_set_clk_index,
 		}
 	}, {
 		"holb", IPA_WRITE_ONLY_MODE, NULL, {

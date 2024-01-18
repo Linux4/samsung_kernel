@@ -972,7 +972,7 @@ static void test_sockmap(unsigned int tasks, void *data)
 
 		FD_ZERO(&w);
 		FD_SET(sfd[3], &w);
-		to.tv_sec = 1;
+		to.tv_sec = 30;
 		to.tv_usec = 0;
 		s = select(sfd[3] + 1, &w, NULL, NULL, &to);
 		if (s == -1) {
@@ -1281,6 +1281,8 @@ static void __run_parallel(unsigned int tasks,
 {
 	pid_t pid[tasks];
 	int i;
+
+	fflush(stdout);
 
 	for (i = 0; i < tasks; i++) {
 		pid[i] = fork();

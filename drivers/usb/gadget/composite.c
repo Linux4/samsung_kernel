@@ -13,10 +13,16 @@
 #include <linux/module.h>
 #include <linux/device.h>
 #include <linux/utsname.h>
+#ifdef CONFIG_QGKI_MSM_BOOT_TIME_MARKER
+#include <soc/qcom/boot_stats.h>
+#endif
 
 #include <linux/usb/composite.h>
 #include <linux/usb/otg.h>
 #include <asm/unaligned.h>
+#if defined(CONFIG_USB_NOTIFY_LAYER)
+#include <linux/usb_notify.h>
+#endif
 
 #include "u_os_desc.h"
 
@@ -392,8 +398,11 @@ int usb_function_deactivate(struct usb_function *function)
 
 	spin_lock_irqsave(&cdev->lock, flags);
 
-	if (cdev->deactivations == 0)
+	if (cdev->deactivations == 0) {
+		spin_unlock_irqrestore(&cdev->lock, flags);
 		status = usb_gadget_deactivate(cdev->gadget);
+		spin_lock_irqsave(&cdev->lock, flags);
+	}
 	if (status == 0)
 		cdev->deactivations++;
 
@@ -424,8 +433,11 @@ int usb_function_activate(struct usb_function *function)
 		status = -EINVAL;
 	else {
 		cdev->deactivations--;
-		if (cdev->deactivations == 0)
+		if (cdev->deactivations == 0) {
+			spin_unlock_irqrestore(&cdev->lock, flags);
 			status = usb_gadget_activate(cdev->gadget);
+			spin_lock_irqsave(&cdev->lock, flags);
+		}
 	}
 
 	spin_unlock_irqrestore(&cdev->lock, flags);
@@ -500,8 +512,7 @@ int usb_func_wakeup(struct usb_function *func)
 		DBG(func->config->cdev,
 			"Function wakeup for %s could not complete due to suspend state. Delayed until after bus resume.\n",
 			func->name ? func->name : "");
-		ret = 0;
-	} else if (ret < 0 && ret != -ENOTSUPP) {
+	} else if (ret < 0 && ret != -EOPNOTSUPP) {
 		ERROR(func->config->cdev,
 			"Failed to wake function %s from suspend state. ret=%d. Canceling USB request.\n",
 			func->name ? func->name : "", ret);
@@ -556,6 +567,11 @@ static int config_buf(struct usb_configuration *config,
 	c->iConfiguration = config->iConfiguration;
 	c->bmAttributes = USB_CONFIG_ATT_ONE | config->bmAttributes;
 	c->bMaxPower = encode_bMaxPower(speed, config);
+	if (config->cdev->gadget->is_selfpowered) {
+		pr_info("usb: %s is_selfpowered\n", __func__);
+		c->bmAttributes |= USB_CONFIG_ATT_SELFPOWER;
+		c->bMaxPower = 0;
+	}
 
 	/* There may be e.g. OTG descriptors */
 	if (config->descriptors) {
@@ -594,6 +610,10 @@ static int config_desc(struct usb_composite_dev *cdev, unsigned w_value)
 	struct list_head		*pos;
 	u8				type = w_value >> 8;
 	enum usb_device_speed		speed = USB_SPEED_UNKNOWN;
+#if defined(CONFIG_USB_NOTIFY_LAYER)
+	int power_role, pd_contract;
+	struct otg_notify *o_notify = get_otg_notify();
+#endif
 
 	if (gadget->speed >= USB_SPEED_SUPER)
 		speed = gadget->speed;
@@ -612,18 +632,10 @@ static int config_desc(struct usb_composite_dev *cdev, unsigned w_value)
 	w_value &= 0xff;
 
 	pos = &cdev->configs;
-	c = cdev->os_desc_config;
-	if (c)
-		goto check_config;
 
 	while ((pos = pos->next) !=  &cdev->configs) {
 		c = list_entry(pos, typeof(*c), list);
 
-		/* skip OS Descriptors config which is handled separately */
-		if (c == cdev->os_desc_config)
-			continue;
-
-check_config:
 		/* ignore configs that won't work at this speed */
 		switch (speed) {
 		case USB_SPEED_SUPER_PLUS:
@@ -643,8 +655,23 @@ check_config:
 				continue;
 		}
 
-		if (w_value == 0)
+		if (w_value == 0) {
+#if defined(CONFIG_USB_NOTIFY_LAYER)
+			if (o_notify == NULL)
+				return config_buf(c, speed, cdev->req->buf, type);
+
+			power_role = get_typec_status(o_notify, NOTIFY_EVENT_POWER_SOURCE);
+			pd_contract = get_typec_status(o_notify, NOTIFY_EVENT_PD_CONTRACT);
+
+			pr_err("usb: %s power_role(%d), pd_contract(%d)\n", __func__, power_role, pd_contract);
+			/* sink == 0, source == 1 */
+			if (!power_role && pd_contract)
+				usb_gadget_set_selfpowered(gadget);
+			else
+				usb_gadget_clear_selfpowered(gadget);
+#endif
 			return config_buf(c, speed, cdev->req->buf, type);
+		}
 		w_value--;
 	}
 	return -EINVAL;
@@ -892,6 +919,9 @@ static int set_config(struct usb_composite_dev *cdev,
 	if (!c)
 		goto done;
 
+#ifdef CONFIG_QGKI_MSM_BOOT_TIME_MARKER
+	place_marker("M - USB Device is enumerated");
+#endif
 	usb_gadget_set_state(gadget, USB_STATE_CONFIGURED);
 	cdev->config = c;
 
@@ -944,7 +974,11 @@ static int set_config(struct usb_composite_dev *cdev,
 	}
 
 	/* when we return, be sure our power usage is valid */
-	power = c->MaxPower ? c->MaxPower : CONFIG_USB_GADGET_VBUS_DRAW;
+	if (c->MaxPower || (c->bmAttributes & USB_CONFIG_ATT_SELFPOWER))
+		power = c->MaxPower;
+	else
+		power = CONFIG_USB_GADGET_VBUS_DRAW;
+
 	if (gadget->speed < USB_SPEED_SUPER)
 		power = min(power, 500U);
 	else
@@ -1130,7 +1164,7 @@ static void collect_langs(struct usb_gadget_strings **sp, __le16 *buf)
 	while (*sp) {
 		s = *sp;
 		language = cpu_to_le16(s->language);
-		for (tmp = buf; *tmp && tmp < &buf[126]; tmp++) {
+		for (tmp = buf; *tmp && tmp < &buf[USB_MAX_STRING_LEN]; tmp++) {
 			if (*tmp == language)
 				goto repeat;
 		}
@@ -1205,7 +1239,7 @@ static int get_string(struct usb_composite_dev *cdev,
 			collect_langs(sp, s->wData);
 		}
 
-		for (len = 0; len <= 126 && s->wData[len]; len++)
+		for (len = 0; len <= USB_MAX_STRING_LEN && s->wData[len]; len++)
 			continue;
 		if (!len)
 			return -EINVAL;
@@ -1577,6 +1611,9 @@ static int count_ext_prop(struct usb_configuration *c, int interface)
 	struct usb_function *f;
 	int j;
 
+	if (interface >= c->next_interface_id)
+		return -EINVAL;
+
 	f = c->interface[interface];
 	for (j = 0; j < f->os_desc_n; ++j) {
 		struct usb_os_desc *d;
@@ -1595,6 +1632,9 @@ static int len_ext_prop(struct usb_configuration *c, int interface)
 	struct usb_function *f;
 	struct usb_os_desc *d;
 	int j, res;
+
+	if (interface >= c->next_interface_id)
+		return -EINVAL;
 
 	res = 10; /* header length */
 	f = c->interface[interface];
@@ -1683,6 +1723,18 @@ composite_setup(struct usb_gadget *gadget, const struct usb_ctrlrequest *ctrl)
 	struct usb_function		*f = NULL;
 	u8				endp;
 
+	if (w_length > USB_COMP_EP0_BUFSIZ) {
+		if (ctrl->bRequestType & USB_DIR_IN) {
+			/* Cast away the const, we are going to overwrite on purpose. */
+			__le16 *temp = (__le16 *)&ctrl->wLength;
+
+			*temp = cpu_to_le16(USB_COMP_EP0_BUFSIZ);
+			w_length = USB_COMP_EP0_BUFSIZ;
+		} else {
+			goto done;
+		}
+	}
+
 	/* partial re-init of the response message; the function or the
 	 * gadget might need to intercept e.g. a control-OUT completion
 	 * when we delegate to it.
@@ -1749,8 +1801,10 @@ composite_setup(struct usb_gadget *gadget, const struct usb_ctrlrequest *ctrl)
 				value = min(w_length, (u16) value);
 			break;
 		case USB_DT_STRING:
+			spin_lock(&cdev->lock);
 			value = get_string(cdev, req->buf,
 					w_index, w_value & 0xff);
+			spin_unlock(&cdev->lock);
 			if (value >= 0)
 				value = min(w_length, (u16) value);
 			break;
@@ -1890,7 +1944,11 @@ composite_setup(struct usb_gadget *gadget, const struct usb_ctrlrequest *ctrl)
 		f = cdev->config->interface[intf];
 		if (!f)
 			break;
-		status = f->get_status ? f->get_status(f) : 0;
+
+		if (USB_CONFIG_ATT_WAKEUP & cdev->config->bmAttributes)
+			status = f->get_status ? f->get_status(f) : 0;
+		else
+			status = 0;
 		if (status < 0)
 			break;
 		put_unaligned_le16(status & 0x0000ffff, req->buf);
@@ -1973,9 +2031,14 @@ unknown:
 				if (w_index != 0x5 || (w_value >> 8))
 					break;
 				interface = w_value & 0xFF;
+				if (interface >= MAX_CONFIG_INTERFACES ||
+				    !os_desc_cfg->interface[interface])
+					break;
 				buf[6] = w_index;
 				count = count_ext_prop(os_desc_cfg,
 					interface);
+				if (count < 0)
+					return count;
 				put_unaligned_le16(count, buf + 8);
 				count = len_ext_prop(os_desc_cfg,
 					interface);
@@ -2208,7 +2271,7 @@ int composite_dev_prepare(struct usb_composite_driver *composite,
 	if (!cdev->req)
 		return -ENOMEM;
 
-	cdev->req->buf = kmalloc(USB_COMP_EP0_BUFSIZ, GFP_KERNEL);
+	cdev->req->buf = kzalloc(USB_COMP_EP0_BUFSIZ, GFP_KERNEL);
 	if (!cdev->req->buf)
 		goto fail;
 
@@ -2398,7 +2461,10 @@ void composite_resume(struct usb_gadget *gadget)
 	/* REVISIT:  should we have config level
 	 * suspend/resume callbacks?
 	 */
-	DBG(cdev, "resume\n");
+	INFO(cdev, "USB Resume end\n");
+#ifdef CONFIG_QGKI_MSM_BOOT_TIME_MARKER
+	place_marker("M - USB Device is resumed");
+#endif
 	if (cdev->driver->resume)
 		cdev->driver->resume(cdev);
 	if (cdev->config) {
@@ -2511,7 +2577,13 @@ void usb_composite_setup_continue(struct usb_composite_dev *cdev)
 	spin_lock_irqsave(&cdev->lock, flags);
 
 	if (cdev->delayed_status == 0) {
+		if (!cdev->config) {
+			spin_unlock_irqrestore(&cdev->lock, flags);
+			return;
+		}
+		spin_unlock_irqrestore(&cdev->lock, flags);
 		WARN(cdev, "%s: Unexpected call\n", __func__);
+		return;
 
 	} else if (--cdev->delayed_status == 0) {
 		DBG(cdev, "%s: Completing delayed status\n", __func__);

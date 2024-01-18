@@ -294,13 +294,13 @@ restart:
 		kstat_incr_softirqs_this_cpu(vec_nr);
 
 #if IS_ENABLED(CONFIG_SEC_DEBUG_SCHED_LOG)
-		sec_debug_irq_sched_log(vec_nr, h->action, "softirq", SOFTIRQ_ENTRY);
+		sec_debug_softirq_sched_log(vec_nr, h->action, "softirq", SOFTIRQ_ENTRY);
 #endif
 		trace_softirq_entry(vec_nr);
 		h->action(h);
 		trace_softirq_exit(vec_nr);
 #if IS_ENABLED(CONFIG_SEC_DEBUG_SCHED_LOG)
-		sec_debug_irq_sched_log(vec_nr, h->action, "softirq", SOFTIRQ_EXIT);
+		sec_debug_softirq_sched_log(vec_nr, h->action, "softirq", SOFTIRQ_EXIT);
 #endif
 		if (unlikely(prev_count != preempt_count())) {
 			pr_err("huh, entered softirq %u %s %p with preempt_count %08x, exited with %08x?\n",
@@ -537,12 +537,12 @@ static void tasklet_action_common(struct softirq_action *a,
 					BUG();
 				trace_tasklet_entry(t->func);
 #if IS_ENABLED(CONFIG_SEC_DEBUG_SCHED_LOG)
-				sec_debug_irq_sched_log(-1, t->func, "tasklet_action", SOFTIRQ_ENTRY);
+				sec_debug_softirq_sched_log(-1, t->func, "tasklet_action", SOFTIRQ_ENTRY);
 #endif
 				t->func(t->data);
 				trace_tasklet_exit(t->func);
 #if IS_ENABLED(CONFIG_SEC_DEBUG_SCHED_LOG)
-				sec_debug_irq_sched_log(-1, t->func, "tasklet_action", SOFTIRQ_EXIT);
+				sec_debug_softirq_sched_log(-1, t->func, "tasklet_action", SOFTIRQ_EXIT);
 #endif
 				tasklet_unlock(t);
 				continue;

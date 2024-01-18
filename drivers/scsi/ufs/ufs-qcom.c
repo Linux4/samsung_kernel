@@ -515,7 +515,9 @@ static void ufs_sec_wb_probe(struct ufs_hba *hba, u8 *desc_buf)
 	dev_info->b_presrv_uspc_en =
 		desc_buf[DEVICE_DESC_PARAM_WB_PRESRV_USRSPC_EN];
 
-	if (dev_info->b_wb_buffer_type == WB_BUF_MODE_SHARED) {
+	if (dev_info->b_wb_buffer_type == WB_BUF_MODE_SHARED &&
+			(hba->dev_info.wspecversion >= 0x310 ||
+			 hba->dev_info.wspecversion == 0x220)) {
 		dev_info->d_wb_alloc_units =
 		get_unaligned_be32(desc_buf +
 				   DEVICE_DESC_PARAM_WB_SHARED_ALLOC_UNITS);
@@ -606,6 +608,11 @@ static void ufs_qcom_compl_xfer_req(struct ufs_hba *hba, int tag, bool is_scsi_c
 	struct ufs_qcom_host *host = ufshcd_get_variant(hba);
 	struct SEC_WB_info *wb_info = &host->sec_wb_info;
 	u8 sense_key;
+	u8 asc = 0;
+	u8 ascq = 0;
+	u8 opcode = 0;
+	u32 lba = 0;
+	int transfer_len = 0;
 
 	if (!is_scsi_cmd)
 		return;
@@ -618,16 +625,29 @@ static void ufs_qcom_compl_xfer_req(struct ufs_hba *hba, int tag, bool is_scsi_c
 
 	/* sense err check */
 	sense_key = lrbp->ucd_rsp_ptr->sr.sense_data[2] & 0x0F;
+	if (cmd && sense_key) {
+		asc = lrbp->ucd_rsp_ptr->sr.sense_data[12];
+		ascq = lrbp->ucd_rsp_ptr->sr.sense_data[13];
+
+		opcode = (u8)(*cmd->cmnd);
+		lba = (cmd->cmnd[2] << 24) | (cmd->cmnd[3] << 16) | (cmd->cmnd[4] << 8) | cmd->cmnd[5];
+		transfer_len = (cmd->cmnd[7] << 8) | cmd->cmnd[8];
+	}
 #if IS_ENABLED(CONFIG_SEC_ABC)
 	if (sense_key == 0x3)
 		sec_abc_send_event("MODULE=storage@ERROR=ufs_medium_err");
 #endif
 #if IS_ENABLED(CONFIG_SEC_DEBUG) 
 	if (sec_debug_is_enabled()) {
-		if (sense_key == 0x3)
+		if (sense_key == 0x3) {
+			pr_err("UFS : sense key 0x%x(asc 0x%x, ascq 0x%x), opcode 0x%x, lba 0x%x, len 0x%x.\n",
+					sense_key, asc, ascq, opcode, lba, transfer_len);
 			panic("ufs medium error\n");
-		else if (sense_key == 0x4)
+		} else if (sense_key == 0x4) {
+			pr_err("UFS : sense key 0x%x(asc 0x%x, ascq 0x%x), opcode 0x%x, lba 0x%x, len 0x%x.\n",
+					sense_key, asc, ascq, opcode, lba, transfer_len);
 			panic("ufs hardware error\n");
+		}
 	} 
 #endif 
 
@@ -635,7 +655,7 @@ static void ufs_qcom_compl_xfer_req(struct ufs_hba *hba, int tag, bool is_scsi_c
 		return;
 
 	if (cmd) {
-		u8 opcode = (u8)(*cmd->cmnd);
+		opcode = (u8)(*cmd->cmnd);
 
 		if (opcode == WRITE_10) {
 			int curr_block = 0;
@@ -1021,10 +1041,8 @@ static int ufs_qcom_host_reset(struct ufs_hba *hba)
 	}
 
 	reenable_intr = hba->is_irq_enabled;
-	if (reenable_intr) {
-		disable_irq(hba->irq);
-		hba->is_irq_enabled = false;
-	}
+	disable_irq(hba->irq);
+	hba->is_irq_enabled = false;
 
 	ret = reset_control_assert(host->core_reset);
 	if (ret) {
@@ -1047,12 +1065,12 @@ static int ufs_qcom_host_reset(struct ufs_hba *hba)
 
 	usleep_range(1000, 1100);
 
-out:
 	if (reenable_intr) {
 		enable_irq(hba->irq);
 		hba->is_irq_enabled = true;
 	}
 
+out:
 	return ret;
 }
 
@@ -1113,6 +1131,10 @@ static int ufs_qcom_power_up_sequence(struct ufs_hba *hba)
 
 	if (host->hw_ver.major < 0x4)
 		submode = UFS_QCOM_PHY_SUBMODE_NON_G4;
+#if defined(CONFIG_SCSI_UFSHCD_QTI)
+	if (hba->limit_phy_submode == 0)
+		submode = UFS_QCOM_PHY_SUBMODE_NON_G4;
+#endif
 	phy_set_mode_ext(phy, mode, submode);
 
 	ret = ufs_qcom_phy_power_on(hba);
@@ -1558,12 +1580,14 @@ static int ufs_qcom_link_startup_notify(struct ufs_hba *hba,
 	struct ufs_qcom_host *host = ufshcd_get_variant(hba);
 	struct phy *phy = host->generic_phy;
 	struct device *dev = hba->dev;
+	struct device_node *np = dev->of_node;
 
 	switch (status) {
 	case PRE_CHANGE:
-		if (strlen(android_boot_dev) && strcmp(android_boot_dev, dev_name(dev))) {
+		if (!of_property_read_bool(np, "secondary-storage") &&
+		    strlen(android_boot_dev) &&
+		    strcmp(android_boot_dev, dev_name(dev)))
 			return -ENODEV;
-		}
 
 		if (ufs_qcom_cfg_timers(hba, UFS_PWM_G1, SLOWAUTO_MODE,
 					0, true)) {
@@ -1744,6 +1768,12 @@ static int ufs_qcom_suspend(struct ufs_hba *hba, enum ufs_pm_op pm_op)
 		if (!err)
 			err = ufs_qcom_unvote_qos_all(hba);
 	}
+
+#if defined(CONFIG_SCSI_UFSHCD_QTI)
+	/* reset the connected UFS device during power down */
+	if (!err && ufs_qcom_is_link_off(hba) && host->device_reset)
+		gpiod_set_value_cansleep(host->device_reset, 1);
+#endif
 
 	return err;
 }
@@ -2184,8 +2214,11 @@ static void ufs_qcom_dev_ref_clk_ctrl(struct ufs_qcom_host *host, bool enable)
 
 		writel_relaxed(temp, host->dev_ref_clk_ctrl_mmio);
 
-		/* ensure that ref_clk is enabled/disabled before we return */
-		wmb();
+		/*
+		 * Make sure the write to ref_clk reaches the destination and
+		 * not stored in a Write Buffer (WB).
+		 */
+		readl(host->dev_ref_clk_ctrl_mmio);
 
 		/*
 		 * If we call hibern8 exit after this, we need to make sure that
@@ -2383,35 +2416,40 @@ static void ufshcd_parse_pm_levels(struct ufs_hba *hba)
 {
 	struct device *dev = hba->dev;
 	struct device_node *np = dev->of_node;
+	struct ufs_qcom_host *host = ufshcd_get_variant(hba);
 	enum ufs_pm_level rpm_lvl = UFS_PM_LVL_MAX, spm_lvl = UFS_PM_LVL_MAX;
 
 	if (!np)
 		return;
+
+	if (host->is_dt_pm_level_read)
+		return;
+
 	if (!of_property_read_u32(np, "rpm-level", &rpm_lvl) &&
 		ufshcd_is_valid_pm_lvl(rpm_lvl))
 		hba->rpm_lvl = rpm_lvl;
 	if (!of_property_read_u32(np, "spm-level", &spm_lvl) &&
 		ufshcd_is_valid_pm_lvl(spm_lvl))
 		hba->spm_lvl = spm_lvl;
+	host->is_dt_pm_level_read = true;
 }
 
 #if defined(CONFIG_SCSI_UFSHCD_QTI)
 static void ufs_qcom_override_pa_h8time(struct ufs_hba *hba)
 {
 	int ret;
-	u32 loc_tx_h8time_cap = 0;
+	u32 pa_h8time = 0;
 
-	ret = ufshcd_dme_get(hba, UIC_ARG_MIB_SEL(TX_HIBERN8TIME_CAPABILITY,
-				UIC_ARG_MPHY_TX_GEN_SEL_INDEX(0)),
-				&loc_tx_h8time_cap);
+	ret = ufshcd_dme_get(hba, UIC_ARG_MIB(PA_HIBERN8TIME),
+				&pa_h8time);
 	if (ret) {
-		dev_err(hba->dev, "Failed getting max h8 time: %d\n", ret);
+		dev_err(hba->dev, "Failed getting PA_HIBERN8TIME time: %d\n", ret);
 		return;
 	}
 
 	/* 1 implies 100 us */
 	ret = ufshcd_dme_set(hba, UIC_ARG_MIB(PA_HIBERN8TIME),
-				loc_tx_h8time_cap + 1);
+				pa_h8time + 1);
 	if (ret)
 		dev_err(hba->dev, "Failed updating PA_HIBERN8TIME: %d\n", ret);
 
@@ -2627,6 +2665,8 @@ static int ufs_qcom_setup_clocks(struct ufs_hba *hba, bool on,
 {
 	struct ufs_qcom_host *host = ufshcd_get_variant(hba);
 	int err = 0;
+	struct list_head *head = &hba->clk_list_head;
+	struct ufs_clk_info *clki;
 
 	/*
 	 * In case ufs_qcom_init() is not yet done, simply ignore.
@@ -2651,6 +2691,33 @@ static int ufs_qcom_setup_clocks(struct ufs_hba *hba, bool on,
 					dev_err(hba->dev, "%s: phy power off failed, ret = %d\n",
 							 __func__, err);
 					return err;
+				}
+			}
+
+			if (list_empty(head)) {
+				dev_err(hba->dev, "%s: clk list is empty\n", __func__);
+				return err;
+			}
+			/*
+			 * As per the latest hardware programming guide,
+			 * during Hibern8 enter with power collapse :
+			 * SW should disable HW clock control for UFS ICE
+			 * clock (GCC_UFS_ICE_CORE_CBCR.HW_CTL=0)
+			 * before ufs_ice_core_clk is turned off.
+			 * In device tree, we need to add UFS ICE clocks
+			 * in below fixed order:
+			 * clock-names =
+			 * "core_clk_ice";
+			 * "core_clk_ice_hw_ctl";
+			 * This way no extra check is required in UFS
+			 * clock enable path as clk enable order will be
+			 * already taken care in ufshcd_setup_clocks().
+			 */
+			list_for_each_entry(clki, head, list) {
+				if (!IS_ERR_OR_NULL(clki->clk) &&
+					!strcmp(clki->name, "core_clk_ice_hw_ctl")) {
+					clk_disable_unprepare(clki->clk);
+					clki->enabled = on;
 				}
 			}
 		}
@@ -2921,37 +2988,6 @@ ufs_qcom_query_ioctl(struct ufs_hba *hba, u8 lun, void __user *buffer)
 					ioctl_data->idn, index, 0, &att);
 		break;
 
-	case UPIU_QUERY_OPCODE_WRITE_ATTR:
-		err = copy_from_user(&att,
-				     buffer +
-				     sizeof(struct ufs_ioctl_query_data),
-				     sizeof(u32));
-		if (err) {
-			dev_err(hba->dev,
-				"%s: Failed copying buffer from user, err %d\n",
-				__func__, err);
-			goto out_release_mem;
-		}
-
-		switch (ioctl_data->idn) {
-		case QUERY_ATTR_IDN_BOOT_LU_EN:
-			index = 0;
-			if (!att) {
-				dev_err(hba->dev,
-					"%s: Illegal ufs query ioctl data, opcode 0x%x, idn 0x%x, att 0x%x\n",
-					__func__, ioctl_data->opcode,
-					(unsigned int)ioctl_data->idn, att);
-				err = -EINVAL;
-				goto out_release_mem;
-			}
-			break;
-		default:
-			goto out_einval;
-		}
-		err = ufshcd_query_attr(hba, ioctl_data->opcode,
-					ioctl_data->idn, index, 0, &att);
-		break;
-
 	case UPIU_QUERY_OPCODE_READ_FLAG:
 		switch (ioctl_data->idn) {
 		case QUERY_FLAG_IDN_FDEVICEINIT:
@@ -2997,8 +3033,6 @@ ufs_qcom_query_ioctl(struct ufs_hba *hba, u8 lun, void __user *buffer)
 		ioctl_data->buf_size = 1;
 		data_ptr = &flag;
 		break;
-	case UPIU_QUERY_OPCODE_WRITE_ATTR:
-		goto out_release_mem;
 	default:
 		goto out_einval;
 	}
@@ -3044,13 +3078,13 @@ ufs_qcom_ioctl(struct scsi_device *dev, unsigned int cmd, void __user *buffer)
 	int err = 0;
 
 	BUG_ON(!hba);
-	if (!buffer) {
-		dev_err(hba->dev, "%s: User buffer is NULL!\n", __func__);
-		return -EINVAL;
-	}
 
 	switch (cmd) {
 	case UFS_IOCTL_QUERY:
+		if (!buffer) {
+			dev_err(hba->dev, "%s: User buffer is NULL!\n", __func__);
+			return -EINVAL;
+		}
 		pm_runtime_get_sync(hba->dev);
 		err = ufs_qcom_query_ioctl(hba,
 					   ufshcd_scsi_to_upiu_lun(dev->lun),
@@ -3148,6 +3182,9 @@ static void ufs_qcom_qos(struct ufs_hba *hba, int tag, bool is_scsi_cmd)
 	if (cpu < 0)
 		return;
 	qcg = cpu_to_group(host->ufs_qos, cpu);
+	if (!qcg)
+		return;
+
 	if (qcg->voted) {
 		dev_dbg(qcg->host->hba->dev, "%s: qcg: 0x%08x | Mask: 0x%08x - Already voted - return\n",
 			__func__, qcg, qcg->mask);
@@ -3420,12 +3457,10 @@ static int ufs_qcom_init(struct ufs_hba *hba)
 	}
 
 	/* update phy revision information before calling phy_init() */
-	/*
-	 * FIXME:
-	 * ufs_qcom_phy_save_controller_version(host->generic_phy,
-	 *	host->hw_ver.major, host->hw_ver.minor, host->hw_ver.step);
-	 */
-	err = ufs_qcom_parse_reg_info(host, "qcom,vddp-ref-clk",
+	ufs_qcom_phy_save_controller_version(host->generic_phy,
+			host->hw_ver.major, host->hw_ver.minor, host->hw_ver.step);
+
+	 err = ufs_qcom_parse_reg_info(host, "qcom,vddp-ref-clk",
 				      &host->vddp_ref_clk);
 
 	err = phy_init(host->generic_phy);
@@ -4054,6 +4089,9 @@ static void ufs_qcom_parse_limits(struct ufs_qcom_host *host)
 	of_property_read_u32(np, "limit-rx-pwm-gear", &host->limit_rx_pwm_gear);
 	of_property_read_u32(np, "limit-rate", &host->limit_rate);
 	of_property_read_u32(np, "limit-phy-submode", &host->limit_phy_submode);
+#if defined(CONFIG_SCSI_UFSHCD_QTI)
+	host->hba->limit_phy_submode = host->limit_phy_submode;
+#endif
 }
 
 /*
@@ -4102,7 +4140,7 @@ static void ufs_qcom_device_reset(struct ufs_hba *hba)
 		host->skip_flush = true;
 #if IS_ENABLED(CONFIG_SEC_ABC)
 		host->reset_cnt++;
-		if ((host->reset_cnt % 10) == 0)
+		if ((host->reset_cnt % 3) == 0)
 			sec_abc_send_event("MODULE=storage@ERROR=ufs_hwreset_err");
 #endif
 	}
