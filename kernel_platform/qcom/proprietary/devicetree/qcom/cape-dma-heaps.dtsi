@@ -46,6 +46,7 @@
 		qcom,qseecom {
 			qcom,dma-heap-name = "qcom,qseecom";
 			qcom,dma-heap-type = <HEAP_TYPE_CMA>;
+			qcom,uncached-heap;
 			memory-region = <&qseecom_mem>;
 		};
 

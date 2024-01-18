@@ -936,8 +936,7 @@ static int msm_vdec_subscribe_input_port_settings_change(struct msm_vidc_inst *i
 		return -EINVAL;
 	}
 	core = inst->core;
-
-	i_vpr_e(inst, "%s(), ipsc_properties_set %d\n", __func__, inst->ipsc_properties_set);
+	i_vpr_h(inst, "%s()\n", __func__);
 
 	payload[0] = HFI_MODE_PORT_SETTINGS_CHANGE;
 	if (inst->codec == MSM_VIDC_H264) {
@@ -1565,8 +1564,7 @@ int msm_vdec_subscribe_output_port_settings_change(struct msm_vidc_inst *inst,
 		d_vpr_e("%s: invalid params\n", __func__);
 		return -EINVAL;
 	}
-
-	i_vpr_e(inst, "%s(), opsc_properties_set %d\n", __func__, inst->opsc_properties_set);
+	i_vpr_h(inst, "%s()\n", __func__);
 
 	payload[0] = HFI_MODE_PORT_SETTINGS_CHANGE;
 	if (inst->codec == MSM_VIDC_H264) {
@@ -2162,7 +2160,7 @@ int msm_vdec_process_cmd(struct msm_vidc_inst *inst, u32 cmd)
 	capability = inst->capabilities;
 
 	if (cmd == V4L2_DEC_CMD_STOP) {
-		i_vpr_e(inst, "received cmd: drain\n");
+		i_vpr_h(inst, "received cmd: drain\n");
 		allow = msm_vidc_allow_stop(inst);
 		if (allow == MSM_VIDC_DISALLOW)
 			return -EBUSY;
@@ -2182,7 +2180,7 @@ int msm_vdec_process_cmd(struct msm_vidc_inst *inst, u32 cmd)
 		if (rc)
 			return rc;
 	} else if (cmd == V4L2_DEC_CMD_START) {
-		i_vpr_e(inst, "received cmd: resume\n");
+		i_vpr_h(inst, "received cmd: resume\n");
 		vb2_clear_last_buffer_dequeued(&inst->vb2q[OUTPUT_META_PORT]);
 		vb2_clear_last_buffer_dequeued(&inst->vb2q[OUTPUT_PORT]);
 

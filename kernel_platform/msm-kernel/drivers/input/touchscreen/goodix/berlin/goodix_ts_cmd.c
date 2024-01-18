@@ -48,7 +48,7 @@ static void fw_update(void *device_data)
 		sec->cmd_state = SEC_CMD_STATUS_FAIL;
 		return;
 	}
-
+	mutex_lock(&core_data->modechange_mutex);
 	update_type = sec->cmd_param[0];
 
 	switch (update_type) {
@@ -84,6 +84,7 @@ static void fw_update(void *device_data)
 		sec->cmd_state = SEC_CMD_STATUS_OK;
 	}
 	ts_info("%s", buff);
+	mutex_unlock(&core_data->modechange_mutex);
 }
 
 static void get_chip_vendor(void *device_data)
@@ -1555,7 +1556,9 @@ static void run_interrupt_gpio_test(void *device_data)
 	struct goodix_ts_core *core_data = container_of(sec, struct goodix_ts_core, sec);
 	char buff[SEC_CMD_STR_LEN] = { 0 };
 	int ret = -EIO;
+	uint32_t gio_reg;
 	uint32_t reg_data;
+	uint32_t int_bit;
 	uint8_t temp_buf[16] = {0};
 	int retry = 20;
 
@@ -1572,7 +1575,7 @@ static void run_interrupt_gpio_test(void *device_data)
 	core_data->hw_ops->irq_enable(core_data, false);
 
 	/* fix to idle */
-	ret = goodix_set_cmd(core_data, 0x9F, 0x02);
+	ret = goodix_set_cmd(core_data, 0x9F, 0x00);
 	if (ret < 0) {
 		ts_err("failed to send idle cmd");
 		goto out;
@@ -1601,11 +1604,19 @@ static void run_interrupt_gpio_test(void *device_data)
 		goto out;
 	}
 
-	core_data->hw_ops->read(core_data, GPIO_REG, (uint8_t *)&reg_data, 4);
+	if (core_data->bus->ic_type == IC_TYPE_BERLIN_B) {
+		gio_reg = GIO_REG_BB;
+		int_bit = 0x001;
+	} else {
+		gio_reg = GIO_REG_BD;
+		int_bit = 0x200;
+	}
+
+	core_data->hw_ops->read(core_data, gio_reg, (uint8_t *)&reg_data, 4);
 	retry = 3;
 	while (retry--)	{
-		reg_data |= 0x200; // set int gpio to high
-		core_data->hw_ops->write(core_data, GPIO_REG, (uint8_t *)&reg_data, 4);
+		reg_data |= int_bit; // set int gpio to high
+		core_data->hw_ops->write(core_data, gio_reg, (uint8_t *)&reg_data, 4);
 		sec_delay(1);
 		if (!gpio_get_value(core_data->plat_data->irq_gpio)) {
 			ts_err("int gpio is LOW, should HIGH");
@@ -1613,8 +1624,8 @@ static void run_interrupt_gpio_test(void *device_data)
 			ret = -EIO;
 			goto out;
 		}
-		reg_data &= ~0x200; // set int gpio to low
-		core_data->hw_ops->write(core_data, GPIO_REG, (uint8_t *)&reg_data, 4);
+		reg_data &= ~int_bit; // set int gpio to low
+		core_data->hw_ops->write(core_data, gio_reg, (uint8_t *)&reg_data, 4);
 		sec_delay(1);
 		if (gpio_get_value(core_data->plat_data->irq_gpio)) {
 			ts_err("int gpio is HIGH, should LOW");
@@ -2032,13 +2043,13 @@ static void pocket_mode_enable(void *device_data)
 		goto fail;
 	}
 
+	core_data->plat_data->pocket_mode = sec->cmd_param[0];
+	ts_info("pocket mode : %s", core_data->plat_data->pocket_mode ? "on" : "off");
+
 	if (core_data->plat_data->power_state == SEC_INPUT_STATE_POWER_OFF) {
 		ts_err("IC is OFF");
 		goto fail;
 	}
-
-	core_data->plat_data->pocket_mode = sec->cmd_param[0];
-	ts_info("pocket mode : %s", core_data->plat_data->pocket_mode ? "on" : "off");
 
 	ret = core_data->hw_ops->pocket_mode_enable(core_data, core_data->plat_data->pocket_mode);
 	if (ret < 0) {
@@ -2076,13 +2087,13 @@ static void ear_detect_enable(void *device_data)
 		goto fail;
 	}
 
+	core_data->plat_data->ed_enable = sec->cmd_param[0];
+	ts_info("ear detect mode(%d)", core_data->plat_data->ed_enable);
+
 	if (core_data->plat_data->power_state == SEC_INPUT_STATE_POWER_OFF) {
 		ts_err("IC is OFF");
 		goto fail;
 	}
-
-	core_data->plat_data->ed_enable = sec->cmd_param[0];
-	ts_info("ear detect mode(%d)", core_data->plat_data->ed_enable);
 
 	ret = core_data->hw_ops->ed_enable(core_data, core_data->plat_data->ed_enable);
 	if (ret < 0) {
@@ -2104,6 +2115,53 @@ fail:
 	sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
 	sec_cmd_set_cmd_exit(sec);
 	return;
+}
+
+/* 0: exit LSM  1: enter LSM  2: debug  3: debug */
+static void low_sensitivity_mode_enable(void *device_data)
+{
+	struct sec_cmd_data *sec = (struct sec_cmd_data *)device_data;
+	struct goodix_ts_core *core_data = container_of(sec, struct goodix_ts_core, sec);
+	char buff[SEC_CMD_STR_LEN] = { 0 };
+	int ret;
+
+	sec_cmd_set_default_result(sec);
+
+	if (sec->cmd_param[0] < 0 || sec->cmd_param[0] > 3) {
+		ts_err("abnormal parm (%d)", sec->cmd_param[0]);
+		goto fail;
+	}
+
+	mutex_lock(&core_data->modechange_mutex);
+	core_data->plat_data->low_sensitivity_mode = sec->cmd_param[0];
+
+	if (core_data->plat_data->power_state == SEC_INPUT_STATE_POWER_OFF) {
+		mutex_unlock(&core_data->modechange_mutex);
+		ts_err("IC is OFF");
+		goto fail;
+	}
+
+	ret = goodix_set_cmd(core_data, GOODIX_LS_MODE_ADDR, core_data->plat_data->low_sensitivity_mode);
+	if (ret < 0) {
+		mutex_unlock(&core_data->modechange_mutex);
+		ts_err("send low sensitivity mode cmd failed");
+		goto fail;
+	}
+	mutex_unlock(&core_data->modechange_mutex);
+
+	ts_info("set low sensitivity mode: %d", core_data->plat_data->low_sensitivity_mode);
+
+	snprintf(buff, sizeof(buff), "OK");
+	sec->cmd_state = SEC_CMD_STATUS_OK;
+	sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
+	sec_cmd_set_cmd_exit(sec);
+	return;
+
+fail:
+	snprintf(buff, sizeof(buff), "NG");
+	sec->cmd_state = SEC_CMD_STATUS_FAIL;
+	sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
+	sec_cmd_set_cmd_exit(sec);
 }
 
 static void run_prox_intensity_read_all(void *device_data)
@@ -2533,17 +2591,17 @@ static void set_aod_rect(void *device_data)
 
 	sec_cmd_set_default_result(sec);
 
-	if (ts->plat_data->power_state == SEC_INPUT_STATE_POWER_OFF) {
-		ts_err("IC is OFF");
-		goto NG;
-	}
-
 	ts_info(" w:%d, h:%d, x:%d, y:%d, lowpower_mode:0x%02X\n",
 			sec->cmd_param[0], sec->cmd_param[1],
 			sec->cmd_param[2], sec->cmd_param[3], ts->plat_data->lowpower_mode);
 
 	for (i = 0; i < 4; i++)
 		ts->plat_data->aod_data.rect_data[i] = sec->cmd_param[i];
+
+	if (ts->plat_data->power_state == SEC_INPUT_STATE_POWER_OFF) {
+		ts_err("IC is OFF");
+		goto NG;
+	}
 
 	ret = goodix_set_aod_rect(ts);
 	if (ret < 0)
@@ -2804,7 +2862,7 @@ static void fod_enable(void *device_data)
 
 	if (!ts->plat_data->enabled && !ts->plat_data->lowpower_mode && !ts->plat_data->pocket_mode
 			&& !ts->plat_data->ed_enable && !ts->plat_data->fod_lp_mode) {
-		if (device_may_wakeup(ts->bus->dev) && ts->plat_data->power_state == SEC_INPUT_STATE_LPM)
+		if (ts->plat_data->power_state == SEC_INPUT_STATE_LPM)
 			disable_irq_wake(ts->irq);
 		ts->hw_ops->irq_enable(ts, false);
 		goodix_ts_power_off(ts);
@@ -3399,6 +3457,7 @@ static struct sec_cmd sec_cmds[] = {
 	{SEC_CMD_H("set_game_mode", set_game_mode),},
 	{SEC_CMD_H("pocket_mode_enable", pocket_mode_enable),},
 	{SEC_CMD_H("ear_detect_enable", ear_detect_enable),},
+	{SEC_CMD("low_sensitivity_mode_enable", low_sensitivity_mode_enable),},
 	{SEC_CMD("run_prox_intensity_read_all", run_prox_intensity_read_all),},
 #if !IS_ENABLED(CONFIG_SAMSUNG_PRODUCT_SHIP)
 	{SEC_CMD_H("pocket_mode_state", pocket_mode_state),},
@@ -3472,13 +3531,13 @@ static ssize_t protos_event_store(struct device *dev,
 		return -EINVAL;
 	}
 
+	core_data->plat_data->ed_enable = data;
+	ts_info("ear detect mode(%d)", core_data->plat_data->ed_enable);
+
 	if (core_data->plat_data->power_state == SEC_INPUT_STATE_POWER_OFF) {
 		ts_err("IC is OFF");
 		return count;
 	}
-
-	core_data->plat_data->ed_enable = data;
-	ts_info("ear detect mode(%d)", core_data->plat_data->ed_enable);
 
 	ret = core_data->hw_ops->ed_enable(core_data, core_data->plat_data->ed_enable);
 	if (ret < 0)

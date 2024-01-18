@@ -140,7 +140,7 @@ struct sec_qc_summary_data_modem {
 	unsigned int separate_debug;
 	union {
 		struct sec_qc_summary_data_modem_ext_log ext_log;
-		uint8_t __reserved_0[1024];
+		uint8_t __reserved_0[2048];
 	};
 };
 

@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2012-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -1811,7 +1811,7 @@ static QDF_STATUS sme_process_dual_mac_config_resp(struct mac_context *mac,
 			sme_err("Callback failed-Dual mac config is NULL");
 		} else {
 			sme_debug("Calling HDD callback for Dual mac config");
-			callback(param->status,
+			callback(mac->psoc, param->status,
 				command->u.set_dual_mac_cmd.scan_config,
 				command->u.set_dual_mac_cmd.fw_mode_config);
 		}
@@ -16184,7 +16184,8 @@ static inline bool sme_is_11be_capable(void)
 
 QDF_STATUS sme_send_set_mac_addr(struct qdf_mac_addr mac_addr,
 				 struct qdf_mac_addr mld_addr,
-				 struct wlan_objmgr_vdev *vdev)
+				 struct wlan_objmgr_vdev *vdev,
+				 bool update_mld_addr)
 {
 	enum QDF_OPMODE vdev_opmode;
 	struct qdf_mac_addr vdev_mac_addr = mac_addr;
@@ -16204,7 +16205,8 @@ QDF_STATUS sme_send_set_mac_addr(struct qdf_mac_addr mac_addr,
 			return qdf_ret_status;
 	}
 
-	if (sme_is_11be_capable() && (vdev_opmode == QDF_STA_MODE)) {
+	if ((vdev_opmode == QDF_STA_MODE) &&
+	    sme_is_11be_capable() && update_mld_addr) {
 		/* Set new MAC addr as MLD address incase of MLO */
 		mld_addr = mac_addr;
 		qdf_mem_copy(&vdev_mac_addr, wlan_vdev_mlme_get_linkaddr(vdev),
@@ -16242,7 +16244,8 @@ QDF_STATUS sme_send_set_mac_addr(struct qdf_mac_addr mac_addr,
 QDF_STATUS sme_update_vdev_mac_addr(struct wlan_objmgr_psoc *psoc,
 				    struct qdf_mac_addr mac_addr,
 				    struct wlan_objmgr_vdev *vdev,
-				    bool update_sta_self_peer, int req_status)
+				    bool update_sta_self_peer,
+				    bool update_mld_addr, int req_status)
 {
 	enum QDF_OPMODE vdev_opmode;
 	uint8_t *old_mac_addr_bytes;
@@ -16261,7 +16264,7 @@ QDF_STATUS sme_update_vdev_mac_addr(struct wlan_objmgr_psoc *psoc,
 		goto p2p_self_peer_create;
 
 	if ((vdev_opmode == QDF_STA_MODE) && update_sta_self_peer) {
-		if (sme_is_11be_capable())
+		if (sme_is_11be_capable() && update_mld_addr)
 			old_mac_addr_bytes = wlan_vdev_mlme_get_mldaddr(vdev);
 		else
 			old_mac_addr_bytes = wlan_vdev_mlme_get_macaddr(vdev);
@@ -16287,7 +16290,8 @@ QDF_STATUS sme_update_vdev_mac_addr(struct wlan_objmgr_psoc *psoc,
 	}
 
 	/* Update VDEV MAC address */
-	if ((vdev_opmode == QDF_STA_MODE) && sme_is_11be_capable()) {
+	if ((vdev_opmode == QDF_STA_MODE)
+	    && sme_is_11be_capable() && update_mld_addr) {
 		if (update_sta_self_peer) {
 			qdf_ret_status = wlan_mlo_mgr_update_mld_addr(
 					    (struct qdf_mac_addr *)
@@ -16299,6 +16303,7 @@ QDF_STATUS sme_update_vdev_mac_addr(struct wlan_objmgr_psoc *psoc,
 		wlan_vdev_mlme_set_mldaddr(vdev, mac_addr.bytes);
 	} else {
 		wlan_vdev_mlme_set_macaddr(vdev, mac_addr.bytes);
+		wlan_vdev_mlme_set_linkaddr(vdev, mac_addr.bytes);
 	}
 
 p2p_self_peer_create:

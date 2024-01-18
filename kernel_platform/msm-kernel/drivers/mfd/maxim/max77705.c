@@ -768,6 +768,29 @@ static int max77705_fuelgauge_read_vcell(struct max77705_dev *max77705)
 	return vcell;
 }
 
+static int max77705_fuelgauge_read_vbyp(struct max77705_dev *max77705)
+{
+	u8 data[2];
+	u32 vbyp, temp;
+	u16 w_data;
+
+	if (max77705_bulk_read(max77705->fuelgauge, VBYP_REG, 2, data) < 0) {
+		pr_err("%s: Failed to read VBYP_REG\n", __func__);
+		return -1;
+	}
+
+	w_data = (data[1] << 8) | data[0];
+
+	temp = (w_data & 0xFFF) * 427246;
+	vbyp = temp / 1000000;
+
+	temp = ((w_data & 0xF000) >> 4) * 427246;
+	temp /= 1000000;
+	vbyp += (temp << 4);
+
+	return vbyp;
+}
+
 static void max77705_wc_control(struct max77705_dev *max77705, bool enable)
 {
 #if IS_ENABLED(CONFIG_BATTERY_SAMSUNG)
@@ -821,7 +844,7 @@ int max77705_usbc_fw_update(struct max77705_dev *max77705,
 	u8 chg_cnfg_00 = 0;
 	bool chg_mode_changed = 0;
 	bool wpc_en_changed = 0;
-	int vcell = 0;
+	int vcell = 0, vbyp = 0;
 	u8 chgin_dtls = 0;
 	u8 wcin_dtls = 0;
 	int error = 0;
@@ -892,10 +915,11 @@ retry:
 		if (try_count == 0 && try_command == 0) {
 			/* change chg_mode during FW update */
 			vcell = max77705_fuelgauge_read_vcell(max77705);
+			vbyp = max77705_fuelgauge_read_vbyp(max77705);
 
 			if (vcell < 3600) {
-				pr_info("%s: keep chg_mode(0x%x), vcell(%dmv)\n",
-					__func__, chg_cnfg_00 & 0x0F, vcell);
+				pr_info("%s: keep chg_mode(0x%x), vcell(%dmv), vbyp(%dmV)\n",
+					__func__, chg_cnfg_00 & 0x0F, vcell, vbyp);
 				error = -EAGAIN;
 				goto out;
 			}
@@ -914,6 +938,22 @@ retry:
 		pr_info("%s: chgin_dtls:0x%x, wcin_dtls:0x%x\n",
 			__func__, chgin_dtls, wcin_dtls);
 
+#if !IS_ENABLED(CONFIG_SEC_FACTORY)
+		if (try_count == 0 && try_command == 0) {
+			if (chgin_dtls == 0x0 && wcin_dtls == 0x0) {
+				pr_info("%s: Battery only mode\n", __func__);
+			} else {
+				/* adb update case */
+				if (enforce_do == 2)	{
+					pr_info("%s: USB mode (ADB)\n", __func__);
+				} else {
+					error = -EAGAIN;
+					pr_info("%s: TA mode\n", __func__);
+					goto out;
+				}
+			}
+		}
+#endif
 		if ((chgin_dtls != 0x3) && (wcin_dtls != 0x3)) {
 			chg_mode_changed = true;
 					/* Switching Frequency : 3MHz */

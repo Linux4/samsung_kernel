@@ -17,6 +17,9 @@
 #include <linux/usb/ch11.h>
 #include <linux/usb/hcd.h>
 #include <linux/usb/phy.h>
+#if IS_ENABLED(CONFIG_IF_CB_MANAGER)
+#include <linux/usb/typec/manager/if_cb_manager.h>
+#endif
 
 struct lvs_rh {
 	/* root hub interface */
@@ -37,6 +40,10 @@ struct lvs_rh {
 	struct usb_port_status port_status;
 	int test_mode;
 	int test_stat;
+#if IS_ENABLED(CONFIG_IF_CB_MANAGER)
+	struct lvs_dev lvs_d;
+	struct if_cb_manager *man;
+#endif
 };
 
 enum lvs_status {
@@ -132,7 +139,7 @@ static struct usb_device *create_lvs_device(struct usb_interface *intf)
 			if (ret < 0)
 				return NULL;
 			lvs->test_stat = STAT_RESET;
-			msleep(400);
+			msleep(50);
 			ret = usb_control_msg(hdev, usb_rcvctrlpipe(hdev, 0),
 				USB_REQ_GET_STATUS, USB_DIR_IN | USB_RT_PORT, 0, lvs->portnum,
 				port_status, sizeof(*port_status), 1000);
@@ -154,14 +161,16 @@ static struct usb_device *create_lvs_device(struct usb_interface *intf)
 			} else {
 				dev_err(&intf->dev, "after hotreset get status error.\n");
 			}
-        }
-    }
+		}
+	}
 
 	usb_set_device_state(udev, USB_STATE_DEFAULT);
 
 	if (hcd->driver->enable_device) {
 		if (hcd->driver->enable_device(hcd, udev) < 0) {
 			dev_err(&intf->dev, "Failed to enable\n");
+			if (hcd->driver->free_dev)
+				hcd->driver->free_dev(hcd, udev);
 			usb_put_dev(udev);
 			return NULL;
 		}
@@ -398,8 +407,12 @@ static ssize_t get_dev_desc_store(struct device *dev,
 		dev_err(dev, "can't read device descriptor %d\n", ret);
 		if (lvs->test_mode)
 			lvs->test_stat = STAT_CON;
-	} else
+	} else {
+#if IS_ENABLED(CONFIG_IF_CB_MANAGER)
+		usbpd_wait_entermode(lvs->man, 0);
+#endif
 		dev_info(dev, "send device descriptor success\n");
+	}
 
 	destroy_lvs_device(udev);
 
@@ -443,8 +456,9 @@ static ssize_t test_mode_store(struct device *dev,
 {
 	struct usb_interface *intf = to_usb_interface(dev);
 	struct lvs_rh *lvs = usb_get_intfdata(intf);
+	int ret;
 
-	kstrtoint(buf, 0, &lvs->test_mode);
+	ret = kstrtoint(buf, 0, &lvs->test_mode);
 	pr_info("lvs: %s: %d\n", __func__, lvs->test_mode);
 	return count;
 }
@@ -612,8 +626,12 @@ static int lvs_rh_probe(struct usb_interface *intf,
 		dev_err(&intf->dev, "couldn't submit lvs urb %d\n", ret);
 		goto free_urb;
 	}
-
-	schedule_work(&lvs->rh_work);
+#if IS_ENABLED(CONFIG_IF_CB_MANAGER)
+	lvs->lvs_d.ops = NULL;
+	lvs->lvs_d.data = (void *)lvs;
+	lvs->man = register_lvs(&lvs->lvs_d);
+	usbpd_wait_entermode(lvs->man, 1);
+#endif
 
 	return ret;
 
@@ -627,6 +645,10 @@ static void lvs_rh_disconnect(struct usb_interface *intf)
 	struct lvs_rh *lvs = usb_get_intfdata(intf);
 
 	pr_info("%s\n", __func__);
+#if IS_ENABLED(CONFIG_IF_CB_MANAGER)
+	usbpd_wait_entermode(lvs->man, 0);
+	register_lvs(NULL);
+#endif
 	usb_poison_urb(lvs->urb); /* used in scheduled work */
 	flush_work(&lvs->rh_work);
 	usb_free_urb(lvs->urb);

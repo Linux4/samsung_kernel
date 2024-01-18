@@ -2056,6 +2056,12 @@ static int max77705_muic_hv_charger_init(void)
 {
 	struct max77705_muic_data *muic_data = g_muic_data;
 
+	if (!muic_data || !muic_data->pdata ||
+		!test_bit(MUIC_PROBE_DONE, &muic_data->pdata->driver_probe_flag)) {
+		pr_info("[%s:%s] skip\n", MUIC_DEV_NAME, __func__);
+		return 0;
+	}
+
 	if (muic_data->is_charger_ready) {
 		pr_info("%s: charger is already ready(%d), return\n",
 				__func__, muic_data->is_charger_ready);
@@ -2641,6 +2647,11 @@ int max77705_muic_probe(struct max77705_usbc_platform_data *usbc_data)
 		max77705_muic_print_reg_log);
 	schedule_delayed_work(&(muic_data->debug_work),
 		msecs_to_jiffies(10000));
+
+	/* hv charger init */
+	set_bit(MUIC_PROBE_DONE, &muic_data->pdata->driver_probe_flag);
+	if (test_bit(CHARGER_PROBE_DONE, &muic_data->pdata->driver_probe_flag))
+		max77705_muic_hv_charger_init();
 
 	return 0;
 

@@ -2217,7 +2217,7 @@ static void lock_mnt_tree(struct mount *mnt)
 		if (list_empty(&p->mnt_expire))
 			flags |= MNT_LOCKED;
 #ifdef CONFIG_KDP_NS
-		((struct kdp_mount *)p)->mnt->mnt_flags = flags;
+		kdp_assign_mnt_flags(((struct kdp_mount *)p)->mnt, flags);
 #else
 		p->mnt.mnt_flags = flags;
 #endif

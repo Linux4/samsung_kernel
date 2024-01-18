@@ -203,6 +203,16 @@ config REGULATOR_ARM_SCMI
 	  This driver uses SCMI Message Protocol driver to interact with the
 	  firmware providing the device Voltage functionality.
 
+config REGULATOR_AP72200
+	tristate "Diodes Incorporated AP72200 Buck-Boost Regulator Driver"
+	depends on I2C
+	help
+	  This driver provides support for AP72200 buck-boost regulator with
+	  a input range of 2.3 to 5.5 V and output range of 2.6 to 5.14V.
+
+	  Say M here if you want to include support for the regulator as a
+          module. The module will be named "ap72200-regulator".
+
 config REGULATOR_AS3711
 	tristate "AS3711 PMIC"
 	depends on MFD_AS3711
@@ -1393,6 +1403,15 @@ config REGULATOR_QCOM_LABIBB
 	  based PMIC implementations. LAB can be used as positive
 	  boost regulator and IBB can be used as a negative boost regulator
 	  for LCD display panel.
+
+config REGULATOR_QTI_OCP_NOTIFIER
+	tristate "Qualcomm Technologies, Inc. Regulator OCP Notifier Driver"
+	help
+	  This driver provides support for logging and notifying consumers about
+	  regulator over-current (OCP) events on certain Qualcomm Technologies,
+	  Inc. PMIC devices.  This is useful for debugging as well as for
+	  providing a more graceful recovery mechanism than resetting the entire
+	  system.
 
 endif
 

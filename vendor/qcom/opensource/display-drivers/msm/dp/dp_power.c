@@ -340,7 +340,7 @@ static int dp_power_clk_init(struct dp_power_private *power, bool enable)
 
 		power->pixel_parent = clk_get(dev, "pixel_parent");
 		if (IS_ERR(power->pixel_parent)) {
-			DP_ERR("Unable to get DP pixel RCG parent: %ld\n",
+			DP_ERR("Unable to get DP pixel RCG parent: %d\n",
 					PTR_ERR(power->pixel_parent));
 			rc = PTR_ERR(power->pixel_parent);
 			power->pixel_parent = NULL;
@@ -349,7 +349,7 @@ static int dp_power_clk_init(struct dp_power_private *power, bool enable)
 
 		power->xo_clk = clk_get(dev, "rpmh_cxo_clk");
 		if (IS_ERR(power->xo_clk)) {
-			DP_ERR("Unable to get XO clk: %ld\n", PTR_ERR(power->xo_clk));
+			DP_ERR("Unable to get XO clk: %d\n", PTR_ERR(power->xo_clk));
 			rc = PTR_ERR(power->xo_clk);
 			power->xo_clk = NULL;
 			goto err_xo_clk;
@@ -358,7 +358,7 @@ static int dp_power_clk_init(struct dp_power_private *power, bool enable)
 		if (power->parser->has_mst) {
 			power->pixel1_clk_rcg = clk_get(dev, "pixel1_clk_rcg");
 			if (IS_ERR(power->pixel1_clk_rcg)) {
-				DP_ERR("Unable to get DP pixel1 clk RCG: %ld\n",
+				DP_ERR("Unable to get DP pixel1 clk RCG: %d\n",
 						PTR_ERR(power->pixel1_clk_rcg));
 				rc = PTR_ERR(power->pixel1_clk_rcg);
 				power->pixel1_clk_rcg = NULL;
@@ -1110,32 +1110,6 @@ enum dp_hpd_plug_orientation secdp_get_plug_orientation(void)
 
 	/*cannot be here*/
 	return ORIENTATION_NONE;
-}
-
-bool secdp_get_clk_status(enum dp_pm_type type)
-{
-	struct dp_power_private *power = g_secdp_power;
-	bool ret = false;
-
-	switch (type) {
-	case DP_CORE_PM:
-		ret = power->core_clks_on;
-		break;
-	case DP_STREAM0_PM:
-		ret = power->strm0_clks_on;
-		break;
-	case DP_STREAM1_PM:
-		ret = power->strm1_clks_on;
-		break;
-	case DP_LINK_PM:
-		ret = power->link_clks_on;
-		break;
-	default:
-		DP_ERR("invalid type:%d\n", type);
-		break;
-	}
-
-	return ret;
 }
 #endif
 

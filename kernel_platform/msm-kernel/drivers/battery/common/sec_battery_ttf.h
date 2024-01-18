@@ -20,6 +20,10 @@
 #ifndef __SEC_BATTERY_TTF_H
 #define __SEC_BATTERY_TTF_H __FILE__
 
+#define WFC10_WIRELESS_POWER	7500000 /* mW */
+#define WFC20_WIRELESS_POWER	12000000 /* mW */
+#define WFC21_WIRELESS_POWER 	15000000 /* mW */
+
 struct sec_cv_slope {
 		int fg_current;
 		int soc;
@@ -34,12 +38,13 @@ struct sec_ttf_data {
 
 	unsigned int ttf_hv_12v_charge_current;
 	unsigned int ttf_hv_charge_current;
-	unsigned int ttf_hv_12v_wireless_charge_current;
 	unsigned int ttf_hv_wireless_charge_current;
 	unsigned int ttf_wireless_charge_current;
 	unsigned int ttf_dc25_charge_current;
 	unsigned int ttf_dc45_charge_current;
-	unsigned int ttf_predict_wc20_charge_current;
+	unsigned int ttf_wc20_wireless_charge_current;
+	unsigned int ttf_wc21_wireless_charge_current;
+	unsigned int ttf_fpdo_dc_charge_current;
 
 	struct sec_cv_slope *cv_data;
 	int cv_data_length;
@@ -50,7 +55,7 @@ struct sec_ttf_data {
 
 int sec_calc_ttf(struct sec_battery_info * battery, unsigned int ttf_curr);
 extern void sec_bat_calc_time_to_full(struct sec_battery_info * battery);
-void sec_bat_predict_wc20_time_to_full_current(struct sec_battery_info *battery, int rx_power);
+int sec_get_ttf_standard_curr(struct sec_battery_info *battery);
 extern void sec_bat_time_to_full_work(struct work_struct *work);
 extern void ttf_init(struct sec_battery_info *battery);
 extern void ttf_work_start(struct sec_battery_info *battery);
