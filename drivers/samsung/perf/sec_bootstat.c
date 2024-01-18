@@ -136,10 +136,13 @@ void sec_bootstat_add_initcall(const char *s)
 	}
 }
 
+static DEFINE_RAW_SPINLOCK(ebs_list_lock);
 void sec_enhanced_boot_stat_record(const char *buf)
 {
 	unsigned long long t = 0;
 	struct enhanced_boot_time *entry;
+	unsigned long flags;
+
 	entry = kmalloc(sizeof(*entry), GFP_KERNEL);
 	if (!entry)
 		return;
@@ -149,8 +152,12 @@ void sec_enhanced_boot_stat_record(const char *buf)
 	do_div(t, 1000000);
 	entry->time = (unsigned int)t;
 	sec_bootstat_get_cpuinfo(entry->freq, &entry->online);
+
+	raw_spin_lock_irqsave(&ebs_list_lock, flags);
 	list_add(&entry->next, &enhanced_boot_time_list);
 	events_ebs++;
+
+	raw_spin_unlock_irqrestore(&ebs_list_lock, flags);
 }
 
 static int prev;
@@ -287,6 +294,14 @@ static int sec_boot_stat_proc_show(struct seq_file *m, void *v)
 	return 0;
 }
 
+int __read_mostly boot_time_bl1;
+int __read_mostly boot_time_bl2;
+int __read_mostly boot_time_bl3;
+
+module_param(boot_time_bl1, int, 0440);
+module_param(boot_time_bl2, int, 0440);
+module_param(boot_time_bl3, int, 0440);
+
 static int sec_enhanced_boot_stat_proc_show(struct seq_file *m, void *v)
 {
 	size_t i = 0;
@@ -297,8 +312,12 @@ static int sec_enhanced_boot_stat_proc_show(struct seq_file *m, void *v)
 	seq_puts(m, "-----------------------------------------------------------------------------------------------------------------------\n");
 	seq_puts(m, "BOOTLOADER - KERNEL\n");
 	seq_puts(m, "-----------------------------------------------------------------------------------------------------------------------\n");
-	seq_printf(m, "%-90s %6u %6u %6u\n", "MCT is initialized in bl2", 0, 0, 0);
-	seq_printf(m, "%-90s %6u %6u %6u\n", "start kernel timer", mct_start, 0, mct_start);
+	seq_printf(m, "%-90s %6u %6u %6u %4d %4d\n", "!@Boot_EBS_B: MCT_is_initialized", 0, 0, 0, 0, 0);
+	seq_printf(m, "%-90s %6u %6u %6u %4d %4d\n", "!@Boot_EBS_B: boot_time_bl1", boot_time_bl1, 0, boot_time_bl1, 0, 0);
+	seq_printf(m, "%-90s %6u %6u %6u %4d %4d\n", "!@Boot_EBS_B: boot_time_bl2", boot_time_bl2, 0, boot_time_bl2 - boot_time_bl1, 0, 0);
+	seq_printf(m, "%-90s %6u %6u %6u %4d %4d\n", "!@Boot_EBS_B: boot_time_bl3", boot_time_bl3, 0, boot_time_bl3 - boot_time_bl2, 0, 0);
+	seq_printf(m, "%-90s %6u %6u %6u %4d %4d\n", "!@Boot_EBS_B: start_kernel_timer", mct_start, 0, mct_start - boot_time_bl3, 0, 0);
+
 
 	for (i = 0; i < ARRAY_SIZE(boot_initcall); i++) {
 		seq_printf(m, "%-90s %6u %6u %6u %4d %4d\n", boot_initcall[i].string, boot_initcall[i].time + mct_start, boot_initcall[i].time,

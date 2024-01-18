@@ -1224,6 +1224,7 @@ static int decon_blank(int blank_mode, struct fb_info *info)
 			goto blank_exit;
 		}
 		lcd_status_notifier(LCD_OFF);
+		pm_qos_update_request(&exynos_mif_qos_fhd, 0);
 		break;
 	case FB_BLANK_UNBLANK:
 		DPU_EVENT_LOG(DPU_EVT_UNBLANK, &decon->sd, ktime_set(0, 0));
@@ -1661,7 +1662,7 @@ static int decon_import_dqe_buffer(struct decon_device *decon,
 #endif
 	/* KVA is passed to DPP parameters structure */
 	dqe_lut = (struct decon_dqe_lut *)dma_buf_vmap(dma_dqe_buf_data->dma_buf);
-	if (!dqe_lut) {
+	if (IS_ERR_OR_NULL(dqe_lut)) {
 		decon_err("failed to vmap buffer\n");
 		goto err_vmap;
 	}
@@ -1753,7 +1754,7 @@ static int decon_import_hdr_buffer(struct decon_device *decon, int idx,
 #endif
 	/* KVA is passed to DPP parameters structure */
 	hdr_lut = (struct dpp_hdr_lut *)dma_buf_vmap(dma_hdr_buf_data->dma_buf);
-	if (!hdr_lut) {
+	if (IS_ERR_OR_NULL(hdr_lut)) {
 		decon_err("failed to vmap buffer\n");
 		goto err_vmap;
 	}
@@ -2476,6 +2477,10 @@ static int decon_set_hdr_info(struct decon_device *decon,
 	}
 	video_meta = (struct exynos_video_meta *)dma_buf_vmap(
 			regs->dma_buf_data[win_num][mp_idx].dma_buf);
+	if (IS_ERR_OR_NULL(video_meta)) {
+		decon_err("Failed to get virtual address (err %p)\n", video_meta);
+		return -ENOMEM;
+	}
 
 	hdr_cmp = memcmp(&decon->prev_hdr_info,
 			&video_meta->shdr_static_info,
@@ -2855,12 +2860,10 @@ int decon_update_last_regs(struct decon_device *decon,
 			BUG();
 		}
 		if (!regs->num_of_window) {
-			decon_save_cur_buf_info(decon, regs);
 			decon_wait_for_vsync(decon, VSYNC_TIMEOUT_MSEC);
 			goto end;
 		}
 	} else {
-		decon_save_cur_buf_info(decon, regs);
 		decon_wait_for_vsync(decon, VSYNC_TIMEOUT_MSEC);
 		goto end;
 	}
@@ -4155,6 +4158,10 @@ static int decon_fb_alloc_memory(struct decon_device *decon, struct decon_win *w
 	}
 
 	vaddr = dma_buf_vmap(buf);
+	if (IS_ERR_OR_NULL(vaddr)) {
+		dev_err(decon->dev, "dma_buf_vmap() failed\n");
+		goto err_map;
+	}
 
 	memset(vaddr, 0x00, size);
 
@@ -4233,6 +4240,10 @@ static int decon_fb_test_alloc_memory(struct decon_device *decon, u32 size)
 	}
 
 	vaddr = dma_buf_vmap(buf);
+	if (IS_ERR_OR_NULL(vaddr)) {
+		dev_err(decon->dev, "dma_buf_vmap() failed\n");
+		goto err_map;
+	}
 
 	memset(vaddr, 0x00, size);
 
@@ -4948,7 +4959,7 @@ static int decon_probe(struct platform_device *pdev)
 	if (ret)
 		goto err_esd;
 #endif
-
+	pm_qos_add_request(&exynos_mif_qos_fhd, PM_QOS_BUS_THROUGHPUT, 0);
 	decon_info("decon%d registered successfully", decon->id);
 
 	return 0;

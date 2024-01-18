@@ -73,6 +73,9 @@ struct accelometer_sensor_operations *get_accelometer_lsm6dsl_function_pointer(s
 #if defined(CONFIG_SENSORS_SSP_ACCELOMETER_ICM42605M)
 struct accelometer_sensor_operations *get_accelometer_icm42605m_function_pointer(struct ssp_data *);
 #endif
+#if defined(CONFIG_SENSORS_SSP_ACCELOMETER_ICM42632M)
+struct accelometer_sensor_operations *get_accelometer_icm42632m_function_pointer(struct ssp_data *);
+#endif
 #if defined(CONFIG_SENSORS_SSP_ACCELOMETER_K6DS3TR)
 struct accelometer_sensor_operations *get_accelometer_k6ds3tr_function_pointer(struct ssp_data *);
 #endif
@@ -101,6 +104,9 @@ struct gyroscope_sensor_operations *get_gyroscope_lsm6dsl_function_pointer(struc
 #endif
 #if defined(CONFIG_SENSORS_SSP_GYROSCOPE_ICM42605M)
 struct gyroscope_sensor_operations *get_gyroscope_icm42605m_function_pointer(struct ssp_data *);
+#endif
+#if defined(CONFIG_SENSORS_SSP_GYROSCOPE_ICM42632M)
+struct gyroscope_sensor_operations *get_gyroscope_icm42632m_function_pointer(struct ssp_data *);
 #endif
 #if defined(CONFIG_SENSORS_SSP_GYROSCOPE_K6DS3TR)
 struct gyroscope_sensor_operations *get_gyroscope_k6ds3tr_function_pointer(struct ssp_data *);

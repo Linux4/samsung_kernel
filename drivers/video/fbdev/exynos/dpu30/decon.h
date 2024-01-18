@@ -76,6 +76,8 @@ extern int dpu_dma_buf_log_level;
 extern int decon_systrace_enable;
 extern struct decon_bts_ops decon_bts_control;
 
+extern struct pm_qos_request exynos_mif_qos_fhd;
+
 #define DECON_MODULE_NAME	"exynos-decon"
 #define MAX_NAME_SIZE		32
 #define MAX_PLANE_CNT		3

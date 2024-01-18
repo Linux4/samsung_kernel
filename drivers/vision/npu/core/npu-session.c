@@ -88,7 +88,7 @@ void npu_session_queue_done(struct npu_queue *queue, struct vb_container_list *i
 
 static save_result_func get_notify_func(const nw_cmd_e nw_cmd)
 {
-	if (NPU_NW_CMD_UNLOAD == nw_cmd || NPU_NW_CMD_CLEAR_CB == nw_cmd)
+	if (NPU_NW_CMD_CLEAR_CB == nw_cmd)
 		return NULL;
 	else
 		return npu_session_save_result;
@@ -243,6 +243,7 @@ int npu_session_NW_CMD_UNLOAD(struct npu_session *session)
 	npu_udbg("sending UNLOAD command.\n", session);
 	session->nw_result.result_code = NPU_NW_JUST_STARTED;
 	npu_session_put_nw_req(session, nw_cmd);
+	wait_event(session->wq, session->nw_result.result_code != NPU_NW_JUST_STARTED);
 
 	return 0;
 }
@@ -590,10 +591,18 @@ int __get_session_info(struct npu_session *session, struct vs4l_graph *info)
 		ret = -ENOMEM;
 		return ret;
 	}
-	copy_from_user((void *)usr_data, (void *)info->addr, sizeof(struct drv_usr_share));
+	ret = copy_from_user((void *)usr_data, (void *)info->addr, sizeof(struct drv_usr_share));
+	if (ret) {
+		npu_err("copy_from_user failed(%d)\n", ret);
+		goto p_err;
+	}
 	__set_unique_id(session, usr_data);
 	npu_utrace("usr_data(0x%pK), ncp_size(%u)\n", session, usr_data, usr_data->ncp_size);
-	copy_to_user((void *)info->addr, (void *)usr_data, sizeof(struct drv_usr_share));
+	ret = copy_to_user((void *)info->addr, (void *)usr_data, sizeof(struct drv_usr_share));
+	if (ret) {
+		npu_err("copy_to_user failed(%d)\n", ret);
+		goto p_err;
+	}
 	ret = __ncp_ion_map(session, usr_data);
 	if (ret) {
 		npu_uerr("__ncp_ion_map is fail(%d)\n", session, ret);
@@ -719,6 +728,12 @@ int __second_parsing_ncp(
 	memory_vector_offset = session->memory_vector_offset;
 	memory_vector_cnt = session->memory_vector_cnt;
 
+	if (address_vector_cnt > memory_vector_cnt) {
+		npu_err("address_vector_cnt(%d) should not exceed memory_vector_cnt(%d)\n",
+				address_vector_cnt, memory_vector_cnt);
+		return -EFAULT;
+	}
+
 	mv = (struct memory_vector *)(ncp_vaddr + memory_vector_offset);
 	av = (struct address_vector *)(ncp_vaddr + address_vector_offset);
 
@@ -738,7 +753,8 @@ int __second_parsing_ncp(
 				address_vector_index = (mv + i)->address_vector_index;
 				if (!EVER_FIND_FM(&IFM_cnt, *IFM_av, address_vector_index)) {
 					(*IFM_av + IFM_cnt)->av_index = address_vector_index;
-					if (address_vector_index >= address_vector_cnt) {
+					if (unlikely(((address_vector_index * sizeof(struct address_vector)) + address_vector_offset) >
+									session->ncp_mem_buf->size) || unlikely(address_vector_index >= address_vector_cnt)) {
 						npu_err("address_vector_index(%d) should not exceed max addr vec count(%d)\n",
 								address_vector_index, address_vector_cnt);
 						return -EFAULT;
@@ -782,7 +798,8 @@ int __second_parsing_ncp(
 				address_vector_index = (mv + i)->address_vector_index;
 				if (!EVER_FIND_FM(&OFM_cnt, *OFM_av, address_vector_index)) {
 					(*OFM_av + OFM_cnt)->av_index = address_vector_index;
-					if (address_vector_index >= address_vector_cnt) {
+					if (unlikely(((address_vector_index * sizeof(struct address_vector)) + address_vector_offset) >
+									session->ncp_mem_buf->size) || unlikely(address_vector_index >= address_vector_cnt)) {
 						npu_err("address_vector_index(%d) should not exceed max addr vec count(%d)\n",
 								address_vector_index, address_vector_cnt);
 						return -EFAULT;
@@ -826,7 +843,8 @@ int __second_parsing_ncp(
 
 				if (!EVER_FIND_FM(&IMB_cnt, *IMB_av, address_vector_index)) {
 					(*IMB_av + IMB_cnt)->av_index = address_vector_index;
-					if (address_vector_index >= address_vector_cnt) {
+					if (unlikely(((address_vector_index * sizeof(struct address_vector)) + address_vector_offset) >
+									session->ncp_mem_buf->size) || unlikely(address_vector_index >= address_vector_cnt)) {
 						npu_err("address_vector_index(%d) should not exceed max addr vec count(%d)\n",
 								address_vector_index, address_vector_cnt);
 						return -EFAULT;
@@ -857,7 +875,8 @@ int __second_parsing_ncp(
 				}
 				// update address vector, m_addr with ncp_alloc_daddr + offset
 				address_vector_index = (mv + i)->address_vector_index;
-				if (address_vector_index >= address_vector_cnt) {
+				if (unlikely(((address_vector_index * sizeof(struct address_vector)) + address_vector_offset) >
+									session->ncp_mem_buf->size) || unlikely(address_vector_index >= address_vector_cnt)) {
 					npu_err("address_vector_index(%d) should not exceed max addr vec count(%d)\n",
 							address_vector_index, address_vector_cnt);
 					return -EFAULT;
@@ -873,6 +892,11 @@ int __second_parsing_ncp(
 
 				(*WGT_av + WGT_cnt)->av_index = address_vector_index;
 				weight_size = (av + address_vector_index)->size;
+				if (unlikely((weight_offset + weight_size) < weight_size)) {
+					npu_err("weight_offset(0x%x) + weight size (0x%x) seems to be overflow.\n",
+						weight_offset, weight_size);
+					return -ERANGE;
+				}
 				if ((weight_offset + weight_size) > (u32)session->ncp_mem_buf->size) {
 					npu_err("weight_offset(0x%x) + weight size (0x%x) seems to go beyond ncp size(0x%x)\n",
 							weight_offset, weight_size, (u32)session->ncp_mem_buf->size);
@@ -1156,6 +1180,10 @@ int __config_session_info(struct npu_session *session)
 	struct npu_memory_buffer *IMB_mem_buf;
 
 	ret = __pilot_parsing_ncp(session, &session->IFM_cnt, &session->OFM_cnt, &session->IMB_cnt, &session->WGT_cnt);
+	if (ret) {
+		npu_err("failed in __pilot_parsing_ncp\n");
+		goto p_err;
+	}
 
 	IFM_av = kcalloc(session->IFM_cnt, sizeof(struct addr_info), GFP_KERNEL);
 	OFM_av = kcalloc(session->OFM_cnt, sizeof(struct addr_info), GFP_KERNEL);
@@ -1361,6 +1389,11 @@ int npu_session_format(struct npu_queue *queue, struct vs4l_format_list *flist)
 
 	BUG_ON(!vctx);
 	BUG_ON(!session);
+
+	if (session->ncp_mem_buf == NULL) {
+		ret = -EFAULT;
+		goto p_err;
+	}
 
 	ncp_vaddr = (char *)session->ncp_mem_buf->vaddr;
 	ncp = (struct ncp_header *)ncp_vaddr;

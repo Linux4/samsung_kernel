@@ -24,7 +24,7 @@
 #define EA8076_AOD_TARGET_LUMINANCE (420)
 
 static unsigned int a51x_aod_brt_tbl[EA8076_AOD_NR_LUMINANCE] = {
-	BRT_LT(40), BRT_LT(71), BRT_LT(94), BRT(255),
+	BRT_LT(7), BRT_LT(22), BRT_LT(43), BRT(255),
 };
 
 static unsigned int a51x_aod_lum_tbl[EA8076_AOD_NR_LUMINANCE] = {

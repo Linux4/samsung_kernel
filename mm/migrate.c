@@ -1123,7 +1123,7 @@ static int __unmap_and_move(struct page *page, struct page *newpage,
 		}
 
 		if (!inplace_migration) {
-			try_to_unmap(page, ttuflags);
+			try_to_unmap(page, ttuflags, NULL);
 			page_was_mapped = 1;
 		}
 	}
@@ -1350,7 +1350,7 @@ static int unmap_and_move_huge_page(new_page_t get_new_page,
 
 	if (page_mapped(hpage)) {
 		try_to_unmap(hpage,
-			TTU_MIGRATION|TTU_IGNORE_MLOCK|TTU_IGNORE_ACCESS);
+			TTU_MIGRATION|TTU_IGNORE_MLOCK|TTU_IGNORE_ACCESS, NULL);
 		page_was_mapped = 1;
 	}
 
@@ -2577,7 +2577,7 @@ static void migrate_vma_unmap(struct migrate_vma *migrate)
 			continue;
 
 		if (page_mapped(page)) {
-			try_to_unmap(page, flags);
+			try_to_unmap(page, flags, NULL);
 			if (page_mapped(page))
 				goto restore;
 		}

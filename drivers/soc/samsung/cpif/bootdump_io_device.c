@@ -384,14 +384,14 @@ static long bootdump_ioctl(struct file *filp, unsigned int cmd, unsigned long ar
 
 #if defined(CONFIG_SEC_MODEM_S5000AP) && defined(CONFIG_SEC_MODEM_S5100)
 		if (check_cp_upload_cnt())
-			panic("%s",buff);
+			panic("%s", buff);
 		else {
 			mif_info("Wait another IOCTL_TRIGGER_KERNEL_PANIC\n");
 			while (1)
 				msleep(1000);
 		}
 #else
-		panic("%s",buff);
+		panic("%s", buff);
 #endif
 		return 0;
 	}

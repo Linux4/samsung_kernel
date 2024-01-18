@@ -15,18 +15,13 @@
 #define _ET7XX_LINUX_DRIVER_H_
 
 #include <linux/module.h>
-#include <linux/version.h>
-#include <linux/spi/spi.h>
-#include <linux/pm_wakeup.h>
 #include <linux/kernel.h>
 #include <linux/uaccess.h>
-#include <linux/delay.h>
-
+#include <linux/of.h>
 #ifdef ENABLE_SENSORS_FPRINT_SECURE
 #include <linux/clk.h>
 #include <linux/pm_runtime.h>
 #include <linux/spi/spidev.h>
-#include <linux/of.h>
 #include <linux/of_device.h>
 #include <linux/of_dma.h>
 #endif /* ENABLE_SENSORS_FPRINT_SECURE */
@@ -47,7 +42,6 @@ static DECLARE_BITMAP(minors, N_SPI_MINORS);
 static LIST_HEAD(device_list);
 static DEFINE_MUTEX(device_list_lock);
 
-static struct et7xx_data *g_data;
 static unsigned int bufsiz = 1024;
 
 /* spi communication opcode */
@@ -164,20 +158,10 @@ struct et7xx_data {
 	const char *rb;
 	bool ldo_onoff;
 
-	struct work_struct work_debug;
-	struct workqueue_struct *wq_dbg;
-	struct timer_list dbg_timer;
 	int sensortype;
 	u32 spi_value;
 	struct device *dev;
 	struct device *fp_device;
-#ifdef ENABLE_SENSORS_FPRINT_SECURE
-	struct clk *fp_spi_pclk;
-	struct clk *fp_spi_sclk;
-	struct wakeup_source *fp_spi_lock;
-#endif
-	unsigned int spi_speed;
-	bool enabled_clk;
 	bool tz_mode;
 	const char *chipid;
 	const char *model_info;
@@ -188,7 +172,9 @@ struct et7xx_data {
 	struct pinctrl_state *pins_poweron;
 	struct pinctrl_state *pins_poweroff;
 	bool ldo_enabled;
+	struct spi_clk_setting *clk_setting;
 	struct boosting_config *boosting;
+	struct debug_logger *logger;
 };
 
 int et7xx_io_read_cis_register(struct et7xx_data *etspi, u8 *addr, u8 *buf);
@@ -233,10 +219,4 @@ int et7xx_eeprom_block_erase(struct et7xx_data *etspi,
 int et7xx_eeprom_write_controller(struct et7xx_data *etspi, int enable);
 int et7xx_eeprom_write_in_non_tz(struct et7xx_data *etspi,
 									struct egis_ioc_transfer *ioc);
-int et7xx_spi_clk_enable(struct et7xx_data *etspi);
-int et7xx_spi_clk_disable(struct et7xx_data *etspi);
-int fps_resume_set(void);
-int fps_suspend_set(struct et7xx_data *etspi);
-int et7xx_register_platform_variable(struct et7xx_data *etspi);
-int et7xx_unregister_platform_variable(struct et7xx_data *etspi);
 #endif

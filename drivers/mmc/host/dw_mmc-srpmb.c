@@ -492,7 +492,7 @@ static int mmc_srpmb_probe(struct platform_device *pdev)
 	ret = register_pm_notifier(&ctx->pm_notifier);
 	if (ret) {
 		dev_err(dev, "Fail to setup pm notifier\n");
-		goto workqueue_free;
+		goto irq_free;
 	}
 
 	platform_set_drvdata(pdev, ctx);
@@ -503,10 +503,12 @@ static int mmc_srpmb_probe(struct platform_device *pdev)
         ret = exynos_smc(SMC_SRPMB_WSM, ctx->wsm_phyaddr, hwirq, 0);
         if (ret){
                 dev_err(dev, "Fail to smc call to initial wsm buffer\n");
-		goto workqueue_free;
+		goto irq_free;
 	}
 	return 0;
 
+irq_free:
+	free_irq(ctx->irq, ctx);
 workqueue_free:
         destroy_workqueue(ctx->srpmb_queue);
 dma_free:

@@ -23,7 +23,7 @@
 
 char bootc_offset_module[BOOTC_OFFSET_DATA_CNT][BOOTC_OFFSET_STR_MAX] = {"fsck"};
 
-static int abc_hub_bootc_get_total_offset(struct sub_bootc_pdata *bootc_pdata)
+__visible_for_testing int abc_hub_bootc_get_total_offset(struct sub_bootc_pdata *bootc_pdata)
 {
 	int total_offset = 0;
 	int i;
@@ -34,6 +34,7 @@ static int abc_hub_bootc_get_total_offset(struct sub_bootc_pdata *bootc_pdata)
 
 	return total_offset;
 }
+EXPORT_SYMBOL_KUNIT(abc_hub_bootc_get_total_offset);
 
 static void abc_hub_bootc_work_func(struct work_struct *work)
 {
@@ -61,8 +62,8 @@ static void abc_hub_bootc_work_func(struct work_struct *work)
 }
 
 int parse_bootc_data(struct device *dev,
-		     struct abc_hub_platform_data *pdata,
-		     struct device_node *np)
+			 struct abc_hub_platform_data *pdata,
+			 struct device_node *np)
 {
 	struct device_node *bootc_np;
 

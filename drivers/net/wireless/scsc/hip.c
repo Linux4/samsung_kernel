@@ -332,10 +332,17 @@ void slsi_hip_set_napi_cpu(struct slsi_dev *sdev, u8 napi_cpu, bool perf_mode)
 {
 	hip4_set_napi_cpu(&sdev->hip4_inst, napi_cpu, perf_mode);
 }
+
+void slsi_hip_reprocess_skipped_ctrl_bh(struct slsi_dev *sdev)
+{
+	struct slsi_hip4 *hip4 = &sdev->hip4_inst;
+
+	hip4_sched_wq_ctrl(hip4);
+}
 #else
 void slsi_hip_reprocess_skipped_data_bh(struct slsi_dev *sdev)
 {
-	struct slsi_hip4 *hip4 =  &sdev->hip4_inst;
+	struct slsi_hip4 *hip4 = &sdev->hip4_inst;
 
 	hip4_sched_wq(hip4);
 }

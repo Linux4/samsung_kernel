@@ -237,6 +237,8 @@ static int mfc_dec_start_streaming(struct vb2_queue *q, unsigned int count)
 	struct mfc_ctx *ctx = q->drv_priv;
 	struct mfc_dev *dev = ctx->dev;
 
+	mfc_update_real_time(ctx);
+
 	/* If context is ready then dev = work->data;schedule it to run */
 	mfc_ctx_ready_set_bit(ctx, &dev->work_bits);
 	mfc_try_run(dev);

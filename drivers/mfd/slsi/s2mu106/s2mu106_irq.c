@@ -27,53 +27,45 @@
 #include <linux/err.h>
 
 /* TODO : add IP Header file include*/
-#if defined(CONFIG_CHARGER_S2MU106)
-#if defined(CONFIG_BATTERY_SAMSUNG_LEGO_STYLE)
+#if IS_ENABLED(CONFIG_CHARGER_S2MU106)
 #include "../../../battery/charger/s2mu106_charger/s2mu106_charger.h"
-#else
-#include <linux/power/s2mu106_charger.h>
 #endif
-#endif
-#if defined(CONFIG_MUIC_S2MU106)
+#if IS_ENABLED(CONFIG_MUIC_S2MU106)
 #include <linux/muic/slsi/s2mu106/s2mu106-muic.h>
 #endif
-#if defined(CONFIG_PM_S2MU106)
-#if defined(CONFIG_BATTERY_SAMSUNG_LEGO_STYLE)
+#if IS_ENABLED(CONFIG_PM_S2MU106)
 #include "../../../battery/charger/s2mu106_charger/s2mu106_pmeter.h"
-#else
-#include <linux/power/s2mu106_pmeter.h>
 #endif
-#endif
-#if defined(CONFIG_LEDS_S2MU106_FLASH)
+#if IS_ENABLED(CONFIG_LEDS_S2MU106_FLASH)
 #include <linux/leds-s2mu106.h>
 #endif
-#if defined(CONFIG_VIBRATOR_S2MU106)
+#if IS_ENABLED(CONFIG_VIBRATOR_S2MU106)
 #include <linux/vibrator/slsi/s2mu106/s2mu106_vibrator.h>
 #endif
 static const u8 s2mu106_mask_reg[] = {
-#if defined(CONFIG_CHARGER_S2MU106)
+#if IS_ENABLED(CONFIG_CHARGER_S2MU106)
 	[CHG_INT1] = S2MU106_CHG_INT1M,
 	[CHG_INT2] = S2MU106_CHG_INT2M,
 	[CHG_INT3] = S2MU106_CHG_INT3M,
 #endif
-#if defined(CONFIG_LEDS_S2MU106_FLASH)
+#if IS_ENABLED(CONFIG_LEDS_S2MU106_FLASH)
 	[FLED_INT1] = S2MU106_FLED_INT1_MASK,
 	[FLED_INT2] = S2MU106_FLED_INT2_MASK,
 #endif
-#if defined(CONFIG_HV_MUIC_S2MU106_AFC)
+#if IS_ENABLED(CONFIG_HV_MUIC_S2MU106_AFC)
 	[AFC_INT] = S2MU106_REG_AFC_INT,
 #endif
-#if defined(CONFIG_MUIC_S2MU106)
+#if IS_ENABLED(CONFIG_MUIC_S2MU106)
 	[MUIC_INT1] = S2MU106_REG_MUIC_INT1,
 	[MUIC_INT2] = S2MU106_REG_MUIC_INT2,
 #endif
-#if defined(CONFIG_PM_S2MU106)
+#if IS_ENABLED(CONFIG_PM_S2MU106)
 	[PM_VALUP1] = S2MU106_PM_VALUP1_MASK,
 	[PM_VALUP2] = S2MU106_PM_VALUP2_MASK,
 	[PM_INT1] = S2MU106_PM_INT1_MASK,
 	[PM_INT2] = S2MU106_PM_INT2_MASK,
 #endif
-#if defined(CONFIG_VIBRATOR_S2MU106)
+#if IS_ENABLED(CONFIG_VIBRATOR_S2MU106)
 	[HAPTIC_INT] = S2MU106_REG_HAPTIC_INT_MASK,
 #endif
 };
@@ -87,35 +79,35 @@ static struct i2c_client *get_i2c(struct s2mu106_dev *s2mu106,
 					enum s2mu106_irq_source src)
 {
 	switch (src) {
-#if defined(CONFIG_CHARGER_S2MU106)
+#if IS_ENABLED(CONFIG_CHARGER_S2MU106)
 	case CHG_INT1 ... CHG_INT3:
 		return s2mu106->i2c;
 #endif
-#if defined(CONFIG_LEDS_S2MU106_FLASH)
+#if IS_ENABLED(CONFIG_LEDS_S2MU106_FLASH)
 	case FLED_INT1 ... FLED_INT2:
 		return s2mu106->i2c;
 #endif
-#if defined(CONFIG_HV_MUIC_S2MU106_AFC)
+#if IS_ENABLED(CONFIG_HV_MUIC_S2MU106_AFC)
 	case AFC_INT:
 		return s2mu106->muic;
 #endif
-#if defined(CONFIG_MUIC_S2MU106)
+#if IS_ENABLED(CONFIG_MUIC_S2MU106)
 	case MUIC_INT1 ... MUIC_INT2:
 		return s2mu106->muic;
 #endif
-#if defined(CONFIG_PM_S2MU106)
+#if IS_ENABLED(CONFIG_PM_S2MU106)
 	case PM_VALUP1 ... PM_INT2:
 		return s2mu106->muic;
 #endif
-#if defined(CONFIG_MST_S2MU106)
+#if IS_ENABLED(CONFIG_MST_S2MU106)
 	case MST_INT:
 		return s2mu106->muic;
 #endif
-#if defined(CONFIG_VIBRATOR_S2MU106)
+#if IS_ENABLED(CONFIG_VIBRATOR_S2MU106)
 	case HAPTIC_INT:
 		return s2mu106->haptic;
 #endif
-#if defined(CONFIG_REGULATOR_S2MU106)
+#if IS_ENABLED(CONFIG_REGULATOR_S2MU106)
 	case HBST_INT:
 		return s2mu106->haptic;
 #endif
@@ -127,7 +119,7 @@ static struct i2c_client *get_i2c(struct s2mu106_dev *s2mu106,
 #define DECLARE_IRQ(idx, _group, _mask)		\
 	[(idx)] = { .group = (_group), .mask = (_mask) }
 static const struct s2mu106_irq_data s2mu106_irqs[] = {
-#if defined(CONFIG_CHARGER_S2MU106)
+#if IS_ENABLED(CONFIG_CHARGER_S2MU106)
 	DECLARE_IRQ(S2MU106_CHG1_IRQ_SYS,	CHG_INT1,	1 << 0),
 	DECLARE_IRQ(S2MU106_CHG1_IRQ_CV,	CHG_INT1,	1 << 1),
 	DECLARE_IRQ(S2MU106_CHG1_IRQ_CHG_Fault,	CHG_INT1,	1 << 2),
@@ -154,7 +146,7 @@ static const struct s2mu106_irq_data s2mu106_irqs[] = {
 	DECLARE_IRQ(S2MU106_CHG3_IRQ_PEdone,	CHG_INT3,	1 << 5),
 	DECLARE_IRQ(S2MU106_CHG3_IRQ_BAT_Contact_CK_Done, CHG_INT3, 1 << 6),
 #endif
-#if defined(CONFIG_LEDS_S2MU106_FLASH)
+#if IS_ENABLED(CONFIG_LEDS_S2MU106_FLASH)
 	DECLARE_IRQ(S2MU106_FLED1_IRQ_C2F_Vbyp_ovp_prot, FLED_INT1, 1 << 0),
 	DECLARE_IRQ(S2MU106_FLED1_IRQ_C2F_Vbyp_OK_Warning, FLED_INT1, 1 << 1),
 	DECLARE_IRQ(S2MU106_FLED1_IRQ_OPEN_CH3,	FLED_INT1,	1 << 2),
@@ -170,7 +162,7 @@ static const struct s2mu106_irq_data s2mu106_irqs[] = {
 	DECLARE_IRQ(S2MU106_FLED2_IRQ_TORCH_ON,	FLED_INT2,	1 << 6),
 	DECLARE_IRQ(S2MU106_FLED2_IRQ_LED_ON_TA_Detach,	FLED_INT2, 1 << 7),
 #endif
-#if defined(CONFIG_HV_MUIC_S2MU106_AFC)
+#if IS_ENABLED(CONFIG_HV_MUIC_S2MU106_AFC)
 	DECLARE_IRQ(S2MU106_AFC_IRQ_VbADC,	AFC_INT,	1 << 0),
 	DECLARE_IRQ(S2MU106_AFC_IRQ_VDNMon,	AFC_INT,	1 << 1),
 	DECLARE_IRQ(S2MU106_AFC_IRQ_DNRes,	AFC_INT,	1 << 2),
@@ -179,7 +171,7 @@ static const struct s2mu106_irq_data s2mu106_irqs[] = {
 	DECLARE_IRQ(S2MU106_AFC_IRQ_MRxPerr,	AFC_INT,	1 << 6),
 	DECLARE_IRQ(S2MU106_AFC_IRQ_MRxRdy,	AFC_INT,	1 << 7),
 #endif
-#if defined(CONFIG_MUIC_S2MU106)
+#if IS_ENABLED(CONFIG_MUIC_S2MU106)
 	DECLARE_IRQ(S2MU106_MUIC_IRQ1_DETACH,	MUIC_INT1,	1 << 1),
 	DECLARE_IRQ(S2MU106_MUIC_IRQ1_ATTATCH,	MUIC_INT1,	1 << 0),
 	DECLARE_IRQ(S2MU106_MUIC_IRQ1_KP,	MUIC_INT1,	1 << 2),
@@ -197,7 +189,7 @@ static const struct s2mu106_irq_data s2mu106_irqs[] = {
 	DECLARE_IRQ(S2MU106_MUIC_IRQ2_AV_CHARGE,	MUIC_INT2, 1 << 6),
 	DECLARE_IRQ(S2MU106_MUIC_IRQ2_VBUS_OFF,		MUIC_INT2, 1 << 7),
 #endif
-#if defined(CONFIG_PM_S2MU106)
+#if IS_ENABLED(CONFIG_PM_S2MU106)
 	DECLARE_IRQ(S2MU106_PM_VALUP1_VCC2UP,	PM_VALUP1,	1 << 0),
 	DECLARE_IRQ(S2MU106_PM_VALUP1_VGPADCUP,	PM_VALUP1,	1 << 1),
 	DECLARE_IRQ(S2MU106_PM_VALUP1_VCC1UP,	PM_VALUP1,	1 << 2),
@@ -226,17 +218,17 @@ static const struct s2mu106_irq_data s2mu106_irqs[] = {
 	DECLARE_IRQ(S2MU106_PM_IRQ2_IWCINUP,	PM_INT2,	1 << 6),
 	DECLARE_IRQ(S2MU106_PM_IRQ2_ICHGINUP,	PM_INT2,	1 << 7),
 #endif
-#if defined(CONFIG_MST_S2MU106)
+#if IS_ENABLED(CONFIG_MST_S2MU106)
 	DECLARE_IRQ(S2MU106_MST_IRQ_SHORT,	MST_INT,	1 << 3),
 	DECLARE_IRQ(S2MU106_MST_IRQ_OCP,	MST_INT,	1 << 4),
 	DECLARE_IRQ(S2MU106_MST_IRQ_EN_OVL,	MST_INT,	1 << 5),
 	DECLARE_IRQ(S2MU106_MST_IRQ_DONE,	MST_INT,	1 << 6),
 	DECLARE_IRQ(S2MU106_MST_IRQ_EN,		MST_INT,	1 << 7),
 #endif
-#if defined(CONFIG_VIBRATOR_S2MU106)
+#if IS_ENABLED(CONFIG_VIBRATOR_S2MU106)
 	DECLARE_IRQ(S2MU106_HAPTIC_IRQ_OCP,	HAPTIC_INT,	1 << 0),
 #endif
-#if defined(CONFIG_REGULATOR_S2MU106)
+#if IS_ENABLED(CONFIG_REGULATOR_S2MU106)
 	DECLARE_IRQ(S2MU106_HBST_IRQ_OFF,	HBST_INT	1 << 0),
 	DECLARE_IRQ(S2MU106_HBST_IRQ_ON,	HBST_INT	1 << 1),
 	DECLARE_IRQ(S2MU106_HBST_IRQ_SCP,	HBST_INT	1 << 2),
@@ -333,7 +325,7 @@ static irqreturn_t s2mu106_irq_thread(int irq, void *data)
 	}
 	pr_info("%s: Top interrupt(0x%02x)\n", __func__, irq_src);
 
-#if defined(CONFIG_CHARGER_S2MU106)
+#if IS_ENABLED(CONFIG_CHARGER_S2MU106)
 	if (irq_src & S2MU106_IRQSRC_CHG) {
 		ret = s2mu106_bulk_read(s2mu106->i2c, S2MU106_CHG_INT1,
 			S2MU106_NUM_IRQ_CHG_REGS, &irq_reg[CHG_INT1]);
@@ -347,7 +339,7 @@ static irqreturn_t s2mu106_irq_thread(int irq, void *data)
 			irq_reg[CHG_INT3]);
 	}
 #endif
-#if defined(CONFIG_LEDS_S2MU106_FLASH)
+#if IS_ENABLED(CONFIG_LEDS_S2MU106_FLASH)
 	if (irq_src & S2MU106_IRQSRC_FLED) {
 		ret = s2mu106_bulk_read(s2mu106->i2c, S2MU106_FLED_INT1,
 			S2MU106_NUM_IRQ_LED_REGS, &irq_reg[FLED_INT1]);
@@ -360,13 +352,13 @@ static irqreturn_t s2mu106_irq_thread(int irq, void *data)
 			__func__, irq_reg[FLED_INT1], irq_reg[FLED_INT2]);
 	}
 #endif
-#if defined(CONFIG_HV_MUIC_S2MU106_AFC)
+#if IS_ENABLED(CONFIG_HV_MUIC_S2MU106_AFC)
 	if (irq_src & S2MU106_IRQSRC_AFC) {
         s2mu106_read_reg(s2mu106->muic, S2MU106_REG_AFC_INT, &irq_reg[AFC_INT]);
         pr_info("%s: AFC interrupt(0x%02x)\n", __func__, irq_reg[AFC_INT]);
 	}
 #endif
-#if defined(CONFIG_MUIC_S2MU106)
+#if IS_ENABLED(CONFIG_MUIC_S2MU106)
 	if (irq_src & S2MU106_IRQSRC_MUIC) {
         s2mu106_read_reg(s2mu106->muic, S2MU106_REG_MUIC_INT1, &irq_reg[MUIC_INT1]);
         s2mu106_read_reg(s2mu106->muic, S2MU106_REG_MUIC_INT2, &irq_reg[MUIC_INT2]);
@@ -374,7 +366,7 @@ static irqreturn_t s2mu106_irq_thread(int irq, void *data)
             irq_reg[MUIC_INT2]);
 	}
 #endif
-#if defined(CONFIG_PM_S2MU106)
+#if IS_ENABLED(CONFIG_PM_S2MU106)
 	if (irq_src & S2MU106_IRQSRC_PM) {
         s2mu106_read_reg(s2mu106->muic, S2MU106_PM_VALUP1, &irq_reg[PM_VALUP1]);
         s2mu106_read_reg(s2mu106->muic, S2MU106_PM_VALUP2, &irq_reg[PM_VALUP2]);
@@ -384,17 +376,17 @@ static irqreturn_t s2mu106_irq_thread(int irq, void *data)
 				irq_reg[PM_VALUP1], irq_reg[PM_VALUP2], irq_reg[PM_INT1], irq_reg[PM_INT2]);
 	}
 #endif
-#if defined(CONFIG_MST_S2MU106)
+#if IS_ENABLED(CONFIG_MST_S2MU106)
 	if (irq_src & S2MU106_IRQSRC_MST) {
 	}
 #endif
-#if defined(CONFIG_VIBRATOR_S2MU106)
+#if IS_ENABLED(CONFIG_VIBRATOR_S2MU106)
 	if (irq_src & S2MU106_IRQSRC_HAPTIC) {
         	s2mu106_read_reg(s2mu106->haptic, S2MU106_REG_HAPTIC_INT, &irq_reg[HAPTIC_INT]);
         	pr_info("%s: haptic interrupt(0x%02x)\n", __func__, irq_reg[HAPTIC_INT]);
 	}
 #endif
-#if defined(CONFIG_REGULATOR_S2MU106)
+#if IS_ENABLED(CONFIG_REGULATOR_S2MU106)
 	if (irq_src & S2MU106_IRQSRC_HBST) {
 	}
 #endif
@@ -477,28 +469,28 @@ int s2mu106_irq_init(struct s2mu106_dev *s2mu106)
 
 	/* Unmask S2MU106 interrupt */
 	i2c_data = 0xff;
-#if defined(CONFIG_CHARGER_S2MU106)
+#if IS_ENABLED(CONFIG_CHARGER_S2MU106)
 	i2c_data &= ~(S2MU106_IRQSRC_CHG);
 #endif
-#if defined(CONFIG_LEDS_S2MU106_FLASH)
+#if IS_ENABLED(CONFIG_LEDS_S2MU106_FLASH)
 	i2c_data &= ~(S2MU106_IRQSRC_FLED);
 #endif
-#if defined(CONFIG_HV_MUIC_S2MU106_AFC)
+#if IS_ENABLED(CONFIG_HV_MUIC_S2MU106_AFC)
 	i2c_data &= ~(S2MU106_IRQSRC_AFC);
 #endif
-#if defined(CONFIG_MUIC_S2MU106)
+#if IS_ENABLED(CONFIG_MUIC_S2MU106)
 	i2c_data &= ~(S2MU106_IRQSRC_MUIC);
 #endif
-#if defined(CONFIG_PM_S2MU106)
+#if IS_ENABLED(CONFIG_PM_S2MU106)
 	i2c_data &= ~(S2MU106_IRQSRC_PM);
 #endif
-#if defined(CONFIG_MST_S2MU106)
+#if IS_ENABLED(CONFIG_MST_S2MU106)
 	i2c_data &= ~(S2MU106_IRQSRC_MST);
 #endif
-#if defined(CONFIG_VIBRATOR_S2MU106)
+#if IS_ENABLED(CONFIG_VIBRATOR_S2MU106)
 	i2c_data &= ~(S2MU106_IRQSRC_HAPTIC);
 #endif
-#if defined(CONFIG_REGULATOR_S2MU106)
+#if IS_ENABLED(CONFIG_REGULATOR_S2MU106)
 	i2c_data &= ~(S2MU106_IRQSRC_HBST);
 #endif
 	s2mu106_write_reg(s2mu106->i2c, S2MU106_REG_IPINT_MASK, i2c_data);
@@ -521,6 +513,7 @@ int s2mu106_irq_init(struct s2mu106_dev *s2mu106)
 
 	return 0;
 }
+EXPORT_SYMBOL(s2mu106_irq_init);
 
 void s2mu106_irq_exit(struct s2mu106_dev *s2mu106)
 {

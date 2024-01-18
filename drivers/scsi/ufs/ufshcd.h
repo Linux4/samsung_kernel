@@ -916,6 +916,7 @@ struct ufs_hba {
 	atomic_t	log_count;
 #endif
 	bool dbg_dump_chk;
+	u8 noti_cnt;
 };
 
 /* Returns true if clocks can be gated. Otherwise false */

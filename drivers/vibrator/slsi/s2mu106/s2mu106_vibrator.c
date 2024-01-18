@@ -26,6 +26,7 @@
 #include <linux/of_gpio.h>
 #include <linux/vibrator/sec_vibrator.h>
 #include <linux/vibrator/slsi/s2mu106/s2mu106_vibrator.h>
+#include <linux/interrupt.h>
 
 #define S2MU106_DIVIDER		128
 #define S2MU106_FREQ_DIVIDER	NSEC_PER_SEC / S2MU106_DIVIDER * 10
@@ -73,6 +74,13 @@ static void s2mu106_set_boost_voltage(struct s2mu106_haptic_data *haptic, int vo
 	s2mu106_update_reg(haptic->i2c, S2MU106_REG_HBST_CTRL1,
 				data, HAPTIC_BOOST_VOLTAGE_MASK);
 }
+
+static irqreturn_t s2mu106_haptic_ocp_isr(int irq, void *data)
+{
+	pr_err("%s: OCP interrupt occurs!!!\n", __func__);
+	return IRQ_HANDLED;
+}
+
 
 static int s2mu106_haptic_set_freq(struct device *dev, int num)
 {
@@ -422,6 +430,7 @@ static int s2mu106_haptic_parse_dt(struct device *dev,
 	struct device_node *np = of_find_node_by_name(NULL, "s2mu106-haptic");
 	struct s2mu106_haptic_platform_data *pdata = haptic->pdata;
 	u32 temp;
+	const char *strength;
 	int ret = 0;
 
 	pr_info("%s : start dt parsing\n", __func__);
@@ -466,6 +475,17 @@ static int s2mu106_haptic_parse_dt(struct device *dev,
 		if (ret < 0) {
 			pr_err("%s : can't get motor_en\n", __func__);
 			goto err_parsing_dt;
+		}
+
+		ret = of_property_read_string(np, "haptic,motor_strength", &strength);
+		if (ret < 0) {
+			pr_info("%s : can't get motor_strength\n", __func__);
+		}
+		else {
+			ret = kstrtou8(strength, 0, &pdata->strength);
+			if (ret != 0)
+				goto err_parsing_dt;
+			pr_info("motor_strength: 0x%x\n", pdata->strength);
 		}
 	}
 
@@ -575,6 +595,8 @@ static void s2mu106_haptic_initial(struct s2mu106_haptic_data *haptic)
 #else
 		s2mu106_write_reg(haptic->i2c, S2MU106_REG_AMPCOEF1, 0x7D);
 #endif
+		if(haptic->pdata->strength)
+			s2mu106_write_reg(haptic->i2c, S2MU106_REG_AMPCOEF1, haptic->pdata->strength);
 	}
 
 	pr_info("%s, haptic operation mode = %d\n", __func__, haptic->pdata->hap_mode);
@@ -704,6 +726,7 @@ static const struct sec_vibrator_ops s2mu106_dc_vib_ops = {
 static int s2mu106_haptic_probe(struct platform_device *pdev)
 {
 	struct s2mu106_dev *s2mu106 = dev_get_drvdata(pdev->dev.parent);
+	struct s2mu106_platform_data *pdata = dev_get_platdata(s2mu106->dev);
 	struct s2mu106_haptic_data *haptic;
 	int ret = 0;
 
@@ -729,6 +752,18 @@ static int s2mu106_haptic_probe(struct platform_device *pdev)
 		return ret;
 
 	platform_set_drvdata(pdev, haptic);
+
+	/*
+	* irq request+
+	*/
+	haptic->pdata->irq_ocp = pdata->irq_base +	S2MU106_HAPTIC_IRQ_OCP;
+	ret = request_threaded_irq(haptic->pdata->irq_ocp, NULL,
+		s2mu106_haptic_ocp_isr, 0, "haptic-ocp-irq", haptic);
+	if (ret < 0) {
+		dev_err(s2mu106->dev, "%s: Fail to request OCP IRQ: %d: %d\n",
+			__func__, haptic->pdata->irq_ocp, ret);
+		return -1;
+	}
 
 	if (haptic->pdata->hap_mode == S2MU106_HAPTIC_LRA) {
 		haptic->period =

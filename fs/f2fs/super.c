@@ -24,6 +24,7 @@
 #include <linux/sysfs.h>
 #include <linux/quota.h>
 #include <linux/iversion.h>
+#include <linux/cleancache.h>
 
 #include "f2fs.h"
 #include "node.h"
@@ -1201,10 +1202,13 @@ static void f2fs_umount_end(struct super_block *sb, int flags)
 	if ((flags & MNT_FORCE) || atomic_read(&sb->s_active) > 1) {
 		/* to write the latest kbytes_written */
 		if (!(sb->s_flags & MS_RDONLY)) {
+			struct f2fs_sb_info *sbi = F2FS_SB(sb);
 			struct cp_control cpc = {
 				.reason = CP_UMOUNT,
 			};
+			mutex_lock(&sbi->gc_mutex);
 			f2fs_write_checkpoint(F2FS_SB(sb), &cpc);
+			mutex_unlock(&sbi->gc_mutex);
 		}
 	}
 }
@@ -3032,7 +3036,10 @@ static void init_sb_info(struct f2fs_sb_info *sbi)
 	spin_lock_init(&sbi->dev_lock);
 
 	/* FUA Mode : ROOT & Quota */
-	sbi->s_sec_cond_fua_mode = F2FS_SEC_FUA_ROOT;
+	if (raw_super->sec_fua_mode == F2FS_SEC_FUA_NONE)
+		sbi->s_sec_cond_fua_mode = F2FS_SEC_FUA_ROOT;
+	else
+		sbi->s_sec_cond_fua_mode = raw_super->sec_fua_mode;
 
 	init_rwsem(&sbi->sb_lock);
 }
@@ -3720,6 +3727,7 @@ reset_checkpoint:
 	f2fs_update_time(sbi, CP_TIME);
 	f2fs_update_time(sbi, REQ_TIME);
 	clear_sbi_flag(sbi, SBI_CP_DISABLED_QUICK);
+	cleancache_init_fs(sbi->sb);
 	return 0;
 
 sync_free_meta:

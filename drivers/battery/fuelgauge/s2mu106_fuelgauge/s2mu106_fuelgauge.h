@@ -24,10 +24,10 @@
 #if defined(ANDROID_ALARM_ACTIVATED)
 #include <linux/android_alarm.h>
 #endif
+#include "../../common/sec_charging_common.h"
+#include <linux/mfd/slsi/s2mu106/s2mu106.h>
 
-#include "../../common/sec_charging_common.h" 
-
-/* Slave address should be shifted to the right 1bit.
+/* address should be shifted to the right 1bit.
  * R/W bit should NOT be included.
  */
 
@@ -62,7 +62,7 @@ enum {
 	END_MODE,
 };
 
-static char* mode_to_str[] = {
+static char *mode_to_str[] = {
 	"CC_MODE",
 	"VOLTAGE_MODE",	// not used
 	"VOLTAGE_MODE",
@@ -73,8 +73,8 @@ struct fg_info {
 	/* battery info */
 	int soc;
 #if !defined(CONFIG_BATTERY_AGE_FORECAST)
-	/* copy from platform data /
-	 * DTS or update by shell script */
+	/* copy from platform data */
+	/* DTS or update by shell script */
 	int battery_table3[88]; // evt2
 	int battery_table4[22]; // evt2
 	int soc_arr_val[22];
@@ -92,7 +92,7 @@ struct fg_age_data_info {
 	int accum[2];
 	int soc_arr_val[22];
 	int ocv_arr_val[22];
-	int volt_mode_tunning;
+	int volt_mode_tuning;
 };
 
 #define	fg_age_data_info_t \
@@ -229,6 +229,7 @@ struct s2mu106_fuelgauge_data {
 #endif
 	int val_0x5C;
 	int low_voltage_limit_cnt;
+	bool fg_runtime_wo;
 };
 
 #if (BATCAP_LEARN)

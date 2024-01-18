@@ -105,6 +105,7 @@ enum is_subscenario_id {
 	ISS_SUB_SCENARIO_STILL_CAPTURE_3RD_PARTY_HIGH = 74,		/* 74: 3rd Party Capture Height >= 1800 */
 	ISS_SUB_SCENARIO_STILL_CAPTURE_3RD_PARTY_MID = 75,		/* 75: 3rd Party Capture Height 1800 ~ 1080 */
 	ISS_SUB_SCENARIO_STILL_CAPTURE_3RD_PARTY_LOW = 76,		/* 76: 3rd Party Capture Height < 1080 */
+	ISS_SUB_SCENARIO_LIVE_HDR_MODE_AUTO_3P = 77,			/* 77: 3rd Party Video HDR */
 
 	ISS_SUB_SCENARIO_VIDEO_SW_VDIS_WDR_AUTO = 90,		/* 90: Video SW VDIS (HDR Auto/Off) */
 	ISS_SUB_SCENARIO_VIDEO_SW_VDIS_WDR_ON = 91,			/* 91: Video SW VDIS (HDR On) */

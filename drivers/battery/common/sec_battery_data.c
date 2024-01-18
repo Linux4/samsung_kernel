@@ -15,6 +15,8 @@
 #include <linux/fs.h>
 #include <linux/of.h>
 #include <linux/power_supply.h>
+#include "sec_battery.h"
+#include "sec_battery_sysfs.h"
 
 enum battery_data_type {
 	BATTERY_DATA_TYPE_NONE = 0,
@@ -434,3 +436,88 @@ skip_check_data:
 err_filp_open:
 	return ret;
 }
+
+static ssize_t sysfs_battery_data_show_attrs(struct device *dev,
+				struct device_attribute *attr, char *buf);
+
+static ssize_t sysfs_battery_data_store_attrs(struct device *dev,
+				struct device_attribute *attr,
+				const char *buf, size_t count);
+
+#define SYSFS_BATTERY_DATA_ATTR(_name)						\
+{									\
+	.attr = {.name = #_name, .mode = 0664},	\
+	.show = sysfs_battery_data_show_attrs,					\
+	.store = sysfs_battery_data_store_attrs,					\
+}
+
+static struct device_attribute sysfs_battery_data_attrs[] = {
+	SYSFS_BATTERY_DATA_ATTR(batt_update_data),
+};
+
+enum {
+	BATT_UPDATE_DATA = 0,
+};
+
+static ssize_t sysfs_battery_data_show_attrs(struct device *dev,
+				struct device_attribute *attr, char *buf)
+{
+	struct power_supply *psy = dev_get_drvdata(dev);
+	struct sec_battery_info *battery = power_supply_get_drvdata(psy);
+	const ptrdiff_t offset = attr - sysfs_battery_data_attrs;
+	int i = 0;
+
+	switch (offset) {
+	case BATT_UPDATE_DATA:
+		i += scnprintf(buf + i, PAGE_SIZE - i, "%s\n",
+				battery->data_path ? "OK" : "NOK");
+		break;
+	default:
+		return -EINVAL;
+	}
+
+	return i;
+}
+
+static ssize_t sysfs_battery_data_store_attrs(struct device *dev,
+				struct device_attribute *attr,
+				const char *buf, size_t count)
+{
+	struct power_supply *psy = dev_get_drvdata(dev);
+	struct sec_battery_info *battery = power_supply_get_drvdata(psy);
+	const ptrdiff_t offset = attr - sysfs_battery_data_attrs;
+	int ret = -EINVAL;
+
+	switch (offset) {
+	case BATT_UPDATE_DATA:
+		if (!battery->data_path && (count * sizeof(char)) < 256) {
+			battery->data_path = kzalloc((count * sizeof(char) + 1), GFP_KERNEL);
+			if (battery->data_path && (sscanf(buf, "%s\n", battery->data_path) == 1)) {
+				cancel_delayed_work(&battery->batt_data_work);
+				__pm_stay_awake(battery->batt_data_ws);
+				queue_delayed_work(battery->monitor_wqueue,
+					&battery->batt_data_work, msecs_to_jiffies(100));
+			} else {
+				pr_info("%s: failed to alloc data_path buffer\n", __func__);
+			}
+		}
+		ret = count;
+		break;
+	default:
+		return -EINVAL;
+	}
+
+	return count;
+}
+
+static struct sec_sysfs sysfs_battery_data_list = {
+	.attr = sysfs_battery_data_attrs,
+	.size = ARRAY_SIZE(sysfs_battery_data_attrs),
+};
+
+static int __init sysfs_battery_data_init(void)
+{
+	add_sec_sysfs(&sysfs_battery_data_list.list);
+	return 0;
+}
+late_initcall(sysfs_battery_data_init);

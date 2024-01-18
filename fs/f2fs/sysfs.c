@@ -47,6 +47,7 @@ const char *sec_fua_mode_names[NR_F2FS_SEC_FUA_MODE] = {
 	"NONE",
 	"ROOT",
 	"ALL",
+	"NODE",
 };
 
 struct f2fs_attr {
@@ -620,13 +621,13 @@ static ssize_t f2fs_sbi_show(struct f2fs_attr *a,
 
 		for (i = 0; i < NR_F2FS_SEC_FUA_MODE; i++) {
 			if (i == sbi->s_sec_cond_fua_mode)
-				len += snprintf(buf, PAGE_SIZE, "[%s] ", 
+				len += snprintf(buf + len, PAGE_SIZE - len, "[%s] ",
 						sec_fua_mode_names[i]);
 			else
-				len += snprintf(buf, PAGE_SIZE, "%s ", 
+				len += snprintf(buf + len, PAGE_SIZE - len, "%s ",
 						sec_fua_mode_names[i]);
 		}
-
+		len += snprintf(buf + len, PAGE_SIZE - len, "\n");
 		return len;
 	} else if (!strcmp(a->attr.name, "sec_stats")) {
 		return f2fs_sec_stats_show(sbi, buf);
@@ -697,14 +698,23 @@ out:
 		return count;
 	} else if (!strcmp(a->attr.name, "sec_fua_mode")) {
 		const char *mode= strim((char *)buf);
-		int idx;
+		int idx, err = 0;
 
 		for (idx = 0; idx < NR_F2FS_SEC_FUA_MODE; idx++) {
-			if(!strcmp(mode, sec_fua_mode_names[idx]))
-				sbi->s_sec_cond_fua_mode = idx;
+			if(strcmp(mode, sec_fua_mode_names[idx]))
+				continue;
+
+			sbi->s_sec_cond_fua_mode = idx;
+			if (sbi->raw_super->sec_fua_mode == (u8)idx)
+				break;
+
+			down_write(&sbi->sb_lock);
+			sbi->raw_super->sec_fua_mode = (u8)idx;
+ 			err = f2fs_commit_super(sbi, false);
+			up_write(&sbi->sb_lock);
 		}
 
-		return count;
+		return err ? err : count;
 	}
 
 	ui = (unsigned int *)(ptr + a->offset);

@@ -26,6 +26,9 @@
 #include <linux/ctype.h>
 #include "../mount.h"
 
+/* @fs.sec -- 89e449513e5bea6196d9aaf62a6936ae -- */
+/* @fs.sec -- ef5f3ea8a5ac82ae371e21c3f69ae858 -- */
+
 #define __FS_HAS_ENCRYPTION IS_ENABLED(CONFIG_F2FS_FS_ENCRYPTION)
 #include <linux/fscrypt.h>
 
@@ -874,6 +877,13 @@ enum nid_state {
 	PREALLOC_NID,		/* it is preallocated */
 	MAX_NID_STATE,
 };
+ 
+enum nat_state {
+	TOTAL_NAT,
+	DIRTY_NAT,
+	RECLAIMABLE_NAT,
+	MAX_NAT_STATE,
+};
 
 struct f2fs_nm_info {
 	block_t nat_blkaddr;		/* base disk address of NAT */
@@ -890,8 +900,7 @@ struct f2fs_nm_info {
 	struct rw_semaphore nat_tree_lock;	/* protect nat_tree_lock */
 	struct list_head nat_entries;	/* cached nat entry list (clean) */
 	spinlock_t nat_list_lock;	/* protect clean nat entry list */
-	unsigned int nat_cnt;		/* the # of cached nat entries */
-	unsigned int dirty_nat_cnt;	/* total num of nat entries in set */
+	unsigned int nat_cnt[MAX_NAT_STATE]; /* the # of cached nat entries */
 	unsigned int nat_blocks;	/* # of nat blocks */
 
 	/* free node ids management */
@@ -2543,6 +2552,7 @@ enum F2FS_SEC_FUA_MODE {
 	F2FS_SEC_FUA_NONE = 0,
 	F2FS_SEC_FUA_ROOT,
 	F2FS_SEC_FUA_DIR,
+	F2FS_SEC_FUA_NODE,
 
 	NR_F2FS_SEC_FUA_MODE,
 };
@@ -2568,6 +2578,9 @@ static inline void f2fs_cond_set_fua(struct f2fs_io_info *fio)
 	else if (fio->sbi->s_sec_cond_fua_mode == F2FS_SEC_FUA_DIR && fio->page &&
 		((fio->type == NODE && !__f2fs_is_cold_node(fio->page)) ||
 		(fio->type == DATA && S_ISDIR(fio->page->mapping->host->i_mode))))
+		fio->op_flags |= REQ_FUA;
+	else if (fio->sbi->s_sec_cond_fua_mode == F2FS_SEC_FUA_NODE &&
+		 (fio->type == NODE || fio->ino == F2FS_ROOT_INO(fio->sbi)))
 		fio->op_flags |= REQ_FUA;
 	// Directory Inode or Indirect Node -> COLD_BIT X
 	// ref. set_cold_node()

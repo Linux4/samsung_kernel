@@ -25,12 +25,18 @@
 #include "ssp_type_define.h"
 #include "ssp_platform.h"
 #include "ssp_factory.h"
+
 #define ssp_dbg(fmt, ...) do { \
 	pr_debug("[SSP] " fmt "\n", ##__VA_ARGS__); \
 	} while (0)
 
 #define ssp_info(fmt, ...) do { \
 	pr_info("[SSP] " fmt "\n", ##__VA_ARGS__); \
+	} while (0)
+
+#define ssp_conditional(condition, fmt, ...) do { \
+	if (condition) \
+		pr_info("[SSP] " fmt "\n", ##__VA_ARGS__); \
 	} while (0)
 
 #define ssp_err(fmt, ...) do { \
@@ -63,6 +69,11 @@
 	defined(CONFIG_SENSORS_SSP_PROXIMITY_STK3A5X)
 #define CONFIG_SENSROS_SSP_PROXIMITY_THRESH_CAL
 #endif
+
+#ifdef CONFIG_SENSORS_SSP_PROXIMITY_STK3328
+#define CONFIG_SENSORS_SSP_PROXIMITY_FACTORY_CROSSTALK_CAL
+#endif
+
 #ifdef CONFIG_SENSORS_SSP_PROXIMITY_GP2AP110S
 #define CONFIG_SENSORS_SSP_PROXIMITY_MODIFY_SETTINGS
 #endif
@@ -93,6 +104,12 @@ enum {
 	SSP_ST_MAX,
 };
 
+enum {
+	SSP_LOG_EVENT_TIMESTAMP = 0,
+	SSP_LOG_DATA_PACKET,
+	SSP_LOG_MAX,
+};
+
 struct sensor_value {
 	union {
 		struct { /* accel, gyro, mag */
@@ -107,7 +124,7 @@ struct sensor_value {
 			s16 cal_z;
 			u8 accuracy;
 		} __attribute__((__packed__));
-		struct { /*uncalibrated mag, gyro*/
+		struct { /*uncalibrated accel, mag, gyro*/
 			s16 uncal_x;
 			s16 uncal_y;
 			s16 uncal_z;
@@ -197,14 +214,14 @@ struct magnetic_calibration_data {
 	s32 offset_y;
 	s32 offset_z;
 	s32 radius;
-};
+} __attribute__((__packed__));
 #elif defined(CONFIG_SENSORS_SSP_MAGNETIC_YAS539)
 struct magnetic_calibration_data {
 	s16 offset_x;
 	s16 offset_y;
 	s16 offset_z;
 	u8 accuracy;
-};
+} __attribute__((__packed__));
 #else
 struct magnetic_calibration_data {
 	u8 accuracy;
@@ -214,7 +231,7 @@ struct magnetic_calibration_data {
 	s16 flucv_x;
 	s16 flucv_y;
 	s16 flucv_z;
-};
+} __attribute__((__packed__));
 #endif
 
 struct sensor_info;
@@ -245,7 +262,7 @@ struct sensor_spec_t {
 	uint8_t uid;
 	uint8_t name[15];
 	uint8_t vendor;
-	uint16_t version;
+	uint32_t version;
 	uint8_t is_wake_up;
 	int32_t min_delay;
 	uint32_t max_delay;
@@ -297,7 +314,7 @@ struct ssp_data {
 	struct timer_list debug_timer;
 	struct workqueue_struct *debug_wq;
 	struct work_struct work_debug;
-	bool debug_enable;
+	bool debug_enable[SSP_LOG_MAX];
 
 	char last_ap_status;
 	char last_resume_status;
@@ -344,6 +361,7 @@ struct ssp_data {
 	int accel_position;
 	int accel_motor_coef;
 	struct calibraion_data accelcal;
+	u8 orientation_mode;
 #endif
 #ifdef CONFIG_SENSORS_SSP_GYROSCOPE
 	struct  gyroscope_sensor_operations *gyro_ops;
@@ -362,6 +380,7 @@ struct ssp_data {
 	unsigned char geomag_cntl_regdata;
 	bool is_geomag_raw_enabled;
 	struct magnetic_calibration_data magcal;
+	bool new_magcal;
 #endif
 #ifdef CONFIG_SENSORS_SSP_PROXIMITY
 	struct  proximity_sensor_operations *proximity_ops;
@@ -387,6 +406,11 @@ struct ssp_data {
 	u8 prox_thresh_mode;
 	u8 prox_cal_mode;
 #endif
+#endif
+#ifdef CONFIG_SENSORS_SSP_PROXIMITY_FACTORY_CROSSTALK_CAL
+	u16 prox_cal_add_value;
+	u16 prox_cal_thresh[PROX_THRESH_SIZE];
+	u16 prox_thresh_default[PROX_THRESH_SIZE];
 #endif
 	int prox_trim;
 #endif

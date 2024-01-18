@@ -62,6 +62,14 @@ config NFC_PN547_LDO_CONTROL
 	  Say Y here to compile support for NXP PN547 LDO CONTROL feature into the
 	  kernel.
 
+config NFC_PVDD_LATE_ENABLE
+        bool "PVDD late enable"
+        default n
+        help
+          If lpcharge value is not usable,
+          then PVDD is enabled lately by init.nfc.samsung.rc on late-init.
+          And this should be enabled from S os projects.
+
 config ESE_SECURE
         bool "ese secure"
         depends on !SEC_FACTORY
@@ -87,6 +95,16 @@ config SEC_NFC_LOGGER
           NFC log will be recorded at proc folder.
           but will not included at dumpstate log.
           so need to copy this file to log folder.
+
+config SEC_NFC_WAKELOCK_METHOD
+        int "nfc wakelock method"
+        default 0
+        help
+          Different functions must be used depending on the kernel version
+          for wakelock initialization.
+          0 - auto selection
+          1 - wakeup_source_init
+          2 - wakeup_source_register
 
 config SEC_STAR
         tristate "LSI star platform"

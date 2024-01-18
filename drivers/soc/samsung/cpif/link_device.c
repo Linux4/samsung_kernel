@@ -44,6 +44,7 @@
 #include "link_device.h"
 #include "modem_dump.h"
 #include "link_ctrlmsg_iosm.h"
+#include "modem_ctrl.h"
 #ifdef CONFIG_LINK_DEVICE_PCIE
 #include "s51xx_pcie.h"
 #endif
@@ -234,19 +235,6 @@ static inline void purge_txq(struct mem_link_device *mld)
 
 #ifdef GROUP_MEM_CP_CRASH
 
-static void set_modem_state(struct mem_link_device *mld, enum modem_state state)
-{
-	struct link_device *ld = &mld->link_dev;
-	struct modem_ctl *mc = ld->mc;
-	unsigned long flags;
-	struct io_device *iod;
-
-	spin_lock_irqsave(&mc->lock, flags);
-	list_for_each_entry(iod, &mc->modem_state_notify_list, list)
-		iod->modem_state_changed(iod, state);
-	spin_unlock_irqrestore(&mc->lock, flags);
-}
-
 static void shmem_handle_cp_crash(struct mem_link_device *mld,
 		enum modem_state state)
 {
@@ -282,7 +270,7 @@ static void shmem_handle_cp_crash(struct mem_link_device *mld,
 	}
 
 	if (cp_online(mc) || cp_booting(mc))
-		set_modem_state(mld, state);
+		change_modem_state(mc, state);
 
 	atomic_set(&mld->forced_cp_crash, 0);
 }
@@ -2186,55 +2174,59 @@ void shmem_check_modem_binary_crc(struct link_device *ld)
 }
 #endif
 
-unsigned long shm_get_security_param2(u32 cp_num, unsigned long mode, u32 bl_size)
+int shm_get_security_param2(u32 cp_num, unsigned long mode, u32 bl_size,
+		unsigned long *param)
 {
-	unsigned long ret;
+	int ret = 0;
 
 	switch (mode) {
 	case CP_BOOT_MODE_NORMAL:
 	case CP_BOOT_MODE_DUMP:
-		ret = bl_size;
+		*param = bl_size;
 		break;
 	case CP_BOOT_RE_INIT:
-		ret = 0;
+		*param = 0;
 		break;
 	case CP_BOOT_MODE_MANUAL:
-		ret = cp_shmem_get_base(cp_num, SHMEM_CP) + bl_size;
+		*param = cp_shmem_get_base(cp_num, SHMEM_CP) + bl_size;
 		break;
 	default:
 		mif_info("Invalid sec_mode(%lu)\n", mode);
-		ret = 0;
+		ret = -EINVAL;
 		break;
 	}
+
 	return ret;
 }
 
-unsigned long shm_get_security_param3(u32 cp_num, unsigned long mode, u32 main_size)
+int shm_get_security_param3(u32 cp_num, unsigned long mode, u32 main_size,
+		unsigned long *param)
 {
-	unsigned long ret;
+	int ret = 0;
 
 	switch (mode) {
 	case CP_BOOT_MODE_NORMAL:
-		ret = main_size;
+		*param = main_size;
 		break;
 	case CP_BOOT_MODE_DUMP:
 #ifdef CP_NONSECURE_BOOT
-		ret = cp_shmem_get_base(cp_num, SHMEM_CP);
+		*param = cp_shmem_get_base(cp_num, SHMEM_CP);
 #else
-		ret = cp_shmem_get_base(cp_num, SHMEM_IPC);
+		*param = cp_shmem_get_base(cp_num, SHMEM_IPC);
 #endif
 		break;
 	case CP_BOOT_RE_INIT:
-		ret = 0;
+		*param = 0;
 		break;
 	case CP_BOOT_MODE_MANUAL:
-		ret = main_size;
+		*param = main_size;
 		break;
 	default:
 		mif_info("Invalid sec_mode(%lu)\n", mode);
-		ret = 0;
+		ret = -EINVAL;
 		break;
 	}
+
 	return ret;
 }
 
@@ -2260,8 +2252,16 @@ static int shmem_security_request(struct link_device *ld, struct io_device *iod,
 		goto exit;
 	}
 
-	param2 = shm_get_security_param2(cp_num, msr.mode, msr.param2);
-	param3 = shm_get_security_param3(cp_num, msr.mode, msr.param3);
+	err = shm_get_security_param2(cp_num, msr.mode, msr.param2, &param2);
+	if (err) {
+		mif_err("%s: ERR! parameter2 is invalid\n", ld->name);
+		goto exit;
+	}
+	err = shm_get_security_param3(cp_num, msr.mode, msr.param3, &param3);
+	if (err) {
+		mif_err("%s: ERR! parameter3 is invalid\n", ld->name);
+		goto exit;
+	}
 
 #if !defined(CONFIG_CP_SECURE_BOOT)
 	if (msr.mode == 0)

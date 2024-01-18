@@ -29,6 +29,12 @@
 #include "proca_config.h"
 #include "proca_porting.h"
 
+#define XATTR_FIVE_SUFFIX "five"
+#define XATTR_NAME_FIVE (XATTR_SECURITY_PREFIX XATTR_FIVE_SUFFIX)
+
+#define XATTR_PA_SUFFIX "pa"
+#define XATTR_NAME_PA (XATTR_USER_PREFIX XATTR_PA_SUFFIX)
+
 #include "five_hooks.h"
 
 #ifdef CONFIG_PROCA_GKI_10

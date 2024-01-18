@@ -28,36 +28,38 @@
 #include <linux/mfd/core.h>
 #include <linux/mfd/slsi/s2mu106/s2mu106.h>
 #include <linux/of_gpio.h>
+#include <linux/kernel.h>
+#include <linux/version.h>
 
 #define I2C_RETRY_CNT	3
 
 static struct mfd_cell s2mu106_devs[] = {
-#if defined(CONFIG_PM_S2MU106)
+#if IS_ENABLED(CONFIG_PM_S2MU106)
 	{ .name = "s2mu106-powermeter", },
 #endif
-#if defined(CONFIG_CHARGER_S2MU106)
+#if IS_ENABLED(CONFIG_CHARGER_S2MU106)
 	{ .name = "s2mu106-charger", },
 #endif
-#if defined(CONFIG_LEDS_S2MU106_FLASH)
+#if IS_ENABLED(CONFIG_LEDS_S2MU106_FLASH)
 	{ .name = "leds-s2mu106", },
 #endif
-#if defined(CONFIG_LEDS_S2MU106_RGB)
+#if IS_ENABLED(CONFIG_LEDS_S2MU106_RGB)
 	{ .name = "leds-s2mu106-rgb", },
 #endif
-#if defined(CONFIG_MUIC_S2MU106)
+#if IS_ENABLED(CONFIG_MUIC_S2MU106)
 	{ .name = "s2mu106-muic", },
 #endif
-#if defined(CONFIG_HV_MUIC_S2MU106_AFC)
+#if IS_ENABLED(CONFIG_HV_MUIC_S2MU106_AFC)
 	{ .name = "s2mu106-afc", },
 #endif
-#if defined(CONFIG_MST_S2MU106)
+#if IS_ENABLED(CONFIG_MST_S2MU106)
 	{ .name = "s2mu106-mst", },
 #endif
-#if defined(CONFIG_VIBRATOR_S2MU106)
+#if IS_ENABLED(CONFIG_VIBRATOR_S2MU106)
 	{ .name = "s2mu106-haptic", 
 	  .of_compatible = "sec,s2mu106-haptic", },
 #endif
-#if defined(CONFIG_REGULATOR_S2MU106)
+#if IS_ENABLED(CONFIG_REGULATOR_S2MU106)
 	{ .name = "s2mu106-regulator", },
 #endif
 };
@@ -322,12 +324,20 @@ static int s2mu106_i2c_probe(struct i2c_client *i2c,
 	pr_err("%s : ver=0x%x\n", __func__, s2mu106->pmic_ver);
 
 	/* I2C enable for MUIC, AFC, MST, Powermeter */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 10, 0)
 	s2mu106->muic = i2c_new_dummy(i2c->adapter, I2C_ADDR_7C_SLAVE);
+#else
+	s2mu106->muic = i2c_new_dummy_device(i2c->adapter, I2C_ADDR_7C_SLAVE);
+#endif
 	i2c_set_clientdata(s2mu106->muic, s2mu106);
 
 #ifdef CONFIG_VIBRATOR_S2MU106
 	/* I2C enable for Haptic, Haptic Boost */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 10, 0)
 	s2mu106->haptic = i2c_new_dummy(i2c->adapter, I2C_ADDR_HAPTIC);
+#else
+	s2mu106->haptic = i2c_new_dummy_device(i2c->adapter, I2C_ADDR_HAPTIC);
+#endif
 	i2c_set_clientdata(s2mu106->haptic, s2mu106);
 #endif
 
@@ -387,10 +397,12 @@ static int s2mu106_suspend(struct device *dev)
 	struct i2c_client *i2c = container_of(dev, struct i2c_client, dev);
 	struct s2mu106_dev *s2mu106 = i2c_get_clientdata(i2c);
 
+	pr_info("%s:%s\n", MFD_DEV_NAME, __func__);
+
 	if (device_may_wakeup(dev))
 		enable_irq_wake(s2mu106->irq);
 
-#if !defined (CONFIG_ARCH_QCOM)
+#if defined(CONFIG_ARCH_EXYNOS)
 	disable_irq(s2mu106->irq);
 #endif
 	return 0;
@@ -401,12 +413,12 @@ static int s2mu106_resume(struct device *dev)
 	struct i2c_client *i2c = container_of(dev, struct i2c_client, dev);
 	struct s2mu106_dev *s2mu106 = i2c_get_clientdata(i2c);
 
-	pr_debug("%s:%s\n", MFD_DEV_NAME, __func__);
+	pr_info("%s:%s\n", MFD_DEV_NAME, __func__);
 
 	if (device_may_wakeup(dev))
 		disable_irq_wake(s2mu106->irq);
 
-#if !defined (CONFIG_ARCH_QCOM)
+#if defined(CONFIG_ARCH_EXYNOS)
 	enable_irq(s2mu106->irq);
 #endif
 	return 0;

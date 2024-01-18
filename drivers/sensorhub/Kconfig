@@ -103,3 +103,16 @@ config SENSORS_SX9364_SUB
 	  This option enables grip sensors using
 	  SemTech sx9364_sub device driver.
 	  Say N here if you do not use sx9364_sub.
+
+
+config SENSORS_DUMP_DATA
+	tristate "Grip sensor dump log"
+	default n
+	help
+	  Enable grip dump log data
+	  This option activates log output of grip error data using sensordump_notifier.
+
+config SENSORS_GRIP_FAILURE_DEBUG
+	bool "Grip failure debug"
+	help
+	  Say Y here, Enable Grip failure debug flag.

@@ -19,7 +19,7 @@
 #include <linux/delay.h>
 
 #ifdef CONFIG_USB_CONFIGFS_F_ACC
-extern int acc_ctrlrequest(struct usb_composite_dev *cdev,
+extern int acc_ctrlrequest_composite(struct usb_composite_dev *cdev,
 				const struct usb_ctrlrequest *ctrl);
 void acc_disconnect(void);
 #endif
@@ -1844,7 +1844,7 @@ static int android_setup(struct usb_gadget *gadget,
 #endif
 #ifdef CONFIG_USB_CONFIGFS_F_ACC
 	if (value < 0)
-		value = acc_ctrlrequest(cdev, c);
+		value = acc_ctrlrequest_composite(cdev, c);
 #endif
 
 	if (value < 0)
@@ -2089,6 +2089,14 @@ static ssize_t enable_store(struct device *pdev, struct device_attribute *attr,
 	if (enabled && !dev->enabled) {
 		pr_info("usb: %s: Connect gadget: enabled=%d, dev->enabled=%d\n",
 				__func__, enabled, dev->enabled);
+
+	if (!dev->composite.gadget_driver.udc_name) {
+		pr_info("usb: %s: UDC is NULL\n", __func__);
+		dev->enabled = true;
+		mutex_unlock(&dev->lock);
+		return -ENODEV;
+	}
+
 #ifdef CONFIG_USB_NOTIFY_PROC_LOG
 		store_usblog_notify(NOTIFY_USBMODE_EXTRA, "enable 1", NULL);
 #endif

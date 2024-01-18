@@ -217,6 +217,45 @@ int sec_bat_parse_dt(struct device *dev,
 
 	if (ret)
 		pr_info("%s : battery_full_capacity is Empty\n", __func__);
+
+#ifdef CONFIG_SEC_FACTORY
+	ret = of_property_read_u32(np, "battery,factory_chg_limit_max",
+		&pdata->store_mode_charging_max);
+	if (ret) {
+		pr_info("%s :factory_chg_limit_max is Empty\n", __func__);
+		pdata->store_mode_charging_max = 80;
+	}
+
+	ret = of_property_read_u32(np, "battery,factory_chg_limit_min",
+		&pdata->store_mode_charging_min);
+	if (ret) {
+		pr_info("%s :factory_chg_limit_min is Empty\n", __func__);
+		pdata->store_mode_charging_min = 70;
+	}
+#else
+	ret = of_property_read_u32(np, "battery,store_mode_charging_max",
+		&pdata->store_mode_charging_max);
+	if (ret) {
+		pr_info("%s :factory_chg_limit_max is Empty\n", __func__);
+		pdata->store_mode_charging_max = 70;
+	}
+
+	ret = of_property_read_u32(np, "battery,store_mode_charging_min",
+		&pdata->store_mode_charging_min);
+	if (ret) {
+		pr_info("%s :factory_chg_limit_min is Empty\n", __func__);
+		pdata->store_mode_charging_min = 60;
+	}
+#if !defined(CONFIG_ARCH_EXYNOS)
+	/* VZW's prepaid devices has "VPP" as sales_code, not "VZW" */
+	if (sales_code_is("VZW") || sales_code_is("VPP")) {
+		dev_err(battery->dev, "%s: Sales is VZW or VPP\n", __func__);
+
+		pdata->store_mode_charging_max = 35;
+		pdata->store_mode_charging_min = 30;
+	}
+#endif
+#endif /*CONFIG_SEC_FACTORY */
 #if defined(CONFIG_BATTERY_CISD)
 	else {
 		pr_info("%s : battery_full_capacity : %d\n", __func__, pdata->battery_full_capacity);
@@ -299,8 +338,20 @@ int sec_bat_parse_dt(struct device *dev,
 	else
 		pdata->support_fgsrc_change = true;
 
+	pdata->chg_vbus_control_after_fullcharged = of_property_read_bool(np,
+						"battery,chg_vbus_control_after_fullcharged");
+
 	pdata->volt_from_pmic = of_property_read_bool(np,
 						     "battery,volt_from_pmic");
+
+	pdata->pd_comm_cap = of_property_read_bool(np,
+						     "battery,pd_comm_cap");
+
+	pdata->dynamic_cv_factor = of_property_read_bool(np,
+						     "battery,dynamic_cv_factor");
+
+	pdata->slowcharging_usb_bootcomplete = of_property_read_bool(np,
+						     "battery,slowcharging_usb_bootcomplete");
 
 	ret = of_property_read_string(np,
 		"battery,chip_vendor", (char const **)&pdata->chip_vendor);
@@ -516,6 +567,9 @@ int sec_bat_parse_dt(struct device *dev,
 		&pdata->dchg_temp_check_type);
 	if (ret)
 		pr_info("%s : dchg_temp_check_type is Empty\n", __func__);
+
+	pdata->dctp_by_cgtp = of_property_read_bool(np,
+						     "battery,dctp_by_cgtp");
 
 	ret = of_property_read_u32(np, "battery,dchg_high_temp", &temp);
 	pdata->dchg_high_temp = (int)temp;
@@ -1592,6 +1646,12 @@ int sec_bat_parse_dt(struct device *dev,
 		pdata->full_condition_type, pdata->recharge_condition_type, pdata->full_check_type
 		);
 
+	ret = of_property_read_u32(np, "battery,batt_temp_adj_gap_inc",
+		&pdata->batt_temp_adj_gap_inc);
+	if (ret) {
+		pr_err("%s: batt_temp_adj_gap_inc is Empty\n", __func__);
+		pdata->batt_temp_adj_gap_inc = 0;
+	}
 #if defined(CONFIG_STEP_CHARGING)
 	sec_step_charging_init(battery, dev);
 #endif
@@ -1607,6 +1667,13 @@ int sec_bat_parse_dt(struct device *dev,
 	if (ret) {
 		pr_err("%s: max_charging_charge_power is Empty\n", __func__);
 		pdata->max_charging_charge_power = 25000;
+	}
+
+	ret = of_property_read_u32(np, "battery,apdo_max_volt",
+			&pdata->apdo_max_volt);
+	if (ret) {
+		pr_err("%s: apdo_max_volt is Empty\n", __func__);
+		pdata->apdo_max_volt = 11000; /* 11v */
 	}
 
 #if defined(CONFIG_DUAL_BATTERY)

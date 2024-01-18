@@ -18,6 +18,7 @@
 #include <linux/io.h>
 #include <linux/platform_device.h>
 #include <linux/mm.h>
+#include <linux/spu-verify.h>
 
 #include "ssp.h"
 #include "ssp_firmware.h"
@@ -33,11 +34,9 @@ enum fw_type {
 #define UPDATE_BIN_PATH	   "/vendor/firmware/shub.bin"
 #define UPDATE_BIN_FW_NAME "shub.bin"
 
-#ifdef CONFIG_SSP_SUPPORT_SPU_FW
 #define SPU_FW_FILE "/spu/sensorhub/shub_spu.bin"
 
 #define FW_VER_LEN 8
-extern long spu_firmware_signature_verify(const char *fw_name, const u8 *fw_data, const long fw_size);
 
 static int request_spu_firmware(struct ssp_data *data, u8 **fw_buf)
 {
@@ -148,7 +147,6 @@ static void release_spu_firmware(struct ssp_data *data, u8 *fw_buf)
 {
 	kfree(fw_buf);
 }
-#endif
 
 #ifdef CONFIG_SSP_ENG_DEBUG
 static bool is_exist_force_update_fw(void)
@@ -196,14 +194,11 @@ int download_sensorhub_firmware(struct ssp_data *data, void *addr)
 	} else
 #endif
 	{
-#ifdef SUPPORT_SPU_FW
 		fw_size = request_spu_firmware(data, (u8 **) &fw_buf);
 		if (fw_size > 0) {
 			ssp_infof("download spu firmware");
 			data->fw_type = FW_TYPE_SPU;
-		} else
-#endif
-		{
+		} else {
 			ssp_infof("download %s", data->fw_name);
 			ret = request_firmware(&entry, data->fw_name, &(data->pdev->dev));
 			if (ret) {
@@ -225,9 +220,8 @@ int download_sensorhub_firmware(struct ssp_data *data, void *addr)
 	if (entry)
 		release_firmware(entry);
 
-#ifdef SUPPORT_SPU_FW
 	if (data->fw_type == FW_TYPE_SPU)
 		release_spu_firmware(data, fw_buf);
-#endif
+
 	return 0;
 }

@@ -50,4 +50,8 @@ bool is_certificate_relevant_to_task(
 			const struct proca_certificate *parsed_cert,
 			struct task_struct *task);
 
+bool is_certificate_relevant_to_file(
+			const struct proca_certificate *parsed_cert,
+			struct file *file);
+
 #endif //_LINUX_PROCA_CERTIFICATE_H

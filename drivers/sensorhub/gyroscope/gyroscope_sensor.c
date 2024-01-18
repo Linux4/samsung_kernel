@@ -141,6 +141,9 @@ void select_gyro_ops(struct ssp_data *data, char *name)
 #if defined(CONFIG_SENSORS_SSP_GYROSCOPE_ICM42605M)
 	count++;
 #endif
+#if defined(CONFIG_SENSORS_SSP_GYROSCOPE_ICM42632M)
+	count++;
+#endif
 #if defined(CONFIG_SENSORS_SSP_GYROSCOPE_LSM6DSL)
 	count++;
 #endif
@@ -158,6 +161,9 @@ void select_gyro_ops(struct ssp_data *data, char *name)
 	i = 0;
 #if defined(CONFIG_SENSORS_SSP_GYROSCOPE_ICM42605M)
 	gyro_ops_ary[i++] = get_gyroscope_icm42605m_function_pointer(data);
+#endif
+#if defined(CONFIG_SENSORS_SSP_GYROSCOPE_ICM42632M)
+	gyro_ops_ary[i++] = get_gyroscope_icm42632m_function_pointer(data);
 #endif
 #if defined(CONFIG_SENSORS_SSP_GYROSCOPE_LSM6DSL)
 	gyro_ops_ary[i++] = get_gyroscope_lsm6dsl_function_pointer(data);

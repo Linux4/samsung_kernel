@@ -31,7 +31,7 @@
 #include <linux/delay.h>
 #include <linux/host_notify.h>
 #include <linux/string.h>
-#if defined(CONFIG_OF)
+#if IS_ENABLED(CONFIG_OF)
 #include <linux/of_device.h>
 #include <linux/of_gpio.h>
 #endif
@@ -43,16 +43,16 @@
 #if defined(CONFIG_IFCONN_NOTIFIER)
 #include <linux/ifconn/ifconn_notifier.h>
 #endif
-#if defined(CONFIG_MUIC_NOTIFIER)
+#if IS_ENABLED(CONFIG_MUIC_NOTIFIER)
 #include <linux/muic/common/muic_notifier.h>
 #endif
-#if defined(CONFIG_PDIC_NOTIFIER)
+#if IS_ENABLED(CONFIG_PDIC_NOTIFIER)
 #include <linux/usb/typec/common/pdic_notifier.h>
 #endif
-#if defined(CONFIG_USB_TYPEC_MANAGER_NOTIFIER)
+#if IS_ENABLED(CONFIG_USB_TYPEC_MANAGER_NOTIFIER)
 #include <linux/usb/typec/manager/usb_typec_manager_notifier.h>
 #endif
-#if defined(CONFIG_S2MU106_TYPEC_WATER)
+#if IS_ENABLED(CONFIG_S2MU106_TYPEC_WATER)
 #include "../../battery/charger/s2mu106_charger/s2mu106_pmeter.h"
 #endif
 
@@ -60,7 +60,6 @@
 #define MUIC_PDIC_NOTI_DETACH (-1)
 #define MUIC_PDIC_NOTI_UNDEFINED (0)
 
-static int __pdic_info;
 static struct pdic_rid_desc_t pdic_rid_tbl[] = {
 	[PDIC_RID_UNDEFINED] = {"UNDEFINED", ATTACHED_DEV_NONE_MUIC},
 	[PDIC_RID_000K] = {"000K", ATTACHED_DEV_OTG_MUIC},
@@ -71,28 +70,6 @@ static struct pdic_rid_desc_t pdic_rid_tbl[] = {
 	[PDIC_RID_619K] = {"619K", ATTACHED_DEV_JIG_UART_ON_MUIC},
 	[PDIC_RID_OPEN] = {"OPEN", ATTACHED_DEV_NONE_MUIC},
 };
-
-/*
- * __pdic_info :
- * b'0: 1 if an active pdic is present,
- *        0 when muic works without pdic chip or
- *              no pdic Noti. registration is needed
- *              even though a pdic chip is present.
- */
-static int set_pdic_info(char *str)
-{
-	get_option(&str, &__pdic_info);
-
-	pr_info("%s: pdic_info: 0x%04x\n", __func__, __pdic_info);
-
-	return __pdic_info;
-}
-__setup("ccic_info=", set_pdic_info);
-
-int get_pdic_info(void)
-{
-	return __pdic_info;
-}
 
 static void _muic_manager_switch_uart_path(struct muic_interface_t *muic_if, int path)
 {
@@ -196,11 +173,11 @@ int muic_manager_is_pdic_supported_dev(muic_attached_dev_t new_dev)
 void muic_manager_handle_pdic_detach_always(struct muic_interface_t *muic_if)
 {
 	pr_info("%s\n", __func__);
-#if defined(CONFIG_MUIC_SUPPORT_PRSWAP)
+#if IS_ENABLED(CONFIG_MUIC_SUPPORT_PRSWAP)
 	if (muic_if->set_chg_det)
 		muic_if->set_chg_det(muic_if->muic_data, true);
 #endif
-#if defined(CONFIG_HV_MUIC_S2MU004_AFC) || defined(CONFIG_MUIC_HV)
+#if IS_ENABLED(CONFIG_HV_MUIC_S2MU004_AFC) || IS_ENABLED(CONFIG_MUIC_HV)
 	muic_if->is_afc_pdic_ready = false;
 #endif
 	muic_if->is_pdic_attached = false;
@@ -242,7 +219,7 @@ void muic_manager_handle_pdic_detach(struct muic_interface_t *muic_if)
 	pdic->pdic_evt_dcdcnt = 0;
 	muic_if->is_dcdtmr_intr = false;
 #endif
-#if defined(CONFIG_MUIC_SUPPORT_PRSWAP)
+#if IS_ENABLED(CONFIG_MUIC_SUPPORT_PRSWAP)
 	muic_if->prswap_status = MUIC_PRSWAP_UNDIFINED;
 #endif
 }
@@ -281,6 +258,7 @@ void muic_manager_set_legacy_dev(struct muic_interface_t *muic_if, int new_dev)
 
 	muic_if->legacy_dev = new_dev;
 }
+EXPORT_SYMBOL(muic_manager_set_legacy_dev);
 
 /* Get the charger type from muic interrupt or by reading the register directly */
 int muic_manager_get_legacy_dev(struct muic_interface_t *muic_if)
@@ -288,7 +266,7 @@ int muic_manager_get_legacy_dev(struct muic_interface_t *muic_if)
 	return muic_if->legacy_dev;
 }
 
-#if defined(CONFIG_PDIC_NOTIFIER)
+#if IS_ENABLED(CONFIG_PDIC_NOTIFIER)
 static void muic_manager_show_status(struct muic_interface_t *muic_if)
 {
 	struct pdic_desc_t *pdic = muic_if->pdic;
@@ -329,7 +307,7 @@ SKIP_RESCAN:
 }
 #endif
 
-#if defined(CONFIG_PDIC_NOTIFIER)
+#if IS_ENABLED(CONFIG_PDIC_NOTIFIER)
 static int muic_manager_handle_legacy_dev(struct muic_interface_t *muic_if)
 {
 	struct pdic_desc_t *pdic = muic_if->pdic;
@@ -381,7 +359,7 @@ void muic_manager_init_dev_desc(struct muic_interface_t *muic_if)
 #endif
 }
 
-#if defined(CONFIG_PDIC_NOTIFIER)
+#if IS_ENABLED(CONFIG_PDIC_NOTIFIER)
 static int muic_manager_conv_rid_to_dev(struct muic_interface_t *muic_if, int rid, int vbus)
 {
 	int attached_dev = 0;
@@ -459,7 +437,7 @@ static int muic_manager_handle_pdic_attach(struct muic_interface_t *muic_if, voi
 			pr_info("%s: RPRD\n", __func__);
 			pdic->pdic_evt_rprd = 1;
 			pdic->attached_dev = ATTACHED_DEV_OTG_MUIC;
-#if defined(CONFIG_MUIC_HV)
+#if IS_ENABLED(CONFIG_MUIC_HV)
 			if (muic_if->hv_reset)
 				muic_if->hv_reset(muic_if->muic_data);
 #endif
@@ -469,7 +447,7 @@ static int muic_manager_handle_pdic_attach(struct muic_interface_t *muic_if, voi
 			return 0;
 		}
 #ifndef CONFIG_MUIC_SKIP_INCOMPLETE_INSERT
-#if defined(CONFIG_HV_MUIC_S2MU004_AFC)
+#if IS_ENABLED(CONFIG_HV_MUIC_S2MU004_AFC)
 		if (muic_if->is_afc_reset) {
 			pr_info("%s: DCD RESCAN after afc reset\n", __func__);
 			muic_if->is_afc_reset = false;
@@ -515,7 +493,7 @@ static int muic_manager_handle_pdic_attach(struct muic_interface_t *muic_if, voi
 #ifndef CONFIG_MUIC_SKIP_INCOMPLETE_INSERT
 				if (muic_if->is_dcp_charger) {
 					pr_info("%s: reset afc\n", __func__);
-#if defined(CONFIG_HV_MUIC_S2MU004_AFC) || defined(CONFIG_MUIC_HV)
+#if IS_ENABLED(CONFIG_HV_MUIC_S2MU004_AFC) || IS_ENABLED(CONFIG_MUIC_HV)
 				if (muic_if->set_afc_reset)
 					muic_if->set_afc_reset(muic_if->muic_data);
 #endif
@@ -530,13 +508,18 @@ static int muic_manager_handle_pdic_attach(struct muic_interface_t *muic_if, voi
 	return 0;
 }
 
-static int muic_manager_handle_pdic_factory_jig(struct muic_interface_t *muic_if, int rid, int vbus)
+static int muic_manager_handle_pdic_factory_jig(struct muic_interface_t *muic_if,
+		int rid, int prev_rid, int vbus)
 {
 	struct pdic_desc_t *pdic = muic_if->pdic;
 	struct muic_platform_data *pdata = muic_if->pdata;
 	int attached_dev = 0;
 
-	pr_info("%s: rid:%d vbus:%d\n", __func__, rid, vbus);
+	pr_info("%s: rid:%d prev_rid:%d vbus:%d\n", __func__, rid, prev_rid, vbus);
+
+	if (prev_rid && rid != prev_rid)
+		if (pdata->jig_uart_cb)
+			pdata->jig_uart_cb(0);
 
 	switch (rid) {
 	case PDIC_RID_255K:
@@ -566,7 +549,7 @@ static int muic_manager_handle_pdic_factory_jig(struct muic_interface_t *muic_if
 		}
 
 		pdic->attached_dev = attached_dev;
-#if defined(CONFIG_MUIC_HV)
+#if IS_ENABLED(CONFIG_MUIC_HV)
 		if (muic_if->hv_reset)
 			muic_if->hv_reset(muic_if->muic_data);
 #endif
@@ -582,7 +565,7 @@ static int muic_manager_handle_pdic_rid(struct muic_interface_t *muic_if, void *
 {
 	struct pdic_desc_t *pdic = muic_if->pdic;
 	struct muic_platform_data *pdata = muic_if->pdata;
-	int rid, vbus;
+	int rid, vbus, prev_rid;
 #ifdef CONFIG_IFCONN_NOTIFIER
 	struct ifconn_notifier_template *pnoti = (struct ifconn_notifier_template *)data;
 #else
@@ -604,6 +587,7 @@ static int muic_manager_handle_pdic_rid(struct muic_interface_t *muic_if, void *
 		return 0;
 	}
 
+	prev_rid = pdic->pdic_evt_rid;
 	pdic->pdic_evt_rid = rid;
 
 	switch (rid) {
@@ -623,7 +607,7 @@ static int muic_manager_handle_pdic_rid(struct muic_interface_t *muic_if, void *
 		vbus = muic_manager_get_vbus(muic_if);
 		if (muic_if->set_jig_state)
 			muic_if->set_jig_state(muic_if->muic_data, true);
-		muic_manager_handle_pdic_factory_jig(muic_if, rid, vbus);
+		muic_manager_handle_pdic_factory_jig(muic_if, rid, prev_rid, vbus);
 		break;
 	case PDIC_RID_OPEN:
 	case PDIC_RID_UNDEFINED:
@@ -694,7 +678,7 @@ static int muic_manager_handle_pdic_water_from_boot(struct muic_interface_t *mui
 	return 0;
 }
 
-#if defined(CONFIG_HV_MUIC_S2MU004_AFC) || defined(CONFIG_MUIC_HV)
+#if IS_ENABLED(CONFIG_HV_MUIC_S2MU004_AFC) || IS_ENABLED(CONFIG_MUIC_HV)
 static int muic_manager_handle_pdic_TA(struct muic_interface_t *muic_if, void *data)
 {
 #ifdef CONFIG_IFCONN_NOTIFIER
@@ -715,7 +699,7 @@ static int muic_manager_handle_pdic_TA(struct muic_interface_t *muic_if, void *d
 #endif
 #endif
 
-#if defined(CONFIG_MUIC_SUPPORT_PRSWAP)
+#if IS_ENABLED(CONFIG_MUIC_SUPPORT_PRSWAP)
 static int muic_manager_handle_pdic_role_swap(struct muic_interface_t *muic_if, void *data)
 {
 	PD_NOTI_TYPEDEF *pnoti = (PD_NOTI_TYPEDEF *)data;
@@ -780,7 +764,7 @@ static int muic_manager_handle_otg(struct muic_interface_t *muic_if, void *data)
 static int muic_manager_handle_notification(struct notifier_block *nb,
 				unsigned long action, void *data)
 {
-#ifdef CONFIG_USB_TYPEC_MANAGER_NOTIFIER
+#if IS_ENABLED(CONFIG_USB_TYPEC_MANAGER_NOTIFIER)
 	struct muic_interface_t *muic_if =
 		container_of(nb, struct muic_interface_t, manager_nb);
 #else
@@ -804,10 +788,10 @@ static int muic_manager_handle_notification(struct notifier_block *nb,
 	int water = PDIC_NOTIFY_ID_WATER;
 	int otg = PDIC_NOTIFY_ID_OTG;
 	int ta = PDIC_NOTIFY_ID_TA;
-#if defined(CONFIG_MUIC_SUPPORT_PRSWAP)
+#if IS_ENABLED(CONFIG_MUIC_SUPPORT_PRSWAP)
 	int role_swap = PDIC_NOTIFY_ID_ROLE_SWAP;
 #endif
-#ifdef CONFIG_USB_TYPEC_MANAGER_NOTIFIER
+#if IS_ENABLED(CONFIG_USB_TYPEC_MANAGER_NOTIFIER)
 	if (pnoti->dest != PDIC_NOTIFY_DEV_MUIC) {
 		pr_info("%s destination id is invalid\n", __func__);
 		return 0;
@@ -845,11 +829,11 @@ static int muic_manager_handle_notification(struct notifier_block *nb,
 	} else if (pnoti->id == ta) {
 		pr_info("%s: NOTIFY_ID_TA\n", __func__);
 #ifndef CONFIG_SEC_FACTORY
-#if defined(CONFIG_HV_MUIC_S2MU004_AFC) || defined(CONFIG_MUIC_HV)
+#if IS_ENABLED(CONFIG_HV_MUIC_S2MU004_AFC) || IS_ENABLED(CONFIG_MUIC_HV)
 		muic_manager_handle_pdic_TA(muic_if, data);
 #endif
 #endif
-#if defined(CONFIG_MUIC_SUPPORT_PRSWAP)
+#if IS_ENABLED(CONFIG_MUIC_SUPPORT_PRSWAP)
 	} else if (pnoti->id == role_swap) {
 		pr_info("%s: NOTIFY_ID_ROLE_SWAP\n", __func__);
 		muic_manager_handle_pdic_role_swap(muic_if, data);
@@ -873,7 +857,7 @@ void _muic_delayed_notifier(struct work_struct *work)
 
 	muic_if = container_of(work, struct muic_interface_t, pdic_work.work);
 
-#ifdef CONFIG_USB_TYPEC_MANAGER_NOTIFIER
+#if IS_ENABLED(CONFIG_USB_TYPEC_MANAGER_NOTIFIER)
 	ret = manager_notifier_register(&muic_if->manager_nb,
 		muic_manager_handle_notification, MANAGER_NOTIFY_PDIC_MUIC);
 #else
@@ -898,7 +882,7 @@ void muic_manager_register_notifier(struct muic_interface_t *muic_if)
 
 	muic_manager_init_dev_desc(muic_if);
 
-#ifdef CONFIG_USB_TYPEC_MANAGER_NOTIFIER
+#if IS_ENABLED(CONFIG_USB_TYPEC_MANAGER_NOTIFIER)
 	ret = manager_notifier_register(&muic_if->manager_nb,
 		muic_manager_handle_notification, MANAGER_NOTIFY_PDIC_MUIC);
 #else
@@ -952,13 +936,13 @@ struct muic_interface_t *muic_manager_init(void *pdata, void *drv_data)
 	muic_if->is_dcp_charger = false;
 	muic_if->is_dcdtmr_intr = false;
 #endif
-#if defined(CONFIG_MUIC_SUPPORT_PRSWAP)
+#if IS_ENABLED(CONFIG_MUIC_SUPPORT_PRSWAP)
 	muic_if->prswap_status = MUIC_PRSWAP_UNDIFINED;
 #endif
-#if defined(CONFIG_MUIC_HV)
+#if IS_ENABLED(CONFIG_MUIC_HV)
 	muic_if->is_afc_pdic_ready = false;
 #endif
-#if defined(CONFIG_PDIC_NOTIFIER)
+#if IS_ENABLED(CONFIG_PDIC_NOTIFIER)
 #ifdef CONFIG_IFCONN_NOTIFIER
 	ret = ifconn_notifier_register(&muic_if->ifconn_nb,
 				       muic_manager_handle_notification,
@@ -983,8 +967,9 @@ err_pdic_alloc:
 	kfree(muic_if);
 	return NULL;
 }
+EXPORT_SYMBOL(muic_manager_init);
 
-#if defined(CONFIG_MUIC_SUPPORT_POWERMETER)
+#if IS_ENABLED(CONFIG_MUIC_SUPPORT_POWERMETER)
 static enum power_supply_property muic_props[] = {
 	POWER_SUPPLY_PROP_ONLINE,
 };
@@ -1000,12 +985,10 @@ static int muic_manager_get_property(struct power_supply *psy,
 	struct muic_interface_t *muic_if = power_supply_get_drvdata(psy);
 	enum power_supply_lsi_property lsi_prop = (enum power_supply_lsi_property)psp;
 
-	switch (psp) {
+	switch ((int)psp) {
 	case POWER_SUPPLY_PROP_ONLINE:
 		break;
-	case POWER_SUPPLY_PROP_AFC_CHARGER_MODE:
-		break;
-	case POWER_SUPPLY_EXT_PROP_MAX ... POWER_SUPPLY_LSI_PROP_MAX:
+	case POWER_SUPPLY_LSI_PROP_MIN ... POWER_SUPPLY_LSI_PROP_MAX:
 		switch (lsi_prop) {
 		case POWER_SUPPLY_LSI_PROP_PM_VCHGIN:
 			val->intval = muic_if->get_vbus(muic_if->muic_data);
@@ -1029,41 +1012,39 @@ static int muic_manager_set_property(struct power_supply *psy,
 	int ret;
 	enum power_supply_lsi_property lsi_prop = (enum power_supply_lsi_property)psp;
 
-	switch (psp) {
-		case POWER_SUPPLY_PROP_ONLINE:
+	switch ((int)psp) {
+	case POWER_SUPPLY_PROP_ONLINE:
+		break;
+	case POWER_SUPPLY_LSI_PROP_MIN ... POWER_SUPPLY_LSI_PROP_MAX:
+		switch (lsi_prop) {
+		case POWER_SUPPLY_LSI_PROP_WATER_STATUS:
+			if (muic_if->set_water_state)
+				muic_if->set_water_state(muic_if->muic_data, val->intval);
 			break;
-		case POWER_SUPPLY_PROP_AFC_CHARGER_MODE:
+#if IS_ENABLED(CONFIG_HICCUP_CHARGER)
+		case POWER_SUPPLY_LSI_PROP_HICCUP_MODE:
+			if (muic_if->set_hiccup_mode)
+				muic_if->set_hiccup_mode(muic_if->muic_data, val->intval);
 			break;
-		case POWER_SUPPLY_PROP_PM_FACTORY:
+#endif
+		case POWER_SUPPLY_LSI_PROP_PM_VCHGIN:
+			MUIC_PDATA_FUNC_MULTI_PARAM(muic_if->pm_chgin_irq,
+				muic_if->muic_data, val->intval, &ret);
+			break;
+		case POWER_SUPPLY_LSI_PROP_PM_FACTORY:
 			muic_if->is_bypass = true;
 			if (muic_if->set_bypass)
 				muic_if->set_bypass(muic_if->muic_data);
 			break;
-		case POWER_SUPPLY_PROP_PD_SUPPORT:
+		case POWER_SUPPLY_LSI_PROP_PD_SUPPORT:
 			muic_if->is_pdic_probe = true;
 			break;
-		case POWER_SUPPLY_EXT_PROP_MAX ... POWER_SUPPLY_LSI_PROP_MAX:
-			switch (lsi_prop) {
-			case POWER_SUPPLY_LSI_PROP_WATER_STATUS:
-				if (muic_if->set_water_state)
-					muic_if->set_water_state(muic_if->muic_data, val->intval);
-				break;
-#if IS_ENABLED(CONFIG_HICCUP_CHARGER)
-			case POWER_SUPPLY_LSI_PROP_HICCUP_MODE:
-				if (muic_if->set_hiccup_mode)
-					muic_if->set_hiccup_mode(muic_if->muic_data, val->intval);
-				break;
-#endif
-			case POWER_SUPPLY_LSI_PROP_PM_VCHGIN:
-				MUIC_PDATA_FUNC_MULTI_PARAM(muic_if->pm_chgin_irq,
-					muic_if->muic_data, val->intval, &ret);
-				break;
-			default:
-				ret = -EINVAL;
-			}
-			break;
 		default:
-			return -EINVAL;
+			ret = -EINVAL;
+		}
+		break;
+	default:
+		return -EINVAL;
 	}
 	return 0;
 }
@@ -1096,12 +1077,33 @@ int muic_manager_psy_init(struct muic_interface_t *muic_if, struct device *paren
 	}
 	return ret;
 }
+EXPORT_SYMBOL(muic_manager_psy_init);
 #endif
 
 void muic_manager_exit(struct muic_interface_t *muic_if)
 {
-#if defined(CONFIG_MUIC_SUPPORT_POWERMETER)
+#if IS_ENABLED(CONFIG_MUIC_SUPPORT_POWERMETER)
 	power_supply_unregister(muic_if->psy_muic);
 #endif
 	kfree(muic_if);
 }
+EXPORT_SYMBOL(muic_manager_exit);
+
+static int __init muic_manager_module_init(void)
+{
+	pr_info("%s: init\n", __func__);
+
+	return 0;
+}
+
+static void __exit muic_manager_module_exit(void)
+{
+	pr_info("%s: exit\n", __func__);
+}
+
+device_initcall(muic_manager_module_init);
+module_exit(muic_manager_module_exit);
+
+MODULE_AUTHOR("Samsung USB Team");
+MODULE_DESCRIPTION("Muic Manager");
+MODULE_LICENSE("GPL");

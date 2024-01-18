@@ -24,6 +24,17 @@ config SENSORS_SSP_ACCELOMETER_ICM42605M
 	  To compile this driver as a module, choose M here: the
 	  module will be called ssp.
 
+config SENSORS_SSP_ACCELOMETER_ICM42632M
+	tristate "Sensors ssp accelometer sensor icm42632m"
+	default n
+	depends on SPI
+	help
+	  accelerometer sensor icm42632m file for factory test in ssp driver.
+          If you say yes here you get accelerometer sensor icm42632m support for
+	  factory test.
+	  To compile this driver as a module, choose M here: the
+	  module will be called ssp.
+
 config SENSORS_SSP_ACCELOMETER_LSM6DSL
 	tristate "Sensors ssp accelometer sensor lsm6dsl"
 	default n

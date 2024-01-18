@@ -18,6 +18,7 @@
 #include <linux/slab.h>
 #include <linux/version.h>
 #include <linux/wait.h>
+#include <linux/delay.h>
 
 #include "ssp_debug.h"
 #include "ssp_type_define.h"
@@ -27,6 +28,7 @@
 #include "ssp_data.h"
 #include "ssp_scontext.h"
 #include "ssp_cmd_define.h"
+#include "ssp_sysfs.h"
 
 /* define */
 #define SSP_DEBUG_TIMER_SEC     (5 * HZ)
@@ -166,6 +168,7 @@ static void print_sensordata(struct ssp_data *data, unsigned int sensor_type)
 				 data->delay[sensor_type].sampling_period,
 				 data->delay[sensor_type].max_report_latency);
 			break;
+		case SENSOR_TYPE_ACCELEROMETER_UNCALIBRATED:
 		case SENSOR_TYPE_MAGNETIC_FIELD_UNCALIBRATED:
 		case SENSOR_TYPE_GYROSCOPE_UNCALIBRATED:
 			ssp_info("%s(%u) : %d, %d, %d, %d, %d, %d (%lld) (%ums, %dms)",
@@ -288,6 +291,11 @@ static void debug_work_func(struct work_struct *work)
 		if (data->en_info[type].enabled)
 			print_sensordata(data, type);
 
+#ifdef CONFIG_SENSORS_SSP_MAGNETIC
+	if (data->new_magcal)
+		save_mag_cal_data(data);
+#endif
+
 	if (is_sensorhub_working(data))
 		check_no_event(data);
 }
@@ -376,4 +384,3 @@ void print_dataframe(struct ssp_data *data, char *dataframe, int frame_len)
 		ssp_info("%s", raw_data);
 	}
 }
-

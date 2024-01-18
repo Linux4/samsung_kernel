@@ -22,7 +22,7 @@
 #define S2MU106_CHARGER_H
 #include <linux/mfd/slsi/s2mu106/s2mu106.h>
 
-#if defined(CONFIG_MUIC_NOTIFIER)
+#if IS_ENABLED(CONFIG_MUIC_NOTIFIER)
 #include <linux/muic/common/muic.h>
 #include <linux/muic/common/muic_notifier.h>
 #endif /* CONFIG_MUIC_NOTIFIER */
@@ -30,6 +30,25 @@
 #include "../../common/sec_charging_common.h"
 
 extern bool mfc_fw_update;
+
+enum {
+	CHIP_ID = 0,
+	DATA,
+	DATA_1
+};
+
+ssize_t s2mu106_chg_show_attrs(struct device *dev,
+				struct device_attribute *attr, char *buf);
+
+ssize_t s2mu106_chg_store_attrs(struct device *dev,
+				struct device_attribute *attr,
+				const char *buf, size_t count);
+#define S2MU106_ATTR(_name)				\
+{							\
+	.attr = {.name = #_name, .mode = 0664},	\
+	.show = s2mu106_chg_show_attrs,			\
+	.store = s2mu106_chg_store_attrs,			\
+}
 
 /* define function if need */
 #define ENABLE_MIVR 0
@@ -349,7 +368,7 @@ enum {
 	S2MU106_SET_BAT_OCP_7000mA	= 0x7,
 };
 
-typedef struct s2mu106_charger_platform_data {
+struct s2mu106_charger_platform_data {
 	int chg_float_voltage;
 	char *charger_name;
 	char *fuelgauge_name;
@@ -367,7 +386,7 @@ typedef struct s2mu106_charger_platform_data {
 	bool block_otg_psk_mode_en;
 	bool reduce_async_debounce_time;
 	bool lx_freq_recover;
-} s2mu106_charger_platform_data_t;
+};
 
 
 struct s2mu106_charger_data {
@@ -390,7 +409,7 @@ struct s2mu106_charger_data {
 	struct power_supply *psy_bat;
 	struct power_supply *psy_fg;
 
-	s2mu106_charger_platform_data_t *pdata;
+	struct s2mu106_charger_platform_data *pdata;
 	int dev_id;
 	int input_current;
 	int charging_current;

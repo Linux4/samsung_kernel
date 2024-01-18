@@ -346,9 +346,10 @@ static void __mfc_dump_state(struct mfc_dev *dev, int curr_ctx)
 			dev->hwlock.bits, dev->hwlock.dev,
 			curr_ctx, dev->curr_ctx_is_drm,
 			dev->preempt_ctx, mfc_get_bits(&dev->work_bits));
-	dev_err(dev->device, "has 2sysmmu:%d, has hwfc:%d, has mmcache:%d, has llc:%d, shutdown:%d, sleep:%d, itmon_notified:%d\n",
+	dev_err(dev->device, "has 2sysmmu:%d, has hwfc:%d, has mmcache:%d, has llc:%d, shutdown:%d, sleep:%d, QoS level: %d, itmon_notified:%d\n",
 			dev->has_2sysmmu, dev->has_hwfc, dev->has_mmcache, dev->has_llc,
-			dev->shutdown, dev->sleep, dev->itmon_notified);
+			dev->shutdown, dev->sleep, atomic_read(&dev->qos_req_cur) - 1,
+			dev->itmon_notified);
 	dev_err(dev->device, "options debug_level:%d, debug_mode:%d (%d), mmcache:%d, llc:%d, perf_boost:%d, wait_fw_status %d\n",
 			debug_level, dev->pdata->debug_mode, debug_mode_en,
 			dev->mmcache.is_on_status, dev->llc_on_status, perf_boost_mode,
@@ -362,7 +363,7 @@ static void __mfc_dump_state(struct mfc_dev *dev, int curr_ctx)
 
 	for (i = 0; i < MFC_NUM_CONTEXTS; i++) {
 		if (dev->ctx[i]) {
-			dev_err(dev->device, "- MFC ctx[%d] %s %s%s, %s, %s, size: %dx%d, crop: %d %d %d %d, state:%d\n",
+			dev_err(dev->device, "- MFC ctx[%d] %s %s%s, %s, %s, size: %dx%d@%ldfps(op: %ldfps), crop: %d %d %d %d, state:%d\n",
 				dev->ctx[i]->num,
 				dev->ctx[i]->type == MFCINST_DECODER ? "DEC" : "ENC",
 				dev->ctx[i]->is_drm ? "Secure" : "Normal",
@@ -370,9 +371,12 @@ static void __mfc_dump_state(struct mfc_dev *dev, int curr_ctx)
 				dev->ctx[i]->state > MFCINST_INIT ? dev->ctx[i]->src_fmt->name : "undefined src fmt",
 				dev->ctx[i]->state > MFCINST_INIT ? dev->ctx[i]->dst_fmt->name : "undefined dst fmt",
 				dev->ctx[i]->img_width, dev->ctx[i]->img_height,
+				dev->ctx[i]->last_framerate / 1000,
+				dev->ctx[i]->operating_framerate,
 				dev->ctx[i]->crop_width, dev->ctx[i]->crop_height,
 				dev->ctx[i]->crop_left, dev->ctx[i]->crop_top, dev->ctx[i]->state);
-			dev_err(dev->device, "	queue_cnt(src:%d, dst:%d, ref:%d, qsrc:%d, qdst:%d), interrupt(cond:%d, type:%d, err:%d)\n",
+			dev_err(dev->device, "	prio %d, rt %d, queue_cnt(src:%d, dst:%d, ref:%d, qsrc:%d, qdst:%d), interrupt(cond:%d, type:%d, err:%d)\n",
+				dev->ctx[i]->prio, dev->ctx[i]->rt,
 				mfc_get_queue_count(&dev->ctx[i]->buf_queue_lock, &dev->ctx[i]->src_buf_queue),
 				mfc_get_queue_count(&dev->ctx[i]->buf_queue_lock, &dev->ctx[i]->dst_buf_queue),
 				mfc_get_queue_count(&dev->ctx[i]->buf_queue_lock, &dev->ctx[i]->ref_buf_queue),
