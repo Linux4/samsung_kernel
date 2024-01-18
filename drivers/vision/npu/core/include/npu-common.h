@@ -160,6 +160,7 @@ typedef enum {
 	IFM_TYPE,
 	OFM_TYPE,
 	IMB_TYPE,
+	NCP_HDR_TYPE,
 	MAX_BUF_TYPE
 } mem_opt_e;
 
