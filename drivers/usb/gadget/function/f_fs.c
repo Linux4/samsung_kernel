@@ -295,11 +295,15 @@ static int __ffs_ep0_queue_wait(struct ffs_data *ffs, char *data, size_t len)
 
 	ret = wait_for_completion_interruptible(&ffs->ep0req_completion);
 	if (unlikely(ret)) {
+		if (!ffs->gadget)
+			return -EINTR;
 		usb_ep_dequeue(ffs->gadget->ep0, req);
 		return -EINTR;
 	}
 
 	ffs->setup_state = FFS_NO_SETUP;
+	if (!ffs->ep0req)
+		return -EINTR;
 	return req->status ? req->status : req->actual;
 }
 
@@ -1652,11 +1656,14 @@ static void ffs_data_closed(struct ffs_data *ffs)
 	if (atomic_dec_and_test(&ffs->opened)) {
 		if (ffs->no_disconnect) {
 			ffs->state = FFS_DEACTIVATED;
+			/* Blocking inode NULL */
+			mutex_lock(&ffs->mutex);			
 			if (ffs->epfiles) {
 				ffs_epfiles_destroy(ffs->epfiles,
 						   ffs->eps_count);
 				ffs->epfiles = NULL;
 			}
+			mutex_unlock(&ffs->mutex);			
 			if (ffs->setup_state == FFS_SETUP_PENDING)
 				__ffs_ep0_stall(ffs);
 		} else {
@@ -1709,8 +1716,13 @@ static void ffs_data_clear(struct ffs_data *ffs)
 
 	BUG_ON(ffs->gadget);
 
-	if (ffs->epfiles)
+	/* Blocking inode NULL */
+	mutex_lock(&ffs->mutex);
+	if (ffs->epfiles) {
 		ffs_epfiles_destroy(ffs->epfiles, ffs->eps_count);
+		ffs->epfiles = NULL;
+	}
+	mutex_unlock(&ffs->mutex);
 
 	if (ffs->ffs_eventfd)
 		eventfd_ctx_put(ffs->ffs_eventfd);
@@ -1726,7 +1738,6 @@ static void ffs_data_reset(struct ffs_data *ffs)
 
 	ffs_data_clear(ffs);
 
-	ffs->epfiles = NULL;
 	ffs->raw_descs_data = NULL;
 	ffs->raw_descs = NULL;
 	ffs->raw_strings = NULL;
@@ -1791,11 +1802,14 @@ static int functionfs_bind(struct ffs_data *ffs, struct usb_composite_dev *cdev)
 
 static void functionfs_unbind(struct ffs_data *ffs)
 {
+	struct usb_request *temp_ep0req;
+	
 	ENTER();
 
 	if (!WARN_ON(!ffs->gadget)) {
-		usb_ep_free_request(ffs->gadget->ep0, ffs->ep0req);
+		temp_ep0req = ffs->ep0req;
 		ffs->ep0req = NULL;
+		usb_ep_free_request(ffs->gadget->ep0, temp_ep0req);
 		ffs->gadget = NULL;
 		clear_bit(FFS_FL_BOUND, &ffs->flags);
 		ffs_data_put(ffs);
@@ -2956,6 +2970,9 @@ static inline struct f_fs_opts *ffs_do_functionfs_bind(struct usb_function *f,
 	func->ffs = ffs_opts->dev->ffs_data;
 	if (!ffs_opts->no_configfs)
 		ffs_dev_unlock();
+
+	pr_info("ffs_do_functionfs_bind %d\n", ret);
+
 	if (ret)
 		return ERR_PTR(ret);
 
@@ -3509,6 +3526,7 @@ static void ffs_func_unbind(struct usb_configuration *c,
 static struct usb_function *ffs_alloc(struct usb_function_instance *fi)
 {
 	struct ffs_function *func;
+	struct ffs_dev *dev;
 
 	ENTER();
 
@@ -3516,11 +3534,8 @@ static struct usb_function *ffs_alloc(struct usb_function_instance *fi)
 	if (unlikely(!func))
 		return ERR_PTR(-ENOMEM);
 
-#ifdef CONFIG_USB_OLD_CONFIGFS
-	func->function.name    = "adb";
-#else
-	func->function.name    = "Function FS Gadget";
-#endif
+	dev = to_f_fs_opts(fi)->dev;
+	func->function.name    = dev->name;
 
 	func->function.bind    = ffs_func_bind;
 	func->function.unbind  = ffs_func_unbind;

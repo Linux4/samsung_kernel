@@ -34,6 +34,10 @@
 #include <linux/sched/task.h>
 #endif
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0)
+#include "../security/integrity/integrity.h"
+#endif
+
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3, 19, 0)
 
 inline ssize_t __vfs_read(struct file *file, char __user *buf,
@@ -63,50 +67,70 @@ inline ssize_t __vfs_read(struct file *file, char __user *buf,
 struct file *local_fopen(const char *fname, int flags, umode_t mode)
 {
 	struct file *f;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 10, 0)
 	mm_segment_t old_fs;
+#endif
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 10, 0)
 	old_fs = get_fs();
 	set_fs(GET_KERNEL_DS);
+#endif
 	f = filp_open(fname, flags, mode);
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 10, 0)
 	set_fs(old_fs);
+#endif
 	return f;
 }
 
 int local_fread(struct file *f, loff_t offset, void *ptr, unsigned long bytes)
 {
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 10, 0)
 	mm_segment_t old_fs;
 	char __user *buf = (char __user *)ptr;
+#endif
 	ssize_t ret;
 
 	if (!(f->f_mode & FMODE_READ))
 		return -EBADF;
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 10, 0)
 	old_fs = get_fs();
 	set_fs(GET_KERNEL_DS);
-	ret = __vfs_read(f, buf, bytes, &offset);
+	ret = vfs_read(f, buf, bytes, &offset);
 	set_fs(old_fs);
+#else
+	ret = (ssize_t)integrity_kernel_read(f, offset, ptr, bytes);
+#endif
+
 	return (int)ret;
 }
 
 const char unknown_file[] = "<unknown filename>";
 
-void init_defex_context(struct defex_context *dc, int syscall, struct task_struct *p, struct file *f)
+__visible_for_testing bool check_slab_ptr(void *ptr)
 {
-	const struct cred *cred_ptr;
+	struct page *page;
 
-	memset(dc, 0, sizeof(struct defex_context) - sizeof(struct cred));
-	if (!IS_ERR_OR_NULL(f)) {
+	if (IS_ERR_OR_NULL(ptr) || ptr < (void *)PAGE_SIZE || !virt_addr_valid(ptr))
+		return false;
+	page = virt_to_head_page(ptr);
+	return PageSlab(page);
+}
+
+int init_defex_context(struct defex_context *dc, int syscall, struct task_struct *p, struct file *f)
+{
+	memset(dc, 0, offsetof(struct defex_context, cred));
+	if (check_slab_ptr(f)) {
 		get_file(f);
 		dc->target_file = f;
 	}
 	dc->syscall_no = syscall;
 	dc->task = p;
 	if (p == current)
-		cred_ptr = get_current_cred();
-	else
-		cred_ptr = get_task_cred(p);
-	memcpy(&dc->cred, cred_ptr, sizeof(struct cred));
-	put_cred(cred_ptr);
+		dc->cred = (struct cred *)current_cred();
+	if (!dc->cred)
+		return 0;
+	return 1;
 }
 
 void release_defex_context(struct defex_context *dc)
@@ -222,7 +246,13 @@ struct file *defex_get_source_file(struct task_struct *p)
 		if (!proc_mm)
 			return NULL;
 		if (self)
-			down_read(&proc_mm->mmap_sem);
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 8, 0)
+			if (!down_read_trylock(&proc_mm->mmap_sem))
+				return NULL;
+#else
+			if (!down_read_trylock(&proc_mm->mmap_lock))
+				return NULL;
+#endif
 		if (file_addr != proc_mm->exe_file) {
 			file_addr = proc_mm->exe_file;
 			if (!file_addr)
@@ -232,7 +262,11 @@ struct file *defex_get_source_file(struct task_struct *p)
 		}
 clean_mm:
 		if (self)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 8, 0)
 			up_read(&proc_mm->mmap_sem);
+#else
+			up_read(&proc_mm->mmap_lock);
+#endif
 		else
 			mmput(proc_mm);
 	}
@@ -255,14 +289,20 @@ char *defex_get_filename(struct task_struct *p)
 	char *filename = NULL;
 
 	exe_file = defex_get_source_file(p);
-	if (!exe_file)
+	if (IS_ERR_OR_NULL(exe_file))
 		goto out_filename;
 
 	dpath = &exe_file->f_path;
+	if (!dpath->dentry || !dpath->dentry->d_inode) {
+		fput(exe_file);
+		goto out_filename;
+	}
+	path_get(dpath);
 
 	buff = kmalloc(PATH_MAX, GFP_KERNEL);
 	if (buff)
 		path = d_path(dpath, buff, PATH_MAX);
+	path_put(dpath);
 
 #ifndef DEFEX_CACHES_ENABLE
 	fput(exe_file);

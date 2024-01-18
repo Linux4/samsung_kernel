@@ -244,6 +244,70 @@ ssize_t set_proximity_stk3328_avg_raw_data(struct ssp_data *data, const char *bu
 	return ret;
 }
 
+int calculate_proximity_threshold(struct ssp_data *data, u16 prox_raw)
+{
+	if (prox_raw > data->prox_cal_thresh[PROX_THRESH_LOW]
+	    && prox_raw <= data->prox_cal_thresh[PROX_THRESH_HIGH]) {
+		data->prox_thresh[PROX_THRESH_HIGH] += data->prox_cal_add_value;
+		data->prox_thresh[PROX_THRESH_LOW] += data->prox_cal_add_value;
+
+		ssp_infof("crosstalk = %u, threshold = %u, %u",
+			   prox_raw, data->prox_thresh[PROX_THRESH_HIGH], data->prox_thresh[PROX_THRESH_HIGH]);
+
+		return 0;
+	}
+
+	if (prox_raw > data->prox_cal_thresh[PROX_THRESH_HIGH])
+		ssp_errf("crosstalk(%u) > %d, calibration failed", prox_raw, data->prox_cal_thresh[PROX_THRESH_HIGH]);
+
+	return ERROR;
+}
+
+ssize_t set_proximity_stk3328_calibration(struct ssp_data *data, const char *buf)
+{
+	int ret = 0;
+	u16 prox_raw;
+	u16 prev_thresh[PROX_THRESH_SIZE];
+
+	prev_thresh[PROX_THRESH_HIGH] = data->prox_thresh[PROX_THRESH_HIGH];
+	prev_thresh[PROX_THRESH_LOW] = data->prox_thresh[PROX_THRESH_LOW];
+
+	if (sysfs_streq(buf, "1")) { /* calibrate */
+		ssp_infof("calibrate");
+		prox_raw = get_proximity_stk3328_raw_data(data);
+		if (prox_raw > data->prox_cal_thresh[PROX_THRESH_LOW]
+		    && prox_raw <= data->prox_cal_thresh[PROX_THRESH_HIGH]) {
+			data->prox_thresh[PROX_THRESH_HIGH] =
+						data->prox_thresh_default[PROX_THRESH_HIGH] + data->prox_cal_add_value;
+			data->prox_thresh[PROX_THRESH_LOW] =
+						data->prox_thresh_default[PROX_THRESH_LOW] + data->prox_cal_add_value;
+
+			ssp_infof("crosstalk = %u, threshold = %u, %u",
+				  prox_raw, data->prox_thresh[PROX_THRESH_HIGH], data->prox_thresh[PROX_THRESH_LOW]);
+		} else if (prox_raw > data->prox_cal_thresh[PROX_THRESH_HIGH]) {
+			data->prox_thresh[PROX_THRESH_HIGH] = data->prox_thresh_default[PROX_THRESH_HIGH];
+			data->prox_thresh[PROX_THRESH_LOW] = data->prox_thresh_default[PROX_THRESH_LOW];
+			ssp_infof("crosstalk(%u) > %d, calibration failed",
+				  prox_raw, data->prox_cal_thresh[PROX_THRESH_HIGH]);
+		} else {
+			data->prox_thresh[PROX_THRESH_HIGH] = data->prox_thresh_default[PROX_THRESH_HIGH];
+			data->prox_thresh[PROX_THRESH_LOW] = data->prox_thresh_default[PROX_THRESH_LOW];
+			ssp_infof("crosstalk(%u)", prox_raw);
+		}
+	} else {
+		ssp_errf("%s: invalid value %d", *buf);
+		ret = -EINVAL;
+	}
+
+	if (prev_thresh[PROX_THRESH_HIGH] != data->prox_thresh[PROX_THRESH_HIGH]
+	    || prev_thresh[PROX_THRESH_LOW] != data->prox_thresh[PROX_THRESH_LOW]) {
+		set_proximity_threshold(data);
+		ret = save_prox_cal_threshold_data(data);
+	}
+
+	return ret;
+}
+
 struct proximity_sensor_operations prox_stk3328_ops = {
 	.get_proximity_name = get_proximity_stk3328_name,
 	.get_proximity_vendor = get_proximity_stk3328_vendor,
@@ -256,6 +320,7 @@ struct proximity_sensor_operations prox_stk3328_ops = {
 	.set_proximity_avg_raw_data = set_proximity_stk3328_avg_raw_data,
 	.get_proximity_raw_data = get_proximity_stk3328_raw_data,
 	.get_proximity_trim_value = get_proximity_stk3328_trim_value,
+	.set_proximity_calibration = set_proximity_stk3328_calibration,
 };
 
 struct proximity_sensor_operations *get_proximity_stk3328_function_pointer(struct ssp_data *data)

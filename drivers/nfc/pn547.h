@@ -93,6 +93,7 @@
 #ifndef CONFIG_SEC_NFC_LOGGER
 #define NFC_LOG_ERR(fmt, ...)		pr_err("sec_nfc: "fmt, ##__VA_ARGS__)
 #define NFC_LOG_INFO(fmt, ...)		pr_info("sec_nfc: "fmt, ##__VA_ARGS__)
+#define NFC_LOG_INFO_WITH_DATE(fmt, ...) pr_info("sec_nfc: "fmt, ##__VA_ARGS__)
 #define NFC_LOG_DBG(fmt, ...)		pr_debug("sec_nfc: "fmt, ##__VA_ARGS__)
 #define NFC_LOG_REC(fmt, ...)		do { } while (0)
 
@@ -143,7 +144,7 @@ enum jcop_dwnld_state {
 
 };
 
-#if IS_ENABLED(CONFIG_BATTERY_SAMSUNG)
+#if IS_ENABLED(CONFIG_BATTERY_SAMSUNG) && !defined(CONFIG_NFC_PVDD_LATE_ENABLE)
 extern unsigned int lpcharge;
 #endif
 extern int ese_spi_pinctrl(int enable);

@@ -298,7 +298,7 @@ int npu_interface_open(struct npu_system *system)
 	interface.addr = (void *)((system->fw_npu_memory_buffer->vaddr) + NPU_MAILBOX_BASE);
 	interface.mbox_hdr = system->mbox_hdr;
 
-	ret = devm_request_irq(dev, system->irq0, mailbox_isr2, 0, "exynos-npu", NULL);
+	ret = devm_request_irq(dev, system->irq0, mailbox_isr2, IRQF_TRIGGER_HIGH, "exynos-npu", NULL);
 	if (ret) {
 		probe_err("fail(%d) in devm_request_irq(2)\n", ret);
 		goto err_exit;
@@ -337,12 +337,14 @@ err_exit:
 int npu_interface_close(struct npu_system *system)
 {
 	int wptr, rptr;
-	struct device *dev = &system->pdev->dev;
+	struct device *dev;
 
 	if (!system) {
 		npu_err("fail in %s\n", __func__);
 		return -EINVAL;
 	}
+
+	dev = &system->pdev->dev;
 
 	queue_work(wq, &work_report);
 	if ((wq) && (interface.mbox_hdr)) {

@@ -459,7 +459,7 @@ static int mfc_open(struct file *file)
 		goto err_no_device;
 	}
 
-	mfc_debug_dev(2, "mfc driver open called\n");
+	mfc_info_dev("mfc driver open called\n");
 
 	if (mutex_lock_interruptible(&dev->mfc_mutex))
 		return -ERESTARTSYS;

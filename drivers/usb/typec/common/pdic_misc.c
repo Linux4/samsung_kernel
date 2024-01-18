@@ -22,6 +22,7 @@
 #include <linux/device.h>
 #include <linux/miscdevice.h>
 #include <linux/vmalloc.h>
+#include <linux/compat.h>
 #include <linux/usb/typec/common/pdic_core.h>
 
 #define MAX_BUF 255
@@ -35,52 +36,75 @@
 
 static struct pdic_misc_core *p_m_core;
 
-void set_endian(char *src, char *dest, int size)
+int get_checksum(const char *data, int start_addr, int size)
 {
-	int i, j;
-	int loop;
-	int dest_pos;
-	int src_pos;
+	int pos, checksum = 0;
 
-	loop = size / SEC_UVDM_ALIGN;
-	loop += (((size % SEC_UVDM_ALIGN) > 0) ? 1:0);
+	if (!data || start_addr < 0 || size < 0
+		|| start_addr > MAX_BUF_DATA || size > MAX_BUF_DATA)
+		return -EINVAL;
 
-	for (i = 0 ; i < loop ; i++)
-		for (j = 0 ; j < SEC_UVDM_ALIGN ; j++) {
-			src_pos = SEC_UVDM_ALIGN * i + j;
-			dest_pos = SEC_UVDM_ALIGN * i + SEC_UVDM_ALIGN - j - 1;
-			dest[dest_pos] = src[src_pos];
-		}
-}
-EXPORT_SYMBOL(set_endian);
-
-int get_checksum(char *data, int start_addr, int size)
-{
-	int checksum = 0;
-	int i;
-
-	for (i = 0; i < size; i++)
-		checksum += data[start_addr+i];
+	for (pos = 0; pos < size; pos++)
+		checksum += data[start_addr + pos];
 
 	return checksum;
 }
 EXPORT_SYMBOL(get_checksum);
 
+int get_data_size(bool is_first_data, int data_size)
+{
+	int max_size = SEC_UVDM_MAXDATA_NORMAL;
+
+	if (data_size < 0)
+		return -EINVAL;
+
+	if (is_first_data)
+		max_size = SEC_UVDM_MAXDATA_FIRST;
+
+	return data_size <= max_size ? data_size : max_size;
+}
+EXPORT_SYMBOL(get_data_size);
+
+int set_endian(const char *src, char *dest, int size)
+{
+	int loop, cnt, total_loop, src_pos, dest_pos;
+
+	if (!src || !dest || size < 0 || size > MAX_BUF_DATA)
+		return -EINVAL;
+
+	total_loop = size / SEC_UVDM_ALIGN;
+	if (size % SEC_UVDM_ALIGN)
+		total_loop++;
+
+	memset(dest, 0, total_loop * SEC_UVDM_ALIGN);
+
+	for (loop = 0 ; loop < total_loop ; loop++) {
+		for (cnt = 0 ; cnt < SEC_UVDM_ALIGN ; cnt++) {
+			src_pos = SEC_UVDM_ALIGN * loop + cnt;
+			dest_pos = SEC_UVDM_ALIGN * loop + SEC_UVDM_ALIGN - cnt - 1;
+			dest[dest_pos] = src[src_pos];
+		}
+	}
+	return 0;
+}
+EXPORT_SYMBOL(set_endian);
+
 int set_uvdmset_count(int size)
 {
-	int ret = 0;
+	int cnt, len = size - SEC_UVDM_MAXDATA_FIRST;
 
-	if (size <= SEC_UVDM_MAXDATA_FIRST)
-		ret = 1;
-	else {
-		ret = ((size-SEC_UVDM_MAXDATA_FIRST) / SEC_UVDM_MAXDATA_NORMAL);
-		if (((size-SEC_UVDM_MAXDATA_FIRST) %
-			SEC_UVDM_MAXDATA_NORMAL) == 0)
-			ret += 1;
-		else
-			ret += 2;
-	}
-	return ret;
+	if (size < 0)
+		return -EINVAL;
+
+	if (len <= 0)
+		return 1;
+
+	cnt = len / SEC_UVDM_MAXDATA_NORMAL;
+
+	if (len % SEC_UVDM_MAXDATA_NORMAL == 0)
+		return cnt + 1;
+
+	return cnt + 2;
 }
 EXPORT_SYMBOL(set_uvdmset_count);
 
@@ -94,6 +118,7 @@ void set_msg_header(void *data, int msg_type, int obj_num)
 	msg_hdr->num_data_objs = obj_num;
 	msg_hdr->port_data_role = USBPD_DFP;
 }
+EXPORT_SYMBOL(set_msg_header);
 
 void set_uvdm_header(void *data, int vid, int vdm_type)
 {
@@ -106,6 +131,7 @@ void set_uvdm_header(void *data, int vid, int vdm_type)
 	uvdm_hdr->vendor_defined = SEC_UVDM_UNSTRUCTURED_VDM;
 	uvdm_hdr->BITS.VDM_command = 4; /* from s2mm005 concept */
 }
+EXPORT_SYMBOL(set_uvdm_header);
 
 void set_sec_uvdm_header(void *data, int pid, bool data_type, int cmd_type,
 		bool dir, int total_set_num, uint8_t received_data)
@@ -126,21 +152,7 @@ void set_sec_uvdm_header(void *data, int pid, bool data_type, int cmd_type,
 		SEC_UVDM_HEADER->pid, SEC_UVDM_HEADER->data_type,
 		SEC_UVDM_HEADER->cmd_type, SEC_UVDM_HEADER->direction);
 }
-
-int get_data_size(int first_set, int remained_data_size)
-{
-	int ret = 0;
-
-	if (first_set)
-		ret = (remained_data_size <= SEC_UVDM_MAXDATA_FIRST) ?
-			remained_data_size : SEC_UVDM_MAXDATA_FIRST;
-	else
-		ret = (remained_data_size <= SEC_UVDM_MAXDATA_NORMAL) ?
-			remained_data_size : SEC_UVDM_MAXDATA_NORMAL;
-
-	return ret;
-}
-EXPORT_SYMBOL(get_data_size);
+EXPORT_SYMBOL(set_sec_uvdm_header);
 
 void set_sec_uvdm_tx_header(void *data,
 		int first_set, int cur_set, int total_size, int remained_size)
@@ -156,6 +168,7 @@ void set_sec_uvdm_tx_header(void *data,
 	SEC_TX_HAEDER->total_size = total_size;
 	SEC_TX_HAEDER->order_cur_set = cur_set;
 }
+EXPORT_SYMBOL(set_sec_uvdm_tx_header);
 
 void set_sec_uvdm_tx_tailer(void *data)
 {
@@ -166,6 +179,7 @@ void set_sec_uvdm_tx_tailer(void *data)
 	SEC_TX_TAILER->checksum =
 		get_checksum(SendMSG, 4, SEC_UVDM_CHECKSUM_COUNT);
 }
+EXPORT_SYMBOL(set_sec_uvdm_tx_tailer);
 
 void set_sec_uvdm_rx_header(void *data, int cur_num, int cur_set, int ack)
 {
@@ -177,6 +191,7 @@ void set_sec_uvdm_rx_header(void *data, int cur_num, int cur_set, int ack)
 	SEC_RX_HEADER->rcv_data_size = cur_set;
 	SEC_RX_HEADER->result_value = ack;
 }
+EXPORT_SYMBOL(set_sec_uvdm_rx_header);
 
 struct pdic_misc_dev *get_pdic_misc_dev(void)
 {
@@ -232,7 +247,8 @@ static int pdic_misc_open(struct inode *inode, struct file *file)
 	}
 
 	/* check if there is some connection */
-	if (!p_m_core->c_dev.uvdm_ready()) {
+	if (!p_m_core->c_dev.uvdm_ready ||
+			!p_m_core->c_dev.uvdm_ready()) {
 		_unlock(&p_m_core->c_dev.open_excl);
 		pr_err("%s - error : uvdm is not ready\n", __func__);
 		ret = -EBUSY;
@@ -462,7 +478,19 @@ static int ums_update_open(struct inode *ip, struct file *fp)
 
 	pr_info("%s +\n", __func__);
 
+	if (!p_m_core) {
+		pr_err("%s - error : p_m_core is NULL\n", __func__);
+		ret = -ENODEV;
+		goto err;
+	}
+
 	fw_data = &p_m_core->fw_data;
+
+	if (_lock(&fw_data->opened)) {
+		pr_err("%s - error : device busy\n", __func__);
+		ret = -EBUSY;
+		goto err;
+	}
 
 	if (fw_data->ic_data->get_prev_fw_size)
 		p_fw_size = fw_data->ic_data->get_prev_fw_size
@@ -471,7 +499,7 @@ static int ums_update_open(struct inode *ip, struct file *fp)
 	if (p_fw_size <= 0 || p_fw_size > MAX_FW_SIZE) {
 		ret = -EFAULT;
 		pr_err("%s p_fw_size is %lu error\n", __func__, p_fw_size);
-		goto err;
+		goto err1;
 	}
 
 	/* alloc fw size +20% and align PAGE_SIZE */
@@ -483,13 +511,13 @@ static int ums_update_open(struct inode *ip, struct file *fp)
 	misc_data = kzalloc(sizeof(struct pdic_misc_data), GFP_KERNEL);
 	if (!misc_data) {
 		ret = -ENOMEM;
-		goto err;
+		goto err1;
 	}
 
 	fw_buf = vzalloc(p_fw_size);
 	if (!fw_buf) {
 		ret = -ENOMEM;
-		goto err1;
+		goto err2;
 	}
 
 	fw_data->misc_data = misc_data;
@@ -500,8 +528,10 @@ static int ums_update_open(struct inode *ip, struct file *fp)
 	fp->private_data = fw_data;
 	pr_info("%s -\n", __func__);
 	return 0;
-err1:
+err2:
 	kfree(misc_data);
+err1:
+	_unlock(&fw_data->opened);
 err:
 	pr_info("%s error -\n", __func__);
 	return ret;
@@ -533,6 +563,8 @@ static int ums_update_close(struct inode *ip, struct file *fp)
 
 	vfree(fw_data->misc_data->fw_buf);
 	kfree(fw_data->misc_data);
+
+	_unlock(&fw_data->opened);
 
 	pr_info("%s -\n", __func__);
 	return ret;
@@ -632,6 +664,7 @@ int pdic_misc_init(ppdic_data_t ppdic_data)
 	}
 	atomic_set(&p_m_core->c_dev.open_excl, 0);
 	atomic_set(&p_m_core->c_dev.ioctl_excl, 0);
+	atomic_set(&p_m_core->fw_data.opened, 0);
 
 	if (ppdic_data) {
 		ppdic_data->misc_dev = &p_m_core->c_dev;

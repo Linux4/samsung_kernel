@@ -226,23 +226,6 @@ static int tz_fsdev_get_pfns_and_pin(void *buf, unsigned int size,
 		log_error(tzdev_nwfs, "Failed to pin user pages (%d)\n", ret);
 		goto out_pfns;
 	}
-
-#if defined(CONFIG_TZDEV_PAGE_MIGRATION)
-		/*
-		 * In case of enabled migration it is possible that userspace pages
-		 * will be migrated from current physical page to some other
-		 * To avoid fails of CMA migrations we have to move pages to other
-		 * region which can not be inside any CMA region. This is done by
-		 * allocations with GFP_KERNEL flag to point UNMOVABLE memblock
-		 * to be used for such allocations.
-		 */
-		ret = tzdev_migrate_pages(task, mm, (unsigned long __user)buf, nr_pages,
-				1, 0, pages);
-		if (ret < 0) {
-			log_error(tzdev_nwfs, "Failed to migrate CMA pages (%d)\n", ret);
-			goto out_pin;
-		}
-#endif /* CONFIG_TZDEV_PAGE_MIGRATION */
 	up_write(&mm->mmap_sem);
 
 	for (i = 0; i < nr_pages; i++)
@@ -254,12 +237,6 @@ static int tz_fsdev_get_pfns_and_pin(void *buf, unsigned int size,
 	pin_info->pfns = pfns;
 
 	return 0;
-
-#if defined(CONFIG_TZDEV_PAGE_MIGRATION)
-out_pin:
-	tzdev_put_user_pages(pages, nr_pages);
-	tzdev_decrease_pinned_vm(mm, nr_pages);
-#endif /* CONFIG_TZDEV_PAGE_MIGRATION */
 
 out_pfns:
 	up_write(&mm->mmap_sem);

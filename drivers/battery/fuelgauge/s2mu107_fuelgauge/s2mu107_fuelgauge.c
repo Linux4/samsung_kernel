@@ -1609,6 +1609,9 @@ static int s2mu107_fg_get_property(struct power_supply *psy,
 		case SEC_BATTERY_CAPACITY_FULL:
 			val->intval = fuelgauge->pdata->capacity_full;
 			break;
+		default:
+			val->intval = -1;
+			break;
 		}
 		break;
 		/* Cell voltage (VCELL, mV) */

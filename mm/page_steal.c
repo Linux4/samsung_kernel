@@ -257,7 +257,7 @@ static int isolate_movable_pages(unsigned long start_pfn, unsigned int nr_pages,
 				isolate_lru_page(page);
 			if (page_mapped(page))
 				try_to_unmap(page,
-					TTU_IGNORE_MLOCK | TTU_IGNORE_ACCESS);
+					TTU_IGNORE_MLOCK | TTU_IGNORE_ACCESS, NULL);
 			continue;
 		}
 		/*

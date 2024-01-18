@@ -727,7 +727,6 @@ struct s2mu107_muic_data {
 };
 
 extern struct muic_platform_data muic_pdata;
-extern unsigned int lpcharge;
 
 int s2mu107_i2c_read_byte(struct i2c_client *client, u8 command);
 int s2mu107_i2c_write_byte(struct i2c_client *client, u8 command, u8 value);

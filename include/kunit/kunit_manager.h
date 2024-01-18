@@ -28,7 +28,7 @@ extern struct class *sec_class;
 
 #include <linux/device.h>
 
-#ifdef CONFIG_KUNIT
+#ifdef CONFIG_SEC_KUNIT
 #include <kunit/test.h>
 #endif
 

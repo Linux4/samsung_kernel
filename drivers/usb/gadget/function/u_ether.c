@@ -65,8 +65,7 @@ static struct workqueue_struct	*uether_wq;
 /* for dual-speed hardware, use deeper queues at high/super speed */
 static inline int qlen(struct usb_gadget *gadget, unsigned qmult)
 {
-	if (gadget_is_dualspeed(gadget) && (gadget->speed == USB_SPEED_HIGH ||
-					    gadget->speed >= USB_SPEED_SUPER))
+	if (gadget_is_dualspeed(gadget))
 		return qmult * DEFAULT_QLEN;
 	else
 		return DEFAULT_QLEN;
@@ -832,6 +831,7 @@ static netdev_tx_t eth_start_xmit(struct sk_buff *skb,
 		if (!dev->port_usb->multi_pkt_xfer)
 			dev_kfree_skb_any(skb);
 drop:
+		req->length = 0;
 		dev->net->stats.tx_dropped++;
 multiframe:
 		spin_lock_irqsave(&dev->tx_req_lock, flags);
@@ -1206,6 +1206,7 @@ int gether_register_netdev(struct net_device *net)
 		return status;
 	} else {
 		DBG(dev, "HOST MAC %pM\n", dev->host_mac);
+		DBG(dev, "MAC %pM\n", dev->dev_mac);
 
 		/* two kinds of host-initiated state changes:
 		 *  - iff DATA transfer is active, carrier is "on"
@@ -1469,7 +1470,7 @@ int gether_alloc_request(struct gether *link)
 
 	result = alloc_requests(dev, link, qlen(dev->gadget,
 				dev->qmult));
-
+	printk("usb: %s qlen %d\n", __func__, qlen(dev->gadget, dev->qmult));
 	return result;
 }
 EXPORT_SYMBOL_GPL(gether_free_request);

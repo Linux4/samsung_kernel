@@ -1,17 +1,17 @@
-/* SPDX-License-Identifier: GPL-2.0
- *
- * Samsung's performance logging
- *
- * Copyright (c) 2017 Samsung Electronics Co., Ltd
- *              http://www.samsung.com
- *
- * Binse Park <unsang.park@samsung.com>
- */
+// SPDX-License-Identifier: GPL-2.0
+//
+// Samsung's performance logging
+//
+// Copyright (c) 2017 Samsung Electronics Co., Ltd
+//              http://www.samsung.com
+//
+// Binse Park <unsang.park@samsung.com>
 
 #define KPERFMON_KERNEL
 #include <linux/ologk.h>
 #undef KPERFMON_KERNEL
 
+#include <linux/version.h>
 #include <linux/module.h>
 #include <linux/moduleparam.h>
 #include <linux/kernel.h>
@@ -24,7 +24,13 @@
 #include <linux/workqueue.h>
 #include <linux/slab.h>
 #include <linux/sec_debug.h>
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0)
+#define KPERFMON_KERNEL
 #include <linux/perflog.h>
+#undef KPERFMON_KERNEL
+#else
+#include <linux/perflog.h>
+#endif
 #if !defined(KPERFMON_KMALLOC)
 #include <linux/vmalloc.h>
 #endif
@@ -34,22 +40,29 @@
 #include <asm/stacktrace.h>
 
 
-#define FLAG_NOTHING  0
-#define FLAG_READING  1
-#define USE_WORKQUEUE 1
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0)
+#define rtc_time_to_tm(a, b) rtc_time64_to_tm(a, b)
 
-
-#define	PROC_NAME	"kperfmon"
-#if defined(KPERFMON_KMALLOC)
-#define BUFFER_SIZE	(5 * 1024)
-#else
-#define BUFFER_SIZE	(5 * 1024 * 1024)
+struct timeval {
+	time64_t    tv_sec;
+	long        tv_usec;
+};
 #endif
 
-#define HEADER_SIZE	PERFLOG_HEADER_SIZE
-#define DEBUGGER_SIZE	32
-#define STREAM_SIZE	PERFLOG_BUFF_STR_MAX_SIZE + PERFLOG_HEADER_SIZE
-#define READ_BUFFER_SIZE	STREAM_SIZE + 100
+
+#include "kperfmon.h"
+
+#define	PROC_NAME			"kperfmon"
+#if defined(KPERFMON_KMALLOC)
+#define BUFFER_SIZE			(5 * 1024)
+#else
+#define BUFFER_SIZE			(5 * 1024 * 1024)
+#endif
+
+#define HEADER_SIZE			PERFLOG_HEADER_SIZE
+#define DEBUGGER_SIZE			32
+#define STREAM_SIZE			(PERFLOG_BUFF_STR_MAX_SIZE + PERFLOG_HEADER_SIZE)
+#define READ_BUFFER_SIZE		(STREAM_SIZE + 100)
 
 #define MAX_DEPTH_OF_CALLSTACK		20
 #define MAX_MUTEX_RAWDATA		20
@@ -62,62 +75,19 @@
 #define DIGIT_UNIT			100000000
 #endif
 
-typedef unsigned char byte;
-
-struct tRingBuffer {
-	byte *data;
-	long length;
-	long start;
-	long end;
-	long position;
-
-	struct mutex mutex;
-	long debugger;
-	bool status;
-};
+#define KPERFMON_VERSION_LENGTH		100
 
 struct tRingBuffer buffer = {0, };
-struct file_operations;
+//const struct file_operations;
 
-#if defined(USE_WORKQUEUE)
-typedef struct {
-	struct work_struct ologk_work;
-	union _uPLogPacket writelogpacket;
-} t_ologk_work;
-#endif
-
-#if defined(RETURN_ALL_DATA_AT_ONCE)
-byte *readbuffer = 0;
-#endif
-
-#if defined(USE_MONITOR)
-unsigned long mutex_rawdata[MAX_MUTEX_RAWDATA + 1][MAX_MUTEX_RAWDATA_DIGIT] = {{0, },};
-#endif
-
-void CreateBuffer(struct tRingBuffer *buffer,
-			unsigned long length);
-void DestroyBuffer(struct tRingBuffer *buffer);
-void WriteBuffer(struct tRingBuffer *buffer,
-			byte *data, unsigned long length);
-void GetNext(struct tRingBuffer *buffer);
-void ReadBuffer(struct tRingBuffer *buffer,
-			byte *data,
-			unsigned long *length);
-ssize_t kperfmon_write(struct file *filp,
-				const char __user *data,
-				size_t length,
-				loff_t *loff_data);
-ssize_t kperfmon_read(struct file *filp,
-				char __user *data,
-				size_t count,
-				loff_t *loff_data);
+struct t_before_print *before_list_cur_pos;
+static LIST_HEAD(before_print_list);
 
 void CreateBuffer(struct tRingBuffer *buffer,
 			unsigned long length)
 {
-	if (buffer->data != 0) {
+	if (buffer->data != 0)
 		return;
-	}
 
 #if defined(KPERFMON_KMALLOC)
 	buffer->data = kmalloc(length + 1, GFP_KERNEL);
@@ -135,9 +105,7 @@ void CreateBuffer(struct tRingBuffer *buffer,
 	buffer->end = 0;
 	buffer->status = FLAG_NOTHING;
 	buffer->debugger = 0;
-#if defined(RETURN_ALL_DATA_AT_ONCE)
-	readbuffer = 0;
-#endif
+
 	memset(buffer->data, 0, length + 1);
 
 	mutex_init(&buffer->mutex);
@@ -153,12 +121,6 @@ void DestroyBuffer(struct tRingBuffer *buffer)
 #endif
 		buffer->data = 0;
 	}
-#if defined(RETURN_ALL_DATA_AT_ONCE)
-	if (readbuffer != 0) {
-		kfree(readbuffer);
-		readbuffer = 0;
-	}
-#endif
 }
 
 void WriteBuffer(struct tRingBuffer *buffer,
@@ -167,9 +129,8 @@ void WriteBuffer(struct tRingBuffer *buffer,
 {
 	long RemainSize = 0;
 
-	if (length < 0) {
+	if (length < 0)
 		return;
-	}
 
 	if (buffer->length < buffer->end + length) {
 		long FirstSize = buffer->length - buffer->end;
@@ -200,17 +161,14 @@ void WriteBuffer(struct tRingBuffer *buffer,
 
 	buffer->end += length;
 
-	if (buffer->start < 0) {
+	if (buffer->start < 0)
 		buffer->start = 0;
-	}
 
-	if (buffer->end >= buffer->length) {
+	if (buffer->end >= buffer->length)
 		buffer->end = 0;
-	}
 
-	if (buffer->status != FLAG_READING) {
+	if (buffer->status != FLAG_READING)
 		buffer->position = buffer->start;
-	}
 }
 
 void ReadBuffer(struct tRingBuffer *buffer,
@@ -238,11 +196,25 @@ void ReadBufferByPosition(struct tRingBuffer *buffer,
 {
 	if (start < end) {
 		*length = end - start;
+
+		if (*length >= PERFLOG_PACKET_SIZE) {
+			*length = 0;
+			return;
+		}
+
 		memcpy(data, buffer->data + start, *length);
-	} else {
+	} else if (buffer->length > start) {
 		*length = buffer->length - start;
+
+		if ((*length + end) >= PERFLOG_PACKET_SIZE) {
+			*length = 0;
+			return;
+		}
+
 		memcpy(data, buffer->data + start, *length);
 		memcpy(data + *length, buffer->data, end);
+	} else {
+		*length = 0;
 	}
 }
 
@@ -255,64 +227,70 @@ void GetNext(struct tRingBuffer *buffer)
 	buffer->position %= buffer->length;
 }
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0)
+static const struct proc_ops kperfmon_fops = {
+	.proc_open = kperfmon_open,
+	.proc_read = kperfmon_read,
+	.proc_write = kperfmon_write,
+};
+#else
 static const struct file_operations kperfmon_fops = {
 	.read = kperfmon_read,
 	.write = kperfmon_write,
 };
+#endif
 
-ssize_t kperfmon_write(struct file *filp,
-				const char __user *data,
-				size_t length,
-				loff_t *loff_data)
+void set_kperfmon_debugger_function(char *writebuffer)
 {
-	byte writebuffer[HEADER_SIZE + PERFLOG_BUFF_STR_MAX_SIZE] = {0, };
-	unsigned long DataLength = length;
+	buffer.debugger = !buffer.debugger;
 
-	if (!buffer.data) {
-		pr_info("%s() - Error buffer allocation is failed!!!\n",
-			__func__);
+	pr_info("%s() - buffer.debugger : %d\n",
+		__func__,
+		(int)buffer.debugger);
+}
+
+void process_version_function(char *writebuffer)
+{
+	struct t_before_print *pprinter = NULL;
+	int length = 0;
+
+	if (writebuffer == NULL)
+		return;
+
+	pprinter = kmalloc(sizeof(struct t_before_print), GFP_ATOMIC);
+
+	if (pprinter == NULL)
+		return;
+
+	length = strlen(writebuffer) + 1;
+	pprinter->pdata = kmalloc(length, GFP_ATOMIC);
+
+	if (pprinter->pdata == NULL) {
+		kfree(pprinter);
+		return;
+	}
+
+	strlcpy(pprinter->pdata, writebuffer, length);
+
+	list_add_tail(&pprinter->list, &before_print_list);
+}
+
+int ops_write_buffer(struct tRingBuffer *buffer,
+			byte *writebuffer, unsigned long length)
+{
+	unsigned long DataLength;
+
+	if (buffer == NULL)
 		return length;
-	}
-	//pr_info("kperfmon_write(DataLength : %d)\n", (int)DataLength);
 
-	if (DataLength > (HEADER_SIZE + PERFLOG_BUFF_STR_MAX_SIZE)) {
-		DataLength = HEADER_SIZE + PERFLOG_BUFF_STR_MAX_SIZE;
-	}
-
-	if (copy_from_user(writebuffer, data, DataLength)) {
-		return length;
-	}
-
-	if (!strncmp(writebuffer, "kperfmon_debugger", 17)) {
-		if (buffer.debugger == 1) {
-			buffer.debugger = 0;
-		} else {
-			buffer.debugger = 1;
-		}
-
-		printk(KERN_INFO "kperfmon_write(buffer.debugger : %d)\n",
-			(int)buffer.debugger);
-		return length;
-	}
-
-
-	//pr_info("kperfmon_write(DataLength : %d, %c, %s)\n",
-	//	(int)DataLength,
-	//	writebuffer[HEADER_SIZE - 1],
-	//	writebuffer);
-	//pr_info("kperfmon_write(DataLength : %d, %d)\n",
-	//	writebuffer[0],
-	//	writebuffer[1]);
-
-	if (PERFLOG_BUFF_STR_MAX_SIZE < writebuffer[HEADER_SIZE - 1]) {
+	if (writebuffer[HEADER_SIZE - 1] > PERFLOG_BUFF_STR_MAX_SIZE)
 		writebuffer[HEADER_SIZE - 1] = PERFLOG_BUFF_STR_MAX_SIZE;
-	}
-	DataLength = writebuffer[HEADER_SIZE - 1] + HEADER_SIZE;
-	//pr_info("kperfmon_write(DataLength : %d)\n", (int)DataLength);
 
-	mutex_lock(&buffer.mutex);
-	WriteBuffer(&buffer, writebuffer, DataLength);
-	mutex_unlock(&buffer.mutex);
+	DataLength = writebuffer[HEADER_SIZE - 1] + HEADER_SIZE;
+
+	mutex_lock(&buffer->mutex);
+	WriteBuffer(buffer, writebuffer, DataLength);
+	mutex_unlock(&buffer->mutex);
 #if defined(KPERFMON_DEBUG)
 	{
 		int i;
@@ -328,48 +306,86 @@ ssize_t kperfmon_write(struct file *filp,
 	return length;
 }
 
+int ops_process_command(struct tRingBuffer *buffer,
+			byte *writebuffer, unsigned long length)
+{
+	int idx;
+	int max_commands = (int)(sizeof(commands) / sizeof(struct t_command));
+
+	for (idx = 0 ; idx < max_commands ; idx++) {
+		int cmd_length = strlen(commands[idx].command);
+
+		if (cmd_length >= HEADER_SIZE + PERFLOG_BUFF_STR_MAX_SIZE)
+			continue;
+
+		if (!strncmp(writebuffer, commands[idx].command, cmd_length)
+		    && commands[idx].func != NULL
+		    && strlen(writebuffer) > cmd_length) {
+			commands[idx].func(writebuffer);
+			return length;
+		}
+	}
+
+	return length;
+}
+
+int kperfmon_open(struct inode *finode, struct file *filp)
+{
+	return 0;
+}
+
+ssize_t kperfmon_write(struct file *filp,
+				const char __user *data,
+				size_t length,
+				loff_t *loff_data)
+{
+	byte writebuffer[HEADER_SIZE + PERFLOG_BUFF_STR_MAX_SIZE + SH_IDX_PACKET + 1] = {0, };
+	unsigned long DataLength = length;
+	int max_write_ops = (int)(sizeof(write_opts) / sizeof(void *));
+	int type_of_data;
+
+	if (!buffer.data) {
+		pr_info("%s() - Error buffer allocation is failed!!!\n",
+			__func__);
+		return length;
+	}
+
+	if (length <= 0) {
+		pr_info("%s() - Error length : %d", __func__, length);
+		return length;
+	}
+
+	if (DataLength > (HEADER_SIZE + PERFLOG_BUFF_STR_MAX_SIZE + SH_IDX_PACKET))
+		DataLength = HEADER_SIZE + PERFLOG_BUFF_STR_MAX_SIZE + SH_IDX_PACKET;
+
+	if (copy_from_user(writebuffer, data, DataLength))
+		return length;
+
+	// [[[ This will be replaced with below code
+	type_of_data = writebuffer[SH_TYPE];
+
+	if (type_of_data < max_write_ops && type_of_data >= 0)
+		return write_opts[type_of_data](&buffer,
+			writebuffer + SH_IDX_PACKET,
+			DataLength - SH_IDX_PACKET);
+	// This will be replaced with below code ]]]
+
+	type_of_data -= (int)'0';
+
+	if (type_of_data < max_write_ops && type_of_data >= 0)
+		return write_opts[type_of_data](&buffer,
+			writebuffer + SH_IDX_PACKET,
+			DataLength - SH_IDX_PACKET);
+
+	return length;
+}
+
 ssize_t kperfmon_read(struct file *filp,
 				char __user *data,
 				size_t count,
 				loff_t *loff_data)
 {
 	unsigned long length;
-
-#if defined(RETURN_ALL_DATA_AT_ONCE) // Return Total Data
-	buffer.status = FLAG_READING;
-
-	printk(KERN_INFO "kperfmon_read(count : %d)\n", (int)count);
-	printk(KERN_INFO "kperfmon_read(buffer.start : %d)\n", (int)buffer.start);
-	printk(KERN_INFO "kperfmon_read(buffer.end : %d)\n", (int)buffer.end);
-
-	if (readbuffer == 0) {
-		readbuffer = kmalloc(BUFFER_SIZE + 1, GFP_KERNEL);
-	}
-	printk(KERN_INFO "kperfmon_read(readbuffer ----)\n");
-	mutex_lock(&buffer.mutex);
-	ReadBuffer(&buffer, readbuffer, &length);
-	mutex_unlock(&buffer.mutex);
-	printk(KERN_INFO "kperfmon_read(length : %d)\n", (int)length);
-
-#if defined(KPERFMON_KMALLOC)
-	if (copy_to_user(data, readbuffer, length)) {
-		printk(KERN_INFO "kperfmon_read(copy_to_user returned 0)\n");
-		buffer.status = FLAG_NOTHING;
-		return 0;
-	}
-	//printk(KERN_INFO "kperfmon_read(copy_to_user returned 0)\n");
-#else
-	memcpy(data, readbuffer, DataLength);
-#endif
-
-	if (readbuffer != 0) {
-		kfree(readbuffer);
-		readbuffer = 0;
-	}
-
-	buffer.status = FLAG_NOTHING;
-	return 0;
-#else // Return Line by Line
 	byte readbuffer[READ_BUFFER_SIZE] = {0, };
 	union _uPLogPacket readlogpacket;
 	char timestamp[32] = {0, };
@@ -378,7 +394,7 @@ ssize_t kperfmon_read(struct file *filp,
 	unsigned long end = 0;
 
 	if (!buffer.data) {
-		pr_info("kperfmon_read() - Error buffer allocation is failed!!!\n");
+		pr_info("%s() Error buffer allocation is failed!\n", __func__);
 		return 0;
 	}
 #if defined(USE_MONITOR)
@@ -426,9 +442,8 @@ ssize_t kperfmon_read(struct file *filp,
 				}
 			}
 
-			if (!flag) {
+			if (!flag)
 				mutex_log[idx_mutex_log++] = '0';
-			}
 
 			mutex_log[idx_mutex_log++] = ' ';
 		}
@@ -439,10 +454,38 @@ ssize_t kperfmon_read(struct file *filp,
 	buffer.status = FLAG_READING;
 
 	mutex_lock(&buffer.mutex);
+
+	if (buffer.position == buffer.start) {
+
+		if (before_list_cur_pos !=
+		   list_last_entry(&before_print_list, typeof(*before_list_cur_pos), list)) {
+			before_list_cur_pos = list_next_entry(before_list_cur_pos, list);
+
+			if (before_list_cur_pos != 0 && before_list_cur_pos->pdata != 0) {
+				int length = snprintf(readbuffer,
+							READ_BUFFER_SIZE,
+							"%s\n",
+							before_list_cur_pos->pdata);
+
+				if (length <= 0 || copy_to_user(data, readbuffer, length)) {
+					pr_info("%s(copy_to_user(4) returned > 0)\n", __func__);
+					mutex_unlock(&buffer.mutex);
+					buffer.status = FLAG_NOTHING;
+					return 0;
+				}
+
+				mutex_unlock(&buffer.mutex);
+				return length;
+			}
+		}
+	}
+
 	if (buffer.position == buffer.end || buffer.start < 0) {
 		buffer.position = buffer.start;
 		mutex_unlock(&buffer.mutex);
 		buffer.status = FLAG_NOTHING;
+		before_list_cur_pos
+			= list_first_entry(&before_print_list, typeof(*before_list_cur_pos), list);
 		return 0;
 	}
 
@@ -464,9 +507,16 @@ ssize_t kperfmon_read(struct file *filp,
 	mutex_unlock(&buffer.mutex);
 	//printk(KERN_INFO "kperfmon_read(length : %d)\n", (int)length);
 	//readlogpacket.stream[length++] = '\n';
+
+	if (length >= PERFLOG_PACKET_SIZE) {
+		length = PERFLOG_PACKET_SIZE - 1;
+	} else if (length == 0) {
+		return 0;
+	}
+
 	readlogpacket.stream[length] = 0;
 
-#if 0
+#if NOT_USED
 	change2localtime(timestamp, readlogpacket.itemes.timestemp_sec);
 #else
 	snprintf(timestamp, 32, "%02d-%02d %02d:%02d:%02d.%03d",
@@ -476,7 +526,6 @@ ssize_t kperfmon_read(struct file *filp,
 			readlogpacket.itemes.timestamp.minute,
 			readlogpacket.itemes.timestamp.second,
 			readlogpacket.itemes.timestamp.msecond);
-#endif
 
 	if (readlogpacket.itemes.type >= OlogTestEnum_Type_maxnum
 	    || readlogpacket.itemes.type < 0) {
@@ -500,33 +549,31 @@ ssize_t kperfmon_read(struct file *filp,
 				readlogpacket.itemes.context_buffer);
 
 
-	if (length > count) {
+	if (length > count)
 		length = count;
-	}
 
 	if (buffer.debugger && count > DEBUGGER_SIZE) {
 		char debugger[DEBUGGER_SIZE] = "______________________________";
 
 		snprintf(debugger, DEBUGGER_SIZE, "S:%010lu_E:%010lu_____", start, end);
 
-		if (length + DEBUGGER_SIZE > count) {
+		if (length + DEBUGGER_SIZE > count)
 			length = count - DEBUGGER_SIZE;
-		}
 
 		if (copy_to_user(data, debugger, strnlen(debugger, DEBUGGER_SIZE))) {
-			printk("kperfmon_read(copy_to_user(1) returned > 0)\n");
+			pr_info("%s(copy_to_user(1) returned > 0)\n", __func__);
 			return 0;
 		}
 
 		if (copy_to_user(data + DEBUGGER_SIZE, readbuffer, length)) {
-			printk("kperfmon_read(copy_to_user(2) returned > 0)\n");
+			pr_info("%s(copy_to_user(2) returned > 0)\n", __func__);
 			return 0;
 		}
 
 		length += DEBUGGER_SIZE;
 	} else {
-		if (copy_to_user(data, readbuffer, length)) {
-			printk("kperfmon_read(copy_to_user(3) returned > 0)\n");
+		if (length <= 0 || copy_to_user(data, readbuffer, length)) {
+			pr_info("%s(copy_to_user(3) returned > 0)\n", __func__);
 			return 0;
 		}
 	}
@@ -541,25 +588,33 @@ ssize_t kperfmon_read(struct file *filp,
 static int __init kperfmon_init(void)
 {
 	struct proc_dir_entry *entry;
+	char kperfmon_version[KPERFMON_VERSION_LENGTH] = {0, };
 
 	CreateBuffer(&buffer, BUFFER_SIZE);
 
 	if (!buffer.data) {
-		printk("kperfmon_init() - Error buffer allocation is failed!!!\n");
+		pr_info("%s() - Error buffer allocation is failed!!!\n", __func__);
 		return -ENOMEM;
 	}
 
 	entry = proc_create(PROC_NAME, 0664, NULL, &kperfmon_fops);
 
 	if (!entry) {
-		printk("kperfmon_init() - Error creating entry in proc failed!!!\n");
+		pr_info("%s() - Error creating entry in proc failed!!!\n", __func__);
 		DestroyBuffer(&buffer);
 		return -EBUSY;
 	}
 
 	/*dbg_level_is_low = (sec_debug_level() == ANDROID_DEBUG_LEVEL_LOW);*/
 
-	printk(KERN_INFO "kperfmon_init()\n");
+	INIT_LIST_HEAD(&before_print_list);
+	before_list_cur_pos =
+		list_first_entry(&before_print_list, typeof(*before_list_cur_pos), list);
+	process_version_function("  ");
+	snprintf(kperfmon_version, KPERFMON_VERSION_LENGTH, "kperfmon_version [1.0.1]   kperfmon_read : 0x%x,  kperfmon_write : 0x%x", kperfmon_read, kperfmon_write);
+	process_version_function(kperfmon_version);
+
+	pr_info("%s()\n", __func__);
 
 	return 0;
 }
@@ -567,13 +622,13 @@ static int __init kperfmon_init(void)
 static void __exit kperfmon_exit(void)
 {
 	DestroyBuffer(&buffer);
-	printk(KERN_INFO "kperfmon_exit()\n");
+	pr_info("%s()\n", __func__);
 }
 
 #if defined(USE_WORKQUEUE)
 static void ologk_workqueue_func(struct work_struct *work)
 {
-	t_ologk_work *workqueue = (t_ologk_work *)work;
+	struct t_ologk_work *workqueue = (struct t_ologk_work *)work;
 
 	if (work) {
 		mutex_lock(&buffer.mutex);
@@ -587,6 +642,17 @@ static void ologk_workqueue_func(struct work_struct *work)
 }
 #endif
 
+//#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 0, 0)
+static inline void do_gettimeofday2(struct timeval *tv)
+{
+	struct timespec64 now;
+
+	ktime_get_real_ts64(&now);
+	tv->tv_sec = now.tv_sec;
+	tv->tv_usec = now.tv_nsec/1000;
+}
+//#endif /* LINUX_VER >= 5.0 */
+
 void _perflog(int type, int logid, const char *fmt, ...)
 {
 #if !defined(USE_WORKQUEUE)
@@ -596,26 +662,26 @@ void _perflog(int type, int logid, const char *fmt, ...)
 	struct timeval time;
 	unsigned long local_time;
 #if defined(USE_WORKQUEUE)
-	t_ologk_work *workqueue = 0;
+	struct t_ologk_work *workqueue = 0;
 #endif
 	va_list args;
 
 	va_start(args, fmt);
 
 	if (buffer.data == 0) {
+		va_end(args);
 		return;
 	}
 
-
 #if defined(USE_WORKQUEUE)
-	workqueue = (t_ologk_work *)kmalloc(sizeof(t_ologk_work), GFP_ATOMIC);
+	workqueue = kmalloc(sizeof(struct t_ologk_work), GFP_ATOMIC);
 
 	if (workqueue) {
 		struct _PLogPacket *pitemes = &workqueue->writelogpacket.itemes;
 
 		INIT_WORK((struct work_struct *)workqueue, ologk_workqueue_func);
 
-		do_gettimeofday(&time);
+		do_gettimeofday2(&time);
 		local_time = (u32)(time.tv_sec - (sys_tz.tz_minuteswest * 60));
 		rtc_time_to_tm(local_time, &tm);
 
@@ -643,26 +709,25 @@ void _perflog(int type, int logid, const char *fmt, ...)
 						fmt,
 						args);
 
-		if (pitemes->context_length > PERFLOG_BUFF_STR_MAX_SIZE) {
+		if (pitemes->context_length > PERFLOG_BUFF_STR_MAX_SIZE)
 			pitemes->context_length = PERFLOG_BUFF_STR_MAX_SIZE;
-		}
 
 		schedule_work((struct work_struct *)workqueue);
 
-		/*{
-			struct timeval end_time;
-			do_gettimeofday(&end_time);
-			printk("ologk() execution time with workqueue : %ld us ( %ld - %ld )\n",
-					end_time.tv_usec - time.tv_usec,
-					end_time.tv_usec,
-					time.tv_usec);
-		}*/
+		//{
+		//	struct timeval end_time;
+		//	do_gettimeofday2(&end_time);
+		//	printk("ologk() execution time with workqueue : %ld us ( %ld - %ld )\n",
+		//			end_time.tv_usec - time.tv_usec,
+		//			end_time.tv_usec,
+		//			time.tv_usec);
+		//}
 	} else {
-		printk(KERN_INFO "_perflog : workqueue is not working\n");
+		pr_info("%s : workqueue is not working\n", __func__);
 	}
 
 #else
-	do_gettimeofday(&time);
+	do_gettimeofday2(&time);
 	local_time = (u32)(time.tv_sec - (sys_tz.tz_minuteswest * 60));
 	rtc_time_to_tm(local_time, &tm);
 
@@ -689,9 +754,8 @@ void _perflog(int type, int logid, const char *fmt, ...)
 							fmt,
 							args);
 
-	if (writelogpacket.itemes.context_length > PERFLOG_BUFF_STR_MAX_SIZE) {
+	if (writelogpacket.itemes.context_length > PERFLOG_BUFF_STR_MAX_SIZE)
 		writelogpacket.itemes.context_length = PERFLOG_BUFF_STR_MAX_SIZE;
-	}
 
 	mutex_lock(&buffer.mutex);
 	WriteBuffer(&buffer,
@@ -699,13 +763,13 @@ void _perflog(int type, int logid, const char *fmt, ...)
 			PERFLOG_HEADER_SIZE + writelogpacket.itemes.context_length);
 	mutex_unlock(&buffer.mutex);
 
-	/*{
-		struct timeval end_time;
-		do_gettimeofday(&end_time);
-		printk(KERN_INFO "ologk() execution time : %ld us ( %ld - %ld )\n",
-				end_time.tv_usec - time.tv_usec,
-				end_time.tv_usec, time.tv_usec);
-	}*/
+	//{
+	//	struct timeval end_time;
+	//	do_gettimeofday2(&end_time);
+	//	printk(KERN_INFO "ologk() execution time : %ld us ( %ld - %ld )\n",
+	//			end_time.tv_usec - time.tv_usec,
+	//			end_time.tv_usec, time.tv_usec);
+	//}
 #endif
 
 	va_end(args);
@@ -726,6 +790,7 @@ void get_callstack(char *buffer, int max_size, int max_count)
 #if defined(CONFIG_FUNCTION_GRAPH_TRACER)
 	frame.graph = tsk->curr_ret_stack;
 #endif
+#if NOT_USED // temporary for GKI
 	if (max_size > 0) {
 		int count = 0;
 
@@ -734,6 +799,7 @@ void get_callstack(char *buffer, int max_size, int max_count)
 		do {
 			if (count > 2) {
 				int len = snprintf(buffer, max_size, " %pS", (void *)frame.pc);
+
 				max_size -= len;
 				buffer += len;
 			}
@@ -744,22 +810,19 @@ void get_callstack(char *buffer, int max_size, int max_count)
 
 		put_task_stack(tsk);
 	}
+#endif
 }
 
 void send_signal(void)
 {
-	/*
+#if NOT_USED // temporary for GKI
 	siginfo_t info;
-
-	if (sec_debug_level() == ANDROID_DEBUG_LEVEL_LOW) {
-		return;
-	}
 
 	info.si_signo = SIGNAL_35;
 	info.si_errno = SIGNAL_OLOG;
 	info.si_code = SIGNAL_OLOG;
 	send_sig_info(SIGNAL_35, &info, current);
-	*/
+#endif
 }
 
 void perflog_evt(int logid, int arg1)
@@ -770,11 +833,10 @@ void perflog_evt(int logid, int arg1)
 
 	int digit = 0;
 
-	do_gettimeofday(&start_time);
+	do_gettimeofday2(&start_time);
 #endif
-	if (arg1 < 0 || buffer.status != FLAG_NOTHING) {
+	if (arg1 < 0 || buffer.status != FLAG_NOTHING)
 		return;
-	}
 
 	if (arg1 > MAX_MUTEX_RAWDATA) {
 		char log_buffer[PERFLOG_BUFF_STR_MAX_SIZE];
@@ -788,7 +850,10 @@ void perflog_evt(int logid, int arg1)
 					PERFLOG_BUFF_STR_MAX_SIZE,
 					"%d jiffies",
 					arg1);
-			send_signal();
+			// Make some stuck problems to be needed to check
+			// how many the mutex logging are occurred.
+			// Refer to P200523-00343, P200523-01815.
+			/*send_signal();*/
 
 			get_callstack(log_buffer + len,
 					PERFLOG_BUFF_STR_MAX_SIZE - len,
@@ -796,7 +861,7 @@ void perflog_evt(int logid, int arg1)
 			_perflog(PERFLOG_EVT, PERFLOG_MUTEX, log_buffer);
 			arg1 = MAX_MUTEX_RAWDATA;
 
-			//do_gettimeofday(&end_time);
+			//do_gettimeofday2(&end_time);
 			//_perflog(PERFLOG_EVT,
 			//		PERFLOG_MUTEX,
 			//		"[MUTEX] processing time : %d",
@@ -806,19 +871,22 @@ void perflog_evt(int logid, int arg1)
 #if defined(USE_MONITOR)
 	for (digit = 0 ; digit < MAX_MUTEX_RAWDATA_DIGIT ; digit++) {
 		mutex_rawdata[arg1][digit]++;
-		if (mutex_rawdata[arg1][digit] >= DIGIT_UNIT) {
+		if (mutex_rawdata[arg1][digit] >= DIGIT_UNIT)
 			mutex_rawdata[arg1][digit] = 0;
-		} else {
+		else
 			break;
-		}
 	}
 #endif
 }
 
 //EXPORT_SYMBOL(ologk);
-EXPORT_SYMBOL(_perflog);
-EXPORT_SYMBOL(perflog_evt);
+//EXPORT_SYMBOL(_perflog);
+//EXPORT_SYMBOL(perflog_evt);
 
 module_init(kperfmon_init);
 module_exit(kperfmon_exit);
+
+MODULE_LICENSE("GPL");
+MODULE_AUTHOR("Binse Park <unsang.park@samsung.com>");
+MODULE_DESCRIPTION("Performance Log(OLOG)");
 

@@ -6,16 +6,11 @@
  * as published by the Free Software Foundation.
  */
 
-#include "include/defex_rules.h"
-
-const struct static_rule defex_static_rules[] = {
-	{feature_ped_path,"/"},
-	{feature_safeplace_status,"1"},
-	{feature_immutable_status,"1"},
-	{feature_ped_status,"1"},
-#ifndef DEFEX_USE_PACKED_RULES
+#if 0
+	/* Rules start after this line */
 	{feature_ped_exception,"/system/bin/run-as"},	/* DEFAULT */
 	{feature_ped_exception,"/system/bin/dumpstate"},	/* DEFAULT */
+	{feature_ped_exception,"/vendor/bin/hw/vendor.samsung.hardware.camera.provider@4.0-service"},	/* DEFAULT */
 	{feature_safeplace_path,"/init"},
 	{feature_safeplace_path,"/system/bin/init"},
 	{feature_safeplace_path,"/system/bin/app_process32"},
@@ -106,6 +101,7 @@ const struct static_rule defex_static_rules[] = {
 	{feature_safeplace_path,"/vendor/bin/init.class_main.sh"},
 	{feature_safeplace_path,"/vendor/bin/time_daemon"},
 	{feature_safeplace_path,"/vendor/bin/thermal-engine"},
+	{feature_safeplace_path,"/vendor/bin/thermal-engine-v2"},
 	{feature_safeplace_path,"/system/bin/sec_diag_uart_log"},
 	{feature_safeplace_path,"/vendor/bin/init.qcom.sh"},
 	{feature_safeplace_path,"/system/bin/usbd"},
@@ -156,9 +152,20 @@ const struct static_rule defex_static_rules[] = {
 	{feature_safeplace_path,"/vendor/bin/shsusrd"},
 	{feature_safeplace_path,"/system/bin/defrag_f2fs"},
 	{feature_safeplace_path,"/system/bin/fastbootd"},
+	{feature_safeplace_path,"/system/bin/sbm"},
 	{feature_safeplace_path,"/vendor/bin/hw/vendor.qti.hardware.perf@2.1-service"},
 	{feature_safeplace_path,"/vendor/bin/hw/vendor.qti.hardware.perf@2.2-service"},
 	{feature_safeplace_path,"/vendor/bin/grep"},
+	{feature_safeplace_path,"/vendor/bin/memlogd"},
+	{feature_safeplace_path,"/vendor/bin/init.insmod.sh"},
+	{feature_safeplace_path,"/vendor/bin/hw/android.hardware.usb@1.3-service.coral"},
+	{feature_safeplace_path,"/vendor/bin/hw/vendor.qti.hardware.perf-hal-service"},
+	{feature_safeplace_path,"/vendor/bin/iod"},
+	{feature_safeplace_path,"/vendor/bin/dsmsca"},
+	{feature_safeplace_path,"/vendor/bin/hqread"},
+	{feature_safeplace_path,"/system/bin/hqcpsnbin"},
+	{feature_safeplace_path,"/system/bin/awk"},
+	{feature_safeplace_path,"/system/bin/bc"},
 	{feature_safeplace_path,"/system/bin/rdxd"},
 	{feature_safeplace_path,"/system/system_ext/bin/dpmd"},
 	{feature_safeplace_path,"/vendor/bin/init.qti.dcvs.sh"},
@@ -171,7 +178,18 @@ const struct static_rule defex_static_rules[] = {
 	{feature_safeplace_path,"/vendor/bin/init.kernel.post_boot.sh"},
 	{feature_safeplace_path,"/vendor/bin/init.kernel.post_boot-lahaina.sh"},
 	{feature_safeplace_path,"/vendor/bin/init.qti.keymaster.sh"},
+	{feature_safeplace_path,"/vendor/bin/init.qti.write.sh"},
+	{feature_safeplace_path,"/vendor/bin/vmmgr"},
+	{feature_safeplace_path,"/product/bin/qvirtmgr"},
+	{feature_safeplace_path,"/system_ext/bin/qcrosvm"},
+	{feature_safeplace_path,"/vendor/bin/ssr_setup"},
 	{feature_safeplace_path,"/vendor/bin/thermal_manager"},
+	{feature_safeplace_path,"/vendor/bin/nvram_daemon"},
+	{feature_safeplace_path,"/vendor/bin/hw/vendor.mediatek.hardware.nvram@1.1-service"},
+	{feature_safeplace_path,"/vendor/bin/aee_aedv"},
+	{feature_safeplace_path,"/vendor/bin/aee_aedv64"},
+	{feature_safeplace_path,"/vendor/bin/meta_tst"},
+	{feature_safeplace_path,"/vendor/bin/thermal_core"},
 	{feature_safeplace_path,"/system/bin/linkerconfig"},
 	{feature_safeplace_path,"/system/bin/snapshotctl"},
 	{feature_safeplace_path,"/system/bin/boringssl_self_test32"},
@@ -194,11 +212,31 @@ const struct static_rule defex_static_rules[] = {
 	{feature_safeplace_path,"/system/bin/procrank"},
 	{feature_safeplace_path,"/system/bin/showmap"},
 	{feature_safeplace_path,"/product/bin/dmabuf_dump"},
+	{feature_safeplace_path,"/system/bin/dmabuf_dump"},
 	{feature_safeplace_path,"/apex/com.android.runtime/bin/spqr"},
-	{feature_safeplace_path,"/tmp/update_binary"},
+	{feature_safeplace_path,"/system/bin/perfetto"},
+	{feature_safeplace_path,"/system/bin/update_verifier"},
+	{feature_safeplace_path,"/system/bin/bootstrap/linkerconfig"},
+	{feature_safeplace_path,"/apex/com.android.runtime/bin/linkerconfig"},
+	{feature_safeplace_path,"/system/bin/otapreopt_slot"},
+	{feature_safeplace_path,"/apex/com.android.art/bin/dex2oat32"},
+	{feature_safeplace_path,"/apex/com.android.art/bin/dex2oat64"},
+	{feature_safeplace_path,"/system/bin/incident"},
+	{feature_safeplace_path,"/system/bin/odsign"},
+	{feature_safeplace_path,"/apex/com.android.art/bin/odrefresh"},
+	{feature_safeplace_path,"/apex/com.android.art/bin/artd"},
+	{feature_safeplace_path,"/apex/com.android.runtime/bin/crash_dump32"},
+	{feature_safeplace_path,"/apex/com.android.runtime/bin/crash_dump64"},
+	{feature_safeplace_path,"/system/bin/lpdump"},
+	{feature_safeplace_path,"/system/bin/extra_free_kbytes.sh"},
+	{feature_safeplace_path,"/system/bin/bpfloader"},
+	{feature_safeplace_path,"/system/bin/btfloader"},
+	{feature_safeplace_path,"/vendor/bin/system_dlkm_modprobe.sh"},
+	{feature_safeplace_path,"/tmp/update_binary;updater_intermediates/updater;obj/EXECUTABLES"},
 	{feature_safeplace_path,"/tmp/update-binary"},
 	{feature_safeplace_path,"/system/bin/install-recovery.sh"},	/* DEFAULT */
 	{feature_safeplace_path,"/vendor/bin/install-recovery.sh"},	/* DEFAULT */
+	{feature_safeplace_path,"/system/bin/bpfloader"},	/* DEFAULT */
 	{feature_immutable_path_write,"/system/"},	/* DEFAULT */
 	{feature_immutable_path_write,"/vendor/"},	/* DEFAULT */
 	{feature_immutable_path_open,"/system/bin/"},	/* DEFAULT */
@@ -220,9 +258,16 @@ const struct static_rule defex_static_rules[] = {
 	{feature_immutable_src_exception,"/vendor/bin/iof_vendor"},
 	{feature_immutable_src_exception,"/init"},
 	{feature_immutable_src_exception,"/system/bin/init"},
+	{feature_immutable_src_exception,"/system/bin/lshal"},
+	{feature_immutable_src_exception,"/apex/com.android.runtime/bin/crash_dump32"},	/* DEFAULT */
+	{feature_immutable_src_exception,"/apex/com.android.runtime/bin/crash_dump64"},	/* DEFAULT */
+	{feature_integrity_check,"/vendor/bin/hw/android.hardware.gatekeeper@1.0-service"},
+	{feature_integrity_check,"/vendor/bin/hw/android.hardware.keymaster@4.0-service"},
+	{feature_integrity_check,"/vendor/bin/hw/android.hardware.security.keymint-service"},
+	{feature_integrity_check,"/vendor/bin/hw/vendor.samsung.hardware.tlc.kg@1.0-service"},
+	{feature_integrity_check,"/vendor/bin/vendor.samsung.hardware.security.wsm@1.0-service"},
+	{feature_integrity_check,"/vendor/bin/vaultkeeperd"},
+	{feature_integrity_check,"/vendor/bin/hw/vendor.samsung.hardware.tlc.kg@1.1-service"},
 	/* Rules will be added here */
 	/* Never modify the above line. Rules will be added for buildtime */
-#endif /* DEFEX_USE_PACKED_RULES */
-};
-
-const int static_rule_count = sizeof(defex_static_rules) / sizeof(defex_static_rules[0]);
+#endif /* if 0 */

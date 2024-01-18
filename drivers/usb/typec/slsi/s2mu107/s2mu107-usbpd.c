@@ -28,6 +28,7 @@
 #include <linux/usb/typec/slsi/common/usbpd.h>
 #include <linux/usb/typec/slsi/s2mu107/usbpd-s2mu107.h>
 #include <linux/usb/typec/common/pdic_sysfs.h>
+#include <linux/usb/typec/common/pdic_param.h>
 
 #include <linux/muic/common/muic.h>
 #if defined(CONFIG_MUIC_NOTIFIER)
@@ -616,23 +617,23 @@ static void process_dr_swap(struct s2mu107_usbpd_data *usbpd_data)
 	if (usbpd_data->is_host == HOST_ON) {
 		pdic_event_work(usbpd_data,
 			PDIC_NOTIFY_DEV_USB, PDIC_NOTIFY_ID_USB,
-				0/*attach*/, USB_STATUS_NOTIFY_DETACH/*drp*/);
+				0/*attach*/, USB_STATUS_NOTIFY_DETACH/*drp*/, 0);
 		pdic_event_work(usbpd_data, PDIC_NOTIFY_DEV_MUIC,
-				PDIC_NOTIFY_ID_ATTACH, 1/*attach*/, 0/*rprd*/);
+				PDIC_NOTIFY_ID_ATTACH, 1/*attach*/, 0/*rprd*/, 0);
 		pdic_event_work(usbpd_data,
 			PDIC_NOTIFY_DEV_USB, PDIC_NOTIFY_ID_USB,
-				1/*attach*/, USB_STATUS_NOTIFY_ATTACH_UFP/*drp*/);
+				1/*attach*/, USB_STATUS_NOTIFY_ATTACH_UFP/*drp*/, 0);
 		usbpd_data->is_host = HOST_OFF;
 		usbpd_data->is_client = CLIENT_ON;
 	} else if (usbpd_data->is_client == CLIENT_ON) {
 		pdic_event_work(usbpd_data,
 			PDIC_NOTIFY_DEV_USB, PDIC_NOTIFY_ID_USB,
-				0/*attach*/, USB_STATUS_NOTIFY_DETACH/*drp*/);
+				0/*attach*/, USB_STATUS_NOTIFY_DETACH/*drp*/, 0);
 		pdic_event_work(usbpd_data, PDIC_NOTIFY_DEV_MUIC,
-				PDIC_NOTIFY_ID_ATTACH, 1/*attach*/, 1/*rprd*/);
+				PDIC_NOTIFY_ID_ATTACH, 1/*attach*/, 1/*rprd*/, 0);
 		pdic_event_work(usbpd_data,
 			PDIC_NOTIFY_DEV_USB, PDIC_NOTIFY_ID_USB,
-				1/*attach*/, USB_STATUS_NOTIFY_ATTACH_DFP/*drp*/);
+				1/*attach*/, USB_STATUS_NOTIFY_ATTACH_DFP/*drp*/, 0);
 		usbpd_data->is_host = HOST_ON;
 		usbpd_data->is_client = CLIENT_OFF;
 	}
@@ -656,7 +657,7 @@ static void s2mu107_pr_swap(void *_data, int val)
 #endif
 #endif
 		pdic_event_work(pdic_data, PDIC_NOTIFY_DEV_BATT,
-			PDIC_NOTIFY_ID_POWER_STATUS, 0, 0);
+			PDIC_NOTIFY_ID_POWER_STATUS, 0, 0, 0);
 	}
 	else if (val == USBPD_SOURCE_ON) {
 #if defined(CONFIG_DUAL_ROLE_USB_INTF)
@@ -666,11 +667,11 @@ static void s2mu107_pr_swap(void *_data, int val)
 		typec_set_pwr_role(pdic_data->port, pdic_data->typec_power_role);
 #endif
 		pdic_event_work(pdic_data, PDIC_NOTIFY_DEV_MUIC,
-			PDIC_NOTIFY_ID_ROLE_SWAP, 1/* source */, 0);
+			PDIC_NOTIFY_ID_ROLE_SWAP, 1/* source */, 0, 0);
 	}
 	else if (val == USBPD_SOURCE_OFF) {
 		pdic_event_work(pdic_data, PDIC_NOTIFY_DEV_BATT,
-			PDIC_NOTIFY_ID_POWER_STATUS, 0, 0);
+			PDIC_NOTIFY_ID_POWER_STATUS, 0, 0, 0);
 #if defined(CONFIG_DUAL_ROLE_USB_INTF)
 		pdic_data->power_role_dual = DUAL_ROLE_PROP_PR_SNK;
 #elif defined(CONFIG_TYPEC)
@@ -678,7 +679,7 @@ static void s2mu107_pr_swap(void *_data, int val)
 		typec_set_pwr_role(pdic_data->port, pdic_data->typec_power_role);
 #endif
 		pdic_event_work(pdic_data, PDIC_NOTIFY_DEV_MUIC,
-			PDIC_NOTIFY_ID_ROLE_SWAP, 0/* sink */, 0);
+			PDIC_NOTIFY_ID_ROLE_SWAP, 0/* sink */, 0, 0);
 	}
 }
 
@@ -1363,21 +1364,6 @@ static int s2mu107_set_pd_control(void *_data, int val)
 	mutex_unlock(&pdic_data->pd_mutex);
 
 	return ret;
-}
-
-static void s2mu107_send_pd_info(void *_data, int attach)
-{
-#if defined(CONFIG_PDIC_NOTIFIER)
-	struct usbpd_data *data = (struct usbpd_data *) _data;
-	struct s2mu107_usbpd_data *pdic_data = data->phy_driver_data;
-
-	if (attach)
-		pdic_event_work(pdic_data, PDIC_NOTIFY_DEV_BATT,
-				PDIC_NOTIFY_ID_POWER_STATUS, 1, 0);
-	else
-		pdic_event_work(pdic_data, PDIC_NOTIFY_DEV_BATT,
-				PDIC_NOTIFY_ID_POWER_STATUS, 0, 0);
-#endif
 }
 
 static int s2mu107_set_rp_control(void *_data, int val)
@@ -2174,17 +2160,17 @@ static void s2mu107_notify_pdic_rid(struct s2mu107_usbpd_data *pdic_data, int ri
 #endif
 	/* rid */
 	pdic_event_work(pdic_data,
-		PDIC_NOTIFY_DEV_MUIC, PDIC_NOTIFY_ID_RID, rid/*rid*/, 0);
+		PDIC_NOTIFY_DEV_MUIC, PDIC_NOTIFY_ID_RID, rid/*rid*/, 0, 0);
 
 	if (rid == REG_RID_523K || rid == REG_RID_619K || rid == REG_RID_OPEN) {
 		pdic_event_work(pdic_data,
-			PDIC_NOTIFY_DEV_USB, PDIC_NOTIFY_ID_USB, 0/*attach*/, USB_STATUS_NOTIFY_DETACH);
+			PDIC_NOTIFY_DEV_USB, PDIC_NOTIFY_ID_USB, 0/*attach*/, USB_STATUS_NOTIFY_DETACH, 0);
 		pdic_data->is_host = HOST_OFF;
 		pdic_data->is_client = CLIENT_OFF;
 	} else if (rid == REG_RID_301K) {
 		pdic_event_work(pdic_data,
 			PDIC_NOTIFY_DEV_USB, PDIC_NOTIFY_ID_USB,
-				1/*attach*/, USB_STATUS_NOTIFY_ATTACH_UFP/*drp*/);
+				1/*attach*/, USB_STATUS_NOTIFY_ATTACH_UFP/*drp*/, 0);
 		pdic_data->is_host = HOST_OFF;
 		pdic_data->is_client = CLIENT_ON;
 	}
@@ -2491,7 +2477,7 @@ static void _s2mu107_pdic_handle_water_detection(struct s2mu107_usbpd_data *pdic
 {
 #if defined(CONFIG_PDIC_NOTIFIER)
 	pdic_event_work(pdic_data,
-		PDIC_NOTIFY_DEV_MUIC, PDIC_NOTIFY_ID_WATER, PDIC_NOTIFY_ATTACH, 0);
+		PDIC_NOTIFY_DEV_MUIC, PDIC_NOTIFY_ID_WATER, PDIC_NOTIFY_ATTACH, 0, 0);
 #else
 	s2mu107_pdic_notifier_attach_attached_jig_dev(ATTACHED_DEV_WATER_MUIC);
 #endif
@@ -2508,7 +2494,7 @@ static void _s2mu107_pdic_transfer_to_water(struct s2mu107_usbpd_data *pdic_data
 	s2mu107_vbus_turn_on_ctrl(pdic_data, VBUS_OFF);
 	pdic_event_work(pdic_data,
 	PDIC_NOTIFY_DEV_USB, PDIC_NOTIFY_ID_USB,
-		0/*attach*/, USB_STATUS_NOTIFY_DETACH);
+		0/*attach*/, USB_STATUS_NOTIFY_DETACH, 0);
 	_s2mu107_pdic_handle_water_detection(pdic_data);
 #if defined(CONFIG_USB_HW_PARAM) && !defined(CONFIG_USB_TYPEC_MANAGER_NOTIFIER)
 	if (o_notify)
@@ -2562,7 +2548,7 @@ static void s2mu107_pdic_water_detect_handler(struct work_struct *work)
 		}
 #if defined(CONFIG_PDIC_NOTIFIER)
 		pdic_event_work(pdic_data,
-			PDIC_NOTIFY_DEV_MUIC, PDIC_NOTIFY_ID_WATER, PDIC_NOTIFY_DETACH, 0);
+			PDIC_NOTIFY_DEV_MUIC, PDIC_NOTIFY_ID_WATER, PDIC_NOTIFY_DETACH, 0, 0);
 #endif
 	}
 
@@ -2626,7 +2612,7 @@ static void s2mu107_pdic_water_dry_handler(struct work_struct *work)
 			pr_info("%s: PDIC dry detected", __func__);
 #if defined(CONFIG_PDIC_NOTIFIER)
 			pdic_event_work(pdic_data,
-				PDIC_NOTIFY_DEV_MUIC, PDIC_NOTIFY_ID_WATER, PDIC_NOTIFY_DETACH, 0);
+				PDIC_NOTIFY_DEV_MUIC, PDIC_NOTIFY_ID_WATER, PDIC_NOTIFY_DETACH, 0, 0);
 #endif
 			goto done;
 		}
@@ -2662,7 +2648,7 @@ static void s2mu107_usbpd_otg_attach(struct s2mu107_usbpd_data *pdic_data)
 
 	/* USB */
 	pdic_event_work(pdic_data, PDIC_NOTIFY_DEV_USB, PDIC_NOTIFY_ID_USB,
-			1/*attach*/, USB_STATUS_NOTIFY_ATTACH_DFP/*drp*/);
+			1/*attach*/, USB_STATUS_NOTIFY_ATTACH_DFP/*drp*/, 0);
 	/* add to turn on external 5V */
 #if defined(CONFIG_USB_HOST_NOTIFY)
 	if (!is_blocked(o_notify, NOTIFY_BLOCK_TYPE_HOST)) {
@@ -2743,7 +2729,7 @@ static int type3_handle_notification(struct notifier_block *nb,
 #endif
 #if defined(CONFIG_PDIC_NOTIFIER)
 		pdic_event_work(pdic_data,
-			PDIC_NOTIFY_DEV_MUIC, PDIC_NOTIFY_ID_WATER, PDIC_NOTIFY_DETACH, 0);
+			PDIC_NOTIFY_DEV_MUIC, PDIC_NOTIFY_ID_WATER, PDIC_NOTIFY_DETACH, 0, 0);
 #endif
 		msleep(50);
 		s2mu107_set_irq_enable(pdic_data, ENABLED_INT_0, ENABLED_INT_1,
@@ -2784,7 +2770,7 @@ static int type3_handle_notification(struct notifier_block *nb,
 			goto EOH;
 		}
 		pdic_event_work(pdic_data,
-			PDIC_NOTIFY_DEV_MUIC, PDIC_NOTIFY_ID_ATTACH, 1/*attach*/, 1/*rprd*/);
+			PDIC_NOTIFY_DEV_MUIC, PDIC_NOTIFY_ID_ATTACH, 1/*attach*/, 1/*rprd*/, 0);
 
 		pr_info("%s, CHECK_OCP, start OCP W/A\n", __func__);
 		pdic_data->is_otg_reboost = true;
@@ -2856,11 +2842,11 @@ static void s2mu107_vbus_short_check(struct s2mu107_usbpd_data *pdic_data)
 #if defined(CONFIG_BATTERY_SAMSUNG) && defined(CONFIG_USB_TYPEC_MANAGER_NOTIFIER)
 		pd_noti.sink_status.rp_currentlvl = rp_currentlvl;
 		pd_noti.event = PDIC_NOTIFY_EVENT_PDIC_ATTACH;
-		pdic_event_work(pdic_data, PDIC_NOTIFY_DEV_BATT, PDIC_NOTIFY_ID_POWER_STATUS, 0, 0);
+		pdic_event_work(pdic_data, PDIC_NOTIFY_DEV_BATT, PDIC_NOTIFY_ID_POWER_STATUS, 0, 0, 0);
 #endif
 		if (rp_currentlvl == RP_CURRENT_LEVEL_DEFAULT)
 			pdic_event_work(pdic_data, PDIC_NOTIFY_DEV_MUIC,
-				PDIC_NOTIFY_ID_TA, 1/*attach*/, 0/*rprd*/);
+				PDIC_NOTIFY_ID_TA, 1/*attach*/, 0/*rprd*/, 0);
 	}
 
 	pdic_data->vbus_short_check = true;
@@ -2925,8 +2911,8 @@ static void s2mu107_power_off_water_check(struct s2mu107_usbpd_data *pdic_data)
 			s2mu107_set_irq_enable(pdic_data, 0, 0, 0, 0, 0, 0, 0);
 			s2mu107_usbpd_notify_detach(pdic_data);
 			pdic_event_work(pdic_data,
-				PDIC_NOTIFY_DEV_MUIC, PDIC_NOTIFY_ID_WATER, PDIC_NOTIFY_ATTACH, 1);
-			pdic_event_work(pdic_data, PDIC_NOTIFY_DEV_BATT, PDIC_NOTIFY_ID_WATER, 1, 0);
+				PDIC_NOTIFY_DEV_MUIC, PDIC_NOTIFY_ID_WATER, PDIC_NOTIFY_ATTACH, 1, 0);
+			pdic_event_work(pdic_data, PDIC_NOTIFY_DEV_BATT, PDIC_NOTIFY_ID_WATER, 1, 0, 0);
 		}
 		udelay(5);
 	}
@@ -3123,10 +3109,10 @@ static void s2mu107_usbpd_notify_detach(struct s2mu107_usbpd_data *pdic_data)
 #endif
 	/* MUIC */
 	pdic_event_work(pdic_data, PDIC_NOTIFY_DEV_MUIC, PDIC_NOTIFY_ID_ATTACH,
-							0/*attach*/, 0/*rprd*/);
+							0/*attach*/, 0/*rprd*/, 0);
 
 	pdic_event_work(pdic_data, PDIC_NOTIFY_DEV_MUIC, PDIC_NOTIFY_ID_RID,
-							REG_RID_OPEN/*rid*/, 0);
+							REG_RID_OPEN/*rid*/, 0, 0);
 
 	if (pdic_data->is_host > HOST_OFF || pdic_data->is_client > CLIENT_OFF) {
 		usbpd_manager_acc_detach(dev);
@@ -3149,7 +3135,10 @@ static void s2mu107_usbpd_notify_detach(struct s2mu107_usbpd_data *pdic_data)
 #endif
 		/* USB */
 		pdic_event_work(pdic_data, PDIC_NOTIFY_DEV_USB, PDIC_NOTIFY_ID_USB,
-					0/*attach*/, USB_STATUS_NOTIFY_DETACH/*drp*/);
+					0/*attach*/, USB_STATUS_NOTIFY_DETACH/*drp*/, 0);
+		/* Standard Vendor ID */
+		pdic_event_work(pdic_data, PDIC_NOTIFY_DEV_ALL,
+					PDIC_NOTIFY_ID_CLEAR_INFO, PDIC_NOTIFY_ID_SVID_INFO, 0, 0);
 	}
 #else
 	usbpd_manager_plug_detach(dev, 1);
@@ -3166,7 +3155,7 @@ static void s2mu107_usbpd_check_host(struct s2mu107_usbpd_data *pdic_data,
 	if (host == HOST_ON && pdic_data->is_host == HOST_ON) {
 		dev_info(pdic_data->dev, "%s %d: turn off host\n", __func__, __LINE__);
 		pdic_event_work(pdic_data, PDIC_NOTIFY_DEV_MUIC,
-				PDIC_NOTIFY_ID_ATTACH, 0/*attach*/, 1/*rprd*/);
+				PDIC_NOTIFY_ID_ATTACH, 0/*attach*/, 1/*rprd*/, 0);
 #if defined(CONFIG_DUAL_ROLE_USB_INTF)
 		pdic_data->power_role_dual = DUAL_ROLE_PROP_PR_NONE;
 #elif defined(CONFIG_TYPEC)
@@ -3180,13 +3169,13 @@ static void s2mu107_usbpd_check_host(struct s2mu107_usbpd_data *pdic_data,
 		s2mu107_vbus_turn_on_ctrl(pdic_data, VBUS_OFF);
 
 		pdic_event_work(pdic_data, PDIC_NOTIFY_DEV_USB, PDIC_NOTIFY_ID_USB,
-					0/*attach*/, USB_STATUS_NOTIFY_DETACH/*drp*/);
+					0/*attach*/, USB_STATUS_NOTIFY_DETACH/*drp*/, 0);
 		pdic_data->is_host = HOST_OFF;
 		msleep(300);
 	} else if (host == HOST_OFF && pdic_data->is_host == HOST_OFF) {
 		/* muic */
 		pdic_event_work(pdic_data, PDIC_NOTIFY_DEV_MUIC,
-				PDIC_NOTIFY_ID_OTG, 1/*attach*/, 0/*rprd*/);
+				PDIC_NOTIFY_ID_OTG, 1/*attach*/, 0/*rprd*/, 0);
 	}
 }
 
@@ -3196,7 +3185,7 @@ static void s2mu107_usbpd_check_client(struct s2mu107_usbpd_data *pdic_data,
 	if (client == CLIENT_ON && pdic_data->is_client == CLIENT_ON) {
 		dev_info(pdic_data->dev, "%s %d: turn off client\n", __func__, __LINE__);
 		pdic_event_work(pdic_data, PDIC_NOTIFY_DEV_MUIC,
-				PDIC_NOTIFY_ID_ATTACH, 0/*attach*/, 0/*rprd*/);
+				PDIC_NOTIFY_ID_ATTACH, 0/*attach*/, 0/*rprd*/, 0);
 #if defined(CONFIG_DUAL_ROLE_USB_INTF)
 		pdic_data->power_role_dual = DUAL_ROLE_PROP_PR_NONE;
 #elif defined(CONFIG_TYPEC)
@@ -3204,7 +3193,7 @@ static void s2mu107_usbpd_check_client(struct s2mu107_usbpd_data *pdic_data,
 		typec_set_pwr_role(pdic_data->port, pdic_data->typec_power_role);
 #endif
 		pdic_event_work(pdic_data, PDIC_NOTIFY_DEV_USB, PDIC_NOTIFY_ID_USB,
-					0/*attach*/, USB_STATUS_NOTIFY_DETACH/*drp*/);
+					0/*attach*/, USB_STATUS_NOTIFY_DETACH/*drp*/, 0);
 		pdic_data->is_client = CLIENT_OFF;
 	}
 }
@@ -3250,7 +3239,7 @@ static int s2mu107_check_port_detect(struct s2mu107_usbpd_data *pdic_data)
 		s2mu107_usbpd_check_host(pdic_data, HOST_ON);
 		/* muic */
 		pdic_event_work(pdic_data,
-			PDIC_NOTIFY_DEV_MUIC, PDIC_NOTIFY_ID_ATTACH, 1/*attach*/, 0/*rprd*/);
+			PDIC_NOTIFY_DEV_MUIC, PDIC_NOTIFY_ID_ATTACH, 1/*attach*/, 0/*rprd*/, 0);
 		if (!(pdic_data->rid == REG_RID_523K || pdic_data->rid == REG_RID_619K)) {
 			if (pdic_data->is_client == CLIENT_OFF && pdic_data->is_host == HOST_OFF) {
 				/* usb */
@@ -3262,7 +3251,7 @@ static int s2mu107_check_port_detect(struct s2mu107_usbpd_data *pdic_data)
 				typec_set_pwr_role(pdic_data->port, pdic_data->typec_power_role);
 #endif
 				pdic_event_work(pdic_data, PDIC_NOTIFY_DEV_USB, PDIC_NOTIFY_ID_USB,
-						1/*attach*/, USB_STATUS_NOTIFY_ATTACH_UFP/*drp*/);
+						1/*attach*/, USB_STATUS_NOTIFY_ATTACH_UFP/*drp*/, 0);
 			}
 		}
 #endif
@@ -3808,6 +3797,7 @@ static int s2mu107_usbpd_probe(struct i2c_client *i2c,
 {
 	struct i2c_adapter *adapter = to_i2c_adapter(i2c->dev.parent);
 	struct s2mu107_usbpd_data *pdic_data;
+	struct usbpd_data *pd_data;
 	struct device *dev = &i2c->dev;
 	int ret = 0;
 #if defined(CONFIG_PDIC_NOTIFIER)
@@ -3861,6 +3851,7 @@ static int s2mu107_usbpd_probe(struct i2c_client *i2c,
 		dev_err(dev, "failed on usbpd_init\n");
 		goto err_return;
 	}
+	pd_data = dev_get_drvdata(dev);
 
 	usbpd_set_ops(dev, &s2mu107_ops);
 
@@ -3901,7 +3892,7 @@ static int s2mu107_usbpd_probe(struct i2c_client *i2c,
 #endif
 
 #if defined(CONFIG_TYPEC)
-	ret = typec_init(pdic_data);
+	ret = typec_init(pd_data);
 	if (ret < 0) {
 		pr_err("failed to init typec\n");
 		goto err_return;
@@ -3925,12 +3916,12 @@ static int s2mu107_usbpd_probe(struct i2c_client *i2c,
 		s2mu107_usbpd_check_rid(pdic_data);
 		mutex_unlock(&pdic_data->_mutex);
 	}
-#if defined(CONFIG_BATTERY_SAMSUNG)
+
 #if !defined(CONFIG_SEC_FACTORY) && defined(CONFIG_S2MU107_TYPEC_WATER)
-	if (lpcharge)
+	if (is_lpcharge_pdic_param())
 		s2mu107_power_off_water_check(pdic_data);
 #endif
-#endif
+
 	s2mu107_irq_thread(-1, pdic_data);
 
 #if defined(CONFIG_MUIC_NOTIFIER)
@@ -4086,7 +4077,6 @@ static usbpd_phy_ops_type s2mu107_ops = {
 	.get_vbus_short_check	= s2mu107_get_vbus_short_check,
 	.pd_vbus_short_check	= s2mu107_pd_vbus_short_check,
 	.set_pd_control		= s2mu107_set_pd_control,
-	.send_pd_info		= s2mu107_send_pd_info,
 #if defined(CONFIG_CHECK_CTYPE_SIDE) || defined(CONFIG_PDIC_SYSFS)
 	.get_side_check		= s2mu107_get_side_check,
 #endif

@@ -447,6 +447,15 @@ static int pca9468_send_pd_message(struct pca9468_charger *pca9468, unsigned int
 	}
 #endif
 
+	/* Check whether requested TA voltage is in valid range or not */
+	if (pca9468->ta_vol < PCA9468_TA_MIN_VOL) {
+		/* request TA voltage is less than minimum threshold */
+		/* This is abnormal case, too low input voltage */
+		/* Normally VIN_UVLO already happened */
+		pr_err("%s: Abnormal low VIN, ta_vol=%d\n", __func__, pca9468->ta_vol);
+		goto out;
+	}
+
 	pr_info("%s: msg_type=%d, ta_cur=%d, ta_vol=%d, ta_objpos=%d\n",
 		__func__, msg_type, pca9468->ta_cur, pca9468->ta_vol, pca9468->ta_objpos);
 
@@ -908,8 +917,9 @@ static int pca9468_set_charging(struct pca9468_charger *pca9468, bool enable)
 			goto error;
 
 		/* For fixing input current error */
-		/* Overwirte 0x00 in 0x41 register */
-		val = 0x00;
+		/* Overwrite 0x08(bit3) in 0x41 register */
+		/* Disable OCP-AVG. It is the software workaround for OCP-AVG issue */
+		val = 0x08;
 		ret = pca9468_write_reg(pca9468, 0x41, val);
 		if (ret < 0)
 			goto error;
@@ -944,6 +954,13 @@ static int pca9468_set_charging(struct pca9468_charger *pca9468, bool enable)
 		if (ret  < 0)
 			goto error;
 
+		/* Clear bit3 to 0x41 register */
+		/* Enable OCP-AVG. It is the software workaround for OCP-AVG issue */
+		ret = pca9468_update_reg(pca9468, 0x41, BIT(3), 0);
+		if (ret  < 0)
+			goto error;
+
+		/* Lock test mode */
 		val = 0x00;
 		ret = pca9468_write_reg(pca9468, PCA9468_REG_ADC_ACCESS, val);
 
@@ -1039,8 +1056,20 @@ static int pca9468_set_ta_current_comp(struct pca9468_charger *pca9468)
 	/* Compare IIN ADC with target input current */
 	if (iin > (pca9468->iin_cc + PCA9468_IIN_CC_COMP_OFFSET)) {
 		/* TA current is higher than the target input current */
-		/* Decrease TA current (50mA) */
-		pca9468->ta_cur = pca9468->ta_cur - PD_MSG_TA_CUR_STEP;
+		/* Check TA current and compare it with IIN_CC */
+		if (pca9468->ta_cur <= pca9468->iin_cc - PCA9468_TA_CUR_LOW_OFFSET) {
+			/* IIN_ADC is stiil in invalid range even though TA current is less than IIN_CC - 200mA */
+			/* TA has abnormal behavior */
+			/* Decrease TA voltage (20mV) */
+			pca9468->ta_vol = pca9468->ta_vol - PD_MSG_TA_VOL_STEP;
+			pr_info("%s: Comp. Cont4: ta_vol=%d\n", __func__, pca9468->ta_vol);
+		} else {
+			/* TA current is higher than IIN_CC - 200mA */
+			/* Decrease TA current first to reduce input current */
+			/* Decrease TA current (50mA) */
+			pca9468->ta_cur = pca9468->ta_cur - PD_MSG_TA_CUR_STEP;
+			pr_info("%s: Comp. Cont5: ta_cur=%d\n", __func__, pca9468->ta_cur);
+		}
 
 		/* Send PD Message */
 		mutex_lock(&pca9468->lock);
@@ -1156,8 +1185,20 @@ static int pca9468_set_ta_current_comp2(struct pca9468_charger *pca9468)
 	/* Compare IIN ADC with target input current */
 	if (iin > (pca9468->pdata->iin_cfg + PCA9468_IIN_CC_UPPER_OFFSET)) {
 		/* TA current is higher than the target input current */
-		/* Decrease TA current (50mA) */
-		pca9468->ta_cur = pca9468->ta_cur - PD_MSG_TA_CUR_STEP;
+		/* Check TA current and compare it with IIN_CC */
+		if (pca9468->ta_cur <= pca9468->iin_cc - PCA9468_TA_CUR_LOW_OFFSET) {
+			/* IIN_ADC is stiil in invalid range even though TA current is less than IIN_CC - 200mA */
+			/* TA has abnormal behavior */
+			/* Decrease TA voltage (20mV) */
+			pca9468->ta_vol = pca9468->ta_vol - PD_MSG_TA_VOL_STEP;
+			pr_info("%s: Comp. Cont4: ta_vol=%d\n", __func__, pca9468->ta_vol);
+		} else {
+			/* TA current is higher than IIN_CC - 200mA */
+			/* Decrease TA current first to reduce input current */
+			/* Decrease TA current (50mA) */
+			pca9468->ta_cur = pca9468->ta_cur - PD_MSG_TA_CUR_STEP;
+			pr_info("%s: Comp. Cont5: ta_cur=%d\n", __func__, pca9468->ta_cur);
+		}
 
 		/* Send PD Message */
 		mutex_lock(&pca9468->lock);
@@ -1169,28 +1210,43 @@ static int pca9468_set_ta_current_comp2(struct pca9468_charger *pca9468)
 		if (pca9468->ta_vol == pca9468->ta_max_vol) {
 			/* Check IIN_ADC < IIN_CC - 50mA */
 			if (iin < (pca9468->iin_cc - PCA9468_IIN_CC_COMP_OFFSET)) {
-				/* Set new IIN_CC to IIN_CC - 50mA */
-				pca9468->iin_cc = pca9468->iin_cc - PCA9468_IIN_CC_COMP_OFFSET;
-				/* Set new TA_MAX_VOL to TA_MAX_PWR/IIN_CC */
-				/* Adjust new IIN_CC with APDO resolution */
-				iin_apdo = pca9468->iin_cc/PD_MSG_TA_CUR_STEP;
-				iin_apdo = iin_apdo*PD_MSG_TA_CUR_STEP;
-				val = pca9468->ta_max_pwr/(iin_apdo/pca9468->ta_mode/1000);	/* mV */
-				val = val*1000/PD_MSG_TA_VOL_STEP;	/* Adjust values with APDO resolution(20mV) */
-				val = val*PD_MSG_TA_VOL_STEP; /* uV */
-				/* Set new TA_MAX_VOL */
+				/* Compare the TA current with IIN_CC and maximum current of APDO */
+				if ((pca9468->ta_cur >= (pca9468->iin_cc/pca9468->ta_mode)) ||
+					(pca9468->ta_cur == pca9468->ta_max_cur)) {
+					/* TA current is higher than IIN_CC or maximum TA current */
+					/* Set new IIN_CC to IIN_CC - 50mA */
+					pca9468->iin_cc = pca9468->iin_cc - PCA9468_IIN_CC_COMP_OFFSET;
+					/* Set new TA_MAX_VOL to TA_MAX_PWR/IIN_CC */
+					/* Adjust new IIN_CC with APDO resolution */
+					iin_apdo = pca9468->iin_cc/PD_MSG_TA_CUR_STEP;
+					iin_apdo = iin_apdo*PD_MSG_TA_CUR_STEP;
+					val = pca9468->ta_max_pwr/(iin_apdo/pca9468->ta_mode/1000);	/* mV */
+					val = val*1000/PD_MSG_TA_VOL_STEP;	/* Adjust values with APDO resolution(20mV) */
+					val = val*PD_MSG_TA_VOL_STEP; /* uV */
+					/* Set new TA_MAX_VOL */
 					pca9468->ta_max_vol = MIN(val, pca9468->pdata->ta_max_vol*pca9468->ta_mode);
-				/* Increase TA voltage(40mV) */
-				pca9468->ta_vol = pca9468->ta_vol + PD_MSG_TA_VOL_STEP*2;
-				if (pca9468->ta_vol > pca9468->ta_max_vol)
-					pca9468->ta_vol = pca9468->ta_max_vol;
+					/* Increase TA voltage(40mV) */
+					pca9468->ta_vol = pca9468->ta_vol + PD_MSG_TA_VOL_STEP*2;
+					if (pca9468->ta_vol > pca9468->ta_max_vol)
+						pca9468->ta_vol = pca9468->ta_max_vol;
 
-				pr_info("%s: Comp. Cont1: ta_vol=%d\n", __func__, pca9468->ta_vol);
-				/* Send PD Message */
-				mutex_lock(&pca9468->lock);
-				pca9468->timer_id = TIMER_PDMSG_SEND;
-				pca9468->timer_period = 0;
-				mutex_unlock(&pca9468->lock);
+					pr_info("%s: Comp. Cont1: ta_vol=%d\n", __func__, pca9468->ta_vol);
+					/* Send PD Message */
+					mutex_lock(&pca9468->lock);
+					pca9468->timer_id = TIMER_PDMSG_SEND;
+					pca9468->timer_period = 0;
+					mutex_unlock(&pca9468->lock);
+				} else {
+					/* TA current is less than IIN_CC and not maximum current */
+					/* Increase TA current (50mA) */
+					pca9468->ta_cur = pca9468->ta_cur + PD_MSG_TA_CUR_STEP;
+					pr_info("%s: Comp. Cont3: ta_cur=%d\n", __func__, pca9468->ta_cur);
+					/* Send PD Message */
+					mutex_lock(&pca9468->lock);
+					pca9468->timer_id = TIMER_PDMSG_SEND;
+					pca9468->timer_period = 0;
+					mutex_unlock(&pca9468->lock);
+				}
 			} else {
 				/* Wait for next current step compensation */
 				/* IIN_CC - 50mA < IIN ADC < IIN_CC - 20mA*/
@@ -1244,8 +1300,20 @@ static int pca9468_set_ta_current_comp3(struct pca9468_charger *pca9468)
 	/* Compare IIN ADC with target input current */
 	if (iin > (pca9468->pdata->iin_cfg + PCA9468_IIN_CC_COMP3_UPPER_OFFSET)) {
 		/* TA current is higher than the target input current */
-		/* Decrease TA current (50mA) */
-		pca9468->ta_cur = pca9468->ta_cur - PD_MSG_TA_CUR_STEP;
+		/* Check TA current and compare it with IIN_CC */
+		if (pca9468->ta_cur <= pca9468->iin_cc - PCA9468_TA_CUR_LOW_OFFSET) {
+			/* IIN_ADC is stiil in invalid range even though TA current is less than IIN_CC - 200mA */
+			/* TA has abnormal behavior */
+			/* Decrease TA voltage (20mV) */
+			pca9468->ta_vol = pca9468->ta_vol - PD_MSG_TA_VOL_STEP;
+			pr_info("%s: Comp. Cont4: ta_vol=%d\n", __func__, pca9468->ta_vol);
+		} else {
+			/* TA current is higher than IIN_CC - 200mA */
+			/* Decrease TA current first to reduce input current */
+			/* Decrease TA current (50mA) */
+			pca9468->ta_cur = pca9468->ta_cur - PD_MSG_TA_CUR_STEP;
+			pr_info("%s: Comp. Cont5: ta_cur=%d\n", __func__, pca9468->ta_cur);
+		}
 
 		/* Send PD Message */
 		mutex_lock(&pca9468->lock);
@@ -1257,28 +1325,43 @@ static int pca9468_set_ta_current_comp3(struct pca9468_charger *pca9468)
 		if (pca9468->ta_vol == pca9468->ta_max_vol) {
 			/* Check IIN_ADC < IIN_CC - 50mA */
 			if (iin < (pca9468->iin_cc - PCA9468_IIN_CC_COMP_OFFSET)) {
-				/* Set new IIN_CC to IIN_CC - 50mA */
-				pca9468->iin_cc = pca9468->iin_cc - PCA9468_IIN_CC_COMP_OFFSET;
-				/* Set new TA_MAX_VOL to TA_MAX_PWR/IIN_CC */
-				/* Adjust new IIN_CC with APDO resolution */
-				iin_apdo = pca9468->iin_cc/PD_MSG_TA_CUR_STEP;
-				iin_apdo = iin_apdo*PD_MSG_TA_CUR_STEP;
-				val = pca9468->ta_max_pwr/(iin_apdo/pca9468->ta_mode/1000);	/* mV */
-				val = val*1000/PD_MSG_TA_VOL_STEP;	/* Adjust values with APDO resolution(20mV) */
-				val = val*PD_MSG_TA_VOL_STEP; /* uV */
-				/* Set new TA_MAX_VOL */
-				pca9468->ta_max_vol = MIN(val, pca9468->pdata->ta_max_vol*pca9468->ta_mode);
-				/* Increase TA voltage(40mV) */
-				pca9468->ta_vol = pca9468->ta_vol + PD_MSG_TA_VOL_STEP*2;
-				if (pca9468->ta_vol > pca9468->ta_max_vol)
-					pca9468->ta_vol = pca9468->ta_max_vol;
+				/* Compare the TA current with IIN_CC and maximum current of APDO */
+				if ((pca9468->ta_cur >= (pca9468->iin_cc/pca9468->ta_mode)) ||
+					(pca9468->ta_cur == pca9468->ta_max_cur)) {
+					/* TA current is higher than IIN_CC */
+					/* Set new IIN_CC to IIN_CC - 50mA */
+					pca9468->iin_cc = pca9468->iin_cc - PCA9468_IIN_CC_COMP_OFFSET;
+					/* Set new TA_MAX_VOL to TA_MAX_PWR/IIN_CC */
+					/* Adjust new IIN_CC with APDO resolution */
+					iin_apdo = pca9468->iin_cc/PD_MSG_TA_CUR_STEP;
+					iin_apdo = iin_apdo*PD_MSG_TA_CUR_STEP;
+					val = pca9468->ta_max_pwr/(iin_apdo/pca9468->ta_mode/1000);	/* mV */
+					val = val*1000/PD_MSG_TA_VOL_STEP;	/* Adjust values with APDO resolution(20mV) */
+					val = val*PD_MSG_TA_VOL_STEP; /* uV */
+					/* Set new TA_MAX_VOL */
+					pca9468->ta_max_vol = MIN(val, pca9468->pdata->ta_max_vol*pca9468->ta_mode);
+					/* Increase TA voltage(40mV) */
+					pca9468->ta_vol = pca9468->ta_vol + PD_MSG_TA_VOL_STEP*2;
+					if (pca9468->ta_vol > pca9468->ta_max_vol)
+						pca9468->ta_vol = pca9468->ta_max_vol;
 
-				pr_info("%s: Comp. Cont1: ta_vol=%d\n", __func__, pca9468->ta_vol);
-				/* Send PD Message */
-				mutex_lock(&pca9468->lock);
-				pca9468->timer_id = TIMER_PDMSG_SEND;
-				pca9468->timer_period = 0;
-				mutex_unlock(&pca9468->lock);
+					pr_info("%s: Comp. Cont1: ta_vol=%d\n", __func__, pca9468->ta_vol);
+					/* Send PD Message */
+					mutex_lock(&pca9468->lock);
+					pca9468->timer_id = TIMER_PDMSG_SEND;
+					pca9468->timer_period = 0;
+					mutex_unlock(&pca9468->lock);
+				} else {
+					/* TA current is less than IIN_CC and not maximum current */
+					/* Increase TA current (50mA) */
+					pca9468->ta_cur = pca9468->ta_cur + PD_MSG_TA_CUR_STEP;
+					pr_info("%s: Comp. Cont3: ta_cur=%d\n", __func__, pca9468->ta_cur);
+					/* Send PD Message */
+					mutex_lock(&pca9468->lock);
+					pca9468->timer_id = TIMER_PDMSG_SEND;
+					pca9468->timer_period = 0;
+					mutex_unlock(&pca9468->lock);
+				}
 			} else {
 				/* Wait for next current step compensation */
 				/* IIN_CC - 50mA < IIN ADC < IIN_CC - 20mA*/
@@ -1523,6 +1606,31 @@ static int pca9468_adjust_ta_current (struct pca9468_charger *pca9468)
 			pca9468->timer_period = 0;
 			mutex_unlock(&pca9468->lock);
 		} else {
+			/* Calculate new TA max voltage */
+			/* Adjust IIN_CC with APDO resolution(50mA) - It will recover to the original value after max voltage calculation */
+			val = pca9468->iin_cc/(PD_MSG_TA_CUR_STEP*pca9468->ta_mode);
+			pca9468->iin_cc = val*(PD_MSG_TA_CUR_STEP*pca9468->ta_mode);
+			/* Set TA_MAX_VOL to MIN[PCA9468_TA_MAX_VOL, (TA_MAX_PWR/IIN_CC)] */
+			val = pca9468->ta_max_pwr/(pca9468->iin_cc/pca9468->ta_mode/1000);	/* mV */
+			val = val*1000/PD_MSG_TA_VOL_STEP;	/* Adjust values with APDO resolution(20mV) */
+			val = val*PD_MSG_TA_VOL_STEP; /* uV */
+			pca9468->ta_max_vol = MIN(val, pca9468->pdata->ta_max_vol*pca9468->ta_mode);
+
+			/* Check the input current compensation type */
+			if (pca9468->ta_max_vol >= pca9468->pdata->ta_max_vol*pca9468->ta_mode) {
+				/* TA can set the maximum voltage without the power limit - Normal mode */
+				pca9468->comp_type = IIN_COMP1;
+			} else {
+				/* TA cannot set the maximum voltage without the power limit - Power Limit mode */
+				/* TA maximum current is higher than the current that the battery driver required - Power Limit mode 2 */
+				/* In this case, we have the same upper compensation limitation(IIN_ADC > IIN_CFG + 50mA) as Normal mode*/
+				pca9468->comp_type = IIN_COMP3;
+			}
+			pr_info("%s: New IIN, ta_max_vol=%d, current compensation type=%d\n", __func__, pca9468->ta_max_vol, pca9468->comp_type);
+
+			/* Recover IIN_CC to the original value(new_iin) */
+			pca9468->iin_cc = pca9468->new_iin;
+
 			/* Set TA voltage to TA target voltage */
 			pca9468->ta_vol = pca9468->ta_target_vol;
 			/* Adjust IIN_CC with APDO resolution(50mA) - It will recover to the original value after sending PD message */
@@ -2569,9 +2677,21 @@ static int pca9468_charge_ccmode(struct pca9468_charger *pca9468)
 				pca9468->ta_vol = pca9468->ta_vol - PD_MSG_TA_VOL_STEP;
 				pr_info("%s: CC LOOP:iin=%d, next_ta_vol=%d\n", __func__, iin, pca9468->ta_vol);
 			} else {
-				/* Decrease TA current (50mA) */
-				pca9468->ta_cur = pca9468->ta_cur - PD_MSG_TA_CUR_STEP;
-				pr_info("%s: CC LOOP:iin=%d, next_ta_cur=%d\n", __func__, iin, pca9468->ta_cur);
+				/* Check TA current and compare it with IIN_CC */
+				if (pca9468->ta_cur <= pca9468->iin_cc - PCA9468_TA_CUR_LOW_OFFSET) {
+					/* IIN_LOOP still happens even though TA current is less than IIN_CC - 200mA */
+					/* TA has abnormal behavior */
+					/* Decrease TA voltage (20mV) */
+					pca9468->ta_vol = pca9468->ta_vol - PD_MSG_TA_VOL_STEP;
+					pr_info("%s: CC LOOP:iin=%d, ta_cur=%d, next_ta_vol=%d\n",
+							__func__, iin, pca9468->ta_cur, pca9468->ta_vol);
+				} else {
+					/* TA current is higher than IIN_CC - 200mA */
+					/* Decrease TA current first to reduce input current */
+					/* Decrease TA current (50mA) */
+					pca9468->ta_cur = pca9468->ta_cur - PD_MSG_TA_CUR_STEP;
+					pr_info("%s: CC LOOP:iin=%d, next_ta_cur=%d\n", __func__, iin, pca9468->ta_cur);
+				}
 			}
 			/* Send PD Message */
 			mutex_lock(&pca9468->lock);
@@ -2761,7 +2881,14 @@ static int pca9468_charge_cvmode(struct pca9468_charger *pca9468)
 				/* Set timer */
 				mutex_lock(&pca9468->lock);
 				pca9468->timer_id = TIMER_CHECK_CVMODE;
-				pca9468->timer_period = PCA9468_CVMODE_CHECK_T;
+				/* Add to check charging step and set the polling time */
+				if (pca9468->pdata->v_float < STEP1_VFLOAT_THRESHOLD) {
+					/* Step1 charging - polling time is cv_polling */
+					pca9468->timer_period = pca9468->pdata->cv_polling;
+				} else {
+					/* Step2 or 3 chargign - polling time is PCA9468_CVMODE_CHECK_T(10s) */
+					pca9468->timer_period = PCA9468_CVMODE_CHECK_T;
+				}
 				mutex_unlock(&pca9468->lock);
 				schedule_delayed_work(&pca9468->timer_work, msecs_to_jiffies(pca9468->timer_period));
 			} else {
@@ -2775,9 +2902,21 @@ static int pca9468_charge_cvmode(struct pca9468_charger *pca9468)
 			/* Check TA current */
 			if (pca9468->ta_cur > PCA9468_TA_MIN_CUR) {
 				/* TA current is higher than (1.0A*TA_mode) */
-				/* Decrease TA current (50mA) */
-				pca9468->ta_cur = pca9468->ta_cur - PD_MSG_TA_CUR_STEP;
-				pr_info("%s: CV LOOP, Cont: ta_cur=%d\n", __func__, pca9468->ta_cur);
+
+				/* Check TA current and compare it with IIN_CC */
+				if (pca9468->ta_cur <= pca9468->iin_cc - PCA9468_TA_CUR_LOW_OFFSET) {
+					/* IIN_LOOP still happens even though TA current is less than IIN_CC - 200mA */
+					/* TA has abnormal behavior */
+					/* Decrease TA voltage (20mV) */
+					pca9468->ta_vol = pca9468->ta_vol - PD_MSG_TA_VOL_STEP;
+					pr_info("%s: CV LOOP, Cont1: ta_vol=%d\n", __func__, pca9468->ta_vol);
+				} else {
+					/* TA current is higher than IIN_CC - 200mA */
+					/* Decrease TA current first to reduce input current */
+					/* Decrease TA current (50mA) */
+					pca9468->ta_cur = pca9468->ta_cur - PD_MSG_TA_CUR_STEP;
+					pr_info("%s: CV LOOP, Cont2: ta_cur=%d\n", __func__, pca9468->ta_cur);
+				}
 			} else {
 				/* TA current is less than (1.0A*TA_mode) */
 				/* Decrease TA Voltage (20mV) */
@@ -2812,7 +2951,14 @@ static int pca9468_charge_cvmode(struct pca9468_charger *pca9468)
 			/* Set timer */
 			mutex_lock(&pca9468->lock);
 			pca9468->timer_id = TIMER_CHECK_CVMODE;
-			pca9468->timer_period = PCA9468_CVMODE_CHECK_T;
+			/* Add to check charging step and set the polling time */
+			if (pca9468->pdata->v_float < STEP1_VFLOAT_THRESHOLD) {
+				/* Step1 charging - polling time is cv_polling */
+				pca9468->timer_period = pca9468->pdata->cv_polling;
+			} else {
+				/* Step2 or 3 chargign - polling time is PCA9468_CVMODE_CHECK_T(10s) */
+				pca9468->timer_period = PCA9468_CVMODE_CHECK_T;
+			}
 			mutex_unlock(&pca9468->lock);
 			schedule_delayed_work(&pca9468->timer_work, msecs_to_jiffies(pca9468->timer_period));
 			break;
@@ -4564,6 +4710,15 @@ static int pca9468_charger_parse_dt(struct device *dev, struct pca9468_platform_
 	}
 	pr_info("%s: pca9468,ta_mode is %d\n", __func__, pdata->ta_mode);
 
+	/* cv mode polling time in step1 charging */
+	ret = of_property_read_u32(np_pca9468, "pca9468,cv-polling",
+							   &pdata->cv_polling);
+	if (ret) {
+		pr_info("%s: pca9468,cv-polling is Empty\n", __func__);
+		pdata->cv_polling = PCA9468_CVMODE_CHECK_T;
+	}
+	pr_info("%s: pca9468,cv polling is %d\n", __func__, pdata->cv_polling);
+
 #if IS_ENABLED(CONFIG_BATTERY_SAMSUNG)
 	pdata->chgen_gpio = of_get_named_gpio(np_pca9468, "pca9468,chg_gpio_en", 0);
 	if (pdata->chgen_gpio < 0) {
@@ -4997,4 +5152,4 @@ module_i2c_driver(pca9468_charger_driver);
 MODULE_AUTHOR("Clark Kim <clark.kim@nxp.com>");
 MODULE_DESCRIPTION("PCA9468 charger driver");
 MODULE_LICENSE("GPL");
-MODULE_VERSION("3.4.12S");
+MODULE_VERSION("3.4.16S");

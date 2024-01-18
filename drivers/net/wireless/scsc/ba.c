@@ -102,9 +102,11 @@ void slsi_ba_process_complete(struct net_device *dev, bool ctx_napi)
 	struct sk_buff    *skb;
 
 	while ((skb = skb_dequeue(&ndev_vif->ba_complete)) != NULL) {
+		local_bh_disable();
 		slsi_spinlock_unlock(&ndev_vif->ba_lock);
 		slsi_rx_data_deliver_skb(ndev_vif->sdev, dev, skb, ctx_napi);
 		slsi_spinlock_lock(&ndev_vif->ba_lock);
+		local_bh_enable();
 	}
 }
 
@@ -283,7 +285,7 @@ static int ba_consume_frame_or_get_buffer_index(struct net_device *dev, struct s
 				 * If it lies in the window pass the frame to next process else pass the frame and initiate DELBA procedure.
 				 */
 				if (IS_SN_LESS(ba_session_rx->highest_received_sn, ((sn + ba_session_rx->buffer_size) & 0xFFF))) {
-					SLSI_NET_DBG4(dev, SLSI_RX_BA, "old frame, but still in window: sn=%d, highest_received_sn=%d\n", sn, ba_session_rx->highest_received_sn);
+					SLSI_NET_DBG3(dev, SLSI_RX_BA, "old frame, but still in window: sn=%d, highest_received_sn=%d\n", sn, ba_session_rx->highest_received_sn);
 					ba_add_frame_to_ba_complete(dev, frame_desc);
 				} else {
 					if (!ba_out_of_range_delba_enable) {
@@ -297,7 +299,7 @@ static int ba_consume_frame_or_get_buffer_index(struct net_device *dev, struct s
 #endif
 						kfree_skb(frame_desc->signal);
 					} else {
-						SLSI_NET_DBG4(dev, SLSI_RX_BA, "old frame, accept but as countermeasure initiate delete BA: sn=%d, expected_sn=%d\n", sn, ba_session_rx->expected_sn);
+						SLSI_NET_DBG3(dev, SLSI_RX_BA, "old frame, accept but as countermeasure initiate delete BA: sn=%d, expected_sn=%d\n", sn, ba_session_rx->expected_sn);
 						ba_add_frame_to_ba_complete(dev, frame_desc);
 
 						if (!ba_session_rx->closing)
@@ -435,7 +437,7 @@ int slsi_ba_process_frame(struct net_device *dev, struct slsi_peer *peer,
 	if (!ba_session_rx->timer_on) {
 		if (ba_session_rx->occupied_slots) {
 			stop_timer = false;
-			SLSI_NET_DBG4(dev, SLSI_RX_BA, "Timer start\n");
+			SLSI_NET_DBG3(dev, SLSI_RX_BA, "Timer start\n");
 			mod_timer(&ba_session_rx->ba_age_timer, jiffies + msecs_to_jiffies(ba_mpdu_reorder_age_timeout));
 			ba_session_rx->timer_on = true;
 		}
@@ -443,7 +445,7 @@ int slsi_ba_process_frame(struct net_device *dev, struct slsi_peer *peer,
 		stop_timer = true;
 	} else if (stop_timer) {
 		stop_timer = false;
-		SLSI_NET_DBG4(dev, SLSI_RX_BA, "Timer restart\n");
+		SLSI_NET_DBG3(dev, SLSI_RX_BA, "Timer restart\n");
 		mod_timer(&ba_session_rx->ba_age_timer, jiffies + msecs_to_jiffies(ba_mpdu_reorder_age_timeout));
 		ba_session_rx->timer_on = true;
 	}
@@ -451,7 +453,7 @@ int slsi_ba_process_frame(struct net_device *dev, struct slsi_peer *peer,
 	if (stop_timer) {
 		ba_session_rx->timer_on = false;
 		slsi_spinlock_unlock(&ndev_vif->ba_lock);
-		SLSI_NET_DBG4(dev, SLSI_RX_BA, "Timer stop\n");
+		SLSI_NET_DBG3(dev, SLSI_RX_BA, "Timer stop\n");
 		del_timer_sync(&ba_session_rx->ba_age_timer);
 	} else {
 		slsi_spinlock_unlock(&ndev_vif->ba_lock);

@@ -128,6 +128,7 @@ struct dsp_elf32 {
 unsigned int dsp_elf32_rela_get_sym_idx(struct dsp_elf32_rela *rela);
 unsigned int dsp_elf32_rela_get_rule_idx(struct dsp_elf32_rela *rela);
 
+int dsp_elf32_check_range(struct dsp_elf32 *elf, size_t size);
 int dsp_elf32_load(struct dsp_elf32 *elf, struct dsp_dl_lib_file *file);
 void dsp_elf32_free(struct dsp_elf32 *elf);
 unsigned int dsp_elf32_get_text_size(struct dsp_elf32 *elf);

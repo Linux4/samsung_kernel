@@ -88,6 +88,8 @@ struct dsp_kernel *dsp_kernel_alloc(struct dsp_kernel_manager *kmgr,
 		ret = dsp_binary_alloc_load(new->name, NULL, NULL,
 				&new->elf, &new->elf_size);
 		if (ret) {
+			dsp_util_bitmap_clear_region(&kmgr->kernel_map,
+					new->id, 1);
 			mutex_unlock(&kmgr->lock);
 			goto p_err_load;
 		}

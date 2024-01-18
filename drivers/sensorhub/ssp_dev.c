@@ -34,6 +34,7 @@
 #include "ssp_cmd_define.h"
 #include "ssp_platform.h"
 #include "ssp_injection.h"
+#include "ssp_system_checker.h"
 #ifdef CONFIG_SEC_VIB_NOTIFIER
 #include <linux/vibrator/sec_vibrator_notifier.h>
 #include "ssp_motor.h"
@@ -81,7 +82,7 @@ static void init_sensorlist(struct ssp_data *data)
 		SENSOR_INFO_UNKNOWN,
 		SENSOR_INFO_PICK_UP_GESTURE,
 		SENSOR_INFO_UNKNOWN,
-		SENSOR_INFO_UNKNOWN,
+		SENSOR_INFO_DEVICE_ORIENTATION,
 		SENSOR_INFO_UNKNOWN,
 		SENSOR_INFO_PROXIMITY_RAW,
 		SENSOR_INFO_GEOMAGNETIC_POWER,
@@ -93,9 +94,22 @@ static void init_sensorlist(struct ssp_data *data)
 		SENSOR_INFO_WAKE_UP_MOTION,
 		SENSOR_INFO_AUTO_BIRGHTNESS,
 		SENSOR_INFO_VDIS_GYRO,
-		SENSOR_INFO_POCKET_MODE,
+		SENSOR_INFO_POCKET_MODE_LITE,
 		SENSOR_INFO_PROXIMITY_CALIBRATION,
-		SENSOR_INFO_PROTOS_MOTION,
+		SENSOR_INFO_PROTOS_MOTION, // 14
+		SENSOR_INFO_UNKNOWN,
+		SENSOR_INFO_ACCELEROMETER_UNCALIBRATED,
+		SENSOR_INFO_UNKNOWN,
+		SENSOR_INFO_UNKNOWN,
+		SENSOR_INFO_UNKNOWN,
+		SENSOR_INFO_UNKNOWN,
+		SENSOR_INFO_UNKNOWN,
+		SENSOR_INFO_UNKNOWN,
+		SENSOR_INFO_UNKNOWN,
+		SENSOR_INFO_UNKNOWN,
+		SENSOR_INFO_DEVICE_ORIENTATION_WU,
+		SENSOR_INFO_UNKNOWN,
+		SENSOR_INFO_SAR_BACKOFF_MOTION,
 	};
 
 	memcpy(&data->info, sensorinfo, sizeof(data->info));
@@ -141,6 +155,7 @@ static void initialize_variable(struct ssp_data *data)
 	for (type = 0 ; type <= RESET_TYPE_MAX ; type++)
 		data->cnt_ssp_reset[type] = 0;
 	data->check_noevent_reset_cnt = -1;
+	data->reset_type = RESET_TYPE_MAX;
 
 	data->last_resume_status = SCONTEXT_AP_STATUS_RESUME;
 
@@ -185,7 +200,7 @@ int open_sensor_calibration_data(struct ssp_data *data)
 #endif
 
 #ifdef CONFIG_SENSORS_SSP_PROXIMITY
-#ifdef CONFIG_SENSROS_SSP_PROXIMITY_THRESH_CAL
+#if defined(CONFIG_SENSROS_SSP_PROXIMITY_THRESH_CAL) || defined(CONFIG_SENSORS_SSP_PROXIMITY_FACTORY_CROSSTALK_CAL)
 	proximity_open_calibration(data);
 #endif
 #ifdef CONFIG_SENSORS_SSP_PROXIMITY_MODIFY_SETTINGS
@@ -209,6 +224,7 @@ int sync_sensor_data(struct ssp_data *data)
 #endif
 #ifdef CONFIG_SENSORS_SSP_ACCELOMETER
 		set_accel_cal,
+		set_device_orientation_mode,
 #endif
 #ifdef CONFIG_SENSORS_SSP_LIGHT
 		set_light_coef,
@@ -256,14 +272,6 @@ int initialize_mcu(struct ssp_data *data)
 	if (ret < 0) {
 		ssp_errf("get_sensor_scanning_info failed");
 		return FAIL;
-	}
-
-	if (data->cnt_reset == 0) {
-		ret = initialize_indio_dev(&(data->pdev->dev), data);
-		if (ret < 0) {
-			ssp_errf("could not create input device");
-			return FAIL;
-		}
 	}
 
 	ret = get_firmware_rev(data);
@@ -339,11 +347,6 @@ void refresh_task(struct work_struct *work)
 	data->cnt_reset++;
 	save_reset_info(data);
 
-#ifdef CONFIG_SENSORS_SSP_DUMP
-	if (data->cnt_reset == 0)
-		initialize_ssp_dump(data);
-#endif
-
 	if (data->sensor_spec) {
 		ssp_infof("prev sensor_spec free");
 		kfree(data->sensor_spec);
@@ -359,6 +362,10 @@ void refresh_task(struct work_struct *work)
 		ssp_errf("initialize_mcu is failed. stop refresh task");
 		goto exit;
 	}
+#ifdef CONFIG_SSP_ENG_DEBUG
+	if (is_system_checking())
+		goto exit;
+#endif
 	sync_sensor_state(data);
 	report_scontext_notice_data(data, SCONTEXT_AP_STATUS_RESET);
 	enable_timestamp_sync_timer(data);
@@ -366,6 +373,10 @@ void refresh_task(struct work_struct *work)
 exit:
 	__pm_relax(data->ssp_wakelock);
 	ssp_wake_up_wait_event(&data->reset_lock);
+#ifdef CONFIG_SSP_ENG_DEBUG
+	if (is_system_checking())
+		system_ready_cb();
+#endif
 }
 
 int queue_refresh_task(struct ssp_data *data, int delay)
@@ -442,7 +453,7 @@ static int ssp_parse_dt(struct device *dev, struct ssp_data *data)
 #if defined(CONFIG_SENSORS_SSP_PROXIMITY_AUTO_CAL_TMD3725)
 	/* prox thresh */
 	if (of_property_read_u8_array(np, "ssp-prox-thresh",
-				      data->prox_thresh, PROX_THRESH_SIZE))
+					  data->prox_thresh, PROX_THRESH_SIZE))
 		ssp_err("no prox-thresh, set as 0");
 
 	ssp_info("prox-thresh - %u, %u, %u, %u", data->prox_thresh[PROX_THRESH_HIGH],
@@ -451,7 +462,7 @@ static int ssp_parse_dt(struct device *dev, struct ssp_data *data)
 #else
 	/* prox thresh */
 	if (of_property_read_u16_array(np, "ssp-prox-thresh",
-				       data->prox_thresh, PROX_THRESH_SIZE))
+					   data->prox_thresh, PROX_THRESH_SIZE))
 		ssp_err("no prox-thresh, set as 0");
 
 	ssp_info("prox-thresh - %u, %u", data->prox_thresh[PROX_THRESH_HIGH],
@@ -461,7 +472,7 @@ static int ssp_parse_dt(struct device *dev, struct ssp_data *data)
 #if defined(CONFIG_SENSROS_SSP_PROXIMITY_THRESH_CAL)
 	/* prox thresh additional value */
 	if (of_property_read_u16_array(np, "ssp-prox-thresh-addval", data->prox_thresh_addval,
-				       ARRAY_SIZE(data->prox_thresh_addval)))
+					   ARRAY_SIZE(data->prox_thresh_addval)))
 		ssp_err("no prox-thresh_addval, set as 0");
 
 	ssp_info("prox-thresh-addval - %u, %u", data->prox_thresh_addval[PROX_THRESH_HIGH],
@@ -470,14 +481,14 @@ static int ssp_parse_dt(struct device *dev, struct ssp_data *data)
 
 #ifdef CONFIG_SENSORS_SSP_PROXIMITY_MODIFY_SETTINGS
 	if (of_property_read_u16_array(np, "ssp-prox-setting-thresh",
-				       data->prox_setting_thresh, 2))
+					   data->prox_setting_thresh, 2))
 		ssp_err("no prox-setting-thresh, set as 0");
 
 	ssp_info("prox-setting-thresh - %u, %u", data->prox_setting_thresh[0],
 		 data->prox_setting_thresh[1]);
 
 	if (of_property_read_u16_array(np, "ssp-prox-mode-thresh",
-				       data->prox_mode_thresh, PROX_THRESH_SIZE))
+					   data->prox_mode_thresh, PROX_THRESH_SIZE))
 		ssp_err("no prox-mode-thresh, set as 0");
 
 	ssp_info("prox-mode-thresh - %u, %u", data->prox_mode_thresh[PROX_THRESH_HIGH],
@@ -485,11 +496,26 @@ static int ssp_parse_dt(struct device *dev, struct ssp_data *data)
 
 #endif
 
+#ifdef CONFIG_SENSORS_SSP_PROXIMITY_FACTORY_CROSSTALK_CAL
+	if (of_property_read_u16(np, "ssp-prox-cal-add-value", &data->prox_cal_add_value))
+		ssp_err("no prox-cal-add-value, set as 0");
+
+	ssp_info("prox-cal-add-value - %u", data->prox_cal_add_value);
+
+	if (of_property_read_u16_array(np, "ssp-prox-cal-thresh", data->prox_cal_thresh, 2))
+		ssp_err("no prox-cal-thresh, set as 0");
+
+	ssp_info("prox-cal-thresh - %u, %u", data->prox_cal_thresh[0], data->prox_cal_thresh[1]);
+
+	data->prox_thresh_default[0] = data->prox_thresh[0];
+	data->prox_thresh_default[1] = data->prox_thresh[1];
+#endif
+
 #endif
 
 #ifdef CONFIG_SENSORS_SSP_LIGHT
 	if (of_property_read_u32_array(np, "ssp-light-position",
-				       data->light_position, ARRAY_SIZE(data->light_position)))
+					   data->light_position, ARRAY_SIZE(data->light_position)))
 		ssp_err("no ssp-light-position, set as 0");
 
 
@@ -499,14 +525,14 @@ static int ssp_parse_dt(struct device *dev, struct ssp_data *data)
 		 data->light_position[4], data->light_position[5]);
 
 	if (of_property_read_u32_array(np, "ssp-light-cam-lux",
-				       data->camera_lux_hysteresis, ARRAY_SIZE(data->camera_lux_hysteresis))) {
+					   data->camera_lux_hysteresis, ARRAY_SIZE(data->camera_lux_hysteresis))) {
 		ssp_err("no ssp-light-cam-high");
 		data->camera_lux_hysteresis[0] = -1;
 		data->camera_lux_hysteresis[1] = 0;
 	}
 
 	if (of_property_read_u32_array(np, "ssp-light-cam-br",
-				       data->camera_br_hysteresis, ARRAY_SIZE(data->camera_br_hysteresis))) {
+					   data->camera_br_hysteresis, ARRAY_SIZE(data->camera_br_hysteresis))) {
 		ssp_err("no ssp-light-cam-low");
 		data->camera_br_hysteresis[0] = 10000;
 		data->camera_br_hysteresis[1] = 0;
@@ -520,7 +546,7 @@ static int ssp_parse_dt(struct device *dev, struct ssp_data *data)
 	} else {
 		data->brightness_array = kcalloc(data->brightness_array_len, sizeof(u32), GFP_KERNEL);
 		if (of_property_read_u32_array(np, "ssp-brightness-array",
-					       data->brightness_array, data->brightness_array_len)) {
+						   data->brightness_array, data->brightness_array_len)) {
 			ssp_err("no brightness array");
 			data->brightness_array_len = 0;
 			kfree(data->brightness_array);
@@ -534,7 +560,7 @@ static int ssp_parse_dt(struct device *dev, struct ssp_data *data)
 	/* mag matrix */
 #ifdef CONFIG_SENSORS_SSP_MAGNETIC_YAS539
 	if (of_property_read_u16_array(np, "ssp-mag-array",
-				       data->pdc_matrix, ARRAY_SIZE(data->pdc_matrix)))
+					   data->pdc_matrix, ARRAY_SIZE(data->pdc_matrix)))
 		ssp_err("no mag-array, set as 0");
 
 	/* check nfc/mst for mag matrix*/
@@ -553,18 +579,18 @@ static int ssp_parse_dt(struct device *dev, struct ssp_data *data)
 		if (value_mst == 1) {
 			ssp_info("mag matrix(%d %d) nfc/mst array", value_nfc, value_mst);
 			if (of_property_read_u16_array(np, "ssp-mag-mst-array",
-						       data->pdc_matrix, ARRAY_SIZE(data->pdc_matrix)))
+							   data->pdc_matrix, ARRAY_SIZE(data->pdc_matrix)))
 				ssp_err("no mag-mst-array");
 		} else if (value_nfc == 1) {
 			ssp_info("mag matrix(%d %d) nfc only array", value_nfc, value_mst);
 			if (of_property_read_u16_array(np, "ssp-mag-nfc-array",
-						       data->pdc_matrix, ARRAY_SIZE(data->pdc_matrix)))
+							   data->pdc_matrix, ARRAY_SIZE(data->pdc_matrix)))
 				ssp_err("no mag-nfc-array");
 		}
 	}
 #else
 	if (of_property_read_u8_array(np, "ssp-mag-array",
-				      data->pdc_matrix, ARRAY_SIZE(data->pdc_matrix)))
+					  data->pdc_matrix, ARRAY_SIZE(data->pdc_matrix)))
 		ssp_err("no mag-array, set as 0");
 
 	/* check nfc/mst for mag matrix*/
@@ -583,12 +609,12 @@ static int ssp_parse_dt(struct device *dev, struct ssp_data *data)
 		if (value_mst == 1) {
 			ssp_info("mag matrix(%d %d) nfc/mst array", value_nfc, value_mst);
 			if (of_property_read_u8_array(np, "ssp-mag-mst-array",
-						      data->pdc_matrix, ARRAY_SIZE(data->pdc_matrix)))
+							  data->pdc_matrix, ARRAY_SIZE(data->pdc_matrix)))
 				ssp_err("no mag-mst-array");
 		} else if (value_nfc == 1) {
 			ssp_info("mag matrix(%d %d) nfc only array", value_nfc, value_mst);
 			if (of_property_read_u8_array(np, "ssp-mag-nfc-array",
-						      data->pdc_matrix, ARRAY_SIZE(data->pdc_matrix)))
+							  data->pdc_matrix, ARRAY_SIZE(data->pdc_matrix)))
 				ssp_err("no mag-nfc-array");
 		}
 	}
@@ -625,6 +651,9 @@ int ssp_probe(struct platform_device *pdev)
 	mutex_init(&data->comm_mutex);
 	mutex_init(&data->pending_mutex);
 	mutex_init(&data->enable_mutex);
+#ifdef CONFIG_SSP_ENG_DEBUG
+	ssp_system_checker_init();
+#endif
 
 	pr_info("\n#####################################################\n");
 
@@ -657,6 +686,12 @@ int ssp_probe(struct platform_device *pdev)
 		goto err_sysfs_create;
 	}
 
+	ret = initialize_indio_dev(&(data->pdev->dev), data);
+	if (ret < 0) {
+		ssp_errf("could not create input device");
+		//return FAIL;
+	}
+
 	ret = ssp_scontext_initialize(data);
 	if (ret < 0) {
 		ssp_errf("ssp_scontext_initialize err(%d)", ret);
@@ -670,6 +705,10 @@ int ssp_probe(struct platform_device *pdev)
 		ssp_injection_remove(data);
 		goto err_init_injection;
 	}
+
+#ifdef CONFIG_SENSORS_SSP_DUMP
+	initialize_ssp_dump(data);
+#endif
 
 	data->is_probe_done = true;
 

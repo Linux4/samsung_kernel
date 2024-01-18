@@ -109,7 +109,7 @@ struct smtc_reg_data {
 
 enum {
 	SX9360_GNRLCTRL_REG_IDX = 0,
-	SX9360_REGGNRLCTL2_REG_IDX = 2,
+	SX9360_GNRLCTRL2_REG_IDX = 2,
 	SX9360_AFE_REG_IDX = 3,
 	SX9360_REFRESOLUTION_REG_IDX = 4,
 	SX9360_REFAGAINFREQ_REG_IDX = 5,
@@ -126,7 +126,7 @@ enum {
 };
 
 /* for device tree parse */
-#define SX9360_REGGNRLCTL2	"sx9360,reggnrlctrl2_reg"
+#define SX9360_GNRLCTRL2	"sx9360,gnrlctrl2_reg"
 #define SX9360_REFRESOLUTION	"sx9360,refresolution_reg"
 #define SX9360_REFAGAINFREQ	"sx9360,refagainfreq_reg"
 #define SX9360_RESOLUTION	"sx9360,resolution_reg"

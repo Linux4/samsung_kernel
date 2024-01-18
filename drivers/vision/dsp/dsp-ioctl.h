@@ -13,6 +13,11 @@
 
 #include "dsp-common-type.h"
 
+#define DSP_MAX_KERNEL_COUNT		(8)
+#define DSP_MAX_KERNEL_NAME_SIZE	(32)
+#define DSP_MAX_KERNEL_SIZE		\
+	((DSP_MAX_KERNEL_NAME_SIZE + sizeof(int)) * DSP_MAX_KERNEL_COUNT)
+
 struct dsp_context;
 
 struct dsp_ioc_boot {

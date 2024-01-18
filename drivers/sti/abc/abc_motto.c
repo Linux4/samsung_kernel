@@ -19,235 +19,158 @@
 
 extern struct device *sec_abc;
 
-/*
-* 1. MOTTO_INFO_REG_BOOTCHECK
-*
-* *******************************************************
-* 31...............24 | 23...............16 | 15...............8 | 7...............0 |
-*  magic : 0x69       |                     |  max boot time     | second max boot time
-* ...............................................................................................|
-* *******************************************************
-*
-* 2. MOTTO_INFO_REG_DEVICE : max 255
-*
-* *******************************************************
-* 31...............24 | 23...............16 | 15...............8 | 7...............0 |
-*   magic : 0x69      |        camera       |      decon         |      gpu fault    |
-* ...............................................................................................|
-* *******************************************************
-*/
-#define MOTTO_MAGIC_MASK		(0x69)
-
-#define MASK_0_TO_7			(0)
-#define MASK_8_TO_15			(8)
-#define MASK_16_TO_23			(16)
-#define MASK_24_TO_31			(24)
-
-#define ABC_MOTTO_INFO_CNT  3
-
-enum motto_info_reg_type {
-	MOTTO_INFO_REG_BOOTCHECK,
-	MOTTO_INFO_REG_DEVICE,
+struct motto_event_type motto_event_type_list[] ={
+	{MOTTO_MODULE_GPU, "gpu", "gpu_fault"},
+	{MOTTO_MODULE_GPU, "gpu_qc", "gpu_fault"},
+	{MOTTO_MODULE_DECON, "decon", "fence_timeout"},
+	{MOTTO_MODULE_CAMERA, "camera", "camera_error"},
+	{MOTTO_MODULE_CAMERA, "camera", "i2c_fail"},
+	{MOTTO_MODULE_NPU, "npu", "npu_fw_warning"},
+	{MOTTO_MODULE_NPU, "camera", "mipi_overflow"},
+	// we can add more like
+	// {MOTTO_MODULE_GPU, "gpu_qc", "gpu_new_event"}
+	// {MOTTO_MODULE_CAMERA, "camera", "camera_new_event"},
+	// {MOTTO_MODULE_NEW, "new", "new_something"}
 };
 
-enum motto_event_type {
-	MOTTO_GPU,
-	MOTTO_DECON,
-	MOTTO_CAMERA,
-};
-
-char motto_event_type_str[ABC_MOTTO_INFO_CNT][ABC_BUFFER_MAX] = {"gpu_fault", "fence_timeout", "camera_error"};
-
-u32 readl_phys(phys_addr_t addr)
+static void motto_update_event(enum motto_event_module module)
 {
-	u32 ret;
-	void __iomem *virt = ioremap(addr, 0x10);
-
-	ret = readl(virt);
-	ABC_PRINT("%pa = 0x%08x\n", &addr, ret);
-	iounmap(virt);
-
-	return ret;
-}
-
-void writel_phys(unsigned int val, phys_addr_t addr)
-{
-	void __iomem *virt = ioremap(addr, 0x10);
-
-	writel(val, virt);
-	ABC_PRINT("%pa <= 0x%08x\n", &addr, val);
-	iounmap(virt);
-}
-
-void init_motto_magic(void)
-{
-	u32 info_val;
 	struct abc_info *pinfo;
 	struct abc_motto_data *cmotto;
-	u32 val, mask;
-
-	pinfo = dev_get_drvdata(sec_abc);
-
-	cmotto = pinfo->pdata->motto_data;
-
-	// MOTTO_INFO_REG_DEVICE
-	info_val = readl_phys(cmotto->info_device_base);
-	mask = MASK_24_TO_31;
-	val = (info_val >> mask) & 0xFF;
-
-	if (val == MOTTO_MAGIC_MASK) { // valid magic
-		ABC_PRINT("valid motto MOTTO_INFO_REG_DEVICE reg\n");
-	} else {
-		val = MOTTO_MAGIC_MASK << mask;
-		mask = 0xFF << mask;
-		val = val | (info_val & ~mask);
-		writel_phys(val, cmotto->info_device_base);
-	}
-
-	// MOTTO_INFO_REG_BOOTCHECK
-
-	info_val = readl_phys(cmotto->info_bootcheck_base);
-	mask = MASK_24_TO_31;
-	val = (info_val >> mask) & 0xFF;
-
-	if (val == MOTTO_MAGIC_MASK) { // valid magic
-		ABC_PRINT("valid motto MOTTO_INFO_REG_BOOTCHECK reg\n");
-	} else {
-		val = MOTTO_MAGIC_MASK << mask;
-		mask = 0xFF << mask;
-		val = val | (info_val & ~mask);
-		writel_phys(val, cmotto->info_bootcheck_base);
-	}
-}
-
-static void motto_update_info(enum motto_info_reg_type reg_type, int info)
-{
-	u32 info_val;
-	struct abc_info *pinfo;
-	struct abc_motto_data *cmotto;
-	u32 val, mask;
-	u32 first_boot_time, second_boot_time, cur_boot_time;
 
 	pinfo = dev_get_drvdata(sec_abc);
 	cmotto = pinfo->pdata->motto_data;
 
-	if (reg_type == MOTTO_INFO_REG_DEVICE) {
-		info_val = readl_phys(cmotto->info_device_base);
-		mask = MASK_24_TO_31;
-		val = (info_val >> mask) & 0xFF;
-
-		if (val == MOTTO_MAGIC_MASK) { // valid magic
-			if (info == MOTTO_GPU) {
-				mask = MASK_0_TO_7;
-			} else if (info == MOTTO_DECON) {
-				mask = MASK_8_TO_15;
-			} else { // MOTTO_CAMERA
-				mask = MASK_16_TO_23;
-			}
-			val = (info_val >> mask) & 0xFF;
-			val++;
-			if (val >= 0xFF)
-				val = 0xFF;
-			val = val << mask;
-			mask = 0xFF << mask;
-			val = val | (info_val & ~mask);
-			writel_phys(val, cmotto->info_device_base);
-		} else { // invalid info reg . clear info reg
-			ABC_PRINT("invalid motto info reg\n");
-			val = MOTTO_MAGIC_MASK << MASK_24_TO_31;
-			writel_phys(val, cmotto->info_device_base);
-		}
-	} else if (reg_type == MOTTO_INFO_REG_BOOTCHECK) {
-		info_val = readl_phys(cmotto->info_bootcheck_base);
-		mask = MASK_24_TO_31;
-		val = (info_val >> mask) & 0xFF;
-		if (val == MOTTO_MAGIC_MASK) { // valid magic
-			cur_boot_time = (info >= 0xFF) ? 0xFF : (u32)info;
-			first_boot_time = (info_val >> MASK_8_TO_15) & 0xFF;
-			second_boot_time = (info_val >> MASK_0_TO_7) & 0xFF;
-			if (cur_boot_time > first_boot_time) {
-				second_boot_time = first_boot_time;
-				first_boot_time = cur_boot_time;
-			} else if (cur_boot_time > second_boot_time) {
-				second_boot_time = cur_boot_time;
-			}
-			first_boot_time = first_boot_time << MASK_8_TO_15;
-			second_boot_time = second_boot_time << MASK_0_TO_7;
-			val = first_boot_time | second_boot_time | (info_val & 0xFFFF0000);
-			writel_phys(val, cmotto->info_bootcheck_base);
-		} else { // invalid info reg . clear info reg
-			ABC_PRINT("invalid motto info reg\n");
-			val = MOTTO_MAGIC_MASK << MASK_24_TO_31;
-			writel_phys(val, cmotto->info_bootcheck_base);
-		}
-	} else {
-		ABC_PRINT("invalid motto reg_type : %d\n", reg_type);
-	}
+	if(cmotto->dev_err_count[module] == 0xff) // 0xff means max value of 8bit variable dev_err_count[module]
+		return;
+	
+	cmotto->dev_err_count[module]++;
+	
+	return;
 }
 
-static int motto_event_to_idx(char *event)
+static enum motto_event_module motto_event_to_idx(char *module_str, char *event)
 {
+	int i, items= sizeof(motto_event_type_list) / sizeof(motto_event_type_list[0]);
+	size_t module_str_len = strlen(module_str);	
+
+	for (i = 0; i < items; i++) {
+		if(strlen(motto_event_type_list[i].motto_event_module_name) == module_str_len &&
+			!strncmp(motto_event_type_list[i].motto_event_module_name, module_str, module_str_len) &&
+			!strcmp(motto_event_type_list[i].motto_event_type_str, event) )
+			return motto_event_type_list[i].module;
+	}
+	return MOTTO_MODULE_NONE;
+}
+void get_motto_uevent_str(char *uevent_str)
+{
+	struct abc_info *pinfo;
+	struct abc_motto_data *cmotto;
+	char temp[9];
 	int i;
 
-	for (i = 0; i < ABC_MOTTO_INFO_CNT; i++) {
-		if (!strcmp(motto_event_type_str[i], event))
-			return i;
+	pinfo = dev_get_drvdata(sec_abc);
+	cmotto = pinfo->pdata->motto_data;
+
+	sprintf(uevent_str,"AME=%08x", cmotto->boot_time);
+
+	for (i=0;i<MOTTO_MODULE_MAX;i++)
+	{
+		snprintf(temp,9,"%08x", cmotto->dev_err_count[i]);
+		strcat(uevent_str, temp);
 	}
-	return -EINVAL;
+
+	return;
 }
-
-void motto_send_device_info(char *event_type)
+void motto_send_uevent(void)
 {
-	int event_type_idx = motto_event_to_idx(event_type);
+	char temp[ABC_BUFFER_MAX];
+	char *uevent_str[3] = {0,};
 
-	if (event_type_idx >= 0) {
+	get_motto_uevent_str(temp);
+
+	uevent_str[0] = temp;
+	//uevent_str[1] = &timestamp[0];
+	uevent_str[2] = NULL;
+
+	kobject_uevent_env(&sec_abc->kobj, KOBJ_CHANGE, uevent_str);
+}
+void motto_send_device_info(char *module_str, char *event_type)
+{
+	enum motto_event_module module = motto_event_to_idx(module_str, event_type);
+
+	if (module > MOTTO_MODULE_NONE) {
 		ABC_PRINT("%s : %s\n", __func__, event_type);
-		motto_update_info(MOTTO_INFO_REG_DEVICE, event_type_idx);
+		motto_update_event(module);
+		
+		motto_send_uevent();
 	}
+}
+static ssize_t show_abc_motto_info(struct device *dev,
+				struct device_attribute *attr,
+				char *buf)
+{
+	struct abc_motto_data *cmotto;
+	struct abc_info *pinfo = dev_get_drvdata(dev);
+	char temp[ABC_BUFFER_MAX];
+	char retstr[ABC_BUFFER_MAX], tempcat[24];
+	int i;
+
+	get_motto_uevent_str(temp);
+	
+	cmotto = pinfo->pdata->motto_data;
+	ABC_PRINT("%s\n", temp);
+	sprintf(retstr,"%d boot %d", sec_abc_get_enabled(), cmotto->boot_time);
+	for(i=0;i<MOTTO_MODULE_MAX;i++)
+	{
+		snprintf(tempcat,24,", dev%d %d", i, cmotto->dev_err_count[i]);
+		strcat(retstr, tempcat);
+	}
+	ABC_PRINT("%s\n", retstr);
+
+	return sprintf(buf, "%s\n", retstr);
+}
+static DEVICE_ATTR(motto_info, 0444, show_abc_motto_info, NULL);
+
+void motto_init(struct platform_device *pdev)
+{
+	struct abc_info *pinfo;
+	int ret = 0;
+
+	pinfo = dev_get_drvdata(sec_abc);
+
+	ret = device_create_file(pinfo->dev, &dev_attr_motto_info);
+	if (ret) {
+		pr_err("%s: Failed to create device motto_info file\n", __func__);
+		goto err_create_abc_motto_info_sysfs;
+	}
+
+	pinfo->pdata->motto_data = devm_kzalloc(&pdev->dev,
+					 sizeof(struct abc_motto_data), GFP_KERNEL);
+	if (pinfo->pdata->motto_data == NULL)
+		goto err_alloc_motto_data;
+
+	return;
+
+err_alloc_motto_data:
+	device_remove_file(pinfo->dev, &dev_attr_motto_info);
+err_create_abc_motto_info_sysfs:
+	return;
 }
 
 void motto_send_bootcheck_info(int boot_time)
 {
+	struct abc_info *pinfo;
+	struct abc_motto_data *cmotto;
+
 	ABC_PRINT("%s : %d\n", __func__, boot_time);
-	motto_update_info(MOTTO_INFO_REG_BOOTCHECK, boot_time);
+	pinfo = dev_get_drvdata(sec_abc);
+	cmotto = pinfo->pdata->motto_data;
+	cmotto->boot_time = (boot_time >= 0xFF) ? 0xFF : (u32)boot_time;
+
+	motto_send_uevent();
 }
 EXPORT_SYMBOL(motto_send_bootcheck_info);
-
-void get_motto_info(struct device *dev,
-			   u32 *ret_info_boot, u32 *ret_info_device)
-{
-	struct abc_motto_data *cmotto;
-	struct abc_info *pinfo = dev_get_drvdata(dev);
-
-	cmotto = pinfo->pdata->motto_data;
-	*ret_info_boot = readl_phys(cmotto->info_bootcheck_base);
-	*ret_info_device = readl_phys(cmotto->info_device_base);
-}
-
-int parse_motto_data(struct device *dev,
-			   struct abc_platform_data *pdata,
-			   struct device_node *np)
-{
-	struct abc_motto_data *cmotto;
-
-	cmotto = pdata->motto_data;
-	cmotto->desc = of_get_property(np, "motto,label", NULL);
-
-	if (of_property_read_u32(np, "motto,info_bootcheck_base", &cmotto->info_bootcheck_base)) {
-		dev_err(dev, "Failed to get motto info_bootcheck_base: node not exist\n");
-		return -EINVAL;
-	}
-
-	if (of_property_read_u32(np, "motto,info_device_base", &cmotto->info_device_base)) {
-		dev_err(dev, "Failed to get motto info_device_base: node not exist\n");
-		return -EINVAL;
-	}
-
-	ABC_PRINT("MOTTO_INFO_REG_BOOTCHECK = 0x%08x , MOTTO_INFO_REG_DEVICE = 0x%08x\n",
-		cmotto->info_bootcheck_base, cmotto->info_device_base);
-
-	return 0;
-}
 
 MODULE_DESCRIPTION("Samsung ABC Driver");
 MODULE_AUTHOR("Samsung Electronics");

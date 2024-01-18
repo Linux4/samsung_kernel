@@ -30,20 +30,17 @@
 #include <linux/regulator/consumer.h>
 #include <linux/power_supply.h>
 #include "sx9360_reg.h"
-#if IS_ENABLED(CONFIG_CCIC_NOTIFIER)
+#if IS_ENABLED(CONFIG_PDIC_NOTIFIER)
 #include <linux/usb/typec/common/pdic_notifier.h>
 #endif
 #if IS_ENABLED(CONFIG_USB_TYPEC_MANAGER_NOTIFIER)
 #include <linux/usb/typec/manager/usb_typec_manager_notifier.h>
 #endif
 
-#if IS_ENABLED(CONFIG_VBUS_NOTIFIER)
-#include <linux/vbus_notifier.h>
-#endif
-
 #define VENDOR_NAME              "SEMTECH"
 #define MODEL_NAME               "SX9360"
 #define MODULE_NAME              "grip_sensor"
+#define NOTI_MODULE_NAME         "grip_notifier"
 
 #define I2C_M_WR                 0 /* for i2c Write */
 #define I2c_M_RD                 1 /* for i2c Read */
@@ -58,6 +55,11 @@
 #define GRIP_LOG_TIME            15 /* 30 sec */
 #define ZERO_DETECT_TIME         5 /* 10 sec */
 
+#define TYPE_USB   1
+#define TYPE_HALL  2
+#define TYPE_BOOT  3
+#define TYPE_FORCE 4
+
 /* CS Main */
 #define REFERENCE_DISABLE        0x02
 
@@ -69,6 +71,9 @@
 				| SX9360_IRQSTAT_RELEASE_FLAG	\
 				| SX9360_IRQSTAT_COMPDONE_FLAG)
 
+#define UNKNOWN_ON  1
+#define UNKNOWN_OFF 2
+
 #if IS_ENABLED(CONFIG_FOLDER_HALL)
 #define HALLIC_PATH		"/sys/class/sec/sec_flip/flipStatus"
 #else
@@ -79,6 +84,7 @@
 struct sx9360_p {
 	struct i2c_client *client;
 	struct input_dev *input;
+	struct input_dev *noti_input_dev;
 	struct device *factory_device;
 	struct delayed_work init_work;
 	struct delayed_work irq_work;
@@ -86,11 +92,8 @@ struct sx9360_p {
 	struct wake_lock grip_wake_lock;
 	struct mutex mode_mutex;
 	struct mutex read_mutex;
-#if IS_ENABLED(CONFIG_CCIC_NOTIFIER)
-	struct notifier_block ccic_nb;
-#endif
-#if IS_ENABLED(CONFIG_VBUS_NOTIFIER)
-	struct notifier_block vbus_nb;
+#if IS_ENABLED(CONFIG_PDIC_NOTIFIER)
+	struct notifier_block pdic_nb;
 #endif
 
 	bool skip_data;
@@ -103,6 +106,7 @@ struct sx9360_p {
 	int hallic_cert_detect;
 
 	atomic_t enable;
+	int noti_enable;
 
 	int again_m;
 	int dgain_m;
@@ -122,10 +126,15 @@ struct sx9360_p {
 	int abnormal_mode;
 	s16 max_diff;
 	s16 max_normal_diff;
+	int pre_attach;
 
 	int debug_count;
 	int debug_zero_count;
 	char hall_ic[6];
+
+	int is_unknown_mode;
+	int motion;
+	bool first_working;
 };
 
 static int sx9360_check_hallic_state(char *file_path, char hall_ic_status[])
@@ -227,7 +236,7 @@ static void sx9360_initialize_register(struct sx9360_p *data)
 	u8 val = 0;
 	int idx;
 
-	for (idx = 0; idx < (sizeof(setup_reg) >> 1); idx++) {
+	for (idx = 0; idx < (int)(sizeof(setup_reg) >> 1); idx++) {
 		sx9360_i2c_write(data, setup_reg[idx].reg, setup_reg[idx].val);
 		GRIP_INFO("Write Reg: 0x%x Value: 0x%x\n", setup_reg[idx].reg,
 			  setup_reg[idx].val);
@@ -296,6 +305,7 @@ static void sx9360_send_event(struct sx9360_p *data, u8 state)
 	else
 		input_report_rel(data->input, REL_MISC, 2);
 
+	input_report_rel(data->input, REL_X, data->is_unknown_mode);
 	input_sync(data->input);
 }
 
@@ -401,7 +411,7 @@ static void sx9360_get_data(struct sx9360_p *data)
 	mutex_unlock(&data->read_mutex);
 
 	GRIP_INFO("capMain: %ld, useful: %ld, avg: %d, diff: %d, Offset: %u\n",
-		  (long)capMain, (long)useful, avg, diff, offset);
+		 (long int)capMain, (long int)useful, avg, diff, offset);
 }
 
 static int sx9360_set_mode(struct sx9360_p *data, unsigned char mode)
@@ -438,6 +448,7 @@ static void sx9360_check_status(struct sx9360_p *data)
 
 	if (data->skip_data == true) {
 		input_report_rel(data->input, REL_MISC, 2);
+		input_report_rel(data->input, REL_X, UNKNOWN_OFF);
 		input_sync(data->input);
 		return;
 	}
@@ -499,6 +510,26 @@ static void sx9360_set_debug_work(struct sx9360_p *data, u8 enable,
 				      msecs_to_jiffies(time_ms));
 	} else {
 		cancel_delayed_work_sync(&data->debug_work);
+	}
+}
+
+static void sx9360_enter_unknown_mode(struct sx9360_p *data, int type)
+{
+	if (data->noti_enable && !data->skip_data) {
+		data->motion = 0;
+		data->first_working = false;
+		if (data->is_unknown_mode == UNKNOWN_OFF) {
+			data->is_unknown_mode = UNKNOWN_ON;
+			if (!data->skip_data) {
+				input_report_rel(data->input, REL_X, UNKNOWN_ON);
+				input_sync(data->input);
+			}
+			GRIP_INFO("UNKNOWN Re-enter\n");
+		} else {
+			GRIP_INFO("already UNKNOWN\n");
+		}
+		input_report_rel(data->noti_input_dev, REL_X, type);
+		input_sync(data->noti_input_dev);
 	}
 }
 
@@ -628,8 +659,8 @@ static ssize_t sx9360_raw_data_show(struct device *dev,
 		data->diff_cnt = 0;
 	}
 
-	return snprintf(buf, PAGE_SIZE, "%ld,%ld,%u,%d,%d\n", (long)data->capMain,
-			(long)data->useful, data->offset, data->diff, data->avg);
+	return snprintf(buf, PAGE_SIZE, "%ld,%ld,%u,%d,%d\n", (long int)data->capMain,
+			(long int)data->useful, data->offset, data->diff, data->avg);
 }
 
 static ssize_t sx9360_diff_avg_show(struct device *dev,
@@ -645,7 +676,7 @@ static ssize_t sx9360_useful_avg_show(struct device *dev,
 {
 	struct sx9360_p *data = dev_get_drvdata(dev);
 
-	return snprintf(buf, PAGE_SIZE, "%ld\n", (long)data->useful_avg);
+	return snprintf(buf, PAGE_SIZE, "%ld\n", (long int)data->useful_avg);
 }
 
 static ssize_t sx9360_avgnegfilt_show(struct device *dev,
@@ -681,12 +712,10 @@ static ssize_t sx9360_avgposfilt_show(struct device *dev,
 		return snprintf(buf, PAGE_SIZE, "1\n");
 	else if (avgposfilt > 1 && avgposfilt < 7)
 		return snprintf(buf, PAGE_SIZE, "1-1/%d\n", 16 << avgposfilt);
-	else if (avgposfilt == 0)
-		return snprintf(buf, PAGE_SIZE, "0\n");
 	else if (avgposfilt == 1)
 		return snprintf(buf, PAGE_SIZE, "1-1/16\n");
-
-	return snprintf(buf, PAGE_SIZE, "not set\n");
+	else
+		return snprintf(buf, PAGE_SIZE, "0\n");
 }
 
 static ssize_t sx9360_gain_show(struct device *dev,
@@ -719,7 +748,7 @@ static ssize_t sx9360_avgthresh_show(struct device *dev,
 	sx9360_i2c_read(data, SX9360_PROXCTRL1_REG, &avgthresh);
 	avgthresh = avgthresh & 0x3F;
 
-	return snprintf(buf, PAGE_SIZE, "%ld\n", 512 * (long)avgthresh);
+	return snprintf(buf, PAGE_SIZE, "%ld\n", 512 * (long int)avgthresh);
 }
 
 static ssize_t sx9360_rawfilt_show(struct device *dev,
@@ -733,10 +762,8 @@ static ssize_t sx9360_rawfilt_show(struct device *dev,
 
 	if (rawfilt > 0 && rawfilt < 8)
 		return snprintf(buf, PAGE_SIZE, "1-1/%d\n", 1 << rawfilt);
-	else if (rawfilt == 0)
+	else
 		return snprintf(buf, PAGE_SIZE, "0\n");
-
-	return snprintf(buf, PAGE_SIZE, "not set\n");
 }
 
 static ssize_t sx9360_sampling_freq_show(struct device *dev,
@@ -764,7 +791,7 @@ static ssize_t sx9360_scan_period_show(struct device *dev,
 	sx9360_i2c_read(data, SX9360_GNRLCTRL2_REG, &scan_period);
 
 	return snprintf(buf, PAGE_SIZE, "%ld\n",
-			(long)(((long)scan_period << 11) / 1000));
+			(long int)(((long int)scan_period << 11) / 1000));
 }
 
 static ssize_t sx9360_again_show(struct device *dev,
@@ -945,14 +972,117 @@ static ssize_t sx9360_onoff_store(struct device *dev,
 		if (atomic_read(&data->enable) == ON) {
 			data->state = IDLE;
 			input_report_rel(data->input, REL_MISC, 2);
+			input_report_rel(data->input, REL_X, UNKNOWN_OFF);
 			input_sync(data->input);
 		}
+		data->motion = 1;
+		data->is_unknown_mode = UNKNOWN_OFF;
+		data->first_working = false;
 	} else {
 		data->skip_data = false;
+		sx9360_enter_unknown_mode(data, TYPE_FORCE);
 	}
 
 	GRIP_INFO("%u\n", val);
 	return count;
+}
+
+static ssize_t sx9360_motion_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct sx9360_p *data = dev_get_drvdata(dev);
+
+	return snprintf(buf, PAGE_SIZE, "%s\n",
+		data->motion == 1 ? "motion_detect" : "motion_non_detect");
+}
+
+static ssize_t sx9360_motion_store(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t count)
+{
+	u8 val;
+	int ret;
+	struct sx9360_p *data = dev_get_drvdata(dev);
+
+	ret = kstrtou8(buf, 2, &val);
+	if (ret) {
+		GRIP_ERR("Invalid Argument\n");
+		return ret;
+	}
+
+	data->motion = val;
+
+	GRIP_INFO("%u\n", val);
+	return count;
+}
+
+static ssize_t sx9360_unknown_state_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct sx9360_p *data = dev_get_drvdata(dev);
+
+	return snprintf(buf, PAGE_SIZE, "%s\n",
+		(data->is_unknown_mode == UNKNOWN_ON) ?	"UNKNOWN" : "NORMAL");
+}
+
+static ssize_t sx9360_unknown_state_store(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t count)
+{
+	u8 val;
+	int ret;
+	struct sx9360_p *data = dev_get_drvdata(dev);
+
+	ret = kstrtou8(buf, 2, &val);
+	if (ret) {
+		GRIP_ERR("Invalid Argument\n");
+		return ret;
+	}
+
+	if (val == 1)
+		sx9360_enter_unknown_mode(data, TYPE_FORCE);
+	else if (val == 0)
+		data->is_unknown_mode = UNKNOWN_OFF;
+	else
+		GRIP_INFO("Invalid Argument(%u)\n", val);
+
+	GRIP_INFO("%u\n", val);
+
+	return count;
+}
+
+static ssize_t sx9360_noti_enable_store(struct device *dev,
+				     struct device_attribute *attr, const char *buf, size_t size)
+{
+	int ret;
+	u8 enable;
+	struct sx9360_p *data = dev_get_drvdata(dev);
+
+	ret = kstrtou8(buf, 2, &enable);
+	if (ret) {
+		GRIP_INFO("invalid argument\n");
+		return size;
+	}
+
+	GRIP_INFO("new_value=%d\n", (int)enable);
+
+	data->noti_enable = enable;
+
+	if (data->noti_enable)
+		sx9360_enter_unknown_mode(data, TYPE_BOOT);
+	else {
+		data->motion = 1;
+		data->first_working = false;
+		data->is_unknown_mode = UNKNOWN_OFF;
+	}
+
+	return size;
+}
+
+static ssize_t sx9360_noti_enable_show(struct device *dev,
+				    struct device_attribute *attr, char *buf)
+{
+	struct sx9360_p *data = dev_get_drvdata(dev);
+
+	return sprintf(buf, "%d\n", data->noti_enable);
 }
 
 static DEVICE_ATTR(menual_calibrate, S_IRUGO | S_IWUSR | S_IWGRP,
@@ -991,6 +1121,12 @@ static DEVICE_ATTR(irq_count, S_IRUGO | S_IWUSR | S_IWGRP,
 static DEVICE_ATTR(resolution, S_IRUGO, sx9360_resolution_show, NULL);
 static DEVICE_ATTR(adc_filt, S_IRUGO, sx9360_adc_filt_show, NULL);
 static DEVICE_ATTR(useful_filt, S_IRUGO, sx9360_useful_filt_show, NULL);
+static DEVICE_ATTR(motion, S_IRUGO | S_IWUSR | S_IWGRP,
+	sx9360_motion_show, sx9360_motion_store);
+static DEVICE_ATTR(unknown_state, S_IRUGO | S_IWUSR | S_IWGRP,
+	sx9360_unknown_state_show, sx9360_unknown_state_store);
+static DEVICE_ATTR(noti_enable, S_IRUGO | S_IWUSR | S_IWGRP,
+		   sx9360_noti_enable_show, sx9360_noti_enable_store);
 
 static struct device_attribute *sensor_attrs[] = {
 	&dev_attr_menual_calibrate,
@@ -1021,6 +1157,9 @@ static struct device_attribute *sensor_attrs[] = {
 	&dev_attr_resolution,
 	&dev_attr_adc_filt,
 	&dev_attr_useful_filt,
+	&dev_attr_motion,
+	&dev_attr_unknown_state,
+	&dev_attr_noti_enable,
 	NULL,
 };
 
@@ -1081,15 +1220,23 @@ static void sx9360_touch_process(struct sx9360_p *data)
 	}
 
 	if (data->state == IDLE) {
-		if (status & CSX_STATUS_REG)
+		if (status & CSX_STATUS_REG) {
+			if (data->is_unknown_mode == UNKNOWN_ON && data->motion)
+				data->first_working = true;
 			sx9360_send_event(data, ACTIVE);
-		else
+		} else {
 			GRIP_INFO("0x%x already released.\n", status);
+		}
 	} else { /* User released button */
-		if (!(status & CSX_STATUS_REG))
+		if (!(status & CSX_STATUS_REG)) {
+			if (data->is_unknown_mode == UNKNOWN_ON && data->motion) {
+				GRIP_INFO("unknown mode off\n");
+				data->is_unknown_mode = UNKNOWN_OFF;
+			}
 			sx9360_send_event(data, IDLE);
-		else
+		} else {
 			GRIP_INFO("0x%x still touched\n", status);
+		}
 	}
 }
 
@@ -1151,6 +1298,21 @@ static void sx9360_irq_work_func(struct work_struct *work)
 		GRIP_ERR("nirq read high %d\n", sx9360_get_nirq_state(data));
 }
 
+static void sx9360_check_first_working(struct sx9360_p *data)
+{
+	if (data->noti_enable && data->motion) {
+		if (data->detect_threshold < data->diff) {
+			data->first_working = true;
+			GRIP_INFO("first working detected %d\n", data->diff);
+		} else {
+			if (data->first_working) {
+				data->is_unknown_mode = UNKNOWN_OFF;
+				GRIP_INFO("Release detected %d, unknown mode off\n", data->diff);
+			}
+		}
+	}
+}
+
 static void sx9360_read_register(struct sx9360_p *data)
 {
 	u8 val, offset = 0;
@@ -1193,9 +1355,14 @@ static void sx9360_debug_work_func(struct work_struct *work)
 			if (hall_flag) {
 				GRIP_INFO("hall IC is closed\n");
 				sx9360_set_offset_calibration(data);
+				sx9360_enter_unknown_mode(data, TYPE_HALL);
 				hall_flag = 0;
 			}
 		} else {
+			if (!hall_flag) {
+				GRIP_INFO("hall IC is opened\n");
+				sx9360_enter_unknown_mode(data, TYPE_HALL);
+			}
 			hall_flag = 1;
 		}
 	}
@@ -1209,9 +1376,14 @@ static void sx9360_debug_work_func(struct work_struct *work)
 			if (hall_cert_flag) {
 				GRIP_INFO("cert hall IC is closed\n");
 				sx9360_set_offset_calibration(data);
+				sx9360_enter_unknown_mode(data, TYPE_HALL);
 				hall_cert_flag = 0;
 			}
 		} else {
+			if (!hall_cert_flag) {
+				GRIP_INFO("hall IC is opened\n");
+				sx9360_enter_unknown_mode(data, TYPE_HALL);
+			}
 			hall_cert_flag = 1;
 		}
 	}
@@ -1221,14 +1393,19 @@ static void sx9360_debug_work_func(struct work_struct *work)
 			sx9360_get_data(data);
 			if (data->max_normal_diff < data->diff)
 				data->max_normal_diff = data->diff;
-		} else {
-			if (data->debug_count >= GRIP_LOG_TIME) {
-				sx9360_get_data(data);
-				data->debug_count = 0;
-			} else {
-				data->debug_count++;
-			}
 		}
+	}
+	if (data->debug_count >= GRIP_LOG_TIME) {
+		sx9360_get_data(data);
+		if (data->is_unknown_mode == UNKNOWN_ON && data->motion)
+			sx9360_check_first_working(data);
+		data->debug_count = 0;
+	} else {
+		if (data->is_unknown_mode == UNKNOWN_ON && data->motion) {
+			sx9360_get_data(data);
+			sx9360_check_first_working(data);
+		}
+		data->debug_count++;
 	}
 
 	/* Zero Detect Defence code*/
@@ -1269,6 +1446,7 @@ static int sx9360_input_init(struct sx9360_p *data)
 {
 	int ret = 0;
 	struct input_dev *dev = NULL;
+	struct input_dev *noti_input_dev = NULL;
 
 	/* Create the input device */
 	dev = input_allocate_device();
@@ -1279,6 +1457,7 @@ static int sx9360_input_init(struct sx9360_p *data)
 	dev->id.bustype = BUS_I2C;
 
 	input_set_capability(dev, EV_REL, REL_MISC);
+	input_set_capability(dev, EV_REL, REL_X);
 	input_set_drvdata(dev, data);
 
 	ret = input_register_device(dev);
@@ -1302,6 +1481,27 @@ static int sx9360_input_init(struct sx9360_p *data)
 
 	/* save the input pointer and finish initialization */
 	data->input = dev;
+
+	noti_input_dev = input_allocate_device();
+	if (!noti_input_dev) {
+		GRIP_ERR("input_allocate_device failed\n");
+		return -ENOMEM;
+	}
+
+	noti_input_dev->name = NOTI_MODULE_NAME;
+	noti_input_dev->id.bustype = BUS_I2C;
+
+	input_set_capability(noti_input_dev, EV_REL, REL_X);
+	input_set_drvdata(noti_input_dev, data);
+
+	ret = input_register_device(noti_input_dev);
+	if (ret < 0) {
+		GRIP_ERR("failed to register input dev for noti (%d)\n", ret);
+		input_free_device(noti_input_dev);
+		return ret;
+	}
+
+	data->noti_input_dev = noti_input_dev;
 
 	return 0;
 }
@@ -1332,6 +1532,10 @@ static void sx9360_initialize_variable(struct sx9360_p *data)
 	data->skip_data = false;
 	data->state = IDLE;
 
+	data->is_unknown_mode = UNKNOWN_OFF;
+	data->motion = 1;
+	data->first_working = false;
+
 	atomic_set(&data->enable, OFF);
 }
 
@@ -1344,6 +1548,8 @@ static int sx9360_read_setupreg(struct device_node *dnode, char *str, u32 *val)
 
 	if (!ret)
 		*val = temp_val;
+	else if (ret == -22)
+		GRIP_ERR("%s: default (0x%2x, %d)\n", str, temp_val, ret);
 	else
 		GRIP_ERR("%s: property read err 0x%2x (%d)\n", str, temp_val, ret);
 
@@ -1369,8 +1575,8 @@ static int sx9360_parse_dt(struct sx9360_p *data, struct device *dev)
 		GRIP_INFO("get gpio_nirq %d\n", data->gpio_nirq);
 	}
 
-	if (!sx9360_read_setupreg(dNode, SX9360_REGGNRLCTL2, &val))
-		setup_reg[SX9360_REGGNRLCTL2_REG_IDX].val = (u8)val;
+	if (!sx9360_read_setupreg(dNode, SX9360_GNRLCTRL2, &val))
+		setup_reg[SX9360_GNRLCTRL2_REG_IDX].val = (u8)val;
 	if (!sx9360_read_setupreg(dNode, SX9360_REGPROXCTRL3, &val))
 		setup_reg[SX9360_REGPROXCTRL3_REG_IDX].val = (u8)val;
 	if (!sx9360_read_setupreg(dNode, SX9360_REFRESOLUTION, &val))
@@ -1403,67 +1609,28 @@ static int sx9360_parse_dt(struct sx9360_p *data, struct device *dev)
 	return 0;
 }
 
-#if IS_ENABLED(CONFIG_CCIC_NOTIFIER) && IS_ENABLED(CONFIG_USB_TYPEC_MANAGER_NOTIFIER)
-static int sx9360_ccic_handle_notification(struct notifier_block *nb,
-					   unsigned long action, void *data)
+#if IS_ENABLED(CONFIG_PDIC_NOTIFIER) && IS_ENABLED(CONFIG_USB_TYPEC_MANAGER_NOTIFIER)
+static int sx9360_pdic_handle_notification(struct notifier_block *nb,
+					   unsigned long action, void *pdic_data)
 {
-	CC_NOTI_USB_STATUS_TYPEDEF usb_status =
-		*(CC_NOTI_USB_STATUS_TYPEDEF *) data;
-	struct sx9360_p *pdata =
-		container_of(nb, struct sx9360_p, ccic_nb);
-	static int pre_attach;
+	PD_NOTI_ATTACH_TYPEDEF usb_typec_info = *(PD_NOTI_ATTACH_TYPEDEF *)pdic_data;
+	struct sx9360_p *pdata = container_of(nb, struct sx9360_p, pdic_nb);
 
-	if ((usb_status.drp != USB_STATUS_NOTIFY_ATTACH_DFP) &&
-	    (usb_status.drp != USB_STATUS_NOTIFY_DETACH))
+	if (usb_typec_info.id != PDIC_NOTIFY_ID_ATTACH)
 		return 0;
 
-	if (pre_attach == usb_status.drp)
+	if (pdata->pre_attach == usb_typec_info.attach)
 		return 0;
+
+	GRIP_INFO("src %d id %d attach %d rprd %d\n",
+		usb_typec_info.src, usb_typec_info.id, usb_typec_info.attach, usb_typec_info.rprd);
 
 	if (pdata->init_done == ON) {
-		switch (usb_status.drp) {
-		case USB_STATUS_NOTIFY_ATTACH_DFP:
-		case USB_STATUS_NOTIFY_DETACH:
-			GRIP_INFO(" accept attach = %d\n", usb_status.drp);
-			sx9360_set_offset_calibration(pdata);
-			break;
-		default:
-			GRIP_INFO(" skip attach = %d\n", usb_status.drp);
-			break;
-		}
+		sx9360_enter_unknown_mode(pdata, TYPE_USB);
+		sx9360_set_offset_calibration(pdata);
 	}
 
-	pre_attach = usb_status.drp;
-
-	return 0;
-}
-#endif
-#if IS_ENABLED(CONFIG_VBUS_NOTIFIER)
-static int sx9360_vbus_handle_notification(struct notifier_block *nb,
-					   unsigned long action, void *data)
-{
-	vbus_status_t vbus_type = *(vbus_status_t *) data;
-	struct sx9360_p *pdata =
-		container_of(nb, struct sx9360_p, vbus_nb);
-	static int pre_attach;
-
-	if (pre_attach == vbus_type)
-		return 0;
-
-	if (pdata->init_done == ON) {
-		switch (vbus_type) {
-		case STATUS_VBUS_HIGH:
-		case STATUS_VBUS_LOW:
-			GRIP_INFO(" accept attach = %d\n", vbus_type);
-			sx9360_set_offset_calibration(pdata);
-			break;
-		default:
-			GRIP_INFO(" skip attach = %d\n", vbus_type);
-			break;
-		}
-	}
-
-	pre_attach = vbus_type;
+	pdata->pre_attach = usb_typec_info.attach;
 
 	return 0;
 }
@@ -1573,16 +1740,11 @@ static int sx9360_probe(struct i2c_client *client,
 	schedule_delayed_work(&data->init_work, msecs_to_jiffies(300));
 	sx9360_set_debug_work(data, ON, 20000);
 
-#if IS_ENABLED(CONFIG_CCIC_NOTIFIER) && IS_ENABLED(CONFIG_USB_TYPEC_MANAGER_NOTIFIER)
-	GRIP_INFO("register ccic notifier\n");
-	manager_notifier_register(&data->ccic_nb,
-				  sx9360_ccic_handle_notification,
-				  MANAGER_NOTIFY_CCIC_USB);
-#endif
-#if IS_ENABLED(CONFIG_VBUS_NOTIFIER)
-	GRIP_INFO("register vbus notifier\n");
-	vbus_notifier_register(&data->vbus_nb, sx9360_vbus_handle_notification,
-			       VBUS_NOTIFY_DEV_CHARGER);
+#if IS_ENABLED(CONFIG_PDIC_NOTIFIER) && IS_ENABLED(CONFIG_USB_TYPEC_MANAGER_NOTIFIER)
+	GRIP_INFO("register pdic notifier\n");
+	manager_notifier_register(&data->pdic_nb,
+				  sx9360_pdic_handle_notification,
+				  MANAGER_NOTIFY_PDIC_SENSORHUB);
 #endif
 
 	GRIP_INFO("Probe done!\n");
@@ -1602,6 +1764,7 @@ exit_of_node:
 	sysfs_remove_group(&data->input->dev.kobj, &sx9360_attribute_group);
 	sensors_remove_symlink(data->input);
 	input_unregister_device(data->input);
+	input_unregister_device(data->noti_input_dev);
 exit_input_init:
 	kfree(data);
 exit_kzalloc:
@@ -1630,6 +1793,7 @@ static int sx9360_remove(struct i2c_client *client)
 	sensors_remove_symlink(data->input);
 	sysfs_remove_group(&data->input->dev.kobj, &sx9360_attribute_group);
 	input_unregister_device(data->input);
+	input_unregister_device(data->noti_input_dev);
 	mutex_destroy(&data->mode_mutex);
 	mutex_destroy(&data->read_mutex);
 

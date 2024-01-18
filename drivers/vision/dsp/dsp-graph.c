@@ -135,7 +135,7 @@ static void __dsp_graph_unmap_list(struct dsp_graph *graph,
 }
 
 static int __dsp_graph_map_list(struct dsp_graph *graph,
-		void *list, unsigned int count, unsigned int param_type)
+		void *list, unsigned long long count, unsigned int param_type)
 {
 	int ret;
 	int idx;
@@ -286,6 +286,28 @@ static void __dsp_graph_remove_kernel(struct dsp_graph *graph)
 	dsp_leave();
 }
 
+static int __dsp_graph_check_kernel(struct dsp_graph *graph, char *str,
+		unsigned int length)
+{
+	int ret, idx;
+
+	dsp_enter();
+	str[length - 1] = '\0';
+
+	for (idx = 0; idx < length; ++idx) {
+		if (str[idx] == '/') {
+			ret = -EINVAL;
+			dsp_err("Path in file name isn't supported(%s)\n", str);
+			goto p_err;
+		}
+	}
+
+	dsp_leave();
+	return 0;
+p_err:
+	return ret;
+}
+
 static int __dsp_graph_add_kernel(struct dsp_graph *graph, void *kernel_name)
 {
 	int ret;
@@ -302,6 +324,13 @@ static int __dsp_graph_add_kernel(struct dsp_graph *graph, void *kernel_name)
 	length = kernel_name;
 	offset = (unsigned long)&length[kernel_count];
 
+	if (kernel_count > DSP_MAX_KERNEL_COUNT) {
+		ret = -EINVAL;
+		dsp_err("kernel_count(%u/%u) is invalid\n",
+				kernel_count, DSP_MAX_KERNEL_COUNT);
+		goto p_err;
+	}
+
 	graph->dl_libs = kcalloc(kernel_count, sizeof(*graph->dl_libs),
 			GFP_KERNEL);
 	if (!graph->dl_libs) {
@@ -311,6 +340,14 @@ static int __dsp_graph_add_kernel(struct dsp_graph *graph, void *kernel_name)
 	}
 
 	for (idx = 0; idx < kernel_count; ++idx) {
+		ret = __dsp_graph_check_kernel(graph, (char *)offset,
+				length[idx]);
+		if (ret) {
+			dsp_err("Failed to check kernel(%u/%u)\n",
+					idx, kernel_count);
+			goto p_err_alloc;
+		}
+
 		graph->dl_libs[idx].name = (const char *)offset;
 
 		kernel = dsp_kernel_alloc(kmgr, length[idx],
@@ -407,7 +444,7 @@ struct dsp_graph *dsp_graph_get(struct dsp_graph_manager *gmgr,
 
 struct dsp_graph *dsp_graph_load(struct dsp_graph_manager *gmgr,
 		struct dsp_mailbox_pool *pool, void *kernel_name,
-		unsigned int version)
+		unsigned int kernel_count, unsigned int version)
 {
 	int ret;
 	struct dsp_graph *graph, *temp;
@@ -449,6 +486,13 @@ struct dsp_graph *dsp_graph_load(struct dsp_graph_manager *gmgr,
 		goto p_err_version;
 	}
 
+	if (ginfo_n_kernel != kernel_count) {
+		ret = -EINVAL;
+		dsp_err("kernel_cnt is different from value of ginfo(%u/%u)\n",
+				kernel_count, ginfo_n_kernel);
+		goto p_err_count;
+	}
+
 	mutex_lock(&gmgr->lock);
 	list_for_each_entry_safe(graph, temp, &gmgr->list, list) {
 		if (GET_COMMON_GRAPH_ID(graph->global_id) ==
@@ -478,7 +522,8 @@ struct dsp_graph *dsp_graph_load(struct dsp_graph_manager *gmgr,
 	graph->version = version;
 
 	ret = __dsp_graph_map_list(graph, ginfo_param_list,
-			ginfo_n_tsgd + ginfo_n_param, DSP_COMMON_PARAM_TSGD);
+			(unsigned long long)ginfo_n_tsgd +
+			(unsigned long long)ginfo_n_param, DSP_COMMON_PARAM_TSGD);
 	if (ret)
 		goto p_err_map;
 
@@ -513,6 +558,7 @@ p_err_map:
 	kfree(graph);
 p_err_graph:
 	mutex_unlock(&gmgr->lock);
+p_err_count:
 p_err_version:
 	return ERR_PTR(ret);
 }
@@ -573,7 +619,8 @@ int dsp_graph_execute(struct dsp_graph *graph, struct dsp_mailbox_pool *pool)
 
 	if (einfo_n_update_param) {
 		ret = __dsp_graph_map_list(graph, einfo_param_list,
-				einfo_n_update_param, DSP_COMMON_PARAM_UPDATE);
+				(unsigned long long)einfo_n_update_param,
+				DSP_COMMON_PARAM_UPDATE);
 		if (ret) {
 			mutex_unlock(&gmgr->lock);
 			goto p_err;
@@ -654,6 +701,7 @@ int dsp_graph_manager_probe(struct dsp_core *core)
 
 	INIT_LIST_HEAD(&gmgr->list);
 	mutex_init(&gmgr->lock);
+	mutex_init(&gmgr->lock_for_unload);
 	dsp_leave();
 	return 0;
 p_err_kernel:

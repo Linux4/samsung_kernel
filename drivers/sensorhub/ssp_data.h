@@ -35,6 +35,8 @@ void get_timestamp(struct ssp_data *, char *, int *, struct sensor_value *, int)
 
 int get_sensorname(struct ssp_data *data, int sensor_type, char *name, int size);
 
+int set_additional_info(struct ssp_data *data, const char *buf, int count);
+
 #ifdef CONFIG_SENSORS_SSP_PROXIMITY
 int set_proximity_threshold(struct ssp_data *data);
 #ifdef CONFIG_SENSROS_SSP_PROXIMITY_THRESH_CAL
@@ -50,6 +52,10 @@ int save_prox_cal_threshold_data(struct ssp_data *data);
 int set_proximity_setting_mode(struct ssp_data *data);
 int save_proximity_setting_mode(struct ssp_data *data);
 int open_proximity_setting_mode(struct ssp_data *data);
+#endif
+#ifdef CONFIG_SENSORS_SSP_PROXIMITY_FACTORY_CROSSTALK_CAL
+int save_prox_cal_threshold_data(struct ssp_data *data);
+int proximity_open_calibration(struct ssp_data *data);
 #endif
 #endif
 #ifdef CONFIG_SENSORS_SSP_LIGHT
@@ -68,6 +74,8 @@ int save_gyro_cal_data(struct ssp_data *data, s16 *cal_data);
 #ifdef CONFIG_SENSORS_SSP_ACCELOMETER
 int accel_open_calibration(struct ssp_data *);
 int set_accel_cal(struct ssp_data *);
+int set_device_orientation_mode(struct ssp_data *data);
+int set_sar_backoff_motion_reset_value(struct ssp_data *data, int32_t value);
 #endif
 #ifdef CONFIG_SENSORS_SSP_BAROMETER
 int pressure_open_calibration(struct ssp_data *);
@@ -76,6 +84,6 @@ int pressure_open_calibration(struct ssp_data *);
 int set_pdc_matrix(struct ssp_data *data);
 int mag_open_calibration(struct ssp_data *data);
 int set_mag_cal(struct ssp_data *data);
-int save_mag_cal_data(struct ssp_data *data, u8 *cal_data);
+int save_mag_cal_data(struct ssp_data *data);
 #endif
 #endif /* __SSP_DATA_H__ */

@@ -48,12 +48,31 @@ config SENSORS_FINGERPRINT_MTK
 	help
 	  If you say yes here you get support for Mediatek AP.
 
+config SENSORS_FINGERPRINT_NORMALSPI
+	tristate "Goodix SPI normal mode"
+	default n
+	help
+	  If you say yes here you get to use spi normal mode on goodix sensor.
+
+config SENSORS_FINGERPRINT_32BITS_PLATFORM_ONLY
+	tristate "32bits platform support"
+	default n
+	help
+	  If you say yes here you get support for 32bits platform.
+
 config SENSORS_QBT2000
 	tristate "QBT2000 fingerprint sensor support"
 	default n
 	help
 	  If you say yes here you get support for Qualcomm's
 	  fingerprint sensor QBT2000.
+
+config SENSORS_QFS4008
+	tristate "QFS4008 fingerprint sensor support"
+	default n
+	help
+	  If you say yes here you get support for Qualcomm's
+	  fingerprint sensor QFS4008.
 
 config SENSORS_ET5XX
 	tristate "ET5XX fingerprint sensor support"
@@ -64,12 +83,28 @@ config SENSORS_ET5XX
 	  ET5XX is the touch type fingerprint sensor.
 	  ET5XX module can support WOF mode.
 
+config SENSORS_EC6XX
+	tristate "EC6XX fingerprint sensor support"
+	default n
+	help
+	  Fingerprint sensor driver.
+	  If you say yes here you get support for EC6XX sensor.
+	  EC6XX is the touch type fingerprint sensor.
+	  EC6XX module can support WOF mode.
+
 config SENSORS_ET7XX
 	tristate "ET7XX fingerprint sensor support"
 	default n
 	help
 	  If you say yes here you get support for Egistec's
 	  fingerprint sensor ET7XX.
+
+config SENSORS_EL7XX
+	tristate "EL7XX fingerprint sensor support"
+	default n
+	help
+	  If you say yes here you get support for Egistec's
+	  fingerprint sensor EL7XX.
 
 config SENSORS_GW3X
 	tristate "generic goodix fingerprint driver"

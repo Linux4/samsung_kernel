@@ -65,6 +65,7 @@
 #if IS_ENABLED(CONFIG_HICCUP_CHARGER)
 #include <linux/sec_batt.h>
 #endif
+#include <linux/usb/typec/common/pdic_param.h>
 
 /* Prototypes of the Static symbols of s2mu107-muic */
 #if IS_ENABLED(CONFIG_MUIC_MANAGER)
@@ -1651,7 +1652,7 @@ static irqreturn_t s2mu107_muic_vbus_on_isr(int irq, void *data)
 	/* Temporary workaround */
 	s2mu107_i2c_write_byte(muic_data->i2c_common, 0xF2, 0x0);
 
-	if (!lpcharge && s2mu107_muic_get_water_status(muic_data)) {
+	if (!is_lpcharge_pdic_param() && s2mu107_muic_get_water_status(muic_data)) {
 #if IS_ENABLED(CONFIG_HICCUP_CHARGER)
 		s2mu107_muic_set_hiccup_mode(muic_data, MUIC_ENABLE);
 #endif
@@ -2031,7 +2032,7 @@ static int s2mu107_muic_probe(struct platform_device *pdev)
 	mutex_init(&muic_data->switch_mutex);
 	mutex_init(&muic_data->bcd_rescan_mutex);
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 19, 188)
 	wakeup_source_init(muic_data->muic_ws, "muic_wake");   // 4.19 R
 	if (!(muic_data->muic_ws)) {
 		muic_data->muic_ws = wakeup_source_create("muic_wake"); // 4.19 Q

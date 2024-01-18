@@ -425,11 +425,6 @@ struct io_device {
 	int (*recv_net_skb)(struct io_device *iod, struct link_device *ld,
 			    struct sk_buff *skb);
 
-	/* inform the IO device that the modem is now online or offline or
-	 * crashing or whatever...
-	 */
-	void (*modem_state_changed)(struct io_device *iod, enum modem_state);
-
 	/* inform the IO device that the SIM is not inserting or removing */
 	void (*sim_state_changed)(struct io_device *iod, bool sim_online);
 

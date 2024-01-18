@@ -56,6 +56,7 @@
 #if defined(CONFIG_SEC_ABC)  
 #include <linux/sti/abc_common.h>  
 #endif
+#include <linux/sec_class.h>
 
 #define CREATE_TRACE_POINTS
 #include <trace/events/ufs.h>
@@ -119,7 +120,7 @@
 #ifdef CONFIG_SCSI_UFS_SUPPORT_TW_MAN_GC
 #define UFS_TW_MANUAL_FLUSH_THRESHOLD	5
 #endif
-#define UFS_TW_DISABLE_THRESHOLD	7
+#define UFS_TW_DISABLE_THRESHOLD	9
 
 #ifdef CONFIG_BLK_TURBO_WRITE
 #define SEC_UFS_TW_INFO_DIFF(t, n, o, member) ({		\
@@ -157,6 +158,8 @@ static void SEC_UFS_TW_info_get_diff(struct SEC_UFS_TW_info *target,
 
 /* Called by FS */
 extern void (*ufs_debug_func)(void *);
+
+struct device *sec_ufs_cmd_dev;
 
 #define ufshcd_hex_dump(prefix_str, buf, len) do {                       \
 	size_t __len = (len);                                            \
@@ -339,6 +342,7 @@ static int ufshcd_set_dev_pwr_mode(struct ufs_hba *hba,
 				     enum ufs_dev_pwr_mode pwr_mode);
 static int ufshcd_send_request_sense(struct ufs_hba *hba,
                                struct scsi_device *sdp);
+static void ufs_sec_err_noti(struct ufs_hba *hba);
 
 #if defined(SEC_UFS_ERROR_COUNT)
 #include <scsi/scsi_proto.h>
@@ -1344,32 +1348,6 @@ static inline void ufshcd_hba_start(struct ufs_hba *hba)
 {
 	ufshcd_writel(hba, CONTROLLER_ENABLE, REG_CONTROLLER_ENABLE);
 }
-
-#ifdef CUSTOMIZE_UPIU_FLAGS
-SIO_PATCH_VERSION(UPIU_customize, 1, 1, "");
-
-/* IOPP-ufs_cp-v1.0.4.9 */
-static void set_customized_upiu_flags(struct ufshcd_lrb *lrbp, u32 *upiu_flags)
-{
-	if (lrbp->command_type == UTP_CMD_TYPE_SCSI) {
-		switch (req_op(lrbp->cmd->request)) {
-		case REQ_OP_READ:
-			*upiu_flags |= UPIU_COMMAND_PRIORITY_HIGH;
-			break;
-		case REQ_OP_WRITE:
-			if (lrbp->cmd->request->cmd_flags & REQ_SYNC)
-				*upiu_flags |= UPIU_COMMAND_PRIORITY_HIGH;
-			break;
-		case REQ_OP_FLUSH:
-			*upiu_flags |= UPIU_TASK_ATTR_HEADQ;
-			break;
-		case REQ_OP_DISCARD:
-			*upiu_flags |= UPIU_TASK_ATTR_ORDERED;
-			break;
-		}
-	}
-}
-#endif
 
 /**
  * ufshcd_is_hba_active - Get controller state
@@ -2831,6 +2809,29 @@ static void ufshcd_disable_intr(struct ufs_hba *hba, u32 intrs)
 	}
 
 	ufshcd_writel(hba, set, REG_INTERRUPT_ENABLE);
+}
+
+/* IOPP-upiu_flags-v1.2.k5.4 */
+static void set_customized_upiu_flags(struct ufshcd_lrb *lrbp, u32 *upiu_flags)
+{
+	if (!lrbp->cmd || !lrbp->cmd->request)
+		return;
+
+	switch (req_op(lrbp->cmd->request)) {
+	case REQ_OP_READ:
+		*upiu_flags |= UPIU_CMD_PRIO_HIGH;
+		break;
+	case REQ_OP_WRITE:
+		if (lrbp->cmd->request->cmd_flags & REQ_SYNC)
+			*upiu_flags |= UPIU_CMD_PRIO_HIGH;
+		break;
+	case REQ_OP_FLUSH:
+		*upiu_flags |= UPIU_TASK_ATTR_HEADQ;
+		break;
+	case REQ_OP_DISCARD:
+		*upiu_flags |= UPIU_TASK_ATTR_ORDERED;
+		break;
+	}
 }
 
 /**
@@ -6622,6 +6623,7 @@ static void ufshcd_err_handler(struct work_struct *work)
 	int err = 0;
 	int tag;
 	bool needs_reset = false;
+	bool needs_noti = false;
 
 	hba = container_of(work, struct ufs_hba, eh_work);
 
@@ -6634,6 +6636,7 @@ static void ufshcd_err_handler(struct work_struct *work)
 				HCI_CLKSTOP_CTRL, hci_readl(ufs, HCI_CLKSTOP_CTRL));
 		dev_err(hba->dev, ": FORCE HCS(0x%04x):\t\t\t\t0x%08x\n",
 				HCI_FORCE_HCS, hci_readl(ufs, HCI_FORCE_HCS));
+		needs_noti = true;
 	}
 
 	/* Dump debugging information to system memory */
@@ -6755,6 +6758,8 @@ skip_err_handling:
 out:
 	spin_unlock_irqrestore(hba->host->host_lock, flags);
 	ufshcd_scsi_unblock_requests(hba);
+	if (needs_noti)
+		ufs_sec_err_noti(hba);
 	ufshcd_release(hba);
 	pm_runtime_put_sync(hba->dev);
 }
@@ -10054,11 +10059,42 @@ static void ufshcd_add_lt_sysfs_node(struct ufs_hba *hba)
 		printk("cannot create sysfs group err: %d\n", err);
 }
 
+static void ufs_sec_err_noti(struct ufs_hba *hba)
+{
+	int ret;
+
+	if (hba->noti_cnt > 3)
+		return;
+
+	hba->noti_cnt++;
+	
+	ret = kobject_uevent(&sec_ufs_cmd_dev->kobj, KOBJ_CHANGE);
+	if (ret)
+		pr_err("%s: Failed to send uevent with err %d\n", __func__, ret);
+}
+
+static int ufs_sec_err_uevent(struct device *dev, struct kobj_uevent_env *env)
+{
+	add_uevent_var(env, "DEVNAME=%s", dev->kobj.name);
+	add_uevent_var(env, "NAME=UFSERR");
+
+	return add_uevent_var(env, "DATA=%s", "UIC_ERR");
+}
+
+static struct device_type ufs_type = {
+	.uevent = ufs_sec_err_uevent,
+};
+
 static inline void ufshcd_add_sysfs_nodes(struct ufs_hba *hba)
 {
 	ufshcd_add_unique_number_sysfs_nodes(hba);
 	ufshcd_add_lt_sysfs_node(hba);
 	ufshcd_add_manufacturer_id_sysfs_nodes(hba);
+
+	/* ufs err uevent dev */
+	sec_ufs_cmd_dev = sec_device_create(hba, "ufs");
+	sec_ufs_cmd_dev->type = &ufs_type;
+	hba->noti_cnt = 0;
 }
 
 static inline void ufshcd_remove_sysfs_nodes(struct ufs_hba *hba)

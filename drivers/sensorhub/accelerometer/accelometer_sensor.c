@@ -136,6 +136,9 @@ void select_accel_ops(struct ssp_data *data, char *name)
 #if defined(CONFIG_SENSORS_SSP_ACCELOMETER_ICM42605M)
 	count++;
 #endif
+#if defined(CONFIG_SENSORS_SSP_ACCELOMETER_ICM42632M)
+	count++;
+#endif
 #if defined(CONFIG_SENSORS_SSP_ACCELOMETER_LSM6DSL)
 	count++;
 #endif
@@ -156,6 +159,9 @@ void select_accel_ops(struct ssp_data *data, char *name)
 	i = 0;
 #if defined(CONFIG_SENSORS_SSP_ACCELOMETER_ICM42605M)
 	accel_ops_ary[i++] = get_accelometer_icm42605m_function_pointer(data);
+#endif
+#if defined(CONFIG_SENSORS_SSP_ACCELOMETER_ICM42632M)
+	accel_ops_ary[i++] = get_accelometer_icm42632m_function_pointer(data);
 #endif
 #if defined(CONFIG_SENSORS_SSP_ACCELOMETER_LSM6DSL)
 	accel_ops_ary[i++] = get_accelometer_lsm6dsl_function_pointer(data);

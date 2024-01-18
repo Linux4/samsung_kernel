@@ -31,6 +31,7 @@
 #include "ssp_iio.h"
 #include "ssp_scontext.h"
 #include "ssp_kfifo_buf.h"
+#include "ssp_system_checker.h"
 
 #define IIO_CHANNEL             -1
 #define IIO_SCAN_INDEX          3
@@ -238,6 +239,15 @@ void report_sensor_data(struct ssp_data *data, int type,
 	    || type == SENSOR_TYPE_TILT_DETECTOR || type == SENSOR_TYPE_PICK_UP_GESTURE
 	    || type == SENSOR_TYPE_WAKE_UP_MOTION)
 		__pm_wakeup_event(data->ssp_wakelock, 0.3 * HZ);
+
+#ifdef CONFIG_SSP_ENG_DEBUG
+	ssp_system_check_lock();
+	if (is_system_checking())
+		event_test_cb(type, event->timestamp);
+	if (is_event_order_checking())
+		order_test_cb(type, event->timestamp);
+	ssp_system_check_unlock();
+#endif
 }
 
 void report_camera_lux_data(struct ssp_data *data, int lux)
@@ -264,6 +274,12 @@ void report_meta_data(struct ssp_data *data, struct sensor_value *s)
 			     META_TIMESTAMP, meta_event,
 			     data->info[s->meta_data.sensor].report_data_len);
 	kfree(meta_event);
+#ifdef CONFIG_SSP_ENG_DEBUG
+	ssp_system_check_lock();
+	if (is_system_checking())
+		comm_test_cb(s->meta_data.sensor);
+	ssp_system_check_unlock();
+#endif
 }
 
 void report_scontext_data(struct ssp_data *data, char *data_buf, u32 length)

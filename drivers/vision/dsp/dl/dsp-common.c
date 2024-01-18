@@ -6,7 +6,7 @@
  *              http://www.samsung.com/
  */
 
-#include <linux/vmalloc.h>
+#include <linux/slab.h>
 #include "dl/dsp-common.h"
 #include "dl/dsp-list.h"
 
@@ -20,9 +20,9 @@ struct dsp_dl_mem {
 
 struct dsp_list_head *dl_mem_list;
 
-static void *__dsp_vzalloc(unsigned int size)
+static void *__dsp_alloc(unsigned int size)
 {
-	return vzalloc(size);
+	return kzalloc(size, GFP_KERNEL);
 }
 
 void dsp_dl_lib_file_reset(struct dsp_dl_lib_file *file)
@@ -43,14 +43,14 @@ int dsp_dl_lib_file_read(char *buf, unsigned int size,
 
 static void __dsp_dl_mem_init(void)
 {
-	dl_mem_list = (struct dsp_list_head *)__dsp_vzalloc(
+	dl_mem_list = (struct dsp_list_head *)__dsp_alloc(
 			sizeof(struct dsp_list_head));
 	dsp_list_head_init(dl_mem_list);
 }
 
 static void __dsp_dl_mem_free(void)
 {
-	vfree(dl_mem_list);
+	kfree(dl_mem_list);
 }
 
 static void __dsp_dl_mem_print(void)
@@ -66,7 +66,7 @@ static void __dsp_dl_mem_print(void)
 
 void dsp_common_init(void)
 {
-	dsp_log_buf = (char *)__dsp_vzalloc(DL_LOG_BUF_MAX);
+	dsp_log_buf = (char *)__dsp_alloc(DL_LOG_BUF_MAX);
 	dsp_log_buf[0] = '\0';
 	__dsp_dl_mem_init();
 }
@@ -75,14 +75,14 @@ void dsp_common_free(void)
 {
 	__dsp_dl_mem_print();
 	__dsp_dl_mem_free();
-	vfree(dsp_log_buf);
+	kfree(dsp_log_buf);
 }
 
 void *dsp_dl_malloc(size_t size, const char *msg)
 {
 	struct dsp_dl_mem *mem;
 
-	mem = (struct dsp_dl_mem *)__dsp_vzalloc(sizeof(*mem) + size);
+	mem = (struct dsp_dl_mem *)__dsp_alloc(sizeof(*mem) + size);
 	if (!mem) {
 		DL_ERROR("%s malloc(%zu) is failed\n", msg, size);
 		return NULL;
@@ -100,5 +100,5 @@ void dsp_dl_free(void *data)
 	struct dsp_dl_mem *mem = container_of(data, struct dsp_dl_mem, data);
 
 	dsp_list_node_remove(dl_mem_list, &mem->node);
-	vfree(mem);
+	kfree(mem);
 }

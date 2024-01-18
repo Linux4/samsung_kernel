@@ -625,34 +625,47 @@ long vertex_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 	case VS4L_VERTEXIOC_PROFILE_ON:
 		ret = get_vs4l_profiler(&vs4l_kvar.vspr,
 				(struct vs4l_profiler __user *)arg);
+		if (ret) {
+			vision_err("get_vs4l_profiler failed(%d)\n", ret);
+			break;
+		}
 		p_flag = vs4l_kvar.vspr.level;
 		duration = 0;
 
 		if (ret)
 			break;
 		ret = ops->vertexioc_profileon(file, &vs4l_kvar.vspr);
-		if (ret)
+		if (ret) {
 			vision_err("vertexioc_profileon failed(%d)\n", ret);
+			break;
+		}
+
 		ret = put_vs4l_profiler(&vs4l_kvar.vspr,
 				(struct vs4l_profiler __user *)arg);
 		if (ret)
-			break;
+			vision_err("put_vs4l_profiler failed(%d)\n", ret);
 		break;
 	case VS4L_VERTEXIOC_PROFILE_OFF:
 		ret = get_vs4l_profiler(&vs4l_kvar.vspr,
 				(struct vs4l_profiler __user *)arg);
-		if (ret)
+		if (ret) {
+			vision_err("get_vs4l_profiler failed(%d)\n", ret);
 			break;
-		ret = ops->vertexioc_profileoff(file, &vs4l_kvar.vspr);
-		if (ret)
-			vision_err("vertexioc_profileoff failed(%d)\n", ret);
+		}
 
-		vs4l_kvar.vspr.node->duration = duration;
+		ret = ops->vertexioc_profileoff(file, &vs4l_kvar.vspr);
+		if (ret) {
+			vision_err("vertexioc_profileoff failed(%d)\n", ret);
+			break;
+		}
+
+		(*vs4l_kvar.vspr.node).duration = duration;
 		ret = put_vs4l_profiler(&vs4l_kvar.vspr,
 				(struct vs4l_profiler __user *)arg);
 		p_flag = 0;
 		if (ret)
-			break;
+			vision_err("put_vs4l_profiler failed(%d)\n", ret);
+		p_flag = 0;
 		break;
 	default:
 		vision_err("ioctl(%u) is not supported(usr arg: %lx)\n",

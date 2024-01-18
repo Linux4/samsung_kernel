@@ -11082,6 +11082,7 @@
 		samsung,tmu_default_trip_temp = <0x73>;
 		samsung,tmu_cal_type = <0x00>;
 		samsung,tmu_sensor_type = <0x08>;
+		thermal_status_level = <0x13880 0x14c08 0x15f90>;
 		phandle = <0xd6>;
 	};
 

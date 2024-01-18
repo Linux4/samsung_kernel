@@ -1,6 +1,6 @@
 /****************************************************************************
  *
- *   Copyright (c) 2016 Samsung Electronics Co., Ltd. All rights reserved.
+ *   Copyright (c) 2021 Samsung Electronics Co., Ltd. All rights reserved.
  *
  ****************************************************************************/
 
@@ -437,6 +437,15 @@ int __mx140_request_file(struct scsc_mx *mx, char *path, const struct firmware *
 		return -EAGAIN;
 	}
 
+	/* Open the file for reading. */
+	f = filp_open(path, O_RDONLY, 0);
+	if (IS_ERR(f)) {
+		set_fs(fs);
+		SCSC_TAG_ERR(MX_FILE, "[vfs_stat workaround] filp_open() failed for %s with %ld\n", path, PTR_ERR(f));
+		return -ENOENT;
+	}
+	filp_close(f, NULL);
+
 	/* Check f/w bin */
 	r = vfs_stat(path, &stat);
 	if (r != 0) {
@@ -480,6 +489,7 @@ int __mx140_request_file(struct scsc_mx *mx, char *path, const struct firmware *
 	/* Special case if file length is reported as zero - try to read until it fails.
 	 * This allows us to read /proc
 	 */
+
 	if (whats_left == 0) {
 		do {
 		#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 4, 0))
@@ -515,10 +525,10 @@ int __mx140_request_file(struct scsc_mx *mx, char *path, const struct firmware *
 			SCSC_TAG_ERR(MX_FILE, "error reading %s\n", path);
 			break;
 		}
-		if (r == 0 || r < to_read)
-			break;
 		whats_left -= r;
 		p += r;
+		if (r == 0 || r < to_read)
+			break;
 	}
 done:
 	set_fs(fs);

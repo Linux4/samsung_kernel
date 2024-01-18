@@ -151,7 +151,20 @@ int stui_cancel_session(void)
 
 	if (atomic_cmpxchg(&canceling, 0, 1) != 0) {
 		pr_info("[STUI] already canceling.\n");
-		return 0;
+
+		while ((STUI_MODE_ALL & stui_get_mode()) && (count < MAX_WAIT_CNT)) {
+			msleep(SESSION_CANCEL_DELAY);
+			count++;
+		}
+
+		if (STUI_MODE_ALL & stui_get_mode()) {
+			pr_err("[STUI] session was not cancelled yet\n");
+		} else {
+			pr_info("[STUI] session was cancelled successfully\n");
+			ret = 0;
+		}
+
+		return ret;
 	}
 
 	result = TEEC_InitializeContext(NULL, &context);

@@ -49,6 +49,8 @@ else
 	obj-y		+= bootmem.o
 endif
 
+obj-y += sec_mm/
+
 ifdef CONFIG_MMU
 	obj-$(CONFIG_ADVISE_SYSCALLS)	+= madvise.o
 endif

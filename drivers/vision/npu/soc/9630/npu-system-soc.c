@@ -789,7 +789,7 @@ static int npu_memory_alloc_from_heap(struct platform_device *pdev, struct npu_m
 	buffer->daddr = daddr;
 
 	vaddr = dma_buf_vmap(dma_buf);
-	if (IS_ERR(vaddr)) {
+	if (IS_ERR_OR_NULL(vaddr)) {
 		npu_err("fail(err %p) in dma_buf_vmap\n", vaddr);
 		ret = -EFAULT;
 		goto p_err;

@@ -363,11 +363,22 @@ int dsp_tlsf_malloc(size_t size, struct dsp_tlsf_mem **mem,
 	(*mem)->type = MEM_USE;
 	dsp_tlsf_remove_block(*mem, tlsf);
 
+	if ((*mem)->size < size) {
+		DL_ERROR("Overflow will happen.\n");
+		return -1;
+	}
+
 	if ((*mem)->size - size >= TLSF_MIN_BLOCK_SIZE) {
 		new_mem = (struct dsp_tlsf_mem *)dsp_dl_malloc(
 				sizeof(*new_mem), "TLSF New mem");
 		dsp_tlsf_mem_init(new_mem);
 		new_mem->type = MEM_EMPTY;
+
+		if (size > (unsigned int)(*mem)->start_addr + size) {
+			DL_ERROR("Overflow happened.\n");
+			return -1;
+		}
+
 		new_mem->start_addr = (*mem)->start_addr + size;
 		new_mem->size = (*mem)->size - size;
 

@@ -46,6 +46,9 @@
 #define ROTATION_FACTOR_SCDN	1434UL	/* 1.4x */
 #define RESOL_QHDP_21_TO_9	3440*1440UL	/* for MIF min-lock */
 
+#define MIN_MIF_FREQ_FHD	546000
+
+struct pm_qos_request exynos_mif_qos_fhd;
 
 /* unit : usec x 1000 -> 5592 (5.592us) for WQHD+ case */
 static inline u32 dpu_bts_get_one_line_time(struct exynos_panel_info *lcd_info)
@@ -592,6 +595,8 @@ void dpu_bts_update_bw(struct decon_device *decon, struct decon_reg_data *regs,
 			pm_qos_update_request(&decon->bts.disp_qos,
 					decon->bts.max_disp_freq);
 	}
+
+	pm_qos_update_request(&exynos_mif_qos_fhd, MIN_MIF_FREQ_FHD);
 
 	DPU_DEBUG_BTS("%s -\n", __func__);
 }

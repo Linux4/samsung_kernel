@@ -1241,7 +1241,7 @@ static int dpcm_be_connect(struct snd_soc_pcm_runtime *fe,
 	list_add(&dpcm->list_be, &fe->dpcm[stream].be_clients);
 	list_add(&dpcm->list_fe, &be->dpcm[stream].fe_clients);
 
-	dev_dbg(fe->dev, "connected new DPCM %s path %s %s %s\n",
+	dev_info(fe->dev, "connected new DPCM %s path %s %s %s\n",
 			stream ? "capture" : "playback",  fe->dai_link->name,
 			stream ? "<-" : "->", be->dai_link->name);
 
@@ -1543,7 +1543,7 @@ static int dpcm_add_paths(struct snd_soc_pcm_runtime *fe, int stream,
 		new++;
 	}
 
-	dev_dbg(fe->dev, "ASoC: found %d new BE paths\n", new);
+	dev_info(fe->dev, "ASoC: found %d new BE paths\n", new);
 	return new;
 }
 
@@ -1633,7 +1633,7 @@ int dpcm_be_dai_startup(struct snd_soc_pcm_runtime *fe, int stream)
 		    (be->dpcm[stream].state != SND_SOC_DPCM_STATE_CLOSE))
 			continue;
 
-		dev_dbg(be->dev, "ASoC: open %s BE %s\n",
+		dev_info(be->dev, "ASoC: open %s BE %s\n",
 			stream ? "capture" : "playback", be->dai_link->name);
 
 		be_substream->runtime = be->dpcm[stream].runtime;
@@ -1959,7 +1959,7 @@ static int dpcm_fe_dai_startup(struct snd_pcm_substream *fe_substream)
 		goto be_err;
 	}
 
-	dev_dbg(fe->dev, "ASoC: open FE %s\n", fe->dai_link->name);
+	dev_info(fe->dev, "ASoC: open FE %s\n", fe->dai_link->name);
 
 	/* start the DAI frontend */
 	ret = soc_pcm_open(fe_substream);
@@ -2019,7 +2019,7 @@ int dpcm_be_dai_shutdown(struct snd_soc_pcm_runtime *fe, int stream)
 			be->dpcm[stream].state = SND_SOC_DPCM_STATE_HW_FREE;
 		}
 
-		dev_dbg(be->dev, "ASoC: close BE %s\n",
+		dev_info(be->dev, "ASoC: close BE %s\n",
 			be->dai_link->name);
 
 		soc_pcm_close(be_substream);
@@ -2040,7 +2040,7 @@ static int dpcm_fe_dai_shutdown(struct snd_pcm_substream *substream)
 	/* shutdown the BEs */
 	dpcm_be_dai_shutdown(fe, substream->stream);
 
-	dev_dbg(fe->dev, "ASoC: close FE %s\n", fe->dai_link->name);
+	dev_info(fe->dev, "ASoC: close FE %s\n", fe->dai_link->name);
 
 	/* now shutdown the frontend */
 	soc_pcm_close(substream);

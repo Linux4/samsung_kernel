@@ -654,6 +654,11 @@ static int __panel_seq_exit_alpm(struct panel_device *panel)
 #endif
 	mutex_lock(&panel_bl->lock);
 	mutex_lock(&panel->op_lock);
+
+	ret = panel_set_gpio_irq(&panel->gpio[PANEL_GPIO_DISP_DET], false);
+	if (ret < 0)
+		panel_warn("PANEL:WARN:%s:do not support irq\n", __func__);
+
 	ret = panel_regulator_set_voltage(panel, PANEL_STATE_NORMAL);
 	if (ret < 0)
 		panel_err("PANEL:ERR:%s:failed to set voltage\n",
@@ -671,7 +676,13 @@ static int __panel_seq_exit_alpm(struct panel_device *panel)
 	mutex_unlock(&panel->op_lock);
 	mutex_unlock(&panel_bl->lock);
 	panel_update_brightness(panel);
-	msleep(34);
+
+	msleep(50);
+
+	ret = panel_set_gpio_irq(&panel->gpio[PANEL_GPIO_DISP_DET], true);
+	if (ret < 0)
+		panel_warn("PANEL:WARN:%s:do not support irq\n", __func__);
+
 	return ret;
 }
 
@@ -719,6 +730,11 @@ static int __panel_seq_set_alpm(struct panel_device *panel)
 
 	mutex_lock(&panel_bl->lock);
 	mutex_lock(&panel->op_lock);
+
+	ret = panel_set_gpio_irq(&panel->gpio[PANEL_GPIO_DISP_DET], false);
+	if (ret < 0)
+		panel_warn("PANEL:WARN:%s:do not support irq\n", __func__);
+
 	ret = panel_do_seqtbl_by_index_nolock(panel, PANEL_ALPM_ENTER_SEQ);
 	if (ret)
 		panel_err("PANEL:ERR:%s, failed to alpm-enter\n", __func__);
@@ -740,7 +756,11 @@ static int __panel_seq_set_alpm(struct panel_device *panel)
 		return ret;
 	}
 #endif
-	usleep_range(17000, 17000 + 10);
+	msleep(50);
+
+	ret = panel_set_gpio_irq(&panel->gpio[PANEL_GPIO_DISP_DET], true);
+	if (ret < 0)
+		panel_warn("PANEL:WARN:%s:do not support irq\n", __func__);
 
 	return 0;
 }
@@ -2053,6 +2073,7 @@ static int panel_set_active(struct panel_device *panel, void *arg)
 	return 0;
 }
 
+#define MAX_DSIM_CNT_FOR_PANEL (MAX_DSIM_CNT)
 static int panel_ioctl_dsim_probe(struct v4l2_subdev *sd, void *arg)
 {
 	int *param = (int *)arg;
@@ -2060,7 +2081,7 @@ static int panel_ioctl_dsim_probe(struct v4l2_subdev *sd, void *arg)
 	struct panel_device *panel = container_of(sd, struct panel_device, sd);
 
 	panel_info("PANEL:INFO:%s:PANEL_IOC_DSIM_PROBE\n", __func__);
-	if (param == NULL) {
+	if (param == NULL || *param >= MAX_DSIM_CNT_FOR_PANEL) {
 		panel_err("PANEL:ERR:%s:invalid arg\n", __func__);
 		return -EINVAL;
 	}

@@ -788,6 +788,7 @@ static int p61_parse_dt(struct device *dev,
 	struct pinctrl *ese_pinctrl;
 #endif
 	int ese_det_gpio;
+	int ret;
 
 	if (!of_property_read_string(np, "p61,ap_vendor",
 		&p61_dev->ap_vendor)) {
@@ -838,7 +839,10 @@ static int p61_parse_dt(struct device *dev,
 	if (!gpio_is_valid(ese_det_gpio)) {
 		pr_info("%s : ese-det-gpio is not set", __func__);
 	} else {
-		gpio_request(ese_det_gpio, "ese_det_gpio");
+		ret = gpio_request(ese_det_gpio, "ese_det_gpio");
+		if (ret < 0)
+			pr_info("%s failed to get gpio ese_det_gpio\n", __func__);
+
 		gpio_direction_input(ese_det_gpio);
 		if (!gpio_get_value(ese_det_gpio)) {
 			pr_info("%s : ese is not supported", __func__);

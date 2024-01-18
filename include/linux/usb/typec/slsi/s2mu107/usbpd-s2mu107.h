@@ -605,22 +605,12 @@ typedef enum {
     S2MU107_PHY_IFG_35US = 2,
 } PDIC_PHY_IFG_SEL;
 
-enum s2mu107_power_role {
-    PDIC_SINK,
-    PDIC_SOURCE
-};
-
 typedef enum {
     RETRANS_0 = 0,
     RETRANS_1 = 1,
     RETRANS_2 = 2,
     RETRANS_3 = 3,
 } PDIC_RETRANSMITTION;
-
-typedef enum {
-    VBUS_OFF = 0,
-    VBUS_ON = 1,
-} PDIC_VBUS_SEL;
 
 typedef enum {
     DET_HARD_RESET = 0,
