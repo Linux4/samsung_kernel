@@ -2649,6 +2649,7 @@ int msm_vidc_set_min_qp(void *instance,
 	s32 i_frame_qp = 0, p_frame_qp = 0, b_frame_qp = 0, min_qp_enable = 0;
 	u32 i_qp_enable = 0, p_qp_enable = 0, b_qp_enable = 0;
 	u32 client_qp_enable = 0, hfi_value = 0, offset = 0;
+	int frame_rc;
 
 	if (!inst || !inst->capabilities) {
 		d_vpr_e("%s: invalid params\n", __func__);
@@ -2656,17 +2657,19 @@ int msm_vidc_set_min_qp(void *instance,
 	}
 	capability = inst->capabilities;
 
+	frame_rc = capability->cap[FRAME_RC_ENABLE].value;
+
 	if (capability->cap[MIN_FRAME_QP].flags & CAP_FLAG_CLIENT_SET)
 		min_qp_enable = 1;
 
 	if (min_qp_enable ||
-		(capability->cap[I_FRAME_MIN_QP].flags & CAP_FLAG_CLIENT_SET))
+		(capability->cap[I_FRAME_MIN_QP].flags & CAP_FLAG_CLIENT_SET && frame_rc))
 		i_qp_enable = 1;
 	if (min_qp_enable ||
-		(capability->cap[P_FRAME_MIN_QP].flags & CAP_FLAG_CLIENT_SET))
+		(capability->cap[P_FRAME_MIN_QP].flags & CAP_FLAG_CLIENT_SET && frame_rc))
 		p_qp_enable = 1;
 	if (min_qp_enable ||
-		(capability->cap[B_FRAME_MIN_QP].flags & CAP_FLAG_CLIENT_SET))
+		(capability->cap[B_FRAME_MIN_QP].flags & CAP_FLAG_CLIENT_SET && frame_rc))
 		b_qp_enable = 1;
 
 	client_qp_enable = i_qp_enable | p_qp_enable << 1 | b_qp_enable << 2;
@@ -2714,6 +2717,7 @@ int msm_vidc_set_max_qp(void *instance,
 	s32 i_frame_qp = 0, p_frame_qp = 0, b_frame_qp = 0, max_qp_enable = 0;
 	u32 i_qp_enable = 0, p_qp_enable = 0, b_qp_enable = 0;
 	u32 client_qp_enable = 0, hfi_value = 0, offset = 0;
+	int frame_rc;
 
 	if (!inst || !inst->capabilities) {
 		d_vpr_e("%s: invalid params\n", __func__);
@@ -2721,17 +2725,19 @@ int msm_vidc_set_max_qp(void *instance,
 	}
 	capability = inst->capabilities;
 
+	frame_rc = capability->cap[FRAME_RC_ENABLE].value;
+
 	if (capability->cap[MAX_FRAME_QP].flags & CAP_FLAG_CLIENT_SET)
 		max_qp_enable = 1;
 
 	if (max_qp_enable ||
-		(capability->cap[I_FRAME_MAX_QP].flags & CAP_FLAG_CLIENT_SET))
+		(capability->cap[I_FRAME_MAX_QP].flags & CAP_FLAG_CLIENT_SET && frame_rc))
 		i_qp_enable = 1;
 	if (max_qp_enable ||
-		(capability->cap[P_FRAME_MAX_QP].flags & CAP_FLAG_CLIENT_SET))
+		(capability->cap[P_FRAME_MAX_QP].flags & CAP_FLAG_CLIENT_SET && frame_rc))
 		p_qp_enable = 1;
 	if (max_qp_enable ||
-		(capability->cap[B_FRAME_MAX_QP].flags & CAP_FLAG_CLIENT_SET))
+		(capability->cap[B_FRAME_MAX_QP].flags & CAP_FLAG_CLIENT_SET && frame_rc))
 		b_qp_enable = 1;
 
 	client_qp_enable = i_qp_enable | p_qp_enable << 1 | b_qp_enable << 2;

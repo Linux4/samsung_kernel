@@ -92,6 +92,7 @@ void dump_file_key_hex(const char* tag, uint8_t *data, unsigned int data_len)
 int fscrypt_sdp_dump_file_key(struct inode *inode)
 {
 	struct fscrypt_info *ci = inode->i_crypt_info;
+	struct ext_fscrypt_info *ext_ci;
 	struct fscrypt_key file_system_key;
 	struct fscrypt_key file_encryption_key;
 	int res;
@@ -110,7 +111,8 @@ int fscrypt_sdp_dump_file_key(struct inode *inode)
 	memzero_explicit(file_system_key.raw, file_system_key.size);
 
 	memset(&file_encryption_key, 0, sizeof(file_encryption_key));
-	if (!ci->ci_sdp_info) {
+	ext_ci = GET_EXT_CI(ci);
+	if (!ext_ci->ci_sdp_info) {
 		DEK_LOGE("ci_sdp_info is null\n");
 		res = fscrypt_get_encryption_key(ci, &file_encryption_key);
 	} else {
@@ -131,6 +133,7 @@ out:
 int fscrypt_sdp_trace_file(struct inode *inode)
 {
 	struct fscrypt_info *ci = inode->i_crypt_info;
+	struct ext_fscrypt_info *ext_ci;
 	union fscrypt_context ctx;
 	int res;
 	u32 knox_flags;
@@ -188,9 +191,10 @@ int fscrypt_sdp_trace_file(struct inode *inode)
 		goto unlock_finish;
 	}
 
-	if (ci->ci_sdp_info) {
-		DEK_LOGD("trace_file: sdp_flags = 0x%08x\n", ci->ci_sdp_info->sdp_flags);
-		ci->ci_sdp_info->sdp_flags |= SDP_IS_TRACED;
+	ext_ci = GET_EXT_CI(ci);
+	if (ext_ci->ci_sdp_info) {
+		DEK_LOGD("trace_file: sdp_flags = 0x%08x\n", ext_ci->ci_sdp_info->sdp_flags);
+		ext_ci->ci_sdp_info->sdp_flags |= SDP_IS_TRACED;
 	} else {
 		DEK_LOGE("trace_file: empty ci_sdp_info\n");
 		res = -EPERM;
@@ -221,8 +225,9 @@ unlock_finish:
 
 int fscrypt_sdp_is_traced_file(struct fscrypt_info *crypt_info)
 {
-	if (crypt_info->ci_sdp_info)
-		return (crypt_info->ci_sdp_info->sdp_flags & SDP_IS_TRACED);
+	struct ext_fscrypt_info *ext_ci = GET_EXT_CI(crypt_info);
+	if (ext_ci->ci_sdp_info)
+		return (ext_ci->ci_sdp_info->sdp_flags & SDP_IS_TRACED);
 	else
 		return 0;
 }
@@ -231,6 +236,7 @@ int fscrypt_sdp_is_traced_file(struct fscrypt_info *crypt_info)
 int fscrypt_sdp_set_sdp_policy(struct inode *inode, int engine_id)
 {
 	struct fscrypt_info *ci = inode->i_crypt_info;
+	struct ext_fscrypt_info *ext_ci;
 	struct fscrypt_sdp_context sdp_ctx;
 	union fscrypt_context ctx;
 	int res;
@@ -320,7 +326,8 @@ int fscrypt_sdp_set_sdp_policy(struct inode *inode, int engine_id)
 		goto unlock_finsh;
 	}
 
-	if (!ci->ci_sdp_info) {
+	ext_ci = GET_EXT_CI(ci);
+	if (!ext_ci->ci_sdp_info) {
 		struct sdp_info *ci_sdp_info = fscrypt_sdp_alloc_sdp_info();
 		if (!ci_sdp_info) {
 			res = -ENOMEM;
@@ -336,7 +343,7 @@ int fscrypt_sdp_set_sdp_policy(struct inode *inode, int engine_id)
 		ci_sdp_info->sdp_dek.type = sdp_ctx.sdp_dek_type;
 		ci_sdp_info->sdp_dek.len = sdp_ctx.sdp_dek_len;
 
-		if (cmpxchg(&ci->ci_sdp_info, NULL, ci_sdp_info) != NULL) {
+		if (cmpxchg(&ext_ci->ci_sdp_info, NULL, ci_sdp_info) != NULL) {
 			fscrypt_sdp_put_sdp_info(ci_sdp_info);
 			res = -EFAULT;
 			goto unlock_finsh;
@@ -357,6 +364,7 @@ unlock_finsh:
 int fscrypt_sdp_set_sensitive(struct inode *inode, int engine_id, struct fscrypt_key *key)
 {
 	struct fscrypt_info *ci = inode->i_crypt_info;
+	struct ext_fscrypt_info *ext_ci;
 	struct fscrypt_sdp_context sdp_ctx;
 	union fscrypt_context ctx;
 	int rc = 0;
@@ -365,13 +373,14 @@ int fscrypt_sdp_set_sensitive(struct inode *inode, int engine_id, struct fscrypt
 	int use_pfk = 0;
 	int use_hkdf_expanded_key = 0;
 
-	if (!ci->ci_sdp_info) {
+	ext_ci = GET_EXT_CI(ci);
+	if (!ext_ci->ci_sdp_info) {
 		struct sdp_info *ci_sdp_info = fscrypt_sdp_alloc_sdp_info();
 		if (!ci_sdp_info) {
 			return -ENOMEM;
 		}
 
-		if (cmpxchg(&ci->ci_sdp_info, NULL, ci_sdp_info) != NULL) {
+		if (cmpxchg(&ext_ci->ci_sdp_info, NULL, ci_sdp_info) != NULL) {
 			fscrypt_sdp_put_sdp_info(ci_sdp_info);
 			return -EPERM;
 		}
@@ -381,12 +390,12 @@ int fscrypt_sdp_set_sensitive(struct inode *inode, int engine_id, struct fscrypt
 	use_pfk = fscrypt_sdp_use_pfk(ci);
 	use_hkdf_expanded_key = fscrypt_sdp_use_hkdf_expanded_key(ci);
 
-	ci->ci_sdp_info->engine_id = engine_id;
+	ext_ci->ci_sdp_info->engine_id = engine_id;
 	if (S_ISDIR(inode->i_mode)) {
-		ci->ci_sdp_info->sdp_flags |= SDP_DEK_IS_SENSITIVE;
+		ext_ci->ci_sdp_info->sdp_flags |= SDP_DEK_IS_SENSITIVE;
 		is_dir = 1;
 	} else if (S_ISREG(inode->i_mode)) {
-		ci->ci_sdp_info->sdp_flags |= SDP_DEK_TO_SET_SENSITIVE;
+		ext_ci->ci_sdp_info->sdp_flags |= SDP_DEK_TO_SET_SENSITIVE;
 	}
 
 	sdp_ctx.engine_id = engine_id;
@@ -462,21 +471,26 @@ int fscrypt_sdp_set_sensitive(struct inode *inode, int engine_id, struct fscrypt
 int fscrypt_sdp_set_protected(struct inode *inode, int engine_id)
 {
 	struct fscrypt_info *ci = inode->i_crypt_info;
+	struct ext_fscrypt_info *ext_ci;
 	struct fscrypt_sdp_context sdp_ctx;
 	union fscrypt_context ctx;
 	struct fscrypt_key fek;
 	int is_native = 0;
 	int rc = 0;
 
-	if (!ci || !ci->ci_sdp_info)
+	if (!ci)
 		return -EPERM;
 
-	if (!(ci->ci_sdp_info->sdp_flags & SDP_DEK_IS_SENSITIVE)) {
+	ext_ci = GET_EXT_CI(ci);
+	if (!ext_ci->ci_sdp_info)
+		return -EPERM;
+
+	if (!(ext_ci->ci_sdp_info->sdp_flags & SDP_DEK_IS_SENSITIVE)) {
 		DEK_LOGD("set_protected: already in protected\n");
 		return 0;
 	}
 
-	if (dek_is_locked(ci->ci_sdp_info->engine_id)) {
+	if (dek_is_locked(ext_ci->ci_sdp_info->engine_id)) {
 		DEK_LOGE("set_protected: failed due to sdp in locked state\n");
 		return -EPERM;
 	}
@@ -562,8 +576,8 @@ int fscrypt_sdp_set_protected(struct inode *inode, int engine_id)
 				goto out;
 			}
 		}
-		ci->ci_sdp_info->engine_id = engine_id;
-		ci->ci_sdp_info->sdp_flags &= ~SDP_DEK_IS_SENSITIVE;
+		ext_ci->ci_sdp_info->engine_id = engine_id;
+		ext_ci->ci_sdp_info->sdp_flags &= ~SDP_DEK_IS_SENSITIVE;
 
 		if (ctx.version == FSCRYPT_CONTEXT_V1) {
 			ctx.v1.knox_flags &= ~SDP_DEK_IS_SENSITIVE;
@@ -572,9 +586,9 @@ int fscrypt_sdp_set_protected(struct inode *inode, int engine_id)
 		}
 		sdp_ctx.engine_id = engine_id;
 		if (S_ISREG(inode->i_mode)) {
-			sdp_ctx.sdp_dek_type = ci->ci_sdp_info->sdp_dek.type;
-			sdp_ctx.sdp_dek_len = ci->ci_sdp_info->sdp_dek.len;
-			memcpy(sdp_ctx.sdp_dek_buf, ci->ci_sdp_info->sdp_dek.buf, DEK_MAXLEN); //Full copy without memset
+			sdp_ctx.sdp_dek_type = ext_ci->ci_sdp_info->sdp_dek.type;
+			sdp_ctx.sdp_dek_len = ext_ci->ci_sdp_info->sdp_dek.len;
+			memcpy(sdp_ctx.sdp_dek_buf, ext_ci->ci_sdp_info->sdp_dek.buf, DEK_MAXLEN); //Full copy without memset
 		} else {
 			sdp_ctx.sdp_dek_type = DEK_TYPE_PLAIN;
 			sdp_ctx.sdp_dek_len = 0;
@@ -584,9 +598,9 @@ int fscrypt_sdp_set_protected(struct inode *inode, int engine_id)
 	} else {
 		// Clear all in non-native case
 		if (ctx.version == FSCRYPT_CONTEXT_V1) {
-			ctx.v1.knox_flags = FSCRYPT_SDP_PARSE_FLAG_OUT_OF_SDP(ci->ci_sdp_info->sdp_flags);
+			ctx.v1.knox_flags = FSCRYPT_SDP_PARSE_FLAG_OUT_OF_SDP(ext_ci->ci_sdp_info->sdp_flags);
 		} else if (ctx.version == FSCRYPT_CONTEXT_V2) {
-			ctx.v2.knox_flags = FSCRYPT_SDP_PARSE_FLAG_OUT_OF_SDP(ci->ci_sdp_info->sdp_flags);
+			ctx.v2.knox_flags = FSCRYPT_SDP_PARSE_FLAG_OUT_OF_SDP(ext_ci->ci_sdp_info->sdp_flags);
 		}
 		sdp_ctx.sdp_dek_type = DEK_TYPE_PLAIN;
 		sdp_ctx.sdp_dek_len = 0;
@@ -621,18 +635,23 @@ out:
 int fscrypt_sdp_initialize(struct inode *inode, int engine_id, struct fscrypt_key *key)
 {
 	struct fscrypt_info *ci = inode->i_crypt_info;
+	struct ext_fscrypt_info *ext_ci;
 	int res = 0;
 
-	if (!ci || !ci->ci_sdp_info)
+	if (!ci)
+		return -EPERM;
+
+	ext_ci = GET_EXT_CI(ci);
+	if (!ext_ci->ci_sdp_info)
 		return -EPERM;
 
 	if (!S_ISREG(inode->i_mode))
 		return -EPERM;
 
-	if (!(ci->ci_sdp_info->sdp_flags & SDP_DEK_IS_UNINITIALIZED))
+	if (!(ext_ci->ci_sdp_info->sdp_flags & SDP_DEK_IS_UNINITIALIZED))
 		return res;
 
-	if (ci->ci_sdp_info->sdp_flags & SDP_DEK_TO_SET_SENSITIVE)
+	if (ext_ci->ci_sdp_info->sdp_flags & SDP_DEK_TO_SET_SENSITIVE)
 	{
 		// The key is fek, and the objective is { fek }_SDPK
 		res = __fscrypt_sdp_finish_set_sensitive(inode, NULL, ci, key);
@@ -644,13 +663,13 @@ int fscrypt_sdp_initialize(struct inode *inode, int engine_id, struct fscrypt_ke
 	{
 		// The key is cekey, and the objective is { fek }_cekey
 		res = __fscrypt_set_sdp_fek(ci, key,
-									ci->ci_sdp_info->sdp_dek.buf,
-									ci->ci_sdp_info->sdp_dek.len);
+				ext_ci->ci_sdp_info->sdp_dek.buf,
+				ext_ci->ci_sdp_info->sdp_dek.len);
 		if (res) {
 			DEK_LOGE("sdp_initialize: failed to set fek (err:%d)\n", res);
 			goto out;
 		}
-		ci->ci_sdp_info->sdp_flags &= ~SDP_DEK_IS_UNINITIALIZED;
+		ext_ci->ci_sdp_info->sdp_flags &= ~SDP_DEK_IS_UNINITIALIZED;
 
 		DEK_LOGD("sdp_initialize: Success\n");
 	}
@@ -662,6 +681,7 @@ out:
 int fscrypt_sdp_add_chamber_directory(int engine_id, struct inode *inode)
 {
 	struct fscrypt_info *ci = inode->i_crypt_info;
+	struct ext_fscrypt_info *ext_ci;
 	struct fscrypt_sdp_context sdp_ctx;
 	union fscrypt_context ctx;
 	int rc = 0;
@@ -689,33 +709,34 @@ int fscrypt_sdp_add_chamber_directory(int engine_id, struct inode *inode)
 	}
 	}
 
-	if (!ci->ci_sdp_info) {
+	ext_ci = GET_EXT_CI(ci);
+	if (!ext_ci->ci_sdp_info) {
 		struct sdp_info *ci_sdp_info = fscrypt_sdp_alloc_sdp_info();
 		if (!ci_sdp_info) {
 			return -ENOMEM;
 		}
 
-		if (cmpxchg(&ci->ci_sdp_info, NULL, ci_sdp_info) != NULL) {
+		if (cmpxchg(&ext_ci->ci_sdp_info, NULL, ci_sdp_info) != NULL) {
 			DEK_LOGD("Need to put info\n");
 			fscrypt_sdp_put_sdp_info(ci_sdp_info);
 			return -EPERM;
 		}
 	}
 
-	ci->ci_sdp_info->sdp_flags |= SDP_IS_CHAMBER_DIR;
+	ext_ci->ci_sdp_info->sdp_flags |= SDP_IS_CHAMBER_DIR;
 
-	if (!(ci->ci_sdp_info->sdp_flags & SDP_DEK_IS_SENSITIVE)) {
-		ci->ci_sdp_info->sdp_flags |= SDP_DEK_IS_SENSITIVE;
-		ci->ci_sdp_info->engine_id = engine_id;
+	if (!(ext_ci->ci_sdp_info->sdp_flags & SDP_DEK_IS_SENSITIVE)) {
+		ext_ci->ci_sdp_info->sdp_flags |= SDP_DEK_IS_SENSITIVE;
+		ext_ci->ci_sdp_info->engine_id = engine_id;
 		sdp_ctx.sdp_dek_type = DEK_TYPE_PLAIN;
 		sdp_ctx.sdp_dek_len = DEK_MAXLEN;
 		memset(sdp_ctx.sdp_dek_buf, 0, DEK_MAXLEN);
 	} else {
-		sdp_ctx.sdp_dek_type = ci->ci_sdp_info->sdp_dek.type;
-		sdp_ctx.sdp_dek_len = ci->ci_sdp_info->sdp_dek.len;
-		memcpy(sdp_ctx.sdp_dek_buf, ci->ci_sdp_info->sdp_dek.buf, ci->ci_sdp_info->sdp_dek.len);
+		sdp_ctx.sdp_dek_type = ext_ci->ci_sdp_info->sdp_dek.type;
+		sdp_ctx.sdp_dek_len = ext_ci->ci_sdp_info->sdp_dek.len;
+		memcpy(sdp_ctx.sdp_dek_buf, ext_ci->ci_sdp_info->sdp_dek.buf, ext_ci->ci_sdp_info->sdp_dek.len);
 	}
-	sdp_ctx.engine_id = ci->ci_sdp_info->engine_id;
+	sdp_ctx.engine_id = ext_ci->ci_sdp_info->engine_id;
 
 	rc = fscrypt_sdp_set_context(inode, &sdp_ctx, sizeof(sdp_ctx), NULL);
 
@@ -725,9 +746,9 @@ int fscrypt_sdp_add_chamber_directory(int engine_id, struct inode *inode)
 	}
 
 	if (ctx.version == FSCRYPT_CONTEXT_V1) {
-		ctx.v1.knox_flags = ci->ci_sdp_info->sdp_flags | FSCRYPT_SDP_PARSE_FLAG_OUT_OF_SDP(ctx.v1.knox_flags);
+		ctx.v1.knox_flags = ext_ci->ci_sdp_info->sdp_flags | FSCRYPT_SDP_PARSE_FLAG_OUT_OF_SDP(ctx.v1.knox_flags);
 	} else if (ctx.version == FSCRYPT_CONTEXT_V2) {
-		ctx.v2.knox_flags = ci->ci_sdp_info->sdp_flags | FSCRYPT_SDP_PARSE_FLAG_OUT_OF_SDP(ctx.v2.knox_flags);
+		ctx.v2.knox_flags = ext_ci->ci_sdp_info->sdp_flags | FSCRYPT_SDP_PARSE_FLAG_OUT_OF_SDP(ctx.v2.knox_flags);
 	}
 	inode_lock(inode);
 	rc = fscrypt_knox_set_context(inode, &ctx, fscrypt_context_size(&ctx));
@@ -742,6 +763,7 @@ int fscrypt_sdp_add_chamber_directory(int engine_id, struct inode *inode)
 int fscrypt_sdp_remove_chamber_directory(struct inode *inode)
 {
 	struct fscrypt_info *ci = inode->i_crypt_info;
+	struct ext_fscrypt_info *ext_ci;
 	struct fscrypt_sdp_context sdp_ctx;
 	union fscrypt_context ctx;
 	int rc = 0;
@@ -769,14 +791,15 @@ int fscrypt_sdp_remove_chamber_directory(struct inode *inode)
 	}
 	}
 
-	if (!ci->ci_sdp_info)
+	ext_ci = GET_EXT_CI(ci);
+	if (!ext_ci->ci_sdp_info)
 		return -EINVAL;
 
-	ci->ci_sdp_info->sdp_flags = 0;
+	ext_ci->ci_sdp_info->sdp_flags = 0;
 
-	sdp_ctx.engine_id = ci->ci_sdp_info->engine_id;
-	sdp_ctx.sdp_dek_type = ci->ci_sdp_info->sdp_dek.type;
-	sdp_ctx.sdp_dek_len = ci->ci_sdp_info->sdp_dek.len;
+	sdp_ctx.engine_id = ext_ci->ci_sdp_info->engine_id;
+	sdp_ctx.sdp_dek_type = ext_ci->ci_sdp_info->sdp_dek.type;
+	sdp_ctx.sdp_dek_len = ext_ci->ci_sdp_info->sdp_dek.len;
 	memset(sdp_ctx.sdp_dek_buf, 0, DEK_MAXLEN);
 
 	rc = fscrypt_sdp_set_context(inode, &sdp_ctx, sizeof(sdp_ctx), NULL);
@@ -837,6 +860,7 @@ static inline int __fscrypt_derive_nek_iv(u8 *drv_key, u32 drv_key_len, u8 *out,
 inline int __fscrypt_get_sdp_dek(struct fscrypt_info *crypt_info,
 						unsigned char *dek, unsigned int dek_len)
 {
+	struct ext_fscrypt_info *ext_ci;
 	int res = 0;
 	dek_t *__dek;
 
@@ -844,7 +868,8 @@ inline int __fscrypt_get_sdp_dek(struct fscrypt_info *crypt_info,
 	if (!__dek)
 		return -ENOMEM;
 
-	res = dek_decrypt_dek_efs(crypt_info->ci_sdp_info->engine_id, &(crypt_info->ci_sdp_info->sdp_dek), __dek);
+	ext_ci = GET_EXT_CI(crypt_info);
+	res = dek_decrypt_dek_efs(ext_ci->ci_sdp_info->engine_id, &(ext_ci->ci_sdp_info->sdp_dek), __dek);
 	if (res < 0) {
 		res = -ENOKEY;
 		goto out;
@@ -865,9 +890,11 @@ out:
 inline int __fscrypt_get_sdp_uninitialized_dek(struct fscrypt_info *crypt_info,
 						unsigned char *dek, unsigned int dek_len)
 {
+	struct ext_fscrypt_info *ext_ci;
 	dek_t *__dek;
 
-	__dek = &crypt_info->ci_sdp_info->sdp_dek;
+	ext_ci = GET_EXT_CI(crypt_info);
+	__dek = &ext_ci->ci_sdp_info->sdp_dek;
 	if (!__dek)
 		return -ENOKEY;
 
@@ -902,6 +929,7 @@ inline int __fscrypt_set_sdp_fek(struct fscrypt_info *crypt_info,
 									struct fscrypt_key *master_key,
 									unsigned char *fek, unsigned int fek_len)
 {
+	struct ext_fscrypt_info *ext_ci;
 	int res;
 	dek_t *__fek;
 	dek_t *__efek;
@@ -916,7 +944,8 @@ inline int __fscrypt_set_sdp_fek(struct fscrypt_info *crypt_info,
 	if (!__fek)
 		return -ENOMEM;
 
-	__efek = &crypt_info->ci_sdp_info->sdp_dek;
+	ext_ci = GET_EXT_CI(crypt_info);
+	__efek = &ext_ci->ci_sdp_info->sdp_dek;
 
 	__fek->type = DEK_TYPE_PLAIN;
 	__fek->len = fek_len;
@@ -938,13 +967,15 @@ inline int __fscrypt_get_sdp_fek(struct fscrypt_info *crypt_info,
 									struct fscrypt_key *master_key,
 									unsigned char *fek, unsigned int *fek_len)
 {
+	struct ext_fscrypt_info *ext_ci;
 	int res;
 	dek_t *__efek;
 
 	if (master_key->size < SDP_CRYPTO_GCM_DEFAULT_KEY_LEN)
 		return -EINVAL;
 
-	__efek = &crypt_info->ci_sdp_info->sdp_dek;
+	ext_ci = GET_EXT_CI(crypt_info);
+	__efek = &ext_ci->ci_sdp_info->sdp_dek;
 	if (!__efek)
 		return -EFAULT;
 
@@ -957,6 +988,7 @@ inline int __fscrypt_get_sdp_fek(struct fscrypt_info *crypt_info,
 inline int __fscrypt_set_sdp_dek(struct fscrypt_info *crypt_info,
 		unsigned char *dek, int dek_len)
 {
+	struct ext_fscrypt_info *ext_ci;
 	int res;
 	dek_t *__dek;
 
@@ -973,7 +1005,8 @@ inline int __fscrypt_set_sdp_dek(struct fscrypt_info *crypt_info,
 	memset(__dek->buf, 0, DEK_MAXLEN);
 	memcpy(__dek->buf, dek, dek_len);
 
-	res = dek_encrypt_dek_efs(crypt_info->ci_sdp_info->engine_id, __dek, &crypt_info->ci_sdp_info->sdp_dek);
+	ext_ci = GET_EXT_CI(crypt_info);
+	res = dek_encrypt_dek_efs(ext_ci->ci_sdp_info->engine_id, __dek, &ext_ci->ci_sdp_info->sdp_dek);
 
 	memset(__dek->buf, 0, DEK_MAXLEN);
 	kfree_sensitive(__dek);
@@ -1102,15 +1135,16 @@ inline int __fscrypt_get_sdp_context(struct inode *inode, struct fscrypt_info *c
 	res = fscrypt_sdp_get_context(inode, &sdp_ctx, sizeof(sdp_ctx));
 
 	if (res == sizeof(sdp_ctx)) {
-		crypt_info->ci_sdp_info->engine_id = sdp_ctx.engine_id;
-		crypt_info->ci_sdp_info->sdp_dek.type = sdp_ctx.sdp_dek_type;
-		crypt_info->ci_sdp_info->sdp_dek.len = sdp_ctx.sdp_dek_len;
-		DEK_LOGD("sdp_flags = 0x%08x, engine_id = %d\n", crypt_info->ci_sdp_info->sdp_flags, sdp_ctx.engine_id);
-		memcpy(crypt_info->ci_sdp_info->sdp_dek.buf, sdp_ctx.sdp_dek_buf,
-				sizeof(crypt_info->ci_sdp_info->sdp_dek.buf));
+		struct ext_fscrypt_info *ext_ci = GET_EXT_CI(crypt_info);
+		ext_ci->ci_sdp_info->engine_id = sdp_ctx.engine_id;
+		ext_ci->ci_sdp_info->sdp_dek.type = sdp_ctx.sdp_dek_type;
+		ext_ci->ci_sdp_info->sdp_dek.len = sdp_ctx.sdp_dek_len;
+		DEK_LOGD("sdp_flags = 0x%08x, engine_id = %d\n", ext_ci->ci_sdp_info->sdp_flags, sdp_ctx.engine_id);
+		memcpy(ext_ci->ci_sdp_info->sdp_dek.buf, sdp_ctx.sdp_dek_buf,
+				sizeof(ext_ci->ci_sdp_info->sdp_dek.buf));
 
 		if (S_ISDIR(inode->i_mode))
-			crypt_info->ci_sdp_info->sdp_flags |= SDP_IS_DIRECTORY;
+			ext_ci->ci_sdp_info->sdp_flags |= SDP_IS_DIRECTORY;
 
 		res = 0;
 	} else {
@@ -1135,11 +1169,13 @@ inline int __fscrypt_sdp_finish_set_sensitive(struct inode *inode,
 	int use_hkdf_expanded_key = 0;
 	struct fscrypt_sdp_context sdp_ctx;
 	struct fscrypt_key fek;
+	struct ext_fscrypt_info *ext_ci;
 	u8 enonce[MAX_EN_BUF_LEN];
 	sdp_fs_command_t *cmd = NULL;
 
-	if ((crypt_info->ci_sdp_info->sdp_flags & SDP_DEK_TO_SET_SENSITIVE)
-			|| (crypt_info->ci_sdp_info->sdp_flags & SDP_DEK_TO_CONVERT_KEY_TYPE)) {
+	ext_ci = GET_EXT_CI(crypt_info);
+	if ((ext_ci->ci_sdp_info->sdp_flags & SDP_DEK_TO_SET_SENSITIVE)
+			|| (ext_ci->ci_sdp_info->sdp_flags & SDP_DEK_TO_CONVERT_KEY_TYPE)) {
 		DEK_LOGD("sensitive SDP_DEK_TO_SET_SENSITIVE\n");
 		//It's a new sensitive file, let's make sdp dek!
 
@@ -1180,17 +1216,17 @@ inline int __fscrypt_sdp_finish_set_sensitive(struct inode *inode,
 			goto out;
 		}
 
-		crypt_info->ci_sdp_info->sdp_flags &= ~(SDP_DEK_TO_SET_SENSITIVE);
-		crypt_info->ci_sdp_info->sdp_flags &= ~(SDP_DEK_TO_CONVERT_KEY_TYPE);
-		crypt_info->ci_sdp_info->sdp_flags |= SDP_DEK_IS_SENSITIVE;
+		ext_ci->ci_sdp_info->sdp_flags &= ~(SDP_DEK_TO_SET_SENSITIVE);
+		ext_ci->ci_sdp_info->sdp_flags &= ~(SDP_DEK_TO_CONVERT_KEY_TYPE);
+		ext_ci->ci_sdp_info->sdp_flags |= SDP_DEK_IS_SENSITIVE;
 
 		if (ctx != NULL) {
-			sdp_ctx.engine_id = crypt_info->ci_sdp_info->engine_id;
-			sdp_ctx.sdp_dek_type = crypt_info->ci_sdp_info->sdp_dek.type;
-			sdp_ctx.sdp_dek_len = crypt_info->ci_sdp_info->sdp_dek.len;
+			sdp_ctx.engine_id = ext_ci->ci_sdp_info->engine_id;
+			sdp_ctx.sdp_dek_type = ext_ci->ci_sdp_info->sdp_dek.type;
+			sdp_ctx.sdp_dek_len = ext_ci->ci_sdp_info->sdp_dek.len;
 
 			/* Update EFEK */
-			memcpy(sdp_ctx.sdp_dek_buf, crypt_info->ci_sdp_info->sdp_dek.buf, DEK_MAXLEN);
+			memcpy(sdp_ctx.sdp_dek_buf, ext_ci->ci_sdp_info->sdp_dek.buf, DEK_MAXLEN);
 
 			/* Update EN */
 			memcpy(sdp_ctx.sdp_en_buf, enonce, MAX_EN_BUF_LEN);
@@ -1202,7 +1238,7 @@ inline int __fscrypt_sdp_finish_set_sensitive(struct inode *inode,
 				goto out;
 			}
 		} else {
-			memcpy(crypt_info->ci_sdp_info->sdp_en_buf, enonce, MAX_EN_BUF_LEN);
+			memcpy(ext_ci->ci_sdp_info->sdp_en_buf, enonce, MAX_EN_BUF_LEN);
 		}
 
 		if (ctx != NULL) {
@@ -1243,14 +1279,14 @@ inline int __fscrypt_sdp_finish_set_sensitive(struct inode *inode,
 				goto out;
 			}
 		} else {
-			crypt_info->ci_sdp_info->sdp_flags = (FSCRYPT_SDP_PARSE_FLAG_OUT_OF_SDP(crypt_info->ci_sdp_info->sdp_flags) | SDP_DEK_IS_SENSITIVE);
+			ext_ci->ci_sdp_info->sdp_flags = (FSCRYPT_SDP_PARSE_FLAG_OUT_OF_SDP(ext_ci->ci_sdp_info->sdp_flags) | SDP_DEK_IS_SENSITIVE);
 			if (is_native) {
-				crypt_info->ci_sdp_info->sdp_flags |= SDP_DEK_SDP_ENABLED;
+				ext_ci->ci_sdp_info->sdp_flags |= SDP_DEK_SDP_ENABLED;
 				if (use_pfk) {
-					crypt_info->ci_sdp_info->sdp_flags |= SDP_USE_PER_FILE_KEY;
+					ext_ci->ci_sdp_info->sdp_flags |= SDP_USE_PER_FILE_KEY;
 				}
 				if (use_hkdf_expanded_key) {
-					crypt_info->ci_sdp_info->sdp_flags |= SDP_USE_HKDF_EXPANDED_KEY;
+					ext_ci->ci_sdp_info->sdp_flags |= SDP_USE_HKDF_EXPANDED_KEY;
 				}
 			}
 		}
@@ -1258,8 +1294,8 @@ inline int __fscrypt_sdp_finish_set_sensitive(struct inode *inode,
 		DEK_LOGD("sensitive SDP_DEK_TO_SET_SENSITIVE finished!!\n");
 	}
 
-	if ((crypt_info->ci_sdp_info->sdp_flags & SDP_DEK_IS_SENSITIVE) &&
-			!(crypt_info->ci_sdp_info->sdp_flags & SDP_IS_DIRECTORY)) {
+	if ((ext_ci->ci_sdp_info->sdp_flags & SDP_DEK_IS_SENSITIVE) &&
+			!(ext_ci->ci_sdp_info->sdp_flags & SDP_IS_DIRECTORY)) {
 		__fscrypt_sdp_set_inode_sensitive(inode);
 	}
 
@@ -1267,7 +1303,7 @@ out:
 	memzero_explicit(&fek, sizeof(fek));
 	if (res) {
 		cmd = sdp_fs_command_alloc(FSOP_AUDIT_FAIL_ENCRYPT, current->tgid,
-				crypt_info->ci_sdp_info->engine_id, -1, inode->i_ino, res,
+				ext_ci->ci_sdp_info->engine_id, -1, inode->i_ino, res,
 				GFP_NOFS);
 		if (cmd) {
 			sdp_fs_request(cmd, NULL);
@@ -1280,12 +1316,17 @@ out:
 int fscrypt_sdp_get_engine_id(struct inode *inode)
 {
 	struct fscrypt_info *crypt_info;
+	struct ext_fscrypt_info *ext_ci;
 
 	crypt_info = inode->i_crypt_info;
-	if (!crypt_info || !crypt_info->ci_sdp_info)
+	if (!crypt_info)
 		return -1;
 
-	return crypt_info->ci_sdp_info->engine_id;
+	ext_ci = GET_EXT_CI(crypt_info);
+	if (!ext_ci->ci_sdp_info)
+		return -1;
+
+	return ext_ci->ci_sdp_info->engine_id;
 }
 
 typedef enum sdp_thread_type {
@@ -1308,9 +1349,11 @@ inline int __fscrypt_sdp_thread_initialize(void *arg)
 		inode = sem->inode;
 		key = &sem->key;
 		ci = inode->i_crypt_info;
-
-		if (ci && ci->ci_sdp_info) {
-			fscrypt_sdp_initialize(inode, ci->ci_sdp_info->engine_id, key);
+		if (ci) {
+			struct ext_fscrypt_info *ext_ci = GET_EXT_CI(ci);
+			if (ext_ci->ci_sdp_info) {
+				fscrypt_sdp_initialize(inode, ext_ci->ci_sdp_info->engine_id, key);
+			}
 		}
 
 		if (key)
@@ -1335,9 +1378,11 @@ inline int __fscrypt_sdp_thread_set_sensitive(void *arg)
 		inode = sem->inode;
 		key = &sem->key;
 		ci = inode->i_crypt_info;
-
-		if (ci && ci->ci_sdp_info) {
-			fscrypt_sdp_set_sensitive(inode, ci->ci_sdp_info->engine_id, key);
+		if (ci) {
+			struct ext_fscrypt_info *ext_ci = GET_EXT_CI(ci);
+			if (ext_ci->ci_sdp_info) {
+				fscrypt_sdp_set_sensitive(inode, ext_ci->ci_sdp_info->engine_id, key);
+			}
 		}
 
 		if (key)
@@ -1365,66 +1410,68 @@ inline int __fscrypt_sdp_thread_convert_sdp_key(void *arg)
 		inode = sem->inode;
 		fek = &sem->key;
 		ci = inode->i_crypt_info;
-
-		if (ci && ci->ci_sdp_info) {
-			rc = inode->i_sb->s_cop->get_context(inode, &ctx, sizeof(ctx));
-			switch (ctx.version) {
-			case FSCRYPT_CONTEXT_V1: {
-				if (rc == offsetof(struct fscrypt_context_v1, knox_flags)) {
-					ctx.v1.knox_flags = 0;
-					rc = sizeof(ctx.v1);
+		if (ci) {
+			struct ext_fscrypt_info *ext_ci = GET_EXT_CI(ci);
+			if (ext_ci->ci_sdp_info) {
+				rc = inode->i_sb->s_cop->get_context(inode, &ctx, sizeof(ctx));
+				switch (ctx.version) {
+				case FSCRYPT_CONTEXT_V1: {
+					if (rc == offsetof(struct fscrypt_context_v1, knox_flags)) {
+						ctx.v1.knox_flags = 0;
+						rc = sizeof(ctx.v1);
+					}
+					break;
 				}
-				break;
-			}
-			case FSCRYPT_CONTEXT_V2: {
-				if (rc == offsetof(struct fscrypt_context_v2, knox_flags)) {
-					ctx.v2.knox_flags = 0;
-					rc = sizeof(ctx.v2);
+				case FSCRYPT_CONTEXT_V2: {
+					if (rc == offsetof(struct fscrypt_context_v2, knox_flags)) {
+						ctx.v2.knox_flags = 0;
+						rc = sizeof(ctx.v2);
+					}
+					break;
 				}
-				break;
-			}
-			}
-			if (rc != fscrypt_context_size(&ctx)) {
-				if (rc > 0 )
-					rc = -EINVAL;
-				DEK_LOGE("convert_key: failed to get fscrypt ctx (err:%d)\n", rc);
-				goto out;
-			}
+				}
+				if (rc != fscrypt_context_size(&ctx)) {
+					if (rc > 0)
+						rc = -EINVAL;
+					DEK_LOGE("convert_key: failed to get fscrypt ctx (err:%d)\n", rc);
+					goto out;
+				}
 
-			if (!fek) {
-				rc = -ENOKEY;
-				DEK_LOGE("convert_key: failed to find fek (err:%d)\n", rc);
-				goto out;
-			}
+				if (!fek) {
+					rc = -ENOKEY;
+					DEK_LOGE("convert_key: failed to find fek (err:%d)\n", rc);
+					goto out;
+				}
 
-			rc = fscrypt_sdp_get_context(inode, &sdp_ctx, sizeof(sdp_ctx));
-			if (rc != sizeof(sdp_ctx)) {
-				if (rc >= 0 )
-					rc = -EINVAL;
-				DEK_LOGE("convert_key: failed to get sdp context (err:%d)\n", rc);
-				goto out;
-			}
+				rc = fscrypt_sdp_get_context(inode, &sdp_ctx, sizeof(sdp_ctx));
+				if (rc != sizeof(sdp_ctx)) {
+					if (rc >= 0)
+						rc = -EINVAL;
+					DEK_LOGE("convert_key: failed to get sdp context (err:%d)\n", rc);
+					goto out;
+				}
 #if DEK_DEBUG
-			hex_key_dump("convert_key: fek", fek->raw, fek->size);
+				hex_key_dump("convert_key: fek", fek->raw, fek->size);
 #endif
-			switch (ctx.version) {
-			case FSCRYPT_CONTEXT_V1:
-				rc = __fscrypt_get_nonce(fek->raw, fek->size,
-									sdp_ctx.sdp_en_buf, FSCRYPT_FILE_NONCE_SIZE,
-									ctx.v1.nonce, FSCRYPT_FILE_NONCE_SIZE);
-				break;
-			case FSCRYPT_CONTEXT_V2:
-				rc = __fscrypt_get_nonce(fek->raw, fek->size,
-									sdp_ctx.sdp_en_buf, FSCRYPT_FILE_NONCE_SIZE,
-									ctx.v2.nonce, FSCRYPT_FILE_NONCE_SIZE);
-				break;
-			}
-			if (rc) {
-				DEK_LOGE("convert_key: failed to get nonce (err:%d)\n", rc);
-				goto out;
-			}
+				switch (ctx.version) {
+				case FSCRYPT_CONTEXT_V1:
+					rc = __fscrypt_get_nonce(fek->raw, fek->size,
+										sdp_ctx.sdp_en_buf, FSCRYPT_FILE_NONCE_SIZE,
+										ctx.v1.nonce, FSCRYPT_FILE_NONCE_SIZE);
+					break;
+				case FSCRYPT_CONTEXT_V2:
+					rc = __fscrypt_get_nonce(fek->raw, fek->size,
+										sdp_ctx.sdp_en_buf, FSCRYPT_FILE_NONCE_SIZE,
+										ctx.v2.nonce, FSCRYPT_FILE_NONCE_SIZE);
+					break;
+				}
+				if (rc) {
+					DEK_LOGE("convert_key: failed to get nonce (err:%d)\n", rc);
+					goto out;
+				}
 
-			__fscrypt_sdp_finish_set_sensitive(inode, &ctx, ci, fek);
+				__fscrypt_sdp_finish_set_sensitive(inode, &ctx, ci, fek);
+			}
 		}
 out:
 		if (fek)
@@ -1641,52 +1688,60 @@ out:
 
 int fscrypt_sdp_is_classified(struct fscrypt_info *crypt_info)
 {
-	if (!crypt_info->ci_sdp_info)
+	struct ext_fscrypt_info *ext_ci = GET_EXT_CI(crypt_info);
+	if (!ext_ci->ci_sdp_info)
 		return 0;
 
-	return !(crypt_info->ci_sdp_info->sdp_flags & SDP_IS_DIRECTORY)
-			&& ((crypt_info->ci_sdp_info->sdp_flags & SDP_DEK_SDP_ENABLED)
-				|| (crypt_info->ci_sdp_info->sdp_flags & SDP_DEK_IS_SENSITIVE));
+	return !(ext_ci->ci_sdp_info->sdp_flags & SDP_IS_DIRECTORY)
+			&& ((ext_ci->ci_sdp_info->sdp_flags & SDP_DEK_SDP_ENABLED)
+				|| (ext_ci->ci_sdp_info->sdp_flags & SDP_DEK_IS_SENSITIVE));
 }
 
 int fscrypt_sdp_is_uninitialized(struct fscrypt_info *crypt_info)
 {
-	return (crypt_info->ci_sdp_info->sdp_flags & SDP_DEK_IS_UNINITIALIZED);
+	struct ext_fscrypt_info *ext_ci = GET_EXT_CI(crypt_info);
+	return (ext_ci->ci_sdp_info->sdp_flags & SDP_DEK_IS_UNINITIALIZED);
 }
 
 int fscrypt_sdp_use_hkdf_expanded_key(struct fscrypt_info *crypt_info)
 {
-	if (!crypt_info->ci_sdp_info)
+	struct ext_fscrypt_info *ext_ci = GET_EXT_CI(crypt_info);
+	if (!ext_ci->ci_sdp_info)
 		return 0;
 
-	return (crypt_info->ci_sdp_info->sdp_flags & SDP_USE_HKDF_EXPANDED_KEY);
+	return (ext_ci->ci_sdp_info->sdp_flags & SDP_USE_HKDF_EXPANDED_KEY);
 }
 
 int fscrypt_sdp_use_pfk(struct fscrypt_info *crypt_info)
 {
-	return (crypt_info->ci_sdp_info->sdp_flags & SDP_USE_PER_FILE_KEY);
+	struct ext_fscrypt_info *ext_ci = GET_EXT_CI(crypt_info);
+	return (ext_ci->ci_sdp_info->sdp_flags & SDP_USE_PER_FILE_KEY);
 }
 
 int fscrypt_sdp_is_native(struct fscrypt_info *crypt_info)
 {
-	return (crypt_info->ci_sdp_info->sdp_flags & SDP_DEK_SDP_ENABLED);
+	struct ext_fscrypt_info *ext_ci = GET_EXT_CI(crypt_info);
+	return (ext_ci->ci_sdp_info->sdp_flags & SDP_DEK_SDP_ENABLED);
 }
 
 int fscrypt_sdp_is_sensitive(struct fscrypt_info *crypt_info)
 {
-	return (crypt_info->ci_sdp_info->sdp_flags & SDP_DEK_IS_SENSITIVE);
+	struct ext_fscrypt_info *ext_ci = GET_EXT_CI(crypt_info);
+	return (ext_ci->ci_sdp_info->sdp_flags & SDP_DEK_IS_SENSITIVE);
 }
 
 int fscrypt_sdp_is_to_sensitive(struct fscrypt_info *crypt_info)
 {
-	return (crypt_info->ci_sdp_info->sdp_flags & SDP_DEK_TO_SET_SENSITIVE);
+	struct ext_fscrypt_info *ext_ci = GET_EXT_CI(crypt_info);
+	return (ext_ci->ci_sdp_info->sdp_flags & SDP_DEK_TO_SET_SENSITIVE);
 }
 
 void fscrypt_sdp_update_conv_status(struct fscrypt_info *crypt_info)
 {
-	if ((crypt_info->ci_sdp_info->sdp_flags & SDP_DEK_IS_SENSITIVE)
-			&& (crypt_info->ci_sdp_info->sdp_dek.type != DEK_TYPE_AES_ENC)) {
-		crypt_info->ci_sdp_info->sdp_flags |= SDP_DEK_TO_CONVERT_KEY_TYPE;
+	struct ext_fscrypt_info *ext_ci = GET_EXT_CI(crypt_info);
+	if ((ext_ci->ci_sdp_info->sdp_flags & SDP_DEK_IS_SENSITIVE)
+			&& (ext_ci->ci_sdp_info->sdp_dek.type != DEK_TYPE_AES_ENC)) {
+		ext_ci->ci_sdp_info->sdp_flags |= SDP_DEK_TO_CONVERT_KEY_TYPE;
 		DEK_LOGD("Need conversion!\n");
 	}
 	return;
@@ -1771,22 +1826,28 @@ int fscrypt_sdp_inherit_info(struct inode *parent, struct inode *child,
 	int is_parent_using_hkdf_expanded_key;
 
 	struct fscrypt_info *ci = parent->i_crypt_info;
-	if (!ci || !ci->ci_sdp_info)
+	struct ext_fscrypt_info *ext_ci;
+
+	if (!ci)
 		return res;
 
-	if (FSCRYPT_SDP_PARSE_FLAG_OUT_OF_SDP(ci->ci_sdp_info->sdp_flags)) {
+	ext_ci = GET_EXT_CI(ci);
+	if (!ext_ci->ci_sdp_info)
+		return res;
+
+	if (FSCRYPT_SDP_PARSE_FLAG_OUT_OF_SDP(ext_ci->ci_sdp_info->sdp_flags)) {
 		DEK_LOGE("sdp_inherit: flags already occupied: 0x%08x\n",
-				ci->ci_sdp_info->sdp_flags);
+				ext_ci->ci_sdp_info->sdp_flags);
 		return res;
 	}
 
 	if (unlikely(!S_ISREG(child->i_mode) && !S_ISDIR(child->i_mode)))
 		return res;
 
-	is_parent_native = (ci->ci_sdp_info->sdp_flags & SDP_DEK_SDP_ENABLED);
-	is_parent_sensitive = (ci->ci_sdp_info->sdp_flags & SDP_DEK_IS_SENSITIVE);
-	is_parent_using_pfk = (ci->ci_sdp_info->sdp_flags & SDP_USE_PER_FILE_KEY);
-	is_parent_using_hkdf_expanded_key = (ci->ci_sdp_info->sdp_flags & SDP_USE_HKDF_EXPANDED_KEY);
+	is_parent_native = (ext_ci->ci_sdp_info->sdp_flags & SDP_DEK_SDP_ENABLED);
+	is_parent_sensitive = (ext_ci->ci_sdp_info->sdp_flags & SDP_DEK_IS_SENSITIVE);
+	is_parent_using_pfk = (ext_ci->ci_sdp_info->sdp_flags & SDP_USE_PER_FILE_KEY);
+	is_parent_using_hkdf_expanded_key = (ext_ci->ci_sdp_info->sdp_flags & SDP_USE_HKDF_EXPANDED_KEY);
 
 	if (is_parent_using_pfk) {
 		*sdp_flags |= SDP_USE_PER_FILE_KEY;
@@ -1803,7 +1864,7 @@ int fscrypt_sdp_inherit_info(struct inode *parent, struct inode *child,
 		else /* if (S_ISDIR(child->i_mode)) */
 			*sdp_flags |= SDP_IS_DIRECTORY;
 
-		sdpInfo->engine_id = ci->ci_sdp_info->engine_id;
+		sdpInfo->engine_id = ext_ci->ci_sdp_info->engine_id;
 		sdpInfo->sdp_dek.type = DEK_TYPE_PLAIN;
 //		sdpInfo->sdp_dek.len = DEK_MAXLEN;
 //		memset(sdpInfo->sdp_dek.buf, 0, DEK_MAXLEN); // Keep it as dummy
@@ -1823,7 +1884,7 @@ int fscrypt_sdp_inherit_info(struct inode *parent, struct inode *child,
 	if (is_parent_sensitive) {
 		DEK_LOGD("sdp_inherit: "
 				"parent->i_crypt_info->sdp_flags=0x%08x, sdp_flags=0x%08x\n",
-						ci->ci_sdp_info->sdp_flags, *sdp_flags);
+				ext_ci->ci_sdp_info->sdp_flags, *sdp_flags);
 
 		if (S_ISREG(child->i_mode))
 			*sdp_flags |= SDP_DEK_TO_SET_SENSITIVE;
@@ -1833,7 +1894,7 @@ int fscrypt_sdp_inherit_info(struct inode *parent, struct inode *child,
 		}
 
 		if (!is_parent_native) {
-			sdpInfo->engine_id = ci->ci_sdp_info->engine_id;
+			sdpInfo->engine_id = ext_ci->ci_sdp_info->engine_id;
 			sdpInfo->sdp_dek.type = DEK_TYPE_PLAIN;
 			sdpInfo->sdp_dek.len = 0;
 //			sdpInfo->sdp_dek.len = DEK_MAXLEN;
@@ -1855,9 +1916,12 @@ void fscrypt_sdp_finalize_tasks(struct inode *inode)
 {
 	struct fscrypt_info *ci = inode->i_crypt_info;//This pointer has been loaded by get_encryption_info completely
 
-	if (ci && ci->ci_sdp_info
-			&& (ci->ci_sdp_info->sdp_flags & FSCRYPT_KNOX_FLG_SDP_MASK)) {
-		__fscrypt_sdp_finalize_tasks(inode, ci);
+	if (ci) {
+		struct ext_fscrypt_info *ext_ci = GET_EXT_CI(ci);
+		if (ext_ci->ci_sdp_info
+				&& (ext_ci->ci_sdp_info->sdp_flags & FSCRYPT_KNOX_FLG_SDP_MASK)) {
+			__fscrypt_sdp_finalize_tasks(inode, ci);
+		}
 	}
 }
 
@@ -1867,30 +1931,25 @@ inline void __fscrypt_sdp_finalize_tasks(struct inode *inode, struct fscrypt_inf
 	sdp_thread_type_t thread_type;
 	sdp_ess_material *sem = NULL;
 	struct fscrypt_key raw_key;
+	struct ext_fscrypt_info *ext_ci = GET_EXT_CI(ci);
 
-	if (ci->ci_sdp_info->sdp_flags & SDP_IS_DIRECTORY)
+	if (ext_ci->ci_sdp_info->sdp_flags & SDP_IS_DIRECTORY)
 		return;
 
-	if (ci->ci_sdp_info->sdp_flags & SDP_DEK_IS_SENSITIVE)
+	if (ext_ci->ci_sdp_info->sdp_flags & SDP_DEK_IS_SENSITIVE)
 		__fscrypt_sdp_set_inode_sensitive(inode);
 
-	if (ci->ci_sdp_info->sdp_flags & SDP_DEK_IS_UNINITIALIZED)
+	if (ext_ci->ci_sdp_info->sdp_flags & SDP_DEK_IS_UNINITIALIZED)
 	{
 		thread_type = SDP_THREAD_INITIALIZE;
 		DEK_LOGD("Run initialize task\n");
-	}
-	else if (ci->ci_sdp_info->sdp_flags & SDP_DEK_TO_SET_SENSITIVE)
-	{
+	} else if (ext_ci->ci_sdp_info->sdp_flags & SDP_DEK_TO_SET_SENSITIVE) {
 		thread_type = SDP_THREAD_SET_SENSITIVE;
 		DEK_LOGD("Run set sensitive task\n");
-	}
-	else if (ci->ci_sdp_info->sdp_flags & SDP_DEK_TO_CONVERT_KEY_TYPE)
-	{
+	} else if (ext_ci->ci_sdp_info->sdp_flags & SDP_DEK_TO_CONVERT_KEY_TYPE) {
 		thread_type = SDP_THREAD_KEY_CONVERT;
 		DEK_LOGD("Run key convert task\n");
-	}
-	else
-	{
+	} else {
 		return;
 	}
 

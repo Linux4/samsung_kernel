@@ -7,6 +7,8 @@
  */
 
 #if 0
+	/* Rules start after this line */
+
 	/* Rules will be added here */
 	/* Never modify the above line. Rules will be added for buildtime */
 #endif /* if 0 */

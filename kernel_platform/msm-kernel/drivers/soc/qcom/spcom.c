@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2015-2019, 2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 /*
@@ -679,8 +679,12 @@ static int spcom_handle_create_channel_command(void *cmd_buf, int cmd_size)
 	mutex_lock(&spcom_dev->chdev_count_lock);
 	ret = spcom_create_channel_chardev(cmd->ch_name, cmd->is_sharable);
 	mutex_unlock(&spcom_dev->chdev_count_lock);
-	if (ret)
-		spcom_pr_err("failed to create ch[%s], ret [%d]\n", cmd->ch_name, ret);
+	if (ret) {
+		if (-EINVAL == ret)
+			spcom_pr_err("failed to create channel, ret [%d]\n", ret);
+		else
+			spcom_pr_err("failed to create ch[%s], ret [%d]\n", cmd->ch_name, ret);
+	}
 
 	return ret;
 }
@@ -2906,15 +2910,13 @@ static int spcom_ioctl_handle_get_message(struct spcom_ioctl_message *arg, void 
 	ch_name = arg->ch_name;
 	if (!is_valid_ch_name(ch_name)) {
 		spcom_pr_err("invalid channel name\n");
-		ret = -EINVAL;
-		goto get_message_out;
+		return -EINVAL;
 	}
 
 	/* DEVICE_NAME name is reserved for control channel */
 	if (is_control_channel_name(ch_name)) {
 		spcom_pr_err("cannot send message on management channel\n", ch_name);
-		ret = -EFAULT;
-		goto get_message_out;
+		return -EFAULT;
 	}
 
 	ch = spcom_find_channel_by_name(ch_name);
@@ -2990,7 +2992,7 @@ static int spcom_ioctl_handle_get_message(struct spcom_ioctl_message *arg, void 
 
 get_message_out:
 
-	if (ch && ch->active_pid == current_pid()) {
+	if (ch->active_pid == current_pid()) {
 		ch->active_pid = 0;
 		mutex_unlock(&ch->shared_sync_lock);
 	}
