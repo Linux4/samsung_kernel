@@ -259,7 +259,7 @@
 			phandle = <0x08>;
 		};
 
-		nand@79b0000 {
+		nand-controller@79b0000 {
 			compatible = "qcom,ipq8074-nand";
 			reg = <0x79b0000 0x10000>;
 			#address-cells = <0x01>;
@@ -270,15 +270,8 @@
 			dma-names = "tx\0rx\0cmd";
 			pinctrl-0 = <0x09>;
 			pinctrl-names = "default";
-			status = "ok";
+			status = "disabled";
 			phandle = <0x15>;
-
-			nand@0 {
-				reg = <0x00>;
-				nand-ecc-strength = <0x04>;
-				nand-ecc-step-size = <0x200>;
-				nand-bus-width = <0x08>;
-			};
 		};
 
 		phy@86000 {
@@ -360,6 +353,17 @@
 			perst-gpio = <0x0b 0x3d 0x01>;
 			phandle = <0x17>;
 		};
+
+		nand@79b0000 {
+			status = "ok";
+
+			nand@0 {
+				reg = <0x00>;
+				nand-ecc-strength = <0x04>;
+				nand-ecc-step-size = <0x200>;
+				nand-bus-width = <0x08>;
+			};
+		};
 	};
 
 	cpus {
@@ -423,7 +427,7 @@
 
 		sleep_clk {
 			compatible = "fixed-clock";
-			clock-frequency = <0x7d00>;
+			clock-frequency = <0x8000>;
 			#clock-cells = <0x00>;
 			phandle = <0x1c>;
 		};
@@ -445,7 +449,7 @@
 		stdout-path = "serial0";
 	};
 
-	memory {
+	memory@40000000 {
 		device_type = "memory";
 		reg = <0x00 0x40000000 0x00 0x20000000>;
 	};
@@ -468,7 +472,7 @@
 		blsp1_i2c2 = "/soc/i2c@78b6000";
 		blsp1_i2c3 = "/soc/i2c@78b7000";
 		qpic_bam = "/soc/dma@7984000";
-		qpic_nand = "/soc/nand@79b0000";
+		qpic_nand = "/soc/nand-controller@79b0000";
 		pcie_phy0 = "/soc/phy@86000";
 		pcie0 = "/soc/pci@20000000";
 		pcie_phy1 = "/soc/phy@8e000";

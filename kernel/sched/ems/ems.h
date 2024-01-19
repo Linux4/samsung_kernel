@@ -394,3 +394,17 @@ extern u64 decay_load(u64 val, u64 n);
 extern u32 __accumulate_pelt_segments(u64 periods, u32 d1, u32 d3);
 extern int cpuctl_task_group_idx(struct task_struct *p);
 extern struct sched_entity *__pick_next_entity(struct sched_entity *se);
+
+#ifdef CONFIG_UCLAMP_TASK
+static inline unsigned long ml_uclamp_task_util(struct task_struct *p)
+{
+	return clamp(ml_task_util_est(p),
+			uclamp_eff_value(p, UCLAMP_MIN),
+			uclamp_eff_value(p, UCLAMP_MAX));
+}
+#else
+static inline unsigned long ml_uclamp_task_util(struct task_strcut *p)
+{
+	return ml_task_util_est(p);
+}
+#endif

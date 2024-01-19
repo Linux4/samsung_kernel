@@ -1447,7 +1447,7 @@ static int __set_phy_cfg_0504_8xxx_dphy(void __iomem *regs, int option, u32 *cfg
 	u8 model = (cfg[VERSION] & 0xE0) >> 5;
 	u32 sc_ana_con0 = 0x00000001, sd_ana_con0 = 0x00000001, 
 		sc_ana_con1 = 0x0000EA40, sd_ana_con1 = 0x0000EA40, 
-		sc_ana_con2 = 0x00000002;
+		sc_ana_con2 = 0x00000002, sd_ana_con2 = 0x00000004;
 
 	void __iomem *bias;
 
@@ -1479,11 +1479,12 @@ static int __set_phy_cfg_0504_8xxx_dphy(void __iomem *regs, int option, u32 *cfg
 		/* R9S */
 		if (sensor & 0x1) {
 			/* Front */
-			sc_ana_con0 = 0x00000000; /* ana_con0(SC) */
-			sd_ana_con0 = 0x00000000; /* ana_con0(SD/CSD) */
-			sc_ana_con1 = 0x000082F2; /* ana_con1(SC) */
-			sd_ana_con1 = 0x000082F2; /* ana_con1(SD/CSD) */
-			sc_ana_con2 = 0x00000004; /* ana_con2(SC) */
+			sc_ana_con0 = 0x00000003; /* ana_con0(SC) */
+			sd_ana_con0 = 0x00000003; /* ana_con0(SD/CSD) */
+			sc_ana_con1 = 0x0000C8F0; /* ana_con1(SC) */
+			sd_ana_con1 = 0x0000C8F0; /* ana_con1(SD/CSD) */
+			sc_ana_con2 = 0x00000002; /* ana_con2(SC) */
+			sd_ana_con2 = 0x00000002; /* ana_con2(SD/CSD) */
 		}
 	}
 
@@ -1523,7 +1524,7 @@ static int __set_phy_cfg_0504_8xxx_dphy(void __iomem *regs, int option, u32 *cfg
 		writel(sd_ana_con0, regs + 0x0108 + (i * 0x100)); /* SD_ANA_CON0 */
 		writel(sd_ana_con1, regs + 0x010C + (i * 0x100)); /* SD_ANA_CON1 */
 
-		writel(0x00000004, regs + 0x0110 + (i * 0x100)); /* SD_ANA_CON2 */
+		writel(sd_ana_con2, regs + 0x0110 + (i * 0x100)); /* SD_ANA_CON2 */
 		update_bits(regs + 0x0110 + (i * 0x100), 8, 2, skew_delay_sel); /* SD_ANA_CON2 */
 
 		writel(0x00008600, regs + 0x0114 + (i * 0x100)); /* SD_ANA_CON3 */

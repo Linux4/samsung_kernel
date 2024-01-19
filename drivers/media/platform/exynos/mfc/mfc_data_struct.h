@@ -854,6 +854,7 @@ struct mfc_platdata {
 	unsigned int core_balance;
 	unsigned int iova_threshold;
 	unsigned int idle_clk_ctrl;
+	unsigned int enc_timing_dis;
 };
 
 struct mfc_core_platdata {
@@ -1189,6 +1190,8 @@ struct mfc_dev {
 	int num_inst;
 	int num_otf_inst;
 	int num_drm_inst;
+	int num_dec_inst;
+	int num_enc_inst;
 
 	unsigned long otf_inst_bits;
 	unsigned long multi_core_inst_bits;
@@ -1201,6 +1204,7 @@ struct mfc_dev {
 	int move_ctx_cnt;
 	struct list_head ctx_list;
 	spinlock_t ctx_list_lock;
+	unsigned int core_balance;
 
 	atomic_t queued_bits;
 	spinlock_t idle_bits_lock;
@@ -1785,7 +1789,7 @@ struct mfc_ctrls_ops {
 			struct list_head *head, EncoderInputStr *pInStr);
 	int (*get_buf_ctrls_val_nal_q_enc) (struct mfc_ctx *ctx,
 			struct list_head *head, EncoderOutputStr *pOutStr);
-	int (*recover_buf_ctrls_nal_q) (struct mfc_ctx *ctx, struct list_head *head);
+	int (*restore_buf_ctrls) (struct mfc_ctx *ctx, struct list_head *head);
 };
 
 struct stored_dpb_info {

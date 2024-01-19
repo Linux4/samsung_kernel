@@ -36,7 +36,7 @@
 #include "../dpu30/panel_modes.h"
 
 #ifdef CONFIG_PANEL_NOTIFY
-#include "../dpu30/panel_notify.h"
+#include <linux/panel_notify.h>
 #endif
 
 #ifdef CONFIG_EXTEND_LIVE_CLOCK

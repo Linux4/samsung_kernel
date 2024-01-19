@@ -15,8 +15,10 @@
 
 #include "mcd_dsim.h"
 #include "dsim.h"
-#include "../panel/panel_drv.h"
-#include "../panel/dynamic_mipi/dynamic_mipi.h"
+#include "panel_drv.h"
+#ifdef CONFIG_DYNAMIC_MIPI
+#include "dynamic_mipi/dynamic_mipi.h"
+#endif
 
 #ifdef CONFIG_DYNAMIC_MIPI
 void mcd_dsim_md_set_default_freq(struct mcd_dsim_device *mcd_dsim, int context)
@@ -32,8 +34,8 @@ void mcd_dsim_md_set_default_freq(struct mcd_dsim_device *mcd_dsim, int context)
 		dsim_err("ERR:%s:dm is null\n");
 		return;
 	}
-	dm_status = &dm->dm_status;
 
+	dm_status = &dm->dm_status;
 	if ((dm_status->target_df != dm->dm_dt.dm_default) ||
 		(dm_status->current_df != dm->dm_dt.dm_default)) {
 
@@ -44,9 +46,12 @@ void mcd_dsim_md_set_default_freq(struct mcd_dsim_device *mcd_dsim, int context)
 		if (context == DM_REQ_CTX_PWR_ON)
 			dm_status->ffc_df = dm->dm_dt.dm_default;
 
-
 		dm_status->req_ctx = context;
 	}
+
+	if (context == DM_REQ_CTX_PWR_ON)
+		atomic_set(&dm_status->frame_cnt, 0);
+
 }
 
 int mcd_dsim_md_set_pre_freq(struct mcd_dsim_device *mcd_dsim, struct dm_param_info *param)

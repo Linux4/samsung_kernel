@@ -2464,7 +2464,7 @@
 				config {
 					pins = "gpio126";
 					function = "gpio";
-					bias-no-pull;
+					bias-disable;
 					drive-strength = <0x02>;
 					output-low;
 				};
@@ -2476,7 +2476,7 @@
 				config {
 					pins = "gpio126";
 					function = "gpio";
-					bias-no-pull;
+					bias-disable;
 					drive-strength = <0x02>;
 					output-high;
 				};

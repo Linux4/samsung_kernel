@@ -903,7 +903,7 @@ static void slsi_ts_coordinate_event(struct slsi_ts_data *ts, u8 *event_buff)
 				|| (ts->plat_data->coord[t_id].ttype == SLSI_TS_TOUCHTYPE_PALM)
 				|| (ts->plat_data->coord[t_id].ttype == SLSI_TS_TOUCHTYPE_WET)
 				|| (ts->plat_data->coord[t_id].ttype == SLSI_TS_TOUCHTYPE_GLOVE)) {
-			sec_input_coord_event(&ts->client->dev, t_id);
+			sec_input_coord_event_fill_slot(&ts->client->dev, t_id);
 		} else {
 			input_err(true, &ts->client->dev,
 					"%s: do not support coordinate type(%d)\n",
@@ -1109,6 +1109,8 @@ irqreturn_t slsi_ts_irq_thread(int irq, void *ptr)
 		curr_pos++;
 		remain_event_count--;
 	} while (remain_event_count >= 0);
+
+	sec_input_coord_event_sync_slot(&ts->client->dev);
 
 	slsi_ts_external_func(ts);
 
@@ -1542,6 +1544,8 @@ static int slsi_ts_init(struct i2c_client *client)
 	ret = slsi_ts_fn_init(ts);
 	if (ret) {
 		input_err(true, &ts->client->dev, "%s: fail to init fn\n", __func__);
+		ts->plat_data->input_dev->open = NULL;
+		ts->plat_data->input_dev->close = NULL;
 		goto err_fn_init;
 	}
 
@@ -1639,6 +1643,8 @@ int slsi_ts_probe(struct i2c_client *client, const struct i2c_device_id *id)
 	ret = slsi_ts_hw_init(client);
 	if (ret < 0) {
 		input_err(true, &ts->client->dev, "%s: fail to init hw\n", __func__);
+		ts->plat_data->input_dev->open = NULL;
+		ts->plat_data->input_dev->close = NULL;
 		slsi_ts_release(client);
 		return ret;
 	}
@@ -1651,6 +1657,8 @@ int slsi_ts_probe(struct i2c_client *client, const struct i2c_device_id *id)
 			IRQF_TRIGGER_LOW | IRQF_ONESHOT, SLSI_TS_I2C_NAME, ts);
 	if (ret < 0) {
 		input_err(true, &ts->client->dev, "%s: Unable to request threaded irq\n", __func__);
+		ts->plat_data->input_dev->open = NULL;
+		ts->plat_data->input_dev->close = NULL;
 		slsi_ts_release(client);
 		return ret;
 	}

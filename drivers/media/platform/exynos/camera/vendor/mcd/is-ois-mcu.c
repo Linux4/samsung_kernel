@@ -644,7 +644,7 @@ int ois_mcu_init(struct v4l2_subdev *subdev)
 		info_mcu("%s error reg value = 0x%02x/0x%02x", __func__, error_reg[0], error_reg[1]);
 
 		/* MCU err reg recovery code */
-		if (core->mcu->need_reset_mcu && error_reg[1]) {
+		if (error_reg[1] && (core->mcu->need_reset_mcu || (mcu->recover_tele2 && mcu->is_tele2_on))) {
 			/* write AF CTRL standby */
 			is_mcu_set_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_CTRL_AF, MCU_AF_MODE_STANDBY);
 			msleep(10);
@@ -652,8 +652,15 @@ int ois_mcu_init(struct v4l2_subdev *subdev)
 			is_mcu_set_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_CHECKSUM, 0x0);
 			/* write AF CTRL active */
 			is_mcu_set_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_CTRL_AF, MCU_AF_MODE_ACTIVE);
-			core->mcu->need_reset_mcu = false;
-			info("[%s] clear ois reset flag.", __func__);
+
+			if (core->mcu->need_reset_mcu) {
+				core->mcu->need_reset_mcu = false;
+				info_mcu("[%s] clear ois reset flag.", __func__);
+			} else if (mcu->recover_tele2 && mcu->is_tele2_on) {
+				mcu->recover_tele2 = false;
+				mcu->is_tele2_on = false;
+				info_mcu("[%s] recover mcu in case of not using tele2 sensor.", __func__);
+			}
 		}
 
 		if (val == 0x01) {
@@ -817,7 +824,10 @@ int ois_mcu_init(struct v4l2_subdev *subdev)
 #endif
 			info_mcu("%s gyro init data applied.\n", __func__);
 
-			ois_hw_check = true;
+#ifdef CAMERA_3RD_OIS
+			if (!error_reg[1] || !mcu->recover_tele2)
+#endif
+				ois_hw_check = true;
 			mcu->is_mcu_active = false;
 
 			if (module->position == SENSOR_POSITION_REAR)
@@ -1000,6 +1010,8 @@ int ois_mcu_deinit(struct v4l2_subdev *subdev)
 		ois_fadeupdown = false;
 		ois_hw_check = false;
 		mcu->is_mcu_active = false;
+		mcu->recover_tele2 = false;
+		mcu->is_tele2_on = false;
 		info_mcu("%s ois stop. sensor = (%d)X\n", __func__, module->position);
 	}
 
@@ -2057,6 +2069,7 @@ int ois_mcu_set_power_mode(struct v4l2_subdev *subdev)
 
 #ifdef CAMERA_3RD_OIS
 	camera_running4 = is_vendor_check_camera_running(SENSOR_POSITION_REAR4);
+	mcu->recover_tele2 = false;
 
 	/* OIS SEL (wide : 1 , tele : 2, tele2 : 4, triple : 7 ). */
 	if (camera_running && !camera_running2 && !camera_running4) { //TEMP_OLYMPUS ==> need to be changed based on camera scenario
@@ -2065,12 +2078,17 @@ int ois_mcu_set_power_mode(struct v4l2_subdev *subdev)
 	} else if (!camera_running && camera_running2 && !camera_running4) {
 		is_mcu_set_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_OIS_SEL, 0x02);
 		ois->ois_power_mode = OIS_POWER_MODE_SINGLE_TELE;
+	} else if (camera_running && camera_running2 && !camera_running4) {
+		is_mcu_set_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_OIS_SEL, 0x03);
+		ois->ois_power_mode = OIS_POWER_MODE_DUAL;
 	} else if (!camera_running && !camera_running2 && camera_running4) {
 		is_mcu_set_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_OIS_SEL, 0x04);
 		ois->ois_power_mode = OIS_POWER_MODE_SINGLE_TELE2;
+		mcu->recover_tele2 = true;
 	} else {
 		is_mcu_set_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_OIS_SEL, 0x07);
 		ois->ois_power_mode = OIS_POWER_MODE_TRIPLE;
+		mcu->recover_tele2 = true;
 	}
 #else
 	/* OIS SEL (wide : 1 , tele : 2, both : 3 ). */

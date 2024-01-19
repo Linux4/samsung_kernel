@@ -40,7 +40,7 @@
 #include <linux/time.h>
 
 #include <linux/iommu.h>
-#if defined(CONFIG_EYXNOS_IOVMM)
+#if defined(CONFIG_EXYNOS_IOVMM)
 #include <linux/exynos_iovmm.h>
 #endif
 
@@ -2048,11 +2048,6 @@ static int jsqz_clock_gating(struct jsqz_dev *jsqz, bool on)
 			dev_dbg(jsqz->dev, "jsqz clock enabled\n");
 		} else {
 			clk_disable(jsqz->clk_producer);
-			if (ret) {
-				dev_err(jsqz->dev, "%s failed to disable clock : %d\n"
-					, __func__, ret);
-				return ret;
-			}
 			dev_dbg(jsqz->dev, "jsqz clock disabled\n");
 		}
 	}
@@ -2062,10 +2057,10 @@ static int jsqz_clock_gating(struct jsqz_dev *jsqz, bool on)
 		return -1;
 	}
 
-	return 0;
+	return ret;
 }
 
-#if defined(CONFIG_EYXNOS_IOVMM)
+#if defined(CONFIG_EXYNOS_IOVMM)
 static int jsqz_sysmmu_fault_handler(struct iommu_domain *domain,
 				     struct device *dev,
 				     unsigned long fault_addr,
@@ -2249,7 +2244,7 @@ static int jsqz_probe(struct platform_device *pdev)
 	pm_runtime_set_suspended(&pdev->dev);
 	pm_runtime_enable(&pdev->dev);
 
-#if defined(CONFIG_EYXNOS_IOVMM)
+#if defined(CONFIG_EXYNOS_IOVMM)
 	iovmm_set_fault_handler(&pdev->dev,
 				jsqz_sysmmu_fault_handler, jsqz);
 
@@ -2286,7 +2281,7 @@ static int jsqz_probe(struct platform_device *pdev)
 err_pm:
 	pm_runtime_dont_use_autosuspend(&pdev->dev);
 	pm_runtime_disable(&pdev->dev);
-#if defined(CONFIG_EYXNOS_IOVMM)
+#if defined(CONFIG_EXYNOS_IOVMM)
 	iovmm_deactivate(&pdev->dev);
 	err_iovmm:
 #else
@@ -2328,7 +2323,7 @@ static int jsqz_remove(struct platform_device *pdev)
 	pm_runtime_dont_use_autosuspend(&pdev->dev);
 	pm_runtime_disable(&pdev->dev);
 
-#if defined(CONFIG_EYXNOS_IOVMM)
+#if defined(CONFIG_EXYNOS_IOVMM)
 	iovmm_deactivate(&pdev->dev);
 #else
 	iommu_unregister_device_fault_handler(&pdev->dev);

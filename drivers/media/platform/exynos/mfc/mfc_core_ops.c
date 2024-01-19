@@ -559,12 +559,18 @@ err_open:
 
 void mfc_core_instance_cache_flush(struct mfc_core *core, struct mfc_ctx *ctx)
 {
+	int state = atomic_read(&core->clk_ref);
+
+	if (!state)
+		mfc_core_pm_clock_on(core);
+
 	core->curr_core_ctx = ctx->num;
-	mfc_core_pm_clock_on(core);
 	mfc_core_cache_flush(core, ctx->is_drm,
 			core->last_cmd_has_cache_flush ?
 			MFC_NO_CACHEFLUSH : MFC_CACHEFLUSH);
-	mfc_core_pm_clock_off(core);
+
+	if (!state)
+		mfc_core_pm_clock_off(core);
 }
 
 int mfc_core_instance_move_to(struct mfc_core *core, struct mfc_ctx *ctx)

@@ -3,6 +3,7 @@
 #
 
 ccflags-y += -Idrivers/video/fbdev/exynos/dpu30
+ccflags-y += -Idrivers/video/fbdev/exynos/panel
 
 ccflags-y += -I$(srctree)/drivers/misc/tui/
 ccflags-y += -I$(srctree)/drivers/misc/tui/platforms/exynos2100

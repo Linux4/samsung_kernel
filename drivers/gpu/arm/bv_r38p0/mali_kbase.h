@@ -439,19 +439,6 @@ static inline void kbase_free_user_buffer(
 	}
 }
 
-/**
- * kbase_mem_copy_from_extres() - Copy from external resources.
- *
- * @kctx:	kbase context within which the copying is to take place.
- * @buf_data:	Pointer to the information about external resources:
- *		pages pertaining to the external resource, number of
- *		pages to copy.
- *
- * Return:      0 on success, error code otherwise.
- */
-int kbase_mem_copy_from_extres(struct kbase_context *kctx,
-		struct kbase_debug_copy_buffer *buf_data);
-
 #if !MALI_USE_CSF
 int kbase_process_soft_job(struct kbase_jd_atom *katom);
 int kbase_prepare_soft_job(struct kbase_jd_atom *katom);
@@ -765,5 +752,109 @@ void kbase_device_pcm_dev_term(struct kbase_device *const kbdev);
 #if !defined(UINT64_MAX)
 	#define UINT64_MAX ((uint64_t)0xFFFFFFFFFFFFFFFFULL)
 #endif
+
+/**
+ * kbase_file_fops_count() - Get the kfile::fops_count value
+ *
+ * @kfile: Pointer to the object representing the mali device file.
+ *
+ * The value is read with kfile::lock held.
+ *
+ * Return: sampled value of kfile::fops_count.
+ */
+static inline u32 kbase_file_fops_count(struct kbase_file *kfile)
+{
+	u32 fops_count;
+
+	spin_lock(&kfile->lock);
+	fops_count = kfile->fops_count;
+	spin_unlock(&kfile->lock);
+
+	return fops_count;
+}
+
+/**
+ * kbase_file_inc_fops_count_unless_closed() - Increment the kfile::fops_count value if the
+ *                                             kfile::owner is still set.
+ *
+ * @kfile: Pointer to the object representing the /dev/malixx device file instance.
+ *
+ * Return: true if the increment was done otherwise false.
+ */
+static inline bool kbase_file_inc_fops_count_unless_closed(struct kbase_file *kfile)
+{
+	bool count_incremented = false;
+
+	spin_lock(&kfile->lock);
+	if (kfile->owner) {
+		kfile->fops_count++;
+		count_incremented = true;
+	}
+	spin_unlock(&kfile->lock);
+
+	return count_incremented;
+}
+
+/**
+ * kbase_file_dec_fops_count() - Decrement the kfile::fops_count value
+ *
+ * @kfile: Pointer to the object representing the /dev/malixx device file instance.
+ *
+ * This function shall only be called to decrement kfile::fops_count if a successful call
+ * to kbase_file_inc_fops_count_unless_closed() was made previously by the current thread.
+ *
+ * The function would enqueue the kfile::destroy_kctx_work if the process that originally
+ * created the file instance has closed its copy and no Kbase handled file operations are
+ * in progress and no memory mappings are present for the file instance.
+ */
+static inline void kbase_file_dec_fops_count(struct kbase_file *kfile)
+{
+	spin_lock(&kfile->lock);
+	WARN_ON_ONCE(kfile->fops_count <= 0);
+	kfile->fops_count--;
+	if (unlikely(!kfile->fops_count && !kfile->owner && !kfile->map_count)) {
+		queue_work(system_wq, &kfile->destroy_kctx_work);
+#if IS_ENABLED(CONFIG_DEBUG_FS)
+		wake_up(&kfile->zero_fops_count_wait);
+#endif
+	}
+	spin_unlock(&kfile->lock);
+}
+
+/**
+ * kbase_file_inc_cpu_mapping_count() - Increment the kfile::map_count value.
+ *
+ * @kfile: Pointer to the object representing the /dev/malixx device file instance.
+ *
+ * This function shall be called when the memory mapping on /dev/malixx device file
+ * instance is created. The kbase_file::setup_state shall be KBASE_FILE_COMPLETE.
+ */
+static inline void kbase_file_inc_cpu_mapping_count(struct kbase_file *kfile)
+{
+	spin_lock(&kfile->lock);
+	kfile->map_count++;
+	spin_unlock(&kfile->lock);
+}
+
+/**
+ * kbase_file_dec_cpu_mapping_count() - Decrement the kfile::map_count value
+ *
+ * @kfile: Pointer to the object representing the /dev/malixx device file instance.
+ *
+ * This function is called to decrement kfile::map_count value when the memory mapping
+ * on /dev/malixx device file is closed.
+ * The function would enqueue the kfile::destroy_kctx_work if the process that originally
+ * created the file instance has closed its copy and there are no mappings present and no
+ * Kbase handled file operations are in progress for the file instance.
+ */
+static inline void kbase_file_dec_cpu_mapping_count(struct kbase_file *kfile)
+{
+	spin_lock(&kfile->lock);
+	WARN_ON_ONCE(kfile->map_count <= 0);
+	kfile->map_count--;
+	if (unlikely(!kfile->map_count && !kfile->owner && !kfile->fops_count))
+		queue_work(system_wq, &kfile->destroy_kctx_work);
+	spin_unlock(&kfile->lock);
+}
 
 #endif

@@ -930,7 +930,7 @@ static void show_cmdlog(struct dumpinfo *info);
 #endif
 static void show_self_mask_crc(struct dumpinfo *info);
 #ifdef CONFIG_SUPPORT_MAFPC
-#define S6E3HAD_MAFPC_ENABLE 		0x51
+#define S6E3HAD_MAFPC_ENABLE 		0x71
 #define S6E3HAD_MAFPC_CTRL_CMD_OFFSET 	6
 
 static void show_mafpc_log(struct dumpinfo *info);

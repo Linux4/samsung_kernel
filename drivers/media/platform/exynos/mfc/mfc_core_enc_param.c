@@ -572,15 +572,11 @@ static void __mfc_set_enc_params_h264(struct mfc_core *core,
 	mb = WIDTH_MB((ctx)->crop_width) * HEIGHT_MB((ctx)->crop_height);
 	/* Level 6.0 case */
 	if (IS_LV60_MB(mb)) {
-		if (p_264->level < 60) {
-			mfc_ctx_info("Set Level 6.0 for MB %d\n", mb);
-			p_264->level = 60;
-		}
+		if (p_264->level < 60)
+			mfc_ctx_info("This resolution(mb: %d) recommends level6.0\n", mb);
 		/* In case of profile is baseline or constrained baseline */
-		if (p_264->profile == 0x0 || p_264->profile == 0x3) {
-			mfc_ctx_info("Set High profile for MB %d\n", mb);
-			p_264->profile = 0x2;
-		}
+		if (p_264->profile == 0x0 || p_264->profile == 0x3)
+			mfc_ctx_info("This resolution(mb: %d) recommends high profile\n", mb);
 		if (p_264->entropy_mode != 0x1) {
 			mfc_ctx_info("Set Entropy mode CABAC\n");
 			p_264->entropy_mode = 1;
@@ -589,15 +585,11 @@ static void __mfc_set_enc_params_h264(struct mfc_core *core,
 
 	/* Level 5.1 case */
 	if (IS_LV51_MB(mb)) {
-		if (p_264->level < 51) {
-			mfc_ctx_info("Set Level 5.1 for MB %d\n", mb);
-			p_264->level = 51;
-		}
+		if (p_264->level < 51)
+			mfc_ctx_info("This resolution(mb: %d) recommends level5.1\n", mb);
 		/* In case of profile is baseline or constrained baseline */
-		if (p_264->profile == 0x0 || p_264->profile == 0x3) {
-			mfc_ctx_info("Set High profile for MB %d\n", mb);
-			p_264->profile = 0x2;
-		}
+		if (p_264->profile == 0x0 || p_264->profile == 0x3)
+			mfc_ctx_info("This resolution(mb: %d) recommends high profile\n", mb);
 	}
 
 	/* profile & level */
@@ -648,7 +640,10 @@ static void __mfc_set_enc_params_h264(struct mfc_core *core,
 	/* VUI parameter disable */
 	mfc_clear_set_bits(reg, 0x1, 30, p_264->vui_enable);
 	/* Timing info */
-	mfc_set_bits(reg, 0x1, 31, 0x1);
+	if (dev->pdata->enc_timing_dis)
+		mfc_set_bits(reg, 0x1, 31, 0x0);
+	else
+		mfc_set_bits(reg, 0x1, 31, 0x1);
 	MFC_CORE_RAW_WRITEL(reg, MFC_REG_E_H264_OPTIONS);
 
 	/* cropped height */
@@ -1238,16 +1233,12 @@ static void __mfc_set_enc_params_hevc(struct mfc_core *core,
 
 	mb = WIDTH_MB((ctx)->crop_width) * HEIGHT_MB((ctx)->crop_height);
 	/* Level 6.0 case */
-	if (IS_LV60_MB(mb) && p_hevc->level < 60) {
-		mfc_ctx_info("Set Level 6.0 for MB %d\n", mb);
-		p_hevc->level = 60;
-	}
+	if (IS_LV60_MB(mb) && p_hevc->level < 60)
+		mfc_ctx_info("This resolution(mb: %d) recommends level6.0\n", mb);
 
 	/* Level 5.1 case */
-	if (IS_LV51_MB(mb) && p_hevc->level < 51) {
-		mfc_ctx_info("Set Level 5.1 for MB %d\n", mb);
-		p_hevc->level = 51;
-	}
+	if (IS_LV51_MB(mb) && p_hevc->level < 51)
+		mfc_ctx_info("This resolution(mb: %d) recommends level5.1\n", mb);
 
 	/* tier_flag & level & profile */
 	reg = 0;
@@ -1298,7 +1289,10 @@ static void __mfc_set_enc_params_hevc(struct mfc_core *core,
 
 	reg = MFC_CORE_RAW_READL(MFC_REG_E_HEVC_OPTIONS_2);
 	/* Timing info */
-	mfc_set_bits(reg, 0x1, 2, 0x1);
+	if (dev->pdata->enc_timing_dis)
+		mfc_set_bits(reg, 0x1, 2, 0x0);
+	else
+		mfc_set_bits(reg, 0x1, 2, 0x1);
 	MFC_CORE_RAW_WRITEL(reg, MFC_REG_E_HEVC_OPTIONS_2);
 
 	/* refresh period */

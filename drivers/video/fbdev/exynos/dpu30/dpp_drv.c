@@ -1101,7 +1101,7 @@ static void dpp_print_restriction(struct dpp_device *dpp)
 
 #if IS_ENABLED(CONFIG_MCD_PANEL)
 #define CHECK_CNT	20
-static bool dpp0_probe_is_done()
+static bool dpp0_probe_is_done(void)
 {
 	int check_cnt = CHECK_CNT;
 

@@ -875,7 +875,7 @@ static bool ufs_sec_parse_wb_info(struct exynos_ufs *ufs, struct device_node *np
 		wb_info->down_threshold_rqs = 25;
 
 	if (of_property_read_u32(np, "sec,wb-disable-threshold-lt", &wb_info->wb_disable_threshold_lt))
-		wb_info->wb_disable_threshold_lt = 7;
+		wb_info->wb_disable_threshold_lt = 9;
 
 	if (of_property_read_u32(np, "sec,wb-on-delay-ms", &temp_delay_ms_value))
 		wb_info->on_delay = msecs_to_jiffies(92);

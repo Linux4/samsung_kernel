@@ -905,19 +905,19 @@ int is_vender_dt(struct device_node *np)
 
 	ret = of_property_read_u32(np, "rear2_sensor_id", &rear2_sensor_id);
 	if (ret)
-		probe_err("rear2_sensor_id read is fail(%d)", ret);
+		probe_info("no rear2_sensor_id(%d)\n", ret);
 
 	ret = of_property_read_u32(np, "front2_sensor_id", &front2_sensor_id);
 	if (ret)
-		probe_err("front2_sensor_id read is fail(%d)", ret);
+		probe_info("no front2_sensor_id(%d)\n", ret);
 
 	ret = of_property_read_u32(np, "rear3_sensor_id", &rear3_sensor_id);
 	if (ret)
-		probe_err("rear3_sensor_id read is fail(%d)", ret);
+		probe_info("no rear3_sensor_id(%d)\n", ret);
 
 	ret = of_property_read_u32(np, "rear4_sensor_id", &rear4_sensor_id);
 	if (ret)
-		probe_err("rear4_sensor_id read is fail(%d)", ret);
+		probe_info("no rear4_sensor_id(%d)\n", ret);
 
 #ifdef SECURE_CAMERA_IRIS
 	ret = of_property_read_u32(np, "secure_sensor_id", &secure_sensor_id);
@@ -928,23 +928,23 @@ int is_vender_dt(struct device_node *np)
 #endif
 	ret = of_property_read_u32(np, "rear_tof_sensor_id", &rear_tof_sensor_id);
 	if (ret)
-		probe_err("rear_tof_sensor_id read is fail(%d)", ret);
+		probe_info("no rear_tof_sensor_id(%d)\n", ret);
 
 	ret = of_property_read_u32(np, "front_tof_sensor_id", &front_tof_sensor_id);
 	if (ret)
-		probe_err("front_tof_sensor_id read is fail(%d)", ret);
+		probe_info("no front_tof_sensor_id(%d)\n", ret);
 
 	ret = of_property_read_u32(np, "ois_sensor_index", &ois_sensor_index);
 	if (ret)
-		probe_err("ois_sensor_index read is fail(%d)", ret);
+		probe_info("no ois_sensor_index(%d)\n", ret);
 
 	ret = of_property_read_u32(np, "mcu_sensor_index", &mcu_sensor_index);
 	if (ret)
-		probe_err("mcu_sensor_index read is fail(%d)", ret);
+		probe_info("no mcu_sensor_index(%d)\n", ret);
 
 	ret = of_property_read_u32(np, "aperture_sensor_index", &aperture_sensor_index);
 	if (ret)
-		probe_err("aperture_sensor_index read is fail(%d)", ret);
+		probe_info("no aperture_sensor_index(%d)\n", ret);
 
 	check_sensor_vendor = of_property_read_bool(np, "check_sensor_vendor");
 	if (!check_sensor_vendor) {
@@ -958,7 +958,7 @@ int is_vender_dt(struct device_node *np)
 
 	use_ois_hsi2c = of_property_read_bool(np, "use_ois_hsi2c");
 	if (!use_ois_hsi2c) {
-		probe_err("use_ois_hsi2c not use(%d)", use_ois_hsi2c);
+		probe_info("use_ois_hsi2c not use(%d)\n", use_ois_hsi2c);
 	}
 #endif
 
@@ -2262,12 +2262,22 @@ int is_vender_sensor_gpio_on(struct is_vender *vender, u32 scenario, u32 gpio_sc
 		, void *module_data)
 {
 	int ret = 0;
+	struct is_module_enum *module = NULL;
+#ifdef CAMERA_3RD_OIS
+	struct is_core *core;
+#endif
+	module = module_data;
 #ifdef USE_FAKE_RETENTION
-	struct is_module_enum *module = module_data;
-
 	if (test_bit(IS_MODULE_STANDBY_ON, &module->state)) {
 		clear_bit(IS_MODULE_STANDBY_ON, &module->state);
 		info("%s: set rollback retention mode \n", __func__);
+	}
+#endif
+#ifdef CAMERA_3RD_OIS
+	core = container_of(vender, struct is_core, vender);
+	if (module->position == SENSOR_POSITION_REAR4) {
+		core->mcu->is_tele2_on = true;
+		info("[%s] tele2 power on completed.", __func__);
 	}
 #endif
 	return ret;
@@ -2330,6 +2340,9 @@ int is_vender_sensor_gpio_off(struct is_vender *vender, u32 scenario, u32 gpio_s
 	struct sensor_open_extended *ext_info;
 	struct is_cis *cis;
 	struct is_device_sensor_peri *sensor_peri;
+#ifdef CAMERA_3RD_OIS
+	struct is_core *core;
+#endif
 
 	sensor_peri = (struct is_device_sensor_peri *)module->private_data;
 	FIMC_BUG(!sensor_peri);
@@ -2348,6 +2361,11 @@ int is_vender_sensor_gpio_off(struct is_vender *vender, u32 scenario, u32 gpio_s
 		if (ret)
 			warn("cis_set_fake_retention (true) is fail(%d)", ret);
 	}
+#endif
+#ifdef CAMERA_3RD_OIS
+	core = container_of(vender, struct is_core, vender);
+	if (module->position == SENSOR_POSITION_REAR4)
+		core->mcu->is_tele2_on = false;
 #endif
 	return ret;
 }

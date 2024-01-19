@@ -1649,6 +1649,7 @@ static void wacom_i2c_set_input_values(struct wacom_i2c *wac_i2c,
 	struct wacom_g5_platform_data *pdata = wac_i2c->pdata;
 	/* Set input values before registering input device */
 
+	input_dev->phys = input_dev->name;
 	input_dev->id.bustype = BUS_I2C;
 	input_dev->dev.parent = &client->dev;
 

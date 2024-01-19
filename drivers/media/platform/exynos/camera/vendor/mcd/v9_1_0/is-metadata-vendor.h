@@ -46,6 +46,7 @@ struct rational {
 #define CAMERA2_MAX_STRIPE_REGION_NUM		5
 
 #define EV_LIST_SIZE						24
+#define MANUAL_LIST_SIZE                                        5
 
 #define OPEN_MAGIC_NUMBER			0x20202102
 #define SHOT_MAGIC_NUMBER			0x56789234
@@ -345,6 +346,7 @@ struct camera2_sensor_ctl {
 	uint32_t			sensitivity;
 	int32_t				testPatternData[4];
 	enum sensor_test_pattern_mode	testPatternMode;
+	enum sensor_colorfilterarrangement sensorColorFilter;
 };
 
 struct camera2_sensor_dm {
@@ -430,6 +432,7 @@ enum processing_mode {
 
 	/* vendor feature */
 	PROCESSING_MODE_MANUAL = 100,
+	PROCESSING_MODE_SOFT = 101,
 };
 
 struct camera2_hotpixel_ctl {
@@ -647,7 +650,7 @@ struct camera2_stats_dm {
 	uint32_t			histogram[3 * 256];
 	int32_t 			sharpnessMap[2][2][3];
 	uint8_t 			lensShadingCorrectionMap;
-	float				lensShadingMap[4][17][13];	/* 4channel x grid width x grid height */
+	float				lensShadingMap[17 * 13 * 4]; // grid width * grid height * 4 channel
 	enum stats_scene_flicker	sceneFlicker;
 	int32_t 			hotPixelMap[CAMERA2_MAX_AVAILABLE_MODE][2];
 
@@ -711,6 +714,13 @@ enum aa_capture_intent {
 	AA_CAPTURE_INTENT_STILL_CAPTURE_SUPER_NIGHT_SHOT_EXTREME_DARK_MAX       = 136,
 	AA_CAPTURE_INTENT_STILL_CAPTURE_SR_HDR_DYNAMIC_SHOT                     = 137,
 	AA_CAPTURE_INTENT_STILL_CAPTURE_GALAXY_RAW_DYNAMIC_SHOT                 = 138,
+	AA_CAPTURE_INTENT_STILL_CAPTURE_HYBRID_MFHDR_DYNAMIC_SHOT               = 160,
+	AA_CAPTURE_INTENT_STILL_CAPTURE_HYBRID_LLHDR_DYNAMIC_SHOT               = 161,
+    AA_CAPTURE_INTENT_STILL_CAPTURE_EXECUTOR_NIGHT_SHOT                     = 162,
+    AA_CAPTURE_INTENT_STILL_CAPTURE_LIGHT_TRAIL_SHOT                        = 163,
+	AA_CAPTURE_INTENT_STILL_CAPTURE_SUPER_NIGHT_SHOT_HANDHELD_POST_LIB      = 164,
+	AA_CAPTURE_INTENT_STILL_CAPTURE_SUPER_NIGHT_SHOT_TRIPOD_POST_LIB        = 165,
+	AA_CAPTURE_INTENT_STILL_CAPTURE_ASTRO_SHOT                              = 166,
 
 	AA_CAPTURE_INTENT_VIDEO_RECORD_CHANGE_FPS                               = 500,
 
@@ -798,6 +808,10 @@ enum aa_scene_mode {
 	AA_SCENE_MODE_PORTRAIT_NIGHT   = 142,
 	AA_SCENE_MODE_PORTRAIT_VERY_NIGHT = 143,
 	AA_SCENE_MODE_FHD_AUTO         = 144,
+	AA_SCENE_MODE_AI_HIGHRES       = 146,
+	AA_SCENE_MODE_EXECUTOR_TOOL    = 147,
+	AA_SCENE_MODE_LIGHT_TRAIL      = 148,
+	AA_SCENE_MODE_ASTRO            = 149,
 };
 
 enum aa_effect_mode {
@@ -922,6 +936,7 @@ enum aa_afmode_option_bit {
 	AA_AFMODE_OPTION_BIT_OBJECT_TRACKING = 5,
 	AA_AFMODE_OPTION_BIT_AF_ROI_NO_CONV = 6,
 	AA_AFMODE_OPTION_BIT_MULTI_AF = 7,
+	AA_AFMODE_OPTION_BIT_AUTO_FRAMING    = 8,
 };
 
 enum aa_afmode_ext {
@@ -1083,6 +1098,7 @@ enum aa_night_timelaps_mode {
   AA_NIGHT_TIMELAPS_MODE_OFF = 0,
   AA_NIGHT_TIMELAPS_MODE_ON_45X,
   AA_NIGHT_TIMELAPS_MODE_ON_15X,
+  AA_NIGHT_TIMELAPS_MODE_ON_300X,
 };
 
 enum aa_capture_hint {
@@ -1115,6 +1131,12 @@ enum aa_ae_extra_mode {
 enum aa_transient_capture_action {
 	AA_TRANSIENT_CAPTURE_ACTION_OFF = 0,
 	AA_TRANSIENT_CAPTURE_ACTION_FAST_CAPTURE = 1,
+};
+
+enum aa_night_indicator {
+	AA_NIGHT_INDICATOR_NONE = 0,
+	AA_NIGHT_INDICATOR_ON,
+	AA_NIGHT_INDICATOR_OFF,
 };
 
 struct camera2_video_output_size {
@@ -1188,8 +1210,13 @@ struct camera2_aa_ctl {
 	int32_t 			vendor_fpsHintResult;
 	uint32_t			vendor_currentHyperlapseMode;   // 0 : auto, value : speed
 	char				vendor_multiFrameEvList[EV_LIST_SIZE];
+	uint32_t			vendor_multiFrameIsoList[MANUAL_LIST_SIZE];
+	uint32_t			vendor_multiFrameExposureList[MANUAL_LIST_SIZE];
 	uint32_t			vendor_zoomLockState;
-	uint32_t			vendor_reserved[16];
+	uint64_t			vendor_specialImageQualityPolicy;
+	uint32_t 			vendor_exposureTableType;
+    uint32_t 			vendor_fastCaptureOption;
+	uint32_t			vendor_reserved[14];
 };
 
 struct aa_apexInfo {
@@ -1272,7 +1299,10 @@ struct camera2_aa_dm {
 	int32_t				vendor_gfHdrEv[2];
 	uint32_t			ispHwTargetFpsRange[2];
 	uint32_t			vendor_aeDarkBoostGain;
-	uint32_t			vendor_reserved[32];
+	uint32_t 			vendor_skipAFStateCapture;       // Skip checking af state before capturing. (0 / 1)
+	uint32_t			vendor_nightModeSuggest;    // 0(off), 1(on)
+	enum				aa_night_indicator vendor_nightIndicator;
+	uint32_t			vendor_reserved[30];
 
 	// For dual
 	uint32_t			vendor_wideTeleConvEv;
@@ -1318,6 +1348,7 @@ struct camera2_blacklevel_ctl {
 
 struct camera2_blacklevel_dm {
 	enum blacklevel_lock		lock;
+	float				dynamicBlackLevel[4];  // same order as CFA(Color Filter Arrangement)
 };
 
 /* android.reprocess */
@@ -1948,6 +1979,9 @@ enum camera_client_index {
 	CAMERA_APP_CATEGORY_SODA               = 18,
 	CAMERA_APP_CATEGORY_FOODIE             = 19,
 	CAMERA_APP_CATEGORY_ZOOM               = 20,
+	CAMERA_APP_CATEGORY_TIKTOK             = 21,
+    CAMERA_APP_CATEGORY_SMART_STAY         = 22,
+    CAMERA_APP_CATEGORY_SABC               = 23,
 	CAMERA_APP_CATEGORY_MAX
 };
 
@@ -1992,6 +2026,19 @@ struct camera2_lmeds_udm {
 	uint32_t yDsScaleFactor;
 	uint16_t yDsOutputWidth;
 	uint16_t yDsOutputHeight;
+};
+
+enum camera_flip_mode {
+	CAM_FLIP_MODE_NORMAL = 0,
+	CAM_FLIP_MODE_HORIZONTAL,
+	CAM_FLIP_MODE_VERTICAL,
+	CAM_FLIP_MODE_HORIZONTAL_VERTICAL,
+	CAM_FLIP_MODE_MAX,
+};
+enum camera_external_lens_mask {
+	CAMERA_EXTERNAL_LENS_NONE           = 0,
+	CAMERA_EXTERNAL_LENS_DOF            = 1 << 0, /* bit 0 */
+	CAMERA_EXTERNAL_LENS_ANAMORPHIC     = 1 << 1, /* bit 1 */
 };
 
 struct camera2_object_detect_uctl {
@@ -2048,7 +2095,7 @@ struct camera2_uctl {
 	uint8_t				countryCode[4];
 	enum camera_motion_state	motionState;
 	enum camera_client_index	cameraClientIndex;
-	uint32_t			remosaicResolutionMode;
+	uint32_t			remosaicOperMode;
 	struct camera2_mfstill_uctl	mfInfoUd;
 	struct camera2_object_detect_uctl moonDetectInfoUd;
 	uint32_t			drcGridInfo[6];       // Used in HAL-DDK interface
@@ -2056,7 +2103,10 @@ struct camera2_uctl {
 	enum camera_adaptive_lens_condition adaptiveLensCondition;
 	enum camera_adaptive_lens_mode_state adaptiveLensModeState;
 	struct camera2_object_detect_uctl sunDetectInfoUd;
-	uint32_t			reserved[17];
+	enum camera_flip_mode			sensorFlip;
+	enum camera_external_lens_mask	externalLensType;
+	uint32_t						textDetectionInfo;
+	uint32_t						reserved[14];
 };
 
 struct camera2_udm {
@@ -2209,14 +2259,6 @@ struct hfd_meta {
 	uint32_t		rot[CAMERA2_MAX_FACES];
 	uint32_t		mirror_x[CAMERA2_MAX_FACES];
 	uint32_t		hw_rot_mirror[CAMERA2_MAX_FACES];
-};
-
-enum camera_flip_mode {
-	CAM_FLIP_MODE_NORMAL = 0,
-	CAM_FLIP_MODE_HORIZONTAL,
-	CAM_FLIP_MODE_VERTICAL,
-	CAM_FLIP_MODE_HORIZONTAL_VERTICAL,
-	CAM_FLIP_MODE_MAX,
 };
 
 enum camera_thermal_mode {

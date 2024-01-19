@@ -438,6 +438,22 @@ static struct io_ring_ctx *io_ring_ctx_alloc(struct io_uring_params *p)
 	return ctx;
 }
 
+static void io_req_put_fs(struct io_kiocb *req)
+{
+	struct fs_struct *fs = req->fs;
+
+	if (!fs)
+		return;
+
+	spin_lock(&req->fs->lock);
+	if (--fs->users)
+		fs = NULL;
+	spin_unlock(&req->fs->lock);
+	if (fs)
+		free_fs_struct(fs);
+	req->fs = NULL;
+}
+
 static inline bool __io_sequence_defer(struct io_ring_ctx *ctx,
 				       struct io_kiocb *req)
 {
@@ -535,7 +551,8 @@ static void io_kill_timeout(struct io_kiocb *req)
 		atomic_inc(&req->ctx->cq_timeouts);
 		list_del(&req->list);
 		io_cqring_fill_event(req->ctx, req->user_data, 0);
-		__io_free_req(req);
+		if (refcount_dec_and_test(&req->refs))
+			__io_free_req(req);
 	}
 }
 
@@ -695,6 +712,7 @@ static void io_free_req_many(struct io_ring_ctx *ctx, void **reqs, int *nr)
 
 static void __io_free_req(struct io_kiocb *req)
 {
+	io_req_put_fs(req);
 	if (req->file && !(req->flags & REQ_F_FIXED_FILE))
 		fput(req->file);
 	percpu_ref_put(&req->ctx->refs);
@@ -1701,16 +1719,7 @@ static int io_send_recvmsg(struct io_kiocb *req, const struct io_uring_sqe *sqe,
 			ret = -EINTR;
 	}
 
-	if (req->fs) {
-		struct fs_struct *fs = req->fs;
-
-		spin_lock(&req->fs->lock);
-		if (--fs->users)
-			fs = NULL;
-		spin_unlock(&req->fs->lock);
-		if (fs)
-			free_fs_struct(fs);
-	}
+	io_req_put_fs(req);
 	io_cqring_add_event(req->ctx, sqe->user_data, ret);
 	io_put_req(req);
 	return 0;
@@ -2068,12 +2077,12 @@ static int io_timeout(struct io_kiocb *req, const struct io_uring_sqe *sqe)
 	req->sequence -= span;
 add:
 	list_add(&req->list, entry);
-	spin_unlock_irq(&ctx->completion_lock);
 
 	hrtimer_init(&req->timeout.timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
 	req->timeout.timer.function = io_timeout_fn;
 	hrtimer_start(&req->timeout.timer, timespec64_to_ktime(ts),
 			HRTIMER_MODE_REL);
+	spin_unlock_irq(&ctx->completion_lock);
 	return 0;
 }
 
@@ -3161,6 +3170,7 @@ static int __io_sqe_files_scm(struct io_ring_ctx *ctx, int nr, int offset)
 	}
 
 	skb->sk = sk;
+	skb->scm_io_uring = 1;
 	skb->destructor = io_destruct_skb;
 
 	fpl->user = get_uid(ctx->user);
@@ -3725,9 +3735,6 @@ static void io_cancel_async_work(struct io_ring_ctx *ctx,
 				 struct files_struct *files)
 {
 	struct io_kiocb *req;
-
-	if (list_empty(&ctx->task_list))
-		return;
 
 	spin_lock_irq(&ctx->task_lock);
 

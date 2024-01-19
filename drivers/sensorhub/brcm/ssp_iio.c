@@ -68,6 +68,7 @@ static struct sensor_info info_table[] = {
 	SENSOR_INFO_FLIP_COVER_DETECTOR,
 #endif
 	SENSOR_INFO_SAR_BACKOFF_MOTION,
+	SENSOR_INFO_SEQUENTIAL_STEP,
 	SENSOR_INFO_FILE_MANAGER,
 };
 
@@ -556,6 +557,11 @@ void report_sar_backoff_motion_data(struct ssp_data *data, int sensor_type,
 	pr_err("[SSP]: %s: %d ts: %llu", __func__,
 	sar_backoff_motion_data->sar_backoff_motion_event,
 	sar_backoff_motion_data->timestamp);
+}
+
+void report_seq_step_data(struct ssp_data *data, int sensor_type, struct sensor_value *seq_step_data)
+{
+	report_iio_data(data, SEQUENTIAL_STEP, seq_step_data);
 }
 
 #define THM_UP		0

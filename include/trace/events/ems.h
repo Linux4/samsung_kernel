@@ -295,26 +295,48 @@ TRACE_EVENT(ems_lb_sibling_overutilized,
 /*
  * Tracepint for PMU Contention AVG
  */
-TRACE_EVENT(cont_found_attacker,
+TRACE_EVENT(frt_find_heavy_task,
 
-	TP_PROTO(int cpu, struct task_struct *p),
+	TP_PROTO(int cpu, struct task_struct *p, s64 util),
 
-	TP_ARGS(cpu, p),
+	TP_ARGS(cpu, p, util),
 
 	TP_STRUCT__entry(
 		__field(	int,		cpu		)
 		__array(	char,		comm,	TASK_COMM_LEN	)
 		__field(	pid_t,		pid			)
+		__field(	s64,		util			)
 		),
 
 	TP_fast_assign(
 		__entry->cpu = cpu;
 		memcpy(__entry->comm, p->comm, TASK_COMM_LEN);
 		__entry->pid		= p->pid;
+		__entry->util		= util;
 		),
 
-	TP_printk("cp%d comm=%s pid=%d",
-		__entry->cpu, __entry->comm, __entry->pid)
+	TP_printk("cp%d comm=%s pid=%d util=%lld",
+		__entry->cpu, __entry->comm, __entry->pid, __entry->util)
+);
+
+TRACE_EVENT(frt_find_heavy_cpu,
+
+	TP_PROTO(int cpu, s64 util),
+
+	TP_ARGS(cpu, util),
+
+	TP_STRUCT__entry(
+		__field(	int,		cpu		)
+		__field(	s64,		util			)
+		),
+
+	TP_fast_assign(
+		__entry->cpu = cpu;
+		__entry->util		= util;
+		),
+
+	TP_printk("cpu%d util=%lld",
+		__entry->cpu, __entry->util)
 );
 
 TRACE_EVENT(cont_found_victim,
@@ -371,33 +393,87 @@ TRACE_EVENT(cont_set_period_start,
  */
 TRACE_EVENT(frt_select_task_rq,
 
-	TP_PROTO(struct task_struct *tsk, int best, char* str),
+	TP_PROTO(struct task_struct *tsk, int best, struct cpumask *candi,
+					const struct cpumask *mask, char* str),
 
-	TP_ARGS(tsk, best, str),
+	TP_ARGS(tsk, best, candi, mask, str),
+
+ 	TP_STRUCT__entry(
+ 		__array( char,	selectby,	TASK_COMM_LEN	)
+ 		__array( char,	targettsk,	TASK_COMM_LEN	)
+ 		__field( pid_t,	pid				)
+		__field( int,	prio				)
+ 		__field( int,	bestcpu				)
+ 		__field( int,	prevcpu				)
+		__field( unsigned int,	cpus_ptr		)
+		__field( unsigned int,	candi			)
+		__field( unsigned int,	mask			)
+ 	),
+
+ 	TP_fast_assign(
+ 		memcpy(__entry->selectby, str, TASK_COMM_LEN);
+ 		memcpy(__entry->targettsk, tsk->comm, TASK_COMM_LEN);
+ 		__entry->pid			= tsk->pid;
+		__entry->prio			= tsk->prio;
+ 		__entry->bestcpu		= best;
+ 		__entry->prevcpu		= task_cpu(tsk);
+		__entry->cpus_ptr		= *(unsigned int *)cpumask_bits(tsk->cpus_ptr);
+		__entry->candi			= candi ? *(unsigned int *)cpumask_bits(candi) : 0;
+		__entry->mask			= mask ? *(unsigned int *)cpumask_bits(mask) : 0;
+ 	),
+
+	TP_printk("frt: comm=%s pid=%d prio=%d cpus_ptr=%#x candi=%#x mask=%#x cpu%d->cpu%d by %s",
+ 		  __entry->targettsk,
+ 		  __entry->pid,
+		  __entry->prio,
+		  __entry->cpus_ptr,
+		  __entry->candi,
+		  __entry->mask,
+ 		  __entry->prevcpu,
+		  __entry->bestcpu,
+ 		  __entry->selectby)
+ );
+
+/*
+ * Tracepoint for ems newidle balance
+ */
+TRACE_EVENT(lb_newidle_balance,
+
+	TP_PROTO(int this_cpu, int busy_cpu, int pulled, bool short_idle),
+
+	TP_ARGS(this_cpu, busy_cpu, pulled, short_idle),
 
 	TP_STRUCT__entry(
-		__array( char,	selectby,	TASK_COMM_LEN	)
-		__array( char,	targettsk,	TASK_COMM_LEN	)
-		__field( pid_t,	pid				)
-		__field( int,	bestcpu				)
-		__field( int,	prevcpu				)
+		__field(	int,		cpu			)
+		__field(	int,		busy_cpu		)
+		__field(	int,		pulled			)
+		__field(	unsigned int,	nr_running		)
+		__field(	unsigned int,	rt_nr_running		)
+		__field(	int,		nr_iowait		)
+		__field(	u64,		avg_idle		)
+		__field(        bool,		short_idle		)
+		__field(	int,		overload		)
 	),
 
 	TP_fast_assign(
-		memcpy(__entry->selectby, str, TASK_COMM_LEN);
-		memcpy(__entry->targettsk, tsk->comm, TASK_COMM_LEN);
-		__entry->pid			= tsk->pid;
-		__entry->bestcpu		= best;
-		__entry->prevcpu		= task_cpu(tsk);
+		__entry->cpu			= this_cpu;
+		__entry->busy_cpu		= busy_cpu;
+		__entry->pulled			= pulled;
+		__entry->nr_running		= cpu_rq(this_cpu)->nr_running;
+		__entry->rt_nr_running		= cpu_rq(this_cpu)->rt.rt_nr_running;
+		__entry->nr_iowait		= atomic_read(&(cpu_rq(this_cpu)->nr_iowait));
+		__entry->avg_idle		= cpu_rq(this_cpu)->avg_idle;
+		__entry->short_idle		= short_idle;
+		__entry->overload		= cpu_rq(this_cpu)->rd->overload;
 	),
 
-	TP_printk("frt: comm=%s pid=%d assigned to #%d from #%d by %s.",
-		  __entry->targettsk,
-		  __entry->pid,
-		  __entry->bestcpu,
-		  __entry->prevcpu,
-		  __entry->selectby)
+	TP_printk("cpu=%1d, busy_cpu=%2d, pulled=%1d, nr_running=%2u, rt_nr_running=%2u, "
+		"nr_iowait=%1d, avg_idle=%7llu, short_idle=%1d, overload=%1d",
+		__entry->cpu, __entry->busy_cpu, __entry->pulled,
+		__entry->nr_running, __entry->rt_nr_running, __entry->nr_iowait,
+		__entry->avg_idle, __entry->short_idle, __entry->overload)
 );
+
 #endif /* _TRACE_EMS_H */
 
 /* This part must be outside protection */

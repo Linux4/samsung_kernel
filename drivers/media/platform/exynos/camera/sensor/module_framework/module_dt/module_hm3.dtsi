@@ -95,6 +95,14 @@
 						vc3 = </* in */ 3 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
 						option { special_mode = <IS_SPECIAL_MODE_REMOSAIC>; };
 					};
+					mode0_ai_remosaic { /* SENSOR_HM3_12000X9000_10FPS */
+						common = <12000 9000 10 0 0 CSI_DATA_LANES_3 2977 CSI_MODE_VC_DT LRTE_ENABLE PD_NONE EX_AI_REMOSAIC>;
+						vc0 = </* in */ 0 HW_FORMAT_RAW10 12000 9000	/* out */ HW_FORMAT_RAW10 VC_NOTHING 12000 9000>;
+						vc1 = </* in */ 1 HW_FORMAT_RAW10 1992 1488		/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
+						vc2 = </* in */ 2 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
+						vc3 = </* in */ 3 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
+						option { special_mode = <IS_SPECIAL_MODE_REMOSAIC>; };
+					};
 					mode1 { /* SENSOR_HM3_7680X4320_24FPS */
 						common = <7680 4320 24 0 3 CSI_DATA_LANES_3 2977 CSI_MODE_VC_DT LRTE_ENABLE PD_MSPD_TAIL>;
 						vc0 = </* in */ 0 HW_FORMAT_RAW10 7680 4320	/* out */ HW_FORMAT_RAW10 VC_NOTHING 7680 4320>;

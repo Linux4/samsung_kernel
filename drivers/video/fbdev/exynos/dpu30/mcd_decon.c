@@ -10,15 +10,12 @@
 
 
 #include "mcd_decon.h"
-//#include "decon.h"
-//#include "dpp.h"
-#include "../panel/panel_drv.h"
+#include "panel_drv.h"
 #include "./cal_2100/decon_cal.h"
 
 #ifdef CONFIG_MCDHDR
 #include "./mcdhdr/mcdhdr.h"
 #endif
-
 
 #ifdef CONFIG_DYNAMIC_MIPI
 #define DM_UPDATE_MAGIC_CODE 1
@@ -26,16 +23,18 @@
 static int check_dm_update(struct dynamic_mipi_info *dm)
 {
 	int ret = 0;
-
 	struct dm_status_info *dm_status;
 
 	if (!dm) {
 		decon_err("ERR:%s dm is null\n", __func__);
 		return 0;
 	}
-
 	dm_status = &dm->dm_status;
-	if (dm_status->request_df != dm_status->target_df) {
+	atomic_inc(&dm_status->frame_cnt);
+
+	if ((dm_status->request_df != dm_status->target_df)
+		&& (atomic_read(&dm_status->frame_cnt) >= dm_status->skip_frame_cnt)) {
+
 		if (dm_status->req_ctx)
 			decon_info("MCD:DM: %s:DM UPDATED %d->%d\n",
 				__func__, dm_status->target_df, dm_status->request_df);

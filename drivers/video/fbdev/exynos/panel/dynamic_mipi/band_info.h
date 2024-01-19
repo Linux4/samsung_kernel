@@ -108,6 +108,10 @@ struct dm_status_info {
 	u32 ffc_df;
 	u32 req_ctx;
 
+	/* Frame count that delays the frequency hopping when display turns on, read from dt*/
+	u32 skip_frame_cnt;
+	atomic_t frame_cnt;
+
 	u32 current_ddi_osc;
 	u32 request_ddi_osc;
 };
