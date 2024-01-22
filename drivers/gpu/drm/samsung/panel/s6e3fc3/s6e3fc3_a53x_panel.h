@@ -306,6 +306,9 @@ static u8 A53X_TSET_SET[] = {
 static DEFINE_PKTUI(a53x_tset_set, &a53x_maptbl[TSET_MAPTBL], 1);
 static DEFINE_VARIABLE_PACKET(a53x_tset_set, DSI_PKT_TYPE_WR, A53X_TSET_SET, 0x00);
 
+static u8 A53X_SEED_CRC_ON[] = { 0x6A, 0x01 };
+static DEFINE_STATIC_PACKET(a53x_seed_crc_on, DSI_PKT_TYPE_WR, A53X_SEED_CRC_ON, 0x06);
+
 static u8 A53X_AOD_VAINT[] = { 0xF4, 0x28 };
 static DEFINE_STATIC_PACKET(a53x_aod_vaint, DSI_PKT_TYPE_WR, A53X_AOD_VAINT, 0x4C);
 
@@ -675,6 +678,7 @@ static void *a53x_init_cmdtbl[] = {
 	&PKTINFO(a53x_pcd_det_set),
 	&PKTINFO(a53x_freq_set),
 	&PKTINFO(a53x_swire_no_pulse),
+	&PKTINFO(a53x_seed_crc_on),
 	&PKTINFO(a53x_panel_update),
 
 	&PKTINFO(a53x_porch_set),
@@ -705,7 +709,6 @@ static void *a53x_res_init_cmdtbl[] = {
 	&s6e3fc3_restbl[RES_DATE],
 	&s6e3fc3_restbl[RES_OCTA_ID],
 #ifdef CONFIG_DISPLAY_USE_INFO
-	&s6e3fc3_restbl[RES_CHIP_ID],
 	&s6e3fc3_restbl[RES_SELF_DIAG],
 	&s6e3fc3_restbl[RES_ERR_FG],
 	&s6e3fc3_restbl[RES_DSI_ERR],

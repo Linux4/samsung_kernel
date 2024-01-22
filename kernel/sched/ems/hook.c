@@ -16,6 +16,7 @@
 #include <trace/hooks/binder.h>
 #include <trace/hooks/cgroup.h>
 #include <trace/hooks/topology.h>
+#include <trace/hooks/sys.h>
 
 #include "../../../drivers/android/binder_trace.h"
 
@@ -264,6 +265,20 @@ static void ems_hook_arch_set_freq_scale(void *data, const struct cpumask *cpus,
 	ems_arch_set_freq_scale(cpus, freq, max, scale);
 }
 
+static void ems_hook_syscall_prctl_finished(void *data, int option, struct task_struct *p)
+{
+	if (option != PR_SET_NAME)
+		return;
+
+	if (strcmp(p->comm, "RenderThread"))
+		return;
+
+	if (cpuctl_task_group_idx(p) != CGROUP_TOPAPP)
+		return;
+
+	ems_render(p) = 1;
+}
+
 int hook_init(void)
 {
 	int ret;
@@ -383,6 +398,10 @@ int hook_init(void)
 		return ret;
 
 	ret = register_trace_android_vh_arch_set_freq_scale(ems_hook_arch_set_freq_scale, NULL);
+	if (ret)
+		return ret;
+
+	ret = register_trace_android_vh_syscall_prctl_finished(ems_hook_syscall_prctl_finished, NULL);
 	if (ret)
 		return ret;
 

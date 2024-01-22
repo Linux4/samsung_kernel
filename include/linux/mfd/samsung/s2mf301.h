@@ -1,7 +1,7 @@
 /*
  * s2mf301-private.h - Voltage regulator driver for the s2mf301
  *
- * Copyright (C) 2016 Samsung Electronics Co.Ltd
+ * Copyright (C) 2023 Samsung Electronics Co.Ltd
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -18,16 +18,17 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 
-#ifndef __LINUX_MFD_S2MF301_PRIV_H
-#define __LINUX_MFD_S2MF301_PRIV_H
+#ifndef __LINUX_MFD_SAMSUNG_S2MF301_H
+#define __LINUX_MFD_SAMSUNG_S2MF301_H
 
 #include <linux/i2c.h>
 #include <linux/irq.h>
 #include <linux/platform_device.h>
 #include <linux/regmap.h>
-#include <linux/power/s2m_chg_manager.h>
+#include <linux/power_supply.h>
+#include <linux/muic/common/muic.h>
 
-#define MFD_DEV_NAME "s2mf301"
+#define MFD_DEV_NAME_ "s2mf301"
 
 /*
  * Slave Address for the MFD
@@ -68,9 +69,9 @@
 /* IRQ */
 enum s2mf301_irq_source {
 #if IS_ENABLED(CONFIG_TOP_S2MF301)
-    DC_INT,
-    PM_RID_INT,
-    CC_RID_INT,
+	DC_INT,
+	PM_RID_INT,
+	CC_RID_INT,
 #endif
 #if IS_ENABLED(CONFIG_CHARGER_S2MF301)
 	CHG_INT0,
@@ -126,28 +127,28 @@ enum s2mf301_irq_source {
 
 enum s2mf301_irq {
 #if IS_ENABLED(CONFIG_TOP_S2MF301)
-    S2MF301_TOP_DC_IRQ_RAMP_UP_DONE,
-    S2MF301_TOP_DC_IRQ_RAMP_UP_FAIL,
-    S2MF301_TOP_DC_IRQ_THERMAL_CONTROL,
-    S2MF301_TOP_DC_IRQ_CHARGING_STATE_CHAGNE,
-    S2MF301_TOP_DC_IRQ_CHARGING_DONE,
+	S2MF301_TOP_DC_IRQ_RAMP_UP_DONE,
+	S2MF301_TOP_DC_IRQ_RAMP_UP_FAIL,
+	S2MF301_TOP_DC_IRQ_THERMAL_CONTROL,
+	S2MF301_TOP_DC_IRQ_CHARGING_STATE_CHAGNE,
+	S2MF301_TOP_DC_IRQ_CHARGING_DONE,
 
-    S2MF301_TOP_PM_RID_IRQ_RID_56K,
-    S2MF301_TOP_PM_RID_IRQ_RID_255K,
-    S2MF301_TOP_PM_RID_IRQ_RID_301K,
-    S2MF301_TOP_PM_RID_IRQ_RID_523K,
-    S2MF301_TOP_PM_RID_IRQ_RID_619KK,
-    S2MF301_TOP_PM_RID_IRQ_RID_OTG,
-    S2MF301_TOP_PM_RID_IRQ_RID_DETACH,
-    S2MF301_TOP_PM_RID_IRQ_RID_ATTACH,
+	S2MF301_TOP_PM_RID_IRQ_RID_56K,
+	S2MF301_TOP_PM_RID_IRQ_RID_255K,
+	S2MF301_TOP_PM_RID_IRQ_RID_301K,
+	S2MF301_TOP_PM_RID_IRQ_RID_523K,
+	S2MF301_TOP_PM_RID_IRQ_RID_619KK,
+	S2MF301_TOP_PM_RID_IRQ_RID_OTG,
+	S2MF301_TOP_PM_RID_IRQ_RID_DETACH,
+	S2MF301_TOP_PM_RID_IRQ_RID_ATTACH,
 
-    S2MF301_TOP_CC_RID_IRQ_RID_255K,
-    S2MF301_TOP_CC_RID_IRQ_RID_301K,
-    S2MF301_TOP_CC_RID_IRQ_RID_523K,
-    S2MF301_TOP_CC_RID_IRQ_RID_619K,
-    S2MF301_TOP_CC_RID_IRQ_RID_OTG,
-    S2MF301_TOP_CC_RID_IRQ_RID_DETACH,
-    S2MF301_TOP_CC_RID_IRQ_RID_ATTACH,
+	S2MF301_TOP_CC_RID_IRQ_RID_255K,
+	S2MF301_TOP_CC_RID_IRQ_RID_301K,
+	S2MF301_TOP_CC_RID_IRQ_RID_523K,
+	S2MF301_TOP_CC_RID_IRQ_RID_619K,
+	S2MF301_TOP_CC_RID_IRQ_RID_OTG,
+	S2MF301_TOP_CC_RID_IRQ_RID_DETACH,
+	S2MF301_TOP_CC_RID_IRQ_RID_ATTACH,
 #endif
 #if IS_ENABLED(CONFIG_CHARGER_S2MF301)
 	S2MF301_CHG0_IRQ_CHGIN_UVLOB,
@@ -302,15 +303,10 @@ extern void s2mf301_irq_exit(struct s2mf301_dev *s2mf301);
 
 /* s2mf301 shared i2c API function */
 extern int s2mf301_read_reg(struct i2c_client *i2c, u8 reg, u8 *dest);
-extern int s2mf301_bulk_read(struct i2c_client *i2c, u8 reg, int count,
-				u8 *buf);
+
 extern int s2mf301_write_reg(struct i2c_client *i2c, u8 reg, u8 value);
-extern int s2mf301_bulk_write(struct i2c_client *i2c, u8 reg, int count,
-				u8 *buf);
-extern int s2mf301_write_word(struct i2c_client *i2c, u8 reg, u16 value);
-extern int s2mf301_read_word(struct i2c_client *i2c, u8 reg);
 
 extern int s2mf301_update_reg(struct i2c_client *i2c, u8 reg, u8 val, u8 mask);
 
-#endif /* __LINUX_MFD_S2MF301_PRIV_H */
+#endif /* __LINUX_MFD_SAMSUNG_S2MF301_H */
 

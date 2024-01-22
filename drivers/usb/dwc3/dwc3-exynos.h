@@ -106,11 +106,6 @@ struct dwc3_exynos {
 	struct dwc3_exynos_config config;
 	int			usb_host_ready;
 
-	/* Timer and retry count for USB device reconnection */
-	struct timer_list	usb_connect_timer;
-	int			retry_cnt;
-	int			retry_disable;
-
 	struct delayed_work	usb_qos_lock_delayed_work;
 	struct workqueue_struct	*int_qos_lock_wq;
 	struct work_struct	int_qos_work;

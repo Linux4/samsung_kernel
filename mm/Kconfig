@@ -847,7 +847,7 @@ config SPECULATIVE_PAGE_FAULT
        bool "Speculative page faults"
        default y
        depends on ARCH_SUPPORTS_SPECULATIVE_PAGE_FAULT
-       depends on MMU && SMP
+       depends on MMU && SMP && !NUMA
        help
          Try to handle user space page faults without holding the mmap_sem.
 
@@ -962,7 +962,7 @@ config MEMCG_HEIMDALL
 	bool "memcg optimization for heimdall"
 	depends on MEMCG
 	select CONNECTOR
-	default y
+	default n
 	help
 	  Enable this will change the memcg-related logics in the way Heimdall
 	  prefers.

@@ -547,7 +547,7 @@ static void exynos_recovery_handler(struct work_struct *work)
 		} else {
 			recov_info("recovery condition not matched\n");
 #if IS_ENABLED(CONFIG_DRM_MCD_COMMON)
-#ifdef CONFIG_DISPLAY_USE_INFO
+#if IS_ENABLED(CONFIG_DISPLAY_USE_INFO) || IS_ENABLED(CONFIG_USDM_PANEL_DPUI)
 			log_decon_bigdata(decon);
 #endif
 #endif
@@ -668,7 +668,7 @@ out:
 		if (!ret) {
 			if (retry >= RECOVERY_RETRY_CNT) {
 #if IS_ENABLED(CONFIG_DRM_MCD_COMMON)
-#ifdef CONFIG_DISPLAY_USE_INFO
+#if IS_ENABLED(CONFIG_DISPLAY_USE_INFO) || IS_ENABLED(CONFIG_USDM_PANEL_DPUI)
 				log_decon_bigdata(decon);
 #endif
 #endif

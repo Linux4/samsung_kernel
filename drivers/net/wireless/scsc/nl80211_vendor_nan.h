@@ -1,6 +1,6 @@
 /*****************************************************************************
  *
- * Copyright (c) 2012 - 2020 Samsung Electronics Co., Ltd. All rights reserved
+ * Copyright (c) 2012 - 2023 Samsung Electronics Co., Ltd. All rights reserved
  *
  ****************************************************************************/
 #ifndef __SLSI_NL80211_VENDOR_NAN_H_
@@ -30,7 +30,7 @@
 #define SLSI_NAN_TLV_NAN_RTT_CONFIG                0x0112
 #define SLSI_NAN_TLV_NAN_RTT_CONFIG_LEN            0x0009
 #define SLSI_NAN_TLV_NAN_RTT_RESULT                0x0113
-#define SLSI_NAN_TLV_NAN_RTT_RESULT_LEN            0x0023
+#define SLSI_NAN_TLV_NAN_RTT_RESULT_LEN            0x0021
 
 #define SLSI_NAN_MAX_SERVICE_ID 16
 #define SLSI_NAN_MAX_HOST_FOLLOWUP_REQ 20
@@ -1069,6 +1069,20 @@ struct slsi_hal_nan_channel_info {
 	u32 nss;
 };
 
+#if (KERNEL_VERSION(5, 12, 0) <= LINUX_VERSION_CODE)
+struct slsi_nan_data_interface_create_info {
+	struct list_head list;
+	u8 ifname[IFNAMSIZ];
+	int transaction_id;
+};
+
+struct slsi_nan_data_interface_delete_info {
+	struct list_head list;
+	u8 ifname[IFNAMSIZ];
+	int transaction_id;
+};
+#endif
+
 struct slsi_nan_data_path_request_ind {
 	u16 service_instance_id;
 	u8 peer_disc_mac_addr[ETH_ALEN];
@@ -1128,5 +1142,10 @@ void slsi_nan_pop_followup_ids(struct slsi_dev *sdev, struct net_device *dev, u1
 void slsi_rx_nan_range_ind(struct slsi_dev *sdev, struct net_device *dev, struct sk_buff *skb);
 int slsi_send_nan_range_cancel(struct slsi_dev *sdev);
 int slsi_send_nan_range_config(struct slsi_dev *sdev, u8 count, struct slsi_rtt_config *nl_rtt_params, int rtt_id);
+#if (KERNEL_VERSION(5, 12, 0) <= LINUX_VERSION_CODE)
+void slsi_nan_data_interface_create_wq(struct work_struct *work);
+void slsi_nan_data_interface_delete_wq(struct work_struct *work);
+#endif
+void slsi_vendor_nan_event_create_delete(struct slsi_dev *sdev, int hal_event, int transaction_id,int reply_status);
 
 #endif

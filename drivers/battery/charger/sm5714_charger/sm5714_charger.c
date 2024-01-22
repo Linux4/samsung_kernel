@@ -19,6 +19,7 @@
 #include <linux/of_gpio.h>
 #include "../../common/sec_charging_common.h"
 #include "sm5714_charger.h"
+#include <linux/battery/sec_pd.h>
 
 #ifdef CONFIG_USB_HOST_NOTIFY
 #include <linux/usb_notify.h>
@@ -26,7 +27,7 @@
 
 #define HEALTH_DEBOUNCE_CNT		1
 #define ENABLE_SM5714_ENBYPASS_MODE	1
-#define SM5714_CHARGER_VERSION  "VL2"
+#define SM5714_CHARGER_VERSION  "WD1"
 
 #if IS_ENABLED(CONFIG_USE_POGO)
 extern int sm5714_muic_get_vbus_voltage(void);
@@ -92,6 +93,25 @@ static void chg_set_auto_shipmode_time(struct sm5714_charger_data *charger, u8 d
 }
 
 #if defined(ENABLE_SM5714_ENBYPASS_MODE)
+static void chg_set_en_ovp_bypass_mode(struct sm5714_charger_data *charger, bool enable)
+{
+	pr_info("sm5714-charger: %s: %s\n", __func__, enable ? "Enable" : "Disable");
+
+	if (enable) {
+		/* SUSPEND MODE */
+		sm5714_update_reg(charger->i2c, SM5714_CHG_REG_CNTL2,
+				0x00, 0x0F);
+		/* set JIGON HIGH - write 0x2 @0x17(JIGON_CONTROL) */
+		sec_pd_manual_jig_ctrl(enable);
+	} else {
+		/* set JIGON LOW - write 0x3 @0x17(JIGON_CONTROL) */
+		sec_pd_manual_jig_ctrl(enable);
+		/* CHG ON MODE */
+		sm5714_update_reg(charger->i2c, SM5714_CHG_REG_CNTL2,
+				0x05, 0x0F);
+	}
+}
+
 static void chg_set_en_bypass(struct sm5714_charger_data *charger, bool enable)
 {
 	sm5714_update_reg(charger->i2c, SM5714_CHG_REG_FACTORY1, (enable << 1), (0x1 << 1));
@@ -101,6 +121,11 @@ static void chg_set_en_bypass(struct sm5714_charger_data *charger, bool enable)
 static void chg_set_en_bypass_mode(struct sm5714_charger_data *charger, bool enable)
 {
 	union power_supply_propval val = {0, };
+
+	if (charger->pdata->ovp_bypass_mode) {
+		chg_set_en_ovp_bypass_mode(charger, enable);
+		return;
+	}
 
 	if (enable) {
 		if (!sm5714_get_facmode())
@@ -646,6 +671,11 @@ static int sm5714_chg_get_property(struct power_supply *psy,
 
 	dev_info(charger->dev, "%s: psp=%d\n", __func__, psp);
 
+	if (atomic_read(&charger->shutdown_cnt) > 0) {
+		dev_info(charger->dev, "%s: charger already shutdown\n", __func__);
+		return -EINVAL;
+	}
+
 	switch ((int)psp) {
 	case POWER_SUPPLY_PROP_ONLINE:
 		val->intval = psy_chg_get_online(charger);
@@ -844,6 +874,8 @@ static void psy_chg_set_charging_enable(struct sm5714_charger_data *charger, int
 	switch (charger->charge_mode) {
 	case SEC_BAT_CHG_MODE_BUCK_OFF:
 		buck_off = true;
+		charger->is_charging = false;
+		break;
 	case SEC_BAT_CHG_MODE_CHARGING_OFF:
 		charger->is_charging = false;
 		break;
@@ -956,6 +988,11 @@ static int sm5714_chg_set_property(struct power_supply *psy,
 	enum power_supply_ext_property ext_psp = (enum power_supply_ext_property) psp;
 
 	dev_info(charger->dev, "%s: psp=%d\n", __func__, psp);
+
+	if (atomic_read(&charger->shutdown_cnt) > 0) {
+		dev_info(charger->dev, "%s: charger already shutdown\n", __func__);
+		return -EINVAL;
+	}
 
 	switch ((int)psp) {
 	case POWER_SUPPLY_PROP_STATUS:
@@ -1374,6 +1411,30 @@ static inline void sm5714_chg_init(struct sm5714_charger_data *charger)
 	dev_info(charger->dev, "%s: init done.\n", __func__);
 }
 
+#define FREE_IRQ(_irq, _dev_id, _name)					\
+do {									\
+	if (_irq) {							\
+		free_irq(_irq, _dev_id);				\
+		pr_info("%s: IRQ(%d):%s free done\n", \
+				__func__, _irq, _name);			\
+	}								\
+} while (0)
+
+static void sm5714_charger_free_irqs(struct sm5714_charger_data *charger)
+{
+	pr_info("%s: start\n", __func__);
+
+	/* free Charger IRQ */
+	FREE_IRQ(charger->irq_vbuspok, charger, "vbuspok-irq");
+	FREE_IRQ(charger->irq_done, charger, "done-irq");
+	FREE_IRQ(charger->irq_vsysovp, charger, "vsysovp-irq");
+	FREE_IRQ(charger->irq_vbusuvlo, charger, "vbusuvlo-irq");
+	FREE_IRQ(charger->irq_otgfail, charger, "irq_otgfail-irq");
+	FREE_IRQ(charger->irq_aicl, charger, "aicl-irq-irq");
+
+	pr_info("%s: end\n", __func__);
+}
+
 static int sm5714_charger_parse_dt(struct device *dev,
 	struct sm5714_charger_platform_data *pdata)
 {
@@ -1438,6 +1499,9 @@ static int sm5714_charger_parse_dt(struct device *dev,
 
 		pdata->boosting_voltage_aicl = of_property_read_bool(np,
 			     "battery,boosting_voltage_aicl");
+
+		pdata->ovp_bypass_mode = of_property_read_bool(np,
+			     "battery,ovp_bypass_mode");
 	}
 
 	dev_info(dev, "%s: parse dt done.\n", __func__);
@@ -1490,6 +1554,7 @@ static int sm5714_charger_probe(struct platform_device *pdev)
 	charger->i2c = sm5714->charger;
 	charger->otg_on = false;
 	charger->sm5714_pdata = pdata;
+	atomic_set(&charger->shutdown_cnt, 0);
 	mutex_init(&charger->charger_mutex);
 
 	charger->pdata = devm_kzalloc(&pdev->dev, sizeof(*(charger->pdata)),
@@ -1658,10 +1723,11 @@ static int sm5714_charger_probe(struct platform_device *pdev)
 	return 0;
 
 err_reg_irq:
-	power_supply_unregister(charger->psy_chg);
+	sm5714_charger_free_irqs(charger);
 err_power_supply_register_otg:
 	power_supply_unregister(charger->psy_otg);
 err_power_supply_register:
+	power_supply_unregister(charger->psy_chg);
 err_parse_dt:
 err_parse_dt_nomem:
 	mutex_destroy(&charger->charger_mutex);
@@ -1674,7 +1740,7 @@ static int sm5714_charger_remove(struct platform_device *pdev)
 	struct sm5714_charger_data *charger =
 		platform_get_drvdata(pdev);
 
-	power_supply_unregister(charger->psy_chg);
+	sm5714_charger_free_irqs(charger);
 
 	mutex_destroy(&charger->charger_mutex);
 
@@ -1727,7 +1793,9 @@ static void sm5714_charger_shutdown(struct platform_device *pdev)
 
 	pr_info("%s: ++\n", __func__);
 
-	power_supply_unregister(charger->psy_chg);
+	atomic_inc(&charger->shutdown_cnt);
+
+	sm5714_charger_free_irqs(charger);
 
 	if (charger->i2c) {
 		if (!sm5714_get_facmode()) {

@@ -91,7 +91,7 @@ struct decon_device {
 	struct work_struct off_work;
 
 #if IS_ENABLED(CONFIG_DRM_MCD_COMMON)
-#if defined(CONFIG_DISPLAY_USE_INFO)
+#if IS_ENABLED(CONFIG_DISPLAY_USE_INFO) || IS_ENABLED(CONFIG_USDM_PANEL_DPUI)
 	struct notifier_block dpui_notif;
 #endif
 #endif
@@ -169,7 +169,7 @@ void decon_trigger_recovery(struct exynos_drm_crtc *exynos_crtc, char *mode);
 bool decon_read_recovering(struct exynos_drm_crtc *exynos_crtc);
 
 #if IS_ENABLED(CONFIG_DRM_MCD_COMMON)
-#if defined(CONFIG_DISPLAY_USE_INFO)
+#if IS_ENABLED(CONFIG_DISPLAY_USE_INFO) || IS_ENABLED(CONFIG_USDM_PANEL_DPUI)
 void log_decon_bigdata(struct decon_device *decon);
 #endif
 #endif

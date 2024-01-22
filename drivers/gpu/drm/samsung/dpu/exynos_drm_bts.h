@@ -110,6 +110,7 @@ struct bts_decon_info {
 	u32 vclk; /* Khz */
 	u32 lcd_w;
 	u32 lcd_h;
+	u32 layer_cnt;
 };
 
 struct dpu_bts {

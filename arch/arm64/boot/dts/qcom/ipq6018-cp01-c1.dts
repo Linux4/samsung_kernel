@@ -27,7 +27,7 @@
 	cpus {
 		#address-cells = <0x01>;
 		#size-cells = <0x00>;
-		phandle = <0x17>;
+		phandle = <0x18>;
 
 		cpu@0 {
 			device_type = "cpu";
@@ -39,7 +39,7 @@
 			clock-names = "cpu";
 			operating-points-v2 = <0x04>;
 			cpu-supply = <0x05>;
-			phandle = <0x18>;
+			phandle = <0x19>;
 		};
 
 		cpu@1 {
@@ -52,7 +52,7 @@
 			clock-names = "cpu";
 			operating-points-v2 = <0x04>;
 			cpu-supply = <0x05>;
-			phandle = <0x19>;
+			phandle = <0x1a>;
 		};
 
 		cpu@2 {
@@ -65,7 +65,7 @@
 			clock-names = "cpu";
 			operating-points-v2 = <0x04>;
 			cpu-supply = <0x05>;
-			phandle = <0x1a>;
+			phandle = <0x1b>;
 		};
 
 		cpu@3 {
@@ -78,7 +78,7 @@
 			clock-names = "cpu";
 			operating-points-v2 = <0x04>;
 			cpu-supply = <0x05>;
-			phandle = <0x1b>;
+			phandle = <0x1c>;
 		};
 
 		l2-cache {
@@ -147,13 +147,13 @@
 	pmu {
 		compatible = "arm,cortex-a53-pmu";
 		interrupts = <0x01 0x07 0xf04>;
-		phandle = <0x1c>;
+		phandle = <0x1d>;
 	};
 
 	psci {
 		compatible = "arm,psci-1.0";
 		method = "smc";
-		phandle = <0x1d>;
+		phandle = <0x1e>;
 	};
 
 	reserved-memory {
@@ -164,13 +164,13 @@
 		memory@60000 {
 			reg = <0x00 0x60000 0x00 0x6000>;
 			no-map;
-			phandle = <0x16>;
+			phandle = <0x17>;
 		};
 
 		memory@4a600000 {
 			reg = <0x00 0x4a600000 0x00 0x400000>;
 			no-map;
-			phandle = <0x1e>;
+			phandle = <0x1f>;
 		};
 
 		memory@4aa00000 {
@@ -182,7 +182,7 @@
 		memory@4ab00000 {
 			reg = <0x00 0x4ab00000 0x00 0x5500000>;
 			no-map;
-			phandle = <0x15>;
+			phandle = <0x16>;
 		};
 	};
 
@@ -198,14 +198,14 @@
 		ranges = <0x00 0x00 0x00 0x00 0x00 0xffffffff>;
 		dma-ranges;
 		compatible = "simple-bus";
-		phandle = <0x1f>;
+		phandle = <0x20>;
 
 		qrng@e1000 {
 			compatible = "qcom,prng-ee";
 			reg = <0x00 0xe3000 0x00 0x1000>;
 			clocks = <0x09 0x88>;
 			clock-names = "core";
-			phandle = <0x20>;
+			phandle = <0x21>;
 		};
 
 		dma@704000 {
@@ -228,7 +228,7 @@
 			clock-names = "iface\0bus\0core";
 			dmas = <0x0a 0x02 0x0a 0x03>;
 			dma-names = "rx\0tx";
-			phandle = <0x21>;
+			phandle = <0x22>;
 		};
 
 		pinctrl@1000000 {
@@ -254,7 +254,7 @@
 				pins = "gpio42\0gpio43";
 				function = "blsp2_i2c";
 				drive-strength = <0x08>;
-				phandle = <0x10>;
+				phandle = <0x11>;
 			};
 
 			spi-0-pins {
@@ -262,7 +262,7 @@
 				function = "blsp0_spi";
 				drive-strength = <0x08>;
 				bias-pull-down;
-				phandle = <0x22>;
+				phandle = <0x10>;
 			};
 		};
 
@@ -285,7 +285,7 @@
 		syscon@1945000 {
 			compatible = "syscon";
 			reg = <0x00 0x1945000 0x00 0xe000>;
-			phandle = <0x13>;
+			phandle = <0x14>;
 		};
 
 		dma@7884000 {
@@ -324,6 +324,8 @@
 			dma-names = "tx\0rx";
 			status = "okay";
 			cs-select = <0x00>;
+			pinctrl-0 = <0x10>;
+			pinctrl-names = "default";
 			phandle = <0x24>;
 
 			m25p80@0 {
@@ -377,7 +379,7 @@
 			dmas = <0x0f 0x11 0x0f 0x10>;
 			dma-names = "rx\0tx";
 			status = "okay";
-			pinctrl-0 = <0x10>;
+			pinctrl-0 = <0x11>;
 			pinctrl-names = "default";
 			phandle = <0x27>;
 		};
@@ -403,7 +405,7 @@
 			compatible = "qcom,ipq6018-apcs-apps-global";
 			reg = <0x00 0xb111000 0x00 0x1000>;
 			#clock-cells = <0x01>;
-			clocks = <0x11 0x0c>;
+			clocks = <0x12 0x0c>;
 			clock-names = "pll\0xo";
 			#mbox-cells = <0x01>;
 			phandle = <0x03>;
@@ -415,7 +417,7 @@
 			#clock-cells = <0x00>;
 			clocks = <0x0c>;
 			clock-names = "xo";
-			phandle = <0x11>;
+			phandle = <0x12>;
 		};
 
 		timer {
@@ -484,16 +486,16 @@
 			compatible = "qcom,ipq8074-wcss-pil";
 			reg = <0x00 0xcd00000 0x00 0x4040 0x00 0x4ab000 0x00 0x20>;
 			reg-names = "qdsp6\0rmb";
-			interrupts-extended = <0x01 0x00 0x145 0x01 0x12 0x00 0x00 0x12 0x01 0x00 0x12 0x02 0x00 0x12 0x03 0x00>;
+			interrupts-extended = <0x01 0x00 0x145 0x01 0x13 0x00 0x00 0x13 0x01 0x00 0x13 0x02 0x00 0x13 0x03 0x00>;
 			interrupt-names = "wdog\0fatal\0ready\0handover\0stop-ack";
 			resets = <0x09 0x7f 0x09 0x16 0x09 0x17>;
 			reset-names = "wcss_aon_reset\0wcss_reset\0wcss_q6_reset";
 			clocks = <0x09 0x88>;
 			clock-names = "prng";
-			qcom,halt-regs = <0x13 0xa000 0xd000 0x00>;
-			qcom,smem-states = <0x14 0x00 0x14 0x01>;
+			qcom,halt-regs = <0x14 0xa000 0xd000 0x00>;
+			qcom,smem-states = <0x15 0x00 0x15 0x01>;
 			qcom,smem-state-names = "shutdown\0stop";
-			memory-region = <0x15>;
+			memory-region = <0x16>;
 			phandle = <0x28>;
 
 			glink-edge {
@@ -521,21 +523,21 @@
 		master-kernel {
 			qcom,entry-name = "master-kernel";
 			#qcom,smem-state-cells = <0x01>;
-			phandle = <0x14>;
+			phandle = <0x15>;
 		};
 
 		slave-kernel {
 			qcom,entry-name = "slave-kernel";
 			interrupt-controller;
 			#interrupt-cells = <0x02>;
-			phandle = <0x12>;
+			phandle = <0x13>;
 		};
 	};
 
 	rpm-glink {
 		compatible = "qcom,glink-rpm";
 		interrupts = <0x00 0xa8 0x01>;
-		qcom,rpm-msg-ram = <0x16>;
+		qcom,rpm-msg-ram = <0x17>;
 		mboxes = <0x03 0x00>;
 
 		glink-channel {

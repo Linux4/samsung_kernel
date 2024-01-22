@@ -9,6 +9,7 @@
 #include <linux/module.h>
 #include <linux/moduleparam.h>
 #include <scsc/scsc_log_collector.h>
+#include <scsc/scsc_warn.h>
 
 #include "dev.h"
 #include "debug.h"
@@ -904,6 +905,9 @@ int slsi_mlme_del_vif(struct slsi_dev *sdev, struct net_device *dev)
 	u32 arp_tx_count;
 #endif
 
+	if (WLBT_WARN_ON(!ndev_vif->activated))
+		return -EINVAL;
+
 	if (slsi_is_test_mode_enabled()) {
 		SLSI_NET_INFO(dev, "Skip sending signal, WlanLite FW does not support MLME_DEL_VIF.request\n");
 		return ret;
@@ -936,10 +940,12 @@ int slsi_mlme_del_vif(struct slsi_dev *sdev, struct net_device *dev)
 
 	if (((ndev_vif->iftype == NL80211_IFTYPE_P2P_CLIENT) || (ndev_vif->iftype == NL80211_IFTYPE_STATION)) &&
 	    (ndev_vif->delete_probe_req_ies)) {
+		SLSI_MUTEX_LOCK(ndev_vif->scan_mutex);
 		kfree(ndev_vif->probe_req_ies);
 		ndev_vif->probe_req_ies = NULL;
 		ndev_vif->probe_req_ie_len = 0;
 		ndev_vif->delete_probe_req_ies = false;
+		SLSI_MUTEX_UNLOCK(ndev_vif->scan_mutex);
 	}
 	if (SLSI_IS_VIF_INDEX_P2P(ndev_vif))
 		ndev_vif->drv_in_p2p_procedure = false;
@@ -971,6 +977,9 @@ int slsi_mlme_set_forward_beacon(struct slsi_dev *sdev, struct net_device *dev, 
 	struct netdev_vif *ndev_vif = netdev_priv(dev);
 	struct sk_buff    *req;
 	struct sk_buff    *cfm;
+
+	if (WLBT_WARN_ON(!ndev_vif->activated))
+		return -EINVAL;
 
 	if (slsi_is_test_mode_enabled()) {
 		SLSI_NET_INFO(dev, "wlanlite does not support mlme_forward_bacon_req\n");
@@ -2626,6 +2635,9 @@ void slsi_mlme_connect_resp(struct slsi_dev *sdev, struct net_device *dev)
 	struct sk_buff    *req;
 	struct sk_buff    *cfm;
 
+	if (WLBT_WARN_ON(!ndev_vif->activated))
+		return;
+
 	if (slsi_is_test_mode_enabled()) {
 		SLSI_NET_INFO(dev, "Skip sending signal, WlanLite FW does not support MLME_CONNECT_RESP\n");
 		return;
@@ -2651,6 +2663,9 @@ void slsi_mlme_connected_resp(struct slsi_dev *sdev, struct net_device *dev, u16
 	struct sk_buff    *req;
 	u16               flow_id = 0;
 
+	if (WLBT_WARN_ON(!ndev_vif->activated))
+		return;
+
 	if (slsi_is_test_mode_enabled()) {
 		SLSI_NET_INFO(dev, "Skip sending signal, WlanLite FW does not support MLME_CONNECT_RESP\n");
 		return;
@@ -2672,6 +2687,9 @@ void slsi_mlme_roamed_resp(struct slsi_dev *sdev, struct net_device *dev)
 	struct netdev_vif *ndev_vif = netdev_priv(dev);
 	struct sk_buff    *req;
 	struct sk_buff    *cfm;
+
+	if (WLBT_WARN_ON(!ndev_vif->activated))
+		return;
 
 	if (slsi_is_test_mode_enabled()) {
 		SLSI_NET_INFO(dev, "Skip sending signal, WlanLite FW does not support MLME_ROAMED_RESP\n");
@@ -2776,6 +2794,8 @@ int slsi_mlme_disconnect(struct slsi_dev *sdev, struct net_device *dev, u8 *mac,
 	}
 
 	WARN_ON(!SLSI_MUTEX_IS_LOCKED(ndev_vif->vif_mutex));
+	if (WLBT_WARN_ON(!ndev_vif->activated))
+		return -EINVAL;
 
 	SLSI_NET_DBG1(dev, SLSI_MLME, "mlme_disconnect_req(vif:%u, bssid:%pM, reason:%d)\n", ndev_vif->ifnum, mac, reason_code);
 
@@ -3352,7 +3372,7 @@ int slsi_mlme_connect_scan(struct slsi_dev *sdev, struct net_device *dev,
 	SLSI_MUTEX_LOCK(ndev_vif->scan_result_mutex);
 	scan = slsi_dequeue_cached_scan_result(&ndev_vif->scan[SLSI_SCAN_HW_ID], NULL);
 	while (scan) {
-		slsi_rx_scan_pass_to_cfg80211(sdev, dev, scan);
+		slsi_rx_scan_pass_to_cfg80211(sdev, dev, scan, true);
 		scan = slsi_dequeue_cached_scan_result(&ndev_vif->scan[SLSI_SCAN_HW_ID], NULL);
 	}
 	SLSI_MUTEX_UNLOCK(ndev_vif->scan_result_mutex);
@@ -3799,7 +3819,7 @@ int slsi_mlme_wifisharing_permitted_channels(struct slsi_dev *sdev, struct net_d
 	SLSI_MUTEX_LOCK(ndev_vif->vif_mutex);
 
 	req = fapi_alloc(mlme_wifisharing_permitted_channels_req, MLME_WIFISHARING_PERMITTED_CHANNELS_REQ,
-			 ndev_vif->ifnum, 8);
+			 0, 8);
 	if (!req) {
 		r = -ENOMEM;
 		goto exit;
@@ -3807,8 +3827,7 @@ int slsi_mlme_wifisharing_permitted_channels(struct slsi_dev *sdev, struct net_d
 
 	fapi_append_data(req, permitted_channels, 8);
 
-	SLSI_NET_DBG2(dev, SLSI_MLME, "(vif:%u)\n", ndev_vif->ifnum);
-	cfm = slsi_mlme_req_cfm(sdev, dev, req, MLME_WIFISHARING_PERMITTED_CHANNELS_CFM);
+	cfm = slsi_mlme_req_cfm(sdev, NULL, req, MLME_WIFISHARING_PERMITTED_CHANNELS_CFM);
 	if (!cfm) {
 		r = -EIO;
 		goto exit;
@@ -3834,6 +3853,8 @@ int slsi_mlme_reset_dwell_time(struct slsi_dev *sdev, struct net_device *dev)
 	int               r = 0;
 
 	WARN_ON(!SLSI_MUTEX_IS_LOCKED(ndev_vif->vif_mutex));
+	if (WLBT_WARN_ON(!ndev_vif->activated))
+		return -EINVAL;
 
 	SLSI_NET_DBG2(dev, SLSI_MLME, "mlme_reset_dwell_time_req (vif:%d)\n", ndev_vif->ifnum);
 
@@ -4015,12 +4036,16 @@ int slsi_mlme_set_acl(struct slsi_dev *sdev, struct net_device *dev, u16 ifnum,
 		      enum nl80211_acl_policy acl_policy, int max_acl_entries,
 		      struct mac_address mac_addrs[])
 {
+	struct netdev_vif *ndev_vif = netdev_priv(dev);
 	struct sk_buff    *req;
 	struct sk_buff    *cfm;
 	size_t            mac_acl_size        = 0;
 	int               i, r                = 0;
 	int               n_acl_entries       = 0;
 	u8                zero_addr[ETH_ALEN] = {0};
+
+	if (ifnum > 0 && WLBT_WARN_ON(!ndev_vif->activated))
+		return -EINVAL;
 
 	for (i = 0; i < max_acl_entries; i++) {
 		if (!SLSI_ETHER_EQUAL(mac_addrs[i].addr, zero_addr))
@@ -4231,6 +4256,9 @@ void slsi_mlme_reassociate_resp(struct slsi_dev *sdev, struct net_device *dev)
 	struct netdev_vif *ndev_vif = netdev_priv(dev);
 	struct sk_buff    *req;
 	struct sk_buff    *cfm;
+
+	if (WLBT_WARN_ON(!ndev_vif->activated))
+		return;
 
 	if (slsi_is_test_mode_enabled()) {
 		SLSI_NET_INFO(dev, "Skip sending signal, WlanLite FW does not support MLME_REASSOCIATE_RESP\n");

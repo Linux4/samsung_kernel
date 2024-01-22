@@ -54,7 +54,7 @@ static void input_irq_handler(int irq, void *data)
 	 * been reinitialised.
 	 */
 	if (th->block_thread == 1) {
-		SCSC_TAG_DEBUG(MXLOG_TRANS, "discard message.\n");
+		SCSC_TAG_ERR(MXLOG_TRANS, "discard message.\n");
 		/*
 		 * Do not try to acknowledge a pending interrupt here.
 		 * This function is called by a function which in turn can be
@@ -93,7 +93,7 @@ static void mxlog_input_irq_handler_wpan(int irq, void *data)
 	 * been reinitialised.
 	 */
 	if (th->block_thread == 1) {
-		SCSC_TAG_DEBUG(MXLOG_TRANS, "discard message.\n");
+		SCSC_TAG_ERR(MXLOG_TRANS, "discard message.\n");
 		/*
 		 * Do not try to acknowledge a pending interrupt here.
 		 * This function is called by a function which in turn can be
@@ -155,10 +155,11 @@ static int mxlog_thread_function(void *arg)
 		SCSC_TAG_ERR(MXLOG_TRANS, "Failed to alloc %s local buffer...exiting.\n", th->name);
 		return -ENOMEM;
 	}
+	th->block_thread = 0;
+
 	/* completion is used only for startup thread-synchronization */
 	complete(&th->completion);
 	/* Thread ready...start ISR processing*/
-	th->block_thread = 0;
 	while (!kthread_should_stop()) {
 		/* wait until an error occurs, or we need to process */
 		ret = wait_event_interruptible(th->wakeup_q,

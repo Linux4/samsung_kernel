@@ -89,11 +89,43 @@ ssize_t mcu_model_name_show(struct device *dev, struct device_attribute *attr, c
 	return sprintf(buf, "%s\n", SENSORHUB_NAME);
 }
 
+static ssize_t operation_mode_store(struct device *dev, struct device_attribute *attr, const char *buf, size_t size)
+{
+	enum cts_state {
+		CTS_STATE_NONE = 0,
+		CTS_STATE_START,
+		CTS_STATE_STOP,
+	};
+	char cts_state = CTS_STATE_NONE;
+	int ret = 0;
+
+	shub_infof("%s", buf);
+
+	if (strstr(buf, "restrict=on")) {
+		cts_state = CTS_STATE_START;
+		ret = shub_send_command(CMD_SETVALUE, TYPE_HUB, CMD_CTS_STATE_NOTIFICATION, &cts_state, sizeof(cts_state));
+	} else if (strstr(buf, "restrict=off")) {
+		cts_state = CTS_STATE_STOP;
+		ret = shub_send_command(CMD_SETVALUE, TYPE_HUB, CMD_CTS_STATE_NOTIFICATION, &cts_state, sizeof(cts_state));
+	}
+
+	return size;
+}
+
+ssize_t minidump_show(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	struct shub_data_t *data = get_shub_data();
+
+	return sprintf(buf, "%s\n", data->mini_dump);
+}
+
 static DEVICE_ATTR(mcu_rev, S_IRUGO, mcu_revision_show, NULL);
 static DEVICE_ATTR(mcu_name, S_IRUGO, mcu_model_name_show, NULL);
 static DEVICE_ATTR(mcu_reset, S_IRUGO, mcu_reset_show, NULL);
 static DEVICE_ATTR(reset_info, S_IRUGO, show_reset_info, NULL);
 static DEVICE_ATTR(fs_ready, 0220, NULL, fs_ready_store);
+static DEVICE_ATTR(operation_mode, 0220, NULL, operation_mode_store);
+static DEVICE_ATTR(minidump, S_IRUGO, minidump_show, NULL);
 
 static struct device_attribute *shub_attrs[] = {
 	&dev_attr_mcu_rev,
@@ -101,6 +133,8 @@ static struct device_attribute *shub_attrs[] = {
 	&dev_attr_mcu_reset,
 	&dev_attr_reset_info,
 	&dev_attr_fs_ready,
+	&dev_attr_operation_mode,
+	&dev_attr_minidump,
 	NULL,
 };
 

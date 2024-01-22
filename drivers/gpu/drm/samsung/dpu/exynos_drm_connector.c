@@ -259,7 +259,7 @@ exynos_drm_connector_create_hdr_sink_connected_property(struct drm_device *dev)
 	return 0;
 }
 
-#if IS_ENABLED(CONFIG_SUPPORT_MASK_LAYER)
+#if IS_ENABLED(CONFIG_SUPPORT_MASK_LAYER) || IS_ENABLED(CONFIG_USDM_PANEL_MASK_LAYER)
 static int exynos_drm_plane_create_fingerprint_mask_property(struct drm_device *dev)
 {
 	struct exynos_drm_connector_properties *p = dev_get_exynos_properties(dev,
@@ -278,7 +278,7 @@ int exynos_drm_connector_create_properties(struct drm_device *dev)
 {
 	int ret;
 
-#if IS_ENABLED(CONFIG_SUPPORT_MASK_LAYER)
+#if IS_ENABLED(CONFIG_SUPPORT_MASK_LAYER) || IS_ENABLED(CONFIG_USDM_PANEL_MASK_LAYER)
 	ret = exynos_drm_plane_create_fingerprint_mask_property(dev);
 	if (ret)
 		return ret;

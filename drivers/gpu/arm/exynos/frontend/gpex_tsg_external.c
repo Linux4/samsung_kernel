@@ -264,7 +264,7 @@ EXPORT_SYMBOL(exynos_migov_set_gpu_margin);
 int register_frag_utils_change_notifier(struct notifier_block *nb)
 {
 	int ret = 0;
-	ret = atomic_notifier_chain_register(gpex_tsg_get_frag_utils_change_notifier_list(), nb);
+	ret = blocking_notifier_chain_register(gpex_tsg_get_frag_utils_change_notifier_list(), nb);
 	return ret;
 }
 EXPORT_SYMBOL(register_frag_utils_change_notifier);
@@ -272,7 +272,7 @@ EXPORT_SYMBOL(register_frag_utils_change_notifier);
 int unregister_frag_utils_change_notifier(struct notifier_block *nb)
 {
 	int ret = 0;
-	ret = atomic_notifier_chain_unregister(gpex_tsg_get_frag_utils_change_notifier_list(), nb);
+	ret = blocking_notifier_chain_unregister(gpex_tsg_get_frag_utils_change_notifier_list(), nb);
 	return ret;
 }
 EXPORT_SYMBOL(unregister_frag_utils_change_notifier);
@@ -357,6 +357,7 @@ int gpex_tsg_external_init(struct _tsg_info *_tsg_info)
 {
 	tsg_info = _tsg_info;
 	GPEX_UTILS_SYSFS_DEVICE_FILE_ADD_RO(feedback_governor_impl, show_feedback_governor_impl);
+	BLOCKING_INIT_NOTIFIER_HEAD(gpex_tsg_get_frag_utils_change_notifier_list());
 	return 0;
 }
 

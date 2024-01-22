@@ -129,8 +129,8 @@ static struct ieee80211_mgmt *slsi_rx_scan_update_ssid(struct slsi_dev *sdev, st
 	return NULL;
 }
 
-struct ieee80211_channel *slsi_rx_scan_pass_to_cfg80211(struct slsi_dev *sdev, struct net_device *dev, struct sk_buff *skb)
-{
+struct ieee80211_channel *slsi_rx_scan_pass_to_cfg80211(struct slsi_dev *sdev, struct net_device *dev,
+							 struct sk_buff *skb, bool release_skb) {
 	u16                      id = fapi_get_u16(skb, id);
 	struct ieee80211_mgmt    *mgmt = fapi_get_mgmt(skb);
 	size_t                   mgmt_len = fapi_get_mgmtlen(skb);
@@ -200,7 +200,8 @@ do_no_calc:
 		SLSI_NET_DBG1(dev, SLSI_MLME, "No Channel info found for freq:%d\n", freq);
 	}
 
-	kfree_skb(skb);
+	if (release_skb)
+		kfree_skb(skb);
 	return channel;
 }
 
@@ -1203,7 +1204,7 @@ void slsi_scan_complete(struct slsi_dev *sdev, struct net_device *dev, u16 scan_
 	while (scan) {
 		scan_results_count++;
 		/* skb freed inside slsi_rx_scan_pass_to_cfg80211 */
-		slsi_rx_scan_pass_to_cfg80211(sdev, dev, scan);
+		slsi_rx_scan_pass_to_cfg80211(sdev, dev, scan, true);
 
 		if ((SLSI_IS_VIF_INDEX_WLAN(ndev_vif)) && (*result_count >= max_count)) {
 			more_than_max_count = 1;
@@ -1872,7 +1873,6 @@ void __slsi_rx_blockack_ind(struct slsi_dev *sdev, struct net_device *dev, struc
 
 		mgmt = (fapi_get_mgmtlen(skb)) ? fapi_get_mgmt(skb) : NULL;
 		if (!mgmt) {
-			WARN(1, "invalid bulkdata for management frame\n");
 			goto invalid;
 		}
 
@@ -2143,6 +2143,7 @@ void slsi_rx_roamed_ind(struct slsi_dev *sdev, struct net_device *dev, struct sk
 	struct ieee80211_mgmt  *mgmt = fapi_get_mgmt(skb);
 	struct slsi_peer       *peer;
 	u16                    temporal_keys_required = fapi_get_u16(skb, u.mlme_roamed_ind.temporal_keys_required);
+	u16                    flow_id = fapi_get_u16(skb, u.mlme_roamed_ind.flow_id);
 	struct ieee80211_channel *cur_channel = NULL;
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 1, 0))
 	enum ieee80211_privacy bss_privacy;
@@ -2177,8 +2178,10 @@ void slsi_rx_roamed_ind(struct slsi_dev *sdev, struct net_device *dev, struct sk
 
 	if (ndev_vif->sta.mlme_scan_ind_skb) {
 		/* saved skb [mlme_scan_ind] freed inside slsi_rx_scan_pass_to_cfg80211 */
-		cur_channel = slsi_rx_scan_pass_to_cfg80211(sdev, dev, ndev_vif->sta.mlme_scan_ind_skb);
+		cur_channel = slsi_rx_scan_pass_to_cfg80211(sdev, dev, ndev_vif->sta.mlme_scan_ind_skb, true);
 		ndev_vif->sta.mlme_scan_ind_skb = NULL;
+	} else {
+		SLSI_NET_ERR(dev, "mlme_scan_ind_skb is not available, mlme_synchronised_ind not received");
 	}
 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 1, 0))
@@ -2234,6 +2237,7 @@ void slsi_rx_roamed_ind(struct slsi_dev *sdev, struct net_device *dev, struct sk
 		peer->wmm_acm = 0;
 		peer->tspec_established = 0;
 		peer->uapsd = 0;
+		peer->flow_id = flow_id;
 
 		/* update the uapsd bitmask according to the bit values
 		 * in wmm information element of association request
@@ -2333,6 +2337,12 @@ void slsi_rx_roam_ind(struct slsi_dev *sdev, struct net_device *dev, struct sk_b
 	}
 
 	WARN(ndev_vif->vif_type != FAPI_VIFTYPE_STATION, "Not a Station VIF\n");
+
+	if (fapi_get_u16(skb, u.mlme_roam_ind.result_code) != FAPI_RESULTCODE_SUCCESS) {
+		SLSI_NET_ERR(dev, "mlme_roam_ind(result:0x%04x) ERROR\n",
+			     fapi_get_u16(skb, u.mlme_roam_ind.result_code));
+		ndev_vif->sta.roam_in_progress = false;
+	}
 
 exit_with_lock:
 	SLSI_MUTEX_UNLOCK(ndev_vif->vif_mutex);
@@ -2583,6 +2593,7 @@ void slsi_rx_synchronised_ind(struct slsi_dev *sdev, struct net_device *dev, str
 
 	SLSI_NET_DBG1(dev, SLSI_MLME, "Received synchronised_ind, bssid:%pM SAE Auth Request = %d\n", bssid, sae_auth);
 	if (ndev_vif->sta.crypto.wpa_versions == 3 && !sae_auth) {
+		slsi_rx_scan_pass_to_cfg80211(sdev, dev, skb, false);
 		synch_ind_time = jiffies_to_msecs(jiffies);
 		if (synch_ind_time < ndev_vif->sta.connect_cnf_time + SLSI_RX_SYNCH_IND_DELAY)
 			udelay(((ndev_vif->sta.connect_cnf_time + 50) - synch_ind_time) * 1000);
@@ -2782,6 +2793,7 @@ void slsi_rx_connected_ind(struct slsi_dev *sdev, struct net_device *dev, struct
 			goto exit_with_lock;
 		}
 
+		peer->flow_id = flow_id;
 		cfg80211_new_sta(dev, peer->address, &peer->sinfo, GFP_KERNEL);
 
 		if (ndev_vif->ap.privacy) {
@@ -2995,6 +3007,7 @@ void slsi_rx_connect_ind(struct slsi_dev *sdev, struct net_device *dev, struct s
 	int                         assoc_rsp_ie_len = 0;
 	u8                          bssid[ETH_ALEN];
 	u16                         fw_result_code;
+	u16                         flow_id;
 	struct ieee80211_channel    *cur_channel = NULL;
 	enum nl80211_timeout_reason timeout_reason = NL80211_TIMEOUT_UNSPECIFIED;
 	int                         conn_fail_reason = 3;
@@ -3004,6 +3017,7 @@ void slsi_rx_connect_ind(struct slsi_dev *sdev, struct net_device *dev, struct s
 	SLSI_MUTEX_LOCK(ndev_vif->vif_mutex);
 
 	fw_result_code = fapi_get_u16(skb, u.mlme_connect_ind.result_code);
+	flow_id = fapi_get_u16(skb, u.mlme_connect_ind.flow_id);
 
 	SLSI_NET_DBG1(dev, SLSI_MLME, "mlme_connect_ind(vif:%d, result:0x%04x)\n",
 		      fapi_get_vif(skb), fw_result_code);
@@ -3144,6 +3158,7 @@ void slsi_rx_connect_ind(struct slsi_dev *sdev, struct net_device *dev, struct s
 				WARN(!peer->assoc_ie, "proc-started-ind not received before connect-ind");
 			status = WLAN_STATUS_UNSPECIFIED_FAILURE;
 		} else {
+			peer->flow_id = flow_id;
 			if (peer->assoc_ie) {
 				assoc_ie = peer->assoc_ie->data;
 				assoc_ie_len = peer->assoc_ie->len;
@@ -3190,8 +3205,10 @@ void slsi_rx_connect_ind(struct slsi_dev *sdev, struct net_device *dev, struct s
 #endif
 			SLSI_NET_DBG1(dev, SLSI_MLME, "Sending scan indication to cfg80211, bssid: %pM\n", fapi_get_mgmt(ndev_vif->sta.mlme_scan_ind_skb)->bssid);
 			/* saved skb [mlme_scan_ind] freed inside slsi_rx_scan_pass_to_cfg80211 */
-			cur_channel = slsi_rx_scan_pass_to_cfg80211(sdev, dev, ndev_vif->sta.mlme_scan_ind_skb);
+			cur_channel = slsi_rx_scan_pass_to_cfg80211(sdev, dev, ndev_vif->sta.mlme_scan_ind_skb, true);
 			ndev_vif->sta.mlme_scan_ind_skb = NULL;
+		} else {
+			SLSI_NET_ERR(dev, "mlme_scan_ind_skb is not available, mlme_synchronised_ind not received");
 		}
 
 		if (!ndev_vif->sta.sta_bss) {
@@ -3210,6 +3227,10 @@ void slsi_rx_connect_ind(struct slsi_dev *sdev, struct net_device *dev, struct s
 			}
 		}
 	}
+
+#if !(defined(SCSC_SEP_VERSION) && SCSC_SEP_VERSION < 11)
+	ndev_vif->sta.wpa3_sae_reconnection = false;
+#endif
 
 	if (!peer && status == WLAN_STATUS_SUCCESS)
 		status = WLAN_STATUS_UNSPECIFIED_FAILURE;

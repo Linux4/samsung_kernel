@@ -28,10 +28,14 @@
 
 #if defined(CONFIG_CAMERA_AAV_A53X)
 #include "aav_v53x/is-vendor-config_aav_v53x.h"
+#elif defined(CONFIG_CAMERA_AAW_A25X)
+#include "aaw_v25x/is-vendor-config_aaw_v25x.h"
 #elif defined(CONFIG_CAMERA_AAV_A33X)
 #include "aav_v33x/is-vendor-config_aav_v33x.h"
 #elif defined(CONFIG_CAMERA_MMV_M33X)
 #include "mmv_v33x/is-vendor-config_mmv_v33x.h"
+#elif defined(CONFIG_CAMERA_MMW_M34X)
+#include "mmw_v34x/is-vendor-config_mmw_v34x.h"
 #else
 #include "aav_v33x/is-vendor-config_aav_v33x.h"
 #endif

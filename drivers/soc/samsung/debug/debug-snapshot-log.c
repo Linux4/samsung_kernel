@@ -428,6 +428,9 @@ static void dbg_snapshot_irq(int irq, void *fn, int en)
 	entry[idx].fn = fn;
 	entry[idx].desc = irq_to_desc(irq);
 	entry[idx].en = en;
+#if IS_ENABLED(CONFIG_SEC_DEBUG)
+	entry[idx].latency = READ_ONCE(current_thread_info()->preempt_count);
+#endif
 
 	arch_local_irq_restore(flags);
 }

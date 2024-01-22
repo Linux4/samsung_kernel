@@ -150,6 +150,9 @@ static ssize_t dbg_snapshot_write_pmsg(struct file *file, const char __user *buf
 	if (!access_ok(buf, count))
 		return -EFAULT;
 
+	if (count > PAGE_SIZE - 1)
+		return -EOVERFLOW;
+
 	mutex_lock(&pmsg_lock);
 	ret = dbg_snapshot_hook_pmsg(buf, count);
 	mutex_unlock(&pmsg_lock);

@@ -463,8 +463,8 @@ static long slsi_unifi_set_mib(struct slsi_dev *sdev, unsigned long arg)
 		return -EFAULT;
 	}
 	/* check if length is valid */
-	if (unlikely(mib_data_length > UDI_MIB_SET_LEN_MAX || mib_data_size > UDI_MIB_SET_LEN_MAX)) {
-		SLSI_ERR(sdev, "UNIFI_SET_MIB: size too long (mib_data_length:%u mib_data_size:%u)\n", mib_data_length, mib_data_size);
+	if (unlikely(mib_data_length > UDI_MIB_SET_LEN_MAX || mib_data_size > UDI_MIB_SET_LEN_MAX || mib_data_length > mib_data_size)) {
+		SLSI_ERR(sdev, "UNIFI_SET_MIB: size too long or mib_data_length is invalid (mib_data_length:%u mib_data_size:%u)\n", mib_data_length, mib_data_size);
 		return -EFAULT;
 	}
 
@@ -532,8 +532,8 @@ static long slsi_unifi_get_mib(struct slsi_dev *sdev, unsigned long arg)
 	}
 
 	/* check if length is valid */
-	if (unlikely(mib_data_length > UDI_MIB_GET_LEN_MAX || mib_data_size > UDI_MIB_GET_LEN_MAX)) {
-		SLSI_ERR(sdev, "UNIFI_GET_MIB: size too long (mib_data_length:%u mib_data_size:%u)\n", mib_data_length, mib_data_size);
+	if (unlikely(mib_data_length > UDI_MIB_GET_LEN_MAX || mib_data_size > UDI_MIB_GET_LEN_MAX || mib_data_length > mib_data_size)) {
+		SLSI_ERR(sdev, "UNIFI_GET_MIB: size too long or mib_data_length is invalid (mib_data_length:%u mib_data_size:%u)\n", mib_data_length, mib_data_size);
 		return -EFAULT;
 	}
 

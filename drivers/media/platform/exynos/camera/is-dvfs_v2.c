@@ -487,12 +487,14 @@ static int is_set_dvfs_by_path(struct is_device_ischain *device, int scenario_id
 		if (!qos_tb[dvfs_t]) {
 			lv = is_hw_dvfs_get_lv(device, dvfs_t);
 
+#ifdef ENABLE_SMOOTH_CAM_CHANGE
 			if (otf_path && lv > dvfs_ctrl->cur_lv[dvfs_t] + 1) {
 				lv = dvfs_ctrl->cur_lv[dvfs_t] + 1;
 				dvfs_ctrl->cur_instance = device->instance;
 				schedule_delayed_work(&dvfs_ctrl->dec_dwork,
 						msecs_to_jiffies(dvfs_ctrl->dec_dtime));
 			}
+#endif
 
 			if (lv < IS_DVFS_LV_END) {
 				qos_tb[dvfs_t] = core->pdata->qos_tb[dvfs_t][lv];

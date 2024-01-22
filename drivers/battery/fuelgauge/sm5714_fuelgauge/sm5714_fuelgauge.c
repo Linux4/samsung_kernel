@@ -39,7 +39,7 @@ static char *sm5714_fg_supplied_to[] = {
 #define FG_REG_CHECK_TABLE_LEN 11
 #endif
 
-#define SM5714_FUELGAUGE_VERSION  "UB1"
+#define SM5714_FUELGAUGE_VERSION  "WF1"
 
 /* void sm5714_adabt_full_offset(struct sm5714_fuelgauge_data *fuelgauge); */
 static bool sm5714_fg_init(struct sm5714_fuelgauge_data *fuelgauge, bool is_surge);
@@ -692,6 +692,13 @@ int sm5714_fg_calculate_iocv(struct sm5714_fuelgauge_data *fuelgauge)
 
 	/* lb get start */
 	roop_max = (ret & 0xF000)>>12;
+
+	if (roop_max < 3) {
+		pr_info("%s: Not enough linear buffer(%d)\n", __func__, roop_max);
+		ret = ((sm5714_get_vbat(fuelgauge) << 8) / 125);
+		return ret;
+	}
+
 	if (roop_max > FG_INIT_B_LEN+1)
 		roop_max = FG_INIT_B_LEN+1;
 
@@ -981,14 +988,13 @@ void sm5714_set_aux_ctrl_cfg(struct sm5714_fuelgauge_data *fuelgauge)
 		__func__, fuelgauge->info.aux_ctrl[0], fuelgauge->info.aux_ctrl[1], rsmanvalue);
 }
 
-#ifdef ENABLE_BATT_LONG_LIFE
 int get_v_max_index_by_cycle(struct sm5714_fuelgauge_data *fuelgauge)
 
 {
 	int cycle_index = 0, len;
 
 	for (len = fuelgauge->pdata->num_age_step-1; len >= 0; --len) {
-		if (fuelgauge->chg_full_soc == fuelgauge->pdata->age_data[len].full_condition_soc) {
+		if (fuelgauge->chg_full_soc == fuelgauge->pdata->age_data_soc[len]) {
 			cycle_index = len;
 			break;
 		}
@@ -997,7 +1003,6 @@ int get_v_max_index_by_cycle(struct sm5714_fuelgauge_data *fuelgauge)
 
 	return cycle_index;
 }
-#endif
 
 static bool sm5714_check_jig_status(struct sm5714_fuelgauge_data *fuelgauge)
 {
@@ -1026,7 +1031,6 @@ static bool sm5714_fg_reg_init(struct sm5714_fuelgauge_data *fuelgauge, bool is_
 	sm5714_write_word(fuelgauge->i2c, SM5714_FG_REG_TABLE_UNLOCK, FG_PARAM_UNLOCK_CODE);
 
 	/* CAP write */
-#ifdef ENABLE_BATT_LONG_LIFE
 	i = get_v_max_index_by_cycle(fuelgauge);
 	pr_info("%s: v_max_now is change %x -> %x\n", __func__,
 		fuelgauge->info.v_max_now, fuelgauge->info.v_max_table[i]);
@@ -1035,7 +1039,6 @@ static bool sm5714_fg_reg_init(struct sm5714_fuelgauge_data *fuelgauge, bool is_
 	fuelgauge->info.v_max_now = fuelgauge->info.v_max_table[i];
 	fuelgauge->info.q_max_now = fuelgauge->info.q_max_table[i];
 	fuelgauge->info.cap = fuelgauge->info.q_max_now;
-#endif
 
 	sm5714_fg_write_sram(fuelgauge, SM5714_FG_ADDR_SRAM_Q_MAX, fuelgauge->info.cap);
 	pr_info("%s: SM5714_FG_ADDR_SRAM_Q_MAX 0x%x\n",
@@ -1043,7 +1046,6 @@ static bool sm5714_fg_reg_init(struct sm5714_fuelgauge_data *fuelgauge, bool is_
 
 	for (i = 0; i < TABLE_MAX; i++) {
 		for (j = 0; j <= FG_TABLE_LEN; j++) {
-#ifdef ENABLE_BATT_LONG_LIFE
 			if (i == SOC_TABLE) {
 				write_table[i][j] = (fuelgauge->info.battery_table[i][j] * 2) -
 					(fuelgauge->info.battery_table[i][j] * fuelgauge->info.q_max_now /
@@ -1064,9 +1066,6 @@ static bool sm5714_fg_reg_init(struct sm5714_fuelgauge_data *fuelgauge, bool is_
 					}
 				}
 			}
-#else
-			write_table[i][j] = fuelgauge->info.battery_table[i][j];
-#endif
 		}
 	}
 
@@ -1495,10 +1494,8 @@ static bool sm5714_fg_init(struct sm5714_fuelgauge_data *fuelgauge, bool is_surg
 			sm5714_fg_reset_capacity_by_jig_connection(fuelgauge);
 	}
 
-#ifdef ENABLE_BATT_LONG_LIFE
 	fuelgauge->info.q_max_now = sm5714_fg_read_sram(fuelgauge, SM5714_FG_ADDR_SRAM_Q_MAX);
 	pr_info("%s: q_max_now = 0x%x\n", __func__, fuelgauge->info.q_max_now);
-#endif
 
 	ret = sm5714_fg_read_sram(fuelgauge, SM5714_FG_ADDR_SRAM_USER_RESERV_1);
 	error_remain = (ret & I2C_ERROR_REMAIN) ? 1 : 0;
@@ -1565,16 +1562,13 @@ void sm5714_fg_fuelalert_set(struct sm5714_fuelgauge_data *fuelgauge,
 		if (fuelgauge->vempty_mode == VEMPTY_MODE_SW ||
 					fuelgauge->vempty_mode == VEMPTY_MODE_SW_VALERT) {
 			fuelgauge->vempty_mode = VEMPTY_MODE_SW_VALERT;
-		}
-#if defined(CONFIG_BATTERY_CISD)
-		else {
+		} else {
 			union power_supply_propval value;
 
 			value.intval = fuelgauge->vempty_mode;
 			psy_do_property("battery", set,
 					POWER_SUPPLY_PROP_VOLTAGE_MIN, value);
 		}
-#endif
 	}
 }
 
@@ -1610,7 +1604,6 @@ bool sm5714_fg_reset(struct sm5714_fuelgauge_data *fuelgauge, bool is_quickstart
 			return false;
 		}
 	}
-#ifdef ENABLE_BATT_LONG_LIFE
 	else {
 		if (sm5714_fg_init(fuelgauge, true)) {
 			pr_info("%s: BATT_LONG_LIFE reset !!\n", __func__);
@@ -1619,7 +1612,6 @@ bool sm5714_fg_reset(struct sm5714_fuelgauge_data *fuelgauge, bool is_quickstart
 			return false;
 		}
 	}
-#endif
 
 	pr_info("%s: End fg reset\n", __func__);
 
@@ -1727,11 +1719,11 @@ static void sm5714_fg_calculate_dynamic_scale(
 	if (capacity < 100)
 		fuelgauge->capacity_max_conv = false;  //Force full sequence , need to decrease capacity_max
 
-	if (raw_soc_val.intval < min_cap) {
-		pr_info("%s: raw soc(%d) is very low, skip routine\n",
-			__func__, raw_soc_val.intval);
+	if ((raw_soc_val.intval < min_cap) || (fuelgauge->capacity_max_conv)) {
+		pr_info("%s: skip routine - raw_soc(%d), min_cap(%d), cap_max_conv(%d)\n",
+				__func__, raw_soc_val.intval, min_cap, fuelgauge->capacity_max_conv);
 		return;
-	}
+}
 
 	if (capacity == 100)
 		scaling_factor = 2;
@@ -1767,7 +1759,10 @@ static void sm5714_fg_calculate_dynamic_scale(
 
 	raw_soc_val.intval = sm5714_get_soc(fuelgauge);
 
-	if (raw_soc_val.intval < min_cap) {
+	if (capacity < 100)
+		fuelgauge->capacity_max_updated = false;  //Force full sequence , need to decrease capacity_max
+
+	if (raw_soc_val.intval < min_cap || (fuelgauge->capacity_max_updated)) {
 		pr_info("%s: raw soc(%d) is very low, skip routine\n",
 			__func__, raw_soc_val.intval);
 		return;
@@ -1782,6 +1777,8 @@ static void sm5714_fg_calculate_dynamic_scale(
 			fuelgauge->capacity_max,
 			fuelgauge->pdata->capacity_max,
 			fuelgauge->pdata->capacity_max_margin);
+
+	fuelgauge->capacity_max_updated = true;
 
 	pr_info("%s: %d is used for capacity_max, capacity(%d)\n",
 		__func__, fuelgauge->capacity_max, capacity);
@@ -1898,6 +1895,12 @@ static int sm5714_fg_get_property(struct power_supply *psy,
  *	static int abnormal_current_cnt = 0;
  *	union power_supply_propval value;
  */
+
+	if (atomic_read(&fuelgauge->shutdown_cnt) > 0) {
+		dev_info(fuelgauge->dev, "%s: fuelgauge already shutdown\n", __func__);
+		return -EINVAL;
+	}
+
 	switch ((int)psp) {
 	/* Cell voltage (VCELL, mV) */
 	case POWER_SUPPLY_PROP_VOLTAGE_NOW:
@@ -1942,8 +1945,9 @@ static int sm5714_fg_get_property(struct power_supply *psy,
 			sm5714_get_cycle(fuelgauge);
 			val->intval = fuelgauge->info.batt_soc_cycle;
 			break;
-/*		case SEC_BATTERY_CAPACITY_FULL: */
-/*		break; */
+		case SEC_BATTERY_CAPACITY_FULL:
+			val->intval = fuelgauge->pdata->capacity_full;
+			break;
 		default:
 			val->intval = -1;
 			break;
@@ -2040,6 +2044,13 @@ static int sm5714_fg_get_property(struct power_supply *psy,
 		if ((val->intval == 100) && (fuelgauge->capacity_old < 100) &&
 			(fuelgauge->capacity_max_conv == true))
 			fuelgauge->capacity_max_conv = false;
+#else
+/* Check UI soc reached 100% from 99% via forced charge sequence,
+ * capacity_max needs to be updated again after cable disconnection.
+ */
+		if ((val->intval == 100) && (fuelgauge->capacity_old < 100) &&
+			(fuelgauge->capacity_max_updated == true))
+			fuelgauge->capacity_max_updated = false;
 #endif
 
 		/* (Only for atomic capacity)
@@ -2096,10 +2107,8 @@ static int sm5714_fg_get_property(struct power_supply *psy,
 			fuelgauge->battery_data->Capacity * fuelgauge->raw_capacity;
 		pr_info("%s: charge_counter = %d\n", __func__, val->intval);
 		break;
-#if defined(CONFIG_BATTERY_AGE_FORECAST)
 	case POWER_SUPPLY_PROP_CAPACITY_LEVEL:
 		return -ENODATA;
-#endif
 	case POWER_SUPPLY_EXT_PROP_MIN ... POWER_SUPPLY_EXT_PROP_MAX:
 		switch (ext_psp) {
 		case POWER_SUPPLY_EXT_PROP_JIG_GPIO:
@@ -2144,9 +2153,13 @@ static int sm5714_fg_set_property(struct power_supply *psy,
 	enum power_supply_ext_property ext_psp = (enum power_supply_ext_property) psp;
 	/*u8 data[2] = {0, 0}; */
 
+	if (atomic_read(&fuelgauge->shutdown_cnt) > 0) {
+		dev_info(fuelgauge->dev, "%s: fuelgauge already shutdown\n", __func__);
+		return -EINVAL;
+	}
+
 	switch ((int)psp) {
 	case POWER_SUPPLY_PROP_STATUS:
-#ifdef ENABLE_BATT_LONG_LIFE
 		if (val->intval == POWER_SUPPLY_STATUS_FULL) {
 			pr_info("%s: POWER_SUPPLY_PROP_CHARGE_FULL : q_max_now = 0x%x\n",
 				__func__, fuelgauge->info.q_max_now);
@@ -2156,7 +2169,6 @@ static int sm5714_fg_set_property(struct power_supply *psy,
 					return -EINVAL;
 			}
 		}
-#endif
 		break;
 	case POWER_SUPPLY_PROP_CHARGE_FULL:
 		if (fuelgauge->pdata->capacity_calculation_type &
@@ -2229,13 +2241,11 @@ static int sm5714_fg_set_property(struct power_supply *psy,
 		fuelgauge->capacity_max_conv = true;
 #endif
 		break;
-#if defined(CONFIG_BATTERY_AGE_FORECAST)
 	case POWER_SUPPLY_PROP_CAPACITY_LEVEL:
 		pr_info("%s: full condition soc changed, %d -> %d\n",
 			__func__, fuelgauge->chg_full_soc, val->intval);
 		fuelgauge->chg_full_soc = val->intval;
 		break;
-#endif
 
 #if defined(CONFIG_UPDATE_BATTERY_DATA)
 	case POWER_SUPPLY_PROP_POWER_DESIGN:
@@ -2327,53 +2337,82 @@ static const struct file_operations sm5714_fuelgauge_debugfs_fops = {
 	.release		= single_release,
 };
 
+#define FREE_IRQ(_irq, _dev_id, _name)					\
+do {									\
+	if (_irq) {							\
+		free_irq(_irq, _dev_id);				\
+		pr_info("%s: IRQ(%d):%s free done\n", \
+				__func__, _irq, _name);			\
+	}								\
+} while (0)
+
+static void sm5714_fuelgauge_free_irqs(struct sm5714_fuelgauge_data *fuelgauge)
+{
+
+	if (fuelgauge->fg_irq) {
+		pr_info("%s: start\n", __func__);
+
+		/* free fuelgauge IRQ */
+		FREE_IRQ(fuelgauge->fg_irq, fuelgauge, "fuelgauge-irq");
+
+		pr_info("%s: end\n", __func__);
+	}
+}
+
 #ifdef CONFIG_OF
 #define PROPERTY_NAME_SIZE 128
 
 #define PINFO(format, args...) \
 	pr_info("%s() line-%d: " format, __func__, __LINE__, ## args)
 
-#if defined(ENABLE_BATT_LONG_LIFE)
-static int temp_parse_dt(struct sm5714_fuelgauge_data *fuelgauge)
+static void temp_parse_dt(struct sm5714_fuelgauge_platform_data *pdata)
 {
 	struct device_node *np = of_find_node_by_name(NULL, "battery");
-	int len = 0, ret;
-	const u32 *p;
+	int ret = 0, len = 0;
+	unsigned int i = 0;
+	bool age_data_by_offset = of_property_read_bool(np, "battery,age_data_by_offset");
 
-	if (np == NULL) {
-		pr_err("%s np NULL\n", __func__);
-	} else {
-		p = of_get_property(np, "battery,age_data", &len);
-		if (p) {
-			fuelgauge->pdata->num_age_step = len / sizeof(sec_age_data_t);
-			fuelgauge->pdata->age_data = kzalloc(len, GFP_KERNEL);
-			ret = of_property_read_u32_array(np, "battery,age_data",
-					 (u32 *)fuelgauge->pdata->age_data, len/sizeof(u32));
-			if (ret) {
-				pr_err("%s failed to read battery->pdata->age_data: %d\n",
-						__func__, ret);
-				kfree(fuelgauge->pdata->age_data);
-				fuelgauge->pdata->age_data = NULL;
-				fuelgauge->pdata->num_age_step = 0;
-			}
-			pr_info("%s num_age_step : %d\n", __func__, fuelgauge->pdata->num_age_step);
-			for (len = 0; len < fuelgauge->pdata->num_age_step; ++len) {
-				pr_info("[%d/%d]cycle:%d, float:%d, full_v:%d, recharge_v:%d, soc:%d\n",
-					len, fuelgauge->pdata->num_age_step-1,
-					fuelgauge->pdata->age_data[len].cycle,
-					fuelgauge->pdata->age_data[len].float_voltage,
-					fuelgauge->pdata->age_data[len].full_condition_vcell,
-					fuelgauge->pdata->age_data[len].recharge_condition_vcell,
-					fuelgauge->pdata->age_data[len].full_condition_soc);
-			}
+	pr_info("%s: age_data_by_offset is %s", __func__, (age_data_by_offset ? "true" : "false"));
+
+	if (age_data_by_offset) {
+		char *age_data_soc_str = "battery,age_data_full_condition_soc";
+
+		len = of_property_count_u32_elems(np, age_data_soc_str);
+		if (len > 0) {
+			pdata->num_age_step = len;
+			pdata->age_data_soc = kcalloc(pdata->num_age_step, sizeof(u32), GFP_KERNEL);
+			ret = of_property_read_u32_array(np, age_data_soc_str, pdata->age_data_soc, len);
 		} else {
-			fuelgauge->pdata->num_age_step = 0;
-			pr_err("%s there is not age_data\n", __func__);
+			pr_info("%s : Error in Calculating %s Size - %d\n", __func__, age_data_soc_str, len);
+		}
+
+	} else {
+		sec_age_data_t *age_data_temp;
+
+		len = of_property_count_u32_elems(np, "battery,age_data");
+		if (len > 0) {
+			pdata->num_age_step = (sizeof(u32) * len) / sizeof(sec_age_data_t);
+			age_data_temp = kzalloc((sizeof(u32) * len), GFP_KERNEL);
+			pdata->age_data_soc = kcalloc(pdata->num_age_step, sizeof(u32), GFP_KERNEL);
+			ret = of_property_read_u32_array(np, "battery,age_data", (u32 *)age_data_temp, len);
+			if (!ret) {
+				for (i = 0; i < pdata->num_age_step; ++i)
+					pdata->age_data_soc[i] = age_data_temp[i].full_condition_soc;
+			}
+			kfree(age_data_temp);
 		}
 	}
-	return 0;
+	if (ret) {
+		pr_err("%s failed to read battery->pdata->age_data: %d\n", __func__, ret);
+		kfree(pdata->age_data_soc);
+		pdata->age_data_soc = NULL;
+		pdata->num_age_step = 0;
+	} else {
+		pr_err("%s num_age_step : %d\n", __func__, pdata->num_age_step);
+		for (i = 0; i < pdata->num_age_step; ++i)
+			pr_err("%s [%d/%d] soc:%d", __func__, i, pdata->num_age_step-1, pdata->age_data_soc[i]);
+	}
 }
-#endif
 
 static int sm5714_fuelgauge_parse_dt(struct sm5714_fuelgauge_data *fuelgauge)
 {
@@ -2381,10 +2420,8 @@ static int sm5714_fuelgauge_parse_dt(struct sm5714_fuelgauge_data *fuelgauge)
 	char prop_name[PROPERTY_NAME_SIZE];
 	int battery_id = -1;
 	int table[24];
-#ifdef ENABLE_BATT_LONG_LIFE
 	int v_max_table[5];
 	int q_max_table[5];
-#endif
 	int rs_value[7];
 	int battery_type[3];
 	int v_alarm[2];
@@ -2414,6 +2451,10 @@ static int sm5714_fuelgauge_parse_dt(struct sm5714_fuelgauge_data *fuelgauge)
 			pr_err("%s error reading capacity_max_margin %d\n", __func__, ret);
 			fuelgauge->pdata->capacity_max_margin = 300;
 		}
+		ret = of_property_read_u32(np, "fuelgauge,capacity",
+				&fuelgauge->pdata->capacity_full);
+		if (ret < 0)
+			pr_err("%s error reading capacity %d\n", __func__, ret);
 
 		ret = of_property_read_u32(np, "fuelgauge,capacity_min",
 				&fuelgauge->pdata->capacity_min);
@@ -2548,14 +2589,12 @@ static int sm5714_fuelgauge_parse_dt(struct sm5714_fuelgauge_data *fuelgauge)
 			pr_err("%s error reading Capacity %d\n",
 					__func__, ret);
 
-#if defined(CONFIG_BATTERY_AGE_FORECAST)
 		ret = of_property_read_u32(np, "battery,full_condition_soc",
 			&fuelgauge->pdata->full_condition_soc);
 		if (ret) {
 			fuelgauge->pdata->full_condition_soc = 93;
 			pr_info("%s : Full condition soc is Empty\n", __func__);
 		}
-#endif
 	}
 
 	pdata->bat_gpio_cnt = of_gpio_named_count(np, "fuelgauge,bat_id_gpio");
@@ -2582,7 +2621,7 @@ static int sm5714_fuelgauge_parse_dt(struct sm5714_fuelgauge_data *fuelgauge)
 
 		pr_info("%s: battery_id (gpio) = %d\n", __func__, fuelgauge->battery_data->battery_id);
 	} else {
-		fuelgauge->battery_data->battery_id = -1;
+		fuelgauge->battery_data->battery_id = 0;
 	}
 
 	/* get battery_params node for reg init */
@@ -2663,7 +2702,6 @@ static int sm5714_fuelgauge_parse_dt(struct sm5714_fuelgauge_data *fuelgauge)
 	PINFO("%s = <%d 0x%x>\n", prop_name,
 		fuelgauge->info.batt_v_max, fuelgauge->info.cap);
 
-#ifdef ENABLE_BATT_LONG_LIFE
 	snprintf(prop_name, PROPERTY_NAME_SIZE, "battery%d,%s", battery_id, "v_max_table");
 	ret = of_property_read_u32_array(np, prop_name, v_max_table, fuelgauge->pdata->num_age_step);
 
@@ -2697,12 +2735,12 @@ static int sm5714_fuelgauge_parse_dt(struct sm5714_fuelgauge_data *fuelgauge)
 			PINFO("%s = <q_max_table[%d] 0x%x>\n", prop_name, i, fuelgauge->info.q_max_table[i]);
 		}
 	}
-	fuelgauge->chg_full_soc = fuelgauge->pdata->age_data[0].full_condition_soc;
+	fuelgauge->chg_full_soc = fuelgauge->pdata->age_data_soc ?
+		fuelgauge->pdata->age_data_soc[0] : fuelgauge->pdata->full_condition_soc;
 	fuelgauge->info.v_max_now = fuelgauge->info.v_max_table[0];
 	fuelgauge->info.q_max_now = fuelgauge->info.q_max_table[0];
 	PINFO("%s = <v_max_now = 0x%x>, <q_max_now = 0x%x>, <chg_full_soc = %d>\n", prop_name,
 		fuelgauge->info.v_max_now, fuelgauge->info.q_max_now, fuelgauge->chg_full_soc);
-#endif
 
 	/* V_ALARM */
 	snprintf(prop_name, PROPERTY_NAME_SIZE, "battery%d,%s", battery_id, "v_alarm");
@@ -2986,9 +3024,9 @@ static int sm5714_fuelgauge_probe(struct platform_device *pdev)
 	fuelgauge->pmic_rev = sm5714->pmic_rev;
 	fuelgauge->vender_id = sm5714->vender_id;
 
-#if defined(ENABLE_BATT_LONG_LIFE)
-	temp_parse_dt(fuelgauge);
-#endif
+	atomic_set(&fuelgauge->shutdown_cnt, 0);
+
+	temp_parse_dt(fuelgauge->pdata);
 
 #if defined(CONFIG_OF)
 	fuelgauge->battery_data = kzalloc(sizeof(struct battery_data_t),
@@ -2999,8 +3037,9 @@ static int sm5714_fuelgauge_probe(struct platform_device *pdev)
 	}
 	ret = sm5714_fuelgauge_parse_dt(fuelgauge);
 	if (ret < 0) {
-		pr_err("%s not found charger dt! ret[%d]\n",
+		pr_err("%s not found fuelgauge dt! ret[%d]\n",
 				__func__, ret);
+		goto err_data_free;
 	}
 #endif
 
@@ -3090,6 +3129,7 @@ static int sm5714_fuelgauge_probe(struct platform_device *pdev)
 	return 0;
 
 err_supply_unreg:
+	sm5714_fuelgauge_free_irqs(fuelgauge);
 	power_supply_unregister(fuelgauge->psy_fg);
 err_data_free:
 #if defined(CONFIG_OF)
@@ -3108,6 +3148,8 @@ static int sm5714_fuelgauge_remove(struct platform_device *pdev)
 {
 	struct sm5714_fuelgauge_data *fuelgauge =
 		platform_get_drvdata(pdev);
+
+	sm5714_fuelgauge_free_irqs(fuelgauge);
 
 	if (fuelgauge->pdata->fuel_alert_soc >= 0)
 		wakeup_source_unregister(fuelgauge->fuel_alert_ws);
@@ -3138,6 +3180,10 @@ static void sm5714_fuelgauge_shutdown(struct platform_device *pdev)
 	struct sm5714_fuelgauge_data *fuelgauge = platform_get_drvdata(pdev);
 
 	pr_info("%s: ++\n", __func__);
+
+	atomic_inc(&fuelgauge->shutdown_cnt);
+
+	sm5714_fuelgauge_free_irqs(fuelgauge);
 
 	if (fuelgauge->using_hw_vempty)
 		sm5714_fg_set_vempty(fuelgauge, false);

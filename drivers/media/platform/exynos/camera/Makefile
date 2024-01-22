@@ -476,6 +476,7 @@ fimc-is-$(CONFIG_AF_HOST_CONTROL)		+= vendor/mcd_v2/is-device-af.o
 fimc-is-$(CONFIG_CAMERA_USE_INTERNAL_MCU) 	+= vendor/mcd_v2/is-ois-mcu.o \
 						vendor/mcd_v2/is-hw-api-ois-mcu-v1_1_1.o
 fimc-is-$(CONFIG_CAMERA_USE_MCU)		+= vendor/mcd_v2/is-device-ois-mcu.o
+fimc-is-$(CONFIG_CAMERA_USE_AOIS)		+= vendor/mcd_v2/is-aois-if.o
 endif
 
 ifeq ($(CONFIG_CAMERA_VENDER_MCD),y)

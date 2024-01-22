@@ -15,6 +15,7 @@
 #include <linux/mfd/sm/sm5714/sm5714.h>
 #include <linux/mfd/sm/sm5714/sm5714-private.h>
 #include "../../common/sec_charging_common.h"
+#include <linux/types.h>
 
 enum {
 	CHIP_ID = 0,
@@ -103,11 +104,11 @@ struct sm5714_charger_platform_data {
 	unsigned int irq_pogo_int;
 #endif
 	bool boosting_voltage_aicl;
+	bool ovp_bypass_mode;
 };
 
 #define REDUCE_CURRENT_STEP			100
 #define MINIMUM_INPUT_CURRENT			300
-#define SLOW_CHARGING_CURRENT_STANDARD          400
 
 struct sm5714_charger_data {
 	struct device *dev;
@@ -118,6 +119,8 @@ struct sm5714_charger_data {
 	struct sm5714_charger_platform_data *pdata;
 	struct power_supply	*psy_chg;
 	struct power_supply	*psy_otg;
+
+	atomic_t	shutdown_cnt;
 
 	int read_reg;
 

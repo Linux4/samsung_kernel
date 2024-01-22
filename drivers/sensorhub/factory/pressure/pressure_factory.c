@@ -177,6 +177,7 @@ static struct device_attribute *pressure_attrs[] = {
 typedef struct device_attribute** (*get_chipset_dev_attrs)(char *);
 get_chipset_dev_attrs get_pressure_chipset_dev_attrs[] = {
 	get_pressure_lps22hh_dev_attrs,
+	get_pressure_lps22df_dev_attrs,
 	get_pressure_lps25h_dev_attrs,
 	get_pressure_bmp580_dev_attrs,
 };
@@ -204,7 +205,7 @@ void initialize_pressure_sysfs(void)
 		if (chipset_attrs) {
 			ret = add_sensor_device_attr(pressure_sysfs_device, chipset_attrs);
 			if (ret < 0) {
-				shub_errf("fail to add sysfs chipset device attr(%d)", i);
+				shub_errf("fail to add sysfs chipset device attr(%d)", (int)i);
 				return;
 			}
 			break;
