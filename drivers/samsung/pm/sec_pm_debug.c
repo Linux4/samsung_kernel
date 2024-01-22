@@ -16,11 +16,28 @@
 #include <linux/sec_class.h>
 #include <linux/sec_pm_debug.h>
 #include <linux/suspend.h>
+#include <linux/rtc.h>
 
 struct sec_pm_debug_info {
 	struct device		*dev;
 	struct device		*sec_pm_dev;
 };
+
+static DECLARE_DELAYED_WORK(ws_log_work, wake_sources_print_acquired_work);
+
+static void wake_sources_print_acquired(void)
+{
+	char wake_sources_acquired[MAX_WAKE_SOURCES_LEN];
+
+	pm_get_active_wakeup_sources(wake_sources_acquired, MAX_WAKE_SOURCES_LEN);
+	pr_info("PM: %s\n", wake_sources_acquired);
+}
+
+static void wake_sources_print_acquired_work(struct work_struct *work)
+{
+	wake_sources_print_acquired();
+	schedule_delayed_work(&ws_log_work, WS_LOG_PERIOD * HZ);
+}
 
 /*********************************************************************
  *            Sleep Time and Count                                   *
@@ -31,6 +48,19 @@ static ktime_t last_monotime; /* monotonic time before last suspend */
 static ktime_t curr_monotime; /* monotonic time after last suspend */
 static ktime_t last_stime; /* monotonic boottime offset before last suspend */
 static ktime_t curr_stime; /* monotonic boottime offset after last suspend */
+
+static void pm_suspend_marker(char *annotation)
+{
+	struct timespec64 ts;
+	struct rtc_time tm;
+
+	ktime_get_real_ts64(&ts);
+	rtc_time64_to_tm(ts.tv_sec, &tm);
+
+	pr_info("PM: suspend %s %d-%02d-%02d %02d:%02d:%02d.%09lu UTC\n",
+		annotation, tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday,
+		tm.tm_hour, tm.tm_min, tm.tm_sec, ts.tv_nsec);
+}
 
 static ssize_t sleep_time_sec_show(struct device *dev,
 				struct device_attribute *attr, char *buf)
@@ -63,10 +93,13 @@ static int suspend_resume_pm_event(struct notifier_block *notifier,
 
 	switch (pm_event) {
 	case PM_SUSPEND_PREPARE:
+		pm_suspend_marker("entry");
 		/* monotonic time since boot */
 		last_monotime = ktime_get();
 		/* monotonic time since boot including the time spent in suspend */
 		last_stime = ktime_get_boottime();
+
+		cancel_delayed_work_sync(&ws_log_work);
 		break;
 	case PM_POST_SUSPEND:
 		/* monotonic time since boot */
@@ -81,6 +114,9 @@ static int suspend_resume_pm_event(struct notifier_block *notifier,
 
 		total_sleep_time = timespec64_add(total_sleep_time, sleep_time);
 		sleep_count++;
+
+		pm_suspend_marker("exit");
+		schedule_delayed_work(&ws_log_work, WS_LOG_PERIOD * HZ);
 		break;
 	default:
 		break;
@@ -133,6 +169,8 @@ static int sec_pm_debug_probe(struct platform_device *pdev)
 	}
 
 	main_pmic_init_debug_sysfs(sec_pm_dev);
+	
+	schedule_delayed_work(&ws_log_work, 60 * HZ);
 
 	return 0;
 
@@ -144,6 +182,8 @@ err_create_sysfs:
 static int sec_pm_debug_remove(struct platform_device *pdev)
 {
 	struct sec_pm_debug_info *info = platform_get_drvdata(pdev);
+
+	cancel_delayed_work_sync(&ws_log_work);
 
 	sec_device_destroy(info->sec_pm_dev->devt);
 	return 0;

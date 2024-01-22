@@ -162,17 +162,13 @@ static int mcd_drm_decon_snprintf_disp_panic(struct decon_device *decon, char *b
 {
 	int len = 0;
 
-	if (size - len >= 0)
-		len += snprintf_disp_panic_decon_id(buf + len, size - len, decon->id);
-	if (size - len >= 0)
-		len += snprintf_disp_panic_reason(buf + len, size - len,
+	len += snprintf_disp_panic_decon_id(buf + len, size - len, decon->id);
+	len += snprintf_disp_panic_reason(buf + len, size - len,
 			mcd_drm_decon_get_disp_panic_reason(decon));
-	if (size - len >= 0)
-		len += snprintf_disp_panic_recovery_count(buf + len, size - len,
-				decon->recovery.count);
-	if (size - len >= 0)
-		len += snprintf_disp_panic_disp_clock(buf + len, size - len,
-				exynos_devfreq_get_domain_freq(DEVFREQ_DISP));
+	len += snprintf_disp_panic_recovery_count(buf + len, size - len,
+			decon->recovery.count);
+	len += snprintf_disp_panic_disp_clock(buf + len, size - len,
+			exynos_devfreq_get_domain_freq(DEVFREQ_DISP));
 
 	return len;
 }
@@ -2352,7 +2348,7 @@ static void decon_emergency_off_handler(struct work_struct *work)
 	struct exynos_drm_crtc_state *exynos_crtc_state;
 	int ret;
 
-	decon_info(decon, "%s +\n");
+	decon_info(decon, "+\n");
 	DRM_MODESET_LOCK_ALL_BEGIN(dev, ctx, 0, ret);
 
 	state = drm_atomic_state_alloc(dev);

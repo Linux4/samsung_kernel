@@ -121,6 +121,7 @@ enum task_cgroup {
 #define ems_tex_chances(task)		(TASK_AVD1_52(task))
 #define ems_boosted_tex(task)		(TASK_AVD1_53(task))
 #define ems_binder_task(task)		(TASK_AVD1_54(task))
+#define ems_render(task)		(TASK_AVD1_56(task))
 #define ems_somac_dequeued(rq)		(RQ_AVD1_5(rq))
 #define ems_task_misfited(task)		(TASK_AVD1_46(task))
 #define ems_rq_nr_misfited(rq)		(RQ_AVD1_6(rq))

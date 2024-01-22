@@ -32,6 +32,7 @@
 #include <linux/ieee80211.h>
 #include <net/cfg80211.h>
 #include <linux/nl80211.h>
+#include <linux/firmware.h>
 
 #include <scsc/scsc_mx.h>
 
@@ -148,6 +149,7 @@
 
 /* system error buffer size */
 #define SYSTEM_ERROR_BUFFER_SZ    4096
+#define SLSI_QSF_BUFF_LEN         128
 
 /* indices: 3= BW20->idx_0, BW40->idx_1, BW80->idx_2.
  *             2= noSGI->idx_0, SGI->idx_1
@@ -523,6 +525,7 @@ struct slsi_peer {
 	/* Presently connected_state is used only for AP/GO mode*/
 	u8                             connected_state;
 	u16                            aid;
+	u16                            flow_id;
 	/* Presently is_wps is used only in P2P GO mode */
 	bool                           is_wps;
 	u16                            capabilities;
@@ -878,6 +881,7 @@ struct slsi_vif_nan {
 	u32 ndp_instance_id_map;
 	u32 next_service_id;
 	u32 next_ndp_instance_id;
+	u16 ndp_active_id_map;
 	struct slsi_nan_ndl_info ndl_list[SLSI_NAN_MAX_NDP_INSTANCES];
 	u8  ndp_ndi[SLSI_NAN_MAX_NDP_INSTANCES][ETH_ALEN];
 	u16 ndp_instance_id2ndl_vif[SLSI_NAN_MAX_NDP_INSTANCES];
@@ -896,7 +900,6 @@ struct slsi_vif_nan {
 	u8 ndp_count;
 	/* fields used for nan stats/status*/
 	u8 local_nmi[ETH_ALEN];
-	u8 cluster_id[ETH_ALEN];
 	u32 operating_channel[2];
 	u8 role;
 	u8 state; /* 1 -> nan on; 0 -> nan off */
@@ -908,6 +911,7 @@ struct slsi_vif_nan {
 	u8 matchid;
 	struct slsi_nan_discovery_info *disc_info;
 	unsigned long ndp_start_time;
+	int nan_enable_status;
 };
 #endif
 
@@ -1444,12 +1448,14 @@ struct slsi_dev {
 #ifdef CONFIG_SCSC_WLAN_ANDROID
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 4, 0))
 	struct scsc_wake_lock			wlan_wl;
+	struct scsc_wake_lock			wlan_wl_mlme_evt;
 	struct scsc_wake_lock			wlan_wl_mlme;
 	struct scsc_wake_lock			wlan_wl_ma;
 	struct scsc_wake_lock			wlan_wl_roam;
 	struct scsc_wake_lock			wlan_wl_init;
 #else
 	struct wake_lock                        wlan_wl;
+	struct scsc_wake_lock			wlan_wl_mlme_evt;
 	struct wake_lock                        wlan_wl_mlme;
 	struct wake_lock                        wlan_wl_ma;
 	struct wake_lock                        wlan_wl_roam;
@@ -1597,6 +1603,18 @@ struct slsi_dev {
 	int                        default_scan_ies_len;
 	u8                         *default_scan_ies;
 	struct sys_error_log       sys_error_log_buf;
+#ifdef CONFIG_SCSC_WIFI_NAN_ENABLE
+	u8 nan_cluster_id[ETH_ALEN];
+#if (KERNEL_VERSION(5, 12, 0) <= LINUX_VERSION_CODE)
+	struct work_struct        nan_data_interface_create_work;
+	struct work_struct        nan_data_interface_delete_work;
+	struct list_head          nan_data_interface_create_data;
+	struct list_head          nan_data_interface_delete_data;
+#endif
+#endif
+	u32                        fw_build_id;
+	u8                         qsfs_feature_set[SLSI_QSF_BUFF_LEN];
+	u32                        qsf_feature_set_len;
 };
 
 /* Compact representation of channels a ESS has been seen on
@@ -1815,9 +1833,13 @@ static inline struct net_device *slsi_get_netdev(struct slsi_dev *sdev, u16 ifnu
 	return dev;
 }
 
-static inline struct net_device *slsi_get_netdev_by_mac_addr(struct slsi_dev *sdev, u8 *mac_addr, int start_idx)
+static inline struct net_device *slsi_get_netdev_by_mac_addr_locked(struct slsi_dev *sdev, u8 *mac_addr, int start_idx)
 {
 	int i;
+	unsigned char     dev_addr_zero_check[ETH_ALEN] = {0};
+
+	if (!memcmp(mac_addr, dev_addr_zero_check, ETH_ALEN))
+		return NULL;
 
 	if (!start_idx)
 		start_idx = 1;
@@ -1828,12 +1850,12 @@ static inline struct net_device *slsi_get_netdev_by_mac_addr(struct slsi_dev *sd
 	return NULL;
 }
 
-static inline struct net_device *slsi_get_netdev_by_mac_addr_locked(struct slsi_dev *sdev, u8 *mac_addr, int start_idx)
+static inline struct net_device *slsi_get_netdev_by_mac_addr(struct slsi_dev *sdev, u8 *mac_addr, int start_idx)
 {
 	struct net_device *dev;
 
 	SLSI_MUTEX_LOCK(sdev->netdev_add_remove_mutex);
-	dev = slsi_get_netdev_by_mac_addr(sdev, mac_addr, start_idx);
+	dev = slsi_get_netdev_by_mac_addr_locked(sdev, mac_addr, start_idx);
 	SLSI_MUTEX_UNLOCK(sdev->netdev_add_remove_mutex);
 
 	return dev;

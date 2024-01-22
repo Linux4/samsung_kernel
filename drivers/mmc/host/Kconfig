@@ -832,7 +832,7 @@ config MMC_DW_EXYNOS
 	  for platforms based on Exynos4 and Exynos5 SoC's.
 
 config MMC_DW_DEBUG
-	bool "Samsung DWMCI debug feature"
+	tristate "Samsung DWMCI debug feature"
 	depends on MMC_DW
 	help
 	This selects support for infomation logging for debugging.

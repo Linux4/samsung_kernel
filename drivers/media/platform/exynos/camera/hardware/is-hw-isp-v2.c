@@ -781,6 +781,8 @@ static int __is_hw_isp_update_internal_param(struct is_hw_ip *hw_ip, struct isp_
 	u32 cur_idx, buf_i;
 	bool stripe_enable = false;
 	u32 stripe_idx = 0;
+	u32 cmd_wgt_out, cmd_prev_wgt_in;
+	u32 cmd_yuv_out, cmd_prev_yuv_in;
 
 	device = hw_ip->group[instance]->device;
 	hw_isp = (struct is_hw_isp *)hw_ip->priv_info;
@@ -797,49 +799,65 @@ static int __is_hw_isp_update_internal_param(struct is_hw_ip *hw_ip, struct isp_
 		param_set->dma_input_drcgrid.height = iq_config->drc_dstr_grid_y;
 	}
 
+	cmd_wgt_out = param_set->dma_output_tnr_wgt.cmd;
+	cmd_prev_wgt_in = param_set->prev_wgt_dma_input.cmd;
+	cmd_yuv_out = param_set->dma_output_tnr_prev.cmd;
+	cmd_prev_yuv_in = param_set->prev_dma_input.cmd;
+
 	__is_hw_isp_set_dma_cmd(hw_ip, &hw_isp->param_set[instance], instance, iq_config);
 
 	if (iq_config->mixer_en) {
-		/* Get internal buffer address for weight */
-		ret = __is_hw_isp_get_mcfp_internal_frame(hw_ip, instance, frame,
-				&device->ixw,
-				&prev_wgt_frame, &cur_wgt_frame, "wgt");
-		if (ret) {
-			mserr_hw("[MCFP] internal wgt frame is NULL", instance, hw_ip);
-			return -EINVAL;
-		}
+		if (cmd_wgt_out && cmd_prev_wgt_in) {
+			msdbg_hw(1, "[MCFP] Use wgt buffer from user\n", instance, hw_ip);
 
-		ixgTargetAddress[0] = (u32)prev_wgt_frame->dvaddr_buffer[0];
-		ixwTargetAddress[0] = (u32)cur_wgt_frame->dvaddr_buffer[0];
-		/*
-		 * Case 1 -  1/2 dma in video tnr normal mode
-		 * Case 2 -  0 ~ N-2 frame in N strip procssing. (swap in last striped-frame)
-		 */
-		if ((iq_config->skip_wdma && iq_config->tnr_mode == TNR_MODE_NORMAL) ||
-		    (stripe_enable && (stripe_idx < (param_set->stripe_input.total_count - 1)))) {
-			/* No swap */
-			/* for HW FRO */
-			for (buf_i = 1; buf_i < frame->num_buffers; buf_i++) {
-				ixgTargetAddress[buf_i] = (u32)prev_wgt_frame->dvaddr_buffer[0];
-				ixwTargetAddress[buf_i] = (u32)cur_wgt_frame->dvaddr_buffer[0];
+			for (buf_i = 0; buf_i < frame->num_buffers; buf_i++) {
+				ixgTargetAddress[buf_i] = frame->ixgTargetAddress[buf_i];
+				ixwTargetAddress[buf_i] = frame->ixwTargetAddress[buf_i];
 			}
 		} else {
-			/* Swap current and previous buffer address for next frame*/
-			SWAP(prev_wgt_frame->dvaddr_buffer[0], cur_wgt_frame->dvaddr_buffer[0], u32);
+			/* Get internal buffer address for weight */
+			ret = __is_hw_isp_get_mcfp_internal_frame(hw_ip, instance, frame,
+					&device->ixw,
+					&prev_wgt_frame, &cur_wgt_frame, "wgt");
+			if (ret) {
+				mserr_hw("[MCFP] internal wgt frame is NULL", instance, hw_ip);
+				return -EINVAL;
+			}
 
-			/* for HW FRO */
-			for (buf_i = 1; buf_i < frame->num_buffers; buf_i++) {
-				ixgTargetAddress[buf_i] = (u32)prev_wgt_frame->dvaddr_buffer[0];
-				ixwTargetAddress[buf_i] = (u32)cur_wgt_frame->dvaddr_buffer[0];
+			ixgTargetAddress[0] = (u32)prev_wgt_frame->dvaddr_buffer[0];
+			ixwTargetAddress[0] = (u32)cur_wgt_frame->dvaddr_buffer[0];
+			/*
+			* Case 1 -  1/2 dma in video tnr normal mode
+			* Case 2 -  0 ~ N-2 frame in N strip procssing. (swap in last striped-frame)
+			*/
+			if ((iq_config->skip_wdma && iq_config->tnr_mode == TNR_MODE_NORMAL) ||
+			(stripe_enable && (stripe_idx < (param_set->stripe_input.total_count - 1)))) {
+				/* No swap */
+				/* for HW FRO */
+				for (buf_i = 1; buf_i < frame->num_buffers; buf_i++) {
+					ixgTargetAddress[buf_i] = (u32)prev_wgt_frame->dvaddr_buffer[0];
+					ixwTargetAddress[buf_i] = (u32)cur_wgt_frame->dvaddr_buffer[0];
+				}
+			} else {
 				/* Swap current and previous buffer address for next frame*/
 				SWAP(prev_wgt_frame->dvaddr_buffer[0], cur_wgt_frame->dvaddr_buffer[0], u32);
-			}
-		}
-		param_set->prev_wgt_dma_input.plane = prev_wgt_frame->planes;
-		param_set->dma_output_tnr_wgt.plane = cur_wgt_frame->planes;
 
-		if (iq_config->still_en) {
+				/* for HW FRO */
+				for (buf_i = 1; buf_i < frame->num_buffers; buf_i++) {
+					ixgTargetAddress[buf_i] = (u32)prev_wgt_frame->dvaddr_buffer[0];
+					ixwTargetAddress[buf_i] = (u32)cur_wgt_frame->dvaddr_buffer[0];
+					/* Swap current and previous buffer address for next frame*/
+					SWAP(prev_wgt_frame->dvaddr_buffer[0], cur_wgt_frame->dvaddr_buffer[0], u32);
+				}
+			}
+			param_set->prev_wgt_dma_input.plane = prev_wgt_frame->planes;
+			param_set->dma_output_tnr_wgt.plane = cur_wgt_frame->planes;
+		}
+
+		if (iq_config->still_en || (cmd_yuv_out && cmd_prev_yuv_in)) {
 			/* MF-Still */
+			msdbg_hw(1, "[MCFP] Use img buffer from user\n", instance, hw_ip);
+
 			for (buf_i = 0; buf_i < frame->num_buffers; buf_i++) {
 				ixtTargetAddress[buf_i] = frame->ixtTargetAddress[buf_i];
 				ixvTargetAddress[buf_i] = frame->ixvTargetAddress[buf_i];
@@ -1770,6 +1788,8 @@ static int is_hw_isp_shot(struct is_hw_ip *hw_ip, struct is_frame *frame, ulong 
 	ulong debug_iq = (unsigned long)is_get_debug_param(IS_DEBUG_PARAM_IQ);
 	u32 strip_index, strip_total_count;
 	bool skip_isp_shot;
+	u32 cmd_wgt_out, cmd_prev_wgt_in;
+	u32 cmd_yuv_out, cmd_prev_yuv_in;
 
 	msdbg_hw(2, "[F%d][%s] is called\n", frame->instance, hw_ip, frame->fcount, __func__);
 
@@ -1853,6 +1873,11 @@ static int is_hw_isp_shot(struct is_hw_ip *hw_ip, struct is_frame *frame, ulong 
 		frame->ixdgrTargetAddress);
 #endif
 #endif
+
+	cmd_wgt_out = param_set->dma_output_tnr_wgt.cmd;
+	cmd_prev_wgt_in = param_set->prev_wgt_dma_input.cmd;
+	cmd_yuv_out = param_set->dma_output_tnr_prev.cmd;
+	cmd_prev_yuv_in = param_set->prev_dma_input.cmd;
 
 	param_set->instance_id = instance;
 	param_set->fcount = fcount;
@@ -2004,6 +2029,11 @@ static int is_hw_isp_shot(struct is_hw_ip *hw_ip, struct is_frame *frame, ulong 
 		mserr_hw("__is_hw_isp_enable is fail", instance, hw_ip);
 		goto shot_fail_recovery;
 	}
+
+	param_set->dma_output_tnr_wgt.cmd = cmd_wgt_out;
+	param_set->prev_wgt_dma_input.cmd = cmd_prev_wgt_in;
+	param_set->dma_output_tnr_prev.cmd = cmd_yuv_out;
+	param_set->prev_dma_input.cmd = cmd_prev_yuv_in;
 
 	set_bit(HW_CONFIG, &hw_ip->state);
 

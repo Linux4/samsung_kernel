@@ -207,7 +207,7 @@
 /*i2c regmap init setting */
 #define REG_MAX         0x2A
 #define HL7132_I2C_NAME "hl7132"
-#define HL7132_MODULE_VERSION "16.1.02092023"
+#define HL7132_MODULE_VERSION "16.5.06092023"
 
 #define CONFIG_HALO_PASS_THROUGH
 /* #define CONFIG_FG_READING_FOR_CVMODE */
@@ -318,7 +318,7 @@
 
 /* Delay Time after PDMSG */
 /* change it to 300ms due to SM USB-PD issue */
-#define HL7132_PDMSG_WAIT_T	                300		// 300ms
+#define HL7132_PDMSG_WAIT_T	                200		// 200ms
 
 /* Delay Time for WDT */
 #define HL7132_BATT_WDT_CONTROL_T           30000   //30S
@@ -486,6 +486,20 @@ enum {
 	IIN_REG_LOOP     = 2,
 	IBAT_REG_LOOP    = 4,
 	T_DIE_REG_LOOP   = 8,
+	/* All regulation loop can be triggered at the same time */
+	VBAT_IIN_LOOP	= 3,
+	VBAT_IBAT_LOOP = 5,
+	VBAT_IIN_IBAT_LOOP = 7,
+	VBAT_TDIE_LOOP = 9,
+
+	IIN_IBAT_LOOP = 6,
+	IIN_TDIE_LOOP = 10,
+	IIN_VBAT_TDIE = 11,
+	IIN_VBAT_TDIE_IBAT_LOOP = 15,
+
+	IBAT_TDIE_LOOP = 12,
+	VBAT_TDIE_IBAT_LOOP = 13,
+	IIN_IBAT_TDIE_LOOP = 14,
 };
 
 /*DEV STATE */

@@ -436,13 +436,12 @@ int el7xx_platformInit(struct el7xx_data *etspi)
 			etspi->regulator_3p3 = regulator_get(NULL, etspi->btp_vdd);
 			if (IS_ERR(etspi->regulator_3p3)) {
 				pr_err("regulator get failed\n");
-				etspi->regulator_3p3 = NULL;
+				retval = PTR_ERR(etspi->regulator_3p3);
 				goto el7xx_platformInit_ldo_failed;
-			} else {
-				regulator_set_load(etspi->regulator_3p3, 100000);
-				pr_info("btp_regulator ok\n");
-				etspi->ldo_enabled = 0;
 			}
+			regulator_set_load(etspi->regulator_3p3, 100000);
+			pr_info("btp_regulator ok\n");
+			etspi->ldo_enabled = 0;
 		} else if (etspi->ldo_pin) {
 			retval = gpio_request(etspi->ldo_pin, "el7xx_ldo_en");
 			if (retval < 0) {
@@ -586,21 +585,22 @@ static int el7xx_parse_dt(struct device *dev, struct el7xx_data *etspi)
 	pr_info("rb: %s\n", etspi->rb);
 
 	etspi->p = pinctrl_get_select_default(dev);
-#if !defined(ENABLE_SENSORS_FPRINT_SECURE) || defined(DISABLED_GPIO_PROTECTION)
-	if (!IS_ERR(etspi->p)) {
-		etspi->pins_poweroff = pinctrl_lookup_state(etspi->p, "pins_poweroff");
-		if (IS_ERR(etspi->pins_poweroff)) {
-			pr_err("could not get pins sleep_state (%li)\n",
-				PTR_ERR(etspi->pins_poweroff));
-		}
-
-		etspi->pins_poweron = pinctrl_lookup_state(etspi->p, "pins_poweron");
-		if (IS_ERR(etspi->pins_poweron)) {
-			pr_err("could not get pins idle_state (%li)\n",
-				PTR_ERR(etspi->pins_poweron));
-		}
-	} else {
+	if (IS_ERR(etspi->p)) {
+		retval = PTR_ERR(etspi->p);
 		pr_err("failed pinctrl_get\n");
+		goto dt_exit;
+	}
+#if !defined(ENABLE_SENSORS_FPRINT_SECURE) || defined(DISABLED_GPIO_PROTECTION)
+	etspi->pins_poweroff = pinctrl_lookup_state(etspi->p, "pins_poweroff");
+	if (IS_ERR(etspi->pins_poweroff)) {
+		pr_err("could not get pins sleep_state (%li)\n",
+			PTR_ERR(etspi->pins_poweroff));
+	}
+
+	etspi->pins_poweron = pinctrl_lookup_state(etspi->p, "pins_poweron");
+	if (IS_ERR(etspi->pins_poweron)) {
+		pr_err("could not get pins idle_state (%li)\n",
+			PTR_ERR(etspi->pins_poweron));
 	}
 #endif
 	el7xx_pin_control(etspi, false);
@@ -645,7 +645,7 @@ static int el7xx_type_check(struct el7xx_data *etspi)
 	 * EL721  : 0x07 / 0x15
 	 */
 	if ((buf1 == 0x07) && (buf2 == 0x15)) {
-		etspi->sensortype = SENSOR_EGISOPTICAL;
+		etspi->sensortype = SENSOR_OK;
 		pr_info("sensor type is EGIS EL721 sensor\n");
 	} else {
 		etspi->sensortype = SENSOR_FAILED;
@@ -750,7 +750,7 @@ static void el7xx_work_func_debug(struct work_struct *work)
 	pr_info("ldo: %d, sleep: %d, tz: %d, spi_value: 0x%x, type: %s\n",
 		etspi->ldo_enabled, gpio_get_value(etspi->sleepPin),
 		etspi->tz_mode, etspi->spi_value,
-		sensor_status[etspi->sensortype + 2]);
+		etspi->sensortype > 0 ? etspi->chipid : sensor_status[etspi->sensortype + 2]);
 }
 
 static struct el7xx_data *alloc_platformdata(struct device *dev)

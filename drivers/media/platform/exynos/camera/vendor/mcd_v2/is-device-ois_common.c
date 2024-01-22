@@ -52,6 +52,9 @@
 #elif defined (CONFIG_CAMERA_USE_INTERNAL_MCU)
 #include "is-ois-mcu.h"
 #endif
+#if IS_ENABLED(CONFIG_CAMERA_USE_AOIS)
+#include "is-aois-if.h"
+#endif
 
 #define IS_OIS_DEV_NAME		"exynos-is-ois"
 #define OIS_I2C_RETRY_COUNT	2
@@ -84,7 +87,7 @@ struct i2c_client *is_ois_i2c_get_client(struct is_core *core)
 
 int is_ois_i2c_read(struct i2c_client *client, u16 addr, u8 *data)
 {
-	int err;
+	int ret;
 	u8 txbuf[2], rxbuf[1];
 	struct i2c_msg msg[2];
 
@@ -102,117 +105,20 @@ int is_ois_i2c_read(struct i2c_client *client, u16 addr, u8 *data)
 	msg[1].len = 1;
 	msg[1].buf = rxbuf;
 
-	err = i2c_transfer(client->adapter, msg, 2);
-	if (unlikely(err != 2)) {
-		err("%s: register read fail err = %d\n", __func__, err);
+	ret = i2c_transfer(client->adapter, msg, 2);
+	if (unlikely(ret != 2)) {
+		err("%s: register read fail. ret = %d\n", __func__, ret);
 		return -EIO;
 	}
 
 	*data = rxbuf[0];
-	return 0;
-}
 
-int is_ois_i2c_write(struct i2c_client *client ,u16 addr, u8 data)
-{
-	int retries = OIS_I2C_RETRY_COUNT;
-	int ret = 0, err = 0;
-	u8 buf[3] = {0,};
-	struct i2c_msg msg;
-
-	if (!client) {
-		err("client is NULL");
-		return -EINVAL;
-	}
-
-	msg.addr = client->addr;
-	msg.flags = 0;
-	msg.len = 3;
-	msg.buf = buf;
-
-	buf[0] = (addr & 0xff00) >> 8;
-	buf[1] = addr & 0xff;
-	buf[2] = data;
-
-#if 0
-	info("%s : W(0x%02X%02X %02X)\n",__func__, buf[0], buf[1], buf[2]);
-#endif
-
-	do {
-		ret = i2c_transfer(client->adapter, &msg, 1);
-		if (likely(ret == 1))
-			break;
-
-		usleep_range(10000,11000);
-		err = ret;
-	} while (--retries > 0);
-
-	/* Retry occured */
-	if (unlikely(retries < OIS_I2C_RETRY_COUNT)) {
-		err("i2c_write: error %d, write (%04X, %04X), retry %d\n",
-			err, addr, data, retries);
-	}
-
-	if (unlikely(ret != 1)) {
-		err("I2C does not work\n\n");
-		return -EIO;
-	}
-
-	return 0;
-}
-
-int is_ois_i2c_write_multi(struct i2c_client *client ,u16 addr, u8 *data, size_t size)
-{
-	int retries = OIS_I2C_RETRY_COUNT;
-	int ret = 0, err = 0;
-	ulong i = 0;
-	u8 buf[258] = {0,};
-	struct i2c_msg msg;
-
-	if (!client) {
-		err("client is NULL");
-		return -EINVAL;
-	}
-
-	msg.addr = client->addr;
-	msg.flags = 0;
-	msg.len = size;
-	msg.buf = buf;
-
-	buf[0] = (addr & 0xFF00) >> 8;
-	buf[1] = addr & 0xFF;
-
-	for (i = 0; i < size - 2; i++) {
-	        buf[i + 2] = *(data + i);
-	}
-#if 0
-	info("OISLOG %s : W(0x%02X%02X%02X)\n", __func__, buf[0], buf[1], buf[2]);
-#endif
-	do {
-		ret = i2c_transfer(client->adapter, &msg, 1);
-		if (likely(ret == 1))
-			break;
-
-		usleep_range(10000,11000);
-		err = ret;
-	} while (--retries > 0);
-
-	/* Retry occured */
-	if (unlikely(retries < OIS_I2C_RETRY_COUNT)) {
-		err("i2c_write: error %d, write (%04X, %04X), retry %d\n",
-			err, addr, *data, retries);
-	}
-
-	if (unlikely(ret != 1)) {
-		err("I2C does not work\n\n");
-		return -EIO;
-	}
-
-	return 0;
+	return ret;
 }
 
 int is_ois_i2c_read_multi(struct i2c_client *client, u16 addr, u8 *data, size_t size)
 {
-	int err;
+	int ret;
 	u8 rxbuf[256], txbuf[2];
 	struct i2c_msg msg[2];
 
@@ -234,13 +140,211 @@ int is_ois_i2c_read_multi(struct i2c_client *client, u16 addr, u8 *data, size_t 
 	msg[1].len = size;
 	msg[1].buf = rxbuf;
 
-	err = i2c_transfer(client->adapter, msg, 2);
-	if (unlikely(err != 2)) {
+	ret = i2c_transfer(client->adapter, msg, 2);
+	if (unlikely(ret != 2)) {
 		err("%s: register read fail", __func__);
 		return -EIO;
 	}
 
 	memcpy(data, rxbuf, size);
+
+	return ret;
+}
+
+int is_ois_i2c_write(struct i2c_client *client, u16 addr, u8 data)
+{
+	int retries = OIS_I2C_RETRY_COUNT;
+	int ret = 0;
+	u8 buf[3] = {0,};
+	struct i2c_msg msg;
+
+	if (!client) {
+		err("client is NULL");
+		return -EINVAL;
+	}
+
+	msg.addr = client->addr;
+	msg.flags = 0;
+	msg.len = 3;
+	msg.buf = buf;
+
+	buf[0] = (addr & 0xff00) >> 8;
+	buf[1] = addr & 0xff;
+	buf[2] = data;
+
+	do {
+		ret = i2c_transfer(client->adapter, &msg, 1);
+		if (likely(ret == 1))
+			break;
+
+		usleep_range(10000,11000);
+	} while (--retries > 0);
+
+	/* Retry occured */
+	if (unlikely(retries < OIS_I2C_RETRY_COUNT)) {
+		err("i2c_write: ret %d, write (%04X, %04X), retry %d\n",
+			ret, addr, data, retries);
+	}
+
+	if (unlikely(ret != 1)) {
+		err("I2C does not work\n\n");
+		return -EIO;
+	}
+
+	return ret;
+}
+
+int is_ois_i2c_write_multi(struct i2c_client *client, u16 addr, u8 *data, size_t size)
+{
+	int retries = OIS_I2C_RETRY_COUNT;
+	int ret = 0;
+	ulong i = 0;
+	u8 buf[258] = {0,};
+	struct i2c_msg msg;
+
+	if (!client) {
+		err("client is NULL");
+		return -EINVAL;
+	}
+
+	msg.addr = client->addr;
+	msg.flags = 0;
+	msg.len = size + 2;
+	msg.buf = buf;
+
+	buf[0] = (addr & 0xFF00) >> 8;
+	buf[1] = addr & 0xFF;
+
+	for (i = 0; i < size; i++)
+		buf[i + 2] = *(data + i);
+
+	do {
+		ret = i2c_transfer(client->adapter, &msg, 1);
+		if (likely(ret == 1))
+			break;
+
+		usleep_range(10000,11000);
+	} while (--retries > 0);
+
+	/* Retry occured */
+	if (unlikely(retries < OIS_I2C_RETRY_COUNT)) {
+		err("i2c_write: ret %d, write (%04X, %04X), retry %d\n",
+			ret, addr, *data, retries);
+	}
+
+	if (unlikely(ret != 1)) {
+		err("I2C does not work\n\n");
+		return -EIO;
+	}
+
+	return ret;
+}
+
+int is_ois_get_reg(struct i2c_client *client, int cmd, u8 *data)
+{
+	int ret;
+	u16 addr = ois_mcu_regs[cmd].offset;
+#if IS_ENABLED(CONFIG_CAMERA_USE_AOIS)
+	u8 rxbuf[1];
+
+	ret = cam_ois_reg_read_notifier_call_chain(0, addr, &rxbuf[0], 1);
+	*data = rxbuf[0];
+#else
+	ret = is_ois_i2c_read(client, addr, data);
+#endif
+
+	dbg_ois("[GET_REG] reg:[%s][0x%04X], reg_value(R):[0x%02X]\n",
+		ois_mcu_regs[cmd].reg_name, ois_mcu_regs[cmd].offset, *data);
+
+	if (unlikely(ret != 2)) {
+		MCU_ERR_PRINT("get fail (%s:%X)", ois_mcu_regs[cmd].reg_name, ois_mcu_regs[cmd].offset);
+		return -EIO;
+	}
+
+	return 0;
+}
+
+int is_ois_get_reg_u16(struct i2c_client *client, int cmd, u8 *data)
+{
+	return is_ois_get_reg_multi(client, cmd, data, 2);
+}
+
+int is_ois_get_reg_multi(struct i2c_client *client, int cmd, u8 *data, size_t size)
+{
+	int ret;
+	u16 addr = ois_mcu_regs[cmd].offset;
+	int i;
+#if IS_ENABLED(CONFIG_CAMERA_USE_AOIS)
+	u8 rxbuf[256];
+
+	ret = cam_ois_reg_read_notifier_call_chain(0, addr, rxbuf, size);
+	memcpy(data, rxbuf, size);
+#else
+	ret = is_ois_i2c_read_multi(client, addr, data, size);
+#endif
+
+	for (i = 0; i < size; i++) {
+		dbg_ois("[GET_REG] reg:[%s][0x%04X], reg_value(R):[0x%02X]\n",
+			ois_mcu_regs[cmd].reg_name, ois_mcu_regs[cmd].offset + i, data[i]);
+	}
+
+	if (unlikely(ret != 2)) {
+		MCU_ERR_PRINT("get multi fail (%s:%X)", ois_mcu_regs[cmd].reg_name, ois_mcu_regs[cmd].offset);
+		return -EIO;
+	}
+
+	return 0;
+}
+
+int is_ois_set_reg(struct i2c_client *client, int cmd, u8 data)
+{
+	int ret;
+	u16 addr = ois_mcu_regs[cmd].offset;
+
+#if IS_ENABLED(CONFIG_CAMERA_USE_AOIS)
+	ret = cam_ois_cmd_notifier_call_chain(0, addr, &data, 1);
+#else
+	ret = is_ois_i2c_write(client, addr, data);
+#endif
+
+	dbg_ois("[SET_REG] reg:[%s][0x%04X], reg_value(W):[0x%02X]\n",
+		ois_mcu_regs[cmd].reg_name, ois_mcu_regs[cmd].offset, data);
+
+	if (unlikely(ret != 1)) {
+		MCU_ERR_PRINT("set fail (%s:%X)", ois_mcu_regs[cmd].reg_name, ois_mcu_regs[cmd].offset);
+		return -EIO;
+	}
+
+	return 0;
+}
+
+int is_ois_set_reg_u16(struct i2c_client *client, int cmd, u8 *data)
+{
+	return is_ois_set_reg_multi(client, cmd, data, 2);
+}
+
+int is_ois_set_reg_multi(struct i2c_client *client, int cmd, u8 *data, size_t size)
+{
+	int ret;
+	u16 addr = ois_mcu_regs[cmd].offset;
+	int i;
+
+#if IS_ENABLED(CONFIG_CAMERA_USE_AOIS)
+	ret = cam_ois_cmd_notifier_call_chain(0, addr, data, size);
+#else
+	ret = is_ois_i2c_write_multi(client, addr, data, size);
+#endif
+
+	for (i = 0 ; i < size; i++) {
+		dbg_ois("[SET_REG] reg:[%s][0x%04X], reg_value(W):[0x%02X]\n",
+			ois_mcu_regs[cmd].reg_name, ois_mcu_regs[cmd].offset + i, data[i]);
+	}
+
+	if (unlikely(ret != 1)) {
+		MCU_ERR_PRINT("set multi fail (%s:%X)", ois_mcu_regs[cmd].reg_name, ois_mcu_regs[cmd].offset);
+		return -EIO;
+	}
+
 	return 0;
 }
 

@@ -753,6 +753,7 @@ enum zram_oem_func_cmds {
 	ZRAM_ALLOC_WRITEBACK_BUFFER,
 	ZRAM_FREE_WRITEBACK_BUFFER,
 	ZRAM_IS_WRITEBACK_ENTRY,
+	ZRAM_MARK_ENTRY_NON_LRU,
 };
 typedef unsigned long (*zram_oem_func)(int, void *, unsigned long);
 extern zram_oem_func zram_oem_fn;

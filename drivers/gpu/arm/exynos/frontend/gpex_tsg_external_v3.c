@@ -334,13 +334,13 @@ EXPORT_SYMBOL(exynos_gpu_stc_config_store);
 
 int gpu_dvfs_register_utilization_notifier(struct notifier_block *nb)
 {
-	return atomic_notifier_chain_register(gpex_tsg_get_frag_utils_change_notifier_list(), nb);
+	return blocking_notifier_chain_register(gpex_tsg_get_frag_utils_change_notifier_list(), nb);
 }
 EXPORT_SYMBOL(gpu_dvfs_register_utilization_notifier);
 
 int gpu_dvfs_unregister_utilization_notifier(struct notifier_block *nb)
 {
-	return atomic_notifier_chain_unregister(gpex_tsg_get_frag_utils_change_notifier_list(), nb);
+	return blocking_notifier_chain_unregister(gpex_tsg_get_frag_utils_change_notifier_list(), nb);
 }
 EXPORT_SYMBOL(gpu_dvfs_unregister_utilization_notifier);
 
@@ -424,6 +424,8 @@ int gpex_tsg_external_init(struct _tsg_info *_tsg_info)
 {
 	tsg_info = _tsg_info;
 	GPEX_UTILS_SYSFS_DEVICE_FILE_ADD_RO(feedback_governor_impl, show_feedback_governor_impl);
+	BLOCKING_INIT_NOTIFIER_HEAD(gpex_tsg_get_frag_utils_change_notifier_list());
+
 	return 0;
 }
 

@@ -90,14 +90,20 @@ static void exynos_crtc_check_input_bpc(struct drm_crtc *crtc,
 {
 	struct exynos_drm_crtc_state *new_exynos_state =
 						to_exynos_crtc_state(crtc_state);
+	struct exynos_drm_crtc *exynos_crtc = to_exynos_crtc(crtc);
 	struct drm_plane *plane;
 	const struct drm_plane_state *plane_state;
 	uint32_t max_bpc = 8; /* initial bpc value */
+	bool atc_enabled = false;
 
 	if (new_exynos_state->wb_type == EXYNOS_WB_SWB) {
 		new_exynos_state->in_bpc = max_bpc;
 		return;
 	}
+
+	exynos_dqe_state(exynos_crtc->dqe, DQE_REG_ATC, &atc_enabled);
+	if (atc_enabled)
+		max_bpc = 10; /* extend to 10 bit for ATC dimming duration */
 
 	drm_atomic_crtc_state_for_each_plane_state(plane, plane_state, crtc_state) {
 		const struct drm_format_info *info;

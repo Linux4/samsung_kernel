@@ -65,8 +65,8 @@ static void sensor_4ha_cis_data_calculation(const struct sensor_pll_info_compact
 	vt_pix_clk_hz = pll_info->pclk;
 
 	/* 2. the time of processing one frame calculation (us) */
-	cis_data->min_frame_us_time = ((pll_info->frame_length_lines * pll_info->line_length_pck)
-					/ (vt_pix_clk_hz / (1000 * 1000)));
+	cis_data->min_frame_us_time = (((u64)pll_info->frame_length_lines) * pll_info->line_length_pck * 1000
+					/ (vt_pix_clk_hz / 1000));
 	cis_data->cur_frame_us_time = cis_data->min_frame_us_time;
 
 	/* 3. FPS calculation */
@@ -114,6 +114,20 @@ static void sensor_4ha_cis_data_calculation(const struct sensor_pll_info_compact
 	cis_data->min_coarse_integration_time = SENSOR_4HA_COARSE_INTEGRATION_TIME_MIN;
 	cis_data->max_margin_coarse_integration_time = SENSOR_4HA_COARSE_INTEGRATION_TIME_MAX_MARGIN;
 	info("%s: done", __func__);
+}
+
+/*************************************************
+ *  [4ha Analog gain formular]
+ *************************************************/
+
+u32 sensor_4ha_cis_calc_again_code(u32 permile)
+{
+	return (permile * 32) / 1000;
+}
+
+u32 sensor_4ha_cis_calc_again_permile(u32 code)
+{
+	return (code * 1000) / 32;
 }
 
 static int sensor_4ha_wait_stream_off_status(cis_shared_data *cis_data)
@@ -994,7 +1008,7 @@ int sensor_4ha_cis_adjust_frame_duration(struct v4l2_subdev *subdev,
 	struct is_cis *cis;
 	cis_shared_data *cis_data;
 
-	u32 vt_pic_clk_freq_mhz = 0;
+	u64 vt_pic_clk_freq_khz = 0;
 	u32 line_length_pck = 0;
 	u32 frame_length_lines = 0;
 	u32 frame_duration = 0;
@@ -1010,16 +1024,18 @@ int sensor_4ha_cis_adjust_frame_duration(struct v4l2_subdev *subdev,
 
 	cis_data = cis->cis_data;
 
-	vt_pic_clk_freq_mhz = cis_data->pclk / (1000 * 1000);
-	line_length_pck = cis_data->line_length_pck;
-	if (input_exposure_time > SENSOR_4HA_EXPOSURE_TIME_MAX) {
-		err("input_exposure_time is out of bound (%d -> %d)", input_exposure_time, SENSOR_4HA_EXPOSURE_TIME_MAX);
-		input_exposure_time = SENSOR_4HA_EXPOSURE_TIME_MAX;
+	if (input_exposure_time == 0) {
+		input_exposure_time  = cis_data->min_frame_us_time;
+		info("[%s] Not proper exposure time(0), so apply min frame duration to exposure time forcely!!!(%d)\n",
+			__func__, cis_data->min_frame_us_time);
 	}
-	frame_length_lines = ((vt_pic_clk_freq_mhz * input_exposure_time) / line_length_pck);
+
+	vt_pic_clk_freq_khz = cis_data->pclk / (1000);
+	line_length_pck = cis_data->line_length_pck;
+	frame_length_lines = (u32)(((vt_pic_clk_freq_khz * input_exposure_time) / 1000) / line_length_pck);
 	frame_length_lines += cis_data->max_margin_coarse_integration_time;
 
-	frame_duration = (frame_length_lines * line_length_pck) / vt_pic_clk_freq_mhz;
+	frame_duration = (u32)(((u64)frame_length_lines * line_length_pck) * 1000 / vt_pic_clk_freq_khz);
 
 	dbg_sensor(1, "[%s](vsync cnt = %d) input exp(%d), adj duration, frame duraion(%d), min_frame_us(%d)\n",
 			__func__, cis_data->sen_vsync_count, input_exposure_time, frame_duration, cis_data->min_frame_us_time);
@@ -1041,7 +1057,7 @@ int sensor_4ha_cis_set_frame_duration(struct v4l2_subdev *subdev, u32 frame_dura
 	struct i2c_client *client;
 	cis_shared_data *cis_data;
 
-	u32 vt_pic_clk_freq_mhz = 0;
+	u64 vt_pic_clk_freq_khz = 0;
 	u32 line_length_pck = 0;
 	u16 frame_length_lines = 0;
 	ktime_t st = ktime_get();
@@ -1067,14 +1083,14 @@ int sensor_4ha_cis_set_frame_duration(struct v4l2_subdev *subdev, u32 frame_dura
 		frame_duration = cis_data->min_frame_us_time;
 	}
 
-	vt_pic_clk_freq_mhz = cis_data->pclk / (1000 * 1000);
+	vt_pic_clk_freq_khz = cis_data->pclk / (1000);
 	line_length_pck = cis_data->line_length_pck;
 
-	frame_length_lines = (u16)((vt_pic_clk_freq_mhz * frame_duration) / line_length_pck);
+	frame_length_lines = (u16)((vt_pic_clk_freq_khz * frame_duration) / (line_length_pck * 1000));
 
-	dbg_sensor(1, "[MOD:D:%d] %s, vt_pic_clk_freq_mhz(%#x) frame_duration = %d us,"
+	dbg_sensor(1, "[MOD:D:%d] %s, vt_pic_clk_freq_khz(%#x) frame_duration = %d us,"
 		KERN_CONT "(line_length_pck%#x), frame_length_lines(%#x)\n",
-		cis->id, __func__, vt_pic_clk_freq_mhz, frame_duration, line_length_pck, frame_length_lines);
+		cis->id, __func__, vt_pic_clk_freq_khz, frame_duration, line_length_pck, frame_length_lines);
 
 	I2C_MUTEX_LOCK(cis->i2c_lock);
 
@@ -1099,32 +1115,30 @@ p_err:
 int sensor_4ha_cis_set_frame_rate(struct v4l2_subdev *subdev, u32 min_fps)
 {
 	int ret = 0;
-	struct is_cis *cis;
-	cis_shared_data *cis_data;
+	struct is_cis *cis = NULL;
+	cis_shared_data *cis_data = NULL;
 
 	u32 frame_duration = 0;
-	u32 cur_mode_min_duration = 0;
-	const struct sensor_pll_info_compact *pll_info = NULL;
+
 	ktime_t st = ktime_get();
 
-	BUG_ON(!subdev);
+	FIMC_BUG(!subdev);
 
 	cis = (struct is_cis *)v4l2_get_subdevdata(subdev);
 
-	BUG_ON(!cis);
-	BUG_ON(!cis->cis_data);
+	FIMC_BUG(!cis);
+	FIMC_BUG(!cis->cis_data);
 
 	cis_data = cis->cis_data;
 
 	if (min_fps > cis_data->max_fps) {
-		err("[MOD:D:%d] %s, request FPS is too high(%d), set to max(%d)\n",
+		err("[MOD:D:%d] %s, request FPS is too high(%d), set to max_fps(%d)\n",
 			cis->id, __func__, min_fps, cis_data->max_fps);
 		min_fps = cis_data->max_fps;
 	}
 
 	if (min_fps == 0) {
-		err("[MOD:D:%d] %s, request FPS is 0, set to min FPS(1)\n",
-			cis->id, __func__);
+		err("[MOD:D:%d] %s, request FPS is 0, set to min FPS(1)\n", cis->id, __func__);
 		min_fps = 1;
 	}
 
@@ -1140,22 +1154,8 @@ int sensor_4ha_cis_set_frame_rate(struct v4l2_subdev *subdev, u32 min_fps)
 		goto p_err;
 	}
 
-	if (cis_data->sens_config_index_cur <= sensor_4ha_max_setfile_num) {
-		pll_info = sensor_4ha_pllinfos[cis_data->sens_config_index_cur];
-	} else {
-		err("[MOD:D:%d] %s, current sensor mode is invalid(%d)\n",
-			cis->id, __func__, cis_data->sens_config_index_cur);
-	}
+	cis_data->min_frame_us_time = frame_duration;
 
-	if (pll_info != NULL) {
-		cur_mode_min_duration = (pll_info->frame_length_lines * pll_info->line_length_pck
-			/ (cis_data->pclk / (1000 * 1000)));
-	}
-
-	if (frame_duration < cur_mode_min_duration)
-		cis_data->min_frame_us_time = cur_mode_min_duration;
-	else
-		cis_data->min_frame_us_time = frame_duration;
 
 	if (IS_ENABLED(DEBUG_SENSOR_TIME))
 		dbg_sensor(1, "[%s] time %ldus", __func__, PABLO_KTIME_US_DELTA_NOW(st));
@@ -1391,8 +1391,7 @@ int sensor_4ha_cis_set_digital_gain(struct v4l2_subdev *subdev, struct ae_param 
 	struct i2c_client *client;
 	cis_shared_data *cis_data;
 
-	u16 long_gain = 0;
-	u16 short_gain = 0;
+	u16 dgain_code = 0;
 	u16 dgains[4] = {0};
 	ktime_t st = ktime_get();
 
@@ -1413,29 +1412,20 @@ int sensor_4ha_cis_set_digital_gain(struct v4l2_subdev *subdev, struct ae_param 
 
 	cis_data = cis->cis_data;
 
-	long_gain = (u16)sensor_cis_calc_dgain_code(dgain->long_val);
-	short_gain = (u16)sensor_cis_calc_dgain_code(dgain->short_val);
+	dgain_code = (u16)sensor_cis_calc_dgain_code(dgain->val);
 
-	if (long_gain < cis->cis_data->min_digital_gain[0]) {
-		long_gain = cis->cis_data->min_digital_gain[0];
-	}
-	if (long_gain > cis->cis_data->max_digital_gain[0]) {
-		long_gain = cis->cis_data->max_digital_gain[0];
-	}
+	if (dgain_code < cis->cis_data->min_digital_gain[0])
+		dgain_code = cis->cis_data->min_digital_gain[0];
 
-	if (short_gain < cis->cis_data->min_digital_gain[0]) {
-		short_gain = cis->cis_data->min_digital_gain[0];
-	}
-	if (short_gain > cis->cis_data->max_digital_gain[0]) {
-		short_gain = cis->cis_data->max_digital_gain[0];
-	}
+	if (dgain_code > cis->cis_data->max_digital_gain[0])
+		dgain_code = cis->cis_data->max_digital_gain[0];
 
-	dbg_sensor(1, "[MOD:D:%d] %s(vsync cnt = %d), input_dgain = %d/%d us, long_gain(%#x), short_gain(%#x)\n",
-			cis->id, __func__, cis->cis_data->sen_vsync_count, dgain->long_val, dgain->short_val, long_gain, short_gain);
+	dbg_sensor(1, "[MOD:D:%d] %s(vsync cnt = %d), input_dgain = %d/%d us, dgain_code(%#x)\n",
+			cis->id, __func__, cis->cis_data->sen_vsync_count, dgain->long_val, dgain->short_val, dgain_code);
 
 	I2C_MUTEX_LOCK(cis->i2c_lock);
 
-	dgains[0] = dgains[1] = dgains[2] = dgains[3] = short_gain;
+	dgains[0] = dgains[1] = dgains[2] = dgains[3] = dgain_code;
 
 	/* Short digital gain */
 	ret = is_sensor_write16_array(client, 0x020E, dgains, 4);
@@ -1582,14 +1572,9 @@ int sensor_4ha_cis_compensate_gain_for_extremely_br(struct v4l2_subdev *subdev, 
 
 	u32 vt_pic_clk_freq_mhz = 0;
 	u32 line_length_pck = 0;
-	u32 min_fine_int = 0;
+	u32 fine_int = 0;
 	u16 coarse_int = 0;
 	u32 compensated_again = 0;
-	u32 integration_time = 0;
-
-	u32 ratio = 0;
-	static u32 pre_ratio = 0;
-	static u32 pre_coarse_int = 0;
 
 	BUG_ON(!subdev);
 	BUG_ON(!again);
@@ -1605,41 +1590,35 @@ int sensor_4ha_cis_compensate_gain_for_extremely_br(struct v4l2_subdev *subdev, 
 
 	vt_pic_clk_freq_mhz = cis_data->pclk / (1000 * 1000);
 	line_length_pck = cis_data->line_length_pck;
-	min_fine_int = cis_data->min_fine_integration_time;
+	fine_int = line_length_pck - 0xf0;
 
 	if (line_length_pck <= 0) {
 		err("[%s] invalid line_length_pck(%d)\n", __func__, line_length_pck);
 		goto p_err;
 	}
 
-	coarse_int = ((expo * vt_pic_clk_freq_mhz) - (cis_data->line_length_pck - 0xf0)) / line_length_pck;
+	coarse_int = ((expo * vt_pic_clk_freq_mhz) - fine_int) / line_length_pck;
 	if (coarse_int < cis_data->min_coarse_integration_time) {
 		dbg_sensor(1, "[MOD:D:%d] %s, vsync_cnt(%d), long coarse(%d) min(%d)\n", cis->id, __func__,
 			cis_data->sen_vsync_count, coarse_int, cis_data->min_coarse_integration_time);
 		coarse_int = cis_data->min_coarse_integration_time;
 	}
 
-	integration_time = ((cis_data->line_length_pck * coarse_int + (cis_data->line_length_pck - 0xf0)) / vt_pic_clk_freq_mhz);
-	ratio = ((expo << 8) / integration_time);
-
-	if (pre_coarse_int <= 15) {
-			compensated_again = (*again * (pre_ratio)) >> 8;
+	if (coarse_int <= 100) {
+		compensated_again = (*again * ((expo * vt_pic_clk_freq_mhz) - fine_int)) / (line_length_pck * coarse_int);
 
 		if (compensated_again < cis_data->min_analog_gain[1]) {
 			*again = cis_data->min_analog_gain[1];
 		} else if (*again >= cis_data->max_analog_gain[1]) {
-			*dgain = (*dgain * (pre_ratio));
+			*dgain = (*dgain * ((expo * vt_pic_clk_freq_mhz) - fine_int)) / (line_length_pck * coarse_int);
 		} else {
 			*again = compensated_again;
 		}
 
-		dbg_sensor(1, "[%s] exp(%d), again(%d), dgain(%d), coarse_int(%d),"
-			KERN_CONT "compensated_again(%d), integration_time : (%d)\n",
-			__func__, expo, *again, *dgain, coarse_int, compensated_again, integration_time);
+		dbg_sensor(1, "[%s] exp(%d), again(%d), dgain(%d), coarse_int(%d), compensated_again(%d)\n",
+			__func__, expo, *again, *dgain, coarse_int, compensated_again);
 	}
 
-	pre_ratio = ratio;
-	pre_coarse_int = coarse_int;
 p_err:
 	return ret;
 }
@@ -1671,6 +1650,77 @@ p_err:
 	return ret;
 }
 
+int sensor_4ha_cis_set_totalgain(struct v4l2_subdev *subdev, struct ae_param *target_exposure,
+	struct ae_param *again, struct ae_param *dgain)
+{
+	int ret = 0;
+	struct is_cis *cis = NULL;
+	cis_shared_data *cis_data = NULL;
+	struct i2c_client *client = NULL;
+
+	struct ae_param total_again;
+	struct ae_param total_dgain;
+	u32 cal_analog_val1 = 0;
+	u32 cal_analog_val2 = 0;
+	u32 cal_digital = 0;
+	u32 analog_gain = 0;
+
+	FIMC_BUG(!subdev);
+	FIMC_BUG(!target_exposure);
+	FIMC_BUG(!again);
+	FIMC_BUG(!dgain);
+
+	cis = (struct is_cis *)v4l2_get_subdevdata(subdev);
+	cis_data = cis->cis_data;
+	client = cis->client;
+	total_again.val = again->val;
+	total_again.short_val = again->short_val;
+	total_dgain.long_val = dgain->val;
+	total_dgain.short_val = dgain->short_val;
+	ret = sensor_4ha_cis_set_exposure_time(subdev, target_exposure);
+	if (ret < 0) {
+		err("[%s] sensor_cis_set_exposure_time fail\n", __func__);
+		goto p_err;
+	}
+
+	analog_gain = sensor_4ha_cis_calc_again_code(again->val);
+	/* Set Digital gains */
+	if (analog_gain == cis_data->max_analog_gain[0]) {
+		total_dgain.long_val = dgain->val;
+	} else {
+		cal_analog_val1 = sensor_4ha_cis_calc_again_code(again->val);
+		cal_analog_val2 = sensor_4ha_cis_calc_again_permile(cal_analog_val1);
+		cal_digital = (again->val * 1000) / cal_analog_val2;
+		if (cal_digital < 1000)
+			cal_digital = 1000;
+		total_dgain.long_val = cal_digital;
+		total_again.val = cal_analog_val2;
+		dbg_sensor(1, "[%s] cal_analog_val1 = %d, cal_analog_val2 = %d cal_digital = %d\n",
+			__func__, cal_analog_val1, cal_analog_val2, cal_digital);
+		if (cal_digital < 0) {
+			err("calculate dgain is fail");
+			goto p_err;
+		}
+		dbg_sensor(1, "[%s] dgain compensation : input_again = %d, calculated_analog_gain = %d\n",
+			__func__, again->val, cal_analog_val2);
+	}
+
+	ret = sensor_4ha_cis_set_analog_gain(subdev, &total_again);
+	if (ret < 0) {
+		err("[%s] sensor_cis_set_analog_gain fail\n", __func__);
+		goto p_err;
+	}
+
+	ret = sensor_4ha_cis_set_digital_gain(subdev, &total_dgain);
+	if (ret < 0) {
+		err("[%s] sensor_cis_set_digital_gain fail\n", __func__);
+		goto p_err;
+	}
+
+p_err:
+	return ret;
+}
+
 static struct is_cis_ops cis_ops = {
 	.cis_init = sensor_4ha_cis_init,
 	.cis_log_status = sensor_4ha_cis_log_status,
@@ -1682,21 +1732,22 @@ static struct is_cis_ops cis_ops = {
 	.cis_set_size = sensor_4ha_cis_set_size,
 	.cis_stream_on = sensor_4ha_cis_stream_on,
 	.cis_stream_off = sensor_4ha_cis_stream_off,
-	.cis_set_exposure_time = sensor_4ha_cis_set_exposure_time,
+	.cis_set_exposure_time = NULL,
 	.cis_get_min_exposure_time = sensor_4ha_cis_get_min_exposure_time,
 	.cis_get_max_exposure_time = sensor_4ha_cis_get_max_exposure_time,
 	.cis_adjust_frame_duration = sensor_4ha_cis_adjust_frame_duration,
 	.cis_set_frame_duration = sensor_4ha_cis_set_frame_duration,
 	.cis_set_frame_rate = sensor_4ha_cis_set_frame_rate,
 	.cis_adjust_analog_gain = sensor_4ha_cis_adjust_analog_gain,
-	.cis_set_analog_gain = sensor_4ha_cis_set_analog_gain,
+	.cis_set_analog_gain = NULL,
 	.cis_get_analog_gain = sensor_4ha_cis_get_analog_gain,
 	.cis_get_min_analog_gain = sensor_4ha_cis_get_min_analog_gain,
 	.cis_get_max_analog_gain = sensor_4ha_cis_get_max_analog_gain,
-	.cis_set_digital_gain = sensor_4ha_cis_set_digital_gain,
+	.cis_set_digital_gain = NULL,
 	.cis_get_digital_gain = sensor_4ha_cis_get_digital_gain,
 	.cis_get_min_digital_gain = sensor_4ha_cis_get_min_digital_gain,
 	.cis_get_max_digital_gain = sensor_4ha_cis_get_max_digital_gain,
+	.cis_set_totalgain = sensor_4ha_cis_set_totalgain,
 	.cis_compensate_gain_for_extremely_br = sensor_4ha_cis_compensate_gain_for_extremely_br,
 	.cis_wait_streamoff = sensor_4ha_cis_wait_streamoff,
 	.cis_wait_streamon = sensor_cis_wait_streamon,
@@ -1729,6 +1780,10 @@ int cis_4ha_probe(struct i2c_client *client,
 	cis->cis_ops = &cis_ops;
 	/* belows are depend on sensor cis. MUST check sensor spec */
 	cis->bayer_order = OTF_INPUT_ORDER_BAYER_GR_BG;
+
+	/* Use total gain instead of using dgain */
+	cis->use_dgain = false;
+	cis->use_vendor_total_gain = true;
 
 	ret = of_property_read_string(dnode, "setfile", &setfile);
 	if (ret) {

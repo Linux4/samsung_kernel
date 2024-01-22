@@ -210,7 +210,6 @@ static void run_event_order_test(void)
 	int32_t type;
 	int32_t sampling_rate = 5;
 	int32_t report_latency = 0;
-	int32_t test_cnt = ssc_count;
 
 	shub_infof("[SSC] run event order test...");
 
@@ -222,49 +221,45 @@ static void run_event_order_test(void)
 	}
 
 	register_event_order_test_cb();
-	shub_infof("[SSC] sampling rate : fastest, report latency : random");
-	while (test_cnt--) {
-		shub_infof("[SSC] #%d", ssc_count - test_cnt);
-		enable_order_test_sensors();
-		msleep(2000);
+	shub_infof("[SSC] run only once #sampling rate : fastest, report latency : random");
 
-		for (i = 0 ; i < 100 ; i++) {
-			type = order_test_types[get_random() % 3];
+	enable_order_test_sensors();
+	msleep(2000);
 
+	for (i = 0 ; i < 100 ; i++) {
+		type = order_test_types[get_random() % 3];
+
+		sampling_rate = ssc.sensor[type].min_delay;
+		report_latency = (get_random() % 2) * 5000;
+
+		batch_sensor(type, sampling_rate, report_latency);
+		flush_sensor(type);
+		msleep(10 * (get_random() % 15));
+	}
+
+	disable_order_test_sensors();
+
+	shub_infof("[SSC] run only once #sampling rate : random, report latency : random");
+
+	enable_order_test_sensors();
+
+	for (i = 0 ; i < 100 ; i++) {
+		type = order_test_types[get_random() % 3];
+
+		sampling_rate = get_random() % 10;
+		if (sampling_rate == 0)
 			sampling_rate = ssc.sensor[type].min_delay;
-			report_latency = (get_random() % 2) * 5000;
+		else
+			sampling_rate = ssc.sensor[type].min_delay * sampling_rate;
 
-			batch_sensor(type, sampling_rate, report_latency);
-			flush_sensor(type);
-			msleep(10 * (get_random() % 15));
-		}
-
-		disable_order_test_sensors();
+		report_latency = (get_random() % 6) * 1000;
+		batch_sensor(type, sampling_rate, report_latency);
+		flush_sensor(type);
+		msleep(10 * (get_random() % 15));
 	}
 
-	test_cnt = ssc_count;
-	shub_infof("[SSC] sampling rate : random, report latency : random");
-	while (test_cnt--) {
-		shub_infof("[SSC] #%d", ssc_count - test_cnt);
-		enable_order_test_sensors();
+	disable_order_test_sensors();
 
-		for (i = 0 ; i < 100 ; i++) {
-			type = order_test_types[get_random() % 3];
-
-			sampling_rate = get_random() % 10;
-			if (sampling_rate == 0)
-				sampling_rate = ssc.sensor[type].min_delay;
-			else
-				sampling_rate = ssc.sensor[type].min_delay * sampling_rate;
-
-			report_latency = (get_random() % 6) * 1000;
-			batch_sensor(type, sampling_rate, report_latency);
-			flush_sensor(type);
-			msleep(10 * (get_random() % 15));
-		}
-
-		disable_order_test_sensors();
-	}
 	unregister_event_order_test_cb();
 }
 

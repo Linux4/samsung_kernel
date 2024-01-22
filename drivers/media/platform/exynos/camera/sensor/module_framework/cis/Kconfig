@@ -424,6 +424,13 @@ config CAMERA_CIS_GC02M1_OBJ
 	help
 	  Use to build GC02M1 camera sensor.
 
+config CAMERA_CIS_GC02M2_OBJ
+	tristate "Use GC02M2 camera cis"
+	depends on CAMERA_CIS_SELECT
+	default n
+	help
+	  Use to build GC02M2 camera sensor.
+
 config CAMERA_CIS_GM1SP_OBJ
 		tristate "Use GM1SP camera cis"
 	depends on CAMERA_CIS_SELECT
@@ -472,6 +479,13 @@ config CAMERA_CIS_HI1336_OBJ
 	default n
 	help
 	  Use to build HI1336 camera sensor.
+
+config CAMERA_CIS_HI1339_OBJ
+	tristate "Use HI1339 camera cis"
+	depends on CAMERA_CIS_SELECT
+	default n
+	help
+	  Use to build HI1339 camera sensor.
 
 config CAMERA_CIS_GM2_OBJ
 	tristate "Use GM2 camera cis"

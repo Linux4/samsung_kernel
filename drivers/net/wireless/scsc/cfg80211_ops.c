@@ -1742,7 +1742,7 @@ int slsi_get_channel(struct wiphy *wiphy, struct wireless_dev *wdev,
 	int freq = 0;
 	int width = 0;
 	int r = 0;
-	
+
 	if (ndev_vif->sta.vif_status != SLSI_VIF_STATUS_CONNECTED)
 		return -ENODATA;
 
@@ -1750,20 +1750,20 @@ int slsi_get_channel(struct wiphy *wiphy, struct wireless_dev *wdev,
 	freq = ndev_vif->sta.bss_cf;
 	width = ndev_vif->sta.ch_width;
 
-	if (width == 20){
+	if (width == 20) {
 		width = NL80211_CHAN_WIDTH_20;
 		if (freq != ndev_vif->chan->center_freq) {
 			r = -EINVAL;
 			goto exit;
 		}
-	} else if (width == 40){
+	} else if (width == 40) {
 		width =  NL80211_CHAN_WIDTH_40;
 		if (freq != ndev_vif->chan->center_freq + 10 &&
 		    freq != ndev_vif->chan->center_freq - 10) {
 			r = -EINVAL;
 			goto exit;
 		}
-	} else if (width == 80){
+	} else if (width == 80) {
 		width =  NL80211_CHAN_WIDTH_80;
 		if (freq != ndev_vif->chan->center_freq + 30 &&
 		    freq != ndev_vif->chan->center_freq + 10 &&
@@ -1772,7 +1772,7 @@ int slsi_get_channel(struct wiphy *wiphy, struct wireless_dev *wdev,
 			r = -EINVAL;
 			goto exit;
 		}
-	} else if (width == 160){
+	} else if (width == 160) {
 		width =  NL80211_CHAN_WIDTH_160;
 		if (freq != ndev_vif->chan->center_freq + 70 &&
 		    freq != ndev_vif->chan->center_freq + 50 &&
@@ -1794,6 +1794,7 @@ int slsi_get_channel(struct wiphy *wiphy, struct wireless_dev *wdev,
 	chandef->center_freq2 = 0;
 exit:
 	SLSI_MUTEX_UNLOCK(ndev_vif->vif_mutex);
+
 	return r;
 }
 

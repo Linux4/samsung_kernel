@@ -5,7 +5,9 @@
 # Licensed under GPLv2
 #
 
-subdir-ccflags-y := -I$(srctree) -I$(srctree)/$(src)
+subdir-ccflags-y := -I$(srctree) \
+	-I$(srctree)/$(src) \
+	-Wno-implicit-fallthrough
 
 mcd-panel-y += timenval.o \
 				util.o \
@@ -40,9 +42,10 @@ obj-$(CONFIG_MCD_PANEL) += mcd-panel.o
 
 subdir-ccflags-$(CONFIG_SEC_KUNIT) += \
     -Wframe-larger-than=8192 \
-    -Wno-unused-variable \
-    -Wno-unused-function \
-    -Wno-missing-braces \
+    -Wunused-variable \
+    -Wunused-function \
+    -Wmissing-braces \
     -Wno-implicit-fallthrough \
-    -Wno-format
+    -Wformat \
+    -Wformat-security
 

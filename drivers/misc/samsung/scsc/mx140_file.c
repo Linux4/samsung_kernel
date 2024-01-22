@@ -233,6 +233,14 @@ int mx140_file_request_conf(struct scsc_mx *mx,
 		SCSC_TAG_INFO(MX_FILE, "module param cfg_platform = %s\n", cfg_platform);
 		return __mx140_file_request_conf(mx, conf, cfg_platform, config_rel_path, filename, false);
 	}
+	/* This is done to update the fw_suffix_found index */
+	if (fw_suffix_found == -1) {
+		r = mx140_file_download_fw(mx, NULL, 0, NULL);
+		if (r) {
+			SCSC_TAG_ERR(MXMAN, "mx140_file_download_fw() failed (%d)\n", r);
+			return r;
+		}
+	}
 
 	if (force_flat) {
 		/* Only request "flat" conf, where all hcf files are in FW root dir
@@ -349,12 +357,14 @@ static int __mx140_file_download_fw(struct scsc_mx *mx, void *dest, size_t dest_
 	}
 	SCSC_TAG_DBG4(MX_FILE, "FW Download, size %zu\n", firm->size);
 
+	if (dest) {
 	if (firm->size > dest_size) {
 		SCSC_TAG_ERR(MX_FILE, "firmware image too big for buffer (%zu > %u)", dest_size, *fw_image_size);
 		r = -EINVAL;
 	} else {
 		memcpy(dest, firm->data, firm->size);
 		*fw_image_size = firm->size;
+	}
 	}
 	mx140_release_file(mx, firm);
 	return r;

@@ -335,11 +335,13 @@ static int hl7132_parse_dt(struct device *dev, struct hl7132_platform_data *pdat
 	pdata->wd_dis = of_property_read_bool(np, "hl7132,wd-dis");
 	pr_info("%s: wd-dis[%d]\n", __func__, pdata->wd_dis);
 
-	rc = of_property_read_u32(np, "hl7132,fsw-set", &pdata->fsw_set);
+	rc = of_property_read_u32(np, "hl7132,fsw-set", &pdata->fsw_cfg);
 	if (rc) {
 		pr_info("%s: failed to get fsw_set from dtsi", __func__);
-		pdata->fsw_set = FSW_CFG_1100KHZ;
+		pdata->fsw_cfg = FSW_CFG_1100KHZ;
 	}
+	pdata->fsw_set = pdata->fsw_cfg;
+
 	pr_info("%s:: fsw-set[0x%x]", __func__, pdata->fsw_set);
 
 #if IS_ENABLED(CONFIG_BATTERY_SAMSUNG)
@@ -370,7 +372,7 @@ static int hl7132_parse_dt(struct device *dev, struct hl7132_platform_data *pdat
 
 #if IS_ENABLED(CONFIG_BATTERY_SAMSUNG)
 char *charging_state_str[] = {
-	"NOT_CHARGING", "CHECK_VBAT", "PRESET_DC", "CHECK_ACTIVE", "ADJUST_CC",
+	"NO_CHARGING", "CHECK_VBAT", "PRESET_DC", "CHECK_ACTIVE", "ADJUST_CC",
 	"START_CC", "CC_MODE", "CV_MODE", "CHARGING_DONE", "ADJUST_TAVOL",
 	"ADJUST_TACUR"
 #ifdef CONFIG_HALO_PASS_THROUGH
@@ -465,7 +467,7 @@ static int hl7132_send_pd_message(struct hl7132_charger *chg, unsigned int type)
 		if (ret == -EBUSY) {
 			LOG_DBG(chg, "request again ret=%d\n", ret);
 
-			msleep(HL7132_PDMSG_WAIT_T);
+			msleep(100);
 			ret = sec_pd_select_pps(pdoIndex, ppsVol, ppsCur);
 		}
 #else
@@ -473,7 +475,7 @@ static int hl7132_send_pd_message(struct hl7132_charger *chg, unsigned int type)
 		if (ret == -EBUSY) {
 			LOG_DBG(chg, "request again ret=%d\n", __func__, ret);
 
-			msleep(HL7132_PDMSG_WAIT_T);
+			msleep(100);
 			ret = max77958_select_pps(pdoIndex, ppsVol, ppsCur);
 		}
 #endif
@@ -488,14 +490,14 @@ static int hl7132_send_pd_message(struct hl7132_charger *chg, unsigned int type)
 		ret = sec_pd_select_pps(pdoIndex, ppsVol, ppsCur);
 		if (ret == -EBUSY) {
 			LOG_DBG(chg, "request again ret=%d\n", ret);
-			msleep(HL7132_PDMSG_WAIT_T);
+			msleep(100);
 			ret = sec_pd_select_pps(pdoIndex, ppsVol, ppsCur);
 		}
 #else
 		ret = max77958_select_pps(pdoIndex, ppsVol, ppsCur);
 		if (ret == -EBUSY) {
 			LOG_DBG(chg, "request again ret=%d\n", __func__, ret);
-			msleep(HL7132_PDMSG_WAIT_T);
+			msleep(100);
 			ret = max77958_select_pps(pdoIndex, ppsVol, ppsCur);
 		}
 #endif
@@ -801,6 +803,38 @@ static int hl7132_set_vbat_reg(struct hl7132_charger *chg, unsigned int vbat_reg
 	return ret;
 }
 
+const char *hl7132_get_fsw_str(int fsw)
+{
+	switch (fsw) {
+	case FSW_CFG_500KHZ:
+		return "500kHz";
+	case FSW_CFG_600KHZ:
+		return "600kHz";
+	case FSW_CFG_700KHZ:
+		return "700kHz";
+	case FSW_CFG_800KHZ:
+		return "800kHz";
+	case FSW_CFG_900KHZ:
+		return "900kHz";
+	case FSW_CFG_1000KHZ:
+		return "1000kHz";
+	case FSW_CFG_1100KHZ:
+		return "1100kHz";
+	case FSW_CFG_1200KHZ:
+		return "1200kHz";
+	case FSW_CFG_1300KHZ:
+		return "1300kHz";
+	case FSW_CFG_1400KHZ:
+		return "1400kHz";
+	case FSW_CFG_1500KHZ:
+		return "1500kHz";
+	case FSW_CFG_1600KHZ:
+		return "1600kHz";
+	default:
+		return "UNDEFINED";
+	}
+}
+
 static int hl7132_set_fsw(struct hl7132_charger *chg)
 {
 	int ret  = 0;
@@ -820,18 +854,16 @@ static int hl7132_set_fsw(struct hl7132_charger *chg)
 
 		/* set fsw_set to the target */
 		if (iin_target >= HL7132_CHECK_IIN_FOR_DEFAULT) {
-			chg->pdata->fsw_set = FSW_CFG_1100KHZ;
-			LOG_DBG(chg, "fsw is 1100khz, iin_target[%d]\n", iin_target);
+			chg->pdata->fsw_set = chg->pdata->fsw_cfg;
 		} else if ((iin_target >= HL7132_CHECK_IIN_FOR_800KHZ) && (iin_target < HL7132_CHECK_IIN_FOR_DEFAULT)) {
 			chg->pdata->fsw_set = FSW_CFG_800KHZ;
-			LOG_DBG(chg, "fsw is 800khz, iin_target[%d]\n", iin_target);
 		} else if ((iin_target >= HL7132_CHECK_IIN_FOR_600KHZ) && (iin_target < HL7132_CHECK_IIN_FOR_800KHZ)) {
 			chg->pdata->fsw_set = FSW_CFG_600KHZ;
-			LOG_DBG(chg, "fsw is 600khz, iin_target[%d]\n", iin_target);
 		} else {
-			LOG_DBG(chg, "iin-taget is out of the range, iin_target[%d]\n", iin_target);
-			chg->pdata->fsw_set = FSW_CFG_1100KHZ;
+			LOG_DBG(chg, "iin-taget is out of the range\n");
+			chg->pdata->fsw_set = chg->pdata->fsw_cfg;
 		}
+		LOG_DBG(chg, "fsw is %s, iin_target[%d]\n", hl7132_get_fsw_str(chg->pdata->fsw_set), iin_target);
 	}
 
 	value = chg->pdata->fsw_set << MASK2SHIFT(BITS_FSW_SET);
@@ -874,6 +906,13 @@ static int hl7132_stop_charging(struct hl7132_charger *chg)
 #ifdef HL7132_STEP_CHARGING
 		cancel_delayed_work(&chg->step_work);
 		chg->current_step = STEP_DIS;
+#endif
+
+#ifdef CONFIG_HALO_PASS_THROUGH
+		chg->pdata->fsw_set = chg->pdata->fsw_cfg;
+		value = chg->pdata->fsw_set << MASK2SHIFT(BITS_FSW_SET);
+		value = value | BIT_UNPLUG_DET_EN;
+		ret = hl7132_update_reg(chg, REG_CTRL12_0, (BITS_FSW_SET | BIT_UNPLUG_DET_EN), value);
 #endif
 
 		mutex_lock(&chg->lock);
@@ -934,7 +973,7 @@ static int hl7132_stop_charging(struct hl7132_charger *chg)
 		hl7132_enable_wdt(chg, WDT_DISABLED);
 	}
 
-	pr_info("END, ret=%d\n", ret);
+	LOG_DBG(chg, "End, ret=%d\n", ret);
 	return ret;
 }
 
@@ -1023,6 +1062,7 @@ static int hl7132_device_init(struct hl7132_charger *chg)
 
 	/* Set FSW and Unplug detectoin */
 	/* enable unplug detection and set 1100khz switching frequency */
+	chg->pdata->fsw_set = chg->pdata->fsw_cfg;
 	value = chg->pdata->fsw_set << MASK2SHIFT(BITS_FSW_SET);
 	value = value | BIT_UNPLUG_DET_EN;
 	ret = hl7132_update_reg(chg, REG_CTRL12_0, (BITS_FSW_SET | BIT_UNPLUG_DET_EN), value);
@@ -1083,7 +1123,7 @@ static int hl7132_get_adc_channel(struct hl7132_charger *chg, unsigned int chann
 
 		raw_adc = ((r_data[0] << 2) | (r_data[1] & BITS_ADC_IIN_LSB));
 		//conv_adc = raw_adc * IIN_STEP;
-		chg->adc_iin = raw_adc * HL7132_IIN_STEP;
+		chg->adc_iin = ((raw_adc * HL7132_IIN_STEP) / 1000) * 1061;
 		break;
 	case ADCCH_VBAT:
 		ret = hl7132_bulk_read_reg(chg, REG_ADC_VBAT_0, r_data, 2);
@@ -2206,9 +2246,19 @@ static int hl7132_pass_through_mode_process(struct hl7132_charger *chg)
 			LOG_DBG(chg, "Inactive loop\n");
 			break;
 		case VBAT_REG_LOOP:
+		case VBAT_IBAT_LOOP:
+		case VBAT_TDIE_LOOP:
 			LOG_DBG(chg, "vbat-reg loop in pass through mode\n");
 			break;
 		case IIN_REG_LOOP:
+		case IIN_TDIE_LOOP:
+		case IIN_IBAT_LOOP:
+		case IIN_VBAT_TDIE_IBAT_LOOP:
+		case IBAT_TDIE_LOOP:
+		case IIN_IBAT_TDIE_LOOP:
+		case T_DIE_REG_LOOP:
+		case VBAT_IIN_LOOP:
+		case VBAT_IIN_IBAT_LOOP:
 			LOG_DBG(chg, "iin-reg loop in pass through mode\n");
 			if (chg->ta_cur <= chg->iin_cc - HL7132_PT_TA_CUR_LOW_OFFSET) {
 				/* IIN_LOOP still happens even though TA current is less than IIN_CC - 200mA */
@@ -2227,9 +2277,6 @@ static int hl7132_pass_through_mode_process(struct hl7132_charger *chg)
 			return ret;
 		case IBAT_REG_LOOP:
 			LOG_DBG(chg, "ibat-reg loop in pass through mode\n");
-			break;
-		case T_DIE_REG_LOOP:
-			LOG_DBG(chg, "tdie-reg loop in pass through mode\n");
 			break;
 		default:
 			LOG_DBG(chg, "No cases!\n");
@@ -2336,6 +2383,7 @@ static int hl7132_preset_config(struct hl7132_charger *chg)
 	hl7132_set_charging_state(chg, DC_STATE_PRESET_DC);
 
 	/* enable unplug detection and set 1100khz switching frequency */
+	chg->pdata->fsw_set = chg->pdata->fsw_cfg;
 	update = chg->pdata->fsw_set << MASK2SHIFT(BITS_FSW_SET);
 	update = update | BIT_UNPLUG_DET_EN;
 	ret = hl7132_update_reg(chg, REG_CTRL12_0, (BITS_FSW_SET | BIT_UNPLUG_DET_EN), update);
@@ -2755,6 +2803,8 @@ EXIT:
 		break;
 
 	case VBAT_REG_LOOP:
+	case VBAT_IBAT_LOOP:
+	case VBAT_TDIE_LOOP:
 		chg->ta_target_vol = chg->ta_vol;
 		LOG_DBG(chg, "Ad end!!(VBAT-reg) ta_target_vol [%d]", chg->ta_target_vol);
 		chg->prev_inc = INC_NONE;
@@ -2770,6 +2820,14 @@ EXIT:
 
 	case IIN_REG_LOOP:
 	case IBAT_REG_LOOP:
+	case IIN_TDIE_LOOP:
+	case IIN_IBAT_LOOP:
+	case IIN_VBAT_TDIE_IBAT_LOOP:
+	case IBAT_TDIE_LOOP:
+	case IIN_IBAT_TDIE_LOOP:
+	case T_DIE_REG_LOOP:
+	case VBAT_IIN_LOOP:
+	case VBAT_IIN_IBAT_LOOP:
 		//(REG_STS == 0010b or 0100b) or IIN_ADC > IIN_TG + 20mA
 		chg->prev_dec = true;
 		chg->ta_cur = chg->ta_cur - PD_MSG_TA_CUR_STEP;
@@ -2784,8 +2842,6 @@ EXIT:
 		schedule_delayed_work(&chg->timer_work, msecs_to_jiffies(chg->timer_period));
 		break;
 
-	case T_DIE_REG_LOOP:
-		break;
 	default:
 		LOG_DBG(chg, "No Cases for Adjust![%d]\n", ccmode);
 		break;
@@ -2915,22 +2971,25 @@ static int hl7132_ccmode_regulation_process(struct hl7132_charger *chg)
 					} else
 						new_ta_vol = chg->ta_vol;
 				} else {
-					if ((iin > chg->iin_cc) && ((iin - chg->iin_cc) > HL7132_IIN_CFG_OFFSET_CC)) {
+					if ((iin > chg->iin_cc) && ((iin - chg->iin_cc) > (HL7132_IIN_CFG_OFFSET_CC * 2))) {
 						new_ta_cur = chg->ta_cur - PD_MSG_TA_CUR_STEP;
-						ta_v_ofs = chg->ta_v_ofs;
-						new_ta_vol = (2*vbat) + ta_v_ofs;
-						LOG_DBG(chg, "IIN is too high, decrease 50mA, TA-VOL[%d], TA-CUR[%d]\n",
-							new_ta_vol, chg->ta_cur);
+						//ta_v_ofs = chg->ta_v_ofs;
+						//new_ta_vol = (2*vbat) + ta_v_ofs;
+						LOG_DBG(chg, "IIN is too high, decrease 50mA, delta[%d], TA-VOL[%dmV], TA-CUR[%dmA]\n",
+							(iin-chg->iin_cc), new_ta_vol/1000, chg->ta_cur/1000);
 					} else {
-						//Calculate TA_V_ofs = TA_CV ??2xVBAT_ADC+100mV
-						//Set TA_CV to 2xVBAT_ADC + TA_V_ofs
 						ta_v_ofs = chg->ta_v_ofs;
-						new_ta_vol = (2*vbat) + ta_v_ofs;
 						/* Workaround code for low CC-Current issue, to keep high current, increase TA-CUR */
 						if ((iin < chg->iin_cc) && (chg->ta_cur < chg->iin_cc)) {
 							new_ta_cur = chg->ta_cur + PD_MSG_TA_CUR_STEP;
 							LOG_DBG(chg, "Increase 50mA\n");
+						} else if ((chg->iin_cc > iin) && ((chg->iin_cc - iin) > 20000)) {
+							//Calculate TA_V_ofs = TA_CV - 2xVBAT_ADC+100mV
+							//Set TA_CV to 2xVBAT_ADC + TA_V_ofs
+							LOG_DBG(chg, "iin-delta is lower than 20mA, add vin offset!\n");
+							new_ta_vol = (2*vbat) + ta_v_ofs;
 						}
+
 						LOG_DBG(chg, "TA-VOL:[%d],TA-CUR:[%d], ta_v_offs:[%d]\n",
 							chg->ta_vol, chg->ta_cur, ta_v_ofs);
 					}
@@ -2983,6 +3042,8 @@ static int hl7132_ccmode_regulation_process(struct hl7132_charger *chg)
 			break;
 
 		case VBAT_REG_LOOP:
+		case VBAT_IBAT_LOOP:
+		case VBAT_TDIE_LOOP:
 #ifdef CONFIG_FG_READING_FOR_CVMODE
 			if (chg->vbat_fg >= chg->pdata->vbat_reg) {
 				LOG_DBG(chg, "[vbat_reg_loop]vbat-fg > vbat_reg, move to CV\n");
@@ -3001,17 +3062,35 @@ static int hl7132_ccmode_regulation_process(struct hl7132_charger *chg)
 			}
 			break;
 #else
-			LOG_DBG(chg, "VBAT-REG, move to CV\n");
-			mutex_lock(&chg->lock);
-			chg->timer_id = TIMER_CHECK_CVMODE;
-			chg->timer_period = 0;
-			mutex_unlock(&chg->lock);
-			schedule_delayed_work(&chg->timer_work, msecs_to_jiffies(chg->timer_period));
+			/* early Vbat-REG happens because of the TA's noise. checking target and Vbat-ADC */
+			if ((vbat < chg->pdata->vbat_reg) && (vbat < (chg->pdata->vbat_reg - 20000))) {
+				LOG_DBG(chg, "early Vbat_reg loop, it will stay in CC\n");
+				mutex_lock(&chg->lock);
+				chg->timer_id = TIMER_CHECK_CCMODE;
+				chg->timer_period = HL7132_CCMODE_CHECK_T;
+				mutex_unlock(&chg->lock);
+				schedule_delayed_work(&chg->timer_work, msecs_to_jiffies(chg->timer_period));
+			} else {
+				LOG_DBG(chg, "VBAT-REG, move to CV\n");
+				mutex_lock(&chg->lock);
+				chg->timer_id = TIMER_CHECK_CVMODE;
+				chg->timer_period = 0;
+				mutex_unlock(&chg->lock);
+				schedule_delayed_work(&chg->timer_work, msecs_to_jiffies(chg->timer_period));
+			}
 			break;
 #endif
 
 		case IIN_REG_LOOP:
 		case IBAT_REG_LOOP:
+		case IIN_TDIE_LOOP:
+		case IIN_IBAT_LOOP:
+		case IIN_VBAT_TDIE_IBAT_LOOP:
+		case IBAT_TDIE_LOOP:
+		case IIN_IBAT_TDIE_LOOP:
+		case T_DIE_REG_LOOP:
+		case VBAT_IIN_LOOP:
+		case VBAT_IIN_IBAT_LOOP:
 			/* Request from samsung for abnormal TA connection */
 			if (!chg->ab_ta_connected) {
 				if (chg->ab_try_cnt > 3) {
@@ -3055,7 +3134,7 @@ static int hl7132_ccmode_regulation_process(struct hl7132_charger *chg)
 			schedule_delayed_work(&chg->timer_work, msecs_to_jiffies(chg->timer_period));
 			break;
 
-		case T_DIE_REG_LOOP:
+		default:
 			/* it depends on customer's scenario */
 			break;
 		}
@@ -3165,6 +3244,8 @@ static int hl7132_cvmode_process(struct hl7132_charger *chg)
 			break;
 
 		case VBAT_REG_LOOP:
+		case VBAT_IBAT_LOOP:
+		case VBAT_TDIE_LOOP:
 #ifdef CONFIG_FG_READING_FOR_CVMODE
 			if (chg->vbat_fg > chg->pdata->vbat_reg) {
 				chg->ta_vol = chg->ta_vol - HL7132_TA_VOL_STEP_PRE_CV;
@@ -3198,6 +3279,14 @@ static int hl7132_cvmode_process(struct hl7132_charger *chg)
 
 		case IIN_REG_LOOP:
 		case IBAT_REG_LOOP:
+		case IIN_TDIE_LOOP:
+		case IIN_IBAT_LOOP:
+		case IIN_VBAT_TDIE_IBAT_LOOP:
+		case IBAT_TDIE_LOOP:
+		case IIN_IBAT_TDIE_LOOP:
+		case T_DIE_REG_LOOP:
+		case VBAT_IIN_LOOP:
+		case VBAT_IIN_IBAT_LOOP:
 			chg->ta_cur = chg->ta_cur - PD_MSG_TA_CUR_STEP;
 			LOG_DBG(chg, "IIN-REG/IBAT-REG, Decrease 50mA, TA-VOL[%d], TA-CUR[%d]\n", chg->ta_vol, chg->ta_cur);
 			//send pd msg
@@ -3208,9 +3297,6 @@ static int hl7132_cvmode_process(struct hl7132_charger *chg)
 			schedule_delayed_work(&chg->timer_work, msecs_to_jiffies(chg->timer_period));
 			break;
 
-		case T_DIE_REG_LOOP:
-		/* it depends on customer's scenario */
-			break;
 		default:
 			LOG_DBG(chg, "No cases!\n");
 			break;

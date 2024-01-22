@@ -611,7 +611,6 @@ static void *a33x_res_init_cmdtbl[] = {
 	&s6e3fc3_restbl[RES_ELVSS],
 	&s6e3fc3_restbl[RES_OCTA_ID],
 #ifdef CONFIG_DISPLAY_USE_INFO
-	&s6e3fc3_restbl[RES_CHIP_ID],
 	&s6e3fc3_restbl[RES_SELF_DIAG],
 	&s6e3fc3_restbl[RES_ERR_FG],
 	&s6e3fc3_restbl[RES_DSI_ERR],
