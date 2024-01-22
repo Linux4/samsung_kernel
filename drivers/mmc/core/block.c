@@ -2119,7 +2119,8 @@ static void mmc_blk_mq_rw_recovery(struct mmc_queue *mq, struct request *req)
 	 */
 	err = __mmc_send_status(card, &status, 0);
 	if (err || mmc_blk_status_error(req, status)) {
-		mmc_card_error_logging(card, brq, status);
+		if (!err)
+			mmc_card_error_logging(card, brq, status);
 		brq->data.bytes_xfered = 0;
 	}
 

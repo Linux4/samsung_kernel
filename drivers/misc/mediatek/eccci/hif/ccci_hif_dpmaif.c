@@ -2469,7 +2469,7 @@ static int dpmaif_tx_release(unsigned char q_num, unsigned short budget)
 	dpmaif_ctrl->tx_done_last_count[q_num] = real_rel_cnt;
 #endif
 
-	if (real_rel_cnt < 0 || txq->que_started == false)
+	if (txq->que_started == false)
 		return ERROR_STOP;
 	else {
 		atomic_set(&s_tx_busy_num[q_num], 0);

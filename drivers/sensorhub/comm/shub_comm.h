@@ -19,6 +19,23 @@
 #include <linux/kernel.h>
 #include "shub_cmd.h"
 
+struct shub_msg {
+	u8 cmd;
+	u8 type;
+	u8 subcmd;
+	u16 total_length;
+	u16 length;
+	u64 timestamp;
+	char *buffer;
+	bool is_empty_pending_list;
+	struct completion *done;
+	struct list_head list;
+} __attribute__((__packed__));
+
+#define SHUB_CMD_SIZE			64
+#define SHUB_MSG_HEADER_SIZE	offsetof(struct shub_msg, buffer)
+#define SHUB_MSG_BUFFER_SIZE	(SHUB_CMD_SIZE - SHUB_MSG_HEADER_SIZE)
+
 int shub_send_command(u8 cmd, u8 type, u8 subcmd, char *send_buf, int send_buf_len);
 int shub_send_command_wait(u8 cmd, u8 type, u8 subcmd, int timeout, char *send_buf, int send_buf_len,
 			   char **receive_buf, int *receive_buf_len, bool reset);

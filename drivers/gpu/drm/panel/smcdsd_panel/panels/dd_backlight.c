@@ -75,6 +75,7 @@ static char *BL_POINT_NAME[] = { BL_POINTS };
 #define MAX_I2C_CLIENT	5
 
 struct bl_info {
+	struct list_head unused_node;	/* just to prevent prevent RESOURCE_LEAK */
 	struct backlight_device *bd;
 	unsigned int *brightness_table;
 	unsigned int *brightness_reset;
@@ -104,6 +105,7 @@ static const struct regmap_config ic_regmap_default = {
 	.val_bits = 8,
 };
 
+static LIST_HEAD(blinfo_list);
 static LIST_HEAD(client_list);
 
 static void make_bl_default_point(struct bl_info *bl)
@@ -702,8 +704,10 @@ int init_debugfs_backlight(struct backlight_device *bd, unsigned int *table, str
 	char full_string[I2C_NAME_SIZE + (u16)(ARRAY_SIZE(name_string))];
 	struct i2c_driver *driver;
 	static struct dentry *dd_debugfs_root;
+	struct backlight_device *final_bd = bd ? bd : backlight_device_get_by_type(BACKLIGHT_RAW);
+	struct dentry *d = NULL;
 
-	if (!bd && table) {
+	if (!final_bd) {
 		dbg_warn("failed to get backlight_device\n");
 		ret = -ENODEV;
 		goto exit;
@@ -711,6 +715,7 @@ int init_debugfs_backlight(struct backlight_device *bd, unsigned int *table, str
 
 	if (!table && !clients) {
 		dbg_warn("failed to get backlight table and client\n");
+		ret = -EPERM;
 		goto exit;
 	}
 
@@ -724,20 +729,37 @@ int init_debugfs_backlight(struct backlight_device *bd, unsigned int *table, str
 
 	if (table) {
 		bl = kzalloc(sizeof(struct bl_info), GFP_KERNEL);
-		bl->bd = bd ? bd : backlight_device_get_by_type(BACKLIGHT_RAW);
-		bl->brightness_table = table ? table : kcalloc(bd->props.max_brightness, sizeof(unsigned int), GFP_KERNEL);
+
+		d = debugfs_create_file("_help", 0400, debugfs_root, bl, &help_fops);
+		if (IS_ERR_OR_NULL(d)) {
+			dbg_info("debugfs_create_file fail\n");
+			kfree(bl);
+			ret = (int)d;
+			return ret;
+		}
+
+		d = debugfs_create_file("bl_tuning", 0600, debugfs_root, bl, &bl_tuning_fops);
+		if (IS_ERR_OR_NULL(d)) {
+			dbg_info("debugfs_create_file fail\n");
+			kfree(bl);
+			ret = (int)d;
+			return ret;
+		}
+
+		bl->bd = final_bd;
+		bl->brightness_table = table;
 		make_bl_default_point(bl);
 		bl->brightness_reset = kmemdup(bl->brightness_table, bd->props.max_brightness * sizeof(unsigned int), GFP_KERNEL);
-
-		debugfs_create_file("_help", 0400, debugfs_root, bl, &help_fops);
-		debugfs_create_file("bl_tuning", 0600, debugfs_root, bl, &bl_tuning_fops);
+		INIT_LIST_HEAD(&bl->unused_node);
+		list_add_tail(&bl->unused_node, &blinfo_list);
 	}
 
 	for (i2c_count = 0; i2c_count < MAX_I2C_CLIENT && clients && clients[i2c_count]; i2c_count++) {
 		list_for_each_entry(ic, &client_list, client_node) {
 			if (ic->client == clients[i2c_count]) {
 				dbg_info("%s %s already exist\n", dev_name(&clients[i2c_count]->adapter->dev), dev_name(&clients[i2c_count]->dev));
-				goto exit;
+				ret = -EBUSY;
+				return ret;
 			}
 		}
 
@@ -747,7 +769,7 @@ int init_debugfs_backlight(struct backlight_device *bd, unsigned int *table, str
 		scnprintf(full_string, sizeof(full_string), "%s%s", name_string, dev_name(&clients[i2c_count]->dev));
 		debugfs_create_file(full_string, 0600, debugfs_root, ic, &ic_tuning_fops);
 
-		ic->bd = bd;
+		ic->bd = final_bd;
 		ic->client = clients[i2c_count];
 
 		driver = to_i2c_driver(ic->client->dev.driver);

@@ -692,8 +692,6 @@ static void mtk_charger_check_aicl(struct mtk_charger_data *charger)
 			charger->slow_charging = true;
 			pr_info("%s: slow-charging mode\n", __func__);
 			psy_do_property("battery", set, POWER_SUPPLY_PROP_CHARGE_TYPE, value);
-		} else {
-			charger->slow_charging = false;
 		}
 	}
 

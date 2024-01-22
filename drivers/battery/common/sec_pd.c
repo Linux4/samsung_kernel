@@ -25,8 +25,9 @@ EXPORT_SYMBOL(g_psink_status);
 static SEC_PD_SINK_STATUS *g_psink_status;
 #endif
 
-#if defined(CONFIG_ARCH_MTK_PROJECT)
+#if defined(CONFIG_ARCH_MTK_PROJECT) || IS_ENABLED(CONFIG_SEC_MTK_CHARGER)
 struct pdic_notifier_struct pd_noti;
+EXPORT_SYMBOL(pd_noti);
 #endif
 
 const char* sec_pd_pdo_type_str(int pdo_type)
@@ -298,6 +299,24 @@ int sec_pd_vpdo_auth(int auth, int d2d_type)
 	return 0;
 }
 EXPORT_SYMBOL(sec_pd_vpdo_auth);
+
+int sec_pd_change_src(int max_cur)
+{
+	if (!g_psink_status) {
+		pr_err("%s: g_psink_status is NULL\n", __func__);
+		return -1;
+	}
+
+	if (!g_psink_status->fp_sec_pd_change_src) {
+		pr_err("%s: not exist\n", __func__);
+		return -1;
+	}
+
+	g_psink_status->fp_sec_pd_change_src(max_cur);
+
+	return 0;
+}
+EXPORT_SYMBOL(sec_pd_change_src);
 
 int sec_pd_get_apdo_max_power(unsigned int *pdo_pos, unsigned int *taMaxVol, unsigned int *taMaxCur, unsigned int *taMaxPwr)
 {

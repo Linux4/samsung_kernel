@@ -929,8 +929,8 @@ int mmc_run_queue_thread(void *data)
 				err = mmc_blk_status_check(host->card, &status);
 				if (err)
 					pr_debug("[CQ] check card status error = %d\n", err);
-
-				mmc_card_error_logging(host->card, brq, status);
+				else
+					mmc_card_error_logging(host->card, brq, status);
 
 				mmc_wait_tran(host);
 				mmc_discard_cmdq(host);

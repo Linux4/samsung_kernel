@@ -5878,11 +5878,11 @@ g_FG_PSEUDO100 =
 		};
 	};
 	sec_battery_wireless_power_info: wireless-power-info {
-		count = <6>;
+		count = <9>;
 		current_group_0 {
 			wireless_power_class = <2>;
 			vout = <9000>;
-			input_current_limit = <825>;
+			input_current_limit = <830>;
 			fast_charging_current = <3150>;
 			ttf_charge_current = <1500>;
 			rx_power = <7500>;
@@ -5905,24 +5905,48 @@ g_FG_PSEUDO100 =
 		};
 		current_group_3 {
 			wireless_power_class = <2>;
-			vout = <9000>;
-			input_current_limit = <1200>;
+			vout = <12000>;
+			input_current_limit = <625>;
 			fast_charging_current = <3150>;
-			ttf_charge_current = <2175>;
-			rx_power = <12000>;
+			ttf_charge_current = <1500>;
+			rx_power = <7500>;
 		};
 		current_group_4 {
 			wireless_power_class = <2>;
-			vout = <11000>;
-			input_current_limit = <1100>;
+			vout = <9000>;
+			input_current_limit = <1330>;
 			fast_charging_current = <3150>;
-			ttf_charge_current = <2100>;
+			ttf_charge_current = <2175>;
 			rx_power = <12000>;
 		};
 		current_group_5 {
 			wireless_power_class = <2>;
 			vout = <11000>;
-			input_current_limit = <1300>;
+			input_current_limit = <1090>;
+			fast_charging_current = <3150>;
+			ttf_charge_current = <2100>;
+			rx_power = <12000>;
+		};
+		current_group_6 {
+			wireless_power_class = <2>;
+			vout = <12000>;
+			input_current_limit = <1000>;
+			fast_charging_current = <3150>;
+			ttf_charge_current = <2100>;
+			rx_power = <12000>;
+		};
+		current_group_7 {
+			wireless_power_class = <2>;
+			vout = <11000>;
+			input_current_limit = <1360>;
+			fast_charging_current = <3150>;
+			ttf_charge_current = <2300>;
+			rx_power = <15000>;
+		};
+		current_group_8 {
+			wireless_power_class = <2>;
+			vout = <12000>;
+			input_current_limit = <1250>;
 			fast_charging_current = <3150>;
 			ttf_charge_current = <2300>;
 			rx_power = <15000>;
@@ -5936,6 +5960,7 @@ g_FG_PSEUDO100 =
 
 		battery,chip_vendor = "MTK";
 
+		battery,adc_read_type = <SEC_BATTERY_ADC_RAW>;
 		battery,temp_check_type = <SEC_BATTERY_TEMP_CHECK_ADC>;
 		battery,chg_temp_check_type = <SEC_BATTERY_TEMP_CHECK_ADC>;
 		battery,dchg_temp_check_type = <SEC_BATTERY_TEMP_CHECK_TEMP>;

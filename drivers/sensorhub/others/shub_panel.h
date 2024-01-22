@@ -33,6 +33,7 @@
 
 void init_shub_panel(void);
 void remove_shub_panel(void);
+void sync_panel_state(void);
 
 void init_shub_panel_callback(void);
 void remove_shub_panel_callback(void);

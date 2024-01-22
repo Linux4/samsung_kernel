@@ -132,6 +132,21 @@ struct shub_system_info *get_shub_system_info(void)
 	return &shub_data->system_info;
 }
 
+
+void set_model_name_to_hub(void)
+{
+	struct device_node *np = shub_data->pdev->dev.of_node;
+	const char *model_name_string;
+
+	if (of_property_read_string(np, "model-name", &model_name_string) >= 0) {
+		shub_infof("model_name_string: %s", model_name_string);
+		strcpy(shub_data->model_name, model_name_string);
+		shub_send_command(CMD_SETVALUE, TYPE_HUB, MODEL_NAME_INFO, shub_data->model_name, MODEL_NAME_MAX);
+	} else {
+		shub_infof("model name dt doesn't exsist");
+	}
+}
+
 static int send_pm_state(u8 pm_state)
 {
 	int ret;
@@ -153,6 +168,8 @@ static int init_sensorhub(void)
 	if (ret < 0)
 		return ret;
 
+	set_model_name_to_hub();
+
 	send_pm_state(shub_data->pm_status);
 	shub_send_status(shub_data->lcd_status);
 
@@ -162,6 +179,7 @@ static int init_sensorhub(void)
 void init_others(void)
 {
 	sync_motor_state();
+	sync_panel_state();
 }
 
 struct reset_info_t get_reset_info(void)

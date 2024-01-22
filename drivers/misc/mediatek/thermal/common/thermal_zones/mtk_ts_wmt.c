@@ -222,6 +222,7 @@ static int wmt_send_signal(int level)
 			put_task_struct(pg_task);
 			mutex_unlock(&WMT_pg_task_lock);
 		}
+
 		rcu_read_lock();
 		pg_task = get_pid_task(find_vpid(tm_pid), PIDTYPE_PID);
 		rcu_read_unlock();

@@ -913,4 +913,12 @@ config RBIN
 	help
 	  This provides RBIN functionality in memory management.
 
+config RESTRICT_FILE_TO_CMA_ON_BOOT
+	bool "Restrict file cache allocation on cma zone when in early boot stage"
+	default n
+	help
+	  File page on cma zone which was allocated at early boot stage might
+          occur cma allocation failure. This config restricts file cache allocation
+          on cma zone for increasing the possibiliy of cma allocation success.
+
 endmenu

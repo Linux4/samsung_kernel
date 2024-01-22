@@ -183,7 +183,10 @@ struct array_data {
 	void *array;
 	void *pending;
 	u32 elements;
+	struct list_head unused_node;	/* just to prevent prevent RESOURCE_LEAK */
 };
+
+static LIST_HEAD(u32_dummy_list);
 
 static ssize_t u32_array_write(struct file *f, const char __user *user_buf,
 					size_t count, loff_t *ppos)
@@ -310,6 +313,9 @@ static struct dentry *debugfs_create_array(const char *name, umode_t mode,
 
 	data->elements = elements;
 
+	INIT_LIST_HEAD(&data->unused_node);
+	list_add_tail(&data->unused_node, &u32_dummy_list);
+
 	return debugfs_create_file(name, mode, parent, data, &u32_array_fops);
 }
 
@@ -351,7 +357,7 @@ static int init_debugfs_lcd_info(struct d_info *d)
 		debugfs = debugfs_create_array(debugfs_list[i].sysfs_name, debugfs_list[i].mode, d->debugfs_root,
 			&d->request_param[i], &d->pending_param[i], count);
 
-		if (debugfs)
+		if (!IS_ERR_OR_NULL(debugfs))
 			dbg_info("%s is created and length is %d\n", debugfs_list[i].sysfs_name, debugfs_list[i].length);
 
 	}

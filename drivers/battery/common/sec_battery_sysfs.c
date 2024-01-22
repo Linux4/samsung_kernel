@@ -204,7 +204,6 @@ static struct device_attribute sec_battery_attrs[] = {
 	SEC_BATTERY_ATTR(batt_chip_id),
 	SEC_BATTERY_ATTR(error_cause),
 	SEC_BATTERY_ATTR(cisd_fullcaprep_max),
-#if defined(CONFIG_BATTERY_CISD)
 	SEC_BATTERY_ATTR(cisd_data),
 	SEC_BATTERY_ATTR(cisd_data_json),
 	SEC_BATTERY_ATTR(cisd_data_d_json),
@@ -223,7 +222,6 @@ static struct device_attribute sec_battery_attrs[] = {
 	SEC_BATTERY_ATTR(cisd_event_data_json),
 	SEC_BATTERY_ATTR(prev_battery_data),
 	SEC_BATTERY_ATTR(prev_battery_info),
-#endif
 	SEC_BATTERY_ATTR(safety_timer_set),
 	SEC_BATTERY_ATTR(batt_swelling_control),
 	SEC_BATTERY_ATTR(batt_battery_id),
@@ -297,7 +295,6 @@ static struct device_attribute sec_battery_attrs[] = {
 	SEC_BATTERY_ATTR(wc_param_info),
 #endif
 	SEC_BATTERY_ATTR(chg_info),
-	SEC_BATTERY_ATTR(batt_full_capacity),
 	SEC_BATTERY_ATTR(lrp),
 	SEC_BATTERY_ATTR(hp_d2d),
 	SEC_BATTERY_ATTR(charger_ic_name),
@@ -309,6 +306,8 @@ static struct device_attribute sec_battery_attrs[] = {
 	SEC_BATTERY_ATTR(mst_en),
 	SEC_BATTERY_ATTR(spsn_test),
 	SEC_BATTERY_ATTR(chg_soc_lim),
+	SEC_BATTERY_ATTR(mag_cover),
+	SEC_BATTERY_ATTR(mag_cloak),
 };
 
 static struct device_attribute sec_pogo_attrs[] = {
@@ -407,12 +406,14 @@ ssize_t sec_bat_show_attrs(struct device *dev,
 	case BATT_TEMP:
 		value.intval = sec_bat_get_temperature(battery->dev,
 				&battery->pdata->bat_thm_info, 0,
-				battery->pdata->charger_name, battery->pdata->fuelgauge_name);
+				battery->pdata->charger_name, battery->pdata->fuelgauge_name,
+				battery->pdata->adc_read_type);
 #if !defined(CONFIG_SEC_FACTORY)
 		if (battery->pdata->lr_enable) {
 			int sub_bat_temp = sec_bat_get_temperature(battery->dev,
 					&battery->pdata->sub_bat_thm_info, 0,
-					battery->pdata->charger_name, battery->pdata->fuelgauge_name);
+					battery->pdata->charger_name, battery->pdata->fuelgauge_name,
+					battery->pdata->adc_read_type);
 			value.intval = adjust_bat_temp(battery, value.intval, sub_bat_temp);
 		}
 #endif
@@ -422,7 +423,8 @@ ssize_t sec_bat_show_attrs(struct device *dev,
 	case BATT_TEMP_RAW:
 		value.intval = sec_bat_get_temperature(battery->dev,
 				&battery->pdata->bat_thm_info, 0,
-				battery->pdata->charger_name, battery->pdata->fuelgauge_name);
+				battery->pdata->charger_name, battery->pdata->fuelgauge_name,
+				battery->pdata->adc_read_type);
 		i += scnprintf(buf + i, PAGE_SIZE - i, "%d\n",
 				value.intval);
 		break;
@@ -436,7 +438,8 @@ ssize_t sec_bat_show_attrs(struct device *dev,
 		break;
 	case USB_TEMP:
 		value.intval = sec_bat_get_temperature(battery->dev, &battery->pdata->usb_thm_info, 0,
-				battery->pdata->charger_name, battery->pdata->fuelgauge_name);
+				battery->pdata->charger_name, battery->pdata->fuelgauge_name,
+				battery->pdata->adc_read_type);
 		i += scnprintf(buf + i, PAGE_SIZE - i, "%d\n",
 				value.intval);
 		break;
@@ -447,7 +450,8 @@ ssize_t sec_bat_show_attrs(struct device *dev,
 	case BATT_CHG_TEMP:
 		value.intval = sec_bat_get_temperature(battery->dev,
 				&battery->pdata->chg_thm_info, 0,
-				battery->pdata->charger_name, battery->pdata->fuelgauge_name);
+				battery->pdata->charger_name, battery->pdata->fuelgauge_name,
+				battery->pdata->adc_read_type);
 		i += scnprintf(buf + i, PAGE_SIZE - i, "%d\n",
 				value.intval);
 		break;
@@ -457,7 +461,8 @@ ssize_t sec_bat_show_attrs(struct device *dev,
 		break;
 	case SUB_BAT_TEMP:
 		value.intval = sec_bat_get_temperature(battery->dev, &battery->pdata->sub_bat_thm_info, 0,
-				battery->pdata->charger_name, battery->pdata->fuelgauge_name);
+				battery->pdata->charger_name, battery->pdata->fuelgauge_name,
+				battery->pdata->adc_read_type);
 		i += scnprintf(buf + i, PAGE_SIZE - i, "%d\n",
 				value.intval);
 		break;
@@ -475,7 +480,8 @@ ssize_t sec_bat_show_attrs(struct device *dev,
 			else
 				battery->dchg_temp = sec_bat_get_temperature(battery->dev,
 						&battery->pdata->dchg_thm_info, 0,
-						battery->pdata->charger_name, battery->pdata->fuelgauge_name);
+						battery->pdata->charger_name, battery->pdata->fuelgauge_name,
+						battery->pdata->adc_read_type);
 			i += scnprintf(buf + i, PAGE_SIZE - i, "%d\n",
 				battery->dchg_temp);
 		}
@@ -504,7 +510,8 @@ ssize_t sec_bat_show_attrs(struct device *dev,
 #endif
 	case BLKT_TEMP:
 		value.intval = sec_bat_get_temperature(battery->dev, &battery->pdata->blk_thm_info, 0,
-				battery->pdata->charger_name, battery->pdata->fuelgauge_name);
+				battery->pdata->charger_name, battery->pdata->fuelgauge_name,
+				battery->pdata->adc_read_type);
 		i += scnprintf(buf + i, PAGE_SIZE - i, "%d\n",
 			value.intval);
 		break;
@@ -840,7 +847,8 @@ ssize_t sec_bat_show_attrs(struct device *dev,
 		break;
 	case BATT_WPC_TEMP:
 		value.intval = sec_bat_get_temperature(battery->dev, &battery->pdata->wpc_thm_info, 0,
-				battery->pdata->charger_name, battery->pdata->fuelgauge_name);
+				battery->pdata->charger_name, battery->pdata->fuelgauge_name,
+				battery->pdata->adc_read_type);
 		i += scnprintf(buf + i, PAGE_SIZE - i, "%d\n",
 			value.intval);
 		break;
@@ -1242,7 +1250,6 @@ ssize_t sec_bat_show_attrs(struct device *dev,
 					fullcaprep_val.intval);
 		}
 		break;
-#if defined(CONFIG_BATTERY_CISD)
 	case CISD_DATA:
 		{
 			struct cisd *pcisd = &battery->cisd;
@@ -1607,7 +1614,6 @@ ssize_t sec_bat_show_attrs(struct device *dev,
 				battery->prev_jig_on, battery->prev_chg_on);
 		}
 		break;
-#endif
 	case SAFETY_TIMER_SET:
 		i += scnprintf(buf + i, PAGE_SIZE - i, "%d\n",
 			       battery->safety_timer_set);
@@ -2062,10 +2068,6 @@ ssize_t sec_bat_show_attrs(struct device *dev,
 		i += scnprintf(buf + i, PAGE_SIZE - i, "%04x %04x %08x\n", vid, pid, xid);
 	}
 		break;
-	case BATT_FULL_CAPACITY:
-		pr_info("%s: BATT_FULL_CAPACITY = %d\n", __func__, battery->batt_full_capacity);
-		i += scnprintf(buf + i, PAGE_SIZE - i, "%d\n", battery->batt_full_capacity);
-		break;
 	case LRP:
 		i += scnprintf(buf + i, PAGE_SIZE - i, "%d\n", battery->lrp);
 		break;
@@ -2134,6 +2136,13 @@ ssize_t sec_bat_show_attrs(struct device *dev,
 			battery->pdata->store_mode_charging_min,
 			battery->pdata->store_mode_charging_max);
 		break;
+	case MAG_COVER:
+		i += scnprintf(buf + i, PAGE_SIZE - i, "%d\n",
+			battery->mag_cover);
+		break;
+	case MAG_CLOAK:
+		i += scnprintf(buf + i, PAGE_SIZE - i, "%s\n", "None");
+		break;
 	default:
 		i = -EINVAL;
 		break;
@@ -2152,9 +2161,7 @@ ssize_t sec_bat_store_attrs(
 	const ptrdiff_t offset = attr - sec_battery_attrs;
 	int ret = -EINVAL;
 	int x = 0;
-#if defined(CONFIG_ENG_BATTERY_CONCEPT) || defined(CONFIG_BATTERY_CISD)
 	int i = 0;
-#endif
 #if IS_ENABLED(CONFIG_DIRECT_CHARGING)
 	char direct_charging_source_status[2] = {0, };
 #endif
@@ -2275,7 +2282,7 @@ ssize_t sec_bat_store_attrs(
 		break;
 	case BATT_SLATE_MODE:
 		if (sscanf(buf, "%10d\n", &x) == 1) {
-			if (x == 2) {
+			if (x == SEC_SMART_SWITCH_SLATE) {
 				sec_bat_set_current_event(battery, SEC_BAT_CURRENT_EVENT_SLATE, SEC_BAT_CURRENT_EVENT_SLATE);
 				sec_vote(battery->chgen_vote, VOTER_SMART_SLATE, true, SEC_BAT_CHG_MODE_BUCK_OFF);
 				sec_bat_set_mfc_off(battery, WPC_EN_SLATE, false);
@@ -2284,18 +2291,23 @@ ssize_t sec_bat_store_attrs(
 #endif
 				dev_info(battery->dev,
 					"%s: enable smart switch slate mode : %d\n", __func__, x);
-			} else if (x == 1) {
+			} else if (x == SEC_SLATE_MODE) {
 				sec_bat_set_current_event(battery, SEC_BAT_CURRENT_EVENT_SLATE, SEC_BAT_CURRENT_EVENT_SLATE);
 				sec_vote(battery->chgen_vote, VOTER_SLATE, true, SEC_BAT_CHG_MODE_BUCK_OFF);
 				dev_info(battery->dev,
 					"%s: enable slate mode : %d\n", __func__, x);
-			} else if (x == 0) {
+			} else if (x == SEC_SLATE_OFF) {
 				sec_bat_set_current_event(battery, 0, SEC_BAT_CURRENT_EVENT_SLATE);
 				sec_vote(battery->chgen_vote, VOTER_SLATE, false, 0);
 				sec_vote(battery->chgen_vote, VOTER_SMART_SLATE, false, 0);
 				sec_bat_set_mfc_on(battery, WPC_EN_SLATE);
+				/* recover smart switch src cap max current to 500mA */
+				sec_bat_smart_sw_src(battery, false, 500);
 				dev_info(battery->dev,
 					"%s: disable slate mode : %d\n", __func__, x);
+			} else if (x == SEC_SMART_SWITCH_SRC) {
+				/* reduce smart switch src cap max current */
+				sec_bat_smart_sw_src(battery, true, 0);
 			} else {
 				dev_info(battery->dev,
 					"%s: SLATE MODE unknown command\n", __func__);
@@ -2365,9 +2377,7 @@ ssize_t sec_bat_store_attrs(
 					sec_abc_send_event("MODULE=battery@WARN=store_fg_asoc0");
 #endif
 				battery->batt_asoc = x;
-#if defined(CONFIG_BATTERY_CISD)
 				battery->cisd.data[CISD_DATA_ASOC] = x;
-#endif
 				sec_bat_check_battery_health(battery);
 			}
 			ret = count;
@@ -2625,7 +2635,8 @@ ssize_t sec_bat_store_attrs(
 				pr_info("%s: ISDB ON\n", __func__);
 				sec_bat_set_current_event(battery, SEC_BAT_CURRENT_EVENT_ISDB,
 					SEC_BAT_CURRENT_EVENT_ISDB);
-				if (is_hv_wireless_type(battery->cable_type)) {
+				if (is_hv_wireless_type(battery->cable_type) &&
+					(battery->cable_type != SEC_BATTERY_CABLE_WIRELESS_MPP)) {
 					pr_info("%s: set vout 5.5V with ISDB\n", __func__);
 					value.intval = WIRELESS_VOUT_5_5V_STEP; // 5.5V
 					psy_do_property(battery->pdata->wireless_charger_name, set,
@@ -2641,7 +2652,8 @@ ssize_t sec_bat_store_attrs(
 				pr_info("%s: ISDB OFF\n", __func__);
 				sec_bat_set_current_event(battery, 0,
 					SEC_BAT_CURRENT_EVENT_ISDB);
-				if (is_hv_wireless_type(battery->cable_type)) {
+				if (is_hv_wireless_type(battery->cable_type) &&
+					(battery->cable_type != SEC_BATTERY_CABLE_WIRELESS_MPP)) {
 					pr_info("%s: recover vout 10V with ISDB\n", __func__);
 					value.intval = WIRELESS_VOUT_10V; // 10V
 					psy_do_property(battery->pdata->wireless_charger_name, set,
@@ -2896,9 +2908,7 @@ ssize_t sec_bat_store_attrs(
 			if (x >= 0) {
 				int prev_battery_cycle = battery->batt_cycle;
 				battery->batt_cycle = x;
-#if defined(CONFIG_BATTERY_CISD)
 				battery->cisd.data[CISD_DATA_CYCLE] = x;
-#endif
 				if (prev_battery_cycle < 0) {
 					sec_bat_aging_check(battery);
 				}
@@ -3025,10 +3035,8 @@ ssize_t sec_bat_store_attrs(
 					/* clear tx all event */
 					sec_bat_set_tx_event(battery, 0, BATT_TX_EVENT_WIRELESS_ALL_MASK);
 				}
-#if defined(CONFIG_BATTERY_CISD)
 				if (x)
 					battery->cisd.tx_data[TX_ON]++;
-#endif
 			}
 #endif
 			ret = count;
@@ -3050,7 +3058,8 @@ ssize_t sec_bat_store_attrs(
 		break;
 	case BATT_HV_WIRELESS_STATUS:
 		if (sscanf(buf, "%10d\n", &x) == 1) {
-			if (x == 1 && is_hv_wireless_type(battery->cable_type)) {
+			if (x == 1 && is_hv_wireless_type(battery->cable_type) &&
+				(battery->cable_type != SEC_BATTERY_CABLE_WIRELESS_MPP)) {
 #ifdef CONFIG_SEC_FACTORY
 				int input_current, charging_current;
 				pr_info("%s change cable type HV WIRELESS -> WIRELESS\n", __func__);
@@ -3066,7 +3075,8 @@ ssize_t sec_bat_store_attrs(
 				psy_do_property(battery->pdata->wireless_charger_name, set,
 					POWER_SUPPLY_EXT_PROP_INPUT_VOLTAGE_REGULATION, value);
 				__pm_relax(battery->cable_ws);
-			} else if (x == 3 && is_hv_wireless_type(battery->cable_type)) {
+			} else if (x == 3 && is_hv_wireless_type(battery->cable_type) &&
+					(battery->cable_type != SEC_BATTERY_CABLE_WIRELESS_MPP)) {
 				pr_info("%s HV_WIRELESS_STATUS set to 3. Vout set to 10V.\n", __func__);
 				value.intval = WIRELESS_VOUT_10V;
 				psy_do_property(battery->pdata->wireless_charger_name, set,
@@ -3089,7 +3099,7 @@ ssize_t sec_bat_store_attrs(
 				psy_do_property(battery->pdata->wireless_charger_name, set,
 							POWER_SUPPLY_EXT_PROP_SLEEP_MODE, value);
 
-				if (is_hv_wireless_type(battery->cable_type))
+				if (is_hv_wireless_type(battery->cable_type) && (battery->cable_type != SEC_BATTERY_CABLE_WIRELESS_MPP))
 					sec_vote(battery->input_vote, VOTER_SLEEP_MODE, true, battery->pdata->sleep_mode_limit_current);
 			} else if (x == 2) {
 				pr_info("%s: hv wireless charging is enabled\n", __func__);
@@ -3501,7 +3511,6 @@ ssize_t sec_bat_store_attrs(
 		break;
 	case CISD_FULLCAPREP_MAX:
 		break;
-#if defined(CONFIG_BATTERY_CISD)
 	case CISD_DATA:
 		{
 			struct cisd *pcisd = &battery->cisd;
@@ -3822,7 +3831,6 @@ ssize_t sec_bat_store_attrs(
 		break;
 	case PREV_BATTERY_INFO:
 		break;
-#endif
 	case SAFETY_TIMER_SET:
 		if (sscanf(buf, "%10d\n", &x) == 1) {
 			if (x) {
@@ -4182,13 +4190,6 @@ ssize_t sec_bat_store_attrs(
 		if (sscanf(buf, "%10d\n", &x) == 1) {
 			dev_info(battery->dev,
 				"%s: boot completed(%d)\n", __func__, x);
-#if defined(CONFIG_WIRELESS_IC_PARAM)
-			value.intval = x;
-			psy_do_property(battery->pdata->wireless_charger_name, set,
-					POWER_SUPPLY_EXT_PROP_BOOT_COMPLETE, value);
-			psy_do_property(battery->pdata->wireless_charger_name, set,
-					POWER_SUPPLY_EXT_PROP_WIRELESS_PARAM_INFO, value);
-#endif
 			ret = count;
 		}
 		break;
@@ -4339,20 +4340,6 @@ ssize_t sec_bat_store_attrs(
 			ret = count;
 		}
 		break;
-	case BATT_FULL_CAPACITY:
-		if (sscanf(buf, "%10d\n", &x) == 1) {
-			if (x >= 0 && x <= 100) {
-				pr_info("%s: update BATT_FULL_CAPACITY(%d)\n", __func__, x);
-				battery->batt_full_capacity = x;
-				__pm_stay_awake(battery->monitor_ws);
-				queue_delayed_work(battery->monitor_wqueue,
-					&battery->monitor_work, 0);
-			} else {
-				pr_info("%s: out of range(%d)\n", __func__, x);
-			}
-			ret = count;
-		}
-		break;
 	case DC_RB_EN:
 		if (sscanf(buf, "%10d\n", &x) == 1) {
 			value.intval = x;
@@ -4416,6 +4403,23 @@ ssize_t sec_bat_store_attrs(
 #endif
 		break;
 	}
+	case MAG_COVER:
+		if (sscanf(buf, "%10d\n", &x) == 1) {
+			pr_info("@MPP %s: update mag_cover(%d)\n", __func__, x);
+			battery->mag_cover = x;
+			value.intval = battery->mag_cover;
+			psy_do_property(battery->pdata->wireless_charger_name, set,
+				POWER_SUPPLY_EXT_PROP_MPP_COVER, value);
+		}
+		break;
+	case MAG_CLOAK:
+		if (sscanf(buf, "%10d\n", &x) == 1) {
+			pr_info("@MPP %s: update mag_cloak(%d)\n", __func__, x);
+			value.intval = x;
+			psy_do_property("wireless", set,
+				POWER_SUPPLY_EXT_PROP_MPP_CLOAK, value);
+		}
+		break;
 	default:
 		ret = -EINVAL;
 		break;

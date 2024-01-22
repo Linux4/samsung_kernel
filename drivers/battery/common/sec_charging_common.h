@@ -119,6 +119,13 @@ enum sec_battery_voltage_type {
 	SEC_BATTERY_VOLTAGE_MV,
 };
 
+enum sec_battery_temp_type {
+	/* temp */
+	SEC_BATTERY_TEMP_TEMP = 0,
+	/* adc */
+	SEC_BATTERY_TEMP_ADC,
+};
+
 #if IS_ENABLED(CONFIG_DUAL_BATTERY)
 enum sec_battery_dual_mode {
 	SEC_DUAL_BATTERY_MAIN = 0,
@@ -284,6 +291,13 @@ enum sec_battery_direct_charging_source_ctrl {
 	SEC_STORE_MODE = 0x4,
 };
 
+enum sec_battery_slate_mode {
+	SEC_SLATE_OFF = 0,
+	SEC_SLATE_MODE,
+	SEC_SMART_SWITCH_SLATE,
+	SEC_SMART_SWITCH_SRC,
+};
+
 extern const char *sb_rx_type_str(int type);
 extern const char *sb_vout_ctr_mode_str(int vout_mode);
 extern const char *sb_rx_vout_str(int vout);
@@ -384,6 +398,14 @@ enum d2d_mode {
 	HP_D2D_LCD,
 };
 
+enum {
+	RX_POWER_NONE,
+	RX_POWER_5W,
+	RX_POWER_7_5W,
+	RX_POWER_12W,
+	RX_POWER_15W,
+};
+
 enum mfc_phm_state {
 	EXIT_PHM = 0,
 	ENTER_PHM,
@@ -474,6 +496,8 @@ enum sec_battery_check {
  */
 #define SEC_CHARGER_MINIMUM_SIOP_CHARGING_CURRENT	2
 
+#define SEC_BATTERY_CABLE_TYPE_FROM_MTK	1
+
 #if defined(CONFIG_TABLET_MODEL_CONCEPT) && !defined(CONFIG_SEC_FACTORY)
 #define SLOW_CHARGING_CURRENT_STANDARD          1000
 #else
@@ -496,13 +520,25 @@ typedef struct {
 	unsigned int asoc;
 } battery_health_condition;
 
+#define is_ppde_wireless_type(cable_type) ( \
+	cable_type == SEC_BATTERY_CABLE_PREPARE_WIRELESS_20 || \
+	cable_type == SEC_BATTERY_CABLE_HV_WIRELESS_20_LIMIT || \
+	cable_type == SEC_BATTERY_CABLE_HV_WIRELESS_20)
+
+#define is_pwr_nego_wireless_type(cable_type) ( \
+	cable_type == SEC_BATTERY_CABLE_HV_WIRELESS_20 || \
+	cable_type == SEC_BATTERY_CABLE_WIRELESS_EPP || \
+	cable_type == SEC_BATTERY_CABLE_WIRELESS_MPP)
+
 #define is_hv_wireless_type(cable_type) ( \
 	cable_type == SEC_BATTERY_CABLE_HV_WIRELESS || \
 	cable_type == SEC_BATTERY_CABLE_WIRELESS_HV_STAND || \
 	cable_type == SEC_BATTERY_CABLE_HV_WIRELESS_20 || \
 	cable_type == SEC_BATTERY_CABLE_HV_WIRELESS_20_LIMIT || \
 	cable_type == SEC_BATTERY_CABLE_WIRELESS_HV_VEHICLE || \
-	cable_type == SEC_BATTERY_CABLE_WIRELESS_HV_PACK)
+	cable_type == SEC_BATTERY_CABLE_WIRELESS_HV_PACK || \
+	cable_type == SEC_BATTERY_CABLE_WIRELESS_EPP || \
+	cable_type == SEC_BATTERY_CABLE_WIRELESS_MPP)
 
 #define is_nv_wireless_type(cable_type)	( \
 	cable_type == SEC_BATTERY_CABLE_WIRELESS || \
@@ -534,7 +570,9 @@ typedef struct {
 	cable_type != SEC_BATTERY_CABLE_PREPARE_WIRELESS_20 && \
 	cable_type != SEC_BATTERY_CABLE_HV_WIRELESS_20 && \
 	cable_type != SEC_BATTERY_CABLE_HV_WIRELESS_20_LIMIT && \
-	cable_type != SEC_BATTERY_CABLE_WIRELESS_HV_PACK)
+	cable_type != SEC_BATTERY_CABLE_WIRELESS_HV_PACK && \
+	cable_type != SEC_BATTERY_CABLE_WIRELESS_EPP && \
+	cable_type != SEC_BATTERY_CABLE_WIRELESS_MPP)
 
 #define is_wired_type(cable_type) \
 	(is_not_wireless_type(cable_type) && (cable_type != SEC_BATTERY_CABLE_NONE) && \
