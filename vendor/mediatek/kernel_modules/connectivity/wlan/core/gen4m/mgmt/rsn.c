@@ -3998,7 +3998,15 @@ u_int8_t rsnParseOsenIE(struct ADAPTER *prAdapter,
 uint32_t rsnCalculateFTIELen(struct ADAPTER *prAdapter, uint8_t ucBssIdx,
 			     struct STA_RECORD *prStaRec)
 {
-	struct FT_IES *prFtIEs = aisGetFtIe(prAdapter, ucBssIdx);
+	struct FT_IES *prFtIEs;
+	uint8_t ucRound = 0;
+
+	if (!prStaRec)
+		return 0;
+
+	/* Use R0 with auth, R1 with assoc */
+	ucRound = prStaRec->ucStaState == STA_STATE_1 ? FT_R0 : FT_R1;
+	prFtIEs = aisGetFtIe(prAdapter, ucBssIdx, ucRound);
 
 	if (!prFtIEs->prFTIE ||
 	    !rsnIsFtOverTheAir(prAdapter, ucBssIdx, prStaRec->ucIndex))
@@ -4013,7 +4021,18 @@ void rsnGenerateFTIE(IN struct ADAPTER *prAdapter,
 		(uint8_t *)prMsduInfo->prPacket + prMsduInfo->u2FrameLength;
 	uint32_t ucFtIeSize = 0;
 	uint8_t ucBssIdx = prMsduInfo->ucBssIndex;
-	struct FT_IES *prFtIEs = aisGetFtIe(prAdapter, ucBssIdx);
+	uint8_t ucRound = 0;
+	struct STA_RECORD *prStaRec;
+	struct FT_IES *prFtIEs;
+
+	prStaRec = cnmGetStaRecByIndex(prAdapter, prMsduInfo->ucStaRecIndex);
+	if (!prStaRec)
+		return;
+	/* Use R0 with auth, R1 with assoc */
+	ucRound = prStaRec->ucStaState == STA_STATE_1 ? FT_R0 : FT_R1;
+	prFtIEs = aisGetFtIe(prAdapter, ucBssIdx, ucRound);
+
+	DBGLOG(RSN, TRACE, "FT: gen FTE for round:%d\n", ucRound);
 
 	if (!prFtIEs->prFTIE ||
 	    !rsnIsFtOverTheAir(prAdapter, ucBssIdx, prMsduInfo->ucStaRecIndex))

@@ -10,9 +10,9 @@
 #include <linux/time64.h>
 #include <linux/timekeeping.h>
 
-#define must_log(...) pr_debug(__VA_ARGS__)
+#define must_log(...) pr_info(__VA_ARGS__)
 
-#define error_log(...) pr_debug("error: " __VA_ARGS__)
+#define error_log(...) pr_err("error: " __VA_ARGS__)
 
 #define debug_log(...) \
 do { \

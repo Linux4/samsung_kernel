@@ -70,6 +70,24 @@ static void sd_sec_inc_err_count(int index, int error, u32 status)
 	int i = 0;
 	int cpu = raw_smp_processor_id();
 
+	if (!error)
+		return;
+
+	/*
+	 * -EIO (-5) : I/O error case. So log as CRC.
+	 * -ENOMEDIUM (-123), etc : SW timeout and other error. So log as TIMEOUT.
+	 */
+	switch (error) {
+	case -EIO:
+		error = -EILSEQ;
+		break;
+	case -EILSEQ:
+		break;
+	default:
+		error = -ETIMEDOUT;
+		break;
+	}
+
 	for (i = 0; i < MAX_ERR_TYPE_INDEX; i++) {
 		if (err_log[index + i].err_type == error) {
 			index += i;
@@ -148,14 +166,14 @@ static void sd_sec_log_err_count(struct mmc_host *mmc, struct mmc_request *mrq)
 		sd_sec_inc_err_count(SD_STOP_OFFSET, mrq->stop->error, status);
 
 	/*
-	 * Core driver polls card busy for 20s, MMC_BLK_TIMEOUT_MS.
-	 * If card status is still in prog state after 18s by cmd13
+	 * Core driver polls card busy for 10s, MMC_BLK_TIMEOUT_MS.
+	 * If card status is still in prog state after 9s by cmd13
 	 * and tstamp_last_cmd has not been updated by next cmd,
 	 * log as write busy timeout.
 	 */
 	if (mrq->cmd->opcode == MMC_SEND_STATUS &&
 		time_after(jiffies, svi.tstamp_last_cmd +
-								msecs_to_jiffies(18 * 1000))) {
+								msecs_to_jiffies(9 * 1000))) {
 		if (status && (!(status & R1_READY_FOR_DATA) ||
 				(R1_CURRENT_STATE(status) == R1_STATE_PRG))) {
 			/* card stuck in prg state */

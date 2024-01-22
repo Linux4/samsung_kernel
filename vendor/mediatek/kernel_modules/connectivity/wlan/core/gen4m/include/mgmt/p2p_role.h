@@ -356,6 +356,8 @@ struct P2P_ROLE_FSM_INFO {
 	/* FSM Timer */
 	struct TIMER rP2pRoleFsmTimeoutTimer;
 
+	struct TIMER rP2pCsaDoneTimer;
+
 #if	CFG_ENABLE_PER_STA_STATISTICS_LOG
 	/* Get statistics Timer */
 	struct TIMER rP2pRoleFsmGetStatisticsTimer;

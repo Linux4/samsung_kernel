@@ -18,6 +18,12 @@
 #include "s6e3fc3.h"
 #include "s6e3fc3_dimming.h"
 
+enum {
+	S6E3FC3_A24_DISPLAY_MODE_1080x2340_90HS,
+	S6E3FC3_A24_DISPLAY_MODE_1080x2340_60HS,
+	MAX_S6E3FC3_A24_DISPLAY_MODE,
+};
+
 static struct panel_vrr s6e3fc3_a24_default_panel_vrr[] = {
 	[S6E3FC3_VRR_90HS] = {
 		.fps = 90,
@@ -54,7 +60,7 @@ static struct panel_resol s6e3fc3_a24_default_resol[] = {
 	},
 };
 
-#if defined(CONFIG_PANEL_DISPLAY_MODE)
+#if defined(CONFIG_USDM_PANEL_DISPLAY_MODE)
 static struct common_panel_display_mode s6e3fc3_a24_display_mode[] = {
 	/* FHD */
 	[S6E3FC3_A24_DISPLAY_MODE_1080x2340_90HS] = {
@@ -78,5 +84,5 @@ static struct common_panel_display_modes s6e3fc3_a24_display_modes = {
 	.num_modes = ARRAY_SIZE(s6e3fc3_a24_display_mode),
 	.modes = (struct common_panel_display_mode **)&s6e3fc3_a24_display_mode_array,
 };
-#endif /* CONFIG_PANEL_DISPLAY_MODE */
+#endif /* CONFIG_USDM_PANEL_DISPLAY_MODE */
 #endif /* __S6E3FC3_A24_RESOL_H__ */

@@ -19,7 +19,7 @@
 /* commanad buffer & metadata */
 #define CMDQ_IWC_MAX_CMD_LENGTH		(5 << 12)
 
-#define CMDQ_IWC_MAX_ADDR_LIST_LENGTH (30)
+#define CMDQ_IWC_MAX_ADDR_LIST_LENGTH (90)
 
 #define CMDQ_IWC_CLIENT_NAME (16)
 

@@ -72,6 +72,10 @@ enum mtk_set_lcm_sceanario {
 	SET_LCM_DISP_ON,
 };
 
+#define SET_LCM_BLOCKING_NOWAIT 3
+#define SET_LCM_NONBLOCKING 2
+#define SET_LCM_BLOCKING 1
+
 struct frame_condition_wq {
 	wait_queue_head_t wq;
 	atomic_t condition;
@@ -109,7 +113,7 @@ unsigned int mtk_dbg_get_lfr_skip_num_value(void);
 unsigned int mtk_dbg_get_lfr_dbg_value(void);
 int hrt_lp_switch_get(void);
 int mtk_ddic_dsi_send_cmd(struct mtk_ddic_dsi_msg *cmd_msg,
-			bool blocking, bool need_lock);
+			int blocking, bool need_lock);
 int mtk_ddic_dsi_read_cmd(struct mtk_ddic_dsi_msg *cmd_msg, bool need_lock);
 int set_lcm_wrapper(struct mtk_ddic_dsi_msg *cmd_msg, int blocking);
 int read_lcm_wrapper(struct mtk_ddic_dsi_msg *cmd_msg);

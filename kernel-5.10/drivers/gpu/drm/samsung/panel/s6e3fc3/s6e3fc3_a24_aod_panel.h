@@ -90,27 +90,36 @@ static DEFINE_STATIC_PACKET(s6e3fc3_a24_aod_self_mask_sd_path, DSI_PKT_TYPE_WR, 
 
 
 // --------------------- Image for self mask control ---------------------
-#ifdef CONFIG_SELFMASK_FACTORY
-static char S6E3FC3_A24_AOD_SELF_MASK_ENA[] = {
+static char S6E3FC3_A24_AOD_FACTORY_SELF_MASK_ENA[] = {
 	0x7A,
 	0x01, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 	0x00, 0x00, 0x00, 0x09, 0x24, 0x09, 0x25, 0x09, 0x26,
 	0x09, 0x27
 };
-#else
+
+static DEFINE_STATIC_PACKET(s6e3fc3_a24_aod_factory_self_mask_ctrl_ena,
+		DSI_PKT_TYPE_WR, S6E3FC3_A24_AOD_FACTORY_SELF_MASK_ENA, 0);
+
 static char S6E3FC3_A24_AOD_SELF_MASK_ENA[] = {
 	0x7A,
 	0x01, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 	0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x2B, 0x07, 0xF8,
 	0x09, 0x23
 };
-#endif
 
-static DEFINE_STATIC_PACKET(s6e3fc3_a24_aod_self_mask_ctrl_ena, DSI_PKT_TYPE_WR, S6E3FC3_A24_AOD_SELF_MASK_ENA, 0);
+static DEFINE_STATIC_PACKET(s6e3fc3_a24_aod_self_mask_ctrl_ena,
+		DSI_PKT_TYPE_WR, S6E3FC3_A24_AOD_SELF_MASK_ENA, 0);
+
+static DEFINE_RULE_BASED_COND(a24_cond_is_factory_selfmask,
+		PANEL_PROPERTY_IS_FACTORY_MODE, EQ, 1);
 
 static void *s6e3fc3_a24_aod_self_mask_ena_cmdtbl[] = {
 	&KEYINFO(s6e3fc3_a24_aod_l1_key_enable),
-	&PKTINFO(s6e3fc3_a24_aod_self_mask_ctrl_ena),
+	&CONDINFO_IF(a24_cond_is_factory_selfmask),
+		&PKTINFO(s6e3fc3_a24_aod_factory_self_mask_ctrl_ena),
+	&CONDINFO_EL(a24_cond_is_factory_selfmask),
+		&PKTINFO(s6e3fc3_a24_aod_self_mask_ctrl_ena),
+	&CONDINFO_FI(a24_cond_is_factory_selfmask),
 	&KEYINFO(s6e3fc3_a24_aod_l1_key_disable),
 };
 
@@ -186,7 +195,7 @@ static void *s6e3fc3_a24_aod_self_mask_checksum_cmdtbl[] = {
 	&DLYINFO(s6e3fc3_a24_aod_self_spsram_sel_delay),
 	&PKTINFO(s6e3fc3_a24_aod_self_mask_for_checksum),
 	&DLYINFO(s6e3fc3_a24_aod_self_mask_checksum_2frame_delay),
-	&s6e3fc3_restbl[RES_SELF_MASK_CHECKSUM],
+	&s6e3fc3_dmptbl[DUMP_SELF_MASK_CRC],
 	&PKTINFO(s6e3fc3_a24_aod_self_mask_restore),
 	&PKTINFO(s6e3fc3_a24_aod_self_mask_dbist_off),
 	&KEYINFO(s6e3fc3_a24_aod_l3_key_disable),

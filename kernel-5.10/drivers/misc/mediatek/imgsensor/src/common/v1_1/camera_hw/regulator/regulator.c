@@ -26,6 +26,7 @@ struct REGULATOR_CTRL regulator_control[REGULATOR_TYPE_MAX_NUM] = {
 	{"vcama1"},
 	{"vcamaf"},
 	{"vcamd"},
+	{"vcamd1"},
 	{"vcamio"},
 };
 

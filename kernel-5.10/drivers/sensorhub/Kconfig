@@ -22,3 +22,10 @@ config SHUB_AOIS
 	  This is AOIS driver for camera
 	  Set as y if the driver is used in this project
 	  use CONFIG_SHUB_AOIS
+
+config SHUB_PANEL_NOTIFY
+	tristate "SHUB_PANEL_NOTI"
+	default n
+	help
+	  This is panel notify for chub
+	  Set as y if the driver is used in this project

@@ -87,6 +87,7 @@ static struct sg_table *mtk_gem_vmap_pa(struct mtk_drm_gem_obj *mtk_gem,
 	sgt = kzalloc(sizeof(*sgt), GFP_KERNEL);
 	if (!sgt) {
 		DDPPR_ERR("sgt creation failed\n");
+		kfree(pages);
 		return NULL;
 	}
 
@@ -946,8 +947,10 @@ int mtk_drm_sec_hnd_to_gem_hnd(struct drm_device *dev, void *data,
 	mtk_gem_obj->sec = true;
 	prime_fd = args->sec_hnd;
 	dma_buf = dma_buf_get(prime_fd);
-	if (IS_ERR(dma_buf))
+	if (IS_ERR(dma_buf)) {
+		kfree(mtk_gem_obj);
 		return PTR_ERR(dma_buf);
+	}
 
 	mutex_lock(&file_priv->prime.lock);
 	ret = __prime_lookup_buf_handle(&file_priv->prime,
@@ -990,12 +993,13 @@ fail:
 	 */
 	drm_gem_handle_delete(file_priv, args->gem_hnd);
 	dma_buf_put(dma_buf);
+	kfree(mtk_gem_obj);
 	return ret;
 
 out_put:
 	mutex_unlock(&file_priv->prime.lock);
 	dma_buf_put(dma_buf);
-
+	kfree(mtk_gem_obj);
 	return ret;
 }
 

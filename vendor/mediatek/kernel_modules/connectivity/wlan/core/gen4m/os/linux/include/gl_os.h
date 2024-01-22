@@ -468,6 +468,7 @@ enum ENUM_P2P_REG_STATE {
 };
 #endif
 
+/* note: maximum of pkt flag is 16 */
 enum ENUM_PKT_FLAG {
 	ENUM_PKT_802_11,	/* 802.11 or non-802.11 */
 	ENUM_PKT_802_3,		/* 802.3 or ethernetII */
@@ -483,7 +484,8 @@ enum ENUM_PKT_FLAG {
 #if CFG_SUPPORT_TPENHANCE_MODE
 	ENUM_PKT_TCP_ACK,
 #endif /* CFG_SUPPORT_TPENHANCE_MODE */
-
+	ENUM_PKT_ICMPV6,	/* ICMPV6 */
+	ENUM_PKT_IPV6_HOP_BY_HOP,
 	ENUM_PKT_FLAG_NUM
 };
 
@@ -1045,6 +1047,8 @@ struct PACKET_PRIVATE_DATA {
 	OS_SYSTIME rArrivalTime;/* 4byte total:32 */
 
 	uint64_t u8ArriveTime;	/* 8byte total:40 */
+
+	uint8_t ucEapolMessage;	/* 1byte: EAPOL key */
 };
 
 struct PACKET_PRIVATE_RX_DATA {
@@ -1187,6 +1191,12 @@ struct CMD_CONNSYS_FW_LOG {
 
 #define GLUE_SET_INDEPENDENT_PKT(_p, _fgIsIndePkt) \
 	(GLUE_GET_PKT_PRIVATE_DATA(_p)->fgIsIndependentPkt = _fgIsIndePkt)
+
+#define GLUE_GET_INDEPENDENT_EAPOL(_p) \
+	(GLUE_GET_PKT_PRIVATE_DATA(_p)->ucEapolMessage)
+
+#define GLUE_SET_INDEPENDENT_EAPOL(_p, _ucEapolMessage) \
+	(GLUE_GET_PKT_PRIVATE_DATA(_p)->ucEapolMessage = _ucEapolMessage)
 
 #define GLUE_GET_PKT_PRIVATE_RX_DATA(_p) \
 	((struct PACKET_PRIVATE_RX_DATA *)(&(((struct sk_buff *)(_p))->cb[24])))

@@ -578,7 +578,10 @@ void nic_rxd_v1_check_wakeup_reason(
 				DBGLOG_MEM8(RX, INFO,
 					(uint8_t *)prSwRfb->prRxStatus,
 					prChipInfo->rxd_size);
-				DBGLOG_MEM8(RX, INFO, pvHeader, u2PktLen);
+				if (u2PktLen < CFG_RX_MAX_PKT_SIZE) {
+					DBGLOG_MEM8(RX, INFO,
+						pvHeader, u2PktLen);
+				}
 			} else {
 				DBGLOG(RX, WARN,
 					"abnormal packet, EthType 0x%04x wakeup host\n",

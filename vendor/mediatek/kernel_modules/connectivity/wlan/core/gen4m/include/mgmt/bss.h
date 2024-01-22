@@ -173,6 +173,11 @@ void bssDumpBssInfo(IN struct ADAPTER *prAdapter,
 void bssDetermineApBssInfoPhyTypeSet(IN struct ADAPTER
 				     *prAdapter, IN u_int8_t fgIsPureAp,
 				     OUT struct BSS_INFO *prBssInfo);
+
+void bssUpdateStaRecFromBssDesc(struct ADAPTER *prAdapter,
+				struct BSS_DESC *prBssDesc,
+				struct STA_RECORD *prStaRec);
+
 int8_t bssGetRxNss(IN struct ADAPTER *prAdapter,
 	IN struct BSS_DESC *prBssDesc);
 #if CFG_SUPPORT_IOT_AP_BLACKLIST

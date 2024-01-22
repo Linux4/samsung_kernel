@@ -134,7 +134,7 @@ struct mtk_panel {
 
 	struct mtk_ddic_dsi_msg mtk_dsi_msg;
 
-#if IS_ENABLED(CONFIG_SUPPORT_MASK_LAYER)
+#if IS_ENABLED(CONFIG_USDM_PANEL_MASK_LAYER)
 	bool fingerprint_mask;
 #endif
 };

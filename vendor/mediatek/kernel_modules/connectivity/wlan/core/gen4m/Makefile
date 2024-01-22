@@ -705,6 +705,11 @@ MGMT_OBJS := 	$(MGMT_DIR)ais_fsm.o \
 		$(MGMT_DIR)mscs.o \
 		$(MGMT_DIR)ie_sort.o \
 
+ifneq ($(os), none)
+MGMT_OBJS +=	$(MGMT_DIR)wlan_ring.o \
+		$(OS_DIR)gl_sa_log.o
+endif
+
 # ---------------------------------------------------
 # Chips Objects List
 # ---------------------------------------------------

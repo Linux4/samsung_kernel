@@ -696,12 +696,14 @@ static void sm5714_fled_init(struct sm5714_fled_data *fled)
 
 	fled_set_mode(fled, FLED_MODE_OFF);
 
+#if IS_ENABLED(CONFIG_CHARGER_SM5714)
 	if (fled->flash_prepare_cnt == 0) {
 		fled_set_disable_push_event(SM5714_CHARGER_OP_EVENT_TORCH);
 		fled_set_disable_push_event(SM5714_CHARGER_OP_EVENT_FLASH);
 		muic_check_fled_state(0, FLED_MODE_FLASH);
 		sm5714_usbpd_check_fled_state(0, FLED_MODE_FLASH);
 	}
+#endif
 	fled->pdata->led.pre_fled = false;
 
 	mutex_unlock(&fled->fled_mutex);

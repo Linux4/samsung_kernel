@@ -37,6 +37,8 @@
 #define INIT_SENSOR_STATE   0x3FEFF
 #define EXECUTE_FUNC(sensor, f) if ((sensor) && (sensor)->funcs && f != NULL) f()
 
+#define BIGDATA_KEY_MAX 30
+
 struct sensor_manager_t *sensor_manager;
 
 struct init_func_t {
@@ -73,6 +75,8 @@ struct init_func_t init_sensor_funcs[] = {
 	{SENSOR_TYPE_WAKE_UP_MOTION, init_wake_up_motion},
 	{SENSOR_TYPE_PROTOS_MOTION, init_protos_motion},
 	{SENSOR_TYPE_POCKET_MODE_LITE, init_pocket_mode_lite},
+	{SENSOR_TYPE_POCKET_MODE, init_pocket_mode},
+	{SENSOR_TYPE_POCKET_POS_MODE, init_pocket_pos_mode},
 	{SENSOR_TYPE_SENSORHUB, init_super},
 	{SENSOR_TYPE_HUB_DEBUGGER, init_hub_debugger},
 	{SENSOR_TYPE_DEVICE_ORIENTATION, init_device_orientation},
@@ -81,7 +85,64 @@ struct init_func_t init_sensor_funcs[] = {
 	{SENSOR_TYPE_POGO_REQUEST_HANDLER, init_pogo_request_handler},
 	{SENSOR_TYPE_AOIS, init_aois},
 	{SENSOR_TYPE_LIGHT_SEAMLESS, init_light_seamless},
+	{SENSOR_TYPE_ROTATION_VECTOR, init_rotation_vector},
+	{SENSOR_TYPE_GAME_ROTATION_VECTOR, init_game_rotation_vector},
+	{SENSOR_TYPE_LED_COVER_EVENT, init_led_cover_event},
+	{SENSOR_TYPE_LIGHT_IR, init_light_ir},
+	{SENSOR_TYPE_DROP_CLASSIFIER, init_drop_classifier},
+	{SENSOR_TYPE_SEQUENTIAL_STEP, init_sequential_step},
 };
+
+struct sensor_key_type {
+	uint16_t uid;
+	char key[BIGDATA_KEY_MAX];
+};
+
+struct sensor_key_type sensor_key_table[] = {
+	{SENSOR_TYPE_PROXIMITY, "PROX"},
+	{SENSOR_TYPE_TILT_DETECTOR, "TILT"},
+	{SENSOR_TYPE_SIGNIFICANT_MOTION, "SMD"},
+	{SENSOR_TYPE_PICK_UP_GESTURE, "PICKUP"},
+	{SENSOR_TYPE_CALL_GESTURE, "CALLGESTURE"},
+	{SENSOR_TYPE_WAKE_UP_MOTION, "WU_MOTION"},
+	{SENSOR_TYPE_FLIP_COVER_DETECTOR, "FCD"},
+	{SENSOR_TYPE_DEVICE_ORIENTATION_WU, "ROTATION_W"},
+	{SENSOR_TYPE_INTERRUPT_GYRO, "INTGYRO"},
+	{SENSOR_TYPE_SAR_BACKOFF_MOTION, "SBM"},
+	{SENSOR_TYPE_POCKET_MODE_LITE, "POCKET_LITE"},
+	{SENSOR_TYPE_ROTATION_VECTOR, "RV"},
+	{SENSOR_TYPE_GAME_ROTATION_VECTOR, "GRV"},
+	{SENSOR_TYPE_SS_MOVEMENT, "SMARTALERT"},
+	{SENSOR_TYPE_SS_STEP_COUNTER, "STEPCOUNT"},
+	{SENSOR_TYPE_SS_STEP_COUNT_ALERT, "STEPCOUNT_ALERT"},
+	{SENSOR_TYPE_SS_STEP_DETECTOR, "STEPDETECT"},
+	{SENSOR_TYPE_SS_STEP_LEVEL_MONITOR, "SLM"},
+	{SENSOR_TYPE_SS_PEDOMETER, "PEDOMETER"},
+	{SENSOR_TYPE_SS_AUTO_ROTATION, "SEM_ROTATE"},
+	{SENSOR_TYPE_SS_WIRELESS_CHARGING_MONITOR, "WCD"},
+	{SENSOR_TYPE_SS_PUT_DOWN_MOTION, "PUTDOWN"},
+	{SENSOR_TYPE_SS_SLOCATION, "SLOCATION"},
+	{SENSOR_TYPE_SS_ANY_MOTION_DETECTOR, "AMD"},
+	{SENSOR_TYPE_SS_DPCM, "AOD"},
+	{SENSOR_TYPE_SS_FLAT_MOTION, "FLATMOTION"},
+	{SENSOR_TYPE_SS_SENSOR_STATUS_CHECK, "SENSORCHECK"},
+	{SENSOR_TYPE_SS_ACTIVITY_CALIBRATION, "ACTIVITYCALB"},
+	{SENSOR_TYPE_SS_DEVICE_POSITION, "D_POSITION"},
+	{SENSOR_TYPE_SS_CHANGE_LOCATION_TRIGGER, "LTG"},
+	{SENSOR_TYPE_SS_FREE_FALL_DETECTION, "FREEFALL"},
+	{SENSOR_TYPE_SS_ACTIVITY_TRACKER, "AT"},
+	{SENSOR_TYPE_POCKET_MODE, "POCKET"},
+	{SENSOR_TYPE_POCKET_POS_MODE, "POCKET_POSE"},
+	{SENSOR_TYPE_DROP_CLASSIFIER, "DROPCLASSIFIER"},
+};
+
+struct sensor_wakeup_count_type {
+	uint16_t uid;
+	uint16_t wakeup_count;
+};
+
+struct sensor_wakeup_count_type sensor_wakeup_list[SENSOR_TYPE_MAX];
+static int sensor_wakeup_list_size;
 
 static int make_sensor_instance(void)
 {
@@ -273,10 +334,12 @@ int disable_sensor(int type, char *buf, int buf_len)
 			event->timestamp = 0;
 			event->received_timestamp = 0;
 		}
-
 	}
 
 	mutex_unlock(&sensor->enabled_mutex);
+
+	if (type == SENSOR_TYPE_SCONTEXT)
+		disable_scontext_all();
 
 	return ret;
 }
@@ -298,6 +361,7 @@ int batch_sensor(int type, uint32_t sampling_period, uint32_t max_report_latency
 	if (sensor->enabled &&
 	    (sensor->sampling_period != sampling_period || sensor->max_report_latency != max_report_latency)) {
 		shub_infof("CHANGE RATE %s, %d(%d, %d)", sensor->name, type, sampling_period, max_report_latency);
+		sensor->change_timestamp = get_current_timestamp();
 		memcpy(&buf[0], &sampling_period, 4);
 		memcpy(&buf[4], &max_report_latency, 4);
 		if (type != SENSOR_TYPE_SCONTEXT) {
@@ -349,6 +413,9 @@ int inject_sensor_additional_data(int type, char *buf, int buf_len)
 
 	if (sensor->funcs && sensor->funcs->inject_additional_data)
 		ret = sensor->funcs->inject_additional_data(buf, buf_len);
+	else
+		ret = shub_send_command(CMD_SETVALUE, type, DATA_INJECTION, buf,
+							buf_len > SHUB_MSG_BUFFER_SIZE ? SHUB_MSG_BUFFER_SIZE : buf_len);
 
 	return ret;
 }
@@ -364,10 +431,10 @@ void print_sensor_debug(int type)
 	if (sensor->funcs == NULL || sensor->funcs->print_debug == NULL) {
 		if (type <= SENSOR_TYPE_LEGACY_MAX) {
 			shub_info("%s(%u) : %ums, %dms(%lld)", sensor->name, type, sensor->sampling_period,
-				  sensor->max_report_latency, sensor->event_buffer.timestamp);
+				  sensor->max_report_latency, sensor->last_event_buffer.timestamp);
 		} else {
 			shub_info("%s(%u), last event ts = (%lld)",
-				  sensor->name, (type - SENSOR_TYPE_SS_BASE), sensor->event_buffer.timestamp);
+				  sensor->name, (type - SENSOR_TYPE_SS_BASE), sensor->last_event_buffer.timestamp);
 		}
 	}
 }
@@ -375,7 +442,6 @@ void print_sensor_debug(int type)
 int get_sensor_value(int type, char *dataframe, int *index, struct sensor_event *event, int frame_len)
 {
 	struct shub_sensor *sensor = get_sensor(type);
-	int receive_event_size;
 	int ret = 0;
 	u64 current_timestamp = get_current_timestamp();
 #if defined(CONFIG_SHUB_DEBUG) && defined(CONFIG_SHUB_MTK)
@@ -396,10 +462,10 @@ int get_sensor_value(int type, char *dataframe, int *index, struct sensor_event 
 		if (ret < 0)
 			return ret;
 	} else {
-		receive_event_size = sensor->receive_event_size;
-		memcpy(event->value, dataframe + *index, receive_event_size);
-		*index += receive_event_size;
+		memcpy(event->value, dataframe + *index, sensor->receive_event_size);
+		*index += sensor->receive_event_size;
 	}
+	memcpy(sensor->last_event_buffer.value, event->value, sensor->receive_event_size);
 
 	if (*index + sizeof(event->timestamp) > frame_len)
 		return -EINVAL;
@@ -422,6 +488,8 @@ int get_sensor_value(int type, char *dataframe, int *index, struct sensor_event 
 	event->received_timestamp = current_timestamp;
 	if (event->timestamp > current_timestamp)
 		event->timestamp = current_timestamp;
+
+	sensor->last_event_buffer.timestamp = event->timestamp;
 
 	return ret;
 }
@@ -534,6 +602,109 @@ int parsing_meta_data(char *dataframe, int *index, int frame_len)
 	return ret;
 }
 
+void print_big_data(void)
+{
+	int size = sensor_wakeup_list_size;
+	int i = 0;
+
+	for (i = 0; i < size; i++) {
+		struct shub_sensor *sensor = get_sensor(sensor_wakeup_list[i].uid);
+		if (sensor)
+			shub_info("%s: %s wakeup_cnt %d",
+				__func__, sensor->name, sensor_wakeup_list[i].wakeup_count);
+	}
+}
+
+int parsing_big_data(char *dataframe, int *index, int frame_len)
+{
+	int ret = 0;
+	int type = 0;
+	int i = 0;
+	int count = 0;
+
+	type = dataframe[(*index)++];
+
+	switch (type) {
+	case 0: // wakeup event type
+		count = dataframe[(*index)++];
+		for (i = 0; i < count; i++) {
+			uint16_t uid = 0;
+			uint16_t wakeup_count = 0;
+			int j = 0;
+			int size = sensor_wakeup_list_size;
+			struct shub_sensor *sensor;
+
+			memcpy(&uid, dataframe + *index, sizeof(uid));
+			memcpy(&wakeup_count, dataframe + *index + sizeof(uid), sizeof(wakeup_count));
+			*index += sizeof(uid) + sizeof(wakeup_count);
+
+			sensor = get_sensor(uid);
+			if (sensor) {
+				for (j = 0; j < size; j++) {
+					if (sensor_wakeup_list[j].uid == uid) {
+						sensor_wakeup_list[j].wakeup_count += wakeup_count;
+						shub_info("%s: %s(%d) increase by %d",
+							__func__, sensor->name, uid, wakeup_count);
+						break;
+					}
+				}
+
+				if (j == size) {
+					sensor_wakeup_list[j].uid = uid;
+					sensor_wakeup_list[j].wakeup_count += wakeup_count;
+					sensor_wakeup_list_size++;
+					shub_info("%s: %s(%d) initialize to %d",
+						__func__, sensor->name, uid, wakeup_count);
+				}
+
+				if (wakeup_count > 0)
+					shub_info("%s: %s wakeup_cnt %d",
+						__func__, sensor->name, sensor_wakeup_list[j].wakeup_count);
+			} else {
+				shub_err("%s: invalid uid (%d)", __func__, uid);
+			}
+		}
+		break;
+	default:
+		shub_errf("invalid bigdata event type(%d)", type);
+	}
+	return ret;
+}
+
+unsigned int get_bigdata_wakeup_reason(char *buf)
+{
+	unsigned int i;
+	char f[1024] = { 0, };
+	unsigned int length = 0;
+	unsigned int index = 0;
+	int size = sensor_wakeup_list_size;
+
+	for (i = 0 ; i < size ; i++) {
+		int j = 0;
+		int n = sizeof(sensor_key_table) / sizeof(struct sensor_key_type);
+		struct sensor_wakeup_count_type *s = &sensor_wakeup_list[i];
+
+		for (j = 0; j < n; j++) {
+			if (s->uid == sensor_key_table[j].uid) {
+				struct sensor_key_type *k = &sensor_key_table[j];
+
+				length += sprintf(f + length, ",\"SW_%s\":\"%d\"", k->key, s->wakeup_count);
+				break;
+			}
+		}
+	}
+
+	for (i = 0 ; i < size ; i++)
+		sensor_wakeup_list[i].wakeup_count = 0;
+
+	if (length > 0)
+		index = 1;
+
+	memcpy(buf, f + index, length - index);
+	shub_err("%s: %s(%d)", __func__, f + index, length - index);
+	return length - index;
+}
+
 uint64_t get_sensors_legacy_probe_state(void)
 {
 	return sensor_manager->sensor_probe_state[0];
@@ -614,6 +785,8 @@ int init_sensor_manager(struct device *dev)
 		return -ENOMEM;
 
 	memset(sensor_manager, 0x00, sizeof(struct sensor_manager_t));
+
+	sensor_wakeup_list_size = 0;
 	return 0;
 }
 
@@ -717,7 +890,7 @@ int get_sensor_spec_from_hub(void)
 		shub_errf("buffer length error %d", buffer_length);
 		return -EINVAL;
 	} else if (probe_cnt != count) {
-		shub_errf("spec count error probe count %d spec count", probe_cnt, count);
+		shub_errf("spec count error probe count %d spec count %d", probe_cnt, count);
 	}
 
 	specs = (struct sensor_spec_t *)(buffer + 1);
@@ -791,7 +964,7 @@ static void init_sensors(void)
 
 static int fm_ready_sensors(struct notifier_block *this, unsigned long event, void *ptr)
 {
-	shub_infof("notify event %d", event);
+	shub_infof("notify event %d", (int)event);
 
 	open_sensors_calibration();
 	sync_sensors_attribute();
@@ -829,7 +1002,7 @@ int refresh_sensors(struct device *dev)
 	if (first) {
 		init_sensors();
 		register_file_manager_ready_callback(&fm_notifier);
-		initialize_indio_dev(dev);
+		remove_empty_dev();
 		first = false;
 	} else {
 		init_scontext_enable_state();

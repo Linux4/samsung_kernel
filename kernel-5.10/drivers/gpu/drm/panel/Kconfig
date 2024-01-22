@@ -854,6 +854,17 @@ config DRM_PANEL_S6E3FC3_S2DOS15_CMD_2340
 	  and uses 24-bits RGB per pixel. It provides a MIPI DSI
 	  interface to host.
 
+config DRM_PANEL_S6E8FC3_S2DOS15A01_VDO
+	tristate "s6e8fc3 vdo fhdplus 2340 panel"
+	depends on OF
+	depends on DRM_MIPI_DSI
+	depends on BACKLIGHT_CLASS_DEVICE
+	help
+	  Say Y here if you want to enable support for s6e3fc3 fhdplus
+	  panel. The panel has a 1080x2340 resolution
+	  and uses 24-bits RGB per pixel. It provides a MIPI DSI
+	  interface to host.
+
 config DRM_MEDIATEK_PANEL
 	tristate "drm panel common driver"
 	depends on OF
@@ -865,7 +876,5 @@ config DRM_MEDIATEK_PANEL
 	  support CMD and VDO mode, support high frame rate.
 	  and uses 24-bits RGB per pixel. It provides a MIPI DSI interface
 	  to host.
-
-source "drivers/gpu/drm/panel/mcd_panel/Kconfig"
 
 endmenu

@@ -1299,6 +1299,14 @@ struct ENV_INFO {
 	uint32_t u4Idle;
 };
 
+struct RateInfo {
+	uint32_t u4Mode;
+	uint32_t u4Nss;
+	uint32_t u4Bw;
+	uint32_t u4Gi;
+	uint32_t u4Rate;
+};
+
 /*******************************************************************************
  *                            P U B L I C   D A T A
  *******************************************************************************
@@ -1883,9 +1891,9 @@ int wlanGetMaxTxRate(IN struct ADAPTER *prAdapter,
 #endif /* CFG_REPORT_MAX_TX_RATE */
 
 #ifdef CFG_SUPPORT_LINK_QUALITY_MONITOR
-int wlanGetRxRate(IN struct GLUE_INFO *prGlueInfo,
-		IN uint8_t ucBssIdx, OUT uint32_t *pu4CurRate,
-		OUT uint32_t *pu4MaxRate, OUT uint32_t *pu4CurBw);
+int wlanGetRxRate(IN struct GLUE_INFO *prGlueInfo, IN uint8_t ucBssIdx,
+		OUT uint32_t *pu4CurRate, OUT uint32_t *pu4MaxRate,
+		OUT struct RateInfo *prRateInfo);
 uint32_t wlanLinkQualityMonitor(struct GLUE_INFO *prGlueInfo, bool bFgIsOid);
 void wlanFinishCollectingLinkQuality(struct GLUE_INFO *prGlueInfo);
 #endif /* CFG_SUPPORT_LINK_QUALITY_MONITOR */

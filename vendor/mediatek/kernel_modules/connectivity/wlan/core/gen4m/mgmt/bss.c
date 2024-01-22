@@ -528,44 +528,13 @@ struct STA_RECORD *bssCreateStaRecFromBssDesc(IN struct ADAPTER *prAdapter,
 		 * we may also reset the ucJoinFailureCount to 0.
 		 */
 	}
-	/* 4 <2> Update information from BSS_DESC_T to current P_STA_RECORD_T */
-	prStaRec->u2CapInfo = prBssDesc->u2CapInfo;
 
-	prStaRec->u2OperationalRateSet = prBssDesc->u2OperationalRateSet;
-	prStaRec->u2BSSBasicRateSet = prBssDesc->u2BSSBasicRateSet;
-
-#if 1
-	bssDetermineStaRecPhyTypeSet(prAdapter, prBssDesc, prStaRec);
-#else
-	prStaRec->ucPhyTypeSet = prBssDesc->ucPhyTypeSet;
-
-	if (IS_STA_IN_AIS(prStaRec)) {
-		if (!
-		    ((prConnSettings->eEncStatus ==
-		      ENUM_ENCRYPTION3_ENABLED)
-		     || (prConnSettings->eEncStatus ==
-			 ENUM_ENCRYPTION3_KEY_ABSENT)
-		     || (prConnSettings->eEncStatus ==
-			 ENUM_ENCRYPTION_DISABLED)
-		     || (prAdapter->prGlueInfo->u2WSCAssocInfoIELen)
-#if CFG_SUPPORT_WAPI
-		     || (prAdapter->prGlueInfo->u2WapiAssocInfoIESz)
-#endif
-)) {
-			DBGLOG(BSS, INFO,
-			       "Ignore the HT Bit for TKIP as pairwise cipher configed!\n");
-			prStaRec->ucPhyTypeSet &= ~PHY_TYPE_BIT_HT;
-		}
-	}
-
-	prStaRec->ucDesiredPhyTypeSet =
-	    prStaRec->ucPhyTypeSet & prAdapter->rWifiVar.ucAvailablePhyTypeSet;
-#endif
-
-	ucNonHTPhyTypeSet =
-	    prStaRec->ucDesiredPhyTypeSet & PHY_TYPE_SET_802_11ABG;
+	/* 4 <2,3> Update information from BSS_DESC to current P_STA_RECORD */
+	bssUpdateStaRecFromBssDesc(prAdapter, prBssDesc, prStaRec);
 
 	/* Check for Target BSS's non HT Phy Types */
+	ucNonHTPhyTypeSet =
+	    prStaRec->ucDesiredPhyTypeSet & PHY_TYPE_SET_802_11ABG;
 	if (ucNonHTPhyTypeSet) {
 
 		if (ucNonHTPhyTypeSet & PHY_TYPE_BIT_ERP) {
@@ -595,18 +564,6 @@ struct STA_RECORD *bssCreateStaRecFromBssDesc(IN struct ADAPTER *prAdapter,
 	    (prStaRec->
 	     u2OperationalRateSet & prConnSettings->u2DesiredNonHTRateSet);
 
-	/* 4 <3> Update information from BSS_DESC_T to current P_STA_RECORD_T */
-	if (IS_AP_STA(prStaRec)) {
-		/* do not need to parse IE for DTIM,
-		 * which have been parsed before inserting into struct BSS_DESC
-		 */
-		if (prBssDesc->ucDTIMPeriod)
-			prStaRec->ucDTIMPeriod = prBssDesc->ucDTIMPeriod;
-		else
-			prStaRec->ucDTIMPeriod = 0;
-		/* Means that TIM was not parsed. */
-
-	}
 	/* 4 <4> Update default value */
 	prStaRec->fgDiagnoseConnection = FALSE;
 
@@ -2382,6 +2339,70 @@ void bssCreateStaRecFromAuth(IN struct ADAPTER *prAdapter)
 void bssUpdateStaRecFromAssocReq(IN struct ADAPTER *prAdapter)
 {
 
+}
+
+void bssUpdateStaRecFromBssDesc(struct ADAPTER *prAdapter,
+				struct BSS_DESC *prBssDesc,
+				struct STA_RECORD *prStaRec)
+{
+	struct BSS_INFO *prBssInfo;
+	uint8_t ucBssIndex;
+
+	if (!prBssDesc || !prStaRec)
+		return;
+
+	ucBssIndex = prStaRec->ucBssIndex;
+	prBssInfo = GET_BSS_INFO_BY_INDEX(prAdapter, ucBssIndex);
+	if (!prBssInfo) {
+		DBGLOG(BSS, ERROR, "prBssInfo is null\n");
+		return;
+	}
+
+	/* 4 <2> Update information from BSS_DESC_T to current P_STA_RECORD_T */
+	prStaRec->u2CapInfo = prBssDesc->u2CapInfo;
+
+	prStaRec->u2OperationalRateSet = prBssDesc->u2OperationalRateSet;
+	prStaRec->u2BSSBasicRateSet = prBssDesc->u2BSSBasicRateSet;
+
+#if 1
+	bssDetermineStaRecPhyTypeSet(prAdapter, prBssDesc, prStaRec);
+#else
+	prStaRec->ucPhyTypeSet = prBssDesc->ucPhyTypeSet;
+
+	if (IS_STA_IN_AIS(prStaRec)) {
+		if (!
+		    ((prConnSettings->eEncStatus ==
+		      ENUM_ENCRYPTION3_ENABLED)
+		     || (prConnSettings->eEncStatus ==
+			 ENUM_ENCRYPTION3_KEY_ABSENT)
+		     || (prConnSettings->eEncStatus ==
+			 ENUM_ENCRYPTION_DISABLED)
+		     || (prAdapter->prGlueInfo->u2WSCAssocInfoIELen)
+#if CFG_SUPPORT_WAPI
+		     || (prAdapter->prGlueInfo->u2WapiAssocInfoIESz)
+#endif
+)) {
+			DBGLOG(BSS, INFO,
+			       "Ignore the HT Bit for TKIP as pairwise cipher configed!\n");
+			prStaRec->ucPhyTypeSet &= ~PHY_TYPE_BIT_HT;
+		}
+	}
+
+	prStaRec->ucDesiredPhyTypeSet =
+	    prStaRec->ucPhyTypeSet & prAdapter->rWifiVar.ucAvailablePhyTypeSet;
+#endif
+
+	/* 4 <3> Update information from BSS_DESC_T to current P_STA_RECORD_T */
+	if (IS_AP_STA(prStaRec)) {
+		/* do not need to parse IE for DTIM,
+		 * which have been parsed before inserting into struct BSS_DESC
+		 */
+		if (prBssDesc->ucDTIMPeriod)
+			prStaRec->ucDTIMPeriod = prBssDesc->ucDTIMPeriod;
+		else
+			prStaRec->ucDTIMPeriod = 0;
+		/* Means that TIM was not parsed. */
+	}
 }
 
 void bssDumpBssInfo(IN struct ADAPTER *prAdapter, IN uint8_t ucBssIndex)

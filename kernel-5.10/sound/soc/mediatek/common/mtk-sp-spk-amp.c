@@ -32,6 +32,10 @@
 #include "aw87339.h"
 #endif
 
+#if defined(CONFIG_SND_SMARTPA_AW882XX)
+#include "../../codecs/aw882xx/aw882xx.h"
+#endif
+
 /* adsp relate */
 #if IS_ENABLED(CONFIG_SND_SOC_MTK_AUDIO_DSP)
 #include "../audio_dsp/mtk-dsp-common.h"
@@ -62,27 +66,30 @@ static struct mtk_spk_i2c_ctrl mtk_spk_list[MTK_SPK_TYPE_NUM] = {
 		.codec_name = "RT5509_MT_0",
 	},
 #endif
-
 #if IS_ENABLED(CONFIG_SND_SOC_RT5512)
 	[MTK_SPK_MEDIATEK_RT5512] = {
 		.codec_dai_name = "rt5512-aif",
 		.codec_name = "RT5512_MT_0",
 	},
 #endif /* CONFIG_SND_SOC_RT5512 */
-
 #if IS_ENABLED(CONFIG_SND_SOC_SMA1305)
 	[MTK_SPK_SILICON_SMA1305] = {
 		.codec_dai_name = "sma1305-amplifier",
 		.codec_name = "sma1305.3-001e",
 	},
 #endif /* CONFIG_SND_SOC_SMA1305 */
-
 #if IS_ENABLED(CONFIG_SND_SOC_TFA9874)
 	[MTK_SPK_GOODIX_TFA98XX] = {
 		.codec_dai_name = "tfa98xx-aif",
 		.codec_name = "tfa98xx",
 	},
 #endif /* CONFIG_SND_SOC_TFA9874 */
+#if IS_ENABLED(CONFIG_SND_SMARTPA_AW882XX)
+	[MTK_SPK_AWINIC_AW882XX] = {
+		.codec_dai_name = "aw882xx-aif",
+		.codec_name = "aw882xx_smartpa",
+	},
+#endif /* CONFIG_SND_SMARTPA_AW882XX */
 };
 
 static int mtk_spk_i2c_probe(struct i2c_client *client,
@@ -177,6 +184,11 @@ int mtk_spk_update_info(struct snd_soc_card *card,
 	int i2s_in_dai_link_idx = -1;
 	const int i2s_num = 2;
 	unsigned int i2s_set[2];
+
+#if IS_ENABLED(CONFIG_SND_SMARTPA_AW882XX)
+	mtk_spk_set_type(MTK_SPK_AWINIC_AW882XX);
+	dev_info(&pdev->dev, "%s() mtk_spk_type %d\n", __func__, mtk_spk_type);
+#endif
 
 	if (mtk_spk_type == MTK_SPK_NOT_SMARTPA)
 		goto BYPASS_UPDATE;

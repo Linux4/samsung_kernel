@@ -3416,6 +3416,7 @@ void mtk_color_first_cfg(struct mtk_ddp_comp *comp,
 	       struct mtk_ddp_config *cfg, struct cmdq_pkt *handle)
 {
 	mtk_color_config(comp, cfg, handle);
+	ddp_color_backup(comp);
 }
 
 static const struct mtk_ddp_comp_funcs mtk_disp_color_funcs = {

@@ -31,3 +31,9 @@ config MTK_LOAD_TRACKER
 	  Service designed by MTK, which is a service to get CPU Loading
 	  information. User can register callback and config polling
 	  duration to get CPU loading.
+
+config MTK_LOAD_TRACKER_DEBUG
+	tristate "CPU Loading Tracking Service"
+	help
+	  MTK_LOAD_TRACKER_DEBUG is the kernel debug config of CPU Loading Tracking
+	  Service designed by MTK. Use it to enable log.

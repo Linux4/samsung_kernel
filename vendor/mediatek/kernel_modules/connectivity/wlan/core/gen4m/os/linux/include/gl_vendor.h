@@ -488,14 +488,6 @@ enum WIFI_RESET_TRIGGERED_ATTRIBUTE {
  *                            P U B L I C   D A T A
  *******************************************************************************
  */
-#if CFG_SUPPORT_WAPI
-extern uint8_t
-keyStructBuf[1024];	/* add/remove key shared buffer */
-#else
-extern uint8_t
-keyStructBuf[100];	/* add/remove key shared buffer */
-#endif
-
 extern const struct nla_policy mtk_scan_param_policy[
 		WIFI_ATTR_SCAN_MAX + 1];
 extern const struct nla_policy nla_parse_wifi_multista[
@@ -1072,6 +1064,7 @@ enum PARAM_GENERIC_RESPONSE_ID {
 	GRID_SWPIS_BCN_INFO_ABORT,			/* 3 */
 	GRID_SWPIS_CONNECTIVITY_LOG,			/* 4 */
 	GRID_MANAGE_FREQ_LIST,				/* 5 */
+	GRID_RESET_FT_PROCESS,				/* 6 */
 };
 
 #if (CFG_TC10_FEATURE == 1)
@@ -1081,6 +1074,10 @@ struct PARAM_MANAGE_CHANNEL_LIST {
 	uint8_t ssid[ELEM_MAX_LEN_SSID + 1];
 	uint8_t num;
 	uint32_t frequencies[0];
+};
+
+struct PARAM_RESET_FT {
+	uint8_t id;
 };
 
 struct PARAM_HANG_INFO {

@@ -438,7 +438,7 @@ void scnSendScanReqV2(IN struct ADAPTER *prAdapter)
 
 
 	log_dbg(SCN, INFO, "ScanReqV2: ScanType=%d,BSS=%u,SSIDType=%d,Num=%u,Ext=%u,ChannelType=%d,Num=%d,Ext=%u,Seq=%u,Ver=%u,Dw=%u,Min=%u,Func=0x%X,Mac="
-		MACSTR " OpChT=%d,DfsChDw=%d,ScnChCnt=%d\n",
+		MACSTR " OpChT=%d,DfsChDw=%d,ScnChCnt=%d,SkipDfs=%d\n",
 		prCmdScanReq->ucScanType,
 		prCmdScanReq->ucBssIndex,
 		prCmdScanReq->ucSSIDType,
@@ -454,7 +454,8 @@ void scnSendScanReqV2(IN struct ADAPTER *prAdapter)
 		MAC2STR(prCmdScanReq->aucRandomMac),
 		prCmdScanReq->u2OpChStayTimeMs,
 		prCmdScanReq->ucDfsChDwellTimeMs,
-		prCmdScanReq->ucPerScanChannelCnt);
+		prCmdScanReq->ucPerScanChannelCnt,
+		prAdapter->rWifiVar.rScanInfo.fgSkipDFS);
 
 	scanLogCacheFlushAll(prAdapter, &(prScanInfo->rScanLogCache),
 		LOG_SCAN_REQ_D2F);
@@ -1018,7 +1019,7 @@ scnFsmDumpScanDoneInfo(IN struct ADAPTER *prAdapter,
 		= prScanDone->ucSparseChannelArrayValidNum;
 
 #if CFG_SUPPORT_SCAN_NO_AP_RECOVERY
-	if (ucScanChNum == 0)
+	if (ucScanChNum == 0 && !prScanInfo->fgSkipDFS)
 		prScanInfo->ucScnZeroChannelCnt++;
 	else {
 		prScanInfo->ucScnZeroChannelCnt = 0;

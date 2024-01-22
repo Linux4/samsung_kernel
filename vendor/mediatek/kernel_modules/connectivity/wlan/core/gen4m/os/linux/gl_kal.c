@@ -106,11 +106,13 @@
 #include <linux/kobject.h>
 
 /* for wifi standalone log */
-#define CREATE_TRACE_POINTS
-#include "mtk_wifi_trace.h"
+#if CFG_SUPPORT_SA_LOG
+#include "gl_sa_log.h"
 #include <linux/jiffies.h>
 #include <linux/ratelimit.h>
 #include <linux/rtc.h>
+#include <linux/sched/clock.h>
+#endif
 
 /*******************************************************************************
  *                              C O N S T A N T S
@@ -2021,7 +2023,15 @@ kalIndicateStatusAndComplete(IN struct GLUE_INFO
 			prConnSettings->assocIeLen = 0;
 		}
 
-		prFtIEs = aisGetFtIe(prAdapter, ucBssIndex);
+		prFtIEs = aisGetFtIe(prAdapter, ucBssIndex, FT_R0);
+		if (prFtIEs) {
+			kalMemFree(prFtIEs->pucIEBuf,
+				VIR_MEM_TYPE,
+				prFtIEs->u4IeLength);
+			kalMemZero(prFtIEs,
+				sizeof(*prFtIEs));
+		}
+		prFtIEs = aisGetFtIe(prAdapter, ucBssIndex, FT_R1);
 		if (prFtIEs) {
 			kalMemFree(prFtIEs->pucIEBuf,
 				VIR_MEM_TYPE,
@@ -2254,6 +2264,24 @@ kalIndicateStatusAndComplete(IN struct GLUE_INFO
 				prConnSettings->u4RspIeLength,
 				WLAN_STATUS_AUTH_TIMEOUT,
 				GFP_KERNEL);
+
+		prFtIEs = aisGetFtIe(prAdapter, ucBssIndex, FT_R0);
+		if (prFtIEs) {
+			kalMemFree(prFtIEs->pucIEBuf,
+				VIR_MEM_TYPE,
+				prFtIEs->u4IeLength);
+			kalMemZero(prFtIEs,
+				sizeof(*prFtIEs));
+		}
+		prFtIEs = aisGetFtIe(prAdapter, ucBssIndex, FT_R1);
+		if (prFtIEs) {
+			kalMemFree(prFtIEs->pucIEBuf,
+				VIR_MEM_TYPE,
+				prFtIEs->u4IeLength);
+			kalMemZero(prFtIEs,
+				sizeof(*prFtIEs));
+		}
+
 		kalSetMediaStateIndicated(prGlueInfo,
 			MEDIA_STATE_DISCONNECTED,
 			ucBssIndex);
@@ -7886,7 +7914,7 @@ void kalSetPerfReport(IN struct ADAPTER *prAdapter)
 	struct CMD_PERF_IND *prCmdPerfReport;
 	uint8_t i;
 	uint32_t u4CurrentTp = 0;
-	uint32_t u4Rate = 0, u4MaxRate = 0, u4Bw = 0;
+	uint32_t u4Rate = 0, u4MaxRate = 0;
 	int ret;
 
 	DEBUGFUNC("kalSetPerfReport()");
@@ -7907,7 +7935,7 @@ void kalSetPerfReport(IN struct ADAPTER *prAdapter)
 
 	prCmdPerfReport->u4VaildPeriod = PERF_UPDATE_PERIOD;
 	ret = wlanGetRxRate(prAdapter->prGlueInfo, 0, &u4Rate, &u4MaxRate,
-			    &u4Bw);
+			    NULL);
 	u4Rate /= 10;
 
 	for (i = 0; i < BSS_DEFAULT_NUM; i++) {
@@ -9117,9 +9145,61 @@ u_int8_t kalSchedScanParseRandomMac(const struct net_device *ndev,
 }
 #endif
 
+void kalRemoveBufferLog(struct ADAPTER *prAdapter,
+	struct BUFFERED_LOG_ENTRY *entry)
+{
+	struct LINK *list = &prAdapter->rBufferedList;
+
+	if (IS_FEATURE_DISABLED(prAdapter->rWifiVar.ucLogEnhancement))
+		return;
+
+	DBGLOG(AIS, WARN, "Remove bss[%d] sn[%d]\n",
+		entry->ucBssIdx, entry->ucSn);
+
+	LINK_REMOVE_KNOWN_ENTRY(list, &entry->rLinkEntry);
+	kalMemFree(entry, VIR_MEM_TYPE, sizeof(struct BUFFERED_LOG_ENTRY));
+}
+
+struct BUFFERED_LOG_ENTRY *kalGetBufferLog(struct ADAPTER *prAdapter,
+	uint8_t ucBssIndex, uint8_t ucSn)
+{
+	struct LINK *list = &prAdapter->rBufferedList;
+	struct BUFFERED_LOG_ENTRY *entry;
+
+	if (IS_FEATURE_DISABLED(prAdapter->rWifiVar.ucLogEnhancement))
+		return NULL;
+
+	if (ucBssIndex >= KAL_BSS_NUM)
+		return NULL;
+
+	LINK_FOR_EACH_ENTRY(entry, list, rLinkEntry, struct BUFFERED_LOG_ENTRY)
+	{
+		if (entry->ucSn == ucSn && entry->ucBssIdx == ucBssIndex) {
+			DBGLOG(AIS, WARN, "Found bss[%d] sn[%d]\n",
+				ucBssIndex, ucSn);
+			return entry;
+		}
+	}
+
+	return NULL;
+}
+
+void kalClearBufferLog(struct ADAPTER *prAdapter) {
+	struct LINK *list = &prAdapter->rBufferedList;
+	struct BUFFERED_LOG_ENTRY *entry;
+
+	while (!LINK_IS_EMPTY(list)) {
+		LINK_REMOVE_HEAD(list, entry, struct BUFFERED_LOG_ENTRY *);
+		kalMemFree(entry, VIR_MEM_TYPE,
+			sizeof(struct BUFFERED_LOG_ENTRY));
+	}
+	LINK_INITIALIZE(list);
+}
+
 void kalBufferWifiLog(struct ADAPTER *prAdapter, uint8_t ucBssIndex,
 				uint8_t *log, uint8_t ucSn)
 {
+	struct LINK *list = &prAdapter->rBufferedList;
 	struct BUFFERED_LOG_ENTRY *prLogEntry;
 
 	if (IS_FEATURE_DISABLED(prAdapter->rWifiVar.ucLogEnhancement))
@@ -9128,11 +9208,20 @@ void kalBufferWifiLog(struct ADAPTER *prAdapter, uint8_t ucBssIndex,
 	if (ucBssIndex >= KAL_BSS_NUM)
 		return;
 
-	prLogEntry = &prAdapter->rWifiVar.rBufferedLog[ucBssIndex];
+	prLogEntry = kalMemAlloc(sizeof(struct BUFFERED_LOG_ENTRY),
+		VIR_MEM_TYPE);
+
+	if (!prLogEntry) {
+		DBGLOG(AIS, WARN, "no resource for buffered log\n");
+		return;
+	}
+
 	kalMemZero(prLogEntry, sizeof(struct BUFFERED_LOG_ENTRY));
 	prLogEntry->ucSn = ucSn;
 	prLogEntry->fgBuffered = TRUE;
+	prLogEntry->ucBssIdx = ucBssIndex;
 	kalMemCopy(prLogEntry->aucLog, log, sizeof(prLogEntry->aucLog));
+	LINK_INSERT_TAIL(list, &prLogEntry->rLinkEntry);
 }
 
 void kalReportWifiLog(struct ADAPTER *prAdapter, uint8_t ucBssIndex,
@@ -10049,89 +10138,82 @@ void kalUpdateCompHdlrRec(IN struct ADAPTER *prAdapter,
 					% OID_HDLR_REC_NUM;
 }
 
+#if CFG_SUPPORT_SA_LOG
+#define SA_LOG_TIMEBUF_LEN (128)
+
 void kalPrintUTC(char *msg_buf, int msg_buf_size)
 {
+	u64 ts;
+	unsigned long rem_nsec;
 	int ret = 0;
 	struct rtc_time tm;
 	struct timespec64 tv = { 0 };
-	struct rtc_time tm_android;
-	struct timespec64 tv_android = { 0 };
+	char s[SA_LOG_TIMEBUF_LEN] = {0};
 
 	ktime_get_real_ts64(&tv);
-	tv_android = tv;
 	rtc_time64_to_tm(tv.tv_sec, &tm);
-	tv_android.tv_sec -= sys_tz.tz_minuteswest * 60;
-	rtc_time64_to_tm(tv_android.tv_sec, &tm_android);
-	if (tm.tm_sec%10 == 0) {
-		ret = snprintf(msg_buf, msg_buf_size,
-			"[RT:%lld] %d-%02d-%02d %02d:%02d:%02d.%u UTC;"
-			"android time %d-%02d-%02d %02d:%02d:%02d.%03d",
-			sched_clock(), tm.tm_year + 1900, tm.tm_mon + 1,
-			tm.tm_mday, tm.tm_hour, tm.tm_min,
-			tm.tm_sec, (unsigned int)(tv.tv_nsec/1000),
-			tm_android.tm_year + 1900, tm_android.tm_mon + 1,
-			tm_android.tm_mday, tm_android.tm_hour,
-			tm_android.tm_min, tm_android.tm_sec,
-			(unsigned int)(tv_android.tv_nsec/1000));
-		if (ret < 0) {
-			kalPrintLog("[%u] snprintf failed, ret: %d",
-				__LINE__, ret);
-		} else {
-			trace_wifi_standalone_log(msg_buf);
-		}
+
+	ts = local_clock();
+	rem_nsec = do_div(ts, 1000000000);
+
+	ret = snprintf(s,
+		SA_LOG_TIMEBUF_LEN,
+		"[%5lu.%06lu] %d-%02d-%02d %02d:%02d:%02d.%06u %s",
+		(unsigned long)ts,
+		rem_nsec / 1000,
+		tm.tm_year + 1900,
+		tm.tm_mon + 1,
+		tm.tm_mday,
+		tm.tm_hour,
+		tm.tm_min,
+		tm.tm_sec,
+		(unsigned int)(tv.tv_nsec/1000),
+		KAL_GET_CURRENT_THREAD_NAME());
+	if (ret < 0) {
+		LOG_FUNC("snprintf failed, ret: %d",
+			ret);
+	} else {
+		wifi_salog_write(s,
+			strlen(s));
+		wifi_salog_write(msg_buf,
+			msg_buf_size);
 	}
 }
 
-void kalPrintTrace(char *buffer, const int len)
+void kalPrintSALog(const char *fmt, ...)
 {
-	if (buffer[len - 1] == '\n')
-		buffer[len - 1] = '\0';
+	char buffer[WIFI_LOG_MSG_BUFFER] = {0};
+	int ret = 0;
+	va_list args;
 
-	if (len < WIFI_LOG_MSG_MAX) {
-		trace_wifi_standalone_log(buffer);
+	va_start(args, fmt);
+	ret = vsnprintf(buffer, WIFI_LOG_MSG_BUFFER, fmt, args);
+	if (ret < 0) {
+		LOG_FUNC("vsnprintf failed, ret: %d",
+			ret);
+	}
+	va_end(args);
+
+	if (strlen(buffer) < WIFI_LOG_MSG_MAX) {
+		kalPrintUTC(buffer,
+			strlen(buffer));
 	} else {
 		char sub_buffer[WIFI_LOG_MSG_MAX];
 
 		strncpy(sub_buffer, buffer,
 			WIFI_LOG_MSG_MAX - 1);
 		sub_buffer[WIFI_LOG_MSG_MAX - 1] = '\0';
-		trace_wifi_standalone_log(sub_buffer);
+		kalPrintUTC(sub_buffer,
+			WIFI_LOG_MSG_MAX);
 
 		strncpy(sub_buffer, buffer + WIFI_LOG_MSG_MAX - 1,
 			WIFI_LOG_MSG_MAX - 1);
 		sub_buffer[WIFI_LOG_MSG_MAX - 1] = '\0';
-		trace_wifi_standalone_log(sub_buffer);
-	}
-
-	if (time_after(jiffies, rtc_update)) {
-		rtc_update = jiffies + (1 * HZ);
-		kalPrintUTC(buffer, WIFI_LOG_MSG_BUFFER);
+		kalPrintUTC(sub_buffer,
+			WIFI_LOG_MSG_MAX);
 	}
 }
-
-void kalPrintLog(const char *fmt, ...)
-{
-	char buffer[WIFI_LOG_MSG_BUFFER];
-	int ret = 0;
-	struct va_format vaf;
-	va_list args;
-
-	va_start(args, fmt);
-	vaf.fmt = fmt;
-	vaf.va = &args;
-	ret = vsnprintf(buffer, sizeof(buffer), fmt, args);
-	if (ret < 0) {
-		kalPrintLog("[%u] vsnprintf failed, ret: %d",
-			__LINE__, ret);
-	} else if (get_wifi_standalone_log_mode() == 1) {
-		kalPrintTrace(buffer, strlen(buffer));
-	} else {
-		pr_info("%s%s", WLAN_TAG, buffer);
-	}
-
-	va_end(args);
-}
-
+#endif /* CFG_SUPPORT_SA_LOG */
 
 #if (CFG_SUPPORT_POWER_THROTTLING == 1)
 void kalPwrLevelHdlrRegister(IN struct ADAPTER *prAdapter,

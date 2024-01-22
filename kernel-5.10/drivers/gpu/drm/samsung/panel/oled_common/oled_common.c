@@ -13,9 +13,12 @@
 #include "../panel.h"
 #include "../panel_drv.h"
 #include "../panel_debug.h"
+#include "../panel_bl.h"
 #include "../maptbl.h"
+#include "../util.h"
+#include "oled_function.h"
 
-int init_common_table(struct maptbl *tbl)
+int oled_maptbl_init_default(struct maptbl *tbl)
 {
 	if (!tbl) {
 		panel_err("maptbl is null\n");
@@ -29,20 +32,49 @@ int init_common_table(struct maptbl *tbl)
 
 	return 0;
 }
-EXPORT_SYMBOL(init_common_table);
 
-int getidx_common_maptbl(struct maptbl *tbl)
+EXPORT_SYMBOL(oled_maptbl_init_default);
+
+int oled_maptbl_getidx_default(struct maptbl *m)
 {
-	return 0;
+	return maptbl_getidx_from_props(m);
 }
-EXPORT_SYMBOL(getidx_common_maptbl);
 
-void copy_dummy_maptbl(struct maptbl *tbl, u8 *dst)
+EXPORT_SYMBOL(oled_maptbl_getidx_default);
+
+int oled_maptbl_getidx_gm2_brt(struct maptbl *tbl)
+{
+	struct panel_device *panel;
+	struct panel_bl_device *panel_bl;
+	int row;
+
+	if (!tbl)
+		return -EINVAL;
+
+	if (maptbl_get_countof_dimen(tbl) != 2) {
+		panel_err("expected 2D-array, but %dD\n",
+				maptbl_get_countof_dimen(tbl));
+		return -EINVAL;
+	}
+
+	panel = tbl->pdata;
+	if (!panel) {
+		panel_err("panel is null\n");
+		return -EINVAL;
+	}
+	panel_bl = &panel->panel_bl;
+
+	row = get_brightness_pac_step_by_subdev_id(panel_bl,
+			PANEL_BL_SUBDEV_TYPE_DISP, panel_bl->props.brightness);
+
+	return maptbl_index(tbl, 0, row, 0);
+}
+
+void oled_maptbl_copy_dummy(struct maptbl *tbl, u8 *dst)
 {
 }
-EXPORT_SYMBOL(copy_dummy_maptbl);
 
-void copy_common_maptbl(struct maptbl *tbl, u8 *dst)
+void oled_maptbl_copy_default(struct maptbl *tbl, u8 *dst)
 {
 	int idx;
 
@@ -79,12 +111,38 @@ void copy_common_maptbl(struct maptbl *tbl, u8 *dst)
 			sizeof(u8) * maptbl_get_sizeof_copy(tbl));
 	panel_dbg("maptbl(%s) copy to dst(index:%d size:%d)\n",
 			maptbl_get_name(tbl), idx, maptbl_get_sizeof_copy(tbl));
-	print_data(dst, maptbl_get_sizeof_copy(tbl));
+	usdm_dbg_bytes(dst, maptbl_get_sizeof_copy(tbl));
 }
-EXPORT_SYMBOL(copy_common_maptbl);
+EXPORT_SYMBOL(oled_maptbl_copy_default);
 
-#ifdef CONFIG_EXYNOS_DECON_LCD_COPR
-void copy_copr_maptbl(struct maptbl *tbl, u8 *dst)
+void oled_maptbl_copy_tset(struct maptbl *tbl, u8 *dst)
+{
+	struct panel_device *panel;
+	struct panel_info *panel_data;
+
+	if (!tbl) {
+		panel_err("tbl is null\n");
+		return;
+	}
+
+	if (!dst) {
+		panel_err("dst is null\n");
+		return;
+	}
+
+	panel = (struct panel_device *)tbl->pdata;
+	if (unlikely(!panel))
+		return;
+
+	panel_data = &panel->panel_data;
+
+	*dst = (panel_data->props.temperature < 0) ?
+		BIT(7) | abs(panel_data->props.temperature) :
+		panel_data->props.temperature;
+}
+
+#ifdef CONFIG_USDM_PANEL_COPR
+void oled_maptbl_copy_copr(struct maptbl *tbl, u8 *dst)
 {
 	struct panel_device *panel;
 	struct copr_info *copr;
@@ -100,7 +158,6 @@ void copy_copr_maptbl(struct maptbl *tbl, u8 *dst)
 	copr_reg_to_byte_array(&copr->props.reg,
 			copr->props.version, dst);
 }
-EXPORT_SYMBOL(copy_copr_maptbl);
 #endif
 
 MODULE_DESCRIPTION("oled_common driver");

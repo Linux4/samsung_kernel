@@ -52,6 +52,64 @@ enum ufs_sec_wb_state {
 	NR_WB_STATE
 };
 
+enum ufs_sec_log_str_t {
+	UFS_SEC_CMD_SEND,
+	UFS_SEC_CMD_COMP,
+	UFS_SEC_QUERY_SEND,
+	UFS_SEC_QUERY_COMP,
+	UFS_SEC_NOP_SEND,
+	UFS_SEC_NOP_COMP,
+	UFS_SEC_TM_SEND,
+	UFS_SEC_TM_COMP,
+	UFS_SEC_TM_ERR,
+	UFS_SEC_UIC_SEND,
+	UFS_SEC_UIC_COMP,
+};
+
+static const char * const ufs_sec_log_str[] = {
+	[UFS_SEC_CMD_SEND] = "scsi_send",
+	[UFS_SEC_CMD_COMP] = "scsi_cmpl",
+	[UFS_SEC_QUERY_SEND] = "query_send",
+	[UFS_SEC_QUERY_COMP] = "query_cmpl",
+	[UFS_SEC_NOP_SEND] = "nop_send",
+	[UFS_SEC_NOP_COMP] = "nop_cmpl",
+	[UFS_SEC_TM_SEND] = "tm_send",
+	[UFS_SEC_TM_COMP] = "tm_cmpl",
+	[UFS_SEC_TM_ERR] = "tm_err",
+	[UFS_SEC_UIC_SEND] = "uic_send",
+	[UFS_SEC_UIC_COMP] = "uic_cmpl",
+};
+
+struct ufs_sec_cmd_log_entry {
+	const char *str;	/* ufs_sec_log_str */
+	u8 lun;
+	u8 cmd_id;
+	u32 lba;
+	int transfer_len;
+	u8 idn;		/* used only for query idn */
+	unsigned long outstanding_reqs;
+	unsigned int tag;
+	u64 tstamp;
+};
+
+#define UFS_SEC_CMD_LOGGING_MAX 200
+#define UFS_SEC_CMD_LOGNODE_MAX 64
+struct ufs_sec_cmd_log_info {
+	struct ufs_sec_cmd_log_entry *entries;
+	int pos;
+};
+
+struct ufs_sec_feature_info {
+	struct ufs_sec_cmd_log_info *ufs_cmd_log;
+
+	u32 last_ucmd;
+	bool ucmd_complete;
+
+	enum query_opcode last_qcmd;
+	enum dev_cmd_type qcmd_type;
+	bool qcmd_complete;
+};
+
 struct ufs_sec_wb_info {
 	struct ufs_hba *hba;
 	bool support;		/* feature support and enabled */
@@ -97,6 +155,7 @@ struct ufs_sec_wb_info {
 };
 
 void ufs_set_sec_features(struct ufs_hba *hba);
+void ufs_sec_init_logging(struct device *dev);
 void ufs_sec_get_health_desc(struct ufs_hba *hba);
 void ufs_sec_register_vendor_hooks(void);
 void ufs_sec_remove_features(struct ufs_hba *hba);

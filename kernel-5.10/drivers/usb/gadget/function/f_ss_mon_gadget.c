@@ -27,7 +27,9 @@
 #if IS_ENABLED(CONFIG_USB_TYPEC_MANAGER_NOTIFIER)
 #include <linux/usb/typec/manager/usb_typec_manager_notifier.h>
 #endif
+#if IS_ENABLED(CONFIG_BATTERY_SAMSUNG)
 #include <linux/battery/sec_battery_common.h>
+#endif
 
 #define MAX_INST_NAME_LEN		40
 #define MAX_NAME_LEN	40
@@ -105,10 +107,12 @@ struct f_ss_monitor {
 	u8	aoa_start_cmd;
 	int	usb_function_info;
 	char usb_mode[50];
-	int	vbus_current;
 	bool is_bind;
 	struct ss_monitor_instance *func_inst;
+#if IS_ENABLED(CONFIG_BATTERY_SAMSUNG)
+	int	vbus_current;
 	struct work_struct		set_vbus_current_work;
+#endif
 };
 
 static inline struct f_ss_monitor *func_to_ss_monitor(struct usb_function *f)
@@ -226,7 +230,9 @@ static void ss_monitor_disable(struct usb_function *f)
 	ss_monitor = func_to_ss_monitor(f);
 	if (!ss_monitor)
 		goto ret;
+#if IS_ENABLED(CONFIG_BATTERY_SAMSUNG)
 	ss_monitor->vbus_current = USB_CURRENT_UNCONFIGURED;
+#endif
 	if (ss_monitor->accessory_string && !ss_monitor->aoa_start_cmd) {
 		snprintf(aoa_check, sizeof(aoa_check), "AOA_ERR_%x", ss_monitor->accessory_string);
 #if defined(CONFIG_USB_NOTIFY_PROC_LOG)
@@ -242,6 +248,8 @@ ret:
 	}
 	memset(guid_info, 0, sizeof(guid_info));
 }
+
+#if IS_ENABLED(CONFIG_BATTERY_SAMSUNG)
 static int set_vbus_current(int state)
 {
 	struct power_supply *psy;
@@ -258,37 +266,40 @@ static int set_vbus_current(int state)
 	power_supply_put(psy);
 	return 0;
 }
+
 static void set_vbus_current_work(struct work_struct *w)
 {
 	struct f_ss_monitor *ss_monitor;
 #if IS_ENABLED(CONFIG_USB_NOTIFY_LAYER)
 	struct otg_notify *o_notify = get_otg_notify();
 #endif
+
 	ss_monitor = container_of(w, struct f_ss_monitor, set_vbus_current_work);
+#if IS_ENABLED(CONFIG_USB_NOTIFY_LAYER)
 	switch (ss_monitor->vbus_current) {
 	case USB_CURRENT_SUSPENDED:
-#if IS_ENABLED(CONFIG_USB_NOTIFY_LAYER)
 		send_otg_notify(o_notify, NOTIFY_EVENT_USBD_SUSPENDED, 1);
-#endif
 		goto skip;
 	case USB_CURRENT_UNCONFIGURED:
-#if IS_ENABLED(CONFIG_USB_NOTIFY_LAYER)
 		send_otg_notify(o_notify, NOTIFY_EVENT_USBD_UNCONFIGURED, 1);
-#endif
 		break;
 	case USB_CURRENT_HIGH_SPEED:
 	case USB_CURRENT_SUPER_SPEED:
-#if IS_ENABLED(CONFIG_USB_NOTIFY_LAYER)
 		send_otg_notify(o_notify, NOTIFY_EVENT_USBD_CONFIGURED, 1);
-#endif
 		break;
 	default:
 		break;
 	}
+#else
+	if (ss_monitor->vbus_current == USB_CURRENT_SUSPENDED)
+		goto skip;
+#endif
+
 	set_vbus_current(ss_monitor->vbus_current);
 skip:
 	return;
 }
+#endif
 
 /*-------------------------------------------------------------------------*/
 static void
@@ -346,6 +357,7 @@ static bool is_aoa_string_come(int string_index)
 	else
 		return false;
 }
+#endif
 
 static char *get_usb_speed(enum usb_device_speed	speed)
 {
@@ -368,7 +380,6 @@ static char *get_usb_speed(enum usb_device_speed	speed)
 		return "ERR";
 	}
 }
-#endif
 
 static void ss_mon_usb_event_work(struct work_struct *work)
 {
@@ -448,8 +459,11 @@ void usb_reset_notify(struct usb_gadget *gadget)
 #endif
 	if (g_ss_monitor->ss_monitor == NULL)
 		return;
+
+#if IS_ENABLED(CONFIG_BATTERY_SAMSUNG)
 	g_ss_monitor->ss_monitor->vbus_current = USB_CURRENT_UNCONFIGURED;
 	schedule_work(&g_ss_monitor->ss_monitor->set_vbus_current_work);
+#endif
 
 	if (g_ss_monitor->aoa_reset.acc_dev_status && (g_ss_monitor->aoa_reset.rst_err_noti == false)) {
 		current_time = ktime_to_ms(ktime_get_boottime());
@@ -482,15 +496,14 @@ static int ss_monitor_setup(struct usb_function *f,
 	struct f_ss_monitor	*ss_monitor;
 	struct usb_composite_dev *cdev;
 	struct usb_request	*req;
-
-#if defined(CONFIG_USB_NOTIFY_PROC_LOG)
-	char log_buf[30] = {0};
-	char *usb_speed = NULL;
-#endif
 	int	value = -EOPNOTSUPP;
 	u16	w_index = le16_to_cpu(ctrl->wIndex);
 	u16	w_value = le16_to_cpu(ctrl->wValue);
 	u16	w_length = le16_to_cpu(ctrl->wLength);
+	char *usb_speed = NULL;
+#if defined(CONFIG_USB_NOTIFY_PROC_LOG)
+	char log_buf[30] = {0};
+#endif
 
 	ss_monitor = func_to_ss_monitor(f);
 
@@ -518,6 +531,12 @@ static int ss_monitor_setup(struct usb_function *f,
 			if (ctrl->bRequest == 0xA3) {
 				pr_info("usb: [%s] RECEIVE PC GUID / line[%d]\n",
 							__func__, __LINE__);
+				if (w_length > MAX_GUID_SIZE) {
+					pr_info("usb: [%s] Invalid GUID size / line[%d]\n",
+								__func__, __LINE__);
+					goto unknown;
+				}
+
 				value = w_length;
 				req->complete = mtp_complete_get_guid;
 				req->zero = 0;
@@ -555,15 +574,16 @@ static int ss_monitor_setup(struct usb_function *f,
 		case USB_REQ_GET_DESCRIPTOR:
 			if (ctrl->bRequestType != USB_DIR_IN)
 				goto unknown;
-#if defined(CONFIG_USB_NOTIFY_PROC_LOG)
 			switch (w_value >> 8) {
 			case USB_DT_DEVICE:
 				if (w_length == USB_DT_DEVICE_SIZE) {
 					usb_speed = get_usb_speed(cdev->gadget->speed);
-					sprintf(log_buf, "USB_STATE=ENUM:GET:DES:%s", usb_speed);
 					pr_info("usb: GET_DES(%s)\n", usb_speed);
+#if defined(CONFIG_USB_NOTIFY_PROC_LOG)
+					sprintf(log_buf, "USB_STATE=ENUM:GET:DES:%s", usb_speed);
 					store_usblog_notify(NOTIFY_USBSTATE,
 						(void *)"USB_STATE=ENUM:GET:DES", NULL);
+#endif
 #if IS_ENABLED(CONFIG_USB_TYPEC_MANAGER_NOTIFIER)
 					set_usb_enumeration_state(cdev->gadget->speed);
 #endif
@@ -574,15 +594,16 @@ static int ss_monitor_setup(struct usb_function *f,
 					break;
 			}
 			break;
-#endif
 		case USB_REQ_SET_CONFIGURATION:
-#if defined(CONFIG_USB_NOTIFY_PROC_LOG)
 			pr_info("usb: SET_CONFIG (%d)\n", w_value);
+#if IS_ENABLED(CONFIG_BATTERY_SAMSUNG)
 			if (cdev->gadget->speed >= USB_SPEED_SUPER)
 				ss_monitor->vbus_current = USB_CURRENT_SUPER_SPEED;
 			else
 				ss_monitor->vbus_current = USB_CURRENT_HIGH_SPEED;
 			schedule_work(&ss_monitor->set_vbus_current_work);
+#endif
+#if defined(CONFIG_USB_NOTIFY_PROC_LOG)
 			store_usblog_notify(NOTIFY_USBSTATE,
 				(void *)"USB_STATE=ENUM:SET:CON", NULL);
 #endif
@@ -601,23 +622,32 @@ void make_suspend_current_event(void)
 {
 	if (!g_ss_monitor)
 		return;
+#if IS_ENABLED(CONFIG_BATTERY_SAMSUNG)
 	if (g_ss_monitor->ss_monitor && g_ss_monitor->ss_monitor->is_bind) {
 		g_ss_monitor->ss_monitor->vbus_current = USB_CURRENT_SUSPENDED;
 		schedule_work(&g_ss_monitor->ss_monitor->set_vbus_current_work);
 	}
+#else
+	pr_info("usb: %s : usb suspend irq\n", __func__);
+#endif
 }
 EXPORT_SYMBOL(make_suspend_current_event);
 static void ss_monitor_suspend(struct usb_function *f)
 {
+#if IS_ENABLED(CONFIG_BATTERY_SAMSUNG)
 	struct f_ss_monitor *ss_monitor;
 
 	pr_info("usb: %s : usb suspend enter\n", __func__);
 	ss_monitor = func_to_ss_monitor(f);
 	ss_monitor->vbus_current = USB_CURRENT_SUSPENDED;
 	schedule_work(&ss_monitor->set_vbus_current_work);
+#else
+	pr_info("usb: %s : usb suspend enter--\n", __func__);
+#endif
 }
 static void ss_monitor_resume(struct usb_function *f)
 {
+#if IS_ENABLED(CONFIG_BATTERY_SAMSUNG)
 	struct f_ss_monitor *ss_monitor;
 	struct usb_composite_dev *cdev = f->config->cdev;
 
@@ -628,6 +658,9 @@ static void ss_monitor_resume(struct usb_function *f)
 	else
 		ss_monitor->vbus_current = USB_CURRENT_HIGH_SPEED;
 	schedule_work(&ss_monitor->set_vbus_current_work);
+#else
+	pr_info("usb: %s : usb suspend exit --\n", __func__);
+#endif
 }
 #if defined(CONFIG_USB_NOTIFY_PROC_LOG)
 static void update_usb_gadet_function(char *f_name, struct f_ss_monitor *p_monitor)
@@ -792,7 +825,9 @@ ss_monitor_bind(struct usb_configuration *c, struct usb_function *f)
 	store_usblog_notify(NOTIFY_USBSTATE,
 		(void *)"USB_STATE=PULLUP:EN:SUCCESS", NULL);
 #endif
+#if IS_ENABLED(CONFIG_BATTERY_SAMSUNG)
 	INIT_WORK(&ss_monitor->set_vbus_current_work, set_vbus_current_work);
+#endif
 
 #if IS_ENABLED(CONFIG_USB_TYPEC_MANAGER_NOTIFIER)
 	set_usb_enable_state();
@@ -833,7 +868,9 @@ ss_monitor_unbind(struct usb_configuration *c, struct usb_function *f)
 	ss_monitor->is_bind = 0;
 
 	cancel_delayed_work_sync(&opts->aoa_reset.usb_reset_event_work);
+#if IS_ENABLED(CONFIG_BATTERY_SAMSUNG)
 	flush_work(&ss_monitor->set_vbus_current_work);
+#endif
 	pr_info("usb: %s: ss_mon.%s unbind\n", __func__, opts->name);
 }
 

@@ -496,10 +496,24 @@ p2pRoleStateAbort_SWITCH_CHANNEL(IN struct ADAPTER *prAdapter,
 		IN struct P2P_ROLE_FSM_INFO *prP2pRoleFsmInfo,
 		IN enum ENUM_P2P_ROLE_STATE eNextState)
 {
+	struct LINK *prClientList;
+	struct STA_RECORD *prCurrStaRec;
+
+	prClientList = &prP2pRoleBssInfo->rStaRecOfClientList;
 	do {
 		p2pFuncReleaseCh(prAdapter,
 			prP2pRoleFsmInfo->ucBssIndex,
 			&(prP2pRoleFsmInfo->rChnlReqInfo));
+		if (prClientList && prClientList->u4NumElem > 0) {
+			LINK_FOR_EACH_ENTRY(prCurrStaRec, prClientList,
+					rLinkEntry, struct STA_RECORD) {
+			/*update BSSBasicRateSet from Bss */
+			prCurrStaRec->u2BSSBasicRateSet =
+				prP2pRoleBssInfo->u2BSSBasicRateSet;
+				nicTxUpdateStaRecDefaultRate(prAdapter,
+					prCurrStaRec);
+			}
+		}
 	} while (FALSE);
 }				/* p2pRoleStateAbort_SWITCH_CHANNEL */
 #endif

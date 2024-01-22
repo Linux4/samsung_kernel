@@ -21,6 +21,7 @@ struct ufs_vendor_dev_info ufs_vdi;
 struct ufs_sec_err_info ufs_err_info;
 struct ufs_sec_err_info ufs_err_info_backup;
 struct ufs_sec_wb_info ufs_wb;
+struct ufs_sec_feature_info ufs_sec_features;
 
 #define set_wb_state(wb, s) \
 	({(wb)->state = (s); (wb)->state_ts = jiffies; })
@@ -556,6 +557,105 @@ wb_disabled:
 	ufs_wb.support = false;
 }
 
+/* SEC cmd log : begin */
+static void __ufs_sec_log_cmd(struct ufs_hba *hba, int str_idx,
+		unsigned int tag, u8 cmd_id, u8 idn, u8 lun, u32 lba,
+		int transfer_len)
+{
+	struct ufs_sec_cmd_log_info *ufs_cmd_log =
+		ufs_sec_features.ufs_cmd_log;
+	struct ufs_sec_cmd_log_entry *entry =
+		&ufs_cmd_log->entries[ufs_cmd_log->pos];
+
+	int cpu = raw_smp_processor_id();
+
+	entry->lun = lun;
+	entry->str = ufs_sec_log_str[str_idx];
+	entry->cmd_id = cmd_id;
+	entry->lba = lba;
+	entry->transfer_len = transfer_len;
+	entry->idn = idn;
+	entry->tag = tag;
+	entry->tstamp = cpu_clock(cpu);
+	entry->outstanding_reqs = hba->outstanding_reqs;
+	ufs_cmd_log->pos =
+		(ufs_cmd_log->pos + 1) % UFS_SEC_CMD_LOGGING_MAX;
+}
+
+static void ufs_sec_log_cmd(struct ufs_hba *hba, struct ufshcd_lrb *lrbp,
+		int str_t, struct ufs_sec_cmd_info *ufs_cmd, u8 cmd_id)
+{
+	u8 opcode = 0;
+	u8 idn = 0;
+
+	if (!ufs_sec_features.ufs_cmd_log)
+		return;
+
+	switch (str_t) {
+	case UFS_SEC_CMD_SEND:
+	case UFS_SEC_CMD_COMP:
+		__ufs_sec_log_cmd(hba, str_t, lrbp->task_tag, ufs_cmd->opcode,
+				0, lrbp->lun, ufs_cmd->lba,
+				ufs_cmd->transfer_len);
+		break;
+	case UFS_SEC_QUERY_SEND:
+	case UFS_SEC_QUERY_COMP:
+		opcode = hba->dev_cmd.query.request.upiu_req.opcode;
+		idn = hba->dev_cmd.query.request.upiu_req.idn;
+		__ufs_sec_log_cmd(hba, str_t, lrbp->task_tag, opcode,
+				idn, lrbp->lun, 0, 0);
+		break;
+	case UFS_SEC_NOP_SEND:
+	case UFS_SEC_NOP_COMP:
+		__ufs_sec_log_cmd(hba, str_t, lrbp->task_tag, 0,
+				0, lrbp->lun, 0, 0);
+		break;
+	case UFS_SEC_TM_SEND:
+	case UFS_SEC_TM_COMP:
+	case UFS_SEC_TM_ERR:
+	case UFS_SEC_UIC_SEND:
+	case UFS_SEC_UIC_COMP:
+		__ufs_sec_log_cmd(hba, str_t, 0, cmd_id, 0, 0, 0, 0);
+		break;
+	default:
+		break;
+	}
+}
+
+static void ufs_sec_init_cmd_logging(struct device *dev)
+{
+	struct ufs_sec_cmd_log_info *ufs_cmd_log = NULL;
+
+	ufs_cmd_log = devm_kzalloc(dev, sizeof(struct ufs_sec_cmd_log_info),
+			GFP_KERNEL);
+	if (!ufs_cmd_log) {
+		dev_err(dev, "%s: Failed allocating ufs_cmd_log(%lu)",
+				__func__,
+				sizeof(struct ufs_sec_cmd_log_info));
+		return;
+	}
+
+	ufs_cmd_log->entries = devm_kcalloc(dev, UFS_SEC_CMD_LOGGING_MAX,
+			sizeof(struct ufs_sec_cmd_log_entry), GFP_KERNEL);
+	if (!ufs_cmd_log->entries) {
+		dev_err(dev, "%s: Failed allocating cmd log entry(%lu)",
+				__func__,
+				sizeof(struct ufs_sec_cmd_log_entry)
+				* UFS_SEC_CMD_LOGGING_MAX);
+		devm_kfree(dev, ufs_cmd_log);
+		return;
+	}
+
+	pr_info("SEC UFS cmd logging is initialized.\n");
+
+	ufs_sec_features.ufs_cmd_log = ufs_cmd_log;
+
+	ufs_sec_features.ucmd_complete = true;
+	ufs_sec_features.qcmd_complete = true;
+
+}
+/* SEC cmd log : end */
+
 /* panic notifier : begin */
 static void ufs_sec_print_evt(struct ufs_hba *hba, u32 id,
 			     char *err_name)
@@ -666,6 +766,11 @@ static struct notifier_block ufs_sec_panic_notifier = {
 	.priority = 1,
 };
 /* panic notifier : end */
+
+void ufs_sec_init_logging(struct device *dev)
+{
+	ufs_sec_init_cmd_logging(dev);
+}
 
 void ufs_set_sec_features(struct ufs_hba *hba)
 {
@@ -779,13 +884,17 @@ static void ufs_sec_medium_err_lba_check(struct ufs_sec_cmd_info *ufs_cmd)
 	sense_err_log->issue_region_map |= ((u64)1 << region_bit);
 }
 
-static void ufs_sec_uic_cmd_error_check(struct ufs_hba *hba, u32 cmd)
+static void ufs_sec_uic_cmd_error_check(struct ufs_hba *hba, u32 cmd,
+		bool timeout)
 {
 	struct SEC_UFS_UIC_cmd_count *uic_cmd_cnt = &ufs_err_info.UIC_cmd_count;
 	struct SEC_UFS_op_count *op_cnt = &ufs_err_info.op_count;
+	int uic_cmd_result;
+
+	uic_cmd_result = hba->active_uic_cmd->argument2 & MASK_UIC_COMMAND_RESULT;
 
 	/* check UIC CMD result */
-	if ((hba->active_uic_cmd->argument2 & MASK_UIC_COMMAND_RESULT) == UIC_CMD_RESULT_SUCCESS)
+	if (!timeout && (uic_cmd_result == UIC_CMD_RESULT_SUCCESS))
 		return;
 
 	switch (cmd & COMMAND_OPCODE_MASK) {
@@ -983,16 +1092,24 @@ static void ufs_sec_utp_error_check(struct ufs_hba *hba, int tag)
 }
 
 static void ufs_sec_query_error_check(struct ufs_hba *hba,
-		struct ufshcd_lrb *lrbp)
+		struct ufshcd_lrb *lrbp, bool timeout)
 {
 	struct SEC_UFS_QUERY_count *query_cnt = &ufs_err_info.query_count;
 	struct ufs_query_req *request = &hba->dev_cmd.query.request;
 	enum query_opcode opcode = request->upiu_req.opcode;
 	enum dev_cmd_type cmd_type = hba->dev_cmd.type;
+	int ocs;
+
+	ocs = le32_to_cpu(lrbp->utr_descriptor_ptr->header.dword_2) & MASK_OCS;
 
 	/* check Overall Command Status */
-	if ((le32_to_cpu(lrbp->utr_descriptor_ptr->header.dword_2) & MASK_OCS) == OCS_SUCCESS)
+	if (!timeout && (ocs == OCS_SUCCESS))
 		return;
+
+	if (timeout) {
+		opcode = ufs_sec_features.last_qcmd;
+		cmd_type = ufs_sec_features.qcmd_type;
+	}
 
 	if (cmd_type == DEV_CMD_TYPE_NOP) {
 		SEC_UFS_ERR_COUNT_INC(query_cnt->NOP_err, U8_MAX);
@@ -1156,10 +1273,15 @@ static void sec_android_vh_ufs_send_command(void *data, struct ufs_hba *hba, str
 	struct ufs_sec_cmd_info ufs_cmd = { 0, };
 	bool is_scsi_cmd = false;
 	unsigned long flags;
+	struct ufs_query_req *request = NULL;
+	enum dev_cmd_type cmd_type;
+	enum query_opcode opcode;
 
 	is_scsi_cmd = ufs_sec_get_scsi_cmd_info(lrbp, &ufs_cmd);
 
 	if (is_scsi_cmd) {
+		ufs_sec_log_cmd(hba, lrbp, UFS_SEC_CMD_SEND, &ufs_cmd, 0);
+
 		if (ufs_sec_is_wb_allowed() && (ufs_cmd.opcode == WRITE_10)) {
 			spin_lock_irqsave(hba->host->host_lock, flags);
 
@@ -1170,6 +1292,23 @@ static void sec_android_vh_ufs_send_command(void *data, struct ufs_hba *hba, str
 
 			spin_unlock_irqrestore(hba->host->host_lock, flags);
 		}
+	} else {
+		if (hba->dev_cmd.type == DEV_CMD_TYPE_NOP)
+			ufs_sec_log_cmd(hba, lrbp, UFS_SEC_NOP_SEND, NULL, 0);
+		else if (hba->dev_cmd.type == DEV_CMD_TYPE_QUERY)
+			ufs_sec_log_cmd(hba, lrbp, UFS_SEC_QUERY_SEND, NULL, 0);
+
+		/* in timeout error case, last cmd is not completed */
+		if (!ufs_sec_features.qcmd_complete)
+			ufs_sec_query_error_check(hba, lrbp, true);
+
+		request = &hba->dev_cmd.query.request;
+		opcode = request->upiu_req.opcode;
+		cmd_type = hba->dev_cmd.type;
+
+		ufs_sec_features.last_qcmd = opcode;
+		ufs_sec_features.qcmd_type = cmd_type;
+		ufs_sec_features.qcmd_complete = false;
 	}
 }
 static void sec_android_vh_ufs_compl_command(void *data, struct ufs_hba *hba, struct ufshcd_lrb *lrbp)
@@ -1181,6 +1320,7 @@ static void sec_android_vh_ufs_compl_command(void *data, struct ufs_hba *hba, st
 	is_scsi_cmd = ufs_sec_get_scsi_cmd_info(lrbp, &ufs_cmd);
 
 	if (is_scsi_cmd) {
+		ufs_sec_log_cmd(hba, lrbp, UFS_SEC_CMD_COMP, &ufs_cmd, 0);
 		ufs_sec_sense_err_check(lrbp, &ufs_cmd);
 
 		if (ufs_sec_is_wb_allowed() && (ufs_cmd.opcode == WRITE_10)) {
@@ -1206,35 +1346,71 @@ static void sec_android_vh_ufs_compl_command(void *data, struct ufs_hba *hba, st
 		if (hba->req_abort_count > 0)
 			ufs_sec_utp_error_check(hba, lrbp->task_tag);
 	} else {
-		/* in timeout error case, can not be logging */
-		ufs_sec_query_error_check(hba, lrbp);
+		if (hba->dev_cmd.type == DEV_CMD_TYPE_NOP)
+			ufs_sec_log_cmd(hba, lrbp, UFS_SEC_NOP_COMP, NULL, 0);
+		else if (hba->dev_cmd.type == DEV_CMD_TYPE_QUERY)
+			ufs_sec_log_cmd(hba, lrbp, UFS_SEC_QUERY_COMP, NULL, 0);
+
+		ufs_sec_features.qcmd_complete = true;
+
+		/* check and count error, except timeout */
+		ufs_sec_query_error_check(hba, lrbp, false);
 	}
 }
 static void sec_android_vh_ufs_send_uic_command(void *data, struct ufs_hba *hba,  struct uic_command *ucmd,
 		const char *str)
 {
 	u32 cmd;
+	u8 cmd_id;
 
-	if (!strcmp(str, "send"))
+	if (!strcmp(str, "send")) {
+		/* in timeout error case, last cmd is not completed */
+		if (!ufs_sec_features.ucmd_complete) {
+			ufs_sec_uic_cmd_error_check(hba,
+					ufs_sec_features.last_ucmd, true);
+		}
+
 		cmd = ucmd->command;
-	else {
+		ufs_sec_features.last_ucmd = cmd;
+		ufs_sec_features.ucmd_complete = false;
+
+		cmd_id = (u8)(cmd & COMMAND_OPCODE_MASK);
+		ufs_sec_log_cmd(hba, NULL, UFS_SEC_UIC_SEND, NULL, cmd_id);
+	} else {
 		cmd = ufshcd_readl(hba, REG_UIC_COMMAND);
 
-		/* in timeout error case, can not be logging */
-		ufs_sec_uic_cmd_error_check(hba, cmd);
+		ufs_sec_features.ucmd_complete = true;
+
+		/* check and count error, except timeout */
+		ufs_sec_uic_cmd_error_check(hba, cmd, false);
+
+		cmd_id = (u8)(cmd & COMMAND_OPCODE_MASK);
+		ufs_sec_log_cmd(hba, NULL, UFS_SEC_UIC_COMP, NULL, cmd_id);
 	}
 }
 static void sec_android_vh_ufs_send_tm_command(void *data, struct ufs_hba *hba, int tag, const char *str)
 {
 	struct utp_task_req_desc treq = { { 0 }, };
 	u8 tm_func = 0;
+	int sec_log_str_t = 0;
 
 	memcpy(&treq, hba->utmrdl_base_addr + tag, sizeof(treq));
 
 	tm_func = (be32_to_cpu(treq.req_header.dword_1) >> 16) & 0xFF;
 
-	if (!strncmp(str, "tm_complete_err", sizeof("tm_complete_err")))
+	if (!strncmp(str, "tm_send", sizeof("tm_send")))
+		sec_log_str_t = UFS_SEC_TM_SEND;
+	else if (!strncmp(str, "tm_complete", sizeof("tm_complete")))
+		sec_log_str_t = UFS_SEC_TM_COMP;
+	else if (!strncmp(str, "tm_complete_err", sizeof("tm_complete_err"))) {
 		ufs_sec_tm_error_check(tm_func);
+		sec_log_str_t = UFS_SEC_TM_ERR;
+	} else {
+		dev_err(hba->dev, "%s: undefind ufs tm cmd\n", __func__);
+		return;
+	}
+
+	ufs_sec_log_cmd(hba, NULL, sec_log_str_t, NULL, tm_func);
 }
 static void sec_android_vh_ufs_update_sdev(void *data, struct scsi_device *sdev)
 {

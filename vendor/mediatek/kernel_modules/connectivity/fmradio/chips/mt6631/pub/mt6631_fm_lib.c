@@ -81,7 +81,7 @@ static unsigned short mt6631_chan_para_get(unsigned short freq);
 static signed int mt6631_desense_check(unsigned short freq, signed int rssi);
 static bool mt6631_TDD_chan_check(unsigned short freq);
 static bool mt6631_SPI_hopping_check(unsigned short freq);
-static signed int mt6631_atj_set(unsigned short value);
+static signed int mt6631_atj_set(signed int freq, unsigned short value);
 static signed int mt6631_soft_mute_tune(unsigned short freq, signed int *rssi, signed int *valid);
 static signed int mt6631_get_cust_chan_para_map(void);
 
@@ -2675,10 +2675,9 @@ static bool mt6631_SPI_hopping_check(unsigned short freq)
 	return 0;
 }
 
-static signed int mt6631_atj_set(unsigned short value)
+static signed int mt6631_atj_set(signed int freq, unsigned short value)
 {
 	signed int pos, size;
-	signed int freq = 10400;
 
 	if (fm_get_channel_space(freq) == 0)
 		freq *= 10;
@@ -2690,7 +2689,6 @@ static signed int mt6631_atj_set(unsigned short value)
 
 	size = ARRAY_SIZE(mt6631_chan_para_map);
 
-	pos = (pos < 0) ? 0 : pos;
 	pos = (pos > (size - 1)) ? (size - 1) : pos;
 
 	if (value == 1)

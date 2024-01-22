@@ -103,6 +103,7 @@ struct apu_tags *apu_tags_alloc(const char *name, int size, int cnt,
 
 	memset(at->tags, 0, at->ent_sz * at->cnt);
 	strncpy(at->name, name, APU_TAG_NAME_SZ-1);
+	at->name[sizeof(at->name)-1] = '\0';
 
 	/* proc dentries */
 	if (apu_tags_alloc_procfs(at)) {

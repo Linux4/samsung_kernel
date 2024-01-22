@@ -383,7 +383,7 @@ extern signed int fm_cqi_log(void);
 extern signed int fm_soft_mute_tune(struct fm *fm, struct fm_softmute_tune_t *parm);
 extern signed int fm_pre_search(struct fm *fm);
 extern signed int fm_restore_search(struct fm *fm);
-extern signed int fm_atj_set(unsigned short value);
+extern signed int fm_atj_set(signed int freq, unsigned short value);
 
 extern signed int fm_dump_reg(void);
 extern signed int fm_get_gps_rtc_info(struct fm_gps_rtc_info *src);

@@ -1706,6 +1706,18 @@
 
 #define CFG_SUPPORT_LIMITED_PKT_PID  1
 
+/*------------------------------------------------------------------------------
+ * Flag of Wifi Standalone Log Support.
+ * 1: Enable. Could be supported only if (CFG_MTK_ANDROID_WMT == 1).
+ * 0: Disable.
+ *------------------------------------------------------------------------------
+ */
+#if CFG_MTK_ANDROID_WMT
+#define CFG_SUPPORT_SA_LOG 1
+#else
+#define CFG_SUPPORT_SA_LOG 0
+#endif
+
 /*******************************************************************************
  *                             D A T A   T Y P E S
  *******************************************************************************

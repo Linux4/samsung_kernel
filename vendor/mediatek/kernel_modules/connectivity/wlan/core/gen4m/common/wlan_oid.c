@@ -863,7 +863,11 @@ wlanoidSetBssidListScanAdv(IN struct ADAPTER *prAdapter,
 	} else
 #endif
 	{
-		if (prAdapter->fgEnOnlineScan == TRUE) {
+		if (p2pFuncIsCsaBlockScan(prAdapter)) {
+			DBGLOG(OID, WARN,
+		       "Not to do scan during SAP CSA!!\n");
+			return WLAN_STATUS_FAILURE;
+		} else if (prAdapter->fgEnOnlineScan == TRUE) {
 			aisFsmScanRequestAdv(prAdapter, prScanRequest);
 		} else if (kalGetMediaStateIndicated(prAdapter->prGlueInfo,
 			ucBssIndex)
@@ -16494,7 +16498,7 @@ uint32_t wlanoidUpdateFtIes(struct ADAPTER *prAdapter, void *pvSetBuffer,
 	struct cfg80211_update_ft_ies_params *ftie = NULL;
 	struct STA_RECORD *prStaRec = NULL;
 	struct MSG_SAA_FT_CONTINUE *prFtContinueMsg = NULL;
-	uint8_t ucBssIndex = 0;
+	uint8_t ucBssIndex = 0, ucRound = 0;
 
 	if (!pvSetBuffer || u4SetBufferLen == 0) {
 		DBGLOG(OID, ERROR,
@@ -16507,17 +16511,32 @@ uint32_t wlanoidUpdateFtIes(struct ADAPTER *prAdapter, void *pvSetBuffer,
 
 	prStaRec = aisGetTargetStaRec(prAdapter, ucBssIndex);
 	ftie = (struct cfg80211_update_ft_ies_params *)pvSetBuffer;
-	prFtIes = aisGetFtIe(prAdapter, ucBssIndex);
 	if (ftie->ie_len == 0) {
 		DBGLOG(OID, WARN, "FT: FT Ies length is 0\n");
 		return WLAN_STATUS_SUCCESS;
 	}
+	if (!prStaRec) {
+		DBGLOG(OID, WARN, "FT: invalid StaRec\n");
+		return WLAN_STATUS_SUCCESS;
+	}
+
+	/*
+	 * state = STA_STATE_3: update R0 for next auth frame
+	 * state = STA_STATE_1: update R1 for upcoming assoc frame
+	 */
+	ucRound = prStaRec->ucStaState == STA_STATE_1 ? FT_R1 : FT_R0;
+
+	DBGLOG(OID, WARN, "FT: STA state:%d Round:%d\n", prStaRec->ucStaState, ucRound);
+
+	prFtIes = aisGetFtIe(prAdapter, ucBssIndex, ucRound);
 	if (prFtIes->u4IeLength != ftie->ie_len) {
 		kalMemFree(prFtIes->pucIEBuf, VIR_MEM_TYPE,
 			   prFtIes->u4IeLength);
 		prFtIes->pucIEBuf = kalMemAlloc(ftie->ie_len, VIR_MEM_TYPE);
 		prFtIes->u4IeLength = ftie->ie_len;
 	}
+
+	DBGLOG(OID, WARN, "FT: raw data >>>\n");
 
 	if (!prFtIes->pucIEBuf) {
 		DBGLOG(OID, ERROR,
@@ -16567,7 +16586,7 @@ uint32_t wlanoidUpdateFtIes(struct ADAPTER *prAdapter, void *pvSetBuffer,
 	       ftie->md, prFtIes->u4IeLength, !!prFtIes->prMDIE,
 	       !!prFtIes->prFTIE, !!prFtIes->prRsnIE, !!prFtIes->prTIE);
 	/* check if SAA is waiting to send Reassoc req */
-	if (!prStaRec || prStaRec->ucAuthTranNum != AUTH_TRANSACTION_SEQ_2 ||
+	if (prStaRec->ucAuthTranNum != AUTH_TRANSACTION_SEQ_2 ||
 		!prStaRec->fgIsReAssoc || prStaRec->ucStaState != STA_STATE_1)
 		return WLAN_STATUS_SUCCESS;
 
@@ -16579,15 +16598,9 @@ uint32_t wlanoidUpdateFtIes(struct ADAPTER *prAdapter, void *pvSetBuffer,
 	}
 	prFtContinueMsg->rMsgHdr.eMsgId = MID_OID_SAA_FSM_CONTINUE;
 	prFtContinueMsg->prStaRec = prStaRec;
-	/* ToDo: for Resource Request Protocol, we need to check if RIC request
-	** is included.
-	*/
-	if (prFtIes->prMDIE && (prFtIes->prMDIE->ucBitMap & BIT(1)))
-		prFtContinueMsg->fgFTRicRequest = TRUE;
-	else
-		prFtContinueMsg->fgFTRicRequest = FALSE;
-	DBGLOG(OID, INFO, "FT: continue to do auth/assoc, Ft Request %d\n",
-	       prFtContinueMsg->fgFTRicRequest);
+	/* We don't support resource request protocol */
+	prFtContinueMsg->fgFTRicRequest = FALSE;
+	DBGLOG(OID, INFO, "FT: continue to do auth/assoc\n");
 	mboxSendMsg(prAdapter, MBOX_ID_0, (struct MSG_HDR *)prFtContinueMsg,
 		    MSG_SEND_METHOD_BUF);
 	return WLAN_STATUS_SUCCESS;

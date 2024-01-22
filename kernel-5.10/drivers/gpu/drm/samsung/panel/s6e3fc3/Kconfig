@@ -1,6 +1,6 @@
-menuconfig EXYNOS_DECON_LCD_S6E3FC3
+menuconfig USDM_PANEL_S6E3FC3
 	tristate "S6E3FC3 DDI Panel Driver"
-	depends on MCD_PANEL
+	depends on USDM_PANEL
 	depends on USDM_PANEL_OLED_COMMON
 	default n
 	help

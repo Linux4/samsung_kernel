@@ -1511,13 +1511,16 @@ uint8_t apSelectionIsBssDescQualify(struct ADAPTER *prAdapter,
 	}
 	case ROAMING_REASON_BTM:
 	{
+		if (u4ConnectedApScore == 0)
+			return TRUE;
+
 		/* BTM default score delta is 0 */
 		if (u4CandidateApScore < u4ConnectedApScore)
 			return FALSE;
 
 		if ((((u4CandidateApScore - u4ConnectedApScore) * 100) /
 			((u4CandidateApScore + u4ConnectedApScore) / 2)) >=
-			prWifiVar->ucRIDelta)
+			prWifiVar->ucRBTMDelta)
 			return TRUE;
 		break;
 	}
@@ -1686,12 +1689,14 @@ void apSelectionListCandidateAPs(struct ADAPTER *prAdapter,
 	struct CONNECTION_SETTINGS *prConnSettings = NULL;
 	struct BSS_DESC *prCandidateBssDesc = NULL;
 	struct BSS_DESC *prCandidateBssDescNext = NULL;
+	struct AIS_FSM_INFO *prAisFsmInfo = NULL;
 	uint32_t u4ConnectedApScore = 0, u4CandidateApScore = 0;
 	enum ENUM_PARAM_CONNECTION_POLICY policy;
 	uint8_t ucIsQualify, ucIndex = 0;
 	uint8_t ucConnSettingsChnl = 0;
 
 	prConnSettings = aisGetConnSettings(prAdapter, ucBssIndex);
+	prAisFsmInfo = aisGetAisFsmInfo(prAdapter, ucBssIndex);
 	policy = prConnSettings->eConnectionPolicy;
 	if (prConnSettings->u4FreqInKHz)
 		ucConnSettingsChnl = nicFreq2ChannelNum(
@@ -1702,6 +1707,11 @@ void apSelectionListCandidateAPs(struct ADAPTER *prAdapter,
 	u4ConnectedApScore = apSelectionCalculateScore(prAdapter,
 		aisGetTargetBssDesc(prAdapter, ucBssIndex), ucBssIndex,
 		eRoamReason, prCUInfoByFreq);
+	if (eRoamReason == ROAMING_REASON_BTM &&
+		prAisFsmInfo->fgTargetChnlScanIssued == FALSE) {
+		u4ConnectedApScore = 0;
+		log_dbg(SCN, INFO, "Reset connect AP socre to 0 due to BTM");
+	}
 	roamingFsmLogSocre(prAdapter, "SCORE_CUR_AP", ucBssIndex,
 		aisGetTargetBssDesc(prAdapter, ucBssIndex), u4ConnectedApScore,
 		0);

@@ -15,6 +15,16 @@
 #include "../panel.h"
 #include "../panel_drv.h"
 
+enum s6e3fc3_a24_function {
+	S6E3FC3_A24_MAPTBL_GETIDX_FFC,
+	MAX_S6E3FC3_A24_FUNCTION,
+};
+
+extern struct pnobj_func s6e3fc3_a24_function_table[MAX_S6E3FC3_A24_FUNCTION];
+
+#undef PANEL_FUNC
+#define PANEL_FUNC(_index) (s6e3fc3_a24_function_table[_index])
+
 enum {
 	S6E3FC3_A24_HS_CLK_806 = 0,
 	S6E3FC3_A24_HS_CLK_822,
@@ -22,10 +32,9 @@ enum {
 	MAX_S6E3FC3_A24_HS_CLK
 };
 
-#ifdef CONFIG_SUPPORT_PANEL_DECODER_TEST
+#ifdef CONFIG_USDM_FACTORY_DSC_CRC_TEST
 int s6e3fc3_a24_decoder_test(struct panel_device *panel, void *data, u32 len);
 #endif
-int s6e3fc3_a24_getidx_ffc_table(struct maptbl *tbl);
-__visible_for_testing int getidx_irc_mode_table(struct maptbl *tbl);
+int s6e3fc3_a24_maptbl_getidx_ffc(struct maptbl *tbl);
 
 #endif /* __S6E3FC3_A24_H__ */

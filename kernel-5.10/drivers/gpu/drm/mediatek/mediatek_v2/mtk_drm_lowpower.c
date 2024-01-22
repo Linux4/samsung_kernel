@@ -159,6 +159,23 @@ bool mtk_drm_is_idle(struct drm_crtc *crtc)
 	return idlemgr->idlemgr_ctx->is_idle;
 }
 
+void mtk_drm_idlemgr_kick_async(struct drm_crtc *crtc)
+{
+	struct mtk_drm_crtc *mtk_crtc = NULL;
+	struct mtk_drm_idlemgr *idlemgr;
+
+	if (crtc)
+		mtk_crtc = to_mtk_crtc(crtc);
+
+	if (mtk_crtc && mtk_crtc->idlemgr)
+		idlemgr = mtk_crtc->idlemgr;
+	else
+		return;
+
+	atomic_set(&idlemgr->kick_task_active, 1);
+	wake_up_interruptible(&idlemgr->kick_wq);
+}
+
 void mtk_drm_idlemgr_kick(const char *source, struct drm_crtc *crtc,
 			  int need_lock)
 {
@@ -304,6 +321,26 @@ static bool mtk_planes_is_yuv_fmt(struct drm_crtc *crtc)
 	return false;
 }
 
+static int mtk_drm_async_kick_idlemgr_thread(void *data)
+{
+	struct drm_crtc *crtc = (struct drm_crtc *)data;
+	struct mtk_drm_crtc *mtk_crtc = to_mtk_crtc(crtc);
+	struct mtk_drm_idlemgr *idlemgr = mtk_crtc->idlemgr;
+	int ret = 0;
+
+	while (!kthread_should_stop()) {
+		ret = wait_event_interruptible(
+			idlemgr->kick_wq,
+			atomic_read(&idlemgr->kick_task_active));
+
+		atomic_set(&idlemgr->kick_task_active, 0);
+
+		mtk_drm_idlemgr_kick(__func__, crtc, true);
+	}
+
+	return 0;
+}
+
 static int mtk_drm_idlemgr_monitor_thread(void *data)
 {
 	int ret = 0;
@@ -330,6 +367,13 @@ static int mtk_drm_idlemgr_monitor_thread(void *data)
 		if (!mtk_crtc->enabled) {
 			DDP_MUTEX_UNLOCK(&mtk_crtc->lock, __func__, __LINE__);
 			mtk_crtc_wait_status(crtc, 1, MAX_SCHEDULE_TIMEOUT);
+			continue;
+		}
+
+		if (mtk_crtc_is_frame_trigger_mode(crtc) &&
+				atomic_read(&priv->crtc_rel_present[crtc_id]) <
+				atomic_read(&priv->crtc_present[crtc_id])) {
+			DDP_MUTEX_UNLOCK(&mtk_crtc->lock, __func__, __LINE__);
 			continue;
 		}
 
@@ -402,21 +446,16 @@ int mtk_drm_idlemgr_init(struct drm_crtc *crtc, int index)
 {
 #define LEN 50
 	struct mtk_drm_crtc *mtk_crtc = to_mtk_crtc(crtc);
-	struct mtk_drm_idlemgr *idlemgr =
-		kzalloc(sizeof(struct mtk_drm_idlemgr), GFP_KERNEL);
-	struct mtk_drm_idlemgr_context *idlemgr_ctx =
-		kzalloc(sizeof(struct mtk_drm_idlemgr_context), GFP_KERNEL);
+	struct mtk_drm_idlemgr *idlemgr;
+	struct mtk_drm_idlemgr_context *idlemgr_ctx;
 	char name[LEN];
 
-	if (!idlemgr) {
-		DDPPR_ERR("struct mtk_drm_idlemgr allocate fail\n");
-		return -ENOMEM;
-		;
-	}
-
-	if (!idlemgr_ctx) {
-
-		DDPPR_ERR("struct mtk_drm_idlemgr_context allocate fail\n");
+	idlemgr = kzalloc(sizeof(*idlemgr), GFP_KERNEL);
+	idlemgr_ctx = kzalloc(sizeof(*idlemgr_ctx), GFP_KERNEL);
+	if (!idlemgr || !idlemgr_ctx) {
+		DDPPR_ERR("idlemgr or idlemgr_ctx allocate fail\n");
+		kfree(idlemgr);
+		kfree(idlemgr_ctx);
 		return -ENOMEM;
 	}
 
@@ -437,6 +476,14 @@ int mtk_drm_idlemgr_init(struct drm_crtc *crtc, int index)
 	atomic_set(&idlemgr->idlemgr_task_active, 1);
 
 	wake_up_process(idlemgr->idlemgr_task);
+
+	snprintf(name, LEN, "dis_ki-%d", index);
+	idlemgr->kick_task =
+		kthread_create(mtk_drm_async_kick_idlemgr_thread, crtc, name);
+	init_waitqueue_head(&idlemgr->kick_wq);
+	atomic_set(&idlemgr->kick_task_active, 0);
+
+	wake_up_process(idlemgr->kick_task);
 
 	return 0;
 }

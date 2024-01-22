@@ -1,0 +1,8 @@
+#
+# Zinitix touchscreen driver configuration
+#
+menuconfig TOUCHSCREEN_ZINITIX_ZT7650M
+	tristate "Zinitix 7650M touchscreen"
+	help
+	  Say Y here if you have a Zinitix 7650M touch controller
+	  to your system.

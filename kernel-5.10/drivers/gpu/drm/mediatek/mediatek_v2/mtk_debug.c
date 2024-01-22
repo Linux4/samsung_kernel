@@ -384,14 +384,9 @@ int mtk_dprec_logger_get_buf(enum DPREC_LOGGER_PR_TYPE type, char *stringbuf,
 	char **buf_arr;
 	int c;
 
-	if (type < 0) {
-		DDPPR_ERR("%s invalid DPREC_LOGGER_PR_TYPE\n", __func__);
-		return -1;
-	}
-	c = dprec_logger_buffer[type].id;
-
-	if (type >= DPREC_LOGGER_PR_NUM || type < 0 || len < 0)
+	if (type >= DPREC_LOGGER_PR_NUM || len < 0)
 		return 0;
+	c = dprec_logger_buffer[type].id;
 
 	if (!is_buffer_init)
 		return 0;
@@ -1061,7 +1056,7 @@ int read_lcm_wrapper(struct mtk_ddic_dsi_msg *cmd_msg)
 EXPORT_SYMBOL(read_lcm_wrapper);
 
 int mtk_ddic_dsi_send_cmd(struct mtk_ddic_dsi_msg *cmd_msg,
-			bool blocking, bool need_lock)
+			int blocking, bool need_lock)
 {
 	struct drm_crtc *crtc;
 	struct mtk_drm_crtc *mtk_crtc;
@@ -1147,7 +1142,8 @@ int mtk_ddic_dsi_send_cmd(struct mtk_ddic_dsi_msg *cmd_msg,
 	/* only use CLIENT_DSI_CFG for VM CMD scenario */
 	/* use CLIENT_CFG otherwise */
 
-	gce_client = (!is_frame_mode && use_lpm) ?
+	gce_client = (!is_frame_mode && !use_lpm &&
+					mtk_crtc->gce_obj.client[CLIENT_DSI_CFG]) ?
 			mtk_crtc->gce_obj.client[CLIENT_DSI_CFG] :
 			mtk_crtc->gce_obj.client[CLIENT_CFG];
 
@@ -1182,6 +1178,26 @@ int mtk_ddic_dsi_send_cmd(struct mtk_ddic_dsi_msg *cmd_msg,
 		cmdq_pkt_set_event(cmdq_handle,
 			mtk_crtc->gce_obj.event[EVENT_STREAM_BLOCK]);
 	}
+
+#if defined (CUSTOMER_USE_SIMPLE_API)
+	if (blocking == SET_LCM_BLOCKING_NOWAIT) {
+		cmdq_pkt_flush_async(cmdq_handle, NULL, NULL);
+		if (need_lock) {
+			DDP_MUTEX_UNLOCK(&mtk_crtc->lock, __func__, __LINE__);
+			mutex_unlock(&private->commit.lock);
+		}
+		DDPMSG("%s flush done\n", __func__);
+		cmdq_pkt_wait_complete(cmdq_handle);
+		cmdq_pkt_destroy(cmdq_handle);
+
+		DDPMSG("%s - %d\n", __func__, blocking);
+
+		CRTC_MMP_EVENT_END(index, ddic_send_cmd, (unsigned long)crtc,
+			blocking);
+
+		return ret;
+	}
+#endif
 
 	if (blocking) {
 		cmdq_pkt_flush(cmdq_handle);
@@ -1457,7 +1473,7 @@ void ddic_dsi_send_switch_pgt(unsigned int cmd_num, u8 addr,
 
 	DDPMSG("%s start case_num:%d\n", __func__, val3);
 
-	if (!cmd_num)
+	if (!cmd_num || !cmd_msg)
 		return;
 	memset(cmd_msg, 0, sizeof(struct mtk_ddic_dsi_msg));
 
@@ -1518,6 +1534,9 @@ void ddic_dsi_read_cm_cmd(u8 cm_addr)
 	struct mtk_ddic_dsi_msg *cmd_msg =
 		vmalloc(sizeof(struct mtk_ddic_dsi_msg));
 	u8 tx[10] = {0};
+
+	if (!cmd_msg)
+		return;
 
 	DDPMSG("%s start case_num:%d\n", __func__, cm_addr);
 
@@ -1834,7 +1853,7 @@ static void mtk_drm_cwb_info_init(struct drm_crtc *crtc)
 		cwb_info->buffer[0].fb  =
 			mtk_drm_framebuffer_create(
 			crtc->dev, &mode, &mtk_gem->base);
-		DDPMSG("[capture] b[0].addr_mva:0x%x, addr_va:0x%llx\n",
+		DDPMSG("[capture] b[0].addr_mva:0x%llx, addr_va:0x%llx\n",
 				cwb_info->buffer[0].addr_mva,
 				cwb_info->buffer[0].addr_va);
 
@@ -1846,7 +1865,7 @@ static void mtk_drm_cwb_info_init(struct drm_crtc *crtc)
 		cwb_info->buffer[1].fb  =
 			mtk_drm_framebuffer_create(
 			crtc->dev, &mode, &mtk_gem->base);
-		DDPMSG("[capture] b[1].addr_mva:0x%x, addr_va:0x%llx\n",
+		DDPMSG("[capture] b[1].addr_mva:0x%llx, addr_va:0x%llx\n",
 				cwb_info->buffer[1].addr_mva,
 				cwb_info->buffer[1].addr_va);
 	}
@@ -1975,7 +1994,7 @@ bool mtk_drm_set_cwb_roi(struct mtk_rect rect)
 		cwb_info->buffer[0].fb  =
 			mtk_drm_framebuffer_create(
 			crtc->dev, &mode, &mtk_gem->base);
-		DDPMSG("[capture] b[0].addr_mva:0x%x, addr_va:0x%llx\n",
+		DDPMSG("[capture] b[0].addr_mva:0x%llx, addr_va:0x%llx\n",
 			cwb_info->buffer[0].addr_mva,
 			cwb_info->buffer[0].addr_va);
 
@@ -1987,7 +2006,7 @@ bool mtk_drm_set_cwb_roi(struct mtk_rect rect)
 		cwb_info->buffer[1].fb  =
 			mtk_drm_framebuffer_create(
 			crtc->dev, &mode, &mtk_gem->base);
-		DDPMSG("[capture] b[0].addr_mva:0x%x, addr_va:0x%llx\n",
+		DDPMSG("[capture] b[0].addr_mva:0x%llx, addr_va:0x%llx\n",
 			cwb_info->buffer[1].addr_mva,
 			cwb_info->buffer[1].addr_va);
 	}
@@ -2937,12 +2956,15 @@ static void process_dbg_opt(const char *opt)
 			}
 			DDPINFO("------find crtc------");
 			mtk_crtc = to_mtk_crtc(crtc);
-			if (!crtc->enabled
+			if (!mtk_crtc || !crtc->enabled
 				|| mtk_crtc->ddp_mode == DDP_NO_USE)
 				continue;
 
-			mtk_crtc = to_mtk_crtc(crtc);
 			comp = mtk_ddp_comp_request_output(mtk_crtc);
+
+			if (!comp)
+				continue;
+
 			mtk_dp_intf_dump(comp);
 		}
 	} else if (strncmp(opt, "arr4_enable", 11) == 0) {
@@ -3187,11 +3209,13 @@ static void process_dbg_opt(const char *opt)
 
 		mtk_crtc = to_mtk_crtc(crtc);
 
-		if (mtk_crtc)
+		if (mtk_crtc) {
 			mtk_crtc->is_mml_debug = g_mml_debug;
-
-		DDPMSG("g_mml_debug:%d, mtk_crtc->is_mml_debug:%d",
-			g_mml_debug, mtk_crtc->is_mml_debug);
+			DDPMSG("g_mml_debug:%d, mtk_crtc->is_mml_debug:%d",
+				g_mml_debug, mtk_crtc->is_mml_debug);
+		} else {
+			DDPMSG("g_mml_debug:%d", g_mml_debug);
+		}
 	} else if (strncmp(opt, "dual_te:", 8) == 0) {
 		struct drm_crtc *crtc;
 

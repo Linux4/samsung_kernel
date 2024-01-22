@@ -236,6 +236,7 @@ void sec_debug_set_extra_info_fault(unsigned long addr, struct pt_regs *regs)
 					  regs->compat_lr : regs->regs[30]);
 	}
 }
+EXPORT_SYMBOL(sec_debug_set_extra_info_fault);
 
 /******************************************************************************
  * sec_debug_set_extra_info_bug
@@ -279,6 +280,7 @@ void sec_debug_set_extra_info_upload(char *str)
 		sec_debug_finish_extra_info();
 	}
 }
+EXPORT_SYMBOL(sec_debug_set_extra_info_upload);
 
 static int sec_debug_check_magic(struct sec_debug_shared_info *sdi)
 {
@@ -342,7 +344,6 @@ static void sec_debug_init_base_buffer(void)
  * RSTCNT (32) + PC (256) + LR (256) (MAX: 544)
  * + BUG (256) + PANIC (256) (MAX: 512)
  */
-extern struct sec_debug_panic_extra_info *sec_debug_extra_info_backup;
 static int sec_debug_reset_reason_extra_show(struct seq_file *m, void *v)
 {
 	ssize_t size = 0;

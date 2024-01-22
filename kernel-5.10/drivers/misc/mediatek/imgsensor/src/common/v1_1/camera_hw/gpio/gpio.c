@@ -21,6 +21,8 @@ struct GPIO_PINCTRL gpio_pinctrl_list_cam[
 	{"vcamaf_off"},
 	{"vcamd_on"},
 	{"vcamd_off"},
+	{"vcamd1_on"},
+	{"vcamd1_off"},
 	{"vcamio_on"},
 	{"vcamio_off"},
 };

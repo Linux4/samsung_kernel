@@ -1111,6 +1111,7 @@ void wlanOnPostFirmwareReady(IN struct ADAPTER *prAdapter,
 	/* note: call this API after loading NVRAM */
 	txPwrCtrlLoadConfig(prAdapter);
 #endif
+	LINK_INITIALIZE(&prAdapter->rBufferedList);
 }
 
 /*----------------------------------------------------------------------------*/
@@ -1492,6 +1493,7 @@ void wlanOffUninitNicModule(IN struct ADAPTER *prAdapter,
 		/* Note: restore the SPI Mode Select from 32 bit to default */
 		nicRestoreSpiDefMode(prAdapter);
 #endif
+		kalClearBufferLog(prAdapter);
 	}
 }
 
@@ -6254,7 +6256,7 @@ wlanQueryStaStatistics(IN struct ADAPTER *prAdapter,
 	struct PARAM_GET_STA_STATISTICS *prQueryStaStatistics;
 	uint8_t ucStaRecIdx;
 	struct QUE_MGT *prQM;
-	struct CMD_GET_STA_STATISTICS rQueryCmdStaStatistics;
+	struct CMD_GET_STA_STATISTICS rQueryCmdStaStatistics = {0};
 	uint8_t ucIdx;
 	enum ENUM_WMM_ACI eAci;
 
@@ -6485,7 +6487,7 @@ wlanQueryStatistics(IN struct ADAPTER *prAdapter,
 		       IN void *pvQueryBuffer, IN uint32_t u4QueryBufferLen,
 		       OUT uint32_t *pu4QueryInfoLen, IN uint8_t fgIsOid)
 {
-	struct PARAM_802_11_STATISTICS_STRUCT  rStatistics;
+	struct PARAM_802_11_STATISTICS_STRUCT rStatistics = {0};
 
 	DEBUGFUNC("wlanQueryStatistics");
 
@@ -8258,6 +8260,9 @@ void wlanInitFeatureOption(IN struct ADAPTER *prAdapter)
 	prWifiVar->ucApfEnable = (uint32_t) wlanCfgGetUint32(
 			prAdapter, "ApfEnable", FEATURE_ENABLED);
 #endif
+	prWifiVar->u4RxRateProtoFilterMask = (uint32_t) wlanCfgGetUint32(
+		prAdapter, "RxRateProtoFilterMask", BIT(ENUM_PKT_ARP));
+
 	prWifiVar->ucUdpTspecUp = (uint8_t) wlanCfgGetUint32(
 				prAdapter, "UdpTspecUp", 7);
 	prWifiVar->ucTcpTspecUp = (uint8_t) wlanCfgGetUint32(
@@ -10582,7 +10587,7 @@ void wlanUpdateTxStatistics(IN struct ADAPTER *prAdapter,
 	prStaRec = cnmGetStaRecByIndex(prAdapter,
 				       prMsduInfo->ucStaRecIndex);
 
-	if (eAci >= 0 && eAci < WMM_AC_INDEX_NUM) {
+	if (eAci < WMM_AC_INDEX_NUM) {
 		if (prStaRec) {
 			if (fgTxDrop)
 				prStaRec->arLinkStatistics[eAci].u4TxDropMsdu++;
@@ -10629,7 +10634,7 @@ void wlanUpdateRxStatistics(IN struct ADAPTER *prAdapter,
 
 	prStaRec = cnmGetStaRecByIndex(prAdapter,
 				       prSwRfb->ucStaRecIdx);
-	if (prStaRec && eAci >= 0 && eAci < WMM_AC_INDEX_NUM)
+	if (prStaRec && eAci < WMM_AC_INDEX_NUM)
 		prStaRec->arLinkStatistics[eAci].u4RxMsdu++;
 }
 
@@ -10705,15 +10710,15 @@ wlanPktTxDone(IN struct ADAPTER *prAdapter,
 		prMsduInfo->ucPktType == ENUM_PKT_DHCP) {
 		char log[256] = {0};
 		char buf[64] = {0};
-		struct BUFFERED_LOG_ENTRY *prLogEntry;
+		struct BUFFERED_LOG_ENTRY *prLogEntry = NULL;
 
 		/* Check if any buffered log */
-		prLogEntry = &prAdapter->rWifiVar.rBufferedLog[
-			prMsduInfo->ucBssIndex];
-		if (prLogEntry && prLogEntry->fgBuffered &&
-			prLogEntry->ucSn == prMsduInfo->ucTxSeqNum)
+		prLogEntry = kalGetBufferLog(prAdapter,
+			prMsduInfo->ucBssIndex, prMsduInfo->ucTxSeqNum);
+		if (prLogEntry) {
 			kalSprintf(buf, "%s", prLogEntry->aucLog);
-		else
+			kalRemoveBufferLog(prAdapter, prLogEntry);
+		} else
 			if (prMsduInfo->ucPktType == ENUM_PKT_1X)
 				kalSprintf(buf, "[EAP/EAPOL]");
 			else
@@ -11974,7 +11979,7 @@ uint32_t wlanSetLowLatencyCommand(
 	IN u_int8_t fgEnTxDupDetect,
 	IN u_int8_t fgTxDupCertQuery)
 {
-	struct CMD_LOW_LATENCY_MODE_HEADER rModeHeader;
+	struct CMD_LOW_LATENCY_MODE_HEADER rModeHeader = {0};
 
 	rModeHeader.ucVersion = LOW_LATENCY_MODE_CMD_V2;
 	rModeHeader.ucType = 0;
@@ -12735,8 +12740,11 @@ int wlanQueryRateByTable(uint32_t txmode, uint32_t rate,
 		return -1;
 	}
 
-	*pu4CurRate = u4CurRate;
-	*pu4MaxRate = u4MaxRate;
+
+	if (pu4CurRate)
+		*pu4CurRate = u4CurRate;
+	if (pu4MaxRate)
+		*pu4MaxRate = u4MaxRate;
 	return 0;
 }
 
@@ -12884,23 +12892,31 @@ errhandle:
 #endif /* CFG_REPORT_MAX_TX_RATE */
 
 #ifdef CFG_SUPPORT_LINK_QUALITY_MONITOR
-int wlanGetRxRate(IN struct GLUE_INFO *prGlueInfo,
-		IN uint8_t ucBssIdx, OUT uint32_t *pu4CurRate,
-		OUT uint32_t *pu4MaxRate, uint32_t *pu4CurBw)
+int wlanGetRxRate(IN struct GLUE_INFO *prGlueInfo, IN uint8_t ucBssIdx,
+		OUT uint32_t *pu4CurRate, OUT uint32_t *pu4MaxRate,
+		OUT struct RateInfo *prRateInfo)
 {
 	struct ADAPTER *prAdapter;
 	uint32_t rxmode = 0, rate = 0, frmode = 0, sgi = 0, nss = 0;
 	int rv;
 	struct CHIP_DBG_OPS *prChipDbg;
 
-	*pu4CurRate = 0;
-	*pu4MaxRate = 0;
+	if (pu4CurRate)
+		*pu4CurRate = 0;
+	if (pu4MaxRate)
+		*pu4MaxRate = 0;
+	if (prRateInfo)
+		*prRateInfo = (const struct RateInfo){0};
 	prAdapter = prGlueInfo->prAdapter;
+
+	if (!IS_BSS_INDEX_AIS(prAdapter, ucBssIdx))
+		return -1;
 
 	prChipDbg = prAdapter->chip_info->prDebugOps;
 	if (prChipDbg && prChipDbg->get_rx_rate_info) {
 		rv = prChipDbg->get_rx_rate_info(
 				prAdapter,
+				ucBssIdx,
 				&rate,
 				&nss,
 				&rxmode,
@@ -12911,8 +12927,13 @@ int wlanGetRxRate(IN struct GLUE_INFO *prGlueInfo,
 			goto errhandle;
 	}
 
-	if (pu4CurBw)
-		*pu4CurBw = frmode;
+	if (prRateInfo) {
+		prRateInfo->u4Mode = rxmode;
+		prRateInfo->u4Nss = nss;
+		prRateInfo->u4Bw = frmode;
+		prRateInfo->u4Gi = sgi;
+		prRateInfo->u4Rate = rate;
+	}
 
 	rv = wlanQueryRateByTable(rxmode, rate, frmode, sgi, nss,
 				 pu4CurRate, pu4MaxRate);
@@ -13024,7 +13045,7 @@ void wlanFinishCollectingLinkQuality(struct GLUE_INFO *prGlueInfo)
 {
 	struct ADAPTER *prAdapter;
 	struct WIFI_LINK_QUALITY_INFO *prLinkQualityInfo = NULL;
-	uint32_t u4CurRxRate, u4MaxRxRate, u4CurRxBw;
+	uint32_t u4CurRxRate, u4MaxRxRate;
 	uint64_t u8TxFailCntDif, u8TxTotalCntDif;
 
 	prAdapter = prGlueInfo->prAdapter;
@@ -13064,7 +13085,7 @@ void wlanFinishCollectingLinkQuality(struct GLUE_INFO *prGlueInfo)
 
 	/* get current rx rate */
 	if (wlanGetRxRate(prGlueInfo, AIS_DEFAULT_INDEX,
-		&u4CurRxRate, &u4MaxRxRate, &u4CurRxBw) < 0)
+			&u4CurRxRate, &u4MaxRxRate, NULL) < 0)
 		prLinkQualityInfo->u4CurRxRate = 0;
 	else
 		prLinkQualityInfo->u4CurRxRate = u4CurRxRate;
@@ -13156,7 +13177,7 @@ uint32_t wlanSetForceRTS(
 	IN struct ADAPTER *prAdapter,
 	IN u_int8_t fgEnForceRTS)
 {
-	struct CMD_SET_FORCE_RTS rForceRts;
+	struct CMD_SET_FORCE_RTS rForceRts = {0};
 
 	rForceRts.ucForceRtsEn = fgEnForceRTS;
 	rForceRts.ucRtsPktNum = 0;

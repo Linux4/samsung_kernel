@@ -11,6 +11,7 @@
 #define __PANEL_DEBUG_H__
 
 #include <linux/printk.h>
+#include "util.h"
 
 #ifndef PANEL_PR_TAG
 #define PANEL_PR_TAG	"drv"

@@ -255,7 +255,7 @@ struct CONNECTION_SETTINGS {
 	uint8_t non_wfa_vendor_ie_buf[NON_WFA_VENDOR_IE_MAX_LEN];
 
 	/* 11R */
-	struct FT_IES rFtIeForTx;
+	struct FT_IES rFtIe[FT_ROUND];
 	struct cfg80211_ft_event_params rFtEventParam;
 
 	/* CR1486, CR1640 */
@@ -655,6 +655,7 @@ struct BSS_INFO {
 	struct SWITCH_CH_AND_BAND_PARAMS CSAParams;
 	uint8_t fgHasStopTx;
 	uint8_t ucVhtChannelWidthBeforeCsa;
+	uint8_t fgIsAisSwitchingChnl;
 #endif
 
 #ifdef CFG_MSCS_SUPPORT
@@ -1328,6 +1329,9 @@ struct WIFI_VAR {
 	uint32_t u4TpEnhanceThreshold;
 #endif /* CFG_SUPPORT_TPENHANCE_MODE */
 
+	/* rx rate filter */
+	uint32_t u4RxRateProtoFilterMask;
+
 #define LATENCY_STATS_MAX_SLOTS 5
 #if CFG_SUPPORT_TX_LATENCY_STATS
 	bool fgPacketLatencyLog;
@@ -1378,7 +1382,6 @@ struct WIFI_VAR {
 	/* Only scan all 6g channels, including PSC and non-PSC */
 	u_int8_t fgEnOnlyScan6g;
 #endif
-	struct BUFFERED_LOG_ENTRY rBufferedLog[KAL_BSS_NUM];
 #if (CFG_TC10_FEATURE == 1)
 	uint8_t ucRCMinRoamDetla;
 	uint8_t ucRCDelta;
@@ -2222,7 +2225,7 @@ struct ADAPTER {
 #endif
 
 	bool fgIsInSuspendMode;
-
+	struct LINK rBufferedList;
 };				/* end of _ADAPTER_T */
 
 /*******************************************************************************

@@ -74,8 +74,7 @@ uint32_t gDbgLevel = WIFI_LOG_DBG;
 	} while (0)
 #define WIFI_ERR_FUNC(fmt, arg...)	\
 	do { \
-		if (gDbgLevel >= WIFI_LOG_ERR) \
-			pr_info(PFX "%s[E]: " fmt, __func__, ##arg); \
+		pr_info(PFX "%s[E]: " fmt, __func__, ##arg); \
 	} while (0)
 
 #define VERSION "2.0"
@@ -422,7 +421,7 @@ ssize_t WIFI_write(struct file *filp, const char __user *buf, size_t count, loff
 	int copy_size = 0;
 
 	down(&wr_mtx);
-	if (count <= 0) {
+	if (count == 0) {
 		WIFI_ERR_FUNC("WIFI_write invalid param\n");
 		goto done;
 	}

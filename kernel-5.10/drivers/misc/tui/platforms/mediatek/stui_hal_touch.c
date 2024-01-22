@@ -10,9 +10,11 @@
 #include "stui_hal.h"
 #include <linux/input/stui_inf.h>
 
+#if IS_ENABLED(CONFIG_INPUT_SEC_INPUT)
 extern int stui_tsp_enter(void);
 extern int stui_tsp_exit(void);
 extern int stui_tsp_type(void);
+#endif
 
 static int touch_requested;
 
@@ -21,19 +23,20 @@ static int request_touch(void)
 	int ret = 0;
 	int tsp_type = 0;
 
+	if (touch_requested == 1)
+		return -EALREADY;
+
+#if IS_ENABLED(CONFIG_INPUT_SEC_INPUT)
 	tsp_type = stui_tsp_type();
 	if (tsp_type)
 		stui_set_touch_type(tsp_type);
-
-	if (touch_requested == 1)
-		return -EALREADY;
 
 	ret = stui_tsp_enter();
 	if (ret) {
 		pr_err("[STUI] stui_tsp_enter failed:%d\n", ret);
 		return ret;
 	}
-
+#endif
 	touch_requested = 1;
 	pr_info(KERN_DEBUG "[STUI] Touch requested\n");
 	pr_info(KERN_DEBUG "[STUI] tsp_type %d\n", tsp_type);
@@ -48,12 +51,13 @@ static int release_touch(void)
 	if (touch_requested != 1)
 		return -EALREADY;
 
+#if IS_ENABLED(CONFIG_INPUT_SEC_INPUT)
 	ret = stui_tsp_exit();
 	if (ret) {
 		pr_err("[STUI] stui_tsp_exit failed : %d\n", ret);
 		return ret;
 	}
-
+#endif
 	touch_requested = 0;
 	pr_info(KERN_DEBUG "[STUI] Touch release\n");
 

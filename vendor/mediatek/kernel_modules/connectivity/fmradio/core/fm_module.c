@@ -932,7 +932,7 @@ static long fm_ops_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 				goto out;
 			}
 
-			ret = fm_atj_set(value);
+			ret = fm_atj_set(10400, value);
 			break;
 		}
 

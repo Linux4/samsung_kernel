@@ -860,7 +860,10 @@ u_int8_t rrmFillScanMsg(struct ADAPTER *prAdapter,
 		prMsg->ucSSIDType, prMsg->eScanType, prMsg->u2ChannelDwellTime,
 	       prMsg->u2ChannelMinDwellTime, prMsg->eScanChannel,
 	       prMsg->ucChannelListNum);
-
+	for (i = 0; i < prMsg->ucChannelListNum; i++)
+		DBGLOG(RRM, INFO, "RRM ch(%d)=%d, band=%d\n", i,
+				prMsg->arChnlInfoList[i].ucChannelNum,
+				prMsg->arChnlInfoList[i].eBand);
 	return TRUE;
 }
 
@@ -1479,13 +1482,13 @@ static void rrmHandleBeaconReqSubelem(
 			data->apChannelsLen += len;
 
 			if (data->apChannelsLen) {
-				for (i = 0 && (end - pos > 3);
+				for (i = 0; (end - pos > 3) &&
 					i < data->apChannelsLen; i++) {
 					pos += kalSnprintf(pos, end - pos,
 						" %d", data->apChannels[i]);
 				}
 				*pos = '\0';
-				DBGLOG(RRM, INFO, "AP chnls %s", pos);
+				DBGLOG(RRM, INFO, "AP chnls %s", buf);
 			}
 			break;
 		}

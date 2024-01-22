@@ -521,9 +521,9 @@ static int mtk_drm_esd_check_worker_kthread(void *data)
 {
 	struct sched_param param = {.sched_priority = 87};
 	struct drm_crtc *crtc = (struct drm_crtc *)data;
-	struct mtk_drm_private *private = crtc->dev->dev_private;
-	struct mtk_drm_crtc *mtk_crtc = to_mtk_crtc(crtc);
-	struct mtk_drm_esd_ctx *esd_ctx = mtk_crtc->esd_ctx;
+	struct mtk_drm_private *private;
+	struct mtk_drm_crtc *mtk_crtc;
+	struct mtk_drm_esd_ctx *esd_ctx;
 	int ret = 0;
 	int i = 0;
 	int recovery_flg = 0;
@@ -533,9 +533,12 @@ static int mtk_drm_esd_check_worker_kthread(void *data)
 
 	if (!crtc) {
 		DDPPR_ERR("%s invalid CRTC context, stop thread\n", __func__);
-
 		return -EINVAL;
 	}
+
+	private = crtc->dev->dev_private;
+	mtk_crtc = to_mtk_crtc(crtc);
+	esd_ctx = mtk_crtc->esd_ctx;
 
 	while (1) {
 		msleep(ESD_CHECK_PERIOD);

@@ -339,6 +339,8 @@ static int conninfra_mmap(struct file *pFile, struct vm_area_struct *pVma)
 		pVma->vm_start, pVma->vm_end,
 		pVma->vm_end - pVma->vm_start, bufId);
 
+	pVma->vm_flags &= ~(VM_WRITE | VM_MAYWRITE);
+
 	if (bufId == 0) {
 		if (pVma->vm_end - pVma->vm_start > addr_info->emi_size)
 			return -EINVAL;

@@ -27,6 +27,10 @@
 #include "scp_reservedmem_define.h"
 #endif
 
+#if IS_ENABLED(CONFIG_SHUB)
+#include <linux/sec_debug.h>
+#endif
+
 #define SCP_SECURE_DUMP_MEASURE 0
 #define POLLING_RETRY 200
 #if SCP_RESERVED_MEM && IS_ENABLED(CONFIG_OF_RESERVED_MEM) && SCP_SECURE_DUMP_MEASURE
@@ -114,7 +118,25 @@ uint32_t memorydump_size_probe(struct platform_device *pdev)
 	}
 	return 0;
 }
+#if IS_ENABLED(CONFIG_SHUB)
+struct raw_notifier_head dump_notifier_chain;
 
+int shub_dump_notifier_register(struct notifier_block *nb)
+{
+	int ret;
+
+	pr_notice("[SCP][SHUB] %s\n", __func__);
+	ret = raw_notifier_chain_register(&dump_notifier_chain, nb);
+
+	return ret;
+}
+EXPORT_SYMBOL(shub_dump_notifier_register);
+
+void shub_dump_notifier_call(int val, struct shub_dump *dump)
+{
+	raw_notifier_call_chain(&dump_notifier_chain, val, dump);
+}
+#endif
 void scp_dump_last_regs(void)
 {
 	c0_m->status = readl(R_CORE0_STATUS);
@@ -694,6 +716,9 @@ void scp_aed(enum SCP_RESET_TYPE type, enum scp_core_id id)
 	size_t timeout = msecs_to_jiffies(SCP_COREDUMP_TIMEOUT_MS);
 	size_t expire = jiffies + timeout;
 	int ret;
+#if IS_ENABLED(CONFIG_SHUB)
+	struct shub_dump dump_data;
+#endif
 
 	if (!scp_ee_enable) {
 		pr_debug("[SCP]ee disable value=%d\n", scp_ee_enable);
@@ -702,6 +727,16 @@ void scp_aed(enum SCP_RESET_TYPE type, enum scp_core_id id)
 
 	/* wait for previous coredump complete */
 	while (1) {
+#if IS_ENABLED(CONFIG_SHUB)
+		/* If debug_level is low, aee_aedv daemon is not working.
+		 * So, wait completion operation is not necessary.
+		 */
+		if (is_debug_level_low()) {
+			pr_notice("[SCP] %s: debug_level low, skip\n",
+				__func__);
+			break;
+		}
+#endif
 		ret = wait_for_completion_interruptible_timeout(
 			&scp_coredump_comp, timeout);
 		if (ret == 0) {
@@ -760,7 +795,15 @@ void scp_aed(enum SCP_RESET_TYPE type, enum scp_core_id id)
 	aed_common_exception_api("scp", NULL, 0, NULL, 0,
 			scp_dump.detail_buff, DB_OPT_DEFAULT);
 #endif
-
+#if IS_ENABLED(CONFIG_SHUB)
+	pr_notice("[SCP] [SHUB] scp exception dump start\n");
+	dump_data.size = 0;
+	dump_data.reason = type;
+	dump_data.dump = (void *)scp_dump.ramdump;
+	dump_data.size = scp_dump.ramdump_length;
+	dump_data.mini_dump = (void *)scp_dump.detail_buff;
+	shub_dump_notifier_call(0, &dump_data);
+#endif
 	pr_debug("[SCP] scp exception dump is done\n");
 
 }

@@ -59,6 +59,7 @@
 		 * PLL_CLKIN_BCLK        : 0x03
 		 */
 		sys-clk-id = <0x03>;
+		sma1305,gpio-int= <&pio 11 0>;
 		status = "okay";
 	};
 };

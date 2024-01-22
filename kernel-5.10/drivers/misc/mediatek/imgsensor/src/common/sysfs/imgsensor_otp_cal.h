@@ -13,3 +13,4 @@ int gc02m1_read_otp_cal(unsigned int addr, unsigned char *data, unsigned int ssi
 int hi2021q_read_otp_cal(unsigned int addr, unsigned char *data, unsigned int ssize);
 int hi1339_read_otp_cal(unsigned int addr, unsigned char *data, unsigned int ssize);
 int s5k4hayx_read_otp_cal(unsigned int addr, unsigned char *data, unsigned int ssize);
+int sc501cs_read_otp_cal(unsigned int addr, unsigned char *data, unsigned int ssize);

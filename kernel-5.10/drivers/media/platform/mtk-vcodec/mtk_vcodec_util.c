@@ -287,6 +287,7 @@ struct vdec_fb *mtk_vcodec_get_fb(struct mtk_vcodec_ctx *ctx)
 		}
 		pfb->status = FB_ST_INIT;
 		dst_buf_info->used = true;
+		ctx->fb_list[pfb->index + 1] = (uintptr_t)pfb;
 
 		mtk_v4l2_debug(1, "[%d] id=%d pfb=0x%p %llx VA=%p dma_addr[0]=%lx dma_addr[1]=%lx Size=%zx fd:%x, dma_general_buf = %p, general_buf_fd = %d",
 				ctx->id, dst_buf->index, pfb, (unsigned long long)pfb,
@@ -353,14 +354,14 @@ int mtk_dma_sync_sg_range(const struct sg_table *sgt,
 	unsigned int contig_size = 0;
 	int ret, i;
 
-	sgt_tmp = vzalloc(sizeof(*sgt_tmp));
+	sgt_tmp = kzalloc(sizeof(*sgt_tmp), GFP_KERNEL);
 	if (!sgt_tmp)
 		return -1;
 
 	ret = sg_alloc_table(sgt_tmp, sgt->orig_nents, GFP_KERNEL);
 	if (ret) {
 		mtk_v4l2_debug(0, "sg alloc table failed %d.\n", ret);
-		vfree(sgt_tmp);
+		kfree(sgt_tmp);
 		return -1;
 	}
 	sgt_tmp->nents = 0;
@@ -382,12 +383,13 @@ int mtk_dma_sync_sg_range(const struct sg_table *sgt,
 		dma_sync_sg_for_cpu(dev, sgt_tmp->sgl, sgt_tmp->nents, direction);
 	} else {
 		mtk_v4l2_debug(0, "direction %d not correct\n", direction);
+		kfree(sgt_tmp);
 		return -1;
 	}
 	mtk_v4l2_debug(4, "flush nents %d total nents %d\n",
 		sgt_tmp->nents, sgt->orig_nents);
 	sg_free_table(sgt_tmp);
-	vfree(sgt_tmp);
+	kfree(sgt_tmp);
 
 	return 0;
 }

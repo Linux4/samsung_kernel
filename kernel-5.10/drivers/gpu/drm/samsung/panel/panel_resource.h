@@ -59,14 +59,31 @@ struct res_update_info RESUI(_name_)[] =			\
 	, .resui = (_resui_) \
 	, .nr_resui = ARRAY_SIZE(_resui_) }
 
+#define RESINFO_IMMUTABLE_INIT(_resname, _arr_) \
+	{ .base = __PNOBJ_INITIALIZER(_resname, CMD_TYPE_RES) \
+	, .state = (RES_INITIALIZED) \
+	, .data = (_arr_) \
+	, .dlen = ARRAY_SIZE((_arr_)) \
+	, .resui = (NULL) \
+	, .nr_resui = 0 }
+
 #define DEFINE_RESOURCE(_name_, _arr_, _resui_)	\
 struct resinfo RESINFO(_name_) = RESINFO_INIT(_name_, _arr_, _resui_)
 
+#define DEFINE_IMMUTABLE_RESOURCE(_name_, _arr_) \
+struct resinfo RESINFO(_name_) = RESINFO_IMMUTABLE_INIT(_name_, _arr_)
+
 char *get_resource_name(struct resinfo *res);
 unsigned int get_resource_size(struct resinfo *res);
+int copy_resource(u8 *dst, struct resinfo *res);
+int copy_resource_slice(u8 *dst, struct resinfo *res, u32 offset, u32 len);
+void set_resource_state(struct resinfo *res, int state);
+int snprintf_resource_data(char *buf, size_t size, struct resinfo *res);
+int snprintf_resource(char *buf, size_t size, struct resinfo *res);
 void print_resource(struct resinfo *res);
 bool is_valid_resource(struct resinfo *res);
 bool is_resource_initialized(struct resinfo *res);
+bool is_resource_mutable(struct resinfo *res);
 struct resinfo *create_resource(char *name, u8 *initdata,
 		u32 size, struct res_update_info *resui, unsigned int nr_resui);
 void destroy_resource(struct resinfo *resource);

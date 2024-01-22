@@ -13,7 +13,10 @@
 #include <mt-plat/dvfsrc-exp.h>
 #include <mt-plat/mtk_blocktag.h>
 
+#if IS_ENABLED(CONFIG_SEC_MMC_FEATURE)
 #include "mmc-sec-feature.h"
+#define HOST_MIN_CLK 300000
+#endif
 
 static int msdc_execute_tuning(struct mmc_host *mmc, u32 opcode);
 
@@ -881,7 +884,9 @@ static void msdc_request_done(struct msdc_host *host, struct mmc_request *mrq)
 		mmc_mtk_biolog_check(mmc_from_priv(host), 0);
 	}
 
+#if IS_ENABLED(CONFIG_SEC_MMC_FEATURE)
 	sd_sec_check_req_err(host, mrq);
+#endif
 
 	mmc_request_done(mmc_from_priv(host), mrq);
 	if (host->dev_comp->recheck_sdio_irq)
@@ -1766,7 +1771,11 @@ static void msdc_ops_set_ios(struct mmc_host *mmc, struct mmc_ios *ios)
 		}
 
 		if (host->id == MSDC_SD) {
+#if IS_ENABLED(CONFIG_SEC_MMC_FEATURE)
+			if (host->mclk == HOST_MIN_CLK) {
+#else
 			if (host->mclk == 100000) {
+#endif
 				host->block_bad_card = 1;
 				pr_notice("[%s]: msdc%d power off at clk %dhz set block_bad_card = %d\n",
 					__func__, host->id, host->mclk,
@@ -2922,7 +2931,9 @@ static int msdc_drv_probe(struct platform_device *pdev)
 
 	if (host->id == MSDC_SD) {
 		mmc->caps |= MMC_CAP_CD_WAKE;
+#if IS_ENABLED(CONFIG_SEC_MMC_FEATURE)
 		mmc->caps2 |= MMC_CAP2_NO_PRESCAN_POWERUP;
+#endif
 		host->sd_oc.nb.notifier_call = msdc_sd_event;
 		INIT_WORK(&host->sd_oc.work, sdcard_oc_handler);
 	}
@@ -2940,11 +2951,14 @@ static int msdc_drv_probe(struct platform_device *pdev)
 #endif
 	/* Set host parameters to mmc */
 	mmc->ops = &mt_msdc_ops;
+#if IS_ENABLED(CONFIG_SEC_MMC_FEATURE)
+	mmc->f_min = HOST_MIN_CLK;
+#else
 	if (host->dev_comp->clk_div_bits == 8)
 		mmc->f_min = DIV_ROUND_UP(host->src_clk_freq, 4 * 255);
 	else
 		mmc->f_min = DIV_ROUND_UP(host->src_clk_freq, 4 * 4095);
-
+#endif
 	if (!(mmc->caps & MMC_CAP_NONREMOVABLE) &&
 	    !mmc_can_gpio_cd(mmc) &&
 	    host->dev_comp->use_internal_cd) {
@@ -3047,7 +3061,10 @@ static int msdc_drv_probe(struct platform_device *pdev)
 #if IS_ENABLED(CONFIG_RPMB)
 	ret = mmc_rpmb_register(mmc);
 #endif
+
+#if IS_ENABLED(CONFIG_SEC_MMC_FEATURE)
 	mmc_set_sec_features(pdev);
+#endif
 
 	return 0;
 end:

@@ -975,18 +975,44 @@ int mtk_cfg80211_vendor_nan(struct wiphy *wiphy,
 			(readLen = nan_read_tlv((u8 *)data, &outputTlv)))) {
 			switch (outputTlv.type) {
 			case NAN_TLV_TYPE_CONFIG_DISCOVERY_INDICATIONS:
+				if (outputTlv.length >
+					sizeof(
+					nanEnableReq.discovery_indication_cfg
+					)) {
+					DBGLOG(NAN, ERROR,
+						"outputTlv.length is invalid!\n");
+					return -EFAULT;
+				}
 				memcpy(&nanEnableReq.discovery_indication_cfg,
 					outputTlv.value, outputTlv.length);
 				break;
 			case NAN_TLV_TYPE_CLUSTER_ID_LOW:
+				if (outputTlv.length >
+					sizeof(nanEnableReq.cluster_low)) {
+					DBGLOG(NAN, ERROR,
+						"outputTlv.length is invalid!\n");
+					return -EFAULT;
+				}
 				memcpy(&nanEnableReq.cluster_low,
 				       outputTlv.value, outputTlv.length);
 				break;
 			case NAN_TLV_TYPE_CLUSTER_ID_HIGH:
+				if (outputTlv.length >
+					sizeof(nanEnableReq.cluster_high)) {
+					DBGLOG(NAN, ERROR,
+						"outputTlv.length is invalid!\n");
+					return -EFAULT;
+				}
 				memcpy(&nanEnableReq.cluster_high,
 				       outputTlv.value, outputTlv.length);
 				break;
 			case NAN_TLV_TYPE_MASTER_PREFERENCE:
+				if (outputTlv.length >
+					sizeof(nanEnableReq.master_pref)) {
+					DBGLOG(NAN, ERROR,
+						"outputTlv.length is invalid!\n");
+					return -EFAULT;
+				}
 				memcpy(&nanEnableReq.master_pref,
 				       outputTlv.value, outputTlv.length);
 				break;
@@ -1109,6 +1135,12 @@ int mtk_cfg80211_vendor_nan(struct wiphy *wiphy,
 			(readLen = nan_read_tlv((u8 *)data, &outputTlv)))) {
 			switch (outputTlv.type) {
 			case NAN_TLV_TYPE_MASTER_PREFERENCE:
+				if (outputTlv.length >
+					sizeof(nanConfigReq.master_pref)) {
+					DBGLOG(NAN, ERROR,
+						"outputTlv.length is invalid!\n");
+					return -EFAULT;
+				}
 				memcpy(&nanConfigReq.master_pref,
 				       outputTlv.value, outputTlv.length);
 				nanDevSetMasterPreference(
@@ -1207,6 +1239,14 @@ int mtk_cfg80211_vendor_nan(struct wiphy *wiphy,
 			(readLen = nan_read_tlv((u8 *)data, &outputTlv)))) {
 			switch (outputTlv.type) {
 			case NAN_TLV_TYPE_SERVICE_NAME:
+				if (outputTlv.length >
+					NAN_FW_MAX_SERVICE_NAME_LEN) {
+					DBGLOG(NAN, ERROR,
+						"outputTlv.length is invalid!\n");
+					kfree(pNanPublishRsp);
+					kfree(pNanPublishReq);
+					return -EFAULT;
+				}
 				memcpy(pNanPublishReq->service_name,
 				       outputTlv.value, outputTlv.length);
 				memcpy(g_aucNanServiceName,
@@ -1222,6 +1262,14 @@ int mtk_cfg80211_vendor_nan(struct wiphy *wiphy,
 				       pNanPublishReq->service_name_len);
 				break;
 			case NAN_TLV_TYPE_SERVICE_SPECIFIC_INFO:
+				if (outputTlv.length >
+					NAN_MAX_SERVICE_SPECIFIC_INFO_LEN) {
+					DBGLOG(NAN, ERROR,
+						"outputTlv.length is invalid!\n");
+					kfree(pNanPublishRsp);
+					kfree(pNanPublishReq);
+					return -EFAULT;
+				}
 				memcpy(pNanPublishReq->service_specific_info,
 				       outputTlv.value, outputTlv.length);
 				pNanPublishReq->service_specific_info_len =
@@ -1236,6 +1284,14 @@ int mtk_cfg80211_vendor_nan(struct wiphy *wiphy,
 					       ->service_specific_info_len);
 				break;
 			case NAN_TLV_TYPE_RX_MATCH_FILTER:
+				if (outputTlv.length >
+					NAN_MAX_MATCH_FILTER_LEN) {
+					DBGLOG(NAN, ERROR,
+						"outputTlv.length is invalid!\n");
+					kfree(pNanPublishRsp);
+					kfree(pNanPublishReq);
+					return -EFAULT;
+				}
 				memcpy(pNanPublishReq->rx_match_filter,
 				       outputTlv.value, outputTlv.length);
 				pNanPublishReq->rx_match_filter_len =
@@ -1254,6 +1310,14 @@ int mtk_cfg80211_vendor_nan(struct wiphy *wiphy,
 					pNanPublishReq->rx_match_filter_len);
 				break;
 			case NAN_TLV_TYPE_TX_MATCH_FILTER:
+				if (outputTlv.length >
+					NAN_MAX_MATCH_FILTER_LEN) {
+					DBGLOG(NAN, ERROR,
+						"outputTlv.length is invalid!\n");
+					kfree(pNanPublishRsp);
+					kfree(pNanPublishReq);
+					return -EFAULT;
+				}
 				memcpy(pNanPublishReq->tx_match_filter,
 				       outputTlv.value, outputTlv.length);
 				pNanPublishReq->tx_match_filter_len =
@@ -1284,6 +1348,14 @@ int mtk_cfg80211_vendor_nan(struct wiphy *wiphy,
 					*(outputTlv.value);
 				break;
 			case NAN_TLV_TYPE_NAN_PMK:
+				if (outputTlv.length >
+					NAN_PMK_INFO_LEN) {
+					DBGLOG(NAN, ERROR,
+						"outputTlv.length is invalid!\n");
+					kfree(pNanPublishRsp);
+					kfree(pNanPublishReq);
+					return -EFAULT;
+				}
 				memcpy(pNanPublishReq->key_info.body.pmk_info
 					       .pmk,
 				       outputTlv.value, outputTlv.length);
@@ -1291,6 +1363,14 @@ int mtk_cfg80211_vendor_nan(struct wiphy *wiphy,
 					outputTlv.length;
 				break;
 			case NAN_TLV_TYPE_NAN_PASSPHRASE:
+				if (outputTlv.length >
+					NAN_SECURITY_MAX_PASSPHRASE_LEN) {
+					DBGLOG(NAN, ERROR,
+						"outputTlv.length is invalid!\n");
+					kfree(pNanPublishRsp);
+					kfree(pNanPublishReq);
+					return -EFAULT;
+				}
 				memcpy(pNanPublishReq->key_info.body
 					       .passphrase_info.passphrase,
 				       outputTlv.value, outputTlv.length);
@@ -1486,6 +1566,14 @@ int mtk_cfg80211_vendor_nan(struct wiphy *wiphy,
 			(readLen = nan_read_tlv((u8 *)data, &outputTlv)))) {
 			switch (outputTlv.type) {
 			case NAN_TLV_TYPE_SERVICE_NAME:
+				if (outputTlv.length >
+					NAN_FW_MAX_SERVICE_NAME_LEN) {
+					DBGLOG(NAN, ERROR,
+						"outputTlv.length is invalid!\n");
+					kfree(pNanSubscribeReq);
+					kfree(pNanSubscribeRsp);
+					return -EFAULT;
+				}
 				memcpy(pNanSubscribeReq->service_name,
 				       outputTlv.value, outputTlv.length);
 				memcpy(g_aucNanServiceName,
@@ -1506,6 +1594,14 @@ int mtk_cfg80211_vendor_nan(struct wiphy *wiphy,
 				       pNanSubscribeReq->service_name);
 				break;
 			case NAN_TLV_TYPE_SERVICE_SPECIFIC_INFO:
+				if (outputTlv.length >
+					NAN_MAX_SERVICE_SPECIFIC_INFO_LEN) {
+					DBGLOG(NAN, ERROR,
+						"outputTlv.length is invalid!\n");
+					kfree(pNanSubscribeReq);
+					kfree(pNanSubscribeRsp);
+					return -EFAULT;
+				}
 				memcpy(pNanSubscribeReq->service_specific_info,
 				       outputTlv.value, outputTlv.length);
 				pNanSubscribeReq->service_specific_info_len =
@@ -1525,6 +1621,14 @@ int mtk_cfg80211_vendor_nan(struct wiphy *wiphy,
 				       pNanSubscribeReq->service_specific_info);
 				break;
 			case NAN_TLV_TYPE_RX_MATCH_FILTER:
+				if (outputTlv.length >
+					NAN_MAX_MATCH_FILTER_LEN) {
+					DBGLOG(NAN, ERROR,
+						"outputTlv.length is invalid!\n");
+					kfree(pNanSubscribeReq);
+					kfree(pNanSubscribeRsp);
+					return -EFAULT;
+				}
 				memcpy(pNanSubscribeReq->rx_match_filter,
 				       outputTlv.value, outputTlv.length);
 				pNanSubscribeReq->rx_match_filter_len =
@@ -1546,6 +1650,14 @@ int mtk_cfg80211_vendor_nan(struct wiphy *wiphy,
 					    outputTlv.length);
 				break;
 			case NAN_TLV_TYPE_TX_MATCH_FILTER:
+				if (outputTlv.length >
+					NAN_MAX_MATCH_FILTER_LEN) {
+					DBGLOG(NAN, ERROR,
+						"outputTlv.length is invalid!\n");
+					kfree(pNanSubscribeReq);
+					kfree(pNanSubscribeRsp);
+					return -EFAULT;
+				}
 				memcpy(pNanSubscribeReq->tx_match_filter,
 				       outputTlv.value, outputTlv.length);
 				pNanSubscribeReq->tx_match_filter_len =
@@ -1567,6 +1679,14 @@ int mtk_cfg80211_vendor_nan(struct wiphy *wiphy,
 					    outputTlv.length);
 				break;
 			case NAN_TLV_TYPE_MAC_ADDRESS:
+				if (outputTlv.length >
+					sizeof(uint8_t)) {
+					DBGLOG(NAN, ERROR,
+						"outputTlv.length is invalid!\n");
+					kfree(pNanSubscribeReq);
+					kfree(pNanSubscribeRsp);
+					return -EFAULT;
+				}
 				/* Get column neumbers */
 				memcpy(pNanSubscribeReq->intf_addr[i],
 				       outputTlv.value, outputTlv.length);
@@ -1581,6 +1701,14 @@ int mtk_cfg80211_vendor_nan(struct wiphy *wiphy,
 				       outputTlv.length);
 				break;
 			case NAN_TLV_TYPE_NAN_PMK:
+				if (outputTlv.length >
+					NAN_PMK_INFO_LEN) {
+					DBGLOG(NAN, ERROR,
+						"outputTlv.length is invalid!\n");
+					kfree(pNanSubscribeReq);
+					kfree(pNanSubscribeRsp);
+					return -EFAULT;
+				}
 				memcpy(pNanSubscribeReq->key_info.body.pmk_info
 					       .pmk,
 				       outputTlv.value, outputTlv.length);
@@ -1588,6 +1716,14 @@ int mtk_cfg80211_vendor_nan(struct wiphy *wiphy,
 					.pmk_len = outputTlv.length;
 				break;
 			case NAN_TLV_TYPE_NAN_PASSPHRASE:
+				if (outputTlv.length >
+					NAN_SECURITY_MAX_PASSPHRASE_LEN) {
+					DBGLOG(NAN, ERROR,
+						"outputTlv.length is invalid!\n");
+					kfree(pNanSubscribeReq);
+					kfree(pNanSubscribeRsp);
+					return -EFAULT;
+				}
 				memcpy(pNanSubscribeReq->key_info.body
 					       .passphrase_info.passphrase,
 				       outputTlv.value, outputTlv.length);
@@ -1616,6 +1752,14 @@ int mtk_cfg80211_vendor_nan(struct wiphy *wiphy,
 					&pNanSubscribeReq->ranging_cfg);
 				break;
 			case NAN_TLV_TYPE_SDEA_SERVICE_SPECIFIC_INFO:
+				if (outputTlv.length >
+					NAN_SDEA_SERVICE_SPECIFIC_INFO_LEN) {
+					DBGLOG(NAN, ERROR,
+						"outputTlv.length is invalid!\n");
+					kfree(pNanSubscribeReq);
+					kfree(pNanSubscribeRsp);
+					return -EFAULT;
+				}
 				memcpy(pNanSubscribeReq
 					->sdea_service_specific_info,
 				       outputTlv.value, outputTlv.length);
@@ -1824,10 +1968,26 @@ int mtk_cfg80211_vendor_nan(struct wiphy *wiphy,
 			(readLen = nan_read_tlv((u8 *)data, &outputTlv)))) {
 			switch (outputTlv.type) {
 			case NAN_TLV_TYPE_MAC_ADDRESS:
+				if (outputTlv.length >
+					NAN_MAC_ADDR_LEN) {
+					DBGLOG(NAN, ERROR,
+						"outputTlv.length is invalid!\n");
+					kfree(pNanXmitFollowupReq);
+					kfree(pNanXmitFollowupRsp);
+					return -EFAULT;
+				}
 				memcpy(pNanXmitFollowupReq->addr,
 				       outputTlv.value, outputTlv.length);
 				break;
 			case NAN_TLV_TYPE_SERVICE_SPECIFIC_INFO:
+				if (outputTlv.length >
+					NAN_MAX_SERVICE_SPECIFIC_INFO_LEN) {
+					DBGLOG(NAN, ERROR,
+						"outputTlv.length is invalid!\n");
+					kfree(pNanXmitFollowupReq);
+					kfree(pNanXmitFollowupRsp);
+					return -EFAULT;
+				}
 				memcpy(pNanXmitFollowupReq
 					       ->service_specific_info,
 				       outputTlv.value, outputTlv.length);
@@ -1835,6 +1995,14 @@ int mtk_cfg80211_vendor_nan(struct wiphy *wiphy,
 					outputTlv.length;
 				break;
 			case NAN_TLV_TYPE_SDEA_SERVICE_SPECIFIC_INFO:
+				if (outputTlv.length >
+					NAN_SDEA_SERVICE_SPECIFIC_INFO_LEN) {
+					DBGLOG(NAN, ERROR,
+						"outputTlv.length is invalid!\n");
+					kfree(pNanXmitFollowupReq);
+					kfree(pNanXmitFollowupRsp);
+					return -EFAULT;
+				}
 				memcpy(pNanXmitFollowupReq
 					       ->sdea_service_specific_info,
 				       outputTlv.value, outputTlv.length);
@@ -1924,6 +2092,14 @@ int mtk_cfg80211_vendor_nan(struct wiphy *wiphy,
 				outputTlv.value += 4;
 
 				vsa_length = outputTlv.length - sizeof(u32);
+				if (vsa_length >
+					NAN_MAX_VSA_DATA_LEN) {
+					DBGLOG(NAN, ERROR,
+						"outputTlv.length is invalid!\n");
+					kfree(pNanXmitVSAttrReq);
+					kfree(pNanBcnSdfVSARsp);
+					return -EFAULT;
+				}
 				memcpy(pNanXmitVSAttrReq->vsa, outputTlv.value,
 				       vsa_length);
 				pNanXmitVSAttrReq->vsa_len = vsa_length;

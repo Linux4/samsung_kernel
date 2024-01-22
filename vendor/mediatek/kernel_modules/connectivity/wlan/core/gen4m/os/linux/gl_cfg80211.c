@@ -86,6 +86,9 @@
  *                              C O N S T A N T S
  *******************************************************************************
  */
+#if CFG_SUPPORT_WAPI
+#define KEY_BUF_SIZE	1024
+#endif
 
 /*******************************************************************************
  *                             D A T A   T Y P E S
@@ -676,7 +679,8 @@ int mtk_cfg80211_get_station(struct wiphy *wiphy,
 			       &u4BufLen, ucBssIndex);
 #endif /* CFG_REPORT_MAX_TX_RATE */
 
-	if (IS_BSS_INDEX_VALID(ucBssIndex)) {
+	if (rStatus == WLAN_STATUS_SUCCESS &&
+		IS_BSS_INDEX_VALID(ucBssIndex)) {
 		u4TxRate = rLinkSpeed.rLq[ucBssIndex].u2TxLinkSpeed;
 		u4RxRate = rLinkSpeed.rLq[ucBssIndex].u2RxLinkSpeed;
 		i4Rssi = rLinkSpeed.rLq[ucBssIndex].cRssi;
@@ -999,112 +1003,6 @@ int mtk_cfg80211_get_station(struct wiphy *wiphy,
 #endif
 /*----------------------------------------------------------------------------*/
 /*!
- * @brief This routine is responsible for getting statistics for Link layer
- *        statistics
- *
- * @param
- *
- * @retval 0:       successful
- *         others:  failure
- */
-/*----------------------------------------------------------------------------*/
-int mtk_cfg80211_get_link_statistics(struct wiphy *wiphy,
-				     struct net_device *ndev, u8 *mac,
-				     struct station_info *sinfo)
-{
-	struct GLUE_INFO *prGlueInfo = NULL;
-	uint32_t rStatus;
-	uint8_t arBssid[PARAM_MAC_ADDR_LEN];
-	uint32_t u4BufLen;
-	struct PARAM_LINK_SPEED_EX rLinkSpeed;
-	struct PARAM_GET_STA_STATISTICS rQueryStaStatistics;
-	struct PARAM_GET_BSS_STATISTICS rQueryBssStatistics;
-	struct net_device_stats *prDevStats;
-	uint8_t ucBssIndex = 0;
-
-	WIPHY_PRIV(wiphy, prGlueInfo);
-	ASSERT(prGlueInfo);
-
-	ucBssIndex = wlanGetBssIdx(ndev);
-	if (!IS_BSS_INDEX_AIS(prGlueInfo->prAdapter, ucBssIndex))
-		return -EINVAL;
-
-	kalMemZero(arBssid, MAC_ADDR_LEN);
-	SET_IOCTL_BSSIDX(prGlueInfo->prAdapter, ucBssIndex);
-	wlanQueryInformation(prGlueInfo->prAdapter, wlanoidQueryBssid,
-				&arBssid[0], sizeof(arBssid), &u4BufLen);
-
-	/* 1. check BSSID */
-	if (UNEQUAL_MAC_ADDR(arBssid, mac)) {
-		/* wrong MAC address */
-		DBGLOG(REQ, WARN,
-		       "incorrect BSSID: [" MACSTR
-		       "] currently connected BSSID["
-		       MACSTR "]\n",
-		       MAC2STR(mac), MAC2STR(arBssid));
-		return -ENOENT;
-	}
-
-	/* 2. fill RSSI */
-	if (kalGetMediaStateIndicated(prGlueInfo, ucBssIndex) !=
-	    MEDIA_STATE_CONNECTED) {
-		/* not connected */
-		DBGLOG(REQ, WARN, "not yet connected\n");
-	} else {
-		rStatus = kalIoctlByBssIdx
-			(prGlueInfo,
-			 wlanoidQueryRssi,
-			 &rLinkSpeed, sizeof(rLinkSpeed),
-			 TRUE, FALSE, FALSE,
-			 &u4BufLen, ucBssIndex);
-
-		if (rStatus != WLAN_STATUS_SUCCESS)
-			DBGLOG(REQ, WARN, "unable to retrieve rssi\n");
-	}
-
-	/* Get statistics from net_dev */
-	prDevStats = (struct net_device_stats *)kalGetStats(ndev);
-
-	/*3. get link layer statistics from Driver and FW */
-	if (prDevStats) {
-		/* 3.1 get per-STA link statistics */
-		kalMemZero(&rQueryStaStatistics,
-			   sizeof(rQueryStaStatistics));
-		COPY_MAC_ADDR(rQueryStaStatistics.aucMacAddr, arBssid);
-		rQueryStaStatistics.ucLlsReadClear =
-			FALSE;	/* dont clear for get BSS statistic */
-
-		rStatus = kalIoctl(prGlueInfo, wlanoidQueryStaStatistics,
-				   &rQueryStaStatistics,
-				   sizeof(rQueryStaStatistics),
-				   TRUE, FALSE, TRUE, &u4BufLen);
-		if (rStatus != WLAN_STATUS_SUCCESS)
-			DBGLOG(REQ, WARN,
-			       "unable to retrieve per-STA link statistics\n");
-
-		/*3.2 get per-BSS link statistics */
-		if (rStatus == WLAN_STATUS_SUCCESS) {
-			kalMemZero(&rQueryBssStatistics,
-				   sizeof(rQueryBssStatistics));
-			rQueryBssStatistics.ucBssIndex = ucBssIndex;
-
-			rStatus = kalIoctl(prGlueInfo,
-				wlanoidQueryBssStatistics,
-				&rQueryBssStatistics,
-				sizeof(rQueryBssStatistics),
-				TRUE, FALSE, TRUE, &u4BufLen);
-		} else {
-			DBGLOG(REQ, WARN,
-			       "unable to retrieve per-BSS link statistics\n");
-		}
-
-	}
-
-	return 0;
-}
-
-/*----------------------------------------------------------------------------*/
-/*!
  * @brief This routine is responsible for requesting to do a scan
  *
  * @param
@@ -1398,8 +1296,6 @@ void mtk_cfg80211_abort_scan(struct wiphy *wiphy,
 	if (rStatus != WLAN_STATUS_SUCCESS)
 		DBGLOG(REQ, ERROR, "wlanoidAbortScan fail 0x%x\n", rStatus);
 }
-
-static uint8_t wepBuf[48];
 
 /*----------------------------------------------------------------------------*/
 /*!
@@ -1899,6 +1795,7 @@ int mtk_cfg80211_connect(struct wiphy *wiphy,
 		/* NL80211 only set the Tx wep key while connect, the max 4 wep
 		 * key set prior via add key cmd
 		 */
+		uint8_t wepBuf[48];
 		struct PARAM_WEP *prWepKey = (struct PARAM_WEP *) wepBuf;
 
 		kalMemZero(prWepKey, sizeof(struct PARAM_WEP));
@@ -2968,13 +2865,10 @@ int mtk_cfg80211_testmode_set_key_ext(IN struct wiphy
 	const uint8_t aucBCAddr[] = BC_MAC_ADDR;
 	uint8_t ucBssIndex = 0;
 
-	struct PARAM_KEY *prWpiKey = (struct PARAM_KEY *)
-				     keyStructBuf;
-
-	memset(keyStructBuf, 0, sizeof(keyStructBuf));
+	struct PARAM_KEY *prWpiKey;
+	uint8_t *keyStructBuf;
 
 	ASSERT(wiphy);
-
 	WIPHY_PRIV(wiphy, prGlueInfo);
 
 	if (len < sizeof(struct NL80211_DRIVER_SET_KEY_EXTS)) {
@@ -2985,6 +2879,14 @@ int mtk_cfg80211_testmode_set_key_ext(IN struct wiphy
 		DBGLOG(INIT, TRACE, "%s data or len is invalid\n", __func__);
 		return -EINVAL;
 	}
+
+	keyStructBuf = kalMemAlloc(KEY_BUF_SIZE, VIR_MEM_TYPE);
+	if (keyStructBuf == NULL) {
+		DBGLOG(REQ, ERROR, "alloc key buffer fail\n");
+		return -ENOMEM;
+	}
+	kalMemSet(keyStructBuf, 0, KEY_BUF_SIZE);
+	prWpiKey = (struct PARAM_KEY *) keyStructBuf;
 
 	ucBssIndex = wlanGetBssIdx(wdev->netdev);
 	if (!IS_BSS_INDEX_VALID(ucBssIndex))
@@ -3002,7 +2904,8 @@ int mtk_cfg80211_testmode_set_key_ext(IN struct wiphy
 			/* printk(KERN_INFO "[wapi] add key error:
 			 * key_id invalid %d\n", prWpiKey->ucKeyID);
 			 */
-			return -EINVAL;
+			fgIsValid = -EINVAL;
+			goto freeBuf;
 		}
 
 		if (prIWEncExt->key_len != 32) {
@@ -3010,7 +2913,8 @@ int mtk_cfg80211_testmode_set_key_ext(IN struct wiphy
 			/* printk(KERN_INFO "[wapi] add key error:
 			 * key_len invalid %d\n", prIWEncExt->key_len);
 			 */
-			return -EINVAL;
+			fgIsValid = -EINVAL;
+			goto freeBuf;
 		}
 		prWpiKey->u4KeyLength = prIWEncExt->key_len;
 
@@ -3051,6 +2955,10 @@ int mtk_cfg80211_testmode_set_key_ext(IN struct wiphy
 		}
 
 	}
+
+freeBuf:
+	if (keyStructBuf)
+		kalMemFree(keyStructBuf, VIR_MEM_TYPE, KEY_BUF_SIZE);
 	return fgIsValid;
 }
 #endif
@@ -4782,6 +4690,12 @@ mtk_cfg80211_tdls_mgmt(struct wiphy *wiphy,
 	rCmdMgt.ucDialogToken = dialog_token;
 	rCmdMgt.ucActionCode = action_code;
 	kalMemCopy(&(rCmdMgt.aucPeer), peer, 6);
+
+	if  (len > TDLS_SEC_BUF_LENGTH) {
+		DBGLOG(REQ, WARN, "%s:len > TDLS_SEC_BUF_LENGTH\n", __func__);
+		return -EINVAL;
+	}
+
 	kalMemCopy(&(rCmdMgt.aucSecBuf), buf, len);
 	rCmdMgt.ucBssIdx = ucBssIndex;
 	kalIoctl(prGlueInfo, TdlsexLinkMgt, &rCmdMgt,
@@ -4822,11 +4736,14 @@ mtk_cfg80211_tdls_mgmt(struct wiphy *wiphy,
 	rCmdMgt.ucDialogToken = dialog_token;
 	rCmdMgt.ucActionCode = action_code;
 	kalMemCopy(&(rCmdMgt.aucPeer), peer, 6);
-	if	(len > TDLS_SEC_BUF_LENGTH)
+
+	if (len > TDLS_SEC_BUF_LENGTH) {
 		DBGLOG(REQ, WARN,
 		       "In mtk_cfg80211_tdls_mgmt , len > TDLS_SEC_BUF_LENGTH, please check\n");
-	else
-		kalMemCopy(&(rCmdMgt.aucSecBuf), buf, len);
+		return -EINVAL;
+	}
+
+	kalMemCopy(&(rCmdMgt.aucSecBuf), buf, len);
 	rCmdMgt.ucBssIdx = ucBssIndex;
 	kalIoctl(prGlueInfo, TdlsexLinkMgt, &rCmdMgt,
 		 sizeof(struct TDLS_CMD_LINK_MGT), FALSE, TRUE, FALSE,

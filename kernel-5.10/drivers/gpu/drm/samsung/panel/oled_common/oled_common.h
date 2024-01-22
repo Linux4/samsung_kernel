@@ -13,13 +13,17 @@
 
 #include <linux/types.h>
 #include <linux/kernel.h>
+#include "../maptbl.h"
+#include "../panel_function.h"
 
-int init_common_table(struct maptbl *tbl);
-int getidx_common_maptbl(struct maptbl *tbl);
-void copy_dummy_maptbl(struct maptbl *tbl, u8 *dst);
-void copy_common_maptbl(struct maptbl *tbl, u8 *dst);
-#ifdef CONFIG_EXYNOS_DECON_LCD_COPR
-void copy_copr_maptbl(struct maptbl *tbl, u8 *dst);
+int oled_maptbl_init_default(struct maptbl *tbl);
+int oled_maptbl_getidx_default(struct maptbl *tbl);
+int oled_maptbl_getidx_gm2_brt(struct maptbl *tbl);
+void oled_maptbl_copy_dummy(struct maptbl *tbl, u8 *dst);
+void oled_maptbl_copy_default(struct maptbl *tbl, u8 *dst);
+void oled_maptbl_copy_tset(struct maptbl *tbl, u8 *dst);
+#ifdef CONFIG_USDM_PANEL_COPR
+void oled_maptbl_copy_copr(struct maptbl *tbl, u8 *dst);
 #endif
 
 #endif /* __OLED_COMMON_H__ */

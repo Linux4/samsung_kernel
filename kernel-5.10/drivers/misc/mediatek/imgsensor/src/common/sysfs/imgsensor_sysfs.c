@@ -355,6 +355,7 @@ bool imgsensor_get_sac_value_by_sensor_idx(int sensor_idx, u8 *ac_mode, u8 *ac_t
 
 	return true;
 }
+EXPORT_SYMBOL_GPL(imgsensor_get_sac_value_by_sensor_idx);
 
 int get_cam_info(struct imgsensor_cam_info **caminfo)
 {

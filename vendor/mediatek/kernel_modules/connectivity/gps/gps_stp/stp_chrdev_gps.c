@@ -18,6 +18,7 @@
 #include <linux/time.h>
 #include <linux/sched.h>
 #include <asm/div64.h>
+#include <asm/arch_timer.h>
 #include "osal_typedef.h"
 #include "stp_exp.h"
 #include "wmt_exp.h"
@@ -78,6 +79,7 @@ MODULE_LICENSE("GPL");
 #define COMBO_IOC_GPS_LISTEN_RST_EVT 20
 #define COMBO_IOC_GPS_GET_MD_STATUS  21
 #define COMBO_IOC_GPS_CTRL_L5_LNA    22
+#define COMBO_IOC_GPS_GET_BOOT_TIME  28
 
 static UINT32 md_status_addr;
 
@@ -744,6 +746,8 @@ static int GPS_listen_wmt_rst(void)
 long GPS_unlocked_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 {
 	int retval = 0;
+	struct boot_time_info gps_boot_time;
+	unsigned long flags;
 	#if 0
 	ENUM_WMTHWVER_TYPE_T hw_ver_sym = WMTHWVER_INVALID;
 	#endif
@@ -942,6 +946,27 @@ long GPS_unlocked_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 		GPS_DBG_FUNC("LD1.0 project dont support\n");
 		retval = -EFAULT;
 #endif
+		break;
+	case COMBO_IOC_GPS_GET_BOOT_TIME:
+		if (arg == 0)
+			retval = -EINVAL;
+		else
+			retval = 0;
+		local_irq_save(flags);
+		#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 4, 0)
+		gps_boot_time.now_time = ktime_get_boottime_ns();
+		gps_boot_time.arch_counter = __arch_counter_get_cntvct();
+		#else
+		gps_boot_time.now_time = ktime_get_boot_ns();
+		gps_boot_time.arch_counter = arch_counter_get_cntvct();
+		#endif
+		local_irq_restore(flags);
+		if (copy_to_user((char __user *)arg, &gps_boot_time, sizeof(struct boot_time_info))) {
+			GPS_ERR_FUNC("COMBO_IOC_GPS_GET_BOOT_TIME: copy_to_user error");
+			retval = -EFAULT;
+		}
+		GPS_ERR_FUNC("COMBO_IOC_GPS_GET_BOOT_TIME now_time = %d,arch_counter = %d",
+			gps_boot_time.now_time, gps_boot_time.arch_counter);
 		break;
 	default:
 		retval = -EFAULT;

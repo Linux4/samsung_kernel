@@ -118,8 +118,8 @@ static struct imgsensor_info_struct imgsensor_info = {
 	},
 	.hs_video = {
 		.pclk = 598000000,
-		.linelength  = 2800,
-		.framelength = 1770,
+		.linelength  = 3492,
+		.framelength = 1421,
 		.startx = 0,
 		.starty = 0,
 		.grabwindow_width  = 2032,
@@ -201,7 +201,7 @@ static struct imgsensor_info_struct imgsensor_info = {
 		.mipi_pixel_rate = 577200000,
 	},
 	.margin = 10,
-	.min_shutter = 8,
+	.min_shutter = 5,
 	.min_gain = 64,
 	.max_gain = 4096,
 	.min_gain_iso = 20,
@@ -260,7 +260,13 @@ static struct imgsensor_info_struct imgsensor_info = {
 	.sensor_interface_type = SENSOR_INTERFACE_TYPE_MIPI,
 	.mipi_sensor_type = MIPI_OPHY_NCSI2,
 	.mipi_settle_delay_mode = 1,
+
+#ifdef ENABLE_MIRROR_HV
+	.sensor_output_dataformat = SENSOR_OUTPUT_FORMAT_RAW_4CELL_Gb,
+#else
 	.sensor_output_dataformat = SENSOR_OUTPUT_FORMAT_RAW_4CELL_Gr,
+#endif
+
 	.mclk = 26,
 	.mipi_lane_num = SENSOR_MIPI_4_LANE,
 	.i2c_speed = 1000,
@@ -268,12 +274,16 @@ static struct imgsensor_info_struct imgsensor_info = {
 	/* record sensor support all write id addr,
 	 * only supprt 4 must end with 0xff
 	 */
-	.i2c_addr_table = {0x5A, 0xff},
+	.i2c_addr_table = {0xAC, 0x5A, 0xff},
 };
 
 
 static struct imgsensor_struct imgsensor = {
+#ifdef ENABLE_MIRROR_HV
+	.mirror = IMAGE_HV_MIRROR,
+#else
 	.mirror = IMAGE_NORMAL,
+#endif
 
 	/* IMGSENSOR_MODE enum value,record current sensor mode,such as:
 	 * INIT, Preview, Capture, Video,High Speed Video, Slim Video
@@ -373,12 +383,21 @@ static struct SET_PD_BLOCK_INFO_T imgsensor_pd_info = {
 		.i4BlockNumX = 508,
 		.i4BlockNumY = 382,
 		.iMirrorFlip = 0,
+#ifdef ENABLE_MIRROR_HV
+		.i4PosR = {
+			{10, 2}, {8, 5}, {12, 6}, {14, 9},
+		},
+		.i4PosL = {
+			{11, 2}, {9, 5}, {13, 6}, {15, 9},
+		},
+#else
 		.i4PosR = {
 			{8, 2}, {10, 5}, {14, 6}, {12, 9},
 		},
 		.i4PosL = {
 			{9, 2}, {11, 5}, {15, 6}, {13, 9},
 		},
+#endif
 		.i4Crop = {
 			{0, 0}, {0, 0}, {0, 382}, {0, 0}, {0, 0},
 			{0, 0}, {0, 0}, {0, 0},   {0, 0}, {0, 0}
@@ -638,10 +657,10 @@ static kal_uint32 streaming_control(kal_bool enable)
 		if (enable_adaptive_mipi && imgsensor.current_scenario_id != MSDK_SCENARIO_ID_CUSTOM1)
 			set_mipi_mode(adaptive_mipi_index);
 
-		write_cmos_sensor(0x0100, 0x0100);
+		write_cmos_sensor_8(0x0100, 0x01);
 	} else {
 		LOG_INF("streamoff enable = %d", enable);
-		write_cmos_sensor(0x0100, 0x0000);
+		write_cmos_sensor_8(0x0100, 0x00);
 
 		//only wait stream_off
 		wait_stream_onoff(enable);
@@ -887,7 +906,7 @@ static int set_mode_setfile(enum IMGSENSOR_MODE mode)
 	return 0;
 }
 
-/** JN1_EVT0.0_Setfile_20220302_ver0.13 **/
+/** JN1_EVT0.0_Setfile_20220302_ver0.14 **/
 #if INDIRECT_BURST
 static kal_uint16 addr_data_burst_init_jn1[] = {
 	0x6F12,
@@ -1185,7 +1204,7 @@ static void sensor_HW_GGC_write(void)
 #endif
 
 #define XTC_NUM 4
-int sensor_get_XTC_CAL_data(char *reordered_xtc_cal, unsigned int buf_len)
+static int sensor_get_XTC_CAL_data(char *reordered_xtc_cal, unsigned int buf_len)
 {
 	char *rom_cal_buf = NULL;
 	int const MAX_COUNT = 15;
@@ -1350,11 +1369,10 @@ static kal_uint32 get_imgsensor_id(UINT32 *sensor_id)
 
 		do {
 			*sensor_id = ((read_cmos_sensor_8(0x0000) << 8) | read_cmos_sensor_8(0x0001));
+			LOG_INF("i2c write id: 0x%x, sensor id: 0x%x\n", imgsensor.i2c_write_id, *sensor_id);
 			if (*sensor_id == imgsensor_info.sensor_id) {
-				LOG_INF("i2c write id: 0x%x, sensor id: 0x%x\n", imgsensor.i2c_write_id, *sensor_id);
-			return ERROR_NONE;
+				return ERROR_NONE;
 			}
-			LOG_ERR("Read sensor id fail, id: 0x%x\n", imgsensor.i2c_write_id);
 			retry--;
 		} while (retry > 0);
 
@@ -1363,6 +1381,8 @@ static kal_uint32 get_imgsensor_id(UINT32 *sensor_id)
 	}
 
 	if (*sensor_id != imgsensor_info.sensor_id) {
+		LOG_ERR("Read sensor id fail, write id: 0x%x, id: 0x%x\n", imgsensor.i2c_write_id, *sensor_id);
+		/*if Sensor ID is not correct, Must set *sensor_id to 0xFFFFFFFF*/
 		*sensor_id = 0xFFFFFFFF;
 
 		return ERROR_SENSOR_CONNECT_FAIL;
@@ -1409,13 +1429,10 @@ static kal_uint32 open(void)
 
 		do {
 			sensor_id = ((read_cmos_sensor_8(0x0000) << 8) | read_cmos_sensor_8(0x0001));
+			LOG_INF("i2c write id: 0x%x, sensor id: 0x%x\n", imgsensor.i2c_write_id, sensor_id);
 			if (sensor_id == imgsensor_info.sensor_id) {
-				LOG_INF("i2c write id: 0x%x, sensor id: 0x%x\n",
-						imgsensor.i2c_write_id, sensor_id);
 				break;
 			}
-
-			LOG_INF("%s:Read sensor id fail, id: 0x%x\n", __func__, imgsensor.i2c_write_id);
 			retry--;
 		} while (retry > 0);
 
@@ -1425,8 +1442,10 @@ static kal_uint32 open(void)
 		retry = 2;
 	}
 
-	if (imgsensor_info.sensor_id != sensor_id)
+	if (imgsensor_info.sensor_id != sensor_id) {
+		LOG_ERR("Read sensor id fail, write id: 0x%x, id: 0x%x\n", imgsensor.i2c_write_id, sensor_id);
 		return ERROR_SENSOR_CONNECT_FAIL;
+	}
 
 	ret = sensor_init();
 
@@ -1645,7 +1664,7 @@ static kal_uint32 custom1(MSDK_SENSOR_EXPOSURE_WINDOW_STRUCT *image_window,
 
 	set_mode_setfile(imgsensor.sensor_mode);
 
-	set_mirror_flip(IMAGE_NORMAL);
+	set_mirror_flip(imgsensor.mirror);
 
 	return ERROR_NONE;
 }
@@ -1666,7 +1685,7 @@ static kal_uint32 custom2(MSDK_SENSOR_EXPOSURE_WINDOW_STRUCT *image_window,
 
 	set_mode_setfile(imgsensor.sensor_mode);
 
-	set_mirror_flip(IMAGE_NORMAL);
+	set_mirror_flip(imgsensor.mirror);
 
 	return ERROR_NONE;
 }
@@ -1687,7 +1706,7 @@ static kal_uint32 custom3(MSDK_SENSOR_EXPOSURE_WINDOW_STRUCT *image_window,
 
 	set_mode_setfile(imgsensor.sensor_mode);
 
-	set_mirror_flip(IMAGE_NORMAL);
+	set_mirror_flip(imgsensor.mirror);
 
 	return ERROR_NONE;
 }
@@ -1708,7 +1727,7 @@ static kal_uint32 custom4(MSDK_SENSOR_EXPOSURE_WINDOW_STRUCT *image_window,
 
 	set_mode_setfile(imgsensor.sensor_mode);
 
-	set_mirror_flip(IMAGE_NORMAL);
+	set_mirror_flip(imgsensor.mirror);
 
 	return ERROR_NONE;
 }
@@ -1729,7 +1748,7 @@ static kal_uint32 custom5(MSDK_SENSOR_EXPOSURE_WINDOW_STRUCT *image_window,
 
 	set_mode_setfile(imgsensor.sensor_mode);
 
-	set_mirror_flip(IMAGE_NORMAL);
+	set_mirror_flip(imgsensor.mirror);
 
 	return ERROR_NONE;
 }

@@ -16,18 +16,18 @@
 #include "../panel.h"
 #include "../panel_drv.h"
 #include "../panel_debug.h"
-#include "oled_common.h"
+#include "oled_function.h"
 #include "s6e3fc3.h"
 #include "s6e3fc3_a24.h"
 #include "s6e3fc3_dimming.h"
-#ifdef CONFIG_EXYNOS_DECON_MDNIE_LITE
+#ifdef CONFIG_USDM_MDNIE
 #include "s6e3fc3_a24_panel_mdnie.h"
 #endif
 #include "s6e3fc3_a24_panel_dimming.h"
-#ifdef CONFIG_SUPPORT_AOD_BL
+#ifdef CONFIG_USDM_PANEL_AOD_BL
 #include "s6e3fc3_a24_panel_aod_dimming.h"
 #endif
-#ifdef CONFIG_EXTEND_LIVE_CLOCK
+#ifdef CONFIG_USDM_PANEL_SELF_DISPLAY
 #include "s6e3fc3_a24_aod_panel.h"
 #include "../aod/aod_drv.h"
 #endif
@@ -213,17 +213,21 @@ static u8 a24_lpm_nit_table[4][1] = {
 	{ 0x24 },
 };
 
+static u8 a24_exit_lpm_nit_table[4][1] = {
+	/* LPM 2NIT: */
+	{ 0x23 },
+	/* LPM 10NIT */
+	{ 0x22 },
+	/* LPM 30NIT */
+	{ 0x21  },
+	/* LPM 60NIT */
+	{ 0x20 },
+};
+
 static u8 a24_lpm_on_table[2][1] = {
 	[ALPM_MODE] = { 0x23 },
 	[HLPM_MODE] = { 0x23 },
 };
-
-#ifdef CONFIG_SUPPORT_XTALK_MODE
-static u8 a24_vgh_table[][1] = {
-	{ 0xC0 },	/* off 7.0 V */
-	{ 0x60 },	/* on 6.2 V */
-};
-#endif
 
 static u8 a24_ffc_table_1[MAX_S6E3FC3_A24_HS_CLK][4] = {
 	[S6E3FC3_A24_HS_CLK_806] = {0x0D, 0x10, 0x80, 0x05}, // FFC for HS: 806
@@ -268,27 +272,25 @@ static u8 a24_irc_mode_table[][7] = {
 };
 
 static struct maptbl a24_maptbl[MAX_MAPTBL] = {
-	[GAMMA_MODE2_MAPTBL] = DEFINE_2D_MAPTBL(a24_brt_table, init_gamma_mode2_brt_table, getidx_gamma_mode2_brt_table, copy_common_maptbl),
-	[HBM_ONOFF_MAPTBL] = DEFINE_3D_MAPTBL(a24_hbm_transition_table, init_common_table, getidx_hbm_transition_table, copy_common_maptbl),
+	[GAMMA_MODE2_MAPTBL] = DEFINE_2D_MAPTBL(a24_brt_table, &DDI_FUNC(S6E3FC3_MAPTBL_INIT_GAMMA_MODE2_BRT), &OLED_FUNC(OLED_MAPTBL_GETIDX_GM2_BRT), &OLED_FUNC(OLED_MAPTBL_COPY_DEFAULT)),
+	[HBM_ONOFF_MAPTBL] = DEFINE_3D_MAPTBL(a24_hbm_transition_table, &OLED_FUNC(OLED_MAPTBL_INIT_DEFAULT), &DDI_FUNC(S6E3FC3_MAPTBL_GETIDX_HBM_TRANSITION), &OLED_FUNC(OLED_MAPTBL_COPY_DEFAULT)),
 
-	[ACL_FRAME_AVG_MAPTBL] = DEFINE_2D_MAPTBL(a24_acl_frame_avg_table, init_common_table, getidx_acl_onoff_table, copy_common_maptbl),
-	[ACL_START_POINT_MAPTBL] = DEFINE_2D_MAPTBL(a24_acl_start_point_table, init_common_table, getidx_hbm_onoff_table, copy_common_maptbl),
-	[ACL_DIM_SPEED_MAPTBL] = DEFINE_2D_MAPTBL(a24_acl_dim_speed_table, init_common_table, getidx_acl_dim_onoff_table, copy_common_maptbl),
-	[ACL_OPR_MAPTBL] = DEFINE_2D_MAPTBL(a24_acl_opr_table, init_common_table, getidx_acl_opr_table, copy_common_maptbl),
+	[ACL_FRAME_AVG_MAPTBL] = DEFINE_2D_MAPTBL(a24_acl_frame_avg_table, &OLED_FUNC(OLED_MAPTBL_INIT_DEFAULT), &DDI_FUNC(S6E3FC3_MAPTBL_GETIDX_ACL_ONOFF), &OLED_FUNC(OLED_MAPTBL_COPY_DEFAULT)),
+	[ACL_START_POINT_MAPTBL] = DEFINE_2D_MAPTBL(a24_acl_start_point_table, &OLED_FUNC(OLED_MAPTBL_INIT_DEFAULT), &DDI_FUNC(S6E3FC3_MAPTBL_GETIDX_HBM_ONOFF), &OLED_FUNC(OLED_MAPTBL_COPY_DEFAULT)),
+	[ACL_DIM_SPEED_MAPTBL] = DEFINE_2D_MAPTBL(a24_acl_dim_speed_table, &OLED_FUNC(OLED_MAPTBL_INIT_DEFAULT), &DDI_FUNC(S6E3FC3_MAPTBL_GETIDX_ACL_DIM_ONOFF), &OLED_FUNC(OLED_MAPTBL_COPY_DEFAULT)),
+	[ACL_OPR_MAPTBL] = DEFINE_2D_MAPTBL(a24_acl_opr_table, &OLED_FUNC(OLED_MAPTBL_INIT_DEFAULT), &DDI_FUNC(S6E3FC3_MAPTBL_GETIDX_ACL_OPR), &OLED_FUNC(OLED_MAPTBL_COPY_DEFAULT)),
 
-	[TSET_MAPTBL] = DEFINE_0D_MAPTBL(a24_tset_table, init_common_table, NULL, copy_tset_maptbl),
-	[LPM_NIT_MAPTBL] = DEFINE_2D_MAPTBL(a24_lpm_nit_table, init_lpm_brt_table, getidx_lpm_brt_table, copy_common_maptbl),
-#ifdef CONFIG_SUPPORT_XTALK_MODE
-	[VGH_MAPTBL] = DEFINE_2D_MAPTBL(a24_vgh_table, init_common_table, getidx_vgh_table, copy_common_maptbl),
-#endif
-	[FPS_MAPTBL_1] = DEFINE_2D_MAPTBL(a24_fps_table_1, init_common_table, getidx_vrr_fps_table, copy_common_maptbl),
-	[FPS_MAPTBL_2] = DEFINE_2D_MAPTBL(a24_fps_table_2, init_common_table, getidx_vrr_fps_table, copy_common_maptbl),
-	[FPS_MAPTBL_3] = DEFINE_2D_MAPTBL(a24_fps_table_3, init_common_table, getidx_vrr_fps_table, copy_common_maptbl),
-	[FPS_MAPTBL_4] = DEFINE_2D_MAPTBL(a24_fps_table_4, init_common_table, getidx_vrr_fps_table, copy_common_maptbl),
-	[DIMMING_SPEED] = DEFINE_2D_MAPTBL(a24_dimming_speep_table_1, init_common_table, getidx_smooth_transition_table, copy_common_maptbl),
-	[SET_FFC_MAPTBL] = DEFINE_2D_MAPTBL(a24_ffc_table_1, init_common_table, s6e3fc3_a24_getidx_ffc_table, copy_common_maptbl),
-	[SET_FFC_MAPTBL_2] = DEFINE_2D_MAPTBL(a24_ffc_table_2, init_common_table, s6e3fc3_a24_getidx_ffc_table, copy_common_maptbl),
-	[IRC_MODE_MAPTBL] = DEFINE_2D_MAPTBL(a24_irc_mode_table, init_common_table, getidx_irc_mode_table, copy_common_maptbl),
+	[TSET_MAPTBL] = DEFINE_0D_MAPTBL(a24_tset_table, &OLED_FUNC(OLED_MAPTBL_INIT_DEFAULT), NULL, &OLED_FUNC(OLED_MAPTBL_COPY_TSET)),
+	[LPM_NIT_MAPTBL] = DEFINE_2D_MAPTBL(a24_lpm_nit_table, &DDI_FUNC(S6E3FC3_MAPTBL_INIT_LPM_BRT), &DDI_FUNC(S6E3FC3_MAPTBL_GETIDX_LPM_BRT), &OLED_FUNC(OLED_MAPTBL_COPY_DEFAULT)),
+	[LPM_EXIT_NIT_MAPTBL] = DEFINE_2D_MAPTBL(a24_exit_lpm_nit_table, &DDI_FUNC(S6E3FC3_MAPTBL_INIT_LPM_BRT), &DDI_FUNC(S6E3FC3_MAPTBL_GETIDX_LPM_BRT), &OLED_FUNC(OLED_MAPTBL_COPY_DEFAULT)),
+	[FPS_MAPTBL_1] = DEFINE_2D_MAPTBL(a24_fps_table_1, &OLED_FUNC(OLED_MAPTBL_INIT_DEFAULT), &DDI_FUNC(S6E3FC3_MAPTBL_GETIDX_VRR_FPS), &OLED_FUNC(OLED_MAPTBL_COPY_DEFAULT)),
+	[FPS_MAPTBL_2] = DEFINE_2D_MAPTBL(a24_fps_table_2, &OLED_FUNC(OLED_MAPTBL_INIT_DEFAULT), &DDI_FUNC(S6E3FC3_MAPTBL_GETIDX_VRR_FPS), &OLED_FUNC(OLED_MAPTBL_COPY_DEFAULT)),
+	[FPS_MAPTBL_3] = DEFINE_2D_MAPTBL(a24_fps_table_3, &OLED_FUNC(OLED_MAPTBL_INIT_DEFAULT), &DDI_FUNC(S6E3FC3_MAPTBL_GETIDX_VRR_FPS), &OLED_FUNC(OLED_MAPTBL_COPY_DEFAULT)),
+	[FPS_MAPTBL_4] = DEFINE_2D_MAPTBL(a24_fps_table_4, &OLED_FUNC(OLED_MAPTBL_INIT_DEFAULT), &DDI_FUNC(S6E3FC3_MAPTBL_GETIDX_VRR_FPS), &OLED_FUNC(OLED_MAPTBL_COPY_DEFAULT)),
+	[DIMMING_SPEED] = DEFINE_2D_MAPTBL(a24_dimming_speep_table_1, &OLED_FUNC(OLED_MAPTBL_INIT_DEFAULT), &DDI_FUNC(S6E3FC3_MAPTBL_GETIDX_SMOOTH_TRANSITION), &OLED_FUNC(OLED_MAPTBL_COPY_DEFAULT)),
+	[SET_FFC_MAPTBL] = DEFINE_2D_MAPTBL(a24_ffc_table_1, &OLED_FUNC(OLED_MAPTBL_INIT_DEFAULT), &PANEL_FUNC(S6E3FC3_A24_MAPTBL_GETIDX_FFC), &OLED_FUNC(OLED_MAPTBL_COPY_DEFAULT)),
+	[SET_FFC_MAPTBL_2] = DEFINE_2D_MAPTBL(a24_ffc_table_2, &OLED_FUNC(OLED_MAPTBL_INIT_DEFAULT), &PANEL_FUNC(S6E3FC3_A24_MAPTBL_GETIDX_FFC), &OLED_FUNC(OLED_MAPTBL_COPY_DEFAULT)),
+	[IRC_MODE_MAPTBL] = DEFINE_2D_MAPTBL(a24_irc_mode_table, &OLED_FUNC(OLED_MAPTBL_INIT_DEFAULT), &DDI_FUNC(S6E3FC3_MAPTBL_GETIDX_IRC_MODE), &OLED_FUNC(OLED_MAPTBL_COPY_DEFAULT)),
 };
 
 /* ===================================================================================== */
@@ -312,6 +314,7 @@ static u8 A24_MULTI_CMD_DUMMY[] = { 0x0A, 0x00 };
 
 static u8 A24_TE_ON[] = { 0x35, 0x00, 0x00 };
 static u8 A24_TE_SETTING[] = { 0xB9, 0x01, 0x09, 0x0F, 0x00, 0x0F};
+static u8 a24_TE_AOD_SETTING[] = { 0xB9, 0x01, 0x09, 0x36, 0x00, 0x0F};
 
 static DEFINE_STATIC_PACKET(a24_level1_key_enable, DSI_PKT_TYPE_WR, A24_KEY1_ENABLE, 0);
 static DEFINE_STATIC_PACKET(a24_level2_key_enable, DSI_PKT_TYPE_WR, A24_KEY2_ENABLE, 0);
@@ -332,6 +335,7 @@ static DEFINE_STATIC_PACKET(a24_display_off, DSI_PKT_TYPE_WR, A24_DISPLAY_OFF, 0
 
 static DEFINE_STATIC_PACKET(a24_te_on, DSI_PKT_TYPE_WR, A24_TE_ON, 0);
 static DEFINE_STATIC_PACKET(a24_te_setting, DSI_PKT_TYPE_WR, A24_TE_SETTING, 0);
+static DEFINE_STATIC_PACKET(a24_te_aod_setting, DSI_PKT_TYPE_WR, a24_TE_AOD_SETTING, 0);
 
 static u8 A24_TSET_SET[] = {
 	0xB5,
@@ -379,7 +383,7 @@ static DEFINE_VARIABLE_PACKET(a24_lpm_nit, DSI_PKT_TYPE_WR, A24_LPM_NIT, 0x00);
 static u8 A24_LPM_AOR[] = { 0x63, 0x00, 0x00, 0x18, 0x02 };
 static DEFINE_STATIC_PACKET(a24_lpm_aor, DSI_PKT_TYPE_WR, A24_LPM_AOR, 0x76);
 
-#ifdef CONFIG_SUPPORT_PANEL_DECODER_TEST
+#ifdef CONFIG_USDM_FACTORY_DSC_CRC_TEST
 static u8 A24_DECODER_TEST_CASET[] = { 0x2A, 0x00, 0x00, 0x04, 0x37 };
 static DEFINE_STATIC_PACKET(a24_decoder_test_caset, DSI_PKT_TYPE_WR, A24_DECODER_TEST_CASET, 0x00);
 
@@ -398,10 +402,18 @@ static DEFINE_STATIC_PACKET(a24_decoder_read_set_1, DSI_PKT_TYPE_WR, A24_DECODER
 static u8 A24_DECODER_READ_SET_2[] = { 0xD8, 0x20 };
 static DEFINE_STATIC_PACKET(a24_decoder_read_set_2, DSI_PKT_TYPE_WR, A24_DECODER_READ_SET_2, 0x27);
 
+#if defined(CONFIG_USDM_FACTORY)
 static u8 A24_DECODER_VDDM_LOW_SET_1[] = { 0xD7, 0x04 };
+#else
+static u8 A24_DECODER_VDDM_LOW_SET_1[] = { 0xD7, 0x00 };
+#endif
 static DEFINE_STATIC_PACKET(a24_decoder_vddm_low_set_1, DSI_PKT_TYPE_WR, A24_DECODER_VDDM_LOW_SET_1, 0x02);
 
+#if defined(CONFIG_USDM_FACTORY)
 static u8 A24_DECODER_VDDM_LOW_SET_2[] = { 0xF4, 0x07 };
+#else
+static u8 A24_DECODER_VDDM_LOW_SET_2[] = { 0xF4, 0x00 };
+#endif
 static DEFINE_STATIC_PACKET(a24_decoder_vddm_low_set_2, DSI_PKT_TYPE_WR, A24_DECODER_VDDM_LOW_SET_2, 0x0F);
 
 static u8 A24_DECODER_FUSING_UPDATE_1[] = { 0xFE, 0xB0 };
@@ -420,7 +432,7 @@ static u8 A24_DECODER_VDDM_RETURN_SET_2[] = { 0xF4, 0x00 };
 static DEFINE_STATIC_PACKET(a24_decoder_vddm_return_set_2, DSI_PKT_TYPE_WR, A24_DECODER_VDDM_RETURN_SET_2, 0x0F);
 #endif
 
-#ifdef CONFIG_SUPPORT_MASK_LAYER
+#ifdef CONFIG_USDM_PANEL_MASK_LAYER
 static DEFINE_PANEL_MDELAY(a24_wait_9msec, 9);
 static DEFINE_PANEL_MDELAY(a24_wait_7msec, 7);
 
@@ -432,8 +444,7 @@ static DEFINE_PANEL_MDELAY(a24_wait_30msec, 30);
 static DEFINE_PANEL_MDELAY(a24_wait_17msec, 17);
 static DEFINE_PANEL_MDELAY(a24_wait_20msec, 20);
 
-static DEFINE_PANEL_MDELAY(a24_wait_dsc_test_100msec, 100);
-static DEFINE_PANEL_MDELAY(a24_wait_dsc_test_20msec, 20);
+static DEFINE_PANEL_MDELAY(a24_wait_dsc_test_50msec, 50);
 
 static DEFINE_PANEL_MDELAY(a24_wait_34msec, 34);
 
@@ -539,12 +550,6 @@ static u8 A24_PORCH_SET[] = {
 };
 static DEFINE_STATIC_PACKET(a24_porch_set, DSI_PKT_TYPE_WR, A24_PORCH_SET, 0x2E);
 
-#ifdef CONFIG_SUPPORT_XTALK_MODE
-static u8 A24_XTALK_MODE[] = { 0xD9, 0x60 };
-static DEFINE_PKTUI(a24_xtalk_mode, &a24_maptbl[VGH_MAPTBL], 1);
-static DEFINE_VARIABLE_PACKET(a24_xtalk_mode, DSI_PKT_TYPE_WR, A24_XTALK_MODE, 0x1C);
-#endif
-
 static u8 A24_FPS_1[] = { 0x60, 0x00, 0x04 };
 static DEFINE_PKTUI(a24_fps_1, &a24_maptbl[FPS_MAPTBL_1], 2);
 static DEFINE_VARIABLE_PACKET(a24_fps_1, DSI_PKT_TYPE_WR, A24_FPS_1, 0);
@@ -629,11 +634,9 @@ static u8 A24_PPS[] = {
 };
 static DEFINE_STATIC_PACKET(a24_pps, DSI_PKT_TYPE_WR_PPS, A24_PPS, 0);
 
-static u8 A24_NORMAL_MODE[] = {
-	0x53, 0x20
-
-};
-static DEFINE_STATIC_PACKET(a24_normal_mode, DSI_PKT_TYPE_WR, A24_NORMAL_MODE, 0);
+static u8 a24_NORMAL_MODE[] = { 0x53, 0x20 };
+static DEFINE_PKTUI(a24_normal_mode, &a24_maptbl[LPM_EXIT_NIT_MAPTBL], 1);
+static DEFINE_VARIABLE_PACKET(a24_normal_mode, DSI_PKT_TYPE_WR, a24_NORMAL_MODE, 0x00);
 
 static u8 A24_FFC_SETTING_1[] = {
 	0xC5,
@@ -686,8 +689,10 @@ static u8 SEQ_S6E3FC3_FD_ENABLE[] = {
 	0xB5, 0x40, 0x60
 };
 static DEFINE_STATIC_PACKET(a24_fd_enable, DSI_PKT_TYPE_WR, SEQ_S6E3FC3_FD_ENABLE, 0x0A);
+static u8 a24_BLACK_FRAME_OFF[] = { 0xBB, 0x31 };
+static DEFINE_STATIC_PACKET(a24_black_frame_off, DSI_PKT_TYPE_WR, a24_BLACK_FRAME_OFF, 0x00);
 
-#ifdef CONFIG_SUPPORT_CCD_TEST
+#ifdef CONFIG_USDM_FACTORY_CCD_TEST
 static u8 A24_CCD_ENABLE[] = {
 	0xCC,
 	0x5C, 0x51, 0x01
@@ -708,12 +713,12 @@ static DEFINE_PANEL_TIMER_BEGIN(a24_init_complete_delay,
 
 static struct seqinfo SEQINFO(a24_set_bl_param_seq);
 static struct seqinfo SEQINFO(a24_set_fps_param_seq);
-#if defined(CONFIG_MCD_PANEL_FACTORY)
+#if defined(CONFIG_USDM_FACTORY)
 static struct seqinfo SEQINFO(a24_res_init_seq);
 #endif
 
-static DEFINE_SETPROP_VALUE(a24_set_separate_tx_off, PANEL_OBJ_PROPERTY_SEPARATE_TX, SEPARATE_TX_OFF);
-static DEFINE_SETPROP_VALUE(a24_set_separate_tx_on, PANEL_OBJ_PROPERTY_SEPARATE_TX, SEPARATE_TX_ON);
+static DEFINE_PNOBJ_CONFIG(a24_set_separate_tx_off, PANEL_PROPERTY_SEPARATE_TX, SEPARATE_TX_OFF);
+static DEFINE_PNOBJ_CONFIG(a24_set_separate_tx_on, PANEL_PROPERTY_SEPARATE_TX, SEPARATE_TX_ON);
 
 static void *a24_common_setting_cmdtbl[] = {
 	&KEYINFO(a24_level1_key_enable),
@@ -764,7 +769,7 @@ static void *a24_common_setting_cmdtbl[] = {
 	&PKTINFO(a24_90hz_freq_4),
 	&PKTINFO(a24_panel_update),
 
-#if defined(CONFIG_MCD_PANEL_FACTORY)
+#if defined(CONFIG_USDM_FACTORY)
 	&PKTINFO(a24_fd_enable),
 #else
 	&PKTINFO(a24_swire_no_pulse),
@@ -783,7 +788,7 @@ static DEFINE_SEQINFO(a24_common_setting_seq,
 		a24_common_setting_cmdtbl);
 
 static void *a24_init_cmdtbl[] = {
-	&SETPROP(a24_set_separate_tx_on),
+	&PNOBJ_CONFIG(a24_set_separate_tx_on),
 
 	&DLYINFO(a24_wait_1msec),
 
@@ -793,12 +798,12 @@ static void *a24_init_cmdtbl[] = {
 	&SEQINFO(a24_common_setting_seq),
 
 	&TIMER_DLYINFO_BEGIN(a24_init_complete_delay),
-#if defined(CONFIG_MCD_PANEL_FACTORY)
+#if defined(CONFIG_USDM_FACTORY)
 	&SEQINFO(a24_res_init_seq),
 #endif
 	&TIMER_DLYINFO(a24_init_complete_delay),
 
-	&SETPROP(a24_set_separate_tx_off),
+	&PNOBJ_CONFIG(a24_set_separate_tx_off),
 };
 
 static void *a24_res_init_cmdtbl[] = {
@@ -810,8 +815,7 @@ static void *a24_res_init_cmdtbl[] = {
 	&s6e3fc3_restbl[RES_CODE],
 	&s6e3fc3_restbl[RES_DATE],
 	&s6e3fc3_restbl[RES_OCTA_ID],
-#ifdef CONFIG_DISPLAY_USE_INFO
-	&s6e3fc3_restbl[RES_CHIP_ID],
+#ifdef CONFIG_USDM_PANEL_DPUI
 	&s6e3fc3_restbl[RES_SELF_DIAG],
 	&s6e3fc3_restbl[RES_ERR_FG],
 	&s6e3fc3_restbl[RES_DSI_ERR],
@@ -838,7 +842,7 @@ static void *a24_pcd_dump_cmdtbl[] = {
 	&KEYINFO(a24_level1_key_disable),
 };
 
-#if defined(CONFIG_MCD_PANEL_FACTORY)
+#if defined(CONFIG_USDM_FACTORY)
 static DEFINE_SEQINFO(a24_res_init_seq, a24_res_init_cmdtbl);
 #endif
 
@@ -888,8 +892,10 @@ static void *a24_set_bl_cmdtbl[] = {
 	&KEYINFO(a24_level1_key_disable),
 };
 
-static DEFINE_COND(a24_cond_is_panel_state_not_lpm, is_panel_state_not_lpm);
-static DEFINE_COND(a24_cond_is_panel_state_lpm, is_panel_state_lpm);
+static DEFINE_RULE_BASED_COND(a24_cond_is_panel_state_not_lpm,
+		PANEL_PROPERTY_PANEL_STATE, NE, PANEL_STATE_ALPM);
+static DEFINE_RULE_BASED_COND(a24_cond_is_panel_state_lpm,
+		PANEL_PROPERTY_PANEL_STATE, EQ, PANEL_STATE_ALPM);
 
 static void *a24_set_fps_cmdtbl[] = {
 	&CONDINFO_IF(a24_cond_is_panel_state_not_lpm),
@@ -936,13 +942,12 @@ static void *a24_exit_cmdtbl[] = {
 	&KEYINFO(a24_level1_key_enable),
 	&KEYINFO(a24_level2_key_enable),
 	&KEYINFO(a24_level3_key_enable),
-#ifdef CONFIG_DISPLAY_USE_INFO
+#ifdef CONFIG_USDM_PANEL_DPUI
 	&s6e3fc3_dmptbl[DUMP_RDDPM_SLEEP_IN],
 	&s6e3fc3_dmptbl[DUMP_RDDSM],
 	&s6e3fc3_dmptbl[DUMP_ERR],
 	&s6e3fc3_dmptbl[DUMP_DSI_ERR],
 	&s6e3fc3_dmptbl[DUMP_SELF_DIAG],
-	&s6e3fc3_dmptbl[DUMP_SELF_MASK_CRC],
 #endif
 	&PKTINFO(a24_sleep_in),
 	&KEYINFO(a24_level3_key_disable),
@@ -956,35 +961,50 @@ static void *a24_alpm_set_bl_cmdtbl[] = {
 	&KEYINFO(a24_level2_key_enable),
 	&KEYINFO(a24_level3_key_enable),
 
-	&PKTINFO(a24_lpm_ctrl),
-	&PKTINFO(a24_panel_update),
+	&PKTINFO(a24_te_aod_setting),
+	&PKTINFO(a24_black_frame_off),
 
-	&PKTINFO(a24_aod_vaint),
+	&DLYINFO(a24_wait_20msec),
+
 	&PKTINFO(a24_aod_setting),
-	&PKTINFO(a24_lpm_aor),
-	&PKTINFO(a24_lpm_nit),
 	&PKTINFO(a24_lpm_porch_on),
+	&PKTINFO(a24_lpm_nit),
+
 	&PKTINFO(a24_panel_update),
 
 	&DLYINFO(a24_wait_1usec),
 	&KEYINFO(a24_level3_key_disable),
 	&KEYINFO(a24_level2_key_disable),
 	&KEYINFO(a24_level1_key_disable),
-	&DLYINFO(a24_wait_17msec),
 };
 
 static void *a24_alpm_exit_cmdtbl[] = {
 	&KEYINFO(a24_level1_key_enable),
 	&KEYINFO(a24_level2_key_enable),
 	&KEYINFO(a24_level3_key_enable),
+
 	&PKTINFO(a24_wrdisbv),
+	&PKTINFO(a24_te_setting),
+	&PKTINFO(a24_black_frame_off),
+
+	&DLYINFO(a24_wait_34msec),
+
 	&PKTINFO(a24_swire_no_pulse_lpm_off),
 	&PKTINFO(a24_lpm_porch_off),
-	&PKTINFO(a24_normal_setting),
-	&PKTINFO(a24_lpm_off_sync_ctrl),
 	&PKTINFO(a24_normal_mode),
+	&PKTINFO(a24_wrdisbv),
 	&PKTINFO(a24_panel_update),
 	&DLYINFO(a24_wait_34msec),
+
+	&PKTINFO(a24_normal_setting),
+	&PKTINFO(a24_fps_1),
+	&PKTINFO(a24_fps_2),
+	&PKTINFO(a24_fps_3),
+	&PKTINFO(a24_fps_4),
+	&PKTINFO(a24_panel_update),
+
+	&DLYINFO(a24_wait_1usec),
+
 	&KEYINFO(a24_level3_key_disable),
 	&KEYINFO(a24_level2_key_disable),
 	&KEYINFO(a24_level1_key_disable),
@@ -1039,7 +1059,7 @@ static void *a24_check_condition_cmdtbl[] = {
 };
 
 
-#ifdef CONFIG_SUPPORT_PANEL_DECODER_TEST
+#ifdef CONFIG_USDM_FACTORY_DSC_CRC_TEST
 static void *a24_decoder_test_cmdtbl[] = {
 	&KEYINFO(a24_level1_key_enable),
 	&KEYINFO(a24_level2_key_enable),
@@ -1049,10 +1069,10 @@ static void *a24_decoder_test_cmdtbl[] = {
 	&PKTINFO(a24_decoder_test_2c),
 	&PKTINFO(a24_decoder_crc_pattern_enable),
 	&PKTINFO(a24_decoder_read_set_1),
-	&DLYINFO(a24_wait_dsc_test_100msec),
+	&DLYINFO(a24_wait_dsc_test_50msec),
 	&s6e3fc3_restbl[RES_DECODER_TEST1],
 	&PKTINFO(a24_decoder_read_set_2),
-	&DLYINFO(a24_wait_dsc_test_100msec),
+	&DLYINFO(a24_wait_dsc_test_50msec),
 	&s6e3fc3_restbl[RES_DECODER_TEST2],
 	&PKTINFO(a24_decoder_vddm_low_set_1),
 	&PKTINFO(a24_decoder_vddm_low_set_2),
@@ -1060,10 +1080,10 @@ static void *a24_decoder_test_cmdtbl[] = {
 	&PKTINFO(a24_decoder_fusing_update_2),
 	&PKTINFO(a24_decoder_crc_pattern_enable),
 	&PKTINFO(a24_decoder_read_set_1),
-	&DLYINFO(a24_wait_dsc_test_20msec),
+	&DLYINFO(a24_wait_dsc_test_50msec),
 	&s6e3fc3_restbl[RES_DECODER_TEST3],
 	&PKTINFO(a24_decoder_read_set_2),
-	&DLYINFO(a24_wait_dsc_test_20msec),
+	&DLYINFO(a24_wait_dsc_test_50msec),
 	&s6e3fc3_restbl[RES_DECODER_TEST4],
 	&PKTINFO(a24_decoder_crc_pattern_disable),
 	&PKTINFO(a24_decoder_vddm_return_set_1),
@@ -1076,7 +1096,7 @@ static void *a24_decoder_test_cmdtbl[] = {
 };
 #endif
 
-#ifdef CONFIG_SUPPORT_CCD_TEST
+#ifdef CONFIG_USDM_FACTORY_CCD_TEST
 static void *a24_ccd_test_cmdtbl[] = {
 	&KEYINFO(a24_level2_key_enable),
 	&KEYINFO(a24_level3_key_enable),
@@ -1107,10 +1127,10 @@ static struct seqinfo a24_seqtbl[] = {
 	SEQINFO_INIT(PANEL_FFC_SEQ, a24_ffc_cmdtbl),
 	SEQINFO_INIT(PANEL_DUMP_SEQ, a24_dump_cmdtbl),
 	SEQINFO_INIT(PANEL_CHECK_CONDITION_SEQ, a24_check_condition_cmdtbl),
-#ifdef CONFIG_SUPPORT_PANEL_DECODER_TEST
+#ifdef CONFIG_USDM_FACTORY_DSC_CRC_TEST
 	SEQINFO_INIT(PANEL_DECODER_TEST_SEQ, a24_decoder_test_cmdtbl),
 #endif
-#ifdef CONFIG_SUPPORT_CCD_TEST
+#ifdef CONFIG_USDM_FACTORY_CCD_TEST
 	SEQINFO_INIT(PANEL_CCD_TEST_SEQ, a24_ccd_test_cmdtbl),
 #endif
 	SEQINFO_INIT(PANEL_PCD_DUMP_SEQ, a24_pcd_dump_cmdtbl),
@@ -1135,13 +1155,14 @@ struct common_panel_info s6e3fc3_a24_panel_info = {
 	},
 	.ddi_ops = {
 		.get_cell_id = s6e3fc3_get_cell_id,
+		.get_octa_id = s6e3fc3_get_octa_id,
 		.get_manufacture_code = s6e3fc3_get_manufacture_code,
 		.get_manufacture_date = s6e3fc3_get_manufacture_date,
-#ifdef CONFIG_SUPPORT_PANEL_DECODER_TEST
+#ifdef CONFIG_USDM_FACTORY_DSC_CRC_TEST
 		.decoder_test = s6e3fc3_a24_decoder_test,
 #endif
 	},
-#if defined(CONFIG_PANEL_DISPLAY_MODE)
+#if defined(CONFIG_USDM_PANEL_DISPLAY_MODE)
 	.common_panel_modes = &s6e3fc3_a24_display_modes,
 #endif
 	.mres = {
@@ -1161,16 +1182,16 @@ struct common_panel_info s6e3fc3_a24_panel_info = {
 	.dumpinfo = s6e3fc3_dmptbl,
 	.nr_dumpinfo = ARRAY_SIZE(s6e3fc3_dmptbl),
 
-#ifdef CONFIG_EXYNOS_DECON_MDNIE_LITE
+#ifdef CONFIG_USDM_MDNIE
 	.mdnie_tune = &s6e3fc3_a24_mdnie_tune,
 #endif
 	.panel_dim_info = {
 		[PANEL_BL_SUBDEV_TYPE_DISP] = &s6e3fc3_a24_panel_dimming_info,
-#ifdef CONFIG_SUPPORT_AOD_BL
+#ifdef CONFIG_USDM_PANEL_AOD_BL
 		[PANEL_BL_SUBDEV_TYPE_AOD] = &s6e3fc3_a24_panel_aod_dimming_info,
 #endif
 	},
-#ifdef CONFIG_EXTEND_LIVE_CLOCK
+#ifdef CONFIG_USDM_PANEL_SELF_DISPLAY
 	.aod_tune = &s6e3fc3_a24_aod,
 #endif
 };

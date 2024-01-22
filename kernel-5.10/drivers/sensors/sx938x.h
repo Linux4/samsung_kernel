@@ -485,9 +485,13 @@ enum {
 	ON = 1
 };
 
-#define GRIP_ERR(fmt, ...) pr_err("[GRIP_%s] %s: "fmt, grip_name[data->ic_num], __func__, ##__VA_ARGS__)
-#define GRIP_INFO(fmt, ...) pr_info("[GRIP_%s] %s: "fmt, grip_name[data->ic_num], __func__, ##__VA_ARGS__)
-#define GRIP_WARN(fmt, ...) pr_warn("[GRIP_%s] %s: "fmt, grip_name[data->ic_num], __func__, ##__VA_ARGS__)
+#define GRIP_ERR(fmt, ...) pr_err("[GRIP_%s] %s "fmt, grip_name[data->ic_num], __func__, ##__VA_ARGS__)
+#define GRIP_INFO(fmt, ...) pr_info("[GRIP_%s] %s "fmt, grip_name[data->ic_num], __func__, ##__VA_ARGS__)
+#define GRIP_WARN(fmt, ...) pr_warn("[GRIP_%s] %s "fmt, grip_name[data->ic_num], __func__, ##__VA_ARGS__)
+
+#if IS_ENABLED(CONFIG_SENSORS_GRIP_FAILURE_DEBUG)
+extern void update_grip_error(u8 idx, u32 error_state);
+#endif
 
 #if !IS_ENABLED(CONFIG_SENSORS_CORE_AP)
 extern int sensors_create_symlink(struct input_dev *inputdev);

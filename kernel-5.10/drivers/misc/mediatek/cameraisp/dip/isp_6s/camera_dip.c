@@ -4446,6 +4446,7 @@ static void DIP_EnableClock(bool En)
 #else
 		/*LOG_INF("CCF:disable_unprepare clk\n");*/
 		Disable_Unprepare_ccf_clock();
+
 		spin_lock(&(IspInfo.SpinLockClock));
 		G_u4DipEnClkCnt--;
 		spin_unlock(&(IspInfo.SpinLockClock));

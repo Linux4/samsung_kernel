@@ -1,7 +1,6 @@
 # SPDX-License-Identifier: GPL-2.0
 ccflags-y += -I$(srctree)/drivers/misc/mediatek/include/mt-plat
 
-obj-$(CONFIG_DRM_PANEL_MCD_COMMON) += mcd_panel/
 obj-$(CONFIG_DRM_PANEL_ARM_VERSATILE) += panel-arm-versatile.o
 obj-$(CONFIG_DRM_PANEL_ASUS_Z00T_TM5P5_NT35596) += panel-asus-z00t-tm5p5-n35596.o
 obj-$(CONFIG_DRM_PANEL_BOE_HIMAX8279D) += panel-boe-himax8279d.o
@@ -90,6 +89,7 @@ obj-$(CONFIG_DRM_PANEL_NT37801_MSYNC2_RTE) += panel-nt37801-msync2-rte.o
 obj-$(CONFIG_DRM_PANEL_NT36672C_S2DPS01_VDO) += panel-nt36672c-s2dps01-vdo.o
 obj-$(CONFIG_DRM_PANEL_S6E3FC3_S2DOS15_CMD) += panel-s6e3fc3-s2dos15-cmd.o
 obj-$(CONFIG_DRM_PANEL_S6E3FC3_S2DOS15_CMD_2340) += panel-s6e3fc3-s2dos15-cmd-2340.o
+obj-$(CONFIG_DRM_PANEL_S6E8FC3_S2DOS15A01_VDO) += panel-s6e8fc3-s2dos15a01-vdo.o
 
 mediatek-drm-gateic-y := mtk_drm_panel_i2c.o \
 		  mtk_drm_gateic_rt4801h.o \

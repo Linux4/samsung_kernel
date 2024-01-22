@@ -463,27 +463,15 @@ long ccci_fsm_ioctl(int md_id, unsigned int cmd, unsigned long arg)
 	switch (cmd) {
 	case CCCI_IOC_GET_MD_STATE:
 		state_for_user = ccci_fsm_get_md_state_for_user(md_id);
-		if (state_for_user >= 0) {
-			ret = put_user((unsigned int)state_for_user,
-					(unsigned int __user *)arg);
-		} else {
-			CCCI_ERROR_LOG(md_id, FSM,
-				"Get MD state fail: %d\n", state_for_user);
-			ret = state_for_user;
-		}
+		ret = put_user((unsigned int)state_for_user,
+				(unsigned int __user *)arg);
+
 		break;
 	case CCCI_IOC_GET_OTHER_MD_STATE:
 		state_for_user =
 		ccci_fsm_get_md_state_for_user(GET_OTHER_MD_ID(md_id));
-		if (state_for_user >= 0) {
-			ret = put_user((unsigned int)state_for_user,
-					(unsigned int __user *)arg);
-		} else {
-			CCCI_ERROR_LOG(md_id, FSM,
-				"Get other MD state fail: %d\n",
-				state_for_user);
-			ret = state_for_user;
-		}
+		ret = put_user((unsigned int)state_for_user,
+				(unsigned int __user *)arg);
 		break;
 	case CCCI_IOC_MD_RESET:
 		CCCI_NORMAL_LOG(md_id, FSM,
@@ -602,7 +590,7 @@ long ccci_fsm_ioctl(int md_id, unsigned int cmd, unsigned long arg)
 		if (ctl->boot_count == boot_ready_count || ctl->md_state != READY)
 			break;
 		CCCI_NORMAL_LOG(md_id, FSM,
-				"MD power off called by %s, boot_count %d ,ready_count %lu\n",
+				"MD power off called by %s, boot_count %lu ,ready_count %lu\n",
 				current->comm, ctl->boot_count, boot_ready_count);
 		inject_md_status_event(md_id, MD_STA_EV_RILD_POWEROFF_START,
 				current->comm);

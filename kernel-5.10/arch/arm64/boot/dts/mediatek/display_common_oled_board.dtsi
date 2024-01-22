@@ -8,6 +8,14 @@
  * published by the Free Software Foundation.
  */
 
+#if 1
+#define ERR_FG_Disable
+#endif
+
+#if defined(ERR_FG_1)
+#define ERR_FG_TRUE
+#endif
+
 &pio {
 	disp_rst_default: disp-rst-default {
 		samsung,pins = SEC_GPIO(AP,pio,85);
@@ -25,17 +33,31 @@
 	};
 };
 #endif
-#if 1
-&pio {
+
+#if defined(ERR_FG_Rising_edge) || defined(ERR_FG_TRUE)
+&${err_fg_parent} {
 	err_fg_default: err_fg_default {
-		GPIO_CONFIG_PUD(AP,pio,0, FUNC_INPUT, PULL_DOWN);
+		GPIO_CONFIG_PUD(${err_fg_gpio}, FUNC_INPUT, PULL_DOWN);
 	};
 };
 #endif
+
+#if defined(ERR_FG_Falling_edge)
+&${err_fg_parent} {
+	err_fg_default: err_fg_default {
+		GPIO_CONFIG_PUD(${err_fg_gpio}, FUNC_INPUT, PULL_UP);
+	};
+};
+#endif
+
 #if 1
 &pio {
 	conn_det_default: conn_det_default {
-		GPIO_CONFIG_PUD(AP,pio,35, FUNC_INPUT, PULL_NONE);
+		samsung,pins = SEC_GPIO(AP,pio,35);
+		samsung,pin-funciton = <0>;			// IN
+		samsung,pin-pud = <0>;				// NP
+		samsung,pin-con-pdn = <2>;			// IN
+		samsung,pin-pud-pdn = <0>;			// NP in sleep
 	};
 };
 #endif
@@ -59,6 +81,18 @@
 #endif
 
 #if 0
+&${avdd_en_parent} {
+	avdd_en_default: avdd_en_default {
+		samsung,pins = SEC_GPIO(${avdd_en_gpio});
+		samsung,pin-function = <1>;	// OUT
+		samsung,pin-pud = <0>;		// NP
+		samsung,pin-con-pdn = <3>;	// PREV in sleep
+		samsung,pin-pud-pdn = <0>;	// NP in sleep
+	};
+};
+#endif
+
+#if 0
 &${poc_spi_parent} {
 	poc_spi_sleep_state_np: poc_spi_sleep_state_np {
 		samsung,pins = SEC_GPIO(${poc_spi_cs}), SEC_GPIO(${poc_spi_clk});
@@ -75,6 +109,14 @@
 		samsung,pin-drv = <0>;
 		samsung,pin-con-pdn = <2>;	// INPUT in sleep
 		samsung,pin-pud-pdn = <1>;	// PD in sleep
+	};
+};
+#endif
+
+#if 0
+&${lcd_vendor_check_parent} {
+	lcd_vendor_check_default: lcd_vendor_check_default {
+		GPIO_CONFIG_PUD(${lcd_vendor_check_gpio}, FUNC_INPUT, PULL_NONE);
 	};
 };
 #endif
@@ -105,7 +147,7 @@
 				pinctrl-names = "default";
 				pinctrl-0 = <
 							&disp_rst_default
-#if 1
+#if defined(ERR_FG_Rising_edge) || defined(ERR_FG_Falling_edge) || defined(ERR_FG_TRUE)
 							&err_fg_default
 #endif
 #if 1
@@ -118,10 +160,16 @@
 							&disp_te_default
 #endif
 #if 0
+							&avdd_en_default
+#endif
+#if 0
 							&poc_spi_sleep_state_np
 							&poc_spi_sleep_state_pd
 #endif
-							>;
+#if 0
+							&lcd_vendor_check_default
+#endif
+				>;
 
 				gpios {
 					disp_reset: disp-reset {
@@ -140,11 +188,19 @@
 						};
 					};
 #endif
-#if 1
+#if defined(ERR_FG_Rising_edge) || defined(ERR_FG_TRUE)
 					err_fg: err-fg {
-						gpios = <SEC_GPIO_REF(AP,pio,0) 0>;		/* 0:NOK(active) 1:OK */
+						gpios = <SEC_GPIO_REF(${err_fg_gpio}) 0>;		/* 0:NOK(active) 1:OK */
 						dir = <1>;				/* IN */
 						irq-type = <0x00002001>;	/* RISING EDGE | ONE_SHOT */
+					};
+
+#endif
+#if defined(ERR_FG_Falling_edge)
+					err_fg: err-fg {
+						gpios = <SEC_GPIO_REF(${err_fg_gpio}) 0>;		/* 0:NOK(active) 1:OK */
+						dir = <1>;				/* IN */
+						irq-type = <2>;	/* Falling EDGE | ONE_SHOT */
 					};
 #endif
 #if 1
@@ -165,6 +221,13 @@
 					disp_te: disp-te {
 						gpios = <SEC_GPIO_REF(${disp_te_gpio}) 0>;		/* 0:NOK(active) 1:OK */
 						dir = <1>;				/* IN */
+						irq-type = <0x0>;   /* NONE */
+					};
+#endif
+#if 0
+					avdd_en: avdd-en {
+						gpios = <SEC_GPIO_REF(${avdd_en_gpio}) 0>;
+						dir = <0>;
 						irq-type = <0x0>;   /* NONE */
 					};
 #endif

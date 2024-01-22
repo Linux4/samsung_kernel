@@ -96,6 +96,9 @@
 #if CFG_SUPPORT_NAN
 #include "gl_vendor_ndp.h"
 #endif
+#if CFG_SUPPORT_SA_LOG
+#include "gl_sa_log.h"
+#endif
 #if (CFG_SUPPORT_CONNINFRA == 1)
 #include "fw_log_wifi.h"
 #endif
@@ -2811,7 +2814,7 @@ void wlanUpdateDfsChannelTable(struct GLUE_INFO *prGlueInfo,
 		ARRAY_SIZE(mtk_5ghz_channels),
 		&ucNumOfChannel, aucChannelList);
 
-	if (ucRoleIdx >= 0 && ucRoleIdx < KAL_P2P_NUM)
+	if (ucRoleIdx < KAL_P2P_NUM)
 		prGlueP2pInfo = prGlueInfo->prP2PInfo[ucRoleIdx];
 	else
 		prGlueP2pInfo = prGlueInfo->prP2PInfo[0];
@@ -3922,7 +3925,7 @@ void wlanSetMcGroupList(struct GLUE_INFO *prGlueInfo,
 
 		up(&g_halt_sem);
 		if (u2GroupAddrCount > 0) {
-			if (prNum) {
+			if (prNum && prAddrList) {
 				kalMemCopy(
 				&prAddrList[MAC_ADDR_LEN * u2GroupAddrCount],
 				aucDstMcAddr, MAC_ADDR_LEN);
@@ -5983,16 +5986,17 @@ static int32_t wlanOnAtReset(void)
 #endif
 
 		for (u4Idx = 0; u4Idx < KAL_AIS_NUM; u4Idx++) {
-			struct FT_IES *prFtIEs =
-				aisGetFtIe(prAdapter, u4Idx);
+			struct FT_IES *prFtIEsR0 =
+				aisGetFtIe(prAdapter, u4Idx, FT_R0);
+			struct FT_IES *prFtIEsR1 =
+				aisGetFtIe(prAdapter, u4Idx, FT_R1);
 			struct CONNECTION_SETTINGS *prConnSettings =
 				aisGetConnSettings(prAdapter, u4Idx);
 
-			kalMemZero(prFtIEs,
-				sizeof(*prFtIEs));
+			kalMemZero(prFtIEsR0, sizeof(*prFtIEsR0));
+			kalMemZero(prFtIEsR1, sizeof(*prFtIEsR1));
 			prConnSettings->fgIsScanReqIssued = FALSE;
 		}
-
 	} while (FALSE);
 
 	if (rStatus == WLAN_STATUS_SUCCESS) {
@@ -6268,11 +6272,13 @@ static int32_t wlanProbe(void *pvData, void *pvDriverData)
 #endif
 
 		for (u4Idx = 0; u4Idx < KAL_AIS_NUM; u4Idx++) {
-			struct FT_IES *prFtIEs =
-				aisGetFtIe(prAdapter, u4Idx);
+			struct FT_IES *prFtIEsR0 =
+				aisGetFtIe(prAdapter, u4Idx, FT_R0);
+			struct FT_IES *prFtIEsR1 =
+				aisGetFtIe(prAdapter, u4Idx, FT_R1);
 
-			kalMemZero(prFtIEs,
-				sizeof(*prFtIEs));
+			kalMemZero(prFtIEsR0, sizeof(*prFtIEsR0));
+			kalMemZero(prFtIEsR1, sizeof(*prFtIEsR1));
 		}
 
 		/* Configure 5G band for registered wiphy */
@@ -6808,6 +6814,14 @@ static int initWlan(void)
 	sysInitWifiVer();
 #endif
 
+#if (CFG_SUPPORT_SA_LOG == 1)
+	ret = SalogInit();
+	if (ret < 0) {
+		DBGLOG(INIT, INFO, "sa log node init failed!");
+		return ret;
+	}
+#endif /* CFG_SUPPORT_SA_LOG */
+
 	g_u4WlanInitFlag = 1;
 	DBGLOG(INIT, INFO, "initWlan::End\n");
 
@@ -6851,6 +6865,11 @@ static void exitWlan(void)
 	DBGLOG(INIT, INFO, "Free wlan device..\n");
 	wlanFreeNetDev();
 #endif
+
+#if (CFG_SUPPORT_SA_LOG == 1)
+	SalogDeInit();
+#endif /* CFG_SUPPORT_SA_LOG */
+
 	kalFbNotifierUnReg();
 	wlanUnregisterNetdevNotifier();
 

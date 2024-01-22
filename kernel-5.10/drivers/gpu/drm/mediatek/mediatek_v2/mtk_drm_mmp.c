@@ -456,13 +456,16 @@ int mtk_drm_mmp_ovl_layer(struct mtk_plane_state *state,
 	struct mtk_plane_pending_state *pending = &state->pending;
 	struct drm_crtc *crtc = state->crtc;
 	struct mtk_drm_private *private = crtc->dev->dev_private;
-	int crtc_idx = drm_crtc_index(crtc);
+	unsigned int crtc_idx = drm_crtc_index(crtc);
 	struct mmp_metadata_bitmap_t bitmap;
 	struct mmp_metadata_t meta;
 	unsigned int fmt = pending->format;
 	int raw = 0;
 	int yuv = 0;
 	void *dma_va;
+
+	if (crtc_idx >= MMP_CRTC_NUM)
+		return -1;
 
 	if (!mtk_drm_helper_get_opt(private->helper_opt,
 				MTK_DRM_OPT_USE_M4U)) {
@@ -665,6 +668,9 @@ int mtk_drm_mmp_cwb_buffer(struct drm_crtc *crtc,
 	enum CWB_BUFFER_TYPE type = cwb_info->type;
 	struct mmp_metadata_bitmap_t bitmap;
 	mmp_event event_base = 0;
+
+	if (crtc_idx >= MMP_CRTC_NUM)
+		return -EINVAL;
 
 	memset(&bitmap, 0, sizeof(struct mmp_metadata_bitmap_t));
 	bitmap.data1 = buf_idx;

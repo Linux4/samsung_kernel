@@ -1995,6 +1995,7 @@ signed int CmdqDPEHW(struct frame *frame)
 	unsigned int dma_bandwidth, trig_num;
 #endif
 //#endif
+	memset(&mmu, 0, sizeof(struct tee_mmu));
 	if (frame == NULL || frame->data == NULL)
 		return -1;
 	LOG_DBG("%s request sent to CMDQ driver", __func__);

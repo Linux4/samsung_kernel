@@ -796,11 +796,12 @@ static int ec6xx_parse_dt(struct device *dev, struct ec6xx_data *etspi)
 		etspi->btp_vdd = NULL;
 	} else {
 		etspi->regulator_3p3 = regulator_get(dev, etspi->btp_vdd);
-		if (IS_ERR(etspi->regulator_3p3) ||
-				(etspi->regulator_3p3) == NULL) {
+		if ((etspi->regulator_3p3) == NULL) {
 			pr_info("fail to get regulator_3p3\n");
-			etspi->regulator_3p3 = NULL;
 			return -EINVAL;
+		} else if (IS_ERR(etspi->regulator_3p3)) {
+			pr_info("fail to get regulator_3p3: %ld\n", PTR_ERR(etspi->regulator_3p3));
+			return PTR_ERR(etspi->regulator_3p3);
 		}
 		pr_info("btp_regulator ok\n");
 	}
@@ -811,7 +812,7 @@ static int ec6xx_parse_dt(struct device *dev, struct ec6xx_data *etspi)
 
 	if (of_property_read_string_index(np, "etspi-chipid", 0,
 			(const char **)&etspi->chipid)) {
-		etspi->chipid = NULL;
+		etspi->chipid = "NULL";
 	}
 	pr_info("chipid: %s\n", etspi->chipid);
 
@@ -819,9 +820,15 @@ static int ec6xx_parse_dt(struct device *dev, struct ec6xx_data *etspi)
 		etspi->orient = 0;
 	pr_info("orient: %d\n", etspi->orient);
 
+	if (of_property_read_string_index(np, "etspi-position", 0,
+			(const char **)&etspi->position)) {
+		etspi->position = "NA";
+	}
+	pr_info("position: %s\n", etspi->position);
+
 	etspi->p = pinctrl_get_select_default(dev);
 	if (IS_ERR(etspi->p)) {
-		retval = -EINVAL;
+		retval = PTR_ERR(etspi->p);
 		pr_err("failed pinctrl_get\n");
 		goto dt_exit;
 	}
@@ -834,6 +841,7 @@ static int ec6xx_parse_dt(struct device *dev, struct ec6xx_data *etspi)
 	if (IS_ERR(etspi->pins_poweroff)) {
 		pr_err(": could not get pins sleep_state (%li)\n",
 			PTR_ERR(etspi->pins_poweroff));
+		retval = PTR_ERR(etspi->pins_poweroff);
 		goto fail_pinctrl_get;
 	}
 
@@ -845,6 +853,7 @@ static int ec6xx_parse_dt(struct device *dev, struct ec6xx_data *etspi)
 	if (IS_ERR(etspi->pins_poweron)) {
 		pr_err(": could not get pins idle_state (%li)\n",
 			PTR_ERR(etspi->pins_poweron));
+		retval = PTR_ERR(etspi->pins_poweron);
 		goto fail_pinctrl_get;
 	}
 
@@ -909,7 +918,7 @@ static int ec6xx_type_check(struct ec6xx_data *etspi)
 	 */
 
 	if ((buf2 == 0x11) && (buf3 == 0x06)) {
-		etspi->sensortype = SENSOR_EGIS;
+		etspi->sensortype = SENSOR_OK;
 		pr_info("sensor type is EGIS EC617 sensor\n");
 	} else {
 		etspi->sensortype = SENSOR_FAILED;
@@ -967,6 +976,14 @@ static ssize_t adm_show(struct device *dev,
 	return snprintf(buf, PAGE_SIZE, "%d\n", DETECT_ADM);
 }
 
+static ssize_t position_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	struct ec6xx_data *etspi = dev_get_drvdata(dev);
+
+	return snprintf(buf, PAGE_SIZE, "%s\n", etspi->position);
+}
+
 static ssize_t intcnt_show(struct device *dev,
 			       struct device_attribute *attr, char *buf)
 {
@@ -1014,6 +1031,7 @@ static DEVICE_ATTR_RO(type_check);
 static DEVICE_ATTR_RO(vendor);
 static DEVICE_ATTR_RO(name);
 static DEVICE_ATTR_RO(adm);
+static DEVICE_ATTR_RO(position);
 static DEVICE_ATTR_RW(intcnt);
 static DEVICE_ATTR_RW(resetcnt);
 
@@ -1023,6 +1041,7 @@ static struct device_attribute *fp_attrs[] = {
 	&dev_attr_vendor,
 	&dev_attr_name,
 	&dev_attr_adm,
+	&dev_attr_position,
 	&dev_attr_intcnt,
 	&dev_attr_resetcnt,
 	NULL,
@@ -1038,7 +1057,7 @@ static void ec6xx_work_func_debug(struct work_struct *work)
 	pr_info("ldo: %d, sleep: %d, tz: %d, spi_value: 0x%x, type: %s\n",
 		etspi->ldo_enabled, gpio_get_value(etspi->sleepPin),
 		etspi->tz_mode, etspi->spi_value,
-		sensor_status[etspi->sensortype + 2]);
+		etspi->sensortype > 0 ? etspi->chipid : sensor_status[etspi->sensortype + 2]);
 }
 
 static struct ec6xx_data *alloc_platformdata(struct device *dev)

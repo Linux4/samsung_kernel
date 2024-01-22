@@ -581,7 +581,7 @@ static void cmdq_cb_timeout_worker(struct work_struct *work)
 	struct img_ipi_param ipi_param;
 	struct swfrm_info_t *frm_info = NULL;
 	struct gce_timeout_work *swork = NULL;
-	struct img_sw_buffer swbuf_data;
+	struct img_sw_buffer swbuf_data = {0};
 
 	swork = container_of(work, struct gce_timeout_work, work);
 	pipe = (struct mtk_imgsys_pipe *)swork->pipe;
@@ -592,7 +592,7 @@ static void cmdq_cb_timeout_worker(struct work_struct *work)
 
 	if (!req) {
 		pr_info("%s NULL request Address\n", __func__);
-		goto release_work;
+		return;
 	}
 
 	frm_info = (struct swfrm_info_t *)(swork->req_sbuf_kva);
@@ -2134,7 +2134,7 @@ static void mtk_imgsys_hw_disconnect(struct mtk_imgsys_dev *imgsys_dev)
 
 	scp_ipi_unregister(imgsys_dev->scp_pdev, SCP_IPI_DIP);
 #else
-	struct img_init_info info;
+	struct img_init_info info = {0};
 	u32 user_cnt = 0;
 
 	ret = imgsys_send(imgsys_dev->scp_pdev, HCP_IMGSYS_DEINIT_ID,

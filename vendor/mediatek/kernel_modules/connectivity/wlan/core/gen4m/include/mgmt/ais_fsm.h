@@ -168,6 +168,7 @@ enum ENUM_AIS_REQUEST_TYPE {
 	AIS_REQUEST_ROAMING_SEARCH,
 	AIS_REQUEST_ROAMING_CONNECT,
 	AIS_REQUEST_REMAIN_ON_CHANNEL,
+	AIS_REQUEST_BTO,
 	AIS_REQUEST_NUM
 };
 
@@ -216,6 +217,12 @@ struct AIS_BLACKLIST_ITEM {
 struct AX_BLACKLIST_ITEM {
 	struct LINK_ENTRY rLinkEntry;
 	uint8_t aucBSSID[MAC_ADDR_LEN];
+};
+
+struct AIS_BTO_INFO {
+	struct BSS_DESC *prBtoBssDesc;
+	uint8_t ucBcnTimeoutReason;
+	uint8_t ucDisconnectReason;
 };
 
 struct AIS_FSM_INFO {
@@ -306,6 +313,8 @@ struct AIS_FSM_INFO {
 	/* roaming count */
 	uint16_t u2ConnectedCount;
 #endif
+
+	struct AIS_BTO_INFO rBtoInfo;
 };
 
 struct AIS_OFF_CHNL_TX_REQ_INFO {
@@ -507,6 +516,9 @@ void aisBssBeaconTimeout_impl(IN struct ADAPTER *prAdapter,
 	IN uint8_t ucBcnTimeoutReason, IN uint8_t ucDisconnectReason,
 	IN uint8_t ucBssIndex);
 
+void aisHandleBeaconTimeout(IN struct ADAPTER *prAdapter,
+	IN uint8_t ucBssIndex, IN u_int8_t fgDelayAbortIndication);
+
 void aisBssLinkDown(IN struct ADAPTER *prAdapter,
 	IN uint8_t ucBssIndex);
 
@@ -664,6 +676,17 @@ void aisSendNeighborRequest(struct ADAPTER *prAdapter,
 	uint8_t ucBssIndex);
 /* end Support 11K */
 
+/*----------------------------------------------------------------------------*/
+/* CSA Handline                                                               */
+/*----------------------------------------------------------------------------*/
+void aisUpdateParamsForCSA(struct ADAPTER *prAdapter,
+	struct BSS_INFO *prBssInfo);
+
+void aisReqJoinChPrivilegeForCSA(struct ADAPTER *prAdapter,
+	struct AIS_FSM_INFO *prAisFsmInfo,
+	struct BSS_INFO *prBss,
+	uint8_t *ucChTokenId);
+
 /*******************************************************************************
  *                              F U N C T I O N S
  *******************************************************************************
@@ -671,6 +694,10 @@ void aisSendNeighborRequest(struct ADAPTER *prAdapter,
 
 #define AIS_DEFAULT_INDEX (0)
 #define AIS_SECONDARY_INDEX (1)
+
+#define FT_R0		(0)
+#define FT_R1		(1)
+#define FT_ROUND	(2)
 
 struct AIS_FSM_INFO *aisGetAisFsmInfo(
 	IN struct ADAPTER *prAdapter,
@@ -793,7 +820,8 @@ uint8_t *
 struct FT_IES *
 	aisGetFtIe(
 	IN struct ADAPTER *prAdapter,
-	IN uint8_t ucBssIndex);
+	IN uint8_t ucBssIndex,
+	IN uint8_t ucRound);
 
 struct cfg80211_ft_event_params *
 	aisGetFtEventParam(
