@@ -40,7 +40,7 @@ __visible_for_testing int defex_public_key_verify_signature(unsigned char *pub_k
 	(void)signature;
 	(void)hash_sha256;
 	/* Skip signarue check at kernel version < 3.7.0 */
-	printk("[DEFEX] Skip signature check in current kernel version\n");
+	defex_log_warn("Skip signature check in current kernel version");
 	return 0;
 }
 
@@ -79,10 +79,10 @@ __visible_for_testing int defex_keyring_init(void)
 					    cred, KEY_ALLOC_NOT_IN_QUOTA);
 	if (!defex_keyring) {
 		err = -1;
-		pr_info("Can't allocate %s keyring (NULL)\n", keyring_name);
+		defex_log_info("Can't allocate %s keyring (NULL)", keyring_name);
 	} else if (IS_ERR(defex_keyring)) {
 		err = PTR_ERR(defex_keyring);
-		pr_info("Can't allocate %s keyring, err=%d\n", keyring_name, err);
+		defex_log_info("Can't allocate %s keyring, err=%d", keyring_name, err);
 		defex_keyring = NULL;
 	}
 	return err;
@@ -117,7 +117,7 @@ __visible_for_testing int defex_public_key_verify_signature(unsigned char *pub_k
 			       KEY_ALLOC_NOT_IN_QUOTA);
 	}
 	if (IS_ERR(key_ref)) {
-		printk(KERN_INFO "Invalid key reference (%ld)\n", PTR_ERR(key_ref));
+		defex_log_err("Invalid key reference (%ld)", PTR_ERR(key_ref));
 		return ret;
 	}
 
@@ -160,7 +160,7 @@ int defex_calc_hash(const char *data, unsigned int size, unsigned char *hash)
 
 	handle = crypto_alloc_shash("sha256", 0, 0);
 	if (IS_ERR_OR_NULL(handle)) {
-		pr_err("[DEFEX] Can't alloc sha256");
+		defex_log_err("Can't alloc sha256");
 		return err;
 	}
 
@@ -221,12 +221,11 @@ int defex_rules_signature_check(const char *rules_buffer, unsigned int rules_dat
 	defex_calc_hash(hash_sha256_first, SHA256_DIGEST_SIZE, hash_sha256);
 
 #ifdef DEFEX_DEBUG_ENABLE
-	printk("[DEFEX] Rules signature size = %d\n", SIGN_SIZE);
-	blob(signature, SIGN_SIZE, 16);
-	printk("[DEFEX] Key size = %d\n", defex_public_key_size);
-	blob(pub_key, defex_public_key_size, 16);
-	printk("[DEFEX] Final Hash:\n");
-	blob(hash_sha256, SHA256_DIGEST_SIZE, 16);
+	defex_log_info("Rules signature size = %d", SIGN_SIZE);
+	blob("Rules signature dump:", signature, SIGN_SIZE, 16);
+	defex_log_info("Key size = %d", defex_public_key_size);
+	blob("Key dump:", pub_key, defex_public_key_size, 16);
+	blob("Final hash dump:", hash_sha256, SHA256_DIGEST_SIZE, 16);
 #endif
 
 	res = defex_public_key_verify_signature(pub_key, defex_public_key_size, signature, hash_sha256);

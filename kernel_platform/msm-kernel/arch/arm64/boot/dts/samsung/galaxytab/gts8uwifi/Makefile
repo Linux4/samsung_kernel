@@ -1,11 +1,11 @@
-dtbo-y += gts8uwifi_eur_open_w00_r05.dtbo # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
-gts8uwifi_eur_open_w00_r05.dtbo-base := ../../../vendor/qcom/waipio.dtb ../../../vendor/qcom/waipio-v2.dtb ../../../vendor/qcom/waipiop.dtb ../../../vendor/qcom/waipiop-v2.dtb # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
-dtbo-y += gts8uwifi_eur_open_w00_r04.dtbo # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
-gts8uwifi_eur_open_w00_r04.dtbo-base := ../../../vendor/qcom/waipio.dtb ../../../vendor/qcom/waipio-v2.dtb ../../../vendor/qcom/waipiop.dtb ../../../vendor/qcom/waipiop-v2.dtb # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
-dtbo-y += gts8uwifi_eur_open_w00_r03.dtbo # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
-gts8uwifi_eur_open_w00_r03.dtbo-base := ../../../vendor/qcom/waipio.dtb ../../../vendor/qcom/waipio-v2.dtb ../../../vendor/qcom/waipiop.dtb ../../../vendor/qcom/waipiop-v2.dtb # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
-dtbo-y += gts8uwifi_eur_open_w00_r02.dtbo # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
-gts8uwifi_eur_open_w00_r02.dtbo-base := ../../../vendor/qcom/waipio.dtb ../../../vendor/qcom/waipio-v2.dtb ../../../vendor/qcom/waipiop.dtb ../../../vendor/qcom/waipiop-v2.dtb # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
+dtbo-y += gts8uwifi_jpn_open_w00_r05.dtbo # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
+gts8uwifi_jpn_open_w00_r05.dtbo-base := ../../../vendor/qcom/waipio.dtb ../../../vendor/qcom/waipio-v2.dtb ../../../vendor/qcom/waipiop.dtb ../../../vendor/qcom/waipiop-v2.dtb # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
+dtbo-y += gts8uwifi_jpn_open_w00_r04.dtbo # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
+gts8uwifi_jpn_open_w00_r04.dtbo-base := ../../../vendor/qcom/waipio.dtb ../../../vendor/qcom/waipio-v2.dtb ../../../vendor/qcom/waipiop.dtb ../../../vendor/qcom/waipiop-v2.dtb # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
+dtbo-y += gts8uwifi_jpn_open_w00_r03.dtbo # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
+gts8uwifi_jpn_open_w00_r03.dtbo-base := ../../../vendor/qcom/waipio.dtb ../../../vendor/qcom/waipio-v2.dtb ../../../vendor/qcom/waipiop.dtb ../../../vendor/qcom/waipiop-v2.dtb # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
+dtbo-y += gts8uwifi_jpn_open_w00_r02.dtbo # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
+gts8uwifi_jpn_open_w00_r02.dtbo-base := ../../../vendor/qcom/waipio.dtb ../../../vendor/qcom/waipio-v2.dtb ../../../vendor/qcom/waipiop.dtb ../../../vendor/qcom/waipiop-v2.dtb # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
 # SPDX-License-Identifier: GPL-2.0
 
 #define __sec_dtbo_build

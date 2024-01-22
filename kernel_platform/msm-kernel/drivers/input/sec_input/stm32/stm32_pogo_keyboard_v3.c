@@ -259,7 +259,7 @@ void stm32_toggle_led(struct stm32_keypad_dev *device_data)
 	} else {
 		stm32_caps_led_value = 0x1;
 	}
-	input_err(true, &device_data->pdev->dev, "%s  led_value:%d\n", __func__, stm32_caps_led_value);
+	pr_info("%s %s  led_value:%d\n", SECLOG, __func__, stm32_caps_led_value);
 }
 
 int stm32_caps_event(struct input_dev *dev, unsigned int type, unsigned int code, int value)
@@ -271,8 +271,8 @@ int stm32_caps_event(struct input_dev *dev, unsigned int type, unsigned int code
 		stm32_toggle_led(device_data);
 		return 0;
 	default:
-		input_err(true, &device_data->pdev->dev, "%s(): Got unknown type %d, code %d, value %d\n",
-				__func__, type, code, value);
+		pr_err("%s %s(): Got unknown type %d, code %d, value %d\n",
+				SECLOG, __func__, type, code, value);
 	}
 
 	return -1;

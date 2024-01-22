@@ -224,13 +224,11 @@ static int max77705_fg_read_vcell(struct max77705_fuelgauge_data *fuelgauge)
 		fuelgauge->vempty_mode = VEMPTY_MODE_SW_RECOVERY;
 		max77705_fg_fuelalert_init(fuelgauge, fuelgauge->pdata->fuel_alert_soc);
 		pr_info("%s: Recoverd from SW V EMPTY Activation\n", __func__);
-#if defined(CONFIG_BATTERY_CISD)
 		if (fuelgauge->valert_count_flag) {
 			pr_info("%s: Vcell(%d) release CISD VALERT COUNT check\n",
 					__func__, vcell);
 			fuelgauge->valert_count_flag = false;
 		}
-#endif
 	}
 
 	return vcell;
@@ -281,6 +279,7 @@ static int max77705_fg_read_vfocv(struct max77705_fuelgauge_data *fuelgauge)
 	max77705_fg_periodic_read_power(fuelgauge);
 
 	check_learncfg(fuelgauge);
+	fuelgauge->bd_vfocv = vfocv;
 	return vfocv;
 }
 
@@ -1070,6 +1069,7 @@ int max77705_get_fuelgauge_value(struct max77705_fuelgauge_data *fuelgauge,
 		break;
 	case FG_RAW_SOC:
 		ret = max77705_fg_read_rawsoc(fuelgauge);
+		fuelgauge->bd_raw_soc = ret;
 		break;
 	case FG_VF_SOC:
 		ret = max77705_fg_read_vfsoc(fuelgauge);
@@ -1423,18 +1423,14 @@ void max77705_fg_fuelalert_set(struct max77705_fuelgauge_data *fuelgauge,
 
 		if (fuelgauge->vempty_mode != VEMPTY_MODE_HW)
 			fuelgauge->vempty_mode = VEMPTY_MODE_SW_VALERT;
-#if defined(CONFIG_BATTERY_CISD)
-		else {
-			if (!fuelgauge->valert_count_flag) {
-				union power_supply_propval value;
+		else if (!fuelgauge->valert_count_flag) {
+			union power_supply_propval value;
 
-				value.intval = fuelgauge->vempty_mode;
-				psy_do_property("battery", set,
-						POWER_SUPPLY_PROP_VOLTAGE_MIN, value);
-				fuelgauge->valert_count_flag = true;
-			}
+			value.intval = fuelgauge->vempty_mode;
+			psy_do_property("battery", set,
+					POWER_SUPPLY_PROP_VOLTAGE_MIN, value);
+			fuelgauge->valert_count_flag = true;
 		}
-#endif
 	}
 }
 
@@ -2162,11 +2158,8 @@ static void max77705_fg_bd_log(struct max77705_fuelgauge_data *fuelgauge)
 {
 	memset(fuelgauge->d_buf, 0x0, sizeof(fuelgauge->d_buf));
 
-	snprintf(fuelgauge->d_buf + strlen(fuelgauge->d_buf), sizeof(fuelgauge->d_buf),
-		"%d,%d,%d",
-		max77705_fg_read_vfocv(fuelgauge),
-		max77705_get_fuelgauge_value(fuelgauge, FG_RAW_SOC),
-		fuelgauge->capacity_max);
+	snprintf(fuelgauge->d_buf, sizeof(fuelgauge->d_buf), "%d,%d,%d",
+		fuelgauge->bd_vfocv, fuelgauge->bd_raw_soc, fuelgauge->capacity_max);
 }
 
 static int max77705_fg_get_property(struct power_supply *psy,
@@ -2176,6 +2169,11 @@ static int max77705_fg_get_property(struct power_supply *psy,
 	struct max77705_fuelgauge_data *fuelgauge = power_supply_get_drvdata(psy);
 	enum power_supply_ext_property ext_psp = (enum power_supply_ext_property) psp;
 	u8 data[2] = { 0, 0 };
+
+	if (atomic_read(&fuelgauge->shutdown_cnt) > 0) {
+		dev_info(fuelgauge->dev, "%s: fuelgauge already shutdown\n", __func__);
+		return -EINVAL;
+	}
 
 	switch ((int)psp) {
 		/* Cell voltage (VCELL, mV) */
@@ -2397,6 +2395,11 @@ static int max77705_fg_set_property(struct power_supply *psy,
 	static bool low_temp_wa;
 	u8 data[2] = { 0, 0 };
 	u16 reg_data;
+
+	if (atomic_read(&fuelgauge->shutdown_cnt) > 0) {
+		dev_info(fuelgauge->dev, "%s: fuelgauge already shutdown\n", __func__);
+		return -EINVAL;
+	}
 
 	switch ((int)psp) {
 	case POWER_SUPPLY_PROP_STATUS:
@@ -3107,8 +3110,10 @@ static int max77705_fuelgauge_probe(struct platform_device *pdev)
 		goto err_pdata_free;
 	}
 	ret = max77705_fuelgauge_parse_dt(fuelgauge);
-	if (ret < 0)
+	if (ret < 0) {
 		pr_err("%s not found fg dt! ret[%d]\n", __func__, ret);
+		goto err_data_free;
+	}
 #endif
 
 	fuelgauge->capacity_max = fuelgauge->pdata->capacity_max;
@@ -3202,9 +3207,8 @@ static int max77705_fuelgauge_probe(struct platform_device *pdev)
 	fuelgauge->err_cnt = 0;
 	fuelgauge->sleep_initial_update_of_soc = false;
 	fuelgauge->initial_update_of_soc = true;
-#if defined(CONFIG_BATTERY_CISD)
 	fuelgauge->valert_count_flag = false;
-#endif
+	atomic_set(&fuelgauge->shutdown_cnt, 0);
 	platform_set_drvdata(pdev, fuelgauge);
 
 	sec_chg_set_dev_init(SC_DEV_FG);
@@ -3294,6 +3298,8 @@ static void max77705_fuelgauge_shutdown(struct platform_device *pdev)
 	pr_info("%s: ++\n", __func__);
 
 	if (fuelgauge) {
+		atomic_inc(&fuelgauge->shutdown_cnt);
+
 		if (fuelgauge->i2c) {
 			max77705_offset_leakage_default(fuelgauge);
 		}

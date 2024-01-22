@@ -37,15 +37,6 @@ config ID_USING_BAT_SUBBAT
 	  Say Y here to enable
 	  This is to calculate bat_id using main_bat_id & sub_bat_id.
 
-config FUELGAUGE_MAX77705_TEST
-	tristate "KUnit test for max77705_fuelgauge_test"
-	depends on SEC_KUNIT
-	help
-	  Say Y here to enable
-	  support to kunit test.
-	  for kunitest
-	  for max77705_fuelgauge_test
-
 config UI_SOC_PROLONGING
 	bool "Ui Soc 100% Prolonging"
 	default n

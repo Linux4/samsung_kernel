@@ -97,6 +97,7 @@ static void fts_ts_panel_notifier_callback(enum panel_event_notifier_tag tag,
 static struct ft_chip_t ctype[] = {
 	{0x88, 0x56, 0x52, 0x00, 0x00, 0x00, 0x00, 0x56, 0xB2},
 	{0x81, 0x54, 0x52, 0x54, 0x52, 0x00, 0x00, 0x54, 0x5C},
+	{0x1C, 0x87, 0x26, 0x87, 0x20, 0x87, 0xA0, 0x00, 0x00},
 };
 
 /*****************************************************************************
@@ -300,6 +301,16 @@ static int fts_ts_populate_vm_info(struct fts_ts_data *fts_data)
 		vm_info->irq_label = GH_IRQ_LABEL_TRUSTED_TOUCH_SECONDARY;
 	}
 
+#ifdef CONFIG_ARCH_QTI_VM
+	rc = of_property_read_u32(np, "focaltech,reset-gpio-base", &vm_info->reset_gpio_base);
+	if (rc)
+		pr_err("Failed to read reset gpio base:%d\n", rc);
+
+	rc = of_property_read_u32(np, "focaltech,intr-gpio-base", &vm_info->intr_gpio_base);
+	if (rc)
+		pr_err("Failed to read intr gpio base:%d\n", rc);
+#endif
+
 	return 0;
 }
 
@@ -348,7 +359,12 @@ static void fts_ts_trusted_touch_reset_gpio_toggle(struct fts_ts_data *fts_data)
 	if (fts_data->bus_type != BUS_TYPE_I2C)
 		return;
 
-	base = ioremap(TOUCH_RESET_GPIO_BASE, TOUCH_RESET_GPIO_SIZE);
+	if (!fts_data->vm_info->reset_gpio_base) {
+		pr_err("reset_gpio_base is not valid\n");
+		return;
+	}
+
+	base = ioremap(fts_data->vm_info->reset_gpio_base, TOUCH_RESET_GPIO_SIZE);
 	writel_relaxed(0x1, base + TOUCH_RESET_GPIO_OFFSET);
 	/* wait until toggle to finish*/
 	wmb();
@@ -367,8 +383,13 @@ static void fts_trusted_touch_intr_gpio_toggle(struct fts_ts_data *fts_data,
 	if (fts_data->bus_type != BUS_TYPE_I2C)
 		return;
 
-	base = ioremap(TOUCH_INTR_GPIO_BASE, TOUCH_INTR_GPIO_SIZE);
-	val = readl_relaxed(base + TOUCH_RESET_GPIO_OFFSET);
+	if (!fts_data->vm_info->intr_gpio_base) {
+		pr_err("intr_gpio_base is not valid\n");
+		return;
+	}
+
+	base = ioremap(fts_data->vm_info->intr_gpio_base, TOUCH_INTR_GPIO_SIZE);
+	val = readl_relaxed(base + TOUCH_INTR_GPIO_OFFSET);
 	if (enable) {
 		val |= BIT(0);
 		writel_relaxed(val, base + TOUCH_INTR_GPIO_OFFSET);
@@ -626,6 +647,13 @@ static void fts_ts_trusted_touch_tvm_vm_mode_disable(struct fts_ts_data *fts_dat
 		return;
 	}
 
+	/*
+	 * Acquire the transition lock before disabling the IRQ to avoid the race
+	 * condition with fts_irq_handler. For SVM, it is acquired here and, for PVM,
+	 * in fts_ts_trusted_touch_pvm_vm_mode_enable().
+	 */
+	mutex_lock(&fts_data->transition_lock);
+
 	fts_irq_disable();
 	fts_ts_trusted_touch_set_vm_state(fts_data, TVM_INTERRUPT_DISABLED);
 
@@ -659,9 +687,11 @@ static void fts_ts_trusted_touch_tvm_vm_mode_disable(struct fts_ts_data *fts_dat
 	}
 	fts_ts_trusted_touch_set_vm_state(fts_data, TRUSTED_TOUCH_TVM_INIT);
 	atomic_set(&fts_data->trusted_touch_enabled, 0);
+	mutex_unlock(&fts_data->transition_lock);
 	pr_info("trusted touch disabled\n");
 	return;
 error:
+	mutex_unlock(&fts_data->transition_lock);
 	fts_ts_trusted_touch_abort_handler(fts_data,
 			TRUSTED_TOUCH_EVENT_RELEASE_FAILURE);
 }
@@ -2732,8 +2762,7 @@ static int fts_ts_probe_delayed(struct fts_ts_data *fts_data)
 	}
 #endif
 
-	if (!FTS_CHIP_IDC(fts_data->pdata->type))
-		fts_reset_proc(200);
+	fts_reset_proc(200);
 
 	ret = fts_get_ic_information(fts_data);
 	if (ret) {
@@ -2870,11 +2899,25 @@ static int fts_ts_probe_entry(struct fts_ts_data *ts_data)
 	fts_ts_trusted_touch_init(ts_data);
 	mutex_init(&(ts_data->fts_clk_io_ctrl_mutex));
 #endif
+
+#ifndef CONFIG_ARCH_QTI_VM
+	if (ts_data->pdata->type == _FT8726) {
+		atomic_set(&ts_data->delayed_vm_probe_pending, 1);
+		ts_data->suspended = true;
+	} else {
+		ret = fts_ts_probe_delayed(ts_data);
+		if (ret) {
+			FTS_ERROR("Failed to enable resources\n");
+			goto err_probe_delayed;
+		}
+	}
+#else
 	ret = fts_ts_probe_delayed(ts_data);
 	if (ret) {
 		FTS_ERROR("Failed to enable resources\n");
 		goto err_probe_delayed;
 	}
+#endif
 
 #if defined(CONFIG_DRM)
 	if (ts_data->ts_workqueue)
@@ -3024,6 +3067,11 @@ static int fts_ts_suspend(struct device *dev)
 				FTS_ERROR("power enter suspend fail");
 			}
 #endif
+		} else {
+#if FTS_PINCTRL_EN
+			fts_pinctrl_select_suspend(ts_data);
+#endif
+			gpio_direction_output(ts_data->pdata->reset_gpio, 0);
 		}
 	}
 
@@ -3037,6 +3085,7 @@ static int fts_ts_suspend(struct device *dev)
 static int fts_ts_resume(struct device *dev)
 {
 	struct fts_ts_data *ts_data = fts_data;
+	int ret = 0;
 
 	FTS_FUNC_ENTER();
 	if (!ts_data->suspended) {
@@ -3051,6 +3100,18 @@ static int fts_ts_resume(struct device *dev)
 			&ts_data->trusted_touch_powerdown);
 #endif
 
+	if (ts_data->pdata->type == _FT8726 &&
+			atomic_read(&ts_data->delayed_vm_probe_pending)) {
+		ret = fts_ts_probe_delayed(ts_data);
+		if (ret) {
+			FTS_ERROR("Failed to enable resources\n");
+			return ret;
+		}
+		ts_data->suspended = false;
+		atomic_set(&ts_data->delayed_vm_probe_pending, 0);
+		return ret;
+	}
+
 	mutex_lock(&ts_data->transition_lock);
 
 	fts_release_all_finger();
@@ -3059,8 +3120,13 @@ static int fts_ts_resume(struct device *dev)
 #if FTS_POWER_SOURCE_CUST_EN
 		fts_power_source_resume(ts_data);
 #endif
-		fts_reset_proc(200);
+	} else {
+#if FTS_PINCTRL_EN
+		fts_pinctrl_select_normal(ts_data);
+#endif
 	}
+
+	fts_reset_proc(200);
 
 	fts_wait_tp_to_valid();
 	fts_ex_mode_recovery(ts_data);
