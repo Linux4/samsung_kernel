@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
- * Copyright (c) 2012-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2012-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _IPA_USB_H_
@@ -159,6 +160,7 @@ struct ipa_usb_xdci_chan_params {
 	u64 data_buff_base_addr_iova;
 	struct sg_table *sgt_xfer_rings;
 	struct sg_table *sgt_data_buff;
+	bool is_sw_path;
 };
 
 /**
@@ -292,6 +294,15 @@ int ipa_usb_xdci_suspend(u32 ul_clnt_hdl, u32 dl_clnt_hdl,
 int ipa_usb_xdci_resume(u32 ul_clnt_hdl, u32 dl_clnt_hdl,
 			enum ipa_usb_teth_prot teth_prot);
 
+/**
+ * ipa_usb_is_teth_prot_connected - Internal API for checking USB
+ *		protocol is connected
+ *
+ * @usb_teth_prot:   USB tethering protocol
+ * @Return true if connected, false if not
+ */
+bool ipa_usb_is_teth_prot_connected(enum ipa_usb_teth_prot usb_teth_prot);
+
 #else /* IS_ENABLED(CONFIG_IPA3) */
 
 static inline int ipa_usb_init_teth_prot(enum ipa_usb_teth_prot teth_prot,
@@ -333,6 +344,11 @@ static inline int ipa_usb_xdci_suspend(u32 ul_clnt_hdl, u32 dl_clnt_hdl,
 
 static inline int ipa_usb_xdci_resume(u32 ul_clnt_hdl, u32 dl_clnt_hdl,
 			enum ipa_usb_teth_prot teth_prot)
+{
+	return -EPERM;
+}
+
+static inline int ipa_usb_is_teth_prot_connected(enum ipa_usb_teth_prot usb_teth_prot)
 {
 	return -EPERM;
 }

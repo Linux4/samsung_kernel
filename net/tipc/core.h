@@ -59,6 +59,7 @@
 #include <net/netns/generic.h>
 #include <linux/rhashtable.h>
 #include <net/genetlink.h>
+#include <net/netns/hash.h>
 
 #ifdef pr_fmt
 #undef pr_fmt
@@ -143,6 +144,8 @@ struct tipc_net {
 
 	/* Work item for net finalize */
 	struct tipc_net_work final_work;
+	/* The numbers of work queues in schedule */
+	atomic_t wq_count;
 };
 
 static inline struct tipc_net *tipc_net(struct net *net)
@@ -198,6 +201,11 @@ static inline int less(u16 left, u16 right)
 static inline int in_range(u16 val, u16 min, u16 max)
 {
 	return !less(val, min) && !more(val, max);
+}
+
+static inline u32 tipc_net_hash_mixes(struct net *net, int tn_rand)
+{
+	return net_hash_mix(&init_net) ^ net_hash_mix(net) ^ tn_rand;
 }
 
 #ifdef CONFIG_SYSCTL

@@ -387,9 +387,12 @@ struct mmc_host {
 	u32			ocr_avail_sdio;	/* SDIO-specific OCR */
 	u32			ocr_avail_sd;	/* SD-specific OCR */
 	u32			ocr_avail_mmc;	/* MMC-specific OCR */
+
 #ifdef CONFIG_PM_SLEEP
+	/* DO NOT USE, is not used, for abi preservation only */
 	struct notifier_block	pm_notify;
 #endif
+
 	u32			max_current_330;
 	u32			max_current_300;
 	u32			max_current_180;
@@ -479,7 +482,6 @@ struct mmc_host {
 #define MMC_CAP2_CRYPTO		(1 << 27)	/* Host supports inline encryption */
 #if defined(CONFIG_SDC_QTI)
 #define MMC_CAP2_CLK_SCALE      (1 << 28)       /* Allow dynamic clk scaling */
-#define MMC_CAP2_SLEEP_AWAKE	(1 << 29)	/* Use Sleep/Awake (CMD5) */
 #endif
 
 	int			fixed_drv_type;	/* fixed driver type for non-removable media */
@@ -594,12 +596,22 @@ struct mmc_host {
 	/* Host Software Queue support */
 	bool			hsq_enabled;
 #if defined(CONFIG_SDC_QTI)
-	bool                    need_hw_reset;
+	bool			need_hw_reset;
 #endif
 
 #if defined(CONFIG_SDC_QTI)
 	atomic_t active_reqs;
 #endif
+
+#if IS_ENABLED(CONFIG_SEC_STORAGE_MMC)
+	unsigned int		card_detect_cnt;
+	bool			failed_init;
+#if IS_ENABLED(CONFIG_SEC_ABC)
+	unsigned int		card_removed_cnt;
+#endif
+	int (*sdcard_uevent)(struct mmc_card *card);
+#endif
+
 	unsigned long		private[0] ____cacheline_aligned;
 };
 

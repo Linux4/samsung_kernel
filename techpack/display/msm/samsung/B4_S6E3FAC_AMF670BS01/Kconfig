@@ -1,0 +1,6 @@
+config PANEL_B4_S6E3FAC_AMF670BS01_FHD
+	depends on DISPLAY_SAMSUNG
+	bool "LSI S6E3FAC LDI"
+	default n
+	---help---
+	LSI S6E3FAC LDI 1080_2400 B4

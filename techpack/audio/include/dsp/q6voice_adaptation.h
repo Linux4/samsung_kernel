@@ -33,6 +33,7 @@
 #define VOICE_PARAM_LOOPBACK_ENABLE			0x00010E18
 
 #define VOICE_VOICEMODE_MODULE				0x10001001
+#define VOICE_BT_RVC_VOL_PARAM				0x10001012
 #define VOICE_ADAPTATION_SOUND_PARAM        0x10001022
 #define VOICE_NBMODE_PARAM					0x10001023
 #define VOICE_SPKMODE_PARAM					0x10001025
@@ -165,6 +166,11 @@ struct cvp_set_voice_isolation_cmd {
 	struct vss_icommon_cmd_set_ui_property_v2_t cvp_set_voice_isolation;
 } __packed;
 
+struct cvp_set_bt_rvc_vol_cmd {
+	struct apr_hdr hdr;
+	struct vss_icommon_cmd_set_ui_property_v2_t cvp_set_bt_rvc_vol;
+} __packed;
+
 int sec_voice_set_adaptation_sound(uint16_t mode,
 	uint16_t select, int16_t *parameters);
 int sec_voice_set_nb_mode(short enable);
@@ -175,6 +181,7 @@ int sec_voice_ref_lch_mute(short enable);
 int sec_voice_request_echo_ref_mute(void);
 int sec_voice_get_echo_ref_mute(void);
 int sec_voice_aec_effect(short enable);
+int sec_voice_set_bt_rvc_vol(short vol);
 int sec_voice_get_loopback_enable(void);
 void sec_voice_set_loopback_enable(int mode);
 void voice_sec_loopback_start_cmd(u32 session_id);

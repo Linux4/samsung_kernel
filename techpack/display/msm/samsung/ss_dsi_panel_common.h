@@ -120,10 +120,21 @@ extern bool enable_pr_debug;
 
 #if IS_ENABLED(CONFIG_SEC_KUNIT)
 /* Too much log causes kunit test app crash */
+#define LCD_INFO_IF(V, X, ...) \
+	do { \
+		if (V->debug_data && V->debug_data->print_cmds) \
+			pr_debug("[SDE_%d] %s : "X, V ? V->ndx : 0, __func__, ## __VA_ARGS__); \
+	} while (0)
+
 #define LCD_INFO(V, X, ...) pr_debug("[%d.%d][SDE_%d] %s : "X, ktime_to_ms(ktime_get())/1000, ktime_to_ms(ktime_get())%1000, V ? V->ndx : 0, __func__, ## __VA_ARGS__)
 #define LCD_INFO_ONCE(V, X, ...) pr_info_once("[%d.%d][SDE_%d] %s : "X, ktime_to_ms(ktime_get())/1000, ktime_to_ms(ktime_get())%1000, V ? V->ndx : 0, __func__, ## __VA_ARGS__)
 #define LCD_ERR(V, X, ...) pr_err("[%d.%d][SDE_%d] %s : error: "X, ktime_to_ms(ktime_get())/1000, ktime_to_ms(ktime_get())%1000, V ? V->ndx : 0, __func__, ## __VA_ARGS__)
 #else
+#define LCD_INFO_IF(V, X, ...) \
+	do { \
+		if (V->debug_data && V->debug_data->print_cmds) \
+			pr_info("[SDE_%d] %s : "X, V ? V->ndx : 0, __func__, ## __VA_ARGS__); \
+	} while (0)
 #define LCD_INFO(V, X, ...) pr_info("[SDE_%d] %s : "X, V ? V->ndx : 0, __func__, ## __VA_ARGS__)
 #define LCD_INFO_ONCE(V, X, ...) pr_info_once("[SDE_%d] %s : "X, V ? V->ndx : 0, __func__, ## __VA_ARGS__)
 #define LCD_ERR(V, X, ...) pr_err("[SDE_%d] %s : error: "X, V ? V->ndx : 0, __func__, ## __VA_ARGS__)
@@ -292,6 +303,10 @@ struct lpm_info {
 	bool esd_recovery;
 	int need_self_grid;
 	bool during_ctrl;
+	int entry_frame;
+	int entry_delay;
+	int exit_frame;
+	int exit_delay;
 
 	struct mutex lpm_lock;
 
@@ -313,6 +328,7 @@ struct clk_sel_table {
 	int *from;
 	int *end;
 	int *target_clk_idx;
+	int *target_osc_idx;
 };
 
 struct rf_info {
@@ -328,6 +344,7 @@ struct dyn_mipi_clk {
 	struct clk_timing_table clk_timing_table;
 	struct rf_info rf_info;
 	int is_support;
+	int osc_support;
 	int force_idx;  /* force to set clk idx for test purpose */
 
 	/*
@@ -337,6 +354,7 @@ struct dyn_mipi_clk {
 	*/
 	int requested_clk_rate;
 	int requested_clk_idx;
+	int requested_osc_idx;
 };
 
 struct cmd_map {
@@ -452,6 +470,8 @@ enum ss_dsi_cmd_set_type {
 	TX_FFC_OFF,
 	TX_DYNAMIC_FFC_PRE_SET,
 	TX_DYNAMIC_FFC_SET,
+	TX_OSC,
+	TX_DYNAMIC_OSC_SET,
 	TX_CABC_ON,
 	TX_CABC_OFF,
 	TX_TFT_PWM,
@@ -561,6 +581,9 @@ enum ss_dsi_cmd_set_type {
 	TX_SELF_IDLE_MOVE_ON_PATTERN3,
 	TX_SELF_IDLE_MOVE_ON_PATTERN4,
 	TX_SELF_IDLE_MOVE_OFF,
+	TX_SPSRAM_DATA_WRITE,
+	TX_SPSRAM_DATA_READ,
+	TX_SPSRAM_DONE,
 
 	/* SELF DISPLAY */
 	TX_SELF_DISP_CMD_START,
@@ -582,6 +605,8 @@ enum ss_dsi_cmd_set_type {
 	TX_SELF_MASK_ON,
 	TX_SELF_MASK_ON_FACTORY,
 	TX_SELF_MASK_OFF,
+	TX_SELF_MASK_UDC_ON,
+	TX_SELF_MASK_UDC_OFF,
 	TX_SELF_MASK_GREEN_CIRCLE_ON,		/* Finger Print Green Circle */
 	TX_SELF_MASK_GREEN_CIRCLE_OFF,
 	TX_SELF_MASK_GREEN_CIRCLE_ON_FACTORY,
@@ -662,7 +687,9 @@ enum ss_dsi_cmd_set_type {
 	/* TEST MODE */
 	TX_TEST_MODE_CMD_START,
 	RX_GCT_CHECKSUM,
-	RX_GCT_ECC,
+	RX_GCT_ECC,	/* Error Correction Code */
+ 	RX_SSR_ON,	/* Self Source Repair */
+	RX_SSR_CHECK,
 	TX_GCT_ENTER,
 	TX_GCT_MID,
 	TX_GCT_EXIT,
@@ -710,6 +737,8 @@ enum ss_dsi_cmd_set_type {
 	TX_VRR_GM2_GAMMA_COMP,
 	TX_VRR_GM2_GAMMA_COMP2,
 
+	TX_GLUT_OFFSET,
+
 	TX_DFPS,
 
 	TX_ADJUST_TE,
@@ -719,6 +748,7 @@ enum ss_dsi_cmd_set_type {
 	TX_TIMING_SWITCH_PRE,
 	TX_TIMING_SWITCH_POST,
 
+	TX_DDI_VCOM_MARK_PRE,
 	TX_CMD_END,
 
 	/* RX */
@@ -774,6 +804,8 @@ enum ss_dsi_cmd_set_type {
 	RX_VAINT_MTP,
 	RX_DDI_FW_ID,
 	RX_ALPM_SET_VALUE,
+
+	RX_DDI_VCOM_MARK,
 	RX_CMD_END,
 
 	SS_DSI_CMD_SET_MAX,
@@ -900,6 +932,8 @@ struct samsung_display_dtsi_data {
 
 	/* SiliconWorks DDI need sleep in cmd in ESD Recovery */
 	bool esd_sleep_in;
+
+	bool ddi_no_flash;
 };
 
 struct display_status {
@@ -968,6 +1002,7 @@ struct self_display {
 	int on;
 	int file_open;
 	int time_set;
+	bool udc_mask_enable;
 
 	struct self_time_info st_info;
 	struct self_icon_info si_info;
@@ -995,6 +1030,7 @@ struct self_display {
 	int (*aod_exit)(struct samsung_display_driver_data *vdd);
 	void (*self_mask_img_write)(struct samsung_display_driver_data *vdd);
 	int (*self_mask_on)(struct samsung_display_driver_data *vdd, int enable);
+	int (*self_mask_udc_on)(struct samsung_display_driver_data *vdd, int enable);
 	int (*self_mask_check)(struct samsung_display_driver_data *vdd);
 	void (*self_blinking_on)(struct samsung_display_driver_data *vdd, int enable);
 	int (*self_display_debug)(struct samsung_display_driver_data *vdd);
@@ -1379,6 +1415,7 @@ enum BR_FUNC_LIST {
 	BR_FUNC_IRC,
 	BR_FUNC_GAMMA,
 	BR_FUNC_GAMMA_COMP,
+	BR_FUNC_GLUT_OFFSET,
 	BR_FUNC_LTPS,
 	BR_FUNC_ETC,
 	BR_FUNC_VRR,
@@ -1435,10 +1472,19 @@ void EA8082_AMB641ZR01_FHD_init(struct samsung_display_driver_data *vdd);
 void S6E3FC3_AMB641ZR02_FHD_init(struct samsung_display_driver_data *vdd);
 void S6E3FA9_AMB667UM36_FHD_init(struct samsung_display_driver_data *vdd);
 void SW83109_BF067XMM_FHD_init(struct samsung_display_driver_data *vdd);
+void SW83109_BF067XMM_A73_FHD_init(struct samsung_display_driver_data *vdd);
 void SW83109_WM6676Z21_FHD_init(struct samsung_display_driver_data *vdd);
+void A73_S6E3FC3_AMB667BV01_FHD_init(struct samsung_display_driver_data *vdd);
 void S6E3HAB_AMB667AN01_FHD_init(struct samsung_display_driver_data *vdd);
+void S6E3HAB_AMB667AN01_A73_FHD_init(struct samsung_display_driver_data *vdd);
 void NT36672C_TL066FVMC02_FHD_init(struct samsung_display_driver_data *vdd);
 void NT36672C_PM6585JB3_FHD_init(struct samsung_display_driver_data *vdd);
+void NT36672C_PM6585JB3_M23_FHD_init(struct samsung_display_driver_data *vdd);
+void XCP2_NT36672C_PM6585JB2_FHD_init(struct samsung_display_driver_data *vdd);
+void TAP2_HX8279_TV101WUM_WUXGA_init(struct samsung_display_driver_data *vdd);
+void GTACT4PRO_HX8279_TV101WUM_WUXGA_init(struct samsung_display_driver_data *vdd);
+void B4_S6E3FAC_AMF670BS01_FHD_init(struct samsung_display_driver_data *vdd);
+void M44X_ILI7807S_BS066FBM_FHD_init(struct samsung_display_driver_data * vdd);
 void PBA_BOOTING_FHD_init(struct samsung_display_driver_data *vdd);
 void PBA_BOOTING_FHD_DSI1_init(struct samsung_display_driver_data *vdd);
 
@@ -1449,6 +1495,8 @@ struct panel_func {
 	int (*samsung_display_on_post_debug)(struct samsung_display_driver_data *vdd);
 	int (*samsung_panel_off_pre)(struct samsung_display_driver_data *vdd);
 	int (*samsung_panel_off_post)(struct samsung_display_driver_data *vdd);
+	int (*samsung_panel_power_on_pre)(struct samsung_display_driver_data *vdd);
+	int (*samsung_panel_power_off_post)(struct samsung_display_driver_data *vdd);
 	void (*samsung_panel_init)(struct samsung_display_driver_data *vdd);
 
 	/* DDI RX */
@@ -1527,6 +1575,9 @@ struct panel_func {
 	/* ECC read */
 	int (*ecc_read)(struct samsung_display_driver_data *vdd);
 
+	/* SSR read */
+	int (*ssr_read)(struct samsung_display_driver_data *vdd);
+
 	/* Gram Checksum Test */
 	int (*samsung_gct_read)(struct samsung_display_driver_data *vdd);
 	int (*samsung_gct_write)(struct samsung_display_driver_data *vdd);
@@ -1580,6 +1631,9 @@ struct panel_func {
 
 	/* FFC */
 	int (*set_ffc)(struct samsung_display_driver_data *vdd, int idx);
+	/* OSC */
+	int (*update_osc)(struct samsung_display_driver_data *vdd, int idx);
+	int (*set_osc)(struct samsung_display_driver_data *vdd, int idx);
 
 	/* check current mode (VRR, DMS, or etc..) to support tests (MCD, GCT, or etc..) */
 	bool (*samsung_check_support_mode)(struct samsung_display_driver_data *vdd,
@@ -2396,6 +2450,7 @@ struct samsung_display_driver_data {
 	struct work_struct panel_state_event_work;
 	struct work_struct test_mode_event_work;
 	struct work_struct screen_mode_event_work;
+	struct work_struct esd_event_work;
 
 	enum panel_notifier_event_t ss_notify_event;
 	struct mutex notify_lock;
@@ -2433,11 +2488,25 @@ struct samsung_display_driver_data {
 	bool aot_reset_regulator;
 
 	/* To call reset seq later then LP11
-	 * (Power on - LP11 - Reset)
+	 * (Power on - LP11 - Reset on)
 	 * Only position change of aot_reset_regulator.
 	 * Should not be with panel->lp11_init
 	 */
 	bool aot_reset_regulator_late;
+
+	/* To turn off reset while LP11
+	 * (LP11 - Reset off - LP00)
+	 * Should be with aot_reset_regulator(_late)
+	 * Use when TDDI off timing Requests
+	 */
+	bool aot_reset_early_off;
+
+	/* To call TSP Reset on after Reset on
+	 * (Power on - LP11 - Reset on - TSP reset on)
+	 * Off sequence will be TSP Reset off - Reset off
+	 * Following of aot_reset_regulator.
+	 */
+	bool aot_tsp_reset_regulator;
 
 	/*
 	 * Condition : TFT has boost_en
@@ -2496,6 +2565,9 @@ struct samsung_display_driver_data {
 
 	struct seq_delay on_delay;
 	struct seq_delay off_delay;
+
+	/* check if dsi_display is enabled */
+	bool display_enabled;
 };
 
 extern struct list_head vdds_list;
@@ -2545,6 +2617,8 @@ int ss_panel_on_pre(struct samsung_display_driver_data *vdd);
 int ss_panel_on_post(struct samsung_display_driver_data *vdd);
 int ss_panel_off_pre(struct samsung_display_driver_data *vdd);
 int ss_panel_off_post(struct samsung_display_driver_data *vdd);
+int ss_panel_power_on_pre(struct samsung_display_driver_data *vdd);
+int ss_panel_power_off_post(struct samsung_display_driver_data *vdd);
 //int ss_panel_extra_power(struct dsi_panel *pdata, int enable);
 #if 0 // not_used
 int ss_backlight_tft_gpio_config(struct samsung_display_driver_data *vdd, int enable);
@@ -2691,7 +2765,7 @@ void ss_event_frame_update_post(struct samsung_display_driver_data *vdd);
 void ss_delay(s64 delay, ktime_t from);
 
 void ss_check_te(struct samsung_display_driver_data *vdd);
-void ss_wait_for_te_gpio(struct samsung_display_driver_data *vdd, int num_of_te, int delay_after_te);
+void ss_wait_for_te_gpio(struct samsung_display_driver_data *vdd, int num_of_te, int delay_after_te, bool preemption);
 void ss_panel_recovery(struct samsung_display_driver_data *vdd);
 void ss_pba_config(struct samsung_display_driver_data *vdd, void *arg);
 
@@ -2703,6 +2777,7 @@ int ss_rf_info_notify_callback(struct notifier_block *nb,
 				unsigned long size, void *data);
 
 struct dsi_panel_cmd_set *ss_get_cmds(struct samsung_display_driver_data *vdd, int type);
+int ss_frame_delay(int fps, int frame);
 
 bool is_ss_style_cmd(struct samsung_display_driver_data *vdd, int type);
 
@@ -2915,6 +2990,32 @@ static inline struct backlight_device *GET_SDE_BACKLIGHT_DEVICE(
 
 end:
 	return bd;
+}
+
+static inline struct dsi_vreg *GET_DSI_VREG_NAME(struct samsung_display_driver_data *vdd, char *reg_name)
+{
+	int loop;
+	struct dsi_regulator_info *regs;
+	struct dsi_panel *panel = GET_DSI_PANEL(vdd);
+	struct dsi_vreg *target_vreg = NULL;
+
+	if (IS_ERR_OR_NULL(panel)) {
+		LCD_ERR(vdd, "No Panel Data\n");
+		return NULL;
+	}
+
+	regs = &panel->power_info;
+
+	/* Find vreg for LPM setting */
+	for (loop = 0; loop < regs->count; loop++) {
+		target_vreg = &regs->vregs[loop];
+		if (!strcmp(target_vreg->vreg_name, reg_name)) {
+			LCD_DEBUG(vdd, "Found Regulator(%s)\n", reg_name);
+			return target_vreg;
+		}
+	}
+
+	return NULL;
 }
 
 /* In dual panel, it has two panel, and

@@ -125,21 +125,16 @@ enum sec_wireless_info_mode {
 	SEC_WIRELESS_IC_CHIP_ID,
 	SEC_WIRELESS_OTP_FIRM_VER_BIN,
 	SEC_WIRELESS_OTP_FIRM_VER,
-	SEC_WIRELESS_TX_FIRM_RESULT,
-	SEC_WIRELESS_TX_FIRM_VER,
-	SEC_TX_FIRMWARE,
 	SEC_WIRELESS_OTP_FIRM_VERIFY,
 	SEC_WIRELESS_MST_SWITCH_VERIFY,
 };
 
-enum sec_wireless_firm_update_mode {
-	SEC_WIRELESS_RX_SDCARD_MODE = 0,
-	SEC_WIRELESS_RX_BUILT_IN_MODE,
-	SEC_WIRELESS_TX_ON_MODE,
-	SEC_WIRELESS_TX_OFF_MODE,
-	SEC_WIRELESS_RX_INIT,
-	SEC_WIRELESS_RX_SPU_MODE,
-	SEC_WIRELESS_RX_SPU_VERIFY_MODE,	/* for automation test */
+enum sec_wireless_firmware_update_mode {
+	SEC_WIRELESS_FW_UPDATE_SDCARD_MODE = 0,		/* manual update mode , firmware file must be in sdcard */
+	SEC_WIRELESS_FW_UPDATE_BUILTIN_MODE,		/* factory line update mode, MSP wirtes only this mode */
+	SEC_WIRELESS_FW_UPDATE_AUTO_MODE,			/* auto update mode, it works during kernel on, very similar to BUILTIN MODE */
+	SEC_WIRELESS_FW_UPDATE_SPU_MODE,			/* spu update mode */
+	SEC_WIRELESS_FW_UPDATE_SPU_VERIFY_MODE,		/* for automation test */
 };
 
 enum sec_tx_sharing_mode {
@@ -252,6 +247,7 @@ enum sec_battery_charge_mode {
 	SEC_BAT_CHG_MODE_UNO_ON,
 	SEC_BAT_CHG_MODE_UNO_OFF,
 	SEC_BAT_CHG_MODE_UNO_ONLY,
+	SEC_BAT_CHG_MODE_NOT_SET,
 	SEC_BAT_CHG_MODE_MAX,
 };
 
@@ -557,4 +553,9 @@ typedef struct {
 
 #define is_pd_fpdo_wire_type(cable_type) ( \
 	cable_type == SEC_BATTERY_CABLE_PDIC)
+
+#define is_hv_pdo_wire_type(cable_type, hv_pdo) ( \
+	(cable_type == SEC_BATTERY_CABLE_PDIC || \
+	cable_type == SEC_BATTERY_CABLE_PDIC_APDO) && \
+	hv_pdo)
 #endif /* __SEC_CHARGING_COMMON_H */

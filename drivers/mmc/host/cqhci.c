@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0-only
-/* Copyright (c) 2020, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
  */
 
 #include <linux/delay.h>
@@ -294,6 +294,9 @@ static void __cqhci_enable(struct cqhci_host *cq_host)
 
 	cqhci_writel(cq_host, cqcfg, CQHCI_CFG);
 
+	if (cqhci_readl(cq_host, CQHCI_CTL) & CQHCI_HALT)
+		cqhci_writel(cq_host, 0, CQHCI_CTL);
+
 	mmc->cqe_on = true;
 
 	if (cq_host->ops->enable)
@@ -361,8 +364,10 @@ static int cqhci_enable(struct mmc_host *mmc, struct mmc_card *card)
 		return err;
 	}
 
-	if (cqhci_host_is_crypto_supported(cq_host))
+	if (cqhci_host_is_crypto_supported(cq_host)) {
 		cqhci_crypto_enable(cq_host);
+		cqhci_crypto_recovery_finish(cq_host);
+	}
 
 	__cqhci_enable(cq_host);
 
@@ -1168,7 +1173,6 @@ static void cqhci_recovery_finish(struct mmc_host *mmc)
 
 	cqhci_set_irqs(cq_host, CQHCI_IS_MASK);
 
-	cqhci_crypto_recovery_finish(cq_host);
 	pr_debug("%s: cqhci: recovery done\n", mmc_hostname(mmc));
 	mmc_log_string(mmc, "recovery done\n");
 }

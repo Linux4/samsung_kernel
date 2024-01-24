@@ -190,5 +190,6 @@ int __flash_br(struct samsung_display_driver_data *vdd);
 void flash_br_work_func(struct work_struct *work); /* For read flash data */
 char flash_read_one_byte(struct samsung_display_driver_data *vdd, int addr);
 void flash_read_bytes(struct samsung_display_driver_data *vdd, int faddr, int fsize, int rsize, u8 *buf);
+void spsram_read_bytes(struct samsung_display_driver_data *vdd, int addr, int rsize, u8 *buf);
 
 #endif

@@ -60,11 +60,15 @@
 #define GF_GW36C_CHIP_ID		0x002502
 #define GF_GW36T1_CHIP_ID		0x002507 /* FAB : SMIC */
 #define GF_GW36T2_CHIP_ID		0x002510 /* FAB : SILTRRA */
+#define GF_GW36T3_CHIP_ID		0x002508 /* FAB : CANSEMI */
+#define GF_GW39B_CHIP_ID		0x02010502
 #define GF_GW36T1_SHIFT_CHIP_ID	0x004a0f
 #define GF_GW36T2_SHIFT_CHIP_ID	0x004a21
+#define GF_GW36T3_SHIFT_CHIP_ID	0x004a11
 
 #define gw3x_SPI_BAUD_RATE 9600000
 #define TANSFER_MAX_LEN (512*1024)
+#define SPI_TRANSFER_DELAY 5
 
 enum gf_netlink_cmd {
 	GF_NETLINK_TEST = 0,
@@ -89,6 +93,22 @@ struct gf_ioc_transfer_raw {
 	uint32_t bits_per_word;
 };
 
+struct gf_ioc_transfer_32 {
+	u8 cmd;    /* spi read = 0, spi  write = 1 */
+	u8 reserved;
+	u16 addr;
+	u32 len;
+	u32 buf;
+};
+
+struct gf_ioc_transfer_raw_32 {
+	u32 len;
+	u32 read_buf;
+	u32 write_buf;
+	uint32_t high_time;
+	uint32_t bits_per_word;
+};
+
 /* define commands */
 #define GF_IOC_INIT             _IOR(GF_IOC_MAGIC, 0, u8)
 #define GF_IOC_EXIT             _IO(GF_IOC_MAGIC, 1)
@@ -105,10 +125,20 @@ struct gf_ioc_transfer_raw {
 
 /* for SPI REE transfer */
 #ifndef ENABLE_SENSORS_FPRINT_SECURE
+#ifdef CONFIG_SENSORS_FINGERPRINT_32BITS_PLATFORM_ONLY
+#define GF_IOC_TRANSFER_CMD     _IOWR(GF_IOC_MAGIC, 15, \
+		struct gf_ioc_transfer_32)
+#else
 #define GF_IOC_TRANSFER_CMD     _IOWR(GF_IOC_MAGIC, 15, \
 		struct gf_ioc_transfer)
+#endif
+#ifdef CONFIG_SENSORS_FINGERPRINT_32BITS_PLATFORM_ONLY
+#define GF_IOC_TRANSFER_RAW_CMD _IOWR(GF_IOC_MAGIC, 16, \
+		struct gf_ioc_transfer_raw_32)
+#else
 #define GF_IOC_TRANSFER_RAW_CMD _IOWR(GF_IOC_MAGIC, 16, \
 		struct gf_ioc_transfer_raw)
+#endif
 #else
 #define GF_IOC_SET_SENSOR_TYPE _IOW(GF_IOC_MAGIC, 18, unsigned int)
 #endif
@@ -162,6 +192,7 @@ struct gf_device {
 	const char *chipid;
 	struct wakeup_source *wake_lock;
 	const char *btp_vdd;
+	const char *position;
 	struct regulator *regulator_3p3;
 	struct pinctrl *p;
 	struct pinctrl_state *pins_poweron;

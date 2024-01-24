@@ -1,7 +1,7 @@
 /*
  * Linux cfg80211 driver - Android related functions
  *
- * Copyright (C) 2021, Broadcom.
+ * Copyright (C) 2022, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -49,6 +49,7 @@
 #include <wl_cfg80211.h>
 #include <wl_cfgscan.h>
 #include <wl_cfgvif.h>
+#include <dhd_cfg80211.h>
 #endif
 #ifdef WL_NAN
 #include <wl_cfgnan.h>
@@ -756,6 +757,10 @@ static const wl_natoe_sub_cmd_t natoe_cmd_list[] = {
 
 #define CMD_GET_6G_SOFTAP_FREQ_LIST	"GET_6G_SOFTAP_FREQ_LIST"
 
+#ifdef BCN_TSFINFO
+#define CMD_HAPD_GET_TSFINFO	"HAPD_GET_TSF_INFO"
+#endif /* BCN_TSFINFO */
+
 /* drv command info structure */
 typedef struct wl_drv_cmd_info {
 	uint8  *command;        /* pointer to the actual command */
@@ -1149,6 +1154,13 @@ static int wl_android_uwbcx_get_prepare_time(struct net_device *dev, char *comma
 #endif /* WL_UWB_COEX */
 
 #define CMD_SETWSECINFO	"SETWSECINFO"
+
+#if defined(LIMIT_AP_BW)
+#define CMD_SET_SOFTAP_BW "CMD_SET_SOFTAP_BW"
+#define CMD_GET_SOFTAP_BW "CMD_GET_SOFTAP_BW"
+static int wl_android_set_softap_bw(struct net_device *ndev, char *command);
+static int wl_android_get_softap_bw(struct net_device *ndev, char *command, int total_len);
+#endif /* LIMIT_AP_BW */
 
 /**
  * Local (static) functions and variables
@@ -2866,50 +2878,93 @@ send_action_frame_out:
 int
 wl_android_reassoc(struct net_device *dev, char *command, int total_len)
 {
+	struct bcm_cfg80211 *cfg = wl_get_cfg(dev);
 	int error = BCME_OK;
-	android_wifi_reassoc_params_t *params = NULL;
+	android_wifi_reassoc_params_t *cmd_params = NULL;
 	chanspec_t channel;
 	u32 params_size;
-	wl_reassoc_params_t reassoc_params;
+
+	void *iovar_params;
+	wl_reassoc_params_t *reassoc_params_info;
+	wl_reassoc_params_t reassoc_params_v0;
+	wl_reassoc_params_cvt_v1_t reassoc_params_v1;
+	wl_ext_reassoc_params_cvt_v1_t reassoc_params_v2;
+
 	char pcmd[WL_PRIV_CMD_LEN + 1];
+
+	switch (cfg->join_iovar_ver) {
+		case WL_REASSOC_VERSION_V0 :
+			/* wl_reassoc_params */
+			params_size = WL_REASSOC_PARAMS_FIXED_SIZE + sizeof(chanspec_t);
+			iovar_params = &reassoc_params_v0;
+			reassoc_params_info = &reassoc_params_v0;
+			break;
+		case WL_REASSOC_VERSION_V1 :
+			/* wl_reassoc_params_v1 */
+			params_size = WL_REASSOC_PARAMS_FIXED_SIZE_V1 + sizeof(chanspec_t);
+			iovar_params = &reassoc_params_v1;
+			reassoc_params_v1.version = WL_REASSOC_VERSION_V1;
+			reassoc_params_v1.flags = WL_SCAN_MODE_HIGH_ACC;
+			reassoc_params_info = &reassoc_params_v1.params;
+			break;
+		case WL_REASSOC_VERSION_V2 :
+			/* wl_ext_reassoc_params */
+			params_size = WL_EXTREASSOC_PARAMS_FIXED_SIZE_V1 + sizeof(chanspec_t);
+			iovar_params = &reassoc_params_v2;
+			reassoc_params_v2.version = WL_REASSOC_VERSION_V2;
+			reassoc_params_v2.length = params_size;
+			reassoc_params_v2.flags = WL_SCAN_MODE_HIGH_ACC;
+			reassoc_params_v2.params.version = WL_REASSOC_VERSION_V2;
+			reassoc_params_v2.params.flags = WL_SCAN_MODE_HIGH_ACC;
+			reassoc_params_info = &reassoc_params_v2.params.params;
+			break;
+		default :
+			error = BCME_VERSION;
+			goto exit;
+	}
 
 	sscanf(command, "%"S(WL_PRIV_CMD_LEN)"s *", pcmd);
 	if (total_len < (strlen(pcmd) + 1 + sizeof(android_wifi_reassoc_params_t))) {
 		WL_ERR(("Invalid parameters %s\n", command));
-		return BCME_ERROR;
+		error = BCME_ERROR;
+		goto exit;
 	}
-	params = (android_wifi_reassoc_params_t *)(command + strlen(pcmd) + 1);
+	cmd_params = (android_wifi_reassoc_params_t *)(command + strlen(pcmd) + 1);
 
-	bzero(&reassoc_params, WL_REASSOC_PARAMS_FIXED_SIZE);
+	bzero(reassoc_params_info, WL_REASSOC_PARAMS_FIXED_SIZE);
 
-	if (bcm_ether_atoe((const char *)params->bssid,
-		(struct ether_addr *)&reassoc_params.bssid) == 0) {
+	if (bcm_ether_atoe((const char *)cmd_params->bssid,
+		(struct ether_addr *)&reassoc_params_info->bssid) == 0) {
 		WL_ERR(("Invalid bssid \n"));
-		return BCME_BADARG;
+		error = BCME_BADARG;
+		goto exit;
 	}
 
-	if (params->channel < 0) {
-		WL_ERR(("Invalid Channel %d\n", params->channel));
-		return BCME_BADARG;
+	if (cmd_params->channel < 0) {
+		WL_ERR(("Invalid Channel %d\n", cmd_params->channel));
+		error = BCME_BADARG;
+		goto exit;
 	}
 
-	reassoc_params.chanspec_num = 1;
+	reassoc_params_info->chanspec_num = 1;
 
-	channel = params->channel;
+	channel = cmd_params->channel;
 	if (CHANNEL_IS_2G(channel) || CHANNEL_IS_5G(channel)) {
 		/* If reassoc Param is BSSID and Channel */
-		reassoc_params.chanspec_list[0] = wf_channel2chspec(channel, WL_CHANSPEC_BW_20);
+		reassoc_params_info->chanspec_list[0] =
+			wf_channel2chspec(channel, WL_CHANSPEC_BW_20);
 	} else {
 		/* If reassoc Param is BSSID and Frequency */
-		reassoc_params.chanspec_list[0] = wl_freq_to_chanspec(channel);
+		reassoc_params_info->chanspec_list[0] =
+			wl_freq_to_chanspec(channel);
 	}
-	params_size = WL_REASSOC_PARAMS_FIXED_SIZE + sizeof(chanspec_t);
 
-	error = wldev_ioctl_set(dev, WLC_REASSOC, &reassoc_params, params_size);
+	error = wldev_ioctl_set(dev, WLC_REASSOC, iovar_params, params_size);
 	if (error) {
 		WL_ERR(("failed to reassoc, error=%d\n", error));
-		return error;
 	}
+
+exit:
 	return error;
 }
 
@@ -7202,6 +7257,11 @@ wl_android_set_auto_channel(struct net_device *dev, const char* cmd_str,
 			if (CHSPEC_BAND((chanspec_t)chosen) == WL_CHANSPEC_BAND_6G &&
 					cfg->band_6g_supported) {
 				/* Cache the chanspec for 6g, as fw will choose the BW */
+#if defined(LIMIT_AP_BW)
+				chosen = (int) wl_cfg80211_get_ap_bw_limited_chspec(cfg,
+					WL_CHANSPEC_BAND_6G, (chanspec_t) chosen);
+
+#endif /* LIMIT_AP_BW */
 				cfg->acs_chspec = chosen;
 			}
 #endif /* WL_6G_BAND */
@@ -9454,6 +9514,11 @@ wl_android_get_lqcm_report(struct net_device *dev, char *command, int total_len)
 	bytes_written = snprintf(command, total_len, "%s %d",
 			CMD_GET_LQCM_REPORT, lqcm_report);
 
+#ifdef RPM_FAST_TRIGGER
+	WL_INFORM(("Trgger RPM Fast\n"));
+	dhd_trigger_rpm_fast(wl_get_cfg(dev));
+#endif /* RPM_FAST_TRIGGER */
+
 	return bytes_written;
 }
 #endif /* SUPPORT_LQCM */
@@ -10945,6 +11010,36 @@ exit:
 }
 #endif /* WL_BCNRECV */
 
+/* Beacon TSF recv functionality code implementation */
+#ifdef BCN_TSFINFO
+static int wl_android_set_tsfinfo_config(struct net_device *ndev, char *cmd_argv, int total_len)
+{
+	uint err = BCME_OK;
+	s32 tsf_enable = 0;
+
+	if (!ndev) {
+		WL_ERR(("ndev is NULL\n"));
+		return -EINVAL;
+	}
+
+	/* sync commands from user space */
+	if (strncmp(cmd_argv, "start", strlen("start")) == 0) {
+		WL_INFORM(("Get TSFINFO start\n"));
+		tsf_enable = 1;
+	} else if (strncmp(cmd_argv, "stop", strlen("stop")) == 0) {
+		WL_INFORM(("Get TSFINFO stop\n"));
+		tsf_enable = 0;
+	} else {
+		err = BCME_ERROR;
+	}
+	err = wl_cfg80211_tsfinfo_set(ndev, tsf_enable);
+	if (err != BCME_OK) {
+		WL_INFORM(("Failed to set tsfinfo, error:%d\n", err));
+	}
+
+	return err;
+}
+#endif /* BCN_TSFINFO */
 #ifdef SUPPORT_LATENCY_CRITICAL_DATA
 int
 wl_android_set_latency_crt_data(struct net_device *dev, int mode)
@@ -13507,6 +13602,14 @@ wl_handle_private_cmd(struct net_device *net, char *command, u32 cmd_len)
 	}
 #endif /* DHD_PCIE_RUNTIMEPM */
 #endif /* CUSTOMER_HW4 */
+#ifdef BCN_TSFINFO
+	else if (strnicmp(command, CMD_HAPD_GET_TSFINFO,
+		strlen(CMD_HAPD_GET_TSFINFO)) == 0) {
+		char *data = (command + strlen(CMD_HAPD_GET_TSFINFO) + 1);
+		bytes_written = wl_android_set_tsfinfo_config(net,
+			data, priv_cmd.total_len);
+	}
+#endif /* BCN_TSFINFO */
 	else if (strnicmp(command, CMD_GET_6G_SOFTAP_FREQ_LIST,
 		strlen(CMD_GET_6G_SOFTAP_FREQ_LIST)) == 0) {
 		bytes_written = wl_android_get_6g_softap_freq_list(net, command,
@@ -13537,6 +13640,16 @@ wl_handle_private_cmd(struct net_device *net, char *command, u32 cmd_len)
 	else if (strnicmp(command, CMD_SETWSECINFO, strlen(CMD_SETWSECINFO)) == 0) {
 		bytes_written = wl_android_set_wsec_info(net, command);
 	}
+#if defined(LIMIT_AP_BW)
+	else if (strnicmp(command, CMD_SET_SOFTAP_BW,
+		strlen(CMD_SET_SOFTAP_BW)) == 0) {
+		bytes_written = wl_android_set_softap_bw(net, command);
+	} else if (strnicmp(command, CMD_GET_SOFTAP_BW,
+		strlen(CMD_GET_SOFTAP_BW)) == 0) {
+		bytes_written = wl_android_get_softap_bw(net, command,
+			priv_cmd.total_len);
+	}
+#endif /* LIMIT_AP_BW */
 	else {
 		DHD_ERROR(("Unknown PRIVATE command %s - ignored\n", command));
 		bytes_written = BCME_UNSUPPORTED;
@@ -15106,3 +15219,92 @@ wl_android_set_he_6g_band(struct net_device *dev, bool enable)
 	return err;
 }
 #endif /* CUSTOM_CONTROL_HE_6G_FEATURES */
+
+#if defined(LIMIT_AP_BW)
+static int
+wl_android_set_softap_bw(struct net_device *ndev, char *command)
+{
+	struct bcm_cfg80211 *cfg = NULL;
+	uint32 bw;
+	char *token, *pos;
+	int err = BCME_OK;
+
+	if (!ndev || (!(cfg = wl_get_cfg(ndev)))) {
+		err = BCME_NOTFOUND;
+		return err;
+	}
+	pos = command;
+
+	/* drop command */
+	token = bcmstrtok(&pos, " ", NULL);
+
+	/* get band */
+	token = bcmstrtok(&pos, " ", NULL);
+	if (!token) {
+		WL_ERR((CMD_SET_SOFTAP_BW ": band is not specified\n"));
+		return -EINVAL;
+	}
+	if (strncmp(token, "6g", strlen("6g"))) {
+		WL_ERR((CMD_SET_SOFTAP_BW " support 6G only\n"));
+		return -EINVAL;
+	}
+
+	/* get bandwidth */
+	token = bcmstrtok(&pos, " ", NULL);
+	if (!token) {
+		WL_ERR((CMD_SET_SOFTAP_BW ": bandwidth is not specified\n"));
+		return -EINVAL;
+	}
+	bw = (uint32)bcm_atoi(token);
+	err = wl_cfg80211_set_softap_bw(cfg, WL_CHANSPEC_BAND_6G, bw);
+	if (err != BCME_OK) {
+		return -EINVAL;
+	}
+
+	WL_INFORM(("SOFTAP BANDWITH LIMIT: %d\n", bw));
+	return BCME_OK;
+}
+
+static int
+wl_android_get_softap_bw(struct net_device *ndev, char *command, int total_len)
+{
+	struct bcm_cfg80211 *cfg = NULL;
+	int err = BCME_OK;
+	char *token, *pos;
+	uint32 bw = 0;
+	int rem_len = 0, bytes_written = 0;
+
+	if (!ndev || (!(cfg = wl_get_cfg(ndev)))) {
+		err = BCME_NOTFOUND;
+		goto exit;
+		return err;
+	}
+
+	pos = command;
+
+	/* drop command */
+	token = bcmstrtok(&pos, " ", NULL);
+
+	/* get band */
+	token = bcmstrtok(&pos, " ", NULL);
+	if (!token) {
+		WL_ERR((CMD_GET_SOFTAP_BW ": band is not specified\n"));
+		err = -EINVAL;
+		goto exit;
+	}
+	if (strncmp(token, "6g", strlen("6g"))) {
+		WL_ERR((CMD_GET_SOFTAP_BW " support 6G only\n"));
+		err = -EINVAL;
+		goto exit;
+	}
+
+	bw = wl_cfg80211_get_ap_bw_limit_bit(cfg, WL_CHANSPEC_BAND_6G);
+	bytes_written = scnprintf(command, rem_len, "%s = %d ",
+		CMD_GET_SOFTAP_BW, bw);
+	CHECK_SCNPRINTF_RET_VAL(bytes_written);
+
+exit:
+	WL_INFORM_MEM(("%s ret:%d bw:%d\n", CMD_GET_SOFTAP_BW, err, bw));
+	return bytes_written;
+}
+#endif /* SUPPORT_AP_INIT_BWCONF */

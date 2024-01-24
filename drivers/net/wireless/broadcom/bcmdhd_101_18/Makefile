@@ -1,5 +1,5 @@
 #
-# Copyright (C) 2021, Broadcom.
+# Copyright (C) 2022, Broadcom.
 #
 #      Unless you and Broadcom execute a separate written software license
 # agreement governing use of this software, this software is licensed to you
@@ -129,7 +129,7 @@ endif
 	# Disable watchdog thread
 	DHDCFLAGS += -DCUSTOM_DHD_WATCHDOG_MS=0
 	# Runtime PM
-	DHDCFLAGS += -DDHD_PCIE_RUNTIMEPM
+	DHDCFLAGS += -DDHD_PCIE_RUNTIMEPM -DRPM_FAST_TRIGGER
 	DHDCFLAGS += -DCHECK_TRAP_ROT
 	# Enable host SFH LLC insertion in Tx pkts
 	DHDCFLAGS += -DHOST_SFH_LLC
@@ -229,6 +229,10 @@ DHDCFLAGS += -DDISABLE_DTIM_IN_SUSPEND
 DHDCFLAGS += -DWL_SUPPORT_AUTO_CHANNEL -DSUPPORT_HIDDEN_AP
 DHDCFLAGS += -DSUPPORT_SOFTAP_SINGL_DISASSOC
 DHDCFLAGS += -DDISABLE_11H_SOFTAP
+
+#AR glasses
+DHDCFLAGS += -DBCN_TSFINFO
+
 # For support WPA and WPA2 mixed mode
 DHDCFLAGS += -DSUPPORT_SOFTAP_WPAWPA2_MIXED
 
@@ -530,6 +534,8 @@ endif
   DHDCFLAGS += -DFLOW_RING_PREALLOC
 # NAN-Ranging BW private command
   DHDCFLAGS += -DSUPPORT_NAN_RANGING_TEST_BW
+# NAN customer discovery cache nubmer
+  DHDCFLAGS += -DCUSTOM_NAN_MAX_CACHE_DISC_RESULT=160
 
 ifeq ($(CONFIG_ARCH_QCOM),y)
 # Due to GKI config, Exynos has ARCH_QCOM & ARCH_EXYNOS, MSM has ARCH_QCOM only, Temporary solution
@@ -780,6 +786,10 @@ endif
   DHDCFLAGS += -DWL_UWB_COEX
   DHDCFLAGS += -DUWB_COEX_CH_MIN=33
   DHDCFLAGS += -DUWB_COEX_CH_MAX=189
+# Support IGMP Offload
+  DHDCFLAGS += -DIGMP_OFFLOAD_SUPPORT
+# CAP AP BW
+  DHDCFLAGS += -DLIMIT_AP_BW
 endif
 
 ifneq ($(filter y m,$(CONFIG_BCM4375)),)
@@ -825,6 +835,8 @@ endif
 
 # NAN-Ranging BW private command
  DHDCFLAGS += -DSUPPORT_NAN_RANGING_TEST_BW
+# NAN customer discovery cache nubmer
+  DHDCFLAGS += -DCUSTOM_NAN_MAX_CACHE_DISC_RESULT=40
 
 ifeq ($(CONFIG_ARCH_QCOM),y)
 # Due to GKI config, Exynos has ARCH_QCOM & ARCH_EXYNOS, MSM has ARCH_QCOM only, Temporary solution
@@ -1999,7 +2011,7 @@ DHDOFILES := dhd_pno.o dhd_common.o dhd_ip.o dhd_custom_gpio.o dhd_custom_sec.o 
 	wldev_common.o wl_linux_mon.o wl_roam.o dhd_linux_platdev.o dhd_linux_pktdump.o \
 	hnd_pktq.o hnd_pktpool.o dhd_custom_cis.o dhd_debug.o dhd_debug_linux.o dhd_mschdbg.o \
 	dhd_dbg_ring.o bcmstdlib_s.o dhd_linux_exportfs.o wl_cfgnan.o bcmbloom.o bcmxtlv.o frag.o \
-	dhd_linux_tx.o wl_cfgdbg.o
+	dhd_linux_tx.o wl_cfgdbg.o dhd_linux_rx.o
 
 # This file will be here only for internal builds and sets flags which may
 # affect subsequent behavior. See extended comment within it for details.

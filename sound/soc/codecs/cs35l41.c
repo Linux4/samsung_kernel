@@ -193,6 +193,7 @@ static int cs35l41_dsp_power_ev(struct snd_soc_dapm_widget *w,
 			wm_adsp_early_event(w, kcontrol, event);
 			wm_adsp_event(w, kcontrol, event);
 		}
+		return 0;
 	default:
 		return 0;
 	}
@@ -1737,34 +1738,6 @@ static struct reg_sequence cs35l41_cal_post_config[] = {
 
 #define CS35L41_CAL_N_CONFIGS	5
 
-int cs35l41_set_surface_temp(const char *suffix, int temperature)
-{
-
-	struct cirrus_amp *amp = cirrus_get_amp_from_suffix(suffix);
-	struct cs35l41_private *cs35l41;
-	unsigned int global_en;
-
-	if (!amp)
-		return -EINVAL;
-
-	cs35l41 = snd_soc_component_get_drvdata(amp->component);
-
-	if (!cs35l41)
-		return -EINVAL;
-
-	regmap_read(amp->regmap, amp->global_en, &global_en);
-
-	if (!global_en || !cs35l41->halo_routed)
-		return -EINVAL;
-
-	dev_info(cs35l41->dev, "Set Surface temp: %d degrees\n", temperature);
-	cirrus_amp_write_ctl(amp, "CSPL_SURFACE_TEMP", WMFW_ADSP2_XM,
-		     CIRRUS_AMP_ALG_ID_CSPL, temperature);
-
-	return 0;
-}
-EXPORT_SYMBOL_GPL(cs35l41_set_surface_temp);
-
 static int cs35l41_cirrus_amp_probe(struct cs35l41_private *cs35l41,
 				struct snd_soc_component *component)
 {
@@ -1774,7 +1747,7 @@ static int cs35l41_cirrus_amp_probe(struct cs35l41_private *cs35l41,
 	const char *dsp_part_name;
 	const char *mfd_suffix;
 	int ret, bd_max_temp;
-	struct cirrus_amp_config amp_cfg;
+	struct cirrus_amp_config amp_cfg = {0};
 	bool calibration_disable;
 	unsigned int default_redc;
 

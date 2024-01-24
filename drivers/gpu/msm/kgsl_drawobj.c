@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 /*
@@ -253,7 +254,7 @@ static void drawobj_sync_func(struct kgsl_device *device,
 	kgsl_drawobj_put(&event->syncobj->base);
 }
 
-static void drawobj_sync_timeline_fence_work(struct irq_work *work)
+static void drawobj_sync_timeline_fence_work(struct work_struct *work)
 {
 	struct kgsl_drawobj_sync_event *event = container_of(work,
 		struct kgsl_drawobj_sync_event, work);
@@ -301,7 +302,7 @@ static void drawobj_sync_timeline_fence_callback(struct dma_fence *f,
 	 * removing the fence
 	 */
 	if (drawobj_sync_expire(event->device, event))
-		irq_work_queue(&event->work);
+		queue_work(kgsl_driver.mem_workqueue, &event->work);
 }
 
 static void syncobj_destroy(struct kgsl_drawobj *drawobj)
@@ -498,7 +499,7 @@ static int drawobj_add_sync_timeline(struct kgsl_device *device,
 	event->device = device;
 	event->context = NULL;
 	event->fence = fence;
-	init_irq_work(&event->work, drawobj_sync_timeline_fence_work);
+	INIT_WORK(&event->work, drawobj_sync_timeline_fence_work);
 
 	INIT_LIST_HEAD(&event->cb.node);
 
@@ -715,6 +716,7 @@ static void add_profiling_buffer(struct kgsl_device *device,
 {
 	struct kgsl_mem_entry *entry;
 	struct kgsl_drawobj *drawobj = DRAWOBJ(cmdobj);
+	u64 start;
 
 	if (!(drawobj->flags & KGSL_DRAWOBJ_PROFILING))
 		return;
@@ -731,7 +733,14 @@ static void add_profiling_buffer(struct kgsl_device *device,
 			gpuaddr);
 
 	if (entry != NULL) {
-		if (!kgsl_gpuaddr_in_memdesc(&entry->memdesc, gpuaddr, size)) {
+		start = id ? (entry->memdesc.gpuaddr + offset) : gpuaddr;
+		/*
+		 * Make sure there is enough room in the object to store the
+		 * entire profiling buffer object
+		 */
+		if (!kgsl_gpuaddr_in_memdesc(&entry->memdesc, gpuaddr, size) ||
+			!kgsl_gpuaddr_in_memdesc(&entry->memdesc, start,
+				sizeof(struct kgsl_drawobj_profiling_buffer))) {
 			kgsl_mem_entry_put(entry);
 			entry = NULL;
 		}
@@ -744,28 +753,7 @@ static void add_profiling_buffer(struct kgsl_device *device,
 		return;
 	}
 
-
-	if (!id) {
-		cmdobj->profiling_buffer_gpuaddr = gpuaddr;
-	} else {
-		u64 off = offset + sizeof(struct kgsl_drawobj_profiling_buffer);
-
-		/*
-		 * Make sure there is enough room in the object to store the
-		 * entire profiling buffer object
-		 */
-		if (off < offset || off >= entry->memdesc.size) {
-			dev_err(device->dev,
-				"ignore invalid profile offset ctxt %d id %d offset %lld gpuaddr %llx size %lld\n",
-			drawobj->context->id, id, offset, gpuaddr, size);
-			kgsl_mem_entry_put(entry);
-			return;
-		}
-
-		cmdobj->profiling_buffer_gpuaddr =
-			entry->memdesc.gpuaddr + offset;
-	}
-
+	cmdobj->profiling_buffer_gpuaddr = start;
 	cmdobj->profiling_buf_entry = entry;
 }
 

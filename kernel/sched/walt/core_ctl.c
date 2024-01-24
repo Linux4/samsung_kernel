@@ -340,7 +340,7 @@ static ssize_t store_not_preferred(struct cluster_data *state,
 				   const char *buf, size_t count)
 {
 	struct cpu_data *c;
-	unsigned int i;
+	unsigned int i, mask;
 	unsigned int val[MAX_CPUS_PER_CLUSTER];
 	unsigned long flags;
 	int ret;
@@ -353,10 +353,16 @@ static ssize_t store_not_preferred(struct cluster_data *state,
 		return -EINVAL;
 
 	spin_lock_irqsave(&state_lock, flags);
-	for (i = 0; i < state->num_cpus; i++) {
-		c = &per_cpu(cpu_state, i + state->first_cpu);
+	for (i = 0, mask = 0; i < state->num_cpus;) {
+		if (!cpumask_test_cpu(i + mask + state->first_cpu, cpu_possible_mask)) {
+			mask++;
+			continue;
+		}
+
+		c = &per_cpu(cpu_state, i + mask + state->first_cpu);
 		c->not_preferred = val[i];
 		not_preferred_count += !!val[i];
+		i++;
 	}
 	state->nr_not_preferred_cpus = not_preferred_count;
 	spin_unlock_irqrestore(&state_lock, flags);
@@ -369,19 +375,25 @@ static ssize_t show_not_preferred(const struct cluster_data *state, char *buf)
 	struct cpu_data *c;
 	ssize_t count = 0;
 	unsigned long flags;
-	int i;
+	int i, mask;
 
 	spin_lock_irqsave(&state_lock, flags);
-	for (i = 0; i < state->num_cpus; i++) {
-		c = &per_cpu(cpu_state, i + state->first_cpu);
+	for (i = 0, mask = 0; i < state->num_cpus;) {
+		if (!cpumask_test_cpu(i + mask + state->first_cpu, cpu_possible_mask)) {
+			mask++;
+			continue;
+		}
+
+		c = &per_cpu(cpu_state, i + mask + state->first_cpu);
 		count += scnprintf(buf + count, PAGE_SIZE - count,
-				"CPU#%d: %u\n", c->cpu, c->not_preferred);
+			"CPU#%d: %u\n", c->cpu, c->not_preferred);
+		i++;
 	}
+
 	spin_unlock_irqrestore(&state_lock, flags);
 
 	return count;
 }
-
 
 struct core_ctl_attr {
 	struct attribute attr;
@@ -796,8 +808,8 @@ static bool eval_need(struct cluster_data *cluster)
 	unsigned long flags;
 	struct cpu_data *c;
 	unsigned int need_cpus = 0, last_need, thres_idx;
-	int ret = 0;
-	bool need_flag = false;
+	bool adj_now = false;
+	bool adj_possible = false;
 	unsigned int new_need;
 	s64 now, elapsed;
 
@@ -827,13 +839,12 @@ static bool eval_need(struct cluster_data *cluster)
 		need_cpus = apply_task_need(cluster, need_cpus);
 	}
 	new_need = apply_limits(cluster, need_cpus);
-	need_flag = adjustment_possible(cluster, new_need);
 
 	last_need = cluster->need_cpus;
 	now = ktime_to_ms(ktime_get());
 
 	if (new_need > cluster->active_cpus) {
-		ret = 1;
+		adj_now = true;
 	} else {
 		/*
 		 * When there is no change in need and there are no more
@@ -842,23 +853,27 @@ static bool eval_need(struct cluster_data *cluster)
 		 */
 		if (new_need == last_need && new_need == cluster->active_cpus) {
 			cluster->need_ts = now;
-			spin_unlock_irqrestore(&state_lock, flags);
-			return 0;
+			adj_now = false;
+			goto unlock;
 		}
 
-		elapsed =  now - cluster->need_ts;
-		ret = elapsed >= cluster->offline_delay_ms;
+		elapsed = now - cluster->need_ts;
+		adj_now = elapsed >= cluster->offline_delay_ms;
 	}
 
-	if (ret) {
+	if (adj_now) {
+		adj_possible = adjustment_possible(cluster, new_need);
 		cluster->need_ts = now;
 		cluster->need_cpus = new_need;
 	}
+
+unlock:
 	trace_core_ctl_eval_need(cluster->first_cpu, last_need, new_need,
-				 ret && need_flag);
+				 cluster->active_cpus, adj_now, adj_possible,
+				 adj_now && adj_possible, cluster->need_ts);
 	spin_unlock_irqrestore(&state_lock, flags);
 
-	return ret && need_flag;
+	return adj_now && adj_possible;
 }
 
 static void apply_need(struct cluster_data *cluster)

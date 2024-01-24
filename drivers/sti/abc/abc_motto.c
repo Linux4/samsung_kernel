@@ -26,6 +26,7 @@ struct motto_event_type motto_event_type_list[] ={
 	{MOTTO_MODULE_CAMERA, "camera", "camera_error"},
 	{MOTTO_MODULE_CAMERA, "camera", "i2c_fail"},
 	{MOTTO_MODULE_NPU, "npu", "npu_fw_warning"},
+	{MOTTO_MODULE_NPU, "camera", "mipi_overflow"},
 	// we can add more like
 	// {MOTTO_MODULE_GPU, "gpu_qc", "gpu_new_event"}
 	// {MOTTO_MODULE_CAMERA, "camera", "camera_new_event"},

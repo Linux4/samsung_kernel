@@ -53,12 +53,17 @@
 #define PATH_MAIN_SEC_CMD_RESULT	"/sys/class/sec/tsp1/cmd_result"
 #define PATH_MAIN_SEC_CMD_STATUS_ALL	"/sys/class/sec/tsp1/cmd_status_all"
 #define PATH_MAIN_SEC_CMD_RESULT_ALL	"/sys/class/sec/tsp1/cmd_result_all"
+#define PATH_MAIN_SEC_SYSFS_SUPPORT_FEATURE "/sys/class/sec/tsp1/support_feature"
+#define PATH_MAIN_SEC_SYSFS_PROX_POWER_OFF "/sys/class/sec/tsp1/prox_power_off"
+#define PATH_MAIN_SEC_SYSFS_DUALSCREEN_POLICY "/sys/class/sec/tsp1/dualscreen_policy"
 
 #define PATH_SUB_SEC_CMD		"/sys/class/sec/tsp2/cmd"
 #define PATH_SUB_SEC_CMD_STATUS		"/sys/class/sec/tsp2/cmd_status"
 #define PATH_SUB_SEC_CMD_RESULT		"/sys/class/sec/tsp2/cmd_result"
 #define PATH_SUB_SEC_CMD_STATUS_ALL	"/sys/class/sec/tsp2/cmd_status_all"
 #define PATH_SUB_SEC_CMD_RESULT_ALL	"/sys/class/sec/tsp2/cmd_result_all"
+#define PATH_SUB_SEC_SYSFS_PROX_POWER_OFF "/sys/class/sec/tsp2/prox_power_off"
+#define PATH_SUB_SEC_SYSFS_DUALSCREEN_POLICY "/sys/class/sec/tsp2/dualscreen_policy"
 #endif
 
 struct sec_cmd {
@@ -77,11 +82,40 @@ enum SEC_CMD_STATUS {
 	SEC_CMD_STATUS_NOT_APPLICABLE,	// = 5
 };
 
+#define INPUT_CMD_RESULT_NOT_EXIT	0
+#define INPUT_CMD_RESULT_NEED_EXIT	1
+
+#define input_cmd_result(cmd_state_parm, need_exit)				\
+({										\
+	if (need_exit == INPUT_CMD_RESULT_NEED_EXIT) {				\
+		if (cmd_state_parm == SEC_CMD_STATUS_OK)			\
+			snprintf(buff, sizeof(buff), "OK");			\
+		else if (cmd_state_parm == SEC_CMD_STATUS_FAIL)			\
+			snprintf(buff, sizeof(buff), "NG");			\
+		else if (cmd_state_parm == SEC_CMD_STATUS_NOT_APPLICABLE)	\
+			snprintf(buff, sizeof(buff), "NA");			\
+	}									\
+	sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));		\
+	sec->cmd_state = cmd_state_parm;					\
+	if (need_exit == INPUT_CMD_RESULT_NEED_EXIT)				\
+		sec_cmd_set_cmd_exit(sec);					\
+	input_info(true, ptsp, "%s: %s\n", __func__, buff);			\
+})
+
 #ifdef USE_SEC_CMD_QUEUE
 #define SEC_CMD_MAX_QUEUE	10
 
 struct command {
 	char	cmd[SEC_CMD_STR_LEN];
+};
+#endif
+
+#if IS_ENABLED(CONFIG_TOUCHSCREEN_DUAL_FOLDABLE)
+struct sec_ts_virtual_sysfs_function {
+	ssize_t (*sec_tsp_support_feature_show)(struct device *dev, struct device_attribute *attr, char *buf);
+	ssize_t (*sec_tsp_prox_power_off_show)(struct device *dev, struct device_attribute *attr, char *buf);
+	ssize_t (*sec_tsp_prox_power_off_store)(struct device *dev, struct device_attribute *attr, const char *buf, size_t count);
+	ssize_t (*dualscreen_policy_store)(struct device *dev, struct device_attribute *attr, const char *buf, size_t count);
 };
 #endif
 
@@ -109,6 +143,10 @@ struct sec_cmd_data {
 	int item_count;
 	char cmd_result_all[SEC_CMD_RESULT_STR_LEN];
 	u8 cmd_all_factory_state;
+
+#if IS_ENABLED(CONFIG_TOUCHSCREEN_DUAL_FOLDABLE)
+	struct sec_ts_virtual_sysfs_function *sysfs_functions;
+#endif
 };
 
 extern void sec_cmd_set_cmd_exit(struct sec_cmd_data *data);

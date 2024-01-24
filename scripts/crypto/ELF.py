@@ -15,6 +15,7 @@ import struct
 from collections import OrderedDict
 from binascii import unhexlify
 from Utils import Utils
+from math import ceil
 
 __author__ = "Vadym Stupakov"
 __copyright__ = "Copyright (c) 2017 Samsung Electronics"
@@ -24,6 +25,15 @@ __maintainer__ = "Vadym Stupakov"
 __email__ = "v.stupakov@samsung.com"
 __status__ = "Production"
 
+DEFAULT_NAME_JUMP_TABLE_START_SYM = "__start___jump_table"
+DEFAULT_NAME_JUMP_TABLE_END_SYM = "__stop___jump_table"
+DEFAULT_ARM_INST_WIDTH = 4
+
+class Sec_Jumptable_Data:
+    target_sec_idx = -1
+    target_offset = -1
+    code = -1
+    key = -1
 
 class Symbol:
     def __init__(self, name=str(), sym_type=str(), bind=str(), visibility=str(), addr=int(), size=int(), ndx=str()):
@@ -41,9 +51,6 @@ class Symbol:
             self.name, self.type, self.bind, self.ndx, self.visibility, hex(self.addr), hex(self.size)
         )
 
-    def __lt__(self, other):
-        return self.addr <= other.addr
-
 
 class Section:
     def __init__(self, name=str(), sec_type=str(), addr=int(), offset=int(), size=int()):
@@ -59,9 +66,6 @@ class Section:
             self.name, self.type, hex(self.addr), hex(self.offset), hex(self.size)
         )
 
-    def __lt__(self, other):
-        return self.addr <= other.addr
-
 
 class ELF:
     """
@@ -72,7 +76,7 @@ class ELF:
         self.utils = Utils()
         self.__readelf_path = None
         self.__obj_parser_tool = None
-        self.__parsers_elf_list = ["readelf", "llvm-readelf"]
+        self.__parsers_elf_list = ["llvm-readelf", "readelf"]
         self.__parsers_obj_list = ["llvm-nm", "nm"]
         self.__sections = OrderedDict()
         self.__symbols = OrderedDict()
@@ -87,6 +91,8 @@ class ELF:
         self.__altinstr_text = None
         self.__altinstr_rodata = None
         self.__readelf_path, self.__obj_parser_tool = self.select_parser_tools(elf_file, first_obj_file)
+        self.jumptable_struct_format = '<iiQ'
+        self.__jt_rec = []
 
     def get_raw_by_tool(self, tool_name, options):
         """
@@ -114,7 +120,7 @@ class ELF:
         ret = subprocess.Popen(args=[tool_name] + options,
                                stdout=subprocess.PIPE,
                                stderr=subprocess.PIPE)
-        _, _ = ret.communicate()
+        ret.communicate()
         if ret.returncode != 0:
             return False
         return True
@@ -124,7 +130,7 @@ class ELF:
             ret = subprocess.Popen(args=[parser] + ["--help"],
                                    stdout=subprocess.PIPE,
                                    stderr=subprocess.PIPE)
-            _, _ = ret.communicate()
+            ret.communicate()
         except FileNotFoundError:
             return False
         return True
@@ -191,7 +197,7 @@ class ELF:
         if ret_tool_readelf is None or ret_tool_nm is None:
             sys.exit(-1)
 
-        print("Used parsers is: ", ret_tool_readelf, ret_tool_nm)
+        print("Used parsers are: ", ret_tool_readelf, ret_tool_nm)
         return ret_tool_readelf, ret_tool_nm
 
     def get_rodata_text_scope(self):
@@ -270,6 +276,27 @@ class ELF:
             if self.utils.to_int(addr) >= start_addr and self.utils.to_int(addr) < end_addr:
                 return True
         return False
+
+    def get_single_symbol_raw(self, name: str) -> Symbol:
+        sym_tab = self.get_raw_by_tool(self.__readelf_path, ["-sW",  self.__elf_file])
+        syms = re.compile(r"^.*\d+:\s(.*$)", re.MULTILINE)
+        found = syms.findall(sym_tab.strip())
+        for line in found:
+            line = line.split()
+            if len(line) == 7:
+                size = line[1]
+                # This needs, because readelf prints sizes in hex if size is large
+                if size[:2].upper() == "0X":
+                    size = int(size, 16)
+                else:
+                    size = int(size, 10)
+
+                one_symbol = Symbol(addr=int(line[0], 16), size=size, sym_type=line[2],
+                                    bind=line[3], visibility=line[4], ndx=line[5],
+                                    name=line[6])
+                if one_symbol.name == name:
+                    return one_symbol
+        return None
 
     def get_elf_symbols_list(self):
         """"
@@ -372,9 +399,9 @@ class ELF:
         ranged_rela = list()
         if start_addr and end_addr is not None:
             for el in relocs_list:
-                if self.utils.to_int(end_addr) <= el:
+                if self.utils.to_int(end_addr) <= self.utils.to_int(el):
                     break
-                if self.utils.to_int(start_addr) <= self.utils.to_int(el) < self.utils.to_int(end_addr):
+                if self.utils.to_int(start_addr) <= self.utils.to_int(el):
                     ranged_rela.append(el)
         return ranged_rela
 
@@ -479,6 +506,65 @@ class ELF:
                     self.add_addrs_space_to_list(ranged_altinst, start_addr_int, end_addr_int)
         return ranged_altinst
 
+    def get_jump_table_list(self) -> list:
+        """
+        :param start_addr: seek start address :int
+        :param end_addr: seek end address: int
+        :param alt_instr_list: list of instruction addrs modified in frame of jump_lables patch
+        :returns list: [[inst1_addr, length1], [inst2_addr, length2], ...]
+        """
+
+        jump_table_start_sym = self.get_single_symbol_raw(DEFAULT_NAME_JUMP_TABLE_START_SYM)
+        jump_table_end_sym = self.get_single_symbol_raw(DEFAULT_NAME_JUMP_TABLE_END_SYM)
+        if jump_table_start_sym == None or jump_table_end_sym == None:
+            return []
+
+        __jumptable_struct_size = struct.calcsize(self.jumptable_struct_format)
+        jump_table_content = self.get_data_by_vaddr(jump_table_start_sym.addr,
+                                               jump_table_end_sym.addr - jump_table_start_sym.addr)
+
+        for i in range(ceil((jump_table_end_sym.addr - jump_table_start_sym.addr)/__jumptable_struct_size)):
+            __jtr = Sec_Jumptable_Data()
+            __begin = i * __jumptable_struct_size
+            __end = __begin + __jumptable_struct_size
+
+            [ __jtr.code,
+            __jtr.target_offset,
+            __jtr.key ] = list(struct.unpack(self.jumptable_struct_format,
+                                    jump_table_content[__begin: __end]))
+
+            __jtr.code = __jtr.code + jump_table_start_sym.addr + i * __jumptable_struct_size
+            __jtr.target_offset = __jtr.target_offset + jump_table_start_sym.addr + i * __jumptable_struct_size
+            self.__jt_rec.append(__jtr)
+
+        return self.__jt_rec
+
+    def get_jump_table_module(self, start_addr: int, end_addr: int, jump_table: list) -> list:
+        """
+        Return JT related gaps are in range of our module
+        :param start_addr: int
+        :param end_addr: int
+        :param jump_table: list   full list (over whole kernel) of JT items
+        :returns list of addrs to be excluded [exclude_addr1, exclude_addr2, ...]
+        """
+        result_jt_gaps = list()
+        for jt_item in jump_table:
+            if start_addr <= jt_item.code and end_addr > jt_item.code:
+                for __addr in range(jt_item.code, jt_item.code + DEFAULT_ARM_INST_WIDTH):
+                    result_jt_gaps.append(__addr)
+        return result_jt_gaps
+
+    def get_symbol_by_name_text(self, sym_name: str) -> Symbol:
+        """
+        Get symbol by_name in section .rodata
+        :param sym_name: name of symbol
+        :return: Symbol()
+        """
+        for symbol_obj in self.get_text_symbols():
+            if symbol_obj.name == sym_name:
+                return symbol_obj
+        return None
+
     def get_symbol_by_name_rodata(self, sym_name: str):
         """
         Get symbol by_name in section .rodata
@@ -575,3 +661,9 @@ class ELF:
             elf_fp.seek(self.vaddr_to_file_offset(vaddr))
             with open(out_file, "wb") as out_fp:
                 out_fp.write(elf_fp.read(size))
+
+    def get_data_by_vaddr(self, vaddr, size) -> bytearray:
+        with open(self.__elf_file, "rb") as elf_fp:
+            elf_fp.seek(self.vaddr_to_file_offset(vaddr))
+            outbuff = elf_fp.read(size)
+        return outbuff

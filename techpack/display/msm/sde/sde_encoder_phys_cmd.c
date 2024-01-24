@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  * Copyright (c) 2015-2021, The Linux Foundation. All rights reserved.
  */
 
@@ -245,6 +246,7 @@ static void sde_encoder_phys_cmd_te_rd_ptr_irq(void *arg, int irq_idx)
 	struct sde_hw_pp_vsync_info info[MAX_CHANNELS_PER_ENC] = {{0}};
 	struct sde_encoder_phys_cmd_te_timestamp *te_timestamp;
 	unsigned long lock_flags;
+	struct drm_display_mode *mode;
 
 #if defined(CONFIG_DISPLAY_SAMSUNG)
 	struct drm_connector *conn = phys_enc ? phys_enc->connector : NULL;
@@ -303,6 +305,10 @@ static void sde_encoder_phys_cmd_te_rd_ptr_irq(void *arg, int irq_idx)
 		info[1].wr_ptr_line_count, info[1].intf_frame_count,
 		scheduler_status);
 
+	mode = &phys_enc->cached_mode;
+	if (!mode || info[0].wr_ptr_line_count == mode->vdisplay ||
+			!info[0].wr_ptr_line_count)
+		atomic_add_unless(&cmd_enc->frame_trigger_count, -1, 0);
 
 #if defined(CONFIG_DISPLAY_SAMSUNG)
 	if (vdd && vdd->vrr.support_te_mod && vdd->vrr.te_mod_on && vdd->vrr.te_mod_divider > 0) {
@@ -354,12 +360,16 @@ static void sde_encoder_phys_cmd_wr_ptr_irq(void *arg, int irq_idx)
 	struct sde_hw_ctl *ctl;
 	u32 event = 0;
 	struct sde_hw_pp_vsync_info info[MAX_CHANNELS_PER_ENC] = {{0}};
+	struct sde_encoder_phys_cmd *cmd_enc;
 
 	if (!phys_enc || !phys_enc->hw_ctl)
 		return;
 
 	SDE_ATRACE_BEGIN("wr_ptr_irq");
 	ctl = phys_enc->hw_ctl;
+	cmd_enc = to_sde_encoder_phys_cmd(phys_enc);
+
+	atomic_inc(&cmd_enc->frame_trigger_count);
 
 	if (atomic_add_unless(&phys_enc->pending_retire_fence_cnt, -1, 0)) {
 		event = SDE_ENCODER_FRAME_EVENT_SIGNAL_RETIRE_FENCE;
@@ -399,8 +409,6 @@ static void _sde_encoder_phys_cmd_setup_irq_hw_idx(
 {
 	struct sde_encoder_irq *irq;
 	struct sde_kms *sde_kms;
-	int ret = 0;
-	u32 vblank_refcount;
 
 	if (!phys_enc->sde_kms || !phys_enc->hw_pp || !phys_enc->hw_ctl) {
 		SDE_ERROR("invalid args %d %d %d\n", !phys_enc->sde_kms,
@@ -415,39 +423,13 @@ static void _sde_encoder_phys_cmd_setup_irq_hw_idx(
 
 	sde_kms = phys_enc->sde_kms;
 
-	mutex_lock(phys_enc->vblank_ctl_lock);
-	vblank_refcount = atomic_read(&phys_enc->vblank_refcount);
-	if (vblank_refcount) {
-		ret = sde_encoder_helper_unregister_irq(phys_enc,
-				INTR_IDX_RDPTR);
-		if (ret)
-			SDE_ERROR(
-				"control vblank irq registration error %d\n",
-					ret);
-		if (vblank_refcount > 1)
-			SDE_ERROR(
-				"vblank_refcount mismatch detected, try to reset %d\n",
-				atomic_read(&phys_enc->vblank_refcount));
-		else
-			atomic_set(&phys_enc->vblank_cached_refcount, 1);
-
-		SDE_EVT32(DRMID(phys_enc->parent),
-			phys_enc->hw_pp->idx - PINGPONG_0, vblank_refcount,
-			atomic_read(&phys_enc->vblank_cached_refcount));
-	}
-	atomic_set(&phys_enc->vblank_refcount, 0);
-	mutex_unlock(phys_enc->vblank_ctl_lock);
-
 	irq = &phys_enc->irq[INTR_IDX_CTL_START];
 	irq->hw_idx = phys_enc->hw_ctl->idx;
-	irq->irq_idx = -EINVAL;
 
 	irq = &phys_enc->irq[INTR_IDX_PINGPONG];
 	irq->hw_idx = phys_enc->hw_pp->idx;
-	irq->irq_idx = -EINVAL;
 
 	irq = &phys_enc->irq[INTR_IDX_RDPTR];
-	irq->irq_idx = -EINVAL;
 	if (phys_enc->has_intf_te)
 		irq->hw_idx = phys_enc->hw_intf->idx;
 	else
@@ -455,17 +437,14 @@ static void _sde_encoder_phys_cmd_setup_irq_hw_idx(
 
 	irq = &phys_enc->irq[INTR_IDX_UNDERRUN];
 	irq->hw_idx = phys_enc->intf_idx;
-	irq->irq_idx = -EINVAL;
 
 	irq = &phys_enc->irq[INTR_IDX_AUTOREFRESH_DONE];
-	irq->irq_idx = -EINVAL;
 	if (phys_enc->has_intf_te)
 		irq->hw_idx = phys_enc->hw_intf->idx;
 	else
 		irq->hw_idx = phys_enc->hw_pp->idx;
 
 	irq = &phys_enc->irq[INTR_IDX_WRPTR];
-	irq->irq_idx = -EINVAL;
 	if (phys_enc->has_intf_te)
 		irq->hw_idx = phys_enc->hw_intf->idx;
 	else
@@ -932,7 +911,7 @@ static int sde_encoder_phys_cmd_control_vblank_irq(
 	struct sde_encoder_phys_cmd *cmd_enc =
 		to_sde_encoder_phys_cmd(phys_enc);
 	int ret = 0;
-	u32 refcount, cached_refcount;
+	u32 refcount;
 	struct sde_kms *sde_kms;
 
 	if (!phys_enc || !phys_enc->hw_pp) {
@@ -947,17 +926,11 @@ static int sde_encoder_phys_cmd_control_vblank_irq(
 		goto end;
 
 	refcount = atomic_read(&phys_enc->vblank_refcount);
-	cached_refcount = atomic_read(&phys_enc->vblank_cached_refcount);
 
 	/* protect against negative */
 	if (!enable && refcount == 0) {
-		if (cached_refcount == 1) {
-			atomic_set(&phys_enc->vblank_cached_refcount, 0);
-			goto end;
-		} else {
-			ret = -EINVAL;
-			goto end;
-		}
+		ret = -EINVAL;
+		goto end;
 	}
 
 	SDE_DEBUG_CMDENC(cmd_enc, "[%pS] enable=%d/%d\n",
@@ -979,11 +952,6 @@ static int sde_encoder_phys_cmd_control_vblank_irq(
 				INTR_IDX_RDPTR);
 		if (ret)
 			atomic_inc_return(&phys_enc->vblank_refcount);
-	}
-
-	if (enable && cached_refcount) {
-		atomic_inc(&phys_enc->vblank_refcount);
-		atomic_set(&phys_enc->vblank_cached_refcount, 0);
 	}
 
 end:
@@ -1071,8 +1039,6 @@ static int _get_tearcheck_threshold(struct sde_encoder_phys *phys_enc)
 		u32 default_time_ns;
 		u32 extra_time_ns;
 		u32 default_line_time_ns;
-		u32 idle_time_ns = 0;
-		u32 transfer_time_us = 0;
 
 		if (phys_enc->parent_ops.get_qsync_fps)
 			phys_enc->parent_ops.get_qsync_fps(
@@ -1093,28 +1059,26 @@ static int _get_tearcheck_threshold(struct sde_encoder_phys *phys_enc)
 		}
 
 		/* Calculate the number of extra lines*/
-		slow_time_ns = (1 * 1000000000) / qsync_min_fps;
-		default_time_ns = (1 * 1000000000) / default_fps;
-		sde_encoder_helper_get_transfer_time(phys_enc->parent,
-				&transfer_time_us);
-		if (transfer_time_us)
-			idle_time_ns = default_time_ns -
-					(1000 * transfer_time_us);
-
-		extra_time_ns = slow_time_ns - default_time_ns + idle_time_ns;
-		default_line_time_ns = (1 * 1000000000) / (default_fps * yres);
+		slow_time_ns = 1000000000 / qsync_min_fps;
+		default_time_ns = 1000000000 / default_fps;
+		extra_time_ns = slow_time_ns - default_time_ns;
+		default_line_time_ns = default_time_ns / yres;
 
 		threshold_lines = extra_time_ns / default_line_time_ns;
 
+		/* round down to nearest multiple of 4 to compensate for rounding in DDIC */
+		threshold_lines &= ~(4 - 1);
+		/* additional compensation for latency */
+		if (threshold_lines - 2 > DEFAULT_TEARCHECK_SYNC_THRESH_START)
+			threshold_lines -= 2;
+
 		SDE_DEBUG_CMDENC(cmd_enc, "slow:%d default:%d extra:%d(ns)\n",
 			slow_time_ns, default_time_ns, extra_time_ns);
-		SDE_DEBUG_CMDENC(cmd_enc, "xfer:%d(us) idle:%d(ns) lines:%d\n",
-			transfer_time_us, idle_time_ns, threshold_lines);
-		SDE_DEBUG_CMDENC(cmd_enc, "min_fps:%d fps:%d yres:%d\n",
-			qsync_min_fps, default_fps, yres);
+		SDE_DEBUG_CMDENC(cmd_enc, "min_fps:%d fps:%d yres:%d lines:%d\n",
+			qsync_min_fps, default_fps, yres, threshold_lines);
 
 		SDE_EVT32(qsync_mode, qsync_min_fps, extra_time_ns, default_fps,
-			yres, transfer_time_us, threshold_lines);
+			yres, threshold_lines);
 	}
 
 exit:
@@ -2053,9 +2017,33 @@ static void sde_encoder_phys_cmd_trigger_start(
 	struct sde_encoder_phys_cmd *cmd_enc =
 			to_sde_encoder_phys_cmd(phys_enc);
 	u32 frame_cnt;
+	struct drm_connector *conn;
+	int threshold_lines, curr_rd_ptr_line_count;
+	struct sde_hw_pp_vsync_info info[MAX_CHANNELS_PER_ENC] = {{0}};
+	struct drm_display_mode *mode;
 
 	if (!phys_enc)
 		return;
+
+	conn = phys_enc->connector;
+	mode = &phys_enc->cached_mode;
+	if (mode && sde_connector_get_qsync_mode(conn)) {
+		threshold_lines = _get_tearcheck_threshold(phys_enc);
+		sde_encoder_helper_get_pp_line_count(phys_enc->parent, info);
+		curr_rd_ptr_line_count = info[0].rd_ptr_line_count;
+
+		/*
+		 * Vsync wait is required only if both the below conditions satisfy
+		 * - current rd_ptr linecount is within the start threshold window
+		 * - frame trigger already happened in this TE interval
+		 */
+		if ((curr_rd_ptr_line_count < mode->vdisplay + threshold_lines) &&
+			atomic_read(&cmd_enc->frame_trigger_count)) {
+			SDE_EVT32(curr_rd_ptr_line_count, mode->vdisplay + threshold_lines,
+				atomic_read(&cmd_enc->frame_trigger_count), 0xebad);
+			sde_encoder_phys_cmd_wait_for_vblank(phys_enc);
+		}
+	}
 
 	/* we don't issue CTL_START when using autorefresh */
 	frame_cnt = _sde_encoder_phys_cmd_get_autorefresh_property(phys_enc);
@@ -2229,7 +2217,6 @@ struct sde_encoder_phys *sde_encoder_phys_cmd_init(
 	irq->cb.func = sde_encoder_phys_cmd_wr_ptr_irq;
 
 	atomic_set(&phys_enc->vblank_refcount, 0);
-	atomic_set(&phys_enc->vblank_cached_refcount, 0);
 	atomic_set(&phys_enc->pending_kickoff_cnt, 0);
 	atomic_set(&phys_enc->pending_retire_fence_cnt, 0);
 	atomic_set(&cmd_enc->pending_vblank_cnt, 0);

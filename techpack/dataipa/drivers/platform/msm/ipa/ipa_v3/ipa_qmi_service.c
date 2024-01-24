@@ -27,7 +27,7 @@
 #define IPA_Q6_SERVICE_INS_ID 2
 
 #define QMI_SEND_STATS_REQ_TIMEOUT_MS 5000
-#define QMI_SEND_REQ_TIMEOUT_MS 60000
+#define QMI_SEND_REQ_TIMEOUT_MS 10000
 #define QMI_MHI_SEND_REQ_TIMEOUT_MS 1000
 
 #define QMI_IPA_FORCE_CLEAR_DATAPATH_TIMEOUT_MS 1000
@@ -467,14 +467,22 @@ static int ipa3_qmi_send_req_wait(struct qmi_handle *client_handle,
 	struct qmi_txn txn;
 	int ret;
 
+	mutex_lock(&ipa3_qmi_lock);
+
+	if (client_handle != ipa_q6_clnt) {
+		IPADBG("Q6 QMI clinet pointer already freed\n");
+		mutex_unlock(&ipa3_qmi_lock);
+		return -EINVAL;
+	}
+
 	ret = qmi_txn_init(client_handle, &txn, resp_desc->ei_array, resp);
 
 	if (ret < 0) {
 		IPAWANERR("QMI txn init failed, ret= %d\n", ret);
+		mutex_unlock(&ipa3_qmi_lock);
 		return ret;
 	}
 
-	mutex_lock(&ipa3_qmi_lock);
 	ret = qmi_send_request(client_handle,
 		&ipa3_qmi_ctx->server_sq,
 		&txn,
@@ -483,19 +491,16 @@ static int ipa3_qmi_send_req_wait(struct qmi_handle *client_handle,
 		req_desc->ei_array,
 		req);
 
-	if (unlikely(!ipa_q6_clnt)) {
-		mutex_unlock(&ipa3_qmi_lock);
-		return -EINVAL;
-	}
 
-	mutex_unlock(&ipa3_qmi_lock);
 
 	if (ret < 0) {
 		qmi_txn_cancel(&txn);
+		mutex_unlock(&ipa3_qmi_lock);
 		return ret;
 	}
-	ret = qmi_txn_wait(&txn, msecs_to_jiffies(timeout_ms));
 
+	ret = qmi_txn_wait(&txn, msecs_to_jiffies(timeout_ms));
+	mutex_unlock(&ipa3_qmi_lock);
 	return ret;
 }
 
@@ -892,7 +897,6 @@ int ipa3_qmi_add_offload_request_send(
 		return -EINVAL;
 	}
 
-	/* check if the filter rules from IPACM is valid */
 	if (req->filter_spec_ex2_list_len == 0) {
 		IPAWANDBG("IPACM pass zero rules to Q6\n");
 	} else {
@@ -901,9 +905,10 @@ int ipa3_qmi_add_offload_request_send(
 	}
 
 	/* currently set total max to 64 */
-	if (req->filter_spec_ex2_list_len +
-		ipa3_qmi_ctx->num_ipa_offload_connection
-		>= QMI_IPA_MAX_FILTERS_V01) {
+	if ((ipa3_qmi_ctx->num_ipa_offload_connection < 0) ||
+		(req->filter_spec_ex2_list_len >=
+		(QMI_IPA_MAX_FILTERS_V01 -
+			ipa3_qmi_ctx->num_ipa_offload_connection))) {
 		IPAWANERR_RL(
 		"cur(%d), req(%d), exceed limit (%d)\n",
 			ipa3_qmi_ctx->num_ipa_offload_connection,
@@ -1853,6 +1858,7 @@ void ipa3_qmi_service_exit(void)
 
 	workqueues_stopped = true;
 
+	IPADBG("Entry\n");
 	/* qmi-service */
 	if (ipa3_svc_handle != NULL) {
 		qmi_handle_release(ipa3_svc_handle);
@@ -1885,6 +1891,7 @@ void ipa3_qmi_service_exit(void)
 	ipa3_qmi_indication_fin = false;
 	ipa3_modem_init_cmplt = false;
 	send_qmi_init_q6 = true;
+	IPADBG("Exit\n");
 }
 
 void ipa3_qmi_stop_workqueues(void)

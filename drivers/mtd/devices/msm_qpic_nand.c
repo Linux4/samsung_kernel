@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (C) 2007 Google, Inc.
- * Copyright (c) 2012-2020 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2012-2021 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include "msm_qpic_nand.h"
@@ -18,6 +19,24 @@
 #define SMEM_AARM_PARTITION_TABLE 9
 #define SMEM_APPS 0
 #define ONE_CODEWORD_SIZE 516
+#define ACTIVE_BOOT_PART_MAX 30
+
+static struct device *dev_node;
+static char active_boot_part[ACTIVE_BOOT_PART_MAX] = "boot";
+
+/*
+ * Function to get the active boot partition information
+ * from kernel command line during system boot.
+ */
+#ifndef MODULE
+static int __init get_active_boot_part(char *str)
+{
+	strlcpy(active_boot_part, str, ACTIVE_BOOT_PART_MAX);
+	return 0;
+}
+
+__setup("part.activeboot=", get_active_boot_part);
+#endif
 
 /*
  * Get the DMA memory for requested amount of size. It returns the pointer
@@ -795,18 +814,25 @@ static int msm_nand_flash_onfi_probe(struct msm_nand_info *info)
 
 	memset(&data, 0, sizeof(struct msm_nand_flash_onfi_data));
 
-	/* Lookup the partition to which apps has access to */
+	/* Lookup the partition to which apps has access to
+	 *
+	 * active_boot_part value gets updated to either kernel command line
+	 * parameter "part.activeboot=" value (if present) or hold the default
+	 * "boot" value.
+	 */
 	for (i = 0; i < FLASH_PTABLE_MAX_PARTS_V4; i++) {
-		if (mtd_part[i].name && !strcmp("boot", mtd_part[i].name)) {
+		if (mtd_part[i].name && !strcmp(active_boot_part, mtd_part[i].name)) {
 			page_address = mtd_part[i].offset << 6;
 			break;
 		}
 	}
+
 	if (!page_address) {
 		pr_err("%s: no apps partition found in smem\n", __func__);
 		ret = -EPERM;
 		goto free_dma;
 	}
+
 	data.cfg.cmd = MSM_NAND_CMD_PAGE_READ_ONFI;
 	data.exec = 1;
 	data.cfg.addr0 = (page_address << 16) |
@@ -4338,6 +4364,46 @@ out:
 	return -EINVAL;
 }
 
+static int msm_nand_bam_panic_notifier(struct notifier_block *this,
+					unsigned long event, void *ptr)
+{
+	struct msm_nand_info *info = dev_get_drvdata(dev_node);
+	struct msm_nand_chip *chip = &info->nand_chip;
+	int err;
+
+	err = msm_nand_get_device(chip->dev);
+	if (err)
+		goto out;
+	pr_info("Dumping APSS bam pipes register dumps\n");
+	sps_get_bam_debug_info(info->sps.bam_handle, 93,
+			(SPS_BAM_PIPE(0) |
+			 SPS_BAM_PIPE(1) |
+			 SPS_BAM_PIPE(2) |
+			 SPS_BAM_PIPE(3)),
+			 0, 2);
+	err = msm_nand_put_device(chip->dev);
+out:
+	if (err)
+		pr_err("Failed to get/put the device.\n");
+	return NOTIFY_DONE;
+}
+
+static struct notifier_block msm_nand_bam_panic_blk = {
+	.notifier_call = msm_nand_bam_panic_notifier,
+};
+
+void msm_nand_bam_register_panic_handler(void)
+{
+	atomic_notifier_chain_register(&panic_notifier_list,
+			&msm_nand_bam_panic_blk);
+}
+
+void msm_nand_bam_unregister_panic_handler(void)
+{
+	atomic_notifier_chain_unregister(&panic_notifier_list,
+					&msm_nand_bam_panic_blk);
+}
+
 #define BOOT_DEV_MASK 0x1E
 #define BOOT_DEV_NAND 0x4
 
@@ -4555,6 +4621,8 @@ static int msm_nand_probe(struct platform_device *pdev)
 	pr_info("Allocated DMA buffer at virt_addr 0x%pK, phys_addr 0x%x\n",
 		info->nand_chip.dma_virt_addr, info->nand_chip.dma_phys_addr);
 	pr_info("Host capabilities:0x%08x\n", info->nand_chip.caps);
+	dev_node = dev;
+	msm_nand_bam_register_panic_handler();
 	goto out;
 free_bam:
 	msm_nand_bam_free(info);
@@ -4576,6 +4644,7 @@ static int msm_nand_remove(struct platform_device *pdev)
 {
 	struct msm_nand_info *info = dev_get_drvdata(&pdev->dev);
 
+	msm_nand_bam_unregister_panic_handler();
 	if (pm_runtime_suspended(&(pdev)->dev))
 		pm_runtime_resume(&(pdev)->dev);
 

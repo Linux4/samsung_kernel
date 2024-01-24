@@ -251,6 +251,30 @@ err:
 }
 #endif
 
+/* Vcom register check for M44 model to filter out other wrong-commonized paenl */
+static ssize_t panel_vcom_type_show(struct device *dev,
+			   struct device_attribute *attr, char *buf)
+{
+	int ret = 0;
+
+	struct samsung_display_driver_data *vdd =
+		(struct samsung_display_driver_data *)dev_get_drvdata(dev);
+
+	if (IS_ERR_OR_NULL(vdd)) {
+		LCD_INFO(vdd, "no vdd\n");
+		return -ENODEV;
+	}
+
+	if (vdd->panel_func.samsung_cmd_log_read) {
+		if (vdd->panel_func.samsung_cmd_log_read(vdd))
+			ret = 1;
+	}
+	LCD_INFO(vdd, "vom read result 120hz?: %d(1:120hz)\n", ret);
+
+	ret = snprintf(buf, MAX_FILE_NAME, "%d\n", ret);
+	return ret;
+}
+
 static ssize_t tuning_show(struct device *dev,
 			   struct device_attribute *attr, char *buf)
 {
@@ -342,8 +366,7 @@ static ssize_t ss_disp_cell_id_show(struct device *dev,
 			cell_id[0], cell_id[1], cell_id[2], cell_id[3], cell_id[4],
 			cell_id[5], cell_id[6], cell_id[7], cell_id[8], cell_id[9], cell_id[10]);
 
-		strlcat(buf, temp, string_size);
-
+		strlcpy(buf, temp, string_size);
 		LCD_INFO(vdd, "%02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x\n",
 			cell_id[0], cell_id[1], cell_id[2], cell_id[3], cell_id[4],
 			cell_id[5], cell_id[6], cell_id[7], cell_id[8], cell_id[9], cell_id[10]);
@@ -363,8 +386,7 @@ static ssize_t ss_disp_cell_id_show(struct device *dev,
 			(vdd->mdnie.mdnie_y & 0xFF00) >> 8,
 			vdd->mdnie.mdnie_y & 0xFF);
 
-		strlcat(buf, temp, string_size);
-
+		strlcpy(buf, temp, string_size);
 		LCD_INFO(vdd,"%02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x\n",
 			cell_id[0], cell_id[1], cell_id[2], cell_id[3], cell_id[4],
 			cell_id[5], cell_id[6],
@@ -420,8 +442,7 @@ static ssize_t ss_disp_octa_id_show(struct device *dev,
 		octa_id[18] != 0 ? octa_id[18] : '0',
 		octa_id[19] != 0 ? octa_id[19] : '0');
 
-	strlcat(buf, temp, string_size);
-
+	strlcpy(buf, temp, string_size);
 	LCD_INFO(vdd,"poc(%d)\n", poc);
 
 	LCD_DEBUG(vdd, "%d%d%d%02x%02x%c%c%c%c%c%c%c%c%c%c%c%c%c%c%c%c\n",
@@ -473,8 +494,7 @@ static ssize_t ss_disp_lcdtype_show(struct device *dev,
 		LCD_INFO(vdd,"no manufacture id\n");
 		snprintf(temp, 20, "SDC_000000\n");
 	}
-
-	strlcat(buf, temp, string_size);
+	strlcpy(buf, temp, string_size);
 
 	return strnlen(buf, string_size);
 }
@@ -510,8 +530,7 @@ static ssize_t ss_disp_windowtype_show(struct device *dev,
 	LCD_INFO(vdd,"%02x %02x %02x\n", id1, id2, id3);
 
 	snprintf(temp, sizeof(temp), "%02x %02x %02x\n", id1, id2, id3);
-
-	strlcat(buf, temp, string_size);
+	strlcpy(buf, temp, string_size);
 
 	return strnlen(buf, string_size);
 }
@@ -532,9 +551,7 @@ static ssize_t ss_disp_manufacture_date_show(struct device *dev,
 
 	date = vdd->manufacture_date_dsi;
 	snprintf((char *)temp, sizeof(temp), "manufacture date : %d\n", date);
-
-	strlcat(buf, temp, string_size);
-
+	strlcpy(buf, temp, string_size);
 	LCD_INFO(vdd, "manufacture date : %d\n", date);
 
 	return strnlen(buf, string_size);
@@ -560,8 +577,7 @@ static ssize_t ss_disp_manufacture_code_show(struct device *dev,
 		snprintf((char *)temp, sizeof(temp), "%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x\n",
 			ddi_id[0], ddi_id[1], ddi_id[2], ddi_id[3], ddi_id[4], ddi_id[5], ddi_id[6], ddi_id[7], ddi_id[8], ddi_id[9]);
 
-		strlcat(buf, temp, string_size);
-
+		strlcpy(buf, temp, string_size);
 		LCD_INFO(vdd, "%02x %02x %02x %02x %02x %02x %02x %02x %02x %02x\n",
 			ddi_id[0], ddi_id[1], ddi_id[2], ddi_id[3], ddi_id[4], ddi_id[5], ddi_id[6], ddi_id[7], ddi_id[8], ddi_id[9]);
 	}
@@ -569,16 +585,14 @@ static ssize_t ss_disp_manufacture_code_show(struct device *dev,
 		snprintf((char *)temp, sizeof(temp), "%02x%02x%02x%02x%02x%02x\n",
 			ddi_id[0], ddi_id[1], ddi_id[2], ddi_id[3], ddi_id[4], ddi_id[5]);
 
-		strlcat(buf, temp, string_size);
-
+		strlcpy(buf, temp, string_size);
 		LCD_INFO(vdd,"%02x %02x %02x %02x %02x\n",
 			ddi_id[0], ddi_id[1], ddi_id[2], ddi_id[3], ddi_id[4]);
 	} else {
 		snprintf((char *)temp, sizeof(temp), "%02x%02x%02x%02x%02x\n",
 			ddi_id[0], ddi_id[1], ddi_id[2], ddi_id[3], ddi_id[4]);
 
-		strlcat(buf, temp, string_size);
-
+		strlcpy(buf, temp, string_size);
 		LCD_INFO(vdd, "%02x %02x %02x %02x %02x\n",
 			ddi_id[0], ddi_id[1], ddi_id[2], ddi_id[3], ddi_id[4]);
 	}
@@ -1648,6 +1662,43 @@ static ssize_t ss_self_mask_store(struct device *dev,
 		vdd->self_disp.self_mask_on(vdd, enable);
 	else
 		LCD_INFO(vdd, "Self Mask Function is NULL\n");
+
+	return size;
+}
+
+static ssize_t ss_self_mask_udc_store(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t size)
+{
+	int enable = 0;
+	struct samsung_display_driver_data *vdd =
+		(struct samsung_display_driver_data *)dev_get_drvdata(dev);
+
+	if (IS_ERR_OR_NULL(vdd)) {
+		LCD_INFO(vdd, "no vdd");
+		return size;
+	}
+
+	if (!vdd->self_disp.is_support) {
+		LCD_INFO(vdd, "self display is not supported..(%d) \n",
+								vdd->self_disp.is_support);
+		return -ENODEV;
+	}
+
+	if (sscanf(buf, "%d", &enable) != 1)
+		return size;
+
+	vdd->self_disp.udc_mask_enable = enable;
+
+	if (!ss_is_ready_to_send_cmd(vdd)) {
+		LCD_INFO(vdd, "Panel is not ready. Panel State(%d) enable(%d)\n",
+			vdd->panel_state, enable);
+		return size;
+	}
+
+	if (vdd->self_disp.self_mask_udc_on)
+		vdd->self_disp.self_mask_udc_on(vdd, vdd->self_disp.udc_mask_enable);
+	else
+		LCD_INFO(vdd, "Self Mask UDC Function is NULL\n");
 
 	return size;
 }
@@ -2736,7 +2787,7 @@ static ssize_t mipi_samsung_poc_show(struct device *dev,
 
 	snprintf((char *)temp, sizeof(temp), "%d %d %02x\n",
 			poc, check_sum[4], EB_value[3]);
-	strlcat(buf, temp, string_size);
+	strlcpy(buf, temp, string_size);
 
 	return strnlen(buf, string_size);
 }
@@ -3254,8 +3305,7 @@ static ssize_t ss_disp_SVC_OCTA_show(struct device *dev,
 			(vdd->mdnie.mdnie_y & 0xFF00) >> 8,
 			vdd->mdnie.mdnie_y & 0xFF);
 	}
-
-	strlcat(buf, temp, string_size);
+	strlcpy(buf, temp, string_size);
 
 	return strnlen(buf, string_size);
 }
@@ -3286,7 +3336,7 @@ static ssize_t ss_disp_SVC_OCTA2_show(struct device *dev,
 		(vdd->mdnie.mdnie_y & 0xFF00) >> 8,
 		vdd->mdnie.mdnie_y & 0xFF);
 
-	strlcat(buf, temp, string_size);
+	strlcpy(buf, temp, string_size);
 
 	return strnlen(buf, string_size);
 }
@@ -3317,7 +3367,7 @@ static ssize_t ss_disp_SVC_OCTA_CHIPID_show(struct device *dev,
 		octa_id[12], octa_id[13], octa_id[14], octa_id[15],
 		octa_id[16], octa_id[17], octa_id[18], octa_id[19]);
 
-	strlcat(buf, temp, string_size);
+	strlcpy(buf, temp, string_size);
 
 	return strnlen(buf, string_size);
 }
@@ -3348,7 +3398,7 @@ static ssize_t ss_disp_SVC_OCTA2_CHIPID_show(struct device *dev,
 		octa_id[12], octa_id[13], octa_id[14], octa_id[15],
 		octa_id[16], octa_id[17], octa_id[18], octa_id[19]);
 
-	strlcat(buf, temp, string_size);
+	strlcpy(buf, temp, string_size);
 
 	return strnlen(buf, string_size);
 }
@@ -3369,12 +3419,19 @@ static ssize_t ss_disp_SVC_OCTA_DDI_CHIPID_show(struct device *dev,
 	}
 
 	ddi_id = vdd->ddi_id_dsi;
-	if (vdd->dtsi_data.ddi_id_length == 6) {
+
+	if (vdd->dtsi_data.ddi_id_length == 10) {
+		snprintf((char *)temp, sizeof(temp), "%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x\n",
+			ddi_id[0], ddi_id[1], ddi_id[2], ddi_id[3], ddi_id[4], ddi_id[5], ddi_id[6], ddi_id[7], ddi_id[8], ddi_id[9]);
+
+		strlcpy(buf, temp, string_size);
+		LCD_INFO(vdd, "%02x %02x %02x %02x %02x %02x %02x %02x %02x %02x\n",
+			ddi_id[0], ddi_id[1], ddi_id[2], ddi_id[3], ddi_id[4], ddi_id[5], ddi_id[6], ddi_id[7], ddi_id[8], ddi_id[9]);
+	} else if (vdd->dtsi_data.ddi_id_length == 6) {
 		snprintf((char *)temp, sizeof(temp), "%02x%02x%02x%02x%02x%02x\n",
 			ddi_id[0], ddi_id[1], ddi_id[2], ddi_id[3], ddi_id[4], ddi_id[5]);
 
-		strlcat(buf, temp, string_size);
-
+		strlcpy(buf, temp, string_size);
 		LCD_INFO(vdd,"%02x %02x %02x %02x %02x %02x\n",
 			ddi_id[0], ddi_id[1], ddi_id[2], ddi_id[3], ddi_id[4], ddi_id[5]);
 	} else {
@@ -3383,8 +3440,7 @@ static ssize_t ss_disp_SVC_OCTA_DDI_CHIPID_show(struct device *dev,
 
 		LCD_INFO(vdd,"%02x %02x %02x %02x %02x\n",
 			ddi_id[0], ddi_id[1], ddi_id[2], ddi_id[3], ddi_id[4]);
-		strlcat(buf, temp, string_size);
-
+		strlcpy(buf, temp, string_size);
 	}
 
 	return strnlen(buf, string_size);
@@ -3410,8 +3466,7 @@ static ssize_t ss_disp_SVC_OCTA2_DDI_CHIPID_show(struct device *dev,
 	snprintf((char *)temp, sizeof(temp), "%02x%02x%02x%02x%02x\n",
 		ddi_id[0], ddi_id[1], ddi_id[2], ddi_id[3], ddi_id[4]);
 
-	strlcat(buf, temp, string_size);
-
+	strlcpy(buf, temp, string_size);
 	LCD_INFO(vdd,"%02x %02x %02x %02x %02x\n",
 		ddi_id[0], ddi_id[1], ddi_id[2], ddi_id[3], ddi_id[4]);
 
@@ -3517,6 +3572,9 @@ static ssize_t ss_rf_info_store(struct device *dev,
 			vdd->dyn_mipi_clk.rf_info.rat,
 			vdd->dyn_mipi_clk.rf_info.band,
 			vdd->dyn_mipi_clk.rf_info.arfcn);
+
+	if (vdd->dyn_mipi_clk.osc_support && vdd->panel_func.update_osc)
+		vdd->panel_func.update_osc(vdd, vdd->dyn_mipi_clk.requested_osc_idx);
 #else
 	LCD_INFO(vdd, "mipi clk change not support\n");
 #endif
@@ -5479,6 +5537,7 @@ static DEVICE_ATTR(copr, S_IRUGO | S_IWUSR | S_IWGRP, ss_copr_show, ss_copr_stor
 static DEVICE_ATTR(copr_roi, S_IRUGO | S_IWUSR | S_IWGRP, ss_copr_roi_show, ss_copr_roi_store);
 static DEVICE_ATTR(brt_avg, S_IRUGO | S_IWUSR | S_IWGRP, ss_brt_avg_show, NULL);
 static DEVICE_ATTR(self_mask, S_IRUGO | S_IWUSR | S_IWGRP, NULL, ss_self_mask_store);
+static DEVICE_ATTR(self_mask_udc, S_IRUGO | S_IWUSR | S_IWGRP, NULL, ss_self_mask_udc_store);
 static DEVICE_ATTR(mafpc_test, S_IRUGO | S_IWUSR | S_IWGRP, NULL, ss_mafpc_test_store);
 static DEVICE_ATTR(mafpc_check, S_IRUGO | S_IWUSR | S_IWGRP, ss_mafpc_check_show, NULL);
 static DEVICE_ATTR(dynamic_hlpm, S_IRUGO | S_IWUSR | S_IWGRP, NULL, ss_dynamic_hlpm_store);
@@ -5555,6 +5614,7 @@ static DEVICE_ATTR(udc_fac, S_IRUGO | S_IWUSR | S_IWGRP, ss_udc_factory_show, NU
 static DEVICE_ATTR(set_elvss, S_IRUGO | S_IWUSR | S_IWGRP, NULL, ss_set_elvss_store);
 static DEVICE_ATTR(seq_on_delay, 0644, ss_seq_on_delay_show, ss_seq_on_delay_store);
 static DEVICE_ATTR(seq_off_delay, 0644, ss_seq_off_delay_show, ss_seq_off_delay_store);
+static DEVICE_ATTR(panel_vcom_type, S_IRUGO, panel_vcom_type_show, NULL);
 
 static struct attribute *panel_sysfs_attributes[] = {
 	&dev_attr_lcd_type.attr,
@@ -5575,6 +5635,7 @@ static struct attribute *panel_sysfs_attributes[] = {
 	&dev_attr_copr_roi.attr,
 	&dev_attr_brt_avg.attr,
 	&dev_attr_self_mask.attr,
+	&dev_attr_self_mask_udc.attr,
 	&dev_attr_dynamic_hlpm.attr,
 	&dev_attr_self_display.attr,
 	&dev_attr_self_move.attr,
@@ -5641,6 +5702,7 @@ static struct attribute *panel_sysfs_attributes[] = {
 	&dev_attr_set_elvss.attr,
 	&dev_attr_seq_on_delay.attr,
 	&dev_attr_seq_off_delay.attr,
+	&dev_attr_panel_vcom_type.attr,
 	NULL
 };
 static const struct attribute_group panel_sysfs_group = {

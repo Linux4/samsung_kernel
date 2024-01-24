@@ -6,10 +6,17 @@ struct pwm_gc {
 	u64 def_period;
 	u64 def_duty_cycle;
 	bool def_enabled;
+	bool allow_delay;
+	unsigned int hwio_reg_update_delay;
 	unsigned int gp_clk;
 	struct pinctrl *pinctrl;
 	struct pinctrl_state *pin_active;
 	struct pinctrl_state *pin_suspend;
+	struct mutex  lock;
+#if defined(CONFIG_PWM_GPCLK_DEBUG_FEATURE)
+	struct class * gpclk_class;
+	struct device * gpclk_dev;
+#endif
 };
 
 #define GP_CLK_M_DEFAULT		2
@@ -51,11 +58,17 @@ extern void __iomem *virt_mmss_gp1_base;
 #define HWIO_GP_MD_REG_RMSK		0xffffffff
 #define HWIO_GP_N_REG_RMSK		0xffffffff
 
+#if defined(CONFIG_PWM_GPCLK_USE_16_BIT_REGISTER)
+#define HWIO_GP_MD_REG_M_VAL_BMSK		0xffff
+#define HWIO_GP_MD_REG_D_VAL_BMSK		0xffff
+#define HWIO_GP_N_REG_N_VAL_BMSK		0xffff
+#else
 #define HWIO_GP_MD_REG_M_VAL_BMSK		0xff
-#define HWIO_GP_MD_REG_M_VAL_SHFT		0
 #define HWIO_GP_MD_REG_D_VAL_BMSK		0xff
-#define HWIO_GP_MD_REG_D_VAL_SHFT		0
 #define HWIO_GP_N_REG_N_VAL_BMSK		0xff
+#endif
+#define HWIO_GP_MD_REG_M_VAL_SHFT		0
+#define HWIO_GP_MD_REG_D_VAL_SHFT		0
 #define HWIO_GP_SRC_SEL_VAL_BMSK		0x700
 #define HWIO_GP_SRC_SEL_VAL_SHFT		8
 #define HWIO_GP_SRC_DIV_VAL_BMSK		0x1f

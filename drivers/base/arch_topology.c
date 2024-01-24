@@ -23,6 +23,11 @@
 #include <linux/sched.h>
 #include <trace/hooks/topology.h>
 
+#if IS_ENABLED(CONFIG_CPU_CAPACITY_FIXUP)
+#include <linux/proc_fs.h>
+#include <linux/seq_file.h>
+#endif
+
 DEFINE_PER_CPU(unsigned long, freq_scale) = SCHED_CAPACITY_SCALE;
 DEFINE_PER_CPU(unsigned long, max_cpu_freq);
 DEFINE_PER_CPU(unsigned long, max_freq_scale) = SCHED_CAPACITY_SCALE;
@@ -71,13 +76,71 @@ void topology_set_cpu_scale(unsigned int cpu, unsigned long capacity)
 	per_cpu(cpu_scale, cpu) = capacity;
 }
 
+#if IS_ENABLED(CONFIG_CPU_CAPACITY_FIXUP)
+static char cpu_cap_fixup_target[TASK_COMM_LEN];
+
+static int proc_cpu_capacity_fixup_target_show(struct seq_file *m, void *data)
+{
+	seq_printf(m, "%s\n", cpu_cap_fixup_target);
+	return 0;
+}
+
+static int proc_cpu_capacity_fixup_target_open(struct inode *inode,
+		struct file *file)
+{
+	return single_open(file, proc_cpu_capacity_fixup_target_show, NULL);
+}
+
+static ssize_t proc_cpu_capacity_fixup_target_write(struct file *file,
+		const char __user *buf, size_t count, loff_t *offs)
+{
+	char temp[TASK_COMM_LEN];
+
+	if (!count || count > ARRAY_SIZE(temp) - 1)
+		return -EINVAL;
+
+	memset(temp, 0, sizeof(temp));
+	if (copy_from_user(temp, buf, count))
+		return -EFAULT;
+
+	if (temp[count - 1] == '\n')
+		temp[count - 1] = '\0';
+
+	strlcpy(cpu_cap_fixup_target, temp, sizeof(cpu_cap_fixup_target));
+
+	return count;
+}
+
+static const struct file_operations proc_cpu_capacity_fixup_target_op = {
+	.open    = proc_cpu_capacity_fixup_target_open,
+	.read    = seq_read,
+	.llseek  = seq_lseek,
+	.write   = proc_cpu_capacity_fixup_target_write,
+	.release = single_release,
+};
+#endif
+
 static ssize_t cpu_capacity_show(struct device *dev,
 				 struct device_attribute *attr,
 				 char *buf)
 {
 	struct cpu *cpu = container_of(dev, struct cpu, dev);
 
-	return sprintf(buf, "%lu\n", topology_get_cpu_scale(cpu->dev.id));
+#if IS_ENABLED(CONFIG_CPU_CAPACITY_FIXUP)
+	if (strncmp(current->comm, cpu_cap_fixup_target,
+			strnlen(current->comm, TASK_COMM_LEN)) == 0) {
+		unsigned long curr, left, right;
+
+		curr = topology_get_cpu_scale(cpu->dev.id);
+		left = topology_get_cpu_scale(0);
+		right = topology_get_cpu_scale(num_possible_cpus() - 1);
+
+		if (curr != left && curr != right)
+			return sysfs_emit(buf, "%lu\n", left > right ? left : right);
+	}
+#endif
+
+	return sysfs_emit(buf, "%lu\n", topology_get_cpu_scale(cpu->dev.id));
 }
 
 static void update_topology_flags_workfn(struct work_struct *work);
@@ -99,6 +162,13 @@ static int register_cpu_capacity_sysctl(void)
 		}
 		device_create_file(cpu, &dev_attr_cpu_capacity);
 	}
+
+#if IS_ENABLED(CONFIG_CPU_CAPACITY_FIXUP)
+	memset(cpu_cap_fixup_target, 0, sizeof(cpu_cap_fixup_target));
+	if (!proc_create("cpu_capacity_fixup_target",
+			0660, NULL, &proc_cpu_capacity_fixup_target_op))
+		pr_err("Failed to register 'cpu_capacity_fixup_target'\n");
+#endif
 
 	return 0;
 }
@@ -167,7 +237,7 @@ bool __init topology_parse_cpu_capacity(struct device_node *cpu_node, int cpu)
 				   &cpu_capacity);
 	if (!ret) {
 		if (!raw_capacity) {
-			raw_capacity = kcalloc(num_possible_cpus(),
+			raw_capacity = kcalloc(cpumask_last(cpu_possible_mask),
 					       sizeof(*raw_capacity),
 					       GFP_KERNEL);
 			if (!raw_capacity) {
@@ -278,6 +348,16 @@ core_initcall(free_raw_capacity);
 #endif
 
 #if defined(CONFIG_ARM64) || defined(CONFIG_RISCV)
+/*
+ * This function returns the logic cpu number of the node.
+ * There are basically three kinds of return values:
+ * (1) logic cpu number which is > 0.
+ * (2) -ENODEV when the device tree(DT) node is valid and found in the DT but
+ * there is no possible logical CPU in the kernel to match. This happens
+ * when CONFIG_NR_CPUS is configure to be smaller than the number of
+ * CPU nodes in DT. We need to just ignore this case.
+ * (3) -1 if the node does not exist in the device tree
+ */
 static int __init get_cpu_for_node(struct device_node *node)
 {
 	struct device_node *cpu_node;
@@ -291,7 +371,8 @@ static int __init get_cpu_for_node(struct device_node *node)
 	if (cpu >= 0)
 		topology_parse_cpu_capacity(cpu_node, cpu);
 	else
-		pr_crit("Unable to find CPU node for %pOF\n", cpu_node);
+		pr_info("CPU node for %pOF exist but the possible cpu range is :%*pbl\n",
+			cpu_node, cpumask_pr_args(cpu_possible_mask));
 
 	of_node_put(cpu_node);
 	return cpu;
@@ -316,9 +397,8 @@ static int __init parse_core(struct device_node *core, int package_id,
 				cpu_topology[cpu].package_id = package_id;
 				cpu_topology[cpu].core_id = core_id;
 				cpu_topology[cpu].thread_id = i;
-			} else {
-				pr_err("%pOF: Can't get CPU for thread\n",
-				       t);
+			} else if (cpu != -ENODEV) {
+				pr_err("%pOF: Can't get CPU for thread\n", t);
 				of_node_put(t);
 				return -EINVAL;
 			}
@@ -337,7 +417,7 @@ static int __init parse_core(struct device_node *core, int package_id,
 
 		cpu_topology[cpu].package_id = package_id;
 		cpu_topology[cpu].core_id = core_id;
-	} else if (leaf) {
+	} else if (leaf && cpu != -ENODEV) {
 		pr_err("%pOF: Can't get CPU for leaf core\n", core);
 		return -EINVAL;
 	}
@@ -487,7 +567,7 @@ void update_siblings_masks(unsigned int cpuid)
 	for_each_online_cpu(cpu) {
 		cpu_topo = &cpu_topology[cpu];
 
-		if (cpuid_topo->llc_id == cpu_topo->llc_id) {
+		if (cpu_topo->llc_id != -1 && cpuid_topo->llc_id == cpu_topo->llc_id) {
 			cpumask_set_cpu(cpu, &cpuid_topo->llc_sibling);
 			cpumask_set_cpu(cpuid, &cpu_topo->llc_sibling);
 		}
@@ -567,5 +647,24 @@ void __init init_cpu_topology(void)
 		reset_cpu_topology();
 	else if (of_have_populated_dt() && parse_dt_topology())
 		reset_cpu_topology();
+}
+
+void store_cpu_topology(unsigned int cpuid)
+{
+	struct cpu_topology *cpuid_topo = &cpu_topology[cpuid];
+
+	if (cpuid_topo->package_id != -1)
+		goto topology_populated;
+
+	cpuid_topo->thread_id = -1;
+	cpuid_topo->core_id = cpuid;
+	cpuid_topo->package_id = cpu_to_node(cpuid);
+
+	pr_debug("CPU%u: package %d core %d thread %d\n",
+		 cpuid, cpuid_topo->package_id, cpuid_topo->core_id,
+		 cpuid_topo->thread_id);
+
+topology_populated:
+	update_siblings_masks(cpuid);
 }
 #endif

@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
-/* Copyright (c) 2015-2021, The Linux Foundation. All rights reserved. */
+/* Copyright (c) 2015-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ */
 
 #include <linux/firmware.h>
 #include <linux/module.h>
@@ -512,64 +514,66 @@ out:
 
 #ifdef CONFIG_SEC_SS_CNSS_FEATURE_SYSFS
 extern int ant_from_macloader;
+void cnss_add_ss_naming_rule(struct cnss_plat_data *plat_priv, 
+				  char *filename)
+{
+	char ant[3];
+#ifdef CONFIG_WLAN_MULTIPLE_SUPPORT_FEM
+	int high = -1;
+
+	high = cnss_get_fem_sel_gpio_status (plat_priv);
+#endif
+
+	cnss_pr_err("ant_from_macloader %d\n",ant_from_macloader);
+	//Add ant configuration from macloader
+	if (ant_from_macloader == 1 || ant_from_macloader == 2 || ant_from_macloader == 10) { // 10: for GTX disabled bdf
+		snprintf(ant, 3, "%d", ant_from_macloader); //convert to string
+		strncat(filename, ant, strlen(ant));
+	}
+	
+#ifdef CONFIG_WLAN_MULTIPLE_SUPPORT_FEM
+	if (high > 0)
+		strncat(filename, ".nxp", 4);
+#endif
+	return;
+}
 #endif /* CONFIG_SEC_SS_CNSS_FEATURE_SYSFS */
+
 static int cnss_get_bdf_file_name(struct cnss_plat_data *plat_priv,
 				  u32 bdf_type, char *filename,
 				  u32 filename_len)
 {
 	char filename_tmp[MAX_FIRMWARE_NAME_LEN];
 	int ret = 0;
-#ifdef CONFIG_WLAN_MULTIPLE_SUPPORT_FEM
-	int high = -1;
 
-	high = cnss_get_fem_sel_gpio_status (plat_priv);
-#endif
-#ifdef CONFIG_SEC_SS_CNSS_FEATURE_SYSFS
-	cnss_pr_err("ant_from_macloader %d\n",ant_from_macloader);
-#endif /* CONFIG_SEC_SS_CNSS_FEATURE_SYSFS */
 	switch (bdf_type) {
 	case CNSS_BDF_ELF:
+		/* Board ID will be equal or less than 0xFF in GF mask case */
 		if (plat_priv->board_info.board_id == 0xFF) {
-#ifdef CONFIG_SEC_SS_CNSS_FEATURE_SYSFS
-			if (ant_from_macloader == 1 || ant_from_macloader == 2 || ant_from_macloader == 10) { // 10: for GTX disabled bdf
-				snprintf(filename_tmp, filename_len, ELF_BDF_FILE_NAME "%d",
-					ant_from_macloader);
-			}
-			else
-				snprintf(filename_tmp, filename_len, ELF_BDF_FILE_NAME);
-#else /* !CONFIG_SEC_SS_CNSS_FEATURE_SYSFS */
-			snprintf(filename_tmp, filename_len, ELF_BDF_FILE_NAME);
-#endif /* CONFIG_SEC_SS_CNSS_FEATURE_SYSFS */
-
-#ifdef CONFIG_WLAN_MULTIPLE_SUPPORT_FEM
-			if (high)
-				strncat(filename_tmp, ".nxp", 4);
-#endif
-		} else if (plat_priv->board_info.board_id < 0xFF) {
-#ifdef CONFIG_SEC_SS_CNSS_FEATURE_SYSFS
-			if (ant_from_macloader == 1 || ant_from_macloader == 2 || ant_from_macloader == 10) { // 10: for GTX disabled bdf
+			if (plat_priv->chip_info.chip_id & CHIP_ID_GF_MASK)
 				snprintf(filename_tmp, filename_len,
-					 ELF_BDF_FILE_NAME_PREFIX "%02x%d",
-					 plat_priv->board_info.board_id, ant_from_macloader);
-			} else
+					 ELF_BDF_FILE_NAME_GF);
+			else
+				snprintf(filename_tmp, filename_len,
+					 ELF_BDF_FILE_NAME);
+		} else if (plat_priv->board_info.board_id < 0xFF) {
+			if (plat_priv->chip_info.chip_id & CHIP_ID_GF_MASK)
+				snprintf(filename_tmp, filename_len,
+					 ELF_BDF_FILE_NAME_GF_PREFIX "%02x",
+					 plat_priv->board_info.board_id);
+			else
 				snprintf(filename_tmp, filename_len,
 					 ELF_BDF_FILE_NAME_PREFIX "%02x",
 					 plat_priv->board_info.board_id);
-#else /* !CONFIG_SEC_SS_CNSS_FEATURE_SYSFS */
-			snprintf(filename_tmp, filename_len,
-				 ELF_BDF_FILE_NAME_PREFIX "%02x",
-				 priv->board_id);
-#endif /* CONFIG_SEC_SS_CNSS_FEATURE_SYSFS */
-#ifdef CONFIG_WLAN_MULTIPLE_SUPPORT_FEM
-			if (high)
-				strncat(filename_tmp, ".nxp", 4);
-#endif
 		} else {
 			snprintf(filename_tmp, filename_len,
 				 BDF_FILE_NAME_PREFIX "%02x.e%02x",
 				 plat_priv->board_info.board_id >> 8 & 0xFF,
 				 plat_priv->board_info.board_id & 0xFF);
 		}
+#ifdef CONFIG_SEC_SS_CNSS_FEATURE_SYSFS
+		cnss_add_ss_naming_rule(plat_priv, filename_tmp);
+#endif /* CONFIG_SEC_SS_CNSS_FEATURE_SYSFS */
 		break;
 	case CNSS_BDF_BIN:
 		if (plat_priv->board_info.board_id == 0xFF) {
@@ -956,7 +960,8 @@ int cnss_wlfw_qdss_data_send_sync(struct cnss_plat_data *plat_priv, char *file_n
 		     resp->total_size == total_size) &&
 		   (resp->seg_id_valid == 1 && resp->seg_id == req->seg_id) &&
 		   (resp->data_valid == 1 &&
-		    resp->data_len <= QMI_WLFW_MAX_DATA_SIZE_V01)) {
+		    resp->data_len <= QMI_WLFW_MAX_DATA_SIZE_V01) &&
+		   resp->data_len <= remaining) {
 			memcpy(p_qdss_trace_data_temp,
 			       resp->data, resp->data_len);
 		} else {
@@ -1982,6 +1987,72 @@ out:
 	return ret;
 }
 
+int cnss_wlfw_send_host_wfc_call_status(struct cnss_plat_data *plat_priv,
+					struct cnss_wfc_cfg cfg)
+{
+	struct wlfw_wfc_call_status_req_msg_v01 *req;
+	struct wlfw_wfc_call_status_resp_msg_v01 *resp;
+	struct qmi_txn txn;
+	int ret = 0;
+
+	if (!test_bit(CNSS_FW_READY, &plat_priv->driver_state)) {
+		cnss_pr_err("Drop host WFC indication as FW not initialized\n");
+		return -EINVAL;
+	}
+	req = kzalloc(sizeof(*req), GFP_KERNEL);
+	if (!req)
+		return -ENOMEM;
+
+	resp = kzalloc(sizeof(*resp), GFP_KERNEL);
+	if (!resp) {
+		kfree(req);
+		return -ENOMEM;
+	}
+
+	req->wfc_call_active_valid = 1;
+	req->wfc_call_active = cfg.mode;
+	cnss_pr_dbg("CNSS->FW: WFC_CALL_REQ: state: 0x%lx\n",
+		    plat_priv->driver_state);
+	ret = qmi_txn_init(&plat_priv->qmi_wlfw, &txn,
+			   wlfw_wfc_call_status_resp_msg_v01_ei, resp);
+	if (ret < 0) {
+		cnss_pr_err("CNSS->FW: WFC_CALL_REQ: QMI Txn Init: Err %d\n",
+			    ret);
+		goto out;
+	}
+
+	cnss_pr_dbg("Send WFC Mode: %d\n", cfg.mode);
+	ret = qmi_send_request(&plat_priv->qmi_wlfw, NULL, &txn,
+			       QMI_WLFW_WFC_CALL_STATUS_REQ_V01,
+			       WLFW_WFC_CALL_STATUS_REQ_MSG_V01_MAX_MSG_LEN,
+			       wlfw_wfc_call_status_req_msg_v01_ei, req);
+	if (ret < 0) {
+		qmi_txn_cancel(&txn);
+		cnss_pr_err("CNSS->FW: WFC_CALL_REQ: QMI Send Err: %d\n",
+			    ret);
+		goto out;
+	}
+
+	ret = qmi_txn_wait(&txn, QMI_WLFW_TIMEOUT_JF);
+	if (ret < 0) {
+		cnss_pr_err("FW->CNSS: WFC_CALL_RSP: QMI Wait Err: %d\n",
+			    ret);
+		goto out;
+	}
+
+	if (resp->resp.result != QMI_RESULT_SUCCESS_V01) {
+		cnss_pr_err("FW->CNSS: WFC_CALL_RSP: Result: %d Err: %d\n",
+			    resp->resp.result, resp->resp.error);
+		ret = -EINVAL;
+		goto out;
+	}
+	ret = 0;
+out:
+	kfree(req);
+	kfree(resp);
+	return ret;
+}
+
 static int cnss_wlfw_wfc_call_status_send_sync
 	(struct cnss_plat_data *plat_priv,
 	 const struct ims_private_service_wfc_call_status_ind_msg_v01 *ind_msg)
@@ -2234,7 +2305,8 @@ static void cnss_wlfw_request_mem_ind_cb(struct qmi_handle *qmi_wlfw,
 			    ind_msg->mem_seg[i].size, ind_msg->mem_seg[i].type);
 		plat_priv->fw_mem[i].type = ind_msg->mem_seg[i].type;
 		plat_priv->fw_mem[i].size = ind_msg->mem_seg[i].size;
-		if (plat_priv->fw_mem[i].type == CNSS_MEM_TYPE_DDR)
+		if (!plat_priv->fw_mem[i].va &&
+		    plat_priv->fw_mem[i].type == CNSS_MEM_TYPE_DDR)
 			plat_priv->fw_mem[i].attrs |=
 				DMA_ATTR_FORCE_CONTIGUOUS;
 	}

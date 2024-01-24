@@ -40,5 +40,6 @@ source "techpack/display/msm/samsung/PBA_BOOTING_DSI1/Kconfig" # ADDED BY LEGO A
 source "techpack/display/msm/samsung/S6E36W3_AMB114EU09/Kconfig" # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
 source "techpack/display/msm/samsung/S6E3HA9_AMF670UH01/Kconfig" # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
 source "techpack/display/msm/samsung/S6E3HAD_AMF670ZA01/Kconfig" # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
+source "techpack/display/msm/samsung/B4_S6E3FAC_AMF670BS01/Kconfig" # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
 source "techpack/display/msm/samsung/S6E36W3_AMB190ZB01/Kconfig" # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
 source "techpack/display/msm/samsung/Kconfig" # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT

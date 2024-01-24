@@ -312,9 +312,10 @@ static int rmnet_data_pm_argos_cb(struct notifier_block *nb,
 	if (cfg->ops->pm_qos)
 		cfg->ops->pm_qos(speed);
 
+	/*
 	if (cfg->ops->boost_rps)
 		cfg->ops->boost_rps(speed);
-	/*
+
 	if (cfg->ops->pnd_chain)
 		cfg->ops->pnd_chain(speed);
 	if (cfg->ops->gro_count)
