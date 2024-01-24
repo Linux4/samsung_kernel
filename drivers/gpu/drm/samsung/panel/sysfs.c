@@ -35,10 +35,6 @@
 #ifdef CONFIG_SUPPORT_POC_SPI
 #include "panel_spi.h"
 #endif
-#ifdef CONFIG_DYNAMIC_MIPI
-#include "./dynamic_mipi/dynamic_mipi.h"
-#endif
-
 #ifdef CONFIG_DISPLAY_USE_INFO
 #include "dpui.h"
 #endif
@@ -1404,19 +1400,7 @@ ssize_t mst_store(struct device *dev, struct device_attribute *attr, const char 
 }
 #endif
 
-#ifdef CONFIG_SUPPORT_GRAM_CHECKSUM
-u8 checksum[4] = { 0x12, 0x34, 0x56, 0x78 };
-static bool gct_chksum_is_valid(struct panel_device *panel)
-{
-	int i;
-	struct panel_info *panel_data = &panel->panel_data;
-
-	for (i = 0; i < 4; i++)
-		if (checksum[i] != panel_data->props.gct_valid_chksum[i])
-			return false;
-	return true;
-}
-
+#if defined(CONFIG_SUPPORT_GRAM_CHECKSUM) || defined(CONFIG_SUPPORT_PANEL_DECODER_TEST)
 static void prepare_gct_mode(struct panel_device *panel)
 {
 	int ret;
@@ -1474,6 +1458,19 @@ static void clear_gct_mode(struct panel_device *panel)
 	panel_dsi_set_bypass(panel, false);
 	panel_dsi_set_commit_retry(panel, false);
 	msleep(20);
+}
+#endif
+#ifdef CONFIG_SUPPORT_GRAM_CHECKSUM
+u8 checksum[4] = { 0x12, 0x34, 0x56, 0x78 };
+static bool gct_chksum_is_valid(struct panel_device *panel)
+{
+	int i;
+	struct panel_info *panel_data = &panel->panel_data;
+
+	for (i = 0; i < 4; i++)
+		if (checksum[i] != panel_data->props.gct_valid_chksum[i])
+			return false;
+	return true;
 }
 
 static ssize_t gct_show(struct device *dev,
@@ -1658,6 +1655,145 @@ out:
 }
 #endif
 
+#ifdef CONFIG_SUPPORT_PANEL_DECODER_TEST
+int decoder_test_result = 0;
+char decoder_test_result_str[32] = { 0, };
+static ssize_t dsc_crc_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	struct panel_info *panel_data;
+	struct panel_device *panel = dev_get_drvdata(dev);
+
+	if (panel == NULL) {
+		panel_err("panel is null\n");
+		return -EINVAL;
+	}
+	panel_data = &panel->panel_data;
+
+	snprintf(buf, PAGE_SIZE, "%d %s\n",
+		decoder_test_result, decoder_test_result_str);
+	panel_info("%s", buf);
+
+	return strlen(buf);
+}
+
+static ssize_t dsc_crc_store(struct device *dev,
+	struct device_attribute *attr, const char *buf, size_t size)
+{
+	int value, rc, ret = 0, i;
+	struct panel_info *panel_data;
+	struct panel_device *panel = dev_get_drvdata(dev);
+
+	if (panel == NULL) {
+		panel_err("panel is null\n");
+		ret = -EINVAL;
+		goto exit;
+	}
+
+	panel_data = &panel->panel_data;
+
+	rc = kstrtouint(buf, 0, &value);
+	if (rc < 0)
+		return rc;
+
+	if (value != DECODER_TEST_ON) {
+		ret = -EINVAL;
+		goto exit;
+	}
+
+	memset(decoder_test_result_str, 0, ARRAY_SIZE(decoder_test_result_str));
+
+	if (!check_panel_decoder_test_exists(panel)) {
+		panel_warn("cannot found dsc_crc test seq. skip\n");
+		decoder_test_result = 0;
+		snprintf(decoder_test_result_str, ARRAY_SIZE(decoder_test_result_str), "0");
+		ret = -EINVAL;
+		goto exit;
+	}
+
+	panel_info("++");
+
+	/* clear checksum buffer */
+	mutex_lock(&panel->io_lock);
+	if (!IS_PANEL_ACTIVE(panel)) {
+		panel_err("panel is not active\n");
+		mutex_unlock(&panel->io_lock);
+		ret = -EAGAIN;
+		goto exit;
+	}
+
+	if (panel->state.cur_state == PANEL_STATE_ALPM) {
+		panel_warn("dsc_crc not supported on LPM\n");
+		mutex_unlock(&panel->io_lock);
+		ret = -EINVAL;
+		goto exit;
+	}
+
+#ifdef CONFIG_EXYNOS_DECON_LCD_COPR
+	copr_disable(&panel->copr);
+#endif
+#if defined(CONFIG_EXYNOS_DECON_MDNIE_LITE)
+	mdnie_disable(&panel->mdnie);
+
+	mutex_lock(&panel->mdnie.lock);
+#endif
+	mutex_lock(&panel->op_lock);
+	prepare_gct_mode(panel);
+
+#if defined(CONFIG_EXYNOS_DECON_MDNIE_LITE)
+#ifdef CONFIG_SUPPORT_AFC
+	if (panel->mdnie.props.afc_on &&
+			panel->mdnie.nr_seqtbl > MDNIE_AFC_OFF_SEQ) {
+		panel_info("afc off\n");
+		ret = panel_do_seqtbl(panel, &panel->mdnie.seqtbl[MDNIE_AFC_OFF_SEQ]);
+		if (unlikely(ret < 0))
+			panel_err("failed to write afc off seqtbl\n");
+	}
+#endif
+#endif
+
+	decoder_test_result = panel_decoder_test(panel, decoder_test_result_str, ARRAY_SIZE(decoder_test_result_str));
+	panel_info("-- chksum %s %s\n",
+			(decoder_test_result > 0) ? "ok" : "nok", decoder_test_result_str);
+
+	clear_gct_mode(panel);
+	mutex_unlock(&panel->op_lock);
+#if defined(CONFIG_EXYNOS_DECON_MDNIE_LITE)
+	mutex_unlock(&panel->mdnie.lock);
+#endif
+	mutex_unlock(&panel->io_lock);
+
+	if (panel_data->ddi_props.support_avoid_sandstorm) {
+		panel_info("display on\n");
+		ret = panel_display_on(panel);
+		if (ret < 0)
+			panel_err("failed to display on\n");
+	} else {
+		panel_info("wait display on\n");
+		for (i = 0; i < 20; i++) {
+			if (panel->state.disp_on == PANEL_DISPLAY_ON)
+				break;
+			msleep(50);
+		}
+
+		if (i == 20) {
+			panel_info("display on\n");
+			ret = panel_display_on(panel);
+			if (ret < 0)
+				panel_err("failed to display on\n");
+		}
+	}
+
+	if (decoder_test_result < 0) {
+		panel_info("ret %d\n", decoder_test_result);
+		panel_dsi_print_dpu_event_log(panel);
+	}
+exit:
+	if (ret < 0)
+		return ret;
+	return size;
+}
+#endif
 #ifdef CONFIG_SUPPORT_XTALK_MODE
 static ssize_t xtalk_mode_show(struct device *dev,
 	struct device_attribute *attr, char *buf)
@@ -3274,10 +3410,12 @@ static ssize_t ccd_state_show(struct device *dev,
 	enum {
 		CCD_CHKSUM_PASS,
 		CCD_CHKSUM_FAIL,
+		CCD_CHKSUM_PASS_LIST
 	};
 	static const char * const ccd_resource_name[] = {
 		[CCD_CHKSUM_PASS] = "ccd_chksum_pass",
 		[CCD_CHKSUM_FAIL] = "ccd_chksum_fail",
+		[CCD_CHKSUM_PASS_LIST] = "ccd_chksum_pass_list",
 	};
 	u8 ccd_state[CCD_STATE_SIZE] = { 0x12, 0x34, 0x56, 0x78 };
 	u8 ccd_compare[CCD_STATE_SIZE] = { 0x87, 0x65, 0x43, 0x21 };
@@ -3312,27 +3450,48 @@ static ssize_t ccd_state_show(struct device *dev,
 		return ret;
 	}
 
-	for (ires = 0; ires < ARRAY_SIZE(ccd_resource_name); ires++)
+	for (ires = 0; ires < ARRAY_SIZE(ccd_resource_name); ires++) {
 		info = find_panel_resource(panel_data, (char *)ccd_resource_name[ires]);
+		if (info) {
+			panel_info("find ccd compare resource.(%s)\n", (char *)ccd_resource_name[ires]);
+			break;
+		}
+	}
 
 	if (ires != ARRAY_SIZE(ccd_resource_name)) {
-		if (info->dlen != ccd_size) {
-			panel_err("%s: size mismatch %d %d\n",
-					ccd_resource_name[ires], info->dlen, ccd_size);
-			return -EINVAL;
-		}
-		if (rescpy(ccd_compare, info, 0, ccd_size) < 0)
-			return -EINVAL;
+		if (ires < CCD_CHKSUM_PASS_LIST) {
+			if (info->dlen != ccd_size) {
+				panel_err("%s: size mismatch %d %d\n",
+						ccd_resource_name[ires], info->dlen, ccd_size);
+				return -EINVAL;
+			}
+			if (rescpy(ccd_compare, info, 0, ccd_size) < 0)
+				return -EINVAL;
 
-		if (ires == CCD_CHKSUM_PASS) {
-			retVal = memcmp(ccd_state, ccd_compare, ccd_size) == 0 ? 1 : 0;
-			panel_info("p_comp %s\n", (retVal == 1) ? "Pass" : "Fail");
-		} else {
-			retVal = memcmp(ccd_state, ccd_compare, ccd_size) == 0 ? 0 : 1;
-			panel_info("f_comp %s\n", (retVal == 1) ? "Pass" : "Fail");
+			if (ires == CCD_CHKSUM_PASS) {
+				retVal = memcmp(ccd_state, ccd_compare, ccd_size) == 0 ? 1 : 0;
+				panel_info("p_comp %s\n", (retVal == 1) ? "Pass" : "Fail");
+			} else {
+				retVal = memcmp(ccd_state, ccd_compare, ccd_size) == 0 ? 0 : 1;
+				panel_info("f_comp %s\n", (retVal == 1) ? "Pass" : "Fail");
+			}
+			for (i = 0; i < ccd_size; i++)
+				panel_info("[%d] 0x%02x 0x%02x\n", i, ccd_state[i], ccd_compare[i]);
+		} else if (ires == CCD_CHKSUM_PASS_LIST) {
+			retVal = 0;
+
+			if (rescpy(ccd_compare, info, 0, info->dlen) < 0)
+				return -EINVAL;
+
+			for (i = 0 ; i < info->dlen; i++) {
+				panel_info("p_list_comp read:0x%02x pass:0x%02x\n",
+					ccd_state[0], ccd_compare[i]);
+				if (ccd_state[0] == ccd_compare[i])
+					retVal = 1;
+			}
+			panel_info("p_list_comp %s\n", (retVal == 1) ? "Pass" : "Fail");
 		}
-		for (i = 0; i < ccd_size; i++)
-			panel_info("[%d] 0x%02x 0x%02x\n", i, ccd_state[i], ccd_compare[i]);
+
 	} else {
 		/* support previous panel, compare with first 1byte: 0x00(pass) */
 		retVal = (ccd_state[0] == 0x00) ? 1 : 0;
@@ -3399,62 +3558,6 @@ static ssize_t dynamic_hlpm_store(struct device *dev,
 	}
 	panel_info("dynamic hlpm %s\n",
 			panel_data->props.dynamic_hlpm ? "on" : "off");
-
-	return size;
-}
-#endif
-
-#ifdef CONFIG_DYNAMIC_MIPI
-static ssize_t dynamic_mipi_show(struct device *dev,
-	struct device_attribute *attr, char *buf)
-{
-	struct panel_device *panel = dev_get_drvdata(dev);
-	struct dm_status_info *dm_status;
-
-	if (panel == NULL) {
-		panel_err("panel is null\n");
-		return -EINVAL;
-	}
-
-	dm_status = &panel->dynamic_mipi.dm_status;
-
-	snprintf(buf, PAGE_SIZE, "req: %d cur: %d, req_osc: %d, cur_osc: %d\n",
-		dm_status->request_df, dm_status->current_df,
-		dm_status->request_ddi_osc, dm_status->current_ddi_osc);
-
-	return strlen(buf);
-}
-
-static ssize_t dynamic_mipi_store(struct device *dev,
-	struct device_attribute *attr, const char *buf, size_t size)
-{
-	int osc;
-	int value, rc;
-	struct panel_device *panel = dev_get_drvdata(dev);
-	struct dm_status_info *dm_status;
-
-	if (panel == NULL) {
-		panel_err("panel is null\n");
-		return -EINVAL;
-	}
-	dm_status = &panel->dynamic_mipi.dm_status;
-
-	rc = kstrtouint(buf, 0, &value);
-	if (rc < 0)
-		return rc;
-
-	if (value < 0) {
-		panel_err("value is negative : %d\n", value);
-		return -EINVAL;
-	}
-
-	osc = (value & 0x4) >> 2;
-	value = value & 0x3;
-
-	panel_info("osc: %d, value: %d\n", osc, value);
-	dm_status->request_ddi_osc = osc;
-
-	update_dynamic_mipi(panel, value);
 
 	return size;
 }
@@ -4113,6 +4216,63 @@ static ssize_t actual_mask_brightness_show(struct device *dev,
 	return strlen(buf);
 }
 #endif
+
+#define DISP_TE_POLL_SLEEP_USEC (10UL)
+#define DISP_TE_POLL_TIMEOUT_USEC (400 * 1000UL)
+static ssize_t te_check_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	struct panel_device *panel = dev_get_drvdata(dev);
+	int ret;
+
+	if (panel == NULL) {
+		panel_err("panel is null\n");
+		return -EINVAL;
+	}
+
+	/* expected gpio level : high */
+	ret = panel_poll_gpio(panel, PANEL_GPIO_DISP_TE, 1,
+			DISP_TE_POLL_SLEEP_USEC, DISP_TE_POLL_TIMEOUT_USEC);
+	if (ret == -EINVAL) {
+		panel_err("gpio('disp-te') is not supported\n");
+		return -EINVAL;
+	}
+
+	if (ret == -ETIMEDOUT)
+		panel_info("polling gpio('disp-te') timeout\n");
+
+	return sprintf(buf, "%d\n", (ret == 0) ? 1 : 0);
+}
+
+#ifdef CONFIG_SUPPORT_PANEL_VCOM_TRIM_TEST
+static ssize_t vcom_trim_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	struct panel_device *panel = dev_get_drvdata(dev);
+	char result[SZ_32] = { 0, };
+	int ret;
+
+	if (panel == NULL) {
+		panel_err("panel is null\n");
+		return -EINVAL;
+	}
+
+	ret = panel_vcom_trim_test(panel, result, SZ_32);
+	panel_info("ret %d\n", ret);
+
+	if (ret == -ENOENT) {
+		ret = PANEL_VCOM_TRIM_TEST_PASS;
+	}
+
+	if (ret == PANEL_VCOM_TRIM_TEST_PASS) {
+		snprintf(buf, PAGE_SIZE, "%d\n", ret);
+	} else {
+		snprintf(buf, PAGE_SIZE, "%d %s\n", ret, result);
+	}
+	return strlen(buf);
+}
+#endif
+
 struct device_attribute panel_attrs[] = {
 	__PANEL_ATTR_RO(lcd_type, 0444),
 	__PANEL_ATTR_RO(window_type, 0444),
@@ -4143,6 +4303,9 @@ struct device_attribute panel_attrs[] = {
 #endif
 #ifdef CONFIG_SUPPORT_GRAM_CHECKSUM
 	__PANEL_ATTR_RW(gct, 0664),
+#endif
+#ifdef CONFIG_SUPPORT_PANEL_DECODER_TEST
+	__PANEL_ATTR_RW(dsc_crc, 0664),
 #endif
 #ifdef CONFIG_SUPPORT_GRAYSPOT_TEST
 	__PANEL_ATTR_RW(grayspot, 0664),
@@ -4208,9 +4371,6 @@ struct device_attribute panel_attrs[] = {
 #ifdef CONFIG_SUPPORT_DYNAMIC_HLPM
 	__PANEL_ATTR_RW(dynamic_hlpm, 0664),
 #endif
-#ifdef CONFIG_DYNAMIC_MIPI
-	__PANEL_ATTR_RW(dynamic_mipi, 0664),
-#endif
 #ifdef CONFIG_SUPPORT_POC_SPI
 	__PANEL_ATTR_RW(spi_flash_ctrl, 0660),
 #endif
@@ -4237,6 +4397,10 @@ struct device_attribute panel_attrs[] = {
 #ifdef CONFIG_SUPPORT_BRIGHTDOT_TEST
 	__PANEL_ATTR_RW(brightdot, 0664),
 #endif
+#ifdef CONFIG_SUPPORT_PANEL_VCOM_TRIM_TEST
+	__PANEL_ATTR_RO(vcom_trim, 0440),
+#endif
+	__PANEL_ATTR_RO(te_check, 0440),
 };
 
 static int attr_find_and_store(struct device *dev, void *data)

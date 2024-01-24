@@ -46,6 +46,7 @@
 #define MFC_DEC_DEFAULT_CORE	0
 #define MFC_ENC_DEFAULT_CORE	0
 #define MFC_SURPLUS_CORE	1
+#define MFC_MAX_CORE_BALANCE	99
 
 /* Interrupt timeout */
 #define MFC_INT_TIMEOUT		4000

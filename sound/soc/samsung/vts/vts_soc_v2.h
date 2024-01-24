@@ -148,7 +148,7 @@
 #define LOG_BUFFER_BYTES_MAX	   (0x2000)
 #define VTS_SRAMLOG_MSGS_OFFSET	   (0x00190000)
 #define VTS_SRAMLOG_SIZE_MAX	   (SZ_2K)  /* SZ_2K : 0x800 */
-#define VTS_SRAM_TIMELOG_SIZE_MAX  (0)
+#define VTS_SRAM_TIMELOG_SIZE_MAX  (SZ_1K)
 #define VTS_SRAM_EVENTLOG_SIZE_MAX (VTS_SRAMLOG_SIZE_MAX - VTS_SRAM_TIMELOG_SIZE_MAX)  /* SZ_2K : 0x800 */
 
 /* VTS firmware version information offset */
@@ -178,5 +178,7 @@
 
 #define VTS_ERR_HARD_FAULT	(0x1)
 #define VTS_ERR_BUS_FAULT	(0x3)
+
+#define VTS_ITMON_NAME "CHUBVTS(VTS:YAMIN)" /* refer to bootloader/platform/s5e9925/debug/itmon.c */
 
 #endif /* __SND_SOC_VTS_DEP_SOC_V2_H */

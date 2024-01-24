@@ -199,6 +199,11 @@ struct bond_up_slave {
  */
 #define BOND_LINK_NOCHANGE -1
 
+struct bond_ipsec {
+	struct list_head list;
+	struct xfrm_state *xs;
+};
+
 /*
  * Here are the locking policies for the two bonding locks:
  * Get rcu_read_lock when reading or RTNL when writing slave list.
@@ -247,7 +252,9 @@ struct bonding {
 #endif /* CONFIG_DEBUG_FS */
 	struct rtnl_link_stats64 bond_stats;
 #ifdef CONFIG_XFRM_OFFLOAD
-	struct xfrm_state *xs;
+	struct list_head ipsec_list;
+	/* protecting ipsec_list */
+	spinlock_t ipsec_lock;
 #endif /* CONFIG_XFRM_OFFLOAD */
 };
 
@@ -755,6 +762,9 @@ extern struct rtnl_link_ops bond_link_ops;
 
 /* exported from bond_sysfs_slave.c */
 extern const struct sysfs_ops slave_sysfs_ops;
+
+/* exported from bond_3ad.c */
+extern const u8 lacpdu_mcast_addr[];
 
 static inline netdev_tx_t bond_tx_drop(struct net_device *dev, struct sk_buff *skb)
 {

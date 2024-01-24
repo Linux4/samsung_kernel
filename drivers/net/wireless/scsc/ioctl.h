@@ -9,6 +9,7 @@
 
 #include <linux/if.h>
 #include <linux/netdevice.h>
+#include "log2us.h"
 
 struct android_wifi_priv_cmd {
 	char *buf;

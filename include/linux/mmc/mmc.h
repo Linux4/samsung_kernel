@@ -445,8 +445,17 @@ static inline bool mmc_ready_for_data(u32 status)
 #define MMC_SECURE_TRIM1_ARG		0x80000001
 #define MMC_SECURE_TRIM2_ARG		0x80008000
 #define MMC_SECURE_ARGS			0x80000000
-#define MMC_TRIM_ARGS			0x00008001
+#define MMC_TRIM_OR_DISCARD_ARGS	0x00008003
 
 #define mmc_driver_type_mask(n)		(1 << (n))
+
+struct mmc_card;
+
+extern int mmc_select_bus_width(struct mmc_card *card);
+extern int mmc_select_hs(struct mmc_card *card);
+extern int mmc_select_hs_ddr(struct mmc_card *card);
+extern int mmc_select_hs400(struct mmc_card *card);
+extern int mmc_hs200_tuning(struct mmc_card *card);
+extern int mmc_select_timing(struct mmc_card *card);
 
 #endif /* LINUX_MMC_MMC_H */

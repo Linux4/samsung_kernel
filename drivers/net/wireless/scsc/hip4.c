@@ -18,6 +18,7 @@
 #include <linux/bitmap.h>
 #endif
 
+#include "mgt.h"
 #include "hip4.h"
 #include "mbulk.h"
 #include "dev.h"
@@ -1574,8 +1575,10 @@ static int hip4_napi_poll(struct napi_struct *napi, int budget)
 		}
 
 		if (m->flag & MBULK_F_WAKEUP) {
-			SLSI_INFO(sdev, "WIFI wakeup by DATA frame:\n");
+			SLSI_INFO(sdev, "WIFI wakeup by DATA frame vif:%d, pid:%d, sigid:0x%x\n",
+				  fapi_get_vif(skb), fapi_get_u16(skb, receiver_pid), fapi_get_sigid(skb));
 			slsi_skb_cb_get(skb)->wakeup = true;
+			slsi_dump_eth_packet(sdev, skb);
 		}
 
 #ifdef CONFIG_SCSC_WLAN_DEBUG

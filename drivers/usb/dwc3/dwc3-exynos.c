@@ -879,6 +879,27 @@ int dwc3_exynos_vbus_event(struct device *dev, bool vbus_active)
 }
 EXPORT_SYMBOL_GPL(dwc3_exynos_vbus_event);
 
+int dwc3_gadget_speed(struct device *dev)
+{
+	struct dwc3_exynos	*exynos;
+	struct usb_gadget	*gadget;
+
+	exynos = dev_get_drvdata(dev);
+	if (!exynos) {
+		dev_err(dev, "%s: exynos is NULL!!\n", __func__);
+		return 0;
+	}
+
+	gadget = exynos->dwc->gadget;
+	if (!gadget) {
+		dev_err(dev, "%s: gadget is NULL!!\n", __func__);
+		return 0;
+	}
+
+	return gadget->speed;
+}
+EXPORT_SYMBOL(dwc3_gadget_speed);
+
 /**
  * dwc3_exynos_phy_enable - received combo phy control.
  */
@@ -1621,7 +1642,6 @@ static int dwc3_exynos_runtime_suspend(struct device *dev)
 {
 	struct dwc3_exynos *exynos = dev_get_drvdata(dev);
 	struct dwc3 *dwc;
-	unsigned long flags;
 
 	dev_info(dev, "%s\n", __func__);
 
@@ -1629,7 +1649,6 @@ static int dwc3_exynos_runtime_suspend(struct device *dev)
 		return 0;
 
 	dwc = exynos->dwc;
-	spin_lock_irqsave(&dwc->lock, flags);
 	if (pm_runtime_suspended(dev)) {
 		dev_info(dev, "%s, already suspended\n", __func__);
 		return 0;
@@ -1644,7 +1663,6 @@ static int dwc3_exynos_runtime_suspend(struct device *dev)
 	 * dwc3_suspend/resume in core.c
 	 */
 	exynos->dwc->current_dr_role = DWC3_EXYNOS_IGNORE_CORE_OPS;
-	spin_unlock_irqrestore(&dwc->lock, flags);
 
 	return 0;
 }

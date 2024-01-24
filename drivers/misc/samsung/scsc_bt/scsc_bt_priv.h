@@ -293,8 +293,11 @@ extern struct scsc_common_service common_service;
 
 #ifdef CONFIG_SCSC_QOS
 struct scsc_qos_service {
-	struct work_struct             work_queue;
+	struct work_struct             update_work;
+	struct delayed_work            disable_work;
 	bool                           enabled;
+	bool                           disabling;
+	enum scsc_qos_config           pending_state;
 	enum scsc_qos_config           current_state;
 	uint32_t                       hci_events_stats[BSMHCP_TRANSFER_RING_EVT_SIZE];
 	uint32_t                       acl_packet_stats[BSMHCP_TRANSFER_RING_ACL_SIZE];
@@ -355,6 +358,7 @@ struct scsc_bt_service {
 	struct scsc_bt_connection_info connection_handle_list[SCSC_BT_CONNECTION_INFO_MAX];
 	bool                           hci_event_paused;
 	bool                           data_paused; /* ACL or ISO */
+	uint16_t                       data_paused_conn_hdl; /* ACL or ISO */
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 4, 0))
 	struct scsc_wake_lock	       read_wake_lock;
         struct scsc_wake_lock	       write_wake_lock;

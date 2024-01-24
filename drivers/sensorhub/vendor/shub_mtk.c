@@ -22,6 +22,7 @@
 
 #include <linux/delay.h>
 #include <linux/notifier.h>
+#include <linux/version.h>
 
 #define IPI_SHUB	    IPI_SENSOR
 #define IPI_DMA_LEN 8
@@ -32,8 +33,9 @@ static uint8_t scp_system_ready;
 static phys_addr_t shub_dram_phys;
 static phys_addr_t shub_dram_virt;
 static phys_addr_t shub_dram_size;
-
+#if !defined(CONFIG_MTK_TINYSYS_SCP_RV_SUPPORT) && (LINUX_VERSION_CODE <= KERNEL_VERSION(5, 0, 0))
 void scp_wdt_reset(enum scp_core_id cpu_id);
+#endif
 
 static void sensorhub_IPI_handler(int id, void *packet, unsigned int len)
 {
@@ -66,6 +68,7 @@ static int notify_scp_state(struct notifier_block *this, unsigned long event, vo
 		spin_lock_irqsave(&scp_state_lock, flags);
 		WRITE_ONCE(scp_system_ready, false);
 		spin_unlock_irqrestore(&scp_state_lock, flags);
+		sensorhub_stop();
 	}
 
 	if (event == SCP_EVENT_READY) { // 0
@@ -82,11 +85,51 @@ static struct notifier_block scp_state_notifier = {
 	.notifier_call = notify_scp_state,
 };
 
+void shub_dump_write_file(void *dump_data, int dump_size)
+{
+	struct shub_data_t *data = get_shub_data();
+	int dump_type;
+
+	if (!data) {
+		shub_infof("shub is not probed yet !");
+		return;
+	}
+
+	if (data->reset_type < RESET_TYPE_MAX)
+		dump_type = DUMP_TYPE_BASE + data->reset_type;
+	else {
+		shub_errf("hub crash");
+		dump_type = 1;
+		data->hub_crash_timestamp = get_current_timestamp();
+	}
+
+	write_shub_dump_file((char *)dump_data, dump_size, dump_type, 4);
+}
+
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 19, 0))
+static int shub_dump_notifier(struct notifier_block *nb, unsigned long val, void *data)
+{
+	struct shub_data_t *shub_data = get_shub_data();
+	struct shub_dump *dump_data = (struct shub_dump *)data;
+
+	shub_infof("ram_dump : %x mini_dump : %x", dump_data->dump, dump_data->mini_dump);
+	shub_dump_write_file(dump_data->dump, dump_data->size);
+	memcpy(shub_data->mini_dump, dump_data->mini_dump, MINI_DUMP_LENGTH);
+	return 0;
+}
+
+struct notifier_block shub_dump_nb = {
+	.notifier_call = shub_dump_notifier,
+};
+#endif
+
 int sensorhub_probe(void)
 {
 	scp_ipi_registration(IPI_SHUB, sensorhub_IPI_handler, "shub_sensorhub");
 	scp_A_register_notify(&scp_state_notifier);
-
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 19, 0))
+	shub_dump_notifier_register(&shub_dump_nb);
+#endif
 	return 0;
 }
 
@@ -109,8 +152,8 @@ int sensorhub_refresh_func(void)
 	dram_info[1] = shub_dram_size;
 
 	shub_infof("dma address phys 0x%llx virt 0x%llx size 0x%llx", shub_dram_phys, shub_dram_virt, shub_dram_size);
-	// ret = shub_send_command(CMD_SETVALUE, TYPE_MCU, DMA_ADDRESS, (char *)&shub_dram_phys, sizeof(shub_dram_phys));
-	ret = shub_send_command(CMD_SETVALUE, TYPE_MCU, DMA_ADDRESS, (char *)dram_info, sizeof(dram_info));
+	// ret = shub_send_command(CMD_SETVALUE, TYPE_HUB, DMA_ADDRESS, (char *)&shub_dram_phys, sizeof(shub_dram_phys));
+	ret = shub_send_command(CMD_SETVALUE, TYPE_HUB, DMA_ADDRESS, (char *)dram_info, sizeof(dram_info));
 
 	if (ret < 0)
 		shub_errf("DMA_ADDRESS CMD fail %d", ret);
@@ -160,24 +203,6 @@ void sensorhub_fs_ready(void)
 
 void sensorhub_save_ram_dump(void)
 {
-}
-
-void shub_dump_write_file(void *dump_data, int dump_size)
-{
-	struct shub_data_t *data = get_shub_data();
-	int dump_type;
-
-	if (!data) {
-		shub_infof("shub is not probed yet !");
-		return;
-	}
-
-	if (data->reset_type < RESET_TYPE_MAX)
-		dump_type = DUMP_TYPE_BASE + data->reset_type;
-	else
-		dump_type = 1;
-
-	write_shub_dump_file((char *)dump_data, dump_size, dump_type, 4);
 }
 
 int sensorhub_get_dump_size(void)

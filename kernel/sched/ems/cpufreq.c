@@ -11,21 +11,37 @@
 #include "../sched.h"
 #include "ems.h"
 
-static int (*fn_get_next_cap)(struct tp_env *env, struct cpumask *cpus, int dst_cpu, bool clamp);
+static struct cpufreq_hook_data __percpu *cpufreq_hook_data;
 
 /* register call back when cpufreq governor initialized */
-void cpufreq_register_hook(int (*func_get_next_cap)(struct tp_env *env,
-				struct cpumask *cpus, int dst_cpu, bool clamp))
+void cpufreq_register_hook(int cpu, int (*func_get_next_cap)(struct tp_env *env,
+				struct cpumask *cpus, int dst_cpu),
+				int (*func_need_slack_timer)(void))
 {
-	fn_get_next_cap = func_get_next_cap;
+	struct cpufreq_hook_data *data = per_cpu_ptr(cpufreq_hook_data, cpu);
+
+	if (!data)
+		return;
+
+	data->func_get_next_cap = func_get_next_cap;
+	data->func_need_slack_timer = func_need_slack_timer;
 }
 
 /* unregister call back when cpufreq governor initialized */
-void cpufreq_unregister_hook(void)
+void cpufreq_unregister_hook(int cpu)
 {
-	fn_get_next_cap = NULL;
+	struct cpufreq_hook_data *data = per_cpu_ptr(cpufreq_hook_data, cpu);
+
+	if (!data)
+		return;
+
+	data->func_get_next_cap = NULL;
+	data->func_need_slack_timer = NULL;
 }
 
+/******************************************************************************
+ *                           Next capacity callback                           *
+ ******************************************************************************/
 /*
  * default next capacity for cpu selection
  * it computs next capacity without governor specificaions
@@ -58,15 +74,81 @@ static int default_get_next_cap(struct tp_env *env,
 }
 
 /* return next cap */
-int cpufreq_get_next_cap(struct tp_env *env, struct cpumask *cpus, int dst_cpu, bool clamp)
+int cpufreq_get_next_cap(struct tp_env *env,
+			struct cpumask *cpus, int dst_cpu)
 {
-	if (likely(fn_get_next_cap)) {
-		int cap = fn_get_next_cap(env, cpus, dst_cpu, clamp);
+	struct cpufreq_hook_data *data = per_cpu_ptr(cpufreq_hook_data,
+						cpumask_any(cpus));
+
+	if (data && data->func_get_next_cap) {
+		int cap = data->func_get_next_cap(env, cpus, dst_cpu);
+
 		if (cap > 0)
 			return cap;
 	}
 
 	return default_get_next_cap(env, cpus, dst_cpu);
+}
+
+/******************************************************************************
+ *                                Slack timer                                 *
+ ******************************************************************************/
+static struct timer_list __percpu *slack_timer;
+
+static void slack_timer_add(struct timer_list *timer, int cpu)
+{
+	struct cpufreq_hook_data *data = per_cpu_ptr(cpufreq_hook_data, cpu);
+
+	if (!data || !data->func_need_slack_timer)
+		return;
+
+	if (data->func_need_slack_timer()) {
+		/* slack expired time = 20ms */
+		timer->expires = jiffies + msecs_to_jiffies(20);
+		add_timer_on(timer, cpu);
+	}
+}
+
+void slack_timer_cpufreq(int cpu, bool idle_start, bool idle_end)
+{
+	struct timer_list *timer = per_cpu_ptr(slack_timer, cpu);
+
+	if (idle_start == idle_end)
+		return;
+
+	if (timer_pending(timer))
+		del_timer_sync(timer);
+
+	if (idle_start)
+		slack_timer_add(timer, cpu);
+}
+
+static void slack_timer_func(struct timer_list *timer)
+{
+	int this_cpu = smp_processor_id();
+
+	/*
+	 * The purpose of slack-timer is to wake up the CPU from IDLE, in order
+	 * to decrease its frequency if it is not set to minimum already.
+	 *
+	 * This is important for platforms where CPU with higher frequencies
+	 * consume higher power even at IDLE.
+	 */
+	trace_slack_timer(this_cpu);
+
+	/* If slack timer is still needed, add slack timer again */
+	slack_timer_add(timer, this_cpu);
+}
+
+static void slack_timer_init(void)
+{
+	int cpu;
+
+	slack_timer = alloc_percpu(struct timer_list);
+
+	for_each_cpu(cpu, cpu_possible_mask)
+		timer_setup(per_cpu_ptr(slack_timer, cpu),
+				slack_timer_func, TIMER_PINNED);
 }
 
 /******************************************************************************
@@ -248,7 +330,7 @@ static struct notifier_block fclamp_sysbusy_notifier = {
 	.notifier_call = fclamp_sysbusy_notifier_call,
 };
 
-int fclamp_init(void)
+static int fclamp_init(void)
 {
 	int cpu;
 
@@ -286,6 +368,20 @@ int fclamp_init(void)
 
 	emstune_register_notifier(&fclamp_emstune_notifier);
 	sysbusy_register_notifier(&fclamp_sysbusy_notifier);
+
+	return 0;
+}
+
+int cpufreq_init(void)
+{
+	cpufreq_hook_data = alloc_percpu(struct cpufreq_hook_data);
+	if (!cpufreq_hook_data) {
+		pr_err("Failed to allocate cpufreq_hook_data\n");
+		return -ENOMEM;
+	}
+
+	slack_timer_init();
+	fclamp_init();
 
 	return 0;
 }

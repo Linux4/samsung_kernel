@@ -28,10 +28,6 @@ int fscrypt_sdp_check_rmdir(struct dentry *dentry);
 
 #define FSCRYPT_EVT_RENAME_TO_CHAMBER      1
 #define FSCRYPT_EVT_RENAME_OUT_OF_CHAMBER  2
-#define FSCRYPT_IS_SENSITIVE_DENTRY(dentry) (dentry->d_inode->i_crypt_info->ci_sdp_info && (dentry->d_inode->i_crypt_info->ci_sdp_info->sdp_flags & SDP_DEK_IS_SENSITIVE))
-#define FSCRYPT_IS_CHAMBER_DENTRY(dentry) (dentry->d_inode->i_crypt_info->ci_sdp_info && (dentry->d_inode->i_crypt_info->ci_sdp_info->sdp_flags & SDP_IS_CHAMBER_DIR))
-#define FSCRYPT_IS_SENSITIVE_INODE(inode) (inode->i_crypt_info->ci_sdp_info && (inode->i_crypt_info->ci_sdp_info->sdp_flags & SDP_DEK_IS_SENSITIVE))
-#define FSCRYPT_IS_CHAMBER_INODE(inode) (inode->i_crypt_info->ci_sdp_info && (inode->i_crypt_info->ci_sdp_info->sdp_flags & SDP_IS_CHAMBER_DIR))
 
 #define FSCRYPT_STORAGE_TYPE_DATA_CE				-2
 #define FSCRYPT_STORAGE_TYPE_MEDIA_CE				-3

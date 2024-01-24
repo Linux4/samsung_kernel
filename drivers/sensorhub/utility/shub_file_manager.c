@@ -29,6 +29,7 @@
 enum {
 	FM_READ = 0,
 	FM_WRITE,
+	FM_REMOVE,
 	FM_READY,
 };
 
@@ -161,7 +162,23 @@ int shub_file_read(char *path, char *buf, int buf_len, long long pos)
 	mutex_lock(&fm_mutex);
 	fm_msg.tx_buf_size = snprintf(fm_msg.tx_buf, sizeof(fm_msg.tx_buf), "%s,%d,%lld", path, buf_len, pos);
 	ret = _shub_file_rw(FM_READ, true);
-	memcpy(buf, fm_msg.rx_buf, buf_len);
+	if (ret > 0)
+		memcpy(buf, fm_msg.rx_buf, buf_len);
+	mutex_unlock(&fm_mutex);
+
+	return ret;
+}
+
+int shub_file_remove(char *path)
+{
+	int ret;
+
+	if (!is_fm_ready)
+		return -ENODEV;
+
+	mutex_lock(&fm_mutex);
+	fm_msg.tx_buf_size = snprintf(fm_msg.tx_buf, sizeof(fm_msg.tx_buf), "%s", path);
+	ret = _shub_file_rw(FM_REMOVE, true);
 	mutex_unlock(&fm_mutex);
 
 	return ret;
@@ -181,7 +198,7 @@ ssize_t shub_file_show(struct device *dev, struct device_attribute *attr, char *
 ssize_t shub_file_store(struct device *dev, struct device_attribute *attr, const char *buf, size_t size)
 {
 	if (size < 1) {
-		shub_errf("error %d", size);
+		shub_errf("error %d", (int)size);
 		return -EINVAL;
 	}
 
@@ -191,13 +208,14 @@ ssize_t shub_file_store(struct device *dev, struct device_attribute *attr, const
 
 	} else {
 		if (size < 5) {
-			shub_errf("error %d", size);
+			shub_errf("error %d", (int)size);
 			return -EINVAL;
 		}
 
 		memset(fm_msg.tx_buf, 0, fm_msg.tx_buf_size);
 		fm_msg.tx_buf_size = 0;
 
+		memset(fm_msg.rx_buf, 0, PAGE_SIZE);
 		memcpy(&fm_msg.result, &buf[1], sizeof(int32_t));
 		if (buf[0] == FM_READ && fm_msg.result > 0) {
 			fm_msg.rx_buf_size = fm_msg.result;

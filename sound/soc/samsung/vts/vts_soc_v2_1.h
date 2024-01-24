@@ -147,9 +147,9 @@
 /* DRAM for copying VTS firmware logs */
 #define LOG_BUFFER_BYTES_MAX	   (0x2000)
 #define VTS_SRAMLOG_MSGS_OFFSET	   (0x00046000)
-#define VTS_SRAMLOG_SIZE_MAX	   (SZ_4K)  /* SZ_4K : 0x1000 */
-#define VTS_SRAM_TIMELOG_SIZE_MAX  (SZ_1K)  /* SZ_1K : 0x400 */
-#define VTS_SRAM_EVENTLOG_SIZE_MAX (VTS_SRAMLOG_SIZE_MAX - VTS_SRAM_TIMELOG_SIZE_MAX)  /* SZ_3K : 0xC00 */
+#define VTS_SRAMLOG_SIZE_MAX	   (SZ_2K)
+#define VTS_SRAM_TIMELOG_SIZE_MAX  (SZ_1K)
+#define VTS_SRAM_EVENTLOG_SIZE_MAX (VTS_SRAMLOG_SIZE_MAX - VTS_SRAM_TIMELOG_SIZE_MAX)
 
 /* VTS firmware version information offset */
 #define VTSFW_VERSION_OFFSET	(0xac)
@@ -176,5 +176,7 @@
 
 #define VTS_ERR_HARD_FAULT	(0x1)
 #define VTS_ERR_BUS_FAULT	(0x3)
+
+#define VTS_ITMON_NAME "CM4_VTS" /* refer to bootloader/platform/s5e8825/debug/itmon.c */
 
 #endif /* __SND_SOC_VTS_DEP_SOC_V2_1_H */

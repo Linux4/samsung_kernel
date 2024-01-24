@@ -375,6 +375,9 @@ static int contexthub_itmon_notifier(struct notifier_block *nb,
 		nanohub_dev_info(data->dev, "%s: chub(%s) itmon detected: action:%d!!\n",
 			__func__, itmon_data->master, action);
 		if (atomic_read(&data->chub_status) == CHUB_ST_RUN) {
+#if IS_ENABLED(CONFIG_SHUB)
+			contexthub_notifier_call(data, CHUB_FW_ST_OFF);
+#endif
 			atomic_set(&data->chub_status, CHUB_ST_ITMON);
 			chub_dbg_dump_hw(data, CHUB_ERR_ITMON);
 #if IS_ENABLED(CONFIG_EXYNOS_MEMORY_LOGGER)

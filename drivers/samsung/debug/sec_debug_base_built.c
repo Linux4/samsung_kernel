@@ -204,9 +204,9 @@ void secdbg_base_built_wdd_set_emerg_addr(unsigned long addr)
 
 #if IS_ENABLED(CONFIG_SEC_DEBUG_HANDLE_BAD_STACK)
 #ifdef CONFIG_S3C2410_BUILTIN_WATCHDOG
-extern int do_s3c2410wdt_builtin_expire_watchdog(void);
+extern int s3c2410wdt_builtin_expire_watchdog_raw(void);
 #else
-static inline int do_s3c2410wdt_builtin_expire_watchdog(void) { return 0; }
+static inline int s3c2410wdt_builtin_expire_watchdog_raw(void) { return 0; }
 #endif
 
 static DEFINE_PER_CPU(unsigned long, secdbg_bad_stack_chk);
@@ -215,7 +215,7 @@ void secdbg_base_built_check_handle_bad_stack(void)
 {
 	if (this_cpu_read(secdbg_bad_stack_chk)) {
 		/* reentrance handle_bad_stack */
-		do_s3c2410wdt_builtin_expire_watchdog();
+		s3c2410wdt_builtin_expire_watchdog_raw();
 		cpu_park_loop();
 	}
 

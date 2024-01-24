@@ -145,7 +145,7 @@ int msgid_get_pt_type(struct msgid_pool *handle, const int msg_id)
 	__validate_handle_msgid(handle, msg_id);
 
 	if (!atomic_read(&handle->pool[msg_id].occupied)) {
-		npu_warn("request pt_type for unoccupied msg_id(%d)", msg_id);
+		npu_warn("request pt_type for unoccupied msg_id(%d)\n", msg_id);
 		return -1;
 	}
 	return handle->pool[msg_id].pt_type;

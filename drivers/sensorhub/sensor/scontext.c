@@ -323,7 +323,7 @@ int shub_scontext_send_instruction(const char *buf, int count)
 	} else if (buf[0] == SCONTEXT_INST_LIB_SET_DATA) {
 		cmd = CMD_SETVALUE;
 		if (buf[1] != SCONTEXT_VALUE_LIBRARY_DATA) {
-			type = TYPE_MCU;
+			type = TYPE_HUB;
 			sub_cmd = convert_scontext_putvalue_subcmd(buf[1]);
 		} else {
 			type = buf[2] + SENSOR_TYPE_SS_BASE;
@@ -367,47 +367,50 @@ void init_scontext_enable_state(void)
 	}
 }
 
+void disable_scontext_all(void)
+{
+	int type;
+	char buf[2];
+
+	for (type = SENSOR_TYPE_SS_BASE; type < SENSOR_TYPE_SS_MAX; type++) {
+		struct shub_sensor *sensor = get_sensor(type);
+
+		if (sensor && sensor->enabled) {
+			/*
+			 * enabled_cnt may be 1 or more. ref) EXTRA_EXTERNAL_CLIENT_REMOVED
+			 * if count > 1, buffer should not be null. So, set enabled_cnt to 1 intentionally.
+			 */
+			mutex_lock(&sensor->enabled_mutex);
+			sensor->enabled_cnt = 1;
+			mutex_unlock(&sensor->enabled_mutex);
+			disable_sensor(type, buf, sizeof(buf));
+		}
+	}
+}
+
 void print_scontext_debug(void)
 {
 	/* print nothing for debug */
 }
 
+static struct sensor_funcs scontext_sensor_funcs = {
+	.print_debug = print_scontext_debug,
+};
+
 int init_scontext(bool en)
 {
+	int ret = 0;
 	struct shub_sensor *sensor = get_sensor(SENSOR_TYPE_SCONTEXT);
 
 	if (!sensor)
 		return 0;
 
 	if (en) {
-		strcpy(sensor->name, "scontext_iio");
-		sensor->receive_event_size = 0;
-		sensor->report_event_size = 64;
-		sensor->event_buffer.value = kzalloc(sensor->report_event_size, GFP_KERNEL);
-		if (!sensor->event_buffer.value)
-			goto err_no_mem;
-
-		sensor->funcs = kzalloc(sizeof(struct sensor_funcs), GFP_KERNEL);
-		if (!sensor->funcs)
-			goto err_no_mem;
-
-		sensor->funcs->print_debug = print_scontext_debug;
+		ret = init_default_func(sensor, "scontext_iio", 0, 64, 64);
+		sensor->funcs = &scontext_sensor_funcs;
 	} else {
-		kfree(sensor->event_buffer.value);
-		sensor->event_buffer.value = NULL;
-
-		kfree(sensor->funcs);
-		sensor->funcs = NULL;
+		destroy_default_func(sensor);
 	}
 
-	return 0;
-
-err_no_mem:
-	kfree(sensor->event_buffer.value);
-	sensor->event_buffer.value = NULL;
-
-	kfree(sensor->funcs);
-	sensor->funcs = NULL;
-
-	return -ENOMEM;
+	return ret;
 }

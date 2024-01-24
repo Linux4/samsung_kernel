@@ -13,11 +13,13 @@
 #include "sec_battery.h"
 #include "sb_checklist_app.h"
 #include <linux/battery/sb_sysfs.h>
+#include <linux/battery/sb_notify.h>
 
 #define ca_log(str, ...) pr_info("[CHECKLIST-APP]:%s: "str, __func__, ##__VA_ARGS__)
 
 struct sb_ca {
 	const char *name;
+	struct notifier_block nb;
 };
 
 int char_to_int(char *s)
@@ -135,24 +137,28 @@ void store_dc_step_charging_menu(struct sec_battery_info *battery, int tc,
 					char val[MAX_STEP_CHG_STEP + 2][MAX_STEP_CHG_STEP + 2])
 {
 	int res, i;
+	unsigned int dc_step_chg_type = 0;
+
+	for (i = 0; i < battery->dc_step_chg_step; i++)
+		dc_step_chg_type |= battery->dc_step_chg_type[i];
 
 	if (tc == DCHG_STEP_CHG_COND_VOL) {
-		if (battery->dc_step_chg_type & STEP_CHARGING_CONDITION_VOLTAGE) {
+		if (dc_step_chg_type & STEP_CHARGING_CONDITION_VOLTAGE) {
 			for (i = 0; i < battery->dc_step_chg_step; i++) {
 				res = char_to_int(val[i + 2]);
 				battery->pdata->dc_step_chg_cond_vol[battery->pdata->age_step][i] = res;
 			}
 		}
 	} else if (tc == DCHG_STEP_CHG_COND_SOC) {
-		if (battery->dc_step_chg_type & STEP_CHARGING_CONDITION_SOC ||
-			battery->dc_step_chg_type & STEP_CHARGING_CONDITION_SOC_INIT_ONLY) {
+		if (dc_step_chg_type & STEP_CHARGING_CONDITION_SOC ||
+			dc_step_chg_type & STEP_CHARGING_CONDITION_SOC_INIT_ONLY) {
 			for (i = 0; i < battery->dc_step_chg_step; i++) {
 				res = char_to_int(val[i + 2]);
 				battery->pdata->dc_step_chg_cond_soc[battery->pdata->age_step][i] = res;
 			}
 		}
 	} else if (tc == DCHG_STEP_CHG_VAL_VFLOAT) {
-		if (battery->dc_step_chg_type & STEP_CHARGING_CONDITION_FLOAT_VOLTAGE) {
+		if (dc_step_chg_type & STEP_CHARGING_CONDITION_FLOAT_VOLTAGE) {
 			for (i = 0; i < battery->dc_step_chg_step; i++) {
 				res = char_to_int(val[i + 2]);
 				battery->pdata->dc_step_chg_val_vfloat[battery->pdata->age_step][i] = res;
@@ -163,7 +169,7 @@ void store_dc_step_charging_menu(struct sec_battery_info *battery, int tc,
 			res = char_to_int(val[i + 2]);
 			battery->pdata->dc_step_chg_val_iout[battery->pdata->age_step][i] = res;
 		}
-		if (battery->dc_step_chg_type & STEP_CHARGING_CONDITION_INPUT_CURRENT) {
+		if (dc_step_chg_type & STEP_CHARGING_CONDITION_INPUT_CURRENT) {
 			for (i = 0; i < (battery->dc_step_chg_step - 1); i++) {
 				battery->pdata->dc_step_chg_cond_iin[i] =
 					battery->pdata->dc_step_chg_val_iout[battery->pdata->age_step][i+1] / 2;
@@ -219,27 +225,17 @@ void store_others_menu(struct sec_battery_info *battery, int tc, int y)
 		battery->pdata->mix_high_chg_temp = y;
 	else if (tc == MIX_HIGH_TEMP_RECOVERY)
 		battery->pdata->mix_high_temp_recovery = y;
-#if IS_ENABLED(CONFIG_DIRECT_CHARGING)
-	else if (tc == DCHG_HIGH_TEMP)
-		battery->pdata->dchg_high_temp = y;
-	else if (tc == DCHG_HIGH_TEMP_RECOVERY)
-		battery->pdata->dchg_high_temp_recovery = y;
-	else if (tc == DCHG_HIGH_BATT_TEMP)
-		battery->pdata->dchg_high_batt_temp = y;
-	else if (tc == DCHG_HIGH_BATT_TEMP_RECOVERY)
-		battery->pdata->dchg_high_batt_temp_recovery = y;
-	else if (tc == DCHG_INPUT_LIMIT_CURRENT)
-		battery->pdata->dchg_input_limit_current = y;
-	else if (tc == DCHG_CHARGING_BATT_TEMP_RECOVERY)
-		battery->pdata->dchg_charging_limit_current = y;
-#endif
 }
 
 int show_battery_checklist_app_values(struct sec_battery_info *battery, char *buf, unsigned int p_size)
 {
-	int j, i = 0;
+	int i = 0;
 	struct device_node *np;
+#if defined(CONFIG_STEP_CHARGING)
+	int j = 0;
 	bool check;
+	unsigned int dc_step_chg_type = 0;
+#endif
 
 	np = of_find_node_by_name(NULL, "battery");
 	if (!np) {
@@ -311,23 +307,12 @@ int show_battery_checklist_app_values(struct sec_battery_info *battery, char *bu
 			buf, &p_size, &i, battery->pdata->mix_high_chg_temp);
 		get_dts_property(np, "battery,mix_high_temp_recovery",
 			buf, &p_size, &i, battery->pdata->mix_high_temp_recovery);
-#if IS_ENABLED(CONFIG_DIRECT_CHARGING)
-		get_dts_property(np, "battery,dchg_high_temp",
-			buf, &p_size, &i, battery->pdata->dchg_high_temp);
-		get_dts_property(np, "battery,dchg_high_temp_recovery",
-			buf, &p_size, &i, battery->pdata->dchg_high_temp_recovery);
-		get_dts_property(np, "battery,dchg_high_batt_temp",
-			buf, &p_size, &i, battery->pdata->dchg_high_batt_temp);
-		get_dts_property(np, "battery,dchg_high_batt_temp_recovery",
-			buf, &p_size, &i, battery->pdata->dchg_high_batt_temp_recovery);
-		get_dts_property(np, "battery,dchg_input_limit_current",
-			buf, &p_size, &i, battery->pdata->dchg_input_limit_current);
-		get_dts_property(np, "battery,dchg_charging_limit_current",
-			buf, &p_size, &i, battery->pdata->dchg_charging_limit_current);
-#endif
 
 #if defined(CONFIG_STEP_CHARGING)
-		if (battery->dc_step_chg_type & STEP_CHARGING_CONDITION_VOLTAGE) {
+		for (j = 0; j < battery->dc_step_chg_step; j++)
+			dc_step_chg_type |= battery->dc_step_chg_type[j];
+
+		if (dc_step_chg_type & STEP_CHARGING_CONDITION_VOLTAGE) {
 			check = of_property_read_bool(np, "battery,dc_step_chg_cond_vol");
 			if (check) {
 				for (j = 0; j < battery->dc_step_chg_step; j++)
@@ -342,8 +327,8 @@ int show_battery_checklist_app_values(struct sec_battery_info *battery, char *bu
 			}
 		}
 
-		if (battery->dc_step_chg_type & STEP_CHARGING_CONDITION_SOC ||
-			battery->dc_step_chg_type & STEP_CHARGING_CONDITION_SOC_INIT_ONLY) {
+		if (dc_step_chg_type & STEP_CHARGING_CONDITION_SOC ||
+			dc_step_chg_type & STEP_CHARGING_CONDITION_SOC_INIT_ONLY) {
 			check = of_property_read_bool(np, "battery,dc_step_chg_cond_soc");
 			if (check) {
 				for (j = 0; j < battery->dc_step_chg_step; j++)
@@ -358,7 +343,7 @@ int show_battery_checklist_app_values(struct sec_battery_info *battery, char *bu
 			}
 		}
 
-		if (battery->dc_step_chg_type & STEP_CHARGING_CONDITION_FLOAT_VOLTAGE) {
+		if (dc_step_chg_type & STEP_CHARGING_CONDITION_FLOAT_VOLTAGE) {
 			check = of_property_read_bool(np, "battery,dc_step_chg_val_vfloat");
 			if (check) {
 				for (j = 0; j < battery->dc_step_chg_step; j++)
@@ -517,6 +502,11 @@ static ssize_t store_attrs(struct device *dev,
 	return count;
 }
 
+static int sb_noti_handler(struct notifier_block *nb, unsigned long action, void *data)
+{
+	return 0;
+}
+
 void sb_ca_init(struct device *parent)
 {
 	struct sb_ca *ca;
@@ -526,5 +516,9 @@ void sb_ca_init(struct device *parent)
 	ca->name = "sb-ca";
 	ret = sb_sysfs_add_attrs(ca->name, ca, ca_attr, ARRAY_SIZE(ca_attr));
 	ca_log("sb_sysfs_add_attrs ret = %s\n", (ret) ? "fail" : "success");
+
+	ret = sb_notify_register(&ca->nb, sb_noti_handler, ca->name, SB_DEV_MODULE);
+	ca_log("sb_notify_register ret = %s\n", (ret) ? "fail" : "success");
+
 }
 EXPORT_SYMBOL(sb_ca_init);

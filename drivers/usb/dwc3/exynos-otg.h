@@ -33,6 +33,7 @@
 #include <linux/usb/typec/manager/if_cb_manager.h>
 #endif
 
+#define MAX_STATE_MACHINE_CNT 100
 
 struct dwc3_ext_otg_ops {
 	int	(*setup)(struct device *dev, struct otg_fsm *fsm);
@@ -62,7 +63,6 @@ struct dwc3_otg {
 	int                     irq;
 	void __iomem            *regs;
 	struct wakeup_source	*wakelock;
-	struct wakeup_source	*reconn_wakelock;
 
 	unsigned		ready:1;
 

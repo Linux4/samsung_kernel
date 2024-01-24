@@ -70,11 +70,6 @@ config SUPPORT_AOD_BL
 	depends on MCD_PANEL && MCD_PANEL_LPM
 	default n
 
-config SUPPORT_DISPLAY_PROFILER
-	bool "Support Display Profiler"
-	depends on MCD_PANEL
-	default n
-
 config SUPPORT_DDI_FLASH
 	bool "Support display ddi flash"
 	depends on MCD_PANEL
@@ -160,8 +155,8 @@ config SUPPORT_GM2_FLASH
 	depends on MCD_PANEL
 	default n
 
-config DYNAMIC_MIPI
-	bool "Support Dynamic Mipi"
+config PANEL_FREQ_HOP
+	bool "Support Panel Frequency Hopping"
 	depends on MCD_PANEL
 	default n
 
@@ -215,6 +210,11 @@ config SUPPORT_BRIGHTDOT_TEST
 	depends on MCD_PANEL
 	default n
 
+config SUPPORT_PANEL_DECODER_TEST
+	bool "Support panel decoder test"
+	depends on MCD_PANEL
+	default n
+
 config EVASION_DISP_DET
     bool "Support avoid disp_det interrupt"
     depends on MCD_PANEL
@@ -235,11 +235,43 @@ config MCD_PANEL_BLIC
 	depends on MCD_PANEL
 	default n
 
-source "$(MCD_PANEL_PATH)/s6e3fab/Kconfig"
-source "$(MCD_PANEL_PATH)/s6e3fac/Kconfig"
-source "$(MCD_PANEL_PATH)/s6e3hab/Kconfig"
-source "$(MCD_PANEL_PATH)/s6e3had/Kconfig"
-source "$(MCD_PANEL_PATH)/s6e3hae/Kconfig"
-source "$(MCD_PANEL_PATH)/s6e3fc3/Kconfig"
-source "$(MCD_PANEL_PATH)/s6e8fc3/Kconfig"
-source "$(MCD_PANEL_PATH)/tft_common/Kconfig"
+config MCD_PANEL_RCD
+	bool "Support mcd panel rcd"
+	depends on MCD_PANEL
+	default n
+
+config UNSUPPORT_INIT_READ
+	bool "Support unsupport init read"
+	depends on MCD_PANEL
+	default n
+
+config PANEL_ID_READ_REG_04
+	bool "Using ID READ Register 04h"
+	depends on MCD_PANEL
+	default n
+
+config PANEL_ID_READ_REG_DADBDC
+	bool "Using ID READ Register DA/DB/DCh"
+	depends on MCD_PANEL
+	default n
+
+config PANEL_ID_READ_REG_ADAEAF
+	bool "Using ID READ Register AD/AE/AFh"
+	depends on MCD_PANEL
+	default n
+
+config PANEL_ID_READ_BY_LPDT
+	bool "Using ID READ by LPDT"
+	depends on MCD_PANEL
+	default n
+
+config PANEL_ID_READ_BY_HSDT
+	bool "Using ID READ by HSDT"
+	depends on MCD_PANEL
+	default n
+
+config SUPPORT_PANEL_VCOM_TRIM_TEST
+	bool "Support VCOM TRIM test"
+	depends on MCD_PANEL
+	default n
+

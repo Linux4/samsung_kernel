@@ -34,11 +34,6 @@
 #define IS_DVFS_RESOL_UHD_TH (3*3840*2160)
 #define IS_DVFS_RESOL_8K_TH (3*7680*4320)
 
-#define IS_DVFS_STATIC		0
-#define IS_DVFS_DYNAMIC		1
-
-#define IS_DVFS_STR_LEN 100
-
 /* enum type for each hierarchical level of DVFS scenario */
 enum IS_DVFS_FACE {
 	IS_DVFS_FACE_REAR,

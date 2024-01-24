@@ -17,19 +17,6 @@
 #include "../panel_drv.h"
 #include "../panel_debug.h"
 
-#if IS_ENABLED(CONFIG_EXYNOS_DECON_LCD_TFT_M33)
-#include "./m33/tft_common_m33_panel_list.h"
-#endif
-
-#if IS_ENABLED(CONFIG_EXYNOS_DECON_LCD_TFT_GTS8L)
-#include "./gts8l/tft_common_gts8l_panel_list.h"
-#endif
-
-#ifdef PANEL_PR_TAG
-#undef PANEL_PR_TAG
-#define PANEL_PR_TAG	"ddi"
-#endif
-
 static int generate_brt_step_table(struct brightness_table *brt_tbl)
 {
 	int ret = 0;
@@ -64,7 +51,7 @@ static int generate_brt_step_table(struct brightness_table *brt_tbl)
 	while (i < brt_tbl->sz_brt_to_step) {
 		for (k = 1; k < brt_tbl->sz_brt; k++) {
 			for (j = 1; j <= brt_tbl->step_cnt[k]; j++, i++) {
-				brt_tbl->brt_to_step[i] = interpolation(brt_tbl->brt[k - 1] * disp_pow(10, 2),
+				brt_tbl->brt_to_step[i] = disp_interpolation64(brt_tbl->brt[k - 1] * disp_pow(10, 2),
 					brt_tbl->brt[k] * disp_pow(10, 2), j, brt_tbl->step_cnt[k]);
 				brt_tbl->brt_to_step[i] = disp_pow_round(brt_tbl->brt_to_step[i], 2);
 				brt_tbl->brt_to_step[i] = disp_div64(brt_tbl->brt_to_step[i], disp_pow(10, 2));
@@ -96,7 +83,7 @@ int init_common_table(struct maptbl *tbl)
 	return 0;
 }
 
-static int init_brt_table(struct maptbl *tbl)
+int init_brt_table(struct maptbl *tbl)
 {
 	struct panel_info *panel_data;
 	struct panel_device *panel;
@@ -137,7 +124,7 @@ static int init_brt_table(struct maptbl *tbl)
 	return 0;
 }
 
-static int getidx_brt_table(struct maptbl *tbl)
+int getidx_brt_table(struct maptbl *tbl)
 {
 	int row = 0;
 	struct panel_info *panel_data;
@@ -156,7 +143,7 @@ static int getidx_brt_table(struct maptbl *tbl)
 	return maptbl_index(tbl, 0, row, 0);
 }
 
-static void copy_common_maptbl(struct maptbl *tbl, u8 *dst)
+void copy_common_maptbl(struct maptbl *tbl, u8 *dst)
 {
 	int idx;
 
@@ -178,19 +165,5 @@ static void copy_common_maptbl(struct maptbl *tbl, u8 *dst)
 	print_data(dst, maptbl_get_sizeof_copy(tbl));
 }
 
-__visible_for_testing int __init tft_common_panel_init(void)
-{
-	register_common_panel_list();
-
-	return 0;
-}
-
-__visible_for_testing void __exit tft_common_panel_exit(void)
-{
-	unregister_common_panel_list();
-}
-
-module_init(tft_common_panel_init)
-module_exit(tft_common_panel_exit)
 MODULE_DESCRIPTION("Samsung Mobile Panel Driver");
 MODULE_LICENSE("GPL");

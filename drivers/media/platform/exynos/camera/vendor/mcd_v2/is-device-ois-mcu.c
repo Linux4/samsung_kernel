@@ -46,23 +46,28 @@
 #include <linux/pinctrl/pinctrl.h>
 #include "is-core.h"
 #include "is-device-ois-mcu.h"
+#if IS_ENABLED(CONFIG_CAMERA_USE_AOIS)
+#include "is-aois-if.h"
+#endif
 #include "is-i2c-config.h"
 
 #define MCU_NAME "MCU_STM32"
 static const struct v4l2_subdev_ops subdev_ops;
 
+#if !IS_ENABLED(CONFIG_CAMERA_USE_AOIS)
 /* Flash memory page(or sector) structure */
-sysboot_page_type memory_pages[] = {
+struct sysboot_page_type memory_pages[] = {
 	{2048, 32},
 	{   0,  0}
 };
 
-sysboot_map_type memory_map = {
+struct sysboot_map_type memory_map = {
 	0x08000000, /* flash memory starting address */
 	0x1FFF0000, /* system memory starting address */
 	0x1FFF7800, /* option byte starting address */
-	(sysboot_page_type *)memory_pages,
+	(struct sysboot_page_type *)memory_pages,
 };
+#endif
 
 static int ois_shift_x[POSITION_NUM];
 static int ois_shift_y[POSITION_NUM];
@@ -92,6 +97,8 @@ extern struct is_ois_info ois_uinfo;
 extern struct is_ois_exif ois_exif_data;
 static struct mcu_default_data mcu_init;
 
+long ois_mcu_get_efs_data(struct i2c_client *client);
+
 struct i2c_client *is_mcu_i2c_get_client(struct is_core *core)
 {
 	struct i2c_client *client = NULL;
@@ -104,6 +111,7 @@ struct i2c_client *is_mcu_i2c_get_client(struct is_core *core)
 	return client;
 };
 
+#if !IS_ENABLED(CONFIG_CAMERA_USE_AOIS)
 int is_mcu_wait_ack(struct i2c_client *client, ulong timeout)
 {
 	int i;
@@ -522,9 +530,9 @@ int is_mcu_i2c_write(struct i2c_client *client, u32 address, u8 *src, size_t len
 	return -EINVAL;
 }
 
-int is_mcu_conv_memory_map(uint32_t address, size_t len, sysboot_erase_param_type *erase)
+int is_mcu_conv_memory_map(uint32_t address, size_t len, struct sysboot_erase_param_type *erase)
 {
-	sysboot_page_type *map = memory_map.pages;
+	struct sysboot_page_type *map = memory_map.pages;
 	int found = 0;
 	int total_bytes = 0, total_pages = 0;
 	int ix = 0;
@@ -567,7 +575,7 @@ int is_mcu_conv_memory_map(uint32_t address, size_t len, sysboot_erase_param_typ
 int is_mcu_erase(struct v4l2_subdev *subdev, u32 address, size_t len)
 {
 	u8 cmd[2] = {0, };
-	sysboot_erase_param_type erase;
+	struct sysboot_erase_param_type erase;
 	u8 xmit_bytes = 0;
 	int ret = 0;
 	int retry = 0;
@@ -1018,59 +1026,6 @@ validation_fail:
 	return -1;
 }
 
-bool is_mcu_fw_version(struct v4l2_subdev *subdev)
-{
-	int ret = 0;
-	u8 hwver[4] = {0, };
-	u8 vdrinfo[4] = {0, };
-	u32 addr = 0;
-	struct is_mcu *mcu = NULL;
-	struct i2c_client *client = NULL;
-
-	info("%s started", __FUNCTION__);
-
-	mcu = (struct is_mcu *)v4l2_get_subdevdata(subdev);
-	if (!mcu) {
-		err("mcu is NULL");
-		return -EINVAL;
-	}
-
-	client = mcu->client;
-
-	is_i2c_pin_config(client, true);
-
-	addr = 0x00F8;
-
-	ret = is_ois_i2c_read_multi(client, addr, &hwver[0], 4);
-	if (ret) {
-		err("i2c read fail\n");
-		goto exit;
-	}
-
-	addr = 0x007C;
-
-	ret = is_ois_i2c_read_multi(client, addr, &vdrinfo[0], 4);
-	if (ret) {
-		err("i2c read fail\n");
-		goto exit;
-	}
-
-	memcpy(&mcu->vdrinfo_mcu[0], &vdrinfo[0], 4);
-	mcu->hw_mcu[0] = hwver[3];
-	mcu->hw_mcu[1] = hwver[2];
-	mcu->hw_mcu[2] = hwver[1];
-	mcu->hw_mcu[3] = hwver[0];
-	memcpy(ois_minfo.header_ver, &mcu->hw_mcu[0], 4);
-	memcpy(&ois_minfo.header_ver[4], &vdrinfo[0], 4);
-
-	info("[%s] mcu module hw ver = %c%c%c%c, vdrinfo ver = %c%c%c%c", __func__,
-		hwver[3], hwver[2], hwver[1], hwver[0], vdrinfo[0], vdrinfo[1], vdrinfo[2], vdrinfo[3]);
-
-	return true;
-
-exit:
-	return false;
-}
 #ifdef USE_KERNEL_VFS_READ_WRITE
 int is_mcu_open_fw(struct v4l2_subdev *subdev, char *name, u8 **buf, ulong *buf_size)
 {
@@ -1344,7 +1299,59 @@ p_err:
 	}
 	return ret;
 }
-#endif
+#endif /* USE_KERNEL_VFS_READ_WRITE */
+#endif /* CONFIG_CAMERA_USE_AOIS */
+
+bool is_mcu_fw_version(struct v4l2_subdev *subdev)
+{
+	int ret = 0;
+	u8 hwver[4] = {0, };
+	u8 vdrinfo[4] = {0, };
+	struct is_mcu *mcu = NULL;
+	struct i2c_client *client = NULL;
+	u16 reg;
+
+	info("%s started", __FUNCTION__);
+
+	mcu = (struct is_mcu *)v4l2_get_subdevdata(subdev);
+	if (!mcu) {
+		err("mcu is NULL");
+		return -EINVAL;
+	}
+
+	client = mcu->client;
+	is_i2c_pin_config(client, true);
+
+	reg = R_OIS_CMD_HW_VERSION;
+	ret = is_ois_get_reg_multi(client, reg, &hwver[0], 4);
+	if (ret) {
+		MCU_GET_ERR_PRINT(reg);
+		goto exit;
+	}
+
+	reg = R_OIS_CMD_VDR_VERSION;
+	ret = is_ois_get_reg_multi(client, reg, &vdrinfo[0], 4);
+	if (ret) {
+		MCU_GET_ERR_PRINT(reg);
+		goto exit;
+	}
+
+	memcpy(&mcu->vdrinfo_mcu[0], &vdrinfo[0], 4);
+	mcu->hw_mcu[0] = hwver[3];
+	mcu->hw_mcu[1] = hwver[2];
+	mcu->hw_mcu[2] = hwver[1];
+	mcu->hw_mcu[3] = hwver[0];
+	memcpy(ois_minfo.header_ver, &mcu->hw_mcu[0], 4);
+	memcpy(&ois_minfo.header_ver[4], &vdrinfo[0], 4);
+
+	info("[%s] mcu module hw ver = %c%c%c%c, vdrinfo ver = %c%c%c%c", __func__,
+		hwver[3], hwver[2], hwver[1], hwver[0], vdrinfo[0], vdrinfo[1], vdrinfo[2], vdrinfo[3]);
+
+	return true;
+
+exit:
+	return false;
+}
 
 int is_mcu_fw_revision_vdrinfo(u8 *fw_ver)
 {
@@ -1369,6 +1376,75 @@ bool is_mcu_version_compare(u8 *fw_ver1, u8 *fw_ver2)
 	return true;
 }
 
+#if IS_ENABLED(CONFIG_CAMERA_USE_AOIS)
+void is_mcu_fw_update(struct is_core *core)
+{
+	int ret = 0;
+	int vdrinfo_bin = 0;
+	int vdrinfo_mcu = 0;
+
+	struct i2c_client *client = NULL;
+	struct is_mcu *mcu = NULL;
+	struct v4l2_subdev *subdev = NULL;
+
+	client = is_mcu_i2c_get_client(core);
+	mcu = i2c_get_clientdata(client);
+	subdev = mcu->subdev;
+
+	info("%s started", __func__);
+
+	msleep(30);
+
+	ret = is_mcu_fw_version(subdev);
+	if (ret) {
+#ifdef CONFIG_CHECK_HW_VERSION_FOR_MCU_FW_UPLOAD
+		int isUpload = 0;
+
+		if (!is_mcu_version_compare(mcu->hw_bin, mcu->hw_mcu))
+			isUpload = 1;
+
+		info("HW binary ver = %c%c%c%c, module ver = %c%c%c%c",
+			mcu->hw_bin[0], mcu->hw_bin[1], mcu->hw_bin[2], mcu->hw_bin[3],
+			mcu->hw_mcu[0], mcu->hw_mcu[1], mcu->hw_mcu[2], mcu->hw_mcu[3]);
+
+		vdrinfo_bin = is_mcu_fw_revision_vdrinfo(mcu->vdrinfo_bin);
+		vdrinfo_mcu = is_mcu_fw_revision_vdrinfo(mcu->vdrinfo_mcu);
+
+		if (vdrinfo_bin > vdrinfo_mcu)
+			isUpload = 1;
+
+		info("VDRINFO binary ver = %c%c%c%c, module ver = %c%c%c%c",
+			mcu->vdrinfo_bin[0], mcu->vdrinfo_bin[1], mcu->vdrinfo_bin[2], mcu->vdrinfo_bin[3],
+			mcu->vdrinfo_mcu[0], mcu->vdrinfo_mcu[1], mcu->vdrinfo_mcu[2], mcu->vdrinfo_mcu[3]);
+
+		if (isUpload)
+			info("Update MCU firmware!!");
+		else {
+			info("Do not update MCU firmware");
+		}
+#else
+		if (!is_mcu_version_compare(mcu->hw_bin, mcu->hw_mcu)) {
+			info("Do not update MCU firmware. HW binary ver = %c%c%c%c, module ver = %c%c%c%c",
+				mcu->hw_bin[0], mcu->hw_bin[1], mcu->hw_bin[2], mcu->hw_bin[3],
+				mcu->hw_mcu[0], mcu->hw_mcu[1], mcu->hw_mcu[2], mcu->hw_mcu[3]);
+		}
+
+		vdrinfo_bin = is_mcu_fw_revision_vdrinfo(mcu->vdrinfo_bin);
+		vdrinfo_mcu = is_mcu_fw_revision_vdrinfo(mcu->vdrinfo_mcu);
+
+		if (vdrinfo_bin <= vdrinfo_mcu) {
+			info("Do not update MCU firmware. VDRINFO binary ver = %c%c%c%c, module ver = %c%c%c%c",
+				mcu->vdrinfo_bin[0], mcu->vdrinfo_bin[1], mcu->vdrinfo_bin[2], mcu->vdrinfo_bin[3],
+				mcu->vdrinfo_mcu[0], mcu->vdrinfo_mcu[1], mcu->vdrinfo_mcu[2], mcu->vdrinfo_mcu[3]);
+		}
+#endif
+	}
+
+	msleep(50);
+
+	info("%s end", __func__);
+}
+#else
 void is_mcu_fw_update(struct is_core *core)
 {
 	u8 *buf = NULL;
@@ -1536,6 +1612,7 @@ p_err:
 
 	return;
 }
+#endif
 
 bool is_ois_sine_wavecheck_mcu(struct is_core *core,
 	int threshold, int *sinx, int *siny, int *result)
@@ -1545,9 +1622,9 @@ bool is_ois_sine_wavecheck_mcu(struct is_core *core,
 	int sinx_count = 0, siny_count = 0;
 	u8 u8_sinx_count[2] = {0, }, u8_siny_count[2] = {0, };
 	u8 u8_sinx[2] = {0, }, u8_siny[2] = {0, };
-	struct i2c_client *client = is_ois_i2c_get_client(core);
-
+	struct i2c_client *client = NULL;
 	struct is_mcu *mcu = NULL;
+	u16 reg;
 
 	client = is_mcu_i2c_get_client(core);
 	mcu = i2c_get_clientdata(client);
@@ -1556,25 +1633,30 @@ bool is_ois_sine_wavecheck_mcu(struct is_core *core,
 
 	info("%s autotest started", __func__);
 
-	ret = is_ois_i2c_write(client, 0x0052, (u8)threshold); /* error threshold level. */
-	ret |= is_ois_i2c_write(client, 0x00BE, 0x01); /* OIS SEL (wide : 1 , tele : 2, both : 3 ). */
-	ret |= is_ois_i2c_write(client, 0x0053, 0x0); /* count value for error judgement level. */
-	ret |= is_ois_i2c_write(client, 0x0054, 0x05); /* frequency level for measurement. */
-	ret |= is_ois_i2c_write(client, 0x0055, 0x34); /* amplitude level for measurement. */
-	ret |= is_ois_i2c_write(client, 0x0056, 0x03); /* dummy pulse setting. */
-	ret |= is_ois_i2c_write(client, 0x0057, 0x02); /* vyvle level for measurement. */
-	ret |= is_ois_i2c_write(client, 0x0050, 0x01); /* start sine wave check operation */
+#if IS_ENABLED(CONFIG_CAMERA_USE_AOIS)
+	cam_ois_set_aois_fac_mode_on();
+#endif
+
+	ret = is_ois_set_reg(client, R_OIS_CMD_THRESH_ERR_LEV, (u8)threshold); /* error threshold level. */
+	ret |= is_ois_set_reg(client, R_OIS_CMD_OIS_SEL, 0x01); /* OIS SEL (wide : 1 , tele : 2, both : 3 ). */
+	ret |= is_ois_set_reg(client, R_OIS_CMD_ERR_VAL_CNT, 0x0); /* count value for error judgement level. */
+	ret |= is_ois_set_reg(client, R_OIS_CMD_FREQ_LEV, 0x05); /* frequency level for measurement. */
+	ret |= is_ois_set_reg(client, R_OIS_CMD_AMPLI_LEV, 0x34); /* amplitude level for measurement. */
+	ret |= is_ois_set_reg(client, R_OIS_CMD_DUM_PULSE, 0x03); /* dummy pulse setting. */
+	ret |= is_ois_set_reg(client, R_OIS_CMD_VYVLE_LEV, 0x02); /* vyvle level for measurement. */
+	ret |= is_ois_set_reg(client, R_OIS_CMD_START_WAVE_CHECK, 0x01); /* start sine wave check operation */
 	if (ret) {
 		err("i2c write fail\n");
 		goto exit;
 	} else
-		err("i2c write success\n");
+		info("i2c write success\n");
 
 	retries = 30;
 	do {
-		ret = is_ois_i2c_read(client, 0x0050, &val);
+		reg = R_OIS_CMD_START_WAVE_CHECK;
+		ret = is_ois_get_reg(client, reg, &val);
 		if (ret) {
-			err("i2c read fail\n");
+			MCU_GET_ERR_PRINT(reg);
 			goto exit;
 		}
 
@@ -1586,52 +1668,53 @@ bool is_ois_sine_wavecheck_mcu(struct is_core *core,
 		}
 	} while (val);
 
-	ret = is_ois_i2c_read(client, 0x0051, &buf);
+	reg = R_OIS_CMD_AUTO_TEST_RESULT;
+	ret = is_ois_get_reg(client, reg, &buf);
 	if (ret) {
-		err("i2c read fail\n");
+		MCU_GET_ERR_PRINT(reg);
 		goto exit;
 	}
 
 	*result = (int)buf;
 
 #ifdef CAMERA_2ND_OIS
-	ret = is_ois_i2c_read_multi(client, 0x00E4, u8_sinx_count, 2);
+	ret = is_ois_get_reg_u16(client, R_OIS_CMD_REAR2_SINX_COUNT1, u8_sinx_count);
 	sinx_count = (u8_sinx_count[1] << 8) | u8_sinx_count[0];
 	if (sinx_count > 0x7FFF) {
 		sinx_count = -((sinx_count ^ 0xFFFF) + 1);
 	}
-	ret |= is_ois_i2c_read_multi(client, 0x00E6, u8_siny_count, 2);
+	ret |= is_ois_get_reg_u16(client, R_OIS_CMD_REAR2_SINY_COUNT1, u8_siny_count);
 	siny_count = (u8_siny_count[1] << 8) | u8_siny_count[0];
 	if (siny_count > 0x7FFF) {
 		siny_count = -((siny_count ^ 0xFFFF) + 1);
 	}
-	ret |= is_ois_i2c_read_multi(client, 0x00E8, u8_sinx, 2);
+	ret |= is_ois_get_reg_u16(client, R_OIS_CMD_REAR2_SINX_DIFF1, u8_sinx);
 	*sinx = (u8_sinx[1] << 8) | u8_sinx[0];
 	if (*sinx > 0x7FFF) {
 		*sinx = -((*sinx ^ 0xFFFF) + 1);
 	}
-	ret |= is_ois_i2c_read_multi(client, 0x00EA, u8_siny, 2);
+	ret |= is_ois_get_reg_u16(client, R_OIS_CMD_REAR2_SINY_DIFF1, u8_siny);
 	*siny = (u8_siny[1] << 8) | u8_siny[0];
 	if (*siny > 0x7FFF) {
 		*siny = -((*siny ^ 0xFFFF) + 1);
 	}
 #else
-	ret = is_ois_i2c_read_multi(client, 0x00C0, u8_sinx_count, 2);
+	ret = is_ois_get_reg_u16(client, R_OIS_CMD_REAR_SINX_COUNT1, u8_sinx_count);
 	sinx_count = (u8_sinx_count[1] << 8) | u8_sinx_count[0];
 	if (sinx_count > 0x7FFF) {
 		sinx_count = -((sinx_count ^ 0xFFFF) + 1);
 	}
-	ret |= is_ois_i2c_read_multi(client, 0x00C2, u8_siny_count, 2);
+	ret |= is_ois_get_reg_u16(client, R_OIS_CMD_REAR_SINY_COUNT1, u8_siny_count);
 	siny_count = (u8_siny_count[1] << 8) | u8_siny_count[0];
 	if (siny_count > 0x7FFF) {
 		siny_count = -((siny_count ^ 0xFFFF) + 1);
 	}
-	ret |= is_ois_i2c_read_multi(client, 0x00C4, u8_sinx, 2);
+	ret |= is_ois_get_reg_u16(client, R_OIS_CMD_REAR_SINX_DIFF1, u8_sinx);
 	*sinx = (u8_sinx[1] << 8) | u8_sinx[0];
 	if (*sinx > 0x7FFF) {
 		*sinx = -((*sinx ^ 0xFFFF) + 1);
 	}
-	ret |= is_ois_i2c_read_multi(client, 0x00C6, u8_siny, 2);
+	ret |= is_ois_get_reg_u16(client, R_OIS_CMD_REAR_SINY_DIFF1, u8_siny);
 	*siny = (u8_siny[1] << 8) | u8_siny[0];
 	if (*siny > 0x7FFF) {
 		*siny = -((*siny ^ 0xFFFF) + 1);
@@ -1641,6 +1724,10 @@ bool is_ois_sine_wavecheck_mcu(struct is_core *core,
 		err("i2c read fail\n");
 		goto exit;
 	}
+
+#if IS_ENABLED(CONFIG_CAMERA_USE_AOIS)
+	cam_ois_set_aois_fac_mode_off();
+#endif
 
 	dbg_ois("threshold = %d, sinx = %d, siny = %d, sinx_count = %d, syny_count = %d\n",
 		threshold, *sinx, *siny, sinx_count, siny_count);
@@ -1654,6 +1741,9 @@ bool is_ois_sine_wavecheck_mcu(struct is_core *core,
 exit:
 	*sinx = -1;
 	*siny = -1;
+#if IS_ENABLED(CONFIG_CAMERA_USE_AOIS)
+	cam_ois_set_aois_fac_mode_off();
+#endif
 
 	return false;
 }
@@ -1665,7 +1755,7 @@ bool is_ois_auto_test_mcu(struct is_core *core,
 {
 	int result = 0;
 	bool value = false;
-	struct i2c_client *client = is_ois_i2c_get_client(core);
+	struct i2c_client *client;
 	struct is_mcu *mcu = NULL;
 
 //#ifdef CONFIG_AF_HOST_CONTROL
@@ -1744,7 +1834,7 @@ int is_mcu_set_aperture(struct v4l2_subdev *subdev, int onoff)
 
 	/* wait control register to idle */
 	do {
-		ret = is_ois_i2c_read(client, 0x61, &data);
+		ret = is_ois_get_reg(client, 0x61, &data);
 		if (ret) {
 			err("i2c read fail\n");
 			goto exit;
@@ -1758,14 +1848,14 @@ int is_mcu_set_aperture(struct v4l2_subdev *subdev, int onoff)
 
 	info("mcu status = %d", data);
 
-	ret = is_ois_i2c_write(client, 0x63, value);
+	ret = is_ois_set_reg(client, 0x63, value);
 	if (ret) {
 		err("i2c read fail\n");
 		goto exit;
 	}
 
 	/* start aperture control */
-	ret = is_ois_i2c_write(client, 0x61, 0x01);
+	ret = is_ois_set_reg(client, 0x61, 0x01);
 	if (ret) {
 		err("i2c read fail\n");
 		goto exit;
@@ -1809,7 +1899,7 @@ int is_mcu_deinit_aperture(struct v4l2_subdev *subdev, int onoff)
 
 	/* wait control register to idle */
 	do {
-		ret = is_ois_i2c_read(client, 0x61, &data);
+		ret = is_ois_get_reg(client, 0x61, &data);
 		if (ret) {
 			err("i2c read fail\n");
 			goto exit;
@@ -1823,14 +1913,14 @@ int is_mcu_deinit_aperture(struct v4l2_subdev *subdev, int onoff)
 
 	info("mcu status = %d", data);
 
-	ret = is_ois_i2c_write(client, 0x63, 0x2);
+	ret = is_ois_set_reg(client, 0x63, 0x2);
 	if (ret) {
 		err("i2c read fail\n");
 		goto exit;
 	}
 
 	/* start aperture control */
-	ret = is_ois_i2c_write(client, 0x61, 0x01);
+	ret = is_ois_set_reg(client, 0x61, 0x01);
 	if (ret) {
 		err("i2c read fail\n");
 		goto exit;
@@ -1867,7 +1957,7 @@ void is_mcu_set_aperture_onboot(struct is_core *core)
 
 	/* wait control register to idle */
 	do {
-		ret = is_ois_i2c_read(client, 0x61, &data);
+		ret = is_ois_get_reg(client, 0x61, &data);
 		if (ret) {
 			err("i2c read fail\n");
 		}
@@ -1880,13 +1970,13 @@ void is_mcu_set_aperture_onboot(struct is_core *core)
 
 	info("mcu status = %d", data);
 
-	ret = is_ois_i2c_write(client, 0x63, 0x2);
+	ret = is_ois_set_reg(client, 0x63, 0x2);
 	if (ret) {
 		err("i2c read fail\n");
 	}
 
 	/* start aperture control */
-	ret = is_ois_i2c_write(client, 0x61, 0x01);
+	ret = is_ois_set_reg(client, 0x61, 0x01);
 	if (ret) {
 		err("i2c read fail\n");
 	}
@@ -1920,7 +2010,7 @@ bool is_mcu_halltest_aperture(struct v4l2_subdev *subdev, u16 *hall_value)
 
 	/* wait control register to idle */
 	do {
-		ret = is_ois_i2c_read(client, 0x61, &data);
+		ret = is_ois_get_reg(client, 0x61, &data);
 		if (ret) {
 			err("i2c read fail\n");
 			result = false;
@@ -1938,7 +2028,7 @@ bool is_mcu_halltest_aperture(struct v4l2_subdev *subdev, u16 *hall_value)
 
 	info("mcu status = %d", data);
 
-	ret = is_ois_i2c_write(client, 0x61, 0x10);
+	ret = is_ois_set_reg(client, 0x61, 0x10);
 	if (ret) {
 		err("i2c read fail\n");
 		result = false;
@@ -1949,7 +2039,7 @@ bool is_mcu_halltest_aperture(struct v4l2_subdev *subdev, u16 *hall_value)
 	retry = 3;
 
 	do {
-		ret = is_ois_i2c_read(client, 0x61, &data);
+		ret = is_ois_get_reg(client, 0x61, &data);
 		if (ret) {
 			err("i2c read fail\n");
 			result = false;
@@ -1965,7 +2055,7 @@ bool is_mcu_halltest_aperture(struct v4l2_subdev *subdev, u16 *hall_value)
 		msleep(5);
 	} while (data);
 
-	ret = is_ois_i2c_read_multi(client, 0x002C, data_array, 2);
+	ret = is_ois_get_reg_u16(client, 0x002C, data_array);
 	if (ret) {
 		err("i2c read fail\n");
 		result = false;
@@ -2002,7 +2092,7 @@ void is_status_check_mcu(struct i2c_client *client)
 	int retry_count = 0;
 
 	do {
-		is_ois_i2c_read(client, 0x000E, &ois_status_check);
+		is_ois_get_reg(client, 0x000E, &ois_status_check);
 		if (ois_status_check == 0x14)
 			break;
 		usleep_range(1000,1000);
@@ -2058,11 +2148,11 @@ int fimc_calculate_shift_value_mcu(struct v4l2_subdev *subdev)
 	I2C_MUTEX_LOCK(ois->i2c_lock);
 
 	/* use user data */
-	ret |= is_ois_i2c_write(ois->client, 0x000F, 0x40);
+	ret |= is_ois_set_reg(ois->client, 0x000F, 0x40);
 	cal_data[0] = 0x00;
 	cal_data[1] = 0x02;
-	ret |= is_ois_i2c_write_multi(client, 0x0010, cal_data, 4);
-	ret |= is_ois_i2c_write(client, 0x000E, 0x04);
+	ret |= is_ois_set_reg_u16(client, 0x0010, cal_data);
+	ret |= is_ois_set_reg(client, 0x000E, 0x04);
 	if (ret < 0) {
 #ifdef USE_CAMERA_HW_BIG_DATA
 		device = v4l2_get_subdev_hostdata(subdev);
@@ -2079,22 +2169,22 @@ int fimc_calculate_shift_value_mcu(struct v4l2_subdev *subdev)
 
 	is_status_check_mcu(client);
 #ifdef OIS_CENTERING_SHIFT_ENABLE
-	is_ois_i2c_read_multi(client, 0x0254, read_multi, 4);
+	is_ois_get_reg_multi(client, R_OIS_CMD_REAR_XGG1, read_multi, 4);
 	Wide_XGG_Hex = (read_multi[3] << 24) | (read_multi[2] << 16) | (read_multi[1] << 8) | (read_multi[0]);
 
-	is_ois_i2c_read_multi(client, 0x0554, read_multi, 4);
+	is_ois_get_reg_multi(client, R_OIS_CMD_REAR2_XGG1, read_multi, 4);
 	Tele_XGG_Hex = (read_multi[3] << 24) | (read_multi[2] << 16) | (read_multi[1] << 8) | (read_multi[0]);
 
-	is_ois_i2c_read_multi(client, 0x0258, read_multi, 4);
+	is_ois_get_reg_multi(client, R_OIS_CMD_REAR_YGG1, read_multi, 4);
 	Wide_YGG_Hex = (read_multi[3] << 24) | (read_multi[2] << 16) | (read_multi[1] << 8) | (read_multi[0]);
 
-	is_ois_i2c_read_multi(client, 0x0558, read_multi, 4);
+	is_ois_get_reg_multi(client, R_OIS_CMD_REAR2_YGG1, read_multi, 4);
 	Tele_YGG_Hex = (read_multi[3] << 24) | (read_multi[2] << 16) | (read_multi[1] << 8) | (read_multi[0]);
 
-	Wide_XGG = hex2float_kernel(Wide_XGG_Hex,eLIT_ENDIAN); // unit : 1/SCALE
-	Wide_YGG = hex2float_kernel(Wide_YGG_Hex,eLIT_ENDIAN); // unit : 1/SCALE
-	Tele_XGG = hex2float_kernel(Tele_XGG_Hex,eLIT_ENDIAN); // unit : 1/SCALE
-	Tele_YGG = hex2float_kernel(Tele_YGG_Hex,eLIT_ENDIAN); // unit : 1/SCALE
+	Wide_XGG = hex2float_kernel(Wide_XGG_Hex, eLIT_ENDIAN); // unit : 1/SCALE
+	Wide_YGG = hex2float_kernel(Wide_YGG_Hex, eLIT_ENDIAN); // unit : 1/SCALE
+	Tele_XGG = hex2float_kernel(Tele_XGG_Hex, eLIT_ENDIAN); // unit : 1/SCALE
+	Tele_YGG = hex2float_kernel(Tele_YGG_Hex, eLIT_ENDIAN); // unit : 1/SCALE
 
 	is_sec_get_cal_buf(&cal_buf);
 
@@ -2136,7 +2226,7 @@ int fimc_calculate_shift_value_mcu(struct v4l2_subdev *subdev)
 	ois_centering_shift_y_rear2 = (int)RND_DIV(Tele_Yshift, scale);
 #endif
 
-	is_ois_i2c_read(client, 0x0100, &shift_available);
+	is_ois_get_reg(client, R_OIS_CMD_BYPASS_DEVICE_ID1, &shift_available);
 	if (shift_available != 0x11) {
 		ois->ois_shift_available = false;
 		dbg_ois("%s, OIS AF CAL(0x%x) does not installed.\n", __func__, shift_available);
@@ -2147,12 +2237,12 @@ int fimc_calculate_shift_value_mcu(struct v4l2_subdev *subdev)
 		for (i = 0; i < 9; i++) {
 			cal_data[0] = 0;
 			cal_data[1] = 0;
-			is_ois_i2c_read_multi(client, 0x0110 + (i * 2), cal_data, 2);
+			is_ois_get_reg_u16(client, 0x0110 + (i * 2), cal_data);
 			ois_shift_x_cal = (cal_data[1] << 8) | (cal_data[0]);
 
 			cal_data[0] = 0;
 			cal_data[1] = 0;
-			is_ois_i2c_read_multi(client, 0x0122 + (i * 2), cal_data, 2);
+			is_ois_get_reg_u16(client, 0x0122 + (i * 2), cal_data);
 			ois_shift_y_cal = (cal_data[1] << 8) | (cal_data[0]);
 
 			if (ois_shift_x_cal > (short)32767)
@@ -2168,7 +2258,7 @@ int fimc_calculate_shift_value_mcu(struct v4l2_subdev *subdev)
 	}
 
 	shift_available = 0;
-	is_ois_i2c_read(client, 0x0101, &shift_available);
+	is_ois_get_reg(client, R_OIS_CMD_BYPASS_DEVICE_ID2, &shift_available);
 	if (shift_available != 0x11) {
 		dbg_ois("%s, REAR2 OIS AF CAL(0x%x) does not installed.\n", __func__, shift_available);
 	} else {
@@ -2176,12 +2266,12 @@ int fimc_calculate_shift_value_mcu(struct v4l2_subdev *subdev)
 		for (i = 0; i < 9; i++) {
 			cal_data[0] = 0;
 			cal_data[1] = 0;
-			is_ois_i2c_read_multi(client, 0x0140 + (i * 2), cal_data, 2);
+			is_ois_get_reg_u16(client, 0x0140 + (i * 2), cal_data);
 			ois_shift_x_cal = (cal_data[1] << 8) | (cal_data[0]);
 
 			cal_data[0] = 0;
 			cal_data[1] = 0;
-			is_ois_i2c_read_multi(client, 0x0152 + (i * 2), cal_data, 2);
+			is_ois_get_reg_u16(client, 0x0152 + (i * 2), cal_data);
 			ois_shift_y_cal = (cal_data[1] << 8) | (cal_data[0]);
 
 			if (ois_shift_x_cal > (short)32767)
@@ -2212,6 +2302,28 @@ static int __init is_mcu_get_hw_rev(char *arg)
 early_param("androidboot.revision", is_mcu_get_hw_rev);
 #endif
 
+void is_ois_set_gyro_raw(struct i2c_client *client, long raw_data_x, long raw_data_y, long raw_data_z) {
+	int scale_factor = OIS_GYRO_SCALE_FACTOR;
+	u8 val[6];
+
+	raw_data_x = raw_data_x * scale_factor;
+	raw_data_y = raw_data_y * scale_factor;
+	raw_data_z = raw_data_z * scale_factor;
+
+	raw_data_x = raw_data_x / 1000;
+	raw_data_y = raw_data_y / 1000;
+	raw_data_z = raw_data_z / 1000;
+
+	val[0] = raw_data_x & 0x00FF;
+	val[1] = (raw_data_x & 0xFF00) >> 8;
+	val[2] = raw_data_y & 0x00FF;
+	val[3] = (raw_data_y & 0xFF00) >> 8;
+	val[4] = raw_data_z & 0x00FF;
+	val[5] = (raw_data_z & 0xFF00) >> 8;
+
+	is_ois_set_reg_multi(client, R_OIS_CMD_RAW_DEBUG_X1, val, 6);
+}
+
 int is_ois_init_mcu(struct v4l2_subdev *subdev)
 {
 	int ret = 0;
@@ -2219,19 +2331,14 @@ int is_ois_init_mcu(struct v4l2_subdev *subdev)
 	u8 read_gyrocalcen = 0;
 #endif
 	u8 val = 0;
-	u8 gyro_orientation = 0;
-	u8 wx_pole = 0;
-	u8 wy_pole = 0;
-#ifdef CAMERA_2ND_OIS
-	u8 tx_pole = 0;
-	u8 ty_pole = 0;
-#endif
 	int retries = 10;
 	struct is_mcu *mcu = NULL;
 	struct is_ois *ois = NULL;
 	struct i2c_client *client = NULL;
 	struct is_module_enum *module = NULL;
 	struct is_device_sensor_peri *sensor_peri = NULL;
+	u8 buf[5];	/* wx_pole, wy_pole, gyro_orientation, tx_pole, ty_pole */
+	u16 reg;
 
 	WARN_ON(!subdev);
 
@@ -2311,9 +2418,10 @@ int is_ois_init_mcu(struct v4l2_subdev *subdev)
 		I2C_MUTEX_LOCK(ois->i2c_lock);
 
 		do {
-			ret = is_ois_i2c_read(client, 0x0001, &val);
+			reg = R_OIS_CMD_STATUS;
+			ret = is_ois_get_reg(client, reg, &val);
 			if (ret != 0) {
-				err("i2c read fail (0x0001)\n");
+				MCU_GET_ERR_PRINT(reg);
 				val = -EIO;
 				break;
 			}
@@ -2325,42 +2433,43 @@ int is_ois_init_mcu(struct v4l2_subdev *subdev)
 		} while (val != 0x01);
 
 		if (val == 0x01) {
-			ret = is_ois_i2c_write_multi(client, 0x0254,  ois_pinfo.wide_romdata.xgg, 6);
-			ret |= is_ois_i2c_write_multi(client, 0x0258, ois_pinfo.wide_romdata.ygg, 6);
+			ret = is_ois_set_reg_multi(client, R_OIS_CMD_REAR_XGG1,  ois_pinfo.wide_romdata.xgg, 4);
+			ret |= is_ois_set_reg_multi(client, R_OIS_CMD_REAR_YGG1, ois_pinfo.wide_romdata.ygg, 4);
 #ifdef CAMERA_2ND_OIS
-			ret |= is_ois_i2c_write_multi(client, 0x0554, ois_pinfo.tele_romdata.xgg, 6);
-			ret |= is_ois_i2c_write_multi(client, 0x0558, ois_pinfo.tele_romdata.ygg, 6);
+			ret |= is_ois_set_reg_multi(client, R_OIS_CMD_REAR2_XGG1, ois_pinfo.tele_romdata.xgg, 4);
+			ret |= is_ois_set_reg_multi(client, R_OIS_CMD_REAR2_YGG1, ois_pinfo.tele_romdata.ygg, 4);
 #endif
 			if (ret < 0)
 				err("ois gyro data write is fail");
 
-			ret = is_ois_i2c_write_multi(client, 0x0442,  ois_pinfo.wide_romdata.xcoef, 4);
-			ret |= is_ois_i2c_write_multi(client, 0x0444, ois_pinfo.wide_romdata.ycoef, 4);
+#if !IS_ENABLED(SIMPLIFY_OIS_INIT)
+			ret = is_ois_set_reg_u16(client, R_OIS_CMD_XCOEF_M1_1,  ois_pinfo.wide_romdata.xcoef);
+			ret |= is_ois_set_reg_u16(client, R_OIS_CMD_YCOEF_M1_1, ois_pinfo.wide_romdata.ycoef);
 #ifdef CAMERA_2ND_OIS
-			ret |= is_ois_i2c_write_multi(client, 0x0446, ois_pinfo.tele_romdata.xcoef, 4);
-			ret |= is_ois_i2c_write_multi(client, 0x0448, ois_pinfo.tele_romdata.ycoef, 4);
+			ret |= is_ois_set_reg_u16(client, R_OIS_CMD_XCOEF_M2_1, ois_pinfo.tele_romdata.xcoef);
+			ret |= is_ois_set_reg_u16(client, R_OIS_CMD_YCOEF_M2_1, ois_pinfo.tele_romdata.ycoef);
 #endif
+#endif
+
 			if (ret < 0)
 				err("ois coef data write is fail");
 #ifdef CAMERA_2ND_OIS
 			/* ENABLE DUAL SHIFT */
-			ret = is_ois_i2c_write(client, 0x0440, 0x01);
+			ret = is_ois_set_reg(client, R_OIS_CMD_ENABLE_DUALCAL, 0x01);
 			if (ret < 0)
 				err("ois dual shift is fail");
 #endif
-			wx_pole = mcu_init.ois_gyro_list[0];
-			wy_pole = mcu_init.ois_gyro_list[1];
-			gyro_orientation = mcu_init.ois_gyro_list[2];
+			buf[0] = mcu_init.ois_gyro_list[0];
+			buf[1] = mcu_init.ois_gyro_list[1];
+			buf[2] = mcu_init.ois_gyro_list[2];
 #ifdef CAMERA_2ND_OIS
-			tx_pole = mcu_init.ois_gyro_list[3];
-			ty_pole = mcu_init.ois_gyro_list[4];
+			buf[3] = mcu_init.ois_gyro_list[3];
+			buf[4] = mcu_init.ois_gyro_list[4];
 #endif
-			ret = is_ois_i2c_write(client, 0x0240, wx_pole);	/* WIDE GYRO POLA X M1 */
-			ret |= is_ois_i2c_write(client, 0x0241, wy_pole);	/* WIED GYRO POLA Y M1 */
-			ret |= is_ois_i2c_write(client, 0x0242, gyro_orientation);	/* GYRO ORIENT */
+
+			ret = is_ois_set_reg_multi(client, R_OIS_CMD_GYRO_POLA_X, buf, 3);
 #ifdef CAMERA_2ND_OIS
-			ret |= is_ois_i2c_write(client, 0x0552, tx_pole);
-			ret |= is_ois_i2c_write(client, 0x0553, ty_pole);
+			ret = is_ois_set_reg_u16(client, R_OIS_CMD_GYRO_POLA_X_M2, buf + 3);
 #endif
 			info("%s gyro init data applied\n", __func__);
 		}
@@ -2376,6 +2485,8 @@ int is_ois_init_mcu(struct v4l2_subdev *subdev)
 		ois_wide_init = true;
 	}
 
+	ois_mcu_get_efs_data(client);
+
 	info("%s\n", __func__);
 	return ret;
 }
@@ -2385,6 +2496,7 @@ int is_ois_deinit_mcu(struct v4l2_subdev *subdev)
 	int ret = 0;
 	struct is_mcu *mcu = NULL;
 	struct i2c_client *client = NULL;
+	u16 reg;
 
 	WARN_ON(!subdev);
 
@@ -2403,10 +2515,10 @@ int is_ois_deinit_mcu(struct v4l2_subdev *subdev)
 	}
 
 	if (ois_hw_check) {
-		ret = is_ois_i2c_write(client, 0x0000, 0x00);	/* 0 : ois servo off, 1 : ois servo on */
-		if (ret) {
-			err("i2c read fail\n");
-		}
+		reg = R_OIS_CMD_START;
+		ret = is_ois_set_reg(client, reg, 0x00);	/* 0 : ois servo off, 1 : ois servo on */
+		if (ret)
+			MCU_SET_ERR_PRINT(reg);
 
 		usleep_range(2000, 2100);
 	}
@@ -2428,10 +2540,13 @@ int is_ois_set_ggfadeupdown_mcu(struct v4l2_subdev *subdev, int up, int down)
 	u8 status = 0;
 	int retries = 100;
 	u8 data[2];
+#if !IS_ENABLED(SIMPLIFY_OIS_INIT)
 	u8 write_data[4] = {0, };
+#endif
 #ifdef USE_OIS_SLEEP_MODE
 	u8 read_sensorStart = 0;
 #endif
+	u16 reg;
 
 	WARN_ON(!subdev);
 
@@ -2455,41 +2570,47 @@ int is_ois_set_ggfadeupdown_mcu(struct v4l2_subdev *subdev, int up, int down)
 
 #ifdef CAMERA_2ND_OIS
 	if (ois->ois_power_mode < OIS_POWER_MODE_SINGLE) {
-		ret = is_ois_i2c_write(client, 0x00BE, 0x03);
+		reg = R_OIS_CMD_OIS_SEL;
+		ret = is_ois_set_reg(client, reg, 0x03);
 		if (ret < 0) {
-			err("ois Actuator output write is fail");
+			MCU_SET_ERR_PRINT(reg);
 			I2C_MUTEX_UNLOCK(ois->i2c_lock);
 			return ret;
 		}
 	}
 #else
-	ret = is_ois_i2c_write(client, 0x00BE, 0x03);
+	reg = R_OIS_CMD_OIS_SEL;
+	ret = is_ois_set_reg(client, reg, 0x01);
 	if (ret < 0) {
-		err("ois Actuator output write is fail");
+		MCU_SET_ERR_PRINT(reg);
 		I2C_MUTEX_UNLOCK(ois->i2c_lock);
 		return ret;
 	}
 #endif
 
 	/* Wide af position value */
-	ret = is_ois_i2c_write(client, 0x003A, 0x00);
+	reg = R_OIS_CMD_REAR_AF;
+	ret = is_ois_set_reg(client, reg, 0x00);
 	if (ret < 0) {
-		err("ois wide af write is fail");
+		MCU_SET_ERR_PRINT(reg);
 		I2C_MUTEX_UNLOCK(ois->i2c_lock);
 		return ret;
 	}
 
+#ifdef CAMERA_2ND_OIS
 	/* Tele af position value */
-	ret = is_ois_i2c_write(client, 0x003B, 0x00);
+	reg = R_OIS_CMD_REAR2_AF;
+	ret = is_ois_set_reg(client, reg, 0x00);
 	if (ret < 0) {
-		err("ois tele af write is fail");
+		MCU_SET_ERR_PRINT(reg);
 		I2C_MUTEX_UNLOCK(ois->i2c_lock);
 		return ret;
 	}
-
-	ret = is_ois_i2c_write(client, 0x0039, 0x01);
+#endif	
+	reg = R_OIS_CMD_CACTRL_WRITE;
+	ret = is_ois_set_reg(client, reg, 0x01);
 	if (ret < 0) {
-		err("ois cactrl write is fail");
+		MCU_SET_ERR_PRINT(reg);
 		I2C_MUTEX_UNLOCK(ois->i2c_lock);
 		return ret;
 	}
@@ -2499,17 +2620,19 @@ int is_ois_set_ggfadeupdown_mcu(struct v4l2_subdev *subdev, int up, int down)
 	 * write 0x3F558106
 	 * write 0x3F558106
 	 */
+#if !IS_ENABLED(SIMPLIFY_OIS_INIT)
 	write_data[0] = 0x06;
 	write_data[1] = 0x81;
 	write_data[2] = 0x55;
 	write_data[3] = 0x3F;
-	is_ois_i2c_write_multi(client, 0x0348, write_data, 6);
+	is_ois_set_reg_multi(client, R_OIS_CMD_ANGLE_COMP1, write_data, 4);
 
 	write_data[0] = 0x06;
 	write_data[1] = 0x81;
 	write_data[2] = 0x55;
 	write_data[3] = 0x3F;
-	is_ois_i2c_write_multi(client, 0x03D8, write_data, 6);
+	is_ois_set_reg_multi(client, R_OIS_CMD_ANGLE_COMP5, write_data, 4);
+#endif
 
 #ifdef USE_OIS_SLEEP_MODE
 	/* if camera is already started, skip VDIS setting */
@@ -2522,22 +2645,24 @@ int is_ois_set_ggfadeupdown_mcu(struct v4l2_subdev *subdev, int up, int down)
 	/* set fadeup */
 	data[0] = up & 0xFF;
 	data[1] = (up >> 8) & 0xFF;
-	ret = is_ois_i2c_write_multi(client, 0x0238, data, 4);
+	reg = R_OIS_CMD_FADE_UP1;
+	ret = is_ois_set_reg_u16(client, reg, data);
 	if (ret < 0)
-		err("%s i2c write fail\n", __func__);
+		MCU_SET_ERR_PRINT(reg);
 
 	/* set fadedown */
 	data[0] = down & 0xFF;
 	data[1] = (down >> 8) & 0xFF;
-	ret = is_ois_i2c_write_multi(client, 0x023a, data, 4);
+	reg = R_OIS_CMD_FADE_DOWN1;
+	ret = is_ois_set_reg_u16(client, reg, data);
 	if (ret < 0)
-		err("%s i2c write fail\n", __func__);
+		MCU_SET_ERR_PRINT(reg);
 
 	/* wait idle status
 	 * 100msec delay is needed between "ois_power_on" and "ois_mode_s6".
 	 */
 	do {
-		is_ois_i2c_read(client, 0x0001, &status);
+		is_ois_get_reg(client, R_OIS_CMD_STATUS, &status);
 		if (status == 0x01 || status == 0x13)
 			break;
 		if (--retries < 0) {
@@ -2598,40 +2723,40 @@ int is_set_ois_mode_mcu(struct v4l2_subdev *subdev, int mode)
 	I2C_MUTEX_LOCK(ois->i2c_lock);
 	switch(mode) {
 		case OPTICAL_STABILIZATION_MODE_STILL:
-			is_ois_i2c_write(client, 0x0002, 0x00);
-			is_ois_i2c_write(client, 0x0000, 0x01);
+			is_ois_set_reg(client, R_OIS_CMD_MODE, 0x00);
+			is_ois_set_reg(client, R_OIS_CMD_START, 0x01);
 			break;
 		case OPTICAL_STABILIZATION_MODE_VIDEO:
-			is_ois_i2c_write(client, 0x0002, 0x01);
-			is_ois_i2c_write(client, 0x0000, 0x01);
+			is_ois_set_reg(client, R_OIS_CMD_MODE, 0x01);
+			is_ois_set_reg(client, R_OIS_CMD_START, 0x01);
 			break;
 		case OPTICAL_STABILIZATION_MODE_CENTERING:
-			is_ois_i2c_write(client, 0x0002, 0x05);
-			is_ois_i2c_write(client, 0x0000, 0x01);
+			is_ois_set_reg(client, R_OIS_CMD_MODE, 0x05);
+			is_ois_set_reg(client, R_OIS_CMD_START, 0x01);
 			break;
 		case OPTICAL_STABILIZATION_MODE_STILL_ZOOM:
-			is_ois_i2c_write(client, 0x0002, 0x13);
-			is_ois_i2c_write(client, 0x0000, 0x01);
+			is_ois_set_reg(client, R_OIS_CMD_MODE, 0x13);
+			is_ois_set_reg(client, R_OIS_CMD_START, 0x01);
 			break;
 		case OPTICAL_STABILIZATION_MODE_VDIS:
-			is_ois_i2c_write(client, 0x0002, 0x14);
-			is_ois_i2c_write(client, 0x0000, 0x01);
+			is_ois_set_reg(client, R_OIS_CMD_MODE, 0x14);
+			is_ois_set_reg(client, R_OIS_CMD_START, 0x01);
 			break;
 		case OPTICAL_STABILIZATION_MODE_SINE_X:
-			is_ois_i2c_write(client, 0x0018, 0x01);
-			is_ois_i2c_write(client, 0x0019, 0x01);
-			is_ois_i2c_write(client, 0x001A, 0x2D);
-			is_ois_i2c_write(client, 0x0002, 0x03);
+			is_ois_set_reg(client, R_OIS_CMD_SINE_1, 0x01);
+			is_ois_set_reg(client, R_OIS_CMD_SINE_2, 0x01);
+			is_ois_set_reg(client, R_OIS_CMD_SINE_3, 0x2D);
+			is_ois_set_reg(client, R_OIS_CMD_MODE, 0x03);
 			msleep(20);
-			is_ois_i2c_write(client, 0x0000, 0x01);
+			is_ois_set_reg(client, R_OIS_CMD_START, 0x01);
 			break;
 		case OPTICAL_STABILIZATION_MODE_SINE_Y:
-			is_ois_i2c_write(client, 0x0018, 0x02);
-			is_ois_i2c_write(client, 0x0019, 0x01);
-			is_ois_i2c_write(client, 0x001A, 0x2D);
-			is_ois_i2c_write(client, 0x0002, 0x03);
+			is_ois_set_reg(client, R_OIS_CMD_SINE_1, 0x02);
+			is_ois_set_reg(client, R_OIS_CMD_SINE_2, 0x01);
+			is_ois_set_reg(client, R_OIS_CMD_SINE_3, 0x2D);
+			is_ois_set_reg(client, R_OIS_CMD_MODE, 0x03);
 			msleep(20);
-			is_ois_i2c_write(client, 0x0000, 0x01);
+			is_ois_set_reg(client, R_OIS_CMD_START, 0x01);
 			break;
 		default:
 			dbg_ois("%s: ois_mode value(%d)\n", __func__, mode);
@@ -2651,6 +2776,7 @@ int is_ois_shift_compensation_mcu(struct v4l2_subdev *subdev, int position, int 
 	struct is_module_enum *module = NULL;
 	struct is_device_sensor_peri *sensor_peri = NULL;
 	int position_changed;
+	u16 reg;
 
 	WARN_ON(!subdev);
 
@@ -2684,18 +2810,20 @@ int is_ois_shift_compensation_mcu(struct v4l2_subdev *subdev, int position, int 
 
 	if (module->position == SENSOR_POSITION_REAR && ois->af_pos_wide != position_changed) {
 		/* Wide af position value */
-		ret = is_ois_i2c_write(client, 0x003A, (u8)position_changed);
+		reg = R_OIS_CMD_REAR_AF;
+		ret = is_ois_set_reg(client, reg, (u8)position_changed);
 		if (ret < 0) {
-			err("ois wide af write is fail");
+			MCU_SET_ERR_PRINT(reg);
 			I2C_MUTEX_UNLOCK(ois->i2c_lock);
 			return ret;
 		}
 		ois->af_pos_wide = position_changed;
 	} else if (module->position == SENSOR_POSITION_REAR2 && ois->af_pos_tele != position_changed) {
 		/* Tele af position value */
-		ret = is_ois_i2c_write(client, 0x003B, (u8)position_changed);
+		reg = R_OIS_CMD_REAR2_AF;
+		ret = is_ois_set_reg(client, reg, (u8)position_changed);
 		if (ret < 0) {
-			err("ois tele af write is fail");
+			MCU_SET_ERR_PRINT(reg);
 			I2C_MUTEX_UNLOCK(ois->i2c_lock);
 			return ret;
 		}
@@ -2716,17 +2844,22 @@ int is_ois_self_test_mcu(struct is_core *core)
 	u16 x_gyro_log = 0, y_gyro_log = 0;
 	int retries = 30;
 	struct i2c_client *client = is_mcu_i2c_get_client(core);
+	u16 reg;
 
 	info("%s : E\n", __func__);
-
-	ret = is_ois_i2c_write(client, 0x0014, 0x08);
-	if (ret) {
-		err("i2c write fail (0x0014)\n");
-	}
+#if IS_ENABLED(CONFIG_CAMERA_USE_AOIS)
+	cam_ois_set_aois_fac_mode_on();
+#endif
+	reg = R_OIS_CMD_GYRO_CAL;
+	ret = is_ois_set_reg(client, reg, 0x08);
+	if (ret)
+		MCU_SET_ERR_PRINT(reg);
 
 	do {
-		ret = is_ois_i2c_read(client, 0x0014, &val);
+		reg = R_OIS_CMD_GYRO_CAL;
+		ret = is_ois_get_reg(client, reg, &val);
 		if (ret != 0) {
+			MCU_GET_ERR_PRINT(reg);
 			val = -EIO;
 			break;
 		}
@@ -2737,26 +2870,31 @@ int is_ois_self_test_mcu(struct is_core *core)
 		}
 	} while (val);
 
-	ret = is_ois_i2c_read(client, 0x0004, &val);
+	reg = R_OIS_CMD_ERROR_STATUS;
+	ret = is_ois_get_reg(client, reg, &val);
 	if (ret != 0) {
-		err("i2c read fail (0x0004)\n");
+		MCU_GET_ERR_PRINT(reg);
 		val = -EIO;
 	}
 
 	/* Gyro selfTest result */
-	is_ois_i2c_read(client, 0x00EC, &reg_val);
+	is_ois_get_reg(client, R_OIS_CMD_GYRO_VAL_X, &reg_val);
 	x = reg_val;
-	is_ois_i2c_read(client, 0x00ED, &reg_val);
+	is_ois_get_reg(client, R_OIS_CMD_GYRO_LOG_X, &reg_val);
 	x_gyro_log = (reg_val << 8) | x;
 
-	is_ois_i2c_read(client, 0x00EE, &reg_val);
+	is_ois_get_reg(client, R_OIS_CMD_GYRO_VAL_Y, &reg_val);
 	y = reg_val;
-	is_ois_i2c_read(client, 0x00EF, &reg_val);
+	is_ois_get_reg(client, R_OIS_CMD_GYRO_LOG_Y, &reg_val);
 	y_gyro_log = (reg_val << 8) | y;
 
 	info("%s(GSTLOG0=%d, GSTLOG1=%d)\n", __func__, x_gyro_log, y_gyro_log);
 
 	info("%s(%d) : X\n", __func__, val);
+#if IS_ENABLED(CONFIG_CAMERA_USE_AOIS)
+	cam_ois_set_aois_fac_mode_off();
+#endif
+
 	return (int)val;
 }
 
@@ -2772,16 +2910,17 @@ bool is_ois_sine_wavecheck_rear2_mcu(struct is_core *core,
 	u8 u8_sinx_count[2] = {0, }, u8_siny_count[2] = {0, };
 	u8 u8_sinx[2] = {0, }, u8_siny[2] = {0, };
 	struct i2c_client *client = is_mcu_i2c_get_client(core);
+	u16 reg;
 
-	ret = is_ois_i2c_write(client, 0x00BE, 0x03); /* OIS SEL (wide : 1 , tele : 2, both : 3 ). */
-	ret |= is_ois_i2c_write(client, 0x0052, (u8)threshold); /* error threshold level. */
-	ret |= is_ois_i2c_write(client, 0x005B, (u8)threshold); /* error threshold level. */
-	ret |= is_ois_i2c_write(client, 0x0053, 0x0); /* count value for error judgement level. */
-	ret |= is_ois_i2c_write(client, 0x0054, 0x05); /* frequency level for measurement. */
-	ret |= is_ois_i2c_write(client, 0x0055, 0x2A); /* amplitude level for measurement. */
-	ret |= is_ois_i2c_write(client, 0x0056, 0x03); /* dummy pulse setting. */
-	ret |= is_ois_i2c_write(client, 0x0057, 0x02); /* vyvle level for measurement. */
-	ret |= is_ois_i2c_write(client, 0x0050, 0x01); /* start sine wave check operation */
+	ret = is_ois_set_reg(client, R_OIS_CMD_OIS_SEL, 0x03); /* OIS SEL (wide : 1 , tele : 2, both : 3 ). */
+	ret |= is_ois_set_reg(client, R_OIS_CMD_THRESH_ERR_LEV, (u8)threshold); /* error threshold level. */
+	ret |= is_ois_set_reg(client, R_OIS_CMD_THRESH_ERR_LEV_M2, (u8)threshold); /* error threshold level. */
+	ret |= is_ois_set_reg(client, R_OIS_CMD_ERR_VAL_CNT, 0x0); /* count value for error judgement level. */
+	ret |= is_ois_set_reg(client, R_OIS_CMD_FREQ_LEV, 0x05); /* frequency level for measurement. */
+	ret |= is_ois_set_reg(client, R_OIS_CMD_AMPLI_LEV, 0x2A); /* amplitude level for measurement. */
+	ret |= is_ois_set_reg(client, R_OIS_CMD_DUM_PULSE, 0x03); /* dummy pulse setting. */
+	ret |= is_ois_set_reg(client, R_OIS_CMD_VYVLE_LEV, 0x02); /* vyvle level for measurement. */
+	ret |= is_ois_set_reg(client, R_OIS_CMD_START_WAVE_CHECK, 0x01); /* start sine wave check operation */
 	if (ret) {
 		err("i2c write fail\n");
 		goto exit;
@@ -2789,9 +2928,10 @@ bool is_ois_sine_wavecheck_rear2_mcu(struct is_core *core,
 
 	retries = 10;
 	do {
-		ret = is_ois_i2c_read(client, 0x0050, &val);
+		reg = R_OIS_CMD_START_WAVE_CHECK;
+		ret = is_ois_get_reg(client, reg, &val);
 		if (ret) {
-			err("i2c read fail\n");
+			MCU_GET_ERR_PRINT(reg);
 			goto exit;
 		}
 
@@ -2803,51 +2943,52 @@ bool is_ois_sine_wavecheck_rear2_mcu(struct is_core *core,
 		}
 	} while (val);
 
-	ret = is_ois_i2c_read(client, 0x0051, &buf);
+	reg = R_OIS_CMD_AUTO_TEST_RESULT;
+	ret = is_ois_get_reg(client, reg, &buf);
 	if (ret) {
-		err("i2c read fail\n");
+		MCU_GET_ERR_PRINT(reg);
 		goto exit;
 	}
 
 	*result = (int)buf;
 
-	ret = is_ois_i2c_read_multi(client, 0x00C0, u8_sinx_count, 2);
+	ret = is_ois_get_reg_u16(client, R_OIS_CMD_REAR_SINX_COUNT1, u8_sinx_count);
 	sinx_count = (u8_sinx_count[1] << 8) | u8_sinx_count[0];
 	if (sinx_count > 0x7FFF) {
 		sinx_count = -((sinx_count ^ 0xFFFF) + 1);
 	}
-	ret |= is_ois_i2c_read_multi(client, 0x00C2, u8_siny_count, 2);
+	ret |= is_ois_get_reg_u16(client, R_OIS_CMD_REAR_SINY_COUNT1, u8_siny_count);
 	siny_count = (u8_siny_count[1] << 8) | u8_siny_count[0];
 	if (siny_count > 0x7FFF) {
 		siny_count = -((siny_count ^ 0xFFFF) + 1);
 	}
-	ret |= is_ois_i2c_read_multi(client, 0x00C4, u8_sinx, 2);
+	ret |= is_ois_get_reg_u16(client, R_OIS_CMD_REAR_SINX_DIFF1, u8_sinx);
 	*sinx = (u8_sinx[1] << 8) | u8_sinx[0];
 	if (*sinx > 0x7FFF) {
 		*sinx = -((*sinx ^ 0xFFFF) + 1);
 	}
-	ret |= is_ois_i2c_read_multi(client, 0x00C6, u8_siny, 2);
+	ret |= is_ois_get_reg_u16(client, R_OIS_CMD_REAR_SINY_DIFF1, u8_siny);
 	*siny = (u8_siny[1] << 8) | u8_siny[0];
 	if (*siny > 0x7FFF) {
 		*siny = -((*siny ^ 0xFFFF) + 1);
 	}
 
-	ret |= is_ois_i2c_read_multi(client, 0x00E4, u8_sinx_count, 2);
+	ret |= is_ois_get_reg_u16(client, R_OIS_CMD_REAR2_SINX_COUNT1, u8_sinx_count);
 	sinx_count_2nd = (u8_sinx_count[1] << 8) | u8_sinx_count[0];
 	if (sinx_count_2nd > 0x7FFF) {
 		sinx_count_2nd = -((sinx_count_2nd ^ 0xFFFF) + 1);
 	}
-	ret |= is_ois_i2c_read_multi(client, 0x00E6, u8_siny_count, 2);
+	ret |= is_ois_get_reg_u16(client, R_OIS_CMD_REAR2_SINY_COUNT1, u8_siny_count);
 	siny_count_2nd = (u8_siny_count[1] << 8) | u8_siny_count[0];
 	if (siny_count_2nd > 0x7FFF) {
 		siny_count_2nd = -((siny_count_2nd ^ 0xFFFF) + 1);
 	}
-	ret |= is_ois_i2c_read_multi(client, 0x00E8, u8_sinx, 2);
+	ret |= is_ois_get_reg_u16(client, R_OIS_CMD_REAR2_SINX_DIFF1, u8_sinx);
 	*sinx_2nd = (u8_sinx[1] << 8) | u8_sinx[0];
 	if (*sinx_2nd > 0x7FFF) {
 		*sinx_2nd = -((*sinx_2nd ^ 0xFFFF) + 1);
 	}
-	ret |= is_ois_i2c_read_multi(client, 0x00EA, u8_siny, 2);
+	ret |= is_ois_get_reg_u16(client, R_OIS_CMD_REAR2_SINY_DIFF1, u8_siny);
 	*siny_2nd = (u8_siny[1] << 8) | u8_siny[0];
 	if (*siny_2nd > 0x7FFF) {
 		*siny_2nd = -((*siny_2nd ^ 0xFFFF) + 1);
@@ -3010,10 +3151,10 @@ int is_ois_set_power_mode_mcu(struct v4l2_subdev *subdev)
 	if ((dual_info->mode != IS_DUAL_MODE_NOTHING)
 		|| (dual_info->mode == IS_DUAL_MODE_NOTHING &&
 			module->position == SENSOR_POSITION_REAR2)) {
-		ret = is_ois_i2c_write(client, 0x00BE, 0x03);
+		ret = is_ois_set_reg(client, R_OIS_CMD_OIS_SEL, 0x03);
 		ois->ois_power_mode = OIS_POWER_MODE_DUAL;
 	} else {
-		ret = is_ois_i2c_write(client, 0x00BE, 0x01);
+		ret = is_ois_set_reg(client, R_OIS_CMD_OIS_SEL, 0x01);
 		ois->ois_power_mode = OIS_POWER_MODE_SINGLE;
 	}
 
@@ -3056,18 +3197,19 @@ void is_ois_enable_mcu(struct is_core *core)
 {
 	int ret = 0;
 	struct i2c_client *client = is_mcu_i2c_get_client(core);
+	u16 reg;
 
 	dbg_ois("%s : E\n", __func__);
 
-	ret = is_ois_i2c_write(client, 0x02, 0x00);
-	if (ret) {
-		err("i2c write fail\n");
-	}
+	reg = R_OIS_CMD_MODE;
+	ret = is_ois_set_reg(client, reg, 0x00);
+	if (ret)
+		MCU_SET_ERR_PRINT(reg);
 
-	ret = is_ois_i2c_write(client, 0x00, 0x01);
-	if (ret) {
-		err("i2c write fail\n");
-	}
+	reg = R_OIS_CMD_START;
+	ret = is_ois_set_reg(client, reg, 0x01);
+	if (ret)
+		MCU_SET_ERR_PRINT(reg);
 
 	dbg_ois("%s : X\n", __func__);
 }
@@ -3080,6 +3222,7 @@ void is_ois_reset_mcu(void *ois_core)
 	struct is_device_sensor *device = NULL;
 	struct i2c_client *client = NULL;
 	bool camera_running = false;
+	u16 reg;
 
 	info("%s : E\n", __func__);
 
@@ -3097,10 +3240,10 @@ void is_ois_reset_mcu(void *ois_core)
 	if (camera_running) {
 		info("%s : camera is running. reset ois gyro.\n", __func__);
 
-		ret = is_ois_i2c_write(client, 0x0002, 0x16);
-		if (ret) {
-			err("i2c write fail\n");
-		}
+		reg = R_OIS_CMD_MODE;
+		ret = is_ois_set_reg(client, reg, 0x16);
+		if (ret)
+			MCU_SET_ERR_PRINT(reg);
 
 		ois_pinfo.reset_check= true;
 	} else {
@@ -3117,17 +3260,23 @@ bool is_ois_gyro_cal_mcu(struct is_core *core, long *x_value, long *y_value, lon
 	int ret = 0;
 	u8 val = 0, x = 0, y = 0, z = 0;
 	int retries = 30;
-	int scale_factor = OIS_GYRO_SCALE_FACTOR_LSM6DSO;
+	int scale_factor = OIS_GYRO_SCALE_FACTOR;
 	int x_sum = 0, y_sum = 0, z_sum = 0;
 	bool result = false;
 	struct i2c_client *client = is_mcu_i2c_get_client(core);
+	u16 reg;
 
 	info("%s : E\n", __func__);
+#if IS_ENABLED(CONFIG_CAMERA_USE_AOIS)
+	cam_ois_set_aois_fac_mode_on();
+#endif
 
 	/* check ois status */
 	do {
-		ret = is_ois_i2c_read(client, 0x0001, &val);
+		reg = R_OIS_CMD_STATUS;
+		ret = is_ois_get_reg(client, reg, &val);
 		if (ret != 0) {
+			MCU_GET_ERR_PRINT(reg);
 			val = -EIO;
 			break;
 		}
@@ -3140,15 +3289,16 @@ bool is_ois_gyro_cal_mcu(struct is_core *core, long *x_value, long *y_value, lon
 
 	retries = 30;
 
-	ret = is_ois_i2c_write(client, 0x0014, 0x01);
-	if (ret) {
-		err("i2c write fail (0x0014)\n");
-	}
+	reg = R_OIS_CMD_GYRO_CAL;
+	ret = is_ois_set_reg(client, reg, 0x01);
+	if (ret)
+		MCU_SET_ERR_PRINT(reg);
 
 	do {
-		ret = is_ois_i2c_read(client, 0x0014, &val);
+		reg = R_OIS_CMD_GYRO_CAL;
+		ret = is_ois_get_reg(client, reg, &val);
 		if (ret != 0) {
-			err("i2c read fail (0x0014)\n");
+			MCU_GET_ERR_PRINT(reg);
 			val = -EIO;
 			break;
 		}
@@ -3160,10 +3310,11 @@ bool is_ois_gyro_cal_mcu(struct is_core *core, long *x_value, long *y_value, lon
 	} while (val);
 
 	/* Gyro result check */
-	ret = is_ois_i2c_read(client, 0x0004, &val);
+	reg = R_OIS_CMD_ERROR_STATUS;
+	ret = is_ois_get_reg(client, reg, &val);
 	if (ret != 0) {
+		MCU_GET_ERR_PRINT(reg);
 		val = -EIO;
-		err("i2c read fail (0x0004)\n");
 		goto exit;
 	}
 
@@ -3171,25 +3322,25 @@ bool is_ois_gyro_cal_mcu(struct is_core *core, long *x_value, long *y_value, lon
 		result = true;
 	}
 
-	is_ois_i2c_read(client, 0x0248, &val);
+	is_ois_get_reg(client, R_OIS_CMD_RAW_DEBUG_X1, &val);
 	x = val;
-	is_ois_i2c_read(client, 0x0249, &val);
+	is_ois_get_reg(client, R_OIS_CMD_RAW_DEBUG_X2, &val);
 	x_sum = (val << 8) | x;
 	if (x_sum > 0x7FFF) {
 		x_sum = -((x_sum ^ 0xFFFF) + 1);
 	}
 
-	is_ois_i2c_read(client, 0x024A, &val);
+	is_ois_get_reg(client, R_OIS_CMD_RAW_DEBUG_Y1, &val);
 	y = val;
-	is_ois_i2c_read(client, 0x024B, &val);
+	is_ois_get_reg(client, R_OIS_CMD_RAW_DEBUG_Y2, &val);
 	y_sum = (val << 8) | y;
 	if (y_sum > 0x7FFF) {
 		y_sum = -((y_sum ^ 0xFFFF) + 1);
 	}
 
-	is_ois_i2c_read(client, 0x024C, &val);
+	is_ois_get_reg(client, R_OIS_CMD_RAW_DEBUG_Z1, &val);
 	z = val;
-	is_ois_i2c_read(client, 0x024D, &val);
+	is_ois_get_reg(client, R_OIS_CMD_RAW_DEBUG_Z2, &val);
 	z_sum = (val << 8) | z;
 	if (z_sum > 0x7FFF) {
 		z_sum = -((z_sum ^ 0xFFFF) + 1);
@@ -3200,6 +3351,9 @@ bool is_ois_gyro_cal_mcu(struct is_core *core, long *x_value, long *y_value, lon
 	*z_value = z_sum * 1000 / scale_factor;
 
 exit:
+#if IS_ENABLED(CONFIG_CAMERA_USE_AOIS)
+	cam_ois_set_aois_fac_mode_off();
+#endif
 	info("%s X (x = %ld, y = %ld, z = %ld) : result = %d\n", __func__, *x_value, *y_value, *z_value, result);
 
 	return result;
@@ -3212,20 +3366,26 @@ bool is_ois_offset_test_mcu(struct is_core *core, long *raw_data_x, long *raw_da
 	int x_sum = 0, y_sum = 0, z_sum = 0, sum = 0;
 	int retries = 0, avg_count = 30;
 	bool result = false;
-	int scale_factor = OIS_GYRO_SCALE_FACTOR_LSM6DSO;
+	int scale_factor = OIS_GYRO_SCALE_FACTOR;
 	struct i2c_client *client = is_mcu_i2c_get_client(core);
+	u16 reg;
 
 	info("%s : E\n", __func__);
+#if IS_ENABLED(CONFIG_CAMERA_USE_AOIS)
+	cam_ois_set_aois_fac_mode_on();
+#endif
 
-	ret = is_ois_i2c_write(client, 0x0014, 0x01);
-	if (ret) {
-		err("i2c write fail (0x0015)\n");
-	}
+	reg = R_OIS_CMD_GYRO_CAL;
+	ret = is_ois_set_reg(client, reg, 0x01);
+	if (ret)
+		MCU_SET_ERR_PRINT(reg);
 
 	retries = avg_count;
 	do {
-		ret = is_ois_i2c_read(client, 0x0014, &val);
+		reg = R_OIS_CMD_GYRO_CAL;
+		ret = is_ois_get_reg(client, reg, &val);
 		if (ret != 0) {
+			MCU_GET_ERR_PRINT(reg);
 			break;
 		}
 		msleep(20);
@@ -3236,10 +3396,11 @@ bool is_ois_offset_test_mcu(struct is_core *core, long *raw_data_x, long *raw_da
 	} while (val);
 
 	/* Gyro result check */
-	ret = is_ois_i2c_read(client, 0x0004, &val);
+	reg = R_OIS_CMD_ERROR_STATUS;
+	ret = is_ois_get_reg(client, reg, &val);
 	if (ret != 0) {
+		MCU_GET_ERR_PRINT(reg);
 		val = -EIO;
-		err("i2c read fail (0x0004)\n");
 		goto exit;
 	}
 
@@ -3254,9 +3415,9 @@ bool is_ois_offset_test_mcu(struct is_core *core, long *raw_data_x, long *raw_da
 	sum = 0;
 	retries = avg_count;
 	for (i = 0; i < retries; retries--) {
-		is_ois_i2c_read(client, 0x0248, &val);
+		is_ois_get_reg(client, R_OIS_CMD_RAW_DEBUG_X1, &val);
 		x = val;
-		is_ois_i2c_read(client, 0x0249, &val);
+		is_ois_get_reg(client, R_OIS_CMD_RAW_DEBUG_X2, &val);
 		x_sum = (val << 8) | x;
 		if (x_sum > 0x7FFF) {
 			x_sum = -((x_sum ^ 0xFFFF) + 1);
@@ -3269,9 +3430,9 @@ bool is_ois_offset_test_mcu(struct is_core *core, long *raw_data_x, long *raw_da
 	sum = 0;
 	retries = avg_count;
 	for (i = 0; i < retries; retries--) {
-		is_ois_i2c_read(client, 0x024A, &val);
+		is_ois_get_reg(client, R_OIS_CMD_RAW_DEBUG_Y1, &val);
 		y = val;
-		is_ois_i2c_read(client, 0x024B, &val);
+		is_ois_get_reg(client, R_OIS_CMD_RAW_DEBUG_Y2, &val);
 		y_sum = (val << 8) | y;
 		if (y_sum > 0x7FFF) {
 			y_sum = -((y_sum ^ 0xFFFF) + 1);
@@ -3284,9 +3445,9 @@ bool is_ois_offset_test_mcu(struct is_core *core, long *raw_data_x, long *raw_da
 	sum = 0;
 	retries = avg_count;
 	for (i = 0; i < retries; retries--) {
-		is_ois_i2c_read(client, 0x024C, &val);
+		is_ois_get_reg(client, R_OIS_CMD_RAW_DEBUG_Z1, &val);
 		z = val;
-		is_ois_i2c_read(client, 0x024D, &val);
+		is_ois_get_reg(client, R_OIS_CMD_RAW_DEBUG_Z2, &val);
 		z_sum = (val << 8) | z;
 		if (z_sum > 0x7FFF) {
 			z_sum = -((z_sum ^ 0xFFFF) + 1);
@@ -3298,6 +3459,9 @@ bool is_ois_offset_test_mcu(struct is_core *core, long *raw_data_x, long *raw_da
 
 exit:
 	//is_mcu_fw_version(core);
+#if IS_ENABLED(CONFIG_CAMERA_USE_AOIS)
+	cam_ois_set_aois_fac_mode_off();
+#endif
 	info("%s : X raw_x = %ld, raw_y = %ld, raw_z = %ld\n", __func__, *raw_data_x, *raw_data_y, *raw_data_z);
 
 	return result;
@@ -3310,16 +3474,19 @@ void is_ois_get_offset_data_mcu(struct is_core *core, long *raw_data_x, long *ra
 	u8 val = 0, x = 0, y = 0;
 	int x_sum = 0, y_sum = 0, sum = 0;
 	int retries = 0, avg_count = 30;
-	int scale_factor = OIS_GYRO_SCALE_FACTOR_LSM6DSO;
+	int scale_factor = OIS_GYRO_SCALE_FACTOR;
 	struct i2c_client *client = is_mcu_i2c_get_client(core);
+	u16 reg;
 
 	info("%s : E\n", __func__);
 
 	/* check ois status */
 	retries = avg_count;
 	do {
-		ret = is_ois_i2c_read(client, 0x01, &val);
+		reg = R_OIS_CMD_STATUS;
+		ret = is_ois_get_reg(client, reg, &val);
 		if (ret != 0) {
+			MCU_GET_ERR_PRINT(reg);
 			val = -EIO;
 			break;
 		}
@@ -3332,9 +3499,9 @@ void is_ois_get_offset_data_mcu(struct is_core *core, long *raw_data_x, long *ra
 
 	retries = avg_count;
 	for (i = 0; i < retries; retries--) {
-		is_ois_i2c_read(client, 0x0248, &val);
+		is_ois_get_reg(client, R_OIS_CMD_RAW_DEBUG_X1, &val);
 		x = val;
-		is_ois_i2c_read(client, 0x0249, &val);
+		is_ois_get_reg(client, R_OIS_CMD_RAW_DEBUG_X2, &val);
 		x_sum = (val << 8) | x;
 		if (x_sum > 0x7FFF) {
 			x_sum = -((x_sum ^ 0xFFFF) + 1);
@@ -3347,9 +3514,9 @@ void is_ois_get_offset_data_mcu(struct is_core *core, long *raw_data_x, long *ra
 	sum = 0;
 	retries = avg_count;
 	for (i = 0; i < retries; retries--) {
-		is_ois_i2c_read(client, 0x024A, &val);
+		is_ois_get_reg(client, R_OIS_CMD_RAW_DEBUG_Y1, &val);
 		y = val;
-		is_ois_i2c_read(client, 0x024B, &val);
+		is_ois_get_reg(client, R_OIS_CMD_RAW_DEBUG_Y2, &val);
 		y_sum = (val << 8) | y;
 		if (y_sum > 0x7FFF) {
 			y_sum = -((y_sum ^ 0xFFFF) + 1);
@@ -3370,15 +3537,18 @@ void is_ois_gyro_sleep_mcu(struct is_core *core)
 	u8 val = 0;
 	int retries = 20;
 	struct i2c_client *client = is_mcu_i2c_get_client(core);
+	u16 reg;
 
-	ret = is_ois_i2c_write(client, 0x0000, 0x00);
-	if (ret) {
-		err("i2c read fail\n");
-	}
+	reg = R_OIS_CMD_START;
+	ret = is_ois_set_reg(client, reg, 0x00);
+	if (ret)
+		MCU_SET_ERR_PRINT(reg);
 
 	do {
-		ret = is_ois_i2c_read(client, 0x0001, &val);
+		reg = R_OIS_CMD_STATUS;
+		ret = is_ois_get_reg(client, reg, &val);
 		if (ret != 0) {
+			MCU_GET_ERR_PRINT(reg);
 			break;
 		}
 
@@ -3392,10 +3562,11 @@ void is_ois_gyro_sleep_mcu(struct is_core *core)
 		err("Read register failed!!!!, data = 0x%04x\n", val);
 	}
 
-	ret = is_ois_i2c_write(client, 0x0030, 0x03);
-	if (ret) {
-		err("i2c read fail\n");
-	}
+	reg = R_OIS_CMD_GYRO_SLEEP;
+	ret = is_ois_set_reg(client, reg, 0x03);
+	if (ret)
+		MCU_SET_ERR_PRINT(reg);
+
 	msleep(1);
 
 	return;
@@ -3407,24 +3578,24 @@ void is_ois_exif_data_mcu(struct is_core *core)
 	u8 error_reg[2], status_reg;
 	u16 error_sum;
 	struct i2c_client *client = is_mcu_i2c_get_client(core);
+	u16 reg;
 
-	ret = is_ois_i2c_read(client, 0x0004, &error_reg[0]);
-	if (ret) {
-		err("i2c read fail\n");
+	reg = R_OIS_CMD_ERROR_STATUS;
+	ret = is_ois_get_reg(client, reg, &error_reg[0]);
+	if (ret)
+		MCU_GET_ERR_PRINT(reg);
 
-	}
-
-	ret = is_ois_i2c_read(client, 0x0005, &error_reg[1]);
-	if (ret) {
-		err("i2c read fail\n");
-	}
+	reg = R_OIS_CMD_CHECKSUM;
+	ret = is_ois_get_reg(client, reg, &error_reg[1]);
+	if (ret)
+		MCU_GET_ERR_PRINT(reg);
 
 	error_sum = (error_reg[1] << 8) | error_reg[0];
 
-	ret = is_ois_i2c_read(client, 0x0001, &status_reg);
-	if (ret) {
-		err("i2c read fail\n");
-	}
+	reg = R_OIS_CMD_STATUS;
+	ret = is_ois_get_reg(client, reg, &status_reg);
+	if (ret)
+		MCU_GET_ERR_PRINT(reg);
 
 	ois_exif_data.error_data = error_sum;
 	ois_exif_data.status_data = status_reg;
@@ -3437,11 +3608,12 @@ u8 is_ois_read_status_mcu(struct is_core *core)
 	int ret = 0;
 	u8 status = 0;
 	struct i2c_client *client = is_mcu_i2c_get_client(core);
+	u16 reg;
 
-	ret = is_ois_i2c_read(client, 0x0006, &status);
-	if (ret) {
-		err("i2c read fail\n");
-	}
+	reg = R_OIS_CMD_READ_STATUS;
+	ret = is_ois_get_reg(client, reg, &status);
+	if (ret)
+		MCU_GET_ERR_PRINT(reg);
 
 	return status;
 }
@@ -3451,11 +3623,12 @@ u8 is_ois_read_cal_checksum_mcu(struct is_core *core)
 	int ret = 0;
 	u8 status = 0;
 	struct i2c_client *client = is_mcu_i2c_get_client(core);
+	u16 reg;
 
-	ret = is_ois_i2c_read(client, 0x0005, &status);
-	if (ret) {
-		err("i2c read fail\n");
-	}
+	reg = R_OIS_CMD_CHECKSUM;
+	ret = is_ois_get_reg(client, reg, &status);
+	if (ret)
+		MCU_GET_ERR_PRINT(reg);
 
 	return status;
 }
@@ -3466,6 +3639,7 @@ int is_ois_set_coef_mcu(struct v4l2_subdev *subdev, u8 coef)
 	struct is_ois *ois = NULL;
 	struct is_mcu *mcu = NULL;
 	struct i2c_client *client = NULL;
+	u16 reg;
 
 	WARN_ON(!subdev);
 
@@ -3490,9 +3664,10 @@ int is_ois_set_coef_mcu(struct v4l2_subdev *subdev, u8 coef)
 	dbg_ois("%s %d\n", __func__, coef);
 
 	I2C_MUTEX_LOCK(ois->i2c_lock);
-	ret = is_ois_i2c_write(client, 0x005e, coef);
+	reg = R_OIS_CMD_SET_COEF;
+	ret = is_ois_set_reg(client, reg, coef);
 	if (ret) {
-		err("%s i2c write fail\n", __func__);
+		MCU_SET_ERR_PRINT(reg);
 		I2C_MUTEX_UNLOCK(ois->i2c_lock);
 		return ret;
 	}
@@ -3581,6 +3756,7 @@ int is_ois_shift_mcu(struct v4l2_subdev *subdev)
 	struct i2c_client *client = NULL;
 	u8 data[2];
 	int ret = 0;
+	u16 reg;
 
 	mcu = (struct is_mcu *)v4l2_get_subdevdata(subdev);
 	if (!mcu) {
@@ -3601,19 +3777,22 @@ int is_ois_shift_mcu(struct v4l2_subdev *subdev)
 
 	data[0] = (ois_center_x & 0xFF);
 	data[1] = (ois_center_x & 0xFF00) >> 8;
-	ret = is_ois_i2c_write_multi(client, 0x0022, data, 4);
+	reg = R_OIS_CMD_CENTER_X1;
+	ret = is_ois_set_reg_u16(client, reg, data);
 	if (ret < 0)
-		err("i2c write multi is fail\n");
+		MCU_SET_ERR_PRINT(reg);
 
 	data[0] = (ois_center_y & 0xFF);
 	data[1] = (ois_center_y & 0xFF00) >> 8;
-	ret = is_ois_i2c_write_multi(client, 0x0024, data, 4);
+	reg = R_OIS_CMD_CENTER_Y1;
+	ret = is_ois_set_reg_u16(client, reg, data);
 	if (ret < 0)
-		err("i2c write multi is fail\n");
+		MCU_SET_ERR_PRINT(reg);
 
-	ret = is_ois_i2c_write(client, 0x0002, 0x02);
+	reg = R_OIS_CMD_MODE;
+	ret = is_ois_set_reg(client, reg, 0x02);
 	if (ret < 0)
-		err("i2c write multi is fail\n");
+		MCU_SET_ERR_PRINT(reg);
 
 	I2C_MUTEX_UNLOCK(ois->i2c_lock);
 
@@ -3626,6 +3805,7 @@ int is_ois_set_centering_mcu(struct v4l2_subdev *subdev)
 	struct is_ois *ois = NULL;
 	struct is_mcu *mcu = NULL;
 	struct i2c_client *client = NULL;
+	u16 reg;
 
 	WARN_ON(!subdev);
 
@@ -3644,9 +3824,10 @@ int is_ois_set_centering_mcu(struct v4l2_subdev *subdev)
 
 	ois = mcu->ois;
 
-	ret = is_ois_i2c_write(client, 0x0002, 0x05);
+	reg = R_OIS_CMD_MODE;
+	ret = is_ois_set_reg(client, reg, 0x05);
 	if (ret) {
-		err("i2c write fail\n");
+		MCU_SET_ERR_PRINT(reg);
 		return ret;
 	}
 
@@ -3661,6 +3842,7 @@ u8 is_read_ois_mode_mcu(struct v4l2_subdev *subdev)
 	u8 mode = OPTICAL_STABILIZATION_MODE_OFF;
 	struct is_mcu *mcu = NULL;
 	struct i2c_client *client = NULL;
+	u16 reg;
 
 	mcu = (struct is_mcu *)v4l2_get_subdevdata(subdev);
 	if (!mcu) {
@@ -3674,9 +3856,10 @@ u8 is_read_ois_mode_mcu(struct v4l2_subdev *subdev)
 		return OPTICAL_STABILIZATION_MODE_OFF;
 	}
 
-	ret = is_ois_i2c_read(client, 0x0002, &mode);
+	reg = R_OIS_CMD_MODE;
+	ret = is_ois_get_reg(client, reg, &mode);
 	if (ret) {
-		err("i2c read fail\n");
+		MCU_GET_ERR_PRINT(reg);
 		return OPTICAL_STABILIZATION_MODE_OFF;
 	}
 
@@ -3754,6 +3937,7 @@ void ois_mcu_check_valid_mcu(struct v4l2_subdev *subdev, u8 *value)
 	struct i2c_client *client = NULL;
 	u8 data[2] = {0, };
 	u16 temp = 0;
+	u16 reg;
 
 	mcu = (struct is_mcu *)v4l2_get_subdevdata(subdev);
 	if (!mcu) {
@@ -3769,10 +3953,15 @@ void ois_mcu_check_valid_mcu(struct v4l2_subdev *subdev, u8 *value)
 
 	ois_mcu_init_factory_mcu(subdev);
 
-	ret = is_ois_i2c_read_multi(client, 0x0004, data, 2);
+#if IS_ENABLED(CONFIG_CAMERA_USE_AOIS)
+	cam_ois_set_aois_fac_mode_on();
+#endif
+
+	reg = R_OIS_CMD_ERROR_STATUS;
+	ret = is_ois_get_reg_u16(client, reg, data);
 	if (ret != 0) {
-		err("i2c read fail\n");
-		return;
+		MCU_GET_ERR_PRINT(reg);
+		goto p_err;
 	} else {
 		temp = (data[1] << 8) | data[0];
 	}
@@ -3780,11 +3969,17 @@ void ois_mcu_check_valid_mcu(struct v4l2_subdev *subdev, u8 *value)
 	err("%s error reg value = 0x%04x", __func__, temp);
 
 	*value = ((temp & 0x0600) >> 8);
+
+p_err:
+#if IS_ENABLED(CONFIG_CAMERA_USE_AOIS)
+	cam_ois_set_aois_fac_mode_off();
+#endif
+	return;
 }
 
 bool ois_mcu_read_gyro_noise_mcu(struct is_core *core, long *x_value, long *y_value)
 {
-	int scale_factor = OIS_GYRO_SCALE_FACTOR_LSM6DSO;
+	int scale_factor = OIS_GYRO_SCALE_FACTOR;
 	int xgnoise_val = 0, ygnoise_val = 0;
 	int retries = 30;
 	int ret = 0;
@@ -3795,6 +3990,7 @@ bool ois_mcu_read_gyro_noise_mcu(struct is_core *core, long *x_value, long *y_va
 	u8 temp = 0;
 	u8 RcvData[2] = {0, };
 	int data = 0;
+	u16 reg;
 
 	mcu = core->sensor[0].mcu;
 	if (!mcu) {
@@ -3808,18 +4004,27 @@ bool ois_mcu_read_gyro_noise_mcu(struct is_core *core, long *x_value, long *y_va
 		return false;
 	}
 
+#if IS_ENABLED(CONFIG_CAMERA_USE_AOIS)
+	cam_ois_set_aois_fac_mode_on();
+#endif
+
 	/* OIS Servo Off */
-	ret = is_ois_i2c_write(client, 0x0000, 0x00);
+	reg = R_OIS_CMD_START;
+	ret = is_ois_set_reg(client, reg, 0x00);
 	if (ret) {
-		err("i2c write fail (0x0000)\n");
+		MCU_SET_ERR_PRINT(reg);
+#if IS_ENABLED(CONFIG_CAMERA_USE_AOIS)
+		cam_ois_set_aois_fac_mode_off();
+#endif
 		return false;
 	}
 
 	/* Waiting for Idle */
 	do {
-		ret = is_ois_i2c_read(client, 0x0001, &status);
+		reg = R_OIS_CMD_STATUS;
+		ret = is_ois_get_reg(client, reg, &status);
 		if (ret != 0) {
-			err("is_ois_i2c_read failed!! (0x0001) (retries:%d)", retries);
+			MCU_GET_ERR_PRINT(reg);
 			status = -EIO;
 			break;
 		}
@@ -3840,18 +4045,23 @@ bool ois_mcu_read_gyro_noise_mcu(struct is_core *core, long *x_value, long *y_va
 	} while (status != 0x01);
 
 	/* Gyro Noise Measure Start */
-	ret = is_ois_i2c_write(client, 0x0029, 0x01);
+	reg = R_OIS_CMD_SET_GYRO_NOISE;
+	ret = is_ois_set_reg(client, reg, 0x01);
 	if (ret) {
-		err("i2c write fail (0x0029) %d", ret);
+		MCU_SET_ERR_PRINT(reg);
+#if IS_ENABLED(CONFIG_CAMERA_USE_AOIS)
+		cam_ois_set_aois_fac_mode_off();
+#endif
 		return false;
 	}
 
 	/* Check Noise Measure End */
 	retries = 100;
 	do {
-		ret = is_ois_i2c_read(client, 0x0029, &temp);
+		reg = R_OIS_CMD_SET_GYRO_NOISE;
+		ret = is_ois_get_reg(client, reg, &temp);
 		if (ret) {
-			err("i2c read fail (0x0029) %d", ret);
+			MCU_GET_ERR_PRINT(reg);
 			result = 0;
 		}
 
@@ -3863,9 +4073,10 @@ bool ois_mcu_read_gyro_noise_mcu(struct is_core *core, long *x_value, long *y_va
 		usleep_range(10000, 11000);
 	} while (temp != 0);
 
-	ret = is_ois_i2c_read_multi(client, 0x024E, RcvData, 2);
+	reg = R_OIS_CMD_READ_GYRO_NOISE_X1;
+	ret = is_ois_get_reg_u16(client, reg, RcvData);
 	if (ret) {
-		err("i2c read fail (0x024E) %d", ret);
+		MCU_GET_ERR_PRINT(reg);
 		result = 0;
 	}
 	data = (RcvData[0] << 8) | RcvData[1];
@@ -3874,9 +4085,10 @@ bool ois_mcu_read_gyro_noise_mcu(struct is_core *core, long *x_value, long *y_va
 	if (xgnoise_val > 0x7FFF)
 		xgnoise_val = -((xgnoise_val ^ 0xFFFF) + 1);
 
-	ret = is_ois_i2c_read_multi(client, 0x0250, RcvData, 2);
+	reg = R_OIS_CMD_READ_GYRO_NOISE_Y1;
+	ret = is_ois_get_reg_u16(client, reg, RcvData);
 	if (ret) {
-		err("i2c read fail (0x0250) %d", ret);
+		MCU_GET_ERR_PRINT(reg);
 		result = 0;
 	}
 	data = (RcvData[0] << 8) | RcvData[1];
@@ -3890,11 +4102,15 @@ bool ois_mcu_read_gyro_noise_mcu(struct is_core *core, long *x_value, long *y_va
 
 	info("result: %d, stdev_x: %ld (0x%x), stdev_y: %ld (0x%x)", result, *x_value, xgnoise_val, *y_value, ygnoise_val);
 
+#if IS_ENABLED(CONFIG_CAMERA_USE_AOIS)
+	cam_ois_set_aois_fac_mode_off();
+#endif
+
 	return result;
 }
 
 #ifdef USE_OIS_HALL_DATA_FOR_VDIS
-int ois_mcu_get_hall_data(struct v4l2_subdev *subdev, struct is_ois_hall_data *halldata)
+int ois_mcu_get_hall_data_mcu(struct v4l2_subdev *subdev, struct is_ois_hall_data *halldata)
 {
 	int ret = 0;
 	struct is_ois *ois = NULL;
@@ -3904,7 +4120,7 @@ int ois_mcu_get_hall_data(struct v4l2_subdev *subdev, struct is_ois_hall_data *h
 	u8 arr[28];
 	int count = 0;
 	int i = 0;
-
+	u16 reg;
 	WARN_ON(!subdev);
 
 	mcu = (struct is_mcu *)v4l2_get_subdevdata(subdev);
@@ -3924,9 +4140,11 @@ int ois_mcu_get_hall_data(struct v4l2_subdev *subdev, struct is_ois_hall_data *h
 	}
 
 	I2C_MUTEX_LOCK(ois->i2c_lock);
-	ret = is_ois_i2c_read_multi(client, 0x0560, &arr[0], 28);
+
+	reg = R_OIS_CMD_VDIS_TIME_STAMP_1;
+	ret = is_ois_get_reg_multi(client, reg, &arr[0], 28);
 	if (ret) {
-		err("i2c read fail\n");
+		MCU_GET_ERR_PRINT(reg);
 		I2C_MUTEX_UNLOCK(ois->i2c_lock);
 		return ret;
 	}
@@ -3957,6 +4175,77 @@ int ois_mcu_get_hall_data(struct v4l2_subdev *subdev, struct is_ois_hall_data *h
 }
 #endif
 
+void ois_mcu_get_hall_position_mcu(struct is_core *core, u16 *targetPos, u16 *hallPos)
+{
+	int ret = 0;
+	struct is_mcu *mcu = NULL;
+	struct i2c_client *client = NULL;
+	u8 pos_temp[2] = {0, };
+	u16 pos = 0;
+	u16 reg;
+
+	info("%s : E\n", __func__);
+
+	mcu = core->sensor[0].mcu;
+	if (!mcu) {
+		err("%s, mcu is NULL", __func__);
+		return;
+	}
+
+	client = mcu->client;
+	if (!client) {
+		err("client is NULL");
+		ret = -EINVAL;
+		return;
+	}
+
+#if IS_ENABLED(CONFIG_CAMERA_USE_AOIS)
+	cam_ois_set_aois_fac_mode_on();
+#endif
+
+	/* set centering mode */
+	reg = R_OIS_CMD_MODE;
+	ret = is_ois_set_reg(client, reg, 0x05);
+	if (ret) {
+		MCU_SET_ERR_PRINT(reg);
+	}
+
+	/* enable position data read */
+	reg = R_OIS_CMD_FWINFO_CTRL;
+	ret = is_ois_set_reg(client, reg, 0x01);
+	if (ret) {
+		MCU_SET_ERR_PRINT(reg);
+	}
+
+	msleep(150);
+
+	is_ois_get_reg_u16(client, R_OIS_CMD_TARGET_POS_REAR_X, pos_temp);
+	pos = (pos_temp[1] << 8) | pos_temp[0];
+	targetPos[0] = pos;
+
+	is_ois_get_reg_u16(client, R_OIS_CMD_TARGET_POS_REAR_Y, pos_temp);
+	pos = (pos_temp[1] << 8) | pos_temp[0];
+	targetPos[1] = pos;
+
+	is_ois_get_reg_u16(client, R_OIS_CMD_HALL_POS_REAR_X, pos_temp);
+	pos = (pos_temp[1] << 8) | pos_temp[0];
+	hallPos[0] = pos;
+
+	is_ois_get_reg_u16(client, R_OIS_CMD_HALL_POS_REAR_Y, pos_temp);
+	pos = (pos_temp[1] << 8) | pos_temp[0];
+	hallPos[1] = pos;
+
+	/* disable position data read */
+	is_ois_set_reg(client, R_OIS_CMD_FWINFO_CTRL, 0x00);
+
+#if IS_ENABLED(CONFIG_CAMERA_USE_AOIS)
+	cam_ois_set_aois_fac_mode_off();
+#endif
+
+	info("%s : X (wide pos = 0x%04x, 0x%04x, 0x%04x, 0x%04x)\n", __func__, targetPos[0], targetPos[1], hallPos[0], hallPos[1]);
+	return;
+}
+
 bool ois_mcu_get_active_mcu(void)
 {
 	return ois_hw_check;
@@ -3964,7 +4253,8 @@ bool ois_mcu_get_active_mcu(void)
 
 void ois_mcu_parsing_raw_data_mcu(uint8_t *buf, long efs_size, long *raw_data_x, long *raw_data_y, long *raw_data_z)
 {
-	int i = 0, j = 0;
+	int i = 0;	/* i : Position of string */
+	int j = 0;	/* j : Position below decimal point */
 	char efs_data_pre[MAX_GYRO_EFS_DATA_LENGTH + 1];
 	char efs_data_post[MAX_GYRO_EFS_DATA_LENGTH + 1];
 	bool detect_point = false;
@@ -4037,6 +4327,7 @@ void ois_mcu_parsing_raw_data_mcu(uint8_t *buf, long efs_size, long *raw_data_x,
 			break;
 		}
 	}
+	i++;
 	kstrtol(efs_data_pre, 10, &raw_pre);
 	kstrtol(efs_data_post, 10, &raw_post);
 	*raw_data_y = sign * (raw_pre * 1000 + raw_post);
@@ -4080,6 +4371,32 @@ void ois_mcu_parsing_raw_data_mcu(uint8_t *buf, long efs_size, long *raw_data_x,
 	info("%s : X raw_x = %ld, raw_y = %ld, raw_z = %ld\n", __func__, *raw_data_x, *raw_data_y, *raw_data_z);
 }
 
+long ois_mcu_get_efs_data(struct i2c_client *client)
+{
+	long efs_size = 0;
+	struct is_core *core = NULL;
+	struct is_vender_specific *specific;
+	long raw_data_x = 0, raw_data_y = 0, raw_data_z = 0;
+
+	core = is_get_is_core();
+	specific = core->vender.private_data;
+
+	efs_size = specific->gyro_efs_size;
+	if (efs_size == 0) {
+		err("efs read failed.");
+		goto p_err;
+	}
+
+	info("%s : E\n", __func__);
+
+	ois_mcu_parsing_raw_data_mcu(specific->gyro_efs_data, efs_size, &raw_data_x, &raw_data_y, &raw_data_z);
+	if (efs_size > 0)
+		is_ois_set_gyro_raw(client, raw_data_x, raw_data_y, raw_data_z);
+
+p_err:
+	return efs_size;
+}
+
 static struct is_ois_ops ois_ops_mcu = {
 	.ois_init = is_ois_init_mcu,
 	.ois_deinit = is_ois_deinit_mcu,
@@ -4110,8 +4427,9 @@ static struct is_ois_ops ois_ops_mcu = {
 	.ois_check_valid = ois_mcu_check_valid_mcu,
 	.ois_read_gyro_noise = ois_mcu_read_gyro_noise_mcu,
 #ifdef USE_OIS_HALL_DATA_FOR_VDIS
-	.ois_get_hall_data = ois_mcu_get_hall_data,
+	.ois_get_hall_data = ois_mcu_get_hall_data_mcu,
 #endif
+	.ois_get_hall_pos = ois_mcu_get_hall_position_mcu,
 	.ois_get_active = ois_mcu_get_active_mcu,
 	.ois_parsing_raw_data = ois_mcu_parsing_raw_data_mcu,
 };
@@ -4274,6 +4592,7 @@ static int is_mcu_probe(struct i2c_client *client,
 		goto p_err;
 	}
 
+#if !IS_ENABLED(CONFIG_CAMERA_USE_AOIS)
 	gpio_mcu_boot0 = of_get_named_gpio(dnode, "gpio_mcu_boot0", 0);
 	if (gpio_is_valid(gpio_mcu_boot0)) {
 		gpio_request_one(gpio_mcu_boot0, GPIOF_OUT_INIT_LOW, "CAM_GPIO_OUTPUT_LOW");
@@ -4291,6 +4610,7 @@ static int is_mcu_probe(struct i2c_client *client,
 		err("[MCU] Fail to get mcu reset gpio.");
 		gpio_mcu_reset = 0;
 	}
+#endif
 
 	specific = core->vender.private_data;
 	ois_device->ois_ops = &ois_ops_mcu;

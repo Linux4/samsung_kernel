@@ -1243,7 +1243,7 @@
 		};
 
 		watchdog@e8a06000 {
-			compatible = "arm,sp805-wdt\0arm,primecell";
+			compatible = "arm,sp805\0arm,primecell";
 			reg = <0x00 0xe8a06000 0x00 0x1000>;
 			interrupts = <0x00 0x2c 0x04>;
 			clocks = <0x13 0x0b 0x13 0x0b>;
@@ -1252,7 +1252,7 @@
 		};
 
 		watchdog@e8a07000 {
-			compatible = "arm,sp805-wdt\0arm,primecell";
+			compatible = "arm,sp805\0arm,primecell";
 			reg = <0x00 0xe8a07000 0x00 0x1000>;
 			interrupts = <0x00 0x2d 0x04>;
 			clocks = <0x13 0x0b 0x13 0x0b>;

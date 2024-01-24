@@ -36,7 +36,18 @@ static const u8 pkvm_hyp_id = 1;
 
 static void *host_s2_zalloc_pages_exact(size_t size)
 {
-	return hyp_alloc_pages(&host_s2_mem, get_order(size));
+	void *addr = hyp_alloc_pages(&host_s2_mem, get_order(size));
+
+	hyp_split_page(hyp_virt_to_page(addr));
+
+	/*
+	 * The size of concatenated PGDs is always a power of two of PAGE_SIZE,
+	 * so there should be no need to free any of the tail pages to make the
+	 * allocation exact.
+	 */
+	WARN_ON(size != (PAGE_SIZE << get_order(size)));
+
+	return addr;
 }
 
 static void *host_s2_zalloc_page(void *pool)
@@ -190,7 +201,7 @@ static bool range_is_memory(u64 start, u64 end)
 {
 	struct kvm_mem_range r1, r2;
 
-	if (!find_mem_range(start, &r1) || !find_mem_range(end, &r2))
+	if (!find_mem_range(start, &r1) || !find_mem_range(end - 1, &r2))
 		return false;
 	if (r1.start != r2.start)
 		return false;

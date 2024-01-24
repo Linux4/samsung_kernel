@@ -175,6 +175,8 @@ struct npu_system {
 	unsigned int layer_start;
 	unsigned int layer_end;
 
+	bool fw_cold_boot;
+
 };
 
 static inline struct npu_io_data *npu_get_io_data(struct npu_system *system, const char *name)
@@ -277,10 +279,12 @@ int npu_system_stop(struct npu_system *system);
 void npu_memory_sync_for_cpu(void);
 void npu_memory_sync_for_device(void);
 int npu_memory_alloc_from_heap(struct platform_device *pdev, struct npu_memory_buffer *buffer,
-		dma_addr_t daddr, __attribute__((unused))const char *heapname, int prot);
-void npu_memory_free_from_heap(struct device *dev, struct npu_memory_buffer *buffer);
+		dma_addr_t daddr, struct npu_memory *memory, const char *heapname, int prot);
+void npu_memory_free_from_heap(struct device *dev, struct npu_memory *memory,
+		struct npu_memory_buffer *buffer);
 void npu_soc_status_report(struct npu_system *system);
 u32 npu_get_hw_info(void);
+void fw_print_log2dram(struct npu_system *system, u32 len);
 #ifdef CONFIG_DSP_USE_VS4L
 int dsp_system_load_binary(struct npu_system *system);
 int dsp_system_wait_reset(struct npu_system* system);

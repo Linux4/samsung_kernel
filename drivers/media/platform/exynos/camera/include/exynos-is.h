@@ -131,10 +131,11 @@ struct exynos_platform_is {
 	int (*clk_on_off)(u32 clk_gate_id, bool is_on);
 	struct pinctrl *pinctrl;
 	/* These fields are to return qos value for dvfs scenario */
-	u32 dvfs_data[IS_DVFS_TABLE_IDX_MAX][IS_SN_END][IS_DVFS_END];
+	u32 dvfs_data[IS_SN_END][IS_DVFS_END];
 	u32 qos_tb[IS_DVFS_END][IS_DVFS_LV_END][IS_DVFS_VAL_END];
+	bool qos_otf[IS_DVFS_END];
 	const char *qos_name[IS_DVFS_END];
-	const char *dvfs_cpu[IS_DVFS_TABLE_IDX_MAX][IS_SN_END];
+	const char *dvfs_cpu[IS_SN_END];
 
 	/* For host clock gating */
 	struct exynos_is_clk_gate_info *gate_info;

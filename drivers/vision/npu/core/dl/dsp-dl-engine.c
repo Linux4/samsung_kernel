@@ -372,7 +372,7 @@ enum dsp_dl_status dsp_dl_unload_libraries(
 	return DSP_DL_SUCCESS;
 }
 
-/*
+
 void dsp_dl_print_status(void)
 {
 	dsp_pm_manager_print();
@@ -380,4 +380,4 @@ void dsp_dl_print_status(void)
 	dsp_dl_out_manager_print();
 	dsp_lib_manager_print();
 }
-*/
+

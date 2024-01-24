@@ -1210,7 +1210,7 @@ static int abox_tplg_dapm_get_pin(struct snd_kcontrol *kcontrol,
 	struct snd_soc_component *cmpnt = kdata->cmpnt;
 	struct snd_soc_dapm_context *dapm = snd_soc_component_get_dapm(cmpnt);
 	struct device *dev = cmpnt->dev;
-	const char *pin = kcontrol->id.name;
+	const char *pin = kdata->hdr->name;
 	int ret;
 
 	abox_dbg(dev, "%s(%s)\n", __func__, kcontrol->id.name);
@@ -1243,7 +1243,7 @@ static int abox_tplg_dapm_put_pin(struct snd_kcontrol *kcontrol,
 	struct snd_soc_component *cmpnt = kdata->cmpnt;
 	struct snd_soc_dapm_context *dapm = snd_soc_component_get_dapm(cmpnt);
 	struct device *dev = cmpnt->dev;
-	const char *pin = kcontrol->id.name;
+	const char *pin = kdata->hdr->name;
 	unsigned int value = (unsigned int)ucontrol->value.integer.value[0];
 	int ret;
 
@@ -1958,21 +1958,11 @@ static void abox_tplg_route_mux(struct snd_soc_component *cmpnt,
 			route.control = e->texts[i];
 			route.source = e->texts[i];
 			snd_soc_dapm_add_routes(dapm, &route, 1);
+			if (wdata->weak) {
+				route.control = NULL;
+				snd_soc_dapm_weak_routes(dapm, &route, 1);
+			}
 			break;
-		}
-	}
-
-	if (wdata->weak) {
-		struct snd_soc_dapm_path *path;
-
-		route.control = NULL;
-		snd_soc_dapm_widget_for_each_sink_path(w, path) {
-			/* mark static connection as weak*/
-			if (!path->connect)
-				continue;
-			route.sink = path->sink->name;
-			route.source = path->source->name;
-			snd_soc_dapm_weak_routes(dapm, &route, 1);
 		}
 	}
 }

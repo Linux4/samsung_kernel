@@ -1035,7 +1035,7 @@
 		};
 	};
 
-	cpu-opp-table {
+	opp-table-cpu {
 		compatible = "allwinner,sun50i-h6-operating-points";
 		nvmem-cells = <0x30>;
 		opp-shared;
@@ -1144,7 +1144,7 @@
 		};
 	};
 
-	vcc3v3 {
+	regulator-vcc3v3 {
 		compatible = "regulator-fixed";
 		regulator-name = "vcc3v3";
 		regulator-min-microvolt = <0x325aa0>;
@@ -1152,7 +1152,7 @@
 		phandle = <0x12>;
 	};
 
-	vdd-cpu-gpu {
+	regulator-vdd-cpu-gpu {
 		compatible = "regulator-fixed";
 		regulator-name = "vdd-cpu-gpu";
 		regulator-min-microvolt = <0x115198>;
@@ -1259,9 +1259,9 @@
 		r_i2c = "/soc/i2c@7081400";
 		ths = "/soc/thermal-sensor@5070400";
 		cpu_alert = "/thermal-zones/cpu-thermal/trips/cpu-alert";
-		cpu_opp_table = "/cpu-opp-table";
+		cpu_opp_table = "/opp-table-cpu";
 		hdmi_con_in = "/connector/port/endpoint";
-		reg_vcc3v3 = "/vcc3v3";
-		reg_vdd_cpu_gpu = "/vdd-cpu-gpu";
+		reg_vcc3v3 = "/regulator-vcc3v3";
+		reg_vdd_cpu_gpu = "/regulator-vdd-cpu-gpu";
 	};
 };

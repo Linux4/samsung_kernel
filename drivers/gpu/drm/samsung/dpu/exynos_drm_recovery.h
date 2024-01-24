@@ -17,9 +17,13 @@
 
 #include <linux/kthread.h>
 
-#define RECOVERY_NAME_LEN 16
-#define RECOVERY_MODE_MAX 16
-#define INTERNAL_MAX_QUEUE_SZ 64
+#define RECOVERY_NAME_LEN	16
+#define RECOVERY_MODE_MAX	16
+#define INTERNAL_MAX_QUEUE_SZ	64
+#define RECOVERY_REQ_ALL	"dsim|customer"
+#define RECOVERY_REQ_LSI	"dsim"
+#define RECOVERY_REQ_FORCE	"force"
+#define RECOVERY_REQ_CUSTOMER	"customer"
 
 enum recovery_state {
 	RECOVERY_NOT_SUPPORTED = 0,
@@ -28,6 +32,7 @@ enum recovery_state {
 	RECOVERY_BEGIN,
 	RECOVERY_RESTORE,
 	RECOVERY_SMAX,
+	RECOVERY_STATE_NUM,
 };
 
 enum recovery_mode_idx {
@@ -68,6 +73,7 @@ struct exynos_recovery_cond {
 	struct recovery_queue rq;
 	bool refresh_panel;
 	bool reset_vblank;
+	bool reset_phy;
 	bool (*func)(const struct drm_crtc *crtc);
 };
 
@@ -77,8 +83,11 @@ struct exynos_recovery {
 	int modes;
 	int count;
 	bool always;
+	int always_id;
 
 	struct mutex r_lock;
+	u32 req_mode;
+	u32 max_req_mode;
 	int req_mode_id;
 	enum recovery_state r_state;
 

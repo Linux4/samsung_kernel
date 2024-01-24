@@ -19,13 +19,7 @@ struct slsi_dev;
 
 void slsi_conn_log2us_init(struct slsi_dev *sdev);
 void slsi_conn_log2us_deinit(struct slsi_dev *sdev);
-void slsi_conn_log2us_connecting(struct slsi_dev *sdev, struct net_device *dev,
-				 const unsigned char *ssid, int ssid_len,
-				 const unsigned char *bssid,
-				 const unsigned char *bssid_hint, int freq,
-				 int freq_hint, int pairwise, int group,
-				 int akm, int auth_type,
-				 const u8 *ie, int ie_len);
+void slsi_conn_log2us_connecting(struct slsi_dev *sdev, struct net_device *dev, struct cfg80211_connect_params *sme);
 
 void slsi_conn_log2us_connecting_fail(struct slsi_dev *sdev, struct net_device *dev,
 				      const unsigned char *bssid,
@@ -35,10 +29,10 @@ void slsi_conn_log2us_disconnect(struct slsi_dev *sdev, struct net_device *dev,
 void slsi_conn_log2us_eapol_gtk(struct slsi_dev *sdev, struct net_device *dev, int eapol_msg_type);
 void slsi_conn_log2us_eapol_ptk(struct slsi_dev *sdev, struct net_device *dev, int eapol_msg_type);
 void slsi_conn_log2us_roam_scan_start(struct slsi_dev *sdev, struct net_device *dev, int reason,
-				      int roam_rssi_val, int chan_utilisation,
-				      int rssi_thresh, int timestamp);
+				      int roam_rssi_val, short chan_utilisation,
+				      int rssi_thresh, u64 timestamp);
 void slsi_conn_log2us_roam_result(struct slsi_dev *sdev, struct net_device *dev,
-				  char *bssid, u32 timestamp, bool roam_candidate);
+				  char *bssid, u64 timestamp, bool roam_candidate);
 void slsi_conn_log2us_eap(struct slsi_dev *sdev, struct net_device *dev, u8 *eap_type);
 void slsi_conn_log2us_dhcp(struct slsi_dev *sdev, struct net_device *dev, char *str);
 void slsi_conn_log2us_dhcp_tx(struct slsi_dev *sdev, struct net_device *dev,
@@ -67,10 +61,10 @@ void slsi_conn_log2us_deauth(struct slsi_dev *sdev, struct net_device *dev, char
 
 void slsi_conn_log2us_disassoc(struct slsi_dev *sdev, struct net_device *dev, char *str_type,
 			       const unsigned char *bssid, int sn, int status);
-void slsi_conn_log2us_roam_scan_done(struct slsi_dev *sdev, struct net_device *dev, int timestamp);
+void slsi_conn_log2us_roam_scan_done(struct slsi_dev *sdev, struct net_device *dev, u64 timestamp);
 void slsi_conn_log2us_roam_scan_result(struct slsi_dev *sdev, struct net_device *dev, bool curr,
 				       char *bssid, int freq,
-				       int rssi, int cu,
+				       int rssi, short cu,
 				       int score, int tp_score, bool eligible);
 void slsi_conn_log2us_btm_query(struct slsi_dev *sdev, struct net_device *dev,
 				int dialog, int reason);
@@ -103,4 +97,5 @@ void slsi_conn_log2us_beacon_report_request(struct slsi_dev *sdev, struct net_de
 					    char *mac_addr, char *ssid);
 void slsi_conn_log2us_beacon_report_response(struct slsi_dev *sdev, struct net_device *dev, int dialog_token,
 					     int ap_count, int reason_code);
+void slsi_conn_log2us_ncho_mode(struct slsi_dev *sdev, struct net_device *dev, int enable);
 #endif

@@ -69,6 +69,11 @@ config SCSC_WLAN_GSCAN_ENABLE
 	help
 	  This option enables GSCAN in SCSC wlan driver.
 
+config WLBT_WARN_ON
+       bool "Enable wlbt warn on"
+       default y
+       help
+         Enable wlbt warn on
 config SCSC_WLAN_WES_NCHO
 	bool "Enable NCHO/WES feature"
 	default y

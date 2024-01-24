@@ -23,8 +23,8 @@
 #include "sec_debug_internal.h"
 
 /* "D9" for all DEBUG partition magic */
-#define DPRT_HEADER_MAGIC	(0xD9A70914)
-#define DPRT_HEADER_VERSION	(0xD9211122)
+#define DPRT_HEADER_MAGIC	(0xD9A70214)
+#define DPRT_HEADER_VERSION	(0xD9220214)
 
 /* common header structure for DEBUG partition */
 struct dprt_header {
@@ -123,6 +123,12 @@ static int sdg_part_load_header(void)
 
 	pr_info("%s: magic = %x / version = %x / member_offset = %lx\n",
 				__func__, ph->magic, ph->version, ph->private[0]);
+
+	if (ph->magic != DPRT_HEADER_MAGIC || ph->version != DPRT_HEADER_VERSION) {
+		pr_info("%s: header mismatch: magic = %x (expected: %x) / version = %x (expected: %x)\n",
+			__func__, ph->magic, DPRT_HEADER_MAGIC, ph->version, DPRT_HEADER_VERSION);
+		return -1;
+	}
 
 	return 0;
 }
@@ -245,11 +251,14 @@ static int init_sdg_bdev(void)
 
 	sdg_bdev = bdev;
 
-	if (sdg_part_load_header())
+	if (sdg_part_load_header()) {
+		sdg_bdev = NULL;
 		return -1;
-
-	if (sdg_part_load_members())
+	}
+	if (sdg_part_load_members()) {
+		sdg_bdev = NULL;
 		return -1;
+	}
 
 	return 0;
 
@@ -449,6 +458,11 @@ static int __init secdbg_dprt_init(void)
 	struct proc_dir_entry *dhst_entry;
 	struct proc_dir_entry *bore_entry;
 	struct proc_dir_entry *summ_entry;
+
+#if IS_ENABLED(CONFIG_SEC_DEBUG_DISABLE_DPRT)
+	pr_err("%s: disable configuration enabled\n", __func__);
+	return 0;
+#endif
 
 	dhst_entry = proc_create("debug_history", S_IFREG | 0444, NULL, &dpart_dhst_file_ops);
 	if (!dhst_entry) {

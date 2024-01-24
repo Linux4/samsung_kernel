@@ -264,7 +264,7 @@
 						boost_name = "GRO";
 						target = <0x01>;
 						extra_idx = <0x00>;
-						level = <0x30d40 0x493e0 0x493e0>;
+						level = <0x1e8480 0x1e8480 0x1e8480>;
 
 						boost0 {
 							enable = <0x01>;
@@ -6599,6 +6599,22 @@
 				samsung,offset = <0x2250800>;
 				phandle = <0xa2>;
 			};
+
+			ext-bin@18 {
+				compatible = "samsung,abox-ext-bin";
+				samsung,name = "Cal360.bin";
+				samsung,area = <0x01>;
+				samsung,offset = "\0hH";
+				phandle = <0xa3>;
+			};
+
+			ext-bin@19 {
+				compatible = "samsung,abox-ext-bin";
+				samsung,name = "sb_ll.bin";
+				samsung,area = <0x01>;
+				samsung,offset = <0x237c800>;
+				phandle = <0xa4>;
+			};
 		};
 	};
 
@@ -6904,7 +6920,7 @@
 				battery,full_check_current_1st = <0x12c 0x00 0x12c 0x12c 0x12c 0x12c 0x12c 0x12c 0x12c 0x12c 0x12c 0x12c 0x12c 0x12c 0x12c 0x12c 0x00>;
 				battery,full_check_current_2nd = <0x64 0x00 0x64 0x64 0x64 0x64 0x64 0x64 0x64 0x64 0x64 0x64 0x64 0x64 0x64 0x64 0x00>;
 				ERD_board = <0x01>;
-				phandle = <0xa3>;
+				phandle = <0xa5>;
 			};
 		};
 	};
@@ -6980,7 +6996,7 @@
 				reg = <0x00>;
 				pinctrl-names = "default";
 				pinctrl-0 = <0xffffffff>;
-				phandle = <0xa4>;
+				phandle = <0xa6>;
 			};
 		};
 	};
@@ -7163,6 +7179,8 @@
 		ext_bin_15 = "/fragment@19/__overlay__/ext-bin@15";
 		ext_bin_16 = "/fragment@19/__overlay__/ext-bin@16";
 		ext_bin_17 = "/fragment@19/__overlay__/ext-bin@17";
+		ext_bin_18 = "/fragment@19/__overlay__/ext-bin@18";
+		ext_bin_19 = "/fragment@19/__overlay__/ext-bin@19";
 		cs35l41_r_reset = "/fragment@23/__overlay__/cs35l41-r-reset";
 		cs35l41_l_reset = "/fragment@23/__overlay__/cs35l41-l-reset";
 		cs35l41_r = "/fragment@24/__overlay__/cs35l41@40";

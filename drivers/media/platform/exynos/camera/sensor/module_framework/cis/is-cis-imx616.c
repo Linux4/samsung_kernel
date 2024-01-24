@@ -613,17 +613,16 @@ p_err:
 #endif
 }
 
-/* Input
- *	hold : true - hold, flase - no hold
- * Output
- *      return: 0 - no effect(already hold or no hold)
- *		positive - setted by request
- *		negative - ERROR value
- */
+/*
+  hold control register for updating multiple-parameters within the same frame. 
+  true : hold, flase : no hold/release
+*/
+#if USE_GROUP_PARAM_HOLD
 int sensor_imx616_cis_group_param_hold(struct v4l2_subdev *subdev, bool hold)
 {
 	int ret = 0;
 	struct is_cis *cis = NULL;
+	u32 mode;
 
 	FIMC_BUG(!subdev);
 
@@ -632,15 +631,32 @@ int sensor_imx616_cis_group_param_hold(struct v4l2_subdev *subdev, bool hold)
 	FIMC_BUG(!cis);
 	FIMC_BUG(!cis->cis_data);
 
+	if (cis->cis_data->stream_on == false && hold == true) {
+		ret = 0;
+		dbg_sensor(1, "%s : sensor stream off skip group_param_hold", __func__);
+		goto p_err;
+	}
+
+	mode = cis->cis_data->sens_config_index_cur;
+
+	if (mode == IMX616_MODE_H2V2_1632x1224_120FPS) {
+		ret = 0;
+		dbg_sensor(1, "%s : fast ae skip group_param_hold", __func__);
+		goto p_err;
+	}
+
 	I2C_MUTEX_LOCK(cis->i2c_lock);
 	ret = sensor_imx616_cis_group_param_hold_func(subdev, hold);
 	if (ret < 0)
-		goto p_err;
+		goto p_err_unlock;
+
+p_err_unlock:
+	I2C_MUTEX_UNLOCK(cis->i2c_lock);
 
 p_err:
-	I2C_MUTEX_UNLOCK(cis->i2c_lock);
 	return ret;
 }
+#endif
 
 int sensor_imx616_cis_set_global_setting(struct v4l2_subdev *subdev)
 {
@@ -779,6 +795,9 @@ p_err:
 }
 
 #ifdef SUPPORT_SENSOR_SEAMLESS_3HDR
+/*
+* TODO : check the gph handling.
+*/
 int sensor_imx616_cis_mode_change_seamless(struct v4l2_subdev *subdev, u32 mode)
 {
 	int ret = 0;
@@ -921,7 +940,6 @@ p_err:
 int sensor_imx616_cis_stream_on(struct v4l2_subdev *subdev)
 {
 	int ret = 0;
-	int hold = 0;
 	struct is_cis *cis;
 	struct i2c_client *client;
 	cis_shared_data *cis_data;
@@ -950,9 +968,6 @@ int sensor_imx616_cis_stream_on(struct v4l2_subdev *subdev)
 		info("[imx616] 3hdr mode start\n");
 
 	I2C_MUTEX_LOCK(cis->i2c_lock);
-	hold = sensor_imx616_cis_group_param_hold_func(subdev, 0x01);
-	if (hold < 0)
-		err("group_param_hold fail (hold %d)", hold);
 
 #ifdef SENSOR_IMX616_DEBUG_INFO
 	{
@@ -998,10 +1013,6 @@ int sensor_imx616_cis_stream_on(struct v4l2_subdev *subdev)
 	/* Sensor stream on */
 	is_sensor_write8(client, 0x0100, 0x01);
 
-	hold = sensor_imx616_cis_group_param_hold_func(subdev, 0x00);
-	if (hold < 0)
-		err("group_param_hold fail (hold %d)", hold);
-
 	I2C_MUTEX_UNLOCK(cis->i2c_lock);
 
 	cis_data->stream_on = true;
@@ -1036,6 +1047,8 @@ int sensor_imx616_cis_stream_off(struct v4l2_subdev *subdev)
 	/*dbg_sensor(1, "[MOD:D:%d] %s\n", cis->id, __func__); */
 	info("[imx616] stream off\n");
 
+	cis_data->stream_on = false;
+	
 	I2C_MUTEX_LOCK(cis->i2c_lock);
 	hold = sensor_imx616_cis_group_param_hold_func(subdev, 0x00);
 	if (hold < 0)
@@ -1056,8 +1069,6 @@ int sensor_imx616_cis_stream_off(struct v4l2_subdev *subdev)
 		err("%s fail (ret %d)",__func__, ret);
 
 	I2C_MUTEX_UNLOCK(cis->i2c_lock);
-
-	cis_data->stream_on = false;
 
 	if (IS_ENABLED(DEBUG_SENSOR_TIME))
 		dbg_sensor(1, "[%s] time %ldus", __func__, PABLO_KTIME_US_DELTA_NOW(st));
@@ -1122,7 +1133,6 @@ int sensor_imx616_cis_adjust_frame_duration(struct v4l2_subdev *subdev,
 int sensor_imx616_cis_set_frame_duration(struct v4l2_subdev *subdev, u32 frame_duration)
 {
 	int ret = 0;
-	int hold = 0;
 	struct is_cis *cis;
 	struct i2c_client *client;
 	cis_shared_data *cis_data;
@@ -1160,11 +1170,6 @@ int sensor_imx616_cis_set_frame_duration(struct v4l2_subdev *subdev, u32 frame_d
 			line_length_pck, frame_length_lines);
 
 	I2C_MUTEX_LOCK(cis->i2c_lock);
-	hold = sensor_imx616_cis_group_param_hold_func(subdev, 0x01);
-	if (hold < 0) {
-		ret = hold;
-		goto p_i2c_err;
-	}
 
 	ret = is_sensor_write16(client, REG(FRAME_LENGTH_LINE), frame_length_lines);
 	CHECK_GOTO(ret < 0, p_i2c_err);
@@ -1177,11 +1182,6 @@ int sensor_imx616_cis_set_frame_duration(struct v4l2_subdev *subdev, u32 frame_d
 		dbg_sensor(1, "[%s] time %ldus", __func__, PABLO_KTIME_US_DELTA_NOW(st));
 
 p_i2c_err:
-	if (hold > 0) {
-		hold = sensor_imx616_cis_group_param_hold_func(subdev, 0x00);
-		if (hold < 0)
-			ret = hold;
-	}
 	I2C_MUTEX_UNLOCK(cis->i2c_lock);
 
 	return ret;
@@ -1238,7 +1238,6 @@ p_err:
 int sensor_imx616_cis_set_exposure_time(struct v4l2_subdev *subdev, struct ae_param *target_exposure)
 {
 	int ret = 0;
-	int hold = 0;
 	struct is_cis *cis;
 	struct i2c_client *client;
 	cis_shared_data *cis_data;
@@ -1324,11 +1323,6 @@ int sensor_imx616_cis_set_exposure_time(struct v4l2_subdev *subdev, struct ae_pa
 	cis_data->cur_short_exposure_coarse = short_coarse_int;
 
 	I2C_MUTEX_LOCK(cis->i2c_lock);
-	hold = sensor_imx616_cis_group_param_hold_func(subdev, 0x01);
-	if (hold < 0) {
-		ret = hold;
-		goto p_i2c_err;
-	}
 
 	ret = is_sensor_write16(client, REG(COARSE_INTEG_TIME), long_coarse_int);
 	CHECK_GOTO(ret < 0, p_i2c_err);
@@ -1355,11 +1349,6 @@ int sensor_imx616_cis_set_exposure_time(struct v4l2_subdev *subdev, struct ae_pa
 		dbg_sensor(1, "[%s] time %ldus", __func__, PABLO_KTIME_US_DELTA_NOW(st));
 
 p_i2c_err:
-	if (hold > 0) {
-		hold = sensor_imx616_cis_group_param_hold_func(subdev, 0x00);
-		if (hold < 0)
-			ret = hold;
-	}
 	I2C_MUTEX_UNLOCK(cis->i2c_lock);
 
 	return ret;
@@ -1498,7 +1487,6 @@ int sensor_imx616_cis_adjust_analog_gain(struct v4l2_subdev *subdev, u32 input_a
 int sensor_imx616_cis_set_analog_gain(struct v4l2_subdev *subdev, struct ae_param *again)
 {
 	int ret = 0;
-	int hold = 0;
 	struct is_cis *cis;
 	struct i2c_client *client;
 	cis_shared_data *cis_data;
@@ -1564,11 +1552,6 @@ int sensor_imx616_cis_set_analog_gain(struct v4l2_subdev *subdev, struct ae_para
 	middle_gain &= 0x03FF;
 
 	I2C_MUTEX_LOCK(cis->i2c_lock);
-	hold = sensor_imx616_cis_group_param_hold_func(subdev, 0x01);
-	if (hold < 0) {
-		ret = hold;
-		goto p_i2c_err;
-	}
 
 	ret = is_sensor_write16(client, SENSOR_IMX616_AGAIN_ADDR, long_gain);
 	CHECK_GOTO(ret < 0, p_i2c_err);
@@ -1588,11 +1571,6 @@ int sensor_imx616_cis_set_analog_gain(struct v4l2_subdev *subdev, struct ae_para
 		dbg_sensor(1, "[%s] time %ldus", __func__, PABLO_KTIME_US_DELTA_NOW(st));
 
 p_i2c_err:
-	if (hold > 0) {
-		hold = sensor_imx616_cis_group_param_hold_func(subdev, 0x00);
-		if (hold < 0)
-			ret = hold;
-	}
 	I2C_MUTEX_UNLOCK(cis->i2c_lock);
 
 	return ret;
@@ -1601,7 +1579,6 @@ p_i2c_err:
 int sensor_imx616_cis_get_analog_gain(struct v4l2_subdev *subdev, u32 *again)
 {
 	int ret = 0;
-	int hold = 0;
 	struct is_cis *cis;
 	struct i2c_client *client;
 
@@ -1619,11 +1596,6 @@ int sensor_imx616_cis_get_analog_gain(struct v4l2_subdev *subdev, u32 *again)
 	CHECK_ERR_RET(!client, -EINVAL, "client is NULL");
 
 	I2C_MUTEX_LOCK(cis->i2c_lock);
-	hold = sensor_imx616_cis_group_param_hold_func(subdev, 0x01);
-	if (hold < 0) {
-		ret = hold;
-		goto p_i2c_err;
-	}
 
 	ret = is_sensor_read16(client, REG(AGAIN), &analog_gain);
 	CHECK_GOTO(ret < 0, p_i2c_err);
@@ -1638,11 +1610,6 @@ int sensor_imx616_cis_get_analog_gain(struct v4l2_subdev *subdev, u32 *again)
 		dbg_sensor(1, "[%s] time %ldus", __func__, PABLO_KTIME_US_DELTA_NOW(st));
 
 p_i2c_err:
-	if (hold > 0) {
-		hold = sensor_imx616_cis_group_param_hold_func(subdev, 0x00);
-		if (hold < 0)
-			ret = hold;
-	}
 	I2C_MUTEX_UNLOCK(cis->i2c_lock);
 
 	return ret;
@@ -1723,7 +1690,6 @@ int sensor_imx616_cis_get_max_analog_gain(struct v4l2_subdev *subdev, u32 *max_a
 int sensor_imx616_cis_set_digital_gain(struct v4l2_subdev *subdev, struct ae_param *dgain)
 {
 	int ret = 0;
-	int hold = 0;
 	struct is_cis *cis;
 	struct i2c_client *client;
 	cis_shared_data *cis_data;
@@ -1786,12 +1752,7 @@ int sensor_imx616_cis_set_digital_gain(struct v4l2_subdev *subdev, struct ae_par
 	}
 
 	I2C_MUTEX_LOCK(cis->i2c_lock);
-	hold = sensor_imx616_cis_group_param_hold_func(subdev, 0x01);
-	if (hold < 0) {
-		ret = hold;
-		goto p_i2c_err;
-	}
-
+	
 	ret = is_sensor_write16(client, REG(DGAIN), long_gain);
 	CHECK_GOTO(ret < 0, p_i2c_err);
 
@@ -1810,11 +1771,6 @@ int sensor_imx616_cis_set_digital_gain(struct v4l2_subdev *subdev, struct ae_par
 		dbg_sensor(1, "[%s] time %ldus", __func__, PABLO_KTIME_US_DELTA_NOW(st));
 
 p_i2c_err:
-	if (hold > 0) {
-		hold = sensor_imx616_cis_group_param_hold_func(subdev, 0x00);
-		if (hold < 0)
-			ret = hold;
-	}
 	I2C_MUTEX_UNLOCK(cis->i2c_lock);
 
 	return ret;
@@ -1823,7 +1779,6 @@ p_i2c_err:
 int sensor_imx616_cis_get_digital_gain(struct v4l2_subdev *subdev, u32 *dgain)
 {
 	int ret = 0;
-	int hold = 0;
 	struct is_cis *cis;
 	struct i2c_client *client;
 
@@ -1841,11 +1796,6 @@ int sensor_imx616_cis_get_digital_gain(struct v4l2_subdev *subdev, u32 *dgain)
 	CHECK_ERR_RET(!client, -EINVAL, "client is NULL");
 
 	I2C_MUTEX_LOCK(cis->i2c_lock);
-	hold = sensor_imx616_cis_group_param_hold_func(subdev, 0x01);
-	if (hold < 0) {
-		ret = hold;
-		goto p_i2c_err;
-	}
 
 	ret = is_sensor_read16(client, REG(DGAIN), &digital_gain);
 	CHECK_GOTO(ret < 0, p_i2c_err);
@@ -1859,11 +1809,6 @@ int sensor_imx616_cis_get_digital_gain(struct v4l2_subdev *subdev, u32 *dgain)
 		dbg_sensor(1, "[%s] time %ldus", __func__, PABLO_KTIME_US_DELTA_NOW(st));
 
 p_i2c_err:
-	if (hold > 0) {
-		hold = sensor_imx616_cis_group_param_hold_func(subdev, 0x00);
-		if (hold < 0)
-			ret = hold;
-	}
 	I2C_MUTEX_UNLOCK(cis->i2c_lock);
 
 	return ret;
@@ -1946,7 +1891,6 @@ int sensor_imx616_cis_get_max_digital_gain(struct v4l2_subdev *subdev, u32 *max_
 int sensor_imx616_cis_set_wb_gain(struct v4l2_subdev *subdev, struct wb_gains wb_gains)
 {
 	int ret = 0;
-	int hold = 0;
 	struct is_cis *cis;
 	struct i2c_client *client;
 	u16 abs_gains[4] = {0, };	//[0]=gr, [1]=r, [2]=b, [3]=gb
@@ -1992,11 +1936,6 @@ int sensor_imx616_cis_set_wb_gain(struct v4l2_subdev *subdev, struct wb_gains wb
 		cis->id, __func__, abs_gains[0], abs_gains[1], abs_gains[2], abs_gains[3]);
 
 	I2C_MUTEX_LOCK(cis->i2c_lock);
-	hold = sensor_imx616_cis_group_param_hold_func(subdev, 0x01);
-	if (hold < 0) {
-		ret = hold;
-		goto p_i2c_err;
-	}
 
 	ret = is_sensor_write16_array(client, REG(ABS_GAIN_GR_SET), abs_gains, 4);
 	CHECK_ERR_GOTO(ret < 0, p_i2c_err, "failed to write abs_gain");
@@ -2005,11 +1944,6 @@ int sensor_imx616_cis_set_wb_gain(struct v4l2_subdev *subdev, struct wb_gains wb
 		dbg_sensor(1, "[%s] time %ldus", __func__, PABLO_KTIME_US_DELTA_NOW(st));
 
 p_i2c_err:
-	if (hold > 0) {
-		hold = sensor_imx616_cis_group_param_hold_func(subdev, 0x00);
-		if (hold < 0)
-			ret = hold;
-	}
 	I2C_MUTEX_UNLOCK(cis->i2c_lock);
 
 	return ret;
@@ -2037,6 +1971,7 @@ void sensor_imx616_cis_data_calc(struct v4l2_subdev *subdev, u32 mode)
 /**
  * sensor_imx616_cis_set_3hdr_flk_roi
  * : set flicker roi
+ * TODO : check the gph handling.
  */
 int sensor_imx616_cis_set_3hdr_flk_roi(struct v4l2_subdev *subdev)
 {
@@ -2534,7 +2469,9 @@ p_i2c_err:
 static struct is_cis_ops cis_ops_imx616 = {
 	.cis_init = sensor_imx616_cis_init,
 	.cis_log_status = sensor_imx616_cis_log_status,
+#if USE_GROUP_PARAM_HOLD
 	.cis_group_param_hold = sensor_imx616_cis_group_param_hold,
+#endif	
 	.cis_set_global_setting = sensor_imx616_cis_set_global_setting,
 	.cis_set_size = sensor_imx616_cis_set_size,
 #ifdef SUPPORT_SENSOR_SEAMLESS_3HDR

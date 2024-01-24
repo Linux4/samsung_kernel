@@ -5,7 +5,7 @@
  *
  * This file is licensed under GPLv2.
  *
- * This file contains common code to support Message Signalled Interrupt for
+ * This file contains common code to support Message Signaled Interrupts for
  * PCI compatible and non PCI compatible devices.
  */
 #include <linux/types.h>
@@ -456,6 +456,13 @@ int __msi_domain_alloc_irqs(struct irq_domain *domain, struct device *dev,
 			irqd_clr_can_reserve(irq_data);
 			if (domain->flags & IRQ_DOMAIN_MSI_NOMASK_QUIRK)
 				irqd_set_msi_nomask_quirk(irq_data);
+			if ((info->flags & MSI_FLAG_ACTIVATE_EARLY) &&
+				irqd_affinity_is_managed(irq_data) &&
+				!cpumask_intersects(irq_data_get_affinity_mask(irq_data),
+						    cpu_online_mask)) {
+				irqd_set_managed_shutdown(irq_data);
+				continue;
+			}
 		}
 		ret = irq_domain_activate_irq(irq_data, can_reserve);
 		if (ret)
@@ -476,11 +483,6 @@ skip_activate:
 	return 0;
 
 cleanup:
-	for_each_msi_vector(desc, i, dev) {
-		irq_data = irq_domain_get_irq_data(domain, i);
-		if (irqd_is_activated(irq_data))
-			irq_domain_deactivate_irq(irq_data);
-	}
 	msi_domain_free_irqs(domain, dev);
 	return ret;
 }
@@ -505,7 +507,15 @@ int msi_domain_alloc_irqs(struct irq_domain *domain, struct device *dev,
 
 void __msi_domain_free_irqs(struct irq_domain *domain, struct device *dev)
 {
+	struct irq_data *irq_data;
 	struct msi_desc *desc;
+	int i;
+
+	for_each_msi_vector(desc, i, dev) {
+		irq_data = irq_domain_get_irq_data(domain, i);
+		if (irqd_is_activated(irq_data))
+			irq_domain_deactivate_irq(irq_data);
+	}
 
 	for_each_msi_entry(desc, dev) {
 		/*

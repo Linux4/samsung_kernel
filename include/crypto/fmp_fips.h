@@ -97,6 +97,10 @@ struct fmp_handle {
 
 bool is_fmp_fips_op(struct bio *bio);
 bool is_fmp_fips_clean(struct bio *bio);
+#ifdef CONFIG_EXYNOS_FIPS_SIMULATOR
+struct fmp_handle *get_fmp_handle(void);
+void set_fips_keyslot_num(int num);
+#endif
 #ifdef CONFIG_KEYS_IN_PRDT
 int exynos_fmp_crypt(struct exynos_fmp_crypt_info *fmp_ci, struct fmp_table_setting *table);
 int exynos_fmp_clear(struct fmp_table_setting *table);

@@ -2303,6 +2303,7 @@ void is_resource_clear_global_param(struct is_resourcemgr *resourcemgr, void *de
 		ischain->hardware->video_mode = false;
 
 		is_hw_configure_llc(false, ischain, &global_param->llc_state);
+		cancel_delayed_work_sync(&resourcemgr->dvfs_ctrl.dec_dwork);
 	}
 
 	atomic_dec(&resourcemgr->global_param.sensor_cnt);

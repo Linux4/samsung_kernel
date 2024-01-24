@@ -16,16 +16,10 @@
 #include "is-cis-jn1.h"
 
 /*
- * [Mode Information]
+ * Reference File : 
  *
- * Reference File : IMX682_SEC-CPHY-26MHz_RegisterSetting_ver4.10-4.00_b1_MP_201029_SEC_1
- * Update Data    : 2021-10-07
- * Author         : g.lakshay
+ * Sensor Modes
  *
- * - Global Setting -
- *
- * - 2x2 BIN For Still Preview / Capture -
- *    [ 0 ] 2Bin_A         : 2x2 Binning mode A 4624x3468 30fps       : Single Still Preview/Capture (4:3)    ,  MIPI lane: 3, MIPI data rate(Mbps/lane): 1358.5
  */
 
 const u32 sensor_jn1_setfile_B_Global[] = {

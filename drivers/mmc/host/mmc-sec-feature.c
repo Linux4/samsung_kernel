@@ -95,6 +95,24 @@ static void mmc_error_count_log(int host_idx, int index, int error, u32 status)
 	int i = 0;
 	int cpu = raw_smp_processor_id();
 
+	if (!error)
+		return;
+
+	/*
+	 * -EIO (-5) : SDMMC_INT_RESP_ERR error case. So log as CRC.
+	 * -ENOMEDIUM (-123), etc : SW timeout and other error. So log as TIMEOUT.
+	 */
+	switch (error) {
+	case -EIO:
+		error = -EILSEQ;
+		break;
+	case -EILSEQ:
+		break;
+	default:
+		error = -ETIMEDOUT;
+		break;
+	}
+
 	for (i = 0; i < MAX_ERR_TYPE_INDEX; i++) {
 		if (err_log[index + i].err_type == error) {
 			index += i;

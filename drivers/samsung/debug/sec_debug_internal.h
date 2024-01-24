@@ -491,7 +491,7 @@ void secdbg_base_set_info_hard_lockup(unsigned int cpu, struct task_struct *task
 
 #define SEC_DEBUG_SHARED_MAGIC0 0xFFFFFFFF
 #define SEC_DEBUG_SHARED_MAGIC1 0x95308180
-#define SEC_DEBUG_SHARED_MAGIC2 0x14F014F0
+#define SEC_DEBUG_SHARED_MAGIC2 0x15001500
 #define SEC_DEBUG_SHARED_MAGIC3 0x00010001
 
 extern int id_get_asb_ver(void);

@@ -219,6 +219,7 @@ static void clear_state(struct sb_pt *pt, int init_step)
 
 		/* clear event */
 		set_misc_event(false);
+		sec_pd_detach_with_cc(0);
 	}
 	pt->step = init_step;
 }
@@ -636,11 +637,12 @@ int sb_pt_monitor(struct sb_pt *pt, int chg_src)
 		goto end_monitor;
 	}
 
-	pt_log("start - step = %s\n", get_step_str(pt->step));
+	pt_log("start - step = %s, chg_src = %d, dc_status = %d\n", get_step_str(pt->step), chg_src, pt->dc_status);
 
 	switch (pt->step) {
 	case PT_STEP_NONE:
 		push_start_work(pt, pt->start_delay);
+		pt->chg_src = chg_src;
 		break;
 	case PT_STEP_INIT:
 		if (pt->ref_cap <= 0) {
@@ -670,6 +672,7 @@ int sb_pt_monitor(struct sb_pt *pt, int chg_src)
 			else
 				push_start_work(pt, pt->init_delay);
 		}
+		pt->chg_src = chg_src;
 		break;
 	case PT_STEP_PRESET:
 	{
@@ -708,6 +711,7 @@ int sb_pt_monitor(struct sb_pt *pt, int chg_src)
 			value.intval = pt->user_mode;
 			psy_do_property(pt->dc_name, set,
 				POWER_SUPPLY_EXT_PROP_PASS_THROUGH_MODE, value);
+			sec_pd_detach_with_cc(1);
 
 			value.intval = pt->vfloat;
 			psy_do_property(pt->dc_name, set,

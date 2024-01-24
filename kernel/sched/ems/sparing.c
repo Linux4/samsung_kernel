@@ -14,11 +14,7 @@
 static struct {
 	unsigned long			update_period;
 
-	struct cpumask			cpus;
-
-	/* ecs request */
-	struct list_head		requests;
-	struct cpumask			requested_cpus;
+	const struct cpumask		*cpus;
 
 	/* ecs governor */
 	struct list_head		domain_list;
@@ -27,9 +23,7 @@ static struct {
 	struct system_profile_data	spd;
 	bool				skip_update;
 	bool				governor_enable;
-
-	/* ecs user request */
-	struct cpumask			user_cpus;
+	unsigned int			default_gov;
 
 	struct {
 		unsigned int		target_domain_id;
@@ -37,7 +31,9 @@ static struct {
 	} ioctl_info;
 } ecs;
 
-static DEFINE_RAW_SPINLOCK(ecs_lock);
+static struct kobject *stage_kobj;
+
+static DEFINE_RAW_SPINLOCK(sparing_lock);
 
 #define MAX_ECS_DOMAIN	VENDOR_NR_CPUS
 #define MAX_ECS_STAGE	VENDOR_NR_CPUS
@@ -45,308 +41,6 @@ static DEFINE_RAW_SPINLOCK(ecs_lock);
 static struct {
 	unsigned int ratio;
 } ecs_tune[MAX_ECS_DOMAIN][MAX_ECS_STAGE];
-
-/******************************************************************************
- *                                core sparing	                              *
- ******************************************************************************/
-struct ecs_env {
-	int		src_cpu;
-	int		dst_cpu;
-};
-static struct ecs_env __percpu *ecs_env;
-static struct cpu_stop_work __percpu *ecs_migration_work;
-
-static void
-migrate_any_task(struct task_struct *p, struct rq *src_rq, struct rq *dst_rq)
-{
-	int dst_cpu = cpu_of(dst_rq);
-
-	if (!is_dst_allowed(p, dst_cpu))
-		return;
-
-	get_task_struct(p);
-	p->on_rq = TASK_ON_RQ_MIGRATING;
-	deactivate_task(src_rq, p, 0);
-	set_task_cpu(p, dst_cpu);
-
-	activate_task(dst_rq, p, 0);
-	p->on_rq = TASK_ON_RQ_QUEUED;
-	check_preempt_curr(dst_rq, p, 0);
-	put_task_struct(p);
-}
-
-static void migrate_dl_tasks(struct rq *src_rq, struct rq *dst_rq)
-{
-	struct dl_rq *dl_rq = &src_rq->dl;
-	struct rb_node *next_node = dl_rq->pushable_dl_tasks_root.rb_leftmost;
-	struct task_struct *p = NULL;
-
-	if (RB_EMPTY_ROOT(&dl_rq->pushable_dl_tasks_root.rb_root))
-		return;
-
-next_node:
-	if (next_node) {
-		p = rb_entry(next_node, struct task_struct, pushable_dl_tasks);
-
-		migrate_any_task(p, src_rq, dst_rq);
-
-		next_node = dl_rq->pushable_dl_tasks_root.rb_leftmost;
-		goto next_node;
-	}
-}
-
-static void migrate_rt_tasks(struct rq *src_rq, struct rq *dst_rq)
-{
-	struct plist_head *head = &src_rq->rt.pushable_tasks;
-	struct task_struct *p, *temp;
-
-	if (plist_head_empty(head))
-		return;
-
-	plist_for_each_entry_safe(p, temp, head, pushable_tasks)
-		migrate_any_task(p, src_rq, dst_rq);
-}
-
-static void migrate_cfs_tasks(struct rq *src_rq, struct rq *dst_rq)
-{
-	struct task_struct *p, *temp;
-	struct list_head *tasks;
-
-	lockdep_assert_held(&src_rq->lock);
-
-	tasks = &src_rq->cfs_tasks;
-
-	list_for_each_entry_safe(p, temp, tasks, se.group_node)
-		migrate_any_task(p, src_rq, dst_rq);
-}
-
-static void migrate_all_class_tasks(struct rq *src_rq, struct rq *dst_rq)
-{
-	migrate_dl_tasks(src_rq, dst_rq);
-	migrate_rt_tasks(src_rq, dst_rq);
-	migrate_cfs_tasks(src_rq, dst_rq);
-}
-
-static int ecs_migration_cpu_stop(void *data)
-{
-	struct ecs_env *env = data;
-	struct rq *src_rq, *dst_rq;
-	int src_cpu = env->src_cpu, dst_cpu = env->dst_cpu;
-
-	/* Get source/destination runqueues */
-	src_rq = cpu_rq(src_cpu);
-	dst_rq = cpu_rq(dst_cpu);
-
-	BUG_ON(src_rq == dst_rq);
-
-	raw_spin_lock_irq(&src_rq->lock);
-
-	/* Move task from source to destination */
-	double_lock_balance(src_rq, dst_rq);
-	migrate_all_class_tasks(src_rq, dst_rq);
-	double_unlock_balance(src_rq, dst_rq);
-
-	src_rq->active_balance = 0;
-
-	raw_spin_unlock_irq(&src_rq->lock);
-
-	return 0;
-}
-
-static void __move_from_spared_cpus(int src_cpu, int dst_cpu)
-{
-	struct ecs_env *env = per_cpu_ptr(ecs_env, src_cpu);
-	struct rq *rq = cpu_rq(src_cpu);
-	unsigned long flags;
-
-	if (unlikely(src_cpu == dst_cpu))
-		return;
-
-	raw_spin_lock_irqsave(&rq->lock, flags);
-
-	if (rq->active_balance) {
-		raw_spin_unlock_irqrestore(&rq->lock, flags);
-		return;
-	}
-
-	env->src_cpu = src_cpu;
-	env->dst_cpu = dst_cpu;
-	rq->active_balance = 1;
-
-	raw_spin_unlock_irqrestore(&rq->lock, flags);
-
-	/* Migrate all tasks from src to dst through stopper */
-	stop_one_cpu_nowait(src_cpu, ecs_migration_cpu_stop, env,
-			per_cpu_ptr(ecs_migration_work, src_cpu));
-}
-
-static void move_from_spared_cpus(struct cpumask *spared_cpus)
-{
-	int cpu;
-
-	for_each_cpu(cpu, spared_cpus)
-		__move_from_spared_cpus(cpu, 4);
-}
-
-static void update_ecs_cpus(void)
-{
-	struct cpumask spared_cpus, prev_cpus;
-
-	cpumask_copy(&prev_cpus, &ecs.cpus);
-
-	cpumask_and(&ecs.cpus, &ecs.governor_cpus, cpu_possible_mask);
-	cpumask_and(&ecs.cpus, &ecs.cpus, &ecs.requested_cpus);
-	cpumask_and(&ecs.cpus, &ecs.cpus, &ecs.user_cpus);
-
-	if (cpumask_subset(&prev_cpus, &ecs.cpus))
-		return;
-
-	cpumask_andnot(&spared_cpus, cpu_active_mask, &ecs.cpus);
-	cpumask_and(&spared_cpus, &spared_cpus, &prev_cpus);
-	if (!cpumask_empty(&spared_cpus))
-		move_from_spared_cpus(&spared_cpus);
-}
-
-int ecs_cpu_available(int cpu, struct task_struct *p)
-{
-	if (p && is_per_cpu_kthread(p))
-		return true;
-
-	return cpumask_test_cpu(cpu, &ecs.cpus);
-}
-
-const struct cpumask *ecs_cpus_allowed(struct task_struct *p)
-{
-	if (p && is_per_cpu_kthread(p))
-		return cpu_active_mask;
-
-	return &ecs.cpus;
-}
-
-/******************************************************************************
- *                               ECS requestes                                *
- ******************************************************************************/
-#define ECS_USER_NAME_LEN 	(16)
-struct ecs_request {
-	char			name[ECS_USER_NAME_LEN];
-	struct cpumask		cpus;
-	struct list_head	list;
-};
-
-static struct ecs_request *ecs_find_request(char *name)
-{
-	struct ecs_request *req;
-
-	list_for_each_entry(req, &ecs.requests, list)
-		if (!strcmp(req->name, name))
-			return req;
-
-	return NULL;
-}
-
-static void ecs_request_combine_and_apply(void)
-{
-	struct cpumask mask;
-	struct ecs_request *req;
-	char buf[10];
-
-	cpumask_setall(&mask);
-
-	list_for_each_entry(req, &ecs.requests, list)
-		cpumask_and(&mask, &mask, &req->cpus);
-
-	if (cpumask_empty(&mask) || !cpumask_test_cpu(0, &mask)) {
-		scnprintf(buf, sizeof(buf), "%*pbl", cpumask_pr_args(&mask));
-		panic("ECS cpumask(%s) is wrong\n", buf);
-	}
-
-	cpumask_copy(&ecs.requested_cpus, &mask);
-	update_ecs_cpus();
-}
-
-int ecs_request_register(char *name, const struct cpumask *mask)
-{
-	struct ecs_request *req;
-	char buf[ECS_USER_NAME_LEN];
-	unsigned long flags;
-
-	/* allocate memory for new request */
-	req = kzalloc(sizeof(struct ecs_request), GFP_KERNEL);
-	if (!req)
-		return -ENOMEM;
-
-	raw_spin_lock_irqsave(&ecs_lock, flags);
-
-	/* check whether name is already register or not */
-	if (ecs_find_request(name))
-		panic("Failed to register ecs request! already existed\n");
-
-	/* init new request information */
-	cpumask_copy(&req->cpus, mask);
-	strcpy(req->name, name);
-
-	/* register request list */
-	list_add(&req->list, &ecs.requests);
-
-	scnprintf(buf, sizeof(buf), "%*pbl", cpumask_pr_args(&req->cpus));
-	pr_info("Register new ECS request [name:%s, mask:%s]\n", req->name, buf);
-
-	/* applying new request */
-	ecs_request_combine_and_apply();
-
-	raw_spin_unlock_irqrestore(&ecs_lock, flags);
-
-	return 0;
-}
-EXPORT_SYMBOL_GPL(ecs_request_register);
-
-/* remove request on the request list of exynos_core_sparing request */
-int ecs_request_unregister(char *name)
-{
-	struct ecs_request *req;
-	unsigned long flags;
-
-	raw_spin_lock_irqsave(&ecs_lock, flags);
-
-	req = ecs_find_request(name);
-	if (!req) {
-		raw_spin_unlock_irqrestore(&ecs_lock, flags);
-		return -ENODEV;
-	}
-
-	/* remove request from list and free */
-	list_del(&req->list);
-	kfree(req);
-
-	ecs_request_combine_and_apply();
-
-	raw_spin_unlock_irqrestore(&ecs_lock, flags);
-
-	return 0;
-}
-EXPORT_SYMBOL_GPL(ecs_request_unregister);
-
-int ecs_request(char *name, const struct cpumask *mask)
-{
-	struct ecs_request *req;
-	unsigned long flags;
-
-	raw_spin_lock_irqsave(&ecs_lock, flags);
-
-	req = ecs_find_request(name);
-	if (!req) {
-		raw_spin_unlock_irqrestore(&ecs_lock, flags);
-		return -EINVAL;
-	}
-
-	cpumask_copy(&req->cpus, mask);
-	ecs_request_combine_and_apply();
-
-	raw_spin_unlock_irqrestore(&ecs_lock, flags);
-
-	return 0;
-}
-EXPORT_SYMBOL_GPL(ecs_request);
 
 /******************************************************************************
  *                             core sparing governor                          *
@@ -489,13 +183,13 @@ static void update_ecs_domain(struct ecs_domain *domain)
 	if (!domain->cur_stage)
 		return;
 
-	cpumask_and(&mask, &ecs.cpus, cpu_online_mask);
+	cpumask_and(&mask, ecs.cpus, cpu_online_mask);
 	cpumask_and(&mask, &mask, &domain->cpus);
 	if (cpumask_empty(&mask))
 		return;
 
 	for_each_cpu(cpu, &mask)
-		monitor_util_sum += spd->cpu_util[cpu];
+		monitor_util_sum += spd->cp[cpu][CPU_UTIL].value;
 
 	__update_ecs_domain(domain, monitor_util_sum);
 }
@@ -552,35 +246,6 @@ static void update_ecs_governor_cpus(void)
 	}
 }
 
-static unsigned long last_update_jiffies;
-
-void ecs_update(void)
-{
-	unsigned long now = jiffies;
-
-	if (!ecs.governor_enable)
-		return;
-
-	if (!raw_spin_trylock(&ecs_lock))
-		return;
-
-	if (list_empty(&ecs.domain_list))
-		goto out;
-
-	if (ecs.skip_update)
-		goto out;
-
-	if (now < last_update_jiffies + msecs_to_jiffies(ecs.update_period))
-		goto out;
-
-	update_ecs_governor_cpus();
-
-	last_update_jiffies = now;
-
-out:
-	raw_spin_unlock(&ecs_lock);
-}
-
 static void ecs_control_governor(bool enable)
 {
 	struct ecs_domain *domain;
@@ -627,7 +292,7 @@ static int ecs_mode_update_callback(struct notifier_block *nb,
 	unsigned long flags;
 	struct ecs_domain *domain, *emstune_domain;
 
-	raw_spin_lock_irqsave(&ecs_lock, flags);
+	raw_spin_lock_irqsave(&sparing_lock, flags);
 	if (!list_empty(&cur_set->ecs.domain_list)) {
 		list_for_each_entry(emstune_domain, &cur_set->ecs.domain_list, node) {
 			domain = find_domain_by_id(emstune_domain->id);
@@ -640,9 +305,9 @@ static int ecs_mode_update_callback(struct notifier_block *nb,
 			domain->busy_threshold_ratio = 0;
 	}
 
-	if (!ecs.skip_update)
+	if (!ecs.skip_update && ecs.governor_enable)
 		update_ecs_governor_cpus();
-	raw_spin_unlock_irqrestore(&ecs_lock, flags);
+	raw_spin_unlock_irqrestore(&sparing_lock, flags);
 
 	return NOTIFY_OK;
 }
@@ -663,15 +328,15 @@ static int ecs_sysbusy_notifier_call(struct notifier_block *nb,
 	if (val != SYSBUSY_STATE_CHANGE)
 		return NOTIFY_OK;
 
-	raw_spin_lock(&ecs_lock);
+	raw_spin_lock(&sparing_lock);
 
 	old_skip_update = ecs.skip_update;
 	ecs.skip_update = (state > SYSBUSY_STATE0);
 
-	if (old_skip_update != ecs.skip_update)
+	if ((old_skip_update != ecs.skip_update) && ecs.governor_enable)
 		ecs_control_governor(!ecs.skip_update);
 
-	raw_spin_unlock(&ecs_lock);
+	raw_spin_unlock(&sparing_lock);
 
 	return NOTIFY_OK;
 }
@@ -763,10 +428,14 @@ int ecs_ioctl_get_ecs_domain_info(struct ems_ioctl_ecs_domain_info *info)
 					    &info->cd_cp_ratio[cpu]);
 
 		policy = cpufreq_cpu_get(cpu);
+		if (!policy) {
+			pr_err("EMS: %s: No cpufreq policy for CPU%d\n", __func__, cpu);
+			continue;
+		}
 
 		energy_state_index = 0;
 		cpufreq_for_each_valid_entry(pos, policy->freq_table) {
-			et_get_orig_state_with_freq(cpu, pos->frequency, &state);
+			et_get_orig_state(cpu, pos->frequency, &state);
 
 			fill_ecs_domain_info_state(cpu, energy_state_index, &state, info);
 
@@ -822,83 +491,6 @@ void ecs_ioctl_set_stage_threshold(unsigned int threshold)
 /******************************************************************************
  *                                    sysfs                                   *
  ******************************************************************************/
-static struct kobject *ecs_kobj;
-
-static ssize_t show_ecs_cpus(struct kobject *kobj,
-		struct kobj_attribute *attr, char *buf)
-{
-	int ret = 0, id = 0;
-	struct ecs_domain *domain;
-
-	/* All combined CPUs */
-	ret += snprintf(buf + ret, PAGE_SIZE - ret,
-				"cpus : %#x\n",
-				*(unsigned int *)cpumask_bits(&ecs.cpus));
-
-	/* Governor CPUs */
-	ret += snprintf(buf + ret, PAGE_SIZE - ret,
-				"* gov cpus : %#x\n",
-				*(unsigned int *)cpumask_bits(&ecs.governor_cpus));
-	id = 0;
-	list_for_each_entry(domain, &ecs.domain_list, node) {
-		ret += snprintf(buf + ret, PAGE_SIZE - ret,
-				"  - domain%d cpus : %#x\n", id++,
-				*(unsigned int *)cpumask_bits(&domain->cur_stage->cpus));
-	}
-
-	ret += snprintf(buf + ret, PAGE_SIZE - ret,
-				"  - out of governing cpus : %#x\n",
-				*(unsigned int *)cpumask_bits(&ecs.out_of_governing_cpus));
-
-	/* Requested from kernel CPUs */
-	ret += snprintf(buf + ret, PAGE_SIZE - ret,
-				"* kernel requsted cpus : %#x\n",
-				*(unsigned int *)cpumask_bits(&ecs.requested_cpus));
-
-	/* Requested from user CPUs */
-	ret += snprintf(buf + ret, PAGE_SIZE - ret,
-				"* user requested cpus : %#x\n",
-				*(unsigned int *)cpumask_bits(&ecs.user_cpus));
-
-	return ret;
-}
-
-#define STR_LEN (6)
-static ssize_t store_ecs_cpus(struct kobject *kobj,
-		struct kobj_attribute *attr, const char *buf, size_t count)
-{
-	int ret;
-	char str[STR_LEN];
-	struct cpumask mask;
-	unsigned long flags;
-
-	if (strlen(buf) >= STR_LEN)
-		return -EINVAL;
-
-	if (!sscanf(buf, "%s", str))
-		return -EINVAL;
-
-	if (str[0] == '0' && str[1] =='x')
-		ret = cpumask_parse(str + 2, &mask);
-	else
-		ret = cpumask_parse(str, &mask);
-
-	if (ret){
-		pr_err("input of req_cpus(%s) is not correct\n", buf);
-		return -EINVAL;
-	}
-
-	raw_spin_lock_irqsave(&ecs_lock, flags);
-	cpumask_copy(&ecs.user_cpus, &mask);
-	update_ecs_cpus();
-	raw_spin_unlock_irqrestore(&ecs_lock, flags);
-
-	return count;
-}
-
-static struct kobj_attribute ecs_cpus_attr =
-__ATTR(cpus, 0644, show_ecs_cpus, store_ecs_cpus);
-
 static ssize_t show_ecs_update_period(struct kobject *kobj,
 		struct kobj_attribute *attr, char *buf)
 {
@@ -978,12 +570,12 @@ static ssize_t store_ecs_governor_enable(struct kobject *kobj,
 	if (sscanf(buf, "%d", &enable) != 1)
 		return -EINVAL;
 
-	raw_spin_lock_irqsave(&ecs_lock, flags);
+	raw_spin_lock_irqsave(&sparing_lock, flags);
 	if (enable != ecs.governor_enable)
 		ecs_control_governor(enable);
 
 	ecs.governor_enable = enable;
-	raw_spin_unlock_irqrestore(&ecs_lock, flags);
+	raw_spin_unlock_irqrestore(&sparing_lock, flags);
 
 	return count;
 }
@@ -1031,29 +623,26 @@ static ssize_t store_ecs_ratio(struct kobject *kobj,
 static struct kobj_attribute ecs_ratio =
 __ATTR(ratio, 0644, show_ecs_ratio, store_ecs_ratio);
 
-static int ecs_sysfs_init(struct kobject *ems_kobj)
+static int ecs_sysfs_init(struct kobject *ecs_gov_kobj)
 {
 	int ret;
 
-	ecs_kobj = kobject_create_and_add("ecs", ems_kobj);
-	if (!ecs_kobj) {
+	stage_kobj = kobject_create_and_add("stage", ecs_gov_kobj);
+	if (!stage_kobj) {
 		pr_info("%s: fail to create node\n", __func__);
 		return -EINVAL;
 	}
 
-	ret = sysfs_create_file(ecs_kobj, &ecs_cpus_attr.attr);
+	ret = sysfs_create_file(stage_kobj, &ecs_update_period_attr.attr);
 	if (ret)
 		pr_warn("%s: failed to create ecs sysfs\n", __func__);
-	ret = sysfs_create_file(ecs_kobj, &ecs_update_period_attr.attr);
+	ret = sysfs_create_file(stage_kobj, &ecs_domain_attr.attr);
 	if (ret)
 		pr_warn("%s: failed to create ecs sysfs\n", __func__);
-	ret = sysfs_create_file(ecs_kobj, &ecs_domain_attr.attr);
+	ret = sysfs_create_file(stage_kobj, &ecs_governor_enable_attr.attr);
 	if (ret)
 		pr_warn("%s: failed to create ecs sysfs\n", __func__);
-	ret = sysfs_create_file(ecs_kobj, &ecs_governor_enable_attr.attr);
-	if (ret)
-		pr_warn("%s: failed to create ecs sysfs\n", __func__);
-	ret = sysfs_create_file(ecs_kobj, &ecs_ratio.attr);
+	ret = sysfs_create_file(stage_kobj, &ecs_ratio.attr);
 	if (ret)
 		pr_warn("%s: failed to create ecs sysfs\n", __func__);
 
@@ -1156,25 +745,67 @@ static int init_ecs_domain_list(void)
 		domain_id++;
 	}
 
+	of_property_read_u32(dn, "default-gov", &ecs.default_gov);
+
 finish:
 	return ret;
 }
 
-int ecs_init(struct kobject *ems_kobj)
+static void stage_start(const struct cpumask *cpus)
 {
-	ecs_env = alloc_percpu(struct ecs_env);
-	if (!ecs_env) {
-		pr_err("falied to allocate ecs_env\n");
-		return -ENOMEM;
-	}
+	ecs.cpus = cpus;
+	ecs.governor_enable = true;
+}
 
-	ecs_migration_work = alloc_percpu(struct cpu_stop_work);
-	if (!ecs_migration_work) {
-		pr_err("falied to allocate ecs_migration_work\n");
-		free_percpu(ecs_env);
-		return -ENOMEM;
-	}
+static unsigned long last_update_jiffies;
+static void stage_update(void)
+{
+	unsigned long now = jiffies;
 
+	if (!ecs.governor_enable)
+		return;
+
+	if (!raw_spin_trylock(&sparing_lock))
+		return;
+
+	if (list_empty(&ecs.domain_list))
+		goto out;
+
+	if (ecs.skip_update)
+		goto out;
+
+	if (now < last_update_jiffies + msecs_to_jiffies(ecs.update_period))
+		goto out;
+
+	update_ecs_governor_cpus();
+
+	last_update_jiffies = now;
+
+out:
+	raw_spin_unlock(&sparing_lock);
+}
+
+static void stage_stop(void)
+{
+	ecs.governor_enable = false;
+	ecs.cpus = NULL;
+}
+
+static const struct cpumask *stage_get_target_cpus(void)
+{
+	return &ecs.governor_cpus;
+}
+
+static struct ecs_governor stage_gov = {
+	.name = "stage",
+	.update = stage_update,
+	.start = stage_start,
+	.stop = stage_stop,
+	.get_target_cpus = stage_get_target_cpus,
+};
+
+int ecs_gov_stage_init(struct kobject *ems_kobj)
+{
 	if (init_ecs_domain_list()) {
 		pr_info("ECS governor will not affect scheduler\n");
 
@@ -1183,20 +814,16 @@ int ecs_init(struct kobject *ems_kobj)
 		cpumask_copy(&ecs.out_of_governing_cpus, cpu_possible_mask);
 	}
 
-	cpumask_copy(&ecs.cpus, cpu_possible_mask);
-	cpumask_copy(&ecs.requested_cpus, cpu_possible_mask);
-	cpumask_copy(&ecs.user_cpus, cpu_possible_mask);
-
-	INIT_LIST_HEAD(&ecs.requests);
-
 	/* 16 msec in default */
 	ecs.update_period = 16;
+	cpumask_copy(&ecs.governor_cpus, cpu_possible_mask);
 
-	ecs_sysfs_init(ems_kobj);
+	ecs_sysfs_init(ecs_get_governor_object());
+
 	emstune_register_notifier(&ecs_mode_update_notifier);
 	sysbusy_register_notifier(&ecs_sysbusy_notifier);
 
-	ecs.governor_enable = true;
+	ecs_governor_register(&stage_gov, ecs.default_gov);
 
 	return 0;
 }

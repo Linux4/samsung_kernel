@@ -86,11 +86,11 @@ static int dsp_reloc_sym_addr_compare(
 		return -1;
 	return 0;
 }
+*/
 
 void dsp_link_info_print(struct dsp_link_info *info)
 {
 	struct dsp_elf32 *elf = info->elf;
-	struct dsp_list_head remove;
 	struct dsp_list_node *node;
 	int idx;
 
@@ -127,11 +127,6 @@ void dsp_link_info_print(struct dsp_link_info *info)
 		DL_PRINT_BUF(DEBUG);
 	}
 
-	dsp_list_head_init(&remove);
-	dsp_list_unique(&info->reloc_sym, &remove, dsp_reloc_sym_str_compare);
-	dsp_list_free(&remove, struct dsp_reloc_sym, node);
-
-	dsp_list_sort(&info->reloc_sym, dsp_reloc_sym_addr_compare);
 	dsp_list_for_each(node, &info->reloc_sym) {
 		struct dsp_reloc_sym *sym_info = container_of(node,
 				struct dsp_reloc_sym, node);
@@ -141,7 +136,6 @@ void dsp_link_info_print(struct dsp_link_info *info)
 			sym_info->value * sym_info->align);
 	}
 }
-*/
 
 static unsigned long __addr_align(unsigned long addr)
 {

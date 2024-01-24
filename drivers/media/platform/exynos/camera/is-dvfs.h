@@ -17,16 +17,20 @@
 #include <linux/errno.h>
 #include <linux/slab.h>
 
-#include "is-time.h"
-#include "is-cmd.h"
-#include "is-err.h"
-#include "is-video.h"
 #include "is-groupmgr.h"
 #include "is-device-ischain.h"
+
+#define IS_DVFS_STATIC		0
+#define IS_DVFS_DYNAMIC		1
+
+#define IS_DVFS_PATH_M2M	0
+#define IS_DVFS_PATH_OTF	1
 
 #define	DVFS_NOT_MATCHED	0 /* not matched in this scenario */
 #define	DVFS_MATCHED		1 /* matched in this scenario */
 #define	DVFS_SKIP		2 /* matched, but do not anything. skip changing dvfs */
+
+#define IS_DVFS_DEC_DTIME	50
 
 #define KEEP_FRAME_TICK_FAST_LAUNCH	(10)
 #define KEEP_FRAME_TICK_THROTT (10)
@@ -75,7 +79,6 @@ struct is_dvfs_scenario_ctrl {
 
 #ifdef CONFIG_PM_DEVFREQ
 int is_dvfs_init(struct is_resourcemgr *resourcemgr);
-int is_dvfs_sel_table(struct is_resourcemgr *resourcemgr);
 int is_dvfs_sel_static(struct is_device_ischain *device);
 int is_dvfs_sel_dynamic(struct is_device_ischain *device, struct is_group *group,
 	struct is_frame *frame);
@@ -84,12 +87,14 @@ int is_dvfs_get_cur_lv(u32 dvfs_t);
 int is_dvfs_get_freq(u32 dvfs_t);
 int is_add_dvfs(struct is_core *core, int scenario_id);
 int is_remove_dvfs(struct is_core *core, int scenario_id);
-int is_set_dvfs(struct is_core *core, struct is_device_ischain *device, int scenario_id);
-void is_set_static_dvfs(struct is_device_ischain *device, bool stream_on, bool sensor_only);
+int is_set_dvfs_m2m(struct is_device_ischain *device, int scenario_id);
+int is_set_dvfs_otf(struct is_device_ischain *device, int scenario_id);
+int pablo_set_static_dvfs(struct is_device_ischain *device,
+			  const char *suffix, int force_scn, int path);
+void is_set_static_dvfs(struct is_device_ischain *device, bool stream_on);
 unsigned int is_get_bit_count(unsigned long bits);
 #else
 #define is_dvfs_init(r)			({0; })
-#define is_dvfs_sel_table(r)		({0; })
 #define is_dvfs_sel_static(d)		({0; })
 #define is_dvfs_sel_dynamic(d, g, f)	({0; })
 #define is_dvfs_sel_external(d)		({0; })
@@ -97,7 +102,8 @@ unsigned int is_get_bit_count(unsigned long bits);
 #define is_dvfs_get_freq(d)		({0; })
 #define is_add_dvfs(c, i)		({0; })
 #define is_remove_dvfs(c, i)		({0; })
-#define is_set_dvfs(c, d, i)		({0; })
+#define is_set_dvfs_m2m(d, i)		({0; })
+#define is_set_dvfs_otf(d, i)		({0; })
 #define is_dual_mode_update(d, g, f)	do { } while (0)
 #define is_dual_dvfs_update(d, g, f)	do { } while (0)
 #define is_get_bit_count(b)		({0; })

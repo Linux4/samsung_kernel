@@ -32,7 +32,8 @@
 
 #include <linux/slab.h>
 #include <linux/device.h>
-#include <soc/samsung/exynos-profiler.h>
+
+struct freq_table;
 
 enum queue_type {
 	GPEX_TSG_QUEUE_JOB,
@@ -119,9 +120,10 @@ ktime_t gpex_tsg_get_queued_time(int idx);
 ktime_t *gpex_tsg_get_queued_time_array(void);
 ktime_t gpex_tsg_get_queued_last_updated(void);
 int gpex_tsg_get_queue_nr(int type);
-struct atomic_notifier_head *gpex_tsg_get_frag_utils_change_notifier_list(void);
+struct blocking_notifier_head *gpex_tsg_get_frag_utils_change_notifier_list(void);
 int gpex_tsg_notify_frag_utils_change(u32 js0_utils);
 void gpex_tsg_stats_get_run_times(u64 *times);
+void gpex_tsg_stats_get_pid_list(u16 *pidlist);
 void gpex_tsg_stats_get_frame_info(s32 *nrframe, u64 *nrvsync, u64 *delta_ms);
 
 void gpex_tsg_migov_set_targetframetime(int us);

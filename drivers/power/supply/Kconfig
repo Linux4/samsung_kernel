@@ -692,7 +692,8 @@ config BATTERY_GOLDFISH
 
 config BATTERY_RT5033
 	tristate "RT5033 fuel gauge support"
-	depends on MFD_RT5033
+	depends on I2C
+	select REGMAP_I2C
 	help
 	  This adds support for battery fuel gauge in Richtek RT5033 PMIC.
 	  The fuelgauge calculates and determines the battery state of charge
@@ -774,6 +775,30 @@ config RN5T618_POWER
 	  Say Y here to have support for RN5T618 PMIC family fuel gauge and charger.
 	  This driver can also be built as a module. If so, the module will be
 	  called rn5t618_power.
+
+config FUELGAUGE_S2MU106
+       tristate "S2MU106 fuelgauge driver"
+       default n
+       depends on I2C
+       help
+        say y to include support
+        for s.lsi S2MU106 fuelgauge driver.
+
+config CHARGER_S2MU106
+	tristate "S2MU106 charger support"
+	depends on (MFD_S2MU106) && I2C
+	help
+	 Say Y here to enable support for the S2MU106 charger
+	 S2MU106 incluse pmic, led driver.
+	 You have to define MFD_S2MU106
+
+config PM_S2MU106
+	tristate "S2MU106 power meter support"
+	depends on (MFD_S2MU106) && I2C
+	help
+	 Say Y here to enable support for the S2MU106 power meter.
+	 S2MU106 power meter is dependent on MFD_S2MU106
+	 so it needs to be defined.
 
 config CHARGER_S2MC501
 	tristate "S2MC501 charger support"

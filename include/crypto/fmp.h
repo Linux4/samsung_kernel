@@ -15,6 +15,8 @@
 #include <linux/bio.h>
 #include <crypto/fmp_fips.h>
 
+#define FMP_DRV_VERSION "4.0.1"
+
 #define FMP_KEY_SIZE_16		16
 #define FMP_KEY_SIZE_32		32
 #define FMP_IV_SIZE_16		16
@@ -166,7 +168,9 @@ struct fmp_sg_entry {
 
 #define DEFAULT_KWMODE			(1 | (1 << 4))
 
+struct exynos_fmp *get_fmp(void);
 int get_fmp_fips_state(void);
+void exynos_fmp_fips_test(struct exynos_fmp *fmp);
 #ifndef CONFIG_KEYS_IN_PRDT
 unsigned long exynos_fmp_set_kw_mode(uint64_t kw_mode);
 unsigned long exynos_fmp_get_kw_mode(dma_addr_t kw_mode_addr);

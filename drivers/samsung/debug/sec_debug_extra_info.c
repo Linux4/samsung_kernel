@@ -33,7 +33,7 @@
 #include "sec_debug_internal.h"
 #include "sec_debug_extra_info_keys.c"
 
-#define EXTRA_VERSION	"RI25"
+#define EXTRA_VERSION	"VE12"
 
 #define MAX_EXTRA_INFO_HDR_LEN	6
 #define MAX_CALL_ENTRY	128
@@ -43,18 +43,70 @@ static bool exin_ready;
 static struct sec_debug_shared_buffer *sh_buf;
 static void *slot_end_addr;
 
-static char *ftype_items[MAX_ITEM_VAL_LEN] = {
-	"UNDF", "BAD", "WATCH", "KERN", "MEM",
-	"SPPC", "PAGE", "AUF", "EUF", "AUOF",
-	"BUG", "SERR", "SEA", "FPAC",
-};
-
 static long __read_mostly rr_pwrsrc;
 module_param(rr_pwrsrc, long, 0440);
 
 /*****************************************************************/
 /*                        UNIT FUNCTIONS                         */
 /*****************************************************************/
+
+static int is_exist_key(char (*keys)[MAX_ITEM_KEY_LEN], const char *key, int size)
+{
+	int mcnt = 0;
+	int i;
+
+	for (i = 0; i < size; i++)
+		if (!strcmp(key, keys[i]))
+			mcnt++;
+
+	return mcnt;
+}
+
+static bool is_exist_abcfmt(const char *key)
+{
+	int match_cnt = 0;
+
+	match_cnt += is_exist_key(akeys, key, ARRAY_SIZE(akeys));
+	match_cnt += is_exist_key(bkeys, key, ARRAY_SIZE(bkeys));
+	match_cnt += is_exist_key(ckeys, key, ARRAY_SIZE(ckeys));
+	match_cnt += is_exist_key(fkeys, key, ARRAY_SIZE(fkeys));
+	match_cnt += is_exist_key(mkeys, key, ARRAY_SIZE(mkeys));
+	match_cnt += is_exist_key(tkeys, key, ARRAY_SIZE(tkeys));
+
+	if (match_cnt == 0 || (match_cnt > 1 && strcmp(key, "ID") && strcmp(key, "RR"))) {
+		pr_crit("%s: %s is exist in the abcfmt keys %d times\n", __func__, key, match_cnt);
+#if !defined(CONFIG_SAMSUNG_PRODUCT_SHIP)
+		panic("%s: key match error", __func__);
+#endif
+		return false;
+	}
+
+	return true;
+}
+
+static bool sec_debug_extra_info_check_key(void)
+{
+	int i;
+
+	for (i = 0; i < ARRAY_SIZE(key32); i++)
+		if (!is_exist_abcfmt(key32[i]))
+			return false;
+
+	for  (i = 0; i < ARRAY_SIZE(key64); i++)
+		if (!is_exist_abcfmt(key64[i]))
+			return false;
+
+	for (i = 0; i < ARRAY_SIZE(key256); i++)
+		if (!is_exist_abcfmt(key256[i]))
+			return false;
+
+	for (i = 0; i < ARRAY_SIZE(key1024); i++)
+		if (!is_exist_abcfmt(key1024[i]))
+			return false;
+
+	return true;
+}
+
 static int get_val_len(const char *s)
 {
 	if (s)
@@ -202,7 +254,7 @@ static int is_ocp;
 static int is_key_in_blocklist(const char *key)
 {
 	char blkey[][MAX_ITEM_KEY_LEN] = {
-		"KTIME", "BAT", "FTYPE", "ODR", "DDRID",
+		"KTIME", "BAT", "ODR", "DDRID",
 		"PSITE", "ASB", "ASV", "IDS",
 	};
 
@@ -219,6 +271,34 @@ static int is_key_in_blocklist(const char *key)
 		if (is_ocp)
 			return 1;
 		is_ocp = 1;
+	}
+
+	return 0;
+}
+
+static int is_key_in_once_list(const char *s, const char *key)
+{
+	char blkey[][MAX_ITEM_KEY_LEN] = {
+		"SPCNT", "HLFREQ",
+	};
+
+	int nr_blkey, val_len, i;
+	int ret = 0;
+
+	val_len = get_val_len(s);
+	nr_blkey = ARRAY_SIZE(blkey);
+
+	for (i = 0; i < nr_blkey; i++) {
+		if (!strncmp(key, blkey[i], strlen(key)))
+			ret++;
+	}
+
+	if (!ret)
+		return 0;
+
+	for (i = 0; i < nr_blkey; i++) {
+		if (strnstr(s, blkey[i], val_len))
+			return 1;
 	}
 
 	return 0;
@@ -254,6 +334,9 @@ static void set_key_order(const char *key)
 	}
 
 	v = get_item_val(p);
+
+	if (is_key_in_once_list(v, key))
+		goto  unlock_keyorder;
 
 	/* keep previous value */
 	len_prev = get_val_len(v);
@@ -308,7 +391,7 @@ static void set_item_val(const char *key, const char *fmt, ...)
 	v = get_item_val(p);
 	if (!get_val_len(v)) {
 		va_start(args, fmt);
-		vsnprintf(v, max, fmt, args);
+		vsnprintf(v, max - MAX_ITEM_KEY_LEN, fmt, args);
 		va_end(args);
 
 		set_key_order(key);
@@ -677,6 +760,7 @@ static void __init sec_debug_extra_info_buffer_init(void)
 	unsigned long tmp_addr;
 	struct sec_debug_sb_index tmp_idx;
 	bool flag_valid = false;
+	unsigned long item_size;
 
 	flag_valid = sec_debug_extra_info_check_magic();
 
@@ -712,6 +796,17 @@ static void __init sec_debug_extra_info_buffer_init(void)
 	tmp_idx.size = 1024;
 	tmp_idx.nr = 32;
 	sec_debug_init_extra_info_sbidx(SLOT_1024, tmp_idx, flag_valid);
+
+	/*items size = 1024B item start addr + 1024B item size - exin start addr*/
+	item_size = tmp_addr + (tmp_idx.size * tmp_idx.nr) - secdbg_base_get_buf_base(SDN_MAP_EXTRA_INFO);
+
+	if (secdbg_base_get_buf_size(SDN_MAP_EXTRA_INFO) / 2 < item_size) {
+		pr_crit("%s: item size overflow: rsvd: %lu, item size: %lu\n",
+			__func__, secdbg_base_get_buf_size(SDN_MAP_EXTRA_INFO) / 2, item_size);
+#if !defined(CONFIG_SAMSUNG_PRODUCT_SHIP)
+		panic("%s: size error", __func__);
+#endif
+	}
 
 	/* backup shared buffer contents */
 	sec_debug_extra_info_copy_shared_buffer(flag_valid);
@@ -804,8 +899,8 @@ EXPORT_SYMBOL(secdbg_exin_set_busmon);
 
 void secdbg_exin_set_smpl(unsigned long count)
 {
-	clear_item_val("SMP");
-	set_item_val("SMP", "%lu", count);
+	clear_item_val("SPCNT");
+	set_item_val("SPCNT", "%lu", count);
 }
 EXPORT_SYMBOL(secdbg_exin_set_smpl);
 
@@ -848,6 +943,13 @@ void secdbg_exin_set_epd(const char *str)
 	set_item_val("EPD", "%s", str);
 }
 EXPORT_SYMBOL(secdbg_exin_set_epd);
+
+void secdbg_exin_set_ufs(const char *str)
+{
+	clear_item_val("UFS");
+	set_item_val("UFS", "%s", str);
+}
+EXPORT_SYMBOL(secdbg_exin_set_ufs);
 
 /* OCP total limitation */
 #define MAX_OCP_CNT		(0xFF)
@@ -1021,27 +1123,29 @@ EXPORT_SYMBOL(simulate_extra_info_force_error);
 static void secdbg_exin_set_fault(enum secdbg_exin_fault_type type,
 				    unsigned long addr, struct pt_regs *regs)
 {
-
 	phys_addr_t paddr = 0;
+	u64 lr;
 
-	if (regs) {
-		pr_crit("%s = %s / 0x%lx\n", __func__, ftype_items[type], addr);
+	if (!regs)
+		return;
 
-		set_item_val("FTYPE", "%s", ftype_items[type]);
-		set_item_val("FAULT", "0x%lx", addr);
-		set_item_val("PC", "%pS", regs->pc);
-		set_item_val("LR", "%pS",
-					 compat_user_mode(regs) ?
-					 regs->compat_lr : regs->regs[30]);
+	if (compat_user_mode(regs))
+		lr = regs->compat_lr;
+	else
+		lr = regs->regs[30];
 
-		if (type == UNDEF_FAULT && addr >= kimage_voffset) {
-			paddr = virt_to_phys((void *)addr);
+	set_item_val("FAULT", "0x%lx", addr);
+	set_item_val("PC", "%pS", regs->pc);
+	set_item_val("LR", "%pS",
+			user_mode(regs) ? lr : ptrauth_strip_insn_pac(lr));
 
-			pr_crit("%s: 0x%x / 0x%x\n", __func__,
-				upper_32_bits(paddr), lower_32_bits(paddr));
+	if (type == UNDEF_FAULT && addr >= kimage_voffset) {
+		paddr = virt_to_phys((void *)addr);
+
+		pr_crit("%s: 0x%x / 0x%x\n", __func__,
+			upper_32_bits(paddr), lower_32_bits(paddr));
 //			exynos_pmu_write(EXYNOS_PMU_INFORM8, lower_32_bits(paddr));
 //			exynos_pmu_write(EXYNOS_PMU_INFORM9, upper_32_bits(paddr));
-		}
 	}
 }
 
@@ -1408,12 +1512,28 @@ static int secdbg_exin_die_handler(struct notifier_block *nb,
 {
 	struct die_args *args = (struct die_args *)buf;
 	struct pt_regs *regs = args->regs;
+	u64 lr;
 
-	if (regs && (!user_mode(regs)))
+	if (args->err)
+		secdbg_exin_set_esr(args->err);
+
+	if (!regs)
+		return NOTIFY_DONE;
+
+	if (!user_mode(regs))
 		secdbg_exin_set_backtrace(regs);
 
 	if (is_bug_reported)
 		secdbg_exin_set_fault(BUG_FAULT, (unsigned long)regs->pc, regs);
+
+	if (compat_user_mode(regs))
+		lr = regs->compat_lr;
+	else
+		lr = regs->regs[30];
+
+	set_item_val("PC", "%pS", regs->pc);
+	set_item_val("LR", "%pS",
+			user_mode(regs) ? lr : ptrauth_strip_insn_pac(lr));
 
 	return NOTIFY_DONE;
 }
@@ -1444,6 +1564,9 @@ static int __init secdbg_extra_info_init(void)
 	struct proc_dir_entry *entry;
 
 	pr_info("%s: start\n", __func__);
+
+	if (!sec_debug_extra_info_check_key())
+		pr_crit("%s: keys and abcfmt is not matched\n", __func__);
 
 	sh_buf = secdbg_base_get_debug_base(SDN_MAP_EXTRA_INFO);
 	if (!sh_buf) {

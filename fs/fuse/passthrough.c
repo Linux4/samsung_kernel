@@ -16,6 +16,26 @@ struct fuse_aio_req {
 	struct kiocb *iocb_fuse;
 };
 
+static void fuse_file_accessed(struct file *dst_file, struct file *src_file)
+{
+	struct inode *dst_inode;
+	struct inode *src_inode;
+
+	if (dst_file->f_flags & O_NOATIME)
+		return;
+
+	dst_inode = file_inode(dst_file);
+	src_inode = file_inode(src_file);
+
+	if ((!timespec64_equal(&dst_inode->i_mtime, &src_inode->i_mtime) ||
+	     !timespec64_equal(&dst_inode->i_ctime, &src_inode->i_ctime))) {
+		dst_inode->i_mtime = src_inode->i_mtime;
+		dst_inode->i_ctime = src_inode->i_ctime;
+	}
+
+	touch_atime(&dst_file->f_path);
+}
+
 /* @fs.sec -- 3dd584f42d6edc81d1e439f5fe51974f -- */
 static void fuse_invalidate_inode_pages_range(struct inode *fuse_inode, loff_t start,
 				 loff_t end)
@@ -106,6 +126,8 @@ ssize_t fuse_passthrough_read_iter(struct kiocb *iocb_fuse,
 out:
 	revert_creds(old_cred);
 
+	fuse_file_accessed(fuse_filp, passthrough_filp);
+
 	return ret;
 }
 
@@ -124,6 +146,8 @@ ssize_t fuse_passthrough_write_iter(struct kiocb *iocb_fuse,
 		return 0;
 
 	inode_lock(fuse_inode);
+
+	fuse_copyattr(fuse_filp, passthrough_filp);
 
 	old_cred = override_creds(ff->passthrough.cred);
 	if (is_sync_kiocb(iocb_fuse)) {
@@ -170,9 +194,7 @@ ssize_t fuse_passthrough_mmap(struct file *file, struct vm_area_struct *vma)
 	int ret;
 	const struct cred *old_cred;
 	struct fuse_file *ff = file->private_data;
-	struct inode *fuse_inode = file_inode(file);
 	struct file *passthrough_filp = ff->passthrough.filp;
-	struct inode *passthrough_inode = file_inode(passthrough_filp);
 
 	if (!passthrough_filp->f_op->mmap)
 		return -ENODEV;
@@ -191,17 +213,7 @@ ssize_t fuse_passthrough_mmap(struct file *file, struct vm_area_struct *vma)
 	else
 		fput(file);
 
-	if (file->f_flags & O_NOATIME)
-		return ret;
-
-	if ((!timespec64_equal(&fuse_inode->i_mtime,
-			       &passthrough_inode->i_mtime) ||
-	     !timespec64_equal(&fuse_inode->i_ctime,
-			       &passthrough_inode->i_ctime))) {
-		fuse_inode->i_mtime = passthrough_inode->i_mtime;
-		fuse_inode->i_ctime = passthrough_inode->i_ctime;
-	}
-	touch_atime(&file->f_path);
+	fuse_file_accessed(file, passthrough_filp);
 
 	return ret;
 }

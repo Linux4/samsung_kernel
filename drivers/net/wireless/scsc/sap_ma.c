@@ -535,7 +535,7 @@ static void slsi_rx_check_opt_out_packet(struct slsi_dev *sdev, struct net_devic
 static struct sk_buff *slsi_parse_and_pull_ma_unitdata_ind_signal(struct slsi_dev *sdev, struct sk_buff *skb)
 {
 	struct slsi_skb_cb *skb_cb;
-	bool is_ciphered;
+	bool is_ciphered, is_wakeup;
 	u8 discard;
 
 	/* 0.save info in fapi signal and remove fapi signal
@@ -544,7 +544,7 @@ static struct sk_buff *slsi_parse_and_pull_ma_unitdata_ind_signal(struct slsi_de
 	 */
 	is_ciphered = (fapi_get_u16(skb, u.ma_unitdata_ind.configuration_option) & FAPI_OPTION_KEYRSC) >> 3;
 	discard = (fapi_get_u16(skb, u.ma_unitdata_ind.configuration_option) & FAPI_OPTION_DISCARD) >> 8;
-
+	is_wakeup = ((struct slsi_skb_cb *)skb->cb)->wakeup;
 #ifdef CONFIG_SCSC_SMAPPER
 	/* Get if the skb is in the SMAPPER entry */
 	if (slsi_skb_cb_get(skb)->smapper_linked) {
@@ -563,6 +563,7 @@ static struct sk_buff *slsi_parse_and_pull_ma_unitdata_ind_signal(struct slsi_de
 	skb_cb->is_amsdu = false;
 	skb_cb->is_ciphered = is_ciphered;
 	skb_cb->discard = discard;
+	skb_cb->wakeup = is_wakeup;
 
 	return skb;
 }
@@ -577,7 +578,7 @@ static int slsi_get_msdu_frame(struct net_device *dev, struct sk_buff *skb)
 	hdr = (struct ieee80211_hdr *)skb->data;
 
 	if (!ieee80211_is_data(hdr->frame_control)) {
-		SLSI_NET_DBG4(dev, SLSI_RX, "Ignore this packet. It is not data\n");
+		SLSI_NET_DBG3(dev, SLSI_RX, "Ignore this packet. It is not data\n");
 		return -EINVAL;
 	}
 
@@ -926,14 +927,8 @@ static void slsi_rx_data_ind(struct slsi_dev *sdev, struct net_device *dev, stru
 	eth_hdr = (struct ethhdr *)skb->data;
 
 	/* Populate wake reason stats here */
-	if (unlikely(slsi_skb_cb_get(skb)->wakeup)) {
+	if (unlikely(slsi_skb_cb_get(skb)->wakeup))
 		slsi_rx_update_wake_stats(sdev, eth_hdr, skb->len);
-#ifdef CONFIG_SCSC_WLAN_DEBUG
-		SCSC_BIN_TAG_INFO(BINARY, skb->data, skb->len > 128 ? 128 : skb->len);
-#else
-		SCSC_BIN_TAG_INFO(BINARY, skb->data, skb->len > 54 ? 54 : skb->len);
-#endif
-	}
 
 	SLSI_NET_DBG4(dev, SLSI_RX, "ma_unitdata_ind(vif:%d, dest:%pM, src:%pM, tid:%d, seq:%d, cipher:%d, discard:%X, is_amsdu:%d, is_tdls:%d)\n",
 		      ndev_vif->ifnum,

@@ -26,12 +26,14 @@
 
 #define AK09918C_NAME	"AK09918C"
 
-static void init_mag_ak09918c(void)
+static int init_mag_ak09918c(void)
 {
 	struct magnetometer_data *data = get_sensor(SENSOR_TYPE_GEOMAGNETIC_FIELD)->data;
 
 	data->mag_matrix_len = 27;
 	data->cal_data_len = sizeof(struct calibration_data_ak09918c);
+
+	return 0;
 }
 
 static void parse_dt_magnetometer_ak09918c(struct device *dev)
@@ -60,9 +62,8 @@ static void parse_dt_magnetometer_ak09918c(struct device *dev)
 		value_nfc = gpio_get_value(check_nfc_gpio);
 
 	check_mst_gpio = of_get_named_gpio(np, "mag-check-mst", 0);
-	if (check_mst_gpio >= 0) {
+	if (check_mst_gpio >= 0)
 		value_mst = gpio_get_value(check_mst_gpio);
-	}
 
 	if (value_mst == 1) {
 		shub_info("mag matrix(%d %d) nfc/mst array", value_nfc, value_mst);
@@ -82,12 +83,12 @@ static void parse_dt_magnetometer_ak09918c(struct device *dev)
 	}
 }
 
-struct magnetometer_chipset_funcs magnetometer_ak09918c_func = {
+struct sensor_chipset_init_funcs magnetometer_ak09918c_func = {
 	.init = init_mag_ak09918c,
 	.parse_dt = parse_dt_magnetometer_ak09918c,
 };
 
-struct magnetometer_chipset_funcs *get_magnetic_ak09918c_function_pointer(char *name)
+struct sensor_chipset_init_funcs *get_magnetic_ak09918c_function_pointer(char *name)
 {
 	if (strcmp(name, AK09918C_NAME) != 0)
 		return NULL;

@@ -734,7 +734,7 @@ void init_usb_whitelist_array(int *whitelist_array)
 		whitelist_array[i] = 0;
 }
 
-int set_usb_whitelist_array(const char *buf, int *whitelist_array)
+int set_usb_allowlist_array(const char *buf, int *whitelist_array)
 {
 	int valid_class_count = 0;
 	char *ptr = NULL;
@@ -743,6 +743,8 @@ int set_usb_whitelist_array(const char *buf, int *whitelist_array)
 
 	source = (char *)buf;
 	while ((ptr = strsep(&source, ":")) != NULL) {
+		if (strlen(ptr) < 3)
+			continue;
 		pr_info("%s token = %c%c%c!\n", __func__,
 			ptr[0], ptr[1], ptr[2]);
 		for (i = U_CLASS_PER_INTERFACE; i <= U_CLASS_VENDOR_SPEC; i++) {
@@ -769,8 +771,8 @@ static ssize_t whitelist_for_mdm_show(struct device *dev,
 		pr_err("udev is NULL\n");
 		return -EINVAL;
 	}
-	pr_info("%s read whitelist_classes %s\n",
-		__func__, udev->whitelist_str);
+	pr_info("allowlist_for_mdm read allowlist_classes %s\n",
+		udev->whitelist_str);
 	return sprintf(buf, "%s\n", udev->whitelist_str);
 }
 
@@ -793,7 +795,7 @@ static ssize_t whitelist_for_mdm_store(
 	}
 
 	if (size > MAX_WHITELIST_STR_LEN || size < 3) {
-		pr_err("%s size(%zu) is invalid.\n", __func__, size);
+		pr_err("allowlist_for_mdm_store size(%zu) is invalid.\n", size);
 		goto error;
 	}
 
@@ -806,7 +808,7 @@ static ssize_t whitelist_for_mdm_store(
 	sret = sscanf(buf, "%s", disable);
 	if (sret != 1)
 		goto error1;
-	pr_info("%s buf=%s\n", __func__, disable);
+	pr_info("allowlist_for_mdm_store buf=%s\n", disable);
 
 	init_usb_whitelist_array(udev->whitelist_array_for_mdm);
 	/* To active displayport, hub class must be enabled */
@@ -816,7 +818,7 @@ static ssize_t whitelist_for_mdm_store(
 	} else if (!strncmp(buf, "OFF", 3))
 		mdm_disable = NOTIFY_MDM_TYPE_OFF;
 	else {
-		valid_whilelist_count =	set_usb_whitelist_array
+		valid_whilelist_count = set_usb_allowlist_array
 			(buf, udev->whitelist_array_for_mdm);
 		if (valid_whilelist_count > 0) {
 			udev->whitelist_array_for_mdm[U_CLASS_HUB] = 1;

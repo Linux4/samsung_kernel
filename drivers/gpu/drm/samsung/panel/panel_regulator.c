@@ -12,7 +12,7 @@
 #include <linux/regulator/consumer.h>
 #include <linux/of.h>
 #include <linux/regulator/of_regulator.h>
-#include <kunit/mock.h>
+#include "panel_kunit.h"
 
 #include "panel_regulator.h"
 #include "panel_debug.h"
@@ -268,7 +268,7 @@ int of_get_panel_regulator(struct device_node *np, struct panel_regulator *regul
 	of_node_put(reg_np);
 	of_property_read_u32(np, "type", &regulator->type);
 	if (regulator->type >= PANEL_REGULATOR_TYPE_MAX) {
-		panel_err("%s invalid type %d\n", np->name, reg_np->name, regulator->type);
+		panel_err("%s invalid type %d\n", np->name, regulator->type);
 		return -EINVAL;
 	}
 	regulator->node_name = np->name;

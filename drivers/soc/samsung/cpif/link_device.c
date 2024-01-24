@@ -1535,6 +1535,7 @@ static enum hrtimer_restart sbd_tx_timer_func(struct hrtimer *timer)
 					"tx_frames_to_rb error");
 				need_schedule = false;
 				goto exit;
+			}
 		}
 #endif
 

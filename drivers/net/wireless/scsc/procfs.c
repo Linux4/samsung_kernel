@@ -85,7 +85,7 @@ static ssize_t slsi_procfs_mutex_stats_read(struct file *file,  char __user *use
 
 	for (i = 1; i < CONFIG_SCSC_WLAN_MAX_INTERFACES + 1; i++) {
 		pos += scnprintf(buf + pos, bufsz - pos, "netdevvif %d\n", i);
-		dev = slsi_get_netdev_locked(sdev, i);
+		dev = sdev->netdev[i];
 		if (!dev)
 			continue;
 		ndev_vif = netdev_priv(dev);
@@ -1204,9 +1204,9 @@ static ssize_t slsi_procfs_nan_info_read(struct file *file,  char __user *user_b
 
 	pos += scnprintf(buf, bufsz, "NANMACADDRESS,");
 	pos += scnprintf(buf + pos, bufsz - pos, "%pM", nan_data->local_nmi);
-	pos += scnprintf(buf + pos, bufsz, ",CLUSTERID,");
-	pos += scnprintf(buf + pos, bufsz - pos, "%pM", nan_data->cluster_id);
-	pos += scnprintf(buf + pos, bufsz, ",OPERATINGCHANNEL,");
+	pos += scnprintf(buf + pos, bufsz - pos, ",CLUSTERID,");
+	pos += scnprintf(buf + pos, bufsz - pos, "%pM", sdev->nan_cluster_id);
+	pos += scnprintf(buf + pos, bufsz - pos, ",OPERATINGCHANNEL,");
 	if (nan_data->operating_channel[0])
 		pos += scnprintf(buf + pos, bufsz - pos, "%d ", nan_data->operating_channel[0]);
 	if (nan_data->operating_channel[1])

@@ -32,36 +32,30 @@ struct device dev_fmp;
 #define MAX_RETRY_COUNT 0x100
 #endif
 
+#ifdef CONFIG_EXYNOS_FIPS_SIMULATOR
+static struct fmp_handle *fmp_ufs_handle;
+
+struct fmp_handle *get_fmp_handle()
+{
+	return fmp_ufs_handle;
+}
+EXPORT_SYMBOL(get_fmp_handle);
+
+static int FIPS_keyslot_num;
+
+void set_fips_keyslot_num(int num)
+{
+	FIPS_keyslot_num = num;
+}
+EXPORT_SYMBOL(set_fips_keyslot_num);
+#endif
+
 #ifdef CONFIG_KEYS_IN_PRDT
 static inline __be32 fmp_key_word(const u8 *key, int j)
 {
 	return cpu_to_be32(get_unaligned_le32(
 			key + AES_KEYSIZE_256 - (j + 1) * sizeof(__le32)));
 }
-
-#ifdef CONFIG_EXYNOS_FMP_FIPS_FUNC_TEST
-static void exynos_ufs_fmp_fips_clean(void *data, struct ufs_hba *hba,
-				struct ufshcd_lrb *lrbp)
-{
-	int ret;
-
-	if (!lrbp->cmd)
-		return;
-
-	if (!lrbp->cmd->request->crypt_ctx) {
-		if (!(lrbp->cmd->request->bio))
-			return;
-
-		if (is_fmp_fips_clean(lrbp->cmd->request->bio)) {
-			ret = exynos_fmp_clear((void *)lrbp->ucd_prdt_ptr);
-			if (ret) {
-				pr_warn("%s: fails to clear fips\n", __func__);
-				return;
-			}
-		}
-	}
-}
-#endif
 
 /* Configure FMP on requests that have an encryption context. */
 static void exynos_ufs_fmp_fill_prdt(void *ignore, struct ufs_hba *hba, struct ufshcd_lrb *lrbp,
@@ -232,32 +226,6 @@ void exynos_ufs_fmp_set_crypto_cfg(struct ufs_hba *hba)
 	return;
 }
 
-#ifdef CONFIG_EXYNOS_FMP_FIPS_FUNC_TEST
-static void exynos_ufs_fmp_fips_clean(void *data, struct ufs_hba *hba,
-				struct ufshcd_lrb *lrbp)
-{
-	int ret;
-	struct exynos_ufs *ufs = to_exynos_ufs(hba);
-	struct ufs_vs_handle *handle = &ufs->handle;
-
-	if (!lrbp->cmd)
-		return;
-
-	if (!lrbp->cmd->request->crypt_ctx) {
-		if (!(lrbp->cmd->request->bio))
-			return;
-
-		if (is_fmp_fips_clean(lrbp->cmd->request->bio)) {
-			ret = exynos_fmp_clear((void *)handle, EXYNOS_FMP_FIPS_KEYSLOT);
-			if (ret) {
-				pr_warn("%s: fails to clear fips\n", __func__);
-				return;
-			}
-		}
-	}
-}
-#endif
-
 static void exynos_ufs_fmp_prepare_command(void *ignore, struct ufs_hba *hba, struct request *rq,
 					struct ufshcd_lrb *lrbp, int *err)
 {
@@ -292,6 +260,10 @@ static void exynos_ufs_fmp_prepare_command(void *ignore, struct ufs_hba *hba, st
 	}
 
 	if (fmp_ci.fips) {
+#ifdef CONFIG_EXYNOS_FIPS_SIMULATOR
+		if ((FIPS_keyslot_num >= 0) && (FIPS_keyslot_num <= 15))
+			fmp_ci.crypto_key_slot = FIPS_keyslot_num;
+#endif
 		lrbp->crypto_key_slot = fmp_ci.crypto_key_slot;
 		lrbp->data_unit_num = fmp_ci.data_unit_num;
 		*err = 0;
@@ -310,7 +282,9 @@ void exynos_ufs_fmp_init(struct ufs_hba *hba)
 {
 	unsigned long ret;
 
+#ifndef CONFIG_EXYNOS_FMP_FIPS
 	dev_info(hba->dev, "Exynos FMP Version: %s\n", FMP_DRV_VERSION);
+#endif
 	dev_info(hba->dev, "KEYS_IN_PRDT\n");
 
 	ret = exynos_smc(SMC_CMD_SMU, SMU_INIT, FMP_EMBEDDED, 0);
@@ -348,9 +322,6 @@ void exynos_ufs_fmp_init(struct ufs_hba *hba)
 		FMP_DATA_UNIT_SIZE;
 
 	register_trace_android_vh_ufs_fill_prdt(exynos_ufs_fmp_fill_prdt, NULL);
-#ifdef CONFIG_EXYNOS_FMP_FIPS_FUNC_TEST
-	register_trace_android_vh_ufs_compl_command(exynos_ufs_fmp_fips_clean, NULL);
-#endif
 	return;
 
 disable:
@@ -647,9 +618,15 @@ void exynos_ufs_fmp_init(struct ufs_hba *hba)
 	struct exynos_ufs *ufs = to_exynos_ufs(hba);
 	struct exynos_fmp *fmp;
 
+#ifndef CONFIG_EXYNOS_FMP_FIPS
 	dev_info(hba->dev, "Exynos FMP Version: %s\n", FMP_DRV_VERSION);
+#endif
 	dev_info(hba->dev, "HW_KEYS_IN_CUSTOM_KEYSLOT\n");
 
+#ifdef CONFIG_EXYNOS_FIPS_SIMULATOR
+	fmp_ufs_handle = (struct fmp_handle *)&ufs->handle;
+	FIPS_keyslot_num = -1;
+#endif
 	ufs->fmp = devm_kzalloc(ufs->dev, sizeof(struct exynos_fmp), GFP_KERNEL);
 	if (ufs->fmp == NULL) {
 		dev_warn(hba->dev, "failed to alloc ufs->fmp\n");
@@ -737,9 +714,6 @@ void exynos_ufs_fmp_init(struct ufs_hba *hba)
 	}
 
 	register_trace_android_vh_ufs_prepare_command(exynos_ufs_fmp_prepare_command, NULL);
-#ifdef CONFIG_EXYNOS_FMP_FIPS_FUNC_TEST
-	register_trace_android_vh_ufs_compl_command(exynos_ufs_fmp_fips_clean, NULL);
-#endif
 	return;
 
 disable:
@@ -920,9 +894,14 @@ void exynos_ufs_fmp_init(struct ufs_hba *hba)
 	struct exynos_ufs *ufs = to_exynos_ufs(hba);
 	struct exynos_fmp *fmp;
 
+#ifndef CONFIG_EXYNOS_FMP_FIPS
 	dev_info(hba->dev, "Exynos FMP Version: %s\n", FMP_DRV_VERSION);
+#endif
 	dev_info(hba->dev, "KEYS_IN_CUSTOM_KEYSLOT\n");
-
+#ifdef CONFIG_EXYNOS_FIPS_SIMULATOR
+	fmp_ufs_handle = (struct fmp_handle *)&ufs->handle;
+	FIPS_keyslot_num = -1;
+#endif
 	ufs->fmp = devm_kzalloc(ufs->dev, sizeof(struct exynos_fmp), GFP_KERNEL);
 	if (ufs->fmp == NULL) {
 		dev_warn(hba->dev, "failed to alloc ufs->fmp\n");
@@ -996,9 +975,6 @@ void exynos_ufs_fmp_init(struct ufs_hba *hba)
 		FMP_DATA_UNIT_SIZE;
 
 	register_trace_android_vh_ufs_prepare_command(exynos_ufs_fmp_prepare_command, NULL);
-#ifdef CONFIG_EXYNOS_FMP_FIPS_FUNC_TEST
-	register_trace_android_vh_ufs_compl_command(exynos_ufs_fmp_fips_clean, NULL);
-#endif
 	return;
 
 disable:

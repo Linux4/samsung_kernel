@@ -24,7 +24,6 @@
 
 #define AOV_VOUT_STEP	500
 #define AOV_VOUT_MAX	7500
-#define AOV_VOUT_MIN	5000
 
 enum sb_tx_aov_state {
 	AOV_STATE_NONE = 0,
@@ -68,8 +67,10 @@ struct sb_tx_aov {
 	unsigned int low_freq;
 	unsigned int high_freq;
 	unsigned int delay;
+	unsigned int preset_delay;
 	unsigned int phm_icl;
 	unsigned int phm_icl_full;
+	unsigned int vout_min;
 };
 
 struct sb_tx {
@@ -77,6 +78,11 @@ struct sb_tx {
 	struct sec_battery_info *battery;
 
 	struct notifier_block nb;
+
+	struct wakeup_source *ws;
+
+	struct workqueue_struct *wq;
+	struct delayed_work tx_err_work;
 
 	bool enable;
 	unsigned int event;
@@ -151,7 +157,7 @@ bool sb_tx_is_aov_enabled(int cable_type)
 
 	if (is_pd_apdo_wire_type(cable_type)) {
 		if (tx->aov.state == AOV_STATE_NONE) {
-			unsigned int min_iv = AOV_VOUT_MIN, max_iv = AOV_VOUT_MAX;
+			unsigned int min_iv = aov->vout_min, max_iv = AOV_VOUT_MAX;
 
 			if (sec_pd_get_pdo_power(NULL, &min_iv, &max_iv, NULL) <= 0)
 				return false;
@@ -192,18 +198,19 @@ int sb_tx_monitor_aov(int vout, bool phm)
 	case AOV_STATE_PRESET:
 		if (vout < aov->start_vout) {
 			if (prev_aov_state == AOV_STATE_NONE) {
-				sec_bat_run_wpc_tx_work(battery, (aov->delay + 1000));
+				sec_bat_run_wpc_tx_work(battery, (aov->preset_delay + 1000));
 			} else {
 				vout = vout + AOV_VOUT_STEP;
 				sec_vote(battery->iv_vote, VOTER_WC_TX, true, vout);
 				sec_bat_wireless_vout_cntl(tx->battery, vout);
 				sec_bat_run_wpc_tx_work(battery,
-					((vout == aov->start_vout) ? (aov->delay * 2) : 500));
+					((vout == aov->start_vout) ? (aov->preset_delay * 2) : 500));
 			}
 			break;
 		}
 
 		aov->state = AOV_STATE_MONITOR;
+		fallthrough;
 	case AOV_STATE_MONITOR:
 		if (phm) {
 			int phm_icl = (check_full_state(tx)) ?
@@ -222,7 +229,7 @@ int sb_tx_monitor_aov(int vout, bool phm)
 			psy_do_property(tx->wrl_name, get, POWER_SUPPLY_EXT_PROP_WIRELESS_OP_FREQ, freq);
 			if ((freq.intval <= aov->low_freq) && (vout < AOV_VOUT_MAX))
 				vout = vout + AOV_VOUT_STEP;
-			else if ((freq.intval >= aov->high_freq) && (vout > AOV_VOUT_MIN))
+			else if ((freq.intval >= aov->high_freq) && (vout > aov->vout_min))
 				vout = vout - AOV_VOUT_STEP;
 
 			if ((prev_vout != vout) ||
@@ -239,7 +246,10 @@ int sb_tx_monitor_aov(int vout, bool phm)
 		if (!phm) {
 			vout = aov->start_vout + AOV_VOUT_STEP;
 			sec_vote(battery->iv_vote, VOTER_WC_TX, true, vout);
-			sec_vote(battery->input_vote, VOTER_WC_TX, false, 0);
+			if (battery->pdata->icl_by_tx_gear)
+				sec_vote(battery->input_vote, VOTER_WC_TX, true, battery->pdata->icl_by_tx_gear);
+			else
+				sec_vote(battery->input_vote, VOTER_WC_TX, false, 0);
 			sec_bat_wireless_vout_cntl(battery, vout);
 			sec_bat_run_wpc_tx_work(battery, aov->delay);
 
@@ -262,6 +272,41 @@ int sb_tx_monitor_aov(int vout, bool phm)
 	mutex_unlock(&tx_lock);
 
 	return aov->state;
+}
+
+static bool check_tx_err_state(struct sb_tx *tx)
+{
+	union power_supply_propval value = { 0, };
+	int vout, iout, freq;
+
+	psy_do_property(tx->wrl_name, get, POWER_SUPPLY_EXT_PROP_WIRELESS_TX_UNO_VIN, value);
+	vout = value.intval;
+
+	psy_do_property(tx->wrl_name, get, POWER_SUPPLY_EXT_PROP_WIRELESS_TX_UNO_IIN, value);
+	iout = value.intval;
+
+	psy_do_property(tx->wrl_name, get, POWER_SUPPLY_EXT_PROP_WIRELESS_OP_FREQ, value);
+	freq = value.intval;
+
+	return (vout <= 0) && (iout <= 0) && (freq <= 0);
+}
+
+static void cb_tx_err_work(struct work_struct *work)
+{
+	struct sb_tx *tx = container_of(work,
+		struct sb_tx, tx_err_work.work);
+
+	tx_log("start!\n");
+
+	if (check_tx_err_state(tx)) {
+		union power_supply_propval value = { 0, };
+
+		tx_log("set tx retry!!!\n");
+		value.intval = BATT_TX_EVENT_WIRELESS_TX_ETC;
+		psy_do_property("wireless", set, POWER_SUPPLY_EXT_PROP_WIRELESS_TX_ERR, value);
+	}
+
+	__pm_relax(tx->ws);
 }
 
 static ssize_t show_attrs(struct device *dev,
@@ -313,6 +358,8 @@ static int sb_tx_parse_aov_dt(struct device_node *np, struct sb_tx_aov *aov)
 	sb_of_parse_u32(np, aov, low_freq, 131);
 	sb_of_parse_u32(np, aov, high_freq, 147);
 	sb_of_parse_u32(np, aov, delay, 3000);
+	sb_of_parse_u32(np, aov, preset_delay, 3000);
+	sb_of_parse_u32(np, aov, vout_min, 5000);
 	return 0;
 }
 
@@ -375,6 +422,16 @@ int sb_tx_init(struct sec_battery_info *battery, char *wrl_name)
 	if (ret)
 		goto err_parse_dt;
 
+	tx->wq = create_singlethread_workqueue(TX_MODULE_NAME);
+	if (!tx->wq) {
+		ret = -ENOMEM;
+		goto err_parse_dt;
+	}
+
+	tx->ws = wakeup_source_register(battery->dev, TX_MODULE_NAME);
+
+	INIT_DELAYED_WORK(&tx->tx_err_work, cb_tx_err_work);
+
 	mutex_init(&tx->event_lock);
 
 	tx->battery = battery;
@@ -402,6 +459,20 @@ EXPORT_SYMBOL(sb_tx_init);
 
 int sb_tx_set_enable(bool tx_enable, int cable_type)
 {
+	struct sb_tx *tx = get_sb_tx();
+
+	if (tx_enable) {
+		if (check_tx_err_state(tx)) {
+			tx_log("abnormal case - run tx err work!\n");
+
+			__pm_stay_awake(tx->ws);
+			queue_delayed_work(tx->wq, &tx->tx_err_work, msecs_to_jiffies(1000));
+		}
+	} else {
+		cancel_delayed_work(&tx->tx_err_work);
+		__pm_relax(tx->ws);
+	}
+
 	return 0;
 }
 EXPORT_SYMBOL(sb_tx_set_enable);

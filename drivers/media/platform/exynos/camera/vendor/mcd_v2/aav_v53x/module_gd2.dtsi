@@ -30,7 +30,7 @@
 				bitwidth = <10>;
 				use_retention_mode = <SENSOR_RETENTION_INACTIVE>;
 				sensor_maker = "SONY";
-				sensor_name = "GD2";
+				sensor_name = "S5KGD2";
 				setfile_name = "setfile_gd2.bin";
 
 				status = "okay";

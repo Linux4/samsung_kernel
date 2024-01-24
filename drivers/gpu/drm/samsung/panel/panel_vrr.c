@@ -8,7 +8,7 @@
  * published by the Free Software Foundation.
  */
 
-#include <kunit/mock.h>
+#include "panel_kunit.h"
 #include "panel.h"
 #include "panel_drv.h"
 #include "panel_vrr.h"

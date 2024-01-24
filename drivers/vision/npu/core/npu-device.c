@@ -707,12 +707,12 @@ int npu_device_recovery_close(struct npu_device *device)
 	ret += npu_debug_close(device);
 	if (ret)
 		goto err_coma;
-// #else
+#else
 // ret += __npu_device_power_off(device);
+	clear_bit(NPU_DEVICE_ERR_STATE_EMERGENCY, &device->err_state);
 #endif
 
 	clear_bit(NPU_DEVICE_STATE_OPEN, &device->state);
-	clear_bit(NPU_DEVICE_ERR_STATE_EMERGENCY, &device->err_state);
 
 	npu_info("%s():%d\n", __func__, ret);
 	return ret;

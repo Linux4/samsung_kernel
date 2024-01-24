@@ -2076,6 +2076,7 @@ static int proto_drv_timedout_handling(const lsm_list_type_e state)
 {
 	s64 now = get_time_ns();
 	int timeout_entry_cnt = 0;
+	struct npu_device *device = npu_proto_drv.npu_device;
 	{
 		u32 frame_req_type;
 		struct proto_req_frame *entry;
@@ -2095,9 +2096,13 @@ static int proto_drv_timedout_handling(const lsm_list_type_e state)
 					&entry->frame,
 					getTypeName(frame_req_type), LSM_STATE_NAMES[state],
 					entry->frame.npu_req_id, entry->frame.result_code, entry->frame.result_code);
-#ifdef CONFIG_NPU_USE_HW_DEVICE
+				fw_print_log2dram(&device->system, 4 * 1024);
 				fw_will_note(FW_LOGSIZE);
+#ifdef CONFIG_NPU_USE_HW_DEVICE
 				npu_util_dump_handle_nrespone(&npu_proto_drv.npu_device->system);
+#else
+				/* For papaya */
+				npu_util_dump_handle_nrespone_watchdog();
 #endif
 			}
 		)
@@ -2115,6 +2120,12 @@ static int proto_drv_timedout_handling(const lsm_list_type_e state)
 					&entry->nw,
 					getTypeName(PROTO_DRV_REQ_TYPE_NW), LSM_STATE_NAMES[state],
 					entry->nw.npu_req_id, entry->nw.result_code, entry->nw.result_code);
+				fw_print_log2dram(&device->system, 4 * 1024);
+#ifndef CONFIG_NPU_USE_HW_DEVICE
+				/* For papaya */
+				fw_will_note(FW_LOGSIZE);
+				npu_util_dump_handle_nrespone_watchdog();
+#endif
 			}
 		)
 	}
