@@ -138,7 +138,7 @@ void sec_bat_calc_time_to_full(struct sec_battery_info * battery)
 			charge = battery->ttf_d->ttf_wireless_charge_current;
 #if defined(CONFIG_PDIC_NOTIFIER)
 		} else if (is_pd_apdo_wire_type(battery->cable_type) ||
-			(is_pd_fpdo_wire_type(battery->cable_type) && battery->hv_pdo)) {
+			(is_pd_fpdo_wire_type(battery->cable_type) && battery->pdic_info.sink_status.available_pdo_num > 1)) {
 			if (battery->pd_max_charge_power > HV_CHARGER_STATUS_STANDARD4) {
 				charge = battery->ttf_d->ttf_dc45_charge_current;
 			} else if (battery->pd_max_charge_power > HV_CHARGER_STATUS_STANDARD3) {

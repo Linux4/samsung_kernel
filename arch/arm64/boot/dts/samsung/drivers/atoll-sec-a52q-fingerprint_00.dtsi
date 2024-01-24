@@ -1,0 +1,77 @@
+/* Copyright (c) 2013-2019, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+&tlmm {
+	fps_rst: fps_rst {
+		mux {
+			pins = "gpio91";
+			function = "gpio";
+		};
+		config {
+			pins = "gpio91";
+			bias-pull-down;
+		};
+	};
+};
+
+&pm6150l_l11 {
+	regulator-name = "VDD_BTP_3P3";
+	regulator-min-microvolt = <3300000>;
+	regulator-max-microvolt = <3300000>;
+	qcom,init-voltage = <3300000>;
+};
+
+&qupv3_se6_spi {
+	qcom,set-miso-sampling;
+	qcom,miso-sampling-ctrl-val = <2>;
+	status = "okay";
+
+	gw9558-spi@0 {
+		compatible = "goodix,gw9558x_factory";
+		reg = <0>;
+		spi-max-frequency = <25000000>;
+
+		pinctrl-names = "default";
+		pinctrl-0 = <&fps_rst>;
+
+		gpio-controller;
+		#gpio-cells = <2>;
+
+		goodix,btp-regulator = "VDD_BTP_3P3";
+		goodix,gpio_reset = <&tlmm 91 0>;
+		goodix,chip_id = "GW9558";
+		goodix,position = "11.81,-0.02,9.10,9.10,14.80,14.80,12.00,12.00,5.00";
+		goodix,modelinfo = "A525";
+		goodix,rb = "547,215,-1,FFFFFF,A9A9A9";
+	};
+};
+
+&soc {
+	gw9558@0 {
+		compatible = "goodix,gw9558x";
+		reg = <0>;
+		spi-max-frequency = <25000000>;
+
+		pinctrl-names = "default";
+		pinctrl-0 = <&fps_rst>;
+
+		gpio-controller;
+		#gpio-cells = <2>;
+
+		goodix,btp-regulator = "VDD_BTP_3P3";
+		goodix,gpio_reset = <&tlmm 91 0>;
+		goodix,chip_id = "GW9558";
+		goodix,position = "11.81,-0.02,9.10,9.10,14.80,14.80,12.00,12.00,5.00";
+		goodix,modelinfo = "A525";
+		goodix,rb = "547,215,-1,FFFFFF,A9A9A9";
+	};
+};

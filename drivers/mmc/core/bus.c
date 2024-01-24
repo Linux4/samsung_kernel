@@ -137,7 +137,7 @@ static void mmc_bus_shutdown(struct device *dev)
 {
 	struct mmc_driver *drv = to_mmc_driver(dev->driver);
 	struct mmc_card *card = mmc_dev_to_card(dev);
-	struct mmc_host *host = card->host;
+	struct mmc_host *host;
 	int ret;
 
 	if (!drv) {
@@ -149,6 +149,8 @@ static void mmc_bus_shutdown(struct device *dev)
 		pr_debug("%s: %s: card is NULL\n", dev_name(dev), __func__);
 		return;
 	}
+
+	host = card->host;
 
 	if (dev->driver && drv->shutdown)
 		drv->shutdown(card);

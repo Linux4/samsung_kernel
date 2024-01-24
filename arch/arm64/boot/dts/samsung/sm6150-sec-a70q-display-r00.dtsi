@@ -1,0 +1,265 @@
+/* Copyright (c) 2016-2017, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+#include "../../../../../drivers/gpu/drm/msm/samsung/SELF_DISPLAY/self_display_cmd_FA7_AMS628RF05.dtsi"
+#include "../../../../../drivers/gpu/drm/msm/samsung/S6E3FA7_AMS628RF05/dsi_panel_S6E3FA7_AMS628RF05_fhd_octa_cmd.dtsi"
+#include "../../../../../drivers/gpu/drm/msm/samsung/PBA_BOOTING/dsi_panel_PBA_BOOTING_fhd_video.dtsi"
+
+
+#if 0
+/{
+	aliases {
+		spi7 = &qupv3_se7_spi;
+	};
+};
+#endif
+
+&tlmm {
+	pmx_sde: pmx_sde {
+		sde_dsi_active: sde_dsi_active {
+			mux {
+				pins = "gpio91";
+				function = "gpio";
+			};
+
+			config {
+				pins = "gpio91";
+				drive-strength = <8>;   /* 8 mA */
+				bias-disable = <0>;   /* no pull */
+			};
+		};
+		sde_dsi_suspend: sde_dsi_suspend {
+			mux {
+				pins = "gpio91";
+				function = "gpio";
+			};
+
+			config {
+				pins = "gpio91";
+				drive-strength = <2>;   /* 2 mA */
+				bias-pull-down;         /* PULL DOWN */
+			};
+		};
+	};
+	pmx_sde_te {
+		sde_te_active: sde_te_active {
+			mux {
+				pins = "gpio90";
+				function = "mdp_vsync";
+			};
+
+			config {
+				pins = "gpio90";
+				drive-strength = <2>;   /* 2 mA */
+				bias-pull-down;         /* PULL DOWN */
+			};
+		};
+
+		sde_te_suspend: sde_te_suspend {
+			mux {
+				pins = "gpio90";
+				function = "mdp_vsync";
+			};
+
+			config {
+				pins = "gpio90";
+				drive-strength = <2>;   /* 2 mA */
+				bias-pull-down;         /* PULL DOWN */
+			};
+		};
+	};
+#if 0
+	qupv3_se7_spi_pins: qupv3_se7_spi_pins {
+		qupv3_se7_spi_active: qupv3_se7_spi_active {
+			mux {
+				pins = "gpio98", "gpio99", "gpio100",
+							"gpio101";
+				function = "qup7";
+			};
+
+			config {
+				pins = "gpio98", "gpio99", "gpio100",
+							"gpio101";
+				drive-strength = <6>;
+				bias-pull-down; /* prevent MISO floating */
+			};
+		};
+
+		qupv3_se7_spi_sleep: qupv3_se7_spi_sleep {
+			mux {
+				pins = "gpio98", "gpio99", "gpio100",
+							"gpio101";
+				function = "gpio";
+			};
+
+			config {
+				pins = "gpio98", "gpio99", "gpio100",
+							"gpio101";
+				drive-strength = <6>;
+				bias-pull-down;
+				input-enable;
+			};
+		};
+	};
+
+	pmx_sde_ub_det {
+		sde_ub_det_active: sde_ub_det_active {
+			mux {
+				pins = "gpio50";
+				function = "ub_detect";
+			};
+
+			config {
+				pins = "gpio50";
+				drive-strength = <2>;   /* 2 mA */
+				bias-disable = <0>;   /* no pull */
+			};
+		};
+
+		sde_ub_det_suspend: sde_ub_det_suspend {
+			mux {
+				pins = "gpio50";
+				function = "ub_detect";
+			};
+
+			config {
+				pins = "gpio50";
+				drive-strength = <2>;   /* 2 mA */
+				bias-disable = <0>;   /* no pull */
+			};
+		};
+	};
+#endif
+};
+
+#if 0
+&qupv3_se7_spi {
+	status = "ok";
+
+	pinctrl-0 = <&qupv3_se7_spi_active>;
+	pinctrl-1 = <&qupv3_se7_spi_sleep>;
+
+	ddi_spi:ddi_spi@0  {	// LCD_SPI
+		compatible = "ss,ddi-spi";
+		reg = <0>;
+		spi-max-frequency = <1200000>;
+		spi-mode = <0>;
+		spi-bpw = <8>;
+	};
+};
+#endif
+
+&soc {
+	/* A50 panel */
+	ss_dsi_panel_S6E3FA7_AMS628RF05_FHD_display: qcom,dsi-display@5 {
+		label = "ss_dsi_panel_S6E3FA7_AMS628RF05_FHD";
+		qcom,display-type = "primary";
+
+		pinctrl-names = "panel_active", "panel_suspend";
+		pinctrl-0 = <&sde_dsi_active &sde_te_active>;
+		pinctrl-1 = <&sde_dsi_suspend &sde_te_suspend>;
+	};
+
+	/* PBA */
+	ss_dsi_panel_PBA_BOOTING_FHD_display: qcom,dsi-display@6 {
+		label = "ss_dsi_panel_PBA_BOOTING_FHD";
+		qcom,display-type = "primary";
+
+		pinctrl-names = "panel_active", "panel_suspend";
+		pinctrl-0 = <&sde_dsi_active &sde_te_active>;
+		pinctrl-1 = <&sde_dsi_suspend &sde_te_suspend>;
+	};
+};
+
+&sde_dsi {
+
+	vcisub-supply = <&s2dos03_l3>; /* VDD_SUB_DDI_3P0 */
+	vdd3sub-supply = <&s2dos03_l1>; /* VDD_SUB_DDI_1P8 */
+
+	qcom,dsi-display-list =
+		<&ss_dsi_panel_S6E3FA7_AMS628RF05_FHD
+		&ss_dsi_panel_PBA_BOOTING_FHD>;
+};
+
+&mdss_mdp {
+	/* display node, like ss_dsi_panel_S6E3HA6_AMS622MR01_WQHD_display,
+	 * will be added by cmdline.
+	 * If your board doesn't use cmdline to select display node,
+	 * add display node like below.
+	 * connectors = <&sde_rscc &sde_wb &sde_dp &ss_dsi_panel_S6E3HA6_AMS622MR01_WQHD_display>;
+	 */
+};
+
+&ss_dsi_panel_S6E3FA7_AMS628RF05_FHD {
+	qcom,display-type = "primary";
+	qcom,dsi-display-active;
+
+	qcom,dsi-ctrl-num = <0>;
+	qcom,dsi-phy-num = <0>;
+	qcom,dsi-select-clocks = "mux_byte_clk0", "mux_pixel_clk0";
+
+	qcom,dsi-panel = <&ss_dsi_panel_S6E3FA7_AMS628RF05_FHD>;
+
+	qcom,platform-reset-gpio = <&tlmm 91 0>;
+	qcom,platform-te-gpio = <&tlmm 90 0>;
+
+	qcom,panel-supply-entries {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		qcom,panel-supply-entry@0 {
+		    reg = <0>;
+		    qcom,supply-name = "vdd3sub";
+		    qcom,supply-min-voltage = <1800000>;
+		    qcom,supply-max-voltage = <1800000>;
+		    qcom,supply-enable-load = <100000>;
+		    qcom,supply-disable-load = <100>;
+		    qcom,supply-pre-on-sleep = <0>; /* unit is ms*/
+		    qcom,supply-post-on-sleep = <0>;
+		};
+
+		qcom,panel-supply-entry@1 {
+		    reg = <1>;
+		    qcom,supply-name = "vcisub";
+		    qcom,supply-min-voltage = <3000000>;
+		    qcom,supply-max-voltage = <3000000>;
+		    qcom,supply-enable-load = <100000>;
+		    qcom,supply-disable-load = <100>;
+		    qcom,supply-pre-on-sleep = <0>; /* unit is ms*/
+		    qcom,supply-post-on-sleep = <10>;
+		};
+	};
+};
+
+&ss_dsi_panel_PBA_BOOTING_FHD {
+	qcom,display-type = "primary";
+	qcom,dsi-display-active;
+
+	qcom,dsi-ctrl-num = <0>;
+	qcom,dsi-phy-num = <0>;
+	qcom,dsi-select-clocks = "mux_byte_clk0", "mux_pixel_clk0";
+
+	qcom,dsi-panel = <&ss_dsi_panel_PBA_BOOTING_FHD>;
+
+	qcom,platform-reset-gpio = <&tlmm 91 0>;
+	qcom,platform-te-gpio = <&tlmm 90 0>;
+};
+
+#if 0 // data lane strength..
+&mdss_dsi_phy0 {
+	qcom,platform-lane-config = [00 20 00 00
+					00 20 00 00
+					00 20 00 00
+					00 20 00 00
+					00 20 00 80];
+};
+#endif

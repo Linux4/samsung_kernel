@@ -41,7 +41,7 @@
 #define QWLAN_VERSION_EXTRA            "Q-QCOM"
 #endif
 #else
-#define QWLAN_VERSION_EXTRA            "Q-HL210811A"
+#define QWLAN_VERSION_EXTRA            "Q-HL221101A"
 #endif
 #define QWLAN_VERSION_BUILD            3
 
@@ -54,7 +54,7 @@
 #define QWLAN_VERSIONSTR               "5.2.022.3Q-QCOM"
 #endif
 #else
-#define QWLAN_VERSIONSTR               "5.2.022.3Q-HL210811A"
+#define QWLAN_VERSIONSTR               "5.2.022.3Q-HL230707A"
 #endif
 
 #endif /* QWLAN_VERSION_H */

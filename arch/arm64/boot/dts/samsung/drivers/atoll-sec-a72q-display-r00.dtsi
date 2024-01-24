@@ -1,0 +1,178 @@
+/* Copyright (c) 2016-2020, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+#include "../../../../../../drivers/gpu/drm/msm/samsung_lego/SELF_DISPLAY/self_display_cmd_FC3.dtsi"
+#include "../../../../../../drivers/gpu/drm/msm/samsung_lego/S6E3FC3_AMS667YM01/dsi_panel_S6E3FC3_AMS667YM01_fhd_octa_cmd.dtsi"
+#include "../../../../../../drivers/gpu/drm/msm/samsung_lego/PBA_BOOTING/dsi_panel_PBA_BOOTING_fhd_video.dtsi"
+
+
+&tlmm {
+	pmx_sde_te {
+			sde_te_active: sde_te_active {
+				mux {
+					pins = "gpio10";
+					function = "mdp_vsync";
+				};
+
+				config {
+					pins = "gpio10";
+					drive-strength = <2>;   /* 2 mA */
+					bias-pull-down;         /* PULL DOWN */
+				};
+			};
+
+			sde_te_suspend: sde_te_suspend {
+				mux {
+					pins = "gpio10";
+					function = "mdp_vsync";
+				};
+
+				config {
+					pins = "gpio10";
+					drive-strength = <2>;   /* 2 mA */
+					bias-pull-down;         /* PULL DOWN */
+				};
+			};
+		};
+
+	pmx_sde: pmx_sde {
+		sde_dsi_active: sde_dsi_active {
+			mux {
+				pins = "gpio8";
+				function = "gpio";
+			};
+
+			config {
+				pins = "gpio8";
+				drive-strength = <8>;   /* 8 mA */
+				bias-disable = <0>;   /* no pull */
+			};
+		};
+		sde_dsi_suspend: sde_dsi_suspend {
+			mux {
+				pins = "gpio8";
+				function = "gpio";
+			};
+
+			config {
+				pins = "gpio8";
+				drive-strength = <2>;   /* 2 mA */
+				bias-disable = <0>;   /* no pull */
+			};
+		};
+	};
+};
+
+&pm6150_gpios {
+	pmx_sde_ub_det {
+		sde_ub_det_default: sde_ub_det_default {
+			pins = "gpio5";
+			function = "normal";
+			input-enable;
+			power-source = <1>;
+			bias-disable; /* No PULL */
+		};
+	};
+};
+
+&soc {
+	/* A72Q panel */
+	ss_dsi_panel_S6E3FC3_AMS667YM01_FHD_display: qcom,dsi-display@9 {
+		label = "ss_dsi_panel_S6E3FC3_AMS667YM01_FHD";
+		qcom,display-type = "primary";
+
+	};
+
+	/* PBA */
+	ss_dsi_panel_PBA_BOOTING_FHD_display: qcom,dsi-display@10 {
+		label = "ss_dsi_panel_PBA_BOOTING_FHD";
+		qcom,display-type = "primary";
+
+	};
+};
+
+&sde_dsi {
+	vci-supply = <&pm6150_l18>; /* 3.0V, VREG_L18A_3P0 */
+	vddi-supply = <&pm6150_l13>; /* 1.8V, VREG_L13A_1P8 */
+
+	pinctrl-names = "panel_active", "panel_suspend";
+	pinctrl-0 = <&sde_te_active  &sde_dsi_active &sde_ub_det_default>;
+	pinctrl-1 = <&sde_te_suspend  &sde_dsi_suspend &sde_ub_det_default>;
+	qcom,dsi-display-list =
+		<&ss_dsi_panel_S6E3FC3_AMS667YM01_FHD
+		&ss_dsi_panel_PBA_BOOTING_FHD>;
+};
+
+&ss_dsi_panel_S6E3FC3_AMS667YM01_FHD {
+	qcom,display-type = "primary";
+	qcom,dsi-display-active;
+
+	qcom,dsi-ctrl-num = <0>;
+	qcom,dsi-phy-num = <0>;
+	qcom,dsi-select-clocks = "mux_byte_clk0", "mux_pixel_clk0";
+
+	qcom,dsi-panel = <&ss_dsi_panel_S6E3FC3_AMS667YM01_FHD>;
+
+	qcom,platform-reset-gpio = <&tlmm 8 0>;
+	qcom,platform-te-gpio = <&tlmm 10 0>;		/* DISP_TE	  */
+
+	samsung,ub-con-det = <&pm6150_gpios 5 0>;
+
+	/* ESD related */
+	qcom,esd-check-enabled;
+	qcom,mdss-dsi-panel-status-check-mode ="irq_check";
+	qcom,mdss-dsi-panel-status-irq-trigger1 = "falling";
+	samsung,esd-irq-gpio1 = <&tlmm 11 0>; /* EL_ON1_DET */
+
+	qcom,panel-supply-entries {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		qcom,panel-supply-entry@0 {
+		    reg = <0>;
+		    qcom,supply-name = "vci";
+		    qcom,supply-min-voltage = <3000000>;
+		    qcom,supply-max-voltage = <3000000>;
+		    qcom,supply-enable-load = <100000>;
+		    qcom,supply-disable-load = <100>;
+		    qcom,supply-pre-on-sleep = <0>; /* unit is ms*/
+		    qcom,supply-post-on-sleep = <0>;
+		    qcom,supply-pre-off-sleep = <0>;
+		};
+
+		qcom,panel-supply-entry@1 {
+		    reg = <1>;
+		    qcom,supply-name = "vddi";
+		    qcom,supply-min-voltage = <1800000>;
+		    qcom,supply-max-voltage = <1800000>;
+		    qcom,supply-enable-load = <100000>;
+		    qcom,supply-disable-load = <100>;
+		    qcom,supply-pre-on-sleep = <0>; /* unit is ms*/
+		    qcom,supply-post-on-sleep = <0>;
+		    qcom,supply-pre-off-sleep = <2>;
+		};
+	};
+};
+
+&ss_dsi_panel_PBA_BOOTING_FHD {
+	qcom,display-type = "primary";
+	qcom,dsi-display-active;
+
+	qcom,dsi-ctrl-num = <0>;
+	qcom,dsi-phy-num = <0>;
+	qcom,dsi-select-clocks = "mux_byte_clk0", "mux_pixel_clk0";
+
+	qcom,dsi-panel = <&ss_dsi_panel_PBA_BOOTING_FHD>;
+
+	qcom,platform-reset-gpio = <&tlmm 8 0>;
+};
+

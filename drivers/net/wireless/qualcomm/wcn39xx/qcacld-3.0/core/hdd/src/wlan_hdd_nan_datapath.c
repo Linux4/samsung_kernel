@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2016-2020 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -879,7 +880,8 @@ int hdd_ndp_new_peer_handler(uint8_t vdev_id, uint16_t sta_id,
 		if (hdd_ctx->ol_enable &&
 		    !ucfg_is_nan_dbs_supported(hdd_ctx->psoc)) {
 			hdd_info("Disable LRO/GRO in NDI Mode");
-			hdd_disable_rx_ol_in_concurrency(true);
+            hdd_disable_rx_ol_in_concurrency(true);
+
 		}
 
 		hdd_bus_bw_compute_prev_txrx_stats(adapter);
@@ -918,7 +920,7 @@ void hdd_cleanup_ndi(struct hdd_context *hdd_ctx,
 						PM_STA_MODE,
 						NULL) == 1)))) {
 		hdd_info("Enable LRO/GRO");
-		hdd_disable_rx_ol_in_concurrency(false);
+        hdd_disable_rx_ol_in_concurrency(false);
 	}
 }
 

@@ -1,0 +1,30 @@
+/* Copyright (c) 2018, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+#include "sm7150-sec-r1q-kor-r00.dtsi"
+
+&soc {
+	pm6150l_rid_adc {
+		status = "okay";
+		compatible = "pm6150l_rid_adc";
+
+		interrupt-parent = <&spmi_bus>;
+		pm6150l_rid_adc,irq-gpio = <&pm6150l_gpios 9 GPIO_ACTIVE_LOW>;
+		jigon-gpios = <&pm6150l_gpios 11 GPIO_ACTIVE_LOW>;
+
+		pinctrl-names = "default";
+		pinctrl-0 = <&rid_adc_irq_default &gpio11_dig_out_default>;
+
+		io-channels = <&pm6150l_vadc ADC_GPIO4>;
+		io-channel-names = "rid_adc_channel";
+	};
+};

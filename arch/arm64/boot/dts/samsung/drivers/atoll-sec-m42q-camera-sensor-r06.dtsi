@@ -1,0 +1,78 @@
+/* Copyright (c) 2020, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+#include <dt-bindings/regulator/qcom,rpmh-regulator.h>
+#include <dt-bindings/clock/qcom,camcc-atoll.h>
+
+&reserved_memory {
+
+};
+
+&sensor_rear_macro{
+		cam_vio-supply = <&s2mpb03_l3>;
+		cam_clk-supply = <&titan_top_gdsc>;
+		regulator-names = "cam_vio", "cam_clk";
+		rgltr-cntrl-support;
+		rgltr-min-voltage = <1800000 0>;
+		rgltr-max-voltage = <1800000 0>;
+		rgltr-load-current = <200000 0>;
+
+		gpio-no-mux = <0>;
+		pinctrl-names = "cam_default", "cam_suspend";
+		pinctrl-0 = <&cam_sensor_mclk4_active &rcam4_sensor_reset_active &rcam4_sensor_vdig_active
+						&rcam2_sensor_vana_active &cam_mipi_sel_active>;
+		pinctrl-1 = <&cam_sensor_mclk4_suspend &rcam4_sensor_reset_suspend &rcam4_sensor_vdig_suspend
+						&rcam2_sensor_vana_suspend &cam_mipi_sel_suspend>;
+		gpios = <&tlmm 16 0>, /* MCLK */
+			<&tlmm 24 0>, /* RESET */
+			<&tlmm 56 0>, /* VDIG */
+			<&tlmm 64 0>, /* VANA */
+			<&tlmm 66 0>; /*MIPI SEL*/
+
+		gpio-reset = <1>;
+		gpio-vdig = <2>;
+		gpio-vana = <3>;
+		gpio-custom1 = <4>;
+		gpio-req-tbl-num = <0 1 2 3 4>;
+		gpio-req-tbl-flags = <1 0 0 0 0>;
+		gpio-req-tbl-label = "CAMIF_MCLK3", "CAM_RESET4", "CAM_VDIG4", "CAM_VANA4", "MIPI_SEL";
+};
+
+&eeprom4{
+		cam_vio-supply = <&s2mpb03_l3>;
+		cam_clk-supply = <&titan_top_gdsc>;
+		regulator-names = "cam_vio", "cam_clk";
+		rgltr-cntrl-support;
+		rgltr-min-voltage = <1800000 0>;
+		rgltr-max-voltage = <1800000 0>;
+		rgltr-load-current = <200000 0>;
+
+		gpio-no-mux = <0>;
+		pinctrl-names = "cam_default", "cam_suspend";
+		pinctrl-0 = <&cam_sensor_mclk4_active &rcam4_sensor_reset_active &rcam4_sensor_vdig_active
+						&rcam2_sensor_vana_active &cam_mipi_sel_active>;
+		pinctrl-1 = <&cam_sensor_mclk4_suspend &rcam4_sensor_reset_suspend &rcam4_sensor_vdig_suspend
+						&rcam2_sensor_vana_suspend &cam_mipi_sel_suspend>;
+		gpios = <&tlmm 16 0>, /* MCLK */
+			<&tlmm 24 0>, /* RESET */
+			<&tlmm 56 0>, /* VDIG */
+			<&tlmm 64 0>, /* VANA */
+			<&tlmm 66 0>; /*MIPI SEL*/
+
+		gpio-reset = <1>;
+		gpio-vdig = <2>;
+		gpio-vana = <3>;
+		gpio-custom1 = <4>;
+		gpio-req-tbl-num = <0 1 2 3 4>;
+		gpio-req-tbl-flags = <1 0 0 0 0>;
+		gpio-req-tbl-label = "CAMIF_MCLK3", "CAM_RESET4", "CAM_VDIG4", "CAM_VANA4", "MIPI_SEL";
+};

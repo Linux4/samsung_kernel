@@ -1,0 +1,72 @@
+/*
+ * Copyright (c) 2018, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+&soc {
+	usb_noti: usb-notifier {
+		compatible = "samsung,usb-notifier";
+		qcom,disable_control_en = <1>;
+		qcom,unsupport_host_en = <0>;
+	};
+
+	samsung,usbpd {
+		compatible = "samsung,usb-pd";
+		qcom,samsung-usbpd-detection = <&pm6150_pdphy>;
+	};
+};
+
+&usb0 {
+	dwc3@a600000 {
+		usb-phy = <&qusb_phy0>, <&usb_nop_phy>;
+		maximum-speed = "high-speed";
+	};
+};
+
+&qusb_phy0 {
+	qcom,qusb-phy-init-seq = <0xc0 0x80
+				0x53 0x84
+				0x81 0x88
+				0xc7 0x8c
+				0x30 0x08
+				0x79 0x0c
+				0x21 0x10
+				0x01 0x90
+				0x14 0x9c
+				0x9f 0x1c
+				0x00 0x18>;
+	qcom,qusb-phy-host-init-seq = <0xc0 0x80
+				0xc3 0x84
+				0x81 0x88
+				0xc7 0x8c
+				0x30 0x08
+				0x79 0x0c
+				0x21 0x10
+				0x01 0x90
+				0x14 0x9c
+				0x9f 0x1c
+				0x00 0x18>;
+	/* ex) efuse(0xC) + (-7) = 0x5 for tune2 high value */
+	qcom,diff_tune2_device = <(-7)>;
+	qcom,diff_tune2_host = <(0)>;
+};
+
+&usb_qmp_phy {
+	status = "disabled";
+};
+
+&qupv3_se3_i2c {
+	tfa9xxx@34 {
+		haptic_clk_en = <&tlmm 37 0>;
+		haptic-fw-intensity-max = <41>;
+		samsung,vib_type = "LINEAR_RCVMOT";
+	};
+};

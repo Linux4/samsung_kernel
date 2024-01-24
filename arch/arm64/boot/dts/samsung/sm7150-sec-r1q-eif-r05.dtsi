@@ -1,0 +1,335 @@
+/*
+ * Copyright (c) 2018, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+#include <dt-bindings/clock/qcom,gcc-sdmmagpie.h>
+
+&soc {
+	/* GPIO EXPANDER */
+	i2c_23: i2c@23 {
+		status = "ok";
+
+		cell-index = <23>;
+		compatible = "i2c-gpio";
+		gpios = <&tlmm 46 0	/* EXPANDER_I2C_SDA_1P8 */
+			 &tlmm 47 0	/* EXPANDER_I2C_SCL_1P8 */
+		>;
+		i2c-gpio,delay-us = <2>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		pinctrl-names = "default";
+		pinctrl-0 = <&i2c_23_pinctrl>;
+
+		expander_gpios: pcal6524@22 {
+			compatible = "pcal6524,gpio-expander";
+			gpio-controller;
+			#gpio-cells = <2>;
+			reg = <0x22>;
+			pinctrl-names = "expander_reset_setting";
+			pinctrl-0 = <&expander_reset_active>;
+			pcal6524,gpio_start = <300>;
+			pcal6524,ngpio = <24>;
+			pcal6524,reset-gpio = <&tlmm 65 0>;
+			pcal6524,vdd-supply = <&pm6150_l10>;
+			pcal6524,support_initialize = <1>;
+			/* config, 24 ~ 0, 1bit configure[1:input, 0:output]*/
+			pcal6524,config = <0x7F7FFF>;    /* P2[01111111] P1[01111111] P0[11111111] */
+			/* data_out, 24 ~ 0, 1bit configure[1:high, 0:low]*/
+			pcal6524,data_out = <0x000000>;  /* P2[00000000] P1[00000000] P0[00000000] */
+			/* pull_reg, 8 ~ 0, 2bit configure[00:no_pull, 01:pull_down, 10:pull_up, 11:not used] */
+			pcal6524,pull_reg_p0 = <0x0000>; /* 00 00 00 00 / 00 00 00 00 */
+			pcal6524,pull_reg_p1 = <0x0000>; /* 00 00 00 00 / 00 00 00 00 */
+			pcal6524,pull_reg_p2 = <0x0000>; /* 00 00 00 00 / 00 00 00 00 */
+		};
+	};
+
+	step_motor {
+		compatible = "st,stspin220";
+		pinctrl-names = "pm_gpio6_pwm_active";
+		pinctrl-0 = <&pwm_out_gpio6_active>;
+		pwms = <&pm6150l_pwm 0 1000000>;
+
+		motor,step_dir = <&expander_gpios 2 0>;
+		motor,step_m0 = <&expander_gpios 3 0>;
+		motor,step_m1 = <&expander_gpios 4 0>;
+		motor,step_enable = <&expander_gpios 8 0>;
+		motor,step_step = <&expander_gpios 7 0>;
+		motor,step_sleep = <&expander_gpios 12 0>;
+		motor,boost_en = <&expander_gpios 18 0>;
+	};
+
+	certify_hall {
+		status = "disabled";
+		compatible = "certify_hall";
+		linux,input-type = <1>;
+		linux,code = <27>;
+		certify_hall,gpio_certify_cover = <&tlmm 91 0x1>;
+		debounce-interval = <15>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&certify_hall_default>;
+	};
+
+	sliding_up_hall {
+		status = "disabled";
+		compatible = "sliding_up_hall";
+		linux,input-type = <1>;
+		linux,code = <21>;
+		sliding_up_hall,gpio_sliding_up_hall = <&tlmm 89 0x1>;
+		debounce-interval = <15>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&sliding_up_hall_default>;
+	};
+
+	sliding_down_hall {
+		status = "okay";
+		compatible = "sliding_down_hall";
+		linux,input-type = <1>;
+		linux,code = <27>;
+		sliding_down_hall,gpio_sliding_down_hall = <&tlmm 93 0x1>;
+		debounce-interval = <15>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&sliding_down_hall_default>;
+	};
+
+	qupv3_se4_afc: afc@880000 { 
+		compatible = "pm6150_afc"; 
+		reg = <0x880000 0x4000>; 
+		interrupts = <GIC_SPI 601 0>; 
+		#address-cells = <1>; 
+		#size-cells = <0>; 
+		clock-names = "se-clk", "m-ahb", "s-ahb"; 
+		clocks = <&clock_gcc GCC_QUPV3_WRAP0_S0_CLK>, 
+		<&clock_gcc GCC_QUPV3_WRAP_0_M_AHB_CLK>, 
+		<&clock_gcc GCC_QUPV3_WRAP_0_S_AHB_CLK>; 
+		pinctrl-names = "default", "sleep"; 
+		pinctrl-0 = <&qupv3_se4_afc_active &gpio1_afc_switch_default>; 
+		pinctrl-1 = <&qupv3_se4_afc_sleep>; 
+		qcom,wrapper-core = <&qupv3_0>; 
+		afc-gpios = <&pm6150_gpios 1 GPIO_ACTIVE_LOW>; 
+		status = "ok";
+	};
+
+	samsung,usbpd {
+		compatible = "samsung,usb-pd";
+		qcom,samsung-usbpd-detection = <&pm6150_pdphy>;
+	};
+};
+
+&qupv3_se11_i2c {
+	tfa9xxx@34 {
+		pinctrl-names = "default";
+		pinctrl-0 = <&motor_default_pins>;
+		samsung,vib_type = "LINEAR_RCVMOT";
+		haptic-fw-intensity-max = <39>;
+	};
+};
+
+/* Digital HALL IC */
+&i2c_17{
+	digital_hall_up_hallic: dw772x@0C {
+		compatible = "dwanatech,dw772x";
+		gpio-controller;
+		#gpio-cells = <2>;
+		reg = <0x0C>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&hall_up_active>;
+		dw772x,en-gpio = <&tlmm 89 0>;
+		hall,hall_ldo_en = <&expander_gpios 13 0>;
+	};
+
+	digital_hall_down_hallic: dw772x@4C {
+		compatible = "dwanatech,dw772x_reverse";
+		gpio-controller;
+		#gpio-cells = <2>;
+		reg = <0x4C>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&hall_down_active>;
+		dw772x_reverse,en-gpio = <&tlmm 90 0>;
+		hall,hall_ldo_en = <&expander_gpios 13 0>;
+	};
+};
+
+&pm6150l_gpios {
+	pwm_out_gpio6 {
+		pwm_out_gpio6_active: pwm_out_gpio6_active {
+			pins = "gpio6";
+			function = "func1";
+			bias-disable;
+			power-source = <0>;
+			output-low;
+			qcom,drive-strength = <3>;
+			drive-push-pull;
+		};
+	};
+};
+
+/* pinctrl */
+&tlmm {
+	/* GPIO EXPANDER */
+	i2c_23_pinctrl: i2c_23_pinctrl {
+		mux {
+			pins = "gpio46",	/* EXPANDER_I2C_SDA_1P8 */
+			       "gpio47";	/* EXPANDER_I2C_SCL_1P8 */
+			function = "gpio";
+		};
+		config {
+			pins = "gpio46",	/* EXPANDER_I2C_SDA_1P8 */
+			       "gpio47";	/* EXPANDER_I2C_SCL_1P8 */
+			drive-strength = <2>;
+			bias-disable;
+		};
+	};
+
+	expander_reset_active: expander_reset_active {
+		mux {
+			pins = "gpio65";
+			function = "gpio";
+		};
+		config {
+			pins = "gpio65";
+			drive-strength = <2>;   /* 16 mA */
+			bias-disable;
+			output-high;
+		};
+	};
+
+	hall_up_active: hall_up_active {
+		mux {
+			pins = "gpio89";
+			function = "gpio";
+		};
+		config {
+			pins = "gpio89";
+			drive-strength = <2>;   /* 16 mA */
+			bias-disable;
+		};
+	};
+
+	hall_down_active: hall_down_active {
+		mux {
+			pins = "gpio90";
+			function = "gpio";
+		};
+		config {
+			pins = "gpio90";
+			drive-strength = <2>;   /* 16 mA */
+			bias-disable;
+		};
+	};
+
+	/* SE 4 pin mappings for AFC*/ 
+	qupv3_se4_afc_pins: qupv3_se4_afc_pins {
+		qupv3_se4_afc_active: qupv3_se4_afc_active {
+			mux {
+				pins = "gpio51";
+				function = "qup00";
+			};
+
+			config {
+				pins = "gpio51";
+				drive-strength = <2>;
+				bias-disable;
+			};
+		};
+
+		qupv3_se4_afc_sleep: qupv3_se4_afc_sleep {
+			mux {
+				pins = "gpio51";
+				function = "gpio";
+			};
+
+			config {
+				pins = "gpio51";
+				drive-strength = <2>;
+				bias-pull-up;
+			};
+		};
+	};
+
+	motor_default_pins: motor_default_pins {
+		mux {
+			pins = "gpio16";
+			function = "gpio";
+		};
+		config {
+			pins = "gpio16";
+			bias-disable; /* No PULL */
+			input-enable;
+		};
+	};
+};
+
+&soc {
+	usb_noti: usb-notifier {
+		compatible = "samsung,usb-notifier";
+		qcom,disable_control_en = <1>;
+		qcom,unsupport_host_en = <0>;
+	};
+};
+
+&usb0 {
+	dwc3@a600000 {
+		usb-phy = <&qusb_phy0>, <&usb_nop_phy>;
+		maximum-speed = "high-speed";
+	};
+};
+
+&usb_qmp_dp_phy {
+	status = "disabled";
+};
+
+&qusb_phy0 {
+	qcom,qusb-phy-init-seq =
+		/* <value reg_offset> */
+		   <0x23 0x210 /* PWR_CTRL1 */
+		    0x03 0x04  /* PLL_ANALOG_CONTROLS_TWO */
+		    0x7c 0x18c /* PLL_CLOCK_INVERTERS */
+		    0x80 0x2c  /* PLL_CMODE */
+		    0x0a 0x184 /* PLL_LOCK_DELAY */
+		    0x19 0xb4  /* PLL_DIGITAL_TIMERS_TWO */
+		    0x40 0x194 /* PLL_BIAS_CONTROL_1 */
+		    0x1c 0x198 /* PLL_BIAS_CONTROL_2 */
+		    0x21 0x214 /* PWR_CTRL2 */
+		    0x08 0x220 /* IMP_CTRL1 */
+		    0x58 0x224 /* IMP_CTRL2 */
+		    0x77 0x240 /* TUNE1 */
+		    0x29 0x244 /* TUNE2 */
+		    0xca 0x248 /* TUNE3 */
+		    0x02 0x24c /* TUNE4 */
+		    0x03 0x250 /* TUNE5 */
+		    0x30 0x23c /* CHG_CTRL2 */
+		    0x22 0x210>; /* PWR_CTRL1 */
+
+	qcom,qusb-phy-host-init-seq =
+		/* <value reg_offset> */
+		   <0x23 0x210 /* PWR_CTRL1 */
+		    0x03 0x04  /* PLL_ANALOG_CONTROLS_TWO */
+		    0x7c 0x18c /* PLL_CLOCK_INVERTERS */
+		    0x80 0x2c  /* PLL_CMODE */
+		    0x0a 0x184 /* PLL_LOCK_DELAY */
+		    0x19 0xb4  /* PLL_DIGITAL_TIMERS_TWO */
+		    0x40 0x194 /* PLL_BIAS_CONTROL_1 */
+		    0x20 0x198 /* PLL_BIAS_CONTROL_2 */
+		    0x21 0x214 /* PWR_CTRL2 */
+		    0x08 0x220 /* IMP_CTRL1 */
+		    0x58 0x224 /* IMP_CTRL2 */
+		    0x45 0x240 /* TUNE1 */
+		    0x29 0x244 /* TUNE2 */
+		    0xca 0x248 /* TUNE3 */
+		    0x04 0x24c /* TUNE4 */
+		    0x03 0x250 /* TUNE5 */
+		    0x30 0x23c /* CHG_CTRL2 */
+		    0x22 0x210>; /* PWR_CTRL1 */
+
+	qcom,diff_tune_host = <(0)>; /* efuse(0x3) + 0 = 7 for tune high value */
+	qcom,diff_tune_device = <(4)>;
+};

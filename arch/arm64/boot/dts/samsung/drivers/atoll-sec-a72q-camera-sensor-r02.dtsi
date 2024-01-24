@@ -1,0 +1,171 @@
+/* Copyright (c) 2020, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+#include <dt-bindings/regulator/qcom,rpmh-regulator.h>
+#include <dt-bindings/clock/qcom,camcc-atoll.h>
+
+&reserved_memory {
+
+};
+
+&s2mpb03_l5 {
+		regulator-name = "s2mpb03-ldo5";
+		regulator-min-microvolt = <2800000>;
+		regulator-max-microvolt = <2900000>;
+};
+
+
+&s2mpb03_l7 {
+		regulator-name = "s2mpb03-ldo7";
+		regulator-min-microvolt = <2800000>;
+		regulator-max-microvolt = <2900000>;
+};
+
+&ois_rear {
+		cam_vdig-supply = <&s2mpb03_l5>;
+		regulator-names = "cam_vdig";
+		rgltr-cntrl-support;
+		rgltr-min-voltage = <2800000>;
+		rgltr-max-voltage = <2800000>;
+		rgltr-load-current = <200000>;
+		pinctrl-names = "cam_default", "cam_suspend";
+		pinctrl-0 = <&mcu_reset_active &mcu_clk_active>;
+		pinctrl-1 = <&mcu_reset_suspend &mcu_clk_suspend>;
+		gpio-no-mux = <0>;
+		gpios = <&tlmm 32 0>, /* RESET */
+			<&tlmm 43 0>, /* BOOT0 */
+			<&tlmm 63 0>;     /* VIO,VAF */
+};
+
+&sensor_rear {
+		cam_vio-supply = <&s2mpb03_l3>;
+		cam_vana-supply = <&s2mpb03_l7>;
+		cam_vdig-supply = <&s2mpb03_l2>;
+		cam_bob-supply = <&BOB>;
+		cam_clk-supply = <&titan_top_gdsc>;
+		regulator-names = "cam_vio","cam_vana","cam_vdig","cam_bob" ,"cam_clk";
+		rgltr-cntrl-support;
+		pwm-switch;
+		rgltr-min-voltage = <1800000 2800000 1000000 3300000 0>;
+		rgltr-max-voltage = <1800000 2900000 1100000 3300000 0>;
+		rgltr-load-current = <200000 200000 200000 2000000 0>;
+
+		gpio-no-mux = <0>;
+		pinctrl-names = "cam_default", "cam_suspend";
+		pinctrl-0 = <&cam_sensor_mclk0_active &rcam1_sensor_reset_active>;
+		pinctrl-1 = <&cam_sensor_mclk0_suspend &rcam1_sensor_reset_suspend>;
+
+		gpios = <&tlmm 13 0>,  /* MCLK */
+			<&tlmm 30 0>,     /* RST */
+			<&tlmm 63 0>;     /* VANA */
+};
+
+&sensor_rear_tele {
+		cam_vio-supply = <&s2mpb03_l3>;
+		cam_vdig-supply = <&s2mpb03_l4>;
+		cam_clk-supply = <&titan_top_gdsc>;
+		regulator-names = "cam_vio","cam_vdig","cam_clk";
+		rgltr-cntrl-support;
+		rgltr-min-voltage = <1800000 1100000 0>;
+		rgltr-max-voltage = <1800000 1100000 0>;
+		rgltr-load-current = <200000 200000 0>;
+
+		gpio-no-mux = <0>;
+		pinctrl-names = "cam_default", "cam_suspend";
+		pinctrl-0 = <&cam_sensor_mclk2_active &rcam2_sensor_reset_active &rcam2_sensor_vana_active>;
+		pinctrl-1 = <&cam_sensor_mclk2_suspend &rcam2_sensor_reset_suspend &rcam2_sensor_vana_suspend>;
+
+		gpios = <&tlmm 14 0>,  /* MCLK */
+			<&tlmm 42 0>,      /* RST */
+			<&tlmm 64 0>,      /* VANA */
+			<&tlmm 63 0>;     /* VAF */
+
+		gpio-reset = <1>;
+		gpio-vana = <2>;
+		gpio-vaf = <3>;
+		gpio-req-tbl-num = <0 1 2 3>;
+		gpio-req-tbl-flags = <1 0 0 0>;
+		gpio-req-tbl-label = "CAMIF_MCLK1", "CAM_RESET2", "CAM_VANA2", "CAM_VAF0";
+};
+
+&actuator_rear0 {
+		cam_vio-supply = <&s2mpb03_l3>;
+		regulator-names = "cam_vio";
+		rgltr-min-voltage = <1800000>;
+		rgltr-max-voltage = <1800000>;
+		rgltr-load-current = <2000000>;
+
+		gpio-no-mux = <0>;
+		gpios = <&tlmm 63 0>;     /* VAF */
+		gpio-vaf = <0>;
+		gpio-req-tbl-num = <0>;
+		gpio-req-tbl-flags = <0>;
+		gpio-req-tbl-label = "CAM_VAF0";
+};
+
+&actuator_rear_tele {
+		cam_vio-supply = <&s2mpb03_l3>;
+		regulator-names = "cam_vio";
+		rgltr-min-voltage = <1800000>;
+		rgltr-max-voltage = <1800000>;
+		rgltr-load-current = <2000000>;
+		qcom,cam-power-seq-type = "cam_vio";
+		qcom,cam-power-seq-cfg-val = <1>;
+		qcom,cam-power-seq-delay = <1>;
+
+		gpio-no-mux = <0>;
+		gpios = <&tlmm 63 0>;     /* VAF */
+		gpio-vaf = <0>;
+		gpio-req-tbl-num = <0>;
+		gpio-req-tbl-flags = <0>;
+		gpio-req-tbl-label = "CAM_VAF0";
+};
+
+&eeprom0 {
+		qcom,cam-power-seq-type = "sensor_vreg";
+		qcom,cam-power-seq-val = "cam_vio";
+		qcom,cam-power-seq-cfg-val = <1>;
+		qcom,cam-power-seq-delay = <2>;
+
+		cam_vio-supply = <&s2mpb03_l3>;
+		regulator-names = "cam_vio";
+		rgltr-min-voltage = <1800000>;
+		rgltr-max-voltage = <1800000>;
+		rgltr-load-current = <200000>;
+
+		gpio-no-mux = <0>;
+		gpios = <&tlmm 63 0>;     /* VAF */
+		gpio-vaf = <0>;
+		gpio-req-tbl-num = <0>;
+		gpio-req-tbl-flags = <0>;
+		gpio-req-tbl-label = "CAM_VAF0";
+};
+
+&eeprom3 {
+		qcom,cam-power-seq-type = "sensor_vreg";
+		qcom,cam-power-seq-val = "cam_vio";
+		qcom,cam-power-seq-cfg-val = <1>;
+		qcom,cam-power-seq-delay = <1>;
+
+		cam_vio-supply = <&s2mpb03_l3>;
+		regulator-names = "cam_vio";
+		rgltr-min-voltage = <1800000>;
+		rgltr-max-voltage = <1800000>;
+		rgltr-load-current = <200000>;
+
+		gpio-no-mux = <0>;
+		gpios = <&tlmm 63 0>;     /* VAF */
+		gpio-vaf = <0>;
+		gpio-req-tbl-num = <0>;
+		gpio-req-tbl-flags = <0>;
+		gpio-req-tbl-label = "CAM_VAF0";
+};

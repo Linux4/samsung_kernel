@@ -101,7 +101,6 @@
 #define SM5714_ATTACH_AUDIO				0x03
 #define SM5714_ATTACH_UN_ORI_DEBUG_SOURCE		(0x01 << SM5714_ATTACH_SINK)
 #define SM5714_ATTACH_ORI_DEBUG_SOURCE			0x05
-#define SM5714_ATTACH_AUDIO_CHARGE		(0x01 << 2)
 #define SM5714_ATTACH_TYPE				0x07
 #define SM5714_ADV_CURR					0x18
 #define SM5714_CABLE_FLIP				0x20
@@ -275,6 +274,7 @@ struct sm5714_phydrv_data {
 	int power_role;
 	int data_role;
 	int vconn_source;
+	int scr_sel;
 	msg_header_type header;
 	data_obj_type obj[SM5714_MAX_NUM_MSG_OBJ];
 	u64 status_reg;
@@ -290,6 +290,7 @@ struct sm5714_phydrv_data {
 #endif
 	bool is_otg_vboost;
 	bool is_jig_case_on;
+	bool is_noti_src_adv;
 	bool is_mpsm_exit;
 	bool suspended;
 	bool is_timer_expired;

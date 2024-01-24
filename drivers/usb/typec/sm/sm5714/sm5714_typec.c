@@ -528,15 +528,10 @@ static void sm5714_notify_rp_current_level(void *_data)
 	struct sm5714_phydrv_data *pdic_data = pd_data->phy_driver_data;
 	struct i2c_client *i2c = pdic_data->i2c;
 	u8 cc_status = 0, rp_currentlvl = 0;
-	bool short_cable = false;
 #if defined(CONFIG_TYPEC)
 	enum typec_pwr_opmode mode = TYPEC_PWR_MODE_USB;
 #endif
 
-	sm5714_get_short_state(pd_data, &short_cable);
-
-	if (short_cable)
-		return;
 #if defined(CONFIG_SM5714_WATER_DETECTION_ENABLE)
 	if (pdic_data->is_water_detect)
 		return;
@@ -1522,6 +1517,7 @@ void sm5714_usbpd_set_rp_scr_sel(struct sm5714_usbpd_data *_data, int scr_sel)
 	u8 data = 0;
 
 	pr_info("%s: scr_sel : (%d)\n", __func__, scr_sel);
+	pdic_data->scr_sel = scr_sel;
 
 	switch (scr_sel) {
 	case PLUG_CTRL_RP80:
@@ -1720,6 +1716,9 @@ void sm5714_protocol_layer_reset(void *_data)
 		return;
 	}
 
+	/* Rx Buffer Flushing */
+	sm5714_usbpd_write_reg(i2c, SM5714_REG_RX_BUF_ST, 0x10);
+
 	/* Reset Protocol Layer */
 	sm5714_usbpd_write_reg(i2c, SM5714_REG_PD_CNTL4,
 			SM5714_REG_CNTL_PROTOCOL_RESET_MESSAGE);
@@ -1861,6 +1860,33 @@ static void sm5714_usbpd_abnormal_reset_check(struct sm5714_phydrv_data *pdic_da
 		sm5714_usbpd_reg_init(pdic_data);
 	}
 }
+
+#ifndef CONFIG_SEC_FACTORY
+static int sm5714_usbpd_check_normal_audio_device(struct sm5714_phydrv_data *pdic_data)
+{
+	struct sm5714_usbpd_data *pd_data = dev_get_drvdata(pdic_data->dev);
+	struct i2c_client *i2c = pdic_data->i2c;
+	u8 adc_cc1 = 0, adc_cc2 = 0;
+	int ret = 0;
+
+	sm5714_usbpd_set_rp_scr_sel(pd_data, PLUG_CTRL_RP180);
+
+	sm5714_usbpd_write_reg(i2c, SM5714_REG_ADC_CNTL1, SM5714_ADC_PATH_SEL_CC1);
+	sm5714_adc_value_read(pdic_data, &adc_cc1);
+
+	sm5714_usbpd_write_reg(i2c, SM5714_REG_ADC_CNTL1, SM5714_ADC_PATH_SEL_CC2);
+	sm5714_adc_value_read(pdic_data, &adc_cc2);
+
+	if ((adc_cc1 <= 0xF) && (adc_cc2 <= 0xF)) { /* Ra/Ra */
+		sm5714_usbpd_set_rp_scr_sel(pd_data, PLUG_CTRL_RP80);
+		ret = 1;
+	}
+
+	pr_info("%s, CC1 : 0x%x, CC2 : 0x%x, ret = %d\n", __func__, adc_cc1, adc_cc2, ret);
+
+	return ret;
+}
+#endif
 
 #if defined(CONFIG_SM5714_WATER_DETECTION_ENABLE)
 static void sm5714_usbpd_check_normal_otg_device(struct sm5714_phydrv_data *pdic_data)
@@ -2013,6 +2039,18 @@ static bool sm5714_poll_status(void *_data, int irq)
 		sm5714_usbpd_check_normal_otg_device(pdic_data);
 	}
 #endif
+
+	if (pdic_data->is_cc_abnormal_state &&
+			!(status[4] & SM5714_REG_INT_STATUS5_CC_ABNORMAL)) {
+		pdic_data->is_cc_abnormal_state = false;
+#if IS_ENABLED(CONFIG_BATTERY_SAMSUNG)
+		if ((status[0] & SM5714_REG_INT_STATUS1_ATTACH) &&
+				!(intr[1] & SM5714_REG_INT_STATUS2_SRC_ADV_CHG) &&
+				pdic_data->is_attached)
+			pdic_data->is_noti_src_adv = true;
+#endif
+	}
+
 	if ((intr[4] & SM5714_REG_INT_STATUS5_CC_ABNORMAL) &&
 			(status[4] & SM5714_REG_INT_STATUS5_CC_ABNORMAL)) {
 		pdic_data->is_cc_abnormal_state = true;
@@ -2020,7 +2058,7 @@ static bool sm5714_poll_status(void *_data, int irq)
 		if ((status[0] & SM5714_REG_INT_STATUS1_ATTACH) &&
 				pdic_data->is_attached) {
 			/* rp abnormal */
-			sm5714_notify_rp_abnormal(_data);
+			pdic_data->is_noti_src_adv = true;
 		}
 #endif
 		pr_info("%s, CC-VBUS SHORT\n", __func__);
@@ -2045,7 +2083,7 @@ static bool sm5714_poll_status(void *_data, int irq)
 #if defined(CONFIG_BATTERY_SAMSUNG)
 	if ((intr[1] & SM5714_REG_INT_STATUS2_SRC_ADV_CHG) &&
 			!(intr[3] & SM5714_REG_INT_STATUS4_RX_DONE))
-		sm5714_notify_rp_current_level(data);
+	pdic_data->is_noti_src_adv = true;
 #endif
 
 	if (intr[1] & SM5714_REG_INT_STATUS2_VBUS_0V) {
@@ -2704,9 +2742,6 @@ static int sm5714_usbpd_notify_attach(void *data)
 #if defined(CONFIG_USB_HOST_NOTIFY)
 	struct otg_notify *o_notify = get_otg_notify();
 #endif
-#if defined(CONFIG_PDIC_NOTIFIER)
-	bool short_cable = false;
-#endif
 	u8 reg_data;
 	int ret = 0;
 #if defined(CONFIG_DUAL_ROLE_USB_INTF)
@@ -2762,17 +2797,10 @@ static int sm5714_usbpd_notify_attach(void *data)
 		return true;
 #endif
 		sm5714_usbpd_policy_reset(pd_data, PLUG_EVENT);
-#if defined(CONFIG_PDIC_NOTIFIER)
-		sm5714_get_short_state(pd_data, &short_cable);
+#if IS_ENABLED(CONFIG_PDIC_NOTIFIER)
 #if defined(CONFIG_BATTERY_SAMSUNG)
-		/* muic, battery */
-		if (short_cable) {
-			/* rp abnormal */
-			sm5714_notify_rp_abnormal(pd_data);
-		} else {
-			/* rp current */
-			sm5714_notify_rp_current_level(pd_data);
-		}
+		if (!pdic_data->is_noti_src_adv)
+			pdic_data->is_noti_src_adv = true;
 #endif
 		if (!(pdic_data->rid == REG_RID_523K ||
 				pdic_data->rid == REG_RID_619K)) {
@@ -2814,6 +2842,10 @@ static int sm5714_usbpd_notify_attach(void *data)
 			pdic_data->is_mpsm_exit = 0;
 			dev_info(dev, "exit mpsm completion\n");
 		}
+#ifndef CONFIG_SEC_FACTORY
+		if (pdic_data->scr_sel == PLUG_CTRL_RP180)
+			sm5714_usbpd_set_rp_scr_sel(pd_data, PLUG_CTRL_RP80);
+#endif
 		manager->pn_flag = false;
 		/* add to turn on external 5V */
 #if defined(CONFIG_DUAL_ROLE_USB_INTF)
@@ -2865,8 +2897,14 @@ static int sm5714_usbpd_notify_attach(void *data)
 		sm5714_set_src(i2c);
 		msleep(180); /* don't over 310~620ms(tTypeCSinkWaitCap) */
 		/* cc_AUDIO */
-	} else if (((reg_data & SM5714_ATTACH_TYPE) == SM5714_ATTACH_AUDIO) ||
-			((reg_data & SM5714_ATTACH_TYPE) == SM5714_ATTACH_AUDIO_CHARGE)) {
+	} else if ((reg_data & SM5714_ATTACH_TYPE) == SM5714_ATTACH_AUDIO) {
+#ifndef CONFIG_SEC_FACTORY
+		if (sm5714_usbpd_check_normal_audio_device(pdic_data) == 0) {
+			/* Set 'CC_UNATT_SRC' state */
+			sm5714_usbpd_write_reg(i2c, SM5714_REG_CC_CNTL3, 0x81);
+			return -1;
+		}
+#endif
 		dev_info(dev, "ccstat : cc_AUDIO\n");
 		manager->acc_type = PDIC_DOCK_UNSUPPORTED_AUDIO;
 		sm5714_usbpd_check_accessory(manager);
@@ -2936,6 +2974,7 @@ static void sm5714_usbpd_notify_detach(void *data)
 	pdic_data->is_sbu_abnormal_state = false;
 #endif
 	pdic_data->is_jig_case_on = false;
+	pdic_data->is_noti_src_adv = false;
 	pdic_data->reset_done = 0;
 	pdic_data->pd_support = 0;
 	sm5714_usbpd_policy_reset(pd_data, PLUG_DETACHED);
@@ -2984,9 +3023,9 @@ static void sm5714_usbpd_notify_detach(void *data)
 		PDIC_NOTIFY_DETACH/*attach*/,
 		USB_STATUS_NOTIFY_DETACH/*drp*/, 0);
 #if defined(CONFIG_DUAL_ROLE_USB_INTF)
-	if (!pdic_data->try_state_change)
+	if (!pdic_data->try_state_change && !(pdic_data->scr_sel == PLUG_CTRL_RP180))
 #elif defined(CONFIG_TYPEC)
-	if (!pdic_data->typec_try_state_change)
+	if (!pdic_data->typec_try_state_change && !(pdic_data->scr_sel == PLUG_CTRL_RP180))
 #endif
 		sm5714_rprd_mode_change(pdic_data, TYPE_C_ATTACH_DRP);
 #endif /* end of CONFIG_PDIC_NOTIFIER */
@@ -3038,6 +3077,9 @@ static irqreturn_t sm5714_pdic_irq_thread(int irq, void *data)
 	struct sm5714_usbpd_data *pd_data = dev_get_drvdata(dev);
 	int ret = 0;
 	unsigned int rid_status = 0;
+#if IS_ENABLED(CONFIG_BATTERY_SAMSUNG)
+	bool short_cable = false;
+#endif
 #if defined(CONFIG_SEC_FACTORY)
 	u8 rid;
 #endif /* CONFIG_SEC_FACTORY */
@@ -3121,7 +3163,18 @@ hard_reset:
 	mutex_unlock(&pdic_data->lpm_mutex);
 out:
 
-#if defined(CONFIG_VBUS_NOTIFIER)
+#if IS_ENABLED(CONFIG_BATTERY_SAMSUNG)
+	if (pdic_data->is_noti_src_adv) {
+		pdic_data->is_noti_src_adv = false;
+		sm5714_get_short_state(pd_data, &short_cable);
+		if (short_cable)
+			sm5714_notify_rp_abnormal(pd_data);
+		else
+			sm5714_notify_rp_current_level(pd_data);
+	}
+#endif
+
+#if IS_ENABLED(CONFIG_VBUS_NOTIFIER)
 	schedule_delayed_work(&pdic_data->vbus_noti_work, 0);
 #endif /* CONFIG_VBUS_NOTIFIER */
 
@@ -3133,6 +3186,8 @@ out:
 static int sm5714_usbpd_reg_init(struct sm5714_phydrv_data *_data)
 {
 	struct i2c_client *i2c = _data->i2c;
+	u8 reg_data;
+
 	pr_info("%s", __func__);
 	if (!lpcharge)	/* Release SNK Only */
 		sm5714_usbpd_write_reg(i2c, SM5714_REG_CC_CNTL1, 0x41);
@@ -3153,6 +3208,10 @@ static int sm5714_usbpd_reg_init(struct sm5714_phydrv_data *_data)
 #else
 	sm5714_usbpd_write_reg(i2c, SM5714_REG_CORR_CNTL4, 0x00);
 #endif
+	sm5714_usbpd_read_reg(i2c, SM5714_REG_PD_STATE3, &reg_data);
+	if (reg_data & 0x06) /* Reset Wait Policy Engine */
+		sm5714_usbpd_write_reg(i2c, SM5714_REG_PD_CNTL4,
+				SM5714_REG_CNTL_NOTIFY_RESET_DONE);
 
 	return 0;
 }
@@ -3463,9 +3522,11 @@ static int sm5714_usbpd_probe(struct i2c_client *i2c,
 	pdic_data->detach_valid = true;
 	pdic_data->is_otg_vboost = false;
 	pdic_data->is_jig_case_on = false;
+	pdic_data->is_noti_src_adv = false;
 	pdic_data->is_timer_expired = false;
 	pdic_data->reset_done = 0;
 	pdic_data->abnormal_dev_cnt = 0;
+	pdic_data->scr_sel = PLUG_CTRL_RP80;
 	pdic_data->is_cc_abnormal_state = false;
 #if defined(CONFIG_SM5714_SUPPORT_SBU)
 	pdic_data->is_sbu_abnormal_state = false;

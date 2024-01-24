@@ -1,0 +1,42 @@
+/* Copyright (c) 2018, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+/dts-v1/;
+/plugin/;
+
+#include <dt-bindings/interrupt-controller/arm-gic.h>
+#include <dt-bindings/clock/qcom,camcc-sm6150.h>
+
+#include "../qcom/sm6150-idp.dtsi"
+#include "sm6150-sec-common.dtsi"
+
+#include "sm6150-sec-a70q-pm-common.dtsi"
+
+#include "sm6150-sec-a70q-sea-r00.dtsi"
+#include "sm6150-sec-a70q-sea-pinctrl-r00.dtsi"
+#include "sm6150-sec-a70q-battery-common.dtsi"
+#include "sm6150-sec-a70q-eif-r00.dtsi"
+#include "sm6150-sec-a70q-display-r01.dtsi"
+#include "sm6150-sec-a70q-fingerprint_00.dtsi"
+
+/ {
+	model = "Samsung A70Q PROJECT Bring-Up (board-id,00)";
+	compatible = "qcom,sm6150p-idp", "qcom,sm6150p", "qcom,idp";
+	qcom,msm-id = <355 0x0>;
+	qcom,board-id = <34 0>;
+};
+
+&qupv3_se1_i2c {
+	touchscreen@50 {
+		imagis,bringup = <1>;
+	};
+};

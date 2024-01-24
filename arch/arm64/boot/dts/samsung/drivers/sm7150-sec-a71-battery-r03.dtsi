@@ -1,0 +1,34 @@
+/* Copyright (c) 2019, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+&pm6150_vadc {
+	bat_thm {
+		reg = <ADC_AMUX_THM4_PU2>;
+		label = "bat_thm";
+		qcom,ratiometric;
+		qcom,hw-settle-time = <200>;
+		qcom,pre-scaling = <1 1>;
+	};
+};
+
+&soc {
+	battery {
+
+		battery,temp_table_adc = <
+					1978 2288 2640 3049 3517 4021 4597 5237 5953 6723
+					7481 8270 9050 9786 10508 11178 11784 12312 12778 13168
+					13470 13719 13912
+					>;
+	
+		io-channels = <&pm6150_vadc ADC_AMUX_THM4_PU2>;
+	};
+};
