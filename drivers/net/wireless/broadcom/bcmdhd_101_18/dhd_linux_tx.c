@@ -2,7 +2,7 @@
  * Broadcom Dongle Host Driver (DHD),
  * Linux-specific network interface for transmit(tx) path
  *
- * Copyright (C) 2021, Broadcom.
+ * Copyright (C) 2022, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -614,7 +614,14 @@ BCMFASTPATH(dhd_start_xmit)(struct sk_buff *skb, struct net_device *net)
 		DHD_OS_WAKE_UNLOCK(&dhd->pub);
 		return NETDEV_TX_BUSY;
 	}
-
+#ifdef RPM_FAST_TRIGGER
+	/* Xmit is running reset RPM fast trigger */
+	if (dhd->pub.rpm_fast_trigger) {
+		DHD_ERROR(("%s: Reset RPM fast trigger\n", __FUNCTION__));
+		dhd->pub.rpm_fast_trigger = FALSE;
+	}
+	dhd->pub.last_tx_rx = jiffies;
+#endif /* RPM_FAST_TRIGGER */
 	DHD_GENERAL_UNLOCK(&dhd->pub, flags);
 
 	/* If tput test is in progress */
@@ -935,29 +942,133 @@ dhd_eap_txcomplete(dhd_pub_t *dhdp, void *txp, bool success, int ifidx)
 	struct ether_header *eh;
 	uint16 type;
 
-	if (!success) {
-		/* XXX where does this stuff belong to? */
-		dhd_prot_hdrpull(dhdp, NULL, txp, NULL, NULL);
+	/* XXX where does this stuff belong to? */
+	dhd_prot_hdrpull(dhdp, NULL, txp, NULL, NULL);
 
-		/* XXX Use packet tag when it is available to identify its type */
-		eh = (struct ether_header *)PKTDATA(dhdp->osh, txp);
-		type  = ntoh16(eh->ether_type);
-		if (type == ETHER_TYPE_802_1X) {
-			if (dhd_is_4way_msg((uint8 *)eh) == EAPOL_4WAY_M4) {
-				dhd_if_t *ifp = NULL;
-				ifp = dhd->iflist[ifidx];
-				if (!ifp || !ifp->net) {
-					return;
-				}
-
+	/* XXX Use packet tag when it is available to identify its type */
+	eh = (struct ether_header *)PKTDATA(dhdp->osh, txp);
+	type  = ntoh16(eh->ether_type);
+	if (type == ETHER_TYPE_802_1X) {
+		if (dhd_is_4way_msg((uint8 *)eh) == EAPOL_4WAY_M4) {
+			dhd_if_t *ifp = NULL;
+			ifp = dhd->iflist[ifidx];
+			if (!ifp || !ifp->net) {
+				return;
+			}
+			if (!success) {
 				DHD_INFO(("%s: M4 TX failed on %d.\n",
-					__FUNCTION__, ifidx));
+						__FUNCTION__, ifidx));
 
 				OSL_ATOMIC_SET(dhdp->osh, &ifp->m4state, M4_TXFAILED);
 				schedule_delayed_work(&ifp->m4state_work,
-					msecs_to_jiffies(MAX_4WAY_TIMEOUT_MS));
+						msecs_to_jiffies(MAX_4WAY_TIMEOUT_MS));
+			} else {
+				cancel_delayed_work(&ifp->m4state_work);
 			}
 		}
 	}
 }
 #endif /* DHD_4WAYM4_FAIL_DISCONNECT */
+
+void
+dhd_handle_pktdata(dhd_pub_t *dhdp, int ifidx, void *pkt, uint8 *pktdata, uint32 pktid,
+	uint32 pktlen, uint16 *pktfate, uint8 *dhd_udr, uint8 *dhd_igmp,
+	bool tx, int pkt_wake, bool pkt_log)
+{
+	struct ether_header *eh;
+	uint16 ether_type;
+	uint32 pkthash;
+	uint8 pkt_type = PKT_TYPE_DATA;
+
+	if (!pktdata || pktlen < ETHER_HDR_LEN) {
+		return;
+	}
+
+	eh = (struct ether_header *)pktdata;
+	ether_type = ntoh16(eh->ether_type);
+
+	/* Check packet type */
+	if (dhd_check_ip_prot(pktdata, ether_type)) {
+		if (dhd_check_dhcp(pktdata)) {
+			pkt_type = PKT_TYPE_DHCP;
+		} else if (dhd_check_icmp(pktdata)) {
+			pkt_type = PKT_TYPE_ICMP;
+		} else if (dhd_check_dns(pktdata)) {
+			pkt_type = PKT_TYPE_DNS;
+		}
+#ifdef IGMP_OFFLOAD_SUPPORT
+		else if (dhdp->igmpo_enable && dhd_check_igmp(pktdata)) {
+			pkt_type = PKT_TYPE_IGMP;
+		}
+#endif /* IGMP_OFFLOAD_SUPPORT */
+	}
+	else if (dhd_check_arp(pktdata, ether_type)) {
+		pkt_type = PKT_TYPE_ARP;
+	}
+	else if (ether_type == ETHER_TYPE_802_1X) {
+		pkt_type = PKT_TYPE_EAP;
+	}
+
+#ifdef DHD_SBN
+	/* Set UDR based on packet type */
+	if (dhd_udr && (pkt_type == PKT_TYPE_DHCP ||
+		pkt_type == PKT_TYPE_DNS ||
+		pkt_type == PKT_TYPE_ARP)) {
+		*dhd_udr = TRUE;
+	}
+#endif /* DHD_SBN */
+
+#ifdef IGMP_OFFLOAD_SUPPORT
+	if (dhd_igmp && (pkt_type == PKT_TYPE_IGMP)) {
+		*dhd_igmp = TRUE;
+	}
+#endif /* IGMP_OFFLOAD_SUPPORT */
+
+#ifdef DHD_PKT_LOGGING
+#ifdef DHD_SKIP_PKTLOGGING_FOR_DATA_PKTS
+	if (pkt_type != PKT_TYPE_DATA)
+#endif
+	{
+		if (pkt_log) {
+			if (tx) {
+				if (pktfate) {
+					/* Tx status */
+					DHD_PKTLOG_TXS(dhdp, pkt, pktdata, pktid, *pktfate);
+				} else {
+					/* Tx packet */
+					DHD_PKTLOG_TX(dhdp, pkt, pktdata, pktid);
+				}
+				pkthash = __dhd_dbg_pkt_hash((uintptr_t)pkt, pktid);
+			} else {
+				struct sk_buff *skb = (struct sk_buff *)pkt;
+				if (pkt_wake) {
+					DHD_PKTLOG_WAKERX(dhdp, skb, pktdata);
+				} else {
+					DHD_PKTLOG_RX(dhdp, skb, pktdata);
+				}
+			}
+		}
+	}
+#endif /* DHD_PKT_LOGGING */
+
+	/* Dump packet data */
+	switch (pkt_type) {
+		case PKT_TYPE_DHCP:
+			dhd_dhcp_dump(dhdp, ifidx, pktdata, tx, &pkthash, pktfate);
+			break;
+		case PKT_TYPE_ICMP:
+			dhd_icmp_dump(dhdp, ifidx, pktdata, tx, &pkthash, pktfate);
+			break;
+		case PKT_TYPE_DNS:
+			dhd_dns_dump(dhdp, ifidx, pktdata, tx, &pkthash, pktfate);
+			break;
+		case PKT_TYPE_ARP:
+			dhd_arp_dump(dhdp, ifidx, pktdata, tx, &pkthash, pktfate);
+			break;
+		case PKT_TYPE_EAP:
+			dhd_dump_eapol_message(dhdp, ifidx, pktdata, pktlen, tx, &pkthash, pktfate);
+			break;
+		default:
+			break;
+	}
+}

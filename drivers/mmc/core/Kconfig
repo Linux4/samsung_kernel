@@ -81,6 +81,18 @@ config MMC_TEST
 	  This driver is only of interest to those developing or
 	  testing a host driver. Most people should say N here.
 
+config MMC_IPC_LOGGING
+	bool "MMC_IPC_LOGGING"
+	depends on MMC
+	help
+	  This enables the IPC logging of significant events for mmc
+	  driver to provide command history for debugging purpose.
+
+	  This enables the IPC tracing events for for mmc driver to
+	  trace significant events used for debugging purpose.
+
+	  If unsure, say N here.
+
 config SDC_QTI
 	tristate "Enable QTI specific code in MMC upstream driver"
 	depends on QGKI && MMC_SDHCI_MSM
@@ -97,3 +109,11 @@ config MMC_CRYPTO
 	  Enabling this makes it possible for the kernel to use the crypto
 	  capabilities of the MMC device (if present) to perform crypto
 	  operations on data being transferred to/from the device.
+
+config SEC_STORAGE_MMC
+	tristate "Enable SEC specific MMC/SD code"
+	depends on QGKI && MMC_SDHCI_MSM
+	default n
+	help
+	  This configuration flag allows to add SEC MMC/SD code.
+

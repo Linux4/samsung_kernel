@@ -114,6 +114,16 @@ static void atl_set_promisc(struct atl_hw *hw, bool enabled, bool allmulti)
 	}
 }
 
+int atl_vlan_promisc_status(struct net_device *ndev)
+{
+	struct atl_nic *nic = netdev_priv(ndev);
+
+	return ndev->flags & IFF_PROMISC ||
+	       nic->rxf_vlan.promisc_count ||
+	       !nic->rxf_vlan.vlans_active ||
+	       !(ndev->features & NETIF_F_HW_VLAN_CTAG_FILTER);
+}
+
 void atl_set_vlan_promisc(struct atl_hw *hw, int promisc)
 {
 	atl_write_bit(hw, ATL_RX_VLAN_FLT_CTRL1, 1, !!promisc);
@@ -236,6 +246,7 @@ static int atl2_hw_reset(struct atl_hw *hw)
 	u32 rbl_status = 0;
 	u32 rbl_request;
 	int err = 0;
+	int boot_time;
 
 	atl_lock_fw(hw);
 
@@ -260,15 +271,18 @@ static int atl2_hw_reset(struct atl_hw *hw)
 	atl_write(hw, ATL2_MIF_BOOT_REG_ADR, rbl_request);
 
 	/* Wait for RBL boot */
-	busy_wait(200, mdelay(1), rbl_status,
-		  atl_read(hw, ATL2_MIF_BOOT_REG_ADR),
-		  ((rbl_status & ATL2_BOOT_STARTED) == 0) ||
-		  (rbl_status == 0xffffffff));
+	boot_time = busy_wait(2000, mdelay(1), rbl_status,
+			      atl_read(hw, ATL2_MIF_BOOT_REG_ADR),
+			      ((rbl_status & ATL2_BOOT_STARTED) == 0) ||
+			      (rbl_status == 0xffffffff));
 	if (!(rbl_status & ATL2_BOOT_STARTED)) {
 		err = -ETIME;
 		atl_dev_err("Boot code hung, rbl_status %#x", rbl_status);
 		goto unlock;
 	}
+	if (boot_time > 200)
+		atl_dev_err("Boot code took %dms. Thats unexpected and more than 200ms. Will continue.\n",
+			    boot_time);
 
 next_turn:
 	busy_wait(1000, mdelay(1), rbl_complete, atl2_mcp_boot_complete(hw),
@@ -575,8 +589,10 @@ static irqreturn_t atl_legacy_irq(int irq, void *priv)
 		}
 	}
 
-	if (unlikely(stat & hw->non_ring_intr_mask))
+	if (unlikely(stat & BIT(ATL_IRQ_LINK)))
 		atl_link_irq(irq, nic);
+	if (unlikely(stat & BIT(ATL_IRQ_PTP)))
+		atl_ptp_irq(irq, nic->ptp);
 	return IRQ_HANDLED;
 }
 
@@ -740,7 +756,7 @@ void atl_start_hw_global(struct atl_nic *nic)
 		(tpb_size * 32 * 66 / 100) << 16 |
 		(tpb_size * 32 * 50 / 100));
 	/* 4-TC | Enable TPB */
-	atl_set_bits(hw, ATL_TX_PBUF_CTRL1, BIT(8) | BIT(0));
+	atl_set_bits(hw, ATL_TX_PBUF_CTRL1, BIT(8) | BIT(2) | BIT(0));
 	/* TX Buffer clk gate  off */
 	if (hw->chip_id == ATL_ANTIGUA)
 		atl_clear_bits(hw, ATL_TX_PBUF_CTRL1, BIT(5));
@@ -898,12 +914,13 @@ void atl_set_rx_mode(struct net_device *ndev)
 	else if (uc_count + mc_count > nic->rxf_mac.available - 1)
 		all_multi_needed = true;
 
+	if (nic->priv_flags & ATL_PF_BIT(LPB_NET_DMA))
+		promisc_needed = true;
+
 	/* Enable promisc VLAN mode if IFF_PROMISC explicitly
 	 * requested or too many VIDs registered
 	 */
-	atl_set_vlan_promisc(hw,
-		ndev->flags & IFF_PROMISC || nic->rxf_vlan.promisc_count ||
-		!nic->rxf_vlan.vlans_active);
+	atl_set_vlan_promisc(hw, atl_vlan_promisc_status(ndev));
 
 	atl_set_promisc(hw, promisc_needed,
 			is_multicast_enabled && all_multi_needed);
@@ -1242,6 +1259,121 @@ void atl_adjust_eth_stats(struct atl_ether_stats *stats,
 		_stats[i] += add ? _base[i] : - _base[i];
 }
 
+static int __atl_fetch_msm1_stats(struct atl_hw *hw,
+				  struct atl_ether_stats *stats)
+{
+	u32 reg, reg2;
+	int ret;
+
+	ret = atl_hwsem_get(hw, ATL_MCP_SEM_MSM);
+	if (ret)
+		return ret;
+
+	__READ_MSM_OR_GOTO(ret, hw, ATL_MSM_CTR_TX_PAUSE, &reg, hwsem_put);
+	stats->tx_pause = reg;
+
+	__READ_MSM_OR_GOTO(ret, hw, ATL_MSM_CTR_TX_PKTS_GOOD, &reg, hwsem_put);
+	stats->tx_ether_pkts = reg;
+
+	__READ_MSM_OR_GOTO(ret, hw, ATL_MSM_CTR_TX_OCTETS_LO, &reg, hwsem_put);
+	__READ_MSM_OR_GOTO(ret, hw, ATL_MSM_CTR_TX_OCTETS_HI, &reg2, hwsem_put);
+	stats->tx_ether_octets = ((uint64_t)reg2 << 32) | reg;
+
+	__READ_MSM_OR_GOTO(ret, hw, ATL_MSM_CTR_RX_PAUSE, &reg, hwsem_put);
+	stats->rx_pause = reg;
+
+	__READ_MSM_OR_GOTO(ret, hw, ATL_MSM_CTR_RX_OCTETS_LO, &reg, hwsem_put);
+	__READ_MSM_OR_GOTO(ret, hw, ATL_MSM_CTR_RX_OCTETS_HI, &reg2, hwsem_put);
+	stats->rx_ether_octets = ((uint64_t)reg2 << 32) | reg;
+
+	__READ_MSM_OR_GOTO(ret, hw, ATL_MSM_CTR_RX_PKTS_GOOD, &reg, hwsem_put);
+	__READ_MSM_OR_GOTO(ret, hw, ATL_MSM_CTR_RX_ERRS, &reg2, hwsem_put);
+	stats->rx_ether_pkts = reg + reg2;
+
+	__READ_MSM_OR_GOTO(ret, hw, ATL_MSM_CTR_RX_BROADCAST, &reg, hwsem_put);
+	stats->rx_ether_broacasts = reg;
+
+	__READ_MSM_OR_GOTO(ret, hw, ATL_MSM_CTR_RX_MULTICAST, &reg, hwsem_put);
+	stats->rx_ether_multicasts = reg;
+
+	__READ_MSM_OR_GOTO(ret, hw, ATL_MSM_CTR_RX_FCS_ERRS, &reg, hwsem_put);
+	__READ_MSM_OR_GOTO(ret, hw, ATL_MSM_CTR_RX_ALIGN_ERRS, &reg2, hwsem_put);
+	stats->rx_ether_crc_align_errs = reg + reg2;
+
+hwsem_put:
+	atl_hwsem_put(hw, ATL_MCP_SEM_MSM);
+	return ret;
+}
+
+static int __atl_fetch_msm2_stats(struct atl_hw *hw,
+				  struct atl_ether_stats *stats)
+{
+	u32 reg, reg2;
+	int ret;
+
+	ret = atl_hwsem_get(hw, ATL_MCP_SEM_MSM);
+	if (ret)
+		return ret;
+
+	__READ_MSM_OR_GOTO(ret, hw, ATL_MSM2_CTR_TX_PAUSE_LO, &reg, hwsem_put);
+	__READ_MSM_OR_GOTO(ret, hw, ATL_MSM2_CTR_TX_PAUSE_HI, &reg2, hwsem_put);
+	stats->tx_pause =  ((uint64_t)reg2 << 32) | reg;
+
+	__READ_MSM_OR_GOTO(ret, hw, ATL_MSM2_CTR_TX_PKTS_LO, &reg, hwsem_put);
+	__READ_MSM_OR_GOTO(ret, hw, ATL_MSM2_CTR_TX_PKTS_HI, &reg2, hwsem_put);
+	stats->tx_ether_pkts = ((uint64_t)reg2 << 32) | reg;
+
+	__READ_MSM_OR_GOTO(ret, hw, ATL_MSM2_CTR_TX_OCTETS_LO, &reg, hwsem_put);
+	__READ_MSM_OR_GOTO(ret, hw, ATL_MSM2_CTR_TX_OCTETS_HI, &reg2, hwsem_put);
+	stats->tx_ether_octets = ((uint64_t)reg2 << 32) | reg;
+
+	__READ_MSM_OR_GOTO(ret, hw, ATL_MSM2_CTR_TX_FCS_ERRS_CNTR_LO, &reg, hwsem_put);
+	__READ_MSM_OR_GOTO(ret, hw, ATL_MSM2_CTR_TX_FCS_ERRS_CNTR_HI, &reg2, hwsem_put);
+	stats->tx_errors = ((uint64_t)reg2 << 32) | reg;
+
+	__READ_MSM_OR_GOTO(ret, hw, ATL_MSM2_CTR_TX_FIFO_ERRS_CNTR_LO, &reg, hwsem_put);
+	__READ_MSM_OR_GOTO(ret, hw, ATL_MSM2_CTR_TX_FIFO_ERRS_CNTR_HI, &reg2, hwsem_put);
+	stats->tx_errors += ((uint64_t)reg2 << 32) | reg;
+
+	__READ_MSM_OR_GOTO(ret, hw, ATL_MSM2_CTR_RX_PAUSE_LO, &reg, hwsem_put);
+	__READ_MSM_OR_GOTO(ret, hw, ATL_MSM2_CTR_RX_PAUSE_HI, &reg2, hwsem_put);
+	stats->rx_pause =  ((uint64_t)reg2 << 32) | reg;
+
+	__READ_MSM_OR_GOTO(ret, hw, ATL_MSM2_CTR_RX_OCTETS_LO, &reg, hwsem_put);
+	__READ_MSM_OR_GOTO(ret, hw, ATL_MSM2_CTR_RX_OCTETS_HI, &reg2, hwsem_put);
+	stats->rx_ether_octets = ((uint64_t)reg2 << 32) | reg;
+
+	__READ_MSM_OR_GOTO(ret, hw, ATL_MSM2_CTR_RX_PKTS_LO, &reg, hwsem_put);
+	__READ_MSM_OR_GOTO(ret, hw, ATL_MSM2_CTR_RX_PKTS_HI, &reg2, hwsem_put);
+	stats->rx_ether_pkts =  ((uint64_t)reg2 << 32) | reg;
+
+	__READ_MSM_OR_GOTO(ret, hw, ATL_MSM2_CTR_RX_BROADCAST_LO, &reg, hwsem_put);
+	__READ_MSM_OR_GOTO(ret, hw, ATL_MSM2_CTR_RX_BROADCAST_HI, &reg2, hwsem_put);
+	stats->rx_ether_broacasts =  ((uint64_t)reg2 << 32) | reg;
+
+	__READ_MSM_OR_GOTO(ret, hw, ATL_MSM2_CTR_RX_MULTICAST_LO, &reg, hwsem_put);
+	__READ_MSM_OR_GOTO(ret, hw, ATL_MSM2_CTR_RX_MULTICAST_HI, &reg2, hwsem_put);
+	stats->rx_ether_multicasts =  ((uint64_t)reg2 << 32) | reg;
+
+	__READ_MSM_OR_GOTO(ret, hw, ATL_MSM2_CTR_RX_FCS_ERRS_LO, &reg, hwsem_put);
+	__READ_MSM_OR_GOTO(ret, hw, ATL_MSM2_CTR_RX_FCS_ERRS_LO, &reg, hwsem_put);
+	stats->rx_ether_crc_align_errs = ((uint64_t)reg2 << 32) | reg;
+	__READ_MSM_OR_GOTO(ret, hw, ATL_MSM2_CTR_RX_ALIGN_ERRS_LO, &reg2, hwsem_put);
+	__READ_MSM_OR_GOTO(ret, hw, ATL_MSM2_CTR_RX_ALIGN_ERRS_HI, &reg2, hwsem_put);
+	stats->rx_ether_crc_align_errs += ((uint64_t)reg2 << 32) | reg;
+
+	__READ_MSM_OR_GOTO(ret, hw, ATL_MSM2_CTR_RX_ERRS_CNTR_LO, &reg, hwsem_put);
+	__READ_MSM_OR_GOTO(ret, hw, ATL_MSM2_CTR_RX_ERRS_CNTR_HI, &reg2, hwsem_put);
+	stats->rx_errors = ((uint64_t)reg2 << 32) | reg;
+
+	__READ_MSM_OR_GOTO(ret, hw, ATL_MSM2_CTR_RX_DROP_CNTR_LO, &reg, hwsem_put);
+	__READ_MSM_OR_GOTO(ret, hw, ATL_MSM2_CTR_RX_DROP_CNTR_HI, &reg2, hwsem_put);
+	stats->rx_drops = ((uint64_t)reg2 << 32) | reg;
+hwsem_put:
+	atl_hwsem_put(hw, ATL_MCP_SEM_MSM);
+	return ret;
+}
+
 int atl_update_eth_stats(struct atl_nic *nic)
 {
 	struct atl_hw *hw = &nic->hw;
@@ -1257,35 +1389,26 @@ int atl_update_eth_stats(struct atl_nic *nic)
 
 	atl_lock_fw(hw);
 
-	ret = atl_hwsem_get(hw, ATL_MCP_SEM_MSM);
+	if (hw->mcp.interface_ver != ATL2_FW_INTERFACE_B0)
+		ret = __atl_fetch_msm1_stats(hw, &stats);
+	else
+		ret = __atl_fetch_msm2_stats(hw, &stats);
 	if (ret)
 		goto unlock_fw;
 
-	__READ_MSM_OR_GOTO(ret, hw, ATL_MSM_CTR_TX_PAUSE, &reg, hwsem_put);
-	stats.tx_pause = reg;
+	stats.rx_dma_drops = atl_read(hw, ATL_RX_DMA_STATS_CNT7);
 
-	__READ_MSM_OR_GOTO(ret, hw, ATL_MSM_CTR_RX_PAUSE, &reg, hwsem_put);
-	stats.rx_pause = reg;
+	stats.rx_dma_packets = atl_read(hw, ATL_RX_DMA_STATS_CNT1);
+	stats.rx_dma_packets += (uint64_t)atl_read(hw, ATL_RX_DMA_STATS_CNT2) << 32;
 
-	__READ_MSM_OR_GOTO(ret, hw, ATL_MSM_CTR_RX_OCTETS_LO, &reg, hwsem_put);
-	__READ_MSM_OR_GOTO(ret, hw, ATL_MSM_CTR_RX_OCTETS_HI, &reg2, hwsem_put);
-	stats.rx_ether_octets = ((uint64_t)reg2 << 32) | reg;
+	stats.rx_dma_octets = atl_read(hw, ATL_RX_DMA_STATS_CNT3);
+	stats.rx_dma_octets += (uint64_t)atl_read(hw, ATL_RX_DMA_STATS_CNT4) << 32;
 
-	__READ_MSM_OR_GOTO(ret, hw, ATL_MSM_CTR_RX_PKTS_GOOD, &reg, hwsem_put);
-	__READ_MSM_OR_GOTO(ret, hw, ATL_MSM_CTR_RX_ERRS, &reg2, hwsem_put);
-	stats.rx_ether_pkts = reg + reg2;;
+	stats.tx_dma_packets = atl_read(hw, ATL_TX_DMA_STATS_CNT1);
+	stats.tx_dma_packets += (uint64_t)atl_read(hw, ATL_RX_DMA_STATS_CNT2) << 32;
 
-	__READ_MSM_OR_GOTO(ret, hw, ATL_MSM_CTR_RX_BROADCAST, &reg, hwsem_put);
-	stats.rx_ether_broacasts = reg;
-
-	__READ_MSM_OR_GOTO(ret, hw, ATL_MSM_CTR_RX_MULTICAST, &reg, hwsem_put);
-	stats.rx_ether_multicasts = reg;
-
-	__READ_MSM_OR_GOTO(ret, hw, ATL_MSM_CTR_RX_FCS_ERRS, &reg, hwsem_put);
-	__READ_MSM_OR_GOTO(ret, hw, ATL_MSM_CTR_RX_ALIGN_ERRS, &reg2, hwsem_put);
-	stats.rx_ether_crc_align_errs = reg + reg2;
-
-	stats.rx_ether_drops = atl_read(hw, ATL_RX_DMA_STATS_CNT7);
+	stats.tx_dma_octets = atl_read(hw, ATL_TX_DMA_STATS_CNT3);
+	stats.tx_dma_octets += (uint64_t)atl_read(hw, ATL_TX_DMA_STATS_CNT4) << 32;
 
 	/* capture debug counters*/
 	atl_write_bit(hw, ATL_RX_RPF_DBG_CNT_CTRL, 0x1f, 1);
@@ -1307,8 +1430,6 @@ int atl_update_eth_stats(struct atl_nic *nic)
 
 	ret = 0;
 
-hwsem_put:
-	atl_hwsem_put(hw, ATL_MCP_SEM_MSM);
 unlock_fw:
 	atl_unlock_fw(hw);
 	return ret;
@@ -1599,4 +1720,3 @@ static void atl2_hw_new_rx_filter_promisc(struct atl_hw *hw, bool promisc,
 				 off_action);
 
 }
-

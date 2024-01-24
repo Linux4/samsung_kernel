@@ -267,6 +267,7 @@ struct max77705_fuelgauge_data {
 
 	bool using_temp_compensation;
 	bool using_hw_vempty;
+	bool using_room_temperature_vempty;
 	unsigned int vempty_mode;
 	int temperature;
 	bool vempty_init_flag;

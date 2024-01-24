@@ -94,7 +94,7 @@ config NF_CONNTRACK_MARK
 config NF_CONNTRACK_SECMARK
 	bool  'Connection tracking security mark support'
 	depends on NETWORK_SECMARK
-	default m if NETFILTER_ADVANCED=n
+	default y if NETFILTER_ADVANCED=n
 	help
 	  This option enables security markings to be applied to
 	  connections.  Typically they are copied to connections from
@@ -339,6 +339,18 @@ config NF_CONNTRACK_SIP
 	  Internet telephony calls. With the nf_conntrack_sip and
 	  the nf_nat_sip modules you can support the protocol on a connection
 	  tracking/NATing firewall.
+
+	  To compile it as a module, choose M here.  If unsure, say N.
+
+config NF_CONNTRACK_SIP_SEGMENTATION
+	tristate "SIP protocol segmentation support"
+	depends on NF_CONNTRACK_SIP
+	default m if NETFILTER_ADVANCED=n
+	help
+	  Linux Kernel SIP ALG did not handle Segmented TCP Packets
+	  because of which SIP communication could not be established
+	  for some clients. This special type supports SIP segmentation
+	  packets
 
 	  To compile it as a module, choose M here.  If unsure, say N.
 

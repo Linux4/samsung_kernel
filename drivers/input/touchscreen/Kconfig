@@ -96,6 +96,7 @@ config TOUCHSCREEN_AD7879_SPI
 config TOUCHSCREEN_ADC
 	tristate "Generic ADC based resistive touchscreen"
 	depends on IIO
+	select IIO_BUFFER
 	select IIO_BUFFER_CB
 	help
 	  Say Y here if you want to use the generic ADC
@@ -1319,18 +1320,6 @@ source "drivers/input/touchscreen/stm/fts9cu80f_b/Kconfig"
 source "drivers/input/touchscreen/stm/fts9cu80f_spi/Kconfig"
 source "drivers/input/touchscreen/zinitix/ztw522/Kconfig"
 
-config TOUCHSCREEN_SYNAPTICS_TCM
-	bool "Synaptics TCM Touchscreen Driver"
-	depends on I2C
-	default y
-	help
-	  Say Y here if you have a Synaptics Touchscreen.
-
-	  If unsure, say N.
-
-	  To compile this driver as a module, choose M here: the
-	  module will be called synaptics_tcm.
-
 source "drivers/input/touchscreen/synaptics_tcm/Kconfig"
 
 config TOUCHSCREEN_SYNAPTICS_DSX
@@ -1346,5 +1335,7 @@ config TOUCHSCREEN_SYNAPTICS_DSX
 	  module will be called synaptics_tcm.
 
 source "drivers/input/touchscreen/synaptics_dsx/Kconfig"
+
+source "drivers/input/touchscreen/nt36xxx/Kconfig"
 
 endif

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2013-2020, Linux Foundation. All rights reserved.
+ * Copyright (c) 2013-2021, Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 #include <linux/fs.h>
 #include <linux/mutex.h>
@@ -63,6 +64,12 @@ struct lsm_common {
 	struct cal_type_data	*cal_data[LSM_MAX_CAL_IDX];
 
 	struct mutex apr_lock;
+
+#ifdef CONFIG_DEBUG_FS
+	/* Debugfs related */
+	struct dentry *entry;
+	bool panic_on_timeout;
+#endif
 };
 
 static struct lsm_common lsm_common;
@@ -235,6 +242,11 @@ static int q6lsm_callback(struct apr_client_data *data, void *priv)
 			goto done;
 		}
 
+		if (!client->get_param_payload) {
+			pr_err("%s: invalid get_param_payload buffer ptr\n", __func__);
+			ret = -EINVAL;
+			goto done;
+		}
 		memcpy((u8 *)client->get_param_payload,
 			(u8 *)payload + payload_min_size_expected, param_size);
 done:
@@ -472,6 +484,10 @@ static int q6lsm_apr_send_pkt(struct lsm_client *client, void *handle,
 	}
 
 	pr_debug("%s: enter wait %d\n", __func__, wait);
+	if (mmap_handle_p) {
+		pr_debug("%s: Invalid mmap_handle\n", __func__);
+		return -EINVAL;
+	}
 	if (wait)
 		mutex_lock(&lsm_common.apr_lock);
 	if (mmap_p) {
@@ -508,6 +524,13 @@ static int q6lsm_apr_send_pkt(struct lsm_client *client, void *handle,
 				__func__, msg_hdr->opcode, msg_hdr->pkt_size);
 			/* ret = 0 means wait timed out */
 			ret = -ETIMEDOUT;
+#ifdef CONFIG_DEBUG_FS
+			/*
+			 * If panic_on_timeout flag is explicitly set through the debugfs,
+			 * then trigger a device crash here to aid debugging.
+			 */
+			BUG_ON(lsm_common.panic_on_timeout);
+#endif
 		}
 	} else {
 		ret = 0;
@@ -517,6 +540,7 @@ static int q6lsm_apr_send_pkt(struct lsm_client *client, void *handle,
 
 	if (mmap_p && *mmap_p == 0)
 		ret = -ENOMEM;
+	mmap_handle_p = NULL;
 	pr_debug("%s: leave ret %d\n", __func__, ret);
 	return ret;
 }
@@ -1252,7 +1276,7 @@ int get_lsm_port(void)
  */
 int q6lsm_set_afe_data_format(uint64_t fe_id, uint16_t afe_data_format)
 {
-	int n = 0, free_session = 0;
+	int n = 0, free_session = LSM_INVALID_SESSION_ID;
 
 	if (0 != afe_data_format && 1 != afe_data_format)
 		goto done;
@@ -1262,7 +1286,8 @@ int q6lsm_set_afe_data_format(uint64_t fe_id, uint16_t afe_data_format)
 
 	for (n = LSM_MIN_SESSION_ID; n <= LSM_MAX_SESSION_ID; n++) {
 		/* Save ID of the first available free session */
-		if (0 == free_session && 0 == lsm_client_afe_data[n].fe_id)
+		if (LSM_INVALID_SESSION_ID == free_session &&
+		    0 == lsm_client_afe_data[n].fe_id)
 			free_session = n;
 
 		/* Find the matching session with fe_id */
@@ -1278,7 +1303,7 @@ int q6lsm_set_afe_data_format(uint64_t fe_id, uint16_t afe_data_format)
 	 * When no matching session is found, allocate
 	 * a new one if a free session is available.
 	 */
-	if (0 != free_session) {
+	if (free_session != LSM_INVALID_SESSION_ID) {
 		lsm_client_afe_data[free_session].fe_id = fe_id;
 		lsm_client_afe_data[free_session].unprocessed_data =
 							afe_data_format;
@@ -1751,21 +1776,24 @@ int q6lsm_deregister_sound_model(struct lsm_client *client)
 				break;
 		}
 	} else {
-		memset(&cmd, 0, sizeof(cmd));
-		q6lsm_add_hdr(client, &cmd.hdr, sizeof(cmd.hdr), false);
-		cmd.hdr.opcode = LSM_SESSION_CMD_DEREGISTER_SOUND_MODEL;
-
-		rc = q6lsm_apr_send_pkt(client, client->apr, &cmd.hdr, true, NULL);
-		if (rc) {
-			pr_err("%s: Failed cmd opcode 0x%x, rc %d\n", __func__,
-			       cmd.hdr.opcode, rc);
-		} else {
-			pr_debug("%s: Deregister sound model succeeded\n", __func__);
-		}
-
-		p_info.param_type = LSM_DEREG_SND_MODEL;
 		sm = &client->stage_cfg[p_info.stage_idx].sound_model;
-		q6lsm_snd_model_buf_free(client, &p_info, sm);
+
+		if (sm && sm->data) {
+			memset(&cmd, 0, sizeof(cmd));
+			q6lsm_add_hdr(client, &cmd.hdr, sizeof(cmd.hdr), false);
+			cmd.hdr.opcode = LSM_SESSION_CMD_DEREGISTER_SOUND_MODEL;
+			p_info.param_type = LSM_DEREG_SND_MODEL;
+
+			rc = q6lsm_apr_send_pkt(client, client->apr, &cmd.hdr, true, NULL);
+			if (rc) {
+				pr_err("%s: Failed cmd opcode 0x%x, rc %d\n", __func__,
+				       cmd.hdr.opcode, rc);
+			} else {
+				pr_debug("%s: Deregister sound model succeeded\n", __func__);
+			}
+
+			q6lsm_snd_model_buf_free(client, &p_info, sm);
+		}
 	}
 
 	return rc;
@@ -2117,7 +2145,8 @@ static int q6lsm_mmapcallback(struct apr_client_data *data, void *priv)
 	case LSM_SESSION_CMDRSP_SHARED_MEM_MAP_REGIONS:
 		if (atomic_read(&client->cmd_state) == CMD_STATE_WAIT_RESP) {
 			spin_lock_irqsave(&mmap_lock, flags);
-			*mmap_handle_p = command;
+			if (mmap_handle_p)
+				*mmap_handle_p = command;
 			/* spin_unlock_irqrestore implies barrier */
 			spin_unlock_irqrestore(&mmap_lock, flags);
 			atomic_set(&client->cmd_state, CMD_STATE_CLEARED);
@@ -3067,10 +3096,30 @@ int __init q6lsm_init(void)
 	if (q6lsm_init_cal_data())
 		pr_err("%s: could not init cal data!\n", __func__);
 
+#ifdef CONFIG_DEBUG_FS
+	lsm_common.entry = debugfs_create_dir("q6lsm_apr", NULL);
+	if (!IS_ERR_OR_NULL(lsm_common.entry)) {
+		if (IS_ERR(debugfs_create_bool("panic_on_timeout", 0644,
+					       lsm_common.entry,
+					       &lsm_common.panic_on_timeout)))
+			lsm_common.panic_on_timeout = false;
+		else
+			pr_info("%s: panic_on_timeout debugfs flag is created\n", __func__);
+	}
+#endif
 	return 0;
 }
 
 void q6lsm_exit(void)
 {
+	int i = 0;
 	lsm_delete_cal_data();
+
+	for (; i <= LSM_MAX_SESSION_ID; i++)
+		mutex_destroy(&lsm_common.common_client[i].cmd_lock);
+	mutex_destroy(&lsm_common.apr_lock);
+#ifdef CONFIG_DEBUG_FS
+	debugfs_remove_recursive(lsm_common.entry);
+	lsm_common.entry = NULL;
+#endif
 }

@@ -34,7 +34,7 @@
 
 config SCSI_UFSHCD
 	tristate "Universal Flash Storage Controller Driver Core"
-	depends on SCSI && (SCSI_DMA || UML)
+	depends on SCSI && SCSI_DMA
 	select PM_DEVFREQ
 	select DEVFREQ_GOV_SIMPLE_ONDEMAND
 	select NLS
@@ -213,9 +213,3 @@ config SCSI_UFS_TEST_MODE
          Select this option if this feature is needed on working.
 
 	 If unsure, say N.
-
-if SEC_KUNIT
-
-
-endif # SEC_KUNIT
-

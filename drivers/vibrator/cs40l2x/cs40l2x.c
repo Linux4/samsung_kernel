@@ -112,7 +112,8 @@ static int get_dig_scale_folder_type(struct cs40l2x_private *cs40l2x)
 		return pdata.dig_scale_default;
 }
 
-static int set_current_dig_scale(struct cs40l2x_private *cs40l2x) {
+static int set_current_dig_scale(struct cs40l2x_private *cs40l2x)
+{
 	struct cs40l2x_platform_data pdata;
 	EVENT_STATUS *status;
 	int scale = 0;
@@ -141,17 +142,37 @@ static int set_current_dig_scale(struct cs40l2x_private *cs40l2x) {
 	scale = 0;
 	cs40l2x_dig_scale_get(cs40l2x, &scale);
 
-	if (pdata.folder_type) {
+	if (pdata.folder_type)
 		pr_info("%s: scale:%d (FOLD:%s, DURA:%s, TENT:%s)\n", __func__, scale,
 				status->EVENTS.FOLDER_STATE ? "CLOSE" : "OPEN",
 				status->EVENTS.SHORT_DURATION ? "SHORT" : "LONG",
 				status->EVENTS.TENT_STATE ? "SET" : "RELEASED");
-	}
-	else {
+	else
 		pr_info("%s: scale:%d\n", __func__, scale);
-	}
 
 	return 0;
+}
+
+static int cs40l2x_index_mapping(int sep_index)
+{
+	int cirrus_index = 0;
+
+	switch (sep_index) {
+	case 0:
+	case 100:
+		break;
+	case 119 ... 124:
+		cirrus_index = sep_index + 16;
+		break;
+	case 126 ... 127:
+		cirrus_index = sep_index + 15;
+		break;
+	default:
+		cirrus_index = sep_index + 9;
+		break;
+	}
+
+	return cirrus_index;
 }
 
 static bool is_short_duration_index(unsigned int trigger_idx)
@@ -179,7 +200,7 @@ static void set_duration_for_dig_scale(struct cs40l2x_private *cs40l2x,
 	if (cs40l2x->cp_trigger_index != 0)	/* index trigger */
 		is_short_duration = is_short_duration_index(cs40l2x->cp_trigger_index);
 	else {	/* default */
-		if(duration > 0 && duration <= SHORT_DURATION_THRESHOLD)
+		if (duration > 0 && duration <= SHORT_DURATION_THRESHOLD)
 			is_short_duration = 1;
 		else if (duration > SHORT_DURATION_THRESHOLD)
 			is_short_duration = 0;
@@ -1511,6 +1532,12 @@ static ssize_t cs40l2x_set_cp_trigger_index(struct device *dev, const char *buf)
 		return -EINVAL;
 
 #ifdef CONFIG_CS40L2X_SAMSUNG_FEATURE
+	if (index >= CS40L2X_INDEX_CLICK_MIN && index <= CS40L2X_INDEX_CLICK_MAX) {
+		if (cs40l2x->use_sep_index) {
+			pr_info("%s SEP index:%u\n", __func__, index);
+			index = cs40l2x_index_mapping(index);
+		}
+	}
 	pr_info("%s index:%u (num_waves:%u)\n", __func__, index, cs40l2x->num_waves);
 #endif
 
@@ -1776,6 +1803,12 @@ static ssize_t cs40l2x_set_cp_trigger_queue(struct device *dev, const char *buf)
 				ret = -EINVAL;
 				goto err_mutex;
 			}
+
+			if (cs40l2x->use_sep_index) {
+				dev_info(cs40l2x->dev,
+					"SEP index: %d\n", val);
+				val = cs40l2x_index_mapping(val);
+			}
 			if (val == 0) {
 				pbq_temp = strnchr(pbq_seg, 20, '.');
 				if (pbq_temp == NULL) {
@@ -1784,9 +1817,8 @@ static ssize_t cs40l2x_set_cp_trigger_queue(struct device *dev, const char *buf)
 					goto err_mutex;
 				}
 			}
-			if ((val == 0) || (val >= ((cs40l2x->num_waves +
-						cs40l2x->num_virtual_waves) -
-						CS40L2X_WT_NUM_VIRT_SLOTS))) {
+			if ((val == 0) || (val >= num_waves +
+						cs40l2x->num_virtual_waves)) {
 				dev_err(cs40l2x->dev,
 					"Invalid index detected.\n");
 				ret = -EINVAL;
@@ -6238,6 +6270,23 @@ static int cs40l2x_get_motor_type(struct device *dev, char *buf)
 	return ret;
 }
 
+static int cs40l2x_set_use_sep_index(struct device *dev, bool use_sep_index)
+{
+	struct cs40l2x_private *cs40l2x = cs40l2x_get_private(dev);
+
+	dev_info(cs40l2x->dev, "%s +\n", __func__);
+
+	mutex_lock(&cs40l2x->lock);
+
+	cs40l2x->use_sep_index = use_sep_index;
+
+	mutex_unlock(&cs40l2x->lock);
+
+	dev_info(cs40l2x->dev, "%s -\n", __func__);
+
+	return 0;
+}
+
 #if defined(CONFIG_CS40L2X_VIB_FOLD_MODEL)
 static int cs40l2x_set_event_cmd(struct device *dev, int event_idx)
 {
@@ -6245,34 +6294,35 @@ static int cs40l2x_set_event_cmd(struct device *dev, int event_idx)
 
 	EVENT_STATUS *status = &cs40l2x->save_vib_event;
 
-	if(event_idx < VIB_EVENT_NONE || event_idx > VIB_EVENT_MAX) {
+	if (event_idx < VIB_EVENT_NONE || event_idx > VIB_EVENT_MAX) {
 		pr_err("%s: event command error cmd:%d\n",
 			__func__, event_idx);
 		return -1;
 	}
 
-	switch(event_idx) {
-		case VIB_EVENT_FOLDER_CLOSE:
-			status->EVENTS.FOLDER_STATE = 1;
+	switch (event_idx) {
+	case VIB_EVENT_FOLDER_CLOSE:
+		status->EVENTS.FOLDER_STATE = 1;
 		break;
-		case VIB_EVENT_FOLDER_OPEN:
-			status->EVENTS.FOLDER_STATE = 0;
+	case VIB_EVENT_FOLDER_OPEN:
+		status->EVENTS.FOLDER_STATE = 0;
 		break;
-		case VIB_EVENT_ACCESSIBILITY_BOOST_ON:
-			status->EVENTS.ACCESSIBILITY_BOOST = 1;
+	case VIB_EVENT_ACCESSIBILITY_BOOST_ON:
+		status->EVENTS.ACCESSIBILITY_BOOST = 1;
 		break;
-		case VIB_EVENT_ACCESSIBILITY_BOOST_OFF:
-			status->EVENTS.ACCESSIBILITY_BOOST = 0;
+	case VIB_EVENT_ACCESSIBILITY_BOOST_OFF:
+		status->EVENTS.ACCESSIBILITY_BOOST = 0;
 		break;
-		case VIB_EVENT_TENT_CLOSE:
-			status->EVENTS.TENT_STATE = 0;
+	case VIB_EVENT_TENT_CLOSE:
+		status->EVENTS.TENT_STATE = 0;
 		break;
-		case VIB_EVENT_TENT_OPEN:
-			status->EVENTS.TENT_STATE = 1;
+	case VIB_EVENT_TENT_OPEN:
+		status->EVENTS.TENT_STATE = 1;
 		break;
-		default:
+	default:
 		break;
 	}
+
 	pr_info("%s: event_idx:%d\n", __func__, event_idx);
 
 	return 0;
@@ -6754,6 +6804,7 @@ static ssize_t cs40l2x_hw_reset_show(struct device *dev,
 	struct cs40l2x_private *cs40l2x = cs40l2x_get_private(dev);
 #ifdef CONFIG_CS40L2X_SAMSUNG_FEATURE
 	int ret;
+
 	ret = gpiod_get_value_cansleep(cs40l2x->reset_gpio);
 	pr_info("%s: status:%d\n", __func__, ret);
 #endif
@@ -8558,7 +8609,6 @@ static void cs40l2x_vibe_start_worker(struct work_struct *work)
 	case CS40L2X_INDEX_CONT_MIN ... CS40L2X_INDEX_CONT_MAX:
 	case CS40L2X_INDEX_QEST:
 	case CS40L2X_INDEX_PEAK:
-#if 0
 #ifdef CONFIG_ANDROID_TIMED_OUTPUT
 		hrtimer_start(&cs40l2x->vibe_timer,
 				ktime_set(cs40l2x->vibe_timeout / 1000,
@@ -8568,7 +8618,6 @@ static void cs40l2x_vibe_start_worker(struct work_struct *work)
 		/* intentionally fall through */
 
 #endif /* CONFIG_ANDROID_TIMED_OUTPUT */
-#endif
 	case CS40L2X_INDEX_PBQ:
 		if (cs40l2x->vibe_mode != CS40L2X_VIBE_MODE_AUDIO
 				&& cs40l2x->vibe_state
@@ -8588,7 +8637,7 @@ static void cs40l2x_vibe_start_worker(struct work_struct *work)
 		cs40l2x_set_state(cs40l2x, CS40L2X_VIBE_STATE_RUNNING);
 		break;
 #ifdef CONFIG_CS40L2X_SAMSUNG_FEATURE
-	default :
+	default:
 		pr_info("%s: Playing index %u (intensity: %u)\n",
 			__func__, cs40l2x->cp_trailer_index, cs40l2x->intensity);
 #endif
@@ -8953,6 +9002,7 @@ static int cs40l2x_vibe_enable(struct device *dev, bool en)
 	return 0;
 }
 
+#ifndef CONFIG_CS40L2X_SAMSUNG_FEATURE
 #ifdef CONFIG_ANDROID_TIMED_OUTPUT
 static int cs40l2x_vibe_get_time(struct timed_output_dev *sdev)
 {
@@ -9007,7 +9057,6 @@ static int cs40l2x_create_timed_output(struct cs40l2x_private *cs40l2x)
 	return 0;
 }
 #else
-#if 0
 /* vibration callback for LED device */
 static void cs40l2x_vibe_brightness_set(struct led_classdev *led_cdev,
 		enum led_brightness brightness)
@@ -9049,34 +9098,9 @@ static int cs40l2x_create_led(struct cs40l2x_private *cs40l2x)
 
 	return 0;
 }
-#endif
 #endif /* CONFIG_ANDROID_TIMED_OUTPUT */
+#endif /* CONFIG_CS40L2X_SAMSUNG_FEATURE */
 
-#ifdef CONFIG_CS40L2X_SAMSUNG_FEATURE
-static void cs40l2x_dev_node_init(struct cs40l2x_private *cs40l2x)
-{
-#ifdef CONFIG_ANDROID_TIMED_OUTPUT
-	cs40l2x_create_timed_output(cs40l2x);
-#else
-//	cs40l2x_create_led(cs40l2x);
-#endif
-}
-
-static void cs40l2x_dev_node_remove(struct cs40l2x_private *cs40l2x)
-{
-#ifdef CONFIG_ANDROID_TIMED_OUTPUT
-		sysfs_remove_group(&cs40l2x->timed_dev.dev->kobj,
-				&cs40l2x_dev_attr_group);
-
-		timed_output_dev_unregister(&cs40l2x->timed_dev);
-#else
-		sysfs_remove_group(&cs40l2x->dev->kobj,
-				&cs40l2x_dev_attr_group);
-
-		led_classdev_unregister(&cs40l2x->led_dev);
-#endif
-}
-#endif
 static int cs40l2x_coeff_init(struct cs40l2x_private *cs40l2x)
 {
 	struct regmap *regmap = cs40l2x->regmap;
@@ -10248,7 +10272,7 @@ static void cs40l2x_coeff_file_load(const struct firmware *fw, void *context)
 #ifdef CONFIG_ANDROID_TIMED_OUTPUT
 	ret = cs40l2x_create_timed_output(cs40l2x);
 #else
-//	ret = cs40l2x_create_led(cs40l2x);
+	ret = cs40l2x_create_led(cs40l2x);
 #endif /* CONFIG_ANDROID_TIMED_OUTPUT */
 	if (ret)
 		goto err_mutex;
@@ -12556,6 +12580,7 @@ static const struct sec_vibrator_ops cs40l2x_vib_ops = {
 	.set_intensity = cs40l2x_vib_set_intensity,
 	.get_num_waves = cs40l2x_get_num_waves,
 	.get_motor_type = cs40l2x_get_motor_type,
+	.set_use_sep_index = cs40l2x_set_use_sep_index,
 	.set_cp_trigger_index = cs40l2x_set_cp_trigger_index,
 	.get_cp_trigger_index = cs40l2x_get_cp_trigger_index,
 	.set_cp_trigger_queue = cs40l2x_set_cp_trigger_queue,
@@ -12589,7 +12614,7 @@ static int cs40l2x_i2c_probe(struct i2c_client *i2c_client,
 	struct cs40l2x_platform_data *pdata = dev_get_platdata(dev);
 
 #ifdef CONFIG_CS40L2X_SAMSUNG_FEATURE
-	pr_info("%s\n", __func__ );
+	pr_info("%s\n", __func__);
 #endif
 	cs40l2x = devm_kzalloc(dev, sizeof(struct cs40l2x_private), GFP_KERNEL);
 	if (!cs40l2x)
@@ -12755,11 +12780,7 @@ static int cs40l2x_i2c_probe(struct i2c_client *i2c_client,
 
 	ret = cs40l2x_part_num_resolve(cs40l2x);
 	if (ret)
-#ifdef CONFIG_CS40L2X_SAMSUNG_FEATURE
-		goto err1;
-#else
 		goto err;
-#endif
 
 	cs40l2x->asp_available = (cs40l2x->devid == CS40L2X_DEVID_L25A)
 			&& pdata->asp_bclk_freq
@@ -12778,11 +12799,7 @@ static int cs40l2x_i2c_probe(struct i2c_client *i2c_client,
 				i2c_client->name, cs40l2x);
 		if (ret) {
 			dev_err(dev, "Failed to request IRQ: %d\n", ret);
-#ifdef CONFIG_CS40L2X_SAMSUNG_FEATURE
-			goto err1;
-#else
 			goto err;
-#endif
 		}
 
 		cs40l2x->event_control = CS40L2X_EVENT_HARDWARE_ENABLED
@@ -12806,43 +12823,29 @@ static int cs40l2x_i2c_probe(struct i2c_client *i2c_client,
 			cs40l2x->gpio_mask &= ~CS40L2X_GPIO_BTNDETECT_GPIO2;
 	}
 
-#ifdef CONFIG_CS40L2X_SAMSUNG_FEATURE
-	cs40l2x->sec_vib_ddata.dev = dev;
-	cs40l2x->sec_vib_ddata.vib_ops = &cs40l2x_vib_ops;
-#if defined(CONFIG_CS40L2X_VIB_FOLD_MODEL)
-	sscanf("FOLD|TENT", "%s", cs40l2x->sec_vib_ddata.event_cmd);
-#endif
-	sec_vibrator_register(&cs40l2x->sec_vib_ddata);
-
-	cs40l2x_dev_node_init(cs40l2x);
-#endif
 	ret = cs40l2x_init(cs40l2x);
 	if (ret)
-#ifdef CONFIG_CS40L2X_SAMSUNG_FEATURE
-		goto err2;
-#else
 		goto err;
-#endif
 
 	request_firmware_nowait(THIS_MODULE, FW_ACTION_HOTPLUG,
 			cs40l2x->fw_desc->fw_file, dev, GFP_KERNEL, cs40l2x,
 			cs40l2x_firmware_load);
 
 #ifdef CONFIG_CS40L2X_SAMSUNG_FEATURE
+	cs40l2x->sec_vib_ddata.dev = dev;
+	cs40l2x->sec_vib_ddata.vib_ops = &cs40l2x_vib_ops;
 	cs40l2x->save_vib_event.DATA = 0;
+#if defined(CONFIG_CS40L2X_VIB_FOLD_MODEL)
+	sscanf("FOLD|TENT", "%s", cs40l2x->sec_vib_ddata.event_cmd);
+#endif
+	sec_vibrator_register(&cs40l2x->sec_vib_ddata);
 #endif
 	return 0;
-
-#ifdef CONFIG_CS40L2X_SAMSUNG_FEATURE
-err2:
-	pr_info("%s err2\n", __func__ );
-	cs40l2x_dev_node_remove(cs40l2x);
-#endif
-#ifdef CONFIG_CS40L2X_SAMSUNG_FEATURE
-err1:
-	pr_info("%s err1\n", __func__ );
-#else
 err:
+#ifdef CONFIG_CS40L2X_SAMSUNG_FEATURE
+	pr_info("%s failed, err: %d\n", __func__, ret);
+
+	sec_vibrator_unregister(&cs40l2x->sec_vib_ddata);
 #endif
 	gpiod_set_value_cansleep(cs40l2x->reset_gpio, 0);
 
@@ -12864,24 +12867,20 @@ static int cs40l2x_i2c_remove(struct i2c_client *i2c_client)
 	if (cs40l2x->vibe_init_success) {
 #ifdef CONFIG_ANDROID_TIMED_OUTPUT
 		hrtimer_cancel(&cs40l2x->vibe_timer);
-#ifndef CONFIG_CS40L2X_SAMSUNG_FEATURE
+
 		timed_output_dev_unregister(&cs40l2x->timed_dev);
-#endif
+
 		sysfs_remove_group(&cs40l2x->timed_dev.dev->kobj,
 				&cs40l2x_dev_attr_group);
-#ifdef CONFIG_CS40L2X_SAMSUNG_FEATURE
-		timed_output_dev_unregister(&cs40l2x->timed_dev);
-#endif
 #else
-#ifndef CONFIG_CS40L2X_SAMSUNG_FEATURE
 		led_classdev_unregister(&cs40l2x->led_dev);
-#endif
+
 		sysfs_remove_group(&cs40l2x->dev->kobj,
 				&cs40l2x_dev_attr_group);
-#ifdef CONFIG_CS40L2X_SAMSUNG_FEATURE
-		led_classdev_unregister(&cs40l2x->led_dev);
-#endif
 #endif /* CONFIG_ANDROID_TIMED_OUTPUT */
+#ifdef CONFIG_CS40L2X_SAMSUNG_FEATURE
+		sec_vibrator_unregister(&cs40l2x->sec_vib_ddata);
+#endif
 	}
 
 	hrtimer_cancel(&cs40l2x->pbq_timer);
@@ -12912,7 +12911,7 @@ static int __maybe_unused cs40l2x_suspend(struct device *dev)
 	struct cs40l2x_private *cs40l2x = dev_get_drvdata(dev);
 	int ret = 0;
 
-	dev_info(dev, "Entering cs40l2x_suspend...\n");
+	dev_info(dev, "Entering %s...\n", __func__);
 
 #ifdef CONFIG_CS40L2X_SAMSUNG_FEATURE
 	if (!cs40l2x->vibe_init_success) {
@@ -12955,7 +12954,7 @@ static int __maybe_unused cs40l2x_resume(struct device *dev)
 	struct cs40l2x_private *cs40l2x = dev_get_drvdata(dev);
 	int ret = 0;
 
-	dev_info(dev, "Entering cs40l2x_resume...\n");
+	dev_info(dev, "Entering %s...\n", __func__);
 
 #ifdef CONFIG_CS40L2X_SAMSUNG_FEATURE
 	if (!cs40l2x->vibe_init_success) {

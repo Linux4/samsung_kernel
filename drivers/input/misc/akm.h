@@ -129,4 +129,3 @@ struct akm_info {
 };
 
 static int akm_setup_device_control(struct akm_info *info);
-

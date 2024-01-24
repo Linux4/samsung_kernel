@@ -1422,6 +1422,8 @@ static int ss_gct_write(struct samsung_display_driver_data *vdd)
 		return ret;
 	}
 
+	vdd->gct.is_running = true;
+
 	/* prevent sw reset to trigger esd recovery */
 	LCD_INFO(vdd, "disable esd interrupt\n");
 	if (vdd->esd_recovery.esd_irq_enable)
@@ -1528,6 +1530,8 @@ static int ss_gct_write(struct samsung_display_driver_data *vdd)
 
 	vdd->mafpc.force_delay = true;
 	ss_panel_on_post(vdd);
+
+	vdd->gct.is_running = false;
 
 	/* enable esd interrupt */
 	LCD_INFO(vdd, "enable esd interrupt\n");
@@ -1688,11 +1692,7 @@ static struct dsi_panel_cmd_set *ss_acl_on(struct samsung_display_driver_data *v
 	}
 
 	idx = ss_get_cmd_idx(pcmds, 0x00, 0x55);
-	if (vdd->br_info.common_br.bl_level <= MAX_BL_PF_LEVEL) {
-		pcmds->cmds[idx].ss_txbuf[1] = 0x02;
-	} else {
-		pcmds->cmds[idx].ss_txbuf[1] = 0x01;
-	}
+	pcmds->cmds[idx].ss_txbuf[1] = 0x01;
 
 	if (vdd->br_info.gradual_acl_val == 2) {
 		pcmds->cmds[idx].ss_txbuf[1] = 0x03;	/* ACL 30% */

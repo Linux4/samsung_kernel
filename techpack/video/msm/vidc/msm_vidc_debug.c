@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2012-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2012-2021, The Linux Foundation. All rights reserved.
  */
 
 #define CREATE_TRACE_POINTS
@@ -30,8 +30,6 @@ int msm_vidc_vpp_delay;
 #define DYNAMIC_BUF_OWNER(__binfo) ({ \
 	atomic_read(&__binfo->ref_count) >= 2 ? "video driver" : "firmware";\
 })
-
-static struct log_cookie ctxt[MAX_SUPPORTED_INSTANCES];
 
 struct core_inst_pair {
 	struct msm_vidc_core *core;
@@ -614,27 +612,16 @@ int get_sid(u32 *sid, u32 session_type)
 {
 	int i;
 
-	for (i = 0; i < MAX_SUPPORTED_INSTANCES; i++) {
-		if (!ctxt[i].used) {
-			ctxt[i].used = 1;
+	for (i = 0; i < vidc_driver->num_ctxt; i++) {
+		if (!vidc_driver->ctxt[i].used) {
+			vidc_driver->ctxt[i].used = 1;
 			*sid = i+1;
 			update_log_ctxt(*sid, session_type, 0);
 			break;
 		}
 	}
 
-	return (i == MAX_SUPPORTED_INSTANCES);
-}
-
-void put_sid(u32 sid)
-{
-	if (!sid || sid > MAX_SUPPORTED_INSTANCES) {
-		d_vpr_e("%s: invalid sid %#x\n",
-			__func__, sid);
-		return;
-	}
-	if (ctxt[sid-1].used)
-		ctxt[sid-1].used = 0;
+	return (i == vidc_driver->num_ctxt);
 }
 
 inline void update_log_ctxt(u32 sid, u32 session_type, u32 fourcc)
@@ -643,7 +630,7 @@ inline void update_log_ctxt(u32 sid, u32 session_type, u32 fourcc)
 	char type;
 	u32 s_type = 0;
 
-	if (!sid || sid > MAX_SUPPORTED_INSTANCES) {
+	if (!sid || sid > vidc_driver->num_ctxt) {
 		d_vpr_e("%s: invalid sid %#x\n",
 			__func__, sid);
 	}
@@ -690,41 +677,11 @@ inline void update_log_ctxt(u32 sid, u32 session_type, u32 fourcc)
 		break;
 	}
 
-	ctxt[sid-1].session_type = s_type;
-	ctxt[sid-1].codec_type = fourcc;
-	memcpy(&ctxt[sid-1].name, codec, 4);
-	ctxt[sid-1].name[4] = type;
-	ctxt[sid-1].name[5] = '\0';
-}
-
-inline char *get_codec_name(u32 sid)
-{
-	if (!sid || sid > MAX_SUPPORTED_INSTANCES)
-		return ".....";
-
-	return ctxt[sid-1].name;
-}
-
-/**
- * 0xx -> allow prints for all sessions
- * 1xx -> allow only encoder prints
- * 2xx -> allow only decoder prints
- */
-inline bool is_print_allowed(u32 sid, u32 level)
-{
-	if (!(msm_vidc_debug & level))
-		return false;
-
-	if (!((msm_vidc_debug >> 8) & 0xF))
-		return true;
-
-	if (!sid || sid > MAX_SUPPORTED_INSTANCES)
-		return true;
-
-	if (ctxt[sid-1].session_type & msm_vidc_debug)
-		return true;
-
-	return false;
+	vidc_driver->ctxt[sid-1].session_type = s_type;
+	vidc_driver->ctxt[sid-1].codec_type = fourcc;
+	memcpy(&vidc_driver->ctxt[sid-1].name, codec, 4);
+	vidc_driver->ctxt[sid-1].name[4] = type;
+	vidc_driver->ctxt[sid-1].name[5] = '\0';
 }
 
 /* Mock all the missing parts for successful compilation starts here */

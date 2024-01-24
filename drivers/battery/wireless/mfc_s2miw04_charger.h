@@ -25,7 +25,7 @@
 #include <linux/pm_wakeup.h>
 #include "../common/sec_charging_common.h"
 
-#define MFC_FW_BIN_VERSION		0x1026
+#define MFC_FW_BIN_VERSION		0x102C
 #define MFC_FW_VER_BIN_LSI		0xBFC
 #define MTP_MAX_PROGRAM_SIZE 0x4000
 #define MTP_VERIFY_ADDR			0x0000
@@ -38,7 +38,7 @@
 #define MFC_FLASH_FW_HEX_LSI_PATH	"mfc/mfc_fw_flash_s2miw04.bin"
 
 /* for SPU FW update */
-#define MFC_FW_SPU_BIN_PATH		"mfc/mfc_fw_flash_s2miw04.bin"
+#define MFC_FW_SPU_BIN_PATH		"mfc/mfc_fw_spu_s2miw04.bin"
 
 #define MFC_CHIP_ID_P9320		0x20
 #define MFC_CHIP_ID_S2MIW04		0x04
@@ -601,7 +601,24 @@
 #define MFC_FW_RESULT_PASS				1
 #define MFC_FW_RESULT_FAIL				0
 
+#define REQ_AFC_DLY	200
+
 #define MFC_FW_MSG		"@MFC_FW "
+
+#if defined(CONFIG_MST_V2)
+#define MST_MODE_ON				1		// ON Message to MFC ic
+#define MST_MODE_OFF			0		// OFF Message to MFC ic
+#define DELAY_FOR_MST			100		// S.LSI : 100 ms
+#define MFC_MST_LDO_CONFIG_1	0x7400
+#define MFC_MST_LDO_CONFIG_2	0x7409
+#define MFC_MST_LDO_CONFIG_3	0x7418
+#define MFC_MST_LDO_CONFIG_4	0x3014
+#define MFC_MST_LDO_CONFIG_5	0x3405
+#define MFC_MST_LDO_CONFIG_6	0x3010
+#define MFC_MST_LDO_TURN_ON		0x301c
+#define MFC_MST_LDO_CONFIG_8	0x343c
+#define MFC_MST_OVER_TEMP_INT	0x0024
+#endif
 
 /* F/W Update & Verification ERROR CODES */
 enum {
@@ -704,34 +721,6 @@ enum {
 	MFC_ADC_PING_FRQ,
 	MFC_ADC_TX_IOUT,
 	MFC_ADC_TX_VOUT,
-};
-
-enum {
-	MFC_END_SIG_STRENGTH = 0,
-	MFC_END_POWER_TRANSFER,			/* 1 */
-	MFC_END_CTR_ERROR,				/* 2 */
-	MFC_END_RECEIVED_POWER,			/* 3 */
-	MFC_END_CHARGE_STATUS,			/* 4 */
-	MFC_POWER_CTR_HOLD_OFF,			/* 5 */
-	MFC_AFC_CONF_5V,				/* 6 */
-	MFC_AFC_CONF_10V,				/* 7 */
-	MFC_AFC_CONF_5V_TX,				/* 8 */
-	MFC_AFC_CONF_10V_TX,			/* 9 */
-	MFC_AFC_CONF_12V_TX,			/* 10 */
-	MFC_AFC_CONF_12_5V_TX,			/* 11 */
-	MFC_AFC_CONF_20V_TX,			/* 12 */
-	MFC_CONFIGURATION,				/* 13 */
-	MFC_IDENTIFICATION,				/* 14 */
-	MFC_EXTENDED_IDENT,				/* 15 */
-	MFC_LED_CONTROL_ON,				/* 16 */
-	MFC_LED_CONTROL_OFF,			/* 17 */
-	MFC_FAN_CONTROL_ON,				/* 18 */
-	MFC_FAN_CONTROL_OFF,			/* 19 */
-	MFC_REQUEST_AFC_TX,				/* 20 */
-	MFC_REQUEST_TX_ID,				/* 21 */
-	MFC_DISABLE_TX,					/* 22 */
-	MFC_PHM_ON,				/* 23 */
-	MFC_LED_CONTROL_DIMMING,			/* 24 */
 };
 
 enum {
@@ -875,7 +864,8 @@ struct mfc_charger_platform_data {
 	bool wpc_vout_ctrl_lcd_on;
 	int no_hv;
 	bool keep_tx_vout;
-	bool wpc_vout_ctrl_full;
+	u32 wpc_vout_ctrl_full;
+	bool wpc_headroom_ctrl_full;
 #if defined(CONFIG_TX_GEAR_PHM_VOUT_CTRL)
 	u32 phm_vout_ctrl_dev;
 #endif
@@ -899,9 +889,11 @@ struct mfc_charger_data {
 	const struct firmware *firm_data_bin;
 
 	int wc_w_state;
+	u8 pdrc_state; /* ACTIVE LOW */
 
 	struct power_supply *psy_chg;
 	struct wakeup_source *wpc_ws;
+	struct wakeup_source *wpc_det_ws;
 	struct wakeup_source *wpc_tx_ws;
 	struct wakeup_source *wpc_rx_ws;
 	struct wakeup_source *wpc_update_ws;
@@ -913,6 +905,7 @@ struct mfc_charger_data {
 	struct wakeup_source *wpc_tx_phm_ws;
 	struct wakeup_source *wpc_tx_id_ws;
 	struct wakeup_source *wpc_pdrc_ws;
+	struct wakeup_source *wpc_cs100_ws;
 	struct workqueue_struct *wqueue;
 	struct work_struct	wcin_work;
 	struct delayed_work	wpc_det_work;
@@ -992,9 +985,12 @@ struct mfc_charger_data {
 
 	bool req_tx_id;
 	bool is_abnormal_pad;
+	bool afc_tx_done;
+
+	int req_afc_delay;
 
 	bool sleep_mode;
-	wait_queue_head_t suspend_wait;
+	bool skip_phm_work_in_sleep;
 
 #if defined(CONFIG_WIRELESS_IC_PARAM)
 	unsigned int wireless_param_info;

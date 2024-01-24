@@ -1,5 +1,5 @@
 #
-# Copyright (C) 2021, Broadcom.
+# Copyright (C) 2022, Broadcom.
 #
 #      Unless you and Broadcom execute a separate written software license
 # agreement governing use of this software, this software is licensed to you
@@ -129,7 +129,7 @@ endif
 	# Disable watchdog thread
 	DHDCFLAGS += -DCUSTOM_DHD_WATCHDOG_MS=0
 	# Runtime PM
-	DHDCFLAGS += -DDHD_PCIE_RUNTIMEPM
+	DHDCFLAGS += -DDHD_PCIE_RUNTIMEPM -DRPM_FAST_TRIGGER
 	DHDCFLAGS += -DCHECK_TRAP_ROT
 	# Enable host SFH LLC insertion in Tx pkts
 	DHDCFLAGS += -DHOST_SFH_LLC
@@ -137,6 +137,9 @@ endif
 	DHDCFLAGS += -DDHD_FLOW_RING_STATUS_TRACE
 	# Enable internal Rx packet pool
 	DHDCFLAGS += -DRX_PKT_POOL
+ifeq ($(filter y,$(CONFIG_ARCH_LAHAINA) $(CONFIG_ARCH_WAIPIO)),y)
+	DHDCFLAGS += -DUSE_ISB_IN_FLR
+endif
 endif
 
 
@@ -226,6 +229,10 @@ DHDCFLAGS += -DDISABLE_DTIM_IN_SUSPEND
 DHDCFLAGS += -DWL_SUPPORT_AUTO_CHANNEL -DSUPPORT_HIDDEN_AP
 DHDCFLAGS += -DSUPPORT_SOFTAP_SINGL_DISASSOC
 DHDCFLAGS += -DDISABLE_11H_SOFTAP
+
+#AR glasses
+DHDCFLAGS += -DBCN_TSFINFO
+
 # For support WPA and WPA2 mixed mode
 DHDCFLAGS += -DSUPPORT_SOFTAP_WPAWPA2_MIXED
 
@@ -239,7 +246,9 @@ DHDCFLAGS += -DNUM_SCB_MAX_PROBE=3
 #DHDCFLAGS += -DDHD_USE_ATOMIC_PKTGET
 DHDCFLAGS += -DTDLS_MSG_ONLY_WFD
 DHDCFLAGS += -DCUSTOM_KEEP_ALIVE_SETTING=30000
+# Excess PM awake
 DHDCFLAGS += -DCUSTOM_EVENT_PM_WAKE=30
+DHDCFLAGS += -DCUSTOM_EVENT_PM_PERCENT=70
 DHDCFLAGS += -DENABLE_TDLS_AUTO_MODE
 DHDCFLAGS += -DP2P_SKIP_DFS
 DHDCFLAGS += -DKEEP_WIFION_OPTION
@@ -269,9 +278,7 @@ DHDCFLAGS += -DCUSTOM_PNO_EVENT_LOCK_xTIME=10
 # For IPV6 Neighbor Discovery Offload Support
 DHDCFLAGS += -DIPV6_NDO_SUPPORT
 
-# Early suspend
-DHDCFLAGS += -DDHD_USE_EARLYSUSPEND
-
+DHDCFLAGS += -DDHD_USE_PM_SLEEP
 # WiFi turn off delay
 DHDCFLAGS += -DWIFI_TURNOFF_DELAY=10
 
@@ -493,6 +500,8 @@ ifneq ($(filter y m,$(CONFIG_BCM4389)),)
   DHDCFLAGS += -DEWP_EDL
 # Customer ant select and set PM
   DHDCFLAGS += -DCUSTOM_SET_ANTNPM
+# Customer SoftAP MIMO/SISO mode select
+  DHDCFLAGS += -DCUSTOM_SOFTAP_SET_ANT
 # Customer ocl disabe
   DHDCFLAGS += -DCUSTOM_SET_OCLOFF
 # SAE..if kernel < 4.17 ..back port support required
@@ -522,9 +531,11 @@ ifeq ($(BUS_IFACE_PCIE),y)
   DHDCFLAGS += -DCUSTOM_TCPACK_DELAY_TIME=10
   DHDCFLAGS += -DDHDTCPACK_SUPPRESS
 endif
-
+  DHDCFLAGS += -DFLOW_RING_PREALLOC
 # NAN-Ranging BW private command
   DHDCFLAGS += -DSUPPORT_NAN_RANGING_TEST_BW
+# NAN customer discovery cache nubmer
+  DHDCFLAGS += -DCUSTOM_NAN_MAX_CACHE_DISC_RESULT=160
 
 ifeq ($(CONFIG_ARCH_QCOM),y)
 # Due to GKI config, Exynos has ARCH_QCOM & ARCH_EXYNOS, MSM has ARCH_QCOM only, Temporary solution
@@ -647,6 +658,8 @@ endif
   DHDCFLAGS += -DGEN_SOFTAP_INFO_FILE
 # Enable PCIe CTO Prevention and recovery
   DHDCFLAGS += -DBCMPCIE_CTO_PREVENTION
+# Enable irq level trigger
+  DHDCFLAGS += -DIRQ_HIGHLEVEL_TRIGGER
 ifeq ($(filter y,$(CONFIG_ARCH_MSM8998) $(CONFIG_ARCH_SDM845) \
 			$(CONFIG_ARCH_SM8150)),y)
 # Use SMMU for IOMEM
@@ -699,6 +712,7 @@ endif
 # Get ROAM Channel Cache
   DHDCFLAGS += -DWL_GET_RCC
   DHDCFLAGS += -DCUSTOM_SCAN_PASSIVE_TIME=110
+  DHDCFLAGS += -DCUSTOM_SCAN_HOME_AWAY_TIME=120
 # Channel Utilization
   DHDCFLAGS += -DWL_GET_CU
 # OCE/MBO
@@ -724,6 +738,8 @@ endif
   DHDCFLAGS += -DWL11AX
 # Advertise HE capabilities
   DHDCFLAGS += -DWL_CAP_HE
+# Target Wake Time
+  DHDCFLAGS += -DWL_TWT
 # For Samsung factory mode only
 ifeq ($(CONFIG_SEC_FACTORY),y)
 # Detect NON DMA M2M corruption
@@ -770,6 +786,10 @@ endif
   DHDCFLAGS += -DWL_UWB_COEX
   DHDCFLAGS += -DUWB_COEX_CH_MIN=33
   DHDCFLAGS += -DUWB_COEX_CH_MAX=189
+# Support IGMP Offload
+  DHDCFLAGS += -DIGMP_OFFLOAD_SUPPORT
+# CAP AP BW
+  DHDCFLAGS += -DLIMIT_AP_BW
 endif
 
 ifneq ($(filter y m,$(CONFIG_BCM4375)),)
@@ -815,6 +835,8 @@ endif
 
 # NAN-Ranging BW private command
  DHDCFLAGS += -DSUPPORT_NAN_RANGING_TEST_BW
+# NAN customer discovery cache nubmer
+  DHDCFLAGS += -DCUSTOM_NAN_MAX_CACHE_DISC_RESULT=40
 
 ifeq ($(CONFIG_ARCH_QCOM),y)
 # Due to GKI config, Exynos has ARCH_QCOM & ARCH_EXYNOS, MSM has ARCH_QCOM only, Temporary solution
@@ -1989,7 +2011,7 @@ DHDOFILES := dhd_pno.o dhd_common.o dhd_ip.o dhd_custom_gpio.o dhd_custom_sec.o 
 	wldev_common.o wl_linux_mon.o wl_roam.o dhd_linux_platdev.o dhd_linux_pktdump.o \
 	hnd_pktq.o hnd_pktpool.o dhd_custom_cis.o dhd_debug.o dhd_debug_linux.o dhd_mschdbg.o \
 	dhd_dbg_ring.o bcmstdlib_s.o dhd_linux_exportfs.o wl_cfgnan.o bcmbloom.o bcmxtlv.o frag.o \
-	dhd_linux_tx.o wl_cfgdbg.o
+	dhd_linux_tx.o wl_cfgdbg.o dhd_linux_rx.o
 
 # This file will be here only for internal builds and sets flags which may
 # affect subsequent behavior. See extended comment within it for details.

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2017-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
  */
 
 #include <linux/iopoll.h>
@@ -117,10 +117,6 @@ static const unsigned int a6xx_hlsq_duplicate_cluster[] = {
 	0xBB10, 0xBB11, 0xBB20, 0xBB29,
 };
 
-static const unsigned int a6xx_hlsq_2d_duplicate_cluster[] = {
-	0xBD80, 0xBD80,
-};
-
 static const unsigned int a6xx_sp_duplicate_cluster[] = {
 	0xAB00, 0xAB00, 0xAB04, 0xAB05, 0xAB10, 0xAB1B, 0xAB20, 0xAB20,
 };
@@ -132,10 +128,6 @@ static const unsigned int a6xx_tp_duplicate_cluster[] = {
 static const unsigned int a6xx_sp_ps_hlsq_cluster[] = {
 	0xB980, 0xB980, 0xB982, 0xB987, 0xB990, 0xB99B, 0xB9A0, 0xB9A2,
 	0xB9C0, 0xB9C9,
-};
-
-static const unsigned int a6xx_sp_ps_hlsq_2d_cluster[] = {
-	0xBD80, 0xBD80,
 };
 
 static const unsigned int a6xx_sp_ps_sp_cluster[] = {
@@ -170,16 +162,12 @@ static struct a6xx_cluster_dbgahb_registers {
 		ARRAY_SIZE(a6xx_sp_vs_sp_cluster) / 2 },
 	{ CP_CLUSTER_SP_VS, 0x0002E000, 0x41, a6xx_hlsq_duplicate_cluster,
 		ARRAY_SIZE(a6xx_hlsq_duplicate_cluster) / 2 },
-	{ CP_CLUSTER_SP_VS, 0x0002F000, 0x45, a6xx_hlsq_2d_duplicate_cluster,
-		ARRAY_SIZE(a6xx_hlsq_2d_duplicate_cluster) / 2 },
 	{ CP_CLUSTER_SP_VS, 0x0002A000, 0x21, a6xx_sp_duplicate_cluster,
 		ARRAY_SIZE(a6xx_sp_duplicate_cluster) / 2 },
 	{ CP_CLUSTER_SP_VS, 0x0002C000, 0x1, a6xx_tp_duplicate_cluster,
 		ARRAY_SIZE(a6xx_tp_duplicate_cluster) / 2 },
 	{ CP_CLUSTER_SP_PS, 0x0002E000, 0x42, a6xx_sp_ps_hlsq_cluster,
 		ARRAY_SIZE(a6xx_sp_ps_hlsq_cluster) / 2 },
-	{ CP_CLUSTER_SP_PS, 0x0002F000, 0x46, a6xx_sp_ps_hlsq_2d_cluster,
-		ARRAY_SIZE(a6xx_sp_ps_hlsq_2d_cluster) / 2 },
 	{ CP_CLUSTER_SP_PS, 0x0002A000, 0x22, a6xx_sp_ps_sp_cluster,
 		ARRAY_SIZE(a6xx_sp_ps_sp_cluster) / 2 },
 	{ CP_CLUSTER_SP_PS, 0x0002B000, 0x26, a6xx_sp_ps_sp_2d_cluster,
@@ -266,6 +254,11 @@ a6xx_vbif_snapshot_registers[] = {
 				ARRAY_SIZE(a6xx_vbif_ver_20xxxxxx_registers)/2},
 };
 
+static const unsigned int a6xx_cx_misc_registers[] = {
+	/* CX_MISC */
+	0, 0, 10, 14, 20, 24, 0x30, 0x49,
+};
+
 /*
  * Set of registers to dump for A6XX on snapshot.
  * Registers in pairs - first value is the start offset, second
@@ -305,6 +298,8 @@ static const unsigned int a6xx_registers[] = {
 	/* VFD */
 	0xA600, 0xA601, 0xA603, 0xA603, 0xA60A, 0xA60A, 0xA610, 0xA617,
 	0xA630, 0xA630,
+	/* HLSQ */
+	0xD002, 0xD003,
 };
 
 static const unsigned int a660_registers[] = {
@@ -335,12 +330,6 @@ static const unsigned int a6xx_gmu_wrapper_registers[] = {
 	0x1f840, 0x1f840, 0x1f844, 0x1f845, 0x1f887, 0x1f889, 0x1f8d0, 0x1f8d0,
 	/* GMU AO*/
 	0x23b0C, 0x23b0E, 0x23b15, 0x23b15,
-	/* GPU CC */
-	0x24000, 0x24012, 0x24040, 0x24052, 0x24400, 0x24404, 0x24407, 0x2440B,
-	0x24415, 0x2441C, 0x2441E, 0x2442D, 0x2443C, 0x2443D, 0x2443F, 0x24440,
-	0x24442, 0x24449, 0x24458, 0x2445A, 0x24540, 0x2455E, 0x24800, 0x24802,
-	0x24C00, 0x24C02, 0x25400, 0x25402, 0x25800, 0x25802, 0x25C00, 0x25C02,
-	0x26000, 0x26002,
 };
 
 enum a6xx_debugbus_id {
@@ -515,7 +504,10 @@ enum a6xx_shader_obj {
 	A6XX_HLSQ_DATAPATH_META         = 0x60,
 	A6XX_HLSQ_FRONTEND_META         = 0x61,
 	A6XX_HLSQ_INDIRECT_META         = 0x62,
-	A6XX_HLSQ_BACKEND_META          = 0x63
+	A6XX_HLSQ_BACKEND_META          = 0x63,
+	A6XX_SP_LB_6_DATA               = 0x70,
+	A6XX_SP_LB_7_DATA               = 0x71,
+	A6XX_HLSQ_INST_RAM_1            = 0x73,
 };
 
 struct a6xx_shader_block {
@@ -570,12 +562,16 @@ static struct a6xx_shader_block a6xx_shader_blocks[] = {
 	{A6XX_HLSQ_PWR_REST_TAG,          0x14},
 	{A6XX_HLSQ_DATAPATH_META,         0x40,},
 	{A6XX_HLSQ_FRONTEND_META,         0x40},
-	{A6XX_HLSQ_INDIRECT_META,         0x40,}
+	{A6XX_HLSQ_INDIRECT_META,         0x40,},
+	{A6XX_SP_LB_6_DATA,               0x200},
+	{A6XX_SP_LB_7_DATA,               0x200},
+	{A6XX_HLSQ_INST_RAM_1,            0x200},
 };
 
 static struct kgsl_memdesc *a6xx_capturescript;
 static struct kgsl_memdesc *a6xx_crashdump_registers;
 static bool crash_dump_valid;
+static u32 *a6xx_cd_reg_end;
 
 static struct reg_list {
 	const unsigned int *regs;
@@ -1567,7 +1563,7 @@ static size_t a6xx_snapshot_sqe(struct kgsl_device *device, u8 *buf,
 static void _a6xx_do_crashdump(struct kgsl_device *device)
 {
 	u32 val = 0;
-	int ret;
+	ktime_t timeout;
 
 	crash_dump_valid = false;
 
@@ -1592,20 +1588,31 @@ static void _a6xx_do_crashdump(struct kgsl_device *device)
 			upper_32_bits(a6xx_capturescript->gpuaddr));
 	kgsl_regwrite(device, A6XX_CP_CRASH_DUMP_CNTL, 1);
 
-	/* wait 100 ms before starting the loop */
-	 schedule_timeout_interruptible(HZ/10);
+	timeout = ktime_add_ms(ktime_get(), CP_CRASH_DUMPER_TIMEOUT);
 
-	 /* Read every 10ms for 900ms */
-	 ret = readl_poll_timeout(device->reg_virt +
-			 (A6XX_CP_CRASH_DUMP_STATUS << 2),
-			  val, val & 0x02, 10000, 900 * 1000);
-	if (ret)
-		kgsl_regread(device, A6XX_CP_CRASH_DUMP_STATUS, &val);
+	if (!device->snapshot_atomic)
+		might_sleep();
+
+	for (;;) {
+		/* make sure we're reading the latest value */
+		rmb();
+		if ((*a6xx_cd_reg_end) != 0xaaaaaaaa)
+			break;
+
+		if (ktime_compare(ktime_get(), timeout) > 0)
+			break;
+
+		/* Wait 1msec to avoid unnecessary looping */
+		if (!device->snapshot_atomic)
+			usleep_range(100, 1000);
+	}
+
+	kgsl_regread(device, A6XX_CP_CRASH_DUMP_STATUS, &val);
 
 	if (!ADRENO_FEATURE(ADRENO_DEVICE(device), ADRENO_APRIV))
 		kgsl_regwrite(device, A6XX_CP_MISC_CNTL, 0);
 
-	if (ret) {
+	if (!(val & 0x2)) {
 		dev_err(device->dev, "Crash dump timed out: 0x%X\n", val);
 		return;
 	}
@@ -1699,6 +1706,48 @@ static size_t a6xx_snapshot_gmu_wrapper_registers(struct kgsl_device *device,
 	return (count * 8) + sizeof(*header);
 }
 
+/* Snapshot cx misc registers */
+static size_t a6xx_snapshot_cx_misc_registers(
+		struct kgsl_device *device, u8 *buf, size_t remain, void *priv)
+{
+	struct kgsl_snapshot_regs *header = (struct kgsl_snapshot_regs *)buf;
+	struct kgsl_snapshot_registers *regs = priv;
+	unsigned int *data = (unsigned int *)(buf + sizeof(*header));
+	int count = 0, j, k;
+	struct adreno_device *adreno_dev = ADRENO_DEVICE(device);
+
+	/* Figure out how many registers we are going to dump */
+	for (j = 0; j < regs->count; j++) {
+		int start = regs->regs[j * 2];
+		int end = regs->regs[j * 2 + 1];
+
+		count += (end - start + 1);
+	}
+
+	if (remain < (count * 8) + sizeof(*header)) {
+		SNAPSHOT_ERR_NOMEM(device, "CX MISC REGS");
+		return 0;
+	}
+
+	for (j = 0; j < regs->count; j++) {
+		unsigned int start = regs->regs[j * 2];
+		unsigned int end = regs->regs[j * 2 + 1];
+
+		for (k = start; k <= end; k++) {
+			unsigned int val;
+
+			adreno_cx_misc_regread(adreno_dev, k, &val);
+			*data++ = k;
+			*data++ = val;
+		}
+	}
+
+	header->count = count;
+
+	/* Return the size of the section */
+	return (count * 8) + sizeof(*header);
+}
+
 
 /* Snapshot the preemption related buffers */
 static size_t snapshot_preemption_record(struct kgsl_device *device,
@@ -1738,11 +1787,12 @@ void a6xx_snapshot(struct adreno_device *adreno_dev,
 		struct kgsl_snapshot *snapshot)
 {
 	struct kgsl_device *device = KGSL_DEVICE(adreno_dev);
-	struct adreno_gpudev *gpudev = ADRENO_GPU_DEVICE(adreno_dev);
+	const struct adreno_gpudev *gpudev = ADRENO_GPU_DEVICE(adreno_dev);
 	struct adreno_ringbuffer *rb;
 	bool sptprac_on = true;
 	unsigned int i, roq_size;
 	u32 hi, lo;
+	struct kgsl_snapshot_registers r;
 
 	/*
 	 * Dump debugbus data here to capture it for both
@@ -1755,8 +1805,6 @@ void a6xx_snapshot(struct adreno_device *adreno_dev,
 
 	/* RSCC registers are on cx */
 	if (adreno_is_a650_family(adreno_dev)) {
-		struct kgsl_snapshot_registers r;
-
 		r.regs = a650_isense_registers;
 		r.count = ARRAY_SIZE(a650_isense_registers) / 2;
 
@@ -1765,18 +1813,22 @@ void a6xx_snapshot(struct adreno_device *adreno_dev,
 	}
 
 	if (adreno_is_a619_holi(adreno_dev)) {
-		struct kgsl_snapshot_registers r;
-
 		r.regs = a6xx_gmu_wrapper_registers;
 		r.count = ARRAY_SIZE(a6xx_gmu_wrapper_registers) / 2;
 
 		kgsl_snapshot_add_section(device, KGSL_SNAPSHOT_SECTION_REGS,
 			snapshot, a6xx_snapshot_gmu_wrapper_registers, &r);
-	} else if (!gmu_core_isenabled(device)) {
+	} else if (adreno_is_a610(adreno_dev) || adreno_is_a702(adreno_dev)) {
 		adreno_snapshot_registers(device, snapshot,
 				a6xx_gmu_wrapper_registers,
 				ARRAY_SIZE(a6xx_gmu_wrapper_registers) / 2);
 	}
+
+	r.regs = a6xx_cx_misc_registers;
+	r.count = ARRAY_SIZE(a6xx_cx_misc_registers) / 2;
+
+	kgsl_snapshot_add_section(device, KGSL_SNAPSHOT_SECTION_REGS,
+		snapshot, a6xx_snapshot_cx_misc_registers, &r);
 
 	if (gpudev->sptprac_is_on)
 		sptprac_on = gpudev->sptprac_is_on(adreno_dev);
@@ -1894,6 +1946,10 @@ void a6xx_snapshot(struct adreno_device *adreno_dev,
 
 		/* registers dumped through DBG AHB */
 		a6xx_snapshot_dbgahb_regs(device, snapshot);
+
+		if (!a6xx_is_smmu_stalled(device))
+			memset(a6xx_crashdump_registers->hostptr, 0xaa,
+					a6xx_crashdump_registers->size);
 	}
 
 	if (adreno_is_a660(adreno_dev)) {
@@ -2202,12 +2258,17 @@ void a6xx_crashdump_init(struct adreno_device *adreno_dev)
 				sizeof(unsigned int);
 	}
 
+	/* 16 bytes (2 qwords) for last entry in CD script */
+	script_size += 16;
+	/* Increment data size to store last entry in CD */
+	data_size += sizeof(unsigned int);
+
 	/* Now allocate the script and data buffers */
 
 	/* The script buffers needs 2 extra qwords on the end */
 	if (IS_ERR_OR_NULL(a6xx_capturescript))
 		a6xx_capturescript = kgsl_allocate_global(device,
-			script_size + 16, KGSL_MEMFLAGS_GPUREADONLY,
+			script_size + 16, 0, KGSL_MEMFLAGS_GPUREADONLY,
 			KGSL_MEMDESC_PRIVILEGED, "capturescript");
 
 	if (IS_ERR(a6xx_capturescript))
@@ -2215,7 +2276,7 @@ void a6xx_crashdump_init(struct adreno_device *adreno_dev)
 
 	if (IS_ERR_OR_NULL(a6xx_crashdump_registers))
 		a6xx_crashdump_registers = kgsl_allocate_global(device,
-			data_size, 0, KGSL_MEMDESC_PRIVILEGED,
+			data_size, 0, 0, KGSL_MEMDESC_PRIVILEGED,
 			"capturescript_regs");
 
 	if (IS_ERR(a6xx_crashdump_registers))
@@ -2263,6 +2324,16 @@ void a6xx_crashdump_init(struct adreno_device *adreno_dev)
 	ptr += _a6xx_crashdump_init_ctx_dbgahb(ptr, &offset);
 
 	ptr += _a6xx_crashdump_init_non_ctx_dbgahb(ptr, &offset);
+
+	/* Save CD register end pointer to check CD status completion */
+	a6xx_cd_reg_end = a6xx_crashdump_registers->hostptr + offset;
+
+	memset(a6xx_crashdump_registers->hostptr, 0xaa,
+			a6xx_crashdump_registers->size);
+
+	/* Program the capturescript to read the last register entry */
+	*ptr++ = a6xx_crashdump_registers->gpuaddr + offset;
+	*ptr++ = (((uint64_t) A6XX_CP_CRASH_DUMP_STATUS) << 44) | (uint64_t) 1;
 
 	*ptr++ = 0;
 	*ptr++ = 0;

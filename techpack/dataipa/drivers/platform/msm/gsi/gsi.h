@@ -1228,7 +1228,9 @@ struct gsi_ee_scratch {
 			uint32_t inter_ee_cmd_return_code:3;
 			uint32_t resvd1:2;
 			uint32_t generic_ee_cmd_return_code:3;
-			uint32_t resvd2:7;
+			uint32_t resvd2:2;
+			uint32_t generic_ee_cmd_return_val:3;
+			uint32_t resvd4:2;
 			uint32_t max_usb_pkt_size:1;
 			uint32_t resvd3:8;
 			uint32_t mhi_base_chan_idx:8;
@@ -1397,6 +1399,7 @@ enum gsi_generic_ee_cmd_opcode {
 	GSI_GEN_EE_CMD_ALLOC_CHANNEL = 0x2,
 	GSI_GEN_EE_CMD_ENABLE_FLOW_CHANNEL = 0x3,
 	GSI_GEN_EE_CMD_DISABLE_FLOW_CHANNEL = 0x4,
+	GSI_GEN_EE_CMD_QUERY_FLOW_CHANNEL = 0x5,
 };
 
 enum gsi_generic_ee_cmd_return_code {
@@ -1409,6 +1412,37 @@ enum gsi_generic_ee_cmd_return_code {
 	GSI_GEN_EE_CMD_RETURN_CODE_OUT_OF_RESOURCES = 0x7,
 };
 
+/**
+ * struct gsi_hw_profiling_data - GSI profiling data
+ * @bp_cnt_lsb: Back Pressure occurences count
+ * @bp_and_pending_cnt_lsb: Back Pressure with pending back pressure count
+ * @mcs_busy_cnt_lsb: Cycle count for MCS busy
+ * @mcs_idle_cnt_lsb: Cycle count for MCS idle
+ */
+struct gsi_hw_profiling_data {
+    u64 bp_cnt;
+    u64 bp_and_pending_cnt;
+    u64 mcs_busy_cnt;
+    u64 mcs_idle_cnt;
+};
+
+/**
+ * struct gsi_fw_version - GSI fw version data
+ * @hw: HW version
+ * @flavor: Flavor identifier
+ * @fw: FW version
+ */
+struct gsi_fw_version {
+    u32 hw;
+    u32 flavor;
+    u32 fw;
+};
+
+enum gsi_generic_ee_cmd_query_retun_val {
+	GSI_GEN_EE_CMD_RETURN_VAL_FLOW_CONTROL_PRIMARY = 0,
+	GSI_GEN_EE_CMD_RETURN_VAL_FLOW_CONTROL_SECONDARY = 1,
+	GSI_GEN_EE_CMD_RETURN_VAL_FLOW_CONTROL_PENDING = 2,
+};
 extern struct gsi_ctx *gsi_ctx;
 
 /**
@@ -2120,6 +2154,28 @@ int gsi_alloc_channel_ee(unsigned int chan_idx, unsigned int ee, int *code);
 int gsi_enable_flow_control_ee(unsigned int chan_idx, unsigned int ee,
 								int *code);
 
+/**
+ * gsi_get_hw_profiling_stats() - Query GSI HW profiling stats
+ * @stats:	[out] stats blob from client populated by driver
+ *
+ * Returns:	0 on success, negative on failure
+ *
+ */
+int gsi_get_hw_profiling_stats(struct gsi_hw_profiling_data *stats);
+
+/**
+ * gsi_get_fw_version() - Query GSI FW version
+ * @ver:	[out] ver blob from client populated by driver
+ *
+ * Returns:	0 on success, negative on failure
+ *
+ */
+int gsi_get_fw_version(struct gsi_fw_version *ver);
+
+int gsi_flow_control_ee(unsigned int chan_idx, unsigned int ee,
+				bool enable, bool prmy_scnd_fc, int *code);
+int gsi_query_flow_control_state_ee(unsigned int chan_idx, unsigned int ee,
+						bool prmy_scnd_fc, int *code);
 /*
  * Here is a typical sequence of calls
  *

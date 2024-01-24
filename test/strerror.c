@@ -174,3 +174,4 @@ const char *strerror_r(int errno, char *buf, size_t buflen)
 	snprintf(buf, buflen - 1, "%d (unknown error)", errno);
 	return buf;
 }
+EXPORT_SYMBOL_GPL(strerror_r);

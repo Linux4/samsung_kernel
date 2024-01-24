@@ -1,6 +1,8 @@
 /* SPDX-License-Identifier: GPL-2.0-only WITH Linux-syscall-note */
 /*
- * Copyright (c) 2013-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2013-2021, The Linux Foundation. All rights reserved.
+ *
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 /*
@@ -52,6 +54,9 @@
 #define QMI_IPA_IPFLTR_NUM_MEQ_32_EQNS_V01 2
 #define QMI_IPA_MAX_PIPES_V01 20
 #define QMI_IPA_MAX_PER_CLIENTS_V01 64
+#define QMI_IPA_MAX_RMNET_ETH_INFO_V01 19
+#define QMI_IPA_MAX_MAC_ADDR_LEN_V01 6
+#define QMI_IPA_MAX_IPV4_ADDR_LEN_V01 4
 
 /*
  * Indicates presence of newly added member to support HW stats.
@@ -113,6 +118,19 @@ enum ipa_platform_type_enum_v01 {
 	/* To force a 32 bit signed enum.  Do not change or use */
 };
 
+enum ipa_eth_hw_config_enum_v01 {
+	IPA_QMI_ETH_HW_CONFIG_ENUM_MIN_ENUM_VAL_V01 = -2147483647,
+	/**< To force a 32 bit signed enum.  Do not change or use*/
+	IPA_QMI_ETH_HW_NONE_V01 = 0x00,
+	/**<  Ethernet Setting HW Default \n  */
+	IPA_QMI_ETH_HW_VLAN_IP_V01 = 0x01,
+	/**<  Ethernet HW VLAN+IP supported \n  */
+	IPA_QMI_ETH_HW_NON_VLAN_IP_V01 = 0x02,
+	/**<  Ethernet HW NON_VLAN+IP supported   */
+	IPA_QMI_ETH_HW_CONFIG_ENUM_MAX_ENUM_VAL_V01 = 2147483647
+	/**< To force a 32 bit signed enum.  Do not change or use*/
+};
+
 #define QMI_IPA_PLATFORM_TYPE_LE_MHI_V01 \
 			QMI_IPA_PLATFORM_TYPE_LE_MHI_V01
 
@@ -142,6 +160,27 @@ struct ipa_route_tbl_info_type_v01 {
 	 *	(5 bits used to specify the routing table index), unless there
 	 *	is a change in the hardware.
 	 */
+};  /* Type */
+
+#define IPA_RQOS_FILTER_STATS_INFO
+struct ipa_filter_stats_info_type_v01 {
+	__u32 hw_filter_stats_start_addr;
+	/*	Identifies the start of the filter stats. Denotes the offset
+	 *	from the start of the IPA Shared Mem
+	 */
+
+	__u32 hw_filter_stats_size;
+	/*	Identifies size in bytes of the HW filter statistics table. */
+
+	__u8 hw_filter_stats_start_index;
+	/* Identifies the start index of the modem driver managed
+	 * indices in the hw filter statistics table.
+	 */
+
+	__u8 hw_filter_stats_end_index;
+	 /* Identifies the end index os the modem driver managed
+	  * indices in the hw filter statistics table.
+	  */
 };  /* Type */
 
 struct ipa_modem_mem_info_type_v01 {
@@ -356,6 +395,30 @@ struct ipa_init_modem_driver_req_msg_v01 {
 	 */
 	__u8 hw_drop_stats_table_size_valid;
 	__u32 hw_drop_stats_table_size;
+
+	/* optional
+	 * Modem HW flt stats info
+	 * Must be set to true if filter_stats_info
+	 * is being passed
+	 */
+	__u8 hw_fiter_stats_info_valid;
+	struct ipa_filter_stats_info_type_v01 hw_filter_stats_info;
+
+	/* optional
+	 * Filter table smem info
+	 * Must be set to true if smem_info
+	 * is being passed(Currently not using it)
+	 */
+	__u8 smem_info_valid;
+	struct ipa_modem_mem_info_type_v01 smem_info;
+
+	/* optional
+	 * IPA Peripheral stats info
+	 * Must be set to true if per_stats_info
+	 * is being passed
+	 */
+	__u8 per_stats_smem_info_valid;
+	struct ipa_modem_mem_info_type_v01 per_stats_smem_info;
 };  /* Message */
 
 /* Response Message; Requests the modem IPA driver about initialization */
@@ -479,6 +542,31 @@ struct ipa_indication_reg_req_msg_v01 {
 	 * QMI_IPA_ENDP_DESC_INDICATION. Setting this field in the request
 	 * message makes sense only when the  QMI_IPA_INDICATION_REGISTER_REQ
 	 * is being originated from the master driver.
+	 */
+
+	/* Optional */
+	/* BW CHANGE Indication */
+	__u8 bw_change_ind_valid;
+	/* Must be set to true if bw_change_ind is being passed */
+	__u8 bw_change_ind;
+	/*
+	 * If set to TRUE, this field indicates that the client wants to
+	 * receive indications for BW change information via
+	 * QMI_IPA_BW_CHANGE_INDICATION. Setting this field in the request
+	 * message makes sense only when the QMI_IPA_INDICATION_REGISTER_REQ
+	 * is being originated from the master driver.
+	 */
+
+	/* Optional */
+	/*  Rmnet Ethernet MAC Information */
+	__u8 rmnet_eth_mac_info_valid;
+	/* Must be set to true if rmnet_eth_mac_info is being passed */
+	__u8 rmnet_eth_mac_info;
+	/* If set to TRUE, this field indicates that the client wants to
+	 * receive indications about embeddd rmnet_eth mac info via
+	 * QMI_IPA_RMNET_ETH_INFO_INDICATION. Setting this field in the request
+	 * message makes sense only when the QMI_IPA_INDICATION_REGISTER_REQ is
+	 * being originated from the master driver.
 	 */
 };  /* Message */
 
@@ -1316,6 +1404,19 @@ struct ipa_enable_force_clear_datapath_req_msg_v01 {
 	 *	data present in the IPA that were pulled from these pipes
 	 *	The server is expected to put all the source pipes in the
 	 *	source_pipe_bitmask in the same state
+	 */
+
+	/* Optional */
+	/* Pipe Mask Ext State */
+	__u8 source_pipe_bitmask_ext_valid;
+	/*  Pipe Mask Ext */
+	__u32 source_pipe_bitmask_ext[4];
+	/* Set of consumer (source) pipes that must be clear of
+	 * active data transfers.
+	 * The extended mask supports up to 128 endpoints to accommodate newer
+	 * architectures, which use more than 32 endpoints.
+	 * If this new field is used, the old field source_pipe_bitmask
+	 * shall be ignored.
 	 */
 };  /* Message */
 
@@ -2488,6 +2589,7 @@ enum ipa_ic_type_enum_v01 {
 	DATA_IC_TYPE_AP_V01 = 0x04,
 	DATA_IC_TYPE_Q6_V01 = 0x05,
 	DATA_IC_TYPE_UC_V01 = 0x06,
+	DATA_IC_TYPE_ETH_V01 = 0x07,
 	IPA_IC_TYPE_ENUM_MAX_VAL_V01 = IPA_INT_MAX,
 };
 
@@ -2649,6 +2751,139 @@ struct ipa_remove_offload_connection_resp_msg_v01 {
 }; /* Message */
 #define IPA_REMOVE_OFFLOAD_CONNECTION_RESP_MSG_V01_MAX_MSG_LEN 7
 
+struct ipa_bw_change_ind_msg_v01 {
+	/* optional */
+	/* Must be set to true if peak_bw_ul is being passed*/
+	__u8 peak_bw_ul_valid;
+	/* Must be set to true if peak_bw_dl is being passed*/
+	__u8 peak_bw_dl_valid;
+	/* Kbps */
+	__u32 peak_bw_ul;
+	/* Kbps */
+	__u32 peak_bw_dl;
+}; /* Message */
+#define IPA_BW_CHANGE_IND_MSG_V01_MAX_MSG_LEN 14
+
+enum ipa_move_nat_type_enum_v01 {
+	QMI_IPA_MOVE_NAT_TO_DDR_V01 = 0,
+	QMI_IPA_MOVE_NAT_TO_SRAM_V01 = 1,
+};
+
+/*
+ * Request Message; Requestes remote IPA driver to move IPA NAT table
+ * according to requested direction TO_DDR\TO_SRAM.
+ */
+struct ipa_move_nat_req_msg_v01 {
+	enum ipa_move_nat_type_enum_v01 nat_move_direction;
+};
+#define IPA_MOVE_NAT_REQ_MSG_V01_MAX_MSG_LEN 8
+
+/*
+ * Response Message; Requestes remote IPA driver to move IPA NAT table
+ * according to requested direction TO_DDR\TO_SRAM.
+ */
+struct ipa_move_nat_resp_msg_v01 {
+
+	/* Mandatory */
+	/* Result Code */
+	struct ipa_qmi_response_type_v01 resp;
+	/*
+	 * Standard response type.
+	 * Standard response type. Contains the following data members:
+	 * qmi_result_type -- QMI_RESULT_SUCCESS or QMI_RESULT_FAILURE
+	 * qmi_error_type  -- Error code. Possible error code values are
+	 * described in the error codes section of each message definition.
+	 */
+};  /* Message */
+#define IPA_MOVE_NAT_RESP_MSG_V01_MAX_MSG_LEN 7
+
+    /*	Indication Message; Indication sent to the Modem IPA driver from
+     *	master IPA driver about NAT table move result.
+     */
+struct ipa_move_nat_table_complt_ind_msg_v01 {
+	/* Mandatory */
+	/*  Master driver initialization completion status */
+	struct ipa_qmi_response_type_v01 nat_table_move_status;
+	/*	Indicates the status of nat table mvoe. If everything went
+	 *	as expected, this field is set to SUCCESS. ERROR is set
+	 *	otherwise. Extended error info may be used to convey
+	 *	additional information about the error
+	 */
+};  /* Message */
+#define QMI_IPA_NAT_TABLE_MOVE_COMPLETE_IND_MAX_MSG_LEN_V01 7
+
+/*
+ * Request Message; QMI request message to request for a dual-backhaul traffic
+ * offloading with ethernet and WWAN and notify the eth-header
+ */
+struct ipa_eth_backhaul_info_req_msg_v01 {
+	/* Mandatory */
+	/*  SRC MAC ADDR */
+	__u8 src_mac_addr[QMI_IPA_MAX_MAC_ADDR_LEN_V01];
+	/* src mac addr of eth hdr */
+	/* Mandatory */
+	/*  DST MAC ADDR */
+	__u8 dst_mac_addr[QMI_IPA_MAX_MAC_ADDR_LEN_V01];
+	/* dst mac addr of eth hdr */
+	/* Mandatory */
+	/*  IPv4 ADDR of ETH0 */
+	__u32 ipv4_addr_eth0[QMI_IPA_MAX_IPV4_ADDR_LEN_V01];
+	/* ipv4 addr of eth0 */
+	/* Mandatory */
+	/*  ETH PIPE */
+	__u8 eth_pipe;
+	/* Specifies eth pipe for Q6 to route UL pkts for ETH backhaul */
+	/* Mandatory */
+	/*  ACTION */
+	__u8 enable;
+	/* Specifies whether eth backhaul is enabled or disabled */
+};  /* Message */
+#define IPA_ETH_BACKHAUL_INFO_REQ_MSG_V01_MAX_MSG_LEN 45
+
+/* Response Message; to notify the status of the dual-backhaul traffic
+ * offloading request using QMI_IPA_ETH_BACKHAUL_INFO_REQ
+ */
+struct ipa_eth_backhaul_info_resp_msg_v01 {
+	/* Mandatory */
+	/* Result Code */
+	struct ipa_qmi_response_type_v01 resp;
+	/*
+	 * Standard response type.
+	 * Standard response type. Contains the following data members:
+	 * qmi_result_type -- QMI_RESULT_SUCCESS or QMI_RESULT_FAILURE
+	 * qmi_error_type  -- Error code. Possible error code values are
+	 * described in the error codes section of each message definition.
+	 */
+};  /* Message */
+#define IPA_ETH_BACKHAUL_INFO_RESP_MSG_V01_MAX_MSG_LEN 7
+
+struct ipa_rmnet_eth_info_type_v01 {
+	__u8 mac_addr[QMI_IPA_MAX_MAC_ADDR_LEN_V01];
+	/* mac addr of rmnet_eth */
+	__u32 mux_id;
+	/* QMAP Mux ID. As a part of the QMAP protocol,
+	 * several data calls may be multiplexed over the same physical transport
+	 * channel. This identifier is used to identify one such data call.
+	 * The maximum value for this identifier is 255.
+	 */
+};  /* Type */
+
+/* Indication Message; This is an indication to send rmnet ethernet information
+ * for embedded wireless ethernet PDU from the modem processor to
+ * the application processor
+ */
+struct ipa_rmnet_eth_info_indication_msg_v01 {
+	/* Optional */
+	/*  Rmnet Ethernet Information */
+	__u8 rmnet_eth_info_valid;
+	/* Must be set to true if rmnet_eth_info is being passed */
+	__u32 rmnet_eth_info_len;
+	/* Must be set to # of elements in rmnet_eth_info */
+	struct ipa_rmnet_eth_info_type_v01 rmnet_eth_info[QMI_IPA_MAX_RMNET_ETH_INFO_V01];
+	/* Rmnet Ethernet Info array */
+};  /* Message */
+#define IPA_RMNET_ETH_INFO_INDICATION_MSG_V01_MAX_MSG_LEN 194
+
 /*Service Message Definition*/
 #define QMI_IPA_INDICATION_REGISTER_REQ_V01 0x0020
 #define QMI_IPA_INDICATION_REGISTER_RESP_V01 0x0020
@@ -2703,10 +2938,16 @@ struct ipa_remove_offload_connection_resp_msg_v01 {
 #define QMI_IPA_ADD_OFFLOAD_CONNECTION_RESP_V01 0x0041
 #define QMI_IPA_REMOVE_OFFLOAD_CONNECTION_REQ_V01 0x0042
 #define QMI_IPA_REMOVE_OFFLOAD_CONNECTION_RESP_V01 0x0042
-
+#define QMI_IPA_BW_CHANGE_INDICATION_V01 0x0044
+#define QMI_IPA_MOVE_NAT_REQ_V01 0x0046
+#define QMI_IPA_MOVE_NAT_RESP_V01 0x0046
+#define QMI_IPA_MOVE_NAT_COMPLETE_IND_V01 0x0046
+#define QMI_IPA_ETH_BACKHAUL_INFO_REQ_V01 0x0047
+#define QMI_IPA_ETH_BACKHAUL_INFO_RESP_V01 0x0047
+#define QMI_IPA_RMNET_ETH_INFO_INDICATION_V01 0x0048
 
 /* add for max length*/
-#define QMI_IPA_INIT_MODEM_DRIVER_REQ_MAX_MSG_LEN_V01 162
+#define QMI_IPA_INIT_MODEM_DRIVER_REQ_MAX_MSG_LEN_V01 197
 #define QMI_IPA_INIT_MODEM_DRIVER_RESP_MAX_MSG_LEN_V01 25
 #define QMI_IPA_INDICATION_REGISTER_REQ_MAX_MSG_LEN_V01 16
 #define QMI_IPA_INDICATION_REGISTER_RESP_MAX_MSG_LEN_V01 7
@@ -2718,7 +2959,7 @@ struct ipa_remove_offload_connection_resp_msg_v01 {
 #define QMI_IPA_DATA_USAGE_QUOTA_REACHED_IND_MAX_MSG_LEN_V01 15
 
 
-#define QMI_IPA_ENABLE_FORCE_CLEAR_DATAPATH_REQ_MAX_MSG_LEN_V01 18
+#define QMI_IPA_ENABLE_FORCE_CLEAR_DATAPATH_REQ_MAX_MSG_LEN_V01 37
 #define QMI_IPA_DISABLE_FORCE_CLEAR_DATAPATH_REQ_MAX_MSG_LEN_V01 7
 #define QMI_IPA_ENABLE_FORCE_CLEAR_DATAPATH_RESP_MAX_MSG_LEN_V01 7
 #define QMI_IPA_DISABLE_FORCE_CLEAR_DATAPATH_RESP_MAX_MSG_LEN_V01 7

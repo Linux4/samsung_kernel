@@ -75,6 +75,10 @@ int cam_sensor_publish_dev_info(struct cam_req_mgr_device_info *info);
  */
 int cam_sensor_establish_link(struct cam_req_mgr_core_dev_link_setup *link);
 
+#if defined(CONFIG_SEC_Q2Q_PROJECT)
+#define MIPI_SW_SEL_GPIO 405
+#endif
+
 /**
  * @s_ctrl: Sensor ctrl structure
  * @arg:    Camera control command argument

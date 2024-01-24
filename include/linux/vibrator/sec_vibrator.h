@@ -6,8 +6,8 @@
 #define SEC_VIBRATOR_H
 
 #include <linux/kthread.h>
-#include <linux/leds.h>
-#include <linux/cdev.h>
+#include <linux/kdev_t.h>
+#include <linux/device.h>
 
 #define MAX_INTENSITY		10000
 #define MAX_TIMEOUT		10000
@@ -66,6 +66,7 @@ struct sec_vibrator_ops {
 	int (*set_frequency)(struct device *dev, int frequency);
 	int (*set_overdrive)(struct device *dev, bool en);
 	int (*get_motor_type)(struct device *dev, char *buf);
+	int (*set_use_sep_index)(struct device *dev, bool use_sep_index);
 	ssize_t (*get_num_waves)(struct device *dev, char *buf);
 	ssize_t (*set_cp_trigger_index)(struct device *dev, const char *buf);
 	ssize_t (*get_cp_trigger_index)(struct device *dev, char *buf);
@@ -112,11 +113,9 @@ struct sec_vibrator_drvdata {
 
 	int timeout;
 
-	struct led_classdev cdev;
-	int state;
-	int duration;
-
 	char event_cmd[MAX_STR_LEN_EVENT_CMD];
+
+	bool is_registered;
 };
 
 extern int sec_vibrator_register(struct sec_vibrator_drvdata *ddata);

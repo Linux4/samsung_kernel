@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
- * Copyright (c) 2017-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
  */
 #ifndef __ADRENO_A6XX_GMU_H
 #define __ADRENO_A6XX_GMU_H
@@ -75,7 +75,7 @@ struct gmu_block_header {
 #define GMU_BLK_TYPE_PREALLOC_PERSIST_REQ 7
 
 /* For GMU Logs*/
-#define LOGMEM_SIZE  SZ_4K
+#define GMU_LOG_SIZE  SZ_16K
 
 /* GMU memdesc entries */
 #define GMU_KERNEL_ENTRIES		16
@@ -201,6 +201,14 @@ struct a6xx_gmu_device {
 	void __iomem *rscc_virt;
 	/** @domain: IOMMU domain for the kernel context */
 	struct iommu_domain *domain;
+	/** @rdpm_cx_virt: Pointer where the RDPM CX block is mapped */
+	void __iomem *rdpm_cx_virt;
+	/** @rdpm_mx_virt: Pointer where the RDPM MX block is mapped */
+	void __iomem *rdpm_mx_virt;
+	/** @log_stream_enable: GMU log streaming enable */
+	bool log_stream_enable;
+	/** @num_oob_perfcntr: Number of active oob_perfcntr requests */
+	u32 num_oob_perfcntr;
 };
 
 /* Helper function to get to a6xx gmu device from adreno device */

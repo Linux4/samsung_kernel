@@ -1,7 +1,7 @@
 /*
  * Linux DHD Bus Module for PCIE
  *
- * Copyright (C) 2021, Broadcom.
+ * Copyright (C) 2022, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -723,14 +723,6 @@ static int dhdpcie_pm_resume(struct device *dev)
 	dhd_os_busbusy_wake(bus->dhd);
 	DHD_GENERAL_UNLOCK(bus->dhd, flags);
 
-#if defined(CUSTOMER_HW4_DEBUG)
-	if (ret == BCME_OK) {
-		uint32 pm_dur = 0;
-		dhd_iovar(bus->dhd, 0, "pm_dur", NULL, 0, (char *)&pm_dur, sizeof(pm_dur), FALSE);
-		DHD_ERROR(("%s: PM duration(%d)\n", __FUNCTION__, pm_dur));
-	}
-#endif /* CUSTOMER_HW4_DEBUG */
-
 	return ret;
 }
 
@@ -739,7 +731,9 @@ static void dhdpcie_pm_complete(struct device *dev)
 	struct pci_dev *pdev = to_pci_dev(dev);
 	dhdpcie_info_t *pch = pci_get_drvdata(pdev);
 	dhd_bus_t *bus = NULL;
-
+#if defined(CUSTOMER_HW4_DEBUG)
+	uint32 pm_dur = 0;
+#endif /* CUSTOMER_HW4_DEBUG */
 	if (!pch || !pch->bus) {
 		return;
 	}
@@ -750,7 +744,10 @@ static void dhdpcie_pm_complete(struct device *dev)
 		DHD_ENABLE_RUNTIME_PM(bus->dhd);
 
 	bus->chk_pm = FALSE;
-
+#if defined(CUSTOMER_HW4_DEBUG)
+	dhd_iovar(bus->dhd, 0, "pm_dur", NULL, 0, (char *)&pm_dur, sizeof(pm_dur), FALSE);
+	DHD_ERROR(("%s: PM duration(%d)\n", __FUNCTION__, pm_dur));
+#endif /* CUSTOMER_HW4_DEBUG */
 	return;
 }
 #else
@@ -862,6 +859,12 @@ static int dhdpcie_set_suspend_resume(dhd_bus_t *bus, bool state)
 
 	ASSERT(bus && !bus->dhd->dongle_reset);
 
+#ifdef DHD_PERIODIC_CNTRS
+	if (state) {
+		dhd_dbg_periodic_cntrs_stop(bus->dhd);
+	}
+#endif /* DHD_PERIODIC_CNTRS */
+
 #ifdef DHD_PCIE_RUNTIMEPM
 	/* if wakelock is held during suspend, return failed */
 	if (state == TRUE && dhd_os_check_wakelock_all(bus->dhd)) {
@@ -902,6 +905,11 @@ static int dhdpcie_set_suspend_resume(dhd_bus_t *bus, bool state)
 #ifdef DHD_PCIE_RUNTIMEPM
 	mutex_unlock(&bus->pm_lock);
 #endif /* DHD_PCIE_RUNTIMEPM */
+#ifdef DHD_PERIODIC_CNTRS
+	if (!state) {
+		dhd_dbg_periodic_cntrs_start(bus->dhd);
+	}
+#endif /* DHD_PERIODIC_CNTRS */
 
 	return ret;
 }
@@ -2283,13 +2291,29 @@ dhdpcie_start_host_dev(dhd_bus_t *bus)
 #endif /* CONFIG_ARCH_EXYNOS */
 #ifdef CONFIG_ARCH_MSM
 #ifdef SUPPORT_LINKDOWN_RECOVERY
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 0))
 	if (bus->no_cfg_restore) {
 		options = MSM_PCIE_CONFIG_NO_CFG_RESTORE;
 	}
+#endif /* LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 0) */
 	ret = msm_pcie_pm_control(MSM_PCIE_RESUME, bus->dev->bus->number,
 		bus->dev, NULL, options);
 	if (bus->no_cfg_restore && !ret) {
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 4, 0))
+		dhdpcie_info_t *pch;
+		pch = pci_get_drvdata(bus->dev);
+		if (pch == NULL) {
+			return BCME_ERROR;
+		}
+		if (pch->state) {
+			pci_load_and_free_saved_state(bus->dev, &pch->state);
+		} else {
+			pci_load_saved_state(bus->dev, pch->default_state);
+		}
+		pci_restore_state(bus->dev);
+#else
 		msm_pcie_recover_config(bus->dev);
+#endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(5, 4, 0) */
 		bus->no_cfg_restore = 0;
 	}
 #else
@@ -2336,10 +2360,11 @@ dhdpcie_stop_host_dev(dhd_bus_t *bus)
 #endif /* CONFIG_ARCH_EXYNOS */
 #ifdef CONFIG_ARCH_MSM
 #ifdef SUPPORT_LINKDOWN_RECOVERY
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 0))
 	if (bus->no_cfg_restore) {
 		options = MSM_PCIE_CONFIG_NO_CFG_RESTORE | MSM_PCIE_CONFIG_LINKDOWN;
 	}
-
+#endif /* LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 0) */
 	ret = msm_pcie_pm_control(MSM_PCIE_SUSPEND, bus->dev->bus->number,
 		bus->dev, NULL, options);
 #else
@@ -2715,6 +2740,7 @@ void dhdpcie_oob_intr_set(dhd_bus_t *bus, bool enable)
 static irqreturn_t wlan_oob_irq_isr(int irq, void *data)
 {
 	dhd_bus_t *bus = (dhd_bus_t *)data;
+	dhdpcie_oob_intr_set(bus, FALSE);
 	DHD_TRACE(("%s: IRQ ISR\n", __FUNCTION__));
 	bus->last_oob_irq_isr_time = OSL_LOCALTIME_NS();
 	return IRQ_WAKE_THREAD;
@@ -2725,11 +2751,11 @@ static irqreturn_t wlan_oob_irq(int irq, void *data)
 {
 	dhd_bus_t *bus;
 	bus = (dhd_bus_t *)data;
-	dhdpcie_oob_intr_set(bus, FALSE);
 #ifdef DHD_USE_PCIE_OOB_THREADED_IRQ
 	DHD_TRACE(("%s: IRQ Thread\n", __FUNCTION__));
 	bus->last_oob_irq_thr_time = OSL_LOCALTIME_NS();
 #else
+	dhdpcie_oob_intr_set(bus, FALSE);
 	DHD_TRACE(("%s: IRQ ISR\n", __FUNCTION__));
 	bus->last_oob_irq_isr_time = OSL_LOCALTIME_NS();
 #endif /* DHD_USE_PCIE_OOB_THREADED_IRQ */

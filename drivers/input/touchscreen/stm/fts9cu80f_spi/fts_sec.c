@@ -131,8 +131,6 @@ static void increase_disassemble_count(void *device_data);
 static void get_disassemble_count(void *device_data);
 static void get_osc_trim_error(void *device_data);
 static void get_osc_trim_info(void *device_data);
-static void run_snr_non_touched(void *device_data);
-static void run_snr_touched(void *device_data);
 static void run_elvss_test(void *device_data);
 
 #ifdef CONFIG_GLOVE_TOUCH
@@ -159,7 +157,6 @@ static void brush_enable(void *device_data);
 static void set_touchable_area(void *device_data);
 static void debug(void *device_data);
 static void factory_cmd_result_all(void *device_data);
-static void factory_cmd_result_all_imagetest(void *device_data);
 static void run_force_calibration(void *device_data);
 static void set_factory_level(void *device_data);
 static void fix_active_mode(void *device_data);
@@ -242,8 +239,6 @@ struct sec_cmd ft_commands[] = {
 	{SEC_CMD("get_disassemble_count", get_disassemble_count),},
 	{SEC_CMD("get_osc_trim_error", get_osc_trim_error),},
 	{SEC_CMD("get_osc_trim_info", get_osc_trim_info),},
-	{SEC_CMD("run_snr_non_touched", run_snr_non_touched),},
-	{SEC_CMD("run_snr_touched", run_snr_touched),},
 	{SEC_CMD("run_elvss_test", run_elvss_test),},
 #ifdef CONFIG_GLOVE_TOUCH
 	{SEC_CMD_H("glove_mode", glove_mode),},
@@ -268,7 +263,6 @@ struct sec_cmd ft_commands[] = {
 	{SEC_CMD_H("set_touchable_area", set_touchable_area),},
 	{SEC_CMD("debug", debug),},
 	{SEC_CMD("factory_cmd_result_all", factory_cmd_result_all),},
-	{SEC_CMD("factory_cmd_result_all_imagetest", factory_cmd_result_all_imagetest),},
 	{SEC_CMD("run_force_calibration", run_force_calibration),},
 	{SEC_CMD("set_factory_level", set_factory_level),},
 	{SEC_CMD("fix_active_mode", fix_active_mode),},
@@ -439,8 +433,6 @@ static ssize_t sensitivity_mode_store(struct device *dev,
 		return -EPERM;
 	}
 
-	cancel_delayed_work(&info->work_print_info);
-
 	wbuf[0] = FTS_CMD_SENSITIVITY_MODE;
 
 	switch (value) {
@@ -465,14 +457,10 @@ static ssize_t sensitivity_mode_store(struct device *dev,
 	if (ret < 0) {
 		input_err(true, &info->client->dev,
 				"%s: write failed. ret: %d\n", __func__, ret);
-		schedule_delayed_work(&info->work_print_info, msecs_to_jiffies(TOUCH_PRINT_INFO_DWORK_TIME));
 		return ret;
 	}
 
 	fts_delay(30);
-
-	if (value == 0)
-		schedule_delayed_work(&info->work_print_info, msecs_to_jiffies(TOUCH_PRINT_INFO_DWORK_TIME));
 
 	input_info(true, &info->client->dev, "%s: %ld\n", __func__, value);
 	return count;
@@ -2194,131 +2182,6 @@ ERROR:
 
 	return;
 
-}
-
-static void run_jitter_delta_test(void *device_data)
-{
-	struct sec_cmd_data *sec = (struct sec_cmd_data *)device_data;
-	struct fts_ts_info *info = container_of(sec, struct fts_ts_info, sec);
-	char buff[SEC_CMD_STR_LEN] = { 0 };
-	u8 reg[4] = { 0 };
-	int ret;
-	int result = -1;
-	int retry = 0;
-	u8 data[FTS_EVENT_SIZE];
-	s16 min_of_min = 0;
-	s16 max_of_min = 0;
-	s16 min_of_max = 0;
-	s16 max_of_max = 0;
-	s16 min_of_avg = 0;
-	s16 max_of_avg = 0;
-
-	sec_cmd_set_default_result(sec);
-	if (info->fts_power_state == FTS_POWER_STATE_POWERDOWN ||
-			info->fts_power_state == FTS_POWER_STATE_LOWPOWER) {
-		input_err(true, &info->client->dev, "%s: [ERROR] Touch is stopped\n", __func__);
-		snprintf(buff, sizeof(buff), "NG");
-		goto OUT_JITTER_DELTA;
-	}
-
-	info->fts_systemreset(info, 0);
-	fts_release_all_finger(info);
-
-	fts_interrupt_set(info, INT_DISABLE);
-
-	mutex_lock(&info->device_mutex);
-
-	/* lock active scan mode */
-	reg[0] = 0xA0;
-	reg[1] = 0x03;
-	reg[2] = 0x00;
-	ret = info->fts_write_reg(info, &reg[0], 3);
-	if (ret < 0) {
-		input_info(true, &info->client->dev, "%s: failed to set active mode\n", __func__);
-		mutex_unlock(&info->device_mutex);
-		goto OUT_JITTER_DELTA;
-	}
-	fts_delay(10);
-
-	/* jitter delta + 1000 frame*/
-	reg[0] = 0xC7;
-	reg[1] = 0x08;
-	reg[2] = 0xE8;
-	reg[3] = 0x03;
-	ret = info->fts_write_reg(info, &reg[0], 4);
-	if (ret < 0) {
-		input_err(true, &info->client->dev, "%s: failed to write command\n", __func__);
-		mutex_unlock(&info->device_mutex);
-		goto OUT_JITTER_DELTA;
-	}
-
-	memset(data, 0x0, FTS_EVENT_SIZE);
-
-	reg[0] = FTS_READ_ONE_EVENT;
-
-	while (info->fts_read_reg(info, &reg[0], 1, data, FTS_EVENT_SIZE) == 0) {	
-		if ((data[0] == FTS_EVENT_JITTER_RESULT) && (data[1] == 0x03)) {
-			if (data[2] == FTS_EVENT_JITTER_MUTUAL_MAX) {
-				min_of_max = data[3] << 8 | data[4];
-				max_of_max = data[8] << 8 | data[9];
-				input_info(true, &info->client->dev, "%s: MAX: min:%d, max:%d\n", __func__, min_of_max, max_of_max);
-			} else if (data[2] == FTS_EVENT_JITTER_MUTUAL_MIN) {
-				min_of_min = data[3] << 8 | data[4];
-				max_of_min = data[8] << 8 | data[9];
-				input_info(true, &info->client->dev, "%s: MIN: min:%d, max:%d\n", __func__, min_of_min, max_of_min);
-			} else if (data[2] == FTS_EVENT_JITTER_MUTUAL_AVG) {
-				min_of_avg = data[3] << 8 | data[4];
-				max_of_avg = data[8] << 8 | data[9];
-				input_info(true, &info->client->dev, "%s: AVG: min:%d, max:%d\n", __func__, min_of_avg, max_of_avg);
-				result = 0;
-				break;
-			}
-		} else if (data[0] == FTS_EVENT_ERROR_REPORT) {
-			input_info(true, &info->client->dev, "%s: Error detected %02X,%02X,%02X,%02X,%02X,%02X\n",
-				__func__, data[0], data[1], data[2], data[3], data[4], data[5]);
-			break;
-		}
-
-		/* waiting 10 seconds */
-		if (retry++ > FTS_RETRY_COUNT * 50) {
-			input_err(true, &info->client->dev, "%s: Time Over (%02X,%02X,%02X,%02X,%02X,%02X)\n",
-				__func__, data[0], data[1], data[2], data[3], data[4], data[5]);
-			break;
-		}
-		fts_delay(20);
-	}
-	mutex_unlock(&info->device_mutex);
-
-OUT_JITTER_DELTA:
-
-	info->fts_systemreset(info, 0);
-	fts_set_scanmode(info, info->scan_mode);
-
-	fts_interrupt_set(info, INT_ENABLE);
-
-	if (result < 0)
-		snprintf(buff, sizeof(buff), "NG");
-	else
-		snprintf(buff, sizeof(buff), "%d,%d,%d,%d,%d,%d", min_of_min, max_of_min, min_of_max, max_of_max, min_of_avg, max_of_avg);
-
-	if (sec->cmd_all_factory_state == SEC_CMD_STATUS_RUNNING) {
-		char buffer[SEC_CMD_STR_LEN] = { 0 };
-
-		snprintf(buffer, sizeof(buffer), "%d,%d", min_of_min, max_of_min);
-		sec_cmd_set_cmd_result_all(sec, buffer, strnlen(buffer, sizeof(buffer)), "JITTER_DELTA_MIN");
-
-		memset(buffer, 0x00, sizeof(buffer));
-		snprintf(buffer, sizeof(buffer), "%d,%d", min_of_max, max_of_max);
-		sec_cmd_set_cmd_result_all(sec, buffer, strnlen(buffer, sizeof(buffer)), "JITTER_DELTA_MAX");
-
-		memset(buffer, 0x00, sizeof(buffer));
-		snprintf(buffer, sizeof(buffer), "%d,%d", min_of_avg, max_of_avg);
-		sec_cmd_set_cmd_result_all(sec, buffer, strnlen(buffer, sizeof(buffer)), "JITTER_DELTA_AVG");
-	}
-	sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
-	sec->cmd_state = SEC_CMD_STATUS_OK;
-
-	input_info(true, &info->client->dev, "%s: %s\n", __func__, buff);
 }
 
 void fts_checking_miscal(struct fts_ts_info *info)
@@ -5224,31 +5087,6 @@ out:
 	input_info(true, &info->client->dev, "%s: %d%s\n", __func__, sec->item_count, sec->cmd_result_all);
 }
 
-static void factory_cmd_result_all_imagetest(void *device_data)
-{
-	struct sec_cmd_data *sec = (struct sec_cmd_data *)device_data;
-	struct fts_ts_info *info = container_of(sec, struct fts_ts_info, sec);
-
-	sec->item_count = 0;
-	memset(sec->cmd_result_all, 0x00, SEC_CMD_RESULT_STR_LEN);
-
-	if (info->fts_power_state == FTS_POWER_STATE_POWERDOWN) {
-		input_err(true, &info->client->dev, "%s: [ERROR] Touch is stopped\n",
-				__func__);
-		sec->cmd_all_factory_state = SEC_CMD_STATUS_FAIL;
-		goto out;
-	}
-
-	sec->cmd_all_factory_state = SEC_CMD_STATUS_RUNNING;
-
-	run_jitter_delta_test(sec);
-
-	sec->cmd_all_factory_state = SEC_CMD_STATUS_OK;
-
-out:
-	input_info(true, &info->client->dev, "%s: %d%s\n", __func__, sec->item_count, sec->cmd_result_all);
-}
-
 static void set_factory_level(void *device_data)
 {
 	struct sec_cmd_data *sec = (struct sec_cmd_data *)device_data;
@@ -5596,218 +5434,6 @@ static void get_osc_trim_info(void *device_data)
 	if (sec->cmd_all_factory_state == SEC_CMD_STATUS_RUNNING)
 		sec_cmd_set_cmd_result_all(sec, buff, strnlen(buff, sizeof(buff)), "OSC_TRIM_INFO");
 	sec->cmd_state = SEC_CMD_STATUS_OK;
-	input_info(true, &info->client->dev, "%s: %s\n", __func__, buff);
-}
-
-static void run_snr_non_touched(void *device_data)
-{
-	struct sec_cmd_data *sec = (struct sec_cmd_data *)device_data;
-	struct fts_ts_info *info = container_of(sec, struct fts_ts_info, sec);
-	char buff[SEC_CMD_STR_LEN] = { 0 };
-	u8 address[5] = { 0 };
-	u16 status;
-	int ret = 0;
-	int wait_time = 0;
-	int retry_cnt = 0;
-
-	input_info(true, &info->client->dev, "%s\n", __func__);
-
-	sec_cmd_set_default_result(sec);
-
-	if (info->fts_power_state == FTS_POWER_STATE_POWERDOWN) {
-		input_err(true, &info->client->dev, "%s: [ERROR] Touch is stopped\n",
-				__func__);
-		goto out_init;
-	}
-
-	if (sec->cmd_param[0] < 1 || sec->cmd_param[0] > 1000) {
-		input_err(true, &info->client->dev, "%s: strange value frame:%d\n",
-				__func__, sec->cmd_param[0]);
-		goto out_init;
-	}
-
-	fts_fix_active_mode(info, true);
-
-	/* start Non-touched Peak Noise */
-	address[0] = 0xC7;
-	address[1] = 0x09;
-	address[2] = 0x01;
-	address[3] = (u8)(sec->cmd_param[0] & 0xff);
-	address[4] = (u8)(sec->cmd_param[0] >> 8);
-	ret = info->fts_write_reg(info, &address[0], 5);
-	if (ret < 0) {
-		input_err(true, &info->client->dev, "%s: i2c_write failed\n", __func__);
-		goto out;
-	}
-
-	/* enter SNR mode */
-	address[0] = 0x70;
-	address[1] = 0x25;
-	ret = info->fts_write_reg(info, &address[0], 2);
-	if (ret < 0) {
-		input_err(true, &info->client->dev, "%s: i2c_write failed\n", __func__);
-		goto out;
-	}
-
-	wait_time = (sec->cmd_param[0] * 1000) / 120 + 200;/* frame count * 1000 / frame rate + 200 msec margin*/
-
-	fts_delay(wait_time);
-
-	retry_cnt = 50;
-	address[0] = 0x75;/* 0x75 command will be converted C0 command in fts_read_reg() */
-	while ((info->fts_read_reg(info, &address[0], 1, (u8 *)&status, 3) > 0) && (retry_cnt-- > 0)) {
-		if (status == 1)
-			break;
-		fts_delay(20);
-	}
-
-	if (status == 0) {
-		input_err(true, &info->client->dev, "%s: failed non-touched status:%d\n", __func__, status);
-		goto out;
-	}
-
-	snprintf(buff, sizeof(buff), "OK");
-	sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
-	sec->cmd_state = SEC_CMD_STATUS_OK;
-
-	/* EXIT SNR mode */
-	address[0] = 0x70;
-	address[1] = 0x00;
-	info->fts_write_reg(info, &address[0], 2);
-	fts_fix_active_mode(info, false);
-	input_info(true, &info->client->dev, "%s: %s\n", __func__, buff);
-
-	return;
-
-out:
-	address[0] = 0x70;
-	address[1] = 0x00;
-	info->fts_write_reg(info, &address[0], 2);
-	fts_fix_active_mode(info, false);
-
-out_init:
-	snprintf(buff, sizeof(buff), "NG");
-	sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
-	sec->cmd_state = SEC_CMD_STATUS_FAIL;
-
-	input_info(true, &info->client->dev, "%s: %s\n", __func__, buff);
-}
-
-static void run_snr_touched(void *device_data)
-{
-	struct sec_cmd_data *sec = (struct sec_cmd_data *)device_data;
-	struct fts_ts_info *info = container_of(sec, struct fts_ts_info, sec);
-	struct stm_ts_snr_result_cmd snr_cmd_result;
-	struct stm_ts_snr_result snr_result;
-	char buff[SEC_CMD_STR_LEN] = { 0 };
-	char tbuff[SEC_CMD_STR_LEN] = { 0 };
-	u8 address[5] = { 0 };
-	int ret = 0;
-	int wait_time = 0;
-	int retry_cnt = 0;
-	int i = 0;
-
-	input_info(true, &info->client->dev, "%s\n", __func__);
-
-	sec_cmd_set_default_result(sec);
-	memset(&snr_result, 0, sizeof(struct stm_ts_snr_result));
-	memset(&snr_cmd_result, 0, sizeof(struct stm_ts_snr_result_cmd));
-
-	if (info->fts_power_state == FTS_POWER_STATE_POWERDOWN) {
-		input_err(true, &info->client->dev, "%s: [ERROR] Touch is stopped\n",
-				__func__);
-		goto out_init;
-	}
-
-	if (sec->cmd_param[0] < 1 || sec->cmd_param[0] > 1000) {
-		input_err(true, &info->client->dev, "%s: strange value frame:%d\n",
-				__func__, sec->cmd_param[0]);
-		goto out_init;
-	}
-
-	fts_fix_active_mode(info, true);
-
-	/* start touched Peak Noise */
-	address[0] = 0xC7;
-	address[1] = 0x09;
-	address[2] = 0x02;
-	address[3] = (u8)(sec->cmd_param[0] & 0xff);
-	address[4] = (u8)(sec->cmd_param[0] >> 8);
-	ret = info->fts_write_reg(info, &address[0], 5);
-	if (ret < 0) {
-		input_err(true, &info->client->dev, "%s: i2c_write failed\n", __func__);
-		goto out;
-	}
-
-	/* enter SNR mode */
-	address[0] = 0x70;
-	address[1] = 0x25;
-	ret = info->fts_write_reg(info, &address[0], 2);
-	if (ret < 0) {
-		input_err(true, &info->client->dev, "%s: i2c_write failed\n", __func__);
-		goto out;
-	}
-
-	wait_time = (sec->cmd_param[0] * 1000) / 120 + 200;/* frame count * 1000 / frame rate + 200 msec margin*/
-
-	fts_delay(wait_time);
-
-	retry_cnt = 50;
-	memset(address, 0x00, 5);
-	address[0] = 0x75;/* 0x75 command will be converted C0 command in fts_read_reg() */
-	while ((info->fts_read_reg(info, &address[0], 1, (u8 *)&snr_cmd_result, 6) > 0) && (retry_cnt-- > 0)) {
-		if (snr_cmd_result.status == 1)
-			break;
-		fts_delay(20);
-	}
-
-	if (snr_cmd_result.status == 0) {
-		input_err(true, &info->client->dev, "%s: failed non-touched status:%d\n", __func__, snr_cmd_result.status);
-		goto out;
-	} else {
-		input_info(true, &info->client->dev, "%s: status:%d, point:%d, average:%d\n", __func__,
-			snr_cmd_result.status, snr_cmd_result.point, snr_cmd_result.average);
-	}
-
-	memset(address, 0x00, 5);
-	address[0] = 0x75;/* 0x75 command will be converted C0 command in fts_read_reg() */
-	ret = info->fts_read_reg(info, &address[0], 1, (u8 *)&snr_result, sizeof(struct stm_ts_snr_result));
-	if (ret < 0) {
-		input_err(true, &info->client->dev, "%s: i2c_write failed size:%ld\n", __func__, sizeof(struct stm_ts_snr_result));
-		goto out;
-	}
-
-	for (i = 0; i < 9; i++) {
-		input_info(true, &info->client->dev, "%s: average:%d, snr1:%d, snr2:%d\n", __func__,
-			snr_result.result[i].average, snr_result.result[i].snr1, snr_result.result[i].snr2);
-		snprintf(tbuff, sizeof(tbuff), "%d,%d,%d,",
-			snr_result.result[i].average,
-			snr_result.result[i].snr1,
-			snr_result.result[i].snr2);
-		strlcat(buff, tbuff, sizeof(buff));
-	}
-
-	sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
-	sec->cmd_state = SEC_CMD_STATUS_OK;
-
-	/* EXIT SNR mode */
-	address[0] = 0x70;
-	address[1] = 0x00;
-	info->fts_write_reg(info, &address[0], 2);
-	fts_fix_active_mode(info, false);
-	input_info(true, &info->client->dev, "%s: %s\n", __func__, buff);
-
-	return;
-out:
-	address[0] = 0x70;
-	address[1] = 0x00;
-	info->fts_write_reg(info, &address[0], 2);
-	fts_fix_active_mode(info, false);
-out_init:
-	snprintf(buff, sizeof(buff), "NG");
-	sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
-	sec->cmd_state = SEC_CMD_STATUS_FAIL;
-
 	input_info(true, &info->client->dev, "%s: %s\n", __func__, buff);
 }
 

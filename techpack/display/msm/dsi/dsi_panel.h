@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
- * Copyright (c) 2016-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2016-2020, 2021 The Linux Foundation. All rights reserved.
  */
 
 #ifndef _DSI_PANEL_H_
@@ -185,6 +185,13 @@ struct dsi_panel_spr_info {
 	enum msm_display_spr_pack_type pack_type;
 };
 
+struct dsi_tlmm_gpio {
+	u32 num;
+	u32 addr;
+	u32 size;
+	const char *name;
+};
+
 struct dsi_panel;
 
 struct dsi_panel_ops {
@@ -195,6 +202,7 @@ struct dsi_panel_ops {
 	int (*bl_register)(struct dsi_panel *panel);
 	int (*bl_unregister)(struct dsi_panel *panel);
 	int (*parse_gpios)(struct dsi_panel *panel);
+	int (*parse_power_cfg)(struct dsi_panel *panel);
 };
 
 struct dsi_panel {
@@ -239,6 +247,8 @@ struct dsi_panel {
 	bool reset_gpio_always_on;
 	atomic_t esd_recovery_pending;
 
+	bool is_twm_en;
+	bool skip_panel_off;
 	bool panel_initialized;
 	bool te_using_watchdog_timer;
 	struct dsi_qsync_capabilities qsync_caps;
@@ -255,6 +265,9 @@ struct dsi_panel {
 	int panel_test_gpio;
 	int power_mode;
 	enum dsi_panel_physical_type panel_type;
+
+	struct dsi_tlmm_gpio *tlmm_gpio;
+	u32 tlmm_gpio_count;
 
 	struct dsi_panel_ops panel_ops;
 
@@ -301,7 +314,7 @@ struct dsi_panel *dsi_panel_get(struct device *parent,
 				int topology_override,
 				bool trusted_vm_env);
 
-int dsi_panel_trigger_esd_attack(struct dsi_panel *panel);
+int dsi_panel_trigger_esd_attack(struct dsi_panel *panel, bool trusted_vm_env);
 
 void dsi_panel_put(struct dsi_panel *panel);
 
@@ -390,6 +403,18 @@ int dsi_panel_get_io_resources(struct dsi_panel *panel,
 
 void dsi_panel_calc_dsi_transfer_time(struct dsi_host_common_cfg *config,
 		struct dsi_display_mode *mode, u32 frame_threshold_us);
+
+int dsi_panel_get_cmd_pkt_count(const char *data, u32 length, u32 *cnt);
+
+int dsi_panel_alloc_cmd_packets(struct dsi_panel_cmd_set *cmd,
+		u32 packet_count);
+
+int dsi_panel_create_cmd_packets(const char *data, u32 length, u32 count,
+					struct dsi_cmd_desc *cmd);
+
+void dsi_panel_destroy_cmd_packets(struct dsi_panel_cmd_set *set);
+
+void dsi_panel_dealloc_cmd_packets(struct dsi_panel_cmd_set *set);
 
 #if defined(CONFIG_DISPLAY_SAMSUNG)
 #define SS_CMD_PROP_STR_LEN (100)

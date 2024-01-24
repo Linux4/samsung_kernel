@@ -65,6 +65,10 @@ extern struct class *sec_class;
 #include <linux/clk.h>
 #endif
 
+#if IS_ENABLED(CONFIG_SPU_VERIFY)
+#include <linux/spu-verify.h>
+#endif
+
 #if IS_ENABLED(CONFIG_TOUCHSCREEN_DUAL_FOLDABLE)
 #if IS_ENABLED(CONFIG_HALL_NOTIFIER)
 #include <linux/hall/hall_ic_notifier.h>
@@ -254,6 +258,7 @@ struct reg_ioctl {
 #define DEF_RAW_SELF_SSR_DATA_MODE		39	/* SELF SATURATION RX */
 #define DEF_RAW_SELF_SFR_UNIT_DATA_MODE		40
 #define DEF_RAW_LP_DUMP				41
+#define TOUCH_NO_OPERATION_MODE			55
 
 #define TOUCH_SENTIVITY_MEASUREMENT_COUNT	9
 
@@ -284,6 +289,7 @@ struct reg_ioctl {
 #define ZT75XX_CALIBRATE_CMD			0x0006
 #define ZT75XX_SAVE_STATUS_CMD			0x0007
 #define ZT75XX_SAVE_CALIBRATION_CMD		0x0008
+#define ZT75XX_DRIVE_INT_STATUS_CMD		0x000C
 #define ZT75XX_RECALL_FACTORY_CMD		0x000f
 
 #define ZT75XX_THRESHOLD			0x0020
@@ -339,6 +345,8 @@ struct reg_ioctl {
 #define ZT75XX_AFE_FREQUENCY			0x0100
 #define ZT75XX_DND_N_COUNT			0x0122
 #define ZT75XX_DND_U_COUNT			0x0135
+
+#define ZT75XX_RAW_DIFF				0x0146
 
 #define ZT75XX_LPDUMP_UTC_VAL_MSB_REG		0x01FC
 #define ZT75XX_LPDUMP_UTC_VAL_LSB_REG		0x01FD
@@ -895,7 +903,7 @@ struct zt75xx_ts_info {
 	u32 print_info_cnt_release;
 
 	struct completion resume_done;
-//	struct wake_lock wakelock;
+	struct wakeup_source *wakelock;
 
 #if IS_ENABLED(CONFIG_INPUT_SEC_SECURE_TOUCH)
 	atomic_t secure_enabled;

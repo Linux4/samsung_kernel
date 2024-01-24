@@ -19,6 +19,7 @@
 #include <linux/task_integrity.h>
 #include <linux/proca.h>
 #include <linux/xattr.h>
+#include <linux/version.h>
 
 #include "five.h"
 #include "five_pa.h"
@@ -26,12 +27,21 @@
 #include "five_lv.h"
 #include "five_porting.h"
 
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0))
+#define F_SIGNATURE(file) ((void *)((file)->android_oem_data1))
+
+static inline void f_signature_assign(struct file *file, void *f_signature)
+{
+	file->android_oem_data1 = (u64)f_signature;
+}
+#else
 #define F_SIGNATURE(file) ((void *)((file)->android_vendor_data1))
 
 static inline void f_signature_assign(struct file *file, void *f_signature)
 {
 	file->android_vendor_data1 = (u64)f_signature;
 }
+#endif
 
 static void process_file(struct task_struct *task, struct file *file)
 {

@@ -13,7 +13,7 @@
 #include "dp_display.h"
 #include "dp_pll.h"
 
-#ifndef CONFIG_SEC_DISPLAYPORT
+#if !defined(CONFIG_SEC_DISPLAYPORT)
 #define DP_DEBUG(fmt, ...)                                                   \
 	do {                                                                 \
 		if (unlikely(drm_debug & DRM_UT_KMS))                        \

@@ -60,6 +60,11 @@ extern struct tsp_dump_callbacks dump_callbacks;
 #endif
 #endif
 
+#if !IS_ENABLED(CONFIG_ARCH_WAIPIO)
+#define ENABLE_RAWDATA_SERVICE
+#endif
+
+
 #include "../sec_input.h"
 #include "../sec_tsp_log.h"
 
@@ -97,6 +102,10 @@ enum stm_ts_fw_update_status {
 };
 
 extern struct stm_ts_data *g_ts;
+
+#if IS_ENABLED(CONFIG_SAMSUNG_TUI) || (IS_ENABLED(CONFIG_SEC_KUNIT) && !IS_ENABLED(CONFIG_TOUCHSCREEN_DUAL_FOLDABLE))
+extern struct device *ptsp;
+#endif
 
 /**
  * struct stm_ts_finger - Represents fingers.
@@ -430,6 +439,9 @@ struct stm_ts_data {
 	u8 touch_opmode;
 	u8 charger_mode;
 	u8 scan_mode;
+	u8 game_mode;
+	u8 sip_mode;
+	u8 note_mode;
 
 #if IS_ENABLED(CONFIG_INPUT_SEC_SECURE_TOUCH)
 	atomic_t secure_enabled;
@@ -622,6 +634,9 @@ int stm_ts_get_channel_info(struct stm_ts_data *ts);
 int stm_ts_set_opmode(struct stm_ts_data *ts, u8 mode);
 int stm_ts_set_touch_function(struct stm_ts_data *ts);
 void stm_ts_get_touch_function(struct work_struct *work);
+int stm_ts_sip_mode_enable(struct stm_ts_data *ts);
+int stm_ts_game_mode_enable(struct stm_ts_data *ts);
+int stm_ts_note_mode_enable(struct stm_ts_data *ts);
 
 //cmd
 void stm_ts_fn_remove(struct stm_ts_data *ts);
@@ -649,11 +664,12 @@ int stm_tclm_data_write(struct spi_device *client, int address);
 int stm_ts_tclm_execute_force_calibration(struct spi_device *client, int cal_mode);
 void stm_ts_checking_miscal(struct stm_ts_data *ts);
 
-void stm_switching_work(struct work_struct *work);
-
 #if IS_ENABLED(CONFIG_INPUT_SEC_NOTIFIER)
 int stm_notifier_call(struct notifier_block *n, unsigned long data, void *v);
 #endif
+
+#if IS_ENABLED(CONFIG_TOUCHSCREEN_DUAL_FOLDABLE)
+void stm_switching_work(struct work_struct *work);
 
 #if IS_ENABLED(CONFIG_HALL_NOTIFIER)
 int stm_hall_ic_notify(struct notifier_block *nb, unsigned long flip_cover, void *v);
@@ -661,8 +677,9 @@ int stm_hall_ic_notify(struct notifier_block *nb, unsigned long flip_cover, void
 #if IS_ENABLED(CONFIG_SUPPORT_SENSOR_FOLD)
 int stm_hall_ic_ssh_notify(struct notifier_block *nb, unsigned long flip_cover, void *v);
 #endif
+#endif
 
-#ifdef CONFIG_TOUCHSCREEN_DUMP_MODE
+#if IS_ENABLED(CONFIG_TOUCHSCREEN_DUMP_MODE)
 extern struct tsp_dump_callbacks dump_callbacks;
 #endif
 
@@ -681,8 +698,10 @@ int stm_ts_spi_tool_proc_init(struct stm_ts_data *ts);
 int stm_ts_spi_tool_proc_remove(void);
 #endif
 void stm_ts_read_rawdata_address(struct stm_ts_data *ts);
+#ifdef ENABLE_RAWDATA_SERVICE
 int stm_ts_rawdata_map_alloc(struct stm_ts_data *ts);
 int stm_ts_rawdata_map_init(struct stm_ts_data *ts);
 void  stm_ts_rawdata_map_remove(struct stm_ts_data *ts);
+#endif
 #endif /* _LINUX_stm_ts_H_ */
 

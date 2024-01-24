@@ -264,8 +264,8 @@ ssize_t ktd2692_store(const char *buf)
 		} else {
 			LED_INFO("KTD2692-FLASH ON. : E(%d), current(%d)\n", value, global_ktd2692data->flash_current_value);
 			global_ktd2692data->mode_status = KTD2692_ENABLE_FLASH_MODE;
-			ktd2692_write_data(global_ktd2692data->flash_current_value|
-								KTD2692_ADDR_FLASH_CURRENT_SETTING);
+			/*ktd2692_write_data(global_ktd2692data->flash_current_value|
+								KTD2692_ADDR_FLASH_CURRENT_SETTING);*/
 			if (gpio_is_valid(global_ktd2692data->flash_en))
 				__gpio_set_value(global_ktd2692data->flash_en, 1);
 			LED_INFO("KTD2692-FLASH ON. : X(%d), current(%d)\n", value, global_ktd2692data->flash_current_value);
@@ -380,7 +380,7 @@ int32_t ktd2692_led_mode_ctrl(int state, u32 intensity)
 			spin_lock_irqsave(&global_ktd2692data->int_lock, flags);
 			ktd2692_write_data(global_ktd2692data->LVP_Voltage|
 								KTD2692_ADDR_LVP_SETTING);
-			if (intensity > 0) {
+			/*if (intensity > 0) {
 				ktd2692_write_data((uint8_t)(KTD2692_FLASH_CURRENT(intensity, KTD2692_MAX_CURRENT))|
 									KTD2692_ADDR_FLASH_CURRENT_SETTING);
 				LED_INFO("[%s] : Intensity(%u) Current-Index (%d)\n", __func__, intensity,
@@ -388,7 +388,7 @@ int32_t ktd2692_led_mode_ctrl(int state, u32 intensity)
 			} else {
 				ktd2692_write_data(global_ktd2692data->flash_current_value|
 									KTD2692_ADDR_FLASH_CURRENT_SETTING);
-			}
+			}*/
 
 			ktd2692_write_data(global_ktd2692data->mode_status|
 								KTD2692_ADDR_VIDEO_FLASHMODE_CONTROL);
@@ -402,7 +402,7 @@ int32_t ktd2692_led_mode_ctrl(int state, u32 intensity)
 		case 3:
 			/* FlashLight Mode Flicker */
 			LED_INFO("KTD2692-FLASH ON E(%d)\n", state);
-			global_ktd2692data->mode_status = KTD2692_ENABLE_FLASH_MODE;
+			/* global_ktd2692data->mode_status = KTD2692_ENABLE_FLASH_MODE; */
 			spin_lock_irqsave(&global_ktd2692data->int_lock, flags);
 			ktd2692_write_data(global_ktd2692data->LVP_Voltage|
 								KTD2692_ADDR_LVP_SETTING);
@@ -415,8 +415,8 @@ int32_t ktd2692_led_mode_ctrl(int state, u32 intensity)
 				ktd2692_setGpio(0);
 			}
 
-			ktd2692_write_data(global_ktd2692data->mode_status|
-								KTD2692_ADDR_VIDEO_FLASHMODE_CONTROL);
+			/*ktd2692_write_data(global_ktd2692data->mode_status|
+								KTD2692_ADDR_VIDEO_FLASHMODE_CONTROL);*/
 			spin_unlock_irqrestore(&global_ktd2692data->int_lock, flags);
 			LED_INFO("KTD2692-FLASH ON X(%d)\n", state);
 			break;

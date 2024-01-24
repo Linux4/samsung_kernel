@@ -1,12 +1,13 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
- * Copyright (c) 2002,2007-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2002,2007-2021, The Linux Foundation. All rights reserved.
  */
 #ifndef __KGSL_DEVICE_H
 #define __KGSL_DEVICE_H
 
 #include <linux/sched/mm.h>
 #include <linux/sched/task.h>
+#include <trace/events/gpu_mem.h>
 
 #include "kgsl.h"
 #include "kgsl_drawobj.h"
@@ -148,7 +149,7 @@ struct kgsl_functable {
 		struct kgsl_context *context);
 	void (*resume)(struct kgsl_device *device);
 	int (*regulator_enable)(struct kgsl_device *device);
-	bool (*is_hw_collapsible)(struct kgsl_device *device);
+	bool (*prepare_for_power_off)(struct kgsl_device *device);
 	void (*regulator_disable)(struct kgsl_device *device);
 	void (*pwrlevel_change_settings)(struct kgsl_device *device,
 		unsigned int prelevel, unsigned int postlevel, bool post);
@@ -157,7 +158,6 @@ struct kgsl_functable {
 		const char *name, struct clk *clk, bool on);
 	void (*gpu_model)(struct kgsl_device *device, char *str,
 		size_t bufsz);
-	void (*stop_fault_timer)(struct kgsl_device *device);
 	/**
 	 * @query_property_list: query the list of properties
 	 * supported by the device. If 'list' is NULL just return the total
@@ -171,6 +171,7 @@ struct kgsl_functable {
 	int (*gpu_clock_set)(struct kgsl_device *device, u32 pwrlevel);
 	/** @gpu_bus_set: Target specific function to set gpu bandwidth */
 	int (*gpu_bus_set)(struct kgsl_device *device, int bus_level, u32 ab);
+	void (*deassert_gbif_halt)(struct kgsl_device *device);
 };
 
 struct kgsl_ioctl {
@@ -251,6 +252,8 @@ struct kgsl_device {
 	uint32_t requested_state;
 
 	atomic_t active_cnt;
+	/** @total_mapped: To trace overall gpu memory usage */
+	atomic64_t total_mapped;
 
 	wait_queue_head_t active_cnt_wq;
 	struct platform_device *pdev;
@@ -261,16 +264,23 @@ struct kgsl_device {
 	struct {
 		void *ptr;
 		u32 size;
+		bool in_minidump;
 	} snapshot_memory;
 
 	struct kgsl_snapshot *snapshot;
+	/** @panic_nb: notifier block to capture GPU snapshot on kernel panic */
+	struct notifier_block panic_nb;
+	struct {
+		void *ptr;
+		u32 size;
+	} snapshot_memory_atomic;
 
 	u32 snapshot_faultcount;	/* Total number of faults since boot */
 	bool force_panic;		/* Force panic after snapshot dump */
 	bool skip_ib_capture;		/* Skip IB capture after snapshot */
 	bool prioritize_unrecoverable;	/* Overwrite with new GMU snapshots */
 	bool set_isdb_breakpoint;	/* Set isdb registers before snapshot */
-
+	bool snapshot_atomic;		/* To capture snapshot in atomic context*/
 	/* Use CP Crash dumper to get GPU snapshot*/
 	bool snapshot_crashdumper;
 	/* Use HOST side register reads to get GPU snapshot*/
@@ -288,7 +298,8 @@ struct kgsl_device {
 	/* Number of active contexts seen globally for this device */
 	int active_context_count;
 	struct kobject gpu_sysfs_kobj;
-	struct clk *l3_clk;
+	/** @icc_path: Interconnect path for scaling l3 frequency */
+	struct icc_path *l3_icc;
 	unsigned int l3_freq[MAX_L3_LEVELS];
 	unsigned int num_l3_pwrlevels;
 	/* store current L3 vote to determine if we should change our vote */
@@ -309,8 +320,10 @@ struct kgsl_device {
 	u32 speed_bin;
 	/** @gmu_fault: Set when a gmu or rgmu fault is encountered */
 	bool gmu_fault;
-	/** @timelines: xarray for the timelines */
-	struct xarray timelines;
+	/** @timelines: Iterator for assigning IDs to timelines */
+	struct idr timelines;
+	/** @timelines_lock: Spinlock to protect the timelines idr */
+	spinlock_t timelines_lock;
 };
 
 #define KGSL_MMU_DEVICE(_mmu) \
@@ -424,6 +437,7 @@ struct kgsl_context {
  * @fd_count: Counter for the number of FDs for this process
  * @ctxt_count: Count for the number of contexts for this process
  * @ctxt_count_lock: Spinlock to protect ctxt_count
+ * @frame_count: Count for the number of frames processed
  */
 struct kgsl_process_private {
 	unsigned long priv;
@@ -435,6 +449,7 @@ struct kgsl_process_private {
 	struct kgsl_pagetable *pagetable;
 	struct list_head list;
 	struct kobject kobj;
+	struct kobject kobj_memtype;
 	struct dentry *debug_root;
 	struct {
 		atomic64_t cur;
@@ -446,6 +461,7 @@ struct kgsl_process_private {
 	int fd_count;
 	atomic_t ctxt_count;
 	spinlock_t ctxt_count_lock;
+	atomic64_t frame_count;
 };
 
 /**
@@ -600,6 +616,18 @@ static inline bool kgsl_state_is_nap_or_minbw(struct kgsl_device *device)
 		return true;
 
 	return false;
+}
+
+/**
+ * kgsl_start_idle_timer - Start the idle timer
+ * @device: A KGSL device handle
+ *
+ * Start the idle timer to expire in 'interval_timeout' milliseconds
+ */
+static inline void kgsl_start_idle_timer(struct kgsl_device *device)
+{
+	mod_timer(&device->idle_timer,
+			jiffies + msecs_to_jiffies(device->pwrctrl.interval_timeout));
 }
 
 int kgsl_readtimestamp(struct kgsl_device *device, void *priv,
@@ -982,5 +1010,25 @@ struct kgsl_pwr_limit {
 	unsigned int level;
 	struct kgsl_device *device;
 };
+
+/**
+ * kgsl_trace_gpu_mem_total - Overall gpu memory usage tracking which includes
+ * process allocations, imported dmabufs and kgsl globals
+ * @device: A KGSL device handle
+ * @delta: delta of total mapped memory size
+ */
+#ifdef CONFIG_TRACE_GPU_MEM
+static inline void kgsl_trace_gpu_mem_total(struct kgsl_device *device,
+						s64 delta)
+{
+	u64 total_size;
+
+	total_size = atomic64_add_return(delta, &device->total_mapped);
+	trace_gpu_mem_total(0, 0, total_size);
+}
+#else
+static inline void kgsl_trace_gpu_mem_total(struct kgsl_device *device,
+						s64 delta) {}
+#endif
 
 #endif  /* __KGSL_DEVICE_H */

@@ -30,7 +30,7 @@ config EN_OOPS
 	  some battery data values should be defined.
 
 config FUELGAUGE_MAX77705_TEST
-	bool "KUnit test for max77705_fuelgauge_test"
+	tristate "KUnit test for max77705_fuelgauge_test"
 	depends on SEC_KUNIT
 	help
 	  Say Y here to enable

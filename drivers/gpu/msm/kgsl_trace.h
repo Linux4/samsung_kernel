@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
- * Copyright (c) 2011-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2011-2021, The Linux Foundation. All rights reserved.
  */
 
 #if !defined(_KGSL_TRACE_H) || defined(TRACE_HEADER_MULTI_READ)
@@ -35,7 +35,9 @@
 #define show_constraint(type) \
 	__print_symbolic(type, \
 		{ KGSL_CONSTRAINT_NONE, "None" }, \
-		{ KGSL_CONSTRAINT_PWRLEVEL, "Pwrlevel" })
+		{ KGSL_CONSTRAINT_PWRLEVEL, "Pwrlevel" }, \
+		{ KGSL_CONSTRAINT_L3_NONE, "L3_none" }, \
+		{ KGSL_CONSTRAINT_L3_PWRLEVEL, "L3_pwrlevel" })
 
 struct kgsl_ringbuffer_issueibcmds;
 struct kgsl_device_waittimestamp;
@@ -1340,6 +1342,80 @@ TRACE_EVENT(kgsl_drawobj_timeline,
 	),
 	TP_printk("timeline=%u seqno=%llu",
 		__entry->timeline, __entry->seqno
+	)
+);
+
+TRACE_EVENT(kgsl_pool_add_page,
+	TP_PROTO(int order, u32 count),
+	TP_ARGS(order, count),
+	TP_STRUCT__entry(
+		__field(int, order)
+		__field(u32, count)
+	),
+	TP_fast_assign(
+		__entry->order = order;
+		__entry->count = count;
+	),
+	TP_printk("order=%d count=%u",
+		__entry->order, __entry->count
+	)
+);
+
+TRACE_EVENT(kgsl_pool_get_page,
+	TP_PROTO(int order, u32 count),
+	TP_ARGS(order, count),
+	TP_STRUCT__entry(
+		__field(int, order)
+		__field(u32, count)
+	),
+	TP_fast_assign(
+		__entry->order = order;
+		__entry->count = count;
+	),
+	TP_printk("order=%d count=%u",
+		__entry->order, __entry->count
+	)
+);
+
+TRACE_EVENT(kgsl_pool_alloc_page_system,
+	TP_PROTO(int order),
+	TP_ARGS(order),
+	TP_STRUCT__entry(
+		__field(int, order)
+	),
+	TP_fast_assign(
+		__entry->order = order;
+	),
+	TP_printk("order=%d",
+		__entry->order
+	)
+);
+
+TRACE_EVENT(kgsl_pool_try_page_lower,
+	TP_PROTO(int order),
+	TP_ARGS(order),
+	TP_STRUCT__entry(
+		__field(int, order)
+	),
+	TP_fast_assign(
+		__entry->order = order;
+	),
+	TP_printk("order=%d",
+		__entry->order
+	)
+);
+
+TRACE_EVENT(kgsl_pool_free_page,
+	TP_PROTO(int order),
+	TP_ARGS(order),
+	TP_STRUCT__entry(
+		__field(int, order)
+	),
+	TP_fast_assign(
+		__entry->order = order;
+	),
+	TP_printk("order=%d",
+		__entry->order
 	)
 );
 

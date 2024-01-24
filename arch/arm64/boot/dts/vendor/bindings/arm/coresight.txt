@@ -101,6 +101,14 @@ its hardware characteristcs.
 		- Coresight remote ETM:
 			"qcom,coresight-remote-etm"
 
+		- Coresight dbgui device:
+			"qcom,coresight-dbgui"
+
+		- Coresight fuse device:
+			"arm,coresight-fuse"
+			"arm,coresight-fuse-v2"
+			"arm,coresight-fuse-v3"
+
 	* port or ports: see "Graph bindings for Coresight" below.
 
 * Additional required property for coresight-tgu devices:
@@ -136,6 +144,15 @@ its hardware characteristcs.
 
 	* arm,scatter-gather: boolean. Indicates that the TMC-ETR can safely
 	  use the SG mode on this system.
+
+	* cti-reset-trig-num: Specifies the reset CTI trigger number for TMC
+	  ETR and TMC ETF.
+
+	* cti-flush-trig-num: Specifies the flush CTI trigger number for TMC
+	  ETR and TMC ETF.
+
+	* qcom,qdss-ipa-support : indicates whether qdss to ipa bam connection
+	   need to support.
 
 * Optional property for CATU and APSS :
 	* interrupts : Exactly one SPI may be listed for reporting the address

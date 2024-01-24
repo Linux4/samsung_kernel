@@ -1,4 +1,5 @@
 /*
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  * Copyright (c) 2016-2020, The Linux Foundation. All rights reserved.
  * Copyright (C) 2013 Red Hat
  * Author: Rob Clark <robdclark@gmail.com>
@@ -385,8 +386,8 @@ struct msm_roi_caps {
  * @dsc_4hsmerge_en:         Using DSC 4HS merge topology
  * @dsc_4hsmerge_padding     4HS merge DSC pair padding value in bytes
  * @dsc_4hsmerge_alignment   4HS merge DSC alignment value in bytes
- * @half_panel_pu            True For Dual dsc encoders if partial update is
- *                           enabled and only one encoder needs to be used,
+ * @half_panel_pu            True for single and dual dsc encoders if partial
+ *                           update sets the roi width to half of mode width
  *                           False in all other cases
  */
 struct msm_display_dsc_info {
@@ -1146,6 +1147,8 @@ struct drm_framebuffer *msm_framebuffer_create(struct drm_device *dev,
 		struct drm_file *file, const struct drm_mode_fb_cmd2 *mode_cmd);
 struct drm_framebuffer * msm_alloc_stolen_fb(struct drm_device *dev,
 		int w, int h, int p, uint32_t format);
+int msm_fb_obj_get_attrs(struct drm_gem_object *obj, int *fb_ns,
+		int *fb_sec, int *fb_sec_dir, unsigned long *flags);
 
 struct drm_fb_helper *msm_fbdev_init(struct drm_device *dev);
 void msm_fbdev_free(struct drm_device *dev);

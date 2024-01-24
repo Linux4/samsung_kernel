@@ -9,7 +9,7 @@
 #include "dp_catalog.h"
 #include "dp_reg.h"
 #include "dp_debug.h"
-#ifdef CONFIG_SEC_DISPLAYPORT
+#if defined(CONFIG_SEC_DISPLAYPORT)
 #include "secdp.h"
 #endif
 
@@ -149,7 +149,7 @@ static u32 dp_read_hw(struct dp_catalog_private *catalog,
 {
 	u32 data = 0;
 
-#ifdef CONFIG_SEC_DISPLAYPORT
+#if defined(CONFIG_SEC_DISPLAYPORT)
 	if (secdp_phy_reset_check())
 		return 0;
 #endif
@@ -162,7 +162,7 @@ static u32 dp_read_hw(struct dp_catalog_private *catalog,
 static void dp_write_hw(struct dp_catalog_private *catalog,
 	struct dp_io_data *io_data, u32 offset, u32 data)
 {
-#ifdef CONFIG_SEC_DISPLAYPORT
+#if defined(CONFIG_SEC_DISPLAYPORT)
 	if (secdp_phy_reset_check())
 		return;
 #endif
@@ -283,7 +283,7 @@ static int dp_catalog_aux_clear_trans(struct dp_catalog_aux *aux, bool read)
 
 	if (read) {
 		data = dp_read(DP_AUX_TRANS_CTRL);
-#ifdef CONFIG_SEC_DISPLAYPORT
+#if defined(CONFIG_SEC_DISPLAYPORT)
 		/* Prevent_CXX Major defect - Invalid Assignment: The type size
 		 * of both side variables are different:
 		 * "data" is 4 ( unsigned int ) and "data & 0xfffffffffffffdffUL
@@ -316,7 +316,7 @@ static void dp_catalog_aux_clear_hw_interrupts(struct dp_catalog_aux *aux)
 	io_data = catalog->io.dp_phy;
 
 	data = dp_read(DP_PHY_AUX_INTERRUPT_STATUS);
-#ifdef CONFIG_SEC_DISPLAYPORT
+#if defined(CONFIG_SEC_DISPLAYPORT)
 	if (data)
 		DP_DEBUG("PHY_AUX_INTERRUPT_STATUS=0x%08x\n", data);
 #endif
@@ -396,7 +396,7 @@ static void dp_catalog_aux_update_cfg(struct dp_catalog_aux *aux,
 		return;
 	}
 
-#ifdef CONFIG_SEC_DISPLAYPORT
+#if defined(CONFIG_SEC_DISPLAYPORT)
 	if (!secdp_get_cable_status()) {
 		DP_INFO("cable is out\n");
 		return;
@@ -1572,6 +1572,7 @@ static void dp_catalog_panel_dp_flush(struct dp_catalog_panel *panel,
 	struct dp_catalog_private *catalog;
 	struct dp_io_data *io_data;
 	u32 dp_flush, offset;
+	struct dp_dsc_cfg_data *dsc;
 
 	if (!panel) {
 		DP_ERR("invalid input\n");
@@ -1585,6 +1586,7 @@ static void dp_catalog_panel_dp_flush(struct dp_catalog_panel *panel,
 
 	catalog = dp_catalog_get_priv(panel);
 	io_data = catalog->io.dp_link;
+	dsc = &panel->dsc;
 
 	if (panel->stream_id == DP_STREAM_0)
 		offset = 0;
@@ -1592,6 +1594,11 @@ static void dp_catalog_panel_dp_flush(struct dp_catalog_panel *panel,
 		offset = MMSS_DP1_FLUSH - MMSS_DP_FLUSH;
 
 	dp_flush = dp_read(MMSS_DP_FLUSH + offset);
+
+	if ((flush_bit == DP_PPS_FLUSH) &&
+		dsc->continuous_pps)
+		dp_flush &= ~BIT(2);
+
 	dp_flush |= BIT(flush_bit);
 	dp_write(MMSS_DP_FLUSH + offset, dp_flush);
 }
@@ -1599,7 +1606,7 @@ static void dp_catalog_panel_dp_flush(struct dp_catalog_panel *panel,
 static void dp_catalog_panel_pps_flush(struct dp_catalog_panel *panel)
 {
 	dp_catalog_panel_dp_flush(panel, DP_PPS_FLUSH);
-#ifndef CONFIG_SEC_DISPLAYPORT
+#if !defined(CONFIG_SEC_DISPLAYPORT)
 	DP_DEBUG("pps flush for stream:%d\n", panel->stream_id);
 #endif
 }
@@ -2791,7 +2798,7 @@ static int dp_catalog_init(struct device *dev, struct dp_catalog *dp_catalog,
 	struct dp_catalog_private *catalog = container_of(dp_catalog,
 				struct dp_catalog_private, dp_catalog);
 
-#ifdef CONFIG_SEC_DISPLAYPORT
+#if defined(CONFIG_SEC_DISPLAYPORT)
 	dp_catalog->parser = parser;
 #endif
 

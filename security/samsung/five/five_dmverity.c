@@ -20,9 +20,9 @@
 #include "five_dmverity.h"
 #include "five.h"
 #include "five_testing.h"
+#include "five_porting.h"
 
-#include "../../../drivers/md/dm.h"
-#include "../../../drivers/block/loop.h"
+#include "drivers/md/dm.h"
 
 #ifdef CONFIG_FIVE_DEBUG
 #include <linux/debugfs.h>
@@ -301,7 +301,7 @@ bool five_is_dmverity_protected(const struct file *file)
 static bool is_dmverity_prebuit_path(const struct file *file)
 {
 	const char * const paths[] = {
-		"/system/", "/vendor/", "/apex/",
+		"/system/", "/system_ext/", "/vendor/", "/apex/",
 		"/product/", "/odm/", "/prism/", "/optics/"
 	};
 	const char *pathname = NULL;

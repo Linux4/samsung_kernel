@@ -12,6 +12,7 @@
 #include "atl_macsec.h"
 #if IS_ENABLED(CONFIG_MACSEC) && defined(NETIF_F_HW_MACSEC)
 #include "atl_common.h"
+#include "atl_fwd.h"
 #include <linux/rtnetlink.h>
 
 #include "macsec/macsec_api.h"
@@ -388,6 +389,9 @@ int atl_init_macsec(struct atl_hw *hw)
 	int num_ctl_ether_types = 0;
 	int index = 0, tbl_idx;
 	int ret;
+
+	if (hw->chip_id == ATL_ANTIGUA)
+		return 0;
 
 	rtnl_lock();
 	memset(&msg, 0, sizeof(msg));

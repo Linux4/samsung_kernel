@@ -7,17 +7,25 @@
 		reg-names = "core_base";
 
 		iommus = <&apps_smmu 0x1a0 0x0>;
-		qcom,iommu-dma = "bypass";
-		qcom,iommu-dma-addr-pool = <0x90000000 0x60000000>;
+		qcom,iommu-dma = "atomic";
+		qcom,iommu-dma-addr-pool = <0x90000000 0x0ffe0000>;
 		#address-cells = <1>;
 		#size-cells = <1>;
 		ranges;
 		dma-ranges;
+		qcom,iommu-best-fit-algo;
 
-		interrupts = <0 130 0>;
-		interrupt-names = "pwr_event_irq";
+		interrupts-extended = <&pdc 19 IRQ_TYPE_EDGE_RISING>,
+				<&intc GIC_SPI 130 IRQ_TYPE_LEVEL_HIGH>,
+				<&pdc 76 IRQ_TYPE_LEVEL_HIGH>,
+				<&pdc 18 IRQ_TYPE_EDGE_RISING>;
+		interrupt-names = "dp_hs_phy_irq", "pwr_event_irq",
+				"ss_phy_irq", "dm_hs_phy_irq";
+		qcom,use-pdc-interrupts;
 
 		USB3_GDSC-supply = <&gcc_usb30_gdsc>;
+		dpdm-supply = <&usb2_phy>;
+		qcom,usb-charger;
 		clocks = <&gcc GCC_USB30_MASTER_CLK>,
 			<&gcc GCC_USB30_SLV_AHB_CLK>,
 			<&gcc GCC_USB30_MSTR_AXI_CLK>,
@@ -47,6 +55,8 @@
 				<&system_noc MASTER_USB3 &system_noc SLAVE_IPA_CFG>,
 				<&mem_noc MASTER_APPSS_PROC &system_noc SLAVE_USB3>;
 
+		qcom,default-bus-vote = <2>; /* use svs bus voting */
+		qcom,pm-qos-latency = <44>;
 		dwc3@a600000 {
 			compatible = "snps,dwc3";
 			reg = <0x0a600000 0xcd00>;
@@ -57,11 +67,42 @@
 			snps,has-lpm-erratum;
 			snps,hird-threshold = /bits/ 8 <0x10>;
 			snps,ssp-u3-u0-quirk;
-			snps,usb3-u1u2-disable;
+			snps,dis-u1-entry-quirk;
+			snps,dis-u2-entry-quirk;
+			snps,bus-suspend-enable;
 			tx-fifo-resize;
 			maximum-speed = "super-speed-plus";
 			dr_mode = "otg";
-			snps,xhci-imod-value = <4000>;
+			imod-interval-ns = <1000000>;
+		};
+
+		qcom,usbbam@a704000 {
+			compatible = "qcom,usb-bam-msm";
+			reg = <0xa704000 0x17000>;
+			interrupts = <GIC_SPI 132 IRQ_TYPE_LEVEL_HIGH>;
+
+			qcom,usb-bam-fifo-baseaddr = <0x1468b000>;
+			qcom,usb-bam-num-pipes = <4>;
+			qcom,disable-clk-gating;
+			qcom,usb-bam-override-threshold = <0x4001>;
+			qcom,usb-bam-max-mbps-highspeed = <400>;
+			qcom,usb-bam-max-mbps-superspeed = <3600>;
+			qcom,reset-bam-on-connect;
+
+			qcom,pipe0 {
+				label = "ssusb-qdss-in-0";
+				qcom,usb-bam-mem-type = <2>;
+				qcom,dir = <1>;
+				qcom,pipe-num = <0>;
+				qcom,peer-bam = <0>;
+				qcom,peer-bam-physical-address = <0x6064000>;
+				qcom,src-bam-pipe-index = <0>;
+				qcom,dst-bam-pipe-index = <0>;
+				qcom,data-fifo-offset = <0x0>;
+				qcom,data-fifo-size = <0x1800>;
+				qcom,descriptor-fifo-offset = <0x1800>;
+				qcom,descriptor-fifo-size = <0x800>;
+			};
 		};
 	};
 
@@ -71,9 +112,10 @@
 
 	usb2_phy: hsphy@ff4000 {
 		compatible = "qcom,usb-hsphy-snps-femto";
-		reg = <0xff4000 0x120>;
-		reg-names = "hsusb_phy_base";
-
+		reg = <0xff4000 0x120>,
+			<0xff2000 0x4>;
+		reg-names = "hsusb_phy_base",
+			"eud_enable_reg";
 		vdd-supply = <&pmx65_l4>;
 		qcom,vdd-voltage-level = <0 912000 912000>;
 		vdda18-supply = <&pmx65_l5>;
@@ -153,7 +195,7 @@
 				USB3_UNI_QSERDES_COM_SSC_STEP_SIZE1_MODE0 0xDE 0
 				USB3_UNI_QSERDES_COM_SSC_STEP_SIZE2_MODE0 0x07 0
 				USB3_UNI_QSERDES_COM_VCO_TUNE_MAP 0x02 0
-				USB3_UNI_QSERDES_RX_RX_MODE_00_HIGH4 0xDC 0
+				USB3_UNI_QSERDES_RX_RX_MODE_00_HIGH4 0xDB 0
 				USB3_UNI_QSERDES_RX_RX_MODE_00_HIGH3 0xBD 0
 				USB3_UNI_QSERDES_RX_RX_MODE_00_HIGH2 0xFF 0
 				USB3_UNI_QSERDES_RX_RX_MODE_00_HIGH 0x7F 0
@@ -189,8 +231,8 @@
 				USB3_UNI_QSERDES_TX_LANE_MODE_3 0x3F 0
 				USB3_UNI_QSERDES_TX_LANE_MODE_4 0x3F 0
 				USB3_UNI_QSERDES_TX_PI_QEC_CTRL 0x21 0
-				USB3_UNI_QSERDES_TX_RES_CODE_LANE_OFFSET_TX 0x10 0
-				USB3_UNI_QSERDES_TX_RES_CODE_LANE_OFFSET_RX 0x0E 0
+				USB3_UNI_QSERDES_TX_RES_CODE_LANE_OFFSET_TX 0x1F 0
+				USB3_UNI_QSERDES_TX_RES_CODE_LANE_OFFSET_RX 0x0B 0
 				USB3_UNI_PCS_LOCK_DETECT_CONFIG1 0xD0 0
 				USB3_UNI_PCS_LOCK_DETECT_CONFIG2 0x07 0
 				USB3_UNI_PCS_LOCK_DETECT_CONFIG3 0x20 0
@@ -218,5 +260,52 @@
 				 USB3_UNI_PCS_START_CONTROL>;
 
 
+	};
+};
+
+/ {
+	qcom_gadget {
+		compatible = "qcom,usb-gadget";
+		qcom,vid = <0x05c6>;
+
+		composition1 {
+			qcom,pid = <0x9057>;
+			qcom,composition = "gsi.rndis|gsi.ecm";
+		};
+
+		composition2 {
+			qcom,pid = <0x905b>;
+			qcom,composition = "gsi.mbim";
+			qcom,bmAttributes = <0xa0>;
+		};
+
+		composition3 {
+			qcom,pid = <0x9063>;
+			qcom,composition = "gsi.rndis|gsi.ecm|gsi.mbim";
+			qcom,bmAttributes = <0xa0>;
+		};
+
+		composition4 {
+			qcom,pid = <0x9067>;
+			qcom,composition = "mass_storage.0,gsi.rmnet|mass_storage.1,gsi.mbim";
+			qcom,bmAttributes = <0xa0>;
+		};
+
+		composition5 {
+			qcom,pid = <0x90b1>;
+			qcom,composition = "gsi.ecm";
+			qcom,bmAttributes = <0xa0>;
+		};
+
+		composition6 {
+			qcom,pid = <0x90e2>;
+			qcom,composition = "gsi.mbim,gsi.gps";
+			qcom,bmAttributes = <0xa0>;
+		};
+
+		composition7 {
+			qcom,pid = <0xf000>;
+			qcom,composition = "mass_storage.0";
+		};
 	};
 };

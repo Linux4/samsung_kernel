@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2016-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
  */
 
 
@@ -196,7 +196,8 @@ static void dsi_bridge_pre_enable(struct drm_bridge *bridge)
 		return;
 	}
 
-	atomic_set(&c_bridge->display->panel->esd_recovery_pending, 0);
+	if (bridge->encoder->crtc->state->active_changed)
+		atomic_set(&c_bridge->display->panel->esd_recovery_pending, 0);
 
 	/* By this point mode should have been validated through mode_fixup */
 	rc = dsi_display_set_mode(c_bridge->display,
@@ -244,6 +245,9 @@ static void dsi_bridge_enable(struct drm_bridge *bridge)
 	int rc = 0;
 	struct dsi_bridge *c_bridge = to_dsi_bridge(bridge);
 	struct dsi_display *display;
+#if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
+	struct samsung_display_driver_data *vdd;
+#endif
 
 	if (!bridge) {
 		DSI_ERR("Invalid params\n");
@@ -263,6 +267,16 @@ static void dsi_bridge_enable(struct drm_bridge *bridge)
 		DSI_ERR("[%d] DSI display post enabled failed, rc=%d\n",
 		       c_bridge->id, rc);
 
+	if (display)
+		display->enabled = true;
+
+#if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
+	vdd = display->panel->panel_private;
+	if (vdd) {
+		vdd->display_enabled = true;
+	}
+#endif
+
 	if (display && display->drm_conn) {
 		sde_connector_helper_bridge_enable(display->drm_conn);
 		if (c_bridge->dsi_mode.dsi_mode_flags & DSI_MODE_FLAG_POMS)
@@ -277,6 +291,9 @@ static void dsi_bridge_disable(struct drm_bridge *bridge)
 	int private_flags;
 	struct dsi_display *display;
 	struct dsi_bridge *c_bridge = to_dsi_bridge(bridge);
+#if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
+	struct samsung_display_driver_data *vdd;
+#endif
 
 	if (!bridge) {
 		DSI_ERR("Invalid params\n");
@@ -285,6 +302,16 @@ static void dsi_bridge_disable(struct drm_bridge *bridge)
 	display = c_bridge->display;
 	private_flags =
 		bridge->encoder->crtc->state->adjusted_mode.private_flags;
+
+	if (display)
+		display->enabled = false;
+
+#if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
+	vdd = display->panel->panel_private;
+	if (vdd) {
+ 		vdd->display_enabled = false;
+	}
+#endif
 
 	if (display && display->drm_conn) {
 		display->poms_pending =
@@ -445,8 +472,9 @@ static bool dsi_bridge_mode_fixup(struct drm_bridge *bridge,
 			(!(dsi_mode.dsi_mode_flags & DSI_MODE_FLAG_POMS)) &&
 			(!(dsi_mode.dsi_mode_flags & DSI_MODE_FLAG_DYN_CLK)) &&
 			(!crtc_state->active_changed ||
-			 display->is_cont_splash_enabled)) {
+			 display->is_cont_splash_enabled))
 #if defined(CONFIG_DISPLAY_SAMSUNG)
+		{
 			if (display->panel->panel_initialized || display->is_cont_splash_enabled) {
 				struct samsung_display_driver_data *vdd = display->panel->panel_private;
 				struct vrr_info *vrr = &vdd->vrr;
@@ -566,6 +594,7 @@ static bool dsi_bridge_mode_fixup(struct drm_bridge *bridge,
 					adjusted_sot_hs ? (adjusted_phs ? "PHS" : "HS") : "NM",
 					crtc_state->active_changed,
 					display->is_cont_splash_enabled);
+			}
 #else
 			dsi_mode.dsi_mode_flags |= DSI_MODE_FLAG_DMS;
 
@@ -575,8 +604,8 @@ static bool dsi_bridge_mode_fixup(struct drm_bridge *bridge,
 				dsi_mode.timing.refresh_rate,
 				dsi_mode.pixel_clk_khz,
 				dsi_mode.panel_mode);
-#endif
 		}
+#endif
 	}
 
 	/* Reject seamless transition when active changed */
@@ -642,6 +671,29 @@ u64 dsi_drm_find_bit_clk_rate(void *display,
 	}
 
 	return bit_clk_rate;
+}
+
+int dsi_conn_get_lm_from_mode(void *display, const struct drm_display_mode *drm_mode)
+{
+	struct dsi_display *dsi_display = display;
+	struct dsi_display_mode dsi_mode, *panel_dsi_mode;
+	int rc = -EINVAL;
+
+	if (!dsi_display || !drm_mode) {
+		DSI_ERR("Invalid params %d %d\n", !display, !drm_mode);
+		return rc;
+	}
+
+	convert_to_dsi_mode(drm_mode, &dsi_mode);
+
+	rc = dsi_display_find_mode(dsi_display, &dsi_mode, &panel_dsi_mode);
+	if (rc) {
+		DSI_ERR("mode not found %d\n", rc);
+		drm_mode_debug_printmodeline(drm_mode);
+		return rc;
+	}
+
+	return panel_dsi_mode->priv_info->topology.num_lm;
 }
 
 int dsi_conn_get_mode_info(struct drm_connector *connector,
@@ -1200,14 +1252,24 @@ int dsi_conn_post_kickoff(struct drm_connector *connector,
 			return -EINVAL;
 		}
 
+		/*
+		 * When both DFPS and dynamic clock switch with constant
+		 * fps features are enabled, wait for dynamic refresh done
+		 * only in case of clock switch.
+		 * In case where only fps changes, clock remains same.
+		 * So, wait for dynamic refresh done is not required.
+		 */
 		if ((ctrl_version >= DSI_CTRL_VERSION_2_5) &&
-				(dyn_clk_caps->maintain_const_fps)) {
+			(dyn_clk_caps->maintain_const_fps) &&
+			(adj_mode.dsi_mode_flags & DSI_MODE_FLAG_DYN_CLK)) {
 			display_for_each_ctrl(i, display) {
 				ctrl = &display->ctrl[i];
 				rc = dsi_ctrl_wait4dynamic_refresh_done(
 						ctrl->ctrl);
 				if (rc)
 					DSI_ERR("wait4dfps refresh failed\n");
+				dsi_display_dfps_update_parent(display);
+				dsi_phy_dynamic_refresh_clear(ctrl->phy);
 			}
 		}
 
@@ -1301,7 +1363,7 @@ void dsi_conn_set_allowed_mode_switch(struct drm_connector *connector,
 	struct list_head *mode_list = &connector->modes;
 	struct dsi_display *disp = display;
 	struct dsi_panel *panel;
-	int mode_count, rc = 0;
+	int mode_count = 0, rc = 0;
 	struct dsi_display_mode_priv_info *dsi_mode_info, *cmp_dsi_mode_info;
 	bool allow_switch = false;
 
@@ -1311,7 +1373,8 @@ void dsi_conn_set_allowed_mode_switch(struct drm_connector *connector,
 	}
 
 	panel = disp->panel;
-	mode_count = panel->num_display_modes;
+	list_for_each_entry(drm_mode, &connector->modes, head)
+		mode_count++;
 
 	list_for_each_entry(drm_mode, &connector->modes, head) {
 
@@ -1329,6 +1392,8 @@ void dsi_conn_set_allowed_mode_switch(struct drm_connector *connector,
 		mode_list = mode_list->next;
 		cmp_mode_idx = 1;
 		list_for_each_entry(cmp_drm_mode, mode_list, head) {
+			if (&cmp_drm_mode->head == &connector->modes)
+				continue;
 			convert_to_dsi_mode(cmp_drm_mode, &dsi_mode);
 
 			rc = dsi_display_find_mode(display, &dsi_mode,

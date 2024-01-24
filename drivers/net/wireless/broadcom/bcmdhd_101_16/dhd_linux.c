@@ -2,7 +2,7 @@
  * Broadcom Dongle Host Driver (DHD), Linux-specific network interface.
  * Basically selected code segments from usb-cdc.c and usb-rndis.c
  *
- * Copyright (C) 2021, Broadcom.
+ * Copyright (C) 2022, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -298,7 +298,7 @@ extern uint sd_f2_blocksize;
 extern int dhdsdio_func_blocksize(dhd_pub_t *dhd, int function_num, int block_size);
 #endif /* USE_DYNAMIC_F2_BLKSIZE */
 
-#ifdef CONFIG_PARTIALSUSPEND_SLP
+#if defined(CONFIG_PARTIALSUSPEND_SLP) && !defined(DHD_USE_PM_SLEEP)
 /* XXX SLP use defferent earlysuspend header file and some functions
  * But most of meaning is same as Android
  */
@@ -313,7 +313,7 @@ extern int dhdsdio_func_blocksize(dhd_pub_t *dhd, int function_num, int block_si
 #if defined(CONFIG_HAS_EARLYSUSPEND) && defined(DHD_USE_EARLYSUSPEND)
 #include <linux/earlysuspend.h>
 #endif /* defined(CONFIG_HAS_EARLYSUSPEND) && defined(DHD_USE_EARLYSUSPEND) */
-#endif /* CONFIG_PARTIALSUSPEND_SLP */
+#endif /* CONFIG_PARTIALSUSPEND_SLP && !DHD_USE_PM_SLEEP */
 
 #if defined(APF)
 static int _dhd_apf_add_filter(struct net_device *ndev, uint32 filter_id, u8* program,
@@ -915,30 +915,118 @@ static void dhd_module_s2mpu_register(struct device *dev);
 #endif /* CONFIG_EXYNOS_S2MPU */
 #endif /* CONFIG_SOC_EXYNOS2100 || CONFIG_SOC_EXYNOS1000 */
 
+#ifdef DHD_FILE_DUMP_EVENT
+static void dhd_dump_proc(struct work_struct *work_data);
+#endif /* DHD_FILE_DUMP_EVENT */
+
+static int dhd_suspend_resume_helper(struct dhd_info *dhd, int val, int force);
+
+#ifdef CUSTOM_EVENT_PM_WAKE
+void
+dhd_set_excess_pm_awake(dhd_pub_t *dhd, bool suspend)
+{
+	int ret = 0;
+	uint32 iovar_val = 0;   /* Disable the excess PM notify */
+	char *iovar_name;
+
+#ifdef CUSTOM_EVENT_PM_PERCENT
+	iovar_name = "excess_pm_period";
+#else
+	iovar_name = "const_awake_thresh";
+	iovar_val = CUSTOM_EVENT_PM_WAKE;
+#endif /* CUSTOM_EVENT_PM_PERCENT */
+
+	if (suspend) {
+		iovar_val = CUSTOM_EVENT_PM_WAKE * 4;
+	}
+
+	ret = dhd_iovar(dhd, 0, iovar_name, (char *)&iovar_val,
+			sizeof(iovar_val), NULL, 0, TRUE);
+	if (ret < 0) {
+		DHD_ERROR(("%s set %s failed %d\n", __FUNCTION__, iovar_name, ret));
+	}
+	return;
+}
+
+void
+dhd_init_excess_pm_awake(dhd_pub_t *dhd)
+{
+	int ret = 0;
+	uint32 pm_awake_thresh = CUSTOM_EVENT_PM_WAKE;
+#ifdef CUSTOM_EVENT_PM_PERCENT
+	uint32 pm_awake_percent = CUSTOM_EVENT_PM_PERCENT;
+
+	ret = dhd_iovar(dhd, 0, "excess_pm_percent", (char *)&pm_awake_percent,
+			sizeof(pm_awake_percent), NULL, 0, TRUE);
+	if (ret < 0) {
+		DHD_ERROR(("%s set excess_pm_percent failed %d\n", __FUNCTION__, ret));
+	}
+	pm_awake_thresh = 0;    /* Disable the excess PM notify */
+#endif /* CUSTOM_EVENT_PM_PERCENT */
+	ret = dhd_iovar(dhd, 0, "const_awake_thresh", (char *)&pm_awake_thresh,
+			sizeof(pm_awake_thresh), NULL, 0, TRUE);
+	if (ret < 0) {
+		DHD_ERROR(("%s set const_awake_thresh failed %d\n", __FUNCTION__, ret));
+	}
+
+	return;
+}
+#endif /* CUSTOM_EVENT_PM_WAKE */
+
 #if defined(CONFIG_PM_SLEEP)
 static int dhd_pm_callback(struct notifier_block *nfb, unsigned long action, void *ignored)
 {
 	int ret = NOTIFY_DONE;
 	bool suspend = FALSE;
 	dhd_info_t *dhdinfo;
+	unsigned long flags = 0;
 
 	BCM_REFERENCE(dhdinfo);
 	BCM_REFERENCE(suspend);
+
+	GCC_DIAGNOSTIC_PUSH_SUPPRESS_CAST();
+	dhdinfo = container_of(nfb, dhd_info_t, pm_notifier);
+	GCC_DIAGNOSTIC_POP();
+
+	if (!dhdinfo->pub.up) {
+		return ret;
+	}
+
+	DHD_GENERAL_LOCK(&dhdinfo->pub, flags);
+	DHD_BUS_BUSY_SET_IN_PM_CALLBACK(&dhdinfo->pub);
+	DHD_GENERAL_UNLOCK(&dhdinfo->pub, flags);
+	DHD_ERROR(("%s action: %lu\n", __FUNCTION__, action));
 
 	switch (action) {
 	case PM_HIBERNATION_PREPARE:
 	case PM_SUSPEND_PREPARE:
 		suspend = TRUE;
+#ifdef DHD_PCIE_RUNTIMEPM
+		DHD_DISABLE_RUNTIME_PM(&dhdinfo->pub);
+#endif /* DHD_PCIE_RUNTIMEPM */
 		break;
 
 	case PM_POST_HIBERNATION:
 	case PM_POST_SUSPEND:
 		suspend = FALSE;
+#ifdef DHD_PCIE_RUNTIMEPM
+		DHD_ENABLE_RUNTIME_PM(&dhdinfo->pub);
+#endif /* DHD_PCIE_RUNTIMEPM */
 		break;
 	}
 
+#if defined(DHD_USE_PM_SLEEP)
+	/* The resume setting is handled in wl_android_set_suspendmode(). */
+	if (suspend == TRUE) {
+		dhd_suspend_resume_helper(dhdinfo, suspend, 0);
+	}
+#endif /* DHD_USE_PM_SLEEP */
+
+#ifdef CUSTOM_EVENT_PM_WAKE
+	dhd_set_excess_pm_awake(&dhdinfo->pub, suspend);
+#endif /* CUSTOM_EVENT_PM_WAKE */
+
 #if defined(SUPPORT_P2P_GO_PS) && defined(PROP_TXSTATUS)
-	dhdinfo = container_of(nfb, const dhd_info_t, pm_notifier);
 	if (suspend) {
 		DHD_OS_WAKE_LOCK_WAIVE(&dhdinfo->pub);
 		dhd_wlfc_suspend(&dhdinfo->pub);
@@ -953,6 +1041,9 @@ static int dhd_pm_callback(struct notifier_block *nfb, unsigned long action, voi
 	dhd_mmc_suspend = suspend;
 	smp_mb();
 #endif
+	DHD_GENERAL_LOCK(&dhdinfo->pub, flags);
+	DHD_BUS_BUSY_CLEAR_IN_PM_CALLBACK(&dhdinfo->pub);
+	DHD_GENERAL_UNLOCK(&dhdinfo->pub, flags);
 	return ret;
 }
 
@@ -1815,7 +1906,7 @@ static int dhd_set_suspend(int value, dhd_pub_t *dhd)
 #endif /* SUPPORT_PM2_ONLY */
 	/* wl_pkt_filter_enable_t	enable_parm; */
 	int ret = 0;
-#ifdef DHD_USE_EARLYSUSPEND
+#if defined(DHD_USE_EARLYSUSPEND) || defined(DHD_USE_PM_SLEEP)
 #ifdef CUSTOM_ROAM_TIME_THRESH_IN_SUSPEND
 	int roam_time_thresh = 0;   /* (ms) */
 #endif /* CUSTOM_ROAM_TIME_THRESH_IN_SUSPEND */
@@ -1826,10 +1917,7 @@ static int dhd_set_suspend(int value, dhd_pub_t *dhd)
 #ifdef ENABLE_IPMCAST_FILTER
 	int ipmcast_l2filter;
 #endif /* ENABLE_IPMCAST_FILTER */
-#ifdef CUSTOM_EVENT_PM_WAKE
-	uint32 pm_awake_thresh = CUSTOM_EVENT_PM_WAKE;
-#endif /* CUSTOM_EVENT_PM_WAKE */
-#endif /* DHD_USE_EARLYSUSPEND */
+#endif /* DHD_USE_EARLYSUSPEND || DHD_USE_PM_SLEEP */
 #ifdef PASS_ALL_MCAST_PKTS
 	struct dhd_info *dhdinfo;
 	uint32 allmulti;
@@ -1842,10 +1930,11 @@ static int dhd_set_suspend(int value, dhd_pub_t *dhd)
 #endif /* CUSTOM_INTR_WIDTH */
 #endif /* DYNAMIC_SWOOB_DURATION */
 
-#if defined(DHD_BCN_TIMEOUT_IN_SUSPEND) && defined(DHD_USE_EARLYSUSPEND)
+#if defined(DHD_BCN_TIMEOUT_IN_SUSPEND) && (defined(DHD_USE_EARLYSUSPEND) || \
+	defined(DHD_USE_PM_SLEEP))
 	/* CUSTOM_BCN_TIMEOUT_IN_SUSPEND in suspend, otherwise CUSTOM_BCN_TIMEOUT */
 	int bcn_timeout = CUSTOM_BCN_TIMEOUT;
-#endif /* DHD_BCN_TIMEOUT_IN_SUSPEND && DHD_USE_EARLYSUSPEND */
+#endif /* DHD_BCN_TIMEOUT_IN_SUSPEND && (DHD_USE_EARLYSUSPEND || DHD_USE_PM_SLEEP) */
 
 	BCM_REFERENCE(ret);
 	if (!dhd)
@@ -1910,7 +1999,7 @@ static int dhd_set_suspend(int value, dhd_pub_t *dhd)
 				 * one side effect is a chance to miss BC/MC packet.
 				 */
 				dhd_set_suspend_bcn_li_dtim(dhd, TRUE);
-#ifdef DHD_USE_EARLYSUSPEND
+#if defined(DHD_USE_EARLYSUSPEND) || defined(DHD_USE_PM_SLEEP)
 #ifdef DHD_BCN_TIMEOUT_IN_SUSPEND
 				bcn_timeout = CUSTOM_BCN_TIMEOUT_IN_SUSPEND;
 				ret = dhd_iovar(dhd, 0, "bcn_timeout", (char *)&bcn_timeout,
@@ -1995,16 +2084,6 @@ static int dhd_set_suspend(int value, dhd_pub_t *dhd)
 					DHD_ERROR(("failed to set intr_width (%d)\n", ret));
 				}
 #endif /* DYNAMIC_SWOOB_DURATION */
-#ifdef CUSTOM_EVENT_PM_WAKE
-				pm_awake_thresh = CUSTOM_EVENT_PM_WAKE * 4;
-				ret = dhd_iovar(dhd, 0, "const_awake_thresh",
-					(char *)&pm_awake_thresh,
-					sizeof(pm_awake_thresh), NULL, 0, TRUE);
-				if (ret < 0) {
-					DHD_ERROR(("%s set const_awake_thresh failed %d\n",
-						__FUNCTION__, ret));
-				}
-#endif /* CUSTOM_EVENT_PM_WAKE */
 #ifdef CONFIG_SILENT_ROAM
 				if (!dhd->sroamed) {
 					ret = dhd_sroam_set_mon(dhd, TRUE);
@@ -2013,9 +2092,9 @@ static int dhd_set_suspend(int value, dhd_pub_t *dhd)
 							__FUNCTION__, ret));
 					}
 				}
-				dhd->sroamed = FALSE;
+				dhd->sroamed = TRUE;
 #endif /* CONFIG_SILENT_ROAM */
-#endif /* DHD_USE_EARLYSUSPEND */
+#endif /* DHD_USE_EARLYSUSPEND || DHD_USE_PM_SLEEP */
 			} else {
 				dhd->early_suspended = 0;
 				/* Kernel resumed  */
@@ -2068,7 +2147,7 @@ static int dhd_set_suspend(int value, dhd_pub_t *dhd)
 #endif /* PASS_ALL_MCAST_PKTS */
 				/* restore pre-suspend setting for dtim_skip */
 				dhd_set_suspend_bcn_li_dtim(dhd, FALSE);
-#ifdef DHD_USE_EARLYSUSPEND
+#if defined(DHD_USE_EARLYSUSPEND) || defined(DHD_USE_PM_SLEEP)
 #ifdef DHD_BCN_TIMEOUT_IN_SUSPEND
 				bcn_timeout = CUSTOM_BCN_TIMEOUT;
 				ret = dhd_iovar(dhd, 0, "bcn_timeout", (char *)&bcn_timeout,
@@ -2134,22 +2213,14 @@ static int dhd_set_suspend(int value, dhd_pub_t *dhd)
 					DHD_ERROR(("failed to clear ipmcast_l2filter ret:%d", ret));
 				}
 #endif /* ENABLE_IPMCAST_FILTER */
-#ifdef CUSTOM_EVENT_PM_WAKE
-				ret = dhd_iovar(dhd, 0, "const_awake_thresh",
-					(char *)&pm_awake_thresh,
-					sizeof(pm_awake_thresh), NULL, 0, TRUE);
-				if (ret < 0) {
-					DHD_ERROR(("%s set const_awake_thresh failed %d\n",
-						__FUNCTION__, ret));
-				}
-#endif /* CUSTOM_EVENT_PM_WAKE */
 #ifdef CONFIG_SILENT_ROAM
 				ret = dhd_sroam_set_mon(dhd, FALSE);
 				if (ret < 0) {
 					DHD_ERROR(("%s set sroam failed %d\n", __FUNCTION__, ret));
 				}
+				dhd->sroamed = FALSE;
 #endif /* CONFIG_SILENT_ROAM */
-#endif /* DHD_USE_EARLYSUSPEND */
+#endif /* DHD_USE_EARLYSUSPEND || DHD_USE_PM_SLEEP */
 			}
 	}
 	dhd_suspend_unlock(dhd);
@@ -2162,7 +2233,9 @@ static int dhd_suspend_resume_helper(struct dhd_info *dhd, int val, int force)
 	dhd_pub_t *dhdp = &dhd->pub;
 	int ret = 0;
 
+#if !defined(DHD_USE_PM_SLEEP)
 	DHD_OS_WAKE_LOCK(dhdp);
+#endif /* !defined(DHD_USE_PM_SLEEP) */
 
 	/* Set flag when early suspend was called */
 	dhdp->in_suspend = val;
@@ -2172,7 +2245,10 @@ static int dhd_suspend_resume_helper(struct dhd_info *dhd, int val, int force)
 		ret = dhd_set_suspend(val, dhdp);
 	}
 
+#if !defined(DHD_USE_PM_SLEEP)
 	DHD_OS_WAKE_UNLOCK(dhdp);
+#endif /* !defined(DHD_USE_PM_SLEEP) */
+
 	return ret;
 }
 
@@ -2182,8 +2258,9 @@ static void dhd_early_suspend(struct early_suspend *h)
 	struct dhd_info *dhd = container_of(h, struct dhd_info, early_suspend);
 	DHD_TRACE_HW4(("%s: enter\n", __FUNCTION__));
 
-	if (dhd)
+	if (dhd) {
 		dhd_suspend_resume_helper(dhd, 1, 0);
+	}
 }
 
 static void dhd_late_resume(struct early_suspend *h)
@@ -2191,8 +2268,9 @@ static void dhd_late_resume(struct early_suspend *h)
 	struct dhd_info *dhd = container_of(h, struct dhd_info, early_suspend);
 	DHD_TRACE_HW4(("%s: enter\n", __FUNCTION__));
 
-	if (dhd)
+	if (dhd) {
 		dhd_suspend_resume_helper(dhd, 0, 0);
+	}
 }
 #endif /* CONFIG_HAS_EARLYSUSPEND && DHD_USE_EARLYSUSPEND */
 
@@ -4802,6 +4880,141 @@ void dhd_runtime_pm_enable(dhd_pub_t *dhdp)
 }
 
 #endif /* DHD_PCIE_RUNTIMEPM */
+#ifdef DHD_PERIODIC_CNTRS
+void
+dhd_dbg_periodic_cntrs_timer_cb(ulong data)
+{
+	dhd_info_t *dhd = (dhd_info_t *)data;
+
+	if (!dhd) {
+		return;
+	}
+
+	if (dhd->pub.dongle_reset ||
+		DHD_BUS_CHECK_SUSPEND_OR_ANY_SUSPEND_IN_PROGRESS(&dhd->pub)) {
+		return;
+	}
+
+	if (dhd->thr_periodic_cntrs_ctl.thr_pid >= 0) {
+		up(&dhd->thr_periodic_cntrs_ctl.sema);
+		return;
+	}
+}
+
+void
+dhd_dbg_periodic_cntrs_start(dhd_pub_t * dhdp)
+{
+	dhd_info_t *dhd = NULL;
+	uint32 current_time = wl_cfgdbg_current_timestamp();
+
+	if (dhdp && dhdp->info) {
+		dhd = (dhd_info_t *)dhdp->info;
+	} else {
+		return;
+	}
+
+	if (dhdp->dongle_reset) {
+		return;
+	}
+
+	if (FW_SUPPORTED(dhdp, ecounters)) {
+		/* Not required DHD periodic conters */
+		return;
+	}
+
+	if ((current_time - dhdp->dhd_periodic_cntrs_last_time) > DHD_ECNT_INTERVAL) {
+		mod_timer(&dhd->dhd_periodic_cntrs_timer,
+		jiffies + msecs_to_jiffies(10));
+	} else {
+		mod_timer(&dhd->dhd_periodic_cntrs_timer,
+		jiffies + msecs_to_jiffies(DHD_ECNT_INTERVAL));
+	};
+
+	dhd->dhd_periodic_cntrs_tmr_valid = TRUE;
+}
+
+void
+dhd_dbg_periodic_cntrs_stop(dhd_pub_t * dhdp)
+{
+	dhd_info_t *dhd = NULL;
+
+	if (dhdp && dhdp->info) {
+		dhd = (dhd_info_t *)dhdp->info;
+	} else {
+		return;
+	}
+
+	if (dhd->dhd_periodic_cntrs_tmr_valid &&
+		dhd->thr_periodic_cntrs_ctl.thr_pid >= 0) {
+		del_timer(&dhd->dhd_periodic_cntrs_timer);
+	}
+	dhd->dhd_periodic_cntrs_tmr_valid = FALSE;
+}
+
+void
+dhd_dbg_periodic_cntrs_wrapper(dhd_pub_t * dhdp)
+{
+	struct net_device *primary_ndev = NULL;
+	struct bcm_cfg80211 *cfg = NULL;
+
+	DHD_INFO(("Enter\n"));
+	primary_ndev = dhd_linux_get_primary_netdev(dhdp);
+	if (!primary_ndev) {
+		DHD_ERROR(("Cannot find primary netdev\n"));
+		return;
+	}
+
+	cfg = wl_get_cfg(primary_ndev);
+	if (!cfg) {
+		DHD_ERROR(("Cannot find cfg\n"));
+		return;
+	}
+
+	wl_cfgdbg_periodic_cntrs(primary_ndev, cfg);
+}
+
+int
+dhd_dbg_periodic_cntrs_thread(void *data)
+{
+	tsk_ctl_t *tsk = (tsk_ctl_t *)data;
+	dhd_info_t *dhd = (dhd_info_t *)tsk->parent;
+
+	while (1) {
+		if (down_interruptible (&tsk->sema) == 0) {
+			unsigned long flags;
+			unsigned long jiffies_at_start = jiffies;
+			unsigned long time_lapse;
+
+			SMP_RD_BARRIER_DEPENDS();
+			if (tsk->terminated) {
+				break;
+			}
+
+			if (dhd->pub.dongle_reset == FALSE) {
+				DHD_TIMER(("%s:\n", __FUNCTION__));
+				if (dhd->pub.up && dhd->dhd_periodic_cntrs_tmr_valid) {
+					dhd_dbg_periodic_cntrs_wrapper(&dhd->pub);
+				}
+				DHD_GENERAL_LOCK(&dhd->pub, flags);
+				time_lapse = jiffies - jiffies_at_start;
+
+				if (dhd->dhd_periodic_cntrs_tmr_valid) {
+					mod_timer(&dhd->dhd_periodic_cntrs_timer,
+						jiffies +
+						msecs_to_jiffies(DHD_ECNT_INTERVAL) -
+						min(msecs_to_jiffies(DHD_ECNT_INTERVAL),
+							time_lapse));
+				}
+				DHD_GENERAL_UNLOCK(&dhd->pub, flags);
+			}
+		} else {
+			break;
+		}
+	}
+
+	complete_and_exit(&tsk->completed, 0);
+}
+#endif /* DHD_PERIODIC_CNTRS */
 
 #ifdef ENABLE_ADAPTIVE_SCHED
 static void
@@ -5789,7 +6002,7 @@ dhd_add_monitor_if(dhd_info_t *dhd)
 	if (FW_SUPPORTED((&dhd->pub), monitor)) {
 #ifdef DHD_PCIE_RUNTIMEPM
 		/* Disable RuntimePM in monitor mode */
-		DHD_DISABLE_RUNTIME_PM(&dhd->pub);
+		DHD_STOP_RPM_TIMER(&dhd->pub);
 		DHD_ERROR(("%s : disable runtime PM in monitor mode\n", __FUNCTION__));
 #endif /* DHD_PCIE_RUNTIME_PM */
 		scan_suppress = TRUE;
@@ -5823,7 +6036,7 @@ dhd_del_monitor_if(dhd_info_t *dhd)
 	if (FW_SUPPORTED((&dhd->pub), monitor)) {
 #ifdef DHD_PCIE_RUNTIMEPM
 		/* Enable RuntimePM */
-		DHD_ENABLE_RUNTIME_PM(&dhd->pub);
+		DHD_START_RPM_TIMER(&dhd->pub);
 		DHD_ERROR(("%s : enabled runtime PM\n", __FUNCTION__));
 #endif /* DHD_PCIE_RUNTIME_PM */
 		scan_suppress = FALSE;
@@ -6485,6 +6698,11 @@ dhd_stop(struct net_device *net)
 	dhd_dev_apf_delete_filter(net);
 #endif /* APF */
 
+#ifdef CUSTOM_EVENT_PM_WAKE
+	/* Clear EXCESS_PM_PERIOD explicitly when Wi-Fi turn off */
+	dhd_set_excess_pm_awake(&dhd->pub, FALSE);
+#endif /* CUSTOM_EVENT_PM_WAKE */
+
 	/* Stop the protocol module */
 	dhd_prot_stop(&dhd->pub);
 
@@ -6651,6 +6869,12 @@ dhd_open(struct net_device *net)
 			DHD_ERROR(("%s: set force reg on\n", __FUNCTION__));
 			dhd->wl_accel_force_reg_on = TRUE;
 		}
+		if (!dhd->wl_accel_force_reg_on && !DHD_BUS_BUSY_CHECK_IDLE(&dhd->pub)) {
+			DHD_ERROR(("%s: clear dhd_bus_busy_state: 0x%x\n",
+					__FUNCTION__, dhd->pub.dhd_bus_busy_state));
+			dhd->pub.dhd_bus_busy_state = 0;
+			dhd->wl_accel_force_reg_on = TRUE;
+		}
 #endif /* WLAN_ACCEL_BOOT */
 		if (!dhd_driver_init_done) {
 			DHD_ERROR(("%s: WLAN driver is not initialized\n", __FUNCTION__));
@@ -6696,6 +6920,9 @@ dhd_open(struct net_device *net)
 #ifdef DHD_GRO_ENABLE_HOST_CTRL
 	dhd->pub.permitted_gro = TRUE;
 #endif /* DHD_GRO_ENABLE_HOST_CTRL */
+#ifdef DHD_FILE_DUMP_EVENT
+	dhd_set_dump_status(&dhd->pub, DUMP_NOT_READY);
+#endif /* DHD_FILE_DUMP_EVENT */
 
 #ifdef SHOW_LOGTRACE
 	if (!dhd_download_fw_on_driverload) {
@@ -6746,6 +6973,7 @@ dhd_open(struct net_device *net)
 
 	DHD_ERROR(("%s: ######### called for ifidx=%d #########\n", __FUNCTION__, ifidx));
 
+	dhd->pub.p2p_disc_busy_cnt = 0;
 #if defined(WLAN_ACCEL_BOOT)
 	dhd_verify_firmware_mode_change(dhd);
 #endif /* WLAN_ACCEL_BOOT */
@@ -6961,6 +7189,11 @@ dhd_open(struct net_device *net)
 
 exit:
 	mutex_unlock(&dhd->pub.ndev_op_sync);
+
+	if (dhd_query_bus_erros(&dhd->pub)) {
+		ret = BCME_ERROR;
+	}
+
 	if (ret) {
 		dhd_stop(net);
 	}
@@ -8623,6 +8856,18 @@ dhd_attach(osl_t *osh, struct dhd_bus *bus, uint bus_hdrlen)
 	}
 #endif /* DHD_PCIE_RUNTIMEPM */
 
+#ifdef DHD_PERIODIC_CNTRS
+	init_timer_compat(&dhd->dhd_periodic_cntrs_timer, dhd_dbg_periodic_cntrs_timer_cb, dhd);
+	dhd->dhd_periodic_cntrs_tmr_valid = FALSE;
+
+	dhd->thr_periodic_cntrs_ctl.thr_pid = DHD_PID_KT_INVALID;
+	PROC_START(dhd_dbg_periodic_cntrs_thread, dhd, &dhd->thr_periodic_cntrs_ctl, 0,
+		"dhd_dbg_periodic_cntrs_thread");
+	if (dhd->thr_periodic_cntrs_ctl.thr_pid < 0) {
+		goto fail;
+	}
+#endif /* DHD_PERIODIC_CNTRS */
+
 #ifdef SHOW_LOGTRACE
 	skb_queue_head_init(&dhd->evt_trace_queue);
 
@@ -8915,6 +9160,11 @@ dhd_attach(osl_t *osh, struct dhd_bus *bus, uint bus_hdrlen)
 	dhd_module_s2mpu_register(dhd_bus_to_dev(bus));
 #endif /* CONFIG_EXYNOS_S2MPU */
 #endif /* CONFIG_SOC_EXYNOS2100 || CONFIG_SOC_EXYNOS1000 */
+
+#ifdef DHD_FILE_DUMP_EVENT
+	OSL_ATOMIC_SET(dhd->pub.osh, &dhd->dump_status, DUMP_NOT_READY);
+	INIT_WORK(&dhd->dhd_dump_proc_work, dhd_dump_proc);
+#endif /* DHD_FILE_DUMP_EVENT */
 
 	return &dhd->pub;
 
@@ -9235,6 +9485,7 @@ dhd_bus_start(dhd_pub_t *dhdp)
 #endif /* DHD_MAP_PKTID_LOGGING */
 	dhd->pub.tput_test_done = FALSE;
 
+	dhd->pub.p2p_disc_busy_cnt = 0;
 	/* try to download image and nvram to the dongle */
 	if  (dhd->pub.busstate == DHD_BUS_DOWN && dhd_update_fw_nv_path(dhd)) {
 		/* Indicate FW Download has not yet done */
@@ -10286,6 +10537,9 @@ dhd_optimised_preinit_ioctls(dhd_pub_t * dhd)
 	}
 #endif /* CONFIG_ROAM_MIN_DELTA */
 #endif /* ROAM_ENABLE */
+#ifdef CUSTOM_EVENT_PM_WAKE
+	dhd_init_excess_pm_awake(dhd);
+#endif	/* CUSTOM_EVENT_PM_WAKE */
 
 #ifdef WLTDLS
 	dhd->tdls_enable = FALSE;
@@ -10831,9 +11085,6 @@ dhd_legacy_preinit_ioctls(dhd_pub_t *dhd)
 #ifdef CUSTOM_PSPRETEND_THR
 	uint32 pspretend_thr = CUSTOM_PSPRETEND_THR;
 #endif
-#ifdef CUSTOM_EVENT_PM_WAKE
-	uint32 pm_awake_thresh = CUSTOM_EVENT_PM_WAKE;
-#endif	/* CUSTOM_EVENT_PM_WAKE */
 #ifdef DISABLE_PRUNED_SCAN
 	uint32 scan_features = 0;
 #endif /* DISABLE_PRUNED_SCAN */
@@ -11316,12 +11567,7 @@ dhd_legacy_preinit_ioctls(dhd_pub_t *dhd)
 #endif /* ROAM_ENABLE */
 
 #ifdef CUSTOM_EVENT_PM_WAKE
-	/* XXX need to check time value */
-	ret = dhd_iovar(dhd, 0, "const_awake_thresh", (char *)&pm_awake_thresh,
-			sizeof(pm_awake_thresh), NULL, 0, TRUE);
-	if (ret < 0) {
-		DHD_ERROR(("%s set const_awake_thresh failed %d\n", __FUNCTION__, ret));
-	}
+	dhd_init_excess_pm_awake(dhd);
 #endif	/* CUSTOM_EVENT_PM_WAKE */
 #ifdef OKC_SUPPORT
 	dhd_iovar(dhd, 0, "okc_enable", (char *)&okc, sizeof(okc), NULL, 0, TRUE);
@@ -12440,8 +12686,9 @@ static int dhd_wait_for_file_dump(dhd_pub_t *dhdp)
 		timeleft = dhd_os_busbusy_wait_bitmask(dhdp,
 				&dhdp->dhd_bus_busy_state, DHD_BUS_BUSY_IN_HALDUMP, 0);
 		if ((dhdp->dhd_bus_busy_state & DHD_BUS_BUSY_IN_HALDUMP) != 0) {
-			DHD_ERROR(("%s: Timed out(%d) dhd_bus_busy_state=0x%x\n",
-					__FUNCTION__, timeleft, dhdp->dhd_bus_busy_state));
+			DHD_ERROR(("%s: Time left(%d) dhd_bus_busy_state=0x%x\n",
+				__FUNCTION__, timeleft, dhdp->dhd_bus_busy_state));
+			dhd_set_dump_status(dhdp, DUMP_FAILURE);
 			ret = BCME_ERROR;
 		}
 	} else {
@@ -13141,6 +13388,13 @@ void dhd_detach(dhd_pub_t *dhdp)
 			PROC_STOP(&dhd->thr_rpm_ctl);
 		}
 #endif /* DHD_PCIE_RUNTIMEPM */
+#ifdef DHD_PERIODIC_CNTRS
+		if (dhd->thr_periodic_cntrs_ctl.thr_pid >= 0) {
+			dhd_dbg_periodic_cntrs_stop(dhdp);
+			PROC_STOP(&dhd->thr_periodic_cntrs_ctl);
+		}
+#endif /* DHD_PERIODIC_CNTRS */
+
 		if (dhd->thr_wdt_ctl.thr_pid >= 0) {
 			PROC_STOP(&dhd->thr_wdt_ctl);
 		}
@@ -13404,7 +13658,9 @@ void dhd_detach(dhd_pub_t *dhdp)
 #ifdef DHD_TX_PROFILE
 	(void)dhd_tx_profile_detach(dhdp);
 #endif /* defined(DHD_TX_PROFILE) */
-
+#ifdef DHD_FILE_DUMP_EVENT
+	cancel_work_sync(&dhd->dhd_dump_proc_work);
+#endif /* DHD_FILE_DUMP_EVENT */
 } /* dhd_detach */
 
 void
@@ -13881,8 +14137,13 @@ dhd_os_busbusy_wait_bitmask(dhd_pub_t *pub, uint *var,
 	/* Convert timeout in millsecond to jiffies */
 	timeout = msecs_to_jiffies(DHD_BUS_BUSY_TIMEOUT);
 
-	timeout = wait_event_timeout(dhd->dhd_bus_busy_state_wait,
-			((*var & bitmask) == condition), timeout);
+	if (bitmask == DHD_BUS_BUSY_IN_HALDUMP) {
+		timeout = wait_event_timeout(dhd->dhd_bus_busy_state_wait,
+			((*var & bitmask) == condition || !pub->up), timeout);
+	} else {
+		timeout = wait_event_timeout(dhd->dhd_bus_busy_state_wait,
+				((*var & bitmask) == condition), timeout);
+	}
 
 	return timeout;
 }
@@ -14522,6 +14783,8 @@ dhd_net_bus_devreset(struct net_device *dev, uint8 flag)
 		dhd->pub.scan_busy_occurred = 0;
 		dhd->pub.p2p_disc_busy_occurred = 0;
 	}
+
+	dhd->pub.p2p_disc_busy_cnt = 0;
 
 	if ((ret == BCME_NOMEM) || (ret == BCME_NOTFOUND)) {
 		DHD_ERROR(("%s: skip collect dump in case of BCME_NOMEM or BCME_NOTFOUND\n",
@@ -16161,6 +16424,10 @@ static void dhd_hang_process(struct work_struct *work_data)
 	dhd = container_of(work_data, dhd_info_t, dhd_hang_process_work);
 	GCC_DIAGNOSTIC_POP();
 
+	if (!dhd) {
+		return;
+	}
+
 	dev = dhd->iflist[0]->net;
 
 	if (dev) {
@@ -16189,7 +16456,7 @@ static void dhd_hang_process(struct work_struct *work_data)
 #endif /* HANG_DELAY_BEFORE_DEV_CLOSE */
 
 	rtnl_lock();
-	for (i = 0; i < DHD_MAX_IFS && dhd; i++) {
+	for (i = 0; i < DHD_MAX_IFS; i++) {
 		ndev = dhd->iflist[i] ? dhd->iflist[i]->net : NULL;
 		if (ndev && (ndev->flags & IFF_UP)) {
 			DHD_ERROR(("ndev->name : %s dev close\n",
@@ -24075,3 +24342,44 @@ static void dhd_module_s2mpu_register(struct device *dev)
 }
 #endif /* CONFIG_EXYNOS_S2MPU */
 #endif /* CONFIG_SOC_EXYNOS2100 || CONFIG_SOC_EXYNOS1000 */
+
+#ifdef DHD_FILE_DUMP_EVENT
+dhd_dongledump_status_t dhd_get_dump_status(dhd_pub_t *pub)
+{
+	dhd_info_t *dhd = (dhd_info_t *)(pub->info);
+
+	return OSL_ATOMIC_READ(pub->osh, &dhd->dump_status);
+}
+
+void dhd_set_dump_status(dhd_pub_t *pub, dhd_dongledump_status_t dump_status)
+{
+	dhd_info_t *dhd = (dhd_info_t *)(pub->info);
+
+	OSL_ATOMIC_SET(pub->osh, &dhd->dump_status, dump_status);
+}
+
+static void dhd_dump_proc(struct work_struct *work_data)
+{
+	dhd_info_t *dhd_info = NULL;
+	dhd_pub_t *dhdp = NULL;
+	unsigned long flags = 0;
+
+	/* Ignore compiler warnings due to -Werror=cast-qual */
+	GCC_DIAGNOSTIC_PUSH_SUPPRESS_CAST();
+	dhd_info = container_of(work_data, dhd_info_t, dhd_dump_proc_work);
+	GCC_DIAGNOSTIC_POP();
+
+	if (!dhd_info || ((dhdp = &dhd_info->pub) == NULL)) {
+		DHD_ERROR(("dhd is NULL\n"));
+		return;
+	}
+
+	DHD_GENERAL_LOCK(dhdp, flags);
+	DHD_BUS_BUSY_SET_IN_SYSFS_DUMP(dhdp);
+	DHD_GENERAL_UNLOCK(dhdp, flags);
+	dhd_log_dump_trigger(dhdp, CMD_DEFAULT);
+	DHD_GENERAL_LOCK(dhdp, flags);
+	DHD_BUS_BUSY_CLEAR_IN_SYSFS_DUMP(dhdp);
+	DHD_GENERAL_UNLOCK(dhdp, flags);
+}
+#endif /* DHD_FILE_DUMP_EVENT */

@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
- * Copyright (c) 2010-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2010-2021, The Linux Foundation. All rights reserved.
  */
 #ifndef __KGSL_PWRCTRL_H
 #define __KGSL_PWRCTRL_H
@@ -17,9 +17,9 @@
 
 #define KGSL_PWR_ON	0xFFFF
 
-#define KGSL_MAX_CLKS 17
+#define KGSL_MAX_CLKS 18
 
-#define KGSL_MAX_PWRLEVELS 10
+#define KGSL_MAX_PWRLEVELS 16
 
 #define KGSL_PWRFLAGS_POWER_ON 0
 #define KGSL_PWRFLAGS_CLK_ON   1
@@ -98,7 +98,7 @@ struct kgsl_pwrlevel {
  * @min_pwrlevel - minimum allowable powerlevel per the user
  * @num_pwrlevels - number of available power levels
  * @throttle_mask - LM throttle mask
- * @interval_timeout - timeout in jiffies to be idle before a power event
+ * @interval_timeout - timeout to be idle before a power event
  * @clock_times - Each GPU frequency's accumulated active time in us
  * @clk_stats - structure of clock statistics
  * @input_disable - To disable GPU wakeup on touch input event
@@ -122,6 +122,10 @@ struct kgsl_pwrctrl {
 	struct regulator *cx_gdsc;
 	/** @gx_gdsc: Pointer to the GX domain regulator if applicable */
 	struct regulator *gx_gdsc;
+	/** @gx_gdsc: Pointer to the GX domain parent supply */
+	struct regulator *gx_gdsc_parent;
+	/** @gx_gdsc_parent_min_corner: Minimum supply voltage for GX parent */
+	u32 gx_gdsc_parent_min_corner;
 	int isense_clk_indx;
 	int isense_clk_on_level;
 	unsigned long power_flags;
@@ -169,6 +173,12 @@ struct kgsl_pwrctrl {
 	struct timer_list minbw_timer;
 	/** @minbw_timeout - Timeout for entering minimum bandwidth state */
 	u32 minbw_timeout;
+	/** @ddr_qos_devfreq: Devfreq device for setting DDR qos policy */
+	struct devfreq *ddr_qos_devfreq;
+	/** @time_in_pwrlevel: Each pwrlevel active duration in usec */
+	u64 time_in_pwrlevel[KGSL_MAX_PWRLEVELS];
+	/** @last_stat_updated: The last time stats were updated */
+	ktime_t last_stat_updated;
 };
 
 int kgsl_pwrctrl_init(struct kgsl_device *device);
@@ -251,4 +261,11 @@ void kgsl_idle_check(struct work_struct *work);
  *
  */
 void kgsl_pwrctrl_irq(struct kgsl_device *device, int state);
+/**
+ * kgsl_pwrctrl_clear_l3_vote - Relinquish l3 vote
+ * @device: Handle to the kgsl device
+ *
+ * Clear the l3 vote when going into slumber
+ */
+void kgsl_pwrctrl_clear_l3_vote(struct kgsl_device *device);
 #endif /* __KGSL_PWRCTRL_H */

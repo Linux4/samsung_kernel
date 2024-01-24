@@ -303,33 +303,15 @@ static irqreturn_t fts_filter_interrupt(struct fts_ts_info *info)
 
 int fts_write_reg(struct fts_ts_info *info, u8 *reg, u16 tlen)
 {
-	struct spi_message *m;
-	struct spi_transfer *t;
+	struct spi_message m;
+	struct spi_transfer t;
 	char *tbuf;
-	int ret = -ENOMEM;
+	int ret;
 	int wlen;
 
-	if (info->fts_power_state == FTS_POWER_STATE_POWERDOWN) {
-		input_err(true, &info->client->dev, "%s: Sensor stopped\n", __func__);
-		return -EIO;
-	}
-
-	m = kzalloc(sizeof(struct spi_message), GFP_KERNEL);
-	if (!m)
-		return -ENOMEM;
-
-	t = kzalloc(sizeof(struct spi_transfer), GFP_KERNEL);
-	if (!t) {
-		kfree(m);
-		return -ENOMEM;
-	}
-
 	tbuf = kzalloc(tlen + 1, GFP_KERNEL);
-	if (!tbuf) {
-		kfree(m);
-		kfree(t);
+	if (!tbuf)
 		return -ENOMEM;
-	}
 
 	switch (reg[0]) {
 	case FTS_CMD_SCAN_MODE://0xA0
@@ -341,6 +323,11 @@ int fts_write_reg(struct fts_ts_info *info, u8 *reg, u16 tlen)
 		memcpy(&tbuf[0], reg, tlen);
 		wlen = tlen;
 		break;
+	case FTS_CMD_SPONGE_READ_WRITE_CMD:
+		tbuf[0] = 0xD0;
+		memcpy(&tbuf[1], reg, tlen);
+		wlen = tlen + 1;
+		break;		
 	default:
 		tbuf[0] = 0xC0;
 		memcpy(&tbuf[1], reg, tlen);
@@ -348,23 +335,31 @@ int fts_write_reg(struct fts_ts_info *info, u8 *reg, u16 tlen)
 		break;
 	}
 
-	t->len = wlen;
-	t->tx_buf = tbuf;
+	t.len = wlen;
+	t.tx_buf = tbuf;
 
 	mutex_lock(&info->i2c_mutex);
 
-	spi_message_init(m);
-	spi_message_add_tail(t, m);
+	spi_message_init(&m);
+	spi_message_add_tail(&t, &m);
 	
-	if (info->board->gpio_spi_cs > 0)
-		gpio_direction_output(info->board->gpio_spi_cs, 0);
+	if (info->board->gpio_spi_cs > 0) {
+		gpio_set_value(info->board->gpio_spi_cs, 0);
+		if (gpio_get_value(info->board->gpio_spi_cs) == 0)
+			gpio_direction_output(info->board->gpio_spi_cs, 0);
+//		input_err(true, &info->client->dev, "%s: cs gpio: ++ %d\n", __func__, gpio_get_value(info->board->gpio_spi_cs));
+	}
 
-	ret = spi_sync(info->client, m);
-	if (ret < 0)
-		input_err(true, &info->client->dev, "%s: failed: %d\n", __func__, ret);
+	ret = spi_sync(info->client, &m);
+//	if (ret < 0)
+//		input_err(&info->client->dev, true, "%s: failed: %d\n", __func__, ret);
 
-	if (info->board->gpio_spi_cs > 0)
-		gpio_direction_output(info->board->gpio_spi_cs, 1);
+	if (info->board->gpio_spi_cs > 0) {
+		gpio_set_value(info->board->gpio_spi_cs, 1);
+		if (gpio_get_value(info->board->gpio_spi_cs) == 1)
+			gpio_direction_output(info->board->gpio_spi_cs, 1);
+//		input_err(true, &info->client->dev, "%s: cs gpio: -- %d\n", __func__, gpio_get_value(info->board->gpio_spi_cs));
+	}
 
 	mutex_unlock(&info->i2c_mutex);
 
@@ -379,21 +374,17 @@ int fts_write_reg(struct fts_ts_info *info, u8 *reg, u16 tlen)
 	}
 
 	kfree(tbuf);
-	kfree(m);
-	kfree(t);
-
 	return ret;
 }
 
 int fts_read_reg(struct fts_ts_info *info, u8 *reg, int tlen, u8 *buf, int rlen)
 {
-	struct spi_message *m;
-	struct spi_transfer *t;
+	struct spi_message m;
+	struct spi_transfer t;
 	char *tbuf, *rbuf;
-	int ret = -ENOMEM;
+	int ret;
 	int wmsg = 0;
 	int buf_len = tlen;
-	int mem_len;
 
 	if (!info->resume_done.done) {
 		ret = wait_for_completion_interruptible_timeout(&info->resume_done, msecs_to_jiffies(500));
@@ -403,43 +394,9 @@ int fts_read_reg(struct fts_ts_info *info, u8 *reg, int tlen, u8 *buf, int rlen)
 		}
 	}
 
-	if (info->fts_power_state == FTS_POWER_STATE_POWERDOWN) {
-		input_err(true, &info->client->dev, "%s: Sensor stopped\n", __func__);
-		return -EIO;
-	}
-
 	if (tlen < 0 || rlen < 0) {
 		input_err(true, &info->client->dev, "%s: invlide length: %d, %d\n", __func__, tlen, rlen);
 		return -EIO;
-	}
-
-	m = kzalloc(sizeof(struct spi_message), GFP_KERNEL);
-	if (!m)
-		return -ENOMEM;
-
-	t = kzalloc(sizeof(struct spi_transfer), GFP_KERNEL);
-	if (!t) {
-		kfree(m);
-		return -ENOMEM;
-	}
-
-	if (tlen > 3)
-		mem_len = rlen + 1 + tlen;
-	else
-		mem_len = rlen + 1 + 3;
-
-	tbuf = kzalloc(mem_len, GFP_KERNEL);
-	if (!tbuf) {
-		kfree(m);
-		kfree(t);
-		return -ENOMEM;
-	}
-	rbuf = kzalloc(mem_len, GFP_KERNEL);
-	if (!rbuf) {
-		kfree(m);
-		kfree(t);
-		kfree(tbuf);
-		return -ENOMEM;
 	}
 
 	switch (reg[0]) {
@@ -448,34 +405,19 @@ int fts_read_reg(struct fts_ts_info *info, u8 *reg, int tlen, u8 *buf, int rlen)
 	case 0xA4:
 	case 0xFA:
 	case 0xFB:
-		memcpy(tbuf, reg, tlen);
-		wmsg = 0;
-		break;
-	case 0x75:
-		buf_len = 3;
-		tbuf[0] = 0xD1;
-		if (tlen == 1) {
-			tbuf[1] = 0x00;
-			tbuf[2] = 0x00;
-		} else if (tlen == 2) {
-			tbuf[1] = 0x00;
-			tbuf[2] = reg[0];
-		} else if (tlen == 3) {
-			tbuf[1] = reg[1];
-			tbuf[2] = reg[0];
-		} else {
-			input_err(true, &info->client->dev, "%s: tlen is mismatched: %d\n", __func__, tlen);
-			kfree(m);
-			kfree(t);
-			kfree(tbuf);
-			kfree(rbuf);
-			return -EINVAL;
+		tbuf = kzalloc(buf_len, GFP_KERNEL);
+		if (!tbuf) {
+			return -ENOMEM;
 		}
-
+		memcpy(tbuf, reg, tlen);
 		wmsg = 0;
 		break;
 	default:
 		buf_len = 3;
+		tbuf = kzalloc(buf_len, GFP_KERNEL);
+		if (!tbuf)
+			return -ENOMEM;
+
 		tbuf[0] = 0xD1;
 
 		if (tlen == 1) {
@@ -489,40 +431,49 @@ int fts_read_reg(struct fts_ts_info *info, u8 *reg, int tlen, u8 *buf, int rlen)
 			tbuf[2] = reg[0];
 		} else {
 			input_err(true, &info->client->dev, "%s: tlen is mismatched: %d\n", __func__, tlen);
-			kfree(m);
-			kfree(t);
-			kfree(tbuf);
-			kfree(rbuf);
-			return -EINVAL;
+			return -ENOMEM;
 		}
 
 		wmsg = 1;
 		break;
 	}
 
-	if (wmsg)
-		fts_write_reg(info, reg, 1);
+	if (wmsg) {
+		fts_write_reg(info, reg, tlen);
+	}
+
+	rbuf = kzalloc(rlen + 1 + buf_len, GFP_KERNEL);
+	if (!rbuf) {
+		kfree(tbuf);
+		return -ENOMEM;
+	}
 
 	mutex_lock(&info->i2c_mutex);
 
-	spi_message_init(m);
+	spi_message_init(&m);
+	t.len = rlen + 1 + buf_len;
+	t.tx_buf = tbuf;
+	t.rx_buf = rbuf;
+	t.delay_usecs = 10;
+	spi_message_add_tail(&t, &m);
 
-	t->len = rlen + 1 + buf_len;
-	t->tx_buf = tbuf;
-	t->rx_buf = rbuf;
-	t->delay_usecs = 10;
+	if (info->board->gpio_spi_cs > 0) {
+		gpio_set_value(info->board->gpio_spi_cs, 0);
+		if (gpio_get_value(info->board->gpio_spi_cs) == 1)
+			gpio_direction_output(info->board->gpio_spi_cs, 0);
+//		input_err(true, &info->client->dev, "%s: cs gpio: ++ %d\n", __func__, gpio_get_value(info->board->gpio_spi_cs));
+	}
 
-	spi_message_add_tail(t, m);
+	ret = spi_sync(info->client, &m);
+//	if (ret < 0)
+//	input_err(true, &info->client->dev, "%s: %d\n", __func__, ret);
 
-	if (info->board->gpio_spi_cs > 0)
-		gpio_direction_output(info->board->gpio_spi_cs, 0);
-
-	ret = spi_sync(info->client, m);
-	if (ret < 0)
-		input_err(true, &info->client->dev, "%s: %d\n", __func__, ret);
-
-	if (info->board->gpio_spi_cs > 0)
-		gpio_direction_output(info->board->gpio_spi_cs, 1);
+	if (info->board->gpio_spi_cs > 0) {
+		gpio_set_value(info->board->gpio_spi_cs, 1);
+		if (gpio_get_value(info->board->gpio_spi_cs) == 0)
+			gpio_direction_output(info->board->gpio_spi_cs, 1);
+//		input_err(true, &info->client->dev, "%s: cs gpio: -- %d\n", __func__, gpio_get_value(info->board->gpio_spi_cs));
+	}
 
 	mutex_unlock(&info->i2c_mutex);
 
@@ -545,11 +496,280 @@ int fts_read_reg(struct fts_ts_info *info, u8 *reg, int tlen, u8 *buf, int rlen)
 
 	kfree(rbuf);
 	kfree(tbuf);
-	kfree(m);
-	kfree(t);
 
 	return ret;
 }
+
+int fts_write_read_reg(struct fts_ts_info *info, u8 *reg, int tlen, u8 *buf, int rlen)
+{
+	struct spi_message m;
+	struct spi_transfer t[2] = { { 0 }, { 0 } };
+	char *tbuf, *rbuf;
+	int ret;
+	int buf_len = tlen;
+
+	if (!info->resume_done.done) {
+		ret = wait_for_completion_interruptible_timeout(&info->resume_done, msecs_to_jiffies(500));
+		if (ret <= 0) {
+			input_err(true, &info->client->dev, "%s: resume is not handled:%d\n", __func__, ret);
+			return -EIO;
+		}
+	}
+
+	tbuf = kzalloc(buf_len, GFP_KERNEL);
+	if (!tbuf) {
+		return -ENOMEM;
+	}
+	memcpy(tbuf, reg, tlen);
+
+	rbuf = kzalloc(rlen + 1, GFP_KERNEL);
+	if (!tbuf)
+		return -ENOMEM;
+
+	mutex_lock(&info->i2c_mutex);
+
+	spi_message_init(&m);
+
+	t[0].len = buf_len;
+	t[0].tx_buf = tbuf;
+	t[0].rx_buf = NULL;
+	spi_message_add_tail(&t[0], &m);
+
+	t[1].len = 1 + rlen;
+	t[1].tx_buf = NULL;
+	t[1].rx_buf = rbuf;
+	t[1].delay_usecs = 10;
+	spi_message_add_tail(&t[1], &m);
+
+	if (info->board->gpio_spi_cs > 0) {
+		gpio_set_value(info->board->gpio_spi_cs, 0);
+		input_err(true, &info->client->dev, "%s: cs gpio: %d\n", __func__, gpio_get_value(info->board->gpio_spi_cs));
+	}
+
+	ret = spi_sync(info->client, &m);
+//	if (ret < 0)
+//	input_err(true, &info->client->dev, "%s: %d\n", __func__, ret);
+
+	if (info->board->gpio_spi_cs > 0) {
+		gpio_set_value(info->board->gpio_spi_cs, 1);
+		input_err(true, &info->client->dev, "%s: cs gpio: %d\n", __func__, gpio_get_value(info->board->gpio_spi_cs));
+	}
+	mutex_unlock(&info->i2c_mutex);
+
+	if (info->debug_string) {
+		int i;
+
+		pr_info("sec_input: spi: WR: ");
+		for (i = 0; i < buf_len; i++)
+			pr_cont("%02X ", tbuf[i]);
+		pr_cont("| ");
+		for (i = 0; i < rlen + 1 + buf_len; i++) {
+			if (i == buf_len + 1)
+				pr_cont("|| ");
+			pr_cont("%02X ", rbuf[i]);
+		}
+		pr_cont("\n");
+
+	}
+	memcpy(buf, &rbuf[1 + buf_len], rlen);
+//	input_err(true, &info->client->dev, "%s: ret: %d, reg: %d + %d\n", __func__, ret, 1 + buf_len, rlen);
+	kfree(rbuf);
+	kfree(tbuf);
+
+	return ret;
+}
+
+
+#if 0
+int fts_write_reg(struct fts_ts_info *info,
+		u8 *reg, u16 num_com)
+{
+	struct i2c_msg xfer_msg[2];
+	int ret;
+	int retry = FTS_TS_I2C_RETRY_CNT;
+	u8 *buff;
+
+	if (!info->resume_done.done) {
+		ret = wait_for_completion_interruptible_timeout(&info->resume_done, msecs_to_jiffies(500));
+		if (ret <= 0) {
+			input_err(true, &info->client->dev, "%s: resume is not handled:%d\n", __func__, ret);
+			return -EIO;
+		}
+	}
+
+	if (info->fts_power_state == FTS_POWER_STATE_POWERDOWN) {
+		input_err(true, &info->client->dev, "%s: Sensor stopped\n", __func__);
+		goto exit;
+	}
+
+#ifdef CONFIG_INPUT_SEC_SECURE_TOUCH
+	if (atomic_read(&info->st_enabled)) {
+		input_err(true, &info->client->dev,
+				"%s: TSP no accessible from Linux, TUI is enabled!\n", __func__);
+		return -EIO;
+	}
+#endif
+
+	buff = kzalloc(num_com, GFP_KERNEL);
+	if (!buff)
+		return -ENOMEM;
+	memcpy(buff, reg, num_com);
+
+	mutex_lock(&info->i2c_mutex);
+
+	xfer_msg[0].addr = info->client->addr;
+	xfer_msg[0].len = num_com;
+	xfer_msg[0].flags = 0;
+	xfer_msg[0].buf = buff;
+
+	do {
+		ret = i2c_transfer(info->client->adapter, xfer_msg, 1);
+		if (ret < 0) {
+			info->comm_err_count++;
+			input_err(true, &info->client->dev,
+					"%s failed(%d). ret:%d, addr:%x, cnt:%d\n",
+					__func__, retry, ret, xfer_msg[0].addr, info->comm_err_count);
+			usleep_range(10 * 1000, 10 * 1000);
+		} else {
+			break;
+		}
+	} while (--retry > 0);
+
+	mutex_unlock(&info->i2c_mutex);
+
+	if (retry == 0) {
+		input_err(true, &info->client->dev, "%s: I2C read over retry limit\n", __func__);
+		ret = -EIO;
+
+		if (info->debug_string & FTS_DEBUG_SEND_UEVENT)
+			sec_cmd_send_event_to_user(&info->sec, NULL, "RESULT=I2C");
+#ifdef USE_POR_AFTER_I2C_RETRY
+		if (info->probe_done && !info->reset_is_on_going)
+			schedule_delayed_work(&info->reset_work, msecs_to_jiffies(10));
+#endif
+	}
+
+	if (info->debug_string & FTS_DEBUG_PRINT_I2C_WRITE_CMD) {
+		int i;
+
+		pr_info("sec_input: i2c_cmd: W: ");
+		for (i = 0; i < num_com; i++)
+			pr_cont("%02X ", buff[i]);
+		pr_cont("\n");
+
+	}
+
+	kfree(buff);
+
+	return ret;
+
+exit:
+	return 0;
+}
+
+int fts_read_reg(struct fts_ts_info *info, u8 *reg, int cnum,
+		u8 *buf, int num)
+{
+	struct i2c_msg xfer_msg[2];
+	int ret;
+	int retry = FTS_TS_I2C_RETRY_CNT;
+	u8 *buff;
+	u8 *msg_buff;
+
+	if (!info->resume_done.done) {
+		ret = wait_for_completion_interruptible_timeout(&info->resume_done, msecs_to_jiffies(500));
+		if (ret <= 0) {
+			input_err(true, &info->client->dev, "%s: resume is not handled:%d\n", __func__, ret);
+			return -EIO;
+		}
+	}
+
+	if (info->fts_power_state == FTS_POWER_STATE_POWERDOWN) {
+		input_err(true, &info->client->dev, "%s: Sensor stopped\n", __func__);
+		goto exit;
+	}
+
+#ifdef CONFIG_INPUT_SEC_SECURE_TOUCH
+	if (atomic_read(&info->st_enabled)) {
+		input_err(true, &info->client->dev,
+				"%s: TSP no accessible from Linux, TUI is enabled!\n", __func__);
+		return -EIO;
+	}
+#endif
+
+	msg_buff = kzalloc(cnum, GFP_KERNEL);
+	if (!msg_buff)
+		return -ENOMEM;
+
+	memcpy(msg_buff, reg, cnum);
+
+	buff = kzalloc(num, GFP_KERNEL);
+	if (!buff) {
+		kfree(msg_buff);
+		return -ENOMEM;
+	}
+
+	mutex_lock(&info->i2c_mutex);
+
+	xfer_msg[0].addr = info->client->addr;
+	xfer_msg[0].len = cnum;
+	xfer_msg[0].flags = 0;
+	xfer_msg[0].buf = msg_buff;
+
+	xfer_msg[1].addr = info->client->addr;
+	xfer_msg[1].len = num;
+	xfer_msg[1].flags = I2C_M_RD;
+	xfer_msg[1].buf = buff;
+
+	do {
+		ret = i2c_transfer(info->client->adapter, xfer_msg, 2);
+		if (ret < 0) {
+			info->comm_err_count++;
+			input_err(true, &info->client->dev,
+					"%s failed(%d). ret:%d, addr:%x, cnt:%d\n",
+					__func__, retry, ret, xfer_msg[0].addr, info->comm_err_count);
+			usleep_range(10 * 1000, 10 * 1000);
+		} else {
+			break;
+		}
+	} while (--retry > 0);
+
+	mutex_unlock(&info->i2c_mutex);
+
+	if (retry == 0) {
+		input_err(true, &info->client->dev, "%s: I2C read over retry limit\n", __func__);
+
+		if (info->debug_string & FTS_DEBUG_SEND_UEVENT)
+			sec_cmd_send_event_to_user(&info->sec, NULL, "RESULT=I2C");
+#ifdef USE_POR_AFTER_I2C_RETRY
+		if (info->probe_done && !info->reset_is_on_going)
+			schedule_delayed_work(&info->reset_work, msecs_to_jiffies(10));
+#endif
+	}
+
+	if (info->debug_string & FTS_DEBUG_PRINT_I2C_READ_CMD) {
+		int i;
+
+		pr_info("sec_input: i2c_cmd: R: ");
+		for (i = 0; i < cnum; i++)
+			pr_cont("%02X ", msg_buff[i]);
+		pr_cont("|");
+		for (i = 0; i < num; i++)
+			pr_cont("%02X ", buff[i]);
+		pr_cont("\n");
+
+	}
+
+	memcpy(buf, buff, num);
+	kfree(msg_buff);
+	kfree(buff);
+
+	return ret;
+
+exit:
+	return 0;
+}
+#endif
 
 #ifdef FTS_SUPPORT_SPONGELIB
 #ifdef CONFIG_SEC_FACTORY
@@ -566,14 +786,14 @@ static void fts_disable_sponge(struct fts_ts_info *info)
 static int fts_read_from_sponge(struct fts_ts_info *info,
 		u16 offset, u8 *data, int length)
 {
-	struct spi_message *m1;
-	struct spi_transfer *t1;
+	struct spi_message m1;
+	struct spi_transfer t1;
 	char *tbuf1;
-	struct spi_message *m2;
-	struct spi_transfer *t2;
+	struct spi_message m2;
+	struct spi_transfer t2;
 	char *tbuf2;
 	char *rbuf2;
-	int ret = -ENOMEM;
+	int ret;
 
 	if (!info->resume_done.done) {
 		ret = wait_for_completion_interruptible_timeout(&info->resume_done, msecs_to_jiffies(500));
@@ -583,60 +803,25 @@ static int fts_read_from_sponge(struct fts_ts_info *info,
 		}
 	}
 
-	if (info->fts_power_state == FTS_POWER_STATE_POWERDOWN) {
-		input_err(true, &info->client->dev, "%s: Sensor stopped\n", __func__);
-		return -EIO;
-	}
-
-	m1 = kzalloc(sizeof(struct spi_message), GFP_KERNEL);
-	if (!m1)
-		return -ENOMEM;
-
-	t1 = kzalloc(sizeof(struct spi_transfer), GFP_KERNEL);
-	if (!t1) {
-		kfree(m1);
-		return -ENOMEM;
-	}
-
-	m2 = kzalloc(sizeof(struct spi_message), GFP_KERNEL);
-	if (!m2) {
-		kfree(m1);
-		kfree(t1);
-		return -ENOMEM;
-	}
-
-	t2 = kzalloc(sizeof(struct spi_transfer), GFP_KERNEL);
-	if (!t2) {
-		kfree(m1);
-		kfree(t1);
-		kfree(m2);
-		return -ENOMEM;
-	}
-
 	tbuf1 = kzalloc(2, GFP_KERNEL);
-	if (!tbuf1) {
-		kfree(m1);
-		kfree(t1);
-		kfree(m2);
-		kfree(t2);
+	if (!tbuf1)
 		return -ENOMEM;
-	}
 
 	tbuf1[0] = 0xC0;
 	tbuf1[1] = FTS_CMD_SPONGE_READ_WRITE_CMD;
 
-	t1->len = 2;
-	t1->tx_buf = tbuf1;
+	t1.len = 2;
+	t1.tx_buf = tbuf1;
 
 	mutex_lock(&info->i2c_mutex);
 
-	spi_message_init(m1);
-	spi_message_add_tail(t1, m1);
+	spi_message_init(&m1);
+	spi_message_add_tail(&t1, &m1);
 	
 	if (info->board->gpio_spi_cs > 0)
 		gpio_direction_output(info->board->gpio_spi_cs, 0);
 
-	ret = spi_sync(info->client, m1);
+	ret = spi_sync(info->client, &m1);
 	if (ret < 0)
 		input_err(true, &info->client->dev, "%s: write failed: %d\n", __func__, ret);
 
@@ -646,22 +831,14 @@ static int fts_read_from_sponge(struct fts_ts_info *info,
 	if (info->debug_string)
 		pr_info("sec_input: spi: W: %02X %02X\n", tbuf1[0], tbuf1[1]);
 
-	rbuf2 = kzalloc(3 + 1 + length, GFP_KERNEL);
+	rbuf2 = kzalloc(3 + length, GFP_KERNEL);
 	if (!rbuf2) {
-		kfree(m1);
-		kfree(t1);
-		kfree(m2);
-		kfree(t2);
 		kfree(tbuf1);
 		return -ENOMEM;
 	}
 
-	tbuf2 = kzalloc(3 + 1 + length, GFP_KERNEL);
+	tbuf2 = kzalloc(3, GFP_KERNEL);
 	if (!tbuf2) {
-		kfree(m1);
-		kfree(t1);
-		kfree(m2);
-		kfree(t2);
 		kfree(tbuf1);
 		kfree(rbuf2);
 		return -ENOMEM;
@@ -671,17 +848,17 @@ static int fts_read_from_sponge(struct fts_ts_info *info,
 	tbuf2[1] = offset >> 8;
 	tbuf2[2] = offset & 0xFF;
 
-	spi_message_init(m2);
-	t2->len = 3 + 1 + length; /* (dummy:D1(1) + offset(2) + length*/
-	t2->tx_buf = tbuf2;
-	t2->rx_buf = rbuf2;
-	t2->delay_usecs = 10;
-	spi_message_add_tail(t2, m2);
+	spi_message_init(&m2);
+	t2.len = 3 + 1 + length; /* (dummy:D1(1) + offset(2) + length*/
+	t2.tx_buf = tbuf2;
+	t2.rx_buf = rbuf2;
+	t2.delay_usecs = 10;
+	spi_message_add_tail(&t2, &m2);
 
 	if (info->board->gpio_spi_cs > 0)
 		gpio_direction_output(info->board->gpio_spi_cs, 0);
 
-	ret = spi_sync(info->client, m2);
+	ret = spi_sync(info->client, &m2);
 	if (ret < 0)
 		input_err(true, &info->client->dev, "%s: read failed%d\n", __func__, ret);
 
@@ -710,10 +887,6 @@ static int fts_read_from_sponge(struct fts_ts_info *info,
 	kfree(tbuf1);
 	kfree(tbuf2);
 	kfree(rbuf2);
-	kfree(m1);
-	kfree(t1);
-	kfree(m2);
-	kfree(t2);
 
 	return ret;
 }
@@ -726,15 +899,15 @@ static int fts_read_from_sponge(struct fts_ts_info *info,
 static int fts_write_to_sponge(struct fts_ts_info *info,
 		u16 offset, u8 *data, int length)
 {
-	struct spi_message *m1;
-	struct spi_transfer *t1;
-	struct spi_message *m2;
-	struct spi_transfer *t2;
-	struct spi_message *m3;
-	struct spi_transfer *t3;
+	struct spi_message m1;
+	struct spi_transfer t1;
+	struct spi_message m2;
+	struct spi_transfer t2;
+	struct spi_message m3;
+	struct spi_transfer t3;
 	char *tbuf1;
 	char *tbuf2;
-	int ret = -ENOMEM;
+	int ret;
 
 	if (!info->resume_done.done) {
 		ret = wait_for_completion_interruptible_timeout(&info->resume_done, msecs_to_jiffies(500));
@@ -744,81 +917,25 @@ static int fts_write_to_sponge(struct fts_ts_info *info,
 		}
 	}
 
-	if (info->fts_power_state == FTS_POWER_STATE_POWERDOWN) {
-		input_err(true, &info->client->dev, "%s: Sensor stopped\n", __func__);
-		return -EIO;
-	}
-
-	m1 = kzalloc(sizeof(struct spi_message), GFP_KERNEL);
-	if (!m1)
-		return -ENOMEM;
-
-	t1 = kzalloc(sizeof(struct spi_transfer), GFP_KERNEL);
-	if (!t1) {
-		kfree(m1);
-		return -ENOMEM;
-	}
-
-	m2 = kzalloc(sizeof(struct spi_message), GFP_KERNEL);
-	if (!m2) {
-		kfree(m1);
-		kfree(t1);
-		return -ENOMEM;
-	}
-
-	t2 = kzalloc(sizeof(struct spi_transfer), GFP_KERNEL);
-	if (!t2) {
-		kfree(m1);
-		kfree(t1);
-		kfree(m2);
-		return -ENOMEM;
-	}
-
-	m3 = kzalloc(sizeof(struct spi_message), GFP_KERNEL);
-	if (!m3) {
-		kfree(m1);
-		kfree(t1);
-		kfree(m2);
-		kfree(t2);
-		return -ENOMEM;
-	}
-
-	t3 = kzalloc(sizeof(struct spi_transfer), GFP_KERNEL);
-	if (!t3) {
-		kfree(m1);
-		kfree(t1);
-		kfree(m2);
-		kfree(t2);
-		kfree(m3);
-		return -ENOMEM;
-	}
-
 	tbuf1 = kzalloc(2, GFP_KERNEL);
-	if (!tbuf1) {
-		kfree(m1);
-		kfree(t1);
-		kfree(m2);
-		kfree(t2);
-		kfree(m3);
-		kfree(t3);
+	if (!tbuf1)
 		return -ENOMEM;
-	}
 
 	tbuf1[0] = 0xC0;
 	tbuf1[1] = FTS_CMD_SPONGE_READ_WRITE_CMD;
 
-	t1->len = 2;
-	t1->tx_buf = tbuf1;
+	t1.len = 2;
+	t1.tx_buf = tbuf1;
 
 	mutex_lock(&info->i2c_mutex);
 
-	spi_message_init(m1);
-	spi_message_add_tail(t1, m1);
+	spi_message_init(&m1);
+	spi_message_add_tail(&t1, &m1);
 	
 	if (info->board->gpio_spi_cs > 0)
 		gpio_direction_output(info->board->gpio_spi_cs, 0);
 
-	ret = spi_sync(info->client, m1);
+	ret = spi_sync(info->client, &m1);
 	if (ret < 0)
 		input_err(true, &info->client->dev, "%s: failed: %d\n", __func__, ret);
 
@@ -830,12 +947,6 @@ static int fts_write_to_sponge(struct fts_ts_info *info,
 
 	tbuf2 = kzalloc(3 + length, GFP_KERNEL);
 	if (!tbuf2) {
-		kfree(m1);
-		kfree(t1);
-		kfree(m2);
-		kfree(t2);
-		kfree(m3);
-		kfree(t3);
 		kfree(tbuf1);
 		mutex_unlock(&info->i2c_mutex);
 		return -ENOMEM;
@@ -848,16 +959,16 @@ static int fts_write_to_sponge(struct fts_ts_info *info,
 
 	memcpy(&tbuf2[3], &data[0], length);
 
-	t2->len = 3 + length;
-	t2->tx_buf = tbuf2;
+	t2.len = 3 + length;
+	t2.tx_buf = tbuf2;
 
-	spi_message_init(m2);
-	spi_message_add_tail(t2, m2);
+	spi_message_init(&m2);
+	spi_message_add_tail(&t2, &m2);
 	
 	if (info->board->gpio_spi_cs > 0)
 		gpio_direction_output(info->board->gpio_spi_cs, 0);
 
-	ret = spi_sync(info->client, m2);
+	ret = spi_sync(info->client, &m2);
 	if (ret < 0)
 		input_err(true, &info->client->dev, "%s: failed: %d\n", __func__, ret);
 
@@ -877,16 +988,16 @@ static int fts_write_to_sponge(struct fts_ts_info *info,
 	tbuf1[0] = 0xC0;
 	tbuf1[1] = FTS_CMD_SPONGE_NOTIFY_CMD;
 
-	t3->len = 2;
-	t3->tx_buf = tbuf1;
+	t3.len = 2;
+	t3.tx_buf = tbuf1;
 
-	spi_message_init(m3);
-	spi_message_add_tail(t3, m3);
+	spi_message_init(&m3);
+	spi_message_add_tail(&t3, &m3);
 	
 	if (info->board->gpio_spi_cs > 0)
 		gpio_direction_output(info->board->gpio_spi_cs, 0);
 
-	ret = spi_sync(info->client, m3);
+	ret = spi_sync(info->client, &m3);
 	if (ret < 0)
 		input_err(true, &info->client->dev, "%s: failed: %d\n", __func__, ret);
 
@@ -899,13 +1010,6 @@ static int fts_write_to_sponge(struct fts_ts_info *info,
 	mutex_unlock(&info->i2c_mutex);
 	kfree(tbuf1);
 	kfree(tbuf2);
-	kfree(m1);
-	kfree(t1);
-	kfree(m2);
-	kfree(t2);
-	kfree(m3);
-	kfree(t3);
-
 	return ret;
 }
 
@@ -2067,7 +2171,7 @@ static void fts_print_info_work(struct work_struct *work)
 			input_err(true, &info->client->dev, "%s: skip sec_ts_set_temp, t_cnt(%d)\n", __func__, info->touch_count);	
 		} else {
 			info->tsp_temp_data_skip = false;
-			fts_set_temp(info, false);
+//			fts_set_temp(info, false);
 		}
 	}
 
@@ -2223,7 +2327,7 @@ static u8 fts_event_handler_type_b(struct fts_ts_info *info)
 					input_info(true, &info->client->dev, "%s: proximity: %d\n", __func__, p_event_status->status_data_1);
 				}
 			}
-			break;
+	break;
 
 		case FTS_COORDINATE_EVENT:
 			if (info->fts_power_state < FTS_POWER_STATE_ACTIVE) {
@@ -2289,9 +2393,6 @@ static u8 fts_event_handler_type_b(struct fts_ts_info *info)
 
 					input_mt_report_slot_state(info->input_dev, MT_TOOL_FINGER, 0);
 
-					info->palm_flag &= ~(1 << TouchID);
-					input_report_key(info->input_dev, BTN_PALM, info->palm_flag);
-
 					if (info->touch_count > 0)
 						info->touch_count--;
 
@@ -2352,7 +2453,7 @@ static u8 fts_event_handler_type_b(struct fts_ts_info *info)
 								info->finger[TouchID].major);
 					input_report_abs(info->input_dev, ABS_MT_TOUCH_MINOR,
 								info->finger[TouchID].minor);
-/*
+
 					if (info->brush_mode)
 						input_report_abs(info->input_dev, ABS_MT_CUSTOM,
 									(info->finger[TouchID].max_energy << 16) |
@@ -2363,10 +2464,6 @@ static u8 fts_event_handler_type_b(struct fts_ts_info *info)
 									(info->finger[TouchID].max_energy << 16) |
 									(BRUSH_Z_DATA << 1) |
 									info->finger[TouchID].palm);
-*/
-					if (info->finger[TouchID].palm)
-						info->palm_flag |= (1 << TouchID);
-					input_report_key(info->input_dev, BTN_PALM, info->palm_flag);
 
 					if (info->board->support_mt_pressure)
 						input_report_abs(info->input_dev, ABS_MT_PRESSURE,
@@ -2422,7 +2519,7 @@ static u8 fts_event_handler_type_b(struct fts_ts_info *info)
 								info->finger[TouchID].major);
 					input_report_abs(info->input_dev, ABS_MT_TOUCH_MINOR,
 								info->finger[TouchID].minor);
-/*
+
 					if (info->brush_mode)
 						input_report_abs(info->input_dev, ABS_MT_CUSTOM,
 									(info->finger[TouchID].max_energy << 16) |
@@ -2433,10 +2530,6 @@ static u8 fts_event_handler_type_b(struct fts_ts_info *info)
 									(info->finger[TouchID].max_energy << 16) |
 									(BRUSH_Z_DATA << 1) |
 									info->finger[TouchID].palm);
-*/
-					if (info->finger[TouchID].palm)
-						info->palm_flag |= (1 << TouchID);
-					input_report_key(info->input_dev, BTN_PALM, info->palm_flag);
 
 					if (info->board->support_mt_pressure)
 						input_report_abs(info->input_dev, ABS_MT_PRESSURE,
@@ -3090,8 +3183,6 @@ static int fts_parse_dt(struct spi_device *client)
 	pdata->support_flex_mode = of_property_read_bool(np, "support_flex_mode");
 	pdata->support_lightsensor_detect = of_property_read_bool(np, "support_lightsensor_detect");
 
-	of_property_read_u32(np, "stm,support_sensor_hall", &pdata->support_sensor_hall);
-
 	of_property_read_u32(np, "stm,bringup", &pdata->bringup);
 
 	pdata->enable_settings_aot = of_property_read_bool(np, "stm,enable_settings_aot");
@@ -3160,29 +3251,20 @@ static int fts_parse_dt(struct spi_device *client)
 			if ((lcd_id_num != count) || (lcd_id_num <= 0)) {
 				of_property_read_string_index(np, "stm,firmware_name", 0, &pdata->firmware_name);
 			} else {
-				u32 *lcd_id;
-
-				lcd_id = kzalloc(sizeof(u32) * lcd_id_num, GFP_KERNEL);
-				if  (!lcd_id)
-					return -ENOMEM;
+				u32 lcd_id[5];
 
 				of_property_read_u32_array(np, "stm,select_lcdid", lcd_id, lcd_id_num);
 
 				for (i = 0; i < lcd_id_num; i++) {
-					if (lcd_id[i] == lcdtype) {
+					if (lcd_id[i] == ((lcdtype >> 16) & 0xFF)) {
 						of_property_read_string_index(np, "stm,firmware_name", i, &pdata->firmware_name);
 						break;
 					}
-
-					if (i == (lcd_id_num -1))
-						of_property_read_string_index(np, "stm,firmware_name", i, &pdata->firmware_name);
 				}
 				if (!pdata->firmware_name)
 					pdata->bringup = 1;
 				else if (strlen(pdata->firmware_name) == 0)
 					pdata->bringup = 1;
-
-				input_info(true, &client->dev, "%s: count: %d, index:%d, lcd_id: 0x%X, firmware: %s\n", __func__, count, i, lcd_id[i], pdata->firmware_name);
 			}
 		}
 	}
@@ -3356,7 +3438,6 @@ static void fts_set_input_prop(struct fts_ts_info *info, struct input_dev *dev, 
 	set_bit(propbit, dev->propbit);
 	set_bit(BTN_TOUCH, dev->keybit);
 	set_bit(BTN_TOOL_FINGER, dev->keybit);
-	set_bit(BTN_PALM, dev->keybit);
 	set_bit(BTN_LARGE_PALM, dev->keybit);
 	set_bit(KEY_BLACK_UI_GESTURE, dev->keybit);
 	set_bit(KEY_WAKEUP, dev->keybit);
@@ -3390,12 +3471,11 @@ static void fts_set_input_prop(struct fts_ts_info *info, struct input_dev *dev, 
 
 static void fts_set_input_prop_proximity(struct fts_ts_info *info, struct input_dev *dev)
 {
-	static char phys[64] = { 0 };
+	char phys[64] = { 0 };
 
 	snprintf(phys, sizeof(phys), "%s/input1", dev->name);
 	dev->phys = phys;
-
-	dev->id.bustype = BUS_SPI;
+	dev->id.bustype = BUS_I2C;
 	dev->dev.parent = &info->client->dev;
 
 	set_bit(EV_SYN, dev->evbit);
@@ -3639,10 +3719,8 @@ static int fts_probe(struct spi_device *client)
 #if IS_ENABLED(CONFIG_SUPPORT_SENSOR_FOLD)
 	info->hall_ic_nb_ssh.priority = 1;
 	info->hall_ic_nb_ssh.notifier_call = fts_hall_ic_ssh_notify;
-	if (info->board->support_sensor_hall) {
-		sensorfold_notifier_register(&info->hall_ic_nb_ssh);
-		input_info(true, &info->client->dev, "%s: hall ic(ssh) register\n", __func__);
-	}
+	sensorfold_notifier_register(&info->hall_ic_nb_ssh);
+	input_info(true, &info->client->dev, "%s: hall ic(ssh) register\n", __func__);
 #endif
 #endif
 
@@ -4008,6 +4086,25 @@ static void fts_reinit_fac(struct fts_ts_info *info)
 }
 #endif
 
+void fts_reinit_temp(struct fts_ts_info *info, bool delay)
+{
+	u8 regAdd[6] = { 0xFA, 0x20, 0x00, 0x00, 0x24, 0x81 };
+	u8 data[16];
+	u8 wcmd = 0x87;
+
+
+	return;
+//////////////////////////
+
+	memset(data, 0x00, 16);
+	fts_write_reg(info, regAdd, 6);
+
+	fts_write_read_reg(info, &wcmd, 1, data, 16);
+	fts_write_read_reg(info, &wcmd, 1, data, 16);
+
+	return;
+}
+
 void fts_reinit(struct fts_ts_info *info, bool delay)
 {
 	u8 regAdd[3] = {0};
@@ -4153,11 +4250,9 @@ void fts_release_all_finger(struct fts_ts_info *info)
 	}
 
 	info->touch_count = 0;
-	info->palm_flag = 0;
 
 	input_report_key(info->input_dev, BTN_TOUCH, 0);
 	input_report_key(info->input_dev, BTN_TOOL_FINGER, 0);
-	input_report_key(info->input_dev, BTN_PALM, 0);
 	input_report_key(info->input_dev, BTN_LARGE_PALM, 0);
 
 	input_sync(info->input_dev);
@@ -4306,16 +4401,8 @@ static void fts_reset_work(struct work_struct *work)
 	fts_stop_device(info);
 
 	msleep(100);	/* Delay to discharge the IC from ESD or On-state.*/
-	if (fts_start_device(info) < 0) {
-		char result[32];
-		char test[32];
-
+	if (fts_start_device(info) < 0)
 		input_err(true, &info->client->dev, "%s: Failed to start device\n", __func__);
-		/* for ACT i2c recovery fail test */
-		snprintf(test, sizeof(test), "TEST=RECOVERY");
-		snprintf(result, sizeof(result), "RESULT=FAIL");
-		sec_cmd_send_event_to_user(&info->sec, test, result);
-	}
 /*
 	if (info->input_dev_touch->disabled) {
 		u8 data[8] = { 0 };
@@ -4368,8 +4455,8 @@ static void fts_read_info_work(struct work_struct *work)
 	input_raw_info_d(true, &info->client->dev, "%s: fac test result %02X\n",
 				__func__, info->test_result.data[0]);
 
-//	info->info_work_done = true;
-//	return;
+	info->info_work_done = true;
+	return;
 //////////////////////////////
 
 	fts_run_rawdata_read_all(info);
@@ -4640,8 +4727,10 @@ static int fts_start_device(struct fts_ts_info *info)
 
 	info->reinit_done = false;
 	info->fts_power_state = FTS_POWER_STATE_ACTIVE;
-	fts_reinit(info, true);
+	fts_reinit_temp(info, false);
+	fts_reinit(info, false/*true*/);
 	info->reinit_done = true;
+	return 0;
 
 	if (info->board->support_ear_detect) {
 		if (info->ed_enable) {

@@ -19,6 +19,8 @@
 #include <linux/slab.h>
 #include <linux/kernel.h>
 
+static void s2asl01_init_regs(struct s2asl01_limiter_data *limiter);
+
 static enum power_supply_property s2asl01_main_props[] = {
 	POWER_SUPPLY_PROP_HEALTH,
 };
@@ -86,8 +88,8 @@ static void s2asl01_test_read(struct i2c_client *client)
 	char str[1016] = {0,};
 	int i = 0;
 
-	/* address 0x00 ~ 0x1f */
-	for (i = 0x0; i <= 0x1F; i++) {
+	/* read address 0x00 ~ 0x36, 0x20 ~ 0x36 are hidden registers */
+	for (i = 0x0; i <= 0x36; i++) {
 		s2asl01_read_reg(limiter->client, i, &data);
 		sprintf(str+strlen(str), "0x%02x:0x%02x, ", i, data);
 	}
@@ -95,18 +97,24 @@ static void s2asl01_test_read(struct i2c_client *client)
 	pr_info("%s [%s]: %s\n", __func__, current_limiter_type_str[limiter->pdata->bat_type], str);
 }
 
-static void s2asl01_check_status(struct s2asl01_limiter_data *limiter)
+static bool s2asl01_check_status(struct s2asl01_limiter_data *limiter)
 {
 	u8 data = 0;
+	bool ret = true;
 
 	s2asl01_read_reg(limiter->client, S2ASL01_LIMITER_PM_ENABLE, &data);
 	data &= 0xF0;
-	if (!data)
+
+	if (!data) {
 		pr_info("%s [%s]: caution! powermeter disabled\n", __func__,
 		current_limiter_type_str[limiter->pdata->bat_type]);
+		ret = false;
+	}
 	pr_info("%s [%s]: enb = %d, det = %d\n", __func__,
 		current_limiter_type_str[limiter->pdata->bat_type],
 		gpio_get_value(limiter->pdata->bat_enb), gpio_get_value(limiter->pdata->bat_det));
+
+	return ret;
 }
 
 static void s2asl01_set_in_ok(struct s2asl01_limiter_data *limiter, bool onoff)
@@ -352,6 +360,35 @@ static int s2asl01_get_idischg(struct s2asl01_limiter_data *limiter, int mode)
 		(mode == SEC_BATTERY_CURRENT_UA) ? "uA" : "mA");
 
 	return idischg;
+}
+
+static unsigned int s2asl01_check_health(struct s2asl01_limiter_data *limiter)
+{
+	int vchg, vbat, ichg, idischg;
+	u8 pm_enable = 0;
+	int ret = 0;
+
+	ret = s2asl01_read_reg(limiter->client, S2ASL01_LIMITER_PM_ENABLE, &pm_enable);
+	pm_enable &= 0xF0;
+
+	/* do not check limiter health when powermeter is abnormal or i2c fail  */
+	if (!pm_enable || ret < 0)
+		return POWER_SUPPLY_HEALTH_GOOD;
+
+	vchg = s2asl01_get_vchg(limiter, SEC_BATTERY_VOLTAGE_MV);
+	vbat = s2asl01_get_vbat(limiter, SEC_BATTERY_VOLTAGE_MV);
+	ichg = s2asl01_get_ichg(limiter, SEC_BATTERY_CURRENT_MA);
+	idischg = s2asl01_get_idischg(limiter, SEC_BATTERY_CURRENT_MA);
+
+	pr_info("%s [%s]: vchg=%dmV, vbat=%dmV, ichg=%dmA, idischg=%dmA\n",
+		__func__,
+		current_limiter_type_str[limiter->pdata->bat_type],
+		vchg, vbat, ichg, idischg);
+
+	if (vchg && vbat)
+		return POWER_SUPPLY_HEALTH_GOOD;
+
+	return POWER_SUPPLY_HEALTH_UNSPEC_FAILURE;
 }
 
 static void s2asl01_set_fast_charging_current_limit(
@@ -690,21 +727,10 @@ static int s2asl01_get_property(struct power_supply *psy,
 					power_supply_get_drvdata(psy);
 
 	enum power_supply_ext_property ext_psp = (enum power_supply_ext_property)psp;
-	int vchg, vbat, ichg, idischg;
-
-	//pr_info("%s [%s]\n", __func__, current_limiter_type_str[limiter->pdata->bat_type]);
 
 	switch ((int)psp) {
 	case POWER_SUPPLY_PROP_HEALTH:
-		vchg = s2asl01_get_vchg(limiter, SEC_BATTERY_VOLTAGE_MV);
-		vbat = s2asl01_get_vbat(limiter, SEC_BATTERY_VOLTAGE_MV);
-		ichg = s2asl01_get_ichg(limiter, SEC_BATTERY_CURRENT_MA);
-		idischg = s2asl01_get_idischg(limiter, SEC_BATTERY_CURRENT_MA);
-		pr_info("%s [%s]: vchg=%dmV, vbat=%dmV, ichg=%dmA, idischg=%dmA\n",
-			__func__,
-			current_limiter_type_str[limiter->pdata->bat_type],
-			vchg, vbat, ichg, idischg);
-		val->intval = 0;
+		val->intval = s2asl01_check_health(limiter);
 		break;
 	case POWER_SUPPLY_EXT_PROP_MIN ... POWER_SUPPLY_EXT_PROP_MAX:
 		switch (ext_psp) {
@@ -725,6 +751,7 @@ static int s2asl01_get_property(struct power_supply *psy,
 			break;
 		case POWER_SUPPLY_EXT_PROP_BAT_VOLTAGE:
 			val->intval = s2asl01_get_vbat(limiter, val->intval);
+			s2asl01_test_read(limiter->client);
 			break;
 		case POWER_SUPPLY_EXT_PROP_CHG_CURRENT:
 			val->intval = s2asl01_get_ichg(limiter, val->intval);
@@ -796,6 +823,7 @@ static int s2asl01_set_property(struct power_supply *psy,
 			pr_info("%s [%s]: chg en ? %d\n", __func__, current_limiter_type_str[limiter->pdata->bat_type], val->intval);
 			break;
 		case POWER_SUPPLY_EXT_PROP_CHGIN_OK:
+			pr_info("%s [%s]: chgin_ok ? %d\n", __func__, current_limiter_type_str[limiter->pdata->bat_type], val->intval);
 			limiter->in_ok = val->intval;
 			s2asl01_set_in_ok(limiter, limiter->in_ok);
 			break;
@@ -833,7 +861,8 @@ static int s2asl01_set_property(struct power_supply *psy,
 			s2asl01_set_eoc_current(limiter, val->intval);
 			break;
 		case POWER_SUPPLY_EXT_PROP_POWERMETER_ENABLE:
-			s2asl01_powermeter_onoff(limiter, val->intval);
+			s2asl01_init_regs(limiter);
+			s2asl01_test_read(limiter->client);
 			break;
 		default:
 			return -EINVAL;
@@ -1117,7 +1146,7 @@ static void s2asl01_init_regs(struct s2asl01_limiter_data *limiter)
 
 	pr_err("%s: s2asl01 limiter initialize\n", __func__);
 
-	/* SUB_PWR_OFF_MODE enable */
+	/* SUB_PWR_OFF_MODE disable */
 	s2asl01_update_reg(limiter->client, S2ASL01_LIMITER_CORE_CTRL2,
 		S2ASL01_SUB_PWR_OFF_MODE1, S2ASL01_SUB_PWR_OFF_MODE_MASK);
 

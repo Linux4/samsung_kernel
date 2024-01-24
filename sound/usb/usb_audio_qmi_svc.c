@@ -29,9 +29,6 @@
 #include "helper.h"
 #include "pcm.h"
 #include "usb_audio_qmi_v01.h"
-#ifdef CONFIG_USB_NOTIFY_PROC_LOG
-#include <linux/usb_notify.h>
-#endif
 
 #define BUS_INTERVAL_FULL_SPEED 1000 /* in us */
 #define BUS_INTERVAL_HIGHSPEED_AND_ABOVE 125 /* in us */
@@ -1085,9 +1082,6 @@ static void handle_uaudio_stream_req(struct qmi_handle *handle,
 
 	u8 pcm_card_num, pcm_dev_num, direction;
 	int info_idx = -EINVAL, datainterval = -EINVAL, ret = 0;
-#ifdef CONFIG_USB_NOTIFY_PROC_LOG
-	int on, type;
-#endif	
 
 	uaudio_dbg("sq_node:%x sq_port:%x sq_family:%x\n", sq->sq_node,
 			sq->sq_port, sq->sq_family);
@@ -1176,19 +1170,6 @@ static void handle_uaudio_stream_req(struct qmi_handle *handle,
 	uadev[pcm_card_num].ctrl_intf = chip->ctrl_intf;
 
 	if (!req_msg->enable) {
-#if defined(CONFIG_USB_HOST_SAMSUNG_FEATURE)
-		pr_info("%s : cur active count=%d, cur dev usage count=%d! \n", __func__, 
-			atomic_read(&chip->active),
-			atomic_read(&chip->pm_intf->dev.power.usage_count));
-		if(atomic_read(&chip->active) && 
-				!atomic_read(&chip->pm_intf->dev.power.usage_count)){
-			pr_info("%s : defensive code for dwc3 low power mode!\n", __func__);
-			ret = -EINVAL;
-			mutex_unlock(&chip->dev_lock);
-			goto response;
-		}
-#endif	
-			
 		info = &uadev[pcm_card_num].info[info_idx];
 		if (info->data_ep_pipe) {
 			ep = usb_pipe_endpoint(uadev[pcm_card_num].udev,
@@ -1217,14 +1198,7 @@ static void handle_uaudio_stream_req(struct qmi_handle *handle,
 			info->sync_ep_pipe = 0;
 		}
 	}
-#ifdef CONFIG_USB_NOTIFY_PROC_LOG
-	if (subs->direction == SNDRV_PCM_STREAM_PLAYBACK)
-		type = NOTIFY_PCM_PLAYBACK;
-	else
-		type = NOTIFY_PCM_CAPTURE;
-	on = req_msg->enable;
-	store_usblog_notify(type, (void *)&on, NULL);
-#endif
+
 	ret = snd_usb_enable_audio_stream(subs, datainterval, req_msg->enable);
 	pr_info("%s : snd_usb_enable_audio_stream : ret = %d\n", __func__, ret);
 
@@ -1273,9 +1247,6 @@ static void uaudio_qmi_disconnect_work(struct work_struct *w)
 	int idx, if_idx;
 	struct snd_usb_substream *subs;
 	struct snd_usb_audio *chip = NULL;
-#ifdef CONFIG_USB_NOTIFY_PROC_LOG
-	int on, type;
-#endif		
 
 	/* find all active intf for set alt 0 and cleanup usb audio dev */
 	for (idx = 0; idx < SNDRV_CARDS; idx++) {
@@ -1298,14 +1269,6 @@ static void uaudio_qmi_disconnect_work(struct work_struct *w)
 						info->direction);
 				continue;
 			}
-#ifdef CONFIG_USB_NOTIFY_PROC_LOG
-			if (subs->direction == SNDRV_PCM_STREAM_PLAYBACK)
-				type = NOTIFY_PCM_PLAYBACK;
-			else
-				type = NOTIFY_PCM_CAPTURE;
-			on = 0;
-			store_usblog_notify(type, (void *)&on, NULL);
-#endif			
 			snd_usb_enable_audio_stream(subs, -EINVAL, 0);
 		}
 		atomic_set(&uadev[idx].in_use, 0);

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0-only
-/* Copyright (c) 2016-2020, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
  */
 
 #include <linux/init.h>
@@ -158,6 +158,8 @@ static const struct soc_enum msm_pcm_fe_topology_enum[] = {
 static void event_handler(uint32_t opcode,
 		uint32_t token, uint32_t *payload, void *priv)
 {
+	struct msm_audio *prtd = priv;
+	struct snd_pcm_substream *substream;
 	uint32_t *ptrmem = (uint32_t *)payload;
 
 	switch (opcode) {
@@ -175,6 +177,18 @@ static void event_handler(uint32_t opcode,
 		default:
 			break;
 		}
+		break;
+	case RESET_EVENTS:
+		if (!prtd || !prtd->substream) {
+			pr_err("%s: prtd or substream is NULL\n", __func__);
+			return;
+		}
+		substream = prtd->substream;
+		if (!substream->runtime || !substream->runtime->status) {
+			pr_err("%s: runtime or runtime->status is NULL\n", __func__);
+			return;
+		}
+		substream->runtime->status->state = SNDRV_PCM_STATE_DISCONNECTED;
 		break;
 	default:
 		pr_debug("Not Supported Event opcode[0x%x]\n", opcode);
@@ -365,6 +379,7 @@ static int msm_pcm_hw_params(struct snd_pcm_substream *substream,
 	config.bufsz = params_buffer_bytes(params) / params_periods(params);
 	config.bufcnt = params_periods(params);
 
+	prtd->audio_client->fedai_id = soc_prtd->dai_link->id;
 	ret = q6asm_open_shared_io(prtd->audio_client, &config, dir,
 				   use_default_chmap, chmap);
 	if (ret) {
@@ -624,7 +639,11 @@ static int msm_pcm_prepare(struct snd_pcm_substream *substream)
 	struct snd_pcm_runtime *runtime = substream->runtime;
 	struct msm_audio *prtd = runtime->private_data;
 	struct asm_softvolume_params softvol = {
+#ifdef CONFIG_SND_SOC_SAMSUNG_AUDIO
+		.period = SOFT_VOLUME_MMAP_PERIOD,
+#else
 		.period = SOFT_VOLUME_PERIOD,
+#endif
 		.step = SOFT_VOLUME_STEP,
 		.rampingcurve = SOFT_VOLUME_CURVE_LINEAR,
 	};

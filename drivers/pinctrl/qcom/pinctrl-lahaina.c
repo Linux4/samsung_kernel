@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2019-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
  */
 
 #include <linux/module.h>
@@ -1286,7 +1286,7 @@ static const char * const qup5_groups[] = {
 	"gpio24", "gpio25", "gpio26", "gpio27",
 };
 static const char * const qup6_groups[] = {
-	"gpio28", "gpio29", "gpio30", "gpio31",
+	"gpio28", "gpio29", "gpio30", "gpio31", "gpio6",
 };
 static const char * const qup7_groups[] = {
 	"gpio32", "gpio33", "gpio34", "gpio35",
@@ -1609,7 +1609,7 @@ static const struct msm_pingroup lahaina_groups[] = {
 	[3] = PINGROUP(3, qup13, qup_l5, NA, NA, NA, NA, NA, NA, NA, 0, -1),
 	[4] = PINGROUP(4, qup0, NA, NA, NA, NA, NA, NA, NA, NA, 0, -1),
 	[5] = PINGROUP(5, qup0, NA, NA, NA, NA, NA, NA, NA, NA, 0, -1),
-	[6] = PINGROUP(6, qup0, qup_l4, NA, NA, NA, NA, NA, NA, NA, 0, -1),
+	[6] = PINGROUP(6, qup0, qup6, NA, NA, NA, NA, NA, NA, NA, 0, -1),
 	[7] = PINGROUP(7, qup0, qup_l5, NA, NA, NA, NA, NA, NA, NA, 0xCB000, 0),
 	[8] = PINGROUP(8, qup1, NA, NA, NA, NA, NA, NA, NA, NA, 0, -1),
 	[9] = PINGROUP(9, qup1, NA, NA, NA, NA, NA, NA, NA, NA, 0, -1),
@@ -1938,11 +1938,11 @@ static const struct msm_pingroup lahaina_groups[] = {
 };
 
 static const int lahaina_reserved_gpios[] = {
-#if defined(CONFIG_FINGERPRINT_SECURE) && !defined(CONFIG_SEC_FACTORY)
+#if !defined(CONFIG_SEC_FACTORY)
 	52, 53, 54, 55,
 #endif
 #if IS_ENABLED(CONFIG_MST_LDO)
-        30, 31,
+	30, 31,
 #endif
 	-1
 };
@@ -1954,22 +1954,20 @@ static struct pinctrl_qup lahaina_qup_regs[] = {
 };
 
 static const struct msm_gpio_wakeirq_map lahaina_pdc_map[] = {
-	{ 2, 117 }, { 7, 82 }, { 11, 83 }, { 14, 80 }, { 15, 146 },
-	{ 19, 121 }, { 23, 84 }, { 26, 86 }, { 27, 75 }, { 31, 85 },
-	{ 32, 97 }, { 34, 98 }, { 35, 131 }, { 36, 79 }, { 38, 99 },
-	{ 39, 92 }, { 40, 101 }, { 43, 137 }, { 44, 102 }, { 46, 96 },
-	{ 47, 93 }, { 50, 108 }, { 51, 127 }, { 55, 128 }, { 56, 81 },
-	{ 59, 112 }, { 60, 119 }, { 63, 73 }, { 67, 74 }, { 71, 134 },
-	{ 75, 103 }, { 79, 104 }, { 80, 126 }, { 81, 139 }, { 82, 140 },
-	{ 83, 141 }, { 84, 124 }, { 85, 109 }, { 86, 143 }, { 87, 138 },
-	{ 88, 122 }, { 89, 113 }, { 90, 114 }, { 91, 115 }, { 92, 76 },
-	{ 95, 147 }, { 96, 148 }, { 98, 149 }, { 99, 150 }, { 115, 125 },
-	{ 116, 106 }, { 117, 105 }, { 118, 116 }, { 119, 123 }, { 130, 145 },
-	{ 136, 72 }, { 140, 100 }, { 151, 110 }, { 153, 95 }, { 155, 107 },
-	{ 156, 94 }, { 157, 111 }, { 159, 118 }, { 162, 77 }, { 165, 78 },
-	{ 169, 70 }, { 172, 132 }, { 174, 87 }, { 175, 88 }, { 177, 89 },
-	{ 179, 120 }, { 180, 129 }, { 183, 90 }, { 185, 136 }, { 187, 142 },
-	{ 190, 144 }, { 198, 91 }, { 200, 133 }, { 202, 135 },
+	{ 2, 117 }, { 7, 82 }, { 11, 83 }, { 14, 80 }, { 15, 146 }, { 19, 121 },
+	{ 23, 84 }, { 26, 86 }, { 27, 75 }, { 31, 85 }, { 32, 97 }, { 34, 98 },
+	{ 35, 131 }, { 36, 79 }, { 38, 99 }, { 39, 92 }, { 40, 101 }, { 43, 137 },
+	{ 44, 102 }, { 46, 96 }, { 47, 93 }, { 50, 108 }, { 51, 127 }, { 55, 128 },
+	{ 56, 81 }, { 59, 112 }, { 60, 119 }, { 63, 73 }, { 67, 74 }, { 71, 134 },
+	{ 75, 103 }, { 79, 104 }, { 80, 126 }, { 81, 139 }, { 82, 140 }, { 83, 141 },
+	{ 84, 124 }, { 85, 109 }, { 86, 143 }, { 87, 138 }, { 88, 122 }, { 89, 113 },
+	{ 90, 114 }, { 91, 115 }, { 92, 76 }, { 95, 147 }, { 96, 148 }, { 98, 149 },
+	{ 99, 150 }, { 115, 125 }, { 116, 106 }, { 117, 105 }, { 118, 116 }, { 119, 123 },
+	{ 130, 145 }, { 136, 72 }, { 140, 100 }, { 151, 110 }, { 153, 95 }, { 155, 107 },
+	{ 156, 94 }, { 157, 111 }, { 159, 118 }, { 162, 77 }, { 165, 78 }, { 169, 130 },
+	{ 172, 132 }, { 174, 87 }, { 175, 88 }, { 177, 89 }, { 179, 120 }, { 180, 129 },
+	{ 183, 90 }, { 185, 136 }, { 187, 142 }, { 190, 144 }, { 198, 91 }, { 200, 133 },
+	{ 202, 135 },
 };
 
 static struct msm_pinctrl_soc_data lahaina_pinctrl = {
@@ -1986,6 +1984,20 @@ static struct msm_pinctrl_soc_data lahaina_pinctrl = {
 	.wakeirq_map = lahaina_pdc_map,
 	.nwakeirq_map = ARRAY_SIZE(lahaina_pdc_map),
 };
+
+/* By default, all the gpios that are mpm wake capable are enabled.
+ * The following list disables the gpios explicitly
+ */
+static const unsigned int config_mpm_wake_disable_gpios[] = { 202 };
+
+static void lahaina_pinctrl_config_mpm_wake_disable_gpios(void)
+{
+	unsigned int i;
+	unsigned int n_gpios = ARRAY_SIZE(config_mpm_wake_disable_gpios);
+
+	for (i = 0; i < n_gpios; i++)
+		msm_gpio_mpm_wake_set(config_mpm_wake_disable_gpios[i], false);
+}
 
 static int lahaina_pinctrl_no_wake_probe(struct platform_device *pdev)
 {
@@ -2027,6 +2039,8 @@ static int lahaina_pinctrl_probe(struct platform_device *pdev)
 	ret = msm_pinctrl_probe(pdev, &lahaina_pinctrl);
 	if (ret)
 		return ret;
+
+	lahaina_pinctrl_config_mpm_wake_disable_gpios();
 
 	return 0;
 }

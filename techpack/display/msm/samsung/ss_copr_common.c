@@ -866,11 +866,11 @@ void ss_read_copr_work(struct work_struct *work)
 	return;
 }
 
-void ss_copr_init(struct samsung_display_driver_data *vdd)
+int ss_copr_init(struct samsung_display_driver_data *vdd)
 {
 	if (IS_ERR_OR_NULL(vdd)) {
 		LCD_ERR(vdd,   "vdd is null or error\n");
-		return;
+		return -ENODEV;
 	}
 
 	mutex_init(&vdd->copr.copr_val_lock);
@@ -881,7 +881,7 @@ void ss_copr_init(struct samsung_display_driver_data *vdd)
 		vdd->copr.read_copr_wq = create_singlethread_workqueue("read_copr_wq");
 		if (vdd->copr.read_copr_wq == NULL) {
 			LCD_ERR(vdd,   "failed to create read copr workqueue..\n");
-			return;
+			return -ENOENT;
 		}
 
 		INIT_WORK(&vdd->copr.read_copr_work, (work_func_t)ss_read_copr_work);
@@ -896,5 +896,5 @@ void ss_copr_init(struct samsung_display_driver_data *vdd)
 
 	LCD_INFO(vdd,  "Success to initialized copr ..\n");
 
-	return;
+	return 0;
 }

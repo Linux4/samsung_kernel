@@ -251,6 +251,20 @@ static enum pon_restart_reason __pon_restart_dump_sink(
 	return PON_RESTART_REASON_UNKNOWN;
 }
 
+static enum pon_restart_reason __pon_restart_cdsp_signoff(
+				unsigned long opt_code)
+{
+	switch (opt_code) {
+	case CDSP_SIGNOFF_ON:
+		return PON_RESTART_REASON_CDSP_ON;
+	case CDSP_SIGNOFF_BLOCK:
+		return PON_RESTART_REASON_CDSP_BLOCK;
+	}
+
+	return PON_RESTART_REASON_UNKNOWN;
+}
+
+
 #ifdef CONFIG_MUIC_SUPPORT_RUSTPROOF
 static enum pon_restart_reason __pon_restart_swsel(
 				unsigned long opt_code)
@@ -386,10 +400,16 @@ void sec_debug_update_restart_reason(const char *cmd, const int in_panic,
 		{ "dump_sink",
 			PON_RESTART_REASON_UNKNOWN,
 			RESTART_REASON_NORMAL, __pon_restart_dump_sink},
+		{ "signoff",
+			PON_RESTART_REASON_UNKNOWN,
+			RESTART_REASON_NORMAL, __pon_restart_cdsp_signoff},
 		{ "cross_fail",
 			PON_RESTART_REASON_CROSS_FAIL,
 			RESTART_REASON_NORMAL, NULL},
 		{ "from_fastboot",
+			PON_RESTART_REASON_NORMALBOOT,
+			RESTART_REASON_NOT_HANDLE, NULL},
+		{ "disallow,fastboot",
 			PON_RESTART_REASON_NORMALBOOT,
 			RESTART_REASON_NOT_HANDLE, NULL},
 #ifdef CONFIG_MUIC_SUPPORT_RUSTPROOF
@@ -520,6 +540,9 @@ void sec_peripheral_secure_check_fail(void)
 {
 	if (!sec_debug_is_enabled()) {
 		sec_debug_set_qc_dload_magic(0);
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5,4,0)                                           
+		sec_debug_update_restart_reason("peripheral_hw_reset", 0, RESTART_NORMAL);
+#endif                                                                                    
 		sec_debug_pm_restart("peripheral_hw_reset");
 		/* never reach here */
 	}
@@ -844,7 +867,7 @@ static int __init sec_debug_init(void)
 	case ANDROID_DEBUG_LEVEL_MID:
 #endif
 
-#if defined(CONFIG_SEC_A52Q_PROJECT) || defined(CONFIG_SEC_A72Q_PROJECT)
+#if defined(CONFIG_ARCH_ATOLL) || defined(CONFIG_ARCH_SEC_SM7150)
 		if (!force_upload)
 			qcom_scm_disable_sdi();
 #endif
@@ -967,7 +990,9 @@ void dump_cpu_stat(void)
 	guest = guest_nice = 0;
 	getboottime64(&boottime);
 
-	for_each_possible_cpu(i) {
+	for_each_present_cpu(i) {
+		BUG_ON(i >= NR_CPUS);
+
 		user += kcpustat_cpu(i).cpustat[CPUTIME_USER];
 		nice += kcpustat_cpu(i).cpustat[CPUTIME_NICE];
 		system += kcpustat_cpu(i).cpustat[CPUTIME_SYSTEM];

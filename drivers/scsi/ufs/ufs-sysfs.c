@@ -10,10 +10,6 @@
 #include "ufs.h"
 #include "ufs-sysfs.h"
 
-#if defined(CONFIG_SEC_KUNIT)
-#include <kunit/mock.h>
-#endif
-
 /* Called by FS */
 extern void (*ufs_debug_func)(void *);
 
@@ -854,7 +850,7 @@ static ssize_t dyn_cap_needed_attribute_show(struct device *dev,
 
 	pm_runtime_get_sync(hba->dev);
 	ret = ufshcd_query_attr(hba, UPIU_QUERY_OPCODE_READ_ATTR,
-		QUERY_ATTR_IDN_DYN_CAP_NEEDED, lun, 0, &value);
+			QUERY_ATTR_IDN_DYN_CAP_NEEDED, lun, 0, &value);
 	pm_runtime_put_sync(hba->dev);
 	if (ret)
 		return -EINVAL;
@@ -883,11 +879,7 @@ enum {
 	UFSHCD_UIC_DL_ERROR = (1 << 6), /* Data link layer error */
 };
 
-#if !defined(CONFIG_SEC_KUNIT)
 static struct SEC_UFS_counting SEC_err_info;
-#else
-__visible_for_testing struct SEC_UFS_counting SEC_err_info;
-#endif
 
 void SEC_ufs_print_err_info(struct ufs_hba *hba)
 {
@@ -1138,7 +1130,7 @@ out:
 	if (tm_cmd || opcode)
 		SEC_UFS_ERR_COUNT_INC(utp_err->UTP_err, UINT_MAX);
 
-#if !IS_ENABLED(CONFIG_SAMSUNG_PRODUCT_SHIP) && !defined(CONFIG_UML)
+#if !IS_ENABLED(CONFIG_SAMSUNG_PRODUCT_SHIP)
 	if (tm_cmd == UFS_QUERY_TASK || tm_cmd == UFS_ABORT_TASK) {
 		/* waiting for cache flush and make a panic */
 		ssleep(2);

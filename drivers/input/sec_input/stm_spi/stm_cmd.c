@@ -248,7 +248,10 @@ static ssize_t read_support_feature(struct device *dev,
 	if (ts->plat_data->support_input_monitor)
 		feature |= INPUT_FEATURE_SUPPORT_INPUT_MONITOR;
 
-	input_info(true, &ts->client->dev, "%s: %d%s%s%s%s%s%s%s%s\n",
+	if (ts->plat_data->enable_sysinput_enabled)
+		feature |= INPUT_FEATURE_ENABLE_SYSINPUT_ENABLED;
+
+	input_info(true, &ts->client->dev, "%s: %d%s%s%s%s%s%s%s%s%s\n",
 			__func__, feature,
 			feature & INPUT_FEATURE_ENABLE_SETTINGS_AOT ? " aot" : "",
 			feature & INPUT_FEATURE_ENABLE_PRESSURE ? " pressure" : "",
@@ -257,7 +260,8 @@ static ssize_t read_support_feature(struct device *dev,
 			feature & INPUT_FEATURE_SUPPORT_OPEN_SHORT_TEST ? " openshort" : "",
 			feature & INPUT_FEATURE_SUPPORT_MIS_CALIBRATION_TEST ? " miscal" : "",
 			feature & INPUT_FEATURE_SUPPORT_WIRELESS_TX ? " wirelesstx" : "",
-			feature & INPUT_FEATURE_SUPPORT_INPUT_MONITOR ? " inputmonitor" : "");
+			feature & INPUT_FEATURE_SUPPORT_INPUT_MONITOR ? " inputmonitor" : "",
+			feature & INPUT_FEATURE_ENABLE_SYSINPUT_ENABLED ? " SE" : "");
 
 	return snprintf(buf, SEC_CMD_BUF_SIZE, "%d", feature);
 }
@@ -563,7 +567,7 @@ static ssize_t stm_ts_fod_position_show(struct device *dev,
 
 	if (!ts->plat_data->support_fod) {
 		input_err(true, &ts->client->dev, "%s: fod is not supported\n", __func__);
-		return snprintf(buf, SEC_CMD_BUF_SIZE, "NG");
+		return snprintf(buf, SEC_CMD_BUF_SIZE, "NA");
 	}
 
 	if (!ts->plat_data->fod_data.vi_size) {
@@ -612,6 +616,7 @@ static ssize_t aod_active_area(struct device *dev,
 			ts->plat_data->aod_data.active_area[2]);
 }
 
+#if IS_ENABLED(CONFIG_TOUCHSCREEN_DUAL_FOLDABLE)
 static ssize_t dualscreen_policy_store(struct device *dev,
 		struct device_attribute *attr,
 		const char *buf, size_t count)
@@ -637,6 +642,63 @@ static ssize_t dualscreen_policy_store(struct device *dev,
 
 	return count;
 }
+#endif
+
+static ssize_t enabled_show(struct device *dev, struct device_attribute *attr,
+					char *buf)
+{
+	struct sec_cmd_data *sec = dev_get_drvdata(dev);
+	struct stm_ts_data *ts = container_of(sec, struct stm_ts_data, sec);
+
+	if (!ts->plat_data->enable_sysinput_enabled)
+		return -EINVAL;
+
+	input_info(true, &ts->client->dev, "%s: power_status %d\n", __func__, ts->plat_data->power_state);
+
+	return snprintf(buf, SEC_CMD_BUF_SIZE, "%d", ts->plat_data->power_state);
+}
+
+static ssize_t enabled_store(struct device *dev, struct device_attribute *attr,
+					const char *buf, size_t count)
+{
+	struct sec_cmd_data *sec = dev_get_drvdata(dev);
+	struct stm_ts_data *ts = container_of(sec, struct stm_ts_data, sec);
+	struct input_dev *input_dev = ts->plat_data->input_dev;
+	int buff[2];
+	int ret;
+
+	if (!ts->plat_data->enable_sysinput_enabled)
+		return -EINVAL;
+
+	ret = sscanf(buf, "%d,%d", &buff[0], &buff[1]);
+	if (ret != 2) {
+		input_err(true, &ts->client->dev,
+				"%s: failed read params [%d]\n", __func__, ret);
+		return -EINVAL;
+	}
+
+	if (buff[0] == DISPLAY_STATE_ON && buff[1] == DISPLAY_EVENT_LATE) {
+		if (ts->plat_data->enabled) {
+			input_err(true, &ts->client->dev,"%s: device already enabled\n", __func__);
+			goto out;
+		}
+
+		ret = sec_input_enable_device(input_dev);
+	} else if (buff[0] == DISPLAY_STATE_OFF && buff[1] == DISPLAY_EVENT_EARLY) {
+		if (!ts->plat_data->enabled) {
+			input_err(true, &ts->client->dev,"%s: device already disabled\n", __func__);
+			goto out;
+		}
+
+		ret = sec_input_disable_device(input_dev);
+	}
+
+	if (ret)
+		return ret;
+
+out:
+	return count;
+}
 
 static DEVICE_ATTR(scrub_pos, 0444, scrub_position_show, NULL);
 static DEVICE_ATTR(hw_param, 0664, hardware_param_show, hardware_param_store);
@@ -650,7 +712,10 @@ static DEVICE_ATTR(virtual_prox, 0664, protos_event_show, protos_event_store);
 static DEVICE_ATTR(fod_pos, 0444, stm_ts_fod_position_show, NULL);
 static DEVICE_ATTR(fod_info, 0444, stm_ts_fod_info_show, NULL);
 static DEVICE_ATTR(aod_active_area, 0444, aod_active_area, NULL);
+#if IS_ENABLED(CONFIG_TOUCHSCREEN_DUAL_FOLDABLE)
 static DEVICE_ATTR(dualscreen_policy, 0664, NULL, dualscreen_policy_store);
+#endif
+static DEVICE_ATTR(enabled, 0664, enabled_show, enabled_store);
 
 static struct attribute *cmd_attributes[] = {
 	&dev_attr_scrub_pos.attr,
@@ -665,7 +730,10 @@ static struct attribute *cmd_attributes[] = {
 	&dev_attr_fod_pos.attr,
 	&dev_attr_fod_info.attr,
 	&dev_attr_aod_active_area.attr,
+#if IS_ENABLED(CONFIG_TOUCHSCREEN_DUAL_FOLDABLE)
 	&dev_attr_dualscreen_policy.attr,
+#endif
+	&dev_attr_enabled.attr,
 	NULL,
 };
 
@@ -1104,6 +1172,8 @@ int stm_ts_fw_wait_for_jitter_result(struct stm_ts_data *ts, u8 *reg, u8 count, 
 		return rc;
 	}
 
+	sec_delay(5);
+
 	memset(data, 0x0, STM_TS_EVENT_BUFF_SIZE);
 
 	address = STM_TS_READ_ONE_EVENT;
@@ -1116,7 +1186,7 @@ int stm_ts_fw_wait_for_jitter_result(struct stm_ts_data *ts, u8 *reg, u8 count, 
 
 		if ((data[0] == STM_TS_EVENT_JITTER_RESULT) && (data[1] == 0x03)) {  // Check Jitter result
 				if (data[2] == STM_TS_EVENT_JITTER_MUTUAL_MAX) {
-					*ret2 = (s16)((data[3] << 8) + data[4]);
+					*ret2 = (s16)((data[8] << 8) + data[9]);
 					input_info(true, &ts->client->dev, "%s: Mutual max jitter Strength : %d, RX:%d, TX:%d\n",
 	    					__func__, *ret2, data[5], data[6]);
 				} else if (data[2] == STM_TS_EVENT_JITTER_MUTUAL_MIN){
@@ -1591,6 +1661,8 @@ static int stm_ts_panel_test_micro_result(struct stm_ts_data *ts, int type)
 		input_err(true, &ts->client->dev, "%s: write failed: %d\n", __func__, ret);
 		goto error;
 	}
+
+	sec_delay(5);
 
 	/* maximum timeout 500 msec ? */
 	while (retry-- >= 0) {
@@ -2158,6 +2230,8 @@ static void run_jitter_delta_test(void *device_data)
 		mutex_unlock(&ts->fn_mutex);
 		goto OUT_JITTER_DELTA;
 	}
+
+	sec_delay(5);
 
 	memset(data, 0x0, STM_TS_EVENT_BUFF_SIZE);
 
@@ -2983,7 +3057,7 @@ static void run_prox_intensity_read_all(void *device_data)
 		return;
 	}
 
-	snprintf(buff, sizeof(buff), "SUM_X:%d THD_X:%d SUM_Y:%d THD_Y:%d",
+	snprintf(buff, sizeof(buff), "SUM_X:%d SUM_Y:%d THD_X:%d THD_Y:%d",
 			(sum_data[0] << 8) + sum_data[1], (sum_data[2] << 8) + sum_data[3],
 			(thd_data[0] << 8) + thd_data[1], (thd_data[2] << 8) + thd_data[3]);
 	sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
@@ -3250,6 +3324,8 @@ static void stm_ts_read_self_raw_frame(struct stm_ts_data *ts, bool allnode)
 	reg[2] = TYPE_RAW_DATA;
 	ts->stm_ts_spi_write(ts, &reg[0], 3, NULL, 0);
 
+	sec_delay(5);
+
 	do {
 		reg[0] = 0xA7;
 		reg[1] = 0x00;
@@ -3299,7 +3375,8 @@ static void stm_ts_read_self_raw_frame(struct stm_ts_data *ts, bool allnode)
 		self_force_raw_data[count] = (s16)(data[count * 2 + Offset] + (data[count * 2 + 1 + Offset] << 8));
 
 		/* Only for YOCTA */
-		if ((count == 0 && ts->chip_id == 0x503601) ||(count == 0 && ts->chip_id == 0x393603))
+		if ((count == 0 && ts->chip_id == 0x503601) || (count == 0 && ts->chip_id == 0x393603)
+			 || (count == 0 && ts->chip_id == 0x403601)) /* 403601 is rgb */
 			continue;
 
 		if (max_tx_self_raw_data < self_force_raw_data[count])
@@ -3313,7 +3390,8 @@ static void stm_ts_read_self_raw_frame(struct stm_ts_data *ts, bool allnode)
 		self_sense_raw_data[count] = (s16)(data[count * 2 + Offset] + (data[count * 2 + 1 + Offset] << 8));
 
 		/* Only for YOCTA */
-		if ((count == 0 && ts->chip_id == 0x503601) ||(count == 0 && ts->chip_id == 0x393603))
+		if ((count == 0 && ts->chip_id == 0x503601) || (count == 0 && ts->chip_id == 0x393603)
+			|| (count == 0 && ts->chip_id == 0x403601)) /* 403601 is rgb */
 			continue;
 
 		if (max_rx_self_raw_data < self_sense_raw_data[count])
@@ -3964,8 +4042,10 @@ static void run_rawdata_read_all(void *device_data)
 	struct stm_ts_data *ts = container_of(sec, struct stm_ts_data, sec);
 	char buff[SEC_CMD_STR_LEN] = { 0 };
 
-#ifdef CONFIG_TOUCHSCREEN_DUAL_FOLDABLE
+#if IS_ENABLED(CONFIG_TOUCHSCREEN_DUAL_FOLDABLE)
 	input_raw_data_clear(MAIN_TOUCH);
+#else
+	input_raw_data_clear();
 #endif
 	ts->tsp_dump_lock = true;
 
@@ -4265,6 +4345,8 @@ static void run_factory_miscalibration(void *device_data)
 		goto error;
 	}
 
+	sec_delay(5);
+
 	/* maximum timeout 2sec ? */
 	while (retry-- >= 0) {
 		memset(data, 0x00, sizeof(data));
@@ -4342,6 +4424,8 @@ static void run_miscalibration(void *device_data)
 		input_err(true, &ts->client->dev, "%s: write failed: %d\n", __func__, ret);
 		goto error;
 	}
+
+	sec_delay(5);
 
 	/* maximum timeout 2sec ? */
 	while (retry-- >= 0) {
@@ -4774,6 +4858,8 @@ static void run_elvss_test(void *device_data)
 		return;
 	}
 
+	sec_delay(5);
+
 	memset(data, 0x00, STM_TS_EVENT_BUFF_SIZE);
 	data[0] = STM_TS_READ_ONE_EVENT;
 
@@ -5059,6 +5145,8 @@ static void run_color_diff_test(void *device_data)
 		return;
 	}
 
+	sec_delay(5);
+
 	memset(data, 0x00, STM_TS_EVENT_BUFF_SIZE);
 	data[0] = STM_TS_READ_ONE_EVENT;
 
@@ -5156,6 +5244,76 @@ error:
 	}
 	if (sec->cmd_all_factory_state == SEC_CMD_STATUS_RUNNING)
 		sec_cmd_set_cmd_result_all(sec, buff, strnlen(buff, sizeof(buff)), "SRAM");
+	sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
+
+	stm_ts_reinit(ts);
+	enable_irq(ts->irq);
+}
+
+static void run_polarity_test(void *device_data)
+{
+	struct sec_cmd_data *sec = (struct sec_cmd_data *)device_data;
+	struct stm_ts_data *ts = container_of(sec, struct stm_ts_data, sec);
+	char buff[SEC_CMD_STR_LEN];
+	u8 reg;
+	u8 data[STM_TS_EVENT_BUFF_SIZE];
+	int rc, retry = 0;
+
+	sec_cmd_set_default_result(sec);
+
+	ts->stm_ts_systemreset(ts, 0);
+
+	mutex_lock(&ts->fn_mutex);
+	disable_irq(ts->irq);
+
+	reg = STM_TS_CMD_RUN_POLARITY_TEST;
+	rc = ts->stm_ts_spi_write(ts, &reg, 1, NULL, 0);
+	if (rc < 0) {
+		input_err(true, &ts->client->dev, "%s: failed to write cmd\n", __func__);
+		goto error;
+	}
+
+	sec_delay(300);
+
+	memset(data, 0x0, STM_TS_EVENT_BUFF_SIZE);
+	rc = -EIO;
+	reg = STM_TS_READ_ONE_EVENT;
+	while (ts->stm_ts_spi_read(ts, &reg, 1, data, STM_TS_EVENT_BUFF_SIZE) >= 0) {
+		input_info(true, &ts->client->dev,
+				"%s: %02X, %02X, %02X, %02X, %02X, %02X, %02X, %02X\n",
+				__func__, data[0], data[1], data[2], data[3],
+				data[4], data[5], data[6], data[7]);
+
+		if (data[0] == STM_TS_EVENT_PASS_REPORT) {
+			rc = 0; /* PASS */
+			break;
+		} else if (data[0] == STM_TS_EVENT_ERROR_REPORT) {
+			rc = 1; /* FAIL */
+			break;
+		}
+
+		if (retry++ > STM_TS_RETRY_COUNT * 25) {
+			input_err(true, &ts->client->dev,
+					"%s: Time Over (%02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X)\n",
+					__func__, data[0], data[1], data[2], data[3],
+					data[4], data[5], data[6], data[7]);
+			break;
+		}
+		sec_delay(20);
+	}
+
+error:
+	mutex_unlock(&ts->fn_mutex);
+
+	if (rc != 0) {
+		snprintf(buff, sizeof(buff), "NG,%X,%X,%X,%X", data[0], data[1], data[2], data[3]);
+		sec->cmd_state = SEC_CMD_STATUS_FAIL;
+	} else {
+		snprintf(buff, sizeof(buff), "OK,%X,%X,%X,%X", data[0], data[1], data[2], data[3]);
+		sec->cmd_state = SEC_CMD_STATUS_OK;
+	}
+	if (sec->cmd_all_factory_state == SEC_CMD_STATUS_RUNNING)
+		sec_cmd_set_cmd_result_all(sec, buff, strnlen(buff, sizeof(buff)), "POLARITY");
 	sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
 
 	stm_ts_reinit(ts);
@@ -5327,6 +5485,7 @@ static void factory_cmd_result_all(void *device_data)
 	run_self_jitter(sec);
 	run_factory_miscalibration(sec);
 	run_sram_test(sec);
+	run_polarity_test(sec);
 
 	sec->cmd_all_factory_state = SEC_CMD_STATUS_OK;
 
@@ -5972,6 +6131,57 @@ NG:
 	sec_cmd_set_cmd_exit(sec);
 }
 
+static void fp_int_control(void *device_data)
+{
+	struct sec_cmd_data *sec = (struct sec_cmd_data *)device_data;
+	struct stm_ts_data *ts = container_of(sec, struct stm_ts_data, sec);
+	char buff[SEC_CMD_STR_LEN] = { 0 };
+	int ret;
+	u8 reg[2] = {STM_TS_CMD_SET_FOD_INT_CONTROL, 0x00};
+	u8 enable;
+
+	sec_cmd_set_default_result(sec);
+
+	if (ts->plat_data->power_state == SEC_INPUT_STATE_POWER_OFF) {
+		input_err(true, &ts->client->dev, "%s: Touch is stopped!\n", __func__);
+		goto NG;
+	}
+
+	if (sec->cmd_param[0] < 0 || sec->cmd_param[0] > 1) {
+		input_err(true, &ts->client->dev, "%s: invalid param %d\n", __func__, sec->cmd_param[0]);
+		goto NG;
+	} else if (!ts->plat_data->support_fod) {
+		snprintf(buff, sizeof(buff), "NA");
+		sec->cmd_state = SEC_CMD_STATUS_NOT_APPLICABLE;
+		sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
+		return;
+	}
+
+	enable = sec->cmd_param[0];
+	if (enable)
+		reg[1] = 0x01;
+	else
+		reg[1] = 0x00;
+
+	ret = ts->stm_ts_spi_write(ts, reg, 2, NULL, 0);
+	if (ret < 0) {
+		input_err(true, &ts->client->dev, "%s: failed. ret: %d\n", __func__, ret);
+		goto NG;
+	}
+
+	input_info(true, &ts->client->dev, "%s: fod int %d\n", __func__, enable);
+
+	snprintf(buff, sizeof(buff), "OK");
+	sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
+	sec->cmd_state = SEC_CMD_STATUS_OK;
+
+	return;
+NG:
+	snprintf(buff, sizeof(buff), "NG");
+	sec->cmd_state = SEC_CMD_STATUS_FAIL;
+	sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
+}
+
 /*
  * Enable or disable specific external_noise_mode (sec_cmd)
  *
@@ -6155,12 +6365,14 @@ static void rawdata_init(void *device_data)
 		// param : 1 -> strength
 		// param : 2 -> raw
 		ts->raw_mode = sec->cmd_param[0];
+#ifdef ENABLE_RAWDATA_SERVICE
 		if (!ts->raw)
 			stm_ts_rawdata_map_alloc(ts);
 		else
 			input_info(true, &ts->client->dev, "%s: already init\n", __func__);
 
 		stm_ts_read_rawdata_address(ts);
+#endif
 	}
 
 	snprintf(buff, sizeof(buff), "OK:%d", ts->plat_data->support_rawdata_map_num);
@@ -6185,9 +6397,10 @@ static void fix_active_mode(void *device_data)
 		if (ts->plat_data->power_state == SEC_INPUT_STATE_POWER_ON)
 			stm_ts_fix_active_mode(ts, !!sec->cmd_param[0]);
 		ts->fix_active_mode = !!sec->cmd_param[0];
+		snprintf(buff, sizeof(buff), "OK");
+		sec->cmd_state = SEC_CMD_STATUS_OK;
 	}
 
-	snprintf(buff, sizeof(buff), "OK");
 	sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
 	sec->cmd_state = SEC_CMD_STATUS_WAITING;
 	sec_cmd_set_cmd_exit(sec);
@@ -6219,8 +6432,10 @@ static void touch_aging_mode(void *device_data)
 		} else {
 			stm_ts_reinit(ts);
 		}
+		snprintf(buff, sizeof(buff), "OK");
+		sec->cmd_state = SEC_CMD_STATUS_OK;
 	}
-	snprintf(buff, sizeof(buff), "OK");
+
 	sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
 	sec->cmd_state = SEC_CMD_STATUS_WAITING;
 	sec_cmd_set_cmd_exit(sec);
@@ -6246,8 +6461,10 @@ static void ear_detect_enable(void *device_data)
 		if (ret < 0) {
 			snprintf(buff, sizeof(buff), "NG");
 			sec->cmd_state = SEC_CMD_STATUS_FAIL;
+		} else {
+			snprintf(buff, sizeof(buff), "OK");
+			sec->cmd_state = SEC_CMD_STATUS_OK;
 		}
-		snprintf(buff, sizeof(buff), "OK");
 	}
 
 	sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
@@ -6276,8 +6493,10 @@ static void pocket_mode_enable(void *device_data)
 		if (ret < 0) {
 			snprintf(buff, sizeof(buff), "NG");
 			sec->cmd_state = SEC_CMD_STATUS_FAIL;
+		} else {
+			snprintf(buff, sizeof(buff), "OK");
+			sec->cmd_state = SEC_CMD_STATUS_OK;
 		}
-		snprintf(buff, sizeof(buff), "OK");
 	}
 
 	sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
@@ -6316,7 +6535,6 @@ static void set_sip_mode(void *device_data)
 	struct stm_ts_data *ts = container_of(sec, struct stm_ts_data, sec);
 	char buff[SEC_CMD_STR_LEN] = { 0 };
 	int ret;
-	u8 reg[3] = { 0 };
 
 	sec_cmd_set_default_result(sec);
 
@@ -6324,20 +6542,27 @@ static void set_sip_mode(void *device_data)
 		snprintf(buff, sizeof(buff), "NG");
 		sec->cmd_state = SEC_CMD_STATUS_FAIL;
 	} else {
-		reg[0] = STM_TS_CMD_SET_FUNCTION_ONOFF;
-		reg[1] = STM_TS_FUNCTION_ENABLE_SIP_MODE;
-		reg[2] = sec->cmd_param[0];
-		ret = ts->stm_ts_spi_write(ts, reg, 3, NULL, 0);
+		ts->sip_mode = sec->cmd_param[0];
+
+		if (ts->plat_data->power_state == SEC_INPUT_STATE_POWER_OFF) {
+			input_info(true, &ts->client->dev, "%s: Touch is stopped\n", __func__);
+			snprintf(buff, sizeof(buff), "OK");
+			sec->cmd_state = SEC_CMD_STATUS_OK;
+			goto out_sip_mode;
+		}
+
+		ret = stm_ts_sip_mode_enable(ts);
 		if (ret < 0) {
 			snprintf(buff, sizeof(buff), "NG");
 			sec->cmd_state = SEC_CMD_STATUS_FAIL;
 		} else {
-			input_info(true, &ts->client->dev, "%s: %s\n", __func__, reg[2] ? "enable" : "disable");
+			input_info(true, &ts->client->dev, "%s: %s\n", __func__, ts->sip_mode ? "enable" : "disable");
 			snprintf(buff, sizeof(buff), "OK");
 			sec->cmd_state = SEC_CMD_STATUS_OK;
 		}
 	}
 
+out_sip_mode:
 	sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
 	sec->cmd_state = SEC_CMD_STATUS_WAITING;
 	sec_cmd_set_cmd_exit(sec);
@@ -6351,7 +6576,6 @@ static void set_game_mode(void *device_data)
 	struct stm_ts_data *ts = container_of(sec, struct stm_ts_data, sec);
 	char buff[SEC_CMD_STR_LEN] = { 0 };
 	int ret;
-	u8 reg[3] = { 0 };
 
 	sec_cmd_set_default_result(sec);
 
@@ -6359,20 +6583,27 @@ static void set_game_mode(void *device_data)
 		snprintf(buff, sizeof(buff), "NG");
 		sec->cmd_state = SEC_CMD_STATUS_FAIL;
 	} else {
-		reg[0] = STM_TS_CMD_SET_FUNCTION_ONOFF;
-		reg[1] = STM_TS_CMD_FUNCTION_SET_GAME_MODE;
-		reg[2] = sec->cmd_param[0];
-		ret = ts->stm_ts_spi_write(ts, reg, 3, NULL, 0);
+		ts->game_mode = sec->cmd_param[0];
+
+		if (ts->plat_data->power_state == SEC_INPUT_STATE_POWER_OFF) {
+			input_info(true, &ts->client->dev, "%s: Touch is stopped\n", __func__);
+			snprintf(buff, sizeof(buff), "OK");
+			sec->cmd_state = SEC_CMD_STATUS_OK;
+			goto out_game_mode;
+		}
+
+		ret = stm_ts_game_mode_enable(ts);
 		if (ret < 0) {
 			snprintf(buff, sizeof(buff), "NG");
 			sec->cmd_state = SEC_CMD_STATUS_FAIL;
 		} else {
-			input_info(true, &ts->client->dev, "%s: %s\n", __func__, reg[2] ? "enable" : "disable");
+			input_info(true, &ts->client->dev, "%s: %s\n", __func__, ts->game_mode ? "enable" : "disable");
 			snprintf(buff, sizeof(buff), "OK");
 			sec->cmd_state = SEC_CMD_STATUS_OK;
 		}
 	}
 
+out_game_mode:
 	sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
 	sec->cmd_state = SEC_CMD_STATUS_WAITING;
 	sec_cmd_set_cmd_exit(sec);
@@ -6386,7 +6617,6 @@ static void set_note_mode(void *device_data)
 	struct stm_ts_data *ts = container_of(sec, struct stm_ts_data, sec);
 	char buff[SEC_CMD_STR_LEN] = { 0 };
 	int ret;
-	u8 reg[3] = { 0 };
 
 	sec_cmd_set_default_result(sec);
 
@@ -6394,20 +6624,27 @@ static void set_note_mode(void *device_data)
 		snprintf(buff, sizeof(buff), "NG");
 		sec->cmd_state = SEC_CMD_STATUS_FAIL;
 	} else {
-		reg[0] = STM_TS_CMD_SET_FUNCTION_ONOFF;
-		reg[1] = STM_TS_CMD_FUNCTION_SET_NOTE_MODE;
-		reg[2] = sec->cmd_param[0];
-		ret = ts->stm_ts_spi_write(ts, reg, 3, NULL, 0);
+		ts->note_mode = sec->cmd_param[0];
+
+		if (ts->plat_data->power_state == SEC_INPUT_STATE_POWER_OFF) {
+			input_info(true, &ts->client->dev, "%s: Touch is stopped\n", __func__);
+			snprintf(buff, sizeof(buff), "OK");
+			sec->cmd_state = SEC_CMD_STATUS_OK;
+			goto out_note_mode;
+		}
+
+		ret = stm_ts_note_mode_enable(ts);
 		if (ret < 0) {
 			snprintf(buff, sizeof(buff), "NG");
 			sec->cmd_state = SEC_CMD_STATUS_FAIL;
 		} else {
-			input_info(true, &ts->client->dev, "%s: %s\n", __func__, reg[2] ? "enable" : "disable");
+			input_info(true, &ts->client->dev, "%s: %s\n", __func__, ts->note_mode ? "enable" : "disable");
 			snprintf(buff, sizeof(buff), "OK");
 			sec->cmd_state = SEC_CMD_STATUS_OK;
 		}
 	}
 
+out_note_mode:
 	sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
 	sec->cmd_state = SEC_CMD_STATUS_WAITING;
 	sec_cmd_set_cmd_exit(sec);
@@ -6499,6 +6736,7 @@ struct sec_cmd sec_cmds[] = {
 	{SEC_CMD("run_snr_touched", run_snr_touched),},
 	{SEC_CMD("run_color_diff_test", run_color_diff_test),},
 	{SEC_CMD("run_sram_test", run_sram_test),},
+	{SEC_CMD("run_polarity_test", run_polarity_test),},
 	{SEC_CMD("run_force_calibration", run_force_calibration),},
 	{SEC_CMD("set_factory_level", set_factory_level),},
 	{SEC_CMD("factory_cmd_result_all", factory_cmd_result_all),},
@@ -6519,6 +6757,7 @@ struct sec_cmd sec_cmds[] = {
 	{SEC_CMD_H("fod_enable", fod_enable),},
 	{SEC_CMD_H("fod_lp_mode", fod_lp_mode),},
 	{SEC_CMD("set_fod_rect", set_fod_rect),},
+	{SEC_CMD_H("fp_int_control", fp_int_control),},
 	{SEC_CMD_H("external_noise_mode", external_noise_mode),},
 	{SEC_CMD_H("brush_enable", brush_enable),},
 	{SEC_CMD_H("set_touchable_area", set_touchable_area),},
@@ -6539,6 +6778,7 @@ int stm_ts_fn_init(struct stm_ts_data *ts)
 {
 	int retval = 0;
 
+#if IS_ENABLED(CONFIG_TOUCHSCREEN_DUAL_FOLDABLE)
 	if (ts->plat_data->support_dual_foldable == MAIN_TOUCH)
 		retval = sec_cmd_init(&ts->sec, sec_cmds,
 				ARRAY_SIZE(sec_cmds), SEC_CLASS_DEVT_TSP1);
@@ -6546,6 +6786,7 @@ int stm_ts_fn_init(struct stm_ts_data *ts)
 		retval = sec_cmd_init(&ts->sec, sec_cmds,
 				ARRAY_SIZE(sec_cmds), SEC_CLASS_DEVT_TSP2);
 	else
+#endif
 		retval = sec_cmd_init(&ts->sec, sec_cmds,
 			ARRAY_SIZE(sec_cmds), SEC_CLASS_DEVT_TSP);
 
@@ -6596,11 +6837,13 @@ void stm_ts_fn_remove(struct stm_ts_data *ts)
 	sysfs_remove_group(&ts->sec.fac_dev->kobj,
 			&cmd_attr_group);
 
+#if IS_ENABLED(CONFIG_TOUCHSCREEN_DUAL_FOLDABLE)
 	if (ts->plat_data->support_dual_foldable == MAIN_TOUCH)
 		sec_cmd_exit(&ts->sec, SEC_CLASS_DEVT_TSP1);
 	else if (ts->plat_data->support_dual_foldable == SUB_TOUCH)
 		sec_cmd_exit(&ts->sec, SEC_CLASS_DEVT_TSP2);
 	else
+#endif
 		sec_cmd_exit(&ts->sec, SEC_CLASS_DEVT_TSP);
 }
 

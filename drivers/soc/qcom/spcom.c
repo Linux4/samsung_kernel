@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2015-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2015-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 /*
@@ -65,6 +66,8 @@
 #include <linux/ioctl.h>
 #include <linux/ipc_logging.h>
 #include <linux/pm.h>
+
+#include <linux/regulator/consumer.h>
 
 #define SPCOM_LOG_PAGE_CNT 10
 
@@ -148,6 +151,11 @@
  */
 #define INITIAL_TXN_ID	0x12345678
 
+/*
+ * Max time to keep PM from suspend.
+ * From receive RPMSG packet till wakeup source will be deactivated.
+ */
+#define SPCOM_PM_PACKET_HANDLE_TIMEOUT  (2 * MSEC_PER_SEC)
 /**
  * struct spcom_msg_hdr - Request/Response message header between HLOS and SP.
  *
@@ -257,6 +265,7 @@ struct spcom_device {
 	struct class *driver_class;
 	struct device *class_dev;
 	struct platform_device *pdev;
+	struct wakeup_source *ws;
 
 	/* rpmsg channels */
 	struct spcom_channel channels[SPCOM_MAX_CHANNELS];
@@ -270,7 +279,6 @@ struct spcom_device {
 	/* rx data path */
 	struct list_head    rx_list_head;
 	spinlock_t          rx_lock;
-	atomic_t            rx_active_count;
 
 	int32_t nvm_ion_fd;
 	struct mutex ioctl_lock;
@@ -287,34 +295,6 @@ static int spcom_destroy_channel_chardev(const char *name);
 static struct spcom_channel *spcom_find_channel_by_name(const char *name);
 static int spcom_register_rpmsg_drv(struct spcom_channel *ch);
 static int spcom_unregister_rpmsg_drv(struct spcom_channel *ch);
-
-/**
- * spcom_suspend() - spcom vote for PM runtime-suspend
- *
- * Suspend callback for the device
- * Return 0 on Success, -EBUSY on rx in progress.
- */
-static int spcom_suspend(struct device *dev)
-{
-	(void) *dev;
-	if (atomic_read(&spcom_dev->rx_active_count) > 0) {
-		spcom_pr_dbg("ch [%s]: rx_active_count\n",
-					 spcom_dev->rx_active_count);
-		return -EBUSY;
-	}
-
-	spcom_pr_err("channel voten\n");
-	return 0;
-}
-
-/**
- * struct spcom_dev_pm_ops
- *
- * Set PM operations : Suspend, Resume, Idle
- */
-static const struct dev_pm_ops spcom_dev_pm_ops = {
-	SET_RUNTIME_PM_OPS(spcom_suspend, NULL, NULL)
-};
 
 /**
  * spcom_is_channel_open() - channel is open on this side.
@@ -501,7 +481,6 @@ static int spcom_rx(struct spcom_channel *ch,
 	if (!ch->actual_rx_size) {
 		reinit_completion(&ch->rx_done);
 
-		atomic_inc(&spcom_dev->rx_active_count);
 		mutex_unlock(&ch->lock); /* unlock while waiting */
 		/* wait for rx response */
 		if (timeout_msec)
@@ -510,7 +489,7 @@ static int spcom_rx(struct spcom_channel *ch,
 		else
 			ret = wait_for_completion_interruptible(&ch->rx_done);
 		mutex_lock(&ch->lock);
-		atomic_dec(&spcom_dev->rx_active_count);
+
 		if (timeout_msec && timeleft == 0) {
 			spcom_pr_err("ch[%s]: timeout expired %d ms, set txn_id=%d\n",
 			       ch->name, timeout_msec, ch->txn_id);
@@ -556,6 +535,7 @@ static int spcom_rx(struct spcom_channel *ch,
 	return size;
 exit_err:
 	mutex_unlock(&ch->lock);
+
 	return ret;
 }
 
@@ -642,7 +622,6 @@ static int spcom_handle_create_channel_command(void *cmd_buf, int cmd_size)
 {
 	int ret = 0;
 	struct spcom_user_create_channel_command *cmd = cmd_buf;
-	const size_t maxlen = sizeof(cmd->ch_name);
 
 	if (cmd_size != sizeof(*cmd)) {
 		spcom_pr_err("cmd_size [%d] , expected [%d]\n",
@@ -650,16 +629,16 @@ static int spcom_handle_create_channel_command(void *cmd_buf, int cmd_size)
 		return -EINVAL;
 	}
 
-	if (strnlen(cmd->ch_name, maxlen) == maxlen) {
-		spcom_pr_err("channel name is not NULL terminated\n");
-		return -EINVAL;
-	}
-
 	mutex_lock(&spcom_dev->chdev_count_lock);
 	ret = spcom_create_channel_chardev(cmd->ch_name, cmd->is_sharable);
 	mutex_unlock(&spcom_dev->chdev_count_lock);
-	if (ret)
-		spcom_pr_err("failed to create ch[%s], ret [%d]\n", cmd->ch_name, ret);
+	if (ret) {
+		if (-EINVAL == ret)
+			spcom_pr_err("failed to create channel, ret [%d]\n", ret);
+		else
+			spcom_pr_err("failed to create ch[%s], ret [%d]\n", cmd->ch_name, ret);
+	}
+
 	return ret;
 }
 
@@ -676,6 +655,12 @@ static int spcom_handle_restart_sp_command(void *cmd_buf, int cmd_size)
 {
 	void *subsystem_get_retval = NULL;
 	struct spcom_user_restart_sp_command *cmd = cmd_buf;
+
+	struct regulator *sp_vreg = NULL;
+	struct regulator *sp_gpio = NULL;
+
+	int ret = 0;
+	int regulator_retval = 0;
 
 	if (!cmd) {
 		spcom_pr_err("NULL cmd_buf\n");
@@ -698,13 +683,57 @@ static int spcom_handle_restart_sp_command(void *cmd_buf, int cmd_size)
 			subsystem_get_retval = subsystem_get("spss");
 			if (IS_ERR_OR_NULL(subsystem_get_retval)) {
 				spcom_pr_err("spss - restart - Failed start\n");
-				return -ENODEV;
+				ret = -ENODEV;
+				goto disable_pmic_vote;
 			}
 			spcom_pr_info("restart - spss started.\n");
 		}
 	}
 	spcom_pr_dbg("restart - PIL FW loading process is complete\n");
-	return 0;
+
+disable_pmic_vote:
+
+	sp_vreg = regulator_get(&(spcom_dev->pdev->dev), "vreg_sp");
+	if (IS_ERR_OR_NULL(sp_vreg)) {
+		regulator_retval = PTR_ERR(sp_vreg);
+		spcom_pr_err("get vreg_sp regulator failed, regulator_retval = %d",
+			regulator_retval);
+		goto exit_reset_handler;
+	}
+	sp_gpio = regulator_get(&(spcom_dev->pdev->dev), "gpio_sp");
+	if (IS_ERR_OR_NULL(sp_gpio)) {
+		regulator_retval = PTR_ERR(sp_gpio);
+		spcom_pr_err("get gpio_sp regulator failed, regulator_retval = %d",
+			regulator_retval);
+		goto exit_reset_handler;
+	}
+
+	regulator_retval = regulator_enable(sp_vreg);
+	if (regulator_retval)
+		spcom_pr_err("enable vreg_sp regulator failed, regulator_retval = %d",
+			regulator_retval);
+	regulator_retval = regulator_enable(sp_gpio);
+	if (regulator_retval)
+		spcom_pr_err("enable gpio_sp regulator failed, regulator_retval = %d",
+			regulator_retval);
+
+	regulator_retval = regulator_disable(sp_vreg);
+	if (regulator_retval)
+		spcom_pr_err("disable vreg_sp regulator failed, regulator_retval = %d",
+			regulator_retval);
+	regulator_retval = regulator_disable(sp_gpio);
+	if (regulator_retval)
+		spcom_pr_err("disable gpio_sp regulator failed, regulator_retval = %d",
+			regulator_retval);
+
+exit_reset_handler:
+
+	if (!IS_ERR_OR_NULL(sp_vreg))
+		regulator_put(sp_vreg);
+	if (!IS_ERR_OR_NULL(sp_gpio))
+		regulator_put(sp_gpio);
+
+	return ret;
 }
 
 /**
@@ -810,6 +839,12 @@ static int spcom_handle_send_command(struct spcom_channel *ch,
 	if (ret)
 		spcom_pr_err("ch [%s] rpmsg_trysend() error (%d), timeout_msec=%d\n",
 		       ch->name, ret, timeout_msec);
+
+	if (ch->is_server) {
+		__pm_relax(spcom_dev->ws);
+		spcom_pr_dbg("ch[%s]:pm_relax() called for server, after tx\n",
+			     ch->name);
+	}
 	mutex_unlock(&ch->lock);
 
 	kfree(tx_buf);
@@ -1021,6 +1056,11 @@ static int spcom_handle_send_modified_command(struct spcom_channel *ch,
 		spcom_pr_err("ch [%s] rpmsg_trysend() error (%d), timeout_msec=%d\n",
 		       ch->name, ret, timeout_msec);
 
+	if (ch->is_server) {
+		__pm_relax(spcom_dev->ws);
+		spcom_pr_dbg("ch[%s]:pm_relax() called for server, after tx\n",
+			     ch->name);
+	}
 	mutex_unlock(&ch->lock);
 	memset(tx_buf, 0, tx_buf_size);
 	kfree(tx_buf);
@@ -1409,6 +1449,14 @@ static int spcom_handle_read(struct spcom_channel *ch,
 	} else {
 		ret = spcom_handle_read_req_resp(ch, buf, size);
 	}
+
+	mutex_lock(&ch->lock);
+	if (!ch->is_server) {
+		__pm_relax(spcom_dev->ws);
+		spcom_pr_dbg("ch[%s]:pm_relax() called for client\n",
+			     ch->name);
+	}
+	mutex_unlock(&ch->lock);
 
 	return ret;
 }
@@ -1954,6 +2002,12 @@ static int spcom_create_channel_chardev(const char *name, bool is_sharable)
 	void *priv;
 	struct cdev *cdev;
 
+	if (!name || strnlen(name, SPCOM_CHANNEL_NAME_SIZE) ==
+			SPCOM_CHANNEL_NAME_SIZE) {
+		spcom_pr_err("invalid channel name\n");
+		return -EINVAL;
+	}
+
 	spcom_pr_dbg("creating channel [%s]\n", name);
 
 	ch = spcom_find_channel_by_name(name);
@@ -1988,7 +2042,12 @@ static int spcom_create_channel_chardev(const char *name, bool is_sharable)
 
 	devt = spcom_dev->device_no + spcom_dev->chdev_count;
 	priv = ch;
-	dev = device_create(cls, parent, devt, priv, name);
+
+	/*
+	 * Pass channel name as formatted string to avoid abuse by using a
+	 * formatted string as channel name
+	 */
+	dev = device_create(cls, parent, devt, priv, "%s", name);
 	if (IS_ERR(dev)) {
 		spcom_pr_err("device_create failed\n");
 		ret = -ENODEV;
@@ -2262,7 +2321,7 @@ static int spcom_rpdev_cb(struct rpmsg_device *rpdev,
 	}
 	ch = dev_get_drvdata(&rpdev->dev);
 	if (!ch) {
-		spcom_pr_err("%s: invalid ch\n");
+		spcom_pr_err("%s: invalid ch\n", ch->name);
 		return -EINVAL;
 	}
 	if (len > SPCOM_RX_BUF_SIZE || len <= 0) {
@@ -2281,6 +2340,10 @@ static int spcom_rpdev_cb(struct rpmsg_device *rpdev,
 
 	rx_item->rx_buf_size = len;
 	rx_item->ch = ch;
+
+	pm_wakeup_ws_event(spcom_dev->ws, SPCOM_PM_PACKET_HANDLE_TIMEOUT, true);
+	spcom_pr_dbg("%s:got new packet, wakeup requested\n", ch->name);
+
 
 	spin_lock_irqsave(&spcom_dev->rx_lock, flags);
 	list_add(&rx_item->list, &spcom_dev->rx_list_head);
@@ -2471,7 +2534,6 @@ static int spcom_probe(struct platform_device *pdev)
 
 	spcom_dev = dev;
 	spcom_dev->pdev = pdev;
-	atomic_set(&spcom_dev->rx_active_count, 0);
 	/* start counting exposed channel char devices from 1 */
 	spcom_dev->chdev_count = 1;
 	mutex_init(&spcom_dev->chdev_count_lock);
@@ -2483,6 +2545,15 @@ static int spcom_probe(struct platform_device *pdev)
 	spin_lock_init(&spcom_dev->rx_lock);
 	spcom_dev->nvm_ion_fd = -1;
 	mutex_init(&spcom_dev->ioctl_lock);
+
+	// register wakeup source
+	spcom_dev->ws =
+		wakeup_source_register(&spcom_dev->pdev->dev, "spcom_wakeup");
+	if (!spcom_dev->ws)  {
+		pr_err("failed to register wakeup source\n");
+		ret = -ENOMEM;
+		goto fail_while_chardev_reg;
+	}
 
 	ret = spcom_register_chardev();
 	if (ret) {
@@ -2585,6 +2656,7 @@ static int spcom_remove(struct platform_device *pdev)
 		kfree(rx_item);
 	}
 	spin_unlock_irqrestore(&spcom_dev->rx_lock, flags);
+	wakeup_source_unregister(spcom_dev->ws);
 
 	if (spcom_ipc_log_context)
 		ipc_log_context_destroy(spcom_ipc_log_context);
@@ -2608,7 +2680,6 @@ static struct platform_driver spcom_driver = {
 	.remove = spcom_remove,
 	.driver = {
 			.name = DEVICE_NAME,
-			.pm = &spcom_dev_pm_ops,
 			.of_match_table = of_match_ptr(spcom_match_table),
 	},
 };

@@ -145,6 +145,22 @@ int fscrypt_sdp_trace_file(struct inode *inode)
 	}
 
 	res = inode->i_sb->s_cop->get_context(inode, &ctx, sizeof(ctx));
+	switch (ctx.version) {
+	case FSCRYPT_CONTEXT_V1: {
+		if (res == offsetof(struct fscrypt_context_v1, knox_flags)) {
+			ctx.v1.knox_flags = 0;
+			res = sizeof(ctx.v1);
+		}
+		break;
+	}
+	case FSCRYPT_CONTEXT_V2: {
+		if (res == offsetof(struct fscrypt_context_v2, knox_flags)) {
+			ctx.v2.knox_flags = 0;
+			res = sizeof(ctx.v2);
+		}
+		break;
+	}
+	}
 	if (res != sizeof(ctx)) {
 		if (res >= 0)
 			DEK_LOGE("trace_file: failed to get fscrypt ctx (err:%d)\n", res);
@@ -236,6 +252,22 @@ int fscrypt_sdp_set_sdp_policy(struct inode *inode, int engine_id)
 	}
 
 	res = inode->i_sb->s_cop->get_context(inode, &ctx, sizeof(ctx));
+	switch (ctx.version) {
+	case FSCRYPT_CONTEXT_V1: {
+		if (res == offsetof(struct fscrypt_context_v1, knox_flags)) {
+			ctx.v1.knox_flags = 0;
+			res = sizeof(ctx.v1);
+		}
+		break;
+	}
+	case FSCRYPT_CONTEXT_V2: {
+		if (res == offsetof(struct fscrypt_context_v2, knox_flags)) {
+			ctx.v2.knox_flags = 0;
+			res = sizeof(ctx.v2);
+		}
+		break;
+	}
+	}
 	if (res != fscrypt_context_size(&ctx)) {
 		if (res >= 0) {
 			DEK_LOGE("set_policy: failed to get fscrypt ctx (err:%d)\n", res);
@@ -375,6 +407,22 @@ int fscrypt_sdp_set_sensitive(struct inode *inode, int engine_id, struct fscrypt
 		DEK_LOGE("%s: Failed to get fscrypt ctx (err:%d)\n", __func__, rc);
 		return rc;
 	}
+	switch (ctx.version) {
+	case FSCRYPT_CONTEXT_V1: {
+		if (rc == offsetof(struct fscrypt_context_v1, knox_flags)) {
+			ctx.v1.knox_flags = 0;
+			rc = sizeof(ctx.v1);
+		}
+		break;
+	}
+	case FSCRYPT_CONTEXT_V2: {
+		if (rc == offsetof(struct fscrypt_context_v2, knox_flags)) {
+			ctx.v2.knox_flags = 0;
+			rc = sizeof(ctx.v2);
+		}
+		break;
+	}
+	}
 
 	if (!is_dir) {
 		//run setsensitive with nonce from ctx
@@ -426,6 +474,22 @@ int fscrypt_sdp_set_protected(struct inode *inode, int engine_id)
 	}
 
 	rc = inode->i_sb->s_cop->get_context(inode, &ctx, sizeof(ctx));
+	switch (ctx.version) {
+	case FSCRYPT_CONTEXT_V1: {
+		if (rc == offsetof(struct fscrypt_context_v1, knox_flags)) {
+			ctx.v1.knox_flags = 0;
+			rc = sizeof(ctx.v1);
+		}
+		break;
+	}
+	case FSCRYPT_CONTEXT_V2: {
+		if (rc == offsetof(struct fscrypt_context_v2, knox_flags)) {
+			ctx.v2.knox_flags = 0;
+			rc = sizeof(ctx.v2);
+		}
+		break;
+	}
+	}
 	if (rc != fscrypt_context_size(&ctx)) {
 		DEK_LOGE("set_protected: failed to get fscrypt ctx (err:%d)\n", rc);
 		return -EINVAL;
@@ -452,17 +516,17 @@ int fscrypt_sdp_set_protected(struct inode *inode, int engine_id)
 		switch (ctx.version) {
 		case FSCRYPT_CONTEXT_V1:
 			rc = __fscrypt_get_nonce(fek.raw, fek.size,
-								sdp_ctx.sdp_en_buf, FS_KEY_DERIVATION_NONCE_SIZE,
-								ctx.v1.nonce, FS_KEY_DERIVATION_NONCE_SIZE);
+								sdp_ctx.sdp_en_buf, FSCRYPT_FILE_NONCE_SIZE,
+								ctx.v1.nonce, FSCRYPT_FILE_NONCE_SIZE);
 			if (!rc)
-				memcpy(ci->ci_nonce, ctx.v1.nonce, FS_KEY_DERIVATION_NONCE_SIZE);
+				memcpy(ci->ci_nonce, ctx.v1.nonce, FSCRYPT_FILE_NONCE_SIZE);
 			break;
 		case FSCRYPT_CONTEXT_V2:
 			rc = __fscrypt_get_nonce(fek.raw, fek.size,
-								sdp_ctx.sdp_en_buf, FS_KEY_DERIVATION_NONCE_SIZE,
-								ctx.v2.nonce, FS_KEY_DERIVATION_NONCE_SIZE);
+								sdp_ctx.sdp_en_buf, FSCRYPT_FILE_NONCE_SIZE,
+								ctx.v2.nonce, FSCRYPT_FILE_NONCE_SIZE);
 			if (!rc)
-				memcpy(ci->ci_nonce, ctx.v2.nonce, FS_KEY_DERIVATION_NONCE_SIZE);
+				memcpy(ci->ci_nonce, ctx.v2.nonce, FSCRYPT_FILE_NONCE_SIZE);
 			break;
 		}
 		if (rc) {
@@ -472,10 +536,10 @@ int fscrypt_sdp_set_protected(struct inode *inode, int engine_id)
 #if DEK_DEBUG
 		switch (ctx.version) {
 		case FSCRYPT_CONTEXT_V1:
-			hex_key_dump("set_protected: nonce", ctx.v1.nonce, FS_KEY_DERIVATION_NONCE_SIZE);
+			hex_key_dump("set_protected: nonce", ctx.v1.nonce, FSCRYPT_FILE_NONCE_SIZE);
 			break;
 		case FSCRYPT_CONTEXT_V2:
-			hex_key_dump("set_protected: nonce", ctx.v2.nonce, FS_KEY_DERIVATION_NONCE_SIZE);
+			hex_key_dump("set_protected: nonce", ctx.v2.nonce, FSCRYPT_FILE_NONCE_SIZE);
 			break;
 		}
 #endif
@@ -565,6 +629,22 @@ int fscrypt_sdp_initialize(struct inode *inode, int engine_id, struct fscrypt_ke
 		return res;
 
 	res = inode->i_sb->s_cop->get_context(inode, &ctx, sizeof(ctx));
+	switch (ctx.version) {
+	case FSCRYPT_CONTEXT_V1: {
+		if (res == offsetof(struct fscrypt_context_v1, knox_flags)) {
+			ctx.v1.knox_flags = 0;
+			res = sizeof(ctx.v1);
+		}
+		break;
+	}
+	case FSCRYPT_CONTEXT_V2: {
+		if (res == offsetof(struct fscrypt_context_v2, knox_flags)) {
+			ctx.v2.knox_flags = 0;
+			res = sizeof(ctx.v2);
+		}
+		break;
+	}
+	}
 	if (res != fscrypt_context_size(&ctx)) {
 		if (res >= 0)
 			res = -EEXIST;
@@ -646,6 +726,22 @@ int fscrypt_sdp_add_chamber_directory(int engine_id, struct inode *inode)
 			   "%s: Failed to get fscrypt ctx (err:%d)\n", __func__, rc);
 		return rc;
 	}
+	switch (ctx.version) {
+	case FSCRYPT_CONTEXT_V1: {
+		if (rc == offsetof(struct fscrypt_context_v1, knox_flags)) {
+			ctx.v1.knox_flags = 0;
+			rc = sizeof(ctx.v1);
+		}
+		break;
+	}
+	case FSCRYPT_CONTEXT_V2: {
+		if (rc == offsetof(struct fscrypt_context_v2, knox_flags)) {
+			ctx.v2.knox_flags = 0;
+			rc = sizeof(ctx.v2);
+		}
+		break;
+	}
+	}
 
 	if (!ci->ci_sdp_info) {
 		struct sdp_info *ci_sdp_info = fscrypt_sdp_alloc_sdp_info();
@@ -710,6 +806,22 @@ int fscrypt_sdp_remove_chamber_directory(struct inode *inode)
 		DEK_LOGE(KERN_ERR
 			   "%s: Failed to get fscrypt ctx (err:%d)\n", __func__, rc);
 		return rc;
+	}
+	switch (ctx.version) {
+	case FSCRYPT_CONTEXT_V1: {
+		if (rc == offsetof(struct fscrypt_context_v1, knox_flags)) {
+			ctx.v1.knox_flags = 0;
+			rc = sizeof(ctx.v1);
+		}
+		break;
+	}
+	case FSCRYPT_CONTEXT_V2: {
+		if (rc == offsetof(struct fscrypt_context_v2, knox_flags)) {
+			ctx.v2.knox_flags = 0;
+			rc = sizeof(ctx.v2);
+		}
+		break;
+	}
 	}
 
 	if (!ci->ci_sdp_info)
@@ -1107,12 +1219,12 @@ inline int __fscrypt_sdp_finish_set_sensitive(struct inode *inode,
 		switch (ctx->version) {
 		case FSCRYPT_CONTEXT_V1:
 			res = __fscrypt_set_nonce(fek.raw, fek.size,
-								ctx->v1.nonce, FS_KEY_DERIVATION_NONCE_SIZE,
+								ctx->v1.nonce, FSCRYPT_FILE_NONCE_SIZE,
 								enonce, MAX_EN_BUF_LEN);
 			break;
 		case FSCRYPT_CONTEXT_V2:
 			res = __fscrypt_set_nonce(fek.raw, fek.size,
-								ctx->v2.nonce, FS_KEY_DERIVATION_NONCE_SIZE,
+								ctx->v2.nonce, FSCRYPT_FILE_NONCE_SIZE,
 								enonce, MAX_EN_BUF_LEN);
 			break;
 		default:
@@ -1163,14 +1275,14 @@ inline int __fscrypt_sdp_finish_set_sensitive(struct inode *inode,
 			if (is_native) {
 				ctx->v1.knox_flags |= SDP_DEK_SDP_ENABLED;
 			}
-			memzero_explicit(ctx->v1.nonce, FS_KEY_DERIVATION_NONCE_SIZE);
+			memzero_explicit(ctx->v1.nonce, FSCRYPT_FILE_NONCE_SIZE);
 			break;
 		case FSCRYPT_CONTEXT_V2:
 			ctx->v2.knox_flags = (FSCRYPT_SDP_PARSE_FLAG_OUT_OF_SDP(ctx->v2.knox_flags) | SDP_DEK_IS_SENSITIVE);
 			if (is_native) {
 				ctx->v2.knox_flags |= SDP_DEK_SDP_ENABLED;
 			}
-			memzero_explicit(ctx->v2.nonce, FS_KEY_DERIVATION_NONCE_SIZE);
+			memzero_explicit(ctx->v2.nonce, FSCRYPT_FILE_NONCE_SIZE);
 			break;
 		}
 		inode_lock(inode);
@@ -1293,6 +1405,22 @@ inline int __fscrypt_sdp_thread_convert_sdp_key(void *arg)
 
 		if (ci && ci->ci_sdp_info) {
 			rc = inode->i_sb->s_cop->get_context(inode, &ctx, sizeof(ctx));
+			switch (ctx.version) {
+			case FSCRYPT_CONTEXT_V1: {
+				if (rc == offsetof(struct fscrypt_context_v1, knox_flags)) {
+					ctx.v1.knox_flags = 0;
+					rc = sizeof(ctx.v1);
+				}
+				break;
+			}
+			case FSCRYPT_CONTEXT_V2: {
+				if (rc == offsetof(struct fscrypt_context_v2, knox_flags)) {
+					ctx.v2.knox_flags = 0;
+					rc = sizeof(ctx.v2);
+				}
+				break;
+			}
+			}
 			if (rc != fscrypt_context_size(&ctx)) {
 				if (rc > 0 )
 					rc = -EINVAL;
@@ -1319,13 +1447,13 @@ inline int __fscrypt_sdp_thread_convert_sdp_key(void *arg)
 			switch (ctx.version) {
 			case FSCRYPT_CONTEXT_V1:
 				rc = __fscrypt_get_nonce(fek->raw, fek->size,
-									sdp_ctx.sdp_en_buf, FS_KEY_DERIVATION_NONCE_SIZE,
-									ctx.v1.nonce, FS_KEY_DERIVATION_NONCE_SIZE);
+									sdp_ctx.sdp_en_buf, FSCRYPT_FILE_NONCE_SIZE,
+									ctx.v1.nonce, FSCRYPT_FILE_NONCE_SIZE);
 				break;
 			case FSCRYPT_CONTEXT_V2:
 				rc = __fscrypt_get_nonce(fek->raw, fek->size,
-									sdp_ctx.sdp_en_buf, FS_KEY_DERIVATION_NONCE_SIZE,
-									ctx.v2.nonce, FS_KEY_DERIVATION_NONCE_SIZE);
+									sdp_ctx.sdp_en_buf, FSCRYPT_FILE_NONCE_SIZE,
+									ctx.v2.nonce, FSCRYPT_FILE_NONCE_SIZE);
 				break;
 			}
 			if (rc) {

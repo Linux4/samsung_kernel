@@ -17,7 +17,12 @@
 #include <linux/dirent.h>
 #include "adsp.h"
 #define VENDOR "SensorTek"
+#if defined(CONFIG_SEC_R9Q_PROJECT)
+#define CHIP_ID "STK33910"
+#else
 #define CHIP_ID "STK33911"
+#endif
+
 
 enum {
 	OPTION_TYPE_COPR_ENABLE,
@@ -289,8 +294,9 @@ void light_brightness_work_func(struct work_struct *work)
 		pr_err("[SSC_FAC] %s: Timeout!!! br: %d\n", __func__,
 			data->brightness_info[0]);
 	else
-		pr_info("[SSC_FAC] %s: set br: %d, lux: %d\n", __func__,
-			data->brightness_info[0], data->msg_buf[MSG_LIGHT][0]);
+		pr_info("[SSC_FAC] %s: set br: %d, lux: %d(lcd:%d)\n", __func__,
+			data->brightness_info[0], data->msg_buf[MSG_LIGHT][0],
+			data->brightness_info[5]);
 
 	mutex_unlock(&data->light_factory_mutex);
 }
@@ -469,7 +475,9 @@ static ssize_t light_lcd_onoff_store(struct device *dev,
 	uint16_t light_idx = get_light_sidx(data);
 	int32_t msg_buf[3];
 	int new_value;
-
+#if defined(CONFIG_SEC_B2Q_PROJECT)
+	int cnt = 0;
+#endif
 	if (sysfs_streq(buf, "0"))
 		new_value = 0;
 	else if (sysfs_streq(buf, "1"))
@@ -505,6 +513,16 @@ static ssize_t light_lcd_onoff_store(struct device *dev,
 	mutex_lock(&data->light_factory_mutex);
 	adsp_unicast(msg_buf, sizeof(msg_buf),
 		light_idx, 0, MSG_TYPE_OPTION_DEFINE);
+#if defined(CONFIG_SEC_B2Q_PROJECT)
+	while (!(data->ready_flag[MSG_TYPE_OPTION_DEFINE] & 1 << light_idx)
+		&& cnt++ < TIMEOUT_CNT)
+		usleep_range(500, 550);
+	data->ready_flag[MSG_TYPE_OPTION_DEFINE] &= ~(1 << light_idx);
+	if (cnt >= TIMEOUT_CNT)
+		pr_err("[SSC_FAC] %s: Timeout!!!\n", __func__);
+
+	pr_info("[SSC_FAC] %s: done(%d)\n", __func__, new_value);
+#endif
 	adsp_unicast(msg_buf, sizeof(msg_buf),
 		MSG_SSC_CORE, 0, MSG_TYPE_OPTION_DEFINE);
 #ifdef CONFIG_SUPPORT_DUAL_DDI_COPR_FOR_LIGHT_SENSOR
@@ -727,6 +745,9 @@ void light_copr_debug_work_func(struct work_struct *work)
 		struct adsp_data, light_copr_debug_work);
 	uint16_t light_idx = get_light_sidx(data);
 	uint8_t cnt = 0;
+
+	if (data->brightness_info[5] == 0)
+		return;
 
 	mutex_lock(&data->light_factory_mutex);
 	adsp_unicast(NULL, 0, light_idx, 0, MSG_TYPE_GET_DUMP_REGISTER);
@@ -1069,7 +1090,6 @@ void light_cal_init_work(struct adsp_data *data)
 	data->light_cal1 = -1;
 	data->light_cal2 = -1;
 	data->copr_w = -1;
-	data->brightness_info[5] = 1;
 	data->light_debug_info_cmd = 0;
 
 	old_fs = get_fs();

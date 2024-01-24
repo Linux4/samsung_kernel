@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
- * Copyright (c) 2014-2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2014-2019 2021, The Linux Foundation. All rights reserved.
  */
 
 #ifndef __SUBSYS_RESTART_H
@@ -154,6 +154,7 @@ struct msm_ipc_subsys_request {
 };
 #endif
 
+extern int subsys_get_restart_level(struct subsys_device *dev);
 extern int subsystem_restart_dev(struct subsys_device *dev);
 extern int subsystem_restart(const char *name);
 extern int subsys_force_stop(struct msm_ipc_subsys_request *req);
@@ -190,6 +191,11 @@ extern bool is_subsystem_crash(const char *name);
 extern int is_subsystem_online(const char *name);
 #endif
 #else
+
+static inline int subsys_get_restart_level(struct subsys_device *dev)
+{
+	return 0;
+}
 
 static inline int subsystem_restart_dev(struct subsys_device *dev)
 {

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 #include <linux/iopoll.h>
 #include "dsi_ctrl_hw.h"
@@ -14,11 +15,10 @@
 #define DSI_DMA_SCHEDULE_CTRL 0x100
 #define DSI_DMA_SCHEDULE_CTRL2 0x0104
 
-/* MDP INTF registers to be mapped for debug feature*/
-#define MDP_INTF1_TEAR_LINE_COUNT 0xAE36298
-#define MDP_INTF2_TEAR_LINE_COUNT 0xAE37298
-#define MDP_INTF1_LINE_COUNT 0xAE360B0
-#define MDP_INTF2_LINE_COUNT 0xAE370B0
+/* offset addresses of MDP INTF base register, to be mapped for debug feature */
+#define MDP_INTF_TEAR_OFFSET 0x280
+#define MDP_INTF_TEAR_LINE_COUNT_OFFSET 0x30
+#define MDP_INTF_LINE_COUNT_OFFSET 0xB0
 
 void dsi_ctrl_hw_22_setup_lane_map(struct dsi_ctrl_hw *ctrl,
 		       struct dsi_lane_map *lane_map)
@@ -203,9 +203,6 @@ void dsi_ctrl_hw_22_configure_cmddma_window(struct dsi_ctrl_hw *ctrl,
 {
 	u32 reg = 0;
 
-	if (!window)
-		return;
-
 	if (cmd->en_broadcast) {
 		reg = DSI_R32(ctrl, DSI_TRIG_CTRL);
 		if (cmd->is_master) {
@@ -247,72 +244,19 @@ void dsi_ctrl_hw_22_configure_cmddma_window(struct dsi_ctrl_hw *ctrl,
 void dsi_ctrl_hw_22_reset_trigger_controls(struct dsi_ctrl_hw *ctrl,
 				       struct dsi_host_common_cfg *cfg)
 {
-	u32 reg = 0;
+	u32 reg;
 	const u8 trigger_map[DSI_TRIGGER_MAX] = {
 		0x0, 0x2, 0x1, 0x4, 0x5, 0x6 };
 
-	reg |= (cfg->te_mode == DSI_TE_ON_EXT_PIN) ? BIT(31) : 0;
-	reg |= (trigger_map[cfg->dma_cmd_trigger] & 0x7);
-	reg |= (trigger_map[cfg->mdp_cmd_trigger] & 0x7) << 4;
+	reg = DSI_R32(ctrl, DSI_TRIG_CTRL);
+	reg &= ~BIT(16); /* Reset DMA_TRG_MUX */
+	reg &= ~(0xF); /* Reset DMA_TRIGGER_SEL */
+	reg |= (trigger_map[cfg->dma_cmd_trigger] & 0xF);
 	DSI_W32(ctrl, DSI_TRIG_CTRL, reg);
+
 	DSI_W32(ctrl, DSI_DMA_SCHEDULE_CTRL2, 0x0);
 	DSI_W32(ctrl, DSI_DMA_SCHEDULE_CTRL, 0x0);
 	ctrl->reset_trig_ctrl = false;
-}
-
-/**
- * dsi_ctrl_hw_22_map_mdp_regs() - maps MDP interface line count registers.
- * @pdev:	Pointer to platform device.
- * @ctrl:	Pointer to the controller host hardware.
- *
- * Return: 0 on success and error on failure.
- */
-int dsi_ctrl_hw_22_map_mdp_regs(struct platform_device *pdev,
-		struct dsi_ctrl_hw *ctrl)
-{
-	int rc = 0;
-	void __iomem *ptr = NULL, *ptr1 = NULL;
-
-	if (ctrl->index == 0) {
-		ptr = devm_ioremap(&pdev->dev, MDP_INTF1_TEAR_LINE_COUNT, 1);
-		if (IS_ERR_OR_NULL(ptr)) {
-			DSI_CTRL_HW_ERR(ctrl,
-				"MDP TE LINE COUNT address not found\n");
-			rc = PTR_ERR(ptr);
-			return rc;
-		}
-
-		ptr1 = devm_ioremap(&pdev->dev, MDP_INTF1_LINE_COUNT, 1);
-		if (IS_ERR_OR_NULL(ptr1)) {
-			DSI_CTRL_HW_ERR(ctrl,
-				"MDP TE LINE COUNT address not found\n");
-			rc = PTR_ERR(ptr1);
-			return rc;
-		}
-	}
-
-	if (ctrl->index == 1) {
-		ptr = devm_ioremap(&pdev->dev, MDP_INTF2_TEAR_LINE_COUNT, 1);
-		if (IS_ERR_OR_NULL(ptr)) {
-			DSI_CTRL_HW_ERR(ctrl,
-				"MDP TE LINE COUNT address not found\n");
-			rc = PTR_ERR(ptr);
-			return rc;
-		}
-
-		ptr1 = devm_ioremap(&pdev->dev, MDP_INTF2_LINE_COUNT, 1);
-		if (IS_ERR_OR_NULL(ptr1)) {
-			DSI_CTRL_HW_ERR(ctrl,
-				"MDP TE LINE COUNT address not found\n");
-			rc = PTR_ERR(ptr1);
-			return rc;
-		}
-	}
-
-	ctrl->te_rd_ptr_reg = ptr;
-	ctrl->line_count_reg = ptr1;
-
-	return rc;
 }
 
 /**
@@ -328,10 +272,14 @@ u32 dsi_ctrl_hw_22_log_line_count(struct dsi_ctrl_hw *ctrl, bool cmd_mode)
 
 	u32 reg = 0;
 
-	if (cmd_mode && ctrl->te_rd_ptr_reg)
-		reg = readl_relaxed(ctrl->te_rd_ptr_reg);
-	else if (ctrl->line_count_reg)
-		reg = readl_relaxed(ctrl->line_count_reg);
+	if (IS_ERR_OR_NULL(ctrl->mdp_intf_base))
+		return reg;
 
+	if (cmd_mode)
+		reg = readl_relaxed(ctrl->mdp_intf_base + MDP_INTF_TEAR_OFFSET
+					+ MDP_INTF_TEAR_LINE_COUNT_OFFSET);
+	else
+		reg = readl_relaxed(ctrl->mdp_intf_base
+					+ MDP_INTF_LINE_COUNT_OFFSET);
 	return reg;
 }

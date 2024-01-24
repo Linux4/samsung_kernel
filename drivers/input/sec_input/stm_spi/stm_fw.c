@@ -45,10 +45,6 @@ struct stm_ts_header {
 #define WRITE_CHUNK_SIZE 1024
 #define DRAM_SIZE (32 * 1024) // 64kB
 
-#define CODE_ADDR_START 0x00000000
-#define CX_ADDR_START 0x00007000
-#define CONFIG_ADDR_START 0x00007C00
-
 #define	SIGNEDKEY_SIZE		(256)
 
 int stm_ts_check_dma_startanddone(struct stm_ts_data *ts)
@@ -231,6 +227,7 @@ static int stm_ts_fw_burn(struct stm_ts_data *ts, const u8 *fw_data)
 	int i;
 	u8 reg[STM_TS_EVENT_BUFF_SIZE] = {0};
 	int numberofmainblock = 0;
+	int indexofconfigblock = 0;
 
 	fw_header = (struct stm_ts_header *) &fw_data[0];
 
@@ -241,6 +238,10 @@ static int stm_ts_fw_burn(struct stm_ts_data *ts, const u8 *fw_data)
 
 	input_info(true, &ts->client->dev, "%s: Number Of MainBlock: %d\n",
 			__func__, numberofmainblock);
+
+	indexofconfigblock = fw_header->fw_area_bs + fw_header->panel_area_bs + fw_header->cx_area_bs;
+	input_info(true, &ts->client->dev, "%s: Index of Config Block: %d\n",
+			__func__, indexofconfigblock);
 
 	// System Reset and Hold
 	reg[0] = 0xFA;
@@ -280,7 +281,7 @@ static int stm_ts_fw_burn(struct stm_ts_data *ts, const u8 *fw_data)
 	reg[1] = 0x20;
 	reg[2] = 0x00;
 	reg[3] = 0x00;
-	reg[4] = 0x3F;
+	reg[4] = STM_REG_MISO_PORT_SETTING;
 	reg[5] = 0x07;
 	rc = ts->stm_ts_spi_write(ts, &reg[0], 6, NULL, 0);
 	if (rc < 0)
@@ -402,7 +403,7 @@ static int stm_ts_fw_burn(struct stm_ts_data *ts, const u8 *fw_data)
 	reg[2] = 0x00;
 	reg[3] = 0x00;
 	reg[4] = 0x6A;
-	reg[5] = (0x80 + 31) & 0xFF;
+	reg[5] = (0x80 + indexofconfigblock) & 0xFF;
 	rc = ts->stm_ts_spi_write(ts, &reg[0], 6, NULL, 0);
 	if (rc < 0)
 		return rc;
@@ -602,6 +603,8 @@ static const int stm_ts_fw_updater(struct stm_ts_data *ts, const u8 *fw_data)
 
 	retry = 0;
 
+	disable_irq(ts->client->irq);
+
 	while (1) {
 		retval = stm_ts_fw_burn(ts, fw_data);
 		if (retval >= 0) {
@@ -636,6 +639,9 @@ static const int stm_ts_fw_updater(struct stm_ts_data *ts, const u8 *fw_data)
 			break;
 		}
 	}
+
+	enable_irq(ts->client->irq);
+
 	return retval;
 }
 
@@ -652,7 +658,7 @@ int stm_ts_spi_fw_update_on_probe(struct stm_ts_data *ts)
 	if (ts->tdata->support_tclm_test) {
 		ret = sec_tclm_test_on_probe(ts->tdata);
 		if (ret < 0)
-			input_info(true, &ts->client->dev, "%s: SEC_TCLM_NVM_ALL_DATA i2c read fail", __func__);
+			input_info(true, &ts->client->dev, "%s: SEC_TCLM_NVM_ALL_DATA read fail\n", __func__);
 	}
 #endif
 
@@ -721,6 +727,15 @@ int stm_ts_spi_fw_update_on_probe(struct stm_ts_data *ts)
 	else
 		retval = STM_TS_NOT_ERROR;
 
+	if ((ts->plat_data->bringup == 3) &&
+			((ts->fw_main_version_of_ic != ts->fw_main_version_of_bin)
+			|| (ts->config_version_of_ic != ts->config_version_of_bin)
+			|| (ts->fw_version_of_ic != ts->fw_version_of_bin))) {
+		input_info(true, &ts->client->dev,
+				"%s: bringup 3, force update because version is different\n", __func__);
+		retval = STM_TS_NEED_FW_UPDATE;
+	}
+
 	/* ic fw ver > bin fw ver && force is false */
 	if (retval != STM_TS_NEED_FW_UPDATE) {
 		input_err(true, &ts->client->dev, "%s: skip fw update\n", __func__);
@@ -735,7 +750,7 @@ int stm_ts_spi_fw_update_on_probe(struct stm_ts_data *ts)
 #ifdef TCLM_CONCEPT
 	ret = ts->tdata->tclm_read_spi(ts->tdata->spi, SEC_TCLM_NVM_ALL_DATA);
 	if (ret < 0) {
-		input_info(true, &ts->client->dev, "%s: SEC_TCLM_NVM_ALL_DATA i2c read fail", __func__);
+		input_info(true, &ts->client->dev, "%s: SEC_TCLM_NVM_ALL_DATA read fail\n", __func__);
 		goto done;
 	}
 
@@ -951,7 +966,7 @@ err_request_fw:
 
 int stm_ts_spi_fw_update_on_hidden_menu(struct stm_ts_data *ts, int update_type)
 {
-	int retval = 0;
+	int retval = SEC_ERROR;
 
 	/* Factory cmd for firmware update
 	 * argument represent what is source of firmware like below.

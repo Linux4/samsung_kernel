@@ -28,6 +28,9 @@
 //#include <linux/sensors.h>
 #include "stk3a8x.h"
 
+int flicker_param_lpcharge;
+module_param(flicker_param_lpcharge, int, 0440);
+
 static int stk3a8x_reg_read(struct stk3a8x_data *alps_data,
 		unsigned char reg)
 {
@@ -239,6 +242,11 @@ static struct i2c_driver stk_als_driver =
 static int __init stk3a8x_init(void)
 {
 	int ret;
+	if (flicker_param_lpcharge == 1) {
+		info_flicker("lpm_mode");
+		return 0;
+	}
+
 	info_flicker("start\n");
 	ret = i2c_add_driver(&stk_als_driver);
 	info_flicker("Add driver ret = %d\n", ret);
@@ -265,3 +273,4 @@ MODULE_AUTHOR("Taka Chiu <taka_chiu@sensortek.com.tw>");
 MODULE_DESCRIPTION("Sensortek stk3a8x ambient Light Sensor driver");
 MODULE_LICENSE("GPL");
 MODULE_VERSION(DRIVER_VERSION);
+MODULE_IMPORT_NS(ANDROID_GKI_VFS_EXPORT_ONLY);

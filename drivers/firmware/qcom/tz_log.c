@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2016-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
  */
 #include <linux/debugfs.h>
 #include <linux/errno.h>
@@ -35,7 +35,8 @@
 #define TZBSP_FVER_MINOR_SHIFT          12
 #define TZBSP_DIAG_MAJOR_VERSION_V9     9
 #define TZBSP_DIAG_MINOR_VERSION_V2     2
-#define TZBSP_DIAG_MINOR_VERSION_V21	3
+#define TZBSP_DIAG_MINOR_VERSION_V21    3
+#define TZBSP_DIAG_MINOR_VERSION_V22    4
 
 /* TZ Diag Feature Version Id */
 #define QCOM_SCM_FEAT_DIAG_ID           0x06
@@ -262,26 +263,27 @@ struct tzdbg_t {
 	uint32_t wakeup_info_off;
 
 	union {
-	/* The elements in below structure have to be used for TZ where
-	* diag version = TZBSP_DIAG_MINOR_VERSION_V2
-	*/
+		/* The elements in below structure have to be used for TZ where
+		 * diag version = TZBSP_DIAG_MINOR_VERSION_V2
+		 */
 		struct {
+
 			/*
-			* VMID to EE Mapping
-			*/
+			 * VMID to EE Mapping
+			 */
 			struct tzdbg_vmid_t vmid_info[TZBSP_DIAG_NUM_OF_VMID];
 			/*
-			* Boot Info
-			*/
-			struct tzdbg_boot_info_t boot_info[TZBSP_MAX_CPU_COUNT];
+			 * Boot Info
+			 */
+			struct tzdbg_boot_info_t  boot_info[TZBSP_MAX_CPU_COUNT];
 			/*
-			* Reset Info
-			*/
+			 * Reset Info
+			 */
 			struct tzdbg_reset_info_t reset_info[TZBSP_MAX_CPU_COUNT];
 			uint32_t num_interrupts;
-			struct tzdbg_int_t int_info[TZBSP_DIAG_INT_NUM];
+			struct tzdbg_int_t  int_info[TZBSP_DIAG_INT_NUM];
 			/* Wake up info */
-			struct tzbsp_diag_wakeup_info_t wakeup_info[TZBSP_MAX_CPU_COUNT];
+			struct tzbsp_diag_wakeup_info_t  wakeup_info[TZBSP_MAX_CPU_COUNT];
 
 			uint8_t key[TZBSP_AES_256_ENCRYPTED_KEY_SIZE];
 
@@ -289,29 +291,30 @@ struct tzdbg_t {
 
 			uint8_t tag[TZBSP_TAG_LEN];
 		};
-	/* The elements in below structure have to be used for TZ where
-	* diag version = TZBSP_DIAG_MINOR_VERSION_V21
-	*/
+		/* The elements in below structure have to be used for TZ where
+		 * diag version = TZBSP_DIAG_MINOR_VERSION_V21
+		 */
 		struct {
+
 			uint32_t encr_info_for_log_off;
 
 			/*
-			* VMID to EE Mapping
-			*/
+			 * VMID to EE Mapping
+			 */
 			struct tzdbg_vmid_t vmid_info_v2[TZBSP_DIAG_NUM_OF_VMID];
 			/*
-			* Boot Info
-			*/
-			struct tzdbg_boot_info_t boot_info_v2[TZBSP_MAX_CPU_COUNT];
+			 * Boot Info
+			 */
+			struct tzdbg_boot_info_t  boot_info_v2[TZBSP_MAX_CPU_COUNT];
 			/*
-			* Reset Info
-			*/
+			 * Reset Info
+			 */
 			struct tzdbg_reset_info_t reset_info_v2[TZBSP_MAX_CPU_COUNT];
 			uint32_t num_interrupts_v2;
-			struct tzdbg_int_t int_info_v2[TZBSP_DIAG_INT_NUM];
+			struct tzdbg_int_t  int_info_v2[TZBSP_DIAG_INT_NUM];
 
 			/* Wake up info */
-			struct tzbsp_diag_wakeup_info_t wakeup_info_v2[TZBSP_MAX_CPU_COUNT];
+			struct tzbsp_diag_wakeup_info_t  wakeup_info_v2[TZBSP_MAX_CPU_COUNT];
 
 			struct tzbsp_encr_info_t encr_info_for_log;
 		};
@@ -1456,7 +1459,9 @@ static int tzdbg_get_tz_version(void)
 	((((version >> TZBSP_FVER_MINOR_SHIFT) & TZBSP_FVER_MAJOR_MINOR_MASK)
 			== TZBSP_DIAG_MINOR_VERSION_V2) ||
 	(((version >> TZBSP_FVER_MINOR_SHIFT) & TZBSP_FVER_MAJOR_MINOR_MASK)
-			== TZBSP_DIAG_MINOR_VERSION_V21)))
+			== TZBSP_DIAG_MINOR_VERSION_V21) ||
+	(((version >> TZBSP_FVER_MINOR_SHIFT) & TZBSP_FVER_MAJOR_MINOR_MASK)
+			== TZBSP_DIAG_MINOR_VERSION_V22)))
 		tzdbg.is_enlarged_buf = true;
 	else
 		tzdbg.is_enlarged_buf = false;

@@ -369,11 +369,7 @@ static ssize_t stm_ts_tsp_cmoffset_read(struct file *file, char __user *buf,
 	return stm_ts_tsp_cmoffset_all_read(file, buf, len, offset);
 }
 
-static const struct file_operations tsp_cmoffset_all_file_ops = {
-	.owner = THIS_MODULE,
-	.read = stm_ts_tsp_cmoffset_read,
-	.llseek = generic_file_llseek,
-};
+static sec_input_proc_ops(THIS_MODULE, tsp_cmoffset_all_file_ops, stm_ts_tsp_cmoffset_read, NULL);
 
 void stm_ts_init_proc(struct stm_ts_data *ts)
 {
@@ -394,9 +390,11 @@ void stm_ts_init_proc(struct stm_ts_data *ts)
 	if (!ts->cmoffset_main_proc)
 		goto err_alloc_main;
 
+#if IS_ENABLED(CONFIG_TOUCHSCREEN_DUAL_FOLDABLE)
 	if (ts->plat_data->support_dual_foldable == SUB_TOUCH)
 		entry_cmoffset_all = proc_create("tsp_cmoffset_all_sub", S_IFREG | S_IRUGO, NULL, &tsp_cmoffset_all_file_ops);
 	else
+#endif
 		entry_cmoffset_all = proc_create("tsp_cmoffset_all", S_IFREG | S_IRUGO, NULL, &tsp_cmoffset_all_file_ops);
 	
 	if (!entry_cmoffset_all) {

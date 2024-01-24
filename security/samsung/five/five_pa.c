@@ -18,6 +18,7 @@
 #include <linux/module.h>
 #include <linux/task_integrity.h>
 #include <linux/proca.h>
+#include <linux/version.h>
 
 #include "five.h"
 #include "five_pa.h"
@@ -46,12 +47,23 @@ bool call_task_integrity_allow_sign(struct task_integrity *intg)
 }
 
 #ifdef CONFIG_FIVE_GKI_10
+
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0))
+#define F_SIGNATURE(file) ((void *)((file)->android_oem_data1))
+
+static inline void f_signature_assign(struct file *file, void *f_signature)
+{
+	file->android_oem_data1 = (u64)f_signature;
+}
+#else
 #define F_SIGNATURE(file) ((void *)((file)->android_vendor_data1))
 
 static inline void f_signature_assign(struct file *file, void *f_signature)
 {
 	file->android_vendor_data1 = (u64)f_signature;
 }
+#endif
+
 #else
 #define F_SIGNATURE(file) ((file)->f_signature)
 

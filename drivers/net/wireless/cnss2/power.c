@@ -68,7 +68,7 @@ static struct cnss_clk_cfg cnss_clk_list[] = {
 #endif
 
 #define BOOTSTRAP_DELAY			1000
-#define WLAN_ENABLE_DELAY		1000
+#define WLAN_ENABLE_DELAY		10000
 
 #define TCS_CMD_DATA_ADDR_OFFSET	0x4
 #define TCS_OFFSET			0xC8
@@ -792,6 +792,7 @@ int cnss_get_pinctrl(struct cnss_plat_data *plat_priv)
 							      XO_CLK_GPIO, 0);
 		cnss_pr_dbg("QCA6490 XO_CLK GPIO: %d\n",
 			    pinctrl_info->xo_clk_gpio);
+		cnss_set_feature_list(plat_priv, BOOTSTRAP_CLOCK_SELECT_V01);
 	} else {
 		pinctrl_info->xo_clk_gpio = -EINVAL;
 	}
@@ -931,7 +932,13 @@ static int cnss_select_pinctrl_state(struct cnss_plat_data *plat_priv,
 					    ret);
 				goto out;
 			}
-			udelay(WLAN_ENABLE_DELAY);
+			/* As spec shown, it needs at least 4ms delay
+			 * between wlan_en become active and pcie reset
+			 * de-assert for qca6390. And it needs at least
+			 * 10ms for qca6174. So add 10ms-11ms delay here.
+			 */
+			usleep_range(WLAN_ENABLE_DELAY,
+				     WLAN_ENABLE_DELAY + 1000);
 		}
 		cnss_set_xo_clk_gpio_state(plat_priv, false);
 	} else {
@@ -1020,7 +1027,7 @@ int cnss_gpio_get_value(struct cnss_plat_data *plat_priv, int gpio_num)
 	return gpio_get_value(gpio_num);
 }
 
-int cnss_power_on_device(struct cnss_plat_data *plat_priv)
+int cnss_power_on_device(struct cnss_plat_data *plat_priv, bool reset)
 {
 	int ret = 0;
 
@@ -1039,6 +1046,23 @@ int cnss_power_on_device(struct cnss_plat_data *plat_priv)
 	if (ret) {
 		cnss_pr_err("Failed to turn on clocks, err = %d\n", ret);
 		goto vreg_off;
+	}
+	if (reset) {
+		/* The default state of wlan_en maybe not low,
+		 * according to datasheet, we should put wlan_en
+		 * to low first, and trigger high.
+		 * And the default delay for qca6390 is at least 4ms,
+		 * for qcn7605/qca6174, it is 10us. For safe, set 5ms delay
+		 * here.
+		 */
+		ret = cnss_select_pinctrl_state(plat_priv, false);
+		if (ret) {
+			cnss_pr_err("Failed to select pinctrl state, err = %d\n",
+				    ret);
+			goto clk_off;
+		}
+
+		usleep_range(4000, 5000);
 	}
 
 	ret = cnss_select_pinctrl_enable(plat_priv);
@@ -1298,5 +1322,5 @@ int cnss_dev_specific_power_on(struct cnss_plat_data *plat_priv)
 		return ret;
 
 	plat_priv->powered_on = false;
-	return cnss_power_on_device(plat_priv);
+	return cnss_power_on_device(plat_priv, false);
 }

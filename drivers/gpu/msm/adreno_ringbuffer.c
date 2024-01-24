@@ -1,8 +1,10 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2002,2007-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2002,2007-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
+#include <linux/interconnect.h>
 #include <linux/sched/clock.h>
 #include <linux/slab.h>
 
@@ -32,7 +34,7 @@ static void adreno_get_submit_time(struct adreno_device *adreno_dev,
 		struct adreno_ringbuffer *rb,
 		struct adreno_submit_time *time)
 {
-	struct adreno_gpudev *gpudev = ADRENO_GPU_DEVICE(adreno_dev);
+	const struct adreno_gpudev *gpudev = ADRENO_GPU_DEVICE(adreno_dev);
 	unsigned long flags;
 	struct adreno_context *drawctxt = rb->drawctxt_active;
 	struct kgsl_context *context = &drawctxt->base;
@@ -241,7 +243,7 @@ static int _adreno_ringbuffer_init(struct adreno_device *adreno_dev,
 	 */
 	if (IS_ERR_OR_NULL(rb->pagetable_desc)) {
 		rb->pagetable_desc = kgsl_allocate_global(device, PAGE_SIZE,
-			0, KGSL_MEMDESC_PRIVILEGED, "pagetable_desc");
+			SZ_16K, 0, KGSL_MEMDESC_PRIVILEGED, "pagetable_desc");
 		if (IS_ERR(rb->pagetable_desc))
 			return PTR_ERR(rb->pagetable_desc);
 	}
@@ -249,14 +251,14 @@ static int _adreno_ringbuffer_init(struct adreno_device *adreno_dev,
 	/* allocate a chunk of memory to create user profiling IB1s */
 	if (IS_ERR_OR_NULL(rb->profile_desc))
 		rb->profile_desc = kgsl_allocate_global(device, PAGE_SIZE,
-			KGSL_MEMFLAGS_GPUREADONLY, 0, "profile_desc");
+			0, KGSL_MEMFLAGS_GPUREADONLY, 0, "profile_desc");
 
 	if (ADRENO_FEATURE(adreno_dev, ADRENO_APRIV))
 		priv |= KGSL_MEMDESC_PRIVILEGED;
 
 	if (IS_ERR_OR_NULL(rb->buffer_desc)) {
 		rb->buffer_desc = kgsl_allocate_global(device, KGSL_RB_SIZE,
-			KGSL_MEMFLAGS_GPUREADONLY, priv, "ringbuffer");
+			SZ_4K, KGSL_MEMFLAGS_GPUREADONLY, priv, "ringbuffer");
 		if (IS_ERR(rb->buffer_desc))
 			return PTR_ERR(rb->buffer_desc);
 	}
@@ -303,7 +305,7 @@ int adreno_ringbuffer_init(struct adreno_device *adreno_dev)
 
 		if (IS_ERR_OR_NULL(device->scratch)) {
 			device->scratch = kgsl_allocate_global(device,
-				PAGE_SIZE, 0, priv, "scratch");
+				PAGE_SIZE, 0, 0, priv, "scratch");
 
 			if (IS_ERR(device->scratch))
 				return PTR_ERR(device->scratch);
@@ -327,7 +329,7 @@ int adreno_ringbuffer_init(struct adreno_device *adreno_dev)
 	adreno_dev->cur_rb = &(adreno_dev->ringbuffers[0]);
 
 	if (ADRENO_FEATURE(adreno_dev, ADRENO_PREEMPTION)) {
-		struct adreno_gpudev *gpudev = ADRENO_GPU_DEVICE(adreno_dev);
+		const struct adreno_gpudev *gpudev = ADRENO_GPU_DEVICE(adreno_dev);
 		struct adreno_preemption *preempt = &adreno_dev->preempt;
 		int ret;
 
@@ -399,7 +401,7 @@ adreno_ringbuffer_addcmds(struct adreno_ringbuffer *rb,
 				struct adreno_submit_time *time)
 {
 	struct adreno_device *adreno_dev = ADRENO_RB_DEVICE(rb);
-	struct adreno_gpudev *gpudev = ADRENO_GPU_DEVICE(adreno_dev);
+	const struct adreno_gpudev *gpudev = ADRENO_GPU_DEVICE(adreno_dev);
 	struct kgsl_device *device = KGSL_DEVICE(adreno_dev);
 	unsigned int *ringcmds, *start;
 	unsigned int total_sizedwords = sizedwords;
@@ -484,7 +486,7 @@ adreno_ringbuffer_addcmds(struct adreno_ringbuffer *rb,
 
 	if (gpudev->preemption_pre_ibsubmit &&
 			adreno_is_preemption_enabled(adreno_dev))
-		total_sizedwords += 27;
+		total_sizedwords += 31;
 
 	if (gpudev->preemption_post_ibsubmit &&
 			adreno_is_preemption_enabled(adreno_dev))
@@ -756,9 +758,9 @@ static void adreno_ringbuffer_set_constraint(struct kgsl_device *device,
 		((context->flags & KGSL_CONTEXT_PWR_CONSTRAINT) ||
 			(flags & KGSL_CONTEXT_PWR_CONSTRAINT))) {
 
-		if (device->l3_clk == NULL) {
+		if (IS_ERR(device->l3_icc)) {
 			dev_err_once(device->dev,
-				"l3_vote clk not available\n");
+				"l3_icc path not available\n");
 			return;
 		}
 
@@ -779,15 +781,21 @@ static void adreno_ringbuffer_set_constraint(struct kgsl_device *device,
 			new_l3 = min_t(unsigned int, new_l3,
 					device->num_l3_pwrlevels - 1);
 
-			ret = clk_set_rate(device->l3_clk,
+			if (device->cur_l3_pwrlevel == new_l3)
+				return;
+
+			ret = icc_set_bw(device->l3_icc, 0,
 					device->l3_freq[new_l3]);
 
-			if (!ret)
+			if (!ret) {
+				trace_kgsl_constraint(device,
+					KGSL_CONSTRAINT_L3_PWRLEVEL, new_l3, 1);
 				device->cur_l3_pwrlevel = new_l3;
-			else
+			} else {
 				dev_err_ratelimited(device->dev,
 						       "Could not set l3_vote: %d\n",
 						       ret);
+			}
 			break;
 			}
 		}
@@ -833,7 +841,7 @@ static int set_user_profiling(struct adreno_device *adreno_dev,
 	u64 ib_gpuaddr;
 	u32 *ib;
 
-	if (!rb->profile_desc->hostptr)
+	if (IS_ERR(rb->profile_desc))
 		return 0;
 
 	ib = ((u32 *) rb->profile_desc->hostptr) +
@@ -859,7 +867,7 @@ int adreno_ringbuffer_submitcmd(struct adreno_device *adreno_dev,
 		struct adreno_submit_time *time)
 {
 	struct kgsl_device *device = KGSL_DEVICE(adreno_dev);
-	struct adreno_gpudev *gpudev = ADRENO_GPU_DEVICE(adreno_dev);
+	const struct adreno_gpudev *gpudev = ADRENO_GPU_DEVICE(adreno_dev);
 	struct kgsl_drawobj *drawobj = DRAWOBJ(cmdobj);
 	struct kgsl_memobj_node *ib;
 	unsigned int numibs = 0;
@@ -991,7 +999,7 @@ int adreno_ringbuffer_submitcmd(struct adreno_device *adreno_dev,
 	if (gpudev->ccu_invalidate)
 		dwords += 4;
 
-	link = kcalloc(dwords, sizeof(unsigned int), GFP_KERNEL);
+	link = kvcalloc(dwords, sizeof(unsigned int), GFP_KERNEL);
 	if (!link) {
 		ret = -ENOMEM;
 		goto done;
@@ -1128,7 +1136,7 @@ done:
 	trace_kgsl_issueibcmds(device, context->id, numibs, drawobj->timestamp,
 			drawobj->flags, ret, drawctxt->type);
 
-	kfree(link);
+	kvfree(link);
 	return ret;
 }
 

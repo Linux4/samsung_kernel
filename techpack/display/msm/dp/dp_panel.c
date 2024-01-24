@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2012-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2012-2021, The Linux Foundation. All rights reserved.
  */
 
 #include "dp_panel.h"
@@ -9,9 +9,10 @@
 #include "dp_debug.h"
 #include <drm/drm_dsc.h>
 #include "sde_dsc_helper.h"
+#include <drm/drm_edid.h>
 
-#ifdef CONFIG_SEC_DISPLAYPORT
-#ifdef CONFIG_SEC_DISPLAYPORT_BIGDATA
+#if defined(CONFIG_SEC_DISPLAYPORT)
+#if defined(CONFIG_SEC_DISPLAYPORT_BIGDATA)
 #include <linux/displayport_bigdata.h>
 #endif
 #include "secdp.h"
@@ -105,7 +106,7 @@ static const struct dp_panel_info fail_safe = {
 	.bpp = 24,
 };
 
-#ifdef CONFIG_SEC_DISPLAYPORT
+#if defined(CONFIG_SEC_DISPLAYPORT)
 
 struct dp_panel *g_dp_panel;
 
@@ -1211,7 +1212,7 @@ static void _dp_panel_dsc_get_num_extra_pclk(struct msm_display_dsc_info *dsc,
 	else
 		dsc->extra_width = 0;
 
-#ifndef CONFIG_SEC_DISPLAYPORT
+#if !defined(CONFIG_SEC_DISPLAYPORT)
 	DP_DEBUG("extra pclks required: %d\n", dsc->extra_width);
 #endif
 }
@@ -1242,7 +1243,7 @@ static void _dp_panel_dsc_bw_overhead_calc(struct dp_panel *dp_panel,
 	dwidth_dsc_bytes = tot_num_hor_bytes + tot_num_eoc_symbols +
 				tot_num_dummy_bytes;
 
-#ifndef CONFIG_SEC_DISPLAYPORT
+#if !defined(CONFIG_SEC_DISPLAYPORT)
 	DP_DEBUG("dwidth_dsc_bytes:%d, tot_num_hor_bytes:%d\n",
 			dwidth_dsc_bytes, tot_num_hor_bytes);
 #endif
@@ -1403,9 +1404,28 @@ static int dp_panel_dsc_prepare_basic_params(
 	u32 ppr_per_slice;
 	u32 slice_caps_1;
 	u32 slice_caps_2;
+	u32 dsc_version_major, dsc_version_minor;
+	bool dsc_version_supported = false;
 
-	comp_info->dsc_info.config.dsc_version_major = 0x1;
-	comp_info->dsc_info.config.dsc_version_minor = 0x1;
+	dsc_version_major = dp_panel->sink_dsc_caps.version & 0xF;
+	dsc_version_minor = (dp_panel->sink_dsc_caps.version >> 4) & 0xF;
+	dsc_version_supported = (dsc_version_major == 0x1 &&
+			(dsc_version_minor == 0x1 || dsc_version_minor == 0x2))
+			? true : false;
+
+	DP_DEBUG("DSC version: %d.%d, dpcd value: %x\n",
+			dsc_version_major, dsc_version_minor,
+			dp_panel->sink_dsc_caps.version);
+
+	if (!dsc_version_supported) {
+		dsc_version_major = 1;
+		dsc_version_minor = 1;
+		DP_ERR("invalid sink DSC version, fallback to %d.%d\n",
+				dsc_version_major, dsc_version_minor);
+	}
+
+	comp_info->dsc_info.config.dsc_version_major = dsc_version_major;
+	comp_info->dsc_info.config.dsc_version_minor = dsc_version_minor;
 	comp_info->dsc_info.scr_rev = 0x0;
 
 	comp_info->dsc_info.slice_per_pkt = 0;
@@ -1468,7 +1488,9 @@ static int dp_panel_dsc_prepare_basic_params(
 	comp_info->dsc_info.config.pic_height = dp_mode->timing.v_active;
 	comp_info->dsc_info.config.slice_width = slice_width;
 
-	if (comp_info->dsc_info.config.pic_height % 16 == 0)
+	if (comp_info->dsc_info.config.pic_height % 108 == 0)
+		comp_info->dsc_info.config.slice_height = 108;
+	else if (comp_info->dsc_info.config.pic_height % 16 == 0)
 		comp_info->dsc_info.config.slice_height = 16;
 	else if (comp_info->dsc_info.config.pic_height % 12 == 0)
 		comp_info->dsc_info.config.slice_height = 12;
@@ -1504,7 +1526,7 @@ static int dp_panel_read_dpcd(struct dp_panel *dp_panel, bool multi_func)
 
 	DP_DEBUG("+++\n");
 
-#ifdef CONFIG_SEC_DISPLAYPORT
+#if defined(CONFIG_SEC_DISPLAYPORT)
 	g_dp_panel = dp_panel;
 #endif
 
@@ -1644,10 +1666,10 @@ skip_dpcd_read:
 		DP_DEBUG("DS port count %d greater that max (%d) supported\n",
 			dfp_count, DP_MAX_DS_PORT_COUNT);
 
-#ifdef CONFIG_SEC_DISPLAYPORT
+#if defined(CONFIG_SEC_DISPLAYPORT)
 	dp_panel->dsp_type = (dpcd[DP_DOWNSTREAMPORT_PRESENT] & DP_DWN_STRM_PORT_TYPE_MASK) >> 1;
 	DP_INFO("dsp_type: <%s>\n", mdss_dp_dsp_type_to_string(dp_panel->dsp_type));
-#ifdef CONFIG_SEC_DISPLAYPORT_BIGDATA
+#if defined(CONFIG_SEC_DISPLAYPORT_BIGDATA)
 	secdp_bigdata_save_item(BD_ADAPTER_TYPE, mdss_dp_dsp_type_to_string(dp_panel->dsp_type));
 	secdp_bigdata_save_item(BD_MAX_LANE_COUNT, link_info->num_lanes);
 	secdp_bigdata_save_item(BD_MAX_LINK_RATE, dp_panel->dpcd[DP_MAX_LINK_RATE]);
@@ -1680,7 +1702,25 @@ static int dp_panel_set_default_link_params(struct dp_panel *dp_panel)
 	return 0;
 }
 
-static int dp_panel_set_edid(struct dp_panel *dp_panel, u8 *edid)
+static bool dp_panel_validate_edid(struct edid *edid, size_t edid_size)
+{
+	if (!edid || (edid_size < EDID_LENGTH))
+		return false;
+
+	if (EDID_LENGTH * (edid->extensions + 1) > edid_size) {
+		DP_ERR("edid size does not match allocated.\n");
+		return false;
+	}
+
+	if (!drm_edid_is_valid(edid)) {
+		DP_ERR("invalid edid.\n");
+		return false;
+	}
+	return true;
+}
+
+static int dp_panel_set_edid(struct dp_panel *dp_panel, u8 *edid,
+		size_t edid_size)
 {
 	struct dp_panel_private *panel;
 
@@ -1691,7 +1731,7 @@ static int dp_panel_set_edid(struct dp_panel *dp_panel, u8 *edid)
 
 	panel = container_of(dp_panel, struct dp_panel_private, dp_panel);
 
-	if (edid) {
+	if (edid && dp_panel_validate_edid((struct edid *)edid, edid_size)) {
 		dp_panel->edid_ctrl->edid = (struct edid *)edid;
 		panel->custom_edid = true;
 	} else {
@@ -1730,7 +1770,7 @@ static int dp_panel_set_dpcd(struct dp_panel *dp_panel, u8 *dpcd)
 	return 0;
 }
 
-#ifdef CONFIG_SEC_DISPLAYPORT
+#if defined(CONFIG_SEC_DISPLAYPORT)
 static int dp_panel_get_modes(struct dp_panel *dp_panel,
 	struct drm_connector *connector, struct dp_display_mode *mode);
 static void dp_panel_convert_to_dp_mode(struct dp_panel *dp_panel,
@@ -1745,6 +1785,8 @@ static void dp_panel_convert_to_dp_mode(struct dp_panel *dp_panel,
  */
 static void secdp_get_max_timing(struct dp_panel *dp_panel)
 {
+	struct dp_link_params *link_params;
+	struct dp_panel_private *panel;
 	struct drm_device *dev;
 	struct drm_connector *conn;
 	struct drm_display_mode *mode, *temp;
@@ -1754,12 +1796,17 @@ static void secdp_get_max_timing(struct dp_panel *dp_panel)
 
 	conn = dp_panel->connector;
 	dev = conn->dev;
+	panel = container_of(dp_panel, struct dp_panel_private, dp_panel);
 
 	mutex_lock(&dev->mode_config.mutex);
 
 	pinfo = &dp_panel->max_timing_info;
 	memset(pinfo, 0, sizeof(*pinfo));
 	memset(&dp_mode, 0, sizeof(dp_mode));
+
+	link_params = &panel->link->link_params;
+	link_params->bw_code = drm_dp_link_rate_to_bw_code(dp_panel->link_info.rate);
+	link_params->lane_count = dp_panel->link_info.num_lanes;
 
 	rc = dp_panel_get_modes(dp_panel, conn, &dp_mode);
 	if (!rc) {
@@ -1808,13 +1855,17 @@ static int dp_panel_read_edid(struct dp_panel *dp_panel,
 
 	panel = container_of(dp_panel, struct dp_panel_private, dp_panel);
 
-#ifdef CONFIG_SEC_DISPLAYPORT
+#if defined(CONFIG_SEC_DISPLAYPORT)
 	secdp_timing_init();
 #endif
 
 	if (panel->custom_edid) {
 		DP_DEBUG("skip edid read in debug mode\n");
+#if !defined(CONFIG_SEC_DISPLAYPORT)
 		goto end;
+#else
+		goto opt;
+#endif
 	}
 
 	sde_get_edid(connector, &panel->aux->drm_aux->ddc,
@@ -1825,7 +1876,8 @@ static int dp_panel_read_edid(struct dp_panel *dp_panel,
 		goto end;
 	}
 
-#ifdef CONFIG_SEC_DISPLAYPORT
+#if defined(CONFIG_SEC_DISPLAYPORT)
+opt:
 	secdp_get_max_timing(dp_panel);
 #endif
 end:
@@ -1930,7 +1982,7 @@ static int dp_panel_read_sink_caps(struct dp_panel *dp_panel,
 
 	panel = container_of(dp_panel, struct dp_panel_private, dp_panel);
 
-#ifdef CONFIG_SEC_DISPLAYPORT
+#if defined(CONFIG_SEC_DISPLAYPORT)
 	usleep_range(10000, 11000);
 #endif
 
@@ -1941,7 +1993,7 @@ static int dp_panel_read_sink_caps(struct dp_panel *dp_panel,
 		((drm_dp_link_rate_to_bw_code(dp_panel->link_info.rate)) >
 		dp_panel->max_bw_code)) {
 
-#ifndef CONFIG_SEC_DISPLAYPORT
+#if !defined(CONFIG_SEC_DISPLAYPORT)
 		if ((rc == -ETIMEDOUT) || (rc == -ENODEV)) {
 			DP_ERR("DPCD read failed, return early\n");
 			goto end;
@@ -1956,7 +2008,7 @@ static int dp_panel_read_sink_caps(struct dp_panel *dp_panel,
 		DP_ERR("panel dpcd read failed/incorrect, set default params\n");
 		dp_panel_set_default_link_params(dp_panel);
 
-#ifdef CONFIG_SEC_DISPLAYPORT
+#if defined(CONFIG_SEC_DISPLAYPORT)
 		if (rc < 0) {
 			rc = -EIO;
 			goto end;
@@ -1988,7 +2040,7 @@ static int dp_panel_read_sink_caps(struct dp_panel *dp_panel,
 	rc = dp_panel_read_edid(dp_panel, connector);
 	if (rc) {
 		DP_ERR("panel edid read failed, set failsafe mode\n");
-#ifdef CONFIG_SEC_DISPLAYPORT_BIGDATA
+#if defined(CONFIG_SEC_DISPLAYPORT_BIGDATA)
 		secdp_bigdata_inc_error_cnt(ERR_EDID);
 #endif
 		return rc;
@@ -2013,12 +2065,13 @@ skip_edid:
 	DP_INFO("fec_en=%d, dsc_en=%d, widebus_en=%d\n", dp_panel->fec_en,
 			dp_panel->dsc_en, dp_panel->widebus_en);
 
-#ifdef CONFIG_SEC_DISPLAYPORT
-	DP_INFO("dpcd_rev: 0x%02x\n", dp_panel->dpcd[DP_DPCD_REV]);
-	DP_INFO("vendor_id: <%s>\n", dp_panel->edid_ctrl->vendor_id);
+#if defined(CONFIG_SEC_DISPLAYPORT)
 	drm_edid_get_monitor_name(dp_panel->edid_ctrl->edid, dp_panel->monitor_name, 14);
-	DP_INFO("monitor_name: <%s>\n", dp_panel->monitor_name);
-#ifdef CONFIG_SEC_DISPLAYPORT_BIGDATA
+	DP_INFO("dpcd_rev:0x%02x, vendor:%s, monitor:%s\n",
+		dp_panel->dpcd[DP_DPCD_REV],
+		dp_panel->edid_ctrl->vendor_id,
+		dp_panel->monitor_name);
+#if defined(CONFIG_SEC_DISPLAYPORT_BIGDATA)
 	secdp_bigdata_save_item(BD_SINK_NAME, dp_panel->monitor_name);
 	secdp_bigdata_save_item(BD_EDID, (char *)(dp_panel->edid_ctrl->edid));
 #endif
@@ -2041,7 +2094,7 @@ static u32 dp_panel_get_supported_bpp(struct dp_panel *dp_panel,
 	if (dp_panel->dsc_en)
 		min_supported_bpp = 24;
 
-#ifndef CONFIG_SEC_DISPLAYPORT
+#if !defined(CONFIG_SEC_DISPLAYPORT)
 	bpp = min_t(u32, mode_edid_bpp, max_supported_bpp);
 #else
 	/* 4Kp60hz + bpp30 does not output audio with DP2HDMI dongle connection because
@@ -2163,11 +2216,10 @@ static int dp_panel_get_modes(struct dp_panel *dp_panel,
 	}
 
 	panel = container_of(dp_panel, struct dp_panel_private, dp_panel);
-#ifdef CONFIG_SEC_DISPLAYPORT
-	DP_INFO("video_test:%d\n", dp_panel->video_test);
-#endif
-
 	if (dp_panel->video_test) {
+#if defined(CONFIG_SEC_DISPLAYPORT)
+		DP_INFO("video_test!");
+#endif
 		dp_panel_set_test_mode(panel, mode);
 		return 1;
 	} else if (dp_panel->edid_ctrl->edid) {
@@ -2178,7 +2230,7 @@ static int dp_panel_get_modes(struct dp_panel *dp_panel,
 	memcpy(&mode->timing, &fail_safe,
 		sizeof(fail_safe));
 
-#ifdef CONFIG_SEC_DISPLAYPORT
+#if defined(CONFIG_SEC_DISPLAYPORT)
 	DP_INFO("fail_safe!\n");
 #endif
 	return 1;
@@ -2410,7 +2462,7 @@ static void dp_panel_config_dsc(struct dp_panel *dp_panel, bool enable)
 		dsc->be_in_lane = _dp_panel_calc_be_in_lane(dp_panel);
 		dsc->dsc_en = true;
 		dsc->dto_en = true;
-
+		dsc->continuous_pps = dp_panel->dsc_continuous_pps;
 		dp_panel_get_dto_params(comp_info->comp_ratio, &dsc->dto_n,
 				&dsc->dto_d, pinfo->bpp);
 	} else {
@@ -2418,6 +2470,7 @@ static void dp_panel_config_dsc(struct dp_panel *dp_panel, bool enable)
 		dsc->dto_en = false;
 		dsc->dto_n = 0;
 		dsc->dto_d = 0;
+		dsc->continuous_pps = false;
 	}
 
 	catalog->stream_id = dp_panel->stream_id;
@@ -2552,7 +2605,7 @@ static int dp_panel_deinit_panel_info(struct dp_panel *dp_panel, u32 flags)
 	return rc;
 }
 
-#ifdef CONFIG_SEC_DISPLAYPORT
+#if defined(CONFIG_SEC_DISPLAYPORT)
 static u32 secdp_panel_get_min_req_link_rate(struct dp_panel *dp_panel)
 {
 	const u32 encoding_factx10 = 8;
@@ -2597,7 +2650,7 @@ static bool dp_panel_hdr_supported(struct dp_panel *dp_panel)
 		(panel->minor >= 4 || panel->vscext_supported);
 }
 
-#ifdef CONFIG_SEC_DISPLAYPORT
+#if defined(CONFIG_SEC_DISPLAYPORT)
 bool secdp_panel_hdr_supported(void)
 {
 	struct dp_panel *dp_panel;
@@ -2611,7 +2664,7 @@ bool secdp_panel_hdr_supported(void)
 
 	hdr = dp_panel_hdr_supported(dp_panel);
 
-	DP_DEBUG("dsp_type:%s, hdr_support: %d\n",
+	DP_INFO("dsp_type:%s, hdr:%d\n",
 		mdss_dp_dsp_type_to_string(dp_panel->dsp_type), hdr);
 
 	return ((dp_panel->dsp_type == DSP_TYPE_DP) && hdr);
@@ -3021,11 +3074,11 @@ static void dp_panel_resolution_info(struct dp_panel_private *panel)
 		panel->link->link_params.bw_code,
 		panel->link->link_params.lane_count);
 
-#ifdef CONFIG_SEC_DISPLAYPORT
+#if defined(CONFIG_SEC_DISPLAYPORT)
 	DP_INFO("SET NEW RESOLUTION: %dx%d@%dfps\n",
 		pinfo->h_active, pinfo->v_active, pinfo->refresh_rate);
 #endif
-#ifdef CONFIG_SEC_DISPLAYPORT_BIGDATA
+#if defined(CONFIG_SEC_DISPLAYPORT_BIGDATA)
 {
 	char buf[20] = {0, };
 
@@ -3288,6 +3341,7 @@ struct dp_panel *dp_panel_get(struct dp_panel_in *in)
 
 	dp_panel->dsc_feature_enable = panel->parser->dsc_feature_enable;
 	dp_panel->fec_feature_enable = panel->parser->fec_feature_enable;
+	dp_panel->dsc_continuous_pps = panel->parser->dsc_continuous_pps;
 
 	if (in->base_panel) {
 		memcpy(dp_panel->dpcd, in->base_panel->dpcd,
@@ -3307,7 +3361,7 @@ struct dp_panel *dp_panel_get(struct dp_panel_in *in)
 	dp_panel->deinit = dp_panel_deinit_panel_info;
 	dp_panel->hw_cfg = dp_panel_hw_cfg;
 	dp_panel->read_sink_caps = dp_panel_read_sink_caps;
-#ifdef CONFIG_SEC_DISPLAYPORT
+#if defined(CONFIG_SEC_DISPLAYPORT)
 	dp_panel->get_min_req_link_rate = secdp_panel_get_min_req_link_rate;
 #endif
 	dp_panel->get_mode_bpp = dp_panel_get_mode_bpp;

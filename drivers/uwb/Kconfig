@@ -20,3 +20,15 @@ config SEC_UWB_LOGGER
 	default n
 	help
 	  Enable UWB logger.
+
+config ACPM_INIT
+	bool "ACPM INIT"
+	default n
+	help
+	  ACPM INIT must be called to use CLK4 in S5910.
+
+config UWB_QM35
+	bool "Qorvo SPI driver for QM35 devices"
+	default n
+	help
+	  Qorvo QM35 UWB controller support.

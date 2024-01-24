@@ -241,10 +241,17 @@ typedef struct _cam_eeprom_af_idx_t {
 	uint32_t     offset;
 } AfIdx_t;
 
+#if defined(CONFIG_SEC_M44X_PROJECT)
+#define AF_CAL_NEAR_OFFSET_FROM_AF                  0x000C
+#define AF_CAL_FAR_OFFSET_FROM_AF                   0x0000
+#define AF_CAL_M1_OFFSET_FROM_AF                    0x0004
+#define AF_CAL_M2_OFFSET_FROM_AF                    0x0008
+#else
 #define AF_CAL_NEAR_OFFSET_FROM_AF                  0x0010
 #define AF_CAL_FAR_OFFSET_FROM_AF                   0x0004
 #define AF_CAL_M1_OFFSET_FROM_AF                    0x0008
 #define AF_CAL_M2_OFFSET_FROM_AF                    0x000C
+#endif
 
 #define PAF_OFFSET_CAL_ERR_CHECK                    (0x0014)
 #define PAF_MID_SIZE                                936
@@ -409,9 +416,6 @@ extern uint8_t front2_dual_cal[FROM_FRONT_DUAL_CAL_SIZE + 1];
 extern DualTilt_t front2_dual;
 #endif
 extern char module_info[SYSFS_MODULE_INFO_SIZE];
-
-/* phone fw info */
-extern uint32_t CAMERA_NORMAL_CAL_CRC;
 
 #if !defined(CONFIG_SAMSUNG_FRONT_TOP_EEPROM)
 extern uint32_t front_af_cal_pan;
@@ -649,6 +653,7 @@ struct eebin_info {
  * @is_multimodule_mode :   To identify multimodule node
  * @wr_settings         :   I2C write settings
  * @eebin_info          :   EEBIN address, size info
+ * @camera_normal_cal_crc:  phone fw info
  */
 struct cam_eeprom_ctrl_t {
 	char device_name[CAM_CTX_DEV_NAME_MAX_LENGTH];
@@ -670,6 +675,7 @@ struct cam_eeprom_ctrl_t {
 	struct i2c_settings_array wr_settings;
 	struct eebin_info eebin_info;
 	uint32_t is_supported;
+	uint32_t camera_normal_cal_crc;
 };
 
 typedef enum{

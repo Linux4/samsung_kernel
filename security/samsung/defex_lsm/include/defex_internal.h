@@ -42,6 +42,10 @@
 #define FEATURE_SAFEPLACE_SOFT			(1 << 9)
 #define FEATURE_FIVE				(1 << 10) /* reserved for future use */
 #define FEATURE_FIVE_SOFT			(1 << 11) /* reserved for future use */
+#define FEATURE_TRUSTED_MAP			(1 << 12)
+#define FEATURE_TRUSTED_MAP_SOFT		(1 << 13)
+#define FEATURE_INTEGRITY			(1 << 14)
+#define FEATURE_INTEGRITY_SOFT		(1 << 15)
 
 #define FEATURE_CLEAR_ALL			(0xFF0000)
 
@@ -110,6 +114,12 @@ void set_task_creds_tcnt(struct task_struct *p, int addition);
 int is_task_creds_ready(void);
 
 /* -------------------------------------------------------------------------- */
+/* Integrity feature */
+/* -------------------------------------------------------------------------- */
+
+extern unsigned char global_integrity_status;
+
+/* -------------------------------------------------------------------------- */
 /* SafePlace feature */
 /* -------------------------------------------------------------------------- */
 
@@ -120,6 +130,28 @@ extern unsigned char global_safeplace_status;
 /* -------------------------------------------------------------------------- */
 
 extern unsigned char global_immutable_status;
+
+/* -------------------------------------------------------------------------- */
+/* Trusted Map feature */
+/* -------------------------------------------------------------------------- */
+
+extern unsigned char global_trusted_map_status;
+
+enum trusted_map_status {
+	DEFEX_TM_ENFORCING_MODE		= (1 << 0),
+	DEFEX_TM_PERMISSIVE_MODE	= (1 << 1),
+	DEFEX_TM_DEBUG_VIOLATIONS	= (1 << 2),
+	DEFEX_TM_DEBUG_CALLS		= (1 << 3),
+	DEFEX_TM_LAST_STATUS		= (1 << 4) - 1
+};
+
+static inline int defex_tm_mode_enabled(int mode_flag)
+{
+	return global_trusted_map_status & mode_flag;
+}
+
+struct defex_context;
+int defex_trusted_map_lookup(struct defex_context *dc, int argc, void *argv);
 
 /* -------------------------------------------------------------------------- */
 /* Common Helper API */
@@ -138,14 +170,14 @@ struct defex_context {
 	char *process_name_buff;
 
 	/* NB: cred must be the last field */
-	struct cred cred;
+	struct cred *cred;
 };
 
 extern const char unknown_file[];
 
 struct file *local_fopen(const char *fname, int flags, umode_t mode);
 int local_fread(struct file *f, loff_t offset, void *ptr, unsigned long bytes);
-void init_defex_context(struct defex_context *dc, int syscall, struct task_struct *p, struct file *f);
+int init_defex_context(struct defex_context *dc, int syscall, struct task_struct *p, struct file *f);
 void release_defex_context(struct defex_context *dc);
 struct file *get_dc_process_file(struct defex_context *dc);
 const struct path *get_dc_process_dpath(struct defex_context *dc);
@@ -175,6 +207,7 @@ int rules_lookup(const char *target_file, int attribute, struct file *f);
 
 int __init defex_init_sysfs(void);
 void __init creds_fast_hash_init(void);
+int __init do_load_rules(void);
 
 /* -------------------------------------------------------------------------- */
 /* Defex debug API */
@@ -183,9 +216,15 @@ void __init creds_fast_hash_init(void);
 int immutable_status_store(const char *status_str);
 int privesc_status_store(const char *status_str);
 int safeplace_status_store(const char *status_str);
+int integrity_status_store(const char *status_str);
 
+extern bool boot_state_recovery __ro_after_init;
 #ifdef DEFEX_DEPENDING_ON_OEMUNLOCK
 extern bool boot_state_unlocked __ro_after_init;
+extern int warranty_bit __ro_after_init;
+#else
+#define boot_state_unlocked	(0)
+#define warranty_bit		(0)
 #endif /* DEFEX_DEPENDING_ON_OEMUNLOCK */
 
 #endif /* CONFIG_SECURITY_DEFEX_INTERNAL_H */

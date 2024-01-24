@@ -399,6 +399,7 @@ void *test_kmalloc(struct test *test, size_t size, gfp_t gfp)
 	else
 		return NULL;
 }
+EXPORT_SYMBOL_GPL(test_kmalloc);
 
 void test_cleanup(struct test *test)
 {
@@ -428,3 +429,4 @@ void test_printk(const char *level,
 
 	va_end(args);
 }
+EXPORT_SYMBOL_GPL(test_printk);

@@ -811,16 +811,32 @@ void wacom_enable_irq(struct wacom_i2c *wac_i2c, bool enable)
 	} else {
 		disable_irq(wac_i2c->irq);
 	}
+
+#ifdef USE_RESET_IRQ
+	if (gpio_is_valid(wac_i2c->pdata->esd_detect_gpio)) {
+		struct irq_desc *desc_esd = irq_to_desc(wac_i2c->irq_esd_detect);
+
+		if (enable) {
+			while (desc_esd->depth > 0)
+				enable_irq(wac_i2c->irq_esd_detect);
+		} else {
+			disable_irq(wac_i2c->irq_esd_detect);
+		}
+	}
+#endif
 	mutex_unlock(&wac_i2c->irq_lock);
 }
 
 static void wacom_enable_irq_wake(struct wacom_i2c *wac_i2c, bool enable)
 {
+	struct irq_desc *desc = irq_to_desc(wac_i2c->irq);
 
 	if (enable) {
-		enable_irq_wake(wac_i2c->irq);
+		while (desc->wake_depth < 1)
+			enable_irq_wake(wac_i2c->irq);
 	} else {
-		disable_irq_wake(wac_i2c->irq);
+		while (desc->wake_depth > 0)
+			disable_irq_wake(wac_i2c->irq);
 	}
 }
 
@@ -958,6 +974,13 @@ void wacom_sleep_sequence(struct wacom_i2c *wac_i2c)
 	}
 	cancel_delayed_work_sync(&wac_i2c->work_print_info);
 	wacom_print_info(wac_i2c);
+
+	if (gpio_is_valid(wac_i2c->pdata->esd_detect_gpio)) {
+		if (gpio_get_value(wac_i2c->pdata->esd_detect_gpio) == 0) {
+			wac_i2c->esd_irq_count++;
+			wac_i2c->reset_flag = true;
+		}
+	}
 
 reset:
 	if (wac_i2c->reset_flag) {
@@ -1144,6 +1167,11 @@ static void wacom_i2c_noti_handler(struct wacom_i2c *wac_i2c, char *data)
 					__func__, wac_i2c->standby_state, wac_i2c->standby_enable);
 		break;
 #endif
+	case ESD_DETECT_PACKET:
+		wac_i2c->esd_packet_count++;
+		input_err(true, &wac_i2c->client->dev, "%s: DETECT ESD(%d)\n", __func__, wac_i2c->esd_packet_count);
+		wac_i2c->reset_flag = true;
+		break;
 	default:
 		input_err(true, &wac_i2c->client->dev, "%s: unexpected packet %d\n", __func__, pack_sub_id);
 		break;
@@ -1622,6 +1650,16 @@ static irqreturn_t wacom_interrupt(int irq, void *dev_id)
 	return IRQ_HANDLED;
 }
 
+#ifdef USE_RESET_IRQ
+static irqreturn_t wacom_esd_detect_interrupt(int irq, void *dev_id)
+{
+	struct wacom_i2c *wac_i2c = dev_id;
+
+	input_info(true, &wac_i2c->client->dev, "%s: esd detect interrupt(%d)\n", __func__, gpio_get_value(wac_i2c->pdata->esd_detect_gpio));
+	return IRQ_HANDLED;
+}
+#endif
+
 static void open_test_work(struct work_struct *work)
 {
 	struct wacom_i2c *wac_i2c =
@@ -1698,6 +1736,7 @@ static int wacom_i2c_input_open(struct input_dev *dev)
 	if (wac_i2c->power_enable == false) {
 		mutex_lock(&wac_i2c->lock);
 		wacom_power(wac_i2c, true);
+		msleep(100);
 		wac_i2c->reset_flag = false;
 		mutex_unlock(&wac_i2c->lock);
 	}
@@ -1740,6 +1779,8 @@ static void wacom_i2c_input_close(struct input_dev *dev)
 		wacom_power(wac_i2c, false);
 		wac_i2c->screen_on = false;
 		wac_i2c->reset_flag = false;
+		wac_i2c->survey_mode = EPEN_SURVEY_MODE_NONE;
+		wac_i2c->function_result &= ~EPEN_EVENT_SURVEY;
 		mutex_unlock(&wac_i2c->lock);
 	} else {
 		wacom_sleep_sequence(wac_i2c);
@@ -1753,6 +1794,7 @@ static void wacom_i2c_set_input_values(struct wacom_i2c *wac_i2c,
 	struct wacom_g5_platform_data *pdata = wac_i2c->pdata;
 	/* Set input values before registering input device */
 
+	input_dev->phys = input_dev->name;
 	input_dev->id.bustype = BUS_I2C;
 	input_dev->dev.parent = &client->dev;
 
@@ -2156,22 +2198,29 @@ int wacom_fw_update_on_hidden_menu(struct wacom_i2c *wac_i2c, u8 fw_update_way)
 	while (retry--) {
 		ret = wacom_i2c_flash(wac_i2c);
 		if (ret) {
-			input_info(true, &client->dev, "failed to flash fw(%d)\n", ret);
+			input_info(true, &client->dev, "failed to flash fw(%d) %d\n", ret, retry);
 			continue;
 		}
 		break;
 	}
+
+	retry = 3;
+	while (retry--) {
+		ret = wacom_i2c_query(wac_i2c);
+		if (ret < 0) {
+			input_info(true, &client->dev, "%s : failed to query to IC(%d) & reset, %d\n",
+						__func__, ret, retry);
+			wacom_compulsory_flash_mode(wac_i2c, false);
+			wacom_reset_hw(wac_i2c);
+			continue;
+		}
+		break;
+	}
+
 	if (ret) {
 		wac_i2c->update_status = FW_UPDATE_FAIL;
 		for (i = 0; i < 4; i++)
 			wac_i2c->pdata->img_version_of_ic[i] = 0;
-		goto out_update_fw;
-	}
-
-	ret = wacom_i2c_query(wac_i2c);
-	if (ret < 0) {
-		input_info(true, &client->dev, "failed to query to IC(%d)\n", ret);
-		wac_i2c->update_status = FW_UPDATE_FAIL;
 		goto out_update_fw;
 	}
 
@@ -2222,13 +2271,14 @@ int wacom_fw_update_on_probe(struct wacom_i2c *wac_i2c)
 		input_info(true, &client->dev, "bringup #1. do not update\n");
 		for (i = 0; i < 4; i++)
 			wac_i2c->pdata->img_version_of_bin[i] = 0;
-		goto out_update_fw;
+		goto skip_update_fw;
 	}
 
 	ret = wacom_i2c_load_fw(wac_i2c, FW_BUILT_IN);
 	if (ret < 0) {
-		input_info(true, &client->dev, "failed to load fw data\n");
-		goto err_update_load_fw;
+		input_info(true, &client->dev, "failed to load fw data (set bringup 1)\n");
+		wac_i2c->pdata->bringup = 1;
+		goto skip_update_fw;
 	}
 
 	if (wac_i2c->pdata->bringup == 2) {
@@ -2252,9 +2302,10 @@ int wacom_fw_update_on_probe(struct wacom_i2c *wac_i2c)
 
 	if (bforced) {
 		for (i = 0; i < 4; i++) {
-			if (wac_i2c->pdata->img_version_of_ic[i] != wac_i2c->pdata->img_version_of_bin[i])
+			if (wac_i2c->pdata->img_version_of_ic[i] != wac_i2c->pdata->img_version_of_bin[i]) {
 				input_info(true, &client->dev, "force update : not equal, update fw\n");
 				goto fw_update;
+			}
 		}
 		input_info(true, &client->dev, "force update : equal, skip update fw\n");
 		goto out_update_fw;
@@ -2304,7 +2355,20 @@ fw_update:
 	while (retry--) {
 		ret = wacom_i2c_flash(wac_i2c);
 		if (ret) {
-			input_info(true, &client->dev, "failed to flash fw(%d)\n", ret);
+			input_info(true, &client->dev, "failed to flash fw(%d) %d\n", ret, retry);
+			continue;
+		}
+		break;
+	}
+
+	retry = 3;
+	while (retry--) {
+		ret = wacom_i2c_query(wac_i2c);
+		if (ret) {
+			input_info(true, &client->dev, "%s : failed to query to IC(%d) & reset, %d\n",
+						__func__, ret, retry);
+			wacom_compulsory_flash_mode(wac_i2c, false);
+			wacom_reset_hw(wac_i2c);
 			continue;
 		}
 		break;
@@ -2314,15 +2378,10 @@ fw_update:
 			wac_i2c->pdata->img_version_of_ic[i] = 0;
 		goto err_update_fw;
 	}
-	wacom_i2c_unload_fw(wac_i2c);
-
-	ret = wacom_i2c_query(wac_i2c);
-	if (ret < 0) {
-		input_info(true, &client->dev, "failed to query to IC(%d)\n", ret);
-		goto err_update_fw;
-	}
 
 out_update_fw:
+	wacom_i2c_unload_fw(wac_i2c);
+skip_update_fw:
 
 #if WACOM_SEC_FACTORY
 	ret = wacom_check_ub(wac_i2c->client);
@@ -2336,7 +2395,6 @@ out_update_fw:
 
 err_update_fw:
 	wacom_i2c_unload_fw(wac_i2c);
-err_update_load_fw:
 
 #if WACOM_SEC_FACTORY
 	ret = wacom_check_ub(wac_i2c->client);
@@ -2737,6 +2795,13 @@ static int wacom_request_gpio(struct i2c_client *client,
 		return ret;
 	}
 
+	if (gpio_is_valid(pdata->esd_detect_gpio)) {
+		ret = devm_gpio_request(&client->dev, pdata->esd_detect_gpio, "wacom_esd_detect");
+		if (ret) {
+			input_err(true, &client->dev, "unable to request gpio for irq]\n");
+			return ret;
+		}
+	}
 	return 0;
 }
 
@@ -2806,6 +2871,11 @@ static struct wacom_g5_platform_data *wacom_parse_dt(struct i2c_client *client)
 	if (!gpio_is_valid(pdata->fwe_gpio)) {
 		input_err(true, &client->dev, "failed to get fwe-gpio\n");
 		return ERR_PTR(-EINVAL);
+	}
+
+	pdata->esd_detect_gpio = of_get_named_gpio(np, "wacom,esd_detect_gpio", 0);
+	if (!gpio_is_valid(pdata->esd_detect_gpio)) {
+		input_err(true, &client->dev, "failed to get esd_detect_gpio\n");
 	}
 
 	/* get features */
@@ -2934,6 +3004,10 @@ static struct wacom_g5_platform_data *wacom_parse_dt(struct i2c_client *client)
 	pdata->support_cover_noti = of_property_read_bool(np, "wacom,support_cover_noti");
 	pdata->support_set_display_mode = of_property_read_bool(np, "wacom,support_set_display_mode");
 	of_property_read_u32(np, "wacom,support_sensor_hall", &pdata->support_sensor_hall);
+	pdata->enable_sysinput_enabled = of_property_read_bool(np, "enable_sysinput_enabled");
+
+	input_info(true, &client->dev, "%s: Sysinput enabled %s\n",
+				__func__, pdata->enable_sysinput_enabled ? "ON" : "OFF");
 
 	input_info(true, &client->dev,
 			"boot_addr: 0x%X, origin: (%d,%d), max_coords: (%d,%d), "
@@ -2969,80 +3043,6 @@ static struct wacom_g5_platform_data *wacom_parse_dt(struct i2c_client *client)
 	return ERR_PTR(-EINVAL);
 }
 #endif
-
-static void wacom_camera_check_work(struct work_struct *work)
-{
-	struct wacom_i2c *wac_i2c = container_of(work, struct wacom_i2c, work_camera_check.work);
-	int tmp = 0, ret = 0;
-
-	input_info(true, &wac_i2c->client->dev, "%s : start!\n", __func__);
-
-	wac_i2c->probe_done = false;
-	cancel_delayed_work_sync(&wac_i2c->open_test_dwork);
-
-	tmp = wac_i2c->pdata->bringup;
-	wac_i2c->pdata->bringup = 3;
-
-	ret =  wacom_fw_update_on_probe(wac_i2c);
-	if (ret < 0)
-		input_err(true, &wac_i2c->client->dev, "%s : update fail!\n", __func__);
-
-	wac_i2c->pdata->bringup = tmp;
-	wac_i2c->probe_done = true;
-	input_info(true, &wac_i2c->client->dev, "%s : end!\n", __func__);
-}
-
-static int wacom_get_camera_type_notify(struct notifier_block *nb, unsigned long action, void *data)
-{
-	struct wacom_i2c *wac_i2c = container_of(nb, struct wacom_i2c, nb_camera);
-	u8 tele_cam, wide_cam;
-	u16 result = 0;
-
-	if (!wac_i2c->pdata->fw_separate_by_camera) {
-		input_info(true, &wac_i2c->client->dev, "%s : not support notify val(%ld)\n", __func__, action);
-		return 0;
-	}
-
-	input_err(true, &wac_i2c->client->dev, "%s: fw ver(%02X%02X%02X%02X) idx(%d) // notify val(0x%lx)\n",
-			__func__, wac_i2c->pdata->img_version_of_ic[0],
-			wac_i2c->pdata->img_version_of_ic[1], wac_i2c->pdata->img_version_of_ic[2],
-			wac_i2c->pdata->img_version_of_ic[3], wac_i2c->fw_bin_idx, action);
-
-	if (wac_i2c->nb_camera_call_cnt++ > 0) {
-		input_info(true, &wac_i2c->client->dev, "%s : duplicate call & skip(%d)!\n",
-					__func__, wac_i2c->nb_camera_call_cnt);
-		return 0;
-	}
-
-	wide_cam = action & 0xFF;
-	tele_cam = (action >> 24) & 0xFF;
-	if (tele_cam == 1 && wide_cam == 1)
-		result = FW_INDEX_0;
-	else if (tele_cam == 8 && wide_cam == 1)
-		result = FW_INDEX_1;
-	else if ((tele_cam == 1 && wide_cam == 5) ||
-		(tele_cam == 1 && wide_cam == 7))
-		result = FW_INDEX_2;
-	else if ((tele_cam == 8 && wide_cam == 5) ||
-		(tele_cam == 8 && wide_cam == 7))
-		result = FW_INDEX_3;
-	else {
-		input_info(true, &wac_i2c->client->dev, "%s : not matched(tele :%d,wide : %d)\n",
-					__func__, tele_cam, wide_cam);
-		return 0;
-	}
-
-	if (wac_i2c->fw_bin_idx == result) {
-		input_info(true, &wac_i2c->client->dev, "%s : type matched & skip!\n", __func__);
-		return 0;
-	}
-
-	input_info(true, &wac_i2c->client->dev, "%s : mismatched & call workqueue!\n", __func__);
-	wac_i2c->fw_bin_idx = result;
-	schedule_delayed_work(&wac_i2c->work_camera_check, msecs_to_jiffies(10));
-
-	return 0;
-}
 
 static int wacom_i2c_probe(struct i2c_client *client,
 		const struct i2c_device_id *id)
@@ -3094,7 +3094,11 @@ static int wacom_i2c_probe(struct i2c_client *client,
 	/* using 2 slave address. one is normal mode, another is boot mode for
 	 * fw update.
 	 */
+#if (LINUX_VERSION_CODE > KERNEL_VERSION(5, 10, 0))
+	wac_i2c->client_boot = i2c_new_dummy_device(client->adapter, pdata->boot_addr);
+#else
 	wac_i2c->client_boot = i2c_new_dummy(client->adapter, pdata->boot_addr);
+#endif
 	if (!wac_i2c->client_boot) {
 		input_err(true, &client->dev, "failed to register sub client[0x%x]\n", pdata->boot_addr);
 		return -ENOMEM;
@@ -3103,6 +3107,10 @@ static int wacom_i2c_probe(struct i2c_client *client,
 	wac_i2c->client = client;
 	wac_i2c->pdata = pdata;
 	wac_i2c->irq = gpio_to_irq(pdata->irq_gpio);
+#ifdef USE_RESET_IRQ
+	if (gpio_is_valid(pdata->esd_detect_gpio))
+		wac_i2c->irq_esd_detect = gpio_to_irq(pdata->esd_detect_gpio);
+#endif
 	wac_i2c->fw_img = NULL;
 	wac_i2c->fw_update_way = FW_NONE;
 #if IS_ENABLED(CONFIG_INPUT_SEC_NOTIFIER)
@@ -3129,6 +3137,15 @@ static int wacom_i2c_probe(struct i2c_client *client,
 	complete_all(&wac_i2c->i2c_done);
 	init_completion(&wac_i2c->resume_done);
 	complete_all(&wac_i2c->resume_done);
+
+	/*Initializing for semaphor */
+	mutex_init(&wac_i2c->i2c_mutex);
+	mutex_init(&wac_i2c->lock);
+	mutex_init(&wac_i2c->update_lock);
+	mutex_init(&wac_i2c->irq_lock);
+	mutex_init(&wac_i2c->mode_lock);
+	mutex_init(&wac_i2c->ble_lock);
+	mutex_init(&wac_i2c->ble_charge_mode_lock);
 
 	/* Power on */
 	if (gpio_get_value(pdata->fwe_gpio) == 1) {
@@ -3187,15 +3204,6 @@ static int wacom_i2c_probe(struct i2c_client *client,
 		}
 	}
 
-	/*Initializing for semaphor */
-	mutex_init(&wac_i2c->i2c_mutex);
-	mutex_init(&wac_i2c->lock);
-	mutex_init(&wac_i2c->update_lock);
-	mutex_init(&wac_i2c->irq_lock);
-	mutex_init(&wac_i2c->mode_lock);
-	mutex_init(&wac_i2c->ble_lock);
-	mutex_init(&wac_i2c->ble_charge_mode_lock);
-
 #if LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 0)
 	// 4.19 R 
 	wakeup_source_init(wac_i2c->wacom_fw_ws, "wacom");
@@ -3252,6 +3260,14 @@ static int wacom_i2c_probe(struct i2c_client *client,
 		input_err(true, &client->dev, "failed to request irq(%d) - %d\n", wac_i2c->irq, ret);
 		goto err_request_irq;
 	}
+#ifdef USE_RESET_IRQ
+	if (gpio_is_valid(pdata->esd_detect_gpio)) {
+		ret = devm_request_threaded_irq(&client->dev, wac_i2c->irq_esd_detect, NULL, wacom_esd_detect_interrupt,
+				IRQF_ONESHOT | IRQF_TRIGGER_LOW, "sec_epen_esd_detectirq", wac_i2c);
+		if (ret < 0)
+			input_err(true, &client->dev, "failed to request esd_detect_irq(%d) - %d\n", wac_i2c->irq_esd_detect, ret);
+	}
+#endif
 	input_info(true, &client->dev, "init irq %d\n", wac_i2c->irq);
 
 	ret = wacom_sec_init(wac_i2c);
@@ -3280,11 +3296,6 @@ static int wacom_i2c_probe(struct i2c_client *client,
 	if (!wac_i2c->ble_hist1)
 		input_err(true, &client->dev, "failed to history1 mem\n");
 
-	INIT_DELAYED_WORK(&wac_i2c->work_camera_check, wacom_camera_check_work);
-
-	wac_i2c->nb_camera.notifier_call = wacom_get_camera_type_notify;
-	is_register_eeprom_notifier(&wac_i2c->nb_camera);
-
 #if IS_ENABLED(CONFIG_HALL_NOTIFIER)
 	wac_i2c->nb_hall.priority = 1;
 	wac_i2c->nb_hall.notifier_call = wac_hall_ic_notifier;
@@ -3305,6 +3316,10 @@ static int wacom_i2c_probe(struct i2c_client *client,
 #ifdef SUPPORT_STANDBY_MODE
 	// wacom ic default mode : WACOM_LOW_SCAN_RATE
 	wac_i2c->standby_state = WACOM_LOW_SCAN_RATE;
+#endif
+
+#if IS_ENABLED(CONFIG_HALL_NOTIFIER)
+	hall_ic_request_notitfy();
 #endif
 
 	return 0;

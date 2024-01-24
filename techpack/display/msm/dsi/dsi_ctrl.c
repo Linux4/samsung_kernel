@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2016-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/of_device.h>
@@ -9,6 +10,10 @@
 #include <linux/clk.h>
 #include <linux/of_irq.h>
 #include <video/mipi_display.h>
+
+#ifdef CONFIG_UIO
+#include <linux/uio_driver.h>
+#endif
 
 #include "msm_drv.h"
 #include "msm_kms.h"
@@ -271,7 +276,6 @@ static int dsi_ctrl_debugfs_init(struct dsi_ctrl *dsi_ctrl,
 {
 	int rc = 0;
 	struct dentry *dir, *state_file, *reg_dump, *cmd_dma_logs;
-	char dbg_name[DSI_DEBUG_NAME_LEN];
 
 	if (!dsi_ctrl || !parent) {
 		DSI_CTRL_ERR(dsi_ctrl, "Invalid params\n");
@@ -334,10 +338,6 @@ static int dsi_ctrl_debugfs_init(struct dsi_ctrl *dsi_ctrl,
 
 	dsi_ctrl->debugfs_root = dir;
 
-	snprintf(dbg_name, DSI_DEBUG_NAME_LEN, "dsi%d_ctrl",
-						dsi_ctrl->cell_index);
-	sde_dbg_reg_register_base(dbg_name, dsi_ctrl->hw.base,
-				msm_iomap_size(dsi_ctrl->pdev, "dsi_ctrl"));
 error_remove_dir:
 	debugfs_remove(dir);
 error:
@@ -350,15 +350,8 @@ static int dsi_ctrl_debugfs_deinit(struct dsi_ctrl *dsi_ctrl)
 	return 0;
 }
 #else
-static int dsi_ctrl_debugfs_init(struct dsi_ctrl *dsi_ctrl,
-				 struct dentry *parent)
+static int dsi_ctrl_debugfs_init(struct dsi_ctrl *dsi_ctrl, struct dentry *parent)
 {
-	char dbg_name[DSI_DEBUG_NAME_LEN];
-
-	snprintf(dbg_name, DSI_DEBUG_NAME_LEN, "dsi%d_ctrl",
-			dsi_ctrl->cell_index);
-	sde_dbg_reg_register_base(dbg_name, dsi_ctrl->hw.base,
-			msm_iomap_size(dsi_ctrl->pdev, "dsi_ctrl"));
 	return 0;
 }
 static int dsi_ctrl_debugfs_deinit(struct dsi_ctrl *dsi_ctrl)
@@ -407,13 +400,6 @@ static void dsi_ctrl_dma_cmd_wait_for_done(struct work_struct *work)
 	dsi_hw_ops = dsi_ctrl->hw.ops;
 	SDE_EVT32(dsi_ctrl->cell_index, SDE_EVTLOG_FUNC_ENTRY);
 
-	/*
-	 * This atomic state will be set if ISR has been triggered,
-	 * so the wait is not needed.
-	 */
-	if (atomic_read(&dsi_ctrl->dma_irq_trig))
-		goto done;
-
 	ret = wait_for_completion_timeout(
 			&dsi_ctrl->irq_info.cmd_dma_done,
 			msecs_to_jiffies(DSI_CTRL_TX_TO_MS));
@@ -449,8 +435,8 @@ static void dsi_ctrl_dma_cmd_wait_for_done(struct work_struct *work)
 					DSI_SINT_CMD_MODE_DMA_DONE);
 	}
 
-done:
 	dsi_ctrl->dma_wait_queued = false;
+	SDE_EVT32(dsi_ctrl->cell_index, SDE_EVTLOG_FUNC_EXIT);
 }
 
 static int dsi_ctrl_check_state(struct dsi_ctrl *dsi_ctrl,
@@ -657,6 +643,7 @@ static int dsi_ctrl_init_regmap(struct platform_device *pdev,
 		}
 		ctrl->hw.mmss_misc_base = ptr;
 		ctrl->hw.disp_cc_base = NULL;
+		ctrl->hw.mdp_intf_base = NULL;
 		break;
 	case DSI_CTRL_VERSION_2_2:
 	case DSI_CTRL_VERSION_2_3:
@@ -670,6 +657,10 @@ static int dsi_ctrl_init_regmap(struct platform_device *pdev,
 		}
 		ctrl->hw.disp_cc_base = ptr;
 		ctrl->hw.mmss_misc_base = NULL;
+
+		ptr = msm_ioremap(pdev, "mdp_intf_base", ctrl->name);
+		if (!IS_ERR(ptr))
+			ctrl->hw.mdp_intf_base = ptr;
 		break;
 	default:
 		break;
@@ -685,34 +676,34 @@ static int dsi_ctrl_clocks_deinit(struct dsi_ctrl *ctrl)
 	struct dsi_link_hs_clk_info *hs_link = &ctrl->clk_info.hs_link_clks;
 	struct dsi_clk_link_set *rcg = &ctrl->clk_info.rcg_clks;
 
-	if (core->mdp_core_clk)
+	if (!IS_ERR_OR_NULL(core->mdp_core_clk))
 		devm_clk_put(&ctrl->pdev->dev, core->mdp_core_clk);
-	if (core->iface_clk)
+	if (!IS_ERR_OR_NULL(core->iface_clk))
 		devm_clk_put(&ctrl->pdev->dev, core->iface_clk);
-	if (core->core_mmss_clk)
+	if (!IS_ERR_OR_NULL(core->core_mmss_clk))
 		devm_clk_put(&ctrl->pdev->dev, core->core_mmss_clk);
-	if (core->bus_clk)
+	if (!IS_ERR_OR_NULL(core->bus_clk))
 		devm_clk_put(&ctrl->pdev->dev, core->bus_clk);
-	if (core->mnoc_clk)
+	if (!IS_ERR_OR_NULL(core->mnoc_clk))
 		devm_clk_put(&ctrl->pdev->dev, core->mnoc_clk);
 
 	memset(core, 0x0, sizeof(*core));
 
-	if (hs_link->byte_clk)
+	if (!IS_ERR_OR_NULL(hs_link->byte_clk))
 		devm_clk_put(&ctrl->pdev->dev, hs_link->byte_clk);
-	if (hs_link->pixel_clk)
+	if (!IS_ERR_OR_NULL(hs_link->pixel_clk))
 		devm_clk_put(&ctrl->pdev->dev, hs_link->pixel_clk);
-	if (lp_link->esc_clk)
+	if (!IS_ERR_OR_NULL(lp_link->esc_clk))
 		devm_clk_put(&ctrl->pdev->dev, lp_link->esc_clk);
-	if (hs_link->byte_intf_clk)
+	if (!IS_ERR_OR_NULL(hs_link->byte_intf_clk))
 		devm_clk_put(&ctrl->pdev->dev, hs_link->byte_intf_clk);
 
 	memset(hs_link, 0x0, sizeof(*hs_link));
 	memset(lp_link, 0x0, sizeof(*lp_link));
 
-	if (rcg->byte_clk)
+	if (!IS_ERR_OR_NULL(rcg->byte_clk))
 		devm_clk_put(&ctrl->pdev->dev, rcg->byte_clk);
-	if (rcg->pixel_clk)
+	if (!IS_ERR_OR_NULL(rcg->pixel_clk))
 		devm_clk_put(&ctrl->pdev->dev, rcg->pixel_clk);
 
 	memset(rcg, 0x0, sizeof(*rcg));
@@ -960,6 +951,9 @@ int dsi_ctrl_pixel_format_to_bpp(enum dsi_pixel_format dst_format)
 		break;
 	case DSI_PIXEL_FORMAT_RGB888:
 		bpp = 24;
+		break;
+	case DSI_PIXEL_FORMAT_RGB101010:
+		bpp = 30;
 		break;
 	default:
 		bpp = 24;
@@ -1334,17 +1328,16 @@ static void dsi_configure_command_scheduling(struct dsi_ctrl *dsi_ctrl,
 	}
 
 	/*
-	 * In case of command scheduling in command mode, the window size
-	 * is reset to zero, if the total scheduling window is greater
-	 * than the panel height.
+	 * In case of command scheduling in command mode, set the maximum
+	 * possible size of the DMA start window in case no schedule line and
+	 * window size properties are defined by the panel.
 	 */
 	if ((dsi_ctrl->host_config.panel_mode == DSI_OP_CMD_MODE) &&
 			dsi_hw_ops.configure_cmddma_window) {
-		sched_line_no = line_no;
 
-		if ((sched_line_no + window) > timing->v_active)
-			window = 0;
-
+		sched_line_no = (line_no == 0) ? TEARCHECK_WINDOW_SIZE :
+					line_no;
+		window = (window == 0) ? timing->v_active : window;
 		sched_line_no += timing->v_active;
 
 		dsi_hw_ops.configure_cmddma_window(&dsi_ctrl->hw, cmd_mem,
@@ -1352,6 +1345,25 @@ static void dsi_configure_command_scheduling(struct dsi_ctrl *dsi_ctrl,
 	}
 	SDE_EVT32(dsi_ctrl->cell_index, SDE_EVTLOG_FUNC_EXIT,
 			sched_line_no, window);
+}
+
+static u32 calculate_schedule_line(struct dsi_ctrl *dsi_ctrl, u32 flags)
+{
+	u32 line_no = 0x1;
+	struct dsi_mode_info *timing;
+
+	/* check if custom dma scheduling line needed */
+	if ((dsi_ctrl->host_config.panel_mode == DSI_OP_VIDEO_MODE) &&
+		(flags & DSI_CTRL_CMD_CUSTOM_DMA_SCHED))
+		line_no = dsi_ctrl->host_config.common_config.dma_sched_line;
+
+	timing = &(dsi_ctrl->host_config.video_timing);
+
+	if (timing)
+		line_no += timing->v_back_porch + timing->v_sync_width +
+			timing->v_active;
+
+	return line_no;
 }
 
 static void dsi_kickoff_msg_tx(struct dsi_ctrl *dsi_ctrl,
@@ -1373,8 +1385,25 @@ static void dsi_kickoff_msg_tx(struct dsi_ctrl *dsi_ctrl,
 		dsi_hw_ops.reset_trig_ctrl(&dsi_ctrl->hw,
 				&dsi_ctrl->host_config.common_config);
 
-	/* check if custom dma scheduling line needed */
-	if (flags & DSI_CTRL_CMD_CUSTOM_DMA_SCHED)
+	if (dsi_hw_ops.init_cmddma_trig_ctrl)
+		dsi_hw_ops.init_cmddma_trig_ctrl(&dsi_ctrl->hw,
+				&dsi_ctrl->host_config.common_config);
+
+	/*
+	 * Always enable DMA scheduling for video mode panel.
+	 *
+	 * In video mode panel, if the DMA is triggered very close to
+	 * the beginning of the active window and the DMA transfer
+	 * happens in the last line of VBP, then the HW state will
+	 * stay in ‘wait’ and return to ‘idle’ in the first line of VFP.
+	 * But somewhere in the middle of the active window, if SW
+	 * disables DSI command mode engine while the HW is still
+	 * waiting and re-enable after timing engine is OFF. So the
+	 * HW never ‘sees’ another vblank line and hence it gets
+	 * stuck in the ‘wait’ state.
+	 */
+	if ((flags & DSI_CTRL_CMD_CUSTOM_DMA_SCHED) ||
+		(dsi_ctrl->host_config.panel_mode == DSI_OP_VIDEO_MODE))
 		dsi_configure_command_scheduling(dsi_ctrl, cmd_mem);
 
 	dsi_ctrl->cmd_mode = (dsi_ctrl->host_config.panel_mode ==
@@ -1382,7 +1411,8 @@ static void dsi_kickoff_msg_tx(struct dsi_ctrl *dsi_ctrl,
 	hw_flags |= (flags & DSI_CTRL_CMD_DEFER_TRIGGER) ?
 			DSI_CTRL_HW_CMD_WAIT_FOR_TRIGGER : 0;
 
-	if ((msg->flags & MIPI_DSI_MSG_LASTCOMMAND))
+	if ((msg->flags & MIPI_DSI_MSG_LASTCOMMAND) ||
+			(flags & DSI_CTRL_CMD_LAST_COMMAND))
 		hw_flags |= DSI_CTRL_CMD_LAST_COMMAND;
 
 	if (flags & DSI_CTRL_CMD_DEFER_TRIGGER) {
@@ -1510,6 +1540,39 @@ static void dsi_ctrl_validate_msg_flags(struct dsi_ctrl *dsi_ctrl,
 		*flags &= ~DSI_CTRL_CMD_ASYNC_WAIT;
 }
 
+/**
+ * dsi_ctrl_clear_slave_dma_status -   API to clear slave DMA status
+ * @dsi_ctrl:                   DSI controller handle.
+ * @flags:                      Modifiers
+ */
+static void dsi_ctrl_clear_slave_dma_status(struct dsi_ctrl *dsi_ctrl, u32 flags)
+{
+	struct dsi_ctrl_hw_ops dsi_hw_ops;
+	u32 status = 0;
+
+	if (!dsi_ctrl) {
+		DSI_CTRL_ERR(dsi_ctrl, "Invalid params\n");
+		return;
+	}
+
+	/* Return if this is not the last command */
+	if (!(flags & DSI_CTRL_CMD_LAST_COMMAND))
+		return;
+
+	SDE_EVT32(dsi_ctrl->cell_index, SDE_EVTLOG_FUNC_ENTRY);
+
+	dsi_hw_ops = dsi_ctrl->hw.ops;
+
+	status = dsi_hw_ops.poll_slave_dma_status(&dsi_ctrl->hw);
+
+	if (status) {
+		status |= (DSI_CMD_MODE_DMA_DONE | DSI_BTA_DONE);
+		dsi_hw_ops.clear_interrupt_status(&dsi_ctrl->hw,
+						status);
+		SDE_EVT32(dsi_ctrl->cell_index, status);
+	}
+}
+
 #if defined(CONFIG_DISPLAY_SAMSUNG)
 static void print_cmd_desc(const struct mipi_dsi_msg *msg, struct samsung_display_driver_data *vdd)
 {
@@ -1574,8 +1637,14 @@ static int dsi_message_tx(struct dsi_ctrl *dsi_ctrl,
 
 	dsi_ctrl_validate_msg_flags(dsi_ctrl, msg, flags);
 
+	SDE_EVT32(dsi_ctrl->cell_index, SDE_EVTLOG_FUNC_ENTRY, *flags, dsi_ctrl->cmd_len);
+
 	if (dsi_ctrl->dma_wait_queued)
 		dsi_ctrl_flush_cmd_dma_queue(dsi_ctrl);
+
+	if ((*flags & DSI_CTRL_CMD_BROADCAST) &&
+			(!(*flags & DSI_CTRL_CMD_BROADCAST_MASTER)))
+		dsi_ctrl_clear_slave_dma_status(dsi_ctrl, *flags);
 
 	if (*flags & DSI_CTRL_CMD_NON_EMBEDDED_MODE) {
 		cmd_mem.offset = dsi_ctrl->cmd_buffer_iova;
@@ -1613,7 +1682,23 @@ static int dsi_message_tx(struct dsi_ctrl *dsi_ctrl,
 		goto error;
 	}
 
-	if ((msg->flags & MIPI_DSI_MSG_LASTCOMMAND))
+	/*
+	 * In case of broadcast CMD length cannot be greater than 512 bytes
+	 * as specified by HW limitations. Need to overwrite the flags to
+	 * set the LAST_COMMAND flag to ensure no command transfer failures.
+	 */
+	if ((*flags & DSI_CTRL_CMD_FETCH_MEMORY) &&
+			(*flags & DSI_CTRL_CMD_BROADCAST)) {
+		if ((dsi_ctrl->cmd_len + length) > 240) {
+			dsi_ctrl_mask_overflow(dsi_ctrl, true);
+			*flags |= DSI_CTRL_CMD_LAST_COMMAND;
+			SDE_EVT32(dsi_ctrl->cell_index, SDE_EVTLOG_FUNC_CASE1,
+					flags);
+		}
+	}
+
+	if ((msg->flags & MIPI_DSI_MSG_LASTCOMMAND) ||
+			(*flags & DSI_CTRL_CMD_LAST_COMMAND))
 		buffer[3] |= BIT(7);//set the last cmd bit in header.
 
 	if (*flags & DSI_CTRL_CMD_FETCH_MEMORY) {
@@ -1634,7 +1719,8 @@ static int dsi_message_tx(struct dsi_ctrl *dsi_ctrl,
 
 		dsi_ctrl->cmd_len += length;
 
-		if (!(msg->flags & MIPI_DSI_MSG_LASTCOMMAND)) {
+		if (!(msg->flags & MIPI_DSI_MSG_LASTCOMMAND) &&
+				!(*flags & DSI_CTRL_CMD_LAST_COMMAND)) {
 			goto error;
 		} else {
 			cmd_mem.length = dsi_ctrl->cmd_len;
@@ -2092,6 +2178,58 @@ static int dsi_ctrl_dts_parse(struct dsi_ctrl *dsi_ctrl,
 	return 0;
 }
 
+#ifdef CONFIG_UIO
+static void uio_init(struct platform_device *pdev)
+{
+	struct uio_info *uio_reg_info = NULL;
+	struct resource *clnt_res = NULL;
+	int ret = 0;
+	u32 mem_size = 0;
+	phys_addr_t mem_pyhsical = 0;
+
+	clnt_res = platform_get_resource_byname(pdev, IORESOURCE_MEM, "disp_conf");
+	if (!clnt_res) {
+		pr_debug("resource not found\n");
+		return;
+	}
+
+	mem_size = resource_size(clnt_res);
+	if (mem_size == 0) {
+		pr_debug("resource memory size is zero\n");
+		goto exit;
+	}
+
+	uio_reg_info = devm_kzalloc(&pdev->dev, sizeof(struct uio_info),
+			GFP_KERNEL);
+	if (!uio_reg_info)
+		goto exit;
+
+	mem_pyhsical = clnt_res->start;
+
+	/* Setup device */
+	uio_reg_info->name = clnt_res->name;
+	uio_reg_info->version = "1.0";
+	uio_reg_info->mem[0].addr = mem_pyhsical;
+	uio_reg_info->mem[0].size = mem_size;
+	uio_reg_info->mem[0].memtype = UIO_MEM_PHYS;
+
+	ret = uio_register_device(&pdev->dev, uio_reg_info);
+	if (ret) {
+		pr_debug("uio register failed. ret:%d\n", ret);
+		goto exit;
+	}
+
+	pr_debug("Device file created for dsi_ctrl config.\n");
+	return;
+exit:
+	pr_debug("Unable to get dsi_ctrl config.\n");
+}
+#else	/* CONFIG_UIO */
+static void uio_init(struct platform_device *pdev)
+{
+}
+#endif	/* CONFIG_UIO */
+
 static int dsi_ctrl_dev_probe(struct platform_device *pdev)
 {
 	struct dsi_ctrl *dsi_ctrl;
@@ -2101,7 +2239,7 @@ static int dsi_ctrl_dev_probe(struct platform_device *pdev)
 	int rc = 0;
 
 #if defined(CONFIG_DISPLAY_SAMSUNG)
-	pr_err("dsi_ctrl_dev_probe ++ \n");
+	pr_info("dsi_ctrl_dev_probe ++ \n");
 #endif
 
 	id = of_match_node(msm_dsi_of_match, pdev->dev.of_node);
@@ -2163,9 +2301,6 @@ static int dsi_ctrl_dev_probe(struct platform_device *pdev)
 		goto fail_clks;
 	}
 
-	if (dsi_ctrl->hw.ops.map_mdp_regs)
-		dsi_ctrl->hw.ops.map_mdp_regs(pdev, &dsi_ctrl->hw);
-
 	item->ctrl = dsi_ctrl;
 	sde_dbg_dsi_ctrl_register(dsi_ctrl->hw.base, dsi_ctrl->name);
 
@@ -2178,10 +2313,13 @@ static int dsi_ctrl_dev_probe(struct platform_device *pdev)
 
 	dsi_ctrl->pdev = pdev;
 	platform_set_drvdata(pdev, dsi_ctrl);
+
+	uio_init(pdev);
+
 	DSI_CTRL_INFO(dsi_ctrl, "Probe successful\n");
 
 #if defined(CONFIG_DISPLAY_SAMSUNG)
-	pr_err("dsi_ctrl_dev_probe -- \n");
+	pr_info("dsi_ctrl_dev_probe -- \n");
 #endif
 
 	return 0;
@@ -2348,6 +2486,7 @@ void dsi_ctrl_put(struct dsi_ctrl *dsi_ctrl)
  */
 int dsi_ctrl_drv_init(struct dsi_ctrl *dsi_ctrl, struct dentry *parent)
 {
+	char dbg_name[DSI_DEBUG_NAME_LEN];
 	int rc = 0;
 
 	if (!dsi_ctrl) {
@@ -2368,6 +2507,10 @@ int dsi_ctrl_drv_init(struct dsi_ctrl *dsi_ctrl, struct dentry *parent)
 		DSI_CTRL_ERR(dsi_ctrl, "failed to init debug fs, rc=%d\n", rc);
 		goto error;
 	}
+
+	snprintf(dbg_name, DSI_DEBUG_NAME_LEN, "dsi%d_ctrl", dsi_ctrl->cell_index);
+	sde_dbg_reg_register_base(dbg_name, dsi_ctrl->hw.base,
+			msm_iomap_size(dsi_ctrl->pdev, "dsi_ctrl"));
 
 error:
 	mutex_unlock(&dsi_ctrl->ctrl_lock);
@@ -2980,7 +3123,10 @@ void dsi_ctrl_enable_status_interrupt(struct dsi_ctrl *dsi_ctrl,
 			intr_idx >= DSI_STATUS_INTERRUPT_COUNT)
 		return;
 
-	SDE_EVT32(dsi_ctrl->cell_index, SDE_EVTLOG_FUNC_ENTRY, intr_idx);
+	SDE_EVT32(dsi_ctrl->cell_index, intr_idx,
+		dsi_ctrl->irq_info.irq_num, dsi_ctrl->irq_info.irq_stat_mask,
+		dsi_ctrl->irq_info.irq_stat_refcount[intr_idx]);
+
 	spin_lock_irqsave(&dsi_ctrl->irq_info.irq_lock, flags);
 
 	if (dsi_ctrl->irq_info.irq_stat_refcount[intr_idx] == 0) {
@@ -3013,7 +3159,10 @@ void dsi_ctrl_disable_status_interrupt(struct dsi_ctrl *dsi_ctrl,
 	if (!dsi_ctrl || intr_idx >= DSI_STATUS_INTERRUPT_COUNT)
 		return;
 
-	SDE_EVT32_IRQ(dsi_ctrl->cell_index, SDE_EVTLOG_FUNC_ENTRY, intr_idx);
+	SDE_EVT32_IRQ(dsi_ctrl->cell_index, intr_idx,
+		dsi_ctrl->irq_info.irq_num, dsi_ctrl->irq_info.irq_stat_mask,
+		dsi_ctrl->irq_info.irq_stat_refcount[intr_idx]);
+
 	spin_lock_irqsave(&dsi_ctrl->irq_info.irq_lock, flags);
 
 	if (dsi_ctrl->irq_info.irq_stat_refcount[intr_idx])
@@ -3038,6 +3187,8 @@ int dsi_ctrl_host_timing_update(struct dsi_ctrl *dsi_ctrl)
 		return -EINVAL;
 	}
 
+	mutex_lock(&dsi_ctrl->ctrl_lock);
+
 	if (dsi_ctrl->hw.ops.host_setup)
 		dsi_ctrl->hw.ops.host_setup(&dsi_ctrl->hw,
 				&dsi_ctrl->host_config.common_config);
@@ -3055,9 +3206,11 @@ int dsi_ctrl_host_timing_update(struct dsi_ctrl *dsi_ctrl)
 				0x0, NULL);
 	} else {
 		DSI_CTRL_ERR(dsi_ctrl, "invalid panel mode for resolution switch\n");
+		mutex_unlock(&dsi_ctrl->ctrl_lock);
 		return -EINVAL;
 	}
 
+	mutex_unlock(&dsi_ctrl->ctrl_lock);
 	return 0;
 }
 
@@ -3479,6 +3632,10 @@ int dsi_ctrl_cmd_tx_trigger(struct dsi_ctrl *dsi_ctrl, u32 flags)
 {
 	int rc = 0;
 	struct dsi_ctrl_hw_ops dsi_hw_ops;
+	u32 v_total = 0, fps = 0, cur_line = 0, mem_latency_us = 100;
+	u32 line_time = 0, schedule_line = 0x1, latency_by_line = 0;
+	struct dsi_mode_info *timing;
+	unsigned long flag;
 
 	if (!dsi_ctrl) {
 		DSI_CTRL_ERR(dsi_ctrl, "Invalid params\n");
@@ -3493,6 +3650,18 @@ int dsi_ctrl_cmd_tx_trigger(struct dsi_ctrl *dsi_ctrl, u32 flags)
 		return rc;
 
 	mutex_lock(&dsi_ctrl->ctrl_lock);
+
+	timing = &(dsi_ctrl->host_config.video_timing);
+
+	if (timing &&
+		(dsi_ctrl->host_config.panel_mode == DSI_OP_VIDEO_MODE)) {
+		v_total = timing->v_sync_width + timing->v_back_porch +
+			timing->v_front_porch + timing->v_active;
+		fps = timing->refresh_rate;
+		schedule_line = calculate_schedule_line(dsi_ctrl, flags);
+		line_time = (1000000 / fps) / v_total;
+		latency_by_line = CEIL(mem_latency_us, line_time);
+	}
 
 	if (!(flags & DSI_CTRL_CMD_BROADCAST_MASTER)) {
 		dsi_hw_ops.trigger_command_dma(&dsi_ctrl->hw);
@@ -3516,7 +3685,35 @@ int dsi_ctrl_cmd_tx_trigger(struct dsi_ctrl *dsi_ctrl, u32 flags)
 		reinit_completion(&dsi_ctrl->irq_info.cmd_dma_done);
 
 		/* trigger command */
-		dsi_hw_ops.trigger_command_dma(&dsi_ctrl->hw);
+		if ((dsi_ctrl->host_config.panel_mode == DSI_OP_VIDEO_MODE) &&
+			dsi_hw_ops.schedule_dma_cmd &&
+			(dsi_ctrl->current_state.vid_engine_state ==
+			DSI_CTRL_ENGINE_ON)) {
+			/*
+			 * This change reads the video line count from
+			 * MDP_INTF_LINE_COUNT register and checks whether
+			 * DMA trigger happens close to the schedule line.
+			 * If it is not close to the schedule line, then DMA
+			 * command transfer is triggered.
+			 */
+			while (1) {
+				local_irq_save(flag);
+				cur_line =
+				dsi_hw_ops.log_line_count(&dsi_ctrl->hw,
+					dsi_ctrl->cmd_mode);
+				if (cur_line <
+					(schedule_line - latency_by_line) ||
+					cur_line > (schedule_line + 1)) {
+					dsi_hw_ops.trigger_command_dma(
+						&dsi_ctrl->hw);
+					local_irq_restore(flag);
+					break;
+				}
+				local_irq_restore(flag);
+				udelay(1000);
+			}
+		} else
+			dsi_hw_ops.trigger_command_dma(&dsi_ctrl->hw);
 
 		if (dsi_ctrl->enable_cmd_dma_stats) {
 			u32 reg = dsi_hw_ops.log_line_count(&dsi_ctrl->hw,
@@ -3838,6 +4035,7 @@ int dsi_ctrl_set_vid_engine_state(struct dsi_ctrl *dsi_ctrl,
 {
 	int rc = 0;
 	bool on;
+	bool vid_eng_busy;
 
 	if (!dsi_ctrl || (state >= DSI_CTRL_ENGINE_MAX)) {
 		DSI_CTRL_ERR(dsi_ctrl, "Invalid params\n");
@@ -3857,9 +4055,17 @@ int dsi_ctrl_set_vid_engine_state(struct dsi_ctrl *dsi_ctrl,
 	if (!skip_op) {
 		on = (state == DSI_CTRL_ENGINE_ON) ? true : false;
 		dsi_ctrl->hw.ops.video_engine_en(&dsi_ctrl->hw, on);
+		vid_eng_busy = dsi_ctrl->hw.ops.vid_engine_busy(&dsi_ctrl->hw);
 
-		/* perform a reset when turning off video engine */
-		if (!on && dsi_ctrl->version < DSI_CTRL_VERSION_1_3)
+		/*
+		 * During ESD check failure, DSI video engine can get stuck
+		 * sending data from display engine. In use cases where GDSC
+		 * toggle does not happen like DP MST connected or secure video
+		 * playback, display does not recover back after ESD failure.
+		 * Perform a reset if video engine is stuck.
+		 */
+		if (!on && (dsi_ctrl->version < DSI_CTRL_VERSION_1_3 ||
+								vid_eng_busy))
 			dsi_ctrl->hw.ops.soft_reset(&dsi_ctrl->hw);
 	}
 
@@ -4124,7 +4330,7 @@ int dsi_ctrl_wait4dynamic_refresh_done(struct dsi_ctrl *ctrl)
 void dsi_ctrl_drv_register(void)
 {
 #if defined(CONFIG_DISPLAY_SAMSUNG)
-	pr_err("dsi_ctrl_drv_register ++ \n");
+	pr_info("dsi_ctrl_drv_register ++ \n");
 #endif
 	platform_driver_register(&dsi_ctrl_driver);
 }

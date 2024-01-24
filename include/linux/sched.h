@@ -537,8 +537,13 @@ DECLARE_PER_CPU_READ_MOSTLY(int, sched_load_boost);
 
 #ifdef CONFIG_QCOM_HYP_CORE_CTL
 extern int hh_vcpu_populate_affinity_info(u32 cpu_index, u64 cap_id);
+extern int hh_vpm_grp_populate_info(u64 cap_id, int virq_num);
 #else
 static inline int hh_vcpu_populate_affinity_info(u32 cpu_index, u64 cap_id)
+{
+	return 0;
+}
+static inline int  hh_vpm_grp_populate_info(u64 cap_id, int virq_num)
 {
 	return 0;
 }
@@ -556,6 +561,9 @@ extern void walt_update_cluster_topology(void);
 
 #define RAVG_HIST_SIZE_MAX  5
 #define NUM_BUSY_BUCKETS 10
+
+#define WALT_LOW_LATENCY_PROCFS	BIT(0)
+#define WALT_LOW_LATENCY_BINDER	BIT(1)
 
 struct walt_task_struct {
 	/*
@@ -606,7 +614,7 @@ struct walt_task_struct {
 	bool				wake_up_idle;
 	bool				misfit;
 	bool				rtg_high_prio;
-	bool				low_latency;
+	u8				low_latency;
 	u64				boost_period;
 	u64				boost_expires;
 	u64				last_sleep_ts;
@@ -618,6 +626,7 @@ struct walt_task_struct {
 	struct list_head		grp_list;
 	u64				cpu_cycles;
 	cpumask_t			cpus_requested;
+	bool				iowaited;
 };
 
 #else
@@ -1657,7 +1666,6 @@ extern struct pid *cad_pid;
 #define PF_MEMALLOC		0x00000800	/* Allocating memory */
 #define PF_NPROC_EXCEEDED	0x00001000	/* set_user() noticed that RLIMIT_NPROC was exceeded */
 #define PF_USED_MATH		0x00002000	/* If unset the fpu must be initialized before use */
-#define PF_USED_ASYNC		0x00004000	/* Used async_schedule*(), used by module init */
 #define PF_NOFREEZE		0x00008000	/* This thread should not be frozen */
 #define PF_FROZEN		0x00010000	/* Frozen for system suspend */
 #define PF_KSWAPD		0x00020000	/* I am kswapd */
@@ -1703,7 +1711,7 @@ extern struct pid *cad_pid;
 #define tsk_used_math(p)			((p)->flags & PF_USED_MATH)
 #define used_math()				tsk_used_math(current)
 
-static inline bool is_percpu_thread(void)
+static __always_inline bool is_percpu_thread(void)
 {
 #ifdef CONFIG_SMP
 	return (current->flags & PF_NO_SETAFFINITY) &&

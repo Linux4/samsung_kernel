@@ -11,6 +11,6 @@
 
 #define SIGN_SIZE		256
 
-int __init defex_rules_signature_check(const char *rules_buffer, unsigned int rules_data_size, unsigned int *rules_size);
+int defex_rules_signature_check(const char *rules_buffer, unsigned int rules_data_size, unsigned int *rules_size);
 
 #endif /* __DEFEX_SIGN_H */

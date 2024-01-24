@@ -14,7 +14,7 @@
 #include "dp_gpio_hpd.h"
 #include "dp_lphw_hpd.h"
 #include "dp_debug.h"
-#ifdef CONFIG_SEC_DISPLAYPORT
+#if defined(CONFIG_SEC_DISPLAYPORT)
 #include "secdp.h"
 #endif
 

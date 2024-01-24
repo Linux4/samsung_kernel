@@ -1,7 +1,7 @@
 /*
  * Broadcom Dongle Host Driver (DHD), common DHD core.
  *
- * Copyright (C) 2021, Broadcom.
+ * Copyright (C) 2022, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -9296,6 +9296,9 @@ dhd_convert_memdump_type_to_str(uint32 type, char *buf, size_t buf_len, int subs
 			break;
 		case DUMP_TYPE_P2P_DISC_BUSY:
 			type_str = "P2P_DISC_BUSY";
+			break;
+		case DUMP_TYPE_CONT_EXCESS_PM_AWAKE:
+			type_str = "CONT_EXCESS_PM_AWAKE";
 			break;
 		default:
 			type_str = "Unknown_type";

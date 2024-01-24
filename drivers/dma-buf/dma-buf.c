@@ -84,8 +84,7 @@ static void dma_buf_release(struct dentry *dentry)
 	int dtor_ret = 0;
 
 	dmabuf = dentry->d_fsdata;
-
-	if (!dmabuf)
+	if (unlikely(!dmabuf))
 		return;
 
 	msm_dma_buf = to_msm_dma_buf(dmabuf);
@@ -102,10 +101,6 @@ static void dma_buf_release(struct dentry *dentry)
 	 */
 	BUG_ON(dmabuf->cb_shared.active || dmabuf->cb_excl.active);
 
-	mutex_lock(&db_list.lock);
-	list_del(&dmabuf->list_node);
-	mutex_unlock(&db_list.lock);
-
 	dtor_ret = dma_buf_invoke_dtor(dmabuf);
 
 	if (!dtor_ret)
@@ -116,9 +111,26 @@ static void dma_buf_release(struct dentry *dentry)
 	if (dmabuf->resv == (struct dma_resv *)&dmabuf[1])
 		dma_resv_fini(dmabuf->resv);
 
+	WARN_ON(!list_empty(&dmabuf->attachments));
 	module_put(dmabuf->owner);
 	kfree(dmabuf->name);
 	kfree(msm_dma_buf);
+}
+
+static int dma_buf_file_release(struct inode *inode, struct file *file)
+{
+	struct dma_buf *dmabuf;
+
+	if (!is_dma_buf_file(file))
+		return -EINVAL;
+
+	dmabuf = file->private_data;
+
+	mutex_lock(&db_list.lock);
+	list_del(&dmabuf->list_node);
+	mutex_unlock(&db_list.lock);
+
+	return 0;
 }
 
 static const struct dentry_operations dma_buf_dentry_ops = {
@@ -446,6 +458,7 @@ static void dma_buf_show_fdinfo(struct seq_file *m, struct file *file)
 }
 
 static const struct file_operations dma_buf_fops = {
+	.release	= dma_buf_file_release,
 	.mmap		= dma_buf_mmap_internal,
 	.llseek		= dma_buf_llseek,
 	.poll		= dma_buf_poll,
@@ -687,6 +700,37 @@ void dma_buf_put(struct dma_buf *dmabuf)
 	fput(dmabuf->file);
 }
 EXPORT_SYMBOL_GPL(dma_buf_put);
+
+/**
+ * dma_buf_put_sync - decreases refcount of the buffer
+ * @dmabuf:	[in]	buffer to reduce refcount of
+ *
+ * Uses file's refcounting done implicitly by __fput_sync().
+ *
+ * If, as a result of this call, the refcount becomes 0, the 'release' file
+ * operation related to this fd is called. It calls &dma_buf_ops.release vfunc
+ * in turn, and frees the memory allocated for dmabuf when exported.
+ *
+ * This function is different than dma_buf_put() in the sense that it guarantees
+ * that the 'release' file operation related to this fd is called, and that the
+ * memory is released, when the refcount becomes 0. dma_buf_put() does not
+ * have the same guarantee when invoked by a kernel thread (e.g. a worker
+ * thread), and the refcount reaches 0; in that case, the buffer is added to
+ * the delayed_fput_list, and freed asynchronously.
+ *
+ * This function should not be called in atomic context, and should only be
+ * called by kernel threads. If in doubt, use dma_buf_put().
+ */
+void dma_buf_put_sync(struct dma_buf *dmabuf)
+{
+	if (WARN_ON(!dmabuf || !dmabuf->file))
+		return;
+
+	might_sleep();
+
+	dma_buf_ref_mod(to_msm_dma_buf(dmabuf), -1);
+	__fput_sync(dmabuf->file);
+}
 
 /**
  * dma_buf_attach - Add the device to dma_buf's attachments list; optionally,

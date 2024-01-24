@@ -3,7 +3,7 @@
  *
  * Dependencies: bcmeth.h
  *
- * Copyright (C) 2021, Broadcom.
+ * Copyright (C) 2022, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -305,9 +305,16 @@ typedef union bcm_event_msg_u {
 #define WLC_E_TWT				195	/* TWT event */
 #define WLC_E_AMT			196	/* Address Management Table (AMT) */
 #define WLC_E_ROAM_SCAN_RESULT		197	/* roam/reassoc scan result event */
-#define WLC_E_LAST			199	/* highest val + 1 for range checking */
-#if (WLC_E_LAST > 199)
-#error "WLC_E_LAST: Invalid value for last event; must be <= 198."
+
+#define WLC_E_MSCS                      200     /* MSCS success/failure events */
+#define WLC_E_RXDMA_RECOVERY_ATMPT      201     /* RXDMA Recovery Attempted Event */
+#define WLC_E_PFN_PARTIAL_RESULT        202
+#define WLC_E_MLO_LINK_INFO             203     /* 11be MLO link information */
+#define WLC_E_C2C                       204     /* Client to client (C2C) for 6GHz TX */
+#define WLC_E_BCN_TSF			205	/* Report Beacon TSF */
+#define WLC_E_LAST			206	/* highest val + 1 for range checking */
+#if (WLC_E_LAST > 206)
+#error "WLC_E_LAST: Invalid value for last event; must be <= 206."
 #endif /* WLC_E_LAST */
 
 /* define an API for getting the string name of an event */
@@ -1231,6 +1238,17 @@ typedef struct wl_twt_notify {
 	uint8 notification;
 	uint8 PAD[3];
 } wl_twt_notify_t;
+
+/* Beacon TSF Event */
+typedef struct wl_bcn_tsf {
+	uint16 version;
+	uint16 length;	/* the byte count of fields from 'reason_code' onwards */
+	uint32 bcn_tsf_h;
+	uint32 bcn_tsf_l;
+} wl_bcn_tsf_t;
+
+#define WL_BCN_TSF_VER_0	0u
+#define WL_BCN_TSF_LEN	sizeof(wl_bcn_tsf_t)
 
 #define WL_INVALID_IE_EVENT_VERSION	0
 

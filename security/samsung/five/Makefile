@@ -11,7 +11,7 @@ ccflags-y += -Wformat
 five-y := five_lv.o five_cert.o five_keyring.o five_init.o  \
 	  five_cert_builtin.o five_cache.o \
 	  five_dmverity.o
-five-$(CONFIG_SECURITY_DSMS) += five_dsms.o
+five-$(CONFIG_FIVE_DSMS) += five_dsms.o
 
 ifdef CONFIG_FIVE_GKI_20
   FILES := five_main.o five_appraise.o five_crypto.o five_audit.o \
@@ -19,8 +19,13 @@ ifdef CONFIG_FIVE_GKI_20
            five_tint_dev.o five_tee_interface.o
   five-y += $(addprefix gki/,$(FILES))
 else
-  five-y += five_main.o five_appraise.o five_crypto.o five_audit.o \
-            five_hooks.o task_integrity.o five_state.o five_tee_interface.o
+  five-y +=  five_crypto.o five_audit.o \
+              five_hooks.o task_integrity.o five_state.o
+  ifdef CONFIG_PROCA_S_OS
+    five-y += s_os/five_main.o s_os/five_appraise.o
+  else
+    five-y += five_main.o five_appraise.o five_tee_interface.o
+  endif
 endif
 
 # kunit tests options:

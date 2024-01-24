@@ -39,6 +39,17 @@ config QTI_SCMI_MEMLAT_PROTOCOL
 	  This driver defines the comands or message ID's used for this
 	  communication and also exposes the ops used by clients.
 
+config QTI_SCMI_PLH_PROTOCOL
+	tristate "Qualcomm Technologies, Inc. SCMI PLH vendor Protocol"
+	depends on ARM_SCMI_PROTOCOL && QCOM_RIMPS && QGKI
+	help
+	  System Control and Management Interface (SCMI) plh vendor protocol
+	  this protocol provides interface to communicate with micro controller
+	  which is executing the plh algorithm
+
+	  This driver defines the comands or message ID's used for this
+	  communication and also exposes the ops used by clients.
+
 config ARM_SCMI_POWER_DOMAIN
 	tristate "SCMI power domain driver"
 	depends on ARM_SCMI_PROTOCOL || (COMPILE_TEST && OF)
@@ -249,12 +260,23 @@ config INTEL_STRATIX10_RSU
 config QCOM_SCM
 	tristate "Qualcomm Technologies, Inc. SCM Interface"
 	depends on ARM || ARM64
+	depends on HAVE_ARM_SMCCC
 	select RESET_CONTROLLER
 	help
 	  This option enables support for communicating with
 	  Qualcomm Technologies, Inc. secure worlds using
 	  Qualcomm Technologies, Inc. "Secure Channel Manager"
 	  interface.
+
+config QCOM_SCM_QCPE
+	bool "Para-Virtualized Secure Channel Manager (SCM) support over QCPE"
+	depends on QCOM_SCM && MSM_HAB
+	default n
+	help
+	  To enable Secure Channel Mananger(SCM) support for SoC
+	  in virtualized Linux, where SCM backend is QCPE (QCOM Protected
+	  environment). The SCM channel will use QCOM HAB interface for
+	  front-end to back-end communication.
 
 config QTEE_SHM_BRIDGE
 	bool "QTI TEE shared memory bridge"

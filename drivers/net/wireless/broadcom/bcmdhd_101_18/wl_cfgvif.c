@@ -1,7 +1,7 @@
 /*
  * Wifi Virtual Interface implementaion
  *
- * Copyright (C) 2021, Broadcom.
+ * Copyright (C) 2022, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -1309,6 +1309,16 @@ wl_get_bandwidth_cap(struct net_device *ndev, uint32 band, uint32 *bandwidth)
 		bw = WL_CHANSPEC_BW_20;
 	}
 
+#if defined(LIMIT_AP_BW)
+	if (band == WL_CHANSPEC_BAND_6G) {
+		struct bcm_cfg80211 *cfg = wl_get_cfg(ndev);
+		if (cfg->ap_bw_chspec != INVCHANSPEC &&
+			(wf_bw_chspec_to_mhz(cfg->ap_bw_chspec) < wf_bw_chspec_to_mhz(bw))) {
+			bw = cfg->ap_bw_chspec;
+		}
+	}
+#endif /* LIMIT_AP_BW */
+
 	*bandwidth = bw;
 
 	return err;
@@ -1324,14 +1334,14 @@ wl_get_nl80211_band(u32 wl_band)
 			return IEEE80211_BAND_2GHZ;
 		case WL_CHANSPEC_BAND_5G:
 			return IEEE80211_BAND_5GHZ;
-#ifdef WL_BAND_6G
+#ifdef WL_6G_BAND
 		case WL_CHANSPEC_BAND_6G:
 			/* current kernels doesn't support seperate
 			 * band for 6GHz. so till patch is available
 			 * map it under 5GHz
 			 */
 			return IEEE80211_BAND_5GHZ;
-#endif /* WL_BAND_6G */
+#endif /* WL_6G_BAND */
 		default:
 			WL_ERR(("unsupported Band. %d\n", wl_band));
 	}
@@ -1403,7 +1413,10 @@ wl_cfg80211_set_channel(struct wiphy *wiphy, struct net_device *dev,
 			/* Do not try SCC in 5GHz if channel is not CH149 */
 			chspec = (
 #ifdef WL_6G_BAND
-				CHSPEC_IS6G(*sta_chanspec) ||
+				(CHSPEC_IS6G(*sta_chanspec) &&
+				 (!CHSPEC_IS_6G_PSC(*sta_chanspec) ||
+				  (wf_chspec_primary20_chspec(*sta_chanspec) !=
+				   wf_chspec_primary20_chspec(chspec)))) ||
 #endif /* WL_6G_BAND */
 				(CHSPEC_IS5G(*sta_chanspec) &&
 				wf_chspec_primary20_chan(*sta_chanspec) !=
@@ -3320,16 +3333,16 @@ wl_cfg80211_start_ap(
 		goto fail;
 	}
 
-		/* Disable packet filter */
-		if (dhd->early_suspended) {
-			WL_ERR(("Disable pkt_filter\n"));
+	/* Disable packet filter */
+	if (dhd->early_suspended) {
+		WL_ERR(("Disable pkt_filter\n"));
 #ifdef PKT_FILTER_SUPPORT
-			dhd_enable_packet_filter(0, dhd);
+		dhd_enable_packet_filter(0, dhd);
 #endif /* PKT_FILTER_SUPPORT */
 #ifdef APF
-			dhd_dev_apf_disable_filter(dhd_linux_get_primary_netdev(dhd));
+		dhd_dev_apf_disable_filter(dhd_linux_get_primary_netdev(dhd));
 #endif /* APF */
-		}
+	}
 
 	/* disable TDLS */
 #ifdef WLTDLS
@@ -3443,16 +3456,16 @@ fail:
 			wl_cfg80211_set_frameburst(cfg, TRUE);
 #endif /* DISABLE_WL_FRAMEBURST_SOFTAP */
 		}
-			/* Enable packet filter */
-			if (dhd->early_suspended) {
-				WL_ERR(("Enable pkt_filter\n"));
+		/* Enable packet filter */
+		if (dhd->early_suspended) {
+			WL_ERR(("Enable pkt_filter\n"));
 #ifdef PKT_FILTER_SUPPORT
-				dhd_enable_packet_filter(1, dhd);
+			dhd_enable_packet_filter(1, dhd);
 #endif /* PKT_FILTER_SUPPORT */
 #ifdef APF
-				dhd_dev_apf_enable_filter(dhd_linux_get_primary_netdev(dhd));
+			dhd_dev_apf_enable_filter(dhd_linux_get_primary_netdev(dhd));
 #endif /* APF */
-			}
+		}
 
 #ifdef WLTDLS
 		if (bssidx == 0) {
@@ -3565,7 +3578,11 @@ wl_cfg80211_stop_ap(
 		}
 #endif /* DHD_PCIE_RUNTIMEPM */
 #endif /* CUSTOMER_HW4 */
-
+#ifdef BCN_TSFINFO
+		if (wl_cfg80211_tsfinfo_set(dev, 0)) {
+			WL_ERR(("Fail to clear tsfinfo\n"));
+		}
+#endif /* BCN_TSFINFO */
 #ifdef DISABLE_WL_FRAMEBURST_SOFTAP
 		wl_cfg80211_set_frameburst(cfg, TRUE);
 #endif /* DISABLE_WL_FRAMEBURST_SOFTAP */
@@ -5706,6 +5723,18 @@ int wl_cfg80211_set_he_mode(struct net_device *dev, struct bcm_cfg80211 *cfg,
 
 	return err;
 }
+#ifdef BCN_TSFINFO
+int wl_cfg80211_tsfinfo_set(struct net_device *dev, s32 tsf_enable)
+{
+	uint err = BCME_OK;
+
+	err = wldev_iovar_setint(dev, "bcn_tsf_enab", tsf_enable);
+	if (err != BCME_OK) {
+		WL_ERR(("failed to set tsfinfo=%d\n", err));
+	}
+	return err;
+}
+#endif /* BCN_TSFINO */
 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 12, 0))
 int
@@ -6368,3 +6397,180 @@ wl_restore_ap_bw(struct bcm_cfg80211 *cfg)
 	}
 }
 #endif /* SUPPORT_AP_BWCTRL */
+
+#ifdef CUSTOM_SOFTAP_SET_ANT
+int
+wl_set_softap_antenna(struct net_device *dev, char *ifname, int set_chain)
+{
+	struct bcm_cfg80211 *cfg = wl_get_cfg(dev);
+	struct net_device *ifdev = NULL;
+	char iobuf[WLC_IOCTL_SMLEN];
+	int err = BCME_OK;
+	int iftype = 0;
+	s32 val = 1;
+
+	memset(iobuf, 0, WLC_IOCTL_SMLEN);
+
+	/* Check the interface type */
+	ifdev = wl_get_netdev_by_name(cfg, ifname);
+	if (ifdev == NULL) {
+		WL_ERR(("%s: Could not find net_device for ifname:%s\n",
+			__FUNCTION__, ifname));
+		err = BCME_BADARG;
+		goto fail;
+	}
+
+	iftype = ifdev->ieee80211_ptr->iftype;
+	if (iftype == NL80211_IFTYPE_AP) {
+		err = wldev_ioctl_set(dev, WLC_DOWN, &val, sizeof(s32));
+		if (err) {
+			WL_ERR(("WLC_DOWN error %d\n", err));
+			goto fail;
+		} else {
+			err = wldev_iovar_setint(ifdev, "txchain", set_chain);
+			if (unlikely(err)) {
+				WL_ERR(("%s: Failed to set txchain[%d], err=%d\n",
+					__FUNCTION__, set_chain, err));
+			}
+			err = wldev_iovar_setint(ifdev, "rxchain", set_chain);
+			if (unlikely(err)) {
+				WL_ERR(("%s: Failed to set rxchain[%d], err=%d\n",
+					__FUNCTION__, set_chain, err));
+			}
+			err = wldev_ioctl_set(dev, WLC_UP, &val, sizeof(s32));
+			if (err < 0) {
+				WL_ERR(("WLC_UP error %d\n", err));
+			}
+		}
+	} else {
+		WL_ERR(("%s: Chain set should control in SoftAP mode only\n",
+			__FUNCTION__));
+		err = BCME_BADARG;
+	}
+fail:
+	return err;
+}
+
+int
+wl_get_softap_antenna(struct net_device *dev, char *ifname, void *param)
+{
+	struct bcm_cfg80211 *cfg = wl_get_cfg(dev);
+	uint32 *cur_rxchain = (uint32*)param;
+	struct net_device *ifdev = NULL;
+	char iobuf[WLC_IOCTL_SMLEN];
+	int err = BCME_OK;
+	int iftype = 0;
+
+	memset(iobuf, 0, WLC_IOCTL_SMLEN);
+
+	/* Check the interface type */
+	ifdev = wl_get_netdev_by_name(cfg, ifname);
+	if (ifdev == NULL) {
+		WL_ERR(("%s: Could not find net_device for ifname:%s\n", __FUNCTION__, ifname));
+		err = BCME_BADARG;
+		goto fail;
+	}
+
+	iftype = ifdev->ieee80211_ptr->iftype;
+	if (iftype == NL80211_IFTYPE_AP) {
+		err = wldev_iovar_getint(ifdev, "rxchain", cur_rxchain);
+		if (unlikely(err)) {
+			WL_ERR(("%s: Failed to get rxchain, err=%d\n",
+				__FUNCTION__, err));
+		}
+	} else {
+		WL_ERR(("%s: rxchain should control in SoftAP mode only\n",
+			__FUNCTION__));
+		err = BCME_BADARG;
+	}
+fail:
+	return err;
+}
+#endif /* CUSTOM_SOFTAP_SET_ANT */
+
+#if defined(LIMIT_AP_BW)
+uint32
+wl_cfg80211_get_ap_bw_limit_bit(struct bcm_cfg80211 *cfg, uint32 band)
+{
+
+	if (band != WL_CHANSPEC_BAND_6G) {
+		WL_ERR(("AP BW LIMIT supportted for 6G band only requested = %d\n", band));
+		return 0;
+	}
+
+	return cfg->ap_bw_limit;
+}
+
+#ifdef WL_6G_320_SUPPORT
+#define BAND_PARAM(a) a, 0
+#else
+#define BAND_PARAM(a) a
+#endif /* WL_6G_320_SUPPORT */
+
+chanspec_t
+wl_cfg80211_get_ap_bw_limited_chspec(struct bcm_cfg80211 *cfg, uint32 band, chanspec_t candidate)
+{
+
+	chanspec_t updated_chspec;
+	if (band != WL_CHANSPEC_BAND_6G) {
+		WL_ERR(("AP BW LIMIT supported for 6G band only requested = %d\n", band));
+		return candidate;
+	}
+
+	if (!cfg->ap_bw_limit ||
+		(wf_bw_chspec_to_mhz(candidate) <= wf_bw_chspec_to_mhz(cfg->ap_bw_chspec))) {
+		/* LIMIT is not set or narrower bandwidth is required */
+		return candidate;
+	}
+	updated_chspec = wf_create_chspec_from_primary(
+		wf_chspec_primary20_chan(candidate),
+		cfg->ap_bw_chspec,
+		BAND_PARAM(WL_CHANSPEC_BAND_6G));
+
+	return updated_chspec;
+}
+
+/* configure BW limit for AP
+ * support 6G band only
+ */
+int
+wl_cfg80211_set_softap_bw(struct bcm_cfg80211 *cfg, uint32 band, uint32 limit)
+{
+	int i, found = FALSE, f_idx = 0;
+	uint32 support_bw[][2] = {
+		{WLC_BW_20MHZ_BIT, WL_CHANSPEC_BW_20},
+		{WLC_BW_40MHZ_BIT, WL_CHANSPEC_BW_40},
+		{WLC_BW_80MHZ_BIT, WL_CHANSPEC_BW_80},
+#if defined(CHSPEC_IS160)
+		{WLC_BW_160MHZ_BIT, WL_CHANSPEC_BW_160},
+#endif /* CHSPEC_IS160 */
+	};
+
+	if (band != WL_CHANSPEC_BAND_6G) {
+		WL_ERR(("AP BW LIMIT supportted for 6G band only requested = %d\n", band));
+		return FALSE;
+	}
+
+	for (i = 0; i < ARRAYSIZE(support_bw); i++) {
+		if (support_bw[i][0] == limit) {
+			found = TRUE;
+			f_idx = i;
+			break;
+		}
+	}
+
+	if (limit && !found) {
+		WL_ERR(("AP BW LIMIT not supported bandwidth :%d\n", limit));
+		return BCME_ERROR;
+	}
+
+	cfg->ap_bw_limit = limit;
+	if (found) {
+		cfg->ap_bw_chspec = support_bw[f_idx][1];
+	} else {
+		cfg->ap_bw_chspec = INVCHANSPEC;
+	}
+
+	return BCME_OK;
+}
+#endif /* LIMIT_AP_BW */

@@ -34,14 +34,14 @@
 #include <linux/usb/typec/maxim/max77705_usbc.h>
 
 #if IS_ENABLED(CONFIG_MUIC_NOTIFIER)
-#include <linux/muic/muic_notifier.h>
+#include <linux/muic/common/muic_notifier.h>
 #endif /* CONFIG_MUIC_NOTIFIER */
 
 #if defined(CONFIG_USB_HW_PARAM)
 #include <linux/usb_notify.h>
 #endif
 
-#if defined(CONFIG_SEC_ABC)
+#if IS_ENABLED(CONFIG_SEC_ABC)
 #include <linux/sti/abc_common.h>
 #endif
 #include <linux/battery/sec_battery_common.h>
@@ -110,8 +110,7 @@ void max77705_muic_check_afc_disabled(struct max77705_muic_data *muic_data)
 
 	if ((!pdata->afc_disable && (muic_data->attached_dev == ATTACHED_DEV_AFC_CHARGER_DISABLED_MUIC ||
 					muic_data->attached_dev == ATTACHED_DEV_AFC_CHARGER_5V_MUIC ||		
-					muic_data->attached_dev == ATTACHED_DEV_QC_CHARGER_5V_MUIC ||
-					muic_data->attached_dev == ATTACHED_DEV_TA_MUIC)) ||
+					muic_data->attached_dev == ATTACHED_DEV_QC_CHARGER_5V_MUIC)) ||
 		(pdata->afc_disable && (muic_data->attached_dev == ATTACHED_DEV_AFC_CHARGER_9V_MUIC ||
 					muic_data->attached_dev == ATTACHED_DEV_QC_CHARGER_9V_MUIC ||
 					muic_data->attached_dev == ATTACHED_DEV_AFC_CHARGER_5V_MUIC ||		
@@ -160,7 +159,7 @@ void max77705_muic_clear_hv_control(struct max77705_muic_data *muic_data)
 	max77705_usbc_opcode_write(usbc_pdata, &write_data);
 }
 
-void max77705_muic_afc_hv_set(struct max77705_muic_data *muic_data, int voltage)
+int max77705_muic_afc_hv_set(struct max77705_muic_data *muic_data, int voltage)
 {
 	struct max77705_usbc_platform_data *usbc_pdata = muic_data->usbc_pdata;
 	usbc_cmd_data write_data;
@@ -176,7 +175,7 @@ void max77705_muic_afc_hv_set(struct max77705_muic_data *muic_data, int voltage)
 	default:
 		pr_info("%s:%s invalid value(%d), return\n", MUIC_DEV_NAME,
 				__func__, voltage);
-		return;
+		return -EINVAL;
 	}
 
 	pr_info("%s:%s voltage(%d)\n", MUIC_DEV_NAME, __func__, voltage);
@@ -187,10 +186,10 @@ void max77705_muic_afc_hv_set(struct max77705_muic_data *muic_data, int voltage)
 	write_data.write_data[0] = tx_byte;
 	write_data.read_length = 10;
 
-	max77705_usbc_opcode_write(usbc_pdata, &write_data);
+	return max77705_usbc_opcode_write(usbc_pdata, &write_data);
 }
 
-void max77705_muic_qc_hv_set(struct max77705_muic_data *muic_data, int voltage)
+int max77705_muic_qc_hv_set(struct max77705_muic_data *muic_data, int voltage)
 {
 	struct max77705_usbc_platform_data *usbc_pdata = muic_data->usbc_pdata;
 	usbc_cmd_data write_data;
@@ -206,7 +205,7 @@ void max77705_muic_qc_hv_set(struct max77705_muic_data *muic_data, int voltage)
 	default:
 		pr_info("%s:%s invalid value(%d), return\n", MUIC_DEV_NAME,
 				__func__, voltage);
-		return;
+		return -EINVAL;
 	}
 
 	pr_info("%s:%s voltage(%d)\n", MUIC_DEV_NAME, __func__, voltage);
@@ -217,7 +216,7 @@ void max77705_muic_qc_hv_set(struct max77705_muic_data *muic_data, int voltage)
 	write_data.write_data[0] = dpdndrv;
 	write_data.read_length = 2;
 
-	max77705_usbc_opcode_write(usbc_pdata, &write_data);
+	return max77705_usbc_opcode_write(usbc_pdata, &write_data);
 }
 
 #if !defined(CONFIG_MUIC_QC_DISABLE)
@@ -271,6 +270,7 @@ void max77705_muic_handle_detect_dev_afc(struct max77705_muic_data *muic_data, u
 	muic_attached_dev_t current_attached_dev = muic_data->attached_dev;
 #endif
 	int i = 0;
+	int ret = 0;
 
 	/* W/A: vbadc of opcode result is 0, but vbadc register value is not 0 */
 	if (vbadc == 0 && vbadc2 > 0)
@@ -323,11 +323,6 @@ void max77705_muic_handle_detect_dev_afc(struct max77705_muic_data *muic_data, u
 			muic_notifier_attach_attached_dev(new_afc_dev);
 #endif /* CONFIG_MUIC_NOTIFIER */
 			muic_data->attached_dev = new_afc_dev;
-		}
-
-		if (muic_data->pdata->afc_disabled_updated & MAX77705_MUIC_AFC_DISABLE_CHANGE_DURING_WORK) {
-			max77705_muic_check_afc_disabled(muic_data);
-			muic_data->pdata->afc_disabled_updated &= MAX77705_MUIC_AFC_DISABLE_CHANGE_DURING_WORK_END;
 		}
 		break;
 	case 1:
@@ -445,8 +440,12 @@ void max77705_muic_handle_detect_dev_afc(struct max77705_muic_data *muic_data, u
 		if (noti)
 			muic_notifier_attach_attached_dev(muic_data->attached_dev);
 #endif /* CONFIG_MUIC_NOTIFIER */
-#if defined(CONFIG_SEC_ABC)
-		sec_abc_send_event("MODULE=muic@ERROR=cable_short");
+#if IS_ENABLED(CONFIG_SEC_ABC)
+#if IS_ENABLED(CONFIG_SEC_FACTORY)
+		sec_abc_send_event("MODULE=muic@INFO=cable_short");
+#else
+		sec_abc_send_event("MODULE=muic@WARN=cable_short");
+#endif
 #endif
 		break;
 	case 9:
@@ -463,8 +462,12 @@ void max77705_muic_handle_detect_dev_afc(struct max77705_muic_data *muic_data, u
 		if (noti)
 			muic_notifier_attach_attached_dev(muic_data->attached_dev);
 #endif /* CONFIG_MUIC_NOTIFIER */
-#if defined(CONFIG_SEC_ABC)
-		sec_abc_send_event("MODULE=muic@ERROR=cable_short");
+#if IS_ENABLED(CONFIG_SEC_ABC)
+#if IS_ENABLED(CONFIG_SEC_FACTORY)
+		sec_abc_send_event("MODULE=muic@INFO=cable_short");
+#else
+		sec_abc_send_event("MODULE=muic@WARN=cable_short");
+#endif
 #endif
 		break;
 	case 10:
@@ -481,8 +484,12 @@ void max77705_muic_handle_detect_dev_afc(struct max77705_muic_data *muic_data, u
 		if (noti)
 			muic_notifier_attach_attached_dev(muic_data->attached_dev);
 #endif /* CONFIG_MUIC_NOTIFIER */
-#if defined(CONFIG_SEC_ABC)
-		sec_abc_send_event("MODULE=muic@ERROR=cable_short");
+#if IS_ENABLED(CONFIG_SEC_ABC)
+#if IS_ENABLED(CONFIG_SEC_FACTORY)
+		sec_abc_send_event("MODULE=muic@INFO=cable_short");
+#else
+		sec_abc_send_event("MODULE=muic@WARN=cable_short");
+#endif
 #endif
 		break;
 	case 11:
@@ -554,21 +561,45 @@ void max77705_muic_handle_detect_dev_afc(struct max77705_muic_data *muic_data, u
 					muic_notifier_attach_attached_dev(ATTACHED_DEV_AFC_CHARGER_ERR_V_MUIC);
 #endif /* CONFIG_MUIC_NOTIFIER */
 			}
-#if defined(CONFIG_SEC_ABC)
-			sec_abc_send_event("MODULE=muic@ERROR=afc_hv_fail");
+			mutex_lock(&muic_data->afc_lock);
+			muic_data->pdata->afc_disabled_updated &= MAX77705_MUIC_AFC_DISABLE_CHANGE_DURING_WORK_END;
+			muic_data->pdata->afc_disabled_updated &= MAX77705_MUIC_AFC_SET_VOLTAGE_CHANGE_DURING_WORK_END;
+			muic_data->pdata->afc_disabled_updated &= MAX77705_MUIC_AFC_WORK_PROCESS_END;
+			mutex_unlock(&muic_data->afc_lock);
+#if IS_ENABLED(CONFIG_SEC_ABC)
+#if IS_ENABLED(CONFIG_SEC_FACTORY)
+			sec_abc_send_event("MODULE=muic@INFO=afc_hv_fail");
+#else
+			sec_abc_send_event("MODULE=muic@WARN=afc_hv_fail");
+#endif
 #endif
 		}
+	} else {
+		mutex_lock(&muic_data->afc_lock);
+		if (muic_data->pdata->afc_disabled_updated & MAX77705_MUIC_AFC_DISABLE_CHANGE_DURING_WORK) {
+			max77705_muic_check_afc_disabled(muic_data);
+			muic_data->pdata->afc_disabled_updated &= MAX77705_MUIC_AFC_DISABLE_CHANGE_DURING_WORK_END;
+		}
+
+		muic_data->pdata->afc_disabled_updated &= MAX77705_MUIC_AFC_WORK_PROCESS_END;
+
+		if (muic_data->pdata->afc_disabled_updated & MAX77705_MUIC_AFC_SET_VOLTAGE_CHANGE_DURING_WORK) {
+			muic_data->pdata->afc_disabled_updated |= MAX77705_MUIC_AFC_WORK_PROCESS;
+
+			ret = __max77705_muic_afc_set_voltage(muic_data, muic_data->reserve_hv_voltage);
+			if (ret < 0)
+				muic_data->pdata->afc_disabled_updated &= MAX77705_MUIC_AFC_WORK_PROCESS_END;
+
+			muic_data->pdata->afc_disabled_updated &= MAX77705_MUIC_AFC_SET_VOLTAGE_CHANGE_DURING_WORK_END;
+		}
+		mutex_unlock(&muic_data->afc_lock);
 	}
 
 #if defined(CONFIG_USB_HW_PARAM)
 	if (o_notify) {
-		if (muic_data->is_skip_bigdata) {
-#if IS_ENABLED(CONFIG_MUIC_AFC_RETRY)
-			if (afc_retry_fail)
-				max77705_muic_handle_afc_retry(muic_data, current_attached_dev);
-#endif /* CONFIG_MUIC_AFC_RETRY */
-			return;
-		}
+		if (muic_data->is_skip_bigdata)
+			goto afc_out;
+
 		if (afc_err && !afc_nack)
 			inc_hw_param(o_notify, USB_MUIC_AFC_ERROR_COUNT);
 		if (afc_nack) {
@@ -577,13 +608,12 @@ void max77705_muic_handle_detect_dev_afc(struct max77705_muic_data *muic_data, u
 			muic_data->is_skip_bigdata = true;
 		}
 	}
+afc_out:
 #endif
-
 #if IS_ENABLED(CONFIG_MUIC_AFC_RETRY)
 	if (afc_retry_fail)
 		max77705_muic_handle_afc_retry(muic_data, current_attached_dev);
 #endif /* CONFIG_MUIC_AFC_RETRY */
-	muic_data->pdata->afc_disabled_updated &= MAX77705_MUIC_AFC_WORK_PROCESS_END;
 }
 
 void max77705_muic_handle_detect_dev_qc(struct max77705_muic_data *muic_data, unsigned char *data)
@@ -597,6 +627,7 @@ void max77705_muic_handle_detect_dev_qc(struct max77705_muic_data *muic_data, un
 	bool afc_err = false;
 #endif
 	bool afc_nack = false;
+	int ret = 0;
 
 	/* W/A: vbadc of opcode result is 0, but vbadc register value is not 0 */
 	if (vbadc == 0 && vbadc2 > 0)
@@ -626,11 +657,6 @@ void max77705_muic_handle_detect_dev_qc(struct max77705_muic_data *muic_data, un
 			muic_notifier_attach_attached_dev(new_afc_dev);
 #endif /* CONFIG_MUIC_NOTIFIER */
 			muic_data->attached_dev = new_afc_dev;
-		}
-
-		if (muic_data->pdata->afc_disabled_updated & MAX77705_MUIC_AFC_DISABLE_CHANGE_DURING_WORK) {
-			max77705_muic_check_afc_disabled(muic_data);
-			muic_data->pdata->afc_disabled_updated &= MAX77705_MUIC_AFC_DISABLE_CHANGE_DURING_WORK_END;
 		}
 		break;
 	case 1:
@@ -697,16 +723,44 @@ void max77705_muic_handle_detect_dev_qc(struct max77705_muic_data *muic_data, un
 					muic_notifier_attach_attached_dev(ATTACHED_DEV_QC_CHARGER_ERR_V_MUIC);
 #endif /* CONFIG_MUIC_NOTIFIER */
 			}
-#if defined(CONFIG_SEC_ABC)
-			sec_abc_send_event("MODULE=muic@ERROR=qc_hv_fail");
+			mutex_lock(&muic_data->afc_lock);
+			muic_data->pdata->afc_disabled_updated &= MAX77705_MUIC_AFC_DISABLE_CHANGE_DURING_WORK_END;
+			muic_data->pdata->afc_disabled_updated &= MAX77705_MUIC_AFC_SET_VOLTAGE_CHANGE_DURING_WORK_END;
+			muic_data->pdata->afc_disabled_updated &= MAX77705_MUIC_AFC_WORK_PROCESS_END;
+			mutex_unlock(&muic_data->afc_lock);
+#if IS_ENABLED(CONFIG_SEC_ABC)
+#if IS_ENABLED(CONFIG_SEC_FACTORY)
+			sec_abc_send_event("MODULE=muic@INFO=qc_hv_fail");
+#else
+			sec_abc_send_event("MODULE=muic@WARN=qc_hv_fail");
+#endif
 #endif
 		}
+	} else {
+		mutex_lock(&muic_data->afc_lock);
+		if (muic_data->pdata->afc_disabled_updated & MAX77705_MUIC_AFC_DISABLE_CHANGE_DURING_WORK) {
+			max77705_muic_check_afc_disabled(muic_data);
+			muic_data->pdata->afc_disabled_updated &= MAX77705_MUIC_AFC_DISABLE_CHANGE_DURING_WORK_END;
+		}
+
+		muic_data->pdata->afc_disabled_updated &= MAX77705_MUIC_AFC_WORK_PROCESS_END;
+
+		if (muic_data->pdata->afc_disabled_updated & MAX77705_MUIC_AFC_SET_VOLTAGE_CHANGE_DURING_WORK) {
+			muic_data->pdata->afc_disabled_updated |= MAX77705_MUIC_AFC_WORK_PROCESS;
+
+			ret = __max77705_muic_afc_set_voltage(muic_data, muic_data->reserve_hv_voltage);
+			if (ret < 0)
+				muic_data->pdata->afc_disabled_updated &= MAX77705_MUIC_AFC_WORK_PROCESS_END;
+
+			muic_data->pdata->afc_disabled_updated &= MAX77705_MUIC_AFC_SET_VOLTAGE_CHANGE_DURING_WORK_END;
+		}
+		mutex_unlock(&muic_data->afc_lock);
 	}
 
 #if defined(CONFIG_USB_HW_PARAM)
 	if (o_notify) {
 		if (muic_data->is_skip_bigdata)
-			return;
+			goto qc_out;
 
 		if (afc_err && !afc_nack)
 			inc_hw_param(o_notify, USB_MUIC_AFC_ERROR_COUNT);
@@ -716,7 +770,7 @@ void max77705_muic_handle_detect_dev_qc(struct max77705_muic_data *muic_data, un
 			muic_data->is_skip_bigdata = true;
 		}
 	}
+qc_out:
+	return;
 #endif
-
-	muic_data->pdata->afc_disabled_updated &= MAX77705_MUIC_AFC_WORK_PROCESS_END;
 }

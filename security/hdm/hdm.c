@@ -38,6 +38,10 @@
 #include "hdm_log.h"
 
 int hdm_log_level = HDM_LOG_LEVEL;
+
+int hdm_wifi_support = 0;
+EXPORT_SYMBOL(hdm_wifi_support);
+
 void hdm_printk(int level, const char *fmt, ...)
 {
 	struct va_format vaf;
@@ -55,6 +59,41 @@ void hdm_printk(int level, const char *fmt, ...)
 
 	va_end(args);
 }
+
+static int __init hdm_wifi_flag(char *hdm_status)
+{
+	char tmp_hdm_status[100] = {0};
+	char* tmp_p = NULL;
+	char* token = NULL;
+	int cnt = 0;
+	
+	hdm_wifi_support = 0;
+	
+	hdm_info("%s androidboot.hdm_status = %s\n", __func__, hdm_status);
+	
+	if (hdm_status) {
+		strcpy(tmp_hdm_status, hdm_status);
+		
+		tmp_p = tmp_hdm_status;
+		
+		token = strsep(&tmp_p, "&|");
+		
+		while (token) {
+			//even = hdm applied bit
+			if(cnt++%2) {
+				if (simple_strtol(token,NULL,16) & HDM_WIFI_SUPPORT_BIT) {
+					hdm_info("%s wifi bit set applied bit = 0x%x\n", __func__, simple_strtol(token,NULL,16));
+					hdm_wifi_support = 1;
+					break;
+				}
+			}	
+			token = strsep(&tmp_p, "&|");
+		}
+	}
+	
+	return 0;
+}
+early_param("androidboot.hdm_status", hdm_wifi_flag);
 
 static ssize_t store_hdm_policy(struct device *dev,
 				struct device_attribute *attr,

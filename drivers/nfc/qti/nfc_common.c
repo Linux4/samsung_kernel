@@ -294,14 +294,6 @@ int nfc_misc_probe(struct nfc_dev *nfc_dev,
 
 	nfc_dev->ipcl = ipc_log_context_create(NUM_OF_IPC_LOG_PAGES,
 						dev_name(nfc_dev->nfc_device), 0);
-	if (!nfc_dev->ipcl) {
-		pr_err("nfc ipc log create failed\n");
-		device_destroy(nfc_dev->nfc_class, nfc_dev->devno);
-		cdev_del(&nfc_dev->c_dev);
-		class_destroy(nfc_dev->nfc_class);
-		unregister_chrdev_region(nfc_dev->devno, count);
-		return -ENXIO;
-	}
 
 	nfc_dev->kbuflen = MAX_BUFFER_SIZE;
 	nfc_dev->kbuf = kzalloc(MAX_BUFFER_SIZE, GFP_KERNEL | GFP_DMA);
@@ -377,10 +369,14 @@ void read_cold_reset_rsp(struct nfc_dev *nfc_dev, char *header)
 			       __func__);
 			goto error;
 		}
-	} else {
+	} else if (header) {
 
 		/* For I3C driver, header is read by the worker thread */
 		memcpy(cold_reset_rsp, header, NCI_HDR_LEN);
+
+	} else {
+		pr_err("%s: - invalid or NULL header\n", __func__);
+		goto error;
 	}
 
 	if ((cold_reset_rsp[0] != COLD_RESET_RSP_GID)

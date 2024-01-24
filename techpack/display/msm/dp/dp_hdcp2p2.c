@@ -16,7 +16,7 @@
 #include "sde_hdcp_2x.h"
 #include "dp_debug.h"
 
-#ifdef CONFIG_SEC_DISPLAYPORT_ENG
+#if defined(CONFIG_SEC_DISPLAYPORT_ENG)
 #include <linux/secdp_logger.h>
 #endif
 
@@ -320,7 +320,8 @@ static int dp_hdcp2p2_authenticate(void *input)
 	ctrl->sink_status = SINK_CONNECTED;
 	atomic_set(&ctrl->auth_state, HDCP_STATE_AUTHENTICATING);
 
-	kthread_park(ctrl->thread);
+	if (kthread_should_park())
+		kthread_park(ctrl->thread);
 	kfifo_reset(&ctrl->cmd_q);
 	kthread_unpark(ctrl->thread);
 
@@ -796,7 +797,7 @@ static bool dp_hdcp2p2_supported(void *input)
 		goto error;
 	}
 
-#ifdef CONFIG_SEC_DISPLAYPORT
+#if defined(CONFIG_SEC_DISPLAYPORT)
 {
 	u32 i;
 

@@ -44,6 +44,7 @@ int ss_wrapper_regulator_set_short_detection(struct samsung_display_driver_data 
 		struct regulator *regulator, bool enable, int lv_uA);
 int ss_wrapper_misc_register(struct samsung_display_driver_data *vdd, struct miscdevice *misc);
 int ss_wrapper_i2c_transfer(struct i2c_adapter *adap, struct i2c_msg *msgs, int num);
+int ss_wrapper_spi_sync(struct spi_device *spi, struct spi_message *message);
 
 struct ss_cmd_set;
 int ss_wrapper_parse_cmd_sets_each_mode(struct samsung_display_driver_data *vdd);
@@ -61,4 +62,8 @@ int ss_wrapper_of_get_named_gpio(struct device_node *np,
 struct ss_cmd_set *ss_get_ss_cmds(struct samsung_display_driver_data *vdd, int type);
 int ss_is_prop_string_style(struct device_node *np, char *cmd_name);
 int ss_print_rx_buf(struct samsung_display_driver_data *vdd, int type);
+int ss_get_rx_buf_addr(struct samsung_display_driver_data *vdd, int type,
+			u8 addr, int cmd_order, u8 *out_buf, int out_len);
+int ss_get_rx_buf(struct samsung_display_driver_data *vdd, int type,
+			int cmd_order, u8 *out_buf, int out_len);
 #endif /* SS_WRAPPER_H */

@@ -3,7 +3,7 @@
  * Provides type definitions and function prototypes used to link the
  * DHD OS, bus, and protocol modules.
  *
- * Copyright (C) 2021, Broadcom.
+ * Copyright (C) 2022, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -616,7 +616,9 @@ typedef struct dhd_prot {
 	/* pre-allocation htput ring buffer */
 	dhd_dma_buf_t	htput_ring_buf[HTPUT_TOTAL_FLOW_RINGS];
 #endif /* HTPUT_RING_PREALLOC */
-
+#ifdef FLOW_RING_PREALLOC
+	dhd_dma_buf_t	flow_ring_buf[MAX_FLOW_RINGS];
+#endif /* FLOW_RING_PREALLOC */
 	uint32  host_ipc_version; /* Host sypported IPC rev */
 	uint32  device_ipc_version; /* FW supported IPC rev */
 	uint32  active_ipc_version; /* Host advertised IPC rev */
@@ -3279,6 +3281,22 @@ dhd_prot_attach(dhd_pub_t *dhd)
 	}
 #endif /* HTPUT_RING_PREALLOC */
 
+#ifdef FLOW_RING_PREALLOC
+#ifdef HTPUT_RING_PREALLOC
+	dhd->non_htput_total_flow_rings = MAX_FLOW_RINGS - HTPUT_TOTAL_FLOW_RINGS;
+#else /* HTPUT_RING_PREALLOC */
+	dhd->non_htput_total_flow_rings = MAX_FLOW_RINGS;
+#endif /* HTPUT_RING_PREALLOC */
+
+	/* pre-allocation flow ring */
+	for (i = 0; i < dhd->non_htput_total_flow_rings; i++) {
+		if (dhd_dma_buf_alloc(dhd, &dhd->prot->flow_ring_buf[i],
+			(uint32)(H2DRING_TXPOST_MAX_ITEM * H2DRING_TXPOST_ITEMSIZE))) {
+			DHD_ERROR(("%s : dhd_prealloc_flowring_buffer failed\n", __FUNCTION__));
+			goto fail;
+		}
+	}
+#endif /* FLOW_RING_PREALLOC */
 	/* Initialize trap buffer */
 	if (dhd_dma_buf_alloc(dhd, &dhd->prot->fw_trap_buf, trap_buf_len)) {
 		DHD_ERROR(("%s: dhd_init_trap_buffer falied\n", __FUNCTION__));
@@ -3932,11 +3950,9 @@ dhd_prot_init(dhd_pub_t *dhd)
  */
 void dhd_prot_detach(dhd_pub_t *dhd)
 {
-#ifdef HTPUT_RING_PREALLOC
 	int i = 0;
-#endif /* HTPUT_RING_PREALLOC */
 	dhd_prot_t *prot = dhd->prot;
-
+	BCM_REFERENCE(i);
 	/* Stop the protocol module */
 	if (prot) {
 		/* For non-android platforms, devreset will not be called,
@@ -3976,7 +3992,11 @@ void dhd_prot_detach(dhd_pub_t *dhd)
 			dhd_dma_buf_free(dhd, &prot->htput_ring_buf[i]);
 		}
 #endif /* HTPUT_RING_PREALLOC */
-
+#ifdef FLOW_RING_PREALLOC
+		for (i = 0; i < dhd->non_htput_total_flow_rings; i++) {
+			dhd_dma_buf_free(dhd, &prot->flow_ring_buf[i]);
+		}
+#endif /* FLOW_RING_PREALLOC */
 		/* detach info rings */
 		dhd_prot_detach_info_rings(dhd);
 
@@ -4030,11 +4050,10 @@ void dhd_prot_detach(dhd_pub_t *dhd)
 void
 dhd_prot_reset(dhd_pub_t *dhd)
 {
-#ifdef HTPUT_RING_PREALLOC
 	int i = 0;
-#endif /* HTPUT_RING_PREALLOC */
 	struct dhd_prot *prot = dhd->prot;
 
+	BCM_REFERENCE(i);
 	DHD_TRACE(("%s\n", __FUNCTION__));
 
 	if (prot == NULL) {
@@ -4089,6 +4108,11 @@ dhd_prot_reset(dhd_pub_t *dhd)
 		dhd_dma_buf_reset(dhd, &prot->htput_ring_buf[i]);
 	}
 #endif /* HTPUT_RING_PREALLOC */
+#ifdef FLOW_RING_PREALLOC
+	for (i = 0; i < dhd->non_htput_total_flow_rings; i++) {
+		dhd_dma_buf_reset(dhd, &prot->flow_ring_buf[i]);
+	}
+#endif /* FLOW_RING_PREALLOC */
 #ifdef DHD_DMA_INDICES_SEQNUM
 		if (prot->d2h_dma_indx_wr_copy_buf) {
 			dhd_local_buf_reset(prot->h2d_dma_indx_rd_copy_buf,
@@ -6750,6 +6774,7 @@ BCMFASTPATH(dhd_prot_txstatus_process)(dhd_pub_t *dhd, void *msg)
 #if defined(DHD_PKTID_AUDIT_RING)
 	if (DHD_PKTID_AUDIT_RING_DEBUG(dhd, dhd->prot->pktid_tx_map, pktid,
 			DHD_DUPLICATE_FREE, msg, D2HRING_TXCMPLT_ITEMSIZE) != BCME_OK) {
+		DHD_RING_UNLOCK(ring->ring_lock, flags);
 		return;
 	}
 #endif
@@ -6826,7 +6851,7 @@ BCMFASTPATH(dhd_prot_txstatus_process)(dhd_pub_t *dhd, void *msg)
 			WLFC_CTL_PKTFLAG_MASK;
 		dhd_handle_pktdata(dhd, ltoh32(txstatus->cmn_hdr.if_id),
 			pkt, (uint8 *)PKTDATA(dhd->osh, pkt), pktid, len,
-			&status, NULL, TRUE, FALSE, TRUE);
+			&status, NULL, NULL, TRUE, FALSE, TRUE);
 	}
 #endif /* DHD_PKT_LOGGING */
 #if defined(BCMPCIE)
@@ -7024,6 +7049,7 @@ BCMFASTPATH(dhd_prot_txdata)(dhd_pub_t *dhd, void *PKTBUF, uint8 ifidx)
 	flow_ring_node_t *flow_ring_node;
 	void *big_pktbuf = NULL;
 	uint8 dhd_udr = FALSE;
+	uint8 dhd_igmp = FALSE;
 	bool host_sfh_llc_reqd = dhd->host_sfhllc_supported;
 	bool llc_inserted = FALSE;
 
@@ -7133,7 +7159,7 @@ BCMFASTPATH(dhd_prot_txdata)(dhd_pub_t *dhd, void *PKTBUF, uint8 ifidx)
 	DHD_DBG_PKT_MON_TX(dhd, PKTBUF, pktid, FRAME_TYPE_ETHERNET_II, 0);
 
 	dhd_handle_pktdata(dhd, ifidx, PKTBUF, pktdata, pktid,
-		pktlen, NULL, &dhd_udr, TRUE, FALSE, TRUE);
+		pktlen, NULL, &dhd_udr, &dhd_igmp, TRUE, FALSE, TRUE);
 
 	/* Ethernet header - contains ethertype field
 	* Copy before we cache flush packet using DMA_MAP
@@ -7216,6 +7242,10 @@ BCMFASTPATH(dhd_prot_txdata)(dhd_pub_t *dhd, void *PKTBUF, uint8 ifidx)
 		txdesc->ext_flags |= BCMPCIE_PKT_FLAGS_FRAME_UDR;
 	}
 #endif /* DHD_SBN */
+
+	if (dhd_igmp) {
+		txdesc->ext_flags |= BCMPCIE_PKT_FLAGS_IGMP;
+	}
 
 #ifdef DHD_TX_PROFILE
 	if (!llc_inserted &&
@@ -8825,7 +8855,9 @@ dhd_prot_ring_attach(dhd_pub_t *dhd, msgbuf_ring_t *ring, const char *name,
 	dhd_prot_t *prot = dhd->prot;
 	uint16 max_flowrings = dhd->bus->max_tx_flowrings;
 	dhd_dma_buf_t *dma_buf = NULL;
-
+#ifdef FLOW_RING_PREALLOC
+	int ret;
+#endif /* FLOW_RING_PREALLOC */
 	ASSERT(ring);
 	ASSERT(name);
 	ASSERT((max_items < 0xFFFF) && (item_len < 0xFFFF) && (ringid < 0xFFFF));
@@ -8900,6 +8932,25 @@ dhd_prot_ring_attach(dhd_pub_t *dhd, msgbuf_ring_t *ring, const char *name,
 			}
 		} else
 #endif /* HTPUT_RING_PREALLOC */
+#ifdef FLOW_RING_PREALLOC
+		if (DHD_IS_FLOWRING(ringid, max_flowrings)) {
+			int non_htput_ringid = ringid % dhd->non_htput_total_flow_rings;
+			/* copy pre-allocated mem with ringid : Non-HTPUT ring */
+			ret = memcpy_s(&ring->dma_buf, sizeof(ring->dma_buf),
+				&dhd->prot->flow_ring_buf[non_htput_ringid],
+				sizeof(dhd->prot->flow_ring_buf[non_htput_ringid]));
+			if (ret != BCME_OK) {
+				DHD_ERROR(("%s: memcpy_s non_htput_ring_buf failed\n",
+					__FUNCTION__));
+				ASSERT(0);
+				return BCME_ERROR;
+			}
+			dma_buf = &ring->dma_buf;
+			if (dma_buf->va == NULL) {
+				return BCME_NOMEM;
+			}
+		} else
+#endif /* FLOW_RING_PREALLOC */
 		{
 			/* Allocate a dhd_dma_buf */
 			dma_buf_alloced = dhd_dma_buf_alloc(dhd, &ring->dma_buf, dma_buf_len);
@@ -9010,6 +9061,13 @@ dhd_prot_ring_detach(dhd_pub_t *dhd, msgbuf_ring_t *ring)
 			memset(&ring->dma_buf, 0, sizeof(ring->dma_buf));
 		} else
 #endif /* HTPUT_RING_PREALLOC */
+#ifdef FLOW_RING_PREALLOC
+		if (DHD_IS_FLOWRING(ring->idx, max_flowrings) &&
+			(ring->dma_buf.va)) {
+			/* flow ring is freed in dhd_detach */
+			memset(&ring->dma_buf, 0, sizeof(ring->dma_buf));
+		} else
+#endif /* FLOW_RING_PREALLOC */
 		{
 			dhd_dma_buf_free(dhd, &ring->dma_buf);
 		}
@@ -9083,6 +9141,14 @@ dhd_prot_flowrings_pool_attach(dhd_pub_t *dhd)
 			__FUNCTION__, h2d_flowrings_total));
 		goto fail;
 	}
+
+#ifdef FLOW_RING_PREALLOC
+	if (h2d_flowrings_total > MAX_FLOW_RINGS) {
+		DHD_ERROR(("%s: requested size %d is bigger than pre-alloc flowrings %d,\n",
+			__FUNCTION__, h2d_flowrings_total, MAX_FLOW_RINGS));
+		goto attach_fail;
+	}
+#endif /* FLOW_RING_PREALLOC */
 
 	/* Setup & Attach a DMA-able buffer to each flowring in the flowring pool */
 	FOREACH_RING_IN_FLOWRINGS_POOL(prot, ring, flowid, h2d_flowrings_total) {

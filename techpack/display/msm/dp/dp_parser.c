@@ -8,7 +8,7 @@
 
 #include "dp_parser.h"
 #include "dp_debug.h"
-#ifdef CONFIG_SEC_DISPLAYPORT
+#if defined(CONFIG_SEC_DISPLAYPORT)
 #include "secdp.h"
 
 struct dp_parser *g_dp_parser;
@@ -146,7 +146,7 @@ error:
 	return -EINVAL;
 }
 
-#ifdef CONFIG_SEC_DISPLAYPORT_ENG
+#if defined(CONFIG_SEC_DISPLAYPORT_ENG)
 int secdp_aux_cfg_show(char *buf)
 {
 	struct dp_parser *parser = g_dp_parser;
@@ -352,7 +352,7 @@ static int dp_parser_gpio(struct dp_parser *parser)
 		mp->gpio_config[i].value = 0;
 	}
 
-#ifdef CONFIG_SEC_DISPLAYPORT
+#if defined(CONFIG_SEC_DISPLAYPORT)
 	for (i = 0; i < ARRAY_SIZE(dp_gpios); i++) {
 		DP_INFO("name:%s gpio:%u value:%u\n",
 			mp->gpio_config[i].gpio_name,
@@ -388,7 +388,7 @@ static int dp_parser_get_vreg(struct dp_parser *parser,
 	mp->num_vreg = 0;
 	pm_supply_name = dp_parser_supply_node_name(module);
 
-#ifdef CONFIG_SEC_DISPLAYPORT
+#if defined(CONFIG_SEC_DISPLAYPORT)
 	DP_DEBUG("pm_supply_name: %s\n", pm_supply_name);
 #endif
 
@@ -504,7 +504,7 @@ static void dp_parser_put_vreg_data(struct device *dev,
 	mp->num_vreg = 0;
 }
 
-#ifdef CONFIG_SEC_DISPLAYPORT
+#if defined(CONFIG_SEC_DISPLAYPORT)
 struct regulator *aux_pullup_vreg;
 
 static struct regulator *secdp_get_aux_pullup_vreg(struct device *dev)
@@ -541,7 +541,7 @@ static int dp_parser_regulator(struct dp_parser *parser)
 		}
 	}
 
-#ifdef CONFIG_SEC_DISPLAYPORT
+#if defined(CONFIG_SEC_DISPLAYPORT)
 	aux_pullup_vreg = secdp_get_aux_pullup_vreg(&pdev->dev);
 #endif
 
@@ -830,12 +830,17 @@ static void dp_parser_dsc(struct dp_parser *parser)
 	parser->dsc_feature_enable = of_property_read_bool(dev->of_node,
 			"qcom,dsc-feature-enable");
 
-#ifdef CONFIG_SEC_DISPLAYPORT
+	parser->dsc_continuous_pps = of_property_read_bool(dev->of_node,
+			"qcom,dsc-continuous-pps");
+
+#if defined(CONFIG_SEC_DISPLAYPORT)
 	parser->dsc_feature_enable = false;
 #endif
 
 	DP_DEBUG("dsc parsing successful. dsc:%d\n",
 			parser->dsc_feature_enable);
+	DP_DEBUG("cont_pps:%d\n",
+			parser->dsc_continuous_pps);
 }
 
 static void dp_parser_fec(struct dp_parser *parser)
@@ -845,7 +850,7 @@ static void dp_parser_fec(struct dp_parser *parser)
 	parser->fec_feature_enable = of_property_read_bool(dev->of_node,
 			"qcom,fec-feature-enable");
 
-#ifdef CONFIG_SEC_DISPLAYPORT
+#if defined(CONFIG_SEC_DISPLAYPORT)
 	parser->fec_feature_enable = false;
 #endif
 
@@ -864,7 +869,7 @@ static void dp_parser_widebus(struct dp_parser *parser)
 			parser->has_widebus);
 }
 
-#ifdef CONFIG_SEC_DISPLAYPORT
+#if defined(CONFIG_SEC_DISPLAYPORT)
 static void secdp_parse_misc(struct dp_parser *parser)
 {
 	struct device *dev = &parser->pdev->dev;
@@ -1212,7 +1217,7 @@ static void secdp_set_default_phy_param(struct dp_parser *parser,
 }
 #endif
 
-#ifdef CONFIG_SEC_DISPLAYPORT_ENG
+#if defined(CONFIG_SEC_DISPLAYPORT_ENG)
 static u8 *_secdp_get_phy_param(enum secdp_hw_ver_t hw,
 			enum secdp_phy_param_t vxpx, int idx)
 {
@@ -1413,7 +1418,7 @@ static int dp_parser_parse(struct dp_parser *parser)
 	dp_parser_dsc(parser);
 	dp_parser_fec(parser);
 	dp_parser_widebus(parser);
-#ifdef CONFIG_SEC_DISPLAYPORT
+#if defined(CONFIG_SEC_DISPLAYPORT)
 	secdp_parse_phy_param(parser);
 	secdp_parse_misc(parser);
 #endif
@@ -1504,7 +1509,7 @@ struct dp_parser *dp_parser_get(struct platform_device *pdev)
 	parser->clear_io_buf = dp_parser_clear_io_buf;
 	parser->pdev = pdev;
 
-#ifdef CONFIG_SEC_DISPLAYPORT
+#if defined(CONFIG_SEC_DISPLAYPORT)
 	secdp_set_default_phy_param(parser, DP_HW_MAX, DP_PARAM_MAX);
 	g_dp_parser = parser;
 #endif
@@ -1533,7 +1538,7 @@ void dp_parser_put(struct dp_parser *parser)
 	devm_kfree(&parser->pdev->dev, parser->io.data);
 	devm_kfree(&parser->pdev->dev, parser);
 
-#ifdef CONFIG_SEC_DISPLAYPORT
+#if defined(CONFIG_SEC_DISPLAYPORT)
 	g_dp_parser = NULL;
 #endif
 }

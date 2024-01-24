@@ -58,6 +58,9 @@ int sysctl_oom_kill_allocating_task;
 int sysctl_oom_dump_tasks = 1;
 int sysctl_reap_mem_on_sigkill;
 
+#ifdef CONFIG_PRIORITIZE_OOM_TASKS
+static unsigned long panic_on_oom_timeout;
+#endif
 static int panic_on_adj_zero;
 module_param(panic_on_adj_zero, int, 0644);
 
@@ -204,17 +207,17 @@ static bool is_dump_unreclaim_slabs(void)
  * predictable as possible.  The goal is to return the highest value for the
  * task consuming the most memory to avoid subsequent oom failures.
  */
-unsigned long oom_badness(struct task_struct *p, unsigned long totalpages)
+long oom_badness(struct task_struct *p, unsigned long totalpages)
 {
 	long points;
 	long adj;
 
 	if (oom_unkillable_task(p))
-		return 0;
+		return LONG_MIN;
 
 	p = find_lock_task_mm(p);
 	if (!p)
-		return 0;
+		return LONG_MIN;
 
 	/*
 	 * Do not even consider tasks which are explicitly marked oom
@@ -226,7 +229,7 @@ unsigned long oom_badness(struct task_struct *p, unsigned long totalpages)
 			test_bit(MMF_OOM_SKIP, &p->mm->flags) ||
 			in_vfork(p)) {
 		task_unlock(p);
-		return 0;
+		return LONG_MIN;
 	}
 
 	/*
@@ -241,11 +244,7 @@ unsigned long oom_badness(struct task_struct *p, unsigned long totalpages)
 	adj *= totalpages / 1000;
 	points += adj;
 
-	/*
-	 * Never return 0 for an eligible task regardless of the root bonus and
-	 * oom_score_adj (oom_score_adj can't be OOM_SCORE_ADJ_MIN here).
-	 */
-	return points > 0 ? points : 1;
+	return points;
 }
 
 static const char * const oom_constraint_text[] = {
@@ -318,7 +317,7 @@ static enum oom_constraint constrained_alloc(struct oom_control *oc)
 static int oom_evaluate_task(struct task_struct *task, void *arg)
 {
 	struct oom_control *oc = arg;
-	unsigned long points;
+	long points;
 #ifdef CONFIG_PRIORITIZE_OOM_TASKS
 	struct task_struct *p;
 	short adj;
@@ -360,12 +359,12 @@ static int oom_evaluate_task(struct task_struct *task, void *arg)
 	 * killed first if it triggers an oom, then select it.
 	 */
 	if (oom_task_origin(task)) {
-		points = ULONG_MAX;
+		points = LONG_MAX;
 		goto select;
 	}
 
 	points = oom_badness(task, oc->totalpages);
-	if (!points || points < oc->chosen_points)
+	if (points == LONG_MIN || points < oc->chosen_points)
 		goto next;
 
 select:
@@ -389,6 +388,8 @@ abort:
  */
 static void select_bad_process(struct oom_control *oc)
 {
+	oc->chosen_points = LONG_MIN;
+
 	if (is_memcg_oom(oc))
 		mem_cgroup_scan_tasks(oc->memcg, oom_evaluate_task, oc);
 	else {
@@ -925,6 +926,9 @@ static void __oom_kill_process(struct task_struct *victim, const char *message)
 	 * reserves from the user space under its control.
 	 */
 	do_send_sig_info(SIGKILL, SEND_SIG_PRIV, victim, PIDTYPE_TGID);
+#ifdef CONFIG_PRIORITIZE_OOM_TASKS
+	panic_on_oom_timeout = 0;
+#endif
 	mark_oom_victim(victim);
 	pr_err("%s: Killed process %d (%s) total-vm:%lukB, anon-rss:%lukB, file-rss:%lukB, shmem-rss:%lukB, UID:%u pgtables:%lukB oom_score_adj:%hd\n",
 		message, task_pid_nr(victim), victim->comm, K(mm->total_vm),
@@ -1039,6 +1043,8 @@ static void oom_kill_process(struct oom_control *oc, const char *message)
 	}
 }
 
+#define PANIC_ON_OOM_DEFER_TIMEOUT (5*HZ)
+#define PANIC_ON_OOM_DEFER_WINDOW  (20*HZ)
 /*
  * Determines whether the kernel must panic because of the panic_on_oom sysctl.
  */
@@ -1058,6 +1064,20 @@ static void check_panic_on_oom(struct oom_control *oc)
 	/* Do not panic for oom kills triggered by sysrq */
 	if (is_sysrq_oom(oc))
 		return;
+
+#ifdef CONFIG_PRIORITIZE_OOM_TASKS
+	if (!panic_on_oom_timeout ||
+	    time_after_eq(jiffies, panic_on_oom_timeout +
+			    PANIC_ON_OOM_DEFER_WINDOW)) {
+		panic_on_oom_timeout = jiffies + PANIC_ON_OOM_DEFER_TIMEOUT;
+		oc->chosen = (void *)-1UL;
+		return;
+	} else if (time_before_eq(jiffies, panic_on_oom_timeout)) {
+		oc->chosen = (void *)-1UL;
+		return;
+	}
+#endif
+
 	dump_header(oc, NULL);
 	panic("Out of memory: %s panic_on_oom is enabled\n",
 		sysctl_panic_on_oom == 2 ? "compulsory" : "system-wide");
@@ -1160,15 +1180,20 @@ bool out_of_memory(struct oom_control *oc)
 					CONFIG_OOM_TASK_PRIORITY_ADJ_LIMIT);
 			oc->min_kill_adj = prev_min_kill_adj;
 			oc->chosen_points = 0;
+			if (tsk_is_oom_victim(current)) {
+				pr_warn_ratelimited("current killed, retry\n");
+				return true;
+			}
 		}
 
 	}
 #endif
 
-	if (!oc->chosen) {
+	if (!oc->chosen)
 		check_panic_on_oom(oc);
+
+	if (!oc->chosen)
 		select_bad_process(oc);
-	}
 
 	/* Found nothing?!?! */
 	if (!oc->chosen) {
@@ -1189,19 +1214,15 @@ bool out_of_memory(struct oom_control *oc)
 }
 
 /*
- * The pagefault handler calls here because it is out of memory, so kill a
- * memory-hogging task. If oom_lock is held by somebody else, a parallel oom
- * killing is already in progress so do nothing.
+ * The pagefault handler calls here because some allocation has failed. We have
+ * to take care of the memcg OOM here because this is the only safe context without
+ * any locks held but let the oom killer triggered from the allocation context care
+ * about the global OOM.
  */
 void pagefault_out_of_memory(void)
 {
-	struct oom_control oc = {
-		.zonelist = NULL,
-		.nodemask = NULL,
-		.memcg = NULL,
-		.gfp_mask = 0,
-		.order = 0,
-	};
+	static DEFINE_RATELIMIT_STATE(pfoom_rs, DEFAULT_RATELIMIT_INTERVAL,
+				      DEFAULT_RATELIMIT_BURST);
 
 	if (IS_ENABLED(CONFIG_HAVE_USERSPACE_LOW_MEMORY_KILLER))
 		return;
@@ -1209,10 +1230,11 @@ void pagefault_out_of_memory(void)
 	if (mem_cgroup_oom_synchronize(true))
 		return;
 
-	if (!mutex_trylock(&oom_lock))
+	if (fatal_signal_pending(current))
 		return;
-	out_of_memory(&oc);
-	mutex_unlock(&oom_lock);
+
+	if (__ratelimit(&pfoom_rs))
+		pr_warn("Huh VM_FAULT_OOM leaked out to the #PF handler. Retrying PF\n");
 }
 
 void add_to_oom_reaper(struct task_struct *p)
@@ -1230,6 +1252,9 @@ void add_to_oom_reaper(struct task_struct *p)
 	get_task_struct(p);
 	if (task_will_free_mem(p)) {
 		__mark_oom_victim(p);
+#ifdef CONFIG_PRIORITIZE_OOM_TASKS
+		panic_on_oom_timeout = 0;
+#endif
 		wake_oom_reaper(p);
 	}
 	task_unlock(p);

@@ -3,6 +3,7 @@
 config CNSS2
 	tristate "CNSS2 Platform Driver for Wi-Fi Module"
 	depends on !CNSS && PCI_MSM
+	select SEC_SS_CNSS_FEATURE_SYSFS
 	help
 	  This module adds the support for Connectivity Subsystem (CNSS) used
 	  for PCIe based Wi-Fi devices with QCA6174/QCA6290 chipsets.
@@ -108,3 +109,7 @@ config CNSS_REQ_FW_DIRECT
 config WLAN_MULTIPLE_SUPPORT_FEM
    bool "CONFIG_WLAN_MULTIPLE_SUPPORT_FEM for Qorvo / NXP FEM"
    depends on CNSS2
+
+config SEC_SS_CNSS_FEATURE_SYSFS
+	bool "SS Feature sysfs support"
+	depends on CNSS2

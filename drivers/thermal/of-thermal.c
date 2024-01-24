@@ -247,7 +247,7 @@ static int of_thermal_get_temp(struct thermal_zone_device *tz,
 {
 	struct __thermal_zone *data = tz->devdata;
 
-	if (!data->ops->get_temp)
+	if (!data->ops || !data->ops->get_temp)
 		return -EINVAL;
 
 	return data->ops->get_temp(data->sensor_data, temp);
@@ -369,6 +369,9 @@ static int of_thermal_set_emul_temp(struct thermal_zone_device *tz,
 {
 	struct __thermal_zone *data = tz->devdata;
 
+	if (!data->ops || !data->ops->set_emul_temp)
+		return -EINVAL;
+
 	return data->ops->set_emul_temp(data->sensor_data, temp);
 }
 
@@ -377,7 +380,7 @@ static int of_thermal_get_trend(struct thermal_zone_device *tz, int trip,
 {
 	struct __thermal_zone *data = tz->devdata;
 
-	if (!data->ops->get_trend)
+	if (!data->ops || !data->ops->get_trend)
 		return -EINVAL;
 
 	return data->ops->get_trend(data->sensor_data, trip, trend);
@@ -554,7 +557,7 @@ static int of_thermal_set_trip_temp(struct thermal_zone_device *tz, int trip,
 	if (trip >= data->ntrips || trip < 0)
 		return -EDOM;
 
-	if (data->ops->set_trip_temp) {
+	if (data->ops && data->ops->set_trip_temp) {
 		int ret;
 
 		ret = data->ops->set_trip_temp(data->sensor_data, trip, temp);
@@ -733,6 +736,7 @@ static void handle_thermal_trip(struct device *dev,
 	int idx = 0;
 	struct __sensor_param *sens_param = NULL;
 	bool notify = false;
+	unsigned long tz_status_mask = 0;
 
 	idx = find_sensor_index(dev, data);
 	if (idx < 0)
@@ -749,6 +753,7 @@ static void handle_thermal_trip(struct device *dev,
 			thermal_zone_device_update(zone,
 				THERMAL_EVENT_UNSPECIFIED);
 		} else {
+			set_bit(idx, &tz_status_mask);
 			if (!of_thermal_is_trips_triggered(zone, trip_temp))
 				continue;
 			notify = true;
@@ -761,9 +766,15 @@ static void handle_thermal_trip(struct device *dev,
 	 * It is better to notify at least one thermal zone if trip is violated
 	 * for none.
 	 */
-	if (temp_valid && !notify)
-		thermal_zone_device_update_temp(tzd, THERMAL_EVENT_UNSPECIFIED,
-				trip_temp);
+	if (temp_valid && !notify) {
+		idx = find_first_bit(&tz_status_mask, sens_param->tz_cnt);
+		if (idx < sens_param->tz_cnt) {
+			data = sens_param->tz_list[idx];
+			zone = data->tzd;
+			thermal_zone_device_update_temp(zone,
+				THERMAL_EVENT_UNSPECIFIED, trip_temp);
+		}
+	}
 }
 
 /*
@@ -1341,14 +1352,17 @@ static int thermal_of_populate_bind_params(struct device_node *np,
 
 	count = of_count_phandle_with_args(np, "cooling-device",
 					   "#cooling-cells");
-	if (!count) {
+	if (count <= 0) {
 		pr_err("Add a cooling_device property with at least one device\n");
+		ret = -ENOENT;
 		goto end;
 	}
 
 	__tcbp = kcalloc(count, sizeof(*__tcbp), GFP_KERNEL);
-	if (!__tcbp)
+	if (!__tcbp) {
+		ret = -ENOMEM;
 		goto end;
+	}
 
 	for (i = 0; i < count; i++) {
 		ret = of_parse_phandle_with_args(np, "cooling-device",

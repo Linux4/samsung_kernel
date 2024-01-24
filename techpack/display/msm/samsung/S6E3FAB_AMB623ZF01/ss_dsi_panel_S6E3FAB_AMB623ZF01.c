@@ -84,21 +84,27 @@ static int samsung_panel_on_pre(struct samsung_display_driver_data *vdd)
 	return true;
 }
 
+extern unsigned int lpcharge;
+
 static int samsung_panel_on_post(struct samsung_display_driver_data *vdd)
 {
 	/*
 	 * self mask is enabled from bootloader.
 	 * so skip self mask setting during splash booting.
 	 */
-	if (!vdd->samsung_splash_enabled) {
-		if (vdd->self_disp.self_mask_img_write)
-			vdd->self_disp.self_mask_img_write(vdd);
-	} else {
-		LCD_INFO(vdd, "samsung splash enabled.. skip image write\n");
-	}
+	if (!lpcharge) {
+		if (!vdd->samsung_splash_enabled) {
+			if (vdd->self_disp.self_mask_img_write)
+				vdd->self_disp.self_mask_img_write(vdd);
+		} else {
+			LCD_INFO(vdd, "samsung splash enabled.. skip image write\n");
+		}
 
-	if (vdd->self_disp.self_mask_on)
-		vdd->self_disp.self_mask_on(vdd, true);
+		if (vdd->self_disp.self_mask_on)
+			vdd->self_disp.self_mask_on(vdd, true);
+	} else {
+		LCD_ERR(vdd, "Do not enable self mask in lpcharge mode..\n");
+	}
 
 	/* mafpc */
 	if (vdd->mafpc.is_support) {
@@ -115,7 +121,7 @@ static int samsung_panel_on_post(struct samsung_display_driver_data *vdd)
 	return true;
 }
 
-bool apply_flash_gamma = false;
+static bool apply_flash_gamma = false;
 
 static char ss_panel_revision(struct samsung_display_driver_data *vdd)
 {
@@ -137,6 +143,10 @@ static char ss_panel_revision(struct samsung_display_driver_data *vdd)
 		LCD_ERR(vdd, "Invalid panel_rev(default rev : %c)\n", vdd->panel_revision);
 		break;
 	}
+
+#if IS_ENABLED(CONFIG_ARCH_WAIPIO) /* SM8450(WAIPIO) */
+	vdd->panel_revision = 'D';
+#endif
 
 	if (vdd->panel_revision >= 'A') {
 		LCD_INFO(vdd, "apply flash_gamma.\n");
@@ -353,6 +363,7 @@ static struct dsi_panel_cmd_set *ss_vrr_hmt(struct samsung_display_driver_data *
 static struct dsi_panel_cmd_set * ss_brightness_gamma_mode2_normal(struct samsung_display_driver_data *vdd, int *level_key)
 {
 	struct dsi_panel_cmd_set *pcmds;
+	bool dim_off = false;
 	int idx = 0;
 
 	if (IS_ERR_OR_NULL(vdd)) {
@@ -362,11 +373,21 @@ static struct dsi_panel_cmd_set * ss_brightness_gamma_mode2_normal(struct samsun
 
 	pcmds = ss_get_cmds(vdd, TX_GAMMA_MODE2_NORMAL);
 
-	LCD_INFO(vdd, "NORMAL : cd_idx [%d] \n", vdd->br_info.common_br.cd_idx);
+	/* smooth */
+	if (vdd->vrr.cur_refresh_rate == 120 || (vdd->vrr.cur_refresh_rate == 60 && vdd->vrr.cur_phs_mode))
+		dim_off = false;
+	else
+		dim_off = true;
 
-	/* Smooth transition : 0x28 */
+	LCD_INFO(vdd, "NORMAL : cd_idx [%d], dim_off [%d] \n", vdd->br_info.common_br.cd_idx, dim_off);
+
+	/* Smooth transition */
 	idx = ss_get_cmd_idx(pcmds, 0x00, 0x53);
-	pcmds->cmds[idx].ss_txbuf[1] = vdd->finger_mask_updated ? 0x20 : 0x28;
+	pcmds->cmds[idx].ss_txbuf[1] = vdd->finger_mask_updated ? 0x20 : (dim_off ? 0x20 : 0x28);
+
+	/* smooth frame */
+	idx = ss_get_cmd_idx(pcmds, 0x05, 0xC6);
+	pcmds->cmds[idx].ss_txbuf[2] = vdd->display_on ? (dim_off ? 0x01 : 0x18) : 0x01;
 
 	/* IRC mode - 0x6F: Moderato mode, 0x2F: flat gamma mode */
 	idx = ss_get_cmd_idx(pcmds, 0x0B, 0x92);
@@ -391,6 +412,7 @@ static struct dsi_panel_cmd_set * ss_brightness_gamma_mode2_normal(struct samsun
 static struct dsi_panel_cmd_set * ss_brightness_gamma_mode2_hbm(struct samsung_display_driver_data *vdd, int *level_key)
 {
     struct dsi_panel_cmd_set *pcmds;
+	bool dim_off = false;
 	int idx = 0;
 
     if (IS_ERR_OR_NULL(vdd)) {
@@ -400,11 +422,21 @@ static struct dsi_panel_cmd_set * ss_brightness_gamma_mode2_hbm(struct samsung_d
 
     pcmds = ss_get_cmds(vdd, TX_GAMMA_MODE2_HBM);
 
-	LCD_INFO(vdd, "HBM : cd_idx [%d] \n", vdd->br_info.common_br.cd_idx);
+	/* smooth */
+	if (vdd->vrr.cur_refresh_rate == 120 || (vdd->vrr.cur_refresh_rate == 60 && vdd->vrr.cur_phs_mode))
+		dim_off = false;
+	else
+		dim_off = true;
+
+	LCD_INFO(vdd, "HBM : cd_idx [%d], dim_off [%d] \n", vdd->br_info.common_br.cd_idx, dim_off);
 
 	/* HBM Smooth transition : 0xE8 */
 	idx = ss_get_cmd_idx(pcmds, 0x00, 0x53);
-	pcmds->cmds[idx].ss_txbuf[1] = vdd->finger_mask_updated ? 0xE0 : 0xE8;
+	pcmds->cmds[idx].ss_txbuf[1] = vdd->finger_mask_updated ? 0xE0 : (dim_off ? 0xE0 : 0xE8);
+
+	/* smooth frame */
+	idx = ss_get_cmd_idx(pcmds, 0x05, 0xC6);
+	pcmds->cmds[idx].ss_txbuf[2] = vdd->display_on ? (dim_off ? 0x01 : 0x18) : 0x01;
 
 	/* ELVSS */
 	idx = ss_get_cmd_idx(pcmds, 0x05, 0xC6);
@@ -888,19 +920,11 @@ static struct dsi_panel_cmd_set *ss_acl_on(struct samsung_display_driver_data *v
 	}
 
 	idx = ss_get_cmd_idx(pcmds, 0x90, 0x9B);
-	if (vdd->br_info.common_br.bl_level <= MAX_BL_PF_LEVEL) {
-		pcmds->cmds[idx].ss_txbuf[1] = 0x0B;	/* 0x09 : 16Frame ACL OFF, 0x0B : 32Frame ACL ON */
-		pcmds->cmds[idx].ss_txbuf[2] = 0x04;
-		pcmds->cmds[idx].ss_txbuf[3] = 0x91;	/* 0x02 0x61 : ACL 8%, 0x04 0x91 : ACL 15% */
-		pcmds->cmds[idx].ss_txbuf[6] = 0x41;
-		pcmds->cmds[idx].ss_txbuf[7] = 0xFF;	/* 0x42 0x65 : 60%, 0x41 0xFF : 50% */
-	} else {
-		pcmds->cmds[idx].ss_txbuf[1] = 0x0B;	/* 0x09 : 16Frame ACL OFF, 0x0B : 32Frame ACL ON */
-		pcmds->cmds[idx].ss_txbuf[2] = 0x02;
-		pcmds->cmds[idx].ss_txbuf[3] = 0x61;	/* 0x02 0x61 : ACL 8%, 0x04 0x91 : ACL 15% */
-		pcmds->cmds[idx].ss_txbuf[6] = 0x41;
-		pcmds->cmds[idx].ss_txbuf[7] = 0xFF;	/* 0x42 0x65 : 60%, 0x41 0xFF : 50% */
-	}
+	pcmds->cmds[idx].ss_txbuf[1] = 0x0B;	/* 0x09 : 16Frame ACL OFF, 0x0B : 32Frame ACL ON */
+	pcmds->cmds[idx].ss_txbuf[2] = 0x02;
+	pcmds->cmds[idx].ss_txbuf[3] = 0x61;	/* 0x02 0x61 : ACL 8%, 0x04 0x91 : ACL 15% */
+	pcmds->cmds[idx].ss_txbuf[6] = 0x41;
+	pcmds->cmds[idx].ss_txbuf[7] = 0xFF;	/* 0x42 0x65 : 60%, 0x41 0xFF : 50% */
 
 	/* ACL 30% */
 	if (vdd->br_info.gradual_acl_val == 2) {
@@ -1120,6 +1144,8 @@ static int ss_gct_write(struct samsung_display_driver_data *vdd)
 		return ret;
 	}
 
+	vdd->gct.is_running = true;
+
 	/* prevent sw reset to trigger esd recovery */
 	LCD_INFO(vdd, "disable esd interrupt\n");
 
@@ -1216,6 +1242,8 @@ static int ss_gct_write(struct samsung_display_driver_data *vdd)
 
 	vdd->mafpc.force_delay = true;
 	ss_panel_on_post(vdd);
+
+	vdd->gct.is_running = false;
 
 	/* enable esd interrupt */
 	LCD_INFO(vdd, "enable esd interrupt\n");
@@ -1619,7 +1647,7 @@ static int ss_test_ddi_flash_check(struct samsung_display_driver_data *vdd, char
 }
 
 /* result for gamma max check (DBV_G0 ~ G6, HBM) */
-u8 gamma_max_check_res[GAMMA_ROOM_MAX][GAMMA_SET_MAX];
+static u8 gamma_max_check_res[GAMMA_ROOM_MAX][GAMMA_SET_MAX];
 static int ss_gamma_max_check(struct samsung_display_driver_data *vdd, char *buf)
 {
 	int len = 0;

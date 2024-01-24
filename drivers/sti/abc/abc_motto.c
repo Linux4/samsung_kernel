@@ -20,14 +20,17 @@
 extern struct device *sec_abc;
 
 struct motto_event_type motto_event_type_list[] ={
-	{MOTTO_MODULE_GPU, "gpu_fault"},
-	{MOTTO_MODULE_DECON, "fence_timeout"},
-	{MOTTO_MODULE_CAMERA, "camera_error"},
-	{MOTTO_MODULE_CAMERA, "i2c_fail"},
+	{MOTTO_MODULE_GPU, "gpu", "gpu_fault"},
+	{MOTTO_MODULE_GPU, "gpu_qc", "gpu_fault"},
+	{MOTTO_MODULE_DECON, "decon", "fence_timeout"},
+	{MOTTO_MODULE_CAMERA, "camera", "camera_error"},
+	{MOTTO_MODULE_CAMERA, "camera", "i2c_fail"},
+	{MOTTO_MODULE_NPU, "npu", "npu_fw_warning"},
+	{MOTTO_MODULE_NPU, "camera", "mipi_overflow"},
 	// we can add more like
-	// {MOTTO_MODULE_GPU, "gpu_new_event"}
-	// {MOTTO_MODULE_CAMERA, "camera_new_event"},
-	// {MOTTO_MODULE_NEW, "new_something"}
+	// {MOTTO_MODULE_GPU, "gpu_qc", "gpu_new_event"}
+	// {MOTTO_MODULE_CAMERA, "camera", "camera_new_event"},
+	// {MOTTO_MODULE_NEW, "new", "new_something"}
 };
 
 static void motto_update_event(enum motto_event_module module)
@@ -46,14 +49,15 @@ static void motto_update_event(enum motto_event_module module)
 	return;
 }
 
-static enum motto_event_module motto_event_to_idx(char *event)
+static enum motto_event_module motto_event_to_idx(char *module_str, char *event)
 {
-	int i, items;
-
-	items = sizeof(motto_event_type_list) / sizeof(motto_event_type_list[0]);
+	int i, items= sizeof(motto_event_type_list) / sizeof(motto_event_type_list[0]);
+	size_t module_str_len = strlen(module_str);	
 
 	for (i = 0; i < items; i++) {
-		if (!strcmp(motto_event_type_list[i].motto_event_type_str, event))
+		if(strlen(motto_event_type_list[i].motto_event_module_name) == module_str_len &&
+			!strncmp(motto_event_type_list[i].motto_event_module_name, module_str, module_str_len) &&
+			!strcmp(motto_event_type_list[i].motto_event_type_str, event) )
 			return motto_event_type_list[i].module;
 	}
 	return MOTTO_MODULE_NONE;
@@ -62,12 +66,20 @@ void get_motto_uevent_str(char *uevent_str)
 {
 	struct abc_info *pinfo;
 	struct abc_motto_data *cmotto;
+	char temp[9];
+	int i;
 
 	pinfo = dev_get_drvdata(sec_abc);
 	cmotto = pinfo->pdata->motto_data;
 
-	sprintf(uevent_str, "AME=%08x%08x%08x%08x", cmotto->boot_time, cmotto->dev_err_count[0],
-			cmotto->dev_err_count[1], cmotto->dev_err_count[2]);
+	sprintf(uevent_str,"AME=%08x", cmotto->boot_time);
+
+	for (i=0;i<MOTTO_MODULE_MAX;i++)
+	{
+		snprintf(temp,9,"%08x", cmotto->dev_err_count[i]);
+		strcat(uevent_str, temp);
+	}
+
 	return;
 }
 void motto_send_uevent(void)
@@ -76,16 +88,16 @@ void motto_send_uevent(void)
 	char *uevent_str[3] = {0,};
 
 	get_motto_uevent_str(temp);
-	
+
 	uevent_str[0] = temp;
 	//uevent_str[1] = &timestamp[0];
 	uevent_str[2] = NULL;
 
 	kobject_uevent_env(&sec_abc->kobj, KOBJ_CHANGE, uevent_str);
 }
-void motto_send_device_info(char *event_type)
+void motto_send_device_info(char *module_str, char *event_type)
 {
-	enum motto_event_module module = motto_event_to_idx(event_type);
+	enum motto_event_module module = motto_event_to_idx(module_str, event_type);
 
 	if (module > MOTTO_MODULE_NONE) {
 		ABC_PRINT("%s : %s\n", __func__, event_type);
@@ -101,18 +113,22 @@ static ssize_t show_abc_motto_info(struct device *dev,
 	struct abc_motto_data *cmotto;
 	struct abc_info *pinfo = dev_get_drvdata(dev);
 	char temp[ABC_BUFFER_MAX];
+	char retstr[ABC_BUFFER_MAX], tempcat[24];
+	int i;
 
 	get_motto_uevent_str(temp);
 	
 	cmotto = pinfo->pdata->motto_data;
 	ABC_PRINT("%s\n", temp);
-	ABC_PRINT("boot 0 : %d\n", cmotto->boot_time);
-	ABC_PRINT("dev 0 %d , dev 1 %d, dev 2 %d\n",
-			cmotto->dev_err_count[0],cmotto->dev_err_count[1], cmotto->dev_err_count[2]);
+	sprintf(retstr,"%d boot %d", sec_abc_get_enabled(), cmotto->boot_time);
+	for(i=0;i<MOTTO_MODULE_MAX;i++)
+	{
+		snprintf(tempcat,24,", dev%d %d", i, cmotto->dev_err_count[i]);
+		strcat(retstr, tempcat);
+	}
+	ABC_PRINT("%s\n", retstr);
 
-	return sprintf(buf, "%d boot %d, dev 0 %d , dev 1 %d, dev 2 %d\n",
-				sec_abc_get_enabled(), cmotto->boot_time,	cmotto->dev_err_count[0],
-				cmotto->dev_err_count[1], cmotto->dev_err_count[2]);
+	return sprintf(buf, "%s\n", retstr);
 }
 static DEVICE_ATTR(motto_info, 0444, show_abc_motto_info, NULL);
 

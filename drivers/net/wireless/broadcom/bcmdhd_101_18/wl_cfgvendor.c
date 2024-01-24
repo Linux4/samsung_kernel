@@ -1,7 +1,7 @@
 /*
  * Linux cfg80211 Vendor Extension Code
  *
- * Copyright (C) 2021, Broadcom.
+ * Copyright (C) 2022, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -1600,6 +1600,7 @@ wl_cfgvendor_notify_dump_completion(struct wiphy *wiphy,
 	/* call wmb() to synchronize with the previous memory operations */
 	OSL_SMP_WMB();
 	DHD_BUS_BUSY_CLEAR_IN_HALDUMP(dhd_pub);
+	dhd_set_dump_status(dhd_pub, DUMP_READY);
 	/* Call another wmb() to make sure wait_for_dump_completion value
 	 * gets updated before waking up waiting context.
 	 */
@@ -1682,6 +1683,9 @@ wl_cfgvendor_set_hal_started(struct wiphy *wiphy,
 	WL_INFORM(("%s,[DUMP] HAL STARTED\n", __FUNCTION__));
 
 	cfg->hal_started = true;
+#ifdef DHD_FILE_DUMP_EVENT
+	dhd_set_dump_status(dhd, DUMP_READY);
+#endif /* DHD_FILE_DUMP_EVENT */
 #ifdef WL_STA_ASSOC_RAND
 	/* If mac randomization is enabled and primary macaddress is not
 	 * randomized, randomize it from HAL init context
@@ -1705,9 +1709,16 @@ wl_cfgvendor_stop_hal(struct wiphy *wiphy,
 		struct wireless_dev *wdev, const void  *data, int len)
 {
 	struct bcm_cfg80211 *cfg = wiphy_priv(wiphy);
+#ifdef DHD_FILE_DUMP_EVENT
+	dhd_pub_t *dhd = (dhd_pub_t *)(cfg->pub);
+#endif /* DHD_FILE_DUMP_EVENT */
+
 	WL_INFORM(("%s,[DUMP] HAL STOPPED\n", __FUNCTION__));
 
 	cfg->hal_started = false;
+#ifdef DHD_FILE_DUMP_EVENT
+	dhd_set_dump_status(dhd, DUMP_NOT_READY);
+#endif /* DHD_FILE_DUMP_EVENT */
 	return BCME_OK;
 }
 #endif /* WL_CFG80211 */
@@ -7476,6 +7487,11 @@ exit:
 		MFREE(cfg->osh, per_chspec_stats, per_chspec_stats_size);
 	}
 #endif /* CHAN_STATS_SUPPORT */
+
+#ifdef RPM_FAST_TRIGGER
+	WL_INFORM(("Trgger RPM Fast\n"));
+	dhd_trigger_rpm_fast(cfg);
+#endif /* RPM_FAST_TRIGGER */
 	return err;
 }
 #endif /* LINKSTAT_SUPPORT */
@@ -11031,6 +11047,9 @@ static const struct  nl80211_vendor_cmd_info wl_vendor_events [] = {
 		{ OUI_BRCM, BRCM_VENDOR_EVENT_TWT},
 		{ OUI_GOOGLE, BRCM_VENDOR_EVENT_TPUT_DUMP},
 		{ OUI_GOOGLE, GOOGLE_NAN_EVENT_MATCH_EXPIRY},
+		{ OUI_BRCM, BRCM_VENDOR_EVENT_RCC_FREQ_INFO},
+		{ OUI_BRCM, BRCM_VENDOR_EVENT_CONNECTIVITY_LOG},
+		{ OUI_BRCM, BRCM_VENDOR_EVENT_HAPD_TSF},
 };
 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 3, 0))

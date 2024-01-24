@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
  */
 
 #include <linux/module.h>
@@ -440,6 +440,7 @@ enum sdxlemur_functions {
 	msm_mux_qlink2_req,
 	msm_mux_spmi_vgi,
 	msm_mux_gcc_plltest,
+	msm_mux_ebi2_a,
 	msm_mux_ebi2_lcd,
 	msm_mux_usb2phy_ac,
 	msm_mux_sdc1_tb,
@@ -764,7 +765,10 @@ static const char * const gcc_plltest_groups[] = {
 	"gpio81", "gpio82",
 };
 static const char * const ebi2_lcd_groups[] = {
-	"gpio84", "gpio85",
+	"gpio84", "gpio85", "gpio90",
+};
+static const char * const ebi2_a_groups[] = {
+	"gpio89",
 };
 static const char * const usb2phy_ac_groups[] = {
 	"gpio93",
@@ -873,6 +877,7 @@ static const struct msm_function sdxlemur_functions[] = {
 	FUNCTION(qlink2_req),
 	FUNCTION(spmi_vgi),
 	FUNCTION(gcc_plltest),
+	FUNCTION(ebi2_a),
 	FUNCTION(ebi2_lcd),
 	FUNCTION(usb2phy_ac),
 	FUNCTION(sdc1_tb),
@@ -1009,8 +1014,8 @@ static const struct msm_pingroup sdxlemur_groups[] = {
 	[86] = PINGROUP(86, NA, NA, NA, NA, NA, NA, NA, NA, NA),
 	[87] = PINGROUP(87, NA, NA, NA, NA, NA, NA, NA, NA, NA),
 	[88] = PINGROUP(88, NA, NA, NA, NA, NA, NA, NA, NA, NA),
-	[89] = PINGROUP(89, NA, NA, NA, NA, NA, NA, NA, NA, NA),
-	[90] = PINGROUP(90, NA, NA, NA, NA, NA, NA, NA, NA, NA),
+	[89] = PINGROUP(89, NA, NA, NA, NA, ebi2_a, NA, NA, NA, NA),
+	[90] = PINGROUP(90, NA, NA, NA, NA, ebi2_lcd, NA, NA, NA, NA),
 	[91] = PINGROUP(91, NA, NA, NA, NA, NA, NA, NA, NA, NA),
 	[92] = PINGROUP(92, NA, NA, NA, NA, NA, NA, NA, NA, NA),
 	[93] = PINGROUP(93, NA, NA, usb2phy_ac, NA, NA, NA, NA, NA, NA),
@@ -1039,12 +1044,13 @@ static const struct msm_gpio_wakeirq_map sdxlemur_pdc_map[] = {
 	{1, 20}, {2, 21}, {5, 22}, {6, 23}, {9, 24}, {10, 25},
 	{11, 26}, {12, 27}, {13, 28}, {14, 29}, {15, 30}, {16, 31},
 	{17, 32}, {18, 33}, {19, 34}, {21, 35}, {22, 36}, {23, 70},
-	{24, 37}, {25, 38}, {35, 40}, {43, 41}, {46, 44}, {48, 45},
-	{49, 57}, {50, 46}, {52, 47}, {54, 49}, {55, 50}, {60, 53},
+	{24, 37}, {25, 38}, {32, 39}, {35, 40}, {43, 41}, {44, 42},
+	{45, 43}, {46, 44}, {48, 45}, {49, 57}, {50, 46}, {52, 47},
+	{53, 48}, {54, 49}, {55, 50}, {56, 51}, {57, 52}, {60, 53},
 	{61, 54}, {64, 55}, {65, 81}, {68, 56}, {71, 58}, {73, 59},
-	{77, 77}, {81, 65}, {83, 63}, {84, 64}, {86, 66}, {88, 67},
-	{89, 68}, {90, 69}, {93, 71}, {94, 72}, {95, 73}, {96, 74},
-	{99, 75}, {103, 78}, {104, 79}
+	{76, 60}, {77, 77}, {78, 61}, {79, 62}, {81, 65}, {83, 63},
+	{84, 64}, {86, 66}, {88, 67}, {89, 68}, {90, 69}, {93, 71},
+	{94, 72}, {95, 73}, {96, 74}, {99, 75}, {103, 78}, {104, 79},
 };
 
 static const struct msm_pinctrl_soc_data sdxlemur_pinctrl = {

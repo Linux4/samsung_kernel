@@ -6,5 +6,11 @@ config REGULATOR_S2DOS05
 	help
 	 This driver controls a Samsung S2DOS05 regulator
 	 via I2C bus.
+
+config REGULATOR_S2DOS05_ELVSS_FD
+	bool "Samsung S2DOS05 ELVSS FD"
+	help
+	 If ELVSS is enabled, FD is on.
+
 endif
 

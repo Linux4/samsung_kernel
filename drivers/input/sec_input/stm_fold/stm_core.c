@@ -344,7 +344,8 @@ int stm_ts_i2c_write(struct stm_ts_data *ts, u8 *reg, int cnum, u8 *data, int le
 			ts->plat_data->hw_param.comm_err_count++;
 
 			snprintf(result, sizeof(result), "RESULT=I2C");
-			sec_cmd_send_event_to_user(&ts->sec, NULL, result);
+			if (ts->probe_done)
+				sec_cmd_send_event_to_user(&ts->sec, NULL, result);
 		}
 	}
 
@@ -451,7 +452,8 @@ int stm_ts_i2c_read(struct stm_ts_data *ts, u8 *reg, int cnum, u8 *data, int len
 				ts->plat_data->hw_param.comm_err_count++;
 
 				snprintf(result, sizeof(result), "RESULT=I2C");
-				sec_cmd_send_event_to_user(&ts->sec, NULL, result);
+				if (ts->probe_done)
+					sec_cmd_send_event_to_user(&ts->sec, NULL, result);
 			}
 		}
 	} else {
@@ -562,11 +564,11 @@ void stm_ts_reinit(void *data)
 	ts->stm_ts_command(ts, STM_TS_CMD_CLEAR_ALL_EVENT, true);
 	stm_ts_release_all_finger(ts);
 
-	if (ts->plat_data->wirelesscharger_mode != TYPE_WIRELESS_CHARGER_NONE) {
-		ret = stm_ts_set_charger_mode(ts);
-		if (ret < 0)
-			goto out;
-	}
+	if (ts->plat_data->wirelesscharger_mode != TYPE_WIRELESS_CHARGER_NONE)
+		stm_ts_set_wirelesscharger_mode(ts);
+
+	if (ts->charger_mode != TYPE_WIRE_CHARGER_NONE)
+		stm_ts_set_wirecharger_mode(ts);
 
 	stm_ts_set_cover_type(ts, ts->plat_data->touch_functions & STM_TS_TOUCHTYPE_BIT_COVER);
 
@@ -599,9 +601,14 @@ void stm_ts_reinit(void *data)
 		stm_ts_ear_detect_enable(ts, ts->plat_data->ed_enable);
 	if (ts->plat_data->pocket_mode)
 		stm_ts_pocket_mode_enable(ts, ts->plat_data->pocket_mode);
+	if (ts->sip_mode)
+		stm_ts_sip_mode_enable(ts);
+	if (ts->note_mode)
+		stm_ts_note_mode_enable(ts);
+	if (ts->game_mode)
+		stm_ts_game_mode_enable(ts);
 out:
 	stm_ts_set_scanmode(ts, ts->scan_mode);
-	
 }
 /*
  * don't need it in interrupt handler in reality, but, need it in vendor IC for requesting vendor IC.
@@ -722,6 +729,12 @@ static void stm_ts_gesture_event(struct stm_ts_data *ts, u8 *event_buff)
 		else
 			input_report_key(ts->plat_data->input_dev, BTN_LARGE_PALM, 1);
 		input_sync(ts->plat_data->input_dev);
+	} else if (p_gesture_status->stype  == STM_TS_SPONGE_EVENT_TWO_FINGER_DOUBLETAP) {
+		input_info(true, &ts->client->dev, "%s: TWO FINGER DOUBLETAP\n", __func__);
+		input_report_key(ts->plat_data->input_dev, KEY_WATCH, 1);
+		input_sync(ts->plat_data->input_dev);
+		input_report_key(ts->plat_data->input_dev, KEY_WATCH, 0);
+		input_sync(ts->plat_data->input_dev);
 	}
 }
 
@@ -751,7 +764,7 @@ static void stm_ts_coordinate_event(struct stm_ts_data *ts, u8 *event_buff)
 				|| (ts->plat_data->coord[t_id].ttype == STM_TS_TOUCHTYPE_PALM)
 				|| (ts->plat_data->coord[t_id].ttype == STM_TS_TOUCHTYPE_WET)
 				|| (ts->plat_data->coord[t_id].ttype == STM_TS_TOUCHTYPE_GLOVE)) {
-			sec_input_coord_event(&ts->client->dev, t_id);
+			sec_input_coord_event_fill_slot(&ts->client->dev, t_id);
 		} else {
 			input_err(true, &ts->client->dev,
 					"%s: do not support coordinate type(%d)\n",
@@ -822,10 +835,15 @@ static void stm_ts_status_event(struct stm_ts_data *ts, u8 *event_buff)
 static int stm_ts_get_event(struct stm_ts_data *ts, u8 *data, int *remain_event_count)
 {
 	int ret = 0;
-	u8 address = 0;
+	int left_event = 0;
+	u8 address[2] = {0x00, STM_TS_READ_ONE_EVENT};
+	u8 address_read_burst[2] = {0xED, 0x00};
 
-	address = STM_TS_READ_ONE_EVENT;
-	ret = ts->stm_ts_i2c_read(ts, &address, 1, (u8 *)data, STM_TS_EVENT_BUFF_SIZE);
+	if (ts->chip_id == 0x523601)
+		ret = ts->stm_ts_i2c_read(ts, &address[0], sizeof(address), (u8 *)&data[0], STM_TS_EVENT_BUFF_SIZE);
+	else
+		ret = ts->stm_ts_i2c_read(ts, &address[1], 1, (u8 *)&data[0], STM_TS_EVENT_BUFF_SIZE);
+
 	if (ret < 0) {
 		input_err(true, &ts->client->dev, "%s: i2c read one event failed\n", __func__);
 		return ret;
@@ -847,8 +865,8 @@ static int stm_ts_get_event(struct stm_ts_data *ts, u8 *data, int *remain_event_
 
 	if (*remain_event_count > MAX_EVENT_COUNT - 1) {
 		input_err(true, &ts->client->dev, "%s: event buffer overflow\n", __func__);
-		address = STM_TS_CMD_CLEAR_ALL_EVENT;
-		ret = ts->stm_ts_i2c_write(ts, &address, 1, NULL, 0); //guide
+		address[0] = STM_TS_CMD_CLEAR_ALL_EVENT;
+		ret = ts->stm_ts_i2c_write(ts, address, 1, NULL, 0);
 		if (ret < 0)
 			input_err(true, &ts->client->dev, "%s: i2c write clear event failed\n", __func__);
 
@@ -857,13 +875,26 @@ static int stm_ts_get_event(struct stm_ts_data *ts, u8 *data, int *remain_event_
 		return SEC_ERROR;
 	}
 
-	if (*remain_event_count > 0) {
-		address = STM_TS_READ_ALL_EVENT;
-		ret = ts->stm_ts_i2c_read(ts, &address, 1, &data[1 * STM_TS_EVENT_BUFF_SIZE],
-				 (STM_TS_EVENT_BUFF_SIZE) * (*remain_event_count));
-		if (ret < 0) {
-			input_err(true, &ts->client->dev, "%s: i2c read one event failed\n", __func__);
-			return ret;
+	if (ts->chip_id == 0x523601) {
+		left_event = *remain_event_count;
+
+		if (left_event > 0) {
+			ret = ts->stm_ts_i2c_read(ts, &address_read_burst[0], sizeof(address_read_burst),
+					(u8 *)&data[STM_TS_EVENT_BUFF_SIZE], STM_TS_EVENT_BUFF_SIZE * left_event);
+			if (ret < 0) {
+				input_err(true, &ts->client->dev, "%s: i2c read one event failed\n", __func__);
+				return ret;
+			}
+		}
+	} else {
+		if (*remain_event_count > 0) {
+			address[0] = STM_TS_READ_ALL_EVENT;
+			ret = ts->stm_ts_i2c_read(ts, &address[0], 1, &data[1 * STM_TS_EVENT_BUFF_SIZE],
+					 (STM_TS_EVENT_BUFF_SIZE) * (*remain_event_count));
+			if (ret < 0) {
+				input_err(true, &ts->client->dev, "%s: i2c read one event failed\n", __func__);
+				return ret;
+			}
 		}
 	}
 
@@ -936,6 +967,8 @@ irqreturn_t stm_ts_irq_thread(int irq, void *ptr)
 		curr_pos++;
 		remain_event_count--;
 	} while (remain_event_count >= 0);
+
+	sec_input_coord_event_sync_slot(&ts->client->dev);
 
 	stm_ts_external_func(ts);
 
@@ -1201,6 +1234,11 @@ static int stm_ts_hw_init(struct i2c_client *client)
 		stm_ts_systemreset(ts, 500);	/* Delay to discharge the IC from ESD or On-state.*/
 		input_err(true, &ts->client->dev, "%s: Reset caused by chip id error\n", __func__);
 		stm_ts_read_chip_id(ts);
+
+		if ((ts->chip_id == 0xffffff) && (strcmp(ts->plat_data->firmware_name, "fts2ca78y_b2.bin") == 0)) {
+			input_info(true, &ts->client->dev, "%s: STM_TS2c panel (force chip_id)\n", __func__);
+			ts->chip_id = 0x523601;
+		}
 	}
 
 	ret = stm_ts_fw_update_on_probe(ts);
@@ -1452,6 +1490,9 @@ void stm_ts_release(struct i2c_client *client)
 	if (ts->hall_ic_nb.notifier_call)
 		hall_notifier_unregister(&ts->hall_ic_nb);
 #endif
+#if IS_ENABLED(CONFIG_VBUS_NOTIFIER)
+	vbus_notifier_unregister(&ts->vbus_nb);
+#endif
 	cancel_delayed_work_sync(&ts->work_read_info);
 	cancel_delayed_work_sync(&ts->work_print_info);
 	cancel_delayed_work_sync(&ts->work_read_functions);
@@ -1527,7 +1568,10 @@ int stm_ts_probe(struct i2c_client *client, const struct i2c_device_id *id)
 
 	sec_secure_touch_register(ts, ts->plat_data->ss_touch_num, &ts->plat_data->input_dev->dev.kobj);
 #endif
-
+#if IS_ENABLED(CONFIG_VBUS_NOTIFIER)
+	vbus_notifier_register(&ts->vbus_nb, stm_ts_vbus_notification,
+						VBUS_NOTIFY_DEV_CHARGER);
+#endif
 	input_err(true, &ts->client->dev, "%s: done\n", __func__);
 	input_log_fix();
 

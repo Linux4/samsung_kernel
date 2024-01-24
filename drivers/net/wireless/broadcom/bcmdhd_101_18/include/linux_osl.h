@@ -1,7 +1,7 @@
 /*
  * Linux OS Independent Layer
  *
- * Copyright (C) 2021, Broadcom.
+ * Copyright (C) 2022, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -225,6 +225,12 @@ extern void * osl_virt_to_phys(void * va);
 
 #define OSL_SMP_WMB()	smp_wmb()
 
+#if defined(__aarch64__)
+#define OSL_ISB()	isb()
+#else
+#define OSL_ISB()	do { /* noop */ } while (0)
+#endif /* __aarch64__ */
+
 /* API for CPU relax */
 extern void osl_cpu_relax(void);
 #define OSL_CPU_RELAX() osl_cpu_relax()
@@ -324,7 +330,7 @@ extern char* osl_get_rtctime(void);
 #define	bzero(b, len)		memset((b), '\0', (len))
 
 #if defined(CONFIG_SOC_EXYNOS9810) || defined(CONFIG_SOC_EXYNOS9820) || \
-	defined(CONFIG_SOC_EXYNOS9830) || defined(CONFIG_SOC_GS101)
+	defined(CONFIG_SOC_EXYNOS9830)
 extern int pcie_ch_num;
 extern int exynos_pcie_l1_exit(int ch_num);
 #endif /* CONFIG_SOC_EXYNOS9810 || CONFIG_SOC_EXYNOS9820
@@ -355,7 +361,7 @@ extern uint64 regs_addr;
 #ifdef CONFIG_64BIT
 /* readq is defined only for 64 bit platform */
 #if defined(CONFIG_SOC_EXYNOS9810) || defined(CONFIG_SOC_EXYNOS9820) || \
-	defined(CONFIG_SOC_EXYNOS9830) || defined(CONFIG_SOC_GS101)
+	defined(CONFIG_SOC_EXYNOS9830)
 #define R_REG(osh, r) (\
 	SELECT_BUS_READ(osh, \
 		({ \
@@ -422,7 +428,7 @@ extern uint64 regs_addr;
 #ifdef CONFIG_64BIT
 /* writeq is defined only for 64 bit platform */
 #if defined(CONFIG_SOC_EXYNOS9810) || defined(CONFIG_SOC_EXYNOS9820) || \
-	defined(CONFIG_SOC_EXYNOS9830) || defined(CONFIG_SOC_GS101)
+	defined(CONFIG_SOC_EXYNOS9830)
 #define W_REG(osh, r, v) do { \
 	SELECT_BUS_WRITE(osh, \
 		({ \

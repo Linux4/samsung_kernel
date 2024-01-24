@@ -18,6 +18,7 @@
 #include <linux/gfp.h>
 #include <linux/audit.h>
 #include <linux/task_integrity.h>
+#include <linux/version.h>
 #include "five.h"
 #include "five_audit.h"
 #include "five_cache.h"
@@ -128,12 +129,20 @@ void five_audit_msg(struct task_struct *task, struct file *file,
 	audit_log_format(ab, " pid=%d", task_pid_nr(tsk));
 	audit_log_format(ab, " tgid=%d", task_tgid_nr(tsk));
 	audit_log_task_context(ab);
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0))
+	audit_log_format(ab, " op=%s", op);
+#else
 	audit_log_format(ab, " op=");
 	audit_log_string(ab, op);
+#endif
 	audit_log_format(ab, " cint=0x%x", tint);
 	audit_log_format(ab, " pint=0x%x", prev);
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0))
+	audit_log_format(ab, " cause=%s", cause);
+#else
 	audit_log_format(ab, " cause=");
 	audit_log_string(ab, cause);
+#endif
 	audit_log_format(ab, " comm=");
 	audit_log_untrustedstring(ab, get_task_comm(comm, tsk));
 	if (fname) {
@@ -175,10 +184,15 @@ void five_audit_tee_msg(const char *func, const char *cause, int rc,
 		return;
 	}
 
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0))
+	audit_log_format(ab, " func=%s", func);
+	audit_log_format(ab, " cause=%s", cause);
+#else
 	audit_log_format(ab, " func=");
 	audit_log_string(ab, func);
 	audit_log_format(ab, " cause=");
 	audit_log_string(ab, cause);
+#endif
 	audit_log_format(ab, " rc=0x%x, ", rc);
 	audit_log_format(ab, " origin=0x%x", origin);
 	audit_log_end(ab);
@@ -225,7 +239,11 @@ void five_audit_hexinfo(struct file *file, const char *msg, char *data,
 		}
 	}
 
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0))
+	audit_log_format(ab, "%s", msg);
+#else
 	audit_log_string(ab, msg);
+#endif
 	audit_log_n_hex(ab, data, data_length);
 	audit_log_end(ab);
 exit:

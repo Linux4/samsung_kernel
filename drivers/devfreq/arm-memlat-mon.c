@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2014-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2014-2021, The Linux Foundation. All rights reserved.
  */
 
 #define pr_fmt(fmt) "arm-memlat-mon: " fmt
@@ -174,11 +174,13 @@ static inline void read_event(struct event_data *event)
 		return;
 
 	if (!per_cpu(cpu_is_idle, event->pevent->cpu) &&
-			!per_cpu(cpu_is_hp, event->pevent->cpu))
+			!per_cpu(cpu_is_hp, event->pevent->cpu)) {
 		total = perf_event_read_value(event->pevent, &enabled,
 								&running);
-	else
+		event->cached_total_count = total;
+	} else {
 		total = event->cached_total_count;
+	}
 	event->last_delta = total - event->prev_count;
 	event->prev_count = total;
 }
@@ -384,6 +386,47 @@ unlock_out:
 	mutex_unlock(&cpu_grp->mons_lock);
 }
 
+static int memlat_idle_read_events(unsigned int cpu)
+{
+	struct memlat_mon *mon;
+	struct memlat_cpu_grp *cpu_grp = per_cpu(per_cpu_grp, cpu);
+	int i, ret = 0;
+	unsigned int idx;
+	struct event_data *common_evs;
+	unsigned long flags;
+
+	if (!cpu_grp)
+		return 0;
+
+	spin_lock_irqsave(&cpu_grp->mon_active_lock, flags);
+	if (!cpu_grp->num_active_mons)
+		goto exit;
+
+	common_evs = to_common_evs(cpu_grp, cpu);
+	for (i = 0; i < NUM_COMMON_EVS; i++) {
+		if (common_evs[i].pevent)
+			ret = perf_event_read_local(common_evs[i].pevent,
+				&common_evs[i].cached_total_count, NULL, NULL);
+	}
+
+	for (i = 0; i < cpu_grp->num_mons; i++) {
+		mon = &cpu_grp->mons[i];
+		if (!mon->is_active || !mon->miss_ev ||
+				!cpumask_test_cpu(cpu, &mon->cpus)) {
+			continue;
+		}
+
+		idx = cpu - cpumask_first(&mon->cpus);
+		if (mon->miss_ev[idx].pevent)
+			ret = perf_event_read_local(mon->miss_ev[idx].pevent,
+			&mon->miss_ev[idx].cached_total_count, NULL, NULL);
+	}
+exit:
+	spin_unlock_irqrestore(&cpu_grp->mon_active_lock, flags);
+	return ret;
+}
+
+#ifdef CONFIG_HOTPLUG_CPU
 static int memlat_hp_restart_events(unsigned int cpu, bool cpu_up)
 {
 	struct perf_event_attr *attr = alloc_attr();
@@ -439,47 +482,6 @@ exit:
 	return ret;
 }
 
-static int memlat_idle_read_events(unsigned int cpu)
-{
-	struct memlat_mon *mon;
-	struct memlat_cpu_grp *cpu_grp = per_cpu(per_cpu_grp, cpu);
-	int i, ret = 0;
-	unsigned int idx;
-	struct event_data *common_evs;
-	unsigned long flags;
-
-	if (!cpu_grp)
-		return 0;
-
-	spin_lock_irqsave(&cpu_grp->mon_active_lock, flags);
-	if (!cpu_grp->num_active_mons)
-		goto exit;
-
-	common_evs = to_common_evs(cpu_grp, cpu);
-	for (i = 0; i < NUM_COMMON_EVS; i++) {
-		if (common_evs[i].pevent)
-			ret = perf_event_read_local(common_evs[i].pevent,
-				&common_evs[i].cached_total_count, NULL, NULL);
-	}
-
-	for (i = 0; i < cpu_grp->num_mons; i++) {
-		mon = &cpu_grp->mons[i];
-		if (!mon->is_active || !mon->miss_ev ||
-				!cpumask_test_cpu(cpu, &mon->cpus)) {
-			continue;
-		}
-
-		idx = cpu - cpumask_first(&mon->cpus);
-		if (mon->miss_ev[idx].pevent)
-			ret = perf_event_read_local(mon->miss_ev[idx].pevent,
-			&mon->miss_ev[idx].cached_total_count, NULL, NULL);
-	}
-exit:
-	spin_unlock_irqrestore(&cpu_grp->mon_active_lock, flags);
-	return ret;
-}
-
-#ifdef CONFIG_HOTPLUG_CPU
 static int memlat_event_hotplug_coming_up(unsigned int cpu)
 {
 	int ret = 0;
@@ -657,8 +659,13 @@ static void stop_hwmon(struct memlat_hwmon *hw)
 		unsigned int idx = cpu - cpumask_first(&mon->cpus);
 		struct dev_stats *devstats = to_devstats(mon, cpu);
 
-		if (mon->miss_ev)
+		if (mon->miss_ev) {
 			delete_event(&mon->miss_ev[idx]);
+			if (mon->wb_ev)
+				delete_event(&mon->wb_ev[idx]);
+			if (mon->access_ev)
+				delete_event(&mon->access_ev[idx]);
+		}
 		devstats->inst_count = 0;
 		devstats->mem_count = 0;
 		devstats->freq = 0;
@@ -900,7 +907,7 @@ static int memlat_mon_probe(struct platform_device *pdev, bool is_compute)
 		}
 	}
 
-	num_cpus = cpumask_weight(&mon->cpus);
+	num_cpus = (cpumask_last(&mon->cpus) - cpumask_first(&mon->cpus)) + 1;
 
 	hw = &mon->hw;
 	hw->of_node = of_parse_phandle(dev->of_node, "qcom,target-dev", 0);

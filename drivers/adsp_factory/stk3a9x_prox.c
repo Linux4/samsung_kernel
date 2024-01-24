@@ -16,7 +16,11 @@
 #include <linux/module.h>
 #include "adsp.h"
 #define VENDOR "SensorTek"
+#if defined(CONFIG_SEC_R9Q_PROJECT)
+#define CHIP_ID "STK33910"
+#else
 #define CHIP_ID "STK33911"
+#endif
 
 #ifdef CONFIG_SUPPORT_PROX_CALIBRATION
 #define PROX_FACTORY_CAL_PATH "/efs/FactoryApp/prox_factory_cal"

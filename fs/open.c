@@ -1085,11 +1085,28 @@ long do_sys_open(int dfd, const char __user *filename, int flags, umode_t mode)
 	struct open_flags op;
 	int fd = build_open_flags(flags, mode, &op);
 	struct filename *tmp;
+#if defined(CONFIG_DISPLAY_SAMSUNG)
+	char name[64];
+	int len;
+#endif
 
 	if (fd)
 		return fd;
 
 	tmp = getname(filename);
+	
+#if defined(CONFIG_DISPLAY_SAMSUNG)
+	if (tmp == ERR_PTR(-ENOENT))
+	{
+		len = strncpy_from_user(name, filename, 64);
+		if (len > 0) {
+			if (strncmp(name, "/dev/kgsl-3d0", strlen("/dev/kgsl-3d0")) == 0) {
+				printk(KERN_ERR "<%s:%d> ### ykwak : open(%s) failed\n", __FUNCTION__, __LINE__, name);
+				BUG_ON(1);
+			}
+		}		
+	}
+#endif
 
 	if (IS_ERR(tmp))
 		return PTR_ERR(tmp);

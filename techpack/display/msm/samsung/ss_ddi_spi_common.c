@@ -65,7 +65,7 @@ int ss_spi_write(struct spi_device *spi, int tx_bpw, u8 *tx_buf, int tx_size)
 	for (i = 0; i < ARRAY_SIZE(xfer); i++)
 		spi_message_add_tail(&xfer[i], &msg);
 
-	ret = spi_sync(spi, &msg);
+	ret = ss_wrapper_spi_sync(spi, &msg);
 	if (ret) {
 		pr_err("[spi] %s : spi_sync fail..\n", __func__);
 		goto err;
@@ -104,7 +104,7 @@ int ss_spi_read(struct spi_device *spi, u8 *buf,
 	};
 
 	if (!spi) {
-		LCD_INFO(vdd, "no spi device..\n");
+		LCD_ERR(vdd, "no spi device..\n");
 		return -EINVAL;
 	}
 
@@ -113,7 +113,7 @@ int ss_spi_read(struct spi_device *spi, u8 *buf,
 				spi_driver.driver);
 
 	if (IS_ERR_OR_NULL(vdd)) {
-		LCD_INFO(vdd, "no vdd");
+		LCD_ERR(vdd, "no vdd");
 		return -ENODEV;
 	}
 
@@ -121,7 +121,7 @@ int ss_spi_read(struct spi_device *spi, u8 *buf,
 
 	tbuf = kmalloc(tx_size, GFP_KERNEL | GFP_DMA);
 	if (tbuf == NULL) {
-		LCD_INFO(vdd, "fail to alloc tx_buf..\n");
+		LCD_ERR(vdd, "fail to alloc tx_buf..\n");
 		goto err;
 	}
 	memcpy(&tbuf[0], &tx_buf[0], tx_size);
@@ -129,7 +129,7 @@ int ss_spi_read(struct spi_device *spi, u8 *buf,
 
 	rbuf = kmalloc(rx_size, GFP_KERNEL | GFP_DMA);
 	if (rbuf == NULL) {
-		LCD_INFO(vdd, "fail to alloc rx_buf..\n");
+		LCD_ERR(vdd, "fail to alloc rx_buf..\n");
 		goto err;
 	}
 	xfer[1].rx_buf = rbuf;
@@ -137,14 +137,14 @@ int ss_spi_read(struct spi_device *spi, u8 *buf,
 #if IS_ENABLED(CONFIG_SEC_FACTORY)
 	dummy_buf = kmalloc(xfer[2].len, GFP_KERNEL | GFP_DMA);
 	if (dummy_buf == NULL) {
-		LCD_INFO(vdd, "fail to alloc dummy_buf..\n");
+		LCD_ERR(vdd, "fail to alloc dummy_buf..\n");
 		goto err;
 	}
 	xfer[2].rx_buf = dummy_buf;
 #endif
 
 	if (vdd->ddi_spi_status == DDI_SPI_SUSPEND) {
-		LCD_DEBUG(vdd, "ddi spi is suspend..\n");
+		LCD_ERR(vdd, "ddi spi is suspend..\n");
 		ret = -EINVAL;
 		goto err;
 	}
@@ -160,9 +160,9 @@ int ss_spi_read(struct spi_device *spi, u8 *buf,
 	for (i = 0; i < ARRAY_SIZE(xfer); i++)
 		spi_message_add_tail(&xfer[i], &msg);
 
-	ret = spi_sync(spi, &msg);
+	ret = ss_wrapper_spi_sync(spi, &msg);
 	if (ret) {
-		pr_err("[spi] %s : spi_sync fail..\n", __func__);
+		LCD_ERR(vdd, "[spi] %s : spi_sync fail..\n", __func__);
 		goto err;
 	}
 
@@ -294,7 +294,7 @@ int ss_spi_sync(struct spi_device *spi, u8 *buf, enum spi_cmd_set_type type)
 		goto err;
 	}
 
-	ret = spi_sync(spi, &msg);
+	ret = ss_wrapper_spi_sync(spi, &msg);
 	if (ret) {
 		pr_err("[spi] %s : spi_sync fail..\n", __func__);
 		goto err;

@@ -797,6 +797,7 @@ int mhi_process_tsync_ev_ring(struct mhi_controller *mhi_cntrl,
 			      struct mhi_event *mhi_event, u32 event_quota);
 int mhi_process_bw_scale_ev_ring(struct mhi_controller *mhi_cntrl,
 				 struct mhi_event *mhi_event, u32 event_quota);
+void mhi_special_dbs_pending(struct mhi_controller *mhi_cntrl);
 int mhi_send_cmd(struct mhi_controller *mhi_cntrl, struct mhi_chan *mhi_chan,
 		 enum MHI_CMD cmd);
 int __mhi_device_get_sync(struct mhi_controller *mhi_cntrl);
@@ -806,6 +807,12 @@ static inline void mhi_trigger_resume(struct mhi_controller *mhi_cntrl)
 	mhi_cntrl->runtime_get(mhi_cntrl, mhi_cntrl->priv_data);
 	mhi_cntrl->runtime_put(mhi_cntrl, mhi_cntrl->priv_data);
 	pm_wakeup_hard_event(&mhi_cntrl->mhi_dev->dev);
+}
+
+static inline bool is_valid_ring_ptr(struct mhi_ring *ring, dma_addr_t addr)
+{
+	return ((addr >= ring->iommu_base &&
+		addr < ring->iommu_base + ring->len) && (addr % 16 == 0));
 }
 
 /* queue transfer buffer */

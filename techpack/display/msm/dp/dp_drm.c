@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2017-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
  */
 
 #include <drm/drm_atomic_helper.h>
@@ -13,7 +13,7 @@
 #include "dp_drm.h"
 #include "dp_mst_drm.h"
 #include "dp_debug.h"
-#ifdef CONFIG_SEC_DISPLAYPORT
+#if defined(CONFIG_SEC_DISPLAYPORT)
 #include "secdp.h"
 #define DP_ENUM_STR(x)	#x
 #endif
@@ -378,6 +378,10 @@ int dp_connector_post_init(struct drm_connector *connector, void *display)
 	dp_display->bridge->dp_panel = sde_conn->drv_panel;
 
 	rc = dp_mst_init(dp_display);
+
+	if (dp_display->dsc_cont_pps)
+		sde_conn->ops.update_pps = NULL;
+
 end:
 	return rc;
 }

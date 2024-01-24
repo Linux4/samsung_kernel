@@ -534,6 +534,8 @@ static int __init flip_cover_detector_factory_init(void)
 
 	fcd_data->poll_delay = ns_to_ktime(MAG_DELAY_MS * NSEC_PER_MSEC);
 
+	snprintf(sysfs_cover_status, 10, "OPEN");
+
 	pr_info("[FACTORY] %s\n", __func__);
 
 	return 0;

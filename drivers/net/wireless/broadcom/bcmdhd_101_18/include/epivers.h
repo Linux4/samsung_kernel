@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2021, Broadcom.
+ * Copyright (C) 2022, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -27,25 +27,25 @@
 
 #define EPI_MINOR_VERSION	18
 
-#define EPI_RC_NUMBER		42
+#define EPI_RC_NUMBER		65
 
 #define EPI_INCREMENTAL_NUMBER	0
 
 #define EPI_BUILD_NUMBER	0
 
-#define EPI_VERSION		101, 18, 42, 0
+#define EPI_VERSION		101, 18, 65, 0
 
-#define EPI_VERSION_NUM		0x65122a00
+#define EPI_VERSION_NUM		0x65124100
 
-#define EPI_VERSION_DEV		101.18.42
+#define EPI_VERSION_DEV		101.18.65
 
 /* Driver Version String, ASCII, 32 chars max */
 #if defined (WLTEST)
-#define EPI_VERSION_STR		"101.18.42 (wlan=r929857 WLTEST)"
+#define EPI_VERSION_STR		"101.18.65 (wlan=r964235 WLTEST)"
 #elif (defined (BCMDBG_ASSERT) && !defined (BCMDBG_ASSERT_DISABLED))
-#define EPI_VERSION_STR		"101.18.42 (wlan=r929857 ASSRT)"
+#define EPI_VERSION_STR		"101.18.65 (wlan=r964235 ASSRT)"
 #else
-#define EPI_VERSION_STR		"101.18.42 (wlan=r929857)"
+#define EPI_VERSION_STR		"101.18.65 (wlan=r964235)"
 #endif /* BCMINTERNAL */
 
 #endif /* _epivers_h_ */

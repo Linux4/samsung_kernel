@@ -167,18 +167,10 @@ config F2FS_SEC_BLOCK_OPERATIONS_DEBUG
 
 	  If unsure, say N.
 
-config F2FS_SEC_ENC_STRICT_MODE
-	bool "SEC casefold encoding strict mode"
-	depends on F2FS_FS
-	depends on UNICODE
+config F2FS_SEC_SUPPORT_DNODE_RELOCATION
+	bool "DNODE relocation support"
+	depends on F2FS_FS_COMPRESSION
 	default y
 	help
-	  Avoid generating invalid hash for CI directory entries
-
-config F2FS_SUPPORT_STLOG
-	bool "Enable storage log"
-	depends on F2FS_FS 
-	depends on PROC_STLOG
-	default y
-	help
-	  Support STLOG
+	  Support DNODE relocation for supporting inline compresseion
+	  on existing files.

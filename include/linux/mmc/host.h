@@ -18,6 +18,7 @@
 #include <linux/mmc/card.h>
 #include <linux/mmc/pm.h>
 #include <linux/dma-direction.h>
+#include <linux/ipc_logging.h>
 
 struct mmc_ios {
 	unsigned int	clock;			/* clock rate */
@@ -386,9 +387,12 @@ struct mmc_host {
 	u32			ocr_avail_sdio;	/* SDIO-specific OCR */
 	u32			ocr_avail_sd;	/* SD-specific OCR */
 	u32			ocr_avail_mmc;	/* MMC-specific OCR */
+
 #ifdef CONFIG_PM_SLEEP
+	/* DO NOT USE, is not used, for abi preservation only */
 	struct notifier_block	pm_notify;
 #endif
+
 	u32			max_current_330;
 	u32			max_current_300;
 	u32			max_current_180;
@@ -497,6 +501,9 @@ struct mmc_host {
 	spinlock_t		lock;		/* lock for claim and bus ops */
 
 	struct mmc_ios		ios;		/* current io bus settings */
+#if defined(CONFIG_SDC_QTI)
+	struct mmc_ios		cached_ios;
+#endif
 
 	/* group bitfields together to minimize padding */
 	unsigned int		use_spi_crc:1;
@@ -546,6 +553,11 @@ struct mmc_host {
 
 	struct led_trigger	*led;		/* activity led */
 
+#ifdef CONFIG_MMC_IPC_LOGGING
+	void *ipc_log_ctxt;
+	bool stop_tracing;
+#endif
+
 #ifdef CONFIG_REGULATOR
 	bool			regulator_enabled; /* regulator state */
 #endif
@@ -583,10 +595,23 @@ struct mmc_host {
 
 	/* Host Software Queue support */
 	bool			hsq_enabled;
+#if defined(CONFIG_SDC_QTI)
+	bool			need_hw_reset;
+#endif
 
 #if defined(CONFIG_SDC_QTI)
 	atomic_t active_reqs;
 #endif
+
+#if IS_ENABLED(CONFIG_SEC_STORAGE_MMC)
+	unsigned int		card_detect_cnt;
+	bool			failed_init;
+#if IS_ENABLED(CONFIG_SEC_ABC)
+	unsigned int		card_removed_cnt;
+#endif
+	int (*sdcard_uevent)(struct mmc_card *card);
+#endif
+
 	unsigned long		private[0] ____cacheline_aligned;
 };
 
@@ -598,6 +623,16 @@ void mmc_remove_host(struct mmc_host *);
 void mmc_free_host(struct mmc_host *);
 int mmc_of_parse(struct mmc_host *host);
 int mmc_of_parse_voltage(struct device_node *np, u32 *mask);
+
+#ifdef CONFIG_MMC_IPC_LOGGING
+#define NUM_LOG_PAGES		10
+#define mmc_log_string(mmc_host, fmt, ...)	do {\
+	if ((mmc_host)->ipc_log_ctxt && !(mmc_host)->stop_tracing)	\
+		ipc_log_string((mmc_host)->ipc_log_ctxt, "%s: " fmt, __func__, ##__VA_ARGS__);	\
+	} while (0)
+#else
+#define mmc_log_string(mmc_host, fmt, ...)	do { } while (0)
+#endif
 
 static inline void *mmc_priv(struct mmc_host *host)
 {

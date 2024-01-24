@@ -164,6 +164,7 @@ struct qmp_mbox {
 	struct completion ch_complete;
 	struct delayed_work dwork;
 	struct qmp_device *mdev;
+	bool suspend_flag;
 };
 
 /**
@@ -207,6 +208,7 @@ struct qmp_device {
 	struct mbox_chan *mbox_chan;
 
 	void *ilc;
+	bool early_boot;
 };
 
 /**
@@ -215,6 +217,8 @@ struct qmp_device {
  */
 static void send_irq(struct qmp_device *mdev)
 {
+	int ret;
+
 	/*
 	 * Any data associated with this event must be visable to the remote
 	 * before the interrupt is triggered
@@ -222,8 +226,11 @@ static void send_irq(struct qmp_device *mdev)
 	wmb();
 
 	if (mdev->mbox_chan) {
-		mbox_send_message(mdev->mbox_chan, NULL);
+		ret = mbox_send_message(mdev->mbox_chan, NULL);
 		mbox_client_txdone(mdev->mbox_chan, 0);
+
+		if (ret < 0)
+			QMP_ERR(mdev->ilc, "failed to trigger ipcc irq %d\n", ret);
 	} else {
 		writel_relaxed(mdev->irq_mask, mdev->tx_irq_reg);
 	}
@@ -383,7 +390,7 @@ static int qmp_send_data(struct mbox_chan *chan, void *data)
 	u32 size;
 	int i;
 
-	if (!mbox || !data || mbox->local_state != CHANNEL_CONNECTED)
+	if (!mbox || !data || !completion_done(&mbox->ch_complete))
 		return -EINVAL;
 
 	mdev = mbox->mdev;
@@ -526,6 +533,7 @@ static irqreturn_t qmp_irq_handler(int irq, void *priv)
 
 	kthread_queue_work(&mdev->kworker, &mdev->kwork);
 	mdev->rx_irq_count++;
+	QMP_INFO(mdev->ilc, "Queued rx worker count:%d\n", mdev->rx_irq_count);
 
 	return IRQ_HANDLED;
 }
@@ -541,9 +549,12 @@ static void __qmp_rx_worker(struct qmp_mbox *mbox)
 	struct qmp_device *mdev = mbox->mdev;
 	unsigned long flags;
 
+	QMP_INFO(mdev->ilc, "Enter rx worker state:%d\n", mbox->local_state);
 	memcpy_fromio(&desc, mbox->desc, sizeof(desc));
-	if (desc.magic != QMP_MAGIC)
+	if (desc.magic != QMP_MAGIC) {
+		QMP_ERR(mdev->ilc, "wrong magic 0x:%x\n", desc.magic);
 		return;
+	}
 
 	mutex_lock(&mbox->state_lock);
 	switch (mbox->local_state) {
@@ -557,9 +568,8 @@ static void __qmp_rx_worker(struct qmp_mbox *mbox)
 		}
 		init_mcore_state(mbox);
 		mbox->local_state = LINK_NEGOTIATION;
-		mbox->rx_pkt.data = devm_kzalloc(mdev->dev,
-						 desc.ucore.mailbox_size,
-						 GFP_KERNEL);
+		mbox->rx_pkt.data = kzalloc(desc.ucore.mailbox_size,
+					    GFP_KERNEL);
 		if (!mbox->rx_pkt.data) {
 			QMP_ERR(mdev->ilc, "Failed to allocate rx pkt\n");
 			break;
@@ -576,6 +586,16 @@ static void __qmp_rx_worker(struct qmp_mbox *mbox)
 		mbox->local_state = LINK_CONNECTED;
 		complete_all(&mbox->link_complete);
 		QMP_INFO(mdev->ilc, "Set to link connected\n");
+		/*
+		 * If link connection happened after hibernation
+		 * manualy trigger the channel open procedure since client
+		 * won't try to re-open the channel
+		 */
+		if (mbox->suspend_flag) {
+			set_mcore_ch(mbox, QMP_MBOX_CH_CONNECTED);
+			mbox->local_state = LOCAL_CONNECTING;
+			send_irq(mbox->mdev);
+		}
 		break;
 	case LINK_CONNECTED:
 		if (desc.ucore.ch_state == desc.ucore.ch_state_ack) {
@@ -659,6 +679,7 @@ static void __qmp_rx_worker(struct qmp_mbox *mbox)
 	default:
 		QMP_ERR(mdev->ilc, "Local Channel State corrupted\n");
 	}
+	QMP_INFO(mdev->ilc, "Exit rx worker state:%d\n", mbox->local_state);
 	mutex_unlock(&mbox->state_lock);
 }
 
@@ -718,6 +739,7 @@ static int qmp_mbox_remove(struct platform_device *pdev)
 
 	list_for_each_entry(mbox, &mdev->mboxes, list) {
 		mbox_controller_unregister(&mbox->ctrl);
+		kfree(mbox->rx_pkt.data);
 	}
 	return 0;
 }
@@ -859,6 +881,7 @@ static int qmp_mbox_init(struct device_node *n, struct qmp_device *mdev)
 	mbox->tx_sent = false;
 	mbox->num_assigned = 0;
 	INIT_DELAYED_WORK(&mbox->dwork, qmp_notify_timeout);
+	mbox->suspend_flag = false;
 
 	mdev_add_mbox(mdev, mbox);
 	return 0;
@@ -972,6 +995,8 @@ static int qmp_mbox_probe(struct platform_device *pdev)
 	if (ret)
 		return ret;
 
+	dev_set_drvdata(&pdev->dev, mdev);
+
 	mdev->ilc = ipc_log_context_create(QMP_IPC_LOG_PAGE_CNT, mdev->name, 0);
 
 	kthread_init_work(&mdev->kwork, rx_worker);
@@ -980,7 +1005,7 @@ static int qmp_mbox_probe(struct platform_device *pdev)
 								mdev->name);
 
 	ret = devm_request_irq(&pdev->dev, mdev->rx_irq_line, qmp_irq_handler,
-		IRQF_TRIGGER_RISING | IRQF_NO_SUSPEND | IRQF_SHARED,
+		IRQF_TRIGGER_RISING | IRQF_SHARED,
 		edge_node->name, mdev);
 	if (ret < 0) {
 		qmp_mbox_remove(pdev);
@@ -994,11 +1019,48 @@ static int qmp_mbox_probe(struct platform_device *pdev)
 			mdev->rx_irq_line, ret);
 
 	/* Trigger fake RX in case of missed interrupt */
-	if (of_property_read_bool(edge_node, "qcom,early-boot"))
+	if (of_property_read_bool(edge_node, "qcom,early-boot")) {
+		mdev->early_boot = true;
+		qmp_irq_handler(0, mdev);
+	}
+
+	return 0;
+}
+
+static int qmp_mbox_freeze(struct device *dev)
+{
+	return 0;
+}
+
+static int qmp_mbox_restore(struct device *dev)
+{
+	struct qmp_device *mdev = dev_get_drvdata(dev);
+	struct qmp_mbox *mbox;
+
+	list_for_each_entry(mbox, &mdev->mboxes, list) {
+		mbox->local_state = LINK_DISCONNECTED;
+		init_completion(&mbox->link_complete);
+		init_completion(&mbox->ch_complete);
+		mbox->tx_sent = false;
+		/*
+		 * set suspend flag to indicate self channel open is required
+		 * after restore operation
+		 */
+		mbox->suspend_flag = true;
+		/* Release rx packet buffer */
+		kfree(mbox->rx_pkt.data);
+		mbox->rx_pkt.data = NULL;
+	}
+	if (mdev->early_boot)
 		qmp_irq_handler(0, mdev);
 
 	return 0;
 }
+
+static const struct dev_pm_ops qmp_mbox_pm_ops = {
+	.freeze_late = qmp_mbox_freeze,
+	.restore_early = qmp_mbox_restore,
+};
 
 static struct platform_driver qmp_mbox_driver = {
 	.probe = qmp_mbox_probe,
@@ -1006,6 +1068,7 @@ static struct platform_driver qmp_mbox_driver = {
 	.driver = {
 		.name = "qmp_mbox",
 		.of_match_table = qmp_mbox_match_table,
+		.pm = &qmp_mbox_pm_ops,
 	},
 };
 

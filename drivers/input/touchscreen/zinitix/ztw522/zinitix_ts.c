@@ -75,7 +75,7 @@ static inline s32 read_data(struct i2c_client *client,
 
 retry:
 	/* select register*/
-	ret = i2c_master_send(client , (u8 *)&reg , 2);
+	ret = i2c_master_send(client, (u8 *)&reg, 2);
 	if (ret < 0) {
 		input_err(true, &info->client->dev, "%s: send failed %d, retry %d\n", __func__, ret, count);
 		usleep_range(1 * 1000, 1 * 1000);
@@ -88,7 +88,7 @@ retry:
 	}
 	/* for setup tx transaction. */
 	usleep_range(DELAY_FOR_TRANSCATION, DELAY_FOR_TRANSCATION);
-	ret = i2c_master_recv(client , values , length);
+	ret = i2c_master_recv(client, values, length);
 	if (ret < 0) {
 		input_err(true, &info->client->dev, "%s: recv failed %d, retry %d\n", __func__, ret, count_recv);
 
@@ -2481,7 +2481,7 @@ static irqreturn_t zt75xx_touch_work(int irq, void *data)
 
 	if (info->power_state == POWER_STATE_LPM) {
 		/* run lpm interrupt handler */
-//		wake_lock_timeout(&info->wakelock, msecs_to_jiffies(500));
+		__pm_wakeup_event(info->wakelock, SEC_TS_WAKE_LOCK_TIME);
 
 		/* waiting for blsp block resuming, if not occurs i2c error */
 		ret = wait_for_completion_interruptible_timeout(&info->resume_done, msecs_to_jiffies(500));
@@ -2765,13 +2765,13 @@ static int zt75xx_ts_set_utc_to_sponge(struct zt75xx_ts_info *info)
 	ktime_get_real_ts64(&current_time);
 	utc_data[0] = (u16)(current_time.tv_sec & 0xFFFF);
 	utc_data[1] = (u16)((current_time.tv_sec >> 16) & 0xFFFF);
-		
+
 	retval = write_reg(info->client, ZT75XX_LPDUMP_UTC_VAL_LSB_REG, utc_data[0]);
 	if (retval != I2C_SUCCESS) {
 		input_err(true, &info->client->dev, "%s: Fail to set ZT75XX_LPDUMP_UTC_VAL_LSB_REG\n", __func__);
 		return retval;
 	}
-			
+
 	retval = write_reg(info->client, ZT75XX_LPDUMP_UTC_VAL_MSB_REG, utc_data[1]);
 	if (retval != I2C_SUCCESS)
 		input_err(true, &info->client->dev, "%s: Fail to set ZT75XX_LPDUMP_UTC_VAL_MSB_REG\n", __func__);
@@ -3536,16 +3536,15 @@ static void fw_update(void *device_data)
 	struct zt75xx_ts_info *info = container_of(sec, struct zt75xx_ts_info, sec);
 	struct zt75xx_ts_platform_data *pdata = info->pdata;
 	struct i2c_client *client = info->client;
-	const u8 *buff = 0;
-	mm_segment_t old_fs = {0};
-	struct file *fp = NULL;
-	long fsize = 0, nread = 0;
 	char fw_path[MAX_FW_PATH+1];
 	char result[16] = {0};
 	const struct firmware *tsp_fw = NULL;
-	unsigned char *fw_data = NULL;
 	int restore_cal = 0;
 	int ret;
+#if IS_ENABLED(CONFIG_SAMSUNG_PRODUCT_SHIP) && IS_ENABLED(CONFIG_SPU_VERIFY)
+	int ori_size;
+	int spu_ret;
+#endif
 
 	sec_cmd_set_default_result(sec);
 
@@ -3576,13 +3575,12 @@ static void fw_update(void *device_data)
 			snprintf(result, sizeof(result), "%s", "NG");
 			goto err;
  		}
-		fw_data = (unsigned char *)tsp_fw->data;
 
 #ifdef TCLM_CONCEPT
 		sec_tclm_root_of_cal(info->tdata, CALPOSITION_TESTMODE);
 		restore_cal = 1;
 #endif
-		ret = ts_upgrade_sequence(info, (u8*)fw_data, restore_cal);
+		ret = ts_upgrade_sequence(info, tsp_fw->data, restore_cal);
 		release_firmware(tsp_fw);
 		if (ret < 0) {
 			sec->cmd_state = SEC_CMD_STATUS_FAIL;
@@ -3592,58 +3590,43 @@ static void fw_update(void *device_data)
 		break;
 
 	case UMS:
-		old_fs = get_fs();
-		set_fs(KERNEL_DS);
-
-		snprintf(fw_path, MAX_FW_PATH, "/sdcard/Firmware/TSP/%s", TSP_FW_FILENAME);
-		fp = filp_open(fw_path, O_RDONLY, 0);
-		if (IS_ERR(fp)) {
+#if !defined(CONFIG_SAMSUNG_PRODUCT_SHIP)
+		snprintf(fw_path, MAX_FW_PATH, "%s", TSP_EXTERNAL_FW);
+#else
+		snprintf(fw_path, MAX_FW_PATH, "%s", TSP_EXTERNAL_FW_SIGNED);
+#endif
+		ret = request_firmware(&tsp_fw, fw_path, &(client->dev));
+		if (ret) {
 			input_err(true, &client->dev,
-				"file %s open error\n", fw_path);
+				"%s: Firmware image %s not available\n", __func__, fw_path);
 			sec->cmd_state = SEC_CMD_STATUS_FAIL;
 			snprintf(result, sizeof(result), "%s", "NG");
-			goto err_open;
+			goto err;
 		}
 
-		fsize = fp->f_path.dentry->d_inode->i_size;
-		if (fsize != info->cap_info.ic_fw_size) {
-			input_err(true, &client->dev, "%s: invalid fw size!!\n", __func__);
-			sec->cmd_state = SEC_CMD_STATUS_FAIL;
-			snprintf(result, sizeof(result), "%s", "NG");
-			goto err_open;
-		}
+#if IS_ENABLED(CONFIG_SAMSUNG_PRODUCT_SHIP) && IS_ENABLED(CONFIG_SPU_VERIFY)
+		ori_size = tsp_fw->size - SPU_METADATA_SIZE(TSP);
 
-		buff = kzalloc((size_t)fsize, GFP_KERNEL);
-		if (!buff) {
-			input_err(true, &client->dev, "%s: failed to alloc buffer for fw\n", __func__);
-			sec->cmd_state = SEC_CMD_STATUS_FAIL;
-			snprintf(result, sizeof(result), "%s", "NG");
-			goto err_alloc;
+		spu_ret = spu_firmware_signature_verify("TSP", tsp_fw->data, tsp_fw->size);
+		if (ori_size != spu_ret) {
+			input_err(true, &client->dev, "%s: signature verify failed, ori:%d, fsize:%ld\n",
+					__func__, ori_size, tsp_fw->size);
+			release_firmware(tsp_fw);
+			goto err;
 		}
-
-		nread = fp->f_op->read(fp, (char __user *)buff, fsize, &fp->f_pos);
-		if (nread != fsize) {
-			input_err(true, &client->dev,
-					"%s: failed to read firmware file, nread %ld != %ld Bytes\n",
-					__func__, nread, fsize);
-			sec->cmd_state = SEC_CMD_STATUS_FAIL;
-			snprintf(result, sizeof(result), "%s", "NG");
-			goto err_fw_size;
-		}
-		input_info(true, &client->dev, "%s: ums fw is loaded!!\n", __func__);
-
+#endif
 #ifdef TCLM_CONCEPT
 		sec_tclm_root_of_cal(info->tdata, CALPOSITION_TESTMODE);
 		restore_cal = 1;
 #endif
-		ret = ts_upgrade_sequence(info, (u8*)buff, restore_cal);
+		ret = ts_upgrade_sequence(info, tsp_fw->data, restore_cal);
+		release_firmware(tsp_fw);
 		if (ret < 0) {
 			sec->cmd_state = SEC_CMD_STATUS_FAIL;
 			snprintf(result, sizeof(result), "%s", "NG");
-			goto err_fw_size;
+			goto err;
 		}
 		break;
-
 	default:
 		input_err(true, &client->dev, "%s: invalid fw file type!!\n", __func__);
 		sec->cmd_state = SEC_CMD_STATUS_FAIL;
@@ -3654,14 +3637,6 @@ static void fw_update(void *device_data)
 	sec->cmd_state = SEC_CMD_STATUS_OK;
 	snprintf(result, sizeof(result), "%s", "OK");
 
-	if (fp != NULL) {
-err_fw_size:
-		kfree(buff);
-err_alloc:
-		filp_close(fp, NULL);
-err_open:
-		set_fs(old_fs);
-	}
 err:
 #ifdef TCLM_CONCEPT
 	sec_tclm_root_of_cal(info->tdata, CALPOSITION_NONE);
@@ -6137,6 +6112,74 @@ NG:
 #endif
 }
 
+static void get_raw_diff(void *device_data)
+{
+	struct sec_cmd_data *sec = (struct sec_cmd_data *)device_data;
+	struct zt75xx_ts_info *info = container_of(sec, struct zt75xx_ts_info, sec);
+	struct i2c_client *client = info->client;
+	char buff[SEC_CMD_STR_LEN] = { 0 };
+	u16 raw_diff;
+	int ret;
+
+	sec_cmd_set_default_result(sec);
+
+	if (info->power_state == POWER_STATE_OFF) {
+		input_err(true, &info->client->dev, "%s: IC is power off\n", __func__);
+		snprintf(buff, sizeof(buff), "NG");
+		sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
+		sec->cmd_state = SEC_CMD_STATUS_FAIL;
+		return;
+	}
+
+	write_reg(client, 0x0A, 0x0A);
+
+#if ESD_TIMER_INTERVAL
+	esd_timer_stop(info);
+	write_reg(client, ZT75XX_PERIODICAL_INTERRUPT_INTERVAL, 0);
+	write_cmd(client, ZT75XX_CLEAR_INT_STATUS_CMD);
+#endif
+
+	if (write_reg(info->client, ZT75XX_JITTER_SAMPLING_CNT, 100) != I2C_SUCCESS)
+		input_info(true, &client->dev, "%s: Fail to set JITTER_CNT.\n", __func__);
+
+	ret = ts_set_touchmode(TOUCH_JITTER_MODE);
+	if (ret < 0) {
+		ts_set_touchmode(TOUCH_POINT_MODE);
+		goto out;
+	}
+
+	msleep(1500);
+	ret = read_data(info->client, ZT75XX_RAW_DIFF, (u8 *)&raw_diff, 2);
+	if (ret < 0) {
+		ts_set_touchmode(TOUCH_POINT_MODE);
+		goto out;
+	}
+	ts_set_touchmode(TOUCH_POINT_MODE);
+
+	snprintf(buff, sizeof(buff), "%d,%d", 0, raw_diff);
+	sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
+	if (sec->cmd_all_factory_state == SEC_CMD_STATUS_RUNNING)
+		sec_cmd_set_cmd_result_all(sec, buff, strnlen(buff, sizeof(buff)), "RAW_DIFF");
+	sec->cmd_state = SEC_CMD_STATUS_OK;
+
+out:
+	if (ret < 0) {
+		snprintf(buff, sizeof(buff), "%s", "NG");
+		sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
+		if (sec->cmd_all_factory_state == SEC_CMD_STATUS_RUNNING)
+			sec_cmd_set_cmd_result_all(sec, buff, strnlen(buff, sizeof(buff)), "RAW_DIFF");
+		sec->cmd_state = SEC_CMD_STATUS_FAIL;
+	}
+	input_info(true, &client->dev, "%s: \"%s\"(%d)\n", __func__, sec->cmd_result,
+				(int)strlen(sec->cmd_result));
+
+#if ESD_TIMER_INTERVAL
+	esd_timer_start(CHECK_ESD_TIMER, info);
+	write_reg(client, ZT75XX_PERIODICAL_INTERRUPT_INTERVAL,
+		SCAN_RATE_HZ * ESD_TIMER_INTERVAL);
+#endif
+}
+
 #define I2C_BUFFER_SIZE 64
 static int get_raw_data_size(struct zt75xx_ts_info *info, u8 *buff, int skip_cnt, int sz)
 {
@@ -8308,6 +8351,87 @@ static void glove_mode(void *device_data)
 }
 #endif
 
+static void run_interrupt_gpio_test(void *device_data)
+{
+	struct sec_cmd_data *sec = (struct sec_cmd_data *)device_data;
+	struct zt75xx_ts_info *info = container_of(sec, struct zt75xx_ts_info, sec);
+	struct i2c_client *client = info->client;
+	char buff[SEC_CMD_STR_LEN] = { 0 };
+	int drive_value = 1;
+	int irq_value = 0;
+	int ret;
+
+	sec_cmd_set_default_result(sec);
+
+	if (info->power_state == POWER_STATE_OFF) {
+		input_err(true, &info->client->dev, "%s: IC is power off\n", __func__);
+		snprintf(buff, sizeof(buff), "NG");
+		sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
+		sec->cmd_state = SEC_CMD_STATUS_FAIL;
+		return;
+	}
+
+	disable_irq(info->irq);
+
+	write_reg(client, 0x0A, 0x0A);
+
+#if ESD_TIMER_INTERVAL
+	esd_timer_stop(info);
+	write_reg(client, ZT75XX_PERIODICAL_INTERRUPT_INTERVAL, 0);
+	write_cmd(client, ZT75XX_CLEAR_INT_STATUS_CMD);
+	usleep_range(1 * 1000, 1 * 1000);
+#endif
+
+	ret = ts_set_touchmode(TOUCH_NO_OPERATION_MODE);
+	if (ret < 0)
+		goto out;
+
+	write_reg(info->client, 0x0A, 0x0A);
+	write_cmd(client, ZT75XX_DRIVE_INT_STATUS_CMD);
+	usleep_range(20 * 1000, 21 * 1000);
+
+	drive_value = gpio_get_value(info->pdata->gpio_int);
+	input_info(true, &client->dev, "%s: ZT75XX_DRIVE_INT_STATUS_CMD: interrupt gpio: %d\n", __func__, drive_value);
+
+	write_reg(info->client, 0x0A, 0x0A);
+	write_cmd(client, ZT75XX_CLEAR_INT_STATUS_CMD);
+	usleep_range(20 * 1000, 21 * 1000);
+
+	irq_value = gpio_get_value(info->pdata->gpio_int);
+	input_info(true, &client->dev, "%s: ZT75XX_CLEAR_INT_STATUS_CMD: interrupt gpio : %d\n", __func__, irq_value);
+
+	write_cmd(info->client, 0x0B);
+	ret = ts_set_touchmode(TOUCH_POINT_MODE);
+	if (ret < 0)
+		goto out;
+out:
+	if (drive_value == 0 && irq_value == 1) {
+		snprintf(buff, sizeof(buff), "%s", "0");
+		sec->cmd_state = SEC_CMD_STATUS_OK;
+	} else {
+		if (drive_value != 0)
+			snprintf(buff, sizeof(buff), "%s", "1:HIGH");
+		else if (irq_value != 1)
+			snprintf(buff, sizeof(buff), "%s", "1:LOW");
+		sec->cmd_state = SEC_CMD_STATUS_FAIL;
+	}
+
+	sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
+	if (sec->cmd_all_factory_state == SEC_CMD_STATUS_RUNNING)
+		sec_cmd_set_cmd_result_all(sec, buff, strnlen(buff, sizeof(buff)), "INT_GPIO");
+
+	input_info(true, &client->dev, "%s: \"%s\"(%d)\n", __func__, sec->cmd_result,
+				(int)strlen(sec->cmd_result));
+
+	enable_irq(info->irq);
+
+#if ESD_TIMER_INTERVAL
+	esd_timer_start(CHECK_ESD_TIMER, info);
+	write_reg(client, ZT75XX_PERIODICAL_INTERRUPT_INTERVAL,
+		SCAN_RATE_HZ * ESD_TIMER_INTERVAL);
+#endif
+}
+
 static void factory_cmd_result_all(void *device_data)
 {
 	struct sec_cmd_data *sec = (struct sec_cmd_data *)device_data;
@@ -8334,12 +8458,14 @@ static void factory_cmd_result_all(void *device_data)
 	get_fw_ver_bin(sec);
 	get_fw_ver_ic(sec);
 
+	run_interrupt_gpio_test(sec);
 	run_dnd_read(sec);
 	run_dnd_v_gap_read(sec);
 	run_dnd_h_gap_read(sec);
 	run_selfdnd_read(sec);
 	run_selfdnd_h_gap_read(sec);
 	run_ssr_read(sec);
+	get_raw_diff(sec);
 
 	sec->cmd_all_factory_state = SEC_CMD_STATUS_OK;
 
@@ -8820,7 +8946,7 @@ static u16 ts_get_touch_reg(u16 addr)
 
 	ret = read_data(misc_info->client, addr, (u8 *)&reg_value, 2);
 	if (ret < 0) {
-		input_err(true, &misc_info->client->dev,"%s: fail read touch reg\n", __func__);
+		input_err(true, &misc_info->client->dev, "%s: fail read touch reg\n", __func__);
 	}
 
 	misc_info->work_state = NOTHING;
@@ -8849,7 +8975,7 @@ static void ts_set_touch_reg(u16 addr, u16 value)
 	write_reg(misc_info->client, 0x0A, 0x0A);
 
 	if (write_reg(misc_info->client, addr, value) != I2C_SUCCESS)
-		input_err(true, &misc_info->client->dev,"%s: fail write touch reg\n", __func__);
+		input_err(true, &misc_info->client->dev, "%s: fail write touch reg\n", __func__);
 
 	misc_info->work_state = NOTHING;
 	enable_irq(misc_info->irq);
@@ -9024,9 +9150,11 @@ static struct sec_cmd sec_cmds[] = {
 	{SEC_CMD("run_jitter_read", run_jitter_read),},
 	{SEC_CMD("get_jitter", get_jitter),},
 	{SEC_CMD("run_jitter_read_all", run_jitter_read_all),},
+	{SEC_CMD("get_raw_diff", get_raw_diff),},
 	{SEC_CMD("run_reference_read", run_reference_read),},
 	{SEC_CMD("get_reference", get_reference),},
 	{SEC_CMD("run_pba_linecheck", run_pba_linecheck),},
+	{SEC_CMD("run_interrupt_gpio_test", run_interrupt_gpio_test),},
 #ifdef TCLM_CONCEPT
 	{SEC_CMD("run_mis_cal_read", run_mis_cal_read),},
 	{SEC_CMD("get_mis_cal", get_mis_cal),},
@@ -10111,7 +10239,7 @@ static int zt75xx_ts_probe(struct i2c_client *client,
 	int lcdtype = 0;
 #endif
 
-#if IS_ENABLED(CONFIG_BATTERY_SAMSUNG) 
+#if IS_ENABLED(CONFIG_BATTERY_SAMSUNG)
 	if (lpcharge == 1) {
 		input_err(true, &client->dev, "%s : Do not load driver due to : lpm %d\n",
 				__func__, lpcharge);
@@ -10258,9 +10386,8 @@ static int zt75xx_ts_probe(struct i2c_client *client,
 			"%s: fail update_work", __func__);
 		goto err_fw_update;
 	}
-	snprintf(info->phys, sizeof(info->phys),
-		"%s/input0", dev_name(&client->dev));
 	info->input_dev->name = "sec_touchscreen2";
+	snprintf(info->phys, sizeof(info->phys), "%s", info->input_dev->name);
 	info->input_dev->id.bustype = BUS_I2C;
 /*	info->input_dev->id.vendor = 0x0001; */
 	info->input_dev->phys = info->phys;
@@ -10318,8 +10445,7 @@ static int zt75xx_ts_probe(struct i2c_client *client,
 	}
 
 	info->work_state = NOTHING;
-
-//	wake_lock_init(&info->wakelock, WAKE_LOCK_SUSPEND, "tsp_wakelock");
+	info->wakelock = wakeup_source_register(&client->dev, "tsp_wakelock_sub");
 	init_completion(&info->resume_done);
 	complete_all(&info->resume_done);
 
@@ -10457,7 +10583,7 @@ err_misc_register:
 	free_irq(info->irq, info);
 err_request_irq:
 error_gpio_irq:
-//	wake_lock_destroy(&info->wakelock);
+	wakeup_source_unregister(info->wakelock);
 err_init_touch:
 	input_unregister_device(info->input_dev);
 err_input_register_device:
@@ -10531,7 +10657,7 @@ static int zt75xx_ts_remove(struct i2c_client *client)
 
 	if (info->irq)
 		free_irq(info->irq, info);
-//	wake_lock_destroy(&info->wakelock);
+	wakeup_source_unregister(info->wakelock);
 #ifdef USE_MISC_DEVICE
 	misc_deregister(&touch_misc_device);
 #endif

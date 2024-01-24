@@ -32,9 +32,8 @@
 #define input_raw_info_d(mode, dev, fmt, ...) input_raw_info(mode, dev, fmt, ## __VA_ARGS__)
 #endif
 
-#undef CONFIG_INPUT_SEC_SECURE_TOUCH
 #ifdef CONFIG_INPUT_SEC_SECURE_TOUCH
-#include "../../../sec_input/sec_secure_touch.h"
+#include <linux/input/sec_secure_touch.h>
 #endif
 
 #define FTS_SUPPORT_SPONGELIB
@@ -173,7 +172,6 @@
 
 #define FTS_EVENT_JITTER_MUTUAL_MAX			0x01
 #define FTS_EVENT_JITTER_MUTUAL_MIN			0x02
-#define FTS_EVENT_JITTER_MUTUAL_AVG			0x03
 #define FTS_EVENT_JITTER_SELF_TX_P2P			0x05
 #define FTS_EVENT_JITTER_SELF_RX_P2P			0x06
 
@@ -646,28 +644,6 @@ struct FTS_SyncFrameHeader {
 	u32	  reserved2;  // 12~15
 } __packed;
 
-struct stm_ts_snr_result_cmd {
-	s16	status;
-	s16	point;
-	s16	average;
-} __packed;
-
-struct tsp_snr_result_of_point {
-	s16	max;
-	s16	min;
-	s16	average;
-	s16	nontouch_peak_noise;
-	s16	touch_peak_noise;
-	s16	snr1;
-	s16	snr2;
-} __packed;
-
-struct stm_ts_snr_result {
-	s16	status;
-	s16	reserved[6];
-	struct tsp_snr_result_of_point result[9];
-} __packed;
-
 struct fts_i2c_platform_data {
 	bool support_hover;
 	bool support_glove;
@@ -683,7 +659,6 @@ struct fts_i2c_platform_data {
 	bool enable_settings_aot;
 	bool support_hall_ic;
 	bool support_flex_mode;
-	int support_sensor_hall;
 	int max_x;
 	int max_y;
 	u8 panel_revision;	/* to identify panel info */
@@ -808,7 +783,6 @@ struct fts_ts_info {
 	unsigned int noise_count;		/* noise mode count */
 
 	int touch_count;
-	int palm_flag;
 	struct fts_finger finger[FINGER_MAX];
 
 	int retry_hover_enable_after_wakeup;

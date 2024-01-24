@@ -31,7 +31,6 @@
 
 #define MAX_NO_OF_MAC_ADDR		4
 #define QMI_WLFW_MAX_TIMESTAMP_LEN	32
-#define QMI_WLFW_MAX_NUM_MEM_SEG	32
 #define QMI_WLFW_MAX_BUILD_ID_LEN	128
 #define CNSS_RDDM_TIMEOUT_MS		20000
 #define RECOVERY_TIMEOUT		60000
@@ -43,6 +42,8 @@
 #define CNSS_RAMDUMP_VERSION		0
 #define MAX_FIRMWARE_NAME_LEN		40
 #define FW_V2_NUMBER                    2
+#define POWER_ON_RETRY_MAX_TIMES        3
+#define POWER_ON_RETRY_DELAY_MS         200
 
 #define CNSS_EVENT_SYNC   BIT(0)
 #define CNSS_EVENT_UNINTERRUPTIBLE BIT(1)
@@ -347,6 +348,7 @@ enum cnss_bdf_type {
 	CNSS_BDF_BIN,
 	CNSS_BDF_ELF,
 	CNSS_BDF_REGDB = 4,
+	CNSS_BDF_HDS = 6,
 };
 
 enum cnss_cal_status {
@@ -398,6 +400,7 @@ enum cnss_ce_index {
 
 struct cnss_dms_data {
 	u32 mac_valid;
+	u8 nv_mac_not_prov;
 	u8 mac[QMI_WLFW_MAC_ADDR_SIZE_V01];
 };
 
@@ -407,6 +410,8 @@ enum cnss_timeout_type {
 	CNSS_TIMEOUT_IDLE_RESTART,
 	CNSS_TIMEOUT_CALIBRATION,
 	CNSS_TIMEOUT_WLAN_WATCHDOG,
+	CNSS_TIMEOUT_RDDM,
+	CNSS_TIMEOUT_RECOVERY,
 };
 
 struct cnss_plat_data {
@@ -436,6 +441,7 @@ struct cnss_plat_data {
 	enum cnss_driver_status driver_status;
 	u32 recovery_count;
 	u8 recovery_enabled;
+	u8 hds_enabled;
 	unsigned long driver_state;
 	struct list_head event_list;
 	spinlock_t event_lock; /* spinlock for driver work event handling */
@@ -452,10 +458,10 @@ struct cnss_plat_data {
 	char fw_build_id[QMI_WLFW_MAX_BUILD_ID_LEN + 1];
 	u32 otp_version;
 	u32 fw_mem_seg_len;
-	struct cnss_fw_mem fw_mem[QMI_WLFW_MAX_NUM_MEM_SEG];
+	struct cnss_fw_mem fw_mem[QMI_WLFW_MAX_NUM_MEM_SEG_V01];
 	struct cnss_fw_mem m3_mem;
 	u32 qdss_mem_seg_len;
-	struct cnss_fw_mem qdss_mem[QMI_WLFW_MAX_NUM_MEM_SEG];
+	struct cnss_fw_mem qdss_mem[QMI_WLFW_MAX_NUM_MEM_SEG_V01];
 	u32 *qdss_reg;
 	struct cnss_pin_connect_result pin_result;
 	struct dentry *root_dentry;
@@ -500,9 +506,12 @@ struct cnss_plat_data {
 	u32 hw_trc_override;
 	u32 is_converged_dt;
 	struct device_node *dev_node;
+    u64 feature_list;
     bool adsp_pc_enabled;
-
+#ifdef CONFIG_SEC_SS_CNSS_FEATURE_SYSFS
 	struct kobject *wifi_kobj;
+	struct completion macloader_done;
+#endif /* CONFIG_SEC_SS_CNSS_FEATURE_SYSFS */
 };
 
 #ifdef CONFIG_ARCH_QCOM
@@ -544,7 +553,7 @@ void cnss_put_clk(struct cnss_plat_data *plat_priv);
 int cnss_vreg_unvote_type(struct cnss_plat_data *plat_priv,
 			  enum cnss_vreg_type type);
 int cnss_get_pinctrl(struct cnss_plat_data *plat_priv);
-int cnss_power_on_device(struct cnss_plat_data *plat_priv);
+int cnss_power_on_device(struct cnss_plat_data *plat_priv, bool reset);
 void cnss_power_off_device(struct cnss_plat_data *plat_priv);
 bool cnss_is_device_powered_on(struct cnss_plat_data *plat_priv);
 int cnss_register_subsys(struct cnss_plat_data *plat_priv);
@@ -574,6 +583,10 @@ int cnss_request_firmware_direct(struct cnss_plat_data *plat_priv,
 				 const char *filename);
 void cnss_disable_redundant_vreg(struct cnss_plat_data *plat_priv);
 int cnss_gpio_get_value(struct cnss_plat_data *plat_priv, int gpio_num);
+int cnss_set_feature_list(struct cnss_plat_data *plat_priv,
+             enum cnss_feature_v01 feature);
+int cnss_get_feature_list(struct cnss_plat_data *plat_priv,
+             u64 *feature_list);
 #ifdef CONFIG_WLAN_MULTIPLE_SUPPORT_FEM
 int cnss_get_fem_sel_gpio_status(struct cnss_plat_data *plat_priv);
 #endif

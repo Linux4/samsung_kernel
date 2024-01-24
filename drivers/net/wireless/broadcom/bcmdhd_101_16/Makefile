@@ -1,5 +1,5 @@
 #
-# Copyright (C) 2021, Broadcom.
+# Copyright (C) 2022, Broadcom.
 #
 #      Unless you and Broadcom execute a separate written software license
 # agreement governing use of this software, this software is licensed to you
@@ -32,12 +32,7 @@ DHDCFLAGS += -Wall -Werror -Wstrict-prototypes -Dlinux -DLINUX -DBCMDRIVER      
         -DSEC_ENHANCEMENT
 
 DHDCFLAGS += -DOEM_ANDROID
-ifeq ($(SEC_BUILD_OPTION_ALT_WIFI), true)
-export CONFIG_BCM4389=m
-export CONFIG_BCM4375=n
-endif
-$(warning DHDMAKEFILE CONFIG_BCM4389 = $(CONFIG_BCM4389))
-$(warning DHDMAKEFILE CONFIG_BCM4375 = $(CONFIG_BCM4375))
+
 #####################
 # Bus Interface Type
 #####################
@@ -140,6 +135,9 @@ endif
 	DHDCFLAGS += -DDHD_FLOW_RING_STATUS_TRACE
 	# Enable internal Rx packet pool
 	DHDCFLAGS += -DRX_PKT_POOL
+ifeq ($(filter y,$(CONFIG_ARCH_LAHAINA) $(CONFIG_ARCH_WAIPIO)),y)
+	DHDCFLAGS += -DUSE_ISB_IN_FLR
+endif
 endif
 
 
@@ -242,7 +240,9 @@ DHDCFLAGS += -DNUM_SCB_MAX_PROBE=3
 #DHDCFLAGS += -DDHD_USE_ATOMIC_PKTGET
 DHDCFLAGS += -DTDLS_MSG_ONLY_WFD
 DHDCFLAGS += -DCUSTOM_KEEP_ALIVE_SETTING=30000
+# Excess PM awake
 DHDCFLAGS += -DCUSTOM_EVENT_PM_WAKE=30
+DHDCFLAGS += -DCUSTOM_EVENT_PM_PERCENT=70
 DHDCFLAGS += -DENABLE_TDLS_AUTO_MODE
 DHDCFLAGS += -DP2P_SKIP_DFS
 DHDCFLAGS += -DKEEP_WIFION_OPTION
@@ -272,9 +272,7 @@ DHDCFLAGS += -DCUSTOM_PNO_EVENT_LOCK_xTIME=10
 # For IPV6 Neighbor Discovery Offload Support
 DHDCFLAGS += -DIPV6_NDO_SUPPORT
 
-# Early suspend
-DHDCFLAGS += -DDHD_USE_EARLYSUSPEND
-
+DHDCFLAGS += -DDHD_USE_PM_SLEEP
 # WiFi turn off delay
 DHDCFLAGS += -DWIFI_TURNOFF_DELAY=10
 
@@ -519,6 +517,8 @@ endif
 
 # NAN-Ranging BW private command
   DHDCFLAGS += -DSUPPORT_NAN_RANGING_TEST_BW
+# NAN customer discovery cache nubmer
+  DHDCFLAGS += -DCUSTOM_NAN_MAX_CACHE_DISC_RESULT=160
 
 ifeq ($(CONFIG_ARCH_QCOM),y)
 # Due to GKI config, Exynos has ARCH_QCOM & ARCH_EXYNOS, MSM has ARCH_QCOM only, Temporary solution
@@ -637,6 +637,8 @@ endif
   DHDCFLAGS += -DGEN_SOFTAP_INFO_FILE
 # Enable PCIe CTO Prevention and recovery
   DHDCFLAGS += -DBCMPCIE_CTO_PREVENTION
+# Enable irq level trigger
+  DHDCFLAGS += -DIRQ_HIGHLEVEL_TRIGGER
 ifeq ($(filter y,$(CONFIG_ARCH_MSM8998) $(CONFIG_ARCH_SDM845) \
 			$(CONFIG_ARCH_SM8150)),y)
 # Use SMMU for IOMEM
@@ -778,6 +780,8 @@ ifneq ($(filter y m,$(CONFIG_BCM4375)),)
  DHDCFLAGS += -DEWP_EDL
 # Customer ant select and set PM
  DHDCFLAGS += -DCUSTOM_SET_ANTNPM
+# Customer SoftAP MIMO/SISO mode select
+ DHDCFLAGS += -DCUSTOM_SOFTAP_SET_ANT
 # Customer ocl disabe
  DHDCFLAGS += -DCUSTOM_SET_OCLOFF
 # SAE..if kernel < 4.17 ..back port support required
@@ -801,9 +805,11 @@ ifeq ($(BUS_IFACE_PCIE),y)
   DHDCFLAGS += -DCUSTOM_TCPACK_DELAY_TIME=10
   DHDCFLAGS += -DDHDTCPACK_SUPPRESS
 endif
-
+ DHDCFLAGS += -DFLOW_RING_PREALLOC
 # NAN-Ranging BW private command
  DHDCFLAGS += -DSUPPORT_NAN_RANGING_TEST_BW
+# NAN customer discovery cache nubmer
+  DHDCFLAGS += -DCUSTOM_NAN_MAX_CACHE_DISC_RESULT=40
 
 ifeq ($(CONFIG_ARCH_QCOM),y)
 # Due to GKI config, Exynos has ARCH_QCOM & ARCH_EXYNOS, MSM has ARCH_QCOM only, Temporary solution
@@ -915,6 +921,8 @@ endif
   DHDCFLAGS += -DGEN_SOFTAP_INFO_FILE
 # Enable PCIe CTO Prevention and recovery
   DHDCFLAGS += -DBCMPCIE_CTO_PREVENTION
+# Enable irq level trigger
+  DHDCFLAGS += -DIRQ_HIGHLEVEL_TRIGGER
 ifeq ($(filter y,$(CONFIG_ARCH_MSM8998) $(CONFIG_ARCH_SDM845) \
 		$(CONFIG_ARCH_SM8150)),y)
 # Use SMMU for IOMEM
@@ -1742,7 +1750,6 @@ endif
 ifeq ($(CONFIG_WLAN_MERLOT),y)
  DHDCFLAGS += -USUPPORT_P2P_GO_PS
  DHDCFLAGS += -UP2P_LISTEN_OFFLOADING
- DHDCFLAGS += -DUSE_INITIAL_2G_SCAN
  DHDCFLAGS += -DENABLE_WAKEUP_PKT_DUMP
  DHDCFLAGS += -DWL_CFGVENDOR_SEND_HANG_EVENT
  DHDCFLAGS += -DNOT_SUPPORT_EXT_TRAP_INFO

@@ -857,6 +857,8 @@ int stm_ts_wait_for_echo_event(struct stm_ts_data *ts, u8 *cmd, u8 cmd_cnt, int 
 
 	if (delay)
 		sec_delay(delay);
+	else
+		sec_delay(5);
 
 	memset(data, 0x0, STM_TS_EVENT_BUFF_SIZE);
 
@@ -919,7 +921,7 @@ int stm_ts_set_scanmode(struct stm_ts_data *ts, u8 scan_mode)
 	u8 address[3] = { 0xA0, 0x00, scan_mode };
 	int rc;
 
-	rc = stm_ts_wait_for_echo_event(ts, &address[0], 3, 0);
+	rc = stm_ts_wait_for_echo_event(ts, &address[0], 3, 20);
 	if (rc < 0) {
 		input_info(true, &ts->client->dev, "%s: timeout, ret = %d\n", __func__, rc);
 		return rc;
@@ -977,6 +979,8 @@ void stm_ts_get_touch_function(struct work_struct *work)
 	u8 address = 0;
 	u8 data[2] = { 0 };
 
+	mutex_lock(&ts->switching_mutex);
+
 	address = STM_TS_CMD_SET_GET_TOUCHTYPE;
 	data[0] = (u8)(ts->plat_data->touch_functions & 0xFF);
 	data[1] = (u8)(ts->plat_data->touch_functions >> 8);
@@ -985,9 +989,11 @@ void stm_ts_get_touch_function(struct work_struct *work)
 		input_err(true, &ts->client->dev,
 				"%s: failed to read touch functions(%d)\n",
 				__func__, ret);
+		mutex_unlock(&ts->switching_mutex);
 		return;
 	}
 
+	mutex_unlock(&ts->switching_mutex);
 	input_info(true, &ts->client->dev,
 			"%s: touch_functions:%x ic_status:%x\n", __func__,
 			ts->plat_data->touch_functions, ts->plat_data->ic_status);
@@ -1186,7 +1192,7 @@ void stm_ts_reset(struct stm_ts_data *ts, unsigned int ms)
 	if (ts->plat_data->power)
 		ts->plat_data->power(&ts->client->dev, true);
 
-	sec_delay(5);
+	sec_delay(TOUCH_POWER_ON_DWORK_TIME);
 }
 
 void stm_ts_reset_work(struct work_struct *work)
@@ -1223,7 +1229,8 @@ void stm_ts_reset_work(struct work_struct *work)
 		/* for ACT i2c recovery fail test */
 		snprintf(test, sizeof(test), "TEST=RECOVERY");
 		snprintf(result, sizeof(result), "RESULT=FAIL");
-		sec_cmd_send_event_to_user(&ts->sec, test, result);
+		if (ts->probe_done)
+			sec_cmd_send_event_to_user(&ts->sec, test, result);
 
 		input_err(true, &ts->client->dev, "%s: failed to reset, ret:%d\n", __func__, ret);
 		ts->reset_is_on_going = false;
@@ -1233,7 +1240,8 @@ void stm_ts_reset_work(struct work_struct *work)
 		mutex_unlock(&ts->modechange);
 
 		snprintf(result, sizeof(result), "RESULT=RESET");
-		sec_cmd_send_event_to_user(&ts->sec, NULL, result);
+		if (ts->probe_done)
+			sec_cmd_send_event_to_user(&ts->sec, NULL, result);
 
 		__pm_relax(ts->plat_data->sec_ws);
 
@@ -1270,7 +1278,8 @@ void stm_ts_reset_work(struct work_struct *work)
 			stm_ts_fix_active_mode(ts, 1);
 
 	snprintf(result, sizeof(result), "RESULT=RESET");
-	sec_cmd_send_event_to_user(&ts->sec, NULL, result);
+	if (ts->probe_done)
+		sec_cmd_send_event_to_user(&ts->sec, NULL, result);
 
 	__pm_relax(ts->plat_data->sec_ws);
 }
@@ -1369,7 +1378,7 @@ void stm_ts_read_info_work(struct work_struct *work)
 			work_read_info.work);
 	int ret;
 
-#if !IS_ENABLED(CONFIG_QGKI)
+#if defined(DUAL_FOLDABLE_GKI)
 	ts->info_work_done = true;
 	stm_ts_input_close(ts->plat_data->input_dev);
 	stm_ts_input_open(ts->plat_data->input_dev);
@@ -1404,10 +1413,12 @@ void stm_ts_read_info_work(struct work_struct *work)
 		schedule_work(&ts->work_print_info.work);
 	}
 
+#if IS_ENABLED(CONFIG_TOUCHSCREEN_DUAL_FOLDABLE)
 	if (ts->change_flip_status) {
 		input_info(true, &ts->client->dev, "%s: re-try switching after reading info\n", __func__);
 		schedule_work(&ts->switching_work.work);
 	}
+#endif
 }
 
 void stm_ts_spi_set_cover_type(struct stm_ts_data *ts, bool enable)
@@ -1777,6 +1788,60 @@ int stm_ts_pocket_mode_enable(struct stm_ts_data *ts, u8 enable)
 	return ret;
 }
 
+int stm_ts_sip_mode_enable(struct stm_ts_data *ts)
+{
+	int ret;
+	u8 reg[3] = { 0 };
+
+	input_info(true, &ts->client->dev, "%s: %s\n",
+			__func__, ts->sip_mode ? "enable" : "disable");
+
+	reg[0] = STM_TS_CMD_SET_FUNCTION_ONOFF;
+	reg[1] = STM_TS_FUNCTION_ENABLE_SIP_MODE;
+	reg[2] = ts->sip_mode;
+	ret = ts->stm_ts_spi_write(ts, reg, 3, NULL, 0);
+	if (ret < 0)
+		input_err(true, &ts->client->dev,
+				"%s: failed to sip mode%d, ret=%d\n", __func__, ts->sip_mode, ret);
+	return ret;
+}
+
+int stm_ts_game_mode_enable(struct stm_ts_data *ts)
+{
+	int ret;
+	u8 reg[3] = { 0 };
+
+	input_info(true, &ts->client->dev, "%s: %s\n",
+			__func__, ts->game_mode ? "enable" : "disable");
+
+	reg[0] = STM_TS_CMD_SET_FUNCTION_ONOFF;
+	reg[1] = STM_TS_CMD_FUNCTION_SET_GAME_MODE;
+	reg[2] = ts->game_mode;
+	ret = ts->stm_ts_spi_write(ts, reg, 3, NULL, 0);
+	if (ret < 0)
+		input_err(true, &ts->client->dev,
+				"%s: failed to game mode%d, ret=%d\n", __func__, ts->game_mode, ret);
+	return ret;
+}
+
+int stm_ts_note_mode_enable(struct stm_ts_data *ts)
+{
+	int ret;
+	u8 reg[3] = { 0 };
+
+	input_info(true, &ts->client->dev, "%s: %s\n",
+			__func__, ts->note_mode ? "enable" : "disable");
+
+	reg[0] = STM_TS_CMD_SET_FUNCTION_ONOFF;
+	reg[1] = STM_TS_CMD_FUNCTION_SET_NOTE_MODE;
+	reg[2] = ts->note_mode;
+	ret = ts->stm_ts_spi_write(ts, reg, 3, NULL, 0);
+	if (ret < 0)
+		input_err(true, &ts->client->dev,
+				"%s: failed to note mode%d, ret=%d\n", __func__, ts->note_mode, ret);
+	return ret;
+}
+
 #define NVM_CMD(mtype, moffset, mlength)		.type = mtype,	.offset = moffset,	.length = mlength
 struct stm_ts_nvm_data_map nvm_data[] = {
 	{NVM_CMD(0,						0x00, 0),},
@@ -1991,6 +2056,7 @@ int stm_tclm_data_write(struct spi_device *client, int address)
 	}
 }
 
+#if IS_ENABLED(CONFIG_TOUCHSCREEN_DUAL_FOLDABLE)
 void stm_chk_tsp_ic_status(struct stm_ts_data *ts, int call_pos)
 {
 	u8 data[3] = { 0 };
@@ -2204,6 +2270,7 @@ int stm_hall_ic_ssh_notify(struct notifier_block *nb,
 
 	return 0;
 }
+#endif
 #endif
 
 #if IS_ENABLED(CONFIG_INPUT_SEC_NOTIFIER)

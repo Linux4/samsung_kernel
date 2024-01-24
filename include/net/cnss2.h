@@ -83,11 +83,32 @@ enum cnss_driver_status {
 	CNSS_RECOVERY,
 	CNSS_FW_DOWN,
 	CNSS_HANG_EVENT,
+	CNSS_BUS_EVENT,
+};
+
+enum cnss_bus_event_type {
+	BUS_EVENT_PCI_LINK_DOWN = 0,
+
+	BUS_EVENT_INVALID = 0xFFFF,
+};
+
+enum cnss_wfc_mode {
+	CNSS_WFC_MODE_OFF,
+	CNSS_WFC_MODE_ON,
+};
+
+struct cnss_wfc_cfg {
+	enum cnss_wfc_mode mode;
 };
 
 struct cnss_hang_event {
 	void *hang_event_data;
 	u16 hang_event_data_len;
+};
+
+struct cnss_bus_event {
+	enum cnss_bus_event_type etype;
+	void *event_data;
 };
 
 struct cnss_uevent_data {
@@ -266,7 +287,10 @@ extern int cnss_get_mem_seg_count(enum cnss_remote_mem_type type, u32 *seg);
 extern int cnss_get_mem_segment_info(enum cnss_remote_mem_type type,
 				     struct cnss_mem_segment segment[],
 				     u32 segment_count);
-					 
+extern int cnss_send_buffer_to_afcmem(struct device *dev, char *afcdb,
+				      uint32_t len, uint8_t slotid);
+extern int cnss_reset_afcmem(struct device *dev, uint8_t slotid);
+extern int cnss_set_wfc_mode(struct device *dev, struct cnss_wfc_cfg cfg);
 extern int cnss_sysfs_get_pm_info(void);
 extern void cnss_sysfs_update_driver_status(int32_t new_status, void *version, void *softap);
 #endif /* _NET_CNSS2_H */

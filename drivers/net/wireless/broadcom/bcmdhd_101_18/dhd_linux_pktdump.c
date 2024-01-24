@@ -1,7 +1,7 @@
 /*
  * Packet dump helper functions
  *
- * Copyright (C) 2021, Broadcom.
+ * Copyright (C) 2022, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -37,6 +37,7 @@
 #include <bcmdhcp.h>
 #include <bcmarp.h>
 #include <bcmicmp.h>
+#include <bcmigmp.h>
 #include <dhd_linux_pktdump.h>
 
 #define DHD_PKTDUMP(arg)	DHD_ERROR(arg)
@@ -981,6 +982,25 @@ dhd_dhcp_dump(dhd_pub_t *dhdp, int ifidx, uint8 *pktdata, bool tx,
 	}
 }
 #endif /* DHD_DHCP_DUMP */
+
+#ifdef IGMP_OFFLOAD_SUPPORT
+bool
+dhd_check_igmp(uint8 *pktdata)
+{
+	uint8 *pkt = (uint8 *)&pktdata[ETHER_HDR_LEN];
+	struct ipv4_hdr *iph = (struct ipv4_hdr *)pkt;
+
+	if (IPV4_PROT(iph) != IP_PROT_IGMP) {
+		return FALSE;
+	}
+
+	/* check header length */
+	if (ntohs(iph->tot_len) - IPV4_HLEN(iph) < sizeof(struct igmpv2_hdr)) {
+		return FALSE;
+	}
+	return TRUE;
+}
+#endif /* IGMP_OFFLOAD_SUPPORT */
 
 bool
 dhd_check_icmp(uint8 *pktdata)

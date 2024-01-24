@@ -11,9 +11,14 @@
  */
 #define DEBUG
 
+#if defined(CONFIG_SEC_KUNIT)
+#include <kunit/mock.h>
+#else
+#define __visible_for_testing static
+#endif
 #include "sec_dual_battery.h"
 
-static int sec_dual_check_eoc_status(struct sec_dual_battery_info *battery)
+__visible_for_testing int sec_dual_check_eoc_status(struct sec_dual_battery_info *battery)
 {
 	union power_supply_propval value;
 	struct timespec ts = {0, };

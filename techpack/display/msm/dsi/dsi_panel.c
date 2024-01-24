@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2016-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
  */
 
 #include <linux/delay.h>
@@ -73,6 +74,40 @@ static int dsi_vdc_create_pps_buf_cmd(struct msm_display_vdc_info *vdc,
 			size);
 }
 
+#if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
+static int ss_dsi_panel_vreg_check(struct dsi_panel *panel)
+{
+	int rc = 0;
+	int i;
+	struct regulator *vreg = NULL;
+
+	for (i = 0; i < panel->power_info.count; i++) {
+		DSI_INFO("Panel Reg check, name=%s\n", panel->power_info.vregs[i].vreg_name);
+		vreg = regulator_get_optional(panel->parent,
+					  panel->power_info.vregs[i].vreg_name);
+		rc = PTR_ERR_OR_ZERO(vreg);
+		if (rc) {
+			DSI_ERR("failed to get %s regulator\n",
+			       panel->power_info.vregs[i].vreg_name);
+			goto error_put;
+		}
+	}
+
+	for (i = i - 1; i >= 0; i--) {
+		regulator_put(panel->power_info.vregs[i].vreg);
+		panel->power_info.vregs[i].vreg = NULL;
+	}
+
+	return 0;
+error_put:
+	for (i = i - 1; i >= 0; i--) {
+		regulator_put(panel->power_info.vregs[i].vreg);
+		panel->power_info.vregs[i].vreg = NULL;
+	}
+	return -EPROBE_DEFER;
+}
+#endif
+
 static int dsi_panel_vreg_get(struct dsi_panel *panel)
 {
 	int rc = 0;
@@ -119,6 +154,20 @@ static int dsi_panel_gpio_request(struct dsi_panel *panel)
 	if (gpio_is_valid(r_config->reset_gpio)) {
 		rc = gpio_request(r_config->reset_gpio, "reset_gpio");
 		if (rc) {
+#if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
+			/* TDDI makes RESET gpios to fixed-regulator.
+			 * So PBA fail request reset gpio(cause it already grabbed as fixed-regulator)
+			 * PBA no need reset pin for real,
+			 * so make not to return error for binding.
+			 */
+			if (!strcmp(panel->name, "ss_dsi_panel_PBA_BOOTING_FHD") ||
+				!strcmp(panel->name, "ss_dsi_panel_PBA_BOOTING_FHD_DSI1") ||
+				/* 8450 does not have vdd at this point of dsi probing */
+				!strcmp(panel->name, "M44X_ILI7807S_BS066FBM")) {
+				DSI_ERR("PBA booting or TDDI, Skip request reset gpio\n");
+				rc = 0;
+			}
+#endif
 			DSI_ERR("request for reset_gpio failed, rc=%d\n", rc);
 			goto error;
 		}
@@ -195,29 +244,52 @@ static int dsi_panel_gpio_release(struct dsi_panel *panel)
 	return rc;
 }
 
-int dsi_panel_trigger_esd_attack(struct dsi_panel *panel)
+int dsi_panel_trigger_esd_attack(struct dsi_panel *panel, bool trusted_vm_env)
 {
-	struct dsi_panel_reset_config *r_config;
-
 	if (!panel) {
 		DSI_ERR("Invalid panel param\n");
 		return -EINVAL;
 	}
 
-	r_config = &panel->reset_config;
-	if (!r_config) {
-		DSI_ERR("Invalid panel reset configuration\n");
-		return -EINVAL;
+	/* toggle reset-gpio by writing directly to register in trusted-vm */
+	if (trusted_vm_env) {
+		struct dsi_tlmm_gpio *gpio = NULL;
+		void __iomem *io;
+		u32 offset = 0x4;
+		int i;
+
+		for (i = 0; i < panel->tlmm_gpio_count; i++)
+			if (!strcmp(panel->tlmm_gpio[i].name, "reset-gpio"))
+				gpio = &panel->tlmm_gpio[i];
+
+		if (!gpio) {
+			DSI_ERR("reset gpio not found\n");
+			return -EINVAL;
+		}
+
+		io = ioremap(gpio->addr, gpio->size);
+		writel_relaxed(0, io + offset);
+		iounmap(io);
+
+	} else {
+		struct dsi_panel_reset_config *r_config = &panel->reset_config;
+
+		if (!r_config) {
+			DSI_ERR("Invalid panel reset configuration\n");
+			return -EINVAL;
+		}
+
+		if (!gpio_is_valid(r_config->reset_gpio)) {
+			DSI_ERR("failed to pull down gpio\n");
+			return -EINVAL;
+		}
+		gpio_set_value(r_config->reset_gpio, 0);
 	}
 
-	if (gpio_is_valid(r_config->reset_gpio)) {
-		gpio_set_value(r_config->reset_gpio, 0);
-		SDE_EVT32(SDE_EVTLOG_FUNC_CASE1);
-		DSI_INFO("GPIO pulled low to simulate ESD\n");
-		return 0;
-	}
-	DSI_ERR("failed to pull down gpio\n");
-	return -EINVAL;
+	SDE_EVT32(SDE_EVTLOG_FUNC_CASE1);
+	DSI_INFO("GPIO pulled low to simulate ESD\n");
+
+	return 0;
 }
 
 static int dsi_panel_reset(struct dsi_panel *panel)
@@ -225,6 +297,15 @@ static int dsi_panel_reset(struct dsi_panel *panel)
 	int rc = 0;
 	struct dsi_panel_reset_config *r_config = &panel->reset_config;
 	int i;
+
+#if defined(CONFIG_DISPLAY_SAMSUNG)
+	struct samsung_display_driver_data *vdd = panel->panel_private;
+
+	if (vdd->aot_reset_regulator || vdd->aot_reset_regulator_late) {
+		DSI_INFO("Not here, reset_regulator enabled\n");
+		goto exit;
+	}
+#endif
 
 	if (gpio_is_valid(panel->reset_config.disp_en_gpio)) {
 		rc = gpio_direction_output(panel->reset_config.disp_en_gpio, 1);
@@ -291,6 +372,98 @@ exit:
 }
 
 #if defined(CONFIG_DISPLAY_SAMSUNG)
+/* Reset regulater control when aot_reset_regulator enabled
+ * regulator name should be "panel_reset" or "lcd_rst"
+ */
+static int dsi_panel_reset_regulator(struct dsi_panel *panel, bool enable)
+{
+	int rc = 0;
+	struct dsi_panel_reset_config *r_config = &panel->reset_config;
+	int i;
+	struct dsi_vreg *vreg;
+	u32 pre_on_ms, post_on_ms;
+	u32 pre_off_ms, post_off_ms;
+
+	/* Find number of "panel-reset" supply-name order among qcom,panel-supply-entries */
+	for (i = 0; i < panel->power_info.count; i++) {
+		if (!strcmp((panel->power_info.vregs + i)->vreg_name, "panel_reset") ||
+				!strcmp((panel->power_info.vregs + i)->vreg_name, "lcd_rst"))
+			break;
+	}
+
+	if (i == panel->power_info.count) {
+		DSI_ERR("Could not find reset regulator name, i:%d\n", i);
+		goto exit;
+	} else {
+		DSI_INFO("name [%s] at %d(th)(0~%d) enable:%d\n",
+			(panel->power_info.vregs + i)->vreg_name, i, panel->power_info.count - 1, enable);
+	}
+
+	vreg = panel->power_info.vregs + i;
+	if (!vreg) {
+		DSI_ERR("%d(th) vregs is invalid, rc=%d\n", i, rc);
+		goto exit;
+	}
+
+	if (enable) { /* Enable RESET with sequence*/
+		pre_on_ms = vreg->pre_on_sleep;
+		post_on_ms = vreg->post_on_sleep;
+
+		if (pre_on_ms)
+			usleep_range((pre_on_ms * 1000), (pre_on_ms * 1000) + 10);
+
+		for (i = 0; i < r_config->count; i++) {
+			if (r_config->sequence[i].level) {
+				rc = regulator_enable(vreg->vreg);
+				if (rc) {
+					DSI_ERR("enable failed for %s, rc=%d\n",
+						   vreg->vreg_name, rc);
+				}
+			} else {
+				rc = regulator_disable(vreg->vreg);
+				if (rc) {
+					DSI_ERR("disable failed for %s, rc=%d\n",
+						   vreg->vreg_name, rc);
+				}
+			}
+
+			if (r_config->sequence[i].sleep_ms)
+				usleep_range(r_config->sequence[i].sleep_ms * 1000,
+					(r_config->sequence[i].sleep_ms * 1000) + 100);
+		}
+
+		if (post_on_ms) {
+			DSI_INFO("[%s] post_on_sleep: %d ms\n",
+					(panel->power_info.vregs + i)->vreg_name, vreg->post_on_sleep);
+			usleep_range((post_on_ms * 1000), (post_on_ms * 1000) + 10);
+		}
+	} else {
+		/* Disable RESET */
+		pre_off_ms = vreg->pre_off_sleep;
+		post_off_ms = vreg->post_off_sleep;
+		if (pre_off_ms)
+			usleep_range((pre_off_ms * 1000), (pre_off_ms * 1000) + 10);
+
+		rc = regulator_disable(vreg->vreg);
+		if (rc) {
+			DSI_ERR("disable failed for %s, rc=%d\n",
+				   vreg->vreg_name, rc);
+		}
+
+		if (post_off_ms) {
+			DSI_INFO("[%s] post_off_sleep: %d ms\n",
+					(panel->power_info.vregs + i)->vreg_name, vreg->post_off_sleep);
+			usleep_range((post_off_ms * 1000), (post_off_ms * 1000) + 10);
+		}
+
+		if (regulator_is_enabled(vreg->vreg))
+			DSI_INFO("%s is still enabled.\n", vreg->vreg_name);
+	}
+
+exit:
+	return rc;
+}
+
 int dsi_panel_set_pinctrl_state(struct dsi_panel *panel, bool enable)
 #else
 static int dsi_panel_set_pinctrl_state(struct dsi_panel *panel, bool enable)
@@ -402,7 +575,27 @@ static int dsi_panel_power_on(struct dsi_panel *panel)
 	}
 #endif
 
-	rc = dsi_panel_reset(panel);
+#if defined(CONFIG_DISPLAY_SAMSUNG)
+	if (gpio_is_valid(vdd->dtsi_data.samsung_tcon_rdy_gpio)) {
+		LCD_INFO(vdd, "skip panel reset while panel power on sequence\n");
+		goto exit;
+	}
+
+	/* Call reset_regulator func here
+	 * if aot_reset_regulator is true
+	 * not aot_reset_regulator_late
+	 */
+	if (vdd->aot_reset_regulator) {
+		rc = dsi_panel_reset_regulator(panel, true);
+
+		/* TSP reset on if aot_tsp_reset_regulator enabled
+		 * with aot_reset_regulator
+		 */
+		//if (vdd->aot_tsp_reset_regulator)
+			//rc = dsi_tsp_reset_regulator(panel, true);
+	} else if (!vdd->aot_reset_regulator_late)
+#endif
+		rc = dsi_panel_reset(panel);
 	if (rc) {
 		DSI_ERR("[%s] failed to reset panel, rc=%d\n", panel->name, rc);
 		goto error_disable_gpio;
@@ -447,6 +640,11 @@ static int dsi_panel_power_off(struct dsi_panel *panel)
 	}
 #endif
 
+	if (panel->is_twm_en || panel->skip_panel_off) {
+		DSI_DEBUG("TWM Enabled, skip panel power off\n");
+		return rc;
+	}
+
 	if (gpio_is_valid(panel->reset_config.disp_en_gpio))
 		gpio_set_value(panel->reset_config.disp_en_gpio, 0);
 
@@ -463,13 +661,19 @@ static int dsi_panel_power_off(struct dsi_panel *panel)
         usleep_range(vdd->dtsi_data.samsung_dsi_off_reset_delay,
                 vdd->dtsi_data.samsung_dsi_off_reset_delay);
 
-	/*
-		AOT disable on factory binary.
-	*/
-	if (!vdd->aot_enable || vdd->is_factory_mode)
+	/* Reset regulator off when aot_reset_regulator enabled */
+	if (vdd->aot_reset_regulator || vdd->aot_reset_regulator_late) {
+		rc = dsi_panel_reset_regulator(panel, false);
+		if (rc) {
+			DSI_ERR("[%s] failed to off reset regulator, rc=%d\n",
+				panel->name, rc);
+		}
+	} else if (!vdd->aot_enable || vdd->is_factory_mode) {
+		/* AOT disable on factory binary. Old aot, gpio aot*/
 		if (gpio_is_valid(panel->reset_config.reset_gpio) &&
 					!panel->reset_gpio_always_on)
 			gpio_set_value(panel->reset_config.reset_gpio, 0);
+	}
 #else
 	if (gpio_is_valid(panel->reset_config.reset_gpio) &&
 					!panel->reset_gpio_always_on)
@@ -1179,6 +1383,18 @@ static int dsi_panel_parse_pixel_format(struct dsi_host_common_cfg *host,
 	case 18:
 		fmt = DSI_PIXEL_FORMAT_RGB666;
 		break;
+	case 30:
+		/*
+		 * The destination pixel format (host->dst_format) depends
+		 * upon the compression, and should be RGB888 if the DSC is
+		 * enable.
+		 * The DSC status information is inside the timing modes, that
+		 * is parsed during first dsi_display_get_modes() call.
+		 * The dst_format will be updated there depending upon the
+		 * DSC status.
+		 */
+		fmt = DSI_PIXEL_FORMAT_RGB101010;
+		break;
 	case 24:
 	default:
 		fmt = DSI_PIXEL_FORMAT_RGB888;
@@ -1840,6 +2056,21 @@ static int dsi_panel_parse_cmd_host_config(struct dsi_cmd_engine_cfg *cfg,
 		goto error;
 	}
 
+	cfg->mdp_idle_ctrl_en =
+		utils->read_bool(utils->data, "qcom,mdss-dsi-mdp-idle-ctrl-en");
+
+	if (cfg->mdp_idle_ctrl_en) {
+		val = 0;
+		rc = utils->read_u32(utils->data, "qcom,mdss-dsi-mdp-idle-ctrl-len", &val);
+		if (rc) {
+			DSI_DEBUG("[%s] mdp idle ctrl len is not defined\n", name);
+			cfg->mdp_idle_ctrl_len = 0;
+			cfg->mdp_idle_ctrl_en = false;
+			rc = 0;
+		} else {
+			cfg->mdp_idle_ctrl_len = val;
+		}
+	}
 error:
 	return rc;
 }
@@ -2004,7 +2235,7 @@ const char *cmd_set_state_map[DSI_CMD_SET_MAX] = {
 	"qcom,mdss-dsi-qsync-off-commands-state",
 };
 
-static int dsi_panel_get_cmd_pkt_count(const char *data, u32 length, u32 *cnt)
+int dsi_panel_get_cmd_pkt_count(const char *data, u32 length, u32 *cnt)
 {
 	const u32 cmd_set_min_size = 7;
 	u32 count = 0;
@@ -2028,7 +2259,7 @@ static int dsi_panel_get_cmd_pkt_count(const char *data, u32 length, u32 *cnt)
 	return 0;
 }
 
-static int dsi_panel_create_cmd_packets(const char *data,
+int dsi_panel_create_cmd_packets(const char *data,
 					u32 length,
 					u32 count,
 					struct dsi_cmd_desc *cmd)
@@ -2077,7 +2308,7 @@ error_free_payloads:
 	return rc;
 }
 
-static void dsi_panel_destroy_cmd_packets(struct dsi_panel_cmd_set *set)
+void dsi_panel_destroy_cmd_packets(struct dsi_panel_cmd_set *set)
 {
 	u32 i = 0;
 	struct dsi_cmd_desc *cmd;
@@ -2088,12 +2319,12 @@ static void dsi_panel_destroy_cmd_packets(struct dsi_panel_cmd_set *set)
 	}
 }
 
-static void dsi_panel_dealloc_cmd_packets(struct dsi_panel_cmd_set *set)
+void dsi_panel_dealloc_cmd_packets(struct dsi_panel_cmd_set *set)
 {
 	kfree(set->cmds);
 }
 
-static int dsi_panel_alloc_cmd_packets(struct dsi_panel_cmd_set *cmd,
+int dsi_panel_alloc_cmd_packets(struct dsi_panel_cmd_set *cmd,
 					u32 packet_count)
 {
 	u32 size;
@@ -2193,7 +2424,7 @@ int __ss_dsi_panel_parse_cmd_sets(struct dsi_panel_cmd_set *cmd,
 		goto error;
 	}
 
-	DSI_DEBUG("type=%d, name=%s, length=%d\n", ss_cmd_type,
+	DSI_INFO("type=%d, name=%s, length=%d\n", ss_cmd_type,
 		ss_cmd_set_prop[ss_cmd_type], length);
 
 #if !defined(CONFIG_DISPLAY_SAMSUNG) /* prevent log flood */
@@ -2395,6 +2626,9 @@ static int dsi_panel_parse_misc_features(struct dsi_panel *panel)
 	panel->reset_gpio_always_on = utils->read_bool(utils->data,
 			"qcom,platform-reset-gpio-always-on");
 
+	panel->skip_panel_off = utils->read_bool(utils->data,
+			"qcom,skip-panel-power-off");
+
 	panel->spr_info.enable = false;
 	panel->spr_info.pack_type = MSM_DISPLAY_SPR_TYPE_MAX;
 
@@ -2465,12 +2699,16 @@ static int dsi_panel_parse_jitter_config(
 	return 0;
 }
 
+#if defined(CONFIG_DISPLAY_SAMSUNG)
+bool pba_regulator_control_ss;
+#endif
 static int dsi_panel_parse_power_cfg(struct dsi_panel *panel)
 {
 	int rc = 0;
 	char *supply_name;
 #if defined(CONFIG_DISPLAY_SAMSUNG)
 	struct samsung_display_driver_data *vdd;
+	struct dsi_parser_utils *utils = &panel->utils;
 #endif
 
 	if (panel->host_config.ext_bridge_mode)
@@ -2479,11 +2717,16 @@ static int dsi_panel_parse_power_cfg(struct dsi_panel *panel)
 #if defined(CONFIG_DISPLAY_SAMSUNG)
 	vdd = panel->panel_private;
 
+	if (!strcmp(panel->type, "primary")) {
+		pba_regulator_control_ss = utils->read_bool(utils->data,
+				"qcom,mdss-dsi-pba-regulator_ss");
+	}
+
 	/* In this point, vdd->panel_attach_status has invalid data.
 	 * So, use panel name to verify PBA booting,
 	 * intead of ss_panel_attach_get().
 	 */
-	if (!strcmp(panel->name, "ss_dsi_panel_PBA_BOOTING_FHD") ||
+	if ((!strcmp(panel->name, "ss_dsi_panel_PBA_BOOTING_FHD") && !pba_regulator_control_ss) ||
 			!strcmp(panel->name, "ss_dsi_panel_PBA_BOOTING_FHD_DSI1")) {
 		LCD_INFO(vdd, "PBA booting, skip to parse vreg\n");
 		goto error;
@@ -2512,63 +2755,19 @@ int dsi_panel_get_io_resources(struct dsi_panel *panel,
 	struct list_head temp_head;
 	struct msm_io_mem_entry *io_mem, *pos, *tmp;
 	struct list_head *mem_list = &io_res->mem;
-	int i, rc = 0, address_count, pin_count;
-	u32 *pins = NULL, *address = NULL;
-	u32 base, size;
-	struct dsi_parser_utils *utils = &panel->utils;
+	int i, rc = 0;
 
 	INIT_LIST_HEAD(&temp_head);
 
-	address_count = utils->count_u32_elems(utils->data,
-				"qcom,dsi-panel-gpio-address");
-	if (address_count != 2) {
-		DSI_DEBUG("panel gpio address not defined\n");
-		return 0;
-	}
-
-	address =  kzalloc(sizeof(u32) * address_count, GFP_KERNEL);
-	if (!address)
-		return -ENOMEM;
-
-	rc = utils->read_u32_array(utils->data, "qcom,dsi-panel-gpio-address",
-				address, address_count);
-	if (rc) {
-		DSI_ERR("panel gpio address not defined correctly\n");
-		goto end;
-	}
-	base = address[0];
-	size = address[1];
-
-	pin_count = utils->count_u32_elems(utils->data,
-				"qcom,dsi-panel-gpio-pins");
-	if (pin_count < 0) {
-		DSI_ERR("panel gpio pins not defined\n");
-		rc = pin_count;
-		goto end;
-	}
-
-	pins =  kzalloc(sizeof(u32) * pin_count, GFP_KERNEL);
-	if (!pins) {
-		rc = -ENOMEM;
-		goto end;
-	}
-
-	rc = utils->read_u32_array(utils->data, "qcom,dsi-panel-gpio-pins",
-				pins, pin_count);
-	if (rc) {
-		DSI_ERR("panel gpio pins not defined correctly\n");
-		goto end;
-	}
-
-	for (i = 0; i < pin_count; i++) {
+	for (i = 0; i < panel->tlmm_gpio_count; i++) {
 		io_mem = kzalloc(sizeof(*io_mem), GFP_KERNEL);
 		if (!io_mem) {
 			rc = -ENOMEM;
 			goto parse_fail;
 		}
 
-		io_mem->base = base + (pins[i] * size);
-		io_mem->size = size;
+		io_mem->base = panel->tlmm_gpio[i].addr;
+		io_mem->size = panel->tlmm_gpio[i].size;
 
 		list_add(&io_mem->list, &temp_head);
 	}
@@ -2582,8 +2781,6 @@ parse_fail:
 		kzfree(pos);
 	}
 end:
-	kzfree(pins);
-	kzfree(address);
 	return rc;
 }
 
@@ -2672,6 +2869,54 @@ static int dsi_panel_parse_gpios(struct dsi_panel *panel)
 
 error:
 	return rc;
+}
+
+static int dsi_panel_parse_tlmm_gpio(struct dsi_panel *panel)
+{
+	struct dsi_parser_utils *utils = &panel->utils;
+	u32 base, size, pin;
+	int pin_count, address_count, name_count, i;
+
+	address_count = of_property_count_u32_elems(utils->data,
+				"qcom,dsi-panel-gpio-address");
+	if (address_count != 2) {
+		DSI_DEBUG("panel gpio address not defined\n");
+		return 0;
+	}
+
+	of_property_read_u32_index(utils->data,
+			"qcom,dsi-panel-gpio-address", 0, &base);
+	of_property_read_u32_index(utils->data,
+			"qcom,dsi-panel-gpio-address", 1, &size);
+
+	pin_count = of_property_count_u32_elems(utils->data,
+				"qcom,dsi-panel-gpio-pins");
+	name_count = of_property_count_strings(utils->data,
+				"qcom,dsi-panel-gpio-names");
+	if ((pin_count < 0) || (name_count < 0) || (pin_count != name_count)) {
+		DSI_ERR("invalid gpio pins/names\n");
+		return -EINVAL;
+	}
+
+	panel->tlmm_gpio = kcalloc(pin_count,
+				sizeof(struct dsi_tlmm_gpio), GFP_KERNEL);
+	if (!panel->tlmm_gpio)
+		return -ENOMEM;
+
+	panel->tlmm_gpio_count = pin_count;
+	for (i = 0; i < pin_count; i++) {
+		of_property_read_u32_index(utils->data,
+				"qcom,dsi-panel-gpio-pins", i, &pin);
+		panel->tlmm_gpio[i].num = pin;
+		panel->tlmm_gpio[i].addr = base + (pin * size);
+		panel->tlmm_gpio[i].size = size;
+
+		of_property_read_string_index(utils->data,
+				"qcom,dsi-panel-gpio-names", i,
+				&(panel->tlmm_gpio[i].name));
+	}
+
+	return 0;
 }
 
 static int dsi_panel_parse_bl_pwm_config(struct dsi_panel *panel)
@@ -3721,7 +3966,7 @@ static int dsi_panel_parse_esd_config(struct dsi_panel *panel)
 #if defined(CONFIG_DISPLAY_SAMSUNG)
 		} else if (!strcmp(string, "irq_check")) {
 			esd_config->status_mode = ESD_MODE_PANEL_IRQ;
-			DSI_ERR("ESD_MODE_PANEL_IRQ \n");
+			DSI_ERR("%s : irq_check!!\n", __func__);
 #endif
 		} else if (!strcmp(string, "te_signal_check")) {
 			if (panel->panel_mode == DSI_OP_CMD_MODE) {
@@ -3821,6 +4066,7 @@ static void dsi_panel_setup_vm_ops(struct dsi_panel *panel, bool trusted_vm_env)
 		panel->panel_ops.bl_register = dsi_panel_vm_stub;
 		panel->panel_ops.bl_unregister = dsi_panel_vm_stub;
 		panel->panel_ops.parse_gpios = dsi_panel_vm_stub;
+		panel->panel_ops.parse_power_cfg = dsi_panel_vm_stub;
 	} else {
 		panel->panel_ops.pinctrl_init = dsi_panel_pinctrl_init;
 		panel->panel_ops.gpio_request = dsi_panel_gpio_request;
@@ -3829,6 +4075,7 @@ static void dsi_panel_setup_vm_ops(struct dsi_panel *panel, bool trusted_vm_env)
 		panel->panel_ops.bl_register = dsi_panel_bl_register;
 		panel->panel_ops.bl_unregister = dsi_panel_bl_unregister;
 		panel->panel_ops.parse_gpios = dsi_panel_parse_gpios;
+		panel->panel_ops.parse_power_cfg = dsi_panel_parse_power_cfg;
 	}
 }
 
@@ -3920,7 +4167,13 @@ struct dsi_panel *dsi_panel_get(struct device *parent,
 		goto error;
 	}
 
-	rc = dsi_panel_parse_power_cfg(panel);
+	rc = dsi_panel_parse_tlmm_gpio(panel);
+	if (rc) {
+		DSI_ERR("failed to parse panel tlmm gpios, rc=%d\n", rc);
+		goto error;
+	}
+
+	rc = panel->panel_ops.parse_power_cfg(panel);
 	if (rc)
 		DSI_ERR("failed to parse power config, rc=%d\n", rc);
 
@@ -3952,6 +4205,15 @@ struct dsi_panel *dsi_panel_get(struct device *parent,
 	rc = dsi_panel_parse_esd_config(panel);
 	if (rc)
 		DSI_DEBUG("failed to parse esd config, rc=%d\n", rc);
+
+#if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
+	rc = ss_dsi_panel_vreg_check(panel);
+	if (rc) {
+		DSI_ERR("[%s] failed to check panel regulators, rc=%d\n",
+			   panel->name, rc);
+		goto error;
+	}
+#endif
 
 	rc = dsi_panel_vreg_get(panel);
 	if (rc) {
@@ -4082,6 +4344,7 @@ int dsi_panel_drv_deinit(struct dsi_panel *panel)
 	if (rc)
 		DSI_ERR("[%s] failed to put regs, rc=%d\n", panel->name, rc);
 
+	kfree(panel->tlmm_gpio);
 	panel->host = NULL;
 	memset(&panel->mipi_device, 0x0, sizeof(panel->mipi_device));
 
@@ -4277,13 +4540,18 @@ void dsi_panel_calc_dsi_transfer_time(struct dsi_host_common_cfg *config,
 	struct dsi_mode_info *timing = &mode->timing;
 	struct dsi_display_mode *display_mode;
 	u32 jitter_numer, jitter_denom, prefill_lines;
-	u32 min_threshold_us, prefill_time_us, max_transfer_us;
+	u32 min_threshold_us, prefill_time_us, max_transfer_us, packet_overhead;
 	u16 bpp;
 
-	/* Packet overlead in bits,2 bytes header + 2 bytes checksum
-	 * + 1 byte dcs data command.
+	/* Packet overhead in bits,
+	 * DPHY: 4 bytes header + 2 bytes checksum + 1 byte dcs data command.
+	 * CPHY: 8 bytes header + 4 bytes checksum + 2 bytes SYNC +
+	 * 1 byte dcs data command.
 	*/
-	const u32 packet_overhead = 56;
+	if (config->phy_type & DSI_PHY_TYPE_CPHY)
+		packet_overhead = 120;
+	else
+		packet_overhead = 56;
 
 	display_mode = container_of(timing, struct dsi_display_mode, timing);
 
@@ -4500,7 +4768,7 @@ int dsi_panel_get_mode(struct dsi_panel *panel,
 #if defined(CONFIG_DISPLAY_SAMSUNG)
 	vdd = panel->panel_private;
 	vdd->num_of_intf = mode->priv_info->topology.num_intf;
-	LCD_INFO_ONCE(vdd, "vdd->num_of_intf = %d\n", vdd->num_of_intf);
+	LCD_INFO_ONCE(vdd, "[DISPLAY_%d] vdd->num_of_intf = %d\n", vdd->ndx, vdd->num_of_intf);
 #endif
 
 	goto done;
@@ -4601,7 +4869,6 @@ int dsi_panel_update_pps(struct dsi_panel *panel)
 	int rc = 0;
 	struct dsi_panel_cmd_set *set = NULL;
 	struct dsi_display_mode_priv_info *priv_info = NULL;
-
 #if defined(CONFIG_DISPLAY_SAMSUNG)
 	/* Do not use QC PPS -> add PPS cmds in on_seq */
 	return 0;
@@ -4731,6 +4998,11 @@ int dsi_panel_set_nolp(struct dsi_panel *panel)
 		return -EINVAL;
 	}
 
+	if (panel->is_twm_en) {
+		DSI_DEBUG("TWM Enabled, skip idle off\n");
+		return rc;
+	}
+
 #if defined(CONFIG_DISPLAY_SAMSUNG)
 	ss_set_exclusive_tx_lock_from_qct(panel->panel_private, true);
 #endif
@@ -4851,6 +5123,31 @@ void force_sustain_lp11_for_sleep(void)
 			vdd->lp11_sleep_ms_time);
 	}
 }
+
+/* To turn off reset before LP11->LP00 while power off sequence
+ * With aot_reset_regulator(_late).
+ */
+void check_aot_reset_early_off(void)
+{
+	struct samsung_display_driver_data *vdd = ss_get_vdd(PRIMARY_DISPLAY_NDX);
+	int rc = 0;
+
+	/* Reset regulator off when aot_reset_regulator(_late) enabled */
+	if (vdd && vdd->aot_reset_early_off) {
+		struct dsi_panel *panel =  GET_DSI_PANEL(vdd);
+
+		rc = dsi_panel_reset_regulator(panel, false);
+		if (rc) {
+			DSI_ERR("[%s] failed to off reset regulator, rc=%d\n",
+				panel->name, rc);
+		}
+
+		/* TSP reset off need here
+		 * Only if aot_tsp_reset_regulator && aot_reset_early_off enabled
+		 */
+	}
+}
+
 #endif
 
 int dsi_panel_prepare(struct dsi_panel *panel)
@@ -4881,6 +5178,17 @@ int dsi_panel_prepare(struct dsi_panel *panel)
 			goto error;
 		}
 	}
+
+
+#if defined(CONFIG_DISPLAY_SAMSUNG)
+	/* Call reset_regulator func here
+	 * if aot_reset_regulator_late is true
+	 * not pure aot_reset_regulator
+	 */
+	if (vdd->aot_reset_regulator_late) {
+		dsi_panel_reset_regulator(panel, true);
+	}
+#endif
 
 	rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_PRE_ON);
 	if (rc) {
@@ -5301,10 +5609,18 @@ int dsi_panel_enable(struct dsi_panel *panel)
 
 	/* sleep out command is included in DSI_CMD_SET_ON */
 	vdd->sleep_out_time = ktime_get();
-	LCD_INFO(vdd, "tx on_cmd +\n");
-#endif
 
+	/* skip cmds during splash booting : from 7225, 6225 for video panel */
+	if (vdd->skip_cmd_set_on_splash_enabled && vdd->samsung_splash_enabled) {
+		LCD_INFO(vdd, "skip send DSI_CMD_SET_ON during splash booting\n");
+		rc = 0;
+	} else {
+		LCD_INFO(vdd, "tx on_cmd +\n");
+		rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_ON);
+	}
+#else
 	rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_ON);
+#endif
 	if (rc)
 		DSI_ERR("[%s] failed to send DSI_CMD_SET_ON cmds, rc=%d\n",
 		       panel->name, rc);
@@ -5399,6 +5715,11 @@ int dsi_panel_disable(struct dsi_panel *panel)
 		return -EINVAL;
 	}
 
+	if (panel->is_twm_en) {
+		DSI_DEBUG("TWM Enabled, skip panel disable\n");
+		return rc;
+	}
+
 #if defined(CONFIG_DISPLAY_SAMSUNG)
 	vdd = panel->panel_private;
 
@@ -5409,8 +5730,8 @@ int dsi_panel_disable(struct dsi_panel *panel)
 
 #if defined(CONFIG_DISPLAY_SAMSUNG)
    if (!ss_panel_attach_get(panel->panel_private)) {
-		LCD_INFO(vdd, "PBA booting, skip to disable panel\n");
-		goto skip_cmd_tx;
+		   LCD_INFO(vdd, "PBA booting, skip to disable panel\n");
+		   goto skip_cmd_tx;
    }
 #endif
 

@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2014-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2014-2021, The Linux Foundation. All rights reserved.
+ *
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 /*
@@ -89,6 +91,10 @@ static DECLARE_DELAYED_WORK(ipa_tether_stats_poll_wakequeue_work,
 
 static int rmnet_ipa_send_coalesce_notification(uint8_t qmap_id, bool enable,
 					bool tcp, bool udp);
+
+static int rmnet_ipa_send_set_mtu_notification(char *if_name,
+					uint16_t mtu_v4, uint16_t mtu_v6, enum ipa_ip_type ip);
+
 
 enum ipa3_wwan_device_status {
 	WWAN_DEVICE_INACTIVE = 0,
@@ -1200,6 +1206,11 @@ static netdev_tx_t ipa3_wwan_xmit(struct sk_buff *skb, struct net_device *dev)
 		return NETDEV_TX_OK;
 	}
 
+	if (unlikely(skb == NULL)) {
+		IPAWANERR_RL("unexpected NULL data\n");
+		return NETDEV_TX_BUSY;
+	}
+
 	if (skb->protocol != htons(ETH_P_MAP)) {
 		IPAWANDBG_LOW
 		("SW filtering out none QMAP packet received from %s",
@@ -1393,9 +1404,10 @@ static void apps_ipa_packet_receive_notify(void *priv,
 		skb->dev = IPA_NETDEV();
 		skb->protocol = htons(ETH_P_MAP);
 		skb_set_mac_header(skb, 0);
+		skb_reset_network_header(skb);
 
 		if (ipa3_rmnet_res.ipa_napi_enable) {
-			trace_rmnet_ipa_netif_rcv_skb3(dev->stats.rx_packets);
+			trace_rmnet_ipa_netif_rcv_skb3(skb, dev->stats.rx_packets);
 			result = netif_receive_skb(skb);
 		} else {
 			if (dev->stats.rx_packets % IPA_WWAN_RX_SOFTIRQ_THRESH
@@ -1567,13 +1579,14 @@ static int handle3_ingress_format(struct net_device *dev,
 	}
 	IPAWANDBG("ingress WAN pipe setup successfully\n");
 
-	ret = ipa3_setup_apps_low_lat_cons_pipe();
-	if (ret)
-		goto low_lat_fail;
+	if (ipa3_ctx->rmnet_ctl_enable) {
+		ret = ipa3_setup_apps_low_lat_cons_pipe();
+		if (ret)
+			goto low_lat_fail;
 
-	ingress_eps_mask |= IPA_AP_INGRESS_EP_LOW_LAT;
-
-	IPAWANDBG("ingress low latency pipe setup successfully\n");
+		ingress_eps_mask |= IPA_AP_INGRESS_EP_LOW_LAT;
+		IPAWANDBG("ingress low latency pipe setup successfully\n");
+	}
 
 low_lat_fail:
 	mutex_unlock(&rmnet_ipa3_ctx->pipe_handle_guard);
@@ -1694,13 +1707,15 @@ static int handle3_egress_format(struct net_device *dev,
 		return rc;
 	}
 	IPAWANDBG("engress WAN pipe setup successfully\n");
-	rc = ipa3_setup_apps_low_lat_prod_pipe();
-	if (rc) {
-		IPAWANERR("failed to setup egress low lat endpoint\n");
-		mutex_unlock(&rmnet_ipa3_ctx->pipe_handle_guard);
-		goto low_lat_fail;
+	if (ipa3_ctx->rmnet_ctl_enable) {
+		rc = ipa3_setup_apps_low_lat_prod_pipe();
+		if (rc) {
+			IPAWANERR("failed to setup egress low lat endpoint\n");
+			mutex_unlock(&rmnet_ipa3_ctx->pipe_handle_guard);
+			goto low_lat_fail;
+		}
+		IPAWANDBG("engress low lat pipe setup successfully\n");
 	}
-	IPAWANDBG("engress low lat pipe setup successfully\n");
 	mutex_unlock(&rmnet_ipa3_ctx->pipe_handle_guard);
 
 low_lat_fail:
@@ -1756,6 +1771,8 @@ static int ipa3_wwan_ioctl(struct net_device *dev, struct ifreq *ifr, int cmd)
 	struct mutex *mux_mutex_ptr;
 	int wan_ep;
 	bool tcp_en = false, udp_en = false;
+	bool mtu_v4_set = false, mtu_v6_set = false;
+	enum ipa_ip_type iptype;
 
 	IPAWANDBG("rmnet_ipa got ioctl number 0x%08x", cmd);
 	switch (cmd) {
@@ -2086,6 +2103,70 @@ static int ipa3_wwan_ioctl(struct net_device *dev, struct ifreq *ifr, int cmd)
 			}
 			mutex_unlock(&rmnet_ipa3_ctx->clock_vote.mutex);
 			break;
+		/* Get MTU */
+		case RMNET_IOCTL_GET_MTU:
+			mux_channel = rmnet_ipa3_ctx->mux_channel;
+			ext_ioctl_data.u.mtu_params.if_name
+				[IFNAMSIZ-1] = '\0';
+			rmnet_index =
+				find_vchannel_name_index(ext_ioctl_data.u.mtu_params.if_name);
+
+			if (rmnet_index == MAX_NUM_OF_MUX_CHANNEL) {
+				IPAWANERR("%s is an invalid iface name\n",
+					ext_ioctl_data.u.mtu_params.if_name);
+				return -ENODEV;
+			}
+
+			IPAWANDBG("getting v4 MTU = %d\n", mux_channel[rmnet_index].mtu_v4);
+			ext_ioctl_data.u.mtu_params.mtu_v4 =
+				mux_channel[rmnet_index].mtu_v4;
+
+			IPAWANDBG("getting v6 MTU = %d\n", mux_channel[rmnet_index].mtu_v6);
+			ext_ioctl_data.u.mtu_params.mtu_v6 =
+				mux_channel[rmnet_index].mtu_v6;
+			break;
+		/* Set MTU */
+		case RMNET_IOCTL_SET_MTU:
+			mux_channel = rmnet_ipa3_ctx->mux_channel;
+			ext_ioctl_data.u.mtu_params.if_name
+				[IFNAMSIZ-1] = '\0';
+			rmnet_index =
+				find_vchannel_name_index(ext_ioctl_data.u.mtu_params.if_name);
+
+			if (rmnet_index == MAX_NUM_OF_MUX_CHANNEL) {
+				IPAWANERR("%s is an invalid iface name\n",
+					ext_ioctl_data.u.mtu_params.if_name);
+				return -ENODEV;
+			}
+
+			/* V4 case */
+			if (ext_ioctl_data.u.mtu_params.mtu_v4 > 0) {
+				mux_channel[rmnet_index].mtu_v4 =
+					ext_ioctl_data.u.mtu_params.mtu_v4;
+				mtu_v4_set = true;
+				IPAWANDBG("Set v4 MTU = %d\n", mux_channel[rmnet_index].mtu_v4);
+				iptype = IPA_IP_v4;
+			}
+			/* V6 case */
+			if (ext_ioctl_data.u.mtu_params.mtu_v6 > 0) {
+				mux_channel[rmnet_index].mtu_v6 =
+					ext_ioctl_data.u.mtu_params.mtu_v6;
+				mtu_v6_set = true;
+				IPAWANDBG("Set v6 MTU = %d\n", mux_channel[rmnet_index].mtu_v6);
+				iptype = IPA_IP_v6;
+			}
+
+			if (mtu_v4_set && mtu_v6_set)
+				iptype = IPA_IP_MAX;
+
+			if (mtu_v4_set || mtu_v6_set)
+				rc = rmnet_ipa_send_set_mtu_notification(
+						ext_ioctl_data.u.mtu_params.if_name,
+						mux_channel[rmnet_index].mtu_v4,
+						mux_channel[rmnet_index].mtu_v6,
+						iptype);
+
+			break;
 		default:
 			IPAWANERR("[%s] unsupported extended cmd[%d]",
 				dev->name,
@@ -2162,13 +2243,11 @@ static int rmnet_ipa_send_coalesce_notification(uint8_t qmap_id,
 	coalesce_info->qmap_id = qmap_id;
 	coalesce_info->tcp_enable = tcp;
 	coalesce_info->udp_enable = udp;
-	if (enable) {
+	msg_meta.msg_len = sizeof(struct ipa_coalesce_info);
+	if (enable)
 		msg_meta.msg_type = IPA_COALESCE_ENABLE;
-		msg_meta.msg_len = sizeof(struct ipa_coalesce_info);
-	} else {
+	else
 		msg_meta.msg_type = IPA_COALESCE_DISABLE;
-		msg_meta.msg_len = sizeof(struct ipa_coalesce_info);
-	}
 	rc = ipa_send_msg(&msg_meta, coalesce_info, ipa3_wwan_msg_free_cb);
 	if (rc) {
 		IPAWANERR("ipa_send_msg failed: %d\n", rc);
@@ -2176,6 +2255,37 @@ static int rmnet_ipa_send_coalesce_notification(uint8_t qmap_id,
 	}
 	IPAWANDBG("qmap-id(%d),enable(%d),tcp(%d),udp(%d)\n",
 		qmap_id, enable, tcp, udp);
+	return 0;
+}
+
+static int rmnet_ipa_send_set_mtu_notification(char *if_name,
+		uint16_t mtu_v4, uint16_t mtu_v6, enum ipa_ip_type ip)
+{
+	struct ipa_msg_meta msg_meta;
+	struct ipa_mtu_info *mtu_info;
+	int rc;
+
+	memset(&msg_meta, 0, sizeof(struct ipa_msg_meta));
+	mtu_info = kzalloc(sizeof(*mtu_info), GFP_KERNEL);
+	if (!mtu_info)
+		return -ENOMEM;
+
+	strlcpy(mtu_info->if_name, if_name, IPA_RESOURCE_NAME_MAX);
+	mtu_info->mtu_v4 = mtu_v4;
+	mtu_info->mtu_v6 = mtu_v6;
+	mtu_info->ip_type = ip;
+	msg_meta.msg_type = IPA_SET_MTU;
+	msg_meta.msg_len = sizeof(struct ipa_mtu_info);
+
+	rc = ipa_send_msg(&msg_meta, mtu_info, ipa3_wwan_msg_free_cb);
+	if (rc) {
+		IPAWANERR("ipa_send_msg failed: %d\n", rc);
+		return -EFAULT;
+	}
+	IPAWANDBG(
+		"sent new mtu_v4(%d)/mtu_v6(%d) with iptype(%d) for iface(%s) to IPACM",
+		mtu_v4, mtu_v6, ip, if_name);
+
 	return 0;
 }
 
@@ -2654,9 +2764,11 @@ static int ipa3_wwan_remove(struct platform_device *pdev)
 
 	IPAWANINFO("rmnet_ipa started deinitialization\n");
 	mutex_lock(&rmnet_ipa3_ctx->pipe_handle_guard);
-	ret = ipa3_teardown_apps_low_lat_pipes();
-	if (ret < 0)
-		IPAWANERR("Failed to teardown IPA->APPS qmap pipe\n");
+	if (ipa3_ctx->rmnet_ctl_enable) {
+		ret = ipa3_teardown_apps_low_lat_pipes();
+		if (ret < 0)
+			IPAWANERR("Failed to teardown IPA->APPS qmap pipe\n");
+	}
 	ret = ipa3_teardown_sys_pipe(rmnet_ipa3_ctx->ipa3_to_apps_hdl);
 	if (ret < 0)
 		IPAWANERR("Failed to teardown IPA->APPS pipe\n");
@@ -2668,8 +2780,9 @@ static int ipa3_wwan_remove(struct platform_device *pdev)
 	else
 		rmnet_ipa3_ctx->apps_to_ipa3_hdl = -1;
 	mutex_unlock(&rmnet_ipa3_ctx->pipe_handle_guard);
-	IPAWANINFO("rmnet_ipa unregister_netdev\n");
+	IPAWANDBG("rmnet_ipa unregister_netdev started\n");
 	unregister_netdev(IPA_NETDEV());
+	IPAWANDBG("rmnet_ipa unregister_netdev completed\n");
 	ipa3_wwan_deregister_netdev_pm_client();
 	cancel_work_sync(&ipa3_tx_wakequeue_work);
 	cancel_delayed_work(&ipa_tether_stats_poll_wakequeue_work);
@@ -2855,14 +2968,18 @@ static int ipa3_lcl_mdm_ssr_notifier_cb(struct notifier_block *this,
 	}
 
 	switch (code) {
+#if IS_ENABLED(CONFIG_DEEPSLEEP)
+	case SUBSYS_BEFORE_DS_ENTRY:
+#endif
 	case SUBSYS_BEFORE_SHUTDOWN:
 		IPAWANINFO("IPA received MPSS BEFORE_SHUTDOWN\n");
+		/*Stop netdev first to stop queueing pkts to Q6 */
+		if (IPA_NETDEV())
+			netif_stop_queue(IPA_NETDEV());
 		/* send SSR before-shutdown notification to IPACM */
 		rmnet_ipa_send_ssr_notification(false);
 		atomic_set(&rmnet_ipa3_ctx->is_ssr, 1);
 		ipa3_q6_pre_shutdown_cleanup();
-		if (IPA_NETDEV())
-			netif_stop_queue(IPA_NETDEV());
 		ipa3_qmi_stop_workqueues();
 		ipa3_wan_ioctl_stop_qmi_messages();
 		ipa_stop_polling_stats();
@@ -2875,6 +2992,16 @@ static int ipa3_lcl_mdm_ssr_notifier_cb(struct notifier_block *this,
 		ipa3_odl_pipe_cleanup(true);
 		IPAWANINFO("IPA BEFORE_SHUTDOWN handling is complete\n");
 		break;
+#if IS_ENABLED(CONFIG_DEEPSLEEP)
+	case SUBSYS_AFTER_DS_ENTRY:
+		IPAWANINFO("IPA Received AFTER DEEPSLEEP ENTRY\n");
+		if (atomic_read(&rmnet_ipa3_ctx->is_ssr) &&
+				ipa3_ctx_get_type(IPA_HW_TYPE) < IPA_HW_v4_0)
+			ipa3_q6_post_shutdown_cleanup();
+
+		IPAWANINFO("AFTER DEEPSLEEP ENTRY handling is complete\n");
+		break;
+#endif
 	case SUBSYS_AFTER_SHUTDOWN:
 		IPAWANINFO("IPA Received MPSS AFTER_SHUTDOWN\n");
 		if (atomic_read(&rmnet_ipa3_ctx->is_ssr) &&
@@ -2886,6 +3013,20 @@ static int ipa3_lcl_mdm_ssr_notifier_cb(struct notifier_block *this,
 
 		IPAWANINFO("IPA AFTER_SHUTDOWN handling is complete\n");
 		break;
+#if IS_ENABLED(CONFIG_DEEPSLEEP)
+	case SUBSYS_BEFORE_DS_EXIT:
+		IPAWANINFO("IPA received BEFORE DEEPSLEEP EXIT\n");
+		if (atomic_read(&rmnet_ipa3_ctx->is_ssr)) {
+			/* clean up cached QMI msg/handlers */
+			ipa3_qmi_service_exit();
+			ipa3_q6_pre_powerup_cleanup();
+		}
+		/* hold a proxy vote for the modem. */
+		ipa3_proxy_clk_vote(atomic_read(&rmnet_ipa3_ctx->is_ssr));
+		ipa3_reset_freeze_vote();
+		IPAWANINFO("BEFORE DEEPSLEEP EXIT handling is complete\n");
+		break;
+#endif
 	case SUBSYS_BEFORE_POWERUP:
 		IPAWANINFO("IPA received MPSS BEFORE_POWERUP\n");
 		if (atomic_read(&rmnet_ipa3_ctx->is_ssr)) {
@@ -2898,6 +3039,9 @@ static int ipa3_lcl_mdm_ssr_notifier_cb(struct notifier_block *this,
 		ipa3_reset_freeze_vote();
 		IPAWANINFO("IPA BEFORE_POWERUP handling is complete\n");
 		break;
+#if IS_ENABLED(CONFIG_DEEPSLEEP)
+	case SUBSYS_AFTER_DS_EXIT:
+#endif
 	case SUBSYS_AFTER_POWERUP:
 		IPAWANINFO("IPA received MPSS AFTER_POWERUP\n");
 		if (!atomic_read(&rmnet_ipa3_ctx->is_initialized) &&
@@ -3187,8 +3331,9 @@ static int rmnet_ipa3_set_data_quota_wifi(struct wan_ioctl_set_data_quota *data)
 	IPAWANDBG("iface name %s, quota %lu\n",
 		  data->interface_name, (unsigned long) data->quota_mbytes);
 
-	if (ipa3_ctx_get_type(IPA_HW_TYPE) >= IPA_HW_v4_5 &&
-		ipa3_ctx_get_type(IPA_HW_TYPE) != IPA_HW_v4_11) {
+	if ((ipa3_ctx_get_type(IPA_HW_TYPE) >= IPA_HW_v4_5 &&
+		ipa3_ctx_get_type(IPA_HW_TYPE) != IPA_HW_v4_11) ||
+		ipa3_ctx->is_bw_monitor_supported) {
 		IPADBG("use ipa-uc for quota\n");
 		rc = ipa3_uc_quota_monitor(data->set_quota);
 	} else {
@@ -3268,8 +3413,7 @@ int rmnet_ipa3_set_tether_client_pipe(
 		return -EFAULT;
 	}
 	/* error checking if dl_dst_pipe_len valid or not*/
-	if (data->dl_dst_pipe_len > QMI_IPA_MAX_PIPES_V01 ||
-		data->dl_dst_pipe_len < 0) {
+	if (data->dl_dst_pipe_len > QMI_IPA_MAX_PIPES_V01) {
 		IPAWANERR("DL dst pipes %d exceeding max %d\n",
 			data->dl_dst_pipe_len,
 			QMI_IPA_MAX_PIPES_V01);
@@ -4060,7 +4204,8 @@ int rmnet_ipa3_query_tethering_stats_all(
 	} else if (upstream_type == IPA_UPSTEAM_WLAN) {
 		IPAWANDBG_LOW(" query wifi-backhaul stats\n");
 		if (ipa3_ctx_get_type(IPA_HW_TYPE) < IPA_HW_v4_5 ||
-			!ipa3_ctx_get_flag(IPA_HW_STATS_EN)) {
+			!ipa3_ctx_get_flag(IPA_HW_STATS_EN) ||
+			ipa3_ctx->fnr_stats_not_supported) {
 			IPAWANDBG("hw version %d,hw_stats.enabled %d\n",
 				ipa3_ctx_get_type(IPA_HW_TYPE),
 				ipa3_ctx_get_flag(IPA_HW_STATS_EN));
@@ -4172,6 +4317,10 @@ void ipa3_broadcast_quota_reach_ind(u32 mux_id,
 	/* check upstream_type*/
 	if (upstream_type == IPA_UPSTEAM_MAX) {
 		IPAWANERR(" Wrong upstreamIface type %d\n", upstream_type);
+		return;
+	} else if (upstream_type == IPA_UPSTEAM_WLAN) {
+		/* TODO: Fix this case when adding quota on WLAN Backhaul*/
+		IPAWANERR_RL("Quota indication is not supported for WLAN\n");
 		return;
 	} else if (upstream_type == IPA_UPSTEAM_MODEM) {
 		index = ipa3_find_mux_channel_index(mux_id);
@@ -4784,19 +4933,136 @@ int rmnet_ipa3_query_per_client_stats(
 	return 0;
 }
 
+/* rmnet_ipa3_get_wan_mtu() -
+ * @data - IOCTL data
+ *
+ * This function handles WAN_IOC_GET_WAN_MTU.
+ * It is used to send WAN MTU information to IPACM.
+ *
+ * Return codes:
+ * 0: Success
+ * -EINVAL: Invalid args provided
+ */
+int rmnet_ipa3_get_wan_mtu(
+	struct ipa_mtu_info *data)
+{
+	struct ipa3_rmnet_mux_val *mux_channel;
+	int rmnet_index;
+
+	mux_channel = rmnet_ipa3_ctx->mux_channel;
+	rmnet_index =
+		find_vchannel_name_index(data->if_name);
+
+	if (rmnet_index == MAX_NUM_OF_MUX_CHANNEL) {
+		IPAWANERR("%s is an invalid iface name\n",
+			data->if_name);
+		return -ENODEV;
+	}
+
+	IPAWANDBG("getting v4 MTU = %d\n", mux_channel[rmnet_index].mtu_v4);
+	data->mtu_v4 =
+		mux_channel[rmnet_index].mtu_v4;
+
+	IPAWANDBG("getting v6 MTU = %d\n", mux_channel[rmnet_index].mtu_v6);
+	data->mtu_v6 =
+		mux_channel[rmnet_index].mtu_v6;
+
+	return 0;
+}
 
 
 #ifdef CONFIG_DEBUG_FS
+static char dbg_buff[4096];
+
+static ssize_t rmnet_ipa_set_mtu(struct file *file,
+		const char __user *buf, size_t count, loff_t *ppos)
+{
+	__s8    if_name[IFNAMSIZ];
+	uint16_t mtu_v4 = 0, mtu_v6 = 0;
+	unsigned long missing;
+	char *sptr, *token;
+
+	if (count >= sizeof(dbg_buff))
+		return -EFAULT;
+
+	missing = copy_from_user(dbg_buff, buf, count);
+	if (missing)
+		return -EFAULT;
+
+	dbg_buff[count] = '\0';
+
+	sptr = dbg_buff;
+
+	memset(if_name, 0, IFNAMSIZ);
+	token = strsep(&sptr, " ");
+	if (!token)
+		return -EINVAL;
+	strlcpy(if_name, token, IFNAMSIZ);
+
+	token = strsep(&sptr, " ");
+	if (!token)
+		return -EINVAL;
+	if (kstrtou16(token, 0, &mtu_v4))
+		return -EINVAL;
+
+	token = strsep(&sptr, " ");
+	if (!token)
+		return -EINVAL;
+	if (kstrtou16(token, 0, &mtu_v6))
+		return -EINVAL;
+
+	rmnet_ipa_send_set_mtu_notification(
+		if_name,
+		mtu_v4,
+		mtu_v6, IPA_IP_MAX);
+
+	return count;
+}
+
+
+#define RMNET_IPA_WRITE_ONLY_MODE 0220
+
+struct rmnet_ipa_debugfs_file {
+	const char *name;
+	umode_t mode;
+	void *data;
+	const struct file_operations fops;
+};
+
+static const struct rmnet_ipa_debugfs_file debugfs_files[] = {
+	{
+		"mtu", RMNET_IPA_WRITE_ONLY_MODE, NULL, {
+			.write = rmnet_ipa_set_mtu,
+		}
+	},
+};
+
 static void rmnet_ipa_debugfs_init(void)
 {
 	const mode_t read_write_mode = 0664;
+	int i = 0;
+	struct dentry *file;
 	struct rmnet_ipa_debugfs *dbgfs = &rmnet_ipa3_ctx->dbgfs;
+	const size_t debugfs_files_num =
+		sizeof(debugfs_files) / sizeof(struct rmnet_ipa_debugfs_file);
 
 
 	dbgfs->dent = debugfs_create_dir("rmnet_ipa", 0);
 	if (IS_ERR(dbgfs->dent)) {
 		pr_err("fail to create folder in debug_fs\n");
 		return;
+	}
+
+	for (i = 0; i < debugfs_files_num; ++i) {
+		const struct rmnet_ipa_debugfs_file *curr = &debugfs_files[i];
+
+		file = debugfs_create_file(curr->name, curr->mode, dbgfs->dent,
+			curr->data, &curr->fops);
+		if (!file || IS_ERR(file)) {
+			IPAERR("fail to create file for debug_fs %s\n",
+				curr->name);
+			goto fail;
+		}
 	}
 
 	dbgfs->dfile_outstanding_high = debugfs_create_u32("outstanding_high",

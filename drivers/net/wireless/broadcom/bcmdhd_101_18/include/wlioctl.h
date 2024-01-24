@@ -6,7 +6,7 @@
  *
  * Definitions subject to change without notice.
  *
- * Copyright (C) 2021, Broadcom.
+ * Copyright (C) 2022, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -1279,10 +1279,16 @@ typedef struct wl_assoc_params_v1 {
 
 #define WL_ASSOC_PARAMS_FIXED_SIZE      OFFSETOF(wl_assoc_params_t, chanspec_list)
 #define WL_ASSOC_PARAMS_FIXED_SIZE_V1   OFFSETOF(wl_assoc_params_v1_t, chanspec_list)
+
 /** used for reassociation/roam to a specific BSSID and channel */
 typedef  wl_assoc_params_t wl_reassoc_params_t;
-#define WL_REASSOC_PARAMS_FIXED_SIZE    WL_ASSOC_PARAMS_FIXED_SIZE
+typedef  wl_assoc_params_v1_t wl_reassoc_params_v1_t;
+
+#define WL_REASSOC_PARAMS_FIXED_SIZE		WL_ASSOC_PARAMS_FIXED_SIZE
+#define WL_REASSOC_PARAMS_FIXED_SIZE_V1		WL_ASSOC_PARAMS_FIXED_SIZE_V1
+
 #define WL_EXT_REASSOC_VER	1
+#define WL_EXT_REASSOC_VER_1	2
 
 typedef struct wl_ext_reassoc_params {
 	uint16 version;
@@ -1302,6 +1308,15 @@ typedef struct wl_ext_reassoc_params {
 
 #define WL_EXTREASSOC_PARAMS_FIXED_SIZE		(OFFSETOF(wl_ext_reassoc_params_t, params) + \
 					 WL_REASSOC_PARAMS_FIXED_SIZE)
+typedef struct wl_ext_reassoc_params_v1 {
+	uint16 version;
+	uint16 length;
+	uint32 flags;
+	wl_reassoc_params_v1_t params;
+} wl_ext_reassoc_params_v1_t;
+
+#define WL_EXTREASSOC_PARAMS_FIXED_SIZE_V1	(OFFSETOF(wl_ext_reassoc_params_v1_t, params) + \
+					 WL_REASSOC_PARAMS_FIXED_SIZE_V1)
 
 /** used for association to a specific BSSID and channel */
 typedef wl_assoc_params_t wl_join_assoc_params_t;
@@ -20925,6 +20940,8 @@ typedef struct wl_twt_resp_cfg {
 	uint16 length;		/* Data length (starting after this field) */
 	uint8 dc_max;		/* Max supported duty cycle for single TWT */
 	uint8 resp_type;	/* Resp. type(Alt/dict) if duty cycle>max duty cycle */
+	bool twt_resp_enab;	/* TWT Responder Mode enable/disable */
+	uint8 PAD;
 } wl_twt_resp_cfg_t;
 
 #define WL_TWT_CAP_CMD_VERSION_1	1u
@@ -21165,6 +21182,62 @@ enum wl_oce_xtlv_id {
 typedef enum oce_feature_flags_e {
 	OCE_FEATURE_FLAG_UCAST_PROBE_RESP	= (1u << 0u)	/* bit 0 */
 } oce_feature_flags_t;
+
+#define WL_IGMPOE_IOV_MAJOR_VER 1
+#define WL_IGMPOE_IOV_MINOR_VER 1
+#define WL_IGMPOE_IOV_MAJOR_VER_SHIFT 8
+#define WL_IGMPOE_IOV_VERSION \
+	((WL_IGMPOE_IOV_MAJOR_VER << WL_IGMPOE_IOV_MAJOR_VER_SHIFT)| WL_IGMPOE_IOV_MINOR_VER)
+
+enum wl_igmpoe_cmd_ids {
+	WL_IGMPOE_CMD_VERSION		= 0u,
+	WL_IGMPOE_CMD_ENABLE		= 1u,
+	WL_IGMPOE_CMD_TABLE		= 2u,
+	WL_IGMPOE_CMD_STATS		= 3u,
+	/* Add before this !! */
+	WL_IGMPOE_CMD_LAST
+};
+
+enum wl_igmpoe_xtlv_id {
+	WL_IGMPOE_XTLV_VERSION	= 0x0u,
+	WL_IGMPOE_XTLV_ENABLE	= 0x1u,
+	WL_IGMPOE_XTLV_TABLE	= 0x2u,
+	WL_IGMPOE_XTLV_STATS	= 0x3u
+};
+
+typedef struct wl_igmp_entry {
+	struct ipv4_addr ipaddr;	/* multicast ip address */
+	uint32 timestamp;		/* time when entry is added or deleted */
+	bool valid;			/* true when entry is added and false when deleted */
+	uint8 PAD[3];			/* Reserved */
+} wl_igmp_entry_t;
+
+#define WL_IGMP_TABLE_VERSION	1u	/* igmpoe table IOVA version */
+typedef struct wl_igmp_table_v1 {
+	uint16 version;
+	uint16 len;
+	wl_igmp_entry_t data[];
+} wl_igmp_table_t;
+
+#define WL_IGMP_STATS_VERSION	1u	/* igmpoe stats IOVAR version */
+typedef struct wl_igmp_stats_v1 {
+	uint16 version;
+	uint16 len;
+
+	uint32 igmp_add_success;	/* # of times igmp entry is added */
+	uint32 igmp_del_success;	/* # of times igmp entry is deleted */
+
+	uint32 igmp_add_skipped;	/* # of times igmp entry add is skipped */
+	uint32 igmp_add_nospace;	/* # of times igmp entry add failed due to no space */
+	uint32 igmp_del_noentry;	/* # of times igmp entry delete failed due to no etnry */
+
+	uint32 igmp_rx_query_general;	/* # of times igmp general query received */
+	uint32 igmp_rx_query_specific;	/* # of times igmp specific query received */
+
+	uint32 igmp_tx_report;		/* # of times igmp report is txed from fw */
+
+	uint32 igmp_nohostip;		/* # of times igmp query is fwded to host */
+} wl_igmp_stats_t;
 
 /* qos commands */
 
@@ -23937,7 +24010,7 @@ typedef struct wlc_sroam {
 #define	DEF_SROAM_OFF			0
 #define	DEF_SROAM_MIN_RSSI		-65
 #define	DEF_SROAM_RSSI_RANGE		3u
-#define	DEF_SROAM_SCORE_DELTA		1u
+#define	DEF_SROAM_SCORE_DELTA		0
 #define	DEF_SROAM_PERIOD_TIME		10u
 #define	DEF_SROAM_INACT_CNT		5u
 #define	MAX_SROAM_RSSI			-70

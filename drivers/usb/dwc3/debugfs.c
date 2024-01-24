@@ -689,6 +689,49 @@ static const struct file_operations dwc3_link_state_fops = {
 	.release		= single_release,
 };
 
+static int dwc3_cp_toggle_open(struct inode *inode, struct file *file)
+{
+	int (*show)(struct seq_file *, void *) = inode->i_private;
+
+	return single_open(file, show, inode->i_private);
+}
+
+static ssize_t dwc3_cp_toggle_write(struct file *file,
+		const char __user *ubuf, size_t count, loff_t *ppos)
+{
+	struct seq_file		*s = file->private_data;
+	struct dwc3		*dwc = s->private;
+	u32			reg;
+
+	if (atomic_read(&dwc->in_lpm)) {
+		pr_err("%s: USB device is powered off\n", __func__);
+		return 0;
+	}
+
+	if (dwc3_gadget_get_link_state(dwc) != DWC3_LINK_STATE_CMPLY) {
+		pr_err("%s: USB Device is not in compliance mode\n", __func__);
+		return -EINVAL;
+	}
+
+	reg = dwc3_readl(dwc->regs, DWC3_GUSB3PIPECTL(0));
+	reg |= DWC3_GUSB3PIPECTL_HSTPRTCMPL;
+	dwc3_writel(dwc->regs, DWC3_GUSB3PIPECTL(0), reg);
+	msleep(200);
+	reg &= ~DWC3_GUSB3PIPECTL_HSTPRTCMPL;
+	dwc3_writel(dwc->regs, DWC3_GUSB3PIPECTL(0), reg);
+	msleep(200);
+
+	return count;
+}
+
+static const struct file_operations dwc3_cp_toggle_fops = {
+	.write			= dwc3_cp_toggle_write,
+	.open			= dwc3_cp_toggle_open,
+	.read			= NULL,
+	.llseek			= seq_lseek,
+	.release		= single_release,
+};
+
 struct dwc3_ep_file_map {
 	const char name[25];
 	const struct file_operations *const fops;
@@ -977,33 +1020,19 @@ static void dwc3_debugfs_create_endpoint_files(struct dwc3_ep *dep,
 	}
 }
 
-static void dwc3_debugfs_create_endpoint_dir(struct dwc3_ep *dep,
-		struct dentry *parent)
+void dwc3_debugfs_create_endpoint_dir(struct dwc3_ep *dep)
 {
 	struct dentry		*dir;
+	struct dentry		*root;
 
-	dir = debugfs_create_dir(dep->name, parent);
+	root = debugfs_lookup(dev_name(dep->dwc->dev), usb_debug_root);
+	dir = debugfs_create_dir(dep->name, root);
 	if (!dir) {
 		pr_err("%s: failed to create dir %s\n", __func__, dep->name);
 		return;
 	}
 
 	dwc3_debugfs_create_endpoint_files(dep, dir);
-}
-
-static void dwc3_debugfs_create_endpoint_dirs(struct dwc3 *dwc,
-		struct dentry *parent)
-{
-	int			i;
-
-	for (i = 0; i < dwc->num_eps; i++) {
-		struct dwc3_ep	*dep = dwc->eps[i];
-
-		if (!dep)
-			continue;
-
-		dwc3_debugfs_create_endpoint_dir(dep, parent);
-	}
 }
 
 static ssize_t dwc3_gadget_int_events_store(struct file *file,
@@ -1184,6 +1213,51 @@ static const struct file_operations dwc3_gadget_int_events_fops = {
 	.release	= single_release,
 };
 
+static ssize_t dwc3_gadget_l1_store(struct file *file,
+	const char __user *ubuf, size_t count, loff_t *ppos)
+{
+	struct seq_file *s = file->private_data;
+	struct dwc3	*dwc = s->private;
+	bool		 enable_l1;
+	int		 ret;
+
+	ret = kstrtobool_from_user(ubuf, count, &enable_l1);
+	if (ret < 0) {
+		dev_err(dwc->dev, "%s: can't get entered value: %d\n",
+							__func__, ret);
+		return ret;
+	}
+
+	dwc->gadget.lpm_capable = enable_l1;
+	dwc->usb2_gadget_lpm_disable = !enable_l1;
+
+	pr_info("dwc3 gadget lpm : %s. Perform a plugout/plugin\n",
+				enable_l1 ? "enabled" : "disabled");
+
+	return count;
+}
+
+static int dwc3_gadget_l1_status_show(struct seq_file *s, void *unused)
+{
+	struct dwc3 *dwc = s->private;
+
+	seq_printf(s, "%d\n", dwc->gadget.lpm_capable);
+	return 0;
+}
+
+static int dwc3_gadget_l1_open(struct inode *inode, struct file *f)
+{
+	return single_open(f, dwc3_gadget_l1_status_show, inode->i_private);
+}
+
+static const struct file_operations dwc3_l1_enable_ops = {
+	.open		= dwc3_gadget_l1_open,
+	.write		= dwc3_gadget_l1_store,
+	.read		= seq_read,
+	.llseek		= seq_lseek,
+	.release	= single_release,
+};
+
 void dwc3_debugfs_init(struct dwc3 *dwc)
 {
 	struct dentry		*root;
@@ -1206,12 +1280,12 @@ void dwc3_debugfs_init(struct dwc3 *dwc)
 		return;
 	}
 
-	dwc->root = root;
-
 	debugfs_create_file("regdump", 0444, root, dwc, &dwc3_regdump_fops);
 
 	debugfs_create_file("lsp_dump", S_IRUGO | S_IWUSR, root, dwc,
 			    &dwc3_lsp_fops);
+	debugfs_create_file("enable_l1_suspend", 0644, root, dwc,
+			    &dwc3_l1_enable_ops);
 
 	if (IS_ENABLED(CONFIG_USB_DWC3_DUAL_ROLE)) {
 		debugfs_create_file("mode", S_IRUGO | S_IWUSR, root, dwc,
@@ -1224,7 +1298,8 @@ void dwc3_debugfs_init(struct dwc3 *dwc)
 				    &dwc3_testmode_fops);
 		debugfs_create_file("link_state", S_IRUGO | S_IWUSR, root, dwc,
 				    &dwc3_link_state_fops);
-		dwc3_debugfs_create_endpoint_dirs(dwc, root);
+		debugfs_create_file("cp_toggle", 0200, root, dwc,
+				    &dwc3_cp_toggle_fops);
 
 		file = debugfs_create_file("int_events", 0644, root, dwc,
 				&dwc3_gadget_int_events_fops);
@@ -1235,6 +1310,6 @@ void dwc3_debugfs_init(struct dwc3 *dwc)
 
 void dwc3_debugfs_exit(struct dwc3 *dwc)
 {
-	debugfs_remove_recursive(dwc->root);
+	debugfs_remove(debugfs_lookup(dev_name(dwc->dev), usb_debug_root));
 	kfree(dwc->regset);
 }
