@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2002,2007-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/slab.h>
@@ -506,10 +507,11 @@ void kgsl_mmu_close(struct kgsl_device *device)
 		mmu->mmu_ops->mmu_close(mmu);
 }
 
-int kgsl_mmu_pagetable_get_context_bank(struct kgsl_pagetable *pagetable)
+int kgsl_mmu_pagetable_get_context_bank(struct kgsl_pagetable *pagetable,
+	struct kgsl_context *context)
 {
 	if (PT_OP_VALID(pagetable, get_context_bank))
-		return pagetable->pt_ops->get_context_bank(pagetable);
+		return pagetable->pt_ops->get_context_bank(pagetable, context);
 
 	return -ENOENT;
 }
@@ -520,10 +522,10 @@ enum kgsl_mmutype kgsl_mmu_get_mmutype(struct kgsl_device *device)
 }
 
 bool kgsl_mmu_gpuaddr_in_range(struct kgsl_pagetable *pagetable,
-		uint64_t gpuaddr)
+		uint64_t gpuaddr, uint64_t size)
 {
 	if (PT_OP_VALID(pagetable, addr_in_range))
-		return pagetable->pt_ops->addr_in_range(pagetable, gpuaddr);
+		return pagetable->pt_ops->addr_in_range(pagetable, gpuaddr, size);
 
 	return false;
 }
@@ -535,7 +537,7 @@ bool kgsl_mmu_gpuaddr_in_range(struct kgsl_pagetable *pagetable,
  */
 
 static bool nommu_gpuaddr_in_range(struct kgsl_pagetable *pagetable,
-		uint64_t gpuaddr)
+		uint64_t gpuaddr, uint64_t size)
 {
 	return (gpuaddr != 0) ? true : false;
 }

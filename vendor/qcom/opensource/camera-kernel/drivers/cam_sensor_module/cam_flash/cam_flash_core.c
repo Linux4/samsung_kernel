@@ -16,6 +16,9 @@
 #if defined(CONFIG_LEDS_KTD2692)
 #include <linux/leds-ktd2692.h>
 #endif
+#if IS_REACHABLE(CONFIG_LEDS_AW36518_FLASH)
+#include <linux/leds-aw36518.h>
+#endif
 
 #if defined(CONFIG_SAMSUNG_PMIC_FLASH)
 #define MAX_FLASHLIGHT_LEVEL 5
@@ -589,6 +592,102 @@ static int cam_flash_torch(
 
 	return rc;
 }
+#elif IS_REACHABLE(CONFIG_LEDS_AW36518_FLASH)
+int cam_flash_off(struct cam_flash_ctrl *flash_ctrl)
+{
+	if (!flash_ctrl) {
+		CAM_ERR(CAM_FLASH, "Flash control Null");
+		return -EINVAL;
+	}
+
+	CAM_INFO(CAM_FLASH, "CAM Flash OFF");
+	aw36518_fled_mode_ctrl(AW36518_FLED_MODE_OFF, 0);
+
+	flash_ctrl->flash_state = CAM_FLASH_STATE_START;
+	return 0;
+}
+
+static int cam_flash_low(
+	struct cam_flash_ctrl *flash_ctrl,
+	struct cam_flash_frame_setting *flash_data)
+{
+	int rc = 0;
+
+	if (!flash_data) {
+		CAM_ERR(CAM_FLASH, "Flash Data Null");
+		return -EINVAL;
+	}
+
+	CAM_INFO(CAM_FLASH, "CAM Low Flash ON");
+	rc =  aw36518_fled_mode_ctrl(AW36518_FLED_MODE_PRE_FLASH, 225);
+	if (rc)
+		CAM_ERR(CAM_FLASH, "Fire Low Flash failed: %d", rc);
+
+	return rc;
+}
+
+static int cam_flash_high(
+	struct cam_flash_ctrl *flash_ctrl,
+	struct cam_flash_frame_setting *flash_data)
+{
+	int rc = 0;
+
+	if (flash_data->led_current_ma[0] == 100) {
+		rc =  aw36518_fled_mode_ctrl(AW36518_FLED_MODE_TORCH_FLASH, 225);
+	}
+	else if (flash_data->led_current_ma[0] == 240) {
+		rc =  aw36518_fled_mode_ctrl(AW36518_FLED_MODE_TORCH_FLASH, 225);
+	}
+	else {
+		rc = aw36518_fled_mode_ctrl(AW36518_FLED_MODE_MAIN_FLASH, 1300);
+	}
+
+	CAM_INFO(CAM_FLASH, "CAM Flash ON, current = %d",flash_data->led_current_ma[0]);
+	if (rc)
+		CAM_ERR(CAM_FLASH, "Fire Flash Failed: %d", rc);
+
+	return rc;
+}
+
+static int cam_flash_torch(
+	struct cam_flash_ctrl *flash_ctrl,
+	struct cam_flash_frame_setting *flash_data)
+{
+	int rc = 0;
+
+	if (!flash_data) {
+		CAM_ERR(CAM_FLASH, "Flash Data Null");
+		return -EINVAL;
+	}
+
+#if defined(CONFIG_FLASH_CURRENT_JAPAN)
+	CAM_INFO(CAM_FLASH, "CAM Torch Flash ON, %d mA", 50);
+	rc =  aw36518_fled_mode_ctrl(AW36518_FLED_MODE_TORCH_FLASH, 225);
+#else
+	CAM_INFO(CAM_FLASH, "CAM Torch Flash ON, %d mA", flash_data->led_current_ma[0]);
+	if (flash_data->led_current_ma[0] == 140) {
+		rc =  aw36518_fled_mode_ctrl(AW36518_FLED_MODE_TORCH_FLASH, 225);
+	} else {
+		rc =  aw36518_fled_mode_ctrl(AW36518_FLED_MODE_TORCH_FLASH, 225);
+	}
+#endif
+
+	if (rc)
+		CAM_ERR(CAM_FLASH, "Fire Torch failed: %d", rc);
+
+	return rc;
+}
+
+static int cam_flash_duration(struct cam_flash_ctrl *fctrl,
+	struct cam_flash_frame_setting *flash_data)
+{
+	int rc = 0;
+
+	CAM_INFO(CAM_FLASH, "cam_flash_duration");
+
+	return rc;
+}
+
 #else
 static int cam_flash_ops(struct cam_flash_ctrl *flash_ctrl,
 	struct cam_flash_frame_setting *flash_data, enum camera_flash_opcode op)
@@ -1029,7 +1128,8 @@ int cam_flash_pmic_apply_setting(struct cam_flash_ctrl *fctrl,
 					return rc;
 				}
 			}
-#if IS_REACHABLE(CONFIG_LEDS_S2MPB02) || defined(CONFIG_LEDS_RT8547) || defined(CONFIG_LEDS_KTD2692)
+#if IS_REACHABLE(CONFIG_LEDS_S2MPB02) || defined(CONFIG_LEDS_RT8547) || defined(CONFIG_LEDS_KTD2692)\
+	|| IS_REACHABLE(CONFIG_LEDS_AW36518_FLASH)
 			if (flash_data->opcode ==
 				CAMERA_SENSOR_FLASH_OP_FIRETORCH) {
 				rc = cam_flash_torch(fctrl, flash_data);
@@ -1076,7 +1176,8 @@ int cam_flash_pmic_apply_setting(struct cam_flash_ctrl *fctrl,
 					"LED off failed: %d",
 					rc);
 			}
-#if IS_REACHABLE(CONFIG_LEDS_S2MPB02) || defined(CONFIG_LEDS_RT8547) || defined(CONFIG_LEDS_KTD2692)
+#if IS_REACHABLE(CONFIG_LEDS_S2MPB02) || defined(CONFIG_LEDS_RT8547) || defined(CONFIG_LEDS_KTD2692)\
+	|| IS_REACHABLE(CONFIG_LEDS_AW36518_FLASH)
 			if (flash_data->opcode ==
 				CAMERA_SENSOR_FLASH_OP_FIRETORCH) {
 				rc = cam_flash_torch(fctrl, flash_data);
@@ -1160,7 +1261,7 @@ int cam_flash_pmic_apply_setting(struct cam_flash_ctrl *fctrl,
 				}
 			}
 		}
-#if IS_REACHABLE(CONFIG_LEDS_S2MPB02) || defined(CONFIG_LEDS_KTD2692)
+#if IS_REACHABLE(CONFIG_LEDS_S2MPB02) || defined(CONFIG_LEDS_KTD2692) || IS_REACHABLE(CONFIG_LEDS_AW36518_FLASH)
 		else if ((flash_data->opcode ==
 			CAMERA_SENSOR_FLASH_OP_FIRETORCH) &&
 			(flash_data->cmn_attr.is_settings_valid) &&
@@ -1974,7 +2075,7 @@ int cam_flash_pmic_pkt_parser(struct cam_flash_ctrl *fctrl, void *arg)
 			flash_query_info =
 				(struct cam_flash_query_curr *)cmd_buf;
 
-#if !IS_REACHABLE(CONFIG_LEDS_S2MPB02) && !defined(CONFIG_LEDS_KTD2692)
+#if !IS_REACHABLE(CONFIG_LEDS_S2MPB02) && !defined(CONFIG_LEDS_KTD2692) && !IS_REACHABLE(CONFIG_LEDS_AW36518_FLASH)
 			rc = cam_flash_led_prepare(fctrl->switch_trigger,
 				QUERY_MAX_AVAIL_CURRENT, &query_curr_ma,
 				soc_private->is_wled_flash);

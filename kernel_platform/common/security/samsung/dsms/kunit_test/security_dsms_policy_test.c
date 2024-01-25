@@ -21,13 +21,13 @@
 /* File: dsms_policy.c                                                       */
 /* ------------------------------------------------------------------------- */
 
-static void security_dsms_policy_test(struct test *test)
+static void security_dsms_policy_test(struct kunit *test)
 {
 	size_t i;
 
 	// Check whether policy entries are sorted by function_name
 	for (i = dsms_policy_size(); i > 1; --i)
-		EXPECT_TRUE(test,
+		KUNIT_EXPECT_TRUE(test,
 			    strncmp(dsms_policy[i - 2].function_name,
 				    dsms_policy[i - 1].function_name,
 				    KSYM_NAME_LEN) <= 0);
@@ -37,13 +37,13 @@ static void security_dsms_policy_test(struct test *test)
 /* Module definition                                                         */
 /* ------------------------------------------------------------------------- */
 
-static struct test_case security_dsms_policy_test_cases[] = {
-	TEST_CASE(security_dsms_policy_test),
+static struct kunit_case security_dsms_policy_test_cases[] = {
+	KUNIT_CASE(security_dsms_policy_test),
 	{},
 };
 
-static struct test_module security_dsms_policy_test_module = {
+static struct kunit_suite security_dsms_policy_test_module = {
 	.name = "security-dsms-policy-test",
 	.test_cases = security_dsms_policy_test_cases,
 };
-module_test(security_dsms_policy_test_module);
+kunit_test_suites(&security_dsms_policy_test_module);

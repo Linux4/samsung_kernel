@@ -114,7 +114,7 @@ int32_t fm_set_volume(float value, bool persist=false)
     }
 
     if (!fm.running) {
-        AHAL_VERBOSE(" FM not active, ignoring set_volume call");
+        AHAL_DBG(" FM not active, ignoring set_volume call");
         return -EIO;
     }
 
@@ -226,9 +226,10 @@ int32_t fm_start(std::shared_ptr<AudioDevice> adev __unused, int device_id)
                                 &payload_size, nullptr);
         pal_devs[1].address.card_id = adev->usb_card_id_;
         pal_devs[1].address.device_num = adev->usb_dev_num_;
-        pal_devs[1].config.sample_rate = dynamic_media_config.sample_rate;
+        pal_devs[1].config.sample_rate = dynamic_media_config.sample_rate[0];
         pal_devs[1].config.ch_info = ch_info;
-        pal_devs[1].config.aud_fmt_id = (pal_audio_fmt_t)dynamic_media_config.format;
+        pal_devs[1].config.aud_fmt_id = (pal_audio_fmt_t)dynamic_media_config.format[0];
+        strcpy(pal_devs[1].custom_config.custom_key, ck_table[CUSTOM_KEY_SPEAKER_FM]);
         free(device_cap_query);
     }
 #endif
@@ -245,6 +246,8 @@ int32_t fm_start(std::shared_ptr<AudioDevice> adev __unused, int device_id)
         AHAL_ERR("stream open failed with: %d", ret);
         return ret;
     }
+    fm.running = true;
+    fm_set_volume(fm.volume, true);
 
     ret = pal_stream_start(fm.stream_handle);
     if (ret) {
@@ -253,11 +256,10 @@ int32_t fm_start(std::shared_ptr<AudioDevice> adev __unused, int device_id)
 #ifdef SEC_AUDIO_FMRADIO
         fm.stream_handle = NULL;
 #endif
+        fm.running = false;
         return ret;
     }
 
-    fm.running = true;
-    fm_set_volume(fm.volume, true);
     AHAL_DBG("Exit");
     return ret;
 }
@@ -326,7 +328,7 @@ void fm_set_parameters(std::shared_ptr<AudioDevice> adev, struct str_parms *parm
     float vol = 0.0;
     const char* p = str_parms_to_str(parms);
 
-    AHAL_DBG("Enter");
+    AHAL_VERBOSE("Enter");
 
     ret = str_parms_get_str(parms, AUDIO_PARAMETER_KEY_HANDLE_FM,
                             value, sizeof(value));
@@ -390,7 +392,7 @@ void fm_set_parameters(std::shared_ptr<AudioDevice> adev, struct str_parms *parm
 #ifdef SEC_AUDIO_EARLYDROP_PATCH
     free((char*)p);
 #endif
-    AHAL_DBG("exit");
+    AHAL_VERBOSE("exit");
 }
 
 #ifdef __cplusplus

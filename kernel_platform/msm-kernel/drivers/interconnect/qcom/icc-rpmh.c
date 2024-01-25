@@ -67,6 +67,11 @@ int qcom_icc_aggregate(struct icc_node *node, u32 tag, u32 avg_bw,
 			if (tag & QCOM_ICC_TAG_PERF_MODE && (avg_bw || peak_bw))
 				qn->perf_mode[i] = true;
 		}
+
+		if (node->init_avg || node->init_peak) {
+			qn->sum_avg[i] = max_t(u64, qn->sum_avg[i], node->init_avg);
+			qn->max_peak[i] = max_t(u64, qn->max_peak[i], node->init_peak);
+		}
 	}
 
 	*agg_avg += avg_bw;
@@ -108,11 +113,6 @@ int qcom_icc_set(struct icc_node *src, struct icc_node *dst)
 
 	qp = to_qcom_provider(node->provider);
 	qn = node->data;
-
-	qn->sum_avg[QCOM_ICC_BUCKET_AMC] = max_t(u64, qn->sum_avg[QCOM_ICC_BUCKET_AMC],
-						 node->avg_bw);
-	qn->max_peak[QCOM_ICC_BUCKET_AMC] = max_t(u64, qn->max_peak[QCOM_ICC_BUCKET_AMC],
-						  node->peak_bw);
 
 	for (i = 0; i < qp->num_voters; i++)
 		qcom_icc_bcm_voter_commit(qp->voters[i]);
@@ -375,22 +375,22 @@ int qcom_icc_rpmh_probe(struct platform_device *pdev)
 	if (IS_ERR(qp->regmap))
 		return PTR_ERR(qp->regmap);
 
+	qp->num_clks = devm_clk_bulk_get_all(qp->dev, &qp->clks);
+	if (qp->num_clks < 0)
+		return qp->num_clks;
+
 	ret = icc_provider_add(provider);
 	if (ret) {
 		dev_err(&pdev->dev, "error adding interconnect provider\n");
 		return ret;
 	}
 
-	qp->num_clks = devm_clk_bulk_get_all(qp->dev, &qp->clks);
-	if (qp->num_clks < 0)
-		return qp->num_clks;
-
 	for (i = 0; i < qp->num_bcms; i++)
 		qcom_icc_bcm_init(qp->bcms[i], &pdev->dev);
 
 	ret = enable_qos_deps(qp);
 	if (ret)
-		return ret;
+		goto provider_del;
 
 	for (i = 0; i < num_nodes; i++) {
 		size_t j;
@@ -449,7 +449,7 @@ err:
 
 	clk_bulk_disable_unprepare(qp->num_clks, qp->clks);
 	clk_bulk_put_all(qp->num_clks, qp->clks);
-
+provider_del:
 	icc_provider_del(provider);
 
 	return ret;

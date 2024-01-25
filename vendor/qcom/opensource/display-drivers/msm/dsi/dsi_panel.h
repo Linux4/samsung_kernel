@@ -13,6 +13,7 @@
 #include <linux/backlight.h>
 #include <drm/drm_panel.h>
 #include <drm/msm_drm.h>
+#include <drm/msm_drm_pp.h>
 
 #include "dsi_defs.h"
 #include "dsi_ctrl_hw.h"
@@ -24,6 +25,7 @@
 #define MAX_BL_LEVEL 4096
 #define MAX_BL_SCALE_LEVEL 1024
 #define MAX_SV_BL_SCALE_LEVEL 65535
+#define SV_BL_SCALE_CAP (MAX_SV_BL_SCALE_LEVEL * 4)
 #define DSI_CMD_PPS_SIZE 135
 
 #define DSI_CMD_PPS_HDR_SIZE 7
@@ -134,6 +136,9 @@ struct dsi_backlight_config {
 	bool bl_inverted_dbv;
 	/* digital dimming backlight LUT */
 	struct drm_msm_dimming_bl_lut *dimming_bl_lut;
+	u32 dimming_min_bl;
+	u32 dimming_status;
+	bool user_disable_notification;
 
 	int en_gpio;
 	/* PWM params */

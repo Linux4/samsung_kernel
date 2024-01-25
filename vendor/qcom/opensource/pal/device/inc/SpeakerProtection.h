@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020, 2021 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2020, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -42,18 +42,14 @@
 
 class Speaker;
 
-#ifdef WAIPIO_CHIPSET
-#define LPASS_WR_CMD_REG_PHY_ADDR 0x325031C
-#define LPASS_RD_CMD_REG_PHY_ADDR 0x3250320
-#define LPASS_RD_FIFO_REG_PHY_ADDR 0x3250334
-#else
 #define LPASS_WR_CMD_REG_PHY_ADDR 0x3250300
 #define LPASS_RD_CMD_REG_PHY_ADDR 0x3250304
 #define LPASS_RD_FIFO_REG_PHY_ADDR 0x3250318
-#endif
-
 #define CPS_WSA_VBATT_REG_ADDR 0x0003429
 #define CPS_WSA_TEMP_REG_ADDR 0x0003422
+
+#define CPS_WSA_VBATT_LOWER_THRESHOLD_1 168
+#define CPS_WSA_VBATT_LOWER_THRESHOLD_2 148
 
 typedef enum speaker_prot_cal_state {
     SPKR_NOT_CALIBRATED,     /* Speaker not calibrated  */
@@ -67,8 +63,8 @@ typedef enum speaker_prot_proc_state {
 }spkr_prot_proc_state;
 
 enum {
-    WSA_SPKR_RIGHT,    /* Right Speaker */
-    WSA_SPKR_LEFT,     /* Left Speaker */
+    SPKR_RIGHT,    /* Right Speaker */
+    SPKR_LEFT,     /* Left Speaker */
 };
 
 struct agmMetaData {
@@ -104,6 +100,7 @@ protected :
     std::vector<int> pcmDevIdTx;
     static int calibrationCallbackStatus;
     static int numberOfRequest;
+    static struct pal_device_info vi_device;
 
 private :
 
@@ -123,6 +120,7 @@ public:
     static void spkrProtSetSpkrStatus(bool enable);
     static int setConfig(int type, int tag, int tagValue, int devId, const char *aif);
     bool isSpeakerInUse(unsigned long *sec);
+    void setSpeakerCKV();
 
     SpeakerProtection(struct pal_device *device,
                       std::shared_ptr<ResourceManager> Rm);
@@ -163,6 +161,7 @@ class SpeakerFeedback : public Speaker
     void updateVIcustomPayload();
     static std::shared_ptr<Device> getInstance(struct pal_device *device,
                                                std::shared_ptr<ResourceManager> Rm);
+    static std::shared_ptr<Device> getObject();                                               
 };
 
 #endif

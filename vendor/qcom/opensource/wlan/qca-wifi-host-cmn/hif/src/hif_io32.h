@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2015-2021 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -32,7 +33,7 @@
 #define MAX_UNWINDOWED_ADDRESS 0x80000
 #if defined(QCA_WIFI_QCA6390) || defined(QCA_WIFI_QCA6490) || \
 	defined(QCA_WIFI_QCN9000) || defined(QCA_WIFI_QCA6750) || \
-	defined(QCA_WIFI_QCN9224) || defined(QCA_WIFI_WCN7850)
+	defined(QCA_WIFI_QCN9224) || defined(QCA_WIFI_KIWI)
 #define WINDOW_ENABLE_BIT 0x40000000
 #else
 #define WINDOW_ENABLE_BIT 0x80000000
@@ -206,7 +207,7 @@ void hif_select_window_confirm(struct hif_pci_softc *sc, uint32_t offset)
 }
 #endif /* PCIE_REG_WINDOW_LOCAL_NO_CACHE */
 
-#if !defined(QCA_WIFI_QCA6390) && !defined(QCA_WIFI_QCA6490)
+#ifdef WINDOW_REG_PLD_LOCK_ENABLE
 /**
  * hif_lock_reg_access() - Lock window register access spinlock
  * @sc: HIF handle
@@ -219,7 +220,7 @@ void hif_select_window_confirm(struct hif_pci_softc *sc, uint32_t offset)
 static inline void hif_lock_reg_access(struct hif_pci_softc *sc,
 				       unsigned long *flags)
 {
-	qdf_spin_lock_irqsave(&sc->register_access_lock);
+	pld_lock_reg_window(sc->dev, flags);
 }
 
 /**
@@ -234,19 +235,19 @@ static inline void hif_lock_reg_access(struct hif_pci_softc *sc,
 static inline void hif_unlock_reg_access(struct hif_pci_softc *sc,
 					 unsigned long *flags)
 {
-	qdf_spin_unlock_irqrestore(&sc->register_access_lock);
+	pld_unlock_reg_window(sc->dev, flags);
 }
 #else
 static inline void hif_lock_reg_access(struct hif_pci_softc *sc,
 				       unsigned long *flags)
 {
-	pld_lock_reg_window(sc->dev, flags);
+	qdf_spin_lock_irqsave(&sc->register_access_lock);
 }
 
 static inline void hif_unlock_reg_access(struct hif_pci_softc *sc,
 					 unsigned long *flags)
 {
-	pld_unlock_reg_window(sc->dev, flags);
+	qdf_spin_unlock_irqrestore(&sc->register_access_lock);
 }
 #endif
 

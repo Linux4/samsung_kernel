@@ -17,9 +17,9 @@
 #include <linux/slab.h>
 #include <linux/types.h>
 #include <linux/dma-mapping.h>
+#include <linux/qcom-io-pgtable.h>
 
 #include <asm/barrier.h>
-#include "qcom-io-pgtable.h"
 
 #include "io-pgtable-arm.h"
 
@@ -292,19 +292,20 @@ out_unmap:
 	dev_err(dev, "Cannot accommodate DMA translation for IOMMU page tables\n");
 	dma_unmap_single(dev, dma, size, DMA_TO_DEVICE);
 out_free:
-	qcom_io_pgtable_free_pages(data->iommu_pgtbl_ops, cookie, pages, order);
+	qcom_io_pgtable_free_pages(data->iommu_pgtbl_ops, cookie, pages, order, false);
 	return NULL;
 }
 
 static void __arm_lpae_free_pages(struct arm_lpae_io_pgtable *data,
 				  void *pages, size_t size,
-				  struct io_pgtable_cfg *cfg, void *cookie)
+				  struct io_pgtable_cfg *cfg, void *cookie,
+				  bool deferred_free)
 {
 	if (!cfg->coherent_walk)
 		dma_unmap_single(cfg->iommu_dev, __arm_lpae_dma_addr(pages),
 				 size, DMA_TO_DEVICE);
 	qcom_io_pgtable_free_pages(data->iommu_pgtbl_ops, cookie, pages,
-				   get_order(size));
+				   get_order(size), deferred_free);
 }
 
 static void __arm_lpae_sync_pte(arm_lpae_iopte *ptep, int num_entries,
@@ -329,7 +330,7 @@ static void __arm_lpae_set_pte(arm_lpae_iopte *ptep, arm_lpae_iopte pte,
 static size_t __arm_lpae_unmap(struct arm_lpae_io_pgtable *data,
 			       struct iommu_iotlb_gather *gather,
 			       unsigned long iova, size_t size, size_t pgcount,
-			       int lvl, arm_lpae_iopte *ptep);
+			       int lvl, arm_lpae_iopte *ptep, unsigned long *flags);
 
 static void __arm_lpae_init_pte(struct arm_lpae_io_pgtable *data,
 				phys_addr_t paddr, arm_lpae_iopte prot,
@@ -380,9 +381,22 @@ static arm_lpae_iopte arm_lpae_install_table(arm_lpae_iopte *table,
 					     arm_lpae_iopte *ptep,
 					     arm_lpae_iopte curr,
 					     struct io_pgtable_cfg *cfg,
-					     int refcount)
+					     int refcount,
+					     struct arm_lpae_io_pgtable *data,
+					     unsigned long *flags)
 {
 	arm_lpae_iopte old, new;
+
+	/*
+	 * Drop the lock for TLB SYNC operation in order to
+	 * enable clock & regulator through rpm hooks and
+	 * resoter after it.
+	 */
+
+	spin_unlock_irqrestore(&data->lock, *flags);
+	/* Due to tlb maintenance in unmap being deferred */
+	qcom_io_pgtable_tlb_sync(data->iommu_pgtbl_ops, data->iop.cookie);
+	spin_lock_irqsave(&data->lock, *flags);
 
 	new = __pa(table) | ARM_LPAE_PTE_TYPE_TABLE;
 	if (cfg->quirks & IO_PGTABLE_QUIRK_ARM_NS)
@@ -511,9 +525,9 @@ static int __arm_lpae_map(struct arm_lpae_io_pgtable *data, unsigned long iova,
 		if (!cptep)
 			return -ENOMEM;
 
-		pte = arm_lpae_install_table(cptep, ptep, 0, cfg, 0);
+		pte = arm_lpae_install_table(cptep, ptep, 0, cfg, 0, data, flags);
 		if (pte)
-			__arm_lpae_free_pages(data, cptep, tblsz, cfg, cookie);
+			__arm_lpae_free_pages(data, cptep, tblsz, cfg, cookie, false);
 		else
 			qcom_io_pgtable_log_new_table(data->iommu_pgtbl_ops,
 					data->iop.cookie, cptep,
@@ -796,7 +810,7 @@ static int arm_lpae_map_sg(struct io_pgtable_ops *ops, unsigned long iova,
 }
 
 static void __arm_lpae_free_pgtable(struct arm_lpae_io_pgtable *data, int lvl,
-				    arm_lpae_iopte *ptep)
+				    arm_lpae_iopte *ptep, bool deferred_free)
 {
 	arm_lpae_iopte *start, *end;
 	unsigned long table_size;
@@ -821,10 +835,12 @@ static void __arm_lpae_free_pgtable(struct arm_lpae_io_pgtable *data, int lvl,
 		if (!pte || iopte_leaf(pte, lvl, data->iop.fmt))
 			continue;
 
-		__arm_lpae_free_pgtable(data, lvl + 1, iopte_deref(pte, data));
+		__arm_lpae_free_pgtable(data, lvl + 1, iopte_deref(pte, data),
+					deferred_free);
 	}
 
-	__arm_lpae_free_pages(data, start, table_size, &data->iop.cfg, cookie);
+	__arm_lpae_free_pages(data, start, table_size, &data->iop.cfg, cookie,
+				deferred_free);
 
 	qcom_io_pgtable_log_remove_table(data->iommu_pgtbl_ops,
 					data->iop.cookie, start,
@@ -836,7 +852,7 @@ static void arm_lpae_free_pgtable(struct io_pgtable *iop)
 {
 	struct arm_lpae_io_pgtable *data = io_pgtable_to_data(iop);
 
-	__arm_lpae_free_pgtable(data, data->start_level, data->pgd);
+	__arm_lpae_free_pgtable(data, data->start_level, data->pgd, false);
 	kfree(data);
 }
 
@@ -844,7 +860,8 @@ static size_t arm_lpae_split_blk_unmap(struct arm_lpae_io_pgtable *data,
 				       struct iommu_iotlb_gather *gather,
 				       unsigned long iova, size_t size,
 				       arm_lpae_iopte blk_pte, int lvl,
-				       arm_lpae_iopte *ptep, size_t pgcount)
+				       arm_lpae_iopte *ptep, size_t pgcount,
+				       unsigned long *flags)
 {
 	struct io_pgtable_cfg *cfg = &data->iop.cfg;
 	arm_lpae_iopte pte, *tablep;
@@ -881,9 +898,9 @@ static size_t arm_lpae_split_blk_unmap(struct arm_lpae_io_pgtable *data,
 		child_cnt++;
 	}
 
-	pte = arm_lpae_install_table(tablep, ptep, blk_pte, cfg, child_cnt);
+	pte = arm_lpae_install_table(tablep, ptep, blk_pte, cfg, child_cnt, data, flags);
 	if (pte != blk_pte) {
-		__arm_lpae_free_pages(data, tablep, tablesz, cfg, cookie);
+		__arm_lpae_free_pages(data, tablep, tablesz, cfg, cookie, false);
 		/*
 		 * We may race against someone unmapping another part of this
 		 * block, but anything else is invalid. We can't misinterpret
@@ -905,13 +922,13 @@ static size_t arm_lpae_split_blk_unmap(struct arm_lpae_io_pgtable *data,
 		return num_entries * size;
 	}
 
-	return __arm_lpae_unmap(data, gather, iova, size, pgcount, lvl, tablep);
+	return __arm_lpae_unmap(data, gather, iova, size, pgcount, lvl, tablep, flags);
 }
 
 static size_t __arm_lpae_unmap(struct arm_lpae_io_pgtable *data,
 			       struct iommu_iotlb_gather *gather,
 			       unsigned long iova, size_t size, size_t pgcount,
-			       int lvl, arm_lpae_iopte *ptep)
+			       int lvl, arm_lpae_iopte *ptep, unsigned long *flags)
 {
 	arm_lpae_iopte pte;
 	struct io_pgtable *iop = &data->iop;
@@ -941,7 +958,8 @@ static size_t __arm_lpae_unmap(struct arm_lpae_io_pgtable *data,
 			__arm_lpae_set_pte(ptep, 0, 1, &iop->cfg);
 
 			if (!iopte_leaf(pte, lvl, iop->fmt)) {
-				__arm_lpae_free_pgtable(data, lvl + 1, iopte_deref(pte, data));
+				__arm_lpae_free_pgtable(data, lvl + 1, iopte_deref(pte, data),
+							true);
 			} else if (iop->cfg.quirks & IO_PGTABLE_QUIRK_NON_STRICT) {
 				/*
 				 * Order the PTE update against queueing the IOVA, to
@@ -975,14 +993,10 @@ static size_t __arm_lpae_unmap(struct arm_lpae_io_pgtable *data,
 			/*
 			 * no valid mappings left under this table.
 			 * Defer table free until after iommu_iotlb_sync, or
-			 * iotlb_sync_map, whichever occurs first.
+			 * qcom_io_pgtable_tlb_sync, whichever occurs first.
 			 */
 			__arm_lpae_set_pte(ptep, 0, 1, &iop->cfg);
-
-			qcom_io_pgtable_tlb_add_walk(data->iommu_pgtbl_ops,
-				data->iop.cookie, table,
-				iova & ~(block_size - 1),
-				block_size);
+			__arm_lpae_free_pgtable(data, lvl + 1, table, true);
 
 			qcom_io_pgtable_log_remove_table(data->iommu_pgtbl_ops,
 				data->iop.cookie, table,
@@ -997,12 +1011,12 @@ static size_t __arm_lpae_unmap(struct arm_lpae_io_pgtable *data,
 		 * minus the part we want to unmap
 		 */
 		return arm_lpae_split_blk_unmap(data, gather, iova, size, pte,
-						lvl + 1, ptep, pgcount);
+						lvl + 1, ptep, pgcount, flags);
 	}
 
 	/* Keep on walkin' */
 	ptep = iopte_deref(pte, data);
-	return __arm_lpae_unmap(data, gather, iova, size, pgcount, lvl + 1, ptep);
+	return __arm_lpae_unmap(data, gather, iova, size, pgcount, lvl + 1, ptep, flags);
 }
 
 static size_t arm_lpae_unmap_pages(struct io_pgtable_ops *ops, unsigned long iova,
@@ -1026,7 +1040,8 @@ static size_t arm_lpae_unmap_pages(struct io_pgtable_ops *ops, unsigned long iov
 
 	spin_lock_irqsave(&data->lock, flags);
 	unmapped = __arm_lpae_unmap(data, gather, iova, pgsize, pgcount,
-				    data->start_level, ptep);
+				    data->start_level, ptep, &flags);
+	qcom_io_pgtable_tlb_add_inv(data->iommu_pgtbl_ops, data->iop.cookie);
 	spin_unlock_irqrestore(&data->lock, flags);
 
 	return unmapped;

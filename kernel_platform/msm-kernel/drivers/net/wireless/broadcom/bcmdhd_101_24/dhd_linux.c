@@ -986,13 +986,13 @@ int dhd_send_twt_info_suspend(dhd_pub_t *dhdp, bool suspend)
 	ret = bcm_pack_xtlv_entry(&pbuf, &param_len, WL_TWT_CMD_INFO,
 			sizeof(ti), (uint8 *)&ti, BCM_XTLV_OPTION_ALIGN32);
 	if (ret != BCME_OK) {
-		DHD_ERROR(("%s : parameter packing error \n", __FUNCTION__));
+		DHD_ERROR_MEM(("%s : parameter packing error \n", __FUNCTION__));
 		return ret;
 	}
 
 	ret = dhd_iovar(dhdp, 0, "twt", buf, sizeof(buf) - param_len, NULL, 0, TRUE);
 	if (ret) {
-		DHD_ERROR(("%s : TWT info failed ret : %d\n", __FUNCTION__, ret));
+		DHD_ERROR_MEM(("%s : TWT info failed ret : %d\n", __FUNCTION__, ret));
 	}
 	return ret;
 

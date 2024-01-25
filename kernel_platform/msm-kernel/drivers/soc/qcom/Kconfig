@@ -29,6 +29,7 @@ config QCOM_COMMAND_DB
 config QCOM_CPUSS_SLEEP_STATS
 	tristate "Qualcomm Technologies, Inc. (QTI) CPUSS sleep stats driver"
 	depends on DEBUG_FS
+	depends on QCOM_SCM
 	help
 	 Qualcomm Technologies, Inc. (QTI) CPUSS sleep stats driver to get
 	 hardware LPM counts and residency for particular core/cluster
@@ -229,6 +230,15 @@ config QCOM_LLCC_PERFMON
 	  interface. sysfs interface is used to configure and dump the LLCC
 	  performance events.
 
+config QCOM_SPAD_PERFMON
+	tristate "Qualcomm Technologies, Inc. SPAD Perfmon driver"
+	depends on QCOM_LLCC
+	help
+	  This option enables driver for SPAD Performance monitor block. Using
+	  this various events in SPAD LPI LB block can be monitored.
+	  Exports sysfs interface to configure and dump the SPAD performance
+	  events.
+
 config QCOM_KRYO_L2_ACCESSORS
 	bool
 	depends on ARCH_QCOM && ARM64 || COMPILE_TEST
@@ -259,6 +269,24 @@ config QPNP_PBS
 config QCOM_PDR_HELPERS
 	tristate
 	select QCOM_QMI_HELPERS
+
+config QCOM_PANIC_ON_PDR_NOTIF_TIMEOUT
+	bool "Trigger kernel panic when PDR notification timeout expires"
+	help
+	  This is a debug feature where a kernel panic is triggered when
+	  pdr notification to the APPS client is taking too long. This scneario
+	  can happen if the one of notifier gets stuck and due to which subsystem
+	  did not get ack back from APPS in time and trigger timeout panic.
+	  So, trigger a kernel panic in APPS if PDR notifications is taking
+	  too long.
+
+config PDR_INDICATION_NOTIF_TIMEOUT
+	int "Pdr notifications timeout in ms"
+	default 3000
+	help
+	  The amount of time, in milliseconds, that should elapse between
+	  the start and end of notifications, before a warning
+	  is emitted.
 
 config MSM_PIL
 	tristate "Peripheral image loader"
@@ -378,6 +406,16 @@ config QCOM_QMI_HELPERS
 	depends on NET
 
 source "drivers/soc/qcom/memshare/Kconfig"
+
+config QCOM_QFPROM_SYS
+	tristate "Qualcomm Technologies, Inc. QFPROM_SYS driver "
+	depends on QCOM_QFPROM
+	help
+	  Qualcomm Technologies, Inc. QFPROM_SYS driver. The QFPROM SYS driver
+	  provides access to the child nodes of QFPROM to user space. The cell
+	  values are exported as sysfs entries.
+
+	  Say y here to enable QFPROM SYS support.
 
 config QCOM_RMTFS_MEM
 	tristate "Qualcomm Remote Filesystem memory driver"
@@ -509,7 +547,7 @@ config QCOM_SOCINFO
 
 config QCOM_SOC_SLEEP_STATS
 	tristate "Qualcomm Technologies, Inc. (QTI) SoC sleep stats driver"
-	depends on ARCH_QCOM && DEBUG_FS || COMPILE_TEST
+	depends on ARCH_QCOM || COMPILE_TEST
 	help
 	  Qualcomm Technologies, Inc. (QTI) SoC sleep stats driver to read
 	  the shared memory exported by the remote processor related to
@@ -662,7 +700,7 @@ config QCOM_MEM_HOOKS
 
 config QCOM_GLINK_PKT
 	tristate "Enable device interface for GLINK packet channels"
-	depends on RPMSG_QCOM_GLINK_SMEM
+	depends on RPMSG_QCOM_GLINK_SMEM || RPMSG_QCOM_GLINK_HELIOSCOM
 	help
 	  G-link packet driver provides the interface for the userspace
 	  clients to communicate over G-Link via device nodes.
@@ -854,6 +892,32 @@ config QTI_PLH_SCMI_CLIENT
 	  This driver deliver the PLH vendor protocol handle to interface
 	  driver, and interface driver will use this handle to communicate
 	  with RIMPS PLH.
+
+config QTI_GPLAF_SCMI_CLIENT
+	tristate "Qualcomm Technologies Inc. SCMI client driver for GPLAF"
+	depends on MSM_PERFORMANCE && QTI_SCMI_GPLAF_PROTOCOL
+	default n
+	help
+	  SCMI client driver registers itself with SCMI framework for GPLAF
+	  vendor protocol, and also registers with the gplaf interface driver
+	  msm_performance.
+
+	  This driver deliver the GPLAF vendor protocol handle to interface
+	  driver, and interface driver will use this handle to communicate
+	  with RIMPS GPLAF.
+
+config QTI_SHARED_RAIL_CLIENT
+    tristate "Qualcomm Technologies, Inc. SCMI client driver for SHARED RAIL"
+	depends on MSM_PERFORMANCE && QTI_SCMI_SHARED_RAIL_PROTOCOL
+	help
+	  SCMI client driver registers itself with SCMI framework for SHARED RAIL
+	  vendor protocol, and also registers with the shared rail interface driver
+	  msm_performance.
+
+	  This driver delivers the Shared Rail vendor protocal handle to interface
+	  driver. Interface driver will use this handle to communicate with Shared
+	  Rail and provide sysfs nodes to enable/disable L3 and Silver Core frequency
+	  boost.
 
 config QCOM_SUBSYSTEM_SLEEP_STATS
 	tristate "Qualcomm Technologies, Inc. Subsystem sleep stats driver"
@@ -1123,7 +1187,7 @@ config QCOM_HYP_CORE_CTL
 
 config QTI_CRYPTO_COMMON
 	tristate "Enable common crypto functionality used for FBE"
-	depends on SCSI_UFS_CRYPTO_QTI
+	depends on SCSI_UFS_CRYPTO_QTI || MMC_CRYPTO_QTI
 	help
 	 Say 'Y' to enable the common crypto implementation to be used by
 	 different storage layers such as UFS and EMMC for file based hardware
@@ -1176,6 +1240,30 @@ config QCOM_BALANCE_ANON_FILE_RECLAIM
 	  equally.
 	  Swapping anonymous pages out to memory can be efficient enough to justify
 	  treating anonymous and file backed pages equally.
+config MSM_HELIOSCOM
+        tristate "Provide APIs to communicate with Helios chipset"
+        help
+                HELIOSCOM is a thin layer above SPI. It is used whithin a SoC for
+                communication between G-Link/helios_com_dev and Helios processor over SPI.
+                This handle the interrupts raised by BG and notify the G-link with
+                interrupt event and event data.
+config MSM_HELIOSCOM_INTERFACE
+        tristate "Driver support for Slate Communication"
+        depends on MSM_HELIOSCOM
+        help
+                Create a helios_com_dev device node for user space communication.
+                Single user space client can open device node for communication
+                from hardware. Hardware will provide access to read
+                registers and read/write AHB memory in the device.
+
+config QTI_OEMVM_CORE_CTL
+	tristate "OEMVM CPU control scheme for Hypervisor"
+	depends on GUNYAH_DRIVERS
+	help
+	  This driver provides simple core control features for OEMVM. The vCPU
+	  mapping information is recorded when OEMVM bootup. The driver provides
+	  API for user to migrate vCPU to current pCPU then yield on current
+	  pCPU. User can also recover vCPU mapping after work is done.
 
 config QCOM_VM_DMESG_DUMPER
 	tristate "Dump a VM's dmesg to a physical address upon panic"

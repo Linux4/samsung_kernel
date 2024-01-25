@@ -458,4 +458,11 @@ bool cam_smmu_need_shared_buffer_padding(void);
  */
 bool cam_smmu_is_expanded_memory(void);
 
+#ifdef CONFIG_CAMERA_SKIP_SECURE_PAGE_FAULT
+/**
+ * @brief :
+ *
+ */
+bool cam_csiphy_get_secure_irq_err (void);
+#endif
 #endif /* _CAM_SMMU_API_H_ */

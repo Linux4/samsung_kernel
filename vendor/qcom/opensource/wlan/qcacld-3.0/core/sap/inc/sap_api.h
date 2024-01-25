@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2012-2021 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -453,6 +454,10 @@ struct sap_acs_cfg {
 	uint32_t    vht_seg0_center_ch_freq;
 	uint32_t    vht_seg1_center_ch_freq;
 	uint32_t   band;
+#ifdef WLAN_FEATURE_11BE
+	bool       is_eht_enabled;
+	uint16_t   acs_puncture_bitmap;
+#endif
 };
 
 /*
@@ -1460,6 +1465,8 @@ QDF_STATUS wlansap_release_vdev_ref(struct sap_context *sap_ctx);
  * @sap_ctxt: sap context
  * @cac_duration_ms: pointer to cac duration
  * @dfs_region: pointer to dfs region
+ * @chan_freq: channel frequency
+ * @ch_params: pointer to ch_params
  *
  * Get cac duration and dfs region.
  *
@@ -1467,7 +1474,9 @@ QDF_STATUS wlansap_release_vdev_ref(struct sap_context *sap_ctx);
  */
 void sap_get_cac_dur_dfs_region(struct sap_context *sap_ctx,
 				uint32_t *cac_duration_ms,
-				uint32_t *dfs_region);
+				uint32_t *dfs_region,
+				qdf_freq_t chan_freq,
+				struct ch_params *ch_params);
 
 /**
  * sap_clear_global_dfs_param() - Reset global dfs param of sap ctx
@@ -1700,6 +1709,20 @@ static inline qdf_freq_t wlansap_dcs_get_freq(struct sap_context *sap_context)
 #endif
 
 /**
+ * wlansap_filter_vendor_unsafe_ch_freq() - filter sap acs ch list by
+ *  vendor unsafe ch freq ranges
+ * @sap_context: sap context
+ * @sap_config: sap conifg
+ *
+ * This function is used to filter out unsafe channel frequency from acs
+ * channel frequency list based on vendor unsafe channel frequency ranges.
+ *
+ * Return: true if vendor unsafe ch range is present, otherwise false
+ */
+bool wlansap_filter_vendor_unsafe_ch_freq(
+	struct sap_context *sap_context, struct sap_config *sap_config);
+
+/**
  * wlansap_dump_acs_ch_freq() - print acs channel frequency
  * @sap_ctx: sap context
  *
@@ -1754,6 +1777,38 @@ void sap_dump_acs_channel(struct sap_acs_cfg *acs_cfg);
  * Return: None
  */
 void sap_release_vdev_ref(struct sap_context *sap_ctx);
+
+#ifdef WLAN_FEATURE_11BE
+/**
+ * sap_acs_is_puncture_applicable() - Is static puncturing applicable according
+ *                                    to ACS configure of given sap acs config.
+ * @acs_cfg: pointer to sap_acs_cfg
+ *
+ * Return: true if static puncturing is applicable to given sap acs config.
+ */
+bool sap_acs_is_puncture_applicable(struct sap_acs_cfg *acs_cfg);
+
+/**
+ * sap_acs_set_puncture_support() - Set puncturing support according
+ *                                  to ACS configure of given sap.
+ * @sap_ctx: Pointer to SAP Context
+ * @ch_params: pointer to ch_params
+ *
+ * Return: void.
+ */
+void sap_acs_set_puncture_support(struct sap_context *sap_ctx,
+				  struct ch_params *ch_params);
+#else
+static inline bool sap_acs_is_puncture_applicable(struct sap_acs_cfg *acs_cfg)
+{
+	return false;
+}
+
+static inline void sap_acs_set_puncture_support(struct sap_context *sap_ctx,
+						struct ch_params *ch_params)
+{
+}
+#endif /* WLAN_FEATURE_11BE */
 #ifdef __cplusplus
 }
 #endif

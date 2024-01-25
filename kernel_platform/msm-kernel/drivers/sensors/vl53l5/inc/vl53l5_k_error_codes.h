@@ -127,5 +127,6 @@
 #define VL53L5_PROBE_FAILED									((int32_t) -1000)
 #define VL53L5_SHUTDOWN										((int32_t) -1001)
 #define VL53L5_DELAYED_LOAD_FIRMWARE						((int32_t) -1002)
+#define VL53L5_SUSPEND_IOCTL_STOP_ERROR						((int32_t) -1003)
 #endif
 #endif

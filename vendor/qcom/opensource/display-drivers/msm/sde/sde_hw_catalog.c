@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  * Copyright (c) 2015-2021, The Linux Foundation. All rights reserved.
  */
 
@@ -2133,10 +2134,10 @@ static int sde_ctl_parse_dt(struct device_node *np,
 	return 0;
 }
 
-void sde_hw_mixer_set_preference(struct sde_mdss_cfg *sde_cfg, u32 num_lm,
+u32 sde_hw_mixer_set_preference(struct sde_mdss_cfg *sde_cfg, u32 num_lm,
 		uint32_t disp_type)
 {
-	u32 i, cnt = 0, sec_cnt = 0;
+	u32 i, cnt = 0, sec_cnt = 0, lm_mask = 0;
 
 	if (disp_type == SDE_CONNECTOR_PRIMARY) {
 		for (i = 0; i < sde_cfg->mixer_count; i++) {
@@ -2155,6 +2156,7 @@ void sde_hw_mixer_set_preference(struct sde_mdss_cfg *sde_cfg, u32 num_lm,
 			if (cnt < num_lm) {
 				set_bit(SDE_DISP_PRIMARY_PREF,
 						&sde_cfg->mixer[i].features);
+				lm_mask |=  BIT(sde_cfg->mixer[i].id - 1);
 				cnt++;
 			}
 
@@ -2193,10 +2195,13 @@ void sde_hw_mixer_set_preference(struct sde_mdss_cfg *sde_cfg, u32 num_lm,
 					BIT(SDE_DISP_PRIMARY_PREF))) {
 				set_bit(SDE_DISP_SECONDARY_PREF,
 						&sde_cfg->mixer[i].features);
+				lm_mask |= BIT(sde_cfg->mixer[i].id - 1);
 				cnt++;
 			}
 		}
 	}
+
+	return lm_mask;
 }
 
 static int sde_mixer_parse_dt(struct device_node *np, struct sde_mdss_cfg *sde_cfg)
@@ -3275,7 +3280,8 @@ static int sde_dsc_parse_dt(struct device_node *np,
 			if (PROP_VALUE_ACCESS(prop_value, DSC_422, i))
 					set_bit(SDE_DSC_NATIVE_422_EN,
 						&dsc->features);
-
+			if (sde_cfg->has_reduced_ob_max)
+				set_bit(SDE_DSC_REDUCED_OB_MAX, &dsc->features);
 		} else {
 			set_bit(SDE_DSC_HW_REV_1_1, &dsc->features);
 		}
@@ -3848,6 +3854,7 @@ static int sde_pp_parse_dt(struct device_node *np, struct sde_mdss_cfg *sde_cfg)
 			if (sde_cfg->has_dedicated_cwb_support)
 				sde_cfg->dcwb_count++;
 		}
+		pp->dcwb_id = (sde_cfg->dcwb_count > 0) ? sde_cfg->dcwb_count : DCWB_MAX;
 
 		if (major_version < SDE_HW_MAJOR(SDE_HW_VER_700)) {
 			sblk->dsc.base = PROP_VALUE_ACCESS(prop_value,
@@ -5081,7 +5088,7 @@ static int _sde_hardware_pre_caps(struct sde_mdss_cfg *sde_cfg, uint32_t hw_rev)
 		sde_cfg->mdss_hw_block_size = 0x158;
 		sde_cfg->has_trusted_vm_support = true;
 		sde_cfg->syscache_supported = true;
-	} else if (IS_WAIPIO_TARGET(hw_rev)) {
+	} else if (IS_WAIPIO_TARGET(hw_rev) || IS_CAPE_TARGET(hw_rev)) {
 		sde_cfg->allowed_dsc_reservation_switch = SDE_DP_DSC_RESERVATION_SWITCH;
 		sde_cfg->has_dedicated_cwb_support = true;
 		sde_cfg->has_cwb_dither = true;
@@ -5142,6 +5149,43 @@ static int _sde_hardware_pre_caps(struct sde_mdss_cfg *sde_cfg, uint32_t hw_rev)
 		sde_cfg->dither_luma_mode_support = true;
 		sde_cfg->mdss_hw_block_size = 0x158;
 		sde_cfg->rc_lm_flush_override = false;
+	} else if (IS_DIWALI_TARGET(hw_rev)) {
+		sde_cfg->allowed_dsc_reservation_switch = SDE_DP_DSC_RESERVATION_SWITCH;
+		sde_cfg->has_dedicated_cwb_support = true;
+		sde_cfg->has_cwb_dither = true;
+		sde_cfg->has_wb_ubwc = true;
+		sde_cfg->has_cwb_crop = true;
+		sde_cfg->has_qsync = true;
+		sde_cfg->perf.min_prefill_lines = 40;
+		sde_cfg->has_reduced_ob_max = true;
+		sde_cfg->vbif_qos_nlvl = 8;
+		sde_cfg->ts_prefill_rev = 2;
+		sde_cfg->ctl_rev = SDE_CTL_CFG_VERSION_1_0_0;
+		sde_cfg->delay_prg_fetch_start = true;
+		sde_cfg->sui_ns_allowed = true;
+		sde_cfg->sui_misr_supported = true;
+		sde_cfg->has_sui_blendstage = true;
+		sde_cfg->has_3d_merge_reset = true;
+		sde_cfg->has_hdr = true;
+		sde_cfg->has_hdr_plus = true;
+		sde_cfg->skip_inline_rot_threshold = true;
+		set_bit(SDE_MDP_DHDR_MEMPOOL_4K, &sde_cfg->mdp[0].features);
+		sde_cfg->has_vig_p010 = true;
+		sde_cfg->true_inline_rot_rev = SDE_INLINE_ROT_VERSION_2_0_1;
+		sde_cfg->vbif_disable_inner_outer_shareable = true;
+		sde_cfg->dither_luma_mode_support = true;
+		sde_cfg->mdss_hw_block_size = 0x158;
+		sde_cfg->syscache_supported = true;
+		sde_cfg->sspp_multirect_error = true;
+		sde_cfg->has_fp16 = true;
+		set_bit(SDE_MDP_PERIPH_TOP_0_REMOVED, &sde_cfg->mdp[0].features);
+		sde_cfg->has_precise_vsync_ts = true;
+		sde_cfg->has_avr_step = true;
+		sde_cfg->has_trusted_vm_support = true;
+		sde_cfg->has_ubwc_stats = true;
+		sde_cfg->has_demura = true;
+		sde_cfg->demura_supported[SSPP_DMA1][0] = 0;
+		sde_cfg->demura_supported[SSPP_DMA1][1] = 1;
 	} else {
 		SDE_ERROR("unsupported chipset id:%X\n", hw_rev);
 		sde_cfg->perf.min_prefill_lines = 0xffff;

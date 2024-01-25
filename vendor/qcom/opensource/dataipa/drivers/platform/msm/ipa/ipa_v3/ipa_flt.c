@@ -563,7 +563,8 @@ int __ipa_commit_flt_v3(enum ipa_ip_type ip)
 	}
 
 	if (!ipa_flt_valid_lcl_tbl_size(ip, IPA_RULE_HASHABLE,
-		ipa_fltrt_get_aligned_lcl_bdy_size(alloc_params.total_sz_lcl_hash_tbls))) {
+		ipa_fltrt_get_aligned_lcl_bdy_size(alloc_params.num_lcl_hash_tbls,
+			alloc_params.total_sz_lcl_hash_tbls))) {
 		IPAERR_RL("Hash filter table for IP:%d too big to fit in lcl memory\n",
 			ip);
 		rc = -EFAULT;
@@ -573,13 +574,14 @@ int __ipa_commit_flt_v3(enum ipa_ip_type ip)
 	/* Check Non-Hash filter tables fits in SRAM, if it is not - move some tables to DDR */
 	list_for_each_entry(lcl_tbl, &ipa3_ctx->flt_tbl_nhash_lcl_list[ip], link) {
 		if (ipa_flt_valid_lcl_tbl_size(ip, IPA_RULE_NON_HASHABLE,
-			ipa_fltrt_get_aligned_lcl_bdy_size(alloc_params.total_sz_lcl_nhash_tbls)) ||
+			ipa_fltrt_get_aligned_lcl_bdy_size(alloc_params.num_lcl_nhash_tbls,
+				alloc_params.total_sz_lcl_nhash_tbls)) ||
 			alloc_params.num_lcl_nhash_tbls == 0)
 			break;
 
 		IPADBG("SRAM partition is too small, move one non-hash table in DDR. "
-		       "IP:%d alloc_params.total_sz_lcl_nhash_tbls = %u\n",
-		       ip, alloc_params.total_sz_lcl_nhash_tbls);
+			"IP:%d alloc_params.total_sz_lcl_nhash_tbls = %u\n",
+			ip, alloc_params.total_sz_lcl_nhash_tbls);
 
 		/* Move lowest priority Eth client to DDR */
 		lcl_tbl->tbl->force_sys[IPA_RULE_NON_HASHABLE] = true;
@@ -2242,10 +2244,12 @@ int ipa_flt_sram_set_client_prio_high(enum ipa_client_type client)
 		struct ipa3_flt_tbl_nhash_lcl *lcl_tbl, *tmp;
 		struct ipa3_flt_tbl *flt_tbl = &ipa3_ctx->flt_tbl[ipa_ep_idx][ip];
 		/* Position filtering table last in the list so, it will have first SRAM priority */
-		list_for_each_entry_safe(lcl_tbl, tmp, &ipa3_ctx->flt_tbl_nhash_lcl_list[ip], link) {
+		list_for_each_entry_safe(
+			lcl_tbl, tmp, &ipa3_ctx->flt_tbl_nhash_lcl_list[ip], link) {
 			if (lcl_tbl->tbl == flt_tbl) {
 				list_del(&lcl_tbl->link);
-				list_add_tail(&lcl_tbl->link, &ipa3_ctx->flt_tbl_nhash_lcl_list[ip]);
+				list_add_tail(&lcl_tbl->link,
+					&ipa3_ctx->flt_tbl_nhash_lcl_list[ip]);
 				break;
 			}
 		}

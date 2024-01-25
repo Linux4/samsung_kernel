@@ -6,8 +6,8 @@ AM_CFLAGS := -Wno-unused-parameter -Wno-unused-result
 if !BUILDSYSTEM_OPENWRT
 AM_CFLAGS += -I $(PKG_CONFIG_SYSROOT_DIR)/usr/include/
 endif
-AM_CFLAGS += $(GLIB_CFLAGS) -Dstrlcpy=g_strlcpy -Dstrlcat=g_strlcat -include glib.h
-AM_CFLAGS += -I $(PKG_CONFIG_SYSROOT_DIR)/usr/include/acdbdata
+AM_CFLAGS += @GLIB_CFLAGS@ -Dstrlcpy=g_strlcpy -Dstrlcat=g_strlcat -include glib.h
+AM_CFLAGS += @MMHEADERS_CFLAGS@
 
 AM_CFLAGS += -DBACKEND_CONF_FILE=\"/etc/backend_conf.xml\"
 
@@ -53,3 +53,8 @@ agmvoiceui_SOURCES  := agm_voiceui.c
 
 agmvoiceui_la_CFLAGS := $(AM_CFLAGS)
 agmvoiceui_LDADD    := -lpthread -ltinyalsa libagmmixer.la
+# install xml files under /etc
+root_etcdir      = "/etc"
+root_etc_SCRIPTS = backend_conf.xml
+install-data-hook:
+	chmod  go-x $(DESTDIR)$(root_etcdir)/backend_conf.xml

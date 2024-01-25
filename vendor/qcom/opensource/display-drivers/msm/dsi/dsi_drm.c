@@ -255,6 +255,9 @@ static void dsi_bridge_enable(struct drm_bridge *bridge)
 	int rc = 0;
 	struct dsi_bridge *c_bridge = to_dsi_bridge(bridge);
 	struct dsi_display *display;
+#if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
+	struct samsung_display_driver_data *vdd;
+#endif
 
 	if (!bridge) {
 		DSI_ERR("Invalid params\n");
@@ -277,6 +280,13 @@ static void dsi_bridge_enable(struct drm_bridge *bridge)
 	if (display)
 		display->enabled = true;
 
+#if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
+	vdd = display->panel->panel_private;
+	if (vdd) {
+		vdd->display_enabled = true;
+	}
+#endif
+
 	if (display && display->drm_conn) {
 		sde_connector_helper_bridge_enable(display->drm_conn);
 		if (display->poms_pending) {
@@ -293,6 +303,9 @@ static void dsi_bridge_disable(struct drm_bridge *bridge)
 	struct dsi_display *display;
 	struct sde_connector_state *conn_state;
 	struct dsi_bridge *c_bridge = to_dsi_bridge(bridge);
+#if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
+	struct samsung_display_driver_data *vdd;
+#endif
 
 	if (!bridge) {
 		DSI_ERR("Invalid params\n");
@@ -302,6 +315,13 @@ static void dsi_bridge_disable(struct drm_bridge *bridge)
 
 	if (display)
 		display->enabled = false;
+
+#if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
+	vdd = display->panel->panel_private;
+	if (vdd) {
+		vdd->display_enabled = false;
+	}
+#endif
 
 	if (display && display->drm_conn) {
 		conn_state = to_sde_connector_state(display->drm_conn->state);
@@ -558,7 +578,7 @@ static bool dsi_bridge_mode_fixup(struct drm_bridge *bridge,
 				if ((drm_mode_vrefresh(cur_mode) != drm_mode_vrefresh(adjusted_mode)) ||
 						(cur_sot_hs != adjusted_sot_hs) ||
 						(cur_phs != adjusted_phs)) {
-					LCD_INFO(vdd, "DMS: VRR flag: %d -> 1\n", vrr->is_vrr_changing);
+					LCD_DEBUG(vdd, "DMS: VRR flag: %d -> 1\n", vrr->is_vrr_changing);
 					vrr->is_vrr_changing = true;
 					vrr->keep_max_clk = true;
 					vdd->vrr.running_vrr_mdp = true;

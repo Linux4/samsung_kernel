@@ -107,6 +107,11 @@ std::shared_ptr<Device> Device::getInstance(struct pal_device *device,
         return BtSco::getInstance(device, Rm);
     case PAL_DEVICE_IN_BLUETOOTH_A2DP:
     case PAL_DEVICE_OUT_BLUETOOTH_A2DP:
+#ifdef SEC_AUDIO_BLE_OFFLOAD
+    case PAL_DEVICE_IN_BLUETOOTH_BLE:
+    case PAL_DEVICE_OUT_BLUETOOTH_BLE:
+    case PAL_DEVICE_OUT_BLUETOOTH_BLE_BROADCAST:
+#endif
         PAL_VERBOSE(LOG_TAG, "BTA2DP device");
         return BtA2dp::getInstance(device, Rm);
     case PAL_DEVICE_OUT_AUX_DIGITAL:
@@ -161,6 +166,9 @@ std::shared_ptr<Device> Device::getObject(pal_device_id_t dev_id)
     case PAL_DEVICE_OUT_SPEAKER:
         PAL_VERBOSE(LOG_TAG, "speaker device");
         return Speaker::getObject();
+    case PAL_DEVICE_IN_VI_FEEDBACK:
+        PAL_VERBOSE(LOG_TAG, "speaker feedback device");
+        return SpeakerFeedback::getObject();        
     case PAL_DEVICE_OUT_WIRED_HEADSET:
     case PAL_DEVICE_OUT_WIRED_HEADPHONE:
         PAL_VERBOSE(LOG_TAG, "headphone device");
@@ -187,6 +195,11 @@ std::shared_ptr<Device> Device::getObject(pal_device_id_t dev_id)
         return HeadsetMic::getObject();
     case PAL_DEVICE_OUT_BLUETOOTH_A2DP:
     case PAL_DEVICE_IN_BLUETOOTH_A2DP:
+#ifdef SEC_AUDIO_BLE_OFFLOAD
+    case PAL_DEVICE_OUT_BLUETOOTH_BLE:
+    case PAL_DEVICE_IN_BLUETOOTH_BLE:
+    case PAL_DEVICE_OUT_BLUETOOTH_BLE_BROADCAST:
+#endif
         PAL_VERBOSE(LOG_TAG, "BT A2DP device %d", dev_id);
         return BtA2dp::getObject(dev_id);
     case PAL_DEVICE_OUT_BLUETOOTH_SCO:
@@ -194,8 +207,10 @@ std::shared_ptr<Device> Device::getObject(pal_device_id_t dev_id)
         PAL_VERBOSE(LOG_TAG, "BT SCO device %d", dev_id);
         return BtSco::getObject(dev_id);
     case PAL_DEVICE_OUT_PROXY:
-    case PAL_DEVICE_IN_PROXY:
     case PAL_DEVICE_OUT_HEARING_AID:
+        PAL_VERBOSE(LOG_TAG, "RTProxyOut device %d", dev_id);
+        return RTProxyOut::getObject();
+    case PAL_DEVICE_IN_PROXY:
     case PAL_DEVICE_IN_TELEPHONY_RX:
         PAL_VERBOSE(LOG_TAG, "RTProxy device %d", dev_id);
         return RTProxy::getObject();
@@ -509,4 +524,40 @@ int32_t Device::setParameter(uint32_t param_id __unused, void *param __unused)
 int32_t Device::getParameter(uint32_t param_id __unused, void **param __unused)
 {
     return 0;
+}
+
+int32_t Device::configureDeviceClockSrc(char const *mixerStrClockSrc, const uint32_t clockSrc)
+{
+    struct mixer *hwMixerHandle = NULL;
+    struct mixer_ctl *clockSrcCtrl = NULL;
+    int32_t ret = 0;
+
+    if (!mixerStrClockSrc) {
+        PAL_ERR(LOG_TAG, "Invalid argument - mixerStrClockSrc");
+        ret = -EINVAL;
+        goto exit;
+    }
+
+    ret = rm->getHwAudioMixer(&hwMixerHandle);
+    if (ret) {
+        PAL_ERR(LOG_TAG, "getHwAudioMixer() failed %d", ret);
+        goto exit;
+    }
+
+    /* Hw mixer control registration is optional in case
+     * clock source selection is not required
+     */
+    clockSrcCtrl = mixer_get_ctl_by_name(hwMixerHandle, mixerStrClockSrc);
+    if (!clockSrcCtrl) {
+        PAL_DBG(LOG_TAG, "%s hw mixer control not identified", mixerStrClockSrc);
+        goto exit;
+    }
+
+    PAL_DBG(LOG_TAG, "HwMixer set %s = %d", mixerStrClockSrc, clockSrc);
+    ret = mixer_ctl_set_value(clockSrcCtrl, 0, clockSrc);
+    if (ret)
+        PAL_ERR(LOG_TAG, "HwMixer set %s = %d failed", mixerStrClockSrc, clockSrc);
+
+exit:
+    return ret;
 }

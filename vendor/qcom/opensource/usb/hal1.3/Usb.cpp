@@ -58,6 +58,24 @@ const char GOOGLE_USB_VENDOR_ID_STR[] = "18d1";
 const char GOOGLE_USBC_35_ADAPTER_UNPLUGGED_ID_STR[] = "5029";
 //@VOLD Apply QC Patch]
 
+// Set by the signal handler to destroy the thread
+volatile bool destroyThread;
+
+constexpr char kEnabledPath[] = "/sys/class/power_supply/usb/moisture_detection_enabled";
+constexpr char kDetectedPath[] = "/sys/class/power_supply/usb/moisture_detected";
+constexpr char kConsole[] = "init.svc.console";
+constexpr char kDisableContatminantDetection[] = "vendor.usb.contaminantdisable";
+
+void queryVersionHelper(implementation::Usb *usb, hidl_vec<PortStatus> *currentPortStatus_1_2);
+
+//[@VOLD Apply QC Patch
+static void checkUsbWakeupSupport(struct Usb *usb);
+static void checkUsbInHostMode(struct Usb *usb);
+static void checkUsbDeviceAutoSuspend(const std::string& devicePath);
+static bool checkUsbInterfaceAutoSuspend(const std::string& devicePath,
+                                         const std::string &intf);
+//@VOLD Apply QC Patch]
+
 Return<bool> Usb::enableUsbDataSignal(bool enable) {
     bool result = true;
 
@@ -97,26 +115,10 @@ Return<bool> Usb::enableUsbDataSignal(bool enable) {
 //        }
 //]
     }
+    hidl_vec<PortStatus> currentPortStatus_1_2;
+    queryVersionHelper(this, &currentPortStatus_1_2);
     return result;
 }
-
-// Set by the signal handler to destroy the thread
-volatile bool destroyThread;
-
-constexpr char kEnabledPath[] = "/sys/class/power_supply/usb/moisture_detection_enabled";
-constexpr char kDetectedPath[] = "/sys/class/power_supply/usb/moisture_detected";
-constexpr char kConsole[] = "init.svc.console";
-constexpr char kDisableContatminantDetection[] = "vendor.usb.contaminantdisable";
-
-void queryVersionHelper(implementation::Usb *usb, hidl_vec<PortStatus> *currentPortStatus_1_2);
-
-//[@VOLD Apply QC Patch
-static void checkUsbWakeupSupport(struct Usb *usb);
-static void checkUsbInHostMode(struct Usb *usb);
-static void checkUsbDeviceAutoSuspend(const std::string& devicePath);
-static bool checkUsbInterfaceAutoSuspend(const std::string& devicePath,
-                                         const std::string &intf);
-//@VOLD Apply QC Patch]
 
 int32_t readFile(const std::string &filename, std::string *contents) {
     FILE *fp;
@@ -804,14 +806,15 @@ static void uevent_event(uint32_t /*epevents*/, struct data *payload) {
         }
     } else if (std::regex_match(msg, match, udc_regex)) {
         if (!strncmp(msg, "add", 3)) {
-            // Attempt to re-bind ConfigFS gadget to UDC when it is added
-            ALOGI("Binding UDC %s to ConfigFS", gadgetName.c_str());
-            writeFile("/config/usb_gadget/g1/UDC", gadgetName);
-
-            // Also allow ADBD to resume. In case bind still failed above due
-            // due to ADB FFS EP0 file not opened and written to yet, ADBD will
-            // separately trigger re-bind when it sets sys.usb.ffs.ready=1
+            // Allow ADBD to resume its FFS monitor thread
             SetProperty(VENDOR_USB_ADB_DISABLED_PROP, "0");
+
+            // In case ADB is not enabled, we need to manually re-bind the UDC to
+            // ConfigFS since ADBD is not there to trigger it (sys.usb.ffs.ready=1)
+            if (GetProperty("init.svc.adbd", "") != "running") {
+                ALOGI("Binding UDC %s to ConfigFS", gadgetName.c_str());
+                writeFile("/config/usb_gadget/g1/UDC", gadgetName);
+            }
         } else {
             // When the UDC is removed, the ConfigFS gadget will no longer be
             // bound. If ADBD is running it would keep opening/writing to its

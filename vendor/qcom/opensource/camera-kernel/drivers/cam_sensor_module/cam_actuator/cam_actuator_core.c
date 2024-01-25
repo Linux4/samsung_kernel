@@ -526,6 +526,17 @@ int32_t cam_actuator_apply_settings(struct cam_actuator_ctrl_t *a_ctrl,
 							break;
 #endif
 
+#if defined(CONFIG_SAMSUNG_REAR_QUADRA)
+						case CAMERA_6:
+							if (!msm_is_sec_get_rear4_hw_param(&hw_param)) {
+								if (hw_param != NULL) {
+									CAM_ERR(CAM_UTIL, "[HWB][R4][AF] Err\n");
+									hw_param->i2c_af_err_cnt++;
+									hw_param->need_update_to_file = TRUE;
+								}
+							}
+							break;
+#endif
 						default:
 							CAM_DBG(CAM_UTIL, "[NON][AF][%d] Unsupport\n", a_ctrl->soc_info.index);
 							break;

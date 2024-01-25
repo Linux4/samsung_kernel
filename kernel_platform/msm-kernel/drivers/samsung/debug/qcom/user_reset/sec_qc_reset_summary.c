@@ -99,8 +99,8 @@ static int sec_qc_reset_summary_proc_open(struct inode *inode,
 
 	mutex_lock(&reset_summary->lock);
 
-	if (reset_summary->ref) {
-		reset_summary->ref++;
+	if (reset_summary->ref_cnt) {
+		reset_summary->ref_cnt++;
 		goto already_cached;
 	}
 
@@ -116,7 +116,7 @@ static int sec_qc_reset_summary_proc_open(struct inode *inode,
 		goto err_buf;
 	}
 
-	reset_summary->ref++;
+	reset_summary->ref_cnt++;
 
 	mutex_unlock(&reset_summary->lock);
 
@@ -135,6 +135,9 @@ static ssize_t sec_qc_reset_summary_proc_read(struct file *file,
 {
 	struct qc_user_reset_proc *reset_summary = PDE_DATA(file_inode(file));
 	loff_t pos = *ppos;
+
+	if (pos < 0 || pos > reset_summary->len)
+		return 0;
 
 	nbytes = min_t(size_t, nbytes, reset_summary->len - pos);
 	if (copy_to_user(buf, &reset_summary->buf[pos], nbytes))
@@ -160,8 +163,8 @@ static int sec_qc_reset_summary_proc_release(struct inode *inode,
 
 	mutex_lock(&reset_summary->lock);
 
-	reset_summary->ref--;
-	if (reset_summary->ref)
+	reset_summary->ref_cnt--;
+	if (reset_summary->ref_cnt)
 		goto still_used;
 
 	reset_summary->len = 0;

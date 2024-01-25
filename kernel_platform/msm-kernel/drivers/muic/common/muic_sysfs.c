@@ -32,7 +32,9 @@
 #include <linux/muic/common/muic.h>
 #include <linux/muic/common/muic_sysfs.h>
 #include <linux/sec_class.h>
+#if IS_ENABLED(CONFIG_BATTERY_SAMSUNG)
 #include <linux/battery/sec_battery_common.h>
+#endif
 #if IS_BUILTIN(CONFIG_MUIC_NOTIFIER)
 #if defined(CONFIG_ARCH_QCOM)
 #include <linux/sec_param.h>
@@ -482,11 +484,14 @@ static ssize_t muic_sysfs_set_afc_disable(struct device *dev,
 	bool curr_val = pdata->afc_disable;
 	int ret = 0;
 	int param_val = 0;
+#if IS_ENABLED(CONFIG_BATTERY_SAMSUNG)
 	union power_supply_propval psy_val;
+#endif
 
 	pr_info("%s+\n", __func__);
 	if (!strncasecmp(buf, "1", 1)) {
 		pdata->afc_disable = true;
+		muic_afc_request_cause_clear();
 	} else if (!strncasecmp(buf, "0", 1)) {
 		pdata->afc_disable = false;
 	} else {
@@ -514,8 +519,10 @@ static ssize_t muic_sysfs_set_afc_disable(struct device *dev,
 	}
 #endif
 
+#if IS_ENABLED(CONFIG_BATTERY_SAMSUNG)
 	psy_val.intval = param_val;
 	psy_do_property("battery", set, POWER_SUPPLY_EXT_PROP_HV_DISABLE, psy_val);
+#endif
 
 	pr_info("%s afc_disable(%d)\n", __func__, pdata->afc_disable);
 

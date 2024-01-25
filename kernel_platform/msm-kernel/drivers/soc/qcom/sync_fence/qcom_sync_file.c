@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021, The Linux Foundation. All rights reserved.
  */
 
 #define pr_fmt(fmt)	"%s: " fmt, __func__
@@ -199,7 +200,6 @@ static int spec_sync_create_array(struct fence_create_data *f)
 
 	fence_array = dma_fence_array_create(f->num_fences, NULL,
 				dma_fence_context_alloc(1), 0, signal_any);
-
 	if (!fence_array) {
 		pr_err("dma fence_array allocation failure\n");
 		ret = -ENOMEM;

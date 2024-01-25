@@ -1,6 +1,6 @@
 /******************************************************************************
  *
- *  Copyright 2012-2021 NXP
+ *  Copyright 2012-2023 NXP
  *   *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -47,14 +47,20 @@
 #include <linux/regulator/consumer.h>
 #include <linux/spi/spidev.h>
 #include <linux/of_platform.h>
+#if IS_ENABLED(CONFIG_SAMSUNG_NFC)
+#include <linux/rcupdate.h>
 #if IS_ENABLED(CONFIG_SPI_MSM_GENI)
+#include "nfc_wakelock.h"
+#if IS_ENABLED(CONFIG_MSM_GENI_SE)
 #include <linux/msm-geni-se.h>
 #include <linux/msm_gpi.h>
+#endif
+#endif
 #endif
 
 #include "p73.h"
 #include "common_ese.h"
-
+#include "ese_reset.h"
 #define DRAGON_P61 0
 
 /* Device driver's configuration macro */
@@ -137,6 +143,8 @@ enum p61_pin_ctrl {
 /* Variable to store current debug level request by ioctl */
 static unsigned char debug_level;
 
+static DEFINE_MUTEX(open_close_mutex);
+
 #define P61_DBG_MSG(msg...)  \
         switch(debug_level)      \
         {                        \
@@ -169,18 +177,29 @@ struct p61_dev {
 	struct device *nfcc_device;	/*nfcc driver handle for driver to driver comm */
 	struct nfc_dev *nfcc_data;
 	const char *nfcc_name;
+	bool gpio_coldreset;
 #if IS_ENABLED(CONFIG_SAMSUNG_NFC)
 	int ap_vendor;
 	struct device_node *nfc_node;
 	struct pinctrl *pinctrl;
 	struct pinctrl_state *pinctrl_state[P61_PIN_CTRL_MAX];
 	struct platform_device *spi_pdev;
+	struct nfc_wake_lock ese_lock;
+	int open_pid;
+	int release_pid;
+	char open_task_name[TASK_COMM_LEN];
+	char release_task_name[TASK_COMM_LEN];
+#if IS_ENABLED(CONFIG_SPI_MSM_GENI)
+	struct delayed_work spi_release_work;
+	struct nfc_wake_lock spi_release_wakelock;
+#endif
 #endif
 	unsigned char *r_buf;
 	unsigned char *w_buf;
 };
 
 #if IS_ENABLED(CONFIG_SAMSUNG_NFC)
+struct device  *g_nfc_device;
 struct p61_dev *g_p61_dev;
 #endif
 
@@ -270,6 +289,46 @@ static void p61_stop_throughput_measurement(unsigned int type, int no_of_bytes)
 }
 
 #if IS_ENABLED(CONFIG_SAMSUNG_NFC)
+static void p61_get_task_info(struct p61_dev *p61_dev, char *task_name, int *pid)
+{
+	struct task_struct *task;
+
+	if (!p61_dev)
+		return;
+
+	rcu_read_lock();
+	*pid = task_pid_nr(current);
+	task = pid_task(find_vpid(*pid), PIDTYPE_PID);
+	if (task) {
+		memcpy(task_name, task->comm, TASK_COMM_LEN);
+		task_name[TASK_COMM_LEN - 1] = '\0';
+	}
+	rcu_read_unlock();
+}
+
+static void p61_init_task_info(struct p61_dev *p61_dev)
+{
+	p61_dev->open_pid = 0;
+	p61_dev->release_pid = 0;
+	memset(p61_dev->open_task_name, 0, TASK_COMM_LEN);
+	memset(p61_dev->release_task_name, 0, TASK_COMM_LEN);
+}
+
+void p61_print_status(const char *func_name)
+{
+	struct p61_dev *p61_dev = g_p61_dev;
+
+	if (!p61_dev)
+		return;
+
+	NFC_LOG_INFO("%s: state=%d o_pid=%d rel_pid=%d o_task=%s rel_task=%s\n",
+			func_name, p61_dev->ese_spi_transition_state,
+			p61_dev->open_pid,
+			p61_dev->release_pid,
+			p61_dev->open_task_name,
+			p61_dev->release_task_name);
+}
+
 static void p61_pinctrl_select(struct p61_dev *p61_dev, enum p61_pin_ctrl stat)
 {
 	int ret;
@@ -283,6 +342,21 @@ static void p61_pinctrl_select(struct p61_dev *p61_dev, enum p61_pin_ctrl stat)
 	if (ret < 0)
 		NFC_LOG_INFO("pinctrl[%d] failed\n", stat);
 }
+
+#if IS_ENABLED(CONFIG_SPI_MSM_GENI)
+static void p61_spi_release_work(struct work_struct *work)
+{
+	struct p61_dev *p61_dev = g_p61_dev;
+
+	if (p61_dev == NULL) {
+		NFC_LOG_ERR("%s: spi probe is not called\n", __func__);
+		return;
+	}
+
+	NFC_LOG_INFO("release ese spi\n");
+	p61_pinctrl_select(p61_dev, P61_PIN_CTRL_SUSPEND); /* for QC AP */
+}
+#endif
 #endif
 
 /**
@@ -300,15 +374,32 @@ static int ese_dev_release(struct inode *inode, struct file *filp)
 	struct p61_dev *p61_dev = NULL;
 
 	NFC_LOG_INFO("Enter %s: ESE driver release\n", __func__);
+
+	mutex_lock(&open_close_mutex);
 	p61_dev = filp->private_data;
 	p61_dev->ese_spi_transition_state = ESE_SPI_IDLE;
+#if !IS_ENABLED(CONFIG_SAMSUNG_NFC)
 	gpio_set_value(p61_dev->trusted_ese_gpio, 0);
+#endif
 	nfc_ese_pwr(p61_dev->nfcc_data, ESE_RST_PROT_DIS);
-	NFC_LOG_INFO("Exit %s: ESE driver release\n", __func__);
 
 #if IS_ENABLED(CONFIG_SAMSUNG_NFC)
 	p61_pinctrl_select(p61_dev, P61_PIN_CTRL_ESE_OFF); /* for LSI AP */
+#if IS_ENABLED(CONFIG_SPI_MSM_GENI)
+	schedule_delayed_work(&p61_dev->spi_release_work,
+				msecs_to_jiffies(2000));
+	wake_lock_timeout(&p61_dev->spi_release_wakelock,
+				msecs_to_jiffies(2100));
 #endif
+	if (wake_lock_active(&p61_dev->ese_lock))
+		wake_unlock(&p61_dev->ese_lock);
+#endif
+	mutex_unlock(&open_close_mutex);
+#if IS_ENABLED(CONFIG_SAMSUNG_NFC)
+	p61_get_task_info(p61_dev, p61_dev->release_task_name, &p61_dev->release_pid);
+	p61_print_status(__func__);
+#endif
+	NFC_LOG_INFO("Exit %s: ESE driver release\n", __func__);
 	return 0;
 }
 
@@ -386,7 +477,7 @@ static int p61_rw_spi_message(struct p61_dev *p61_dev,
 	err = p61_xfer(p61_dev, dup);
 	if (err != 0) {
 		kfree(dup);
-		NFC_LOG_ERR("%s: p61_xfer failed!\n", __func__);
+		NFC_LOG_ERR("%s: p61_xfer failed, %d\n", __func__, err);
 		return err;
 	}
 
@@ -398,6 +489,53 @@ static int p61_rw_spi_message(struct p61_dev *p61_dev,
 	kfree(dup);
 	return 0;
 }
+
+#if IS_ENABLED(CONFIG_SAMSUNG_NFC)
+void store_nfc_i2c_device(struct device *nfc_i2c_dev)
+{
+	g_nfc_device = nfc_i2c_dev;
+}
+#endif
+
+#ifdef CONFIG_COMPAT
+static int p61_rw_spi_message_compat(struct p61_dev *p61_dev,
+				 unsigned long arg)
+{
+	struct p61_ioctl_transfer32 __user *argp = compat_ptr(arg);
+	struct p61_ioctl_transfer32 it32;
+	struct p61_ioctl_transfer   *dup = NULL;
+	int err = 0;
+
+	dup = kmalloc(sizeof(struct p61_ioctl_transfer), GFP_KERNEL);
+	if (dup == NULL)
+		return -ENOMEM;
+
+	if (copy_from_user(&it32, argp, sizeof(it32))) {
+		kfree(dup);
+		return -EFAULT;
+	}
+
+	dup->rx_buffer = (__u8 *)(uintptr_t)it32.rx_buffer;
+	dup->tx_buffer = (__u8 *)(uintptr_t)it32.tx_buffer;
+	dup->len = it32.len;
+
+	err = p61_xfer(p61_dev, dup);
+	if (err != 0) {
+		kfree(dup);
+		NFC_LOG_ERR("%s: p61_xfer failed, %d\n", __func__, err);
+		return err;
+	}
+
+	if (it32.rx_buffer) {
+		if (__put_user(dup->len, &argp->len)) {
+			kfree(dup);
+			return -EFAULT;
+		}
+	}
+	kfree(dup);
+	return 0;
+}
+#endif	/*CONFIG_COMPAT */
 
 /**
  * \ingroup spi_driver
@@ -430,7 +568,7 @@ static int p61_dev_open(struct inode *inode, struct file *filp)
 	/* Find the NFC parent device if it exists. */
 	if (p61_dev != NULL && p61_dev->nfcc_data == NULL) {
 #if IS_ENABLED(CONFIG_SAMSUNG_NFC)
-		struct device *nfc_dev = bus_find_device_by_of_node(&i2c_bus_type, p61_dev->nfc_node);
+		struct device *nfc_dev = g_nfc_device;
 		if (!nfc_dev) {
 			NFC_LOG_ERR("%s: cannot find NFC controller\n", __func__);
 			return -ENODEV;
@@ -459,18 +597,31 @@ static int p61_dev_open(struct inode *inode, struct file *filp)
 		return -EBUSY;
 	}
 
+	mutex_lock(&open_close_mutex);
 	p61_dev->ese_spi_transition_state = ESE_SPI_BUSY;
 
 #if IS_ENABLED(CONFIG_SAMSUNG_NFC)
+	/* for checking previous open/close tasks */
+	p61_print_status("p61_dev_open pre");
+#if IS_ENABLED(CONFIG_SPI_MSM_GENI)
+	cancel_delayed_work_sync(&p61_dev->spi_release_work);
+#endif
+	if (!wake_lock_active(&p61_dev->ese_lock))
+		wake_lock(&p61_dev->ese_lock);
+
 	p61_pinctrl_select(p61_dev, P61_PIN_CTRL_ESE_ON);
 	msleep(60);
 #endif
-
-	NFC_LOG_INFO("%s : Major No: %d, Minor No: %d state=%d\n", __func__,
-		    imajor(inode), iminor(inode), p61_dev->ese_spi_transition_state);
-
+	mutex_unlock(&open_close_mutex);
+#if IS_ENABLED(CONFIG_SAMSUNG_NFC)
+	p61_init_task_info(p61_dev);
+	p61_get_task_info(p61_dev, p61_dev->open_task_name, &p61_dev->open_pid);
+	p61_print_status(__func__);
+#endif
 	return 0;
 }
+
+
 
 /**
  * \ingroup spi_driver
@@ -513,7 +664,7 @@ static long p61_dev_ioctl(struct file *filp, unsigned int cmd,
 				regulator_enable(p61_regulator);
 				P61_DBG_MSG(KERN_ALERT " Enabling p61_regulator");
 			} else {
-				NFC_LOG_ERR(KERN_ALERT " ERROR : p61_regulator is not enabled");
+				NFC_LOG_ERR(KERN_ALERT " ERROR : p61_regulator is not enabled\n");
 			}
 #endif
 
@@ -590,17 +741,25 @@ static long p61_dev_ioctl(struct file *filp, unsigned int cmd,
 		break;
 	case ESE_PERFORM_COLD_RESET:
 		NFC_LOG_INFO("ESE_PERFORM_COLD_RESET: enter\n");
-		ret = nfc_ese_pwr(p61_dev->nfcc_data, ESE_CLD_RST);
+		if (p61_dev->gpio_coldreset)
+			ret = perform_ese_gpio_reset(p61_dev->rst_gpio);
+		else
+			ret = nfc_ese_pwr(p61_dev->nfcc_data, ESE_CLD_RST);
 		NFC_LOG_INFO("ESE_PERFORM_COLD_RESET ret: %d exit\n", ret);
 		break;
 	case PERFORM_RESET_PROTECTION:
-		NFC_LOG_INFO("PERFORM_RESET_PROTECTION: enter\n");
-		ret = nfc_ese_pwr(p61_dev->nfcc_data,
+		if (p61_dev->gpio_coldreset) {
+			NFC_LOG_INFO("PERFORM_RESET_PROTECTION is not required and not supported\n");
+		} else {
+			NFC_LOG_INFO("PERFORM_RESET_PROTECTION: enter\n");
+			ret = nfc_ese_pwr(p61_dev->nfcc_data,
 				  (arg == 1 ? ESE_RST_PROT_EN : ESE_RST_PROT_DIS));
-		NFC_LOG_INFO("PERFORM_RESET_PROTECTION ret: %d exit\n", ret);
+			NFC_LOG_INFO("PERFORM_RESET_PROTECTION ret: %d exit\n", ret);
+		}
 		break;
 	case ESE_SET_TRUSTED_ACCESS:
 		NFC_LOG_INFO("Enter %s: TRUSTED access enabled=%d\n", __func__, arg);
+#if !IS_ENABLED(CONFIG_SAMSUNG_NFC)
 		if(arg == 1) {
 			NFC_LOG_INFO("ESE_SET_TRUSTED_ACCESS: enter Enabling\n");
 			gpio_set_value(p61_dev->trusted_ese_gpio, 1);
@@ -610,6 +769,7 @@ static long p61_dev_ioctl(struct file *filp, unsigned int cmd,
 			gpio_set_value(p61_dev->trusted_ese_gpio, 0);
 			NFC_LOG_INFO("ESE_SET_TRUSTED_ACCESS ret: exit\n");
 		}
+#endif
 		break;
 	default:
 		NFC_LOG_ERR("Error case\n");
@@ -619,6 +779,159 @@ static long p61_dev_ioctl(struct file *filp, unsigned int cmd,
 	P61_DBG_MSG(KERN_ALERT "p61_dev_ioctl-exit %u arg = %lu\n", cmd, arg);
 	return ret;
 }
+
+#ifdef CONFIG_COMPAT
+/**
+ * \ingroup spi_driver
+ * \brief To configure the P61_SET_PWR/P61_SET_DBG/P61_SET_POLL
+ * \n         P61_SET_PWR - hard reset (arg=2), soft reset (arg=1)
+ * \n         P61_SET_DBG - Enable/Disable (based on arg value) the driver logs
+ * \n         P61_SET_POLL - Configure the driver in poll (arg = 1), interrupt (arg = 0) based read operation
+ * \param[in]       struct file *
+ * \param[in]       unsigned int
+ * \param[in]       unsigned long
+ *
+ * \retval 0 if ok.
+ *
+ */
+#if IS_ENABLED(CONFIG_SAMSUNG_NFC)
+static long p61_dev_compat_ioctl(struct file *filp, unsigned int cmd,
+	unsigned long arg)
+{
+	int ret = 0;
+	struct p61_dev *p61_dev = NULL;
+
+	if (_IOC_TYPE(cmd) != P61_MAGIC)
+		return -ENOTTY;
+
+	p61_dev = filp->private_data;
+
+	switch (cmd) {
+	case P61_SET_PWR_COMPAT:
+		if (arg == 2)
+			NFC_LOG_INFO("%s: P61_SET_PWR. No Action.\n", __func__);
+		break;
+
+	case P61_SET_DBG_COMPAT:
+		debug_level = (unsigned char)arg;
+		P61_DBG_MSG(KERN_INFO"[NXP-P61] -  Debug level %d",
+			debug_level);
+		break;
+	case P61_SET_POLL_COMPAT:
+		p61_dev->enable_poll_mode = (unsigned char)arg;
+		if (p61_dev->enable_poll_mode == 0) {
+			P61_DBG_MSG(KERN_INFO"[NXP-P61] - IRQ Mode is set\n");
+		} else {
+			P61_DBG_MSG(KERN_INFO"[NXP-P61] - Poll Mode is set\n");
+			p61_dev->enable_poll_mode = 1;
+		}
+		break;
+
+	case P61_RW_SPI_DATA_COMPAT:
+		ret = p61_rw_spi_message_compat(p61_dev, arg);
+		break;
+
+	case P61_SET_SPM_PWR_COMPAT:
+		NFC_LOG_INFO("%s: P61_SET_SPM_PWR: enter\n", __func__);
+		ret = nfc_ese_pwr(p61_dev->nfcc_data, arg);
+		NFC_LOG_INFO("%s: P61_SET_SPM_PWR: exit\n", __func__);
+		break;
+
+	case P61_GET_SPM_STATUS_COMPAT:
+		NFC_LOG_INFO("%s: P61_GET_SPM_STATUS: enter\n", __func__);
+		ret = nfc_ese_pwr(p61_dev->nfcc_data, ESE_POWER_STATE);
+		NFC_LOG_INFO("%s: P61_GET_SPM_STATUS: exit\n", __func__);
+		break;
+
+	case P61_SET_DWNLD_STATUS_COMPAT:
+		NFC_LOG_INFO("P61_SET_DWNLD_STATUS: enter\n");
+		//ret = pn547_dev_ioctl(filp, PN547_SET_DWNLD_STATUS, arg);
+		NFC_LOG_INFO("%s: P61_SET_DWNLD_STATUS: =%lu exit\n", __func__, arg);
+		break;
+
+	case P61_SET_THROUGHPUT_COMPAT:
+		p61_through_put_t.enable_through_put_measure = true;
+		NFC_LOG_INFO("[NXP-P61] -  P61_SET_THROUGHPUT enable %d\n",
+			    p61_through_put_t.enable_through_put_measure);
+		break;
+
+	case P61_GET_ESE_ACCESS_COMPAT:
+		NFC_LOG_INFO("P61_GET_ESE_ACCESS: enter\n");
+		//ret = pn547_dev_ioctl(filp, P547_GET_ESE_ACCESS, arg);
+		NFC_LOG_INFO("P61_GET_ESE_ACCESS ret: %d exit\n", ret);
+		break;
+
+	case P61_SET_POWER_SCHEME_COMPAT:
+		NFC_LOG_INFO("P61_SET_POWER_SCHEME: enter\n");
+		//ret = pn547_dev_ioctl(filp, P544_SET_POWER_SCHEME, arg);
+		NFC_LOG_INFO("P61_SET_POWER_SCHEME ret: %d exit\n",
+			    ret);
+		break;
+
+	case P61_INHIBIT_PWR_CNTRL_COMPAT:
+		NFC_LOG_INFO("P61_INHIBIT_PWR_CNTRL: enter\n");
+		//ret = pn547_dev_ioctl(filp, P544_SECURE_TIMER_SESSION, arg);
+		NFC_LOG_INFO("P61_INHIBIT_PWR_CNTRL ret: %d exit\n",
+			    ret);
+		break;
+
+	case ESE_PERFORM_COLD_RESET_COMPAT:
+		NFC_LOG_INFO("ESE_PERFORM_COLD_RESET: enter\n");
+		if (p61_dev->gpio_coldreset)
+			ret = perform_ese_gpio_reset(p61_dev->rst_gpio);
+		else
+			ret = nfc_ese_pwr(p61_dev->nfcc_data, ESE_CLD_RST);
+		NFC_LOG_INFO("ESE_PERFORM_COLD_RESET ret: %d exit\n", ret);
+		break;
+
+	case PERFORM_RESET_PROTECTION_COMPAT:
+		if (p61_dev->gpio_coldreset) {
+			NFC_LOG_INFO("PERFORM_RESET_PROTECTION is not required and not supported\n");
+		} else {
+			NFC_LOG_INFO("PERFORM_RESET_PROTECTION: enter\n");
+			ret = nfc_ese_pwr(p61_dev->nfcc_data,
+				  (arg == 1 ? ESE_RST_PROT_EN : ESE_RST_PROT_DIS));
+			NFC_LOG_INFO("PERFORM_RESET_PROTECTION ret: %d exit\n", ret);
+		}
+		break;
+
+	case ESE_SET_TRUSTED_ACCESS:
+		NFC_LOG_INFO("Enter %s: TRUSTED access enabled=%d\n", __func__, arg);
+#if !IS_ENABLED(CONFIG_SAMSUNG_NFC)
+		if (arg == 1) {
+			NFC_LOG_INFO("ESE_SET_TRUSTED_ACCESS: enter Enabling\n");
+			gpio_set_value(p61_dev->trusted_ese_gpio, 1);
+			NFC_LOG_INFO("ESE_SET_TRUSTED_ACCESS ret: exit\n");
+		} else if (arg == 0) {
+			NFC_LOG_INFO("ESE_SET_TRUSTED_ACCESS: enter Disabling\n");
+			gpio_set_value(p61_dev->trusted_ese_gpio, 0);
+			NFC_LOG_INFO("ESE_SET_TRUSTED_ACCESS ret: exit\n");
+		}
+#endif
+		break;
+
+	default:
+		NFC_LOG_INFO("%s: no matching ioctl!\n", __func__);
+		ret = -EINVAL;
+	}
+
+	P61_DBG_MSG(KERN_ALERT "%s %u arg = %lu\n", __func__, cmd, arg);
+	return ret;
+}
+#else
+static long p61_dev_compat_ioctl(struct file *filp, unsigned int cmd,
+			  unsigned long arg)
+{
+	int ret = 0;
+
+	arg = (compat_u64)arg;
+	NFC_LOG_INFO(KERN_ALERT "%s-Enter %u arg = %ld\n", __func__, cmd, arg);
+	NFC_LOG_DBG("%s: cmd = %x arg = %zx\n", __func__, cmd, arg);
+	ret = p61_dev_ioctl(filp, cmd, arg);
+	return ret;
+}
+#endif
+#endif
 
 /**
  * \ingroup spi_driver
@@ -660,7 +973,7 @@ static ssize_t p61_dev_write(struct file *filp, const char *buf, size_t count,
 	memset(&tx_buffer[0], 0, sizeof(tx_buffer));
 #endif
 	if (copy_from_user(&tx_buffer[0], &buf[0], count)) {
-		NFC_LOG_ERR("%s : failed to copy from user space\n", __func__);
+		NFC_LOG_ERR("%s: failed to copy from user space\n", __func__);
 		mutex_unlock(&p61_dev->write_mutex);
 		return -EFAULT;
 	}
@@ -669,6 +982,7 @@ static ssize_t p61_dev_write(struct file *filp, const char *buf, size_t count,
 	/* Write data */
 	ret = spi_write(p61_dev->spi, &tx_buffer[0], count);
 	if (ret < 0) {
+		NFC_LOG_ERR("%s: spi_write fail %d\n", __func__, ret);
 		ret = -EIO;
 	} else {
 		ret = count;
@@ -775,7 +1089,7 @@ static ssize_t p61_dev_read(struct file *filp, char *buf, size_t count,
 	if (p61_dev->enable_poll_mode) {
 		NFC_LOG_REC("%s Poll Mode Enabled\n", __func__);
 
-		NFC_LOG_REC("SPI_READ returned %zu", count);
+		NFC_LOG_REC("SPI_READ returned %zu\n", count);
 		ret = spi_read(p61_dev->spi, (void *)&rx_buffer[0], count);
 		if (0 > ret) {
 			NFC_LOG_ERR("spi_read failed [SOF]\n");
@@ -811,7 +1125,7 @@ static ssize_t p61_dev_read(struct file *filp, char *buf, size_t count,
 #endif
 		ret = spi_read(p61_dev->spi, (void *)&rx_buffer[0], count);
 		if (0 > ret) {
-			NFC_LOG_ERR("SPI_READ returned 0x%x", ret);
+			NFC_LOG_ERR("SPI_READ returned 0x%x\n", ret);
 			ret = -EIO;
 			goto fail;
 		}
@@ -822,7 +1136,7 @@ static ssize_t p61_dev_read(struct file *filp, char *buf, size_t count,
 
 	if (p61_through_put_t.enable_through_put_measure)
 		p61_stop_throughput_measurement(READ_THROUGH_PUT, count);
-	NFC_LOG_REC("total_count = %zu", count);
+	NFC_LOG_REC("total_count = %zu\n", count);
 
 	if (copy_to_user(buf, &rx_buffer[0], count)) {
 		NFC_LOG_ERR("%s : failed to copy to user space\n", __func__);
@@ -934,25 +1248,22 @@ static int p61_hw_setup(struct p61_spi_platform_data *platform_data,
 		return ret;
 	}
 
+	ret = ese_reset_gpio_setup(platform_data);
+	if (ret < 0) {
+		P61_ERR_MSG("Failed to setup ese reset gpio");
+		goto fail;
+	}
+
 	ret = 0;
 	NFC_LOG_INFO("Exit : %s\n", __func__);
 	return ret;
-
-#ifdef P61_HARD_RESET
-fail_gpio:
-	gpio_free(platform_data->rst_gpio);
-#endif
-
 #ifdef P61_IRQ_ENABLE
 fail_irq:
 	gpio_free(platform_data->irq_gpio);
+#endif
 fail:
 	NFC_LOG_ERR("p61_hw_setup failed\n");
-#endif
-
-#if defined(P61_HARD_RESET) || defined(P61_IRQ_ENABLE)
 	return ret;
-#endif
 }
 #endif
 
@@ -995,6 +1306,9 @@ static const struct file_operations p61_dev_fops = {
 	.open = p61_dev_open,
 	.release = ese_dev_release,
 	.unlocked_ioctl = p61_dev_ioctl,
+#ifdef CONFIG_COMPAT
+	.compat_ioctl = p61_dev_compat_ioctl,
+#endif
 };
 
 #if DRAGON_P61 || IS_ENABLED(CONFIG_SAMSUNG_NFC)
@@ -1034,6 +1348,14 @@ static int p61_parse_dt(struct device *dev, struct p61_spi_platform_data *data)
 	} else {
 		NFC_LOG_INFO("AP vendor is not set\n");
 	}
+
+	data->gpio_coldreset = of_property_read_bool(np, "p61,gpio_coldreset_support");
+	if (data->gpio_coldreset) {
+		NFC_LOG_INFO("gpio coldreset supports\n");
+		data->rst_gpio = of_get_named_gpio(np, "p61,gpio-rst", 0);
+		if ((!gpio_is_valid(data->rst_gpio)))
+			return -EINVAL;
+	}
 #else
 	data->irq_gpio = of_get_named_gpio(np, "nxp,p61-irq", 0);
 	if ((!gpio_is_valid(data->irq_gpio)))
@@ -1055,6 +1377,7 @@ static int p61_parse_dt(struct device *dev, struct p61_spi_platform_data *data)
 }
 #endif
 #if IS_ENABLED(CONFIG_SPI_MSM_GENI)
+#if IS_ENABLED(CONFIG_MSM_GENI_SE)
 /*
  * eSE driver can't access spi_geni_master structure because it's defined in drivers/spi/spi-msm-geni.c file.
  * so, we need a logic to search se_geni_rsc in "void *spi_geni_master".
@@ -1082,11 +1405,46 @@ struct se_geni_rsc *p61_find_spi_src(struct p61_dev *p61_dev, void *spi_geni_mas
 	return 0;
 }
 
+#else
+/* CONFIG_QCOM_GENI_SE */
+struct qc_spi_pinctrl {
+	struct pinctrl *geni_pinctrl;
+	struct pinctrl_state *geni_gpio_active;
+	struct pinctrl_state *geni_gpio_sleep;
+};
+
+struct qc_spi_pinctrl *p61_find_spi_src(struct p61_dev *p61_dev, void *spi_geni_master)
+{
+	char *offset = spi_geni_master;
+	struct qc_spi_pinctrl *spi_pinctrl;
+	int i;
+	int max_addr_cnt = 250;
+
+	for (i = 0; i < max_addr_cnt; i++) {
+		spi_pinctrl = (struct qc_spi_pinctrl *)offset;
+
+		if (spi_pinctrl->geni_pinctrl == p61_dev->pinctrl &&
+			spi_pinctrl->geni_gpio_active == p61_dev->pinctrl_state[P61_PIN_CTRL_DEFAULT]) {
+			NFC_LOG_INFO("%s, found pinctrl in spi master!\n", __func__);
+			return spi_pinctrl;
+		}
+
+		offset++;
+	}
+
+	NFC_LOG_ERR("%s, failed to find spi pinctrl!\n", __func__);
+	return 0;
+}
+#endif
 static void p61_set_spi_bus_pincontrol(struct p61_dev *p61_dev)
 {
 	struct spi_master *master;
 	void *geni_mas;
-	struct se_geni_rsc *rsc;
+#if IS_ENABLED(CONFIG_MSM_GENI_SE)
+	struct se_geni_rsc *spi_pinctrl;
+#else
+	struct qc_spi_pinctrl *spi_pinctrl;
+#endif
 	static bool called;
 
 	if (!p61_dev || called)
@@ -1098,10 +1456,14 @@ static void p61_set_spi_bus_pincontrol(struct p61_dev *p61_dev)
 	called = true;
 	master = platform_get_drvdata(p61_dev->spi_pdev);
 	geni_mas = spi_master_get_devdata(master);
-	rsc = p61_find_spi_src(p61_dev, geni_mas);
-	if (rsc) {
-		rsc->geni_gpio_sleep = pinctrl_lookup_state(rsc->geni_pinctrl, p61_pinctrl_name[P61_PIN_CTRL_SUSPEND]);
-		rsc->geni_gpio_active = pinctrl_lookup_state(rsc->geni_pinctrl, p61_pinctrl_name[P61_PIN_CTRL_ACTIVE]);
+	spi_pinctrl = p61_find_spi_src(p61_dev, geni_mas);
+	if (spi_pinctrl) {
+		spi_pinctrl->geni_gpio_sleep =
+			pinctrl_lookup_state(spi_pinctrl->geni_pinctrl,
+				p61_pinctrl_name[P61_PIN_CTRL_SUSPEND]);
+		spi_pinctrl->geni_gpio_active =
+			pinctrl_lookup_state(spi_pinctrl->geni_pinctrl,
+				p61_pinctrl_name[P61_PIN_CTRL_ACTIVE]);
 	}
 }
 #endif
@@ -1233,6 +1595,13 @@ static int p61_probe(struct spi_device *spi)
 		goto err_exit0;
 	}
 #endif
+	if (platform_data->gpio_coldreset) {
+		ret = ese_reset_gpio_setup(platform_data);
+		if (ret < 0) {
+			P61_ERR_MSG("Failed to setup ese reset gpio");
+			goto err_exit0;
+		}
+	}
 
 	spi->bits_per_word = 8;
 	spi->mode = SPI_MODE_0;
@@ -1263,8 +1632,11 @@ static int p61_probe(struct spi_device *spi)
 	p61_dev->irq_gpio = platform_data->irq_gpio;
 	p61_dev->rst_gpio = platform_data->rst_gpio;
 	p61_dev->trusted_ese_gpio = platform_data->trusted_ese_gpio;
+	p61_dev->gpio_coldreset = platform_data->gpio_coldreset;
 #if IS_ENABLED(CONFIG_SAMSUNG_NFC)
 	p61_dev->ap_vendor = platform_data->ap_vendor;
+#else
+	p61_dev->trusted_ese_gpio = platform_data->trusted_ese_gpio;
 #endif
 	p61_dev->ese_spi_transition_state = ESE_SPI_IDLE;
 	dev_set_drvdata(&spi->dev, p61_dev);
@@ -1273,6 +1645,8 @@ static int p61_probe(struct spi_device *spi)
 	init_waitqueue_head(&p61_dev->read_wq);
 	mutex_init(&p61_dev->read_mutex);
 	mutex_init(&p61_dev->write_mutex);
+	if (p61_dev->gpio_coldreset)
+		ese_reset_init();
 
 #ifdef P61_IRQ_ENABLE
 	spin_lock_init(&p61_dev->irq_enabled_lock);
@@ -1340,6 +1714,11 @@ static int p61_probe(struct spi_device *spi)
 		ret = -ENOMEM;
 		goto err_exit3;
 	}
+	wake_lock_init(&p61_dev->ese_lock, WAKE_LOCK_SUSPEND, "ese_lock");
+#if IS_ENABLED(CONFIG_SPI_MSM_GENI)
+	INIT_DELAYED_WORK(&p61_dev->spi_release_work, p61_spi_release_work);
+	wake_lock_init(&p61_dev->spi_release_wakelock, WAKE_LOCK_SUSPEND, "ese_spi_wake_lock");
+#endif
 #endif
 
 	p61_dev->enable_poll_mode = 0;	/* Default IRQ read mode */
@@ -1362,6 +1741,8 @@ err_exit1:
 err_exit0:
 	mutex_destroy(&p61_dev->read_mutex);
 	mutex_destroy(&p61_dev->write_mutex);
+	if (p61_dev->gpio_coldreset)
+		ese_reset_deinit();
 	if (p61_dev != NULL)
 		kfree(p61_dev);
 err_exit:
@@ -1421,8 +1802,11 @@ static struct platform_driver p61_platform_driver = {
  * \retval 0 if ok.
  *
 */
-
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0)
 static int p61_remove(struct spi_device *spi)
+#else
+static void p61_remove(struct spi_device *spi)
+#endif
 {
 	struct p61_dev *p61_dev = p61_get_data(spi);
 	P61_DBG_MSG("Entry : %s\n", __func__);
@@ -1442,9 +1826,11 @@ static int p61_remove(struct spi_device *spi)
 		free_irq(p61_dev->spi->irq, p61_dev);
 		gpio_free(p61_dev->irq_gpio);
 #endif
+#if !IS_ENABLED(CONFIG_SAMSUNG_NFC)
 		if (gpio_is_valid(p61_dev->trusted_ese_gpio)) {
 			gpio_free(p61_dev->trusted_ese_gpio);
 		}
+#endif
 
 		mutex_destroy(&p61_dev->read_mutex);
 #ifdef CONFIG_MAKE_NODE_USING_PLATFORM_DEVICE
@@ -1452,11 +1838,17 @@ static int p61_remove(struct spi_device *spi)
 #else
 		misc_deregister(&p61_dev->p61_device);
 #endif
+		if (p61_dev->gpio_coldreset)
+			ese_reset_deinit();
+#if IS_ENABLED(CONFIG_SAMSUNG_NFC)
+		wake_lock_destroy(&p61_dev->ese_lock);
+#endif
 		kfree(p61_dev);
 	}
-
 	P61_DBG_MSG("Exit : %s\n", __func__);
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0)
         return 0;
+#endif
 }
 
 #if DRAGON_P61
@@ -1521,6 +1913,8 @@ EXPORT_SYMBOL(p61_dev_exit);
 #else
 static int __init p61_dev_init(void)
 {
+	int ret;
+
 	debug_level = P61_DEBUG_OFF;
 
 	P61_DBG_MSG("Entry : %s\n", __func__);
@@ -1529,7 +1923,13 @@ static int __init p61_dev_init(void)
 		return 0;
 #endif
 
-	return spi_register_driver(&p61_driver);
+#ifdef CONFIG_MAKE_NODE_USING_PLATFORM_DEVICE
+	ret = platform_driver_register(&p61_platform_driver);
+	NFC_LOG_INFO("%s: platform_driver_register, ret %d\n", __func__, ret);
+#endif
+	ret = spi_register_driver(&p61_driver);
+
+	return ret;
 }
 
 module_init(p61_dev_init);
@@ -1550,6 +1950,10 @@ static void __exit p61_dev_exit(void)
 #if IS_ENABLED(CONFIG_SAMSUNG_NFC)
 	if (nfc_get_lpcharge() == LPM_TRUE)
 		return;
+#endif
+
+#ifdef CONFIG_MAKE_NODE_USING_PLATFORM_DEVICE
+	platform_driver_unregister(&p61_platform_driver);
 #endif
 	spi_unregister_driver(&p61_driver);
 }

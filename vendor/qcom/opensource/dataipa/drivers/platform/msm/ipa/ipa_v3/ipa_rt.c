@@ -94,7 +94,7 @@ static int ipa_generate_rt_hw_rule(enum ipa_ip_type ip,
 		}
 	}
 
-	if (entry->proc_ctx || (entry->hdr && entry->hdr->is_hdr_proc_ctx)) {
+	if (entry->proc_ctx) {
 		struct ipa3_hdr_proc_ctx_entry *proc_ctx;
 
 		proc_ctx = (entry->proc_ctx) ? : entry->hdr->proc_ctx;
@@ -878,11 +878,11 @@ static struct ipa3_rt_tbl *__ipa_add_rt_tbl(enum ipa_ip_type ip,
 			}
 		}
 		if (i == IPA_RT_INDEX_BITMAP_SIZE) {
-			IPAERR("not free RT tbl indices left\n");
+			IPAERR_RL("not free RT tbl indices left\n");
 			goto fail_rt_idx_alloc;
 		}
 		if (i > max_tbl_indx) {
-			IPAERR("rt tbl index is above max\n");
+			IPAERR_RL("rt tbl index is above max\n");
 			goto fail_rt_idx_alloc;
 		}
 

@@ -62,7 +62,7 @@
 #define CAM_ISP_CONTEXT_AEB_ERROR_CNT_MAX 3
 
 /* MUP out of sync threshold */
-#define CAM_ISP_CONTEXT_OUT_OF_SYNC_ERROR_MAX 10
+#define CAM_ISP_CONTEXT_OUT_OF_SYNC_ERROR_MAX 6
 
 /* forward declaration */
 struct cam_isp_context;

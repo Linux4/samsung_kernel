@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
  */
 
@@ -460,6 +461,7 @@ static void dsi_ctrl_clear_dma_status(struct dsi_ctrl *dsi_ctrl)
 static void dsi_ctrl_post_cmd_transfer(struct dsi_ctrl *dsi_ctrl)
 {
 	int rc = 0;
+	struct dsi_ctrl_hw_ops dsi_hw_ops = dsi_ctrl->hw.ops;
 	struct dsi_clk_ctrl_info clk_info;
 	u32 mask = BIT(DSI_FIFO_OVERFLOW);
 
@@ -471,19 +473,22 @@ static void dsi_ctrl_post_cmd_transfer(struct dsi_ctrl *dsi_ctrl)
 	if ((dsi_ctrl->pending_cmd_flags & DSI_CTRL_CMD_BROADCAST) &&
 			!(dsi_ctrl->pending_cmd_flags & DSI_CTRL_CMD_BROADCAST_MASTER)) {
 		dsi_ctrl_clear_dma_status(dsi_ctrl);
-	} else {
+	} else if (!(dsi_ctrl->pending_cmd_flags & DSI_CTRL_CMD_READ)) {
+		/* Wait for read command transfer to complete is done in dsi_message_rx. */
 		dsi_ctrl_dma_cmd_wait_for_done(dsi_ctrl);
 	}
+
+	if (dsi_ctrl->hw.reset_trig_ctrl)
+		dsi_hw_ops.reset_trig_ctrl(&dsi_ctrl->hw,
+				&dsi_ctrl->host_config.common_config);
 
 	/* Command engine disable, unmask overflow, remove vote on clocks and gdsc */
 	rc = dsi_ctrl_set_cmd_engine_state(dsi_ctrl, DSI_CTRL_ENGINE_OFF, false);
 	if (rc)
 		DSI_CTRL_ERR(dsi_ctrl, "failed to disable command engine\n");
 
-	if (dsi_ctrl->pending_cmd_flags & DSI_CTRL_CMD_READ)
-		mask |= BIT(DSI_FIFO_UNDERFLOW);
-
-	dsi_ctrl_mask_error_status_interrupts(dsi_ctrl, mask, false);
+	if (!(dsi_ctrl->pending_cmd_flags & DSI_CTRL_CMD_READ))
+		dsi_ctrl_mask_error_status_interrupts(dsi_ctrl, mask, false);
 
 	mutex_unlock(&dsi_ctrl->ctrl_lock);
 
@@ -1047,6 +1052,9 @@ int dsi_ctrl_pixel_format_to_bpp(enum dsi_pixel_format dst_format)
 	case DSI_PIXEL_FORMAT_RGB888:
 		bpp = 24;
 		break;
+	case DSI_PIXEL_FORMAT_RGB101010:
+		bpp = 30;
+		break;
 	default:
 		bpp = 24;
 		break;
@@ -1097,6 +1105,10 @@ static int dsi_ctrl_update_link_freqs(struct dsi_ctrl *dsi_ctrl,
 		}
 	} else if (config->panel_mode == DSI_OP_CMD_MODE) {
 		/* Calculate the bit rate needed to match dsi transfer time */
+		if (host_cfg->phy_type == DSI_PHY_TYPE_CPHY) {
+			min_dsi_clk_hz *= bits_per_symbol;
+			do_div(min_dsi_clk_hz, num_of_symbols);
+		}
 		bit_rate = min_dsi_clk_hz * frame_time_us;
 		do_div(bit_rate, dsi_transfer_time_us);
 		bit_rate = bit_rate * num_of_lanes;
@@ -1416,10 +1428,6 @@ static void dsi_kickoff_msg_tx(struct dsi_ctrl *dsi_ctrl,
 	SDE_EVT32(dsi_ctrl->cell_index, SDE_EVTLOG_FUNC_ENTRY, flags,
 		msg->flags);
 
-	if (dsi_ctrl->hw.reset_trig_ctrl)
-		dsi_hw_ops.reset_trig_ctrl(&dsi_ctrl->hw,
-				&dsi_ctrl->host_config.common_config);
-
 	if (dsi_hw_ops.splitlink_cmd_setup && split_link->enabled)
 		dsi_hw_ops.splitlink_cmd_setup(&dsi_ctrl->hw,
 				&dsi_ctrl->host_config.common_config, flags);
@@ -1598,7 +1606,7 @@ static int dsi_message_tx(struct dsi_ctrl *dsi_ctrl, struct dsi_cmd_desc *cmd_de
 		goto error;
 	}
 
-	SDE_EVT32(dsi_ctrl->cell_index, SDE_EVTLOG_FUNC_ENTRY, *flags);
+	SDE_EVT32(dsi_ctrl->cell_index, SDE_EVTLOG_FUNC_ENTRY, *flags, dsi_ctrl->cmd_len);
 
 	if (*flags & DSI_CTRL_CMD_NON_EMBEDDED_MODE) {
 		cmd_mem.offset = dsi_ctrl->cmd_buffer_iova;
@@ -2001,16 +2009,18 @@ static int dsi_disable_ulps(struct dsi_ctrl *dsi_ctrl)
 	return rc;
 }
 
-static void dsi_ctrl_enable_error_interrupts(struct dsi_ctrl *dsi_ctrl)
+void dsi_ctrl_toggle_error_interrupt_status(struct dsi_ctrl *dsi_ctrl, bool enable)
 {
-	if (dsi_ctrl->host_config.panel_mode == DSI_OP_VIDEO_MODE &&
-			!dsi_ctrl->host_config.u.video_engine.bllp_lp11_en &&
-			!dsi_ctrl->host_config.u.video_engine.eof_bllp_lp11_en)
-		dsi_ctrl->hw.ops.enable_error_interrupts(&dsi_ctrl->hw,
-				0xFF00A0);
-	else
-		dsi_ctrl->hw.ops.enable_error_interrupts(&dsi_ctrl->hw,
-				0xFF00E0);
+	if (!enable) {
+		dsi_ctrl->hw.ops.enable_error_interrupts(&dsi_ctrl->hw, 0);
+	} else {
+		if (dsi_ctrl->host_config.panel_mode == DSI_OP_VIDEO_MODE &&
+				!dsi_ctrl->host_config.u.video_engine.bllp_lp11_en &&
+				!dsi_ctrl->host_config.u.video_engine.eof_bllp_lp11_en)
+			dsi_ctrl->hw.ops.enable_error_interrupts(&dsi_ctrl->hw,	0xFF00A0);
+		else
+			dsi_ctrl->hw.ops.enable_error_interrupts(&dsi_ctrl->hw, 0xFF00E0);
+	}
 }
 
 static int dsi_ctrl_drv_state_init(struct dsi_ctrl *dsi_ctrl)
@@ -2697,7 +2707,7 @@ int dsi_ctrl_setup(struct dsi_ctrl *dsi_ctrl)
 				    &dsi_ctrl->host_config.common_config);
 
 	dsi_ctrl->hw.ops.enable_status_interrupts(&dsi_ctrl->hw, 0x0);
-	dsi_ctrl_enable_error_interrupts(dsi_ctrl);
+	dsi_ctrl_toggle_error_interrupt_status(dsi_ctrl, true);
 
 	dsi_ctrl->hw.ops.ctrl_en(&dsi_ctrl->hw, true);
 
@@ -3190,6 +3200,8 @@ int dsi_ctrl_host_timing_update(struct dsi_ctrl *dsi_ctrl)
 		return -EINVAL;
 	}
 
+	mutex_lock(&dsi_ctrl->ctrl_lock);
+
 	if (dsi_ctrl->hw.ops.host_setup)
 		dsi_ctrl->hw.ops.host_setup(&dsi_ctrl->hw,
 				&dsi_ctrl->host_config.common_config);
@@ -3207,8 +3219,11 @@ int dsi_ctrl_host_timing_update(struct dsi_ctrl *dsi_ctrl)
 				0x0, NULL);
 	} else {
 		DSI_CTRL_ERR(dsi_ctrl, "invalid panel mode for resolution switch\n");
+		mutex_unlock(&dsi_ctrl->ctrl_lock);
 		return -EINVAL;
 	}
+
+	mutex_unlock(&dsi_ctrl->ctrl_lock);
 
 	return 0;
 }
@@ -3306,7 +3321,7 @@ int dsi_ctrl_host_init(struct dsi_ctrl *dsi_ctrl, bool skip_op)
 	}
 
 	dsi_ctrl->hw.ops.enable_status_interrupts(&dsi_ctrl->hw, 0x0);
-	dsi_ctrl_enable_error_interrupts(dsi_ctrl);
+	dsi_ctrl_toggle_error_interrupt_status(dsi_ctrl, true);
 
 	DSI_CTRL_DEBUG(dsi_ctrl, "Host initialization complete, skip op: %d\n",
 			skip_op);
@@ -3592,10 +3607,8 @@ int dsi_ctrl_transfer_prepare(struct dsi_ctrl *dsi_ctrl, u32 flags)
 
 	mutex_lock(&dsi_ctrl->ctrl_lock);
 
-	if (flags & DSI_CTRL_CMD_READ)
-		mask |= BIT(DSI_FIFO_UNDERFLOW);
-
-	dsi_ctrl_mask_error_status_interrupts(dsi_ctrl, mask, true);
+	if (!(flags & DSI_CTRL_CMD_READ))
+		dsi_ctrl_mask_error_status_interrupts(dsi_ctrl, mask, true);
 
 	rc = dsi_ctrl_set_cmd_engine_state(dsi_ctrl, DSI_CTRL_ENGINE_ON, false);
 	if (rc) {

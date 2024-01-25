@@ -59,7 +59,7 @@ static inline int __upldc_add_cause(struct sec_upload_cause *uc)
 int sec_upldc_add_cause(struct sec_upload_cause *uc)
 {
 	if (!__upldc_is_probed())
-		return -ENODEV;
+		return -EBUSY;
 
 	return __upldc_add_cause(uc);
 }
@@ -81,7 +81,7 @@ static inline int __upldc_del_cause(struct sec_upload_cause *uc)
 int sec_upldc_del_cause(struct sec_upload_cause *uc)
 {
 	if (!__upldc_is_probed())
-		return -ENODEV;
+		return -EBUSY;
 
 	return __upldc_del_cause(uc);
 }
@@ -108,7 +108,7 @@ static inline int __upldc_set_default_cause(struct sec_upload_cause *uc)
 int sec_upldc_set_default_cause(struct sec_upload_cause *uc)
 {
 	if (!__upldc_is_probed())
-		return -ENODEV;
+		return -EBUSY;
 
 	return __upldc_set_default_cause(uc);
 }
@@ -136,7 +136,7 @@ static inline int __upldc_unset_default_cause(struct sec_upload_cause *uc)
 int sec_upldc_unset_default_cause(struct sec_upload_cause *uc)
 {
 	if (!__upldc_is_probed())
-		return -ENODEV;
+		return -EBUSY;
 
 	return __upldc_unset_default_cause(uc);
 }
@@ -241,21 +241,6 @@ static int sec_upldc_notifier_call(struct notifier_block *this,
 
 	return ret;
 }
-
-#if IS_ENABLED(CONFIG_KUNIT) && IS_ENABLED(CONFIG_UML)
-int kunit_upldc_mock_notifier_call(unsigned long type, const void *data)
-{
-	struct upload_cause_notify *notify = &upload_cause->notify;
-	char *msg = kstrdup(data, GFP_KERNEL);
-	int ret;
-
-	ret = sec_upldc_notifier_call(&notify->nb, type, msg);
-
-	kfree(msg);
-
-	return ret;
-}
-#endif
 
 #if IS_ENABLED(CONFIG_DEBUG_FS)
 static void __upldc_dbgfs_show_each_cause_locked(struct seq_file *m,
@@ -425,31 +410,11 @@ static void __upldc_remove_prolog(struct builder *bd)
 	upload_cause = NULL;
 }
 
-static void __upldc_populate_child(struct platform_device *pdev)
-{
-	struct device *dev = &pdev->dev;
-	struct device_node *parent;
-	struct device_node *child;
-
-	parent = pdev->dev.of_node;
-
-	for_each_available_child_of_node(parent, child) {
-		struct platform_device *cpdev;
-
-		cpdev = of_platform_device_create(child, NULL, &pdev->dev);
-		if (!cpdev) {
-			dev_warn(dev, "failed to create %s\n!", child->name);
-			of_node_put(child);
-		}
-	}
-}
-
 static int __upldc_probe(struct platform_device *pdev,
 		const struct dev_builder *builder, ssize_t n)
 {
 	struct device *dev = &pdev->dev;
 	struct upload_cause_drvdata *drvdata;
-	int err;
 
 	drvdata = devm_kzalloc(dev, sizeof(*drvdata), GFP_KERNEL);
 	if (!drvdata)
@@ -457,13 +422,7 @@ static int __upldc_probe(struct platform_device *pdev,
 
 	drvdata->bd.dev = dev;
 
-	err = sec_director_probe_dev(&drvdata->bd, builder, n);
-	if (err)
-		return err;
-
-	__upldc_populate_child(pdev);
-
-	return 0;
+	return sec_director_probe_dev(&drvdata->bd, builder, n);
 }
 
 static int __upldc_remove(struct platform_device *pdev,
@@ -475,25 +434,6 @@ static int __upldc_remove(struct platform_device *pdev,
 
 	return 0;
 }
-
-#if IS_ENABLED(CONFIG_KUNIT) && IS_ENABLED(CONFIG_UML)
-static const struct dev_builder __upldc_mock_dev_builder[] = {
-	DEVICE_BUILDER(__upldc_probe_prolog, NULL),
-	DEVICE_BUILDER(__upldc_probe_epilog, __upldc_remove_prolog),
-};
-
-int kunit_upldc_mock_probe(struct platform_device *pdev)
-{
-	return __upldc_probe(pdev, __upldc_mock_dev_builder,
-			ARRAY_SIZE(__upldc_mock_dev_builder));
-}
-
-int kunit_upldc_mock_remove(struct platform_device *pdev)
-{
-	return __upldc_remove(pdev, __upldc_mock_dev_builder,
-			ARRAY_SIZE(__upldc_mock_dev_builder));
-}
-#endif
 
 static const struct dev_builder __upldc_dev_builder[] = {
 	DEVICE_BUILDER(__upldc_parse_dt, NULL),
@@ -547,7 +487,7 @@ static __init int sec_upldc_init(void)
 
 	return 0;
 }
-core_initcall_sync(sec_upldc_init);
+core_initcall(sec_upldc_init);
 
 static __exit void sec_upldc_exit(void)
 {

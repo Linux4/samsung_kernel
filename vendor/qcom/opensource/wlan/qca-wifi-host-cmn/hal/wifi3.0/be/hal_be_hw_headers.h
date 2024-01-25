@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2016-2021 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -19,7 +20,6 @@
 #ifndef _HAL_BE_HW_INTERNAL_H_
 #define _HAL_BE_HW_INTERNAL_H_
 
-#include "hal_hw_headers.h"
 #include "wcss_seq_hwioreg_umac.h"
 #include "phyrx_location.h"
 #include "receive_rssi_info.h"
@@ -28,8 +28,9 @@
 #include "wbm2sw_completion_ring_tx.h"
 #include "wbm2sw_completion_ring_rx.h"
 
-#if defined(QCA_WIFI_WCN7850)
+#if defined(QCA_WIFI_KIWI)
 #include "msmhwioreg.h"
+#include "phyrx_common_user_info.h"
 #endif
 #include <reo_descriptor_threshold_reached_status.h>
 #include <reo_flush_queue.h>

@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2012-2021 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -133,6 +134,16 @@ int  wma_rx_service_ready_event(void *handle, uint8_t *ev, uint32_t len);
 
 int wma_rx_service_ready_ext_event(void *handle, uint8_t *ev, uint32_t len);
 
+/**
+ * wma_rx_service_ready_ext2_event() - evt handler for sevice ready ext2 event.
+ * @handle: wma handle
+ * @event: params of the service ready extended event
+ * @length: param length
+ *
+ * Return: none
+ */
+int wma_rx_service_ready_ext2_event(void *handle, uint8_t *ev, uint32_t len);
+
 QDF_STATUS wma_wait_for_ready_event(WMA_HANDLE handle);
 
 int wma_cli_get_command(int vdev_id, int param_id, int vpdev);
@@ -201,11 +212,7 @@ QDF_STATUS wma_post_ctrl_msg(struct mac_context *mac, struct scheduler_msg *pMsg
 
 void wma_update_intf_hw_mode_params(uint32_t vdev_id, uint32_t mac_id,
 				uint32_t cfgd_hw_mode_index);
-#ifdef MPC_UT_FRAMEWORK
-void wma_set_dbs_capability_ut(uint32_t dbs);
-#else
-static inline void wma_set_dbs_capability_ut(uint32_t dbs) {}
-#endif
+
 QDF_STATUS wma_get_caps_for_phyidx_hwmode(struct wma_caps_per_phy *caps_per_phy,
 		enum hw_mode_dbs_capab hw_mode, enum cds_band_type band);
 bool wma_is_rx_ldpc_supported_for_channel(uint32_t ch_freq);
@@ -679,6 +686,17 @@ QDF_STATUS wma_sta_mlme_vdev_down_send(struct vdev_mlme_obj *vdev_mlme,
 QDF_STATUS wma_post_vdev_create_setup(struct wlan_objmgr_vdev *vdev);
 
 /**
+ * wma_vdev_set_data_tx_callback() - Set dp vdev tx callback
+ * @vdev: vdev obj
+ *
+ * This API is used to set dp dev tx callback.
+ *
+ * Return: SUCCESS on successful post vdev operations, FAILURE, if it
+ *         fails due to any
+ */
+QDF_STATUS wma_vdev_set_data_tx_callback(struct wlan_objmgr_vdev *vdev);
+
+/**
  * wma_mon_mlme_vdev_start_continue() - VDEV start response handling
  * @vdev_mlme_obj:  VDEV MLME comp object
  * @data_len: data size
@@ -838,4 +856,16 @@ void wma_cleanup_vdev(struct wlan_objmgr_vdev *vdev);
  */
 void wma_set_wakeup_logs_to_console(bool value);
 
+#ifdef MPC_UT_FRAMEWORK
+/**
+ * wma_enable_dbs_service_ut() - enable dbs wmi service for unit testing.
+ *
+ * Sets DBS capability is also set in the service bit map.
+ *
+ * Return: None
+ */
+void wma_enable_dbs_service_ut(void);
+#else
+static inline void wma_enable_dbs_service_ut(void) {}
+#endif
 #endif /* WMA_API_H */

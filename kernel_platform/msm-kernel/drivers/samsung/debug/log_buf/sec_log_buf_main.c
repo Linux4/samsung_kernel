@@ -8,6 +8,7 @@
 #include <linux/device.h>
 #include <linux/io.h>
 #include <linux/kernel.h>
+#include <linux/mm.h>
 #include <linux/module.h>
 #include <linux/string.h>
 #include <linux/of.h>
@@ -15,12 +16,8 @@
 #include <linux/of_platform.h>
 #include <linux/of_reserved_mem.h>
 #include <linux/platform_device.h>
-#include <linux/proc_fs.h>
 #include <linux/slab.h>
-#include <linux/uaccess.h>
-#include <linux/vmalloc.h>
 
-#include <linux/samsung/of_early_populate.h>
 #include <linux/samsung/sec_of.h>
 
 #include "sec_log_buf.h"
@@ -29,6 +26,10 @@ struct log_buf_drvdata *sec_log_buf __read_mostly;
 
 static struct sec_log_buf_head *s_log_buf __read_mostly;
 static size_t sec_log_buf_size __read_mostly;
+
+const char *block_str[] = {
+	"init: Loading module",
+};
 
 static void (*__log_buf_memcpy_fromio)(void *, const void *, size_t) __read_mostly;
 static void (*__log_buf_memcpy_toio)(void *, const void *, size_t) __read_mostly;
@@ -48,124 +49,54 @@ static void notrace ____log_buf_memcpy(void *dst, const void *src, size_t cnt)
 	memcpy(dst, src, cnt);
 }
 
+const struct sec_log_buf_head *__log_buf_get_header(void)
+{
+	return s_log_buf;
+}
+
 const struct sec_log_buf_head *sec_log_buf_get_header(void)
 {
 	if (!__log_buf_is_probed())
-		return ERR_PTR(-ENODEV);
+		return ERR_PTR(-EBUSY);
 
-	return s_log_buf;
+	return __log_buf_get_header();
 }
 EXPORT_SYMBOL(sec_log_buf_get_header);
+
+ssize_t ___log_buf_get_buf_size(void)
+{
+	return sec_log_buf_size;
+}
 
 ssize_t sec_log_buf_get_buf_size(void)
 {
 	if (!__log_buf_is_probed())
-		return -ENODEV;
+		return -EBUSY;
 
-	return sec_log_buf_size;
+	return ___log_buf_get_buf_size();
 }
 EXPORT_SYMBOL(sec_log_buf_get_buf_size);
 
-static int __last_kmsg_alloc_buffer(struct builder *bd)
+bool __log_buf_is_acceptable(const char *s, size_t count)
 {
-	struct log_buf_drvdata *drvdata =
-			container_of(bd, struct log_buf_drvdata, bd);
-	struct last_kmsg_data *last_kmsg = &drvdata->last_kmsg;
+	static bool filter_en = !!IS_ENABLED(CONFIG_SAMSUNG_PRODUCT_SHIP);
+	const char *magic_str = "init: init second stage started!";
+	size_t i;
 
-	last_kmsg->buf = vmalloc(sec_log_buf_size);
-	if (!last_kmsg->buf)
-		return -ENOMEM;
+	if (likely(!filter_en))
+		return true;
 
-	return 0;
-}
-
-static void __last_kmsg_free_buffer(struct builder *bd)
-{
-	struct log_buf_drvdata *drvdata =
-			container_of(bd, struct log_buf_drvdata, bd);
-	struct last_kmsg_data *last_kmsg = &drvdata->last_kmsg;
-
-	vfree(last_kmsg->buf);
-}
-
-static int __last_kmsg_pull_last_log(struct builder *bd)
-{
-	struct log_buf_drvdata *drvdata =
-			container_of(bd, struct log_buf_drvdata, bd);
-	struct last_kmsg_data *last_kmsg = &drvdata->last_kmsg;
-	char *buf = last_kmsg->buf;
-	const size_t max_size = sec_log_buf_size;
-	size_t head;
-
-	if (s_log_buf->idx > max_size) {
-		head = (size_t)s_log_buf->idx % sec_log_buf_size;
-		__log_buf_memcpy_fromio(buf, &s_log_buf->buf[head],
-				sec_log_buf_size - head);
-		if (head != 0)
-			__log_buf_memcpy_fromio(&buf[sec_log_buf_size - head],
-					s_log_buf->buf, head);
-		last_kmsg->size = max_size;
-	} else {
-		__log_buf_memcpy_fromio(buf, s_log_buf->buf, s_log_buf->idx);
-		last_kmsg->size = s_log_buf->idx;
+	if (strnstr(s, magic_str, count)) {
+		filter_en = false;
+		return true;
 	}
 
-	return 0;
-}
-
-static ssize_t sec_last_kmsg_buf_read(struct file *file, char __user *buf,
-		size_t len, loff_t *offset)
-{
-	struct last_kmsg_data *last_kmsg = PDE_DATA(file_inode(file));
-	loff_t pos = *offset;
-	ssize_t count;
-
-	if (pos >= last_kmsg->size || !last_kmsg->buf) {
-		pr_warn("pos %lld, size %zu\n", pos, last_kmsg->size);
-		return 0;
+	for (i = 0; i < ARRAY_SIZE(block_str); i++) {
+		if (strnstr(s, block_str[i], count))
+			return false;
 	}
 
-	count = min(len, (size_t)(last_kmsg->size - pos));
-	if (copy_to_user(buf, last_kmsg->buf + pos, count))
-		return -EFAULT;
-
-	*offset += count;
-
-	return count;
-}
-
-static const struct proc_ops last_kmsg_buf_pops = {
-	.proc_read = sec_last_kmsg_buf_read,
-};
-
-#define LAST_LOG_BUF_NODE		"last_kmsg"
-
-static int __last_kmsg_procfs_create(struct builder *bd)
-{
-	struct log_buf_drvdata *drvdata =
-			container_of(bd, struct log_buf_drvdata, bd);
-	struct device *dev = bd->dev;
-	struct last_kmsg_data *last_kmsg = &drvdata->last_kmsg;
-
-	last_kmsg->proc = proc_create_data(LAST_LOG_BUF_NODE, 0444,
-			NULL, &last_kmsg_buf_pops, last_kmsg);
-	if (!last_kmsg->proc) {
-		dev_warn(dev, "failed to create proc entry. ram console may be present\n");
-		return -ENODEV;
-	}
-
-	proc_set_size(last_kmsg->proc, last_kmsg->size);
-
-	return 0;
-}
-
-static void __last_kmsg_procfs_remove(struct builder *bd)
-{
-	struct log_buf_drvdata *drvdata =
-			container_of(bd, struct log_buf_drvdata, bd);
-	struct last_kmsg_data *last_kmsg = &drvdata->last_kmsg;
-
-	proc_remove(last_kmsg->proc);
+	return true;
 }
 
 void notrace __log_buf_write(const char *s, size_t count)
@@ -240,26 +171,6 @@ static bool __log_buf_kmsg_check_level_text(struct log_buf_kmsg_ctx *ctx)
 	return true;
 }
 
-#if IS_ENABLED(CONFIG_KUNIT) && IS_ENABLED(CONFIG_UML)
-/* NOTE: testing-glue to encapsulate 'struct log_buf_kmsg_ctx' */
-bool kunit__log_buf_kmsg_check_level_text(const char *msg)
-{
-	struct log_buf_kmsg_ctx *ctx;
-	bool ret;
-
-	ctx = kzalloc(SZ_TASK_BUF, GFP_KERNEL);
-
-	strlcpy(ctx->head, msg, SZ_KMSG_BUF);
-	ctx->head_len = strlen(msg);
-
-	ret = __log_buf_kmsg_check_level_text(ctx);
-
-	kfree(ctx);
-
-	return ret;
-}
-#endif
-
 static void __log_buf_kmsg_split(struct log_buf_kmsg_ctx *ctx)
 {
 	char *head = ctx->head;
@@ -283,32 +194,6 @@ static void __log_buf_kmsg_split(struct log_buf_kmsg_ctx *ctx)
 	ctx->head_len = head_len;
 }
 
-#if IS_ENABLED(CONFIG_KUNIT) && IS_ENABLED(CONFIG_UML)
-/* NOTE: testing-glue to encapsulate 'struct log_buf_kmsg_ctx' */
-void kunit__log_buf_kmsg_split(char *msg, char **head, char **tail)
-{
-	struct log_buf_kmsg_ctx *ctx;
-	size_t msg_len;
-	off_t offset;
-
-	ctx = kzalloc(sizeof(ctx), GFP_KERNEL);
-
-	strlcpy(ctx->head, msg, SZ_KMSG_BUF);
-	ctx->head_len = strlen(msg);
-	msg_len = ctx->head_len + 1;	/* include null-termination */
-
-	__log_buf_kmsg_split(ctx);
-
-	memcpy(msg, ctx->head, msg_len);
-
-	kfree(ctx);
-
-	offset = ctx->tail - ctx->head;
-	*head = &ctx->head[0];
-	*tail = &ctx->head[offset];
-}
-#endif
-
 static __always_inline void __log_buf_kmg_print(struct log_buf_kmsg_ctx *ctx)
 {
 	if (__log_buf_kmsg_check_level_text(ctx))
@@ -319,6 +204,30 @@ static __always_inline void __log_buf_kmg_print(struct log_buf_kmsg_ctx *ctx)
 		__log_buf_write(ctx->task, ctx->task_len);
 		__log_buf_write(ctx->tail, ctx->tail_len);
 	}
+}
+
+size_t __log_buf_copy_to_buffer(void *buf)
+{
+	const struct sec_log_buf_head *log_buf_head = __log_buf_get_header();
+	const size_t log_buf_size = ___log_buf_get_buf_size();
+	const size_t max_size = log_buf_size;
+	size_t head;
+	size_t total;
+
+	if (log_buf_head->idx > max_size) {
+		head = (size_t)log_buf_head->idx % log_buf_size;
+		__log_buf_memcpy_fromio(buf, &log_buf_head->buf[head],
+				log_buf_size - head);
+		if (head != 0)
+			__log_buf_memcpy_fromio(&buf[log_buf_size - head],
+					log_buf_head->buf, head);
+		total = max_size;
+	} else {
+		__log_buf_memcpy_fromio(buf, log_buf_head->buf, log_buf_head->idx);
+		total = log_buf_head->idx;
+	}
+
+	return total;
 }
 
 static int __log_buf_parse_dt_strategy(struct builder *bd,
@@ -462,11 +371,40 @@ static int __log_buf_parse_dt_test_no_map(struct builder *bd,
 	return 0;
 }
 
+static int __last_kmsg_parse_dt_use_last_kmsg_compression(struct builder *bd,
+		struct device_node *np)
+{
+	struct log_buf_drvdata *drvdata =
+			container_of(bd, struct log_buf_drvdata, bd);
+	struct last_kmsg_data *last_kmsg = &drvdata->last_kmsg;
+
+	last_kmsg->use_compression =
+			of_property_read_bool(np, "sec,use-last_kmsg_compression");
+
+	return 0;
+}
+
+static int __last_kmsg_parse_dt_last_kmsg_compressor(struct builder *bd,
+		struct device_node *np)
+{
+	struct log_buf_drvdata *drvdata =
+			container_of(bd, struct log_buf_drvdata, bd);
+	struct last_kmsg_data *last_kmsg = &drvdata->last_kmsg;
+
+	if (!last_kmsg->use_compression)
+		return 0;
+
+	return of_property_read_string(np, "sec,last_kmsg_compressor",
+			&last_kmsg->compressor);
+}
+
 static const struct dt_builder __log_buf_dt_builder[] = {
 	DT_BUILDER(__log_buf_parse_dt_strategy),
 	DT_BUILDER(__log_buf_parse_dt_memory_region),
 	DT_BUILDER(__log_buf_parse_dt_partial_reserved_mem),
 	DT_BUILDER(__log_buf_parse_dt_test_no_map),
+	DT_BUILDER(__last_kmsg_parse_dt_use_last_kmsg_compression),
+	DT_BUILDER(__last_kmsg_parse_dt_last_kmsg_compressor),
 };
 
 static int __log_buf_parse_dt(struct builder *bd)
@@ -478,9 +416,6 @@ static int __log_buf_parse_dt(struct builder *bd)
 static void __iomem *__log_buf_ioremap(struct log_buf_drvdata *drvdata)
 {
 	struct device *dev = drvdata->bd.dev;
-
-	if (IS_ENABLED(CONFIG_UML))
-		return NULL;
 
 	if (s_log_buf)
 		return s_log_buf;
@@ -518,18 +453,88 @@ static int __log_buf_prepare_buffer(struct builder *bd)
 	return 0;
 }
 
+static ssize_t __pull_early_buffer(struct log_buf_drvdata *drvdata, char *buf)
+{
+	struct kmsg_dumper *dumper = &drvdata->dumper;
+	ssize_t copied;
+	char *line;
+	size_t len;
+
+	line = kvmalloc(PAGE_SIZE, GFP_KERNEL);
+	if (!line)
+		return -ENOMEM;
+
+	memset(buf, 0x0, drvdata->size);
+	copied = 0;
+	dumper->active = true;
+	kmsg_dump_rewind(dumper);
+	while (kmsg_dump_get_line(dumper, true, line, PAGE_SIZE, &len)) {
+		BUG_ON((copied + len) > drvdata->size);
+		memcpy_fromio(&buf[copied], line, len);
+		copied += len;
+	}
+
+	kvfree(line);
+
+	return copied;
+}
+
+static size_t __remove_till_end_of_line(char *substr)
+{
+	size_t i = 0;
+
+	while (substr[i] != '\n' && substr[i] != '\0')
+		substr[i++] = ' ';
+
+	return i;
+}
+
+static void ____remove_block_str(char *buf, size_t len, const char *keyword)
+{
+	size_t offset = 0;
+	char *substr;
+
+	while (offset < len) {
+		substr = strnstr(&buf[offset], keyword, len);
+		if (!substr)
+			break;
+
+		offset = substr - buf;
+		offset += __remove_till_end_of_line(substr);
+	}
+}
+
+static void __remove_block_str(char *buf, size_t len)
+{
+	size_t i;
+
+	for (i = 0; i < ARRAY_SIZE(block_str); i++)
+		____remove_block_str(buf, len, block_str[i]);
+}
+
 static int __log_buf_pull_early_buffer(struct builder *bd)
 {
 	struct log_buf_drvdata *drvdata =
 			container_of(bd, struct log_buf_drvdata, bd);
-	struct kmsg_dumper *dumper = &drvdata->dumper;
-	char line[256];
-	size_t len;
+	char *buf;
+	ssize_t copied;
 
-	dumper->active = true;
-	kmsg_dump_rewind(dumper);
-	while (kmsg_dump_get_line(dumper, true, line, sizeof(line), &len))
-		__log_buf_write(line, len);
+	buf = kvmalloc(drvdata->size, GFP_KERNEL);
+	if (!buf)
+		return -ENOMEM;
+
+	copied = __pull_early_buffer(drvdata, buf);
+	if (copied < 0) {
+		kvfree(buf);
+		return copied;
+	}
+
+	if (IS_ENABLED(CONFIG_SAMSUNG_PRODUCT_SHIP))
+		__remove_block_str(buf, copied);
+
+	__log_buf_write(buf, copied);
+
+	kvfree(buf);
 
 	return 0;
 }
@@ -574,7 +579,7 @@ static int __log_buf_probe_epilog(struct builder *bd)
 	dev_set_drvdata(dev, drvdata);
 	sec_log_buf = drvdata;	/* set a singleton */
 
-	dev_info(dev, "buf base virtual addrs 0x%p phy=%pa\n", s_log_buf,
+	pr_debug("buf base virtual addrs 0x%p phy=%pa\n", s_log_buf,
 			&sec_log_buf->paddr);
 
 	return 0;
@@ -603,12 +608,32 @@ static int __log_buf_probe(struct platform_device *pdev,
 	return sec_director_probe_dev(&drvdata->bd, builder, n);
 }
 
+static int __log_buf_probe_threaded(struct platform_device *pdev,
+		const struct dev_builder *builder, ssize_t n)
+{
+	struct log_buf_drvdata *drvdata = platform_get_drvdata(pdev);
+
+	return sec_director_probe_dev_threaded(&drvdata->bd, builder, n,
+			"log_buf");
+}
+
 static int __log_buf_remove(struct platform_device *pdev,
 		const struct dev_builder *builder, ssize_t n)
 {
 	struct log_buf_drvdata *drvdata = platform_get_drvdata(pdev);
 
 	sec_director_destruct_dev(&drvdata->bd, builder, n, n);
+
+	return 0;
+}
+
+static int __log_buf_remove_threaded(struct platform_device *pdev,
+		const struct dev_builder *builder, ssize_t n)
+{
+	struct log_buf_drvdata *drvdata = platform_get_drvdata(pdev);
+	struct director_threaded *drct = drvdata->bd.drct;
+
+	sec_director_destruct_dev_threaded(drct);
 
 	return 0;
 }
@@ -621,19 +646,39 @@ static const struct dev_builder __log_buf_dev_builder[] = {
 	DEVICE_BUILDER(__last_kmsg_procfs_create, __last_kmsg_procfs_remove),
 	DEVICE_BUILDER(__log_buf_pull_early_buffer, NULL),
 	DEVICE_BUILDER(__log_buf_logger_init, __log_buf_logger_exit),
+	DEVICE_BUILDER(__ap_klog_proc_init, __ap_klog_proc_exit),
 	DEVICE_BUILDER(__log_buf_probe_epilog, __log_buf_remove_prolog),
+};
+
+static const struct dev_builder __log_buf_dev_builder_threaded[] = {
+#if IS_ENABLED(CONFIG_DEBUG_FS)
+	DEVICE_BUILDER(__log_buf_debugfs_create, __log_buf_debugfs_remove),
+#endif
+	DEVICE_BUILDER(__last_kmsg_init_compression, __last_kmsg_exit_compression),
 };
 
 static int sec_log_buf_probe(struct platform_device *pdev)
 {
-	return __log_buf_probe(pdev, __log_buf_dev_builder,
+	int err;
+
+	err = __log_buf_probe(pdev, __log_buf_dev_builder,
 			ARRAY_SIZE(__log_buf_dev_builder));
+	if (err)
+		return err;
+
+	return __log_buf_probe_threaded(pdev, __log_buf_dev_builder_threaded,
+			ARRAY_SIZE(__log_buf_dev_builder_threaded));
 }
 
 static int sec_log_buf_remove(struct platform_device *pdev)
 {
-	return __log_buf_remove(pdev, __log_buf_dev_builder,
+	__log_buf_remove_threaded(pdev, __log_buf_dev_builder_threaded,
+			ARRAY_SIZE(__log_buf_dev_builder_threaded));
+
+	__log_buf_remove(pdev, __log_buf_dev_builder,
 			ARRAY_SIZE(__log_buf_dev_builder));
+
+	return 0;
 }
 
 static const struct of_device_id sec_log_buf_match_table[] = {
@@ -653,23 +698,10 @@ static struct platform_driver sec_log_buf_driver = {
 
 static int __init sec_log_buf_init(void)
 {
-	int err;
-
-	err = platform_driver_register(&sec_log_buf_driver);
-	if (err)
-		return err;
-
-	err = __of_platform_early_populate_init(sec_log_buf_match_table);
-	if (err)
-		return err;
-
-	return 0;
+	return platform_driver_register(&sec_log_buf_driver);
 }
-#if IS_BUILTIN(CONFIG_SEC_LOG_BUF)
-core_initcall_sync(sec_log_buf_init);
-#else
-module_init(sec_log_buf_init);
-#endif
+/* NOTE: all compression algorithms are registered in 'subsys_initcall' stage. */
+subsys_initcall_sync(sec_log_buf_init);
 
 static void __exit sec_log_buf_exit(void)
 {

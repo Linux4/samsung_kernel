@@ -75,7 +75,7 @@ char front_tof_cam_cal_check[SYSFS_FW_VER_SIZE] = "NULL";
 char bokeh_module_fw_ver[FROM_MODULE_FW_INFO_SIZE+1];
 #endif
 
-#if defined(CONFIG_SEC_B0Q_PROJECT) || defined(CONFIG_SEC_R0Q_PROJECT) || defined(CONFIG_SEC_G0Q_PROJECT)
+#if defined(CONFIG_SEC_B0Q_PROJECT) || defined(CONFIG_SEC_R0Q_PROJECT) || defined(CONFIG_SEC_G0Q_PROJECT) || defined(CONFIG_SEC_R11Q_PROJECT)
 char rear3_module_fw_ver[FROM_MODULE_FW_INFO_SIZE+1];
 #endif
 
@@ -1209,7 +1209,7 @@ static int cam_eeprom_module_info_set_load_version(int rev, uint32_t hasSubCalda
 	sprintf(rear3_fw_full_ver, "%s %s %s\n", bokeh_module_fw_ver, bokeh_module_fw_ver,bokeh_module_fw_ver);
 #endif
 
-#if defined(CONFIG_SEC_B0Q_PROJECT) || defined(CONFIG_SEC_R0Q_PROJECT) || defined(CONFIG_SEC_G0Q_PROJECT)
+#if defined(CONFIG_SEC_B0Q_PROJECT) || defined(CONFIG_SEC_R0Q_PROJECT) || defined(CONFIG_SEC_G0Q_PROJECT) || defined(CONFIG_SEC_R11Q_PROJECT)
 	if (mInfo->type == SEC_TELE_SENSOR) {
 		ConfIdx = ADDR_M_FW_VER;
 		memset(rear3_module_fw_ver, 0x00, sizeof(rear3_module_fw_ver));
@@ -1827,7 +1827,7 @@ static int cam_eeprom_update_module_info(struct cam_eeprom_ctrl_t *e_ctrl)
 
 			break;
 
-#if defined(CONFIG_SEC_B0Q_PROJECT)|| defined(CONFIG_SEC_R0Q_PROJECT) || defined(CONFIG_SEC_G0Q_PROJECT)
+#if defined(CONFIG_SEC_B0Q_PROJECT)|| defined(CONFIG_SEC_R0Q_PROJECT) || defined(CONFIG_SEC_G0Q_PROJECT) || defined(CONFIG_SEC_R11Q_PROJECT)
 		case SEC_TELE_SENSOR:
 			strlcpy(mInfo.typeStr, "Rear3", FROM_MODULE_FW_INFO_SIZE);
 			mInfo.typeStr[FROM_MODULE_FW_INFO_SIZE-1] = '\0';
@@ -2109,7 +2109,7 @@ static int cam_eeprom_update_module_info(struct cam_eeprom_ctrl_t *e_ctrl)
 		|| (e_ctrl->soc_info.index == SEC_TELE2_SENSOR)
 #endif
 	)
-#elif defined(CONFIG_SEC_R0Q_PROJECT) || defined(CONFIG_SEC_G0Q_PROJECT)
+#elif defined(CONFIG_SEC_R0Q_PROJECT) || defined(CONFIG_SEC_G0Q_PROJECT) || defined(CONFIG_SEC_R11Q_PROJECT)
 	else if ((e_ctrl->soc_info.index == SEC_WIDE_SENSOR) || (e_ctrl->soc_info.index == SEC_TELE_SENSOR))
 #else
 	else if (e_ctrl->soc_info.index == SEC_WIDE_SENSOR)
@@ -2165,7 +2165,7 @@ static int cam_eeprom_update_module_info(struct cam_eeprom_ctrl_t *e_ctrl)
 				}
 			}
 		}
-#elif defined(CONFIG_SEC_R0Q_PROJECT) || defined(CONFIG_SEC_G0Q_PROJECT)
+#elif defined(CONFIG_SEC_R0Q_PROJECT) || defined(CONFIG_SEC_G0Q_PROJECT) || defined(CONFIG_SEC_R11Q_PROJECT)
 		if (SEC_TELE_SENSOR == e_ctrl->soc_info.index)
 		{
 			if ((1 == isValidIdx(ADDR_S_DUAL_CAL, &ConfAddr))
@@ -3052,9 +3052,7 @@ static int cam_eeprom_read_memory(struct cam_eeprom_ctrl_t *e_ctrl,
 
 			CAM_DBG(CAM_EEPROM, "addr_type = %d, data_type = %d, device_type = %d",
 				emap[j].mem.addr_type, emap[j].mem.data_type, e_ctrl->eeprom_device_type);
-			if ((e_ctrl->eeprom_device_type == MSM_CAMERA_SPI_DEVICE
-				|| e_ctrl->eeprom_device_type == MSM_CAMERA_I2C_DEVICE)
-				&& emap[j].mem.data_type == 0) {
+			if (emap[j].mem.data_type == 0) {
 				CAM_DBG(CAM_EEPROM,
 					"skipping read as data_type 0, skipped:%d",
 					read_size);
@@ -3135,22 +3133,26 @@ static int cam_eeprom_power_up(struct cam_eeprom_ctrl_t *e_ctrl,
 		&e_ctrl->soc_info,
 		power_info->power_setting,
 		power_info->power_setting_size);
+#if !defined(CONFIG_SEC_R11Q_PROJECT)
 	if (rc) {
 		CAM_ERR(CAM_EEPROM,
 			"failed to fill power up vreg params rc:%d", rc);
 		return rc;
 	}
+#endif
 
 	/* Parse and fill vreg params for power down settings*/
 	rc = msm_camera_fill_vreg_params(
 		&e_ctrl->soc_info,
 		power_info->power_down_setting,
 		power_info->power_down_setting_size);
+#if !defined(CONFIG_SEC_R11Q_PROJECT)
 	if (rc) {
 		CAM_ERR(CAM_EEPROM,
 			"failed to fill power down vreg params  rc:%d", rc);
 		return rc;
 	}
+#endif
 
 	power_info->dev = soc_info->dev;
 

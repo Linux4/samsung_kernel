@@ -48,6 +48,11 @@
 
 extern uint32_t pal_log_lvl;
 
+#define PAL_FATAL(log_tag, arg,...)                                       \
+    if (pal_log_lvl & PAL_LOG_ERR) {                              \
+        ALOGE("%s: %d: "  arg, __func__, __LINE__, ##__VA_ARGS__);\
+        abort();                                                  \
+    }
 
 #define PAL_ERR(log_tag, arg,...)                                          \
     if (pal_log_lvl & PAL_LOG_ERR) {                              \

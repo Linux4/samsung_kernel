@@ -2,10 +2,13 @@
 
 void set_sensor_type(const int type_value, int *result)
 {
-	if (type_value >= SENSOR_OOO && type_value < SENSOR_MAXIMUM) {
+	if (type_value >= SENSOR_OOO) {
 		if (type_value == SENSOR_OOO && *result == SENSOR_FAILED) {
 			pr_info("maintain type check from out of order :%s\n",
 				sensor_status[*result + 2]);
+		} else if (type_value >= SENSOR_OK) {
+			*result = SENSOR_OK;
+			pr_info("FP_SET_SENSOR_TYPE :%s\n", sensor_status[*result + 2]);
 		} else {
 			*result = type_value;
 			pr_info("FP_SET_SENSOR_TYPE :%s\n", sensor_status[*result + 2]);
@@ -55,4 +58,14 @@ int set_fp_debug_timer(struct debug_logger *logger,
 	INIT_WORK(&logger->work_debug, func);
 
 	return rc;
+}
+
+void set_delay_in_spi_transfer(struct spi_transfer *xfer, unsigned int usec)
+{
+#if LINUX_VERSION_CODE > KERNEL_VERSION(5, 10, 0)
+	xfer->delay.unit = SPI_DELAY_UNIT_USECS;
+	xfer->delay.value = usec;
+#else
+	xfer->delay_usecs = usec;
+#endif
 }

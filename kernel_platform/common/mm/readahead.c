@@ -119,6 +119,11 @@ gfp_t readahead_gfp_mask(struct address_space *x)
 {
 	gfp_t mask = mapping_gfp_mask(x) | __GFP_NORETRY | __GFP_NOWARN;
 
+	if (mask & __GFP_MOVABLE) {
+		mask |= __GFP_CMA;
+		mask &= ~__GFP_HIGHMEM;
+	}
+
 	trace_android_rvh_set_readahead_gfp_mask(&mask);
 	return mask;
 }
@@ -458,6 +463,8 @@ static void ondemand_readahead(struct readahead_control *ractl,
 	 */
 	if (req_size > max_pages && bdi->io_pages > max_pages)
 		max_pages = min(req_size, bdi->io_pages);
+
+	trace_android_vh_ra_tuning_max_page(ractl, &max_pages);
 
 	/*
 	 * start of file

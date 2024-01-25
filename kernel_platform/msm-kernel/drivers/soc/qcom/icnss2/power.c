@@ -4,11 +4,13 @@
  */
 #include <linux/clk.h>
 #include <linux/delay.h>
+#if IS_ENABLED(CONFIG_MSM_QMP)
+#include <linux/mailbox/qmp.h>
+#endif
 #include <linux/of.h>
 #include <linux/pinctrl/consumer.h>
 #include <linux/regulator/consumer.h>
 #include <soc/qcom/cmd-db.h>
-#include <linux/io.h>
 #include "main.h"
 #include "qmi.h"
 #include "debug.h"
@@ -47,12 +49,39 @@ static struct icnss_clk_cfg icnss_adrestea_clk_list[] = {
 #define ICNSS_THRESHOLD_LOW				3450000
 #define ICNSS_THRESHOLD_GUARD				20000
 
-#define TCS_CMD_DATA_ADDR_OFFSET	0x4
-#define TCS_OFFSET			0xC8
-#define TCS_CMD_OFFSET			0x10
-#define MAX_TCS_NUM			8
-#define MAX_TCS_CMD_NUM			5
 #define BT_CXMX_VOLTAGE_MV		950
+#define ICNSS_MBOX_MSG_MAX_LEN 64
+#define ICNSS_MBOX_TIMEOUT_MS 1000
+
+#define WLAN_PON_EN			"wlan_pon_en"
+#define WLAN_PON_DIS			"wlan_pon_dis"
+#define WLAN_POFF_EN			"wlan_poff_en"
+#define WLAN_POFF_DIS			"wlan_poff_dis"
+#define WLAN_PON_DELAY			20
+
+/**
+ * enum icnss_vreg_param: Voltage regulator TCS param
+ * @ICNSS_VREG_VOLTAGE: Provides voltage level to be configured in TCS
+ * @ICNSS_VREG_MODE: Regulator mode
+ * @ICNSS_VREG_ENABLE: Set Voltage regulator enable config in TCS
+ */
+enum icnss_vreg_param {
+	ICNSS_VREG_VOLTAGE,
+	ICNSS_VREG_MODE,
+	ICNSS_VREG_ENABLE,
+};
+
+/**
+ * enum icnss_tcs_seq: TCS sequence ID for trigger
+ * ICNSS_TCS_UP_SEQ: TCS Sequence based on up trigger / Wake TCS
+ * ICNSS_TCS_DOWN_SEQ: TCS Sequence based on down trigger / Sleep TCS
+ * ICNSS_TCS_ALL_SEQ: Update for both up and down triggers
+ */
+enum icnss_tcs_seq {
+	ICNSS_TCS_UP_SEQ,
+	ICNSS_TCS_DOWN_SEQ,
+	ICNSS_TCS_ALL_SEQ,
+};
 
 static int icnss_get_vreg_single(struct icnss_priv *priv,
 				 struct icnss_vreg_info *vreg)
@@ -124,10 +153,7 @@ static int icnss_get_vreg_single(struct icnss_priv *priv,
 			vreg->cfg.delay_us = be32_to_cpup(&prop[3]);
 			break;
 		case 4:
-			if (priv->device_id == WCN6750_DEVICE_ID)
-				vreg->cfg.need_unvote = be32_to_cpup(&prop[4]);
-			else
-				vreg->cfg.need_unvote = 0;
+			vreg->cfg.need_unvote = be32_to_cpup(&prop[4]);
 			break;
 		default:
 			icnss_pr_dbg("Property %s, ignoring value at %d\n",
@@ -617,7 +643,26 @@ int icnss_hw_power_on(struct icnss_priv *priv)
 	if (ret)
 		goto vreg_off;
 
+	if (priv->pon_gpio_control) {
+		/* Better to power off and then power on, to rule
+		 * out state mismatch between WPSS and wlan chip
+		 */
+		icnss_power_trigger_pinctrl(&priv->pdev->dev,
+					    ICNSS_PINCTRL_OWNER_WLAN,
+					    ICNSS_PINCTRL_SEQ_OFF);
+		ret = icnss_power_trigger_pinctrl(&priv->pdev->dev,
+						  ICNSS_PINCTRL_OWNER_WLAN,
+						  ICNSS_PINCTRL_SEQ_ON);
+		if (ret) {
+			icnss_pr_err("Failed to select pinctrl state, err = %d\n", ret);
+			goto clk_off;
+		}
+	}
+
 	return ret;
+
+clk_off:
+	icnss_clk_off(&priv->clk_list);
 
 vreg_off:
 	icnss_vreg_off(priv);
@@ -649,6 +694,11 @@ int icnss_hw_power_off(struct icnss_priv *priv)
 	icnss_clk_off(&priv->clk_list);
 
 	ret = icnss_vreg_off(priv);
+
+	if (priv->pon_gpio_control)
+		ret = icnss_power_trigger_pinctrl(&priv->pdev->dev,
+						  ICNSS_PINCTRL_OWNER_WLAN,
+						  ICNSS_PINCTRL_SEQ_OFF);
 
 	return ret;
 }
@@ -820,120 +870,333 @@ out:
 	return ret;
 }
 
-int icnss_get_cpr_info(struct icnss_priv *priv)
+int icnss_aop_mbox_init(struct icnss_priv *priv)
 {
-	struct platform_device *plat_dev = priv->pdev;
-	struct icnss_cpr_info *cpr_info = &priv->cpr_info;
-	struct resource *res;
-	resource_size_t addr_len;
-	void __iomem *tcs_cmd_base_addr;
-	const char *cmd_db_name;
-	u32 cpr_pmic_addr = 0;
+	struct mbox_client *mbox = &priv->mbox_client_data;
+	struct mbox_chan *chan;
 	int ret = 0;
 
-	res = platform_get_resource_byname(plat_dev, IORESOURCE_MEM, "tcs_cmd");
-	if (!res) {
-		icnss_pr_dbg("TCS CMD address is not present for CPR\n");
-		goto out;
-	}
-
-	ret = of_property_read_string(plat_dev->dev.of_node,
-				      "qcom,cmd_db_name", &cmd_db_name);
+	ret = of_property_read_string(priv->pdev->dev.of_node,
+				      "qcom,vreg_ol_cpr",
+				      &priv->cpr_info.vreg_ol_cpr);
 	if (ret) {
-		icnss_pr_dbg("CommandDB name is not present for CPR\n");
-		goto out;
+		icnss_pr_dbg("Vreg for OL CPR not configured\n");
+		return -EINVAL;
 	}
 
-	cpr_pmic_addr = cmd_db_read_addr(cmd_db_name);
-	if (cpr_pmic_addr > 0) {
-		cpr_info->cpr_pmic_addr = cpr_pmic_addr;
-		icnss_pr_dbg("Get CPR PMIC address 0x%x from %s\n",
-			     cpr_info->cpr_pmic_addr, cmd_db_name);
-	} else {
-		icnss_pr_err("CPR PMIC address is not available for %s\n",
-			     cmd_db_name);
-		ret = -EINVAL;
-		goto out;
+	mbox->dev = &priv->pdev->dev;
+	mbox->tx_block = true;
+	mbox->tx_tout = ICNSS_MBOX_TIMEOUT_MS;
+	mbox->knows_txdone = false;
+
+	priv->mbox_chan = NULL;
+	chan = mbox_request_channel(mbox, 0);
+	if (IS_ERR(chan)) {
+		ret = PTR_ERR(chan);
+		icnss_pr_err("Failed to get mbox channel with err %d\n", ret);
+		return ret;
 	}
+	priv->mbox_chan = chan;
 
-	cpr_info->tcs_cmd_base_addr = res->start;
-	addr_len = resource_size(res);
-	icnss_pr_dbg("TCS CMD base address is %pa with length %pa\n",
-		     &cpr_info->tcs_cmd_base_addr, &addr_len);
-
-	tcs_cmd_base_addr = devm_ioremap_resource(&plat_dev->dev, res);
-	if (IS_ERR(tcs_cmd_base_addr)) {
-		ret = PTR_ERR(tcs_cmd_base_addr);
-		icnss_pr_err("Failed to map TCS CMD address, err = %d\n",
-			     ret);
-		goto out;
-	}
-
-	cpr_info->tcs_cmd_base_addr_io = tcs_cmd_base_addr;
-
+	icnss_pr_dbg("Mbox channel initialized\n");
 	return 0;
+}
 
-out:
+#if IS_ENABLED(CONFIG_MSM_QMP)
+static int icnss_aop_set_vreg_param(struct icnss_priv *priv,
+				    const char *vreg_name,
+				    enum icnss_vreg_param param,
+				    enum icnss_tcs_seq seq, int val)
+{
+	struct qmp_pkt pkt;
+	char mbox_msg[ICNSS_MBOX_MSG_MAX_LEN];
+	static const char * const vreg_param_str[] = {"v", "m", "e"};
+	static const char *const tcs_seq_str[] = {"upval", "dwnval", "enable"};
+	int ret = 0;
+
+	if (param > ICNSS_VREG_ENABLE || seq > ICNSS_TCS_ALL_SEQ || !vreg_name)
+		return -EINVAL;
+
+	snprintf(mbox_msg, ICNSS_MBOX_MSG_MAX_LEN,
+		 "{class: wlan_pdc, res: %s.%s, %s: %d}", vreg_name,
+		 vreg_param_str[param], tcs_seq_str[seq], val);
+
+	icnss_pr_dbg("Sending AOP Mbox msg: %s\n", mbox_msg);
+	pkt.size = ICNSS_MBOX_MSG_MAX_LEN;
+	pkt.data = mbox_msg;
+
+	ret = mbox_send_message(priv->mbox_chan, &pkt);
+	if (ret < 0)
+		icnss_pr_err("Failed to send AOP mbox msg: %s,ret: %d\n",
+			     mbox_msg, ret);
+	else
+		ret = 0;
+
 	return ret;
 }
+#else
+static int icnss_aop_set_vreg_param(struct icnss_priv *priv,
+				    const char *vreg_name,
+				    enum icnss_vreg_param param,
+				    enum icnss_tcs_seq seq, int val)
+{
+	return 0;
+}
+#endif
 
 int icnss_update_cpr_info(struct icnss_priv *priv)
 {
 	struct icnss_cpr_info *cpr_info = &priv->cpr_info;
-	u32 pmic_addr, voltage = 0, voltage_tmp, offset;
-	void __iomem *tcs_cmd_addr, *tcs_cmd_data_addr;
-	int i, j;
 
-	if (cpr_info->tcs_cmd_base_addr == 0) {
-		icnss_pr_dbg("CPR is not enabled\n");
+	if (!cpr_info->vreg_ol_cpr || !priv->mbox_chan) {
+		icnss_pr_dbg("Mbox channel / OL CPR Vreg not configured\n");
 		return 0;
 	}
 
-	if (cpr_info->voltage == 0 || cpr_info->cpr_pmic_addr == 0) {
-		icnss_pr_err("Voltage %dmV or PMIC address 0x%x is not valid\n",
-			     cpr_info->voltage, cpr_info->cpr_pmic_addr);
+	if (cpr_info->voltage == 0) {
+		icnss_pr_err("Voltage %dmV is not valid\n", cpr_info->voltage);
 		return -EINVAL;
 	}
 
-	if (cpr_info->tcs_cmd_data_addr_io)
-		goto update_cpr;
-
-	for (i = 0; i < MAX_TCS_NUM; i++) {
-		for (j = 0; j < MAX_TCS_CMD_NUM; j++) {
-			offset = i * TCS_OFFSET + j * TCS_CMD_OFFSET;
-			tcs_cmd_addr = cpr_info->tcs_cmd_base_addr_io + offset;
-			pmic_addr = readl_relaxed(tcs_cmd_addr);
-			if (pmic_addr == cpr_info->cpr_pmic_addr) {
-				tcs_cmd_data_addr = tcs_cmd_addr +
-					TCS_CMD_DATA_ADDR_OFFSET;
-				voltage_tmp = readl_relaxed(tcs_cmd_data_addr);
-				icnss_pr_dbg("Got voltage %dmV from i: %d, j: %d\n",
-					     voltage_tmp, i, j);
-
-				if (voltage_tmp > voltage) {
-					voltage = voltage_tmp;
-					cpr_info->tcs_cmd_data_addr =
-						cpr_info->tcs_cmd_base_addr +
-						offset +
-						TCS_CMD_DATA_ADDR_OFFSET;
-					cpr_info->tcs_cmd_data_addr_io =
-						tcs_cmd_data_addr;
-				}
-			}
-		}
-	}
-
-	if (!cpr_info->tcs_cmd_data_addr_io) {
-		icnss_pr_err("Failed to find proper TCS CMD data address\n");
-		return -EINVAL;
-	}
-
-update_cpr:
 	cpr_info->voltage = cpr_info->voltage > BT_CXMX_VOLTAGE_MV ?
 		cpr_info->voltage : BT_CXMX_VOLTAGE_MV;
-	icnss_pr_dbg("Update TCS CMD data address %pa with voltage %dmV\n",
-		     &cpr_info->tcs_cmd_data_addr, cpr_info->voltage);
-	writel_relaxed(cpr_info->voltage, cpr_info->tcs_cmd_data_addr_io);
+
+	return icnss_aop_set_vreg_param(priv,
+				       cpr_info->vreg_ol_cpr,
+				       ICNSS_VREG_VOLTAGE,
+				       ICNSS_TCS_UP_SEQ,
+				       cpr_info->voltage);
+}
+
+static int icnss_power_pinctrl_set(struct icnss_priv *priv,
+				   enum icnss_pinctrl_owner owner,
+				   enum icnss_pinctrl_seq seq)
+{
+	int ret = 0;
+	struct icnss_pinctrl_info *pinctrl_info;
+
+	if (!priv) {
+		icnss_pr_pon_seq("plat_priv is NULL!\n");
+		ret = -ENODEV;
+		goto out;
+	}
+
+	pinctrl_info = &priv->pinctrl_info;
+	icnss_pr_pon_seq("icnss: pinctrl seq %u\n", seq);
+
+	switch (seq) {
+	case ICNSS_PINCTRL_SEQ_OFF:
+		if (!IS_ERR_OR_NULL(pinctrl_info->wlan_poff_en)) {
+			ret = pinctrl_select_state(pinctrl_info->pinctrl,
+						   pinctrl_info->wlan_poff_en);
+			if (ret) {
+				icnss_pr_pon_seq("state for poff_en err=%d\n",
+						 ret);
+				goto out;
+			}
+		} else {
+			ret = -ENODEV;
+			goto out;
+		}
+		mdelay(WLAN_PON_DELAY);
+		if (!IS_ERR_OR_NULL(pinctrl_info->wlan_poff_dis)) {
+			ret = pinctrl_select_state(pinctrl_info->pinctrl,
+						   pinctrl_info->wlan_poff_dis);
+			if (ret) {
+				icnss_pr_pon_seq("state for poff_dis err=%d\n",
+						 ret);
+				goto out;
+			}
+			priv->pon_pinctrl_owners &= ~BIT(owner);
+			priv->pof_pinctrl_owners |= BIT(owner);
+		} else {
+			ret = -ENODEV;
+			goto out;
+		}
+		break;
+	case ICNSS_PINCTRL_SEQ_ON:
+		if (!IS_ERR_OR_NULL(pinctrl_info->wlan_pon_en)) {
+			ret = pinctrl_select_state(pinctrl_info->pinctrl,
+						   pinctrl_info->wlan_pon_en);
+			if (ret) {
+				icnss_pr_pon_seq("state for pon_en, err=%d\n",
+						 ret);
+				goto out;
+			}
+		} else {
+			ret = -ENODEV;
+			goto out;
+		}
+		mdelay(WLAN_PON_DELAY);
+		if (!IS_ERR_OR_NULL(pinctrl_info->wlan_pon_dis)) {
+			ret = pinctrl_select_state(pinctrl_info->pinctrl,
+						   pinctrl_info->wlan_pon_dis);
+			if (ret) {
+				icnss_pr_pon_seq("state for wlan_pon_dis err=%d\n",
+						 ret);
+				goto out;
+			}
+			priv->pon_pinctrl_owners |= BIT(owner);
+			priv->pof_pinctrl_owners &= ~BIT(owner);
+		} else {
+			ret = -ENODEV;
+			goto out;
+		}
+		break;
+	default:
+		icnss_pr_pon_seq("Unhandled pinctrl power sequence %u\n", seq);
+		ret = -EINVAL;
+		break;
+	}
+out:
+	return ret;
+}
+
+int icnss_get_pinctrl(struct icnss_priv *priv)
+{
+	struct icnss_pinctrl_info *pinctrl_info;
+	struct device *dev;
+	int ret = 0;
+
+	if (!priv)
+		return -EINVAL;
+
+	/* Init to - no power ons, and all are powered down */
+	dev = &priv->pdev->dev;
+	pinctrl_info = &priv->pinctrl_info;
+
+	pinctrl_info->pinctrl = devm_pinctrl_get(dev);
+	if (IS_ERR_OR_NULL(pinctrl_info->pinctrl)) {
+		ret = PTR_ERR(pinctrl_info->pinctrl);
+		icnss_pr_pon_seq("Failed to get pinctrl, err = %d\n", ret);
+		goto out;
+	}
+
+	pinctrl_info->wlan_pon_en =
+		pinctrl_lookup_state(pinctrl_info->pinctrl,
+				     WLAN_PON_EN);
+	if (IS_ERR_OR_NULL(pinctrl_info->wlan_pon_en)) {
+		ret = PTR_ERR(pinctrl_info->wlan_pon_en);
+		icnss_pr_pon_seq("Failed to get pon_en state, err %d\n", ret);
+		goto out;
+	}
+
+	pinctrl_info->wlan_pon_dis =
+		pinctrl_lookup_state(pinctrl_info->pinctrl,
+				     WLAN_PON_DIS);
+	if (IS_ERR_OR_NULL(pinctrl_info->wlan_pon_dis)) {
+		ret = PTR_ERR(pinctrl_info->wlan_pon_dis);
+		icnss_pr_pon_seq("Failed to get pon_dis state, err %d\n", ret);
+		goto out;
+	}
+
+	pinctrl_info->wlan_poff_en =
+		pinctrl_lookup_state(pinctrl_info->pinctrl,
+				     WLAN_POFF_EN);
+	if (IS_ERR_OR_NULL(pinctrl_info->wlan_poff_en)) {
+		ret = PTR_ERR(pinctrl_info->wlan_poff_en);
+		icnss_pr_pon_seq("Failed to get poff_en state, err %d\n", ret);
+		goto out;
+	}
+
+	pinctrl_info->wlan_poff_dis =
+		pinctrl_lookup_state(pinctrl_info->pinctrl,
+				     WLAN_POFF_DIS);
+	if (IS_ERR_OR_NULL(pinctrl_info->wlan_poff_dis)) {
+		ret = PTR_ERR(pinctrl_info->wlan_poff_dis);
+		icnss_pr_pon_seq("Failed to get poff_dis state, er %d\n", ret);
+		goto out;
+	}
 
 	return 0;
+out:
+	return ret;
 }
+
+int icnss_power_trigger_pinctrl(struct device *dev,
+				enum icnss_pinctrl_owner owner,
+				enum icnss_pinctrl_seq seq)
+{
+	struct icnss_priv *priv = icnss_get_plat_priv();
+	int retry = 10;
+	int ret;
+	u32 all_owners = BIT(ICNSS_PINCTRL_OWNER_WLAN) |
+			 BIT(ICNSS_PINCTRL_OWNER_BT);
+
+	if (!priv) {
+		icnss_pr_pon_seq("icnss2 not initialized");
+		return -ENODEV;
+	}
+
+	if (!priv->pon_gpio_control) {
+		icnss_pr_pon_seq("pinctrl_set: PON pinctrl not present");
+		return 0;
+	}
+
+	if (seq != ICNSS_PINCTRL_SEQ_ON && seq != ICNSS_PINCTRL_SEQ_OFF) {
+		icnss_pr_pon_seq("Invalid power seq %d", seq);
+		return -EINVAL;
+	}
+
+	icnss_pr_pon_seq("EPower : seq %d, from %d, pon,pof:0x%x, 0x%x",
+			 seq, owner, priv->pon_pinctrl_owners,
+			 priv->pof_pinctrl_owners);
+retry_op:
+	/* Don't hold the lock for long, check on pon_in_progress instead */
+	spin_lock(&priv->on_off_lock);
+	if (priv->pon_in_progress && retry) {
+		spin_unlock(&priv->on_off_lock);
+		icnss_pr_pon_seq("Wait for operation to complete");
+		usleep_range(5000, 10000);
+		retry--;
+		goto retry_op;
+	}
+
+	if (!retry && priv->pon_in_progress) {
+		icnss_pr_pon_seq("Prev operation taking too long to complete");
+		spin_unlock(&priv->on_off_lock);
+		return -EINPROGRESS;
+	}
+	priv->pon_in_progress = true;
+	spin_unlock(&priv->on_off_lock);
+
+	ret = 0;
+	/* If PON, and if _this_ owner has not already voted for PON, and none
+	 * of the other owners have triggered PON already, only then trigger
+	 * PON sequence.
+	 */
+	if (seq == ICNSS_PINCTRL_SEQ_ON &&
+	    (priv->pon_pinctrl_owners & BIT(owner)) == 0) {
+		if ((priv->pon_pinctrl_owners & all_owners) == 0) {
+			ret = icnss_power_pinctrl_set(priv, owner,
+						      ICNSS_PINCTRL_SEQ_ON);
+		} else {
+			priv->pon_pinctrl_owners |= BIT(owner);
+			priv->pof_pinctrl_owners &= ~BIT(owner);
+		}
+		goto retrn;
+	} else if (seq == ICNSS_PINCTRL_SEQ_OFF &&
+		   (priv->pof_pinctrl_owners & BIT(owner)) == 0) {
+	/* If POF, and if _this_ owner has not already voted for poff, and none
+	 * of the other owners require PON any longer, only then trigger
+	 * POFF sequence.
+	 */
+		if ((priv->pon_pinctrl_owners & ~BIT(owner)) == 0) {
+			ret = icnss_power_pinctrl_set(priv, owner,
+						      ICNSS_PINCTRL_SEQ_OFF);
+		} else {
+			priv->pon_pinctrl_owners &= ~BIT(owner);
+			priv->pof_pinctrl_owners |= BIT(owner);
+		}
+		goto retrn;
+	}
+
+retrn:
+	icnss_pr_pon_seq("XPower : seq %d, from %d, pon,pof:0x%x, 0x%x",
+			 seq, owner, priv->pon_pinctrl_owners,
+			 priv->pof_pinctrl_owners);
+
+	priv->pon_in_progress = false;
+	return ret;
+}
+EXPORT_SYMBOL(icnss_power_trigger_pinctrl);

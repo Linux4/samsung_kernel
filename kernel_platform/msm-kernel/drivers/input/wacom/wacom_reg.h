@@ -40,6 +40,7 @@
 #define COM_OPEN_CHECK_STATUS		0xD8
 
 /* sensitivity set cmd */
+#define COM_PDCT_LOW_SENSE_MODE		0xDA
 #define COM_NORMAL_SENSE_MODE		0xDB
 #define COM_LOW_SENSE_MODE		0xDC
 #define COM_LOW_SENSE_MODE2		0xE7
@@ -116,3 +117,4 @@ enum epen_ble_charge_state {
 
 /* wacom ic model */
 #define WEZ02_B0			0x01
+#define WEZ02_DM3			0x02

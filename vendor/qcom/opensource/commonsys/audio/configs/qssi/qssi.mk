@@ -89,19 +89,6 @@ media.stagefright.audio.deep=false
 endif
 #guard for non generic_odm_image
 
-ifneq ($(filter q2q% b2q%, $(TARGET_PRODUCT)),)
-$(warning ****** not support mmap for $(TARGET_PRODUCT) ******)
-PRODUCT_PRODUCT_PROPERTIES += aaudio.mmap_policy=1
-PRODUCT_PRODUCT_PROPERTIES += aaudio.mmap_exclusive_policy=1
-else
-# Enable AAudio MMAP/NOIRQ data path.
-# 2 is AAUDIO_POLICY_AUTO so it will try MMAP then fallback to Legacy path.
-PRODUCT_PRODUCT_PROPERTIES += aaudio.mmap_policy=2
-# Allow EXCLUSIVE then fall back to SHARED.
-PRODUCT_PRODUCT_PROPERTIES += aaudio.mmap_exclusive_policy=2
-PRODUCT_PRODUCT_PROPERTIES += aaudio.hw_burst_min_usec=2000
-endif
-
 # for HIDL related packages
 PRODUCT_PACKAGES += \
     android.hardware.audio@4.0 \

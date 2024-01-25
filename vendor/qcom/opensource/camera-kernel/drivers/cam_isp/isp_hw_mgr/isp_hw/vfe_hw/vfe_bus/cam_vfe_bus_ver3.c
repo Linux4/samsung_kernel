@@ -2000,7 +2000,6 @@ static int cam_vfe_bus_ver3_acquire_vfe_out(void *bus_priv, void *acquire_args,
 	secure_caps = cam_vfe_bus_ver3_can_be_secure(
 		rsrc_data->out_type);
 	mode = out_acquire_args->out_port_info->secure_mode;
-	CAM_INFO(CAM_ISP, " out port acquire secure_mode: %d", mode);
 	mutex_lock(&rsrc_data->common_data->bus_mutex);
 	if (secure_caps) {
 		if (!rsrc_data->common_data->num_sec_out) {

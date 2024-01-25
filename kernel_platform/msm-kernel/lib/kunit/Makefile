@@ -21,4 +21,4 @@ obj-$(CONFIG_KUNIT_TEST) +=		kunit-test.o \
 					string-stream-test.o
 
 obj-$(CONFIG_KUNIT_EXAMPLE_TEST)	+= kunit-example-test.o
-obj-$(CONFIG_KUNIT_MANAGER)		+= kunit_manager.o
+obj-$(CONFIG_KUNIT_MANAGER)		+= kunit_manager.o kunit_notifier.o

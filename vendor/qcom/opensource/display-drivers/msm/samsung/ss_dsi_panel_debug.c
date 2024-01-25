@@ -124,7 +124,7 @@ static ssize_t ss_xlog_dump_entry_vsync(char *xlog_buf, ssize_t xlog_buf_size)
 	log = &ss_dbg_xlog_vsync.logs[ss_dbg_xlog_vsync.first %
 		SS_XLOG_ENTRY];
 
-	off = snprintf((xlog_buf + off), (xlog_buf_size - off),
+	off = scnprintf((xlog_buf + off), (xlog_buf_size - off),
 		"[%5llu.%6llu]:", log->time/1000000, log->time%1000000);
 
 	if (off < SS_XLOG_BUF_ALIGN_TIME) {
@@ -132,14 +132,14 @@ static ssize_t ss_xlog_dump_entry_vsync(char *xlog_buf, ssize_t xlog_buf_size)
 		off = SS_XLOG_BUF_ALIGN_TIME;
 	}
 
-	off += snprintf((xlog_buf + off), (xlog_buf_size - off), "%s => ",
+	off += scnprintf((xlog_buf + off), (xlog_buf_size - off), "%s => ",
 		log->name);
 
 	for (i = 0; i < log->data_cnt; i++)
-		off += snprintf((xlog_buf + off), (xlog_buf_size - off),
+		off += scnprintf((xlog_buf + off), (xlog_buf_size - off),
 			"%x ", log->data[i]);
 
-	off += snprintf((xlog_buf + off), (xlog_buf_size - off), "\n");
+	off += scnprintf((xlog_buf + off), (xlog_buf_size - off), "\n");
 
 	spin_unlock_irqrestore(&ss_xlock_vsync, flags);
 
@@ -243,7 +243,7 @@ static ssize_t ss_xlog_dump_entry(char *xlog_buf, ssize_t xlog_buf_size)
 	log = &ss_dbg_xlog.logs[ss_dbg_xlog.first %
 		SS_XLOG_ENTRY];
 
-	off = snprintf((xlog_buf + off), (xlog_buf_size - off),
+	off = scnprintf((xlog_buf + off), (xlog_buf_size - off),
 		"[%5llu.%6llu]:", log->time/1000000, log->time%1000000);
 
 	if (off < SS_XLOG_BUF_ALIGN_TIME) {
@@ -251,14 +251,14 @@ static ssize_t ss_xlog_dump_entry(char *xlog_buf, ssize_t xlog_buf_size)
 		off = SS_XLOG_BUF_ALIGN_TIME;
 	}
 
-	off += snprintf((xlog_buf + off), (xlog_buf_size - off), "%s => ",
+	off += scnprintf((xlog_buf + off), (xlog_buf_size - off), "%s => ",
 		log->name);
 
 	for (i = 0; i < log->data_cnt; i++)
-		off += snprintf((xlog_buf + off), (xlog_buf_size - off),
+		off += scnprintf((xlog_buf + off), (xlog_buf_size - off),
 			"%x ", log->data[i]);
 
-	off += snprintf((xlog_buf + off), (xlog_buf_size - off), "\n");
+	off += scnprintf((xlog_buf + off), (xlog_buf_size - off), "\n");
 
 	spin_unlock_irqrestore(&ss_xlock, flags);
 
@@ -351,13 +351,13 @@ void ss_store_xlog_panic_dbg(void)
 
 	while (last >= 0) {
 		log = &ss_dbg_xlog.logs[last % SS_XLOG_ENTRY];
-		len += snprintf((err_buf + len), (sizeof(err_buf) - len),
+		len += scnprintf((err_buf + len), (sizeof(err_buf) - len),
 			"[%llu.%3llu]%s=>", log->time/1000000,
 			log->time%1000000, log->name);
 		if (len >= SS_XLOG_PANIC_DBG_LENGTH)
 			goto end;
 		for (i = 0; i < log->data_cnt; i++) {
-			len += snprintf((err_buf + len),
+			len += scnprintf((err_buf + len),
 				(sizeof(err_buf) - len), "%x ", log->data[i]);
 			if (len >= SS_XLOG_PANIC_DBG_LENGTH)
 				goto end;
@@ -391,12 +391,12 @@ static int debug_display_read_once(struct samsung_display_driver_data *vdd,
 	ssize_t len = 0;
 
 
-	len += snprintf(buf + len, SS_ONCE_LOG_BUF_MAX - len, "VRR: adj: %d%s\n",
+	len += scnprintf(buf + len, SS_ONCE_LOG_BUF_MAX - len, "VRR: adj: %d%s\n",
 		vdd->vrr.adjusted_refresh_rate,
 		vdd->vrr.adjusted_sot_hs_mode ? "HS" : "NM");
 
 	if (panel && panel->cur_mode) {
-		len += snprintf(buf + len, SS_ONCE_LOG_BUF_MAX - len, "VRR: cur_mode:  %dx%d@%d%s\n",
+		len += scnprintf(buf + len, SS_ONCE_LOG_BUF_MAX - len, "VRR: cur_mode:  %dx%d@%d%s\n",
 			panel->cur_mode->timing.h_active,
 			panel->cur_mode->timing.v_active,
 			panel->cur_mode->timing.refresh_rate,
@@ -406,7 +406,7 @@ static int debug_display_read_once(struct samsung_display_driver_data *vdd,
 	if (vdd->vrr.lfd.support_lfd) {
 		for (scope = 0; scope < LFD_SCOPE_MAX; scope++) {
 			ss_get_lfd_div(vdd, scope, &min_div, &max_div);
-			len += snprintf(buf + len, SS_ONCE_LOG_BUF_MAX - len,
+			len += scnprintf(buf + len, SS_ONCE_LOG_BUF_MAX - len,
 				"LFD: scope=%s: LFD freq: %dhz ~ %dhz, div: %d ~ %d\n",
 				lfd_scope_name[scope],
 				DIV_ROUND_UP(vdd->vrr.lfd.base_rr, min_div),
@@ -599,7 +599,8 @@ int ss_check_rddpm(struct samsung_display_driver_data *vdd, u8 *rddpm)
 	for (bit = RDDPM_POC_LOAD; bit < MAX_RDDPM_BIT; bit++) {
 		if (bit == RDDPM_PTLON || bit == RDDPM_IDMON) /* don't care partial/idle mode */
 			continue;
-
+		if (!vdd->dtsi_data.ddi_use_flash && bit == RDDPM_POC_LOAD)
+			continue;
 		if (!(*rddpm & (1 << bit))) {
 			LCD_ERR(vdd, "%x : rddpm err(bit%d): %s\n", rddpm, bit, rddpm_bit[bit]);
 
@@ -761,15 +762,15 @@ int ss_check_dsierr(struct samsung_display_driver_data *vdd, u8 *dsierr_cnt)
 #if IS_ENABLED(CONFIG_SEC_ABC)
 		if (vdd->ndx == PRIMARY_DISPLAY_NDX)
 #if IS_ENABLED(CONFIG_SEC_FACTORY)
-			sec_abc_send_event("MODULE=display@INFO=act_section_panel_main_dsi_error");
+			sec_abc_send_event("MODULE=display@INFO=act_section_dsierr0");
 #else
-			sec_abc_send_event("MODULE=display@WARN=act_section_panel_main_dsi_error");
+			sec_abc_send_event("MODULE=display@WARN=act_section_dsierr0");
 #endif
 		else
 #if IS_ENABLED(CONFIG_SEC_FACTORY)
-			sec_abc_send_event("MODULE=display@INFO=act_section_panel_sub_dsi_error");
+			sec_abc_send_event("MODULE=display@INFO=act_section_dsierr1");
 #else
-			sec_abc_send_event("MODULE=display@WARN=act_section_panel_sub_dsi_error");
+			sec_abc_send_event("MODULE=display@WARN=act_section_dsierr1");
 #endif
 #endif
 	}
@@ -891,7 +892,7 @@ int ss_check_ecc_err(struct samsung_display_driver_data *vdd, u8 *ecc)
 	if (*ecc != 0x00)
 		LCD_INFO(vdd, "ECC disabled(%d)\n", *ecc);
 
-	size = snprintf(buf, MAX_DPUI_VAL_LEN, "%x", *ecc);
+	size = scnprintf(buf, MAX_DPUI_VAL_LEN, "%x", *ecc);
 	set_dpui_field(DPUI_KEY_ECC_ERR, buf, size);
 
 	return ret;
@@ -918,8 +919,9 @@ int ss_check_flash_done(struct samsung_display_driver_data *vdd, u8 *buf)
 	} else {
 		LCD_INFO(vdd, "FLASH NOT GOOD [%x]\n", *buf);
 		vdd->flash_done_fail = true;
+		inc_dpui_u32_field(DPUI_KEY_FLASH_LOAD, 1);
 	}
-	
+
 	return ret;
 }
 
@@ -939,14 +941,14 @@ int ss_read_ddi_debug_reg(struct samsung_display_driver_data *vdd)
 
 	ss_read_pps_data(vdd);
 
-	SS_XLOG(rddpm, rddsm, esderr, dsierr_cnt, protocol_err, ecc);
-
-	if (ret)
+	if (ret) {
 		LCD_INFO(vdd, "error: panel dbg: %x %x %x %x %x %x %x\n",
 				rddpm, rddsm, esderr, dsierr_cnt, protocol_err, ecc, flash_done);
-	else
+		SS_XLOG(vdd->ndx, rddpm, rddsm, esderr, dsierr_cnt, protocol_err, ecc, flash_done);
+	} else {
 		LCD_INFO(vdd, "pass: panel dbg: %x %x %x %x %x %x %x\n",
 				rddpm, rddsm, esderr, dsierr_cnt, protocol_err, ecc, flash_done);
+	}
 
 	return ret;
 }
@@ -1298,9 +1300,9 @@ static int dpci_notifier_callback(struct notifier_block *self,
 
 	/* 2. Make String */
 	if (lcd_debug.ftout.count) {
-		len += snprintf((tbuf + len), (SS_XLOG_DPCI_LENGTH - len),
+		len += scnprintf((tbuf + len), (SS_XLOG_DPCI_LENGTH - len),
 			"FTOUT CNT=%d ", lcd_debug.ftout.count);
-		len += snprintf((tbuf + len), (SS_XLOG_DPCI_LENGTH - len),
+		len += scnprintf((tbuf + len), (SS_XLOG_DPCI_LENGTH - len),
 			"NAME=%s ", lcd_debug.ftout.name);
 	}
 

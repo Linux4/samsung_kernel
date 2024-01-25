@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0
 /*
- * COPYRIGHT(C) 2021 Samsung Electronics Co., Ltd. All Right Reserved.
+ * COPYRIGHT(C) 2021-2022 Samsung Electronics Co., Ltd. All Right Reserved.
  */
 
 #define pr_fmt(fmt)     KBUILD_MODNAME ":%s() " fmt, __func__
@@ -145,7 +145,9 @@ int sec_qc_boot_stat_init(struct builder *bd)
 	boot_stat_ops->show_on_boot_stat = sec_qc_boot_stat_show_on_boot_stat;
 
 	err = sec_boot_stat_register_soc_ops(boot_stat_ops);
-	if (err)
+	if (err == -EBUSY)
+		return -EPROBE_DEFER;
+	else if (err)
 		return err;
 
 	drvdata->boot_stat_ops = boot_stat_ops;

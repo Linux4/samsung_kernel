@@ -14,10 +14,11 @@ from parser_util import register_parser, RamParser, cleanupString
 from mmu import Armv8MMU
 from print_out import print_out_str
 import struct
+from parsers.properties import Properties
 
 @register_parser('--logcat', 'Extract logcat logs from ramdump ')
 class Logcat(RamParser):
-
+    LOGCAT_BIN = "logcat.bin"
     def __init__(self, *args):
         super(Logcat, self).__init__(*args)
         self.f_path_offset = self.ramdump.field_offset('struct file', 'f_path')
@@ -39,6 +40,7 @@ class Logcat(RamParser):
         mm_offset = self.ramdump.field_offset('struct task_struct', 'mm')
         pgd = None
         mmap = None
+        logd_task = None
 
         for task in self.ramdump.for_each_process():
             task_name = task + offset_comm
@@ -46,12 +48,13 @@ class Logcat(RamParser):
             if task_name == 'logd':
                 mm_addr = self.ramdump.read_word(task + mm_offset)
                 mmap = self.ramdump.read_structure_field(mm_addr, 'struct mm_struct',
-                                            		'mmap')
+                                                   'mmap')
                 pgd = self.ramdump.read_structure_field(mm_addr, 'struct mm_struct',
                                                    'pgd')
+                logd_task = task
                 break
 
-        return mmap, pgd
+        return mmap, pgd, logd_task
 
     def get_logd_cnt_and_addr(self, logdmap):
         logdcount = 0
@@ -164,7 +167,6 @@ class Logcat(RamParser):
                                                self.dentry_offset)
                 file_name = cleanupString(self.ramdump.read_cstring(
                                             dentry + self.d_iname_offset, 16))
-
             if count == logdcount:
                 if vm_file != 0 or vm_flags & 0x3 != 0x3:
                     mmap = self.ramdump.read_structure_field(
@@ -253,15 +255,13 @@ class Logcat(RamParser):
             self.flattened_range(mmap, logdcount, logdaddr)
         return
 
-    def generate_bin(self, pgd):
-        pgdp = self.ramdump.virt_to_phys(pgd)
-        mmu = Armv8MMU(self.ramdump, pgdp)
-        self.ramdump.remove_file("logcat.bin")
+    def generate_bin(self, mmu):
+        self.ramdump.remove_file(self.LOGCAT_BIN)
         if len(self.vma_list) == 0:
-            print_out_str("Failed to generate logcat.bin")
+            print_out_str("Failed to generate "+self.LOGCAT_BIN)
         else:
-            print_out_str("logcat.bin base address is {0:x}".format(self.vma_list[0]['start']))
-            with self.ramdump.open_file("logcat.bin", 'ab') as out_file:
+            print_out_str(self.LOGCAT_BIN+" base address is {0:x}".format(self.vma_list[0]['start']))
+            with self.ramdump.open_file(self.LOGCAT_BIN, 'ab') as out_file:
                 for vma_info in self.vma_list:
                     min = vma_info['start']
                     size = vma_info['size']
@@ -282,8 +282,45 @@ class Logcat(RamParser):
         return
 
     def parse(self):
-        mmap, pgd = self.find_mmap_pgd()
-        if mmap is not None:
-            logdcount, logdaddr = self.get_logd_cnt_and_addr(mmap)
-            self.get_range(mmap, logdcount, logdaddr)
-            self.generate_bin(pgd)
+        try:
+            mmap, pgd, logd_task = self.find_mmap_pgd()
+            if mmap is None:
+                return
+            pgdp = self.ramdump.virt_to_phys(pgd)
+            mmu = Armv8MMU(self.ramdump, pgdp)
+            propertyParser = Properties(self.ramdump)
+            try:
+                ver = propertyParser.find_property_from_file(mmu, mmap,
+                        "ro.build.version.sdk","u:object_r:build_prop:s0")
+            except:
+                ver = -1
+
+            if not ver or ver == -1: #secondary prop
+                try:
+                    ver = propertyParser.find_property_from_file(mmu, mmap,
+                            "ro.vndk.version","u:object_r:vndk_prop:s0")
+                except:
+                    ver = -1
+            print_out_str("Current sdk version is "+ str(ver))
+            if ver == '31': # Android S
+                from parsers.logcat_v3 import Logcat_v3
+                logcat = Logcat_v3(self.ramdump, mmu, logd_task)
+                is_success = False
+                try:
+                    is_success = logcat.parse()
+                except:
+                    is_success = False
+                if not is_success:
+                    logdcount, logdaddr = self.get_logd_cnt_and_addr(mmap)
+                    self.get_range(mmap, logdcount, logdaddr)
+                    self.generate_bin(mmu)
+                    from parsers.logcat_v3 import Logcat_vma
+                    logcat = Logcat_vma(self.ramdump, mmu, self.LOGCAT_BIN)
+                    logcat.parse()
+            else:
+                logdcount, logdaddr = self.get_logd_cnt_and_addr(mmap)
+                self.get_range(mmap, logdcount, logdaddr)
+                self.generate_bin(mmu)
+        except Exception as result:
+            print_out_str(str(result))
+

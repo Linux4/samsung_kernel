@@ -2512,7 +2512,7 @@
 		qcom,cmb-elem-size = <7 32>,
 							 <8 32>,
 							 <10 32>,
-							 <13 32>,
+							 <13 64>,
 							 <14 64>,
 							 <16 32>,
 							 <19 64>,
@@ -3302,7 +3302,6 @@
 		dma-coherent;
 		coresight-name = "coresight-tmc-etr";
 
-		arm,buffer-size = <0x10000000>;
 		coresight-csr = <&csr>;
 		csr-atid-offset = <0xf4>;
 		csr-irqctrl-offset = <0x6c>;
@@ -3336,6 +3335,7 @@
 
 		iommus = <&apps_smmu 0x0620 0>;
 		qcom,iommu-dma-addr-pool = <0x0 0xffc00000>;
+		dma-coherent;
 
 		coresight-csr = <&csr>;
 		csr-atid-offset = <0x104>;
@@ -4021,6 +4021,42 @@
 		tgu-timer-counters = <8>;
 
 		coresight-name = "coresight-tgu-ipcb";
+
+		clocks = <&aoss_qmp>;
+		clock-names = "apb_pclk";
+	};
+
+	spmi_tgu0: tgu@10b0f000 {
+		compatible = "arm,primecell";
+		arm,primecell-periphid = <0x000bb999>;
+
+		reg = <0x10b0f000 0x1000>;
+		reg-names = "tgu-base";
+
+		tgu-steps = <3>;
+		tgu-conditions = <4>;
+		tgu-regs = <9>;
+		tgu-timer-counters = <8>;
+
+		coresight-name = "coresight-tgu-spmi0";
+
+		clocks = <&aoss_qmp>;
+		clock-names = "apb_pclk";
+	};
+
+	spmi_tgu1: tgu@10b10000 {
+		compatible = "arm,primecell";
+		arm,primecell-periphid = <0x000bb999>;
+
+		reg = <0x10b10000 0x1000>;
+		reg-names = "tgu-base";
+
+		tgu-steps = <3>;
+		tgu-conditions = <4>;
+		tgu-regs = <9>;
+		tgu-timer-counters = <8>;
+
+		coresight-name = "coresight-tgu-spmi1";
 
 		clocks = <&aoss_qmp>;
 		clock-names = "apb_pclk";

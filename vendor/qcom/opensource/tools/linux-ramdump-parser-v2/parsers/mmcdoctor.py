@@ -1,5 +1,5 @@
 # Copyright (c) 2017, 2020 The Linux Foundation. All rights reserved.
-#
+# Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License version 2 and
@@ -171,11 +171,11 @@ def find_mmc_card(ramdump, mmc_host):
     return mmc_card
 
 
-def find_sdhci_msm_host(ramdump, sdhci_host):
-    sdhci_pltfm_host = (sdhci_host + ramdump.sizeof('struct sdhci_host'))
-    msm_offset = ramdump.field_offset('struct sdhci_pltfm_host', 'priv')
-    sdhci_msm_host = ramdump.read_word(sdhci_pltfm_host + msm_offset)
-    return sdhci_msm_host
+def find_sdhci_msm_host(ramdump, index):
+    sdhci_slot_ptr = ramdump.address_of('sdhci_slot')
+    sdhci_msm_index = ramdump.array_index(sdhci_slot_ptr, 'struct sdhci_msm_host *', index)
+    sdhci_msm_host_addr = ramdump.read_word(sdhci_msm_index)
+    return sdhci_msm_host_addr
 
 
 class MmcCardInfo():
@@ -213,7 +213,10 @@ class MmcCardInfo():
     def find_cmdq_init(self):
         if (not self.card):
             return 0
-        cmdq_init = self.card + self.ramdump.field_offset('struct mmc_card', 'cmdq_init')
+        offset = self.ramdump.field_offset('struct mmc_host', 'cmdq_init')
+        if (not offset):
+            return -1
+        cmdq_init = self.card + offset
         return self.ramdump.read_bool(cmdq_init)
 
 
@@ -240,8 +243,11 @@ class MmcHostInfo():
         self.ios = self.find_ios()
         self.ios_clock = self.ramdump.read_int(self.ios +
                     self.ramdump.field_offset('struct mmc_ios', 'clock'))
-        self.ios_old_rate = self.ramdump.read_int(self.ios +
-                    self.ramdump.field_offset('struct mmc_ios', 'old_rate'))
+        offset = self.ramdump.field_offset('struct mmc_ios', 'old_rate')
+        if (offset) :
+            self.ios_old_rate = self.ramdump.read_int(self.ios + offset)
+        else:
+            self.ios_old_rate = -1
         self.ios_vdd = self.ramdump.read_u16(self.ios +
                     self.ramdump.field_offset('struct mmc_ios', 'vdd'))
         self.ios_bus_width = self.ramdump.read_byte(self.ios +
@@ -276,7 +282,7 @@ class MmcDataStructure():
         self.sdhci_host = find_sdhci_host(self.ramdump, self.irq)
         self.mmc_host = find_mmc_host(self.ramdump, self.sdhci_host)
         self.mmc_card = find_mmc_card(self.ramdump, self.mmc_host)
-        self.sdhci_msm_host = find_sdhci_msm_host(self.ramdump, self.sdhci_host)
+        self.sdhci_msm_host = find_sdhci_msm_host(self.ramdump, self.index)
         self.cardinfo = MmcCardInfo(self.ramdump, self.mmc_card)
         self.hostinfo = MmcHostInfo(self.ramdump, self.mmc_host)
         self.parse = ParseMmcLog(self.ramdump)

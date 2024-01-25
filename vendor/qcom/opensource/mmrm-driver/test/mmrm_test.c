@@ -159,6 +159,7 @@ exit:
 
 static int mmrm_test_probe(struct platform_device *pdev)
 {
+	bool is_mmrm_supported = false;
 	int soc_id;
 	int rc;
 
@@ -166,6 +167,12 @@ static int mmrm_test_probe(struct platform_device *pdev)
 	if (!of_device_is_compatible(pdev->dev.of_node, "qcom,msm-mmrm-test")) {
 		dev_info(&pdev->dev, "No compatible device node\n");
 		return 1;
+	}
+
+	is_mmrm_supported = mmrm_client_check_scaling_supported(MMRM_CLIENT_CLOCK, 0);
+	if (!is_mmrm_supported) {
+		pr_info("%s: MMRM not supported on %s\n", __func__, socinfo_get_id_string());
+		return 0;
 	}
 
 	test_drv_data = kzalloc(sizeof(*test_drv_data), GFP_KERNEL);

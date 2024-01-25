@@ -86,8 +86,6 @@ static void rbin_page_pool_add(struct dmabuf_page_pool *pool, struct page *page)
 	list_add_tail(&page->lru, &pool->items[index]);
 	pool->count[index]++;
 	mutex_unlock(&pool->mutex);
-	mod_node_page_state(page_pgdat(page), NR_KERNEL_MISC_RECLAIMABLE,
-			    1 << pool->order);
 }
 
 static struct page *rbin_page_pool_remove(struct dmabuf_page_pool *pool, int index)
@@ -99,8 +97,6 @@ static struct page *rbin_page_pool_remove(struct dmabuf_page_pool *pool, int ind
 	if (page) {
 		pool->count[index]--;
 		list_del(&page->lru);
-		mod_node_page_state(page_pgdat(page), NR_KERNEL_MISC_RECLAIMABLE,
-				    -(1 << pool->order));
 	}
 	mutex_unlock(&pool->mutex);
 
@@ -370,16 +366,6 @@ free_buffer:
 	return ERR_PTR(ret);
 }
 
-static long rbin_heap_get_pool_size(struct dma_heap *heap)
-{
-	const char *name = dma_heap_get_name(heap);
-
-	if (strcmp(name, "qcom,camera"))
-		return 0;
-
-	return atomic_read(&rbin_pool_pages) << PAGE_SHIFT;
-}
-
 static struct rbin_heap *g_rbin_heap;
 
 void wake_dmabuf_rbin_heap_prereclaim(void)
@@ -520,11 +506,6 @@ static struct dma_buf *rbin_heap_allocate_not_initialized(struct dma_heap *heap,
 	return ERR_PTR(-EBUSY);
 }
 
-static long rbin_heap_get_pool_size_not_initialized(struct dma_heap *heap)
-{
-	return 0;
-}
-
 static struct dma_buf *rbin_cached_heap_allocate(struct dma_heap *heap,
 					  unsigned long len,
 					  unsigned long fd_flags,
@@ -535,7 +516,6 @@ static struct dma_buf *rbin_cached_heap_allocate(struct dma_heap *heap,
 
 static struct dma_heap_ops rbin_cached_heap_ops = {
 	.allocate = rbin_heap_allocate_not_initialized,
-	.get_pool_size = rbin_heap_get_pool_size_not_initialized,
 };
 
 static struct dma_buf *rbin_uncached_heap_allocate(struct dma_heap *heap,
@@ -549,7 +529,6 @@ static struct dma_buf *rbin_uncached_heap_allocate(struct dma_heap *heap,
 static struct dma_heap_ops rbin_uncached_heap_ops = {
 	/* After rbin_heap_create is complete, we will swap this */
 	.allocate = rbin_heap_allocate_not_initialized,
-	.get_pool_size = rbin_heap_get_pool_size_not_initialized,
 };
 
 struct kobject *rbin_kobject;
@@ -648,9 +627,7 @@ int add_rbin_heap(struct platform_heap *heap_data)
 	dma_coerce_mask_and_coherent(dma_heap_get_dev(rbin_uncached_dma_heap), DMA_BIT_MASK(64));
 	mb(); /* make sure we only set allocate after dma_mask is set */
 	rbin_cached_heap_ops.allocate = rbin_cached_heap_allocate;
-	rbin_cached_heap_ops.get_pool_size = rbin_heap_get_pool_size;
 	rbin_uncached_heap_ops.allocate = rbin_uncached_heap_allocate;
-	rbin_uncached_heap_ops.get_pool_size = rbin_heap_get_pool_size;
 
 	register_trace_android_vh_show_mem(rbin_heap_show_mem, (void *)rbin_cached_dma_heap);
 

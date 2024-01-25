@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2012-2021 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -403,6 +404,17 @@ struct wlan_objmgr_vdev *sme_vdev_create(mac_handle_t mac_handle,
  */
 QDF_STATUS sme_vdev_post_vdev_create_setup(mac_handle_t mac_handle,
 					   struct wlan_objmgr_vdev *vdev);
+
+/**
+ * sme_vdev_set_data_tx_callback() - Set dp vdev tx callback
+ * @vdev: Object manger vdev
+ *
+ * This api will setup the dp vdev tx data callbaack.
+ *
+ * Return: QDF_STATUS
+ */
+QDF_STATUS sme_vdev_set_data_tx_callback(struct wlan_objmgr_vdev *vdev);
+
 /**
  * sme_vdev_delete() - Delete vdev for given id
  * @mac_handle: The handle returned by mac_open.
@@ -570,6 +582,44 @@ QDF_STATUS sme_roam_disconnect_sta(mac_handle_t mac_handle, uint8_t sessionId,
 QDF_STATUS sme_roam_deauth_sta(mac_handle_t mac_handle, uint8_t sessionId,
 		struct csr_del_sta_params *pDelStaParams);
 
+#ifdef MULTI_CLIENT_LL_SUPPORT
+/**
+ * sme_multi_client_ll_rsp_register_callback() - Register multi client low
+ * latency callback
+ * @mac_handle: Opaque handle to the MAC context
+ * @latency_level_event_handler_cb: Function to be invoked for low latency
+ * event
+ *
+ * Return: QDF_STATUS
+ */
+QDF_STATUS sme_multi_client_ll_rsp_register_callback(mac_handle_t mac_handle,
+				void (*latency_level_event_handler_cb)
+				(const struct latency_level_data *event_data,
+				 uint8_t vdev_id));
+
+/**
+ * sme_multi_client_ll_rsp_deregister_callback() - De Register multi client
+ * low latency callback
+ * @mac_handle: Opaque handle to the MAC context
+ *
+ * Return: void
+ */
+void sme_multi_client_ll_rsp_deregister_callback(mac_handle_t mac_handle);
+#else
+static inline QDF_STATUS
+sme_multi_client_ll_rsp_register_callback(mac_handle_t mac_handle,
+				void (*latency_level_event_handler_cb)
+				(const void *event_data,
+				 uint8_t vdev_id))
+{
+	return QDF_STATUS_E_FAILURE;
+}
+
+static inline
+void sme_multi_client_ll_rsp_deregister_callback(mac_handle_t mac_handle)
+{}
+#endif
+
 #ifdef WLAN_FEATURE_ROAM_OFFLOAD
 /**
  * sme_set_roam_scan_ch_event_cb() - Register roam scan ch callback
@@ -632,6 +682,30 @@ QDF_STATUS sme_roam_set_psk_pmk(mac_handle_t mac_handle,
  */
 QDF_STATUS sme_set_pmk_cache_ft(mac_handle_t mac_handle, uint8_t vdev_id,
 				struct wlan_crypto_pmksa *pmk_cache);
+
+/**
+ * sme_roam_events_register_callback() - Register roam events callback
+ * @mac_handle: Opaque handle to the MAC context
+ * @roam_rt_stats_cb: Function to be invoked for roam events stats
+ *
+ * This function will register a callback for roams events stats.
+ *
+ * Return: void
+ */
+void sme_roam_events_register_callback(mac_handle_t mac_handle,
+				       void (*roam_rt_stats_cb)(
+				hdd_handle_t hdd_handle, uint8_t idx,
+				struct roam_stats_event *roam_stats));
+
+/**
+ * sme_roam_events_deregister_callback() - DeRegister roam events callback
+ * @mac_handle: Opaque handle to the MAC context
+ *
+ * This function will deregister the callback of roams events stats.
+ *
+ * Return: void
+ */
+void sme_roam_events_deregister_callback(mac_handle_t mac_handle);
 #else
 static inline
 void sme_get_pmk_info(mac_handle_t mac_handle, uint8_t session_id,
@@ -666,6 +740,17 @@ QDF_STATUS sme_set_pmk_cache_ft(mac_handle_t mac_handle, uint8_t vdev_id,
 {
 	return QDF_STATUS_SUCCESS;
 }
+
+static inline void
+sme_roam_events_register_callback(mac_handle_t mac_handle,
+				  void (*roam_rt_stats_cb)(
+				hdd_handle_t hdd_handle, uint8_t idx,
+				struct roam_stats_event *roam_stats))
+{}
+
+static inline
+void sme_roam_events_deregister_callback(mac_handle_t mac_handle)
+{}
 #endif
 
 QDF_STATUS sme_get_config_param(mac_handle_t mac_handle,
@@ -817,6 +902,7 @@ uint32_t sme_get_beaconing_concurrent_operation_channel(mac_handle_t mac_handle,
  * @sap_ch_freq: SAP home channel frequency
  * @sapPhyMode: sap phymode
  * @cc_switch_mode: force scc channel switch mode
+ * @vdev_id: vdev id
  *
  * Determine if a concurrent channel is interfering.
  *
@@ -825,7 +911,8 @@ uint32_t sme_get_beaconing_concurrent_operation_channel(mac_handle_t mac_handle,
 uint16_t sme_check_concurrent_channel_overlap(mac_handle_t mac_handle,
 					      uint16_t sap_ch_freq,
 					      eCsrPhyMode sapPhyMode,
-					      uint8_t cc_switch_mode);
+					      uint8_t cc_switch_mode,
+					      uint8_t vdev_id);
 #endif
 
 /**
@@ -1179,16 +1266,20 @@ QDF_STATUS sme_send_rate_update_ind(mac_handle_t mac_handle,
 void sme_get_command_q_status(mac_handle_t mac_handle);
 
 /**
- * sme_set_wlm_latency_level_ind() - Used to set the latency level to fw
- * @mac_handle
- * @session_id
- * @latency_level
+ * sme_set_wlm_latency_level() - Used to set the latency level to fw
+ * @mac_handle: mac handle
+ * @vdev_id: vdev id
+ * @latency_level: latency level to be set in FW
+ * @client_id_bitmap: client id bitmap
+ * @force_reset: flag to reset latency level
  *
  * Return QDF_STATUS
  */
 QDF_STATUS sme_set_wlm_latency_level(mac_handle_t mac_handle,
-				     uint16_t session_id,
-				     uint16_t latency_level);
+				uint16_t vdev_id, uint16_t latency_level,
+				uint32_t client_id_bitmap,
+				bool force_reset);
+
 /*
  * SME API to enable/disable idle mode powersave
  * This should be called only if powersave offload
@@ -1286,6 +1377,8 @@ QDF_STATUS sme_roam_start_beacon_req(mac_handle_t mac_handle,
 				     struct qdf_mac_addr bssid,
 				     uint8_t dfsCacWaitStatus);
 
+QDF_STATUS sme_csa_restart(struct mac_context *mac_ctx, uint8_t session_id);
+
 /**
  * sme_roam_csa_ie_request() - request CSA IE transmission from PE
  * @mac_handle: handle returned by mac_open
@@ -1293,15 +1386,15 @@ QDF_STATUS sme_roam_start_beacon_req(mac_handle_t mac_handle,
  * @target_chan_freq: target channel frequency information
  * @csaIeReqd: CSA IE Request
  * @ch_params: channel information
+ * @new_cac_ms: cac duration of new channel
  *
  * Return: QDF_STATUS
  */
-QDF_STATUS sme_csa_restart(struct mac_context *mac_ctx, uint8_t session_id);
-
 QDF_STATUS sme_roam_csa_ie_request(mac_handle_t mac_handle,
 				   struct qdf_mac_addr bssid,
 				   uint32_t target_chan_freq, uint8_t csaIeReqd,
-				   struct ch_params *ch_params);
+				   struct ch_params *ch_params,
+				   uint32_t new_cac_ms);
 
 /**
  * sme_set_addba_accept() - Allow/Reject the ADDBA req session
@@ -1888,7 +1981,7 @@ void sme_update_tgt_services(mac_handle_t mac_handle,
 bool sme_validate_sap_channel_switch(mac_handle_t mac_handle,
 				     uint32_t sap_ch_freq, eCsrPhyMode sap_phy_mode,
 				     uint8_t cc_switch_mode,
-				     uint8_t session_id);
+				     uint8_t vdev_id);
 
 bool sme_is_session_id_valid(mac_handle_t mac_handle, uint32_t session_id);
 
@@ -2396,6 +2489,27 @@ sme_set_del_peers_ind_callback(mac_handle_t mac_handle,
  */
 void sme_set_chan_info_callback(mac_handle_t mac_handle,
 			void (*callback)(struct scan_chan_info *chan_info));
+
+#ifdef WLAN_FEATURE_CAL_FAILURE_TRIGGER
+/**
+ * sme_set_cal_failure_event_cb() - Register calibration failure event callback
+ * @mac_handle - MAC global handle
+ * @callback   - calibration failure event callback from HDD
+ *
+ * This API is invoked by HDD to register its callback to mac
+ *
+ * Return: None
+ */
+void sme_set_cal_failure_event_cb(
+			mac_handle_t mac_handle,
+			void (*callback)(uint8_t cal_type, uint8_t reason));
+#else
+static inline void
+sme_set_cal_failure_event_cb(mac_handle_t mac_handle,
+			     void (*callback)(uint8_t cal_type, uint8_t reason))
+{
+}
+#endif
 
 /**
  * sme_get_rssi_snr_by_bssid() - gets the rssi and snr by bssid from scan cache
@@ -4439,4 +4553,40 @@ QDF_STATUS sme_switch_channel(mac_handle_t mac_handle,
 			      struct qdf_mac_addr *bssid,
 			      qdf_freq_t chan_freq,
 			      enum phy_ch_width chan_width);
+
+#ifdef WLAN_FEATURE_DYNAMIC_MAC_ADDR_UPDATE
+/**
+ * sme_send_set_mac_addr() - Send set MAC address command to FW
+ * @mac_addr: VDEV MAC address
+ * @mld_addr: VDEV MLD address
+ * @vdev: Pointer to object manager VDEV
+ *
+ * API to send set MAC address request command to FW
+ *
+ * Return: QDF_STATUS
+ */
+QDF_STATUS sme_send_set_mac_addr(struct qdf_mac_addr mac_addr,
+				 struct qdf_mac_addr mld_addr,
+				 struct wlan_objmgr_vdev *vdev);
+
+/**
+ * sme_update_vdev_mac_addr() - Update VDEV MAC address
+ * @psoc: Pointer to PSOC structure
+ * @mac_addr: VDEV MAC address
+ * @vdev: Pointer to object manager VDEV
+ * @update_sta_self_peer: Flag to check self peer MAC address or not.
+ * @req_status: Status of the set MAC address request to the FW
+ *
+ * API to update MLME structures with new MAC address. This will be invoked
+ * after receiving success status form the FW for the set MAC address request
+ * command.
+ *
+ * Return: QDF_STATUS
+ */
+QDF_STATUS sme_update_vdev_mac_addr(struct wlan_objmgr_psoc *psoc,
+				    struct qdf_mac_addr mac_addr,
+				    struct wlan_objmgr_vdev *vdev,
+				    bool update_sta_self_peer, int req_status);
+#endif
+
 #endif /* #if !defined( __SME_API_H ) */

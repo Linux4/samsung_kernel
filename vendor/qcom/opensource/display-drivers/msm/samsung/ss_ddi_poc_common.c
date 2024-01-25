@@ -965,25 +965,25 @@ __visible_for_testing int poc_dpui_notifier_callback(struct notifier_block *self
 	ret = poc_get_efs_count(POC_TOTAL_TRY_COUNT_FILE_PATH, &total_try_cnt);
 	if (ret < 0)
 		total_try_cnt = (ret > -MAX_EPOCEFS) ? ret : -1;
-	size = snprintf(tbuf, MAX_DPUI_VAL_LEN, "%d", total_try_cnt);
+	size = scnprintf(tbuf, MAX_DPUI_VAL_LEN, "%d", total_try_cnt);
 	set_dpui_field(DPUI_KEY_PNPOCT, tbuf, size);
 
 	ret = poc_get_efs_count(POC_TOTAL_FAIL_COUNT_FILE_PATH, &total_fail_cnt);
 	if (ret < 0)
 		total_fail_cnt = (ret > -MAX_EPOCEFS) ? ret : -1;
-	size = snprintf(tbuf, MAX_DPUI_VAL_LEN, "%d", total_fail_cnt);
+	size = scnprintf(tbuf, MAX_DPUI_VAL_LEN, "%d", total_fail_cnt);
 	set_dpui_field(DPUI_KEY_PNPOCF, tbuf, size);
 
 	ret = poc_get_efs_image_index_org(POC_INFO_FILE_PATH, &poci_org);
 	if (ret < 0)
 		poci_org = -EPOCEFS_IMGIDX + ret;
-	size = snprintf(tbuf, MAX_DPUI_VAL_LEN, "%d", poci_org);
+	size = scnprintf(tbuf, MAX_DPUI_VAL_LEN, "%d", poci_org);
 	set_dpui_field(DPUI_KEY_PNPOCI_ORG, tbuf, size);
 
 	ret = poc_get_efs_image_index(POC_USER_FILE_PATH, &poci);
 	if (ret < 0)
 		poci = -EPOCEFS_IMGIDX + ret;
-	size = snprintf(tbuf, MAX_DPUI_VAL_LEN, "%d", poci);
+	size = scnprintf(tbuf, MAX_DPUI_VAL_LEN, "%d", poci);
 	set_dpui_field(DPUI_KEY_PNPOCI, tbuf, size);
 
 	inc_dpui_u32_field(DPUI_KEY_PNPOC_ER_TRY, poc->er_try_cnt);

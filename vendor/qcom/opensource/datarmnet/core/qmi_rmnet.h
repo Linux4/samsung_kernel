@@ -72,8 +72,8 @@ void *qmi_rmnet_qos_init(struct net_device *real_dev,
 			 struct net_device *vnd_dev, u8 mux_id);
 void qmi_rmnet_qos_exit_pre(void *qos);
 void qmi_rmnet_qos_exit_post(void);
-bool qmi_rmnet_flow_is_low_latency(struct net_device *dev,
-				   struct sk_buff *skb);
+bool qmi_rmnet_get_flow_state(struct net_device *dev, struct sk_buff *skb,
+			      bool *drop, bool *is_low_latency);
 void qmi_rmnet_burst_fc_check(struct net_device *dev,
 			      int ip_type, u32 mark, unsigned int len);
 int qmi_rmnet_get_queue(struct net_device *dev, struct sk_buff *skb);
@@ -93,8 +93,10 @@ static inline void qmi_rmnet_qos_exit_post(void)
 {
 }
 
-static inline bool qmi_rmnet_flow_is_low_latency(struct net_device *dev,
-						 struct sk_buff *skb)
+static inline bool qmi_rmnet_get_flow_state(struct net_device *dev,
+					    struct sk_buff *skb,
+					    bool *drop,
+					    bool *is_low_latency)
 {
 	return false;
 }
@@ -113,7 +115,8 @@ static inline int qmi_rmnet_get_queue(struct net_device *dev,
 #endif
 
 #ifdef CONFIG_QTI_QMI_POWER_COLLAPSE
-int qmi_rmnet_set_powersave_mode(void *port, uint8_t enable);
+int qmi_rmnet_set_powersave_mode(void *port, uint8_t enable, u8 num_bearers,
+				 u8 *bearer_id);
 void qmi_rmnet_work_init(void *port);
 void qmi_rmnet_work_exit(void *port);
 void qmi_rmnet_work_maybe_restart(void *port);
@@ -128,7 +131,8 @@ void qmi_rmnet_ps_off_notify(void *port);
 void qmi_rmnet_ps_on_notify(void *port);
 
 #else
-static inline int qmi_rmnet_set_powersave_mode(void *port, uint8_t enable)
+static inline int qmi_rmnet_set_powersave_mode(void *port, uint8_t enable,
+					       u8 num_bearers, u8 *bearer_id)
 {
 	return 0;
 }

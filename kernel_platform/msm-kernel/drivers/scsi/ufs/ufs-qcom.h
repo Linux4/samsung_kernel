@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /* Copyright (c) 2013-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef UFS_QCOM_H_
@@ -9,6 +10,7 @@
 #include <linux/reset.h>
 #include <linux/phy/phy.h>
 #include <linux/pm_qos.h>
+#include <linux/nvmem-consumer.h>
 #include "ufshcd.h"
 #include "unipro.h"
 
@@ -52,6 +54,9 @@
 #define UFS_QCOM_LIMIT_HS_RATE		PA_HS_MODE_B
 #define UFS_QCOM_LIMIT_DESIRED_MODE	FAST
 #define UFS_QCOM_LIMIT_PHY_SUBMODE	UFS_QCOM_PHY_SUBMODE_G4
+#define UFS_QCOM_DEFAULT_TURBO_FREQ     300000000
+#define UFS_QCOM_DEFAULT_TURBO_L1_FREQ  300000000
+#define UFS_NOM_THRES_FREQ	300000000
 
 /* default value of auto suspend is 3 seconds */
 #define UFS_QCOM_AUTO_SUSPEND_DELAY	3000
@@ -98,6 +103,15 @@ enum {
 	UFS_UFS_DBG_RD_PRDT_RAM			= 0x1700,
 	UFS_UFS_DBG_RD_RESP_RAM			= 0x1800,
 	UFS_UFS_DBG_RD_EDTL_RAM			= 0x1900,
+};
+
+/* QCOM UFS host controller vendor specific H8 count registers */
+enum {
+	REG_UFS_HW_H8_ENTER_CNT				= 0x2700,
+	REG_UFS_SW_H8_ENTER_CNT				= 0x2704,
+	REG_UFS_SW_AFTER_HW_H8_ENTER_CNT	= 0x2708,
+	REG_UFS_HW_H8_EXIT_CNT				= 0x270C,
+	REG_UFS_SW_H8_EXIT_CNT				= 0x2710,
 };
 
 #define UFS_CNTLR_2_x_x_VEN_REGS_OFFSET(x)	(0x000 + x)
@@ -184,8 +198,14 @@ enum ufs_qcom_phy_init_type {
 
 #define PA_VS_CLK_CFG_REG	0x9004
 #define PA_VS_CLK_CFG_REG_MASK	0x1FF
+#define PA_VS_CLK_CFG_REG_MASK1 0xFF
+
 #define DME_VS_CORE_CLK_CTRL_MAX_CORE_CLK_1US_CYCLES_MASK_V4	0xFFF
 #define DME_VS_CORE_CLK_CTRL_MAX_CORE_CLK_1US_CYCLES_OFFSET_V4	0x10
+
+#define PA_VS_CLK_CFG_REG_MASK_TURBO 0x100
+#define ATTR_HW_CGC_EN_TURBO 0x100
+#define ATTR_HW_CGC_EN_NON_TURBO 0x000
 
 #define PA_VS_CORE_CLK_40NS_CYCLES	0x9007
 #define PA_VS_CORE_CLK_40NS_CYCLES_MASK	0xF
@@ -200,6 +220,10 @@ enum ufs_qcom_phy_init_type {
 #define DME_VS_CORE_CLK_CTRL_MAX_CORE_CLK_1US_CYCLES_MASK	0xFF
 #define DME_VS_CORE_CLK_CTRL_CORE_CLK_DIV_EN_BIT		BIT(8)
 #define DME_VS_CORE_CLK_CTRL_DME_HW_CGC_EN			BIT(9)
+
+#define TEST_BUS_CTRL_2_HCI_SEL_TURBO_MASK 0x010
+#define TEST_BUS_CTRL_2_HCI_SEL_TURBO 0x010
+#define TEST_BUS_CTRL_2_HCI_SEL_NONTURBO 0x000
 
 /* Device Quirks */
 /*
@@ -388,6 +412,8 @@ struct ufs_qcom_host {
 	int limit_rx_pwm_gear;
 	int limit_rate;
 	int limit_phy_submode;
+	int ufs_dev_types;
+	bool ufs_dev_revert;
 
 	bool disable_lpm;
 	struct qcom_bus_scale_data *qbsd;
@@ -412,12 +438,40 @@ struct ufs_qcom_host {
 	atomic_t num_reqs_threshold;
 	bool cur_freq_vote;
 	struct delayed_work fwork;
+	struct workqueue_struct *fworkq;
+	struct mutex cpufreq_lock;
 	bool cpufreq_dis;
+	bool active;
 	unsigned int min_cpu_scale_freq;
 	unsigned int max_cpu_scale_freq;
 	int config_cpu;
 	void *ufs_ipc_log_ctx;
 	bool dbg_en;
+	struct nvmem_cell *nvmem_cell;
+
+	/* Multi level clk scaling Support */
+	bool ml_scale_sup;
+	bool is_turbo_enabled;
+	/* threshold count to scale down from turbo to NOM */
+	u32 turbo_down_thres_cnt;
+	/* turbo freq for UFS clocks read from DT */
+	u32 axi_turbo_clk_freq;
+	u32 axi_turbo_l1_clk_freq;
+	u32 ice_turbo_clk_freq;
+	u32 ice_turbo_l1_clk_freq;
+	u32 unipro_turbo_clk_freq;
+	u32 unipro_turbo_l1_clk_freq;
+	bool turbo_unipro_attr_applied;
+	/* some target need additional setting to support turbo mode*/
+	bool turbo_additional_conf_req;
+	/* current UFS clocks freq */
+	u32 curr_axi_freq;
+	u32 curr_ice_freq;
+	u32 curr_unipro_freq;
+	/* Indicates curr and next clk mode */
+	u32 clk_next_mode;
+	u32 clk_curr_mode;
+	bool is_clk_scale_enabled;
 
 	bool skip_flush;
 };

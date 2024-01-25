@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2002,2007-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 #ifndef __KGSL_DEVICE_H
 #define __KGSL_DEVICE_H
@@ -69,6 +70,7 @@ enum kgsl_event_results {
 	{ KGSL_CONTEXT_SAVE_GMEM, "SAVE_GMEM" }, \
 	{ KGSL_CONTEXT_IFH_NOP, "IFH_NOP" }, \
 	{ KGSL_CONTEXT_SECURE, "SECURE" }, \
+	{ KGSL_CONTEXT_LPAC, "LPAC" }, \
 	{ KGSL_CONTEXT_NO_SNAPSHOT, "NO_SNAPSHOT" }
 
 #define KGSL_CONTEXT_ID(_context) \
@@ -81,6 +83,7 @@ struct kgsl_context;
 struct kgsl_power_stats;
 struct kgsl_event;
 struct kgsl_snapshot;
+struct kgsl_sync_fence;
 
 struct kgsl_functable {
 	/* Mandatory functions - these functions must be implemented
@@ -107,7 +110,8 @@ struct kgsl_functable {
 	void (*power_stats)(struct kgsl_device *device,
 		struct kgsl_power_stats *stats);
 	void (*snapshot)(struct kgsl_device *device,
-		struct kgsl_snapshot *snapshot, struct kgsl_context *context);
+		struct kgsl_snapshot *snapshot, struct kgsl_context *context,
+		struct kgsl_context *context_lpac);
 	/** @drain_and_idle: Drain the GPU and wait for it to idle */
 	int (*drain_and_idle)(struct kgsl_device *device);
 	struct kgsl_device_private * (*device_private_create)(void);
@@ -158,6 +162,14 @@ struct kgsl_functable {
 	/** @gpu_bus_set: Target specific function to set gpu bandwidth */
 	int (*gpu_bus_set)(struct kgsl_device *device, int bus_level, u32 ab);
 	void (*deassert_gbif_halt)(struct kgsl_device *device);
+	/** @queue_recurring_cmd: Queue recurring commands to GMU */
+	int (*queue_recurring_cmd)(struct kgsl_device_private *dev_priv,
+		struct kgsl_context *context, struct kgsl_drawobj *drawobj);
+	/** @dequeue_recurring_cmd: Dequeue recurring commands from GMU */
+	int (*dequeue_recurring_cmd)(struct kgsl_device *device,
+		struct kgsl_context *context);
+	/** @create_hw_fence: Create a hardware fence */
+	void (*create_hw_fence)(struct kgsl_device *device, struct kgsl_sync_fence *kfence);
 };
 
 struct kgsl_ioctl {
@@ -303,6 +315,14 @@ struct kgsl_device {
 	bool l3_vote;
 	/** @pdev_loaded: Flag to test if platform driver is probed */
 	bool pdev_loaded;
+	/** @nh: Pointer to head of the SRCU notifier chain */
+	struct srcu_notifier_head nh;
+	/** @freq_limiter_irq_clear: reset controller to clear freq limiter irq */
+	struct reset_control *freq_limiter_irq_clear;
+	/** @freq_limiter_intr_num: The interrupt number for freq limiter */
+	int freq_limiter_intr_num;
+	/** @bcl_data_kobj: Kobj for bcl_data sysfs node */
+	struct kobject bcl_data_kobj;
 };
 
 #define KGSL_MMU_DEVICE(_mmu) \
@@ -328,6 +348,25 @@ enum kgsl_context_priv {
 };
 
 struct kgsl_process_private;
+
+#define KGSL_MAX_FAULT_ENTRIES 40
+
+/* Maintain faults observed within threshold time (in milliseconds) */
+#define KGSL_MAX_FAULT_TIME_THRESHOLD 5000
+
+/**
+ * struct kgsl_fault_node - GPU fault descriptor
+ * @node: List node for list of faults
+ * @type: Type of fault
+ * @priv: Pointer to type specific fault
+ * @time: Time when fault was observed
+ */
+struct kgsl_fault_node {
+	struct list_head node;
+	u32 type;
+	void *priv;
+	ktime_t time;
+};
 
 /**
  * struct kgsl_context - The context fields that are valid for a user defined
@@ -382,6 +421,10 @@ struct kgsl_context {
 	 * submitted
 	 */
 	u32 gmu_dispatch_queue;
+	/** @faults: List of @kgsl_fault_node to store fault information */
+	struct list_head faults;
+	/** @fault_lock: Mutex to protect faults */
+	struct mutex fault_lock;
 };
 
 #define _context_comm(_c) \
@@ -466,6 +509,14 @@ struct kgsl_process_private {
 	 * process
 	 */
 	struct kobject kobj_memtype;
+	/**
+	 * @private_mutex: Mutex lock to protect kgsl_process_private
+	 */
+	struct mutex private_mutex;
+	/**
+	 * @cmdline: Cmdline string of the process
+	 */
+	char *cmdline;
 };
 
 struct kgsl_device_private {
@@ -504,6 +555,12 @@ struct kgsl_snapshot {
 	unsigned int ib2size;
 	bool ib1dumped;
 	bool ib2dumped;
+	u64 ib1base_lpac;
+	u64 ib2base_lpac;
+	u32 ib1size_lpac;
+	u32 ib2size_lpac;
+	bool ib1dumped_lpac;
+	bool ib2dumped_lpac;
 	u8 *start;
 	size_t size;
 	u8 *ptr;
@@ -516,6 +573,7 @@ struct kgsl_snapshot {
 	struct work_struct work;
 	struct completion dump_gate;
 	struct kgsl_process_private *process;
+	struct kgsl_process_private *process_lpac;
 	unsigned int sysfs_read;
 	bool first_read;
 	bool recovered;
@@ -610,7 +668,8 @@ const char *kgsl_pwrstate_to_str(unsigned int state);
 void kgsl_device_snapshot_probe(struct kgsl_device *device, u32 size);
 
 void kgsl_device_snapshot(struct kgsl_device *device,
-			struct kgsl_context *context, bool gmu_fault);
+			struct kgsl_context *context, struct kgsl_context *context_lpac,
+			bool gmu_fault);
 void kgsl_device_snapshot_close(struct kgsl_device *device);
 
 void kgsl_events_init(void);
@@ -755,6 +814,22 @@ static inline bool kgsl_context_is_bad(struct kgsl_context *context)
 {
 	return (kgsl_context_detached(context) ||
 		kgsl_context_invalid(context));
+}
+
+/** kgsl_check_context_state - Check if a context is bad or invalid
+ *  @context: Pointer to a KGSL context handle
+ *
+ * Return: True if the context has been marked bad or invalid
+ */
+static inline int kgsl_check_context_state(struct kgsl_context *context)
+{
+	if (kgsl_context_invalid(context))
+		return -EDEADLK;
+
+	if (kgsl_context_detached(context))
+		return -ENOENT;
+
+	return 0;
 }
 
 /**
@@ -945,6 +1020,22 @@ static inline void kgsl_mmu_set_feature(struct kgsl_device *device,
 }
 
 /**
+ * kgsl_add_fault - Add fault information for a context
+ * @context: Pointer to the KGSL context
+ * @type: type of fault info
+ * @priv: Pointer to type specific fault info
+ *
+ * Return: 0 on success or error code on failure.
+ */
+int kgsl_add_fault(struct kgsl_context *context, u32 type, void *priv);
+
+/**
+ * kgsl_free_faults - Free fault information for a context
+ * @context: Pointer to the KGSL context
+ */
+void kgsl_free_faults(struct kgsl_context *context);
+
+/**
  * kgsl_trace_gpu_mem_total - Overall gpu memory usage tracking which includes
  * process allocations, imported dmabufs and kgsl globals
  * @device: A KGSL device handle
@@ -963,5 +1054,19 @@ static inline void kgsl_trace_gpu_mem_total(struct kgsl_device *device,
 static inline void kgsl_trace_gpu_mem_total(struct kgsl_device *device,
 						s64 delta) {}
 #endif
+
+/*
+ * kgsl_context_is_lpac() - Checks if context is LPAC
+ * @context: KGSL context to check
+ *
+ * Function returns true if context is LPAC else false
+ */
+static inline bool kgsl_context_is_lpac(struct kgsl_context *context)
+{
+	if (context == NULL)
+		return false;
+
+	return (context->flags & KGSL_CONTEXT_LPAC) ? true : false;
+}
 
 #endif  /* __KGSL_DEVICE_H */

@@ -24489,7 +24489,7 @@ wl_cfgvendor_custom_advlog_conn(struct bcm_cfg80211 *cfg, struct net_device *dev
 			"freq_hint=%d ", sme->channel_hint->center_freq);
 	}
 	buf_pos += snprintf(&advlog[buf_pos], SUPP_LOG_LEN - buf_pos,
-		"pairwise=0x%x qroup=0x%x akm=0x%x auth_type=%d ",
+		"pairwise=0x%x group=0x%x akm=0x%x auth_type=%d ",
 		sec->cipher_pairwise, sec->cipher_group, sec->wpa_auth, sec->auth_type);
 	if (sec->fw_mfp == WL_MFP_REQUIRED) {
 		buf_pos += snprintf(&advlog[buf_pos], SUPP_LOG_LEN - buf_pos,

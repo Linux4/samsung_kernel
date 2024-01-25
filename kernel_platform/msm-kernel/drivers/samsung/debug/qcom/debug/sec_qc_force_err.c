@@ -83,7 +83,7 @@ static void __qc_force_err_del_handlers(ssize_t last_failed)
 	}
 }
 
-static int __qc_force_err_init_prolog(struct builder *bd)
+int sec_qc_force_err_init(struct builder *bd)
 {
 	ssize_t last_failed;
 
@@ -100,34 +100,7 @@ err_add_handlers:
 	return 0;
 }
 
-static void __qc_force_err_exit_epilog(struct builder *bd)
-{
-	__qc_force_err_del_handlers(ARRAY_SIZE(__qc_force_err_default));
-}
-
-static const struct dev_builder __qc_force_err_dev_builder[] = {
-	DEVICE_BUILDER(__qc_force_err_init_prolog, __qc_force_err_exit_epilog),
-};
-
-int sec_qc_force_err_init(struct builder *bd)
-{
-	struct builder bd_dummy = { .dev = NULL, };
-
-	if (!IS_ENABLED(CONFIG_SEC_FORCE_ERR))
-		return 0;
-
-	return sec_director_probe_dev(&bd_dummy, __qc_force_err_dev_builder,
-			ARRAY_SIZE(__qc_force_err_dev_builder));
-}
-
 void sec_qc_force_err_exit(struct builder *bd)
 {
-	struct builder bd_dummy = { .dev = NULL, };
-
-	if (!IS_ENABLED(CONFIG_SEC_FORCE_ERR))
-		return;
-
-	sec_director_destruct_dev(&bd_dummy, __qc_force_err_dev_builder,
-			ARRAY_SIZE(__qc_force_err_dev_builder),
-			ARRAY_SIZE(__qc_force_err_dev_builder));
+	__qc_force_err_del_handlers(ARRAY_SIZE(__qc_force_err_default));
 }

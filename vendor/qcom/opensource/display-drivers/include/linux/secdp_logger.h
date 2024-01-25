@@ -21,12 +21,24 @@ void secdp_logger_set_max_count(int count);
 void secdp_logger_print(const char *fmt, ...);
 void secdp_logger_hex_dump(void *buf, void *pref, size_t len);
 int secdp_logger_init(void);
+void secdp_logger_deinit(void);
 
 #define secdp_proc_info(fmt, ...) \
 	do { \
 		printk(KERN_INFO "[msm-dp] %s: " pr_fmt(fmt), __func__, ##__VA_ARGS__); \
 		secdp_logger_print(fmt, ##__VA_ARGS__); \
 	} while (0)
+
+void secdp_logger_set_mode_max_count(unsigned int count);
+void secdp_logger_dec_mode_count(void);
+void secdp_logger_print_mode(const char *fmt, ...);
+
+#define secdp_proc_info_mode(fmt, ...) \
+	do { \
+		printk(KERN_INFO "[msm-dp] %s: " pr_fmt(fmt), __func__, ##__VA_ARGS__); \
+		secdp_logger_print_mode(fmt, ##__VA_ARGS__); \
+	} while (0)
+#define DP_INFO_M(fmt, ...)  secdp_proc_info_mode(fmt, ##__VA_ARGS__)
 
 #define secdp_pr_info(fmt, ...) \
 		printk(KERN_INFO "[msm-dp] %s: " pr_fmt(fmt), __func__, ##__VA_ARGS__)
