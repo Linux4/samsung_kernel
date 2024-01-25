@@ -94,11 +94,11 @@ CONFIG_MTK_CLASS=y
 CONFIG_MTK_PMIC_WRAP_HAL=y
 CONFIG_MTK_SEC_VIDEO_PATH_SUPPORT=y
 CONFIG_MTK_DRM_KEY_MNG_SUPPORT=y
-CONFIG_CUSTOM_KERNEL_IMGSENSOR="n28hi5021qreartruly_mipi_raw n28hi5021qreardc_mipi_raw n28hi5022qreartxd_mipi_raw n28hi846fronttruly_mipi_raw n28gc08a3frontcxt_mipi_raw n28sc800csfrontdc_mipi_raw n28c8496frontdc_mipi_raw n28c2519depcxt_mipi_mono n28c2519depcxt2_mipi_mono n28gc2375hdeplh_mipi_raw n28gc2375hdeplh2_mipi_raw"
+CONFIG_CUSTOM_KERNEL_IMGSENSOR="n28hi5021qreartruly_mipi_raw n28hi5021qreardc_mipi_raw n28hi5022qreartxd_mipi_raw n28hi846fronttruly_mipi_raw n28gc08a3frontcxt_mipi_raw n28sc800csfrontdc_mipi_raw n28c8496frontdc_mipi_raw n28sc800csafrontdc_mipi_raw n28c2519depcxt_mipi_mono n28c2519depcxt2_mipi_mono n28gc2375hdeplh_mipi_raw n28gc2375hdeplh2_mipi_raw"
 CONFIG_MTK_LCM=y
-#+S96818AA1-1936,liyuhong1.wt,add,2023/06/29,td4160 & gc7272 lcd bringup
-CONFIG_CUSTOM_KERNEL_LCM="n28_nt36528_dsi_vdo_hdp_truly_truly n28_ft8057s_dsi_vdo_hdp_dsbj_mantix n28_td4160_dsi_vdo_hdp_xinxian_inx n28_gc7272_dsi_vdo_hdp_txd_sharp n28_nt36528_dsi_vdo_hdp_txd_sharp n28_gc7272_dsi_vdo_hdp_xinxian_hkc n28_td4160_dsi_vdo_hdp_boe_boe virtual_dsi_vdo_default"
-#-S96818AA1-1936,liyuhong1.wt,add,2023/06/29,td4160 & gc7272 lcd bringup
+#+S96818AA1-1936,liyuhong1.wt,add,2023/08/22,icnl9916c lcd bringup
+CONFIG_CUSTOM_KERNEL_LCM="n28_nt36528_dsi_vdo_hdp_truly_truly n28_ft8057s_dsi_vdo_hdp_dsbj_mantix n28_td4160_dsi_vdo_hdp_xinxian_inx n28_gc7272_dsi_vdo_hdp_txd_sharp n28_td4160_dsi_vdo_hdp_boe_boe n28_icnl9916c_dsi_vdo_hdp_xinxian_hkc n28_icnl9916c_dsi_vdo_hdp_dsbj_mdt virtual_dsi_vdo_default"
+#-S96818AA1-1936,liyuhong1.wt,add,2023/08/22,icnl9916c lcd bringup
 CONFIG_LCM_HEIGHT="1600"
 CONFIG_LCM_WIDTH="720"
 CONFIG_MTK_SYNC=y
@@ -272,9 +272,9 @@ CONFIG_MTK_MRDUMP_KEY=y
 # CONFIG_INPUT_MOUSE is not set
 CONFIG_INPUT_TOUCHSCREEN=y
 CONFIG_TOUCHSCREEN_MTK=y
-#+S96818AA1-1936,daijun1.wt,modify,2023/07/14,Modify TD&GC TP driver compatibility issues
-#CONFIG_TOUCHSCREEN_CHIPONE is not set
-#-S96818AA1-1936,daijun1.wt,modify,2023/07/14,Modify TD&GC TP driver compatibility issues
+#+S96818AA1-1936,daijun1.wt,add,2023/08/17,incl9916_hkc tp bringup
+CONFIG_TOUCHSCREEN_CHIPONE_N28=y
+#-S96818AA1-1936,daijun1.wt,add,2023/08/17,incl9916_hkc tp bringup
 CONFIG_TOUCHSCREEN_NT36528_HOSTDL_SPI=y
 #+S96818AA1-1936,wangtao14.wt,modify,2023/05/16,ft8057s bringup
 CONFIG_TOUCHSCREEN_FTS_FT8057S=y

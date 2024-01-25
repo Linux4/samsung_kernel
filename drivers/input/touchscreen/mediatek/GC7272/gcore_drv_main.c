@@ -930,7 +930,13 @@ s32 gcore_touch_event_handler(struct gcore_dev *gdev)
 
 		set_bit(id, &curr_touch);
 
-		gcore_touch_down(gdev->input_device, input_x, input_y, id - 1);
+/* +S96818AA1-1936,daijun1.wt,add,2023/08/29,gc7272 fix the issue of false alarms during screen shutdown */
+		if(gdev->ts_stat == TS_SUSPEND){
+			GTP_REPORT("TP enter Suspend now!");
+		}else{
+			gcore_touch_down(gdev->input_device, input_x, input_y, id - 1);
+		}
+/* -S96818AA1-1936,daijun1.wt,add,2023/08/29,gc7272 fix the issue of false alarms during screen shutdown */
 
 		coor_data += 6;
 
@@ -1807,12 +1813,41 @@ void gcore_spi_config(void)
 	spi_setup(gcore_spi_slave);
 
 }
+/* +S96818AA1-1936,daijun1.wt,modify,2023/08/22,code optimization, adding TP registration conditions */
+static int get_boot_mode(void)
+{
+	struct device_node *np_chosen;
+	struct tag_bootmode *tag = NULL;
+
+	np_chosen = of_find_node_by_path("/chosen");
+	if (!np_chosen)
+			np_chosen = of_find_node_by_path("/chosen@0");
+
+	tag = (struct tag_bootmode *)of_get_property(np_chosen, "atag,boot",NULL);
+	if (!tag) {
+			pr_notice("%s: fail to get atag,boot\n", __func__);
+	} else {
+			pr_notice("%s: boot_mode: 0x%x\n",__func__,tag->bootmode);
+			return tag->bootmode;
+	}
+	return -1;
+}
 
 static s32 gcore_spi_probe(struct spi_device *slave)
 {
 	struct gcore_dev *touch_dev = NULL;
+	int boot_mode;
 
 	GTP_DEBUG("tpd_spi_probe start.");
+
+	boot_mode = get_boot_mode();
+	if (boot_mode == 8)
+	{
+		printk("%s : start mode =%d\n", __func__,boot_mode);
+		return -1;
+	}
+	printk("%s : start mode =%d\n", __func__,boot_mode);
+/* -S96818AA1-1936,daijun1.wt,modify,2023/08/22,code optimization, adding TP registration conditions */
 
 	gcore_spi_slave = slave;
 	gcore_spi_config();

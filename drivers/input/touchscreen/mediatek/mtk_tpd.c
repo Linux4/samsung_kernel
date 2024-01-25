@@ -85,14 +85,16 @@ enum lcm_name{
 	TM_ICNL9911C_MODULE = 16,
 	BOE_HIMAX_MODULE = 17,
 	TRULY_NT36528_MODULE =18,
-//+S96818AA1-1936,wangtao.wt,modify,2023/07/05,gc7272 tp bringup
 	XINXIAN_TD4160_MODULE = 19,
 	MDT_FT8057S_MODULE = 20,
 	BOE_TD4160_MODULE = 21,
 	TXD_NT36528_MODULE =22,
     HKC_GC7272_MODULE = 23,
 	TXD_GC7272_MODULE = 24,
-//-S96818AA1-1936,daijun1.wt,modify,2023/07/05,gc7272 tp bringup
+/* +S96818AA1-1936,daijun1.wt,add,2023/08/17,incl9916_hkc tp bringup */
+	XINXIAN_ICNL9916_MODULE = 25,
+	DSBJ_ICNL9916_MODULE = 26,
+/* -S96818AA1-1936,daijun1.wt,add,2023/08/17,incl9916_hkc tp bringup */
 };
 
 enum touch_name{
@@ -758,18 +760,23 @@ static int tp_match_lcm_name(void)
 		g_lcm_name = TXD_NT36528_MODULE;
 		strcpy((char *)tp_name, "NVT-ts");
 //-S96818AA1-1936,daijun1.wt,modify,2023/06/26,td4160_boe tp bringup
-//-S96818AA1-1936,wangtao14.wt,modify,2023/07/05,gc7272 tp bringup
 	} else if (strstr(saved_command_line,"n28_ft8057s_dsi_vdo_hdp_dsbj_mantix")) {
 		g_lcm_name = MDT_FT8057S_MODULE;
 		strcpy((char *)tp_name, "fts_ts");
 	}else if (strstr(saved_command_line,"n28_gc7272_dsi_vdo_hdp_xinxian_hkc")) {
 		g_lcm_name = HKC_GC7272_MODULE;
 		strcpy((char *)tp_name, "gcore");
-//-S96818AA1-1936,wangtao14.wt,modify,2023/07/05,gc7272 tp bringup
 	} else if (strstr(saved_command_line,"n28_gc7272_dsi_vdo_hdp_txd_sharp")) {
 		g_lcm_name = TXD_GC7272_MODULE;
 		strcpy((char *)tp_name, "gcore");
-//-S96818AA1-1936,wangtao14.wt,modify,2023/07/05,gc7272 tp bringup
+/* +S96818AA1-1936,daijun1.wt,add,2023/08/17,incl9916_hkc tp bringup */
+	} else if (strstr(saved_command_line,"n28_icnl9916c_dsi_vdo_hdp_xinxian_hkc")) {
+		g_lcm_name = XINXIAN_ICNL9916_MODULE;
+		strcpy((char *)tp_name, "chipone-tddi");
+	} else if (strstr(saved_command_line,"n28_icnl9916c_dsi_vdo_hdp_dsbj_mdt")) {
+		g_lcm_name = DSBJ_ICNL9916_MODULE;
+		strcpy((char *)tp_name, "chipone-tddi");
+/* -S96818AA1-1936,daijun1.wt,add,2023/08/17,incl9916_hkc tp bringup */
 	}else {
 		TPD_DMESG("lcm name not match!");
 		return  -1;

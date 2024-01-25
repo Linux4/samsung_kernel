@@ -57,8 +57,11 @@
 		//novatek,support_ear_detect_mode;
 		novatek,enable_settings_aot;
 
-		/* MP */
-		novatek,mp-support-dt;
+/* +S96818AA1-1936,daijun1.wt,add,2023/08/17,incl9916_hkc tp bringup */
+		chipone,rst-gpio = <&pio 23 0x00>;
+		chipone,irq-gpio = <&pio 00 0x00>;
+		chipone,x-res = <719>;
+		chipone,y-res = <1599>;
 
 			/* Charger detect */
 			chipone,touch-charger-detect-enable;
@@ -66,14 +69,55 @@
 			chipone,touch-charger-detect-psy-name = "charger";
 			chipone,touch-charger-detect-psp = "POWER_SUPPLY_PROP_ONLINE";
 			chipone,touch-charger-detect-psp-poll-interval = <1000>;
+/* +S96818AA1-1936,daijun1.wt,modify,2023/08/24,icnl9916 add glove_mode and earjack_detect */
 				       
 		/* Earjack detect */
 			chipone,touch-earjack-detect-enable;
 			/* MTK:  /sys/bus/platform/drivers/Accdet_Driver/state,
 			Sprd: /sys/kernel/headset/state
 			QCOM: None, and disable it */
-			chipone,touch-earjack-state-filepath = "/sys/bus/platform/drivers/Accdet_Driver/state";
+			chipone,touch-earjack-state-filepath = "/sys/bus/platform/drivers/Accdet_Driver/states";
 			chipone,touch-earjack-poll-interval = <1000>;
+/* -S96818AA1-1936,daijun1.wt,modify,2023/08/24,icnl9916 add glove_mode and earjack_detect */
+		/* For tp selftest */
+		chipone,test-reset-pin;
+//		chipone,test-int-pin;
+		chipone,test-rawdata;
+		chipone,test-rawdata-frames      = <1>;
+		chipone,rawdata-min              = <1110>;
+		chipone,rawdata-max              = <3010>;
+		chipone,test-noise;
+		chipone,test-noise-frames        = <50>;
+		chipone,noise-max                = <120>;
+		chipone,test-open;
+		chipone,open-min                 = <1600>;
+		chipone,test-short;
+		chipone,short-min                = <1600>;
+		chipone,test-compensate-cap;
+		chipone,compensate-cap-min       = <1>;
+		chipone,compensate-cap-max       = <127>;
+
+		/* gesture data test */
+		chipone,test-gesture-rawdata;
+		chipone,test-gesture-rawdata-frames = <1>;
+		chipone,gesture-rawdata-min = <100>;
+		chipone,gesture-rawdata-max = <10000>;
+
+		chipone,test-gesture-lp-rawdata;
+		chipone,test-gesture-lp-rawdata-frames = <1>;
+		chipone,gesture-lp-rawdata-min = <100>;
+		chipone,gesture-lp-rawdata-max = <10000>;
+
+		chipone,test-gesture-noise;
+		chipone,test-gesture-noise-frames = <50>;
+		chipone,gesture-noise-max = <1000>;
+
+		chipone,test-gesture-lp-noise;
+		chipone,test-gesture-lp-noise-frames = <50>;
+		chipone,gesture-lp-noise-max = <1000>;
+/* -S96818AA1-1936,daijun1.wt,add,2023/08/17,incl9916_hkc tp bringup */
+		/* MP */
+		novatek,mp-support-dt;
 			
 		novatek-mp-criteria-725D@0 {
 			#address-cells = <1>;

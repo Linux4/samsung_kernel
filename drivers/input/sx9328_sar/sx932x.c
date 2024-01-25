@@ -86,6 +86,10 @@ psx93XX_t pSx9328Data;
 
 static struct wake_lock sx9328_wake_lock;
 static volatile uint8_t sx9328_irq_from_suspend_flag = 0;
+
+//static void sx93XX_worker_func(struct work_struct *work);
+static void sx932x_process_func(psx93XX_t this);
+
 /*! \fn static int write_register(psx93XX_t this, u8 address, u8 value)
  * \brief Sends a write register to the device
  * \param this Pointer to main parent struct 
@@ -1276,18 +1280,26 @@ static int sx932x_remove(struct i2c_client *client)
 static int sx932x_suspend(struct device *dev)
 {
 	psx93XX_t this = dev_get_drvdata(dev);
+	dev_info(dev, "sx932x_suspend() enter\n");
 	//sx9328_suspend(this);
     sx9328_irq_from_suspend_flag = 1;
     enable_irq_wake(this->irq);
+	dev_info(dev, "sx932x_suspend() exit\n");
 	return 0;
 }
 /***** Kernel Resume *****/
 static int sx932x_resume(struct device *dev)
 {
 	psx93XX_t this = dev_get_drvdata(dev);
+	dev_info(dev, "sx932x_resume() enter\n");
 	//sx9328_resume(this);
     sx9328_irq_from_suspend_flag = 0;
     disable_irq_wake(this->irq);
+	
+	dev_info(dev, "sx932x_resume() update status after resume\n");
+	sx932x_process_func(this);
+	dev_info(dev, "sx932x_resume() exit\n");
+
 	return 0;
 }
 /*====================================================*/
@@ -1362,13 +1374,17 @@ static irqreturn_t sx93XX_irq(int irq, void *pvoid)
 	psx93XX_t this = 0;
 	if (pvoid) {
 		this = (psx93XX_t)pvoid;
+		dev_info(this->pdev, "sx932x:sx93XX_irq enter\n");
+		
 		if ((!this->get_nirq_low) || this->get_nirq_low()) {
             if(1 == sx9328_irq_from_suspend_flag) {
                 sx9328_irq_from_suspend_flag = 0;
                 printk("delay 50ms for waiting the i2c controller enter working mode\n");
                 msleep(50);//如果从suspend被中断唤醒，该延时确保i2c控制器也从休眠唤醒并进入工作状态
             }
-		sx93XX_schedule_work(this,0);
+		dev_info(this->pdev, "sx932x:sx93XX_irq call worker func\n");
+		sx932x_process_func(this);
+		dev_info(this->pdev, "sx932x:sx93XX_irq exit\n");
 		}
 		else{
 			dev_err(this->pdev, "sx93XX_irq - nirq read high\n");
@@ -1378,6 +1394,54 @@ static irqreturn_t sx93XX_irq(int irq, void *pvoid)
 		printk(KERN_ERR "sx93XX_irq, NULL pvoid\n");
 	}
 	return IRQ_HANDLED;
+}
+
+static void sx932x_process_func(psx93XX_t this)
+{
+	//psx93XX_t this = 0;
+	int status = 0;
+	int counter = 0;
+	u8 nirqLow = 0;
+	if (1) {
+		//this = container_of(work,sx93XX_t,dworker.work);
+
+		if (!this) {
+			printk(KERN_ERR "sx932x_process_func, NULL sx93XX_t\n");
+			return;
+		}
+		dev_info(this->pdev, "sx932x:sx932x_process_func enter\n");
+
+		if (unlikely(this->useIrqTimer)) {
+			if ((!this->get_nirq_low) || this->get_nirq_low()) {
+				nirqLow = 1;
+			}
+		}
+		/* since we are not in an interrupt don't need to disable irq. */
+		status = this->refreshStatus(this);
+		counter = -1;
+		dev_info(this->pdev, "sx932x:sx932x_process_func Worker - Refresh Status=0x%X\n",status);
+		
+		while((++counter) < MAX_NUM_STATUS_BITS) { /* counter start from MSB */
+			if (((status>>counter) & 0x01) && (this->statusFunc[counter])) {
+				dev_info(this->pdev, "SX932x Function Pointer Found. Calling\n");
+				this->statusFunc[counter](this);
+			}
+		}
+
+		if (status == 0){
+			dev_info(this->pdev, "sx932x:sx932x_process_func Force to update statuw\n");
+			touchProcess(this);
+		}
+
+		if (unlikely(this->useIrqTimer && nirqLow))
+		{	/* Early models and if RATE=0 for newer models require a penup timer */
+			/* Queue up the function again for checking on penup */
+			sx93XX_schedule_work(this,msecs_to_jiffies(this->irqTimeout));
+		}
+		dev_info(this->pdev, "sx932x:sx932x_process_func exit\n");
+	} else {
+		printk(KERN_ERR "sx932x_process_func, NULL work_struct\n");
+	}
 }
 
 static void sx93XX_worker_func(struct work_struct *work)
@@ -1393,6 +1457,8 @@ static void sx93XX_worker_func(struct work_struct *work)
 			printk(KERN_ERR "sx93XX_worker_func, NULL sx93XX_t\n");
 			return;
 		}
+		dev_info(this->pdev, "sx932x:sx93XX_worker_func enter\n");
+		
 		if (unlikely(this->useIrqTimer)) {
 			if ((!this->get_nirq_low) || this->get_nirq_low()) {
 				nirqLow = 1;
@@ -1401,7 +1467,7 @@ static void sx93XX_worker_func(struct work_struct *work)
 		/* since we are not in an interrupt don't need to disable irq. */
 		status = this->refreshStatus(this);
 		counter = -1;
-		dev_dbg(this->pdev, "Worker - Refresh Status %d\n",status);
+		dev_info(this->pdev, "sx932x:sx93XX_worker_func Worker - Refresh Status=0x%X\n",status);
 		
 		while((++counter) < MAX_NUM_STATUS_BITS) { /* counter start from MSB */
 			if (((status>>counter) & 0x01) && (this->statusFunc[counter])) {
@@ -1409,11 +1475,17 @@ static void sx93XX_worker_func(struct work_struct *work)
 				this->statusFunc[counter](this);
 			}
 		}
+		if (status == 0){
+			dev_info(this->pdev, "sx932x:sx93XX_worker_func Force to update statuw\n");
+			touchProcess(this);
+		}
+		
 		if (unlikely(this->useIrqTimer && nirqLow))
 		{	/* Early models and if RATE=0 for newer models require a penup timer */
 			/* Queue up the function again for checking on penup */
 			sx93XX_schedule_work(this,msecs_to_jiffies(this->irqTimeout));
 		}
+		dev_info(this->pdev, "sx932x:sx93XX_worker_func exit\n");
 	} else {
 		printk(KERN_ERR "sx93XX_worker_func, NULL work_struct\n");
 	}
@@ -1433,18 +1505,19 @@ int sx93XX_remove(psx93XX_t this)
 }
 void sx9328_suspend(psx93XX_t this)
 {
-	if (this)
-		disable_irq(this->irq);
+	//if (this)
+	//	disable_irq(this->irq);
 	
-	write_register(this,SX932x_CTRL1_REG,0x20);//make sx932x in Sleep mode
+	//write_register(this,SX932x_CTRL1_REG,0x20);//make sx932x in Sleep mode
 }
 void sx9328_resume(psx93XX_t this)
 {
+
 	if (this) {
 		sx93XX_schedule_work(this,0);
 		//if (this->init)
 			//this->init(this);
-	enable_irq(this->irq);
+	//enable_irq(this->irq);
 	}
 	write_register(this,SX932x_CTRL1_REG,0x27);//resume from sleep, need to modify based on number of channel.
 }

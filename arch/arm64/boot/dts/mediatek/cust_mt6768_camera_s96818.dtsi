@@ -219,7 +219,7 @@
 	cam2_vcamio-supply = <&mt_pmic_vcamio_ldo_reg>;
 	cam0_vcamaf-supply = <&mt_pmic_vldo28_ldo_reg>;
 	cam0_enable_sensor = "n28hi5021qreartruly_mipi_raw n28hi5021qreardc_mipi_raw n28hi5022qreartxd_mipi_raw";
-	cam1_enable_sensor = "n28hi846fronttruly_mipi_raw n28gc08a3frontcxt_mipi_raw n28sc800csfrontdc_mipi_raw n28c8496frontdc_mipi_raw";
+	cam1_enable_sensor = "n28hi846fronttruly_mipi_raw n28gc08a3frontcxt_mipi_raw n28sc800csfrontdc_mipi_raw n28c8496frontdc_mipi_raw n28sc800csafrontdc_mipi_raw";
 	cam2_enable_sensor = "n28c2519depcxt_mipi_mono n28c2519depcxt2_mipi_mono n28gc2375hdeplh_mipi_raw n28gc2375hdeplh2_mipi_raw";
 	status = "okay";
 

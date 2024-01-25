@@ -365,6 +365,9 @@ extern struct LCM_DRIVER n28_gc7272_dsi_vdo_hdp_txd_sharp_drv;
 extern struct LCM_DRIVER n28_nt36528_dsi_vdo_hdp_txd_sharp_drv;
 extern struct LCM_DRIVER n28_gc7272_dsi_vdo_hdp_xinxian_hkc_drv;
 extern struct LCM_DRIVER n28_td4160_dsi_vdo_hdp_boe_boe_drv;
+extern struct LCM_DRIVER n28_icnl9916c_dsi_vdo_hdp_xinxian_hkc_drv;
+//+S96818AA1-1936,liyuhong1.wt,add,2023/08/22,icnl9916c lcd bringup
+extern struct LCM_DRIVER n28_icnl9916c_dsi_vdo_hdp_dsbj_mdt_drv;
 //-S96818AA1-1936,liyuhong1.wt,add,2023/06/27,td4160 lcd bringup
 #ifdef BUILD_LK
 extern void mdelay(unsigned long msec);

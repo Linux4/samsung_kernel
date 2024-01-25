@@ -74,7 +74,9 @@
 #define TP_PS_DEVICE 		"gcore_ps"
 #define TP_PS_INPUT_DEV		"alps_pxy"
 #endif
-
+//+S96818AA1-1936,daijun1.wt,add,2023/09/15,n28-tp add firmware upgrade path switching function
+extern u8 gcore_hostdownload_cfg;
+//-S96818AA1-1936,daijun1.wt,add,2023/09/15,n28-tp add firmware upgrade path switching function
 /*
  * Log define
  */
@@ -355,7 +357,14 @@ struct gcore_exp_fn_data {
 	struct list_head list;
 	struct gcore_dev *gdev;
 };
-
+/* +S96818AA1-1936,daijun1.wt,modify,2023/08/22,code optimization, adding TP registration conditions */
+ struct tag_bootmode {
+	u32 size;
+	u32 tag;
+	u32 bootmode;
+	u32 boottype;
+};
+/* -S96818AA1-1936,daijun1.wt,modify,2023/08/22,code optimization, adding TP registration conditions */
 /*
  * Declaration
  */

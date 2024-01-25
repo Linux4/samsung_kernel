@@ -32,12 +32,13 @@
 #include <linux/crc32.h>
 #include <linux/firmware.h>
 #include "omnivision_tcm_core.h"
-/* +S96818AA1-1936,daijun1.wt,add,2023/08/01,n28-tp modify firmware download path */
+/* +S96818AA1-1936,daijun1.wt,add,2023/08/17,n28-tp modify firmware download path */
 #include "n28_xianxian_module.h"
+#include "n28_boe_module.h"
 
 #define	fw_size 102400
 #define	fw_offset 356
-/* -S96818AA1-1936,daijun1.wt,add,2023/08/01,n28-tp modify firmware download path */
+/* -S96818AA1-1936,daijun1.wt,add,2023/08/17,n28-tp modify firmware download path */
 #define ENABLE_SYS_ZEROFLASH true
 
 #define FW_IMAGE_NAME "ovt_td4160_fw.img"
@@ -1241,8 +1242,8 @@ static void zeroflash_do_romboot_firmware_download(void)
 		atomic_set(&tcm_hcd->host_downloading, 0);
 		goto exit;
 	}
-/* +S96818AA1-1936,daijun1.wt,add,2023/08/01,n28-tp modify firmware download path */
-	if (strstr(saved_command_line,"n28_td4160_dsi_vdo_hdp_xinxian_inx")) {
+//+S96818AA1-1936,daijun1.wt,add,2023/09/15,n28-tp add firmware upgrade path switching function
+	if (tcm_hcd->upgrade_mode && (strstr(saved_command_line,"n28_td4160_dsi_vdo_hdp_xinxian_inx") || strstr(saved_command_line,"n28_td4160_dsi_vdo_hdp_boe_boe"))) {
 		#if 0
 			retval = zeroflash_get_fw_image();
 			if (retval < 0) {
@@ -1281,21 +1282,34 @@ static void zeroflash_do_romboot_firmware_download(void)
 		UNLOCK_BUFFER(zeroflash_hcd->out);
 		goto exit;
 	}
-	if (strstr(saved_command_line,"n28_td4160_dsi_vdo_hdp_xinxian_inx")) {
-//	zeroflash_hcd->out.buf[0] = zeroflash_hcd->image_info.app_firmware.size >> 16;
+	if (tcm_hcd->upgrade_mode && strstr(saved_command_line,"n28_td4160_dsi_vdo_hdp_xinxian_inx")) {
+//		zeroflash_hcd->out.buf[0] = zeroflash_hcd->image_info.app_firmware.size >> 16;
 
-	zeroflash_hcd->out.buf[0] = 0x1;
-	retval = secure_memcpy(&zeroflash_hcd->out.buf[RESERVED_BYTES],
-		fw_size,
-		xinxian_module_fw + fw_offset,
-		fw_size,
-		fw_size);
-	if (retval < 0) {
-		LOGE(tcm_hcd->pdev->dev.parent,
-				"Failed to copy application firmware data\n");
-		UNLOCK_BUFFER(zeroflash_hcd->out);
-		goto exit;
-	}
+		zeroflash_hcd->out.buf[0] = 0x1;
+		retval = secure_memcpy(&zeroflash_hcd->out.buf[RESERVED_BYTES],
+			fw_size,
+			xinxian_module_fw + fw_offset,
+			fw_size,
+			fw_size);
+		if (retval < 0) {
+			LOGE(tcm_hcd->pdev->dev.parent,
+					"Failed to copy application firmware data\n");
+			UNLOCK_BUFFER(zeroflash_hcd->out);
+			goto exit;
+		}
+	}else if (tcm_hcd->upgrade_mode && strstr(saved_command_line,"n28_td4160_dsi_vdo_hdp_boe_boe")) {
+		zeroflash_hcd->out.buf[0] = 0x1;
+		retval = secure_memcpy(&zeroflash_hcd->out.buf[RESERVED_BYTES],
+			fw_size,
+			boe_module_fw + fw_offset,
+			fw_size,
+			fw_size);
+		if (retval < 0) {
+			LOGE(tcm_hcd->pdev->dev.parent,
+					"Failed to copy application firmware data\n");
+			UNLOCK_BUFFER(zeroflash_hcd->out);
+			goto exit;
+		}
 	}else{
 		zeroflash_hcd->out.buf[0] = zeroflash_hcd->image_info.app_firmware.size >> 16;
 
@@ -1311,7 +1325,7 @@ static void zeroflash_do_romboot_firmware_download(void)
 			goto exit;
 		}
 	}
-/* -S96818AA1-1936,daijun1.wt,add,2023/08/01,n28-tp modify firmware download path */
+//-S96818AA1-1936,daijun1.wt,add,2023/09/15,n28-tp add firmware upgrade path switching function
 	LOGD(tcm_hcd->pdev->dev.parent,
 			"data_size_blocks: %d\n",
 			data_size_blocks);

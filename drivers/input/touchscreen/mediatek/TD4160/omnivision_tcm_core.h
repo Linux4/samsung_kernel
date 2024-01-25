@@ -520,7 +520,9 @@ struct ovt_tcm_hcd {
 	unsigned int func_charger_connected_en;
 	unsigned int func_roate_horizontal_level_en;
 	unsigned int func_face_detect_en;
-
+//+S96818AA1-1936,daijun1.wt,add,2023/09/15,n28-tp add firmware upgrade path switching function
+	unsigned int upgrade_mode;
+//-S96818AA1-1936,daijun1.wt,add,2023/09/15,n28-tp add firmware upgrade path switching function
 	struct platform_device *pdev;
 	struct regulator *pwr_reg;
 	struct regulator *bus_reg;

@@ -26,7 +26,7 @@
 struct gcore_dev *gdev_fwu;
 struct task_struct *fwu_thread;
 u8 g_ret_update;
-
+//+S96818AA1-1936,daijun1.wt,add,2023/09/18,n28-tp add firmware upgrade path switching functionu8 gcore_hostdownload_cfg;EXPORT_SYMBOL(gcore_hostdownload_cfg);//-S96818AA1-1936,daijun1.wt,add,2023/09/18,n28-tp add firmware upgrade path switching function
 DECLARE_COMPLETION(fw_update_complete);
 
 bool demolog_enable;
@@ -3596,10 +3596,9 @@ u8 retry_count = 0;
 
 void gcore_request_firmware_update_work(struct work_struct *work)
 {
-	static u8 *fw_buf = NULL;
+//+S96818AA1-1936,daijun1.wt,add,2023/09/18,n28-tp add firmware upgrade path switching function	u8 *fw_buf = NULL;	const struct firmware *fw = NULL;
 	u8 read_data[4]= {0};
 #ifdef CONFIG_UPDATE_FIRMWARE_BY_BIN_FILE
-	const struct firmware *fw = NULL;
 //+S96818AA1-1936,wangtao14.wt,add,2023/07/10,gc7272 ESD
 	gcore_tp_esd_fail = 0;
 //-S96818AA1-1936,wangtao14.wt,add,2023/07/10,gc7272 ESD
@@ -3639,13 +3638,9 @@ void gcore_request_firmware_update_work(struct work_struct *work)
 		release_firmware(fw);
 	}
 #else
-	fw_buf = gcore_default_FW;
-#endif
-
+	bool allocated = false;	if(gcore_hostdownload_cfg){		GTP_DEBUG("Start request bin!");		gcore_tp_esd_fail = false;		if (IS_ERR_OR_NULL(fw_buf)) {			GTP_DEBUG("kzalloc buf!");			fw_buf = kzalloc(FW_SIZE, GFP_KERNEL);			allocated = true;		}		if (IS_ERR_OR_NULL(fw_buf)) {			GTP_ERROR("fw buf mem allocate fail");			allocated = false;			goto retry;		}		gdev_fwu->fw_mem = fw_buf;		if (request_firmware(&fw, FW_BIN_NAME_TXD, &gdev_fwu->bus_device->dev)) {			GTP_ERROR("request firmware fail");			return;		}		memcpy(fw_buf, fw->data, fw->size);	    add_CRC(fw_buf);		GTP_DEBUG("fw buf:%x %x %x %x %x %x", fw_buf[0], fw_buf[1], fw_buf[2],			  fw_buf[3], fw_buf[4], fw_buf[5]);		GTP_DEBUG("fw buf ver:%x %x %x %x", fw_buf[FW_VERSION_ADDR+1], fw_buf[FW_VERSION_ADDR], fw_buf[FW_VERSION_ADDR+3],			  fw_buf[FW_VERSION_ADDR+2]);		if (fw) {			release_firmware(fw);		}	}else{		GTP_DEBUG("Use Array to hostdownload!");		fw_buf = gcore_default_FW;		allocated = false;	}#endif//-S96818AA1-1936,daijun1.wt,add,2023/09/18,n28-tp add firmware upgrade path switching function
 	g_ret_update = 0;
-
 	gdev_fwu->fw_update_state = true;
-
 #ifdef CONFIG_GCORE_AUTO_UPDATE_FW_FLASHDOWNLOAD
 	if (update_force || gcore_flashdl_exist_check() ||
 		gcore_flashdl_version_check(fw_buf)) {
@@ -3694,10 +3689,7 @@ void gcore_request_firmware_update_work(struct work_struct *work)
 	gdev_fwu->fw_update_state = false;
 	g_ret_update = 1;
 	retry_count = 0;
-
-	return;
-
-retry:
+//+S96818AA1-1936,daijun1.wt,add,2023/09/18,n28-tp add firmware upgrade path switching function	if(allocated == true){		kfree(fw_buf);		fw_buf = NULL;	}	return;retry:	if(allocated == true){		kfree(fw_buf);		fw_buf = NULL;	}//-S96818AA1-1936,daijun1.wt,add,2023/09/18,n28-tp add firmware upgrade path switching function
 	retry_count++;
 	if( retry_count < MAX_FW_RETRY_NUM ) {
 		GTP_ERROR("hostdl retry times:%d", retry_count);
@@ -3714,10 +3706,7 @@ retry:
 
 int gcore_force_request_fireware_updata(char *fw_name,int fwname_len)
 {
-	static u8 *fw_buf = NULL;
-	char fileName[128] = {0};
-#ifdef CONFIG_UPDATE_FIRMWARE_BY_BIN_FILE
-	const struct firmware *fw = NULL;
+	static u8 *fw_buf = NULL;/* +S96818AA1-1936,daijun1.wt,modify,2023/08/23,Change firmware download path */#ifdef CONFIG_UPDATE_FIRMWARE_BY_BIN_FILE	char fileName[128] = {0};	const struct firmware *fw = NULL;
 
 	memset(fileName, 0, sizeof(fileName));
 	snprintf(fileName, sizeof(fileName), "%s", fw_name);
@@ -3795,9 +3784,9 @@ int gcore_force_request_fireware_updata(char *fw_name,int fwname_len)
 fail2:
 		kfree(fw_buf);
 
-fail:
+#ifdef CONFIG_UPDATE_FIRMWARE_BY_BIN_FILEfail:#endif
 		return -EPERM;
-
+/* -S96818AA1-1936,daijun1.wt,modify,2023/08/23,Change firmware download path */
 }
 
 //-S96818AA1-1936,wangtao14.wt,add,2023/07/10,gc7272 Hardware reset
@@ -3890,7 +3879,7 @@ int force_erase_fash(void)
 }
 
 #endif
-
+//+S96818AA1-1936,daijun1.wt,add,2023/09/18,n28-tp add firmware upgrade path switching functionstatic ssize_t hostdownload_mode_show(struct device *dev,	struct device_attribute *attr, char *buf){	int error;	GTP_DEBUG("%s called", __func__);	if (dev == NULL) {		GTP_ERROR("dev is null\n");		return -EINVAL;	}	error = snprintf(buf, 32, "%d -> %d\n",		gcore_hostdownload_cfg, !gcore_hostdownload_cfg);	gcore_hostdownload_cfg = !gcore_hostdownload_cfg;	GTP_DEBUG("%s done", __func__);	return error;}static ssize_t hostdownload_mode_store(struct device *dev,	struct device_attribute *attr, const char *buf, size_t count){	return count;}//-S96818AA1-1936,daijun1.wt,add,2023/09/18,n28-tp add firmware upgrade path switching function
 
 #ifdef CONFIG_ENABLE_FW_RAWDATA
 
@@ -4573,7 +4562,7 @@ static DEVICE_ATTR(clear_point, 0200, NULL, clear_point_store);
 #if GCORE_MP_TEST_ON
 static DEVICE_ATTR(debug_val, 0200, NULL, debug_val_store);
 #endif
-
+//+S96818AA1-1936,daijun1.wt,add,2023/09/18,n28-tp add firmware upgrade path switching functionstatic DEVICE_ATTR(hst_mode, 0600, hostdownload_mode_show, hostdownload_mode_store);
 static struct device_attribute *gcore_attribute[] = {
 	&dev_attr_reg,
 	&dev_attr_page_reg,
@@ -4611,9 +4600,8 @@ static struct device_attribute *gcore_attribute[] = {
 	&dev_attr_clear_point,
 #if GCORE_MP_TEST_ON
 	&dev_attr_debug_val,
-#endif
-};
-
+#endif	&dev_attr_hst_mode,
+};//-S96818AA1-1936,daijun1.wt,add,2023/09/18,n28-tp add firmware upgrade path switching function
 int gcore_create_attribute(struct device *dev)
 {
 	int num = 0;

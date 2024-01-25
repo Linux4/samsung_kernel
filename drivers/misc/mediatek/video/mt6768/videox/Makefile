@@ -123,5 +123,5 @@ endif
 ifeq ($(MTK_MIRAVISION_SUPPORT), yes)
     ccflags-y += -DCONFIG_FOR_SOURCE_PQ
 endif
-
+ccflags-y += -I$(srctree)/drivers/input/touchscreen/mediatek/GC7272
 ccflags-$(CONFIG_MTK_LCM_DEVICE_TREE_SUPPORT) += -DMTK_LCM_DEVICE_TREE_SUPPORT

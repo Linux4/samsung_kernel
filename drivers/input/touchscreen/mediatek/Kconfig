@@ -110,7 +110,19 @@ config TOUCHSCREEN_CHIPONE
 
 	  To compile this driver as a module, choose M here: the
 	  module will be called chipone-tddi.
+	  
+config TOUCHSCREEN_CHIPONE_N28
+	tristate "Chipone TDDI touchscreen for Mediatek package"
+	depends on SPI
+	default n
+	help
+	  Say y here if you have chipone TDDI touch panel.
 
+	  If unsure, say N.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called chipone-tddi.
+	  
 config TOUCHSCREEN_NT36528_HOSTDL_SPI
         bool "NT36528 for Mediatek package"
         default n

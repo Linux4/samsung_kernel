@@ -602,6 +602,10 @@ static inline int imgsensor_check_is_alive(struct IMGSENSOR_SENSOR *psensor)
 			}
 			if(!strcmp(psensor_inst->psensor_name, "n28c8496frontdc_mipi_raw"))
 				hardwareinfo_set_prop(HARDWARE_FRONT_CAM_MOUDULE_ID, "DMEGC");
+			if(!strcmp(psensor_inst->psensor_name, "n28sc800csafrontdc_mipi_raw")){
+				hardwareinfo_set_prop(HARDWARE_FRONT_CAM_MOUDULE_ID, "DMEGC");
+				hardwareinfo_set_prop(HARDWARE_FRONT_CAM, "n28sc800csfrontdc_mipi_raw");
+			}
 		}else if(psensor_inst->sensor_idx == IMGSENSOR_SENSOR_IDX_MAIN2){
 			hardwareinfo_set_prop(HARDWARE_BACK_SUB_CAM, psensor_inst->psensor_name);
 			if(!strcmp(psensor_inst->psensor_name, "n28c2519depcxt_mipi_mono"))

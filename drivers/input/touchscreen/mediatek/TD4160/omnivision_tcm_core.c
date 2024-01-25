@@ -409,14 +409,30 @@ static ssize_t ovt_support_feature(struct device *dev,
 
     return snprintf(buf, SEC_CMD_BUF_SIZE, "%d\n", feature);
 }
+//+S96818AA1-1936,daijun1.wt,add,2023/09/15,n28-tp add firmware upgrade path switching function
+static ssize_t upgrade_mode_show(struct device *dev,
+    struct device_attribute *attr, char *buf)
+{
+	int ret;
+    struct ovt_tcm_hcd *tcm_hcd = g_tcm_hcd;
 
+    ret = snprintf(buf, SEC_CMD_BUF_SIZE, "%d -> %d\n",
+	tcm_hcd->upgrade_mode, !tcm_hcd->upgrade_mode);
+	tcm_hcd->upgrade_mode = !tcm_hcd->upgrade_mode;
+
+	LOGN(g_tcm_hcd->pdev->dev.parent,"%s end,%d\n",__func__,tcm_hcd->upgrade_mode);
+    return ret;
+}
+
+static DEVICE_ATTR(upgrade_mode, 0444, upgrade_mode_show, NULL);
 static DEVICE_ATTR(support_feature, 0444, ovt_support_feature, NULL);
 
 static struct attribute *ovt_cmd_attributes[] = {
     &dev_attr_support_feature.attr,
+	&dev_attr_upgrade_mode.attr,
     NULL,
 };
-
+//-S96818AA1-1936,daijun1.wt,add,2023/09/15,n28-tp add firmware upgrade path switching function
 static struct attribute_group ovt_cmd_attr_group = {
     .attrs = ovt_cmd_attributes,
 };
@@ -4313,7 +4329,9 @@ static int ovt_tcm_probe(struct platform_device *pdev)
 #else
 	tcm_hcd->read_length = MESSAGE_HEADER_SIZE;
 #endif
-
+//+S96818AA1-1936,daijun1.wt,add,2023/09/15,n28-tp add firmware upgrade path switching function
+	tcm_hcd->upgrade_mode = 1;
+//-S96818AA1-1936,daijun1.wt,add,2023/09/15,n28-tp add firmware upgrade path switching function
 #ifdef WATCHDOG_SW
 	tcm_hcd->watchdog.run = RUN_WATCHDOG;
 	tcm_hcd->update_watchdog = ovt_tcm_update_watchdog;

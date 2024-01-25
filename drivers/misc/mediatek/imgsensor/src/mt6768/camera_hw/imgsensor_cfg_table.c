@@ -239,6 +239,24 @@ struct IMGSENSOR_HW_POWER_SEQ sensor_power_sequence[] = {
         },
 #endif
 //-S96818AA1-1936,wuwenhao2.wt,ADD,2023/04/25,c8496 sub sensor bringup
+//+S96818AA1-1936,zhujianjia.wt,ADD,2023/08/21,sc800csa sub sensor bringup
+#if defined(N28SC800CSAFRONTDC_MIPI_RAW)
+        {
+            SENSOR_DRVNAME_N28SC800CSAFRONTDC_MIPI_RAW,
+            {
+                {RST, Vol_Low, 0},
+                {SensorMCLK, Vol_High, 0},
+                {DOVDD, Vol_1800, 1},
+                {DVDD, Vol_1200, 1},
+                {AVDD, Vol_2800, 1},
+                {AVDD_2V8, Vol_High, 1},
+                {RST, Vol_High, 2},
+                {RST, Vol_Low, 2},
+                {RST, Vol_High, 2}
+            },
+        },
+#endif
+//-S96818AA1-1936,zhujianjia.wt,ADD,2023/08/21,sc800csa sub sensor bringup
 //+S96818AA1-1936,chenming.wt,ADD,2023/04/11,c2519 depth sensor bringup
 #if defined(N28C2519DEPCXT_MIPI_MONO)
       {

@@ -783,6 +783,10 @@
 #define N28C8496FRONTDC_SENSOR_ID              0x0803
 #define SENSOR_DRVNAME_N28C8496FRONTDC_MIPI_RAW "n28c8496frontdc_mipi_raw"
 //-S96818AA1-1936,wuwenhao2.wt,ADD,2023/04/25,c8496 sub sensor bringup
+//+S96818AA1-1936,zhujianjia.wt,ADD,2023/8/21,c8496 sub sensor bringup
+#define N28SC800CSAFRONTDC_SENSOR_ID              0xd154
+#define SENSOR_DRVNAME_N28SC800CSAFRONTDC_MIPI_RAW "n28sc800csafrontdc_mipi_raw"
+//-S96818AA1-1936,zhujianjia.wt,ADD,2023/8/21,c8496 sub sensor bringup
 //+S96818AA1-1936,chenming.wt,ADD,2023/04/11,c2519 depth sensor bringup
 #define N28C2519DEPCXT_SENSOR_ID  0x020f
 #define SENSOR_DRVNAME_N28C2519DEPCXT_MIPI_MONO "n28c2519depcxt_mipi_mono"

@@ -74,7 +74,6 @@ struct LCM_DRIVER *lcm_driver_list[] = {
 #endif
 //-S96818AA1-1936,liuzhizun2.wt,add,2023/05/15,td4160 lcd bringup
 
-//+S96818AA1-1936,liyuhong1.wt,add,2023/06/27,td4160 & gc7272 & nt36528 lcd bringup
 #if defined(N28_GC7272_DSI_VDO_HDP_TXD_SHARP)
 	&n28_gc7272_dsi_vdo_hdp_txd_sharp_drv,
 #endif
@@ -90,7 +89,16 @@ struct LCM_DRIVER *lcm_driver_list[] = {
 #if defined(N28_TD4160_DSI_VDO_HDP_BOE_BOE)
 	&n28_td4160_dsi_vdo_hdp_boe_boe_drv,
 #endif
-//-S96818AA1-1936,liyuhong1.wt,add,2023/06/27,td4160 & gc7272 & nt36528 lcd bringup
+
+#if defined(N28_ICNL9916C_DSI_VDO_HDP_XINXIAN_HKC)
+	&n28_icnl9916c_dsi_vdo_hdp_xinxian_hkc_drv,
+#endif
+
+//+S96818AA1-1936,liyuhong1.wt,add,2023/08/22,icnl9916c lcd bringup
+#if defined(N28_ICNL9916C_DSI_VDO_HDP_DSBJ_MDT)
+	&n28_icnl9916c_dsi_vdo_hdp_dsbj_mdt_drv,
+#endif
+//-S96818AA1-1936,liyuhong1.wt,add,2023/08/22,icnl9916c lcd bringup
 
 #if defined(VIRTUAL_DSI_VDO_DEFAULT)
 	&virtual_dsi_vdo_default_drv,
