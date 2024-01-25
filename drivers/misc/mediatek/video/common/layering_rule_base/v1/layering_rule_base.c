@@ -40,6 +40,7 @@ static struct layering_rule_ops *l_rule_ops;
 static int ext_id_tuning(struct disp_layer_info *disp_info,
 	int disp_idx);
 static unsigned int adaptive_dc_request;
+#define DISP_LAYER_RULE_MAX_NUM 1024
 
 
 bool is_ext_path(struct disp_layer_info *disp_info)
@@ -1626,6 +1627,13 @@ int check_disp_info(struct disp_layer_info *disp_info)
 	}
 
 	for (disp_idx = 0 ; disp_idx < 2 ; disp_idx++) {
+
+		if (disp_info->layer_num[disp_idx] < 0 ||
+			disp_info->layer_num[disp_idx] > DISP_LAYER_RULE_MAX_NUM) {
+			DISPERR("[HRT] disp_idx %d, invalid layer num %d\n",
+				disp_idx, disp_info->layer_num[disp_idx]);
+			return -1;
+		}
 
 		if (disp_info->layer_num[disp_idx] > 0 &&
 			disp_info->input_config[disp_idx] == NULL) {

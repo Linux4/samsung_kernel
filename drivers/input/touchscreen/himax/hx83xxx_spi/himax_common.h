@@ -69,6 +69,10 @@
 
 #define FLASH_DUMP_FILE "/sdcard/HX_Flash_Dump.bin"
 
+#define INT_ENABLE		(0)
+#define INT_DISABLE_NOSYNC	(1)
+#define INT_DISABLE_SYNC	(2)
+
 #if IS_ENABLED(CONFIG_TOUCHSCREEN_HIMAX_DEBUG)
 #define HX_TP_PROC_2T2R
 /*#define HX_TP_SELF_TEST_DRIVER*/ /*if enable, selftest works in driver*/
@@ -78,7 +82,9 @@
 #define HX_RESUME_SEND_CMD
 #define HX_ESD_RECOVERY
 #define HX_TP_PROC_GUEST_INFO
+#if !(IS_ENABLED(CONFIG_TOUCHSCREEN_HIMAX_IC_HX83102) || IS_ENABLED(CONFIG_TOUCHSCREEN_HIMAX_IC_HX83122))
 #define HX_TOUCH_PROXIMITY
+#endif
 #define HX_NEW_EVENT_STACK_FORMAT
 #define HX_SMART_WAKEUP
 /*#define HX_GESTURE_TRACK*/
@@ -295,9 +301,11 @@ enum fix_touch_info {
 #endif
 
 #ifdef HX_ZERO_FLASH
-	#define HX_SPI_OPERATION
-	#define HX_0F_DEBUG
+#define HX_SPI_OPERATION
+#define HX_0F_DEBUG
+extern uint8_t *g_update_cfg_buf;
 #endif
+
 struct himax_ic_data {
 	int vendor_fw_ver;
 	int vendor_config_ver;
@@ -586,6 +594,9 @@ struct himax_ts_data {
 	int proxy_state;
 	int proxy_current_thd;
 	int proxy_current_sum;
+
+	int edgehandler_restore_data[SEC_CMD_PARAM_NUM];
+	int grip_restore_data[SEC_CMD_PARAM_NUM];
 };
 
 

@@ -589,7 +589,7 @@ CONFIG_NET_ACT_MIRRED=y  # for enabling the mirred target for redirecting the pa
 CONFIG_NET_EMATCH=y   #basic uses extended matches so this has to be present
 CONFIG_NET_SCH_INGRESS=y # classifier for ingress packet
 
-CONFIG_NETFILTER_XT_MATCH_QUOTA2_LOG_32BIT=y
+# CONFIG_NETFILTER_XT_MATCH_QUOTA2_LOG_32BIT is not set
 
 # VFE28 enable (ALPS07171242)
 CONFIG_MTK_SEC_VFE28_CONTROL_ENABLE=y

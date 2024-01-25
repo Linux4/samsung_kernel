@@ -42,7 +42,6 @@
 #include <linux/slab.h>
 #include <linux/spinlock.h>
 #include <linux/types.h>
-#include <linux/preempt.h>
 
 #include <asm/barrier.h>
 
@@ -561,7 +560,6 @@ static int __arm_v7s_map(struct arm_v7s_io_pgtable *data, unsigned long iova,
 {
 	struct io_pgtable_cfg *cfg = &data->iop.cfg;
 	arm_v7s_iopte pte, *cptep;
-	gfp_t gfp;
 	int num_entries = size >> ARM_V7S_LVL_SHIFT(lvl);
 #ifdef CONFIG_MTK_IOMMU_V2
 	phys_addr_t pte_phys;
@@ -601,11 +599,7 @@ static int __arm_v7s_map(struct arm_v7s_io_pgtable *data, unsigned long iova,
 	/* Grab a pointer to the next level */
 	pte = READ_ONCE(*ptep);
 	if (!pte) {
-		if (in_atomic())
-			gfp = GFP_ATOMIC;
-		else
-			gfp = GFP_KERNEL;
-		cptep = __arm_v7s_alloc_table(lvl + 1, gfp, data);
+		cptep = __arm_v7s_alloc_table(lvl + 1, GFP_ATOMIC, data);
 		if (!cptep) {
 #ifdef MTK_PGTABLE_DEBUG_ENABLED
 			pr_notice("%s, %d, error cptep\n", __func__, __LINE__);

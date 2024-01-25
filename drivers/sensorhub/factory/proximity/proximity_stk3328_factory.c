@@ -134,7 +134,7 @@ static ssize_t prox_cal_store(struct device *dev, struct device_attribute *attr,
 			shub_infof("crosstalk(%u)", prox_raw);
 		}
 	} else {
-		shub_errf("%s: invalid value %d", *buf);
+		shub_errf("%s: invalid value %d", __func__, *buf);
 		ret = -EINVAL;
 	}
 

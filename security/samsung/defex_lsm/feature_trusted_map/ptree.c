@@ -8,6 +8,7 @@
 
 #include <linux/slab.h>
 #include <linux/string.h>
+#include "include/defex_debug.h"
 #include "include/ptree.h"
 
 /* Functions for "using" (i.e., loading and searching) p-tree in portable
@@ -40,7 +41,7 @@ static int pptree_set_header(struct PPTree *tree)
 	 * two can encode version information for compatibility
 	 */
 	if (strncmp((char *)pp, PPTREE_MAGIC, PPTREE_MAGIC_FIXEDSIZE)) {
-		pr_warn("Ptree: Bad magic number\n");
+		defex_log_warn("Ptree: Bad magic number");
 		return -1;
 	}
 	pp += PPTREE_MAGIC_FIXEDSIZE + 2;
@@ -91,8 +92,7 @@ static const unsigned char *pptree_string(const struct PPTree *tree, int i)
 	int index, bcs = tree->sTable.indexSize;
 
 	if (i < 0 || i >= tree->sTable.size) {
-		pr_warn("Ptree: bad string index: %d (max %d)\n", i,
-			tree->sTable.size);
+		defex_log_warn("Ptree: bad string index: %d (max %d)", i, tree->sTable.size);
 		return 0;
 	}
 	index = charp2UInt(sTable + i * bcs, bcs);
@@ -107,8 +107,7 @@ static const unsigned char *pptree_bytearray(const struct PPTree *tree, int i,
 	int index, indexNext, bcs = tree->bTable.indexSize;
 
 	if (i < 0 || i >= tree->bTable.size) {
-		pr_warn("Ptree: Bad bytearray index: %d (max %d)\n", i,
-			tree->bTable.size);
+		defex_log_warn("Ptree: Bad bytearray index: %d (max %d)", i, tree->bTable.size);
 		if (length)
 			*length = 0;
 		return "";

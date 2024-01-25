@@ -796,7 +796,7 @@ config PROCESS_RECLAIM
 config MEMCG_HEIMDALL
 	bool "memcg optimization for heimdall"
 	depends on MEMCG
-	default y
+	default n
 	help
 	  Enable this will change the memcg-related logics in the way Heimdall
 	  prefers.

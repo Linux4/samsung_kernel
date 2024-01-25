@@ -103,9 +103,9 @@ void nfc_logger_print(char *fmt, ...)
 	time = local_clock();
 	nsec = do_div(time, 1000000000);
 	if (g_curpos < BOOT_LOG_SIZE)
-		len = snprintf(buf, sizeof(buf), "[B%4llu.%06ld] ", time, nsec / 1000);
+		len = snprintf(buf, sizeof(buf), "[B%4llu.%06u] ", time, nsec / 1000);
 	else
-		len = snprintf(buf, sizeof(buf), "[%5llu.%06ld] ", time, nsec / 1000);
+		len = snprintf(buf, sizeof(buf), "[%5llu.%06u] ", time, nsec / 1000);
 
 	if (date_time_print)
 		len += snprintf(buf + len, sizeof(buf) - len, "[%s] ", date_time);
@@ -197,11 +197,13 @@ static ssize_t nfc_logger_read(struct file *file, char __user *buf, size_t len, 
 #if KERNEL_VERSION(5, 6, 0) <= LINUX_VERSION_CODE
 static const struct proc_ops nfc_logger_ops = {
 	.proc_read = nfc_logger_read,
+	.proc_lseek = default_llseek,
 };
 #else
 static const struct file_operations nfc_logger_ops = {
 	.owner = THIS_MODULE,
 	.read = nfc_logger_read,
+	.llseek = default_llseek,
 };
 #endif
 

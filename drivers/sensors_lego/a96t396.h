@@ -39,39 +39,79 @@ struct a96t396_fw_data {
 #endif
 
 enum ic_num {
+#if IS_ENABLED(CONFIG_SENSORS_A96T396)
 	MAIN_GRIP = 0,
+#endif
+#if IS_ENABLED(CONFIG_SENSORS_A96T396_SUB)
 	SUB_GRIP,
+#endif
+#if IS_ENABLED(CONFIG_SENSORS_A96T396_SUB2)
 	SUB2_GRIP,
+#endif
+#if IS_ENABLED(CONFIG_SENSORS_A96T396_WIFI)
 	WIFI_GRIP,
+#endif
 	GRIP_MAX_CNT
 };
 
 const char *grip_name[GRIP_MAX_CNT] = {
+#if IS_ENABLED(CONFIG_SENSORS_A96T396)
 	"MAIN",
+#endif
+#if IS_ENABLED(CONFIG_SENSORS_A96T396_SUB)
 	"SUB",
+#endif
+#if IS_ENABLED(CONFIG_SENSORS_A96T396_SUB2)
 	"SUB2",
+#endif
+#if IS_ENABLED(CONFIG_SENSORS_A96T396_WIFI)
 	"WIFI"
+#endif
 };
 
 const char *device_name[GRIP_MAX_CNT] = {
+#if IS_ENABLED(CONFIG_SENSORS_A96T396)
 	"A96T3X6",
+#endif
+#if IS_ENABLED(CONFIG_SENSORS_A96T396_SUB)
 	"A96T3X6_SUB",
+#endif
+#if IS_ENABLED(CONFIG_SENSORS_A96T396_SUB2)
 	"A96T3X6_SUB2",
+#endif
+#if IS_ENABLED(CONFIG_SENSORS_A96T396_WIFI)
 	"A96T3X6_WIFI"
+#endif
 };
 
 const char *module_name[GRIP_MAX_CNT] = {
+#if IS_ENABLED(CONFIG_SENSORS_A96T396)
 	"grip_sensor",
+#endif
+#if IS_ENABLED(CONFIG_SENSORS_A96T396_SUB)
 	"grip_sensor_sub",
+#endif
+#if IS_ENABLED(CONFIG_SENSORS_A96T396_SUB2)
 	"grip_sensor_sub2",
+#endif
+#if IS_ENABLED(CONFIG_SENSORS_A96T396_WIFI)
 	"grip_sensor_wifi"
+#endif
 };
 
 const char *sdcard_fw_path[GRIP_MAX_CNT] = {
+#if IS_ENABLED(CONFIG_SENSORS_A96T396)
 	"/sdcard/Firmware/Grip/abov_fw.bin",
+#endif
+#if IS_ENABLED(CONFIG_SENSORS_A96T396_SUB)
 	"/sdcard/Firmware/GripSub/abov_fw.bin",
+#endif
+#if IS_ENABLED(CONFIG_SENSORS_A96T396_SUB2)
 	"/sdcard/Firmware/GripSub2/abov_fw.bin",
+#endif
+#if IS_ENABLED(CONFIG_SENSORS_A96T396_WIFI)
 	"/sdcard/Firmware/GripWifi/abov_fw.bin"
+#endif
 };
 
 /* registers */
@@ -124,7 +164,7 @@ const char *sdcard_fw_path[GRIP_MAX_CNT] = {
 #define USER_CODE_ADDRESS	0x400
 #define I2C_M_WR 0		/* for i2c */
 #define GRIP_LOG_TIME	15 /* 30s */
-#define FIRMWARE_VENDOR_CALL_CNT 8
+#define FIRMWARE_VENDOR_CALL_CNT 3
 #define TEST_FIRMWARE_DETECT_VER 0xa0
 
 

@@ -4319,19 +4319,23 @@ g_FG_PSEUDO100 =
 		interrupt-parent = <SEC_GPIO_TYPE(AP,pio,17)>;
 		interrupts = <SEC_GPIO_NUM(AP,pio,17) 0>;
 
-		a96t396,irq_gpio = <SEC_GPIO_REF(AP,pio,17) 0>;
+		irq_gpio = <SEC_GPIO_REF(AP,pio,17) 0>;
+#if 0
+		dvdd_vreg_name = "VDD_GRIP_3P3";
+#else
 #if 1
-		a96t396,ldo_en = <SEC_GPIO_REF(AP,pio,139) 0>;
+		ldo_en = <SEC_GPIO_REF(AP,pio,139) 0>;
+#endif
+#endif
+		multi_use = <1>;
+#if 1
+		unknown_ch_selection = <3>; /*bit "0 0" => no use , "0 1" => 1ch only, "1 0" => 2ch only, "1 1" 1ch 2ch both*/
 #endif
 #if 0
-		a96t396,dvdd_vreg_name = "VDD_GRIP_3P3";
+		fail_safe_concept = <${a96t396_fail_safe_concept}>;
 #endif
-		a96t396,multi_use = <1>;
-#if 1
-		a96t396,unknown_ch_selection = <3>; /*bit "0 0" => no use , "0 1" => 1ch only, "1 0" => 2ch only, "1 1" 1ch 2ch both*/
-#endif
-		a96t396,fw_path = "abov/a96t396_a13x_eur_main.bin";
-		a96t396,firmup_cmd = <0x90>;
+		fw_path = "abov/a96t396_a13x_eur_main.bin";
+		firmup_cmd = <0x90>;
 	};
 };
 #endif
@@ -4375,21 +4379,25 @@ g_FG_PSEUDO100 =
 		interrupt-parent = <SEC_GPIO_TYPE(AP,pio,18)>;
 		interrupts = <SEC_GPIO_NUM(AP,pio,18) 0>;
 
-		a96t396_sub,irq_gpio = <SEC_GPIO_REF(AP,pio,18) 0>;
+		irq_gpio = <SEC_GPIO_REF(AP,pio,18) 0>;
 #if 0
-		a96t396_sub,ldo_en = <SEC_GPIO_REF(${gpio_grip_sub_ldo_en}) 0>;
+		dvdd_vreg_name = "VDD_GRIP_3P3";
 #else
-		a96t396_sub,ldo_en = <SEC_GPIO_REF(AP,pio,139) 0>;
+#if 0
+		ldo_en = <SEC_GPIO_REF(${gpio_grip_sub_ldo_en}) 0>;
+#else
+		ldo_en = <SEC_GPIO_REF(AP,pio,139) 0>;
+#endif
+#endif
+		multi_use = <0>;
+#if 1
+		unknown_ch_selection = <3>; /*bit "0 0" => no use , "0 1" => 1ch only, "1 0" => 2ch only, "1 1" 1ch 2ch both*/
 #endif
 #if 0
-		a96t396_sub,dvdd_vreg_name = "VDD_GRIP_3P3";
+		fail_safe_concept = <${a96t396_sub_fail_safe_concept}>;
 #endif
-		a96t396_sub,multi_use = <0>;
-#if 1
-		a96t396_sub,unknown_ch_selection = <3>; /*bit "0 0" => no use , "0 1" => 1ch only, "1 0" => 2ch only, "1 1" 1ch 2ch both*/
-#endif
-		a96t396_sub,fw_path = "abov/a96t396_a13x_eur_sub.bin";
-		a96t396_sub,firmup_cmd = <0x90>;
+		fw_path = "abov/a96t396_a13x_eur_sub.bin";
+		firmup_cmd = <0x90>;
 	};
 };
 #endif
@@ -4432,21 +4440,25 @@ g_FG_PSEUDO100 =
 		interrupt-parent = <SEC_GPIO_TYPE(${gpio_grip_sub2_irq})>;
 		interrupts = <SEC_GPIO_NUM(${gpio_grip_sub2_irq}) 0>;
 
-		a96t396_sub2,irq_gpio = <SEC_GPIO_REF(${gpio_grip_sub2_irq}) 0>;
+		irq_gpio = <SEC_GPIO_REF(${gpio_grip_sub2_irq}) 0>;
 #if 0
-		a96t396_sub2,ldo_en = <SEC_GPIO_REF(${gpio_grip_sub2_ldo_en}) 0>;
+		dvdd_vreg_name = "VDD_GRIP_3P3";
 #else
-		a96t396_sub2,ldo_en = <SEC_GPIO_REF(AP,pio,139) 0>;
+#if 0
+		ldo_en = <SEC_GPIO_REF(${gpio_grip_sub2_ldo_en}) 0>;
+#else
+		ldo_en = <SEC_GPIO_REF(AP,pio,139) 0>;
+#endif
+#endif
+		multi_use = <${sub2_multi_use}>;
+#if 0
+		unknown_ch_selection = <${a96t396_sub2_unknown_ch_sel}>; /*bit "0 0" => no use , "0 1" => 1ch only, "1 0" => 2ch only, "1 1" 1ch 2ch both*/
 #endif
 #if 0
-		a96t396_sub2,dvdd_vreg_name = "VDD_GRIP_3P3";
+		fail_safe_concept = <${a96t396_sub2_fail_safe_concept}>;
 #endif
-		a96t396_sub2,multi_use = <0>;
-#if 1
-		a96t396_sub2,unknown_ch_selection = <${a96t396_sub2_unknown_ch_sel}>; /*bit "0 0" => no use , "0 1" => 1ch only, "1 0" => 2ch only, "1 1" 1ch 2ch both*/
-#endif
-		a96t396_sub2,fw_path = "abov/a96t396_a13x_eur_sub2.bin";
-		a96t396_sub2,firmup_cmd = <0x90>;
+		fw_path = "abov/a96t396_a13x_eur_sub2.bin";
+		firmup_cmd = <0x90>;
 	};
 };
 #endif
@@ -4490,21 +4502,25 @@ g_FG_PSEUDO100 =
 		interrupt-parent = <SEC_GPIO_TYPE(${gpio_grip_wifi_irq})>;
 		interrupts = <SEC_GPIO_NUM(${gpio_grip_wifi_irq}) 0>;
 
-		a96t396_wifi,irq_gpio = <SEC_GPIO_REF(${gpio_grip_wifi_irq}) 0>;
+		irq_gpio = <SEC_GPIO_REF(${gpio_grip_wifi_irq}) 0>;
 #if 0
-		a96t396_wifi,ldo_en = <SEC_GPIO_REF(${gpio_grip_wifi_ldo_en}) 0>;
+		dvdd_vreg_name = "VDD_GRIP_3P3";
 #else
-		a96t396_wifi,ldo_en = <SEC_GPIO_REF(AP,pio,139) 0>;
+#if 0
+		ldo_en = <SEC_GPIO_REF(${gpio_grip_wifi_ldo_en}) 0>;
+#else
+		ldo_en = <SEC_GPIO_REF(AP,pio,139) 0>;
+#endif
+#endif
+		multi_use = <0>;
+#if 0
+		unknown_ch_selection = <${a96t396_wifi_unknown_ch_sel}>; /*bit "0 0" => no use , "0 1" => 1ch only, "1 0" => 2ch only, "1 1" 1ch 2ch both*/
 #endif
 #if 0
-		a96t396_wifi,dvdd_vreg_name = "VDD_GRIP_3P3";
+		fail_safe_concept = <${a96t396_wifi_fail_safe_concept}>;
 #endif
-		a96t396_wifi,multi_use = <0>;
-#if 0
-		a96t396_wifi,unknown_ch_selection = <${a96t396_wifi_unknown_ch_sel}>; /*bit "0 0" => no use , "0 1" => 1ch only, "1 0" => 2ch only, "1 1" 1ch 2ch both*/
-#endif
-		a96t396_wifi,fw_path = "abov/a96t396_a13x_eur_wifi.bin";
-		a96t396_wifi,firmup_cmd = <0x90>;
+		fw_path = "abov/a96t396_a13x_eur_wifi.bin";
+		firmup_cmd = <0x90>;
 	};
 };
 #endif
