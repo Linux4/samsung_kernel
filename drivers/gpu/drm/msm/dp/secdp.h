@@ -148,6 +148,7 @@ enum dex_support_res_t {
 #define DEX_RES_MAX	DEX_RES_3440X1440   /* DeX max resolution */
 #define DEX_FPS_MIN	50                  /* DeX min refresh rate */
 #define DEX_FPS_MAX	60                  /* DeX max refresh rate */
+#define MIRROR_REFRESH_MIN	24
 
 static inline char *secdp_dex_res_to_string(int res)
 {
@@ -182,6 +183,11 @@ enum DEX_STATUS {
 struct secdp_adapter {
 	uint ven_id;
 	uint prod_id;
+	char fw_ver[10];   /* firmware ver, 0:h/w, 1:s/w major, 2:s/w minor */
+
+	bool ss_genuine;
+	bool ss_legacy;
+	enum dex_support_res_t dex_type;
 };
 
 #define MON_NAME_LEN	14	/*monitor name length, max 13 chars + null*/
@@ -212,7 +218,6 @@ struct secdp_dex {
 	int dex_node_status;
 
 	enum dex_support_res_t res;   /* dex supported resolution */
-	char fw_ver[10];         /* firmware ver, 0:h/w, 1:s/w major, 2:s/w minor */
 	int reconnecting;        /* it's 1 during dex reconnecting */
 };
 
@@ -229,6 +234,8 @@ struct secdp_misc {
 	struct delayed_work hpd_noti_work;
 	struct delayed_work hdcp_start_work;
 	struct delayed_work link_status_work;
+	struct delayed_work link_backoff_work;
+	bool backoff_start;
 	struct delayed_work poor_discon_work;
 #ifdef SECDP_SELF_TEST
 	struct delayed_work self_test_reconnect_work;
@@ -342,6 +349,8 @@ enum dex_support_res_t secdp_get_dex_res(void);
 void secdp_clear_link_status_update_cnt(struct dp_link *dp_link);
 void secdp_reset_link_status(struct dp_link *dp_link);
 bool secdp_check_link_stable(struct dp_link *dp_link);
+void secdp_link_backoff_start(void);
+void secdp_link_backoff_stop(void);
 bool secdp_dex_adapter_skip_show(void);
 void secdp_dex_adapter_skip_store(bool skip);
 

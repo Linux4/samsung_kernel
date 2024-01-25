@@ -33,6 +33,8 @@
 
 #include <linux/cn_proc.h>
 
+int is_heimdall_enabled = 0;
+
 /*
  * Size of a cn_msg followed by a proc_event structure.  Since the
  * sizeof struct cn_msg is a multiple of 4 bytes, but not 8 bytes, we
@@ -382,7 +384,8 @@ static void cn_proc_mcast_ctl(struct cn_msg *msg,
 	int err = 0;
 
 #ifdef CONFIG_PROC_CONNECTOR_SELECT_EVENTS
-	if (msg->len != sizeof(*mc_op) + sizeof(uint32_t))
+	if ((msg->len != sizeof(*mc_op) + sizeof(uint32_t)) &&
+	    (msg->len != sizeof(*mc_op)))
 #else
 	if (msg->len != sizeof(*mc_op))
 #endif
@@ -405,8 +408,16 @@ static void cn_proc_mcast_ctl(struct cn_msg *msg,
 
 	mc_op = (enum proc_cn_mcast_op *)msg->data;
 #ifdef CONFIG_PROC_CONNECTOR_SELECT_EVENTS
-	mask = *(uint32_t *)(mc_op + 1);
+	if (msg->len == sizeof(*mc_op))
+		mask = BIT(MAX_PROC_EVENTS) - 1;
+	else
+		mask = *(uint32_t *)(mc_op + 1);
 	printk("%s: client connected with event mask=0x%x\n", __func__, mask);
+#endif
+
+#ifdef CONFIG_PROC_CONNECTOR_SELECT_EVENTS
+	if (msg->len != sizeof(*mc_op))
+		is_heimdall_enabled = 1;
 #endif
 
 	switch (*mc_op) {

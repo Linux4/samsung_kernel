@@ -127,7 +127,7 @@ static int manager_notifier_notify(void *data)
 		switch (manager_noti.sub2) {
 		case USB_STATUS_NOTIFY_ATTACH_UFP:
 			if (typec_manager.usb_enable_state)
-				manager_cable_type_check(true, 60);
+				manager_cable_type_check(true, 180);
 			break;
 		case USB_STATUS_NOTIFY_ATTACH_DFP:
 		case USB_STATUS_NOTIFY_DETACH:

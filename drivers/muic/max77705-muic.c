@@ -1177,6 +1177,7 @@ static int max77705_muic_handle_detach(struct max77705_muic_data *muic_data, int
 #endif
 	muic_data->hv_voltage = 0;
 	muic_data->afc_retry = 0;
+	muic_data->is_afc_reset = false;
 #endif
 
 	if (muic_data->attached_dev == ATTACHED_DEV_NONE_MUIC) {
@@ -1792,6 +1793,33 @@ static void max77705_muic_detect_dev(struct max77705_muic_data *muic_data, int i
 			muic_data->status3 = muic_data->status3 & (!BC_STATUS_VBUSDET_MASK);
 			pr_info("%s vbadc(0x%x), ccstat(0x%x), set vbvolt to 0 => BC(0x%x)\n",
 					__func__, vbadc, ccstat, muic_data->status3);
+#if IS_ENABLED(CONFIG_HV_MUIC_MAX77705_AFC)
+		} else if (vbadc > MAX77705_VBADC_3_8V_TO_4_5V &&
+				vbadc <= MAX77705_VBADC_6_5V_TO_7_5V &&
+				muic_data->is_afc_reset) {
+			muic_data->is_afc_reset = false;
+			pr_info("%s afc reset is done\n", __func__);
+
+			switch (muic_data->attached_dev) {
+			case ATTACHED_DEV_AFC_CHARGER_5V_MUIC:
+			case ATTACHED_DEV_AFC_CHARGER_9V_MUIC:
+				muic_data->attached_dev = ATTACHED_DEV_AFC_CHARGER_5V_MUIC;
+#if IS_ENABLED(CONFIG_MUIC_NOTIFIER)
+				muic_notifier_attach_attached_dev(muic_data->attached_dev);
+#endif /* CONFIG_MUIC_NOTIFIER */
+				break;
+			case ATTACHED_DEV_QC_CHARGER_5V_MUIC:
+			case ATTACHED_DEV_QC_CHARGER_9V_MUIC:
+				muic_data->attached_dev = ATTACHED_DEV_QC_CHARGER_5V_MUIC;
+#if IS_ENABLED(CONFIG_MUIC_NOTIFIER)
+				muic_notifier_attach_attached_dev(muic_data->attached_dev);
+#endif /* CONFIG_MUIC_NOTIFIER */
+				break;
+			default:
+				break;
+			}
+			return;
+#endif /* CONFIG_HV_MUIC_MAX77705_AFC */
 		} else {
 			pr_info("%s vbadc irq(%d), return\n",
 					__func__, muic_data->irq_vbadc);
@@ -2572,6 +2600,7 @@ int max77705_muic_probe(struct max77705_usbc_platform_data *usbc_data)
 	muic_data->is_check_hv = false;
 	muic_data->hv_voltage = 0;
 	muic_data->afc_retry = 0;
+	muic_data->is_afc_reset = false;
 #endif /* CONFIG_HV_MUIC_MAX77705_AFC */
 	/* set MUIC hiccup mode function */
 #if defined(CONFIG_HICCUP_CHARGER)
@@ -2718,4 +2747,3 @@ int max77705_muic_resume(struct max77705_usbc_platform_data *usbc_data)
 
 	return 0;
 }
-

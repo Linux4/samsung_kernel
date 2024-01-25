@@ -94,6 +94,8 @@ int do_swap_account __read_mostly;
 #define do_swap_account		0
 #endif
 
+extern int is_heimdall_enabled;
+
 /* Whether legacy memory+swap accounting is active */
 static bool do_memsw_account(void)
 {
@@ -2899,16 +2901,16 @@ static unsigned long mem_cgroup_usage(struct mem_cgroup *memcg, bool swap)
 				val += memcg_page_state(iter, MEMCG_SWAP);
 		}
 	} else {
-#ifdef CONFIG_MEMCG_HEIMDALL
-		val = memcg_page_state(memcg, MEMCG_RSS);
-		if (swap)
-			val += memcg_page_state(memcg, MEMCG_SWAP);
-#else
-		if (!swap)
-			val = page_counter_read(&memcg->memory);
-		else
-			val = page_counter_read(&memcg->memsw);
-#endif
+		if (is_heimdall_enabled) {
+			val = memcg_page_state(memcg, MEMCG_RSS);
+			if (swap)
+				val += memcg_page_state(memcg, MEMCG_SWAP);
+		} else {
+			if (!swap)
+				val = page_counter_read(&memcg->memory);
+			else
+				val = page_counter_read(&memcg->memsw);
+		}
 	}
 	return val;
 }

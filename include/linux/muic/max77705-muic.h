@@ -142,6 +142,7 @@ struct max77705_muic_data {
 	bool				is_check_hv;
 	bool				is_charger_ready;
 	bool				is_charger_mode;
+	bool				is_afc_reset;
 
 	bool				is_irq_vbusdet_high;
 

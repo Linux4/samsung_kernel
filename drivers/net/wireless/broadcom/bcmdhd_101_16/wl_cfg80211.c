@@ -1,7 +1,7 @@
 /*
  * Linux cfg80211 driver
  *
- * Copyright (C) 2021, Broadcom.
+ * Copyright (C) 2022, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -10990,7 +10990,7 @@ int wl_get_bss_info(struct bcm_cfg80211 *cfg, struct net_device *dev, const u8 *
 		if ((interworking_ie = bcm_parse_tlvs(ie, ie_len,
 				DOT11_MNG_INTERWORKING_ID)) != NULL) {
 			if ((tlv_ie = bcm_parse_tlvs(ie, ie_len, DOT11_MNG_VS_ID)) != NULL) {
-				remained_len = ie_len;
+				remained_len = ie_len - ((u8*)tlv_ie - ie);
 
 				while (tlv_ie) {
 					if (count > MAX_VNDR_IE_NUMBER)
@@ -11732,13 +11732,18 @@ wl_handle_link_down(struct bcm_cfg80211 *cfg, wl_assoc_status_t *as)
 	/* clear profile before reporting link down */
 	wl_init_prof(cfg, ndev);
 
+	if (wl_get_drv_status(cfg, DISCONNECTING, ndev)) {
+		/* If DISCONNECTING bit is set, mark locally generated */
+		loc_gen = 1;
+	}
+
 	CFG80211_DISCONNECTED(ndev, reason, ie_ptr, ie_len,
 		loc_gen, GFP_KERNEL);
 	WL_INFORM_MEM(("[%s] Disconnect event sent to upper layer"
-		"event:%d e->reason=%d reason=%d ie_len=%d "
+		"event:%d e->reason=%d reason=%d ie_len=%d loc_gen=%d"
 		"from " MACDBG "\n",
 		ndev->name,	event, ntoh32(as->reason), reason, ie_len,
-		MAC2STRDBG((const u8*)(&as->addr))));
+		loc_gen, MAC2STRDBG((const u8*)(&as->addr))));
 
 	/* clear connected state */
 	wl_clr_drv_status(cfg, CONNECTED, ndev);

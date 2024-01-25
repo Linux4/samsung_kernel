@@ -68,6 +68,23 @@ bool max77705_muic_check_is_enable_afc(struct max77705_muic_data *muic_data, mui
 	return ret;
 }
 
+static void max77705_muic_afc_reset(struct max77705_muic_data *muic_data)
+{
+	struct max77705_usbc_platform_data *usbc_pdata = muic_data->usbc_pdata;
+	usbc_cmd_data write_data;
+
+	pr_info("%s:%s\n", MUIC_DEV_NAME, __func__);
+	muic_data->is_afc_reset = true;
+
+	init_usbc_cmd_data(&write_data);
+	write_data.opcode = COMMAND_BC_CTRL2_WRITE;
+	write_data.write_length = 1;
+	write_data.write_data[0] = 0x13; /* DPDNMan enable, DP GND, DM Open */
+	write_data.read_length = 0;
+
+	max77705_usbc_opcode_write(usbc_pdata, &write_data);
+}
+
 void max77705_muic_check_afc_disabled(struct max77705_muic_data *muic_data)
 {
 	struct muic_platform_data *pdata = muic_data->pdata;
@@ -407,13 +424,20 @@ void max77705_muic_handle_detect_dev_afc(struct max77705_muic_data *muic_data, u
 			max77705_muic_afc_hv_set(muic_data, muic_data->hv_voltage);
 		} else {
 			pr_info("%s:%s Retry Done, do not retry\n", MUIC_DEV_NAME, __func__);
+			if (vbadc >= MAX77705_VBADC_7_5V_TO_8_5V) {
+				max77705_muic_afc_reset(muic_data);
+				muic_data->afc_retry = 0;
+			}
+			else {
 #if defined(CONFIG_MUIC_NOTIFIER)
-			if (vbadc >= MAX77705_VBADC_7_5V_TO_8_5V &&
-					vbadc <= MAX77705_VBADC_8_5V_TO_9_5V)
-				muic_notifier_attach_attached_dev(ATTACHED_DEV_AFC_CHARGER_9V_MUIC);
-			else
-				muic_notifier_attach_attached_dev(ATTACHED_DEV_TA_MUIC);
+				/* Send attached device noti to clear prepare noti */
+				if (muic_data->attached_dev == ATTACHED_DEV_AFC_CHARGER_5V_MUIC ||
+					muic_data->attached_dev == ATTACHED_DEV_AFC_CHARGER_9V_MUIC)
+					muic_notifier_attach_attached_dev(muic_data->attached_dev);
+				else
+					muic_notifier_attach_attached_dev(ATTACHED_DEV_TA_MUIC);
 #endif /* CONFIG_MUIC_NOTIFIER */
+			}
 #if defined(CONFIG_SEC_ABC)
 			sec_abc_send_event("MODULE=muic@ERROR=afc_hv_fail");
 #endif

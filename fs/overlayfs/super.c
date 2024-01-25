@@ -44,6 +44,11 @@ module_param_named(override_creds, ovl_override_creds_def, bool, 0644);
 MODULE_PARM_DESC(ovl_override_creds_def,
 		 "Use mounter's credentials for accesses");
 
+#ifdef CONFIG_RKP_NS_PROT
+extern void rkp_set_mnt_flags(struct vfsmount *mnt,int flags);
+extern void rkp_reset_mnt_flags(struct vfsmount *mnt,int flags);
+#endif
+
 static void ovl_dentry_release(struct dentry *dentry)
 {
 	struct ovl_entry *oe = dentry->d_fsdata;
