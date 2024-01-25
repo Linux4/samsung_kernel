@@ -1,0 +1,10 @@
+#
+# CHIPONE Touchscreen driver configuration
+#
+
+config TOUCHSCREEN_CHIPONE_ICNL9958R
+    tristate "CHIPONE Touchscreen"
+    default m
+    help
+      Say Y here if you have CHIPONE touch panel.
+      If unsure, say N.

@@ -1,0 +1,7 @@
+config WT_BOOTLOADER_LOG
+	tristate "CONFIG_WT_BOOTLOADER_LOG"
+	default n
+
+config WT_PM_DEBUG
+	tristate "CONFIG_WT_PM_DEBUG"
+	default n

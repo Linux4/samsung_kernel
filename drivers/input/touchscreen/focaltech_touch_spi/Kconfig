@@ -1,0 +1,11 @@
+#
+# Focaltech Touchscreen driver configuration
+#
+
+config TOUCHSCREEN_FTS
+    tristate "Focaltech Touchscreen"
+    default m
+    depends on SPI
+    help
+      Say Y here if you have Focaltech touch panel.
+      If unsure, say N.
