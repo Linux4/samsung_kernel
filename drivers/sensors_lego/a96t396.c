@@ -34,6 +34,9 @@
 #include <linux/regulator/consumer.h>
 #include <linux/sec_class.h>
 #include <linux/pinctrl/consumer.h>
+#if defined(CONFIG_SENSORS_CORE_AP)
+#include <linux/sensor/sensors_core.h>
+#endif
 #if IS_ENABLED(CONFIG_CCIC_NOTIFIER) || IS_ENABLED(CONFIG_PDIC_NOTIFIER)
 #include <linux/usb/typec/common/pdic_notifier.h>
 #endif
@@ -58,6 +61,14 @@
 #define HALL_DETACH		0
 #endif
 
+#if IS_ENABLED(CONFIG_TABLET_MODEL_CONCEPT)
+#if IS_ENABLED(CONFIG_KEYBOARD_STM32_POGO_V3)
+#include "../input/sec_input/stm32/pogo_notifier_v3.h"
+#elif IS_ENABLED(CONFIG_KEYBOARD_STM32_POGO_V2) || IS_ENABLED(CONFIG_KEYBOARD_STM32_POGO)
+#include <linux/input/pogo_i2c_notifier.h>
+#endif
+#endif
+
 #include "a96t396.h"
 
 #define SENSOR_ATTR_SIZE 55
@@ -67,6 +78,13 @@
 #define TYPE_BOOT  3
 #define TYPE_FORCE 4
 #define TYPE_COVER 5
+
+#define SHCEDULE_INTERVAL       2
+
+#ifdef CONFIG_SENSORS_FW_VENDOR
+static struct delayed_work* gp_fw_work[GRIP_MAX_CNT];
+static int probe_count;
+#endif
 
 #ifdef CONFIG_SENSORS_A96T396_2CH
 struct multi_channel {
@@ -98,7 +116,7 @@ struct a96t396_data {
 	struct mutex lock;
 	struct work_struct pdic_attach_reset_work;
 	struct work_struct pdic_detach_reset_work;
-	struct work_struct hall_reset_work;
+	struct work_struct reset_work;
 	struct delayed_work debug_work;
 	struct delayed_work firmware_work;
 #ifndef CONFIG_SAMSUNG_PRODUCT_SHIP
@@ -170,6 +188,12 @@ struct a96t396_data {
 #endif
 #if IS_ENABLED(CONFIG_HALL_NOTIFIER)
 	struct notifier_block hall_nb;
+#endif
+#if IS_ENABLED(CONFIG_TABLET_MODEL_CONCEPT)
+#if IS_ENABLED(CONFIG_KEYBOARD_STM32_POGO_V3) || IS_ENABLED(CONFIG_KEYBOARD_STM32_POGO_V2) || IS_ENABLED(CONFIG_KEYBOARD_STM32_POGO)
+	struct notifier_block pogo_nb;
+	struct delayed_work init_work;
+#endif
 #endif
 #ifndef CONFIG_SAMSUNG_PRODUCT_SHIP
 	int ioctl_pass;
@@ -593,10 +617,10 @@ static void a96t396_grip_sw_reset(struct a96t396_data *data)
 		usleep_range(35000, 35010);
 }
 
-static void hall_reset_work_func(struct work_struct *work)
+static void reset_work_func(struct work_struct *work)
 {
 	struct a96t396_data *data = container_of((struct work_struct *)work,
-						struct a96t396_data, hall_reset_work);
+						struct a96t396_data, reset_work);
 
 	a96t396_grip_sw_reset(data);
 }
@@ -606,10 +630,20 @@ static void a96t396_firmware_work_func(struct work_struct *work)
 {
 	struct a96t396_data *data = container_of((struct delayed_work *)work,
 		struct a96t396_data, firmware_work);
-
 	int ret;
+	int next_idx = data->ic_num;
 
 	GRIP_INFO("called\n");
+
+	if (probe_count <= GRIP_MAX_CNT) {
+		if (probe_count == GRIP_MAX_CNT) {
+			GRIP_INFO("All chip probe sequences are complete!\n");
+			probe_count = GRIP_MAX_CNT + 1;
+		}
+		schedule_delayed_work(&data->firmware_work,
+				msecs_to_jiffies(500));
+		return;
+	}
 
 	ret = a96t396_fw_check(data);
 	if (ret) {
@@ -617,12 +651,25 @@ static void a96t396_firmware_work_func(struct work_struct *work)
 			GRIP_ERR("failed to load firmware (%d)\n",
 				data->firmware_count);
 			schedule_delayed_work(&data->firmware_work,
-					msecs_to_jiffies(1000));
+					msecs_to_jiffies(500));
 			return;
 		}
 		GRIP_ERR("final retry failed\n");
 	} else {
 		GRIP_INFO("fw check success\n");
+		gp_fw_work[data->ic_num] = NULL;
+	}
+
+	while (next_idx < GRIP_MAX_CNT - 1) {
+		next_idx = next_idx + 1;
+		if (gp_fw_work[next_idx] == NULL) {
+			GRIP_INFO("skip GRIP[%d] fw download\n", next_idx);
+		} else {
+			GRIP_INFO("schedule GRIP[%d] fw download\n", next_idx);
+			schedule_delayed_work(gp_fw_work[next_idx],
+				msecs_to_jiffies(500));
+			break;
+		}
 	}
 }
 #endif
@@ -710,7 +757,7 @@ static void a96t396_set_firmware_work(struct a96t396_data *data, u8 enable,
 	if (enable == 1) {
 		data->firmware_count = 0;
 		schedule_delayed_work(&data->firmware_work,
-			msecs_to_jiffies(time_ms));
+			msecs_to_jiffies(time_ms * 1000));
 	} else {
 		cancel_delayed_work_sync(&data->firmware_work);
 	}
@@ -722,10 +769,10 @@ static irqreturn_t a96t396_interrupt(int irq, void *dev_id)
 	struct i2c_client *client = data->client;
 	int ret;
 	u8 buf;
-	int grip_data;
+	int grip_data = 0;
 	u8 grip_press = 0;
 #ifdef CONFIG_SENSORS_A96T396_2CH
-	int grip_data_2ch;
+	int grip_data_2ch = 0;
 	u8 grip_press_2ch = 0;
 #endif
 
@@ -1411,7 +1458,7 @@ static ssize_t grip_reg_store(struct device *dev,
 		GRIP_INFO("%s,reg = 0x%02x, val = 0x%02x\n", __func__, *(u8 *)&reg, (u8 *)&val);
 		a96t396_i2c_write(data->client, *((u8 *)&reg), (u8 *)&val);
 	} else {
-		sscanf(buf, "%s", reg_temp_buf);
+		sscanf(buf, "%511s", reg_temp_buf);
 		reg_buf_len = string_to_hex(reg_temp_buf, reg_buf);
 		for (i = 0; i < reg_buf_len-1; i++) {
 			a96t396_i2c_write(data->client, reg_buf[0]+i, &reg_buf[i+1]);
@@ -1887,7 +1934,7 @@ static int a96t396_i2c_read_checksum(struct a96t396_data *data)
 			checksum[0], checksum[1], checksum[2], checksum[4], checksum[5]);
 	data->checksum_h = checksum[4];
 	data->checksum_l = checksum[5];
-	return 0;
+	return ret;
 }
 #ifdef CONFIG_SENSORS_A96T396_CRC_CHECK
 static int a96t396_crc_check(struct a96t396_data *data)
@@ -2563,8 +2610,7 @@ static DEVICE_ATTR(noti_enable, 0664, a96t396_noti_enable_show, a96t396_noti_ena
 static DEVICE_ATTR(grip_register_recover, 0220, NULL, grip_register_recover_store);
 #endif
 #ifdef CONFIG_SENSORS_A96T396_2CH
-static DEVICE_ATTR(unknown_state_2ch, 0664,
-	grip_2ch_unknown_state_show, NULL);
+static DEVICE_ATTR(unknown_state_2ch, 0444, grip_2ch_unknown_state_show, NULL);
 
 static DEVICE_ATTR(grip_gain_2ch, 0444, grip_gain_2ch_show, NULL);
 #ifndef CONFIG_SAMSUNG_PRODUCT_SHIP
@@ -2657,6 +2703,36 @@ static struct attribute_group a96t396_attribute_group = {
 	.attrs = a96t396_attributes
 };
 
+static int a96t396_checksum_for_usermode(struct a96t396_data *data)
+{
+	int ret = 0;
+	int length = 3;
+	unsigned char cmd[3] = {0x0A, 0x00, 0x10};
+	unsigned char checksum[2] = {0, };
+
+	ret = i2c_master_send(data->client, cmd, length);
+	if (ret != length) {
+		GRIP_ERR("i2c_write fail %d\n", ret);
+		return -1;
+	}
+
+	usleep_range(10 * 1000, 11 * 1000);
+
+	ret = a96t396_i2c_read(data->client, 0x0A, checksum, 2);
+	if (ret < 0) {
+		GRIP_ERR("i2c read fail : %d\n", ret);
+		return -1;
+	}
+
+	GRIP_INFO("CRC:%02x%02x, BIN:%02x%02x\n", checksum[0], checksum[1],
+		data->checksum_h_bin, data->checksum_l_bin);
+
+	if ((checksum[0] != data->checksum_h_bin) || (checksum[1] != data->checksum_l_bin))
+		ret = -1;
+
+	return ret;
+}
+
 static int a96t396_fw_check(struct a96t396_data *data)
 {
 	int ret;
@@ -2683,6 +2759,12 @@ static int a96t396_fw_check(struct a96t396_data *data)
 		GRIP_ERR("MD version is different.(IC %x, BN %x). Do force FW update\n",
 			data->md_ver, data->md_ver_bin);
 		force = true;
+	} else if (data->fw_ver == data->fw_ver_bin) {
+		ret = a96t396_checksum_for_usermode(data);
+		if (ret < 0) {
+			GRIP_ERR("checksum fail\n");
+			force = true;
+		}
 	}
 
 	if (data->fw_ver < data->fw_ver_bin || data->fw_ver > TEST_FIRMWARE_DETECT_VER
@@ -2730,7 +2812,7 @@ static int a96t396_power_onoff(void *pdata, bool on)
 			return ret;
 		}
 		gpio_set_value(data->ldo_en, on);
-		GRIP_INFO("ldo_en power %d\n", on);
+		GRIP_INFO("ldo_en power %d\n", gpio_get_value(data->ldo_en));
 		gpio_free(data->ldo_en);
 	}
 
@@ -2806,45 +2888,33 @@ static int a96t396_parse_dt(struct a96t396_data *data, struct device *dev)
 {
 	struct device_node *np = dev->of_node;
 	struct pinctrl *p;
-	int ret;
+	int ret = 0;
 	enum of_gpio_flags flags;
 
-	if (data->ic_num == MAIN_GRIP)
-		data->grip_int = of_get_named_gpio(np, "a96t396,irq_gpio", 0);
-#if defined(CONFIG_SENSORS_A96T396_SUB)
-	if (data->ic_num == SUB_GRIP)
-		data->grip_int = of_get_named_gpio(np, "a96t396_sub,irq_gpio", 0);
-#endif
-#if defined(CONFIG_SENSORS_A96T396_WIFI)
-	if (data->ic_num == WIFI_GRIP)
-		data->grip_int = of_get_named_gpio(np, "a96t396_wifi,irq_gpio", 0);
-#endif
+	data->grip_int = of_get_named_gpio(np, "irq_gpio", 0);
 	if (data->grip_int < 0) {
-		GRIP_ERR("Cannot get grip_int\n");
+		GRIP_ERR("Can't get grip_int\n");
 		return data->grip_int;
 	}
-	if (data->ic_num == MAIN_GRIP)
-		data->ldo_en = of_get_named_gpio_flags(np, "a96t396,ldo_en", 0, &flags);
-#if defined(CONFIG_SENSORS_A96T396_SUB)
-	if (data->ic_num == SUB_GRIP)
-		data->ldo_en = of_get_named_gpio_flags(np, "a96t396_sub,ldo_en", 0, &flags);
-#endif
-#if defined(CONFIG_SENSORS_A96T396_WIFI)
-	if (data->ic_num == WIFI_GRIP)
-		data->ldo_en = of_get_named_gpio_flags(np, "a96t396_wifi,ldo_en", 0, &flags);
-#endif
 
+	data->ldo_en = of_get_named_gpio_flags(np, "ldo_en", 0, &flags);
 	if (data->ldo_en < 0) {
-		GRIP_ERR("fail to get ldo_en\n");
+		GRIP_INFO("set ldo_en 0\n");
 		data->ldo_en = 0;
 	} else {
+#if IS_ENABLED(CONFIG_SENSORS_A96T396)
 		if (data->ic_num == MAIN_GRIP)
 			ret = gpio_request(data->ldo_en, "a96t396_ldo_en");
-#if defined(CONFIG_SENSORS_A96T396_SUB)
+#endif
+#if IS_ENABLED(CONFIG_SENSORS_A96T396_SUB)
 		if (data->ic_num == SUB_GRIP)
 			ret = gpio_request(data->ldo_en, "a96t396_sub_ldo_en");
 #endif
-#if defined(CONFIG_SENSORS_A96T396_WIFI)
+#if IS_ENABLED(CONFIG_SENSORS_A96T396_SUB2)
+		if (data->ic_num == SUB2_GRIP)
+			ret = gpio_request(data->ldo_en, "a96t396_sub2_ldo_en");
+#endif
+#if IS_ENABLED(CONFIG_SENSORS_A96T396_WIFI)
 		if (data->ic_num == WIFI_GRIP)
 			ret = gpio_request(data->ldo_en, "a96t396_wifi_ldo_en");
 #endif
@@ -2856,88 +2926,36 @@ static int a96t396_parse_dt(struct a96t396_data *data, struct device *dev)
 		gpio_free(data->ldo_en);
 	}
 
-	if (data->ic_num == MAIN_GRIP) {
-		if (of_property_read_string_index(np, "a96t396,dvdd_vreg_name", 0,
-				(const char **)&data->dvdd_vreg_name)) {
-			data->dvdd_vreg_name = NULL;
-		}
+	if (of_property_read_string_index(np, "dvdd_vreg_name", 0,
+					(const char **)&data->dvdd_vreg_name)) {
+		data->dvdd_vreg_name = NULL;
 	}
-#if defined(CONFIG_SENSORS_A96T396_SUB)
-	if (data->ic_num == SUB_GRIP) {
-		if (of_property_read_string_index(np, "a96t396_sub,dvdd_vreg_name", 0,
-						(const char **)&data->dvdd_vreg_name)) {
-			data->dvdd_vreg_name = NULL;
-		}
-	}
-#endif
-#if defined(CONFIG_SENSORS_A96T396_WIFI)
-	if (data->ic_num == WIFI_GRIP) {
-		if (of_property_read_string_index(np, "a96t396_wifi,dvdd_vreg_name", 0,
-						(const char **)&data->dvdd_vreg_name)) {
-			data->dvdd_vreg_name = NULL;
-		}
-	}
-#endif
-
 	GRIP_INFO("dvdd_vreg_name: %s\n", data->dvdd_vreg_name);
 
-	if (data->ic_num == MAIN_GRIP)
-		ret = of_property_read_string(np, "a96t396,fw_path", (const char **)&data->fw_path);
-#if defined(CONFIG_SENSORS_A96T396_SUB)
-	if (data->ic_num == SUB_GRIP)
-		ret = of_property_read_string(np, "a96t396_sub,fw_path", (const char **)&data->fw_path);
-#endif
-#if defined(CONFIG_SENSORS_A96T396_WIFI)
-	if (data->ic_num == WIFI_GRIP)
-		ret = of_property_read_string(np, "a96t396_wifi,fw_path", (const char **)&data->fw_path);
-#endif
 
+	ret = of_property_read_string(np, "fw_path", (const char **)&data->fw_path);
 	if (ret < 0) {
-		GRIP_ERR("failed to read fw_path %d\n", ret);
+		GRIP_INFO("use TK_FW_PATH_BIN %d\n", ret);
 		data->fw_path = TK_FW_PATH_BIN;
 	}
 	GRIP_INFO("fw path %s\n", data->fw_path);
 
-	if (data->ic_num == MAIN_GRIP)
-		ret = of_property_read_u32(np, "a96t396,firmup_cmd", &data->firmup_cmd);
-#if defined(CONFIG_SENSORS_A96T396_SUB)
-	if (data->ic_num == SUB_GRIP)
-		ret = of_property_read_u32(np, "a96t396_sub,firmup_cmd", &data->firmup_cmd);
-#endif
-#if defined(CONFIG_SENSORS_A96T396_WIFI)
-	if (data->ic_num == WIFI_GRIP)
-		ret = of_property_read_u32(np, "a96t396_wifi,firmup_cmd", &data->firmup_cmd);
-#endif
 
+	ret = of_property_read_u32(np, "firmup_cmd", &data->firmup_cmd);
 	if (ret < 0)
 		data->firmup_cmd = 0;
 
-	if (data->ic_num == MAIN_GRIP)
-		ret = of_property_read_u32(np, "a96t396,multi_use", &data->multi_use);
-#if defined(CONFIG_SENSORS_A96T396_SUB)
-	else if (data->ic_num == SUB_GRIP)
-		ret = of_property_read_u32(np, "a96t396_sub,multi_use", &data->multi_use);
-#endif
-#if defined(CONFIG_SENSORS_A96T396_WIFI)
-	else if (data->ic_num == WIFI_GRIP)
-		ret = of_property_read_u32(np, "a96t396_wifi,multi_use", &data->multi_use);
-#endif
+
+	ret = of_property_read_u32(np, "multi_use", &data->multi_use);
 	if (ret < 0) {
-		GRIP_ERR("multi_use set fail\n");
+		GRIP_INFO("set multi_use 0\n");
 		data->multi_use = 0;
 	}
-	if (data->ic_num == MAIN_GRIP)
-		ret = of_property_read_u32(np, "a96t396,unknown_ch_selection", &data->unknown_ch_selection);
-#if defined(CONFIG_SENSORS_A96T396_SUB)
-	else if (data->ic_num == SUB_GRIP)
-		ret = of_property_read_u32(np, "a96t396_sub,unknown_ch_selection", &data->unknown_ch_selection);
-#endif
-#if defined(CONFIG_SENSORS_A96T396_WIFI)
-	else if (data->ic_num == WIFI_GRIP)
-		ret = of_property_read_u32(np, "a96t396_wifi,unknown_ch_selection", &data->unknown_ch_selection);
-#endif
+
+
+	ret = of_property_read_u32(np, "unknown_ch_selection", &data->unknown_ch_selection);
 	if (ret < 0) {
-		GRIP_ERR("fail select unknown ch\n");
+		GRIP_INFO("set select unknown ch 3\n");
 		data->unknown_ch_selection = 3;
 	}
 	p = pinctrl_get_select_default(dev);
@@ -2956,8 +2974,30 @@ static int a96t396_pdic_handle_notification(struct notifier_block *nb,
 	PD_NOTI_ATTACH_TYPEDEF usb_typec_info = *(PD_NOTI_ATTACH_TYPEDEF *)pdic_data;
 	struct a96t396_data *data = container_of(nb, struct a96t396_data, pdic_nb);
 
-	if (usb_typec_info.id != PDIC_NOTIFY_ID_ATTACH)
+#if IS_ENABLED(CONFIG_TABLET_MODEL_CONCEPT)
+	GRIP_INFO("tablet model : reset skip!\n");
+	return 0;
+#endif
+
+	if (usb_typec_info.id != PDIC_NOTIFY_ID_ATTACH && usb_typec_info.id != PDIC_NOTIFY_ID_OTG) {
+#if defined(CONFIG_SEC_FACTORY)
+		if (usb_typec_info.id == PDIC_NOTIFY_ID_RID) {
+			PD_NOTI_RID_TYPEDEF usb_fac_cable_info = *(PD_NOTI_RID_TYPEDEF *)pdic_data;
+			switch (usb_fac_cable_info.rid) {
+			case RID_301K:
+			case RID_523K:
+			case RID_619K:
+				schedule_work(&data->pdic_detach_reset_work);
+				GRIP_INFO("fac cable exception code rid : %d", usb_fac_cable_info.rid);
+				break;
+			default:
+				break;
+			}
+		}
+#endif
 		return 0;
+	}
+
 	if (data->pre_attach == usb_typec_info.attach)
 		return 0;
 
@@ -2988,24 +3028,77 @@ static int a96t396_pdic_handle_notification(struct notifier_block *nb,
 
 #if IS_ENABLED(CONFIG_HALL_NOTIFIER)
 static int a96t396_hall_notifier(struct notifier_block *nb,
-				unsigned long action, void *hall_data)
+				unsigned long flip_cover, void *hall_data)
 {
-	struct hall_notifier_context *hall_notifier;
-	struct a96t396_data *data =
-			container_of(nb, struct a96t396_data, hall_nb);
-	hall_notifier = hall_data;
-
-	if (action == HALL_ATTACH) {
-		GRIP_INFO("%s attach\n", hall_notifier->name);
-		schedule_work(&data->hall_reset_work);
-		a96t396_enter_unknown_mode(data, TYPE_HALL);
-	} else if (action == HALL_DETACH) {
-		GRIP_INFO("%s detach\n", hall_notifier->name);
-		a96t396_enter_unknown_mode(data, TYPE_HALL);
+#if IS_ENABLED(CONFIG_TABLET_MODEL_CONCEPT)
+	struct hall_notifier_context *hall_notifier = hall_data;
+#endif
+	struct a96t396_data *data = container_of(nb, struct a96t396_data,
+					hall_nb);
+	if (data == NULL) {
+		GRIP_ERR("data is null\n");
+		return 0;
 	}
+
+#ifdef CONFIG_SENSORS_A96T396_2CH
+	if (data->multi_use) {
+		GRIP_INFO("set flip unknown mode(flip %s,prev %d %d)\n",
+			flip_cover ? "close" : "open", data->is_unknown_mode, data->mul_ch->is_unknown_mode);
+	} else {
+		GRIP_INFO("set flip unknown mode(flip %s,prev %d)\n",
+			flip_cover ? "close" : "open", data->is_unknown_mode);
+	}
+#else
+	GRIP_INFO("set flip unknown mode(flip %s,prev %d)\n",
+		flip_cover ? "close" : "open", data->is_unknown_mode);
+#endif
+
+#if IS_ENABLED(CONFIG_TABLET_MODEL_CONCEPT)
+	if (flip_cover) {
+		GRIP_INFO("%s attach\n", hall_notifier->name);
+		if (strncmp(hall_notifier->name, "certify_hall", sizeof("certify_hall") - 1) == 0 ||
+			strncmp(hall_notifier->name, "hall_wacom", sizeof("hall_wacom") - 1) == 0) {
+			schedule_work(&data->reset_work);
+			GRIP_INFO("reset only without unknown, %s\n", hall_notifier->name);
+		} else if (strncmp(hall_notifier->name, "hall", sizeof("hall") - 1) == 0)
+			GRIP_INFO("reset skip, %s\n", hall_notifier->name);
+		else
+			GRIP_INFO("%s is not defined, hall_notifier_name\n", hall_notifier->name);
+	}
+#else
+	if (flip_cover)
+		schedule_work(&data->reset_work);
+	a96t396_enter_unknown_mode(data, TYPE_HALL);
+#endif
+	return 0;
+}
+#endif
+
+#if IS_ENABLED(CONFIG_TABLET_MODEL_CONCEPT)
+#if IS_ENABLED(CONFIG_KEYBOARD_STM32_POGO_V3) || IS_ENABLED(CONFIG_KEYBOARD_STM32_POGO_V2) || IS_ENABLED(CONFIG_KEYBOARD_STM32_POGO)
+static int a96t396_pogo_notifier(struct notifier_block *nb,
+		unsigned long action, void *pogo_data)
+{
+	struct a96t396_data *data = container_of(nb, struct a96t396_data,
+					pogo_nb);
+
+	switch (action) {
+	case POGO_NOTIFIER_ID_ATTACHED:
+#if defined(CONFIG_HALL_NOTIFIER)
+		schedule_work(&data->reset_work);
+#else
+		a96t396_grip_sw_reset(data);
+#endif
+		GRIP_INFO("pogo attach\n");
+		break;
+	case POGO_NOTIFIER_ID_DETACHED:
+		GRIP_INFO("pogo dettach\n");
+		break;
+	};
 
 	return 0;
 }
+#endif
 #endif
 
 static void a96t396_check_first_working(struct a96t396_data *data)
@@ -3039,19 +3132,6 @@ static void a96t396_2ch_check_first_working(struct a96t396_data *data)
 			}
 		}
 	}
-}
-
-static int a96t396_sensor_attr_offset(void)
-{
-	int i;
-	int offset_max = SENSOR_ATTR_SIZE - (sizeof(multi_sensor_attrs) / sizeof(ssize_t *));
-
-	for (i = 0; i < offset_max; i++) {
-		if (grip_sensor_attributes[i] == NULL)
-			return i;
-	}
-
-	return -1;
 }
 #endif
 
@@ -3100,9 +3180,8 @@ static int a96t396_ioctl_handler(struct a96t396_data *data,
 {
 	int status = 0;
 
-	GRIP_INFO("IOCTL Handler");
 	if (data == NULL) {
-		GRIP_INFO("probe failed");
+		pr_err("[GRIP] probe failed");
 		return -1;
 	}
 
@@ -3151,6 +3230,21 @@ static void cleanup_miscdev(struct a96t396_data *data)
 
 #endif
 
+#if IS_ENABLED(CONFIG_TABLET_MODEL_CONCEPT)
+#if IS_ENABLED(CONFIG_KEYBOARD_STM32_POGO_V3) || IS_ENABLED(CONFIG_KEYBOARD_STM32_POGO_V2) || IS_ENABLED(CONFIG_KEYBOARD_STM32_POGO)
+static void a96t396_init_work_func(struct work_struct *work)
+{
+	struct a96t396_data *data = container_of((struct delayed_work *)work,
+		struct a96t396_data, init_work);
+
+	GRIP_INFO("register pogo_notifier\n");
+
+	pogo_notifier_register(&data->pogo_nb, a96t396_pogo_notifier,
+					POGO_NOTIFY_DEV_SENSOR);
+}
+#endif
+#endif
+
 static int a96t396_probe(struct i2c_client *client,
 	const struct i2c_device_id *id)
 {
@@ -3160,23 +3254,33 @@ static int a96t396_probe(struct i2c_client *client,
 
 	int ret;
 	int ic_num = 0;
+
 #ifdef CONFIG_SENSORS_A96T396_2CH
 	struct device_attribute *sensor_attributes[SENSOR_ATTR_SIZE];
 #endif
+
+#ifdef CONFIG_SENSORS_FW_VENDOR
+	static int fw_count;
+
+	probe_count = probe_count + 1;
+#endif
+#if IS_ENABLED(CONFIG_SENSORS_A96T396)
 	if (strcmp(client->name, "a96t396") == 0)
 		ic_num = MAIN_GRIP;
-#if defined(CONFIG_SENSORS_A96T396_SUB)
-	else if (strcmp(client->name, "a96t396_sub") == 0)
+#endif
+#if IS_ENABLED(CONFIG_SENSORS_A96T396_SUB)
+	if (strcmp(client->name, "a96t396_sub") == 0)
 		ic_num = SUB_GRIP;
 #endif
-#if defined(CONFIG_SENSORS_A96T396_WIFI)
-	else if (strcmp(client->name, "a96t396_wifi") == 0)
+#if IS_ENABLED(CONFIG_SENSORS_A96T396_SUB2)
+	if (strcmp(client->name, "a96t396_sub2") == 0)
+		ic_num = SUB2_GRIP;
+#endif
+#if IS_ENABLED(CONFIG_SENSORS_A96T396_WIFI)
+	if (strcmp(client->name, "a96t396_wifi") == 0)
 		ic_num = WIFI_GRIP;
 #endif
-	else {
-		pr_err("[GRIP] client->name : %s, can't find grip ic num", client->name);
-		return -1;
-	}
+
 	pr_info("[GRIP_%s] %s: start (0x%x)\n", grip_name[ic_num], __func__, client->addr);
 	if (!i2c_check_functionality(client->adapter, I2C_FUNC_I2C)) {
 		pr_err("[GRIP_%s] i2c_check_functionality fail\n", grip_name[ic_num]);
@@ -3213,6 +3317,7 @@ static int a96t396_probe(struct i2c_client *client,
 	ret = a96t396_parse_dt(data, &client->dev);
 	if (ret) {
 		GRIP_ERR("failed to a96t396_parse_dt\n");
+		input_free_device(input_dev);
 		goto err_config;
 	}
 
@@ -3223,6 +3328,7 @@ static int a96t396_probe(struct i2c_client *client,
 		if (!data->mul_ch) {
 			GRIP_ERR("multi_channel alloc failed");
 			data->multi_use = 0;
+			input_free_device(input_dev);
 			goto err_config;
 		}
 		data->mul_ch->is_unknown_mode = UNKNOWN_OFF;
@@ -3235,6 +3341,7 @@ static int a96t396_probe(struct i2c_client *client,
 	ret = a96t396_irq_init(&client->dev, data);
 	if (ret) {
 		GRIP_ERR("failed to init reg\n");
+		input_free_device(input_dev);
 		goto pwr_config;
 	}
 
@@ -3255,6 +3362,7 @@ static int a96t396_probe(struct i2c_client *client,
 	ret = a96t396_fw_check(data);
 	if (ret) {
 		GRIP_ERR("failed to firmware check (%d)\n", ret);
+		input_free_device(input_dev);
 		goto err_reg_input_dev;
 	}
 #else
@@ -3268,6 +3376,7 @@ static int a96t396_probe(struct i2c_client *client,
 	ret = a96t396_i2c_read(client, REG_MODEL_NO, &buf, 1);
 	if (ret) {
 		GRIP_ERR("i2c is failed %d\n", ret);
+		input_free_device(input_dev);
 		goto err_reg_input_dev;
 	} else {
 		GRIP_INFO("i2c is normal, model_no = 0x%2x\n", buf);
@@ -3306,6 +3415,7 @@ static int a96t396_probe(struct i2c_client *client,
 	noti_input_dev = input_allocate_device();
 	if (!noti_input_dev) {
 		GRIP_ERR("noti_input_allocate_device failed\n");
+		input_free_device(input_dev);
 		goto err_noti_input_alloc;
 	}
 
@@ -3321,23 +3431,68 @@ static int a96t396_probe(struct i2c_client *client,
 	INIT_DELAYED_WORK(&data->debug_work, a96t396_debug_work_func);
 	INIT_WORK(&data->pdic_attach_reset_work, pdic_attach_reset_work_func);
 	INIT_WORK(&data->pdic_detach_reset_work, pdic_detach_reset_work_func);
-	INIT_WORK(&data->hall_reset_work, hall_reset_work_func);
+	INIT_WORK(&data->reset_work, reset_work_func);
 #ifdef CONFIG_SENSORS_FW_VENDOR
 	INIT_DELAYED_WORK(&data->firmware_work, a96t396_firmware_work_func);
+#endif
+#if IS_ENABLED(CONFIG_TABLET_MODEL_CONCEPT)
+#if IS_ENABLED(CONFIG_KEYBOARD_STM32_POGO_V3) || IS_ENABLED(CONFIG_KEYBOARD_STM32_POGO_V2) || IS_ENABLED(CONFIG_KEYBOARD_STM32_POGO)
+	INIT_DELAYED_WORK(&data->init_work, a96t396_init_work_func);
+#endif
 #endif
 	ret = input_register_device(input_dev);
 	if (ret) {
 		GRIP_ERR("failed to register input dev (%d)\n", ret);
+		input_free_device(input_dev);
+		input_free_device(noti_input_dev);
 		goto err_reg_input_dev;
 	}
 
-	ret = input_register_device(noti_input_dev);
+	if (data->unknown_ch_selection)
+		ret = input_register_device(noti_input_dev);
+	else
+		ret = -1;
+
 	if (ret) {
 		input_free_device(noti_input_dev);
 		GRIP_ERR("failed to register input dev for noti (%d)\n", ret);
-		goto err_register_input_dev_noti;
+		if (data->unknown_ch_selection)
+			goto err_register_input_dev_noti;
 	}
 
+#if defined(CONFIG_SENSORS_CORE_AP)
+	ret = sensors_create_symlink(&input_dev->dev.kobj,
+					 input_dev->name);
+	if (ret < 0) {
+		pr_err("[GRIP_%d] fail to create symlink %d\n", data->ic_num, ret);
+		goto err_sysfs_symlink;
+	}
+
+	ret = sysfs_create_group(&data->input_dev->dev.kobj, &a96t396_attribute_group);
+	if (ret < 0) {
+		pr_err("[GRIP_%d] fail to create sysfs group (%d)\n", data->ic_num, ret);
+		goto err_sysfs_group;
+	}
+
+#ifdef CONFIG_SENSORS_A96T396_2CH
+	memcpy(sensor_attributes, grip_sensor_attributes, sizeof(grip_sensor_attributes));
+	if (data->multi_use) {
+		int multi_sensor_attrs_size = sizeof(multi_sensor_attrs) / sizeof(ssize_t *);
+		int grip_sensor_attr_size = sizeof(grip_sensor_attributes) / sizeof(ssize_t *);
+
+		if (SENSOR_ATTR_SIZE <  multi_sensor_attrs_size + grip_sensor_attr_size) {
+			GRIP_ERR("failed : mem size of sensor_attr is exceeded size : %d, %d\n", multi_sensor_attrs_size, grip_sensor_attr_size);
+			goto err_sysfs_group;
+		}
+		memcpy(sensor_attributes + grip_sensor_attr_size - 1, multi_sensor_attrs, sizeof(multi_sensor_attrs));
+	}
+	ret = sensors_register(&data->dev, data, sensor_attributes,
+				(char *)module_name[data->ic_num]);
+#else
+	ret = sensors_register(&data->dev, data, grip_sensor_attributes,
+				(char *)module_name[data->ic_num]);
+#endif
+#else // !CONFIG_SENSORS_CORE_AP
 	ret = sensors_create_symlink(data->input_dev);
 	if (ret < 0) {
 		GRIP_ERR("Failed to create sysfs symlink\n");
@@ -3350,18 +3505,17 @@ static int a96t396_probe(struct i2c_client *client,
 		GRIP_ERR("Failed to create sysfs group\n");
 		goto err_sysfs_group;
 	}
-
 #ifdef CONFIG_SENSORS_A96T396_2CH
 	memcpy(sensor_attributes, grip_sensor_attributes, sizeof(grip_sensor_attributes));
 	if (data->multi_use) {
-		int offset = a96t396_sensor_attr_offset();
+		int multi_sensor_attrs_size = sizeof(multi_sensor_attrs) / sizeof(ssize_t *);
+		int grip_sensor_attr_size = sizeof(grip_sensor_attributes) / sizeof(ssize_t *);
 
-		if (offset < 0) {
-			data->multi_use = 0;
-			GRIP_ERR("failed : memory size of sensor_attr is exceeded\n");
-		} else {
-			memcpy(sensor_attributes + offset, multi_sensor_attrs, sizeof(multi_sensor_attrs));
+		if (SENSOR_ATTR_SIZE <  multi_sensor_attrs_size + grip_sensor_attr_size) {
+			GRIP_ERR("failed : mem size of sensor_attr is exceeded size : %d, %d\n", multi_sensor_attrs_size, grip_sensor_attr_size);
+			goto err_sysfs_group;
 		}
+		memcpy(sensor_attributes + grip_sensor_attr_size - 1, multi_sensor_attrs, sizeof(multi_sensor_attrs));
 	}
 	ret = sensors_register(data->dev, data, sensor_attributes,
 				(char *)module_name[data->ic_num]);
@@ -3369,7 +3523,7 @@ static int a96t396_probe(struct i2c_client *client,
 	ret = sensors_register(data->dev, data, grip_sensor_attributes,
 				(char *)module_name[data->ic_num]);
 #endif
-
+#endif
 	if (ret) {
 		GRIP_ERR("could not register grip_sensor(%d)\n", ret);
 		goto err_sensor_register;
@@ -3391,26 +3545,33 @@ static int a96t396_probe(struct i2c_client *client,
 
 	device_init_wakeup(&client->dev, true);
 
-	a96t396_set_debug_work(data, 1, 20000);
+	a96t396_set_debug_work(data, ON, 20000);
 #ifdef CONFIG_SENSORS_FW_VENDOR
-	a96t396_set_firmware_work(data, 1, 1);
+	if (fw_count == 0)
+		a96t396_set_firmware_work(data, ON, SHCEDULE_INTERVAL);
+	gp_fw_work[ic_num] = &data->firmware_work;
+	fw_count = fw_count + 1;
 #endif
 
 #if IS_ENABLED(CONFIG_PDIC_NOTIFIER) && IS_ENABLED(CONFIG_USB_TYPEC_MANAGER_NOTIFIER)
 	data->pdic_status = OFF;
 	data->pdic_pre_attach = 0;
 	manager_notifier_register(&data->pdic_nb,
-								a96t396_pdic_handle_notification,
-								MANAGER_NOTIFY_PDIC_SENSORHUB);
+					a96t396_pdic_handle_notification,
+					MANAGER_NOTIFY_PDIC_SENSORHUB);
 #endif
 
 #if IS_ENABLED(CONFIG_HALL_NOTIFIER)
-		GRIP_INFO("register hall notifier\n");
-		data->hall_nb.priority = 1;
-		data->hall_nb.notifier_call = a96t396_hall_notifier;
-		hall_notifier_register(&data->hall_nb);
+	GRIP_INFO("register hall notifier\n");
+	data->hall_nb.priority = 1;
+	data->hall_nb.notifier_call = a96t396_hall_notifier;
+	hall_notifier_register(&data->hall_nb);
 #endif
-
+#if IS_ENABLED(CONFIG_TABLET_MODEL_CONCEPT)
+#if IS_ENABLED(CONFIG_KEYBOARD_STM32_POGO_V3) || IS_ENABLED(CONFIG_KEYBOARD_STM32_POGO_V2) || IS_ENABLED(CONFIG_KEYBOARD_STM32_POGO)
+	schedule_delayed_work(&data->init_work, msecs_to_jiffies(5000));
+#endif
+#endif
 	GRIP_INFO("done\n");
 	data->probe_done = true;
 	data->resume_called = false;
@@ -3422,7 +3583,11 @@ err_sensor_register:
 	sysfs_remove_group(&data->input_dev->dev.kobj,
 			&a96t396_attribute_group);
 err_sysfs_group:
-	sensors_remove_symlink(data->input_dev);
+#if defined(CONFIG_SENSORS_CORE_AP)
+	sensors_remove_symlink(&data->input_dev->dev.kobj, data->input_dev->name);
+#else
+	sensors_remove_symlink(input_dev);
+#endif
 err_sysfs_symlink:
 	input_unregister_device(noti_input_dev);
 err_register_input_dev_noti:
@@ -3438,7 +3603,6 @@ err_reg_input_dev:
 pwr_config:
 err_config:
 	wakeup_source_unregister(data->grip_ws);
-	input_free_device(input_dev);
 err_input_alloc:
 #ifdef CONFIG_SENSORS_A96T396_2CH
 	if (data->multi_use)
@@ -3472,7 +3636,11 @@ static int a96t396_remove(struct i2c_client *client)
 	sensors_unregister(data->dev, grip_sensor_attributes);
 	sysfs_remove_group(&data->input_dev->dev.kobj,
 				&a96t396_attribute_group);
+#if defined(CONFIG_SENSORS_CORE_AP)
+	sensors_remove_symlink(&data->input_dev->dev.kobj, data->input_dev->name);
+#else
 	sensors_remove_symlink(data->input_dev);
+#endif
 	input_unregister_device(data->input_dev);
 	input_free_device(data->input_dev);
 #ifdef CONFIG_SENSORS_A96T396_2CH
@@ -3492,12 +3660,13 @@ static int a96t396_suspend(struct device *dev)
 	GRIP_INFO("current_state : %d\n", data->current_state);
 	a96t396_set_debug_work(data, 0, 0);
 
+#if !defined(CONFIG_SENSORS_CORE_AP)
 	if (data->current_state)
 		disable_irq(data->irq);
-
+#endif
 	cancel_work_sync(&data->pdic_attach_reset_work);
 	cancel_work_sync(&data->pdic_detach_reset_work);
-	cancel_work_sync(&data->hall_reset_work);
+	cancel_work_sync(&data->reset_work);
 
 	return 0;
 }
@@ -3510,9 +3679,10 @@ static int a96t396_resume(struct device *dev)
 	data->resume_called = true;
 	a96t396_set_debug_work(data, 1, 0);
 
+#if !defined(CONFIG_SENSORS_CORE_AP)
 	if (data->current_state)
 		enable_irq(data->irq);
-
+#endif
 	return 0;
 }
 
@@ -3530,9 +3700,15 @@ static void a96t396_shutdown(struct i2c_client *client)
 
 	cancel_work_sync(&data->pdic_attach_reset_work);
 	cancel_work_sync(&data->pdic_detach_reset_work);
-	cancel_work_sync(&data->hall_reset_work);
+	cancel_work_sync(&data->reset_work);
 }
 
+static const struct dev_pm_ops a96t396_pm_ops = {
+	.suspend = a96t396_suspend,
+	.resume = a96t396_resume,
+};
+
+#if IS_ENABLED(CONFIG_SENSORS_A96T396)
 static const struct i2c_device_id a96t396_device_id[] = {
 	{"grip_sensor", 0},
 	{}
@@ -3549,25 +3725,20 @@ static const struct of_device_id a96t396_match_table[] = {
 #define a96t396_match_table NULL
 #endif
 
-static const struct dev_pm_ops a96t396_pm_ops = {
-	.suspend = a96t396_suspend,
-	.resume = a96t396_resume,
-};
-
 static struct i2c_driver a96t396_driver = {
 	.probe = a96t396_probe,
 	.remove = a96t396_remove,
 	.shutdown = a96t396_shutdown,
 	.id_table = a96t396_device_id,
 	.driver = {
-		.name = "A96T3X6",
+		.name = "A96T396",
 		.owner = THIS_MODULE,
 		.of_match_table = a96t396_match_table,
 		.pm = &a96t396_pm_ops
 	},
 };
-
-#if defined(CONFIG_SENSORS_A96T396_SUB)
+#endif
+#if IS_ENABLED(CONFIG_SENSORS_A96T396_SUB)
 static const struct i2c_device_id a96t396_sub_device_id[] = {
 	{"grip_sensor_sub", 0},
 	{}
@@ -3589,14 +3760,43 @@ static struct i2c_driver a96t396_sub_driver = {
 	.shutdown = a96t396_shutdown,
 	.id_table = a96t396_sub_device_id,
 	.driver = {
-		.name = "A96T3X6_SUB",
+		.name = "A96T396_SUB",
 		.owner = THIS_MODULE,
 		.of_match_table = a96t396_sub_match_table,
 		.pm = &a96t396_pm_ops
 	},
 };
 #endif
-#if defined(CONFIG_SENSORS_A96T396_WIFI)
+#if IS_ENABLED(CONFIG_SENSORS_A96T396_SUB2)
+static const struct i2c_device_id a96t396_sub2_device_id[] = {
+	{"grip_sensor_sub2", 0},
+	{}
+};
+
+MODULE_DEVICE_TABLE(i2c, a96t396_sub2_device_id);
+#ifdef CONFIG_OF
+static const struct of_device_id a96t396_sub2_match_table[] = {
+	{ .compatible = "a96t396_sub2",},
+	{ },
+};
+#else
+#define a96t396_sub2_match_table NULL
+#endif
+
+static struct i2c_driver a96t396_sub2_driver = {
+	.probe = a96t396_probe,
+	.remove = a96t396_remove,
+	.shutdown = a96t396_shutdown,
+	.id_table = a96t396_sub2_device_id,
+	.driver = {
+		.name = "A96T396_SUB2",
+		.owner = THIS_MODULE,
+		.of_match_table = a96t396_sub2_match_table,
+		.pm = &a96t396_pm_ops
+	},
+};
+#endif
+#if IS_ENABLED(CONFIG_SENSORS_A96T396_WIFI)
 static const struct i2c_device_id a96t396_wifi_device_id[] = {
 	{"grip_sensor_wifi", 0},
 	{}
@@ -3617,7 +3817,7 @@ static struct i2c_driver a96t396_wifi_driver = {
 	.shutdown = a96t396_shutdown,
 	.id_table = a96t396_wifi_device_id,
 	.driver = {
-		.name = "A96T3X6_WIFI",
+		.name = "A96T396_WIFI",
 		.owner = THIS_MODULE,
 		.of_match_table = a96t396_wifi_match_table,
 		.pm = &a96t396_pm_ops
@@ -3629,17 +3829,22 @@ static int __init a96t396_init(void)
 {
 	int ret = 0;
 
+#if IS_ENABLED(CONFIG_SENSORS_A96T396)
 	ret = i2c_add_driver(&a96t396_driver);
-#if defined(CONFIG_SENSORS_A96T396)
 	if (ret != 0)
 		pr_err("[GRIP] a96t396_driver probe fail\n");
 #endif
-#if defined(CONFIG_SENSORS_A96T396_SUB)
+#if IS_ENABLED(CONFIG_SENSORS_A96T396_SUB)
 	ret = i2c_add_driver(&a96t396_sub_driver);
 	if (ret != 0)
 		pr_err("[GRIP_SUB] a96t396_sub_driver probe fail\n");
 #endif
-#if defined(CONFIG_SENSORS_A96T396_WIFI)
+#if IS_ENABLED(CONFIG_SENSORS_A96T396_SUB2)
+	ret = i2c_add_driver(&a96t396_sub2_driver);
+	if (ret != 0)
+		pr_err("[GRIP_SUB2] a96t396_sub2_driver probe fail\n");
+#endif
+#if IS_ENABLED(CONFIG_SENSORS_A96T396_WIFI)
 	ret = i2c_add_driver(&a96t396_wifi_driver);
 	if (ret != 0)
 		pr_err("[GRIP_WIFI] a96t396_wifi_driver probe fail\n");
@@ -3649,14 +3854,18 @@ static int __init a96t396_init(void)
 
 static void __exit a96t396_exit(void)
 {
+#if IS_ENABLED(CONFIG_SENSORS_A96T396)
 	i2c_del_driver(&a96t396_driver);
-#if defined(CONFIG_SENSORS_A96T396_SUB)
+#endif
+#if IS_ENABLED(CONFIG_SENSORS_A96T396_SUB)
 	i2c_del_driver(&a96t396_sub_driver);
 #endif
-#if defined(CONFIG_SENSORS_A96T396_WIFI)
+#if IS_ENABLED(CONFIG_SENSORS_A96T396_SUB2)
+	i2c_del_driver(&a96t396_sub2_driver);
+#endif
+#if IS_ENABLED(CONFIG_SENSORS_A96T396_WIFI)
 	i2c_del_driver(&a96t396_wifi_driver);
 #endif
-
 }
 
 module_init(a96t396_init);

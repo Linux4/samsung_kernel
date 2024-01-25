@@ -28,8 +28,8 @@ struct sensor_manager_t {
  *	index 0 : for sensor legacy hal sensors, type < SENSOR_TYPE_LEGACY_MAX
  *	index 2,3 : for scontext sensors, type > SENSOR_TYPE_LEGACY_MAX
  */
-	uint64_t sensor_probe_state[3];
 	struct shub_sensor *sensor_list[SENSOR_TYPE_MAX];
+	uint64_t sensor_probe_state[3];
 	struct sensor_spec_t *sensor_spec;
 	bool is_fs_ready;
 };
@@ -48,6 +48,7 @@ void print_sensor_debug(int type);
 int parsing_bypass_data(char *dataframe, int *index, int frame_len);
 int parsing_meta_data(char *dataframe, int *index, int frame_len);
 int parsing_scontext_data(char *dataframe, int *index, int frame_len);
+int parsing_big_data(char *dataframe, int *index, int frame_len);
 
 int open_sensors_calibration(void);
 int sync_sensors_attribute(void); /* sensor hub is ready or reset*/
@@ -63,9 +64,11 @@ int get_sensors_scontext_probe_state(uint64_t *buf);
 bool get_sensor_probe_state(int type);
 bool get_sensor_enabled(int type);
 unsigned int get_total_sensor_spec(char *buf);
+unsigned int get_bigdata_wakeup_reason(char *buf);
 
 void fs_ready_cb(void);
 
 void get_sensor_vendor_name(int vendor_type, char *vendor_name);
 
+void print_big_data(void);
 #endif /* __SENSOR_MANAGER_H_ */

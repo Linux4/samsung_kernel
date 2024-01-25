@@ -4558,9 +4558,11 @@ void is_destroy_rear3_sysfs(void)
 	device_remove_file(camera_rear_dev, &dev_attr_rear3_checkfw_factory);
 	device_remove_file(camera_rear_dev, &dev_attr_rear3_sensorid_exif);
 	device_remove_file(camera_rear_dev, &dev_attr_rear3_mtf_exif);
+#if defined(REAR_SUB_CAMERA)
 	device_remove_file(camera_rear_dev, &dev_attr_rear3_dualcal);
 	device_remove_file(camera_rear_dev, &dev_attr_rear3_dualcal_size);
 	device_remove_file(camera_rear_dev, &dev_attr_rear3_tilt);
+#endif
 #ifdef USE_CAMERA_HW_BIG_DATA
 	device_remove_file(camera_rear_dev, &dev_attr_rear3_hwparam);
 #endif

@@ -1026,6 +1026,10 @@ static enum page_references page_check_references(struct page *page,
 	if (vm_flags & VM_LOCKED)
 		return PAGEREF_RECLAIM;
 
+	/* rmap lock contention: rotate */
+	if (referenced_ptes == -1)
+		return PAGEREF_KEEP;
+
 	if (referenced_ptes) {
 		if (PageSwapBacked(page))
 			return PAGEREF_ACTIVATE;
@@ -2203,8 +2207,9 @@ static void shrink_active_list(unsigned long nr_to_scan,
 			}
 		}
 
+		/* Referenced or rmap lock contention: rotate */
 		if (page_referenced(page, 0, sc->target_mem_cgroup,
-				    &vm_flags)) {
+				    &vm_flags) != 0) {
 			nr_rotated += hpage_nr_pages(page);
 			/*
 			 * Identify referenced, file-backed active pages and
@@ -2354,15 +2359,35 @@ static bool am_app_launch;
 
 #define MEM_BOOST_MAX_TIME (5 * HZ) /* 5 sec */
 
-#define MEM_BOOST_THRESHOLD ((512 * 1024 * 1024) / (PAGE_SIZE))
-inline bool need_memory_boosting(struct pglist_data *pgdat)
+#define MB_TO_PAGES(x) ((x) << (20 - PAGE_SHIFT))
+#define GB_TO_PAGES(x) ((x) << (30 - PAGE_SHIFT))
+static unsigned long low_threshold;
+
+static inline bool is_too_low_file(void)
+{
+	unsigned long pgdatfile;
+
+	if (!low_threshold) {
+		if (totalram_pages > GB_TO_PAGES(4))
+			low_threshold = MB_TO_PAGES(500);
+		else if (totalram_pages > GB_TO_PAGES(3))
+			low_threshold = MB_TO_PAGES(400);
+		else if (totalram_pages > GB_TO_PAGES(2))
+			low_threshold = MB_TO_PAGES(300);
+		else
+			low_threshold = MB_TO_PAGES(200);
+	}
+
+	pgdatfile = global_node_page_state(NR_ACTIVE_FILE) +
+		    global_node_page_state(NR_INACTIVE_FILE);
+	return pgdatfile < low_threshold;
+}
+
+inline bool need_memory_boosting(void)
 {
 	bool ret;
-	unsigned long pgdatfile = node_page_state(pgdat, NR_ACTIVE_FILE) +
-				node_page_state(pgdat, NR_INACTIVE_FILE);
 
-	if (time_after(jiffies, last_mode_change + MEM_BOOST_MAX_TIME) ||
-			pgdatfile < MEM_BOOST_THRESHOLD)
+	if (time_after(jiffies, last_mode_change + MEM_BOOST_MAX_TIME))
 		mem_boost_mode = NO_BOOST;
 
 	switch (mem_boost_mode) {
@@ -2577,7 +2602,8 @@ static void get_scan_count(struct lruvec *lruvec, struct mem_cgroup *memcg,
 		}
 	}
 
-	if (current_is_kswapd() && need_memory_boosting(pgdat)) {
+	if (current_is_kswapd() && need_memory_boosting() &&
+			!is_too_low_file()) {
 		scan_balance = SCAN_FILE;
 		goto out;
 	}
@@ -2811,7 +2837,7 @@ static void shrink_node_memcg(struct pglist_data *pgdat, struct mem_cgroup *memc
 	blk_finish_plug(&plug);
 	sc->nr_reclaimed += nr_reclaimed;
 
-	if (need_memory_boosting(NULL))
+	if (need_memory_boosting())
 		return;
 
 	/*

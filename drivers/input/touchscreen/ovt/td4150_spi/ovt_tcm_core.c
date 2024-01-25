@@ -1670,18 +1670,11 @@ exit:
 }
 
 static int ovt_tcm_set_gpio(struct ovt_tcm_hcd *tcm_hcd, int gpio,
-		bool config, int dir, int state)
+		bool config, int dir, int state, const char* label)
 {
 	int retval;
-	char label[16];
 
 	if (config) {
-		retval = snprintf(label, 16, "tcm_gpio_%d\n", gpio);
-		if (retval < 0) {
-			input_err(true, tcm_hcd->pdev->dev.parent, "Failed to set GPIO label\n");
-			return retval;
-		}
-
 		retval = gpio_request(gpio, label);
 		if (retval < 0) {
 			input_err(true, tcm_hcd->pdev->dev.parent, "Failed to request GPIO %d\n", gpio);
@@ -1710,7 +1703,7 @@ static int ovt_tcm_config_gpio(struct ovt_tcm_hcd *tcm_hcd)
 	const struct ovt_tcm_board_data *bdata = tcm_hcd->hw_if->bdata;
 
 	if (bdata->irq_gpio >= 0) {
-		retval = ovt_tcm_set_gpio(tcm_hcd, bdata->irq_gpio, true, 0, 0);
+		retval = ovt_tcm_set_gpio(tcm_hcd, bdata->irq_gpio, true, 0, 0, "tcm_gpio_irq");
 		if (retval < 0) {
 			input_err(true, tcm_hcd->pdev->dev.parent, "Failed to configure interrupt GPIO\n");
 			goto err_set_gpio_irq;
@@ -1718,7 +1711,7 @@ static int ovt_tcm_config_gpio(struct ovt_tcm_hcd *tcm_hcd)
 	}
 
 	if (bdata->cs_gpio >= 0) {
-		retval = ovt_tcm_set_gpio(tcm_hcd, bdata->cs_gpio, true, 1, 0);
+		retval = ovt_tcm_set_gpio(tcm_hcd, bdata->cs_gpio, true, 1, 0, "tcm_gpio_cs");
 		if (retval < 0) {
 			input_err(true, tcm_hcd->pdev->dev.parent, "Failed to configure interrupt GPIO\n");
 			goto err_set_gpio_cs;
@@ -1726,7 +1719,7 @@ static int ovt_tcm_config_gpio(struct ovt_tcm_hcd *tcm_hcd)
 	}
 
 	if (bdata->power_gpio >= 0) {
-		retval = ovt_tcm_set_gpio(tcm_hcd, bdata->power_gpio, true, 1, !bdata->power_on_state);
+		retval = ovt_tcm_set_gpio(tcm_hcd, bdata->power_gpio, true, 1, !bdata->power_on_state, "tcm_gpio_power");
 		if (retval < 0) {
 			input_err(true, tcm_hcd->pdev->dev.parent, "Failed to configure power GPIO\n");
 			goto err_set_gpio_power;
@@ -1734,7 +1727,7 @@ static int ovt_tcm_config_gpio(struct ovt_tcm_hcd *tcm_hcd)
 	}
 
 	if (bdata->reset_gpio >= 0) {
-		retval = ovt_tcm_set_gpio(tcm_hcd, bdata->reset_gpio, true, 1, !bdata->reset_on_state);
+		retval = ovt_tcm_set_gpio(tcm_hcd, bdata->reset_gpio, true, 1, !bdata->reset_on_state, "tcm_gpio_reset");
 		if (retval < 0) {
 			input_err(true, tcm_hcd->pdev->dev.parent, "Failed to configure reset GPIO\n");
 			goto err_set_gpio_reset;
@@ -1757,13 +1750,13 @@ static int ovt_tcm_config_gpio(struct ovt_tcm_hcd *tcm_hcd)
 
 err_set_gpio_reset:
 	if (bdata->power_gpio >= 0)
-		ovt_tcm_set_gpio(tcm_hcd, bdata->power_gpio, false, 0, 0);
+		ovt_tcm_set_gpio(tcm_hcd, bdata->power_gpio, false, 0, 0, NULL);
 err_set_gpio_power:
 	if (bdata->irq_gpio >= 0)
-		ovt_tcm_set_gpio(tcm_hcd, bdata->cs_gpio, false, 0, 0);
+		ovt_tcm_set_gpio(tcm_hcd, bdata->cs_gpio, false, 0, 0, NULL);
 err_set_gpio_cs:
 	if (bdata->irq_gpio >= 0)
-		ovt_tcm_set_gpio(tcm_hcd, bdata->irq_gpio, false, 0, 0);
+		ovt_tcm_set_gpio(tcm_hcd, bdata->irq_gpio, false, 0, 0, NULL);
 err_set_gpio_irq:
 	return retval;
 }
@@ -3997,16 +3990,16 @@ err_create_run_kthread:
 #endif
 
 	if (bdata->irq_gpio >= 0)
-		ovt_tcm_set_gpio(tcm_hcd, bdata->irq_gpio, false, 0, 0);
+		ovt_tcm_set_gpio(tcm_hcd, bdata->irq_gpio, false, 0, 0, NULL);
 
 	if (bdata->cs_gpio >= 0)
-		ovt_tcm_set_gpio(tcm_hcd, bdata->cs_gpio, false, 0, 0);
+		ovt_tcm_set_gpio(tcm_hcd, bdata->cs_gpio, false, 0, 0, NULL);
 
 	if (bdata->power_gpio >= 0)
-		ovt_tcm_set_gpio(tcm_hcd, bdata->power_gpio, false, 0, 0);
+		ovt_tcm_set_gpio(tcm_hcd, bdata->power_gpio, false, 0, 0, NULL);
 
 	if (bdata->reset_gpio >= 0)
-		ovt_tcm_set_gpio(tcm_hcd, bdata->reset_gpio, false, 0, 0);
+		ovt_tcm_set_gpio(tcm_hcd, bdata->reset_gpio, false, 0, 0, NULL);
 err_get_lcd_regulator:
 	ovt_tcm_get_lcd_regulator(tcm_hcd, false);
 
@@ -4089,16 +4082,16 @@ static int ovt_tcm_remove(struct platform_device *pdev)
 #endif
 
 	if (bdata->irq_gpio >= 0)
-		ovt_tcm_set_gpio(tcm_hcd, bdata->irq_gpio, false, 0, 0);
+		ovt_tcm_set_gpio(tcm_hcd, bdata->irq_gpio, false, 0, 0, NULL);
 
 	if (bdata->cs_gpio >= 0)
-		ovt_tcm_set_gpio(tcm_hcd, bdata->cs_gpio, false, 0, 0);
+		ovt_tcm_set_gpio(tcm_hcd, bdata->cs_gpio, false, 0, 0, NULL);
 
 	if (bdata->power_gpio >= 0)
-		ovt_tcm_set_gpio(tcm_hcd, bdata->power_gpio, false, 0, 0);
+		ovt_tcm_set_gpio(tcm_hcd, bdata->power_gpio, false, 0, 0, NULL);
 
 	if (bdata->reset_gpio >= 0)
-		ovt_tcm_set_gpio(tcm_hcd, bdata->reset_gpio, false, 0, 0);
+		ovt_tcm_set_gpio(tcm_hcd, bdata->reset_gpio, false, 0, 0, NULL);
 
 	ovt_tcm_enable_regulator(tcm_hcd, false);
 

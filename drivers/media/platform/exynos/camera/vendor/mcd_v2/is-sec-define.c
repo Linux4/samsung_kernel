@@ -35,7 +35,7 @@ bool sec2lsi_reload = false;
 static int cam_id = CAMERA_SINGLE_REAR;
 
 #ifdef SUPPORT_SENSOR_DUALIZATION
-static u32 is_check_dualized_sensor[SENSOR_POSITION_MAX] = {false};
+static u32 is_check_dualized_sensor[SENSOR_POSITION_MAX] = {false, };
 #endif
 
 static struct is_rom_info sysfs_finfo[SENSOR_POSITION_MAX];
@@ -1287,77 +1287,124 @@ p_err:
 }
 
 #ifdef SUPPORT_SENSOR_DUALIZATION
-static int is_sec_update_dualized_sensor(struct is_core *core, int position)
-{
-	int ret = 0;
-	int i, sensorid_2nd;
-	u32 i2c_channel;
+int is_sec_check_is_sensor(struct is_core *core, int position, int nextSensorId, bool *bVerified) {
+	int ret;
 	struct is_device_sensor_peri *sensor_peri = NULL;
 	struct v4l2_subdev *subdev_cis = NULL;
+	struct is_vender_specific *specific = core->vender.private_data;
+	int i;
+	u32 i2c_channel;
+	struct exynos_platform_is_module *module_pdata;
+	struct is_module_enum *module = NULL;
+	const u32 scenario = SENSOR_SCENARIO_NORMAL;
 
-	sensorid_2nd = is_vender_get_dualized_sensorid(position);
+	for (i = 0; i < IS_SENSOR_COUNT; i++) {
+		is_search_sensor_module_with_position(&core->sensor[i], position, &module);
+		if (module)
+			break;
+	}
 
-	if (sensorid_2nd != SENSOR_NAME_NOTHING && !is_check_dualized_sensor[position]) {
-		struct exynos_platform_is_module *module_pdata;
-		struct is_module_enum *module = NULL;
-		u32 scenario = SENSOR_SCENARIO_NORMAL;
-
-		for (i = 0; i < IS_SENSOR_COUNT; i++) {
-			is_search_sensor_module_with_position(&core->sensor[i], position, &module);
-			if (module)
-				break;
-		}
-
-		if (!module) {
-			err("%s: Could not find sensor id.", __func__);
-			ret = -EINVAL;
-			goto p_err;
-		}
-
-		module_pdata = module->pdata;
-
-		if (!module_pdata->gpio_cfg) {
-			err("gpio_cfg is NULL");
-			ret = -EINVAL;
-			goto p_err;
-		}
-		ret = module_pdata->gpio_cfg(module, scenario, GPIO_SCENARIO_ON);
-		if (ret) {
-			err("gpio_cfg is fail(%d)", ret);
-		} else {
-			sensor_peri = (struct is_device_sensor_peri *)module->private_data;
-			if (sensor_peri->subdev_cis) {
-				i2c_channel = module_pdata->sensor_i2c_ch;
-				if (i2c_channel < SENSOR_CONTROL_I2C_MAX) {
-					sensor_peri->cis.i2c_lock = &core->i2c_lock[i2c_channel];
-				} else {
-					warn("%s: wrong cis i2c_channel(%d)", __func__, i2c_channel);
-					ret = -EINVAL;
-					goto p_err;
-				}
-				subdev_cis = sensor_peri->subdev_cis;
-				ret = CALL_CISOPS(&sensor_peri->cis, cis_check_rev_on_init, subdev_cis);
-				if (ret < 0) {
-					err("%s CIS active test failed", __func__);
-					is_vender_replace_sensorid_with_second_sensorid(&core->vender, position);
-				} else {
-					info("%s CIS test passed", __func__);
-				}
-				ret = module_pdata->gpio_cfg(module, scenario, GPIO_SCENARIO_OFF);
-				if (ret) {
-					err("%s gpio_cfg is fail(%d)", __func__, ret);
-				}
-				/* Requested by HQE to meet the power guidance, add 20ms delay */
-				msleep(20);
+	if (!module) {
+		err("%s: Could not find sensor id.", __func__);
+		ret = -EINVAL;
+		goto p_err;
+	}
+	module_pdata = module->pdata;
+	if (!module_pdata->gpio_cfg) {
+		err("gpio_cfg is NULL");
+		ret = -EINVAL;
+		goto p_err;
+	}
+	ret = module_pdata->gpio_cfg(module, scenario, GPIO_SCENARIO_ON);
+	if (ret) {
+		err("gpio_cfg is fail(%d)", ret);
+	} else {
+		sensor_peri = (struct is_device_sensor_peri *)module->private_data;
+		if (sensor_peri->subdev_cis) {
+			i2c_channel = module_pdata->sensor_i2c_ch;
+			if (i2c_channel < SENSOR_CONTROL_I2C_MAX) {
+				sensor_peri->cis.i2c_lock = &core->i2c_lock[i2c_channel];
 			} else {
-				err("%s: subdev cis is NULL. dual_sensor check failed", __func__);
+				warn("%s: wrong cis i2c_channel(%d)", __func__, i2c_channel);
 				ret = -EINVAL;
 				goto p_err;
 			}
+		} else {
+			err("%s: subdev cis is NULL. dual_sensor check failed", __func__);
+			ret = -EINVAL;
+			goto p_err;
+		}
+
+		subdev_cis = sensor_peri->subdev_cis;
+		ret = CALL_CISOPS(&sensor_peri->cis, cis_check_rev_on_init, subdev_cis);
+
+		if (ret < 0) {
+			*bVerified = false;
+			specific->sensor_id[position] = nextSensorId;
+			warn("%s CIS active test failed", __func__);
+		} else {
+			*bVerified = true;
+			info("%s CIS test passed", __func__);
+		}
+		ret = module_pdata->gpio_cfg(module, scenario, GPIO_SCENARIO_OFF);
+		if (ret) {
+			err("%s gpio_cfg is fail(%d)", __func__, ret);
+		}
+
+		/* Requested by HQE to meet the power guidance, add 20ms delay */
+#ifdef PUT_30MS_BETWEEN_EACH_CAL_LOADING
+		msleep(30);
+#else
+		msleep(20);
+#endif
+	}
+p_err:
+	return ret;
+}
+
+static int is_sec_update_dualized_sensor(struct is_core *core, int position)
+{
+	int ret = 0;
+	int sensorid_1st, sensorid_2nd;
+	struct is_vender_specific *specific = core->vender.private_data;
+
+	sensorid_1st = specific->sensor_id[position];
+	sensorid_2nd = is_vender_get_dualized_sensorid(position);
+
+	if (sensorid_2nd != SENSOR_NAME_NOTHING && !is_check_dualized_sensor[position]) {
+#define COUNT_DUALIZATION_CHECK 6
+		int count_check = COUNT_DUALIZATION_CHECK;
+		bool bVerified = false;
+
+		while (count_check-- > 0) {
+			ret = is_sec_check_is_sensor(core, position, sensorid_2nd , &bVerified);
+			if (ret) {
+				err("%s: Failed to check corresponding sensor equipped", __func__);
+				break;
+			}
+
+			if (bVerified) {
+				is_check_dualized_sensor[position] = true;
+				break;
+			}
+
+			sensorid_2nd = sensorid_1st;
+			sensorid_1st = specific->sensor_id[position];
+
+			/* Update specific for dualized for OTPROM */
+			if (specific->rom_data[position].rom_type == ROM_TYPE_OTPROM) {
+				specific->rom_client[position] = specific->dualized_rom_client[position];
+				specific->rom_cal_map_addr[position] = specific->dualized_rom_cal_map_addr[position];
+			}
+
+			if (count_check < COUNT_DUALIZATION_CHECK - 2) {
+				err("Failed to find out both sensors on this device !!! (count : %d)", count_check);
+				if (count_check <= 0)
+					err("None of camera was equipped (sensorid : %d, %d)", sensorid_1st, sensorid_2nd);
+			}
 		}
 	}
-	is_check_dualized_sensor[position] = true;
-p_err:
+
 	return ret;
 }
 #endif
@@ -3189,7 +3236,7 @@ int is_sec_readcal_jdm_checksum_and_dump(char * buf, int position)
 	/* Checksum check */
 	for (i = 0; i < ap2ap_standard_cal_data->rom_num_of_segments; i++) {
 		seg_dump_addr[i] = curr_addr;
-		curr_addr += ap2ap_standard_cal_data->rom_seg_len[i];
+		curr_addr += ap2ap_standard_cal_data->rom_seg_size[i];
 	}
 
 	for (i = 0; i < ap2ap_standard_cal_data->rom_num_of_segments; i++) {
@@ -3204,7 +3251,7 @@ int is_sec_readcal_jdm_checksum_and_dump(char * buf, int position)
 			ret = -EINVAL;
 			goto exit;
 		}
-		else{
+		else {
 			info("Checksum success for segment %d", i + 1);
 		}
 	}
@@ -3848,6 +3895,139 @@ exit:
 #endif //SENSOR_OTP_GC5035
 
 #if defined(SENSOR_OTP_HI556)
+#if defined(SENSOR_OTP_HI556_STANDARD_CAL)
+int is_i2c_read_otp_hi556(struct i2c_client *client, char *buf, u16 start_addr, size_t size)
+{
+	u16 curr_addr = start_addr;
+	u8 start_addr_h = 0;
+	u8 start_addr_l = 0;
+	int ret = 0;
+	int index;
+
+	for (index = 0; index < size; index++) {
+		start_addr_h = ((curr_addr>>8) & 0xFF);
+		start_addr_l = (curr_addr & 0xFF);
+		is_sensor_write8(client, HI556_OTP_ACCESS_ADDR_HIGH, start_addr_h);
+		is_sensor_write8(client, HI556_OTP_ACCESS_ADDR_LOW, start_addr_l);
+		is_sensor_write8(client, HI556_OTP_MODE_ADDR, 0x01);
+
+		ret = is_sensor_read8(client, HI556_OTP_READ_ADDR, &buf[index]);
+		if (unlikely(ret)) {
+			err("failed to is_sensor_read8 (%d)\n", ret);
+			goto exit;
+		}
+		curr_addr ++;
+	}
+
+exit:
+	return ret;
+}
+
+int is_sec_readcal_otprom_hi556(struct device *dev, int position)
+{
+	int ret = 0;
+	int retry = IS_CAL_RETRY_CNT;
+	char *buf = NULL;
+	u8 otp_bank = 0;
+	u16 start_addr = 0;
+
+	struct is_core *core = dev_get_drvdata(is_dev);
+	struct is_vender_specific *specific = core->vender.private_data;
+	struct i2c_client *client = NULL;
+	const struct is_vender_rom_addr *rom_addr = specific->rom_cal_map_addr[position];
+
+	is_sec_get_cal_buf(position, &buf);
+	client = specific->rom_client[position];
+
+	if (!rom_addr) {
+		err("%s: otp_%d There is no cal map\n", __func__, position);
+		ret = -EINVAL;
+		goto exit;
+	}
+
+	info("%s E\n", __func__);
+
+	is_i2c_config(client, true);
+
+	/* OTP read only setting */
+	is_sec_set_registers(client, otp_read_initial_setting_hi556, otp_read_initial_setting_hi556_size);
+
+	/* OTP mode on */
+	msleep(10);
+	is_sensor_write8(client, 0x0A02, 0x01);
+	is_sensor_write8(client, 0x0114, 0x00);
+	msleep(10);
+	is_sensor_write8(client, 0x0A00, 0x00);
+	msleep(10);
+	is_sec_set_registers(client, otp_mode_on_setting_hi556, otp_mode_on_setting_hi556_size);
+	msleep(10);
+	is_sensor_write8(client, 0x0A00, 0x01);
+	msleep(10);
+
+	/* Select the bank */
+
+	is_sensor_write8(client, HI556_OTP_ACCESS_ADDR_HIGH, ((HI556_BANK_SELECT_ADDR >> 8) & 0xFF));
+	is_sensor_write8(client, HI556_OTP_ACCESS_ADDR_LOW, (HI556_BANK_SELECT_ADDR & 0xFF));
+	is_sensor_write8(client, HI556_OTP_MODE_ADDR, 0x01);
+	ret = is_sensor_read8(client, HI556_OTP_READ_ADDR, &otp_bank);
+	if (unlikely(ret)) {
+		err("failed to read otp_bank data from bank select address (%d)\n", ret);
+		ret = -EINVAL;
+	}
+
+	info("%s: otp_bank = %d\n", __func__, otp_bank);
+
+	/* select start address */
+	switch (otp_bank) {
+	case 0x01:
+		start_addr = HI556_OTP_START_ADDR_BANK1;
+		break;
+	case 0x03:
+		start_addr = HI556_OTP_START_ADDR_BANK2;
+		break;
+	case 0x07:
+		start_addr = HI556_OTP_START_ADDR_BANK3;
+		break;
+	case 0x0F:
+		start_addr = HI556_OTP_START_ADDR_BANK4;
+		break;
+	case 0x01F:
+		start_addr = HI556_OTP_START_ADDR_BANK5;
+		break;
+	default:
+		start_addr = HI556_OTP_START_ADDR_BANK1;
+		break;
+	}
+
+	info("%s: otp_start_addr = %x\n", __func__, start_addr);
+
+crc_retry:
+	info("%s I2C read cal data", __func__);
+	is_i2c_read_otp_hi556(client, buf, start_addr, HI556_OTP_USED_CAL_SIZE);
+
+	ret = is_sec_readcal_otprom_buffer(buf, position);
+	if (unlikely(ret)) {
+		if (retry >= 0) {
+			retry--;
+			goto crc_retry;
+		}
+	}
+
+	/* OTP mode off*/
+	is_sensor_write8(client, 0x0114, 0x00);
+	msleep(10);
+	is_sensor_write8(client, 0x0A00, 0x00);
+	msleep(10);
+	is_sec_set_registers(client, otp_mode_off_setting_hi556, otp_mode_off_setting_hi556_size);
+	msleep(10);
+	is_sensor_write8(client, 0x0A00, 0x01);
+	msleep(10);
+
+exit:
+	info("%s X\n", __func__);
+	return ret;
+}
+#else
 int is_i2c_read_otp_hi556(struct i2c_client *client, char *buf, int group, const struct is_vender_rom_addr *rom_addr)
 {
 	int ret = 0;
@@ -3867,11 +4047,11 @@ int is_i2c_read_otp_hi556(struct i2c_client *client, char *buf, int group, const
 
 	/* read from the rom values to the buffer */
 	for (segment = 0; segment < ap2ap_standard_cal_data->rom_num_of_segments; segment++) {
-		is_sensor_write8(client, HI556_OTP_ACCESS_ADDR_HIGH, ((ap2ap_standard_cal_data->rom_group_start_addr[segment][group]) >> 8));
-		is_sensor_write8(client, HI556_OTP_ACCESS_ADDR_LOW, ap2ap_standard_cal_data->rom_group_start_addr[segment][group] & 0xFF);
+		is_sensor_write8(client, HI556_OTP_ACCESS_ADDR_HIGH, ((ap2ap_standard_cal_data->rom_bank_start_addr[segment][group]) >> 8));
+		is_sensor_write8(client, HI556_OTP_ACCESS_ADDR_LOW, ap2ap_standard_cal_data->rom_bank_start_addr[segment][group] & 0xFF);
 		is_sensor_write8(client, HI556_OTP_MODE_ADDR, 0x01);
 
-		for (offset = 0; offset < ap2ap_standard_cal_data->rom_seg_len[segment]; offset++) {
+		for (offset = 0; offset < ap2ap_standard_cal_data->rom_seg_size[segment]; offset++) {
 			ret = is_sensor_read8(client, HI556_OTP_READ_ADDR, &buf[addr_buf++]);
 			if (unlikely(ret)) {
 				err("failed to is_sensor_read8 (%d)\n", ret);
@@ -3925,10 +4105,14 @@ int is_sec_readcal_otprom_hi556(struct device *dev, int position)
 	/* OTP mode on */
 	msleep(10);
 	is_sensor_write8(client, 0x0A02, 0x01);
+	is_sensor_write8(client, 0x0114, 0x00);
+	msleep(10);
 	is_sensor_write8(client, 0x0A00, 0x00);
 	msleep(10);
 	is_sec_set_registers(client, otp_mode_on_setting_hi556, otp_mode_on_setting_hi556_size);
-	msleep(1);
+	msleep(10);
+	is_sensor_write8(client, 0x0A00, 0x01);
+	msleep(10);
 
 	/* Refer to JDM Cal data to select group and the header addresses */
 	/* Read OTP data */
@@ -3975,26 +4159,144 @@ crc_retry:
 	}
 
 	/* OTP mode off*/
+	is_sensor_write8(client, 0x0114, 0x00);
+	msleep(10);
 	is_sensor_write8(client, 0x0A00, 0x00);
 	msleep(10);
 	is_sec_set_registers(client, otp_mode_off_setting_hi556, otp_mode_off_setting_hi556_size);
+	msleep(10);
+	is_sensor_write8(client, 0x0A00, 0x01);
+	msleep(10);
 
 exit:
 	info("%s X\n", __func__);
 	return ret;
 }
+#endif //SENSOR_OTP_HI556_STANDARD_CAL
 #endif //SENSOR_OTP_HI556
 
 #if defined(SENSOR_OTP_SC501)
-int is_i2c_read_otp_sc501(struct i2c_client *client, char *buf, const struct is_vender_rom_addr *rom_addr)
+/*
+ * Summarize the exceptions
+ * 1. Find which bank is used by reading first group address
+ * 2. Pages are divided in 2 parts. When it switchs to the other page, page setting should be required
+ * 3. Bank1's LSC size has 12 bytes more than bank2's because there is unused area in the middle of LSC area
+ */
+int is_setup_area1_sc501(struct i2c_client *client) {
+	int ret = 0;
+	u8 status = SC501_STATUS_LOAD_ONGOING;
+	int retries = SC501_RETRIES_COUNT;
+
+	info("Otprom valid area is changed to 0x0x8000 ~ 0x87FF");
+
+	/* Write threshold value */
+	ret = is_sensor_write8(client, 0x36B0, 0x4C);
+	ret |= is_sensor_write8(client, 0x36B1, 0xD8);
+	ret |= is_sensor_write8(client, 0x36B2, 0x01);
+	if (unlikely(ret)) {
+		err("Failed to write threshold value (%d)\n", ret);
+		ret = -EINVAL;
+		goto exit;
+	}
+
+	/* Write read start address */
+	is_sensor_write8(client, 0x4408, 0x00);
+	is_sensor_write8(client, 0x4409, 0x00);
+
+	/* Write read end address */
+	is_sensor_write8(client, 0x440A, 0x07);
+	is_sensor_write8(client, 0x440B, 0xFF);
+
+	/* ld_setting */
+	is_sensor_write8(client, 0x4401, 0x1F);
+
+	/* Manual load enable */
+	is_sensor_write8(client, 0x4400, 0x11);
+
+	/* Read completed check */
+	status = SC501_STATUS_LOAD_ONGOING;
+	while (status) {
+		ret = is_sensor_read8(client, 0x4420, &status);
+		if (unlikely(ret)) {
+			err("Failed to read completed check (%d)\n", ret);
+			ret = -EINVAL;
+			break;
+		}
+
+		status &= 0x1;
+		msleep(1);
+		if (retries-- < 0) {
+			err("Failed to update otp load status");
+			ret = -EINVAL;
+			break;
+		}
+	}
+exit:
+	return ret;
+}
+
+int is_setup_area2_sc501(struct i2c_client *client) {
+	int ret = 0;
+	u8 status = SC501_STATUS_LOAD_ONGOING;
+	int retries = SC501_RETRIES_COUNT;
+
+	info("Otprom valid area is changed to 0x8800 ~ 0x8FFF");
+
+	/* Write threshold value */
+	ret = is_sensor_write8(client, 0x36B0, 0x4C);
+	ret |= is_sensor_write8(client, 0x36B1, 0xD8);
+	ret |= is_sensor_write8(client, 0x36B2, 0x01);
+	if (unlikely(ret)) {
+		err("Failed to write threshold value (%d)\n", ret);
+		ret = -EINVAL;
+		goto exit;
+	}
+
+	/* Write read start address */
+	is_sensor_write8(client, 0x4408, 0x08);
+	is_sensor_write8(client, 0x4409, 0x00);
+
+	/* Write read end address */
+	is_sensor_write8(client, 0x440A, 0x0F);
+	is_sensor_write8(client, 0x440B, 0xFF);
+
+	/* ld_setting */
+	is_sensor_write8(client, 0x4401, 0x1E);
+
+	/* Manual load enable */
+	is_sensor_write8(client, 0x4400, 0x11);
+
+	/* Read completed check */
+	status = SC501_STATUS_LOAD_ONGOING;
+	while (status) {
+		ret = is_sensor_read8(client, 0x4420, &status);
+		if (unlikely(ret)) {
+			err("Failed to read completed check (%d)\n", ret);
+			ret = -EINVAL;
+			break;
+		}
+
+		status &= 0x1;
+		msleep(1);
+		if (retries-- < 0) {
+			err("Failed to update otp load status");
+			ret = -EINVAL;
+			break;
+		}
+	}
+exit:
+	return ret;
+}
+
+int is_i2c_read_otp_sc501(struct i2c_client *client, int position, char *buf, const struct is_vender_rom_addr *rom_addr)
 {
 	int ret = 0;
+	struct is_core *core = dev_get_drvdata(is_dev);
+	struct is_vender_specific *specific = core->vender.private_data;
 	struct rom_ap2ap_standard_cal_data *ap2ap_standard_cal_data;
-	int segment, group, offset;
+	int segment, bank, i;
 	u16 addr_buf = 0x0, addr_otp = 0x0;
-	u8 status = 1, value = 0;
-	int cnt = 0;
-	bool use_area2 = false;		/* area1 : 0x8000 ~ 0x87FF, area2 : 0x8800 ~ 0x8FFF */
+	u8 value = 0;
 
 	if (rom_addr->extend_cal_addr) {
 		ap2ap_standard_cal_data = (struct rom_ap2ap_standard_cal_data *)is_sec_search_rom_extend_data(
@@ -4006,165 +4308,70 @@ int is_i2c_read_otp_sc501(struct i2c_client *client, char *buf, const struct is_
 		}
 	}
 
-	// 1-1 Write threshold value
-	ret = is_sensor_write8(client, 0x36B0, 0x4C);
-	ret |= is_sensor_write8(client, 0x36B1, 0xD8);
-	ret |= is_sensor_write8(client, 0x36B2, 0x01);
-	if (unlikely(ret)) {
-		err("failed to write threshold value (%d)\n", ret);
-		ret = -EINVAL;
-		goto exit;
-	}
-
-	/* 1-2 Write read start address */
-	is_sensor_write8(client, 0x4408, 0x00);
-	is_sensor_write8(client, 0x4409, 0x00);
-
-	/* 1-3 Write read end address */
-	is_sensor_write8(client, 0x440A, 0x07);
-	is_sensor_write8(client, 0x440B, 0xFF);
-
-	/* 1-4 ld_setting */
-	is_sensor_write8(client, 0x4401, 0x1F);
-
-	/* 1-5 Manual load enable */
-	is_sensor_write8(client, 0x4400, 0x11);
-
-	/* 1-6 Read completed check */
-	status = 1;
-	cnt = 0;
-	while (status) {
-		ret = is_sensor_read8(client, 0x4420, &status);
-		if (unlikely(ret)) {
-			err("failed to read completed check (%d)\n", ret);
-			ret = -EINVAL;
-			goto exit;
-		}
-
-		status &= 0x1;
-		msleep(1);
-		dbg_sensor(1, "1st read completed check is still ongoing (cnt:%d)", cnt++);
-	}
-
-	/* 1-7 Check value by reading */
+	/* Find the bank */
 	addr_buf = 0x0;
 	segment = 0;
-	for (group = 0; group < ap2ap_standard_cal_data->rom_num_of_groups; group++) {
-		if (ap2ap_standard_cal_data->rom_group_start_addr[segment][group] >= 0x8800 && use_area2 == false) {
-			info("otprom valid area is changed to 0x8800 ~ 0x8FFF");
-			/* 2-1. write threshold value */
-			is_sensor_write8(client, 0x36B0, 0x4C);
-			is_sensor_write8(client, 0x36B1, 0xD8);
-			is_sensor_write8(client, 0x36B2, 0x01);
-			
-			/* 2-2. Write read start address */
-			is_sensor_write8(client, 0x4408, 0x08);
-			is_sensor_write8(client, 0x4409, 0x00);
-			
-			/* 2-3. Write read end address */
-			is_sensor_write8(client, 0x440A, 0x0F);
-			is_sensor_write8(client, 0x440B, 0xFF);
-			
-			/* 2-4. ld_setting */
-			is_sensor_write8(client, 0x4401, 0x1E);
-			
-			/* 2-5. manual load enable */
-			is_sensor_write8(client, 0x4400, 0x11);
-			
-			/* 2-6. Read completed check */
-			status = 1;
-			cnt = 0;
-			while (status) {
-				ret = is_sensor_read8(client, 0x4420, &status);
-				if (unlikely(ret)) {
-					err("failed to read completed check (%d)\n", ret);
-					ret = -EINVAL;
-					goto exit;
-				}
-			
-				status &= 0x1;
-				msleep(1);
-				dbg_sensor(1, "2nd read completed check is still ongoing (cnt:%d)", cnt++);
+	for (bank = SC501_FRONT_GROUP1; bank < ap2ap_standard_cal_data->rom_num_of_banks; bank++) {
+		if (ap2ap_standard_cal_data->rom_bank_start_addr[segment][bank] < SC501_AREA2_START_ADDR) {
+			if (is_setup_area1_sc501(client) < 0) {
+				err("Failed to setup area1 (%d)\n", ret);
+				ret = -EINVAL;
+				goto exit;
 			}
-			use_area2 = true;
-		};
+		} else {
+			if (is_setup_area2_sc501(client) < 0) {
+				err("Failed to setup area1 (%d)\n", ret);
+				ret = -EINVAL;
+				goto exit;
+			}
+		}
 
-		ret = is_sensor_read8(client, ap2ap_standard_cal_data->rom_group_start_addr[segment][group], &value);
+		ret = is_sensor_read8(client, ap2ap_standard_cal_data->rom_bank_start_addr[segment][bank], &value);
 		if (unlikely(ret)) {
-			err("failed to is_sensor_read8 (%d)\n", ret);
+			err("Failed to is_sensor_read8 (%d)\n", ret);
 			ret = -EINVAL;
 			goto exit;
 		}
 
-		if (value == 0x55)
+		if (value == SC501_FLAG_BANK_VALID) {
+			specific->rom_bank[position] = bank;
 			break;
+		}
 	}
 
-	for (segment = 0; segment < ap2ap_standard_cal_data->rom_num_of_segments; segment++) {
-		addr_otp = ap2ap_standard_cal_data->rom_group_start_addr[segment][group];
-		info("Segment : %d, Group : %d (addr_otp : 0x%04X, addr_buf : 0x%04X, seg_size : %d)",
-				segment, group, addr_otp, addr_buf, ap2ap_standard_cal_data->rom_seg_len[segment]);	
+	for (segment = SC501_FRONT_SEGMENT_MODULE; segment < ap2ap_standard_cal_data->rom_num_of_segments; segment++) {
+		addr_otp = ap2ap_standard_cal_data->rom_bank_start_addr[segment][bank];
 
-		for (offset = 0; offset < ap2ap_standard_cal_data->rom_seg_len[segment]; offset++) {
-			if ((addr_otp + offset) == 0x8800) {
-				info("otprom valid area is changed to 0x8800 ~ 0x8FFF");
-				/* 2-1. write threshold value */
-				is_sensor_write8(client, 0x36B0, 0x4C);
-				is_sensor_write8(client, 0x36B1, 0xD8);
-				is_sensor_write8(client, 0x36B2, 0x01);
-				
-				/* 2-2. Write read start address */
-				is_sensor_write8(client, 0x4408, 0x08);
-				is_sensor_write8(client, 0x4409, 0x00);
-				
-				/* 2-3. Write read end address */
-				is_sensor_write8(client, 0x440A, 0x0F);
-				is_sensor_write8(client, 0x440B, 0xFF);
-				
-				/* 2-4. ld_setting */
-				is_sensor_write8(client, 0x4401, 0x1E);
-				
-				/* 2-5. manual load enable */
-				is_sensor_write8(client, 0x4400, 0x11);
-				
-				/* 2-6. Read completed check */
-				status = 1;
-				cnt = 0;
-				while (status) {
-					ret = is_sensor_read8(client, 0x4420, &status);
-					if (unlikely(ret)) {
-						err("failed to read completed check (%d)\n", ret);
-						ret = -EINVAL;
-						goto exit;
-					}
+		if (bank == SC501_FRONT_GROUP2 && segment == SC501_FRONT_SEGMENT_LSC) {
+			ap2ap_standard_cal_data->rom_seg_size[segment] = SC501_FRONT_BANK2_LSC_LEN;
+			ap2ap_standard_cal_data->rom_seg_checksum_len[segment] = SC501_FRONT_BANK2_LSC_LEN - 1;
+		}
+		info("Bank : %d, Segment : %d (addr_otp : 0x%04X, addr_buf : 0x%04X, seg_size : %d)",
+				bank, segment, addr_otp, addr_buf, ap2ap_standard_cal_data->rom_seg_size[segment]); 
 
-					status &= 0x1;
-					msleep(1);
-					dbg_sensor(1, "2nd read completed check is still ongoing (cnt:%d)", cnt++);
-				}
-
-				ret = is_sensor_read8(client, addr_otp + offset, &buf[addr_buf++]);
-				if (unlikely(ret)) {
-					err("failed to is_sensor_read8 (%d)\n", ret);
-					ret = -EINVAL;
-					goto exit;
-				}
-			} else {
-				ret = is_sensor_read8(client, addr_otp + offset, &buf[addr_buf++]);
-				if (unlikely(ret)) {
-					err("failed to is_sensor_read8 (%d)\n", ret);
+		for (i = 0; i < ap2ap_standard_cal_data->rom_seg_size[segment]; i++) {
+			if (addr_otp == SC501_AREA2_START_ADDR) {
+				if (is_setup_area2_sc501(client) < 0) {
+					err("Failed to setup area1 (%d)\n", ret);
 					ret = -EINVAL;
 					goto exit;
 				}
 			}
+			ret = is_sensor_read8(client, addr_otp, &buf[addr_buf++]);
+			if (unlikely(ret)) {
+				err("Failed to is_sensor_read8 (%d)\n", ret);
+				ret = -EINVAL;
+				goto exit;
+			}
+			addr_otp++;
 		}
 	}
 
-	addr_otp = ap2ap_standard_cal_data->rom_total_checksum_addr[group];
+	addr_otp = ap2ap_standard_cal_data->rom_total_checksum_addr[bank];
 
 	ret = is_sensor_read8(client, addr_otp, &buf[addr_buf++]);
 	if (unlikely(ret)) {
-		err("failed to is_sensor_read8 (%d)\n", ret);
+		err("Failed to is_sensor_read8 (%d)\n", ret);
 		goto exit;
 	}
 
@@ -4176,6 +4383,7 @@ int is_sec_readcal_otprom_sc501(struct device *dev, int position)
 {
 	int ret = 0;
 	int retry = IS_CAL_RETRY_CNT;
+
 	char *buf = NULL;
 	struct is_core *core = dev_get_drvdata(is_dev);
 	struct is_vender_specific *specific = core->vender.private_data;
@@ -4197,14 +4405,12 @@ int is_sec_readcal_otprom_sc501(struct device *dev, int position)
 
 crc_retry:
 	info("%s I2C read cal data", __func__);
-	is_i2c_read_otp_sc501(client, buf, rom_addr);
+	is_i2c_read_otp_sc501(client, position, buf, rom_addr);
 
 	ret = is_sec_readcal_jdm_checksum_and_dump(buf, position);
 	if (unlikely(ret)) {
-		if (retry >= 0) {
-			retry--;
+		if (retry-- > 0)
 			goto crc_retry;
-		}
 	}
 
 	/* OTP read finishing */ 
@@ -4438,6 +4644,250 @@ exit:
 }
 #endif //SENSOR_OTP_GC08A3
 
+#if defined(SENSOR_OTP_HI1336B)
+int is_i2c_read_otp_hi1336(struct i2c_client *client, char *buf, u16 start_addr, size_t size)
+{
+	u16 curr_addr = start_addr;
+	u8 start_addr_h = 0;
+	u8 start_addr_l = 0;
+	int ret = 0;
+	int index;
+
+	for (index = 0; index < size; index++) {
+		start_addr_h = ((curr_addr>>8) & 0xFF);
+		start_addr_l = (curr_addr & 0xFF);
+		is_sensor_write8(client, HI1336B_OTP_ACCESS_ADDR_HIGH, start_addr_h);
+		is_sensor_write8(client, HI1336B_OTP_ACCESS_ADDR_LOW, start_addr_l);
+		is_sensor_write8(client, HI1336B_OTP_MODE_ADDR, 0x01);
+
+		ret = is_sensor_read8(client, HI1336B_OTP_READ_ADDR, &buf[index]);
+		if (unlikely(ret)) {
+			err("failed to is_sensor_read8 (%d)\n", ret);
+			goto exit;
+		}
+		curr_addr ++;
+	}
+
+exit:
+	return ret;
+}
+
+int is_sec_readcal_otprom_hi1336(struct device *dev, int position)
+{
+	int ret = 0;
+	int retry = IS_CAL_RETRY_CNT;
+	char *buf = NULL;
+	u8 otp_bank = 0;
+	u16 start_addr = 0;
+
+	struct is_core *core = dev_get_drvdata(dev);
+	struct is_vender_specific *specific = core->vender.private_data;
+	struct i2c_client *client = NULL;
+	const struct is_vender_rom_addr *rom_addr = specific->rom_cal_map_addr[position];
+
+	struct is_device_sensor_peri *sensor_peri = NULL;
+	struct v4l2_subdev *subdev_cis = NULL;
+	int i;
+	u32 i2c_channel;
+	struct is_module_enum *module = NULL;
+
+	for (i = 0; i < IS_SENSOR_COUNT; i++) {
+		is_search_sensor_module_with_position(&core->sensor[i], position, &module);
+		if (module)
+			break;
+	}
+
+	sensor_peri = (struct is_device_sensor_peri *)module->private_data;
+	subdev_cis = sensor_peri->subdev_cis;
+
+	if (!rom_addr) {
+		err("%s: otp_%d There is no cal map\n", __func__, position);
+		ret = -EINVAL;
+		goto exit;
+	}
+
+	info("%s E\n", __func__);
+
+	is_sec_get_cal_buf(position, &buf);
+
+	client = specific->rom_client[position];
+
+	if (!client) {
+		err("cis i2c client is NULL\n");
+		return -EINVAL;
+	}
+
+	is_i2c_config(client, true);
+	msleep(10);
+
+	/* Sensor Initial Settings (Global) */
+i2c_write_retry_global:
+	if (specific->running_camera[position] == false) {
+		i2c_channel = module->pdata->sensor_i2c_ch;
+		if (i2c_channel < SENSOR_CONTROL_I2C_MAX) {
+			sensor_peri->cis.i2c_lock = &core->i2c_lock[i2c_channel];
+		} else {
+			warn("%s: wrong cis i2c_channel(%d)", __func__, i2c_channel);
+			ret = -EINVAL;
+			goto exit;
+		}
+		/* sensor global settings */
+		ret = CALL_CISOPS(&sensor_peri->cis, cis_set_global_setting, subdev_cis);
+
+		if (unlikely(ret)) {
+			err("failed to apply global settings (%d)\n", ret);
+			if (retry >= 0) {
+				retry--;
+				msleep(50);
+				goto i2c_write_retry_global;
+			}
+			ret = -EINVAL;
+			goto exit;
+		}
+	}
+
+	ret = CALL_CISOPS(&sensor_peri->cis, cis_mode_change, subdev_cis, 1);
+	if (unlikely(ret)) {
+		err("failed to apply cis_mode_change (%d)\n", ret);
+		ret = -EINVAL;
+		goto exit;
+	}
+
+	retry = IS_CAL_RETRY_CNT;
+
+crc_retry:
+	/* stream on */
+	ret = is_sensor_write8(client, 0x0808, 0x01);
+	if (ret < 0) {
+		err("failed to is_sensor_write8, ret(%d), addr(%#x), data(%#x)\n",
+			ret, 0x0808, 0x01);
+		return ret;
+	}
+	ret = is_sensor_write8(client, 0x0B02, 0x01); /* fast standby on */
+	if (ret < 0) {
+		err("failed to is_sensor_write8, ret(%d), addr(%#x), data(%#x)\n",
+			ret, 0x0B02, 0x01);
+		return ret;
+	}
+	ret = is_sensor_write8(client, 0x0809, 0x00); /* stream off */
+	if (ret < 0) {
+		err("failed to is_sensor_write8, ret(%d), addr(%#x), data(%#x)\n",
+			ret, 0x0809, 0x00);
+		return ret;
+	}
+	ret = is_sensor_write8(client, 0x0B00, 0x00); /* stream off */
+	if (ret < 0) {
+		err("failed to is_sensor_write8, ret(%d), addr(%#x), data(%#x)\n",
+			ret, 0x0B00, 0x00);
+		return ret;
+	}
+	msleep(10); /* sleep 10msec */
+	ret = is_sensor_write8(client, 0x0260, 0x10); /* OTP test mode enable */
+	if (ret < 0) {
+		err("failed to is_sensor_write8, ret(%d), addr(%#x), data(%#x)\n",
+			ret, 0x0260, 0x10);
+		return ret;
+	}
+	ret = is_sensor_write8(client, 0x0809, 0x01); /* stream on */
+	if (ret < 0) {
+		err("failed to is_sensor_write8, ret(%d), addr(%#x), data(%#x)\n",
+			ret, 0x0809, 0x01);
+		return ret;
+	}
+	ret = is_sensor_write8(client, 0x0b00, 0x01); /* stream on */
+	if (ret < 0) {
+		err("failed to is_sensor_write8, ret(%d), addr(%#x), data(%#x)\n",
+			ret, 0x0b00, 0x01);
+		return ret;
+	}
+
+	msleep(1); /* sleep 1msec */
+
+	/* read otp bank */
+	is_sensor_write8(client, HI1336B_OTP_ACCESS_ADDR_HIGH, ((HI1336B_BANK_SELECT_ADDR >> 8) & 0xFF));
+	is_sensor_write8(client, HI1336B_OTP_ACCESS_ADDR_LOW, (HI1336B_BANK_SELECT_ADDR & 0xFF));
+	is_sensor_write8(client, HI1336B_OTP_MODE_ADDR, 0x01);
+	ret = is_sensor_read8(client, HI1336B_OTP_READ_ADDR, &otp_bank);
+	if (unlikely(ret)) {
+		err("failed to read otp_bank data from bank select address (%d)\n", ret);
+		ret = -EINVAL;
+	}
+
+	info("%s: otp_bank = %d\n", __func__, otp_bank);
+
+	/* select start address */
+	switch (otp_bank) {
+	case 0x01:
+		start_addr = HI1336B_OTP_START_ADDR_BANK1;
+		break;
+	case 0x03:
+		start_addr = HI1336B_OTP_START_ADDR_BANK2;
+		break;
+	case 0x07:
+		start_addr = HI1336B_OTP_START_ADDR_BANK3;
+		break;
+	case 0x0F:
+		start_addr = HI1336B_OTP_START_ADDR_BANK4;
+		break;
+	case 0x01F:
+		start_addr = HI1336B_OTP_START_ADDR_BANK5;
+		break;
+	default:
+		start_addr = HI1336B_OTP_START_ADDR_BANK1;
+		break;
+	}
+
+	info("%s: otp_start_addr = %x\n", __func__, start_addr);
+
+	info("%s I2C read cal data", __func__);
+	is_i2c_read_otp_hi1336(client, buf, start_addr, HI1336B_OTP_USED_CAL_SIZE);
+
+	ret = is_sec_readcal_otprom_buffer(buf, position);
+	if (unlikely(ret)) {
+		if (retry >= 0) {
+			retry--;
+			goto crc_retry;
+		}
+	}
+
+exit:
+	/* streaming mode change */
+	ret = is_sensor_write8(client, 0x0809, 0x00); /* stream off */
+	if (ret < 0) {
+		err("failed to is_sensor_write8, ret(%d), addr(%#x), data(%#x)\n",
+			ret, 0x0809, 0x00);
+		return ret;
+	}
+	ret = is_sensor_write8(client, 0x0b00, 0x00); /* stream off */
+	if (ret < 0) {
+		err("failed to is_sensor_write8, ret(%d), addr(%#x), data(%#x)\n",
+			ret, 0x0b00, 0x00);
+		return ret;
+	}
+	msleep(10); /* sleep 10msec */
+	ret = is_sensor_write8(client, 0x0260, 0x00); /* OTP mode display */
+	if (ret < 0) {
+		err("failed to is_sensor_write8, ret(%d), addr(%#x), data(%#x)\n",
+			ret, 0x0260, 0x00);
+		return ret;
+	}
+	ret = is_sensor_write8(client, 0x0809, 0x01); /* stream on */
+	if (ret < 0) {
+		err("failed to is_sensor_write8, ret(%d), addr(%#x), data(%#x)\n",
+			ret, 0x0809, 0x01);
+		return ret;
+	}
+	ret = is_sensor_write8(client, 0x0b00, 0x01); /* stream on */
+	if (ret < 0) {
+		err("failed to is_sensor_write8, ret(%d), addr(%#x), data(%#x)\n",
+			ret, 0x0b00, 0x01);
+		return ret;
+	}
+	msleep(1); /* sleep 1msec */
+	return ret;
+}
+#endif //SENSOR_OTP_HI1336B
+
 int is_sec_select_otprom(struct device *dev, int position, int sensor_id)
 {
 	int ret = -1;
@@ -4480,6 +4930,11 @@ int is_sec_select_otprom(struct device *dev, int position, int sensor_id)
 #if defined(SENSOR_OTP_GC08A3)
 	case SENSOR_NAME_GC08A3:
 		ret = is_sec_readcal_otprom_gc08a3(dev, position);
+		break;
+#endif
+#if defined(SENSOR_OTP_HI1336B)
+	case SENSOR_NAME_HI1336:
+		ret = is_sec_readcal_otprom_hi1336(dev, position);
 		break;
 #endif
 	default:
@@ -5055,15 +5510,6 @@ int is_sec_run_fw_sel_from_rom(struct device *dev, int id, bool headerOnly)
 		rom_valid = specific->rom_data[rom_position].rom_valid;
 
 		if (rom_valid == true) {
-#ifdef SUPPORT_SENSOR_DUALIZATION
-			/* update specific for dualized for OTPROM */
-			int dualized_sensor_id = specific->dualized_sensor_id[rom_position];
-			if (specific->sensor_id[rom_position] == dualized_sensor_id && rom_type == ROM_TYPE_OTPROM) {
-				info("Camera:update specific for dualized for OTPROM[%d]sensorID:%d\n", rom_position, dualized_sensor_id);
-				specific->rom_client[rom_position] = specific->dualized_rom_client[rom_position];
-				specific->rom_cal_map_addr[rom_position] = specific->dualized_rom_cal_map_addr[rom_position];
-			}
-#endif
 			if (specific->running_camera[rom_position] == false) {
 				is_sec_rom_power_on(core, rom_position);
 			}

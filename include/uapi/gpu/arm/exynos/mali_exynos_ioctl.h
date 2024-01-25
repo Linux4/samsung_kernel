@@ -113,6 +113,17 @@ struct kbase_ioctl_slsi_egp {
 #define KBASE_IOCTL_SLSI_EGP \
        _IOW(KBASE_IOCTL_EXTRA_TYPE, 5, struct kbase_ioctl_slsi_egp)
 
+/*
+ * struct mali_exynos_ioctl_interactive_boost - boost to interactive clock
+ * @duration: boost duration in msec
+ */
+struct mali_exynos_ioctl_interactive_boost {
+	__u64 duration;
+};
+
+#define MALI_EXYNOS_IOCTL_INTERACTIVE_BOOST \
+       _IOW(KBASE_IOCTL_EXTRA_TYPE, 6, struct mali_exynos_ioctl_interactive_boost)
+
 /*** Legacy IOCTLs for backward compatibility ***/
 
 /*
@@ -125,6 +136,20 @@ struct kbase_ioctl_slsi_singlebuffer_boost_flags {
 
 #define KBASE_IOCTL_SLSI_SINGLEBUFFER_BOOST_FLAGS \
 	_IOW(KBASE_IOCTL_TYPE, 46, struct kbase_ioctl_slsi_singlebuffer_boost_flags)
+
+/*
+ * struct mali_exynos_ioctl_ehmp_flags - Update the status of ehmp flag
+ * @flags: Flags for future expansion
+ */
+struct mali_exynos_ioctl_ehmp_flags {
+	__u32 flags;
+};
+
+#define EHMP_SET (512 + 41)
+#define EHMP_UNSET (512 + 42)
+
+#define MALI_EXYNOS_IOCTL_EHMP \
+	_IOW(KBASE_IOCTL_TYPE, 42, struct mali_exynos_ioctl_ehmp_flags)
 
 #ifdef __cpluscplus
 }

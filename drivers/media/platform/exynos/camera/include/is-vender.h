@@ -194,7 +194,6 @@ int is_vendor_get_rom_id_from_position(int position);
 void is_vendor_get_rom_info_from_position(int position, int *rom_type, int *rom_id, int *rom_cal_index);
 void is_vendor_get_rom_dualcal_info_from_position(int position, int *rom_type, int *rom_dualcal_id, int *rom_dualcal_index);
 bool is_vendor_check_camera_running(int position);
-int is_vender_replace_sensorid_with_second_sensorid(struct is_vender *vender, int position);
 int is_vender_get_dualized_sensorid(int position);
 #ifdef USE_TOF_AF
 void is_vender_store_af(struct is_vender *vender, struct tof_data_t *data);

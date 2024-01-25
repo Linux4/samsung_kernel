@@ -622,7 +622,7 @@ int dsim_read_data(struct dsim_device *dsim, u32 id, u32 addr, u32 cnt, u8 *buf)
 			if (decon && decon_reg_get_run_status(decon->id))
 				dpu_hw_recovery_process(decon);
 			else {
-				if (ktime_to_ms(decon->vsync.timestamp) != 0)
+				if (decon && ktime_to_ms(decon->vsync.timestamp) != 0)
 					dsim_reg_recovery_process(dsim);
 				else
 					pr_warn("skip recovery, timestamp is 0\n");
@@ -887,13 +887,14 @@ static void dsim_underrun_info(struct dsim_device *dsim)
 		decon = get_decon_drvdata(i);
 
 		if (decon) {
-			dsim_info("\tDECON%d: bw(%u %u), disp(%u %u), p(%u)\n",
+			dsim_info("\tDECON%d: bw(%u %u), disp(%u %u), p(%u), L(%u)\n",
 					decon->id,
 					decon->bts.prev_total_bw,
 					decon->bts.total_bw,
 					decon->bts.prev_max_disp_freq,
 					decon->bts.max_disp_freq,
-					decon->bts.peak);
+					decon->bts.peak,
+					decon->bts.prev_minlock_stage);
 			dsim_bts_print_info(&decon->bts.bts_info);
 		}
 	}

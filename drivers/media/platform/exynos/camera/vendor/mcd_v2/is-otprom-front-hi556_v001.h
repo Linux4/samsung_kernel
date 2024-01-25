@@ -23,9 +23,9 @@ struct rom_ap2ap_standard_cal_data front_hi556_ap2ap_standard_cal_info = {
 	.rom_lsi_end_addr                                          = 0x1A5F,
 
 	.rom_num_of_segments                                       = 4,
-	.rom_num_of_groups                                         = 3,
+	.rom_num_of_banks                                          = 3,
 
-	.rom_group_start_addr = {
+	.rom_bank_start_addr = {
 		{0x0402, 0x040A, 0x0412},
 		{0x041B, 0x0428, 0x0435},
 		{0x0443, 0x0454, 0x0465},
@@ -34,7 +34,7 @@ struct rom_ap2ap_standard_cal_data front_hi556_ap2ap_standard_cal_info = {
 	.rom_seg_checksum_len = {
 		7, 12, 16, 1868
 	},
-	.rom_seg_len = {
+	.rom_seg_size = {
 		8, 13, 17, 1869
 	},
 	.rom_total_checksum_addr = {
@@ -360,7 +360,7 @@ static const u32 otp_mode_on_setting_hi556[] = {
 	0x0D04,	0x01,	0x01,
 	0x0D02,	0x07,	0x01,
 	0x003E,	0x10,	0x01,
-	0x0A00,	0x01,	0x01,
+	0x0114,	0x01,	0x01,
 };
 
 static const u32 otp_mode_off_setting_hi556[] = {
@@ -368,7 +368,7 @@ static const u32 otp_mode_off_setting_hi556[] = {
 	0x0D04,	0x00,	0x01,
 	0x003E,	0x00,	0x01,
 	0x004A,	0x01,	0x01,
-	0x0A00,	0x01,	0x01,
+	0x0114,	0x01,	0x01,
 };
 
 static const u32 otp_read_initial_setting_hi556_size = ARRAY_SIZE(otp_read_initial_setting_hi556);

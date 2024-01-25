@@ -369,7 +369,7 @@ static int et7303_regmap_init(struct et7303_chip *chip)
 
 	/* add_sec */
 	strlcpy((char *)props->name, name, len + 1);
-	strlcpy((char *)props->aliases, name, len +1);
+	strlcpy((char *)props->aliases, name, len + 1);
 	props->io_log_en = 0;
 
 	chip->m_dev = rt_regmap_device_register(props,
@@ -1441,7 +1441,8 @@ static int et7303_vbus_info(struct notifier_block *nb,
 			protect = tcp_noti->vbus_state.mv * 4 / 5;
 			if (protect >= 13000) {
 				level = (protect - 13000) / 1000;
-				if (level > 0xf) level = 0xf;
+				if (level > 0xf)
+					level = 0xf;
 
 				reg |= ET7303_REG_VBUS_BAND_10_20V | level;
 			} else {

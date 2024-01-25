@@ -888,15 +888,6 @@ static int sy6970_power_supply_set_property(struct power_supply *psy,
 			pr_info("%s: need to implement\n", __func__);
 #endif
 			break;
-		case POWER_SUPPLY_EXT_PROP_AUTO_SHIPMODE_CONTROL:
-			if (val->intval) {
-				pr_info("%s: auto ship mode is enabled\n", __func__);
-				pr_info("%s: need to implement\n", __func__);
-			} else {
-				pr_info("%s: auto ship mode is disabled\n", __func__);
-				pr_info("%s: need to implement\n", __func__);
-			}
-			break;
 		case POWER_SUPPLY_EXT_PROP_FGSRC_SWITCHING:
 			break;
 #if defined(CONFIG_UPDATE_BATTERY_DATA)
@@ -1136,16 +1127,15 @@ static irqreturn_t __sy6970_handle_irq(struct sy6970_device *bq)
 		sy6970_set_auto_dpdm(bq, 0);
 		break;
 	case CABLE_TYPE_USB_DCP:
-		psy_do_property("battery", get, POWER_SUPPLY_PROP_ONLINE, value);
-		if (is_pd_wire_type(value.intval)) {
-			pr_info("%s: ct(%d) ICL overwrite: %dmA\n", __func__, value.intval, bq->icl);
-			sy6970_charger_set_icl(bq, bq->icl);
-		}
+		pr_info("%s: ct(%d) ICL overwrite: %dmA\n", __func__, value.intval, bq->icl);
+		sy6970_charger_set_icl(bq, bq->icl);
 		value.intval = SEC_BATTERY_CABLE_TA;
 		bq->cable_type = SEC_BATTERY_CABLE_TA;
 		sy6970_set_fcc_timer(bq, FCC_TIMER_ENABLE, FCC_TIMER_8H);
 		break;
 	case CABLE_TYPE_HVDCP:
+		pr_info("%s: ct(%d) ICL overwrite: %dmA\n", __func__, value.intval, bq->icl);
+		sy6970_charger_set_icl(bq, bq->icl);
 		value.intval = SEC_BATTERY_CABLE_PREPARE_TA;
 		bq->cable_type = SEC_BATTERY_CABLE_PREPARE_TA;
 		sy6970_set_fcc_timer(bq, FCC_TIMER_ENABLE, FCC_TIMER_8H);

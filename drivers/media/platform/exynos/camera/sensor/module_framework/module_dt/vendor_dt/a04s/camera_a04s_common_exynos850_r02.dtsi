@@ -49,10 +49,11 @@
 
 					scenario_normal_on {
 						/* A start node number should be over the 10 for reserved number 0~9. */
-						/* pname = "name";		pin = <act value dealy voltage>; gpio = <gpx# # 0x1>;	*/
+						/* pname = "name";		pin = <act value delay voltage>; gpio = <gpx# # 0x1>;	*/
 						10 { pname = SEN_RST_LOW;	pin = <PIN_OUTPUT 0 500>; gpio = JN1_RST; };
-						20 { pname = "jn1_iovdd";	pin = <PIN_OUTPUT 1 0>;	gpio = JN1_IOVDD; share = <SRT_ACQUIRE SHARED_PIN1 1>; }; /* CAM_VDDIO_1P8 */
-						30 { pname = "jn1_dvdd";	pin = <PIN_REGULATOR 1 0>; }; /* RCAM1_DVDD_1P05 */
+						20 { pname = "jn1_iovdd";	pin = <PIN_OUTPUT 1 500>; gpio = JN1_IOVDD; share = <SRT_ACQUIRE SHARED_PIN1 1>; }; /* CAM_VDDIO_1P8 */
+						30 { pname = "vdd_ldo29";	pin = <PIN_REGULATOR 1 0>; }; /* RCAM1_DVDD_1P05 */
+						35 { pname = "vdd_ldo_buf";	pin = <PIN_REGULATOR 1 500>; }; /* FCAM_DVDD_1P2 */
 						40 { pname = SEN_RST_HIGH;	pin = <PIN_OUTPUT 1 0>; gpio = SC501_RST; };
 						50 { pname = "jn1_avdd";	pin = <PIN_REGULATOR 1 0>; share = <SRT_ACQUIRE SHARED_PIN3 1>; }; /* RCAM1_AVDD_2P8 */
 						60 { pname = "jn1_af";		pin = <PIN_REGULATOR 1 0>; };
@@ -65,7 +66,7 @@
 
 					scenario_normal_off {
 						/* A start node number should be over the 10 for reserved number 0~9. */
-						/* pname = "name";		pin = <act value dealy voltage>; gpio = <gpx# # 0x1>;	*/
+						/* pname = "name";		pin = <act value delay voltage>; gpio = <gpx# # 0x1>;	*/
 
 						10 { pname = MCLK_FUNC;		pin = <PIN_FUNCTION 0 500>; };
 						20 { pname = SEN_RST_LOW;	pin = <PIN_OUTPUT 0 0>; gpio = JN1_RST; };
@@ -75,25 +76,22 @@
 						60 { pname = MCLK_FUNC;		pin = <PIN_FUNCTION 1 0>; };
 						70 { pname = MCLK_FUNC;		pin = <PIN_FUNCTION 0 0>; };
 						80 { pname = "jn1_avdd";	pin = <PIN_REGULATOR 0 0>; share = <SRT_RELEASE SHARED_PIN3 0>; };
-						90 { pname = "jn1_dvdd";	pin = <PIN_REGULATOR 0 0>; };
+						85 { pname = "vdd_ldo_buf";	pin = <PIN_REGULATOR 0 0>; }; /* FCAM_DVDD_1P2 */
+						90 { pname = "vdd_ldo29";	pin = <PIN_REGULATOR 0 0>; }; /* RCAM1_DVDD_1P05 */
 						100 { pname = "jn1_iovdd";	pin = <PIN_OUTPUT 0 0>; gpio = JN1_IOVDD; share = <SRT_RELEASE SHARED_PIN1 0>; };
 						110 { pname = "jn1_af"; 	pin = <PIN_REGULATOR 0 0>; };
 					};
+
 					scenario_read_rom_on {
 						sensor_scenario = <SENSOR_SCENARIO_READ_ROM>;
 						gpio_scenario = <GPIO_SCENARIO_ON>;
 
 						/* A start node number should be over the 10 for reserved number 0~9. */
 						/* pname = "name";		pin = <act value delay voltage>; gpio = <gpx# # 0x1>;	*/
-						10 { pname = SEN_RST_LOW; 	pin = <PIN_OUTPUT 0 500>; gpio = JN1_RST; };
-						20 { pname = "jn1_iovdd"; 	pin = <PIN_OUTPUT 1 0>;	gpio = JN1_IOVDD; share = <SRT_ACQUIRE SHARED_PIN1 1>; }; /* CAM_VDDIO_1P8 */
-						30 { pname = "jn1_dvdd"; 	pin = <PIN_REGULATOR 1 0>; }; /* RCAM1_DVDD_1P05 */
-						40 { pname = "jn1_avdd"; 	pin = <PIN_REGULATOR 1 0>; share = <SRT_ACQUIRE SHARED_PIN3 1>; }; /* RCAM1_AVDD_2P8 */
-						50 { pname = "jn1_af"; 		pin = <PIN_REGULATOR 1 0>; };
-						60 { pname = MCLK_FUNC; 	pin = <PIN_FUNCTION 2 500>; };
-						70 { pname = MCLK_GPIO; 	pin = <PIN_MCLK 1 1500>; };
-						80 { pname = I2C_ON;		pin = <PIN_I2C 1 0>; };
-						90 { pname = SEN_RST_HIGH;	pin = <PIN_OUTPUT 1 3000>; gpio = JN1_RST; };
+						10 { pname = "jn1_iovdd";	pin = <PIN_OUTPUT 1 0>; gpio = JN1_IOVDD; share = <SRT_ACQUIRE SHARED_PIN1 1>; }; /* CAM_VDDIO_1P8 */
+						20 { pname = "jn1_af"; 		pin = <PIN_REGULATOR 1 1000>; };
+						30 { pname = I2C_ON;		pin = <PIN_I2C 1 2000>; }; /* Delay here is ignored since there is no udelay() for I2C_PIN */
+						40 { pname = DELAY;			pin = <PIN_NONE 0 4000>; };
 					};
 
 					scenario_read_rom_off {
@@ -101,19 +99,10 @@
 						gpio_scenario = <GPIO_SCENARIO_OFF>;
 
 						/* A start node number should be over the 10 for reserved number 0~9. */
-						/* pname = "name";		pin = <act value delay voltage>;	gpio = <gpx# # 0x1>;	*/
-						10 { pname = MCLK_FUNC; 	pin = <PIN_FUNCTION 0 500>; };
-						20 { pname = SEN_RST_LOW; 	pin = <PIN_OUTPUT 0 0>; gpio = JN1_RST; };
-						30 { pname = I2C_OFF; 		pin = <PIN_I2C 0 0>; };
-						40 { pname = MCLK_GPIO; 	pin = <PIN_MCLK 0 500>; };
-						50 { pname = MCLK_FUNC; 	pin = <PIN_FUNCTION 0 0>; };
-						60 { pname = MCLK_FUNC; 	pin = <PIN_FUNCTION 1 0>; };
-						70 { pname = MCLK_FUNC;		pin = <PIN_FUNCTION 0 0>; };
-						80 { pname = "jn1_avdd"; 	pin = <PIN_REGULATOR 0 0>; share = <SRT_RELEASE SHARED_PIN3 0>; };
-						90 { pname = "jn1_dvdd"; 	pin = <PIN_REGULATOR 0 0>; };
-						100 { pname = "jn1_iovdd"; 	pin = <PIN_OUTPUT 0 0>; gpio = JN1_IOVDD; share = <SRT_RELEASE SHARED_PIN1 0>; };
-						110 { pname = "jn1_af"; 	pin = <PIN_REGULATOR 0 0>; };
-						120 { pname = DELAY; 		pin = <PIN_NONE 0 20000>; };
+						/* pname = "name";		pin = <act value delay voltage>; gpio = <gpx# # 0x1>;	*/
+						10 { pname = I2C_OFF;		pin = <PIN_I2C 0 0>; };
+						20 { pname = "jn1_iovdd";	pin = <PIN_OUTPUT 0 0>; gpio = JN1_IOVDD; share = <SRT_RELEASE SHARED_PIN1 0>; };
+						30 { pname = "jn1_af";		pin = <PIN_REGULATOR 0 30000>; };
 					};
 				};
 			};
@@ -137,9 +126,11 @@
 					gpio_mclk = <&gpc0 2 0x1>;
 					scenario_normal_on {
 						/* A start node number should be over the 10 for reserved number 0~9. */
-						/* pname = "name";			pin = <act value dealy voltage>; gpio = <gpx# # 0x1>;	*/
+						/* pname = "name";			pin = <act value delay voltage>; gpio = <gpx# # 0x1>;	*/
 						10 { pname = SEN_RST_LOW;		pin = <PIN_OUTPUT 0 500>; gpio = GC02M1_RST; };
-						20 { pname = "gc02m1_iovdd";		pin = <PIN_OUTPUT 1 1000>; gpio = GC02M1_IOVDD;	share = <SRT_ACQUIRE SHARED_PIN1 1>; };
+						20 { pname = "gc02m1_iovdd";	pin = <PIN_OUTPUT 1 500>; gpio = GC02M1_IOVDD; share = <SRT_ACQUIRE SHARED_PIN1 1>; };
+						22 { pname = "vdd_ldo29";		pin = <PIN_REGULATOR 1 0>; }; /* RCAM1_DVDD_1P05 */
+						25 { pname = "vdd_ldo_buf";		pin = <PIN_REGULATOR 1 500>; }; /* FCAM_DVDD_1P2 */
 						30 { pname = SEN_RST_HIGH;		pin = <PIN_OUTPUT 1 0>; gpio = SC501_RST; };
 						40 { pname = "gc02m1_avdd";		pin = <PIN_REGULATOR 1 0>; share = <SRT_ACQUIRE SHARED_PIN3 1>; };
 						50 { pname = "mipi_sel";		pin = <PIN_OUTPUT 1 1000>; gpio = MIPI_SEL; }; /* MIPI Select   */
@@ -152,7 +143,7 @@
 
 					scenario_normal_off {
 						/* A start node number should be over the 10 for reserved number 0~9. */
-						/* pname = "name";			pin = <act value dealy voltage>;	gpio = <gpx# # 0x1>;	*/
+						/* pname = "name";			pin = <act value delay voltage>; gpio = <gpx# # 0x1>;	*/
 						10 { pname = DELAY;			pin = <PIN_NONE 0 500>;	};
 						20 { pname = I2C_OFF;			pin = <PIN_I2C 0 0>; };
 						30 { pname = MCLK_GPIO;			pin = <PIN_MCLK 0 500>;	share = <SRT_RELEASE SHARED_PIN2 0>; };
@@ -160,6 +151,8 @@
 						50 { pname = MCLK_FUNC;			pin = <PIN_FUNCTION 0 0>; };
 						60 { pname = SEN_RST_LOW;		pin = <PIN_OUTPUT 0 1000>; gpio = GC02M1_RST; };
 						70 { pname = "gc02m1_avdd";		pin = <PIN_REGULATOR 0 0>; share = <SRT_RELEASE SHARED_PIN3 0>; };
+						75 { pname = "vdd_ldo_buf";		pin = <PIN_REGULATOR 0 0>; }; /* FCAM_DVDD_1P2 */
+						77 { pname = "vdd_ldo29";		pin = <PIN_REGULATOR 0 0>; }; /* RCAM1_DVDD_1P05 */
 						80 { pname = "gc02m1_iovdd";		pin = <PIN_OUTPUT 0 0>; gpio = GC02M1_IOVDD; share = <SRT_RELEASE SHARED_PIN1 0>; };
 						90 { pname = "mipi_sel";		pin = <PIN_OUTPUT 0 1000>; gpio = MIPI_SEL; }; /* MIPI Select   */
 						100 { pname = DELAY;			pin = <PIN_NONE 0 100>; };
@@ -186,24 +179,27 @@
 					gpio_mclk = <&gpc0 2 0x1>;
 					scenario_normal_on {
 						/* A start node number should be over the 10 for reserved number 0~9. */
-						/* pname = "name";			pin = <act value dealy voltage>;		gpio = <gpx# # 0x1>;	*/
+						/* pname = "name";			pin = <act value delay voltage>; gpio = <gpx# # 0x1>;	*/
 						10 { pname = SEN_RST_LOW;		pin = <PIN_OUTPUT 0 500>; gpio = SC201_RST; };
-						20 { pname = "sc201_iovdd";		pin = <PIN_OUTPUT 1 1000>; gpio = SC201_IOVDD;	share = <SRT_ACQUIRE SHARED_PIN1 1>; };
+						20 { pname = "sc201_iovdd";		pin = <PIN_OUTPUT 1 500>; gpio = SC201_IOVDD; share = <SRT_ACQUIRE SHARED_PIN1 1>; };
+						22 { pname = "vdd_ldo29";		pin = <PIN_REGULATOR 1 0>; }; /* RCAM1_DVDD_1P05 */
+						25 { pname = "vdd_ldo_buf";		pin = <PIN_REGULATOR 1 500>; }; /* FCAM_DVDD_1P2 */
 						30 { pname = SEN_RST_HIGH;		pin = <PIN_OUTPUT 1 0>; gpio = SC501_RST; };
 						40 { pname = "sc201_avdd";		pin = <PIN_REGULATOR 1 0>; share = <SRT_ACQUIRE SHARED_PIN3 1>; };
 						50 { pname = "mipi_sel";		pin = <PIN_OUTPUT 1 1000>; gpio = MIPI_SEL; }; /* MIPI Select   */
 						60 { pname = SEN_RST_LOW;		pin = <PIN_OUTPUT 0 0>; gpio = SC501_RST; };
 						70 { pname = SEN_RST_HIGH;		pin = <PIN_OUTPUT 1 1500>; gpio = SC201_RST; };
 						80 { pname = SEN_RST_LOW;		pin = <PIN_OUTPUT 0 1500>; gpio = SC201_RST; };
-						90 { pname = SEN_RST_HIGH;		pin = <PIN_OUTPUT 1 4000>; gpio = SC201_RST; };
+						90 { pname = SEN_RST_HIGH;		pin = <PIN_OUTPUT 1 2000>; gpio = SC201_RST; };
 						100 { pname = I2C_ON;			pin = <PIN_I2C 1 0>; };
 						110 { pname = MCLK_FUNC;		pin = <PIN_FUNCTION 2 500>; };
 						120 { pname = MCLK_GPIO;		pin = <PIN_MCLK 1 0>; share = <SRT_ACQUIRE SHARED_PIN2 1>; };
+						130 { pname = DELAY;			pin = <PIN_NONE 0 4500>; }; /* 4ms margin from MCLK to first i2c should be secured */
 					};
 
 					scenario_normal_off {
 						/* A start node number should be over the 10 for reserved number 0~9. */
-						/* pname = "name";			pin = <act value dealy voltage>;	gpio = <gpx# # 0x1>;	*/
+						/* pname = "name";			pin = <act value delay voltage>; gpio = <gpx# # 0x1>;	*/
 						10 { pname = DELAY;			pin = <PIN_NONE 0 500>;	};
 						20 { pname = I2C_OFF;			pin = <PIN_I2C 0 0>; };
 						30 { pname = MCLK_GPIO;			pin = <PIN_MCLK 0 500>;	share = <SRT_RELEASE SHARED_PIN2 0>; };
@@ -211,7 +207,9 @@
 						50 { pname = MCLK_FUNC;			pin = <PIN_FUNCTION 0 0>; };
 						60 { pname = SEN_RST_LOW;		pin = <PIN_OUTPUT 0 1000>; gpio = SC201_RST; };
 						70 { pname = "sc201_avdd";		pin = <PIN_REGULATOR 0 0>; share = <SRT_RELEASE SHARED_PIN3 0>; };
-						80 { pname = "sc201_iovdd";		pin = <PIN_OUTPUT 0 0>;	gpio = SC201_IOVDD; share = <SRT_RELEASE SHARED_PIN1 0>; };
+						75 { pname = "vdd_ldo_buf";		pin = <PIN_REGULATOR 0 0>; }; /* FCAM_DVDD_1P2 */
+						77 { pname = "vdd_ldo29";		pin = <PIN_REGULATOR 0 0>; }; /* RCAM1_DVDD_1P05 */
+						80 { pname = "sc201_iovdd";		pin = <PIN_OUTPUT 0 0>; gpio = SC201_IOVDD; share = <SRT_RELEASE SHARED_PIN1 0>; };
 						90 { pname = "mipi_sel";		pin = <PIN_OUTPUT 0 1000>; gpio = MIPI_SEL; }; /* MIPI Select   */
 						100 { pname = DELAY;			pin = <PIN_NONE 0 100>; };
 					};
@@ -246,9 +244,11 @@
 						gpio_scenario = <GPIO_SCENARIO_ON>;
 
 						/* A start node number should be over the 10 for reserved number 0~9. */
-						/* pname = "name";			pin = <act value dealy voltage>; gpio = <gpx# # 0x1>;	*/
+						/* pname = "name";			pin = <act value delay voltage>; gpio = <gpx# # 0x1>;	*/
 						10 { pname = SEN_RST_LOW;		pin = <PIN_OUTPUT 0 500>; gpio = GC02M2_MACRO_RST; };
-						20 { pname = "gc02m2_macro_iovdd";	pin = <PIN_OUTPUT 1 1000>; gpio = GC02M2_MACRO_IOVDD; share = <SRT_ACQUIRE SHARED_PIN1 1>; };
+						20 { pname = "gc02m2_macro_iovdd";	pin = <PIN_OUTPUT 1 500>; gpio = GC02M2_MACRO_IOVDD; share = <SRT_ACQUIRE SHARED_PIN1 1>; };
+						22 { pname = "vdd_ldo29";		pin = <PIN_REGULATOR 1 0>; }; /* RCAM1_DVDD_1P05 */
+						25 { pname = "vdd_ldo_buf";		pin = <PIN_REGULATOR 1 500>; }; /* FCAM_DVDD_1P2 */
 						30 { pname = SEN_RST_HIGH;		pin = <PIN_OUTPUT 1 0>; gpio = SC501_RST; };
 						40 { pname = "gc02m2_macro_avdd";	pin = <PIN_REGULATOR 1 0>; share = <SRT_ACQUIRE SHARED_PIN3 1>; };
 						50 { pname = SEN_RST_HIGH;		pin = <PIN_OUTPUT 1 1000>; gpio = GC02M2_MACRO_RST; };
@@ -264,7 +264,7 @@
 						gpio_scenario = <GPIO_SCENARIO_OFF>;
 
 						/* A start node number should be over the 10 for reserved number 0~9. */
-						/* pname = "name";			pin = <act value dealy voltage>; gpio = <gpx# # 0x1>;	*/
+						/* pname = "name";			pin = <act value delay voltage>; gpio = <gpx# # 0x1>;	*/
 						10 { pname = DELAY;			pin = <PIN_NONE 0 500>; };
 						20 { pname = I2C_OFF;			pin = <PIN_I2C 0 0>; };
 						30 { pname = MCLK_GPIO;			pin = <PIN_MCLK 0 500>;	share = <SRT_RELEASE SHARED_PIN2 0>; };
@@ -272,6 +272,8 @@
 						50 { pname = MCLK_FUNC;			pin = <PIN_FUNCTION 0 0>; };
 						60 { pname = SEN_RST_LOW;		pin = <PIN_OUTPUT 0 1000>; gpio = GC02M2_MACRO_RST; };
 						70 { pname = "gc02m2_macro_avdd";	pin = <PIN_REGULATOR 0 0>; share = <SRT_RELEASE SHARED_PIN3 0>; };
+						75 { pname = "vdd_ldo_buf";		pin = <PIN_REGULATOR 0 0>; }; /* FCAM_DVDD_1P2 */
+						77 { pname = "vdd_ldo29";		pin = <PIN_REGULATOR 0 0>; }; /* RCAM1_DVDD_1P05 */
 						80 { pname = "gc02m2_macro_iovdd";	pin = <PIN_OUTPUT 0 0>;	gpio = GC02M2_MACRO_IOVDD; share = <SRT_RELEASE SHARED_PIN1 0>; };
 					};
 
@@ -280,7 +282,7 @@
 						gpio_scenario = <GPIO_SCENARIO_ON>;
 
 						/* A start node number should be over the 10 for reserved number 0~9. */
-						/* pname = "name";			pin = <act value dealy voltage>; gpio = <gpx# # 0x1>;	*/
+						/* pname = "name";			pin = <act value delay voltage>; gpio = <gpx# # 0x1>;	*/
 						10 { pname = SEN_RST_LOW;		pin = <PIN_OUTPUT 0 500>; gpio = GC02M2_MACRO_RST; };
 						20 { pname = "gc02m2_macro_iovdd";	pin = <PIN_OUTPUT 1 5000>; gpio = GC02M2_MACRO_IOVDD; share = <SRT_ACQUIRE SHARED_PIN1 1>; };
 						30 { pname = "gc02m2_macro_avdd";	pin = <PIN_REGULATOR 1 0>; share = <SRT_ACQUIRE SHARED_PIN3 1>; };
@@ -294,7 +296,7 @@
 						sensor_scenario = <SENSOR_SCENARIO_READ_ROM>;
 						gpio_scenario = <GPIO_SCENARIO_OFF>;
 						/* A start node number should be over the 10 for reserved number 0~9. */
-						/* pname = "name";			pin = <act value dealy voltage>; gpio = <gpx# # 0x1>;	*/
+						/* pname = "name";			pin = <act value delay voltage>; gpio = <gpx# # 0x1>;	*/
 						10 { pname = DELAY;			pin = <PIN_NONE 0 500>; };
 						20 { pname = I2C_OFF;			pin = <PIN_I2C 0 0>; };
 						30 { pname = MCLK_GPIO;			pin = <PIN_MCLK 0 500>; share = <SRT_RELEASE SHARED_PIN2 0>; };
@@ -303,7 +305,7 @@
 						60 { pname = SEN_RST_LOW;		pin = <PIN_OUTPUT 0 1000>; gpio = GC02M2_MACRO_RST; };
 						70 { pname = "gc02m2_macro_avdd";	pin = <PIN_REGULATOR 0 0>; share = <SRT_RELEASE SHARED_PIN3 0>; };
 						80 { pname = "gc02m2_macro_iovdd";	pin = <PIN_OUTPUT 0 0>;	gpio = GC02M2_MACRO_IOVDD; share = <SRT_RELEASE SHARED_PIN1 0>; };
-						90 { pname = DELAY;			pin = <PIN_NONE 0 20000>; };
+						90 { pname = DELAY;			pin = <PIN_NONE 0 30000>; };
 					};
 				}; /* power_seq */
 			}; /* is_sensor_gc02m2_macro */
@@ -336,9 +338,11 @@
 						gpio_scenario = <GPIO_SCENARIO_ON>;
 
 						/* A start node number should be over the 10 for reserved number 0~9. */
-						/* pname = "name";				pin = <act value dealy voltage>; gpio = <gpx# # 0x1>;	*/
+						/* pname = "name";				pin = <act value delay voltage>; gpio = <gpx# # 0x1>;	*/
 						10 { pname = SEN_RST_LOW;			pin = <PIN_OUTPUT 0 500>; gpio = SC201_MACRO_RST; };
-						20 { pname = "sc201_macro_iovdd";		pin = <PIN_OUTPUT 1 0>; gpio = SC201_MACRO_IOVDD; share = <SRT_ACQUIRE SHARED_PIN1 1>;};
+						20 { pname = "sc201_macro_iovdd";		pin = <PIN_OUTPUT 1 500>; gpio = SC201_MACRO_IOVDD; share = <SRT_ACQUIRE SHARED_PIN1 1>;};
+						22 { pname = "vdd_ldo29";			pin = <PIN_REGULATOR 1 0>; }; /* RCAM1_DVDD_1P05 */
+						25 { pname = "vdd_ldo_buf";			pin = <PIN_REGULATOR 1 500>; }; /* FCAM_DVDD_1P2 */
 						30 { pname = SEN_RST_HIGH;			pin = <PIN_OUTPUT 1 0>; gpio = SC501_RST; };
 						40 { pname = "sc201_macro_avdd";		pin = <PIN_REGULATOR 1 1000>; share = <SRT_ACQUIRE SHARED_PIN3 1>; };
 						50 { pname = SEN_RST_LOW;			pin = <PIN_OUTPUT 0 0>; gpio = SC501_RST; };
@@ -348,7 +352,7 @@
 						90 { pname = I2C_ON;				pin = <PIN_I2C 1 0>; };
 						100 { pname = MCLK_FUNC;			pin = <PIN_FUNCTION 2 500>; };
 						110 { pname = MCLK_GPIO;			pin = <PIN_MCLK 1 0>; share = <SRT_ACQUIRE SHARED_PIN2 1>; };
-						120 { pname = DELAY;				pin = <PIN_NONE 0 2000>; };
+						120 { pname = DELAY;				pin = <PIN_NONE 0 4500>; }; /* 4ms margin from MCLK to first i2c should be secured */
 					};
 
 					scenario_normal_off {
@@ -356,7 +360,7 @@
 						gpio_scenario = <GPIO_SCENARIO_OFF>;
 
 						/* A start node number should be over the 10 for reserved number 0~9. */
-						/* pname = "name";				pin = <act value dealy voltage>; gpio = <gpx# # 0x1>;	*/
+						/* pname = "name";				pin = <act value delay voltage>; gpio = <gpx# # 0x1>;	*/
 						10 { pname = DELAY;				pin = <PIN_NONE 0  500>; };
 						20 { pname = I2C_OFF;				pin = <PIN_I2C 0 0>; };
 						30 { pname = MCLK_GPIO;				pin = <PIN_MCLK 0 500>; share = <SRT_RELEASE SHARED_PIN2 0>; };
@@ -364,6 +368,8 @@
 						50 { pname = MCLK_FUNC;				pin = <PIN_FUNCTION 0 0>; };
 						60 { pname = SEN_RST_LOW;			pin = <PIN_OUTPUT 0 1000>; gpio = SC201_MACRO_RST;};
 						70 { pname = "sc201_macro_avdd";		pin = <PIN_REGULATOR 0 0>; share = <SRT_RELEASE SHARED_PIN3 0>; };
+						75 { pname = "vdd_ldo_buf";			pin = <PIN_REGULATOR 0 0>; }; /* FCAM_DVDD_1P2 */
+						77 { pname = "vdd_ldo29";			pin = <PIN_REGULATOR 0 0>; }; /* RCAM1_DVDD_1P05 */
 						80 { pname = "sc201_macro_iovdd";		pin = <PIN_OUTPUT 0 0>; gpio = SC201_MACRO_IOVDD; share = <SRT_RELEASE SHARED_PIN1 0>;};
 					};
 
@@ -372,7 +378,7 @@
 						gpio_scenario = <GPIO_SCENARIO_ON>;
 
 						/* A start node number should be over the 10 for reserved number 0~9. */
-						/* pname = "name";				pin = <act value dealy voltage>; gpio = <gpx# # 0x1>;	*/
+						/* pname = "name";				pin = <act value delay voltage>; gpio = <gpx# # 0x1>;	*/
 						10 { pname = SEN_RST_LOW;			pin = <PIN_OUTPUT 0 500>; gpio = SC201_MACRO_RST; };
 						20 { pname = "sc201_macro_iovdd";		pin = <PIN_OUTPUT 1 1000>; gpio = SC201_MACRO_IOVDD; share = <SRT_ACQUIRE SHARED_PIN1 1>;};
 						30 { pname = "sc201_macro_avdd";		pin = <PIN_REGULATOR 1 0>; share = <SRT_ACQUIRE SHARED_PIN3 1>; };
@@ -382,13 +388,13 @@
 						70 { pname = I2C_ON;				pin = <PIN_I2C 1 0>; };
 						80 { pname = MCLK_FUNC;				pin = <PIN_FUNCTION 2 500>; };
 						90 { pname = MCLK_GPIO;				pin = <PIN_MCLK 1 0>; share = <SRT_ACQUIRE SHARED_PIN2 1>;};
-						100 { pname = DELAY;				pin = <PIN_NONE 0 2000>; };
+						100 { pname = DELAY;				pin = <PIN_NONE 0 4500>; }; /* 4ms margin from MCLK to first i2c should be secured */
 					};
 					scenario_read_rom_off {
 						sensor_scenario = <SENSOR_SCENARIO_READ_ROM>;
 						gpio_scenario = <GPIO_SCENARIO_OFF>;
 						/* A start node number should be over the 10 for reserved number 0~9. */
-						/* pname = "name";				pin = <act value dealy voltage>; gpio = <gpx# # 0x1>;	*/
+						/* pname = "name";				pin = <act value delay voltage>; gpio = <gpx# # 0x1>;	*/
 						10 { pname = DELAY;				pin = <PIN_NONE 0  500>; };
 						20 { pname = I2C_OFF;				pin = <PIN_I2C 0 0>; };
 						30 { pname = MCLK_GPIO;				pin = <PIN_MCLK 0 500>; share = <SRT_RELEASE SHARED_PIN2 0>; };
@@ -397,7 +403,7 @@
 						60 { pname = SEN_RST_LOW;			pin = <PIN_OUTPUT 0 1000>; gpio = SC201_MACRO_RST; };
 						70 { pname = "sc201_macro_avdd";		pin = <PIN_REGULATOR 0 0>; share = <SRT_RELEASE SHARED_PIN3 0>; };
 						80 { pname = "sc201_macro_iovdd";		pin = <PIN_OUTPUT 0 0>; gpio = SC201_MACRO_IOVDD; share = <SRT_RELEASE SHARED_PIN1 0>; };
-						90 { pname = DELAY;				pin = <PIN_NONE 0 20000>; };
+						90 { pname = DELAY;				pin = <PIN_NONE 0 30000>; };
 					};
 				}; /* power_seq */
 			}; /* is_sensor_sc201_macro */
@@ -431,8 +437,9 @@
 						/* A start node number should be over the 10 for reserved number 0~9. */
 						/* pname = "name";			pin = <act value delay voltage>; gpio = <gpx# # 0x1>;	*/
 						10 { pname = SEN_RST_LOW;		pin = <PIN_OUTPUT 0 500>; gpio = HI556_RST; };
-						20 { pname = "hi556_iovdd";		pin = <PIN_OUTPUT 1 1000>; gpio = HI556_IOVDD;	share = <SRT_ACQUIRE SHARED_PIN1 1>; }; /* VDD_CAM_IO_1P8 */
-						30 { pname = "hi556_dvdd";		pin = <PIN_REGULATOR 1 500>; }; /* FCAM_DVDD_1P2 */
+						20 { pname = "hi556_iovdd";		pin = <PIN_OUTPUT 1 500>; gpio = HI556_IOVDD;	share = <SRT_ACQUIRE SHARED_PIN1 1>; }; /* VDD_CAM_IO_1P8 */
+						25 { pname = "vdd_ldo29";		pin = <PIN_REGULATOR 1 0>; }; /* RCAM1_DVDD_1P05 */
+						30 { pname = "vdd_ldo_buf";		pin = <PIN_REGULATOR 1 500>; }; /* FCAM_DVDD_1P2 */
 						40 { pname = "hi556_avdd";		pin = <PIN_REGULATOR 1 500>; share = <SRT_ACQUIRE SHARED_PIN3 1>; }; /* FCAM_AVDD_2P8 */
 						50 { pname = I2C_ON;			pin = <PIN_I2C 1 0>; };
 						60 { pname = MCLK_FUNC;			pin = <PIN_FUNCTION 2 1000>; };
@@ -453,7 +460,8 @@
 						50 { pname = MCLK_FUNC;			pin = <PIN_FUNCTION 0 0>; };
 						60 { pname = I2C_OFF;			pin = <PIN_I2C 0 0>; };
 						70 { pname = "hi556_avdd";		pin = <PIN_REGULATOR 0 1000>; share = <SRT_RELEASE SHARED_PIN3 0>; }; /* FCAM_AVDD_2P8 */
-						80 { pname = "hi556_dvdd";		pin = <PIN_REGULATOR 0 1000>; }; /* FCAM_DVDD_1P2 */
+						80 { pname = "vdd_ldo_buf";		pin = <PIN_REGULATOR 0 1000>; }; /* FCAM_DVDD_1P2 */
+						85 { pname = "vdd_ldo29";		pin = <PIN_REGULATOR 0 0>; }; /* RCAM1_DVDD_1P05 */
 						90 { pname = "hi556_iovdd";		pin = <PIN_OUTPUT 0 1000>; gpio = HI556_IOVDD; share = <SRT_RELEASE SHARED_PIN1 0>; }; /* VDD_CAM_IO_1P8 */
 					};
 					
@@ -465,7 +473,7 @@
 						/* pname = "name";			pin = <act value delay voltage>; gpio = <gpx# # 0x1>; */
 						10 { pname = SEN_RST_LOW;		pin = <PIN_OUTPUT 0 500>; gpio = HI556_RST; };
 						20 { pname = "hi556_iovdd";		pin = <PIN_OUTPUT 1 1000>; gpio = HI556_IOVDD; share = <SRT_ACQUIRE SHARED_PIN1 1>; }; /* VDD_CAM_IO_1P8 */
-						30 { pname = "hi556_dvdd";		pin = <PIN_REGULATOR 1 500>; }; /* FCAM_DVDD_1P2 */
+						30 { pname = "vdd_ldo_buf";		pin = <PIN_REGULATOR 1 500>; }; /* FCAM_DVDD_1P2 */
 						40 { pname = "hi556_avdd";		pin = <PIN_REGULATOR 1 500>; share = <SRT_ACQUIRE SHARED_PIN3 1>; }; /* FCAM_AVDD_2P8 */
 						50 { pname = I2C_ON;			pin = <PIN_I2C 1 0>; };
 						60 { pname = MCLK_FUNC;			pin = <PIN_FUNCTION 2 1000>; };
@@ -486,8 +494,8 @@
 						50 { pname = MCLK_FUNC;			pin = <PIN_FUNCTION 0 0>; };
 						60 { pname = I2C_OFF;			pin = <PIN_I2C 0 0>; };
 						70 { pname = "hi556_avdd";		pin = <PIN_REGULATOR 0 1000>; share = <SRT_RELEASE SHARED_PIN3 0>; }; /* FCAM_AVDD_2P8 */
-						80 { pname = "hi556_dvdd";		pin = <PIN_REGULATOR 0 1000>; }; /* FCAM_DVDD_1P2 */
-						90 { pname = "hi556_iovdd";		pin = <PIN_OUTPUT 0 20000>; gpio = HI556_IOVDD; share = <SRT_RELEASE SHARED_PIN1 0>; }; /* VDD_CAM_IO_1P8 */
+						80 { pname = "vdd_ldo_buf";		pin = <PIN_REGULATOR 0 1000>; }; /* FCAM_DVDD_1P2 */
+						90 { pname = "hi556_iovdd";		pin = <PIN_OUTPUT 0 30000>; gpio = HI556_IOVDD; share = <SRT_RELEASE SHARED_PIN1 0>; }; /* VDD_CAM_IO_1P8 */
 					};
 				}; /* power_seq */
 			}; /* is_sensor_hi556 */
@@ -520,14 +528,16 @@
 						/* pname = "name";			pin = <act value delay voltage>; gpio = <gpx# # 0x1>;	*/
 						10 { pname = SEN_RST_LOW;		pin = <PIN_OUTPUT 0 500>; gpio = SC501_RST; };
 						20 { pname = "sc501_iovdd"; 		pin = <PIN_OUTPUT 1 1000>; gpio = SC501_IOVDD;	share = <SRT_ACQUIRE SHARED_PIN1 1>; }; /* VDD_CAM_IO_1P8 */
-						30 { pname = "sc501_dvdd";		pin = <PIN_REGULATOR 1 500>; }; /* FCAM_DVDD_1P2 */
+						25 { pname = "vdd_ldo29";		pin = <PIN_REGULATOR 1 0>; }; /* RCAM1_DVDD_1P05 */
+						30 { pname = "vdd_ldo_buf";		pin = <PIN_REGULATOR 1 500>; }; /* FCAM_DVDD_1P2 */
 						40 { pname = "sc501_avdd";		pin = <PIN_REGULATOR 1 500>; share = <SRT_ACQUIRE SHARED_PIN3 1>; }; /* FCAM_AVDD_2P8 */
 						50 { pname = SEN_RST_HIGH;		pin = <PIN_OUTPUT 1 1500>; gpio = SC501_RST; };
 						60 { pname = SEN_RST_LOW;		pin = <PIN_OUTPUT 0 1500>; gpio = SC501_RST; };
 						70 { pname = SEN_RST_HIGH;		pin = <PIN_OUTPUT 1 2000>; gpio = SC501_RST; };
 						80 { pname = I2C_ON;			pin = <PIN_I2C 1 0>; };
 						90 { pname = MCLK_FUNC;			pin = <PIN_FUNCTION 2 1000>; };
-						100 { pname = MCLK_GPIO;		pin = <PIN_MCLK 1 2000>; }; /* Add further delay to meet spec (SEN_RST_HIGH ~ first I2C should be within 4ms) */
+						100 { pname = MCLK_GPIO;		pin = <PIN_MCLK 1 0>; };
+						110 { pname = DELAY;			pin = <PIN_NONE 0 4500>; }; /* 4ms margin from MCLK to first i2c should be secured */
 					};
 
 					scenario_normal_off {
@@ -543,7 +553,8 @@
 						50 { pname = I2C_OFF;			pin = <PIN_I2C 0 0>; };
 						60 { pname = SEN_RST_LOW;		pin = <PIN_OUTPUT 0 1000>; gpio = SC501_RST; };
 						70 { pname = "sc501_avdd";		pin = <PIN_REGULATOR 0 1000>; share = <SRT_RELEASE SHARED_PIN3 0>; }; /* FCAM_AVDD_2P8 */
-						80 { pname = "sc501_dvdd";		pin = <PIN_REGULATOR 0 1000>; }; /* FCAM_DVDD_1P2 */
+						80 { pname = "vdd_ldo_buf";		pin = <PIN_REGULATOR 0 1000>; }; /* FCAM_DVDD_1P2 */
+						85 { pname = "vdd_ldo29";		pin = <PIN_REGULATOR 0 0>; }; /* RCAM1_DVDD_1P05 */
 						90 { pname = "sc501_iovdd";		pin = <PIN_OUTPUT 0 1000>; gpio = SC501_IOVDD; share = <SRT_RELEASE SHARED_PIN1 0>; }; /* VDD_CAM_IO_1P8 */
 					};
 
@@ -555,14 +566,15 @@
 						/* pname = "name";			pin = <act value delay voltage>; gpio = <gpx# # 0x1>;	*/
 						10 { pname = SEN_RST_LOW;		pin = <PIN_OUTPUT 0 500>; gpio = SC501_RST; };
 						20 { pname = "sc501_iovdd";		pin = <PIN_OUTPUT 1 1000>; gpio = SC501_IOVDD; share = <SRT_ACQUIRE SHARED_PIN1 1>; }; /* VDD_CAM_IO_1P8 */
-						30 { pname = "sc501_dvdd";		pin = <PIN_REGULATOR 1 500>; }; /* FCAM_DVDD_1P2 */
+						30 { pname = "vdd_ldo_buf";		pin = <PIN_REGULATOR 1 500>; }; /* FCAM_DVDD_1P2 */
 						40 { pname = "sc501_avdd";		pin = <PIN_REGULATOR 1 500>; share = <SRT_ACQUIRE SHARED_PIN3 1>; }; /* FCAM_AVDD_2P8 */
 						50 { pname = SEN_RST_HIGH;		pin = <PIN_OUTPUT 1 1500>; gpio = SC501_RST; };
 						60 { pname = SEN_RST_LOW;		pin = <PIN_OUTPUT 0 1500>; gpio = SC501_RST; };
 						70 { pname = SEN_RST_HIGH;		pin = <PIN_OUTPUT 1 2000>; gpio = SC501_RST; };
 						80 { pname = I2C_ON;			pin = <PIN_I2C 1 0>; };
 						90 { pname = MCLK_FUNC;			pin = <PIN_FUNCTION 2 1000>; };
-						100 { pname = MCLK_GPIO;		pin = <PIN_MCLK 1 2000>; }; /* Add further delay to meet spec (SEN_RST_HIGH ~ first I2C should be within 4ms) */
+						100 { pname = MCLK_GPIO;		pin = <PIN_MCLK 1 0>; };
+						110 { pname = DELAY;			pin = <PIN_NONE 0 4500>; }; /* 4ms margin from MCLK to first i2c should be secured */
 					};
 
 					scenario_read_rom_off {
@@ -578,8 +590,8 @@
 						50 { pname = I2C_OFF;			pin = <PIN_I2C 0 0>; };
 						60 { pname = SEN_RST_LOW;		pin = <PIN_OUTPUT 0 1000>; gpio = SC501_RST; };
 						70 { pname = "sc501_avdd";		pin = <PIN_REGULATOR 0 1000>; share = <SRT_RELEASE SHARED_PIN3 0>; }; /* FCAM_AVDD_2P8 */
-						80 { pname = "sc501_dvdd";		pin = <PIN_REGULATOR 0 1000>; }; /* FCAM_DVDD_1P2 */
-						90 { pname = "sc501_iovdd";		pin = <PIN_OUTPUT 0 20000>; gpio = SC501_IOVDD; share = <SRT_RELEASE SHARED_PIN1 0>; }; /* VDD_CAM_IO_1P8 */
+						80 { pname = "vdd_ldo_buf";		pin = <PIN_REGULATOR 0 1000>; }; /* FCAM_DVDD_1P2 */
+						90 { pname = "sc501_iovdd";		pin = <PIN_OUTPUT 0 30000>; gpio = SC501_IOVDD; share = <SRT_RELEASE SHARED_PIN1 0>; }; /* VDD_CAM_IO_1P8 */
 					};
 				}; /* power_seq */
 			}; /* is_sensor_sc501 */

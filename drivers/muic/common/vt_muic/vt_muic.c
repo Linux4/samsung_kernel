@@ -111,9 +111,9 @@ static void vt_muic_work_func(struct work_struct *work)
 #endif
 		break;
 	case SEC_BATTERY_CABLE_TIMEOUT:
+	case SEC_BATTERY_CABLE_UNKNOWN:
 		new_dev = ATTACHED_DEV_TIMEOUT_OPEN_MUIC;
 		break;
-	case SEC_BATTERY_CABLE_UNKNOWN:
 	case SEC_BATTERY_CABLE_NONE:
 #if IS_ENABLED(CONFIG_AFC_CHARGER) && IS_ENABLED(CONFIG_CHARGER_SYV660)
 		if (vt_muic.ic_data && vt_muic.ic_data->m_ops.afc_dpdm_ctrl)
@@ -368,8 +368,19 @@ static int vt_muic_set_hiccup_cb(void *data, int en)
 	struct vt_muic_ic_data *ic_data = vt_muic.ic_data;
 	int ret = 0;
 
-	if (ic_data && ic_data->m_ops.set_hiccup)
-		ret = ic_data->m_ops.set_hiccup(ic_data->mdata, en);
+	if (ic_data && ic_data->m_ops.set_hiccup_mode)
+		ret = ic_data->m_ops.set_hiccup_mode(ic_data->mdata, en);
+
+	return ret;
+}
+
+static int vt_muic_set_hiccup_mode_cb(int en)
+{
+	struct vt_muic_ic_data *ic_data = vt_muic.ic_data;
+	int ret = 0;
+
+	if (ic_data && ic_data->m_ops.set_hiccup_mode)
+		ret = ic_data->m_ops.set_hiccup_mode(ic_data->mdata, en);
 
 	return ret;
 }
@@ -383,6 +394,13 @@ static void vt_muic_fill_muic_sysfs_cb(struct muic_platform_data *pdata)
 	pdata->sysfs_cb.set_afc_disable = vt_muic_set_afc_disable_cb;
 #if IS_ENABLED(CONFIG_HICCUP_CHARGER)
 	pdata->sysfs_cb.set_hiccup = vt_muic_set_hiccup_cb;
+#endif
+}
+
+static void vt_muic_fill_muic_cb(struct muic_platform_data *pdata)
+{
+#if IS_ENABLED(CONFIG_HICCUP_CHARGER)
+	pdata->muic_set_hiccup_mode_cb = vt_muic_set_hiccup_mode_cb;
 #endif
 }
 #endif
@@ -485,6 +503,17 @@ out:
 	return ret;
 }
 
+static void vt_muic_data_init(void)
+{
+	vt_muic.attached_dev = ATTACHED_DEV_NONE_MUIC;
+	vt_muic.batt_cable = -1;
+	vt_muic.rprd = 0;
+	vt_muic.afc_dev = ATTACHED_DEV_NONE_MUIC;
+	vt_muic.id_ta = 0;
+	vt_muic.buck_prev_status = -1;
+	vt_muic.is_afc_started = 0;
+}
+
 static int vt_muic_probe(struct platform_device *pdev)
 {
 	struct vt_muic_pdata *pdata = pdev->dev.platform_data;
@@ -507,6 +536,7 @@ static int vt_muic_probe(struct platform_device *pdev)
 	}
 	vt_muic.dev = &pdev->dev;
 	vt_muic.pdata = pdata;
+	vt_muic_data_init();
 	ret = vt_muic_irq_init();
 	if (ret)
 		goto out;
@@ -519,7 +549,7 @@ static int vt_muic_probe(struct platform_device *pdev)
 
 #ifdef CONFIG_MUIC_COMMON_SYSFS
 	vt_muic_fill_muic_sysfs_cb(vt_muic.muic_pdata);
-
+	vt_muic_fill_muic_cb(vt_muic.muic_pdata);
 	ret = muic_sysfs_init(vt_muic.muic_pdata);
 	if (ret) {
 		pr_err("%s: failed to create sysfs\n", __func__);
@@ -539,16 +569,10 @@ static int vt_muic_probe(struct platform_device *pdev)
 
 	if (pdata->use_psy_nb || pdata->use_manager_nb) {
 		muic_notifier_detach_attached_dev(ATTACHED_DEV_UNKNOWN_MUIC);
-		vt_muic.attached_dev = ATTACHED_DEV_NONE_MUIC;
-		vt_muic.batt_cable = 0;
-		vt_muic.rprd = 0;
-		vt_muic.afc_dev = ATTACHED_DEV_NONE_MUIC;
-		vt_muic.id_ta = 0;
-		vt_muic.buck_prev_status = -1;
-		vt_muic.is_afc_started = 0;
 		INIT_WORK(&vt_muic.vt_muic_work, vt_muic_work_func);
 #if IS_ENABLED(CONFIG_BATTERY_SAMSUNG)
 		if (pdata->use_psy_nb) {
+			vt_muic.batt_cable = SEC_BATTERY_CABLE_NONE;
 			vt_muic.psy_nb.notifier_call = vt_muic_psy_nb_func;
 			vt_muic.psy_nb.priority = 0;
 			ret = power_supply_reg_notifier(&vt_muic.psy_nb);

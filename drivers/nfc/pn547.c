@@ -406,7 +406,7 @@ ssize_t pn547_dev_read(struct file *filp, char __user *buf,
 
 	/* Read data */
 	ret = pn547_i2c_master_recv(pn547_dev->client, r_buf, count);
-	NFC_LOG_REC("recv size : %d\n", ret);
+	NFC_LOG_REC("rd: %d\n", ret);
 
 #if NFC_DEBUG
 	NFC_LOG_INFO("i2c_master_recv\n");
@@ -540,7 +540,7 @@ static ssize_t pn547_dev_write(struct file *filp, const char __user *buf,
 		return -EFAULT;
 	}
 
-	NFC_LOG_REC("writing %zu bytes.\n", count);
+	NFC_LOG_REC("wr: %zu\n", count);
 	/* Write data */
 	do {
 		retry--;
@@ -2269,7 +2269,7 @@ static void pn547_shutdown(struct i2c_client *client)
 #ifdef CONFIG_PM
 static int pn547_suspend(struct device *dev)
 {
-	NFC_LOG_INFO("suspend!\n");
+	NFC_LOG_INFO_WITH_DATE("suspend!\n");
 	if (pn547_dev)
 		pn547_dev->clk_req_wakelock = true;
 
@@ -2278,7 +2278,7 @@ static int pn547_suspend(struct device *dev)
 
 static int pn547_resume(struct device *dev)
 {
-	NFC_LOG_INFO("resume!\n");
+	NFC_LOG_INFO_WITH_DATE("resume!\n");
 
 	return 0;
 }

@@ -102,6 +102,7 @@ static const char *manager_notify_string(int mns)
 	case MANAGER_NOTIFY_PDIC_BATTERY: return "pdic_battery";
 	case MANAGER_NOTIFY_PDIC_USB: return "pdic_usb";
 	case MANAGER_NOTIFY_PDIC_MUIC: return "pdic_muic";
+	case MANAGER_NOTIFY_PDIC_DELAY_DONE: return "pdic_delay_done";
 	default:
 		return "undefined";
 	}
@@ -314,6 +315,7 @@ static void manager_usb_event_send(uint state)
 				__func__);
 			break;
 		}
+#if !IS_ENABLED(CONFIG_MTK_CHARGER)
 		if (typec_manager.classified_cable_type != MANAGER_NOTIFY_MUIC_USB
 				&& typec_manager.classified_cable_type != MANAGER_NOTIFY_MUIC_TIMEOUT_OPEN_DEVICE
 				&& typec_manager.classified_cable_type != MANAGER_NOTIFY_MUIC_OTG) {
@@ -325,6 +327,10 @@ static void manager_usb_event_send(uint state)
 			pr_err("%s: Cable type is set to NONE", __func__);
 			typec_manager.classified_cable_type = MANAGER_NOTIFY_MUIC_NONE;
 		}
+#else
+		if (typec_manager.classified_cable_type == MANAGER_NOTIFY_MUIC_NONE)
+			typec_manager.classified_cable_type = MANAGER_NOTIFY_MUIC_USB;
+#endif
 		break;
 	case USB_STATUS_NOTIFY_ATTACH_DFP:
 		typec_manager.usb.ufp_repeat_check = 0;
@@ -337,6 +343,10 @@ static void manager_usb_event_send(uint state)
 		set_usb_enumeration_state(0);
 		manager_event_work(PDIC_NOTIFY_DEV_MANAGER, PDIC_NOTIFY_DEV_BATT,
 					PDIC_NOTIFY_ID_USB, 0, 0, PD_NONE_TYPE);
+#if IS_ENABLED(CONFIG_MTK_CHARGER)
+		if (!typec_manager.muic.attach_state)
+			typec_manager.classified_cable_type = MANAGER_NOTIFY_MUIC_NONE;
+#endif
 		break;
 	default:
 		pr_info("%s(%s): Invalid event\n", __func__, pdic_usbstatus_string(state));
@@ -592,7 +602,7 @@ static int manager_external_notifier_notification(struct notifier_block *nb,
 			pdic_usbstatus_string(typec_manager.usb.dr),
 			typec_manager.muic.attach_state);
 		if (enable &&
-#if !IS_ENABLED(CONFIG_CABLE_TYPE_NOTIFIER)
+#if !IS_ENABLED(CONFIG_CABLE_TYPE_NOTIFIER) && !IS_ENABLED(CONFIG_MTK_CHARGER)
 			typec_manager.muic.attach_state != MUIC_NOTIFY_CMD_DETACH &&
 #endif
 			typec_manager.usb.dr == USB_STATUS_NOTIFY_ATTACH_DFP) {
@@ -1119,7 +1129,9 @@ __visible_for_testing int manager_handle_vbus_notification(struct notifier_block
 	mutex_unlock(&typec_manager.mo_lock);
 	return 0;
 }
+#if defined(CONFIG_SEC_KUNIT)
 EXPORT_SYMBOL_KUNIT(manager_handle_vbus_notification);
+#endif
 #endif
 
 #if IS_ENABLED(CONFIG_CABLE_TYPE_NOTIFIER)
@@ -1206,7 +1218,7 @@ int manager_notifier_register(struct notifier_block *nb, notifier_fn_t notifier,
 
 	switch (listener) {
 	case MANAGER_NOTIFY_PDIC_BATTERY:
-#if !IS_ENABLED(CONFIG_CABLE_TYPE_NOTIFIER)
+#if !IS_ENABLED(CONFIG_CABLE_TYPE_NOTIFIER) && !IS_ENABLED(CONFIG_MTK_CHARGER)
 		m_noti.src = PDIC_NOTIFY_DEV_MANAGER;
 		m_noti.dest = PDIC_NOTIFY_DEV_BATT;
 		m_noti.pd = typec_manager.pd;

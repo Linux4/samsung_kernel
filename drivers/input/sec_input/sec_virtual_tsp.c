@@ -87,6 +87,19 @@ static void sec_virtual_tsp_sub_cmd(void *device_data)
 }
 #endif
 
+static void sec_virtual_not_support_cmd(void *device_data)
+{
+	struct sec_cmd_data *sec = (struct sec_cmd_data *)device_data;
+	char buff[16] = { 0 };
+
+	sec_cmd_set_default_result(sec);
+	sec->cmd_state = SEC_CMD_STATUS_OK;
+	snprintf(buff, sizeof(buff), "%s", "NA");
+
+	sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
+	sec_cmd_set_cmd_exit(sec);
+}
+
 static void sec_virtual_tsp_switch_cmd(void *device_data)
 {
 	struct sec_cmd_data *sec = (struct sec_cmd_data *)device_data;
@@ -229,13 +242,13 @@ static struct sec_cmd tsp_commands[] = {
 	{SEC_CMD("pocket_mode_enable", sec_virtual_tsp_dual_cmd),},
 
 	/* SemInputDeviceManagerService */
-	{SEC_CMD("set_game_mode", sec_virtual_tsp_switch_cmd),},
+	{SEC_CMD("set_game_mode", sec_virtual_tsp_dual_cmd),},
+	{SEC_CMD("set_sip_mode", sec_virtual_tsp_dual_cmd),},
+	{SEC_CMD("set_note_mode", sec_virtual_tsp_dual_cmd),},
 	{SEC_CMD("set_scan_rate", sec_virtual_tsp_switch_cmd),},
 	{SEC_CMD("refresh_rate_mode", sec_virtual_tsp_switch_cmd),},
 	{SEC_CMD("prox_lp_scan_mode", sec_virtual_tsp_switch_cmd),},
 	{SEC_CMD("set_grip_data", sec_virtual_tsp_switch_cmd),},
-	{SEC_CMD("set_sip_mode", sec_virtual_tsp_switch_cmd),},
-	{SEC_CMD("set_note_mode", sec_virtual_tsp_switch_cmd),},
 	{SEC_CMD("set_temperature", sec_virtual_tsp_switch_cmd),},
 	{SEC_CMD("set_aod_rect", sec_virtual_tsp_switch_cmd),},
 	{SEC_CMD("fod_icon_visible", sec_virtual_tsp_switch_cmd),},
@@ -286,7 +299,7 @@ static struct sec_cmd tsp_commands[] = {
 
 	{SEC_CMD_H("set_factory_panel", set_factory_panel),},
 	{SEC_CMD("dev_count", dev_count),},
-
+	{SEC_CMD("ligthsensor_detect_enable", sec_virtual_not_support_cmd),},
 	{SEC_CMD("not_support_cmd", sec_virtual_tsp_switch_cmd),},
 };
 
@@ -367,7 +380,7 @@ static ssize_t dualscreen_policy_store(struct device *dev,
 		sec_cmd_virtual_tsp_write_sysfs(dual_sec, PATH_SUB_SEC_SYSFS_DUALSCREEN_POLICY, buf);
 	}
 
-	input_info(false, dual_sec->fac_dev, "%s: value=%d %s\n", __func__, value,
+	input_info(true, dual_sec->fac_dev, "%s: value=%d %s\n", __func__, value,
 			 flip_status ? "close" : "open");
 
 	return count;

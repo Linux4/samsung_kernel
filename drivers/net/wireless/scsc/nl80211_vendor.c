@@ -2892,6 +2892,9 @@ static int slsi_set_country_code(struct wiphy *wiphy, struct wireless_dev *wdev,
 		type = nla_type(attr);
 		switch (type) {
 		case SLSI_NL_ATTRIBUTE_COUNTRY_CODE:
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 3, 0))
+		case SLSI_NL_ATTRIBUTE_COUNTRY_CODE_FALL_BACK:
+#endif
 		{
 			if (slsi_util_nla_get_data(attr, (SLSI_COUNTRY_CODE_LEN - 1), country_code)) {
 				ret = -EINVAL;
@@ -5577,6 +5580,9 @@ static int slsi_configure_latency_mode(struct wiphy *wiphy, struct wireless_dev 
 		type = nla_type(attr);
 		switch (type) {
 		case SLSI_NL_ATTRIBUTE_LATENCY_MODE:
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 3, 0))
+		case SLSI_NL_ATTRIBUTE_LATENCY_MODE_FALL_BACK:
+#endif
 			if (slsi_util_nla_get_u8(attr, &val)) {
 				ret = -EINVAL;
 				goto exit;
@@ -5594,6 +5600,68 @@ static int slsi_configure_latency_mode(struct wiphy *wiphy, struct wireless_dev 
 	if (ret)
 		SLSI_ERR(sdev, "Error in setting low latency mode ret:%d\n", ret);
 exit:
+	return ret;
+}
+ 
+/*TODO: define will be removed when autogen to be done*/
+#define SLSI_PSID_UNIFI_DTIM_MULTIPLIER 3002 /* unifiDTIMMultiplier */
+
+static int slsi_set_dtim_config(struct wiphy *wiphy, struct wireless_dev *wdev, const void *data, int len)
+{
+	struct slsi_dev		*sdev = SDEV_FROM_WIPHY(wiphy);
+	struct net_device	*dev = wdev->netdev;
+	struct netdev_vif	*ndev_vif;
+	const struct nlattr	*attr;
+	int			ret = 0;
+	int			temp = 0;
+	int			type = 0;
+	int			multiplier = 0;
+	u32			val = 0;
+
+	if (!dev) {
+		SLSI_ERR(sdev, "dev is NULL!!\n");
+		return -EINVAL;
+	}
+	ndev_vif = netdev_priv(dev);
+	SLSI_MUTEX_LOCK(ndev_vif->vif_mutex);
+	if (ndev_vif->vif_type != FAPI_VIFTYPE_STATION) {
+		SLSI_WARN(sdev, "Not a STA VIF\n");
+		ret = -EINVAL;
+		goto exit;
+	}
+	if (ndev_vif->sta.vif_status != SLSI_VIF_STATUS_CONNECTED) {
+		SLSI_WARN(sdev, "VIF is not connected\n");
+		ret = -EINVAL;
+		goto exit;
+	}
+	nla_for_each_attr(attr, data, len, temp) {
+		type = nla_type(attr);
+		switch (type) {
+		case SLSI_VENDOR_ATTR_DTIM_MULTIPLIER:
+			if (slsi_util_nla_get_u32(attr, &val)) {
+				ret = -EINVAL;
+				goto exit;
+			}
+			if (val < 1 || val > 9) {
+				ret = -EINVAL;
+				goto exit;
+			}
+			multiplier = (int)val;
+			break;
+		default:
+			SLSI_ERR_NODEV("Unknown attribute: %d\n", type);
+			ret = -EINVAL;
+			goto exit;
+		}
+	}
+	SLSI_INFO(sdev, "multiplier %d\n", multiplier);
+	if (slsi_set_uint_mib(sdev, NULL, SLSI_PSID_UNIFI_DTIM_MULTIPLIER, multiplier)) {
+		SLSI_ERR(sdev, "Set MIB DTIM_MULTIPLIER failed\n");
+		ret = -EIO;
+		goto exit;
+	}
+exit:
+	SLSI_MUTEX_UNLOCK(ndev_vif->vif_mutex);
 	return ret;
 }
 
@@ -5618,6 +5686,9 @@ static int slsi_select_tx_power_scenario(struct wiphy *wiphy, struct wireless_de
 		type = nla_type(attr);
 		switch (type) {
 		case SLSI_NL_ATTRIBUTE_TX_POWER_SCENARIO:
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 3, 0))
+		case SLSI_NL_ATTRIBUTE_TX_POWER_SCENARIO_FALL_BACK:
+#endif
 			if (slsi_util_nla_get_u8(attr, &val)) {
 				ret = -EINVAL;
 				goto exit;
@@ -5747,6 +5818,11 @@ slsi_wlan_vendor_start_keepalive_offload_policy[MKEEP_ALIVE_ATTRIBUTE_MAX + 1] =
 static const struct nla_policy
 slsi_wlan_vendor_low_latency_policy[SLSI_NL_ATTRIBUTE_LATENCY_MAX + 1] = {
 	[SLSI_NL_ATTRIBUTE_LATENCY_MODE] = {.type = NLA_U8},
+};
+
+static const struct nla_policy
+slsi_wlan_vendor_dtim_policy[SLSI_VENDOR_ATTR_DTIM_MAX + 1] = {
+	[SLSI_VENDOR_ATTR_DTIM_MULTIPLIER] = {.type = NLA_U32},
 };
 
 #ifdef CONFIG_SCSC_WLAN_SAR_SUPPORTED
@@ -6561,6 +6637,15 @@ static struct wiphy_vendor_command slsi_vendor_cmd[] = {
 		.flags = WIPHY_VENDOR_CMD_NEED_WDEV | WIPHY_VENDOR_CMD_NEED_NETDEV,
 		.doit = slsi_configure_latency_mode
 	},
+	{
+		{
+			.vendor_id = OUI_GOOGLE,
+			.subcmd = SLSI_NL80211_VENDOR_SUBCMD_SET_DTIM_CONFIG
+		},
+		.flags =  WIPHY_VENDOR_CMD_NEED_WDEV | WIPHY_VENDOR_CMD_NEED_NETDEV,
+		.doit = slsi_set_dtim_config
+	},
+
 #ifdef CONFIG_SCSC_WLAN_SAR_SUPPORTED
 	{
 		{
@@ -6756,6 +6841,10 @@ static void slsi_nll80211_vendor_init_policy(struct wiphy_vendor_command *slsi_v
 		case SLSI_NL80211_VENDOR_SUBCMD_SET_LATENCY_MODE:
 			vcmd->policy = slsi_wlan_vendor_low_latency_policy;
 			vcmd->maxattr = SLSI_NL_ATTRIBUTE_LATENCY_MAX;
+			break;
+		case SLSI_NL80211_VENDOR_SUBCMD_SET_DTIM_CONFIG:
+			vcmd->policy = slsi_wlan_vendor_dtim_policy;
+			vcmd->maxattr = SLSI_VENDOR_ATTR_DTIM_MAX;
 			break;
 #ifdef CONFIG_SCSC_WLAN_SAR_SUPPORTED
 		case SLSI_NL80211_VENDOR_SUBCMD_SELECT_TX_POWER_SCENARIO:

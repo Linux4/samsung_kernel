@@ -25,6 +25,7 @@
 	fragment@camera {
 		target-path = "/";
 		__overlay__ {
+#ifndef SC201_BOKEH_NOT_USED
 			is_sensor_sc201: is_sensor_sc201@64 {
 				compatible = "samsung,sensor-module";
 
@@ -127,7 +128,7 @@
 #endif
 				};
 			};
-
+#endif
 			is_sensor_sc201_macro: is_sensor_sc201_macro@60 {
 				compatible = "samsung,sensor-module";
 

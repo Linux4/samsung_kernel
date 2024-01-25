@@ -40,6 +40,12 @@ config OIS_USE_RUMBA_S4
         default n
         help
           Use RUMBA S4 ois driver IC.
+config COMPAT_CAMERA
+        bool "Enable compat camera"
+        depends on COMPAT 
+        default n
+        help
+          Enable compat camera.
 config CAMERA_AAS_V21S
         bool "This camera is aas_v21s project"
         depends on VENDER_MCD_V2
@@ -94,3 +100,9 @@ config CAMERA_AAV_V04S
         default n
         help
           This camera is aav_v04s project
+config CAMERA_AAV_V14
+        bool "This camera is aav_v14 project"
+        depends on VENDER_MCD_V2
+        default n
+        help
+          This camera is aav_v14 project

@@ -42,7 +42,7 @@ int sec_dfp_uvdm_ready(void)
 	}
 
 	pdic_data = dev_get_drvdata(pdic_device);
-	if(!pdic_data) {
+	if (!pdic_data) {
 		pr_err("%s pdic_data is null\n", __func__);
 		return -ENODEV;
 	}
@@ -83,7 +83,7 @@ void sec_dfp_uvdm_close(void)
 	}
 
 	pdic_data = dev_get_drvdata(pdic_device);
-	if(!pdic_data) {
+	if (!pdic_data) {
 		pr_err("%s pdic_data is null\n", __func__);
 		return;
 	}
@@ -155,7 +155,7 @@ int sec_dfp_uvdm_out_request_message(void *data, int size)
 	}
 
 	pdic_data = dev_get_drvdata(pdic_device);
-	if(!pdic_data) {
+	if (!pdic_data) {
 		pr_err("%s pdic_data is null\n", __func__);
 		return -ENODEV;
 	}
@@ -311,7 +311,7 @@ int sec_dfp_uvdm_in_request_message(void *data)
 	}
 
 	pdic_data = dev_get_drvdata(pdic_device);
-	if(!pdic_data) {
+	if (!pdic_data) {
 		pr_err("%s pdic_data is null\n", __func__);
 		return -ENODEV;
 	}

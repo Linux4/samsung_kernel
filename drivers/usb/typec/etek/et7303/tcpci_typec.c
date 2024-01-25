@@ -609,6 +609,9 @@ static inline void typec_unattached_cc_entry(struct tcpc_device *tcpc_dev)
 		}
 		break;
 	}
+#if IS_ENABLED(CONFIG_PDIC_POLICY)
+	pdic_policy_send_msg(tcpc_dev->pp_data, MSG_CCOFF, 0, 0);
+#endif /* CONFIG_PDIC_POLICY */
 }
 
 static void typec_unattached_entry(struct tcpc_device *tcpc_dev)

@@ -17,7 +17,11 @@ ccflags-y += -DTZDEV_BOOST_CLUSTER_1
 else ifeq ($(CONFIG_SOC_EXYNOS9610), y)
 obj-$(CONFIG_ION_FD2PHYS)		+= ion_fd2phys_v1.o
 ccflags-y += -DTZDEV_BOOST_CLUSTER_1
+else ifeq ($(CONFIG_SOC_EXYNOS7885), y)
+obj-$(CONFIG_ION_FD2PHYS)		+= ion_fd2phys_v1.o
+ccflags-y += -DTZDEV_BOOST_CLUSTER_1
 else ifeq ($(CONFIG_SOC_EXYNOS3830), y)
+obj-$(CONFIG_ION_FD2PHYS)		+= ion_fd2phys_v1.o
 ccflags-y += -DTZDEV_BOOST_CLUSTER_1
 else ifeq ($(CONFIG_ARCH_RANCHU), y)
 obj-$(CONFIG_ION_FD2PHYS)		+= ion_fd2phys_v1.o

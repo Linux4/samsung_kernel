@@ -82,7 +82,7 @@ static int is_vender_caminfo_cmd_get_factory_supported_id(void __user *user_data
 	return 0;
 }
 
-#ifdef CONFIG_COMPAT
+#ifdef CONFIG_COMPAT_CAMERA
 static int is_vender_caminfo_cmd_get_factory_supported_id_compat(compat_uptr_t user_data)
 {
 	int i;
@@ -168,7 +168,7 @@ EXIT:
 	return ret;
 }
 
-#ifdef CONFIG_COMPAT
+#ifdef CONFIG_COMPAT_CAMERA
 static int is_vender_caminfo_sec2lsi_cmd_get_module_info_compat(compat_uptr_t user_data)
 {
 	int ret = 0;
@@ -278,7 +278,7 @@ EXIT:
 	return ret;
 }
 
-#ifdef CONFIG_COMPAT
+#ifdef CONFIG_COMPAT_CAMERA
 static int is_vender_caminfo_cmd_get_rom_data_by_position_compat(compat_uptr_t user_data)
 {
 	int ret = 0;
@@ -414,7 +414,7 @@ EXIT:
 	return ret;
 }
 
-#ifdef CONFIG_COMPAT
+#ifdef CONFIG_COMPAT_CAMERA
 static int is_vender_caminfo_sec2lsi_cmd_get_buff_compat(compat_uptr_t user_data)
 {
 	int ret = 0;
@@ -626,7 +626,7 @@ EXIT:
 	return 0;
 }
 
-#ifdef CONFIG_COMPAT
+#ifdef CONFIG_COMPAT_CAMERA
 static int is_vender_caminfo_sec2lsi_cmd_set_buff_compat(compat_uptr_t user_data)
 {
 	int ret = 0;
@@ -798,7 +798,10 @@ static int is_vender_caminfo_ap2ap_cmd_get_cal_size(void __user *user_data)
 			}
 		}
 
-		info("%s : Original cal size is %d (0x%04X)", __func__, caminfo.cal_size, caminfo.cal_size);
+		caminfo.bank = specific->rom_bank[caminfo.camID];
+
+		info("%s : ROM[%d] Original cal size : %d (0x%04X), Bank : %d",
+				__func__, caminfo.camID, caminfo.cal_size, caminfo.cal_size, caminfo.bank);
 
 		if (copy_to_user(user_data, &caminfo, sizeof(caminfo_romdata_sec2lsi))) {
 			err("%s : failed to copy data to user", __func__);
@@ -813,7 +816,7 @@ EXIT:
 	return ret;
 }
 
-#ifdef CONFIG_COMPAT
+#ifdef CONFIG_COMPAT_CAMERA
 static int is_vender_caminfo_ap2ap_cmd_get_cal_size_compat(compat_uptr_t user_data)
 {
 	int ret = 0;
@@ -857,7 +860,10 @@ static int is_vender_caminfo_ap2ap_cmd_get_cal_size_compat(compat_uptr_t user_da
 			}
 		}
 
-		info("%s : Original cal size is %d (0x%04X)", __func__, caminfo.cal_size, caminfo.cal_size);
+		caminfo.bank = specific->rom_bank[caminfo.camID];
+
+		info("%s : ROM[%d] Original cal size : %d (0x%04X), Bank : %d",
+				__func__, caminfo.camID, caminfo.cal_size, caminfo.cal_size, caminfo.bank);
 
 		if (copy_to_user((void __user *)compat_ptr(user_data), (void *)&caminfo, sizeof(caminfo_romdata_sec2lsi_compat))) {
 			err("%s : failed to copy data to user", __func__);
@@ -921,7 +927,7 @@ EXIT:
 	return ret;
 }
 
-#ifdef CONFIG_COMPAT
+#ifdef CONFIG_COMPAT_CAMERA
 static int is_vender_caminfo_ap2ap_cmd_get_buff_compat(compat_uptr_t user_data)
 {
 	int ret = 0;
@@ -1038,7 +1044,7 @@ EXIT:
 	return ret;
 }
 
-#ifdef CONFIG_COMPAT
+#ifdef CONFIG_COMPAT_CAMERA
 static int is_vender_caminfo_ap2ap_cmd_set_buff_compat(compat_uptr_t user_data)
 {
 	int ret = 0;
@@ -1241,7 +1247,7 @@ EXIT:
 	return ret;
 }
 
-#ifdef CONFIG_COMPAT
+#ifdef CONFIG_COMPAT_CAMERA
 static long is_vender_caminfo_ioctl_compat(struct file *file, unsigned int cmd, unsigned long arg)
 {
 	int ret = 0;
@@ -1311,7 +1317,7 @@ static struct file_operations is_vender_caminfo_fops =
 	.open = is_vender_caminfo_open,
 	.release = is_vender_caminfo_release,
 	.unlocked_ioctl = is_vender_caminfo_ioctl,
-#ifdef CONFIG_COMPAT
+#ifdef CONFIG_COMPAT_CAMERA
 	.compat_ioctl = is_vender_caminfo_ioctl_compat,
 #endif
 };

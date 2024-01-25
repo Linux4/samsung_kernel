@@ -705,8 +705,9 @@ again:
 	 * case this node is no longer referenced, and should be freed;
 	 * however, it might mean that the page is under page_ref_freeze().
 	 * The __remove_mapping() case is easy, again the node is now stale;
-	 * but if page is swapcache in migrate_page_move_mapping(), it might
-	 * still be our page, in which case it's essential to keep the node.
+	 * the same is in reuse_ksm_page() case; but if page is swapcache
+	 * in migrate_page_move_mapping(), it might still be our page,
+	 * in which case it's essential to keep the node.
 	 */
 	while (!get_page_unless_zero(page)) {
 		/*
@@ -2609,7 +2610,13 @@ again:
 		struct vm_area_struct *vma;
 
 		cond_resched();
-		anon_vma_lock_read(anon_vma);
+		if (!anon_vma_trylock_read(anon_vma)) {
+			if (rwc->try_lock) {
+				rwc->contended = true;
+				return;
+			}
+			anon_vma_lock_read(anon_vma);
+		}
 		anon_vma_interval_tree_foreach(vmac, &anon_vma->rb_root,
 					       0, ULONG_MAX) {
 			unsigned long addr;

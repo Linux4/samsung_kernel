@@ -27,6 +27,7 @@
 #include <linux/io.h>
 #include <linux/irq.h>
 #include <linux/kernel.h>
+#include <linux/limits.h>
 #include <linux/module.h>
 #include <linux/of_gpio.h>
 #include <linux/platform_device.h>
@@ -43,6 +44,13 @@
 #include <linux/version.h>
 #if IS_ENABLED(CONFIG_SEC_ABC)
 #include <linux/sti/abc_common.h>
+#endif
+#include <linux/notifier.h>
+#if IS_ENABLED(CONFIG_VBUS_NOTIFIER)
+#include <linux/vbus_notifier.h>
+#if IS_ENABLED(CONFIG_USB_TYPEC_MANAGER_NOTIFIER)
+#include <linux/usb/typec/manager/usb_typec_manager_notifier.h>
+#endif
 #endif
 
 #include "sec_cmd.h"
@@ -98,6 +106,9 @@ const struct file_operations ops_name = {				\
 #define INPUT_LOG_BUF_SIZE		512
 #define INPUT_TCLM_LOG_BUF_SIZE		64
 
+#define MAIN_TOUCH	1
+#define SUB_TOUCH	2
+
 #if IS_ENABLED(CONFIG_SEC_DEBUG_TSP_LOG)
 //#include <linux/sec_debug.h>		/* exynos */
 #include "sec_tsp_log.h"
@@ -143,9 +154,6 @@ const struct file_operations ops_name = {				\
 })
 
 #if IS_ENABLED(CONFIG_TOUCHSCREEN_DUAL_FOLDABLE)
-#define MAIN_TOUCH	1
-#define SUB_TOUCH	2
-
 #define input_raw_info(mode, dev, fmt, ...)					\
 ({										\
 	static char input_log_buf[INPUT_LOG_BUF_SIZE];				\
@@ -394,6 +402,7 @@ typedef enum {
 #if IS_ENABLED(CONFIG_SEC_ABC)
 #define SEC_ABC_SEND_EVENT_TYPE "MODULE=tsp@WARN=tsp_int_fault"
 #define SEC_ABC_SEND_EVENT_TYPE_SUB "MODULE=tsp_sub@WARN=tsp_int_fault"
+#define SEC_ABC_SEND_EVENT_TYPE_WACOM_DIGITIZER_NOT_CONNECTED "MODULE=wacom@WARN=digitizer_not_connected"
 #endif
 
 enum display_state {
@@ -628,6 +637,7 @@ struct sec_ts_plat_data {
 	struct input_dev *input_dev;
 	struct input_dev *input_dev_pad;
 	struct input_dev *input_dev_proximity;
+	struct device *dev;
 
 	int max_x;
 	int max_y;
@@ -651,6 +661,8 @@ struct sec_ts_plat_data {
 
 	struct sec_ts_coordinate coord[SEC_TS_SUPPORT_TOUCH_COUNT];
 	struct sec_ts_coordinate prev_coord[SEC_TS_SUPPORT_TOUCH_COUNT];
+	bool fill_slot;
+
 	int touch_count;
 	unsigned int palm_flag;
 	volatile u8 touch_noise_status;
@@ -718,6 +730,7 @@ struct sec_ts_plat_data {
 	u8 wirelesscharger_mode;
 	bool force_wirelesscharger_mode;
 	int wet_mode;
+	int low_sensitivity_mode;
 
 	bool regulator_boot_on;
 	bool support_mt_pressure;
@@ -752,13 +765,24 @@ struct sec_ts_plat_data {
 	bool not_support_vdd;
 	bool sense_off_when_cover_closed;
 	bool not_support_temp_noti;
+	bool support_vbus_notifier;
 
+	struct work_struct irq_work;
+	struct workqueue_struct *irq_workqueue;
 	struct completion resume_done;
 	struct wakeup_source *sec_ws;
 
 	struct sec_ts_hw_param_data hw_param;
 
 	struct delayed_work interrupt_notify_work;
+
+	int (*set_charger_mode)(struct device *dev, bool on);
+	bool charger_flag;
+	struct work_struct vbus_notifier_work;
+	struct workqueue_struct *vbus_notifier_workqueue;
+	struct notifier_block vbus_nb;
+	struct notifier_block ccic_nb;
+	bool otg_flag;
 
 	u32 print_info_cnt_release;
 	u32 print_info_cnt_open;
@@ -781,7 +805,7 @@ int sec_tclm_execute_force_calibration(struct i2c_client *client, int cal_mode);
 extern int get_lcd_attached(char *mode);
 #endif
 
-#if IS_ENABLED(CONFIG_EXYNOS_DPU30) || IS_ENABLED(CONFIG_MCD_PANEL)
+#if IS_ENABLED(CONFIG_EXYNOS_DPU30) || IS_ENABLED(CONFIG_MCD_PANEL) || IS_ENABLED(CONFIG_USDM_PANEL)
 extern int get_lcd_info(char *arg);
 #endif
 
@@ -807,7 +831,8 @@ void sec_input_print_info(struct device *dev, struct sec_tclm_data *tdata);
 
 void sec_input_proximity_report(struct device *dev, int data);
 void sec_input_gesture_report(struct device *dev, int id, int x, int y);
-void sec_input_coord_event(struct device *dev, int t_id);
+void sec_input_coord_event_fill_slot(struct device *dev, int t_id);
+void sec_input_coord_event_sync_slot(struct device *dev);
 void sec_input_release_all_finger(struct device *dev);
 int sec_input_device_register(struct device *dev, void *data);
 void sec_tclm_parse_dt(struct device *dev, struct sec_tclm_data *tdata);
@@ -817,6 +842,8 @@ int sec_input_pinctrl_configure(struct device *dev, bool on);
 int sec_input_power(struct device *dev, bool on);
 int sec_input_sysfs_create(struct kobject *kobj);
 void sec_input_sysfs_remove(struct kobject *kobj);
+void sec_input_register_vbus_notifier(struct device *dev);
+void sec_input_unregister_vbus_notifier(struct device *dev);
 
 void sec_input_register_notify(struct notifier_block *nb, notifier_fn_t notifier_call, int priority);
 void sec_input_unregister_notify(struct notifier_block *nb);
