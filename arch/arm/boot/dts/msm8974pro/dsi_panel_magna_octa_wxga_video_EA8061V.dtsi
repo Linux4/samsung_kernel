@@ -1,0 +1,423 @@
+/* Copyright (c) 2012, Samsung Electronics Corporation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+&mdss_mdp {
+	dsi_magna_octa_wxga_dual:mdss_dsi_magna_wxga_video_dual {
+		qcom,mdss-dsi-panel-name = "samsung,mdss-amoled-dsi-panel";
+		label = "samsung amoled wxga video mode dsi EA8061V panel";
+		status = "disable";
+		qcom,mdss-dsi-panel-controller = <&mdss_dsi0>;
+
+		qcom,rst-gpio = <&pma8084_gpios 17 0>;
+		/* samsung,expander-enable-gpio = <&expander_gpios 10 0>; */
+		qcom,esd-irq-gpio = <&pma8084_gpios 4 0>;
+		qcom,lcd-crack-det-gpio = <&msmgpio 64 0>;
+		qcom,lcd-sel-gpio = <&msmgpio 57 0>;
+
+		qcom,mdss-pan-clk-rate=<500000000>;
+
+		qcom,mdss-pan-res = <768 1280>; /* wxga */
+		qcom,mdss-pan-size = <60 106>; /* <Width> <Height> real size of panel in mm */
+		qcom,mdss-pan-bpp = <24>;
+		qcom,mdss-pan-dest = "display_1";
+		qcom,mdss-pan-porch-values = <100 96 100 8 2 14>; /* <HBP> <HPW> <HFP> <VBP> <VPW> <VFP> */
+		qcom,mdss-pan-underflow-clr = <0xff>;
+		qcom,mdss-pan-bl-ctrl = "bl_ctrl_dcs_cmds";
+		qcom,mdss-pan-bl-levels = <1 255>;
+		qcom,mdss-pan-dsi-mode = <0>;
+		qcom,mdss-pan-dsi-h-pulse-mode = <0>;
+		qcom,mdss-pan-dsi-h-power-stop = <0 0 0>;
+		qcom,mdss-pan-dsi-bllp-power-stop = <1 1>;
+		qcom,mdss-pan-dsi-traffic-mode = <2>;
+		qcom,mdss-pan-dsi-dst-format = <3>;
+		qcom,mdss-pan-dsi-vc = <0>;
+		qcom,mdss-pan-dsi-rgb-swap = <0>;
+		qcom,mdss-force-clk-lane-hs = <1>;
+		samsung,mdss-early-lcd-on = <0>;
+		qcom,mdss-pan-dsi-data-lanes = <1 1 1 1>;
+		qcom,mdss-pan-dsi-dlane-swap = <0>;
+		qcom,mdss-pan-dsi-t-clk = <0x34 0x04>;
+		qcom,mdss-pan-dsi-stream = <0>;
+		qcom,mdss-pan-dsi-mdp-tr = <0x0>;
+		qcom,mdss-pan-dsi-dma-tr = <0x04>;
+		qcom,mdss-pan-dsi-tx-eot-append = <1>;
+		qcom,mdss-pan-dsi-frame-rate = <60>;
+		qcom,cont-splash-enabled;
+
+		qcom,panel-phy-regulatorSettings =
+							[07 09 03 00 20 00 01]; /* Regualotor settings */
+		qcom,panel-phy-timingSettings =
+							[8B 1E 14 00 44 4A 28 35 29 03 04 00];
+		qcom,panel-phy-strengthCtrl = [ff 06];
+		qcom,panel-phy-bistCtrl =
+							[00 00 b1 ff 00 00];	/*!!!! BIST Ctrl settings */
+		qcom,panel-phy-laneConfig = [
+		00 00 00 00 00 00 00 01 97 /* lane0 config */
+		00 00 00 00 05 00 00 01 97 /* lane1 config */
+		00 00 00 00 0a 00 00 01 97 /* lane2 config */
+		00 00 00 00 0f 00 00 01 97 /* lane3 config */
+		00 c0 00 00 00 00 00 01 bb]; /* Clk ln config */
+
+		qcom,panel-display-on-seq = [
+					39 00 00 00 00 00 03 F0 5A 5A
+					39 00 00 00 00 00 03 F1 5A 5A
+
+					/* 1. Common Setting */
+
+					39 00 00 00 00 00 03 B8 00 00	/* TSET:25'c , Vlin1 : 7.0V */
+					13 00 00 00 00 00 02 BA 56
+					39 00 00 00 00 00 03 FC 5A 5A
+					13 00 00 00 00 00 02 B0 0B
+					39 00 00 00 00 00 03 D2 00 85
+					13 00 00 00 00 00 02 B0 05
+					13 00 00 00 00 00 02 FE 0C
+					39 00 00 00 00 00 03 FC A5 A5
+
+					/* 2. Brightness Control */
+
+					39 00 00 00 00 00 22
+						CA 01 00 01 00 01 00 80
+						80 80 80 80 80 80 80 80
+						80 80 80 80 80 80 80 80
+						80 80 80 80 80 80 80 00
+						00 00
+					39 00 00 00 00 00 05 B2 00 06 00 08
+					39 00 00 00 00 00 03 B6 5C 8A	/* MPS/ELVSS setting */
+					13 00 00 00 00 00 02 F7 01
+
+					13 00 00 00 00 00 02 B5 21	/* 16 frame Averging */
+					13 00 00 00 00 00 02 55 00	/* ACL2 OFF */
+					13 00 00 00 00 00 02 F7 01
+
+					/* H sync */
+					13 00 00 00 00 00 02 B9 05
+
+					/* 3. ELVSS Control */
+
+					/* 4. ETC condition set */
+
+					05 00 00 00 78 00 02 11 00	/* sleep out */
+												/* wait 120ms(0x78) */
+
+					39 00 00 00 00 00 03 F0 A5 A5
+					39 01 00 00 00 00 03 F1 A5 A5
+					];
+		qcom,on-cmds-dsi-state = "DSI_HS_MODE";
+		qcom,panel-display-off-seq = [
+				05 00 00 00 24 00 02 28 00			/* wait 40ms(0x24) */
+				05 01 00 00 78 00 02 10 00			/* wait 120ms(0x78) */
+			];
+		qcom,off-cmds-dsi-state = "DSI_HS_MODE";
+
+			samsung,panel-test-key-enable-cmds 	= [ 39 00 00 00 00 00 03 F0 5A 5A];
+			samsung,panel-test-key-disable-cmds = [ 39 01 00 00 00 00 03 F0 A5 A5];
+
+			samsung,panel-nv-mtp-read-cmds = [ 06 01 00 00 00 00 01 c8 21 00];
+			samsung,panel-nv-mtp-read-hbm-cmds = [ 06 01 00 00 00 00 01 c8 07 21];	/* read C8 34~40th , 33=0x21*/
+			samsung,panel-nv-mtp-read-hbm2-cmds = [ 06 01 00 00 00 00 01 c8 0F 2A];	/* read C8 43~57th , 42=0x2A*/
+			samsung,panel-nv-mdnie-read-cmds = [ 06 01 00 00 00 00 01 A1 04 00];
+			samsung,panel-nv-read-cmds = [ 06 01 00 00 00 00 01 c8 21 00];
+			samsung,panel-nv-read-enable-cmds = [
+								39 00 00 00 00 00 03 f0 5a 5a
+								39 00 00 00 00 00 03 fc 5a 5a
+								39 01 00 00 00 00 03 f1 5a 5a];
+			samsung,panel-nv-read-disable-cmds = [ 39 01 00 00 00 00 03 f0 a5 a5 ];
+
+			samsung,panel-mtp-read-sysfs-cmds = [ 06 01 00 00 00 00 01 00 00 00];
+
+			/* the last byte in all read commands will represent READ LENGH */
+			samsung,panel-manufacture-id-read-cmds = [
+								06 00 00 00 00 00 01 da 01 00
+								06 00 00 00 00 00 01 db 01 00
+								06 01 00 00 00 00 01 dc 01 00];
+
+			samsung,panel-manufacture-date-read-cmds = [ 06 01 00 00 00 00 01 c8 02 28];	/* read C8 41~42th , 40=0x28*/
+			samsung,panel-ddi-id-read-cmds = [ 06 01 00 00 00 00 01 d6 05 00];	/* read D6 1~5th */
+
+			samsung,panel-rddpm-read-cmds = [ 06 01 00 00 00 00 01 0A 01 00];	/* read 0A 1st */
+
+			qcom,panel-display-on-cmds = [05 01 00 00 00 00 02 29 00];
+			qcom,panel-display-off-cmds = [05 01 00 00 32 00 02 28 00];
+
+			qcom,panel-display-unblank-cmds = [39 01 00 00 32 00 02 13 00];			/*Normal mode command*/
+			qcom,panel-display-blank-cmds = [39 01 00 00 45 00 02 22 00];		 /* All pixel off - for making display black*/
+
+			samsung,panel-acl-off-cmds = [39 01 00 00 72 00 02 55 00];
+
+			samsung,panel-gamma-cmds-list = [39 00 00 00 00 00 22            /* Brightness Condition Set - Gamma 2.2 Setting*/
+						ca 01 00 01 00 01 00 80
+						80 80 80 80 80 80 80 80
+						80 80 80 80 80 80 80 80
+						80 80 80 80 80 80 80 00
+						00 00
+					39 01 00 00 00 00 02 F7 01 /* Gamma, LTPS(AID) update */
+				];
+
+			samsung,panel-gamma-hbm-cmds-list = [39 00 00 00 00 00 22            /* Brightness Condition Set - Gamma 2.2 Setting*/
+						ca 01 00 01 00 01 00 80
+						80 80 80 80 80 80 80 80
+						80 80 80 80 80 80 80 80
+						80 80 80 80 80 80 80 00
+						00 00
+				];
+			samsung,panel-etc-hbm-cmds = [
+					39 00 00 00 00 00 05 B2 00 06 00 08	/* samsung_brightness_aor_condition */
+					39 00 00 00 00 00 03 b6 48 8A 	/* ELVSS  */
+					39 00 00 00 00 00 02 B0 03		/* global para */
+					39 00 00 00 00 00 02 B6 00		/* C8h 40th - MPS / ELVSS setting */
+					39 00 00 00 00 00 02 B5 29		/* OPR Average Calculation */
+					39 00 00 00 00 00 02 55 02	   	/* power saving Set */
+					39 00 00 00 00 00 02 F7 01		/* Gamma, LTPS(AID) update */
+				];
+
+			/*
+			 * ************************************************************************************************************************
+			 * AID command list and mappings
+			 * ************************************************************************************************************************
+			 */
+			samsung,panel-aid-cmds-list = [
+				39 00 00 00 00 00 05 B2 00 06 05 00 /* 0 samsung_brightness */
+				39 00 00 00 00 00 05 B2 00 06 04 F5 /* 1 samsung_brightness */
+				39 00 00 00 00 00 05 B2 00 06 04 E9 /* 2 samsung_brightness */
+				39 00 00 00 00 00 05 B2 00 06 04 DD /* 3 samsung_brightness */
+				39 00 00 00 00 00 05 B2 00 06 04 D1 /* 4 samsung_brightness */
+				39 00 00 00 00 00 05 B2 00 06 04 C5 /* 5 samsung_brightness */
+				39 00 00 00 00 00 05 B2 00 06 04 BA /* 6 samsung_brightness */
+				39 00 00 00 00 00 05 B2 00 06 04 AE /* 7 samsung_brightness */
+				39 00 00 00 00 00 05 B2 00 06 04 A2 /* 8 samsung_brightness */
+				39 00 00 00 00 00 05 B2 00 06 04 97 /* 9 samsung_brightness */
+				39 00 00 00 00 00 05 B2 00 06 04 8B /* 10 samsung_brightness */
+				39 00 00 00 00 00 05 B2 00 06 04 7F /* 11 samsung_brightness */
+				39 00 00 00 00 00 05 B2 00 06 04 73 /* 12 samsung_brightness */
+				39 00 00 00 00 00 05 B2 00 06 04 69 /* 13 samsung_brightness */
+				39 00 00 00 00 00 05 B2 00 06 04 5D /* 14 samsung_brightness */
+				39 00 00 00 00 00 05 B2 00 06 04 4F /* 15 samsung_brightness */
+				39 00 00 00 00 00 05 B2 00 06 04 37 /* 16 samsung_brightness */
+				39 00 00 00 00 00 05 B2 00 06 04 2D /* 17 samsung_brightness */
+				39 00 00 00 00 00 05 B2 00 06 04 1E /* 18 samsung_brightness */
+				39 00 00 00 00 00 05 B2 00 06 04 12 /* 19 samsung_brightness */
+				39 00 00 00 00 00 05 B2 00 06 03 FC /* 20 samsung_brightness */
+				39 00 00 00 00 00 05 B2 00 06 03 EE /* 21 samsung_brightness */
+				39 00 00 00 00 00 05 B2 00 06 03 D7 /* 22 samsung_brightness */
+				39 00 00 00 00 00 05 B2 00 06 03 C0 /* 23 samsung_brightness */
+				39 00 00 00 00 00 05 B2 00 06 03 B4 /* 24 samsung_brightness */
+				39 00 00 00 00 00 05 B2 00 06 03 9B /* 25 samsung_brightness */
+				39 00 00 00 00 00 05 B2 00 06 03 82 /* 26 samsung_brightness */
+				39 00 00 00 00 00 05 B2 00 06 03 5F /* 27 samsung_brightness */
+				39 00 00 00 00 00 05 B2 00 06 03 44 /* 28 samsung_brightness */
+				39 00 00 00 00 00 05 B2 00 06 03 2C /* 29 samsung_brightness */
+				39 00 00 00 00 00 05 B2 00 06 03 06 /* 30 samsung_brightness */
+				39 00 00 00 00 00 05 B2 00 06 02 E3 /* 31 samsung_brightness */
+				39 00 00 00 00 00 05 B2 00 06 02 BC /* 32 samsung_brightness */
+				39 00 00 00 00 00 05 B2 00 06 02 97 /* 33 samsung_brightness */
+				39 00 00 00 00 00 05 B2 00 06 02 73 /* 34 samsung_brightness */
+				39 00 00 00 00 00 05 B2 00 06 02 40 /* 35 samsung_brightness */
+				39 00 00 00 00 00 05 B2 00 06 02 0E /* 36 samsung_brightness */
+				39 00 00 00 00 00 05 B2 00 06 01 E2 /* 37 samsung_brightness */
+				39 00 00 00 00 00 05 B2 00 06 01 E2 /* 38 samsung_brightness */
+				39 00 00 00 00 00 05 B2 00 06 01 AD /* 39 samsung_brightness */
+				39 00 00 00 00 00 05 B2 00 06 01 6E /* 40 samsung_brightness */
+				39 00 00 00 00 00 05 B2 00 06 01 30 /* 41 samsung_brightness */
+				39 00 00 00 00 00 05 B2 00 06 00 EC /* 42 samsung_brightness */
+				39 00 00 00 00 00 05 B2 00 06 00 A3 /* 43 samsung_brightness */
+				39 00 00 00 00 00 05 B2 00 06 00 54 /* 44 samsung_brightness */
+				39 00 00 00 00 00 05 B2 00 06 00 0A /* 45 samsung_brightness */
+			];
+
+			/* bl_level, Index in acl command list */
+			samsung,panel-aid-map-table = <
+					2    0         3    1        4    2
+					5    3         6    4        7    5        8    6      9    7
+					10   8         11   9        12   10       13   11     14   12
+					15   13        16   14       17   15       19   16     20   17
+					21   18        22   19       24   20       25   21     27   22
+					29   23        30   24       32   25       34   26     37   27
+					39   28        41   29       44   30       47   31     50   32
+					53   33        56   34       60   35       64   36     68   37
+					72   37        77   37       82   37       87   37     93   37
+					98   37        105  37       111  37       119  37     126  37
+					134  37        143  37       152  37       162  38     172  39
+					183  40        195  41       207  42       220  43     234  44
+					249  45        265  45       282  45       300  45     316  45
+					333  45        350  45
+				>;
+
+			/*
+			 * ************************************************************************************************************************
+			 * ACL command list and mappings
+			 * ************************************************************************************************************************
+			 */
+			 /* B5h
+ 			   * 1st - 0x01 : PSRE , 0x03 : no PSRE
+			   * 2nd(OPR) - 0x99 : 60%
+ 			   * 3rd(ACL) - 0x23 : 27.6% , 0x27 : 30%, 0x35 : 40%
+ 			   */
+			samsung,panel-aclcont-cmds-list = [
+					39 00 00 00 00 00 02 B5 29	/* 32 frame Averaging */
+			 ];
+			samsung,panel-acl-cmds-list = [
+					39 00 00 00 00 00 02 55 00 /* 0 */
+					39 00 00 00 00 00 02 55 01 /* 1 */
+					39 00 00 00 00 00 02 55 02 /* 2 */
+					39 00 00 00 00 00 02 55 03]; /* 3 */
+			/* bl_level , Index in acl command list */
+			samsung,panel-acl-map-table =  <
+					2    2         3    2        4    2
+					5    2         6    2        7    2         8    2      9    2
+					10   2         11   2        12   2         13   2      14   2
+					15   2         16   2        17   2         19   2      20   2
+					21   2         22   2        24   2         25   2      27   2
+					29   2         30   2        32   2         34   2      37   2
+					39   2         41   2        44   2         47   2      50   2
+					53   2         56   2        60   2         64   2      68   2
+					72   2         77   2        82   2         87   2      93   2
+					98   2         105  2        111  2         119  2      126  2
+					134  2         143  2        152  2         162  2      172  2
+					183  2         195  2        207  2         220  2      234  2
+					249  2         265  2        282  2         300  2      316  2
+					333  2         350  2
+				>;
+
+			/*
+			 * ************************************************************************************************************************
+			 * ELVSS command list and mappings
+			 * ************************************************************************************************************************
+			 */
+			samsung,panel-elvss-cmds-list = [
+					39 00 00 00 00 00 03 b6 48 98 /* 0    77   ~ 2     nit : 0x98 */
+					39 00 00 00 00 00 03 b6 48 97 /* 1    82   ~ 87   nit : 0x97 */
+					39 00 00 00 00 00 03 b6 48 96 /* 2    93   ~ 98   nit : 0x96 */
+					39 00 00 00 00 00 03 b6 48 95 /* 3    105 ~ 111 nit : 0x95 */
+					39 00 00 00 00 00 03 b6 48 94 /* 4    119           nit : 0x94 */
+					39 00 00 00 00 00 03 b6 48 93 /* 5    126           nit : 0x93 */
+					39 00 00 00 00 00 03 b6 48 92 /* 6    134 ~ 143 nit : 0x92 */
+					39 00 00 00 00 00 03 b6 48 91 /* 7    152           nit : 0x91 */
+					39 00 00 00 00 00 03 b6 48 90 /* 8    162           nit : 0x90 */
+					39 00 00 00 00 00 03 b6 48 8F /* 9    172           nit : 0x8F */
+					39 00 00 00 00 00 03 b6 48 8E /* 10  183           nit : 0x8E */
+					39 00 00 00 00 00 03 b6 48 8D /* 11  195 ~ 282 nit : 0x8D */
+					39 00 00 00 00 00 03 b6 48 8C /* 12  300           nit : 0x8C */
+					39 00 00 00 00 00 03 b6 48 8B /* 13  316 ~ 333 nit : 0x8B */
+					39 00 00 00 00 00 03 b6 48 8A /* 14  350           nit : 0x8A */
+				];
+			samsung,panel-elvss-lowtemp-cmds-list = [
+					39 00 00 00 00 00 03 b6 48 98 /* 0    77   ~ 2     nit : 0x98 */
+					39 00 00 00 00 00 03 b6 48 97 /* 1    82   ~ 87   nit : 0x97 */
+					39 00 00 00 00 00 03 b6 48 96 /* 2    93   ~ 98   nit : 0x96 */
+					39 00 00 00 00 00 03 b6 48 95 /* 3    105 ~ 111 nit : 0x95 */
+					39 00 00 00 00 00 03 b6 48 94 /* 4    119           nit : 0x94 */
+					39 00 00 00 00 00 03 b6 48 93 /* 5    126           nit : 0x93 */
+					39 00 00 00 00 00 03 b6 48 92 /* 6    134 ~ 143 nit : 0x92 */
+					39 00 00 00 00 00 03 b6 48 91 /* 7    152           nit : 0x91 */
+					39 00 00 00 00 00 03 b6 48 90 /* 8    162           nit : 0x90 */
+					39 00 00 00 00 00 03 b6 48 8F /* 9    172           nit : 0x8F */
+					39 00 00 00 00 00 03 b6 48 8E /* 10  183           nit : 0x8E */
+					39 00 00 00 00 00 03 b6 48 8D /* 11  195 ~ 282 nit : 0x8D */
+					39 00 00 00 00 00 03 b6 48 8C /* 12  300           nit : 0x8C */
+					39 00 00 00 00 00 03 b6 48 8B /* 13  316 ~ 333 nit : 0x8B */
+					39 00 00 00 00 00 03 b6 48 8A /* 14  350           nit : 0x8A */
+				];
+			samsung,panel-elvss-cmds-tempcompen-list = [39 01 00 00 00 00 08 B8 38 07 30 00 28 19 02];
+
+			/* bl_level, Index in elvss command list */
+			samsung,panel-elvss-map-table = <
+					2    0         3    0        4    0
+					5    0         6    0        7    0         8    0      9    0
+					10   0         11   0        12   0         13   0      14   0
+					15   0         16   0        17   0         19   0      20   0
+					21   0         22   0        24   0         25   0      27   0
+					29   0         30   0        32   0         34   0      37   0
+					39   0         41   0        44   0         47   0      50   0
+					53   0         56   0        60   0         64   0      68   0
+					72   0         77   0        82   1         87   1      93   2
+					98   2         105  3        111  3         119  4      126  5
+					134  6         143  6        152  7         162  8      172  9
+					183  10        195  11       207  11        220  11     234  11
+					249  11        265  11       282  11        300  12     316  13
+					333  13        350  14
+					>;
+			/*
+			 * ************************************************************************************************************************
+			 * candela to index mappings
+			 * ************************************************************************************************************************
+			 */
+			samsung,panel-candella-mapping-table = <
+				/*<idx>		<from>		<till>		<candella> */
+				0		0		2		2
+				1		3		3		3
+				2		4		4		4
+				3		5		5		5
+				4		6		6		6
+				5		7		7		7
+				6		8		8		8
+				7		9		9		9
+				8		10		10		10
+				9		11		11		11
+				10		12		12		12
+				11		13		13		13
+				12		14		14		14
+				13		15		15		15
+				14		16		16		16
+				15		17		18		17
+				16		19		19		19
+				17		20		20		20
+				18		21		21		21
+				19		22		23		22
+				20		24		24		24
+				21		25		26		25
+				22		27		28		27
+				23		29		29		29
+				24		30		31		30
+				25		32		32		32
+				26		33		36		34
+				27		37		38		37
+				28		39		40		39
+				29		41		43		41
+				30		44		46		44
+				31		47		49		47
+				32		50		52		50
+				33		53		55		53
+				34		56		59		56
+				35		60		63		60
+				36		64		67		64
+				37		68		71		68
+				38		72		76		72
+				39		77		81		77
+				40		82		86		82
+				41		87		92		87
+				42		93		97		93
+				43		98		104 	98
+				44		105 	110 	105
+				45		111 	118 	111
+				46		119 	125 	119
+				47		126 	133 	126
+				48		134 	142 	134
+				49		143 	149 	143
+				50		150 	161 	152
+				51		162 	171 	162
+				52		172 	181 	172
+				53		182 	193 	183
+				54		194 	205 	195
+				55		206 	218 	207
+				56		219 	229 	220
+				57		230 	237 	234
+				58		238 	241 	249
+				59		242 	244 	265
+				60		245 	247 	282
+				61		248 	249 	300
+				62		250 	251 	316
+				63		252 	253 	333
+				64		254 	255 	350
+				>;
+
+	};
+};
