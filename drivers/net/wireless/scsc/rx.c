@@ -373,7 +373,7 @@ static int slsi_extract_mbssids(struct slsi_dev *sdev, struct netdev_vif *ndev_v
 			slsi_mbssid_to_ssid_list(sdev, ndev_vif, (u8 *)scan_ssid, ssid_len, new_bssid, current_freq,
 						 current_rssi, akm_type);
 		}
-		ie = ie + ie[1];
+		ie = ie + ie[1] + 2;
 	}
 	return 0;
 }
@@ -1614,10 +1614,9 @@ void slsi_rx_channel_switched_ind(struct slsi_dev *sdev, struct net_device *dev,
 
 	ndev_vif->ap.channel_freq = freq; /* updated for GETSTAINFO */
 	ndev_vif->chan = chandef.chan;
-
 	cfg80211_ch_switch_notify(dev, &chandef);
 
-    exit:
+exit:
 	SLSI_MUTEX_UNLOCK(ndev_vif->vif_mutex);
 	slsi_kfree_skb(skb);
 }

@@ -6387,3 +6387,13 @@ int slsi_set_latency_mode(struct net_device *dev, int latency_mode, int cmd_len)
 
 	return ret;
 }
+
+void slsi_trigger_service_failure(struct work_struct *work)
+{
+	struct slsi_dev *sdev = container_of(work, struct slsi_dev, trigger_wlan_fail_work);
+	char reason[80];
+
+	snprintf(reason, sizeof(reason), "Service fail - no MLME cfm/ind received");
+	slsi_sm_service_failed(sdev, reason, true);
+}
+
