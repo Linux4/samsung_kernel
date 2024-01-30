@@ -40,34 +40,34 @@ static unsigned int venc_h265_get_level(struct venc_inst *inst,
 {
 	switch (level) {
 	case V4L2_MPEG_VIDEO_HEVC_LEVEL_1:
-		return (tier == V4L2_MPEG_VIDEO_HEVC_TIER_MAIN) ? 0 : 1;
-	case V4L2_MPEG_VIDEO_HEVC_LEVEL_2:
 		return (tier == V4L2_MPEG_VIDEO_HEVC_TIER_MAIN) ? 2 : 3;
-	case V4L2_MPEG_VIDEO_HEVC_LEVEL_2_1:
-		return (tier == V4L2_MPEG_VIDEO_HEVC_TIER_MAIN) ? 4 : 5;
-	case V4L2_MPEG_VIDEO_HEVC_LEVEL_3:
-		return (tier == V4L2_MPEG_VIDEO_HEVC_TIER_MAIN) ? 6 : 7;
-	case V4L2_MPEG_VIDEO_HEVC_LEVEL_3_1:
+	case V4L2_MPEG_VIDEO_HEVC_LEVEL_2:
 		return (tier == V4L2_MPEG_VIDEO_HEVC_TIER_MAIN) ? 8 : 9;
-	case V4L2_MPEG_VIDEO_HEVC_LEVEL_4:
+	case V4L2_MPEG_VIDEO_HEVC_LEVEL_2_1:
 		return (tier == V4L2_MPEG_VIDEO_HEVC_TIER_MAIN) ? 10 : 11;
-	case V4L2_MPEG_VIDEO_HEVC_LEVEL_4_1:
-		return (tier == V4L2_MPEG_VIDEO_HEVC_TIER_MAIN) ? 12 : 13;
-	case V4L2_MPEG_VIDEO_HEVC_LEVEL_5:
-		return (tier == V4L2_MPEG_VIDEO_HEVC_TIER_MAIN) ? 14 : 15;
-	case V4L2_MPEG_VIDEO_HEVC_LEVEL_5_1:
-		return (tier == V4L2_MPEG_VIDEO_HEVC_TIER_MAIN) ? 16 : 17;
-	case V4L2_MPEG_VIDEO_HEVC_LEVEL_5_2:
+	case V4L2_MPEG_VIDEO_HEVC_LEVEL_3:
+		return (tier == V4L2_MPEG_VIDEO_HEVC_TIER_MAIN) ? 13 : 14;
+	case V4L2_MPEG_VIDEO_HEVC_LEVEL_3_1:
+		return (tier == V4L2_MPEG_VIDEO_HEVC_TIER_MAIN) ? 15 : 16;
+	case V4L2_MPEG_VIDEO_HEVC_LEVEL_4:
 		return (tier == V4L2_MPEG_VIDEO_HEVC_TIER_MAIN) ? 18 : 19;
-	case V4L2_MPEG_VIDEO_HEVC_LEVEL_6:
+	case V4L2_MPEG_VIDEO_HEVC_LEVEL_4_1:
 		return (tier == V4L2_MPEG_VIDEO_HEVC_TIER_MAIN) ? 20 : 21;
+	case V4L2_MPEG_VIDEO_HEVC_LEVEL_5:
+		return (tier == V4L2_MPEG_VIDEO_HEVC_TIER_MAIN) ? 23 : 24;
+	case V4L2_MPEG_VIDEO_HEVC_LEVEL_5_1:
+		return (tier == V4L2_MPEG_VIDEO_HEVC_TIER_MAIN) ? 25 : 26;
+	case V4L2_MPEG_VIDEO_HEVC_LEVEL_5_2:
+		return (tier == V4L2_MPEG_VIDEO_HEVC_TIER_MAIN) ? 27 : 28;
+	case V4L2_MPEG_VIDEO_HEVC_LEVEL_6:
+		return (tier == V4L2_MPEG_VIDEO_HEVC_TIER_MAIN) ? 29 : 30;
 	case V4L2_MPEG_VIDEO_HEVC_LEVEL_6_1:
-		return (tier == V4L2_MPEG_VIDEO_HEVC_TIER_MAIN) ? 22 : 23;
+		return (tier == V4L2_MPEG_VIDEO_HEVC_TIER_MAIN) ? 31 : 32;
 	case V4L2_MPEG_VIDEO_HEVC_LEVEL_6_2:
-		return (tier == V4L2_MPEG_VIDEO_HEVC_TIER_MAIN) ? 24 : 25;
+		return (tier == V4L2_MPEG_VIDEO_HEVC_TIER_MAIN) ? 33 : 34;
 	default:
 		mtk_vcodec_debug(inst, "unsupported level %d", level);
-		return 26;
+		return 25;
 	}
 }
 
@@ -127,11 +127,11 @@ static int venc_encode_header(struct venc_inst *inst,
 	if (bs_buf == NULL)
 		inst->vsi->venc.venc_bs_va = 0;
 	else
-		inst->vsi->venc.venc_bs_va = (u64)(uintptr_t)bs_buf;
+		inst->vsi->venc.venc_bs_va = (u64)(bs_buf->index + 1);
 
 	inst->vsi->venc.venc_fb_va = 0;
 
-	mtk_vcodec_debug(inst, "vsi venc_bs_va 0x%llx",
+	mtk_vcodec_debug(inst, "vsi venc_bs_va %lld",
 			 inst->vsi->venc.venc_bs_va);
 
 	ret = vcu_enc_encode(&inst->vcu_inst, VENC_BS_MODE_SEQ_HDR, NULL,
@@ -154,12 +154,12 @@ static int venc_encode_frame(struct venc_inst *inst,
 	if (bs_buf == NULL)
 		inst->vsi->venc.venc_bs_va = 0;
 	else
-		inst->vsi->venc.venc_bs_va = (u64)(uintptr_t)bs_buf;
+		inst->vsi->venc.venc_bs_va = (u64)(bs_buf->index + 1);
 
 	if (frm_buf == NULL)
 		inst->vsi->venc.venc_fb_va = 0;
 	else {
-		inst->vsi->venc.venc_fb_va = (u64)(uintptr_t)frm_buf;
+		inst->vsi->venc.venc_fb_va = (u64)(frm_buf->index + 1);
 		inst->vsi->venc.timestamp = frm_buf->timestamp;
 		inst->vsi->venc.roimap = frm_buf->roimap;
 
@@ -173,7 +173,7 @@ static int venc_encode_frame(struct venc_inst *inst,
 
 	++inst->frm_cnt;
 	mtk_vcodec_debug(inst,
-		 "Format: frame_va %llx (%c%c%c%c) bs_va:%llx (%c%c%c%c)",
+		 "Format: frame_va %lld (%c%c%c%c) bs_va:%lld (%c%c%c%c)",
 		  inst->vsi->venc.venc_fb_va,
 		  fm_fourcc & 0xFF, (fm_fourcc >> 8) & 0xFF,
 		  (fm_fourcc >> 16) & 0xFF, (fm_fourcc >> 24) & 0xFF,
@@ -198,11 +198,11 @@ static int venc_encode_frame_final(struct venc_inst *inst,
 	if (bs_buf == NULL)
 		inst->vsi->venc.venc_bs_va = 0;
 	else
-		inst->vsi->venc.venc_bs_va = (u64)(uintptr_t)bs_buf;
+		inst->vsi->venc.venc_bs_va = (u64)(bs_buf->index + 1);
 	if (frm_buf == NULL)
 		inst->vsi->venc.venc_fb_va = 0;
 	else
-		inst->vsi->venc.venc_fb_va = (u64)(uintptr_t)frm_buf;
+		inst->vsi->venc.venc_fb_va = (u64)(frm_buf->index + 1);
 
 	ret = vcu_enc_encode(&inst->vcu_inst, VENC_BS_MODE_FRAME_FINAL, frm_buf,
 						 bs_buf, bs_size);
@@ -358,6 +358,8 @@ static void venc_get_free_buffers(struct venc_inst *inst,
 			     struct ring_input_list *list,
 			     struct venc_done_result *pResult)
 {
+	u64 bs_index, fb_index;
+
 	if (list->count == 0) {
 		mtk_vcodec_debug(inst, "[FB] there is no free buffers");
 		pResult->bs_va = 0;
@@ -369,12 +371,14 @@ static void venc_get_free_buffers(struct venc_inst *inst,
 
 	pResult->bs_size = list->bs_size[list->read_idx];
 	pResult->is_key_frm = list->is_key_frm[list->read_idx];
-	pResult->bs_va = list->venc_bs_va_list[list->read_idx];
-	pResult->frm_va = list->venc_fb_va_list[list->read_idx];
+	bs_index = list->venc_bs_va_list[list->read_idx];
+	pResult->bs_va = (unsigned long)inst->ctx->bs_list[bs_index];
+	fb_index = list->venc_fb_va_list[list->read_idx];
+	pResult->frm_va = (unsigned long)inst->ctx->fb_list[fb_index];
 
-	mtk_vcodec_debug(inst, "bsva %lx frva %lx bssize %d iskey %d",
-		pResult->bs_va,
-		pResult->frm_va,
+	mtk_vcodec_debug(inst, "bsva %lx %lld frva %lx %lld bssize %d iskey %d",
+		pResult->bs_va, bs_index,
+		pResult->frm_va, fb_index,
 		pResult->bs_size,
 		pResult->is_key_frm);
 

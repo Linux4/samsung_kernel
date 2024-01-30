@@ -27,7 +27,9 @@
 #include <linux/delay.h>
 #include <linux/i2c.h>
 #include <linux/spi/spi.h>
-
+/*HS04_U code for SR-AL6398U-01-3  by zhengkunbang at 20230807 start*/
+#include "hal_kpd.h"
+/*HS04_U code for SR-AL6398U-01-3  by zhengkunbang at 20230807 end*/
 #include <linux/cdev.h>
 #include <linux/fs.h>
 #include <asm/uaccess.h>

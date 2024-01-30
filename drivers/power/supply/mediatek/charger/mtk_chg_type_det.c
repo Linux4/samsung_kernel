@@ -379,30 +379,8 @@ static int mt_charger_get_property(struct power_supply *psy,
 		break;
 #endif
 /* hs14 code for SR-AL6528A-01-321 by gaozhengwei at 2022/09/22 end */
-/* hs14 code for  SR-AL6528A-01-338 by chengyuanhang at 2022/10/03 start */
 #ifndef HQ_FACTORY_BUILD
-	case POWER_SUPPLY_PROP_BATTERY_CYCLE:
-        	if (info == NULL) {
-			return -EINVAL;
-		}
-		val->intval = info->data.ss_batt_cycle;
-		break;
-#endif
-/* hs14 code for SR-AL6528A-01-338 by chengyuanhang at 2022/10/03 end */
-/* hs14 code for SR-AL6528A-01-324 by chengyuanhang at 2022/10/10 start */
-#ifndef HQ_FACTORY_BUILD
-	case POWER_SUPPLY_PROP_BATT_PROTECT_FLAG:
-		if (info == NULL) {
-			return -EINVAL;
-		}
-        	val->intval = info->batt_protect_flag;
-        	break;
-	case POWER_SUPPLY_PROP_EN_BATT_PROTECT:
-		if (info == NULL) {
-			return -EINVAL;
-		}
-        	val->intval = info->en_batt_protect;
-		break;
+
 	/* hs14 code for SR-AL6528A-01-244 by shanxinkai at 2022/11/04 start */
 	case POWER_SUPPLY_PROP_STORE_MODE:
 		if (info == NULL) {
@@ -412,7 +390,6 @@ static int mt_charger_get_property(struct power_supply *psy,
 		break;
 	/* hs14 code for SR-AL6528A-01-244 by shanxinkai at 2022/11/04 end */
 #endif
-/* hs14 code for SR-AL6528A-01-324 by chengyuanhang at 2022/10/10 end */
 /* hs14 code for SR-AL6528A-01-244 by shanxinkai at 2022/11/04 start */
 #ifdef HQ_FACTORY_BUILD
 	case POWER_SUPPLY_PROP_BATT_CAP_CONTROL:
@@ -446,19 +423,6 @@ static int mt_charger__property_is_writeable(struct power_supply *psy,
 		return 1;
 #endif
 /* hs14 code for SR-AL6528A-01-321 by gaozhengwei at 2022/09/22 end */
-/* hs14 code for  SR-AL6528A-01-338 by chengyuanhang at 2022/10/03 start */
-#ifndef HQ_FACTORY_BUILD
-	case POWER_SUPPLY_PROP_BATTERY_CYCLE:
-		return 1;
-#endif
-/* hs14 code for SR-AL6528A-01-338 by chengyuanhang at 2022/10/03 end */
-/* hs14 code for SR-AL6528A-01-324 by chengyuanhang at 2022/10/10 start */
-#ifndef HQ_FACTORY_BUILD
-	case POWER_SUPPLY_PROP_BATT_PROTECT_FLAG:
-	case POWER_SUPPLY_PROP_EN_BATT_PROTECT:
-		return 1;
-#endif
-/* hs14 code for SR-AL6528A-01-324 by chengyuanhang at 2022/10/10 end */
 /* hs14 code for SR-AL6528A-01-242 by shanxinkai at 2022/10/12 start */
 #ifndef HQ_FACTORY_BUILD	//ss version
 	case POWER_SUPPLY_PROP_BATT_SLATE_MODE:
@@ -588,29 +552,7 @@ static int mt_charger_set_property(struct power_supply *psy,
 		break;
 #endif
 /* hs14 code for SR-AL6528A-01-321 by gaozhengwei at 2022/09/22 end */
-/* hs14 code for  SR-AL6528A-01-338 by chengyuanhang at 2022/10/03 start */
 #ifndef HQ_FACTORY_BUILD
-	case  POWER_SUPPLY_PROP_BATTERY_CYCLE:
-		if (pinfo == NULL) {
-			return -EINVAL;
-		}
-		pinfo->data.ss_batt_cycle = val->intval;
-		break;
-/* hs14 code for SR-AL6528A-01-338 by chengyuanhang at 2022/10/03 end */
-/* hs14 code for SR-AL6528A-01-324 by chengyuanhang at 2022/10/10 start */
-	case POWER_SUPPLY_PROP_BATT_PROTECT_FLAG:
-		if (pinfo == NULL) {
-			return -EINVAL;
-		}
-		pinfo->batt_protect_flag = val->intval;
-		break;
-	case POWER_SUPPLY_PROP_EN_BATT_PROTECT:
-		if (pinfo == NULL) {
-			return -EINVAL;
-		}
-		pinfo->en_batt_protect = val->intval;
-		break;
-/* hs14 code for SR-AL6528A-01-324 by chengyuanhang at 2022/10/10 end */
 	/* hs14 code for SR-AL6528A-01-244 by qiaodan at 2022/11/23 start */
 	case POWER_SUPPLY_PROP_STORE_MODE:
 		if (pinfo == NULL) {
@@ -783,13 +725,6 @@ static enum power_supply_property mt_charger_properties[] = {
 #endif
 /* hs14 code for SR-AL6528A-01-321 by gaozhengwei at 2022/09/22 end */
 #ifndef HQ_FACTORY_BUILD
-/* hs14 code for  SR-AL6528A-01-338 by chengyuanhang at 2022/10/03 start */
-	POWER_SUPPLY_PROP_BATTERY_CYCLE,
-/* hs14 code for SR-AL6528A-01-338 by chengyuanhang at 2022/10/03 end */
-/* hs14 code for SR-AL6528A-01-324 by chengyuanhang at 2022/10/10 start */
-	POWER_SUPPLY_PROP_BATT_PROTECT_FLAG,
-	POWER_SUPPLY_PROP_EN_BATT_PROTECT,
-/* hs14 code for SR-AL6528A-01-324 by chengyuanhang at 2022/10/10 end */
 /* hs14 code for SR-AL6528A-01-242 by shanxinkai at 2022/10/12 start */
 	POWER_SUPPLY_PROP_BATT_SLATE_MODE,
 /* hs14 code for SR-AL6528A-01-242 by shanxinkai at 2022/10/12 end */

@@ -20,8 +20,11 @@ struct mtk_drm_idlemgr_context {
 
 struct mtk_drm_idlemgr {
 	struct task_struct *idlemgr_task;
+	struct task_struct *kick_task;
 	wait_queue_head_t idlemgr_wq;
+	wait_queue_head_t kick_wq;
 	atomic_t idlemgr_task_active;
+	atomic_t kick_task_active;
 	struct mtk_drm_idlemgr_context *idlemgr_ctx;
 };
 
@@ -37,5 +40,7 @@ mtk_drm_set_idle_check_interval(struct drm_crtc *crtc,
 				unsigned long long new_interval);
 unsigned long long
 mtk_drm_get_idle_check_interval(struct drm_crtc *crtc);
+
+void mtk_drm_idlemgr_kick_async(struct drm_crtc *crtc);
 
 #endif

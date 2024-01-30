@@ -507,13 +507,6 @@ struct charger_manager {
 	bool enable_pp[TOTAL_CHARGER];
 	struct mutex pp_lock[TOTAL_CHARGER];
 #ifndef HQ_FACTORY_BUILD
-/* hs14 code for SR-AL6528A-01-324 by chengyuanhang at 2022/10/10 start */
-	u64 charging_dur_time;
-	u64 charging_count_start;
-	bool batt_protect_flag;
-	bool en_batt_protect;
-	struct delayed_work charging_count_work;
-/* hs14 code for SR-AL6528A-01-324 by chengyuanhang at 2022/10/10 end */
 /* hs14 code for SR-AL6528A-01-261 | SR-AL6528A-01-343 by chengyuanhang at 2022/10/11 start */
 	int cust_batt_cap;
 	int batt_full_flag;

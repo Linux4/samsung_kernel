@@ -10,8 +10,8 @@
 const char *power_mode_name[] = {
 	"DISP_OFF",
 	"DISP_ON",
+	"DISP_DOZE_SUSPEND",
 	"DISP_DOZE",
-	"DISP_DOZE_SUSPEND"
 };
 
 
@@ -95,6 +95,19 @@ int noti_uevent_user_by_drm(struct drm_device *drm, int state)
 
 	return 0;
 }
+
+static int foo_notifier_event(int power_mode)
+{
+
+	if (power_mode == DISP_ON || power_mode == DISP_DOZE)	/* ON, DOZE */
+		DDPINFO("EARLY: %s\n", __func__, power_mode_name[power_mode]);
+
+	if (power_mode == DISP_OFF || power_mode == DISP_DOZE_SUSPEND)	/* OFF, DOZE_SUSPEND */
+		DDPINFO("AFTER: %s\n", __func__, power_mode_name[power_mode]);
+
+	return 0;
+}
+
 int mtk_notifier_callback(struct notifier_block *p, unsigned long event, void *data)
 {
 	struct mtk_notifier *n = container_of(p, struct mtk_notifier, notifier);
@@ -125,33 +138,73 @@ int mtk_notifier_callback(struct notifier_block *p, unsigned long event, void *d
 			case DISP_OFF:
 				break;
 			case DISP_ON:
+				foo_notifier_event(power_mode);
 				break;
 			case DISP_DOZE:
+				foo_notifier_event(power_mode);
 				break;
 			case DISP_DOZE_SUSPEND:
 				break;
 			}
-			DDPINFO("%s : %s\n", __func__, power_mode_name[power_mode]);
+			DDPINFO("%s : %s!!\n", __func__, power_mode_name[power_mode]);
 		}
 	}
 
 	if (event == MTK_POWER_MODE_DONE) {
-		if (n->power_mode != DISP_NONE) {
-			switch (n->power_mode) {
-			case DISP_OFF:
-				break;
-			case DISP_ON:
-				break;
-			case DISP_DOZE:
-				break;
-			case DISP_DOZE_SUSPEND:
-				break;
-			}
-			DDPINFO("%s: %s DONE\n", __func__, power_mode_name[n->power_mode]);
-			n->power_mode = DISP_NONE;
+		int power_mode = *((unsigned int *)data);
+
+		switch (power_mode) {
+		case DISP_OFF:
+			foo_notifier_event(power_mode);
+			break;
+		case DISP_ON:
+			break;
+		case DISP_DOZE:
+			break;
+		case DISP_DOZE_SUSPEND:
+			foo_notifier_event(power_mode);
+			break;
 		}
+		DDPINFO("%s: %s DONE\n", __func__, power_mode_name[power_mode]);
 	}
+
 	return 0;
+}
+
+int mtk_check_powermode(struct drm_atomic_state *state, int mode)
+{
+	struct drm_crtc *crtc;
+	struct drm_crtc_state *old_crtc_state, *new_crtc_state;
+	struct mtk_crtc_state *old_state, *new_state;
+	int i;
+	int powerMode = DISP_NONE;
+	int pre_powerMode = DISP_NONE;
+
+	for_each_oldnew_crtc_in_state(state, crtc, old_crtc_state, new_crtc_state, i) {
+		if (drm_crtc_index(crtc))
+			continue;
+
+		old_state = to_mtk_crtc_state(old_crtc_state);
+		new_state = to_mtk_crtc_state(new_crtc_state);
+
+		if (!new_crtc_state->active_changed &&
+			old_state->prop_val[CRTC_PROP_DOZE_ACTIVE] ==
+			new_state->prop_val[CRTC_PROP_DOZE_ACTIVE])
+			continue;
+
+		powerMode = (new_state->prop_val[CRTC_PROP_DOZE_ACTIVE] << 1) |
+			new_crtc_state->active;
+		pre_powerMode = (new_state->prop_val[CRTC_PROP_DOZE_ACTIVE] << 1) |
+			new_crtc_state->active;
+
+		DDPINFO("%s : %s -> %s\n", __func__,
+			power_mode_name[pre_powerMode], power_mode_name[powerMode]);
+
+		if (powerMode != DISP_NONE)
+			mtk_notifier_call_chain(mode, (void *)&powerMode);
+	}
+
+	return powerMode;
 }
 
 int mtk_notifier_activate(void)

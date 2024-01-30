@@ -58,6 +58,7 @@ static DEFINE_MUTEX(layering_info_lock);
 #endif
 #define RSZ_IN_MAX_HEIGHT 4096
 #define DISP_RSZ_LAYER_NUM 2
+#define DISP_LAYER_RULE_MAX_NUM 1024
 
 static struct {
 	enum LYE_HELPER_OPT opt;
@@ -1687,7 +1688,8 @@ static void clear_layer(struct drm_mtk_layering_info *disp_info,
 		if (!is_dual_pipe && (c->src_width < c->dst_width &&
 			c->src_height < c->dst_height) &&
 			get_layering_opt(LYE_OPT_RPO) &&
-			top < disp_info->gles_tail[di]) {
+			top < disp_info->gles_tail[di] &&
+			di == HRT_PRIMARY) {
 			c->layer_caps |= MTK_DISP_RSZ_LAYER;
 			l_rule_info->addon_scn[di] = ONE_SCALING;
 		} else {
@@ -2094,7 +2096,8 @@ _copy_layer_info_by_disp(struct drm_mtk_layering_info *disp_info_user,
 	unsigned long int layer_size = 0;
 	int ret = 0;
 
-	if (l_info->layer_num[disp_idx] <= 0) {
+	if (l_info->layer_num[disp_idx] <= 0 ||
+			l_info->layer_num[disp_idx] > DISP_LAYER_RULE_MAX_NUM) {
 		/* direct skip */
 		return -EFAULT;
 	}

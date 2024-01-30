@@ -9,6 +9,7 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
  */
+/*hs14 code for AL6528A-1091 by Wentao at 2023/2/17 start*/
 /*hs14 code for SR-AL6528A-01-379|SR-AL6528A-01-742|AL6528A-668 by duxinqi at 2022/11/09 start*/
 /*hs14 code for AL6528A-301 by houxin at 2022/10/14 start*/
 /* I2C device */
@@ -25,7 +26,7 @@
         Semtech,reg-num = <83>;
         Semtech,reg-init = <
         0x8020 0x000F000F
-        0x4004 0x00000070
+        0x4004 0x00000074
         0x4008 0x00000000
         0x4054 0x00000400
         0x42C0 0x08000000
@@ -51,7 +52,7 @@
         0x8058 0x20630030
         0x805C 0x00005300
         0x8060 0x00000000
-        0x8064 0x00000000
+        0x8064 0x00640000
         0x8068 0x00000000
         0x806C 0x01000100
         0x8070 0x00010000
@@ -67,7 +68,7 @@
         0x8098 0x20630030
         0x809C 0x00005300
         0x80A0 0x00000000
-        0x80A4 0x00000000
+        0x80A4 0x00640000
         0x80A8 0x00000000
         0x80AC 0x00200020
         0x80B0 0x00020000
@@ -111,3 +112,4 @@
 };
 /*hs14 code for AL6528A-301 by houxin at 2022/10/14 end*/
 /*hs14 code for SR-AL6528A-01-379|SR-AL6528A-01-742|AL6528A-668 by duxinqi at 2022/11/09 end*/
+/*hs14 code for AL6528A-1091 by Wentao at 2023/2/17 end*/

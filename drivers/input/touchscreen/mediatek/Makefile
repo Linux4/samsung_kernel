@@ -5,7 +5,9 @@ obj-y   +=  tpd_debug.o
 obj-y   +=  tpd_default.o
 obj-y   +=  tpd_misc.o
 obj-y   +=  tpd_setting.o
-
+# Tab A7 lite_U code for SR-AX3565U-01-4  by zhengkunbang at 20230807 start
+subdir-ccflags-y += -I$(srctree)/drivers/input/keyboard/mediatek/mt6765/
+# Tab A7 lite_U code for SR-AX3565U-01-4  by zhengkunbang at 20230807 end
 obj-$(CONFIG_TOUCHSCREEN_ILI7806S_TOUCH) += ilitek_touch/
 obj-$(CONFIG_TOUCHSCREEN_CHIPONE) += chipone/
 obj-$(CONFIG_TOUCHSCREEN_JADARD_CHIPSET) += jdchipset/
