@@ -32,7 +32,7 @@
 #endif
 
 
-/* Slave address should be shifted to the right 1bit.
+/* address should be shifted to the right 1bit.
  * R/W bit should NOT be included.
  */
 
@@ -85,6 +85,13 @@ enum max77854_vempty_mode {
 	VEMPTY_MODE_SW,
 	VEMPTY_MODE_SW_VALERT,
 	VEMPTY_MODE_SW_RECOVERY,
+};
+
+enum battery_id {
+	BATTERY_ID_01 = 1,
+	BATTERY_ID_02,
+	BATTERY_ID_03,
+	BATTERY_ID_04,
 };
 
 ssize_t sm5714_fg_show_attrs(struct device *dev,
@@ -226,6 +233,7 @@ struct battery_data_t {
 	u32 sw_v_empty_vol_cisd;
 	u32 sw_v_empty_recover_vol;
 	u32 vbat_ovp;
+	u8 battery_id;
 };
 
 /* FullCap learning setting */
@@ -243,11 +251,17 @@ struct battery_data_t {
 #define POWER_OFF_VOLTAGE_HIGH_MARGIN	3500
 #define POWER_OFF_VOLTAGE_LOW_MARGIN	3400
 
+/* Need to be increased if there are more than 2 BAT ID GPIOs */
+#define BAT_GPIO_NO	2
+
 struct cv_slope{
 	int fg_current;
 	int soc;
 	int time;
 };
+
+/* Need to be increased if there are more than 2 BAT ID GPIOs */
+#define BAT_GPIO_NO	2
 
 typedef struct sm5714_fuelgauge_platform_data {
 	/* charging current for type (0: not use) */
@@ -257,6 +271,8 @@ typedef struct sm5714_fuelgauge_platform_data {
 	int jig_irq;
 	int jig_gpio;
 	int jig_low_active;
+	int bat_id_gpio[BAT_GPIO_NO];
+	int bat_gpio_cnt;
 	unsigned long jig_irq_attr;
 
 	int fg_irq;

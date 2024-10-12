@@ -1,6 +1,6 @@
 /****************************************************************************
  *
- * Copyright (c) 2012 - 2021 Samsung Electronics Co., Ltd. All rights reserved
+ * Copyright (c) 2012 - 2022 Samsung Electronics Co., Ltd. All rights reserved
  *
  ****************************************************************************/
 
@@ -20,6 +20,7 @@
 #include "sap_ma.h"
 #include "sap_dbg.h"
 #include "sap_test.h"
+#include "scsc_wlan_mmap.h"
 
 #ifdef CONFIG_SCSC_WLAN_KIC_OPS
 #include "kic.h"
@@ -127,6 +128,9 @@ module_param(nan_ndp_max_delay_ms, int, S_IRUGO | S_IWUSR);
 MODULE_PARM_DESC(nan_ndp_max_delay_ms, "max ndp delay time");
 
 #endif
+static bool legacy_sar_backoff = true;
+module_param(legacy_sar_backoff, bool, S_IRUGO | S_IWUSR);
+MODULE_PARM_DESC(legacy_sar_backoff, "Switch between legacy and 3.6 sar_backoff");
 
 bool slsi_dev_gscan_supported(void)
 {
@@ -210,6 +214,11 @@ bool slsi_get_nan_mac_random(void)
 
 #endif
 
+bool slsi_get_legacy_sar_backoff(void)
+{
+	return legacy_sar_backoff;
+}
+
 static int slsi_dev_inetaddr_changed(struct notifier_block *nb, unsigned long data, void *arg)
 {
 	struct slsi_dev     *sdev = container_of(nb, struct slsi_dev, inetaddr_notifier);
@@ -277,6 +286,43 @@ static int slsi_dev_inet6addr_changed(struct notifier_block *nb, unsigned long d
 }
 #endif
 
+void slsi_dump_system_error_buffer(struct slsi_dev *sdev)
+{
+	mutex_lock(&sdev->sys_error_log_buf.log_buf_mutex);
+	SLSI_INFO(sdev, "System error saved logs:\n--BEGIN--\n%s--END--\n", sdev->sys_error_log_buf.log_buf);
+	mutex_unlock(&sdev->sys_error_log_buf.log_buf_mutex);
+}
+
+void slsi_add_log_to_system_error_buffer(struct slsi_dev *sdev, char *input_buffer)
+{
+	int pos = sdev->sys_error_log_buf.pos;
+	int buf_size = sdev->sys_error_log_buf.log_buf_size - pos;
+	u32 time[2] = { 0 };
+
+	get_kernel_timestamp(time);
+	mutex_lock(&sdev->sys_error_log_buf.log_buf_mutex);
+	sdev->sys_error_log_buf.pos += scnprintf(sdev->sys_error_log_buf.log_buf + pos, buf_size - pos, "[%d.%d] ", time[0], time[1]);
+
+	pos = sdev->sys_error_log_buf.pos;
+	buf_size = sdev->sys_error_log_buf.log_buf_size - pos;
+
+	sdev->sys_error_log_buf.pos += scnprintf(sdev->sys_error_log_buf.log_buf + pos, buf_size - pos, input_buffer);
+	mutex_unlock(&sdev->sys_error_log_buf.log_buf_mutex);
+}
+
+static void slsi_sys_error_log_init(struct slsi_dev *sdev)
+{
+	mutex_init(&sdev->sys_error_log_buf.log_buf_mutex);
+	sdev->sys_error_log_buf.pos = 0;
+	sdev->sys_error_log_buf.log_buf = NULL;
+	sdev->sys_error_log_buf.log_buf_size = SYSTEM_ERROR_BUFFER_SZ;
+
+	SLSI_DBG2(sdev, SLSI_INIT_DEINIT, "Allocating %d memory for system_error_log_buffer\n", sdev->sys_error_log_buf.log_buf_size);
+	sdev->sys_error_log_buf.log_buf = kzalloc(sdev->sys_error_log_buf.log_buf_size, GFP_KERNEL);
+	if (!sdev->sys_error_log_buf.log_buf)
+		SLSI_ERR_NODEV("Failed to allocate system_error_log_buffer\n");
+}
+
 struct slsi_dev *slsi_dev_attach(struct device *dev, struct scsc_mx *core, struct scsc_service_client *mx_wlan_client)
 {
 	struct slsi_dev *sdev;
@@ -314,6 +360,7 @@ struct slsi_dev *slsi_dev_attach(struct device *dev, struct scsc_mx *core, struc
 	sdev->local_mib.mib_file_name = local_mib_file;
 	sdev->maddr_file_name = maddr_file;
 	sdev->device_config.qos_info = -1;
+	sdev->device_config.host_state = SLSI_HOSTSTATE_CELLULAR_ACTIVE;
 	sdev->acs_channel_switched = false;
 	memset(&sdev->chip_info_mib, 0xFF, sizeof(struct slsi_chip_info_mib));
 
@@ -348,11 +395,13 @@ struct slsi_dev *slsi_dev_attach(struct device *dev, struct scsc_mx *core, struc
 	init_completion(&sdev->recovery_stop_completion);
 	init_completion(&sdev->recovery_completed);
 	init_completion(&sdev->service_fail_started_indication);
+	init_completion(&sdev->recovery_fail_safe_complete);
 	sdev->recovery_status = 0;
 
 	sdev->term_udi_users         = &term_udi_users;
 	sdev->sig_wait_cfm_timeout   = &sig_wait_cfm_timeout;
 	slsi_sig_send_init(&sdev->sig_wait);
+	slsi_sys_error_log_init(sdev);
 
 	for (i = 0; i < SLSI_LLS_AC_MAX; i++)
 		atomic_set(&sdev->tx_host_tag[i], ((1 << 2) | i));
@@ -474,6 +523,10 @@ struct slsi_dev *slsi_dev_attach(struct device *dev, struct scsc_mx *core, struc
 	INIT_WORK(&sdev->recovery_work_on_stop, slsi_failure_reset);
 	INIT_WORK(&sdev->recovery_work, slsi_subsystem_reset);
 	INIT_WORK(&sdev->recovery_work_on_start, slsi_chip_recovery);
+	INIT_WORK(&sdev->system_error_user_fail_work, slsi_system_error_recovery);
+#if defined(SCSC_SEP_VERSION) && SCSC_SEP_VERSION >= 12
+	INIT_WORK(&sdev->chipset_logging_work, slsi_collect_chipset_logs);
+#endif
 	INIT_WORK(&sdev->trigger_wlan_fail_work, slsi_trigger_service_failure);
 	return sdev;
 
@@ -542,6 +595,7 @@ void slsi_dev_detach(struct slsi_dev *sdev)
 	complete_all(&sdev->recovery_stop_completion);
 	complete_all(&sdev->recovery_completed);
 	complete_all(&sdev->service_fail_started_indication);
+	complete_all(&sdev->recovery_fail_safe_complete);
 
 	SLSI_DBG2(sdev, SLSI_INIT_DEINIT, "Unregister inetaddr_notifier\n");
 	unregister_inetaddr_notifier(&sdev->inetaddr_notifier);
@@ -616,8 +670,15 @@ int __init slsi_dev_load(void)
 
 /* Always create devnode if TW Android P on */
 #if defined(SCSC_SEP_VERSION) && SCSC_SEP_VERSION >= 9
-	slsi_create_sysfs_macaddr();
+    slsi_create_sysfs_macaddr();
+	slsi_create_sysfs_version_info();
 #endif
+#if defined(SCSC_SEP_VERSION) && SCSC_SEP_VERSION >= 12
+	slsi_create_sysfs_debug_dump();
+	scsc_wlan_mmap_create();
+#endif
+	slsi_create_sysfs_pm();
+	slsi_create_sysfs_ant();
 	SLSI_INFO_NODEV("--- Maxwell Wi-Fi driver loaded successfully ---\n");
 	return 0;
 }
@@ -627,8 +688,15 @@ void __exit slsi_dev_unload(void)
 	SLSI_INFO_NODEV("Unloading Maxwell Wi-Fi driver\n");
 
 #if defined(SCSC_SEP_VERSION) && SCSC_SEP_VERSION >= 9
-	slsi_destroy_sysfs_macaddr();
+    slsi_destroy_sysfs_macaddr();
+	slsi_destroy_sysfs_version_info();
 #endif
+#if defined(SCSC_SEP_VERSION) && SCSC_SEP_VERSION >= 12
+	scsc_wlan_mmap_destroy();
+	slsi_destroy_sysfs_debug_dump();
+#endif
+	slsi_destroy_sysfs_pm();
+	slsi_destroy_sysfs_ant();
 	/* Unregister SAPs */
 	sap_mlme_deinit();
 	sap_ma_deinit();

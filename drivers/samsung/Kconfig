@@ -100,7 +100,6 @@ config SEC_SYSUP
 	help
 	  Samsung system update Feature
 
-source "drivers/samsung/debug/Kconfig"
 source "drivers/samsung/misc/Kconfig"
 source "drivers/samsung/pm/Kconfig"
 source "drivers/samsung/perf/Kconfig"

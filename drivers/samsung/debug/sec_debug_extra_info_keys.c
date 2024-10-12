@@ -12,18 +12,17 @@
 
 /* keys are grouped by size */
 static char key32[][MAX_ITEM_KEY_LEN] = {
-	"ID", "KTIME", "BIN", "FTYPE", "RR",
+	"ID", "KTIME", "BIN", "RR",
 	"DPM", "SMP", "MER", "PCB", "SMD",
 	"CHI", "LPI", "CDI", "LEV", "DCN",
 	"WAK", "ASB", "PSITE", "DDRID", "RST",
-	"INFO2", "INFO3", "RBASE", "MAGIC", "PWR",
-	"PWROFF", "PINT1", "PINT2", "PINT5", "PINT6",
-	"PSTS1", "PSTS2", "RSTCNT",
+	"INFO2", "INFO3", "RBASE", "MAGIC", "RSTCNT",
 };
 
 static char key64[][MAX_ITEM_KEY_LEN] = {
 	"ETC", "BAT", "FAULT", "PINFO", "HINT",
-	"EPD",
+	"EPD", "PWR", "PWROFF", "PINT", "PSTAT",
+	"PWROFFS", "PINTS", "PSTATS",
 };
 
 static char key256[][MAX_ITEM_KEY_LEN] = {
@@ -40,7 +39,7 @@ static char key1024[][MAX_ITEM_KEY_LEN] = {
 
 /* keys are grouped by sysfs node */
 static char akeys[][MAX_ITEM_KEY_LEN] = {
-	"ID", "KTIME", "BIN", "FTYPE", "FAULT",
+	"ID", "KTIME", "BIN", "FAULT",
 	"BUG", "PC", "LR", "STACK", "RR",
 	"RSTCNT", "PINFO", "SMU", "BUS", "DPM",
 	"ETC", "ESR", "MER", "PCB", "SMD",
@@ -51,8 +50,8 @@ static char akeys[][MAX_ITEM_KEY_LEN] = {
 static char bkeys[][MAX_ITEM_KEY_LEN] = {
 	"ID", "RR", "ASB", "PSITE", "DDRID",
 	"RST", "INFO2", "INFO3", "RBASE", "MAGIC",
-	"PWR", "PWROFF", "PINT1", "PINT2", "PINT5",
-	"PINT6", "PSTS1", "PSTS2", "FREQ", "EPD",
+	"PWR", "PWROFF", "PINT", "PSTAT",
+	"PWROFFS", "PINTS", "PSTATS", "FREQ", "EPD",
 	"UNFZ",
 };
 

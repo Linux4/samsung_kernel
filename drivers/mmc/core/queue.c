@@ -406,10 +406,10 @@ static void mmc_setup_queue(struct mmc_queue *mq, struct mmc_card *card)
 		bdi_set_max_ratio(mq->queue->backing_dev_info, 60);
 #endif
 		pr_info("Parameters for external-sdcard: min/max_ratio: %u/%u "
-				"strictlimit: on nr_requests: %lu read_ahead_kb: %lu\n",
-				mq->queue->backing_dev_info->min_ratio,
-				mq->queue->backing_dev_info->max_ratio,
-				mq->queue->nr_requests,
+			"strictlimit: on nr_requests: %lu read_ahead_kb: %lu\n",
+			mq->queue->backing_dev_info->min_ratio,
+			mq->queue->backing_dev_info->max_ratio,
+			mq->queue->nr_requests,
 				mq->queue->backing_dev_info->ra_pages * 4);
 	}
 

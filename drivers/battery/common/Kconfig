@@ -201,6 +201,13 @@ config BATTERY_AGE_FORECAST_B2B
 	help
 	Say Y to use battery age forecast for B2B
 
+config BATTERY_LOGGING
+	tristate "battery logging"
+	default n
+	depends on BATTERY_SAMSUNG
+	help
+	Say Y to use update battery logging
+
 config ENG_BATTERY_CONCEPT
        bool "enable temp block"
        default n
@@ -280,5 +287,66 @@ config SUPPORT_HV_CTRL
     help
 	  Say Y to include support for controlling voltage
 
-endmenu
+config SUPPORT_WAKEUP_REGISTER
+    bool "support for wakeup register api based on kernel version"
+    default n
+    help
+	  Say Y to enable CONFIG_SUPPORT_WAKEUP_REGISTER
+	  This feature is used for kernel wakeup api and
+	  old kernel version do not support wakeup register api.
+	  Please check pm_wakeup header in your kernel before enable this.
 
+config SEC_BATTERY_TEST
+	bool "KUnit test for sec_battery_test"
+	depends on SEC_KUNIT
+	help
+	  TODO: Describe config fully.
+
+config SEC_BATTERY_THERMAL_TEST
+	bool "KUnit test for sec_battery_thermal_test"
+	depends on SEC_KUNIT
+	help
+	  TODO: Describe config fully.
+
+config SEC_BATTERY_VOTE_TEST
+	bool "KUnit test for sec_battery_vote_test"
+	depends on SEC_KUNIT
+	help
+	  TODO: Describe config fully.
+
+config SEC_CISD_TEST
+	bool "KUnit test for sec_cisd_test"
+	depends on SEC_KUNIT
+	help
+	  TODO: Describe config fully.
+
+config SEC_ADC_TEST
+	bool "KUnit test for sec_adc_test"
+	depends on SEC_KUNIT
+	help
+	  TODO: Describe config fully.
+
+config SEC_BATTERY_SYSFS_TEST
+	bool "KUnit test for sec_battery_sysfs_test"
+	depends on SEC_KUNIT
+	help
+	  TODO: Describe config fully.
+
+config SEC_BATTERY_TTF_TEST
+	bool "KUnit test for sec_battery_ttf_test"
+	depends on SEC_KUNIT
+	help
+	  TODO: Describe config fully.
+
+config SEC_STEP_CHARGING_TEST
+	bool "KUnit test for sec_step_charging_test"
+	depends on SEC_KUNIT
+	help
+	  TODO: Describe config fully.
+
+config SEC_PD_TEST
+	bool "KUnit test for sec_pd_test"
+	depends on SEC_KUNIT
+	help
+	  TODO: Describe config fully.
+endmenu

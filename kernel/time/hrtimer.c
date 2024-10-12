@@ -1824,6 +1824,9 @@ int hrtimers_prepare_cpu(unsigned int cpu)
 	cpu_base->softirq_next_timer = NULL;
 	cpu_base->expires_next = KTIME_MAX;
 	cpu_base->softirq_expires_next = KTIME_MAX;
+
+	restore_pcpu_tick(cpu);
+
 	return 0;
 }
 
@@ -1865,6 +1868,7 @@ int hrtimers_dead_cpu(unsigned int scpu)
 	int i;
 
 	BUG_ON(cpu_online(scpu));
+	save_pcpu_tick(scpu);
 	tick_cancel_sched_timer(scpu);
 
 	/*

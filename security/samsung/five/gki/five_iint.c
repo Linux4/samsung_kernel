@@ -186,11 +186,11 @@ static int __init integrity_iintcache_init(void)
 			      0, SLAB_PANIC, init_once);
 	return 0;
 }
+
 DEFINE_LSM(integrity) = {
 	.name = "integrity",
 	.init = integrity_iintcache_init,
 };
-
 
 /*
  * integrity_kernel_read - read data from the file

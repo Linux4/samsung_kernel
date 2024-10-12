@@ -1843,6 +1843,29 @@ static void sm5714_fg_set_vempty(struct sm5714_fuelgauge_data *fuelgauge, int ve
 		__func__, fuelgauge->info.value_v_alarm_hys, data);
 }
 
+static int sm5714_get_bat_id(int bat_id[], int bat_gpio_cnt)
+{
+	int battery_id = 0;
+	int i = 0;
+
+	for (i = (bat_gpio_cnt - 1); i >= 0; i--)
+		battery_id += bat_id[i] << i;
+
+	return battery_id;
+}
+
+static void sm5714_reset_bat_id(struct sm5714_fuelgauge_data *fuelgauge)
+{
+	int bat_id[BAT_GPIO_NO] = {0, };
+	int i = 0;
+
+	for (i = 0; i < fuelgauge->pdata->bat_gpio_cnt; i++)
+		bat_id[i] = gpio_get_value(fuelgauge->pdata->bat_id_gpio[i]);
+
+	fuelgauge->battery_data->battery_id =
+			sm5714_get_bat_id(bat_id, fuelgauge->pdata->bat_gpio_cnt);
+}
+
 static int sm5714_fg_get_property(struct power_supply *psy,
 				enum power_supply_property psp,
 				union power_supply_propval *val)
@@ -1905,6 +1928,9 @@ static int sm5714_fg_get_property(struct power_supply *psy,
 			break;
 /*		case SEC_BATTERY_CAPACITY_FULL: */
 /*		break; */
+		default:
+			val->intval = -1;
+			break;
 		}
 		break;
 	/* SOC (%) */
@@ -1926,84 +1952,80 @@ static int sm5714_fg_get_property(struct power_supply *psy,
 			SEC_FUELGAUGE_CAPACITY_TYPE_DYNAMIC_SCALE))
 			sm5714_fg_get_scaled_capacity(fuelgauge, val);
 
-			/* capacity should be between 0% and 100%
-			* (0.1% degree)
-			*/
-			if (val->intval > 1000)
-				val->intval = 1000;
-			if (val->intval < 0)
-				val->intval = 0;
+		/* capacity should be between 0% and 100%
+		 * (0.1% degree)
+		 */
+		if (val->intval > 1000)
+			val->intval = 1000;
+		if (val->intval < 0)
+			val->intval = 0;
 
-			fuelgauge->raw_capacity = val->intval;
+		fuelgauge->raw_capacity = val->intval;
 
-			/* get only integer part */
-			val->intval /= 10;
+		/* get only integer part */
+		val->intval /= 10;
 
-			/* SW/HW V Empty setting */
-			if (fuelgauge->using_hw_vempty) {
-				if (fuelgauge->info.temperature <= (int)fuelgauge->low_temp_limit) {
-					if (fuelgauge->raw_capacity <= 50) {
-						if (fuelgauge->vempty_mode != VEMPTY_MODE_HW) {
-							sm5714_fg_set_vempty(fuelgauge, VEMPTY_MODE_HW);
-						}
-					} else if (fuelgauge->vempty_mode == VEMPTY_MODE_HW) {
-						sm5714_fg_set_vempty(fuelgauge, VEMPTY_MODE_SW);
-					}
-				} else if (fuelgauge->vempty_mode != VEMPTY_MODE_HW) {
-					sm5714_fg_set_vempty(fuelgauge, VEMPTY_MODE_HW);
-				}
-			}
-
-			if (!fuelgauge->is_charging &&
-			    fuelgauge->vempty_mode == VEMPTY_MODE_SW_VALERT && !lpcharge) {
-				pr_info("%s : SW V EMPTY. Decrease SOC\n", __func__);
-				if (fuelgauge->capacity_old > 0)
-					val->intval = fuelgauge->capacity_old - 1;
-				else
-					val->intval = 0;
-			} else if ((fuelgauge->vempty_mode == VEMPTY_MODE_SW_RECOVERY) &&
-				   (val->intval == fuelgauge->capacity_old)) {
-				fuelgauge->vempty_mode = VEMPTY_MODE_SW;
-			}
-
-			/* check whether doing the wake_unlock */
-			if ((val->intval > fuelgauge->pdata->fuel_alert_soc) &&
-				fuelgauge->is_fuel_alerted) {
-				sm5714_fg_fuelalert_init(fuelgauge,
-					fuelgauge->pdata->fuel_alert_soc);
-			}
-
-			/* (Only for atomic capacity)
-			* In initial time, capacity_old is 0.
-			* and in resume from sleep,
-			* capacity_old is too different from actual soc.
-			* should update capacity_old
-			* by val->intval in booting or resume.
-			*/
-			if (fuelgauge->initial_update_of_soc) {
-				fuelgauge->initial_update_of_soc = false;
-				if (fuelgauge->vempty_mode != VEMPTY_MODE_SW_VALERT) {
-					/* updated old capacity */
-					fuelgauge->capacity_old = val->intval;
-					break;
-				}
-			}
-
-			if (fuelgauge->sleep_initial_update_of_soc) {
-				fuelgauge->sleep_initial_update_of_soc = false;
-				/* updated old capacity in case of resume */
-				if (fuelgauge->is_charging ||
-					((!fuelgauge->is_charging) && (fuelgauge->capacity_old >= val->intval))) {
-					fuelgauge->capacity_old = val->intval;
-					break;
-				}
-			}
-
-			if (fuelgauge->pdata->capacity_calculation_type &
-				(SEC_FUELGAUGE_CAPACITY_TYPE_ATOMIC |
-				SEC_FUELGAUGE_CAPACITY_TYPE_SKIP_ABNORMAL)){
-				sm5714_fg_get_atomic_capacity(fuelgauge, val);
+		/* SW/HW V Empty setting */
+		if (fuelgauge->using_hw_vempty) {
+			if (fuelgauge->info.temperature <= (int)fuelgauge->low_temp_limit) {
+				if (fuelgauge->raw_capacity <= 50) {
+					if (fuelgauge->vempty_mode != VEMPTY_MODE_HW)
+						sm5714_fg_set_vempty(fuelgauge, VEMPTY_MODE_HW);
+				} else if (fuelgauge->vempty_mode == VEMPTY_MODE_HW)
+					sm5714_fg_set_vempty(fuelgauge, VEMPTY_MODE_SW);
+			} else if (fuelgauge->vempty_mode != VEMPTY_MODE_HW)
+				sm5714_fg_set_vempty(fuelgauge, VEMPTY_MODE_HW);
 		}
+
+		if (!fuelgauge->is_charging &&
+		    fuelgauge->vempty_mode == VEMPTY_MODE_SW_VALERT && !lpcharge) {
+			pr_info("%s : SW V EMPTY. Decrease SOC\n", __func__);
+			if (fuelgauge->capacity_old > 0)
+				val->intval = fuelgauge->capacity_old - 1;
+			else
+				val->intval = 0;
+		} else if ((fuelgauge->vempty_mode == VEMPTY_MODE_SW_RECOVERY) &&
+			   (val->intval == fuelgauge->capacity_old)) {
+			fuelgauge->vempty_mode = VEMPTY_MODE_SW;
+		}
+
+		/* check whether doing the wake_unlock */
+		if ((val->intval > fuelgauge->pdata->fuel_alert_soc) &&
+			fuelgauge->is_fuel_alerted) {
+			sm5714_fg_fuelalert_init(fuelgauge,
+				fuelgauge->pdata->fuel_alert_soc);
+		}
+
+		/* (Only for atomic capacity)
+		* In initial time, capacity_old is 0.
+		* and in resume from sleep,
+		* capacity_old is too different from actual soc.
+		* should update capacity_old
+		* by val->intval in booting or resume.
+		*/
+		if (fuelgauge->initial_update_of_soc) {
+			fuelgauge->initial_update_of_soc = false;
+			if (fuelgauge->vempty_mode != VEMPTY_MODE_SW_VALERT) {
+				/* updated old capacity */
+				fuelgauge->capacity_old = val->intval;
+				break;
+			}
+		}
+
+		if (fuelgauge->sleep_initial_update_of_soc) {
+			fuelgauge->sleep_initial_update_of_soc = false;
+			/* updated old capacity in case of resume */
+			if (fuelgauge->is_charging ||
+				((!fuelgauge->is_charging) && (fuelgauge->capacity_old >= val->intval))) {
+				fuelgauge->capacity_old = val->intval;
+				break;
+			}
+		}
+
+		if (fuelgauge->pdata->capacity_calculation_type &
+			(SEC_FUELGAUGE_CAPACITY_TYPE_ATOMIC |
+			SEC_FUELGAUGE_CAPACITY_TYPE_SKIP_ABNORMAL))
+			sm5714_fg_get_atomic_capacity(fuelgauge, val);
 		break;
 	/* Battery Temperature */
 	case POWER_SUPPLY_PROP_TEMP:
@@ -2053,6 +2075,14 @@ static int sm5714_fg_get_property(struct power_supply *psy,
 #else
 			sm5714_fuel_gauge_abnormal_reg_check(fuelgauge);
 #endif
+			break;
+		case POWER_SUPPLY_EXT_PROP_BATTERY_ID:
+			if (!val->intval) {
+				if (fuelgauge->pdata->bat_gpio_cnt > 0)
+					sm5714_reset_bat_id(fuelgauge);
+				val->intval = fuelgauge->battery_data->battery_id;
+				pr_info("%s: bat_id_gpio = %d\n", __func__, val->intval);
+			}
 			break;
 		default:
 			return -EINVAL;
@@ -2302,6 +2332,7 @@ static int temp_parse_dt(struct sm5714_fuelgauge_data *fuelgauge)
 
 static int sm5714_fuelgauge_parse_dt(struct sm5714_fuelgauge_data *fuelgauge)
 {
+	struct sm5714_fuelgauge_platform_data *pdata = fuelgauge->pdata;
 	char prop_name[PROPERTY_NAME_SIZE];
 	int battery_id = -1;
 	int table[24];
@@ -2321,6 +2352,7 @@ static int sm5714_fuelgauge_parse_dt(struct sm5714_fuelgauge_data *fuelgauge)
 	int i, j;
 	const u32 *p;
 	int len;
+	int bat_id[BAT_GPIO_NO] = {0, };
 
 	struct device_node *np = of_find_node_by_name(NULL, "sm5714-fuelgauge");
 
@@ -2504,6 +2536,32 @@ static int sm5714_fuelgauge_parse_dt(struct sm5714_fuelgauge_data *fuelgauge)
 #endif
 	}
 
+	pdata->bat_gpio_cnt = of_gpio_named_count(np, "fuelgauge,bat_id_gpio");
+	/* not run if gpio gpio cnt is less than 1 */
+	if (pdata->bat_gpio_cnt > 0) {
+		pr_info("%s: Has %d bat_id_gpios\n", __func__, pdata->bat_gpio_cnt);
+		if (pdata->bat_gpio_cnt > BAT_GPIO_NO) {
+			pr_err("%s: bat_id_gpio, catch out-of bounds array read\n",
+					__func__);
+			pdata->bat_gpio_cnt = BAT_GPIO_NO;
+		}
+		for (i = 0; i < pdata->bat_gpio_cnt; i++) {
+			pdata->bat_id_gpio[i] = of_get_named_gpio(np, "fuelgauge,bat_id_gpio", i);
+			if (pdata->bat_id_gpio[i] >= 0) {
+				bat_id[i] = gpio_get_value(pdata->bat_id_gpio[i]);
+			} else {
+				pr_err("%s: error reading bat_id_gpio = %d\n",
+					__func__, pdata->bat_id_gpio[i]);
+				bat_id[i] = 0;
+			}
+		}
+		fuelgauge->battery_data->battery_id =
+				sm5714_get_bat_id(bat_id, pdata->bat_gpio_cnt);
+
+		pr_info("%s: battery_id (gpio) = %d\n", __func__, fuelgauge->battery_data->battery_id);
+	} else {
+		fuelgauge->battery_data->battery_id = -1;
+	}
 	/* get battery_params node for reg init */
 	np = of_find_node_by_name(of_node_get(np), "battery_params");
 	if (np == NULL) {
@@ -2511,9 +2569,23 @@ static int sm5714_fuelgauge_parse_dt(struct sm5714_fuelgauge_data *fuelgauge)
 		return -EINVAL;
 	}
 
-	/* get battery_id */
-	if (of_property_read_u32(np, "battery,id", &battery_id) < 0)
-		PINFO("not battery,id property\n");
+	if (fuelgauge->battery_data->battery_id >= 0) {
+		battery_id = fuelgauge->battery_data->battery_id;
+
+		snprintf(prop_name, PROPERTY_NAME_SIZE, "battery%d,%s", battery_id, "battery_type");
+		ret = of_property_read_u32_array(np, prop_name, battery_type, 2);
+		if (ret < 0) {
+			PINFO("no battery_id(%d) data\n", battery_id);
+			/* get battery_id */
+			battery_id = 0;
+			if (of_property_read_u32(np, "battery,id", &battery_id) < 0)
+				PINFO("not battery,id property\n");
+			PINFO("use battery default id = %d\n", battery_id);
+		}
+	} else {
+		if (of_property_read_u32(np, "battery,id", &battery_id) < 0)
+			PINFO("not battery,id property\n");
+	}
 	PINFO("battery id = %d\n", battery_id);
 
 	/* get battery_table */

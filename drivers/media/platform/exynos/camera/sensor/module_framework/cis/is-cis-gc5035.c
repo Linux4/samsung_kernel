@@ -272,7 +272,7 @@ p_err:
 	return ret;
 }
 
-//For finding the nearest value in the gain table
+//For finding the nearest value in the gain table 
 u32 sensor_gc5035_calc_again_closest(u32 permile)
 {
 	int i;

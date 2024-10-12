@@ -176,6 +176,16 @@ static int sm5714_muic_handle_pdic_ATTACH(struct sm5714_muic_data *muic_data,
 		schedule_work(&(muic_data->muic_event_work));
 	}
 
+	if (!muic_data->is_pdic_ready) {
+		muic_data->is_pdic_ready = true;
+
+		if (muic_data->is_charger_ready) {
+			if ((muic_data->attached_dev == ATTACHED_DEV_TA_MUIC) ||
+					(muic_data->attached_dev == ATTACHED_DEV_UNOFFICIAL_TA_MUIC))
+				schedule_work(&muic_data->muic_afc_init_work);
+		}
+	}
+
 	return 0;
 }
 

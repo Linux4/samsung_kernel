@@ -169,6 +169,7 @@
 #define SCALER_SEL_MASK			(2 << 29)
 #define SCALER_OP_SEL_INV_MASK		(1 << 28)
 #define SCALER_OP_SEL_MASK		(0xf << 24)
+#define SCALER_BLEND_GLOBAL_ALPHA_MASK	(0xff)
 #define SCALER_SEL_INV_SHIFT		(31)
 #define SCALER_SEL_SHIFT		(29)
 #define SCALER_OP_SEL_INV_SHIFT		(28)

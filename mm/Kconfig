@@ -866,10 +866,9 @@ config SPECULATIVE_PAGE_FAULT
 	 allocating, it is failing its processing and a classic page fault
 	 is then tried.
 
-# IOPP-dirty_buffer-v2.1.4.19
 config LARGE_DIRTY_BUFFER
 	bool "Use large dirty_threshold value by enabling dirty_ratio"
-	default y
+	default n
 	help
 	  This config enables dirty_ratio/dirty_background_ratio,
 	  and it means large dirty_threshold value in 64bit architectures.
@@ -877,6 +876,7 @@ config LARGE_DIRTY_BUFFER
 
 config MAX_DIRTY_THRESH_PAGES
 	int "The upper bound of VM dirty_thresh value in number of pages"
+	depends on LARGE_DIRTY_BUFFER
 	default 25600
 	help
 	  This value is the upper bound of VM dirty-thresh. (0 means no limit.)

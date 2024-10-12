@@ -253,6 +253,7 @@
 #define SLSI_RECOVERY_SERVICE_STOPPED    1
 #define SLSI_RECOVERY_SERVICE_CLOSED   2
 #define SLSI_RECOVERY_SERVICE_OPENED    3
+#define SLSI_DEFAULT_HW_MAC_ADDR    "\x00\x00\x0F\x11\x22\x33"
 
 enum slsi_dhcp_tx {
 	SLSI_TX_IS_NOT_DHCP,
@@ -570,7 +571,6 @@ int slsi_ap_prepare_add_info_ies(struct netdev_vif *ndev_vif, const u8 *ies, siz
 int slsi_set_mib_roam(struct slsi_dev *dev, struct net_device *ndev, u16 psid, int value);
 #ifdef CONFIG_SCSC_WLAN_SET_PREFERRED_ANTENNA
 int slsi_set_mib_preferred_antenna(struct slsi_dev *dev, u16 value);
-bool slsi_read_preferred_antenna_from_file(struct slsi_dev *sdev, char *ant_file);
 #endif
 void slsi_reset_throughput_stats(struct net_device *dev);
 int slsi_set_mib_rssi_boost(struct slsi_dev *sdev, struct net_device *dev, u16 psid, int index, int boost);
@@ -602,6 +602,7 @@ struct net_device *slsi_dynamic_interface_create(struct wiphy        *wiphy,
 					     const char          *name,
 					     enum nl80211_iftype type,
 					     struct vif_params   *params);
+void slsi_stop_chip(struct slsi_dev *sdev);
 int slsi_get_beacon_cu(struct slsi_dev *sdev, struct net_device *dev, int *mib_value);
 int slsi_get_mib_roam(struct slsi_dev *sdev, u16 psid, int *mib_value);
 void slsi_roam_channel_cache_add(struct slsi_dev *sdev, struct net_device *dev, struct sk_buff *skb);
@@ -642,9 +643,10 @@ int slsi_test_send_hanged_vendor_event(struct net_device *dev);
 #endif
 int slsi_send_power_measurement_vendor_event(struct slsi_dev *sdev, s16 power_in_db);
 #if defined(CONFIG_SLSI_WLAN_STA_FWD_BEACON) && (defined(SCSC_SEP_VERSION) && SCSC_SEP_VERSION >= 10)
-int slsi_send_forward_beacon_vendor_event(struct slsi_dev *sdev, const u8 *ssid, const int ssid_len, const u8 *bssid,
-					  u8 channel, const u16 beacon_int, const u64 timestamp, const u64 sys_time);
-int slsi_send_forward_beacon_abort_vendor_event(struct slsi_dev *sdev, u16 reason_code);
+int slsi_send_forward_beacon_vendor_event(struct slsi_dev *sdev, struct net_device *dev,
+					  const u8 *ssid, const int ssid_len, const u8 *bssid, u8 channel,
+					  const u16 beacon_int, const u64 timestamp, const u64 sys_time);
+int slsi_send_forward_beacon_abort_vendor_event(struct slsi_dev *sdev, struct net_device *dev, u16 reason_code);
 #endif
 void slsi_wlan_dump_public_action_subtype(struct slsi_dev *sdev, struct ieee80211_mgmt *mgmt, bool tx);
 #if !(defined(SCSC_SEP_VERSION) && SCSC_SEP_VERSION < 11)
@@ -660,6 +662,18 @@ int slsi_configure_tx_power_sar_scenario(struct net_device *dev, int mode);
 /* Sysfs based mac address override */
 void slsi_create_sysfs_macaddr(void);
 void slsi_destroy_sysfs_macaddr(void);
+/* Sysfs based version information */
+void slsi_create_sysfs_version_info(void);
+void slsi_destroy_sysfs_version_info(void);
+#if defined(SCSC_SEP_VERSION) && SCSC_SEP_VERSION >= 12
+void slsi_create_sysfs_debug_dump(void);
+void slsi_destroy_sysfs_debug_dump(void);
+void slsi_collect_chipset_logs(struct work_struct *work);
+#endif
+void slsi_create_sysfs_pm(void);
+void slsi_destroy_sysfs_pm(void);
+void slsi_create_sysfs_ant(void);
+void slsi_destroy_sysfs_ant(void);
 int slsi_find_chan_idx(u16 chan, u8 hw_mode);
 int slsi_set_latency_mode(struct net_device *dev, int latency_mode, int cmd_len);
 void slsi_trigger_service_failure(struct work_struct *work);
@@ -668,6 +682,7 @@ int slsi_start_ap(struct wiphy *wiphy, struct net_device *dev,
 		  struct cfg80211_ap_settings *settings);
 void slsi_subsystem_reset(struct work_struct *work);
 void slsi_chip_recovery(struct work_struct *work);
+void slsi_system_error_recovery(struct work_struct *work);
 int slsi_set_acl(struct slsi_dev *sdev, struct net_device *dev);
 void slsi_purge_blacklist(struct netdev_vif *ndev_vif);
 void slsi_rx_update_wake_stats(struct slsi_dev *sdev, struct ethhdr *ehdr, int buff_len);

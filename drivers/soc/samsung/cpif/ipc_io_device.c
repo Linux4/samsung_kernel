@@ -132,7 +132,9 @@ static unsigned int ipc_poll(struct file *filp, struct poll_table_struct *wait)
 		break;
 
 	case STATE_OFFLINE:
-		/* fall through */
+		if ((iod->ch == EXYNOS_CH_ID_CPLOG && ld->protocol == PROTOCOL_SIT)
+			|| iod->ch == SIPC_CH_ID_CASS)
+			return POLLHUP;
 	default:
 		break;
 	}
@@ -265,25 +267,23 @@ static long ipc_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 	return 0;
 }
 
+#define INIT_END_WAIT_MS	150
+
 static ssize_t ipc_write(struct file *filp, const char __user *data,
 			  size_t count, loff_t *fpos)
 {
 	struct io_device *iod = (struct io_device *)filp->private_data;
 	struct link_device *ld = get_current_link(iod);
+	struct mem_link_device *mld = to_mem_link_device(ld);
 	struct modem_ctl *mc = iod->mc;
-	struct sk_buff *skb;
-	char *buff;
-	int ret;
 	u8 cfg = 0;
 	u16 cfg_sit = 0;
-	unsigned int headroom;
-	unsigned int tailroom;
-	unsigned int tx_bytes;
+	unsigned int headroom = 0;
 	unsigned int copied = 0, tot_frame = 0, copied_frm = 0;
-	unsigned int remains;
-	unsigned int alloc_size;
 	/* 64bit prevent */
 	unsigned int cnt = (unsigned int)count;
+	int curr_init_end_cnt;
+	int retry = 0;
 #ifdef DEBUG_MODEM_IF
 	struct timespec ts;
 #endif
@@ -316,17 +316,35 @@ static ssize_t ipc_write(struct file *filp, const char __user *data,
 			mif_err("protocol error %d\n", ld->protocol);
 			return -EINVAL;
 		}
-	} else {
-		cfg = 0;
-		cfg_sit = 0;
-		headroom = 0;
 	}
 
-	if (unlikely(!mc->receive_first_ipc) && ld->is_log_ch(iod->ch))
-		return -EBUSY;
+	/* Wait for a while if a new CMD_INIT_END is sent */
+	while ((curr_init_end_cnt = atomic_read(&mld->init_end_cnt)) != mld->last_init_end_cnt &&
+	       retry++ < 3) {
+		mif_err_limited("%s: wait for INIT_END done (%dms) cnt:%d last:%d cmd:0x%02X\n",
+				 iod->name, INIT_END_WAIT_MS,
+				 curr_init_end_cnt, mld->last_init_end_cnt,
+				 mld->read_ap2cp_irq(mld));
+
+		if (atomic_inc_return(&mld->init_end_busy) > 1)
+			curr_init_end_cnt = -1;
+
+		msleep(INIT_END_WAIT_MS);
+		if (curr_init_end_cnt >= 0)
+			mld->last_init_end_cnt = curr_init_end_cnt;
+
+		atomic_dec(&mld->init_end_busy);
+	}
 
 	while (copied < cnt) {
-		remains = cnt - copied;
+		struct sk_buff *skb;
+		char *buff;
+		unsigned int remains = cnt - copied;
+		unsigned int tailroom = 0;
+		unsigned int tx_bytes;
+		unsigned int alloc_size;
+		int ret;
+
 
 		switch (ld->protocol) {
 		case PROTOCOL_SIPC:

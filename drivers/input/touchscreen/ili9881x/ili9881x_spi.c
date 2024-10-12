@@ -586,7 +586,6 @@ static int ilitek_spi_probe(struct spi_device *spi)
 	ilits->gesture_demo_ctrl = DISABLE;
 	ilits->wtd_ctrl = OFF;
 	ilits->report = ENABLE;
-	ilits->netlink = DISABLE;
 	ilits->dnp = DISABLE;
 	ilits->irq_tirgger_type = IRQF_TRIGGER_FALLING;
 	ilits->info_from_hex = ENABLE;

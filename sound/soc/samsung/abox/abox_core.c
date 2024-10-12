@@ -129,7 +129,6 @@ void abox_core_enable(int enable)
 
 void abox_core_standby(void)
 {
-	static const u64 timeout = NSEC_PER_MSEC * 100;
 	struct abox_data *data = get_abox_data();
 	struct device *dev = data->dev;
 	struct abox_core *core;
@@ -137,7 +136,7 @@ void abox_core_standby(void)
 
 	dev_dbg(dev, "%s\n", __func__);
 
-	limit = local_clock() + timeout;
+	limit = local_clock() + abox_get_waiting_ns(false);
 	list_for_each_entry(core, &cores, list) {
 		unsigned int offset = core->pmu_standby[OFFSET];
 		unsigned int mask = core->pmu_standby[MASK];

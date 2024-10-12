@@ -3333,13 +3333,44 @@ exit:
 #endif /* SENSOR_OTP_SR846 */
 
 #if defined(SENSOR_OTP_4HA)
+u16 is_i2c_select_otp_bank_4ha(struct i2c_client *client) {
+	int ret = 0;
+	u8 otp_bank = 0;
+	u16 curr_page = 0;
+	
+	//The Bank details itself is present in bank-1 page-0
+	is_sensor_write8(client, S5K4HA_OTP_PAGE_SELECT_ADDR, S5K4HA_OTP_START_PAGE_BANK1);
+	ret = is_sensor_read8(client, S5K4HA_OTP_BANK_SELECT, &otp_bank);
+	if (unlikely(ret)) {
+		err("failed to is_sensor_read8 (%d). OTP Bank selection failed\n", ret);
+		goto exit;
+	}
+	info("%s otp_bank = %d\n", __func__, otp_bank);
+
+	switch(otp_bank) {
+	case 0x01 :
+		curr_page = S5K4HA_OTP_START_PAGE_BANK1;
+		break;
+	case 0x03 :
+		curr_page = S5K4HA_OTP_START_PAGE_BANK2;
+		break;
+	default :
+		curr_page = S5K4HA_OTP_START_PAGE_BANK1;
+		break;
+	}
+	is_sensor_write8(client, S5K4HA_OTP_PAGE_SELECT_ADDR, curr_page);
+exit:
+	return curr_page;
+}
+
 int is_i2c_read_otp_4ha(struct i2c_client *client, char *buf, u16 start_addr, size_t size)
 {
 	int ret = 0;
 	int index = 0;
 	u16 curr_addr = start_addr;
-	u16 curr_page = S5K4HA_OTP_START_PAGE;
+	u16 curr_page;
 
+	curr_page = is_i2c_select_otp_bank_4ha(client);
 	for (index = 0; index < size ; index++) {
 		ret = is_sensor_read8(client, curr_addr, &buf[index]); /* OTP read */
 		if (unlikely(ret)) {
@@ -3414,8 +3445,6 @@ i2c_write_retry_global:
 	is_sensor_write8(client, S5K4HA_STANDBY_ADDR, 0x00); /* standby on */
 	msleep(10); /* sleep 10msec */
 
-	/* Write OTP page */
-	is_sensor_write8(client, S5K4HA_OTP_PAGE_SELECT_ADDR, S5K4HA_OTP_START_PAGE); //select page
 	is_sensor_write8(client, S5K4HA_OTP_R_W_MODE_ADDR, 0x01); //write "read" command
 
 	retry = IS_CAL_RETRY_CNT;

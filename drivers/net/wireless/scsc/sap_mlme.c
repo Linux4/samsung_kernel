@@ -124,7 +124,8 @@ static int sap_mlme_notifier(struct slsi_dev *sdev, unsigned long event)
 		    ndev_vif->sta.vif_status == SLSI_VIF_STATUS_CONNECTED) {
 			ndev_vif->is_wips_running = false;
 
-			slsi_send_forward_beacon_abort_vendor_event(sdev, SLSI_FORWARD_BEACON_ABORT_REASON_SUSPENDED);
+			slsi_send_forward_beacon_abort_vendor_event(sdev, dev,
+								    SLSI_FORWARD_BEACON_ABORT_REASON_SUSPENDED);
 			SLSI_INFO_NODEV("FORWARD_BEACON: SUSPEND_RESUMED!! send abort event\n");
 		}
 

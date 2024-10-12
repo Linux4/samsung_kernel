@@ -163,7 +163,7 @@ static struct kq_nad_block kq_nad_block_data[] = {
 	"NONE",     "NONE",       "NONE",       "NONE",       "NONE",
 	"NONE",     "NONE",       "NONE",       "NONE"},
 	//CP
-	{"NONE",     "CP_AUTOTEST", "CP_BOOT",  "DVFS_CPSYS", "UCPU_UNZIP",
+	{"NONE",     "AUTOTEST",     "BOOT",     "DVFS_CPSYS", "UCPU_UNZIP",
 	"LCPU_UNZIP", "NONE",        "NONE",     "NONE",       "NONE",
 	"NONE",       "NONE",        "NONE",     "NONE",       "NONE",
 	"NONE",       "NONE",        "NONE",     "NONE",       "NONE",

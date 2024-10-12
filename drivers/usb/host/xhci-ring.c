@@ -366,7 +366,6 @@ static int xhci_abort_cmd_ring(struct xhci_hcd *xhci, unsigned long flags)
 	 * and try to recover a -ETIMEDOUT with a host controller reset.
 	 */
 #if IS_ENABLED(CONFIG_USB_HOST_SAMSUNG_FEATURE)
-	spin_unlock_irqrestore(&xhci->lock, flags);
 		ret = xhci_handshake(&xhci->op_regs->cmd_ring,
 			CMD_RING_RUNNING, 0, 5 * 100 * 1000);
 #else
@@ -377,9 +376,6 @@ static int xhci_abort_cmd_ring(struct xhci_hcd *xhci, unsigned long flags)
 		xhci_err(xhci, "Abort failed to stop command ring: %d\n", ret);
 		xhci_halt(xhci);
 		xhci_hc_died(xhci);
-#if IS_ENABLED(CONFIG_USB_HOST_SAMSUNG_FEATURE)
-		spin_lock_irqsave(&xhci->lock, flags);
-#endif
 		return ret;
 	}
 	/*
@@ -388,9 +384,7 @@ static int xhci_abort_cmd_ring(struct xhci_hcd *xhci, unsigned long flags)
 	 * but the completion event in never sent. Wait 2 secs (arbitrary
 	 * number) to handle those cases after negation of CMD_RING_RUNNING.
 	 */
-#if !IS_ENABLED(CONFIG_USB_HOST_SAMSUNG_FEATURE)
 	spin_unlock_irqrestore(&xhci->lock, flags);
-#endif
 	ret = wait_for_completion_timeout(&xhci->cmd_ring_stop_completion,
 					  msecs_to_jiffies(2000));
 	spin_lock_irqsave(&xhci->lock, flags);

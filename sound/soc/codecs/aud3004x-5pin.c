@@ -440,10 +440,14 @@ static bool fake_jack_check(struct aud3004x_jack *jackdet)
 	struct aud3004x_priv *aud3004x = jackdet->p_aud3004x;
 	unsigned int jack_status_bit = 0;
 
+	regcache_cache_switch(aud3004x, false);
 	regcache_cache_bypass(aud3004x->regmap[AUD3004D], true);
+
 	/* Check jack det status */
 	jack_status_bit = aud3004x_read(aud3004x, AUD3004X_F0_STATUS1);
+
 	regcache_cache_bypass(aud3004x->regmap[AUD3004D], false);
+	regcache_cache_switch(aud3004x, true);
 
 	jack_status_bit = jack_status_bit & JACK_DET_MASK;
 

@@ -37,6 +37,7 @@
 #ifdef CONFIG_OF
 #include <linux/of_device.h>
 #endif
+#include "../../base/base.h"
 #if defined(CONFIG_USB_PORT_POWER_OPTIMIZATION)
 #include "usb_power_notify.h"
 #endif
@@ -396,6 +397,7 @@ static int dwc3_otg_start_host(struct otg_fsm *fsm, int on)
 
 		platform_device_del(dwc->xhci);
 		list_clear = 1;
+		dwc->xhci->dev.p->dead = 0;
 
 err2:
 		ret = dwc3_otg_phy_enable(fsm, 0, on);

@@ -79,8 +79,6 @@
 
 #define DEFAULT_CPU_GEAR_ID		(0xAB0CDEFA)
 #define TEST_CPU_GEAR_ID		(DEFAULT_CPU_GEAR_ID + 1)
-#define CALLIOPE_ENABLE_TIMEOUT_MS	(1000)
-#define IPC_TIMEOUT_US			(10000)
 #define BOOT_DONE_TIMEOUT_MS		(10000)
 #define DRAM_TIMEOUT_NS			(10000000)
 #define IPC_RETRY			(10)
@@ -456,7 +454,7 @@ static bool abox_can_calliope_ipc(struct device *dev,
 	case CALLIOPE_ENABLING:
 		wait_event_timeout(data->ipc_wait_queue,
 				data->calliope_state == CALLIOPE_ENABLED,
-				msecs_to_jiffies(CALLIOPE_ENABLE_TIMEOUT_MS));
+				abox_get_waiting_jiffies(true));
 		if (data->calliope_state == CALLIOPE_ENABLED)
 			break;
 		/* Fallthrough */
@@ -1239,7 +1237,7 @@ static int abox_component_control_get(struct snd_kcontrol *kcontrol,
 
 	ret = wait_event_timeout(data->ipc_wait_queue,
 			system_msg->msgtype == ABOX_REPORT_COMPONENT_CONTROL,
-			msecs_to_jiffies(1000));
+			abox_get_waiting_jiffies(true));
 	if (system_msg->msgtype != ABOX_REPORT_COMPONENT_CONTROL)
 		return -ETIME;
 
@@ -1616,6 +1614,21 @@ int abox_set_profiling(int en)
 }
 EXPORT_SYMBOL(abox_set_profiling);
 
+unsigned long abox_get_waiting_ns(bool coarse)
+{
+	unsigned long wait;
+
+	if (!p_abox_data)
+		return 0UL;
+
+	if (p_abox_data->failsafe)
+		wait = 0UL;
+	else
+		wait = coarse ? 1000000000UL : 100000000UL; /* 1000ms or 100ms */
+
+	return wait;
+}
+
 static void abox_restore_data(struct device *dev)
 {
 	struct abox_data *data = dev_get_drvdata(dev);
@@ -1632,7 +1645,9 @@ static void abox_restore_data(struct device *dev)
 
 void abox_wait_restored(struct abox_data *data)
 {
-	wait_event_timeout(data->wait_queue, data->restored == true, HZ);
+	long timeout = abox_get_waiting_jiffies(true);
+
+	wait_event_timeout(data->wait_queue, data->restored == true, timeout);
 }
 
 static void abox_restore_data_work_func(struct work_struct *work)
@@ -1847,6 +1862,9 @@ static void abox_system_ipc_handler(struct device *dev,
 		abox_component_control_get_msg = *msg;
 		wake_up(&data->ipc_wait_queue);
 		break;
+	case ABOX_UPDATED_COMPONENT_CONTROL:
+		/* nothing to do */
+		break;
 	case ABOX_REPORT_FAULT:
 	{
 		const char *type;
@@ -2006,7 +2024,6 @@ int abox_register_extra_sound_card(struct device *dev,
 
 static int abox_cpu_suspend_complete(struct device *dev)
 {
-	static const u64 timeout = NSEC_PER_MSEC * 100;
 	struct abox_data *data = dev_get_drvdata(dev);
 	struct regmap *regmap = data->timer_regmap;
 	unsigned int value = 1;
@@ -2014,7 +2031,7 @@ static int abox_cpu_suspend_complete(struct device *dev)
 
 	dev_dbg(dev, "%s\n", __func__);
 
-	limit = local_clock() + timeout;
+	limit = local_clock() + abox_get_waiting_ns(false);
 
 	while (regmap_read(regmap, ABOX_TIMER_PRESET_LSB(1), &value) >= 0) {
 		if (value == 0)

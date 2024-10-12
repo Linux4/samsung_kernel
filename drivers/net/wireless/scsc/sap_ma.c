@@ -162,7 +162,15 @@ static int slsi_rx_amsdu_deaggregate(struct net_device *dev, struct sk_buff *skb
 			kfree_skb(skb);
 			return -EINVAL;
 		}
-		data_len = ((skb->data[ETH_ALEN * 2] << 8) | skb->data[(ETH_ALEN * 2) + 1]) - LLC_SNAP_HDR_LEN;
+
+		data_len = (skb->data[ETH_ALEN * 2] << 8) | skb->data[(ETH_ALEN * 2) + 1];
+		if (unlikely(data_len <= LLC_SNAP_HDR_LEN)) {
+			SLSI_NET_ERR(dev, "invalid data length %d < %d\n", data_len, LLC_SNAP_HDR_LEN);
+			__skb_queue_purge(msdu_list);
+			kfree_skb(skb);
+			return -EINVAL;
+		}
+		data_len -= LLC_SNAP_HDR_LEN;
 		/* check if the length of sub-frame is valid.
 		 * <---------------------(ETH_ALEN * 2 + 2 + 8 + data_len)---------------------->
 		 * +-----+-----+-----+-----------------------------+----------------------+------+-----+

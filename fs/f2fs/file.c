@@ -1684,7 +1684,11 @@ next_alloc:
 
 		down_write(&sbi->pin_sem);
 		map.m_seg_type = CURSEG_COLD_DATA_PINNED;
+
+		f2fs_lock_op(sbi);
 		f2fs_allocate_new_segments(sbi, CURSEG_COLD_DATA);
+		f2fs_unlock_op(sbi);
+
 		err = f2fs_map_blocks(inode, &map, 1, F2FS_GET_BLOCK_PRE_DIO);
 		up_write(&sbi->pin_sem);
 
@@ -1863,6 +1867,8 @@ static int f2fs_setflags_common(struct inode *inode, u32 iflags, u32 mask)
 				return err;
 
 			if (!f2fs_may_compress(inode))
+				return -EINVAL;
+			if (S_ISREG(inode->i_mode) && inode->i_size)
 				return -EINVAL;
 
 			set_compress_context(inode);

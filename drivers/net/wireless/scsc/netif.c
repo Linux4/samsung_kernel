@@ -198,6 +198,31 @@ void slsi_net_randomize_nmi_ndi(struct slsi_dev *sdev)
 }
 #endif
 
+static void slsi_mac_address_init(struct slsi_dev *sdev)
+{
+	SLSI_DBG1(sdev, SLSI_NETDEV, "\n");
+	slsi_get_hw_mac_address(sdev, sdev->hw_addr);
+
+	SLSI_DBG1(sdev, SLSI_NETDEV, "Hardware MAC address = %pM\n", sdev->hw_addr);
+	/* Assign Addresses */
+	SLSI_ETHER_COPY(sdev->netdev_addresses[SLSI_NET_INDEX_WLAN], sdev->hw_addr);
+
+	SLSI_ETHER_COPY(sdev->netdev_addresses[SLSI_NET_INDEX_P2P],  sdev->hw_addr);
+	/* Set the local bit */
+	sdev->netdev_addresses[SLSI_NET_INDEX_P2P][0] |= 0x02;
+
+	SLSI_ETHER_COPY(sdev->netdev_addresses[SLSI_NET_INDEX_P2PX_SWLAN], sdev->hw_addr);
+	/* Set the local bit */
+	sdev->netdev_addresses[SLSI_NET_INDEX_P2PX_SWLAN][0] |= 0x02;
+	/* EXOR 5th byte with 0x80 */
+	sdev->netdev_addresses[SLSI_NET_INDEX_P2PX_SWLAN][4] ^= 0x80;
+
+#if CONFIG_SCSC_WLAN_MAX_INTERFACES >= 4 && defined(CONFIG_SCSC_WIFI_NAN_ENABLE)
+	if (slsi_get_nan_mac_random())
+		 slsi_net_randomize_nmi_ndi(sdev);
+#endif
+}
+
 static inline bool slsi_netif_is_udp_pkt(struct sk_buff *skb)
 {
 	if (ip_hdr(skb)->version == 4)
@@ -280,19 +305,29 @@ static int slsi_net_open(struct net_device *dev)
 #if defined(CONFIG_SCSC_WLAN_WIFI_SHARING) || defined(CONFIG_SCSC_WLAN_DUAL_STATION)
 	u8 mhs_or_dual_sta_mac[ETH_ALEN];
 #endif
+	int r = 0;
 
 	if (WARN_ON(ndev_vif->is_available))
 		return -EINVAL;
 
 	if (sdev->mlme_blocked) {
 		SLSI_NET_WARN(dev, "Fail: called when MLME in blocked state\n");
+		slsi_dump_system_error_buffer(sdev);
 		return -EIO;
 	}
 
-	slsi_wake_lock(&sdev->wlan_wl_init);
+	if (sdev->recovery_fail_safe) {
+		r = wait_for_completion_timeout(&sdev->recovery_fail_safe_complete,
+						msecs_to_jiffies(SLSI_SYS_ERROR_RECOVERY_TIMEOUT));
 
-	/* check if request to rf test mode. */
-	slsi_check_rf_test_mode();
+		if (r == 0) {
+			SLSI_INFO(sdev, "Fail: system error recovery still in progress\n");
+			slsi_dump_system_error_buffer(sdev);
+		}
+		reinit_completion(&sdev->recovery_fail_safe_complete);
+	}
+
+	slsi_wake_lock(&sdev->wlan_wl_init);
 
 	SLSI_MUTEX_LOCK(ndev_vif->vif_mutex);
 	if (!sdev->netdev_up_count ) {
@@ -318,23 +353,7 @@ static int slsi_net_open(struct net_device *dev)
 	}
 
 	if (!sdev->netdev_up_count) {
-		slsi_get_hw_mac_address(sdev, sdev->hw_addr);
-		/* Assign Addresses */
-		SLSI_ETHER_COPY(sdev->netdev_addresses[SLSI_NET_INDEX_WLAN], sdev->hw_addr);
-
-		SLSI_ETHER_COPY(sdev->netdev_addresses[SLSI_NET_INDEX_P2P],  sdev->hw_addr);
-		/* Set the local bit */
-		sdev->netdev_addresses[SLSI_NET_INDEX_P2P][0] |= 0x02;
-
-		SLSI_ETHER_COPY(sdev->netdev_addresses[SLSI_NET_INDEX_P2PX_SWLAN], sdev->hw_addr);
-		/* Set the local bit */
-		sdev->netdev_addresses[SLSI_NET_INDEX_P2PX_SWLAN][0] |= 0x02;
-		/* EXOR 5th byte with 0x80 */
-		sdev->netdev_addresses[SLSI_NET_INDEX_P2PX_SWLAN][4] ^= 0x80;
-#if CONFIG_SCSC_WLAN_MAX_INTERFACES >= 4 && defined(CONFIG_SCSC_WIFI_NAN_ENABLE)
-		if (slsi_get_nan_mac_random())
-			slsi_net_randomize_nmi_ndi(sdev);
-#endif
+		slsi_mac_address_init(sdev);
 		sdev->initial_scan = true;
 #ifdef CONFIG_SCSC_WIFI_NAN_ENABLE
 		nan_dev = slsi_nan_get_netdev(sdev);
@@ -345,7 +364,8 @@ static int slsi_net_open(struct net_device *dev)
 	}
 	ndev_vif->acs = false;
 	memset(dev_addr_zero_check, 0, ETH_ALEN);
-	if (!memcmp(dev->dev_addr, dev_addr_zero_check, ETH_ALEN)) {
+	if ((!memcmp(dev->dev_addr, dev_addr_zero_check, ETH_ALEN)) ||
+	    (SLSI_IS_VIF_INDEX_MHS_DUALSTA(sdev, ndev_vif) && (!memcmp(dev->dev_addr, SLSI_DEFAULT_HW_MAC_ADDR, ETH_ALEN)))) {
 #if defined(CONFIG_SCSC_WLAN_WIFI_SHARING) || defined(CONFIG_SCSC_WLAN_DUAL_STATION)
 		if (SLSI_IS_VIF_INDEX_MHS_DUALSTA(sdev, ndev_vif)) {
 			SLSI_ETHER_COPY(mhs_or_dual_sta_mac, sdev->netdev_addresses[SLSI_NET_INDEX_P2PX_SWLAN]);
@@ -412,6 +432,18 @@ static int slsi_net_stop(struct net_device *dev)
 {
 	struct netdev_vif *ndev_vif = netdev_priv(dev);
 	struct slsi_dev   *sdev = ndev_vif->sdev;
+	int r = 0;
+
+	if (sdev->recovery_fail_safe) {
+		r = wait_for_completion_timeout(&sdev->recovery_fail_safe_complete,
+						msecs_to_jiffies(SLSI_SYS_ERROR_RECOVERY_TIMEOUT));
+
+		if (r == 0) {
+			SLSI_INFO(sdev, "Fail: system error recovery still in progress\n");
+			slsi_dump_system_error_buffer(sdev);
+		}
+		reinit_completion(&sdev->recovery_fail_safe_complete);
+	}
 
 	SLSI_NET_INFO(dev, "ifnum:%d r:%d\n", ndev_vif->ifnum, sdev->recovery_status);
 	slsi_wake_lock(&sdev->wlan_wl);
@@ -537,8 +569,8 @@ static u16 slsi_get_priority_from_tos_dscp(u8 *frame, u16 proto)
 #if (defined(SCSC_SEP_VERSION) && SCSC_SEP_VERSION >= 10)
 	switch (dscp) {
 	case CS7:
-		return FAPI_PRIORITY_QOS_UP7;
 	case CS6:
+		return FAPI_PRIORITY_QOS_UP7;
 	case DSCP_EF:
 	case DSCP_VA:
 		return FAPI_PRIORITY_QOS_UP6;
@@ -1277,6 +1309,7 @@ static int  slsi_set_mac_address(struct net_device *dev, void *addr)
 	SLSI_NET_DBG1(dev, SLSI_NETDEV, "%pM\n", sa->sa_data);
 	SLSI_ETHER_COPY(dev->dev_addr, sa->sa_data);
 	sdev->mac_changed = true;
+	ndev_vif->ipaddress = 0;
 
 	/* Interface is pulled down before mac address is changed.
 	 * First scan initiated after interface is brought up again, should be treated as initial scan, for faster reconnection.
@@ -1752,7 +1785,7 @@ int slsi_netif_add_locked(struct slsi_dev *sdev, const char *name, int ifnum)
 
 #if defined(CONFIG_SCSC_WLAN_WIFI_SHARING) || defined(CONFIG_SCSC_WLAN_DUAL_STATION)
 	if (strcmp(name, CONFIG_SCSC_AP_INTERFACE_NAME) == 0)
-		SLSI_ETHER_COPY(dev->dev_addr, sdev->netdev_addresses[SLSI_NET_INDEX_P2P]);
+		SLSI_ETHER_COPY(dev->dev_addr, sdev->netdev_addresses[SLSI_NET_INDEX_P2PX_SWLAN]);
 	else
 		SLSI_ETHER_COPY(dev->dev_addr, sdev->netdev_addresses[ifnum]);
 #else
@@ -1843,6 +1876,7 @@ int slsi_netif_init(struct slsi_dev *sdev)
 	}
 #if defined(CONFIG_SCSC_WLAN_WIFI_SHARING) || defined(CONFIG_SCSC_WLAN_DUAL_STATION)
 #if defined(CONFIG_SCSC_WLAN_MHS_STATIC_INTERFACE) || (defined(SCSC_SEP_VERSION) && SCSC_SEP_VERSION >= 9) || defined(CONFIG_SCSC_WLAN_DUAL_STATION)
+	SLSI_ETHER_COPY(sdev->netdev_addresses[SLSI_NET_INDEX_P2PX_SWLAN], SLSI_DEFAULT_HW_MAC_ADDR);
 	if (slsi_netif_add_locked(sdev, CONFIG_SCSC_AP_INTERFACE_NAME, SLSI_NET_INDEX_P2PX_SWLAN) != 0) {
 		rtnl_lock();
 		slsi_netif_remove_locked(sdev, sdev->netdev[SLSI_NET_INDEX_WLAN]);

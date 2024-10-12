@@ -489,7 +489,7 @@ int __mx140_request_file(struct scsc_mx *mx, char *path, const struct firmware *
 	/* Special case if file length is reported as zero - try to read until it fails.
 	 * This allows us to read /proc
 	 */
-	
+
 	if (whats_left == 0) {
 		do {
 		#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 4, 0))

@@ -2069,6 +2069,7 @@ source "arch/$(SRCARCH)/Kconfig.debug"
 
 menuconfig DEBUG_SNAPSHOT
 	bool "Debug SnapShot Support"
+	depends on OF_RESERVED_MEM
 	default n
 
 config DEBUG_SNAPSHOT_USER_MODE
@@ -2076,8 +2077,8 @@ config DEBUG_SNAPSHOT_USER_MODE
 	depends on DEBUG_SNAPSHOT
 	default n
 
-config DEBUG_SNAPSHOT_USER_MODE
-	bool "Enable User Mode, Most of debug feature are disabled"
+config DEBUG_SNAPSHOT_MINIMIZED_MODE
+	bool "Use minimized resource for debugging."
 	depends on DEBUG_SNAPSHOT
 	default n
 

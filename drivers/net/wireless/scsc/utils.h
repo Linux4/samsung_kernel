@@ -711,6 +711,15 @@ static inline struct net_device *slsi_ndev_vif_2_net_device(struct netdev_vif *n
 	return (struct net_device *)((char*)ndev_vif - offset);
 }
 
+static inline void get_kernel_timestamp(int *time)
+{
+	struct timespec64 tv;
+
+	ktime_get_ts64(&tv);
+	time[0] = tv.tv_sec;
+	time[1] = tv.tv_nsec;
+}
+
 #ifdef __cplusplus
 }
 #endif

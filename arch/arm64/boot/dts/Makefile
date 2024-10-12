@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-2.0
+dtb-y += exynos/exynos3830.dtb
 dtbo-y += samsung/f12/f12_swa_ins_w00_r00.dtbo
 dtbo-y += samsung/f12/f12_swa_ins_w00_r01.dtbo
-dtb-y += exynos/exynos3830.dtb
 
 targets += dtbs
 DTB_LIST  := $(dtb-y) $(dtbo-y)

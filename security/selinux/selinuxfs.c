@@ -195,12 +195,16 @@ static ssize_t sel_write_enforce(struct file *file, const char __user *buf,
 			from_kuid(&init_user_ns, audit_get_loginuid(current)),
 			audit_get_sessionid(current),
 			selinux_enabled, selinux_enabled);
+#if (defined CONFIG_KDP_CRED && defined CONFIG_SAMSUNG_PRODUCT_SHIP)
 		enforcing_set(state, new_value);
-		if (new_value)
+#else
+		selinux_enforcing = new_value;
+#endif
+		if (selinux_enforcing)
 			avc_ss_reset(state->avc, 0);
-		selnl_notify_setenforce(new_value);
-		selinux_status_update_setenforce(state, new_value);
-		if (!new_value)
+		selnl_notify_setenforce(selinux_enforcing);
+		selinux_status_update_setenforce(state, selinux_enforcing);
+		if (!selinux_enforcing)
 			call_lsm_notifier(LSM_POLICY_CHANGE, NULL);
 	}
 #endif

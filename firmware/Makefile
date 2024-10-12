@@ -34,9 +34,11 @@ fw-shipped-$(CONFIG_FIVE_TEE_DRIVER) += five/ffffffff000000000000000000000072.tl
 fw-external-$(CONFIG_SENSORS_SSP) += sensorhub/shub_nacho_bl.bin
 fw-external-$(CONFIG_SENSORS_SSP_M12) += sensorhub/shub_nacho_m12.bin
 fw-external-$(CONFIG_SENSORS_SSP_XCOVER5) += sensorhub/shub_nacho_xcover5.bin
-fw-external-$(CONFIG_SHUB) += sensorhub/shub_nacho_bl.bin sensorhub/shub_nacho_a12s.bin
+fw-external-$(CONFIG_SHUB) += sensorhub/shub_nacho_bl.bin sensorhub/shub_nacho_a12s.bin sensorhub/shub_nacho_m12.bin sensorhub/shub_nacho_xcover5.bin
 
-fw-external-$(CONFIG_SENSORS_A96T3X6) += abov/a96t356_m12s.bin abov/a96t356_m12s_sub.bin abov/a96t356_a12_main.bin abov/a96t356_a12_sub.bin
+fw-external-$(CONFIG_SENSORS_A96T3X6) += abov/a96t356_a12_main.bin abov/a96t356_a12_sub.bin
+fw-external-$(CONFIG_SENSORS_A96T3X6_M12_ALL) += abov/a96t356_m12s.bin abov/a96t356_m12s_sub.bin
+fw-external-$(CONFIG_SENSORS_A96T3X6_M12_KOR) += abov/a96t356_m12s_kor.bin abov/a96t356_m12s_kor_sub.bin
 
 quiet_cmd_fwbin = MK_FW   $@
       cmd_fwbin = FWNAME="$(patsubst firmware/%.gen.S,%,$@)";		     \

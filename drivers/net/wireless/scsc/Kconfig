@@ -164,6 +164,11 @@ config SCSC_WLAN_SAE_CONFIG
         default n
         ---help---
           This option tells if wpa3  is supported or not.
+config SCSC_WLAN_SAE_PWE
+        bool "WPA3 SAE PWE Support"
+        default n
+        ---help---
+          This option tells if wpa3 sae pwe is supported or not.
 
 config SCSC_WLAN_ENABLE_MAC_RANDOMISATION
         bool "Wifi Mac Randomization Support"

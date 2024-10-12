@@ -44,9 +44,6 @@
 
 static struct sm5714_muic_data *afc_init_data;
 
-/* To make AFC work properly on boot */
-static int is_charger_ready;
-
 static void sm5714_afc_notifier_attach(struct sm5714_muic_data *muic_data,
 	int afcta, int txt_voltage);
 
@@ -563,8 +560,14 @@ int sm5714_afc_ta_attach(struct sm5714_muic_data *muic_data)
 
 	pr_info("[%s:%s] AFC_TA_ATTACHED\n", MUIC_DEV_NAME, __func__);
 
-	if (!is_charger_ready) {
+	if (!afc_init_data->is_charger_ready) {
 		pr_info("[%s:%s] charger is not ready, return\n",
+				MUIC_DEV_NAME, __func__);
+		return ret;
+	}
+
+	if (!afc_init_data->is_pdic_ready) {
+		pr_info("[%s:%s] pdic is not ready, return\n",
 				MUIC_DEV_NAME, __func__);
 		return ret;
 	}
@@ -1330,13 +1333,19 @@ int sm5714_muic_charger_init(void)
 		return ret;
 	}
 
-	if (is_charger_ready) {
+	if (afc_init_data->is_charger_ready) {
 		pr_info("[%s:%s] charger is already ready.\n",
 				MUIC_DEV_NAME, __func__);
 		return ret;
 	}
 
-	is_charger_ready = true;
+	afc_init_data->is_charger_ready = true;
+
+	if (!afc_init_data->is_pdic_ready) {
+		pr_info("[%s:%s] pdic is not ready.\n",
+				MUIC_DEV_NAME, __func__);
+		return ret;
+	}
 
 	if ((afc_init_data->attached_dev == ATTACHED_DEV_TA_MUIC) ||
 			(afc_init_data->attached_dev == ATTACHED_DEV_UNOFFICIAL_TA_MUIC))
@@ -1351,7 +1360,7 @@ void sm5714_hv_muic_initialize(struct sm5714_muic_data *muic_data)
 
 	afc_init_data = muic_data;
 
-	is_charger_ready = false;
+	afc_init_data->is_charger_ready = false;
 
 	/* To make AFC work properly on boot */
 	INIT_WORK(&(muic_data->muic_afc_init_work), sm5714_hv_muic_init_detect);

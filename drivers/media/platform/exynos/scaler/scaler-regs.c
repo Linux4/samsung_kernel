@@ -612,29 +612,29 @@ void sc_hwset_blend(struct sc_dev *sc, enum sc_blend_op bl_op, bool pre_multi,
 
 	cfg = readl(sc->regs + SCALER_SRC_BLEND_COLOR);
 	get_blend_value(&cfg, sc_bl_op_tbl[idx].src_color, pre_multi);
-	if (g_alpha < 0xff)
-		cfg |= (SRC_GA << SCALER_OP_SEL_SHIFT);
 	writel(cfg, sc->regs + SCALER_SRC_BLEND_COLOR);
 	sc_dbg("src_blend_color is 0x%x, %d\n", cfg, pre_multi);
 
 	cfg = readl(sc->regs + SCALER_SRC_BLEND_ALPHA);
 	get_blend_value(&cfg, sc_bl_op_tbl[idx].src_alpha, 1);
-	if (g_alpha < 0xff)
+	if (g_alpha < 0xff && sc_bl_op_tbl[idx].src_alpha == ONE) {
+		cfg &= ~SCALER_BLEND_GLOBAL_ALPHA_MASK;
 		cfg |= (SRC_GA << SCALER_OP_SEL_SHIFT) | (g_alpha << 0);
+	}
 	writel(cfg, sc->regs + SCALER_SRC_BLEND_ALPHA);
 	sc_dbg("src_blend_alpha is 0x%x\n", cfg);
 
 	cfg = readl(sc->regs + SCALER_DST_BLEND_COLOR);
 	get_blend_value(&cfg, sc_bl_op_tbl[idx].dst_color,
 			src_blend_cfg->pre_multi);
-	if (g_alpha < 0xff)
+	if (g_alpha < 0xff && sc_bl_op_tbl[idx].dst_color == INV_SA)
 		cfg |= ((INV_SAGA & 0xf) << SCALER_OP_SEL_SHIFT);
 	writel(cfg, sc->regs + SCALER_DST_BLEND_COLOR);
 	sc_dbg("dst_blend_color is 0x%x\n", cfg);
 
 	cfg = readl(sc->regs + SCALER_DST_BLEND_ALPHA);
 	get_blend_value(&cfg, sc_bl_op_tbl[idx].dst_alpha, 1);
-	if (g_alpha < 0xff)
+	if (g_alpha < 0xff && sc_bl_op_tbl[idx].dst_alpha == INV_SA)
 		cfg |= ((INV_SAGA & 0xf) << SCALER_OP_SEL_SHIFT);
 	writel(cfg, sc->regs + SCALER_DST_BLEND_ALPHA);
 	sc_dbg("dst_blend_alpha is 0x%x\n", cfg);

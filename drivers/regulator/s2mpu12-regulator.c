@@ -447,6 +447,10 @@ static int s2mpu12_pmic_dt_parse_pdata(struct s2mpu12_dev *iodev,
 		return -ENODEV;
 	}
 
+	pdata->loop_bw_en = false;
+	if (of_get_property(pmic_np, "pmic_loop_bw", NULL))
+		pdata->loop_bw_en = true;
+
 	regulators_np = of_find_node_by_name(pmic_np, "regulators");
 	if (!regulators_np) {
 		dev_err(iodev->dev, "could not find regulators sub-node\n");
@@ -889,6 +893,25 @@ err:
 	return -1;
 }
 
+static int s2mpu12_lower_loop_BW(struct s2mpu12_info *s2mpu12, bool loop_bw_en)
+{
+	int ret = 0;
+
+	if (!loop_bw_en)
+		return 0;
+
+	/* lower loop bw */
+	ret = s2mpu12_write_reg(s2mpu12->iodev->close, 0x0E, 0x42);
+	if (ret < 0)
+		return ret;
+
+	ret = s2mpu12_write_reg(s2mpu12->iodev->close, 0x08, 0x42);
+	if (ret < 0)
+		return ret;
+
+	return 0;
+}
+
 static int s2mpu12_pmic_probe(struct platform_device *pdev)
 {
 	struct s2mpu12_dev *iodev = dev_get_drvdata(pdev->dev.parent);
@@ -1019,6 +1042,10 @@ static int s2mpu12_pmic_probe(struct platform_device *pdev)
 #ifdef CONFIG_SEC_PMIC_PWRKEY
 	pmic_key_get_pwrkey = s2mpu12_read_pwron_status;
 #endif
+
+	ret = s2mpu12_lower_loop_BW(s2mpu12, pdata->loop_bw_en);
+	if (ret < 0)
+		goto err;
 
 	pr_info("%s s2mpu12 pmic driver Loading end\n", __func__);
 	return 0;

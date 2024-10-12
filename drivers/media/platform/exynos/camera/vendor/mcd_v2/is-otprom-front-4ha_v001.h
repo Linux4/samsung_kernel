@@ -25,7 +25,10 @@
 
 #define S5K4HA_OTP_PAGE_ADDR_L                                  0x0A04
 #define S5K4HA_OTP_PAGE_ADDR_H                                  0x0A43
-#define S5K4HA_OTP_START_PAGE                                   0x11
+#define S5K4HA_OTP_BANK_SELECT                                  0x0A04
+#define S5K4HA_OTP_START_PAGE_BANK1                             0x11
+#define S5K4HA_OTP_START_PAGE_BANK2                             0x23
+
 #define S5K4HA_OTP_START_ADDR                                   0x0A08
 
 struct rom_standard_cal_data front_4ha_standard_cal_info = {

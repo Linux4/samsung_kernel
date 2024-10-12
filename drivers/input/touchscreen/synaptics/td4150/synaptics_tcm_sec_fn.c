@@ -557,7 +557,7 @@ static void check_connection(void *device_data)
 	test_check_connection(sec);
 
 }
-
+/*
 static void get_crc_check(void *device_data)
 {
 	struct sec_cmd_data *sec = (struct sec_cmd_data *)device_data;
@@ -566,7 +566,7 @@ static void get_crc_check(void *device_data)
 
 	test_fw_crc(sec);
 }
-
+*/
 static void set_grip_data(void *device_data)
 {
 	struct sec_cmd_data *sec = (struct sec_cmd_data *)device_data;
@@ -971,7 +971,7 @@ static struct sec_cmd sec_cmds[] = {
 	{SEC_CMD("get_gap_data_y_all", get_gap_data_y_all),},
 	{SEC_CMD("factory_cmd_result_all", factory_cmd_result_all),},
 	{SEC_CMD("check_connection", check_connection),},
-	{SEC_CMD("get_crc_check", get_crc_check),},
+//	{SEC_CMD("get_crc_check", get_crc_check),},
 	{SEC_CMD("set_grip_data", set_grip_data),},
 	{SEC_CMD_H("aot_enable", aot_enable),},
 	{SEC_CMD("set_sip_mode", set_sip_mode),},
