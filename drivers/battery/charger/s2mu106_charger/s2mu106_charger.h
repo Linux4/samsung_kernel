@@ -295,7 +295,6 @@ ssize_t s2mu106_chg_store_attrs(struct device *dev,
 
 #define REDUCE_CURRENT_STEP         25
 #define MINIMUM_INPUT_CURRENT           300
-#define SLOW_CHARGING_CURRENT_STANDARD      400
 
 #define FAKE_BAT_LEVEL          50
 

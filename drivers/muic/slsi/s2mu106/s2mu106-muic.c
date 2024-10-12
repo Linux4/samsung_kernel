@@ -2497,7 +2497,6 @@ static int s2mu106_muic_probe(struct platform_device *pdev)
 	mutex_init(&muic_data->bcd_rescan_mutex);
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 19, 188)
-	wakeup_source_init(muic_data->muic_ws, "muic_wake");   // 4.19 R
 	if (!(muic_data->muic_ws)) {
 		muic_data->muic_ws = wakeup_source_create("muic_wake"); // 4.19 Q
 		if (muic_data->muic_ws)

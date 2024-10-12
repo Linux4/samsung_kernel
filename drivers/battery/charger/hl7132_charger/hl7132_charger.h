@@ -72,11 +72,11 @@
 #define REG_VIN_OVP						    0x0C
 #define BIT_VIN_PD_CFG					    BIT(7)
 #define BIT_VIN_OVP_DIS					    BIT(6)
-#define BITS_VIN_OVP						BITS(3,0) 
+#define BITS_VIN_OVP						BITS(3, 0)
 
 #define REG_IIN_REG						    0x0E
 #define BIT_IIN_OCP_DIS					    BIT(7)
-#define BITS_IIN_REG_TH					    BITS(6,0) 
+#define BITS_IIN_REG_TH					    BITS(6, 0)
 
 #define REG_IIN_OC_ALM					    0x0F
 #define BIT_TIIN_OC_DEB					    BIT(7)
@@ -88,8 +88,8 @@
 #define REG_CTRL10_0					0x10
 #define BIT_TDIE_REG_DIS					BIT(7)
 #define BIT_IIN_REG_DIS						BIT(6)
-#define BITS_TDIE_REG_TH					BITS(5,4)
-#define BITS_IIN_OCP_TH						BIT(3,2)
+#define BITS_TDIE_REG_TH					BITS(5, 4)
+#define BITS_IIN_OCP_TH						BIT(3, 2)
 
 #define REG_CTRL11_1					    0x11
 #define BIT_VBAT_REG_DIS                    BIT(7)
@@ -207,10 +207,10 @@
 /*i2c regmap init setting */
 #define REG_MAX         0x2A
 #define HL7132_I2C_NAME "hl7132"
-#define HL7132_MODULE_VERSION "1.4.15.12232022"
+#define HL7132_MODULE_VERSION "17.3.08042023"
 
 #define CONFIG_HALO_PASS_THROUGH
-//#define CONFIG_FG_READING_FOR_CVMODE
+/* #define CONFIG_FG_READING_FOR_CVMODE */
 
 #ifdef CONFIG_FG_READING_FOR_CVMODE
 #define HL7132_CVMODE_FG_READING_CHECK_T    2000            //2 seconds
@@ -247,8 +247,9 @@
 //IIN_REG_TH (A) = 1A + DEC (6:0) * 50mA
 #define HL7132_IIN_TO_HEX(__iin)            ((__iin - 1000000)/HL7132_IIN_CFG_STEP) //1A + DEC (6:0) * 50mA
 
-//VBAT_REG_TH (V) = 4.0V + DEC (5:0) * 10mV 
-#define HL7132_VBAT_REG(_vbat_reg)          ((_vbat_reg-4000000)/10000)
+//VBAT_REG_TH (V) = 4.0V + DEC (5:0) * 10mV
+#define HL7132_VBAT_REG_OFFSET			4000000
+#define HL7132_VBAT_REG(_vbat_reg)          ((_vbat_reg-HL7132_VBAT_REG_OFFSET)/10000)
 //#define HL7132_IIN_OFFSET_CUR               100000          //100mA
 /* For Low CC-Current issue, TA has tolerance +- 150mA even high (almost 200mA) */
 #define HL7132_IIN_OFFSET_CUR               200000          //200mA
@@ -258,7 +259,7 @@
 #define HL7132_TA_VOL_STEP_PRE_CV           20000   //20mV
 /* TA OFFSET V */
 //#define HL7132_TA_V_OFFSET                  200000 //200mV
-#define HL7132_TA_V_OFFSET                  100000 //100mV //workaround for iin-reg-loop 
+#define HL7132_TA_V_OFFSET                  100000 //100mV //workaround for iin-reg-loop
 /* TA TOP-OFF CURRENT */
 #define HL7132_TA_TOPOFF_CUR                500000 //500mA
 /* PD Message Voltage and Current Step */
@@ -280,7 +281,7 @@
 /* Preset TA VOLtage offset*/
 #define HL7132_TA_VOL_PRE_OFFSET            300000  // 300mV
 
-/* CCMODE Charging Current offset */
+/* CCMODE Charging Current offset */ //version13
 #define HL7132_IIN_CFG_OFFSET_CC            50000   //50mA
 
 /* Denominator for TA Voltage and Current setting*/
@@ -291,7 +292,7 @@
 /* VIN STEP for Register setting */
 #define HL7132_VIN_STEP                     15000   //15mV (0 ~ 15.345V)
 /* IIN STEP for Register setting */
-#define HL7132_IIN_STEP                     4400// 4.4mA (from 0A to 4.5A in 4.4mA LSB)
+#define HL7132_IIN_STEP                     4400	// 4.4mA (from 0A to 4.5A in 4.4mA LSB)    //5mA (0 ~ 5.115A) for the evk
 /* VBAT STEP for register setting */
 #define HL7132_VBAT_STEP                    5000    //5mV (0 ~ 5.115V)
 /* VTS STEP for register setting */
@@ -317,7 +318,7 @@
 
 /* Delay Time after PDMSG */
 /* change it to 300ms due to SM USB-PD issue */
-#define HL7132_PDMSG_WAIT_T	                300		// 300ms
+#define HL7132_PDMSG_WAIT_T	                200		// 200ms
 
 /* Delay Time for WDT */
 #define HL7132_BATT_WDT_CONTROL_T           30000   //30S
@@ -326,8 +327,8 @@
 #define HL7132_DC_VBAT_MIN                  3400000 //3.4V
 
 /* LOG BUFFER for RPI */
-#define LOG_BUFFER_ENTRIES	                1024  
-#define LOG_BUFFER_ENTRY_SIZE	            128 
+#define LOG_BUFFER_ENTRIES	                1024
+#define LOG_BUFFER_ENTRY_SIZE	            128
 
 #ifdef CONFIG_HALO_PASS_THROUGH
 /* Default IIN default in pass through mode */
@@ -350,6 +351,8 @@
 #define HL7132_CHECK_IIN_FOR_DEFAULT		1900000 //1.9A
 #define HL7132_CHECK_IIN_FOR_800KHZ		1700000 //1.7A
 #define HL7132_CHECK_IIN_FOR_600KHZ		1100000 //1.1A
+#define HL7132_CHECK_MAX_POWER				30000000 //30W
+#define HL7132_CHECK_IIN_FOR_ADDOFFSET		2500000 //2.5A
 
 /*STEP CHARGING SETTING */
 //#define HL7132_STEP_CHARGING
@@ -365,13 +368,13 @@
 
 #define HL7132_STEP1_VBAT_REG               4120000 //4.12V
 #define HL7132_STEP2_VBAT_REG               4280000 //4.28V
-#define HL7132_STEP3_VBAT_REG               4400000 //4.4V    
+#define HL7132_STEP3_VBAT_REG               4400000 //4.4V
 
 enum CHARGING_STEP {
 	STEP_DIS = 0,
 	STEP_ONE = 1,
 	STEP_TWO = 2,
-	STEP_THREE = 3, 
+	STEP_THREE = 3,
 };
 #endif
 
@@ -414,7 +417,7 @@ enum {
 
 /* Increment check for Adjust MODE */
 enum {
-	INC_NONE, 
+	INC_NONE,
 	INC_TA_VOL,
 	INC_TA_CUR,
 };
@@ -485,6 +488,20 @@ enum {
 	IIN_REG_LOOP     = 2,
 	IBAT_REG_LOOP    = 4,
 	T_DIE_REG_LOOP   = 8,
+	/* All regulation loop can be triggered at the same time */
+	VBAT_IIN_LOOP	= 3,
+	VBAT_IBAT_LOOP = 5,
+	VBAT_IIN_IBAT_LOOP = 7,
+	VBAT_TDIE_LOOP = 9,
+
+	IIN_IBAT_LOOP = 6,
+	IIN_TDIE_LOOP = 10,
+	IIN_VBAT_TDIE = 11,
+	IIN_VBAT_TDIE_IBAT_LOOP = 15,
+
+	IBAT_TDIE_LOOP = 12,
+	VBAT_TDIE_IBAT_LOOP = 13,
+	IIN_IBAT_TDIE_LOOP = 14,
 };
 
 /*DEV STATE */
@@ -526,7 +543,7 @@ struct hl7132_platform_data{
 	unsigned int adc_ctrl0;
 
 	bool ts_prot_en;
-	bool all_auto_recovery; 
+	bool all_auto_recovery;
 	bool wd_dis;
 
 #if IS_ENABLED(CONFIG_BATTERY_SAMSUNG)
@@ -547,15 +564,15 @@ struct hl7132_charger{
 	struct mutex                    i2c_lock;
 	struct mutex                    lock;
 	struct wakeup_source            *monitor_ws;
-	struct hl7132_platform_data     *pdata; 
+	struct hl7132_platform_data     *pdata;
 	struct i2c_client               *client;
 	struct delayed_work             timer_work;
 	struct delayed_work             pps_work;
 
-#ifdef HL7132_STEP_CHARGING    
+#ifdef HL7132_STEP_CHARGING
 	struct delayed_work             step_work;
 	unsigned int current_step;
-#endif    
+#endif
 
 	struct dentry                   *debug_root;
 
@@ -569,7 +586,7 @@ struct hl7132_charger{
 	unsigned int timer_id;
 	unsigned long timer_period;
 
-	/* ADC CON */ 
+	/* ADC CON */
 	int adc_vin;
 	int adc_iin;
 	int adc_vbat;
@@ -595,7 +612,7 @@ struct hl7132_charger{
 
 	unsigned int ret_state;
 
-	unsigned int prev_iin;  
+	unsigned int prev_iin;
 	unsigned int prev_inc;
 	bool         prev_dec;
 

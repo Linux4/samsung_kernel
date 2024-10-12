@@ -3106,14 +3106,13 @@ static ssize_t ss_disp_SVC_OCTA_show(struct device *dev,
 	}
 
 	if (!vdd->cell_id_dsi) {
-		LCD_INFO(vdd, "no cell_id_dsi\n");
+		strlcpy(buf, "0000000000", 11);
+		LCD_INFO(vdd, "no cell_id_dsi set to default buf[%s]\n", buf);
 		return strlen(buf);
 	}
 
-	strlcat(buf, vdd->cell_id_dsi, vdd->cell_id_len);
-
-	LCD_INFO(vdd, "%s\n", buf);
-
+	strlcpy(buf, vdd->cell_id_dsi, vdd->cell_id_len);
+	LCD_INFO(vdd, "[%s]\n", buf);
 	return strlen(buf);
 }
 
@@ -3128,14 +3127,13 @@ static ssize_t ss_disp_SVC_OCTA2_show(struct device *dev,
 	}
 
 	if (!vdd->cell_id_dsi) {
-		LCD_INFO(vdd, "no cell_id_dsi\n");
+		strlcpy(buf, "0000000000", 11);
+		LCD_INFO(vdd, "no cell_id_dsi set to default buf[%s]\n", buf);
 		return strlen(buf);
 	}
 
-	strlcat(buf, vdd->cell_id_dsi, vdd->cell_id_len);
-
-	LCD_INFO(vdd, "%s\n", buf);
-
+	strlcpy(buf, vdd->cell_id_dsi, vdd->cell_id_len);
+	LCD_INFO(vdd, "[%s]\n", buf);
 	return strlen(buf);
 }
 
@@ -3150,14 +3148,13 @@ static ssize_t ss_disp_SVC_OCTA_CHIPID_show(struct device *dev,
 	}
 
 	if (!vdd->octa_id_dsi) {
-		LCD_INFO(vdd, "no octa_id_dsi\n");
+		strlcpy(buf, "0000000000", 11);
+		LCD_INFO(vdd, "no octa_id_dsi set to default buf[%s]\n", buf);
 		return strlen(buf);
 	}
 
-	strlcat(buf, vdd->octa_id_dsi, vdd->octa_id_len);
-
-	LCD_INFO(vdd, "%s\n", buf);
-
+	strlcpy(buf, vdd->octa_id_dsi, vdd->octa_id_len);
+	LCD_INFO(vdd, "[%s]\n", buf);
 	return strlen(buf);
 }
 
@@ -3172,14 +3169,13 @@ static ssize_t ss_disp_SVC_OCTA2_CHIPID_show(struct device *dev,
 	}
 
 	if (!vdd->octa_id_dsi) {
-		LCD_INFO(vdd, "no octa_id_dsi\n");
+		strlcpy(buf, "0000000000", 11);
+		LCD_INFO(vdd, "no octa_id_dsi set to default buf[%s]\n", buf);
 		return strlen(buf);
 	}
 
-	strlcat(buf, vdd->octa_id_dsi, vdd->octa_id_len);
-
-	LCD_INFO(vdd, "%s\n", buf);
-
+	strlcpy(buf, vdd->octa_id_dsi, vdd->octa_id_len);
+	LCD_INFO(vdd, "[%s]\n", buf);
 	return strlen(buf);
 }
 
@@ -3194,14 +3190,13 @@ static ssize_t ss_disp_SVC_OCTA_DDI_CHIPID_show(struct device *dev,
 	}
 
 	if (!vdd->ddi_id_dsi) {
-		LCD_ERR(vdd, "no ddi_id_dsi\n");
+		strlcpy(buf, "0000000000", 11);
+		LCD_ERR(vdd, "no ddi_id_dsi set to default buf[%s]\n", buf);
 		return strlen(buf);
 	}
 
-	strlcat(buf, vdd->ddi_id_dsi, vdd->ddi_id_len);
-
-	LCD_INFO(vdd, "%s\n", buf);
-
+	strlcpy(buf, vdd->ddi_id_dsi, vdd->ddi_id_len);
+	LCD_INFO(vdd, "[%s]\n", buf);
 	return strlen(buf);
 }
 
@@ -3216,14 +3211,13 @@ static ssize_t ss_disp_SVC_OCTA2_DDI_CHIPID_show(struct device *dev,
 	}
 
 	if (!vdd->ddi_id_dsi) {
-		LCD_ERR(vdd, "no ddi_id_dsi\n");
+		strlcpy(buf, "0000000000", 11);
+		LCD_ERR(vdd, "no ddi_id_dsi set to default buf[%s]\n", buf);
 		return strlen(buf);
 	}
 
-	strlcat(buf, vdd->ddi_id_dsi, vdd->ddi_id_len);
-
-	LCD_INFO(vdd, "%s\n", buf);
-
+	strlcpy(buf, vdd->ddi_id_dsi, vdd->ddi_id_len);
+	LCD_INFO(vdd, "[%s]\n", buf);
 	return strlen(buf);
 }
 
@@ -4215,12 +4209,20 @@ static ssize_t ss_ccd_state_show(struct device *dev,
 	if (!ret) {
 		LCD_INFO(vdd, "CCD return (0x%02x)\n", ccd[0]);
 
-		if (ccd[0] == vdd->ccd_pass_val)
-			ret = scnprintf((char *)buf, 6, "1\n");
-		else if (ccd[0] == vdd->ccd_fail_val)
-			ret = scnprintf((char *)buf, 6, "0\n");
-		else
-			ret = scnprintf((char *)buf, 6, "-1\n");
+		if (vdd->support_ccd_crc_R11) {
+			if ((ccd[0] == vdd->ccd_pass_val[0]) ||
+				(ccd[0] == vdd->ccd_pass_val[1]))
+				ret = scnprintf((char *)buf, 6, "1\n");
+			else
+				ret = scnprintf((char *)buf, 6, "0\n");
+		} else {
+			if (ccd[0] == vdd->ccd_pass_val[0])
+				ret = scnprintf((char *)buf, 6, "1\n");
+			else if (ccd[0] == vdd->ccd_fail_val)
+				ret = scnprintf((char *)buf, 6, "0\n");
+			else
+				ret = scnprintf((char *)buf, 6, "-1\n");
+		}
 	} else {
 		ret = scnprintf((char *)buf, 6, "-1\n");
 	}
@@ -4237,7 +4239,7 @@ static ssize_t ss_dsc_crc_show(struct device *dev,
 		(struct samsung_display_driver_data *)dev_get_drvdata(dev);
 	struct dsi_panel *panel = GET_DSI_PANEL(vdd);
 	int ret = 0;
-	u8 dsc_crc[2] = {0,};
+	u8 dsc_crc[8] = {0,};
 	int interval_us;
 
 	if (IS_ERR_OR_NULL(vdd)) {
@@ -4265,13 +4267,34 @@ static ssize_t ss_dsc_crc_show(struct device *dev,
 
 		ret = ss_send_cmd_get_rx(vdd, TX_DSC_CRC, dsc_crc);
 		if (!ret) {
-			if ((dsc_crc[0] == vdd->dsc_crc_pass_val[0]) &&
-				(dsc_crc[1] == vdd->dsc_crc_pass_val[1])) {
-				LCD_INFO(vdd, "PASS [%02X] [%02X]\n", dsc_crc[0], dsc_crc[1]);
-				ret = scnprintf((char *)buf, 20, "1 %02x %02x\n", dsc_crc[0], dsc_crc[1]);
+			if (vdd->support_ccd_crc_R11) {
+				if ((dsc_crc[0] == vdd->dsc_crc_pass_val[0]) &&
+					(dsc_crc[1] == vdd->dsc_crc_pass_val[1]) &&
+					(dsc_crc[2] == vdd->dsc_crc_pass_val[2]) &&
+					(dsc_crc[3] == vdd->dsc_crc_pass_val[3]) &&
+					(dsc_crc[4] == vdd->dsc_crc_pass_val[4]) &&
+					(dsc_crc[5] == vdd->dsc_crc_pass_val[5]) &&
+					(dsc_crc[6] == vdd->dsc_crc_pass_val[6]) &&
+					(dsc_crc[7] == vdd->dsc_crc_pass_val[7])) {
+					LCD_INFO(vdd, "PASS [%02X] [%02X] [%02X] [%02X] [%02X] [%02X] [%02X] [%02X]\n",
+					dsc_crc[0], dsc_crc[1], dsc_crc[2], dsc_crc[3], dsc_crc[4], dsc_crc[5], dsc_crc[6], dsc_crc[7]);
+					ret = scnprintf((char *)buf, 80, "1 %02x %02x %02x %02x %02x %02x %02x %02x\n",
+					dsc_crc[0], dsc_crc[1], dsc_crc[2], dsc_crc[3], dsc_crc[4], dsc_crc[5], dsc_crc[6], dsc_crc[7]);
+				} else {
+					LCD_INFO(vdd, "FAIL [%02X] [%02X] [%02X] [%02X] [%02X] [%02X] [%02X] [%02X]\n",
+					dsc_crc[0], dsc_crc[1], dsc_crc[2], dsc_crc[3], dsc_crc[4], dsc_crc[5], dsc_crc[6], dsc_crc[7]);
+					ret = scnprintf((char *)buf, 80, "0 %02x %02x %02x %02x %02x %02x %02x %02x\n",
+					dsc_crc[0], dsc_crc[1], dsc_crc[2], dsc_crc[3], dsc_crc[4], dsc_crc[5], dsc_crc[6], dsc_crc[7]);
+				}
 			} else {
-				LCD_INFO(vdd, "FAIL [%02X] [%02X]\n", dsc_crc[0], dsc_crc[1]);
-				ret = scnprintf((char *)buf, 20, "-1 %02x %02x\n", dsc_crc[0], dsc_crc[1]);
+				if ((dsc_crc[0] == vdd->dsc_crc_pass_val[0]) &&
+					(dsc_crc[1] == vdd->dsc_crc_pass_val[1])) {
+					LCD_INFO(vdd, "PASS [%02X] [%02X]\n", dsc_crc[0], dsc_crc[1]);
+					ret = scnprintf((char *)buf, 20, "1 %02x %02x\n", dsc_crc[0], dsc_crc[1]);
+				} else {
+					LCD_INFO(vdd, "FAIL [%02X] [%02X]\n", dsc_crc[0], dsc_crc[1]);
+					ret = scnprintf((char *)buf, 20, "-1 %02x %02x\n", dsc_crc[0], dsc_crc[1]);
+				}
 			}
 		} else {
 			ret = scnprintf((char *)buf, 6, "-1\n");

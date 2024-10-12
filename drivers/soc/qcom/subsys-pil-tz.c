@@ -27,7 +27,9 @@
 #include <linux/soc/qcom/smem_state.h>
 
 #include "peripheral-loader.h"
-
+#ifdef CONFIG_SENSORS_SSC
+#include <linux/adsp/ssc_ssr_reason.h>
+#endif
 #define XO_FREQ			19200000
 #define PROXY_TIMEOUT_MS	10000
 #define MAX_SSR_REASON_LEN	256U
@@ -849,6 +851,11 @@ static void log_failure_reason(const struct pil_tz_data *d)
 
 	strlcpy(reason, smem_reason, min(size, (size_t)MAX_SSR_REASON_LEN));
 	pr_err("%s subsystem failure reason: %s.\n", name, reason);
+
+#ifdef CONFIG_SENSORS_SSC
+	if (!strncmp(name, "adsp", 4))
+		ssr_reason_call_back(reason, min(size, (size_t)MAX_SSR_REASON_LEN));
+#endif
 }
 
 static int subsys_shutdown(const struct subsys_desc *subsys, bool force_stop)

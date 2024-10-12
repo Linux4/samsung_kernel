@@ -13,7 +13,9 @@
 #include "cam_packet_util.h"
 
 #if defined(CONFIG_LEDS_S2MU106_FLASH)
-extern int muic_afc_set_voltage(int vol);
+#include <linux/muic/common/muic.h>
+
+extern int muic_afc_request_voltage(int cause, int voltage);
 extern void pdo_ctrl_by_flash(bool mode);
 #endif
 #if defined(CONFIG_GC5035_MACRO_OTP_DD_AUTOLOAD)
@@ -691,7 +693,7 @@ void cam_sensor_shutdown(struct cam_sensor_ctrl_t *s_ctrl)
 		if(s_ctrl->soc_info.index == 0 || s_ctrl->soc_info.index == 4)
 		{
 			pdo_ctrl_by_flash(0);
-			muic_afc_set_voltage(9);
+			muic_afc_request_voltage(FLED, 9);
 		}
 #endif
 		cam_sensor_power_down(s_ctrl);
@@ -1166,7 +1168,7 @@ int32_t cam_sensor_driver_cmd(struct cam_sensor_ctrl_t *s_ctrl,
 		if(s_ctrl->soc_info.index == 0 || s_ctrl->soc_info.index == 4)
 		{
 			pdo_ctrl_by_flash(1);
-			muic_afc_set_voltage(5);
+			muic_afc_request_voltage(FLED, 5);
 		}
 #endif
 
@@ -1202,7 +1204,7 @@ int32_t cam_sensor_driver_cmd(struct cam_sensor_ctrl_t *s_ctrl,
 		if(s_ctrl->soc_info.index == 0 || s_ctrl->soc_info.index == 4)
 		{
 			pdo_ctrl_by_flash(0);
-			muic_afc_set_voltage(9);
+			muic_afc_request_voltage(FLED, 9);
 		}
 #endif
 
