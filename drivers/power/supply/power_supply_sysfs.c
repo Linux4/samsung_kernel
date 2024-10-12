@@ -526,10 +526,6 @@ static struct device_attribute power_supply_attrs[] = {
 	POWER_SUPPLY_ATTR(battery_cycle),
 	POWER_SUPPLY_ATTR(batt_current_ua_now),
 	/* hs14 code for SR-AL6528A-01-338 | SR-AL6528A-01-337 by chengyuanhang at 2022/10/08 end */
-	/* hs14 code for SR-AL6528A-01-324 by chengyuanhang at 2022/10/10 start */
-	POWER_SUPPLY_ATTR(batt_protect_flag),
-	POWER_SUPPLY_ATTR(en_batt_protect),
-	/* hs14 code for SR-AL6528A-01-324 by chengyuanhang at 2022/10/10 end */
 	/* hs14 code for SR-AL6528A-01-346 by zhouyuhang at 2022/10/11 start*/
 	POWER_SUPPLY_ATTR(batt_current_event),
 	/* hs14 code for SR-AL6528A-01-346 by zhouyuhang at 2022/10/11 end*/

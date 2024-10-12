@@ -344,10 +344,6 @@ enum power_supply_property {
 	POWER_SUPPLY_PROP_BATTERY_CYCLE,
 	POWER_SUPPLY_PROP_BATT_CURRENT_UA_NOW,
 	/* hs14 code for SR-AL6528A-01-338 | SR-AL6528A-01-337 by chengyuanhang at 2022/10/08 end */
-	/* hs14 code for SR-AL6528A-01-324 by chengyuanhang at 2022/10/10 start */
-	POWER_SUPPLY_PROP_BATT_PROTECT_FLAG,
-	POWER_SUPPLY_PROP_EN_BATT_PROTECT,
-	/* hs14 code for SR-AL6528A-01-324 by chengyuanhang at 2022/10/10 end */
 	/* hs14 code for SR-AL6528A-01-346 by zhouyuhang at 2022/10/11 start*/
 	POWER_SUPPLY_PROP_BATT_CURRENT_EVENT,
 	/* hs14 code for SR-AL6528A-01-346 by zhouyuhang at 2022/10/11 end*/

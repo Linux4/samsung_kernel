@@ -915,6 +915,18 @@ static int fts_read_touchdata(struct fts_ts_data *data)
     return 0;
 }
 
+/*Tab A7 lite_U code for SR-AX3565AU-21  by zhengkunbang at 20230810 start*/
+static int fts_input_open(struct input_dev *dev)
+{
+    fts_data->tp_is_enabled = 1;
+    return 0;
+}
+
+static void fts_input_close(struct input_dev *dev)
+{
+    fts_data->tp_is_enabled = 0;
+}
+/*Tab A7 lite_U code for SR-AX3565AU-21  by zhengkunbang at 20230810 end*/
 
 static int fts_read_parse_touchdata(struct fts_ts_data *data)
 {
@@ -1031,7 +1043,13 @@ static void fts_irq_read_report(void)
     if (ret == 0) {
         mutex_lock(&ts_data->report_mutex);
 #if FTS_MT_PROTOCOL_B_EN
+    /*Tab A7 lite_U code for SR-AX3565AU-21  by zhengkunbang at 20230810 start*/
+    if (fts_data->tp_is_enabled) {
         fts_input_report_b(ts_data);
+    } else {
+         FTS_ERROR("tp enable is 0, dont report point\n");
+    }
+    /*Tab A7 lite_U code for SR-AX3565AU-21  by zhengkunbang at 20230810 end*/
 #else
         fts_input_report_a(ts_data);
 #endif
@@ -1215,7 +1233,10 @@ static int fts_input_init(struct fts_ts_data *ts_data)
 	input_set_abs_params(input_dev, ABS_MT_TOUCH_MINOR, 0, 0xFF, 0, 0);
 #endif
 /*TabA7 Lite code for OT8-3425 by liupengtao at 20210222 end*/
-
+/*Tab A7 lite_U code for SR-AX3565AU-21  by zhengkunbang at 20230810 start*/
+    input_dev->open = fts_input_open;
+    input_dev->close = fts_input_close;
+/*Tab A7 lite_U code for SR-AX3565AU-21  by zhengkunbang at 20230810 end*/
     ret = input_register_device(input_dev);
     if (ret) {
         FTS_ERROR("Input device registration failed");
@@ -1786,6 +1807,13 @@ static int fts_ts_probe(struct spi_device *spi)
         FTS_ERROR("%s: Failed to sec_cmd_init\n", __func__);
     }
 /*TabA7 Lite code for OT8-1294 by liupengtao at 20210119 end*/
+/*Tab A7 lite_U code for SR-AX3565AU-21  by zhengkunbang at 20230810 start*/
+    ret = sysfs_create_link(&ts_data->sec.fac_dev->kobj, &ts_data->input_dev->dev.kobj, "input");
+    if (ret < 0)
+    {
+        FTS_ERROR("create enable node fail\n");
+    }
+/*Tab A7 lite_U code for SR-AX3565AU-21  by zhengkunbang at 20230810 end*/
     FTS_INFO("Touch Screen(SPI BUS) driver prboe successfully");
     return 0;
 }
@@ -2012,7 +2040,12 @@ static int __init tpd_driver_init(void)
 #if FTS_PSENSOR_EN
     fts_proximity_init();
 #endif
-
+    /*Tab A7 lite_U code for SR-AX3565U-01-4  by zhengkunbang at 20230807 start*/
+    if ((tp_get_boot_mode() != NORMAL_BOOT) && (tp_get_boot_mode() != ALARM_BOOT)) {
+        FTS_ERROR("tp init fail because boot_mode = %d\n",tp_get_boot_mode());
+        return -EINVAL;
+    }
+    /*Tab A7 lite_U code for SR-AX3565U-01-4  by zhengkunbang at 20230807 end*/
     if (tpd_driver_add(&tpd_device_driver) < 0) {
         FTS_ERROR("[TPD]: Add FTS Touch driver failed!!");
     }

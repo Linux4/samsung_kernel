@@ -81,17 +81,6 @@ EXPORT_SYMBOL(ssinfo);
 static struct list_head consumer_head = LIST_HEAD_INIT(consumer_head);
 static DEFINE_MUTEX(consumer_mutex);
 
-/* hs14 code for SR-AL6528A-01-324 by chengyuanhang at 2022/10/10 start */
-#ifndef HQ_FACTORY_BUILD
-#define HIGHT_CPPICITY 75
-#define LOW_CPPICITY 55
-#define ENABLE_BATT_PROTECT 1
-#define DISABLE_BATT_PROTECT 0
-#define CHR_COUNT_TIME 60000 // interval time 60s to ms
-#define TSUSPEND 259200000 // 72h to ms
-#endif
-/* hs14 code for SR-AL6528A-01-324 by chengyuanhang at 2022/10/10 end */
-
 struct tag_bootmode {
 	u32 size;
 	u32 tag;
@@ -1852,21 +1841,8 @@ static bool mtk_is_charger_on(struct charger_manager *info)
 		/* hs14 code for SR-AL6528A-01-244 by shanxinkai at 2022/11/04 end */
 	}
 
-	if (chr_type == CHARGER_UNKNOWN) {
-/* hs14 code for SR-AL6528A-01-324 by chengyuanhang at 2022/10/10 start */
-#ifndef HQ_FACTORY_BUILD
-		pinfo->charging_count_start = 0;
-		if (pinfo->charging_dur_time > TSUSPEND) {
-			pinfo->batt_protect_flag = DISABLE_BATT_PROTECT;
-			info->cmd_discharging = false;
-			charger_dev_enable(info->chg1_dev, true);
-			charger_dev_set_hiz_mode(pinfo->chg1_dev, false);
-			pr_info("%s: usb_plug_out, charging_dur_time = %d, resume charging !", __func__, pinfo->charging_dur_time);
-		}
-#endif
-/* hs14 code for SR-AL6528A-01-324 by chengyuanhang at 2022/10/10 end */
+	if (chr_type == CHARGER_UNKNOWN)
 		return false;
-	}
 	return true;
 }
 
@@ -5006,80 +4982,6 @@ static ssize_t store_sc_test(
 static DEVICE_ATTR(sc_test, 0664,
 	show_sc_test, store_sc_test);
 
-/* hs14 code for SR-AL6528A-01-324 by chengyuanhang at 2022/10/10 start */
-#ifndef HQ_FACTORY_BUILD
-void hq_update_charing_count(struct charger_manager *pinfo)
-{
-	u64 curr;
-
-	if (mtk_is_charger_on(pinfo)){
-		if (!pinfo->charging_count_start) {
-			pr_info("%s: Start_time_count \n", __func__);
-			pinfo->charging_count_start = ktime_to_ms(ktime_get());
-		}
-	}
-
-	curr = ktime_to_ms(ktime_get());
-	if (pinfo->charging_count_start) {
-		pinfo->charging_dur_time = curr - pinfo->charging_count_start;
-	} else {
-		pinfo->charging_dur_time = 0;
-	}
-
-	pr_debug("%s: charge_during_time = %d\n", __func__, pinfo->charging_dur_time);
-	return;
-}
-
-void hq_update_charge_state(struct charger_manager *pinfo)
-{
-	int cap;
-	hq_update_charing_count(pinfo);
-	if (pinfo->charging_dur_time > TSUSPEND) {
-		if (pinfo->en_batt_protect == ENABLE_BATT_PROTECT && pinfo->cust_batt_cap == 100) {
-			cap = battery_get_uisoc();
-			pr_debug("%s: get_uisoc = %d", __func__);
-			if (cap > HIGHT_CPPICITY) {
-				pinfo->cmd_discharging = true;
-				charger_dev_enable(pinfo->chg1_dev, false);
-				charger_manager_notifier(pinfo, CHARGER_NOTIFY_STOP_CHARGING);
-				charger_dev_set_hiz_mode(pinfo->chg1_dev, true);
-				pr_info("charging_time = %d over 72h! batt_capacity = %d, Charging disabled!\n",pinfo->charging_dur_time, cap);
-				pinfo->batt_protect_flag = ENABLE_BATT_PROTECT;
-			}
-			else if (cap == HIGHT_CPPICITY) {
-				pinfo->cmd_discharging = true;
-				charger_dev_enable(pinfo->chg1_dev, false);
-				charger_dev_set_hiz_mode(pinfo->chg1_dev, false);
-				charger_manager_notifier(pinfo, CHARGER_NOTIFY_STOP_CHARGING);
-				pinfo->batt_protect_flag = ENABLE_BATT_PROTECT;
-			}else if (cap < LOW_CPPICITY) {
-				pinfo->cmd_discharging = false;
-				charger_dev_enable(pinfo->chg1_dev, true);
-				charger_manager_notifier(pinfo, CHARGER_NOTIFY_START_CHARGING);
-				charger_dev_set_hiz_mode(pinfo->chg1_dev, false);
-				pinfo->batt_protect_flag = DISABLE_BATT_PROTECT;
-			}
-		} else {
-			pinfo->cmd_discharging = false;
-			charger_dev_enable(pinfo->chg1_dev, true);
-			charger_manager_notifier(pinfo, CHARGER_NOTIFY_START_CHARGING);
-			charger_dev_set_hiz_mode(pinfo->chg1_dev, false);
-			pinfo->batt_protect_flag = DISABLE_BATT_PROTECT;
-		}
-	}
-	return;
-}
-
-static void hq_charging_count_work(struct work_struct *work)
-{
-	struct charger_manager *pinfo = container_of(work,
-		struct charger_manager, charging_count_work.work);
-	hq_update_charge_state(pinfo);
-	schedule_delayed_work(&pinfo->charging_count_work, msecs_to_jiffies(CHR_COUNT_TIME));
-}
-#endif
-/* hs14 code for SR-AL6528A-01-324 by chengyuanhang at 2022/10/10 end */
-
 /* hs14 code for SR-AL6528A-01-261 | SR-AL6528A-01-343 by chengyuanhang at 2022/10/11 start */
 #ifndef HQ_FACTORY_BUILD
 void ss_batt_full_flag_get(int *val)
@@ -5244,15 +5146,6 @@ static int mtk_charger_probe(struct platform_device *pdev)
 	info->enable_sw_safety_timer = false;
 	charger_dev_enable_safety_timer(info->chg1_dev, false);
 #endif
-/* hs14 code for SR-AL6528A-01-324 by chengyuanhang at 2022/10/10 start */
-#ifndef HQ_FACTORY_BUILD
-	info->en_batt_protect = ENABLE_BATT_PROTECT;
-	info->charging_count_start = 0;
-	info->batt_protect_flag = DISABLE_BATT_PROTECT;
-	INIT_DELAYED_WORK(&info->charging_count_work, hq_charging_count_work);
-	schedule_delayed_work(&info->charging_count_work, msecs_to_jiffies(CHR_COUNT_TIME));
-#endif
-/* hs14 code for SR-AL6528A-01-324 by chengyuanhang at 2022/10/10 end */
 	info->sc.daemo_nl_sk = netlink_kernel_create(&init_net, NETLINK_CHG, &cfg);
 
 	if (info->sc.daemo_nl_sk == NULL)

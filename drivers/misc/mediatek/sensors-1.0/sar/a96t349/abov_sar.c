@@ -225,7 +225,7 @@ static struct attribute *abov_attributes[] = {
 static struct attribute_group abov_attr_group = {
     .attrs = abov_attributes,
 };
-/* TabA7 Lite code for OT8S-2 by chenyuqi at 20220218 start */ 
+/* TabA7 Lite code for OT8S-2 by chenyuqi at 20220218 start */
 /* hs03s code for SR-AL5625-01-264 by xiongxiaoliang at 2021/06/11 start */
 #ifdef SAR_USB_CALIBRATION
 #ifdef CONFIG_HQ_PROJECT_HS03S
@@ -414,8 +414,12 @@ ssize_t abov_set_onoff(const char *buf, size_t count)
             }
             onoff_mEnabled = false;
             if (input_bottom_sar && input_top_sar) {
+                /*Tab A7 lite_U code for SR-AX3565U-01-1 by xiayujie at 2023/8/8 start*/
                 input_report_rel(input_top_sar, REL_MISC, 2);
+                input_report_rel(input_top_sar, REL_X, 2);
                 input_report_rel(input_bottom_sar, REL_MISC, 2);
+                input_report_rel(input_bottom_sar, REL_X, 2);
+                /*Tab A7 lite_U code for SR-AX3565U-01-1 by xiayujie at 2023/8/8 end*/
                 input_sync(input_top_sar);
                 input_sync(input_bottom_sar);
                 LOG_INFO("onoff report down\n");
@@ -542,8 +546,11 @@ static void touchProcess(pabovXX_t this)
         #endif //CONFIG_HQ_PROJECT_OT8
         /* Tab A7 lite_T code for AX3565TDEV-837 by duxinqi at 2022/04/10 end */
         if (g_anfr_flag == 1) {
+            /*Tab A7 lite_U code for SR-AX3565U-01-1 by xiayujie at 2023/8/8 start*/
             input_report_rel(input_top_sar, REL_MISC, 1);
+            input_report_rel(input_top_sar, REL_X, 1);
             input_report_rel(input_bottom_sar, REL_MISC, 1);
+            input_report_rel(input_bottom_sar, REL_X, 1);
             input_sync(input_top_sar);
             input_sync(input_bottom_sar);
         } else {
@@ -564,6 +571,7 @@ static void touchProcess(pabovXX_t this)
                             input_report_key(input_bottom_sar, KEY_SAR2_CLOSE, 0);
                             #else
                             input_report_rel(input_bottom_sar, REL_MISC, 1);
+                            input_report_rel(input_bottom_sar, REL_X, 2);
                             #endif
                             input_sync(input_bottom_sar);
                         } else if (board->cap_channel_top == counter && this->channel_status & 0x02) {
@@ -572,6 +580,7 @@ static void touchProcess(pabovXX_t this)
                             input_report_key(input_top_sar, KEY_SAR_CLOSE, 0);
                             #else
                             input_report_rel(input_top_sar, REL_MISC, 1);
+                            input_report_rel(input_top_sar, REL_X, 2);
                             #endif
                             input_sync(input_top_sar);
                         }
@@ -584,6 +593,7 @@ static void touchProcess(pabovXX_t this)
                             input_report_key(input_bottom_sar, KEY_SAR2_CLOSE, 0);
                             #else
                             input_report_rel(input_bottom_sar, REL_MISC, 1);
+                            input_report_rel(input_bottom_sar, REL_X, 2);
                             #endif
                             input_sync(input_bottom_sar);
                         } else if (board->cap_channel_top == counter && this->channel_status & 0x02) {
@@ -592,6 +602,7 @@ static void touchProcess(pabovXX_t this)
                             input_report_key(input_top_sar, KEY_SAR_CLOSE, 0);
                             #else
                             input_report_rel(input_top_sar, REL_MISC, 1);
+                            input_report_rel(input_top_sar, REL_X, 2);
                             #endif
                             input_sync(input_top_sar);
                         }
@@ -609,6 +620,7 @@ static void touchProcess(pabovXX_t this)
                             input_report_key(input_bottom_sar, KEY_SAR2_CLOSE, 0);
                             #else
                             input_report_rel(input_bottom_sar, REL_MISC, 1);
+                            input_report_rel(input_bottom_sar, REL_X, 2);
                             #endif
                             input_sync(input_bottom_sar);
                         } else if (board->cap_channel_top == counter && this->channel_status & 0x02) {
@@ -617,6 +629,7 @@ static void touchProcess(pabovXX_t this)
                             input_report_key(input_top_sar, KEY_SAR_CLOSE, 0);
                             #else
                             input_report_rel(input_top_sar, REL_MISC, 1);
+                            input_report_rel(input_top_sar, REL_X, 2);
                             #endif
                             input_sync(input_top_sar);
                         }
@@ -631,6 +644,7 @@ static void touchProcess(pabovXX_t this)
                             input_report_key(input_bottom_sar, KEY_SAR2_FAR, 0);
                             #else
                             input_report_rel(input_bottom_sar, REL_MISC, 2);
+                            input_report_rel(input_bottom_sar, REL_X, 2);
                             #endif
                             input_sync(input_bottom_sar);
                         } else if (board->cap_channel_top == counter && this->channel_status & 0x02) {
@@ -639,6 +653,7 @@ static void touchProcess(pabovXX_t this)
                             input_report_key(input_top_sar, KEY_SAR_FAR, 0);
                             #else
                             input_report_rel(input_top_sar, REL_MISC, 2);
+                            input_report_rel(input_top_sar, REL_X, 2);
                             #endif
                             input_sync(input_top_sar);
                         }
@@ -656,6 +671,7 @@ static void touchProcess(pabovXX_t this)
                             input_report_key(input_bottom_sar, KEY_SAR2_CLOSE, 0);
                             #else
                             input_report_rel(input_bottom_sar, REL_MISC, 1);
+                            input_report_rel(input_bottom_sar, REL_X, 2);
                             #endif
                             input_sync(input_bottom_sar);
                         } else if (board->cap_channel_top == counter && this->channel_status & 0x02) {
@@ -664,6 +680,7 @@ static void touchProcess(pabovXX_t this)
                             input_report_key(input_top_sar, KEY_SAR_CLOSE, 0);
                             #else
                             input_report_rel(input_top_sar, REL_MISC, 1);
+                            input_report_rel(input_top_sar, REL_X, 2);
                             #endif
                             input_sync(input_top_sar);
                         }
@@ -676,6 +693,7 @@ static void touchProcess(pabovXX_t this)
                             input_report_key(input_bottom_sar, KEY_SAR2_FAR, 0);
                             #else
                             input_report_rel(input_bottom_sar, REL_MISC, 2);
+                            input_report_rel(input_bottom_sar, REL_X, 2);
                             #endif
                             input_sync(input_bottom_sar);
                         } else if (board->cap_channel_top == counter && this->channel_status & 0x02) {
@@ -684,6 +702,8 @@ static void touchProcess(pabovXX_t this)
                             input_report_key(input_top_sar, KEY_SAR_FAR, 0);
                             #else
                             input_report_rel(input_top_sar, REL_MISC, 2);
+                            input_report_rel(input_top_sar, REL_X, 2);
+                            /*Tab A7 lite_U code for SR-AX3565U-01-1 by xiayujie at 2023/8/8 end*/
                             #endif
                             input_sync(input_top_sar);
                         }
@@ -835,7 +855,9 @@ static ssize_t enable_store(struct class *class,
         input_report_key(input_top_sar, KEY_SAR_FAR, 0);
         #else
         input_report_rel(input_bottom_sar, REL_MISC, 2);
+        input_report_rel(input_bottom_sar, REL_X, 2);
         input_report_rel(input_top_sar, REL_MISC, 2);
+        input_report_rel(input_top_sar, REL_X, 2);
         #endif
         input_sync(input_bottom_sar);
         input_sync(input_top_sar);
@@ -950,10 +972,12 @@ static int enable_bottom(unsigned int enable)
                 read_register(this, ABOV_IRQSTAT_LEVEL_REG, &i);
                 if ((i & pCurrentButton->mask) == (pCurrentButton->mask & 0x05)) {
                     input_report_rel(input_bottom_sar, REL_MISC, 1);
+                    input_report_rel(input_bottom_sar, REL_X, 2);
                     input_sync(input_bottom_sar);
                     pCurrentButton->state = S_PROX;
                 } else {
                     input_report_rel(input_bottom_sar, REL_MISC, 2);
+                    input_report_rel(input_bottom_sar, REL_X, 2);
                     input_sync(input_bottom_sar);
                     pCurrentButton->state = IDLE;
                 }
@@ -1030,10 +1054,12 @@ static int enable_top(unsigned int enable)
                 read_register(this, ABOV_IRQSTAT_LEVEL_REG, &i);
                 if ((i & pCurrentButton->mask) == (pCurrentButton->mask & 0x05)) {
                     input_report_rel(input_top_sar, REL_MISC, 1);
+                    input_report_rel(input_top_sar, REL_X, 2);
                     input_sync(input_top_sar);
                     pCurrentButton->state = S_PROX;
                 } else {
                     input_report_rel(input_top_sar, REL_MISC, 2);
+                    input_report_rel(input_top_sar, REL_X, 2);
                     input_sync(input_top_sar);
                     pCurrentButton->state = IDLE;
                 }
@@ -1931,6 +1957,10 @@ static int abov_probe(struct i2c_client *client, const struct i2c_device_id *id)
     __set_bit(KEY_SAR2_FAR, input_bottom_sar->keybit);
     __set_bit(KEY_SAR2_CLOSE, input_bottom_sar->keybit);
     #else
+    /*Tab A7 lite_U code for SR-AX3565U-01-1 by xiayujie at 2023/8/8 start*/
+    __set_bit(EV_REL, input_bottom_sar->evbit);
+    __set_bit(REL_X, input_bottom_sar->relbit);
+    /*Tab A7 lite_U code for SR-AX3565U-01-1 by xiayujie at 2023/8/8 end*/
     input_set_capability(input_bottom_sar, EV_REL, REL_MISC);
     input_set_capability(input_bottom_sar, EV_REL, REL_MAX);
     #endif
@@ -1960,6 +1990,10 @@ static int abov_probe(struct i2c_client *client, const struct i2c_device_id *id)
     __set_bit(KEY_SAR_FAR, input_top_sar->keybit);
     __set_bit(KEY_SAR_CLOSE, input_top_sar->keybit);
     #else
+    /*Tab A7 lite_U code for SR-AX3565U-01-1 by xiayujie at 2023/8/8 start*/
+    __set_bit(EV_REL, input_top_sar->evbit);
+    __set_bit(REL_X, input_top_sar->relbit);
+    /*Tab A7 lite_U code for SR-AX3565U-01-1 by xiayujie at 2023/8/8 end*/
     input_set_capability(input_top_sar, EV_REL, REL_MISC);
     input_set_capability(input_top_sar, EV_REL, REL_MAX);
     #endif
@@ -2119,6 +2153,8 @@ static int abov_remove(struct i2c_client *client)
     return abovXX_sar_remove(this);
 }
 
+/*Tab A7 lite_U code for AX3565AU-260 by duxinqi at 20221108 start*/
+#ifdef CONFIG_HQ_PROJECT_HS03S
 static int abov_suspend(struct device *dev)
 {
     pabovXX_t this = dev_get_drvdata(dev);
@@ -2133,7 +2169,6 @@ static int abov_suspend(struct device *dev)
     }
     return 0;
 }
-
 static int abov_resume(struct device *dev)
 {
     pabovXX_t this = dev_get_drvdata(dev);
@@ -2145,6 +2180,44 @@ static int abov_resume(struct device *dev)
     }
     return 0;
 }
+#endif //CONFIG_HQ_PROJECT_HS03S
+#ifdef CONFIG_HQ_PROJECT_OT8
+static int abov_suspend(struct device *dev)
+{
+    pabovXX_t this = dev_get_drvdata(dev);
+    if (this){
+        LOG_INFO("ABOV suspend 1103!\n");
+        if (!mEnabled){
+            if(this->irq_disabled == 0){
+                disable_irq(this->irq);
+                this->irq_disabled = 1;
+                LOG_INFO("disable irq 1103!\n");
+            }
+        }
+        write_register(this, ABOV_CTRL_MODE_REG, 0x01);//sleep mode 300ms check
+        LOG_INFO("abov sleep mode 1103!\n");
+    }
+    return 0;
+}
+static int abov_resume(struct device *dev)
+{
+    pabovXX_t this = dev_get_drvdata(dev);
+    if (this){
+        LOG_INFO("ABOV resume 1103!\n");
+        if (!mEnabled){
+            if(this->irq_disabled == 1){
+                enable_irq(this->irq);
+                this->irq_disabled = 0;
+                LOG_INFO("enable irq 1103!\n");
+            }
+        }
+        write_register(this, ABOV_CTRL_MODE_REG, 0x00);//activity mode
+        LOG_INFO("abov activity mode 1103!\n");
+    }
+    return 0;
+}
+#endif //CONFIG_HQ_PROJECT_OT8
+/*Tab A7 lite_U code for AX3565AU-260 by duxinqi at 20221108 end*/
 
 static const struct dev_pm_ops abov_pm_ops = {
     .suspend = abov_suspend,

@@ -21,6 +21,9 @@
  */
 
 #include "ilitek_v3.h"
+/*Tab A7 lite_U code for SR-AX3565AU-21  by zhengkunbang at 20230810 start*/
+#include "tpd.h"
+/*Tab A7 lite_U code for SR-AX3565AU-21  by zhengkunbang at 20230810 start*/
 
 /*gesture info mode*/
 struct ili_demo_debug_info_id0 {
@@ -1022,7 +1025,13 @@ void ili_report_ap_mode(u8 *buf, int len)
 	if (ilits->finger) {
 		if (MT_B_TYPE) {
 			for (i = 0; i < ilits->finger; i++) {
-				input_report_key(ilits->input, BTN_TOUCH, 1);
+	/*Tab A7 lite_U code for SR-AX3565AU-21  by zhengkunbang at 20230810 start*/
+				if (tpd->tp_is_enabled) {
+					input_report_key(ilits->input, BTN_TOUCH, 1);
+				} else {
+					ILI_INFO(" tp_is_enabled:%d\n", tpd->tp_is_enabled);
+				}
+	/*Tab A7 lite_U code for SR-AX3565AU-21  by zhengkunbang at 20230810 end*/
 /*TabA7 Lite code for SR-AX3565-01-740 by fengzhigang at 20210126 start*/
 #if AXIS_PACKET
 				ili_touch_press(touch_info[i].x, touch_info[i].y, touch_info[i].pressure,

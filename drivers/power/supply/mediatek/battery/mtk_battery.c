@@ -172,10 +172,6 @@ static enum power_supply_property battery_props[] = {
 	POWER_SUPPLY_PROP_BATTERY_CYCLE,
 	POWER_SUPPLY_PROP_BATT_CURRENT_UA_NOW,
 	/* hs14 code for SR-AL6528A-01-338 | SR-AL6528A-01-337 by chengyuanhang at 2022/10/08 end */
-	/* hs14 code for SR-AL6528A-01-324 by chengyuanhang at 2022/10/10 start */
-	POWER_SUPPLY_PROP_BATT_PROTECT_FLAG,
-	POWER_SUPPLY_PROP_EN_BATT_PROTECT,
-	/* hs14 code for SR-AL6528A-01-324 by chengyuanhang at 2022/10/10 end */
 	/* hs14 code for SR-AL6528A-01-346 by zhouyuhang at 2022/10/12 start*/
 	POWER_SUPPLY_PROP_BATT_CURRENT_EVENT,
 	/* hs14 code for SR-AL6528A-01-346 by zhouyuhang at 2022/10/12 end*/
@@ -1016,23 +1012,6 @@ static int battery_get_property(struct power_supply *psy,
 		val->intval = gm.bat_cycle;
 		break;
 /* hs14 code for SR-AL6528A-01-338 | AL6528A-1055 by qiaodan at 2023/01/18 end */
-/* hs14 code for SR-AL6528A-01-324 by chengyuanhang at 2022/10/10 start */
-	case POWER_SUPPLY_PROP_BATT_PROTECT_FLAG:
-		if (!psys) {
-			val->intval = 0;
-		} else {
-			power_supply_get_property(psys, POWER_SUPPLY_PROP_BATT_PROTECT_FLAG, val);
-		}
-		break;
-	case POWER_SUPPLY_PROP_EN_BATT_PROTECT:
-		if (!psys) {
-			val->intval = 0;
-		} else {
-			power_supply_get_property(psys, POWER_SUPPLY_PROP_EN_BATT_PROTECT, val);
-		}
-		break;
-
-/* hs14 code for SR-AL6528A-01-324 by chengyuanhang at 2022/10/10 end */
 /* hs14 code for SR-AL6528A-01-261 | SR-AL6528A-01-343 by chengyuanhang at 2022/10/11 start */
 	case POWER_SUPPLY_PROP_BATT_FULL_CAPICITY:
 		val->intval = data->cust_batt_cap;
@@ -1136,22 +1115,6 @@ static int battery_set_property(struct power_supply *psy,
 #endif
 /* hs14 code for SR-AL6528A-01-321 by gaozhengwei at 2022/09/22 end */
 #ifndef HQ_FACTORY_BUILD
-/* hs14 code for SR-AL6528A-01-324 by chengyuanhang at 2022/10/10 start */
-	case POWER_SUPPLY_PROP_BATT_PROTECT_FLAG:
-		if (!psys) {
-			return -EINVAL;
-		}
-		ret = power_supply_set_property(psys,
-			POWER_SUPPLY_PROP_BATT_PROTECT_FLAG, val);
-		break;
-	case POWER_SUPPLY_PROP_EN_BATT_PROTECT:
-		if (!psys) {
-			return -EINVAL;
-		}
-		ret = power_supply_set_property(psys,
-			POWER_SUPPLY_PROP_EN_BATT_PROTECT, val);
-		break;
-/* hs14 code for SR-AL6528A-01-324 by chengyuanhang at 2022/10/10 end */
 /* hs14 code for SR-AL6528A-01-261|SR-AL6528A-01-343|AL6528ADEU-643 by chengyuanhang at 2022/10/13 start */
 	case POWER_SUPPLY_PROP_BATT_FULL_CAPICITY:
 		if (data != NULL) {
@@ -1221,11 +1184,6 @@ static int battery_property_is_writeable(struct power_supply *psy,
 #endif
 /* hs14 code for SR-AL6528A-01-321 by gaozhengwei at 2022/09/22 end */
 #ifndef HQ_FACTORY_BUILD
-/* hs14 code for SR-AL6528A-01-324 by chengyuanhang at 2022/10/10 start */
-	case POWER_SUPPLY_PROP_BATT_PROTECT_FLAG:
-	case POWER_SUPPLY_PROP_EN_BATT_PROTECT:
-		return 1;
-/* hs14 code for SR-AL6528A-01-324 by chengyuanhang at 2022/10/10 end */
 /* hs14 code for SR-AL6528A-01-261 | SR-AL6528A-01-343 by chengyuanhang at 2022/10/11 start */
 	case POWER_SUPPLY_PROP_BATT_FULL_CAPICITY:
 		return 1;

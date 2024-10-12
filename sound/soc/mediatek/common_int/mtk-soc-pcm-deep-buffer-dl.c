@@ -70,6 +70,14 @@ static bool vcore_dvfs_enable;
  *    function implementation
  */
 static int deep_buffer_dl_hdoutput;
+/* TabA7 Lite code for change speaker-L/R by libiao at 20230804 start */
+#if defined(CONFIG_HQ_PROJECT_OT8)
+#if !defined(HQ_FACTORY_BUILD)  // none factory version
+static int spk_channel_exchange_db_hdoutput;
+#endif //!HQ_FACTORY_BUILD
+#endif //CONFIG_HQ_PROJECT_OT8
+/* TabA7 Lite code for P230725-08807 by libiao at 20230804 end */
+
 static bool mPrepareDone;
 static const void *irq_user_id;
 static unsigned int irq_cnt;
@@ -112,6 +120,42 @@ static int deep_buffer_dl_hdoutput_set(struct snd_kcontrol *kcontrol,
 
 	return 0;
 }
+
+/* TabA7 Lite code for change speaker-L/R by libiao at 20230804 start */
+#if defined(CONFIG_HQ_PROJECT_OT8)
+#if !defined(HQ_FACTORY_BUILD) // none factory version
+const char *const spk_channel_exchange_db_output[] = {"Off", "On"};
+
+static const struct soc_enum spk_channel_db_exchange_Enum[] = {
+	SOC_ENUM_SINGLE_EXT(ARRAY_SIZE(spk_channel_exchange_db_output),
+				       spk_channel_exchange_db_output),
+};
+
+static int spk_channel_exchange_db_get(struct snd_kcontrol *kcontrol,
+				       struct snd_ctl_elem_value *ucontrol)
+{
+	pr_info("%s() = %d\n", __func__, spk_channel_exchange_db_hdoutput);
+	ucontrol->value.integer.value[0] = spk_channel_exchange_db_hdoutput;
+	return 0;
+}
+
+static int spk_channel_exchange_db_set(struct snd_kcontrol *kcontrol,
+				       struct snd_ctl_elem_value *ucontrol)
+{
+	pr_info("%s()\n", __func__);
+	if (ucontrol->value.enumerated.item[0] >
+		ARRAY_SIZE(spk_channel_exchange_db_output)) {
+		pr_warn("%s(), return -EINVAL\n", __func__);
+		return -EINVAL;
+	}
+
+	spk_channel_exchange_db_hdoutput = ucontrol->value.integer.value[0];
+
+	return 0;
+}
+#endif //!HQ_FACTORY_BUILD
+#endif //CONFIG_HQ_PROJECT_OT8
+/* TabA7 Lite code for P230725-08807 by libiao at 20230804 end */
 
 static int Audio_Irqcnt_Get(struct snd_kcontrol *kcontrol,
 			    struct snd_ctl_elem_value *ucontrol)
@@ -158,6 +202,14 @@ static const struct snd_kcontrol_new deep_buffer_dl_controls[] = {
 		     deep_buffer_dl_hdoutput_get, deep_buffer_dl_hdoutput_set),
 	SOC_SINGLE_EXT("deep_buffer_irq_cnt", SND_SOC_NOPM, 0, IRQ_MAX_RATE, 0,
 		       Audio_Irqcnt_Get, Audio_Irqcnt_Set),
+	/* TabA7 Lite code for change speaker-L/R by libiao at 20230804 start */
+#if defined(CONFIG_HQ_PROJECT_OT8)
+#if !defined(HQ_FACTORY_BUILD) // none factory version
+SOC_ENUM_EXT("spk_channel_exchange_dp_Switch", spk_channel_db_exchange_Enum[0],
+		     spk_channel_exchange_db_get, spk_channel_exchange_db_set)
+#endif //!HQ_FACTORY_BUILD
+#endif //CONFIG_HQ_PROJECT_OT8
+	/* TabA7 Lite code for P230725-08807 by libiao at 20230804 end */
 };
 
 static struct snd_pcm_hardware mtk_deep_buffer_dl_hardware = {
@@ -278,12 +330,26 @@ static int mtk_deep_buffer_dl_close(struct snd_pcm_substream *substream)
 		SetIntfConnection(Soc_Aud_InterCon_DisConnect,
 				  deep_buffer_mem_blk_io,
 				  Soc_Aud_AFE_IO_Block_I2S3);
+/* TabA7 Lite code for change speaker-L/R by libiao at 20230804 start */
+#if defined(CONFIG_HQ_PROJECT_OT8) && !defined(HQ_FACTORY_BUILD)
+		if (spk_channel_exchange_db_hdoutput) {
+		SetIntfConnection(Soc_Aud_InterCon_DisConnect,
+		          deep_buffer_mem_blk_io,
+				  Soc_Aud_AFE_IO_Block_I2S1_DAC_2);
+		}else {
+		SetIntfConnection(Soc_Aud_InterCon_DisConnect,
+		          deep_buffer_mem_blk_io,
+				  Soc_Aud_AFE_IO_Block_I2S1_DAC);
+		}
+#else
 		SetIntfConnection(Soc_Aud_InterCon_DisConnect,
 				  deep_buffer_mem_blk_io,
 				  Soc_Aud_AFE_IO_Block_I2S1_DAC);
 		SetIntfConnection(Soc_Aud_InterCon_DisConnect,
 				  deep_buffer_mem_blk_io,
 				  Soc_Aud_AFE_IO_Block_I2S1_DAC_2);
+#endif //CONFIG_HQ_PROJECT_OT8 && !HQ_FACTORY_BUILD
+/* TabA7 Lite code for P230725-08807 by libiao at 20230804 end */
 
 		/* stop DAC output */
 		SetMemoryPathEnable(Soc_Aud_Digital_Block_I2S_OUT_DAC, false);
@@ -392,12 +458,28 @@ static int mtk_deep_buffer_dl_prepare(struct snd_pcm_substream *substream)
 		SetIntfConnection(Soc_Aud_InterCon_Connection,
 				  deep_buffer_mem_blk_io,
 				  Soc_Aud_AFE_IO_Block_I2S3);
+/* TabA7 Lite code for change speaker-L/R by libiao at 20230804 start */
+#if defined(CONFIG_HQ_PROJECT_OT8) && !defined(HQ_FACTORY_BUILD)
+pr_info("%s spk_channel_exchange_db_hdoutput== %d\n", __func__,
+				 spk_channel_exchange_db_hdoutput);
+		if (spk_channel_exchange_db_hdoutput) {
+		SetIntfConnection(Soc_Aud_InterCon_Connection,
+				  deep_buffer_mem_blk_io,
+				  Soc_Aud_AFE_IO_Block_I2S1_DAC_2);
+		}else {
+		SetIntfConnection(Soc_Aud_InterCon_Connection,
+				  deep_buffer_mem_blk_io,
+				  Soc_Aud_AFE_IO_Block_I2S1_DAC);
+		}
+#else
 		SetIntfConnection(Soc_Aud_InterCon_Connection,
 				  deep_buffer_mem_blk_io,
 				  Soc_Aud_AFE_IO_Block_I2S1_DAC);
 		SetIntfConnection(Soc_Aud_InterCon_Connection,
 				  deep_buffer_mem_blk_io,
 				  Soc_Aud_AFE_IO_Block_I2S1_DAC_2);
+#endif //CONFIG_HQ_PROJECT_OT8 && !HQ_FACTORY_BUILD
+/* TabA7 Lite code for P230725-08807 by libiao at 20230804 end */
 
 		/* I2S out Setting */
 		if (deep_buffer_dl_hdoutput == true) {

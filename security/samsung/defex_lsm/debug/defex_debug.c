@@ -11,6 +11,7 @@
 #include <linux/kernel.h>
 #include <linux/kobject.h>
 #ifdef DEFEX_LOG_BUFFER_ENABLE
+#include <linux/ktime.h>
 #include <linux/list.h>
 #include <linux/rculist.h>
 #endif /* DEFEX_LOG_BUFFER_ENABLE */
@@ -34,25 +35,25 @@ static unsigned long log_buf_size, log_buf_mask;
 
 static int log_buf_init(void)
 {
-	log_buf_size = LOG_BUF_SIZE;
+	int ret = 0;
+
+	log_buf_size = DEFEX_LOG_BUF_SIZE;
 	do {
 		log_buf = vmalloc(log_buf_size);
 		if (log_buf)
 			break;
-		pr_crit("[DEFEX] Log buffer allocation failed %ld bytes.\n", log_buf_size);
 		log_buf_size >>= 1;
 	} while (log_buf_size > PAGE_SIZE);
 	if (!log_buf)
-		return -1;
-
-	pr_info("[DEFEX] Log buffer size set to %ld bytes.\n", log_buf_size);
+		ret = -1;
 
 	log_buf_in_index = 0;
 	log_buf_out_index = 0;
 	log_buf_mask = log_buf_size - 1;
 
-	log_buffer_msg("[DEFEX] Logging started...");
-	return 0;
+	defex_log_info("Log buffer size set to %ld bytes", log_buf_size);
+
+	return ret;
 }
 
 static int log_buffer_put(const char *msg, int msg_len)
@@ -60,10 +61,8 @@ static int log_buffer_put(const char *msg, int msg_len)
 	char c;
 	int avail, ret = -1;
 
-	if (!log_buf_size) {
-		pr_info("[DEFEX] %s", msg);
+	if (!log_buf_size)
 		return ret;
-	}
 
 	spin_lock(&log_buf_lock);
 	avail = log_buf_size - ((log_buf_in_index - log_buf_out_index) & log_buf_mask);
@@ -109,71 +108,78 @@ static int log_buffer_get(char *str, int buff_size)
 	return 0;
 }
 
-int log_buffer_msg(const char *format, ...)
+void log_buffer_flush(void)
 {
 	char msg[MAX_LEN];
 	int msg_len;
-	va_list aptr;
-	ktime_t cur_time;
 
-	cur_time = ktime_get_boottime();
-	msg_len = snprintf(msg, MAX_LEN, "[% 4lld.%04lld] ", cur_time/1000000000, (cur_time%1000000000)/100000);
+	pr_info("%s== Buffer flushing begin ==", DEFEX_LOG_TAG);
 
-	va_start(aptr, format);
-	msg_len += vsnprintf(msg + msg_len, MAX_LEN - msg_len, format, aptr);
-	va_end(aptr);
-	return log_buffer_put(msg, msg_len);
-}
+	do {
+		msg_len = log_buffer_get(&msg[0], MAX_LEN);
+		if (msg_len)
+			pr_info("%s", msg);
+	} while (msg_len);
 
-int log_buffer_printf(const char *format, ...)
-{
-	char msg[MAX_LEN];
-	int msg_len;
-	va_list aptr;
-
-	va_start(aptr, format);
-	msg_len = vsnprintf(msg, MAX_LEN, format, aptr);
-	va_end(aptr);
-	return log_buffer_put(msg, msg_len);
-}
-#else
-int log_buffer_msg(const char *format, ...)
-{
-	char msg[MAX_LEN];
-	int msg_len;
-	va_list aptr;
-	ktime_t cur_time;
-
-	cur_time = ktime_get_boottime();
-	msg_len = snprintf(msg, MAX_LEN, "[% 4lld.%04lld] ", cur_time/1000000000, (cur_time%1000000000)/100000);
-
-	va_start(aptr, format);
-	msg_len += vsnprintf(msg + msg_len, MAX_LEN - msg_len, format, aptr);
-	va_end(aptr);
-	pr_info("[DEFEX] %s", msg);
-	return 0;
-}
-
-int log_buffer_printf(const char *format, ...)
-{
-	char msg[MAX_LEN];
-	int msg_len;
-	va_list aptr;
-
-	va_start(aptr, format);
-	msg_len = vsnprintf(msg, MAX_LEN, format, aptr);
-	va_end(aptr);
-	pr_info("[DEFEX] %s", msg);
-	return 0;
+	pr_info("%s== Buffer flushing end ==", DEFEX_LOG_TAG);
 }
 #endif /* DEFEX_LOG_BUFFER_ENABLE */
 
-void blob(const char *buffer, const size_t bufLen, const int lineSize)
+void defex_print_msg(const enum defex_log_level msg_type, const char *format, ...)
+{
+	char msg[MAX_LEN];
+	int msg_len, ktime_msg_len = 0;
+	va_list aptr;
+	static const char header[] = DEFEX_LOG_TAG;
+
+#ifdef DEFEX_LOG_BUFFER_ENABLE
+	if ((msg_type != MSG_TIMEOFF) && (msg_type != MSG_BLOB)) {
+		ktime_t cur_time = ktime_get_boottime();
+
+		ktime_msg_len = snprintf(msg, MAX_LEN,
+			"[% 4lld.%04lld] ", cur_time/1000000000, (cur_time%1000000000)/100000);
+	}
+#endif /* DEFEX_LOG_BUFFER_ENABLE */
+
+	va_start(aptr, format);
+	msg_len = vsnprintf(msg + ktime_msg_len, MAX_LEN - ktime_msg_len, format, aptr);
+	va_end(aptr);
+#ifdef DEFEX_LOG_BUFFER_ENABLE
+	if (DEFEX_LOG_LEVEL_MASK & msg_type)
+		if (!log_buffer_put(msg, msg_len + ktime_msg_len))
+			return;
+#endif /* DEFEX_LOG_BUFFER_ENABLE */
+	switch (msg_type) {
+	case MSG_CRIT:
+		pr_crit("%s%s\n", header, msg + ktime_msg_len);
+		break;
+	case MSG_ERR:
+		pr_err("%s%s\n", header, msg + ktime_msg_len);
+		break;
+	case MSG_WARN:
+		pr_warn("%s%s\n", header, msg + ktime_msg_len);
+		break;
+	case MSG_INFO:
+	case MSG_TIMEOFF:
+		pr_info("%s%s\n", header, msg + ktime_msg_len);
+		break;
+	case MSG_DEBUG:
+		pr_debug("%s%s\n", header, msg + ktime_msg_len);
+		break;
+	case MSG_BLOB:
+		pr_crit("%s\n", msg + ktime_msg_len);
+		break;
+	}
+}
+
+void blob(const char *title, const char *buffer, const size_t bufLen, const int lineSize)
 {
 	size_t i = 0, line;
 	size_t j = 0, len = bufLen;
 	int offset = 0;
 	char c, stringToPrint[MAX_DATA_LEN];
+
+	defex_log_blob("%s", title);
 
 	do {
 		line = (len > lineSize)?lineSize:len;
@@ -200,7 +206,7 @@ void blob(const char *buffer, const size_t bufLen, const int lineSize)
 		}
 
 		offset += snprintf(stringToPrint + offset, MAX_DATA_LEN - offset, " |");
-		pr_info("%s\n", stringToPrint);
+		defex_log_blob("%s", stringToPrint);
 		memset(stringToPrint, 0, MAX_DATA_LEN);
 		i += line;
 		len -= line;
@@ -310,7 +316,9 @@ __visible_for_testing ssize_t debug_store(struct kobject *kobj, struct kobj_attr
 		ret = set_cred(i, new_val);
 		break;
 	case DBG_SET_PE_STATUS:
+#ifdef DEFEX_PED_ENABLE
 		privesc_status_store(buf + l);
+#endif /* DEFEX_PED_ENABLE */
 		break;
 	case DBG_SET_IM_STATUS:
 #ifdef DEFEX_IMMUTABLE_ENABLE
@@ -318,10 +326,14 @@ __visible_for_testing ssize_t debug_store(struct kobject *kobj, struct kobj_attr
 #endif /* DEFEX_IMMUTABLE_ENABLE */
 		break;
 	case DBG_SET_SP_STATUS:
+#ifdef DEFEX_SAFEPLACE_ENABLE
 		safeplace_status_store(buf + l);
+#endif /* DEFEX_SAFEPLACE_ENABLE */
 		break;
 	case DBG_SET_INT_STATUS:
+#ifdef DEFEX_INTEGRITY_ENABLE
 		integrity_status_store(buf + l);
+#endif /* DEFEX_INTEGRITY_ENABLE */
 		break;
 	case DBG_GET_LOG:
 		break;
@@ -365,7 +377,7 @@ __visible_for_testing ssize_t debug_show(struct kobject *kobj, struct kobj_attri
 			res += snprintf(&buf[res], buff_size, "=== EOF ===\n");
 		else
 			res += snprintf(&buf[res], buff_size, "=== %lu bytes left ===\n",
-				(unsigned long)(log_buf_in_index - log_buf_out_index) & LOG_BUF_MASK);
+				(unsigned long)(log_buf_in_index - log_buf_out_index) & DEFEX_LOG_BUF_MASK);
 #else
 		res = snprintf(buf, MAX_LEN + 1, "Log buffer disabled...\n");
 #endif /* DEFEX_LOG_BUFFER_ENABLE */
@@ -384,7 +396,9 @@ int defex_create_debug(struct kset *defex_kset)
 #ifdef DEFEX_LOG_BUFFER_ENABLE
 	retval = log_buf_init();
 	if (retval)
-		pr_crit("[DEFEX] Log buffer init failed.\n");
+		defex_log_err("Log buffer init failed. Log output only via /dev/kmsg");
+	else
+		defex_log_info("Logging started...");
 #endif /* DEFEX_LOG_BUFFER_ENABLE */
 	last_cmd = DBG_GET_LOG;
 

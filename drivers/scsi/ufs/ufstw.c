@@ -520,13 +520,11 @@ bool ufstw_need_flush(struct ufsf_feature *ufsf)
 
 	tw = ufsf->tw_lup[2];
 
-	if (atomic_read(&tw->tw_mode) == TW_MODE_DISABLED)
+	if (atomic_read(&tw->tw_mode) == TW_MODE_DISABLED
+		|| atomic_read(&tw->ufsf->tw_state) != TW_PRESENT)
 		goto out;
 
 	if (!tw->tw_enable)
-		goto out;
-
-	if (atomic_read(&tw->ufsf->tw_state) != TW_PRESENT)
 		goto out;
 
 	ufstw_lu_get(tw);
@@ -568,8 +566,6 @@ bool ufstw_need_flush(struct ufsf_feature *ufsf)
 			goto out_put;
 		}
 	} else {
-		/* Other device recover WB by hibernate */
-		schedule_delayed_work(&tw->tw_flush_h8_work, 0);
 		need_flush = true;
 	}
 

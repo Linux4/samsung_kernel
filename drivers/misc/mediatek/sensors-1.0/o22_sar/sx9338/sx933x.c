@@ -28,6 +28,9 @@
 #include <linux/sort.h>
 #include <linux/gpio.h>
 #include <linux/of_gpio.h>
+/*HS14_U code for SR-AL6528E-01-37 by xiayujie at 2023/07/28 start*/
+#include "../sensor_user_node.h"
+/*HS14_U code for SR-AL6528E-01-37 by xiayujie at 2023/07/28 end*/
 #if defined(CONFIG_SENSORS)
 #include <linux/sensor/sensors_core.h>
 #endif
@@ -65,6 +68,11 @@
 #define SX933x_NIRQ_ERROR    2
 #define SX933x_CONN_ERROR    3
 #define SX933x_I2C_ERROR     4
+
+/*HS14_U code for SR-AL6528E-01-37 by xiayujie at 2023/07/28 start*/
+static bool onoff_mEnabled = true;
+struct device *onoff_dev;
+/*HS14_U code for SR-AL6528E-01-37 by xiayujie at 2023/07/28 end*/
 
 /*! \struct sx933x
  * Specialized struct containing input event data, platform data, and
@@ -337,6 +345,12 @@ static ssize_t sx933x_receiver_turnon_store(struct device *dev,
 
     psx93XX_t this = dev_get_drvdata(dev);
 
+    /*HS14_U code for SR-AL6528E-01-37 by xiayujie at 2023/07/28 start*/
+    if (onoff_mEnabled == false) {
+        return count;
+    }
+    /*HS14_U code for SR-AL6528E-01-37 by xiayujie at 2023/07/28 end*/
+
     if (this && (pDevice = this->pDevice)) {
         dev_info(this->pdev, "receiver_turnon\n");
 
@@ -351,6 +365,7 @@ static ssize_t sx933x_receiver_turnon_store(struct device *dev,
             sx933x_i2c_read_16bit(this, SX933X_STAT0_REG, &val);
             grip_sensor_sub_status = ((val>>26) & 0x01) == 0 ? 2 : 1;
             input_report_rel(grip_sensor_sub, REL_MISC, grip_sensor_sub_status);
+            input_report_rel(grip_sensor_sub, REL_X, 2);
             input_sync(grip_sensor_sub);
             pr_info("%s anfr_sign[%d]\n", __func__, anfr_sign);
         }
@@ -420,46 +435,56 @@ static ssize_t sx933x_enable_store(struct device *dev,
             grip_sensor_sub = pDevice->pbuttonInformation->grip_sensor_sub;
             sx933x_i2c_read_16bit(this, SX933X_STAT0_REG, &val);
             pr_info("[SX933x]: %s enable phases= 0x%X\n", __func__, phases);
+            if (onoff_mEnabled == true) {
 #ifndef HQ_FACTORY_BUILD
-            if (anfr_sign == 1) {
-                if (phases == 0x07) {
-                    input_report_rel(grip_sensor, REL_MISC, 1);
-                    input_report_rel(grip_sensor_sub, REL_MISC, 1);
-                    input_sync(grip_sensor);
-                    input_sync(grip_sensor_sub);
-                    dev_info(this->pdev, "[SX933x]:phases %d anfr_sign %d\n", phases, anfr_sign);
-                } else if (phases == 0x06) {
-                    input_report_rel(grip_sensor_sub, REL_MISC, 1);
-                    input_sync(grip_sensor_sub);
-                    dev_info(this->pdev, "[SX933x]:phases %d anfr_sign %d\n", phases, anfr_sign);
-                } else if (phases == 0x03) {
-                    input_report_rel(grip_sensor, REL_MISC, 1);
-                    input_sync(grip_sensor);
-                    dev_info(this->pdev, "[SX933x]:phases %d anfr_sign %d\n", phases, anfr_sign);
+                if (anfr_sign == 1) {
+                    if (phases == 0x07) {
+                        input_report_rel(grip_sensor, REL_MISC, 1);
+                        input_report_rel(grip_sensor, REL_X, 1);
+                        input_report_rel(grip_sensor_sub, REL_MISC, 1);
+                        input_report_rel(grip_sensor_sub, REL_X, 1);
+                        input_sync(grip_sensor);
+                        input_sync(grip_sensor_sub);
+                        dev_info(this->pdev, "[SX933x]:phases %d anfr_sign %d\n", phases, anfr_sign);
+                    } else if (phases == 0x06) {
+                        input_report_rel(grip_sensor_sub, REL_MISC, 1);
+                        input_report_rel(grip_sensor_sub, REL_X, 1);
+                        input_sync(grip_sensor_sub);
+                        dev_info(this->pdev, "[SX933x]:phases %d anfr_sign %d\n", phases, anfr_sign);
+                    } else if (phases == 0x03) {
+                        input_report_rel(grip_sensor, REL_MISC, 1);
+                        input_report_rel(grip_sensor, REL_X, 1);
+                        input_sync(grip_sensor);
+                        dev_info(this->pdev, "[SX933x]:phases %d anfr_sign %d\n", phases, anfr_sign);
 
-                }
-            } else {
+                    }
+                } else {
 #endif
-                report1 = ((val>>24) & 0x01) == 0 ? 5 : 1;
-                report2 = ((val>>26) & 0x01) == 0 ? 5 : 1;
-                if (phases == 0x07) {
-                    input_report_rel(grip_sensor, REL_MISC, report1);
-                    input_report_rel(grip_sensor_sub, REL_MISC, report2);
-                    input_sync(grip_sensor);
-                    input_sync(grip_sensor_sub);
-                    dev_info(this->pdev, "[SX933x]:phases %d anfr_sign not is 1\n", phases);
-                } else if (phases == 0x06) {
-                    input_report_rel(grip_sensor_sub, REL_MISC, report2);
-                    input_sync(grip_sensor_sub);
-                    dev_info(this->pdev, "[SX933x]:phases %d anfr_sign not is 1\n", phases);
-                } else if (phases == 0x03) {
-                    input_report_rel(grip_sensor, REL_MISC, report1);
-                    input_sync(grip_sensor);
-                    dev_info(this->pdev, "[SX933x]:phases %d anfr_sign not is 1\n", phases);
-                }
+                    report1 = ((val>>24) & 0x01) == 0 ? 5 : 1;
+                    report2 = ((val>>26) & 0x01) == 0 ? 5 : 1;
+                    if (phases == 0x07) {
+                        input_report_rel(grip_sensor, REL_MISC, report1);
+                        input_report_rel(grip_sensor, REL_X, 2);
+                        input_report_rel(grip_sensor_sub, REL_MISC, report2);
+                        input_report_rel(grip_sensor_sub, REL_X, 2);
+                        input_sync(grip_sensor);
+                        input_sync(grip_sensor_sub);
+                        dev_info(this->pdev, "[SX933x]:phases %d anfr_sign not is 1\n", phases);
+                    } else if (phases == 0x06) {
+                        input_report_rel(grip_sensor_sub, REL_MISC, report2);
+                        input_report_rel(grip_sensor_sub, REL_X, 2);
+                        input_sync(grip_sensor_sub);
+                        dev_info(this->pdev, "[SX933x]:phases %d anfr_sign not is 1\n", phases);
+                    } else if (phases == 0x03) {
+                        input_report_rel(grip_sensor, REL_MISC, report1);
+                        input_report_rel(grip_sensor, REL_X, 2);
+                        input_sync(grip_sensor);
+                        dev_info(this->pdev, "[SX933x]:phases %d anfr_sign not is 1\n", phases);
+                    }
 #ifndef HQ_FACTORY_BUILD
-            }
+                }
 #endif
+            }
             enable_save = true;
         } else {
             enable_save = false;
@@ -737,15 +762,18 @@ static int enable_bottom(psx93XX_t this, unsigned int enable)
 
         if (anfr_sign == 1) {
             input_report_rel(grip_sensor, REL_MISC, 1);
+            input_report_rel(grip_sensor, REL_X, 1);
             input_sync(grip_sensor);
         } else {
             sx933x_i2c_read_16bit(this, SX933X_STAT0_REG, &i);
             if ((i & pCurrentButton->mask) == (pCurrentButton->mask)) {
                 input_report_rel(grip_sensor, REL_MISC, 1);
+                input_report_rel(grip_sensor, REL_X, 2);
                 input_sync(grip_sensor);
                 pCurrentButton->state = ACTIVE;
             } else {
                 input_report_rel(grip_sensor, REL_MISC, 2);
+                input_report_rel(grip_sensor, REL_X, 2);
                 input_sync(grip_sensor);
                 pCurrentButton->state = IDLE;
             }
@@ -791,15 +819,18 @@ static int enable_top(psx93XX_t this, unsigned int enable)
 
         if (anfr_sign == 1) {
             input_report_rel(grip_sensor_sub, REL_MISC, 1);
+            input_report_rel(grip_sensor_sub, REL_X, 1);
             input_sync(grip_sensor_sub);
         } else {
             sx933x_i2c_read_16bit(this, SX933X_STAT0_REG, &i);
             if ((i & pCurrentButton->mask) == (pCurrentButton->mask)) {
                 input_report_rel(grip_sensor_sub, REL_MISC, 1);
+                input_report_rel(grip_sensor_sub, REL_X, 2);
                 input_sync(grip_sensor_sub);
                 pCurrentButton->state = ACTIVE;
             } else {
                 input_report_rel(grip_sensor_sub, REL_MISC, 2);
+                input_report_rel(grip_sensor_sub, REL_X, 2);
                 input_sync(grip_sensor_sub);
                 pCurrentButton->state = IDLE;
             }
@@ -1057,14 +1088,22 @@ static void anfr_attestation(psx93XX_t this, struct input_dev *grip_sensor, stru
         printk("[SX933x]:ANFR FAIL\n");
         return;
     }
-    input_report_rel(grip_sensor, REL_MISC, 1);
-    input_report_rel(grip_sensor_sub, REL_MISC, 1);
-    input_sync(grip_sensor);
-    input_sync(grip_sensor_sub);
-    dev_info(this->pdev, "[SX933x]:irq_sign %d cali_sign %d\n", irq_sign, cali_sign);
+
+    /*HS14_U code for SR-AL6528E-01-37 by xiayujie at 2023/07/28 start*/
+    if (onoff_mEnabled == true) {
+        input_report_rel(grip_sensor, REL_MISC, 1);
+        input_report_rel(grip_sensor, REL_X, 1);
+        input_report_rel(grip_sensor_sub, REL_MISC, 1);
+        input_report_rel(grip_sensor_sub, REL_X, 1);
+        input_sync(grip_sensor);
+        input_sync(grip_sensor_sub);
+        dev_info(this->pdev, "[SX933x]:irq_sign %d cali_sign %d\n", irq_sign, cali_sign);
+    }
+    /*HS14_U code for SR-AL6528E-01-37 by xiayujie at 2023/07/28 end*/
 }
 #endif
 /*hs14 code for SR-AL6528A-01-742 by duxinqi at 2022/10/12 end*/
+
 /*hs14 code for AL6528A-1091 by Wentao at 2023/2/17 start*/
 /*!
  * \brief Handle what to do when a touch occurs
@@ -1095,6 +1134,13 @@ static void touchProcess(psx93XX_t this)
             dev_err(this->pdev, "[SX933x]:ERROR!! buttons or input NULL!!!\n");
             return;
         }
+
+        /*HS14_U code for SR-AL6528E-01-37 by xiayujie at 2023/07/28 start*/
+        if (onoff_mEnabled == false) {
+            return;
+        }
+        /*HS14_U code for SR-AL6528E-01-37 by xiayujie at 2023/07/28 end*/
+
         /*hs14 code for SR-AL6528A-01-742|DEAL6398A-1888 by duxinqi at 2022/10/14 start*/
 #ifndef HQ_FACTORY_BUILD
         /*hs14 code for AL6528A-1092 by xiongxiaoliang at 2023/02/20 start*/
@@ -1124,6 +1170,7 @@ static void touchProcess(psx93XX_t this)
                             input_report_key(grip_sensor, KEY_SAR_CLOSE, 0);
                             #else
                             input_report_rel(grip_sensor, REL_MISC, 1);
+                            input_report_rel(grip_sensor, REL_X, 2);
                             #endif
                             input_sync(grip_sensor);
                             pCurrentButton->state = ACTIVE;
@@ -1135,14 +1182,17 @@ static void touchProcess(psx93XX_t this)
                             #else
                             if ((i & SX933X_STAT_V2_FLAG) == SX933X_STAT_V2_FLAG) {
                                 input_report_rel(grip_sensor_sub, REL_MISC, 1);
+                                input_report_rel(grip_sensor_sub, REL_X, 2);
                                 pCurrentButton->state = ACTIVE;
                             } else {
                                 if((i & SX933X_STAT_V0_FLAG) == SX933X_STAT_V0_FLAG) {
                                     input_report_rel(grip_sensor_sub, REL_MISC, 2);
+                                    input_report_rel(grip_sensor_sub, REL_X, 2);
                                     pCurrentButton->state = IDLE;
                                     dev_info(this->pdev, "[SX933x]:secondary1 state:%d\n",pCurrentButton->state);
                                 } else {
                                     input_report_rel(grip_sensor_sub, REL_MISC, 1);
+                                    input_report_rel(grip_sensor_sub, REL_X, 2);
                                     pCurrentButton->state = ACTIVE;
                                 }
                             }
@@ -1163,6 +1213,7 @@ static void touchProcess(psx93XX_t this)
                             input_report_key(grip_sensor, KEY_SAR_FAR, 0);
                             #else
                             input_report_rel(grip_sensor, REL_MISC, 2);
+                            input_report_rel(grip_sensor, REL_X, 2);
                             #endif
                             input_sync(grip_sensor);
 
@@ -1172,12 +1223,14 @@ static void touchProcess(psx93XX_t this)
                             input_report_key(grip_sensor_sub, KEY_SAR2_FAR, 0);
                             #else
                             input_report_rel(grip_sensor_sub, REL_MISC, 2);
+                            input_report_rel(grip_sensor_sub, REL_X, 2);
                             #endif
                             input_sync(grip_sensor_sub);
                         }
                         pCurrentButton->state = IDLE;
                     } else if (1 == counter && (i & SX933X_STAT_V0_FLAG) == SX933X_STAT_V0_FLAG && (i & SX933X_STAT_V2_FLAG) != SX933X_STAT_V2_FLAG) {
                             input_report_rel(grip_sensor_sub, REL_MISC, 2);
+                            input_report_rel(grip_sensor_sub, REL_X, 2);
                             input_sync(grip_sensor_sub);
                             pCurrentButton->state = IDLE;
                             dev_info(this->pdev, "[SX933x]:secondary2 state:%d\n",pCurrentButton->state);
@@ -1389,6 +1442,12 @@ static void enabletouchProcess(psx93XX_t this)
             return;
         }
 
+        /*HS14_U code for SR-AL6528E-01-37 by xiayujie at 2023/07/28 start*/
+        if (onoff_mEnabled == false) {
+            return;
+        }
+        /*HS14_U code for SR-AL6528E-01-37 by xiayujie at 2023/07/28 end*/
+
         for (counter = 0; counter < numberOfButtons; counter++)
         {
             pCurrentButton = &buttons[counter];
@@ -1409,6 +1468,7 @@ static void enabletouchProcess(psx93XX_t this)
                         input_report_key(grip_sensor, KEY_SAR_CLOSE, 0);
                         #else
                         input_report_rel(grip_sensor, REL_MISC, 1);
+                        input_report_rel(grip_sensor, REL_X, 2);
                         #endif
                         input_sync(grip_sensor);
 
@@ -1418,6 +1478,7 @@ static void enabletouchProcess(psx93XX_t this)
                         input_report_key(grip_sensor_sub, KEY_SAR2_CLOSE, 0);
                         #else
                         input_report_rel(grip_sensor_sub, REL_MISC, 1);
+                        input_report_rel(grip_sensor_sub, REL_X, 2);
                         #endif
                         input_sync(grip_sensor_sub);
                     }
@@ -1429,6 +1490,7 @@ static void enabletouchProcess(psx93XX_t this)
                         input_report_key(grip_sensor, KEY_SAR_FAR, 0);
                         #else
                         input_report_rel(grip_sensor, REL_MISC, 5);
+                        input_report_rel(grip_sensor, REL_X, 2);
                         #endif
                         input_sync(grip_sensor);
 
@@ -1438,6 +1500,7 @@ static void enabletouchProcess(psx93XX_t this)
                         input_report_key(grip_sensor_sub, KEY_SAR2_FAR, 0);
                         #else
                         input_report_rel(grip_sensor_sub, REL_MISC, 5);
+                        input_report_rel(grip_sensor_sub, REL_X, 2);
                         #endif
                         input_sync(grip_sensor_sub);
                     }
@@ -1454,6 +1517,7 @@ static void enabletouchProcess(psx93XX_t this)
                         input_report_key(grip_sensor, KEY_SAR_FAR, 0);
                         #else
                         input_report_rel(grip_sensor, REL_MISC, 5);
+                        input_report_rel(grip_sensor, REL_X, 2);
                         #endif
                         input_sync(grip_sensor);
 
@@ -1463,6 +1527,7 @@ static void enabletouchProcess(psx93XX_t this)
                         input_report_key(grip_sensor_sub, KEY_SAR2_FAR, 0);
                         #else
                         input_report_rel(grip_sensor_sub, REL_MISC, 5);
+                        input_report_rel(grip_sensor_sub, REL_X, 2);
                         #endif
                         input_sync(grip_sensor_sub);
                     }
@@ -1474,6 +1539,7 @@ static void enabletouchProcess(psx93XX_t this)
                         input_report_key(grip_sensor, KEY_SAR_CLOSE, 0);
                         #else
                         input_report_rel(grip_sensor, REL_MISC, 1);
+                        input_report_rel(grip_sensor, REL_X, 2);
                         #endif
                         input_sync(grip_sensor);
 
@@ -1483,6 +1549,7 @@ static void enabletouchProcess(psx93XX_t this)
                         input_report_key(grip_sensor_sub, KEY_SAR2_CLOSE, 0);
                         #else
                         input_report_rel(grip_sensor_sub, REL_MISC, 1);
+                        input_report_rel(grip_sensor_sub, REL_X, 2);
                         #endif
                         input_sync(grip_sensor_sub);
                     }
@@ -1552,6 +1619,63 @@ ssize_t factory_get_enable(char *buf)
     return sprintf(buf, "%d\n", enable_save);
 }
 #endif
+
+/*HS14_U code for SR-AL6528E-01-37 by xiayujie at 2023/07/28 start*/
+ssize_t sx933x_set_onoff(const char *buf, size_t count)
+{
+    psx93XX_t this = dev_get_drvdata(onoff_dev);
+    psx933x_t pDevice = NULL;
+    struct input_dev *grip_sensor = NULL;
+    struct input_dev *grip_sensor_sub = NULL;
+    u32 val;
+    int report1;
+    int report2;
+
+    if (this && (pDevice = this->pDevice)){
+        grip_sensor = pDevice->pbuttonInformation->grip_sensor;
+        grip_sensor_sub = pDevice->pbuttonInformation->grip_sensor_sub;
+        if (!strncmp(buf, "1", 1)) {
+            sx933x_i2c_read_16bit(this, SX933X_STAT0_REG, &val);
+            report1 = ((val>>24) & 0x01) == 0 ? 5 : 1;
+            report2 = ((val>>26) & 0x01) == 0 ? 5 : 1;
+            input_report_rel(grip_sensor, REL_MISC, report1);
+            input_report_rel(grip_sensor, REL_X, 2);
+            input_report_rel(grip_sensor_sub, REL_MISC, report2);
+            input_report_rel(grip_sensor_sub, REL_X, 2);
+            input_sync(grip_sensor);
+            input_sync(grip_sensor_sub);
+            onoff_mEnabled = true;
+            dev_info(this->pdev, "onoff Function set of on\n");
+        } else if (!strncmp(buf, "0", 1)) {
+            onoff_mEnabled = false;
+            if (grip_sensor && grip_sensor_sub) {
+                input_report_rel(grip_sensor, REL_MISC, 5);
+                input_report_rel(grip_sensor, REL_X, 2);
+                input_report_rel(grip_sensor_sub, REL_MISC, 5);
+                input_report_rel(grip_sensor_sub, REL_X, 2);
+                input_sync(grip_sensor);
+                input_sync(grip_sensor_sub);
+                dev_info(this->pdev, "onoff report down\n");
+            } else {
+                dev_err(this->pdev, "onoff input device has null pointer!");
+            }
+            dev_info(this->pdev, "onoff Function set of off\n");
+        } else {
+            dev_err(this->pdev, "onoff instruction error!");
+        }
+
+    } else {
+        dev_err(this->pdev, "onoff Function has null pointer!");
+    }
+    return count;
+
+}
+ssize_t sx933x_get_onoff(char *buf)
+{
+    return snprintf(buf, 8, "%d\n", onoff_mEnabled);
+}
+/*HS14_U code for SR-AL6528E-01-37 by xiayujie at 2023/07/28 end*/
+
 /* hs14 code for AL6528A-104 by duxinqi at 2022/09/23 start */
 int machine_detcet()
 {
@@ -1671,6 +1795,12 @@ static int sx933x_probe(struct i2c_client *client, const struct i2c_device_id *i
         this->bus = client;
         i2c_set_clientdata(client, this);
 
+        /*HS14_U code for SR-AL6528E-01-37 by xiayujie at 2023/07/28 start*/
+        onoff_dev = &client->dev;
+        sar_func.set_onoff = sx933x_set_onoff;
+        sar_func.get_onoff = sx933x_get_onoff;
+        /*HS14_U code for SR-AL6528E-01-37 by xiayujie at 2023/07/28 end*/
+
         /* record device struct */
         this->pdev = &client->dev;
 
@@ -1705,7 +1835,9 @@ static int sx933x_probe(struct i2c_client *client, const struct i2c_device_id *i
             __set_bit(KEY_SAR_FAR, grip_sensor->keybit);
             __set_bit(KEY_SAR_CLOSE, grip_sensor->keybit);
             #else
-            input_set_capability(grip_sensor, EV_REL, REL_MISC);
+            __set_bit(EV_REL, grip_sensor->evbit);
+            __set_bit(REL_MISC, grip_sensor->relbit);
+            __set_bit(REL_X, grip_sensor->relbit);
             input_set_capability(grip_sensor, EV_REL, REL_MAX);
             #endif
 
@@ -1721,7 +1853,9 @@ static int sx933x_probe(struct i2c_client *client, const struct i2c_device_id *i
             __set_bit(KEY_SAR2_FAR, grip_sensor_sub->keybit);
             __set_bit(KEY_SAR2_CLOSE, grip_sensor_sub->keybit);
             #else
-            input_set_capability(grip_sensor_sub, EV_REL, REL_MISC);
+            __set_bit(EV_REL, grip_sensor_sub->evbit);
+            __set_bit(REL_MISC, grip_sensor_sub->relbit);
+            __set_bit(REL_X, grip_sensor_sub->relbit);
             input_set_capability(grip_sensor_sub, EV_REL, REL_MAX);
             #endif
             /*hs14 code for SR-AL6528A-01-742 by duxinqi at 2022/10/12 end*/

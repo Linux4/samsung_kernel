@@ -603,11 +603,13 @@ int ili_fw_upgrade_handler(void *data)
 		ili_input_register();
 		ili_wq_ctrl(WQ_ESD, ENABLE);
 		ili_wq_ctrl(WQ_BAT, ENABLE);
-#ifdef CONFIG_HQ_PROJECT_HS03S
+/*Tab A7 lite_U code for SR-AX3565AU-21  by zhengkunbang at 20230810 start*/
+#if defined CONFIG_HQ_PROJECT_HS03S || defined CONFIG_HQ_PROJECT_OT8
 			ret = sysfs_create_link(&ilits->sec_info->sec.fac_dev->kobj, &tpd->dev->dev.kobj, "input");
 			if (ret < 0) {
 				ILI_ERR("%s: Failed to sysfs_create_link,ret is %d", __func__, ret);
 			}
+/*Tab A7 lite_U code for SR-AX3565AU-21  by zhengkunbang at 20230810 end*/
 #endif
 	}
 
