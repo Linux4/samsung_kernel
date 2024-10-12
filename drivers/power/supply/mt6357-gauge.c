@@ -1943,6 +1943,9 @@ static int zcv_get(struct mtk_gauge *gauge_dev,
 {
 	signed int adc_result_reg = 0;
 	signed int adc_result = 0;
+	/* hs04_T code for P230223-03290 by shixuanxuan at 20230302 start */
+	static int old_zcv = 0;
+	/* hs04_T code for P230223-03290 by shixuanxuan at 20230302 end */
 
 	regmap_read(gauge_dev->regmap,
 		PMIC_AUXADC_ADC_OUT_FGADC_PCHR_ADDR,
@@ -1953,10 +1956,16 @@ static int zcv_get(struct mtk_gauge *gauge_dev,
 		>> PMIC_AUXADC_ADC_OUT_FGADC_PCHR_SHIFT;
 
 	adc_result = reg_to_mv_value(adc_result_reg);
-	bm_err("[oam] %s BATSNS  (pchr):adc_result_reg=%d, adc_result=%d\n",
-		 __func__, adc_result_reg, adc_result);
-
-	*zcv = adc_result;
+	/* hs04_T code for P230223-03290 by shixuanxuan at 20230302 start */
+	bm_err("[oam] %s BATSNS  (pchr):adc_result_reg=%d, adc_result=%d, old_zcv = %d\n",
+		 __func__, adc_result_reg, adc_result, old_zcv);
+	if (adc_result != 0) {
+		*zcv = adc_result;
+		old_zcv = adc_result;
+	} else {
+		*zcv = old_zcv;
+	}
+	/* hs04_T code for P230223-03290 by shixuanxuan at 20230302 end */
 	return 0;
 }
 #endif

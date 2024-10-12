@@ -210,7 +210,9 @@ void hq_update_charing_count(struct mtk_charger *info)
 			info->base_time = info->current_time;
 			info->interval_time = 0;
 		} else {
-			info->interval_time = info->current_time-info->base_time;
+                        /*Tab A7 lite_U/HS04_U code for AX6739A-2748 by lihao at 202300913 start*/
+			info->interval_time = 0;
+                        /*Tab A7 lite_U/HS04_U code for AX6739A-2748 by lihao at 202300913 end*/
 		}
 	}
 /* HS03s Lite code for HQ00001 Modify battery protect function by shixuanxuan at 2021/05/10 end */

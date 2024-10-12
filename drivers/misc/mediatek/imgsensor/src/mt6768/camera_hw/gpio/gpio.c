@@ -36,12 +36,10 @@ static struct GPIO gpio_instance;
 static enum IMGSENSOR_RETURN gpio_release(void *pinstance)
 {
 	unsigned int    i, j;
-	struct platform_device *pplatform_dev = gpimgsensor_hw_platform_device;
 	struct GPIO            *pgpio         = (struct GPIO *)pinstance;
 	enum   IMGSENSOR_RETURN ret           = IMGSENSOR_RETURN_SUCCESS;
 	char *lookup_names = NULL;
 
-	pgpio->ppinctrl = devm_pinctrl_get(&pplatform_dev->dev);
 	if (IS_ERR(pgpio->ppinctrl))
 		return IMGSENSOR_RETURN_ERROR;
 	for (j = IMGSENSOR_SENSOR_IDX_MIN_NUM;

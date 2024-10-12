@@ -437,7 +437,7 @@ static void blk_mq_sched_free_tags(struct blk_mq_tag_set *set,
 				   unsigned int hctx_idx)
 {
 	if (hctx->sched_tags) {
-		blk_mq_free_rqs(set, hctx->sched_tags, hctx_idx);
+		blk_mq_free_rqs_ext(set, hctx->sched_tags, hctx_idx, hctx->tags);
 		blk_mq_free_rq_map(hctx->sched_tags);
 		hctx->sched_tags = NULL;
 	}

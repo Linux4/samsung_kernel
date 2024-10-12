@@ -62,7 +62,9 @@
 #include <linux/kthread.h>
 #include <linux/dma-mapping.h>
 #include "focaltech_common.h"
-
+/*Tab A7 lite_U code for SR-AX3565U-01-4  by zhengkunbang at 20230807 start*/
+#include "hal_kpd.h"
+/*Tab A7 lite_U code for SR-AX3565U-01-4  by zhengkunbang at 20230807 end*/
 /*TabA7 Lite code for OT8-1294 by liupengtao at 20210119 start*/
 #include <linux/input/sec_cmd.h>
 /*TabA7 Lite code for OT8-1294 by liupengtao at 20210119 end*/
@@ -227,6 +229,9 @@ struct fts_ts_data {
     int fw_in_binary;
     int fw_in_ic;
 /*TabA7 Lite code for OT8-1294 by liupengtao at 20210119 start*/
+/*Tab A7 lite_U code for SR-AX3565AU-21  by zhengkunbang at 20230810 start*/
+    bool  tp_is_enabled;
+/*Tab A7 lite_U code for SR-AX3565AU-21  by zhengkunbang at 20230810 end*/
 };
 
 enum _FTS_BUS_TYPE {

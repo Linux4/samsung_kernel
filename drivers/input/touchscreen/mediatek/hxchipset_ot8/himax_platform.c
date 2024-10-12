@@ -930,6 +930,12 @@ static struct tpd_driver_t tpd_device_driver = {
 static int __init himax_common_init(void)
 {
 	I("Himax_common touch panel driver init\n");
+	/*Tab A7 lite_U code for SR-AX3565U-01-4  by zhengkunbang at 20230807 start*/
+	if ((tp_get_boot_mode() != NORMAL_BOOT) && (tp_get_boot_mode() != ALARM_BOOT)) {
+		E("tp init fail because boot_mode = %d\n",tp_get_boot_mode());
+		return -EINVAL;
+	}
+	/*Tab A7 lite_U code for SR-AX3565U-01-4  by zhengkunbang at 20230807 end*/
 	D("Himax check double loading\n");
 	if (g_mmi_refcnt++ > 0) {
 		I("Himax driver has been loaded! ignoring....\n");
