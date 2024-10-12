@@ -1152,15 +1152,20 @@ void sec_bat_thermal_check(struct sec_battery_info *battery)
 			break;
 		}
 		if ((battery->thermal_zone >= BAT_THERMAL_COOL3) && (battery->thermal_zone <= BAT_THERMAL_WARM)) {
+			if (!is_full_capacity(battery->fs) ||
+				!(battery->misc_event & BATT_MISC_EVENT_FULL_CAPACITY)) {
 #if defined(CONFIG_ENABLE_FULL_BY_SOC)
-			if ((battery->capacity >= 100) || (battery->status == POWER_SUPPLY_STATUS_FULL))
-				sec_bat_set_charging_status(battery, POWER_SUPPLY_STATUS_FULL);
-			else
-				sec_bat_set_charging_status(battery, POWER_SUPPLY_STATUS_CHARGING);
+				if ((battery->capacity >= 100) || (battery->status == POWER_SUPPLY_STATUS_FULL))
+					sec_bat_set_charging_status(battery, POWER_SUPPLY_STATUS_FULL);
+				else
+					sec_bat_set_charging_status(battery, POWER_SUPPLY_STATUS_CHARGING);
 #else
-			if (battery->status != POWER_SUPPLY_STATUS_FULL)
-				sec_bat_set_charging_status(battery, POWER_SUPPLY_STATUS_CHARGING);
+				if (battery->status != POWER_SUPPLY_STATUS_FULL)
+					sec_bat_set_charging_status(battery, POWER_SUPPLY_STATUS_CHARGING);
 #endif
+			} else {
+				pr_info("%s: prevent the status during is_full_cap\n", __func__);
+			}
 		}
 	} else { /* pre_thermal_zone == battery->thermal_zone */
 		battery->health_change = false;

@@ -1070,6 +1070,7 @@
   __hrtimer_get_remaining
   hrtimer_init
   hrtimer_init_sleeper
+  hrtimer_sleeper_start_expires
   hrtimer_start_range_ns
   hrtimer_try_to_cancel
   hvc_alloc
@@ -1371,6 +1372,7 @@
   kthread_stop
   kthread_unpark
   kthread_worker_fn
+  ktime_add_safe
   ktime_get
   ktime_get_mono_fast_ns
   ktime_get_real_seconds
@@ -2249,6 +2251,7 @@
   smp_call_function
   smp_call_function_single
   snd_card_free
+  snd_card_free_when_closed
   snd_card_new
   snd_card_register
   snd_ctl_add
@@ -2417,6 +2420,7 @@
   strrchr
   strreplace
   strscpy
+  strscpy_pad
   strsep
   strstr
   __sw_hweight32
@@ -2439,6 +2443,7 @@
   sysfs_create_group
   sysfs_create_groups
   sysfs_create_link
+  sysfs_emit
   __sysfs_match_string
   sysfs_notify
   sysfs_remove_bin_file
@@ -2557,7 +2562,9 @@
   ufshcd_remove
   ufshcd_uic_hibern8_enter
   ufshcd_uic_hibern8_exit
+  uhid_hid_driver
   __uio_register_device
+  uhid_hid_driver
   uio_unregister_device
   unlock_new_inode
   unlock_page

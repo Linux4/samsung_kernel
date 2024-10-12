@@ -1812,17 +1812,17 @@ int fts_vbus_notification(struct notifier_block *nb,
 	switch (vbus_type) {
 	case STATUS_VBUS_HIGH:
 		FTS_INFO("%s : attach\n", __func__);
-		ts_data->ta_stsatus = true;
+		ts_data->ta_status = true;
 		break;
 	case STATUS_VBUS_LOW:
 		FTS_INFO("%s : detach\n", __func__);
-		ts_data->ta_stsatus = false;
+		ts_data->ta_status = false;
 		break;
 	default:
 		break;
 	}
 
-	fts_charger_attached(ts_data, ts_data->ta_stsatus);
+	fts_charger_attached(ts_data, ts_data->ta_status);
 	return 0;
 }
 #endif

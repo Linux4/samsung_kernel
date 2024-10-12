@@ -1026,6 +1026,12 @@ static void wacom_i2c_cover_handler(struct wacom_i2c *wac_i2c, char *data)
 		SW_FLIP, change_status);
 	input_sync(wac_i2c->input_dev);
 	wac_i2c->flip_state = change_status;
+#if IS_ENABLED(CONFIG_INPUT_SEC_NOTIFIER)
+	if (change_status == 1)
+		sec_input_notify(&wac_i2c->nb, NOTIFIER_WACOM_KEYBOARDCOVER_FLIP_CLOSE, NULL);
+	else
+		sec_input_notify(&wac_i2c->nb, NOTIFIER_WACOM_KEYBOARDCOVER_FLIP_OPEN, NULL);
+#endif
 }
 
 static void wacom_i2c_noti_handler(struct wacom_i2c *wac_i2c, char *data)
@@ -1613,8 +1619,12 @@ static void wacom_i2c_set_input_values(struct wacom_i2c *wac_i2c,
 {
 	struct i2c_client *client = wac_i2c->client;
 	struct wacom_g5_platform_data *pdata = wac_i2c->pdata;
+	static char sec_input_phys[64] = { 0 };
+
 	/* Set input values before registering input device */
 
+	snprintf(sec_input_phys, sizeof(sec_input_phys), "%s", input_dev->name);
+	input_dev->phys = sec_input_phys;
 	input_dev->id.bustype = BUS_I2C;
 	input_dev->dev.parent = &client->dev;
 
@@ -1690,11 +1700,11 @@ static void wacom_print_info_work(struct work_struct *work)
 
 int load_fw_built_in(struct wacom_i2c *wac_i2c, int fw_index)
 {
-	int ret;
 	const char *fw_load_path = NULL;
 #if WACOM_SEC_FACTORY
 	int index = 0;
 #endif
+	int retry_count = 10;
 
 	input_info(true, &wac_i2c->client->dev, "%s: load_fw_built_in (%d)\n", __func__, fw_index);
 
@@ -1707,10 +1717,9 @@ int load_fw_built_in(struct wacom_i2c *wac_i2c, int fw_index)
 		else if (fw_index == FW_FACTORY_UNIT)
 			index = 1;
 
-		ret = of_property_read_string_index(wac_i2c->client->dev.of_node,
-				"wacom,fw_fac_path", index, &wac_i2c->pdata->fw_fac_path);
-		if (ret) {
-			input_err(true, &wac_i2c->client->dev, "%s: failed to read fw_fac_path %d\n", __func__, ret);
+		if (of_property_read_string_index(wac_i2c->client->dev.of_node,
+				"wacom,fw_fac_path", index, &wac_i2c->pdata->fw_fac_path)) {
+			input_err(true, &wac_i2c->client->dev, "%s: failed to read fw_fac_path\n", __func__);
 			wac_i2c->pdata->fw_fac_path = NULL;
 		}
 
@@ -1727,15 +1736,23 @@ int load_fw_built_in(struct wacom_i2c *wac_i2c, int fw_index)
 		return -EINVAL;
 	}
 
-	ret = request_firmware(&wac_i2c->firm_data, fw_load_path, &wac_i2c->client->dev);
-	if (ret < 0) {
-		input_err(true, &wac_i2c->client->dev, "Unable to open firmware. ret %d\n", ret);
-		return ret;
+	while (retry_count--) {
+		if (request_firmware(&wac_i2c->firm_data, fw_load_path, &wac_i2c->client->dev) == 0) {
+			input_err(true, &wac_i2c->client->dev, "%s: succeeded to request firmware retry_count:%d\n",
+					__func__, retry_count);
+			break;
+		}
+		sec_delay(50);
+	}
+
+	if (retry_count < 0) {
+		input_err(true, &wac_i2c->client->dev, "%s: failed to request firmware\n", __func__);
+		return -EINVAL;
 	}
 
 	wac_i2c->fw_img = (struct fw_image *)wac_i2c->firm_data->data;
 
-	return ret;
+	return 0;
 }
 
 static int wacom_i2c_get_fw_size(struct wacom_i2c *wac_i2c)
@@ -2315,6 +2332,19 @@ void wacom_swap_compensation(struct wacom_i2c *wac_i2c, char cmd)
 	char data;
 	int ret;
 
+	if (wac_i2c->pdata->support_pogo_cover) {
+		if (!wac_i2c->hall_wacom && !wac_i2c->pogo_cover)
+			wac_i2c->cover = NOMAL_MODE;
+		else if (wac_i2c->hall_wacom && !wac_i2c->pogo_cover)
+			wac_i2c->cover = BOOKCOVER_MODE;
+		else if (wac_i2c->hall_wacom && wac_i2c->pogo_cover)
+			wac_i2c->cover = KBDCOVER_MODE;
+		else if (!wac_i2c->hall_wacom && wac_i2c->pogo_cover)
+			wac_i2c->cover = POGOCOVER_MODE;
+
+		cmd = wac_i2c->cover;
+	}
+
 	input_info(true, &wac_i2c->client->dev, "%s: %d\n", __func__, cmd);
 
 	if (!wac_i2c->power_enable) {
@@ -2350,6 +2380,9 @@ void wacom_swap_compensation(struct wacom_i2c *wac_i2c, char cmd)
 		break;
 	case KBDCOVER_MODE:
 		data = COM_KBDCOVER_COMPENSATION;
+		break;
+	case POGOCOVER_MODE:
+		data = COM_POGOCOVER_COMPENSATION;
 		break;
 	default:
 		input_err(true, &wac_i2c->client->dev,
@@ -2580,6 +2613,65 @@ static void wacom_i2c_nb_register_work(struct work_struct *work)
 	} while (count < 100);
 }
 
+#if IS_ENABLED(CONFIG_HALL_NOTIFIER)
+static void wacom_swap_work(struct work_struct *work)
+{
+	struct wacom_i2c *wac_i2c = container_of(work, struct wacom_i2c, nb_swap_work);
+
+	wacom_swap_compensation(wac_i2c, wac_i2c->cover);
+}
+
+static int wacom_hall_ic_notify(struct notifier_block *nb,
+			unsigned long hall_wacom, void *v)
+{
+	struct hall_notifier_context *hall_notifier;
+	struct wacom_i2c *wac_i2c = container_of(nb, struct wacom_i2c, nb_h);
+
+	hall_notifier = v;
+
+	if (strncmp(hall_notifier->name, "hall_wacom", 10))
+		return 0;
+
+	input_info(true, &wac_i2c->client->dev, "%s: hall_wacom %s\n", __func__,
+			 hall_wacom ? "close" : "open");
+
+	wac_i2c->hall_wacom = hall_wacom;
+	schedule_work(&wac_i2c->nb_swap_work);
+
+	return 0;
+}
+#endif
+#if IS_ENABLED(CONFIG_KEYBOARD_STM32_POGO_V3)
+static int wacom_pogo_notify(struct notifier_block *nb,
+		unsigned long noti_id, void *data)
+{
+	struct wacom_i2c *wac_i2c = container_of(nb, struct wacom_i2c, nb_p);
+	struct pogo_data_struct pogo_data =  *(struct pogo_data_struct *)data;
+
+	switch (noti_id) {
+	case POGO_NOTIFIER_ID_ATTACHED:
+		wac_i2c->pogo_cover = true;
+		schedule_work(&wac_i2c->nb_swap_work);
+		break;
+	case POGO_NOTIFIER_ID_DETACHED:
+		wac_i2c->pogo_cover = false;
+		schedule_work(&wac_i2c->nb_swap_work);
+		break;
+	case POGO_NOTIFIER_EVENTID_ACESSORY:
+		if (pogo_data.size != 2) {
+			pr_info("%s size is wrong. size=%d!\n", __func__, pogo_data.size);
+			break;
+		}
+		wac_i2c->pogo_cover = pogo_data.data[1];
+		schedule_work(&wac_i2c->nb_swap_work);
+		break;
+	default:
+		break;
+	};
+
+	return 0;
+}
+#endif
 #if IS_ENABLED(CONFIG_INPUT_SEC_NOTIFIER)
 static int wacom_notifier_call(struct notifier_block *n, unsigned long data, void *v)
 {
@@ -2789,13 +2881,14 @@ static struct wacom_g5_platform_data *wacom_parse_dt(struct i2c_client *client)
 
 	pdata->support_cover_noti = of_property_read_bool(np, "wacom,support_cover_noti");
 	pdata->support_cover_detection = of_property_read_bool(np, "wacom,support_cover_detection");
+	pdata->support_pogo_cover = of_property_read_bool(np, "wacom,support_pogo_cover");
 
 	input_info(true, &client->dev,
 			"boot_addr: 0x%X, origin: (%d,%d), max_coords: (%d,%d), "
 			"max_pressure: %d, max_height: %d, max_tilt: (%d,%d) "
 			"invert: (%d,%d,%d), fw_path: %s, "
 			"module_ver:%d, table_swap:%d%s%s, cover_noti:%d,"
-			"cover_detect:%d\n",
+			"cover_detect:%d, pogo_cover:%d\n",
 			pdata->boot_addr, pdata->origin[0], pdata->origin[1],
 			pdata->max_x, pdata->max_y, pdata->max_pressure,
 			pdata->max_height, pdata->max_x_tilt, pdata->max_y_tilt,
@@ -2803,8 +2896,8 @@ static struct wacom_g5_platform_data *wacom_parse_dt(struct i2c_client *client)
 			pdata->fw_path, pdata->module_ver, pdata->table_swap,
 			pdata->support_garage_open_test ? ", support garage open test" : "",
 			pdata->regulator_boot_on ? ", boot on" : "",
-			pdata->support_cover_noti, pdata->support_cover_detection);
-
+			pdata->support_cover_noti, pdata->support_cover_detection,
+			pdata->support_pogo_cover);
 	return pdata;
 }
 #else
@@ -2822,6 +2915,16 @@ static int wacom_i2c_probe(struct i2c_client *client,
 	struct wacom_i2c *wac_i2c;
 	struct input_dev *input;
 	int ret = 0;
+
+#if !IS_ENABLED(CONFIG_SEC_FACTORY)
+	static int deferred_flag;
+
+	if (!deferred_flag) {
+		deferred_flag = 1;
+		input_info(true, &client->dev, "deferred_flag boot %s\n", __func__);
+		return -EPROBE_DEFER;
+	}
+#endif
 
 	pr_info("%s: %s: start!\n", SECLOG, __func__);
 
@@ -2973,7 +3076,19 @@ static int wacom_i2c_probe(struct i2c_client *client,
 #if IS_ENABLED(CONFIG_INPUT_SEC_NOTIFIER)
 	sec_input_register_notify(&wac_i2c->nb, wacom_notifier_call, 2);
 #endif
-
+#if IS_ENABLED(CONFIG_HALL_NOTIFIER)
+	if (wac_i2c->pdata->support_pogo_cover) {
+		wac_i2c->nb_h.priority = 1;
+		wac_i2c->nb_h.notifier_call = wacom_hall_ic_notify;
+		hall_notifier_register(&wac_i2c->nb_h);
+		INIT_WORK(&wac_i2c->nb_swap_work, wacom_swap_work);
+	}
+#endif
+#if IS_ENABLED(CONFIG_KEYBOARD_STM32_POGO_V3)
+	if (wac_i2c->pdata->support_pogo_cover)
+		pogo_notifier_register(&wac_i2c->nb_p,
+				wacom_pogo_notify, POGO_NOTIFY_DEV_WACOM);
+#endif
 	input_info(true, &client->dev, "probe done\n");
 	input_log_fix();
 
@@ -2988,6 +3103,8 @@ static int wacom_i2c_probe(struct i2c_client *client,
 	wac_i2c->ble_hist1 = kzalloc(WACOM_BLE_HISTORY1_SIZE, GFP_KERNEL);
 	if (!wac_i2c->ble_hist1)
 		input_err(true, &client->dev, "failed to history1 mem\n");
+
+	sec_cmd_send_event_to_user(&wac_i2c->sec, NULL, "RESULT=PROBE_DONE");
 
 	return 0;
 
@@ -3075,7 +3192,16 @@ static void wacom_i2c_shutdown(struct i2c_client *client)
 #if IS_ENABLED(CONFIG_INPUT_SEC_NOTIFIER)
 	sec_input_unregister_notify(&wac_i2c->nb);
 #endif
-
+#if IS_ENABLED(CONFIG_HALL_NOTIFIER)
+	if (wac_i2c->pdata->support_pogo_cover) {
+		cancel_work_sync(&wac_i2c->nb_swap_work);
+		hall_notifier_unregister(&wac_i2c->nb_h);
+	}
+#endif
+#if IS_ENABLED(CONFIG_KEYBOARD_STM32_POGO_V3)
+	if (wac_i2c->pdata->support_pogo_cover)
+		pogo_notifier_unregister(&wac_i2c->nb_p);
+#endif
 	if (wac_i2c->pdata->table_swap) {
 #if IS_ENABLED(CONFIG_MUIC_SUPPORT_KEYBOARDDOCK)
 		if (wac_i2c->pdata->table_swap == TABLE_SWAP_KBD_COVER)
@@ -3118,7 +3244,10 @@ static int wacom_i2c_remove(struct i2c_client *client)
 			manager_notifier_unregister(&wac_i2c->typec_nb);
 #endif
 	}
-
+#if IS_ENABLED(CONFIG_HALL_NOTIFIER) || IS_ENABLED(CONFIG_KEYBOARD_STM32_POGO_V3)
+	if (wac_i2c->pdata->support_pogo_cover)
+		cancel_work_sync(&wac_i2c->nb_swap_work);
+#endif
 	cancel_delayed_work_sync(&wac_i2c->open_test_dwork);
 	cancel_delayed_work_sync(&wac_i2c->work_print_info);
 

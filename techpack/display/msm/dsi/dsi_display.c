@@ -3679,10 +3679,11 @@ static int dsi_display_clocks_init(struct dsi_display *display)
 
 	num_clk = dsi_display_get_clocks_count(display, dsi_clock_name);
 
-#if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
-	if (num_clk < 1)
-		DSI_ERR("[SDE] ^^^^^^^ No dsi clock, Check panel_common.MODEL.dtsi File and Build Model Name\n");
-#endif
+	if (num_clk <= 0) {
+		rc = num_clk;
+		DSI_WARN("failed to read %s, rc = %d\n", dsi_clock_name, num_clk);
+		goto error;
+	}
 
 	DSI_DEBUG("clk count=%d\n", num_clk);
 

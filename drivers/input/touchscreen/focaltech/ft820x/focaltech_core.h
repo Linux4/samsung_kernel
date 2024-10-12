@@ -278,7 +278,7 @@ struct fts_ts_data {
 	int pFrame_size;
 #if IS_ENABLED(CONFIG_VBUS_NOTIFIER)
 	struct notifier_block vbus_nb;
-	bool ta_stsatus;
+	bool ta_status;
 #endif
 };
 

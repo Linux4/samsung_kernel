@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  * Copyright (c) 2014-2021 The Linux Foundation. All rights reserved.
  * Copyright (C) 2013 Red Hat
  * Author: Rob Clark <robdclark@gmail.com>
@@ -3335,6 +3335,12 @@ static void sde_crtc_atomic_begin(struct drm_crtc *crtc,
 
 	_sde_crtc_blend_setup(crtc, old_state, true);
 	_sde_crtc_dest_scaler_setup(crtc);
+
+	 /* cancel the idle notify delayed work */
+	if (sde_encoder_check_curr_mode(sde_crtc->mixers[0].encoder,
+				MSM_DISPLAY_VIDEO_MODE) &&
+		kthread_cancel_delayed_work_sync(&sde_crtc->idle_notify_work))
+		SDE_DEBUG("idle notify work cancelled\n");
 
 	if (crtc->state->mode_changed || sde_kms->perf.catalog->uidle_cfg.dirty)
 		sde_core_perf_crtc_update_uidle(crtc, true);
@@ -6684,6 +6690,24 @@ static void __sde_crtc_idle_notify_work(struct kthread_work *work)
 
 		sde_crtc_static_img_control(crtc, CACHE_STATE_PRE_CACHE, false);
 	}
+}
+
+void sde_crtc_cancel_delayed_work(struct drm_crtc *crtc)
+{
+	struct sde_crtc *sde_crtc;
+	struct sde_crtc_state *cstate;
+	bool idle_status;
+	bool cache_status;
+
+	if (!crtc || !crtc->state)
+		return;
+
+	sde_crtc = to_sde_crtc(crtc);
+	cstate = to_sde_crtc_state(crtc->state);
+
+	idle_status = kthread_cancel_delayed_work_sync(&sde_crtc->idle_notify_work);
+	cache_status = kthread_cancel_delayed_work_sync(&sde_crtc->static_cache_read_work);
+	SDE_EVT32(DRMID(crtc), idle_status, cache_status);
 }
 
 /* initialize crtc */

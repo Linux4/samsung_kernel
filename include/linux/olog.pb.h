@@ -45,11 +45,14 @@ enum OlogTestEnum_ID {
   PERFLOG_SCREENSHOT = 21,
   PERFLOG_MUTEX = 22,
   PERFLOG_SYSTEMSERVER = 23,
-  PERFLOG_PERFETTOLOGGINGENABLED = 24
+  PERFLOG_PERFETTOLOGGINGENABLED = 24,
+  PERFLOG_BIGDATA = 25,
+  PERFLOG_PSI = 26,
+  PERFLOG_JANK = 27
 };
 #if defined(KPERFMON_KERNEL)
-int OlogTestEnum_ID_maxnum = 25;
-char * OlogTestEnum_ID_strings[25] = {
+int OlogTestEnum_ID_maxnum = 28;
+char * OlogTestEnum_ID_strings[28] = {
   "UNKNOWN",
   " ",
   "LCDV",
@@ -74,7 +77,10 @@ char * OlogTestEnum_ID_strings[25] = {
   "SCREENSHOT",
   "MUTEX",
   "SYSTEMSERVER",
-  "PERFETTOLOGGINGENABLED"
+  "PERFETTOLOGGINGENABLED",
+  "BIGDATA",
+  "PSI",
+  "JANK"
 };
 #endif //KPERFMON_KERNEL
 

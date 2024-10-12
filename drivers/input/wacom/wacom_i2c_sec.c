@@ -3007,6 +3007,9 @@ static void set_cover_type(void *device_data)
 
 	sec_cmd_set_default_result(sec);
 
+	if (wac_i2c->pdata->support_pogo_cover)
+		goto return_ok;
+
 	if (wac_i2c->pdata->support_cover_noti) {
 		if (sec->cmd_param[0] < 0 || sec->cmd_param[0] > 2) {
 			input_err(true, &wac_i2c->client->dev, "%s: Not support command[%d]\n",
@@ -3028,7 +3031,7 @@ static void set_cover_type(void *device_data)
 	input_info(true, &wac_i2c->client->dev, "%s: %d\n", __func__, sec->cmd_param[0]);
 
 	wacom_swap_compensation(wac_i2c, wac_i2c->cover);
-
+return_ok:
 	snprintf(buff, sizeof(buff), "OK\n");
 	sec->cmd_state = SEC_CMD_STATUS_OK;
 	sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));

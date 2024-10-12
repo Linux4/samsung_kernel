@@ -30,6 +30,13 @@
 #include <linux/usb/typec/manager/usb_typec_manager_notifier.h>
 #endif
 
+#if IS_ENABLED(CONFIG_HALL_NOTIFIER)
+#include <linux/hall/hall_ic_notifier.h>
+#endif
+#if IS_ENABLED(CONFIG_KEYBOARD_STM32_POGO_V3)
+#include "../sec_input/stm32/pogo_notifier_v3.h"
+#endif
+
 #define RETRY_COUNT			3
 
 #if IS_ENABLED(CONFIG_SEC_FACTORY)
@@ -117,6 +124,7 @@ enum COVER_STATE {
 	NOMAL_MODE = 0,
 	BOOKCOVER_MODE,
 	KBDCOVER_MODE,
+	POGOCOVER_MODE,
 };
 
 #define WACOM_PATH_EXTERNAL_FW		"wacom.bin"
@@ -416,6 +424,7 @@ struct wacom_g5_platform_data {
 	u32 bringup;
 	bool support_cover_noti;
 	bool support_cover_detection;
+	bool support_pogo_cover;
 	bool enable_sysinput_enabled;
 
 	u32	area_indicator;
@@ -518,6 +527,7 @@ struct wacom_i2c {
 	int wcharging_mode;
 
 	struct delayed_work nb_reg_work;
+	struct work_struct nb_swap_work;
 
 	struct notifier_block kbd_nb;
 	struct work_struct kbd_work;
@@ -530,6 +540,8 @@ struct wacom_i2c {
 	u8 dp_connect_cmd;
 
 	struct notifier_block nb;
+	struct notifier_block nb_h;
+	struct notifier_block nb_p;
 
 	/* open test*/
 	volatile bool is_open_test;
@@ -567,6 +579,8 @@ struct wacom_i2c {
 	char *ble_hist1;
 	int ble_hist_index;
 	char cover;
+	bool hall_wacom;
+	bool pogo_cover;
 	u8 flip_state;
 };
 
