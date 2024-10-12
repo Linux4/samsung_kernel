@@ -1,4 +1,4 @@
-/* Copyright (c) 2009-2020, Linux Foundation. All rights reserved.
+/* Copyright (c) 2009-2018, Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -289,6 +289,7 @@ static struct regulator *hsusb_1p8;
 static struct regulator *hsusb_vdd;
 static struct regulator *vbus_otg;
 static struct power_supply *psy;
+
 static int vdd_val[VDD_VAL_MAX];
 static u32 bus_freqs[USB_NOC_NUM_VOTE][USB_NUM_BUS_CLOCKS]  /*bimc,snoc,pcnoc*/;
 static char bus_clkname[USB_NUM_BUS_CLOCKS][20] = {"bimc_clk", "snoc_clk",
@@ -986,6 +987,7 @@ static int msm_otg_reset(struct usb_phy *phy)
 	 * Disable USB BAM as block reset resets USB BAM registers.
 	 */
 	msm_usb_bam_enable(CI_CTRL, false);
+
 	mutex_unlock(&motg->lock);
 
 	return 0;
@@ -1905,6 +1907,10 @@ static int msm_otg_notify_chg_type(struct msm_otg *motg)
 	return ret;
 }
 
+/*HS60 add for P220517-05405 add usb_date_enable by duanweiping at 20220615 start*/
+extern bool usb_data_enabled;
+/*HS60 add for P220517-05405 add usb_date_enable by duanweiping at 20220615 end*/
+
 static void msm_otg_notify_charger(struct msm_otg *motg, unsigned int mA)
 {
 	struct usb_gadget *g = motg->phy.otg->gadget;
@@ -1943,13 +1949,15 @@ static void msm_otg_notify_charger(struct msm_otg *motg, unsigned int mA)
 	pval.intval = 1000 * mA;
 
 set_prop:
-	if (power_supply_set_property(psy, POWER_SUPPLY_PROP_SDP_CURRENT_MAX,
-								&pval)) {
-		dev_dbg(motg->phy.dev, "power supply error when setting property\n");
-		return;
+/*HS60 add for P220517-05405 add usb_date_enable by duanweiping at 20220615 start*/
+	if(usb_data_enabled){
+		if (power_supply_set_property(psy, POWER_SUPPLY_PROP_SDP_CURRENT_MAX, &pval)) {
+			dev_dbg(motg->phy.dev, "power supply error when setting property\n");
+			return;
+		} 
+		motg->cur_power = mA;
 	}
-
-	motg->cur_power = mA;
+/*HS60 add for P220517-05405 add usb_date_enable by duanweiping at 20220615 end*/
 }
 
 static void msm_otg_notify_charger_work(struct work_struct *w)
@@ -3028,7 +3036,10 @@ static void msm_otg_set_vbus_state(int online)
 
 	if (motg->err_event_seen)
 		return;
-
+	/*HS60 add for P220517-05405 add usb_date_enable by duanweiping at 20220615 start*/
+	if(!usb_data_enabled)
+		pr_err("usb date disable\n");
+	/*HS60 add for P220517-05405 add usb_date_enable by duanweiping at 20220615 end*/
 	if (online) {
 		pr_debug("EXTCON: BSV set\n");
 		msm_otg_dbg_log_event(&motg->phy, "EXTCON: BSV SET",
@@ -3837,7 +3848,14 @@ static DEVICE_ATTR(dpdm_pulldown_enable, 0644,
 static int msm_otg_vbus_notifier(struct notifier_block *nb, unsigned long event,
 				void *ptr)
 {
-	msm_otg_set_vbus_state(!!event);
+
+	/*HS60 add for P220517-05405 add usb_date_enable by duanweiping at 20220615 start*/
+	unsigned long event_temp = event;
+	if(!usb_data_enabled)
+		event_temp = 0;
+
+	msm_otg_set_vbus_state(!!event_temp);
+	/*HS60 add for P220517-05405 add usb_date_enable by duanweiping at 20220615 end*/
 
 	return NOTIFY_DONE;
 }
@@ -3851,6 +3869,12 @@ static int msm_otg_id_notifier(struct notifier_block *nb, unsigned long event,
 		motg->id_state = USB_ID_GROUND;
 	else
 		motg->id_state = USB_ID_FLOAT;
+	/*HS60 add for P220517-05405 add usb_date_enable by duanweiping at 20220615 start*/
+	if(!usb_data_enabled){
+		motg->id_state = USB_ID_FLOAT;
+		dev_err(&motg->pdev->dev,"msm_otg_id_disable");
+	}
+	/*HS60 add for P220517-05405 add usb_date_enable by duanweiping at 20220615 end*/
 
 	msm_id_status_w(&motg->id_status_work.work);
 

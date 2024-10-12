@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2014-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2014-2021, The Linux Foundation. All rights reserved.
  * Copyright (C) 2013 Red Hat
  * Author: Rob Clark <robdclark@gmail.com>
  *
@@ -1315,6 +1315,7 @@ static int _sde_kms_setup_displays(struct drm_device *dev,
 		.get_info   = dp_connector_get_info,
 		.get_mode_info  = dp_connector_get_mode_info,
 		.post_open  = dp_connector_post_open,
+		.set_power = dp_display_set_power,
 		.check_status = NULL,
 		.config_hdr = dp_connector_config_hdr,
 		.cmd_transfer = NULL,
@@ -1334,7 +1335,7 @@ static int _sde_kms_setup_displays(struct drm_device *dev,
 		.get_dst_format = dsi_display_get_dst_format,
 		.enable_event = dsi_conn_enable_event,
 		.cmd_transfer = NULL,
-		.cont_splash_config = NULL,
+		.cont_splash_config = dsi_display_cont_splash_config,
 	};
 	struct msm_display_info info;
 	struct drm_encoder *encoder;

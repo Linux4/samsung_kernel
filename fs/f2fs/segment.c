@@ -1068,6 +1068,7 @@ static void __check_sit_bitmap(struct f2fs_sb_info *sbi,
 #endif
 }
 
+/* @fs.sec -- cc451a59f2de8918b30cc7c0bef20871 -- */
 static void __init_discard_policy(struct f2fs_sb_info *sbi,
 				struct discard_policy *dpolicy,
 				int discard_type, unsigned int granularity)
@@ -2065,6 +2066,10 @@ static int create_discard_cmd_control(struct f2fs_sb_info *sbi)
 	dcc->next_pos = 0;
 	dcc->root = RB_ROOT;
 	dcc->rbtree_check = false;
+
+	dcc->discard_cmd_slab_thresh_cnt =
+		(DEF_DISCARD_SLAB_THRESHOLD << 20) / sizeof(struct discard_cmd);
+	dcc->undiscard_thresh_blks = DEF_UNDISCARD_THRESHOLD << 8;
 
 	init_waitqueue_head(&dcc->discard_wait_queue);
 	SM_I(sbi)->dcc_info = dcc;
@@ -3268,6 +3273,9 @@ int f2fs_inplace_write_data(struct f2fs_io_info *fio)
 		return -EFSCORRUPTED;
 	}
 
+	invalidate_mapping_pages(META_MAPPING(sbi),
+				fio->new_blkaddr, fio->new_blkaddr);
+
 	stat_inc_inplace_blocks(fio->sbi);
 	atomic64_inc(&(sbi->sec_stat.inplace_count));
 
@@ -4285,9 +4293,9 @@ static int init_victim_secmap(struct f2fs_sb_info *sbi)
 		return -ENOMEM;
 
 	/* W/A for FG_GC failure due to Atomic Write File and Pinned File */
-	dirty_i->blacklist_victim_secmap = f2fs_kvzalloc(sbi, bitmap_size, 
+	dirty_i->unable_victim_secmap = f2fs_kvzalloc(sbi, bitmap_size,
 								GFP_KERNEL);
-	if (!dirty_i->blacklist_victim_secmap)
+	if (!dirty_i->unable_victim_secmap)
 		return -ENOMEM;
 
 	return 0;
@@ -4473,7 +4481,7 @@ static void destroy_victim_secmap(struct f2fs_sb_info *sbi)
 	kvfree(dirty_i->victim_secmap);
 
 	/* W/A for FG_GC failure due to Atomic Write File and Pinned File */
-	kvfree(dirty_i->blacklist_victim_secmap);
+	kvfree(dirty_i->unable_victim_secmap);
 }
 
 static void destroy_dirty_segmap(struct f2fs_sb_info *sbi)

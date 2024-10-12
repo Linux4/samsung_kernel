@@ -301,7 +301,9 @@ enum cell_type {
 
 #if defined(HX_SMART_WAKEUP)
 /*HS50 code for SR-QL3095-01-379 by fengzhigang at 2020/09/07 start*/
-#define HX_KEY_DOUBLE_CLICK		KEY_HOMEPAGE
+/* HS70 HS50 add for P210915-03922 all screen issue by zhangkexin at 2021/9/17 start */
+#define HX_KEY_DOUBLE_CLICK		KEY_WAKEUP
+/* HS70 HS50 add for P210915-03922 all screen issue by zhangkexin at 2021/9/17 end */
 /*HS50 code for SR-QL3095-01-379 by fengzhigang at 2020/09/07 end*/
 #define HX_KEY_UP							KEY_UP
 #define HX_KEY_DOWN						KEY_DOWN

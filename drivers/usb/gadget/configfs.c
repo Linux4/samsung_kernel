@@ -26,7 +26,7 @@ static char product_string[256];
 #endif
 
 #ifdef CONFIG_USB_CONFIGFS_F_ACC
-extern int acc_ctrlrequest(struct usb_composite_dev *cdev,
+extern int acc_ctrlrequest_composite(struct usb_composite_dev *cdev,
 				const struct usb_ctrlrequest *ctrl);
 void acc_disconnect(void);
 #endif
@@ -1698,14 +1698,13 @@ static int android_setup(struct usb_gadget *gadget,
 	unsigned long flags;
 	struct gadget_info *gi = container_of(cdev, struct gadget_info, cdev);
 	int value = -EOPNOTSUPP;
+	struct usb_function_instance *fi;
 #ifdef CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE
 	struct usb_configuration *configuration;
 	struct usb_function *f;
 	struct usb_request		*req = cdev->req;
 
 	req->complete = android_gadget_complete;
-#else
-	struct usb_function_instance *fi;
 #endif
 
 	spin_lock_irqsave(&cdev->lock, flags);
@@ -1722,13 +1721,14 @@ static int android_setup(struct usb_gadget *gadget,
 				if (value >= 0)
 					break;
 			}
-#else
+		}
+	}
+#endif
 	list_for_each_entry(fi, &gi->available_func, cfs_list) {
 		if (fi != NULL && fi->f != NULL && fi->f->setup != NULL) {
 			value = fi->f->setup(fi->f, c);
 			if (value >= 0)
 				break;
-#endif
 		}
 	}
 
@@ -1751,7 +1751,7 @@ static int android_setup(struct usb_gadget *gadget,
 
 #ifdef CONFIG_USB_CONFIGFS_F_ACC
 	if (value < 0)
-		value = acc_ctrlrequest(cdev, c);
+		value = acc_ctrlrequest_composite(cdev, c);
 #endif
 
 	if (value < 0)

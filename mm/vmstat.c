@@ -1088,7 +1088,13 @@ const char * const vmstat_text[] = {
 	"vmacache_find_hits",
 #endif
 #ifdef CONFIG_SPECULATIVE_PAGE_FAULT
-	"speculative_pgfault"
+	"speculative_pgfault",
+#endif
+#ifdef CONFIG_ZRAM_LRU_WRITEBACK
+	"sqzr_objcnt",
+	"sqzr_count",
+	"sqzr_read",
+	"sqzr_write",
 #endif
 #endif /* CONFIG_VM_EVENT_COUNTERS */
 };

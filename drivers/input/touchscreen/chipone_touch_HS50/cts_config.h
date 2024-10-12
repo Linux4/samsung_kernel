@@ -83,9 +83,11 @@
 
     #define CFG_CTS_NUM_GESTURE             (1u)
     #define CFG_CTS_GESTURE_REPORT_KEY
+/* HS70 HS50 add for P210915-03922 all screen issue by zhangkexin at 2021/9/17 start */
     #define CFG_CTS_GESTURE_KEYMAP      \
-        {{GESTURE_D_TAP, KEY_HOMEPAGE,},   \
+        {{GESTURE_D_TAP, KEY_WAKEUP,},   \
         }
+/* HS70 HS50 add for P210915-03922 all screen issue by zhangkexin at 2021/9/17 end */
     #define CFG_CTS_GESTURE_REPORT_TRACE    0
 #endif /* CFG_CTS_GESTURE */
 

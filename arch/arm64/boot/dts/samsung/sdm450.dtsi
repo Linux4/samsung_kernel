@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2018, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2017-2018, 2021 The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -375,9 +375,13 @@
 	/delete-node/ case-therm-adc;
 	/delete-node/ case-therm-step;
 };
-
 /* HS70 add for HS70-196 replace xo-therm with MSM-therm in adc_tm by qianyingdong at 2019/10/31 start */
 &pm8953_adc_tm {
 	/delete-node/ chan@32;
 };
 /* HS70 add for HS70-196 replace xo-therm with MSM-therm in adc_tm by qianyingdong at 2019/10/31 end */
+&soc {
+	qcom,vidc@1d00000 {
+		qcom,max-hw-load = <734400>; /* 1080p@60 dec + 1080p@30 enc */
+	};
+};

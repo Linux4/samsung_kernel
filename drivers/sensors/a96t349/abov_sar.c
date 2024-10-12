@@ -90,6 +90,11 @@ pabovXX_t abov_sar_ptr;
 
 extern char *sar_name;
 
+/*A02s_S code for OLYMPICO3S-1032 by xiongxiaoliang at 2022/10/18 start*/
+static int g_anfr_flag = 1, g_irq_count = 1;
+static u16 ch0_diff = 0, ch1_diff = 0;
+static u16 ch0_Previous_diff = 0, ch1_Previous_diff = 0;
+/*A02s_S code for OLYMPICO3S-1032 by xiongxiaoliang at 2022/10/18 end*/
 /**
  * struct abov
  * Specialized struct containing input event data, platform data, and
@@ -217,6 +222,8 @@ static struct attribute_group abov_attr_group = {
 };
 
 /* HS50 code for HS50EU-191 by xiongxiaoliang at 20201021 start */
+/*A02s_S code for OLYMPICO3S-1032 by xiongxiaoliang at 2022/10/18 start*/
+#ifdef SAR_USB_CALIBRATION
 static int sar_charger_notifier_callback(struct notifier_block *nb,
                                 unsigned long val, void *v) {
     int ret = 0;
@@ -288,6 +295,8 @@ void sar_plat_charger_init(void)
     if (ret < 0)
         LOG_INFO("power_supply_reg_notifier failed\n");
 }
+#endif //SAR_USB_CALIBRATION
+/*A02s_S code for OLYMPICO3S-1032 by xiongxiaoliang at 2022/10/18 end*/
 /* HS50 code for HS50EU-191 by xiongxiaoliang at 20201021 start */
 
 /**
@@ -374,6 +383,29 @@ static int initialize(pabovXX_t this)
     return -ENOMEM;
 }
 
+/*A02s_S code for OLYMPICO3S-1032 by xiongxiaoliang at 2022/10/18 start*/
+void logical_recovery(pabovXX_t this)
+{
+    u8 ch0_diff1, ch1_diff1, ch0_diff2, ch1_diff2;
+
+    if (g_anfr_flag == 1) {
+        read_register(this, 0x20, &ch0_diff1);
+        read_register(this, 0x21, &ch0_diff2);
+        read_register(this, 0x22, &ch1_diff1);
+        read_register(this, 0x23, &ch1_diff2);
+        ch0_diff = (ch0_diff1 << 8) + ch0_diff2;
+        ch1_diff = (ch1_diff1 << 8) + ch1_diff2;
+        if (g_irq_count == 1) {
+            ch0_Previous_diff = (ch0_diff1 << 8) + ch0_diff2;
+            ch1_Previous_diff = (ch1_diff1 << 8) + ch1_diff2;
+        }
+        LOG_ERR("abov_a ch0_diff = %x, ch1_diff = %x \n", ch0_diff, ch1_diff);
+        LOG_ERR("abov_a ch0_Previous_diff = %x, ch1_Previous_diff = %x \n", ch0_Previous_diff, ch1_Previous_diff);
+        if ((ch0_diff != ch0_Previous_diff) || (ch1_diff != ch1_Previous_diff) || (g_irq_count >= 12)) {
+            g_anfr_flag = 0;
+        }
+    }
+}
 /**
  * brief Handle what to do when a touch occurs
  * param this Pointer to main parent struct
@@ -394,6 +426,8 @@ static void touchProcess(pabovXX_t this)
     board = this->board;
     if (this && pDevice) {
         LOG_INFO("Inside touchProcess()\n");
+        logical_recovery(this);
+        LOG_ERR("g_irq_count[%d] g_anfr_flag[%d] \n", g_irq_count, g_anfr_flag);
         read_register(this, ABOV_IRQSTAT_LEVEL_REG, &i);
 
         buttons = pDevice->pbuttonInformation->buttons;
@@ -414,6 +448,12 @@ static void touchProcess(pabovXX_t this)
         }
 #endif
 
+        if (g_anfr_flag == 1) {
+            input_report_rel(input_top_sar, REL_MISC, 1);
+            input_report_rel(input_bottom_sar, REL_MISC, 1);
+            input_sync(input_top_sar);
+            input_sync(input_bottom_sar);
+        } else {
         for (counter = 0; counter < numberOfButtons; counter++) {
             pCurrentButton = &buttons[counter];
             if (pCurrentButton == NULL) {
@@ -561,9 +601,11 @@ static void touchProcess(pabovXX_t this)
                 break;
             };
         }
+        }
         LOG_INFO("Leaving touchProcess()\n");
     }
 }
+/*A02s_S code for OLYMPICO3S-1032 by xiongxiaoliang at 2022/10/18 end*/
 
 static int abov_get_nirq_state(unsigned irq_gpio)
 {
@@ -1726,7 +1768,11 @@ static int abov_probe(struct i2c_client *client, const struct i2c_device_id *id)
     abov_sar_ptr = this;
 
     /* HS50 code for HS50EU-191 by xiongxiaoliang at 20201021 start */
-    sar_plat_charger_init();
+/*A02s_S code for OLYMPICO3S-1032 by xiongxiaoliang at 2022/10/18 start*/
+#ifdef SAR_USB_CALIBRATION
+        sar_plat_charger_init();
+#endif  //SAR_USB_CALIBRATION
+/*A02s_S code for OLYMPICO3S-1032 by xiongxiaoliang at 2022/10/18 end*/
     /* HS50 code for HS50EU-191 by xiongxiaoliang at 20201021 end */
 
     /* for accessing items in user data (e.g. calibrate) */
@@ -1863,8 +1909,10 @@ static int abov_probe(struct i2c_client *client, const struct i2c_device_id *id)
         INIT_WORK(&this->fw_update_work, capsense_update_work);
     }
     schedule_work(&this->fw_update_work);
-
-    LOG_INFO("abov_probe end()\n");
+        /*A02s_S code for OLYMPICO3S-1032 by xiongxiaoliang at 2022/10/18 start*/
+        g_anfr_flag = 1;
+        LOG_INFO("abov_probe end()\n");
+        /*A02s_S code for OLYMPICO3S-1032 by xiongxiaoliang at 2022/10/18 end*/
     return 0;
 
 exit_creat_file:
@@ -2039,10 +2087,16 @@ static irqreturn_t abovXX_interrupt_thread(int irq, void *data)
 
     mutex_lock(&this->mutex);
     LOG_INFO("abovXX_irq\n");
-    if ((!this->get_nirq_low) || this->get_nirq_low(this->board->irq_gpio))
+    /*A02s_S code for OLYMPICO3S-1032 by xiongxiaoliang at 2022/10/18 start*/
+    if ((!this->get_nirq_low) || this->get_nirq_low(this->board->irq_gpio)) {
         abovXX_process_interrupt(this, 1);
-    else
+        if (g_anfr_flag == 1) {
+            g_irq_count++;
+        }
+    } else {
         LOG_DBG("abovXX_irq - nirq read high\n");
+    }
+    /*A02s_S code for OLYMPICO3S-1032 by xiongxiaoliang at 2022/10/18 end*/
     mutex_unlock(&this->mutex);
     return IRQ_HANDLED;
 }

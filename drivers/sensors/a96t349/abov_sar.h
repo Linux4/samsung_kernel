@@ -173,10 +173,14 @@ struct abovXX {
     bool loading_fw;
     struct work_struct fw_update_work;
     /* HS50 code for HS50EU-191 by xiongxiaoliang at 20201021 start */
+/*A02s_S code for OLYMPICO3S-1032 by xiongxiaoliang at 2022/10/18 start*/
+#ifdef SAR_USB_CALIBRATION
     struct notifier_block notifier_charger;
     struct work_struct update_charger;
     struct workqueue_struct *charger_notify_wq;
     int usb_plug_status;
+#endif //SAR_USB_CALIBRATION
+/*A02s_S code for OLYMPICO3S-1032 by xiongxiaoliang at 2022/10/18 end*/
     /* HS50 code for HS50EU-191 by xiongxiaoliang at 20201021 end */
 
     /* Function Pointers */

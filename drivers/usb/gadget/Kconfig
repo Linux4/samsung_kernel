@@ -151,6 +151,14 @@ config USB_ANDROID_SAMSUNG_COMPOSITE
 	  Multi Configuration.
 	  If you enable this option, android composite will be changed.
 
+config USB_CONFIGFS_F_SS_MON_GADGET
+	bool "F_SAMSUNG gadget"
+	depends on USB_CONFIGFS
+	select USB_F_SS_MON_GADGET
+	help
+	 Driver for control to Samsung Usb device layer
+	 For Samung working scenario and saving debug log, etc
+
 source "drivers/usb/gadget/udc/Kconfig"
 
 #
@@ -266,6 +274,9 @@ config USB_F_IPC
 	tristate
 
 config USB_F_CONN_GADGET
+	tristate
+
+config USB_F_SS_MON_GADGET
 	tristate
 
 # this first set of drivers all depend on bulk-capable hardware.

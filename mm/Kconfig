@@ -810,6 +810,13 @@ config VMPRESSURE_LEVEL_MED
 	help
 	  This supports to adjust vmpressure_level_med threshold value
 
+config KSWAPD_CPU
+	hex "Set kswapd cpu affinity by default"
+	default 0x3F
+	help
+	  Set kswapd cpu affinity by default. 0x3F means allowing CPU as 0 to 5.
+	  To disable this config, set this to 0.
+
 config PAGE_BOOST
 	bool "PAGE_BOOST feature"
 	depends on MMU
@@ -825,3 +832,4 @@ config PAGE_BOOST_RECORDING
 	  Record Everything for the chosen process.
 	  As Android executes an app one by one, only allow 1 recording
 	  at a time.
+source "mm/sec_mm/Kconfig"

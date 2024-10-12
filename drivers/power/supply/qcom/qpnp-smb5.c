@@ -1884,7 +1884,10 @@ static int smb5_batt_get_prop(struct power_supply *psy,
 		rc = smb5_get_prop_batt_iterm(chg, val);
 		break;
 	case POWER_SUPPLY_PROP_TEMP:
+		/* Huaqin add for ZQL1695-HQ000001 Fix the battery temperature as 25 degree by gaochao at 2019/07/11 start */
 		rc = smblib_get_prop_from_bms(chg, POWER_SUPPLY_PROP_TEMP, val);
+		//val->intval = 250;
+		/* Huaqin add for ZQL1695-HQ000001 Fix the battery temperature as 25 degree by gaochao at 2019/07/11 end */
 		break;
 	case POWER_SUPPLY_PROP_TECHNOLOGY:
 		val->intval = POWER_SUPPLY_TECHNOLOGY_LION;
@@ -3834,7 +3837,7 @@ void hq_vbus_control_gpio_init_config(struct smb_charger *chg, struct platform_d
 }
 /* HS60 add for HS60-163 Set usb thermal by gaochao at 2019/07/30 end */
 
-/* HS50 add for SR-QL3095-01-67 Import default charger profile by wenyaqi at 2020/08/03 start */
+/* HS50 add for SR-QL3095-01-67 Import default charger profile by wenyaqi at 2020/08/03 stcharge_typeart */
 struct smb_charger *chg_dev = NULL;
 /* HS50 add for SR-QL3095-01-67 Import default charger profile by wenyaqi at 2020/08/03 end */
 /* HS70 add for HS71-21 Optimize the stop and resume charging of battery temperature by gaochao at 2019/11/29 start */
@@ -3846,6 +3849,42 @@ extern int batt_create_attrs(struct device *dev);
 #endif
 #endif
 /* HS70 add for HS71-21 Optimize the stop and resume charging of battery temperature by gaochao at 2019/11/29 end */
+
+/*HS60 add for P220517-05405 add usb_date_enable by duanweiping at 20220613 start*/
+
+bool usb_data_enabled = true;
+EXPORT_SYMBOL(usb_data_enabled);
+
+void usb_notify_control(bool data_enabled)
+{
+// #ifdef CONFIG_USB_DWC3
+	struct smb_charger *chg = chg_dev;
+	if(IS_ERR_OR_NULL(chg))
+		return;
+
+	usb_data_enabled = data_enabled;
+
+	if(!data_enabled){
+		pr_info("disable usb");
+		notify_device_mode(chg, false);
+		notify_usb_host(chg, false);
+		return;
+	}
+
+	if((chg->real_charger_type == POWER_SUPPLY_TYPE_USB) || 
+		(chg->real_charger_type == POWER_SUPPLY_TYPE_USB_CDP)){
+		notify_device_mode(chg, true);
+		pr_info("enable usb device");
+	}
+	
+	if(chg->otg_present){
+		notify_usb_host(chg, true);
+		pr_info("enable usb host");
+	}
+// #endif
+}
+EXPORT_SYMBOL(usb_notify_control);
+/*HS60 add for P220517-05405 usb_date_enable by duanweiping at 20220613 end*/
 
 static int smb5_probe(struct platform_device *pdev)
 {

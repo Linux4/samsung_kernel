@@ -46,7 +46,6 @@
 /* huaqin add bringup nxp & foursemi smartpa by xudayi at 2019/07/15 start */
 /* HS60 add AR-ZQL1695-01-58 exchange nxp and foursemi i2c address by xudayi at 2019/07/30 start */
 &i2c_2 {
-
 	fs16xx@36 {
 		status = "okay";
 		compatible = "foursemi,fs16xx";
@@ -111,7 +110,6 @@
 	};
 };
 /* huaqin add bringup nxp & foursemi smartpa by xudayi at 2019/07/15 end */
-
 /* huaqin add ZQL1693-73 change micbias to 2.4v by xudayi at 2019/11/08 start */
 &pmic_analog_codec {
 	qcom,cdc-micbias-cfilt-mv = <2400000>;

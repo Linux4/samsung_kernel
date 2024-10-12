@@ -224,6 +224,9 @@ static void smblib_notify_extcon_props(struct smb_charger *chg, int id)
 				EXTCON_PROP_USB_SS, val);
 }
 
+/*HS60 add for P220517-05405 add usb_date_enable by duanweiping at 20220615 start*/
+extern bool usb_data_enabled;
+/*HS60 add for P220517-05405 add usb_date_enable by duanweiping at 20220615 end*/
 static void smblib_notify_device_mode(struct smb_charger *chg, bool enable)
 {
 #ifdef CONFIG_USB_NOTIFY_LAYER
@@ -232,15 +235,22 @@ static void smblib_notify_device_mode(struct smb_charger *chg, bool enable)
 	smblib_dbg(chg, PR_MISC, "enable=%d\n", enable);
 #endif
 
-	if (enable)
+	if (enable && usb_data_enabled )
 		smblib_notify_extcon_props(chg, EXTCON_USB);
 
-	extcon_set_state_sync(chg->extcon, EXTCON_USB, enable);
+	extcon_set_state_sync(chg->extcon, EXTCON_USB,(enable && usb_data_enabled));
 
 #ifdef CONFIG_USB_NOTIFY_LAYER
 	send_otg_notify(o_notify, NOTIFY_EVENT_VBUS, enable);
 #endif
 }
+
+/*HS60 add for P220517-05405 add usb_date_enable by duanweiping at 20220613 start*/
+inline void notify_device_mode(struct smb_charger *chg, bool enable)
+{
+	smblib_notify_device_mode(chg,enable);
+}
+/*HS60 add for P220517-05405 add usb_date_enable by duanweiping at 20220613 end*/
 
 static void smblib_notify_usb_host(struct smb_charger *chg, bool enable)
 {
@@ -260,15 +270,22 @@ static void smblib_notify_usb_host(struct smb_charger *chg, bool enable)
 	smblib_dbg(chg, PR_MISC, "enable=%d\n", enable);
 #endif
 
-	if (enable)
+	if (enable && usb_data_enabled)
 		smblib_notify_extcon_props(chg, EXTCON_USB_HOST);
 
-	extcon_set_state_sync(chg->extcon, EXTCON_USB_HOST, enable);
+	extcon_set_state_sync(chg->extcon, EXTCON_USB_HOST, (enable && usb_data_enabled));
 
 #ifdef CONFIG_USB_NOTIFY_LAYER
 	send_otg_notify(o_notify, NOTIFY_EVENT_HOST, enable);
 #endif
 }
+
+/*HS60 add for P220517-05405 add usb_date_enable by duanweiping at 20220613 start*/
+inline void notify_usb_host(struct smb_charger *chg, bool enable)
+{
+	smblib_notify_usb_host(chg,enable);
+}
+/*HS60 add for P220517-05405 add usb_date_enable by duanweiping at 20220613 end*/
 
 /********************
  * REGISTER GETTERS *
@@ -2384,10 +2401,11 @@ int smblib_get_prop_batt_status(struct smb_charger *chg,
 #define SLOW_CHARGING_CURRENT_STANDARD 400000
 #define SLOW_CHARGING_COUNT  10
 /*HS50 add for P200213-04659 Slow Charging Optimize by wenyaqi at 20210301 start*/
+/*HS60 add for P220315-05837 Slow Charging Optimize by gengyifei at 20220329 start*/
+#if 0
 #define SLOW_CHARGING_COUNT_POWERON  3
 #define BOOT_MODE_STR_LEN 7
 static char boot_mode_from_cmdline[BOOT_MODE_STR_LEN + 1];
-
 static int __init boot_mode_setup(char *str)
 {
 	strlcpy(boot_mode_from_cmdline, str,
@@ -2402,6 +2420,8 @@ bool boot_mode_is(char* str)
 	return !strncmp(boot_mode_from_cmdline, str,
 		BOOT_MODE_STR_LEN + 1);
 }
+#endif
+/*HS60 add for P220315-05837 Slow Charging Optimize by gengyifei at 20220329 end*/
 /*HS50 add for P200213-04659 Slow Charging Optimize by wenyaqi at 20210301 end*/
 #endif
 /* HS60 add for SR-ZQL1695-01000000467 Provide sysFS node named xxx/battery/charge_type by gaochao at 2019/08/14 end */
@@ -2415,7 +2435,9 @@ int smblib_get_prop_batt_charge_type(struct smb_charger *chg,
 	#if !defined(HQ_FACTORY_BUILD)	//ss version
 	int settled_icl = 0;
 	/*HS50 add for P200213-04659 Slow Charging Optimize by wenyaqi at 20210301 start*/
-	int slow_charging_count = 0;
+	/*HS60 add for P220315-05837 Slow Charging Optimize by gengyifei at 20220329 start*/
+	//int slow_charging_count = 0;
+	/*HS60 add for P220315-05837 Slow Charging Optimize by gengyifei at 20220329 end*/
 	/*HS50 add for P200213-04659 Slow Charging Optimize by wenyaqi at 20210301 end*/
 	#endif
 	/* HS60 add for SR-ZQL1695-01000000467 Provide sysFS node named xxx/battery/charge_type by gaochao at 2019/08/14 end */
@@ -2452,14 +2474,17 @@ int smblib_get_prop_batt_charge_type(struct smb_charger *chg,
 	}
 	/* HS60 add for P191114-09571  by wangzikang at 2019/11/26 start */
 	/*HS50 add for P200213-04659 Slow Charging Optimize by wenyaqi at 20210301 start*/
+	/*HS60 add for P220315-05837 Slow Charging Optimize by gengyifei at 20220329 start*/
+	#if 0
 	if(boot_mode_is("charger"))
 		slow_charging_count = SLOW_CHARGING_COUNT;
 	else
 		slow_charging_count = SLOW_CHARGING_COUNT_POWERON;
+	#endif
 	/*HS50 add for P200213-04659 Slow Charging Optimize by wenyaqi at 20210301 end*/
 	/*HS60 add for P200213-04659 Slow Charging Optimize by wangzikang at 2020/02/14 start*/
 	/*HS50 add for P200213-04659 Slow Charging Optimize by wenyaqi at 20210301 start*/
-	if ((chg->slow_charging_count <= slow_charging_count) && (chg->real_charger_type != POWER_SUPPLY_TYPE_UNKNOWN))
+	if ((chg->slow_charging_count <= SLOW_CHARGING_COUNT) && (chg->real_charger_type != POWER_SUPPLY_TYPE_UNKNOWN))
 	{
 		chg->slow_charging_count++;
 	}
@@ -2473,7 +2498,8 @@ int smblib_get_prop_batt_charge_type(struct smb_charger *chg,
 	//if (settled_icl < SLOW_CHARGING_CURRENT_STANDARD  && val->intval != POWER_SUPPLY_CHARGE_TYPE_NONE)
 	//if (((settled_icl < SLOW_CHARGING_CURRENT_STANDARD) && !chg->flash_active)  && (val->intval != POWER_SUPPLY_CHARGE_TYPE_NONE))
 	if (((settled_icl < SLOW_CHARGING_CURRENT_STANDARD) && !chg->flash_active)  && (val->intval != POWER_SUPPLY_CHARGE_TYPE_NONE)
-		&& (chg->slow_charging_count > slow_charging_count) && (chg->real_charger_type != POWER_SUPPLY_TYPE_UNKNOWN))
+		&& (chg->slow_charging_count > SLOW_CHARGING_COUNT) && (chg->real_charger_type != POWER_SUPPLY_TYPE_UNKNOWN))
+	/*HS60 add for P220315-05837 Slow Charging Optimize by gengyifei at 20220329 end*/
 	/*HS50 add for P200213-04659 Slow Charging Optimize by wenyaqi at 20210301 end*/
 	/* HS60 add for P191114-09571  by wangzikang at 2019/11/26 end */
 	{

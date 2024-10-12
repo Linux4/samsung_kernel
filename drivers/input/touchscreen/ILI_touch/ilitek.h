@@ -510,7 +510,9 @@ enum TP_DATA_FORMAT {
 #define GESTURE_S					0x6A
 #define GESTURE_Z					0x6B
 /* HS70 add for SR-ZQL1871-01-177 by gaozhengwei at 2019/11/02 start */
-#define KEY_GESTURE_POWER				KEY_HOMEPAGE
+/* HS70 HS50 add for P210915-03922 all screen issue by zhangkexin at 2021/9/17 start */
+#define KEY_GESTURE_POWER				KEY_WAKEUP
+/* HS70 HS50 add for P210915-03922 all screen issue by zhangkexin at 2021/9/17 end */
 /* HS70 add for SR-ZQL1871-01-177 by gaozhengwei at 2019/11/02 end */
 #define KEY_GESTURE_UP					KEY_UP
 #define KEY_GESTURE_DOWN				KEY_DOWN

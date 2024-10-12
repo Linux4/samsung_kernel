@@ -10,15 +10,16 @@ qcom,4099511_Huaqin_QL1695_ATL_3000mAH_PMI632 {
 	/* HS60 add for SR-ZQL1695-01-357 Import battery aging by gaochao at 2019/08/29 end */
 	/* HS70 add for HS70-135 Distinguish HS60 and HS70 charging by gaochao at 2019/10/03 start */
 	qcom,hs60-define-enable;
-	/* HS70 add for HS70-135 Distinguish HS60 and HS70 charging by gaochao at 2019/10/03 end */
 	/* HS50 add for SR-QL3095-01-67 Distinguish HS60, HS70 and HS50 charging by wenyaqi at 2020/8/3 start */
 	qcom,distinguish-hs-projects = <0>;
 	/* HS50 add for SR-QL3095-01-67 Distinguish HS60, HS70 and HS50 charging by wenyaqi at 2020/8/3 end */
+	/* HS70 add for HS70-135 Distinguish HS60 and HS70 charging by gaochao at 2019/10/03 end */
 	qcom,batt-id-kohm = <47>;
 	qcom,battery-beta = <3380>;
 	qcom,battery-therm-kohm = <10>;
 	qcom,battery-type = "4099511_Huaqin_QL1695_ATL_3000mAH_PMI632_averaged_MasterSlave_Aug7th2019";
 	qcom,qg-batt-profile-ver = <100>;
+
 	/*HS60 add for ZQL1693-50 by wangzikang at 2019/09/26 start*/
 	/*HS60 add for ZQL1693-58 by wangzikang at 2019/10/18 start*/
 	/* HS60 add for ZQL1693-60 Encrease FCC to 1800mA to trigger TA(5V/1.55A) more ICL by gaochao at 2019/11/05 start */

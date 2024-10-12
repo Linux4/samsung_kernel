@@ -26,11 +26,12 @@
 #define QUEST_CMD_LIST		3
 #define QUEST_CMD_SIZE		64
 #define QUEST_MAIN_CMD_LIST	2
-#define STEP_MAIN_HLOS_TIMEOUT 	3000
+#define STEP_MAIN_HLOS_TIMEOUT 	5400
 #define BUFF_SZ 			256
 #define MAX_DDR_ERR_ADDR_CNT 64
 #define CPR_BPS_SZ_BYTE		256
-#define QUEST_CPR_MODE_CNT 9
+#define QUEST_CPR_MODE_CNT 10
+#define MAIN_QUEST_QUEFI_REPEATS 2
 
 
 /*
@@ -120,7 +121,37 @@ So, let's call proper shell script as concept of STEP_SDMDL
 #define QUEST_CLEAR_ITEM_SUBITEM_RESULT(data, item) \
 	((data) = (((data)&(~((uint64_t)0x3<<((item))*2))) | ((uint64_t)0x0 << ((item) *2))))	
 #define QUEST_SET_BIT_WITH_SHIFT(data, layer, code) \
-	((data) |= ((data) | ((uint64_t)0x1 << (code)<<((layer)*QUEST_MAX_ERR_CODES_AT_ONE_LAYER)))) 
+	((data) |= ((data) | ((uint64_t)0x1 << (code)<<((layer)*QUEST_MAX_ERR_CODES_AT_ONE_LAYER))))
+
+
+/* smddl variable */
+#define QUEST_UPDATE_SMDDL_INFO(param_member) \
+	if( param_quest_data.num_smd_try == 1 ) \
+		param_member##_first = param_member;
+
+#define QUEST_UPDATE_SMDDL_INFO_WITH_VAL(param_first_member, val) \
+	do { \
+		if( param_quest_data.num_smd_try == 1 ) {\
+			param_first_member = val; \
+		}\
+	} while(0)
+
+#define QUEST_UPDATE_SMDDL_INFO_WITH_VAL_AND_RET(param_first_member, val, ret) \
+	do { \
+		if( param_quest_data.num_smd_try == 1 ) {\
+			param_first_member = val; \
+			ret = 1; \
+		}else \
+			ret = 0; \
+	} while(0)
+
+#define QUEST_UPDATE_SMDDL_INFO_WITH_STRING(param_first_member, str, len) \
+	do { \
+		if( param_quest_data.num_smd_try == 1 ) { \
+			strncpy(param_first_member, str, len); \
+		} \
+	} while(0)
+	
 
 
 
@@ -149,14 +180,21 @@ enum quest_enum_item {
 
 enum quest_enum_smd_subitem {
 	SUBITEM_NONE = 0,
-	SUBITEM_DDRSCANLOADER,
+	SUBITEM_DDRSCANLOADER = 1,
 #if defined(CONFIG_SEC_QUEST_EDL)
-	SUBITEM_QUESTSUEFI_GROUP1,
+	SUBITEM_QUESTSUEFI_FIRST = 2,
+	SUBITEM_QUESTSUEFI_GROUP1 = SUBITEM_QUESTSUEFI_FIRST,
 	SUBITEM_QUESTSUEFI_GROUP2,
 	SUBITEM_QUESTSUEFI_GROUP3,
 	SUBITEM_QUESTSUEFI_GROUP4,
 	SUBITEM_QUESTSUEFI_GROUP5,
-	SUBITEM_QUESTQUEFI_GROUP1,
+	SUBITEM_QUESTSUEFI_GROUP6,
+	SUBITEM_QUESTSUEFI_GROUP7,
+	SUBITEM_QUESTSUEFI_GROUP8,
+	SUBITEM_QUESTSUEFI_GROUP9,
+	SUBITEM_QUESTSUEFI_LAST = SUBITEM_QUESTSUEFI_GROUP9,
+	SUBITEM_QUESTQUEFI_FIRST = 11,
+	SUBITEM_QUESTQUEFI_GROUP1 = SUBITEM_QUESTQUEFI_FIRST,
 	SUBITEM_QUESTQUEFI_GROUP2,
 	SUBITEM_QUESTQUEFI_GROUP3,
 	SUBITEM_QUESTQUEFI_GROUP4,
@@ -164,7 +202,8 @@ enum quest_enum_smd_subitem {
 	SUBITEM_QUESTQUEFI_GROUP6,
 	SUBITEM_QUESTQUEFI_GROUP7,
 	SUBITEM_QUESTQUEFI_GROUP8,
-	SUBITEM_QUESTQUEFI_GROUP9,	
+	SUBITEM_QUESTQUEFI_GROUP9,
+	SUBITEM_QUESTQUEFI_LAST = SUBITEM_QUESTQUEFI_GROUP9,
 #else
 	SUBITEM_QUESTQUEFI,
 	SUBITEM_QUESTSUEFILIGHTCRYPTO,
@@ -320,14 +359,20 @@ struct param_quest_t {
 	uint32_t smd_quefi_total_pause_time_first;
 	/* smddl information */
 
-	struct param_quest_cpr_t smd_cx_cpr[QUEST_CPR_MODE_CNT];
-	struct param_quest_cpr_t smd_mx_cpr[QUEST_CPR_MODE_CNT];
-
-	struct param_quest_cpr_t curr_cx_cpr[QUEST_CPR_MODE_CNT];
-	struct param_quest_cpr_t curr_mx_cpr[QUEST_CPR_MODE_CNT];
-
 	uint32_t smd_max_aoss_thermal_diff;
 	uint32_t smd_max_aoss_thermal_diff_first;
+
+	uint64_t real_smd_register_value;
+	uint64_t ap_serial;
+
+	uint32_t num_smd_try;
+
+	uint32_t smd_ft_self_cooling_time;
+	uint32_t smd_ft_thermal_after_self_cooling;
+
+	uint32_t smd_cper;
+
+	uint32_t quest_fv_flashed;	
 
 };
 

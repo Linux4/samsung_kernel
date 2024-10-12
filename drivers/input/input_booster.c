@@ -553,7 +553,7 @@ void init_sysfs_device(struct class* sysfs_class, struct t_ib_device_tree* ib_dt
 	}
 }
 
-int is_ib_init_succeed()
+int is_ib_init_succeed(void)
 {
 	return (ib_trigger != NULL && ib_device_trees != NULL &&
 		ib_list != NULL && qos_list != NULL) ? 1 : 0;
