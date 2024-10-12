@@ -70,7 +70,7 @@
 #define ISP_VENDOR_QC      'Q' // Q means qualcomm
 #endif
 
-#define CAM_CAL_BRINGUP "[cam_cal]"
+#define CAM_CAL_BRINGUP "[cam_cal D/D]"
 
 extern struct kset *devices_kset;
 
@@ -215,6 +215,49 @@ enum sensor_position map_position(enum IMGSENSOR_SENSOR_IDX img_position)
 	};
 }
 
+bool is_valid_sensor_position(int position)
+{
+	if (position >= SENSOR_POSITION_MAX)
+		return false;
+
+	return true;
+}
+
+enum IMGSENSOR_SENSOR_IDX imgsensor_get_sensor_idx(unsigned int sensor_id)
+{
+	int i = 0;
+	int max_num_of_rom_info = ARRAY_SIZE(vendor_rom_info);
+	enum sensor_position imgsensor_position = SENSOR_POSITION_NONE;
+
+	for (i = 0; i < max_num_of_rom_info; i++) {
+		if (vendor_rom_info[i].sensor_id_with_rom == sensor_id) {
+			imgsensor_position = vendor_rom_info[i].sensor_position;
+			pr_info(CAM_CAL_BRINGUP "[%s] sensor_id: %#06x, sensor position: %d",
+					__func__, sensor_id, imgsensor_position);
+			break;
+		}
+	}
+
+	switch (imgsensor_position) {
+	case SENSOR_POSITION_REAR:
+		return IMGSENSOR_SENSOR_IDX_MAIN;
+	case SENSOR_POSITION_FRONT:
+		return IMGSENSOR_SENSOR_IDX_SUB;
+	case SENSOR_POSITION_REAR2:
+		return IMGSENSOR_SENSOR_IDX_MAIN2;
+	case SENSOR_POSITION_REAR3:
+		return IMGSENSOR_SENSOR_IDX_SUB2;
+	case SENSOR_POSITION_REAR4:
+		return IMGSENSOR_SENSOR_IDX_MAIN3;
+	case SENSOR_POSITION_MAX:
+		return IMGSENSOR_SENSOR_IDX_MAX_NUM;
+	case SENSOR_POSITION_NONE:
+		return IMGSENSOR_SENSOR_IDX_NONE;
+	default:
+		return IMGSENSOR_SENSOR_IDX_NONE;
+	};
+}
+
 void update_curr_sensor_pos(int sensorId) {
 	int remapped_device_id = (int)map_position(sensorId);
 	current_sensor_pos = remapped_device_id;
@@ -244,7 +287,7 @@ void init_cam_hwparam(int position)
 
 int imgsensor_get_cal_buf(int position, char **buf)
 {
-	if (position >= SENSOR_POSITION_MAX) {
+	if (!is_valid_sensor_position(position)) {
 		pr_err("position %d exceeds available index(%d)", position, SENSOR_POSITION_MAX-1);
 		return -EINVAL;
 	}
@@ -260,7 +303,7 @@ int imgsensor_get_cal_buf(int position, char **buf)
 
 int imgsensor_get_cal_size(int position)
 {
-	if (position >= SENSOR_POSITION_MAX)
+	if (!is_valid_sensor_position(position))
 		return 0;
 
 	return g_cal_buf_size[position];
@@ -283,6 +326,9 @@ const struct rom_cal_addr *imgsensor_get_cal_addr_by_sensor_idx(int sensor_idx, 
 	int position = map_position(sensor_idx);
 	const struct imgsensor_vendor_rom_addr *rom_addr;
 	const struct rom_cal_addr *cal_addr = NULL;
+
+	if (!is_valid_sensor_position(position))
+		return NULL;
 
 	if (vendor_rom_addr[position] == NULL) {
 		pr_err("[%s] vendor_rom_addr is NULL", __func__);
@@ -315,7 +361,7 @@ bool imgsensor_get_sac_value_by_sensor_idx(int sensor_idx, u8 *ac_mode, u8 *ac_t
 	int32_t sac_mode_addr; //ac_mode
 	int32_t sac_time_addr; //ac_time
 
-	if (vendor_rom_addr[position] == NULL) {
+	if (position >= SENSOR_POSITION_MAX || vendor_rom_addr[position] == NULL) {
 		pr_err("[%s] fail, Rom addr is NULL\n", __func__);
 		return false;
 	}
@@ -1245,17 +1291,17 @@ static ssize_t rear_camera_hw_param_show(struct device *dev,
 	}
 
 	if (imgsensor_sec_is_valid_moduleid(finfo[position]->rom_module_id)) {
-		return sprintf(buf, "\"CAMIR_ID\":\"%c%c%c%c%cXX%02X%02X%02X\",\"I2CR_AF\":\"%d\",\"I2CR_SEN\":\"%d\","
+		return sprintf(buf, "\"CAMIR_ID\":\"%c%c%c%c%cXX%02X%02X%02X\",\"I2CR_AF\":\"%d\",\"I2CR_OIS\":\"%d\",\"I2CR_SEN\":\"%d\","
 		"\"MIPIR_SEN\":\"%d\"\n",
 					finfo[position]->rom_module_id[0], finfo[position]->rom_module_id[1],
 					finfo[position]->rom_module_id[2], finfo[position]->rom_module_id[3],
 					finfo[position]->rom_module_id[4], finfo[position]->rom_module_id[7],
 					finfo[position]->rom_module_id[8], finfo[position]->rom_module_id[9],
-					ec_param->i2c_af_err_cnt, ec_param->i2c_sensor_err_cnt, ec_param->mipi_sensor_err_cnt);
+					ec_param->i2c_af_err_cnt, ec_param->i2c_ois_err_cnt, ec_param->i2c_sensor_err_cnt, ec_param->mipi_sensor_err_cnt);
 	} else {
-		return sprintf(buf, "\"CAMIR_ID\":\"MIR_ERR\",\"I2CR_AF\":\"%d\",\"I2CR_SEN\":\"%d\","
+		return sprintf(buf, "\"CAMIR_ID\":\"MIR_ERR\",\"I2CR_AF\":\"%d\",\"I2CR_OIS\":\"%d\",\"I2CR_SEN\":\"%d\","
 		"\"MIPIR_SEN\":\"%d\"\n",
-					ec_param->i2c_af_err_cnt, ec_param->i2c_sensor_err_cnt, ec_param->mipi_sensor_err_cnt);
+					ec_param->i2c_af_err_cnt, ec_param->i2c_ois_err_cnt, ec_param->i2c_sensor_err_cnt, ec_param->mipi_sensor_err_cnt);
 	}
 }
 
@@ -1391,7 +1437,7 @@ static ssize_t front_camera_hw_param_show(struct device *dev,
 
 	if (imgsensor_sec_is_valid_moduleid(finfo[position]->rom_module_id)) {
 		return sprintf(buf, "\"CAMIF_ID\":\"%c%c%c%c%cXX%02X%02X%02X\",\"I2CF_SEN\":\"%d\","
-		"\"MIPIR_SEN\":\"%d\"\n",
+		"\"MIPIF_SEN\":\"%d\"\n",
 					finfo[position]->rom_module_id[0], finfo[position]->rom_module_id[1],
 					finfo[position]->rom_module_id[2], finfo[position]->rom_module_id[3],
 					finfo[position]->rom_module_id[4], finfo[position]->rom_module_id[7],
@@ -1399,7 +1445,7 @@ static ssize_t front_camera_hw_param_show(struct device *dev,
 					ec_param->i2c_sensor_err_cnt, ec_param->mipi_sensor_err_cnt);
 	} else {
 		return sprintf(buf, "\"CAMIF_ID\":\"MIR_ERR\",\"I2CF_SEN\":\"%d\","
-		"\"MIPIR_SEN\":\"%d\"\n",
+		"\"MIPIF_SEN\":\"%d\"\n",
 					ec_param->i2c_sensor_err_cnt, ec_param->mipi_sensor_err_cnt);
 	}
 }
@@ -1515,7 +1561,7 @@ static ssize_t rear2_camera_hw_param_show(struct device *dev,
 
 	if (imgsensor_sec_is_valid_moduleid(finfo[position]->rom_module_id)) {
 		return sprintf(buf, "\"CAMIR2_ID\":\"%c%c%c%c%cXX%02X%02X%02X\",\"I2CR2_SEN\":\"%d\","
-		"\"MIPIR_SEN\":\"%d\"\n",
+		"\"MIPIR2_SEN\":\"%d\"\n",
 					finfo[position]->rom_module_id[0], finfo[position]->rom_module_id[1],
 					finfo[position]->rom_module_id[2], finfo[position]->rom_module_id[3],
 					finfo[position]->rom_module_id[4], finfo[position]->rom_module_id[7],
@@ -1523,7 +1569,7 @@ static ssize_t rear2_camera_hw_param_show(struct device *dev,
 					ec_param->i2c_sensor_err_cnt, ec_param->mipi_sensor_err_cnt);
 	} else {
 		return sprintf(buf, "\"CAMIR2_ID\":\"MIR_ERR\",\"I2CR2_SEN\":\"%d\","
-		"\"MIPIR_SEN\":\"%d\"\n",
+		"\"MIPIR2_SEN\":\"%d\"\n",
 					ec_param->i2c_sensor_err_cnt, ec_param->mipi_sensor_err_cnt);
 	}
 }
@@ -1657,7 +1703,7 @@ static ssize_t camera_rear3_info_show(struct device *dev,
 static ssize_t rear3_camera_hw_param_show(struct device *dev,
 				struct device_attribute *attr, char *buf)
 {
-	int position = SENSOR_POSITION_REAR;
+	int position = SENSOR_POSITION_REAR3;
 	struct cam_hw_param *ec_param = NULL;
 
 	if (!imgsensor_sec_check_rom_ver(position)) {
@@ -1672,7 +1718,7 @@ static ssize_t rear3_camera_hw_param_show(struct device *dev,
 
 	if (imgsensor_sec_is_valid_moduleid(finfo[position]->rom_module_id)) {
 		return sprintf(buf, "\"CAMIR3_ID\":\"%c%c%c%c%cXX%02X%02X%02X\",\"I2CR3_SEN\":\"%d\","
-		"\"MIPIR_SEN\":\"%d\"\n",
+		"\"MIPIR3_SEN\":\"%d\"\n",
 					finfo[position]->rom_module_id[0], finfo[position]->rom_module_id[1],
 					finfo[position]->rom_module_id[2], finfo[position]->rom_module_id[3],
 					finfo[position]->rom_module_id[4], finfo[position]->rom_module_id[7],
@@ -1680,7 +1726,7 @@ static ssize_t rear3_camera_hw_param_show(struct device *dev,
 					ec_param->i2c_sensor_err_cnt, ec_param->mipi_sensor_err_cnt);
 	} else {
 		return sprintf(buf, "\"CAMIR3_ID\":\"MIR_ERR\",\"I2CR3_SEN\":\"%d\","
-		"\"MIPIR_SEN\":\"%d\"\n",
+		"\"MIPIR3_SEN\":\"%d\"\n",
 					ec_param->i2c_sensor_err_cnt, ec_param->mipi_sensor_err_cnt);
 	}
 }
@@ -1804,7 +1850,7 @@ static ssize_t rear4_camera_hw_param_show(struct device *dev,
 
 	if (imgsensor_sec_is_valid_moduleid(finfo[position]->rom_module_id)) {
 			return sprintf(buf, "\"CAMIR4_ID\":\"%c%c%c%c%cXX%02X%02X%02X\",\"I2CR4_SEN\":\"%d\","
-		"\"MIPIR_SEN\":\"%d\"\n",
+		"\"MIPIR4_SEN\":\"%d\"\n",
 					finfo[position]->rom_module_id[0], finfo[position]->rom_module_id[1],
 					finfo[position]->rom_module_id[2], finfo[position]->rom_module_id[3],
 					finfo[position]->rom_module_id[4], finfo[position]->rom_module_id[7],
@@ -1812,7 +1858,7 @@ static ssize_t rear4_camera_hw_param_show(struct device *dev,
 					ec_param->i2c_sensor_err_cnt, ec_param->mipi_sensor_err_cnt);
 	} else {
 			return sprintf(buf, "\"CAMIR4_ID\":\"MIR_ERR\",\"I2CR4_SEN\":\"%d\","
-		"\"MIPIR_SEN\":\"%d\"\n",
+		"\"MIPIR4_SEN\":\"%d\"\n",
 					ec_param->i2c_sensor_err_cnt, ec_param->mipi_sensor_err_cnt);
 	}
 }
@@ -2641,6 +2687,8 @@ bool imgsensor_get_adaptive_mipi_status(int position)
 	struct imgsensor_cam_info *cam_info;
 
 	position = map_position(position);
+	if (position >= CAM_INFO_MAX)
+		return false;
 	cam_info = &(cam_infos[position]);
 
 	return cam_info->use_adaptive_mipi;
@@ -3183,6 +3231,103 @@ void imgsensor_destroy_front_sysfs(void)
 }
 #endif //FRONT_CAMERA
 
+
+//#define CDR_VALUE_SETTING // TODO Implement rear/cam_cdr_value in C-Phy project
+struct imgsensor_cdr_info {
+#ifdef CDR_VALUE_SETTING
+	char value[50];
+#endif
+	char result[10];
+	char fastaec[4];
+};
+
+#ifdef CDR_VALUE_SETTING
+struct imgsensor_cdr_info cdr_info = {{'\0'}, {'\0'}, {'\0'}};
+#else
+struct imgsensor_cdr_info cdr_info = {{'\0'}, {'\0'}};
+#endif
+
+#ifdef CDR_VALUE_SETTING
+static ssize_t cam_cdr_value_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	return snprintf(buf, sizeof(cdr_info.value), "%s", cdr_info.value);
+}
+
+static ssize_t cam_cdr_value_store(struct device *dev,
+	struct device_attribute *attr, const char *buf, size_t size)
+{
+	return snprintf(cdr_info.value, sizeof(cdr_info.value), "%s", buf);
+}
+
+static DEVICE_ATTR(cam_cdr_value, S_IRUSR|S_IWUSR|S_IRGRP|S_IWGRP|S_IROTH, cam_cdr_value_show, cam_cdr_value_store);
+#endif
+
+static ssize_t cam_cdr_result_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	return snprintf(buf, sizeof(cdr_info.result), "%s", cdr_info.result);
+}
+
+static ssize_t cam_cdr_result_store(struct device *dev,
+	struct device_attribute *attr, const char *buf, size_t size)
+{
+	return snprintf(cdr_info.result, sizeof(cdr_info.result), "%s", buf);
+}
+
+static ssize_t cam_cdr_fastaec_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+
+	return snprintf(buf, sizeof(cdr_info.fastaec), "%s", cdr_info.fastaec);
+}
+
+static ssize_t cam_cdr_fastaec_store(struct device *dev,
+	struct device_attribute *attr, const char *buf, size_t size)
+{
+	return snprintf(cdr_info.result, sizeof(cdr_info.fastaec), "%s", buf);
+}
+
+static DEVICE_ATTR(cam_cdr_result, S_IRUSR|S_IWUSR|S_IRGRP|S_IWGRP|S_IROTH, cam_cdr_result_show, cam_cdr_result_store);
+static DEVICE_ATTR(cam_cdr_fastaec, S_IRUSR|S_IWUSR|S_IRGRP|S_IWGRP|S_IROTH, cam_cdr_fastaec_show, cam_cdr_fastaec_store);
+
+static int create_cdr_sysfs(void)
+{
+	int ret = 0;
+
+	if (camera_rear_dev == NULL)
+		camera_rear_dev = device_create(camera_class, NULL, 1, NULL, "rear");
+
+	if (IS_ERR(camera_rear_dev)) {
+		pr_err("imgsensor_sysfs_init: failed to create device(rear)\n");
+		return -ENODEV;
+	}
+
+#ifdef CDR_VALUE_SETTING
+	if (device_create_file(camera_rear_dev, &dev_attr_cam_cdr_value) < 0)
+		printk(KERN_ERR "failed to create rear cdr value device file, %s\n",
+			dev_attr_cam_cdr_value.attr.name);
+#endif
+	if (device_create_file(camera_rear_dev, &dev_attr_cam_cdr_result) < 0)
+		printk(KERN_ERR "failed to create rear cdr result device file, %s\n",
+			dev_attr_cam_cdr_result.attr.name);
+
+	if (device_create_file(camera_rear_dev, &dev_attr_cam_cdr_fastaec) < 0)
+		printk(KERN_ERR "failed to create rear cdr fastaec device file, %s\n",
+			dev_attr_cam_cdr_fastaec.attr.name);
+
+	return ret;
+}
+
+void imgsensor_destroy_cdr_sysfs(void)
+{
+#ifdef CDR_VALUE_SETTING
+	device_remove_file(camera_rear_dev, &dev_attr_cam_cdr_value);
+#endif
+	device_remove_file(camera_rear_dev, &dev_attr_cam_cdr_result);
+	device_remove_file(camera_rear_dev, &dev_attr_cam_cdr_fastaec);
+}
+
 static void __exit imgsensor_destroy_sysfs(void)
 {
 	int i = 0;
@@ -3200,6 +3345,7 @@ static void __exit imgsensor_destroy_sysfs(void)
 #ifdef REAR_CAMERA4
 		imgsensor_destroy_rear4_sysfs();
 #endif //REAR_CAMERA4
+		imgsensor_destroy_cdr_sysfs();
 	}
 
 	for (i = 0; i < SENSOR_POSITION_MAX; i++) {
@@ -3277,6 +3423,8 @@ static int __init imgsensor_sysfs_init(void)
 #ifdef FRONT_CAMERA
 	create_front_sysfs(svc);
 #endif //FRONT_CAMERA
+
+	create_cdr_sysfs();
 
 	return ret;
 }

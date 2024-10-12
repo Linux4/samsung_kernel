@@ -138,7 +138,7 @@ struct mcu_info {
 	struct pinctrl_state *ois_vdd_low;
 	struct regulator *af_regulator;
 	int af_voltage;
-	bool power_on;
+	int power_count;
 	bool enabled;
 	int is_updated;
 	bool no_module_ver;

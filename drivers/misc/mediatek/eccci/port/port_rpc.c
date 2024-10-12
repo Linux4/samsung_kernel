@@ -206,29 +206,6 @@ static int get_md_gpio_info(char *gpio_name,
 	return gpio_id;
 }
 
-static void md_drdi_gpio_status_scan(void)
-{
-	int i;
-	int size;
-	int gpio_id;
-	int gpio_md_view;
-	char *curr;
-	int val;
-
-	CCCI_BOOTUP_LOG(0, RPC, "scan didr gpio status\n");
-	for (i = 0; i < ARRAY_SIZE(gpio_mapping_table); i++) {
-		curr = gpio_mapping_table[i].gpio_name_from_md;
-		size = strlen(curr) + 1;
-		gpio_md_view = -1;
-		gpio_id = get_md_gpio_info(curr, size, &gpio_md_view);
-		if (gpio_id >= 0) {
-			val = get_md_gpio_val(gpio_id);
-			CCCI_BOOTUP_LOG(0, RPC, "GPIO[%s]%d(%d@md),val:%d\n",
-					curr, gpio_id, gpio_md_view, val);
-		}
-	}
-}
-
 static int get_dram_type_clk(int *clk, int *type)
 {
 	return -1;
@@ -1280,9 +1257,7 @@ static void rpc_msg_handler(struct port_t *port, struct sk_buff *skb)
 				skb->len, RPC_MAX_BUF_SIZE);
 		goto err_out;
 	}
-	if (rpc_buf->header.reserved < 0 ||
-		rpc_buf->header.reserved > RPC_REQ_BUFFER_NUM ||
-	    rpc_buf->para_num < 0 ||
+	if (rpc_buf->header.reserved > RPC_REQ_BUFFER_NUM ||
 		rpc_buf->para_num > RPC_MAX_ARG_NUM) {
 		CCCI_ERROR_LOG(md_id, RPC,
 			"invalid RPC index %d/%d\n",
@@ -1420,7 +1395,6 @@ static int port_rpc_init(struct port_t *port)
 	if (first_init) {
 		get_dtsi_eint_node(port->md_id);
 		get_md_dtsi_debug();
-		md_drdi_gpio_status_scan();
 		first_init = 0;
 	}
 	return 0;

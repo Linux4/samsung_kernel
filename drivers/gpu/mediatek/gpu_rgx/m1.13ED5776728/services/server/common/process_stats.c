@@ -1866,6 +1866,7 @@ PVRSRVStatsIncrMemAllocStatAndTrack(PVRSRV_MEM_ALLOC_TYPE eAllocType,
 				"*** %s : @ line %d Failed to alloc memory for psNewTrackingHashEntry!",
 				__func__, __LINE__));
 		return;
+		
 	}
 
 	/* Fill-in the size of the allocation and PID of the allocating process */
@@ -1884,8 +1885,8 @@ PVRSRVStatsIncrMemAllocStatAndTrack(PVRSRV_MEM_ALLOC_TYPE eAllocType,
 		PVR_DPF((PVR_DBG_ERROR, "*** %s : @ line %d HASH_Insert() failed!",
 				 __func__, __LINE__));
 		/* Free the memory allocated for psNewTrackingHashEntry, as we
-		 * failed to insert it into the Hash table.
-		 */
+		* failed to insert it into the Hash table.
+		*/
 		OSFreeMemNoStats(psNewTrackingHashEntry);
 	}
 }

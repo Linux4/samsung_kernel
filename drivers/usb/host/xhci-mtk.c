@@ -20,9 +20,17 @@
 #include <linux/regulator/consumer.h>
 #include <linux/proc_fs.h>
 #include <linux/seq_file.h>
+#if IS_ENABLED(CONFIG_MTK_USB_OFFLOAD)
+#include <linux/of_device.h>
+#include <linux/usb.h>
+#endif
 
 #include "xhci.h"
 #include "xhci-mtk.h"
+
+#if IS_ENABLED(CONFIG_MTK_USB_OFFLOAD)
+#include "usb_offload.h"
+#endif
 
 /* ip_pw_ctrl0 register */
 #define CTRL0_IP_SW_RST	BIT(0)
@@ -210,6 +218,28 @@ static void xhci_mtk_dbg_exit(struct xhci_hcd_mtk *mtk)
 			proc_remove(proc_files[idx]);
 	}
 }
+
+int mtk_xhci_wakelock_lock(struct xhci_hcd_mtk *mtk)
+{
+	struct xhci_hcd *xhci = hcd_to_xhci(mtk->hcd);
+
+	pm_stay_awake(mtk->dev);
+	xhci_info(xhci, "wakelock_lock\n");
+
+	return 0;
+}
+EXPORT_SYMBOL_GPL(mtk_xhci_wakelock_lock);
+
+int mtk_xhci_wakelock_unlock(struct xhci_hcd_mtk *mtk)
+{
+	struct xhci_hcd *xhci = hcd_to_xhci(mtk->hcd);
+
+	pm_relax(mtk->dev);
+	xhci_info(xhci, "wakelock_unlock\n");
+
+	return 0;
+}
+EXPORT_SYMBOL_GPL(mtk_xhci_wakelock_unlock);
 
 static int xhci_mtk_host_enable(struct xhci_hcd_mtk *mtk)
 {
@@ -469,9 +499,52 @@ static void usb_wakeup_set(struct xhci_hcd_mtk *mtk, bool enable)
 		usb_wakeup_ip_sleep_set(mtk, enable);
 }
 
+#if IS_ENABLED(CONFIG_MTK_USB_OFFLOAD)
+bool xhci_vendor_is_streaming(struct xhci_hcd *xhci)
+{
+	struct xhci_vendor_ops *ops = xhci_vendor_get_ops(xhci);
+
+	if (ops && ops->is_streaming)
+		return ops->is_streaming(xhci);
+	return 0;
+}
+
+static int xhci_mtk_bus_suspend(struct usb_hcd *hcd)
+{
+	struct xhci_hcd *xhci = hcd_to_xhci(hcd);
+	int ret;
+
+	if (xhci_vendor_is_streaming(xhci)) {
+		pr_info("%s - USB_OFFLOAD bypass\n", __func__);
+		return 0;
+	}
+	ret = xhci_bus_suspend(hcd);
+
+	return ret;
+}
+
+static int xhci_mtk_bus_resume(struct usb_hcd *hcd)
+{
+	struct xhci_hcd *xhci = hcd_to_xhci(hcd);
+	int ret;
+
+	if (xhci_vendor_is_streaming(xhci)) {
+		pr_info("%s - USB_OFFLOAD bypass\n", __func__);
+		return 0;
+	}
+	ret = xhci_bus_resume(hcd);
+
+	return ret;
+}
+#endif
+
 static int xhci_mtk_setup(struct usb_hcd *hcd);
 static const struct xhci_driver_overrides xhci_mtk_overrides __initconst = {
 	.reset = xhci_mtk_setup,
+#if IS_ENABLED(CONFIG_MTK_USB_OFFLOAD)
+	.bus_suspend = xhci_mtk_bus_suspend,
+	.bus_resume = xhci_mtk_bus_resume,
+#endif
 };
 
 static struct hc_driver __read_mostly xhci_mtk_hc_driver;
@@ -565,6 +638,11 @@ static int xhci_mtk_probe(struct platform_device *pdev)
 	struct xhci_hcd *xhci;
 	struct resource *res;
 	struct usb_hcd *hcd;
+#if IS_ENABLED(CONFIG_MTK_USB_OFFLOAD)
+	struct platform_device *offload_pdev;
+	struct device_node *offload_node;
+	struct xhci_vendor_ops *ops;
+#endif
 	int ret = -ENODEV;
 	int irq;
 
@@ -652,7 +730,7 @@ static int xhci_mtk_probe(struct platform_device *pdev)
 
 	res = platform_get_resource_byname(pdev, IORESOURCE_MEM, "ippc");
 	if (res) {	/* ippc register is optional */
-		mtk->ippc_regs = devm_ioremap_resource(dev, res);
+		mtk->ippc_regs = devm_ioremap(dev, res->start, resource_size(res));
 		if (IS_ERR(mtk->ippc_regs)) {
 			ret = PTR_ERR(mtk->ippc_regs);
 			goto put_usb2_hcd;
@@ -666,6 +744,25 @@ static int xhci_mtk_probe(struct platform_device *pdev)
 
 	xhci = hcd_to_xhci(hcd);
 	xhci->main_hcd = hcd;
+
+#if IS_ENABLED(CONFIG_MTK_USB_OFFLOAD)
+	/* get vendor_ops data */
+	offload_node = of_parse_phandle(node, "mediatek,usb-offload", 0);
+	if (offload_node) {
+		pr_info("%s %d\n", __func__, __LINE__);
+		offload_pdev = of_find_device_by_node(offload_node);
+		of_node_put(offload_node);
+		if (offload_pdev) {
+			ops = dev_get_drvdata(&offload_pdev->dev);
+			if (ops) {
+				dev_info(dev, "set offload vendor_ops data\n");
+				xhci->vendor_ops = ops;
+			} else
+				dev_info(dev, "failed to get offload data\n");
+		} else
+			dev_info(dev, "failed to get offload platform device\n");
+	}
+#endif
 
 	/*
 	 * imod_interval is the interrupt moderation value in nanoseconds.
@@ -695,6 +792,10 @@ static int xhci_mtk_probe(struct platform_device *pdev)
 		goto dealloc_usb2_hcd;
 
 	xhci_mtk_dbg_init(mtk);
+
+	device_set_wakeup_enable(&hcd->self.root_hub->dev, 1);
+	device_set_wakeup_enable(&xhci->shared_hcd->self.root_hub->dev, 1);
+	mtk_xhci_wakelock_lock(mtk);
 
 	return 0;
 
@@ -732,13 +833,29 @@ static int xhci_mtk_remove(struct platform_device *dev)
 
 	pm_runtime_put_noidle(&dev->dev);
 	pm_runtime_disable(&dev->dev);
-
+#if defined(CONFIG_USB_HOST_SAMSUNG_FEATURE)
+	/* In order to prevent kernel panic */
+	if (!pm_runtime_suspended(&xhci->shared_hcd->self.root_hub->dev)) {
+		pr_info("%s, shared_hcd pm_runtime_forbid\n", __func__);
+		pm_runtime_forbid(&xhci->shared_hcd->self.root_hub->dev);
+	}
+	if (!pm_runtime_suspended(&xhci->main_hcd->self.root_hub->dev)) {
+		pr_info("%s, main_hcd pm_runtime_forbid\n", __func__);
+		pm_runtime_forbid(&xhci->main_hcd->self.root_hub->dev);
+	}
+#endif
 	xhci->xhc_state |= XHCI_STATE_REMOVING;
-
+#ifdef CONFIG_USB_DEBUG_DETAILED_LOG
+	pr_info("%s - remove hcd (shared_hcd)\n", __func__);
+#endif
 	usb_remove_hcd(shared_hcd);
 	xhci->shared_hcd = NULL;
 	device_init_wakeup(&dev->dev, false);
 
+	mtk_xhci_wakelock_unlock(mtk);
+#ifdef CONFIG_USB_DEBUG_DETAILED_LOG
+	pr_info("%s - remove hcd (main)\n", __func__);
+#endif
 	usb_remove_hcd(hcd);
 	usb_put_hcd(shared_hcd);
 	usb_put_hcd(hcd);
@@ -763,6 +880,13 @@ static int __maybe_unused xhci_mtk_suspend(struct device *dev)
 	struct usb_hcd *hcd = mtk->hcd;
 	struct xhci_hcd *xhci = hcd_to_xhci(hcd);
 
+#if IS_ENABLED(CONFIG_MTK_USB_OFFLOAD)
+	if (xhci_vendor_is_streaming(xhci)) {
+		pr_info("%s - USB_OFFLOAD bypass\n", __func__);
+		return 0;
+	}
+#endif
+
 	xhci_dbg(xhci, "%s: stop port polling\n", __func__);
 	clear_bit(HCD_FLAG_POLL_RH, &hcd->flags);
 	del_timer_sync(&hcd->rh_timer);
@@ -780,6 +904,13 @@ static int __maybe_unused xhci_mtk_resume(struct device *dev)
 	struct xhci_hcd_mtk *mtk = dev_get_drvdata(dev);
 	struct usb_hcd *hcd = mtk->hcd;
 	struct xhci_hcd *xhci = hcd_to_xhci(hcd);
+
+#if IS_ENABLED(CONFIG_MTK_USB_OFFLOAD)
+	if (xhci_vendor_is_streaming(xhci)) {
+		pr_info("%s - USB_OFFLOAD bypass\n", __func__);
+		return 0;
+	}
+#endif
 
 	usb_wakeup_set(mtk, false);
 	xhci_mtk_clks_enable(mtk);

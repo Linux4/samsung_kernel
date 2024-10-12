@@ -53,6 +53,8 @@
 #include "sdio_ops.h"
 #include "mtk_mmc_block.h"
 #include "../host/mtk-sd-dbg.h"
+#include "block.h"
+
 /* The max erase timeout, used when host->max_busy_timeout isn't specified */
 #define MMC_ERASE_TIMEOUT_MS	(60 * 1000) /* 60 s */
 
@@ -465,8 +467,10 @@ static int mmc_blk_status_check(struct mmc_card *card, unsigned int *status)
 	err = mmc_wait_for_cmd(card->host, &cmd, retries);
 	if (err == 0)
 		*status = cmd.resp[0];
-	else
+	else {
+		mmc_error_count_log(card, MMC_CMD_OFFSET, err, 0);
 		pr_info("%s: err %d\n", __func__, err);
+	}
 
 	return err;
 }
@@ -925,8 +929,8 @@ int mmc_run_queue_thread(void *data)
 				err = mmc_blk_status_check(host->card, &status);
 				if (err)
 					pr_debug("[CQ] check card status error = %d\n", err);
-
-				mmc_card_error_logging(host->card, brq, status);
+				else
+					mmc_card_error_logging(host->card, brq, status);
 
 				mmc_wait_tran(host);
 				mmc_discard_cmdq(host);
@@ -1687,6 +1691,43 @@ int __mmc_claim_host(struct mmc_host *host, struct mmc_ctx *ctx,
 	return stop;
 }
 EXPORT_SYMBOL(__mmc_claim_host);
+
+/**
+ *     mmc_try_claim_host - try exclusively to claim a host
+ *        and keep trying for given time, with a gap of 10ms
+ *     @host: mmc host to claim
+ *     @dealy_ms: delay in ms
+ *
+ *     Returns %1 if the host is claimed, %0 otherwise.
+ */
+int mmc_try_claim_host(struct mmc_host *host, unsigned int delay_ms)
+{
+	int claimed_host = 0;
+	unsigned long flags;
+	int retry_cnt = delay_ms/10;
+	bool pm = false;
+
+	do {
+		spin_lock_irqsave(&host->lock, flags);
+		if (!host->claimed || mmc_ctx_matches(host, NULL, current)) {
+			host->claimed = 1;
+			mmc_ctx_set_claimer(host, NULL, current);
+			host->claim_cnt += 1;
+			claimed_host = 1;
+			if (host->claim_cnt == 1)
+				pm = true;
+		}
+		spin_unlock_irqrestore(&host->lock, flags);
+		if (!claimed_host)
+			mmc_delay(10);
+	} while (!claimed_host && retry_cnt--);
+
+	if (pm)
+		pm_runtime_get_sync(mmc_dev(host));
+
+	return claimed_host;
+}
+EXPORT_SYMBOL(mmc_try_claim_host);
 
 /**
  *	mmc_release_host - release a host
@@ -2920,7 +2961,8 @@ static int mmc_do_erase(struct mmc_card *card, unsigned int from,
 			pr_err("%s: Card stuck in programming state! %s\n",
 				mmc_hostname(card->host), __func__);
 			err =  -EIO;
-			goto out;
+				mmc_error_count_log(card, MMC_BUSY_OFFSET, -ETIMEDOUT, cmd.resp[0]);
+			goto busy_out;
 		}
 		if ((cmd.resp[0] & R1_READY_FOR_DATA) &&
 		    R1_CURRENT_STATE(cmd.resp[0]) != R1_STATE_PRG)
@@ -2932,6 +2974,9 @@ static int mmc_do_erase(struct mmc_card *card, unsigned int from,
 	} while (1);
 
 out:
+	if (err)
+		mmc_error_count_log(card, MMC_CMD_OFFSET, err, 0);
+busy_out:
 	mmc_retune_release(card->host);
 	return err;
 }
@@ -3088,7 +3133,7 @@ int mmc_can_sanitize(struct mmc_card *card)
 {
 	/* do not use sanitize*/
 	return 0;
-	
+
 	if (!mmc_can_trim(card) && !mmc_can_erase(card))
 		return 0;
 	if (card->ext_csd.sec_feature_support & EXT_CSD_SEC_SANITIZE)

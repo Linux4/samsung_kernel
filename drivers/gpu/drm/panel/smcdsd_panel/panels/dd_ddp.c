@@ -145,7 +145,7 @@ static int fb_notifier_callback(struct notifier_block *self,
 	int fb_blank;
 
 	switch (event) {
-	case FB_EVENT_BLANK:
+	case SMCDSD_EVENT_BLANK:
 	case SMCDSD_EARLY_EVENT_BLANK:
 		break;
 	default:
@@ -163,16 +163,16 @@ static int fb_notifier_callback(struct notifier_block *self,
 
 	if (event == SMCDSD_EARLY_EVENT_BLANK)
 		d->enable = 0;
-	else if (event == FB_EVENT_BLANK && fb_blank == FB_BLANK_UNBLANK)
+	else if (event == SMCDSD_EVENT_BLANK && fb_blank == FB_BLANK_UNBLANK)
 		d->enable = 1;
 
-	if (fb_blank == FB_BLANK_UNBLANK && event == FB_EARLY_EVENT_BLANK) {
+	if (fb_blank == FB_BLANK_UNBLANK && event == SMCDSD_EARLY_EVENT_BLANK) {
 		update_point(d->point, d->request_param, d->pending_param);
 		update_point(d->sub_point, d->request_param, d->pending_param);
 		update_clear(d->pending_param);
 	}
 
-	if (fb_blank == FB_BLANK_UNBLANK && event == FB_EVENT_BLANK)
+	if (fb_blank == FB_BLANK_UNBLANK && event == SMCDSD_EVENT_BLANK)
 		update_param(d->current_param, d->point, NULL);
 
 	return NOTIFY_DONE;
@@ -183,7 +183,10 @@ struct array_data {
 	void *array;
 	void *pending;
 	u32 elements;
+	struct list_head unused_node;	/* just to prevent prevent RESOURCE_LEAK */
 };
+
+static LIST_HEAD(u32_dummy_list);
 
 static ssize_t u32_array_write(struct file *f, const char __user *user_buf,
 					size_t count, loff_t *ppos)
@@ -293,7 +296,6 @@ static const struct file_operations u32_array_fops = {
 	.open		= u32_array_open,
 	.write		= u32_array_write,
 	.read		= seq_read,
-	.llseek		= no_llseek,
 	.release	= single_release,
 };
 
@@ -310,6 +312,9 @@ static struct dentry *debugfs_create_array(const char *name, umode_t mode,
 	data->pending = pending;
 
 	data->elements = elements;
+
+	INIT_LIST_HEAD(&data->unused_node);
+	list_add_tail(&data->unused_node, &u32_dummy_list);
 
 	return debugfs_create_file(name, mode, parent, data, &u32_array_fops);
 }
@@ -352,7 +357,7 @@ static int init_debugfs_lcd_info(struct d_info *d)
 		debugfs = debugfs_create_array(debugfs_list[i].sysfs_name, debugfs_list[i].mode, d->debugfs_root,
 			&d->request_param[i], &d->pending_param[i], count);
 
-		if (debugfs)
+		if (!IS_ERR_OR_NULL(debugfs))
 			dbg_info("%s is created and length is %d\n", debugfs_list[i].sysfs_name, debugfs_list[i].length);
 
 	}
@@ -431,8 +436,7 @@ static const struct file_operations status_fops = {
 	.open		= status_open,
 	.write		= status_write,
 	.read		= seq_read,
-	.llseek		= seq_lseek,
-	.release	= seq_release,
+	.release	= single_release,
 };
 
 static int regdump_show(struct seq_file *m, void *unused)
@@ -541,8 +545,7 @@ static const struct file_operations regdump_fops = {
 	.open		= regdump_open,
 	.write		= regdump_write,
 	.read		= seq_read,
-	.llseek		= seq_lseek,
-	.release	= seq_release,
+	.release	= single_release,
 };
 
 static int help_show(struct seq_file *m, void *unused)
@@ -562,7 +565,7 @@ static int help_show(struct seq_file *m, void *unused)
 	seq_puts(m, "------------------------------------------------------------\n");
 	seq_puts(m, "\n");
 	seq_puts(m, "----------\n");
-	seq_puts(m, "# cd /d/dd_ddp\n");
+	seq_puts(m, "# cd /d/dd/ddp\n");
 	seq_puts(m, "\n");
 	seq_puts(m, "---------- usage\n");
 	seq_puts(m, "1. you can request to change paremter like below\n");
@@ -629,8 +632,7 @@ static int help_open(struct inode *inode, struct file *f)
 static const struct file_operations help_fops = {
 	.open		= help_open,
 	.read		= seq_read,
-	.llseek		= seq_lseek,
-	.release	= seq_release,
+	.release	= single_release,
 };
 
 static int init_debugfs_ddp(void)
@@ -638,13 +640,17 @@ static int init_debugfs_ddp(void)
 	int ret = 0;
 	static struct dentry *debugfs_root;
 	struct d_info *d = NULL;
+	static struct dentry *dd_debugfs_root;
 
 	dbg_info("+\n");
 
 	d = kzalloc(sizeof(struct d_info), GFP_KERNEL);
 
+	dd_debugfs_root = debugfs_lookup("dd", NULL);
+	dd_debugfs_root = dd_debugfs_root ? dd_debugfs_root : debugfs_create_dir("dd", NULL);
+
 	if (!debugfs_root)
-		debugfs_root = debugfs_create_dir("dd_ddp", NULL);
+		debugfs_root = debugfs_create_dir("ddp", dd_debugfs_root);
 
 	d->debugfs_root = debugfs_root;
 

@@ -90,7 +90,7 @@ struct ccci_smem_region md1_6297_noncacheable_fat[] = {
 		{SMEM_USER_CCISM_MCU,		0,	(720+1)*1024, SMF_NCLR_FIRST, },
 		{SMEM_USER_CCISM_MCU_EXP,	0,	(120+1)*1024, SMF_NCLR_FIRST, },
 #ifdef CUST_FT_BIGDATA
-		{SMEM_USER_MD_BIGDATA,	0,	512,	0},
+		{SMEM_USER_MD_BIGDATA,	0,	2048,	0},
 		{SMEM_USER_MD_IPCA_BIGDATA,	0,	128,	0},
 #endif
 		{SMEM_USER_MAX, }, /* tail guard */
@@ -129,7 +129,7 @@ struct ccci_smem_region md1_6293_noncacheable_fat[] = {
 {SMEM_USER_CCISM_MCU,		160*1024, (720+1)*1024, SMF_NCLR_FIRST, },
 {SMEM_USER_CCISM_MCU_EXP,	881*1024, (120+1)*1024, SMF_NCLR_FIRST, },
 #ifdef CUST_FT_BIGDATA
-{SMEM_USER_MD_BIGDATA,	1002*1024,	512,	0},
+{SMEM_USER_MD_BIGDATA,	1002*1024,	2048,	0},
 {SMEM_USER_MD_IPCA_BIGDATA,	1002*1024+512,	128,	0},
 #endif
 {SMEM_USER_RAW_DFD,		1*1024*1024,	0,	0, },
@@ -2772,6 +2772,7 @@ int exec_ccci_kern_func_by_md_id(int md_id, unsigned int id, char *buf,
 		break;
 	case MD_DISPLAY_DYNAMIC_MIPI:
 		tmp_data = 0;
+		len = (len < sizeof(tmp_data)) ? len : sizeof(tmp_data);
 		memcpy((void *)&tmp_data, buf, len);
 		ret = ccci_port_send_msg_to_md(md_id, CCCI_SYSTEM_TX,
 			id, tmp_data, 0);

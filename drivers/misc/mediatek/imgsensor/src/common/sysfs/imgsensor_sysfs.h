@@ -241,6 +241,7 @@ int get_cam_info(struct imgsensor_cam_info **caminfo);
 int get_specific(struct imgsensor_vendor_specific **sys_specific);
 void imgsensor_get_common_cam_info(struct imgsensor_common_cam_info **caminfo);
 enum sensor_position map_position(enum IMGSENSOR_SENSOR_IDX img_position);
+enum IMGSENSOR_SENSOR_IDX imgsensor_get_sensor_idx(unsigned int sensor_id);
 void update_curr_sensor_pos(int sensorId);
 void update_mipi_sensor_err_cnt(void);
 unsigned int imgsensor_read_otp_cal(unsigned int dual_device_id, unsigned int sensor_id, unsigned int addr, unsigned char *data, unsigned int size);

@@ -145,7 +145,9 @@ char *g_hx_inspt_crtra_name[] = {
 extern int g_ts_dbg;
 
 extern bool hx_mcu_bin_desc_get(u8 *data, uint32_t max_sz);
+#ifdef HX_ZERO_FLASH
 extern int himax_zf_part_info(u8 *data);
+#endif
 
 extern struct fw_operation *pfw_op;
 /******************/
@@ -627,7 +629,9 @@ static void himax_set_N_frame(uint16_t Nframe, uint8_t checktype)
 		checktype == HIMAX_LPWUG_WEIGHT_NOISE ||
 		checktype == HIMAX_LPWUG_ABS_NOISE) {
 		if (strcmp(HX_83108A_SERIES_PWON, private_ts->chip_name) == 0
-			|| strcmp(HX_83112F_SERIES_PWON, private_ts->chip_name) == 0) {
+			|| strcmp(HX_83112F_SERIES_PWON, private_ts->chip_name) == 0
+			|| strcmp(HX_83102J_SERIES_PWON, private_ts->chip_name) == 0
+			|| strcmp(HX_83122A_SERIES_PWON, private_ts->chip_name) == 0) {
 			himax_neg_noise_sup(tmp_data);
 			I("%s: set neg: R%02X%02X%02X%02XH <= 0x%02X%02X%02X%02X\n",
 				__func__,
@@ -641,7 +645,7 @@ static void himax_set_N_frame(uint16_t Nframe, uint8_t checktype)
 
 static void himax_get_noise_base(uint8_t checktype)/*Normal Threshold*/
 {
-	uint8_t tmp_data[4];
+	uint8_t tmp_data[4] = {0};
 	uint8_t tmp_data2[4];
 
 	switch (checktype) {
@@ -2323,14 +2327,19 @@ static void himax_osr_ctrl(bool enable)
 
 	if (strcmp(HX_83108A_SERIES_PWON, private_ts->chip_name) == 0
 		|| strcmp(HX_83112F_SERIES_PWON, private_ts->chip_name) == 0
+		|| strcmp(HX_83122A_SERIES_PWON, private_ts->chip_name) == 0
 		|| strcmp(HX_83102J_SERIES_PWON, private_ts->chip_name) == 0) {
-		tmp_addr[3] = 0x10; tmp_addr[2] = 0x00; tmp_addr[1] = 0x71; tmp_addr[0] = 0xC4;
+		tmp_addr[3] = pfw_op->addr_osr_ctrl[3];
+		tmp_addr[2] = pfw_op->addr_osr_ctrl[2];
+		tmp_addr[1] = pfw_op->addr_osr_ctrl[1];
+		tmp_addr[0] = pfw_op->addr_osr_ctrl[0];
 		idx_wr_byte = 1;
 	} else {
 		tmp_addr[3] = 0x10; tmp_addr[2] = 0x00; tmp_addr[1] = 0x70; tmp_addr[0] = 0x88;
 		idx_wr_byte = 0;
 	}
-
+	I("Now reg=0x%02X%02X%02X%02X\n", tmp_addr[3], tmp_addr[2],
+		tmp_addr[1], tmp_addr[0]);
 
 	do {
 		g_core_fp.fp_register_read(tmp_addr, 4, tmp_data, false);
@@ -2338,6 +2347,7 @@ static void himax_osr_ctrl(bool enable)
 		if (enable == 0) {
 			if (strcmp(HX_83108A_SERIES_PWON, private_ts->chip_name) == 0
 				|| strcmp(HX_83112F_SERIES_PWON, private_ts->chip_name) == 0
+				|| strcmp(HX_83122A_SERIES_PWON, private_ts->chip_name) == 0
 				|| strcmp(HX_83102J_SERIES_PWON, private_ts->chip_name) == 0) {
 				tmp_data[idx_wr_byte] |= (1 << 4);
 			} else {
@@ -2347,6 +2357,7 @@ static void himax_osr_ctrl(bool enable)
 		} else {
 			if (strcmp(HX_83108A_SERIES_PWON, private_ts->chip_name) == 0
 				|| strcmp(HX_83112F_SERIES_PWON, private_ts->chip_name) == 0
+				|| strcmp(HX_83122A_SERIES_PWON, private_ts->chip_name) == 0
 				|| strcmp(HX_83102J_SERIES_PWON, private_ts->chip_name) == 0) {
 				tmp_data[idx_wr_byte] &= ~(1 << 4);
 			} else {
@@ -2395,12 +2406,13 @@ static int hx_get_one_raw(int32_t *RAW, uint8_t checktype, uint32_t datalen)
 
 	himax_switch_mode_inspection(checktype);
 	if (checktype == HIMAX_ABS_NOISE || checktype == HIMAX_WEIGHT_NOISE) {
-		if (strcmp(HX_83121A_SERIES_PWON, private_ts->chip_name) == 0)
+		if (strcmp(HX_83121A_SERIES_PWON, private_ts->chip_name) == 0
+			|| strcmp(HX_83102J_SERIES_PWON, private_ts->chip_name) == 0
+			|| strcmp(HX_83122A_SERIES_PWON, private_ts->chip_name) == 0)
 			himax_osr_ctrl(0); /*disable OSR_HOP_EN*/
 		himax_set_N_frame(NOISEFRAME, checktype);
 		/* himax_get_noise_base(); */
-	} else if (checktype == HIMAX_ACT_IDLE_RAWDATA
-			|| checktype == HIMAX_ACT_IDLE_NOISE) {
+	} else if (checktype == HIMAX_ACT_IDLE_RAWDATA || checktype == HIMAX_ACT_IDLE_NOISE) {
 		I("N frame = %d\n", 10);
 		himax_set_N_frame(10, checktype);
 	} else {
@@ -2452,7 +2464,9 @@ END_FUNC:
 	g_core_fp.fp_sense_off(true);
 
 	if (checktype == HIMAX_ABS_NOISE || checktype == HIMAX_WEIGHT_NOISE) {
-		if (strcmp(HX_83121A_SERIES_PWON, private_ts->chip_name) == 0)
+		if (strcmp(HX_83121A_SERIES_PWON, private_ts->chip_name) == 0
+			|| strcmp(HX_83102J_SERIES_PWON, private_ts->chip_name) == 0
+			|| strcmp(HX_83122A_SERIES_PWON, private_ts->chip_name) == 0)
 			himax_osr_ctrl(1); /*enable OSR_HOP_EN*/
 	}
 	himax_switch_data_type(HIMAX_BACK_NORMAL);
@@ -2715,7 +2729,7 @@ static int himax_fw_update_kernel(struct himax_ts_data *ts)
 	char fw_path[MAX_FW_PATH + 1];
 	const struct firmware *firmware = NULL;
 
-	himax_int_enable(0);
+	himax_int_enable(INT_DISABLE_NOSYNC);
 
 	memset(fw_path, 0, MAX_FW_PATH);
 	snprintf(fw_path, MAX_FW_PATH, "%s", ts->pdata->i_CTPM_firmware_name);
@@ -2800,7 +2814,7 @@ static int himax_fw_update_kernel(struct himax_ts_data *ts)
 	g_core_fp.fp_sense_on(0x00);
 #endif
 FAIL_END:
-	himax_int_enable(1);
+	himax_int_enable(INT_ENABLE);
 	return ret;
 }
 
@@ -2811,7 +2825,7 @@ static int himax_fw_update_from_storage(bool signing, const char *file_path)
 	long spu_ret = 0, spu_fw_size;
 	const struct firmware *firmware = NULL;
 
-	himax_int_enable(0);
+	himax_int_enable(INT_DISABLE_NOSYNC);
 
 	ret = request_firmware(&firmware, file_path, private_ts->dev);
 	if (ret) {
@@ -2856,6 +2870,7 @@ static int himax_fw_update_from_storage(bool signing, const char *file_path)
 		private_ts->fw_data_ums = vzalloc(fsize);
 		if (!private_ts->fw_data_ums) {
 			input_err(true, private_ts->dev, "%s: failed to alloc private_ts->fw_data_ums mem\n", __func__);
+			release_firmware(firmware);
 			ret = HX_INSPECT_MEMALLCTFAIL;
 			goto FAIL_END;
 		}
@@ -2935,7 +2950,7 @@ static int himax_fw_update_from_storage(bool signing, const char *file_path)
 	g_core_fp.fp_sense_on(0x00);
 
 FAIL_END:
-	himax_int_enable(1);
+	himax_int_enable(INT_ENABLE);
 	I("%s: DONE\n", __func__);
 	return ret;
 }
@@ -3103,7 +3118,7 @@ static void get_checksum_data(void *dev_data)
 	}
 	I("Now Size = %d\n", chksum_size);
 
-	himax_int_enable(0);
+	himax_int_enable(INT_DISABLE_NOSYNC);
 	msleep(10);
 	g_core_fp.fp_sense_off(true);
 	msleep(10);
@@ -3114,7 +3129,7 @@ static void get_checksum_data(void *dev_data)
 
 	g_core_fp.fp_sense_on(0);
 	msleep(10);
-	himax_int_enable(1);
+	himax_int_enable(INT_ENABLE);
 	msleep(10);
 	/*
 	chksum == 0 => checksum pass
@@ -3302,76 +3317,122 @@ static int hx_rotate_mode_set(bool is_portrait)
 	return hx_cmd_rw_chk(addr32, 4, pos_ary, data_ary);
 }
 
+int hx_set_grip_exception_zone(int *cmd_param)
+{
+	uint8_t pos_ary[4] = {0};
+	uint8_t data_ary[4] = {0};
+	int ret = 1;
+
+	if (cmd_param[1] >= 0 && cmd_param[1] <= 2) {
+		/*directoin - off(0), left(1), right(2)*/
+		pos_ary[0] = 0; pos_ary[1] = 1; pos_ary[2] = 2; pos_ary[3] = 3;
+		data_ary[0] = (cmd_param[1] << 6) |  cmd_param[2] >> 8;
+		data_ary[1] = cmd_param[2] & 0xFF;
+		data_ary[2] = cmd_param[3] >> 8;
+		data_ary[3] = cmd_param[3] & 0xFF;
+		ret &= hx_cmd_rw_chk(pfw_op->addr_except_zone, 4, pos_ary, data_ary);
+	} else {
+		E("%s %s: cmd1 is abnormal, %d\n", HIMAX_LOG_TAG, __func__, cmd_param[1]);
+	}
+
+	return ret;
+}
+
+int hx_set_grip_portrait_mode(int *cmd_param)
+{
+	uint8_t pos_ary[4] = {0};
+	uint8_t data_ary[4] = {0};
+	int ret = 1;
+
+	ret &= hx_rotate_mode_set(true);
+	pos_ary[0] = 0; pos_ary[1] = 1;
+	data_ary[0] = cmd_param[1]; data_ary[1] = cmd_param[1];
+	ret &= hx_cmd_rw_chk(pfw_op->addr_grip_zone, 2, pos_ary, data_ary);/*grip zone*/
+	data_ary[0] = cmd_param[2]; data_ary[1] = cmd_param[3];
+	ret &= hx_cmd_rw_chk(pfw_op->addr_reject_zone, 2, pos_ary, data_ary);/*reject zone*/
+	data_ary[0] = cmd_param[4] >> 8; data_ary[1] = cmd_param[4] & 0xFF;
+	ret &= hx_cmd_rw_chk(pfw_op->addr_reject_zone_boud, 2, pos_ary, data_ary);/*reject zone boundary*/
+	memcpy(g_portrait_data, cmd_param, 5 * sizeof(int));
+
+	return ret;
+}
+
+int hx_set_grip_landscape_mode(int *cmd_param)
+{
+	uint8_t pos_ary[4] = {0};
+	uint8_t data_ary[4] = {0};
+	int ret = 1;
+
+	switch (cmd_param[1]) {
+	case 0:
+		/*change to portrait & recovery previous portrait setting*/
+		ret &= hx_rotate_mode_set(true);
+		pos_ary[0] = 0; pos_ary[1] = 1;
+		data_ary[0] = g_portrait_data[1]; data_ary[1] = g_portrait_data[1];
+		ret &= hx_cmd_rw_chk(pfw_op->addr_grip_zone, 2, pos_ary, data_ary);/*grip zone*/
+		data_ary[0] = g_portrait_data[2]; data_ary[1] = g_portrait_data[3];
+		ret &= hx_cmd_rw_chk(pfw_op->addr_reject_zone, 2, pos_ary, data_ary);/*reject zone*/
+		data_ary[0] = g_portrait_data[4] >> 8; data_ary[1] = g_portrait_data[4] & 0xFF;
+		ret &= hx_cmd_rw_chk(pfw_op->addr_reject_zone_boud, 2, pos_ary, data_ary);/*reject zone boundary*/
+		break;
+	case 1:
+		/*landscape enter*/
+		ret &= hx_rotate_mode_set(false);
+		pos_ary[0] = 0; pos_ary[1] = 1; pos_ary[2] = 2; pos_ary[3] = 3;
+		data_ary[0] = cmd_param[2]; data_ary[1] = cmd_param[2];
+		data_ary[2] = cmd_param[4]; data_ary[3] = cmd_param[5];
+		ret &= hx_cmd_rw_chk(pfw_op->addr_reject_zone, 4, pos_ary, data_ary);/*reject zone*/
+		data_ary[0] = cmd_param[3]; data_ary[1] = cmd_param[3];
+		data_ary[2] = cmd_param[6]; data_ary[3] = cmd_param[7];
+		ret &= hx_cmd_rw_chk(pfw_op->addr_grip_zone, 4, pos_ary, data_ary);/*grip zone*/
+		break;
+	default:
+		E("%s %s: cmd1 is abnormal, %d\n", HIMAX_LOG_TAG, __func__, cmd_param[1]);
+		break;
+	}
+	return ret;
+}
+
 /* only support Letter box */
 static void set_grip_data(void *dev_data)
 {
 	int ret = 1;
 	char buf[LEN_RSLT] = { 0 };
-	uint8_t pos_ary[4] = {0};
-	uint8_t data_ary[4] = {0};
 	struct sec_cmd_data *sec = (struct sec_cmd_data *)dev_data;
 	struct himax_ts_data *data =
 		container_of(sec, struct himax_ts_data, sec);
 
 	sec_cmd_set_default_result(sec);
 
+	if (sec->cmd_param[0] == 0) {
+		memcpy(data->edgehandler_restore_data, sec->cmd_param, sizeof(int) * SEC_CMD_PARAM_NUM);
+	} else if ((sec->cmd_param[0] > 0) && (sec->cmd_param[0] < 3)) {
+		memcpy(data->grip_restore_data, sec->cmd_param, sizeof(int) * SEC_CMD_PARAM_NUM);
+	} else {
+		E("%s %s: cmd0 is abnormal, %d\n",
+					HIMAX_LOG_TAG, __func__, sec->cmd_param[0]);
+	}
+
 	if (data->suspended) {
 		E("%s %s: now IC status is OFF\n", HIMAX_LOG_TAG, __func__);
 		goto err_grip_data;
 	}
 
-	if (sec->cmd_param[0] == 1) {/*portrait*/
-		ret &= hx_rotate_mode_set(true);
-		pos_ary[0] = 0; pos_ary[1] = 1;
-		data_ary[0] = sec->cmd_param[1]; data_ary[1] = sec->cmd_param[1];
-		ret &= hx_cmd_rw_chk(pfw_op->addr_grip_zone, 2, pos_ary, data_ary);/*grip zone*/
-		data_ary[0] = sec->cmd_param[2]; data_ary[1] = sec->cmd_param[3];
-		ret &= hx_cmd_rw_chk(pfw_op->addr_reject_zone, 2, pos_ary, data_ary);/*reject zone*/
-		data_ary[0] = sec->cmd_param[4] >> 8; data_ary[1] = sec->cmd_param[4] & 0xFF;
-		ret &= hx_cmd_rw_chk(pfw_op->addr_reject_zone_boud, 2, pos_ary, data_ary);/*reject zone boundary*/
-		memcpy(g_portrait_data, sec->cmd_param, 5 * sizeof(int));
-	} else if (sec->cmd_param[0] == 2) {/*landscape*/
-		if (sec->cmd_param[1] == 1) {
-			/*landscape enter*/
-			ret &= hx_rotate_mode_set(false);
-			pos_ary[0] = 0; pos_ary[1] = 1; pos_ary[2] = 2; pos_ary[3] = 3;
-			data_ary[0] = sec->cmd_param[2]; data_ary[1] = sec->cmd_param[2];
-			data_ary[2] = sec->cmd_param[4]; data_ary[3] = sec->cmd_param[5];
-			ret &= hx_cmd_rw_chk(pfw_op->addr_reject_zone, 4, pos_ary, data_ary);/*reject zone*/
-			data_ary[0] = sec->cmd_param[3]; data_ary[1] = sec->cmd_param[3];
-			data_ary[2] = sec->cmd_param[6]; data_ary[3] = sec->cmd_param[7];
-			ret &= hx_cmd_rw_chk(pfw_op->addr_grip_zone, 4, pos_ary, data_ary);/*grip zone*/
-		} else if (sec->cmd_param[1] == 0) {
-			/*change to portrait & recovery previous portrait setting*/
-			ret &= hx_rotate_mode_set(true);
-			pos_ary[0] = 0; pos_ary[1] = 1;
-			data_ary[0] = g_portrait_data[1]; data_ary[1] = g_portrait_data[1];
-			ret &= hx_cmd_rw_chk(pfw_op->addr_grip_zone, 2, pos_ary, data_ary);/*grip zone*/
-			data_ary[0] = g_portrait_data[2]; data_ary[1] = g_portrait_data[3];
-			ret &= hx_cmd_rw_chk(pfw_op->addr_reject_zone, 2, pos_ary, data_ary);/*reject zone*/
-			data_ary[0] = g_portrait_data[4] >> 8; data_ary[1] = g_portrait_data[4] & 0xFF;
-			ret &= hx_cmd_rw_chk(pfw_op->addr_reject_zone_boud, 2, pos_ary, data_ary);/*reject zone boundary*/
-		} else {
-			E("%s %s: cmd0 is abnormal, %d\n", HIMAX_LOG_TAG, __func__, sec->cmd_param[1]);
-			goto err_grip_data;
-		}
-	} else if (sec->cmd_param[0] == 0) {/*exception zone*/
-		if (sec->cmd_param[1] >= 0 && sec->cmd_param[1] <= 2) {
-			/*directoin - off(0), left(1), right(2)*/
-			pos_ary[0] = 0; pos_ary[1] = 1; pos_ary[2] = 2; pos_ary[3] = 3;
-			data_ary[0] = (sec->cmd_param[1] << 6) |  sec->cmd_param[2] >> 8;
-			data_ary[1] = sec->cmd_param[2] & 0xFF;
-			data_ary[2] = sec->cmd_param[3] >> 8;
-			data_ary[3] = sec->cmd_param[3] & 0xFF;
-			ret &= hx_cmd_rw_chk(pfw_op->addr_except_zone, 4, pos_ary, data_ary);
-		} else {
-			E("%s %s: cmd0 is abnormal, %d\n", HIMAX_LOG_TAG, __func__, sec->cmd_param[1]);
-			goto err_grip_data;
-		}
-	} else {
-		E("%s %s: cmd0 is abnormal, %d\n", HIMAX_LOG_TAG, __func__, sec->cmd_param[0]);
+	switch (sec->cmd_param[0]) {
+	case 0:
+		ret = hx_set_grip_exception_zone(sec->cmd_param);
+		break;
+	case 1:
+		ret = hx_set_grip_portrait_mode(sec->cmd_param);
+		break;
+	case 2:
+		ret = hx_set_grip_landscape_mode(sec->cmd_param);
+		break;
+	default:
+		E("%s %s:not support mode 0x%02X\n", HIMAX_LOG_TAG, __func__, sec->cmd_param[0]);
 		goto err_grip_data;
 	}
+
 err_grip_data:
 	if (ret == 1) {
 		sec->cmd_state = SEC_CMD_STATUS_OK;
@@ -3585,7 +3646,7 @@ static void get_rawcap(void *dev_data)
 	}
 #endif
 
-	himax_int_enable(0);
+	himax_int_enable(INT_DISABLE_NOSYNC);
 	val = hx_get_one_raw(RAW, HIMAX_RAWDATA, datalen);
 
 	if (val > 0) {
@@ -3667,7 +3728,7 @@ END_OUPUT:
 #ifdef HX_SAVE_RAW_TO_FLASH
 	kfree(flash_data);
 #endif
-	himax_int_enable(1);
+	himax_int_enable(INT_ENABLE);
 }
 
 static void get_rawcap_all(void *dev_data)
@@ -3739,7 +3800,7 @@ static void get_open(void *dev_data)
 		return;
 	}
 
-	himax_int_enable(0);
+	himax_int_enable(INT_DISABLE_NOSYNC);
 	val = hx_get_one_raw(RAW, HIMAX_OPEN, datalen);
 
 	if (val > 0) {
@@ -3783,7 +3844,7 @@ END_OUPUT:
 	I("%s %s: %s(%d)\n", HIMAX_LOG_TAG,
 			__func__, buf, (int)strnlen(buf, sizeof(buf)));
 	kfree(RAW);
-	himax_int_enable(1);
+	himax_int_enable(INT_ENABLE);
 }
 
 static void get_open_all(void *dev_data)
@@ -3855,7 +3916,7 @@ static void get_short(void *dev_data)
 		return;
 	}
 
-	himax_int_enable(0);
+	himax_int_enable(INT_DISABLE_NOSYNC);
 	val = hx_get_one_raw(RAW, HIMAX_SHORT, datalen);
 
 	if (val > 0) {
@@ -3899,7 +3960,7 @@ END_OUPUT:
 	I("%s %s: %s(%d)\n", HIMAX_LOG_TAG,
 			__func__, buf, (int)strnlen(buf, sizeof(buf)));
 	kfree(RAW);
-	himax_int_enable(1);
+	himax_int_enable(INT_ENABLE);
 }
 
 static void get_short_all(void *dev_data)
@@ -3971,7 +4032,7 @@ static void get_mic_open(void *dev_data)
 		return;
 	}
 
-	himax_int_enable(0);
+	himax_int_enable(INT_DISABLE_NOSYNC);
 	val = hx_get_one_raw(RAW, HIMAX_MICRO_OPEN, datalen);
 
 	if (val > 0) {
@@ -4015,7 +4076,7 @@ END_OUPUT:
 	I("%s %s: %s(%d)\n", HIMAX_LOG_TAG,
 			__func__, buf, (int)strnlen(buf, sizeof(buf)));
 	kfree(RAW);
-	himax_int_enable(1);
+	himax_int_enable(INT_ENABLE);
 }
 
 static void get_mic_open_all(void *dev_data)
@@ -4091,7 +4152,7 @@ static void get_noise(void *dev_data)
 		return;
 	}
 
-	himax_int_enable(0);
+	himax_int_enable(INT_DISABLE_NOSYNC);
 	val = hx_get_one_raw(RAW, HIMAX_ABS_NOISE, datalen);
 
 	if (val > 0) {
@@ -4148,7 +4209,7 @@ END_OUPUT:
 			__func__, buf, (int)strnlen(buf, sizeof(buf)));
 	kfree(RAW);
 	g_weight_val = 0;
-	himax_int_enable(1);
+	himax_int_enable(INT_ENABLE);
 }
 
 static void get_noise_all(void *dev_data)
@@ -4220,7 +4281,7 @@ static void get_lp_rawcap(void *dev_data)
 		return;
 	}
 
-	himax_int_enable(0);
+	himax_int_enable(INT_DISABLE_NOSYNC);
 	val = hx_get_one_raw(RAW, HIMAX_LPWUG_RAWDATA, datalen);
 
 	if (val > 0) {
@@ -4264,7 +4325,7 @@ END_OUPUT:
 	I("%s %s: %s(%d)\n", HIMAX_LOG_TAG,
 			__func__, buf, (int)strnlen(buf, sizeof(buf)));
 	kfree(RAW);
-	himax_int_enable(1);
+	himax_int_enable(INT_ENABLE);
 }
 
 static void get_lp_noise(void *dev_data)
@@ -4291,7 +4352,7 @@ static void get_lp_noise(void *dev_data)
 		return;
 	}
 
-	himax_int_enable(0);
+	himax_int_enable(INT_DISABLE_NOSYNC);
 	val = hx_get_one_raw(RAW, HIMAX_LPWUG_ABS_NOISE, datalen);
 
 	if (val > 0) {
@@ -4335,7 +4396,7 @@ END_OUPUT:
 	I("%s %s: %s(%d)\n", HIMAX_LOG_TAG,
 			__func__, buf, (int)strnlen(buf, sizeof(buf)));
 	kfree(RAW);
-	himax_int_enable(1);
+	himax_int_enable(INT_ENABLE);
 }
 
 extern int hx_set_stack_raw(int set_val);
@@ -4441,7 +4502,6 @@ static void run_snr_touched(void *dev_data)
 {
 	int ret = 1;
 	char buf[LEN_RSLT] = { 0 };
-	uint8_t tmp_addr[4] = {0x30, 0x7F, 0x00, 0x10};
 	uint8_t send_data[4] = {0x00, 0x00, 0x3A, 0xA3};
 	uint8_t recv_data[4] = {0xFF, 0xFF, 0xFF, 0xFF};
 	uint8_t retry_cnt = 0;
@@ -4462,9 +4522,9 @@ static void run_snr_touched(void *dev_data)
 	I("%s: send data = %02X%02X%02X%02X\n", __func__, send_data[3], send_data[2], send_data[1], send_data[0]);
 
 	do {
-		g_core_fp.fp_register_write(tmp_addr, DATA_LEN_4, send_data, 0);
+		g_core_fp.fp_register_write(pfw_op->addr_snr_measurement, DATA_LEN_4, send_data, 0);
 		usleep_range(1000, 1100);
-		g_core_fp.fp_register_read(tmp_addr, DATA_LEN_4, recv_data, 0);
+		g_core_fp.fp_register_read(pfw_op->addr_snr_measurement, DATA_LEN_4, recv_data, 0);
 		retry_cnt++;
 	} while ((send_data[3] != recv_data[3] ||
 		send_data[2] != recv_data[2] ||
@@ -4512,9 +4572,9 @@ static void run_snr_touched(void *dev_data)
 	send_data[1] = 0x00;
 	send_data[0] = 0x00;
 	do {
-		g_core_fp.fp_register_write(tmp_addr, DATA_LEN_4, send_data, 0);
+		g_core_fp.fp_register_write(pfw_op->addr_snr_measurement, DATA_LEN_4, send_data, 0);
 		usleep_range(1000, 1100);
-		g_core_fp.fp_register_read(tmp_addr, DATA_LEN_4, recv_data, 0);
+		g_core_fp.fp_register_read(pfw_op->addr_snr_measurement, DATA_LEN_4, recv_data, 0);
 		retry_cnt++;
 	} while ((send_data[3] != recv_data[3] ||
 		send_data[2] != recv_data[2] ||
@@ -4651,7 +4711,7 @@ static void get_gap_data_y(void *dev_data)
 
 	sec_cmd_set_default_result(sec);
 
-	himax_int_enable(0);
+	himax_int_enable(INT_DISABLE_NOSYNC);
 	if (g_sec_raw_buff->f_ready_rawdata != HX_RAWDATA_READY) {
 		E("%s %s: need get rawcap firstly\n", HIMAX_LOG_TAG, __func__);
 		snprintf(buf, sizeof(buf), "%s:need get rawcap firstly", __func__);
@@ -4695,7 +4755,7 @@ END_OUPUT:
 
 	I("%s %s: %s(%d)\n", HIMAX_LOG_TAG,
 			__func__, buf, (int)strnlen(buf, sizeof(buf)));
-	himax_int_enable(1);
+	himax_int_enable(INT_ENABLE);
 }
 
 static void get_gap_y_all(void *dev_data)
@@ -4761,7 +4821,9 @@ static int hx_gap_ver_raw(int test_type, uint32_t *org_raw, int *result_raw)
 	int skip_flag = 0;
 	int rslt_buf_size = (ic_data->HX_TX_NUM - g_gap_vertical_partial) * ic_data->HX_RX_NUM;
 
-	himax_gap_test_vertical_setting();
+	if (himax_gap_test_vertical_setting())
+		return MEM_ALLOC_FAIL;
+
 	if (g_ts_dbg != 0) {
 		I("Print vertical ORG RAW\n");
 		for (i = 0; i < tx_num * rx_num; i++) {
@@ -4849,7 +4911,7 @@ static void get_gap_data_x(void *dev_data)
 
 	sec_cmd_set_default_result(sec);
 
-	himax_int_enable(0);
+	himax_int_enable(INT_DISABLE_NOSYNC);
 	if (g_sec_raw_buff->f_ready_rawdata != HX_RAWDATA_READY) {
 		E("%s %s: need get rawcap firstly\n", HIMAX_LOG_TAG, __func__);
 		snprintf(buf, sizeof(buf), "%s:need get rawcap firstly", __func__);
@@ -4893,7 +4955,7 @@ END_OUPUT:
 
 	I("%s %s: %s(%d)\n", HIMAX_LOG_TAG,
 			__func__, buf, (int)strnlen(buf, sizeof(buf)));
-	himax_int_enable(1);
+	himax_int_enable(INT_ENABLE);
 }
 
 static void get_gap_x_all(void *dev_data)
@@ -5361,6 +5423,11 @@ int himax_set_ap_change_mode(int mode, int enable)
 	char retry_cnt = 0;
 	int ret = 1;
 
+	if (atomic_read(&private_ts->suspend_mode) == HIMAX_STATE_POWER_OFF) {
+		E("%s %s: now IC status is OFF\n", HIMAX_LOG_TAG, __func__);
+		return ret;
+	}
+
 	tmp_addr[3] = pfw_op->addr_mode_base[3];
 	tmp_addr[2] = pfw_op->addr_mode_base[2];
 	tmp_addr[1] = pfw_op->addr_mode_base[1];
@@ -5396,7 +5463,8 @@ int himax_set_ap_change_mode(int mode, int enable)
 		send_data[0] = 0x00;
 	}
 
-	if (strcmp(HX_83102J_SERIES_PWON, private_ts->chip_name) == 0) {
+	if (strcmp(HX_83102J_SERIES_PWON, private_ts->chip_name) == 0
+		|| strcmp(HX_83122A_SERIES_PWON, private_ts->chip_name) == 0) {
 		if ((mode == NOTE_MODE) || (mode == SPEN_MODE)) {
 			g_core_fp.fp_register_read(tmp_addr, DATA_LEN_4, send_data, 0);
 
@@ -5566,22 +5634,18 @@ void himax_set_cover_mode(struct himax_ts_data *ts, bool closed)
 		return;
 	}
 
-	if (strcmp(HX_83121A_SERIES_PWON, private_ts->chip_name) == 0) {
-		himax_in_parse_assign_cmd(fw_addr_ctrl_fw, tmp_addr, sizeof(tmp_addr));
+	himax_in_parse_assign_cmd(fw_addr_ctrl_fw, tmp_addr, sizeof(tmp_addr));
 
-		if (closed)
-			sdata[0] = 0xC1;
-		else
-			sdata[0] = 0xC0;
+	if (closed)
+		sdata[0] = 0xC1;
+	else
+		sdata[0] = 0xC0;
 
-		I("%s: %s\n", __func__, closed ? "on" : "off");
+	I("%s: %s\n", __func__, closed ? "on" : "off");
 
-		ret = g_core_fp.fp_register_write(tmp_addr, sizeof(sdata), sdata, 0);
-		if (ret < 0)
-			E("%s: failed to write cover mode\n", __func__);
-	} else {
-		I("%s: No Support this!\n", __func__);
-	}
+	ret = g_core_fp.fp_register_write(tmp_addr, sizeof(sdata), sdata, 0);
+	if (ret < 0)
+		E("%s: failed to write cover mode\n", __func__);
 }
 
 static void clear_cover_mode(void *dev_data)
@@ -5692,7 +5756,12 @@ static int ram_test(int type)
 	I("%s: size=%d, addr=0x%08X\n", __func__, size, addr);
 	write_buf = kcalloc(size, sizeof(uint8_t), GFP_KERNEL);
 
-	himax_int_enable(0);
+#ifdef HX_ZERO_FLASH
+	if (g_core_fp.fp_0f_hw_crc != NULL)
+		g_core_fp.fp_0f_hw_crc(0);
+#endif
+
+	himax_int_enable(INT_DISABLE_NOSYNC);
 	g_core_fp.fp_sense_off(true);
 
 	memset(write_buf, val_55, size);
@@ -5747,7 +5816,7 @@ FAIL_END:
 #endif
 	if (g_core_fp.fp_sense_on != NULL)
 		g_core_fp.fp_sense_on(0x00);
-	himax_int_enable(1);
+	himax_int_enable(INT_ENABLE);
 
 #if defined(HX_ZERO_FLASH)
 END:
@@ -5891,7 +5960,6 @@ struct sec_cmd sec_cmds[] = {
 	{SEC_CMD("run_sram_test", run_sram_test),},
 	{SEC_CMD("set_grip_data", set_grip_data),},
 	{SEC_CMD("factory_cmd_result_all", factory_cmd_result_all),},
-	{SEC_CMD("run_cs_raw_read_all", get_rawcap_all),},
 	{SEC_CMD_H("glove_mode", glove_mode),},
 #ifdef HX_SMART_WAKEUP
 	{SEC_CMD_H("aot_enable", aot_enable),},
@@ -5914,12 +5982,12 @@ void himax_run_rawdata_all(struct himax_ts_data *data)
 {
 	mutex_lock(&data->device_lock);
 	RI("%s\n", __func__);
-	get_rawcap(&data->sec);
-	get_open(&data->sec);
+	run_sram_test(&data->sec);
 	get_mic_open(&data->sec);
+	get_open(&data->sec);
 	get_short(&data->sec);
 	get_noise(&data->sec);
-	run_sram_test(&data->sec);
+	get_rawcap(&data->sec);
 	mutex_unlock(&data->device_lock);
 }
 
@@ -5958,9 +6026,15 @@ static ssize_t sensitivity_mode_store(struct device *dev,
 	if (unlikely((mode != 0) && (mode != 1)))
 		return count;
 
+	addr_keep_act[3] = pfw_op->addr_reject_idle[3];
+	addr_keep_act[2] = pfw_op->addr_reject_idle[2];
+	addr_keep_act[1] = pfw_op->addr_reject_idle[1];
+	addr_keep_act[0] = pfw_op->addr_reject_idle[0];
+
 	if (strcmp(HX_83108A_SERIES_PWON, private_ts->chip_name) == 0
 		|| strcmp(HX_83112F_SERIES_PWON, private_ts->chip_name) == 0
-		|| strcmp(HX_83102J_SERIES_PWON, private_ts->chip_name) == 0) {
+		|| strcmp(HX_83102J_SERIES_PWON, private_ts->chip_name) == 0
+		|| strcmp(HX_83122A_SERIES_PWON, private_ts->chip_name) == 0) {
 		retry_cnt = 0;
 		if (mode == 1) {
 			I("%s: Reject idle mode!\n", __func__);
@@ -6035,6 +6109,7 @@ static ssize_t read_support_feature(struct device *dev,
 	return snprintf(buf, SEC_CMD_BUF_SIZE, "%d", feature);
 }
 
+#ifdef HX_TOUCH_PROXIMITY
 static ssize_t protos_event_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
@@ -6119,6 +6194,7 @@ static ssize_t prox_power_off_store(struct device *dev,
 
 	return count;
 }
+#endif
 
 static ssize_t enabled_show(struct device *dev, struct device_attribute *attr,
 					char *buf)
@@ -6178,7 +6254,7 @@ static ssize_t enabled_store(struct device *dev, struct device_attribute *attr,
 		ts->late_suspended = true;
 		ts->suspended  = true;
 		mutex_lock(&ts->device_lock);
-		himax_int_enable(0);/* disable irq */
+		himax_int_enable(INT_DISABLE_NOSYNC);/* disable irq */
 		himax_pinctrl_configure(ts, false);
 		msleep(ts->pdata->one_frame_delay);
 #ifdef HX_RST_PIN_FUNC
@@ -6220,8 +6296,10 @@ static DEVICE_ATTR(sensitivity_mode, S_IRUGO | S_IWUSR | S_IWGRP,
 			sensitivity_mode_show, sensitivity_mode_store);
 static DEVICE_ATTR(close_tsp_test, S_IRUGO, show_close_tsp_test, NULL);
 static DEVICE_ATTR(support_feature, 0444, read_support_feature, NULL);
+#ifdef HX_TOUCH_PROXIMITY
 static DEVICE_ATTR(prox_power_off, 0644, prox_power_off_show, prox_power_off_store);
 static DEVICE_ATTR(virtual_prox, S_IRUGO | S_IWUSR | S_IWGRP, protos_event_show, protos_event_store);
+#endif
 static DEVICE_ATTR(enabled, 0664, enabled_show, enabled_store);
 static DEVICE_ATTR(get_lp_dump, 0444, get_lp_dump, NULL);
 static DEVICE_ATTR(scrub_pos, 0444, scrub_pos_show, NULL);
@@ -6230,8 +6308,10 @@ static struct attribute *sec_touch_factory_attributes[] = {
 	&dev_attr_sensitivity_mode.attr,
 	&dev_attr_close_tsp_test.attr,
 	&dev_attr_support_feature.attr,
+#ifdef HX_TOUCH_PROXIMITY
 	&dev_attr_prox_power_off.attr,
 	&dev_attr_virtual_prox.attr,
+#endif
 	&dev_attr_enabled.attr,
 	&dev_attr_get_lp_dump.attr,
 	&dev_attr_scrub_pos.attr,

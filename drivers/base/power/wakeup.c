@@ -14,6 +14,9 @@
 #include <linux/suspend.h>
 #include <linux/seq_file.h>
 #include <linux/debugfs.h>
+#if IS_ENABLED(CONFIG_SEC_FACTORY)
+#include <linux/proc_fs.h>
+#endif
 #include <linux/pm_wakeirq.h>
 #include <linux/irq.h>
 #include <linux/irqdesc.h>
@@ -1229,6 +1232,9 @@ static int __init wakeup_sources_debugfs_init(void)
 {
 	wakeup_sources_stats_dentry = debugfs_create_file("wakeup_sources",
 			S_IRUGO, NULL, NULL, &wakeup_sources_stats_fops);
+#if IS_ENABLED(CONFIG_SEC_FACTORY)
+	proc_create("wakeup_sources", 0644, NULL, &wakeup_sources_stats_fops);
+#endif
 	return 0;
 }
 

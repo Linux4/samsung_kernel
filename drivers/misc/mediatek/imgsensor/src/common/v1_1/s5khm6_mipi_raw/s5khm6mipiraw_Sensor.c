@@ -1157,12 +1157,9 @@ static void set_mode_setfile(enum IMGSENSOR_MODE mode)
 	LOG_INF(" - X");
 }
 
-static void sensor_init(void)
+static int sensor_init(void)
 {
-	int ret = 0;
-#ifdef IMGSENSOR_HW_PARAM
-	struct cam_hw_param *hw_param = NULL;
-#endif
+	int ret = ERROR_NONE;
 
 	LOG_INF(" - E");
 
@@ -1187,14 +1184,9 @@ static void sensor_init(void)
 	set_mode_setfile(IMGSENSOR_MODE_INIT);
 #endif
 
-#ifdef IMGSENSOR_HW_PARAM
-	if (ret != 0) {
-		imgsensor_sec_get_hw_param(&hw_param, S5KHM6_CAL_SENSOR_POSITION);
-		if (hw_param)
-			hw_param->i2c_sensor_err_cnt++;
-	}
-#endif
 	LOG_INF("- X");
+
+	return ret;
 }
 
 #if WRITE_SENSOR_CAL_XTC
@@ -1247,8 +1239,12 @@ static void sensor_xtc_write_otp(bool isRemosaic)
 	int data_size;
 	enum crosstalk_cal_name xtc_name;
 	int32_t xtc_cal_addr_start = 0;
-	// TODO : sensor_dev_id needs to be updated according to actual id.
-	int sensor_dev_id = IMGSENSOR_SENSOR_IDX_MAIN;
+
+	int sensor_dev_id = IMGSENOSR_GET_SENSOR_IDX(imgsensor_info.sensor_id);
+	if (sensor_dev_id == IMGSENSOR_SENSOR_IDX_NONE) {
+		LOG_ERR("get_sensor_idx: fail");
+		return;
+	}
 
 	LOG_INF("E : remosaic(%d)", isRemosaic);
 
@@ -1322,8 +1318,12 @@ static void sensor_xtc_write(bool isRemosaic)
 	int data_size;
 	enum crosstalk_cal_name xtc_name;
 	int32_t xtc_cal_addr_start = 0;
-	// TODO : sensor_dev_id needs to be updated according to actual id.
-	int sensor_dev_id = IMGSENSOR_SENSOR_IDX_MAIN;
+
+	int sensor_dev_id = IMGSENOSR_GET_SENSOR_IDX(imgsensor_info.sensor_id);
+	if (sensor_dev_id == IMGSENSOR_SENSOR_IDX_NONE) {
+		LOG_ERR("get_sensor_idx: fail");
+		return;
+	}
 
 	LOG_INF("E : remosaic(%d)", isRemosaic);
 
@@ -1471,7 +1471,7 @@ static kal_uint32 open(void)
 	if (ret != ERROR_NONE)
 		return ERROR_SENSOR_CONNECT_FAIL;
 
-	sensor_init();
+	ret = sensor_init();
 
 	mIsPartialXTCCal = KAL_FALSE;
 	mIsFullXTCCal = KAL_FALSE;
@@ -1493,7 +1493,7 @@ static kal_uint32 open(void)
 	imgsensor.current_fps		= imgsensor_info.pre.max_framerate;
 	spin_unlock(&imgsensor_drv_lock);
 
-	return ERROR_NONE;
+	return ret;
 }
 
 
@@ -2204,7 +2204,7 @@ static kal_uint32 set_max_framerate_by_scenario(
 	case MSDK_SCENARIO_ID_HIGH_SPEED_VIDEO:
 		LOG_DBG("MSDK_SCENARIO_ID_HIGH_SPEED_VIDEO scenario_id= %d\n", scenario_id);
 
-		if(framerate == imgsensor_info.hs_video.max_framerate)	
+		if (framerate == imgsensor_info.hs_video.max_framerate)
 			frame_length = imgsensor_info.hs_video.framelength;
 		else
 			frame_length = imgsensor_info.hs_video.pclk / framerate * 10 / imgsensor_info.hs_video.linelength;
@@ -2441,43 +2441,22 @@ static kal_uint32 get_default_framerate_by_scenario(
 static kal_uint32 set_test_pattern_mode(kal_bool enable)
 {
 #if 0
-	if (enable) {
-		write_cmos_sensor(0x3202, 0x0080);
-		write_cmos_sensor(0x3204, 0x0080);
-		write_cmos_sensor(0x3206, 0x0080);
-		write_cmos_sensor(0x3208, 0x0080);
-		write_cmos_sensor(0x3232, 0x0000);
-		write_cmos_sensor(0x3234, 0x0000);
-		write_cmos_sensor(0x32a0, 0x0100);
-		write_cmos_sensor(0x3300, 0x0001);
-		write_cmos_sensor(0x3400, 0x0001);
-		write_cmos_sensor(0x3402, 0x4e00);
-		write_cmos_sensor(0x3268, 0x0000);
+	if (enable)
 		write_cmos_sensor(0x0600, 0x0002);
-	} else {
-		write_cmos_sensor(0x3202, 0x0000);
-		write_cmos_sensor(0x3204, 0x0000);
-		write_cmos_sensor(0x3206, 0x0000);
-		write_cmos_sensor(0x3208, 0x0000);
-		write_cmos_sensor(0x3232, 0x0000);
-		write_cmos_sensor(0x3234, 0x0000);
-		write_cmos_sensor(0x32a0, 0x0000);
-		write_cmos_sensor(0x3300, 0x0000);
-		write_cmos_sensor(0x3400, 0x0000);
-		write_cmos_sensor(0x3402, 0x0000);
-		write_cmos_sensor(0x3268, 0x0000);
+	else
 		write_cmos_sensor(0x0600, 0x0000);
-	}
+
 	spin_lock(&imgsensor_drv_lock);
 	imgsensor.test_pattern = enable;
 	spin_unlock(&imgsensor_drv_lock);
+	LOG_INF("test_pattern: %d", imgsensor.test_pattern);
 #else
 	//test pattern is always disable
 	spin_lock(&imgsensor_drv_lock);
 	imgsensor.test_pattern = false;
 	spin_unlock(&imgsensor_drv_lock);
+	LOG_INF("test pattern not supported");
 #endif
-	LOG_INF("enable: %d\n", imgsensor.test_pattern);
 	return ERROR_NONE;
 }
 

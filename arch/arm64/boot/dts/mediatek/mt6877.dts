@@ -2561,7 +2561,7 @@
 						<0 0>;
 
 		vcc-supply = <&mt_pmic_vemc_ldo_reg>;
-		vccq2-supply = <&mt_pmic_vufs_ldo_reg>;
+		vcc-fixed-regulator;
 
 		resets = <&infracfg_rst 0>, <&infracfg_rst 1>,
 				 <&infracfg_rst 2>;
@@ -3177,6 +3177,7 @@
 		adsp-rsv-logger-a = <0x80000>;
 		adsp-rsv-dbg-dump-a = <0x80000>;
 		adsp-rsv-core-dump-a = <0x400>;
+		adsp-rsv-xhci = <0x80000>;
 		adsp-rsv-audio = <0x5C0000>;
 	};
 
@@ -4968,6 +4969,7 @@
 			<GIC_SPI 474 IRQ_TYPE_LEVEL_HIGH>,
 			<GIC_SPI 475 IRQ_TYPE_LEVEL_HIGH>;
 		memory-region = <&gps_mem>;
+		b13b14-status-addr = <0x10003240>;
 	};
 
 	apusys_vcore_clk: syscon@19029000 {
@@ -6030,6 +6032,11 @@
 		aed = <0x1a>;
 	};
 
+	usb_offload: usb_offload {
+		compatible = "mediatek,usb-offload";
+		xhci_host = <&usb_host>;
+	};
+
 	ssusb: usb0@11201000 {
 		compatible = "mediatek,mtu3";
 		reg = <0 0x11201000 0 0x2e00>,
@@ -6066,6 +6073,7 @@
 			clocks = <&infracfg_ao_clk CLK_IFRAO_SSUSB_XHCI>;
 			clock-names = "sys_ck";
 			status = "okay";
+			mediatek,usb-offload = <&usb_offload>;
 		};
 	};
 
@@ -6462,11 +6470,20 @@
 		mtk_dsp_music = <0x1 0xffffffff 0xffffffff 0xffffffff 0x0>;
 		mtk_dsp_capture1 = <0x1 0xffffffff 0xd 0x13 0x20000>;
 		mtk_dsp_a2dp = <0x1 0xffffffff 0xffffffff 0xffffffff 0x40000>;
+		mtk_dsp_bledl = <0x1 0xffffffff 0xffffffff 0xffffffff 0x30000>;
+		mtk_dsp_bleul = <0x1 0xffffffff 0xffffffff 0xffffffff 0x20000>;
+		mtk_dsp_usbdl = <0x1 0xffffffff 0xffffffff 0xffffffff 0x30000>;
+		mtk_dsp_usbul = <0x1 0xffffffff 0xffffffff 0xffffffff 0x30000>;
+		mtk_dsp_mddl = <0x1 0xffffffff 0x13 0xffffffff 0x30000>;
+		mtk_dsp_mdul = <0x1 0x2 0xffffffff 0xffffffff 0x30000>;
 		mtk_dsp_dataprovider = <0x0 0xffffffff 0xf 0xffffffff 0x30000>;
 		mtk_dsp_call_final = <0x5 0x4 0x10 0x14 0x18000>;
 		mtk_dsp_fast = <0x5 0xffffffff 0xffffffff 0xffffffff 0x5000>;
 		mtk_dsp_ktv = <0x1 0x8 0x12 0xffffffff 0x10000>;
 		mtk_dsp_capture_raw = <0x1 0xffffffff 0xffffffff 0xffffffff 0x20000>;
+		mtk_dsp_ulproc = <0x1 0xffffffff 0xffffffff 0xffffffff 0x20000>;
+		mtk_dsp_echoref = <0x1 0xffffffff 0x13 0xffffffff 0x20000>;
+		mtk_dsp_echodl = <0x1 0x6 0xffffffff 0xffffffff 0x30000>;
 		mtk_dsp_fm = <0x1 0xffffffff 0x10 0xffffffff 0x10000>;
 		mtk_dsp_ver = <0x1>;
 		swdsp_smartpa_process_enable = <0x5>;
@@ -6814,10 +6831,6 @@
 #endif
 #include "mediatek/cust_mt6877_connfem.dtsi"
 
-&mt_pmic_vemc_ldo_reg {
-	regulator-min-microvolt = <3000000>;
-	regulator-max-microvolt = <3000000>;
-};
 
 &mt6360_pmic {
 	ldo7 {

@@ -2396,6 +2396,7 @@ unsigned int ged_kpi_get_cur_avg_gpu_freq(void)
 	return 0;
 #endif /* MTK_GED_KPI */
 }
+/* ------------------------------------------------------------------- */
 void ged_dfrc_fps_limit_cb(unsigned int target_fps)
 {
 	g_target_fps_default =
@@ -2405,8 +2406,6 @@ void ged_dfrc_fps_limit_cb(unsigned int target_fps)
 	GED_LOGD("[GED_KPI] dfrc_fps %d\n", g_target_fps_default);
 #endif /* GED_KPI_DEBUG */
 }
-/* ------------------------------------------------------------------- */
-
 /* ------------------------------------------------------------------- */
 GED_ERROR ged_kpi_system_init(void)
 {
@@ -2427,10 +2426,11 @@ GED_ERROR ged_kpi_system_init(void)
 		"ged_alloc_atomic(sizeof(struct GED_KPI_MEOW_DVFS_FREQ_PRED)) failed\n");
 		return GED_ERROR_FAIL;
 	}
+
 #if defined(CONFIG_DRM_MEDIATEK)
-  	drm_register_fps_chg_callback(ged_dfrc_fps_limit_cb);
+	drm_register_fps_chg_callback(ged_dfrc_fps_limit_cb);
 #elif defined(CONFIG_MTK_HIGH_FRAME_RATE)
-  	disp_register_fps_chg_callback(ged_dfrc_fps_limit_cb);
+	disp_register_fps_chg_callback(ged_dfrc_fps_limit_cb);
 #endif
 
 	g_psWorkQueue =
@@ -2470,9 +2470,9 @@ void ged_kpi_system_exit(void)
 #endif /* GED_ENABLE_TIMER_BASED_DVFS_MARGIN */
 	destroy_workqueue(g_psWorkQueue);
 #if defined(CONFIG_DRM_MEDIATEK)
-  	drm_unregister_fps_chg_callback(ged_dfrc_fps_limit_cb);
+	drm_unregister_fps_chg_callback(ged_dfrc_fps_limit_cb);
 #elif defined(CONFIG_MTK_HIGH_FRAME_RATE)
-  	disp_unregister_fps_chg_callback(ged_dfrc_fps_limit_cb);
+	disp_unregister_fps_chg_callback(ged_dfrc_fps_limit_cb);
 #endif
 	ged_thread_destroy(ghThread);
 #ifndef GED_BUFFER_LOG_DISABLE

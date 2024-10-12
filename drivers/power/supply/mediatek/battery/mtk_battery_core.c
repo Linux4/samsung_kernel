@@ -1510,6 +1510,21 @@ void fg_custom_init_from_dts(struct platform_device *dev)
 	fg_read_dts_val(np, "SWOCV_OLDOCV_DIFF_EMB",
 		&(fg_cust_data.swocv_oldocv_diff_emb), 1);
 
+#if defined(CONFIG_SEC_FACTORY)
+	bm_err("%s oldocv diff set 0 in only factory bin\n", __func__);
+	fg_cust_data.hwocv_oldocv_diff = 0;
+	fg_cust_data.hwocv_oldocv_diff_chr = 0;
+	fg_cust_data.hwocv_swocv_diff = 0;
+	fg_cust_data.hwocv_swocv_diff_lt = 0;
+	fg_cust_data.swocv_oldocv_diff = 0;
+	fg_cust_data.swocv_oldocv_diff_chr = 0;
+	fg_cust_data.vbat_oldocv_diff = 0;
+	fg_cust_data.swocv_oldocv_diff_emb = 0;
+	fg_cust_data.vir_oldocv_diff_emb = 0;
+	fg_cust_data.vir_oldocv_diff_emb_lt = 0;
+	fg_cust_data.tnew_told_pon_diff = -1;
+#endif
+
 	fg_read_dts_val(np, "PMIC_SHUTDOWN_TIME",
 		&(fg_cust_data.pmic_shutdown_time), UNIT_TRANS_60);
 	fg_read_dts_val(np, "TNEW_TOLD_PON_DIFF",
@@ -2984,6 +2999,13 @@ void fg_daemon_send_data(
 			}
 
 			ptr = (char *)&gm.fg_data;
+			if ((prcv->idx + prcv->size) >
+				sizeof(struct fgd_cmd_param_t_custom)) {
+				bm_err("size is different %d size %d idx %d\n",
+					(int)sizeof(struct fgd_cmd_param_t_custom),
+					prcv->size, prcv->idx);
+				return;
+			}
 			memcpy(&ptr[prcv->idx],
 				prcv->input,
 				prcv->size);
@@ -3023,7 +3045,6 @@ void fg_daemon_get_data(
 		prcv->total_size,
 		prcv->size,
 		prcv->idx);
-
 		pret->type = prcv->type;
 		pret->total_size = prcv->total_size;
 		pret->size = prcv->size;
@@ -3034,16 +3055,12 @@ void fg_daemon_get_data(
 	case FUEL_GAUGE_TABLE_CUSTOM_DATA:
 		{
 			char *ptr;
-
-			if (sizeof(struct fuel_gauge_table_custom_data)
-				!= prcv->total_size) {
-				bm_err("size is different %d %d\n",
-				(int)sizeof(
-				struct fuel_gauge_table_custom_data),
-				prcv->total_size);
-			}
-
 			ptr = (char *)&fg_table_cust_data;
+			if ((prcv->idx + prcv->size) > sizeof(struct fgd_cmd_param_t_custom)) {
+				bm_err("size is different size %d idx %d  struct size %d",
+					pret->size, pret->idx, (int)sizeof(struct fgd_cmd_param_t_custom));
+				return;
+			}
 			memcpy(pret->input, &ptr[prcv->idx], pret->size);
 			bm_debug(
 				"FG_DATA_TYPE_TABLE type:%d size:%d %d idx:%d\n",
@@ -3448,12 +3465,20 @@ void bmd_ctrl_cmd_from_user(void *nl_data, struct fgd_nl_msg_t *ret_msg)
 		{
 			int is_charger_exist = 0;
 
+#if defined(CONFIG_MACH_MT6877) || defined(CONFIG_MACH_MT6885) || defined(CONFIG_MACH_MT6853) \
+	|| defined(CONFIG_MACH_MT6893) || defined(CONFIG_MACH_MT6873)                         \
+	|| defined(CONFIG_MACH_MT6771) || defined(CONFIG_MACH_MT6785)
+			if (battery_main.BAT_STATUS == POWER_SUPPLY_STATUS_CHARGING)
+				is_charger_exist = true;
+			else
+				is_charger_exist = false;
+#else
 			if (upmu_get_rgs_chrdet() == 0 ||
 				mt_usb_is_device() == 0)
 				is_charger_exist = false;
 			else
 				is_charger_exist = true;
-
+#endif
 			ret_msg->fgd_data_len += sizeof(is_charger_exist);
 			memcpy(ret_msg->fgd_data,
 				&is_charger_exist, sizeof(is_charger_exist));
@@ -3624,7 +3649,10 @@ void bmd_ctrl_cmd_from_user(void *nl_data, struct fgd_nl_msg_t *ret_msg)
 			bm_err("[fr] data len:%d custom data length = %d\n",
 				(int)sizeof(fg_cust_data),
 				ret_msg->fgd_data_len);
-
+			if (ret_msg->fgd_ret_data_len > (int)sizeof(fg_cust_data)) {
+				bm_err("[fr] The size of data receive is not applicable to copy");
+				break;
+			}
 			memcpy(ret_msg->fgd_data,
 				&fg_cust_data, sizeof(fg_cust_data));
 			ret_msg->fgd_data_len += sizeof(fg_cust_data);
@@ -3721,7 +3749,10 @@ void bmd_ctrl_cmd_from_user(void *nl_data, struct fgd_nl_msg_t *ret_msg)
 		int fg_coulomb = 0;
 
 		fg_coulomb = gauge_get_coulomb();
-
+		if (((int)sizeof(msg->fgd_data[0])) == 0) {
+			bm_err("[fr] FG_DAEMON_CMD_SET_FG_BAT_INT1_GAP msg data is not filled");
+			break;
+		}
 		memcpy(&gm.fg_bat_int1_gap,
 			&msg->fgd_data[0], sizeof(gm.fg_bat_int1_gap));
 
@@ -4555,14 +4586,21 @@ void bmd_ctrl_cmd_from_user(void *nl_data, struct fgd_nl_msg_t *ret_msg)
 
 	case FG_DAEMON_CMD_DUMP_LOG:
 	{
+		int len;
 		gm.proc_subcmd = msg->fgd_subcmd;
 		gm.proc_subcmd_para1 = msg->fgd_subcmd_para1;
+		len = (int)strlen(&msg->fgd_data[0]);
+		bm_err("[fr] FG_DAEMON_CMD_DUMP_LOG %d", len);
 		memset(gm.proc_log, 0, 4096);
-		strncpy(gm.proc_log, &msg->fgd_data[0],
-			strlen(&msg->fgd_data[0]));
-		bm_err("[fr] FG_DAEMON_CMD_DUMP_LOG %d %d %d\n",
-			msg->fgd_subcmd, msg->fgd_subcmd_para1,
-			(int)strlen(&msg->fgd_data[0]));
+		if (len < 4096) {
+			strncpy(gm.proc_log, &msg->fgd_data[0],
+				len);
+			bm_err("[fr] FG_DAEMON_CMD_DUMP_LOG %d %d %d\n",
+				msg->fgd_subcmd, msg->fgd_subcmd_para1,
+				len);
+		} else {
+			bm_err("[fr] FG_DAEMON_CMD_DUMP_LOG size of dump is more than limit");
+		}
 	}
 	break;
 

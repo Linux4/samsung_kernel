@@ -11,8 +11,8 @@
  * GNU General Public License for more details.
  */
 
-#ifndef _CAMERA_OIS_VOIS_IF_H_
-#define _CAMERA_OIS_VOIS_IF_H_
+#ifndef _CAMERA_OIS_AOIS_IF_H_
+#define _CAMERA_OIS_AOIS_IF_H_
 
 #define MAX_CMD_DATA_SIZE   32
 
@@ -53,4 +53,9 @@ int cam_ois_cmd_notifier_call_chain(unsigned long val, unsigned short addr,
 int cam_ois_reg_read_notifier_call_chain(unsigned long val, unsigned short addr,
 	unsigned char *data, int size);
 int cam_ois_factory_mode_notifier_call_chain(unsigned long val, void *v);
+
+void cam_ois_set_aois_fac_mode_on(void);
+void cam_ois_set_aois_fac_mode_off(void);
+void cam_ois_set_aois_fac_mode(enum cam_ois_aois_fac_mode fac_mode, unsigned int msec);
+
 #endif

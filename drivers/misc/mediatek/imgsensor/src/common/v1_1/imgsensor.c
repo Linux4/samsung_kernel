@@ -89,7 +89,7 @@ void IMGSENSOR_PROFILE(struct timeval *ptv, char *tag)
 	time_interval =
 	(tv.tv_sec - ptv->tv_sec) * 1000000 + (tv.tv_usec - ptv->tv_usec);
 
-	PK_INFO("[%s]Profile = %lu us\n", tag, time_interval);
+	PK_INFO("[%s]Profile = %lu us[about %d ms]", tag, time_interval, time_interval/1000 + 1);
 }
 
 #else
@@ -228,6 +228,9 @@ MINT32 imgsensor_sensor_open(struct IMGSENSOR_SENSOR *psensor)
 			imgsensor_hw_power(&pimgsensor->hw,
 				psensor,
 				IMGSENSOR_HW_POWER_STATUS_OFF);
+#ifdef IMGSENSOR_HW_PARAM
+			imgsensor_increase_hw_param_sensor_err_cnt(map_position(psensor->inst.sensor_idx));
+#endif
 			PK_PR_ERR("SensorOpen fail");
 		} else {
 			psensor_inst->state = IMGSENSOR_STATE_OPEN;
@@ -733,8 +736,11 @@ int imgsensor_set_driver(struct IMGSENSOR_SENSOR *psensor)
 			PK_INFO("search failed(idx[%d], name[%s])", psensor_inst->sensor_idx,
 								config_sensor_name[psensor_inst->sensor_idx]);
 	} else {
-		PK_INFO("no searched sensor(idx[%d], name[%s])",
-				psensor_inst->sensor_idx, config_sensor_name[psensor_inst->sensor_idx]);
+		if (psensor_inst->sensor_idx < max_num_of_config_sensor)
+			PK_INFO("no searched sensor(idx[%d], name[%s])",
+					psensor_inst->sensor_idx, config_sensor_name[psensor_inst->sensor_idx]);
+		else
+			PK_INFO("no searched sensor(idx[%d])", psensor_inst->sensor_idx);
 	}
 
 	//search 2nd sensor
@@ -2770,7 +2776,7 @@ static struct platform_driver gimgsensor_platform_driver = {
 
 static int __init imgsensor_init(void)
 {
-	PK_INFO("[camerahw_probe] start\n");
+	PK_INFO("[imgsensor_init]-E");
 
 	if (platform_driver_register(&gimgsensor_platform_driver)) {
 		PK_PR_ERR("failed to register CAMERA_HW driver\n");
@@ -2781,6 +2787,7 @@ static int __init imgsensor_init(void)
 	imgsensor_register_ril_notifier();
 #endif
 
+	PK_INFO("[imgsensor_init]-X");
 	return 0;
 }
 

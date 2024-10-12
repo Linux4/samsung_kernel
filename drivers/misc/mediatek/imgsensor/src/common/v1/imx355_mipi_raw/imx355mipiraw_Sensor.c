@@ -650,18 +650,15 @@ static int set_mode_setfile(enum IMGSENSOR_MODE mode)
 	return ret;
 }
 
-static void sensor_init(void)
+static int sensor_init(void)
 {
-	int ret = 0;
+	int ret = ERROR_NONE;
 
 	LOG_DBG("E\n");
 
 	ret = set_mode_setfile(IMGSENSOR_MODE_INIT);
 
-#ifdef IMGSENSOR_HW_PARAM
-	if (ret != 0)
-		imgsensor_increase_hw_param_err_cnt(IMX355_CAL_SENSOR_POSITION);
-#endif
+	return ret;
 }	/*	sensor_init  */
 
 static kal_uint32 get_imgsensor_id(UINT32 *sensor_id)
@@ -706,6 +703,7 @@ static kal_uint32 open(void)
 	kal_uint8 i = 0;
 	kal_uint8 retry = 2;
 	kal_uint16 sensor_id = 0;
+	kal_uint32 ret = ERROR_NONE;
 
 	LOG_INF("E\n");
 
@@ -735,7 +733,7 @@ static kal_uint32 open(void)
 	if (imgsensor_info.sensor_id != sensor_id)
 		return ERROR_SENSOR_CONNECT_FAIL;
 
-	sensor_init();
+	ret = sensor_init();
 
 	spin_lock(&imgsensor_drv_lock);
 	imgsensor.autoflicker_en		= KAL_FALSE;
@@ -756,7 +754,7 @@ static kal_uint32 open(void)
 
 	LOG_INF("X\n");
 
-	return ERROR_NONE;
+	return ret;
 }	/*	open  */
 
 static kal_uint32 close(void)

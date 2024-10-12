@@ -135,6 +135,20 @@ void dsi_write_data_dump(u32 id, unsigned long d0, u32 d1)
 	dbg_info("%02x: %*ph\n", id, d1, (u8 *)d0);
 }
 
+void dsi_rx_data_dump(u32 id, u8 cmd, int size, int ret_size, void *data)
+{
+	if (likely(!tx_dump))
+		return;
+
+	if (ret_size < 0)
+		return;
+
+	if (size == ret_size)
+		dbg_info("%02x:%02x: %*ph\n", id, cmd, size, (u8 *)data);
+	else
+		dbg_info("%02x:%02x: %*ph (%2d!=%2d)\n", id, cmd, size, (u8 *)data, size, ret_size);
+}
+
 static int mipi_tx(u32 id, unsigned long d0, u32 d1)
 {
 	int ret = 0;
@@ -419,7 +433,6 @@ static const struct file_operations cmdlist_fops = {
 	.open		= cmdlist_open,
 	.write		= cmdlist_store,
 	.read		= seq_read,
-	.llseek		= no_llseek,
 	.release	= single_release,
 };
 
@@ -513,7 +526,6 @@ static const struct file_operations tx_fops = {
 	.open		= tx_open,
 	.write		= tx_store,
 	.read		= seq_read,
-	.llseek		= no_llseek,
 	.release	= single_release,
 };
 
@@ -574,10 +586,9 @@ static ssize_t rx_store(struct file *f, const char __user *user_buf,
 	struct rw_info *rw = &d->rx;
 
 	char ibuf[MAX_INPUT] = {0, };
-	char rbuf[U8_MAX] = {0, };
 	char *pbuf;
 
-	int ret = 0, i;
+	int ret = 0;
 	unsigned int is_datatype = 0, type = 0, cmd = 0, len = 0, pos = 0;
 
 	if (!d->enable) {
@@ -631,16 +642,6 @@ static ssize_t rx_store(struct file *f, const char __user *user_buf,
 	rw->len = len;
 	rw->pos = pos;
 
-	tx_cmdlist(&d->unlock_list);
-	ret = rx(rw, rbuf);
-	if (ret < 0)
-		goto exit;
-
-	dbg_info("+ [%02x]\n", cmd);
-	for (i = 0; i < len; i++)
-		dbg_info("%3d(%3d): %02x\n", i + 1, i + pos + 1, rbuf[i]);
-	dbg_info("- [%02x]\n", cmd);
-
 exit:
 	return count;
 }
@@ -649,7 +650,6 @@ static const struct file_operations rx_fops = {
 	.open		= rx_open,
 	.write		= rx_store,
 	.read		= seq_read,
-	.llseek		= no_llseek,
 	.release	= single_release,
 };
 
@@ -675,7 +675,7 @@ static int help_show(struct seq_file *m, void *unused)
 	seq_puts(m, "------------------------------------------------------------\n");
 	seq_puts(m, "\n");
 	seq_puts(m, "---------- usage\n");
-	seq_puts(m, "# cd /d/dd_lcd\n");
+	seq_puts(m, "# cd /d/dd/lcd\n");
 	seq_puts(m, "\n");
 	seq_puts(m, "---------- rx usage\n");
 	seq_puts(m, "# echo cmd len > rx\n");
@@ -753,7 +753,7 @@ static int help_show(struct seq_file *m, void *unused)
 	seq_puts(m, "= check current tx_dump status\n");
 	seq_puts(m, "\n");
 	seq_puts(m, "---------- usage summary\n");
-	seq_puts(m, "# cd /d/dd_lcd\n");
+	seq_puts(m, "# cd /d/dd/lcd\n");
 	seq_puts(m, "# echo 29 > tx\n");
 	seq_puts(m, "# cat tx\n");
 	seq_puts(m, "# echo a1 4 > rx\n");
@@ -775,8 +775,7 @@ static int help_open(struct inode *inode, struct file *f)
 static const struct file_operations help_fops = {
 	.open		= help_open,
 	.read		= seq_read,
-	.llseek		= seq_lseek,
-	.release	= seq_release,
+	.release	= single_release,
 };
 
 static int fb_notifier_callback(struct notifier_block *self,
@@ -787,7 +786,7 @@ static int fb_notifier_callback(struct notifier_block *self,
 	int fb_blank;
 
 	switch (event) {
-	case FB_EVENT_BLANK:
+	case SMCDSD_EVENT_BLANK:
 	case SMCDSD_EARLY_EVENT_BLANK:
 		break;
 	default:
@@ -803,7 +802,7 @@ static int fb_notifier_callback(struct notifier_block *self,
 
 	if (event == SMCDSD_EARLY_EVENT_BLANK)
 		d->enable = 0;
-	else if (event == FB_EVENT_BLANK && fb_blank == FB_BLANK_UNBLANK)
+	else if (event == SMCDSD_EVENT_BLANK && fb_blank == FB_BLANK_UNBLANK)
 		d->enable = 1;
 
 	return NOTIFY_DONE;
@@ -978,14 +977,18 @@ static int init_debugfs_lcd(void)
 {
 	int ret = 0;
 	static struct dentry *debugfs_root;
+	static struct dentry *dd_debugfs_root;
 	struct d_info *d = NULL;
 
 	dbg_info("+\n");
 
 	d = kzalloc(sizeof(struct d_info), GFP_KERNEL);
 
+	dd_debugfs_root = debugfs_lookup("dd", NULL);
+	dd_debugfs_root = dd_debugfs_root ? dd_debugfs_root : debugfs_create_dir("dd", NULL);
+
 	if (!debugfs_root) {
-		debugfs_root = debugfs_create_dir("dd_lcd", NULL);
+		debugfs_root = debugfs_create_dir("lcd", dd_debugfs_root);
 		debugfs_create_file("_help", 0400, debugfs_root, d, &help_fops);
 	}
 
@@ -1005,7 +1008,7 @@ static int init_debugfs_lcd(void)
 	init_add_unlock(d, "f0 5a 5a");
 	init_add_unlock(d, "f1 5a 5a");
 	init_add_unlock(d, "fc 5a 5a");
-	init_add_unlock(d, "9f 5a 5a");
+	init_add_unlock(d, "9f a5 a5");
 
 	lcd_init_dsi_access(d);
 

@@ -172,7 +172,11 @@ static struct imgsensor_info_struct imgsensor_info = {
 	.min_shutter = 1,	/* 1,          //min shutter */
 	.min_gain = 64,		//1x gain
 	.max_gain = 1024,		//16x gain
+#if IS_ENABLED(CONFIG_CAMERA_AAW_V34X) || IS_ENABLED(CONFIG_CAMERA_AAW_V24)
+	.min_gain_iso = 50,
+#else
 	.min_gain_iso = 20,
+#endif
 	.gain_step = 2,
 	.gain_type = 2,
 	.exp_step = 1,
@@ -207,8 +211,11 @@ static struct imgsensor_info_struct imgsensor_info = {
 	.custom2_delay_frame = 2,
 	.custom3_delay_frame = 2,
 	.custom4_delay_frame = 2,
+#if IS_ENABLED(CONFIG_CAMERA_AAW_V34X)
+	.isp_driving_current = ISP_DRIVING_6MA,	/* mclk driving current */
+#else
 	.isp_driving_current = ISP_DRIVING_4MA,	/* mclk driving current */
-
+#endif
 	/* sensor_interface_type */
 	.sensor_interface_type = SENSOR_INTERFACE_TYPE_MIPI,
 
@@ -702,19 +709,16 @@ static int set_mode_setfile(enum IMGSENSOR_MODE mode)
 	return ret;
 }
 
-static void sensor_init(void)
+static int sensor_init(void)
 {
-	int ret = 0;
+	int ret = ERROR_NONE;
 
 	LOG_INF("E");
 	ret = set_mode_setfile(IMGSENSOR_MODE_INIT);
 
-#ifdef IMGSENSOR_HW_PARAM
-	if (ret != 0)
-		imgsensor_increase_hw_param_err_cnt(IMX258_CAL_SENSOR_POSITION);
-#endif
-
 	LOG_INF("X");
+
+	return ret;
 }
 
 /*************************************************************************
@@ -745,12 +749,10 @@ static kal_uint32 get_imgsensor_id(UINT32 *sensor_id)
 
 		do {
 			*sensor_id = ((read_cmos_sensor_8(0x0016) << 8) | read_cmos_sensor_8(0x0017));
+			LOG_INF("i2c write id: 0x%x, sensor id: 0x%x\n", imgsensor.i2c_write_id, *sensor_id);
 			if (*sensor_id == imgsensor_info.sensor_id) {
-				LOG_INF("i2c write id: 0x%x, sensor id: 0x%x\n", imgsensor.i2c_write_id, *sensor_id);
-
 				return ERROR_NONE;
 			}
-			LOG_ERR("Read sensor id fail, id: 0x%x\n", imgsensor.i2c_write_id);
 			retry--;
 		} while (retry > 0);
 
@@ -759,6 +761,9 @@ static kal_uint32 get_imgsensor_id(UINT32 *sensor_id)
 	}
 
 	if (*sensor_id != imgsensor_info.sensor_id) {
+		LOG_ERR("Read sensor id fail, write id: 0x%x, id: 0x%x\n", imgsensor.i2c_write_id, *sensor_id);
+
+		/*if Sensor ID is not correct, Must set *sensor_id to 0xFFFFFFFF*/
 		*sensor_id = 0xFFFFFFFF;
 
 		return ERROR_SENSOR_CONNECT_FAIL;
@@ -792,6 +797,7 @@ static kal_uint32 open(void)
 	kal_uint8 i = 0;
 	kal_uint8 retry = 2;
 	kal_uint32 sensor_id = 0;
+	kal_uint32 ret = ERROR_NONE;
 
 	LOG_INF("E");
 	while (imgsensor_info.i2c_addr_table[i] != 0xff) {
@@ -801,13 +807,10 @@ static kal_uint32 open(void)
 
 		do {
 			sensor_id = ((read_cmos_sensor_8(0x0016) << 8) | read_cmos_sensor_8(0x0017));
-
+			LOG_INF("i2c write id: 0x%x, sensor id: 0x%x\n", imgsensor.i2c_write_id, sensor_id);
 			if (sensor_id == imgsensor_info.sensor_id) {
-				LOG_INF("i2c write id: 0x%x, sensor id: 0x%x\n", imgsensor.i2c_write_id, sensor_id);
 				break;
 			}
-
-			LOG_ERR("Read sensor id fail, id: 0x%x\n", imgsensor.i2c_write_id);
 			retry--;
 		} while (retry > 0);
 
@@ -816,11 +819,13 @@ static kal_uint32 open(void)
 			break;
 		retry = 2;
 	}
-	if (imgsensor_info.sensor_id != sensor_id)
+	if (imgsensor_info.sensor_id != sensor_id) {
+		LOG_ERR("Read sensor id fail, write id: 0x%x, id: 0x%x\n", imgsensor.i2c_write_id, sensor_id);
 		return ERROR_SENSOR_CONNECT_FAIL;
+	}
 
 	/* initail sequence write in  */
-	sensor_init();
+	ret = sensor_init();
 
 	spin_lock(&imgsensor_drv_lock);
 	imgsensor.autoflicker_en		= KAL_FALSE;
@@ -840,7 +845,7 @@ static kal_uint32 open(void)
 	spin_unlock(&imgsensor_drv_lock);
 	LOG_INF("X");
 
-	return ERROR_NONE;
+	return ret;
 }				/*      open  */
 
 
@@ -900,7 +905,7 @@ static void set_imgsensor(enum IMGSENSOR_MODE sensor_mode_type, struct imgsensor
 static kal_uint32 preview(MSDK_SENSOR_EXPOSURE_WINDOW_STRUCT *image_window,
 			  MSDK_SENSOR_CONFIG_STRUCT *sensor_config_data)
 {
-	LOG_DBG("Y2K2 %s E\n", __func__);
+	LOG_DBG("%s E\n", __func__);
 	spin_lock(&imgsensor_drv_lock);
 	set_imgsensor(IMGSENSOR_MODE_PREVIEW, imgsensor_info.pre);
 	spin_unlock(&imgsensor_drv_lock);
@@ -931,7 +936,7 @@ static kal_uint32 capture(MSDK_SENSOR_EXPOSURE_WINDOW_STRUCT *image_window,
 	set_imgsensor(IMGSENSOR_MODE_CAPTURE, imgsensor_info.cap);
 	spin_unlock(&imgsensor_drv_lock);
 	set_mode_setfile(imgsensor.sensor_mode);
-	msleep(100);
+
 	return ERROR_NONE;
 }				/* capture() */
 
@@ -1478,15 +1483,49 @@ static kal_uint32 get_sensor_temperature(void)
 
 }
 
+static void wait_stream_onoff_range(kal_uint32 addr, kal_uint32 min_val, kal_uint32 max_val)
+{
+	kal_uint8 read_val = 0;
+	kal_uint16 read_addr = 0;
+	kal_uint32 max_cnt = 0, cur_cnt = 0;
+	unsigned long wait_delay_ms = 0;
+
+	read_addr = addr;
+	wait_delay_ms = 2;
+	max_cnt = 50;
+	cur_cnt = 1;
+
+	mDELAY(wait_delay_ms);
+	read_val = read_cmos_sensor_8(read_addr);
+
+	while (read_val < min_val || read_val > max_val) {
+		mDELAY(wait_delay_ms);
+		cur_cnt++;
+		read_val = read_cmos_sensor_8(read_addr);
+
+		if (cur_cnt >= max_cnt) {
+			LOG_ERR("stream timeout: %d ms\n", (max_cnt * wait_delay_ms));
+			break;
+		}
+	}
+	LOG_INF("wait time: %d ms\n", (cur_cnt * wait_delay_ms));
+}
+
+/*
+ * Read sensor frame counter (sensor_fcount address = 0x0005)
+ * stream on (0x01 ~ 0xFE), stream standby (0xFF)
+ */
+
 static kal_uint32 streaming_control(kal_bool enable)
 {
 	LOG_DBG("streaming_enable(0=Sw Standby,1=streaming): %d\n", enable);
-	if (enable) {
+	if (enable)
 		write_cmos_sensor(0x0100, 0X01);
-	} else {
+	else {
 		write_cmos_sensor(0x0100, 0x00);
-		usleep_range(10000, 11000);
+		wait_stream_onoff_range(0x0005, 0xFF, 0xFF);
 	}
+
 	return ERROR_NONE;
 }
 

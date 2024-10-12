@@ -28,6 +28,7 @@
 #endif
 
 #ifdef CONFIG_SHUB
+#include <linux/sec_debug.h>
 #include "../../../../sensorhub/vendor/shub_mtk_helper.h"
 #endif
 
@@ -119,7 +120,34 @@ uint32_t memorydump_size_probe(struct platform_device *pdev)
 	}
 	return 0;
 }
+#if IS_ENABLED(CONFIG_SHUB_DUMP_NOTI)
+struct raw_notifier_head dump_notifier_chain;
 
+int shub_dump_notifier_register(struct notifier_block *nb)
+{
+	int ret;
+
+	pr_notice("[SCP][SHUB] %s\n", __func__);
+	ret = raw_notifier_chain_register(&dump_notifier_chain, nb);
+
+	return ret;
+}
+
+void shub_dump_notifier_call(int val, struct shub_dump *dump)
+{
+	raw_notifier_call_chain(&dump_notifier_chain, val, dump);
+}
+#else
+int shub_dump_notifier_register(struct notifier_block *nb)
+{
+	int ret;
+
+	ret = false;
+	pr_notice("[SCP][SHUB] don't support SHUB_DUMP_NOTI\n");
+	return ret;
+}
+#endif
+EXPORT_SYMBOL(shub_dump_notifier_register);
 void scp_dump_last_regs(void)
 {
 	c0_m->status = readl(R_CORE0_STATUS);
@@ -601,43 +629,21 @@ static unsigned int scp_crash_dump(enum scp_core_id id)
 #ifdef CONFIG_SHUB
 int get_scp_dump_size(void)
 {
-#if 0
 	unsigned int scp_dump_size;
 	uint32_t dram_size = 0;
-	
-#if SCP_RESERVED_MEM && IS_ENABLED(CONFIG_OF_RESERVED_MEM)
-	if (scpreg.secure_dump) {
-		scp_dump_size = get_MDUMP_size_accumulate(MDUMP_TBUF);
 
-		/* dram support? */
-		if ((int)(scp_region_info_copy.ap_dram_size) <= 0) {
-			pr_notice("[scp] ap_dram_size <=0\n");
-		} else {
-			dram_size = scp_region_info_copy.ap_dram_size;
-			scp_dump_size += roundup(dram_size, 4);
-		}
-
-	} else {
-#else
-	{
-#endif
-		
 	scp_dump_size = get_MDUMP_size_accumulate(MDUMP_TBUF);
+
 	/* dram support? */
 	if ((int)(scp_region_info_copy.ap_dram_size) <= 0) {
 		pr_notice("[scp] ap_dram_size <=0\n");
 	} else {
 		dram_size = scp_region_info_copy.ap_dram_size;
 		/* copy dram data*/
-		memcpy((void *)get_MDUMP_addr(MDUMP_DRAM),
-			scp_ap_dram_virt, dram_size);
 		scp_dump_size += roundup(dram_size, 4);
-	}
 	}
 
 	return scp_dump_size;
-#endif
-	return 0;
 }
 EXPORT_SYMBOL(get_scp_dump_size);
 #endif
@@ -724,6 +730,9 @@ void scp_aed(enum SCP_RESET_TYPE type, enum scp_core_id id)
 	size_t timeout = msecs_to_jiffies(SCP_COREDUMP_TIMEOUT_MS);
 	size_t expire = jiffies + timeout;
 	int ret;
+#if IS_ENABLED(CONFIG_SHUB_DUMP_NOTI)
+	struct shub_dump dump_data;
+#endif
 
 	if (!scp_ee_enable) {
 		pr_debug("[SCP]ee disable value=%d\n", scp_ee_enable);
@@ -732,6 +741,16 @@ void scp_aed(enum SCP_RESET_TYPE type, enum scp_core_id id)
 
 	/* wait for previous coredump complete */
 	while (1) {
+#ifdef CONFIG_SHUB
+		/* If debug_level is low, aee_aedv daemon is not working.
+		 * So, wait completion operation is not necessary.
+		 */
+		if (SEC_DEBUG_LEVEL(kernel) == 0) {
+			pr_notice("[SCP] %s: debug_level low, skip\n",
+				__func__);
+			break;
+		}
+#endif
 		ret = wait_for_completion_interruptible_timeout(
 			&scp_coredump_comp, timeout);
 		if (ret == 0) {
@@ -784,7 +803,15 @@ void scp_aed(enum SCP_RESET_TYPE type, enum scp_core_id id)
 	pr_debug("scp_aed_title=%s\n", scp_aed_title);
 
 	scp_prepare_aed_dump(scp_aed_title, id);
-#ifdef CONFIG_SHUB
+#if IS_ENABLED(CONFIG_SHUB_DUMP_NOTI)
+	pr_notice("[SCP] [SHUB] scp exception dump start\n");
+	dump_data.size = 0;
+	dump_data.reason = type;
+	dump_data.dump = (void *)scp_dump.ramdump;
+	dump_data.size = scp_dump.ramdump_length;
+	dump_data.mini_dump = (void *)scp_dump.detail_buff;
+	shub_dump_notifier_call(0, &dump_data);
+#elif IS_ENABLED(CONFIG_SHUB)
 	shub_dump_write_file((void *)scp_dump.ramdump, scp_dump.ramdump_length);
 #endif
 

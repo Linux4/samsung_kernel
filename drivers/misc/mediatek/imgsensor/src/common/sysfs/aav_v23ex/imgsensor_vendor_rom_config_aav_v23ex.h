@@ -23,11 +23,6 @@
 #define IMGSENSOR_HW_PARAM
 #endif
 
-#ifdef IMGSENSOR_HW_PARAM
-#define S5KJN1_CAL_SENSOR_POSITION SENSOR_POSITION_REAR
-#define GC5035_CAL_SENSOR_POSITION SENSOR_POSITION_FRONT
-#endif
-
 extern const struct imgsensor_vendor_rom_info vendor_rom_info[SENSOR_POSITION_MAX];
 
 #endif /*IMGESENSOR_VENDOR_ROM_CONFIG_AAV_V23EX_H*/

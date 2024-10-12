@@ -839,7 +839,6 @@ struct ISP_IRQ_ERR_WAN_CNT_STRUCT {
 };
 
 static signed int FirstUnusedIrqUserKey = 1;
-#define USERKEY_STR_LEN 128
 
 struct UserKeyInfo {
 	/* for the user that register a userKey */
@@ -4128,6 +4127,7 @@ EXPORT_SYMBOL(ISP_Halt_Mask);
  *****************************************************************************/
 static void ISP_EnableClock(bool En)
 {
+	unsigned int module = 0;
 #if defined(EP_NO_CLKMGR)
 	unsigned int setReg;
 #endif
@@ -4175,6 +4175,18 @@ static void ISP_EnableClock(bool En)
 		G_u4EnableClockCount++;
 		spin_unlock(&(IspInfo.SpinLockClock));
 		Prepare_Enable_ccf_clock(); /* can't be used in spinlock! */
+		spin_lock(&(IspInfo.SpinLockClock));
+		if (G_u4EnableClockCount == 1) {
+			spin_unlock(&(IspInfo.SpinLockClock));
+			for (module = ISP_CAM_A_IDX; module < ISP_CAMSV4_IDX; module++) {
+				enable_irq(isp_devs[module].irq);
+				LOG_INF(
+					"enable_irq cam %d, irq=%d\n",
+					module, isp_devs[module].irq);
+			}
+		} else {
+			spin_unlock(&(IspInfo.SpinLockClock));
+		}
 #endif
 	/* Disable CAMSYS_HALT1_EN: LSCI&BPCI, To avoid ISP halt keep arise */
 		#if 0/* TBD */
@@ -4231,7 +4243,17 @@ static void ISP_EnableClock(bool En)
 
 			ISP_WR32(CLOCK_CELL_BASE, _reg&(~(1<<6)));
 		}
-		spin_unlock(&(IspInfo.SpinLockClock));
+		if (G_u4EnableClockCount == 0) {
+			spin_unlock(&(IspInfo.SpinLockClock));
+			for (module = ISP_CAM_A_IDX; module < ISP_CAMSV4_IDX; module++) {
+				disable_irq(isp_devs[module].irq);
+				LOG_INF(
+					"disable_irq cam %d, irq=%d\n",
+					module, isp_devs[module].irq);
+			}
+		} else {
+			spin_unlock(&(IspInfo.SpinLockClock));
+		}
 		Disable_Unprepare_ccf_clock(); /* can't be used in spinlock! */
 #endif
 	}
@@ -10342,6 +10364,9 @@ static signed int ISP_probe(struct platform_device *pDev)
 					);
 					return Ret;
 				}
+
+				/* Reset irq ref cnt after request_irq by disable_irq. */
+				disable_irq(isp_dev->irq);
 
 				pr_info(
 					"nr_isp_devs=%d, devnode(%s), irq=%d, ISR: %s\n",

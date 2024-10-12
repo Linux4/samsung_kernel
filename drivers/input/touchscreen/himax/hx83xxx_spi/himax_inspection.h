@@ -299,3 +299,7 @@ extern void himax_set_cover_mode(struct himax_ts_data *ts, bool closed);
 #ifdef HX_TOUCH_PROXIMITY
 void psensor_enable(struct himax_ts_data *data, unsigned int mode);
 #endif
+
+extern int hx_set_grip_exception_zone(int *cmd_param);
+extern int hx_set_grip_portrait_mode(int *cmd_param);
+extern int hx_set_grip_landscape_mode(int *cmd_param);

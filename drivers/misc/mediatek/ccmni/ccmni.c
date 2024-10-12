@@ -40,6 +40,8 @@
 #include <linux/stacktrace.h>
 #include "ccmni.h"
 #include "ccci_debug.h"
+#include "rps_perf.h"
+
 #if defined(CCMNI_MET_DEBUG)
 #include <mt-plat/met_drv.h>
 #endif
@@ -58,6 +60,19 @@ long int gro_flush_timer;
 #define DEV_CLOSE               0
 
 static unsigned long timeout_flush_num, clear_flush_num;
+
+void set_ccmni_rps(unsigned long value)
+{
+	int i = 0;
+	struct ccmni_ctl_block *ctlb = ccmni_ctl_blk[0];
+	if (ctlb == NULL) {
+		pr_info("%s: invalid ctlb\n", __func__);
+		return;
+	}
+	for (i = 0; i < ctlb->ccci_ops->ccmni_num; i++)
+		set_rps_map(ctlb->ccmni_inst[i]->dev->_rx, value);
+}
+EXPORT_SYMBOL(set_ccmni_rps);
 
 /********************internal function*********************/
 static inline int is_ack_skb(int md_id, struct sk_buff *skb)
@@ -801,7 +816,7 @@ static int ccmni_ioctl(struct net_device *dev, struct ifreq *ifr, int cmd)
 		CCMNI_INF_MSG(ccmni->md_id,
 			"SIOCACKPRIO: ack_prio_en=%d, ccmni0_ack_en=%d\n",
 			ifr->ifr_ifru.ifru_ivalue,
-			ctlb->ccmni_inst[i]->ack_prio_en);
+			ccmni_tmp->ack_prio_en);
 		break;
 
 	case SIOPUSHPENDING:
@@ -979,6 +994,8 @@ static inline void ccmni_dev_init(int md_id, struct net_device *dev)
 			(~IFF_BROADCAST & ~IFF_MULTICAST);
 	/* not support VLAN */
 	dev->features = NETIF_F_VLAN_CHALLENGED;
+	if (ctlb->ccci_ops->md_ability & MODEM_CAP_HWTXCSUM)
+		dev->features |= NETIF_F_HW_CSUM;
 	if (ctlb->ccci_ops->md_ability & MODEM_CAP_SGIO) {
 		dev->features |= NETIF_F_SG;
 		dev->hw_features |= NETIF_F_SG;
@@ -1098,8 +1115,7 @@ static int ccmni_init(int md_id, struct ccmni_ccci_ops *ccci_info)
 
 
 	if ((ctlb->ccci_ops->md_ability & MODEM_CAP_CCMNI_IRAT) != 0) {
-		if (ctlb->ccci_ops->irat_md_id < 0 ||
-				ctlb->ccci_ops->irat_md_id >= MAX_MD_NUM) {
+		if (ctlb->ccci_ops->irat_md_id >= MAX_MD_NUM) {
 			CCMNI_PR_DBG(md_id,
 				"md%d IRAT fail: invalid irat md(%d)\n",
 				md_id, ctlb->ccci_ops->irat_md_id);

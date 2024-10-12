@@ -880,7 +880,7 @@ config BALANCE_ANON_FILE_RECLAIM
 
 config MMAP_READAROUND_LIMIT
 	int "Limit mmap readaround upperbound"
-	default 0
+	default 16
 	help
 	  Inappropriate mmap readaround size can hurt device performance
 	  during the sluggish situation. Add the hard upper-limit for
@@ -891,6 +891,13 @@ config FAULT_AROUND_4KB
 	default n
 	help
 	  Reduce fault around bytes to 4KB
+
+config FAULT_AROUND_BYTES
+	int "Fault around bytes"
+	default 32768
+	range 4096 65536
+	help
+	  The number of bytes to be mapped around the fault.
 
 config KSWAPD_CPU
 	hex "Set kswapd cpu affinity by default"
@@ -905,5 +912,13 @@ config RBIN
 	select CLEANCACHE
 	help
 	  This provides RBIN functionality in memory management.
+
+config RESTRICT_FILE_TO_CMA_ON_BOOT
+	bool "Restrict file cache allocation on cma zone when in early boot stage"
+	default n
+	help
+	  File page on cma zone which was allocated at early boot stage might
+          occur cma allocation failure. This config restricts file cache allocation
+          on cma zone for increasing the possibiliy of cma allocation success.
 
 endmenu

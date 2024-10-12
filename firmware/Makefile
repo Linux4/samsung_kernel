@@ -18,14 +18,17 @@ fw-external-$(CONFIG_TOUCHSCREEN_NT36xxx_HOSTDL_SPI) += tsp_novatek/nt36525_a12_
 fw-external-$(CONFIG_TOUCHSCREEN_NOVATEK_NT36523_SPI) += tsp_novatek/nt36672_a13ve_csot.bin tsp_novatek/nt36672_a13ve_csot_mp.bin
 fw-external-$(CONFIG_TOUCHSCREEN_NOVATEK_NT36523_I2C) += tsp_novatek/nt36525b_a23ex.bin
 fw-external-$(CONFIG_TOUCHSCREEN_SYNA_TCM2) += tsp_synaptics/PR3482364-S3908_M52_BOE_PRA_3102000C_20210903.img
-fw-external-$(CONFIG_TOUCHSCREEN_HIMAX_HX83XXX_SPI) += tsp_himax/hx83102j_birdie.bin tsp_himax/hx83112f_boe_a13ve.bin
+fw-external-$(CONFIG_TOUCHSCREEN_HIMAX_HX83XXX_SPI) += tsp_himax/hx83112f_boe_a13ve.bin
 fw-external-$(CONFIG_TOUCHSCREEN_HIMAX_HX83XXX_I2C) += tsp_himax/hx83102d_a23ex.bin
 fw-external-$(CONFIG_TOUCHSCREEN_GOODIX_9895_BRL) += tsp_goodix/A33_GT9895_COMBINED_20220517_v20.bin
 fw-external-$(CONFIG_TOUCHSCREEN_GOODIX_BRL) += tsp_goodix/gt9895_a34x.bin
 
 fw-external-$(CONFIG_TOUCHSCREEN_SYNAPTICS) += tsp_synaptics/s3908_m53x_boe.bin tsp_synaptics/s3908_m52xq_sdc.bin
+
 fw-external-$(CONFIG_SENSORS_A96T3X6_A12) += abov/a96t356_a12_main.bin abov/a96t356_a12_sub.bin \
-					 abov/a96t356_a12_usa_main.bin abov/a96t356_a12_usa_sub.bin
+					 abov/a96t356_a12_usa_main.bin abov/a96t356_a12_usa_sub.bin \
+					 abov/a96t356_a12_kor_main.bin abov/a96t356_a12_kor_sub.bin
+
 fw-external-$(CONFIG_SENSORS_A96T396_BIRDIE) += abov/a96t396_birdie_main.bin abov/a96t396_birdie_sub.bin abov/a96t396_birdie_wifi.bin
 fw-external-$(CONFIG_EPEN_WACOM_WEZ01) += epen/w9021_birdie.bin
 fw-external-$(CONFIG_KEYBOARD_STM32_POGO) += keyboard_stm/stm32_birdie.bin

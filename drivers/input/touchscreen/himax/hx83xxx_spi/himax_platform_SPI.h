@@ -27,6 +27,9 @@
 #if defined(CONFIG_HMX_DB)
 	#include <linux/regulator/consumer.h>
 #endif
+#if IS_ENABLED(CONFIG_SAMSUNG_TUI)
+#include <linux/input/stui_inf.h>
+#endif
 
 #define HIMAX_I2C_RETRY_TIMES 3
 
@@ -204,5 +207,9 @@ int himax_chip_common_remove(struct spi_device *spi);
 
 #if !IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
 extern unsigned int lcdtype;
+#endif
+
+#if IS_ENABLED(CONFIG_SAMSUNG_TUI)
+extern void stui_tsp_init(int (*stui_tsp_enter)(void), int (*stui_tsp_exit)(void), int (*stui_tsp_type)(void));
 #endif
 #endif

@@ -108,6 +108,8 @@ struct mdnie_seq_info {
 	int delay;
 
 	unsigned int modes;
+
+	void *reserved;
 };
 
 struct mdnie_table {

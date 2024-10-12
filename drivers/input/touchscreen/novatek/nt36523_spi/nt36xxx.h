@@ -129,6 +129,8 @@ enum NVT_TSP_FW_INDEX {
 #define POINT_DATA_CHECKSUM 1
 #define POINT_DATA_CHECKSUM_LEN 65
 
+#define NVT_SPI_RETRY_COUNT	3
+
 //---ESD Protect.---
 #define NVT_TOUCH_ESD_PROTECT 0
 #define NVT_TOUCH_ESD_CHECK_PERIOD 1500	/* ms */
@@ -359,6 +361,7 @@ struct nvt_ts_data {
 	struct notifier_block nb;
 #if IS_ENABLED(CONFIG_VBUS_NOTIFIER)
 	struct notifier_block vbus_nb;
+	struct delayed_work work_vbus;
 #endif
 	int lcd_esd_recovery;
 	struct completion resume_done;
@@ -631,6 +634,7 @@ int nvt_ts_mode_switch_extened(struct nvt_ts_data *ts, u8 *cmd, u8 len, bool pri
 int nvt_ts_mode_switch(struct nvt_ts_data *ts, u8 cmd, bool print_log);
 int pinctrl_configure(struct nvt_ts_data *ts, bool enable);
 void nvt_irq_enable(bool enable);
+bool nvt_ts_lcd_power_check(void);
 
 #if NVT_TOUCH_ESD_PROTECT
 extern void nvt_esd_check_enable(uint8_t enable);

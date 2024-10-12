@@ -62,6 +62,12 @@
 #define CREATE_TRACE_POINTS
 #include <trace/events/vmscan.h>
 
+#ifdef CONFIG_RESTRICT_FILE_TO_CMA_ON_BOOT
+#define BOOT_DURATION_SEC 120
+static unsigned long kswapd_inittime;
+bool boot_duration_passed_timeout;
+#endif
+
 struct scan_control {
 	/* How many pages shrink_list() should reclaim */
 	unsigned long nr_to_reclaim;
@@ -1035,6 +1041,10 @@ static enum page_references page_check_references(struct page *page,
 	 */
 	if (vm_flags & VM_LOCKED)
 		return PAGEREF_RECLAIM;
+
+	/* rmap lock contention: rotate */
+	if (referenced_ptes == -1)
+		return PAGEREF_KEEP;
 
 	if (referenced_ptes) {
 		if (PageSwapBacked(page))
@@ -2210,8 +2220,9 @@ static void shrink_active_list(unsigned long nr_to_scan,
 			}
 		}
 
+		/* Referenced or rmap lock contention: rotate */
 		if (page_referenced(page, 0, sc->target_mem_cgroup,
-				    &vm_flags)) {
+				    &vm_flags) != 0) {
 			nr_rotated += hpage_nr_pages(page);
 			/*
 			 * Identify referenced, file-backed active pages and
@@ -3859,6 +3870,11 @@ static int balance_pgdat(pg_data_t *pgdat, int order, int classzone_idx)
 		.may_swap = 1,
 	};
 
+#ifdef CONFIG_RESTRICT_FILE_TO_CMA_ON_BOOT
+	if (!boot_duration_passed_timeout && time_is_before_jiffies(kswapd_inittime + BOOT_DURATION_SEC * HZ))
+		boot_duration_passed_timeout = true;
+#endif
+
 	psi_memstall_enter(&pflags);
 	__fs_reclaim_acquire();
 
@@ -4340,6 +4356,10 @@ static int __init kswapd_init(void)
 
 #if CONFIG_KSWAPD_CPU
 	init_kswapd_cpumask();
+#endif
+#ifdef CONFIG_RESTRICT_FILE_TO_CMA_ON_BOOT
+	kswapd_inittime = jiffies;
+	boot_duration_passed_timeout = false;
 #endif
 	swap_setup();
 	for_each_node_state(nid, N_MEMORY)

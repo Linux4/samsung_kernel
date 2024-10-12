@@ -101,7 +101,7 @@ static ssize_t gz_test_store(struct device *dev,
 	char c;
 	struct task_struct *th;
 
-	if (n > 50) {
+	if (n <= 0 || n > 50) {
 		KREE_DEBUG("err: n > 50\n");
 		return n;
 	}
@@ -718,6 +718,7 @@ static long tz_client_tee_service(struct file *file, void __user *arg,
 			}
 
 			kfree(param[i].mem.buffer);
+			param[i].mem.buffer = NULL;
 			break;
 		}
 	}

@@ -16,6 +16,6 @@
 	pr_warn(OIS_DRV_NAME " [%s] " format, __func__, ##args)
 
 #define LOG_DBG(format, args...)                                               \
-	pr_info(OIS_DRV_NAME " [%s] " format, __func__, ##args)
+	pr_debug(OIS_DRV_NAME " [%s] " format, __func__, ##args)
 
 #endif

@@ -6,21 +6,23 @@
 
 #define LPS22HH_NAME	"LPS22HHTR"
 
-static void init_pressure_lps22hh(void)
+static int init_pressure_lps22hh(void)
 {
 	struct pressure_data *data = (struct pressure_data *)(get_sensor(SENSOR_TYPE_PRESSURE)->data);
 
 	shub_infof("");
 
 	data->convert_coef = 4096;
+
+	return 0;
 }
 
 
-struct pressure_chipset_funcs pressure_lps22hh_func = {
+struct sensor_chipset_init_funcs pressure_lps22hh_func = {
 	.init = init_pressure_lps22hh,
 };
 
-struct pressure_chipset_funcs *get_pressure_lps22hh_function_pointer(char *name)
+struct sensor_chipset_init_funcs *get_pressure_lps22hh_function_pointer(char *name)
 {
 	if (strcmp(name, LPS22HH_NAME) != 0)
 		return NULL;

@@ -17,9 +17,8 @@
 #include <linux/timer.h>
 #include <linux/kernel.h>
 #include <linux/workqueue.h>
-#if defined(CONFIG_SEC_DEBUG)
 #include <linux/sec_debug.h>
-#endif
+#include <linux/version.h>
 
 #include "../comm/shub_comm.h"
 #include "../sensormanager/shub_sensor.h"
@@ -71,11 +70,16 @@ static void check_no_event(void)
 
 		event = get_sensor_event(type);
 		if (sensor->report_mode_continuous && sensor->enabled && sensor->max_report_latency == 0 &&
-		    sensor->enable_timestamp + 5000000000ULL < timestamp &&
+		    MAX(sensor->enable_timestamp, sensor->change_timestamp) + 5000000000ULL < timestamp &&
 		    event->received_timestamp + 5000000000ULL < timestamp) {
-			shub_infof("sensor(%d) %lld(%lld), cur = %lld", type, event->received_timestamp,
-				   event->timestamp, timestamp);
+			shub_infof("sensor(%d) %lld(%lld), cur = %lld en = %lld change = %lld", type, event->received_timestamp,
+				   event->timestamp, timestamp, sensor->enable_timestamp, sensor->change_timestamp);
 
+			if (sensor->enable_timestamp < sensor->disable_timestamp) {
+				shub_infof("enable_timestamp invalid: enable_timestamp(%lld)  disable_timestamp(%lld)",
+				sensor->enable_timestamp, sensor->disable_timestamp);
+				break;
+			}
 			if (check_reset) {
 				shub_errf("no event, no sensorhub reset");
 				reset_mcu(RESET_TYPE_KERNEL_NO_EVENT);
@@ -98,34 +102,46 @@ static void check_no_event(void)
 static void debug_work_func(struct work_struct *work)
 {
 	int type;
-	uint64_t en_state = 0;
+	uint64_t probe_state[2] = {0, };
+	uint64_t en_state[2] = {0, };
 	struct shub_data_t *data = get_shub_data();
-
-	en_state = get_sensors_legacy_enable_state();
+	struct rtc_time tm;
+	char time_temp[50] = {0, };
 
 	for (type = 0; type < SENSOR_TYPE_MAX; type++) {
 		if (get_sensor_enabled(type))
 			print_sensor_debug(type);
 	}
 
-	shub_infof("FW(%d):%u, Sensor state: 0x%llx, En: 0x%llx, Reset cnt: %d[%d : C %u(%u, %u), N %u, %u]"
-		   ", Cal result : [M:%c, P:%c]",
-		   get_firmware_type(), get_firmware_rev(),
-		   get_sensors_legacy_probe_state(), en_state, data->cnt_reset, data->cnt_shub_reset[RESET_TYPE_MAX],
-		   data->cnt_shub_reset[RESET_TYPE_KERNEL_COM_FAIL], get_cnt_comm_fail(), get_cnt_timeout(),
-		   data->cnt_shub_reset[RESET_TYPE_KERNEL_NO_EVENT], data->cnt_shub_reset[RESET_TYPE_HUB_NO_EVENT],
+	get_tm(&(tm));
+
+	memset(time_temp, 0, sizeof(time_temp));
+	snprintf(time_temp, sizeof(time_temp), "%04d/%02d/%02d %02d:%02d:%02d",
+		 tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
+
+	get_sensors_legacy_probe_state(probe_state);
+	get_sensors_legacy_enable_state(en_state);
+	shub_infof(" (%s) FW(%d):%u, Sensor state: 0x%llx, 0x%llx, En: 0x%llx, 0x%llx, "
+		   "Reset cnt: %d[%d : C %u(%u, %u), N %u, %u, %u], Cal result : [M:%c, P:%c]",
+		   time_temp, get_firmware_type(), get_firmware_rev(),
+		   probe_state[0], probe_state[1], en_state[0], en_state[1], data->cnt_reset,
+		   data->cnt_shub_reset[RESET_TYPE_MAX], data->cnt_shub_reset[RESET_TYPE_KERNEL_COM_FAIL],
+		   get_cnt_comm_fail(), get_cnt_timeout(), data->cnt_shub_reset[RESET_TYPE_KERNEL_NO_EVENT],
+		   data->cnt_shub_reset[RESET_TYPE_HUB_NO_EVENT], data->cnt_shub_reset[RESET_TYPE_HUB_REQ_TASK_FAILURE],
 		   open_cal_result[SENSOR_TYPE_GEOMAGNETIC_FIELD], open_cal_result[SENSOR_TYPE_PRESSURE]);
 
 	if (is_shub_working())
 		check_no_event();
 
-#if defined(CONFIG_SHUB_MTK) && defined(CONFIG_SEC_DEBUG)
+#if defined(CONFIG_SHUB_MTK) && IS_ENABLED(CONFIG_SEC_DEBUG)
 	if (data->hub_crash_timestamp && data->hub_crash_timestamp + 100000000000ULL < get_current_timestamp() ) {
 		shub_infof("hub crash timestamp %llu", data->hub_crash_timestamp);
 		/* only work for debug level is mid */
-		if (SEC_DEBUG_LEVEL(kernel)) {
+		if (shub_debug_level()) {
 			shub_infof("panic!");
+			shub_infof("mini dump : %s", data->mini_dump);
 			panic("sensorhub crash error\n");
+
 		} else {
 			shub_infof("debug level is low");
 		}
@@ -167,6 +183,22 @@ void set_open_cal_result(int type, int result)
 		open_cal_result[type] = 'P';
 	else
 		open_cal_result[type] = 'F';
+}
+
+/*
+ * low return 0, mid and high return over 0.
+ */
+int shub_debug_level(void)
+{
+#if defined(CONFIG_SHUB_MTK)
+#if LINUX_VERSION_CODE > KERNEL_VERSION(5, 0, 0)
+	return !is_debug_level_low();
+#else
+	return SEC_DEBUG_LEVEL(kernel);
+#endif
+#else // LSI
+	return secdbg_mode_enter_upload();
+#endif
 }
 
 int init_shub_debug(void)
@@ -216,9 +248,13 @@ int print_mcu_debug(char *dataframe, int *index, int frame_len)
 {
 	u16 length = 0;
 	int cur = *index;
+	int len_size = 1;
 
-	memcpy(&length, dataframe + *index, 1);
-	*index += 1;
+	if (is_support_system_feature(SF_DEBUG_V2))
+		len_size = 2;
+
+	memcpy(&length, dataframe + *index, len_size);
+	*index += len_size;
 
 	if (length > frame_len - *index || length <= 0) {
 		shub_infof("[M] invalid debug length(%u/%d/%d)", length, frame_len, cur);

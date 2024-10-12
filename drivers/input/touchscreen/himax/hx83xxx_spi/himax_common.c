@@ -71,6 +71,8 @@ int g_i_CID_MIN; /*VER for GUEST*/
 #endif
 #ifdef HX_ZERO_FLASH
 int g_f_0f_updat;
+uint8_t *g_update_cfg_buf;
+EXPORT_SYMBOL(g_update_cfg_buf);
 #endif
 
 #ifdef SEC_FACTORY_MODE
@@ -278,7 +280,7 @@ static ssize_t himax_self_test(struct seq_file *s, void *v)
 		return HX_INIT_FAIL;
 	}
 
-	himax_int_enable(0);/* disable irq */
+	himax_int_enable(INT_DISABLE_NOSYNC);/* disable irq */
 
 	private_ts->in_self_test = 1;
 
@@ -287,7 +289,7 @@ static ssize_t himax_self_test(struct seq_file *s, void *v)
  *#ifdef HX_ESD_RECOVERY
  *	HX_ESD_RESET_ACTIVATE = 1;
  *#endif
- *	himax_int_enable(1); //enable irq
+ *	himax_int_enable(INT_ENABLE); //enable irq
  */
 	if (val == HX_INSPECT_OK)
 		seq_puts(s, "Self_Test Pass:\n");
@@ -324,7 +326,7 @@ static ssize_t himax_self_test(struct seq_file *s, void *v)
 #ifdef HX_ESD_RECOVERY
 	HX_ESD_RESET_ACTIVATE = 1;
 #endif
-	himax_int_enable(1);/* enable irq */
+	himax_int_enable(INT_ENABLE);/* enable irq */
 
 	return ret;
 }
@@ -458,15 +460,9 @@ static sec_himax_input_proc_ops(THIS_MODULE, himax_proc_HSEN_ops, himax_HSEN_rea
 
 int himax_set_gesture(int gesture_state)
 {
-	uint8_t addr[4];
 	uint8_t data[4];
 	uint8_t rec_data[DATA_LEN_4] = {0};
 	int retry = 0;
-
-	addr[3] = 0x10;
-	addr[2] = 0x00;
-	addr[1] = 0x7f;
-	addr[0] = 0x24;
 
 	data[3] = 0x00;
 	data[2] = 0x00;
@@ -474,10 +470,10 @@ int himax_set_gesture(int gesture_state)
 	data[0] = gesture_state & 0xFF;
 
 	do {
-		g_core_fp.fp_register_write(addr, DATA_LEN_4, data, 0);
+		g_core_fp.fp_register_write(pfw_op->addr_gesture_en, DATA_LEN_4, data, 0);
 		usleep_range(1000, 1001);
 
-		g_core_fp.fp_register_read(addr, DATA_LEN_4, rec_data, 0);
+		g_core_fp.fp_register_read(pfw_op->addr_gesture_en, DATA_LEN_4, rec_data, 0);
 		I("%s: Now retry=%d, data=0x%02X%02X%02X%02X\n", __func__, retry,
 			rec_data[3], rec_data[2], rec_data[1], rec_data[0]);
 	} while ((retry++ < 10) && (rec_data[3] != data[3] || rec_data[2] != data[2] || rec_data[1] != data[1] || rec_data[0] != data[0]) && !atomic_read(&private_ts->shutdown));
@@ -906,11 +902,6 @@ static int himax_auto_update_check(void)
 		if ((ic_data->vendor_cid_maj_ver != g_i_CID_MAJ) || (ic_data->vendor_cid_min_ver < g_i_CID_MIN)) {
 			I("Need to update!\n");
 			ret = NO_ERR;
-		} else if ((ic_data->vendor_cid_maj_ver == g_i_CID_MAJ) &&
-					(ic_data->vendor_cid_min_ver == g_i_CID_MIN) &&
-					(g_core_fp.fp_flash_lastdata_check(ic_data->flash_size, i_CTPM_FW, i_CTPM_FW_len) != 0)) {
-			I("last 4 bytes check failed!!!!!, need to update\n");
-			ret = NO_ERR;
 		} else {
 			I("No need to update!\n");
 			ret = 1;
@@ -925,18 +916,26 @@ static int himax_auto_update_check(void)
 
 static int i_get_FW(void)
 {
-	int ret = 0;
 	const struct firmware *image = NULL;
+	int retry_count = 10;
 
 	I("file name = %s\n", private_ts->pdata->i_CTPM_firmware_name);
-	ret = request_firmware(&image, private_ts->pdata->i_CTPM_firmware_name, private_ts->dev);
-	if (ret < 0) {
+	while (retry_count--) {
+		if (request_firmware(&image, private_ts->pdata->i_CTPM_firmware_name, private_ts->dev) == 0) {
+			E("%s: succeeded to request firmware retry_count:%d\n",
+					__func__, retry_count);
+			break;
+		}
+		sec_delay(50);
+	}
+
+	if (retry_count < 0) {
 #if defined(__EMBEDDED_FW__)
 		image = &g_embedded_fw;
 		I("%s: Couldn't find userspace FW, use embedded FW(size:%zu) instead.\n",
 					__func__, g_embedded_fw.size);
 #else
-		E("%s,fail in line%d error code=%d\n", __func__, __LINE__, ret);
+		E("%s,fail in line%d error\n", __func__, __LINE__);
 		return OPEN_FILE_FAIL;
 #endif
 	}
@@ -955,17 +954,15 @@ static int i_get_FW(void)
 		return OPEN_FILE_FAIL;
 	}
 
-	if (ret >= 0)
-		release_firmware(image);
-	ret = NO_ERR;
-	return ret;
+	release_firmware(image);
+	return 0;
 }
 static int i_update_FW(void)
 {
 	int upgrade_times = 0;
 	int8_t ret = 0, result = 0;
 
-	himax_int_enable(0);
+	himax_int_enable(INT_DISABLE_NOSYNC);
 
 
 update_retry:
@@ -1013,7 +1010,7 @@ update_retry:
 #else
 	g_core_fp.fp_sense_on(0x00);
 #endif
-	himax_int_enable(1);
+	himax_int_enable(INT_ENABLE);
 	return result;
 }
 #endif
@@ -1052,7 +1049,7 @@ static void himax_esd_hw_reset(void)
 	g_core_fp.fp_reload_disable(0);
 	g_core_fp.fp_sense_on(0x00);
 	himax_report_all_leave_event(private_ts);
-	himax_int_enable(1);
+	himax_int_enable(INT_ENABLE);
 ESCAPE_0F_UPDATE:
 #endif
 	I("END_Himax TP: ESD - Reset\n");
@@ -3173,6 +3170,12 @@ int himax_chip_common_init(void)
 	//queue_delayed_work(ts->himax_update_wq, &ts->work_update, msecs_to_jiffies(2000));
 #endif
 #ifdef HX_ZERO_FLASH
+	g_update_cfg_buf = kzalloc(ic_data->dsram_size * sizeof(uint8_t), GFP_KERNEL);
+	if (g_update_cfg_buf == NULL) {
+		err = -ENOMEM;
+		goto err_alloc_update_cfg_buf_failed;
+	}
+
 	ts->himax_0f_update_wq = create_singlethread_workqueue("HMX_0f_update_reuqest");
 	if (!ts->himax_0f_update_wq) {
 		E(" allocate himax_0f_update_wq failed\n");
@@ -3265,7 +3268,7 @@ int himax_chip_common_init(void)
 	ts->gesture_cust_en[0] = 0;
 	ts->gesture_cust_en[1] = 0;
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 19, 110))
-	ts->ts_SMWP_wake_lock = wakeup_source_register(ts->dev, HIMAX_common_NAME);
+	ts->ts_SMWP_wake_lock = wakeup_source_register(NULL, HIMAX_common_NAME);
 #else
 	wakeup_source_init(ts->ts_SMWP_wake_lock, HIMAX_common_NAME);
 #endif
@@ -3316,7 +3319,7 @@ int himax_chip_common_init(void)
 
 #if defined(HX_AUTO_UPDATE_FW)
 	if (g_auto_update_flag)
-		himax_int_enable(0);
+		himax_int_enable(INT_DISABLE_NOSYNC);
 #endif
 #ifdef HX_AUTO_UPDATE_FW
 	himax_update_register(&ts->work_update.work);
@@ -3327,6 +3330,9 @@ int himax_chip_common_init(void)
 	schedule_work(&ts->work_read_info.work);
 
 	g_hx_chip_inited = true;
+#ifdef SEC_FACTORY_MODE
+	sec_cmd_send_event_to_user(&ts->sec, NULL, "RESULT=PROBE_DONE");
+#endif
 	return 0;
 
 #ifdef SEC_FACTORY_MODE
@@ -3369,6 +3375,9 @@ err_create_ts_resume_wq_failed:
 	cancel_delayed_work_sync(&ts->work_0f_update);
 	destroy_workqueue(ts->himax_0f_update_wq);
 err_0f_update_wq_failed:
+	kfree(g_update_cfg_buf);
+	g_update_cfg_buf = NULL;
+err_alloc_update_cfg_buf_failed:
 #endif
 
 #ifdef HX_AUTO_UPDATE_FW
@@ -3479,6 +3488,10 @@ if (ts->input_dev) {
 	mutex_destroy(&ts->device_lock);
 	mutex_destroy(&ts->irq_lock);
 
+#if defined(HX_ZERO_FLASH)
+	kfree(g_update_cfg_buf);
+	g_update_cfg_buf = NULL;
+#endif
 	kfree(hx_touch_data);
 	hx_touch_data = NULL;
 	kfree(ic_data->notch_arr);
@@ -3758,14 +3771,14 @@ int himax_chip_common_early_suspend(struct himax_ts_data *ts)
 
 #ifdef HX_RST_PIN_FUNC
 		if (!gpio_get_value(ts->pdata->gpio_reset)) {
-			gpio_set_value(ts->pdata->gpio_reset, 1);
+			gpio_direction_output(ts->pdata->gpio_reset, 1);
 			I("%s make TP_RESET high\n", __func__);
 		}
 #endif
 	} else
 #endif
 	{
-		himax_int_enable(0);
+		himax_int_enable(INT_DISABLE_SYNC);
 		/*if (g_core_fp.fp_suspend_ic_action != NULL)*/
 			/*g_core_fp.fp_suspend_ic_action();*/
 
@@ -3774,7 +3787,7 @@ int himax_chip_common_early_suspend(struct himax_ts_data *ts)
 
 			cancel_state = cancel_work_sync(&ts->work);
 			if (cancel_state)
-				himax_int_enable(1);
+				himax_int_enable(INT_ENABLE);
 		}
 
 		/*ts->first_pressed = 0;*/
@@ -4064,7 +4077,7 @@ int himax_chip_common_late_resume(struct himax_ts_data *ts)
 
 #ifdef HX_RST_PIN_FUNC
 	if (!gpio_get_value(ts->pdata->gpio_reset)) {
-		gpio_set_value(ts->pdata->gpio_reset, 1);
+		gpio_direction_output(ts->pdata->gpio_reset, 1);
 		I("%s make TP_RESET high\n", __func__);
 		usleep_range(5000, 5000);
 	}
@@ -4080,10 +4093,6 @@ int himax_chip_common_late_resume(struct himax_ts_data *ts)
 	atomic_set(&ts->suspend_mode, HIMAX_STATE_POWER_ON);
 	I("[himax] %s: set HIMAX_STATE_POWER_ON\n", __func__);
 
-
-#if defined(HX_SMART_WAKEUP) || defined(HX_HIGH_SENSE) || defined(HX_USB_DETECT_GLOBAL)
-		g_core_fp.fp_resend_cmd_func(ts->suspended);
-#endif
 	hx_ap_notify_suspend(0);
 
 #if defined(HX_RST_PIN_FUNC) && defined(HX_RESUME_HW_RESET)
@@ -4138,7 +4147,7 @@ int himax_chip_common_late_resume(struct himax_ts_data *ts)
 		g_core_fp.fp_resume_ic_action();
 #endif
 
-	himax_int_enable(1);
+	himax_int_enable(INT_ENABLE);
 #if defined(HX_ZERO_FLASH) && defined(HX_RESUME_SET_FW)
 ESCAPE_0F_UPDATE:
 #endif

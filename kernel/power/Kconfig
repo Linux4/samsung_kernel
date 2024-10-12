@@ -326,3 +326,9 @@ config SEC_PM
 	default n
 	help
 	  Samsung PowerManagement Feature.
+
+config SEC_PM_IDLE_DEBUG
+	bool "MTK chipset time in idle state debug Feature"
+	default n
+    help
+      This config supports mtk idle state debug feature.

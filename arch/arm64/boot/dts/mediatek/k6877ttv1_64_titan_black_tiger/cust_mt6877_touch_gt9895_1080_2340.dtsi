@@ -1,0 +1,80 @@
+// SPDX-License-Identifier: GPL-2.0
+/*
+ * Copyright (c) 2021 MediaTek Inc.
+ */
+&pio {
+	berlin_attn_irq: berlin_attn_irq {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO14__FUNC_GPIO14>;
+			input-enable;
+			bias-disable;
+		};
+	};
+
+	berlin_attn_irq_suspend: berlin_attn_irq_suspend {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO14__FUNC_GPIO14>;
+			input-enable;
+			bias-disable;
+		};
+	};
+};
+
+&i2c0 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+	status = "okay";
+
+	tsp_goodix: touchscreen@5d {
+		status = "okay";
+		compatible = "goodix,berlin";
+		reg = <0x5d>;
+		pinctrl-names = "on_state", "off_state";
+		pinctrl-0 = <&berlin_attn_irq>;
+		pinctrl-1 = <&berlin_attn_irq_suspend>;
+		tsp_avdd_ldo-supply = <&mt_pmic_vio28_ldo_reg>;
+		sec,irq_gpio = <&pio 14 0>;
+		sec,irq_flag = <0x2002>; /* IRQF_TRIGGER_FALLING | IRQF_ONESHOT */
+	};
+};
+
+&tsp_goodix {
+	sec,bitmask_unload = <12 0x804>; /* bitshift bitmask. this is for focaltech panel */
+//	sec,lcd_type_unload = <0x804004>; /* this is for focaltech panel */
+	sec,refresh_rate_enable;
+	sec,enable_esd_check;
+
+	sec,max_coords = <1080 2340>;
+	sec,firmware_name = "tsp_goodix/A34_GT9895_03040002_Combined_20220902_updated.BIN";
+
+	sec,ic_type = <2>; //GT9895
+	sec,max_drv_num = <17>;
+	sec,max_sen_num = <35>;
+	sec,drv_map = <35 36 37 38 39 40 41 42 43 44
+			45 46 47 48 49 50 51>;
+	sec,sen_map = <0 1 2 3 4 5 6 7 8 9 10 11 12
+			13 14 15 16 17 18 19 20 21
+			22 23 24 25 26 27 28 29 30
+			31 32 33 34>;
+	sec,short_test_time_reg = <0x1479e>;
+	sec,short_test_status_reg = <0x13400>;
+	sec,short_test_result_reg = <0x13408>;
+	sec,drv_drv_reg = <0x13446>;
+	sec,sen_sen_reg = <0x136ee>;
+	sec,drv_sen_reg = <0x14152>;
+	sec,diff_code_reg = <0x14734>;
+	sec,production_test_addr = <0x15d4c>;
+	sec,switch_freq_cmd = <0xb1>;
+	sec,switch_cfg_cmd = <0x64>;
+	sec,snr_cmd = <0x65>;
+	sec,sensitive_cmd = <0x66>;
+
+	sec,isp_ram_reg = <0x23800>;
+	sec,flash_cmd_reg = <0x12400>;
+	sec,isp_buffer_reg = <0x12410>;
+	sec,config_data_reg = <0x3e000>;
+	sec,misctl_reg = <0xd804>;
+	sec,watch_dog_reg = <0xd040>;
+	sec,config_id_reg = <0x10076>;
+	sec,enable_misctl_val = <0x20700000>;
+};

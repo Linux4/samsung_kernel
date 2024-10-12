@@ -663,7 +663,7 @@ int tcpc_schedule_init_work(struct tcpc_device *tcpc)
 	pr_info("%s wait %d num\n", __func__, tcpc->desc.notifier_supply_num);
 
 	schedule_delayed_work(
-		&tcpc->init_work, msecs_to_jiffies(30*1000));
+		&tcpc->init_work, msecs_to_jiffies(30 * 1000));
 #endif
 	return 0;
 }

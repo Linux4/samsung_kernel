@@ -170,13 +170,6 @@ READ_START:
 		 */
 		if (port->rx_skb_list.qlen == 0)
 			port_ask_more_req_to_md(port);
-		if (port->rx_skb_list.qlen < 0) {
-			spin_unlock_irqrestore(&port->rx_skb_list.lock, flags);
-			CCCI_ERROR_LOG(-1, CHAR,
-				"%s:port->rx_skb_list.qlen < 0 %s\n",
-				__func__, port->name);
-			return -EFAULT;
-		}
 	} else {
 		read_len = size;
 	}
@@ -435,13 +428,6 @@ READ_START:
 		 */
 		if (port->rx_skb_list.qlen == 0)
 			port_ask_more_req_to_md(port);
-		if (port->rx_skb_list.qlen < 0) {
-			spin_unlock_irqrestore(&port->rx_skb_list.lock, flags);
-			CCCI_ERROR_LOG(md_id, CHAR,
-				"%s:port->rx_skb_list.qlen < 0 %s\n",
-				__func__, port->name);
-			return -EFAULT;
-		}
 	} else {
 		read_len = count;
 	}

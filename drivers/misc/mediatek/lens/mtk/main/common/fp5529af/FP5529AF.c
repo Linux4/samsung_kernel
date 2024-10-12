@@ -147,9 +147,7 @@ static u8 read_data(u8 addr)
 static int initAF(void)
 {
 	int ret = 0;
-#ifdef IMGSENSOR_HW_PARAM
-	struct cam_hw_param *hw_param = NULL;
-#endif
+
 	u8 data = 0xFF;
 	u8 ac_mode = 0xA2, ac_time = 0x3F;
 
@@ -190,11 +188,8 @@ static int initAF(void)
 
 	}
 #ifdef IMGSENSOR_HW_PARAM
-	if (ret != 0) {
-		imgsensor_sec_get_hw_param(&hw_param, SENSOR_POSITION_REAR);
-		if (hw_param)
-			hw_param->i2c_af_err_cnt++;
-	}
+	if (ret != 0)
+		imgsensor_increase_hw_param_af_err_cnt(SENSOR_POSITION_REAR);
 #endif
 	LOG_INF("-\n");
 

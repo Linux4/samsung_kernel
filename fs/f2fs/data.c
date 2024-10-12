@@ -26,7 +26,12 @@
 #include "trace.h"
 #include <trace/events/f2fs.h>
 #include <trace/events/android_fs.h>
-
+#include <asm/div64.h>
+#ifdef CONFIG_PROC_FSLOG
+#include <linux/fslog.h>
+#else
+#define ST_LOG(fmt, ...)
+#endif
 #define NUM_PREALLOC_POST_READ_CTXS	128
 
 static struct kmem_cache *bio_post_read_ctx_cache;
@@ -2951,6 +2956,109 @@ out:
 						wbc, FS_DATA_IO, 0);
 }
 
+#ifdef CONFIG_F2FS_ML_BASED_STREAM_SEPARATION
+static void set_ml_file_temp(struct inode *inode, int is_cold)
+{
+	if (is_cold)
+		F2FS_I(inode)->i_advise |= FADVISE_COLD_BIT;
+	else
+		F2FS_I(inode)->i_advise &= ~FADVISE_COLD_BIT;
+}
+
+static bool fill_streamid_data(struct f2fs_sb_info *sbi, long long *arr, struct inode *inode)
+{
+	struct f2fs_inode_info *fi = F2FS_I(inode);
+	__le32 inode_uid;
+
+	if (sbi->mp_uid == 0 || fi->mtime_cnt == 0)
+		return false;
+	inode_uid = from_kuid(&init_user_ns, inode->i_uid)%100000;
+	arr[0] = (__s64)get_dirty_pages(inode) * 4096; /* dirty */
+	arr[1] = i_size_read(inode); /* file_size */
+	arr[2] = fi->mtime_interval>>34;
+	arr[3] = fi->mtime_cnt;
+	arr[4] = fi->is_cache * 1000000;
+	arr[5] = (uid_eq(KUIDT_INIT(inode_uid), KUIDT_INIT(sbi->mp_uid))) * 1000000;
+	arr[6] = fi->write_chunk;
+	arr[7] = fi->overwrite_cnt;
+	arr[8] = fi->append_cnt;
+	arr[9] = arr[7] * 1000000000;
+	arr[10] = arr[8] * 1000000000;
+	do_div(arr[9], arr[3]);
+	do_div(arr[10], arr[3]);
+	return true;
+}
+
+static long long calculate_cold_score(struct f2fs_sb_info *sbi, struct inode *inode, long long *arr)
+{
+/*	we use logistic regression model to separate hot/cold write pattern.
+ *	selected parameters are as below
+ *	dirty page size, file size, overwrite, append, write count
+ *	average write time, size
+ *	ratio of overwrite, append write
+ *	use fusefs, has cache directory
+ *
+ *	weights about parameters are calculated in advance
+ *
+ *	we calculate cold score as below
+ *	cold score = (weight * normalized value of each writes)
+ *	if cold_score is bigger than threshold, file will be classified as cold
+ */
+
+	long long cold_score = 0;
+	int i = 0;
+
+	for (i = 0; i < STREAMID_PARAMS ; i++)
+		cold_score += arr[i] * sbi->logistic_scale[i];
+
+	cold_score += sbi->logistic_bias;
+
+	if (trace_android_fs_datawrite_start_wb_enabled() &&
+	trace_android_fs_separation_start_enabled()) {
+		char *path, pathbuf[MAX_TRACE_PATHBUF_LEN];
+
+		path = android_fstrace_get_pathname(pathbuf,
+						MAX_TRACE_PATHBUF_LEN,
+						inode);
+		trace_android_fs_separation_start(inode, 0, arr[0],
+		current->pid, path, current->comm,  arr, cold_score);
+		trace_android_fs_datawrite_start_wb(inode, 0,
+		(__s64)get_dirty_pages(inode) * 4096, current->pid, path,
+		current->comm, 0, arr[4], 0, arr[5], arr[6], arr);
+	}
+
+	return cold_score;
+}
+
+static int is_ml_cold(struct f2fs_sb_info *sbi, struct inode *inode, long long *arr)
+{
+	long long cold_score;
+
+#ifdef CONFIG_F2FS_ML_STREAMID_FORCE_COLD
+	if (F2FS_I(inode)->is_force_cold == 1)
+		return 1;
+#endif
+	cold_score = calculate_cold_score(sbi, inode, arr);
+	return cold_score > sbi->logistic_threshold;
+}
+
+static void do_ml_stream(struct f2fs_sb_info *sbi, struct inode *inode)
+{
+	long long arr[STREAMID_PARAMS];
+	int old_cold;
+	int new_cold;
+
+	if (sbi->streamid_enable && fill_streamid_data(sbi, arr, inode)) {
+
+		old_cold = file_is_cold(inode);
+		new_cold = is_ml_cold(sbi, inode, arr);
+
+		if (old_cold != new_cold)
+			set_ml_file_temp(inode, new_cold);
+	}
+
+}
+#endif
 /*
  * This function was copied from write_cche_pages from mm/page-writeback.c.
  * The major change is making write step of cold data page separately from
@@ -2982,6 +3090,7 @@ static int f2fs_write_cache_pages(struct address_space *mapping,
 		.private = NULL,
 	};
 #endif
+
 	int nr_pages;
 	pgoff_t uninitialized_var(writeback_index);
 	pgoff_t index;
@@ -2994,7 +3103,9 @@ static int f2fs_write_cache_pages(struct address_space *mapping,
 	int i;
 
 	pagevec_init(&pvec);
-
+#ifdef CONFIG_F2FS_ML_BASED_STREAM_SEPARATION
+	do_ml_stream(sbi, mapping->host);
+#endif
 	if (get_dirty_pages(mapping->host) <=
 				SM_I(F2FS_M_SB(mapping))->min_hot_blocks)
 		set_inode_flag(mapping->host, FI_HOT_DATA);
@@ -3329,7 +3440,7 @@ static int prepare_write_begin(struct f2fs_sb_info *sbi,
 	struct dnode_of_data dn;
 	struct page *ipage;
 	bool locked = false;
-	struct extent_info ei = {0,0,0};
+	struct extent_info ei = {0, 0, 0};
 	int err = 0;
 	int flag;
 

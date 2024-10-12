@@ -15,6 +15,14 @@
 #include "tz_m4u.h"
 #endif
 
+#include <linux/soc/mediatek/mtk-pm-qos.h>
+#include <linux/pm_qos.h>
+#include <mmdvfs_pmqos.h>
+
+static struct mtk_pm_qos_request disp_qos_request;
+static u64 g_freq_steps[MAX_FREQ_STEP];
+static u32 step_size;
+
 static DEFINE_MUTEX(disp_session_lock);
 
 int mtk_drm_session_create(struct drm_device *dev,
@@ -88,6 +96,21 @@ done:
 				"MTK_DRM_OPT_RPO");
 		mtk_update_layering_opt_by_disp_opt(helper_opt, 0);
 		mtk_set_layering_opt(LYE_OPT_RPO, 0);
+	}
+
+	if (config->type == MTK_SESSION_MEMORY)
+	{
+		s32 result = 0;
+
+		DDPPR_ERR("WFD session create\n");
+		if (g_freq_steps[0] == 0) {
+			mtk_pm_qos_add_request(&disp_qos_request, PM_QOS_DISP_FREQ, PM_QOS_MM_FREQ_DEFAULT_VALUE);
+			result = mmdvfs_qos_get_freq_steps(PM_QOS_DISP_FREQ, g_freq_steps, &step_size);
+			if (result < 0)
+				pr_err("get MMDVFS freq steps failed, result: %d\n", result);
+		}
+		if (g_freq_steps[0] != 0)
+			mtk_pm_qos_update_request(&disp_qos_request, g_freq_steps[0]);
 	}
 
 	DDPINFO("[DRM] new session done\n");
@@ -242,6 +265,12 @@ int mtk_drm_session_destroy(struct drm_device *dev,
 	}
 
 	mutex_unlock(&disp_session_lock);
+
+	if (config->type == MTK_SESSION_MEMORY)
+	{
+		DDPPR_ERR("WFD session destroy");
+		mtk_pm_qos_remove_request(&disp_qos_request);
+	}
 
 	/* 2. Destroy this session */
 	if (ret == 0)

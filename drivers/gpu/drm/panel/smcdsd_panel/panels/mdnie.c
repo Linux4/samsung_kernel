@@ -973,7 +973,7 @@ static int fb_notifier_callback(struct notifier_block *self,
 	int fb_blank;
 
 	switch (event) {
-	case FB_EVENT_BLANK:
+	case SMCDSD_EVENT_BLANK:
 	case SMCDSD_EARLY_EVENT_BLANK:
 		break;
 	default:
@@ -1088,7 +1088,7 @@ static int mdnie_check_info(struct mdnie_info *mdnie)
 
 	if (scr_info && night_info && night_info->max_w) {
 		index = scr_info->index;
-		limit = scr_info->cr + night_info->max_w - 1;
+		limit = scr_info->cr + night_info->max_w;
 
 		if (index >= MDNIE_IDX_MAX) {
 			pr_err("%s: invalid night_info index. %d\n", __func__, index);
@@ -1096,7 +1096,7 @@ static int mdnie_check_info(struct mdnie_info *mdnie)
 			goto exit;
 		}
 
-		if (limit >= table->seq[index].dsi_msg.tx_len) {
+		if (limit >= table->seq[index].dsi_msg.tx_len + 1) {	/* limit is last array index of param buffer, tx_len is totoal length */
 			pr_err("%s: invalid night_info offset. %d, %d\n", __func__, limit, table->seq[index].dsi_msg.tx_len);
 			ret = -EINVAL;
 			goto exit;
@@ -1227,7 +1227,7 @@ struct class *mdnie_register(struct device *p, void *data, mdnie_w w, mdnie_r r,
 
 	mdnie_no++;
 
-	return 0;
+	return mdnie_class;
 
 exit3:
 	device_unregister(mdnie->dev);

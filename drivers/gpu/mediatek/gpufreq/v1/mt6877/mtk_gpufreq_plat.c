@@ -2947,10 +2947,6 @@ static enum g_posdiv_power_enum __mt_gpufreq_get_curr_posdiv_power(void)
 
 	posdiv_power = (mfgpll & (0x7 << POSDIV_SHIFT)) >> POSDIV_SHIFT;
 
-	gpufreq_pr_logbuf(
-		"%s : mfgpll: 0x%08x, posdiv_power: %d\n",
-		__func__, mfgpll, posdiv_power);
-
 	return posdiv_power;
 }
 

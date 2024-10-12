@@ -154,8 +154,6 @@ static enum IMGSENSOR_RETURN regulator_set(
 				return IMGSENSOR_RETURN_ERROR;
 			}
 			atomic_inc(enable_cnt);
-			PK_INFO("[regulator]%s(), sensor_idx %d, pin %d, voltage %d\n", __func__,
-				sensor_idx, pin, regulator_voltage[pin_state - IMGSENSOR_HW_PIN_STATE_LEVEL_0]);
 		} else {
 			if (regulator_is_enabled(pregulator))
 				PK_DBG("[regulator]%d is enabled\n", pin);
@@ -168,6 +166,10 @@ static enum IMGSENSOR_RETURN regulator_set(
 			}
 			atomic_dec(enable_cnt);
 		}
+
+		PK_INFO("[Regulator %s] sensor_idx = %d, pin = %d, voltage = %d\n",
+				pin_state != IMGSENSOR_HW_PIN_STATE_LEVEL_0 ? "on" : "off",
+				sensor_idx, pin, regulator_voltage[pin_state - IMGSENSOR_HW_PIN_STATE_LEVEL_0]);
 	} else {
 		PK_PR_ERR("regulator == NULL %d %d %d\n",
 				reg_type_offset,

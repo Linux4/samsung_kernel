@@ -109,6 +109,7 @@ struct mt6360_pmu_chg_info {
 	struct notifier_block pd_nb;
 	bool is_host;
 	bool is_in_hardreset;
+	struct delayed_work hardreset_work;
 #else
 	struct work_struct chgdet_work;
 #endif /* CONFIG_TCPC_CLASS */
@@ -124,6 +125,9 @@ struct mt6360_pmu_chg_info {
 	struct workqueue_struct *pe_wq;
 	struct work_struct pe_work;
 	u8 ctd_dischg_status;
+#if defined(CONFIG_BATTERY_SAMSUNG)
+	atomic_t bc12_nsdp_cnt;
+#endif
 #if defined(CONFIG_USB_FACTORY_MODE)
 	unsigned int f_mode;
 #endif
@@ -209,7 +213,8 @@ static inline u32 mt6360_trans_sel(u32 target, u32 min_val, u32 step,
 
 static u32 mt6360_trans_ichg_sel(u32 uA)
 {
-	return mt6360_trans_sel(uA, 100000, 100000, 0x31);
+	/* return mt6360_trans_sel(uA, 100000, 100000, 0x31); */
+	return mt6360_trans_sel(uA, 100000, 100000, 0x1D); // ALPS07902899 limit ichg as 3A
 }
 
 static u32 mt6360_trans_aicr_sel(u32 uA)
@@ -806,6 +811,7 @@ static int mt6360_detect_apple_samsung_ta(struct mt6360_pmu_chg_info *mpci)
 		0x0F,
 		0x03
 	);
+	usleep_range(100, 200);
 
 	ret = mt6360_pmu_reg_test_bit(mpci->mpi, MT6360_PMU_DPDM_CTRL2,
 				      4, &dp_0_9v);
@@ -836,6 +842,7 @@ static int mt6360_detect_apple_samsung_ta(struct mt6360_pmu_chg_info *mpci)
 		0x0F,
 		0x0B
 	);
+	usleep_range(100, 200);
 
 	ret = mt6360_pmu_reg_test_bit(mpci->mpi, MT6360_PMU_DPDM_CTRL2,
 				      5, &dp_2_3v);
@@ -849,6 +856,7 @@ static int mt6360_detect_apple_samsung_ta(struct mt6360_pmu_chg_info *mpci)
 		0x0F,
 		0x0F
 	);
+	usleep_range(100, 200);
 
 	ret = mt6360_pmu_reg_test_bit(mpci->mpi, MT6360_PMU_DPDM_CTRL2,
 				      5, &dm_2_3v);
@@ -878,6 +886,8 @@ out:
 		0x0F,
 		0x00
 	);
+	usleep_range(100, 200);
+
 	mt6360_set_usbsw_state(mpci, MT6360_USBSW_USB);
 	return ret;
 }
@@ -886,19 +896,19 @@ out:
 static int mt6360_chgdet_pre_process(struct mt6360_pmu_chg_info *mpci)
 {
 	int ret = 0;
-	bool attach = false;	
+	bool attach = false;
 	struct device *dev = NULL;
 	struct device_node *boot_node = NULL;
 	struct tag_bootmode *tag = NULL;
 	int boot_mode = 11;//UNKNOWN_BOOT
-	
+
 #ifdef CONFIG_TCPC_CLASS
 	attach = mpci->tcpc_attach;
 #else
 	attach = mpci->pwr_rdy;
 #endif /* CONFIG_TCPC_CLASS */
-	
-// workaround for mt6768 
+
+// workaround for mt6768
 	dev = mpci->dev;
 	if (dev != NULL){
 		boot_node = of_parse_phandle(dev->of_node, "bootmode", 0);
@@ -953,6 +963,46 @@ static int mt6360_toggle_usbchgen(struct mt6360_pmu_chg_info *mpci)
 }
 #endif
 
+static void mt6360_in_hardreset_handler(struct work_struct *work)
+{
+	struct mt6360_pmu_chg_info *mpci = container_of(work,
+					struct mt6360_pmu_chg_info, hardreset_work.work);
+
+	dev_info(mpci->dev, "%s\n", __func__);
+	mpci->is_in_hardreset = false;
+}
+
+static void mt6360_set_is_in_hardreset(struct mt6360_pmu_chg_info *mpci, bool in_hardreset)
+{
+	dev_info(mpci->dev, "%s: set %u\n", __func__, in_hardreset);
+
+	if(mpci->is_in_hardreset) {
+		cancel_delayed_work(&mpci->hardreset_work);
+		schedule_delayed_work(&mpci->hardreset_work, msecs_to_jiffies(10000));
+	} else
+		cancel_delayed_work(&mpci->hardreset_work);
+
+	mpci->is_in_hardreset = in_hardreset;
+}
+
+#if defined(CONFIG_BATTERY_SAMSUNG)
+static int mt6360_bc12_nsdp_workaround(struct mt6360_pmu_chg_info *mpci)
+{
+	int ret = 0;
+
+	dev_info(mpci->dev, "%s\n", __func__);
+	ret = mt6360_pmu_reg_clr_bits(mpci->mpi, MT6360_PMU_DEVICE_TYPE,
+		MT6360_MASK_USBCHGEN);
+	if (ret < 0) {
+		dev_notice(mpci->dev, "%s: disable chgdet fail\n", __func__);
+		return ret;
+	}
+
+	return mt6360_pmu_reg_set_bits(mpci->mpi, MT6360_PMU_DEVICE_TYPE,
+		MT6360_MASK_USBCHGEN);
+}
+#endif
+
 static int mt6360_chgdet_post_process(struct mt6360_pmu_chg_info *mpci)
 {
 	int ret = 0;
@@ -964,7 +1014,11 @@ static int mt6360_chgdet_post_process(struct mt6360_pmu_chg_info *mpci)
 #else
 	attach = mpci->pwr_rdy;
 #endif /* CONFIG_TCPC_CLASS */
+#if defined(CONFIG_BATTERY_SAMSUNG)
+	if (mpci->attach == attach && atomic_read(&mpci->bc12_nsdp_cnt) == 0) {
+#else
 	if (mpci->attach == attach) {
+#endif
 		dev_info(mpci->dev, "%s: attach(%d) is the same\n",
 				    __func__, attach);
 		inform_psy = !attach;
@@ -975,6 +1029,9 @@ static int mt6360_chgdet_post_process(struct mt6360_pmu_chg_info *mpci)
 	/* Plug out during BC12 */
 	if (!attach) {
 		mpci->chg_type = CHARGER_UNKNOWN;
+#if defined(CONFIG_BATTERY_SAMSUNG)
+		atomic_set(&mpci->bc12_nsdp_cnt, 0);
+#endif
 		goto out;
 	}
 #ifdef CONFIG_TCPC_CLASS
@@ -1010,9 +1067,28 @@ static int mt6360_chgdet_post_process(struct mt6360_pmu_chg_info *mpci)
 		break;
 	}
 
+#if defined(CONFIG_BATTERY_SAMSUNG)
+	/* BC12 workaround (NONSTD) */
+	if (mpci->chg_type == NONSTANDARD_CHARGER) {
+		if (atomic_read(&mpci->bc12_nsdp_cnt) < 1) {
+			ret = mt6360_bc12_nsdp_workaround(mpci);
+			/* Workaround success, wait for next event */
+			if (ret >= 0) {
+				atomic_inc(&mpci->bc12_nsdp_cnt);
+				return ret;
+			}
+		}
+		atomic_set(&mpci->bc12_nsdp_cnt, 0);
+	}
 #ifdef MT6360_APPLE_SAMSUNG_TA_SUPPORT
 	if (mpci->chg_type == NONSTANDARD_CHARGER) {
 		dev_info(mpci->dev, "%s: call mt6360_detect_apple_samsung_ta()\n", __func__);
+		ret = mt6360_pmu_reg_clr_bits(mpci->mpi, MT6360_PMU_DEVICE_TYPE,
+						MT6360_MASK_USBCHGEN);
+		if (ret < 0)
+			dev_notice(mpci->dev, "%s: disable chgdet fail\n", __func__);
+		usleep_range(1000, 1100);
+
 		ret = mt6360_detect_apple_samsung_ta(mpci);
 		if (ret < 0)
 			dev_notice(mpci->dev,
@@ -1020,6 +1096,8 @@ static int mt6360_chgdet_post_process(struct mt6360_pmu_chg_info *mpci)
 				   __func__, ret);
 	}
 #endif /* MT6360_APPLE_SAMSUNG_TA_SUPPORT */
+#endif
+
 out:
 	if (!attach) {
 		ret = __mt6360_enable_usbchgen(mpci, false);
@@ -2028,7 +2106,8 @@ static int mt6360_enable_chg_type_det(struct charger_device *chg_dev, bool en)
 		    mt6360_chgdet_post_process)(mpci);
 
 	if (!en)
-		mpci->is_in_hardreset = false;
+		mt6360_set_is_in_hardreset(mpci, false);
+
 out:
 	mutex_unlock(&mpci->chgdet_lock);
 #endif /* CONFIG_MT6360_PMU_CHARGER_TYPE_DETECT && CONFIG_TCPC_CLASS */
@@ -3505,7 +3584,7 @@ static int mt6360_chg_init_setting(struct mt6360_pmu_chg_info *mpci)
 	struct device_node *boot_node = NULL;
 	struct tag_bootmode *tag = NULL;
 	u32 boot_mode = 11;//UNKNOWN_BOOT
-// workaround for mt6768 
+// workaround for mt6768
 	dev = mpci->dev;
 	if (dev != NULL){
 		boot_node = of_parse_phandle(dev->of_node, "bootmode", 0);
@@ -3798,10 +3877,10 @@ static int pd_tcp_notifier_call(struct notifier_block *nb,
 	case TCP_NOTIFY_HARD_RESET_STATE:
 		mutex_lock(&mpci->chgdet_lock);
 		if (noti->hreset_state.state >= TCP_HRESET_SIGNAL_SEND) {
-			mpci->is_in_hardreset = true;
+			mt6360_set_is_in_hardreset(mpci, true);
 			mpci->is_host = false;
 		} else
-			mpci->is_in_hardreset = false;
+			mt6360_set_is_in_hardreset(mpci, false);
 		mutex_unlock(&mpci->chgdet_lock);
 
 		break;
@@ -3810,14 +3889,14 @@ static int pd_tcp_notifier_call(struct notifier_block *nb,
 			__func__, noti->pd_state.connected);
 		if ((noti->pd_state.connected == PD_CONNECT_NONE) ||
 			(noti->pd_state.connected == PD_CONNECT_HARD_RESET))
-			mpci->is_in_hardreset = false;
+			mt6360_set_is_in_hardreset(mpci, false);
 		break;
 	case TCP_NOTIFY_DR_SWAP:
 		if (noti->swap_state.new_role == PD_ROLE_DFP) {
 			mpci->is_host = true;
 			mt6360_set_usbsw_state(mpci, MT6360_USBSW_USB);
-			if ((mpci->chg_type == CHARGER_UNKNOWN) &&
-				(tcpm_inquire_typec_attach_state(mpci->tcpc) != TYPEC_UNATTACHED)) {
+			if (((mpci->chg_type == CHARGER_UNKNOWN) || (atomic_read(&mpci->bc12_nsdp_cnt) > 0))
+				&& (tcpm_inquire_typec_attach_state(mpci->tcpc) != TYPEC_UNATTACHED)) {
 				mpci->chg_type = NONSTANDARD_CHARGER;
 				ret = mt6360_psy_online_changed(mpci);
 				if (ret < 0)
@@ -3906,8 +3985,12 @@ static int mt6360_pmu_chg_probe(struct platform_device *pdev)
 	init_completion(&mpci->pumpx_done);
 	atomic_set(&mpci->pe_complete, 0);
 	atomic_set(&mpci->mivr_cnt, 0);
+#if defined(CONFIG_BATTERY_SAMSUNG)
+	atomic_set(&mpci->bc12_nsdp_cnt, 0);
+#endif
 	init_waitqueue_head(&mpci->waitq);
 	platform_set_drvdata(pdev, mpci);
+	INIT_DELAYED_WORK(&mpci->hardreset_work, mt6360_in_hardreset_handler);
 
 	/* apply platform data */
 	ret = mt6360_chg_apply_pdata(mpci, pdata);

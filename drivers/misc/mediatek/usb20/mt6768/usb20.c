@@ -27,6 +27,9 @@
 #endif
 
 #include <mt-plat/mtk_boot_common.h>
+#if defined(CONFIG_BATTERY_SAMSUNG)
+#include "../../../../battery/common/sec_charging_common.h"
+#endif
 MODULE_LICENSE("GPL v2");
 
 struct musb *mtk_musb;
@@ -93,6 +96,59 @@ static DEFINE_SPINLOCK(usb_hal_dpidle_lock);
 #define DPIDLE_TIMER_INTERVAL_MS 30
 
 static void issue_dpidle_timer(void);
+
+#if defined(CONFIG_BATTERY_SAMSUNG)
+static int musb_set_vbus_current(int usb_state)
+{
+        struct power_supply *psy;
+        union power_supply_propval pval = {0};
+        int cur = 100;
+
+        if (usb_state == USB_CONFIGURED)
+                cur = USB_CURRENT_HIGH_SPEED;
+        else
+                cur = USB_CURRENT_UNCONFIGURED;
+
+        pr_info("%s : %dmA\n", __func__, cur);
+
+        psy = power_supply_get_by_name("battery");
+        if (psy) {
+                pval.intval = cur;
+                psy_do_property("battery", set,
+                        POWER_SUPPLY_EXT_PROP_USB_CONFIGURE, pval);
+                power_supply_put(psy);
+        }
+
+        return 0;
+}
+
+static void musb_set_vbus_current_work(struct work_struct *w)
+{
+        struct musb *musb = container_of(w,
+                struct musb, set_vbus_current_work);
+        struct otg_notify *o_notify = get_otg_notify();
+
+        switch (musb->usb_state) {
+        case USB_SUSPEND:
+        /* set vbus current for suspend state is called in usb_notify. */
+                send_otg_notify(o_notify, NOTIFY_EVENT_USBD_SUSPENDED, 1);
+                goto skip;
+        case USB_UNCONFIGURED:
+                send_otg_notify(o_notify, NOTIFY_EVENT_USBD_UNCONFIGURED, 1);
+                break;
+        case USB_CONFIGURED:
+                send_otg_notify(o_notify, NOTIFY_EVENT_USBD_CONFIGURED, 1);
+                break;
+        default:
+                break;
+        }
+
+        musb_set_vbus_current(musb->usb_state);
+
+skip:
+        return;
+}
+#endif
 
 static void dpidle_timer_wakeup_func(struct timer_list *timer)
 {
@@ -1043,6 +1099,10 @@ void musb_sync_with_bat(struct musb *musb, int usb_state)
 	BATTERY_SetUSBState(usb_state);
 #endif
 #endif
+#if defined(CONFIG_BATTERY_SAMSUNG)
+        musb->usb_state = usb_state;
+        schedule_work(&musb->set_vbus_current_work);
+#endif
 }
 EXPORT_SYMBOL(musb_sync_with_bat);
 
@@ -1834,7 +1894,9 @@ static int __init mt_usb_init(struct musb *musb)
 #if defined(CONFIG_MTK_BASE_POWER)
 	timer_setup(&musb->idle_timer, musb_do_idle, 0);
 #endif
-
+#if defined(CONFIG_BATTERY_SAMSUNG)
+        INIT_WORK(&musb->set_vbus_current_work, musb_set_vbus_current_work);
+#endif
 #ifdef CONFIG_USB_MTK_OTG
 	mt_usb_otg_init(musb);
 	/* enable host suspend mode */

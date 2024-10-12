@@ -508,7 +508,11 @@ static const struct usb_device_id usb_quirk_list[] = {
 
 	/* INTEL VALUE SSD */
 	{ USB_DEVICE(0x8086, 0xf1a5), .driver_info = USB_QUIRK_RESET_RESUME },
-
+#if defined(CONFIG_USB_HOST_SAMSUNG_FEATURE)
+	/* VIA 3.0 HUB (MPA HUB) */
+	{ USB_DEVICE(0x2109, 0x0817),
+		.driver_info = USB_QUIRK_NO_LPM | USB_QUIRK_HUB_NO_SUSPEND },
+#endif
 	/* Realtek r8153 Lan dongle */
 	{ USB_DEVICE(0x0bda, 0x8153), .driver_info = USB_QUIRK_NO_LPM },
 

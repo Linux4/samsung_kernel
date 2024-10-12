@@ -284,6 +284,7 @@ struct hx_guest_info {
 	#define fw_data_program_reload_break					0x15E75678
 	#define fw_addr_selftest_addr_en						0x10007F18
 	#define fw_addr_selftest_result_addr					0x10007f24
+	#define fw_addr_gesture_en								0x10007f24
 	#define fw_data_selftest_request						0x00006AA6
 	#define fw_addr_criteria_addr							0x10007f1c
 	#define fw_data_criteria_aa_top							0x64
@@ -376,6 +377,8 @@ struct hx_guest_info {
 
 	#define ADDR_GESTURE_HISTORY 0x10006200
 	#define ADDR_SNR_MEASUREMENT 0x10007F30
+	#define ADDR_OSR_CTRL 0x100071C4
+	#define ADDR_REJECT_IDLE 0x10007FD4
 	#define ADDR_MODE_BASE 0x10007F00
 	#define ADDR_PROXIMITY_MODE 0x10007f20
 	#define ADDR_PROXIMITY_DEBUG 0x10007f18
@@ -621,6 +624,7 @@ struct fw_operation {
 	uint8_t addr_criteria_addr[4];
 	uint8_t addr_set_frame_addr[4];
 	uint8_t addr_selftest_result_addr[4];
+	uint8_t addr_gesture_en[4];
 	uint8_t addr_sorting_mode_en[4];
 	uint8_t addr_fw_mode_status[4];
 	uint8_t addr_icid_addr[4];
@@ -713,6 +717,8 @@ struct fw_operation {
 	uint32_t addr_except_zone;
 
 	uint8_t addr_snr_measurement[4];
+	uint8_t addr_osr_ctrl[4];
+	uint8_t addr_reject_idle[4];
 	uint8_t addr_mode_base[4];
 	uint8_t addr_proximity_mode[4];
 	uint8_t addr_proximity_debug[4];
@@ -1082,6 +1088,7 @@ struct himax_core_fp {
 	void (*fp_0f_operation)(struct work_struct *work);
 	int (*fp_0f_esd_check)(void);
 	void (*fp_0f_reload_to_active)(void);
+	void (*fp_0f_hw_crc)(bool enable);
 #ifdef HX_0F_DEBUG
 	void (*fp_read_sram_0f)(const struct firmware *fw_entry, uint8_t *addr, int start_index, int read_len);
 	void (*fp_read_all_sram)(uint8_t *addr, int read_len);

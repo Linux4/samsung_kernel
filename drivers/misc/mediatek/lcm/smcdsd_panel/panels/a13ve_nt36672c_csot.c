@@ -142,8 +142,10 @@ static int smcdsd_dsi_tx_set(struct lcd_info *lcd, struct lcd_seq_info *seq, u32
 				return ret;
 			}
 		}
-		if (seq[i].sleep)
-			usleep_range(seq[i].sleep, seq[i].sleep + (seq[i].sleep >> 1));
+		if (seq[i].sleep && seq[i].sleep < 20)
+			usleep_range(seq[i].sleep * USEC_PER_MSEC, (seq[i].sleep + 1) * USEC_PER_MSEC);
+		else if (seq[i].sleep)
+			msleep(seq[i].sleep);
 	}
 	return ret;
 }
@@ -257,7 +259,7 @@ static int i2c_lcd_bias_array_write(struct i2c_client *client, u8 *ptr, u8 len)
 
 		if (type == TYPE_DELAY) {
 			delay = command * (u8)USEC_PER_MSEC;
-			usleep_range(delay, delay + (delay >> 1));
+			usleep_range(delay, delay + USEC_PER_MSEC);
 		} else {
 			ret = i2c_smbus_write_byte_data(client, command, value);
 			if (ret < 0)
@@ -410,8 +412,8 @@ static int fb_notifier_callback(struct notifier_block *self,
 	int fb_blank;
 
 	switch (event) {
-	case FB_EVENT_BLANK:
-	case FB_EARLY_EVENT_BLANK:
+	case SMCDSD_EVENT_BLANK:
+	case SMCDSD_EARLY_EVENT_BLANK:
 		break;
 	default:
 		return NOTIFY_DONE;
@@ -885,11 +887,9 @@ static int smcdsd_panel_init(struct platform_device *p)
 
 	dev_info(&lcd->ld->dev, "+ %s: state(%d)\n", __func__, lcd->state);
 
-	if (lcd->state == PANEL_STATE_SUSPENED) {
-		nt36672c_csot_init(lcd);
+	nt36672c_csot_init(lcd);
 
-		lcd->state = PANEL_STATE_RESUMED;
-	}
+	lcd->state = PANEL_STATE_RESUMED;
 
 	dev_info(&lcd->ld->dev, "- %s: state(%d) connected(%d)\n", __func__, lcd->state, lcd->connected);
 
@@ -951,16 +951,12 @@ static int smcdsd_panel_exit(struct platform_device *p)
 
 	dev_info(&lcd->ld->dev, "+ %s: state(%d)\n", __func__, lcd->state);
 
-	if (lcd->state == PANEL_STATE_SUSPENED)
-		goto exit;
-
 	nt36672c_csot_exit(lcd);
 
 	lcd->state = PANEL_STATE_SUSPENED;
 
 	dev_info(&lcd->ld->dev, "- %s: state(%d) connected(%d)\n", __func__, lcd->state, lcd->connected);
 
-exit:
 	return 0;
 }
 

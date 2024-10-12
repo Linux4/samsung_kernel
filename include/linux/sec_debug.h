@@ -17,6 +17,10 @@
 
 #include "mt-plat/aee.h"
 
+#if defined(CONFIG_SEC_DUMP_SINK)	
+#define SEC_DUMPSINK_MASK 0x0000FFFF
+#endif
+
 /* +++ MediaTek Feature +++ */
 
 #define PANIC_STRBUF_LEN	(256)
@@ -206,6 +210,9 @@ struct last_reboot_reason {
 	uint32_t power_reset_reason;
 	uint32_t mcupm_skip;
 	char panic_str[PANIC_STRBUF_LEN];
+#if defined(CONFIG_SEC_DUMP_SINK)	
+	uint32_t reboot_magic;
+#endif
 	/* - SEC Feature - */
 };
 
@@ -259,6 +266,14 @@ enum sec_power_flags {
 	SEC_POWER_OFF = 0x0,
 	SEC_POWER_RESET = 0x12345678,
 };
+
+#if defined(CONFIG_SEC_DUMP_SINK)	
+enum sec_reboot_magic_flags {
+	MAGIC_SDR_FOR_MINFORM = 0x3,
+	MAGIC_STR_FOR_MINFORM = 0xC,
+};
+#endif
+
 #define SEC_RESET_REASON_PREFIX 0x12345670
 #define SEC_RESET_SET_PREFIX    0xabc00000
 enum sec_reset_reason {
@@ -290,6 +305,10 @@ enum sec_reset_reason {
 	#ifdef CONFIG_DIAG_MODE
 	SEC_RESET_SET_DIAG         = (SEC_RESET_SET_PREFIX | 0xe)	/* Diag enable for CP */
 	#endif
+
+#if defined(CONFIG_SEC_DUMP_SINK)	
+	SEC_RESET_SET_DUMPSINK     = (SEC_RESET_SET_PREFIX | 0x80000),	/* dumpsink */
+#endif
 };
 
 #define	_THIS_CPU	(-1)
@@ -419,9 +438,6 @@ enum sec_debug_extra_buf_type {
 	INFO_SMPL,
 	INFO_ETC,
 	INFO_ESR,
-	INFO_PCB,
-	INFO_SMD,
-	INFO_CHI,
 	INFO_KLG,
 	INFO_LEVEL,
 	INFO_MAX_A,
@@ -586,7 +602,6 @@ extern void sec_debug_set_extra_info_bug_verbose(unsigned long addr);
 extern void sec_debug_set_extra_info_panic(char *str);
 extern void sec_debug_set_extra_info_backtrace(struct pt_regs *regs);
 extern void sec_debug_set_extra_info_wdt_lastpc(unsigned long stackframe[][WDT_FRAME], unsigned int kick, unsigned int check);
-extern void sec_debug_set_extra_info_dpm_timeout(char *devname);
 extern void sec_debug_set_extra_info_smpl(unsigned int count);
 extern void sec_debug_set_extra_info_esr(unsigned int esr);
 extern void sec_debug_set_extra_info_zswap(char *str);

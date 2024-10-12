@@ -66,8 +66,6 @@ struct lcd_info {
 
 	struct notifier_block		fb_notif_panel;
 	struct notifier_block		reboot_notifier;
-	struct i2c_client		*client1;
-	struct i2c_client		*client2;
 
 	unsigned int			fac_info;
 	unsigned int			fac_done;
@@ -142,9 +140,9 @@ static int smcdsd_dsi_tx_set(struct lcd_info *lcd, struct lcd_seq_info *seq, u32
 				return ret;
 			}
 		}
-		if (seq[i].sleep < 20)
+		if (seq[i].sleep && seq[i].sleep < 20)
 			usleep_range(seq[i].sleep * USEC_PER_MSEC, (seq[i].sleep + 1) * USEC_PER_MSEC);
-		else
+		else if (seq[i].sleep)
 			msleep(seq[i].sleep);
 	}
 	return ret;
@@ -225,48 +223,6 @@ static int smcdsd_dsi_rx_info(struct lcd_info *lcd, u8 reg, u32 len, u8 *buf)
 		dev_dbg(&lcd->ld->dev, "%02dth value is %02x, %3d\n", i + 1, buf[i], buf[i]);
 
 exit:
-	return ret;
-}
-
-static int lcd_i2c_device_array_write(struct i2c_client *client, u8 *ptr, u8 len)
-{
-	unsigned int i = 0, delay;
-	int ret = 0;
-	u8 type = 0, command = 0, value = 0;
-	struct lcd_info *lcd = NULL;
-
-	if (!client)
-		return ret;
-
-	lcd = i2c_get_clientdata(client);
-	if (!lcd)
-		return ret;
-
-	if (!lcdtype) {
-		dev_info(&lcd->ld->dev, "%s: lcdtype: %d\n", __func__, lcdtype);
-		return ret;
-	}
-
-	if (len % 3) {
-		dev_info(&lcd->ld->dev, "%s: length(%d) invalid\n", __func__, len);
-		return ret;
-	}
-
-	for (i = 0; i < len; i += 3) {
-		type = ptr[i + 0];
-		command = ptr[i + 1];
-		value = ptr[i + 2];
-
-		if (type == TYPE_DELAY) {
-			delay = command * (u8)USEC_PER_MSEC;
-			usleep_range(delay, delay + USEC_PER_MSEC);
-		} else {
-			ret = i2c_smbus_write_byte_data(client, command, value);
-			if (ret < 0)
-				dev_info(&lcd->ld->dev, "%s: fail. %2x, %2x, %d\n", __func__, command, value, ret);
-		}
-	}
-
 	return ret;
 }
 
@@ -408,8 +364,8 @@ static int fb_notifier_callback(struct notifier_block *self,
 	int fb_blank;
 
 	switch (event) {
-	case FB_EVENT_BLANK:
-	case FB_EARLY_EVENT_BLANK:
+	case SMCDSD_EVENT_BLANK:
+	case SMCDSD_EARLY_EVENT_BLANK:
 		break;
 	default:
 		return NOTIFY_DONE;
@@ -469,87 +425,8 @@ static int hx83102j_boe_register_notifier(struct lcd_info *lcd)
 	return 0;
 }
 
-static int lcd_i2c_device_probe(struct i2c_client *client,
-	const struct i2c_device_id *id)
-{
-	struct lcd_info *lcd = NULL;
-	int ret = 0;
-
-	if (id && id->driver_data)
-		lcd = (struct lcd_info *)id->driver_data;
-
-	if (!lcd) {
-		dbg_info("%s: failed to find driver_data for lcd\n", __func__);
-		ret = -EINVAL;
-		goto exit;
-	}
-
-	if (!i2c_check_functionality(client->adapter, I2C_FUNC_I2C)) {
-		dev_info(&lcd->ld->dev, "%s: need I2C_FUNC_I2C\n", __func__);
-		ret = -ENODEV;
-		goto exit;
-	}
-
-	i2c_set_clientdata(client, lcd);
-
-	if (!strcmp(id->name, "i2c_lcd_bias"))
-		lcd->client1 = client;
-	else
-		lcd->client2 = client;
-
-	dev_info(&lcd->ld->dev, "%s: %s %s\n", __func__, dev_name(&client->adapter->dev), of_node_full_name(client->dev.of_node));
-
-exit:
-	return ret;
-}
-
-static struct i2c_device_id i2c_lcd_bias_id[] = {
-	{"i2c_lcd_bias", 0},
-	{},
-};
-
-MODULE_DEVICE_TABLE(i2c, i2c_lcd_bias_id);
-
-static const struct of_device_id i2c_lcd_bias_dt_ids[] = {
-	{ .compatible = "mediatek,i2c_lcd_bias" },
-	{ }
-};
-
-MODULE_DEVICE_TABLE(of, i2c_lcd_bias_dt_ids);
-
-static struct i2c_driver i2c_lcd_bias_driver = {
-	.driver = {
-		.owner	= THIS_MODULE,
-		.name	= "i2c_lcd_bias",
-		.of_match_table	= of_match_ptr(i2c_lcd_bias_dt_ids),
-	},
-	.id_table = i2c_lcd_bias_id,
-	.probe = lcd_i2c_device_probe,
-};
-
-static struct i2c_device_id i2c_lcd_buck_id[] = {
-	{"i2c_lcd_buck", 0},
-	{},
-};
-
-MODULE_DEVICE_TABLE(i2c, i2c_lcd_buck_id);
-
-static const struct of_device_id i2c_lcd_buck_dt_ids[] = {
-	{ .compatible = "mediatek,i2c_lcd_buck" },
-	{ }
-};
-
-MODULE_DEVICE_TABLE(of, i2c_lcd_buck_dt_ids);
-
-static struct i2c_driver i2c_lcd_buck_driver = {
-	.driver = {
-		.owner	= THIS_MODULE,
-		.name	= "i2c_lcd_buck",
-		.of_match_table	= of_match_ptr(i2c_lcd_buck_dt_ids),
-	},
-	.id_table = i2c_lcd_buck_id,
-	.probe = lcd_i2c_device_probe,
-};
+extern int set_reg_data_to_supply(const char *id,
+			int event, u8 *data, int num_data);
 
 static int hx83102j_boe_probe(struct lcd_info *lcd)
 {
@@ -569,11 +446,9 @@ static int hx83102j_boe_probe(struct lcd_info *lcd)
 
 	lcd->fac_info = lcd->fac_done = IS_ENABLED(CONFIG_SEC_FACTORY) ? 1 : 0;
 
-	i2c_lcd_bias_id[0].driver_data = (kernel_ulong_t)lcd;
-	i2c_add_driver(&i2c_lcd_bias_driver);
-
-	i2c_lcd_buck_id[0].driver_data = (kernel_ulong_t)lcd;
-	i2c_add_driver(&i2c_lcd_buck_driver);
+	//set_reg_data_to_supply("lcd_supply", REGULATOR_EVENT_ENABLE, ISL98608_INIT, ARRAY_SIZE(ISL98608_INIT));
+	set_reg_data_to_supply("lcd_supply.1", REGULATOR_EVENT_ENABLE, MAX77816_INIT, ARRAY_SIZE(MAX77816_INIT));
+	//set_reg_data_to_supply("lcd_supply.1", REGULATOR_EVENT_DISABLE, MAX77816_EXIT, ARRAY_SIZE(MAX77816_EXIT));
 
 	dev_info(&lcd->ld->dev, "- %s\n", __func__);
 
@@ -846,7 +721,6 @@ static const struct attribute_group lcd_sysfs_attr_group = {
 static void lcd_init_sysfs(struct lcd_info *lcd)
 {
 	int ret = 0, i;
-	struct i2c_client *clients[] = {lcd->client1, lcd->client2, NULL};
 
 	ret = sysfs_create_group(&lcd->ld->dev.kobj, &lcd_sysfs_attr_group);
 	if (ret < 0)
@@ -856,11 +730,7 @@ static void lcd_init_sysfs(struct lcd_info *lcd)
 	if (ret < 0)
 		dev_info(&lcd->ld->dev, "sysfs_create_file fail\n");
 
-	init_debugfs_backlight(lcd->bd, brightness_table, clients);
-
-	init_debugfs_param("max77816_init", &MAX77816_INIT, U8_MAX, ARRAY_SIZE(MAX77816_INIT), 3);
-	init_debugfs_param("max77816_exit", &MAX77816_EXIT, U8_MAX, ARRAY_SIZE(MAX77816_EXIT), 3);
-	init_debugfs_param("isl98608_init", &ISL98608_INIT, U8_MAX, ARRAY_SIZE(ISL98608_INIT), 3);
+	init_debugfs_backlight(lcd->bd, brightness_table, NULL);
 
 	for (i = 0; i < (u16)ARRAY_SIZE(LCD_SEQ_INIT_1); i++)
 		init_debugfs_param("lcd_init", LCD_SEQ_INIT_1[i].cmd, U8_MAX, LCD_SEQ_INIT_1[i].len, 0);
@@ -951,16 +821,10 @@ static int smcdsd_panel_power(struct platform_device *p, unsigned int on)
 
 	dev_info(&lcd->ld->dev, "+ %s: on(%d)\n", __func__, on);
 
-	if (on) {
+	if (on)
 		run_list(&p->dev, "panel_power_enable");
-
-		lcd_i2c_device_array_write(lcd->client1, MAX77816_INIT, ARRAY_SIZE(MAX77816_INIT));
-		lcd_i2c_device_array_write(lcd->client2, ISL98608_INIT, ARRAY_SIZE(ISL98608_INIT));
-	} else {
-		lcd_i2c_device_array_write(lcd->client1, MAX77816_EXIT, ARRAY_SIZE(MAX77816_EXIT));
-
+	else
 		run_list(&p->dev, "panel_power_disable");
-	}
 
 	dev_info(&lcd->ld->dev, "- %s: state(%d) connected(%d)\n", __func__, lcd->state, lcd->connected);
 

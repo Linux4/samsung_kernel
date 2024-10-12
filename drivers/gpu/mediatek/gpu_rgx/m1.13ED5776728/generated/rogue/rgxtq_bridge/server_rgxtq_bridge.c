@@ -329,17 +329,16 @@ RGXCreateTransferContext_exit:
 			PVR_ASSERT((eError == PVRSRV_OK)
 				   || (eError == PVRSRV_ERROR_RETRY));
 
-			/* Avoid freeing/destroying/releasing the resource a second time below */
-			psTransferContextInt = NULL;
 			/* Release now we have cleaned up creation handles. */
 			UnlockHandle(psConnection->psHandleBase);
 
 		}
 
-		if (psTransferContextInt)
+		else if (psTransferContextInt)
 		{
 			PVRSRVRGXDestroyTransferContextKM(psTransferContextInt);
 		}
+
 	}
 
 	/* Allocated space should be equal to the last updated offset */
@@ -535,20 +534,20 @@ PVRSRVBridgeRGXSubmitTransfer2(IMG_UINT32 ui32DispatchTableEntry,
 	{
 
 		ui64BufferSize +=
-		    psRGXSubmitTransfer2IN->ui32PrepareCount *
-		    sizeof(SYNC_PRIMITIVE_BLOCK **);
+		    ((IMG_UINT64) psRGXSubmitTransfer2IN->ui32PrepareCount *
+			sizeof(SYNC_PRIMITIVE_BLOCK **));
 		ui64BufferSize +=
-		    psRGXSubmitTransfer2IN->ui32PrepareCount *
-		    sizeof(IMG_HANDLE **);
+		    ((IMG_UINT64) psRGXSubmitTransfer2IN->ui32PrepareCount *
+			sizeof(IMG_HANDLE **));
 		ui64BufferSize +=
-		    psRGXSubmitTransfer2IN->ui32PrepareCount *
-		    sizeof(IMG_UINT32 *);
+		    ((IMG_UINT64) psRGXSubmitTransfer2IN->ui32PrepareCount *
+			sizeof(IMG_UINT32 *));
 		ui64BufferSize +=
-		    psRGXSubmitTransfer2IN->ui32PrepareCount *
-		    sizeof(IMG_UINT32 *);
+		    ((IMG_UINT64) psRGXSubmitTransfer2IN->ui32PrepareCount *
+			sizeof(IMG_UINT32 *));
 		ui64BufferSize +=
-		    psRGXSubmitTransfer2IN->ui32PrepareCount *
-		    sizeof(IMG_UINT8 *);
+		    ((IMG_UINT64) psRGXSubmitTransfer2IN->ui32PrepareCount *
+			sizeof(IMG_UINT8 *));
 	}
 
 	if (unlikely
@@ -822,16 +821,20 @@ PVRSRVBridgeRGXSubmitTransfer2(IMG_UINT32 ui32DispatchTableEntry,
 		for (i = 0; i < psRGXSubmitTransfer2IN->ui32PrepareCount; i++)
 		{
 			ui64BufferSize +=
-			    ui32ClientUpdateCountInt[i] *
-			    sizeof(SYNC_PRIMITIVE_BLOCK *);
+			    ((IMG_UINT64) ui32ClientUpdateCountInt[i] *
+				sizeof(SYNC_PRIMITIVE_BLOCK *));
 			ui64BufferSize +=
-			    ui32ClientUpdateCountInt[i] * sizeof(IMG_HANDLE *);
+			    ((IMG_UINT64) ui32ClientUpdateCountInt[i] *
+				sizeof(IMG_HANDLE *));
 			ui64BufferSize +=
-			    ui32ClientUpdateCountInt[i] * sizeof(IMG_UINT32);
+			    ((IMG_UINT64) ui32ClientUpdateCountInt[i] *
+				sizeof(IMG_UINT32));
 			ui64BufferSize +=
-			    ui32ClientUpdateCountInt[i] * sizeof(IMG_UINT32);
+			    ((IMG_UINT64) ui32ClientUpdateCountInt[i] *
+				sizeof(IMG_UINT32));
 			ui64BufferSize +=
-			    ui32CommandSizeInt[i] * sizeof(IMG_UINT8);
+			    ((IMG_UINT64) ui32CommandSizeInt[i] *
+				sizeof(IMG_UINT8));
 		}
 		if (ui64BufferSize > IMG_UINT32_MAX)
 		{
@@ -1343,23 +1346,40 @@ PVRSRV_ERROR InitRGXTQBridge(void)
 
 	SetDispatchTableEntry(PVRSRV_BRIDGE_RGXTQ,
 			      PVRSRV_BRIDGE_RGXTQ_RGXCREATETRANSFERCONTEXT,
-			      PVRSRVBridgeRGXCreateTransferContext, NULL);
+			      PVRSRVBridgeRGXCreateTransferContext, NULL,
+			      sizeof(PVRSRV_BRIDGE_IN_RGXCREATETRANSFERCONTEXT),
+			      sizeof
+			      (PVRSRV_BRIDGE_OUT_RGXCREATETRANSFERCONTEXT));
 
 	SetDispatchTableEntry(PVRSRV_BRIDGE_RGXTQ,
 			      PVRSRV_BRIDGE_RGXTQ_RGXDESTROYTRANSFERCONTEXT,
-			      PVRSRVBridgeRGXDestroyTransferContext, NULL);
+			      PVRSRVBridgeRGXDestroyTransferContext, NULL,
+			      sizeof
+			      (PVRSRV_BRIDGE_IN_RGXDESTROYTRANSFERCONTEXT),
+			      sizeof
+			      (PVRSRV_BRIDGE_OUT_RGXDESTROYTRANSFERCONTEXT));
 
 	SetDispatchTableEntry(PVRSRV_BRIDGE_RGXTQ,
 			      PVRSRV_BRIDGE_RGXTQ_RGXSETTRANSFERCONTEXTPRIORITY,
-			      PVRSRVBridgeRGXSetTransferContextPriority, NULL);
+			      PVRSRVBridgeRGXSetTransferContextPriority, NULL,
+			      sizeof
+			      (PVRSRV_BRIDGE_IN_RGXSETTRANSFERCONTEXTPRIORITY),
+			      sizeof
+			      (PVRSRV_BRIDGE_OUT_RGXSETTRANSFERCONTEXTPRIORITY));
 
 	SetDispatchTableEntry(PVRSRV_BRIDGE_RGXTQ,
 			      PVRSRV_BRIDGE_RGXTQ_RGXSUBMITTRANSFER2,
-			      PVRSRVBridgeRGXSubmitTransfer2, NULL);
+			      PVRSRVBridgeRGXSubmitTransfer2, NULL,
+			      sizeof(PVRSRV_BRIDGE_IN_RGXSUBMITTRANSFER2),
+			      sizeof(PVRSRV_BRIDGE_OUT_RGXSUBMITTRANSFER2));
 
 	SetDispatchTableEntry(PVRSRV_BRIDGE_RGXTQ,
 			      PVRSRV_BRIDGE_RGXTQ_RGXSETTRANSFERCONTEXTPROPERTY,
-			      PVRSRVBridgeRGXSetTransferContextProperty, NULL);
+			      PVRSRVBridgeRGXSetTransferContextProperty, NULL,
+			      sizeof
+			      (PVRSRV_BRIDGE_IN_RGXSETTRANSFERCONTEXTPROPERTY),
+			      sizeof
+			      (PVRSRV_BRIDGE_OUT_RGXSETTRANSFERCONTEXTPROPERTY));
 
 	return PVRSRV_OK;
 }

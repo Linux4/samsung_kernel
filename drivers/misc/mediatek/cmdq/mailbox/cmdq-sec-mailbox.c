@@ -35,6 +35,8 @@ static atomic_t m4u_init = ATOMIC_INIT(0);
 #define CMDQ_THR_SIZE		(0x80)
 #define CMDQ_THR_EXEC_CNT_PA	(0x28)
 
+#define CMDQ_TL_INSTANCES (2)
+
 /* CMDQ secure context struct
  * note it is not global data, each process has its own CMDQ sec context
  */
@@ -1761,7 +1763,9 @@ static s32 cmdq_sec_late_init_wsm(void *data)
 	struct cmdq_sec *cmdq;
 	struct cmdq_sec_context *context = NULL;
 	s32 i = 0, err = 0;
-
+#ifdef CMDQ_GP_SUPPORT
+	u32 open_cnt = 0;
+#endif
 	do {
 		msleep(10000);
 		cmdq = g_cmdq[i];
@@ -1818,8 +1822,29 @@ static s32 cmdq_sec_late_init_wsm(void *data)
 			cmdq_err("session init failed:%d", err);
 			continue;
 		}
+		cmdq_log("%s: state:%d", __func__, cmdq->context->state);
+
+		if (cmdq->context->state == IWC_WSM_ALLOCATED) {
+			err = cmdq_sec_open_session(
+				&cmdq->context->tee, cmdq->context->iwc_msg);
+			if (err) {
+				err = -CMDQ_ERR_SEC_CTX_SETUP;
+				continue;
+			}
+			open_cnt++;
+			cmdq->context->state = IWC_SES_OPENED;
+		}
 #endif
 	} while (++i < g_cmdq_cnt);
+#ifdef CMDQ_GP_SUPPORT
+	while (open_cnt < CMDQ_TL_INSTANCES) {
+		if (cmdq_sec_open_session(
+			&cmdq->context->tee, cmdq->context->iwc_msg))
+			break;
+		open_cnt++;
+	}
+#endif
+
 	return err;
 }
 

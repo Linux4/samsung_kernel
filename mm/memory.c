@@ -3873,7 +3873,7 @@ static unsigned long fault_around_bytes __read_mostly =
 	rounddown_pow_of_two(4096);
 #else
 static unsigned long fault_around_bytes __read_mostly =
-	rounddown_pow_of_two(65536);
+	rounddown_pow_of_two(CONFIG_FAULT_AROUND_BYTES);
 #endif
 
 #ifdef CONFIG_DEBUG_FS

@@ -868,6 +868,7 @@ static int mtk_spi_probe(struct platform_device *pdev)
 		}
 	}
 	
+
 	if (!of_property_read_u32(pdev->dev.of_node, "max-dma", &max_dma)) {
 		if(max_dma > SZ_256K)
 			max_dma = SZ_256K;

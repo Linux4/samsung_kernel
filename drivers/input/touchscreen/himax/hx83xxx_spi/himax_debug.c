@@ -223,11 +223,11 @@ static ssize_t himax_int_en_write(char *buf, size_t len)
 	}
 
 	if (buf[0] == '0') {
-		himax_int_enable(0);
+		himax_int_enable(INT_DISABLE_NOSYNC);
 	} else if (buf[0] == '1') {
-		himax_int_enable(1);
+		himax_int_enable(INT_ENABLE);
 	} else if (buf[0] == '2') {
-		himax_int_enable(0);
+		himax_int_enable(INT_DISABLE_NOSYNC);
 		free_irq(ts->hx_irq, ts);
 		ts->irq_enabled = 0;
 	} else if (buf[0] == '3') {
@@ -904,7 +904,7 @@ static ssize_t himax_diag_cmd_write(char *buf, size_t len)
 				process_type = 0;
 				dsram_flag = false;
 				cancel_delayed_work(&ts->himax_diag_delay_wrok);
-				himax_int_enable(1);
+				himax_int_enable(INT_ENABLE);
 				g_core_fp.fp_return_event_stack();
 			}
 			g_core_fp.fp_diag_register_set(ts->diag_cmd, 0);
@@ -925,7 +925,7 @@ static ssize_t himax_diag_cmd_write(char *buf, size_t len)
 		else if (process_type > 0 && process_type <= 3) {
 			if (!dsram_flag) {
 				/*Start wrok queue*/
-				himax_int_enable(0);
+				himax_int_enable(INT_DISABLE_NOSYNC);
 				g_core_fp.fp_diag_register_set(ts->diag_cmd, process_type);
 				queue_delayed_work(ts->himax_diag_wq,
 				&ts->himax_diag_delay_wrok, 2 * HZ / 100);
@@ -1377,7 +1377,7 @@ static int himax_sram_read(struct seq_file *s, void *v, uint8_t rs)
 
 	if (!overflow) {
 		if (!process_type) {
-			himax_int_enable(0);
+			himax_int_enable(INT_DISABLE_NOSYNC);
 			g_core_fp.fp_diag_register_set(d_type, 0);
 
 			if (!himax_ts_diag_func())
@@ -1387,7 +1387,7 @@ static int himax_sram_read(struct seq_file *s, void *v, uint8_t rs)
 
 			ts->diag_cmd = 0;
 			g_core_fp.fp_diag_register_set(0, 0);
-			himax_int_enable(1);
+			himax_int_enable(INT_ENABLE);
 		}
 	}
 
@@ -1724,7 +1724,7 @@ void himax_ts_flash_func(void)
 {
 	uint8_t flash_command = g_flash_cmd;
 
-	himax_int_enable(0);
+	himax_int_enable(INT_DISABLE_NOSYNC);
 	flash_dump_prog_set(ONGOING);
 
 	/*msleep(100);*/
@@ -1756,7 +1756,7 @@ void himax_ts_flash_func(void)
  *		}
  *	}
  */
-	himax_int_enable(1);
+	himax_int_enable(INT_ENABLE);
 	flash_dump_prog_set(FINISHED);
 }
 
@@ -2196,13 +2196,13 @@ static ssize_t himax_debug_write(struct file *file, const char *buff,
 
 	if (buf[0] == 'h') { /* handshaking */
 		debug_level_cmd = buf[0];
-		himax_int_enable(0);
+		himax_int_enable(INT_DISABLE_NOSYNC);
 		/* 0:Running, 1:Stop, 2:I2C Fail */
 		handshaking_result = g_core_fp.fp_hand_shaking();
-		himax_int_enable(1);
+		himax_int_enable(INT_ENABLE);
 		return len;
 	} else if (buf[0] == 'v') { /* firmware version */
-		himax_int_enable(0);
+		himax_int_enable(INT_DISABLE_NOSYNC);
 #ifdef HX_RST_PIN_FUNC
 		g_core_fp.fp_ic_reset(false, false);
 #endif
@@ -2220,7 +2220,7 @@ static ssize_t himax_debug_write(struct file *file, const char *buff,
 		if (g_core_fp.fp_0f_reload_to_active)
 			g_core_fp.fp_0f_reload_to_active();
 #endif
-		himax_int_enable(1);
+		himax_int_enable(INT_ENABLE);
 		/* himax_check_chip_version(); */
 		return len;
 	} else if (buf[0] == 'd') { /* ic information */
@@ -2265,7 +2265,7 @@ static ssize_t himax_debug_write(struct file *file, const char *buff,
 			}
 			goto ENDFUCTION;
 		}
-		himax_int_enable(0);
+		himax_int_enable(INT_DISABLE_NOSYNC);
 		debug_level_cmd			= buf[0];
 		fw_update_complete		= false;
 		memset(fileName, 0, 128);
@@ -2300,7 +2300,7 @@ static ssize_t himax_debug_write(struct file *file, const char *buff,
 		  fw->data[0], fw->data[1], fw->data[2], fw->data[3]);
 		fw_type = (fw->size) / 1024;
 		/*	start to upgrade */
-		himax_int_enable(0);
+		himax_int_enable(INT_DISABLE_NOSYNC);
 		I("Now FW size is : %dk\n", fw_type);
 
 		switch (fw_type) {
@@ -2453,7 +2453,7 @@ firmware_upgrade_done:
 	g_core_fp.fp_sense_on(0x00);
 #endif
 
-	himax_int_enable(1);
+	himax_int_enable(INT_ENABLE);
 	/* todo himax_chip->tp_firmware_upgrade_proceed = 0;
 	 * todo himax_chip->suspend_state = 0;
 	 * todo enable_irq(himax_chip->irq);
@@ -2607,7 +2607,7 @@ int hx_set_stack_raw(int set_val)
 		process_type = 0;
 		dsram_flag = false;
 		cancel_delayed_work(&private_ts->himax_diag_delay_wrok);
-		himax_int_enable(1);
+		himax_int_enable(INT_ENABLE);
 		g_core_fp.fp_return_event_stack();
 	}
 //	if (set_val) {

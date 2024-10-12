@@ -37,22 +37,29 @@ struct params_list_info {
 	unsigned int	max_type;
 
 	unsigned int	max_h;
+
+	unsigned int	print_width_y;
+	unsigned int	print_width_x;
 };
 
 static struct params_list_info	*params_lists[10];
 
 struct param_info {
 	union {
+		void *ptr;
 		u8 *ptr_u08;
 		u32 *ptr_u32;
+		s32 *ptr_s32;
 	};
 
 	u32 ptr_type;
 	u32 ptr_size;
 
 	union {
+		void *org;
 		u8 *org_u08;
 		u32 *org_u32;
+		s32 *org_s32;
 	};
 
 	struct list_head	node;
@@ -65,8 +72,9 @@ static ssize_t param_write(struct file *f, const char __user *user_buf,
 	struct param_info *param = NULL;
 
 	char ibuf[MAX_INPUT] = {0, };
-	unsigned int tbuf[MAX_INPUT] = {0, };
-	unsigned int value = 0, end = 0, input_w = 0, input_h = 0, offset_w = 0, offset_h = 0, param_old, param_new;
+	int tbuf[MAX_INPUT] = {0, };
+	int value = 0, param_old, param_new;
+	unsigned int end = 0, input_w = 0, input_h = 0, offset_w = 0, offset_h = 0;
 	char *pbuf, *token = NULL;
 	int ret = 0;
 
@@ -84,6 +92,8 @@ static ssize_t param_write(struct file *f, const char __user *user_buf,
 				memcpy(param->ptr_u08, param->org_u08, param->ptr_size * sizeof(u8));
 			else if (param->ptr_type == U32_MAX)
 				memcpy(param->ptr_u32, param->org_u32, param->ptr_size * sizeof(u32));
+			else if (param->ptr_type == S32_MAX)
+				memcpy(param->ptr_s32, param->org_s32, param->ptr_size * sizeof(s32));
 		}
 
 		goto exit;
@@ -98,7 +108,7 @@ static ssize_t param_write(struct file *f, const char __user *user_buf,
 		if (ret < 0 || end == ARRAY_SIZE(tbuf))
 			break;
 
-		dbg_info("[%2d] 0x%02x(%4d), %s\n", end, value, value, token);
+		dbg_info("[%2d] 0x%02x(%4d) %s\n", end, value, value, token);
 		tbuf[end] = value;
 		end++;
 		if (end >= 2)
@@ -108,7 +118,7 @@ static ssize_t param_write(struct file *f, const char __user *user_buf,
 	dbg_info("end: %d\n", end);
 
 	if (ret < 0) {
-		dbg_info("invalid input: ret(%d), %s\n", ret, user_buf);
+		dbg_info("invalid input: ret(%d) %s\n", ret, user_buf);
 		goto exit;
 	}
 
@@ -122,14 +132,14 @@ static ssize_t param_write(struct file *f, const char __user *user_buf,
 
 	list_for_each_entry(param, &params_list->node, node) {
 		if (offset_h == input_h) {
-			dbg_info("%dth param type(%d), size(%d)\n", offset_h, param->ptr_type, param->ptr_size);
+			dbg_info("%dth param type(%d) size(%d)\n", offset_h, param->ptr_type, param->ptr_size);
 			break;
 		}
 		offset_h++;
 	}
 
 	if (offset_h >= params_list->max_h) {
-		dbg_info("invalid position: h(%d), max_h(%d)\n", offset_h, params_list->max_h);
+		dbg_info("invalid position: h(%d) max_h(%d)\n", offset_h, params_list->max_h);
 		goto exit;
 	}
 
@@ -143,24 +153,27 @@ static ssize_t param_write(struct file *f, const char __user *user_buf,
 		if (*token == '\0')
 			continue;
 		if (param->ptr_type == U8_MAX)
-			ret = kstrtou32(token, 16, &value);
+			ret = kstrtou32(token, 16, (u32 *)&value);
 		else if (param->ptr_type == U32_MAX)
-			ret = kstrtou32(token, 0, &value);
+			ret = kstrtou32(token, 0, (u32 *)&value);
+		else if (param->ptr_type == S32_MAX)
+			ret = kstrtos32(token, 0, (s32 *)&value);
+
 		if (ret < 0 || end == ARRAY_SIZE(tbuf))
 			break;
 
-		dbg_info("[%2d] 0x%02x(%4d), %s\n", end, value, value, token);
+		dbg_info("[%2d] 0x%02x(%4d) %s\n", end, value, value, token);
 		tbuf[end] = value;
 		end++;
 	}
 
 	if (ret < 0) {
-		dbg_info("invalid input: ret(%d), %s\n", ret, user_buf);
+		dbg_info("invalid input: ret(%d) %s\n", ret, user_buf);
 		goto exit;
 	}
 
 	if (end < 3 || end == ARRAY_SIZE(tbuf)) {
-		dbg_info("invalid input: end(%d), input should be 3~%zu\n", end, ARRAY_SIZE(tbuf) - 1);
+		dbg_info("invalid input: end(%d) input should be 3~%zu\n", end, ARRAY_SIZE(tbuf) - 1);
 		goto exit;
 	}
 
@@ -168,7 +181,7 @@ static ssize_t param_write(struct file *f, const char __user *user_buf,
 
 	dbg_info("end: %d\n", end);
 
-	dbg_info("input_w(%d), input_h(%d), end(%d), max_w(%d), max_h(%d)\n", input_w, input_h, end, param->ptr_size, params_list->max_h);
+	dbg_info("input_w(%d) input_h(%d) end(%d) max_w(%d) max_h(%d)\n", input_w, input_h, end, param->ptr_size, params_list->max_h);
 
 	if (input_w + end - 1 > param->ptr_size) {
 		dbg_info("invalid position: w(%d) + end(%d) - 1 <= max_w(%d)\n", input_w, end, param->ptr_size);
@@ -181,7 +194,7 @@ static ssize_t param_write(struct file *f, const char __user *user_buf,
 			param_new = tbuf[2 + offset_w];
 			param_new = (param_new > U8_MAX) ? U8_MAX : param_new;
 
-			dbg_info("[%2d] 0x%02x -> 0x%02x%s\n", input_w + offset_w, param_old, param_new, (param_old != param_new) ? " (!)" : "");
+			dbg_info("[%*d] 0x%02x -> 0x%02x%s\n", params_list->print_width_x, input_w + offset_w, param_old, param_new, (param_old != param_new) ? " (!)" : "");
 			param->ptr_u08[input_w + offset_w] = param_new;
 		}
 	} else if (param->ptr_type == U32_MAX) {
@@ -190,8 +203,17 @@ static ssize_t param_write(struct file *f, const char __user *user_buf,
 			param_new = tbuf[2 + offset_w];
 			param_new = (param_new > U32_MAX) ? U32_MAX : param_new;
 
-			dbg_info("[%2d] %d -> %d%s\n", input_w + offset_w, param_old, param_new, (param_old != param_new) ? " (!)" : "");
+			dbg_info("[%*d] %d -> %d%s\n", params_list->print_width_x, input_w + offset_w, param_old, param_new, (param_old != param_new) ? " (!)" : "");
 			param->ptr_u32[input_w + offset_w] = param_new;
+		}
+	} else if (param->ptr_type == S32_MAX) {
+		for (offset_w = 0; offset_w < end; offset_w++) {
+			param_old =  param->ptr_s32[input_w + offset_w];
+			param_new = tbuf[2 + offset_w];
+			param_new = (param_new > S32_MAX) ? S32_MAX : param_new;
+
+			dbg_info("[%*d] %d -> %d%s\n", params_list->print_width_x, input_w + offset_w, param_old, param_new, (param_old != param_new) ? " (!)" : "");
+			param->ptr_s32[input_w + offset_w] = param_new;
 		}
 	}
 
@@ -203,33 +225,47 @@ static int param_show(struct seq_file *m, void *unused)
 {
 	struct params_list_info *params_list = m->private;
 	struct param_info *param = NULL;
-	u32 i = 0, j = 0, changed = 0;
+	u32 y = 0, x = 0, changed = 0;
 
-	seq_puts(m, "  |");
-	for (i = 0; i < params_list->max_size; i++)
-		seq_printf(m, (params_list->max_type == U32_MAX) ? " %4d" : " %2d", i);
+	seq_puts(m, "   |");
+	for (x = 0; x < params_list->max_size; x++)
+		seq_printf(m, " %*d", params_list->print_width_x, x);
 	seq_puts(m, "| <- input X first\n");
-	seq_puts(m, "--+");
-	for (i = 0; i < params_list->max_size * ((params_list->max_type == U32_MAX) ? 5 : 3) ; i++)
+	seq_puts(m, "---+");
+	for (x = 0; x < params_list->max_size * ((params_list->max_type == U32_MAX) ? 5 : 3) ; x++)
 		seq_puts(m, "-");
 	seq_puts(m, "\n");
 
-	i = 0;
+	y = 0;
 	if (params_list->max_type == U8_MAX) {
 		list_for_each_entry(param, &params_list->node, node) {
-			changed = memcmp(param->org_u08, param->ptr_u08, param->ptr_size);
-			seq_printf(m, "%2d| %*ph%s\n", i, param->ptr_size, param->ptr_u08, changed ? " (!)" : "");
-			i++;
+			changed = memcmp(param->org, param->ptr, param->ptr_size);
+
+			seq_printf(m, "%*d| ", params_list->print_width_y, y);
+			for (x = 0; x < param->ptr_size; x += 64)
+				seq_printf(m, "%*ph ", ((param->ptr_size - x) > 64) ? 64 : (param->ptr_size - x), param->ptr_u08 + x);
+			seq_printf(m, "%s\n", changed ? "(!)" : "");
+			y++;
 		}
 	} else if (params_list->max_type == U32_MAX) {
 		list_for_each_entry(param, &params_list->node, node) {
-			changed = memcmp(param->org_u32, param->ptr_u32, param->ptr_size);
+			changed = memcmp(param->org, param->ptr, param->ptr_size);
 
-			seq_printf(m, "%2d|", i);
-			for (j = 0; j < param->ptr_size; j++)
-				seq_printf(m, " %4d", param->ptr_u32[j]);
+			seq_printf(m, "%*d|", params_list->print_width_y, y);
+			for (x = 0; x < param->ptr_size; x++)
+				seq_printf(m, " %4d", param->ptr_u32[x]);
 			seq_printf(m, "%s\n", changed ? " (!)" : "");
-			i++;
+			y++;
+		}
+	} else if (params_list->max_type == S32_MAX) {
+		list_for_each_entry(param, &params_list->node, node) {
+			changed = memcmp(param->org, param->ptr, param->ptr_size);
+
+			seq_printf(m, "%*d|", params_list->print_width_y, y);
+			for (x = 0; x < param->ptr_size; x++)
+				seq_printf(m, " %4d", param->ptr_s32[x]);
+			seq_printf(m, "%s\n", changed ? " (!)" : "");
+			y++;
 		}
 	}
 
@@ -250,7 +286,6 @@ static const struct file_operations param_fops = {
 	.open		= param_open,
 	.write		= param_write,
 	.read		= seq_read,
-	.llseek		= no_llseek,
 	.release	= single_release,
 };
 
@@ -271,7 +306,7 @@ static int help_show(struct seq_file *m, void *unused)
 	seq_puts(m, "------------------------------------------------------------\n");
 	seq_puts(m, "\n");
 	seq_puts(m, "---------- usage\n");
-	seq_puts(m, "# cd /d/dd_param\n");
+	seq_puts(m, "# cd /d/dd/param\n");
 	seq_puts(m, "----------\n");
 
 	for (i = 0; i < (u32)ARRAY_SIZE(params_lists); i++) {
@@ -322,8 +357,7 @@ static int help_open(struct inode *inode, struct file *f)
 static const struct file_operations help_fops = {
 	.open		= help_open,
 	.read		= seq_read,
-	.llseek		= seq_lseek,
-	.release	= seq_release,
+	.release	= single_release,
 };
 
 static int add_param(struct params_list_info *params_list, void *ptr, u32 ptr_type, u32 ptr_size)
@@ -338,11 +372,14 @@ static int add_param(struct params_list_info *params_list, void *ptr, u32 ptr_ty
 	param = kzalloc(sizeof(struct param_info), GFP_KERNEL);
 
 	if (ptr_type == U8_MAX) {
-		param->ptr_u08 = (u8 *)ptr;
-		param->org_u08 = kmemdup(ptr, ptr_size * sizeof(u8), GFP_KERNEL);
+		param->ptr = ptr;
+		param->org = kmemdup(ptr, ptr_size * sizeof(u8), GFP_KERNEL);
 	} else if (ptr_type == U32_MAX) {
-		param->ptr_u32 = (u32 *)ptr;
-		param->org_u32 = kmemdup(ptr, ptr_size * sizeof(u32), GFP_KERNEL);
+		param->ptr = ptr;
+		param->org = kmemdup(ptr, ptr_size * sizeof(u32), GFP_KERNEL);
+	} else if (ptr_type == S32_MAX) {
+		param->ptr = ptr;
+		param->org = kmemdup(ptr, ptr_size * sizeof(s32), GFP_KERNEL);
 	}
 
 	param->ptr_type = ptr_type;
@@ -353,6 +390,9 @@ static int add_param(struct params_list_info *params_list, void *ptr, u32 ptr_ty
 	params_list->max_size = max(params_list->max_size, param->ptr_size);
 	params_list->max_type = max(params_list->max_type, param->ptr_type);
 	params_list->max_h++;
+
+	params_list->print_width_y = 3;
+	params_list->print_width_x = (ptr_type == U8_MAX) ? 2 : 4;
 
 	return 0;
 }
@@ -393,13 +433,14 @@ void init_debugfs_param(const char *name, void *ptr, u32 ptr_type, u32 sum_size,
 {
 	struct params_list_info *params_list = find_params_list(name);
 	int i = 0;
+	static struct dentry *dd_debugfs_root;
 
 	if (!name || !ptr || !ptr_type || !sum_size || !params_list) {
 		dbg_info("invalid param\n");
 		return;
 	}
 
-	if (ptr_type != U8_MAX && ptr_type != U32_MAX) {
+	if (ptr_type != U8_MAX && ptr_type != U32_MAX && ptr_type != S32_MAX) {
 		dbg_info("ptr_type(%d) invalid\n", ptr_type);
 		return;
 	}
@@ -419,8 +460,11 @@ void init_debugfs_param(const char *name, void *ptr, u32 ptr_type, u32 sum_size,
 		ptr_unit = sum_size;
 	}
 
+	dd_debugfs_root = debugfs_lookup("dd", NULL);
+	dd_debugfs_root = dd_debugfs_root ? dd_debugfs_root : debugfs_create_dir("dd", NULL);
+
 	if (!debugfs_root) {
-		debugfs_root = debugfs_create_dir("dd_param", NULL);
+		debugfs_root = debugfs_create_dir("param", dd_debugfs_root);
 		debugfs_create_file("_help", 0400, debugfs_root, NULL, &help_fops);
 	}
 
@@ -434,6 +478,8 @@ void init_debugfs_param(const char *name, void *ptr, u32 ptr_type, u32 sum_size,
 			add_param(params_list, (u8 *)ptr + i, ptr_type, (i + ptr_unit < sum_size) ? ptr_unit : sum_size - i);
 		else if (ptr_type == U32_MAX)
 			add_param(params_list, (u32 *)ptr + i, ptr_type, (i + ptr_unit < sum_size) ? ptr_unit : sum_size - i);
+		else if (ptr_type == S32_MAX)
+			add_param(params_list, (s32 *)ptr + i, ptr_type, (i + ptr_unit < sum_size) ? ptr_unit : sum_size - i);
 	}
 }
 #endif

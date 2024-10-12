@@ -183,13 +183,31 @@ void imgsensor_sec_get_hw_param(struct cam_hw_param **hw_param, u32 position)
 	}
 }
 
-void imgsensor_increase_hw_param_err_cnt(u32 position)
+void imgsensor_increase_hw_param_sensor_err_cnt(u32 position)
 {
 	struct cam_hw_param *hw_param = NULL;
 
 	imgsensor_sec_get_hw_param(&hw_param, position);
 	if (hw_param)
 		hw_param->i2c_sensor_err_cnt++;
+}
+
+void imgsensor_increase_hw_param_ois_err_cnt(u32 position)
+{
+	struct cam_hw_param *hw_param = NULL;
+
+	imgsensor_sec_get_hw_param(&hw_param, position);
+	if (hw_param)
+		hw_param->i2c_ois_err_cnt++;
+}
+
+void imgsensor_increase_hw_param_af_err_cnt(u32 position)
+{
+	struct cam_hw_param *hw_param = NULL;
+
+	imgsensor_sec_get_hw_param(&hw_param, position);
+	if (hw_param)
+		hw_param->i2c_af_err_cnt++;
 }
 
 bool imgsensor_sec_is_valid_moduleid(char* moduleid)

@@ -1153,7 +1153,12 @@ static int mtk_mipi_tx_pll_cphy_prepare_mt6873(struct clk_hw *hw)
 		return -EINVAL;
 	}
 	/*set volate*/
+#if defined(CONFIG_TB8791TP1_TITAN_JAVAN_TIGER)
+	writel(0x444423EA, mipi_tx->regs + MIPITX_VOLTAGE_SEL);
+	DDPMSG("%s : Enhance mipi_volt\n", __func__);
+#else
 	writel(0x4444236A, mipi_tx->regs + MIPITX_VOLTAGE_SEL);
+#endif
 
 	/* change the mipi_volt */
 	if (mipi_volt) {

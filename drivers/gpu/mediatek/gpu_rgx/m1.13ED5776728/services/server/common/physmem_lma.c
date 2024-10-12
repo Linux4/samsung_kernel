@@ -761,7 +761,7 @@ PMRSysPhysAddrLocalMem(PMR_IMPL_PRIVDATA pvPriv,
 				uiInAllocOffset = puiOffset[idx] - (uiAllocIndex << uiLog2AllocSize);
 
 				PVR_LOG_RETURN_IF_FALSE(uiAllocIndex < uiNumAllocs,
-					"puiOffset out of range", PVRSRV_ERROR_OUT_OF_RANGE);
+				                        "puiOffset out of range", PVRSRV_ERROR_OUT_OF_RANGE);
 
 				PVR_ASSERT(uiInAllocOffset < (1ULL << uiLog2AllocSize));
 
@@ -1030,7 +1030,6 @@ PMRChangeSparseMemLocalMem(PMR_IMPL_PRIVDATA pPriv,
 	IMG_UINT32 uiFreepgidx;
 
 	PMR_LMALLOCARRAY_DATA *psPMRPageArrayData = (PMR_LMALLOCARRAY_DATA *)pPriv;
-	IMG_DEV_PHYADDR sPhyAddr;
 
 #if defined(DEBUG)
 	IMG_BOOL bPoisonFail = IMG_FALSE;
@@ -1101,7 +1100,7 @@ PMRChangeSparseMemLocalMem(PMR_IMPL_PRIVDATA pPriv,
 				{
 					uiFreepgidx = pai32FreeIndices[ui32Loop];
 
-					if (uiFreepgidx > psPMRPageArrayData->uiTotalNumPages)
+					if (uiFreepgidx >= psPMRPageArrayData->uiTotalNumPages)
 					{
 						PVR_GOTO_WITH_ERROR(eError, PVRSRV_ERROR_DEVICEMEM_OUT_OF_RANGE, e0);
 					}
@@ -1124,26 +1123,15 @@ PMRChangeSparseMemLocalMem(PMR_IMPL_PRIVDATA pPriv,
 		for (ui32Loop = ui32AdtnlAllocPages; ui32Loop < ui32AllocPageCount; ui32Loop++)
 		{
 			uiAllocpgidx = pai32AllocIndices[ui32Loop];
-			if (uiAllocpgidx > psPMRPageArrayData->uiTotalNumPages)
+			if (uiAllocpgidx >= psPMRPageArrayData->uiTotalNumPages)
 			{
 				PVR_GOTO_WITH_ERROR(eError, PVRSRV_ERROR_DEVICEMEM_OUT_OF_RANGE, e0);
 			}
 
-			if (SPARSE_REMAP_MEM != (uiFlags & SPARSE_REMAP_MEM))
+			if ((INVALID_PAGE_ADDR != psPageArray[uiAllocpgidx].uiAddr) ||
+					(TRANSLATION_INVALID != psPMRMapTable->aui32Translation[uiAllocpgidx]))
 			{
-				if ((INVALID_PAGE_ADDR != psPageArray[uiAllocpgidx].uiAddr) ||
-						(TRANSLATION_INVALID != psPMRMapTable->aui32Translation[uiAllocpgidx]))
-				{
-					PVR_LOG_GOTO_WITH_ERROR("Trying to allocate already allocated page again", eError, PVRSRV_ERROR_INVALID_PARAMS, e0);
-				}
-			}
-			else
-			{
-				if ((INVALID_PAGE_ADDR == psPageArray[uiAllocpgidx].uiAddr) ||
-				    (TRANSLATION_INVALID == psPMRMapTable->aui32Translation[uiAllocpgidx]))
-				{
-					PVR_LOG_GOTO_WITH_ERROR("Unable to remap memory due to missing page", eError, PVRSRV_ERROR_INVALID_PARAMS, e0);
-				}
+				PVR_LOG_GOTO_WITH_ERROR("Trying to allocate already allocated page again", eError, PVRSRV_ERROR_INVALID_PARAMS, e0);
 			}
 		}
 
@@ -1176,24 +1164,11 @@ PMRChangeSparseMemLocalMem(PMR_IMPL_PRIVDATA pPriv,
 
 			uiAllocpgidx = pai32AllocIndices[ui32Index];
 			uiFreepgidx  = pai32FreeIndices[ui32Loop];
-			sPhyAddr = psPageArray[uiAllocpgidx];
 			psPageArray[uiAllocpgidx] = psPageArray[uiFreepgidx];
 
-			/* Is remap mem used in real world scenario? Should it be turned to a
-			 *  debug feature? The condition check needs to be out of loop, will be
-			 *  done at later point though after some analysis */
-			if (SPARSE_REMAP_MEM != (uiFlags & SPARSE_REMAP_MEM))
-			{
-				psPMRMapTable->aui32Translation[uiFreepgidx] = TRANSLATION_INVALID;
-				psPMRMapTable->aui32Translation[uiAllocpgidx] = uiAllocpgidx;
-				psPageArray[uiFreepgidx].uiAddr = INVALID_PAGE_ADDR;
-			}
-			else
-			{
-				psPageArray[uiFreepgidx] = sPhyAddr;
-				psPMRMapTable->aui32Translation[uiFreepgidx] = uiFreepgidx;
-				psPMRMapTable->aui32Translation[uiAllocpgidx] = uiAllocpgidx;
-			}
+			psPMRMapTable->aui32Translation[uiFreepgidx] = TRANSLATION_INVALID;
+			psPMRMapTable->aui32Translation[uiAllocpgidx] = uiAllocpgidx;
+			psPageArray[uiFreepgidx].uiAddr = INVALID_PAGE_ADDR;
 
 			/* Be sure to honour the attributes associated with the allocation
 			 * such as zeroing, poisoning etc. */

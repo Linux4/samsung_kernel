@@ -143,6 +143,7 @@ int mt6885_fe_trigger(struct snd_pcm_substream *substream, int cmd,
 	unsigned int rate = runtime->rate;
 	int fs;
 	int ret = 0;
+	bool adsp_running = false;
 
 	dev_info(afe->dev, "%s(), %s cmd %d, irq_id %d\n",
 		 __func__, memif->data->name, cmd, irq_id);
@@ -230,8 +231,8 @@ int mt6885_fe_trigger(struct snd_pcm_substream *substream, int cmd,
 
 		/* set memif disable */
 #if defined(CONFIG_SND_SOC_MTK_AUDIO_DSP)
-		if (runtime->stop_threshold != ~(0U) || (!is_adsp_system_running()) ||
-		    mtk_audio_get_adsp_reset_status())
+		adsp_running = is_adsp_system_running();
+		if (runtime->stop_threshold != ~(0U) || !adsp_running)
 			ret = mtk_dsp_memif_set_disable(afe, id);
 #else
 		/* barge-in set stop_threshold == ~(0U), memif is set by scp */
@@ -246,8 +247,7 @@ int mt6885_fe_trigger(struct snd_pcm_substream *substream, int cmd,
 
 		/* disable interrupt */
 #if defined(CONFIG_SND_SOC_MTK_AUDIO_DSP)
-		if (runtime->stop_threshold != ~(0U) || (!is_adsp_system_running()) ||
-		    mtk_audio_get_adsp_reset_status())
+		if (runtime->stop_threshold != ~(0U) || !adsp_running)
 			mtk_dsp_irq_set_disable(afe, irq_data);
 #else
 		/* barge-in set stop_threshold == ~(0U), interrupt is set by scp */

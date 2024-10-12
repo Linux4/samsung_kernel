@@ -27,6 +27,7 @@
 #include <linux/err.h>
 #include <linux/input.h>
 #include <linux/sysfs.h>
+#include <linux/notifier.h>
 
 struct class *sensors_class;
 EXPORT_SYMBOL_GPL(sensors_class);
@@ -36,6 +37,41 @@ static atomic_t sensor_count;
 static struct device *symlink_dev;
 static struct device *sensor_dev;
 static struct input_dev *meta_input_dev;
+static struct device *ssc_core_dev;
+
+static BLOCKING_NOTIFIER_HEAD(sensordump_notifier_list);
+int sensordump_notifier_register(struct notifier_block *nb)
+{
+	return blocking_notifier_chain_register(&sensordump_notifier_list, nb);
+}
+EXPORT_SYMBOL(sensordump_notifier_register);
+
+int sensordump_notifier_unregister(struct notifier_block *nb)
+{
+	return blocking_notifier_chain_unregister(&sensordump_notifier_list, nb);
+}
+EXPORT_SYMBOL(sensordump_notifier_unregister);
+
+int sensordump_notifier_call_chain(unsigned long val, void *v)
+{
+	return blocking_notifier_call_chain(&sensordump_notifier_list, val, v);
+}
+EXPORT_SYMBOL_GPL(sensordump_notifier_call_chain);
+
+static ssize_t sensor_dump_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+
+	pr_info("[SENSOR] sensor_dump_show\n");
+	sensordump_notifier_call_chain(1, NULL);
+
+	return snprintf(buf, PAGE_SIZE, "SENSOR_DUMP_DONE\n");
+}
+static DEVICE_ATTR(sensor_dump, 0440, sensor_dump_show, NULL);
+static struct device_attribute *ssc_core_attr[] = {
+	&dev_attr_sensor_dump,
+	NULL,
+};
 
 static ssize_t set_flush(struct device *dev, struct device_attribute *attr,
 			 const char *buf, size_t size)
@@ -105,9 +141,11 @@ void sensors_remove_symlink(struct input_dev *inputdev)
 }
 EXPORT_SYMBOL_GPL(sensors_remove_symlink);
 
-int sensors_register(struct device *dev, void *drvdata,
+int sensors_register(struct device **pdev, void *drvdata,
                      struct device_attribute *attributes[], char *name)
 {
+	struct device* dev;
+
 	if (!sensors_class) {
 		sensors_class = class_create(THIS_MODULE, "sensors");
 		if (IS_ERR(sensors_class)) {
@@ -118,15 +156,15 @@ int sensors_register(struct device *dev, void *drvdata,
 	dev = device_create(sensors_class, NULL, 0, drvdata, "%s", name);
 
 	if (IS_ERR(dev)) {
-		int ret = 0;
-
-		ret = PTR_ERR(dev);
+		int ret = PTR_ERR(dev);
 		pr_err("[SENSORS CORE] device_create failed!"\
 		       "[%d]\n", ret);
 		return ret;
 	}
 
 	set_sensor_attr(dev, attributes);
+	*pdev = dev;
+
 	atomic_inc(&sensor_count);
 
 	return 0;
@@ -238,6 +276,16 @@ static int __init sensors_class_init(void)
 	} else {
 		if ((device_create_file(sensor_dev, *ap_sensor_attr)) < 0)
 			pr_err("[SENSOR CORE] failed flush device_file\n");
+	}
+
+	ssc_core_dev = device_create(sensors_class, NULL, 0, NULL,
+			"%s", "ssc_core");
+	if (IS_ERR(ssc_core_dev)) {
+		pr_err("[SENSORS CORE] ssc_core_dev create failed![%d]\n",
+			IS_ERR(ssc_core_dev));
+	} else {
+		if ((device_create_file(ssc_core_dev, *ssc_core_attr)) < 0)
+			pr_err("[SENSOR CORE] ssc_core device attr failed\n");
 	}
 
 	atomic_set(&sensor_count, 0);

@@ -130,6 +130,11 @@ static int stui_handler_init(void)
 		goto err_cdev_add;
 	}
 	tui_ws = wakeup_source_register(NULL, "TUI_WAKELOCK");
+	if (!tui_ws) {
+		pr_err("[STUI] failed to allocate wakelock\n");
+		goto err_cdev_add;
+	}
+
 	stui_device = device_create(tui_class, NULL, devno, NULL, STUI_DEV_NAME);
 	if (!IS_ERR(stui_device)) {
 		pr_info("[STUI] stui_handler_init -\n");

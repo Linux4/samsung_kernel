@@ -37,7 +37,7 @@ static void hx83122a_chip_init(void)
 	CFG_VER_MAJ_FLASH_LENG	= 1;
 	CFG_VER_MIN_FLASH_ADDR	= 0x21006;  /*0x00C101*/
 	CFG_VER_MIN_FLASH_LENG	= 1;
-	ADDR_VER_IC_NAME	= 0x29450;
+	ADDR_VER_IC_NAME	= 0x21050;
 }
 
 void hx83122_burst_enable(uint8_t auto_add_4_byte)
@@ -373,6 +373,7 @@ void himax_hx83122a_cmd_init(void)
 	himax_in_parse_assign_cmd(hx122a_fw_addr_criteria_addr, pfw_op->addr_criteria_addr, sizeof(pfw_op->addr_criteria_addr));
 	himax_in_parse_assign_cmd(hx122a_fw_addr_set_frame_addr, pfw_op->addr_set_frame_addr, sizeof(pfw_op->addr_set_frame_addr));
 	himax_in_parse_assign_cmd(hx122a_fw_addr_selftest_result_addr, pfw_op->addr_selftest_result_addr, sizeof(pfw_op->addr_selftest_result_addr));
+	himax_in_parse_assign_cmd(hx122a_fw_addr_gesture_en, pfw_op->addr_gesture_en, sizeof(pfw_op->addr_gesture_en));
 	himax_in_parse_assign_cmd(hx122a_fw_addr_sorting_mode_en, pfw_op->addr_sorting_mode_en, sizeof(pfw_op->addr_sorting_mode_en));
 	himax_in_parse_assign_cmd(hx122a_fw_addr_fw_mode_status, pfw_op->addr_fw_mode_status, sizeof(pfw_op->addr_fw_mode_status));
 	himax_in_parse_assign_cmd(fw_addr_icid_addr, pfw_op->addr_icid_addr, sizeof(pfw_op->addr_icid_addr));
@@ -460,26 +461,32 @@ void himax_hx83122a_cmd_init(void)
 //	himax_in_parse_assign_cmd(FW_CAL_ADDR, pfw_op->addr_cal, sizeof(pfw_op->addr_cal));
 	himax_in_parse_assign_cmd(HX122A_FW_RPORT_THRSH_ADDR, pfw_op->addr_rport_thrsh, sizeof(pfw_op->addr_rport_thrsh));
 
-	himax_in_parse_assign_cmd(ADDR_ROTATIVE_MODE, pfw_op->addr_rotative_mode,
+	himax_in_parse_assign_cmd(hx122a_fw_addr_rotate, pfw_op->addr_rotative_mode,
 		sizeof(pfw_op->addr_rotative_mode));
 	himax_in_parse_assign_cmd(DATA_PORTRAIT,
 		pfw_op->data_portrait, sizeof(pfw_op->data_portrait));
 	himax_in_parse_assign_cmd(DATA_LANDSCAPE, pfw_op->data_landscape,
 		sizeof(pfw_op->data_landscape));
 
-	pfw_op->addr_grip_zone = ADDR_GRIP_ZONE;
-	pfw_op->addr_reject_zone = ADDR_REJECT_ZONE;
-	pfw_op->addr_reject_zone_boud = ADDR_REJECT_ZONE_BOUD;
-	pfw_op->addr_except_zone = ADDR_EXCEPT_ZONE;
+	pfw_op->addr_grip_zone = hx122a_fw_addr_grip_zone;
+	pfw_op->addr_reject_zone = hx122a_fw_addr_reject_zone;
+	pfw_op->addr_reject_zone_boud = hx122a_fw_addr_reject_zone_bound;
+	pfw_op->addr_except_zone = hx122a_fw_addr_except_zone;
 
-	himax_in_parse_assign_cmd(ADDR_SNR_MEASUREMENT, pfw_op->addr_snr_measurement,
+	himax_in_parse_assign_cmd(hx83122a_addr_snr_measurement, pfw_op->addr_snr_measurement,
 		sizeof(pfw_op->addr_snr_measurement));
 
-	himax_in_parse_assign_cmd(ADDR_PROXIMITY_MODE, pfw_op->addr_proximity_mode,
+	himax_in_parse_assign_cmd(hx122a_fw_addr_proximity, pfw_op->addr_proximity_mode,
 		sizeof(pfw_op->addr_proximity_mode));
 
-	himax_in_parse_assign_cmd(ADDR_MODE_BASE, pfw_op->addr_mode_base,
+	himax_in_parse_assign_cmd(hx122a_func_base, pfw_op->addr_mode_base,
 		sizeof(pfw_op->addr_mode_base));
+
+	himax_in_parse_assign_cmd(hx83122a_addr_osr_ctrl, pfw_op->addr_osr_ctrl,
+		sizeof(pfw_op->addr_osr_ctrl));
+
+	himax_in_parse_assign_cmd(hx83122a_addr_reject_idle, pfw_op->addr_reject_idle,
+		sizeof(pfw_op->addr_reject_idle));
 
 	himax_in_parse_assign_cmd(ADDR_PROXIMITY_DEBUG, pfw_op->addr_proximity_debug,
 		sizeof(pfw_op->addr_proximity_debug));

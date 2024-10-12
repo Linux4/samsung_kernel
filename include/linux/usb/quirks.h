@@ -71,5 +71,8 @@
 
 /* device has blacklisted endpoints */
 #define USB_QUIRK_ENDPOINT_BLACKLIST		BIT(15)
-
+#if defined(CONFIG_USB_HOST_SAMSUNG_FEATURE)
+/* Hub can't support usb suspend */
+#define USB_QUIRK_HUB_NO_SUSPEND		BIT(20)
+#endif
 #endif /* __LINUX_USB_QUIRKS_H */

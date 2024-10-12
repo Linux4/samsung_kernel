@@ -63,6 +63,9 @@ struct MTK_IDLE_MODEL_COUNTER {
 
 	/* block will be verify in mtk_idle_select_state() */
 	unsigned long block[NR_REASONS];
+#ifdef CONFIG_SEC_PM_IDLE_DEBUG
+	unsigned long long time_in_state;
+#endif
 };
 
 struct MTK_IDLE_MODEL_STATUS {

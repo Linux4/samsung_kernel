@@ -24,6 +24,9 @@ struct cam_hw_param_collector {
 int cam_info_probe(struct device_node *np);
 void imgsensor_sec_init_err_cnt(struct cam_hw_param *hw_param);
 void imgsensor_sec_get_hw_param(struct cam_hw_param **hw_param, u32 position);
-void imgsensor_increase_hw_param_err_cnt(u32 position);
+void imgsensor_increase_hw_param_sensor_err_cnt(u32 position);
+void imgsensor_increase_hw_param_ois_err_cnt(u32 position);
+void imgsensor_increase_hw_param_af_err_cnt(u32 position);
 bool imgsensor_sec_is_valid_moduleid(char* moduleid);
 #endif //_IMGSENSOR_VENDOR_H_
+

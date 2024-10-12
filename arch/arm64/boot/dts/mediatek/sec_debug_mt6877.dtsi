@@ -40,8 +40,7 @@
 			reg = <0 0x47600000 0 0x200000>;
 		};
 #endif
-
-#if defined(CONFIG_SEC_DUMP_SINK)
+#ifdef CONFIG_SEC_DUMP_SINK
 		sec_rdx_bootdev {
 			compatible = "mediatek, sec_rdx_bootdev";
 			no-ship;

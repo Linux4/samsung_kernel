@@ -65,6 +65,7 @@ static int cam_ois_regulator_disable(struct regulator *regulator)
 	return ret;
 }
 
+#if ENABLE_AOIS == 0
 static int cam_ois_get_gpio_pinctrl(struct pinctrl *pctrl, struct pinctrl_state **pstate,
 	char *pctrl_name)
 {
@@ -83,15 +84,11 @@ static int cam_ois_get_gpio_pinctrl(struct pinctrl *pctrl, struct pinctrl_state 
 
 	return ret;
 }
+#endif
 
 int cam_ois_pinctrl_get_state_done(struct mcu_info *mcu_info)
 {
-	if (
-		(mcu_info->mcu_boot_high != NULL) && (mcu_info->mcu_boot_low != NULL)
-		&& (mcu_info->mcu_nrst_high != NULL) && (mcu_info->mcu_nrst_low != NULL)
-		&& (mcu_info->ois_vdd_high != NULL) && (mcu_info->ois_vdd_low != NULL)
-		&& (mcu_info->mcu_vdd_high != NULL) && (mcu_info->mcu_vdd_low != NULL)
-		) {
+	if (mcu_info->af_regulator != NULL) {
 		LOG_INF("done before %x\n", mcu_info->pinctrl);
 		return 0;
 	}
@@ -101,60 +98,27 @@ int cam_ois_pinctrl_get_state_done(struct mcu_info *mcu_info)
 int cam_ois_pinctrl_get_state(struct mcu_info *mcu_info)
 {
 	int ret = 0;
-	struct device_node *node, *kd_node;
-
-	node = of_find_compatible_node(NULL, NULL, CAM_OIS_IMGSENSOR_DRV_COMP);
-
-	if (node) {
-		kd_node = mcu_info->pdev->of_node;
-		mcu_info->pdev->of_node = node;
-		if (!mcu_info->pinctrl) {
-			mcu_info->pinctrl = devm_pinctrl_get(mcu_info->pdev);
-			if (IS_ERR(mcu_info->pinctrl)) {
-				LOG_INF("Failed to get pinctrl.\n");
-				ret = PTR_ERR(mcu_info->pinctrl);
-				mcu_info->pinctrl = NULL;
-				mcu_info->pdev->of_node = kd_node;
-				return ret;
-			}
-			LOG_INF("pinctrl %x\n", mcu_info->pinctrl);
+	if (!mcu_info->pinctrl) {
+		mcu_info->pinctrl = devm_pinctrl_get(mcu_info->pdev);
+		if (IS_ERR(mcu_info->pinctrl)) {
+			LOG_INF("Failed to get pinctrl.\n");
+			ret = PTR_ERR(mcu_info->pinctrl);
+			mcu_info->pinctrl = NULL;
+			return ret;
 		}
+		LOG_INF("pinctrl %x\n", mcu_info->pinctrl);
+	}
 
-		if (!cam_ois_pinctrl_get_state_done(mcu_info)) {
-			mcu_info->pdev->of_node = kd_node;
-			return 0;
-		}
+	if (!cam_ois_pinctrl_get_state_done(mcu_info))
+		return 0;
 
-		mcu_info->af_regulator = regulator_get_optional(mcu_info->pdev, CAM_OIS_REGULATOR_AF);
-		if (IS_ERR_OR_NULL(mcu_info->af_regulator)) {
-			ret = PTR_ERR(mcu_info->af_regulator);
-			LOG_ERR("fail to get AF Regulator %d", ret);
-			mcu_info->af_regulator = NULL;
-		}
-		mcu_info->af_voltage = 2800000; //v2.8
-
-		ret = cam_ois_get_gpio_pinctrl(mcu_info->pinctrl, &(mcu_info->mcu_boot_high),
-			CAM_OIS_GPIO_MCU_BOOT_HIGH);
-		ret |= cam_ois_get_gpio_pinctrl(mcu_info->pinctrl, &(mcu_info->mcu_boot_low),
-			CAM_OIS_GPIO_MCU_BOOT_LOW);
-		ret |= cam_ois_get_gpio_pinctrl(mcu_info->pinctrl, &(mcu_info->mcu_nrst_high),
-			CAM_OIS_GPIO_MCU_RST_HIGH);
-		ret |= cam_ois_get_gpio_pinctrl(mcu_info->pinctrl, &(mcu_info->mcu_nrst_low),
-			CAM_OIS_GPIO_MCU_RST_LOW);
-		ret |= cam_ois_get_gpio_pinctrl(mcu_info->pinctrl, &(mcu_info->mcu_vdd_high),
-			CAM_OIS_GPIO_MCU_LDO_HIGH);
-		ret |= cam_ois_get_gpio_pinctrl(mcu_info->pinctrl, &(mcu_info->mcu_vdd_low),
-			CAM_OIS_GPIO_MCU_LDO_LOW);
-		ret |= cam_ois_get_gpio_pinctrl(mcu_info->pinctrl, &(mcu_info->ois_vdd_high),
-			CAM_OIS_GPIO_OIS_VDD_HIGH);
-		ret |= cam_ois_get_gpio_pinctrl(mcu_info->pinctrl, &(mcu_info->ois_vdd_low),
-			CAM_OIS_GPIO_OIS_VDD_LOW);
-		if (ret)
-			LOG_ERR("fail to get pinctrl state");
-
-		mcu_info->pdev->of_node = kd_node;
-	} else
-		LOG_ERR("cannot find the mediatek,imgsensor node");
+	mcu_info->af_regulator = regulator_get_optional(mcu_info->pdev, CAM_OIS_REGULATOR_AF);
+	if (IS_ERR_OR_NULL(mcu_info->af_regulator)) {
+		ret = PTR_ERR(mcu_info->af_regulator);
+		LOG_ERR("fail to get AF Regulator %d", ret);
+		mcu_info->af_regulator = NULL;
+	}
+	mcu_info->af_voltage = 2800000; //v2.8
 
 	return ret;
 }
@@ -191,44 +155,16 @@ int cam_ois_mcu_power_up(struct mcu_info *mcu_info)
 {
 	int ret = 0;
 
-	LOG_INF(" - E mcu power %d", mcu_info->power_on);
+	LOG_INF(" - E mcu power %d", mcu_info->power_count);
 
-	if (!mcu_info->power_on) {
-#if ENABLE_AOIS == 0
-		LOG_INF("MCU_BOOT_LOW\n");
-		ret = pinctrl_select_state(mcu_info->pinctrl, mcu_info->mcu_boot_low);
-		if (ret)
-			LOG_ERR("%error, can not set mcu_boot_low gpio%d\n", ret);
-
-		LOG_DBG("MCU_VDD_HIGH\n");
-		ret |= pinctrl_select_state(mcu_info->pinctrl, mcu_info->mcu_vdd_high);
-		if (ret)
-			LOG_ERR("%error, can not set mcu_vdd_high gpio%d\n", ret);
-
-		LOG_DBG("OIS_VDD_HIGH\n");
-		ret |= pinctrl_select_state(mcu_info->pinctrl, mcu_info->ois_vdd_high);
-		if (ret)
-			LOG_ERR("%error, can not set ois_vdd_high gpio%d\n", ret);
-
-		usleep_range(1000, 1100);
-
-		LOG_INF("MCU_NRST_HIGH\n");
-		ret |= pinctrl_select_state(mcu_info->pinctrl, mcu_info->mcu_nrst_high);
-		if (ret)
-			LOG_ERR("%error, can not set mcu_nrst_high gpio%d\n", ret);
-
-		LOG_INF("Power Sequence END\n");
-
-		usleep_range(15000, 16000);
-		if (!ret)
-			mcu_info->power_on = true;
-#else
-		LOG_INF("VOIS dummy");
-		mcu_info->power_on = true;
-#endif
+	if (mcu_info->power_count > 0)
+		mcu_info->power_count++;
+	else if (mcu_info->power_count == 0) {
+		LOG_INF("AOIS dummy");
+		mcu_info->power_count++;
 	}
 
-	LOG_INF(" - X mcu power %d", mcu_info->power_on);
+	LOG_INF(" - X mcu power %d", mcu_info->power_count);
 	return ret;
 }
 
@@ -236,44 +172,16 @@ int cam_ois_sysfs_mcu_power_up(struct mcu_info *mcu_info)
 {
 	int ret = 0;
 
-	LOG_INF(" - E mcu power %d", mcu_info->power_on);
+	LOG_INF(" - E mcu power %d", mcu_info->power_count);
 
-	if (!mcu_info->power_on) {
-#if ENABLE_AOIS == 0
-		LOG_INF("MCU_BOOT_LOW\n");
-		ret = pinctrl_select_state(mcu_info->pinctrl, mcu_info->mcu_boot_low);
-		if (ret)
-			LOG_ERR("%error, can not set mcu_boot_low gpio%d\n", ret);
-
-		LOG_DBG("MCU_VDD_HIGH\n");
-		ret |= pinctrl_select_state(mcu_info->pinctrl, mcu_info->mcu_vdd_high);
-		if (ret)
-			LOG_ERR("%error, can not set mcu_vdd_high gpio%d\n", ret);
-
-		LOG_DBG("OIS_VDD_HIGH\n");
-		ret |= pinctrl_select_state(mcu_info->pinctrl, mcu_info->ois_vdd_high);
-		if (ret)
-			LOG_ERR("%error, can not set ois_vdd_high gpio%d\n", ret);
-
-		usleep_range(1000, 1100);
-
-		LOG_INF("MCU_NRST_HIGH\n");
-		ret |= pinctrl_select_state(mcu_info->pinctrl, mcu_info->mcu_nrst_high);
-		if (ret)
-			LOG_ERR("%error, can not set mcu_nrst_high gpio%d\n", ret);
-
-		LOG_INF("Power Sequence END\n");
-
-		usleep_range(15000, 16000);
-		if (!ret)
-			mcu_info->power_on = true;
-#else
-		LOG_INF("VOIS dummy");
-		mcu_info->power_on = true;
-#endif
+	if (mcu_info->power_count > 0)
+		mcu_info->power_count++;
+	else if (mcu_info->power_count == 0) {
+		LOG_INF("AOIS dummy");
+		mcu_info->power_count++;
 	}
 
-	LOG_INF(" - X mcu power %d", mcu_info->power_on);
+	LOG_INF(" - X mcu power %d", mcu_info->power_count);
 	return ret;
 }
 
@@ -281,33 +189,18 @@ int cam_ois_mcu_power_down(struct mcu_info *mcu_info)
 {
 	int ret = 0;
 
-	LOG_INF(" - E mcu power %d", mcu_info->power_on);
-	if (mcu_info->power_on) {
-#if ENABLE_AOIS == 0
-
-		ret |= pinctrl_select_state(mcu_info->pinctrl, mcu_info->ois_vdd_low);
-		if (ret)
-			LOG_ERR("%error, can not set ois_vdd_low gpio%d\n", ret);
-
-		ret |= pinctrl_select_state(mcu_info->pinctrl, mcu_info->mcu_vdd_low);
-		if (ret)
-			LOG_ERR("%error, can not set mcu_vdd_low gpio%d\n", ret);
-
-		LOG_INF("MCU_NRST_LOW\n");
-		ret |= pinctrl_select_state(mcu_info->pinctrl, mcu_info->mcu_nrst_low);
-		if (ret)
-			LOG_ERR("%error, can not set mcu_nrst_low gpio%d\n", ret);
-
-		if (!ret)
-			mcu_info->power_on = false;
-
-		usleep_range(1000, 1100);
-#else
-		LOG_INF("VOIS dummy");
-		mcu_info->power_on = false;
-#endif
+	LOG_INF(" - E mcu power %d", mcu_info->power_count);
+	if (mcu_info->power_count > 1)
+		mcu_info->power_count--;
+	else if (mcu_info->power_count == 1) {
+		LOG_INF("AOIS dummy");
+		mcu_info->power_count--;
 	}
-	LOG_INF(" - X mcu power %d", mcu_info->power_on);
+
+	if (mcu_info->power_count < 0)
+		mcu_info->power_count = 0;
+
+	LOG_INF(" - X mcu power %d", mcu_info->power_count);
 
 	return ret;
 }
@@ -316,34 +209,18 @@ int cam_ois_sysfs_mcu_power_down(struct mcu_info *mcu_info)
 {
 	int ret = 0;
 
-	LOG_INF(" - E mcu power %d", mcu_info->power_on);
-	if (mcu_info->power_on) {
-#if ENABLE_AOIS == 0
-		LOG_INF("MCU_VDD_LOW\n");
-		ret |= pinctrl_select_state(mcu_info->pinctrl, mcu_info->mcu_vdd_low);
-		if (ret)
-			LOG_ERR("%error, can not set mcu_vdd_low gpio%d\n", ret);
-
-		LOG_INF("OIS_VDD_LOW\n");
-		ret |= pinctrl_select_state(mcu_info->pinctrl, mcu_info->ois_vdd_low);
-		if (ret)
-			LOG_ERR("%error, can not set ois_vdd_low gpio%d\n", ret);
-
-		LOG_INF("MCU_NRST_LOW\n");
-		ret |= pinctrl_select_state(mcu_info->pinctrl, mcu_info->mcu_nrst_low);
-		if (ret)
-			LOG_ERR("%error, can not set mcu_nrst_low gpio%d\n", ret);
-
-		if (!ret)
-			mcu_info->power_on = false;
-
-		usleep_range(1000, 1100);
-#else
-		LOG_INF("VOIS dummy");
-		mcu_info->power_on = false;
-#endif
+	LOG_INF(" - E mcu power %d", mcu_info->power_count);
+	if (mcu_info->power_count > 1)
+		mcu_info->power_count--;
+	else if (mcu_info->power_count == 1) {
+		LOG_INF("AOIS dummy");
+		mcu_info->power_count--;
 	}
-	LOG_INF(" - X mcu power %d", mcu_info->power_on);
+
+	if (mcu_info->power_count < 0)
+		mcu_info->power_count = 0;
+
+	LOG_INF(" - X mcu power %d", mcu_info->power_count);
 
 	return ret;
 }

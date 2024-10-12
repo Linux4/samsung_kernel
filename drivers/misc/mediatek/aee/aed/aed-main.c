@@ -60,6 +60,10 @@ static DECLARE_COMPLETION(aed_ke_com);
 static struct aee_req_queue ee_queue;
 static struct work_struct ee_work;
 static DECLARE_COMPLETION(aed_ee_com);
+
+#if IS_ENABLED(CONFIG_SND_SOC_SAMSUNG_AUDIO)
+static struct delayed_work adsp_crash_work;
+#endif
 /*
  * may be accessed from irq
  */
@@ -86,6 +90,16 @@ static int kernelapi_num;
 /******************************************************************************
  * DEBUG UTILITIES
  *****************************************************************************/
+
+#if IS_ENABLED(CONFIG_SND_SOC_SAMSUNG_AUDIO)
+static void adsp_crash_work_func(struct work_struct *work)
+{
+	pr_info("%s: adsp crash.", __func__);
+#if !IS_ENABLED(CONFIG_SAMSUNG_PRODUCT_SHIP)
+	BUG_ON(1);
+#endif
+}
+#endif
 
 void msg_show(const char *prefix, struct AE_Msg *msg)
 {
@@ -974,12 +988,21 @@ static void ee_worker(struct work_struct *work)
 {
 	struct aed_eerec *eerec, *tmp;
 	unsigned long flags;
+#if IS_ENABLED(CONFIG_SND_SOC_SAMSUNG_AUDIO)
+	unsigned long adsp_crash=0;
+#endif
 
 	list_for_each_entry_safe(eerec, tmp, &ee_queue.list, list) {
 		if (!eerec) {
 			pr_info("%s:null eerec\n", __func__);
 			return;
 		}
+#if IS_ENABLED(CONFIG_SND_SOC_SAMSUNG_AUDIO)
+		if(!strncmp(eerec->assert_type, "adsp", 4)){
+			pr_info("%s: adsp crash detected", __func__);
+			adsp_crash=1;
+		}
+#endif
 
 		ee_gen_ind_msg(eerec);
 		spin_lock_irqsave(&ee_queue.lock, flags);
@@ -987,6 +1010,15 @@ static void ee_worker(struct work_struct *work)
 		spin_unlock_irqrestore(&ee_queue.lock, flags);
 		ee_destroy_log();
 	}
+#if IS_ENABLED(CONFIG_SND_SOC_SAMSUNG_AUDIO)
+	if(adsp_crash){
+		pr_info("%s: adsp crash work func.", __func__);
+		adsp_crash=0;
+#if !IS_ENABLED(CONFIG_SAMSUNG_PRODUCT_SHIP)
+		schedule_delayed_work(&adsp_crash_work, msecs_to_jiffies(60*1000));
+#endif
+	}
+#endif
 }
 
 /******************************************************************************
@@ -2852,6 +2884,9 @@ static int __init aed_init(void)
 
 	INIT_WORK(&ke_work, ke_worker);
 	INIT_WORK(&ee_work, ee_worker);
+#if IS_ENABLED(CONFIG_SND_SOC_SAMSUNG_AUDIO)
+	INIT_DELAYED_WORK(&adsp_crash_work, adsp_crash_work_func);
+#endif
 
 	aee_register_api(&kernel_api);
 

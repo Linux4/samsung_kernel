@@ -44,13 +44,13 @@
 #define CODEC_MAX			32
 
 static const char *const mt6877_spk_type_str[] = {MTK_SPK_NOT_SMARTPA_STR,
-#ifdef CONFIG_SND_SOC_RT5509
+#if defined(CONFIG_SND_SOC_RT5509)
 						  MTK_SPK_RICHTEK_RT5509_STR,
 #endif
-#ifdef CONFIG_SND_SOC_MT6660
+#if defined(CONFIG_SND_SOC_MT6660)
 						  MTK_SPK_MEDIATEK_MT6660_STR,
 #endif
-#ifdef CONFIG_SND_SOC_TFA9874
+#if defined(CONFIG_SND_SOC_TFA9874)
 						  MTK_SPK_NXP_TFA98XX_STR,
 #endif
 #ifdef CONFIG_SND_SOC_CS35L41
@@ -62,7 +62,7 @@ static const char *const mt6877_spk_type_str[] = {MTK_SPK_NOT_SMARTPA_STR,
 #ifdef CONFIG_SND_SOC_TFA9878
 						  MTK_SPK_GOODIX_TFA9878_STR,
 #endif
-#ifdef CONFIG_SND_SOC_RT5512
+#if defined(CONFIG_SND_SOC_RT5512)
 						  MTK_SPK_MEDIATEK_RT5512_STR
 #endif
 						  };
@@ -1167,6 +1167,7 @@ static struct snd_soc_dai_link mt6877_mt6359_dai_links[] = {
 		.codec_dai_name = "snd-soc-dummy-dai",
 		.codec_name = "snd-soc-dummy",
 		.no_pcm = 1,
+		.dpcm_playback = 1,
 		.dpcm_capture = 1,
 		.ignore_suspend = 1,
 	},
@@ -1308,6 +1309,62 @@ static struct snd_soc_dai_link mt6877_mt6359_dai_links[] = {
 		.name = "DSP_Playback_A2DP",
 		.stream_name = "DSP_Playback_A2DP",
 		.cpu_dai_name = "audio_task_a2dp_dai",
+		.codec_name = "snd-soc-dummy",
+		.codec_dai_name = "snd-soc-dummy-dai",
+	},
+	{
+		.name = "DSP_Playback_BLEDL",
+		.stream_name = "DSP_Playback_BLEDL",
+		.cpu_dai_name = "audio_task_bledl_dai",
+		.codec_name = "snd-soc-dummy",
+		.codec_dai_name = "snd-soc-dummy-dai",
+	},
+	{
+		.name = "DSP_Capture_BLE",
+		.stream_name = "DSP_Capture_BLE",
+		.cpu_dai_name = "audio_task_bleul_dai",
+		.codec_name = "snd-soc-dummy",
+		.codec_dai_name = "snd-soc-dummy-dai",
+	},
+	{
+		.name = "DSP_Capture_Process",
+		.stream_name = "DSP_Capture_Process",
+		.cpu_dai_name = "audio_task_ulproc_dai",
+		.codec_name = "snd-soc-dummy",
+		.codec_dai_name = "snd-soc-dummy-dai",
+	},
+	{
+		.name = "DSP_Playback_Echoref",
+		.stream_name = "DSP_Playback_Echoref",
+		.cpu_dai_name = "audio_task_echodl_dai",
+		.codec_name = "snd-soc-dummy",
+		.codec_dai_name = "snd-soc-dummy-dai",
+	},
+	{
+		.name = "DSP_Playback_USB",
+		.stream_name = "DSP_Playback_USB",
+		.cpu_dai_name = "audio_task_usbdl_dai",
+		.codec_name = "snd-soc-dummy",
+		.codec_dai_name = "snd-soc-dummy-dai",
+	},
+	{
+		.name = "DSP_Capture_USB",
+		.stream_name = "DSP_Capture_USB",
+		.cpu_dai_name = "audio_task_usbul_dai",
+		.codec_name = "snd-soc-dummy",
+		.codec_dai_name = "snd-soc-dummy-dai",
+	},
+	{
+		.name = "DSP_Capture_MDDL",
+		.stream_name = "DSP_Capture_MDDL",
+		.cpu_dai_name = "audio_task_mddl_dai",
+		.codec_name = "snd-soc-dummy",
+		.codec_dai_name = "snd-soc-dummy-dai",
+	},
+	{
+		.name = "DSP_Playback_MDUL",
+		.stream_name = "DSP_Playback_MDUL",
+		.cpu_dai_name = "audio_task_mdul_dai",
 		.codec_name = "snd-soc-dummy",
 		.codec_dai_name = "snd-soc-dummy-dai",
 	},

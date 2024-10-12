@@ -14,6 +14,15 @@
 			bias-disable;
 		};
 	};
+
+	rcv_amp_en: rcv-amp-en {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO111__FUNC_GPIO111>;
+			slew-rate = <0>;
+			bias-disable;
+			output-low;
+		};
+	};
 };
 
 &gpio_afc {
@@ -30,4 +39,6 @@
 
 &tfa98xx_top {
 	reg = <0x34>;
+	pinctrl-0 = <&rcv_amp_en &rcv_amp_int>;
+	reset-gpio = <&pio 111 0>;
 };

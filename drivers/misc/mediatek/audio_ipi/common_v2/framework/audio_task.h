@@ -37,6 +37,13 @@ enum {
 	TASK_SCENE_BLEENC               = 23,
 	TASK_SCENE_BLECALLDL            = 24,
 	TASK_SCENE_BLECALLUL            = 25,
+	TASK_SCENE_UL_PROCESS           = 26,
+	TASK_SCENE_ECHO_REF_UL          = 27,
+	TASK_SCENE_ECHO_REF_DL          = 28,
+	TASK_SCENE_USB_DL               = 29,
+	TASK_SCENE_USB_UL               = 30,
+	TASK_SCENE_MD_DL                = 31,
+	TASK_SCENE_MD_UL                = 32,
 
 	/* control for driver */
 	TASK_SCENE_AUDIO_CONTROLLER_HIFI3_A,

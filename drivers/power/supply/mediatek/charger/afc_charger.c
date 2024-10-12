@@ -32,9 +32,6 @@
 #if defined(CONFIG_DRV_SAMSUNG)
 #include <linux/sec_class.h>
 #endif
-#if defined(CONFIG_SEC_PARAM)
-#include <linux/sec_ext.h>
-#endif
 #include <linux/ktime.h>
 #include <linux/pinctrl/consumer.h>
 #include <mt-plat/v1/mtk_battery.h>
@@ -55,18 +52,32 @@
 #include <linux/muic/common/muic_notifier.h>
 #endif
 
-struct gpio_afc_ddata *g_ddata;
-
-#if IS_ENABLED(CONFIG_SEC_HICCUP)
-static int gpio_hiccup;
-#endif
-
 #if IS_ENABLED(CONFIG_MUIC_NOTIFIER)
 #include <linux/muic/common/muic_notifier.h>
 extern struct muic_platform_data muic_pdata;
 #if IS_ENABLED(CONFIG_VIRTUAL_MUIC)
 #include <linux/muic/common/vt_muic/vt_muic.h>
 #endif
+#endif
+
+#if defined(CONFIG_PDIC_NOTIFIER)
+#include <linux/usb/typec/common/pdic_notifier.h>
+#if defined(CONFIG_PDIC_USE_MODULE_PARAM)
+#include <linux/usb/typec/common/pdic_param.h>
+#endif
+#if IS_ENABLED(CONFIG_BATTERY_NOTIFIER)
+#include <linux/battery/battery_notifier.h>
+#else
+#include <linux/battery/sec_pd.h>
+#endif
+
+extern struct pdic_notifier_struct pd_noti;
+#endif
+
+struct gpio_afc_ddata *g_ddata;
+
+#if IS_ENABLED(CONFIG_SEC_HICCUP)
+static int gpio_hiccup;
 #endif
 
 /* afc_mode:
@@ -560,14 +571,15 @@ int set_afc_voltage(int voltage)
 #if IS_ENABLED(CONFIG_SEC_HICCUP)
 void set_sec_hiccup(bool en)
 {
-	int ret = 0;
 	struct gpio_afc_ddata *ddata = g_ddata;
+	int ret = 0;
 
-	ret = get_boot_mode();
-	if (ret == KERNEL_POWER_OFF_CHARGING_BOOT) {
-		pr_info("%s %d, lpm mode\n", __func__, en, ret);
+#if defined(CONFIG_PDIC_USE_MODULE_PARAM)
+	if (is_lpcharge_pdic_param()) {
+		pr_info("%s %d, lpm mode\n", __func__, en);
 		return;
 	}
+#endif
 
 	if (en)
 		ddata->is_hiccup_mode = SEC_HICCUP_MODE_ON;
@@ -601,9 +613,6 @@ static ssize_t afc_disable_store(struct device *dev,
 {
 	struct gpio_afc_ddata *ddata = dev_get_drvdata(dev);
 	int param_val;
-#if defined(CONFIG_SEC_PARAM)
-	int ret = 0;
-#endif
 #ifdef CONFIG_BATTERY_SAMSUNG
 	union power_supply_propval psy_val;
 #endif
@@ -623,12 +632,6 @@ static ssize_t afc_disable_store(struct device *dev,
 	}
 
 	param_val = ddata->afc_disable ? '1' : '0';
-
-#if defined(CONFIG_SEC_PARAM)
-	ret = sec_set_param(CM_OFFSET + 1, ddata->afc_disable ? '1' : '0');
-	if (ret < 0)
-		pr_err("%s:sec_set_param failed\n", __func__);
-#endif
 
 #ifdef CONFIG_BATTERY_SAMSUNG
 	psy_val.intval = param_val;
@@ -672,9 +675,12 @@ static ssize_t hiccup_show(struct device *dev,
 static ssize_t hiccup_store(struct device *dev,
 	struct device_attribute *attr, const char *buf, size_t count)
 {
-	if (!strncasecmp(buf, "DISABLE", 7))
+	if (!strncasecmp(buf, "DISABLE", 7)) {
+#if defined(CONFIG_PDIC_NOTIFIER)
+		pd_noti.sink_status.fp_sec_pd_manual_ccopen_req(0);
+#endif
 		set_sec_hiccup(false);
-	else
+	} else
 		pr_warn("%s invalid com : %s\n", __func__, buf);
 
 	return count;
@@ -687,12 +693,12 @@ static ssize_t adc_show(struct device *dev,
 	int result = 0;
 
 #if IS_ENABLED(CONFIG_TCPC_MT6360) && IS_ENABLED(CONFIG_PDIC_NOTIFIER)
-//temp	result = mt6360_usbid_check();
+	result = mt6360_usbid_check();
 #endif
 
 	pr_info("%s %d\n", __func__, result);
 
-	return sprintf(buf, "%d\n", !!result);
+	return sprintf(buf, "%d\n", result);
 }
 
 static ssize_t vbus_value_show(struct device *dev,
@@ -730,13 +736,12 @@ static const struct attribute_group gpio_afc_group = {
 static int sec_set_hiccup_mode(int val)
 {
 #if IS_ENABLED(CONFIG_SEC_HICCUP)
-	int ret = 0;
-
-	ret = get_boot_mode();
-	if (ret == KERNEL_POWER_OFF_CHARGING_BOOT) {
-		pr_info("%s %d, lpm mode\n", __func__, val, ret);
+#if defined(CONFIG_PDIC_USE_MODULE_PARAM)
+	if (is_lpcharge_pdic_param()) {
+		pr_info("%s %d, lpm mode\n", __func__, val);
 		return 0;
 	}
+#endif
 
 	if (val) {
 		set_attached_afc_dev(ATTACHED_DEV_HICCUP_MUIC);
@@ -835,10 +840,9 @@ static int gpio_afc_probe(struct platform_device *pdev)
 	ddata->gpio_input = false;
 
 	g_ddata = ddata;
-	afc_mode = 0;
 
 #if defined(CONFIG_DRV_SAMSUNG)
-	ddata->afc_disable = (_get_afc_mode() == '1' ? 1 : 0);
+	ddata->afc_disable = (_get_afc_mode() == 0x31 ? 1 : 0);
 #ifdef CONFIG_BATTERY_SAMSUNG
 	psy_val.intval = ddata->afc_disable ? '1' : '0';
 	psy_do_property("battery", set, POWER_SUPPLY_EXT_PROP_HV_DISABLE, psy_val);

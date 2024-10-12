@@ -10,7 +10,7 @@
 #define __TFA_INTERNAL_H__
 
 #include "tfa_dsp_fw.h"
-#include <sound/tfa_ext.h>
+#include "tfa_ext.h"
 
 #if __GNUC__ >= 4
   #define TFA_INTERNAL __attribute__((visibility("hidden")))

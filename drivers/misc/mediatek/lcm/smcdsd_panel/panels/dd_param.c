@@ -250,7 +250,6 @@ static const struct file_operations param_fops = {
 	.open		= param_open,
 	.write		= param_write,
 	.read		= seq_read,
-	.llseek		= no_llseek,
 	.release	= single_release,
 };
 
@@ -271,7 +270,7 @@ static int help_show(struct seq_file *m, void *unused)
 	seq_puts(m, "------------------------------------------------------------\n");
 	seq_puts(m, "\n");
 	seq_puts(m, "---------- usage\n");
-	seq_puts(m, "# cd /d/dd_param\n");
+	seq_puts(m, "# cd /d/dd/param\n");
 	seq_puts(m, "----------\n");
 
 	for (i = 0; i < (u32)ARRAY_SIZE(params_lists); i++) {
@@ -322,8 +321,7 @@ static int help_open(struct inode *inode, struct file *f)
 static const struct file_operations help_fops = {
 	.open		= help_open,
 	.read		= seq_read,
-	.llseek		= seq_lseek,
-	.release	= seq_release,
+	.release	= single_release,
 };
 
 static int add_param(struct params_list_info *params_list, void *ptr, u32 ptr_type, u32 ptr_size)
@@ -393,6 +391,7 @@ void init_debugfs_param(const char *name, void *ptr, u32 ptr_type, u32 sum_size,
 {
 	struct params_list_info *params_list = find_params_list(name);
 	int i = 0;
+	static struct dentry *dd_debugfs_root;
 
 	if (!name || !ptr || !ptr_type || !sum_size || !params_list) {
 		dbg_info("invalid param\n");
@@ -419,8 +418,11 @@ void init_debugfs_param(const char *name, void *ptr, u32 ptr_type, u32 sum_size,
 		ptr_unit = sum_size;
 	}
 
+	dd_debugfs_root = debugfs_lookup("dd", NULL);
+	dd_debugfs_root = dd_debugfs_root ? dd_debugfs_root : debugfs_create_dir("dd", NULL);
+
 	if (!debugfs_root) {
-		debugfs_root = debugfs_create_dir("dd_param", NULL);
+		debugfs_root = debugfs_create_dir("param", dd_debugfs_root);
 		debugfs_create_file("_help", 0400, debugfs_root, NULL, &help_fops);
 	}
 

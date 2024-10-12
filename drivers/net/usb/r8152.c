@@ -607,6 +607,9 @@ enum rtl8152_flags {
 	SCHEDULE_NAPI,
 	GREEN_ETHERNET,
 	DELL_TB_RX_AGG_BUG,
+#if defined(CONFIG_USB_HOST_SAMSUNG_FEATURE)
+	RX_EPROTO,
+#endif
 };
 
 /* Define these values to match your device */
@@ -1294,6 +1297,16 @@ static void read_bulk_callback(struct urb *urb)
 		set_bit(RTL8152_UNPLUG, &tp->flags);
 		netif_device_detach(tp->netdev);
 		return;
+#if defined(CONFIG_USB_HOST_SAMSUNG_FEATURE)
+	case -EPROTO:
+		urb->actual_length = 0;
+		spin_lock_irqsave(&tp->rx_lock, flags);
+		list_add_tail(&agg->list, &tp->rx_done);
+		spin_unlock_irqrestore(&tp->rx_lock, flags);
+		set_bit(RX_EPROTO, &tp->flags);
+		schedule_delayed_work(&tp->schedule, 1);
+		return;
+#endif
 	case -ENOENT:
 		return;	/* the urb is in unlink state */
 	case -ETIME:
@@ -1896,7 +1909,9 @@ static int rx_bottom(struct r8152 *tp, int budget)
 
 	if (list_empty(&tp->rx_done))
 		goto out1;
-
+#if defined(CONFIG_USB_HOST_SAMSUNG_FEATURE)
+	clear_bit(RX_EPROTO, &tp->flags);
+#endif
 	INIT_LIST_HEAD(&rx_queue);
 	spin_lock_irqsave(&tp->rx_lock, flags);
 	list_splice_init(&tp->rx_done, &rx_queue);
@@ -1913,7 +1928,11 @@ static int rx_bottom(struct r8152 *tp, int budget)
 
 		agg = list_entry(cursor, struct rx_agg, list);
 		urb = agg->urb;
+#if defined(CONFIG_USB_HOST_SAMSUNG_FEATURE)
+		if (urb->status != 0 || urb->actual_length < ETH_ZLEN)
+#else
 		if (urb->actual_length < ETH_ZLEN)
+#endif
 			goto submit;
 
 		rx_desc = agg->head;
@@ -3785,6 +3804,9 @@ static void set_carrier(struct r8152 *tp)
 			napi_enable(&tp->napi);
 			netif_wake_queue(netdev);
 			netif_info(tp, link, netdev, "carrier on\n");
+#ifdef CONFIG_USB_DEBUG_DETAILED_LOG
+			pr_info("r8152 carrier on\n");
+#endif
 		} else if (netif_queue_stopped(netdev) &&
 			   skb_queue_len(&tp->tx_queue) < tp->tx_qlen) {
 			netif_wake_queue(netdev);
@@ -3796,6 +3818,9 @@ static void set_carrier(struct r8152 *tp)
 			tp->rtl_ops.disable(tp);
 			napi_enable(napi);
 			netif_info(tp, link, netdev, "carrier off\n");
+#ifdef CONFIG_USB_DEBUG_DETAILED_LOG
+			pr_info("r8152 carrier off\n");
+#endif
 		}
 	}
 }
@@ -3831,7 +3856,11 @@ static void rtl_work_func_t(struct work_struct *work)
 	if (test_and_clear_bit(SCHEDULE_NAPI, &tp->flags) &&
 	    netif_carrier_ok(tp->netdev))
 		napi_schedule(&tp->napi);
-
+#if defined(CONFIG_USB_HOST_SAMSUNG_FEATURE)
+	if (test_and_clear_bit(RX_EPROTO, &tp->flags) &&
+	    !list_empty(&tp->rx_done))
+		napi_schedule(&tp->napi);
+#endif
 	mutex_unlock(&tp->control);
 
 out1:
