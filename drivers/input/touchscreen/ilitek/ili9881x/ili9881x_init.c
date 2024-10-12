@@ -777,10 +777,33 @@ void ilitek_plat_charger_init(void)
 #endif
 #endif
 #if IS_ENABLED(CONFIG_VBUS_NOTIFIER)
+int ilitek_set_vbus(void)
+{
+	int ret = 0;
+
+	if (ilits->power_status == POWER_OFF_STATUS || ilits->tp_shutdown || atomic_read(&ilits->fw_stat) != END) {
+		input_info(true, ilits->dev, "%s: power off status(%d,%d)\n",
+					__func__, ilits->power_status, ilits->tp_shutdown);
+		return ret;
+	}
+
+	ret = ili_ic_func_ctrl("plug", !ilits->usb_plug_status);// plug in
+	if (ret < 0)
+		input_err(true, ilits->dev, "%s Write plug in failed\n", __func__);
+
+	return ret;
+}
+
+void ilitek_vbus_work(struct work_struct *work)
+{
+	mutex_lock(&ilits->touch_mutex);
+	ilitek_set_vbus();
+	mutex_unlock(&ilits->touch_mutex);
+}
+
 static int ilitek_vbus_notifier(struct notifier_block *nb, unsigned long cmd, void *data)
 {
 	vbus_status_t vbus_type = *(vbus_status_t *) data;
-	int ret = 0;
 
 	input_info(true, ilits->dev, "%s: cmd: %lu, vbus_type: %d\n", __func__, cmd, vbus_type);
 
@@ -796,19 +819,9 @@ static int ilitek_vbus_notifier(struct notifier_block *nb, unsigned long cmd, vo
 		break;
 	}
 
-	if (ilits->power_status == POWER_OFF_STATUS) {
-		input_info(true, ilits->dev, "%s: power off status\n", __func__);
-		return 0;
-	}
+	schedule_work(&ilits->work_vbus.work);
 
-	mutex_lock(&ilits->touch_mutex);
-	ret = ili_ic_func_ctrl("plug", !ilits->usb_plug_status);// plug in
-	if (ret < 0)
-		input_err(true, ilits->dev, "%s Write plug in failed\n", __func__);
-
-	mutex_unlock(&ilits->touch_mutex);
-
-	return 0;
+	return NOTIFY_DONE;
 }
 #endif
 static int parse_dt(void)
@@ -1139,9 +1152,13 @@ static int ilitek_plat_probe(void)
 	/* add_for_charger_end */
 #endif
 #endif
-#ifdef CONFIG_VBUS_NOTIFIER
+#if IS_ENABLED(CONFIG_VBUS_NOTIFIER)
+	INIT_DELAYED_WORK(&ilits->work_vbus, ilitek_vbus_work);
 	vbus_notifier_register(&ilits->vbus_nb, ilitek_vbus_notifier, VBUS_NOTIFY_DEV_CHARGER);
 #endif
+
+	ili_ic_lpwg_dump_buf_init();
+
 	input_info(true, ilits->dev, "%s ILITEK Driver loaded successfully!", __func__);
 	return 0;
 }

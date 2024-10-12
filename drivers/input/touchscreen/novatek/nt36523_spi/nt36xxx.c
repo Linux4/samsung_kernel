@@ -494,7 +494,7 @@ int32_t CTP_SPI_READ(struct spi_device *client, uint8_t *buf, uint16_t len)
 
 	buf[0] = SPI_READ_MASK(buf[0]);
 
-	while (retries < 5) {
+	while (retries < NVT_SPI_RETRY_COUNT) {
 		ret = spi_read_write(client, buf, len, NVTREAD);
 		if (ret == 0) break;
 		retries++;
@@ -510,9 +510,15 @@ int32_t CTP_SPI_READ(struct spi_device *client, uint8_t *buf, uint16_t len)
 			mutex_unlock(&ts->xbuf_lock);
 			return -EIO;
 		}
+		
+		if (!nvt_ts_lcd_power_check()) {
+			input_err(true, &ts->client->dev, "%s: lcd is off\n", __func__);
+			mutex_unlock(&ts->xbuf_lock);
+			return -EIO;
+		}
 	}
 
-	if (unlikely(retries == 5)) {
+	if (unlikely(retries == NVT_SPI_RETRY_COUNT)) {
 		input_err(true, &client->dev,"read error, ret=%d\n", ret);
 		ret = -EIO;
 	} else {
@@ -555,7 +561,7 @@ int32_t CTP_SPI_WRITE(struct spi_device *client, uint8_t *buf, uint16_t len)
 
 	buf[0] = SPI_WRITE_MASK(buf[0]);
 
-	while (retries < 5) {
+	while (retries < NVT_SPI_RETRY_COUNT) {
 		ret = spi_read_write(client, buf, len, NVTWRITE);
 		if (ret == 0)	break;
 		retries++;
@@ -571,10 +577,16 @@ int32_t CTP_SPI_WRITE(struct spi_device *client, uint8_t *buf, uint16_t len)
 			mutex_unlock(&ts->xbuf_lock);
 			return -EIO;
 		}
+
+		if (!nvt_ts_lcd_power_check()) {
+			input_err(true, &ts->client->dev, "%s: lcd is off\n", __func__);
+			mutex_unlock(&ts->xbuf_lock);
+			return -EIO;
+		}
 	}
 
-	if (unlikely(retries == 5)) {
-		input_err(true, &client->dev,"error, ret=%d\n", ret);
+	if (unlikely(retries == NVT_SPI_RETRY_COUNT)) {
+		input_err(true, &client->dev,"write error, ret=%d\n", ret);
 		ret = -EIO;
 	}
 
@@ -1799,6 +1811,36 @@ static uint8_t nvt_wdt_fw_recovery(uint8_t *point_data)
 
    return recovery_enable;
 }
+
+void nvt_read_fw_history(uint32_t fw_history_addr)
+{
+    uint8_t i = 0;
+    uint8_t buf[65];
+    char str[128];
+
+	if (fw_history_addr == 0)
+		return;
+
+    nvt_set_page(fw_history_addr);
+
+    buf[0] = (uint8_t) (fw_history_addr & 0x7F);
+    CTP_SPI_READ(ts->client, buf, 64+1);	//read 64bytes history
+
+    //print all data
+    input_info(true, &ts->client->dev,"fw history 0x%x: \n", fw_history_addr);
+    for (i = 0; i < 4; i++) {
+        snprintf(str, sizeof(str),
+				"%02X %02X %02X %02X %02X %02X %02X %02X  "
+				"%02X %02X %02X %02X %02X %02X %02X %02X\n",
+                 buf[1+i*16], buf[2+i*16], buf[3+i*16], buf[4+i*16],
+                 buf[5+i*16], buf[6+i*16], buf[7+i*16], buf[8+i*16],
+                 buf[9+i*16], buf[10+i*16], buf[11+i*16], buf[12+i*16],
+                 buf[13+i*16], buf[14+i*16], buf[15+i*16], buf[16+i*16]);
+        input_info(true, &ts->client->dev,"%s", str);
+    }
+
+	nvt_set_page(ts->mmap->EVENT_BUF_ADDR);
+}
 #endif	/* #if NVT_TOUCH_WDT_RECOVERY */
 
 void nvt_print_info(void)
@@ -2568,6 +2610,13 @@ static irqreturn_t nvt_ts_work_func(int irq, void *data)
 	if (nvt_wdt_fw_recovery(point_data)) {
 		pm_wakeup_event(&ts->input_dev->dev, 1000);
 		input_err(true, &ts->client->dev,"Recover for fw reset, %02X\n", point_data[1]);
+
+		if (point_data[1] == 0xFE) {
+			nvt_sw_reset_idle();
+		}
+		nvt_read_fw_history(ts->mmap->MMAP_HISTORY_EVENT0);
+		nvt_read_fw_history(ts->mmap->MMAP_HISTORY_EVENT1);
+
 		nvt_update_firmware(ts->platdata->firmware_name);
 		if (nvt_check_fw_reset_state(RESET_STATE_REK))
 			input_err(true, &ts->client->dev, "%s: Check FW state failed after FW reset recovery\n", __func__);
@@ -2631,7 +2680,7 @@ Description:
 return:
 	Executive outcomes. 0---NVT IC. -1---not NVT IC.
 *******************************************************/
-static int8_t nvt_ts_check_chip_ver_trim(void)
+static int8_t nvt_ts_check_chip_ver_trim(uint32_t chip_ver_trim_addr)
 {
 	uint8_t buf[8] = {0};
 	int32_t retry = 0;
@@ -2645,10 +2694,9 @@ static int8_t nvt_ts_check_chip_ver_trim(void)
 
 		nvt_bootloader_reset();
 
-		//---set xdata index to 0x1F600---
-		nvt_set_page(0x1F64E);
+		nvt_set_page(chip_ver_trim_addr);
 
-		buf[0] = 0x4E;
+		buf[0] = chip_ver_trim_addr & 0x7F;
 		buf[1] = 0x00;
 		buf[2] = 0x00;
 		buf[3] = 0x00;
@@ -2786,6 +2834,11 @@ static void nvt_vbus_work(struct work_struct *work)
 		return;
 	}
 
+	if (!nvt_ts_lcd_power_check()) {
+		input_err(true, &ts->client->dev, "%s: lcd is off\n", __func__);
+		return;
+	}
+
 	if (mutex_lock_interruptible(&ts->lock)) {
 		input_err(true, &ts->client->dev, "%s: another task is running\n",
 				__func__);
@@ -2836,6 +2889,11 @@ static int tsp_vbus_notification(struct notifier_block *nb,
 
 	if (ts->power_status == POWER_OFF_STATUS) {
 		input_err(true, &ts->client->dev, "%s: tsp ic is off\n", __func__);
+		return NOTIFY_DONE;
+	}
+
+	if (!nvt_ts_lcd_power_check()) {
+		input_err(true, &ts->client->dev, "%s: lcd is off\n", __func__);
 		return NOTIFY_DONE;
 	}
 
@@ -3013,11 +3071,15 @@ static int32_t nvt_ts_probe(struct spi_device *client)
 	msleep(10);
 
 	//---check chip version trim---
-	ret = nvt_ts_check_chip_ver_trim();
+	ret = nvt_ts_check_chip_ver_trim(CHIP_VER_TRIM_ADDR);
 	if (ret) {
-		input_err(true, &client->dev,"chip is not identified\n");
-		ret = -EINVAL;
-		goto err_chipvertrim_failed;
+		input_err(true, &client->dev,"try to check from old chip ver trim address\n");
+		ret = nvt_ts_check_chip_ver_trim(CHIP_VER_TRIM_OLD_ADDR);
+		if (ret) {
+			input_err(true, &client->dev,"chip is not identified\n");
+			ret = -EINVAL;
+			goto err_chipvertrim_failed;
+		}
 	}
 
 	//---allocate input device---
@@ -3541,6 +3603,38 @@ int nvt_ts_lcd_power_ctrl(bool on)
 	input_info(true, &ts->client->dev, "%s %d done\n", __func__, on);
 
 	return 0;
+}
+
+bool nvt_ts_lcd_power_check()
+{
+	int enabled_count = 0, regulator_count = 0;
+
+	if (ts->platdata->name_lcd_vddi) {
+		regulator_count++;
+		enabled_count += regulator_is_enabled(ts->regulator_lcd_vddi);
+	}
+
+	if (ts->platdata->name_lcd_bl_en) {
+		regulator_count++;
+		enabled_count += regulator_is_enabled(ts->regulator_lcd_bl_en);
+	}
+
+	if (ts->platdata->name_lcd_vsp) {
+		regulator_count++;
+		enabled_count += regulator_is_enabled(ts->regulator_lcd_vsp);
+	}
+
+	if (ts->platdata->name_lcd_vsn) {
+		regulator_count++;
+		enabled_count += regulator_is_enabled(ts->regulator_lcd_vsn);
+	}
+
+	if (regulator_count > 0 && enabled_count == 0) {
+		input_info(true, &ts->client->dev, "%s : regulator_count (%d), enabled_count zero(lcd off)\n",
+					__func__, regulator_count);
+		return false;
+	} else
+		return true;
 }
 
 static void nvt_ts_set_lp_mode(struct nvt_ts_data *ts)

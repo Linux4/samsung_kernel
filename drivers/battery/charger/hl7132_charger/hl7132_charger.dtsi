@@ -26,6 +26,7 @@
 		hl7132,wd-tmr = <0x3>;
 		/* WDT enabled */
 		//hl7132,wd-dis;
+		hl7132,fsw-set = <0x06>; //1100khz default setting
 	};
 };
 

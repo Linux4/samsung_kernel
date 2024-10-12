@@ -52,75 +52,106 @@ char abc_hub_kunit_test_uevent_str[ABC_HUB_TEST_STR_MAX];
 EXPORT_SYMBOL_KUNIT(abc_hub_kunit_test_uevent_str);
 #endif
 
-/* "module_name", "error_name", on, singular_spec */
+/* "module_name", "error_name", "host", on, singular_spec, error_count */
 struct registered_abc_event_struct abc_event_list[] = {
-	{"audio", "spk_amp", true, true},
-	{"audio", "spk_amp_short", true, true},
-	{"battery", "dc_i2c_fail", true, true},
-	{"battery", "over_voltage", true, true},
-	{"battery", "pd_input_ocp", true, true},
-	{"battery", "safety_timer", true, true},
-	{"battery", "pp_open", true, true},
-	{"battery", "lim_stuck", true, true},
-	{"battery", "vsys_ovp", true, true},
-	{"battery", "dc_current", true, true},
-	{"bootc", "boot_time_fail", true, true},
-	{"camera", "camera_error", true, true},
-	{"camera", "i2c_fail", true, false},
-	{"camera", "icp_error", true, true},
-	{"camera", "ipp_overflow", true, true},
-	{"camera", "mipi_overflow", true, false},
-	{"cond", "CAM_CONNECT", true, true},
-	{"cond", "LOWER_C2C_DETECT", true, true},
-	{"cond", "MAIN_BAT_DETECT", true, true},
-	{"cond", "MAIN_DIGITIZER_DETECT", true, true},
-	{"cond", "SUB_BAT_DETECT", true, true},
-	{"cond", "SUB_CONNECT", true, true},
-	{"cond", "SUB_LOWER_DETECT", true, true},
-	{"cond", "SUB_UB_DETECT", true, true},
-	{"cond", "TOF_CONNECT", true, true},
-	{"cond", "UPPER_C2C_DETECT", true, true},
-	{"decon", "fence_timeout", true, true},
-	{"display", "act_section_panel_main_dsi_error", true, true},
-	{"display", "act_section_panel_sub_dsi_error", true, true},
-	{"gpu", "gpu_fault", true, false},
-	{"gpu", "gpu_job_timeout", true, true},
-	{"gpu_qc", "gpu_fault", true, false},
-	{"gpu_qc", "gpu_page_fault", true, false},
-	{"muic", "afc_hv_fail", true, true},
-	{"muic", "cable_short", true, true},
-	{"muic", "qc_hv_fail", true, true},
-	{"npu", "npu_fw_warning", true, true},
-	{"pdic", "i2c_fail", true, true},
-	{"pdic", "water_det", true, true},
-	{"pmic", "s2dos05_bulk_read", true, true},
-	{"pmic", "s2dos05_bulk_write", true, true},
-	{"pmic", "s2dos05_read_reg", true, true},
-	{"pmic", "s2dos05_read_word", true, true},
-	{"pmic", "s2dos05_update_reg", true, true},
-	{"pmic", "s2dos05_write_reg", true, true},
-	{"pmic", "s2dos05_bulk_read_fail", true, true},
-	{"pmic", "s2dos05_bulk_write_fail", true, true},
-	{"pmic", "s2dos05_read_reg_fail", true, true},
-	{"pmic", "s2dos05_read_word_fail", true, true},
-	{"pmic", "s2dos05_update_reg_fail", true, true},
-	{"pmic", "s2dos05_write_reg_fail", true, true},
-	{"pmic", "s2dos05_scp", true, true},
-	{"pmic", "s2dos05_ssd", true, true},
-	{"storage", "mmc_hwreset_err", true, true},
-	{"storage", "sd_removed_err", true, true},
-	{"storage", "ufs_hwreset_err", true, true},
-	{"storage", "ufs_medium_err", true, true},
-	{"tsp", "tsp_int_fault", true, false},
-	{"tsp_sub", "tsp_int_fault", true, false},
-	{"ub_main", "ub_disconnected", true, true},
-	{"ub_sub", "ub_disconnected", true, true},
-	{"vib", "fw_load_fail", true, true},
-	{"vib", "int_gnd_short", true, false},
+	{"audio", "spk_amp", "it", true, true, 0, ABC_GROUP_NONE},
+	{"audio", "spk_amp_short", "it", true, true, 0, ABC_GROUP_NONE},
+	{"battery", "dc_i2c_fail", "it", true, true, 0, ABC_GROUP_NONE},
+	{"battery", "over_voltage", "it", true, true, 0, ABC_GROUP_NONE},
+	{"battery", "pd_input_ocp", "it", true, true, 0, ABC_GROUP_NONE},
+	{"battery", "safety_timer", "it", true, true, 0, ABC_GROUP_NONE},
+	{"battery", "pp_open", "it", true, true, 0, ABC_GROUP_NONE},
+	{"battery", "lim_stuck", "it", true, true, 0, ABC_GROUP_NONE},
+	{"battery", "lim_i2c_fail", "it", true, true, 0, ABC_GROUP_NONE},
+	{"battery", "vsys_ovp", "it", true, true, 0, ABC_GROUP_NONE},
+	{"battery", "dc_current", "it", true, true, 0, ABC_GROUP_NONE},
+	{"battery", "store_fg_asoc0", "it", true, true, 0, ABC_GROUP_NONE},
+	{"battery", "show_fg_asoc0", "it", true, true, 0, ABC_GROUP_NONE},
+	{"battery", "charger_irq_error", "", true, true, 0, ABC_GROUP_NONE},
+	{"bootc", "boot_time_fail", "", true, true, 0, ABC_GROUP_NONE},
+	{"camera", "camera_error", "", true, true, 0, ABC_GROUP_NONE},
+	{"camera", "i2c_fail", "", true, false, 0, ABC_GROUP_NONE},
+	{"camera", "icp_error", "", true, true, 0, ABC_GROUP_NONE},
+	{"camera", "ipp_overflow", "", true, true, 0, ABC_GROUP_NONE},
+	{"camera", "mipi_overflow", "", true, false, 0, ABC_GROUP_NONE},
+#if IS_ENABLED(CONFIG_SEC_FACTORY)
+	{"camera", "mipi_error_rw1", "", true, false, 0, ABC_GROUP_CAMERA_MIPI_ERROR_ALL},
+	{"camera", "mipi_error_rs1", "", true, false, 0, ABC_GROUP_CAMERA_MIPI_ERROR_ALL},
+	{"camera", "mipi_error_rt1", "", true, false, 0, ABC_GROUP_CAMERA_MIPI_ERROR_ALL},
+	{"camera", "mipi_error_rt2", "", true, false, 0, ABC_GROUP_CAMERA_MIPI_ERROR_ALL},
+	{"camera", "mipi_error_fw1", "", true, false, 0, ABC_GROUP_CAMERA_MIPI_ERROR_ALL},
+	{"camera", "mipi_error_uw1", "", true, false, 0, ABC_GROUP_CAMERA_MIPI_ERROR_ALL},
+	{"camera", "mipi_error_rm1", "", true, false, 0, ABC_GROUP_CAMERA_MIPI_ERROR_ALL},
+	{"camera", "mipi_error_rb1", "", true, false, 0, ABC_GROUP_CAMERA_MIPI_ERROR_ALL},
+	{"camera", "mipi_error_fs1", "", true, false, 0, ABC_GROUP_CAMERA_MIPI_ERROR_ALL},
+#else
+	{"camera", "mipi_error_rw1", "", false, false, 0, ABC_GROUP_CAMERA_MIPI_ERROR_ALL},
+	{"camera", "mipi_error_rs1", "", false, false, 0, ABC_GROUP_CAMERA_MIPI_ERROR_ALL},
+	{"camera", "mipi_error_rt1", "", false, false, 0, ABC_GROUP_CAMERA_MIPI_ERROR_ALL},
+	{"camera", "mipi_error_rt2", "", false, false, 0, ABC_GROUP_CAMERA_MIPI_ERROR_ALL},
+	{"camera", "mipi_error_fw1", "", false, false, 0, ABC_GROUP_CAMERA_MIPI_ERROR_ALL},
+	{"camera", "mipi_error_uw1", "", false, false, 0, ABC_GROUP_CAMERA_MIPI_ERROR_ALL},
+	{"camera", "mipi_error_rm1", "", false, false, 0, ABC_GROUP_CAMERA_MIPI_ERROR_ALL},
+	{"camera", "mipi_error_rb1", "", false, false, 0, ABC_GROUP_CAMERA_MIPI_ERROR_ALL},
+	{"camera", "mipi_error_fs1", "", false, false, 0, ABC_GROUP_CAMERA_MIPI_ERROR_ALL},
+#endif
+	{"cond", "CAM_CONNECT", "", true, true, 0, ABC_GROUP_NONE},
+	{"cond", "LOWER_C2C_DETECT", "", true, true, 0, ABC_GROUP_NONE},
+	{"cond", "MAIN_BAT_DETECT", "", true, true, 0, ABC_GROUP_NONE},
+	{"cond", "MAIN_DIGITIZER_DETECT", "", true, true, 0, ABC_GROUP_NONE},
+	{"cond", "SUB_BAT_DETECT", "", true, true, 0, ABC_GROUP_NONE},
+	{"cond", "SUB_CONNECT", "", true, true, 0, ABC_GROUP_NONE},
+	{"cond", "SUB_LOWER_DETECT", "", true, true, 0, ABC_GROUP_NONE},
+	{"cond", "SUB_UB_DETECT", "", true, true, 0, ABC_GROUP_NONE},
+	{"cond", "TOF_CONNECT", "", true, true, 0, ABC_GROUP_NONE},
+	{"cond", "UPPER_C2C_DETECT", "", true, true, 0, ABC_GROUP_NONE},
+	{"decon", "fence_timeout", "", true, true, 0, ABC_GROUP_NONE},
+	{"display", "act_section_dsierr0", "", true, true, 0, ABC_GROUP_NONE},
+	{"display", "act_section_dsierr1", "", true, true, 0, ABC_GROUP_NONE},
+	{"display", "panel_main_no_te", "", true, true, 0, ABC_GROUP_NONE},
+	{"display", "panel_sub_no_te", "", true, true, 0, ABC_GROUP_NONE},
+	{"gpu", "gpu_fault", "", true, false, 0, ABC_GROUP_NONE},
+	{"gpu", "gpu_job_timeout", "", true, true, 0, ABC_GROUP_NONE},
+	{"gpu_qc", "gpu_fault", "", true, false, 0, ABC_GROUP_NONE},
+	{"gpu_qc", "gpu_page_fault", "", true, false, 0, ABC_GROUP_NONE},
+	{"mm", "venus_data_corrupt", "", true, true, 0, ABC_GROUP_NONE},
+	{"mm", "venus_hung", "", true, false, 0, ABC_GROUP_NONE},
+	{"muic", "afc_hv_fail", "", true, true, 0, ABC_GROUP_NONE},
+	{"muic", "cable_short", "", true, true, 0, ABC_GROUP_NONE},
+	{"muic", "qc_hv_fail", "", true, true, 0, ABC_GROUP_NONE},
+	{"npu", "npu_fw_warning", "", true, true, 0, ABC_GROUP_NONE},
+	{"pdic", "i2c_fail", "it", true, true, 0, ABC_GROUP_NONE},
+	{"pdic", "water_det", "", true, true, 0, ABC_GROUP_NONE},
+	{"pmic", "s2dos05_bulk_read", "it", true, true, 0, ABC_GROUP_NONE},
+	{"pmic", "s2dos05_bulk_write", "it", true, true, 0, ABC_GROUP_NONE},
+	{"pmic", "s2dos05_read_reg", "it", true, true, 0, ABC_GROUP_NONE},
+	{"pmic", "s2dos05_read_word", "it", true, true, 0, ABC_GROUP_NONE},
+	{"pmic", "s2dos05_update_reg", "it", true, true, 0, ABC_GROUP_NONE},
+	{"pmic", "s2dos05_write_reg", "it", true, true, 0, ABC_GROUP_NONE},
+	{"pmic", "s2dos05_bulk_read_fail", "it", true, true, 0, ABC_GROUP_NONE},
+	{"pmic", "s2dos05_bulk_write_fail", "it", true, true, 0, ABC_GROUP_NONE},
+	{"pmic", "s2dos05_read_reg_fail", "it", true, true, 0, ABC_GROUP_NONE},
+	{"pmic", "s2dos05_read_word_fail", "it", true, true, 0, ABC_GROUP_NONE},
+	{"pmic", "s2dos05_update_reg_fail", "it", true, true, 0, ABC_GROUP_NONE},
+	{"pmic", "s2dos05_write_reg_fail", "it", true, true, 0, ABC_GROUP_NONE},
+	{"pmic", "s2dos05_scp", "", true, true, 0, ABC_GROUP_NONE},
+	{"pmic", "s2dos05_ssd", "", true, true, 0, ABC_GROUP_NONE},
+	{"storage", "mmc_hwreset_err", "", true, true, 0, ABC_GROUP_NONE},
+	{"storage", "sd_removed_err", "", true, true, 0, ABC_GROUP_NONE},
+	{"storage", "ufs_hwreset_err", "it", true, true, 0, ABC_GROUP_NONE},
+	{"storage", "ufs_medium_err", "it", true, true, 0, ABC_GROUP_NONE},
+	{"storage", "ufs_hardware_err", "it", true, true, 0, ABC_GROUP_NONE},
+	{"tsp", "tsp_int_fault", "", true, false, 0, ABC_GROUP_NONE},
+	{"tsp_sub", "tsp_int_fault", "", true, false, 0, ABC_GROUP_NONE},
+	{"ub_main", "ub_disconnected", "it", true, true, 0, ABC_GROUP_NONE},
+	{"ub_sub", "ub_disconnected", "it", true, true, 0, ABC_GROUP_NONE},
+	{"vib", "fw_load_fail", "it", true, true, 0, ABC_GROUP_NONE},
+	{"vib", "int_gnd_short", "", true, false, 0, ABC_GROUP_NONE},
+	{"wacom", "digitizer_not_connected", "", true, true, 0, ABC_GROUP_NONE},
 #if IS_ENABLED(CONFIG_SEC_KUNIT)
-	{"kunit", "test_warn", true, true},
-	{"kunit", "test_info", true, true},
-	{"kunit", "test_error", true, true},
+	{"kunit", "test_warn", "", true, true, 0, ABC_GROUP_NONE},
+	{"kunit", "test_info", "", true, true, 0, ABC_GROUP_NONE},
+	{"kunit", "test_error", "", true, true, 0, ABC_GROUP_NONE},
 #endif
 };
 EXPORT_SYMBOL_KUNIT(abc_event_list);
@@ -193,6 +224,56 @@ int sec_abc_get_idx_of_registered_event(char *module_name, char *error_name)
 }
 EXPORT_SYMBOL_KUNIT(sec_abc_get_idx_of_registered_event);
 
+#if !IS_ENABLED(CONFIG_SEC_FACTORY) && !IS_ENABLED(CONFIG_SEC_KUNIT)
+static int sec_abc_get_error_count(char *module_name, char *error_name)
+{
+	int i = sec_abc_get_idx_of_registered_event(module_name, error_name);
+
+	if (i >= 0)
+		return abc_event_list[i].error_count;
+	return 0;
+}
+
+static void sec_abc_update_error_count(char *module_name, char *error_name)
+{
+	int i = sec_abc_get_idx_of_registered_event(module_name, error_name);
+
+	if (i >= 0)
+		abc_event_list[i].error_count++;
+}
+
+static void sec_abc_reset_error_count(void)
+{
+	int i;
+
+	for (i = 0; i < REGISTERED_ABC_EVENT_TOTAL; i++)
+		abc_event_list[i].error_count = 0;
+}
+
+static bool sec_abc_is_skip_event(char *abc_str)
+{
+	struct abc_key_data key_data;
+	int count;
+
+	if (sec_abc_make_key_data(&key_data, abc_str)) {
+		ABC_PRINT("Event string isn't valid. Check Input : %s", abc_str);
+		return true;
+	}
+
+	count = sec_abc_get_error_count(key_data.event_module, key_data.event_name);
+
+	if (count >= ABC_SKIP_EVENT_COUNT_THRESHOLD) {
+		if (count == ABC_SKIP_EVENT_COUNT_THRESHOLD) {
+			ABC_PRINT("[%s-%s] ABC Error already detected %d times! It is skipped from now on!",
+			  key_data.event_module, key_data.event_name, ABC_SKIP_EVENT_COUNT_THRESHOLD);
+			sec_abc_update_error_count(key_data.event_module, key_data.event_name);
+		}
+		return true;
+	}
+	return false;
+}
+#endif
+
 void sec_abc_send_uevent(struct abc_key_data *key_data, char *uevent_type)
 {
 	char *uevent_str[ABC_UEVENT_MAX] = {0,};
@@ -216,8 +297,8 @@ void sec_abc_send_uevent(struct abc_key_data *key_data, char *uevent_type)
 	uevent_str[0] = uevent_module_str;
 	uevent_str[1] = uevent_event_str;
 	uevent_str[2] = timestamp;
-	if (key_data->host_name[0]) {
-		snprintf(uevent_host_str, ABC_EVENT_STR_MAX, "HOST=%s", key_data->host_name);
+	if (abc_event_list[key_data->idx].host[0]) {
+		snprintf(uevent_host_str, ABC_EVENT_STR_MAX, "HOST=%s", abc_event_list[key_data->idx].host);
 		uevent_str[3] = uevent_host_str;
 	}
 
@@ -231,6 +312,10 @@ void sec_abc_send_uevent(struct abc_key_data *key_data, char *uevent_type)
 #if IS_ENABLED(CONFIG_SEC_KUNIT)
 	abc_common_test_get_work_str(uevent_str);
 	complete(&pinfo->test_uevent_done);
+#endif
+
+#if !IS_ENABLED(CONFIG_SEC_FACTORY) && !IS_ENABLED(CONFIG_SEC_KUNIT)
+	sec_abc_update_error_count(key_data->event_module, key_data->event_name);
 #endif
 	kobject_uevent_env(&sec_abc->kobj, KOBJ_CHANGE, uevent_str);
 }
@@ -380,6 +465,9 @@ void sec_abc_process_changed_enable_mode(void)
 	} else {
 		ABC_PRINT_KUNIT("ABC is disabled. Clear events");
 		sec_abc_reset_all_buffer();
+#if !IS_ENABLED(CONFIG_SEC_FACTORY) && !IS_ENABLED(CONFIG_SEC_KUNIT)
+		sec_abc_reset_error_count();
+#endif
 	}
 
 	ABC_PRINT("%d Pre_events cleared", sec_abc_clear_pre_events());
@@ -514,7 +602,7 @@ ssize_t features_show(struct device *dev,
 {
 	int count = 0;
 
-	count += scnprintf(buf, PAGE_SIZE, "spec_control\nissue_tracker\n");
+	count += scnprintf(buf, PAGE_SIZE, "spec_control\nhost\n");
 
 	return count;
 }
@@ -541,11 +629,11 @@ EXPORT_SYMBOL(sec_abc_get_enabled);
 
 static void sec_abc_work_func_clear_pre_events(struct work_struct *work)
 {
-	ABC_PRINT("start");
+	ABC_DEBUG("start");
 
 	sec_abc_clear_pre_events();
 
-	ABC_PRINT("end");
+	ABC_DEBUG("end");
 }
 
 #if IS_ENABLED(CONFIG_UML)
@@ -555,7 +643,6 @@ static void sec_abc_init_key_data(struct abc_key_data *key_data)
 	memset(key_data->event_name, 0, sizeof(key_data->event_name));
 	memset(key_data->event_type, 0, sizeof(key_data->event_type));
 	memset(key_data->ext_log, 0, sizeof(key_data->ext_log));
-	memset(key_data->host_name, 0, sizeof(key_data->host_name));
 }
 #endif
 
@@ -569,7 +656,7 @@ static void sec_abc_work_func(struct work_struct *work)
 
 	event_work_data = container_of(work, struct abc_event_work, work);
 
-	ABC_PRINT("work start. str : %s", event_work_data->abc_str);
+	ABC_DEBUG("work start. str : %s", event_work_data->abc_str);
 
 #if IS_ENABLED(CONFIG_UML)
 	sec_abc_init_key_data(&key_data);
@@ -620,7 +707,7 @@ static void sec_abc_work_func(struct work_struct *work)
 	}
 
 abc_work_end:
-	ABC_PRINT("work done");
+	ABC_DEBUG("work done");
 	mutex_unlock(&pinfo->work_mutex);
 #if IS_ENABLED(CONFIG_SEC_KUNIT)
 	complete(&pinfo->test_work_done);
@@ -642,7 +729,7 @@ void sec_abc_enqueue_work(struct abc_event_work work_data[], char *str)
 
 	for (idx = 0; idx < ABC_WORK_MAX; idx++) {
 		if (!work_pending(&work_data[idx].work)) {
-			ABC_PRINT("Event %s use work[%d]", str, idx);
+			ABC_DEBUG("Event %s use work[%d]", str, idx);
 			strlcpy(work_data[idx].abc_str, str, ABC_BUFFER_MAX);
 			queue_work(pinfo->workqueue, &work_data[idx].work);
 			return;
@@ -654,6 +741,11 @@ void sec_abc_enqueue_work(struct abc_event_work work_data[], char *str)
 
 void sec_abc_send_event(char *str)
 {
+#if !IS_ENABLED(CONFIG_SEC_FACTORY) && !IS_ENABLED(CONFIG_SEC_KUNIT)
+	if (sec_abc_is_skip_event(str))
+		return;
+#endif
+
 	if (!abc_init) {
 		ABC_PRINT_KUNIT("ABC driver is not initialized!(%s)", str);
 		return;
