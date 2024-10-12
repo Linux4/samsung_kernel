@@ -3027,6 +3027,7 @@ static int type3_handle_notification(struct notifier_block *nb,
 	(!IS_ENABLED(CONFIG_SEC_FACTORY) && IS_ENABLED(CONFIG_USB_HOST_NOTIFY))
 	struct otg_notify *o_notify = get_otg_notify();
 #endif
+    mutex_lock(&pdic_data->_mutex);
 	mutex_lock(&pdic_data->lpm_mutex);
 	pr_info("%s action:%d, attached_dev:%d, lpm:%d, pdic_data->is_otg_vboost:%d, pdic_data->is_otg_reboost:%d\n",
 		__func__, (int)action, (int)attached_dev, pdic_data->lpm_mode,
@@ -3123,6 +3124,7 @@ static int type3_handle_notification(struct notifier_block *nb,
 EOH:
 #endif
 	mutex_unlock(&pdic_data->lpm_mutex);
+    mutex_unlock(&pdic_data->_mutex);
 
 	return 0;
 }

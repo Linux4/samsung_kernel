@@ -3230,15 +3230,16 @@ int f2fs_transfer_project_quota(struct inode *inode, kprojid_t kprojid)
 	struct dquot *transfer_to[MAXQUOTAS] = {};
 	struct f2fs_sb_info *sbi = F2FS_I_SB(inode);
 	struct super_block *sb = sbi->sb;
-	int err = 0;
+	int err;
 
 	transfer_to[PRJQUOTA] = dqget(sb, make_kqid_projid(kprojid));
-	if (!IS_ERR(transfer_to[PRJQUOTA])) {
-		err = __dquot_transfer(inode, transfer_to);
-		if (err)
-			set_sbi_flag(sbi, SBI_QUOTA_NEED_REPAIR);
-		dqput(transfer_to[PRJQUOTA]);
-	}
+	if (IS_ERR(transfer_to[PRJQUOTA]))
+		return PTR_ERR(transfer_to[PRJQUOTA]);
+
+	err = __dquot_transfer(inode, transfer_to);
+	if (err)
+		set_sbi_flag(sbi, SBI_QUOTA_NEED_REPAIR);
+	dqput(transfer_to[PRJQUOTA]);
 	return err;
 }
 
@@ -3771,12 +3772,14 @@ static int f2fs_release_compress_blocks(struct file *filp, unsigned long arg)
 	if (ret)
 		goto out;
 
+	if (!atomic_read(&F2FS_I(inode)->i_compr_blocks)) {
+		ret = -EPERM;
+		goto out;
+	}
+
 	set_inode_flag(inode, FI_COMPRESS_RELEASED);
 	inode->i_ctime = current_time(inode);
 	f2fs_mark_inode_dirty_sync(inode, true);
-
-	if (!atomic_read(&F2FS_I(inode)->i_compr_blocks))
-		goto out;
 
 	down_write(&F2FS_I(inode)->i_gc_rwsem[WRITE]);
 	down_write(&F2FS_I(inode)->i_mmap_sem);
@@ -4013,13 +4016,14 @@ static int f2fs_ioc_stat_compress_file(struct file *filp, unsigned long arg)
 
 	if (!f2fs_sb_has_compression(F2FS_I_SB(inode)))
 		return -EOPNOTSUPP;
-	
+
 	if (copy_from_user(&compStat, (struct f2fs_sec_stat_compfile __user *)arg,
 				sizeof(compStat)))
 		return -EFAULT;
 
 	compStat.st_blocks = inode->i_blocks;
-	if (unlikely(f2fs_compressed_file(inode))) {
+	if (unlikely(f2fs_compressed_file(inode)) &&
+			(atomic_read(&F2FS_I(inode)->i_compr_blocks) > 0)) {
 		compStat.st_compressed_blocks =
 			atomic_read(&F2FS_I(inode)->i_compr_blocks);
 		compStat.out_compressed = 1;
@@ -4034,7 +4038,7 @@ static int f2fs_ioc_stat_compress_file(struct file *filp, unsigned long arg)
 		heimdallfs_stat.nr_pkgs++;
 		heimdallfs_stat.nr_pkg_blks += compStat.st_blocks;
 		
-		if (unlikely(f2fs_compressed_file(inode))) {
+		if (unlikely(f2fs_compressed_file(inode)) && (compStat.st_compressed_blocks > 0)) {
 			heimdallfs_stat.nr_comp_pkgs++;
 			heimdallfs_stat.nr_comp_pkg_blks += compStat.st_blocks;
 			heimdallfs_stat.nr_comp_saved_blks += compStat.st_compressed_blocks;

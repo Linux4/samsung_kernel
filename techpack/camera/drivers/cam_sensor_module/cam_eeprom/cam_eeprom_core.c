@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2020, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/module.h>
@@ -4549,43 +4549,46 @@ static int32_t cam_eeprom_parse_write_memory_packet(
                     generic_op_code ==
                         CAMERA_SENSOR_WAIT_OP_SW_UCND) {
 
-                    rc = cam_eeprom_handle_delay(
-                        &cmd_buf, generic_op_code,
-                        &(e_ctrl->wr_settings), off,
-                        &cmd_length_in_bytes,
-                        list, (remain_len -
-                        processed_cmd_buf_in_bytes));
-                    if (rc < 0) {
-                        CAM_ERR(CAM_EEPROM,
-                            "delay hdl failed: %d",
-                            rc);
-                        goto end;
-                    }
-                    processed_cmd_buf_in_bytes +=
-                        cmd_length_in_bytes;
-                    cmd_buf += cmd_length_in_bytes /
-                    sizeof(uint32_t);
-                } else {
-                    CAM_ERR(CAM_EEPROM,
-                        "Wrong Wait Command: %d",
-                        generic_op_code);
-                    rc = -EINVAL;
-                    goto end;
-                }
-                break;
-            }
-            default:
-                CAM_ERR(CAM_EEPROM,
-                    "Invalid Cmd_type rxed: %d\n",
-                    cmm_hdr->cmd_type);
-                rc = -EINVAL;
-                break;
-            }
-        }
-    }
+					rc = cam_eeprom_handle_delay(
+						&cmd_buf, generic_op_code,
+						&(e_ctrl->wr_settings), off,
+						&cmd_length_in_bytes,
+						list, (remain_len -
+						processed_cmd_buf_in_bytes));
+					if (rc < 0) {
+						CAM_ERR(CAM_EEPROM,
+							"delay hdl failed: %d",
+							rc);
+						goto end;
+					}
+					processed_cmd_buf_in_bytes +=
+						cmd_length_in_bytes;
+					cmd_buf += cmd_length_in_bytes /
+					sizeof(uint32_t);
+				} else {
+					CAM_ERR(CAM_EEPROM,
+						"Wrong Wait Command: %d",
+						generic_op_code);
+					rc = -EINVAL;
+					goto end;
+				}
+				break;
+			}
+			default:
+				CAM_ERR(CAM_EEPROM,
+					"Invalid Cmd_type rxed: %d\n",
+					cmm_hdr->cmd_type);
+				rc = -EINVAL;
+				break;
+			}
+		}
+		cam_mem_put_cpu_buf(cmd_desc[i].mem_handle);
+	}
+	return rc;
 
 end:
-    return rc;
+	cam_mem_put_cpu_buf(cmd_desc[i].mem_handle);
+	return rc;
 }
 
 /**
@@ -4739,10 +4742,13 @@ static int32_t cam_eeprom_init_pkt_parser(struct cam_eeprom_ctrl_t *e_ctrl,
 			}
 		}
 		e_ctrl->cal_data.num_map = num_map + 1;
+		cam_mem_put_cpu_buf(cmd_desc[i].mem_handle);
 	}
+	return rc;
 
 end:
-    return rc;
+	cam_mem_put_cpu_buf(cmd_desc[i].mem_handle);
+	return rc;
 }
 
 /**
@@ -4807,15 +4813,16 @@ static int32_t cam_eeprom_get_cal_data(struct cam_eeprom_ctrl_t *e_ctrl,
                 return rc;
             }
 
-            CAM_DBG(CAM_EEPROM, "copy the data, len:%d",
-                e_ctrl->cal_data.num_data);
-            memcpy(read_buffer, e_ctrl->cal_data.mapdata,
-                    e_ctrl->cal_data.num_data);
-        } else {
-            CAM_ERR(CAM_EEPROM, "Invalid direction");
-            rc = -EINVAL;
-        }
-    }
+			CAM_DBG(CAM_EEPROM, "copy the data, len:%d",
+				e_ctrl->cal_data.num_data);
+			memcpy(read_buffer, e_ctrl->cal_data.mapdata,
+					e_ctrl->cal_data.num_data);
+			cam_mem_put_cpu_buf(io_cfg->mem_handle[0]);
+		} else {
+			CAM_ERR(CAM_EEPROM, "Invalid direction");
+			rc = -EINVAL;
+		}
+	}
 
     return rc;
 }
@@ -5125,7 +5132,8 @@ static int32_t cam_eeprom_pkt_parse(struct cam_eeprom_ctrl_t *e_ctrl, void *arg)
         break;
     }
 
-    return rc;
+	cam_mem_put_cpu_buf(dev_config.packet_handle);
+	return rc;
 power_down:
     cam_eeprom_power_down(e_ctrl);
 memdata_free:

@@ -672,6 +672,11 @@ static void sm5714_notify_rp_abnormal(void *_data)
 	struct i2c_client *i2c = pdic_data->i2c;
 	u8 cc_status = 0, rp_currentlvl = RP_CURRENT_ABNORMAL;
 
+#if defined(CONFIG_SM5714_WATER_DETECTION_ENABLE)
+	if (pdic_data->is_water_detect)
+		return;
+#endif
+
 	sm5714_usbpd_read_reg(i2c, SM5714_REG_CC_STATUS, &cc_status);
 
 	/* PDIC = SINK */

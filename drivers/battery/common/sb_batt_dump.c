@@ -71,7 +71,7 @@ static ssize_t show_attrs(struct device *dev,
 #endif
 
 		snprintf(temp_buf + strlen(temp_buf), size,
-			"%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%s,%s,%s,%s,%s,%d,%s,%d,%d,%lu,0x%x,0x%x,0x%x,%d,",
+			"%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%s,%s,%s,%s,%s,%d,%s,%d,%d,%lu,0x%x,0x%x,0x%x,%d,%d,",
 			battery->voltage_now, battery->current_now,
 			battery->current_max, battery->charging_current,
 			battery->capacity,
@@ -92,7 +92,14 @@ static ssize_t show_attrs(struct device *dev,
 			battery->current_event,
 			battery->misc_event,
 			battery->tx_event,
-			battery->srccap_transit);
+#if defined(CONFIG_WIRELESS_RX_PHM_CTRL)
+			battery->wc_rx_pdetb_mode,
+#else
+			battery->wc_rx_phm_mode,
+#endif
+
+			battery->srccap_transit
+		);
 		size = sizeof(temp_buf) - strlen(temp_buf);
 
 	{
@@ -107,8 +114,8 @@ static ssize_t show_attrs(struct device *dev,
 
 		snprintf(temp_buf+strlen(temp_buf), size,
 			"%d,%d,%d,%d,",
-			battery->voltage_pack_main, battery->voltage_pack_sub,
-			battery->current_now_main, battery->current_now_sub);
+			battery->voltage_avg_main, battery->voltage_avg_sub,
+			battery->current_avg_main, battery->current_avg_sub);
 		size = sizeof(temp_buf) - strlen(temp_buf);
 
 		snprintf(temp_buf+strlen(temp_buf), size, "%d,", battery->batt_cycle);
@@ -125,7 +132,7 @@ static ssize_t show_attrs(struct device *dev,
 		if (battery->wc_tx_enable) {
 			value.intval = SB_WRL_TX_MODE;
 			snprintf(temp_buf+strlen(temp_buf), size, "%d,", SB_WRL_TX_MODE);
-		} else if (is_wireless_fake_type(battery->cable_type)) {
+		} else if (is_wireless_all_type(battery->cable_type)) {
 			value.intval = SB_WRL_RX_MODE;
 			snprintf(temp_buf+strlen(temp_buf), size, "%d,", SB_WRL_RX_MODE);
 		} else

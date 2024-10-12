@@ -141,6 +141,7 @@ enum sec_bat_attrs {
 	HMT_TA_CHARGE,
 #if defined(CONFIG_SEC_FACTORY)
 	AFC_TEST_FG_MODE,
+	NOZX_CTRL,
 #endif
 	FG_CYCLE,
 	FG_FULL_VOLTAGE,
@@ -280,6 +281,8 @@ enum sec_bat_attrs {
 #else
 	BATT_MAIN_SHIPMODE,
 	BATT_SUB_SHIPMODE,
+	BATT_MAIN_VBAT,
+	BATT_SUB_VBAT,
 #endif
 #if IS_ENABLED(CONFIG_DUAL_FUELGAUGE)
 	BATT_MAIN_SOC,
@@ -329,6 +332,12 @@ enum sec_bat_attrs {
 	CHG_SOC_LIM,
 	MAG_COVER,
 	MAG_CLOAK,
+	ARI_CNT,
+#if IS_ENABLED(CONFIG_SBP_FG)
+	STATE_OF_HEALTH,
+#endif
+	ADC_RSENSE, /* for tuning adc_rsense of bat_thm only now */
+	SUPPORT_FUNCTIONS,
 };
 
 enum sec_pogo_attrs {

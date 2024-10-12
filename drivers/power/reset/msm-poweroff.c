@@ -632,7 +632,7 @@ static int do_msm_restart_pre(struct notifier_block *unused, unsigned long actio
 
 	pr_notice("Going down for restart now\n");
 
-	if (!strncmp(cmd, "edl", 3))
+	if ((cmd != NULL && cmd[0] != '\0') && !strncmp(cmd, "edl", 3))
 		cmd_filtered = "";
 	else
 		cmd_filtered = cmd;
