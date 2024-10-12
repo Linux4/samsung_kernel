@@ -81,6 +81,7 @@ static irqreturn_t cp_wdt_handler(int irq, void *arg)
 		modem_notify_event(MODEM_EVENT_WATCHDOG, mc);
 
 	mif_stop_logging();
+	mif_stop_ap_ppmu_logging();
 
 	new_state = STATE_CRASH_WATCHDOG;
 	ld->crash_reason.type = CRASH_REASON_CP_WDOG_CRASH;

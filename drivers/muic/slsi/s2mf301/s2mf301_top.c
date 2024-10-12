@@ -93,8 +93,8 @@ static void s2mf301_top_init_reg(struct s2mf301_top_data *top)
 #endif
 
 #if !IS_ENABLED(CONFIG_MUIC_S2MF301_RID)
-	s2mf301_read_reg(top->i2c, S2MF301_TOP_REG_AUTO_PPS_SETTING, &data);
-	data &= ~(0x80);
+	s2mf301_read_reg(top->i2c, S2MF301_TOP_REG_TOPINT_MASK, &data);
+	data &= ~(1 << 7);
 	s2mf301_write_reg(top->i2c, S2MF301_TOP_REG_TOPINT_MASK, data);
 	s2mf301_write_reg(top->i2c, S2MF301_TOP_REG_TOP_PM_RID_INT_MASK, 0xff);
 #endif
@@ -102,28 +102,6 @@ static void s2mf301_top_init_reg(struct s2mf301_top_data *top)
 }
 
 #if IS_ENABLED(CONFIG_MUIC_S2MF301_RID)
-static irqreturn_t s2mf301_top_rid_isr(int irq, void *data)
-{
-	struct s2mf301_top_data *top = data;
-	int ret = 0;
-
-	pr_info("%s, \n", __func__);
-
-	if (!top->muic_data) {
-		pr_info("%s, muic_data is NULL\n", __func__);
-		return IRQ_HANDLED;
-	}
-
-	if (top->muic_data->rid_isr)
-		ret = top->muic_data->rid_isr(top->muic_data);
-	else {
-		pr_info("%s, top->muic_data->rid_isr is NULL\n", __func__);
-		ret = -EINVAL;
-	}
-
-	return ret;
-}
-
 static int s2mf301_top_mask_rid_change(void *_data, bool enable)
 {
 	struct s2mf301_top_data *top = _data;
@@ -198,38 +176,6 @@ static int s2mf301_top_probe(struct platform_device *pdev)
 		ret = PTR_ERR(top->psy_pm);
 		goto err_power_supply_register;
 	}
-
-#if IS_ENABLED(CONFIG_MUIC_S2MF301_RID)
-	top->irq_rid_attach = s2mf301->pdata->irq_base + S2MF301_TOP_PM_RID_IRQ_RID_ATTACH;
-	ret = request_threaded_irq(top->irq_rid_attach, NULL, s2mf301_top_rid_isr, 0, "rid_attach_isr", top);
-	if (ret < 0)
-		pr_err("%s: Fail to request SYS in IRQ: %d: %d\n", __func__, top->irq_rid_attach, ret);
-
-	top->irq_rid_detach = s2mf301->pdata->irq_base + S2MF301_PM_ADC_CHANGE_INT4_PMOFF;
-	ret = request_threaded_irq(top->irq_rid_detach, NULL, s2mf301_top_rid_isr, 0, "rid_detach_isr", top);
-	if (ret < 0)
-		pr_err("%s: Fail to request SYS in IRQ: %d: %d\n", __func__, top->irq_rid_attach, ret);
-
-	top->irq_rid_255k = s2mf301->pdata->irq_base + S2MF301_TOP_PM_RID_IRQ_RID_255K;
-	ret = request_threaded_irq(top->irq_rid_255k, NULL, s2mf301_top_rid_isr, 0, "rid_255k_isr", top);
-	if (ret < 0)
-		pr_err("%s: Fail to request SYS in IRQ: %d: %d\n", __func__, top->irq_rid_255k, ret);
-
-	top->irq_rid_301k = s2mf301->pdata->irq_base + S2MF301_TOP_PM_RID_IRQ_RID_301K;
-	ret = request_threaded_irq(top->irq_rid_301k, NULL, s2mf301_top_rid_isr, 0, "rid_301k_isr", top);
-	if (ret < 0)
-		pr_err("%s: Fail to request SYS in IRQ: %d: %d\n", __func__, top->irq_rid_301k, ret);
-
-	top->irq_rid_523k = s2mf301->pdata->irq_base + S2MF301_TOP_PM_RID_IRQ_RID_523K;
-	ret = request_threaded_irq(top->irq_rid_523k, NULL, s2mf301_top_rid_isr, 0, "rid_523k_isr", top);
-	if (ret < 0)
-		pr_err("%s: Fail to request SYS in IRQ: %d: %d\n", __func__, top->irq_rid_523k, ret);
-
-	top->irq_rid_619k = s2mf301->pdata->irq_base + S2MF301_TOP_PM_RID_IRQ_RID_619K;
-	ret = request_threaded_irq(top->irq_rid_619k, NULL, s2mf301_top_rid_isr, 0, "rid_619k_isr", top);
-	if (ret < 0)
-		pr_err("%s: Fail to request SYS in IRQ: %d: %d\n", __func__, top->irq_rid_619k, ret);
-#endif
 
 	pr_info("%s:[BATT] S2MF301 TOP driver loaded OK\n", __func__);
 

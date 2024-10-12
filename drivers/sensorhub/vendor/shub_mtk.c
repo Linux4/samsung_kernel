@@ -85,11 +85,51 @@ static struct notifier_block scp_state_notifier = {
 	.notifier_call = notify_scp_state,
 };
 
+void shub_dump_write_file(void *dump_data, int dump_size)
+{
+	struct shub_data_t *data = get_shub_data();
+	int dump_type;
+
+	if (!data) {
+		shub_infof("shub is not probed yet !");
+		return;
+	}
+
+	if (data->reset_type < RESET_TYPE_MAX)
+		dump_type = DUMP_TYPE_BASE + data->reset_type;
+	else {
+		shub_errf("hub crash");
+		dump_type = 1;
+		data->hub_crash_timestamp = get_current_timestamp();
+	}
+
+	write_shub_dump_file((char *)dump_data, dump_size, dump_type, 4);
+}
+
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 19, 0))
+static int shub_dump_notifier(struct notifier_block *nb, unsigned long val, void *data)
+{
+	struct shub_data_t *shub_data = get_shub_data();
+	struct shub_dump *dump_data = (struct shub_dump *)data;
+
+	shub_infof("ram_dump : %x mini_dump : %x", dump_data->dump, dump_data->mini_dump);
+	shub_dump_write_file(dump_data->dump, dump_data->size);
+	memcpy(shub_data->mini_dump, dump_data->mini_dump, MINI_DUMP_LENGTH);
+	return 0;
+}
+
+struct notifier_block shub_dump_nb = {
+	.notifier_call = shub_dump_notifier,
+};
+#endif
+
 int sensorhub_probe(void)
 {
 	scp_ipi_registration(IPI_SHUB, sensorhub_IPI_handler, "shub_sensorhub");
 	scp_A_register_notify(&scp_state_notifier);
-
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 19, 0))
+	shub_dump_notifier_register(&shub_dump_nb);
+#endif
 	return 0;
 }
 
@@ -163,27 +203,6 @@ void sensorhub_fs_ready(void)
 
 void sensorhub_save_ram_dump(void)
 {
-}
-
-void shub_dump_write_file(void *dump_data, int dump_size)
-{
-	struct shub_data_t *data = get_shub_data();
-	int dump_type;
-
-	if (!data) {
-		shub_infof("shub is not probed yet !");
-		return;
-	}
-
-	if (data->reset_type < RESET_TYPE_MAX)
-		dump_type = DUMP_TYPE_BASE + data->reset_type;
-	else {
-		shub_errf("hub crash");
-		dump_type = 1;
-		data->hub_crash_timestamp = get_current_timestamp();
-	}
-
-	write_shub_dump_file((char *)dump_data, dump_size, dump_type, 4);
 }
 
 int sensorhub_get_dump_size(void)

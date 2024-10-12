@@ -18,7 +18,7 @@
 #include <linux/moduleparam.h>
 #include <linux/platform_device.h>
 
-#define SM5714_FLED_VERSION "XXX.UA1"
+#define SM5714_FLED_VERSION "WG1"
 
 static struct sm5714_fled_data *g_sm5714_fled;
 struct device *camera_flash_dev;
@@ -75,6 +75,25 @@ static int sm5714_fled_check_vbus(struct sm5714_fled_data *fled)
 		muic_request_disable_afc_state();
 		sm5714_request_default_power_src();
 	}
+	return 0;
+}
+
+/* W/A : 2023.06.07.
+ * cable_type(op_status)에는 vbus가 있지만 실제 vbus 가 없을 경우 
+ * op_status 의 vbus 를 disable 하여
+ * flash_boost mode 에서 torch가 켜질 수 있도록 하는 w/a
+ */
+static int sm5714_fled_check_abnormal_vbus_state(struct sm5714_fled_data *fled)
+{
+	int current_op_status = sm5714_charger_oper_get_current_status();
+
+	fled->vbus_voltage = sm5714_muic_get_vbus_voltage();
+
+	if ((current_op_status & 0x20) && (fled->vbus_voltage == 0)) {
+		pr_info("sm5714-fled: %s : current op_status_vbus = 0x%x, but get_vbus is %d, so op_mode changed \n", __func__, (current_op_status & 0x20), fled->vbus_voltage);	
+		fled_set_disable_push_event(SM5714_CHARGER_OP_EVENT_VBUSIN);	
+	}
+
 	return 0;
 }
 
@@ -203,6 +222,7 @@ static int sm5714_fled_torch_on(u8 brightness)
 
 	if (fled->pdata->led.en_mled == false) {
 		if (fled->torch_on_cnt == 0) {
+			sm5714_fled_check_abnormal_vbus_state(fled);
 			fled_set_enable_push_event(SM5714_CHARGER_OP_EVENT_TORCH);
 		}
 		fled->pdata->led.en_mled = true;
@@ -239,6 +259,7 @@ static int sm5714_fled_pre_flash_on(u8 brightness)
 
 	if (fled->pdata->led.en_mled == false) {
 		if (fled->torch_on_cnt == 0) {
+			sm5714_fled_check_abnormal_vbus_state(fled);
 			fled_set_enable_push_event(SM5714_CHARGER_OP_EVENT_TORCH);
 		}
 		fled->pdata->led.en_mled = true;
@@ -604,6 +625,7 @@ static ssize_t sm5714_rear_flash_store(struct device *dev, struct device_attribu
 			sm5714_fled_check_vbus(fled);
 			muic_check_fled_state(1, FLED_MODE_TORCH);
 			sm5714_usbpd_check_fled_state(1, FLED_MODE_TORCH);
+			sm5714_fled_check_abnormal_vbus_state(fled);
 			fled_set_enable_push_event(SM5714_CHARGER_OP_EVENT_TORCH);
 		}
 		sm5714_fled_control(FLED_MODE_TORCH);

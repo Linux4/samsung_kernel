@@ -16,6 +16,7 @@
 
 #include <dt-bindings/soc/samsung/exynos/debug-snapshot-def.h>
 #include <linux/notifier.h>
+#include "exynos-itmon-history.h"
 
 struct itmon_notifier {
 	char *port;			/* The block to which the master IP belongs */
@@ -46,6 +47,7 @@ extern void itmon_en(bool en);
 extern int itmon_en_by_name(const char *name, bool en);
 extern int itmon_set_nodepolicy_by_name(const char *name, u64 end, bool now);
 extern void itmon_pd_sync(const char *pd_name, bool end);
+extern void itmon_print_history(void);
 #else
 static inline void itmon_en(bool en) {}
 #define itmon_notifier_chain_register(x)		do { } while (0)

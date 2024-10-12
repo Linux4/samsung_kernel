@@ -31,9 +31,9 @@
  * R/W bit should NOT be included.
  */
 
-
 #define TEMP_COMPEN			1
 #define BATCAP_LEARN			1
+#define BAT_GPIO_NO	        2
 
 #define S2MF301_REG_STATUS		0x00
 #define S2MF301_REG_FG_INT			0x02
@@ -48,6 +48,7 @@
 #define S2MF301_REG_CAPCC		0x3E
 #define S2MF301_REG_RSOC_R_SAVE		0x2A
 #define S2MF301_REG_RSOC_R		0x80
+#define S2MF301_REG_RSOH		0x84
 #define S2MF301_REG_RSOC_R_I2C	0x8E
 
 #if defined(CONFIG_SEC_FACTORY)
@@ -62,7 +63,13 @@
 #define S2MF301_REG_RBATZ1		0x18
 #define S2MF301_REG_IRQ_LVL		0x1A
 #define S2MF301_REG_START		0x1E
+
 #define S2MF301_REG_VBAT_I2C	0x25
+#define S2MF301_REG_TEMP_I2C	0x28
+#define S2MF301_REG_AVG_VBAT	0x2E
+#define S2MF301_REG_AVG_CURR	0x30
+#define S2MF301_REG_AVG_TEMP	0x32
+#define S2MF301_REG_TEMP4FG		0x34
 
 #define BATT_TEMP_CONSTANT		250
 
@@ -79,6 +86,8 @@
 #define TEMP_COMPEN_INC_OK_EN	(1 << 7)
 
 #define FG_BATT_DUMP_SIZE 128
+
+#define SCALED_SOC 977
 
 enum {
 	CURRENT_MODE = 0,
@@ -99,27 +108,18 @@ struct fg_info {
 	int soc;
 	int battery_profile_index;
 	int battery_param_ver;
-#if !IS_ENABLED(CONFIG_BATTERY_AGE_FORECAST)
-	int battery_table3[88];
-	int battery_table4[22];
-	int soc_arr_val[22];
-	int ocv_arr_val[22];
-	int batcap[4];
-#endif
 };
 
-#if IS_ENABLED(CONFIG_BATTERY_AGE_FORECAST)
-struct fg_age_data_info {
+typedef struct fg_age_data_info {
 	int battery_table3[88]; // evt2
 	int battery_table4[22]; // evt2
 	int batcap[4];
+	int designcap[2];
+	int batcap_ocv_new[2];
 	int soc_arr_val[22];
 	int ocv_arr_val[22];
-};
-
-#define	fg_age_data_info_t \
-	struct fg_age_data_info
-#endif
+	int rRS_CC0;
+} fg_age_data_info_t;
 
 struct s2mf301_fuelgauge_platform_data {
 	int fuel_alert_soc;
@@ -137,14 +137,16 @@ struct s2mf301_fuelgauge_platform_data {
 	int capacity_min;
 	int capacity_calculation_type;
 	bool use_external_temp;
+	unsigned int float_voltage;
 
+	int bat_id_gpio[BAT_GPIO_NO];
 	int bat_gpio_cnt;
 };
 
 struct s2mf301_fuelgauge_data {
 	struct device *dev;
 	struct i2c_client *i2c;
-	struct i2c_client *pmic;
+	struct i2c_client *top;
 	struct mutex fuelgauge_mutex;
 	struct s2mf301_fuelgauge_platform_data *pdata;
 	struct power_supply	*psy_fg;
@@ -156,26 +158,34 @@ struct s2mf301_fuelgauge_data {
 	int mode;
 	u8 revision;
 
+	u8 battery_id;
+
 	/* HW-dedicated fuelgauge info structure
 	 * used in individual fuelgauge file only
 	 * (ex. dummy_fuelgauge.c)
 	 */
 	struct fg_info info;
 
-#if IS_ENABLED(CONFIG_BATTERY_AGE_FORECAST)
 	fg_age_data_info_t *age_data_info;
 	int fg_num_age_step;
 	int fg_age_step;
 	int age_reset_status;
 	struct mutex fg_reset_lock;
 	int change_step;
-#endif
+
 	bool is_fuel_alerted;
 	struct wakeup_source *fuel_alert_ws;
 
 	unsigned int ui_soc;
+	unsigned int scaled_soc;
+
 	unsigned int capacity_old;
 	unsigned int capacity_max;
+#if defined(CONFIG_UI_SOC_PROLONGING)
+	unsigned int g_capacity_max;	/* only for dynamic calculation */
+	bool capacity_max_conv;
+	int prev_raw_soc;
+#endif
 	int raw_capacity;
 
 	bool initial_update_of_soc;
@@ -240,6 +250,8 @@ struct s2mf301_fuelgauge_data {
 	int soh;
 #endif
 	char d_buf[FG_BATT_DUMP_SIZE];
+	int bd_vfocv;
+	int bd_raw_soc;
 };
 
 #if IS_ENABLED(BATCAP_LEARN)

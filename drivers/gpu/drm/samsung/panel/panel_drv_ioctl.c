@@ -32,20 +32,18 @@ size_t panel_drv_ioctl_scnprintf_cmd_name(char *buf, size_t size, unsigned int c
 		[_IOC_NR(PANEL_IOC_PANEL_DUMP)] = "PANEL_DUMP",
 		[_IOC_NR(PANEL_IOC_EVT_FRAME_DONE)] = "EVT_FRAME_DONE",
 		[_IOC_NR(PANEL_IOC_EVT_VSYNC)] = "EVT_VSYNC",
-#ifdef CONFIG_MCD_PANEL_LPM
+#ifdef CONFIG_USDM_PANEL_LPM
 		[_IOC_NR(PANEL_IOC_DOZE)] = "DOZE",
 		[_IOC_NR(PANEL_IOC_DOZE_SUSPEND)] = "DOZE_SUSPEND",
 #endif
-		[_IOC_NR(PANEL_IOC_SET_MRES)] = "SET_MRES",
-		[_IOC_NR(PANEL_IOC_GET_MRES)] = "GET_MRES",
-#if defined(CONFIG_PANEL_DISPLAY_MODE)
+#if defined(CONFIG_USDM_PANEL_DISPLAY_MODE)
 		[_IOC_NR(PANEL_IOC_GET_DISPLAY_MODE)] = "GET_DISPLAY_MODE",
 		[_IOC_NR(PANEL_IOC_SET_DISPLAY_MODE)] = "SET_DISPLAY_MODE",
 		[_IOC_NR(PANEL_IOC_REG_DISPLAY_MODE_CB)] = "REG_DISPLAY_MODE_CB",
 #endif
 		[_IOC_NR(PANEL_IOC_REG_RESET_CB)] = "REG_RESET_CB",
 		[_IOC_NR(PANEL_IOC_REG_VRR_CB)] = "REG_VRR_CB",
-#ifdef CONFIG_SUPPORT_MASK_LAYER
+#ifdef CONFIG_USDM_PANEL_MASK_LAYER
 		[_IOC_NR(PANEL_IOC_SET_MASK_LAYER)] = "SET_MASK_LAYER",
 #endif
 	};
@@ -70,20 +68,18 @@ static const struct panel_drv_ioctl_desc panel_drv_ioctls[] = {
 	PANEL_DRV_IOCTL_DEF(PANEL_IOC_PANEL_DUMP, panel_drv_panel_dump_ioctl),
 	PANEL_DRV_IOCTL_DEF(PANEL_IOC_EVT_FRAME_DONE, panel_drv_evt_frame_done_ioctl),
 	PANEL_DRV_IOCTL_DEF(PANEL_IOC_EVT_VSYNC, panel_drv_evt_vsync_ioctl),
-#ifdef CONFIG_MCD_PANEL_LPM
+#ifdef CONFIG_USDM_PANEL_LPM
 	PANEL_DRV_IOCTL_DEF(PANEL_IOC_DOZE, panel_drv_doze_ioctl),
 	PANEL_DRV_IOCTL_DEF(PANEL_IOC_DOZE_SUSPEND, panel_drv_doze_suspend_ioctl),
 #endif
-	PANEL_DRV_IOCTL_DEF(PANEL_IOC_SET_MRES, panel_drv_set_mres_ioctl),
-	PANEL_DRV_IOCTL_DEF(PANEL_IOC_GET_MRES, panel_drv_get_mres_ioctl),
-#if defined(CONFIG_PANEL_DISPLAY_MODE)
+#if defined(CONFIG_USDM_PANEL_DISPLAY_MODE)
 	PANEL_DRV_IOCTL_DEF(PANEL_IOC_GET_DISPLAY_MODE, panel_drv_get_display_mode_ioctl),
 	PANEL_DRV_IOCTL_DEF(PANEL_IOC_SET_DISPLAY_MODE, panel_drv_set_display_mode_ioctl),
 	PANEL_DRV_IOCTL_DEF(PANEL_IOC_REG_DISPLAY_MODE_CB, panel_drv_reg_display_mode_cb_ioctl),
 #endif
 	PANEL_DRV_IOCTL_DEF(PANEL_IOC_REG_RESET_CB, panel_drv_reg_reset_cb_ioctl),
 	PANEL_DRV_IOCTL_DEF(PANEL_IOC_REG_VRR_CB, panel_drv_reg_vrr_cb_ioctl),
-#ifdef CONFIG_SUPPORT_MASK_LAYER
+#ifdef CONFIG_USDM_PANEL_MASK_LAYER
 	PANEL_DRV_IOCTL_DEF(PANEL_IOC_SET_MASK_LAYER, panel_drv_set_mask_layer_ioctl),
 #endif
 };
@@ -105,13 +101,13 @@ long panel_ioctl(struct panel_device *panel, unsigned int cmd, void *arg)
 		return -EINVAL;
 	}
 
-	mutex_lock(&panel->io_lock);
+	panel_mutex_lock(&panel->io_lock);
 	ret = panel_drv_ioctls[nr].func(panel, arg);
 	if (ret < 0) {
 		panel_drv_ioctl_scnprintf_cmd(buf, ARRAY_SIZE(buf), cmd);
 		panel_err("ioctl(%s) failed. ret:%d\n", buf, ret);
 	}
-	mutex_unlock(&panel->io_lock);
+	panel_mutex_unlock(&panel->io_lock);
 
 	return (long)ret;
 }

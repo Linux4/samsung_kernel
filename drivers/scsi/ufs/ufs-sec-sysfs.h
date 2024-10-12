@@ -161,65 +161,14 @@ static ssize_t name##_show(struct device *dev, struct device_attribute *attr, ch
 static DEVICE_ATTR(name, 0664, name##_show, name##_store)
 
 #define SEC_UFS_ERR_CNT_INC(count, max) ((count) += ((count) < (max)) ? 1 : 0)
-/* SEC error info : end */
 
 #define get_min_errinfo(type, min_val, err_cnt, member)	\
 	min_t(type, min_val, SEC_UFS_ERR_INFO_GET_VALUE(err_cnt, member))
+/* SEC error info : end */
 
-/* UFS SEC WB : begin */
-#define SEC_UFS_WB_DATA_ATTR(name, fmt, member)				\
-static ssize_t ufs_sec_##name##_show(struct device *dev,		\
-		struct device_attribute *attr, char *buf)		\
-{									\
-	struct ufs_sec_wb_info *wb_info = ufs_sec_features.ufs_wb;	\
-	return sprintf(buf, fmt, wb_info->member);			\
-}									\
-static ssize_t ufs_sec_##name##_store(struct device *dev,		\
-		struct device_attribute *attr, const char *buf,		\
-		size_t count)						\
-{									\
-	struct ufs_sec_wb_info *wb_info = ufs_sec_features.ufs_wb;	\
-	u32 value;							\
-									\
-	if (kstrtou32(buf, 0, &value))					\
-		return -EINVAL;						\
-									\
-	wb_info->member = value;					\
-									\
-	return count;							\
-}									\
-static DEVICE_ATTR(name, 0664, ufs_sec_##name##_show, ufs_sec_##name##_store)
-
-#define SEC_UFS_WB_TIME_ATTR(name, fmt, member)				\
-static ssize_t ufs_sec_##name##_show(struct device *dev,		\
-		struct device_attribute *attr, char *buf)		\
-{									\
-	struct ufs_sec_wb_info *wb_info = ufs_sec_features.ufs_wb;	\
-	return sprintf(buf, fmt, jiffies_to_msecs(wb_info->member));	\
-}									\
-static ssize_t ufs_sec_##name##_store(struct device *dev,		\
-		struct device_attribute *attr, const char *buf,		\
-		size_t count)						\
-{									\
-	struct ufs_sec_wb_info *wb_info = ufs_sec_features.ufs_wb;	\
-	u32 value;							\
-									\
-	if (kstrtou32(buf, 0, &value))					\
-		return -EINVAL;						\
-									\
-	wb_info->member = msecs_to_jiffies(value);			\
-									\
-	return count;							\
-}									\
-static DEVICE_ATTR(name, 0664, ufs_sec_##name##_show, ufs_sec_##name##_store)
-
-#define SEC_UFS_WB_DATA_RO_ATTR(name, fmt, args...)			\
-static ssize_t ufs_sec_##name##_show(struct device *dev,		\
-		struct device_attribute *attr, char *buf)		\
-{									\
-	return sprintf(buf, fmt, args);					\
-}									\
-static DEVICE_ATTR(name, 0444, ufs_sec_##name##_show, NULL)
-/* UFS SEC WB : end */
-
+/* SEC next WB : begin */
+#define SEC_UFS_WB_INFO_BACKUP(member) ({                                                \
+		ufs_sec_features.ufs_wb_backup->member += ufs_sec_features.ufs_wb->member;       \
+		ufs_sec_features.ufs_wb->member = 0; })
+/* SEC next WB : end */
 #endif

@@ -676,7 +676,8 @@ static int shmem_copy_reserved_to_user(struct link_device *ld, u32 offset,
 	struct shmem_link_device *shmd = to_shmem_link_device(ld);
 	int err = 0;
 
-	if (offset + size > shmd->res_mem.size) {
+	if ((size > shmd->res_mem.size) ||
+		(offset > (shmd->res_mem.size - size))) {
 		gif_err("Unable to read %d bytes @ 0x%p+0x%x\n", size,
 				shmd->res_mem.vaddr, offset);
 		err = -EFAULT;
@@ -702,7 +703,8 @@ static int shmem_copy_reserved_from_user(struct link_device *ld, u32 offset,
 	struct shmem_link_device *shmd = to_shmem_link_device(ld);
 	int err = 0;
 
-	if (offset + size > shmd->res_mem.size) {
+	if ((size > shmd->res_mem.size) ||
+		(offset > (shmd->res_mem.size - size))) {
 		gif_err("Unable to load %d bytes @ 0x%p+0x%x\n", size,
 				shmd->res_mem.vaddr, offset);
 		err = -EFAULT;

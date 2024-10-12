@@ -78,6 +78,11 @@ static inline bool is_version_above(const struct ip_version *ver, u8 major, u8 m
 	return ver->major > major || (ver->major == major && ver->minor >= minor);
 }
 
+static inline bool is_version_below(const struct ip_version *ver, u8 major, u8 minor)
+{
+	return ver->major < minor || (ver->major == major && ver->minor <= minor);
+}
+
 /* common function macro for register control file */
 /* to get cal_regs_desc */
 #define cal_regs_desc_check(type, id, type_max, id_max)		\

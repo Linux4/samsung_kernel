@@ -93,6 +93,7 @@ static int of_parse_panel_display_mode(const struct device_node *np,
 	int ret = 0;
 	unsigned int val = 0;
 	const char *name;
+	struct device_node *child_np = NULL;
 
 	memset(pdm, 0, sizeof(*pdm));
 
@@ -115,11 +116,25 @@ static int of_parse_panel_display_mode(const struct device_node *np,
 	ret |= of_property_read_u32(np, "dsc_slice_num", &pdm->dsc_slice_num);
 	ret |= of_property_read_u32(np, "dsc_slice_w", &pdm->dsc_slice_w);
 	ret |= of_property_read_u32(np, "dsc_slice_h", &pdm->dsc_slice_h);
+
+	if (pdm->dsc_en) {
+		child_np = of_parse_phandle(np, "dsc_picture_parameter_set", 0);
+		if (child_np)
+			ret |= of_property_read_u8_array(child_np, "picture_parameter_set", pdm->dsc_picture_parameter_set,
+					MAX_PANEL_DISPLAY_DSC_PICTURE_PARAMETER_SET);
+		else
+			pr_err("%pOF: dsc enabled, but picture_parameter_set is not defined!\n", child_np);
+
+		of_node_put(child_np);
+	}
+
 	ret |= of_property_read_u32(np, "cmd_lp_ref", &pdm->cmd_lp_ref);
 	pdm->panel_video_mode = of_property_read_bool(np, "panel_video_mode");
 	ret |= of_property_read_u32_array(np, "panel_h_porch", pdm->panel_hporch, MAX_PANEL_H_PORCH);
 	ret |= of_property_read_u32_array(np, "panel_v_porch", pdm->panel_vporch, MAX_PANEL_V_PORCH);
 	of_property_read_u32(np, "disp_qos_fps", &pdm->disp_qos_fps);	/* optional */
+	pdm->doze_mode = of_property_read_bool(np, "doze_mode");
+	pdm->panel_lp_mode = of_property_read_bool(np, "panel_lp_mode");
 
 	if (ret) {
 		pr_err("%pOF: error reading panel_display_mode mode properties\n", np);

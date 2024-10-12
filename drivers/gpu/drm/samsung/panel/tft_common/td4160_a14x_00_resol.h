@@ -67,7 +67,7 @@ static struct panel_resol td4160_a14x_00_default_resol[] = {
 	}
 };
 
-#if defined(CONFIG_PANEL_DISPLAY_MODE)
+#if defined(CONFIG_USDM_PANEL_DISPLAY_MODE)
 static struct common_panel_display_mode td4160_a14x_00_display_mode[] = {
 	/* FHD */
 	[TD4160_A14X_00_DISPLAY_MODE_720x1600_90HS] = {
@@ -91,5 +91,5 @@ static struct common_panel_display_modes td4160_a14x_00_display_modes = {
 	.num_modes = ARRAY_SIZE(td4160_a14x_00_display_mode_array),
 	.modes = (struct common_panel_display_mode **)&td4160_a14x_00_display_mode_array,
 };
-#endif /* CONFIG_PANEL_DISPLAY_MODE */
+#endif /* CONFIG_USDM_PANEL_DISPLAY_MODE */
 #endif /* __TD4160_A14X_00_RESOL_H__ */

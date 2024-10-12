@@ -190,6 +190,11 @@ int scsc_log_in_dram_mmap_destroy(void)
 	pr_info("wlbt: in_dram. Free scsc_log_in_dram_ptr [open count :%d]\n", atomic_read(&scsc_log_in_dram_inuse));
 
 	mutex_lock(&scsc_log_in_dram_mutex);
+	if (IS_ERR_OR_NULL(scsc_log_in_dram_ptr)){
+		pr_info("wlbt: in_dram. scsc_log_in_dram_ptr is NULL\n");
+		mutex_unlock(&scsc_log_in_dram_mutex);
+		return -ENOMEM;
+	}
 	if (atomic_read(&scsc_log_in_dram_inuse) > 0) {
 		tm = wait_for_completion_timeout(&scsc_log_in_dram_completion,
 						 msecs_to_jiffies(SCSC_LOG_IN_DRAM_TIMEOUT));
@@ -203,6 +208,12 @@ int scsc_log_in_dram_mmap_destroy(void)
 	if (tm)
 		vfree(scsc_log_in_dram_ptr);
 	scsc_log_in_dram_ptr = NULL;
+
+	if (IS_ERR_OR_NULL(scsc_log_in_dram_class)) {
+		pr_info("wlbt: in_dram. scsc_log_in_dram_class is not created.\n");
+		mutex_unlock(&scsc_log_in_dram_mutex);
+		return -ENODEV;
+	}
 
 	device_destroy(scsc_log_in_dram_class, ram_dev_num);
 	for (i = 0; i < N_MINORS; i++)

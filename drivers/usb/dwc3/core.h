@@ -1105,6 +1105,7 @@ struct dwc3_scratchpad_array {
  * @num_ep_resized: carries the current number endpoints which have had its tx
  *		    fifo resized.
  * @clear_stall_protocol: endpoint number that requires a delayed status phase.
+ * @debug_root: root debugfs directory for this device to put its files in.
  */
 struct dwc3 {
 	struct work_struct	drd_work;
@@ -1319,9 +1320,19 @@ struct dwc3 {
 	ANDROID_KABI_USE(1, struct{ u8 clear_stall_protocol; u8 padding1;
 				u8 padding2; u8 padding3; u8 padding4; u8 padding5;
 				u8 padding6; u8 padding7; });
-	ANDROID_KABI_RESERVE(2);
+	ANDROID_KABI_USE(2, struct dentry *debug_root);
 	ANDROID_KABI_RESERVE(3);
 	ANDROID_KABI_RESERVE(4);
+};
+
+/**
+ * struct dwc3_vendor - contains parameters without modifying the format of DWC3 core
+ * @dwc: contains dwc3 core reference
+ * @suspended: set to track suspend event due to U3/L2.
+ */
+struct dwc3_vendor {
+	struct dwc3	dwc;
+	unsigned	suspended:1;
 };
 
 #define INCRX_BURST_MODE 0
@@ -1554,7 +1565,7 @@ int dwc3_send_gadget_ep_cmd(struct dwc3_ep *dep, unsigned int cmd,
 int dwc3_send_gadget_generic_command(struct dwc3 *dwc, unsigned int cmd,
 		u32 param);
 void dwc3_gadget_clear_tx_fifos(struct dwc3 *dwc);
-void dwc3_remove_requests(struct dwc3 *dwc, struct dwc3_ep *dep, int status);
+void dwc3_lock_logging(int function_num, int lock);
 #else
 static inline int dwc3_gadget_init(struct dwc3 *dwc)
 { return 0; }

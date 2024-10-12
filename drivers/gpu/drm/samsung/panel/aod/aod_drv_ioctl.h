@@ -11,12 +11,8 @@
  */
 #include <linux/kernel.h>
 
-
 #ifndef __AOD_DRV_IOCTL_H__
 #define __AOD_DRV_IOCTL_H__
-
-
-#define SUPPORT_INTERVAL
 
 struct aod_cur_time {
 	int cur_h;
@@ -24,9 +20,7 @@ struct aod_cur_time {
 	int cur_s;
 	int cur_ms;
 	int disp_24h;
-#ifdef SUPPORT_INTERVAL
 	int interval;
-#endif
 };
 
 struct self_icon_info {
@@ -50,7 +44,7 @@ enum {
 	ALG_INTERVAL_100m,
 	ALG_INTERVAL_200m,
 	ALG_INTERVAL_500m,
-	ALG_INTERVAL_1000,
+	ALG_INTERVAL_1000m,
 	INTERVAL_DEBUG,
 	MAX_ALG_INTERVAL,
 };
@@ -117,7 +111,7 @@ struct aod_scenario_info {
 #define IOCTL_SELF_MOVE_RESET		_IOW(AOD_IOCTL_MAGIC, 3, int)
 
 #define IOCTL_SET_TIME			_IOW(AOD_IOCTL_MAGIC, 11, struct aod_cur_time)
-#ifdef SUPPORT_SELF_ICON
+#if defined(SUPPORT_SELF_ICON)
 #define IOCTL_SET_ICON			_IOW(AOD_IOCTL_MAGIC, 21, struct self_icon_info)
 #endif
 #define IOCTL_SET_GRID			_IOW(AOD_IOCTL_MAGIC, 31, struct self_grid_info)

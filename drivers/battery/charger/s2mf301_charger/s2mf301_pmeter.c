@@ -22,6 +22,9 @@
 #include <linux/version.h>
 #include <linux/module.h>
 #include <linux/slab.h>
+#if IS_ENABLED(CONFIG_S2MF301_TYPEC_WATER)
+#include <linux/usb/typec/slsi/s2mf301/s2mf301-water.h>
+#endif
 
 #if IS_ENABLED(CONFIG_MUIC_S2MF301_RID)
 static bool s2mf301_pm_rid_is_enable(void *_data);
@@ -40,7 +43,7 @@ static enum power_supply_property s2mf301_pmeter_props[] = {
 	POWER_SUPPLY_PROP_ONLINE,
 };
 
-static int s2mf301_pm_enable(struct s2mf301_pmeter_data *pmeter, int mode, enum pm_type type)
+static int s2mf301_pm_enable(struct s2mf301_pmeter_data *pmeter, int mode, int enable, enum pm_type type)
 {
 	u8 addr, r_data, w_data;
 	int shift = 7 - (type & 0x111);
@@ -72,6 +75,9 @@ static int s2mf301_pm_enable(struct s2mf301_pmeter_data *pmeter, int mode, enum 
 	case S2MF301_PM_TYPE_GPADC2:
 	case S2MF301_PM_TYPE_GPADC3:
 	case S2MF301_PM_TYPE_VDCIN:
+#if IS_ENABLED(CONFIG_S2MF301_TYPEC_WATER)
+	case S2MF301_PM_TYPE_GPADC12:
+#endif
 		if (mode == CONTINUOUS_MODE)
 			addr = S2MF301_REG_PM_ADCEN_CONTINU2;
 		else
@@ -83,13 +89,23 @@ static int s2mf301_pm_enable(struct s2mf301_pmeter_data *pmeter, int mode, enum 
 	}
 
 	s2mf301_read_reg(pmeter->i2c, addr, &r_data);
-	w_data = r_data | (1 << shift);
-	if (!pmeter->pm_rid_enabled) {
-		s2mf301_write_reg(pmeter->i2c, addr, w_data);
-
-		pr_info("%s, reg(0x%x) : (0x%x) -> (0x%x)\n", __func__, addr, r_data, w_data);
+#if IS_ENABLED(CONFIG_S2MF301_TYPEC_WATER)
+	if (type == S2MF301_PM_TYPE_GPADC12) {
+		pr_info("[WATER] %s, %s gpadc12 %s\n", __func__, ((enable)?"Enable":"Disable"),
+					((mode == CONTINUOUS_MODE)?"CO":"RR"));
+		if (enable)
+			w_data = r_data | 0x0C;
+		else
+			w_data = r_data & ~(0x0C);
 	} else
-		pr_info("%s, MUIC_RID enabled, skip enable pm adc\n", __func__);
+#endif
+		if (enable)
+			w_data = r_data | (1 << shift);
+		else
+			w_data = r_data & ~(1 << shift);
+	s2mf301_write_reg(pmeter->i2c, addr, w_data);
+
+	pr_info("%s, reg(0x%x) : (0x%x) -> (0x%x)\n", __func__, addr, r_data, w_data);
 
 	return 0;
 }
@@ -141,8 +157,16 @@ static int s2mf301_pm_get_value(struct s2mf301_pmeter_data *pmeter, int type)
 		addr1 = S2MF301_REG_PM_IADC1_OTG;
 		addr2 = S2MF301_REG_PM_IADC2_OTG;
 		break;
+#if IS_ENABLED(CONFIG_S2MF301_TYPEC_WATER)
 	case S2MF301_PM_TYPE_GPADC1:
+		addr1 = S2MF301_REG_PM_VADC1_GPADC1;
+		addr2 = S2MF301_REG_PM_VADC2_GPADC1;
+		break;
 	case S2MF301_PM_TYPE_GPADC2:
+		addr1 = S2MF301_REG_PM_VADC1_GPADC2;
+		addr2 = S2MF301_REG_PM_VADC2_GPADC2;
+		break;
+#endif
 	case S2MF301_PM_TYPE_GPADC3:
 	case S2MF301_PM_TYPE_VDCIN:
 	case S2MF301_PM_TYPE_ITX:
@@ -155,12 +179,412 @@ static int s2mf301_pm_get_value(struct s2mf301_pmeter_data *pmeter, int type)
 	s2mf301_read_reg(pmeter->i2c, addr1, &data1);
 	s2mf301_read_reg(pmeter->i2c, addr2, &data2);
 
-	charge_voltage = (((data1<<8)|data2) * 1000) >> 11;
-
-	pr_info("%s, %x, %x -> %x\n", __func__, data1, data2, charge_voltage);
+#if IS_ENABLED(CONFIG_S2MF301_TYPEC_WATER)
+	if (type == S2MF301_PM_TYPE_GPADC1 || type == S2MF301_PM_TYPE_GPADC2) {
+		charge_voltage = (data1<<8) | data2;
+		//pr_info("%s, Raw[0x%x, 0x%x] -> 0x%x(%dmV)\n", __func__, data1, data2, charge_voltage, charge_voltage);
+	} else
+#endif
+		charge_voltage = (((data1<<8)|data2) * 1000) >> 11;
 
 	return charge_voltage;
 }
+
+#if IS_ENABLED(CONFIG_S2MF301_TYPEC_WATER)
+int s2mf301_pm_ops_pm_enable(void *data, int mode, int enable, int type)
+{
+	struct s2mf301_pmeter_data *pmeter = (struct s2mf301_pmeter_data *)data;
+	int t = (enum pm_type) type;
+
+	return s2mf301_pm_enable(pmeter, mode, enable, t);
+}
+
+int	s2mf301_pm_ops_pm_get_value(void *data, int type)
+{
+	struct s2mf301_pmeter_data *pmeter = (struct s2mf301_pmeter_data *)data;
+
+	return s2mf301_pm_get_value(pmeter, type);
+}
+
+void s2mf301_pm_water_irq_masking(void *data, int masking, int mask)
+{
+	struct s2mf301_pmeter_data *pmeter = data;
+	u8 r_data, w_data;
+	u8 reg[3];
+
+	/*
+	 * masking==true -> disable irq
+	 * masking==false -> enable irq
+	 */
+	const char *mask_to_str[] = {
+		"CHANGE",
+		"WATER",
+		"RR",
+	};
+
+	pr_info("%s, %s %s\n", __func__, ((masking)?"masking":"unmasking"),
+			mask_to_str[mask]);
+
+	switch (mask) {
+		case S2MF301_IRQ_TYPE_CHANGE:
+			s2mf301_read_reg(pmeter->i2c, S2MF301_REG_PM_ADC_CHANGE_INT2_MASK, &r_data);
+			if (masking) {
+				w_data = r_data & ~(0x0c);
+				w_data |= 0x0c; 
+			} else {
+				w_data = r_data & ~(0x0c);
+			}
+			s2mf301_write_reg(pmeter->i2c, S2MF301_REG_PM_ADC_CHANGE_INT2_MASK, w_data);
+			break;
+		case S2MF301_IRQ_TYPE_WATER:
+			s2mf301_read_reg(pmeter->i2c, S2MF301_REG_PM_ADC_REQ_DONE4_MASK, &r_data);
+			if (masking) {
+				w_data = r_data & ~(0x03);
+				w_data |= 0x03; 
+			} else {
+				w_data = r_data & ~(0x03);
+			}
+			s2mf301_write_reg(pmeter->i2c, S2MF301_REG_PM_ADC_REQ_DONE4_MASK, w_data);
+			break;
+		case S2MF301_IRQ_TYPE_RR:
+			s2mf301_read_reg(pmeter->i2c, S2MF301_REG_PM_ADC_REQ_DONE2_MASK, &r_data);
+			if (masking) {
+				w_data = r_data & ~(0x0c);
+				w_data |= 0x0c; 
+			} else {
+				w_data = r_data & ~(0x0c);
+			}
+			s2mf301_write_reg(pmeter->i2c, S2MF301_REG_PM_ADC_REQ_DONE2_MASK, w_data);
+			break;
+		default:
+			break;
+	}
+
+
+	s2mf301_read_reg(pmeter->i2c, S2MF301_REG_PM_ADC_CHANGE_INT2_MASK, &reg[0]);
+	s2mf301_read_reg(pmeter->i2c, S2MF301_REG_PM_ADC_REQ_DONE4_MASK, &reg[1]);
+	s2mf301_read_reg(pmeter->i2c, S2MF301_REG_PM_ADC_REQ_DONE2_MASK, &reg[2]);
+
+	pr_info("%s, change[0x%x], water[0x%x], wet[0x%x]\n", __func__, reg[0], reg[1], reg[2]);
+}
+
+static void s2mf301_pm_water_set_gpadc_mode(void *data, int mode)
+{
+	struct s2mf301_pmeter_data *pmeter = (struct s2mf301_pmeter_data *)data;
+	u8 reg;
+
+	s2mf301_read_reg(pmeter->i2c, S2MF301_REG_PM_CTRL1, &reg);
+	switch (mode){
+	case S2MF301_GPADC_RMODE:
+		pr_info("%s, GPADC12 RMode\n", __func__);
+		reg &= ~(0xf0);
+		reg |= 0x50;
+		break;
+	case S2MF301_GPADC_VMODE:
+		pr_info("%s, GPADC12 VMode\n", __func__);
+		reg &= ~(0xf0);
+		reg |= 0xa0;
+		break;
+	default:
+		break;
+	}
+	s2mf301_write_reg(pmeter->i2c, S2MF301_REG_PM_CTRL1, reg);
+}
+
+static int s2mf301_pm_water_get_status_reg(struct s2mf301_pmeter_data *pmeter)
+{
+	u8 data;
+
+	s2mf301_read_reg(pmeter->i2c, S2MF301_REG_PM_ICHG_STATUS, &data);
+	pr_info("[WATER] %s, reg[0x%x]\n", __func__, data);
+
+	if ((data & 0xA0) == 0xA0)
+		return S2MF301_WATER_GPADC12;
+	else if ((data & 0xA0) == 0x80)
+		return S2MF301_WATER_GPADC1;
+	else if ((data & 0xA0) == 0x20)
+		return S2MF301_WATER_GPADC2;
+	else
+		return S2MF301_WATER_GPADC_DRY;
+}
+
+static void s2mf301_pm_water_det_en(void *data, int enable)
+{
+	struct s2mf301_pmeter_data *pmeter = data;
+	u8 reg;
+
+	s2mf301_read_reg(pmeter->i2c, S2MF301_REG_PM_WET_EN1, &reg);
+	if (enable)
+		reg |= S2MF301_REG_PM_WET_EN1_GPADC1;
+	else
+		reg &= ~(S2MF301_REG_PM_WET_EN1_GPADC1);
+	s2mf301_write_reg(pmeter->i2c, S2MF301_REG_PM_WET_EN1, reg);
+
+	s2mf301_read_reg(pmeter->i2c, S2MF301_REG_PM_WET_EN2, &reg);
+	if (enable)
+		reg |= S2MF301_REG_PM_WET_EN2_GPADC2;
+	else
+		reg &= ~(S2MF301_REG_PM_WET_EN2_GPADC2);
+	s2mf301_write_reg(pmeter->i2c, S2MF301_REG_PM_WET_EN2, reg);
+
+	pr_info("[WATER] %s, %s\n", __func__, (enable?"Enabled":"Disabled"));
+}
+
+static void s2mf301_pm_water_10s_en(void *data, int enable)
+{
+	struct s2mf301_pmeter_data *pmeter = data;
+	u8 reg;
+
+	s2mf301_read_reg(pmeter->i2c, S2MF301_REG_PM_WET_DET_CTRL2, &reg);
+	if (enable) {
+		reg |= 0x30;
+	} else {
+		reg &= ~(0x30);
+	}
+	s2mf301_write_reg(pmeter->i2c, S2MF301_REG_PM_WET_DET_CTRL2, reg);
+
+	pr_info("[WATER] %s, %s\n", __func__, (enable?"Enabled":"Disabled"));
+}
+
+static void s2mf301_pm_water_set_status(void *data, int enable)
+{
+	struct s2mf301_pmeter_data *pmeter = data;
+	if (enable == S2M_WATER_STATUS_WATER) {
+		s2mf301_write_reg(pmeter->i2c, S2MF301_REG_PM_WET_DET_CTRL1, 0xF0);
+		s2mf301_write_reg(pmeter->i2c, S2MF301_REG_PM_WET_DET_CTRL1, 0x50);
+	} else if (enable == S2M_WATER_STATUS_DRY) {
+		s2mf301_write_reg(pmeter->i2c, S2MF301_REG_PM_WET_DET_CTRL1, 0x00);
+	} else
+		pr_info("[WATER] %s, invalid enable(%d)\n", __func__, enable);
+
+	s2mf301_pm_water_get_status_reg(pmeter);
+}
+
+static int s2mf301_pm_water_get_status(void *data)
+{
+	struct s2mf301_pmeter_data *pmeter = (struct s2mf301_pmeter_data *)data;
+
+	return s2mf301_pm_water_get_status_reg(pmeter);
+}
+
+static irqreturn_t s2mf301_pm_gpadc1up_isr(int irq, void *data)
+{
+	struct s2mf301_pmeter_data *pmeter = data;
+	struct s2mf301_water_data *water;
+	int volt;
+
+	if (!pmeter->water) {
+		pr_info("%s, pmeter->water is NULL\n", __func__);
+		return -1;
+	}
+	water = pmeter->water;
+	
+	volt = s2mf301_pm_get_value(pmeter, S2MF301_PM_TYPE_GPADC1);
+	pr_info("[WATER] %s, vgpadc1 = %dmV\n", __func__, volt);
+
+	water->vgpadc1 = volt;
+
+	return IRQ_HANDLED;
+}
+
+static  irqreturn_t s2mf301_pm_gpadc2up_isr(int irq, void *data)
+{
+	struct s2mf301_pmeter_data *pmeter = data;
+	struct s2mf301_water_data *water;
+	int volt;
+	
+	if (!pmeter->water) {
+		pr_info("%s, pmeter->water is NULL\n", __func__);
+		return -1;
+	}
+	water = pmeter->water;
+
+	volt = s2mf301_pm_get_value(pmeter, S2MF301_PM_TYPE_GPADC2);
+	pr_info("[WATER] %s, vgpadc2 = %dmV\n", __func__, volt);
+
+	water->vgpadc2 = volt;
+	
+	return IRQ_HANDLED;
+}
+
+static irqreturn_t s2mf301_pm_gpadc1_change_isr(int irq, void *data)
+{
+	struct s2mf301_pmeter_data *pmeter = data;
+	struct s2mf301_water_data *water;
+	
+	if (!pmeter->water) {
+		pr_info("%s, pmeter->water is NULL\n", __func__);
+		return -1;
+	}
+	water = pmeter->water;
+
+	pr_info("[WATER] %s, \n", __func__);
+	s2mf301_pm_water_irq_masking(pmeter, true, S2MF301_IRQ_TYPE_CHANGE);
+	s2mf301_pm_enable(pmeter, CONTINUOUS_MODE, 0,  S2MF301_PM_TYPE_GPADC12);
+
+	cancel_delayed_work(&water->state_work);
+	water->event = S2M_WATER_EVENT_SBU_CHANGE_INT;
+	schedule_delayed_work(&water->state_work, msecs_to_jiffies(5));
+	
+	return IRQ_HANDLED;
+}
+
+static irqreturn_t s2mf301_pm_gpadc2_change_isr(int irq, void *data)
+{
+	struct s2mf301_pmeter_data *pmeter = data;
+	struct s2mf301_water_data *water;
+	
+	if (!pmeter->water) {
+		pr_info("%s, pmeter->water is NULL\n", __func__);
+		return -1;
+	}
+	water = pmeter->water;
+
+	pr_info("[WATER] %s, \n", __func__);
+	s2mf301_pm_water_irq_masking(pmeter, true, S2MF301_IRQ_TYPE_CHANGE);
+	s2mf301_pm_enable(pmeter, CONTINUOUS_MODE, 0,  S2MF301_PM_TYPE_GPADC12);
+
+	cancel_delayed_work(&water->state_work);
+	water->event = S2M_WATER_EVENT_SBU_CHANGE_INT;
+	schedule_delayed_work(&water->state_work, msecs_to_jiffies(5));
+	
+	return IRQ_HANDLED;
+}
+
+static irqreturn_t s2mf301_pm_water1_isr(int irq, void *data)
+{
+	struct s2mf301_pmeter_data *pmeter = data;
+	struct s2mf301_water_data *water;
+	
+	if (!pmeter->water) {
+		pr_info("%s, pmeter->water is NULL\n", __func__);
+		return -1;
+	}
+	water = pmeter->water;
+
+	pr_info("[WATER] %s, \n", __func__);
+
+	cancel_delayed_work(&water->state_work);
+	water->event = S2M_WATER_EVENT_WET_INT;
+	schedule_delayed_work(&water->state_work, msecs_to_jiffies(5));
+	
+	return IRQ_HANDLED;
+}
+
+static irqreturn_t s2mf301_pm_water2_isr(int irq, void *data)
+{
+	struct s2mf301_pmeter_data *pmeter = data;
+	struct s2mf301_water_data *water;
+	
+	if (!pmeter->water) {
+		pr_info("%s, pmeter->water is NULL\n", __func__);
+		return -1;
+	}
+	water = pmeter->water;
+
+	pr_info("[WATER] %s, \n", __func__);
+
+	cancel_delayed_work(&water->state_work);
+	water->event = S2M_WATER_EVENT_WET_INT;
+	schedule_delayed_work(&water->state_work, msecs_to_jiffies(5));
+	
+	return IRQ_HANDLED;
+}
+
+void *s2mf301_pm_water_init(struct s2mf301_water_data *water)
+{
+	int ret;
+	struct power_supply *psy;
+	struct s2mf301_pmeter_data *pmeter;
+	struct s2mf301_dev *s2mf301;
+
+	psy = get_power_supply_by_name("s2mf301-pmeter");
+	if (!psy) {
+		pr_info("%s, Fail to get psy\n", __func__);
+		return NULL;
+	}
+
+	pmeter = power_supply_get_drvdata(psy);
+	if (!pmeter) {
+		pr_info("%s, Fail to get drv data\n", __func__);
+		return NULL;
+	}
+
+	s2mf301 = pmeter->s2mf301;
+	if (!s2mf301) {
+		pr_info("%s, Fail to get mfd data\n", __func__);
+		return NULL;
+	}
+
+	pmeter->water = water;
+
+	pr_info("[WATER], %s\n", __func__);
+
+	/* 
+	 * GPADC12 hyst setting
+	 * 0x73[2:0], 0x74[6:4]
+	 * 2^(5+3bit)code, ADC value check
+	 * 0x55 -> 2^10 code -> ADC 1024code diff -> int
+	 */
+	s2mf301_write_reg(pmeter->i2c, 0x73, 0x54);
+	s2mf301_write_reg(pmeter->i2c, 0x74, 0x45);
+	s2mf301_pm_water_irq_masking(pmeter, true, S2MF301_IRQ_TYPE_CHANGE);
+
+	/* Water Threshold 0x84*8 = 1056mV */
+	s2mf301_write_reg(pmeter->i2c, 0x84, 0x84);
+	/* Dry Threshold 0x61*8 = 776mV */
+	s2mf301_write_reg(pmeter->i2c, 0x85, 0x61);
+
+	pmeter->water->water_irq_masking = s2mf301_pm_water_irq_masking;
+	pmeter->water->water_det_en = s2mf301_pm_water_det_en;
+	pmeter->water->water_10s_en = s2mf301_pm_water_10s_en;
+	pmeter->water->water_set_gpadc_mode = s2mf301_pm_water_set_gpadc_mode;
+	pmeter->water->water_set_status = s2mf301_pm_water_set_status;
+	pmeter->water->water_get_status = s2mf301_pm_water_get_status;
+	pmeter->water->pm_enable = s2mf301_pm_ops_pm_enable;
+	pmeter->water->pm_get_value = s2mf301_pm_ops_pm_get_value;
+
+	pmeter->irq_comp1 = s2mf301->pdata->irq_base + S2MF301_PM_ADC_CHANGE_INT2_GPADC1UP;
+	ret = request_threaded_irq(pmeter->irq_comp1, NULL,
+			s2mf301_pm_gpadc1_change_isr, 0, "gpadc1-change-irq", pmeter);
+	if (ret < 0)
+		pr_err("%s: Fail to request SYS in IRQ: %d: %d\n", __func__, pmeter->irq_comp1, ret);
+
+	pmeter->irq_comp2 = s2mf301->pdata->irq_base + S2MF301_PM_ADC_CHANGE_INT2_GPADC2UP;
+	ret = request_threaded_irq(pmeter->irq_comp2, NULL,
+			s2mf301_pm_gpadc2_change_isr, 0, "gpadc2-change-irq", pmeter);
+	if (ret < 0)
+		pr_err("%s: Fail to request SYS in IRQ: %d: %d\n", __func__, pmeter->irq_comp2, ret);
+
+	pmeter->irq_water_status1 = s2mf301->pdata->irq_base + S2MF301_PM_ADC_REQ_DONE4_WET_STATUS_GPADC1 ;
+	ret = request_threaded_irq(pmeter->irq_water_status1, NULL,
+			s2mf301_pm_water1_isr, 0, "water1-irq", pmeter);
+	if (ret < 0)
+		pr_err("%s: Fail to request SYS in IRQ: %d: %d\n", __func__, pmeter->irq_water_status1, ret);
+
+	pmeter->irq_water_status2 = s2mf301->pdata->irq_base + S2MF301_PM_ADC_REQ_DONE4_WET_STATUS_GPADC2 ;
+	ret = request_threaded_irq(pmeter->irq_water_status2, NULL,
+			s2mf301_pm_water2_isr, 0, "water2-irq", pmeter);
+	if (ret < 0)
+		pr_err("%s: Fail to request SYS in IRQ: %d: %d\n", __func__,
+				pmeter->irq_water_status2, ret);
+
+	pmeter->irq_gpadc1up = s2mf301->pdata->irq_base + S2MF301_PM_ADC_REQ_DONE2_GPADC1UP ;
+	ret = request_threaded_irq(pmeter->irq_gpadc1up, NULL,
+			s2mf301_pm_gpadc1up_isr, 0, "gpadc1up-irq", pmeter);
+	if (ret < 0)
+		pr_err("%s: Fail to request SYS in IRQ: %d: %d\n", __func__, pmeter->irq_gpadc1up, ret);
+
+	pmeter->irq_gpadc2up = s2mf301->pdata->irq_base + S2MF301_PM_ADC_REQ_DONE2_GPADC2UP ;
+	ret = request_threaded_irq(pmeter->irq_gpadc2up, NULL,
+			s2mf301_pm_gpadc2up_isr, 0, "gpadc2up-irq", pmeter);
+	if (ret < 0)
+		pr_err("%s: Fail to request SYS in IRQ: %d: %d\n", __func__, pmeter->irq_gpadc2up, ret);
+
+	return pmeter;
+}
+EXPORT_SYMBOL_GPL(s2mf301_pm_water_init);
+#endif
 
 static int s2mf301_pm_get_property(struct power_supply *psy,
 				enum power_supply_property psp,
@@ -168,6 +592,9 @@ static int s2mf301_pm_get_property(struct power_supply *psy,
 {
 	struct s2mf301_pmeter_data *pmeter = power_supply_get_drvdata(psy);
 	enum power_supply_lsi_property lsi_prop = (enum power_supply_lsi_property) psp;
+#if IS_ENABLED(CONFIG_S2MF301_TYPEC_WATER)
+	int volt[2] = {0, };
+#endif
 
 	switch ((int)psp) {
 	case POWER_SUPPLY_PROP_ONLINE:
@@ -191,7 +618,31 @@ static int s2mf301_pm_get_property(struct power_supply *psy,
 			val->intval = s2mf301_pm_get_value(pmeter, S2MF301_PM_TYPE_VBAT);
 			break;
 		case POWER_SUPPLY_LSI_PROP_VGPADC:
+#if IS_ENABLED(CONFIG_S2MF301_TYPEC_WATER)
+			s2mf301_pm_water_set_gpadc_mode(pmeter, S2MF301_GPADC_VMODE);
+			s2mf301_pm_enable(pmeter, CONTINUOUS_MODE, 0,  S2MF301_PM_TYPE_GPADC12);
+			s2mf301_pm_water_det_en(pmeter, false);
+
+			usleep_range(10000, 10100);
+
+			s2mf301_pm_water_irq_masking(pmeter, false, S2MF301_IRQ_TYPE_RR);
+			s2mf301_pm_enable(pmeter, REQUEST_RESPONSE_MODE, true, S2MF301_PM_TYPE_GPADC12);
+
+			msleep(20);
+			s2mf301_pm_water_irq_masking(pmeter, true, S2MF301_IRQ_TYPE_RR);
+			s2mf301_pm_water_set_gpadc_mode(pmeter, S2MF301_GPADC_RMODE);
+
+			volt[0] = s2mf301_pm_get_value(pmeter, S2MF301_PM_TYPE_GPADC1);
+			volt[1] = s2mf301_pm_get_value(pmeter, S2MF301_PM_TYPE_GPADC2);
+
+			val->intval = (volt[0] < volt[1] ? volt[0] : volt[1]);
+#endif
+			break;
+		case POWER_SUPPLY_LSI_PROP_VGPADC1:
 			val->intval = s2mf301_pm_get_value(pmeter, S2MF301_PM_TYPE_GPADC1);
+			break;
+		case POWER_SUPPLY_LSI_PROP_VGPADC2:
+			val->intval = s2mf301_pm_get_value(pmeter, S2MF301_PM_TYPE_GPADC2);
 			break;
 		case POWER_SUPPLY_LSI_PROP_VCC1:
 			val->intval = s2mf301_pm_get_value(pmeter, S2MF301_PM_TYPE_VCC1);
@@ -214,6 +665,7 @@ static int s2mf301_pm_get_property(struct power_supply *psy,
 		case POWER_SUPPLY_LSI_PROP_RID_OPS:
 #if IS_ENABLED(CONFIG_MUIC_S2MF301_RID)
 			_s2mf301_pm_rid_ops._data = pmeter;
+			pmeter->muic_data = (struct s2mf301_muic_data *)val->strval;
 			val->strval = (const char *)&_s2mf301_pm_rid_ops;
 #endif
 			break;
@@ -249,23 +701,13 @@ static int s2mf301_pm_set_property(struct power_supply *psy,
 		return 1;
 	case POWER_SUPPLY_LSI_PROP_MIN ... POWER_SUPPLY_LSI_PROP_MAX:
 		switch (lsi_prop) {
-		case POWER_SUPPLY_LSI_PROP_RID_DISABLE:
-			pr_info("%s, pm_rid disabled, enable auto adc\n", __func__);
-			s2mf301_write_reg(pmeter->i2c, S2MF301_REG_PM_ADCEN_BY_TA_MASK1, 0x00);
-			s2mf301_write_reg(pmeter->i2c, S2MF301_REG_PM_ADCEN_BY_TA_MASK2, 0x06);
-			s2mf301_write_reg(pmeter->i2c, S2MF301_REG_PM_ADCEN_BY_OTG_MASK1, 0x0e);
-			s2mf301_write_reg(pmeter->i2c, S2MF301_REG_PM_ADCEN_BY_OTG_MASK2, 0x06);
-
-			s2mf301_pm_enable(pmeter, CONTINUOUS_MODE, S2MF301_PM_TYPE_ICHGIN);
-			s2mf301_pm_enable(pmeter, CONTINUOUS_MODE, S2MF301_PM_TYPE_VCHGIN);
-			s2mf301_pm_enable(pmeter, CONTINUOUS_MODE, S2MF301_PM_TYPE_VCC1);
-			s2mf301_pm_enable(pmeter, CONTINUOUS_MODE, S2MF301_PM_TYPE_VCC2);
-			break;
 		case POWER_SUPPLY_LSI_PROP_CO_ENABLE:
-			s2mf301_pm_enable(pmeter, CONTINUOUS_MODE, val->intval);
+			s2mf301_pm_enable(pmeter, CONTINUOUS_MODE, true, val->intval);
 			break;
 		case POWER_SUPPLY_LSI_PROP_RR_ENABLE:
-			s2mf301_pm_enable(pmeter, REQUEST_RESPONSE_MODE, val->intval);
+			s2mf301_pm_enable(pmeter, REQUEST_RESPONSE_MODE, true, val->intval);
+			break;
+		case POWER_SUPPLY_LSI_PROP_ENABLE_WATER:
 			break;
 		default:
 			return -EINVAL;
@@ -312,6 +754,8 @@ static int s2mf301_pm_control_rid_adc(void *_data, bool enable)
 	}
 	pmeter = _data;
 
+	pr_info("%s, %s\n", __func__, ((enable) ? "Enable" : "Disable"));
+
 	s2mf301_read_reg(pmeter->i2c, S2MF301_REG_PM_ADC_CTRL8, &reg_data);
 	if (enable)
 		reg_data |= S2MF301_PM_ADC_ENABLE_MASK;
@@ -325,6 +769,7 @@ static int s2mf301_pm_control_rid_adc(void *_data, bool enable)
 static int s2mf301_pm_mask_rid_change(void *_data, bool enable)
 {
 	struct s2mf301_pmeter_data *pmeter;
+	u8 reg_data;
 
 	if (!_data) {
 		pr_info("%s, _data is NULL\n", __func__);
@@ -334,15 +779,13 @@ static int s2mf301_pm_mask_rid_change(void *_data, bool enable)
 
 	pr_info("%s, enable(%d)\n", __func__, enable);
 
-	if (enable) {
-		pmeter->pm_rid_enabled = 1;
-		s2mf301_write_reg(pmeter->i2c, S2MF301_REG_PM_ADCEN_BY_TA_MASK1, 0xff);
-		s2mf301_write_reg(pmeter->i2c, S2MF301_REG_PM_ADCEN_BY_TA_MASK2, 0xff);
-		s2mf301_write_reg(pmeter->i2c, S2MF301_REG_PM_ADCEN_BY_OTG_MASK1, 0xff);
-		s2mf301_write_reg(pmeter->i2c, S2MF301_REG_PM_ADCEN_BY_OTG_MASK2, 0xff);
-		s2mf301_write_reg(pmeter->i2c, S2MF301_REG_PM_ADCEN_CONTINU1, 0x00);
-		s2mf301_write_reg(pmeter->i2c, S2MF301_REG_PM_ADCEN_CONTINU2, 0x00);
-	}
+	s2mf301_read_reg(pmeter->i2c, S2MF301_REG_PM_ADC_CHANGE_INT4_MASK, &reg_data);
+	reg_data &= ~S2MF301_PM_RID_ATTACH_DETACH_MASK;
+	if (enable) /* if attached, disable new attach until detach */
+		reg_data |= S2MF301_PM_RID_ATTACH_MASK;
+	else
+		reg_data |= S2MF301_PM_RID_DETACH_MASK;
+	s2mf301_write_reg(pmeter->i2c, S2MF301_REG_PM_ADC_CHANGE_INT4_MASK, reg_data);
 
 	return 0;
 }
@@ -364,10 +807,11 @@ static int s2mf301_pm_get_rid_adc(void *_data)
 
 	switch (reg_data & S2MF301_PM_RID_STATUS_MASK) {
 	case S2MF301_PM_RID_STATUS_255K:
-		rid = ADC_JIG_USB_ON;
+	case S2MF301_PM_RID_STATUS_56K:
+		rid = ADC_JIG_USB_OFF;
 		break;
 	case S2MF301_PM_RID_STATUS_301K:
-		rid = ADC_JIG_USB_OFF;
+		rid = ADC_JIG_USB_ON;
 		break;
 	case S2MF301_PM_RID_STATUS_523K:
 		rid = ADC_JIG_UART_OFF;
@@ -381,6 +825,28 @@ static int s2mf301_pm_get_rid_adc(void *_data)
 	}
 
 	return rid;
+}
+
+static irqreturn_t s2mf301_pm_rid_isr(int irq, void *data)
+{
+	struct s2mf301_pmeter_data *pmeter = data;
+	int ret = 0;
+
+	pr_info("%s, \n", __func__);
+
+	if (!pmeter->muic_data) {
+		pr_info("%s, muic_data is NULL\n", __func__);
+		return IRQ_HANDLED;
+	}
+
+	if (pmeter->muic_data->rid_isr)
+		ret = pmeter->muic_data->rid_isr(pmeter->muic_data);
+	else {
+		pr_info("%s, pmeter->muic_data->rid_isr is NULL\n", __func__);
+		ret = -EINVAL;
+	}
+
+	return ret;
 }
 #endif
 
@@ -400,6 +866,17 @@ static irqreturn_t s2mf301_vchgin_isr(int irq, void *data)
 	return IRQ_HANDLED;
 }
 
+static irqreturn_t s2mf301_ichgin_th_isr(int irq, void *data)
+{
+	union power_supply_propval value;
+
+	pr_info("%s\n", __func__);
+	psy_do_property("s2mf301-charger", set,
+		POWER_SUPPLY_LSI_PROP_ICHGIN, value);
+
+	return IRQ_HANDLED;
+}
+
 static const struct of_device_id s2mf301_pmeter_match_table[] = {
 	{ .compatible = "samsung,s2mf301-pmeter",},
 	{},
@@ -407,11 +884,10 @@ static const struct of_device_id s2mf301_pmeter_match_table[] = {
 
 static void s2mf301_powermeter_initial(struct s2mf301_pmeter_data *pmeter)
 {
-	pmeter->pm_rid_enabled = 0;
-	s2mf301_pm_enable(pmeter, CONTINUOUS_MODE, S2MF301_PM_TYPE_ICHGIN);
-	s2mf301_pm_enable(pmeter, CONTINUOUS_MODE, S2MF301_PM_TYPE_VCHGIN);
-	s2mf301_pm_enable(pmeter, CONTINUOUS_MODE, S2MF301_PM_TYPE_VCC1);
-	s2mf301_pm_enable(pmeter, CONTINUOUS_MODE, S2MF301_PM_TYPE_VCC2);
+	s2mf301_pm_enable(pmeter, CONTINUOUS_MODE, true, S2MF301_PM_TYPE_ICHGIN);
+	s2mf301_pm_enable(pmeter, CONTINUOUS_MODE, true, S2MF301_PM_TYPE_VCHGIN);
+	s2mf301_pm_enable(pmeter, CONTINUOUS_MODE, true, S2MF301_PM_TYPE_VCC1);
+	s2mf301_pm_enable(pmeter, CONTINUOUS_MODE, true, S2MF301_PM_TYPE_VCC2);
 }
 
 static int s2mf301_pmeter_probe(struct platform_device *pdev)
@@ -429,6 +905,9 @@ static int s2mf301_pmeter_probe(struct platform_device *pdev)
 	pmeter->dev = &pdev->dev;
 	/* in mf301, PM uses 0x7E secondary address */
 	pmeter->i2c = s2mf301->pm;
+#if IS_ENABLED(CONFIG_S2MF301_TYPEC_WATER)
+	pmeter->s2mf301 = s2mf301;
+#endif
 
 	platform_set_drvdata(pdev, pmeter);
 
@@ -453,15 +932,25 @@ static int s2mf301_pmeter_probe(struct platform_device *pdev)
 	if (ret < 0)
 		pr_err("%s: Fail to request SYS in IRQ: %d: %d\n", __func__, pmeter->irq_vchgin, ret);
 
+#if IS_ENABLED(CONFIG_MUIC_S2MF301_RID)
+	pmeter->irq_rid_attach = s2mf301->pdata->irq_base + S2MF301_PM_ADC_CHANGE_INT4_PM_RID_ATTACH;
+	ret = request_threaded_irq(pmeter->irq_rid_attach, NULL, s2mf301_pm_rid_isr, 0, "rid_attach_isr", pmeter);
+	if (ret < 0)
+		pr_err("%s: Fail to request SYS in IRQ: %d: %d\n", __func__, pmeter->irq_rid_attach, ret);
+
+	pmeter->irq_rid_detach = s2mf301->pdata->irq_base + S2MF301_PM_ADC_CHANGE_INT4_PM_RID_DETACH;
+	ret = request_threaded_irq(pmeter->irq_rid_detach, NULL, s2mf301_pm_rid_isr, 0, "rid_detach_isr", pmeter);
+	if (ret < 0)
+		pr_err("%s: Fail to request SYS in IRQ: %d: %d\n", __func__, pmeter->irq_rid_detach, ret);
+#endif
+
+	pmeter->irq_ichgin_th = s2mf301->pdata->irq_base + S2MF301_PM_ADC_CHANGE_INT4_ICHGIN_TH;
+	ret = request_threaded_irq(pmeter->irq_ichgin_th, NULL, s2mf301_ichgin_th_isr, 0, "ichgin_th_isr", pmeter);
+	if (ret < 0)
+		pr_err("%s: Fail to request SYS in IRQ: %d: %d\n", __func__, pmeter->irq_ichgin_th, ret);
+
 	/* mask TYPE_C_0.8_TH */
 	s2mf301_update_reg(pmeter->i2c, S2MF301_REG_PM_ADC_REQ_DONE4_MASK, 0x80, 0x80);
-
-	s2mf301_write_reg(pmeter->i2c, S2MF301_REG_PM_ADCEN_BY_TA_MASK1, 0xff);
-	s2mf301_write_reg(pmeter->i2c, S2MF301_REG_PM_ADCEN_BY_TA_MASK2, 0xff);
-	s2mf301_write_reg(pmeter->i2c, S2MF301_REG_PM_ADCEN_BY_OTG_MASK1, 0xff);
-	s2mf301_write_reg(pmeter->i2c, S2MF301_REG_PM_ADCEN_BY_OTG_MASK2, 0xff);
-	s2mf301_write_reg(pmeter->i2c, S2MF301_REG_PM_ADCEN_CONTINU1, 0x00);
-	s2mf301_write_reg(pmeter->i2c, S2MF301_REG_PM_ADCEN_CONTINU2, 0x00);
 
 	s2mf301_powermeter_initial(pmeter);
 

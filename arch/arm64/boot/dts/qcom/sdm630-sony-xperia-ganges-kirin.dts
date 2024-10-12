@@ -1073,7 +1073,7 @@
 					pins = "gpio17\0gpio18\0gpio19";
 					function = "gpio";
 					drive-strength = <0x02>;
-					bias-no-pull;
+					bias-disable;
 				};
 			};
 
@@ -1643,7 +1643,7 @@
 						phandle = <0xad>;
 					};
 
-					vcoin@83 {
+					vcoin@85 {
 						reg = <0x85>;
 						qcom,decimation = <0x400>;
 						qcom,pre-scaling = <0x01 0x03>;
@@ -2993,7 +2993,7 @@
 		pa_therm1 = "/soc/spmi@800f000/pmic@0/adc@3100/thermistor1@50";
 		quiet_therm = "/soc/spmi@800f000/pmic@0/adc@3100/quiet_therm@51";
 		vadc_vph_pwr = "/soc/spmi@800f000/pmic@0/adc@3100/vph_pwr@83";
-		vcoin = "/soc/spmi@800f000/pmic@0/adc@3100/vcoin@83";
+		vcoin = "/soc/spmi@800f000/pmic@0/adc@3100/vcoin@85";
 		pm660_gpios = "/soc/spmi@800f000/pmic@0/gpios@c000";
 		pm660_spmi_regulators = "/soc/spmi@800f000/pmic@1/pm660-regulators";
 		pm660l_temp = "/soc/spmi@800f000/pmic@2/temp-alarm@2400";

@@ -429,3 +429,10 @@ config SCSC_WLAN_TPUT_MONITOR
 	default y
 	help
 	This option enables throughput monitor in Host
+
+config SCSC_WLAN_CUSTOM_TX_POWER
+	bool "Enable SET_CUSTOM_TX_POWER_CALLING
+	depends on SOC_S5E8835
+	default y
+	help
+	This option enables SET_CUSTOM_TX_POWER_CALLING api to set max power backoff

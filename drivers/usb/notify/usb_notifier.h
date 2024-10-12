@@ -12,12 +12,14 @@
 #ifdef CONFIG_USB_DWC3
 extern int dwc3_exynos_id_event(struct device *dev, int state);
 extern int dwc3_exynos_vbus_event(struct device *dev, int state);
+extern int dwc3_gadget_speed(struct device *dev);
 extern int exynos_usbdrd_ldo_manual_control(bool on);
 #else
 static inline int dwc3_exynos_id_event
 		(struct device *dev, int state) {return 0; }
 static inline int dwc3_exynos_vbus_event
 		(struct device *dev, int state) {return 0; }
+static inline int dwc3_gadget_speed(return 0; }
 static inline int exynos_usbdrd_ldo_manual_control
 		(bool on) {return 0; }
 #endif

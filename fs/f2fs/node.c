@@ -2145,6 +2145,13 @@ int f2fs_wait_on_node_pages_writeback(struct f2fs_sb_info *sbi,
 		get_page(page);
 		spin_unlock_irqrestore(&sbi->fsync_node_lock, flags);
 
+		/*
+		 * P230415-00587
+		 * Prevent scheduling starvation due to priority inversion
+		 */
+		if (unlikely(PageLocked(page)))
+			f2fs_io_schedule_timeout(1);
+
 		f2fs_wait_on_page_writeback(page, NODE, true, false);
 		if (TestClearPageError(page))
 			ret = -EIO;

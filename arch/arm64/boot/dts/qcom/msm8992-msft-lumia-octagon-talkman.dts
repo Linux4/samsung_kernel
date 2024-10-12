@@ -161,7 +161,7 @@
 	};
 
 	hwlock {
-		compatible = "qcom,sfpb-mutex";
+		compatible = "qcom,tcsr-mutex";
 		syscon = <0x0b 0x00 0x80>;
 		#hwlock-cells = <0x01>;
 		phandle = <0x16>;

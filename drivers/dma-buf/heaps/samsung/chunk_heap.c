@@ -242,6 +242,7 @@ static const struct dma_heap_ops chunk_heap_ops = {
 static int chunk_heap_probe(struct platform_device *pdev)
 {
 	struct chunk_heap *chunk_heap;
+	struct cma *cma;
 	int ret;
 
 	ret = of_reserved_mem_device_init(&pdev->dev);
@@ -249,6 +250,10 @@ static int chunk_heap_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev, "The CMA reserved area is not assigned (ret %d)\n", ret);
 		return -EINVAL;
 	}
+	cma = pdev->dev.cma_area;
+
+	if (!strncmp("empty", cma_get_name(cma), sizeof("empty") - 1))
+		return 0;
 
 	ret = devm_add_action(&pdev->dev, rmem_remove_callback, &pdev->dev);
 	if (ret) {
@@ -259,7 +264,8 @@ static int chunk_heap_probe(struct platform_device *pdev)
 	chunk_heap = devm_kzalloc(&pdev->dev, sizeof(*chunk_heap), GFP_KERNEL);
 	if (!chunk_heap)
 		return -ENOMEM;
-	chunk_heap->cma = pdev->dev.cma_area;
+
+	chunk_heap->cma = cma;
 
 	ret = samsung_heap_add(&pdev->dev, chunk_heap, chunk_heap_release, &chunk_heap_ops);
 

@@ -186,7 +186,7 @@ struct panel_spi_dev {
 	u32 read_buf_size;
 
 	//for file ops
-	struct mutex f_lock;
+	struct panel_mutex f_lock;
 	bool fopened;
 	bool auto_erase;
 };

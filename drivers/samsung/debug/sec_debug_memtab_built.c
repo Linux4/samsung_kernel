@@ -100,3 +100,7 @@ DEFINE_MEMBER_TYPE(xa_node_slots, xa_node, slots);
 #ifdef CONFIG_STACKPROTECTOR_PER_TASK
 DEFINE_MEMBER_TYPE(task_struct_stack_canary, task_struct, stack_canary);
 #endif
+DEFINE_MEMBER_TYPE(irq_desc_action, irq_desc, action);
+DEFINE_MEMBER_TYPE(irq_desc_irq_data__irq, irq_desc, irq_data.irq);
+DEFINE_MEMBER_TYPE(irqaction_name, irqaction, name);
+DEFINE_MEMBER_TYPE(irqaction_thread, irqaction, thread);

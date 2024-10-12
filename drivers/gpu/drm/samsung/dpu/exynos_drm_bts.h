@@ -159,6 +159,9 @@ struct dpu_bts {
 	struct exynos_pm_qos_request int_qos;
 	struct exynos_pm_qos_request disp_qos;
 
+	s32 int_default;
+	s32 mif_default;
+
 	struct dpu_bts_win_config win_config[BTS_WIN_MAX];
 	struct dpu_bts_win_config wb_config;
 

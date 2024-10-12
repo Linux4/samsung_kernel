@@ -87,10 +87,6 @@
 /*Requirement-Used for Fast Recovery */
 #define HOST_REASONCODE_RECOVERY_REASON    111
 
-/* Manually added: To remove after fapi update */
-#define FAPI_SCANMODE_LOW_LATENCY_2   0x0002
-#define FAPI_SCANMODE_LOW_LATENCY_3   0x0003
-
 #define SLSI_ANTENNA_NOT_SET (0xff)
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 4, 0)
@@ -976,6 +972,12 @@ int slsi_start(struct slsi_dev *sdev, struct net_device *dev)
 	SLSI_MUTEX_LOCK(sdev->device_config_mutex);
 
 	slsi_mlme_set_host_state(sdev, dev, sdev->device_config.host_state);
+	if (sdev->mac_changed) {
+		slsi_mlme_set_max_tx_power(sdev, dev, sdev->device_config.last_custom_tx_pwr);
+	} else {
+		for (i = 0 ; i < MAX_TX_PWR_BACKOFF_ARG_CNT ; i++)
+			sdev->device_config.last_custom_tx_pwr[i] = -1;
+	}
 
 	reg_err = slsi_read_regulatory(sdev);
 	if (reg_err) {
@@ -1185,16 +1187,13 @@ void slsi_ndl_vif_cleanup(struct slsi_dev *sdev, struct net_device *dev, bool hw
 			peer->ndp_count--;
 			if (peer->ndp_count == 0)
 				slsi_peer_remove(sdev, dev, peer);
-			if (ndev_vif->nan.ndp_count > 0)
-				ndev_vif->nan.ndp_count--;
-			if (nan_mgmt_dev && ndp_instance_id < SLSI_NAN_MAX_NDP_INSTANCES + 1)
-				slsi_nan_ndp_del_entry(sdev, nan_mgmt_dev, ndp_instance_id, true);
 		}
 	}
 
 	slsi_spinlock_unlock(&ndev_vif->peer_lock);
 	SLSI_DBG2(sdev, SLSI_INIT_DEINIT, "nan.ndp_count: %d , vif_activated:%d\n", ndev_vif->nan.ndp_count, ndev_vif->activated);
 	slsi_release_dp_resources(sdev, dev, ndev_vif);
+	slsi_rx_ba_update_timer(sdev, dev, SLSI_RX_BA_EVENT_VIF_TERMINATED);
 }
 #endif
 void slsi_vif_cleanup(struct slsi_dev *sdev, struct net_device *dev, bool hw_available, bool is_recovery)
@@ -1351,6 +1350,30 @@ void slsi_scan_cleanup(struct slsi_dev *sdev, struct net_device *dev)
 	SLSI_MUTEX_UNLOCK(ndev_vif->scan_mutex);
 }
 
+static void slsi_clear_low_latency_state(struct net_device *dev)
+{
+	struct netdev_vif *ndev_vif = netdev_priv(dev);
+	struct slsi_dev   *sdev = ndev_vif->sdev;
+	int               ret = 0;
+	u16               host_state;
+
+	if (!SLSI_IS_VIF_INDEX_WLAN(ndev_vif))
+		return;
+
+	SLSI_MUTEX_LOCK(sdev->device_config_mutex);
+	host_state = sdev->device_config.host_state;
+	host_state &= ~SLSI_HOSTSTATE_LOW_LATENCY_ACTIVE;
+
+	ret = slsi_mlme_set_host_state(sdev, dev, host_state);
+	if (ret != 0) {
+		SLSI_NET_ERR(dev, "Error in setting the Host State, ret=%d\n", ret);
+		SLSI_MUTEX_UNLOCK(sdev->device_config_mutex);
+		return;
+	}
+	sdev->device_config.host_state = host_state;
+	SLSI_MUTEX_UNLOCK(sdev->device_config_mutex);
+}
+
 static void slsi_stop_net_dev_locked(struct slsi_dev *sdev, struct net_device *dev, bool hw_available)
 {
 	struct netdev_vif *ndev_vif = netdev_priv(dev);
@@ -1369,9 +1392,9 @@ static void slsi_stop_net_dev_locked(struct slsi_dev *sdev, struct net_device *d
 		if (ndev_vif->ifnum >= SLSI_NAN_DATA_IFINDEX_START && ndev_vif->activated) {
 			ndev_vif->activated = false;
 			slsi_release_dp_resources(sdev, dev, ndev_vif);
+			slsi_rx_ba_update_timer(sdev, dev, SLSI_RX_BA_EVENT_VIF_TERMINATED);
 		}
 #endif
-
 		return;
 	}
 
@@ -3194,7 +3217,6 @@ int slsi_vif_activated(struct slsi_dev *sdev, struct net_device *dev)
 		ndev_vif->sta.roam_in_progress = false;
 		ndev_vif->sta.nd_offload_enabled = true;
 		memset(ndev_vif->sta.keepalive_host_tag, 0, sizeof(ndev_vif->sta.keepalive_host_tag));
-
 		slsi_tdls_manager_on_vif_activated(sdev, dev, ndev_vif);
 	}
 
@@ -3213,6 +3235,7 @@ int slsi_vif_activated(struct slsi_dev *sdev, struct net_device *dev)
 #ifdef CONFIG_SCSC_WLAN_LOAD_BALANCE_MANAGER
 		slsi_lbm_netdev_activate(sdev, dev);
 #endif
+		slsi_rx_ba_update_timer(sdev, dev, SLSI_RX_BA_EVENT_VIF_CONNECTED);
 	}
 
 #ifdef CONFIG_SCSC_WLAN_SAP_POWER_SAVE
@@ -3246,7 +3269,12 @@ void slsi_vif_deactivated(struct slsi_dev *sdev, struct net_device *dev)
 			WLBT_WARN(ndev_vif->sta.tdls_peer_sta_records, "vif:%d, tdls_peer_sta_records:%d", ndev_vif->ifnum, ndev_vif->sta.tdls_peer_sta_records);
 
 		if (ndev_vif->sta.sta_bss) {
+#ifdef CONFIG_SEC_FACTORY
+			cfg80211_unlink_bss(sdev->wiphy, ndev_vif->sta.sta_bss);
+			cfg80211_bss_flush(sdev->wiphy);
+#else
 			slsi_cfg80211_put_bss(sdev->wiphy, ndev_vif->sta.sta_bss);
+#endif
 			ndev_vif->sta.sta_bss = NULL;
 		}
 		ndev_vif->sta.tdls_enabled = false;
@@ -3272,6 +3300,8 @@ void slsi_vif_deactivated(struct slsi_dev *sdev, struct net_device *dev)
 		}
 		ndev_vif->sta.tdls_candidate_setup_count = 0;
 		ndev_vif->sta.twt_peer_cap = 0;
+
+		slsi_clear_low_latency_state(dev);
 	}
 
 	/* MUST be done first to ensure that other code doesn't treat the VIF as still active */
@@ -3328,7 +3358,12 @@ void slsi_vif_deactivated(struct slsi_dev *sdev, struct net_device *dev)
 			     ndev_vif->ifnum, ndev_vif->sta.tdls_peer_sta_records);
 
 		if (ndev_vif->sta.sta_bss) {
+#ifdef CONFIG_SEC_FACTORY
+			cfg80211_unlink_bss(sdev->wiphy, ndev_vif->sta.sta_bss);
+			cfg80211_bss_flush(sdev->wiphy);
+#else
 			slsi_cfg80211_put_bss(sdev->wiphy, ndev_vif->sta.sta_bss);
+#endif
 			ndev_vif->sta.sta_bss = NULL;
 		}
 		ndev_vif->sta.tdls_enabled = false;
@@ -3336,6 +3371,7 @@ void slsi_vif_deactivated(struct slsi_dev *sdev, struct net_device *dev)
 	}
 
 	slsi_release_dp_resources(sdev, dev, ndev_vif);
+	slsi_rx_ba_update_timer(sdev, dev, SLSI_RX_BA_EVENT_VIF_TERMINATED);
 }
 
 int slsi_sta_ieee80211_mode(struct net_device *dev, u16 current_bss_channel_frequency)
@@ -5048,6 +5084,7 @@ void slsi_set_packet_filters(struct slsi_dev *sdev, struct net_device *dev)
 int slsi_ip_address_changed(struct slsi_dev *sdev, struct net_device *dev, __be32 ipaddress)
 {
 	struct netdev_vif *ndev_vif = netdev_priv(dev);
+	u8 broadcast_mac[ETH_ALEN] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
 	int ret = 0;
 
 	/* Store the IP address outside the check for vif being active
@@ -5093,6 +5130,7 @@ int slsi_ip_address_changed(struct slsi_dev *sdev, struct net_device *dev, __be3
 			return -EINVAL;
 
 		ndev_vif->ipaddress = ipaddress;
+		ether_addr_copy(ndev_vif->sta.tdls_dgw_macaddr, broadcast_mac);
 		ret = slsi_mlme_set_ip_address(sdev, dev);
 		if (ret != 0)
 			SLSI_NET_ERR(dev, "slsi_mlme_set_ip_address ERROR. ret=%d", ret);
@@ -7360,6 +7398,7 @@ int slsi_wlan_unsync_vif_activate(struct slsi_dev *sdev, struct net_device *dev,
 			SLSI_NET_ERR(dev, "slsi_mlme_del_vif failed\n");
 
 		slsi_release_dp_resources(sdev, dev, ndev_vif);
+		slsi_rx_ba_update_timer(sdev, dev, SLSI_RX_BA_EVENT_VIF_TERMINATED);
 		goto exit_with_error;
 	}
 	sdev->wlan_unsync_vif_state = WLAN_UNSYNC_VIF_ACTIVE;
@@ -7673,6 +7712,7 @@ void slsi_wlan_unsync_vif_deactivate(struct slsi_dev *sdev, struct net_device *d
 
 	(void)slsi_set_mgmt_tx_data(ndev_vif, 0, 0, NULL, 0);
 	slsi_release_dp_resources(sdev, dev, ndev_vif);
+	slsi_rx_ba_update_timer(sdev, dev, SLSI_RX_BA_EVENT_VIF_TERMINATED);
 }
 
 void slsi_scan_ind_timeout_handle(struct work_struct *work)
@@ -8298,9 +8338,10 @@ void slsi_collect_chipset_logs(struct work_struct *work)
 
 	total_header = sizeof(build_id_fw) + sizeof(build_id_drv);
 
+	SLSI_MUTEX_LOCK(sdev->start_stop_mutex);
 	if (!sdev || !sdev->service) {
 		SLSI_ERR(sdev, "sdev/service is NULL\n");
-		goto trigger_sable;
+		goto chipset_logging_done;
 	}
 
 	service = sdev->service;
@@ -8309,7 +8350,7 @@ void slsi_collect_chipset_logs(struct work_struct *work)
 
 	if (size < total_header) {
 		SLSI_INFO(sdev, "Not enough space, size %zu header %zu\n", size, total_header);
-		goto trigger_sable;
+		goto chipset_logging_done;
 	}
 
 	if (size > MAX_LOG_SIZE)
@@ -8317,7 +8358,6 @@ void slsi_collect_chipset_logs(struct work_struct *work)
 
 	SLSI_INFO(sdev, "SCSC_LOG_CHUNK_UDI chunk size %zu\n", size);
 
-	SLSI_MUTEX_LOCK(sdev->start_stop_mutex);
 	if (sdev->device_state != SLSI_DEVICE_STATE_STARTED) {
 		SLSI_INFO(sdev, "Skip chipset_log in off state\n");
 		goto chipset_logging_done;
@@ -8359,7 +8399,7 @@ void slsi_collect_chipset_logs(struct work_struct *work)
 	}
 chipset_logging_done:
 	SLSI_MUTEX_UNLOCK(sdev->start_stop_mutex);
-trigger_sable:
+
 	dump_in_progress = 0;
 	vfree(buffer);
 #if IS_ENABLED(CONFIG_SCSC_LOG_COLLECTION)

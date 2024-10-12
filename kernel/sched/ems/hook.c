@@ -273,6 +273,16 @@ static void ems_hook_syscall_prctl_finished(void *data, int option, struct task_
 	ems_render(p) = 1;
 }
 
+static void ems_hook_new_task_stats(void *data, struct task_struct *p)
+{
+	ems_last_waked(p) = ktime_get_ns();
+}
+
+static void ems_hook_try_to_wake_up(void *data, struct task_struct *p)
+{
+	ems_last_waked(p) = ktime_get_ns();
+}
+
 int hook_init(void)
 {
 	int ret;
@@ -396,6 +406,12 @@ int hook_init(void)
 		return ret;
 
 	ret = register_trace_android_vh_syscall_prctl_finished(ems_hook_syscall_prctl_finished, NULL);
+
+	ret = register_trace_android_rvh_new_task_stats(ems_hook_new_task_stats, NULL);
+	if (ret)
+		return ret;
+
+	ret = register_trace_android_rvh_try_to_wake_up(ems_hook_try_to_wake_up, NULL);
 	if (ret)
 		return ret;
 

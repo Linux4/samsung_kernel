@@ -71,8 +71,12 @@
 #define MAX_BUF_SIZE					(256) /* For qc solution build */
 
 #define S2MF301_PM_ADC_ENABLE_MASK	(0x01)
+#define S2MF301_PM_RID_ATTACH_MASK (1 << 5)
+#define S2MF301_PM_RID_DETACH_MASK (1 << 4)
+#define S2MF301_PM_RID_ATTACH_DETACH_MASK (S2MF301_PM_RID_ATTACH_MASK | S2MF301_PM_RID_DETACH_MASK)
 
 #define S2MF301_PM_RID_STATUS_MASK	(S2MF301_PM_RID_STATUS_255K |\
+		S2MF301_PM_RID_STATUS_56K |\
 		S2MF301_PM_RID_STATUS_301K |\
 		S2MF301_PM_RID_STATUS_523K |\
 		S2MF301_PM_RID_STATUS_619K)
@@ -147,8 +151,20 @@ enum s2mf301_pm_register_type {
 	S2MF301_REG_PM_ADCEN_CONTINU1		= 0x50,
 	S2MF301_REG_PM_ADCEN_CONTINU2		= 0x51,
 
+	S2MF301_REG_PM_CTRL1		= 0x54,
+
+	S2MF301_REG_PM_HYST_LEV			= 0x6F,
+
+	S2MF301_REG_PM_WET_EN1			= 0x73,
+	S2MF301_REG_PM_WET_EN2			= 0x74,
+
 	S2MF301_REG_PM_ADC_CTRL8		= 0x7A,
+	S2MF301_REG_PM_WET_DET_CTRL1		= 0x8E,
+	S2MF301_REG_PM_WET_DET_CTRL2		= 0x8F,
 };
+
+#define S2MF301_REG_PM_WET_EN1_GPADC1		(0x1 << 3)
+#define S2MF301_REG_PM_WET_EN2_GPADC2		(0x1 << 7)
 
 enum pm_type {
 	S2MF301_PM_TYPE_VCHGIN = 0,
@@ -169,6 +185,8 @@ enum pm_type {
 	S2MF301_PM_TYPE_GPADC3,
 	S2MF301_PM_TYPE_VDCIN,
 
+	S2MF301_PM_TYPE_GPADC12,
+
 	S2MF301_PM_TYPE_MAX,
 };
 
@@ -177,19 +195,52 @@ enum {
 	REQUEST_RESPONSE_MODE,
 };
 
+enum s2mf301_water_gpadc {
+	S2MF301_WATER_GPADC_DRY,
+	S2MF301_WATER_GPADC12,
+	S2MF301_WATER_GPADC1,
+	S2MF301_WATER_GPADC2,
+};
+
+enum s2mf301_water_irq_type {
+	S2MF301_IRQ_TYPE_CHANGE,
+	S2MF301_IRQ_TYPE_WATER,
+	S2MF301_IRQ_TYPE_RR,
+};
+
+enum s2mf301_water_gpadc_mode {
+	S2MF301_GPADC_RMODE,
+	S2MF301_GPADC_VMODE,
+};
+
 struct s2mf301_pmeter_data {
 	struct i2c_client *i2c;
 	struct device *dev;
 	struct s2mf301_platform_data *s2mf301_pdata;
 
 	int irq_vchgin;
+	int irq_comp1;
+	int irq_comp2;
+	int irq_water_status1;
+	int irq_water_status2;
+	int irq_gpadc1up;
+	int irq_gpadc2up;
+	int irq_rid_attach;
+	int irq_rid_detach;
+	int irq_ichgin_th;
 
 	struct power_supply	*psy_pm;
 	struct power_supply_desc psy_pm_desc;
 
 	struct mutex		pmeter_mutex;
-
-	int		pm_rid_enabled;
+	struct s2mf301_muic_data *muic_data;
+#if IS_ENABLED(CONFIG_S2MF301_TYPEC_WATER)
+	struct s2mf301_water_data *water;
+	struct s2mf301_dev *s2mf301;
+#endif
 };
 
+#if IS_ENABLED(CONFIG_S2MF301_TYPEC_WATER)
+void *s2mf301_pm_water_init(struct s2mf301_water_data *water);
+#endif
 #endif /*S2MF301_PMETER_H*/

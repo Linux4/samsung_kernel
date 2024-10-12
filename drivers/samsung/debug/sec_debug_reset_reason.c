@@ -41,9 +41,9 @@ static char dword_regs_bit[][32][RSTSTAT_LEN] = {
 	  "RSVD8", "RSVD9", "RSVD10", "RSVD11",
 	  "RSVD12", "RSVD13", "CLUSTER2_WARMRSTREQ0", "CLUSTER2_WARMRSTREQ1",
 	  "PINRESET", "RSVD17", "RSVD18", "RSVD19",
-	  "APM_CPU_SDTRESET", "APM_CPU_SYSRESET", "VTS_CPU_WDTRESET", "CHUB_WDTRESET",
+	  "APM_CPU_WDTRESET", "APM_CPU_SYSRESET", "VTS_CPU_WDTRESET", "CHUB_WDTRESET",
 	  "CLUSTER0_WDTRESET", "CLUSTER2_WDTRESET", "AUD_CPU0_WDTRESET", "SSS_WDTRESET",
-	  "DBGCORE_CPU_WDTRESET", "WRESET", "SWRESET", "RSVD31"
+	  "DBGCORE_CPU_WDTRESET", "WRESET", "SWRESET", "PORESET"
 	}, /* RST_STAT */
 }; /* EXYNOS 2100 */
 
@@ -121,13 +121,11 @@ static int secdbg_reset_reason_proc_show(struct seq_file *m, void *v)
 
 static bool is_target_reset_reason(void)
 {
-	if (reset_reason == RR_K ||
-		reset_reason == RR_D ||
-		reset_reason == RR_P ||
-		reset_reason == RR_S)
-		return true;
+	if (reset_reason == RR_N ||
+		reset_reason == RR_R)
+		return false;
 
-	return false;
+	return true;
 }
 
 static int secdbg_reset_reason_store_lastkmsg_proc_show(struct seq_file *m, void *v)
@@ -145,48 +143,27 @@ static int secdbg_rere_get_rstcnt_from_cmdline(void)
 	return rstcnt_rs >> 32;
 }
 
-#define DEFAULT_SRC_NUM 16
-static void parse_pwrsrc_rs(struct outbuf *buf)
+static unsigned long get_offsrc_from_pwrsrc(unsigned long pwrsrc)
 {
-	int i, reg_i;
-	unsigned long tmp;
-
-	_secdbg_rere_write_buf(buf, 0, "OFFSRC::");
-	tmp = pwrsrc & 0xffff0000;
-	tmp >>= 16;
-	if (!tmp)
-		_secdbg_rere_write_buf(buf, 0, " -");
-	else {
-		for (i = DEFAULT_SRC_NUM - power_off_src_cnt, reg_i = 0; i < DEFAULT_SRC_NUM; i++, reg_i++)
-			if (tmp & (1 << i))
-				_secdbg_rere_write_buf(buf, 0, " %s", regs_bit[0][reg_i]);
-	}
-	_secdbg_rere_write_buf(buf, 0, " /");
-
-	_secdbg_rere_write_buf(buf, 0, " ONSRC::");
-	tmp = pwrsrc & 0x0000ffff;
-
-	if (!tmp)
-		_secdbg_rere_write_buf(buf, 0, " -");
-	else {
-		for (i = DEFAULT_SRC_NUM - power_on_src_cnt, reg_i = 0; i < DEFAULT_SRC_NUM; i++, reg_i++)
-			if (tmp & (1 << i))
-				_secdbg_rere_write_buf(buf, 0, " %s", regs_bit[1][reg_i]);
-	}
-
-	_secdbg_rere_write_buf(buf, 0, " /");
-
-	_secdbg_rere_write_buf(buf, 0, " RSTSTAT::");
-	tmp = rstcnt_rs & 0xffffffff;
-	if (!tmp)
-		_secdbg_rere_write_buf(buf, 0, " -");
-	else
-		for (i = 0; i < 32; i++)
-			if (tmp & (1 << i))
-				_secdbg_rere_write_buf(buf, 0, " %s", dword_regs_bit[0][i]);
-
-	buf->already = 1;
+	return (pwrsrc & 0xffff0000) >> 16;
 }
+
+static unsigned long get_onsrc_from_pwrsrc(unsigned long pwrsrc)
+{
+	return (pwrsrc & 0x0000ffff);
+}
+
+static unsigned long get_rststat_from_rstcnt_rs(unsigned long rstcnt_rs)
+{
+	return (rstcnt_rs & 0xffffffff);
+}
+
+#define for_each_pmic_sfr(offset, i, j) \
+	for (i = DEFAULT_SRC_NUM - offset, j = 0; i < DEFAULT_SRC_NUM; i++, j++)
+
+#define for_each_pmic_sfr_with_set(offset, i, j, target) \
+	for_each_pmic_sfr(offset, i, j) \
+		if (target & (1 << i))
 
 /*
  * proc/pwrsrc
@@ -195,86 +172,46 @@ static void parse_pwrsrc_rs(struct outbuf *buf)
  * total max : 48
  */
 
-
-static int secdbg_rere_pwr_to_ul(char *src, unsigned long *dst)
-{
-	char val[32] = {0, };
-	int i, pos = 0;
-
-	for (i = 0 ; i < strlen(src) ; i++)
-		if (isdigit(*(src + i)))
-			val[pos++] = *(src + i);
-
-	return kstrtoul(val, 16, dst);
-}
+#define DEFAULT_SRC_NUM 16
 static int secdbg_reset_reason_pwrsrc_show(struct seq_file *m, void *v)
 {
-	int i;
-	char val[32] = {0, };
-	unsigned long tmp;
-	int check_tmp = 0;
+	int i, reg_i;
+	unsigned long rststat, offsrc, onsrc;
 
 	if (pwrsrc_buf.already)
 		goto out;
 
 	memset(&pwrsrc_buf, 0, sizeof(pwrsrc_buf));
 
-	memset(val, 0, 32);
-	get_bk_item_val_as_string("PWROFF", val);
-	if (secdbg_rere_pwr_to_ul(val, &tmp) < 0) {
-		pr_err("%s: Bad PWROFF value\n", __func__);
-		tmp = 0;
-	}
-
 	_secdbg_rere_write_buf(&pwrsrc_buf, 0, "OFFSRC:");
-	if (!tmp) {
+	offsrc = get_offsrc_from_pwrsrc(pwrsrc);
+	if (!offsrc)
 		_secdbg_rere_write_buf(&pwrsrc_buf, 0, " -");
-		check_tmp++;
-	} else
-		for (i = 0; i < power_off_src_cnt; i++)
-			if (tmp & (1 << i))
-				_secdbg_rere_write_buf(&pwrsrc_buf, 0, " %s", regs_bit[0][i]);
-
-	_secdbg_rere_write_buf(&pwrsrc_buf, 0, " /");
-
-	memset(val, 0, 32);
-	get_bk_item_val_as_string("PWR", val);
-	if (secdbg_rere_pwr_to_ul(val, &tmp) < 0) {
-		pr_err("%s: Bad PWR value\n", __func__);
-		tmp = 0;
+	else {
+		for_each_pmic_sfr_with_set(power_off_src_cnt, i, reg_i, offsrc)
+			_secdbg_rere_write_buf(&pwrsrc_buf, 0, " %s", regs_bit[0][reg_i]);
 	}
+	_secdbg_rere_write_buf(&pwrsrc_buf, 0, " /");
 
 	_secdbg_rere_write_buf(&pwrsrc_buf, 0, " ONSRC:");
-	if (!tmp) {
+	onsrc = get_onsrc_from_pwrsrc(pwrsrc);
+	if (!onsrc)
 		_secdbg_rere_write_buf(&pwrsrc_buf, 0, " -");
-		check_tmp++;
-	} else
-		for (i = 0; i < power_on_src_cnt; i++)
-			if (tmp & (1 << i))
-				_secdbg_rere_write_buf(&pwrsrc_buf, 0, " %s", regs_bit[1][i]);
+	else {
+		for_each_pmic_sfr_with_set(power_on_src_cnt, i, reg_i, onsrc)
+			_secdbg_rere_write_buf(&pwrsrc_buf, 0, " %s", regs_bit[1][reg_i]);
+	}
 
 	_secdbg_rere_write_buf(&pwrsrc_buf, 0, " /");
 
-	memset(val, 0, 32);
-	get_bk_item_val_as_string("RST", val);
-	if (kstrtoul(val, 0, &tmp) < 0) {
-		pr_err("%s: Bad RST value\n", __func__);
-		tmp = 0;
-	}
-
 	_secdbg_rere_write_buf(&pwrsrc_buf, 0, " RSTSTAT:");
-	if (!tmp) {
+	rststat = get_rststat_from_rstcnt_rs(rstcnt_rs);
+	if (!rststat)
 		_secdbg_rere_write_buf(&pwrsrc_buf, 0, " -");
-		check_tmp++;
-	} else
+	else
 		for (i = 0; i < 32; i++)
-			if (tmp & (1 << i))
+			if (rststat & (1 << i))
 				_secdbg_rere_write_buf(&pwrsrc_buf, 0, " %s", dword_regs_bit[0][i]);
-
-	if (check_tmp == 3) {
-		memset(&pwrsrc_buf, 0, sizeof(pwrsrc_buf));
-		parse_pwrsrc_rs(&pwrsrc_buf);
-	}
 
 	pwrsrc_buf.already = 1;
 out:

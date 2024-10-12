@@ -123,6 +123,13 @@
 #define SLSI_FW_API_RATE_11AX_GI            (0x3 << SLSI_FW_API_RATE_11AX_GI_POSN)
 #define SLSI_FW_API_GET_11AX_GI(val)        ((val & SLSI_FW_API_RATE_11AX_GI) >> SLSI_FW_API_RATE_11AX_GI_POSN)
 
+#define RADIO_1_ANT_NUM                     0
+#define RADIO_2_ANT_NUM                     1
+#define MASK_BACKOFF_STATE_INIT             0x0000
+#define MASK_BACKOFF_STATE_ANT_1            0x0001
+#define MASK_BACKOFF_STATE_ANT_2            0x0002
+
+#define MAX_TX_PWR_BACKOFF_ARG_CNT          12
 #define HEAD_SAR_BACKOFF_DISABLED           -1
 #define HEAD_SAR_BACKOFF_ENABLED            0
 #define BODY_SAR_BACKOFF_DISABLED           1
@@ -786,6 +793,7 @@ struct slsi_vif_sta {
 	int                     tdls_peer_sta_records;
 	int                     tdls_max_peer;
 	bool                    tdls_enabled;
+	u8                      tdls_dgw_macaddr[ETH_ALEN];
 	struct list_head        tdls_candidate_setup_list;
 	int                     tdls_candidate_setup_count;
 	struct cfg80211_bss     *sta_bss;
@@ -1147,6 +1155,7 @@ struct netdev_vif {
 	struct slsi_spinlock        ba_lock;
 	struct sk_buff_head         ba_complete;
 	atomic_t                    ba_flush;
+	u32                         timeout_in_ms;
 
 	u64                         mgmt_tx_cookie; /* Cookie id for mgmt tx */
 	struct slsi_vif_mgmt_tx     mgmt_tx_data;
@@ -1335,6 +1344,8 @@ struct slsi_dev_config {
 	bool                                    fw_apf_supported;
 	struct                                  slsi_apf_capabilities apf_cap;
 	int                                     supported_roam_band;
+	int                                     last_custom_tx_pwr[MAX_TX_PWR_BACKOFF_ARG_CNT];
+	u16                                     backoffed_ant_config;
 };
 
 #define SLSI_DEVICE_STATE_ATTACHING 0
@@ -1626,6 +1637,7 @@ struct slsi_dev {
 #ifdef CONFIG_SCSC_WLAN_HIP4_PROFILING
 	int                        minor_prof;
 #endif
+	DECLARE_BITMAP(rx_ba_bitmap, CONFIG_SCSC_WLAN_MAX_INTERFACES);
 	struct slsi_ba_session_rx  rx_ba_buffer_pool[SLSI_MAX_RX_BA_SESSIONS];
 	struct slsi_spinlock       rx_ba_buffer_pool_lock;
 	bool			   fail_reported;

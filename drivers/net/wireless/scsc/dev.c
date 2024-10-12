@@ -425,6 +425,9 @@ struct slsi_dev *slsi_dev_attach(struct device *dev, struct scsc_mx *core, struc
 	sdev->maddr_file_name = maddr_file;
 	sdev->device_config.qos_info = -1;
 	sdev->device_config.host_state = SLSI_HOSTSTATE_CELLULAR_ACTIVE;
+	sdev->device_config.backoffed_ant_config = MASK_BACKOFF_STATE_INIT;
+	for (i = 0 ; i < MAX_TX_PWR_BACKOFF_ARG_CNT ; i++)
+		sdev->device_config.last_custom_tx_pwr[i] = -1;
 	sdev->acs_channel_switched = false;
 	memset(&sdev->chip_info_mib, 0xFF, sizeof(struct slsi_chip_info_mib));
 

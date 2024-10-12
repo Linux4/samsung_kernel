@@ -2542,18 +2542,19 @@ static int filemap_get_pages(struct kiocb *iocb, struct iov_iter *iter,
 	struct page *page;
 	int err = 0;
 
+	/* "last_index" is the index of the page beyond the end of the read */
 	last_index = DIV_ROUND_UP(iocb->ki_pos + iter->count, PAGE_SIZE);
 retry:
 	if (fatal_signal_pending(current))
 		return -EINTR;
 
-	filemap_get_read_batch(mapping, index, last_index, pvec);
+	filemap_get_read_batch(mapping, index, last_index - 1, pvec);
 	if (!pagevec_count(pvec)) {
 		if (iocb->ki_flags & IOCB_NOIO)
 			return -EAGAIN;
 		page_cache_sync_readahead(mapping, ra, filp, index,
 				last_index - index);
-		filemap_get_read_batch(mapping, index, last_index, pvec);
+		filemap_get_read_batch(mapping, index, last_index - 1, pvec);
 	}
 	if (!pagevec_count(pvec)) {
 		if (iocb->ki_flags & (IOCB_NOWAIT | IOCB_WAITQ))
@@ -3032,9 +3033,13 @@ static struct file *do_sync_mmap_readahead(struct vm_fault *vmf)
 	 */
 	fpin = maybe_unlock_mmap_for_io(vmf, fpin);
 	ra_pages = min_t(unsigned int, ra->ra_pages, mmap_readaround_limit);
+	if (need_memory_boosting())
+		ra_pages = min_t(unsigned int, ra_pages, 8);
 	ra->start = max_t(long, 0, vmf->pgoff - ra_pages / 2);
 	ra->size = ra_pages;
 	ra->async_size = ra_pages / 4;
+	trace_android_vh_tune_mmap_readaround(ra->ra_pages, vmf->pgoff,
+			&ra->start, &ra->size, &ra->async_size);
 	ractl._index = ra->start;
 	filemap_tracing_mark_begin(file, offset, ra_pages, 1);
 	do_page_cache_ra(&ractl, ra->size, ra->async_size);
@@ -3876,7 +3881,7 @@ ssize_t generic_perform_write(struct file *file,
 		unsigned long offset;	/* Offset into pagecache page */
 		unsigned long bytes;	/* Bytes to write to page */
 		size_t copied;		/* Bytes copied from user */
-		void *fsdata;
+		void *fsdata = NULL;
 
 		offset = (pos & (PAGE_SIZE - 1));
 		bytes = min_t(unsigned long, PAGE_SIZE - offset,

@@ -311,6 +311,7 @@ static void link_trigger_cp_crash(struct mem_link_device *mld, u32 crash_type,
 	iowrite32(0, mld->legacy_link_dev.mem_access);
 
 	mif_stop_logging();
+	mif_stop_ap_ppmu_logging();
 
 	memset(ld->crash_reason.string, 0, CP_CRASH_INFO_SIZE);
 
@@ -782,6 +783,7 @@ static void cmd_crash_exit_handler(struct mem_link_device *mld)
 	unsigned long flags;
 
 	mif_stop_logging();
+	mif_stop_ap_ppmu_logging();
 
 	spin_lock_irqsave(&mld->state_lock, flags);
 	mld->state = LINK_STATE_CP_CRASH;
@@ -3876,11 +3878,9 @@ static int init_shmem_maps(u32 link_type, struct modem_data *modem,
 		 * Initialize SHMEM maps for VSS (physical map -> logical map)
 		 */
 		mld->vss_base = cp_shmem_get_region(cp_num, SHMEM_VSS);
-		if (!mld->vss_base) {
+		if (!mld->vss_base)
 			mif_err("Failed to vmap vss_region\n");
-			err = -ENOMEM;
-			goto error;
-		}
+
 		mif_info("vss_base=%pK\n", mld->vss_base);
 
 		/*

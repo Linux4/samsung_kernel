@@ -1014,6 +1014,7 @@ static int s2mf301_muic_detect_usb_killer(struct s2mf301_muic_data *muic_data)
 	s2mf301_i2c_write_byte(i2c, S2MF301_REG_AFC_OTP6, afc_otp6);
 	s2mf301_i2c_write_byte(i2c, S2MF301_REG_AFC_OTP3, afc_otp3);
 exit_chk:
+	s2mf301_i2c_write_byte(i2c, S2MF301_REG_MUIC_CTRL1, muic_ctrl1);
 	s2mf301_i2c_write_byte(i2c, S2MF301_REG_AFC_INT_MASK, 0x00);
 	s2mf301_i2c_write_byte(i2c, S2MF301_REG_AFC_CTRL1, 0x0);
 	s2mf301_i2c_write_byte(i2c, S2MF301_REG_AFC_CTRL2, 0x0);
@@ -1398,10 +1399,13 @@ static int s2mf301_muic_detect_dev_rid_array(struct s2mf301_muic_data *muic_data
 			muic_data->new_dev = ATTACHED_DEV_JIG_UART_OFF_MUIC;
 		break;
 	case ADC_JIG_USB_ON:
-	case ADC_JIG_USB_OFF:
 	case ADC_DESKDOCK:
 		muic_data->new_dev = ATTACHED_DEV_JIG_USB_ON_MUIC;
 		pr_info("ADC JIG_USB_ON DETECTED\n");
+		break;
+	case ADC_JIG_USB_OFF:
+		muic_data->new_dev = ATTACHED_DEV_JIG_USB_OFF_MUIC;
+		pr_info("ADC JIG_USB_OFF DETECTED\n");
 		break;
 	case ADC_JIG_UART_ON:
 		muic_data->new_dev = ATTACHED_DEV_JIG_UART_ON_MUIC;
@@ -1459,15 +1463,6 @@ static int s2mf301_muic_set_hiccup_mode(struct s2mf301_muic_data *muic_data, boo
 	return 0;
 }
 
-static bool s2mf301_muic_overheat_hiccup_path_change_need(struct muic_share_data *sdata)
-{
-	if (sdata->attached_dev == ATTACHED_DEV_NONE_MUIC) {
-		pr_info("%s: attached dev is NONE\n", __func__);
-		return false;
-	}
-	return true;
-}
-
 static int s2mf301_muic_set_overheat_hiccup_mode(struct s2mf301_muic_data *muic_data, bool en)
 {
 	struct muic_share_data *sdata;
@@ -1482,8 +1477,9 @@ static int s2mf301_muic_set_overheat_hiccup_mode(struct s2mf301_muic_data *muic_
 	sdata = muic_data->sdata;
 
 	/* hiccup mode */
-	if (s2mf301_muic_overheat_hiccup_path_change_need(sdata)) {
+	if (_s2mf301_muic_get_vbus_state(muic_data)) {
 		if (en == true) {
+			muic_data->is_hiccup_mode = en;
 			muic_platform_handle_attach(sdata, ATTACHED_DEV_HICCUP_MUIC);
 		} else { /* Hiccup mode off */
 			_s2mf301_muic_sel_path(muic_data, S2MF301_PATH_OPEN);
@@ -1501,8 +1497,14 @@ static void s2mf301_muic_handle_attached_dev(struct s2mf301_muic_data *muic_data
 
 	if (muic_data->new_dev != ATTACHED_DEV_UNKNOWN_MUIC &&
 				muic_data->new_dev != sdata->attached_dev) {
-			muic_platform_handle_attach(sdata, muic_data->new_dev);
+		muic_platform_handle_attach(sdata, muic_data->new_dev);
 	}
+#if IS_ENABLED(CONFIG_SEC_FACTORY) && IS_ENABLED(CONFIG_MUIC_S2MF301_RID)
+	if (muic_data->new_dev == ATTACHED_DEV_UNKNOWN_MUIC &&
+				muic_data->new_dev != sdata->attached_dev) {
+		muic_platform_handle_detach(sdata);
+	}
+#endif
 }
 
 static void _s2mf301_muic_resend_jig_type(struct s2mf301_muic_data *muic_data)
@@ -1796,6 +1798,8 @@ static void s2mf301_muic_get_pm_ops(struct s2mf301_muic_data *muic_data, struct 
 
 	pr_info("%s, get ops success\n", __func__);
 
+	muic_data->rid_isr = s2mf301_muic_rid_isr;
+	value.strval = (const char *)muic_data;
 	power_supply_get_property(psy, (enum power_supply_property)POWER_SUPPLY_LSI_PROP_RID_OPS, &value);
 
 	muic_data->psy_pm = psy;
@@ -1913,6 +1917,9 @@ static int s2mf301_muic_rid_isr(void *_data)
 
 	mutex_lock(&muic_data->muic_mutex);
 	__pm_stay_awake(muic_data->muic_ws);
+	
+	pr_info("%s, wait adc check time\n", __func__);
+	msleep(200);
 
 	muic_data->adc = _s2mf301_muic_get_rid_adc(muic_data);
 	muic_data->vbvolt = sdata->vbus_state = _s2mf301_muic_get_vbus_state(muic_data);

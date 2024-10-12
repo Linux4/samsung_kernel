@@ -492,6 +492,27 @@ int slsi_rx_amsdu_deaggregate(struct net_device *dev, struct sk_buff *skb, struc
 }
 #endif
 
+static bool is_unicast_mac_with_multicst_ip(struct sk_buff *skb)
+{
+	struct ethhdr *ehdr = (struct ethhdr *)(skb->data);
+
+	if (is_unicast_ether_addr(ehdr->h_dest)) {
+		if (be16_to_cpu(ehdr->h_proto) == ETH_P_IP) {
+			struct iphdr *iph = (struct iphdr *)(skb->data + sizeof(struct ethhdr));
+			u8 *dst = (u8 *)&iph->daddr;
+
+			if ((dst[0] & 0xf0) == 0xe0) /* iphdr->daddr starts with 1110 */
+				return true;
+		} else if (be16_to_cpu(ehdr->h_proto) == ETH_P_IPV6) {
+			struct ipv6hdr *iph = (struct ipv6hdr *)(skb->data + sizeof(struct ethhdr));
+
+			if (iph->daddr.s6_addr[0] == 0xff) /* iphdr->daddr starts with 0xff */
+				return true;
+		}
+	}
+
+	return false;
+}
 static void slsi_rx_check_opt_out_packet(struct slsi_dev *sdev, struct net_device *dev, struct sk_buff *skb)
 {
 	struct netdev_vif *ndev_vif = netdev_priv(dev);
@@ -544,6 +565,9 @@ static void slsi_rx_check_opt_out_packet(struct slsi_dev *sdev, struct net_devic
 			SLSI_NET_ERR(dev, "Wakeup by Not Unicast - the packet must be checking in Multicast condition\n");
 		}
 #endif
+	} else if (is_unicast_mac_with_multicst_ip(skb)) {
+		ndev_vif->is_opt_out_packet = true;
+		SLSI_NET_ERR(dev, "Wakeup by unicast mac with multicast ip packet\n");
 	} else {
 		SLSI_NET_INFO(dev, "Wakeup by Opt in packet\n");
 	}

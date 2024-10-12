@@ -16,13 +16,7 @@
 #include <linux/genhd.h>
 #include <linux/part_stat.h>
 
-#include "blk-sec-stats.h"
-
-struct disk_info {
-	/* fields related with target device itself */
-	struct gendisk *gd;
-	struct request_queue *queue;
-};
+#include "blk-sec.h"
 
 struct accumulated_stat {
 	struct timespec64 uptime;
@@ -30,9 +24,6 @@ struct accumulated_stat {
 	unsigned long ios[3];
 	unsigned long iot;
 };
-
-static struct disk_info internal_disk;
-static unsigned int internal_min_size_mb = 10 * 1024; /* 10GB */
 static struct accumulated_stat old, new;
 
 extern int blk_sec_stat_pio_init(struct kobject *kobj);
@@ -47,81 +38,10 @@ extern void blk_sec_stat_traffic_exit(struct kobject *kobj);
 extern void blk_sec_stat_traffic_update(struct request *rq,
 		unsigned int data_size);
 
-#define SECTORS2MB(x) ((x) / 2 / 1024)
-
-static struct gendisk *get_internal_disk(void)
-{
-	struct gendisk *gd = NULL;
-	struct block_device *bdev;
-	int idx;
-	int size_mb;
-
-	/* In some project which is powered by MediaTek AP, the internal
-	 * storage device is "sdc / MKDEV(8, 32)". So we have to try (8, 32)
-	 * before trying (179, 0).
-	 */
-	dev_t devno[] = {
-		MKDEV(8, 0),
-		MKDEV(8, 32),
-		MKDEV(179, 0),
-		MKDEV(0, 0)
-	};
-
-	for (idx = 0; devno[idx] != MKDEV(0, 0); idx++) {
-		bdev = blkdev_get_by_dev(devno[idx], FMODE_READ, NULL);
-		if (!IS_ERR(bdev) && bdev->bd_disk) {
-			size_mb = SECTORS2MB(get_capacity(bdev->bd_disk));
-
-			if (size_mb >= internal_min_size_mb) {
-				gd = bdev->bd_disk;
-				break;
-			}
-		}
-	}
-
-	return gd;
-}
-
-static inline int init_internal_disk_info(void)
-{
-	/* it only sets internal_disk.gd info.
-	 * internal_disk.rq_infos have to be allocated later.
-	 */
-	if (!internal_disk.gd) {
-		internal_disk.gd = get_internal_disk();
-		if (unlikely(!internal_disk.gd)) {
-			pr_err("%s: can't find internal disk\n", __func__);
-			return -ENODEV;
-		}
-	}
-	internal_disk.queue = internal_disk.gd->queue;
-
-	return 0;
-}
-
-static inline void clear_internal_disk_info(void)
-{
-	internal_disk.gd = NULL;
-	internal_disk.queue = NULL;
-}
-
-static inline bool has_valid_disk_info(void)
-{
-	return !!internal_disk.queue;
-}
-
 void blk_sec_stat_account_init(struct request_queue *q)
 {
-	int ret;
-
-	if (!has_valid_disk_info()) {
-		ret = init_internal_disk_info();
-		if (ret) {
-			clear_internal_disk_info();
-			pr_err("%s: Can't find internal disk info!", __func__);
-			return;
-		}
-	}
+	if (!blk_sec_internal_disk())
+		pr_err("%s: Can't find internal disk info!", __func__);
 }
 EXPORT_SYMBOL(blk_sec_stat_account_init);
 
@@ -140,14 +60,15 @@ static inline void get_monotonic_boottime(struct timespec64 *ts)
 
 static ssize_t diskios_show(struct kobject *kobj, struct kobj_attribute *attr, char *buf)
 {
-	int ret;
+	struct gendisk *gd = blk_sec_internal_disk();
 	struct block_device *bdev;
 	long hours;
+	int ret;
 
-	if (unlikely(!has_valid_disk_info()))
+	if (unlikely(!gd))
 		return -EINVAL;
 
-	bdev = internal_disk.gd->part0;
+	bdev = gd->part0;
 
 	new.ios[STAT_READ] = part_stat_read(bdev, ios[STAT_READ]);
 	new.ios[STAT_WRITE] = part_stat_read(bdev, ios[STAT_WRITE]);
@@ -189,10 +110,12 @@ static ssize_t diskios_show(struct kobject *kobj, struct kobj_attribute *attr, c
 
 static inline bool may_account_rq(struct request *rq)
 {
-	if (unlikely(!has_valid_disk_info()))
+	struct gendisk *gd = blk_sec_internal_disk();
+
+	if (unlikely(!gd))
 		return false;
 
-	if (internal_disk.queue != rq->q)
+	if (gd->queue != rq->q)
 		return false;
 
 	return true;
@@ -259,18 +182,11 @@ static int __init blk_sec_stats_init(void)
 	if (retval)
 		pr_err("%s: fail to initialize TRAFFIC sub module", __func__);
 
-	retval = init_internal_disk_info();
-	if (retval) {
-		clear_internal_disk_info();
-		pr_err("%s: Can't find internal disk info!", __func__);
-	}
-
 	return 0;
 }
 
 static void __exit blk_sec_stats_exit(void)
 {
-	clear_internal_disk_info();
 	blk_sec_stat_traffic_exit(blk_sec_stats_kobj);
 	blk_sec_stat_pio_exit(blk_sec_stats_kobj);
 	sysfs_remove_files(blk_sec_stats_kobj, blk_sec_stat_attrs);

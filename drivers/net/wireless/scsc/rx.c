@@ -2121,7 +2121,9 @@ void slsi_rx_channel_switched_ind(struct slsi_dev *sdev, struct net_device *dev,
 	ndev_vif->ap.channel_freq = freq; /* updated for GETSTAINFO */
 	ndev_vif->chan = chandef.chan;
 	ndev_vif->chandef_saved = chandef;
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 15, 41))
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 15, 94))
+        cfg80211_ch_switch_notify(dev, &chandef, 0, 0);
+#elif (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 15, 41))
 	cfg80211_ch_switch_notify(dev, &chandef, 0);
 #else
 	cfg80211_ch_switch_notify(dev, &chandef);
@@ -2217,6 +2219,11 @@ void __slsi_rx_blockack_ind(struct slsi_dev *sdev, struct net_device *dev, struc
 	WLBT_WARN_ON(!peer);
 
 	if (peer) {
+		if (priority >= NUM_BA_SESSIONS_PER_PEER) {
+			SLSI_NET_DBG3(dev, SLSI_MLME, "priority is invalid (priority:%d)\n", priority);
+			goto invalid;
+		}
+
 		/* Buffering of frames before the mlme_connected_ind */
 		if (ndev_vif->vif_type == FAPI_VIFTYPE_AP && peer->connected_state == SLSI_STA_CONN_STATE_CONNECTING) {
 			SLSI_NET_DBG3(dev, SLSI_MLME, "buffering MA_BLOCKACKREQ_IND\n");
@@ -2668,6 +2675,12 @@ void slsi_rx_roam_ind(struct slsi_dev *sdev, struct net_device *dev, struct sk_b
 
 	WLBT_WARN(ndev_vif->vif_type != FAPI_VIFTYPE_STATION, "Not a Station VIF\n");
 
+	if (fapi_get_u16(skb, u.mlme_roam_ind.result_code) != FAPI_RESULTCODE_SUCCESS) {
+		SLSI_NET_ERR(dev, "mlme_roam_ind(result:0x%04x) ERROR\n",
+			     fapi_get_u16(skb, u.mlme_roam_ind.result_code));
+		ndev_vif->sta.roam_in_progress = false;
+	}
+
 exit_with_lock:
 	SLSI_MUTEX_UNLOCK(ndev_vif->vif_mutex);
 	kfree_skb(skb);
@@ -2833,6 +2846,7 @@ void slsi_rx_synchronised_ind(struct slsi_dev *sdev, struct net_device *dev, str
 		if (synch_ind_time < ndev_vif->sta.connect_cnf_time + SLSI_RX_SYNCH_IND_DELAY)
 			udelay(((ndev_vif->sta.connect_cnf_time + 50) - synch_ind_time) * 1000);
 
+		memset(&auth_request, 0x00, sizeof(auth_request));
 		auth_request.action = NL80211_EXTERNAL_AUTH_START;
 		memcpy(auth_request.bssid, bssid, ETH_ALEN);
 		memcpy(auth_request.ssid.ssid, ndev_vif->sta.ssid, ndev_vif->sta.ssid_len);
@@ -3335,6 +3349,7 @@ void slsi_rx_connect_ind(struct slsi_dev *sdev, struct net_device *dev, struct s
 			struct cfg80211_external_auth_params auth_request;
 
 			(void)slsi_mlme_reset_dwell_time(sdev, dev);
+			memset(&auth_request, 0x00, sizeof(auth_request));
 			auth_request.action = NL80211_EXTERNAL_AUTH_ABORT;
 			memcpy(auth_request.bssid, ndev_vif->sta.bssid, ETH_ALEN);
 			memcpy(auth_request.ssid.ssid, ndev_vif->sta.ssid, ndev_vif->sta.ssid_len);
@@ -3407,6 +3422,7 @@ void slsi_rx_connect_ind(struct slsi_dev *sdev, struct net_device *dev, struct s
 				struct cfg80211_external_auth_params auth_request;
 
 				(void)slsi_mlme_reset_dwell_time(sdev, dev);
+				memset(&auth_request, 0x00, sizeof(auth_request));
 				auth_request.action = NL80211_EXTERNAL_AUTH_ABORT;
 				memcpy(auth_request.bssid, ndev_vif->sta.bssid, ETH_ALEN);
 				memcpy(auth_request.ssid.ssid, ndev_vif->sta.ssid, ndev_vif->sta.ssid_len);
@@ -3495,6 +3511,10 @@ void slsi_rx_connect_ind(struct slsi_dev *sdev, struct net_device *dev, struct s
 			}
 		}
 	}
+
+#if !(defined(SCSC_SEP_VERSION) && SCSC_SEP_VERSION < 11)
+	ndev_vif->sta.wpa3_sae_reconnection = false;
+#endif
 
 	if (!peer && status == WLAN_STATUS_SUCCESS)
 		status = WLAN_STATUS_UNSPECIFIED_FAILURE;
@@ -4620,6 +4640,9 @@ void slsi_rx_twt_setup_info_event(struct slsi_dev *sdev, struct net_device *dev,
 	case FAPI_RESULTCODE_TWT_SETUP_PARAMS_VALUE_REJECTED:
 		setup_event.reason_code = TWT_SETUP_EVENT_PARAMS_VALUE_REJECTED;
 		break;
+	case FAPI_RESULTCODE_TWT_SETUP_AP_NO_TWT_INFO:
+		setup_event.reason_code = TWT_SETUP_EVENT_AP_NO_TWT_INFO;
+		break;
 	default:
 		setup_event.reason_code = TWT_RESULTCODE_UNKNOWN;
 	}
@@ -4662,6 +4685,9 @@ void slsi_rx_twt_teardown_indication(struct slsi_dev *sdev, struct net_device *d
 		break;
 	case FAPI_REASONCODE_TIMEOUT:
 		reason_code = TWT_TEARDOWN_TIMEOUT;
+		break;
+	case FAPI_REASONCODE_PS_DISABLE:
+		reason_code = TWT_TEARDOWN_PS_DISABLE;
 		break;
 	default:
 		reason_code = TWT_RESULTCODE_UNKNOWN;

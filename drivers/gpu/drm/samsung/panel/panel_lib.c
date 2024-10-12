@@ -45,7 +45,7 @@ EXPORT_SYMBOL(panel_lib_rdinfo_free_buffer);
 
 struct rdinfo *panel_lib_rdinfo_create(u32 type, char *name, u32 addr, u32 offset, u32 len, u8 *init_data)
 {
-	struct rdinfo *m;
+	struct rdinfo *rdi;
 	int ret;
 
 	if (unlikely(!name) || unlikely(!len) || unlikely(!addr)) {
@@ -53,43 +53,47 @@ struct rdinfo *panel_lib_rdinfo_create(u32 type, char *name, u32 addr, u32 offse
 		return NULL;
 	}
 
-	if (type < CMD_TYPE_RX_PKT_START || type > CMD_TYPE_RX_PKT_END) {
+	if (!IS_RX_PKT_TYPE(type)) {
 		panel_err("invalid type(%d)\n", type);
 		return NULL;
 	}
 
-	m = kzalloc(sizeof(*m), GFP_KERNEL);
-	if (!m)
+	rdi = kzalloc(sizeof(*rdi), GFP_KERNEL);
+	if (!rdi)
 		return NULL;
 
-	m->type = type;
-	m->name = name;
-	m->addr = addr;
-	m->offset = offset;
-	m->len = len;
+	pnobj_init(&rdi->base, CMD_TYPE_RX_PACKET, name);
+	rdi->type = type;
+	rdi->addr = addr;
+	rdi->offset = offset;
+	rdi->len = len;
 
 	if (init_data && len) {
-		ret = panel_lib_rdinfo_alloc_buffer(m);
+		ret = panel_lib_rdinfo_alloc_buffer(rdi);
 		if (ret < 0) {
 			panel_err("failed to alloc rdinfo buffer(ret:%d)\n", ret);
 			goto err;
 		}
 
-		memcpy(m->data, init_data, m->len);
+		memcpy(rdi->data, init_data, rdi->len);
 	}
 
-	return m;
+	return rdi;
 
 err:
-	kfree(m);
+	kfree(rdi);
 	return NULL;
 }
 EXPORT_SYMBOL(panel_lib_rdinfo_create);
 
-void panel_lib_rdinfo_destroy(struct rdinfo *m)
+void panel_lib_rdinfo_destroy(struct rdinfo *rdi)
 {
-	panel_lib_rdinfo_free_buffer(m);
-	kfree(m);
+	if (!rdi)
+		return;
+
+	panel_lib_rdinfo_free_buffer(rdi);
+	pnobj_deinit(&rdi->base);
+	kfree(rdi);
 }
 EXPORT_SYMBOL(panel_lib_rdinfo_destroy);
 
@@ -105,13 +109,13 @@ int panel_lib_rdinfo_copy(struct rdinfo *dst, struct rdinfo *src)
 		return -EINVAL;
 
 
-	if (unlikely(!src->name) || unlikely(!src->len) || unlikely(!src->addr)) {
+	if (unlikely(!get_rdinfo_name(src)) || unlikely(!src->len) || unlikely(!src->addr)) {
 		panel_err("invalid parameter\n");
 		return  -EINVAL;
 	}
 
-	if (src->type < CMD_TYPE_RX_PKT_START || src->type > CMD_TYPE_RX_PKT_END) {
-		panel_err("invalid type(%d)\n", src->type);
+	if (!is_valid_rdinfo(src)) {
+		panel_err("invalid rdinfo\n");
 		return  -EINVAL;
 	}
 
@@ -224,8 +228,7 @@ struct resinfo *panel_lib_resinfo_create(char *name, u8 *init_data, u32 dlen, st
 	if (!m)
 		return NULL;
 
-	m->type = CMD_TYPE_RES;
-	m->name = name;
+	pnobj_init(&m->base, CMD_TYPE_RES, name);
 	m->state = RES_UNINITIALIZED;
 	m->dlen = dlen;
 	m->resui = resui;
@@ -250,7 +253,11 @@ EXPORT_SYMBOL(panel_lib_resinfo_create);
 
 void panel_lib_resinfo_destroy(struct resinfo *m)
 {
+	if (!m)
+		return;
+
 	panel_lib_resinfo_free_buffer(m);
+	free_pnobj_name(&m->base);
 	kfree(m);
 }
 EXPORT_SYMBOL(panel_lib_resinfo_destroy);
@@ -266,14 +273,9 @@ int panel_lib_resinfo_copy(struct resinfo *dst, struct resinfo *src)
 	if (dst == src)
 		return -EINVAL;
 
-	if (unlikely(!src->name) || unlikely(!src->dlen) || unlikely((src->state < 0 || src->state >= MAX_RES_INIT_STATE))) {
-		panel_err("invalid parameter\n");
-		return  -EINVAL;
-	}
-
-	if (src->type != CMD_TYPE_RES) {
-		panel_err("invalid type(%d)\n", src->type);
-		return  -EINVAL;
+	if (!is_valid_resource(src)) {
+		panel_err("invalid src resource\n");
+		return -EINVAL;
 	}
 
 	temp_dst = kzalloc(sizeof(struct resinfo), GFP_KERNEL);
@@ -302,45 +304,3 @@ err:
 	return ret;
 }
 EXPORT_SYMBOL(panel_lib_resinfo_copy);
-
-struct dumpinfo *panel_lib_dumpinfo_create(char *name, struct resinfo *res, dump_cb_t callback)
-{
-	struct dumpinfo *m;
-
-	if (unlikely(!name) || unlikely(!res) || unlikely(!callback)) {
-		panel_err("invalid parameter\n");
-		return NULL;
-	}
-
-	m = kzalloc(sizeof(*m), GFP_KERNEL);
-	if (!m)
-		return NULL;
-
-	m->type = CMD_TYPE_DMP;
-	m->name = name;
-	m->res = res;
-	m->callback = callback;
-
-	return m;
-}
-EXPORT_SYMBOL(panel_lib_dumpinfo_create);
-
-void panel_lib_dumpinfo_destroy(struct dumpinfo *m)
-{
-	kfree(m);
-}
-EXPORT_SYMBOL(panel_lib_dumpinfo_destroy);
-
-int panel_lib_dumpinfo_copy(struct dumpinfo *dst, struct dumpinfo *src)
-{
-	if (!dst || !src)
-		return -EINVAL;
-
-	if (dst == src)
-		return -EINVAL;
-
-	memcpy(dst, src, sizeof(struct dumpinfo));
-
-	return 0;
-}
-EXPORT_SYMBOL(panel_lib_dumpinfo_copy);

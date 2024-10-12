@@ -15,13 +15,15 @@
 #include <linux/delay.h>
 #include <linux/highmem.h>
 #include <linux/bug.h>
+#include <linux/list.h>
 
 #include "panel.h"
 #include "panel_bl.h"
 #include "panel_drv.h"
 #include "panel_debug.h"
+#include "panel_obj.h"
 #include "panel_poc.h"
-#ifdef CONFIG_SUPPORT_POC_SPI
+#ifdef CONFIG_USDM_POC_SPI
 #include "panel_spi.h"
 #endif
 
@@ -52,7 +54,7 @@ const char * const poc_op[MAX_POC_OP] = {
 	[POC_OP_DIM_READ_FROM_FILE] = "POC_OP_DIM_READ_FROM_FILE",
 	[POC_OP_MTP_READ] = "POC_OP_MTP_READ",
 	[POC_OP_MCD_READ] = "POC_OP_MCD_READ",
-#ifdef CONFIG_SUPPORT_POC_SPI
+#ifdef CONFIG_USDM_POC_SPI
 	[POC_OP_SET_CONN_SRC] = "POC_OP_SET_CONN_SRC",
 	[POC_OP_SET_SPI_SPEED] = "POC_OP_SET_SPI_SPEED",
 	[POC_OP_READ_SPI_STATUS_REG] = "POC_OP_READ_SPI_STATUS_REG",
@@ -68,72 +70,77 @@ const char * const str_partition_write_check[] = {
 	[PARTITION_WRITE_CHECK_OK] = "ok",
 };
 
-static int panel_do_poc_seqtbl_by_index_nolock(struct panel_poc_device *poc_dev, int index)
+struct seqinfo *find_poc_seq_by_name(struct panel_poc_device *poc_dev, char *seqname)
 {
-	struct panel_device *panel = to_panel_device(poc_dev);
+	struct pnobj *pnobj;
 
-	if (panel->poc_dev.seqtbl == NULL) {
-		panel_err("invalid seqtbl\n");
-		return -EINVAL;
-	}
-
-	if (unlikely(index < 0 || index >= MAX_POC_SEQ)) {
-		panel_err("invalid parameter (panel %p, index %d)\n", panel, index);
-		return -EINVAL;
-	}
-
-	return excute_seqtbl_nolock(panel, poc_dev->seqtbl, index);
-}
-
-int panel_do_poc_seqtbl_by_index(struct panel_poc_device *poc_dev, int index)
-{
-	struct panel_device *panel = to_panel_device(poc_dev);
-	int ret;
-
-	mutex_lock(&panel->op_lock);
-	ret = panel_do_poc_seqtbl_by_index_nolock(poc_dev, index);
-	mutex_unlock(&panel->op_lock);
-
-	return ret;
-}
-
-static struct seqinfo *find_poc_seqtbl_by_index(struct panel_poc_device *poc_dev, u32 index)
-{
-	struct seqinfo *tbl;
-
-	if (unlikely(!poc_dev->seqtbl)) {
-		panel_err("seqtbl not exist\n");
+	if (!poc_dev) {
+		panel_err("poc_dev is null\n");
 		return NULL;
 	}
 
-	if (unlikely(index >= MAX_POC_SEQ)) {
-		panel_err("invalid parameter (index %d)\n", index);
+	if (list_empty(&poc_dev->seq_list)) {
+		panel_err("poc_dev sequence is empty\n");
 		return NULL;
 	}
 
-	tbl = &poc_dev->seqtbl[index];
-	if (tbl != NULL)
-		panel_dbg("found %s panel seqtbl\n", tbl->name);
+	pnobj = pnobj_find_by_name(&poc_dev->seq_list, seqname);
+	if (!pnobj)
+		return NULL;
 
-	return tbl;
+	return pnobj_container_of(pnobj, struct seqinfo);
 }
 
-static bool panel_poc_seq_exist(struct panel_poc_device *poc_dev, u32 index)
+bool check_poc_seqtbl_exist(struct panel_poc_device *poc_dev, char *seqname)
 {
-	struct seqinfo *tbl;
+	struct seqinfo *seq;
 
-	tbl = find_poc_seqtbl_by_index(poc_dev, index);
-	if (tbl == NULL || tbl->cmdtbl == NULL || tbl->size == 0)
+	seq = find_poc_seq_by_name(poc_dev, seqname);
+	if (!seq)
+		return false;
+
+	if (!is_valid_sequence(seq))
 		return false;
 
 	return true;
+}
+
+int panel_do_poc_seqtbl_by_name_nolock(struct panel_poc_device *poc_dev, char *seqname)
+{
+	struct seqinfo *seq;
+
+	if (!poc_dev) {
+		panel_err("poc is null\n");
+		return -EINVAL;
+	}
+
+	seq = find_poc_seq_by_name(poc_dev, seqname);
+	if (!seq)
+		return -EINVAL;
+
+	return execute_sequence_nolock(to_panel_device(poc_dev), seq);
+}
+
+int panel_do_poc_seqtbl_by_name(struct panel_poc_device *poc_dev, char *seqname)
+{
+	int ret = 0;
+	struct panel_device *panel;
+
+	if (!poc_dev)
+		return -EINVAL;
+
+	panel = to_panel_device(poc_dev);
+	panel_mutex_lock(&panel->op_lock);
+	ret = panel_do_poc_seqtbl_by_name_nolock(poc_dev, seqname);
+	panel_mutex_unlock(&panel->op_lock);
+
+	return ret;
 }
 
 static int poc_get_poc_chksum(struct panel_device *panel)
 {
 	struct panel_poc_device *poc_dev = &panel->poc_dev;
 	struct panel_poc_info *poc_info = &poc_dev->poc_info;
-	struct panel_info *panel_data = &panel->panel_data;
 	int ret;
 
 	if (sizeof(poc_info->poc_chksum) != PANEL_POC_CHKSUM_LEN) {
@@ -141,7 +148,7 @@ static int poc_get_poc_chksum(struct panel_device *panel)
 		return -EINVAL;
 	}
 
-	ret = resource_copy_by_name(panel_data, poc_info->poc_chksum, "poc_chksum");
+	ret = panel_resource_copy(panel, poc_info->poc_chksum, "poc_chksum");
 	if (unlikely(ret < 0)) {
 		panel_err("failed to copy resource(poc_chksum)\n");
 		return ret;
@@ -155,7 +162,7 @@ static int poc_get_poc_chksum(struct panel_device *panel)
 	return 0;
 }
 
-#ifdef CONFIG_SUPPORT_POC_SPI
+#ifdef CONFIG_USDM_POC_SPI
 int _spi_poc_erase(struct panel_device *panel, int addr, int len)
 {
 	struct panel_spi_dev *spi_dev = &panel->panel_spi_dev;
@@ -197,7 +204,8 @@ int _dsi_poc_erase(struct panel_device *panel, int addr, int len)
 {
 	struct panel_poc_device *poc_dev = &panel->poc_dev;
 	struct panel_poc_info *poc_info = &poc_dev->poc_info;
-	int ret, sz_block = 0, erased_size = 0, erase_seq_index;
+	int ret, sz_block = 0, erased_size = 0;
+	char *erase_seq;
 
 	if (addr % POC_PAGE > 0) {
 		panel_err("failed to start erase. invalid addr\n");
@@ -212,28 +220,28 @@ int _dsi_poc_erase(struct panel_device *panel, int addr, int len)
 
 	panel_info("poc erase +++, 0x%x, %d\n", addr, len);
 
-	mutex_lock(&panel->op_lock);
-	ret = panel_do_poc_seqtbl_by_index_nolock(poc_dev, POC_ERASE_ENTER_SEQ);
+	panel_mutex_lock(&panel->op_lock);
+	ret = panel_do_poc_seqtbl_by_name_nolock(poc_dev, POC_ERASE_ENTER_SEQ);
 	if (unlikely(ret < 0)) {
 		panel_err("failed to poc-erase-enter-seq\n");
 		goto out_poc_erase;
 	}
 	while (len > erased_size) {
 		if ((len >= erased_size + SZ_64K) &&
-				panel_poc_seq_exist(poc_dev, POC_ERASE_64K_SEQ)) {
-			erase_seq_index = POC_ERASE_64K_SEQ;
+				check_poc_seqtbl_exist(poc_dev, POC_ERASE_64K_SEQ)) {
+			erase_seq = POC_ERASE_64K_SEQ;
 			sz_block = SZ_64K;
 		} else if ((len >= erased_size + SZ_32K) &&
-				panel_poc_seq_exist(poc_dev, POC_ERASE_32K_SEQ)) {
-			erase_seq_index = POC_ERASE_32K_SEQ;
+				check_poc_seqtbl_exist(poc_dev, POC_ERASE_32K_SEQ)) {
+			erase_seq = POC_ERASE_32K_SEQ;
 			sz_block = SZ_32K;
 		} else {
-			erase_seq_index = POC_ERASE_4K_SEQ;
+			erase_seq = POC_ERASE_4K_SEQ;
 			sz_block = SZ_4K;
 		}
 
 		poc_info->waddr = addr + erased_size;
-		ret = panel_do_poc_seqtbl_by_index_nolock(poc_dev, erase_seq_index);
+		ret = panel_do_poc_seqtbl_by_name_nolock(poc_dev, erase_seq);
 		if (unlikely(ret < 0)) {
 			panel_err("failed to poc-erase-seq 0x%x\n", addr + erased_size);
 			goto out_poc_erase;
@@ -248,31 +256,31 @@ int _dsi_poc_erase(struct panel_device *panel, int addr, int len)
 		erased_size += sz_block;
 	}
 
-	ret = panel_do_poc_seqtbl_by_index_nolock(poc_dev, POC_ERASE_EXIT_SEQ);
+	ret = panel_do_poc_seqtbl_by_name_nolock(poc_dev, POC_ERASE_EXIT_SEQ);
 	if (unlikely(ret < 0)) {
 		panel_err("failed to poc-erase-exit-seq\n");
 		goto out_poc_erase;
 	}
 
-	mutex_unlock(&panel->op_lock);
+	panel_mutex_unlock(&panel->op_lock);
 	panel_info("poc erase ---\n");
 	return 0;
 
 cancel_poc_erase:
-	ret = panel_do_poc_seqtbl_by_index_nolock(poc_dev, POC_ERASE_EXIT_SEQ);
+	ret = panel_do_poc_seqtbl_by_name_nolock(poc_dev, POC_ERASE_EXIT_SEQ);
 	if (unlikely(ret < 0))
 		panel_err("failed to poc-erase-exit-seq\n");
 	ret = -EIO;
 	atomic_set(&poc_dev->cancel, 0);
 
 out_poc_erase:
-	mutex_unlock(&panel->op_lock);
+	panel_mutex_unlock(&panel->op_lock);
 	return ret;
 }
 
 int poc_erase(struct panel_device *panel, int addr, int len)
 {
-#ifdef CONFIG_SUPPORT_POC_SPI
+#ifdef CONFIG_USDM_POC_SPI
 	struct panel_poc_device *poc_dev = &panel->poc_dev;
 	struct panel_poc_info *poc_info = &poc_dev->poc_info;
 
@@ -282,7 +290,7 @@ int poc_erase(struct panel_device *panel, int addr, int len)
 	return _dsi_poc_erase(panel, addr, len);
 }
 
-#ifdef CONFIG_SUPPORT_POC_SPI
+#ifdef CONFIG_USDM_POC_SPI
 static int _spi_poc_read_data(struct panel_device *panel, u8 *buf, u32 addr, u32 len)
 {
 	struct panel_spi_dev *spi_dev = &panel->panel_spi_dev;
@@ -354,7 +362,6 @@ static int _dsi_poc_read_data(struct panel_device *panel,
 		u8 *buf, u32 addr, u32 len)
 {
 	struct panel_poc_device *poc_dev = &panel->poc_dev;
-	struct panel_info *panel_data = &panel->panel_data;
 	struct panel_poc_info *poc_info = &poc_dev->poc_info;
 	int i, ret = 0;
 	u32 poc_addr;
@@ -367,18 +374,18 @@ static int _dsi_poc_read_data(struct panel_device *panel,
 		goto exit;
 	}
 
-	mutex_lock(&panel->op_lock);
+	panel_mutex_lock(&panel->op_lock);
 	poc_info->state = POC_STATE_RD_PROGRESS;
 
 	if (poc_info->poc_chksum[0] != 0x00 || poc_info->poc_chksum[1] != 0x00) {
-		ret = panel_do_poc_seqtbl_by_index_nolock(poc_dev, POC_READ_PRE_ENTER_SEQ);
+		ret = panel_do_poc_seqtbl_by_name_nolock(poc_dev, POC_READ_PRE_ENTER_SEQ);
 		if (unlikely(ret < 0)) {
 			panel_err("failed to read poc-rd-pre-enter seq\n");
 			goto out_poc_read;
 		}
 	}
 
-	ret = panel_do_poc_seqtbl_by_index_nolock(poc_dev, POC_READ_ENTER_SEQ);
+	ret = panel_do_poc_seqtbl_by_name_nolock(poc_dev, POC_READ_ENTER_SEQ);
 	if (unlikely(ret < 0)) {
 		panel_err("failed to read poc-rd-enter seq\n");
 		goto out_poc_read;
@@ -392,13 +399,13 @@ static int _dsi_poc_read_data(struct panel_device *panel,
 
 		poc_addr = addr + i;
 		poc_info->raddr = poc_addr;
-		ret = panel_do_poc_seqtbl_by_index_nolock(poc_dev, POC_READ_DAT_SEQ);
+		ret = panel_do_poc_seqtbl_by_name_nolock(poc_dev, POC_READ_DAT_SEQ);
 		if (unlikely(ret < 0)) {
 			panel_err("failed to read poc-rd-dat seq\n");
 			goto out_poc_read;
 		}
 
-		ret = resource_copy_by_name(panel_data, &buf[i], "poc_data");
+		ret = panel_resource_copy(panel, &buf[i], "poc_data");
 		if (unlikely(ret < 0)) {
 			panel_err("failed to copy resource(poc_data)\n");
 			goto out_poc_read;
@@ -408,7 +415,7 @@ static int _dsi_poc_read_data(struct panel_device *panel,
 			panel_info("[%04d] addr %06X %02X\n", i, poc_addr, buf[i]);
 	}
 
-	ret = panel_do_poc_seqtbl_by_index_nolock(poc_dev, POC_READ_EXIT_SEQ);
+	ret = panel_do_poc_seqtbl_by_name_nolock(poc_dev, POC_READ_EXIT_SEQ);
 	if (unlikely(ret < 0)) {
 		panel_err("failed to read poc-rd-exit seq\n");
 		goto out_poc_read;
@@ -416,12 +423,12 @@ static int _dsi_poc_read_data(struct panel_device *panel,
 
 	panel_info("poc read addr 0x%06X, %d(0x%X) bytes ---\n", addr, len, len);
 	poc_info->state = POC_STATE_RD_COMPLETE;
-	mutex_unlock(&panel->op_lock);
+	panel_mutex_unlock(&panel->op_lock);
 
 	return 0;
 
 cancel_poc_read:
-	ret = panel_do_poc_seqtbl_by_index_nolock(poc_dev, POC_READ_EXIT_SEQ);
+	ret = panel_do_poc_seqtbl_by_name_nolock(poc_dev, POC_READ_EXIT_SEQ);
 	if (unlikely(ret < 0))
 		panel_err("failed to read poc-rd-exit seq\n");
 	ret = -EIO;
@@ -429,14 +436,14 @@ cancel_poc_read:
 
 out_poc_read:
 	poc_info->state = POC_STATE_RD_FAILED;
-	mutex_unlock(&panel->op_lock);
+	panel_mutex_unlock(&panel->op_lock);
 exit:
 	return ret;
 }
 
 int poc_read_data(struct panel_device *panel, u8 *buf, u32 addr, u32 len)
 {
-#ifdef CONFIG_SUPPORT_POC_SPI
+#ifdef CONFIG_USDM_POC_SPI
 	struct panel_poc_device *poc_dev = &panel->poc_dev;
 	struct panel_poc_info *poc_info = &poc_dev->poc_info;
 
@@ -446,7 +453,7 @@ int poc_read_data(struct panel_device *panel, u8 *buf, u32 addr, u32 len)
 	return _dsi_poc_read_data(panel, buf, addr, len);
 }
 
-#ifdef CONFIG_SUPPORT_POC_SPI
+#ifdef CONFIG_USDM_POC_SPI
 static int _spi_poc_write_data(struct panel_device *panel, u8 *data, u32 addr, u32 size)
 {
 	struct panel_spi_dev *spi_dev = &panel->panel_spi_dev;
@@ -503,8 +510,8 @@ static int _dsi_poc_write_data(struct panel_device *panel, u8 *data, u32 addr, u
 	bool write_stt_seq_exist;
 	bool write_end_seq_exist;
 
-	write_stt_seq_exist = panel_poc_seq_exist(poc_dev, POC_WRITE_STT_SEQ);
-	write_end_seq_exist = panel_poc_seq_exist(poc_dev, POC_WRITE_END_SEQ);
+	write_stt_seq_exist = check_poc_seqtbl_exist(poc_dev, POC_WRITE_STT_SEQ);
+	write_end_seq_exist = check_poc_seqtbl_exist(poc_dev, POC_WRITE_END_SEQ);
 
 	poc_info->wdata = (u8 *)devm_kzalloc(panel->dev, poc_info->wdata_len * sizeof(u8), GFP_KERNEL);
 	if (!poc_info->wdata) {
@@ -512,8 +519,8 @@ static int _dsi_poc_write_data(struct panel_device *panel, u8 *data, u32 addr, u
 		return -ENOMEM;
 	}
 
-	mutex_lock(&panel->op_lock);
-	ret = panel_do_poc_seqtbl_by_index_nolock(poc_dev, POC_WRITE_ENTER_SEQ);
+	panel_mutex_lock(&panel->op_lock);
+	ret = panel_do_poc_seqtbl_by_name_nolock(poc_dev, POC_WRITE_ENTER_SEQ);
 	if (unlikely(ret < 0)) {
 		panel_err("failed to read poc-wr-enter-seq\n");
 		goto out_poc_write;
@@ -528,7 +535,7 @@ static int _dsi_poc_write_data(struct panel_device *panel, u8 *data, u32 addr, u
 		poc_info->waddr = poc_addr;
 		if (write_stt_seq_exist &&
 			(i == 0 || (poc_addr & 0xFF) == 0)) {
-			ret = panel_do_poc_seqtbl_by_index_nolock(poc_dev, POC_WRITE_STT_SEQ);
+			ret = panel_do_poc_seqtbl_by_name_nolock(poc_dev, POC_WRITE_STT_SEQ);
 			if (unlikely(ret < 0)) {
 				panel_err("failed to write poc-wr-stt seq\n");
 				goto out_poc_write;
@@ -541,7 +548,7 @@ static int _dsi_poc_write_data(struct panel_device *panel, u8 *data, u32 addr, u
 			copy_len = poc_info->wdata_len;
 		memcpy(poc_info->wdata, data + i, copy_len);
 
-		ret = panel_do_poc_seqtbl_by_index_nolock(poc_dev, POC_WRITE_DAT_SEQ);
+		ret = panel_do_poc_seqtbl_by_name_nolock(poc_dev, POC_WRITE_DAT_SEQ);
 		if (unlikely(ret < 0)) {
 			panel_err("failed to write poc-wr-img seq\n");
 			goto out_poc_write;
@@ -551,7 +558,7 @@ static int _dsi_poc_write_data(struct panel_device *panel, u8 *data, u32 addr, u
 			panel_info("addr %06X %02X\n", poc_addr, data[i]);
 		if (write_end_seq_exist &&
 			((poc_addr & 0xFF) == 0xFF || i == (size - 1))) {
-			ret = panel_do_poc_seqtbl_by_index_nolock(poc_dev, POC_WRITE_END_SEQ);
+			ret = panel_do_poc_seqtbl_by_name_nolock(poc_dev, POC_WRITE_END_SEQ);
 			if (unlikely(ret < 0)) {
 				panel_err("failed to write poc-wr-exit seq\n");
 				goto out_poc_write;
@@ -560,28 +567,28 @@ static int _dsi_poc_write_data(struct panel_device *panel, u8 *data, u32 addr, u
 		i += copy_len;
 	}
 
-	ret = panel_do_poc_seqtbl_by_index_nolock(poc_dev, POC_WRITE_EXIT_SEQ);
+	ret = panel_do_poc_seqtbl_by_name_nolock(poc_dev, POC_WRITE_EXIT_SEQ);
 	if (unlikely(ret < 0)) {
 		panel_err("failed to write poc-wr-exit seq\n");
 		goto out_poc_write;
 	}
 
 	panel_info("poc write addr 0x%06X, %d(0x%X) bytes\n", addr, size, size);
-	mutex_unlock(&panel->op_lock);
+	panel_mutex_unlock(&panel->op_lock);
 	if (poc_info->wdata)
 		devm_kfree(panel->dev, poc_info->wdata);
 
 	return 0;
 
 cancel_poc_write:
-	ret = panel_do_poc_seqtbl_by_index_nolock(poc_dev, POC_WRITE_EXIT_SEQ);
+	ret = panel_do_poc_seqtbl_by_name_nolock(poc_dev, POC_WRITE_EXIT_SEQ);
 	if (unlikely(ret < 0))
 		panel_err("failed to read poc-wr-exit seq\n");
 	ret = -EIO;
 	atomic_set(&poc_dev->cancel, 0);
 
 out_poc_write:
-	mutex_unlock(&panel->op_lock);
+	panel_mutex_unlock(&panel->op_lock);
 
 	if (poc_info->wdata)
 		devm_kfree(panel->dev, poc_info->wdata);
@@ -591,7 +598,7 @@ out_poc_write:
 
 int poc_write_data(struct panel_device *panel, u8 *data, u32 addr, u32 size)
 {
-#ifdef CONFIG_SUPPORT_POC_SPI
+#ifdef CONFIG_USDM_POC_SPI
 	struct panel_poc_device *poc_dev = &panel->poc_dev;
 	struct panel_poc_info *poc_info = &poc_dev->poc_info;
 
@@ -604,7 +611,7 @@ int poc_write_data(struct panel_device *panel, u8 *data, u32 addr, u32 size)
 int poc_memory_initialize(struct panel_device *panel)
 {
 	int ret = 0;
-#ifdef CONFIG_SUPPORT_POC_SPI
+#ifdef CONFIG_USDM_POC_SPI
 	struct panel_poc_device *poc_dev = &panel->poc_dev;
 	struct panel_poc_info *poc_info = &poc_dev->poc_info;
 	struct panel_spi_dev *spi_dev = &panel->panel_spi_dev;
@@ -624,7 +631,7 @@ int poc_memory_initialize(struct panel_device *panel)
 int poc_memory_uninitialize(struct panel_device *panel)
 {
 	int ret = 0;
-#ifdef CONFIG_SUPPORT_POC_SPI
+#ifdef CONFIG_USDM_POC_SPI
 	struct panel_poc_device *poc_dev = &panel->poc_dev;
 	struct panel_poc_info *poc_info = &poc_dev->poc_info;
 	struct panel_spi_dev *spi_dev = &panel->panel_spi_dev;
@@ -646,11 +653,10 @@ static int poc_get_octa_poc(struct panel_device *panel)
 {
 	struct panel_poc_device *poc_dev = &panel->poc_dev;
 	struct panel_poc_info *poc_info = &poc_dev->poc_info;
-	struct panel_info *panel_data = &panel->panel_data;
 	u8 octa_id[PANEL_OCTA_ID_LEN] = { 0, };
 	int ret;
 
-	ret = resource_copy_by_name(panel_data, octa_id, "octa_id");
+	ret = panel_resource_copy(panel, octa_id, "octa_id");
 	if (unlikely(ret < 0)) {
 		panel_err("failed to copy resource(octa_id) (ret %d)\n", ret);
 		return ret;
@@ -666,7 +672,6 @@ static int poc_get_poc_ctrl(struct panel_device *panel)
 {
 	struct panel_poc_device *poc_dev = &panel->poc_dev;
 	struct panel_poc_info *poc_info = &poc_dev->poc_info;
-	struct panel_info *panel_data = &panel->panel_data;
 	int ret;
 
 	if (sizeof(poc_info->poc_ctrl) != PANEL_POC_CTRL_LEN) {
@@ -674,17 +679,17 @@ static int poc_get_poc_ctrl(struct panel_device *panel)
 		return -EINVAL;
 	}
 
-	mutex_lock(&panel->op_lock);
+	panel_mutex_lock(&panel->op_lock);
 	panel_set_key(panel, 3, true);
 	ret = panel_resource_update_by_name(panel, "poc_ctrl");
 	panel_set_key(panel, 3, false);
-	mutex_unlock(&panel->op_lock);
+	panel_mutex_unlock(&panel->op_lock);
 	if (unlikely(ret < 0)) {
 		panel_err("failed to update resource(poc_ctrl)\n");
 		return ret;
 	}
 
-	ret = resource_copy_by_name(panel_data, poc_info->poc_ctrl, "poc_ctrl");
+	ret = panel_resource_copy(panel, poc_info->poc_ctrl, "poc_ctrl");
 	if (unlikely(ret < 0)) {
 		panel_err("failed to copy resource(poc_ctrl)\n");
 		return ret;
@@ -1143,13 +1148,13 @@ int set_panel_poc(struct panel_poc_device *poc_dev, u32 cmd, void *arg)
 			panel_err("failed to initialize memory\n");
 			return ret;
 		}
-#ifdef CONFIG_DISPLAY_USE_INFO
+#ifdef CONFIG_USDM_PANEL_DPUI
 		poc_info->erase_trycount++;
 #endif
 		ret = poc_erase(panel, addr, len);
 		if (unlikely(ret < 0)) {
 			panel_err("failed to write poc-erase-seq\n");
-#ifdef CONFIG_DISPLAY_USE_INFO
+#ifdef CONFIG_USDM_PANEL_DPUI
 			poc_info->erase_failcount++;
 #endif
 			poc_info->erased = false;
@@ -1243,7 +1248,7 @@ int set_panel_poc(struct panel_poc_device *poc_dev, u32 cmd, void *arg)
 			return ret;
 		}
 		break;
-#ifdef CONFIG_SUPPORT_POC_SPI
+#ifdef CONFIG_USDM_POC_SPI
 	case POC_OP_SET_CONN_SRC:
 		ret = sscanf((char *)arg, "%*d %d", &addr);
 		if (unlikely(ret < 1)) {
@@ -1313,7 +1318,7 @@ int set_panel_poc(struct panel_poc_device *poc_dev, u32 cmd, void *arg)
 };
 EXPORT_SYMBOL(set_panel_poc);
 
-#ifdef CONFIG_SUPPORT_POC_FLASH
+#ifdef CONFIG_USDM_PANEL_POC_FLASH
 static long panel_poc_ioctl(struct file *file, unsigned int cmd,
 			unsigned long arg)
 {
@@ -1334,7 +1339,7 @@ static long panel_poc_ioctl(struct file *file, unsigned int cmd,
 		return -EAGAIN;
 	}
 
-	mutex_lock(&panel->io_lock);
+	panel_mutex_lock(&panel->io_lock);
 	switch (cmd) {
 	case IOC_GET_POC_STATUS:
 		if (copy_to_user((u32 __user *)arg, &poc_info->state,
@@ -1400,7 +1405,7 @@ static long panel_poc_ioctl(struct file *file, unsigned int cmd,
 	default:
 		break;
 	};
-	mutex_unlock(&panel->io_lock);
+	panel_mutex_unlock(&panel->io_lock);
 	panel_wake_unlock(panel);
 
 	return 0;
@@ -1427,15 +1432,15 @@ static int panel_poc_open(struct inode *inode, struct file *file)
 		return -EAGAIN;
 	}
 
-	mutex_lock(&panel->io_lock);
+	panel_mutex_lock(&panel->io_lock);
 
 	ret = set_panel_poc(poc_dev, POC_OP_INITIALIZE, NULL);
 	if (ret < 0)
 		goto err_open;
 
-	mutex_lock(&panel->op_lock);
+	panel_mutex_lock(&panel->op_lock);
 	poc_info->state = 0;
-	mutex_unlock(&panel->op_lock);
+	panel_mutex_unlock(&panel->op_lock);
 	memset(poc_info->poc_chksum, 0, sizeof(poc_info->poc_chksum));
 	memset(poc_info->poc_ctrl, 0, sizeof(poc_info->poc_ctrl));
 
@@ -1450,13 +1455,13 @@ static int panel_poc_open(struct inode *inode, struct file *file)
 	file->private_data = poc_dev;
 	poc_dev->opened = 1;
 	atomic_set(&poc_dev->cancel, 0);
-	mutex_unlock(&panel->io_lock);
+	panel_mutex_unlock(&panel->io_lock);
 	panel_wake_unlock(panel);
 
 	return 0;
 err_open:
 	panel_err("failed to initialize %d\n", ret);
-	mutex_unlock(&panel->io_lock);
+	panel_mutex_unlock(&panel->io_lock);
 	panel_wake_unlock(panel);
 	return ret;
 }
@@ -1472,11 +1477,11 @@ static int panel_poc_release(struct inode *inode, struct file *file)
 
 	panel_wake_lock(panel);
 
-	mutex_lock(&panel->io_lock);
+	panel_mutex_lock(&panel->io_lock);
 
-	mutex_lock(&panel->op_lock);
+	panel_mutex_lock(&panel->op_lock);
 	poc_info->state = 0;
-	mutex_unlock(&panel->op_lock);
+	panel_mutex_unlock(&panel->op_lock);
 	memset(poc_info->poc_chksum, 0, sizeof(poc_info->poc_chksum));
 	memset(poc_info->poc_ctrl, 0, sizeof(poc_info->poc_ctrl));
 
@@ -1495,7 +1500,7 @@ static int panel_poc_release(struct inode *inode, struct file *file)
 	if (ret < 0)
 		panel_err("failed to uninitialize %d\n", ret);
 
-	mutex_unlock(&panel->io_lock);
+	panel_mutex_unlock(&panel->io_lock);
 	panel_wake_unlock(panel);
 	return ret;
 }
@@ -1550,7 +1555,7 @@ static ssize_t panel_poc_read(struct file *file, char __user *buf, size_t count,
 		return -EAGAIN;
 	}
 
-	mutex_lock(&panel->io_lock);
+	panel_mutex_lock(&panel->io_lock);
 	poc_info->rbuf = poc_rd_img;
 	poc_info->rpos = partition_addr + *ppos;
 	if (count > partition_size - *ppos) {
@@ -1570,12 +1575,12 @@ static ssize_t panel_poc_read(struct file *file, char __user *buf, size_t count,
 		goto err_read;
 
 	panel_info("read %ld bytes (count %ld)\n", res, count);
-	mutex_unlock(&panel->io_lock);
+	panel_mutex_unlock(&panel->io_lock);
 	panel_wake_unlock(panel);
 	return res;
 
 err_read:
-	mutex_unlock(&panel->io_lock);
+	panel_mutex_unlock(&panel->io_lock);
 	poc_info->read_failcount++;
 	panel_wake_unlock(panel);
 	return res;
@@ -1632,7 +1637,7 @@ static ssize_t panel_poc_write(struct file *file, const char __user *buf,
 		return -EAGAIN;
 	}
 
-	mutex_lock(&panel->io_lock);
+	panel_mutex_lock(&panel->io_lock);
 	poc_info->wbuf = poc_wr_img;
 	poc_info->wpos = partition_addr + *ppos;
 	if (count > partition_size - *ppos) {
@@ -1652,14 +1657,14 @@ static ssize_t panel_poc_write(struct file *file, const char __user *buf,
 	res = set_panel_poc(poc_dev, POC_OP_WRITE, NULL);
 	if (res < 0)
 		goto err_write;
-	mutex_unlock(&panel->io_lock);
+	panel_mutex_unlock(&panel->io_lock);
 	panel_wake_unlock(panel);
 
 	return count;
 
 err_write:
 	poc_info->write_failcount++;
-	mutex_unlock(&panel->io_lock);
+	panel_mutex_unlock(&panel->io_lock);
 	panel_wake_unlock(panel);
 	return res;
 }
@@ -1685,10 +1690,10 @@ static const struct file_operations panel_poc_fops = {
 	.release = panel_poc_release,
 	.llseek	= generic_file_llseek,
 };
-#endif /* CONFIG_SUPPORT_POC_FLASH */
+#endif /* CONFIG_USDM_PANEL_POC_FLASH */
 
-#ifdef CONFIG_DISPLAY_USE_INFO
-#ifdef CONFIG_SUPPORT_POC_FLASH
+#ifdef CONFIG_USDM_PANEL_DPUI
+#ifdef CONFIG_USDM_PANEL_POC_FLASH
 #define EPOCEFS_IMGIDX (100)
 enum {
 	EPOCEFS_NOENT = 1,		/* No such file or directory */
@@ -1937,7 +1942,7 @@ static int poc_dpui_callback(struct panel_poc_device *poc_dev)
 }
 #else
 static int poc_dpui_callback(struct panel_poc_device *poc_dev) { return 0; }
-#endif /* CONFIG_SUPPORT_POC_FLASH */
+#endif /* CONFIG_USDM_PANEL_POC_FLASH */
 
 static int poc_notifier_callback(struct notifier_block *self,
 				 unsigned long event, void *data)
@@ -1955,12 +1960,13 @@ static int poc_notifier_callback(struct notifier_block *self,
 
 	return 0;
 }
-#endif /* CONFIG_DISPLAY_USE_INFO */
+#endif /* CONFIG_USDM_PANEL_DPUI */
 
 int panel_poc_probe(struct panel_device *panel, struct panel_poc_data *poc_data)
 {
 	struct panel_poc_device *poc_dev = &panel->poc_dev;
 	struct panel_poc_info *poc_info = &poc_dev->poc_info;
+	struct pnobj *pnobj;
 	int ret = 0, i, exists;
 	static bool initialized;
 
@@ -1970,7 +1976,7 @@ int panel_poc_probe(struct panel_device *panel, struct panel_poc_data *poc_data)
 	}
 
 	if (!initialized) {
-#ifdef CONFIG_SUPPORT_POC_FLASH
+#ifdef CONFIG_USDM_PANEL_POC_FLASH
 		poc_dev->dev.minor = MISC_DYNAMIC_MINOR;
 		poc_dev->dev.name = "poc";
 		poc_dev->dev.fops = &panel_poc_fops;
@@ -1982,28 +1988,43 @@ int panel_poc_probe(struct panel_device *panel, struct panel_poc_data *poc_data)
 			goto exit_probe;
 		}
 #endif
+		INIT_LIST_HEAD(&poc_dev->seq_list);
+		INIT_LIST_HEAD(&poc_dev->maptbl_list);
 	}
 	poc_info->version = poc_data->version;
-#ifdef CONFIG_SUPPORT_POC_SPI
+#ifdef CONFIG_USDM_POC_SPI
 	poc_info->conn_src = poc_data->conn_src;
 #endif
 	poc_info->wdata_len = poc_data->wdata_len;
-	poc_dev->seqtbl = poc_data->seqtbl;
-	poc_dev->nr_seqtbl = poc_data->nr_seqtbl;
-	poc_dev->maptbl = poc_data->maptbl;
-	poc_dev->nr_maptbl = poc_data->nr_maptbl;
 	poc_dev->partition = poc_data->partition;
 	poc_dev->nr_partition = poc_data->nr_partition;
 
-	for (i = 0; i < poc_dev->nr_maptbl; i++)
-		poc_dev->maptbl[i].pdata = poc_dev;
+	/* setup sequence list */
+	for (i = 0; i < poc_data->nr_seqtbl; i++) {
+		if (!is_valid_sequence(&poc_data->seqtbl[i]))
+			continue;
+
+		list_add_tail(get_pnobj_list(&poc_data->seqtbl[i].base),
+				&poc_dev->seq_list);
+	}
+
+	/* setup maptbl list */
+	for (i = 0; i < poc_data->nr_maptbl; i++)
+		list_add_tail(get_pnobj_list(&poc_data->maptbl[i].base),
+				&poc_dev->maptbl_list);
+
+	/* initialize maptbl */
+	list_for_each_entry(pnobj, &poc_dev->maptbl_list, list) {
+		struct maptbl *m =
+			pnobj_container_of(pnobj, struct maptbl);
+
+		m->pdata = poc_dev;
+		maptbl_init(m);
+	}
 
 	poc_info->erased = false;
 	poc_info->poc = 1;	/* default enabled */
 	poc_dev->opened = 0;
-
-	for (i = 0; i < poc_dev->nr_maptbl; i++)
-		maptbl_init(&poc_dev->maptbl[i]);
 
 	for (i = 0; i < poc_dev->nr_partition; i++) {
 		poc_dev->partition[i].preload_done = false;
@@ -2026,7 +2047,7 @@ int panel_poc_probe(struct panel_device *panel, struct panel_poc_data *poc_data)
 	poc_rd_img = (u8 *)devm_kzalloc(panel->dev,
 			poc_info->total_size * sizeof(u8), GFP_KERNEL);
 
-#ifdef CONFIG_DISPLAY_USE_INFO
+#ifdef CONFIG_USDM_PANEL_DPUI
 	poc_info->total_trycount = -1;
 	poc_info->total_failcount = -1;
 
@@ -2072,6 +2093,15 @@ exit_probe:
 
 int panel_poc_remove(struct panel_device *panel)
 {
+	struct panel_poc_device *poc_dev = &panel->poc_dev;
+	struct pnobj *pos, *next;
+
+	list_for_each_entry_safe(pos, next, &poc_dev->seq_list, list)
+		list_del(&pos->list);
+
+	list_for_each_entry_safe(pos, next, &poc_dev->maptbl_list, list)
+		list_del(&pos->list);
+
 	return 0;
 }
 

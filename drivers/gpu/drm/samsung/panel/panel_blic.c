@@ -24,92 +24,68 @@
 
 #define BLIC_DT_NODE_NAME "blic"
 
-static int panel_blic_do_seq(struct panel_blic_dev *blic, enum panel_blic_seq index);
+static int panel_blic_do_seq(struct panel_blic_dev *blic, char *seqname);
 
 static struct panel_blic_ops panel_blic_ops = {
 	.do_seq = panel_blic_do_seq,
-	.execute_power_ctrl = panel_blic_power_control_execute,
+	.execute_power_ctrl = panel_blic_power_ctrl_execute,
 };
 
 __visible_for_testing struct panel_device *to_panel_drv(struct panel_blic_dev *blic_dev)
 {
-	struct panel_device *panel;
-
 	if (!blic_dev)
 		return NULL;
 
-	panel = container_of(blic_dev, struct panel_device, blic_dev[blic_dev->id]);
-
-	return panel;
+	return container_of(blic_dev, struct panel_device, blic_dev[blic_dev->id]);
 }
 
-__visible_for_testing struct blic_data *panel_blic_find_blic_data(struct panel_blic_dev *blic)
+struct seqinfo *find_blic_seq(struct panel_blic_dev *blic, char *seqname)
 {
-	struct panel_device *panel;
-	struct panel_info *panel_data;
-	int i = 0;
+	struct pnobj *pnobj;
 
 	if (!blic) {
-		panel_err("blic is null.\n");
+		panel_err("blic is null\n");
 		return NULL;
 	}
 
-	panel = to_panel_drv(blic);
-
-	if (!panel) {
-		panel_err("panel is null.\n");
+	if (list_empty(&blic->seq_list)) {
+		panel_err("blic sequence is empty\n");
 		return NULL;
 	}
 
-	panel_data = &panel->panel_data;
+	pnobj = pnobj_find_by_name(&blic->seq_list, seqname);
+	if (!pnobj)
+		return NULL;
 
-	for (i = 0; i < panel_data->nr_blic_data_tbl; i++) {
-		if (!strcmp(panel_data->blic_data_tbl[i]->name, blic->name))
-			return panel_data->blic_data_tbl[i];
-
-	}
-
-	return NULL;
+	return pnobj_container_of(pnobj, struct seqinfo);
 }
 
-static int panel_blic_do_seq(struct panel_blic_dev *blic, enum panel_blic_seq index)
+static bool panel_blic_check_seqtbl_exist(struct panel_blic_dev *blic, char *seqname)
 {
-	struct panel_device *panel;
-	struct blic_data *blic_data;
-	struct seqinfo *tbl;
-	int ret = 0;
+	struct seqinfo *seq;
 
-	if (!blic || index >= MAX_PANEL_BLIC_SEQ || index < 0) {
-		panel_err("invalid arguments.\n");
+	seq = find_blic_seq(blic, seqname);
+	if (!seq)
+		return false;
+
+	if (!is_valid_sequence(seq))
+		return false;
+
+	return true;
+}
+
+static int panel_blic_do_seq_nolock(struct panel_blic_dev *blic, char *seqname)
+{
+	struct seqinfo *seq;
+
+	if (!blic) {
+		panel_err("blic is null\n");
 		return -EINVAL;
 	}
 
-	panel = to_panel_drv(blic);
-
-	if (!panel) {
-		panel_err("panel is null.\n");
+	seq = find_blic_seq(blic, seqname);
+	if (!seq)
 		return -EINVAL;
-	}
-
-	if (panel_bypass_is_on(panel)) {
-		panel_warn("panel no use\n");
-		return 0;
-	}
-
-	blic_data = panel_blic_find_blic_data(blic);
-
-	if (!blic_data) {
-		panel_err("blic_data is null.\n");
-		return -EINVAL;
-	}
-
-	tbl = blic_data->seqtbl;
-	mutex_lock(&panel->op_lock);
-	if (unlikely(index < 0 || index >= MAX_PANEL_BLIC_SEQ)) {
-		panel_err("invalid parameter (index %d)\n", index);
-		ret = -EINVAL;
-		goto do_exit;
-	}
 
 	/*
 	 * @ i2c_dev_selected
@@ -120,31 +96,85 @@ static int panel_blic_do_seq(struct panel_blic_dev *blic, enum panel_blic_seq in
 	 * .i2c_dev_selected should be protected in panel->op_lock.
 	 */
 
-#ifdef CONFIG_MCD_PANEL_I2C
-	if (blic->i2c_dev)
+#ifdef CONFIG_USDM_BLIC_I2C
+	if (blic->i2c_dev) {
+		struct panel_device *panel =
+			to_panel_drv(blic);
+
+		if (!panel) {
+			panel_err("panel is null\n");
+			return -EINVAL;
+		}
+
 		panel->i2c_dev_selected = blic->i2c_dev;
+	}
 #endif
 
-	panel_info("%s:start\n", tbl[index].name);
-	ret = panel_do_seqtbl(panel, &tbl[index]);
-	if (unlikely(ret < 0)) {
-		panel_err("failed to excute seqtbl:%s\n", tbl->name);
+	return execute_sequence_nolock(to_panel_drv(blic), seq);
+}
+
+static int panel_blic_do_seq(struct panel_blic_dev *blic, char *seqname)
+{
+	struct panel_device *panel;
+	int ret = 0;
+
+	if (!blic) {
+		panel_err("blic is null.\n");
+		return -EINVAL;
+	}
+
+	if (!seqname) {
+		panel_err("seqname is null.\n");
+		return -EINVAL;
+	}
+
+	panel = to_panel_drv(blic);
+	if (!panel) {
+		panel_err("panel is null.\n");
+		return -EINVAL;
+	}
+
+	panel_mutex_lock(&panel->op_lock);
+	ret = panel_blic_do_seq_nolock(blic, seqname);
+	if (ret < 0) {
+		panel_err("failed to run sequence(%s)\n", seqname);
 		ret = -EIO;
 		goto do_exit;
 	}
 
 do_exit:
-	mutex_unlock(&panel->op_lock);
-	panel_info("%s:end\n", tbl[index].name);
+	panel_mutex_unlock(&panel->op_lock);
 
 	return ret;
 }
 
-bool panel_blic_power_control_exists(struct panel_blic_dev *blic, const char *name)
+int panel_blic_brightness(struct panel_device *panel, bool need_lock)
 {
-	struct panel_power_ctrl *pctrl;
-	struct panel_device *panel;
+	int ret = 0;
+	int i;
 
+	if (need_lock)
+		panel_mutex_lock(&panel->op_lock);
+
+	for (i = 0; i < panel->nr_blic_dev; i++) {
+		if (panel_blic_check_seqtbl_exist(&panel->blic_dev[i], PANEL_BLIC_I2C_BRIGHTNESS_SEQ)) {
+			ret = panel_blic_do_seq_nolock(&panel->blic_dev[i], PANEL_BLIC_I2C_BRIGHTNESS_SEQ);
+			if (ret) {
+				panel_err("panel_blic_do_seq is failed.(%d)\n", ret);
+				goto panel_blic_brightness_exit;
+			}
+		}
+	}
+
+panel_blic_brightness_exit:
+	if (need_lock)
+		panel_mutex_unlock(&panel->op_lock);
+
+	return ret;
+}
+
+bool panel_blic_power_ctrl_exists(struct panel_blic_dev *blic, const char *name)
+{
 	if (!blic || !name) {
 		panel_err("invalid arg");
 		return false;
@@ -160,25 +190,11 @@ bool panel_blic_power_control_exists(struct panel_blic_dev *blic, const char *na
 		return false;
 	}
 
-	panel = to_panel_drv(blic);
-
-	pctrl = panel_power_control_find_sequence(panel, blic->np->name, name);
-	if (IS_ERR_OR_NULL(pctrl)) {
-		if (PTR_ERR(pctrl) == -ENODATA)
-			panel_dbg("not found %s\n", name);
-		else
-			panel_err("error occurred when find %s, %d\n", name, PTR_ERR(pctrl));
-		return false;
-	}
-
-	return true;
+	return panel_power_ctrl_exists(to_panel_drv(blic), blic->np->name, name);
 }
 
-int panel_blic_power_control_execute(struct panel_blic_dev *blic, const char *name)
+int panel_blic_power_ctrl_execute(struct panel_blic_dev *blic, const char *name)
 {
-	struct panel_power_ctrl *pctrl;
-	struct panel_device *panel;
-
 	if (!blic || !name) {
 		panel_err("invalid arg\n");
 		return -EINVAL;
@@ -194,17 +210,7 @@ int panel_blic_power_control_execute(struct panel_blic_dev *blic, const char *na
 		return -ENODEV;
 	}
 
-	panel = to_panel_drv(blic);
-	pctrl = panel_power_control_find_sequence(panel, blic->np->name, name);
-	if (IS_ERR_OR_NULL(pctrl)) {
-		if (PTR_ERR(pctrl) == -ENODATA) {
-			panel_dbg("%s not found\n", name);
-			return -ENODATA;
-		}
-		panel_dbg("error occurred when find %s, %d\n", name, PTR_ERR(pctrl));
-		return PTR_ERR(pctrl);
-	}
-	return panel_power_ctrl_helper_execute(pctrl);
+	return panel_power_ctrl_execute(to_panel_drv(blic), blic->np->name, name);
 }
 
 /* enable/disable regulator */
@@ -246,12 +252,12 @@ int panel_blic_regulator_enable(struct regulator_dev *rdev)
 		return -EINVAL;
 	}
 
-	if (panel_blic_power_control_exists(blic, "panel_blic_pre_on"))
+	if (panel_blic_power_ctrl_exists(blic, "panel_blic_pre_on"))
 		ret |= blic->ops->execute_power_ctrl(blic, "panel_blic_pre_on");
 
 	ret |= blic->ops->do_seq(blic, PANEL_BLIC_I2C_ON_SEQ);
 
-	if (panel_blic_power_control_exists(blic, "panel_blic_post_on"))
+	if (panel_blic_power_ctrl_exists(blic, "panel_blic_post_on"))
 		ret |= blic->ops->execute_power_ctrl(blic, "panel_blic_post_on");
 
 	if (ret) {
@@ -302,12 +308,12 @@ __visible_for_testing int panel_blic_regulator_disable(struct regulator_dev *rde
 		return 0;
 	}
 
-	if (panel_blic_power_control_exists(blic, "panel_blic_pre_off"))
+	if (panel_blic_power_ctrl_exists(blic, "panel_blic_pre_off"))
 		ret |= blic->ops->execute_power_ctrl(blic, "panel_blic_pre_off");
 
 	ret |= blic->ops->do_seq(blic, PANEL_BLIC_I2C_OFF_SEQ);
 
-	if (panel_blic_power_control_exists(blic, "panel_blic_post_off"))
+	if (panel_blic_power_ctrl_exists(blic, "panel_blic_post_off"))
 		ret |= blic->ops->execute_power_ctrl(blic, "panel_blic_post_off");
 
 	if (ret) {
@@ -459,7 +465,7 @@ static inline int panel_blic_regulator_register(struct panel_blic_dev *blic_dev)
 }
 #endif
 
-#ifdef CONFIG_MCD_PANEL_I2C
+#ifdef CONFIG_USDM_BLIC_I2C
 __visible_for_testing struct panel_i2c_dev *panel_blic_find_i2c_drv(struct panel_blic_dev *blic_dev, struct panel_device *panel)
 {
 	u8 i2c_read_buf[2] = { 0, };
@@ -536,7 +542,8 @@ static int of_get_panel_blic(struct panel_blic_dev *blic_dev, struct device_node
 	}
 
 	if (panel->nr_blic_dev >= PANEL_BLIC_MAX) {
-		pr_err("%s i2c_dev array is full. (%d)\n", panel->nr_blic_dev);
+		pr_err("i2c_dev array is full. (%d)\n",
+				panel->nr_blic_dev);
 		return -EINVAL;
 	}
 
@@ -644,7 +651,7 @@ exit_power:
 	of_node_put(power_np);
 exit:
 
-#ifdef CONFIG_MCD_PANEL_I2C
+#ifdef CONFIG_USDM_BLIC_I2C
 	if (temp->i2c_reg) {
 		temp->i2c_dev = panel_blic_find_i2c_drv(temp, panel);
 
@@ -682,7 +689,6 @@ err:
 static int panel_blic_get_blic(struct panel_blic_dev *blic_dev, struct device_node *np)
 {
 	struct device_node *blic_np;
-
 	int ret = 0;
 	int id = 0;
 
@@ -711,8 +717,7 @@ static int panel_blic_get_blic(struct panel_blic_dev *blic_dev, struct device_no
 __visible_for_testing int panel_blic_get_blic_regulator(struct panel_blic_dev *blic_dev)
 {
 	struct panel_device *panel;
-	int ret = 0;
-	int i = 0;
+	int ret;
 
 	if (!blic_dev) {
 		panel_err("blic_dev is null.\n");
@@ -720,28 +725,87 @@ __visible_for_testing int panel_blic_get_blic_regulator(struct panel_blic_dev *b
 	}
 
 	panel = to_panel_drv(blic_dev);
-
 	if (!panel) {
 		panel_err("panel is null.\n");
 		return -EINVAL;
 	}
 
-	for (i = 0; i < panel->nr_blic_dev; i++) {
-		ret = panel_blic_regulator_register(&blic_dev[i]);
-		if (ret)
-			panel_err("failed to register blic regulator(%d)(%s)\n",
-				i, blic_dev[i].regulator_name);
+	ret = panel_blic_regulator_register(blic_dev);
+	if (ret < 0) {
+		panel_err("failed to register blic regulator(%s)\n",
+				blic_dev->regulator_name);
+		return ret;
 	}
 
-	return ret;
+	return 0;
+}
+
+int panel_blic_prepare(struct panel_device *panel, struct common_panel_info *info)
+{
+	int i, j;
+	struct blic_data *blic_data;
+	struct panel_blic_dev *blic_dev;
+
+	if (!panel)
+		return -EINVAL;
+
+	if (!info)
+		return -EINVAL;
+
+	if (!info->blic_data_tbl) {
+		panel_err("blic_data_tbl is null\n");
+		return -EINVAL;
+	}
+
+	for (i = 0; i < panel->nr_blic_dev; i++) {
+		blic_dev = &panel->blic_dev[i];
+		blic_dev->blic_data_tbl = info->blic_data_tbl[i];
+		blic_data = info->blic_data_tbl[i];
+
+		if (!blic_data) {
+			panel_err("blic_data_tbl[%d] is null.\n", i);
+			return 0;
+		}
+
+		for (j = 0; j < blic_data->nr_seqtbl; j++) {
+			if (!is_valid_sequence(&blic_data->seqtbl[j]))
+				continue;
+
+			list_add_tail(get_pnobj_list(&blic_data->seqtbl[j].base),
+					&blic_dev->seq_list);
+		}
+	}
+
+	return 0;
+}
+
+int panel_blic_unprepare(struct panel_device *panel)
+{
+	struct panel_blic_dev *blic_dev;
+	struct pnobj *pos, *next;
+	int i;
+
+	if (!panel)
+		return -EINVAL;
+
+	for (i = 0; i < panel->nr_blic_dev; i++) {
+		blic_dev = &panel->blic_dev[i];
+
+		if (!blic_dev->blic_data_tbl)
+			continue;
+
+		list_for_each_entry_safe(pos, next, &blic_dev->seq_list, list)
+			list_del(&pos->list);
+	}
+
+	return 0;
 }
 
 int panel_blic_probe(struct panel_device *panel)
 {
 	struct panel_blic_dev *blic_dev;
 	struct device_node *np;
-
-	int ret = 0;
+	int i, ret = 0;
 
 	if (!panel) {
 		panel_err("panel is null.\n");
@@ -751,21 +815,27 @@ int panel_blic_probe(struct panel_device *panel)
 	np = of_parse_phandle(panel->dev->of_node, BLIC_DT_NODE_NAME, 0);
 	if (!np) {
 		panel_err("failed to get blic DT node.\n");
-		return ret;
+		return -EINVAL;
 	}
 
 	blic_dev = panel->blic_dev;
-
 	ret = panel_blic_get_blic(blic_dev, np);
+	of_node_put(np);
 	if (ret) {
 		panel_err("failed to get blic.\n");
 		return ret;
 	}
 
-	ret = panel_blic_get_blic_regulator(blic_dev);
-	if (ret) {
-		panel_err("failed to get blic regulator.\n");
-		return ret;
+	for (i = 0; i < panel->nr_blic_dev; i++) {
+		blic_dev = &panel->blic_dev[i];
+
+		ret = panel_blic_get_blic_regulator(blic_dev);
+		if (ret) {
+			panel_err("failed to get blic regulator.\n");
+			return ret;
+		}
+
+		INIT_LIST_HEAD(&blic_dev->seq_list);
 	}
 
 	return ret;

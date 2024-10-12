@@ -25,6 +25,7 @@ enum task_cgroup {
 	CGROUP_SYSTEM_BACKGROUND,
 	CGROUP_NNAPI_HAL,
 	CGROUP_CAMERA_DAEMON,
+	CGROUP_MIDGROUND,
 	CGROUP_COUNT,
 };
 
@@ -84,6 +85,7 @@ enum task_cgroup {
 #define TASK_AVD1_54(task)		(task->android_vendor_data1[54])
 #define TASK_AVD1_55(task)		(task->android_vendor_data1[55])
 #define TASK_AVD1_56(task)		(task->android_vendor_data1[56])
+#define TASK_AVD1_57(task)		(task->android_vendor_data1[57])
 
 /* support flag-handling for EMS */
 #define EMS_PF_GET(task)		TASK_AVD1_2(task)
@@ -115,6 +117,7 @@ enum task_cgroup {
 #define ems_rq_cluster_idx(rq)		(RQ_AVD1_8(rq))
 #define ems_prio_tex(task)			(TASK_AVD1_55(task))
 #define ems_rq_nr_prio_tex(rq)		(RQ_AVD1_9(rq))
+#define ems_last_waked(task)		(TASK_AVD1_57(task))
 
 #define ems_qjump_list_entry(list)	({						\
 	void *__mptr = (void *)(list);						\
@@ -759,6 +762,7 @@ static inline int is_misfit_task_util(unsigned long util)
 extern int profile_sched_init(struct kobject *);
 extern int profile_sched_data(void);
 extern int profile_get_htask_ratio(int cpu);
+extern int profile_get_fps(void);
 extern u64 profile_get_cpu_wratio_busy(int cpu);
 extern void profile_enqueue_task(struct rq *rq, struct task_struct *p);
 extern void get_system_sched_data(struct system_profile_data *);

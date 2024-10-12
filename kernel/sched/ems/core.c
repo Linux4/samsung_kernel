@@ -941,6 +941,11 @@ static void find_overcap_cpus(struct tp_env *env)
 		cpu_util_with = ml_cpu_util_with(env->p, cpu) + extra_util;
 		if (cpu_util_with > capacity)
 			cpumask_set_cpu(cpu, &env->overcap_cpus);
+		else {
+			if (rq->nr_running > 3 && mlt_avg_nr_run(rq) > 350)
+				cpumask_set_cpu(cpu, &env->overcap_cpus);
+		}
+
 	}
 
 	if (cpu_selected(max_spare_cap_cpu) &&

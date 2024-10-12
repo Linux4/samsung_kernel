@@ -76,6 +76,10 @@
 
 #include <trace/events/sched.h>
 
+#ifdef CONFIG_SECURITY_DEFEX
+#include <linux/defex.h>
+#endif
+
 EXPORT_TRACEPOINT_SYMBOL_GPL(task_rename);
 
 static int bprm_creds_from_file(struct linux_binprm *bprm);
@@ -1017,7 +1021,6 @@ static int exec_mmap(struct mm_struct *mm)
 	active_mm = tsk->active_mm;
 	tsk->active_mm = mm;
 	tsk->mm = mm;
-	lru_gen_add_mm(mm);
 	/*
 	 * This prevents preemption while active_mm is being loaded and
 	 * it and mm are being updated, which could cause problems for
@@ -1031,6 +1034,7 @@ static int exec_mmap(struct mm_struct *mm)
 	if (IS_ENABLED(CONFIG_ARCH_WANT_IRQS_OFF_ACTIVATE_MM))
 		local_irq_enable();
 	tsk->mm->vmacache_seqnum = 0;
+	lru_gen_add_mm(mm);
 	vmacache_flush(tsk);
 	task_unlock(tsk);
 	lru_gen_use_mm(mm);
@@ -1828,6 +1832,15 @@ static int bprm_execve(struct linux_binprm *bprm,
 	retval = PTR_ERR(file);
 	if (IS_ERR(file))
 		goto out_unmark;
+
+#ifdef CONFIG_SECURITY_DEFEX
+	retval = task_defex_enforce(current, file, -__NR_execve);
+	if (retval < 0) {
+		bprm->file = file;
+		retval = -EPERM;
+		goto out_unmark;
+	 }
+#endif
 
 	sched_exec();
 

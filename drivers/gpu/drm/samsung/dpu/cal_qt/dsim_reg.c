@@ -1112,7 +1112,7 @@ static int dsim_reg_wait_idle_status(u32 id, u32 is_vm)
 	ret = readl_poll_timeout_atomic(
 			dsim_regs_desc(id)->regs + DSIM_LINK_STATUS0, val,
 			!DSIM_LINK_STATUS0_VIDEO_MODE_STATUS_GET(val), 10,
-			16000);
+			33000);
 	if (ret) {
 		cal_log_err(id, "dsim%d wait timeout idle status\n", id);
 		return ret;

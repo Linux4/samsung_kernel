@@ -803,8 +803,7 @@ static inline int ovt_tcm_realloc_mem(struct ovt_tcm_hcd *tcm_hcd,
 			dev_err(tcm_hcd->pdev->dev.parent,
 					"%s: Failed to allocate memory\n",
 					__func__);
-			kfree(temp);
-			buffer->buf_size = 0;
+			buffer->buf = temp;
 			return -ENOMEM;
 		}
 

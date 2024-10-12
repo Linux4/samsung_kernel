@@ -431,6 +431,10 @@ int cpuctl_task_group_idx(struct task_struct *p)
 	idx = css->id - 1;
 	rcu_read_unlock();
 
+	/* if customer add new group, use the last group */
+	if (idx >= CGROUP_COUNT)
+		idx = CGROUP_COUNT - 1;
+
 	return idx;
 }
 
