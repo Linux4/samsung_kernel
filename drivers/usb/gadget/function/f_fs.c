@@ -304,11 +304,15 @@ static int __ffs_ep0_queue_wait(struct ffs_data *ffs, char *data, size_t len)
 
 	ret = wait_for_completion_interruptible(&ffs->ep0req_completion);
 	if (unlikely(ret)) {
+		if (!ffs->gadget)
+			return -EINTR;
 		usb_ep_dequeue(ffs->gadget->ep0, req);
 		return -EINTR;
 	}
 
 	ffs->setup_state = FFS_NO_SETUP;
+	if (!ffs->ep0req)
+		return -EINTR;
 	return req->status ? req->status : req->actual;
 }
 
@@ -1886,11 +1890,14 @@ static int functionfs_bind(struct ffs_data *ffs, struct usb_composite_dev *cdev)
 
 static void functionfs_unbind(struct ffs_data *ffs)
 {
+	struct usb_request *temp_ep0req;
+	
 	ENTER();
 
 	if (!WARN_ON(!ffs->gadget)) {
-		usb_ep_free_request(ffs->gadget->ep0, ffs->ep0req);
+		temp_ep0req = ffs->ep0req;
 		ffs->ep0req = NULL;
+		usb_ep_free_request(ffs->gadget->ep0, temp_ep0req);
 		ffs->gadget = NULL;
 		clear_bit(FFS_FL_BOUND, &ffs->flags);
 		ffs_data_put(ffs);

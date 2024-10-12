@@ -1786,6 +1786,17 @@ static void fw_update(void *device_data)
 	if (retval < 0)
 		return;
 
+#if IS_ENABLED(CONFIG_INPUT_SEC_SECURE_TOUCH)
+#if IS_ENABLED(CONFIG_GH_RM_DRV)
+	if (atomic_read(&ts->trusted_touch_enabled)) {
+		input_info(true, &ts->client->dev, "%s trusted touch is enabled. skip\n", __func__);
+		snprintf(buff, sizeof(buff), "%s", "NG");
+		sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
+		sec->cmd_state = SEC_CMD_STATUS_FAIL;
+		return;
+	}
+#endif
+#endif
 	mutex_lock(&ts->modechange);
 	retval = stm_ts_fw_update_on_hidden_menu(ts, sec->cmd_param[0]);
 	if (retval < 0) {
@@ -5849,6 +5860,18 @@ static void fod_enable(void *device_data)
 			ts->plat_data->fod_data.press_prop & 2 ? "on" : "off",
 			ts->plat_data->lowpower_mode);
 
+#if IS_ENABLED(CONFIG_INPUT_SEC_SECURE_TOUCH)
+#if IS_ENABLED(CONFIG_GH_RM_DRV)
+	if (atomic_read(&ts->trusted_touch_enabled)) {
+		input_info(true, &ts->client->dev, "%s trusted touch is enabled. skip\n", __func__);
+		snprintf(buff, sizeof(buff), "OK");
+		sec->cmd_state = SEC_CMD_STATUS_OK;
+		sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
+		sec_cmd_set_cmd_exit(sec);
+		return;
+	}
+#endif
+#endif
 	mutex_lock(&ts->modechange);
 
 	if (!ts->plat_data->enabled && !ts->plat_data->lowpower_mode && !ts->plat_data->pocket_mode
@@ -6339,6 +6362,18 @@ static void low_sensitivity_mode_enable(void *device_data)
 
 	sec_cmd_set_default_result(sec);
 
+#if IS_ENABLED(CONFIG_INPUT_SEC_SECURE_TOUCH)
+#if IS_ENABLED(CONFIG_GH_RM_DRV)
+	if (atomic_read(&ts->trusted_touch_enabled)) {
+		input_info(true, &ts->client->dev, "%s trusted touch is enabled. skip\n", __func__);
+		snprintf(buff, sizeof(buff), "NG");
+		sec->cmd_state = SEC_CMD_STATUS_FAIL;
+		sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
+		sec_cmd_set_cmd_exit(sec);
+		return;
+	}
+#endif
+#endif
 	if (sec->cmd_param[0] < 0 || sec->cmd_param[0] > 3) {
 		snprintf(buff, sizeof(buff), "NG");
 		sec->cmd_state = SEC_CMD_STATUS_FAIL;
