@@ -79,7 +79,7 @@ PVRSRVBridgeSyncRecordRemoveByHandle(IMG_UINT32 ui32DispatchTableEntry,
 	LockHandle(psConnection->psHandleBase);
 
 	psSyncRecordRemoveByHandleOUT->eError =
-	    PVRSRVReleaseHandleUnlocked(psConnection->psHandleBase,
+	    PVRSRVDestroyHandleUnlocked(psConnection->psHandleBase,
 					(IMG_HANDLE)
 					psSyncRecordRemoveByHandleIN->hhRecord,
 					PVRSRV_HANDLE_TYPE_SYNC_RECORD_HANDLE);
@@ -103,6 +103,9 @@ PVRSRVBridgeSyncRecordRemoveByHandle(IMG_UINT32 ui32DispatchTableEntry,
 	return 0;
 }
 
+static_assert(SYNC_MAX_CLASS_NAME_LEN <= IMG_UINT32_MAX,
+	      "SYNC_MAX_CLASS_NAME_LEN must not be larger than IMG_UINT32_MAX");
+
 static IMG_INT
 PVRSRVBridgeSyncRecordAdd(IMG_UINT32 ui32DispatchTableEntry,
 			  PVRSRV_BRIDGE_IN_SYNCRECORDADD * psSyncRecordAddIN,
@@ -121,8 +124,10 @@ PVRSRVBridgeSyncRecordAdd(IMG_UINT32 ui32DispatchTableEntry,
 	IMG_BOOL bHaveEnoughSpace = IMG_FALSE;
 #endif
 
-	IMG_UINT32 ui32BufferSize =
-	    (psSyncRecordAddIN->ui32ClassNameSize * sizeof(IMG_CHAR)) + 0;
+	IMG_UINT32 ui32BufferSize = 0;
+	IMG_UINT64 ui64BufferSize =
+	    ((IMG_UINT64) psSyncRecordAddIN->ui32ClassNameSize *
+	     sizeof(IMG_CHAR)) + 0;
 
 	if (unlikely
 	    (psSyncRecordAddIN->ui32ClassNameSize > SYNC_MAX_CLASS_NAME_LEN))
@@ -131,6 +136,15 @@ PVRSRVBridgeSyncRecordAdd(IMG_UINT32 ui32DispatchTableEntry,
 		    PVRSRV_ERROR_BRIDGE_ARRAY_SIZE_TOO_BIG;
 		goto SyncRecordAdd_exit;
 	}
+
+	if (ui64BufferSize > IMG_UINT32_MAX)
+	{
+		psSyncRecordAddOUT->eError =
+		    PVRSRV_ERROR_BRIDGE_BUFFER_TOO_SMALL;
+		goto SyncRecordAdd_exit;
+	}
+
+	ui32BufferSize = (IMG_UINT32) ui64BufferSize;
 
 	if (ui32BufferSize != 0)
 	{
@@ -270,7 +284,10 @@ PVRSRVBridgeSyncRecordAdd(IMG_UINT32 ui32DispatchTableEntry,
 	}
 
 	/* Allocated space should be equal to the last updated offset */
-	PVR_ASSERT(ui32BufferSize == ui32NextOffset);
+#ifdef PVRSRV_NEED_PVR_ASSERT
+	if (psSyncRecordAddOUT->eError == PVRSRV_OK)
+		PVR_ASSERT(ui32BufferSize == ui32NextOffset);
+#endif /* PVRSRV_NEED_PVR_ASSERT */
 
 #if defined(INTEGRITY_OS)
 	if (pArrayArgsBuffer)

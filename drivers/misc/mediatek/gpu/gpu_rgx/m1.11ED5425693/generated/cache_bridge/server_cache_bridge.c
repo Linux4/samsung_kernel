@@ -65,6 +65,9 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  * Server-side bridge entry points
  */
 
+static_assert(CACHE_BATCH_MAX <= IMG_UINT32_MAX,
+	      "CACHE_BATCH_MAX must not be larger than IMG_UINT32_MAX");
+
 static IMG_INT
 PVRSRVBridgeCacheOpQueue(IMG_UINT32 ui32DispatchTableEntry,
 			 PVRSRV_BRIDGE_IN_CACHEOPQUEUE * psCacheOpQueueIN,
@@ -84,13 +87,19 @@ PVRSRVBridgeCacheOpQueue(IMG_UINT32 ui32DispatchTableEntry,
 	IMG_BOOL bHaveEnoughSpace = IMG_FALSE;
 #endif
 
-	IMG_UINT32 ui32BufferSize =
-	    (psCacheOpQueueIN->ui32NumCacheOps * sizeof(PMR *)) +
-	    (psCacheOpQueueIN->ui32NumCacheOps * sizeof(IMG_HANDLE)) +
-	    (psCacheOpQueueIN->ui32NumCacheOps * sizeof(IMG_UINT64)) +
-	    (psCacheOpQueueIN->ui32NumCacheOps * sizeof(IMG_DEVMEM_OFFSET_T)) +
-	    (psCacheOpQueueIN->ui32NumCacheOps * sizeof(IMG_DEVMEM_SIZE_T)) +
-	    (psCacheOpQueueIN->ui32NumCacheOps * sizeof(PVRSRV_CACHE_OP)) + 0;
+	IMG_UINT32 ui32BufferSize = 0;
+	IMG_UINT64 ui64BufferSize =
+	    ((IMG_UINT64) psCacheOpQueueIN->ui32NumCacheOps * sizeof(PMR *)) +
+	    ((IMG_UINT64) psCacheOpQueueIN->ui32NumCacheOps *
+	     sizeof(IMG_HANDLE)) +
+	    ((IMG_UINT64) psCacheOpQueueIN->ui32NumCacheOps *
+	     sizeof(IMG_UINT64)) +
+	    ((IMG_UINT64) psCacheOpQueueIN->ui32NumCacheOps *
+	     sizeof(IMG_DEVMEM_OFFSET_T)) +
+	    ((IMG_UINT64) psCacheOpQueueIN->ui32NumCacheOps *
+	     sizeof(IMG_DEVMEM_SIZE_T)) +
+	    ((IMG_UINT64) psCacheOpQueueIN->ui32NumCacheOps *
+	     sizeof(PVRSRV_CACHE_OP)) + 0;
 
 	if (unlikely(psCacheOpQueueIN->ui32NumCacheOps > CACHE_BATCH_MAX))
 	{
@@ -98,6 +107,15 @@ PVRSRVBridgeCacheOpQueue(IMG_UINT32 ui32DispatchTableEntry,
 		    PVRSRV_ERROR_BRIDGE_ARRAY_SIZE_TOO_BIG;
 		goto CacheOpQueue_exit;
 	}
+
+	if (ui64BufferSize > IMG_UINT32_MAX)
+	{
+		psCacheOpQueueOUT->eError =
+		    PVRSRV_ERROR_BRIDGE_BUFFER_TOO_SMALL;
+		goto CacheOpQueue_exit;
+	}
+
+	ui32BufferSize = (IMG_UINT32) ui64BufferSize;
 
 	if (ui32BufferSize != 0)
 	{
@@ -136,6 +154,9 @@ PVRSRVBridgeCacheOpQueue(IMG_UINT32 ui32DispatchTableEntry,
 		psPMRInt =
 		    (PMR **) (((IMG_UINT8 *) pArrayArgsBuffer) +
 			      ui32NextOffset);
+		OSCachedMemSet(psPMRInt, 0,
+			       psCacheOpQueueIN->ui32NumCacheOps *
+			       sizeof(PMR *));
 		ui32NextOffset +=
 		    psCacheOpQueueIN->ui32NumCacheOps * sizeof(PMR *);
 		hPMRInt2 =
@@ -306,7 +327,7 @@ PVRSRVBridgeCacheOpQueue(IMG_UINT32 ui32DispatchTableEntry,
 		{
 
 			/* Unreference the previously looked up handle */
-			if (hPMRInt2[i])
+			if (psPMRInt[i])
 			{
 				PVRSRVReleaseHandleUnlocked(psConnection->
 							    psHandleBase,
@@ -319,7 +340,10 @@ PVRSRVBridgeCacheOpQueue(IMG_UINT32 ui32DispatchTableEntry,
 	UnlockHandle(psConnection->psHandleBase);
 
 	/* Allocated space should be equal to the last updated offset */
-	PVR_ASSERT(ui32BufferSize == ui32NextOffset);
+#ifdef PVRSRV_NEED_PVR_ASSERT
+	if (psCacheOpQueueOUT->eError == PVRSRV_OK)
+		PVR_ASSERT(ui32BufferSize == ui32NextOffset);
+#endif /* PVRSRV_NEED_PVR_ASSERT */
 
 #if defined(INTEGRITY_OS)
 	if (pArrayArgsBuffer)

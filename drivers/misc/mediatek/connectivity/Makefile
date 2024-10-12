@@ -38,7 +38,7 @@ endif
 
 
     # Do build-in for Makefile checking
-    export CONFIG_WLAN_DRV_BUILD_IN=n
+    export CONFIG_WLAN_DRV_BUILD_IN=y
 
     ifeq ($(CONFIG_WLAN_DRV_BUILD_IN),y)
         PATH_TO_FM_DRV       = vendor/mediatek/kernel_modules/connectivity/fmradio

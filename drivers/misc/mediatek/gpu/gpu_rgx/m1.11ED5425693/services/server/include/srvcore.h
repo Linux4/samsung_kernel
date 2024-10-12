@@ -72,6 +72,8 @@ DummyBW(IMG_UINT32 ui32DispatchTableEntry,
 		void *psBridgeOut,
 		CONNECTION_DATA *psConnection);
 
+typedef PVRSRV_ERROR (*ServerResourceDestroyFunction)(IMG_HANDLE, IMG_HANDLE);
+
 typedef IMG_INT (*BridgeWrapperFunction)(IMG_UINT32 ui32DispatchTableEntry,
 									 void *psBridgeIn,
 									 void *psBridgeOut,
@@ -205,6 +207,17 @@ PVRSRV_ERROR PVRSRVFindProcessMemStatsKM(IMG_PID pid,
                                          IMG_UINT32 ui32ArrSize,
                                          IMG_BOOL bAllProcessStats,
                                          IMG_UINT32 *ui32MemoryStats);
+
+static INLINE
+PVRSRV_ERROR DestroyServerResource(const SHARED_DEV_CONNECTION hConnection,
+                                   IMG_HANDLE hEvent,
+                                   ServerResourceDestroyFunction pfnDestroyCall,
+                                   IMG_HANDLE hResource)
+{
+    PVR_UNREFERENCED_PARAMETER(hEvent);
+
+    return pfnDestroyCall(GetBridgeHandle(hConnection), hResource);
+}
 
 #endif /* __BRIDGED_PVR_BRIDGE_H__ */
 

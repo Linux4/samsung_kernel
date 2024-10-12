@@ -79,6 +79,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include "rgx_bvnc_defs_km.h"
 
 #include "rgxdevice.h"
+#include "img_opts.h"
 
 #include "pvrsrv.h"
 
