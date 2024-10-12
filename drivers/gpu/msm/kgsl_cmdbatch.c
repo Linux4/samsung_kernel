@@ -544,7 +544,8 @@ static void add_profiling_buffer(struct kgsl_device *device,
 		unsigned int id, uint64_t offset)
 {
 	struct kgsl_mem_entry *entry;
-
+	u64 start;
+	
 	if (!(cmdbatch->flags & KGSL_CMDBATCH_PROFILING))
 		return;
 
@@ -560,9 +561,16 @@ static void add_profiling_buffer(struct kgsl_device *device,
 			gpuaddr);
 
 	if (entry != NULL) {
-		if (!kgsl_gpuaddr_in_memdesc(&entry->memdesc, gpuaddr, size)) {
-			kgsl_mem_entry_put(entry);
-			entry = NULL;
+		start = id ? (entry->memdesc.gpuaddr + offset) : gpuaddr;
+		/*
+		 * Make sure there is enough room in the object to store the
+		 * entire profiling buffer object
+		 */
+		if (!kgsl_gpuaddr_in_memdesc(&entry->memdesc, gpuaddr, size) ||
+			!kgsl_gpuaddr_in_memdesc(&entry->memdesc, start,
+				sizeof(struct kgsl_cmdbatch_profiling_buffer))) {
+					kgsl_mem_entry_put(entry);
+					entry = NULL;
 		}
 	}
 
@@ -573,27 +581,7 @@ static void add_profiling_buffer(struct kgsl_device *device,
 		return;
 	}
 
-	if (!id) {
-		cmdbatch->profiling_buffer_gpuaddr = gpuaddr;
-	} else {
-		u64 off =
-			offset + sizeof(struct kgsl_cmdbatch_profiling_buffer);
-
-		/*
-		 * Make sure there is enough room in the object to store the
-		 * entire profiling buffer object
-		 */
-		if (off < offset || off >= entry->memdesc.size) {
-			dev_err(device->dev,
-				"ignore invalid profile offset ctxt %d id %d offset %lld gpuaddr %llx size %lld\n",
-			cmdbatch->context->id, id, offset, gpuaddr, size);
-			kgsl_mem_entry_put(entry);
-			return;
-		}
-
-		cmdbatch->profiling_buffer_gpuaddr =
-			entry->memdesc.gpuaddr + offset;
-	}
+	cmdbatch->profiling_buffer_gpuaddr = start;
 	cmdbatch->profiling_buf_entry = entry;
 }
 
