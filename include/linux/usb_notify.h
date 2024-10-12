@@ -124,6 +124,17 @@ enum otg_notify_data_role {
 	HNOTIFY_DFP,
 };
 
+enum usb_restrict_type {
+	USB_SECURE_RESTRICTED,
+	USB_SECURE_RELEASE,
+};
+
+enum usb_restrict_group {
+	USB_GROUP_AUDIO,
+	USB_GROUP_OTEHR,
+	USB_GROUP_MAX,
+};
+
 enum usb_certi_type {
 	USB_CERTI_UNSUPPORT_ACCESSORY,
 	USB_CERTI_NO_RESPONSE,
@@ -145,6 +156,11 @@ enum usb_current_state {
 	NOTIFY_USB_SUSPENDED,
 	NOTIFY_USB_UNCONFIGURED,
 	NOTIFY_USB_CONFIGURED,
+};
+
+enum otg_notify_illegal_type {
+	NOTIFY_EVENT_AUDIO_DESCRIPTOR,
+	NOTIFY_EVENT_SECURE_DISCONNECTION,
 };
 
 struct otg_notify {
@@ -209,6 +225,9 @@ extern void send_usb_audio_uevent(struct usb_device *dev,
 		int cardnum, int attach);
 extern int send_usb_notify_uevent
 		(struct otg_notify *n, char *envp_ext[]);
+extern int detect_illegal_condition(int type);
+extern int check_usbaudio(struct usb_device *dev);
+extern int check_usbgroup(struct usb_device *dev);
 #if defined(CONFIG_USB_HW_PARAM)
 extern unsigned long long *get_hw_param(struct otg_notify *n,
 					enum usb_hw_param index);
@@ -260,6 +279,9 @@ static inline void send_usb_audio_uevent(struct usb_device *dev,
 		int cardnum, int attach) {}
 static inline int send_usb_notify_uevent
 			(struct otg_notify *n, char *envp_ext[]) {return 0; }
+static inline int detect_illegal_condition(int type) {return 0; }
+static inline int check_usbaudio(struct usb_device *dev) {return 0; }
+static inline int check_usbgroup(struct usb_device *dev) {return 0; }
 #if defined(CONFIG_USB_HW_PARAM)
 static inline unsigned long long *get_hw_param(struct otg_notify *n,
 			enum usb_hw_param index) {return NULL; }
