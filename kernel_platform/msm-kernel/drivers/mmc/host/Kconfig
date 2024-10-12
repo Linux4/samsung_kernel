@@ -557,6 +557,21 @@ config MMC_SDHCI_MSM
 
 	  If unsure, say N.
 
+config MMC_SDHCI_MSM_SCALING
+	tristate "Qualcomm Technologies, Inc. SDHCI Controller Support"
+	depends on ARCH_QCOM || COMPILE_TEST
+	depends on MMC_SDHCI_PLTFM
+	select PM_DEVFREQ
+	select DEVFREQ_GOV_SIMPLE_ONDEMAND
+	help
+	  This selects the Secure Digital Host Controller Interface (SDHCI)
+	  support present in Qualcomm Technologies, Inc. SOCs. The
+	  controller supports SD/MMC/SDIO devices.
+
+	  If you have a controller with this interface, say Y or M here.
+
+	  If unsure, say N.
+
 config MMC_MXC
 	tristate "Freescale i.MX21/27/31 or MPC512x Multimedia Card support"
 	depends on ARCH_MXC || PPC_MPC512x
@@ -1069,9 +1084,10 @@ config MMC_SDHCI_OMAP
 
 config MMC_SDHCI_AM654
 	tristate "Support for the SDHCI Controller in TI's AM654 SOCs"
-	depends on MMC_SDHCI_PLTFM && OF && REGMAP_MMIO
+	depends on MMC_SDHCI_PLTFM && OF
 	select MMC_SDHCI_IO_ACCESSORS
 	select MMC_CQHCI
+	select REGMAP_MMIO
 	help
 	  This selects the Secure Digital Host Controller Interface (SDHCI)
 	  support present in TI's AM654 SOCs. The controller supports

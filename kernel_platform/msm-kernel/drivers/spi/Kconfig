@@ -272,7 +272,6 @@ config SPI_DW_BT1
 	tristate "Baikal-T1 SPI driver for DW SPI core"
 	depends on MIPS_BAIKAL_T1 || COMPILE_TEST
 	select MULTIPLEXER
-	select MUX_MMIO
 	help
 	  Baikal-T1 SoC is equipped with three DW APB SSI-based MMIO SPI
 	  controllers. Two of them are pretty much normal: with IRQ, DMA,
@@ -730,6 +729,15 @@ config SPI_MSM_GENI
 
 	  This driver can also be built as a module.  If so, the module
 	  will be called spi-msm-geni.
+
+config VIRTIO_SPI
+	tristate "VirtIO SPI driver"
+	depends on VIRTIO
+	help
+	  This spi driver for virtio. It can be used on virtual machine.
+	  Say Y if you want to support virtual SPI for the build-in SPI
+	  interface. This driver can also be built as a module. If so,
+	  the module will be called virtio-spi.
 
 config SPI_S3C24XX
 	tristate "Samsung S3C24XX series SPI"

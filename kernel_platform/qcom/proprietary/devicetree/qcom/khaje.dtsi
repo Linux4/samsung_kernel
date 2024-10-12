@@ -25,6 +25,7 @@
 		ufshc1 = &ufshc_mem; /* Embedded UFS slot */
 		serial0 = &qupv3_se4_2uart;
 		hsuart0 = &qupv3_se3_4uart;
+		i2c1 = &qupv3_se2_i2c;
 	};
 
 	cpus {
@@ -503,7 +504,7 @@
 			compatible = "shared-dma-pool";
 			reusable;
 			alloc-ranges = <0x0 0x00000000 0x0 0xffffffff>;
-			size = <0x0 0xa400000>;
+			size = <0x0 0x5C00000>;
 			alignment = <0x0 0x400000>;
 		};
 
@@ -554,6 +555,14 @@
 			mem-type = <2>;
 		};
 
+		audio_cma_mem: audio_cma_region {
+			compatible = "shared-dma-pool";
+			alloc-ranges = <0x0 0x00000000 0x0 0xffffffff>;
+			reusable;
+			alignment = <0x0 0x400000>;
+			size = <0x0 0x1C00000>;
+		};
+
 		/* global autoconfigured region for contiguous allocations */
 		system_cma: linux,cma {
 			compatible = "shared-dma-pool";
@@ -580,7 +589,7 @@
 	};
 
 	chosen {
-		bootargs = "lpm_levels.sleep_disabled=1 console=ttyMSM0,115200n8 msm_rtb.filter=0x237 service_locator.enable=1 swiotlb=2048 loop.max_part=7 cpufreq.default_governor=performance rcupdate.rcu_expedited=1 rcu_nocbs=0-7 kpti=off export_pmu_events movable_node ftrace_dump_on_oops ssbd=force-off disable_dma32=on cgroup.memory=nokmem,nosocket";
+		bootargs = "lpm_levels.sleep_disabled=1 console=ttyMSM0,115200n8 msm_rtb.filter=0x237 service_locator.enable=1 swiotlb=2048 loop.max_part=7 cpufreq.default_governor=performance rcupdate.rcu_expedited=1 rcu_nocbs=0-7 kpti=off export_pmu_events movable_node ftrace_dump_on_oops ssbd=force-off disable_dma32=on cgroup.memory=nokmem,nosocket panic=5";
 	};
 
 	soc: soc { };
@@ -2143,10 +2152,14 @@
 	qcom,chd {
 		compatible = "qcom,core-hang-detect";
 		label = "core";
-		qcom,threshold-arr = <0x0f1880b0 0x0f1980b0 0x0f1a80b0 0x0f1b80b0
-				0x0f0880b0 0x0f0980b0 0x0f0a80b0 0x0f0b80b0>;
-		qcom,config-arr = <0x0f1880b8 0x0f1980b8 0x0f1a80b8 0x0f1b80b8
-				0x0f0880b8 0x0f0980b8 0x0f0a80b8 0x0f0b80b8>;
+		qcom,chd-percpu-info = <&CPU0 0x0f1880b0 0x0f1880b8>,
+					<&CPU1 0x0f1980b0 0x0f1980b8>,
+					<&CPU2 0x0f1a80b0 0x0f1a80b8>,
+					<&CPU3 0x0f1b80b0 0x0f1b80b8>,
+					<&CPU4 0x0f0880b0 0x0f0880b8>,
+					<&CPU5 0x0f0980b0 0x0f0980b8>,
+					<&CPU6 0x0f0a80b0 0x0f0a80b8>,
+					<&CPU7 0x0f0b80b0 0x0f0b80b8>;
 	};
 
 	cluster-device0 {
@@ -2558,6 +2571,10 @@
 		mmc-hs400-1_8v;
 		mmc-hs400-enhanced-strobe;
 
+
+		qcom,devfreq,freq-table = <50000000 200000000>;
+		qcom,scaling-lower-bus-speed-mode = "DDR52";
+
 		clocks = <&gcc GCC_SDCC1_AHB_CLK>,
 			<&gcc GCC_SDCC1_APPS_CLK>,
 			<&gcc GCC_SDCC1_ICE_CORE_CLK>;
@@ -2684,9 +2701,7 @@
 		phys = <&ufsphy_mem>;
 		phy-names = "ufsphy";
 
-		qcom,prime-mask = <0x80>;
-		qcom,silver-mask = <0x0f>;
-
+		qcom,dynamic-irq-affinity;
 		limit-rx-hs-gear = <3>;
 		limit-tx-hs-gear = <3>;
 		lanes-per-direction = <2>;
@@ -2788,14 +2803,14 @@
 		status = "disabled";
 		iommus = <&apps_smmu 0x100 0x0>;
 		qcom,iommu-dma = "fastmap";
+		qcom,iommu-dma-addr-pool = <0x40000000 0x10000000>;
+		qcom,iommu-geometry = <0x40000000 0x10000000>;
 
 		qos0 {
-			mask = <0xf0>;
 			vote = <26>;
 			perf;
 		};
 		qos1 {
-			mask = <0x0f>;
 			vote = <26>;
 		};
 
@@ -3112,6 +3127,7 @@
 			iommus = <&apps_smmu 0x0C09 0x0>;
 			qcom,iommu-dma-addr-pool = <0x80000000 0x78000000>;
 			qcom,iommu-faults = "stall-disable", "HUPCF";
+			qcom,iommu-vmid = <0xA>;	/* VMID_CP_PIXEL */
 		};
 
 		qcom,msm_fastrpc_compute_cb10 {
@@ -4094,6 +4110,10 @@ tpdm_turing_llm: tpdm@8861000 {
 };
 
 &qupv3_se3_4uart {
+	status = "ok";
+};
+
+&qupv3_se2_i2c {
 	status = "ok";
 };
 

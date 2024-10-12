@@ -57,22 +57,24 @@
 #endif
 
 #define ATTACHEDSRC   7
-#define FLOAT_VOLTAGE_DEFAULT_UPM6918 4423
-#define FLOAT_VOLTAGE_STEP1_UPM6918   4350
-#define FLOAT_VOLTAGE_STEP2_UPM6918   4330
-#define FLOAT_VOLTAGE_STEP3_UPM6918   4310
-#define FLOAT_VOLTAGE_STEP4_UPM6918   4290
+#define FLOAT_VOLTAGE_DEFAULT_UPM6918 4350
+#define FLOAT_VOLTAGE_STEP1_UPM6918   4330
+#define FLOAT_VOLTAGE_STEP2_UPM6918   4310
+#define FLOAT_VOLTAGE_STEP3_UPM6918   4290
+#define FLOAT_VOLTAGE_STEP4_UPM6918   4240
 
-#define FLOAT_VOLTAGE_DEFAULT_UPM6918_PD_AFC_VAL 0x12
-#define FLOAT_VOLTAGE_DEFAULT_UPM6918_VAL 0x11
-#define FLOAT_VOLTAGE_STEP1_UPM6918_VAL 0x10
-#define FLOAT_VOLTAGE_STEP2_UPM6918_VAL 0xF
-#define FLOAT_VOLTAGE_STEP3_UPM6918_VAL 0xE
-#define FLOAT_VOLTAGE_STEP4_UPM6918_VAL 0xD
+#define FLOAT_VOLTAGE_DEFAULT_UPM6918_PD_AFC_VAL 0x11
+#define FLOAT_VOLTAGE_DEFAULT_UPM6918_VAL 0x10
+
+#define FLOAT_VOLTAGE_STEP1_UPM6918_VAL 0xF
+#define FLOAT_VOLTAGE_STEP2_UPM6918_VAL 0xE
+#define FLOAT_VOLTAGE_STEP3_UPM6918_VAL 0xD
+#define FLOAT_VOLTAGE_STEP4_UPM6918_VAL 0xC
 
 
 extern int sp2130_set_adc(bool val);
 extern int sm5602_set_shutdown(int val);
+extern int sm5602_CV;
 enum {
 	PN_UPM6918D,
 };
@@ -162,8 +164,10 @@ struct upm6918 {
 	struct votable			*usb_icl_votable;
 	struct votable			*chg_dis_votable;
 	/* longcheer nielianjie10 2023.4.26 add iio end */
-	
+
 	struct notifier_block pd_nb;
+    	bool unknown_type_recheck;
+    	int unknown_type_recheck_cnt;
 };
 
 #ifndef MTK_CHARGER
@@ -393,7 +397,28 @@ int upm6918_set_chargevolt(struct upm6918 *upm, int volt)
 	if (volt < REG04_VREG_BASE)
 		volt = REG04_VREG_BASE;
 
-	val = (volt - REG04_VREG_BASE) / REG04_VREG_LSB;
+	if (volt < REG04_VREG_BASE)
+		volt = REG04_VREG_BASE;
+
+    if (volt == 4400) {
+		val = 17;
+	} else if (volt == 4350) {
+		val = 16;
+	} else if (volt == 4330) {
+		val = 15;
+	} else if (volt == 4310) {
+		val = 14;
+	} else if (volt == 4280) {
+		val = 13;
+	} else if (volt == 4240) {
+		val = 12;
+	} else{
+		val = (volt - REG04_VREG_BASE) / REG04_VREG_LSB;
+	}
+	
+
+	pr_err("set_chargevolt = %d\n", volt);
+
 	return upm6918_update_bits(upm, UPM6918_REG_04, REG04_VREG_MASK,
 				   val << REG04_VREG_SHIFT);
 }
@@ -862,6 +887,21 @@ static int upm6918_get_charger_type(struct upm6918 *upm, int *type)
 
 	pr_err("reg08: 0x%02x\n", reg_val);
 
+	if(vbus_stat == REG08_VBUS_TYPE_SDP && upm->unknown_type_recheck_cnt < 2) {
+		if(!upm->pr_flag)
+			upm6918_request_dpdm(upm, true);
+		else
+			goto charger_type;
+		msleep(5);
+		pr_err("xlog\n");
+		upm6918_force_dpdm(upm);
+		msleep(5);
+        	upm->unknown_type_recheck = true;
+        	upm->unknown_type_recheck_cnt++;
+        	return ret;
+	}
+
+charger_type:
 	switch (vbus_stat) {
 	case REG08_VBUS_TYPE_NONE:
 		chg_type = POWER_SUPPLY_USB_TYPE_UNKNOWN;
@@ -922,6 +962,7 @@ static int upm6918_get_charger_type(struct upm6918 *upm, int *type)
 	}
 	pr_info("chg_type: %d,pd_active:%d\n", chg_type,upm->pd_active);
 	*type = chg_type;
+    	upm->unknown_type_recheck = false;
 
 	return 0;
 }
@@ -995,6 +1036,12 @@ static irqreturn_t upm6918_irq_handler(int irq, void *data)
 		{
 			upm6918_request_dpdm(upm, true);
 		}
+          	ret = upm6918_set_chargevolt(upm, 4400);
+		if (ret < 0) {
+			pr_err("failed to set chargevoltage\n");
+			return ret;
+		}
+		
 		vote(upm->usb_icl_votable, DCP_CHG_VOTER, false, 0);
 		vote(upm->usb_icl_votable, PD_CHG_VOTER, false, 0);
 		vote(upm->fcc_votable, DCP_CHG_VOTER, false, 0);
@@ -1012,19 +1059,24 @@ static irqreturn_t upm6918_irq_handler(int irq, void *data)
 		vote(upm->fcc_votable, DCP_CHG_VOTER, false, 0);
 		vote(upm->fcc_votable, STORE_MODE_VOTER, false, 0);
 		vote(upm->usb_icl_votable, STORE_MODE_VOTER, false, 0);
+		vote(upm->fcc_votable, AFC_CHG_DARK_VOTER, false, 0);
 		upm6918_request_dpdm(upm, false);
 		upm6918_notify_device_mode(upm, false);
 		upm6918_set_iio_channel(upm, NOPMI, NOPMI_CHG_INPUT_SUSPEND, 0);
 		upm6918_power_changed(upm);
 		upm->pr_flag = false;
+        	upm->unknown_type_recheck = false;
+        	upm->unknown_type_recheck_cnt = 0;
 		return IRQ_HANDLED;
 	}
 
-	if (!prev_pg && upm->power_good) {
+	if ((!prev_pg && upm->power_good) || upm->unknown_type_recheck) {
 		ret = upm6918_get_charger_type(upm, &upm->psy_usb_type);
-		msleep(600);
-		pr_err("--%s:delay 600ms psy changed",__func__);
-		upm6918_power_changed(upm);
+        if (!upm->unknown_type_recheck) {
+    		msleep(600);
+    		pr_err("--%s:delay 600ms psy changed",__func__);
+    		upm6918_power_changed(upm);
+        }
 		//schedule_delayed_work(&upm->psy_dwork, 0);
 	}
 
@@ -1095,7 +1147,7 @@ static int upm6918_init_device(struct upm6918 *upm)
 	if (ret)
 		pr_err("Failed to set acovp threshold, ret = %d\n", ret);
 
-	ret = upm6918_set_chargevolt(upm, upm->platform_data->usb.vreg);
+	ret = upm6918_set_chargevolt(upm, 4400);
 	if (ret)
 		pr_err("Failed to set batteyr vreg, ret = %d\n", ret);
 
@@ -1127,6 +1179,14 @@ static void upm6918_inform_prob_dwork_handler(struct work_struct *work)
 	upm6918_force_dpdm(upm);
 	msleep(1000);
 	upm6918_irq_handler(upm->irq, (void *) upm);
+	if((upm->psy_usb_type == POWER_SUPPLY_USB_TYPE_SDP) &&
+		(upm->tcpc->pd_port.pd_connect_state == PD_CONNECT_PE_READY_SNK ||
+		upm->tcpc->pd_port.pd_connect_state == PD_CONNECT_PE_READY_SNK_PD30)){
+			upm6918_set_input_volt_limit(upm,4600);
+			upm6918_set_input_current_limit(upm, 1200);
+			upm6918_set_chargecurrent(upm, 1200);
+			pr_err("%s: set current in prob\n", __func__);
+	}
 }
 
 static void upm6918_set_otg(struct upm6918 *upm, int enable)
@@ -1683,6 +1743,7 @@ static void upm6918_hvdcp_dwork(struct work_struct *work)
 	unsigned int afc_code = AFC_QUICK_CHARGE_POWER_CODE;
 	int afc_icl_current = 0;
 	int pd_active = 0;
+	int pd_pdo_active = 0;
 	struct upm6918 *upm = container_of(
 		work, struct upm6918, hvdcp_dwork.work);
 	pr_err("is_disble_afc=%d\n", upm->is_disble_afc);
@@ -1709,13 +1770,16 @@ static void upm6918_hvdcp_dwork(struct work_struct *work)
 		upm6918_set_chargecurrent(upm, CHG_DCP_CURR_MAX);
 		//upm6918_set_input_current_limit(upm, 2000);
 		pd_active = upm6918_get_pd_active(upm);
+		pd_pdo_active = upm6918_get_pdo_active(upm);
 		if (upm->is_disble_afc && (pd_active == 1)) {
 			vote(upm->usb_icl_votable, PD_CHG_VOTER, true, PD_ICL_CURR_MAX);
+		} else if (pd_pdo_active == 1) {
+			vote(upm->usb_icl_votable, DCP_CHG_VOTER, true, 1600);
 		} else {
 			vote(upm->usb_icl_votable, DCP_CHG_VOTER, true, DCP_ICL_CURR_MAX);
 		}
 		upm->charge_afc = 0;
-		pr_err("ch_log_qc   pd_active[%d]   charge_afc[%d]\n",upm->pd_active,upm->charge_afc);
+		pr_err("ch_log_qc   pd_active[%d] pd_pdo_active[%d]  charge_afc[%d]\n",upm->pd_active,pd_pdo_active,upm->charge_afc);
 		if (!upm->pd_active) {
 			schedule_delayed_work(&upm->hvdcp_qc20_dwork, msecs_to_jiffies(300));
 		}
@@ -2357,6 +2421,11 @@ static int fv_vote_callback(struct votable *votable, void *data,
 	int rc = 0, ret = 0;
 	u8 val;
 
+	if(fv_mv != 4200) //high temperature
+		fv_mv = sm5602_CV;
+	else
+		pr_err("high temperature,fv = %d\n",fv_mv);
+  
 	pr_err("fv_vote_callback start");
 	if (fv_mv < 0) {
 		pr_err("fv_mv: %d < 0, ERROR!\n", fv_mv);
@@ -2395,7 +2464,8 @@ static int fv_vote_callback(struct votable *votable, void *data,
 	} else if(fv_mv == FLOAT_VOLTAGE_STEP4_UPM6918) {
 		upm6918_update_bits(upm, UPM6918_REG_04, REG04_VREG_MASK,
 				   FLOAT_VOLTAGE_STEP4_UPM6918_VAL << REG04_VREG_SHIFT);
-	} else {
+	} else if(fv_mv == 4200)//high temperature
+	{
 		rc = upm6918_set_chargevolt(upm, fv_mv);
 		if (rc < 0) {
 			pr_err("failed to set chargevoltage\n");
@@ -2470,6 +2540,8 @@ static int upm6918_charger_probe(
 	upm->pr_flag = false;
 	upm->is_disble_afc = false;
 	upm->is_disble_afc_backup = false;
+    	upm->unknown_type_recheck = false;
+    	upm->unknown_type_recheck_cnt = 0;
 	mutex_init(&upm->i2c_rw_lock);
 	mutex_init(&upm->regulator_lock);
 	i2c_set_clientdata(client, upm);

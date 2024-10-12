@@ -16,6 +16,7 @@ ifeq ($(TOUCH_DLKM_ENABLE),  true)
 			$(KERNEL_MODULES_OUT)/cmd.ko \
 			$(KERNEL_MODULES_OUT)/ilitek.ko \
 			$(KERNEL_MODULES_OUT)/icnl9922c.ko \
+			$(KERNEL_MODULES_OUT)/hx83112f.ko \
 			$(KERNEL_MODULES_OUT)/goodix_ts.ko \
 			$(KERNEL_MODULES_OUT)/atmel_mxt_ts.ko \
 			$(KERNEL_MODULES_OUT)/synaptics_tcm_ts.ko
@@ -29,6 +30,7 @@ ifeq ($(TOUCH_DLKM_ENABLE),  true)
 			$(KERNEL_MODULES_OUT)/cmd.ko \
 			$(KERNEL_MODULES_OUT)/ilitek.ko \
 			$(KERNEL_MODULES_OUT)/icnl9922c.ko \
+			$(KERNEL_MODULES_OUT)/hx83112f.ko \
 			$(KERNEL_MODULES_OUT)/goodix_ts.ko \
 			$(KERNEL_MODULES_OUT)/atmel_mxt_ts.ko \
 			$(KERNEL_MODULES_OUT)/synaptics_tcm_ts.ko \

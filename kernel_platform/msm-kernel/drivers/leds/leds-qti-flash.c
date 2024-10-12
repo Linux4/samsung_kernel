@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 #define pr_fmt(fmt)	"qti-flash: %s: " fmt, __func__
 
@@ -178,6 +178,7 @@ struct flash_switch_data {
  * @non_all_mask_switch_present: Used in handling symmetry for all_mask switch
  * @secure_vm:			Flag indicating whether flash LED is used by
  *				secure VM
+ * @debug_board_present:	Flag to indicate debug board present
  */
 struct qti_flash_led {
 	struct platform_device		*pdev;
@@ -203,6 +204,7 @@ struct qti_flash_led {
 	bool				trigger_lmh;
 	bool				non_all_mask_switch_present;
 	bool				secure_vm;
+	bool				debug_board_present;
 };
 
 struct flash_current_headroom {
@@ -348,7 +350,7 @@ static int qti_flash_lmh_mitigation_config(struct qti_flash_led *led,
 	u8 val = enable ? FLASH_LED_LMH_MITIGATION_SW_EN : 0;
 	int rc;
 
-	if (enable == led->trigger_lmh)
+	if (led->debug_board_present || enable == led->trigger_lmh)
 		return 0;
 
 	rc = qti_flash_led_write(led, FLASH_LED_MITIGATION_SW, &val, 1);
@@ -961,6 +963,7 @@ static int qti_flash_led_calc_max_avail_current(
 
 	if (!rbatt_uohm) {
 		*max_current_ma = MAX_FLASH_CURRENT_MA;
+		led->debug_board_present = true;
 		return 0;
 	}
 
@@ -1701,7 +1704,7 @@ static int qti_flash_led_register_device(struct qti_flash_led *led,
 	const char *label;
 	int rc, i = 0, j = 0;
 	u32 val;
-	bool need_snode;
+	bool need_snode = false;
 
 	rc = of_property_read_u32(node, "reg", &val);
 	if (rc < 0) {
@@ -1848,6 +1851,25 @@ unreg_led:
 	return rc;
 }
 
+static void qti_flash_led_free_interrupts(struct qti_flash_led *led)
+{
+	/* free irqs */
+	if (led->all_ramp_up_done_irq >= 0)
+		devm_free_irq(&led->pdev->dev,
+			led->all_ramp_up_done_irq,
+			led);
+
+	if (led->all_ramp_down_done_irq >= 0)
+		devm_free_irq(&led->pdev->dev,
+			led->all_ramp_down_done_irq,
+			led);
+
+	if (led->led_fault_irq >= 0)
+		devm_free_irq(&led->pdev->dev,
+			led->led_fault_irq,
+			led);
+}
+
 static int qti_flash_led_probe(struct platform_device *pdev)
 {
 	struct device_node *node = pdev->dev.of_node;
@@ -1908,8 +1930,6 @@ static int qti_flash_led_remove(struct platform_device *pdev)
 		for (j = 0; j < ARRAY_SIZE(qti_flash_led_attrs); j++)
 			sysfs_remove_file(&led->snode[i].cdev.dev->kobj,
 				&qti_flash_led_attrs[j].attr);
-
-		led_classdev_unregister(&led->snode[i].cdev);
 	}
 
 	for (i = 0; (i < led->num_fnodes); i++)
@@ -1917,6 +1937,38 @@ static int qti_flash_led_remove(struct platform_device *pdev)
 
 	return 0;
 }
+
+static int qti_flash_led_freeze(struct device *dev)
+{
+	struct qti_flash_led *led = dev_get_drvdata(dev);
+
+	qti_flash_led_free_interrupts(led);
+
+	return 0;
+}
+
+static int qti_flash_led_restore(struct device *dev)
+{
+	struct qti_flash_led *led = dev_get_drvdata(dev);
+	int rc = 0;
+
+	rc = qti_flash_led_setup(led);
+	if (rc < 0) {
+		pr_err("Failed to re-initialize flash LED in Restore, rc=%d\n", rc);
+		return rc;
+	}
+
+	rc = qti_flash_led_register_interrupts(led);
+	if (rc < 0)
+		pr_err("Interrupt re-registration failed in Restore rc= %d\n", rc);
+
+	return rc;
+}
+
+static const struct dev_pm_ops qti_flash_led_pm_ops = {
+	.freeze = qti_flash_led_freeze,
+	.restore = qti_flash_led_restore,
+};
 
 static const struct of_device_id qti_flash_led_match_table[] = {
 	{ .compatible = "qcom,pm8350c-flash-led", .data = (void *)4, },
@@ -1927,6 +1979,7 @@ static struct platform_driver qti_flash_led_driver = {
 	.driver = {
 		.name = "leds-qti-flash",
 		.of_match_table = qti_flash_led_match_table,
+		.pm = &qti_flash_led_pm_ops,
 	},
 	.probe = qti_flash_led_probe,
 	.remove = qti_flash_led_remove,

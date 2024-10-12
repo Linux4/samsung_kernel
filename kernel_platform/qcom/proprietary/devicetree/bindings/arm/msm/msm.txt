@@ -134,6 +134,15 @@ SoCs:
 - MONACO_AUTO
   compatible = "qcom,monaco_auto"
 
+- TRINKET
+  compatible = "qcom,trinket", "qcom,trinket-iot"
+
+- SDM670
+  compatible = "qcom,sdm670"
+
+- QCS605
+  compatible = "qcom,qcs605"
+
 Generic board variants:
 
 - CDP device:
@@ -329,8 +338,12 @@ compatible = "qcom,kalamap-cdp"
 compatible = "qcom,kalamap-qrd"
 compatible = "qcom,kalamap-hdk"
 compatible = "qcom,kalamap-hhg"
+compatible = "qcom,kalamap-iot"
 compatible = "qcom,kaka-rumi"
 compatible = "qcom,crow-rumi"
+compatible = "qcom,crow-atp"
+compatible = "qcom,crow-idp"
+compatible = "qcom,crow-qrd"
 compatible = "qcom,cinder-rumi"
 compatible = "qcom,cinder-idp"
 compatible = "qcom,cinder-x100"
@@ -376,3 +389,9 @@ compatible = "qcom,lemans-adas-high-qam-star"
 compatible = "qcom,lemans-ivi-adas-adp-star"
 compatible = "qcom,lemans-ivi-adas-qam-star"
 compatible = "qcom,monaco_auto-rumi"
+compatible = "qcom,trinket-iot"
+compatible = "qcom,trinketp-iot"
+compatible = "qcom,trinket-iot-idp"
+compatible = "qcom,trinketp-iot-idp"
+compatible = "qcom,qcs605-mtp"
+compatible = "qcom,qcs605-cdp"

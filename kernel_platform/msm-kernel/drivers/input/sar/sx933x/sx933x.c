@@ -24,8 +24,23 @@
 #include <linux/of_gpio.h>
 #include <linux/err.h>
 
-
 #include "sx933x.h"
+/*
+#include <linux/ktime.h>
+#include <linux/device.h>
+struct wakeup_source smtc_wake;
+*/
+#define USE_THREAD_IRQ
+#define WAKE_BY_IRQ
+//#define ENABLE_WAKE_LOCK
+
+#ifdef ENABLE_WAKE_LOCK
+#ifdef CONFIG_PM_SLEEP
+#include <linux/pm_wakeup.h>
+#else
+#error CONFIG_PM_SLEEP is not enabled in the Kconfig
+#endif
+#endif
 
 enum {
     PROBE_UNKOWN = 0,
@@ -44,6 +59,8 @@ EXPORT_SYMBOL(sar_common_status);
 
 #define NUM_RETRY_ON_I2C_ERR    2
 #define SLEEP_BETWEEN_RETRY     100 //in ms
+
+
 
 //Refer to register 0x8000
 typedef enum {
@@ -99,6 +116,7 @@ typedef struct self_s
     int gpio;
     int num_regs;   //Number of registers need to be configured. Parsed from dts
     int anfr_status;
+    int first_irq_after_resume;
     reg_addr_val_t *regs_addr_val;
 
     phase_t *phases;
@@ -107,15 +125,22 @@ typedef struct self_s
     for example: main_phases=0x5=0b0101, means PHASE 2 and 0 are used as the main phase*/
     u32 main_phases;
     u32 ref_phases;
+    u32 flight_control;
 
     //phases are for temperature reference correction
     int ref_phase_a;
 	int ref_phase_b;
     int ref_phase_c;
+    int flag_fc;
 
     spinlock_t lock; /* Spin Lock used for nirq worker function */
+#ifndef USE_THREAD_IRQ
     struct delayed_work worker; /* work struct for worker function */
+#endif
 
+#ifdef ENABLE_WAKE_LOCK
+    struct wakeup_source *wake_lock;
+#endif
 
     //Function that will be called back when corresponding IRQ is raised
     //Refer to register 0x4000
@@ -134,8 +159,9 @@ int _log_hex_data = 1;
 int _log_dbg_data = 1;
 u16 _reading_reg = 0xFFFF;
 
-int _sleep_between_enable_compen=50; //in millisecond
-int _use_activate = 1;
+static int _sleep_between_enable_compen=50; //in millisecond
+static int _use_activate = 0;
+static u32 _irq_mask = 0x70;
 
 //The value of all other variables not configured in the table are 0.
 #if defined(SX933X)
@@ -464,6 +490,9 @@ static ssize_t smtc_reg_write_store(struct device *dev,
         return -EINVAL;
     }
 
+    if (reg_addr == 0x4004){
+        _irq_mask = reg_val;
+    }
     smtc_i2c_write(self, reg_addr, reg_val);    
     SMTC_LOG_INF("0x%X= 0x%X", reg_addr, reg_val);
     return count;
@@ -999,7 +1028,7 @@ static int smtc_init_irq_gpio(Self self)
 
     self->irq_id = self->client->irq = gpio_to_irq(self->gpio);
     SMTC_LOG_DBG("Get irq= %d from gpio= %d", self->irq_id, self->gpio);
-    
+
 
     return ret;
 }
@@ -1019,6 +1048,9 @@ static int smtc_init_registers(Self self)
         reg_val  = self->regs_addr_val[i].val;
         SMTC_LOG_DBG("0x%X= 0x%X", reg_addr, reg_val);
 
+        if (reg_addr == 0x4004){
+            _irq_mask = reg_val;
+        }
         ret = smtc_i2c_write(self, reg_addr, reg_val);
         if (ret < 0)
         {
@@ -1232,7 +1264,13 @@ static void smtc_process_touch_status(Self self)
 
 	smtc_i2c_read(self, REG_PROX_STATUS, &prox_state);
 	SMTC_LOG_INF("prox_state= 0x%X, self->anfr_status = %d", prox_state, self->anfr_status);
-    smtc_log_raw_data(self);
+    //smtc_log_raw_data(self);
+
+    if(self->flag_fc == 0)
+    {
+        self->flag_fc += 1;
+            prox_state = self->flight_control;
+    }
 
     for (ph = 0; ph < NUM_PHASES; ph++)
     {
@@ -1330,17 +1368,15 @@ static void smtc_process_touch_status(Self self)
 }
 
 //#################################################################################################
-static void smtc_worker_func(struct work_struct *work)
+static void smtc_update_status(Self self)
 {
     int ret, irq_bit, irq_src;
-    Self self = 0;    
     SMTC_LOG_DBG("Enter");
 
-    self = container_of(work, self_t, worker.work);
     ret = smtc_read_and_clear_irq(self, &irq_src);
     if (ret){
         SMTC_LOG_ERR("Failed to read irq source. ret=%d.", ret);
-        return;
+        goto SUB_OUT;
     }
 
     for (irq_bit=0; irq_bit<NUM_IRQ_BITS; irq_bit++)
@@ -1355,9 +1391,32 @@ static void smtc_worker_func(struct work_struct *work)
                 SMTC_LOG_ERR("No handler to IRQ bit= %d", irq_bit);
             }
         }
-    }    
+    }
+
+    if (irq_src == 0){
+        //called from resume
+        SMTC_LOG_ERR("Force to update status");
+        smtc_process_touch_status(self);
+    }
+
+SUB_OUT:
+#ifdef ENABLE_WAKE_LOCK
+    __pm_relax(self->wake_lock);
+#endif
+
+    return;
 }
 
+#ifndef USE_THREAD_IRQ
+static void smtc_worker_func(struct work_struct *work)
+{
+    Self self = 0;
+    SMTC_LOG_DBG("Enter");
+
+    self = container_of(work, self_t, worker.work);
+    smtc_update_status(self);
+}
+#endif
 
 //=================================================================================================
 //call flow: smtc_irq_handler--> smtc_worker_func--> smtc_process_touch_status
@@ -1366,13 +1425,30 @@ static irqreturn_t smtc_irq_handler(int irq, void *pvoid)
     //unsigned long flags;
     Self self = (Self)pvoid;
     SMTC_LOG_INF("IRQ= %d is received", irq);
+    if (self->first_irq_after_resume){
+        SMTC_LOG_INF("Waiting for the ready of other modules");
+        msleep(50); //make sure all other modules such as i2c are ready after resume
+        self->first_irq_after_resume=0;
+    }
 
     if (likely(smtc_is_irq_low(self)))
     {
+#ifdef ENABLE_WAKE_LOCK
+        __pm_stay_awake(self->wake_lock);
+#endif
+        //__pm_wakeup_event(&smtc_wake, 1000);
+
+#ifdef USE_THREAD_IRQ
+        SMTC_LOG_INF("Update status with thread IRQ");
+        smtc_update_status(self);
+#else
+        SMTC_LOG_INF("Update status with worker");
         //spin_lock_irqsave(&self->lock, flags);
         cancel_delayed_work(&self->worker);
         schedule_delayed_work(&self->worker, 0);
         //spin_unlock_irqrestore(&self->lock, flags);
+#endif
+
     }else{
         SMTC_LOG_ERR("GPIO=%d must be low when an IRQ is received.", self->gpio);
     }
@@ -1488,6 +1564,8 @@ static ssize_t input_wifi_sar_enable_store(struct device *dev,
         }else{
             SMTC_LOG_INF("Calibrating...");
             smtc_calibrate(self);
+            self->flag_fc = 0;
+            smtc_update_status(self);
         }
     }
 #endif
@@ -1605,6 +1683,8 @@ static ssize_t input_main_sar_enable_store(struct device *dev,
         }else{
             SMTC_LOG_INF("Calibrating...");
             smtc_calibrate(self);
+            self->flag_fc = 0;
+            smtc_update_status(self);
         }
     }
 #endif
@@ -1740,7 +1820,9 @@ static int smtc_probe(struct i2c_client *client, const struct i2c_device_id *id)
         SMTC_LOG_ERR("Failed to create self. memory size=%d bytes.", sizeof(self_t));
         return -ENOMEM;
     }
-    
+    self->flag_fc = -1;
+    self->flight_control = 1<<26 | 1<<27;
+    self->first_irq_after_resume = 0;
     client->dev.platform_data = self;
     i2c_set_clientdata(client, self);
     self->client = client;
@@ -1755,13 +1837,12 @@ static int smtc_probe(struct i2c_client *client, const struct i2c_device_id *id)
     else
         sar_common_status = PROBE_FIRST_FAIL;
     if (!ret) {return -1;}
-    
-    ret = smtc_init_irq_gpio(self);
-    if (ret) {return ret;}
 
     ret = smtc_reset_and_init_chip(self);
-    if (ret) {goto FREE_GPIO;}
+    if (ret) {return ret;}
 
+    ret = smtc_init_irq_gpio(self);
+    if (ret) {return ret;}
 
     //refer to register 0x4000
     self->irq_handler[0] = 0; /* UNUSED */
@@ -1812,6 +1893,7 @@ static int smtc_probe(struct i2c_client *client, const struct i2c_device_id *id)
 
         input->name = phase->name;
         input->id.bustype = BUS_I2C;
+
         __set_bit(EV_REL, input->evbit);
         __set_bit(REL_MISC, input->relbit);
         __set_bit(REL_X, input->relbit);
@@ -1835,6 +1917,18 @@ static int smtc_probe(struct i2c_client *client, const struct i2c_device_id *id)
 
     //.............................................................................................
     spin_lock_init(&self->lock);
+
+#ifdef USE_THREAD_IRQ
+    SMTC_LOG_INF("Use thread IRQ");
+    ret = request_threaded_irq(self->irq_id, NULL, smtc_irq_handler,
+			IRQF_TRIGGER_FALLING | IRQF_ONESHOT,
+			"smtc_sx933x_sar", self);
+
+    if (ret){
+        SMTC_LOG_ERR("Failed to request irq= %d.", self->irq_id);
+        goto FREE_INPUTS;
+    }
+ #else
     INIT_DELAYED_WORK(&self->worker, smtc_worker_func);
     ret = request_irq(self->irq_id, smtc_irq_handler, IRQF_TRIGGER_FALLING,
                       client->dev.driver->name, self);
@@ -1843,6 +1937,8 @@ static int smtc_probe(struct i2c_client *client, const struct i2c_device_id *id)
         SMTC_LOG_ERR("Failed to request irq= %d.", self->irq_id);
         goto FREE_INPUTS;
     }
+ #endif
+
     SMTC_LOG_DBG("registered irq= %d.", self->irq_id);
     //add node for custom hal
     g_self = self;
@@ -1884,11 +1980,28 @@ static int smtc_probe(struct i2c_client *client, const struct i2c_device_id *id)
             pr_err("[SENSOR CORE] failed flush device_file\n");
     }
 
-    //add node for custom hal
+#ifdef ENABLE_WAKE_LOCK
+    SMTC_LOG_INF("Enable wake lock");
+    self->wake_lock = wakeup_source_register(&self->client->dev,SMTC_DRIVER_NAME);
+    if (!self->wake_lock){
+        SMTC_LOG_ERR("Failed to create wake lock.");
+        ret = -ENOMEM;
+        goto FREE_IRQ;
+    }
+
+#endif
+
+    //SMTC_LOG_INF("wakeup_source_add");
+    //wakeup_source_add(&smtc_wake);
     SMTC_LOG_INF("Done.");
     return 0;
 
     //.............................................................................................
+#ifdef ENABLE_WAKE_LOCK
+FREE_IRQ:
+    free_irq(self->irq_id, self);
+#endif
+
 FREE_INPUTS:
     for (i=0; i<NUM_PHASES; i++)
     {
@@ -1926,7 +2039,10 @@ static int smtc_remove(struct i2c_client *client)
     }
     smtc_read_and_clear_irq(self, NULL);
     free_irq(self->irq_id, self);
+
+#ifndef USE_THREAD_IRQ
     cancel_delayed_work_sync(&self->worker);
+#endif
 
     for (i=0; i<NUM_PHASES; i++)
     {
@@ -1951,15 +2067,51 @@ static int smtc_remove(struct i2c_client *client)
 //=================================================================================================
 static int smtc_suspend(struct device *dev)
 {
-    //Self self = dev_get_drvdata(dev);
-    //usually, SAR sensor should still be at work mode even the device is on suspend mode
-    SMTC_LOG_INF("Do nothing to smtc SAR sensor.");
+    int ret;
+    Self self = dev_get_drvdata(dev);
+    self->first_irq_after_resume = 1;
+
+#ifdef WAKE_BY_IRQ
+    SMTC_LOG_INF("Enable irq wake up function");
+/*
+    if(! device_may_wakeup(dev)) {
+        SMTC_LOG_ERR("Looks like doesn't support wakeup on this GPIO");
+    }
+*/
+    ret = enable_irq_wake(self->irq_id);
+    if (ret < 0){
+        SMTC_LOG_ERR("Failed to enable irq=%d wake up. ret=%d", self->irq_id, ret);
+        return ret;
+    }
+
+#else
+    u32 irq_src;
+    SMTC_LOG_INF("Wakup is disabled");
+    disable_irq(self->irq_id);
+
+    //don't raise IRQ during suspend
+    smtc_i2c_write(self, 0x4004, 0x0);
+    smtc_read_and_clear_irq(self, &irq_src);
+    SMTC_LOG_INF("_irq_mask=0x%X irq_src=0x%X", _irq_mask, irq_src);
+#endif
     return 0;
 }
 
 static int smtc_resume(struct device *dev)
 {
-    //Self self = dev_get_drvdata(dev);    
+    Self self = dev_get_drvdata(dev);
+    self->first_irq_after_resume = 0;
+
+#ifdef WAKE_BY_IRQ
+    SMTC_LOG_INF("disable_irq_wake");
+    disable_irq_wake(self->irq_id);
+
+#else
+    SMTC_LOG_INF("irq_mask=0x%X", _irq_mask);
+    smtc_i2c_write(self, 0x4004, _irq_mask);
+    smtc_update_status(self);
+    enable_irq(self->irq_id);
+#endif
     return 0;
 }
 

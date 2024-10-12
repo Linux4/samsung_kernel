@@ -18,9 +18,7 @@
 #define MAX_CNOC_CMDS		6
 #define MAX_BW_CMDS		8
 #define INVALID_DCVS_IDX	0xFF
-#define INVALID_AB_VALUE	0xFFFF
-#define INVALID_BW_VOTE		(INVALID_DCVS_IDX | \
-					(FIELD_PREP(GENMASK(31, 16), INVALID_AB_VALUE)))
+
 #if MAX_CNOC_LEVELS > MAX_GX_LEVELS
 #error "CNOC levels cannot exceed GX levels"
 #endif
@@ -231,15 +229,14 @@ struct gmu_dev_ops {
 	int (*oob_set)(struct kgsl_device *device, enum oob_request req);
 	void (*oob_clear)(struct kgsl_device *device, enum oob_request req);
 	int (*ifpc_store)(struct kgsl_device *device, unsigned int val);
-	unsigned int (*ifpc_isenabled)(struct kgsl_device *device);
+	unsigned int (*ifpc_show)(struct kgsl_device *device);
 	void (*cooperative_reset)(struct kgsl_device *device);
-	void (*halt_execution)(struct kgsl_device *device);
 	int (*wait_for_active_transition)(struct kgsl_device *device);
 	bool (*scales_bandwidth)(struct kgsl_device *device);
 	int (*acd_set)(struct kgsl_device *device, bool val);
 	int (*bcl_sid_set)(struct kgsl_device *device, u32 sid_id, u64 sid_val);
 	u64 (*bcl_sid_get)(struct kgsl_device *device, u32 sid_id);
-	void (*force_first_boot)(struct kgsl_device *device);
+	void (*send_nmi)(struct kgsl_device *device, bool force);
 };
 
 /**
@@ -292,7 +289,7 @@ void gmu_core_regrmw(struct kgsl_device *device, unsigned int offsetwords,
 		unsigned int mask, unsigned int bits);
 int gmu_core_dev_oob_set(struct kgsl_device *device, enum oob_request req);
 void gmu_core_dev_oob_clear(struct kgsl_device *device, enum oob_request req);
-int gmu_core_dev_ifpc_isenabled(struct kgsl_device *device);
+int gmu_core_dev_ifpc_show(struct kgsl_device *device);
 int gmu_core_dev_ifpc_store(struct kgsl_device *device, unsigned int val);
 int gmu_core_dev_wait_for_active_transition(struct kgsl_device *device);
 void gmu_core_dev_cooperative_reset(struct kgsl_device *device);
@@ -335,6 +332,5 @@ struct iommu_domain;
  */
 int gmu_core_map_memdesc(struct iommu_domain *domain, struct kgsl_memdesc *memdesc,
 		u64 gmuaddr, int attrs);
-void gmu_core_dev_force_first_boot(struct kgsl_device *device);
 
 #endif /* __KGSL_GMU_CORE_H */

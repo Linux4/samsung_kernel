@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2020-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/debugfs.h>
@@ -314,6 +314,9 @@ static int smblite_parse_dt_misc(struct smblite *chip, struct device_node *node)
 	chip->dt.disable_suspend_on_collapse = of_property_read_bool(node,
 					"qcom,disable-suspend-on-collapse");
 
+	chg->uusb_ss_mode_extcon_enable = of_property_read_bool(node,
+					"qcom,uusb-ss-mode-extcon-enable");
+
 	of_property_read_u32(node, "qcom,fcc-step-delay-ms",
 					&chg->chg_param.fcc_step_delay_ms);
 	if (chg->chg_param.fcc_step_delay_ms <= 0)
@@ -346,6 +349,15 @@ static int smblite_parse_dt_misc(struct smblite *chip, struct device_node *node)
 			rc = PTR_ERR(chg->debug_mask_nvmem);
 			if (rc != -EPROBE_DEFER)
 				dev_err(chg->dev, "Failed to get nvmem-cells, rc=%d\n", rc);
+			return rc;
+		}
+
+		chg->soc_nvmem = devm_nvmem_cell_get(chg->dev, "charger_soc");
+		if (IS_ERR(chg->soc_nvmem)) {
+			rc = PTR_ERR(chg->soc_nvmem);
+			if (rc != -EPROBE_DEFER)
+				dev_err(chg->dev, "Failed to get charger_soc nvmem-cells, rc=%d\n",
+						rc);
 			return rc;
 		}
 	}

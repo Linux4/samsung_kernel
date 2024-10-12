@@ -24,6 +24,8 @@ extern struct nopmi_chg *g_nopmi_chg;
 bool g_ffc_disable = true;
 EXPORT_SYMBOL_GPL(g_ffc_disable);
 
+extern bool first_power_on;
+
 //extern int main_set_charge_enable(bool en);
 //extern int adapter_dev_get_pd_verified(void);
 //add ipc log start
@@ -62,6 +64,13 @@ static int nopmi_chg_jeita_get_bat_temperature(struct nopmi_chg_jeita_st *nopmi_
 	int ret = 0;
 	int temp = 0;
 
+	if(first_power_on == true) {
+		temp = 30;
+		first_power_on = false;
+		pr_info("this is first power on[%d]",first_power_on);
+		return temp;
+	}
+
     if(!nopmi_chg_jeita->bms_psy)
     {
     	nopmi_chg_jeita->bms_psy = power_supply_get_by_name("bms");
@@ -70,7 +79,7 @@ static int nopmi_chg_jeita_get_bat_temperature(struct nopmi_chg_jeita_st *nopmi_
         	return -EINVAL;
         }
 	}
-	
+
 	ret = power_supply_get_property(nopmi_chg_jeita->bms_psy,
 				POWER_SUPPLY_PROP_TEMP, &prop);
 	if (ret < 0) {
@@ -78,7 +87,7 @@ static int nopmi_chg_jeita_get_bat_temperature(struct nopmi_chg_jeita_st *nopmi_
 		return -EINVAL;
 	}
 	temp = prop.intval/10;
-	
+
 	pr_info("get_bat_temperature is %d\n", temp);
 	return temp;
 }
@@ -570,19 +579,19 @@ static void nopmi_chg_handle_jeita_current(struct nopmi_chg_jeita_st *nopmi_chg_
 			/*Both temp is normal and FFC is enabled, then improve FV*/
 			if(fast_charge_mode && !g_ffc_disable){
 				if(NOPMI_CHARGER_IC_MAXIM == nopmi_get_charger_ic_type()){
-					sw_jeita->cv = 4423; //for maxim chip
+					sw_jeita->cv = 4350; //for maxim chip
 				}else{
-					sw_jeita->cv = 4423; //for other pmic chips
+					sw_jeita->cv = 4350; //for other pmic chips
 				}
 				if(!pd_verified){
-					sw_jeita->cv = 4423; //for unverified pd
+					sw_jeita->cv = 4350; //for unverified pd
 				}
 			}
 	}
 	if(cp_charging_enabled) {
 		if(NOPMI_CHARGER_IC_MAXIM != nopmi_get_charger_ic_type()) {
 			pr_info("charge pump :sw_jeita->cv = 4608.\n");
-			sw_jeita->cv = 4423; //if charger pump working set sw_chip fv:4608
+			sw_jeita->cv = 4350; //if charger pump working set sw_chip fv:4608
 		}
 	}
 	if (nopmi_chg_jeita->battery_temp >= nopmi_chg_jeita->dt.temp_t4_plus_thres) {
@@ -595,6 +604,7 @@ static void nopmi_chg_handle_jeita_current(struct nopmi_chg_jeita_st *nopmi_chg_
 	pr_err("[sw-jeita] write before sw_jeita->cv=%d nopmi_chg_jeita->jeita_current_limit=%d!!\n",sw_jeita->cv,nopmi_chg_jeita->jeita_current_limit);
 	if(nopmi_chg_jeita->fcc_votable)
 	{
+		vote(nopmi_chg_jeita->fcc_votable, JEITA_VOTER, true, nopmi_chg_jeita->jeita_current_limit+1);
 		vote(nopmi_chg_jeita->fcc_votable, JEITA_VOTER, true, nopmi_chg_jeita->jeita_current_limit);
 	} else {
 		ret = nopmi_chg_jeita_set_charger_current(nopmi_chg_jeita, nopmi_chg_jeita->jeita_current_limit);

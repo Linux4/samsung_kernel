@@ -65,6 +65,7 @@
 #include "qdf_talloc.h"
 #include "qdf_trace.h"
 #include "qdf_types.h"
+#include "qdf_net_if.h"
 #include <cdp_txrx_peer_ops.h>
 #include <cdp_txrx_misc.h>
 #include <cdp_txrx_stats.h>
@@ -221,6 +222,7 @@
 #ifdef WLAN_FEATURE_DYNAMIC_RX_AGGREGATION
 #include <net/pkt_cls.h>
 #endif
+#include <linux/rtnetlink.h>
 
 #ifdef MULTI_CLIENT_LL_SUPPORT
 #define WLAM_WLM_HOST_DRIVER_PORT_ID 0xFFFFFF
@@ -419,6 +421,7 @@ static const struct category_info cinfo[MAX_SUPPORTED_CATEGORY] = {
 	[QDF_MODULE_ID_GPIO] = {QDF_TRACE_LEVEL_ALL},
 	[QDF_MODULE_ID_MLO] = {QDF_TRACE_LEVEL_ALL},
 	[QDF_MODULE_ID_TWT] = {QDF_TRACE_LEVEL_ALL},
+	[QDF_MODULE_ID_COAP] = {QDF_TRACE_LEVEL_ALL},
 };
 
 struct notifier_block hdd_netdev_notifier;
@@ -1110,7 +1113,7 @@ static int __hdd_netdev_notifier_call(struct net_device *net_dev,
 	case NETDEV_FEAT_CHANGE:
 		hdd_debug("vdev %d netdev Feature 0x%llx\n",
 			  adapter->vdev_id, net_dev->features);
-
+		break;
 	default:
 		break;
 	}
@@ -3511,7 +3514,7 @@ int hdd_start_adapter(struct hdd_adapter *adapter)
 		if (hdd_max_sta_interface_up_count_reached(adapter))
 			goto err_start_adapter;
 
-	/* fall through */
+		fallthrough;
 	case QDF_P2P_DEVICE_MODE:
 	case QDF_OCB_MODE:
 	case QDF_MONITOR_MODE:
@@ -3905,6 +3908,7 @@ static void hdd_nan_register_callbacks(struct hdd_context *hdd_ctx)
 	cb_obj.peer_departed_ind = hdd_ndp_peer_departed_handler;
 
 	cb_obj.nan_concurrency_update = hdd_nan_concurrency_update;
+	cb_obj.set_mc_list = hdd_update_multicast_list;
 
 	os_if_nan_register_hdd_callbacks(hdd_ctx->psoc, &cb_obj);
 }
@@ -4588,7 +4592,7 @@ int hdd_wlan_start_modules(struct hdd_context *hdd_ctx, bool reinit)
 	case DRIVER_MODULES_UNINITIALIZED:
 		hdd_nofl_debug("Wlan transitioning (UNINITIALIZED -> CLOSED)");
 		unint = true;
-		/* fallthrough */
+		fallthrough;
 	case DRIVER_MODULES_CLOSED:
 		hdd_nofl_debug("Wlan transitioning (CLOSED -> ENABLED)");
 
@@ -4728,7 +4732,7 @@ int hdd_wlan_start_modules(struct hdd_context *hdd_ctx, bool reinit)
 			goto deregister_cb;
 
 		/*
-		 * NAN compoenet requires certian operations like, open adapter,
+		 * NAN component requires certain operations like, open adapter,
 		 * close adapter, etc. to be initiated by HDD, for those
 		 * register HDD callbacks with UMAC's NAN componenet.
 		 */
@@ -5336,6 +5340,7 @@ bool hdd_is_dynamic_set_mac_addr_allowed(struct hdd_adapter *adapter)
 			hdd_info_rl("VDEV is not in disconnected state, set mac address isn't supported");
 			return false;
 		}
+	fallthrough;
 	case QDF_P2P_DEVICE_MODE:
 		return true;
 	case QDF_SAP_MODE:
@@ -5542,7 +5547,8 @@ static int __hdd_set_mac_address(struct net_device *dev, void *addr)
 		hdd_update_dynamic_mac(hdd_ctx, &adapter->mac_addr, &mac_addr);
 
 	memcpy(&adapter->mac_addr, psta_mac_addr->sa_data, ETH_ALEN);
-	memcpy(dev->dev_addr, psta_mac_addr->sa_data, ETH_ALEN);
+	qdf_net_update_net_device_dev_addr(dev, psta_mac_addr->sa_data,
+					   ETH_ALEN);
 
 	hdd_exit();
 	return ret;
@@ -5750,8 +5756,7 @@ hdd_set_derived_multicast_list(struct wlan_objmgr_psoc *psoc,
 
 /**
  * __hdd_set_multicast_list() - set the multicast address list
- * @dev:	Pointer to the WLAN device.
- * @skb:	Pointer to OS packet (sk_buff).
+ * @dev: Pointer to the WLAN device.
  *
  * This funciton sets the multicast address list.
  *
@@ -5793,6 +5798,7 @@ static void __hdd_set_multicast_list(struct net_device *dev)
 	if (!mc_list_request)
 		return;
 
+	qdf_spin_lock_bh(&adapter->mc_list_lock);
 	/* Delete already configured multicast address list */
 	if (adapter->mc_addr_list.mc_cnt > 0)
 		hdd_disable_and_flush_mc_addr_list(adapter,
@@ -5845,6 +5851,7 @@ static void __hdd_set_multicast_list(struct net_device *dev)
 	hdd_enable_mc_addr_filtering(adapter, pmo_mc_list_change_notify);
 
 free_req:
+	qdf_spin_unlock_bh(&adapter->mc_list_lock);
 	qdf_mem_free(mc_list_request);
 }
 
@@ -5864,6 +5871,33 @@ static void hdd_set_multicast_list(struct net_device *net_dev)
 	__hdd_set_multicast_list(net_dev);
 
 	osif_vdev_sync_op_stop(vdev_sync);
+}
+
+void hdd_update_multicast_list(struct wlan_objmgr_vdev *vdev)
+{
+	struct hdd_context *hdd_ctx = cds_get_context(QDF_MODULE_ID_HDD);
+	struct hdd_adapter *adapter;
+	uint8_t vdev_id = wlan_vdev_get_id(vdev);
+	struct net_device *net_dev;
+
+	if (!hdd_ctx) {
+		hdd_err("hdd_ctx is null");
+		return;
+	}
+
+	adapter = hdd_get_adapter_by_vdev(hdd_ctx, vdev_id);
+	if (!adapter) {
+		hdd_err("adapter is null for vdev_id %d", vdev_id);
+		return;
+	}
+
+	net_dev = adapter->dev;
+	if (!net_dev) {
+		hdd_err("netdev is null");
+		return;
+	}
+
+	__hdd_set_multicast_list(net_dev);
 }
 
 #ifdef WLAN_FEATURE_TSF_PTP
@@ -6248,7 +6282,7 @@ hdd_alloc_station_adapter(struct hdd_context *hdd_ctx, tSirMacAddr mac_addr,
 	/* Init the net_device structure */
 	strlcpy(dev->name, name, IFNAMSIZ);
 
-	qdf_mem_copy(dev->dev_addr, mac_addr, sizeof(tSirMacAddr));
+	qdf_net_update_net_device_dev_addr(dev, mac_addr, sizeof(tSirMacAddr));
 	qdf_mem_copy(adapter->mac_addr.bytes, mac_addr, sizeof(tSirMacAddr));
 	dev->watchdog_timeo = HDD_TX_TIMEOUT;
 
@@ -7147,6 +7181,7 @@ static void hdd_cleanup_adapter(struct hdd_context *hdd_ctx,
 	hdd_periodic_sta_stats_mutex_destroy(adapter);
 	hdd_apf_context_destroy(adapter);
 	qdf_spinlock_destroy(&adapter->vdev_lock);
+	qdf_spinlock_destroy(&adapter->mc_list_lock);
 	hdd_sta_info_deinit(&adapter->sta_info_list);
 	hdd_sta_info_deinit(&adapter->cache_sta_info_list);
 
@@ -7628,7 +7663,6 @@ static void hdd_init_completion(struct hdd_adapter *adapter)
 {
 	init_completion(&adapter->disconnect_comp_var);
 	init_completion(&adapter->linkup_event_var);
-	init_completion(&adapter->sta_authorized_event);
 	init_completion(&adapter->offchannel_tx_event);
 	init_completion(&adapter->tx_action_cnf_event);
 	init_completion(&adapter->lfr_fw_status.disable_lfr_event);
@@ -7749,7 +7783,7 @@ struct hdd_adapter *hdd_open_adapter(struct hdd_context *hdd_ctx,
 			}
 		}
 
-	/* fall through */
+		fallthrough;
 	case QDF_P2P_CLIENT_MODE:
 	case QDF_P2P_DEVICE_MODE:
 	case QDF_OCB_MODE:
@@ -7919,6 +7953,7 @@ struct hdd_adapter *hdd_open_adapter(struct hdd_context *hdd_ctx,
 	qdf_list_create(&adapter->blocked_scan_request_q, WLAN_MAX_SCAN_COUNT);
 	qdf_mutex_create(&adapter->blocked_scan_request_q_lock);
 	qdf_event_create(&adapter->acs_complete_event);
+	qdf_spinlock_create(&adapter->mc_list_lock);
 	qdf_event_create(&adapter->peer_cleanup_done);
 	hdd_sta_info_init(&adapter->sta_info_list);
 	hdd_sta_info_init(&adapter->cache_sta_info_list);
@@ -8402,7 +8437,7 @@ QDF_STATUS hdd_stop_adapter_ext(struct hdd_context *hdd_ctx,
 				hdd_err("Failed to set is_pre_cac_on to false");
 		}
 
-		/* fallthrough */
+		fallthrough;
 
 	case QDF_P2P_GO_MODE:
 		sap_ctx = WLAN_HDD_GET_SAP_CTX_PTR(adapter);
@@ -9126,6 +9161,7 @@ QDF_STATUS hdd_start_all_adapters(struct hdd_context *hdd_ctx)
 			break;
 		case QDF_NDI_MODE:
 			hdd_ndi_start(adapter->dev->name, 0);
+			break;
 		default:
 			break;
 		}
@@ -9332,6 +9368,19 @@ QDF_STATUS hdd_add_adapter_front(struct hdd_context *hdd_ctx,
 	qdf_spin_unlock_bh(&hdd_ctx->hdd_adapter_lock);
 
 	return status;
+}
+
+void hdd_validate_next_adapter(struct hdd_adapter **curr,
+			       struct hdd_adapter **next,
+			       wlan_net_dev_ref_dbgid dbg_id)
+{
+	if (!*curr || !*next || *curr != *next)
+		return;
+
+	hdd_err("Validation failed");
+	hdd_adapter_dev_put_debug(*curr, dbg_id);
+	*curr = NULL;
+	*next = NULL;
 }
 
 QDF_STATUS hdd_adapter_iterate(hdd_adapter_iterate_cb cb, void *context)
@@ -10106,7 +10155,6 @@ void hdd_prevent_suspend_timeout(uint32_t timeout, uint32_t reason)
 QDF_STATUS hdd_set_sme_chan_list(struct hdd_context *hdd_ctx)
 {
 	return sme_init_chan_list(hdd_ctx->mac_handle,
-				  hdd_ctx->reg.alpha2,
 				  hdd_ctx->reg.cc_src);
 }
 
@@ -11182,15 +11230,12 @@ __hdd_check_for_prio_filter_in_clsact_qdisc(struct tcf_block *block,
 	struct tcf_proto *tp_next;
 	enum qdisc_filter_status ret = QDISC_FILTER_PRIO_MISMATCH;
 
-	if (!rtnl_trylock())
-		return QDISC_FILTER_RTNL_LOCK_FAIL;
-
 	mutex_lock(&block->lock);
 	list_for_each_entry(chain, &block->chain_list, list) {
 		mutex_lock(&chain->filter_chain_lock);
 		tp = tcf_chain_dereference(chain->filter_chain, chain);
 		while (tp) {
-			tp_next = rcu_dereference_protected(tp->next, 1);
+			tp_next = rtnl_dereference(tp->next);
 			if (tp->prio == (prio << 16)) {
 				ret = QDISC_FILTER_PRIO_MATCH;
 				break;
@@ -11203,7 +11248,6 @@ __hdd_check_for_prio_filter_in_clsact_qdisc(struct tcf_block *block,
 			break;
 	}
 	mutex_unlock(&block->lock);
-	rtnl_unlock();
 
 	return ret;
 }
@@ -11216,9 +11260,6 @@ __hdd_check_for_prio_filter_in_clsact_qdisc(struct tcf_block *block,
 	struct tcf_proto *tp;
 	enum qdisc_filter_status ret = QDISC_FILTER_PRIO_MISMATCH;
 
-	if (!rtnl_trylock())
-		return QDISC_FILTER_RTNL_LOCK_FAIL;
-
 	list_for_each_entry(chain, &block->chain_list, list) {
 		for (tp = rtnl_dereference(chain->filter_chain); tp;
 		     tp = rtnl_dereference(tp->next)) {
@@ -11226,7 +11267,6 @@ __hdd_check_for_prio_filter_in_clsact_qdisc(struct tcf_block *block,
 				ret = QDISC_FILTER_PRIO_MATCH;
 		}
 	}
-	rtnl_unlock();
 
 	return ret;
 }
@@ -11279,13 +11319,14 @@ hdd_rx_check_qdisc_for_adapter(struct hdd_adapter *adapter)
 	if (!adapter->dev->ingress_queue)
 		goto reset_wl;
 
-	rcu_read_lock();
+	if (!rtnl_trylock())
+		return;
 
-	ingress_q = rcu_dereference(adapter->dev->ingress_queue);
+	ingress_q = rtnl_dereference(adapter->dev->ingress_queue);
 	if (qdf_unlikely(!ingress_q))
 		goto reset;
 
-	ingress_qdisc = rcu_dereference(ingress_q->qdisc);
+	ingress_qdisc = rtnl_dereference(ingress_q->qdisc);
 	if (qdf_unlikely(!ingress_qdisc))
 		goto reset;
 
@@ -11295,19 +11336,14 @@ hdd_rx_check_qdisc_for_adapter(struct hdd_adapter *adapter)
 		ret = hdd_check_for_prio_filter_in_clsact_qdisc(ingress_qdisc,
 					 hdd_ctx->dp_agg_param.tc_ingress_prio);
 
-		if (ret == QDISC_FILTER_RTNL_LOCK_FAIL) {
-			rcu_read_unlock();
-			return;
-		} else if (ret == QDISC_FILTER_PRIO_MISMATCH) {
+		if (ret == QDISC_FILTER_PRIO_MISMATCH)
 			goto reset;
-		}
 
 		disable_gro = true;
 	}
 
 	if (disable_gro) {
-		rcu_read_unlock();
-
+		rtnl_unlock();
 		if (qdf_likely(qdf_atomic_read(&adapter->gro_disallowed)))
 			return;
 
@@ -11318,8 +11354,7 @@ hdd_rx_check_qdisc_for_adapter(struct hdd_adapter *adapter)
 	}
 
 reset:
-	rcu_read_unlock();
-
+	rtnl_unlock();
 reset_wl:
 	if (qdf_unlikely(qdf_atomic_read(&adapter->gro_disallowed))) {
 		hdd_debug("ingress qdisc/filter removed enable GRO");
@@ -15063,6 +15098,7 @@ static int hdd_features_init(struct hdd_context *hdd_ctx)
 	mac_handle_t mac_handle;
 	bool b_cts2self, is_imps_enabled;
 	bool rf_test_mode;
+	bool std_6ghz_conn_policy;
 
 	hdd_enter();
 
@@ -15163,6 +15199,17 @@ static int hdd_features_init(struct hdd_context *hdd_ctx)
 		wlan_cm_set_6ghz_key_mgmt_mask(hdd_ctx->psoc,
 					       DEFAULT_KEYMGMT_6G_MASK);
 	}
+
+	status = ucfg_mlme_is_standard_6ghz_conn_policy_enabled(hdd_ctx->psoc,
+							&std_6ghz_conn_policy);
+
+	if (!QDF_IS_STATUS_SUCCESS(status)) {
+		hdd_err("Get 6ghz standard connection policy failed");
+		return QDF_STATUS_E_FAILURE;
+	}
+	if (std_6ghz_conn_policy)
+		wlan_cm_set_standard_6ghz_conn_policy(hdd_ctx->psoc, true);
+
 	hdd_thermal_stats_cmd_init(hdd_ctx);
 	sme_set_cal_failure_event_cb(hdd_ctx->mac_handle,
 				     hdd_cal_fail_send_event);
@@ -15931,16 +15978,16 @@ void hdd_dp_trace_init(struct hdd_config *config)
 	switch (num_entries) {
 	case 4:
 		proto_bitmap = config_params[3];
-		/* fall through */
+		fallthrough;
 	case 3:
 		verbosity = config_params[2];
-		/* fall through */
+		fallthrough;
 	case 2:
 		thresh = config_params[1];
-		/* fall through */
+		fallthrough;
 	case 1:
 		live_mode = config_params[0];
-		/* fall through */
+		fallthrough;
 	default:
 		hdd_debug("live_mode %u thresh %u time_limit %u verbosity %u bitmap 0x%x",
 			  live_mode, thresh, thresh_time_limit,
@@ -16652,9 +16699,6 @@ int hdd_register_cb(struct hdd_context *hdd_ctx)
 	sme_stats_ext2_register_callback(mac_handle,
 					wlan_hdd_cfg80211_stats_ext2_callback);
 
-	sme_roam_events_register_callback(mac_handle,
-					wlan_hdd_cfg80211_roam_events_callback);
-
 	sme_multi_client_ll_rsp_register_callback(mac_handle,
 					hdd_latency_level_event_handler_cb);
 
@@ -16772,7 +16816,6 @@ void hdd_deregister_cb(struct hdd_context *hdd_ctx)
 		hdd_err("Failed to de-register data stall detect event callback");
 	hdd_thermal_unregister_callbacks(hdd_ctx);
 	sme_deregister_oem_data_rsp_callback(mac_handle);
-	sme_roam_events_deregister_callback(mac_handle);
 	sme_multi_client_ll_rsp_deregister_callback(mac_handle);
 
 	hdd_exit();
@@ -18457,7 +18500,7 @@ static void hdd_stop_present_mode(struct hdd_context *hdd_ctx,
 		hdd_info("Release wakelock for monitor mode!");
 		qdf_wake_lock_release(&hdd_ctx->monitor_mode_wakelock,
 				      WIFI_POWER_EVENT_WAKELOCK_MONITOR_MODE);
-		/* fallthrough */
+		fallthrough;
 	case QDF_GLOBAL_MISSION_MODE:
 	case QDF_GLOBAL_FTM_MODE:
 		hdd_abort_mac_scan_all_adapters(hdd_ctx);
@@ -19331,6 +19374,27 @@ static void hdd_populate_runtime_cfg(struct hdd_context *hdd_ctx,
 }
 #endif
 
+#ifdef FEATURE_ENABLE_CE_DP_IRQ_AFFINE
+/**
+ * hdd_populate_ce_dp_irq_affine_cfg() - populate ce irq affine configuration
+ * @hdd_ctx: hdd context
+ * @cfg: pointer to the configuration memory being populated
+ *
+ * Return: void
+ */
+static void hdd_populate_ce_dp_irq_affine_cfg(struct hdd_context *hdd_ctx,
+					      struct hif_config_info *cfg)
+{
+	cfg->enable_ce_dp_irq_affine = cfg_get(hdd_ctx->psoc,
+					       CFG_ENABLE_CE_DP_IRQ_AFFINE);
+}
+#else
+static void hdd_populate_ce_dp_irq_affine_cfg(struct hdd_context *hdd_ctx,
+					      struct hif_config_info *cfg)
+{
+}
+#endif
+
 /**
  * hdd_update_hif_config - API to update HIF configuration parameters
  * @hdd_ctx: HDD Context
@@ -19362,6 +19426,7 @@ static void hdd_update_hif_config(struct hdd_context *hdd_ctx)
 	cfg.rx_softirq_max_yield_duration_ns =
 				cfg_get(hdd_ctx->psoc,
 					CFG_DP_RX_SOFTIRQ_MAX_YIELD_TIME_NS);
+	hdd_populate_ce_dp_irq_affine_cfg(hdd_ctx, &cfg);
 
 	hif_init_ini_config(scn, &cfg);
 

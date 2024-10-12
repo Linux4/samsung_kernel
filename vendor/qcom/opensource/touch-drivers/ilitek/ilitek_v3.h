@@ -400,6 +400,8 @@ enum TP_MODEL {
 	MODEL_TM_ILI77600A,
 	MODEL_INX_ILI77600A,
 	MODEL_XL_ILI77600A,
+	MODEL_XL_ILI7807S,
+	MODEL_TMB_ILI7807S,
 };
 
 enum TP_ERR_CODE {
@@ -593,6 +595,8 @@ struct ilitek_pen_info {
 #define ILITEK_ILI77600A_TM_PANEL      "tianma"
 #define ILITEK_ILI77600A_INX_PANEL     "innolux"
 #define ILITEK_ILI77600A_XL_PANEL      "xinli"
+#define ILITEK_ILI7807S_XL_PANEL      "xinli"
+#define ILITEK_ILI7807S_TMB_PANEL      "tianmaB"
 
  /* define the width and heigth of a screen. */
 #define TOUCH_SCREEN_X_MIN			0

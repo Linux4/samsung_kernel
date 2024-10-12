@@ -29,6 +29,7 @@
 #include <linux/kthread.h>
 #include <linux/freezer.h>
 #include <linux/kref.h>
+#include <linux/kernel.h>
 
 #include <linux/types.h>
 #include <linux/file.h>
@@ -678,8 +679,11 @@ fail:
 	pr_err("acc_bind() could not allocate requests\n");
 	while ((req = req_get(dev, &dev->tx_idle)))
 		acc_request_free(req, dev->ep_in);
-	for (i = 0; i < RX_REQ_MAX; i++)
+	for (i = 0; i < RX_REQ_MAX; i++) {
 		acc_request_free(dev->rx_req[i], dev->ep_out);
+		dev->rx_req[i] = NULL;
+	}
+
 	return -1;
 }
 
@@ -708,6 +712,12 @@ static ssize_t acc_read(struct file *fp, char __user *buf,
 	ret = wait_event_interruptible(dev->read_wq, dev->online);
 	if (ret < 0) {
 		r = ret;
+		goto done;
+	}
+
+	if (!dev->rx_req[0]) {
+		pr_warn("acc_read: USB request already handled/freed");
+		r = -EINVAL;
 		goto done;
 	}
 
@@ -1101,6 +1111,7 @@ __acc_function_bind(struct usb_configuration *c,
 			struct usb_function *f, bool configfs)
 {
 	struct usb_composite_dev *cdev = c->cdev;
+	struct usb_string *us;
 	struct acc_dev	*dev = func_to_dev(f);
 	int			id;
 	int			ret;
@@ -1108,13 +1119,11 @@ __acc_function_bind(struct usb_configuration *c,
 	DBG(cdev, "acc_function_bind dev: %p\n", dev);
 
 	if (configfs) {
-		if (acc_string_defs[INTERFACE_STRING_INDEX].id == 0) {
-			ret = usb_string_id(c->cdev);
-			if (ret < 0)
-				return ret;
-			acc_string_defs[INTERFACE_STRING_INDEX].id = ret;
-			acc_interface_desc.iInterface = ret;
-		}
+		us = usb_gstrings_attach(cdev, acc_strings, ARRAY_SIZE(acc_string_defs));
+		if (IS_ERR(us))
+			return PTR_ERR(us);
+		ret = us[INTERFACE_STRING_INDEX].id;
+		acc_interface_desc.iInterface = ret;
 		dev->cdev = c->cdev;
 	}
 	ret = hid_register_driver(&acc_hid_driver);
@@ -1208,8 +1217,10 @@ acc_function_unbind(struct usb_configuration *c, struct usb_function *f)
 
 	while ((req = req_get(dev, &dev->tx_idle)))
 		acc_request_free(req, dev->ep_in);
-	for (i = 0; i < RX_REQ_MAX; i++)
+	for (i = 0; i < RX_REQ_MAX; i++) {
 		acc_request_free(dev->rx_req[i], dev->ep_out);
+		dev->rx_req[i] = NULL;
+	}
 
 	acc_hid_unbind(dev);
 }

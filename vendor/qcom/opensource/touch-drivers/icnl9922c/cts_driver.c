@@ -749,6 +749,14 @@ static int cts_driver_probe(struct spi_device *client)
         goto err_register_fb;
     }
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 0)
+    cts_data->ws = wakeup_source_register("cts_wakelock");
+#else
+    cts_data->ws = wakeup_source_register(cts_data->device, "cts_wakelock");
+#endif
+    if (!cts_data->ws)
+        cts_err("wakeup source request failed\n");
+
 #ifdef CONFIG_CTS_CHARGER_DETECT
     ret = cts_charger_detect_init(cts_data);
     if (ret)
@@ -770,14 +778,18 @@ static int cts_driver_probe(struct spi_device *client)
         goto err_deinit_oem;
     }
 
+    cts_data->pm_suspend = false;
+    init_completion(&cts_data->pm_completion);
+
 #ifdef CFG_CTS_HEARTBEAT_MECHANISM
     INIT_DELAYED_WORK(&cts_data->heart_work, cts_heartbeat_mechanism_work);
 #endif
 
+
     /* Init firmware upgrade work and schedule */
     INIT_DELAYED_WORK(&cts_data->fw_upgrade_work, cts_firmware_upgrade_work);
     queue_delayed_work(cts_data->workqueue, &cts_data->fw_upgrade_work,
-        msecs_to_jiffies(15 * 1000));
+        msecs_to_jiffies(500));
 
     INIT_WORK(&cts_data->ts_resume_work, cts_resume_work_func);
 
@@ -908,6 +920,9 @@ static int cts_driver_remove(struct spi_device *client)
         cts_plat_free_resource(cts_data->pdata);
 
         cts_oem_deinit(cts_data);
+
+        if (cts_data->ws)
+            wakeup_source_unregister(cts_data->ws);
 
 #ifdef CFG_CTS_HEARTBEAT_MECHANISM
         if (cts_data->heart_workqueue)
@@ -1212,6 +1227,31 @@ static const struct spi_device_id cts_device_id_table[] = {
 };
 #endif
 
+static int cts_tp_pm_suspend(struct device *dev)
+{
+    cts_info("CALL BACK TP PM SUSPEND");
+    g_cts_data->pm_suspend = true;
+#if KERNEL_VERSION(3, 12, 0) >= LINUX_VERSION_CODE
+    g_cts_data->pm_completion.done = 0;
+#else
+    reinit_completion(&g_cts_data->pm_completion);
+#endif
+    return 0;
+}
+
+static int cts_tp_pm_resume(struct device *dev)
+{
+    cts_info("CALL BACK TP PM RESUME");
+    g_cts_data->pm_suspend = false;
+    complete(&g_cts_data->pm_completion);
+    return 0;
+}
+
+static const struct dev_pm_ops tp_pm_ops = {
+    .suspend = cts_tp_pm_suspend,
+    .resume = cts_tp_pm_resume,
+};
+
 #ifdef CONFIG_CTS_I2C_HOST
 static struct i2c_driver cts_i2c_driver = {
 #else
@@ -1235,6 +1275,7 @@ static struct spi_driver cts_spi_driver = {
 #ifdef CONFIG_CTS_PM_GENERIC
         .pm = &cts_i2c_driver_pm_ops,
 #endif /* CONFIG_CTS_PM_GENERIC */
+        .pm = &tp_pm_ops,
 
         },
     .id_table = cts_device_id_table,

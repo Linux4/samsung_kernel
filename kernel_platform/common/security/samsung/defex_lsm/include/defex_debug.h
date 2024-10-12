@@ -50,13 +50,13 @@ void blob(const char *title, const char *buffer, const size_t bufLen, const int 
 #define defex_log_blob(fmt, ...)       defex_print_msg(MSG_BLOB, fmt, ##__VA_ARGS__)
 void defex_print_msg(const enum defex_log_level msg_type, const char *format, ...);
 #else
-#define defex_log_crit(fmt, ...)       pr_crit(DEFEX_LOG_TAG fmt, ##__VA_ARGS__)
-#define defex_log_err(fmt, ...)        pr_err(DEFEX_LOG_TAG fmt, ##__VA_ARGS__)
-#define defex_log_warn(fmt, ...)       pr_warn(DEFEX_LOG_TAG fmt, ##__VA_ARGS__)
-#define defex_log_info(fmt, ...)       pr_info(DEFEX_LOG_TAG fmt, ##__VA_ARGS__)
-#define defex_log_debug(fmt, ...)      pr_debug(DEFEX_LOG_TAG fmt, ##__VA_ARGS__)
-#define defex_log_timeoff(fmt, ...)    pr_info(DEFEX_LOG_TAG fmt, ##__VA_ARGS__)
-#define defex_log_blob(fmt, ...)       pr_crit(fmt, ##__VA_ARGS__)
+#define defex_log_crit(fmt, ...)       pr_crit(DEFEX_LOG_TAG fmt "\n", ##__VA_ARGS__)
+#define defex_log_err(fmt, ...)        pr_err(DEFEX_LOG_TAG fmt "\n", ##__VA_ARGS__)
+#define defex_log_warn(fmt, ...)       pr_warn(DEFEX_LOG_TAG fmt "\n", ##__VA_ARGS__)
+#define defex_log_info(fmt, ...)       pr_info(DEFEX_LOG_TAG fmt "\n", ##__VA_ARGS__)
+#define defex_log_debug(fmt, ...)      pr_debug(DEFEX_LOG_TAG fmt "\n", ##__VA_ARGS__)
+#define defex_log_timeoff(fmt, ...)    pr_info(DEFEX_LOG_TAG fmt "\n", ##__VA_ARGS__)
+#define defex_log_blob(fmt, ...)       pr_crit(fmt "\n", ##__VA_ARGS__)
 #endif /* DEFEX_DEBUG_ENABLE */
 
 #ifdef DEFEX_LOG_BUFFER_ENABLE

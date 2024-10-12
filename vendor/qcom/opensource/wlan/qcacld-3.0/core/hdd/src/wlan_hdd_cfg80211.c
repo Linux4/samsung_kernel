@@ -54,6 +54,7 @@
 #include "qdf_str.h"
 #include "qdf_trace.h"
 #include "qdf_types.h"
+#include "qdf_net_if.h"
 #include "cds_utils.h"
 #include "cds_sched.h"
 #include "wlan_hdd_scan.h"
@@ -178,6 +179,7 @@
 #include "wlan_pkt_capture_ucfg_api.h"
 #include "os_if_pkt_capture.h"
 #include "wlan_osif_features.h"
+#include "wlan_hdd_coap.h"
 
 #define g_mode_rates_size (12)
 #define a_mode_rates_size (8)
@@ -1794,6 +1796,7 @@ static const struct nl80211_vendor_cmd_info wlan_hdd_cfg80211_vendor_events[] = 
 		.subcmd = QCA_NL80211_VENDOR_SUBCMD_UPDATE_STA_INFO,
 	},
 	FEATURE_THERMAL_VENDOR_EVENTS
+	FEATURE_DRIVER_DISCONNECT_REASON
 #ifdef WLAN_SUPPORT_TWT
 	FEATURE_TWT_VENDOR_EVENTS
 #endif
@@ -4969,12 +4972,13 @@ hdd_send_roam_scan_channel_freq_list_to_sme(struct hdd_context *hdd_ctx,
 		return QDF_STATUS_E_INVAL;
 	}
 
-	nla_for_each_nested(curr_attr, tb2[PARAM_SCAN_FREQ_LIST], rem)
+	nla_for_each_nested(curr_attr, tb2[PARAM_SCAN_FREQ_LIST], rem) {
+		if (num_chan >= SIR_MAX_SUPPORTED_CHANNEL_LIST) {
+			hdd_err("number of channels (%d) supported exceeded max (%d)",
+				num_chan, SIR_MAX_SUPPORTED_CHANNEL_LIST);
+			return QDF_STATUS_E_INVAL;
+		}
 		num_chan++;
-	if (num_chan > SIR_MAX_SUPPORTED_CHANNEL_LIST) {
-		hdd_err("number of channels (%d) supported exceeded max (%d)",
-			num_chan, SIR_MAX_SUPPORTED_CHANNEL_LIST);
-		return QDF_STATUS_E_INVAL;
 	}
 	num_chan = 0;
 
@@ -7077,8 +7081,7 @@ __wlan_hdd_cfg80211_get_wifi_info(struct wiphy *wiphy,
 {
 	struct hdd_context *hdd_ctx = wiphy_priv(wiphy);
 	struct nlattr *tb_vendor[QCA_WLAN_VENDOR_ATTR_WIFI_INFO_GET_MAX + 1];
-	tSirVersionString driver_version;
-	tSirVersionString firmware_version;
+	uint8_t *firmware_version = NULL;
 	int status;
 	struct sk_buff *reply_skb;
 	uint32_t skb_len = 0, count = 0;
@@ -7106,9 +7109,7 @@ __wlan_hdd_cfg80211_get_wifi_info(struct wiphy *wiphy,
 
 	if (tb_vendor[QCA_WLAN_VENDOR_ATTR_WIFI_INFO_DRIVER_VERSION]) {
 		hdd_debug("Rcvd req for Driver version");
-		strlcpy(driver_version, QWLAN_VERSIONSTR,
-			sizeof(driver_version));
-		skb_len += strlen(driver_version) + 1;
+		skb_len += strlen(QWLAN_VERSIONSTR) + 1;
 		count++;
 	}
 
@@ -7117,16 +7118,20 @@ __wlan_hdd_cfg80211_get_wifi_info(struct wiphy *wiphy,
 		if (!pld_get_soc_info(hdd_ctx->parent_dev, &info))
 			stt_flag = true;
 
-		snprintf(firmware_version, sizeof(firmware_version),
-			"FW:%d.%d.%d.%d.%d.%d HW:%s STT:%s",
-			hdd_ctx->fw_version_info.major_spid,
-			hdd_ctx->fw_version_info.minor_spid,
-			hdd_ctx->fw_version_info.siid,
-			hdd_ctx->fw_version_info.rel_id,
-			hdd_ctx->fw_version_info.crmid,
-			hdd_ctx->fw_version_info.sub_id,
-			hdd_ctx->target_hw_name,
-			(stt_flag ? info.fw_build_id : " "));
+		firmware_version = qdf_mem_malloc(SIR_VERSION_STRING_LEN);
+		if (!firmware_version)
+			return -ENOMEM;
+
+		snprintf(firmware_version, SIR_VERSION_STRING_LEN,
+			 "FW:%d.%d.%d.%d.%d.%d HW:%s STT:%s",
+			 hdd_ctx->fw_version_info.major_spid,
+			 hdd_ctx->fw_version_info.minor_spid,
+			 hdd_ctx->fw_version_info.siid,
+			 hdd_ctx->fw_version_info.rel_id,
+			 hdd_ctx->fw_version_info.crmid,
+			 hdd_ctx->fw_version_info.sub_id,
+			 hdd_ctx->target_hw_name,
+			 (stt_flag ? info.fw_build_id : " "));
 		skb_len += strlen(firmware_version) + 1;
 		count++;
 	}
@@ -7139,6 +7144,7 @@ __wlan_hdd_cfg80211_get_wifi_info(struct wiphy *wiphy,
 
 	if (count == 0) {
 		hdd_err("unknown attribute in get_wifi_info request");
+		qdf_mem_free(firmware_version);
 		return -EINVAL;
 	}
 
@@ -7147,13 +7153,14 @@ __wlan_hdd_cfg80211_get_wifi_info(struct wiphy *wiphy,
 
 	if (!reply_skb) {
 		hdd_err("cfg80211_vendor_cmd_alloc_reply_skb failed");
+		qdf_mem_free(firmware_version);
 		return -ENOMEM;
 	}
 
 	if (tb_vendor[QCA_WLAN_VENDOR_ATTR_WIFI_INFO_DRIVER_VERSION]) {
 		if (nla_put_string(reply_skb,
 			    QCA_WLAN_VENDOR_ATTR_WIFI_INFO_DRIVER_VERSION,
-			    driver_version))
+			    QWLAN_VERSIONSTR))
 			goto error_nla_fail;
 	}
 
@@ -7171,10 +7178,12 @@ __wlan_hdd_cfg80211_get_wifi_info(struct wiphy *wiphy,
 			goto error_nla_fail;
 	}
 
+	qdf_mem_free(firmware_version);
 	return cfg80211_vendor_cmd_reply(reply_skb);
 
 error_nla_fail:
 	hdd_err("nla put fail");
+	qdf_mem_free(firmware_version);
 	kfree_skb(reply_skb);
 	return -EINVAL;
 }
@@ -18139,8 +18148,7 @@ const struct wiphy_vendor_command hdd_wiphy_vendor_commands[] = {
 		.info.vendor_id = QCA_NL80211_VENDOR_ID,
 		.info.subcmd = QCA_NL80211_VENDOR_SUBCMD_USABLE_CHANNELS,
 		.flags = WIPHY_VENDOR_CMD_NEED_WDEV |
-			WIPHY_VENDOR_CMD_NEED_NETDEV |
-			WIPHY_VENDOR_CMD_NEED_RUNNING,
+			WIPHY_VENDOR_CMD_NEED_NETDEV,
 		.doit = wlan_hdd_cfg80211_get_usable_channel,
 		vendor_command_policy(get_usable_channel_policy,
 				      QCA_WLAN_VENDOR_ATTR_MAX)
@@ -18177,6 +18185,7 @@ const struct wiphy_vendor_command hdd_wiphy_vendor_commands[] = {
 			      QCA_WLAN_VENDOR_ATTR_ROAM_EVENTS_MAX)
 	},
 #endif
+	FEATURE_COAP_OFFLOAD_COMMANDS
 };
 
 struct hdd_context *hdd_cfg80211_wiphy_alloc(void)
@@ -19623,6 +19632,7 @@ static int __wlan_hdd_cfg80211_change_iface(struct wiphy *wiphy,
 	bool ap_random_bssid_enabled;
 	QDF_STATUS status;
 	int errno;
+	uint8_t mac_addr[QDF_MAC_ADDR_SIZE];
 
 	hdd_enter();
 
@@ -19705,13 +19715,20 @@ static int __wlan_hdd_cfg80211_change_iface(struct wiphy *wiphy,
 				 * a randomized MAC address of the
 				 * form 02:1A:11:Fx:xx:xx
 				 */
-				get_random_bytes(&ndev->dev_addr[3], 3);
-				ndev->dev_addr[0] = 0x02;
-				ndev->dev_addr[1] = 0x1A;
-				ndev->dev_addr[2] = 0x11;
-				ndev->dev_addr[3] |= 0xF0;
-				memcpy(adapter->mac_addr.bytes, ndev->dev_addr,
+				memcpy(mac_addr, ndev->dev_addr,
 				       QDF_MAC_ADDR_SIZE);
+
+				get_random_bytes(&mac_addr[3], 3);
+				mac_addr[0] = 0x02;
+				mac_addr[1] = 0x1A;
+				mac_addr[2] = 0x11;
+				mac_addr[3] |= 0xF0;
+				memcpy(adapter->mac_addr.bytes, mac_addr,
+				       QDF_MAC_ADDR_SIZE);
+				qdf_net_update_net_device_dev_addr(ndev,
+								   mac_addr,
+								   QDF_MAC_ADDR_SIZE);
+
 				pr_info("wlan: Generated HotSpot BSSID "
 					QDF_MAC_ADDR_FMT "\n",
 					QDF_MAC_ADDR_REF(ndev->dev_addr));
@@ -21384,6 +21401,14 @@ QDF_STATUS hdd_softap_deauth_all_sta(struct hdd_adapter *adapter,
 		if (!sta_info->is_deauth_in_progress) {
 			hdd_debug("Delete STA with MAC:" QDF_MAC_ADDR_FMT,
 				  QDF_MAC_ADDR_REF(sta_info->sta_mac.bytes));
+
+			if (QDF_IS_ADDR_BROADCAST(sta_info->sta_mac.bytes)) {
+				hdd_put_sta_info_ref(&adapter->sta_info_list,
+						&sta_info, true,
+						STA_INFO_SOFTAP_DEAUTH_ALL_STA);
+				continue;
+			}
+
 			qdf_mem_copy(param->peerMacAddr.bytes,
 				     sta_info->sta_mac.bytes,
 				     QDF_MAC_ADDR_SIZE);

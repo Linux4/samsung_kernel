@@ -353,7 +353,7 @@ static int aw35615_probe(struct i2c_client *client, const struct i2c_device_id *
 	chip->tcpc->typec_attach_new = TYPEC_UNATTACHED;
 	chip->tcpc->tcpc_pd_probe = true;
 	pr_err("tcpc_pd_probe is true!\n");
-	msleep(3000);
+	// msleep(3000);
 	aw35615_init_event_handler();
 
 	/* Initialize semaphore*/
@@ -380,7 +380,7 @@ static int aw35615_probe(struct i2c_client *client, const struct i2c_device_id *
 	INIT_DELAYED_WORK(&chip->init_delay_work, aw35615_init_delay_work);
 	INIT_DELAYED_WORK(&chip->bist_delay_work, aw35615_bist_delay_work);
 
-	schedule_delayed_work(&chip->init_delay_work, msecs_to_jiffies(0));
+	schedule_delayed_work(&chip->init_delay_work, msecs_to_jiffies(5000));
 	AW_LOG(" AWINIC Driver loaded successfully!\n");
 
 	return ret;

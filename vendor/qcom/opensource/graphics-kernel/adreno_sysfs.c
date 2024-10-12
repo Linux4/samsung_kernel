@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2014-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/sysfs.h>
@@ -178,19 +178,7 @@ static int _ifpc_store(struct adreno_device *adreno_dev, bool val)
 
 static bool _ifpc_show(struct adreno_device *adreno_dev)
 {
-	return gmu_core_dev_ifpc_isenabled(KGSL_DEVICE(adreno_dev));
-}
-
-static int _touch_wake_store(struct adreno_device *adreno_dev, bool val)
-{
-	if (val)
-		adreno_touch_wake(KGSL_DEVICE(adreno_dev));
-	return 0;
-}
-
-static bool _touch_wake_show(struct adreno_device *adreno_dev)
-{
-	return false;
+	return gmu_core_dev_ifpc_show(KGSL_DEVICE(adreno_dev));
 }
 
 static unsigned int _ifpc_count_show(struct adreno_device *adreno_dev)
@@ -206,21 +194,6 @@ static bool _acd_show(struct adreno_device *adreno_dev)
 static int _acd_store(struct adreno_device *adreno_dev, bool val)
 {
 	return gmu_core_dev_acd_set(KGSL_DEVICE(adreno_dev), val);
-}
-
-static bool _gmu_ab_show(struct adreno_device *adreno_dev)
-{
-	return adreno_dev->gmu_ab;
-}
-
-static int _gmu_ab_store(struct adreno_device *adreno_dev, bool val)
-{
-	if (!test_bit(ADRENO_DEVICE_GMU_AB, &adreno_dev->priv) ||
-		(adreno_dev->gmu_ab == val))
-		return 0;
-
-	/* Power cycle the GPU for changes to take effect */
-	return adreno_power_cycle_bool(adreno_dev, &adreno_dev->gmu_ab, val);
 }
 
 static bool _bcl_show(struct adreno_device *adreno_dev)
@@ -272,12 +245,12 @@ static bool _lpac_show(struct adreno_device *adreno_dev)
 
 static int _lpac_store(struct adreno_device *adreno_dev, bool val)
 {
-	const struct adreno_gpudev *gpudev = ADRENO_GPU_DEVICE(adreno_dev);
+	if (!ADRENO_FEATURE(adreno_dev, ADRENO_LPAC) ||
+				adreno_dev->lpac_enabled == val)
+		return 0;
 
-	if (gpudev->lpac_store)
-		return gpudev->lpac_store(adreno_dev, val);
-	else
-		return -EINVAL;
+
+	return adreno_power_cycle_bool(adreno_dev, &adreno_dev->lpac_enabled, val);
 }
 
 ssize_t adreno_sysfs_store_u32(struct device *dev,
@@ -361,8 +334,6 @@ static ADRENO_SYSFS_BOOL(l3_vote);
 static ADRENO_SYSFS_BOOL(perfcounter);
 static ADRENO_SYSFS_BOOL(lpac);
 static ADRENO_SYSFS_BOOL(dms);
-static ADRENO_SYSFS_BOOL(touch_wake);
-static ADRENO_SYSFS_BOOL(gmu_ab);
 
 static DEVICE_ATTR_RO(gpu_model);
 
@@ -387,8 +358,6 @@ static const struct attribute *_attr_list[] = {
 	&adreno_attr_perfcounter.attr.attr,
 	&adreno_attr_lpac.attr.attr,
 	&adreno_attr_dms.attr.attr,
-	&adreno_attr_touch_wake.attr.attr,
-	&adreno_attr_gmu_ab.attr.attr,
 	NULL,
 };
 

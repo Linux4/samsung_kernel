@@ -19,7 +19,7 @@
 #define CREATE_TRACE_POINTS
 #include <trace/events/qrtr.h>
 
-#define NS_LOG_PAGE_CNT 4
+#define NS_LOG_PAGE_CNT 8
 static void *ns_ilc;
 #define NS_INFO(x, ...) ipc_log_string(ns_ilc, x, ##__VA_ARGS__)
 
@@ -93,7 +93,10 @@ static struct qrtr_node *node_get(unsigned int node_id)
 	node->id = node_id;
 	xa_init(&node->servers);
 
-	xa_store(&nodes, node_id, node, GFP_ATOMIC);
+	if(xa_is_err(xa_store(&nodes, node_id, node, GFP_ATOMIC))){
+		kfree(node);
+		return NULL;
+	}
 
 	return node;
 }
@@ -300,7 +303,7 @@ err:
 	return NULL;
 }
 
-static int server_del(struct qrtr_node *node, unsigned int port)
+static int server_del(struct qrtr_node *node, unsigned int port, bool bcast)
 {
 	struct qrtr_lookup *lookup;
 	struct qrtr_server *srv;
@@ -313,7 +316,7 @@ static int server_del(struct qrtr_node *node, unsigned int port)
 	xa_erase(&node->servers, port);
 
 	/* Broadcast the removal of local servers */
-	if (srv->node == qrtr_ns.local_node)
+	if (srv->node == qrtr_ns.local_node && bcast)
 		service_announce_del(&qrtr_ns.bcast_sq, srv);
 
 	/* Announce the service's disappearance to observers */
@@ -388,7 +391,7 @@ static int ctrl_cmd_bye(struct sockaddr_qrtr *from)
 
 	/* Advertise removal of this client to all servers of remote node */
 	xa_for_each(&node->servers, index, srv)
-		server_del(node, srv->port);
+		server_del(node, srv->port, true);
 
 	/* Advertise the removal of this client to all local servers */
 	local_node = node_get(qrtr_ns.local_node);
@@ -452,10 +455,13 @@ static int ctrl_cmd_del_client(struct sockaddr_qrtr *from,
 		kfree(lookup);
 	}
 
-	/* Remove the server belonging to this port */
+	/* Remove the server belonging to this port but don't broadcast
+	 * DEL_SERVER. Neighbours would've already removed the server belonging
+	 * to this port due to the DEL_CLIENT broadcast from qrtr_port_remove().
+	 */
 	node = node_get(node_id);
 	if (node)
-		server_del(node, port);
+		server_del(node, port, false);
 
 	/* Advertise the removal of this client to all local servers */
 	local_node = node_get(qrtr_ns.local_node);
@@ -546,7 +552,7 @@ static int ctrl_cmd_del_server(struct sockaddr_qrtr *from,
 	if (!node)
 		return -ENOENT;
 
-	return server_del(node, port);
+	return server_del(node, port, true);
 }
 
 static int ctrl_cmd_new_lookup(struct sockaddr_qrtr *from,
@@ -739,7 +745,7 @@ static void qrtr_ns_data_ready(struct sock *sk)
 int qrtr_ns_init(void)
 {
 	struct sockaddr_qrtr sq;
-	int rx_buf_sz = INT_MAX;
+	int rx_buf_sz = SZ_1M;
 	int ret;
 
 	INIT_LIST_HEAD(&qrtr_ns.lookups);
@@ -778,7 +784,7 @@ int qrtr_ns_init(void)
 		goto err_wq;
 	}
 
-	sock_setsockopt(qrtr_ns.sock, SOL_SOCKET, SO_RCVBUF,
+	sock_setsockopt(qrtr_ns.sock, SOL_SOCKET, SO_RCVBUFFORCE,
 			KERNEL_SOCKPTR((void *)&rx_buf_sz), sizeof(rx_buf_sz));
 
 	qrtr_ns.bcast_sq.sq_family = AF_QIPCRTR;

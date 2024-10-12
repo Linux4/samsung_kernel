@@ -21,18 +21,6 @@
 	size = <0x0 0x3c00000>;
 };
 
-&soc {
-	tlmm: pinctrl@f000000 {
-		compatible = "qcom,direwolf-pinctrl";
-		reg = <0x0F000000 0x1000000>;
-		interrupts = <GIC_SPI 208 IRQ_TYPE_LEVEL_HIGH>;
-		gpio-controller;
-		#gpio-cells = <2>;
-		interrupt-controller;
-		#interrupt-cells = <2>;
-	};
-};
-
 &hab {
 	vmid = <3>;
 };
@@ -78,7 +66,6 @@
 
 &pcie0 {
 	status = "okay";
-	qcom,boot-option = <0x0>;
 };
 
 &pcie2a_msi_snps {
@@ -87,7 +74,6 @@
 
 &pcie4 {
 	status = "okay";
-	qcom,boot-option = <0x0>;
 };
 
 &pcie4_msi_snps {
@@ -104,4 +90,12 @@
 
 &qcom_rng_ee3 {
 	status = "okay";
+};
+
+&soc {
+	qcom,mpm-hr-counter@c210000 {
+		compatible = "qcom,mpm-hr-counter";
+		reg = <0xc210000 0x1000>;
+		clock-frequency = <19200000>;
+	};
 };

@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2002,2007-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 #ifndef __KGSL_DEVICE_H
 #define __KGSL_DEVICE_H
@@ -232,8 +232,7 @@ struct kgsl_device {
 	/* For GPU inline submission */
 	uint32_t submit_now;
 	spinlock_t submit_lock;
-	/** @skip_inline_submit: Track if user threads should make an inline submission or not */
-	bool skip_inline_submit;
+	bool slumber;
 
 	struct mutex mutex;
 	uint32_t state;
@@ -281,7 +280,7 @@ struct kgsl_device {
 	struct kgsl_pwrscale pwrscale;
 
 	int reset_counter; /* Track how many GPU core resets have occurred */
-	struct kthread_worker *events_worker;
+	struct workqueue_struct *events_wq;
 
 	/* Number of active contexts seen globally for this device */
 	int active_context_count;

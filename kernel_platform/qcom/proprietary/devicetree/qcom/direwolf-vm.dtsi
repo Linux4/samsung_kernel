@@ -8,6 +8,7 @@
 	aliases {
 		ufshc2 = &ufshc2_mem;
 		hsuart0 = &qupv3_se2_4uart;
+		hsuart2 = &qupv3_se6_4uart;
 		pci-domain0 = &pcie0; /* PCIe0 domain */
 		pci-domain1 = &pcie1; /* PCIe1 domain */
 		pci-domain2 = &pcie2; /* PCIe2 domain */
@@ -337,6 +338,16 @@
 		memory-region = <&system_cma>;
 	};
 
+	ptp_virtual {
+		compatible = "qcom,ptp_virtual";
+		reg = <0xeb600000 0x1000>,
+			<0x2700c 0x1000>,
+			<0x17c23000 0x1000>;
+		reg-names = "ptp_carveout_mem",
+				"ptp_reg",
+				"qtimer_reg";
+	};
+
 	qtee_shmbridge {
 		compatible = "qcom,tee-shared-memory-bridge";
 		/*Boolean property to disable shmbridge*/
@@ -483,6 +494,10 @@
 		enable-active-high;
 		gpio = <&tlmm 216 0>;
 	};
+};
+
+&scc {
+	status = "disabled";
 };
 
 &regulator {

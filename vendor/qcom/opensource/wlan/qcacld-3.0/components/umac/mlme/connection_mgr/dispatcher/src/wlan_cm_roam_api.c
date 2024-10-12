@@ -621,6 +621,10 @@ void wlan_cm_set_psk_pmk(struct wlan_objmgr_pdev *pdev,
 	if (psk_pmk)
 		qdf_mem_copy(rso_cfg->psk_pmk, psk_pmk, pmk_len);
 	rso_cfg->pmk_len = pmk_len;
+
+	QDF_TRACE_HEX_DUMP(QDF_MODULE_ID_MLME, QDF_TRACE_LEVEL_DEBUG,
+			   rso_cfg->psk_pmk, WLAN_MAX_PMK_DUMP_BYTES);
+
 	wlan_objmgr_vdev_release_ref(vdev, WLAN_MLME_CM_ID);
 }
 
@@ -2500,7 +2504,8 @@ cm_handle_roam_offload_events(struct roam_offload_roam_event *roam_event)
 	break;
 	case ROAM_REASON_INVALID:
 		cm_invalid_roam_reason_handler(roam_event->vdev_id,
-					       roam_event->notif);
+					       roam_event->notif,
+					       roam_event->notif_params);
 		break;
 	default:
 		break;
@@ -2607,7 +2612,7 @@ cm_roam_event_handler(struct roam_offload_roam_event *roam_event)
 		if (roam_event->rso_timer_stopped)
 			wlan_cm_rso_stop_continue_disconnect(roam_event->psoc,
 						roam_event->vdev_id, true);
-		/* fallthrough */
+		fallthrough;
 	case ROAM_REASON_INVALID:
 		cm_handle_roam_offload_events(roam_event);
 		break;
@@ -3248,12 +3253,12 @@ void cm_report_roam_rt_stats(struct wlan_objmgr_psoc *psoc,
 			     uint8_t vdev_id,
 			     enum roam_rt_stats_type events,
 			     struct roam_stats_event *roam_info,
-			     uint32_t value, uint8_t idx)
+			     uint32_t value, uint8_t idx, uint32_t reason)
 {
 	struct roam_stats_event *roam_event = NULL;
 
 	if (!wlan_cm_get_roam_rt_stats(psoc, ROAM_RT_STATS_ENABLE)) {
-		mlme_err("Roam events stats is disabled");
+		mlme_debug("Roam events stats is disabled");
 		return;
 	}
 
@@ -3263,18 +3268,23 @@ void cm_report_roam_rt_stats(struct wlan_objmgr_psoc *psoc,
 		if (!roam_event)
 			return;
 
-		if (value == WMI_ROAM_NOTIF_SCAN_START)
+		if (value == WMI_ROAM_NOTIF_SCAN_START) {
 			roam_event->roam_event_param.roam_scan_state =
 					QCA_WLAN_VENDOR_ROAM_SCAN_STATE_START;
-		else if (value == WMI_ROAM_NOTIF_SCAN_END)
+			if (reason) {
+				roam_event->trigger[idx].present = true;
+				roam_event->trigger[idx].trigger_reason =
+							reason;
+			}
+		} else if (value == WMI_ROAM_NOTIF_SCAN_END) {
 			roam_event->roam_event_param.roam_scan_state =
 					QCA_WLAN_VENDOR_ROAM_SCAN_STATE_END;
+		}
 
-		//TO DO: Add a new CB in CM and register the hdd function to it
-		//And call the new CB from here.
 		mlme_debug("Invoke HDD roam events callback for roam "
 			   "scan notif");
 		roam_event->vdev_id = vdev_id;
+		mlme_cm_osif_roam_rt_stats(roam_event, idx);
 		qdf_mem_free(roam_event);
 		break;
 	case ROAM_RT_STATS_TYPE_INVOKE_FAIL_REASON:
@@ -3284,11 +3294,10 @@ void cm_report_roam_rt_stats(struct wlan_objmgr_psoc *psoc,
 
 		roam_event->roam_event_param.roam_invoke_fail_reason = value;
 
-		//TO DO: Add a new CB in CM and register the hdd function to it
-		//And call the new CB from here.
 		mlme_debug("Invoke HDD roam events callback for roam "
 			   "invoke fail");
 		roam_event->vdev_id = vdev_id;
+		mlme_cm_osif_roam_rt_stats(roam_event, idx);
 		qdf_mem_free(roam_event);
 		break;
 	case ROAM_RT_STATS_TYPE_ROAM_SCAN_INFO:
@@ -3299,8 +3308,7 @@ void cm_report_roam_rt_stats(struct wlan_objmgr_psoc *psoc,
 			mlme_debug("Invoke HDD roam events callback for roam "
 				   "stats event");
 			roam_info->vdev_id = vdev_id;
-		//TO DO: Add a new CB in CM and register the hdd function to it
-		//And call the new CB from here.
+			mlme_cm_osif_roam_rt_stats(roam_info, idx);
 		}
 		break;
 	default:
@@ -3399,7 +3407,7 @@ cm_roam_stats_event_handler(struct wlan_objmgr_psoc *psoc,
 
 		cm_report_roam_rt_stats(psoc, stats_info->vdev_id,
 					ROAM_RT_STATS_TYPE_ROAM_SCAN_INFO,
-					stats_info, 0, i);
+					stats_info, 0, i, 0);
 	}
 
 	if (!stats_info->num_tlv) {

@@ -42,6 +42,11 @@
 			#address-cells = <1>;
 			#size-cells = <1>;
 
+			smb1510_present: smb1510_present@5d {
+				reg = <0x5d 0x1>;
+				bits = <5 5>;
+			};
+
 			ocp_log: ocp-log@76 {
 				reg = <0x76 0x6>;
 			};
@@ -69,6 +74,16 @@
 			reg = <0x7500>;
 		};
 
+		pmk8550_sdam_13: sdam@7c00 {
+			compatible = "qcom,spmi-sdam";
+			reg = <0x7c00>;
+		};
+
+		pmk8550_sdam_14: sdam@7d00 {
+			compatible = "qcom,spmi-sdam";
+			reg = <0x7d00>;
+		};
+
 		pmk8550_sdam_21: sdam@8400 {
 			compatible = "qcom,spmi-sdam";
 			reg = <0x8400>;
@@ -77,6 +92,22 @@
 		pmk8550_sdam_22: sdam@8500 {
 			compatible = "qcom,spmi-sdam";
 			reg = <0x8500>;
+		};
+
+		pmk8550_sdam_41: sdam@9800 {
+			compatible = "qcom,spmi-sdam";
+			reg = <0x9800>;
+		};
+
+		pmk8550_sdam_43: sdam@9a00 {
+			compatible = "qcom,spmi-sdam";
+			reg = <0x9a00>;
+			#address-cells = <1>;
+			#size-cells = <1>;
+
+			ibb_spur_sqm_timer: sqm-timer@b8 {
+				reg = <0xb8 0x2>;
+			};
 		};
 
 		pmk8550_sdam_46: sdam@9d00 {

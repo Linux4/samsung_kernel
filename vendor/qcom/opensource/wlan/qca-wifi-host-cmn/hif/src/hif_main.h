@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2013-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -186,6 +186,7 @@ struct hif_latency_detect {
 #if defined(HIF_CONFIG_SLUB_DEBUG_ON) || defined(HIF_CE_DEBUG_DATA_BUF)
 
 #define HIF_CE_MAX_LATEST_HIST 2
+#define HIF_CE_MAX_LATEST_EVTS 2
 
 struct latest_evt_history {
 	uint64_t irq_entry_ts;
@@ -200,13 +201,14 @@ struct latest_evt_history {
 
 struct ce_desc_hist {
 	qdf_atomic_t history_index[CE_COUNT_MAX];
+	uint8_t ce_id_hist_map[CE_COUNT_MAX];
 	bool enable[CE_COUNT_MAX];
 	bool data_enable[CE_COUNT_MAX];
 	qdf_mutex_t ce_dbg_datamem_lock[CE_COUNT_MAX];
 	uint32_t hist_index;
 	uint32_t hist_id;
 	void *hist_ev[CE_COUNT_MAX];
-	struct latest_evt_history latest_evt[HIF_CE_MAX_LATEST_HIST];
+	struct latest_evt_history latest_evts[HIF_CE_MAX_LATEST_HIST][HIF_CE_MAX_LATEST_EVTS];
 };
 
 void hif_record_latest_evt(struct ce_desc_hist *ce_hist,
@@ -314,7 +316,8 @@ struct hif_softc {
 #ifdef HIF_CE_LOG_INFO
 	qdf_notif_block hif_recovery_notifier;
 #endif
-#ifdef HIF_CPU_PERF_AFFINE_MASK
+#if defined(HIF_CPU_PERF_AFFINE_MASK) || \
+    defined(FEATURE_ENABLE_CE_DP_IRQ_AFFINE)
 	/* The CPU hotplug event registration handle */
 	struct qdf_cpuhp_handler *cpuhp_event_handle;
 #endif

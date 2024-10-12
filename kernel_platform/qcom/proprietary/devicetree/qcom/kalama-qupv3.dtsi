@@ -367,6 +367,29 @@
 			spi-max-frequency = <50000000>;
 			status = "disabled";
 		};
+		qupv3_se4_4uart: uart@a90000 {
+			compatible = "qcom,msm-geni-serial-hs";
+			reg = <0xa90000 0x4000>;
+			reg-names = "se_phys";
+			interrupts-extended = <&intc GIC_SPI 357 IRQ_TYPE_LEVEL_HIGH>;
+			clock-names = "se-clk";
+			clocks = <&gcc GCC_QUPV3_WRAP1_S4_CLK>;
+			interconnect-names = "qup-core", "qup-config", "qup-memory";
+			interconnects =
+			<&clk_virt MASTER_QUP_CORE_1 &clk_virt SLAVE_QUP_CORE_1>,
+			<&gem_noc MASTER_APPSS_PROC &config_noc SLAVE_QUP_1>,
+			<&aggre1_noc MASTER_QUP_1 &mc_virt  SLAVE_EBI1>;
+			pinctrl-names = "default", "active", "sleep", "shutdown";
+			pinctrl-0 = <&qupv3_se4_default_cts>, <&qupv3_se4_default_rts>,
+			<&qupv3_se4_default_tx>, <&qupv3_se4_default_rx>;
+			pinctrl-1 = <&qupv3_se4_cts>, <&qupv3_se4_rts>,
+			<&qupv3_se4_tx>, <&qupv3_se4_rx>;
+			pinctrl-2 = <&qupv3_se4_cts>, <&qupv3_se4_rts>,
+			<&qupv3_se4_tx>, <&qupv3_se4_rx>;
+			pinctrl-3 = <&qupv3_se4_default_cts>, <&qupv3_se4_default_rts>,
+			<&qupv3_se4_default_tx>, <&qupv3_se4_default_rx>;
+			status = "disabled";
+		};
 
 		qupv3_se5_i2c: i2c@a94000 {
 			compatible = "qcom,i2c-geni";
@@ -949,7 +972,6 @@
 			pinctrl-0 = <&qupv3_hub_i2c0_sda_active>, <&qupv3_hub_i2c0_scl_active>;
 			pinctrl-1 = <&qupv3_hub_i2c0_sleep>;
 			qcom,i2c-hub;
-			qcom,rtl_se;
 			status = "disabled";
 		};
 
@@ -970,7 +992,6 @@
 			pinctrl-0 = <&qupv3_hub_i2c1_sda_active>, <&qupv3_hub_i2c1_scl_active>;
 			pinctrl-1 = <&qupv3_hub_i2c1_sleep>;
 			qcom,i2c-hub;
-			qcom,rtl_se;
 			status = "disabled";
 		};
 
@@ -991,7 +1012,6 @@
 			pinctrl-0 = <&qupv3_hub_i2c2_sda_active>, <&qupv3_hub_i2c2_scl_active>;
 			pinctrl-1 = <&qupv3_hub_i2c2_sleep>;
 			qcom,i2c-hub;
-			qcom,rtl_se;
 			status = "disabled";
 		};
 
@@ -1012,7 +1032,6 @@
 			pinctrl-0 = <&qupv3_hub_i2c3_sda_active>, <&qupv3_hub_i2c3_scl_active>;
 			pinctrl-1 = <&qupv3_hub_i2c3_sleep>;
 			qcom,i2c-hub;
-			qcom,rtl_se;
 			status = "disabled";
 		};
 
@@ -1033,7 +1052,6 @@
 			pinctrl-0 = <&qupv3_hub_i2c4_sda_active>, <&qupv3_hub_i2c4_scl_active>;
 			pinctrl-1 = <&qupv3_hub_i2c4_sleep>;
 			qcom,i2c-hub;
-			qcom,rtl_se;
 			status = "disabled";
 		};
 
@@ -1054,7 +1072,6 @@
 			pinctrl-0 = <&qupv3_hub_i2c5_sda_active>, <&qupv3_hub_i2c5_scl_active>;
 			pinctrl-1 = <&qupv3_hub_i2c5_sleep>;
 			qcom,i2c-hub;
-			qcom,rtl_se;
 			status = "disabled";
 		};
 
@@ -1075,7 +1092,6 @@
 			pinctrl-0 = <&qupv3_hub_i2c6_sda_active>, <&qupv3_hub_i2c6_scl_active>;
 			pinctrl-1 = <&qupv3_hub_i2c6_sleep>;
 			qcom,i2c-hub;
-			qcom,rtl_se;
 			status = "disabled";
 		};
 
@@ -1096,7 +1112,6 @@
 			pinctrl-0 = <&qupv3_hub_i2c7_sda_active>, <&qupv3_hub_i2c7_scl_active>;
 			pinctrl-1 = <&qupv3_hub_i2c7_sleep>;
 			qcom,i2c-hub;
-			qcom,rtl_se;
 			status = "disabled";
 		};
 
@@ -1117,7 +1132,6 @@
 			pinctrl-0 = <&qupv3_hub_i2c8_sda_active>, <&qupv3_hub_i2c8_scl_active>;
 			pinctrl-1 = <&qupv3_hub_i2c8_sleep>;
 			qcom,i2c-hub;
-			qcom,rtl_se;
 			status = "disabled";
 		};
 
@@ -1138,7 +1152,6 @@
 			pinctrl-0 = <&qupv3_hub_i2c9_sda_active>, <&qupv3_hub_i2c9_scl_active>;
 			pinctrl-1 = <&qupv3_hub_i2c9_sleep>;
 			qcom,i2c-hub;
-			qcom,rtl_se;
 			status = "disabled";
 		};
 	};

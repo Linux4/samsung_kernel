@@ -221,6 +221,10 @@ PRODUCT_PACKAGES += IDP_user_swaffourteen_acdb_cal.acdb
 PRODUCT_PACKAGES += IDP_user_swaffourteen_workspaceFileXml.qwsp
 PRODUCT_PACKAGES += IDP_user_swamfourteen_acdb_cal.acdb
 PRODUCT_PACKAGES += IDP_user_swamfourteen_workspaceFileXml.qwsp
+PRODUCT_PACKAGES += IDP_user_owo_acdb_cal.acdb
+PRODUCT_PACKAGES += IDP_user_owo_workspaceFileXml.qwsp
+PRODUCT_PACKAGES += IDP_user_owb_acdb_cal.acdb
+PRODUCT_PACKAGES += IDP_user_owb_workspaceFileXml.qwsp
 PRODUCT_PACKAGES += QRD_acdb_cal.acdb
 PRODUCT_PACKAGES += QRD_workspaceFileXml.qwsp
 PRODUCT_PACKAGES += IDP_scuba_acdb_cal.acdb
@@ -292,6 +296,7 @@ PRODUCT_COPY_FILES += \
     vendor/qcom/proprietary/mm-audio/factory_lc_test/spk_pb_sweep_sound.wav:$(TARGET_COPY_OUT_VENDOR)/etc/spk_pb_sweep_sound.wav\
     vendor/qcom/proprietary/mm-audio/factory_lc_test/rcv_pb_sweep_sound.wav:$(TARGET_COPY_OUT_VENDOR)/etc/rcv_pb_sweep_sound.wav \
     vendor/qcom/proprietary/mm-audio/factory_lc_test/file112.wav:$(TARGET_COPY_OUT_VENDOR)/etc/file112.wav
+
 
 
 

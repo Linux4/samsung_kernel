@@ -28,6 +28,7 @@
 #include <linux/sort.h>
 #include <linux/uaccess.h>
 #include <linux/regulator/driver.h>
+#include <linux/regulator/debug-regulator.h>
 #include <linux/regulator/machine.h>
 #include <linux/regulator/of_regulator.h>
 #include <linux/regulator/cpr-regulator.h>
@@ -5369,12 +5370,8 @@ static void cpr_debugfs_init(struct cpr_regulator *cpr_vreg)
 		}
 	}
 
-	temp = debugfs_create_u32("cpr_debug_enable", 0644, cpr_vreg->debugfs,
+	debugfs_create_u32("cpr_debug_enable", 0644, cpr_vreg->debugfs,
 					&cpr_debug_enable);
-	if (IS_ERR_OR_NULL(temp)) {
-		cpr_err(cpr_vreg, "cpr_debug_enable node creation failed\n");
-		return;
-	}
 }
 
 static void cpr_debugfs_remove(struct cpr_regulator *cpr_vreg)
@@ -5629,6 +5626,10 @@ static int cpr_regulator_probe(struct platform_device *pdev)
 	mutex_lock(&cpr_regulator_list_mutex);
 	list_add(&cpr_vreg->list, &cpr_regulator_list);
 	mutex_unlock(&cpr_regulator_list_mutex);
+
+	rc = devm_regulator_debug_register(&pdev->dev, cpr_vreg->rdev);
+	if (rc)
+		cpr_err(cpr_vreg, "Error registering CPR debug regulator, rc=%d\n", rc);
 
 	return 0;
 

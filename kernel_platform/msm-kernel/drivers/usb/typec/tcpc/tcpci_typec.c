@@ -623,6 +623,7 @@ static void typec_unattached_entry(struct tcpc_device *tcpc)
 
 	tcpc->typec_usb_sink_curr = CONFIG_TYPEC_SNK_CURR_DFT;
 
+	tcpc_disable_timer(tcpc, TYPEC_TIMER_SNK_WAIT_UPDATE);
 	if (tcpc->typec_power_ctrl)
 		tcpci_set_vconn(tcpc, false);
 	typec_unattached_cc_entry(tcpc);
@@ -736,6 +737,7 @@ static inline void typec_sink_attached_entry(struct tcpc_device *tcpc)
 	TYPEC_NEW_STATE(typec_attached_snk);
 	typec_wait_ps_change(tcpc, TYPEC_WAIT_PS_DISABLE);
 
+	tcpc_disable_timer(tcpc, TYPEC_TIMER_SNK_WAIT_UPDATE);
 	tcpc->typec_attach_new = TYPEC_ATTACHED_SNK;
 
 #ifdef CONFIG_TYPEC_CAP_TRY_STATE
@@ -976,8 +978,10 @@ static inline void typec_cc_snk_detect_entry(struct tcpc_device *tcpc)
 	/* If Port Partner act as Source without VBUS, wait vSafe5V */
 	if (tcpci_check_vbus_valid(tcpc))
 		typec_cc_snk_detect_vsafe5v_entry(tcpc);
-	else
+	else {
 		typec_wait_ps_change(tcpc, TYPEC_WAIT_PS_SNK_VSAFE5V);
+		tcpc_enable_timer(tcpc, TYPEC_TIMER_SNK_WAIT_UPDATE);
+	}
 }
 
 static inline void typec_cc_src_detect_vsafe0v_entry(
@@ -2368,6 +2372,9 @@ int tcpc_typec_handle_timeout(struct tcpc_device *tcpc, uint32_t timer_id)
 	case TYPEC_TIMER_DRP_SRC_TOGGLE:
 		ret = typec_handle_src_toggle_timeout(tcpc);
 		break;
+	case TYPEC_TIMER_SNK_WAIT_UPDATE:
+		ret = tcpc_typec_handle_cc_change(tcpc);
+		break;
 
 #if IS_ENABLED(CONFIG_USB_POWER_DELIVERY)
 	case TYPEC_RT_TIMER_PE_IDLE:
@@ -2518,7 +2525,7 @@ static inline int typec_attached_snk_vbus_absent(struct tcpc_device *tcpc)
 
 static inline int typec_handle_vbus_absent(struct tcpc_device *tcpc)
 {
-	int ret = 0;
+//	int ret = 0;
 #if IS_ENABLED(CONFIG_USB_POWER_DELIVERY)
 	if (tcpc->pd_wait_pr_swap_complete) {
 		TYPEC_DBG("[PR.Swap] Ignore vbus_absent\n");
@@ -2537,13 +2544,13 @@ static inline int typec_handle_vbus_absent(struct tcpc_device *tcpc)
 		break;
 	}
 
-	ret = tcpci_get_cc(tcpc);
-	if (ret < 0)
-		return ret;
+//	ret = tcpci_get_cc(tcpc);
+//	if (ret < 0)
+//		return ret;
 	
-	if (!typec_is_cc_no_res()) {
-		tcpc_typec_handle_cc_change(tcpc);
-	}
+//	if (!typec_is_cc_no_res()) {
+//		tcpc_typec_handle_cc_change(tcpc);
+//	}
 
 	return 0;
 }

@@ -4265,6 +4265,7 @@ bool policy_mgr_is_hwmode_offload_enabled(struct wlan_objmgr_psoc *psoc);
  * list for third connection
  * @psoc: PSOC object information
  * @mode: Device mode
+ * @ch_freq: 3rd channel frequency
  *
  * This function checks whether to allow third connection on same band or not
  * based on pcl table
@@ -4272,7 +4273,8 @@ bool policy_mgr_is_hwmode_offload_enabled(struct wlan_objmgr_psoc *psoc);
  * Return: TRUE/FALSE
  */
 bool policy_mgr_is_3rd_conn_on_same_band_allowed(struct wlan_objmgr_psoc *psoc,
-						 enum policy_mgr_con_mode mode);
+						 enum policy_mgr_con_mode mode,
+						 qdf_freq_t ch_freq);
 
 #ifdef MPC_UT_FRAMEWORK
 /**
@@ -4357,4 +4359,18 @@ policy_mgr_is_conc_sap_present_on_sta_freq(struct wlan_objmgr_psoc *psoc,
  * Return: number of active connection on the specific frequency
  */
 uint32_t policy_mgr_get_connection_count_with_ch_freq(uint32_t ch_freq);
+
+/**
+ * policy_mgr_any_other_vdev_on_same_mac_as_freq() - Function to check
+ * whether more than one vdev are present on same mac or not
+ * @psoc: PSOC object
+ * @freq: Channel frequency
+ * @vdev_id: Vdev id
+ *
+ * Return: True if more than one vdev are present on same mac
+ *
+ */
+bool policy_mgr_any_other_vdev_on_same_mac_as_freq(
+				struct wlan_objmgr_psoc *psoc,
+				uint32_t freq, uint8_t vdev_id);
 #endif /* __WLAN_POLICY_MGR_API_H */

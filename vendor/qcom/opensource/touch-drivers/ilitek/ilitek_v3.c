@@ -43,12 +43,12 @@ static int ilitek_charger_notifier_callback(struct notifier_block *nb, unsigned 
 	if (ilits->fw_update_stat != 100)
 		return 0;
 
-	psy = power_supply_get_by_name("usb");
+	psy = power_supply_get_by_name("bbc");
 	if (!psy) {
 		ILI_ERR("Couldn't get usbpsy\n");
 		return -EINVAL;
 	}
-	if (!strcmp(psy->desc->name, "usb")) {
+	if (!strcmp(psy->desc->name, "bbc")) {
 		if (psy && val == POWER_SUPPLY_PROP_STATUS) {
 			ret = power_supply_get_property(psy, POWER_SUPPLY_PROP_ONLINE, &prop);
 			if (ret < 0) {
@@ -1444,6 +1444,24 @@ static void ili_update_tp_module_info(void)
 		ilits->md_ini_rq_path = XL_ILI77600A_INI_REQUEST_PATH;
 		ilits->md_fw_ili = CTPM_FW_XL_ILI77600A;
 		ilits->md_fw_ili_size = sizeof(CTPM_FW_XL_ILI77600A);
+		break;
+	case MODEL_XL_ILI7807S:
+		ilits->md_name = "XL_ILI7807S";
+		ilits->md_fw_filp_path = XL_ILI7807S_FW_FILP_PATH;
+		ilits->md_fw_rq_path = XL_ILI7807S_FW_REQUEST_PATH;
+		ilits->md_ini_path = XL_ILI7807S_INI_NAME_PATH;
+		ilits->md_ini_rq_path = XL_ILI7807S_INI_REQUEST_PATH;
+		ilits->md_fw_ili = CTPM_FW_XL_ILI7807S;
+		ilits->md_fw_ili_size = sizeof(CTPM_FW_XL_ILI7807S);
+		break;
+	case MODEL_TMB_ILI7807S:
+		ilits->md_name = "TMB_ILI7807S";
+		ilits->md_fw_filp_path = TMB_ILI7807S_FW_FILP_PATH;
+		ilits->md_fw_rq_path = TMB_ILI7807S_FW_REQUEST_PATH;
+		ilits->md_ini_path = TMB_ILI7807S_INI_NAME_PATH;
+		ilits->md_ini_rq_path = TMB_ILI7807S_INI_REQUEST_PATH;
+		ilits->md_fw_ili = CTPM_FW_TMB_ILI7807S;
+		ilits->md_fw_ili_size = sizeof(CTPM_FW_TMB_ILI7807S);
 		break;
 	default:
 		break;

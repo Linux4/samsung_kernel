@@ -351,7 +351,7 @@
 	};
 
 	chosen: chosen {
-		bootargs = "qcom_dma_heaps.enable_bitstream_contig_heap=y kpti=0 ssbd=force-off";
+		bootargs = "qcom_dma_heaps.enable_bitstream_contig_heap=y kpti=0 ssbd=force-off rcupdate.rcu_expedited=1";
 	};
 
 	soc: soc { };
@@ -465,14 +465,9 @@
 			reg = <0x0 0xa4c00000 0x0 0x3c00000>;
 		};
 
-		cont_splash_memory: cont_splash_region {
+		cont_splash_memory: splash_region {
 			reg = <0x0 0x9c000000 0x0 0x2400000>;
 			label = "cont_splash_region";
-		};
-
-		disp_rdump_memory: disp_rdump_region {
-			reg = <0x0 0x9c000000 0x0 0x02400000>;
-			label = "disp_rdump_region";
 		};
 
 		adsp_mem: adsp_region {
@@ -523,12 +518,11 @@
 			size = <0x0 0x1000000>;
 		};
 
-		sp_mem: sp_region {  /* SPSS-HLOS ION shared mem */
+		va_md_mem: va_md_mem_region {
 			compatible = "shared-dma-pool";
 			alloc-ranges = <0x0 0x00000000 0x0 0xffffffff>;
 			reusable;
-			alignment = <0x0 0x400000>;
-			size = <0x0 0x800000>;
+			size = <0 0x1000000>;
 		};
 
 		secure_display_memory: secure_display_region { /* Secure UI */
@@ -554,6 +548,12 @@
 			size = <0x0 0x2800000>;
 			linux,cma-default;
 		};
+	};
+
+	va_mini_dump {
+		compatible = "qcom,va-minidump";
+		memory-region = <&va_md_mem>;
+		status = "ok";
 	};
 
 	clocks {
@@ -705,10 +705,21 @@
 			compatible = "qcom,msm-imem-diag-dload";
 			reg = <0xc8 0xc8>;
 		};
+
+		pil@94c {
+			compatible = "qcom,pil-reloc-info";
+			reg = <0x94c 0xc8>;
+		};
+
+		pil@6dc {
+			compatible = "qcom,msm-imem-pil-disable-timeout";
+			reg = <0x6dc 0x4>;
+		};
 	};
 
 	cpu_pmu: cpu-pmu {
 		compatible = "arm,armv8-pmuv3";
+		qcom,irq-is-percpu;
 		interrupts = <GIC_PPI 5 IRQ_TYPE_LEVEL_HIGH>;
 	};
 
@@ -807,6 +818,12 @@
 				qcom,tcs-wait = <QCOM_ICC_TAG_AMC>;
 			};
 		};
+	};
+
+	ddr_bwprofiler {
+		compatible = "qcom,ddr_bwprofiler";
+		clocks = <&aoss_qmp QDSS_CLK>;
+		clock-names = "qdss_clk";
 	};
 
 	gcc: clock-controller@100000 {
@@ -1669,7 +1686,7 @@
 		memory-region = <&rproc_modem_mem>;
 
 		/* Inputs from mss */
-		interrupts-extended = <&intc GIC_SPI 266 IRQ_TYPE_LEVEL_HIGH>,
+		interrupts-extended = <&intc GIC_SPI 266 IRQ_TYPE_EDGE_RISING>,
 					<&modem_smp2p_in 0 0>,
 					<&modem_smp2p_in 2 0>,
 					<&modem_smp2p_in 1 0>,
@@ -1687,7 +1704,7 @@
 		qcom,smem-states = <&modem_smp2p_out 0>;
 		qcom,smem-state-names = "stop";
 
-		glink-edge {
+		glink_edge_modem: glink-edge {
 			qcom,remote-pid = <1>;
 			transport = "smem";
 			mboxes = <&apss_shared 12>;
@@ -1723,7 +1740,6 @@
 
 	qcom,pmu {
 		compatible = "qcom,pmu";
-		qcom,long-counter;
 		qcom,pmu-events-tbl =
 			< 0x0008 0xFF 0xFF 0xFF >,
 			< 0x0011 0xFF 0xFF 0xFF >,
@@ -1916,7 +1932,8 @@
 						< 1152000  768000 >,
 						< 1344000  960000 >,
 						< 1689600 1228800 >,
-						< 2016000 1344000 >;
+						< 2016000 1344000 >,
+						< 2131200 1612800 >;
 				qcom,sampling-enabled;
 			};
 
@@ -1929,7 +1946,8 @@
 						< 1152000  768000 >,
 						< 1344000  960000 >,
 						< 1689600 1228800 >,
-						< 2016000 1344000 >;
+						< 2016000 1344000 >,
+						< 2419200 1612800 >;
 				qcom,sampling-enabled;
 			};
 		};
@@ -1959,10 +1977,14 @@
 	qcom,chd {
 		compatible = "qcom,core-hang-detect";
 		label = "core";
-		qcom,threshold-arr = <0x18000058 0x18010058 0x18020058 0x18030058
-				0x18040058 0x18050058 0x18060058 0x18070058>;
-		qcom,config-arr = <0x18000060 0x18010060 0x18020060 0x18030060
-				0x18040060 0x18050060 0x18060060 0x18070060>;
+		qcom,chd-percpu-info = <&CPU0 0x18000058 0x18000060>,
+					<&CPU1 0x18010058 0x18010060>,
+					<&CPU2 0x18020058 0x18020060>,
+					<&CPU3 0x18030058 0x18030060>,
+					<&CPU4 0x18040058 0x18040060>,
+					<&CPU5 0x18050058 0x18050060>,
+					<&CPU6 0x18060058 0x18060060>,
+					<&CPU7 0x18070058 0x18070060>;
 	};
 
 	qtee_shmbridge {

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #define pr_fmt(fmt) "smcinvoke: %s: " fmt, __func__
@@ -26,6 +26,8 @@
 #include <linux/of_platform.h>
 #include <linux/firmware.h>
 #include <linux/qcom_scm.h>
+#include <linux/freezer.h>
+#include <linux/ratelimit.h>
 #include <asm/cacheflush.h>
 #include <soc/qcom/qseecomi.h>
 #include <linux/qtee_shmbridge.h>
@@ -62,6 +64,18 @@
 #define SMCINVOKE_MEM_PERM_RW			6
 #define SMCINVOKE_SCM_EBUSY_WAIT_MS		30
 #define SMCINVOKE_SCM_EBUSY_MAX_RETRY		200
+#define TZCB_ERR_RATELIMIT_INTERVAL		(1*HZ)
+#define TZCB_ERR_RATELIMIT_BURST		1
+
+//print tzcb err per sec
+#define tzcb_err_ratelimited(fmt, ...) 	do {		\
+	static DEFINE_RATELIMIT_STATE(_rs, 		\
+			TZCB_ERR_RATELIMIT_INTERVAL,	\
+			TZCB_ERR_RATELIMIT_BURST);	\
+	if (__ratelimit(&_rs))				\
+		pr_err(fmt, ##__VA_ARGS__);		\
+} while(0)
+
 
 
 /* TZ defined values - Start */
@@ -133,6 +147,8 @@
 #define TZHANDLE_GET_SERVER(h) ((uint16_t)((h) & 0xFFFF))
 #define TZHANDLE_GET_OBJID(h) (((h) >> 16) & 0x7FFF)
 #define TZHANDLE_MAKE_LOCAL(s, o) (((0x8000 | (o)) << 16) | s)
+#define SET_BIT(s,b) (s | (1 << b))
+#define UNSET_BIT(s,b) (s & (~ (1 << b)))
 
 #define TZHANDLE_IS_NULL(h) ((h) == SMCINVOKE_TZ_OBJ_NULL)
 #define TZHANDLE_IS_LOCAL(h) ((h) & 0x80000000)
@@ -193,7 +209,7 @@ static const struct file_operations g_smcinvoke_fops = {
 static dev_t smcinvoke_device_no;
 static struct cdev smcinvoke_cdev;
 static struct class *driver_class;
-static struct device *class_dev;
+struct device *class_dev;
 static struct platform_device *smcinvoke_pdev;
 
 struct smcinvoke_buf_hdr {
@@ -257,6 +273,7 @@ struct smcinvoke_server_info {
 	DECLARE_HASHTABLE(responses_table, 4);
 	struct hlist_node hash;
 	struct list_head pending_cbobjs;
+	uint8_t is_server_suspended;
 };
 
 struct smcinvoke_cbobj {
@@ -323,7 +340,8 @@ struct smcinvoke_worker_thread {
 static struct smcinvoke_worker_thread smcinvoke[MAX_THREAD_NUMBER];
 static const char thread_name[MAX_THREAD_NUMBER][MAX_CHAR_NAME] = {
 	"smcinvoke_shmbridge_postprocess", "smcinvoke_object_postprocess", "smcinvoke_adci_thread"};
-static struct Object adci_clientEnv = Object_NULL;
+static struct Object adci_rootEnv = Object_NULL;
+extern int get_root_obj(struct Object *rootObj);
 
 static int prepare_send_scm_msg(const uint8_t *in_buf, phys_addr_t in_paddr,
 		size_t in_buf_len,
@@ -332,7 +350,7 @@ static int prepare_send_scm_msg(const uint8_t *in_buf, phys_addr_t in_paddr,
 		struct smcinvoke_cmd_req *req,
 		union smcinvoke_arg *args_buf,
 		bool *tz_acked, uint32_t context_type,
-		struct qtee_shm *in_shm, struct qtee_shm *out_shm);
+		struct qtee_shm *in_shm, struct qtee_shm *out_shm, bool retry);
 
 static void process_piggyback_data(void *buf, size_t buf_size);
 
@@ -470,7 +488,7 @@ static void smcinvoke_shmbridge_post_process(void)
 			do {
 				ret = qtee_shmbridge_deregister(handle);
 				if (unlikely(ret)) {
-					pr_err("SHM failed: ret:%d ptr:0x%x h:%#llx\n",
+					pr_err_ratelimited("SHM failed: ret:%d ptr:0x%x h:%#llx\n",
 							ret,
 							dmabuf_to_free,
 							handle);
@@ -484,17 +502,45 @@ static void smcinvoke_shmbridge_post_process(void)
 	} while (1);
 }
 
+static int smcinvoke_release_tz_object(struct qtee_shm *in_shm, struct qtee_shm *out_shm,
+		uint32_t tzhandle, uint32_t context_type)
+{
+	int ret = 0;
+	bool release_handles;
+	uint8_t *in_buf = NULL;
+        uint8_t *out_buf = NULL;
+	struct smcinvoke_msg_hdr hdr = {0};
+	struct smcinvoke_cmd_req req = {0};
+
+	in_buf = in_shm->vaddr;
+	out_buf = out_shm->vaddr;
+	hdr.tzhandle = tzhandle;
+	hdr.op = OBJECT_OP_RELEASE;
+	hdr.counts = 0;
+	*(struct smcinvoke_msg_hdr *)in_buf = hdr;
+
+	ret = prepare_send_scm_msg(in_buf, in_shm->paddr,
+			SMCINVOKE_TZ_MIN_BUF_SIZE, out_buf, out_shm->paddr,
+			SMCINVOKE_TZ_MIN_BUF_SIZE, &req, NULL,
+			&release_handles, context_type, in_shm, out_shm, false);
+	process_piggyback_data(out_buf, SMCINVOKE_TZ_MIN_BUF_SIZE);
+	if (ret) {
+		pr_err_ratelimited("Failed to release object(0x%x), ret:%d\n",
+				hdr.tzhandle, ret);
+	} else {
+		pr_debug("Released object(0x%x) successfully.\n",
+				hdr.tzhandle);
+	}
+
+	return ret;
+}
+
+
 static int smcinvoke_object_post_process(void)
 {
 	struct smcinvoke_object_release_pending_list *entry = NULL;
 	struct list_head *pos;
 	int ret = 0;
-	bool release_handles;
-	uint32_t context_type;
-	uint8_t *in_buf = NULL;
-	uint8_t *out_buf = NULL;
-	struct smcinvoke_cmd_req req = {0};
-	struct smcinvoke_msg_hdr hdr = {0};
 	struct qtee_shm in_shm = {0}, out_shm = {0};
 
 	ret = qtee_shmbridge_allocate_shm(SMCINVOKE_TZ_MIN_BUF_SIZE, &in_shm);
@@ -519,37 +565,19 @@ static int smcinvoke_object_post_process(void)
 		}
 		pos = g_object_postprocess.next;
 		entry = list_entry(pos, struct smcinvoke_object_release_pending_list, list);
-		if (entry) {
-			in_buf = in_shm.vaddr;
-			out_buf = out_shm.vaddr;
-			hdr.tzhandle = entry->data.tzhandle;
-			hdr.op = OBJECT_OP_RELEASE;
-			hdr.counts = 0;
-			*(struct smcinvoke_msg_hdr *)in_buf = hdr;
-			context_type = entry->data.context_type;
-		} else {
-			pr_err("entry is NULL, pos:%#llx\n", (uint64_t)pos);
-		}
+
 		list_del(pos);
-		kfree_sensitive(entry);
 		mutex_unlock(&object_postprocess_lock);
 
 		if (entry) {
 			do {
-				ret = prepare_send_scm_msg(in_buf, in_shm.paddr,
-					SMCINVOKE_TZ_MIN_BUF_SIZE, out_buf, out_shm.paddr,
-					SMCINVOKE_TZ_MIN_BUF_SIZE, &req, NULL,
-					&release_handles, context_type, &in_shm, &out_shm);
-				process_piggyback_data(out_buf, SMCINVOKE_TZ_MIN_BUF_SIZE);
-				if (ret) {
-					pr_err("Failed to release object(0x%x), ret:%d\n",
-								hdr.tzhandle, ret);
-				} else {
-					pr_debug("Released object(0x%x) successfully.\n",
-									hdr.tzhandle);
-				}
+				ret = smcinvoke_release_tz_object(&in_shm, &out_shm,
+					       	entry->data.tzhandle,  entry->data.context_type);
 			} while (-EBUSY == ret);
+		} else {
+			pr_err("entry is NULL, pos:%#llx\n", (uint64_t)pos);
 		}
+		kfree_sensitive(entry);
 	} while (1);
 
 out:
@@ -565,20 +593,20 @@ static void smcinvoke_start_adci_thread(void)
 	int32_t  ret = OBJECT_ERROR;
 	int retry_count = 0;
 
-	ret = get_client_env_object(&adci_clientEnv);
+	ret = get_root_obj(&adci_rootEnv);
 	if (ret) {
-		pr_err("failed to get clientEnv for ADCI invoke thread. ret = %d\n", ret);
+		pr_err("failed to get rootEnv for ADCI invoke thread. ret = %d\n", ret);
 		/* Marking it Object_NULL in case of failure scenario in order to avoid
-		 * undefined behavior while releasing garbage adci_clientEnv object.
-		 */
-		adci_clientEnv = Object_NULL;
+		 * undefined behavior while relasing garbage adci_rootEnv object. */
+		adci_rootEnv = Object_NULL;
 		goto out;
 	}
 	/* Invoke call to QTEE which should never return if ADCI is supported */
+	pr_debug("Invoking adciAccept method in QTEE\n");
 	do {
-		ret = IClientEnv_adciAccept(adci_clientEnv);
+		ret = IClientEnv_adciAccept(adci_rootEnv);
 		if (ret == OBJECT_ERROR_BUSY) {
-			pr_err("Secure side is busy,will retry after 5 ms, retry_count = %d",retry_count);
+			pr_err_ratelimited("Secure side is busy,will retry after 5 ms, retry_count = %d\n",retry_count);
 			msleep(SMCINVOKE_INTERFACE_BUSY_WAIT_MS);
 		}
 	} while ((ret == OBJECT_ERROR_BUSY) && (retry_count++ < SMCINVOKE_INTERFACE_MAX_RETRY));
@@ -590,7 +618,7 @@ static void smcinvoke_start_adci_thread(void)
 out:
 	/* Control should reach to this point only if ADCI feature is not supported by QTEE
 	  (or) ADCI thread held in QTEE is released. */
-	Object_ASSIGN_NULL(adci_clientEnv);
+	Object_ASSIGN_NULL(adci_rootEnv);
 }
 
 static void __wakeup_postprocess_kthread(struct smcinvoke_worker_thread *smcinvoke)
@@ -608,7 +636,7 @@ static void __wakeup_postprocess_kthread(struct smcinvoke_worker_thread *smcinvo
 static int smcinvoke_postprocess_kthread_func(void *data)
 {
 	struct smcinvoke_worker_thread *smcinvoke_wrk_trd = data;
-	const char *tag;
+	static const char *const tag[] = {"shmbridge","object","adci","invalid"};
 
 	if (!smcinvoke_wrk_trd) {
 		pr_err("Bad input.\n");
@@ -623,21 +651,18 @@ static int smcinvoke_postprocess_kthread_func(void *data)
 			== POST_KT_WAKEUP));
 		switch (smcinvoke_wrk_trd->type) {
 		case SHMB_WORKER_THREAD:
-			tag = "shmbridge";
 			pr_debug("kthread to %s postprocess is called %d\n",
-			tag, atomic_read(&smcinvoke_wrk_trd->postprocess_kthread_state));
+			tag[SHMB_WORKER_THREAD], atomic_read(&smcinvoke_wrk_trd->postprocess_kthread_state));
 			smcinvoke_shmbridge_post_process();
 			break;
 		case OBJECT_WORKER_THREAD:
-			tag = "object";
 			pr_debug("kthread to %s postprocess is called %d\n",
-			tag, atomic_read(&smcinvoke_wrk_trd->postprocess_kthread_state));
+			tag[OBJECT_WORKER_THREAD], atomic_read(&smcinvoke_wrk_trd->postprocess_kthread_state));
 			smcinvoke_object_post_process();
 			break;
 		case ADCI_WORKER_THREAD:
-			tag = "adci";
 			pr_debug("kthread to %s postprocess is called %d\n",
-			tag, atomic_read(&smcinvoke_wrk_trd->postprocess_kthread_state));
+			tag[ADCI_WORKER_THREAD], atomic_read(&smcinvoke_wrk_trd->postprocess_kthread_state));
 			smcinvoke_start_adci_thread();
 			break;
 		default:
@@ -657,7 +682,7 @@ static int smcinvoke_postprocess_kthread_func(void *data)
 		atomic_set(&smcinvoke_wrk_trd->postprocess_kthread_state,
 			POST_KT_SLEEP);
 	}
-	pr_warn("kthread to %s postprocess stopped\n", tag);
+	pr_warn("kthread(worker_thread) processed, worker_thread type is %d \n", smcinvoke_wrk_trd->type);
 
 	return 0;
 }
@@ -694,18 +719,19 @@ static void smcinvoke_destroy_kthreads(void)
 	int32_t  ret = OBJECT_ERROR;
 	int retry_count = 0;
 
-	if(!Object_isNull(adci_clientEnv)) {
+	if (!Object_isNull(adci_rootEnv)) {
+		pr_debug("Invoking adciShutdown method in QTEE\n");
 		do {
-			ret = IClientEnv_adciShutdown(adci_clientEnv);
+			ret = IClientEnv_adciShutdown(adci_rootEnv);
 			if (ret == OBJECT_ERROR_BUSY) {
-				pr_err("Secure side is busy,will retry after 5 ms, retry_count = %d",retry_count);
+				pr_err_ratelimited("Secure side is busy,will retry after 5 ms, retry_count = %d\n",retry_count);
 				msleep(SMCINVOKE_INTERFACE_BUSY_WAIT_MS);
 			}
 		} while ((ret == OBJECT_ERROR_BUSY) && (retry_count++ < SMCINVOKE_INTERFACE_MAX_RETRY));
-		if(OBJECT_isERROR(ret)) {
+		if (OBJECT_isERROR(ret)) {
 			pr_err("adciShutdown in QTEE failed with error = %d\n", ret);
 		}
-		Object_ASSIGN_NULL(adci_clientEnv);
+		Object_ASSIGN_NULL(adci_rootEnv);
 	}
 
 	for (i = 0; i < MAX_THREAD_NUMBER; i++) {
@@ -953,30 +979,30 @@ static struct smcinvoke_cb_txn *find_cbtxn_locked(
 }
 
 /*
- * size_add saturates at SIZE_MAX. If integer overflow is detected,
+ * smci_size_add saturates at SIZE_MAX. If integer overflow is detected,
  * this function would return SIZE_MAX otherwise normal a+b is returned.
  */
-static inline size_t size_add(size_t a, size_t b)
+static inline size_t smci_size_add(size_t a, size_t b)
 {
 	return (b > (SIZE_MAX - a)) ? SIZE_MAX : a + b;
 }
 
 /*
- * pad_size is used along with size_align to define a buffer overflow
+ * smci_pad_size is used along with smci_size_align to define a buffer overflow
  * protected version of ALIGN
  */
-static inline size_t pad_size(size_t a, size_t b)
+static inline size_t smci_pad_size(size_t a, size_t b)
 {
 	return (~a + 1) % b;
 }
 
 /*
- * size_align saturates at SIZE_MAX. If integer overflow is detected, this
+ * smci_size_align saturates at SIZE_MAX. If integer overflow is detected, this
  * function would return SIZE_MAX otherwise next aligned size is returned.
  */
-static inline size_t size_align(size_t a, size_t b)
+static inline size_t smci_size_align(size_t a, size_t b)
 {
-	return size_add(a, pad_size(a, b));
+	return smci_size_add(a, smci_pad_size(a, b));
 }
 
 static uint16_t get_server_id(int cb_server_fd)
@@ -1543,13 +1569,15 @@ static void process_tzcb_req(void *buf, size_t buf_len, struct file **arr_filp)
 					timeout_jiff);
 		}
 		if (ret == 0) {
-			pr_err("CBobj timed out cb-tzhandle:%d, retry:%d, op:%d counts :%d\n",
-					cb_req->hdr.tzhandle, cbobj_retries,
-					cb_req->hdr.op, cb_req->hdr.counts);
-			pr_err("CBobj %d timedout pid %x,tid %x, srvr state=%d, srvr id:%u\n",
-					cb_req->hdr.tzhandle, current->pid,
-					current->tgid, srvr_info->state,
-					srvr_info->server_id);
+			if (srvr_info->is_server_suspended == 0) {
+				tzcb_err_ratelimited("CBobj timed out waiting on cbtxn :%d,cb-tzhandle:%d, retry:%d, op:%d counts :%d\n",
+						cb_txn->txn_id,cb_req->hdr.tzhandle, cbobj_retries,
+						cb_req->hdr.op, cb_req->hdr.counts);
+				tzcb_err_ratelimited("CBobj %d timedout pid %x,tid %x, srvr state=%d, srvr id:%u\n",
+						cb_req->hdr.tzhandle, current->pid,
+						current->tgid, srvr_info->state,
+						srvr_info->server_id);
+			}
 		} else {
 			/* wait_event returned due to a signal */
 			if (srvr_info->state != SMCINVOKE_SERVER_STATE_DEFUNCT &&
@@ -1559,7 +1587,16 @@ static void process_tzcb_req(void *buf, size_t buf_len, struct file **arr_filp)
 				break;
 			}
 		}
-		cbobj_retries++;
+		/*
+		 * If bit corresponding to any accept thread is set, invoke threads
+		 * should wait infinitely for the accept thread to come back with
+		 * response.
+		 */
+		if (srvr_info->is_server_suspended > 0) {
+			cbobj_retries = 0;
+		} else {
+			cbobj_retries++;
+		}
 	}
 
 out:
@@ -1694,7 +1731,8 @@ static int prepare_send_scm_msg(const uint8_t *in_buf, phys_addr_t in_paddr,
 		struct smcinvoke_cmd_req *req,
 		union smcinvoke_arg *args_buf,
 		bool *tz_acked, uint32_t context_type,
-		struct qtee_shm *in_shm, struct qtee_shm *out_shm)
+		struct qtee_shm *in_shm, struct qtee_shm *out_shm,
+		bool retry)
 {
 	int ret = 0, cmd, retry_count = 0;
 	u64 response_type;
@@ -1715,11 +1753,11 @@ static int prepare_send_scm_msg(const uint8_t *in_buf, phys_addr_t in_paddr,
 					&response_type, &data, in_shm, out_shm);
 
 			if (ret == -EBUSY) {
-				pr_err("Secure side is busy,will retry after 30 ms, retry_count = %d",retry_count);
+				pr_err_ratelimited("Secure side is busy,will retry after 30 ms, retry_count = %d\n",retry_count);
 				msleep(SMCINVOKE_SCM_EBUSY_WAIT_MS);
 			}
 
-		} while ((ret == -EBUSY) &&
+		} while (retry && (ret == -EBUSY) &&
 				(retry_count++ < SMCINVOKE_SCM_EBUSY_MAX_RETRY));
 
 		if (!ret && !is_inbound_req(response_type)) {
@@ -1794,8 +1832,8 @@ static size_t compute_in_msg_size(const struct smcinvoke_cmd_req *req,
 
 	/* each buffer has to be 8 bytes aligned */
 	while (i < OBJECT_COUNTS_NUM_buffers(req->counts))
-		total_size = size_add(total_size,
-				size_align(args_buf[i++].b.size,
+		total_size = smci_size_add(total_size,
+				smci_size_align(args_buf[i++].b.size,
 				SMCINVOKE_ARGS_ALIGN_SIZE));
 
 	return PAGE_ALIGN(total_size);
@@ -1825,7 +1863,7 @@ static int marshal_in_invoke_req(const struct smcinvoke_cmd_req *req,
 		return 0;
 
 	FOR_ARGS(i, req->counts, BI) {
-		offset = size_align(offset, SMCINVOKE_ARGS_ALIGN_SIZE);
+		offset = smci_size_align(offset, SMCINVOKE_ARGS_ALIGN_SIZE);
 		if ((offset > buf_size) ||
 			(args_buf[i].b.size > (buf_size - offset)))
 			goto out;
@@ -1844,7 +1882,7 @@ static int marshal_in_invoke_req(const struct smcinvoke_cmd_req *req,
 		offset += args_buf[i].b.size;
 	}
 	FOR_ARGS(i, req->counts, BO) {
-		offset = size_align(offset, SMCINVOKE_ARGS_ALIGN_SIZE);
+		offset = smci_size_align(offset, SMCINVOKE_ARGS_ALIGN_SIZE);
 		if ((offset > buf_size) ||
 				(args_buf[i].b.size > (buf_size - offset)))
 			goto out;
@@ -1903,7 +1941,7 @@ static int marshal_in_tzcb_req(const struct smcinvoke_cb_txn *cb_txn,
 			user_req->cbobj_id, user_req->op, user_req->counts);
 
 	FOR_ARGS(i, tzcb_req->hdr.counts, BI) {
-		user_req_buf_offset = size_align(user_req_buf_offset,
+		user_req_buf_offset = smci_size_align(user_req_buf_offset,
 				SMCINVOKE_ARGS_ALIGN_SIZE);
 		tmp_arg.b.size = tz_args[i].b.size;
 		if ((tz_args[i].b.offset > tzcb_req_len) ||
@@ -1929,7 +1967,7 @@ static int marshal_in_tzcb_req(const struct smcinvoke_cb_txn *cb_txn,
 		user_req_buf_offset += tmp_arg.b.size;
 	}
 	FOR_ARGS(i, tzcb_req->hdr.counts, BO) {
-		user_req_buf_offset = size_align(user_req_buf_offset,
+		user_req_buf_offset = smci_size_align(user_req_buf_offset,
 				SMCINVOKE_ARGS_ALIGN_SIZE);
 
 		tmp_arg.b.size = tz_args[i].b.size;
@@ -2115,6 +2153,7 @@ static long process_server_req(struct file *filp, unsigned int cmd,
 	hash_init(server_info->reqs_table);
 	hash_init(server_info->responses_table);
 	INIT_LIST_HEAD(&server_info->pending_cbobjs);
+	server_info->is_server_suspended = 0;
 
 	mutex_lock(&g_smcinvoke_lock);
 
@@ -2178,6 +2217,9 @@ static long process_accept_req(struct file *filp, unsigned int cmd,
 	if (server_info->state == SMCINVOKE_SERVER_STATE_DEFUNCT)
 		server_info->state = 0;
 
+	server_info->is_server_suspended = UNSET_BIT(server_info->is_server_suspended,
+				(current->pid)%DEFAULT_CB_OBJ_THREAD_CNT);
+
 	mutex_unlock(&g_smcinvoke_lock);
 
 	/* First check if it has response otherwise wait for req */
@@ -2193,14 +2235,13 @@ static long process_accept_req(struct file *filp, unsigned int cmd,
 		 * invoke thread died while server was processing cb req.
 		 * if invoke thread dies, it would remove req from Q. So
 		 * no matching cb_txn would be on Q and hence NULL cb_txn.
-		 * In this case, we want this thread to come back and start
-		 * waiting for new cb requests, hence return EAGAIN here
+		 * In this case, we want this thread to start waiting
+		 * new cb requests.
 		 */
 		if (!cb_txn) {
 			pr_err("%s txn %d either invalid or removed from Q\n",
 					__func__, user_args.txn_id);
-			ret = -EAGAIN;
-			goto out;
+			goto start_waiting_for_requests;
 		}
 		ret = marshal_out_tzcb_req(&user_args, cb_txn,
 				cb_txn->filp_to_release);
@@ -2223,6 +2264,7 @@ static long process_accept_req(struct file *filp, unsigned int cmd,
 		if (ret && OBJECT_COUNTS_NUM_OO(user_args.counts))
 			goto out;
 	}
+start_waiting_for_requests:
 	/*
 	 * Once response has been delivered, thread will wait for another
 	 * callback req to process.
@@ -2240,7 +2282,26 @@ static long process_accept_req(struct file *filp, unsigned int cmd,
 			 * using server_info and would crash. So dont do that.
 			 */
 			mutex_lock(&g_smcinvoke_lock);
-			server_info->state = SMCINVOKE_SERVER_STATE_DEFUNCT;
+
+			if(freezing(current)) {
+				pr_err_ratelimited("Server id :%d interrupted probaby due to suspend, pid:%d\n",
+					server_info->server_id, current->pid);
+				/*
+				 * Each accept thread is identified by bits ranging from
+				 * 0 to DEFAULT_CBOBJ_THREAD_CNT-1. When an accept thread is
+				 * interrupted by a signal other than SIGUSR1,SIGKILL,SIGTERM,
+				 * set the corresponding bit of accept thread, indicating that
+				 * current accept thread's state to be "suspended"/ or something
+				 * that needs infinite timeout for invoke thread.
+				 */
+				server_info->is_server_suspended =
+						SET_BIT(server_info->is_server_suspended,
+							(current->pid)%DEFAULT_CB_OBJ_THREAD_CNT);
+			} else {
+				pr_err_ratelimited("Setting pid:%d, server id : %d state to defunct\n",
+						current->pid, server_info->server_id);
+						server_info->state = SMCINVOKE_SERVER_STATE_DEFUNCT;
+			}
 			mutex_unlock(&g_smcinvoke_lock);
 			wake_up_interruptible(&server_info->rsp_wait_q);
 			goto out;
@@ -2399,7 +2460,7 @@ static long process_invoke_req(struct file *filp, unsigned int cmd,
 	ret = prepare_send_scm_msg(in_msg, in_shm.paddr, inmsg_size,
 			out_msg, out_shm.paddr, outmsg_size,
 			&req, args_buf, &tz_acked, context_type,
-			&in_shm, &out_shm);
+			&in_shm, &out_shm, true);
 
 	/*
 	 * If scm_call is success, TZ owns responsibility to release
@@ -2537,114 +2598,6 @@ int process_invoke_request_from_kernel_client(int fd,
 	return ret;
 }
 
-char *firmware_request_from_smcinvoke(const char *appname, size_t *fw_size, struct qtee_shm *shm)
-{
-
-	int rc = 0;
-	const struct firmware *fw_entry = NULL, *fw_entry00 = NULL, *fw_entrylast = NULL;
-	char fw_name[MAX_APP_NAME_SIZE] = "\0";
-	int num_images = 0, phi = 0;
-	unsigned char app_arch = 0;
-	u8 *img_data_ptr = NULL;
-	size_t bufferOffset = 0, phdr_table_offset = 0;
-	size_t *offset = NULL;
-	Elf32_Phdr phdr32;
-	Elf64_Phdr phdr64;
-	struct elf32_hdr *ehdr = NULL;
-	struct elf64_hdr *ehdr64 = NULL;
-
-
-	/* load b00*/
-	snprintf(fw_name, sizeof(fw_name), "%s.b00", appname);
-	rc = firmware_request_nowarn(&fw_entry00, fw_name, class_dev);
-	if (rc) {
-		pr_err("Load %s failed, ret:%d\n", fw_name, rc);
-		return NULL;
-	}
-
-	app_arch = *(unsigned char *)(fw_entry00->data + EI_CLASS);
-
-	/*Get the offsets for split images header*/
-	if (app_arch == ELFCLASS32) {
-
-		ehdr = (struct elf32_hdr *)fw_entry00->data;
-		num_images = ehdr->e_phnum;
-		offset = kcalloc(num_images, sizeof(size_t), GFP_KERNEL);
-		if (offset == NULL)
-			goto release_fw_entry00;
-		phdr_table_offset = (size_t) ehdr->e_phoff;
-		for (phi = 1; phi < num_images; ++phi) {
-			bufferOffset = phdr_table_offset + phi * sizeof(Elf32_Phdr);
-			phdr32 = *(Elf32_Phdr *)(fw_entry00->data + bufferOffset);
-			offset[phi] = (size_t)phdr32.p_offset;
-		}
-
-	} else if (app_arch == ELFCLASS64) {
-
-		ehdr64 = (struct elf64_hdr *)fw_entry00->data;
-		num_images = ehdr64->e_phnum;
-		offset = kcalloc(num_images, sizeof(size_t), GFP_KERNEL);
-		if (offset == NULL)
-			goto release_fw_entry00;
-		phdr_table_offset = (size_t) ehdr64->e_phoff;
-		for (phi = 1; phi < num_images; ++phi) {
-			bufferOffset = phdr_table_offset + phi * sizeof(Elf64_Phdr);
-			phdr64 = *(Elf64_Phdr *)(fw_entry00->data + bufferOffset);
-			offset[phi] = (size_t)phdr64.p_offset;
-		}
-
-	} else {
-
-		pr_err("QSEE %s app, arch %u is not supported\n", appname, app_arch);
-		goto release_fw_entry00;
-	}
-
-	/*Find the size of last split bin image*/
-	snprintf(fw_name, ARRAY_SIZE(fw_name), "%s.b%02d", appname, num_images-1);
-	rc = firmware_request_nowarn(&fw_entrylast, fw_name, class_dev);
-	if (rc) {
-		pr_err("Failed to locate blob %s\n", fw_name);
-		goto release_fw_entry00;
-	}
-
-	/*Total size of image will be the offset of last image + the size of last split image*/
-	*fw_size = fw_entrylast->size + offset[num_images-1];
-
-	/*Allocate memory for the buffer that will hold the split image*/
-	rc = qtee_shmbridge_allocate_shm((*fw_size), shm);
-	if (rc) {
-		pr_err("smbridge alloc failed for size: %zu\n", *fw_size);
-		goto release_fw_entrylast;
-	}
-	img_data_ptr = shm->vaddr;
-	/*
-	 * Copy contents of split bins to the buffer
-	 */
-	memcpy(img_data_ptr, fw_entry00->data, fw_entry00->size);
-	for (phi = 1; phi < num_images-1; phi++) {
-		snprintf(fw_name, ARRAY_SIZE(fw_name), "%s.b%02d", appname, phi);
-		rc = firmware_request_nowarn(&fw_entry, fw_name, class_dev);
-		if (rc) {
-			pr_err("Failed to locate blob %s\n", fw_name);
-			qtee_shmbridge_free_shm(shm);
-			img_data_ptr = NULL;
-			goto release_fw_entrylast;
-		}
-		memcpy(img_data_ptr + offset[phi], fw_entry->data, fw_entry->size);
-		release_firmware(fw_entry);
-		fw_entry = NULL;
-	}
-	memcpy(img_data_ptr + offset[phi], fw_entrylast->data, fw_entrylast->size);
-
-release_fw_entrylast:
-	release_firmware(fw_entrylast);
-release_fw_entry00:
-	release_firmware(fw_entry00);
-	kfree(offset);
-	return img_data_ptr;
-}
-EXPORT_SYMBOL(firmware_request_from_smcinvoke);
-
 static int smcinvoke_open(struct inode *nodp, struct file *filp)
 {
 	struct smcinvoke_file_data *tzcxt = NULL;
@@ -2678,6 +2631,7 @@ int smcinvoke_release_filp(struct file *filp)
 	struct smcinvoke_file_data *file_data = filp->private_data;
 	uint32_t tzhandle = 0;
 	struct smcinvoke_object_release_pending_list *entry = NULL;
+	struct qtee_shm in_shm = {0}, out_shm = {0};
 
 	trace_smcinvoke_release_filp(current->files, filp,
 			file_count(filp), file_data->context_type);
@@ -2689,29 +2643,55 @@ int smcinvoke_release_filp(struct file *filp)
 
 	tzhandle = file_data->tzhandle;
 	/* Root object is special in sense it is indestructible */
-	if (!tzhandle || tzhandle == SMCINVOKE_TZ_ROOT_OBJ)
-		goto out;
-
-	entry = kzalloc(sizeof(*entry), GFP_KERNEL);
-	if (!entry) {
-		ret = -ENOMEM;
+	if (!tzhandle || tzhandle == SMCINVOKE_TZ_ROOT_OBJ) {
+		if (!tzhandle)
+			pr_err("tzhandle not valid in object release\n");
 		goto out;
 	}
 
-	entry->data.tzhandle = tzhandle;
-	entry->data.context_type = file_data->context_type;
-	mutex_lock(&object_postprocess_lock);
-	list_add_tail(&entry->list, &g_object_postprocess);
-	mutex_unlock(&object_postprocess_lock);
-	pr_debug("Object release list: added a handle:0x%lx\n", tzhandle);
-	__wakeup_postprocess_kthread(&smcinvoke[OBJECT_WORKER_THREAD]);
+	ret = qtee_shmbridge_allocate_shm(SMCINVOKE_TZ_MIN_BUF_SIZE, &in_shm);
+	if (ret) {
+		pr_err("shmbridge alloc failed for in msg in object release"
+				"with ret %d\n", ret);
+		goto out;
+	}
+
+	ret = qtee_shmbridge_allocate_shm(SMCINVOKE_TZ_MIN_BUF_SIZE, &out_shm);
+	if (ret) {
+		pr_err("shmbridge alloc failed for out msg in object release"
+				"with ret:%d\n", ret);
+		goto out;
+	}
+
+	ret = smcinvoke_release_tz_object(&in_shm, &out_shm,
+		tzhandle, file_data->context_type);
+
+	if (-EBUSY == ret) {
+		pr_debug("failed to release handle in sync adding to list\n");
+		entry = kzalloc(sizeof(*entry), GFP_KERNEL);
+		if (!entry) {
+			ret = -ENOMEM;
+			goto out;
+		}
+		ret = 0;
+		entry->data.tzhandle = tzhandle;
+		entry->data.context_type = file_data->context_type;
+		mutex_lock(&object_postprocess_lock);
+		list_add_tail(&entry->list, &g_object_postprocess);
+		mutex_unlock(&object_postprocess_lock);
+		pr_debug("Object release list: added a handle:0x%lx\n", tzhandle);
+		__wakeup_postprocess_kthread(&smcinvoke[OBJECT_WORKER_THREAD]);
+	}
 
 out:
+	qtee_shmbridge_free_shm(&in_shm);
+	qtee_shmbridge_free_shm(&out_shm);
 	kfree(filp->private_data);
 	filp->private_data = NULL;
 
+	if (ret != 0)
+		pr_err ("Object release failed with ret %d\n", ret);
 	return ret;
-
 }
 
 int smcinvoke_release_from_kernel_client(int fd)

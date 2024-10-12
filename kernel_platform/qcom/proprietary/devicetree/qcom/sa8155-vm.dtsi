@@ -315,6 +315,16 @@
 		memory-region = <&system_cma>;
 	};
 
+	ptp_virtual {
+		compatible = "qcom,ptp_virtual";
+		reg = <0xeb600000 0x1000>,
+			<0x2700c 0x1000>,
+			<0x17c23000 0x1000>;
+		reg-names = "ptp_carveout_mem",
+				"ptp_reg",
+				"qtimer_reg";
+	};
+
 	qcom_rng: qrng@793000 {
 		compatible = "qcom,msm-rng";
 		reg = <0x793000 0x1000>;
@@ -369,6 +379,10 @@
 
 		status = "disabled";
 	};
+};
+
+&qseecom_dma_heap {
+	qcom,uncached-heap;
 };
 
 #include "sm8150-pinctrl.dtsi"
@@ -558,4 +572,9 @@
 		qcom,glb-db-receivers = <&hgsl_tcsr_receiver0
 					&hgsl_tcsr_receiver1>;
 	};
+};
+
+&qseecom_mem {
+	/delete-property/ reusable;
+	no-map;
 };

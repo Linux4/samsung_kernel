@@ -11,6 +11,7 @@
 #include "cts_earjack_detect.h"
 #include "cts_tcs.h"
 
+extern struct chipone_ts_data *g_cts_data;
 
 #ifdef CONFIG_CTS_I2C_HOST
 static int cts_i2c_writeb(const struct cts_device *cts_dev,
@@ -1447,12 +1448,27 @@ int cts_irq_handler(struct cts_device *cts_dev)
         cts_err("IRQ triggered in program mode");
         return -EINVAL;
     }
+#ifdef CFG_CTS_GESTURE
+    if (unlikely(cts_dev->rtdata.suspended)) {
+        if (cts_dev->rtdata.gesture_wakeup_enabled) {
+            __pm_stay_awake(g_cts_data->ws);
 
+            if (g_cts_data->pm_suspend) {
+                /* Waiting for pm resume completed */
+                ret = wait_for_completion_timeout(&g_cts_data->pm_completion, msecs_to_jiffies(700));
+                if (!ret) {
+                    cts_err("system(spi) can't finished resuming procedure.");
+                }
+            }
+        }
+    }
+#endif
     touch_info = &cts_dev->rtdata.touch_info;
     ret = cts_get_touchinfo(cts_dev, touch_info);
     if (ret) {
         cts_err("Get touch info failed %d", ret);
-        return ret;
+        goto out;
+        //return ret;
     }
 
     if (unlikely(cts_dev->rtdata.suspended)) {
@@ -1531,7 +1547,17 @@ int cts_irq_handler(struct cts_device *cts_dev)
 #endif
     }
 
-    return 0;
+out:
+#ifdef CFG_CTS_GESTURE
+    if (unlikely(cts_dev->rtdata.suspended)) {
+        if (cts_dev->rtdata.gesture_wakeup_enabled) {
+            __pm_relax(g_cts_data->ws);
+        }
+    }
+#endif
+
+	return ret;
+	//return 0;
 }
 
 bool cts_is_device_suspended(const struct cts_device *cts_dev)

@@ -68,7 +68,7 @@ static ssize_t vol_attribute_show(struct device *dev,
 	spin_unlock(&ubi->volumes_lock);
 
 	if (attr == &attr_vol_reserved_ebs)
-		ret = sprintf(buf, "%d\n", vol->reserved_pebs);
+		ret = scnprintf(buf, PAGE_SIZE, "%d\n", vol->reserved_pebs);
 	else if (attr == &attr_vol_type) {
 		const char *tp;
 
@@ -76,19 +76,25 @@ static ssize_t vol_attribute_show(struct device *dev,
 			tp = "dynamic";
 		else
 			tp = "static";
-		ret = sprintf(buf, "%s\n", tp);
+		ret = scnprintf(buf, PAGE_SIZE, "%s\n", tp);
 	} else if (attr == &attr_vol_name)
-		ret = sprintf(buf, "%s\n", vol->name);
+		ret = scnprintf(buf, PAGE_SIZE, "%s\n",
+				vol->name);
 	else if (attr == &attr_vol_corrupted)
-		ret = sprintf(buf, "%d\n", vol->corrupted);
+		ret = scnprintf(buf, PAGE_SIZE, "%d\n",
+				vol->corrupted);
 	else if (attr == &attr_vol_alignment)
-		ret = sprintf(buf, "%d\n", vol->alignment);
+		ret = scnprintf(buf, PAGE_SIZE, "%d\n",
+				vol->alignment);
 	else if (attr == &attr_vol_usable_eb_size)
-		ret = sprintf(buf, "%d\n", vol->usable_leb_size);
+		ret = scnprintf(buf, PAGE_SIZE, "%d\n",
+				vol->usable_leb_size);
 	else if (attr == &attr_vol_data_bytes)
-		ret = sprintf(buf, "%lld\n", vol->used_bytes);
+		ret = scnprintf(buf, PAGE_SIZE, "%lld\n",
+				vol->used_bytes);
 	else if (attr == &attr_vol_upd_marker)
-		ret = sprintf(buf, "%d\n", vol->upd_marker);
+		ret = scnprintf(buf, PAGE_SIZE, "%d\n",
+				vol->upd_marker);
 	else
 		/* This must be a bug */
 		ret = -EINVAL;
@@ -464,7 +470,7 @@ int ubi_resize_volume(struct ubi_volume_desc *desc, int reserved_pebs)
 		for (i = 0; i < -pebs; i++) {
 			err = ubi_eba_unmap_leb(ubi, vol, reserved_pebs + i);
 			if (err)
-				goto out_acc;
+				goto out_free;
 		}
 		spin_lock(&ubi->volumes_lock);
 		ubi->rsvd_pebs += pebs;
@@ -512,8 +518,10 @@ out_acc:
 		ubi->avail_pebs += pebs;
 		spin_unlock(&ubi->volumes_lock);
 	}
+	return err;
+
 out_free:
-	kfree(new_eba_tbl);
+	ubi_eba_destroy_table(new_eba_tbl);
 	return err;
 }
 
@@ -580,6 +588,7 @@ int ubi_add_volume(struct ubi_device *ubi, struct ubi_volume *vol)
 	if (err) {
 		ubi_err(ubi, "cannot add character device for volume %d, error %d",
 			vol_id, err);
+		vol_release(&vol->dev);
 		return err;
 	}
 
@@ -590,14 +599,13 @@ int ubi_add_volume(struct ubi_device *ubi, struct ubi_volume *vol)
 	vol->dev.groups = volume_dev_groups;
 	dev_set_name(&vol->dev, "%s_%d", ubi->ubi_name, vol->vol_id);
 	err = device_register(&vol->dev);
-	if (err)
-		goto out_cdev;
+	if (err) {
+		cdev_del(&vol->cdev);
+		put_device(&vol->dev);
+		return err;
+	}
 
 	self_check_volumes(ubi);
-	return err;
-
-out_cdev:
-	cdev_del(&vol->cdev);
 	return err;
 }
 

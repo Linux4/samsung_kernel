@@ -3,7 +3,7 @@
 *  Driver for NanJingTianYiHeXin HX9031AS Cap Sensor         *
 *                                                            *
 *************************************************************/
-#define HX9031AS_DRIVER_VER "Change-Id 009"
+#define HX9031AS_DRIVER_VER "Change-Id 010"
 
 #include <linux/module.h>
 #include <linux/slab.h>
@@ -2196,6 +2196,54 @@ static const struct attribute_group *hx9031as_sensor_attr_groups[] = {
     &hx9031as_sensor_attr_group,
     NULL,
 };
+
+static ssize_t set_flush(struct device *dev, struct device_attribute *attr,
+	const char *buf, size_t size)
+{
+	u8 sensor_type = 0;
+
+	if (kstrtou8(buf, 10, &sensor_type) < 0)
+		return -EINVAL;
+
+	input_report_rel(hx9031as_pdata.meta_input_dev, REL_DIAL,
+		1);	/*META_DATA_FLUSH_COMPLETE*/
+	input_report_rel(hx9031as_pdata.meta_input_dev, REL_HWHEEL, sensor_type + 1);
+	input_sync(hx9031as_pdata.meta_input_dev);
+
+	pr_info("[SENSOR CORE] flush %d\n", sensor_type);
+	return size;
+}
+static DEVICE_ATTR(flush, 0220, NULL, set_flush);
+static struct device_attribute *ap_sensor_attr[] = {
+	&dev_attr_flush,
+	NULL,
+};
+
+int sensors_meta_input_init(void)
+{
+	int ret;
+
+	/* Meta Input Event Initialization */
+	hx9031as_pdata.meta_input_dev = input_allocate_device();
+	if (!hx9031as_pdata.meta_input_dev) {
+		pr_err("[SENSOR CORE] failed alloc meta dev\n");
+		return -ENOMEM;
+	}
+
+	hx9031as_pdata.meta_input_dev->name = "meta_event";
+	input_set_capability(hx9031as_pdata.meta_input_dev, EV_REL, REL_HWHEEL);
+	input_set_capability(hx9031as_pdata.meta_input_dev, EV_REL, REL_DIAL);
+
+	ret = input_register_device(hx9031as_pdata.meta_input_dev);
+	if (ret < 0) {
+		pr_err("[SENSOR CORE] failed register meta dev\n");
+		input_free_device(hx9031as_pdata.meta_input_dev);
+		return ret;
+	}
+
+	return ret;
+}
+
 //===========================================
 
 static int hx9031as_probe(struct i2c_client *client, const struct i2c_device_id *id)
@@ -2205,6 +2253,7 @@ static int hx9031as_probe(struct i2c_client *client, const struct i2c_device_id 
     struct class *sar_sensor_class = NULL;
     struct device *sar_device_class = NULL;
     struct device *sar_device_class_wifi = NULL;
+    struct device *sensor_dev;
 
     PRINT_INF("sar_common_status:%d\n",sar_common_status);
     if(sar_common_status == PROBE_FIRST_SUCCESS) {
@@ -2298,6 +2347,10 @@ static int hx9031as_probe(struct i2c_client *client, const struct i2c_device_id 
     }
 #endif
 
+    /* Meta Input Event Initialization */
+    if (sensors_meta_input_init())
+        PRINT_ERR("sensors_meta_input_init error!");
+
     ret = class_register(&hx9031as_class);//debug fs path:/sys/class/hx9031as/*
     if (ret < 0) {
         PRINT_ERR("class_register failed\n");
@@ -2332,8 +2385,16 @@ static int hx9031as_probe(struct i2c_client *client, const struct i2c_device_id 
         return 0;
     }
 
+    sensor_dev = device_create(sar_sensor_class, NULL, 0, NULL, "%s", "sensor_dev");
+    if (IS_ERR(sensor_dev)) {
+        pr_err("[SENSORS CORE] sensor_dev create failed![%d]\n", IS_ERR(sensor_dev));
+    } else {
+        if ((device_create_file(sensor_dev, *ap_sensor_attr)) < 0)
+        pr_err("[SENSOR CORE] failed flush device_file\n");
+    }
+
     ret = request_threaded_irq(hx9031as_pdata.irq, NULL, hx9031as_irq_handler,
-                               IRQF_TRIGGER_FALLING | IRQF_ONESHOT | IRQF_NO_SUSPEND,
+                               IRQF_TRIGGER_FALLING | IRQF_ONESHOT,
                                hx9031as_pdata.pdev->driver->name, (&hx9031as_pdata));
     if(ret < 0) {
         PRINT_ERR("request_irq failed irq=%d ret=%d\n", hx9031as_pdata.irq, ret);
@@ -2364,6 +2425,7 @@ failed_class_register:
     hx9031as_input_deinit_key(client);
 #else
     hx9031as_classdev_deinit();
+    input_unregister_device(hx9031as_pdata.meta_input_dev);
 failed_classdev_init:
     hx9031as_input_deinit_abs(client);
 #endif
@@ -2389,6 +2451,7 @@ static int hx9031as_remove(struct i2c_client *client)
 #else
     hx9031as_classdev_deinit();
     hx9031as_input_deinit_abs(client);
+    input_unregister_device(hx9031as_pdata.meta_input_dev);
 #endif
     cancel_delayed_work_sync(&(hx9031as_pdata.polling_work));
     hx9031as_power_on(0);

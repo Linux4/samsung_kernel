@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2016-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -315,7 +315,7 @@ ce_sendlist_send_srng(struct CE_handle *copyeng,
 #endif
 /**
  * ce_recv_buf_enqueue_srng() - enqueue a recv buffer into a copy engine
- * @coyeng: copy engine handle
+ * @copyeng: copy engine handle
  * @per_recv_context: virtual address of the nbuf
  * @buffer: physical address of the nbuf
  *
@@ -446,16 +446,13 @@ ce_completed_recv_next_nolock_srng(struct CE_state *CE_state,
 	int nbytes;
 	struct ce_srng_dest_status_desc dest_status_info;
 
-	if (hal_srng_access_start(scn->hal_soc, status_ring->srng_ctx)) {
-		status = QDF_STATUS_E_FAILURE;
-		goto done;
-	}
+	if (hal_srng_access_start(scn->hal_soc, status_ring->srng_ctx))
+		return QDF_STATUS_E_FAILURE;
 
 	dest_status = hal_srng_dst_peek(scn->hal_soc, status_ring->srng_ctx);
 	if (!dest_status) {
-		status = QDF_STATUS_E_FAILURE;
 		hal_srng_access_end_reap(scn->hal_soc, status_ring->srng_ctx);
-		goto done;
+		return QDF_STATUS_E_FAILURE;
 	}
 
 	/*
@@ -1091,7 +1088,7 @@ static struct ce_ops ce_service_srng = {
 #endif
 };
 
-struct ce_ops *ce_services_srng()
+struct ce_ops *ce_services_srng(void)
 {
 	return &ce_service_srng;
 }

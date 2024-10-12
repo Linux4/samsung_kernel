@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include "gen7_reg.h"
@@ -9,8 +9,7 @@
 #include "adreno_gen7.h"
 #include "adreno_gen7_gmu.h"
 #include "adreno_snapshot.h"
-#include "adreno_gen7_0_0_snapshot.h"
-#include "adreno_gen7_2_0_snapshot.h"
+#include "adreno_gen7_snapshot.h"
 #include "kgsl_device.h"
 
 size_t gen7_snapshot_gmu_mem(struct kgsl_device *device,
@@ -37,11 +36,7 @@ size_t gen7_snapshot_gmu_mem(struct kgsl_device *device,
 	mem_hdr->gmuaddr = desc->memdesc->gmuaddr;
 	mem_hdr->gpuaddr = 0;
 
-	/* The hw fence queues are mapped as iomem in the kernel */
-	if (desc->type == SNAPSHOT_GMU_MEM_HW_FENCE)
-		memcpy_fromio(data, desc->memdesc->hostptr, desc->memdesc->size);
-	else
-		memcpy(data, desc->memdesc->hostptr, desc->memdesc->size);
+	memcpy(data, desc->memdesc->hostptr, desc->memdesc->size);
 
 	return desc->memdesc->size + sizeof(*mem_hdr);
 }
@@ -294,10 +289,6 @@ void gen7_gmu_snapshot(struct adreno_device *adreno_dev,
 	struct kgsl_snapshot *snapshot)
 {
 	struct kgsl_device *device = KGSL_DEVICE(adreno_dev);
-
-	/* Send nmi only if it was a gmu fault */
-	if (device->gmu_fault)
-		gen7_gmu_send_nmi(adreno_dev, false);
 
 	/*
 	 * Dump external register first to have GPUCC and other external

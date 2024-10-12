@@ -2,6 +2,7 @@
 	#address-cells = <2>;
 	#size-cells = <2>;
 	ranges;
+	removes_carveout_region;
 
 	gunyah_hyp_mem: gunyah_hyp_region@80000000 {
 		no-map;
@@ -64,9 +65,9 @@
 		reg = <0x0 0x81ce4000 0x0 0x10000>;
 	};
 
-	secdata_apss_mem: secdata_apss_region@81cff000 {
+	chipinfo_mem: chipinfo_region@81cf4000 {
 		no-map;
-		reg = <0x0 0x81cff000 0x0 0x1000>;
+		reg = <0x0 0x81cf4000 0x0 0x1000>;
 	};
 
 	smem_mem: smem_region@81d00000 {
@@ -96,67 +97,62 @@
 
 	mpss_mem: mpss_region@8a800000 {
 		no-map;
-		reg = <0x0 0x8a800000 0x0 0x10800000>;
+		reg = <0x0 0x8a800000 0x0 0x11800000>;
 	};
 
-	q6_mpss_dtb_mem: q6_mpss_dtb_region@9b000000 {
+	q6_mpss_dtb_mem: q6_mpss_dtb_region@9c000000 {
 		no-map;
-		reg = <0x0 0x9b000000 0x0 0x80000>;
+		reg = <0x0 0x9c000000 0x0 0x80000>;
 	};
 
-	ipa_fw_mem: ipa_fw_region@9b080000 {
+	ipa_fw_mem: ipa_fw_region@9c080000 {
 		no-map;
-		reg = <0x0 0x9b080000 0x0 0x10000>;
+		reg = <0x0 0x9c080000 0x0 0x10000>;
 	};
 
-	ipa_gsi_mem: ipa_gsi_region@9b090000 {
+	ipa_gsi_mem: ipa_gsi_region@9c090000 {
 		no-map;
-		reg = <0x0 0x9b090000 0x0 0xa000>;
+		reg = <0x0 0x9c090000 0x0 0xa000>;
 	};
 
-	gpu_microcode_mem: gpu_microcode_region@9b09a000 {
+	gpu_microcode_mem: gpu_microcode_region@9c09a000 {
 		no-map;
-		reg = <0x0 0x9b09a000 0x0 0x2000>;
+		reg = <0x0 0x9c09a000 0x0 0x2000>;
 	};
 
-	camera_mem: camera_region@9b09c000 {
+	q6_adsp_dtb_mem: q6_adsp_dtb_region@9c180000 {
 		no-map;
-		reg = <0x0 0x9b09c000 0x0 0x700000>;
+		reg = <0x0 0x9c180000 0x0 0x80000>;
 	};
 
-	video_mem: video_region@9b79c000 {
+	adsp_mem: adsp_region@9c200000 {
 		no-map;
-		reg = <0x0 0x9b79c000 0x0 0x700000>;
+		reg = <0x0 0x9c200000 0x0 0x2300000>;
 	};
 
-	cdsp_mem: cdsp_region@9be9c000 {
+	camera_mem: camera_region@9e500000 {
 		no-map;
-		reg = <0x0 0x9be9c000 0x0 0xf00000>;
+		reg = <0x0 0x9e500000 0x0 0x800000>;
 	};
 
-	q6_cdsp_dtb_mem: q6_cdsp_dtb_region@9cd9c000 {
+	video_mem: video_region@9f000000 {
 		no-map;
-		reg = <0x0 0x9cd9c000 0x0 0x80000>;
+		reg = <0x0 0x9f000000 0x0 0x700000>;
 	};
 
-	q6_adsp_dtb_mem: q6_adsp_dtb_region@9ce1c000 {
+	wpss_moselle_mem: wpss_moselle_region@9f700000 {
 		no-map;
-		reg = <0x0 0x9ce1c000 0x0 0x80000>;
+		reg = <0x0 0x9f700000 0x0 0x1900000>;
 	};
 
-	adsp_mem: adsp_region@9ce9c000 {
+	cdsp_mem: cdsp_region@a1000000 {
 		no-map;
-		reg = <0x0 0x9ce9c000 0x0 0x2800000>;
+		reg = <0x0 0xa1000000 0x0 0xa80000>;
 	};
 
-	wpss_moselle_mem: wpss_moselle_region@9f69c000 {
+	q6_cdsp_dtb_mem: q6_cdsp_dtb_region@a1a80000 {
 		no-map;
-		reg = <0x0 0x9f69c000 0x0 0x1900000>;
-	};
-
-	mpss_dsm_mem: mpss_dsm_region@d4d00000 {
-		no-map;
-		reg = <0x0 0xd4d00000 0x0 0x3300000>;
+		reg = <0x0 0xa1a80000 0x0 0x80000>;
 	};
 
 	tz_reserved_mem: tz_reserved_region@d8000000 {
@@ -181,27 +177,63 @@
 
 	ta_mem: ta_region@d8800000 {
 		no-map;
-		reg = <0x0 0xd8800000 0x0 0x7400000>;
+		reg = <0x0 0xd8800000 0x0 0x1a00000>;
 	};
 
-	tz_tags_mem: tz_tags_region@dfc00000 {
+	tz_tags_mem: tz_tags_region@da200000 {
 		no-map;
-		reg = <0x0 0xdfc00000 0x0 0x2140000>;
+		reg = <0x0 0xda200000 0x0 0x680000>;
 	};
 
-	tui_vm_mem: tui_vm_region@f3800000 {
+	trust_ui_vm_mem: trust_ui_vm_region@f3800000 {
 		no-map;
-		reg = <0x0 0xf3800000 0x0 0x4200000>;
+		reg = <0x0 0xf3800000 0x0 0x40ee000>;
 	};
 
-	oem_vm_mem: oem_vm_region@f7a00000 {
+	trust_ui_vm_dump: trust_ui_vm_dump@0xf78ee000 {
 		no-map;
-		reg = <0x0 0xf7a00000 0x0 0x4a00000>;
+		reg = <0x0 0xf78ee000 0x0 0x1000>;
 	};
 
-	llcc_lpi_mem: llcc_lpi_region@ff800000 {
+	trust_ui_vm_qrtr: trust_ui_vm_qrtr@0xf78ef000 {
 		no-map;
-		reg = <0x0 0xff800000 0x0 0x600000>;
+		reg = <0x0 0xf78ef000 0x0 0x9000>;
 	};
 
+	trust_ui_vm_vblk0_ring: trust_ui_vm_vblk0_ring@0xf78f8000 {
+		no-map;
+		reg = <0x0 0xf78f8000 0x0 0x4000>;
+		gunyah-label = <0x11>;                                  //for persist.img
+	};
+
+	trust_ui_vm_vblk1_ring: trust_ui_vm_vblk1_ring@0xf78fc000 {
+		no-map;
+		reg = <0x0 0xf78fc000 0x0 0x4000>;
+		gunyah-label = <0x10>;                                  //for system.img
+	};
+
+	trust_ui_vm_swiotlb: trust_ui_vm_swiotlb@0xf7900000 {
+		no-map;
+		reg = <0x0 0xf7900000 0x0 0x100000>;
+		gunyah-label = <0x12>;
+	};
+
+	oem_vm_vblk0_ring: oem_vm_vblk0_ring@f7afc000 {
+		no-map;
+		reg = <0x0 0xf7afc000 0x0 0x4000>;
+		gunyah-label = <0x13>;
+	};
+
+	oem_vm_swiotlb: oem_vm_swiotlb@f7b00000 {
+		no-map;
+		reg = <0x0 0xf7b00000 0x0 0x100000>;
+		gunyah-label = <0x14>;
+	};
+
+	oem_vm_mem: oem_vm_region@f7c00000 {
+		compatible = "shared-dma-pool";
+		reg = <0x0 0xf7c00000 0x0 0x4800000>;
+		reusable;
+		alignment = <0x0 0x400000>;
+	};
 };

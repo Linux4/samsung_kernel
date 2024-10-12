@@ -652,17 +652,20 @@ void check_powerdown_voltage(void)
 
 void bmu_powerdown_mode(void)
 {
-	int32_t ret1 = 0,ret2 = 0,ret3 = 0;
+	int32_t ret1 = 0,ret2 = 0,ret3 = 0,ret4 = 0,data = 0;
 	uint8_t i = 0;
 
 	for(i = 0; i < 5; i++)
 	{
 		ret1 = sd77428_write_addr(the_oz8806,0x400042A8,0x6318);//unlock
 		ret2 = sd77428_write_addr(the_oz8806,0x400042AC,0x0040);//sleep mode
-		ret3 = sd77428_write_addr(the_oz8806,0x40004160,0x0000);//shutdown vadc
-		if((ret1 < 0) || (ret2 < 0) || (ret3 < 0))
+		ret3 = sd77428_write_addr(the_oz8806,0x40004160,0x0000);//close vadc
+		sd77428_read_addr(the_oz8806,0x400041A0,&data);
+		data = data & 0xFFF0;  //bit0 set 0
+		ret4 = sd77428_write_addr(the_oz8806,0x400041A0,data);//close cadc
+		if((ret1 < 0) || (ret2 < 0) || (ret3 < 0) || (ret4 < 0))
 		{
-			bmt_dbg("sd77428 write failed,ret1:%d,ret2:%d,ret3:%d,i:%d!\n",ret1,ret2,ret3,i);
+			bmt_dbg("sd77428 write failed,ret1:%d,ret2:%d,ret3:%d,,ret4:%d,i:%d!\n",ret1,ret2,ret3,ret4,i);
 			msleep(5);
 		}
 		else
@@ -2067,7 +2070,7 @@ void bmulib_exit(void)
 	if (bmu_kernel_memaddr)
 		kfree((int8_t *)bmu_kernel_memaddr);
 	bmu_kernel_memaddr = 0;
-}                                   
+}
 
 MODULE_DESCRIPTION("FG Charger Driver");
 MODULE_LICENSE("GPL v2");

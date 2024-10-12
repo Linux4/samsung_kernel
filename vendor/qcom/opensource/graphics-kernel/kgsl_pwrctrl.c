@@ -230,13 +230,13 @@ void kgsl_pwrctrl_pwrlevel_change(struct kgsl_device *device,
 	if (pwr->bus_mod < 0 || new_level < old_level) {
 		pwr->bus_mod = 0;
 		pwr->bus_percent_ab = 0;
+		pwr->ddr_stall_percent = 0;
 	}
 	/*
 	 * Update the bus before the GPU clock to prevent underrun during
 	 * frequency increases.
 	 */
-	if (new_level < old_level)
-		kgsl_bus_update(device, KGSL_BUS_VOTE_ON);
+	kgsl_bus_update(device, KGSL_BUS_VOTE_ON);
 
 	pwrlevel = &pwr->pwrlevels[pwr->active_pwrlevel];
 	/* Change register settings if any  BEFORE pwrlevel change*/
@@ -250,10 +250,6 @@ void kgsl_pwrctrl_pwrlevel_change(struct kgsl_device *device,
 			pwr->pwrlevels[old_level].gpu_freq);
 
 	trace_gpu_frequency(pwrlevel->gpu_freq/1000, 0);
-
-	/*  Update the bus after GPU clock decreases. */
-	if (new_level > old_level)
-		kgsl_bus_update(device, KGSL_BUS_VOTE_ON);
 
 	/*
 	 * Some targets do not support the bandwidth requirement of
@@ -1565,11 +1561,13 @@ int kgsl_pwrctrl_init(struct kgsl_device *device)
 	pwr->thermal_pwrlevel = 0;
 	pwr->thermal_pwrlevel_floor = pwr->num_pwrlevels - 1;
 
+	pwr->wakeup_maxpwrlevel = 0;
+
 	result = dev_pm_qos_add_request(&pdev->dev, &pwr->sysfs_thermal_req,
 			DEV_PM_QOS_MAX_FREQUENCY,
 			PM_QOS_MAX_FREQUENCY_DEFAULT_VALUE);
 	if (result < 0)
-		dev_err(device->dev, "PM QoS thermal request failed:%d\n", result);
+		dev_err(device->dev, "PM QoS thermal request failed:\n", result);
 
 	for (i = 0; i < pwr->num_pwrlevels; i++) {
 		freq = pwr->pwrlevels[i].gpu_freq;
@@ -1670,7 +1668,7 @@ void kgsl_idle_check(struct work_struct *work)
 			}
 			/* Don't allow GPU inline submission in SLUMBER */
 			if (requested_state == KGSL_STATE_SLUMBER)
-				device->skip_inline_submit = true;
+				device->slumber = true;
 			spin_unlock(&device->submit_lock);
 
 			ret = kgsl_pwrctrl_change_state(device,
@@ -1678,7 +1676,7 @@ void kgsl_idle_check(struct work_struct *work)
 			if (ret == -EBUSY) {
 				if (requested_state == KGSL_STATE_SLUMBER) {
 					spin_lock(&device->submit_lock);
-					device->skip_inline_submit = false;
+					device->slumber = false;
 					spin_unlock(&device->submit_lock);
 				}
 				/*
@@ -1751,7 +1749,12 @@ static int kgsl_pwrctrl_enable(struct kgsl_device *device)
 	struct kgsl_pwrctrl *pwr = &device->pwrctrl;
 	int level, status;
 
-	level = pwr->default_pwrlevel;
+	if (pwr->wakeup_maxpwrlevel) {
+		level = pwr->max_pwrlevel;
+		pwr->wakeup_maxpwrlevel = 0;
+	} else {
+		level = pwr->default_pwrlevel;
+	}
 
 	kgsl_pwrctrl_pwrlevel_change(device, level);
 
@@ -2162,10 +2165,10 @@ void kgsl_pwrctrl_set_state(struct kgsl_device *device,
 	device->requested_state = KGSL_STATE_NONE;
 
 	spin_lock(&device->submit_lock);
-	if (state == KGSL_STATE_ACTIVE)
-		device->skip_inline_submit = false;
+	if (state == KGSL_STATE_SLUMBER || state == KGSL_STATE_SUSPEND)
+		device->slumber = true;
 	else
-		device->skip_inline_submit = true;
+		device->slumber = false;
 	spin_unlock(&device->submit_lock);
 }
 

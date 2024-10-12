@@ -116,8 +116,9 @@ $(warning "longcheer sec_tsp class_sysfs Feature")
 
 endif
 ### sec_tsp class sysfs Feature end ###
-### icnl9922c start ###
 
+
+### icnl9922c start ###
 	LINUX_INC += -include $(TOUCH_ROOT)/icnl9922c/cts_builtin_firmware.h
 	LINUX_INC += -include $(TOUCH_ROOT)/icnl9922c/cts_charger_detect.h
 	LINUX_INC += -include $(TOUCH_ROOT)/icnl9922c/cts_config.h
@@ -132,7 +133,6 @@ endif
 	LINUX_INC += -include $(TOUCH_ROOT)/icnl9922c/cts_sysfs.h
 	LINUX_INC += -include $(TOUCH_ROOT)/icnl9922c/cts_tcs.h
 	LINUX_INC += -include $(TOUCH_ROOT)/icnl9922c/cts_test.h
-
 	icnl9922c-y := \
 		./icnl9922c/cts_driver.o \
 		./icnl9922c/cts_core.o \
@@ -148,10 +148,31 @@ endif
 		./icnl9922c/cts_sysfs.o \
 		./icnl9922c/cts_strerror.o \
 		./icnl9922c/cts_oem.o
-
 	obj-m += icnl9922c.o
-
 ###  icnl9922c end  ###
+
+
+###  hx83112f start  ###
+	LINUX_INC += -include $(TOUCH_ROOT)/hx83112f/himax_common.h
+	LINUX_INC += -include $(TOUCH_ROOT)/hx83112f/himax_debug.h
+	LINUX_INC += -include $(TOUCH_ROOT)/hx83112f/himax_debug_info.h
+	LINUX_INC += -include $(TOUCH_ROOT)/hx83112f/himax_firmware.h
+	LINUX_INC += -include $(TOUCH_ROOT)/hx83112f/himax_ic_core.h
+	LINUX_INC += -include $(TOUCH_ROOT)/hx83112f/himax_ic_HX83112f.h
+	LINUX_INC += -include $(TOUCH_ROOT)/hx83112f/himax_inspection.h
+	LINUX_INC += -include $(TOUCH_ROOT)/hx83112f/himax_modular.h
+	LINUX_INC += -include $(TOUCH_ROOT)/hx83112f/himax_platform.h
+	hx83112f-y := \
+		./hx83112f/himax_common.o \
+		./hx83112f/himax_debug.o \
+		./hx83112f/himax_firmware.o \
+		./hx83112f/himax_ic_core.o \
+		./hx83112f/himax_ic_HX83112f.o \
+		./hx83112f/himax_inspection.o \
+		./hx83112f/himax_platform.o
+	obj-m += hx83112f.o
+###  hx83112f end  ###
+
 
 ifeq ($(CONFIG_TOUCHSCREEN_SYNAPTICS_DSX), y)
 

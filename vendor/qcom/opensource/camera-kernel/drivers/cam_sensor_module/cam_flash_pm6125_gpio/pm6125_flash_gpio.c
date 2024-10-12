@@ -82,7 +82,8 @@ void pm6125_flash_gpio_select_state(PM6125_FLASH_GPIO_STATE s, enum camera_flash
 	case PM6125_FLASH_GPIO_STATE_SUSPEND:
 		pstate.enabled = false;
 		rc = pwm_apply_state(pwm, &pstate);
-		CAM_INFO(CAM_FLASH, "suspend");
+		CAM_INFO(CAM_FLASH, "suspend torch_mode = %d", torch_mode);
+		torch_mode = 0;
 		break;
 	default:
 		CAM_ERR(CAM_FLASH, "failed to control PWM use a err state!");

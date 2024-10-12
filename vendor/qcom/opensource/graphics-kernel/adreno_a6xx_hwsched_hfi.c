@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/iommu.h>
@@ -503,12 +503,6 @@ static void a6xx_hwsched_process_msgq(struct adreno_device *adreno_dev)
 		} else if (MSG_HDR_GET_ID(rcvd[0]) == F2H_MSG_TS_RETIRE) {
 			adreno_hwsched_trigger(adreno_dev);
 			log_profiling_info(adreno_dev, rcvd);
-		} else if (MSG_HDR_GET_ID(rcvd[0]) == F2H_MSG_GMU_CNTR_RELEASE) {
-			struct hfi_gmu_cntr_release_cmd *cmd =
-				(struct hfi_gmu_cntr_release_cmd *) rcvd;
-
-			adreno_perfcounter_put(adreno_dev,
-				cmd->group_id, cmd->countable, PERFCOUNTER_FLAG_KERNEL);
 		}
 	}
 	mutex_unlock(&hw_hfi->msgq_mutex);
@@ -532,7 +526,7 @@ static void process_log_block(struct adreno_device *adreno_dev, void *data)
 	}
 }
 
-static void a6xx_hwsched_process_dbgq(struct adreno_device *adreno_dev, bool limited)
+static void process_dbgq_irq(struct adreno_device *adreno_dev)
 {
 	struct a6xx_gmu_device *gmu = to_a6xx_gmu(adreno_dev);
 	u32 rcvd[MAX_RCVD_SIZE];
@@ -551,10 +545,6 @@ static void a6xx_hwsched_process_dbgq(struct adreno_device *adreno_dev, bool lim
 
 		if (MSG_HDR_GET_ID(rcvd[0]) == F2H_MSG_LOG_BLOCK)
 			process_log_block(adreno_dev, rcvd);
-
-		/* Process one debug queue message and return to not delay msgq processing */
-		if (limited)
-			break;
 	}
 
 	if (!recovery)
@@ -757,15 +747,15 @@ static int get_attrs(u32 flags)
 }
 
 static int gmu_import_buffer(struct adreno_device *adreno_dev,
-	struct hfi_mem_alloc_entry *entry)
+	struct hfi_mem_alloc_entry *entry, u32 flags)
 {
 	struct a6xx_gmu_device *gmu = to_a6xx_gmu(adreno_dev);
-	struct hfi_mem_alloc_desc *desc = &entry->desc;
-	int attrs = get_attrs(desc->flags);
+	int attrs = get_attrs(flags);
 	struct gmu_vma_entry *vma = &gmu->vma[GMU_NONCACHED_KERNEL];
+	struct hfi_mem_alloc_desc *desc = &entry->desc;
 	int ret;
 
-	if (desc->flags & HFI_MEMFLAG_GMU_CACHEABLE)
+	if (flags & HFI_MEMFLAG_GMU_CACHEABLE)
 		vma = &gmu->vma[GMU_CACHE];
 
 	if ((vma->next_va + desc->size) > (vma->start + vma->size)) {
@@ -854,11 +844,11 @@ static struct hfi_mem_alloc_entry *get_mem_alloc_entry(
 			entry->md = reserve_gmu_kernel_block_fixed(gmu, 0, desc->size,
 					(desc->flags & HFI_MEMFLAG_GMU_CACHEABLE) ?
 					GMU_CACHE : GMU_NONCACHED_KERNEL,
-					"qcom,ipc-core", get_attrs(desc->flags), desc->align);
+					"qcom,ipc-core", get_attrs(desc->flags), desc->va_align);
 		else
 			entry->md = reserve_gmu_kernel_block(gmu, 0, desc->size,
 					(desc->flags & HFI_MEMFLAG_GMU_CACHEABLE) ?
-					GMU_CACHE : GMU_NONCACHED_KERNEL, desc->align);
+					GMU_CACHE : GMU_NONCACHED_KERNEL, desc->va_align);
 
 		if (IS_ERR(entry->md)) {
 			int ret = PTR_ERR(entry->md);
@@ -891,7 +881,7 @@ static struct hfi_mem_alloc_entry *get_mem_alloc_entry(
 	  * If gmu mapping fails, then we have to live with
 	  * leaking the gpu global buffer allocated above.
 	  */
-	ret = gmu_import_buffer(adreno_dev, entry);
+	ret = gmu_import_buffer(adreno_dev, entry, desc->flags);
 	if (ret) {
 		dev_err(&gmu->pdev->dev,
 			"gpuaddr: 0x%llx size: %lld bytes lost\n",
@@ -949,30 +939,6 @@ static int mem_alloc_reply(struct adreno_device *adreno_dev, void *rcvd)
 	out.hdr = MSG_HDR_SET_SEQNUM(out.hdr,
 			atomic_inc_return(&gmu->hfi.seqnum));
 	out.req_hdr = *(u32 *)rcvd;
-
-	return a6xx_hfi_cmdq_write(adreno_dev, (u32 *)&out);
-}
-
-static int gmu_cntr_register_reply(struct adreno_device *adreno_dev, void *rcvd)
-{
-	struct hfi_gmu_cntr_register_cmd *in = (struct hfi_gmu_cntr_register_cmd *)rcvd;
-	struct hfi_gmu_cntr_register_reply_cmd out = {0};
-	u32 lo = 0, hi = 0;
-
-	/*
-	 * Failure to allocate counter is not fatal. Sending lo = 0, hi = 0
-	 * indicates to GMU that counter allocation failed.
-	 */
-	adreno_perfcounter_get(adreno_dev,
-		in->group_id, in->countable, &lo, &hi, PERFCOUNTER_FLAG_KERNEL);
-
-	out.hdr = ACK_MSG_HDR(F2H_MSG_GMU_CNTR_REGISTER, sizeof(out));
-	out.req_hdr = in->hdr;
-	out.group_id = in->group_id;
-	out.countable = in->countable;
-	/* Fill in byte offset of counter */
-	out.cntr_lo = lo << 2;
-	out.cntr_hi = hi << 2;
 
 	return a6xx_hfi_cmdq_write(adreno_dev, (u32 *)&out);
 }
@@ -1037,13 +1003,6 @@ poll:
 		goto poll;
 	}
 
-	if (MSG_HDR_GET_ID(rcvd[0]) == F2H_MSG_GMU_CNTR_REGISTER) {
-		rc = gmu_cntr_register_reply(adreno_dev, rcvd);
-		if (rc)
-			return rc;
-		goto poll;
-	}
-
 	dev_err(&gmu->pdev->dev,
 		"MSG_START: unexpected response id:%d, type:%d\n",
 		MSG_HDR_GET_ID(rcvd[0]),
@@ -1073,7 +1032,6 @@ static void reset_hfi_mem_records(struct adreno_device *adreno_dev)
 static void reset_hfi_queues(struct adreno_device *adreno_dev)
 {
 	struct a6xx_gmu_device *gmu = to_a6xx_gmu(adreno_dev);
-	struct kgsl_device *device = KGSL_DEVICE(adreno_dev);
 	struct hfi_queue_table *tbl = gmu->hfi.hfi_mem->hostptr;
 	u32 i;
 
@@ -1084,17 +1042,7 @@ static void reset_hfi_queues(struct adreno_device *adreno_dev)
 		if (hdr->status == HFI_QUEUE_STATUS_DISABLED)
 			continue;
 
-		if (hdr->read_index != hdr->write_index) {
-			/* Don't capture snapshot again in reset path */
-			if (!device->snapshot || device->snapshot->recovered) {
-				dev_err(&gmu->pdev->dev,
-				"HFI queue[%d] is not empty before close: rd=%d,wt=%d\n",
-					i, hdr->read_index, hdr->write_index);
-
-				gmu_core_fault_snapshot(device);
-			}
-			hdr->read_index = hdr->write_index;
-		}
+		hdr->read_index = hdr->write_index;
 	}
 }
 
@@ -1111,11 +1059,6 @@ void a6xx_hwsched_hfi_stop(struct adreno_device *adreno_dev)
 	 * drain the queue one last time before we reset HFI queues.
 	 */
 	a6xx_hwsched_process_msgq(adreno_dev);
-
-	/* Drain the debug queue before we reset HFI queues */
-	a6xx_hwsched_process_dbgq(adreno_dev, false);
-
-	reset_hfi_queues(adreno_dev);
 
 	kgsl_pwrctrl_axi(KGSL_DEVICE(adreno_dev), false);
 
@@ -1169,24 +1112,6 @@ static int enable_preemption(struct adreno_device *adreno_dev)
 			FIELD_PREP(GENMASK(3, 0), 0xf));
 }
 
-static int enable_gmu_stats(struct adreno_device *adreno_dev)
-{
-	struct a6xx_gmu_device *gmu = to_a6xx_gmu(adreno_dev);
-	u32 data;
-
-	if (!gmu->stats_enable)
-		return 0;
-
-	/*
-	 * Bits [23:0] contains the countables mask
-	 * Bits [31:24] is the sampling interval
-	 */
-	data = FIELD_PREP(GENMASK(23, 0), gmu->stats_mask) |
-		FIELD_PREP(GENMASK(31, 24), gmu->stats_interval);
-
-	return a6xx_hfi_send_feature_ctrl(adreno_dev, HFI_FEATURE_GMU_STATS, 1, data);
-}
-
 static int a6xx_hfi_send_perfcounter_feature_ctrl(struct adreno_device *adreno_dev)
 {
 	/*
@@ -1207,6 +1132,8 @@ int a6xx_hwsched_hfi_start(struct adreno_device *adreno_dev)
 	struct a6xx_gmu_device *gmu = to_a6xx_gmu(adreno_dev);
 	struct kgsl_device *device = KGSL_DEVICE(adreno_dev);
 	int ret;
+
+	reset_hfi_queues(adreno_dev);
 
 	ret = a6xx_gmu_hfi_start(adreno_dev);
 	if (ret)
@@ -1259,8 +1186,6 @@ int a6xx_hwsched_hfi_start(struct adreno_device *adreno_dev)
 		if (ret)
 			goto err;
 	}
-
-	enable_gmu_stats(adreno_dev);
 
 	if (gmu->log_stream_enable)
 		a6xx_hfi_send_set_value(adreno_dev,
@@ -1387,17 +1312,12 @@ int a6xx_hwsched_cp_init(struct adreno_device *adreno_dev)
 
 int a6xx_hwsched_counter_inline_enable(struct adreno_device *adreno_dev,
 		const struct adreno_perfcount_group *group,
-		unsigned int counter, unsigned int countable)
+		u32 counter, u32 countable)
 {
 	struct kgsl_device *device = KGSL_DEVICE(adreno_dev);
 	struct adreno_perfcount_register *reg = &group->regs[counter];
-	u32 cmds[A6XX_PERF_COUNTER_ENABLE_DWORDS + 1];
+	u32 val, cmds[A6XX_PERF_COUNTER_ENABLE_DWORDS + 1];
 	int ret;
-	char str[64];
-
-	if (!(device->state == KGSL_STATE_ACTIVE))
-		return a6xx_counter_enable(adreno_dev, group, counter,
-			countable);
 
 	if (group->flags & ADRENO_PERFCOUNTER_GROUP_RESTORE)
 		a6xx_perfcounter_update(adreno_dev, reg, false);
@@ -1409,13 +1329,21 @@ int a6xx_hwsched_counter_inline_enable(struct adreno_device *adreno_dev,
 	cmds[2] = cp_type4_packet(reg->select, 1);
 	cmds[3] = countable;
 
-	snprintf(str, sizeof(str), "Perfcounter %s/%u/%u start via commands failed\n",
-			group->name, counter, countable);
+	ret = a6xx_hfi_send_cmd_async(adreno_dev, cmds);
+	if (ret)
+		goto err;
 
-	ret = submit_raw_cmds(adreno_dev, cmds, str);
-	if (!ret)
+	/* Wait till the register is programmed with the countable */
+	ret = kgsl_regmap_read_poll_timeout(&device->regmap, reg->select, val,
+				val == countable, 100, ADRENO_IDLE_TIMEOUT);
+	if (!ret) {
 		reg->value = 0;
+		return ret;
+	}
 
+err:
+	dev_err(device->dev, "Perfcounter %s/%u/%u start via commands failed\n",
+			group->name, counter, countable);
 	return ret;
 }
 
@@ -1450,7 +1378,7 @@ static int hfi_f2h_main(void *arg)
 			break;
 
 		a6xx_hwsched_process_msgq(adreno_dev);
-		a6xx_hwsched_process_dbgq(adreno_dev, true);
+		process_dbgq_irq(adreno_dev);
 	}
 
 	return 0;
@@ -1796,9 +1724,6 @@ int a6xx_hwsched_submit_drawobj(struct adreno_device *adreno_dev,
 
 	cmd->ctxt_id = drawobj->context->id;
 	cmd->flags = HFI_CTXT_FLAG_NOTIFY;
-	if (drawobj->flags & KGSL_DRAWOBJ_END_OF_FRAME)
-		cmd->flags |= CMDBATCH_EOF;
-
 	cmd->ts = drawobj->timestamp;
 
 	if (test_bit(CMDOBJ_SKIP, &cmdobj->priv))

@@ -14,7 +14,7 @@
 	};
 
 	chosen {
-		bootargs = "rcupdate.rcu_expedited=1 rcu_nocbs=0-7 cgroup.memory=nokmem,nosocket kpti=0 qcom_dma_heaps.enable_bitstream_contig_heap=y arm64.nopauth kasan=off";
+		bootargs = "rcupdate.rcu_expedited=1 rcu_nocbs=0-7 cgroup.memory=nokmem,nosocket kpti=0 qcom_dma_heaps.enable_bitstream_contig_heap=y arm64.nopauth kasan=off msm_show_resume_irq.debug_mask=1";
 	};
 
 	soc: soc { };
@@ -53,6 +53,13 @@
 			alignment = <0x0 0x400000>;
 			size = <0x0 0x1000000>;
 		};
+
+		dump_mem: mem_dump_region {
+			compatible = "shared-dma-pool";
+			alloc-ranges = <0 0x00000000 0 0xffffffff>;
+			reusable;
+			size = <0 0x1000000>;
+		};
 	};
 
 	vdevs {
@@ -66,7 +73,7 @@
 	firmware: firmware {
 		android {
 			compatible = "android,firmware";
-			boot_devices = "vdevs/1c140000.virtio_blk,vdevs/1c0b0000.virtio_blk,vdevs/1c0f0000.virtio_blk,vdevs/1c160000.virtio_blk,vdevs/1c130000.virtio_blk,vdevs/1c0e0000.virtio_blk,vdevs/1c100000.virtio_blk,vdevs/1c170000.virtio_blk,vdevs/1c180000.virtio_blk,vdevs/1c110000.virtio_blk,vdevs/1c120000.virtio_blk,vdevs/1c210000.virtio_blk,vdevs/1c220000.virtio_blk,vdevs/1c230000.virtio_blk,vdevs/1c240000.virtio_blk,vdevs/1c250000.virtio_blk,vdevs/1c260000.virtio_blk";
+			boot_devices = "vdevs/1c140000.virtio_blk,vdevs/1c0b0000.virtio_blk,vdevs/1c0f0000.virtio_blk,vdevs/1c410000.virtio_blk,vdevs/1c130000.virtio_blk,vdevs/1c0e0000.virtio_blk,vdevs/1c100000.virtio_blk,vdevs/1c170000.virtio_blk,vdevs/1c180000.virtio_blk,vdevs/1c110000.virtio_blk,vdevs/1c120000.virtio_blk,vdevs/1c210000.virtio_blk,vdevs/1c220000.virtio_blk,vdevs/1c230000.virtio_blk,vdevs/1c240000.virtio_blk,vdevs/1c250000.virtio_blk,vdevs/1c260000.virtio_blk,vdevs/1c280000.virtio_blk,vdevs/1c290000.virtio_blk,vdevs/1c310000.virtio_blk,vdevs/1c320000.virtio_blk";
 
 			vbmeta {
 				compatible = "android,vbmeta";
@@ -101,6 +108,16 @@
 		reg-names = "wdt-base";
 		interrupts = <GIC_SPI 0 IRQ_TYPE_LEVEL_HIGH>,
 			     <GIC_SPI 1 IRQ_TYPE_LEVEL_HIGH>;
+	};
+
+	mem_dump {
+		compatible = "qcom,mem-dump";
+		memory-region = <&dump_mem>;
+
+		misc_data {
+			qcom,dump-size = <0x1000>;
+			qcom,dump-id = <0xe8>;
+		};
 	};
 
 	vm_restart: restart {
@@ -141,8 +158,8 @@
 		interrupts = <GIC_SPI 42 IRQ_TYPE_LEVEL_HIGH>;
 
 		regulator: virtio_regulator_device {
-			compatible = "virtio,device31", "virtio,device49153";
-					/* VIRTIO_ID_BC: 0x1F, VIRTIO_ID: 0xC001 */
+			compatible = "virtio,device49153";
+					/* VIRTIO_ID: 0xC001 */
 		};
 	};
 
@@ -176,7 +193,7 @@
 	qcom_dma_heaps: qcom,dma-heaps {
 		compatible = "qcom,dma-heaps";
 
-		qcom,qseecom {
+		qseecom_dma_heap: qcom,qseecom {
 			qcom,dma-heap-name = "qcom,qseecom";
 			qcom,dma-heap-type = <HEAP_TYPE_CMA>;
 			memory-region = <&qseecom_mem>;
@@ -320,8 +337,8 @@
 		status = "okay";
 
 		spmi_bus: virt_spmi {
-			compatible = "virtio,device33", "virtio,device49155";
-					/* VIRTIO_ID_BC: 0x21, VIRTIO_ID: 0xC003 */
+			compatible = "virtio,device49155";
+					/* VIRTIO_ID: 0xC003 */
 		};
 	};
 

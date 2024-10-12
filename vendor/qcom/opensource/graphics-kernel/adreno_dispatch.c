@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2013-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/slab.h>
@@ -365,9 +365,14 @@ static int drawqueue_retire_timelineobj(struct kgsl_drawobj *drawobj,
 		struct adreno_context *drawctxt)
 {
 	struct kgsl_drawobj_timeline *timelineobj = TIMELINEOBJ(drawobj);
+	int i;
+
+	for (i = 0; i < timelineobj->count; i++)
+		kgsl_timeline_signal(timelineobj->timelines[i].timeline,
+			timelineobj->timelines[i].seqno);
 
 	_pop_drawobj(drawctxt);
-	kgsl_drawobj_timelineobj_retire(timelineobj);
+	_retire_timestamp(drawobj);
 
 	return 0;
 }
@@ -961,8 +966,8 @@ static void adreno_dispatcher_issuecmds(struct adreno_device *adreno_dev)
 	struct kgsl_device *device = KGSL_DEVICE(adreno_dev);
 
 	spin_lock(&device->submit_lock);
-	/* If state is not ACTIVE, schedule the work for later */
-	if (device->skip_inline_submit) {
+	/* If state transition to SLUMBER, schedule the work for later */
+	if (device->slumber) {
 		spin_unlock(&device->submit_lock);
 		goto done;
 	}
@@ -1154,8 +1159,9 @@ static void _queue_drawobj(struct adreno_context *drawctxt,
 	trace_adreno_cmdbatch_queued(drawobj, drawctxt->queued);
 }
 
-static int drawctxt_queue_bindobj(struct adreno_context *drawctxt,
-	struct kgsl_drawobj *drawobj, u32 *timestamp, u32 user_ts)
+static int drawctxt_queue_auxobj(struct adreno_device *adreno_dev,
+		struct adreno_context *drawctxt, struct kgsl_drawobj *drawobj,
+		u32 *timestamp, u32 user_ts)
 {
 	int ret;
 
@@ -1167,19 +1173,6 @@ static int drawctxt_queue_bindobj(struct adreno_context *drawctxt,
 	_queue_drawobj(drawctxt, drawobj);
 
 	return 0;
-}
-
-static void drawctxt_queue_timelineobj(struct adreno_context *drawctxt,
-	struct kgsl_drawobj *drawobj)
-{
-	/*
-	 * This drawobj is not submitted to the GPU so use a timestamp of 0.
-	 * Update the timestamp through a subsequent marker to keep userspace
-	 * happy.
-	 */
-	drawobj->timestamp = 0;
-
-	_queue_drawobj(drawctxt, drawobj);
 }
 
 static int drawctxt_queue_markerobj(struct adreno_device *adreno_dev,
@@ -1366,16 +1359,14 @@ static int adreno_dispatcher_queue_cmds(struct kgsl_device_private *dev_priv,
 			drawctxt_queue_syncobj(drawctxt, drawobj[i], timestamp);
 			break;
 		case BINDOBJ_TYPE:
-			ret = drawctxt_queue_bindobj(drawctxt, drawobj[i],
-				timestamp, user_ts);
+		case TIMELINEOBJ_TYPE:
+			ret = drawctxt_queue_auxobj(adreno_dev,
+				drawctxt, drawobj[i], timestamp, user_ts);
 			if (ret) {
 				spin_unlock(&drawctxt->lock);
 				kmem_cache_free(jobs_cache, job);
 				return ret;
 			}
-			break;
-		case TIMELINEOBJ_TYPE:
-			drawctxt_queue_timelineobj(drawctxt, drawobj[i]);
 			break;
 		default:
 			spin_unlock(&drawctxt->lock);
@@ -1943,7 +1934,12 @@ static void do_header_and_snapshot(struct kgsl_device *device, int fault,
 	/* Always dump the snapshot on a non-drawobj failure */
 	if (cmdobj == NULL) {
 		adreno_fault_header(device, rb, NULL, fault);
-		kgsl_device_snapshot(device, NULL, NULL, fault & ADRENO_GMU_FAULT);
+
+		/* GMU snapshot will also pull a full device snapshot */
+		if (fault & ADRENO_GMU_FAULT)
+			gmu_core_fault_snapshot(device);
+		else
+			kgsl_device_snapshot(device, NULL, NULL, false);
 		return;
 	}
 
@@ -2582,8 +2578,9 @@ static void change_preemption(struct adreno_device *adreno_dev, void *priv)
 
 static int _preemption_store(struct adreno_device *adreno_dev, bool val)
 {
-	if (!adreno_preemption_feature_set(adreno_dev) ||
-		(test_bit(ADRENO_DEVICE_PREEMPTION, &adreno_dev->priv) == val))
+	if (!(ADRENO_FEATURE(adreno_dev, ADRENO_PREEMPTION)) ||
+		(test_bit(ADRENO_DEVICE_PREEMPTION,
+		&adreno_dev->priv) == val))
 		return 0;
 
 	return adreno_power_cycle(adreno_dev, change_preemption, NULL);

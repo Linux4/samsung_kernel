@@ -236,7 +236,7 @@ config FSL_RAID
 
 config HISI_DMA
 	tristate "HiSilicon DMA Engine support"
-	depends on ARM64 || COMPILE_TEST
+	depends on ARCH_HISI || COMPILE_TEST
 	depends on PCI_MSI
 	select DMA_ENGINE
 	select DMA_VIRTUAL_CHANNELS
@@ -547,6 +547,16 @@ config PLX_DMA
 	  Some PLX ExpressLane PCI Switches support additional DMA engines.
 	  These are exposed via extra functions on the switch's
 	  upstream port. Each function exposes one DMA channel.
+
+config QCOM_SPS_DMA
+	tristate "Qualcomm technologies inc DMA driver for sps-BAM"
+	depends on ARCH_QCOM
+	select DMA_ENGINE
+	help
+	  Enable support for Qualcomm technologies inc, BAM DMA engine.
+	  This DMA-engine-driver is a wrapper of the sps-BAM library. DMA
+	  engine callbacks are implemented using the sps-BAM functionality
+	  to access HW.
 
 config STE_DMA40
 	bool "ST-Ericsson DMA40 support"

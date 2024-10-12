@@ -450,6 +450,7 @@
 
 		coresight-name = "coresight-tpdm-apss";
 		atid = <66>;
+		status = "disabled";
 		clocks = <&aoss_qmp>;
 		clock-names = "apb_pclk";
 
@@ -2067,7 +2068,7 @@
 
 		coresight-name = "coresight-replicator-swao";
 
-		//qcom,replicator-loses-context;
+		qcom,replicator-loses-context;
 		clocks = <&aoss_qmp>;
 		clock-names = "apb_pclk";
 

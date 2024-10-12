@@ -31,7 +31,6 @@
 #define GEN7_INT_DEBUGBUSINTERRUPT0     26
 #define GEN7_INT_DEBUGBUSINTERRUPT1     27
 #define GEN7_INT_TSBWRITEERROR          28
-#define GEN7_INT_SWFUSEVIOLATION        29
 #define GEN7_INT_ISDBCPUIRQ             30
 #define GEN7_INT_ISDBUNDERDEBUG         31
 
@@ -129,8 +128,8 @@
 #define GEN7_CP_BV_SQE_STAT_DATA         0xa88
 #define GEN7_CP_BV_RB_RPTR_ADDR_LO       0xa98
 #define GEN7_CP_BV_RB_RPTR_ADDR_HI       0xa99
-#define GEN7_CP_RESOURCE_TABLE_DBG_ADDR  0xa9a
-#define GEN7_CP_RESOURCE_TABLE_DBG_DATA  0xa9b
+#define GEN7_CP_RESOURCE_TBL_DBG_ADDR    0xa9a
+#define GEN7_CP_RESOURCE_TBL_DBG_DATA    0xa9b
 #define GEN7_CP_BV_MEM_POOL_DBG_ADDR     0xa96
 #define GEN7_CP_BV_MEM_POOL_DBG_DATA     0xa97
 #define GEN7_CP_BV_APRIV_CNTL            0xad0
@@ -139,6 +138,7 @@
 /* LPAC registers */
 #define GEN7_CP_LPAC_RB_RPTR             0xb06
 #define GEN7_CP_LPAC_RB_WPTR             0xb07
+#define GEN7_CP_LPAC_PROTECT_CNTL        0xb09
 #define GEN7_CP_LPAC_DRAW_STATE_ADDR     0xb0a
 #define GEN7_CP_LPAC_DRAW_STATE_DATA     0xb0b
 #define GEN7_CP_LPAC_ROQ_DBG_ADDR        0xb0c
@@ -157,24 +157,6 @@
 #define GEN7_CP_LPAC_ROQ_DBG_DATA        0xb35
 #define GEN7_CP_LPAC_FIFO_DBG_DATA       0xb36
 #define GEN7_CP_LPAC_FIFO_DBG_ADDR       0xb40
-#define GEN7_CP_AQE_INSTR_BASE_LO_0      0xb70
-#define GEN7_CP_AQE_INSTR_BASE_HI_0      0xb71
-#define GEN7_CP_AQE_INSTR_BASE_LO_1      0xb72
-#define GEN7_CP_AQE_INSTR_BASE_HI_1      0xb73
-#define GEN7_CP_AQE_APRIV_CNTL           0xb78
-
-#define GEN7_CP_AQE_ROQ_DBG_ADDR_0       0xba8
-#define GEN7_CP_AQE_ROQ_DBG_ADDR_1       0xba9
-#define GEN7_CP_AQE_ROQ_DBG_DATA_0       0xbac
-#define GEN7_CP_AQE_ROQ_DBG_DATA_1       0xbad
-#define GEN7_CP_AQE_UCODE_DBG_ADDR_0     0xbb0
-#define GEN7_CP_AQE_UCODE_DBG_ADDR_1     0xbb1
-#define GEN7_CP_AQE_UCODE_DBG_DATA_0     0xbb4
-#define GEN7_CP_AQE_UCODE_DBG_DATA_1     0xbb5
-#define GEN7_CP_AQE_STAT_ADDR_0          0xbb8
-#define GEN7_CP_AQE_STAT_ADDR_1          0xbb9
-#define GEN7_CP_AQE_STAT_DATA_0          0xbbc
-#define GEN7_CP_AQE_STAT_DATA_1          0xbbd
 #define GEN7_LPAC_RBBM_STATUS            0x5fe
 
 /* RBBM registers */
@@ -630,7 +612,6 @@
 #define GEN7_RBBM_SP_HYST_CNT            0x00042
 #define GEN7_RBBM_SW_RESET_CMD           0x00043
 #define GEN7_RBBM_RAC_THRESHOLD_CNT      0x00044
-#define GEN7_RBBM_CLOCK_CNTL_GLOBAL      0x000ad
 #define GEN7_RBBM_CLOCK_CNTL             0x000ae
 #define GEN7_RBBM_CLOCK_CNTL_SP0         0x000b0
 #define GEN7_RBBM_CLOCK_CNTL2_SP0        0x000b4
@@ -676,9 +657,6 @@
 #define GEN7_RBBM_CLOCK_MODE_HLSQ        0x0011b
 #define GEN7_RBBM_CLOCK_DELAY_HLSQ       0x0011c
 #define GEN7_RBBM_CLOCK_HYST_HLSQ        0x0011d
-#define GEN7_RBBM_CGC_GLOBAL_LOAD_CMD    0x0011e
-#define GEN7_RBBM_CGC_P2S_TRIG_CMD       0x0011f
-#define GEN7_RBBM_CGC_P2S_STATUS         0x00122
 #define GEN7_RBBM_CLOCK_HYST2_VFD        0x0012f
 #define GEN7_RBBM_CLOCK_MODE_CP          0x00260
 #define GEN7_RBBM_CLOCK_MODE_BV_LRZ      0x00284
@@ -686,8 +664,6 @@
 #define GEN7_RBBM_CLOCK_MODE2_GRAS       0x00286
 #define GEN7_RBBM_CLOCK_MODE_BV_VFD      0x00287
 #define GEN7_RBBM_CLOCK_MODE_BV_GPC      0x00288
-#define GEN7_RBBM_SW_FUSE_INT_STATUS     0x002c0
-#define GEN7_RBBM_SW_FUSE_INT_MASK       0x002c1
 
 /* DBGC_CFG registers */
 #define GEN7_DBGC_CFG_DBGBUS_SEL_A                  0x600
@@ -792,8 +768,8 @@
 #define GEN7_RB_PERFCTR_UFC_SEL_3           0x8e33
 #define GEN7_RB_PERFCTR_UFC_SEL_4           0x8e34
 #define GEN7_RB_PERFCTR_UFC_SEL_5           0x8e35
-#define GEN7_RB_SUB_BLOCK_SEL_CNTL_HOST     0x8e3b
-#define GEN7_RB_SUB_BLOCK_SEL_CNTL_CD       0x8e3d
+#define GEN7_RB_RB_SUB_BLOCK_SEL_CNTL_HOST  0x8e3b
+#define GEN7_RB_RB_SUB_BLOCK_SEL_CNTL_CD    0x8e3d
 #define GEN7_RB_CONTEXT_SWITCH_GMEM_SAVE_RESTORE 0x8e50
 
 /* PC registers */
@@ -831,7 +807,10 @@
 #define GEN7_VFD_PERFCTR_VFD_SEL_13         0xa61d
 #define GEN7_VFD_PERFCTR_VFD_SEL_14         0xa61e
 #define GEN7_VFD_PERFCTR_VFD_SEL_15         0xa61f
+
+/* SP registers */
 #define GEN7_SP_READ_SEL                    0xae6d
+#define GEN7_SP_DBG_CNTL                    0xae71
 #define GEN7_SP_AHB_READ_APERTURE           0xc000
 
 /* VPC registers */
@@ -858,7 +837,6 @@
 #define GEN7_UCHE_GMEM_RANGE_MIN_HI         0xe0c
 #define GEN7_UCHE_GMEM_RANGE_MAX_LO         0xe0d
 #define GEN7_UCHE_GMEM_RANGE_MAX_HI         0xe0e
-#define GEN7_UCHE_DBG_CNTL_1                0xe12
 #define GEN7_UCHE_CACHE_WAYS                0xe17
 #define GEN7_UCHE_CLIENT_PF                 0xe19
 #define GEN7_UCHE_PERFCTR_UCHE_SEL_0        0xe1c
@@ -1095,7 +1073,6 @@
 #define GEN7_GMU_ICACHE_CONFIG			0x1f400
 #define GEN7_GMU_DCACHE_CONFIG			0x1f401
 #define GEN7_GMU_SYS_BUS_CONFIG			0x1f40f
-#define GEN7_GMU_CX_MRC_GBIF_QOS_CTRL		0x1f50b
 #define GEN7_GMU_CM3_SYSRESET			0x1f800
 #define GEN7_GMU_CM3_BOOT_CONFIG		0x1f801
 #define GEN7_GMU_CX_GMU_WFI_CONFIG		0x1f802
@@ -1134,8 +1111,6 @@
 #define GEN7_GMU_CX_GMU_POWER_COUNTER_XOCLK_10_L	0x1f878
 #define GEN7_GMU_CX_GMU_POWER_COUNTER_XOCLK_10_H	0x1f879
 #define GEN7_GMU_CX_GMU_POWER_COUNTER_SELECT_3	0x1f87f
-#define GEN7_GMU_CX_AO_COUNTER_LO		0x1f880
-#define GEN7_GMU_CX_AO_COUNTER_HI		0x1f881
 #define GEN7_GMU_CX_GMU_ALWAYS_ON_COUNTER_L	0x1f888
 #define GEN7_GMU_CX_GMU_ALWAYS_ON_COUNTER_H	0x1f889
 #define GEN7_GMU_PWR_COL_INTER_FRAME_CTRL	0x1f8c0
@@ -1219,9 +1194,6 @@
 /* FENCE control registers */
 #define GEN7_GMU_AHB_FENCE_RANGE_0		0x23b11
 
-/* GMU countables */
-#define GEN7_GMU_CM3_BUSY_CYCLES		0
-
 /* GPUCC registers */
 #define GEN7_GPU_CC_GX_DOMAIN_MISC3		0x26541
 #define GEN7_GPU_CC_CX_GDSCR			0x26442
@@ -1245,6 +1217,12 @@
 #define GEN7_RSCC_TCS1_DRV0_STATUS			0x003ee
 #define GEN7_RSCC_TCS2_DRV0_STATUS			0x00496
 #define GEN7_RSCC_TCS3_DRV0_STATUS			0x0053e
+#define GEN7_RSCC_TCS4_DRV0_STATUS			0x005e6
+#define GEN7_RSCC_TCS5_DRV0_STATUS			0x0068e
+#define GEN7_RSCC_TCS6_DRV0_STATUS			0x00736
+#define GEN7_RSCC_TCS7_DRV0_STATUS			0x007de
+#define GEN7_RSCC_TCS8_DRV0_STATUS			0x00886
+#define GEN7_RSCC_TCS9_DRV0_STATUS			0x0092e
 
 /* Device-specific RSCC registers */
 #define GEN7_2_0_RSCC_SEQ_MEM_0_DRV0			0x00154
@@ -1252,6 +1230,12 @@
 #define GEN7_2_0_RSCC_TCS1_DRV0_STATUS			0x003f2
 #define GEN7_2_0_RSCC_TCS2_DRV0_STATUS			0x0049a
 #define GEN7_2_0_RSCC_TCS3_DRV0_STATUS			0x00542
+#define GEN7_2_0_RSCC_TCS4_DRV0_STATUS			0x005ea
+#define GEN7_2_0_RSCC_TCS5_DRV0_STATUS			0x00692
+#define GEN7_2_0_RSCC_TCS6_DRV0_STATUS			0x0073a
+#define GEN7_2_0_RSCC_TCS7_DRV0_STATUS			0x007e2
+#define GEN7_2_0_RSCC_TCS8_DRV0_STATUS			0x0088a
+#define GEN7_2_0_RSCC_TCS9_DRV0_STATUS			0x00932
 
 /* GPU PDC sequencer registers in AOSS.RPMh domain */
 #define GEN7_PDC_GPU_ENABLE_PDC				0x1140
@@ -1261,17 +1245,6 @@
 
 /* GPU CX_MISC registers */
 #define GEN7_GPU_CX_MISC_TCM_RET_CNTL		0x39
-#define GEN7_GPU_CX_MISC_SW_FUSE_VALUE		0x400
-
-/* GPU SW Fuse Feature bit fields */
-#define GEN7_FASTBLEND_SW_FUSE		0
-#define GEN7_LPAC_SW_FUSE		1
-#define GEN7_RAYTRACING_SW_FUSE		2
-
-#define GEN7_SW_FUSE_INT_MASK \
-	((1 << GEN7_FASTBLEND_SW_FUSE) |	\
-	(1 << GEN7_LPAC_SW_FUSE) |	\
-	(1 << GEN7_RAYTRACING_SW_FUSE))
 
 /* QDSS register offsets */
 #define QDSS_AOSS_APB_TMC_RSZ 0x04

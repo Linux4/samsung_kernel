@@ -90,11 +90,6 @@ struct kgsl_drawobj_cmd {
 	u32 requeue_cnt;
 };
 
-/* This sync object cannot be sent to hardware */
-#define KGSL_SYNCOBJ_SW BIT(0)
-/* This sync object can be sent to hardware */
-#define KGSL_SYNCOBJ_HW BIT(1)
-
 /**
  * struct kgsl_drawobj_sync - KGSL sync object
  * @base: Base kgsl_drawobj, this needs to be the first entry
@@ -113,10 +108,6 @@ struct kgsl_drawobj_sync {
 	unsigned long pending;
 	struct timer_list timer;
 	unsigned long timeout_jiffies;
-	/** @flags: sync object internal flags */
-	u32 flags;
-	/** @num_hw_fence: number of hw fences in this syncobj */
-	u32 num_hw_fence;
 };
 
 #define KGSL_BINDOBJ_STATE_START 0
@@ -145,10 +136,12 @@ static inline struct kgsl_drawobj_bind *BINDOBJ(struct kgsl_drawobj *obj)
 struct kgsl_drawobj_timeline {
 	/** @base: &struct kgsl_drawobj container */
 	struct kgsl_drawobj base;
-	/** @sig_refcount: Refcount to trigger timeline signaling */
-	struct kref sig_refcount;
-	/* @timelines: Array of timeline events to signal */
-	struct kgsl_timeline_event *timelines;
+	struct {
+		/** @timeline: Pointer to a &struct kgsl_timeline */
+		struct kgsl_timeline *timeline;
+		/** @seqno: Sequence number to signal */
+		u64 seqno;
+	} *timelines;
 	/** @count: Number of items in timelines */
 	int count;
 };
@@ -344,13 +337,5 @@ kgsl_drawobj_timeline_create(struct kgsl_device *device,
 int kgsl_drawobj_add_timeline(struct kgsl_device_private *dev_priv,
 		struct kgsl_drawobj_timeline *timelineobj,
 		void __user *src, u64 cmdsize);
-
-/**
- * kgsl_drawobj_timelineobj_retire - Retire the timeline drawobj
- * @timelineobj: Pointer to a timeline drawobject
- *
- * Retire the timelineobj when it is popped off the context queue.
- */
-void kgsl_drawobj_timelineobj_retire(struct kgsl_drawobj_timeline *timelineobj);
 
 #endif /* __KGSL_DRAWOBJ_H */

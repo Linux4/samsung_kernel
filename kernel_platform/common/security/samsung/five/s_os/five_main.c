@@ -51,6 +51,7 @@
 static const bool check_memfd_file = true;
 
 static struct file *memfd_file __ro_after_init;
+static bool is_five_initialized __ro_after_init;
 
 static struct workqueue_struct *g_five_workqueue;
 
@@ -608,7 +609,7 @@ int five_file_mmap(struct file *file, unsigned long prot)
 	struct task_struct *task = current;
 	struct task_integrity *tint = TASK_INTEGRITY(task);
 
-	if (five_check_params(task, file))
+	if (unlikely(!is_five_initialized) || five_check_params(task, file))
 		return 0;
 
 	if (check_memfd_file && is_memfd_file(file))
@@ -648,7 +649,7 @@ int __five_bprm_check(struct linux_binprm *bprm, int depth)
 	struct task_struct *task = current;
 	struct task_integrity *old_tint = TASK_INTEGRITY(task);
 
-	if (unlikely(task->ptrace))
+	if (unlikely(!is_five_initialized) || unlikely(task->ptrace))
 		return rc;
 
 	if (depth > 0) {
@@ -735,10 +736,6 @@ int __init init_five(void)
 	if (error)
 		return error;
 
-	error = five_hook_wq_init();
-	if (error)
-		return error;
-
 /**
  * This empty file is needed in is_memfd_file() function.
  * The only way to check whether the file was created using memfd_create()
@@ -760,6 +757,9 @@ int __init init_five(void)
 	five_dsms_init("1", 0);
 
 	error = five_init_dmverity();
+
+	if (!error)
+		is_five_initialized = true;
 
 	return error;
 }
@@ -787,9 +787,32 @@ int five_fcntl_verify_sync(struct file *file)
 	return -EINVAL;
 }
 
+struct bprm_hook_context {
+	struct work_struct data_work;
+	struct task_struct *task;
+	struct task_struct *child_task;
+};
+
+static void bprm_hook_handler(struct work_struct *in_data)
+{
+	struct bprm_hook_context *context = container_of(in_data,
+			struct bprm_hook_context, data_work);
+
+	if (unlikely(!context))
+		return;
+
+	five_hook_task_forked(context->task, context->child_task);
+
+	put_task_struct(context->task);
+	put_task_struct(context->child_task);
+
+	kfree(context);
+}
+
 int five_fork(struct task_struct *task, struct task_struct *child_task)
 {
 	int rc = 0;
+	struct bprm_hook_context *context;
 
 	spin_lock(&TASK_INTEGRITY(task)->list_lock);
 
@@ -842,8 +865,19 @@ int five_fork(struct task_struct *task, struct task_struct *child_task)
 		spin_unlock(&TASK_INTEGRITY(task)->list_lock);
 	}
 
-	if (!rc)
-		five_hook_task_forked(task, child_task);
+	if (rc)
+		return rc;
+
+	context = kmalloc(sizeof(struct bprm_hook_context), GFP_ATOMIC);
+	if (unlikely(!context))
+		return -ENOMEM;
+
+	get_task_struct(task);
+	get_task_struct(child_task);
+	context->task = task;
+	context->child_task = child_task;
+	INIT_WORK(&context->data_work, bprm_hook_handler);
+	rc = queue_work(g_five_workqueue, &context->data_work) ? 0 : 1;
 
 	return rc;
 }

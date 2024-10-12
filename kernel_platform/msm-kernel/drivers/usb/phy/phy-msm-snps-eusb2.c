@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2021-2022, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #define pr_fmt(fmt)	"eusb2_phy: %s: " fmt, __func__
@@ -765,6 +765,10 @@ static int msm_eusb2_phy_init(struct usb_phy *uphy)
 
 	msm_eusb2_write_readback(phy->base, USB_PHY_HS_PHY_CTRL2,
 			USB2_SUSPEND_N_SEL, 0);
+
+	msm_eusb2_write_readback(phy->base, USB_PHY_CFG0,
+			CMN_CTRL_OVERRIDE_EN, 0x00);
+
 	return 0;
 }
 
@@ -847,6 +851,13 @@ static int msm_eusb2_phy_notify_disconnect(struct usb_phy *uphy,
 				       enum usb_device_speed speed)
 {
 	struct msm_eusb2_phy *phy = container_of(uphy, struct msm_eusb2_phy, phy);
+
+	if (is_eud_debug_mode_active(phy) && !(phy->phy.flags & EUD_SPOOF_DISCONNECT)) {
+		msm_eusb2_phy_update_eud_detect(phy, false);
+		/* Ensure that EUD disable occurs before re-enabling */
+		mb();
+		msm_eusb2_phy_update_eud_detect(phy, true);
+	}
 
 	phy->cable_connected = false;
 	return 0;
@@ -1060,10 +1071,13 @@ static int msm_eusb2_phy_probe(struct platform_device *pdev)
 	/*
 	 * EUD may be enable in boot loader and to keep EUD session alive across
 	 * kernel boot till USB phy driver is initialized based on cable status,
-	 * keep LDOs on here.
+	 * keep LDOs, clocks and repeater on here.
 	 */
-	if (is_eud_debug_mode_active(phy))
+	if (is_eud_debug_mode_active(phy)) {
 		msm_eusb2_phy_power(phy, true);
+		msm_eusb2_phy_clocks(phy, true);
+		msm_eusb2_repeater_reset_and_init(phy);
+	}
 
 	return 0;
 

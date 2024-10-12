@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2008-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 #ifndef __ADRENO_H
 #define __ADRENO_H
@@ -27,11 +27,6 @@
 #define SET_PSEUDO_NON_PRIV_SAVE_ADDR 3
 /* Used to inform CP where to save preemption counter data at the time of switch out */
 #define SET_PSEUDO_COUNTER 4
-
-/* Index to preemption scratch buffer to store KMD postamble */
-#define KMD_POSTAMBLE_IDX 100
-/* Index to preemption scratch buffer to store current QOS value */
-#define QOS_VALUE_IDX KGSL_PRIORITY_MAX_RB_LEVELS
 
 /* ADRENO_DEVICE - Given a kgsl_device return the adreno device struct */
 #define ADRENO_DEVICE(device) \
@@ -131,8 +126,6 @@
 #define ADRENO_HW_FENCE BIT(16)
 /* Dynamic Mode Switching supported on this target */
 #define ADRENO_DMS BIT(17)
-/* AQE supported on this target */
-#define ADRENO_AQE BIT(18)
 
 
 /*
@@ -180,7 +173,6 @@
 #define ADRENO_FW_PFP 0
 #define ADRENO_FW_SQE 0
 #define ADRENO_FW_PM4 1
-#define ADRENO_FW_AQE 1
 
 enum adreno_gpurev {
 	ADRENO_REV_UNKNOWN = 0,
@@ -218,9 +210,7 @@ enum adreno_gpurev {
 	ADRENO_REV_A650 = 650,
 	ADRENO_REV_A660 = 660,
 	ADRENO_REV_A662 = 662,
-	ADRENO_REV_A663 = 663,
 	ADRENO_REV_A680 = 680,
-	ADRENO_REV_A702 = 702,
 	/*
 	 * Gen7 and higher version numbers may exceed 1 digit
 	 * Bits 16-23: Major
@@ -233,6 +223,7 @@ enum adreno_gpurev {
 	ADRENO_REV_GEN7_2_1 = 0x070201,
 	ADRENO_REV_GEN7_4_0 = 0x070400,
 	ADRENO_REV_GEN7_9_0 = 0x070900,
+	ADRENO_REV_GEN7_14_0 = 0x070e00,
 };
 
 #define ADRENO_SOFT_FAULT BIT(0)
@@ -252,10 +243,8 @@ struct adreno_gpudev;
 /* Time to allow preemption to complete (in ms) */
 #define ADRENO_PREEMPT_TIMEOUT 10000
 
-#define PREEMPT_SCRATCH_OFFSET(id) (id * sizeof(u64))
-
 #define PREEMPT_SCRATCH_ADDR(dev, id) \
-	((dev)->preempt.scratch->gpuaddr + PREEMPT_SCRATCH_OFFSET(id))
+	((dev)->preempt.scratch->gpuaddr + (id * sizeof(u64)))
 
 /**
  * enum adreno_preempt_states
@@ -306,6 +295,7 @@ struct adreno_protected_regs {
  * skipsaverestore: To skip saverestore during L1 preemption (for 6XX)
  * usesgmem: enable GMEM save/restore across preemption (for 6XX)
  * count: Track the number of preemptions triggered
+ * @postamble_len: Number of dwords in KMD postamble pm4 packet
  */
 struct adreno_preemption {
 	atomic_t state;
@@ -316,14 +306,7 @@ struct adreno_preemption {
 	bool skipsaverestore;
 	bool usesgmem;
 	unsigned int count;
-	/* @postamble_len: Number of dwords in KMD postamble pm4 packet */
 	u32 postamble_len;
-	/*
-	 * @postamble_bootup_len: Number of dwords in KMD postamble pm4 packet
-	 * that needs to be sent before first submission to GPU.
-	 * Note: Postambles are not preserved across slumber.
-	 */
-	u32 postamble_bootup_len;
 };
 
 struct adreno_busy_data {
@@ -609,8 +592,6 @@ struct adreno_device {
 	bool lpac_enabled;
 	/** @dms_enabled: True if DMS is enabled */
 	bool dms_enabled;
-	/** @preempt_override: True if command line param enables preemption */
-	bool preempt_override;
 	struct kgsl_memdesc *profile_buffer;
 	unsigned int profile_index;
 	struct kgsl_memdesc *pwrup_reglist;
@@ -706,18 +687,7 @@ struct adreno_device {
 	struct dentry *preemption_debugfs_dir;
 	/* @hwsched_enabled: If true, hwsched is enabled */
 	bool hwsched_enabled;
-	/* @fastblend_enabled: True if fastblend feature is enabled */
-	bool fastblend_enabled;
-	/* @raytracing_enabled: True if raytracing feature is enabled */
-	bool raytracing_enabled;
-	/* @feature_fuse: feature fuse value read from HW */
-	u32 feature_fuse;
-	/** @gmu_ab: Track if GMU supports ab vote */
-	bool gmu_ab;
-	/** @ifpc_hyst: IFPC long hysteresis value */
-	u32 ifpc_hyst;
-	/** @ifpc_hyst_floor: IFPC long hysteresis floor value */
-	u32 ifpc_hyst_floor;
+
 };
 
 /**
@@ -753,8 +723,6 @@ enum adreno_device_flags {
 	ADRENO_DEVICE_CACHE_FLUSH_TS_SUSPENDED = 13,
 	/** @ADRENO_DEVICE_DMS: Set if DMS is enabled */
 	ADRENO_DEVICE_DMS = 14,
-	/** @ADRENO_DEVICE_GMU_AB: Set if AB vote via GMU is enabled */
-	ADRENO_DEVICE_GMU_AB = 15,
 };
 
 /**
@@ -947,18 +915,6 @@ struct adreno_gpudev {
 	 * @context_destroy: Target specific function called during context destruction
 	 */
 	void (*context_destroy)(struct adreno_device *adreno_dev, struct adreno_context *drawctxt);
-	/**
-	 * @swfuse_irqctrl: To enable/disable sw fuse violation interrupt
-	 */
-	void (*swfuse_irqctrl)(struct adreno_device *adreno_dev, bool state);
-	/**
-	 * @lpac_store: To enable/disable lpac at runtime
-	 */
-	int (*lpac_store)(struct adreno_device *adreno_dev, bool enable);
-	/*
-	 * @get_uche_trap_base: Return the UCHE_TRAP_BASE value
-	 */
-	u64 (*get_uche_trap_base)(void);
 };
 
 /**
@@ -1141,7 +1097,7 @@ static inline int adreno_is_a505_or_a506(struct adreno_device *adreno_dev)
 static inline int adreno_is_a6xx(struct adreno_device *adreno_dev)
 {
 	return ADRENO_GPUREV(adreno_dev) >= 600 &&
-			ADRENO_GPUREV(adreno_dev) <= 702;
+			ADRENO_GPUREV(adreno_dev) < 700;
 }
 
 static inline int adreno_is_a660_shima(struct adreno_device *adreno_dev)
@@ -1162,9 +1118,7 @@ ADRENO_TARGET(a635, ADRENO_REV_A635)
 ADRENO_TARGET(a662, ADRENO_REV_A662)
 ADRENO_TARGET(a640, ADRENO_REV_A640)
 ADRENO_TARGET(a650, ADRENO_REV_A650)
-ADRENO_TARGET(a663, ADRENO_REV_A663)
 ADRENO_TARGET(a680, ADRENO_REV_A680)
-ADRENO_TARGET(a702, ADRENO_REV_A702)
 
 /* A635 is derived from A660 and shares same logic */
 static inline int adreno_is_a660(struct adreno_device *adreno_dev)
@@ -1202,7 +1156,7 @@ static inline int adreno_is_a640_family(struct adreno_device *adreno_dev)
  * Derived GPUs from A650 needs to be added to this list.
  * A650 is derived from A640 but register specs has been
  * changed hence do not belongs to A640 family. A620, A621,
- * A660, A663, A690 follows the register specs of A650.
+ * A660, A690 follows the register specs of A650.
  *
  */
 static inline int adreno_is_a650_family(struct adreno_device *adreno_dev)
@@ -1211,8 +1165,7 @@ static inline int adreno_is_a650_family(struct adreno_device *adreno_dev)
 
 	return (rev == ADRENO_REV_A650 || rev == ADRENO_REV_A620 ||
 		rev == ADRENO_REV_A660 || rev == ADRENO_REV_A635 ||
-		rev == ADRENO_REV_A662 || rev == ADRENO_REV_A621 ||
-		rev == ADRENO_REV_A663);
+		rev == ADRENO_REV_A662 ||  rev == ADRENO_REV_A621);
 }
 
 static inline int adreno_is_a619_holi(struct adreno_device *adreno_dev)
@@ -1246,12 +1199,19 @@ ADRENO_TARGET(gen7_2_0, ADRENO_REV_GEN7_2_0)
 ADRENO_TARGET(gen7_2_1, ADRENO_REV_GEN7_2_1)
 ADRENO_TARGET(gen7_4_0, ADRENO_REV_GEN7_4_0)
 ADRENO_TARGET(gen7_9_0, ADRENO_REV_GEN7_9_0)
+ADRENO_TARGET(gen7_14_0, ADRENO_REV_GEN7_14_0)
 
+
+static inline int adreno_is_gen7_0_x_family(struct adreno_device *adreno_dev)
+{
+	return adreno_is_gen7_0_0(adreno_dev) || adreno_is_gen7_0_1(adreno_dev) ||
+		adreno_is_gen7_4_0(adreno_dev);
+}
 
 static inline int adreno_is_gen7_2_x_family(struct adreno_device *adreno_dev)
 {
 	return adreno_is_gen7_2_0(adreno_dev) || adreno_is_gen7_2_1(adreno_dev) ||
-		adreno_is_gen7_9_0(adreno_dev);
+		adreno_is_gen7_9_0(adreno_dev) || adreno_is_gen7_14_0(adreno_dev);
 }
 
 /*
@@ -1529,17 +1489,6 @@ static inline bool adreno_is_preemption_enabled(
 	return test_bit(ADRENO_DEVICE_PREEMPTION, &adreno_dev->priv);
 }
 
-
-/**
- * adreno_preemption_feature_set() - Check whether adreno preemption feature is statically enabled
- * either via adreno feature bit, or via the cmdline override
- * @adreno_dev: Device whose preemption state is checked
- */
-static inline bool adreno_preemption_feature_set(struct adreno_device *adreno_dev)
-{
-	return ADRENO_FEATURE(adreno_dev, ADRENO_PREEMPTION) || adreno_dev->preempt_override;
-}
-
 /*
  * adreno_compare_prio_level() - Compares 2 priority levels based on enum values
  * @p1: First priority level
@@ -1560,8 +1509,6 @@ void adreno_writereg64(struct adreno_device *adreno_dev,
 		enum adreno_regs lo, enum adreno_regs hi, uint64_t val);
 
 unsigned int adreno_get_rptr(struct adreno_ringbuffer *rb);
-
-void adreno_touch_wake(struct kgsl_device *device);
 
 static inline bool adreno_rb_empty(struct adreno_ringbuffer *rb)
 {

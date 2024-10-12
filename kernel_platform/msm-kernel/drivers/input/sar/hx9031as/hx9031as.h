@@ -8,7 +8,7 @@
 #endif
 
 #define HX9031AS_TEST_ON_MTK_DEMO_XY6761 0 //仅在6761开发板调试时置1,客户平台务必置0
-#define HX9031AS_TEST_CHS_EN 0             //开机关闭所有通道
+#define HX9031AS_TEST_CHS_EN 1             //开机打开所有通道
 
 #define HX9031AS_DRIVER_NAME "hx9031as" //i2c addr: HX9031AS=28
 
@@ -248,6 +248,7 @@ struct hx9031as_platform_data {
     struct delayed_work polling_work;
     spinlock_t lock;
     struct input_dev *input_dev_key;
+    struct input_dev *meta_input_dev;
     struct hx9031as_channel_info *chs_info;
     uint32_t channel_used_flag;
     int irq;      //irq number
@@ -323,7 +324,7 @@ static struct hx9031as_addr_val_pair hx9031as_reg_init_list_a[] = {
 static struct hx9031as_addr_val_pair hx9031as_reg_init_list_as[] = {
     
     {RW_24_CH_NUM_CFG,                 0x00},
-    {RW_00_GLOBAL_CTRL0,               0x40},
+    {RW_00_GLOBAL_CTRL0,               0x00},
     {RW_23_GLOBAL_CTRL2,               0x00},
 
     {RW_02_PRF_CFG,                    0x16},
@@ -331,14 +332,14 @@ static struct hx9031as_addr_val_pair hx9031as_reg_init_list_as[] = {
     {RW_0E_RANGE_9_8,                  0x00},
     {RW_0F_RANGE_18_16,                0x00},
 
-    {RW_10_AVG0_NOSR0_CFG,             0xb1},
+    {RW_10_AVG0_NOSR0_CFG,             0x91},
     {RW_11_NOSR12_CFG,                 0x04},
     {RW_12_NOSR34_CFG,                 0x00},
-    {RW_13_AVG12_CFG,                  0x05},
+    {RW_13_AVG12_CFG,                  0x04},
     {RW_14_AVG34_CFG,                  0x00},
 
-    {RW_1F_SAMPLE_NUM_7_0,             0x12},
-    {RW_21_INTEGRATION_NUM_7_0,        0x12},
+    {RW_1F_SAMPLE_NUM_7_0,             0x23},
+    {RW_21_INTEGRATION_NUM_7_0,        0x23},
 
     {RW_2A_LP_ALP_1_0_CFG,             0x22},
     {RW_2B_LP_ALP_3_2_CFG,             0x22},

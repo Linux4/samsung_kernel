@@ -10,8 +10,8 @@
 		reg = <0x0C263000 0x1ff>,
 		      <0x0C222000 0x1ff>;
 		#qcom,sensors = <12>;
-		interrupts = <GIC_SPI 538 IRQ_TYPE_LEVEL_HIGH>,
-			<GIC_SPI 540 IRQ_TYPE_LEVEL_HIGH>;
+		interrupts = <GIC_SPI 506 IRQ_TYPE_LEVEL_HIGH>,
+			<GIC_SPI 508 IRQ_TYPE_LEVEL_HIGH>;
 		interrupt-names = "uplow","critical";
 		#thermal-sensor-cells = <1>;
 	};
@@ -21,8 +21,8 @@
 		reg = <0x0C265000 0x1ff>,
 			<0x0C223000 0x1ff>;
 		#qcom,sensors = <12>;
-		interrupts = <GIC_SPI 539 IRQ_TYPE_LEVEL_HIGH>,
-			<GIC_SPI 541 IRQ_TYPE_LEVEL_HIGH>;
+		interrupts = <GIC_SPI 507 IRQ_TYPE_LEVEL_HIGH>,
+			<GIC_SPI 509 IRQ_TYPE_LEVEL_HIGH>;
 		interrupt-names = "uplow","critical";
 		#thermal-sensor-cells = <1>;
 	};
@@ -32,8 +32,8 @@
 		reg = <0x0C251000 0x1ff>,
 			<0x0C224000 0x1ff>;
 		#qcom,sensors = <13>;
-		interrupts = <GIC_SPI 604 IRQ_TYPE_LEVEL_HIGH>,
-			<GIC_SPI 641 IRQ_TYPE_LEVEL_HIGH>;
+		interrupts = <GIC_SPI 572 IRQ_TYPE_LEVEL_HIGH>,
+			<GIC_SPI 609 IRQ_TYPE_LEVEL_HIGH>;
 		interrupt-names = "uplow","critical";
 		#thermal-sensor-cells = <1>;
 	};
@@ -43,132 +43,60 @@
 		reg = <0x0C252000 0x1ff>,
 			<0x0C225000 0x1ff>;
 		#qcom,sensors = <13>;
-		interrupts = <GIC_SPI 605 IRQ_TYPE_LEVEL_HIGH>,
-			<GIC_SPI 642 IRQ_TYPE_LEVEL_HIGH>;
+		interrupts = <GIC_SPI 573 IRQ_TYPE_LEVEL_HIGH>,
+			<GIC_SPI 610 IRQ_TYPE_LEVEL_HIGH>;
 		interrupt-names = "uplow","critical";
 		#thermal-sensor-cells = <1>;
-	};
-
-	qcom,cpu-pause {
-		compatible = "qcom,thermal-pause";
-
-		cpu0_pause: cpu0-pause {
-			qcom,cpus = <&CPU0>;
-			#cooling-cells = <2>;
-		};
-
-		cpu1_pause: cpu1-pause {
-			qcom,cpus = <&CPU1>;
-			#cooling-cells = <2>;
-		};
-
-		cpu2_pause: cpu2-pause {
-			qcom,cpus = <&CPU2>;
-			#cooling-cells = <2>;
-		};
-
-		cpu3_pause: cpu3-pause {
-			qcom,cpus = <&CPU3>;
-			#cooling-cells = <2>;
-		};
-
-		cpu4_pause: cpu4-pause {
-			qcom,cpus = <&CPU4>;
-			#cooling-cells = <2>;
-		};
-
-		cpu5_pause: cpu5-pause {
-			qcom,cpus = <&CPU5>;
-			#cooling-cells = <2>;
-		};
-
-		cpu6_pause: cpu6-pause {
-			qcom,cpus = <&CPU6>;
-			#cooling-cells = <2>;
-		};
-
-		cpu7_pause: cpu7-pause {
-			qcom,cpus = <&CPU7>;
-			#cooling-cells = <2>;
-		};
-
-		/* Thermal-engine cooling devices */
-		pause-cpu0 {
-			qcom,cpus = <&CPU0>;
-			qcom,cdev-alias = "pause-cpu0";
-		};
-
-		pause-cpu1 {
-			qcom,cpus = <&CPU1>;
-			qcom,cdev-alias = "pause-cpu1";
-		};
-
-		pause-cpu2 {
-			qcom,cpus = <&CPU2>;
-			qcom,cdev-alias = "pause-cpu2";
-		};
-
-		pause-cpu3 {
-			qcom,cpus = <&CPU3>;
-			qcom,cdev-alias = "pause-cpu3";
-		};
-
-		pause-cpu4 {
-			qcom,cpus = <&CPU4>;
-			qcom,cdev-alias = "pause-cpu4";
-		};
-
-		pause-cpu5 {
-			qcom,cpus = <&CPU5>;
-			qcom,cdev-alias = "pause-cpu5";
-		};
-
-		pause-cpu6 {
-			qcom,cpus = <&CPU6>;
-			qcom,cdev-alias = "pause-cpu6";
-		};
-
-		pause-cpu7 {
-			qcom,cpus = <&CPU7>;
-			qcom,cdev-alias = "pause-cpu7";
-		};
 	};
 
 	qcom,cpu-hotplug {
 		compatible = "qcom,cpu-hotplug";
 
+		cpu0_hotplug: cpu0-hotplug {
+			qcom,cpu = <&CPU0>;
+			qcom,cdev-alias = "cpu-hotplug0";
+			#cooling-cells = <2>;
+		};
+
 		cpu1_hotplug: cpu1-hotplug {
 			qcom,cpu = <&CPU1>;
+			qcom,cdev-alias = "cpu-hotplug1";
 			#cooling-cells = <2>;
 		};
 
 		cpu2_hotplug: cpu2-hotplug {
 			qcom,cpu = <&CPU2>;
+			qcom,cdev-alias = "cpu-hotplug2";
 			#cooling-cells = <2>;
 		};
 
 		cpu3_hotplug: cpu3-hotplug {
 			qcom,cpu = <&CPU3>;
+			qcom,cdev-alias = "cpu-hotplug3";
 			#cooling-cells = <2>;
 		};
 
 		cpu4_hotplug: cpu4-hotplug {
 			qcom,cpu = <&CPU4>;
+			qcom,cdev-alias = "cpu-hotplug4";
 			#cooling-cells = <2>;
 		};
 
 		cpu5_hotplug: cpu5-hotplug {
 			qcom,cpu = <&CPU5>;
+			qcom,cdev-alias = "cpu-hotplug5";
 			#cooling-cells = <2>;
 		};
 
 		cpu6_hotplug: cpu6-hotplug {
 			qcom,cpu = <&CPU6>;
+			qcom,cdev-alias = "cpu-hotplug6";
 			#cooling-cells = <2>;
 		};
 
 		cpu7_hotplug: cpu7-hotplug {
 			qcom,cpu = <&CPU7>;
+			qcom,cdev-alias = "cpu-hotplug7";
 			#cooling-cells = <2>;
 		};
 	};
@@ -180,7 +108,13 @@
 
 	qcom,cpufreq-cdev {
 		compatible = "qcom,cpufreq-cdev";
-		qcom,cpus = <&CPU0 &CPU4>;
+		cpu-cluster0 {
+			qcom,cpus = <&CPU0 &CPU1 &CPU2 &CPU3>;
+		};
+
+		cpu-cluster1 {
+			qcom,cpus = <&CPU4 &CPU5 &CPU6 &CPU7>;
+		};
 	};
 
 	qmi-tmd-devices {
@@ -263,7 +197,7 @@
 		cooling-maps {
 			cpu000_cdev {
 				trip = <&cpu000_config>;
-				cooling-device = <&cpu0_pause 1 1>;
+				cooling-device = <&cpu0_hotplug 1 1>;
 			};
 		};
 	};
@@ -295,7 +229,7 @@
 		cooling-maps {
 			cpu010_cdev {
 				trip = <&cpu010_config>;
-				cooling-device = <&cpu1_pause 1 1>;
+				cooling-device = <&cpu1_hotplug 1 1>;
 			};
 		};
 	};
@@ -327,7 +261,7 @@
 		cooling-maps {
 			cpu020_cdev {
 				trip = <&cpu020_config>;
-				cooling-device = <&cpu2_pause 1 1>;
+				cooling-device = <&cpu2_hotplug 1 1>;
 			};
 		};
 	};
@@ -359,7 +293,7 @@
 		cooling-maps {
 			cpu030_cdev {
 				trip = <&cpu030_config>;
-				cooling-device = <&cpu3_pause 1 1>;
+				cooling-device = <&cpu3_hotplug 1 1>;
 			};
 		};
 	};
@@ -585,7 +519,7 @@
 		cooling-maps {
 			cpu001_cdev {
 				trip = <&cpu001_config>;
-				cooling-device = <&cpu0_pause 1 1>;
+				cooling-device = <&cpu0_hotplug 1 1>;
 			};
 		};
 	};
@@ -617,7 +551,7 @@
 		cooling-maps {
 			cpu011_cdev {
 				trip = <&cpu011_config>;
-				cooling-device = <&cpu1_pause 1 1>;
+				cooling-device = <&cpu1_hotplug 1 1>;
 			};
 		};
 	};
@@ -649,7 +583,7 @@
 		cooling-maps {
 			cpu021_cdev {
 				trip = <&cpu021_config>;
-				cooling-device = <&cpu2_pause 1 1>;
+				cooling-device = <&cpu2_hotplug 1 1>;
 			};
 		};
 	};
@@ -681,7 +615,7 @@
 		cooling-maps {
 			cpu031_cdev {
 				trip = <&cpu031_config>;
-				cooling-device = <&cpu3_pause 1 1>;
+				cooling-device = <&cpu3_hotplug 1 1>;
 			};
 		};
 	};
@@ -907,7 +841,7 @@
 		cooling-maps {
 			cpu100_cdev {
 				trip = <&cpu100_config>;
-				cooling-device = <&cpu4_pause 1 1>;
+				cooling-device = <&cpu4_hotplug 1 1>;
 			};
 		};
 	};
@@ -939,7 +873,7 @@
 		cooling-maps {
 			cpu110_cdev {
 				trip = <&cpu110_config>;
-				cooling-device = <&cpu5_pause 1 1>;
+				cooling-device = <&cpu5_hotplug 1 1>;
 			};
 		};
 	};
@@ -971,7 +905,7 @@
 		cooling-maps {
 			cpu120_cdev {
 				trip = <&cpu120_config>;
-				cooling-device = <&cpu6_pause 1 1>;
+				cooling-device = <&cpu6_hotplug 1 1>;
 			};
 		};
 	};
@@ -1003,7 +937,7 @@
 		cooling-maps {
 			cpu130_cdev {
 				trip = <&cpu130_config>;
-				cooling-device = <&cpu7_pause 1 1>;
+				cooling-device = <&cpu7_hotplug 1 1>;
 			};
 		};
 	};
@@ -1290,7 +1224,7 @@
 		cooling-maps {
 			cpu101_cdev {
 				trip = <&cpu101_config>;
-				cooling-device = <&cpu4_pause 1 1>;
+				cooling-device = <&cpu4_hotplug 1 1>;
 			};
 		};
 	};
@@ -1322,7 +1256,7 @@
 		cooling-maps {
 			cpu111_cdev {
 				trip = <&cpu111_config>;
-				cooling-device = <&cpu5_pause 1 1>;
+				cooling-device = <&cpu5_hotplug 1 1>;
 			};
 		};
 	};
@@ -1354,7 +1288,7 @@
 		cooling-maps {
 			cpu121_cdev {
 				trip = <&cpu121_config>;
-				cooling-device = <&cpu6_pause 1 1>;
+				cooling-device = <&cpu6_hotplug 1 1>;
 			};
 		};
 	};
@@ -1386,7 +1320,7 @@
 		cooling-maps {
 			cpu131_cdev {
 				trip = <&cpu131_config>;
-				cooling-device = <&cpu7_pause 1 1>;
+				cooling-device = <&cpu7_hotplug 1 1>;
 			};
 		};
 	};

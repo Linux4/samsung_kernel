@@ -84,13 +84,14 @@ enum sc8960x_part_no {
 
 #define SC8989X_ADC_EN               0x87
 #define SC8989X_DPDM3                0x88
-#define SC8989X_PRIVATE              0x99
+#define SC8989X_PRIVATE              0xF9
 
 #define PROFILE_CHG_VOTER            "PROFILE_CHG_VOTER"
 #define MAIN_SET_VOTER               "MAIN_SET_VOTER"
 #define BMS_FC_VOTER                 "BMS_FC_VOTER"
 #define DCP_CHG_VOTER			"DCP_CHG_VOTER"
 #define PD_CHG_VOTER			"PD_CHG_VOTER"
+#define AFC_CHG_DARK_VOTER		"AFC_CHG_DARK_VOTER"
 
 
 #define SC8989X_MAX_ICL              3250
@@ -106,6 +107,7 @@ enum sc8960x_part_no {
 #define CHG_CDP_CURR_MAX        1500
 #define CHG_SDP_CURR_MAX        500
 #define CHG_AFC_CURR_MAX        3000
+#define CHG_PDO_CURR_MAX        3000
 #define CHG_DCP_CURR_MAX        2200
 #define CHG_AFC_COMMON_CURR_MAX 2500
 
@@ -297,7 +299,9 @@ struct sc8989x_chip {
     struct delayed_work hvdcp_dwork;
     struct delayed_work disable_afc_dwork;
     struct delayed_work disable_pdo_dwork;
+    struct delayed_work hvdcp_qc20_dwork;
     int force_detect_count;
+    struct wakeup_source *hvdcp_qc20_ws;
 
     int power_good;
     int vbus_good;
@@ -310,6 +314,7 @@ struct sc8989x_chip {
     struct power_supply *psy;
     struct power_supply *chg_psy;
     struct power_supply *bat_psy;
+    struct power_supply *cp_psy;
 
 	struct delayed_work tcpc_dwork;
 	struct tcpc_device *tcpc;
@@ -1485,6 +1490,12 @@ __maybe_unused static int sc8989x_set_dp(struct sc8989x_chip *sc, int val)
 	return sc8989x_field_write(sc, DP_DRIVE, val);
 }
 
+__maybe_unused static int sc8989x_set_dm(struct sc8989x_chip *sc, int val)
+{
+	pr_err("%s set dm_drive = %d\n", __func__, val);
+	return sc8989x_field_write(sc, DM_DRIVE, val);
+}
+
 static int sc8989x_get_charger_type(struct sc8989x_chip *sc) {
     int ret;
     int reg_val = 0;
@@ -1536,7 +1547,7 @@ static int sc8989x_get_charger_type(struct sc8989x_chip *sc) {
         break;
     case VBUS_STAT_UNKOWN:
         sc8989x_set_vindpm(sc, 4600);
-        sc->psy_usb_type = POWER_SUPPLY_USB_TYPE_UNKNOWN;
+        sc->psy_usb_type = POWER_SUPPLY_USB_TYPE_FLOAT;
         sc->chg_type = POWER_SUPPLY_TYPE_UNKNOWN;
         if (sc->force_detect_count < 10) {
             schedule_delayed_work(&sc->force_detect_dwork,
@@ -1549,7 +1560,7 @@ static int sc8989x_get_charger_type(struct sc8989x_chip *sc) {
         sc8989x_set_ichg(sc, CHG_SDP_CURR_MAX);
         break;
     default:
-        sc->psy_usb_type = POWER_SUPPLY_USB_TYPE_UNKNOWN;
+        sc->psy_usb_type = POWER_SUPPLY_USB_TYPE_FLOAT;
         sc->chg_type = POWER_SUPPLY_TYPE_UNKNOWN;
         break;
     }
@@ -1618,6 +1629,7 @@ static irqreturn_t sc8989x_irq_handler(int irq, void *data) {
         vote(sc->usb_icl_votable, DCP_CHG_VOTER, false, 0);
 		vote(sc->usb_icl_votable, PD_CHG_VOTER, false, 0);
 		vote(sc->fcc_votable, DCP_CHG_VOTER, false, 0);
+		vote(sc->fcc_votable, AFC_CHG_DARK_VOTER, false, 0);
         sc->afc_running = 0;
 		sc8989x_set_usb(sc,false);
 	sc->charge_afc = 0;
@@ -1748,6 +1760,7 @@ static void sc89890h_hvdcp_dwork(struct work_struct *work)
 	unsigned int afc_code = AFC_QUICK_CHARGE_POWER_CODE;
 	int afc_icl_current = 0;
 	int pd_active = 0;
+	int pd_pdo_active = 0;
 	struct sc8989x_chip *sc = container_of(
 		work, struct sc8989x_chip, hvdcp_dwork.work);
 
@@ -1774,15 +1787,91 @@ static void sc89890h_hvdcp_dwork(struct work_struct *work)
 		pr_err("afc communication failed, restore adapter iindpm to 2000mA\n");
 		//sc8989x_set_iindpm(sc, 2100);
 		pd_active = sc8989x_get_pd_active(sc);
+		pd_pdo_active = sc8989x_get_pdo_active(sc);
 		if (sc->is_disble_afc && (pd_active == 1)) {
 			vote(sc->usb_icl_votable, PD_CHG_VOTER, true, PD_ICL_CURR_MAX);
+			sc8989x_set_ichg(sc, CHG_DCP_CURR_MAX);
+		}  else if (pd_pdo_active == 1) {
+			vote(sc->usb_icl_votable, DCP_CHG_VOTER, true, 1600);
+			sc8989x_set_ichg(sc, CHG_PDO_CURR_MAX);
 		} else {
 			vote(sc->usb_icl_votable, DCP_CHG_VOTER, true, DCP_ICL_CURR_MAX);
+			sc8989x_set_ichg(sc, CHG_DCP_CURR_MAX);
 		}
-		sc8989x_set_ichg(sc, CHG_DCP_CURR_MAX);
-		sc8989x_set_dp(sc, 0);
+		//sc8989x_set_ichg(sc, CHG_DCP_CURR_MAX);
+			//sc8989x_set_dp(sc, 0);
 		sc->charge_afc = 0;
+
+		pr_err("ch_log_qc   pd_active[%d]   charge_afc[%d]\n",sc->pd_active,sc->charge_afc);
+		if (!sc->pd_active)
+		    schedule_delayed_work(&sc->hvdcp_qc20_dwork, msecs_to_jiffies(300));
 	}
+}
+
+static void sc89890h_hvdcp_qc20_dwork(struct work_struct *work)
+{
+	int ret;
+	union power_supply_propval pval = {0, };
+	struct sc8989x_chip *sc = container_of(
+		work, struct sc8989x_chip, hvdcp_qc20_dwork.work);
+
+	__pm_stay_awake(sc->hvdcp_qc20_ws);
+
+	ret = sc8989x_set_dp(sc, REG01_DPDM_OUT_0P6V);
+	if (ret) {
+		pr_err("set dp 0.6v failed, ret:%d\n", ret);
+		goto qc20_out;
+	}
+
+	ret = sc8989x_set_dm(sc, 1);
+	if (ret) {
+		pr_err("set dm 0v failed, ret:%d\n", ret);
+		goto qc20_out;
+	}
+
+	msleep(300);
+
+	ret = sc8989x_set_dp(sc, 6);
+	if (ret) {
+		pr_err("set dp 3.3v failed, ret:%d\n", ret);
+		goto qc20_out;
+	}
+
+	ret = sc8989x_set_dm(sc, 2);
+	if (ret) {
+		pr_err("set dm 0.6v failed, ret:%d\n", ret);
+		goto qc20_out;
+	}
+
+	msleep(300);
+	pr_err("hvdcp qc20 detected\n");
+
+	if (sc->cp_psy == NULL)
+	{
+		sc->cp_psy = power_supply_get_by_name("charger_standalone");
+		if (sc->cp_psy == NULL) {
+			pr_err("power_supply_get_by_name bms fail !\n");
+			goto qc20_out;
+		}
+	}
+	power_supply_get_property(sc->cp_psy, POWER_SUPPLY_PROP_CONSTANT_CHARGE_VOLTAGE, &pval);
+	pr_err("ch_log_qc [vbus][%d] [pd_active][%d]\n",pval.intval,sc->pd_active);
+	if (pval.intval > 8000  && !sc->pd_active) {
+		sc8989x_set_iindpm(sc, AFC_ICL_CURR_MAX);
+		sc8989x_set_ichg(sc, CHG_AFC_CURR_MAX);
+		sc8989x_dump_register(sc);
+	} else {
+		goto qc20_out;
+	}
+
+	__pm_relax(sc->hvdcp_qc20_ws);
+	return;
+qc20_out:
+	sc8989x_set_iindpm(sc, DCP_ICL_CURR_MAX);
+	sc8989x_set_ichg(sc, CHG_DCP_CURR_MAX);
+	sc8989x_set_dp(sc, 0);
+	__pm_relax(sc->hvdcp_qc20_ws);
+	return;
 }
 
 /**********************system*********************/
@@ -2985,7 +3074,15 @@ static int sc8989x_charger_probe(struct i2c_client *client,
     i2c_set_clientdata(client, sc);
     sc->entry_shipmode = false;
 
+    if (!sc8989x_detect_device(sc)) {
+        ret = -ENODEV;
+        pr_err("No found sc8989x_detect_device !\n");
+        goto err_nodev;
+    }
+
     sc8989x_create_device_node(&(client->dev));
+    sc->hvdcp_qc20_ws = wakeup_source_register(sc->dev, "sc89890h_hvdcp_qc20_ws");
+    INIT_DELAYED_WORK(&sc->hvdcp_qc20_dwork, sc89890h_hvdcp_qc20_dwork);
     INIT_DELAYED_WORK(&sc->hvdcp_dwork, sc89890h_hvdcp_dwork);
     INIT_DELAYED_WORK(&sc->force_detect_dwork,
                         sc8989x_force_detection_dwork_handler);
@@ -2995,11 +3092,6 @@ static int sc8989x_charger_probe(struct i2c_client *client,
     INIT_DELAYED_WORK(&sc->psy_dwork,
                         sc8989x_inform_psy_dwork_handler);
 #endif /*CONFIG_MTK_CHARGER_V4P19*/
-    if (!sc8989x_detect_device(sc)) {
-        ret = -ENODEV;
-        pr_err("No found sc8989x_detect_device !\n");
-        goto err_nodev;
-    }
     if (!sc->tcpc) {
         sc->tcpc = tcpc_dev_get_by_name("type_c_port0");
         if (!sc->tcpc) {

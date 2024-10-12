@@ -12,8 +12,15 @@
 #include <linux/platform_device.h>
 #include <linux/regmap.h>
 #include <linux/mailbox_controller.h>
+#include <linux/ipc_logging.h>
 
 #define QCOM_APCS_IPC_BITS	32
+#define IPC_LOG_PAGE_CNT    64
+
+static void *apcs_ipc_log;
+
+#define APCS_INFO(ctx, x, ...) \
+    ipc_log_string(ctx, x, ##__VA_ARGS__)
 
 struct qcom_apcs_ipc {
 	struct mbox_controller mbox;
@@ -73,6 +80,10 @@ static const struct qcom_apcs_ipc_data bengal_apcs_data = {
 	.offset = 8, .clk_name = NULL
 };
 
+static const struct qcom_apcs_ipc_data trinket_apcs_data = {
+	.offset = 8, .clk_name = NULL
+};
+
 static const struct qcom_apcs_ipc_data scuba_apcs_data = {
 	.offset = 8, .clk_name = NULL
 };
@@ -91,11 +102,15 @@ static const struct regmap_config apcs_regmap_config = {
 
 static int qcom_apcs_ipc_send_data(struct mbox_chan *chan, void *data)
 {
+	int ret;
 	struct qcom_apcs_ipc *apcs = container_of(chan->mbox,
 						  struct qcom_apcs_ipc, mbox);
 	unsigned long idx = (unsigned long)chan->con_priv;
 
-	return regmap_write(apcs->regmap, apcs->offset, BIT(idx));
+    ret = regmap_write(apcs->regmap, apcs->offset, BIT(idx));
+    APCS_INFO(apcs_ipc_log, "[syh]write[offset:0x%lx val:0x%x], ret:%d\n", apcs->offset, BIT(idx), ret);
+
+    return ret;
 }
 
 static const struct mbox_chan_ops qcom_apcs_ipc_ops = {
@@ -157,6 +172,8 @@ static int qcom_apcs_ipc_probe(struct platform_device *pdev)
 	}
 
 	platform_set_drvdata(pdev, apcs);
+	
+	apcs_ipc_log = ipc_log_context_create(IPC_LOG_PAGE_CNT, "apcs", 0);
 
 	return 0;
 }
@@ -193,6 +210,8 @@ static const struct of_device_id qcom_apcs_ipc_of_match[] = {
 	{ .compatible = "qcom,sdx55-apcs-gcc", .data = &sdx55_apcs_data },
 	{ .compatible = "qcom,bengal-apcs-hmss-global", .data = &bengal_apcs_data },
 	{ .compatible = "qcom,scuba-apcs-hmss-global", .data = &scuba_apcs_data },
+	{ .compatible = "qcom,trinket-apcs-hmss-global", .data = &trinket_apcs_data },
+	{ .compatible = "qcom,qcs605-apcs-shared", .data = &apps_shared_apcs_data },
 	{}
 };
 MODULE_DEVICE_TABLE(of, qcom_apcs_ipc_of_match);

@@ -98,7 +98,7 @@
 //#define SEC_AUDIO_COMMON
 #define CONVX(x) #x
 #define CONV_TO_STRING(x) CONVX(x)
-#define RETRY_INTERVAL_US 500 * 1000
+#define RETRY_INTERVAL_US 50 * 1000
 #define ADD_MODULE(x, y) \
                  ({ \
                    module_info_t *add_mod = NULL;\
@@ -319,13 +319,14 @@ done:
     return ret;
 }
 
+
 static void *zs_graph_init_thread(void *obj __unused)
 {
     int ret = 0;
     int retry = 0;
     int i = 10;
     property_get(A05SCORE_CSC_VER, csc_ver, "0");
-    while(!((0 == strncmp(csc_ver, "A057F", 4)) || (0 == strncmp(csc_ver, "A057G", 4)) || (0 == strncmp(csc_ver, "E145F", 4)) || (0 == strncmp(csc_ver, "M145F", 4)))) {
+    while(!((0 == strncmp(csc_ver, "A057F", 4)) || (0 == strncmp(csc_ver, "A057G", 4)) || (0 == strncmp(csc_ver, "E145F", 4)) || (0 == strncmp(csc_ver, "M145F", 4)) || (0 == strncmp(csc_ver, "A057M", 4)))) {
         ret = property_get(A05SCORE_CSC_VER, csc_ver, "0");
         AGM_LOGI("[ZS]ENG_AUDIO_PARA1 %d", ret);
         if (0 == strncmp(csc_ver, "0", 1)) {
@@ -334,7 +335,10 @@ static void *zs_graph_init_thread(void *obj __unused)
             AGM_LOGI("[ZS]ENG_AUDIO_PARA2 %s", str_ptr_csc);
             get_ril_officeial_cscver = 0;
         } else {
+            AGM_LOGI("[ZS]zs_graph_init_thread deinit");
+            graph_deinit();
             get_ril_officeial_cscver = 1;
+            AGM_LOGI("[ZS]zs_graph_init_thread init");
             graph_init();
             break;
         }
@@ -344,6 +348,7 @@ static void *zs_graph_init_thread(void *obj __unused)
 
     return NULL;
  }
+
 
 int graph_init()
 {
@@ -378,10 +383,12 @@ int graph_init()
     snd_card_found = get_file_path_extn(file_path_extn);
     if (snd_card_found) {
 #ifdef ACDB_USER        
+
         pthread_attr_init (&tattr);
         pthread_attr_getschedparam (&tattr, &param);
         param.sched_priority = SCHED_FIFO;
         pthread_attr_setschedparam (&tattr, &param);
+
         ret = property_get(A05SCORE_CSC_VER, csc_ver, "0");
         str_ptr_csc = csc_ver;
         AGM_LOGI("[ZS]ENG_AUDIO_PARA4 %s", str_ptr_csc);
@@ -446,7 +453,15 @@ int graph_init()
 	                strncpy(ENG_AUDIO_PARA, "swamfourteen/", 13);
                     str_ptr = ENG_AUDIO_PARA;
                     AGM_LOGI("[ZS]ENG_AUDIO_PARA %s", str_ptr);
-	            } else if ((0 == strncmp(csc_ver, "A057FVFJ", 8)) || (0 == strncmp(csc_ver, "A057FPNG", 8)) || (0 == strncmp(csc_ver, "A057FOLE", 8)) || (0 == strncmp(csc_ver, "A057FOLM", 8))) {
+	            } else if (0 == strncmp(csc_ver, "A057MOWO", 8)) {
+	                strncpy(ENG_AUDIO_PARA, "owo/", 4);
+                    str_ptr = ENG_AUDIO_PARA;
+                    AGM_LOGI("[ZS]ENG_AUDIO_PARA %s", str_ptr);
+                } else if (0 == strncmp(csc_ver, "A057MOWB", 8)) {
+	                strncpy(ENG_AUDIO_PARA, "owb/", 4);
+                    str_ptr = ENG_AUDIO_PARA;
+                    AGM_LOGI("[ZS]ENG_AUDIO_PARA %s", str_ptr);                    
+                } else if ((0 == strncmp(csc_ver, "A057FVFJ", 8)) || (0 == strncmp(csc_ver, "A057FPNG", 8)) || (0 == strncmp(csc_ver, "A057FOLE", 8)) || (0 == strncmp(csc_ver, "A057FOLM", 8))) {
 	                strncpy(ENG_AUDIO_PARA, "sea/", 4);
                     str_ptr = ENG_AUDIO_PARA;
                     AGM_LOGI("[ZS]ENG_AUDIO_PARA %s", str_ptr);
@@ -458,7 +473,13 @@ int graph_init()
 	                strncpy(ENG_AUDIO_PARA, "sea/", 4);//Set sea parameter
                         str_ptr = ENG_AUDIO_PARA;
                         snprintf(acdb_path, ACDB_PATH_MAX_LENGTH, "%s%s%s", ACDB_PATH_USER, ENG_AUDIO_PARA, file_path_extn);
-		    }
+		    } else {
+                        AGM_LOGI("[ZS] first boot , use swa parameter\n");
+	                strncpy(ENG_AUDIO_PARA, "swa/", 4);//Set swa parameter
+                        str_ptr = ENG_AUDIO_PARA;
+                        get_ril_officeial_cscver = 1;
+                        snprintf(acdb_path, ACDB_PATH_MAX_LENGTH, "%s%s%s", ACDB_PATH_USER, ENG_AUDIO_PARA, file_path_extn);
+                    }
 	}
 
 #endif
@@ -471,7 +492,7 @@ int graph_init()
 #ifdef ACDB_USER
    //Country code test
     AGM_LOGI("[ZS]acdb user start ENG_AUDIO_PARA %s", str_ptr);
-    if ((0 == strncmp(ENG_AUDIO_PARA, "swa/", 4)) || (0 == strncmp(ENG_AUDIO_PARA, "eur/", 4)) || (0 == strncmp(ENG_AUDIO_PARA, "mea/", 4)) || (0 == strncmp(ENG_AUDIO_PARA, "cis/", 4)) || (0 == strncmp(ENG_AUDIO_PARA, "afr/", 4)) || (0 == strncmp(ENG_AUDIO_PARA, "swaffourteen/", 4)) || (0 == strncmp(ENG_AUDIO_PARA, "swamfourteen/", 4)) || (0 == strncmp(ENG_AUDIO_PARA, "sea/", 4))) {
+    if ((0 == strncmp(ENG_AUDIO_PARA, "swa/", 4)) || (0 == strncmp(ENG_AUDIO_PARA, "eur/", 4)) || (0 == strncmp(ENG_AUDIO_PARA, "mea/", 4)) || (0 == strncmp(ENG_AUDIO_PARA, "cis/", 4)) || (0 == strncmp(ENG_AUDIO_PARA, "afr/", 4)) || (0 == strncmp(ENG_AUDIO_PARA, "swaffourteen/", 4)) || (0 == strncmp(ENG_AUDIO_PARA, "swamfourteen/", 4)) || (0 == strncmp(ENG_AUDIO_PARA, "owo/", 4)) || (0 == strncmp(ENG_AUDIO_PARA, "owb/", 4)) || (0 == strncmp(ENG_AUDIO_PARA, "sea/", 4))) {
         snprintf(acdb_path, ACDB_PATH_MAX_LENGTH, "%s%s%s", ACDB_PATH_USER, ENG_AUDIO_PARA, file_path_extn);
         AGM_LOGI("[ZS]acdb Country code user file path: %s\n", acdb_path);
     } else {

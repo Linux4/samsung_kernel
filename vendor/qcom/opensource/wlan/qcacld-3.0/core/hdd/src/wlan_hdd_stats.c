@@ -2505,7 +2505,7 @@ void wlan_hdd_clear_link_layer_stats(struct hdd_adapter *adapter)
 	mac_handle_t mac_handle = adapter->hdd_ctx->mac_handle;
 
 	link_layer_stats_clear_req.statsClearReqMask = WIFI_STATS_IFACE_AC |
-		WIFI_STATS_IFACE_ALL_PEER;
+		WIFI_STATS_IFACE_ALL_PEER | WIFI_STATS_IFACE_CONTENTION;
 	link_layer_stats_clear_req.stopReq = 0;
 	link_layer_stats_clear_req.reqId = 1;
 	link_layer_stats_clear_req.staId = adapter->vdev_id;
@@ -4079,7 +4079,8 @@ roam_rt_stats_fill_cand_info(struct sk_buff *vendor_event, uint8_t idx,
 	uint8_t i, num_cand = 0;
 
 	if (roam_stats->result[idx].present &&
-	    roam_stats->result[idx].fail_reason) {
+	    roam_stats->result[idx].fail_reason &&
+	    roam_stats->result[idx].fail_reason != ROAM_FAIL_REASON_UNKNOWN) {
 		num_cand++;
 		for (i = 0; i < roam_stats->scan[idx].num_ap; i++) {
 			if (roam_stats->scan[idx].ap[i].type == 0 &&
@@ -4155,10 +4156,10 @@ roam_rt_stats_fill_cand_info(struct sk_buff *vendor_event, uint8_t idx,
 }
 
 void
-wlan_hdd_cfg80211_roam_events_callback(hdd_handle_t hdd_handle, uint8_t idx,
-				       struct roam_stats_event *roam_stats)
+wlan_hdd_cfg80211_roam_events_callback(struct roam_stats_event *roam_stats,
+				       uint8_t idx)
 {
-	struct hdd_context *hdd_ctx = hdd_handle_to_context(hdd_handle);
+	struct hdd_context *hdd_ctx = cds_get_context(QDF_MODULE_ID_HDD);
 	int status;
 	uint32_t data_size, roam_event_type = 0;
 	struct sk_buff *vendor_event;
@@ -5267,8 +5268,7 @@ static int wlan_hdd_get_station_remote(struct wiphy *wiphy,
 
 	for (i = 0; i < WMI_MAX_CHAINS; i++)
 		stainfo->peer_rssi_per_chain[i] =
-			    stats->peer_stats_info_ext->peer_rssi_per_chain[i] -
-			    WLAN_HDD_TGT_NOISE_FLOOR_DBM;
+			    stats->peer_stats_info_ext->peer_rssi_per_chain[i];
 
 	qdf_mem_zero(&txrx_stats, sizeof(txrx_stats));
 	txrx_stats.tx_packets = stats->peer_stats_info_ext->tx_packets;
@@ -5278,8 +5278,7 @@ static int wlan_hdd_get_station_remote(struct wiphy *wiphy,
 	txrx_stats.tx_retries = stats->peer_stats_info_ext->tx_retries;
 	txrx_stats.tx_failed = stats->peer_stats_info_ext->tx_failed;
 	txrx_stats.tx_succeed = stats->peer_stats_info_ext->tx_succeed;
-	txrx_stats.rssi = stats->peer_stats_info_ext->rssi
-			- WLAN_HDD_TGT_NOISE_FLOOR_DBM;
+	txrx_stats.rssi = stats->peer_stats_info_ext->rssi;
 	wlan_hdd_fill_rate_info(&txrx_stats, stats->peer_stats_info_ext);
 	wlan_hdd_fill_station_info(hddctx->psoc, adapter,
 				   sinfo, stainfo, &txrx_stats);
@@ -5428,6 +5427,7 @@ bool hdd_report_max_rate(struct hdd_adapter *adapter,
 	struct index_data_rate_type *supported_mcs_rate;
 	enum data_rate_11ac_max_mcs vht_max_mcs;
 	uint8_t max_mcs_idx = 0;
+	uint8_t max_ht_mcs_idx;
 	uint8_t rate_flag = 1;
 	int mode = 0, max_ht_idx;
 	QDF_STATUS stat = QDF_STATUS_E_FAILURE;
@@ -5595,10 +5595,11 @@ bool hdd_report_max_rate(struct hdd_adapter *adapter,
 				(struct index_data_rate_type *)
 				((nss == 1) ? &supported_mcs_rate_nss1 :
 				 &supported_mcs_rate_nss2);
-
-			max_ht_idx = MAX_HT_MCS_IDX;
+			max_ht_mcs_idx =
+				QDF_ARRAY_SIZE(supported_mcs_rate_nss1);
+			max_ht_idx = max_ht_mcs_idx;
 			if (rssidx != 0) {
-				for (i = 0; i < MAX_HT_MCS_IDX; i++) {
+				for (i = 0; i < max_ht_mcs_idx; i++) {
 					if (signal <= rssi_mcs_tbl[mode][i]) {
 						max_ht_idx = i + 1;
 						break;
@@ -5622,13 +5623,13 @@ bool hdd_report_max_rate(struct hdd_adapter *adapter,
 					}
 				}
 
-				if ((j < MAX_HT_MCS_IDX) &&
+				if ((j < max_ht_mcs_idx) &&
 				    (current_rate > max_rate))
 					max_rate = current_rate;
 			}
 
 			if (nss == 2)
-				max_mcs_idx += MAX_HT_MCS_IDX;
+				max_mcs_idx += max_ht_mcs_idx;
 			max_mcs_idx = (max_mcs_idx > mcs_index) ?
 				max_mcs_idx : mcs_index;
 		}

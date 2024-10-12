@@ -1044,6 +1044,12 @@ static int __init ilitek_plat_dev_init(void)
 		} else if (strcmp(tpsensor, "ILITEK_XL_ILI77600A") == 0) {
 			ilitek_tp_module_flage = 4;
 			ILI_INFO("TP info: [Vendor]Xinli [IC]ILI77600A\n");
+		} else if (strcmp(tpsensor, "ILITEK_XL_ILI7807S") == 0) {
+			ilitek_tp_module_flage = 5;
+			ILI_INFO("TP info: [Vendor]Xinli [IC]ILI7807S\n");
+		} else if (strcmp(tpsensor, "ILITEK_TMB_ILI7807S") == 0) {
+			ilitek_tp_module_flage = 6;
+			ILI_INFO("TP info: [Vendor]TianmaB [IC]ILI7807S\n");
 		} else {
 			ilitek_tp_module_flage = 0;
 			ILI_ERR("Unknown Touch, tpsensor = %s\n", tpsensor);

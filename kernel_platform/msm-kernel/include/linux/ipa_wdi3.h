@@ -2,6 +2,7 @@
 /*
  * Copyright (c) 2018 - 2021, The Linux Foundation. All rights reserved.
  * Copyright (c) 2021-2022, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.​
  */
 
 #ifndef _IPA_WDI3_H_
@@ -28,13 +29,14 @@ enum ipa_wdi_version {
 	IPA_WDI_2,
 	IPA_WDI_3,
 	IPA_WDI_3_V2,
+	IPA_WDI_4,
 	IPA_WDI_VER_MAX
 };
 
 #define IPA_WDI3_TX_DIR 1
 #define IPA_WDI3_TX1_DIR 2
 #define IPA_WDI3_RX_DIR 3
-#define IPA_WDI_INST_MAX (2)
+#define IPA_WDI_INST_MAX (3)
 
 /**
  * struct ipa_wdi_init_in_params - wdi init input parameters
@@ -205,7 +207,8 @@ struct ipa_wdi_reg_intf_in_params {
  * @desc_format_template[IPA_HW_WDI3_MAX_ER_DESC_SIZE]:  Holds a cached
 	template of the desc format
  * @rx_bank_id: value used to perform TCL HW setting
-
+ * @rx_pmac_id: value used to perform TCL HW setting
+ * @mlo_chip_id: used in mlo capable chip to identify chip id for the pipe
  */
 struct ipa_wdi_pipe_setup_info {
 	struct ipa_ep_cfg ipa_ep_cfg;
@@ -225,6 +228,8 @@ struct ipa_wdi_pipe_setup_info {
 
 	u32  desc_format_template[IPA_HW_WDI3_MAX_ER_DESC_SIZE];
 	u8 rx_bank_id;
+	u8 rx_pmac_id;
+	u8 mlo_chip_id;
 };
 
 /**
@@ -247,7 +252,8 @@ struct ipa_wdi_pipe_setup_info {
  * @desc_format_template[IPA_HW_WDI3_MAX_ER_DESC_SIZE]:  Holds a cached
 	template of the desc format
  * @rx_bank_id: value used to perform TCL HW setting
-
+ * @rx_pmac_id: value used to perform TCL HW setting
+ * @mlo_chip_id: used in mlo capable chip to identify chip id for the pipe
  */
 struct ipa_wdi_pipe_setup_info_smmu {
 	struct ipa_ep_cfg ipa_ep_cfg;
@@ -267,6 +273,8 @@ struct ipa_wdi_pipe_setup_info_smmu {
 
 	u32  desc_format_template[IPA_HW_WDI3_MAX_ER_DESC_SIZE];
 	u8 rx_bank_id;
+	u8 rx_pmac_id;
+	u8 mlo_chip_id;
 };
 
 /**

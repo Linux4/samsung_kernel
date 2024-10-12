@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2017-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -1195,6 +1195,11 @@ static inline void scm_print_scan_req_info(struct scan_req_params *req)
 		       req->scan_ctrl_flags_ext, req->scan_events,
 		       req->scan_policy_type, req->scan_f_wide_band,
 		       req->scan_priority);
+	scm_nofl_debug("Scan Type %d rest time: min %d max %d probe spacing %d idle %d probe delay %d scan offset %d burst duration %d adaptive dwell mode %d",
+		       req->scan_type, req->min_rest_time, req->max_rest_time,
+		       req->probe_spacing_time, req->idle_time,
+		       req->probe_delay, req->scan_offset_time,
+		       req->burst_duration, req->adaptive_dwell_time_mode);
 
 	for (idx = 0; idx < req->num_ssids; idx++)
 		scm_nofl_debug("SSID[%d]: %.*s", idx, req->ssid[idx].length,
@@ -1639,7 +1644,7 @@ scm_scan_event_handler(struct scheduler_msg *msg)
 		if (event->reason == SCAN_REASON_COMPLETED)
 			scm_11d_decide_country_code(vdev);
 		/* release the command */
-		/* fallthrough */
+		fallthrough;
 	case SCAN_EVENT_TYPE_START_FAILED:
 	case SCAN_EVENT_TYPE_DEQUEUED:
 		scm_release_serialization_command(vdev, event->scan_id);

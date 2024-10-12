@@ -68,7 +68,7 @@
 
 	/* Primary USB port related High Speed PHY */
 	usb2_phy0: hsphy@88e4000 {
-		compatible = "qcom,usb-hsphy-snps-femto";
+		compatible = "qcom,usb-hsphy-snps-femto-lemans";
 		reg = <0x88e4000 0x120>,
 			<0x088e3000 0x4>;
 		reg-names = "hsusb_phy_base",
@@ -84,6 +84,12 @@
 
 		resets = <&gcc GCC_USB2_PHY_PRIM_BCR>;
 		reset-names = "phy_reset";
+
+		qcom,param-override-seq =
+			<0x63 0x6c	/* override_x0 */
+			0xc7 0x70	/* override_x1 */
+			0x17 0x74	/* override x2 */
+			0x03 0x78>;	/* override x3 */
 	};
 
 	/* Primary USB port related QMP PHY */
@@ -286,7 +292,7 @@
 
 	/* Secondary USB port related High Speed PHY */
 	usb2_phy1: hsphy@88e6000 {
-		compatible = "qcom,usb-hsphy-snps-femto";
+		compatible = "qcom,usb-hsphy-snps-femto-lemans";
 		reg = <0x88e6000 0x120>;
 		reg-names = "hsusb_phy_base";
 
@@ -301,6 +307,12 @@
 
 		resets = <&gcc GCC_USB2_PHY_SEC_BCR>;
 		reset-names = "phy_reset";
+
+		qcom,param-override-seq =
+			<0x63 0x6c	/* override_x0 */
+			0xc7 0x70	/* override_x1 */
+			0x17 0x74	/* override x2 */
+			0x03 0x78>;	/* override x3 */
 	};
 
 	/* Secondary USB port related QMP PHY */
@@ -489,15 +501,15 @@
 			snps,hird-threshold = /bits/ 8 <0x0>;
 			snps,is-utmi-l1-suspend;
 			snps,usb2-gadget-lpm-disable;
-			tx-fifo-resize;
 			maximum-speed = "high-speed";
-			dr_mode = "host";
+			dr_mode = "otg";
+			usb-role-switch;
 		};
 	};
 
 	/* Tertiary USB port related High Speed PHY */
 	usb2_phy2: hsphy@88e7000 {
-		compatible = "qcom,usb-hsphy-snps-femto";
+		compatible = "qcom,usb-hsphy-snps-femto-lemans";
 		reg = <0x88e7000 0x120>;
 		reg-names = "hsusb_phy_base";
 
@@ -512,6 +524,12 @@
 
 		resets = <&gcc GCC_USB3_PHY_TERT_BCR>;
 		reset-names = "phy_reset";
+
+		qcom,param-override-seq =
+			<0x63 0x6c	/* override_x0 */
+			0xc7 0x70	/* override_x1 */
+			0x17 0x74	/* override x2 */
+			0x03 0x78>;	/* override x3 */
 	};
 
 	usb_nop_phy: usb_nop_phy {

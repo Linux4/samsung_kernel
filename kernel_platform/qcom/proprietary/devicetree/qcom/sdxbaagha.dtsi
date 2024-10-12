@@ -142,7 +142,7 @@
 			alloc-ranges = <0x00000000 0xffffffff>;
 			reusable;
 			alignment = <0x400000>;
-			size = <0x800000>;
+			size = <0x400000>;
 		};
 
 		qseecom_ta_mem: qseecom_ta_region {
@@ -436,12 +436,15 @@
 		reg = <0x80000 0x1f4200>;
 		reg-name = "cc_base";
 		vdd_cx-supply = <&VDD_CX_LEVEL>;
+		vdd_cx_ao-supply = <&VDD_CX_LEVEL_AO>;
 		vdd_mxa-supply = <&VDD_MXA_LEVEL>;
 		vdd_mxc-supply = <&VDD_MXC_LEVEL>;
 		clocks = <&rpmhcc RPMH_CXO_CLK>,
+			 <&rpmhcc RPMH_CXO_CLK_A>,
 			 <&pcie_pipe_clk>,
 			 <&sleep_clk>;
 		clock-names = "bi_tcxo",
+			      "bi_tcxo_ao",
 			      "pcie_pipe_clk",
 			      "sleep_clk";
 		#clock-cells = <1>;
@@ -542,6 +545,8 @@
 		#interconnect-cells = <1>;
 		qcom,bcm-voter-names = "hlos";
 		qcom,bcm-voters = <&apps_bcm_voter>;
+		clocks = <&gcc GCC_SYS_NOC_USB_SF_AXI_CLK>,
+			<&rpmhcc RPMH_IPA_CLK>;
 	};
 
 	cnoc_main: interconnect@1580000 {
@@ -582,6 +587,7 @@
 		#interconnect-cells = <1>;
 		qcom,bcm-voter-names = "hlos";
 		qcom,bcm-voters = <&apps_bcm_voter>;
+		clocks = <&rpmhcc RPMH_IPA_CLK>;
 	};
 
 	qcom,sps {
@@ -662,10 +668,13 @@
 		qcom,pcie-active-config;
 		qcom,pcie-aggregated-irq;
 		qcom,pcie-mhi-a7-irq;
-		qcom,phy-status-reg2 = <0x214>;
+		qcom,phy-status-reg = <0x214>;
 		qcom,mhi-soc-reset-offset = <0xb001b8>;
 		qcom,pcie-cesta-clkreq-offset = <0x30b8>;
 		qcom,aoss-rst-clr;
+		qcom,tcsr-reset-separation-offset = <0x3f8>;
+		qcom,pcie-disconnect-req-reg-b = <6>;
+		qcom,ep-pcie-num-ipc-pages-dev-fac = <2>;
 		qcom,aux-clk = <0x13>;
 		qcom,phy-init = <0x0240 0x01 0x0
 				0x0094 0x00 0x0
@@ -753,6 +762,9 @@
 		qcom,mhi-ifc-id = <0x011a17cb>;
 		qcom,mhi-interrupt;
 		qcom,no-m0-timeout;
+		dummy-supply = <&pcie_ep>;
+		qcom,mhi-num-ipc-pages-dev-fac = <2>;
+
 		status = "disabled";
 	};
 

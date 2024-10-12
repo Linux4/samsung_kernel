@@ -318,6 +318,9 @@
 		coresight-ctis = <&cti0 &cti0>;
 		cti-reset-trig-num = <0>;
 		cti-flush-trig-num = <3>;
+		qcom,mem_support;
+		qcom,sw-usb;
+		dma-coherent;
 		coresight-csr = <&csr>;
 		clocks = <&aoss_qmp>;
 		clock-names = "apb_pclk";
@@ -656,7 +659,7 @@
 	funnel_gfx: funnel@0x6943000 {
 		compatible = "arm,primecell";
 		arm,primecell-periphid = <0x000bb908>;
-
+		status = "disabled";
 		reg = <0x6943000 0x1000>;
 		reg-names = "funnel-base";
 

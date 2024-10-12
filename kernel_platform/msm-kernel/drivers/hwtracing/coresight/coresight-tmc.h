@@ -2,6 +2,7 @@
 /*
  * Copyright(C) 2015 Linaro Limited. All rights reserved.
  * Author: Mathieu Poirier <mathieu.poirier@linaro.org>
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CORESIGHT_TMC_H
@@ -16,6 +17,7 @@
 #include "coresight-byte-cntr.h"
 #include "coresight-tmc-eth.h"
 #include "coresight-tmc-usb.h"
+#include "coresight-tmc-pcie.h"
 
 #define TMC_RSZ			0x004
 #define TMC_STS			0x00c
@@ -152,6 +154,7 @@ enum tmc_etr_out_mode {
 	TMC_ETR_OUT_MODE_NONE,
 	TMC_ETR_OUT_MODE_MEM,
 	TMC_ETR_OUT_MODE_USB,
+	TMC_ETR_OUT_MODE_PCIE,
 	TMC_ETR_OUT_MODE_ETH,
 };
 
@@ -160,6 +163,7 @@ static const char * const str_tmc_etr_out_mode[] = {
 	[TMC_ETR_OUT_MODE_MEM]		= "mem",
 	[TMC_ETR_OUT_MODE_USB]		= "usb",
 	[TMC_ETR_OUT_MODE_ETH]		= "eth",
+	[TMC_ETR_OUT_MODE_PCIE]		= "pcie",
 };
 
 /**
@@ -251,6 +255,21 @@ struct tmc_drvdata {
 	enum tmc_etr_out_mode	out_mode;
 	struct tmc_usb_data	*usb_data;
 	struct tmc_eth_data	*eth_data;
+	bool			stop_on_flush;
+	struct tmc_pcie_data	*pcie_data;
+};
+
+struct tmc_usb_bam_data {
+	struct sps_bam_props	props;
+	unsigned long		handle;
+	struct sps_pipe		*pipe;
+	struct sps_connect	connect;
+	uint32_t		src_pipe_idx;
+	unsigned long		dest;
+	uint32_t		dest_pipe_idx;
+	struct sps_mem_buffer	desc_fifo;
+	struct sps_mem_buffer	data_fifo;
+	bool			enable;
 };
 
 struct etr_buf_operations {
@@ -297,6 +316,7 @@ struct tmc_sg_table {
 /* Generic functions */
 int tmc_wait_for_tmcready(struct tmc_drvdata *drvdata);
 void tmc_flush_and_stop(struct tmc_drvdata *drvdata);
+void tmc_disable_stop_on_flush(struct tmc_drvdata *drvdata);
 void tmc_enable_hw(struct tmc_drvdata *drvdata);
 extern int tmc_etr_usb_init(struct amba_device *adev,
 		struct tmc_drvdata *drvdata);
@@ -318,7 +338,7 @@ ssize_t tmc_etr_buf_get_data(struct etr_buf *etr_buf,
 /* ETR functions */
 int tmc_read_prepare_etr(struct tmc_drvdata *drvdata);
 int tmc_read_unprepare_etr(struct tmc_drvdata *drvdata);
-void tmc_etr_disable_hw(struct tmc_drvdata *drvdata);
+void tmc_etr_disable_hw(struct tmc_drvdata *drvdata, bool flush);
 struct byte_cntr *byte_cntr_init(struct amba_device *adev,
 					struct tmc_drvdata *drvdata);
 void byte_cntr_remove(struct byte_cntr *byte_cntr);

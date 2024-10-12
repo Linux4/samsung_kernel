@@ -18,6 +18,7 @@
 #include <linux/ethtool.h>
 #include <linux/if_vlan.h>
 #include <linux/etherdevice.h>
+#include <linux/string_helpers.h>
 
 #include "u_ether.h"
 
@@ -145,10 +146,10 @@ static void eth_get_drvinfo(struct net_device *net, struct ethtool_drvinfo *p)
 {
 	struct eth_dev *dev = netdev_priv(net);
 
-	strlcpy(p->driver, "g_ether", sizeof(p->driver));
-	strlcpy(p->version, UETH__VERSION, sizeof(p->version));
-	strlcpy(p->fw_version, dev->gadget->name, sizeof(p->fw_version));
-	strlcpy(p->bus_info, dev_name(&dev->gadget->dev), sizeof(p->bus_info));
+	strscpy(p->driver, "g_ether", sizeof(p->driver));
+	strscpy(p->version, UETH__VERSION, sizeof(p->version));
+	strscpy(p->fw_version, dev->gadget->name, sizeof(p->fw_version));
+	strscpy(p->bus_info, dev_name(&dev->gadget->dev), sizeof(p->bus_info));
 }
 
 /* REVISIT can also support:
@@ -975,6 +976,8 @@ int gether_get_host_addr_cdc(struct net_device *net, char *host_addr, int len)
 
 	dev = netdev_priv(net);
 	snprintf(host_addr, len, "%pm", dev->host_mac);
+
+	string_upper(host_addr, host_addr);
 
 	return strlen(host_addr);
 }

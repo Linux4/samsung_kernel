@@ -5,6 +5,7 @@
 #include <dt-bindings/clock/qcom,npucc-sm8150.h>
 #include <dt-bindings/clock/qcom,scc-sm8150.h>
 #include <dt-bindings/clock/qcom,videocc-sm8150.h>
+#include <dt-bindings/clock/qcom,aop-qmp.h>
 #include <dt-bindings/clock/qcom,rpmh.h>
 #include <dt-bindings/gpio/gpio.h>
 #include <dt-bindings/interconnect/qcom,icc.h>
@@ -28,6 +29,7 @@
 
 	aliases {
 		ufshc1 = &ufshc_mem; /* Embedded UFS slot */
+		ufshc2 = &ufshc2_mem; /* Embedded 2nd UFS slot */
 		mmc1 = &sdhc_2; /* SDC2 SD Card slot */
 		serial0 = &qupv3_se12_2uart;
 		spi22 = &qupv3_se22_spi;
@@ -336,7 +338,7 @@
 	};
 
 	chosen {
-		bootargs = "kpti=0 ssbd=force-off qcom_dma_heaps.enable_bitstream_contig_heap=y";
+		bootargs = "kpti=0 ssbd=force-off qcom_dma_heaps.enable_bitstream_contig_heap=y rcupdate.rcu_expedited=1";
 	};
 
 	firmware: firmware {
@@ -413,7 +415,7 @@
 			reg = <0x0 0x8be00000 0x0 0x1a00000>;
 		};
 
-		pil_modem_mem: modem_region@8d800000 {
+		rproc_modem_mem: rproc_modem_region@8d800000 {
 			no-map;
 			reg = <0x0 0x8d800000 0x0 0x9600000>;
 		};
@@ -465,11 +467,6 @@
 			label = "cont_splash_region";
 		};
 
-		disp_rdump_memory: disp_rdump_region@9c000000 {
-			reg = <0x0 0x9c000000 0x0 0x02400000>;
-			label = "disp_rdump_region";
-		};
-
 		adsp_mem: adsp_region {
 			compatible = "shared-dma-pool";
 			alloc-ranges = <0x0 0x00000000 0x0 0xffffffff>;
@@ -500,14 +497,6 @@
 			reusable;
 			alignment = <0x0 0x400000>;
 			size = <0x0 0x1000000>;
-		};
-
-		sp_mem: sp_region {  /* SPSS-HLOS ION shared mem */
-			compatible = "shared-dma-pool";
-			alloc-ranges = <0x0 0x00000000 0x0 0xffffffff>;
-			reusable;
-			alignment = <0x0 0x400000>;
-			size = <0x0 0x800000>;
 		};
 
 		secure_display_memory: secure_display_region { /* Secure UI */
@@ -682,6 +671,11 @@
 			compatible = "qcom,msm-imem-diag-dload";
 			reg = <0xc8 0xc8>;
 		};
+
+		pil@94c {
+			compatible = "qcom,pil-reloc-info";
+			reg = <0x94c 0xc8>;
+		};
 	};
 
 	dload_mode {
@@ -782,6 +776,12 @@
 		#interrupt-cells = <2>;
 		interrupt-parent = <&intc>;
 		interrupt-controller;
+	};
+
+	ddr_bwprofiler {
+		compatible = "qcom,ddr_bwprofiler";
+		clocks = <&aoss_qmp QDSS_CLK>;
+		clock-names = "qdss_clk";
 	};
 
 	gcc: clock-controller@100000 {
@@ -1173,6 +1173,26 @@
 		};
 	};
 
+	qcom,smp2p-modem {
+		compatible = "qcom,smp2p";
+		qcom,smem = <435>, <428>;
+		interrupts = <GIC_SPI 451 IRQ_TYPE_EDGE_RISING>;
+		qcom,ipc = <&apcs 0 14>;
+		qcom,local-pid = <0>;
+		qcom,remote-pid = <1>;
+
+		modem_smp2p_out: master-kernel {
+			qcom,entry-name = "master-kernel";
+			#qcom,smem-state-cells = <1>;
+		};
+
+		modem_smp2p_in: slave-kernel {
+			qcom,entry-name = "slave-kernel";
+			interrupt-controller;
+			#interrupt-cells = <2>;
+		};
+	};
+
 	wdog: qcom,wdt@17c10000 {
 		compatible = "qcom,msm-watchdog";
 		reg = <0x17c10000 0x1000>;
@@ -1190,10 +1210,14 @@
 	qcom,chd {
 		compatible = "qcom,core-hang-detect";
 		label = "core";
-		qcom,threshold-arr = <0x18000058 0x18010058 0x18020058 0x18030058
-				0x18040058 0x18050058 0x18060058 0x18070058>;
-		qcom,config-arr = <0x18000060 0x18010060 0x18020060 0x18030060
-				0x18040060 0x18050060 0x18060060 0x18070060>;
+		qcom,chd-percpu-info = <&CPU0 0x18000058 0x18000060>,
+					<&CPU1 0x18010058 0x18010060>,
+					<&CPU2 0x18020058 0x18020060>,
+					<&CPU3 0x18030058 0x18030060>,
+					<&CPU4 0x18040058 0x18040060>,
+					<&CPU5 0x18050058 0x18050060>,
+					<&CPU6 0x18060058 0x18060060>,
+					<&CPU7 0x18070058 0x18070060>;
 	};
 
 	cpu_pmu: cpu-pmu {
@@ -1390,7 +1414,8 @@
 						<  672000  768000 >,
 						<  864000  960000 >,
 						< 1171200 1228800 >,
-						< 1267200 1344000 >;
+						< 1267200 1344000 >,
+						< 1766400 1651200 >;
 				qcom,sampling-enabled;
 			};
 
@@ -1403,7 +1428,8 @@
 						<  768000  768000 >,
 						<  960000  960000 >,
 						< 1248000 1228800 >,
-						< 1593600 1344000 >;
+						< 1593600 1344000 >,
+						< 2841600 1651200 >;
 				qcom,sampling-enabled;
 			};
 		};
@@ -1574,6 +1600,74 @@
 		};
 	};
 
+	modem_pas: remoteproc-modem@4080000 {
+		compatible = "qcom,sdmshrike-mpss-pas";
+		reg = <0x4080000 0x00100>;
+		status = "disabled";
+		cx-supply = <&VDD_CX_LEVEL>;
+		cx-uV-uA = <RPMH_REGULATOR_LEVEL_TURBO 100000>;
+		mx-supply = <&VDD_MX_LEVEL>;
+		mx-uV-uA = <RPMH_REGULATOR_LEVEL_TURBO 100000>;
+		reg-names = "cx", "mx";
+
+		clocks = <&rpmhcc RPMH_CXO_CLK>;
+		clock-names = "xo";
+
+		qcom,qmp = <&aoss_qmp>;
+
+		interconnects = <&aggre2_noc MASTER_CRYPTO &mc_virt SLAVE_EBI1>;
+		interconnect-names = "crypto_ddr";
+
+		memory-region = <&rproc_modem_mem>;
+
+		/* Inputs from mss */
+		interrupts-extended = <&intc GIC_SPI 266 IRQ_TYPE_LEVEL_HIGH>,
+					<&modem_smp2p_in 0 0>,
+					<&modem_smp2p_in 2 0>,
+					<&modem_smp2p_in 1 0>,
+					<&modem_smp2p_in 3 0>,
+					<&modem_smp2p_in 7 0>;
+
+		interrupt-names = "wdog",
+				"fatal",
+				"handover",
+				"ready",
+				"stop-ack",
+				"shutdown-ack";
+
+		/* Outputs to mss */
+		qcom,smem-states = <&modem_smp2p_out 0>;
+		qcom,smem-state-names = "stop";
+
+		glink_edge_modem: glink-edge {
+			qcom,remote-pid = <1>;
+			transport = "smem";
+			mboxes = <&apss_shared 12>;
+			mbox-names = "mpss_smem";
+			interrupts = <GIC_SPI 449 IRQ_TYPE_EDGE_RISING>;
+
+			label = "modem";
+			qcom,glink-label = "mpss";
+
+			qcom,modem_qrtr {
+				qcom,glink-channels = "IPCRTR";
+				qcom,low-latency;
+				qcom,intents = <0x800  5
+						0x2000 3
+						0x4400 2>;
+			};
+
+			qcom,msm_fastrpc_rpmsg {
+				compatible = "qcom,msm-fastrpc-rpmsg";
+				qcom,glink-channels = "fastrpcglink-apps-dsp";
+				qcom,intents = <0x64 64>;
+			};
+
+			qcom,modem_glink_ssr {
+				qcom,glink-channels = "glink_ssr";
+			};
+		};
+	};
 
 	sdhc2_opp_table: sdhc2-opp-table {
 		compatible = "operating-points-v2";
@@ -1797,6 +1891,152 @@
 			vote = <44>;
 		};
 
+	};
+	ufs2phy_mem: ufsphy2_mem@1d67000 {
+		reg = <0x1d67000 0xe00>; /* PHY regs */
+		reg-names = "phy_mem";
+		#phy-cells = <0>;
+
+		lanes-per-direction = <2>;
+
+		clock-names = "ref_clk_src",
+				"ref_clk",
+				"ref_aux_clk";
+		clocks = <&rpmhcc RPMH_CXO_CLK>,
+			<&gcc GCC_UFS_CARD_CLKREF_CLK>,
+			<&gcc GCC_UFS_CARD_2_PHY_AUX_CLK>;
+
+		resets = <&ufshc2_mem 0>;
+
+		status = "disabled";
+	};
+
+	ufshc2_mem: ufshc2@1d64000 {
+		compatible = "qcom,ufshc";
+		reg = <0x1d64000 0x3000>;
+		reg-names = "ufs_mem";
+		interrupts = <GIC_SPI 649 IRQ_TYPE_LEVEL_HIGH>;
+		phys = <&ufs2phy_mem>;
+		phy-names = "ufsphy";
+		#reset-cells = <1>;
+
+		lanes-per-direction = <2>;
+		dev-ref-clk-freq = <0>; /* 19.2 MHz */
+
+		clock-names =
+			"core_clk",
+			"bus_aggr_clk",
+			"iface_clk",
+			"core_clk_unipro",
+			"core_clk_ice",
+			"ref_clk",
+			"tx_lane0_sync_clk",
+			"rx_lane0_sync_clk",
+			"rx_lane1_sync_clk";
+		clocks =
+			<&gcc GCC_UFS_CARD_2_AXI_CLK>,
+			<&gcc GCC_AGGRE_UFS_CARD_2_AXI_CLK>,
+			<&gcc GCC_UFS_CARD_2_AHB_CLK>,
+			<&gcc GCC_UFS_CARD_2_UNIPRO_CORE_CLK>,
+			<&gcc GCC_UFS_CARD_2_ICE_CORE_CLK>,
+			<&rpmhcc RPMH_CXO_CLK>,
+			<&gcc GCC_UFS_CARD_2_TX_SYMBOL_0_CLK>,
+			<&gcc GCC_UFS_CARD_2_RX_SYMBOL_0_CLK>,
+			<&gcc GCC_UFS_CARD_2_RX_SYMBOL_1_CLK>;
+		freq-table-hz =
+			<37500000 300000000>,
+			<0 0>,
+			<0 0>,
+			<37500000 300000000>,
+			<37500000 300000000>,
+			<0 0>,
+			<0 0>,
+			<0 0>,
+			<0 0>;
+
+		interconnects =
+				<&aggre1_noc MASTER_UFS_GEN4 &mc_virt SLAVE_EBI1>,
+				<&gem_noc MASTER_APPSS_PROC
+						&config_noc SLAVE_UFS_MEM_1_CFG>;
+		interconnect-names = "ufs-ddr", "cpu-ufs";
+
+		qcom,ufs-bus-bw,name = "ufshc2_mem";
+		qcom,ufs-bus-bw,num-cases = <26>;
+		qcom,ufs-bus-bw,num-paths = <2>;
+		qcom,ufs-bus-bw,vectors-KBps =
+		/*
+		 * During HS G3 UFS runs at nominal voltage corner, vote
+		 * higher bandwidth to push other buses in the data path
+		 * to run at nominal to achieve max throughput.
+		 * 4GBps pushes BIMC to run at nominal.
+		 * 200MBps pushes CNOC to run at nominal.
+		 * Vote for half of this bandwidth for HS G3 1-lane.
+		 * For max bandwidth, vote high enough to push the buses
+		 * to run in turbo voltage corner.
+		 */
+		<0 0>, <0 0>,          /* No vote */
+		<922 0>, <1000 0>,     /* PWM G1 */
+		<1844 0>, <1000 0>,    /* PWM G2 */
+		<3688 0>, <1000 0>,    /* PWM G3 */
+		<7376 0>, <1000 0>,    /* PWM G4 */
+		<1844 0>, <1000 0>,    /* PWM G1 L2 */
+		<3688 0>, <1000 0>,    /* PWM G2 L2 */
+		<7376 0>, <1000 0>,    /* PWM G3 L2 */
+		<14752 0>, <1000 0>,   /* PWM G4 L2 */
+		<127796 0>, <1000 0>,  /* HS G1 RA */
+		<255591 0>, <1000 0>,  /* HS G2 RA */
+		<2097152 0>, <102400 0>,  /* HS G3 RA */
+		<4194304 0>, <204800 0>,  /* HS G4 RA */
+		<255591 0>, <1000 0>,  /* HS G1 RA L2 */
+		<511181 0>, <1000 0>,  /* HS G2 RA L2 */
+		<4194304 0>, <204800 0>, /* HS G3 RA L2 */
+		<8388608 0>, <409600 0>, /* HS G4 RA L2 */
+		<149422 0>, <1000 0>,  /* HS G1 RB */
+		<298189 0>, <1000 0>,  /* HS G2 RB */
+		<2097152 0>, <102400 0>,  /* HS G3 RB */
+		<4194304 0>, <204800 0>,  /* HS G4 RB */
+		<298189 0>, <1000 0>,  /* HS G1 RB L2 */
+		<596378 0>, <1000 0>,  /* HS G2 RB L2 */
+		/* As UFS working in HS G3 RB L2 mode, aggregated
+		 * bandwidth (AB) should take care of providing
+		 * optimum throughput requested. However, as tested,
+		 * in order to scale up CNOC clock, instantaneous
+		 * bindwidth (IB) needs to be given a proper value too.
+		 */
+		<4194304 0>, <204800 409600>, /* HS G3 RB L2 */
+		<8388608 0>, <409600 409600>, /* HS G4 RB L2 */
+		<7643136 0>, <307200 0>; /* Max. bandwidth */
+
+		qcom,bus-vector-names = "MIN",
+		"PWM_G1_L1", "PWM_G2_L1", "PWM_G3_L1", "PWM_G4_L1",
+		"PWM_G1_L2", "PWM_G2_L2", "PWM_G3_L2", "PWM_G4_L2",
+		"HS_RA_G1_L1", "HS_RA_G2_L1", "HS_RA_G3_L1", "HS_RA_G4_L1",
+		"HS_RA_G1_L2", "HS_RA_G2_L2", "HS_RA_G3_L2", "HS_RA_G4_L2",
+		"HS_RB_G1_L1", "HS_RB_G2_L1", "HS_RB_G3_L1", "HS_RB_G4_L1",
+		"HS_RB_G1_L2", "HS_RB_G2_L2", "HS_RB_G3_L2", "HS_RB_G4_L2",
+		"MAX";
+
+		reset-gpios = <&tlmm 191 GPIO_ACTIVE_LOW>;
+		resets = <&gcc GCC_UFS_CARD_2_BCR>;
+		reset-names = "rst";
+		iommus = <&apps_smmu 0x0 0x0>;
+		qcom,iommu-dma = "fastmap";
+		dma-coherent;
+
+		secondary-storage;
+
+		status = "disabled";
+
+		/* PM QoS */
+		qos0 {
+			mask = <0xf0>;
+			vote = <44>;
+		};
+
+		qos1 {
+			mask = <0x0f>;
+			vote = <44>;
+		};
 	};
 
 	qtee_shmbridge {

@@ -27,7 +27,11 @@
 #endif
 #endif
 
+#define MAX_FW_APP_SIZE	256		//Application name size.
+#define FILE_EXT_SIZE	5		//File extension like .mbn etc
+
 const uint32_t CQSEEComCompatAppLoader_UID = 122;
+extern struct device *class_dev;
 
 struct qseecom_compat_context {
 	void *dev; /* in/out */
@@ -272,7 +276,7 @@ exit:
 	return ret | req.result;
 }
 
-static int get_root_obj(struct Object *rootObj)
+int get_root_obj(struct Object *rootObj)
 {
 	int ret = 0;
 	int root_fd = -1;
@@ -330,13 +334,13 @@ static int load_app(struct qseecom_compat_context *cxt, const char *app_name)
 	size_t fw_size = 0;
 	u8 *imgbuf_va = NULL;
 	int ret = 0;
-	char dist_name[MAX_APP_NAME_SIZE] = {0};
+	char dist_name[MAX_FW_APP_SIZE] = {0};
 	size_t dist_name_len = 0;
 	struct qtee_shm shm = {0};
 
-	if (strnlen(app_name, MAX_APP_NAME_SIZE) == MAX_APP_NAME_SIZE) {
+	if (strnlen(app_name, MAX_FW_APP_SIZE) == MAX_FW_APP_SIZE) {
 		pr_err("The app_name (%s) with length %zu is not valid\n",
-			app_name, strnlen(app_name, MAX_APP_NAME_SIZE));
+			app_name, strnlen(app_name, MAX_FW_APP_SIZE ));
 		return -EINVAL;
 	}
 
@@ -356,7 +360,7 @@ static int load_app(struct qseecom_compat_context *cxt, const char *app_name)
 	ret = IQSEEComCompatAppLoader_loadFromBuffer(
 			cxt->app_loader, imgbuf_va, fw_size,
 			app_name, strlen(app_name),
-			dist_name, MAX_APP_NAME_SIZE, &dist_name_len,
+			dist_name, MAX_FW_APP_SIZE , &dist_name_len,
 			&cxt->app_controller);
 	if (ret) {
 		pr_err("loadFromBuffer failed for app %s, ret = %d\n",
@@ -445,13 +449,14 @@ exit_free_cxt:
 
 static int __qseecom_shutdown_app(struct qseecom_handle **handle)
 {
-	struct qseecom_compat_context *cxt =
-		(struct qseecom_compat_context *)(*handle);
 
+	struct qseecom_compat_context *cxt = NULL;
 	if ((handle == NULL)  || (*handle == NULL)) {
 		pr_err("Handle is NULL\n");
 		return -EINVAL;
 	}
+
+	cxt = (struct qseecom_compat_context *)(*handle);
 
 	qtee_shmbridge_free_shm(&cxt->shm);
 	Object_release(cxt->app_controller);
@@ -524,3 +529,111 @@ EXPORT_SYMBOL(qseecom_send_command);
 #endif
 
 #endif
+
+char *firmware_request_from_smcinvoke(const char *appname, size_t *fw_size, struct qtee_shm *shm)
+{
+
+	int rc = 0;
+	const struct firmware *fw_entry = NULL, *fw_entry00 = NULL, *fw_entrylast = NULL;
+	char fw_name[MAX_FW_APP_SIZE + FILE_EXT_SIZE] = "\0";
+	int num_images = 0, phi = 0;
+	unsigned char app_arch = 0;
+	u8 *img_data_ptr = NULL;
+	size_t bufferOffset = 0, phdr_table_offset = 0;
+	size_t *offset = NULL;
+	Elf32_Phdr phdr32;
+	Elf64_Phdr phdr64;
+	struct elf32_hdr *ehdr = NULL;
+	struct elf64_hdr *ehdr64 = NULL;
+
+
+	/* load b00*/
+	snprintf(fw_name, sizeof(fw_name), "%s.b00", appname);
+	rc = firmware_request_nowarn(&fw_entry00, fw_name, class_dev);
+	if (rc) {
+		pr_err("Load %s failed, ret:%d\n", fw_name, rc);
+		return NULL;
+	}
+
+	app_arch = *(unsigned char *)(fw_entry00->data + EI_CLASS);
+
+	/*Get the offsets for split images header*/
+	if (app_arch == ELFCLASS32) {
+
+		ehdr = (struct elf32_hdr *)fw_entry00->data;
+		num_images = ehdr->e_phnum;
+		offset = kcalloc(num_images, sizeof(size_t), GFP_KERNEL);
+		if (offset == NULL)
+			goto release_fw_entry00;
+		phdr_table_offset = (size_t) ehdr->e_phoff;
+		for (phi = 1; phi < num_images; ++phi) {
+			bufferOffset = phdr_table_offset + phi * sizeof(Elf32_Phdr);
+			phdr32 = *(Elf32_Phdr *)(fw_entry00->data + bufferOffset);
+			offset[phi] = (size_t)phdr32.p_offset;
+		}
+
+	} else if (app_arch == ELFCLASS64) {
+
+		ehdr64 = (struct elf64_hdr *)fw_entry00->data;
+		num_images = ehdr64->e_phnum;
+		offset = kcalloc(num_images, sizeof(size_t), GFP_KERNEL);
+		if (offset == NULL)
+			goto release_fw_entry00;
+		phdr_table_offset = (size_t) ehdr64->e_phoff;
+		for (phi = 1; phi < num_images; ++phi) {
+			bufferOffset = phdr_table_offset + phi * sizeof(Elf64_Phdr);
+			phdr64 = *(Elf64_Phdr *)(fw_entry00->data + bufferOffset);
+			offset[phi] = (size_t)phdr64.p_offset;
+		}
+
+	} else {
+
+		pr_err("QSEE %s app, arch %u is not supported\n", appname, app_arch);
+		goto release_fw_entry00;
+	}
+
+	/*Find the size of last split bin image*/
+	snprintf(fw_name, ARRAY_SIZE(fw_name), "%s.b%02d", appname, num_images-1);
+	rc = firmware_request_nowarn(&fw_entrylast, fw_name, class_dev);
+	if (rc) {
+		pr_err("Failed to locate blob %s\n", fw_name);
+		goto release_fw_entry00;
+	}
+
+	/*Total size of image will be the offset of last image + the size of last split image*/
+	*fw_size = fw_entrylast->size + offset[num_images-1];
+
+	/*Allocate memory for the buffer that will hold the split image*/
+	rc = qtee_shmbridge_allocate_shm((*fw_size), shm);
+	if (rc) {
+		pr_err("smbridge alloc failed for size: %zu\n", *fw_size);
+		goto release_fw_entrylast;
+	}
+	img_data_ptr = shm->vaddr;
+	/*
+	 * Copy contents of split bins to the buffer
+	 */
+	memcpy(img_data_ptr, fw_entry00->data, fw_entry00->size);
+	for (phi = 1; phi < num_images-1; phi++) {
+		snprintf(fw_name, ARRAY_SIZE(fw_name), "%s.b%02d", appname, phi);
+		rc = firmware_request_nowarn(&fw_entry, fw_name, class_dev);
+		if (rc) {
+			pr_err("Failed to locate blob %s\n", fw_name);
+			qtee_shmbridge_free_shm(shm);
+			img_data_ptr = NULL;
+			goto release_fw_entrylast;
+		}
+		memcpy(img_data_ptr + offset[phi], fw_entry->data, fw_entry->size);
+		release_firmware(fw_entry);
+		fw_entry = NULL;
+	}
+	memcpy(img_data_ptr + offset[phi], fw_entrylast->data, fw_entrylast->size);
+
+release_fw_entrylast:
+	release_firmware(fw_entrylast);
+release_fw_entry00:
+	release_firmware(fw_entry00);
+	kfree(offset);
+	return img_data_ptr;
+}
+EXPORT_SYMBOL(firmware_request_from_smcinvoke);

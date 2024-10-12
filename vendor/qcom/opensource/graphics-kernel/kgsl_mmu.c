@@ -231,7 +231,7 @@ kgsl_mmu_log_fault_addr(struct kgsl_mmu *mmu, u64 pt_base,
 
 	spin_lock(&kgsl_driver.ptlock);
 	list_for_each_entry(pt, &kgsl_driver.pagetable_list, list) {
-		if (kgsl_mmu_pagetable_get_ttbr0(pt) == MMU_SW_PT_BASE(pt_base)) {
+		if (kgsl_mmu_pagetable_get_ttbr0(pt) == pt_base) {
 			if ((addr & ~(PAGE_SIZE-1)) == pt->fault_addr) {
 				ret = 1;
 				break;
@@ -457,6 +457,8 @@ kgsl_mmu_unmap(struct kgsl_pagetable *pagetable,
 		size = kgsl_memdesc_footprint(memdesc);
 
 		ret = pagetable->pt_ops->mmu_unmap(pagetable, memdesc);
+		if (ret)
+			return ret;
 
 		atomic_dec(&pagetable->stats.entries);
 		atomic_long_sub(size, &pagetable->stats.mapped);
@@ -486,7 +488,8 @@ kgsl_mmu_unmap_range(struct kgsl_pagetable *pagetable,
 		ret = pagetable->pt_ops->mmu_unmap_range(pagetable, memdesc,
 			offset, length);
 
-		atomic_long_sub(length, &pagetable->stats.mapped);
+		if (!ret)
+			atomic_long_sub(length, &pagetable->stats.mapped);
 	}
 
 	return ret;

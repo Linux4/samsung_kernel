@@ -101,18 +101,6 @@ struct a6xx_gmu_device {
 	struct notifier_block gdsc_nb;
 	/** @gdsc_gate: Completion to signal cx gdsc collapse status */
 	struct completion gdsc_gate;
-	/** @pdc_cfg_base: Base address of PDC cfg registers */
-	void __iomem *pdc_cfg_base;
-	/** @pdc_seq_base: Base address of PDC seq registers */
-	void __iomem *pdc_seq_base;
-	/** @stats_enable: GMU stats feature enable */
-	bool stats_enable;
-	/** @stats_mask: GMU performance countables to enable */
-	u32 stats_mask;
-	/** @stats_interval: GMU performance counters sampling interval */
-	u32 stats_interval;
-	/** @stats_kobj: kernel object for GMU stats directory in sysfs */
-	struct kobject stats_kobj;
 };
 
 /* Helper function to get to a6xx gmu device from adreno device */
@@ -459,10 +447,10 @@ void a6xx_gmu_handle_watchdog(struct adreno_device *adreno_dev);
 
 /**
  * a6xx_gmu_send_nmi - Send NMI to GMU
- * @adreno_dev: Pointer to the adreno device
+ * @device: Pointer to the kgsl device
  * @force: Boolean to forcefully send NMI irrespective of GMU state
  */
-void a6xx_gmu_send_nmi(struct adreno_device *adreno_dev, bool force);
+void a6xx_gmu_send_nmi(struct kgsl_device *device, bool force);
 
 /**
  * a6xx_gmu_add_to_minidump - Register a6xx_device with va minidump

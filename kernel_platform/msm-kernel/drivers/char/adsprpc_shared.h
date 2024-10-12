@@ -92,6 +92,9 @@
 /* Set FastRPC session ID to 1 */
 #define FASTRPC_MODE_SESSION     4
 
+/* Retrieves method index from the scalars parameter */
+#define REMOTE_SCALARS_METHOD(sc)        (((sc) >> 24) & 0x1f)
+
 /* Retrives number of input buffers from the scalars parameter */
 #define REMOTE_SCALARS_INBUFS(sc)        (((sc) >> 16) & 0x0ff)
 
@@ -105,17 +108,25 @@
 #define REMOTE_SCALARS_OUTHANDLES(sc)    ((sc) & 0x0f)
 
 /* Remote domains ID */
-#define ADSP_DOMAIN_ID	(0)
-#define MDSP_DOMAIN_ID	(1)
-#define SDSP_DOMAIN_ID	(2)
-#define CDSP_DOMAIN_ID	(3)
-#define MAX_DOMAIN_ID	CDSP_DOMAIN_ID
+#define ADSP_DOMAIN_ID		(0)
+#define MDSP_DOMAIN_ID		(1)
+#define SDSP_DOMAIN_ID		(2)
+#define CDSP_DOMAIN_ID		(3)
+#define CDSP1_DOMAIN_ID		(4)
+#define GPDSP_DOMAIN_ID		(5)
+#define GPDSP1_DOMAIN_ID	(6)
+#define MAX_DOMAIN_ID	GPDSP1_DOMAIN_ID
 
-#define NUM_CHANNELS	4	/* adsp, mdsp, slpi, cdsp*/
+#define NUM_CHANNELS	(MAX_DOMAIN_ID + 1)	/* adsp, mdsp, slpi, cdsp, cdsp1, gpdsp, gpdsp1*/
 #define NUM_SESSIONS	13	/* max 12 compute, 1 cpz */
+
+#define RH_CID ADSP_DOMAIN_ID
 
 #define VALID_FASTRPC_CID(cid) \
 	(cid >= ADSP_DOMAIN_ID && cid < NUM_CHANNELS)
+
+#define GET_DEV_FROM_CID(me, cid) \
+	((me->dev[cid] == NULL) ? me->dev[RH_CID] : me->dev[cid])
 
 #define REMOTE_SCALARS_LENGTH(sc)	(REMOTE_SCALARS_INBUFS(sc) +\
 					REMOTE_SCALARS_OUTBUFS(sc) +\
@@ -699,11 +710,6 @@ struct gid_list {
 	unsigned int gidcount;
 };
 
-struct qos_cores {
-	int *coreno;
-	int corecount;
-};
-
 struct fastrpc_file;
 
 struct fastrpc_buf {
@@ -783,7 +789,7 @@ struct smq_notif_rsp {
 struct smq_invoke_ctx {
 	struct hlist_node hn;
 	/* Async node to add to async job ctx list */
-	struct list_head asyncn;
+	struct hlist_node asyncn;
 	struct completion work;
 	int retval;
 	int pid;
@@ -830,7 +836,7 @@ struct fastrpc_ctx_lst {
 	/* Number of active contexts queued to DSP */
 	uint32_t num_active_ctxs;
 	/* Queue which holds all async job contexts of process */
-	struct list_head async_queue;
+	struct hlist_head async_queue;
 	/* Queue which holds all status notifications of process */
 	struct list_head notif_queue;
 };
@@ -888,7 +894,7 @@ struct fastrpc_channel_ctx {
 	struct mutex smd_mutex;
 	uint64_t sesscount;
 	uint64_t ssrcount;
-	int in_hib;
+	int hib_state;
 	void *handle;
 	uint64_t prevssrcount;
 	int subsystemstate;
@@ -922,7 +928,7 @@ struct fastrpc_apps {
 	int compat;
 	struct hlist_head drivers;
 	spinlock_t hlock;
-	struct device *dev;
+	struct device *dev[NUM_CHANNELS];
 	/* Indicates fastrpc device node info */
 	struct device *dev_fastrpc;
 	unsigned int latency;
@@ -940,13 +946,16 @@ struct fastrpc_apps {
 	/* Non-secure subsystem like CDSP will use regular client */
 	struct wakeup_source *wake_source;
 	uint32_t duplicate_rsp_err_cnt;
-	struct qos_cores silvercores;
 	uint32_t max_size_limit;
 	struct hlist_head frpc_devices;
 	struct hlist_head frpc_drivers;
 	struct mutex mut_uid;
 	/* Indicates cdsp device status */
-	int remote_cdsp_status;
+	int fastrpc_cdsp_status;
+	/* Number of lowest capacity cores for given platform */
+	unsigned int lowest_capacity_core_count;
+	/* Flag to check if PM QoS vote needs to be done for only one core */
+	bool single_core_latency_vote;
 };
 
 struct fastrpc_mmap {
@@ -972,9 +981,9 @@ struct fastrpc_mmap {
 	bool in_use;				/* Indicates if persistent map is in use*/
 	struct timespec64 map_start_time;
 	struct timespec64 map_end_time;
-	/* Mapping for fastrpc shell */
-	bool is_filemap;
+	bool is_filemap;			/*flag to indicate map used in process init*/
 	char *servloc_name;			/* Indicate which daemon mapped this */
+	unsigned int ctx_refs; /* Indicates reference count for context map */
 };
 
 enum fastrpc_perfkeys {
@@ -1014,6 +1023,13 @@ struct fastrpc_dspsignal {
 	int state;
 };
 
+struct memory_snapshot {
+	/* Total size of heap buffers allocated in userspace */
+	size_t heap_bufs_size;
+	/* Total size of non-heap buffers allocated in userspace */
+	size_t nonheap_bufs_size;
+};
+
 struct fastrpc_file {
 	struct hlist_node hn;
 	spinlock_t hlock;
@@ -1031,6 +1047,8 @@ struct fastrpc_file {
 	struct fastrpc_buf *pers_hdr_buf;
 	/* Pre-allocated buffer divided into N chunks */
 	struct fastrpc_buf *hdr_bufs;
+	/* Store snapshot of memory occupied by different buffers */
+	struct memory_snapshot mem_snap;
 
 	struct fastrpc_session_ctx *secsctx;
 	uint32_t mode;
@@ -1095,6 +1113,8 @@ struct fastrpc_file {
 	spinlock_t dspsignals_lock;
 	struct mutex signal_create_mutex;
 	struct completion shutdown;
+	/* Flag to indicate Notif feature to be enabled or no */
+	bool init_notif;
 	/* Flag to indicate notif thread exit requested*/
 	bool exit_notif;
 	/* Flag to indicate async thread exit requested*/
@@ -1138,7 +1158,10 @@ int fastrpc_internal_mem_unmap(struct fastrpc_file *fl,
 				struct fastrpc_ioctl_mem_unmap *ud);
 
 int fastrpc_internal_mmap(struct fastrpc_file *fl,
-				 struct fastrpc_ioctl_mmap *ud);
+		struct fastrpc_ioctl_mmap *ud);
+
+int fastrpc_internal_munmap_fd(struct fastrpc_file *fl,
+				struct fastrpc_ioctl_munmap_fd *ud);
 
 int fastrpc_init_process(struct fastrpc_file *fl,
 				struct fastrpc_ioctl_init_attrs *uproc);

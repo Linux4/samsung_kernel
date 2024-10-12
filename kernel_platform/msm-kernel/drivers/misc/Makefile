@@ -68,3 +68,6 @@ obj-m                           += sensor_info/sensor_node.o
 else
 $(warning "sensor node is not factory")
 endif
+obj-$(CONFIG_QPNP_MISC)		+= qpnp-misc.o
+obj-$(CONFIG_PROFILER)		+= profiler.o
+obj-$(CONFIG_QRC)		+= qrc/

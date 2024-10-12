@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2013-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #if !defined(_ADRENO_TRACE_H) || defined(TRACE_HEADER_MULTI_READ)
@@ -18,7 +18,6 @@
 #include "adreno_a3xx.h"
 #include "adreno_a5xx.h"
 #include "adreno_gen7.h"
-#include "adreno_hfi.h"
 
 #define ADRENO_FT_TYPES \
 	{ BIT(KGSL_FT_OFF), "off" }, \
@@ -54,130 +53,6 @@ TRACE_EVENT(adreno_cmdbatch_queued,
 			__entry->flags ? __print_flags(__entry->flags, "|",
 						KGSL_DRAWOBJ_FLAGS) : "none"
 	)
-);
-
-TRACE_EVENT(adreno_hw_fence_query,
-	TP_PROTO(u64 context, u64 seqno, u32 flags, const char *name, const char *val),
-	TP_ARGS(context, seqno, flags, name, val),
-	TP_STRUCT__entry(
-		__field(u64, context)
-		__field(u64, seqno)
-		__field(u32, flags)
-		__string(fence_name, name)
-		__string(val, val)
-	),
-	TP_fast_assign(
-		__entry->context = context;
-		__entry->seqno = seqno;
-		__entry->flags = flags;
-		__assign_str(fence_name, name);
-		__assign_str(val, val);
-	),
-	TP_printk(
-		"id=%lld seqno=%lld sw_status=%s name=%s val=%s",
-			__entry->context, __entry->seqno,
-			__entry->flags ? __print_flags(__entry->flags, "|",
-				{ ADRENO_HW_FENCE_SW_STATUS_PENDING, "PENDING" },
-				{ ADRENO_HW_FENCE_SW_STATUS_SIGNALED, "SIGNALED" }) : "none",
-			__get_str(fence_name),
-			__get_str(val))
-);
-
-TRACE_EVENT(adreno_input_hw_fence,
-	TP_PROTO(u32 id, u64 context, u64 seqno, u64 flags, const char *name),
-	TP_ARGS(id, context, seqno, flags, name),
-	TP_STRUCT__entry(
-		__field(u32, id)
-		__field(u64, context)
-		__field(u64, seqno)
-		__field(u64, flags)
-		__string(fence_name, name)
-	),
-	TP_fast_assign(
-		__entry->id = id;
-		__entry->context = context;
-		__entry->seqno = seqno;
-		__entry->flags = flags;
-		__assign_str(fence_name, name);
-	),
-	TP_printk(
-		"ctx=%u id=%lld seqno=%lld flags=%s name=%s",
-			__entry->id,  __entry->context, __entry->seqno,
-			__entry->flags ? __print_flags(__entry->flags, "|",
-				GMU_SYNCOBJ_FLAGS) : "none",
-			__get_str(fence_name))
-);
-
-TRACE_EVENT(adreno_syncobj_query_reply,
-	TP_PROTO(u32 id, u32 timestamp, uint64_t ticks),
-	TP_ARGS(id, timestamp, ticks),
-	TP_STRUCT__entry(
-		__field(u32, id)
-		__field(u32, timestamp)
-		__field(uint64_t, ticks)
-	),
-	TP_fast_assign(
-		__entry->id = id;
-		__entry->timestamp = timestamp;
-		__entry->ticks = ticks;
-	),
-	TP_printk(
-		"ctx=%u ts=%u ticks=%lld",
-			__entry->id, __entry->timestamp, __entry->ticks)
-);
-
-TRACE_EVENT(adreno_syncobj_query,
-	TP_PROTO(u32 id, u32 timestamp, uint64_t ticks),
-	TP_ARGS(id, timestamp, ticks),
-	TP_STRUCT__entry(
-		__field(u32, id)
-		__field(u32, timestamp)
-		__field(uint64_t, ticks)
-	),
-	TP_fast_assign(
-		__entry->id = id;
-		__entry->timestamp = timestamp;
-		__entry->ticks = ticks;
-	),
-	TP_printk(
-		"ctx=%u ts=%u ticks=%lld",
-			__entry->id, __entry->timestamp, __entry->ticks)
-);
-
-TRACE_EVENT(adreno_syncobj_submitted,
-	TP_PROTO(u32 id, u32 timestamp, u32 num_syncobj,
-		uint64_t ticks),
-	TP_ARGS(id, timestamp, num_syncobj, ticks),
-	TP_STRUCT__entry(
-		__field(u32, id)
-		__field(u32, timestamp)
-		__field(u32, num_syncobj)
-		__field(uint64_t, ticks)
-	),
-	TP_fast_assign(
-		__entry->id = id;
-		__entry->timestamp = timestamp;
-		__entry->num_syncobj = num_syncobj;
-		__entry->ticks = ticks;
-	),
-	TP_printk(
-		"ctx=%u ts=%u num_sync=%u ticks=%lld",
-			__entry->id, __entry->timestamp, __entry->num_syncobj, __entry->ticks)
-);
-
-TRACE_EVENT(adreno_syncobj_retired,
-	TP_PROTO(u32 id, u32 timestamp),
-	TP_ARGS(id, timestamp),
-	TP_STRUCT__entry(
-		__field(u32, id)
-		__field(u32, timestamp)
-	),
-	TP_fast_assign(
-		__entry->id = id;
-		__entry->timestamp = timestamp;
-	),
-	TP_printk(
-		"ctx=%u ts=%u", __entry->id, __entry->timestamp)
 );
 
 TRACE_EVENT(adreno_cmdbatch_submitted,
@@ -534,8 +409,8 @@ TRACE_EVENT(adreno_drawctxt_switch,
 TRACE_EVENT(adreno_gpu_fault,
 	TP_PROTO(unsigned int ctx, unsigned int ts,
 		unsigned int status, unsigned int rptr, unsigned int wptr,
-		u64 ib1base, unsigned int ib1size,
-		u64 ib2base, unsigned int ib2size, int rb_id),
+		unsigned int ib1base, unsigned int ib1size,
+		unsigned int ib2base, unsigned int ib2size, int rb_id),
 	TP_ARGS(ctx, ts, status, rptr, wptr, ib1base, ib1size, ib2base,
 		ib2size, rb_id),
 	TP_STRUCT__entry(
@@ -544,9 +419,9 @@ TRACE_EVENT(adreno_gpu_fault,
 		__field(unsigned int, status)
 		__field(unsigned int, rptr)
 		__field(unsigned int, wptr)
-		__field(u64, ib1base)
+		__field(unsigned int, ib1base)
 		__field(unsigned int, ib1size)
-		__field(u64, ib2base)
+		__field(unsigned int, ib2base)
 		__field(unsigned int, ib2size)
 		__field(int, rb_id)
 	),
@@ -563,7 +438,7 @@ TRACE_EVENT(adreno_gpu_fault,
 		__entry->rb_id = rb_id;
 	),
 	TP_printk(
-		"ctx=%d ts=%d rb_id=%d status=%X RB=%X/%X IB1=%llX/%X IB2=%llX/%X",
+		"ctx=%d ts=%d rb_id=%d status=%X RB=%X/%X IB1=%X/%X IB2=%X/%X",
 		__entry->ctx, __entry->ts, __entry->rb_id, __entry->status,
 		__entry->wptr, __entry->rptr, __entry->ib1base,
 		__entry->ib1size, __entry->ib2base, __entry->ib2size)
@@ -773,7 +648,6 @@ TRACE_EVENT(kgsl_gen7_irq_status,
 			{ BIT(GEN7_INT_DEBUGBUSINTERRUPT1),
 				"DEBUGBUSINTERRUPT1" },
 			{ BIT(GEN7_INT_TSBWRITEERROR), "TSBWRITEERROR" },
-			{ BIT(GEN7_INT_SWFUSEVIOLATION), "SWFUSEVIOLATION" },
 			{ BIT(GEN7_INT_ISDBCPUIRQ), "ISDBCPUIRQ" },
 			{ BIT(GEN7_INT_ISDBUNDERDEBUG), "ISDBUNDERDEBUG" },
 			{ BIT(GEN7_INT_ISDBUNDERDEBUG), "ISDBUNDERDEBUG" })

@@ -9,8 +9,9 @@
 #define MAX_CACHE_BUF_SIZE		(8*1024*1024)
 /* Maximum buffers cached in cached buffer list */
 #define MAX_CACHED_BUFS		32
+#define MAX_BUF_SIZE	0x78000000
 
-static inline void vfastrpc_free_pages(struct page **pages, int count)
+static inline void vfastrpc_free_pages(struct page **pages, unsigned int count)
 {
 	while (count--)
 		__free_page(pages[count]);
@@ -151,9 +152,12 @@ int vfastrpc_buf_alloc(struct vfastrpc_file *vfl, size_t size,
 	struct hlist_node *n;
 	int err = 0;
 
-	VERIFY(err, size > 0);
-	if (err)
+	VERIFY(err, size > 0 && size < MAX_BUF_SIZE);
+	if (err) {
+		dev_err(me->dev, "%s: Invalid buffer size, 0x%llx\n",
+				__func__, size);
 		goto bail;
+	}
 
 	if (!remote) {
 		/* find the smallest buffer that fits in the cache */
@@ -188,7 +192,7 @@ int vfastrpc_buf_alloc(struct vfastrpc_file *vfl, size_t size,
 	if (IS_ERR_OR_NULL(buf->pages)) {
 		err = -ENOMEM;
 		dev_err(me->dev,
-			"%s: %s: fastrpc_alloc_buffer failed for size 0x%zx, returned %ld\n",
+			"%s: %s: failed for size 0x%zx, returned %ld\n",
 			current->comm, __func__, size, PTR_ERR(buf->pages));
 		goto bail;
 	}
@@ -236,7 +240,9 @@ int vfastrpc_mmap_remove(struct vfastrpc_file *vfl, int fd,
 				map->raddr + map->len == va + len &&
 				(map->refs == 1 ||
 				 (map->refs == 2 &&
-				  map->attr & FASTRPC_ATTR_KEEP_MAP))) {
+				  map->attr & FASTRPC_ATTR_KEEP_MAP)) &&
+				/* Remove if only one reference map and no context map */
+				!map->ctx_refs) {
 			if (map->attr & FASTRPC_ATTR_KEEP_MAP)
 				map->refs--;
 			match = map;
@@ -264,10 +270,10 @@ int vfastrpc_mmap_remove_fd(struct vfastrpc_file *vfl, int fd, u32 *entries)
 				(map->attr & FASTRPC_ATTR_KEEP_MAP)) {
 			(*entries)++;
 			match = map;
-			if (match->refs > 1) {
+			if (match->refs > 1 || match->ctx_refs) {
 				dev_err(vfl->apps->dev,
-						"%s map refs = %d is abnormal\n",
-						__func__, match->refs);
+						"%s map refs = %d or ctx_refs = %d is abnormal\n",
+						__func__, match->refs, match->ctx_refs);
 				err = -ETOOMANYREFS;
 			}
 			vfastrpc_mmap_free(vfl, match, 0);
@@ -289,18 +295,21 @@ void vfastrpc_mmap_free(struct vfastrpc_file *vfl,
 		dev_err(me->dev, "%s ADSP_MMAP_HEAP_ADDR is not supported\n",
 				__func__);
 	} else {
-		if (map->refs <= 0) {
-			dev_warn(me->dev, "map refcnt = %d is abnormal\n", map->refs);
+		if (map->refs <= 0 || map->ctx_refs < 0) {
+			dev_warn(me->dev, "%s map refs = %d or ctx_refs = %d is abnormal\n",
+					__func__, map->refs, map->ctx_refs);
 			return;
 		}
 
 		map->refs--;
-		if (map->refs && force_free) {
-			dev_warn(me->dev, "force free map, but refs = %d\n", map->refs);
+		if ((map->refs || map->ctx_refs) && force_free) {
+			dev_warn(me->dev, "force free, refs = %d ctx_refs = %d attr = 0x%x\n",
+					map->refs + 1, map->ctx_refs, map->attr);
 			map->refs = 0;
+			map->ctx_refs = 0;
 		}
 
-		if (!map->refs) {
+		if (!map->refs && !map->ctx_refs) {
 			hlist_del_init(&map->hn);
 			if (!IS_ERR_OR_NULL(map->table)) {
 				dma_buf_unmap_attachment(map->attach, map->table,
@@ -382,6 +391,7 @@ int vfastrpc_mmap_create(struct vfastrpc_file *vfl, int fd,
 	map->vfl = vfl;
 	map->fd = fd;
 	map->attr = attr;
+	map->ctx_refs = 0;
 	if (mflags == ADSP_MMAP_HEAP_ADDR ||
 			mflags == ADSP_MMAP_REMOTE_HEAP_ADDR) {
 		dev_err(me->dev, "%s ADSP_MMAP_HEAP_ADDR is not supported\n",

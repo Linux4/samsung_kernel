@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/interconnect.h>
@@ -12,6 +12,8 @@
 #include "kgsl_device.h"
 #include "kgsl_trace.h"
 
+#define ACTIVE_ALWAYS_TAG 0x7
+#define PERF_MODE_TAG   0x8
 
 static u32 _ab_buslevel_update(struct kgsl_pwrctrl *pwr,
 		u32 ib)
@@ -38,6 +40,7 @@ int kgsl_bus_update(struct kgsl_device *device,
 	struct kgsl_pwrctrl *pwr = &device->pwrctrl;
 	/* FIXME: this might be wrong? */
 	int cur = pwr->pwrlevels[pwr->active_pwrlevel].bus_freq;
+	int cur_max = pwr->pwrlevels[pwr->active_pwrlevel].bus_max;
 	int buslevel = 0;
 	u32 ab;
 
@@ -53,17 +56,27 @@ int kgsl_bus_update(struct kgsl_device *device,
 		buslevel = min_t(int, pwr->pwrlevels[0].bus_max,
 				cur + pwr->bus_mod);
 		buslevel = max_t(int, buslevel, 1);
+
+		/*
+		 * larger % of stalls we consider increasing the bus vote by
+		 * more than 1 level.
+		 */
+		if ((pwr->active_pwrlevel == pwr->min_pwrlevel) &&
+				pwr->ddr_stall_percent >= 95)
+			buslevel = min_t(int, buslevel + 1, cur_max);
 	} else if (vote_state == KGSL_BUS_VOTE_MINIMUM) {
 		/* Request bus level 1, minimum non-zero value */
 		buslevel = 1;
 		pwr->bus_mod = 0;
 		pwr->bus_percent_ab = 0;
 		pwr->bus_ab_mbytes = 0;
+		pwr->ddr_stall_percent = 0;
 	} else if (vote_state == KGSL_BUS_VOTE_OFF) {
 		/* If the bus is being turned off, reset to default level */
 		pwr->bus_mod = 0;
 		pwr->bus_percent_ab = 0;
 		pwr->bus_ab_mbytes = 0;
+		pwr->ddr_stall_percent = 0;
 	}
 
 	/* buslevel is the IB vote, update the AB */
@@ -75,9 +88,9 @@ int kgsl_bus_update(struct kgsl_device *device,
 void kgsl_icc_set_tag(struct kgsl_pwrctrl *pwr, int buslevel)
 {
 	if (buslevel == pwr->pwrlevels[0].bus_max)
-		icc_set_tag(pwr->icc_path, ACTIVE_ONLY_TAG | PERF_MODE_TAG);
+		icc_set_tag(pwr->icc_path, ACTIVE_ALWAYS_TAG | PERF_MODE_TAG);
 	else
-		icc_set_tag(pwr->icc_path, ACTIVE_ONLY_TAG);
+		icc_set_tag(pwr->icc_path, ACTIVE_ALWAYS_TAG);
 }
 
 static void validate_pwrlevels(struct kgsl_device *device, u32 *ibs,

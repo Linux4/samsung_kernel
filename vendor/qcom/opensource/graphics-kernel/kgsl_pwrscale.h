@@ -1,7 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2010-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef __KGSL_PWRSCALE_H
@@ -69,11 +68,6 @@ struct kgsl_pwrscale {
 	struct devfreq *bus_devfreq;
 	/** @devfreq_enabled: Whether or not devfreq is enabled */
 	bool devfreq_enabled;
-	/**
-	 * @avoid_ddr_stall: Whether or not to increase IB vote on high
-	 * ddr stall
-	 */
-	bool avoid_ddr_stall;
 };
 
 /**
@@ -108,8 +102,6 @@ int kgsl_busmon_get_dev_status(struct device *dev,
 int kgsl_busmon_get_cur_freq(struct device *dev, unsigned long *freq);
 
 int msm_adreno_tz_init(void);
-
-int msm_adreno_tz_reinit(struct devfreq *devfreq);
 
 void msm_adreno_tz_exit(void);
 

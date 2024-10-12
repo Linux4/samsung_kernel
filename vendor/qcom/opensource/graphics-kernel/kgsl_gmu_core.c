@@ -132,12 +132,12 @@ void gmu_core_dev_cooperative_reset(struct kgsl_device *device)
 		ops->cooperative_reset(device);
 }
 
-int gmu_core_dev_ifpc_isenabled(struct kgsl_device *device)
+int gmu_core_dev_ifpc_show(struct kgsl_device *device)
 {
 	const struct gmu_dev_ops *ops = GMU_DEVICE_OPS(device);
 
-	if (ops && ops->ifpc_isenabled)
-		return ops->ifpc_isenabled(device);
+	if (ops && ops->ifpc_show)
+		return ops->ifpc_show(device);
 
 	return 0;
 }
@@ -164,6 +164,12 @@ int gmu_core_dev_wait_for_active_transition(struct kgsl_device *device)
 
 void gmu_core_fault_snapshot(struct kgsl_device *device)
 {
+	const struct gmu_dev_ops *ops = GMU_DEVICE_OPS(device);
+
+	/* Send NMI first to halt GMU and capture the state close to the point of failure */
+	if (ops && ops->send_nmi)
+		ops->send_nmi(device, false);
+
 	kgsl_device_snapshot(device, NULL, NULL, true);
 }
 
@@ -200,12 +206,4 @@ int gmu_core_map_memdesc(struct iommu_domain *domain, struct kgsl_memdesc *memde
 	}
 
 	return mapped == 0 ? -ENOMEM : 0;
-}
-
-void gmu_core_dev_force_first_boot(struct kgsl_device *device)
-{
-	const struct gmu_dev_ops *ops = GMU_DEVICE_OPS(device);
-
-	if (ops && ops->force_first_boot)
-		return ops->force_first_boot(device);
 }

@@ -2646,7 +2646,12 @@ int StreamOutPrimary::Open() {
     streamAttributes_.out_media_config.bit_width = CODEC_BACKEND_DEFAULT_BIT_WIDTH;
     streamAttributes_.out_media_config.aud_fmt_id = PAL_AUDIO_FMT_PCM_S16_LE;
     streamAttributes_.out_media_config.ch_info = ch_info;
-
+//add by zhanandong for cmc
+    if (adevice->call_forwarding_state) {
+        AHAL_ERR("set streamAttributes_.type to PAL_STREAM_VOICE_CALL_MUSIC");
+        streamAttributes_.type = PAL_STREAM_VOICE_CALL_MUSIC;
+    }
+//add end
     switch(streamAttributes_.type) {
         case PAL_STREAM_COMPRESSED:
             streamAttributes_.flags = (pal_stream_flags_t)(PAL_STREAM_FLAG_NON_BLOCKING);
@@ -4226,6 +4231,12 @@ int StreamInPrimary::Open() {
     streamAttributes_.flags = (pal_stream_flags_t)0;
     streamAttributes_.direction = PAL_AUDIO_INPUT;
     streamAttributes_.in_media_config.sample_rate = config_.sample_rate;
+//add by zhanandong for cmc
+    if (adevice->call_forwarding_state) {
+	AHAL_ERR("set streamAttributes_.type to PAL_STREAM_VOICE_CALL_RECORD");
+	streamAttributes_.type = PAL_STREAM_VOICE_CALL_RECORD;
+    }
+//add end
     if (is_pcm_format(config_.format)) {
        streamAttributes_.in_media_config.aud_fmt_id = getFormatId.at(config_.format);
        streamAttributes_.in_media_config.bit_width = format_to_bitwidth_table[config_.format];

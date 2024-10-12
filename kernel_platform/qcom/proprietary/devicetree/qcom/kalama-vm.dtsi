@@ -5,7 +5,7 @@
 / {
 	#address-cells = <0x2>;
 	#size-cells = <0x2>;
-	qcom,msm-id = <519 0x10000>, <536 0x10000>, <519 0x20000>, <536 0x20000>;
+	qcom,msm-id = <519 0x10000>, <536 0x10000>, <519 0x20000>, <536 0x20000>, <604 0x20000>;
 	interrupt-parent = <&vgic>;
 
 	logbuf: qcom,logbuf-vendor-hooks {
@@ -147,7 +147,7 @@
 		vcpus {
 			config = "/cpus";
 			affinity = "proxy";
-			affinity-map = <0x5 0x6>;
+			affinity-map = <0 0>;
 			sched-priority = <0>;       /* relative to PVM */
 			sched-timeslice = <2000>;   /* in ms */
 		};
@@ -484,6 +484,7 @@
 		qcom,gpii-mask = <0x20>;
 		qcom,ev-factor = <2>;
 		qcom,gpi-ee-offset = <0x10000>;
+		qcom,le-vm;
 		status = "ok";
 	};
 
@@ -554,6 +555,7 @@
 		qcom,gpii-mask = <0x40>;
 		qcom,ev-factor = <2>;
 		qcom,gpi-ee-offset = <0x10000>;
+		qcom,le-vm;
 		status = "ok";
 	};
 

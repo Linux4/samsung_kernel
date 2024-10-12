@@ -183,7 +183,7 @@
 	soc: soc { };
 
 	chosen {
-		bootargs = "console=ttyMSM0,115200n8 loglevel=6 kpti=off log_buf_len=256K kernel.panic_on_rcu_stall=1 msm_rtb.filter=0x237 rcupdate.rcu_expedited=1 rcu_nocbs=0-7 ftrace_dump_on_oops fw_devlink.strict=1 allow_mismatched_32bit_el0 printk.console_no_auto_verbose=1 irqaffinity=0-2";
+		bootargs = "console=ttyMSM0,115200n8 loglevel=6 log_buf_len=256K kpti=off kernel.panic_on_rcu_stall=1 msm_rtb.filter=0x237 rcupdate.rcu_expedited=1 rcu_nocbs=0-3 ftrace_dump_on_oops fw_devlink.strict=1 printk.console_no_auto_verbose=1 irqaffinity=0-2 cpufreq.default_governor=performance slub_debug=- ";
 	};
 
 	reserved-memory {
@@ -565,6 +565,10 @@
 		compatible = "qcom,cpu-vendor-hooks";
 	};
 
+	logbuf: qcom,logbuf-vendor-hooks {
+		compatible = "qcom,logbuf-vendor-hooks";
+	};
+
 	qcom,mpm2-slepp-counter@4403000 {
 		compatible = "qcom,mpm2-sleep-counter";
 		reg = <0x4403000 0x1000>;
@@ -588,10 +592,10 @@
 	qcom,chd_silver {
 		compatible = "qcom,core-hang-detect";
 		label = "silver";
-		qcom,threshold-arr = <0x0f1880b0 0x0f1980b0
-				      0x0f1a80b0 0x0f1b80b0>;
-		qcom,config-arr = <0x0f1880b8 0x0f1980b8
-				   0x0f1a80b8 0x0f1b80b8>;
+		qcom,chd-percpu-info = <&CPU0 0x0f1880b0 0x0f1880b8>,
+					<&CPU1 0x0f1980b0 0x0f1980b8>,
+					<&CPU2 0x0f1a80b0 0x0f1a80b8>,
+					<&CPU3 0x0f1b80b0 0x0f1b80b8>;
 	};
 
 	qcom_qseecom: qseecom@61800000 {
@@ -1015,6 +1019,7 @@
 				      <&adsp_smp2p_in 2 0>,
 				      <&adsp_smp2p_in 1 0>,
 				      <&adsp_smp2p_in 3 0>,
+				      <&adsp_smp2p_in 7 0>,
 				      <&adsp_smp2p_in 9 0>;
 
 		interrupt-names = "wdog",
@@ -1022,7 +1027,8 @@
 				  "handover",
 				  "ready",
 				  "stop-ack",
-				  "shutdown-ack";
+				  "shutdown-ack",
+				  "dsentry-ack";
 
 		/* Outputs to lpass */
 		qcom,smem-states = <&adsp_smp2p_out 0>;
@@ -1074,6 +1080,7 @@
 				<&modem_smp2p_in 2 0>,
 				<&modem_smp2p_in 1 0>,
 				<&modem_smp2p_in 3 0>,
+				<&modem_smp2p_in 7 0>,
 				<&modem_smp2p_in 9 0>;
 
 		interrupt-names = "wdog",
@@ -1081,7 +1088,8 @@
 				  "handover",
 				  "ready",
 				  "stop-ack",
-				  "shutdown-ack";
+				  "shutdown-ack",
+				  "dsentry-ack";
 
 		/* Outputs to mss */
 		qcom,smem-states = <&modem_smp2p_out 0>;
@@ -1408,10 +1416,22 @@
 			qcom,glinkpkt-dev-name = "glink_pkt_slate_display_ctrl";
 		};
 
+		qcom,glinkpkt-slate-location-ctrl {
+			qcom,glinkpkt-edge = "slate";
+			qcom,glinkpkt-ch-name = "location_ctrl";
+			qcom,glinkpkt-dev-name = "glink_pkt_slate_location_ctrl";
+		};
+
 		qcom,glinkpkt-slate-display-data {
 			qcom,glinkpkt-edge = "slate";
 			qcom,glinkpkt-ch-name = "display-data";
 			qcom,glinkpkt-dev-name = "glink_pkt_slate_display_data";
+		};
+
+		qcom,glinkpkt-slate-touch-ctrl {
+			qcom,glinkpkt-edge = "slate";
+			qcom,glinkpkt-ch-name = "touch-ctrl";
+			qcom,glinkpkt-dev-name = "glink_pkt_slate_touch_ctrl";
 		};
 
 		qcom,glinkpkt-slate-ssc-usta {
@@ -1587,6 +1607,13 @@
 			qcom,glinkpkt-dev-name = "glink_pkt_slate_ux_ctl";
 		};
 
+		qcom,glinkpkt-slate-qcli {
+			qcom,glinkpkt-edge = "slate";
+			qcom,glinkpkt-ch-name = "slate-qcli";
+			qcom,glinkpkt-dev-name = "glink_pkt_slate_qcli";
+			qcom,glinkpkt-fragmented-read;
+		};
+
 		qcom,glinkpkt-slate-bt-ctrl {
 			qcom,glinkpkt-edge = "slate";
 			qcom,glinkpkt-ch-name = "slate_bt_ctrl";
@@ -1621,6 +1648,19 @@
 			qcom,glinkpkt-ch-name = "ss_bt_data";
 			qcom,glinkpkt-dev-name = "glink_pkt_ss_bt_data";
 			};
+
+		qcom,glinkpkt-ss-bt-le-data {
+			qcom,glinkpkt-edge = "slate";
+			qcom,glinkpkt-ch-name = "ss_bt_le_data";
+			qcom,glinkpkt-dev-name = "glink_pkt_ss_bt_le_data";
+			};
+
+		qcom,glinkpkt-ss-bt-ssr-data {
+			qcom,glinkpkt-edge = "slate";
+			qcom,glinkpkt-ch-name = "ss_bt_ssr_data";
+			qcom,glinkpkt-dev-name = "glink_pkt_ss_bt_ssr_data";
+			};
+
 	};
 
 	jtag_mm0: jtagmm@9040000 {
@@ -1766,6 +1806,11 @@
 		ss-name = "modem", "adsp", "adsp_island", "cdsp", "apss";
 	};
 
+	subsystem-sleep-stats@4690000 {
+		compatible = "qcom,subsystem-sleep-stats-v2";
+		reg = <0x4690000 0x400>;
+	};
+
 	qcom,rpm-master-stats@45f0150 {
 		compatible = "qcom,rpm-master-stats";
 		reg = <0x45f0150 0x5000>;
@@ -1833,7 +1878,11 @@
 		non-removable;
 		supports-cqe;
 
+		qcom,devfreq,freq-table = <50000000 200000000>;
+		qcom,scaling-lower-bus-speed-mode = "DDR52";
+
 		cap-mmc-hw-reset;
+		mmc-rst-n-disable;
 
 		/* Add dt entry for gcc hw reset */
 		resets = <&gcc GCC_SDCC1_BCR>;
@@ -1975,7 +2024,7 @@
 
 	qcom,power-state {
 		compatible = "qcom,power-state";
-		qcom,subsys-name = "adsp", "modem";
+		qcom,subsys-name = "lpass", "mpss";
 		qcom,rproc-handle = <&adsp_pas>, <&modem_pas>;
 	};
 
@@ -2045,6 +2094,7 @@
 			ddr_dcvs_sp: sp {
 				compatible = "qcom,dcvs-path";
 				qcom,dcvs-path-type = <0>;
+				interconnects = <&bimc MASTER_AMPSS_M0 &bimc SLAVE_EBI_CH0>;
 			};
 		};
 	};
@@ -2069,24 +2119,13 @@
 			qcom,sampling-path = <&ddr_dcvs_sp>;
 			qcom,miss-ev = <0x17>;
 
-			silver {
-				compatible = "qcom,memlat-mon";
-				qcom,cpulist = <&CPU0 &CPU1 &CPU2 &CPU3>;
-				qcom,sampling-enabled;
-				qcom,cpufreq-memfreq-tbl =
-					< 614400 547000 >,
-					< 864000 681000 >,
-					< 1363200 1353000 >,
-					< 1708800 1804000 >;
-			};
-
 			silver-compute {
 				compatible = "qcom,memlat-mon";
 				qcom,cpulist = <&CPU0 &CPU1 &CPU2 &CPU3>;
 				qcom,sampling-enabled;
 				qcom,compute-mon;
 				qcom,cpufreq-memfreq-tbl =
-					< 614400 200000 >,
+					< 614400 547000 >,
 					< 864000 547000 >,
 					< 1363200 681000 >,
 					< 1708800 1353000 >;
@@ -2108,6 +2147,7 @@
 #include "monaco-gdsc.dtsi"
 #include "monaco-usb.dtsi"
 #include "monaco-thermal.dtsi"
+#include "msm-rdbg-monaco.dtsi"
 
 &gcc_camss_top_gdsc {
 	parent-supply = <&VDD_CX_LEVEL>;

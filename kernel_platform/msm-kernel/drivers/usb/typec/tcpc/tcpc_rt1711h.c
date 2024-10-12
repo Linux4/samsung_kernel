@@ -987,9 +987,14 @@ static int rt1711_set_cc(struct tcpc_device *tcpc, int pull)
 		old_data = rt1711_i2c_read8(tcpc, TCPC_V10_REG_ROLE_CTRL);
 
 	if (pull == TYPEC_CC_DRP) {
-		data = TCPC_V10_REG_ROLE_CTRL_RES_SET(
+		if(chip->chip_vid == SOUTHCHIP_PD_VID) {
+			data = TCPC_V10_REG_ROLE_CTRL_RES_SET(
+				1, rp_lvl, TYPEC_CC_RP, TYPEC_CC_RP);
+		} else {
+			data = TCPC_V10_REG_ROLE_CTRL_RES_SET(
 				1, rp_lvl, TYPEC_CC_RD, TYPEC_CC_RD);
-
+		}
+		
 		if (old_data != data || chip->chip_vid != SOUTHCHIP_PD_VID) {
 			ret = rt1711_i2c_write8(tcpc, TCPC_V10_REG_ROLE_CTRL, data);		}
 		if (ret == 0) {

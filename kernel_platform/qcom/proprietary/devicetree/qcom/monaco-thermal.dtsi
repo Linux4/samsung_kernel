@@ -20,21 +20,25 @@
 
 		cpu0_pause: cpu0-pause {
 			qcom,cpus = <&CPU0>;
+			qcom,cdev-alias = "thermal-pause-1";
 			#cooling-cells = <2>;
 		};
 
 		cpu1_pause: cpu1-pause {
 			qcom,cpus = <&CPU1>;
+			qcom,cdev-alias = "thermal-pause-2";
 			#cooling-cells = <2>;
 		};
 
 		cpu2_pause: cpu2-pause {
 			qcom,cpus = <&CPU2>;
+			qcom,cdev-alias = "thermal-pause-4";
 			#cooling-cells = <2>;
 		};
 
 		cpu3_pause: cpu3-pause {
 			qcom,cpus = <&CPU3>;
+			qcom,cdev-alias = "thermal-pause-8";
 			#cooling-cells = <2>;
 		};
 
@@ -142,7 +146,9 @@
 
 	qcom,cpufreq-cdev {
 		compatible = "qcom,cpufreq-cdev";
-		qcom,cpus = <&CPU0>;
+		cpu-cluster0 {
+			qcom,cpus = <&CPU0 &CPU1 &CPU2 &CPU3>;
+		};
 	};
 };
 
@@ -260,7 +266,7 @@
 	};
 
 	mdm-0 {
-		polling-delay-passive = <0>;
+		polling-delay-passive = <10>;
 		polling-delay = <0>;
 		thermal-sensors = <&tsens0 4>;
 		trips {
@@ -297,7 +303,7 @@
 	};
 
 	mdm-1 {
-		polling-delay-passive = <0>;
+		polling-delay-passive = <10>;
 		polling-delay = <0>;
 		thermal-sensors = <&tsens0 5>;
 		trips {
@@ -334,7 +340,7 @@
 	};
 
 	gpu {
-		polling-delay-passive = <0>;
+		polling-delay-passive = <10>;
 		polling-delay = <0>;
 		thermal-sensors = <&tsens0 6>;
 		trips {

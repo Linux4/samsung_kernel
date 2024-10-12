@@ -59,10 +59,16 @@ static uint8_t ext_thermal_read = 1;
 #else
 static uint8_t ext_thermal_read = 0;
 #endif
+
+static int32_t est_cv_flag = 0;
+
 //-1 means not ready
 int32_t age_soh = 0;
 int32_t cycle_soh = 0;
 static bool charge_full = false;
+
+ int FV_battery_cycle = 0;
+ EXPORT_SYMBOL_GPL(FV_battery_cycle);
 
 static enum power_supply_property oz8806_battery_props[] = {
 	POWER_SUPPLY_PROP_STATUS,
@@ -222,7 +228,7 @@ static int32_t oz8806_battery_get_property(struct power_supply *psy,
 		break;
 
         case POWER_SUPPLY_PROP_CHARGE_COUNTER:
-                val->intval = oz8806_get_remaincap();
+                val->intval = oz8806_get_remaincap() * 1000;
                 break;
 	case POWER_SUPPLY_PROP_MODEL_NAME:
 		val->strval = oz8806_driver_name;
@@ -232,6 +238,9 @@ static int32_t oz8806_battery_get_property(struct power_supply *psy,
 		break;
 	case POWER_SUPPLY_PROP_CHARGE_FULL:
 		val->intval = data->batt_info.batt_fcc_data * 1000;
+		break;
+	case POWER_SUPPLY_PROP_CYCLE_COUNT:
+		val->intval = data->batt_info.cycle;
 		break;
 	default:
 		return -EINVAL;
@@ -726,7 +735,67 @@ error:
 	return -1;
 }
 //----------------------------------------------------------------------------------------------------------------------//
+//ext charge set the cv voltage
+void update_charge_cv(int32_t charge_cv)
+{
+    if (charge_cv > 4500 || charge_cv < 4000 )
+    {
+        pr_info("charge cv voltage %d is unsafe, not enable.\n", charge_cv);
+    }
+    else
+    {
+        mutex_lock(&update_mutex);
+        config_data.charge_cv_voltage = charge_cv;
+        mutex_unlock(&update_mutex);
+        pr_info("update charge cv voltage %d\n", config_data.charge_cv_voltage);
+    }
+}
+EXPORT_SYMBOL(update_charge_cv);
 
+// update charge cv base on cycle cnt
+static int32_t est_cycle_cv()
+{
+    int32_t est_cv_voltage = 4350;
+    int32_t cycle_cnt = 0;
+
+    if (bmu_init_done && batt_info_ptr)
+    {
+    	if(FV_battery_cycle)
+        	cycle_cnt = FV_battery_cycle;
+      	else
+        	cycle_cnt = batt_info_ptr->cycle_count;
+      	pr_info("cycle_cnt %d \n", cycle_cnt);
+    }
+    else
+    {
+      	pr_info("bmu_init_done %d, or batt_info_ptr is null\n", bmu_init_done);
+        return -1;
+    }
+
+    if (cycle_cnt <= 299)
+    {
+        est_cv_voltage = 4350;
+    }
+    else if (cycle_cnt >= 300 && cycle_cnt <= 399)
+    {
+        est_cv_voltage = 4330;
+    }
+    else if (cycle_cnt >= 400 && cycle_cnt <= 699)
+    {
+        est_cv_voltage = 4310;
+    }
+    else if (cycle_cnt >= 700 && cycle_cnt <= 999)
+    {
+        est_cv_voltage = 4290;
+    }
+    else
+    {
+        est_cv_voltage = 4240;
+    }
+    config_data.charge_cv_voltage = est_cv_voltage;
+    pr_info("cycle_cnt %d, estimate charge cv voltage %d\n", cycle_cnt, config_data.charge_cv_voltage);
+    return 0;
+}
 static void discharge_end_fun(struct oz8806_data *data)
 {
 	//End discharge
@@ -804,8 +873,10 @@ static void charge_end_fun(void)
 		return;
 	}
 
-	if((batt_info_ptr->fRSOC > 89) && (batt_info_ptr->fVolt >= (config_data.charge_cv_voltage - 50))&&(batt_info_ptr->fCurr >= DISCH_CURRENT_TH) &&
-		(batt_info_ptr->fCurr < oz8806_eoc)&& (!gas_gauge_ptr->charge_end))
+	//if((batt_info_ptr->fRSOC > 89) && (batt_info_ptr->fVolt >= (config_data.charge_cv_voltage - 100))&&(batt_info_ptr->fCurr >= DISCH_CURRENT_TH) &&
+		//(batt_info_ptr->fCurr < oz8806_eoc)&& (!gas_gauge_ptr->charge_end))
+  	if((batt_info_ptr->fVolt >= (config_data.charge_cv_voltage - 100))&&(batt_info_ptr->fCurr >= DISCH_CURRENT_TH) &&
+        	(batt_info_ptr->fCurr < oz8806_eoc)&& (!gas_gauge_ptr->charge_end))
 	{
 		if (!start_jiffies)
 			start_jiffies = jiffies;
@@ -983,6 +1054,15 @@ static void oz8806_battery_func(struct oz8806_data *data)
 #endif
 	/**************mutex_lock*********************/
 	mutex_lock(&update_mutex);
+  
+      	if (!est_cv_flag)
+        {
+            if (est_cycle_cv() >= 0 )
+            {
+                est_cv_flag = 1;
+            }
+        }
+  
 	if (!oz8806_suspend)
 		bmu_polling_loop();
 
@@ -996,7 +1076,6 @@ static void oz8806_battery_func(struct oz8806_data *data)
 	mutex_unlock(&update_mutex);
 	/**************mutex_unlock*********************/
 	oz8806_wakeup_event(data);
-
 	pr_info("l=%d v=%d t=%d c=%d ch=%d\n",
 			data->batt_info.batt_soc, data->batt_info.batt_voltage, 
 			data->batt_info.batt_temp, data->batt_info.batt_current, adapter_status);

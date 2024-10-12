@@ -430,6 +430,10 @@ struct chipone_ts_data {
 
     bool force_reflash;
     struct kobject *suspend_kobj;
+
+    struct completion pm_completion;
+    bool pm_suspend;
+    struct wakeup_source *ws;
 };
 /*
 static inline u32 get_unaligned_le24(const void *p)

@@ -817,6 +817,9 @@ static int cw_battery_get_property(struct power_supply *psy,
 	case POWER_SUPPLY_PROP_CHARGE_COUNTER:
 		val->intval = 5000 *  cw_bat->ui_soc / 100;
 		break;
+	case POWER_SUPPLY_PROP_CHARGE_FULL_DESIGN:
+		val->intval = 5000000;
+		break;
 	default:
 		ret = -EINVAL;
 		break;

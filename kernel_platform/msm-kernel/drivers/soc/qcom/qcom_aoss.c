@@ -242,6 +242,8 @@ static irqreturn_t qmp_intr(int irq, void *data)
 	len = readl_relaxed(qmp->msgram + qmp->qmp_rx.rx_offset);
 	if (len && qmp->qmp_rx.rx_buf) {
 		len = ALIGN(len, 4);
+		if (WARN_ON(len + sizeof(u32) > qmp->qmp_rx.rx_size))
+			return IRQ_HANDLED;
 		__ioread32_copy(qmp->qmp_rx.rx_buf,
 				qmp->msgram + qmp->qmp_rx.rx_offset + sizeof(u32),
 				len / sizeof(u32));
@@ -803,6 +805,7 @@ static const struct of_device_id qmp_dt_match[] = {
 	{ .compatible = "qcom,sdxpinn-aoss-qmp", },
 	{ .compatible = "qcom,sdxbaagha-aoss-qmp", },
 	{ .compatible = "qcom,kona-aoss-qmp", },
+	{ .compatible = "qcom,qcs605-aoss-qmp", },
 	{}
 };
 MODULE_DEVICE_TABLE(of, qmp_dt_match);

@@ -13,7 +13,7 @@
  *
  */
 
-#define pr_fmt(fmt)	"<sm5602-05171500> [%s,%d] " fmt, __func__, __LINE__
+#define pr_fmt(fmt)	"<sm5602> [%s,%d] " fmt, __func__, __LINE__
 
 #include <linux/module.h>
 #include <linux/param.h>
@@ -152,6 +152,13 @@
 #define DELAY_SOC_ZERO_TIME_30000MS		30000
 #endif
 
+#ifdef CHECK_ABNORMAL_TABLE
+#define TABLE_ERROR_OCV_MARGIN	32
+#define TABLE_ERROR_SOC_MARGIN	48
+#endif
+
+#define FEATURE_BATT_LONG_LIFE_CYCLE
+
 enum sm_fg_reg_idx {
 	SM_FG_REG_DEVICE_ID = 0,
 	SM_FG_REG_CNTL,
@@ -217,6 +224,12 @@ static u8 sm5602_regs[NUM_REGS] = {
 	0x96, /* VOL_COMP */
 };
 
+int sm5602_cycle;
+ EXPORT_SYMBOL_GPL(sm5602_cycle);
+
+int sm5602_CV;
+ EXPORT_SYMBOL_GPL(sm5602_CV);
+
 enum sm_fg_device {
 	SM5602,
 };
@@ -237,6 +250,46 @@ enum battery_table_type {
 	BATTERY_TABLE2,
 	BATTERY_TABLE_MAX,
 };
+
+#if defined (FEATURE_BATT_LONG_LIFE_CYCLE)
+enum sm5602_batt_cycle_step_e
+{
+	STEP0_BATT_CYCLE = 0,
+	STEP1_BATT_CYCLE,
+	STEP2_BATT_CYCLE,
+	STEP3_BATT_CYCLE,
+	STEP4_BATT_CYCLE,
+	BATT_CYCLE_MAX,
+};
+
+enum sm5602_cv_voltage_step_e
+{
+	STEP0_CV_VOLTAGE = 0,
+	STEP1_CV_VOLTAGE,
+	STEP2_CV_VOLTAGE,
+	STEP3_CV_VOLTAGE,
+	STEP4_CV_VOLTAGE,
+	STEP_CV_VOLTAGE_MAX,
+};
+
+enum sm5602_batt_cycle_count_e
+{
+	STEP0_MAX_SOC_CYCLE_COUNT = 299,
+	STEP1_MAX_SOC_CYCLE_COUNT = 399,
+	STEP2_MAX_SOC_CYCLE_COUNT = 699,
+	STEP3_MAX_SOC_CYCLE_COUNT = 999,
+	MAX_SOC_CYCLE_COUNT,
+};
+
+enum sm5602_batt_life_cycle_cv_voltage_e
+{
+	STEP0_MAX_SOC_CYCLE_CV_VOLTAGE = 4350,
+	STEP1_MAX_SOC_CYCLE_CV_VOLTAGE = 4330,
+	STEP2_MAX_SOC_CYCLE_CV_VOLTAGE = 4310,
+	STEP3_MAX_SOC_CYCLE_CV_VOLTAGE = 4290,
+	MAX_SOC_CYCLE_CV_VOLTAGE       = 4240,
+};
+#endif
 
 #ifdef ENABLE_NTC_COMPENSATION_1
 int tex_sim_uV[43] = {
@@ -442,6 +495,7 @@ struct sm_fg_chip {
 	int topoff_margin;
     int top_off;
 	int iocv_error_count;
+	int fg_reset_flag;
 #ifdef SOC_SMOOTH_TRACKING
 	bool	soc_reporting_ready;
 #endif
@@ -474,6 +528,7 @@ struct sm_fg_chip {
     int batt_v_max;
 	int min_cap;
 	u32 common_param_version;
+  	int table_check_flag;
 	int t_l_alarm_in; 
 	int t_h_alarm_in;
 	u32 t_l_alarm_ex;
@@ -576,6 +631,18 @@ struct sm_fg_chip {
     struct iio_chan_spec    *iio_chan;
     struct iio_channel      *int_iio_chans;
 	struct iio_channel		*bat_id_vol;
+
+#if defined (FEATURE_BATT_LONG_LIFE_CYCLE)
+	uint16_t v_max_table[BATT_CYCLE_MAX];
+	uint16_t q_max_table[BATT_CYCLE_MAX];
+	
+	uint16_t v_max_now;
+	uint16_t q_max_now;
+	
+	int ready_long_life_cv_voltage_check;
+	int batt_cycle_index;
+	int cv_voltage_index;
+#endif	
 };
 
 static int show_registers(struct seq_file *m, void *data);
@@ -587,6 +654,10 @@ static int fg_read_current(struct sm_fg_chip *sm);
 static bool fg_reg_init(struct i2c_client *client);
 
 static struct sm_fg_chip *g_sm_fg_chip;
+
+#if defined (FEATURE_BATT_LONG_LIFE_CYCLE)
+static int fg_get_batt_long_life_index_by_cv_voltage(struct sm_fg_chip *sm);
+#endif
 
 static int __fg_read_word(struct i2c_client *client, u8 reg, u16 *val)
 {
@@ -1164,10 +1235,84 @@ static int fg_get_cycle(struct sm_fg_chip *sm)
 		cycle = data&0x01FF;
 	}
 
+
 	pr_err("cycle = %d(0x%x)\n",cycle, data);
 
 	return cycle;
 }
+
+#if defined (FEATURE_BATT_LONG_LIFE_CYCLE)
+static int fg_get_batt_long_life_index_by_cv_voltage(struct sm_fg_chip *sm)
+{
+	int cycle_index = 0, cycle = 0;
+	int cv_voltage_index = 0; 
+  	int est_cv_voltage = sm5602_CV;
+
+	//cycle index
+	if(sm5602_cycle)
+		cycle = sm5602_cycle;
+	else
+		cycle = fg_get_cycle(sm);
+
+	if (cycle >= 0 && cycle <= STEP0_MAX_SOC_CYCLE_COUNT) 
+	{
+    	cycle_index = STEP0_BATT_CYCLE;
+	}
+	else if (cycle > STEP0_MAX_SOC_CYCLE_COUNT && cycle <= STEP1_MAX_SOC_CYCLE_COUNT) 
+	{
+		cycle_index = STEP1_BATT_CYCLE;
+	}
+	else if (cycle > STEP1_MAX_SOC_CYCLE_COUNT && cycle <= STEP2_MAX_SOC_CYCLE_COUNT) 
+	{
+		cycle_index = STEP2_BATT_CYCLE;
+	}
+	else if (cycle > STEP2_MAX_SOC_CYCLE_COUNT && cycle <= STEP3_MAX_SOC_CYCLE_COUNT) 
+	{
+		cycle_index = STEP3_BATT_CYCLE;
+	}
+	else
+	{
+		cycle_index = STEP4_BATT_CYCLE;
+	}
+	
+	sm->batt_cycle_index = cycle_index;
+	
+	pr_info("batt_cycle = (%d) / cycle_index= (%d)\n",cycle,cycle_index);
+
+	//cv_voltage index
+	if(est_cv_voltage == STEP0_MAX_SOC_CYCLE_CV_VOLTAGE)
+	{
+		cv_voltage_index = STEP0_CV_VOLTAGE;
+	}
+	else if(est_cv_voltage == STEP1_MAX_SOC_CYCLE_CV_VOLTAGE)
+	{
+		cv_voltage_index = STEP1_CV_VOLTAGE;
+	}
+	else if(est_cv_voltage == STEP2_MAX_SOC_CYCLE_CV_VOLTAGE)
+	{
+		cv_voltage_index = STEP2_CV_VOLTAGE;
+	}
+	else if(est_cv_voltage == STEP3_MAX_SOC_CYCLE_CV_VOLTAGE)
+	{
+		cv_voltage_index = STEP3_CV_VOLTAGE;
+	}
+	else if(est_cv_voltage == MAX_SOC_CYCLE_CV_VOLTAGE)
+	{
+		cv_voltage_index = STEP4_CV_VOLTAGE;
+	}
+	else
+	{
+		pr_err("est_cv_voltage check error = (%d) set index(0)\n",est_cv_voltage);
+		cv_voltage_index = STEP0_CV_VOLTAGE;
+	}
+
+	sm->cv_voltage_index = cv_voltage_index;
+
+	pr_info("est_cv_voltage = (%d) / cv_voltage_index= (%d)\n",est_cv_voltage,cv_voltage_index);
+	
+	return cv_voltage_index;
+}
+#endif
 
 static int fg_read_current(struct sm_fg_chip *sm)
 {
@@ -1270,7 +1415,7 @@ static int fg_reset(struct sm_fg_chip *sm)
 		pr_err("could not reset, ret=%d\n", ret);
 		return ret;
 	}
-
+	sm->fg_reset_flag = 0;
 	pr_info("=== %s ===\n", __func__);
 
 	msleep(800);
@@ -1511,7 +1656,7 @@ static void fg_vbatocv_check(struct sm_fg_chip *sm)
 		if(
 #endif
 	((sm->is_charging) && (abs(sm->batt_curr)<(sm->top_off+sm->topoff_margin)) &&
-	(abs(sm->batt_curr)>(sm->top_off-sm->topoff_margin)) && (sm->batt_soc>=900)))
+	(abs(sm->batt_curr)>(sm->top_off-sm->topoff_margin)) && (sm->batt_ui_soc>=900)))
 	{
 		if(abs(sm->batt_ocv-sm->batt_volt)>30)
 		{
@@ -1896,6 +2041,7 @@ static int fg_get_property(struct power_supply *psy, enum power_supply_property 
 {
 	struct sm_fg_chip *sm = power_supply_get_drvdata(psy);
 	int ret;
+	static int old_soc;
 #ifdef SHUTDOWN_DELAY	
 	int vbat_mv;
 	static bool last_shutdown_delay;
@@ -1936,6 +2082,16 @@ static int fg_get_property(struct power_supply *psy, enum power_supply_property 
 		//ret = fg_read_soc(sm);
 		ret = fg_read_ui_soc(sm);
 		mutex_lock(&sm->data_lock);
+		if((1 == sm->fg_reset_flag) && (ret != 0))
+		{
+			pr_err("%s fg_reset_flag=%d,old_soc:%d,ret = %d\n", __func__, sm->fg_reset_flag, old_soc,ret);
+			old_soc = ret;
+		}	
+		if(((0 == sm->fg_reset_flag) || (ret == 0)))
+		{
+			pr_err("%s fg_reset_flag=%d,old_soc:%d,ret = %d\n", __func__, sm->fg_reset_flag, old_soc,ret);
+			ret = old_soc ;
+		}
 #ifdef SOC_SMOOTH_TRACKING		
 		if (ret >= 0)
 			sm->batt_soc = ret;
@@ -1951,15 +2107,15 @@ static int fg_get_property(struct power_supply *psy, enum power_supply_property 
 			val->intval = sm->batt_soc/10;
 #else
 		if (ret >= 0)
-			sm->batt_soc = ret;
+			sm->batt_ui_soc = ret;
 		if (ret >= 0) {
 #ifdef ENABLE_MAP_SOC
 			val->intval = (((sm->batt_soc*10+MAP_MAX_SOC)*100/MAP_RATE_SOC)-MAP_MIN_SOC)/10;
 #else
-			val->intval = sm->batt_soc/10;
+			val->intval = sm->batt_ui_soc/10;
 #endif
 		} else
-			val->intval = sm->batt_soc/10;
+			val->intval = sm->batt_ui_soc/10;
 #endif
 
 		sm->is_charging = is_battery_charging(sm); //From Charger Driver
@@ -1972,7 +2128,7 @@ static int fg_get_property(struct power_supply *psy, enum power_supply_property 
 		}
 #endif
 
-		pr_info("sm->batt_soc: %d, val->intval: %d\n", sm->batt_soc, val->intval);
+		pr_info("sm->batt_ui_soc: %d, val->intval: %d\n", sm->batt_ui_soc, val->intval);
 		mutex_unlock(&sm->data_lock);
 #ifdef SHUTDOWN_DELAY		
 		if (sm->shutdown_delay_enable) {
@@ -2120,7 +2276,7 @@ static int fg_get_property(struct power_supply *psy, enum power_supply_property 
 			sm->batt_rmc = ret;
 		else
 			sm->batt_rmc = 2500 * 1000; //uAh : Fixed 2500mAh
-		val->intval =  sm->batt_rmc;
+		val->intval =  sm->batt_rmc * 1000;
 		break;
 	case POWER_SUPPLY_PROP_MODEL_NAME:
 		val->strval = sm5602_driver_name;
@@ -2484,6 +2640,10 @@ static void sm5602_table_error_check(struct sm_fg_chip *sm)
 	bool err_flag = false;
 	u16 data = 0, ocv = 0, soc = 0, qest = 0, soc_min = 0;
 	int ret = 0;
+  	if(!sm->table_check_flag){
+		pr_err("sm->table_check_flag = %d\n", sm->table_check_flag);
+		return;
+	}
 
 	{
 		ret = fg_read_word(sm, 0x80, &data);
@@ -2497,14 +2657,14 @@ static void sm5602_table_error_check(struct sm_fg_chip *sm)
 		else {
 			data = data & 0x001F;
 			if (data != 0) {
-				if ((ocv > (sm->battery_table[0][data-1] - 24)) && (ocv < sm->battery_table[0][data] + 24)) {
+				if ((ocv > (sm->battery_table[0][data-1] - TABLE_ERROR_OCV_MARGIN)) && (ocv < sm->battery_table[0][data] + TABLE_ERROR_OCV_MARGIN)) {
 					if (data == 1) {
 						soc_min = 0;
 					}
 					else {
-						soc_min = sm->battery_table[1][data-1] - 24;
+						soc_min = sm->battery_table[1][data-1] - TABLE_ERROR_SOC_MARGIN;
 					}
-					if ((soc >= soc_min) && (soc < sm->battery_table[1][data] + 24)) {
+					if ((soc >= soc_min) && (soc < sm->battery_table[1][data] + TABLE_ERROR_SOC_MARGIN)) {
 						err_flag = false;
 					}
 					else {
@@ -2536,6 +2696,7 @@ static void sm5602_table_error_check(struct sm_fg_chip *sm)
 		mutex_lock(&sm->data_lock);
 		fg_reg_init(sm->client);
 		mutex_unlock(&sm->data_lock);
+		sm->fg_reset_flag = 1;
 	}
 }
 #endif
@@ -2596,8 +2757,8 @@ static void fg_refresh_status(struct sm_fg_chip *sm)
 		//	power_supply_changed(sm->fg_psy);
 		//}
 		
-		pr_info("RSOC:%d, Volt:%d, Current:%d, Temperature:%d, OCV:%d, RMC:%d\n",
-			sm->batt_soc, sm->batt_volt, sm->batt_curr, sm->batt_temp, sm->batt_ocv, sm->batt_rmc);
+		pr_info("UISOC: %d,RSOC:%d, Volt:%d, Current:%d, Temperature:%d, OCV:%d, RMC:%d\n",
+			sm->batt_ui_soc, sm->batt_soc, sm->batt_volt, sm->batt_curr, sm->batt_temp, sm->batt_ocv, sm->batt_rmc);
 			
 #ifdef SOC_SMOOTH_TRACKING		
 		/* Update battery information */
@@ -2633,6 +2794,28 @@ static void fg_refresh_status(struct sm_fg_chip *sm)
 	}
 	//sm->last_update = jiffies;
 
+#if defined (FEATURE_BATT_LONG_LIFE_CYCLE)
+	if( (sm->batt_ui_soc >= 1000) && (sm->is_charging == 0))
+	{	
+		sm->ready_long_life_cv_voltage_check = 1;
+
+		fg_get_batt_long_life_index_by_cv_voltage(sm);
+		
+		if(sm->q_max_now != sm->q_max_table[sm->cv_voltage_index])
+		{
+			pr_info("START RESET for change to FG Table\n");
+			fg_reset(sm);
+			mutex_lock(&sm->data_lock);
+			fg_reg_init(sm->client);
+			mutex_unlock(&sm->data_lock);
+			sm->fg_reset_flag = 1;
+		}
+	}
+	else
+	{
+		sm->ready_long_life_cv_voltage_check = 0;
+	}
+#endif
 }
 
 static unsigned int poll_interval = 10; /*  10 sec */
@@ -2715,9 +2898,10 @@ static bool fg_check_reg_init_need(struct i2c_client *client)
 		}
 		else
 		{
-			if ((data & INIT_CHECK_MASK) == DISABLE_RE_INIT) {
+			if (((data & INIT_CHECK_MASK) == DISABLE_RE_INIT)&&(sm->batt_ui_soc >= 1000) &&(sm->is_charging)) {
 				// Step1. Turn off charger
 				// Step2. FG Reset
+                          	sm->table_check_flag = true;
 				ret = fg_reset(sm);
 				if (ret < 0) {
 					pr_err("%s: fail to do reset(%d) retry\n", __func__, ret);
@@ -2737,10 +2921,14 @@ static bool fg_check_reg_init_need(struct i2c_client *client)
 				return 1;
 
 			}
-			else
-			{
+			else if((data & INIT_CHECK_MASK) != DISABLE_RE_INIT){
 				pr_info("SM_FG_REG_FG_OP_STATUS : 0x%x , return TRUE init need!!!!\n", data);
 				return 1;
+			}
+                  	else {
+                          	sm->table_check_flag = false;
+				pr_info("SM_FG_REG_FG_OP_STATUS : 0x%x , return FALSE  no init need!!!!\n", data);
+				return 0;
 			}
 		}
 	}
@@ -3472,11 +3660,78 @@ static bool fg_reg_init(struct i2c_client *client)
 			pr_info("Write SM_FG_REG_RSNS_SEL = 0x%x : 0x%x\n", sm->regs[SM_FG_REG_RSNS_SEL], sm->batt_rsns);
 	}
 	
+	/* BAT CAP write */
+#if defined (FEATURE_BATT_LONG_LIFE_CYCLE)
+
+	i = fg_get_batt_long_life_index_by_cv_voltage(sm);
+
+	if( (sm->cv_voltage_index >= STEP0_CV_VOLTAGE) &&(sm->cv_voltage_index < STEP_CV_VOLTAGE_MAX) )
+	{	
+		sm->q_max_now = sm->q_max_table[i];
+		sm->v_max_now = sm->v_max_table[i];
+
+		sm->cap = sm->q_max_now;
+
+		ret = fg_write_word(sm, sm->regs[SM_FG_REG_BAT_CAP], sm->cap);
+		
+		if (ret < 0)
+		{
+			pr_err("Failed to write BAT_CAP, ret = %d\n", ret);
+			return ret;
+		}
+		else
+		{
+			pr_info("BAT_CAP = 0x%x : 0x%x\n", sm->regs[SM_FG_REG_BAT_CAP], sm->cap);
+		}
+	}
+	else
+	{
+		pr_err("FG cv_voltage index(%d) error!!! default table(index 0) LOAD\n", sm->cv_voltage_index);
+		fg_write_word(sm, sm->regs[SM_FG_REG_BAT_CAP], sm->q_max_table[STEP0_CV_VOLTAGE]);
+	}
+#else
+	ret = fg_write_word(sm, sm->regs[SM_FG_REG_BAT_CAP], sm->cap);
+	if (ret < 0) {
+		pr_err("Failed to write BAT_CAP, ret = %d\n", ret);
+		return ret;
+	}
+	else {
+		pr_info("BAT_CAP = 0x%x : 0x%x\n", sm->regs[SM_FG_REG_BAT_CAP], sm->cap);
+	}
+#endif
+
 	/* Battery_Table write */
 	for (i = BATTERY_TABLE0; i < BATTERY_TABLE2; i++) {
 		table_reg = 0xA0 + (i*FG_TABLE_MAX_LEN);
 		for (j = 0; j < FG_TABLE_LEN; j++) {
+			
+#if defined (FEATURE_BATT_LONG_LIFE_CYCLE)
+                  
+			if(i == 0) 
+			{
+				if(j == FG_TABLE_LEN - 2)
+				{
+					sm->battery_table[i][FG_TABLE_LEN - 2] = sm->v_max_now;
+
+					if( sm->battery_table[i][FG_TABLE_LEN - 2] < sm->battery_table[i][FG_TABLE_LEN - 3])
+					{
+						sm->battery_table[i][FG_TABLE_LEN - 3] = sm->battery_table[i][FG_TABLE_LEN - 2] - 0xE;
+						sm->battery_table[1][FG_TABLE_LEN - 3] = (sm->battery_table[1][FG_TABLE_LEN - 2] *99) / 100;
+					}
+				}
+			}
+			else if(i == 1) 
+			{	
+				sm->battery_table[i][j] = (sm->battery_table[i][j] * 2) - (sm->battery_table[i][j] * sm->q_max_now / sm->cap);
+				if(j == FG_TABLE_LEN - 1)
+				{
+					sm->battery_table[i][FG_TABLE_LEN - 2] = 100 * 256;
+					sm->battery_table[i][FG_TABLE_LEN - 1] = 100 * 256 + 230;
+				}
+			}
+#endif
 			ret = fg_write_word(sm, (table_reg + j), sm->battery_table[i][j]);
+						
 			if (ret < 0) {
 				pr_err("Failed to write Battery Table, ret = %d\n", ret);
 				msleep(10);
@@ -3755,15 +4010,6 @@ static bool fg_reg_init(struct i2c_client *client)
 		pr_info("CURR_IN_SLOPE = 0x%x : 0x%x\n", FG_REG_CURR_IN_SLOPE, sm->curr_slope);
 	}
 
-	/* BAT CAP write */
-	ret = fg_write_word(sm, sm->regs[SM_FG_REG_BAT_CAP], sm->cap);
-	if (ret < 0) {
-		pr_err("Failed to write BAT_CAP, ret = %d\n", ret);
-		return ret;
-	} else {
-		pr_info("BAT_CAP = 0x%x : 0x%x\n", sm->regs[SM_FG_REG_BAT_CAP], sm->cap);
-	}
-
 	/* MISC write */
 	ret = fg_write_word(sm, sm->regs[SM_FG_REG_MISC], sm->misc);
 	if (ret < 0) {
@@ -3945,7 +4191,7 @@ static unsigned int fg_get_device_id(struct i2c_client *client)
 
 static bool fg_init(struct i2c_client *client)
 {
-	int ret;
+	int ret;//int i = 0;
 	u16 data, cntl_ref = 0;
 	
 	struct sm_fg_chip *sm = i2c_get_clientdata(client);
@@ -3953,6 +4199,7 @@ static bool fg_init(struct i2c_client *client)
 
 	if (fg_check_reg_init_need(client)) {
 		fg_reg_init(client);
+		sm->fg_reset_flag = 1;
 #ifdef ENABLE_INIT_DELAY_TEMP		
 		sm->en_init_delay_temp = 1;
 		cancel_delayed_work_sync(&sm->init_delay_temp_work);
@@ -4015,6 +4262,38 @@ static bool fg_init(struct i2c_client *client)
 		}		
 	}
 #endif		
+
+	/* BAT CAP write */
+/*if defined (FEATURE_BATT_LONG_LIFE_CYCLE)
+	
+
+	i = fg_get_batt_long_life_index_by_cv_voltage(sm);
+
+	if ((i >= STEP0_CV_VOLTAGE) && (i < STEP_CV_VOLTAGE_MAX))
+	{
+		pr_info(" v_max_now is change %x -> %x / cycle_index = (%d) \n", sm->v_max_now, sm->v_max_table[i], i);
+		pr_info(" q_max_now is change %x -> %x / cycle_index = (%d) \n", sm->q_max_now, sm->q_max_table[i], i);
+
+		sm->v_max_now  = sm->v_max_table[i];
+    	sm->q_max_now  = sm->q_max_table[i];
+	}
+	else
+	{
+		pr_info("FG cv_voltage index(%d) error!!! default table(index 0) LOAD\n", i);
+
+		sm->v_max_now = sm->v_max_table[STEP0_CV_VOLTAGE];
+    	sm->q_max_now = sm->q_max_table[STEP0_CV_VOLTAGE];
+	}
+	sm->cap = sm->q_max_now;
+#endif*/
+	
+	ret = fg_write_word(sm, sm->regs[SM_FG_REG_BAT_CAP], sm->cap);
+	if (ret < 0) {
+		pr_err("Failed to write BAT_CAP, ret = %d\n", ret);
+		return ret;
+	} else {
+		pr_info("BAT_CAP = 0x%x : 0x%x\n", sm->regs[SM_FG_REG_BAT_CAP], sm->cap);
+	}
 
 	return true;
 }
@@ -4308,6 +4587,11 @@ static int fg_battery_parse_dt(struct sm_fg_chip *sm)
 	int ret;
 	int i, j;
     
+#if defined (FEATURE_BATT_LONG_LIFE_CYCLE)
+	int v_max_table[STEP_CV_VOLTAGE_MAX];
+	int q_max_table[STEP_CV_VOLTAGE_MAX];
+#endif
+
 	BUG_ON(dev == 0);
 	BUG_ON(np == 0);
 
@@ -4574,6 +4858,31 @@ static int fg_battery_parse_dt(struct sm_fg_chip *sm)
 		pr_err("Can get prop %s (%d)\n", prop_name, ret);
 	pr_info("%s = <0x%x>\n", prop_name, sm->battery_param_version);
 	
+	/* Battery long life Paramter*/
+#if defined (FEATURE_BATT_LONG_LIFE_CYCLE)
+	// V_max_table
+	for (i = 0; i < STEP_CV_VOLTAGE_MAX; i++) 
+	{
+		snprintf(prop_name,	PROPERTY_NAME_SIZE, "battery%d,%s", battery_id, "v_max_table");
+		ret = of_property_read_u32_array(np, prop_name, v_max_table, STEP_CV_VOLTAGE_MAX);
+		if (ret < 0) pr_err("Can get prop %s (%d)\n", prop_name, ret);
+		sm->v_max_table[i] = v_max_table[i];
+	}
+	pr_info("%s = <0x%x 0x%x 0x%x 0x%x 0x%x>\n",
+		prop_name, v_max_table[0], v_max_table[1], v_max_table[2], v_max_table[3], v_max_table[4]);
+
+	// q_max_table
+	for (i = 0; i < STEP_CV_VOLTAGE_MAX; i++) 
+	{
+		snprintf(prop_name,	PROPERTY_NAME_SIZE, "battery%d,%s", battery_id, "q_max_table");
+		ret = of_property_read_u32_array(np, prop_name, q_max_table, STEP_CV_VOLTAGE_MAX);
+		if (ret < 0) pr_err("Can get prop %s (%d)\n", prop_name, ret);
+		sm->q_max_table[i] = q_max_table[i];
+	}
+	pr_info("%s = <0x%x 0x%x 0x%x 0x%x 0x%x>\n",
+		prop_name, q_max_table[0], q_max_table[1], q_max_table[2], q_max_table[3], q_max_table[4]);
+#endif
+
 	return 0;
 }
 static int fg_get_soc_decimal(struct sm_fg_chip *sm)
@@ -4879,6 +5188,9 @@ int sm5602_set_shutdown(int en_shutdown)
 }
 EXPORT_SYMBOL_GPL(sm5602_set_shutdown);
 
+bool first_power_on = false;
+EXPORT_SYMBOL_GPL(first_power_on);
+
 static int sm_fg_probe(struct i2c_client *client,
 							const struct i2c_device_id *id)
 {
@@ -4887,7 +5199,7 @@ static int sm_fg_probe(struct i2c_client *client,
 	struct sm_fg_chip *sm;
 	u8 *regs;
 	struct iio_dev *indio_dev =NULL;
-	pr_info("enter\n");
+	pr_err("enter\n");
 	indio_dev = devm_iio_device_alloc(&client->dev, sizeof(*sm));
 
 	if (!indio_dev){
@@ -4911,6 +5223,9 @@ static int sm_fg_probe(struct i2c_client *client,
 	sm->fake_soc	= -EINVAL;
 	sm->fake_temp	= -EINVAL;
 	sm->batt_id_first_flag = false;
+  	sm->table_check_flag = true;
+	sm->fg_reset_flag = 1;
+  
 #ifdef ENABLE_INIT_DELAY_TEMP	
 	sm->en_init_delay_temp = 0;
 #endif
@@ -4918,6 +5233,7 @@ static int sm_fg_probe(struct i2c_client *client,
 	sm->en_delay_soc_zero = 0;
 	sm->recover_delay_soc_zero = 1;
 #endif
+	first_power_on = false;
 	if (sm->chip == SM5602) {
 		regs = sm5602_regs;
 	} else {
@@ -4933,6 +5249,12 @@ static int sm_fg_probe(struct i2c_client *client,
 
 	i2c_set_clientdata(client, sm);
 
+	ret = fg_get_device_id(client);
+	if (ret < 0) {
+		pr_err("do not sm5602 detect ic, exit\n");
+		goto err_0;
+	}
+
 	mutex_init(&sm->i2c_rw_lock);
 	mutex_init(&sm->data_lock);
 
@@ -4941,6 +5263,13 @@ static int sm_fg_probe(struct i2c_client *client,
 		pr_err("Error iio_channel_get\n");
 		return -EPROBE_DEFER;
 	}
+
+	if (fg_check_reg_init_need(client)) {
+		first_power_on = true;
+	}
+	pr_err("first_power_on[%d]\n",first_power_on);
+
+	fg_psy_register(sm);
 
 #ifdef ENABLE_INIT_DELAY_TEMP
 	INIT_DELAYED_WORK(&sm->init_delay_temp_work, fg_init_delay_temp_workfunc);
@@ -4951,7 +5280,7 @@ static int sm_fg_probe(struct i2c_client *client,
 
 	if (hal_fg_init(client) == false) {
 	    pr_err("Failed to Initialize Fuelgauge\n");
-        goto err_0; 	
+        goto err_0;
 	}
 
 #ifdef IN_PRO_ADJ
@@ -4968,9 +5297,7 @@ static int sm_fg_probe(struct i2c_client *client,
 	sm->temp_param.batt_temp = -EINVAL;
 	sm->temp_param.update_now = true;
 #endif
-	INIT_DELAYED_WORK(&sm->monitor_work, fg_monitor_workfunc);	
-
-	fg_psy_register(sm);
+	INIT_DELAYED_WORK(&sm->monitor_work, fg_monitor_workfunc);
 
 #ifdef FG_ENABLE_IRQ
 	if (sm->gpio_int > 0) {
@@ -4983,8 +5310,8 @@ static int sm_fg_probe(struct i2c_client *client,
 		client->irq = gpio_to_irq(sm->gpio_int);
 	} else {
 	    pr_err("Failed to registe gpio interrupt\n");
-        goto err_0; 	
-	}		
+        goto err_0;
+	}
 
 	if (client->irq) {
 		ret = devm_request_threaded_irq(&client->dev, client->irq, NULL,
@@ -5006,19 +5333,20 @@ static int sm_fg_probe(struct i2c_client *client,
 
 	schedule_delayed_work(&sm->monitor_work, msecs_to_jiffies(10000)); /* 10 sec */
 
-#if 0	
+#if 0
 	schedule_delayed_work(&sm->soc_monitor_work, msecs_to_jiffies(MONITOR_SOC_WAIT_MS));
 #endif
 	g_sm_fg_chip = sm;
 	pr_info("sm fuel gauge probe successfully, %s\n",device2str[sm->chip]);
+	pr_err("end\n");
 
 	return 0;
 #ifdef FG_ENABLE_IRQ
 err_1:
 #endif
 	fg_psy_unregister(sm);
-err_0:	
-	return ret;
+err_0:
+	return -ENODEV;
 }
 
 
@@ -5027,10 +5355,10 @@ static int sm_fg_remove(struct i2c_client *client)
 	struct sm_fg_chip *sm = i2c_get_clientdata(client);
 
 	cancel_delayed_work_sync(&sm->monitor_work);
-#ifdef ENABLE_INIT_DELAY_TEMP	
+#ifdef ENABLE_INIT_DELAY_TEMP
 	cancel_delayed_work_sync(&sm->init_delay_temp_work);
 #endif
-#ifdef DELAY_SOC_ZERO	
+#ifdef DELAY_SOC_ZERO
 	cancel_delayed_work_sync(&sm->delay_soc_zero_work);
 #endif
 	pr_info("mode change to shutdown mode\n");

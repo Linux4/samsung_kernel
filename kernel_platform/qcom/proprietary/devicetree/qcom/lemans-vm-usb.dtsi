@@ -4,7 +4,7 @@
 &soc {
 	usb0: ssusb@a600000 {
 		compatible = "qcom,dwc-usb3-msm";
-		reg = <0xa600000 0x100000>;
+		reg = <0xa600000 0x200000>;
 		reg-names = "core_base";
 
 		#address-cells = <1>;
@@ -65,7 +65,7 @@
 
 	/* Primary USB port related High Speed PHY */
 	usb2_phy0: hsphy@88e4000 {
-		compatible = "qcom,usb-hsphy-snps-femto";
+		compatible = "qcom,usb-hsphy-snps-femto-lemans";
 		reg = <0x88e4000 0x120>,
 			<0x088e3000 0x4>;
 		reg-names = "hsusb_phy_base",
@@ -81,6 +81,7 @@
 
 		resets = <&gcc GCC_USB2_PHY_PRIM_BCR>;
 		reset-names = "phy_reset";
+		status = "disabled";
 	};
 
 	/* Primary USB port related QMP PHY */
@@ -221,7 +222,7 @@
 
 	usb1: ssusb@a800000 {
 		compatible = "qcom,dwc-usb3-msm";
-		reg = <0xa800000 0x100000>;
+		reg = <0xa800000 0x200000>;
 		reg-names = "core_base";
 
 		#address-cells = <1>;
@@ -282,7 +283,7 @@
 
 	/* Secondary USB port related High Speed PHY */
 	usb2_phy1: hsphy@88e6000 {
-		compatible = "qcom,usb-hsphy-snps-femto";
+		compatible = "qcom,usb-hsphy-snps-femto-lemans";
 		reg = <0x88e6000 0x120>;
 		reg-names = "hsusb_phy_base";
 
@@ -440,7 +441,7 @@
 	/* Tertiary USB port related controller */
 	usb2: hsusb@a400000 {
 		compatible = "qcom,dwc-usb3-msm";
-		reg = <0xa400000 0x100000>;
+		reg = <0xa400000 0x200000>;
 		reg-names = "core_base";
 
 
@@ -488,13 +489,14 @@
 			snps,usb2-gadget-lpm-disable;
 			tx-fifo-resize;
 			maximum-speed = "high-speed";
-			dr_mode = "host";
+			dr_mode = "otg";
+			usb-role-switch;
 		};
 	};
 
 	/* Tertiary USB port related High Speed PHY */
 	usb2_phy2: hsphy@88e7000 {
-		compatible = "qcom,usb-hsphy-snps-femto";
+		compatible = "qcom,usb-hsphy-snps-femto-lemans";
 		reg = <0x88e7000 0x120>;
 		reg-names = "hsusb_phy_base";
 

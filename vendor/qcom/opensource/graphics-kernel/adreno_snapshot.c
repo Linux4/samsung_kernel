@@ -92,14 +92,6 @@ void kgsl_snapshot_push_object(struct kgsl_device *device,
 		return;
 	}
 
-	/*
-	 * In some gpu fault scenarios incorrect dword size resulting to return
-	 * without putting IB addrs into the list. Hence update IB dword size
-	 * within memdesc size to have IB dump in snapshot.
-	 */
-	if ((gpuaddr + (dwords << 2)) > (entry->memdesc.gpuaddr + entry->memdesc.size))
-		dwords = (entry->memdesc.size - (gpuaddr - entry->memdesc.gpuaddr)) >> 2;
-
 	if (!kgsl_gpuaddr_in_memdesc(&entry->memdesc, gpuaddr, dwords << 2)) {
 		dev_err(device->dev,
 			"snapshot: Mem entry 0x%016llX is too small\n",
@@ -877,7 +869,7 @@ static struct kgsl_process_private *setup_fault_process(struct kgsl_device *devi
 			u64 pt_ttbr0;
 
 			pt_ttbr0 = kgsl_mmu_pagetable_get_ttbr0(tmp->pagetable);
-			if ((pt_ttbr0 == MMU_SW_PT_BASE(hw_ptbase))
+			if ((pt_ttbr0 == hw_ptbase)
 			    && kgsl_process_private_get(tmp)) {
 				process = tmp;
 				break;
@@ -921,7 +913,10 @@ size_t adreno_snapshot_global(struct kgsl_device *device, u8 *buf,
 	header->ptbase = MMU_DEFAULT_TTBR0(device);
 	header->type = SNAPSHOT_GPU_OBJECT_GLOBAL;
 
-	memcpy(ptr, memdesc->hostptr, memdesc->size);
+	if ((memdesc->priv & KGSL_MEMDESC_IOMEM) != 0)
+		memcpy_fromio(ptr, memdesc->hostptr, memdesc->size);
+	else
+		memcpy(ptr, memdesc->hostptr, memdesc->size);
 
 	return memdesc->size + sizeof(*header);
 }
@@ -936,7 +931,7 @@ static void adreno_snapshot_iommu(struct kgsl_device *device,
 	kgsl_snapshot_add_section(device, KGSL_SNAPSHOT_SECTION_GPU_OBJECT_V2,
 		snapshot, adreno_snapshot_global, iommu->setstate);
 
-	if (adreno_is_preemption_enabled(adreno_dev))
+	if (ADRENO_FEATURE(adreno_dev, ADRENO_PREEMPTION))
 		kgsl_snapshot_add_section(device,
 			KGSL_SNAPSHOT_SECTION_GPU_OBJECT_V2,
 			snapshot, adreno_snapshot_global, iommu->smmu_info);
@@ -1062,7 +1057,7 @@ static void adreno_static_ib_dump(struct kgsl_device *device,
 	 * figure how often this really happens.
 	 */
 
-	if (ib1base && (-ENOENT == find_object(ib1base, process))) {
+	if (-ENOENT == find_object(ib1base, process)) {
 		struct kgsl_mem_entry *entry;
 		u64 ibsize;
 
@@ -1079,8 +1074,8 @@ static void adreno_static_ib_dump(struct kgsl_device *device,
 			kgsl_snapshot_push_object(device, process,
 				ib1base, ibsize >> 2);
 			dev_err(device->dev,
-				"CP_IB1_BASE %16llx is not found in the ringbuffer. Dumping %llx dwords of the buffer\n",
-				ib1base, ibsize >> 2);
+				"CP_IB1_BASE is not found in the ringbuffer. Dumping %llx dwords of the buffer\n",
+				ibsize >> 2);
 		}
 	}
 
@@ -1092,7 +1087,7 @@ static void adreno_static_ib_dump(struct kgsl_device *device,
 	 * correct size.
 	 */
 
-	if (ib2base && (-ENOENT == find_object(ib2base, process)))
+	if (-ENOENT == find_object(ib2base, process))
 		kgsl_snapshot_push_object(device, process, ib2base, ib2size);
 
 }

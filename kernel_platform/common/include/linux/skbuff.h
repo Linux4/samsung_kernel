@@ -261,6 +261,7 @@ struct nf_bridge_info {
 	u8			pkt_otherhost:1;
 	u8			in_prerouting:1;
 	u8			bridged_dnat:1;
+	u8			sabotage_in_done:1;
 	__u16			frag_max_size;
 	struct net_device	*physindev;
 
@@ -729,6 +730,7 @@ typedef unsigned char *sk_buff_data_t;
  *	@csum_level: indicates the number of consecutive checksums found in
  *		the packet minus one that have been verified as
  *		CHECKSUM_UNNECESSARY (max 3)
+ *	@scm_io_uring: SKB holds io_uring registered files
  *	@dst_pending_confirm: need to confirm neighbour
  *	@decrypted: Decrypted SKB
  *	@slow_gro: state present at GRO time, slower prepare step required
@@ -968,7 +970,25 @@ struct sk_buff {
 	__u32			headers_end[0];
 	/* public: */
 
-	ANDROID_KABI_RESERVE(1);
+	/* Android KABI preservation.
+	 *
+	 * "open coded" version of ANDROID_KABI_USE() to pack more
+	 * fields/variables into the space that we have.
+	 *
+	 * scm_io_uring is from 04df9719df18 ("io_uring/af_unix: defer
+	 * registered files gc to io_uring release")
+	 */
+	/* NOTE: due to these fields ending up after headers_end, we have to
+	 * manually copy them in the __copy_skb_header() call in skbuf.c.  Be
+	 * very aware of that if you change these fields.
+	 */
+	_ANDROID_KABI_REPLACE(_ANDROID_KABI_RESERVE(1),
+			 struct {
+				__u8 scm_io_uring:1;
+				__u8 android_kabi_reserved1_padding1;
+				__u16 android_kabi_reserved1_padding2;
+				__u32 android_kabi_reserved1_padding3;
+				});
 	ANDROID_KABI_RESERVE(2);
 
 	/* These elements must be at the end, see alloc_skb() for details.  */
@@ -4458,7 +4478,7 @@ static inline void nf_reset_ct(struct sk_buff *skb)
 
 static inline void nf_reset_trace(struct sk_buff *skb)
 {
-#if IS_ENABLED(CONFIG_NETFILTER_XT_TARGET_TRACE) || defined(CONFIG_NF_TABLES)
+#if IS_ENABLED(CONFIG_NETFILTER_XT_TARGET_TRACE) || IS_ENABLED(CONFIG_NF_TABLES)
 	skb->nf_trace = 0;
 #endif
 }
@@ -4478,7 +4498,7 @@ static inline void __nf_copy(struct sk_buff *dst, const struct sk_buff *src,
 	dst->_nfct = src->_nfct;
 	nf_conntrack_get(skb_nfct(src));
 #endif
-#if IS_ENABLED(CONFIG_NETFILTER_XT_TARGET_TRACE) || defined(CONFIG_NF_TABLES)
+#if IS_ENABLED(CONFIG_NETFILTER_XT_TARGET_TRACE) || IS_ENABLED(CONFIG_NF_TABLES)
 	if (copy)
 		dst->nf_trace = src->nf_trace;
 #endif

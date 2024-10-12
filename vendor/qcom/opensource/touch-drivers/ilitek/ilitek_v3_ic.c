@@ -2367,6 +2367,10 @@ out:
 		sprintf(tp_info_buf, "[Vendor]%s,[FW]0x%02X,[IC]%s\n", ILITEK_ILI77600A_INX_PANEL, buf[3], ILITEK_ILI77600A);
 	} else if (4 == ilitek_tp_module_flage) {
 		sprintf(tp_info_buf, "[Vendor]%s,[FW]0x%02X,[IC]%s\n", ILITEK_ILI77600A_XL_PANEL, buf[3], ILITEK_ILI77600A);
+	} else if (5 == ilitek_tp_module_flage) {
+		sprintf(tp_info_buf, "[Vendor]%s,[FW]0x%02X,[IC]%s\n", ILITEK_ILI7807S_XL_PANEL, buf[3], ILITEK_ILI7807S);
+	} else if (6 == ilitek_tp_module_flage) {
+		sprintf(tp_info_buf, "[Vendor]%s,[FW]0x%02X,[IC]%s\n", ILITEK_ILI7807S_TMB_PANEL, buf[3], ILITEK_ILI7807S);
 	} else {
 		ILI_ERR("Invalid IC\n");
 	}

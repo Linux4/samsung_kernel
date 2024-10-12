@@ -23,6 +23,8 @@
 //#include "nopmi/bq2589x_charger.h"
 
 #define SW_COMPENSATE_CURRENT
+#define CP_RETRY_RESTORE
+
 
 #define BQ_TAPER_HYS_MV				10
 #define TAPER_VOL_HYS				80
@@ -40,6 +42,11 @@
 #define MAX_THERMAL_LEVEL_FOR_CP 7
 
 #define LN8000_IIO_CHANNEL_OFFSET 15
+
+#ifdef CP_RETRY_RESTORE
+#define CP_RETRY_RESTORE_MAX_COUNT 5
+#endif
+
 
 enum pm_state {
     PD_PM_STATE_ENTRY,
@@ -200,6 +207,7 @@ struct usbpd_pm {
 	ktime_t entry_bq_cv_time;
     struct delayed_work pm_work;
     struct delayed_work dis_fcc_work;
+    struct delayed_work pd_vote_monitor_work;
 
     struct notifier_block nb;
 
@@ -216,6 +224,8 @@ struct usbpd_pm {
 	struct device *dev;
     int shutdown_flag;
     int pd_cv;
+    int battery_cycle;
+    int debug_battery_cycle;
     bool isln8000flag;
 	bool issc8541flag;
 
@@ -247,6 +257,9 @@ struct usbpd_pm {
 	bool	is_disable_quick_charge;
 
 	bool    disable_pps_charge;
+#ifdef CP_RETRY_RESTORE
+	int cp_retry_restore_count;
+#endif
 
 
 };

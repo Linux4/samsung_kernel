@@ -15,6 +15,7 @@
 #include <linux/blkdev.h>
 #include <linux/genhd.h>
 #include <linux/part_stat.h>
+#include <linux/sec_class.h>
 
 #include "blk-sec.h"
 
@@ -24,11 +25,14 @@ struct disk_info {
 	struct request_queue *queue;
 };
 
-static struct disk_info internal_disk;
-static unsigned int internal_min_size_mb = 10 * 1024; /* 10GB */
+struct device *blk_sec_dev;
+EXPORT_SYMBOL(blk_sec_dev);
 
 struct workqueue_struct *blk_sec_common_wq;
 EXPORT_SYMBOL(blk_sec_common_wq);
+
+static struct disk_info internal_disk;
+static unsigned int internal_min_size_mb = 10 * 1024; /* 10GB */
 
 #define SECTORS2MB(x) ((x) / 2 / 1024)
 
@@ -125,17 +129,36 @@ struct gendisk *blk_sec_internal_disk(void)
 }
 EXPORT_SYMBOL(blk_sec_internal_disk);
 
+static int blk_sec_uevent(struct device *dev, struct kobj_uevent_env *env)
+{
+	return add_uevent_var(env, "DEVNAME=%s", dev->kobj.name);
+}
+
+static struct device_type blk_sec_type = {
+	.uevent = blk_sec_uevent,
+};
+
 static int __init blk_sec_common_init(void)
 {
 	int retval;
+
+#if IS_ENABLED(CONFIG_DRV_SAMSUNG)
+	blk_sec_dev = sec_device_create(NULL, "blk_sec");
+	if (unlikely(IS_ERR(blk_sec_dev))) {
+		pr_err("%s: Failed to create blk-sec device\n", __func__);
+		return PTR_ERR(blk_sec_dev);
+	}
+
+	blk_sec_dev->type = &blk_sec_type;
+#endif
+
+	blk_sec_common_wq = create_freezable_workqueue("blk_sec_common");
 
 	retval = init_internal_disk_info();
 	if (retval) {
 		clear_internal_disk_info();
 		pr_err("%s: Can't find internal disk info!", __func__);
 	}
-
-	blk_sec_common_wq = create_freezable_workqueue("blk_sec_common");
 
 	return 0;
 }

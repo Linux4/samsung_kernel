@@ -10,6 +10,9 @@
 			compatible = "qcom,kryo";
 			reg = <0x0 0x0>;
 			enable-method = "psci";
+			cpu-idle-states = <&SILVER_OFF>;
+			power-domains = <&CPU_PD0>;
+			power-domain-names = "psci";
 			cpu-release-addr = <0x0 0x90000000>;
 			next-level-cache = <&L2_0>;
 			qcom,freq-domain = <&cpufreq_hw 0 4>;
@@ -41,6 +44,9 @@
 			compatible = "qcom,kryo";
 			reg = <0x0 0x100>;
 			enable-method = "psci";
+			cpu-idle-states = <&SILVER_OFF>;
+			power-domains = <&CPU_PD1>;
+			power-domain-names = "psci";
 			cpu-release-addr = <0x0 0x90000000>;
 			next-level-cache = <&L2_1>;
 			qcom,freq-domain = <&cpufreq_hw 0 4>;
@@ -66,6 +72,9 @@
 			compatible = "qcom,kryo";
 			reg = <0x0 0x200>;
 			enable-method = "psci";
+			cpu-idle-states = <&SILVER_OFF>;
+			power-domains = <&CPU_PD2>;
+			power-domain-names = "psci";
 			cpu-release-addr = <0x0 0x90000000>;
 			next-level-cache = <&L2_2>;
 			qcom,freq-domain = <&cpufreq_hw 0 4>;
@@ -91,6 +100,9 @@
 			compatible = "qcom,kryo";
 			reg = <0x0 0x400>;
 			enable-method = "psci";
+			cpu-idle-states = <&GOLD_OFF>;
+			power-domains = <&CPU_PD3>;
+			power-domain-names = "psci";
 			cpu-release-addr = <0x0 0x90000000>;
 			next-level-cache = <&L2_4>;
 			qcom,freq-domain = <&cpufreq_hw 1 4>;
@@ -117,6 +129,9 @@
 			compatible = "qcom,kryo";
 			reg = <0x0 0x500>;
 			enable-method = "psci";
+			cpu-idle-states = <&GOLD_OFF>;
+			power-domains = <&CPU_PD4>;
+			power-domain-names = "psci";
 			cpu-release-addr = <0x0 0x90000000>;
 			next-level-cache = <&L2_5>;
 			qcom,freq-domain = <&cpufreq_hw 1 4>;
@@ -142,6 +157,9 @@
 			compatible = "qcom,kryo";
 			reg = <0x0 0x600>;
 			enable-method = "psci";
+			cpu-idle-states = <&GOLD_OFF>;
+			power-domains = <&CPU_PD5>;
+			power-domain-names = "psci";
 			cpu-release-addr = <0x0 0x90000000>;
 			next-level-cache = <&L2_6>;
 			qcom,freq-domain = <&cpufreq_hw 1 4>;
@@ -201,27 +219,18 @@
 	/delete-node/ cti@7720000;
 	/delete-node/ etm@7340000;
 	/delete-node/ etm@7740000;
+	/delete-node/ qcom,chd;
+
+	psci {
+		/delete-node/ cpu-pd6;
+		/delete-node/ cpu-pd7;
+	};
 
 	dsu_pmu@0 {
 		compatible = "arm,dsu-pmu";
 		interrupts = <GIC_SPI 50 IRQ_TYPE_LEVEL_HIGH>;
 		cpus = <&CPU0>, <&CPU1>,<&CPU2>,
 			<&CPU3>, <&CPU4>, <&CPU5>;
-	};
-
-	qcom,lpm-levels {
-		qcom,pm-cluster@0 {
-			qcom,pm-cpu@0 {
-				/delete-property/  qcom,cpu;
-				qcom,cpu = <&CPU0 &CPU1 &CPU2>;
-			};
-
-			qcom,pm-cpu@1 {
-				/delete-property/  qcom,cpu;
-				qcom,cpu = <&CPU3 &CPU4 &CPU5>;
-
-			};
-		};
 	};
 
 	cti_cpu4: cti@7420000 {
@@ -253,6 +262,17 @@
 			/delete-node/ port@4;
 			/delete-node/ port@8;
 		};
+	};
+
+	qcom,chd {
+		compatible = "qcom,core-hang-detect";
+		label = "core";
+		qcom,chd-percpu-info = <&CPU0 0x18000058 0x18000060>,
+					<&CPU1 0x18010058 0x18010060>,
+					<&CPU2 0x18020058 0x18020060>,
+					<&CPU3 0x18030058 0x18030060>,
+					<&CPU4 0x18040058 0x18040060>,
+					<&CPU5 0x18050058 0x18050060>;
 	};
 };
 
@@ -325,10 +345,17 @@
 		/delete-node/ cpu7-hotplug;
 	};
 
-	/delete-node/ cpufreq_cdev;
-	cpufreq_cdev: qcom,cpufreq-cdev {
+	qcom,cpufreq-cdev {
 		compatible = "qcom,cpufreq-cdev";
-		qcom,cpus = <&CPU0 &CPU3>;
+		cpu-cluster0 {
+			qcom,cpus = <&CPU0 &CPU1 &CPU2>;
+		};
+
+		cpu-cluster1 {
+			qcom,cpus = <&CPU3 &CPU4 &CPU5>;
+		};
+
+		/delete-node/ cpu-cluster2;
 	};
 };
 

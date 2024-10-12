@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2010-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/delay.h>
@@ -22,6 +22,8 @@
 #include <linux/slab.h>
 #include <linux/soc/qcom/irq.h>
 #include <linux/spinlock.h>
+#include <linux/suspend.h>
+#include <linux/syscore_ops.h>
 
 #include <soc/qcom/mpm.h>
 
@@ -72,6 +74,12 @@ struct mpm_pin {
 static int num_mpm_irqs = 64;
 static struct msm_mpm_device_data msm_mpm_dev_data;
 static unsigned int *mpm_to_irq;
+#ifdef CONFIG_DEEPSLEEP
+static unsigned int mpm_enabled[MAX_REG_WIDTH];
+static unsigned int mpm_type_raising_edge[MAX_REG_WIDTH];
+static unsigned int mpm_type_falling_edge[MAX_REG_WIDTH];
+static unsigned int mpm_type_level[MAX_REG_WIDTH];
+#endif
 static DEFINE_SPINLOCK(mpm_lock);
 
 static irq_hw_number_t get_parent_hwirq(struct irq_domain *d,
@@ -300,7 +308,7 @@ static struct irq_chip msm_mpm_gic_chip = {
 	.irq_disable	= msm_mpm_gic_chip_mask,
 	.irq_unmask	= msm_mpm_gic_chip_unmask,
 	.irq_set_type	= msm_mpm_gic_chip_set_type,
-	.flags		= IRQCHIP_MASK_ON_SUSPEND | IRQCHIP_SKIP_SET_WAKE,
+	.flags		= IRQCHIP_SET_TYPE_MASKED | IRQCHIP_MASK_ON_SUSPEND | IRQCHIP_SKIP_SET_WAKE,
 	.irq_set_affinity	= msm_mpm_gic_chip_set_affinity,
 };
 
@@ -310,7 +318,7 @@ static struct irq_chip msm_mpm_gpio_chip = {
 	.irq_disable	= msm_mpm_gpio_chip_mask,
 	.irq_unmask	= msm_mpm_gpio_chip_unmask,
 	.irq_set_type	= msm_mpm_gpio_chip_set_type,
-	.flags		= IRQCHIP_MASK_ON_SUSPEND | IRQCHIP_SKIP_SET_WAKE,
+	.flags		= IRQCHIP_SET_TYPE_MASKED | IRQCHIP_MASK_ON_SUSPEND | IRQCHIP_SKIP_SET_WAKE,
 };
 
 static int msm_mpm_gpio_chip_translate(struct irq_domain *d,
@@ -428,12 +436,16 @@ static inline void msm_mpm_timer_write(void)
 {
 	u32 lo = ~0U, hi = ~0U, ctrl;
 
+	if (system_state == SYSTEM_SUSPEND)
+		goto exit;
+
 	ctrl = readl_relaxed_no_log(msm_mpm_dev_data.timer_frame_reg + MPM_CNTV_CTL);
 	if (ctrl & MPM_ARCH_TIMER_CTRL_ENABLE) {
 		lo = readl_relaxed_no_log(msm_mpm_dev_data.timer_frame_reg + MPM_CNTCVAL_LO);
 		hi = readl_relaxed_no_log(msm_mpm_dev_data.timer_frame_reg + MPM_CNTCVAL_HI);
 	}
 
+exit:
 	writel_relaxed(lo, msm_mpm_dev_data.mpm_request_reg_base);
 	writel_relaxed(hi, msm_mpm_dev_data.mpm_request_reg_base + 0x4);
 }
@@ -477,6 +489,7 @@ static irqreturn_t msm_mpm_irq(int irq, void *dev_id)
 	unsigned int mpm_irq;
 	struct irq_desc *desc = NULL;
 	unsigned int reg = MPM_REG_ENABLE;
+	bool pending_status;
 
 	for (i = 0; i < QCOM_MPM_REG_WIDTH; i++) {
 		value[i] = msm_mpm_read(reg, i);
@@ -487,6 +500,9 @@ static irqreturn_t msm_mpm_irq(int irq, void *dev_id)
 		pending = msm_mpm_read(MPM_REG_STATUS, i);
 		pending &= (unsigned long)value[i];
 
+		if (pending)
+			pm_system_wakeup();
+
 		trace_mpm_wakeup_pending_irqs(i, pending);
 		for_each_set_bit(k, &pending, 32) {
 			mpm_irq = 32 * i + k;
@@ -494,15 +510,69 @@ static irqreturn_t msm_mpm_irq(int irq, void *dev_id)
 			desc = apps_irq ?
 				irq_to_desc(apps_irq) : NULL;
 
-			if (desc && !irqd_is_level_type(&desc->irq_data))
-				irq_set_irqchip_state(apps_irq,
+			if (desc && !irqd_is_level_type(&desc->irq_data)) {
+				irq_get_irqchip_state(apps_irq,
+						IRQCHIP_STATE_PENDING, &pending_status);
+
+				if (!pending_status)
+					irq_set_irqchip_state(apps_irq,
 						IRQCHIP_STATE_PENDING, true);
+			}
 
 		}
 
 	}
 	return IRQ_HANDLED;
 }
+
+#ifdef CONFIG_DEEPSLEEP
+static int mpm_suspend(void)
+{
+	int i;
+	unsigned int reg;
+
+	for (i = 0; i < QCOM_MPM_REG_WIDTH; i++) {
+		reg = MPM_REG_RISING_EDGE;
+		mpm_type_raising_edge[i] = msm_mpm_read(reg, i);
+
+		reg = MPM_REG_FALLING_EDGE;
+		mpm_type_falling_edge[i] = msm_mpm_read(reg, i);
+
+		reg = MPM_REG_POLARITY;
+		mpm_type_level[i] = msm_mpm_read(reg, i);
+
+		reg = MPM_REG_ENABLE;
+		mpm_enabled[i] =  msm_mpm_read(reg, i);
+	}
+
+	return 0;
+}
+
+static void mpm_resume(void)
+{
+	int i;
+	unsigned int reg;
+
+	for (i = 0; i < QCOM_MPM_REG_WIDTH; i++) {
+		reg = MPM_REG_RISING_EDGE;
+		msm_mpm_write(reg, i, mpm_type_raising_edge[i]);
+
+		reg = MPM_REG_FALLING_EDGE;
+		msm_mpm_write(reg, i, mpm_type_falling_edge[i]);
+
+		reg = MPM_REG_POLARITY;
+		msm_mpm_write(reg, i, mpm_type_level[i]);
+
+		reg = MPM_REG_ENABLE;
+		msm_mpm_write(reg, i, mpm_enabled[i]);
+	}
+}
+
+static struct syscore_ops mpm_syscore_ops = {
+	.suspend = mpm_suspend,
+	.resume = mpm_resume,
+};
+#endif
 
 static int msm_mpm_init(struct device_node *node)
 {
@@ -558,24 +628,19 @@ static int msm_mpm_init(struct device_node *node)
 	dev->ipc_irq = irq;
 
 	ret = request_irq(dev->ipc_irq, msm_mpm_irq,
-		IRQF_TRIGGER_RISING | IRQF_NO_SUSPEND, "mpm",
-		msm_mpm_irq);
+			  IRQF_TRIGGER_RISING | IRQF_NO_SUSPEND, "mpm",
+			  msm_mpm_irq);
 	if (ret) {
 		pr_err("request_irq failed errno: %d\n", ret);
 		goto ipc_irq_err;
 	}
 
-	ret = irq_set_irq_wake(dev->ipc_irq, 1);
-	if (ret) {
-		pr_err("failed to set wakeup irq %lu: %d\n",
-			dev->ipc_irq, ret);
-		goto set_wake_irq_err;
-	}
+#ifdef CONFIG_DEEPSLEEP
+	register_syscore_ops(&mpm_syscore_ops);
+#endif
 
 	return 0;
 
-set_wake_irq_err:
-	free_irq(dev->ipc_irq, msm_mpm_irq);
 ipc_irq_err:
 	iounmap(dev->mpm_ipc_reg);
 ipc_reg_err:
@@ -592,6 +657,16 @@ const struct mpm_pin mpm_khaje_gic_chip_data[] = {
 	{86, 183}, /* mpm_wake,spmi_m */
 	{90, 188}, /* eud_p0_dmse_int_mx */
 	{91, 184}, /* eud_p0_dpse_int_mx */
+	{-1},
+};
+
+const struct mpm_pin mpm_qcs405_gic_chip_data[] = {
+	{2, 184}, /*tsens0_tsens_upper_lower_int */
+	{35, 318}, /* dmse_hv, usb20 -> hs_phy_irq */
+	{36, 318}, /* dpse_hv, usb20 -> hs_phy_irq */
+	{38, 319}, /* dmse_hv, usb30 -> hs_phy_irq */
+	{39, 319}, /* dpse_hv, usb30 -> hs_phy_irq */
+	{62, 190}, /* mpm_wake,spmi_m */
 	{-1},
 };
 
@@ -615,6 +690,15 @@ const struct mpm_pin mpm_monaco_gic_chip_data[] = {
 	{-1},
 };
 
+const struct mpm_pin mpm_trinket_gic_chip_data[] = {
+	{2, 275},
+	{12, 422}, /* b3_lfps_rxterm_irq */
+	{86, 183}, /* mpm_wake,spmi_m */
+	{90, 260}, /* eud_p0_dpse_int_mx */
+	{91, 260}, /* eud_p0_dmse_int_mx */
+	{-1},
+};
+
 static const struct of_device_id mpm_gic_chip_data_table[] = {
 	{
 		.compatible = "qcom,mpm-khaje",
@@ -625,8 +709,16 @@ static const struct of_device_id mpm_gic_chip_data_table[] = {
 		.data = mpm_monaco_gic_chip_data,
 	},
 	{
+		.compatible = "qcom,mpm-qcs405",
+		.data = mpm_qcs405_gic_chip_data,
+	},
+	{
 		.compatible = "qcom,mpm-sa410m",
 		.data = mpm_sa410m_gic_chip_data,
+	},
+	{
+		.compatible = "qcom,mpm-trinket",
+		.data = mpm_trinket_gic_chip_data,
 	},
 	{}
 };

@@ -191,6 +191,7 @@ public:
     bool vsid_realcalling;
     bool voip_wificalling;
 #endif
+    bool call_forwarding_state = false;
     pal_speaker_rotation_type current_rotation;
     static card_status_t sndCardState;
     std::mutex adev_init_mutex;
@@ -235,6 +236,9 @@ public:
     static int parse_xml();
 #ifdef SEC_AUDIO_CALL
     audio_io_handle_t primary_out_io_handle = AUDIO_IO_HANDLE_NONE;
+#endif
+#ifdef SEC_AUDIO_COMMON
+    std::shared_ptr<StreamOutPrimary> OutGetStream(pal_stream_type_t pal_stream_type);
 #endif
 protected:
     AudioDevice() {}

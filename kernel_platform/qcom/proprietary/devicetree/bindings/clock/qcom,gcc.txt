@@ -22,7 +22,9 @@ Required properties :
 			"qcom,gcc-qcs404"
 			"qcom,gcc-sdm630"
 			"qcom,gcc-sdm660"
-			"qcom,gcc-sdm845"
+			"qcom,sdm845-gcc"
+			"qcom,sdm845-gcc-v2"
+			"qcom,sdm845-gcc-v2.1"
 			"qcom,lahaina-gcc"
 			"qcom,sm8150-gcc"
 			"qcom,gcc-sm8250"
@@ -48,6 +50,9 @@ Required properties :
 			"qcom,sa410m-gcc"
 			"qcom,direwolf-gcc"
 			"qcom,crow-gcc"
+			"qcom,monaco_auto-gcc"
+			"qcom,trinket-gcc"
+			"qcom,sdm670-gcc"
 
 - reg : shall contain base register location and length
 - vdd_cx-supply: The vdd_cx logic rail supply.
@@ -90,7 +95,7 @@ Example of GCC with TSENS properties:
 
 Example of GCC with protected-clocks properties:
 	clock-controller@100000 {
-		compatible = "qcom,gcc-sdm845";
+		compatible = "qcom,sdm845-gcc";
 		reg = <0x100000 0x1f0000>;
 		#clock-cells = <1>;
 		#reset-cells = <1>;

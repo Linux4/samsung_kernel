@@ -10,7 +10,6 @@
 	/* Rules start after this line */
 	{feature_ped_exception,"/system/bin/run-as"},	/* DEFAULT */
 	{feature_ped_exception,"/system/bin/dumpstate"},	/* DEFAULT */
-	{feature_ped_exception,"/vendor/bin/hw/vendor.samsung.hardware.camera.provider@4.0-service"},	/* DEFAULT */
 	{feature_safeplace_path,"/init"},
 	{feature_safeplace_path,"/system/bin/init"},
 	{feature_safeplace_path,"/system/bin/app_process32"},
@@ -166,9 +165,14 @@
 	{feature_safeplace_path,"/system/bin/hqcpsnbin"},
 	{feature_safeplace_path,"/system/bin/awk"},
 	{feature_safeplace_path,"/system/bin/bc"},
+	{feature_safeplace_path,"/system/bin/service"},
+	{feature_safeplace_path,"/system/bin/fsck_msdos"},
 	{feature_safeplace_path,"/system/bin/rdxd"},
+	{feature_safeplace_path,"/system/bin/ztd"},
 	{feature_safeplace_path,"/system/system_ext/bin/dpmd"},
 	{feature_safeplace_path,"/system_ext/bin/dpmd"},
+	{feature_safeplace_path,"/vendor/bin/vendor.dpmd"},
+	{feature_safeplace_path,"/vendor/bin/init.qti.chg_policy.sh"},
 	{feature_safeplace_path,"/vendor/bin/init.qti.dcvs.sh"},
 	{feature_safeplace_path,"/vendor/bin/vendor_modprobe.sh"},
 	{feature_safeplace_path,"/vendor/bin/init.qti.qcv.sh"},
@@ -185,8 +189,14 @@
 	{feature_safeplace_path,"/product/bin/qvirtmgr"},
 	{feature_safeplace_path,"/system_ext/bin/qcrosvm"},
 	{feature_safeplace_path,"/vendor/bin/ssr_setup"},
-	{feature_safeplace_path,"/vendor/bin/hw/android.hardware.thermal@2.0-service.qti-v2"},
+	{feature_safeplace_path,"/product/bin/vendor.qti.qvirt-service_rs"},
+	{feature_safeplace_path,"/product/bin/vendor.qti.qvirt-service"},
+	{feature_safeplace_path,"/vendor/bin/hw/vendor.qti.hardware.debugutils-service"},
+	{feature_safeplace_path,"/vendor/bin/hw/vendor.qti.hardware.perf2-hal-service"},
+	{feature_safeplace_path,"/vendor/bin/hw/vendor.qti.hardware.limits@1.1-service"},
 	{feature_safeplace_path,"/vendor/bin/hw/vendor.qti.hardware.limits@1.2-service"},
+	{feature_safeplace_path,"/vendor/bin/hw/android.hardware.thermal@2.0-service.qti-v2"},
+	{feature_safeplace_path,"/vendor/bin/poweropt-service"},
 	{feature_safeplace_path,"/vendor/bin/msm_irqbalance"},
 	{feature_safeplace_path,"/vendor/bin/thermal_manager"},
 	{feature_safeplace_path,"/vendor/bin/nvram_daemon"},
@@ -237,6 +247,7 @@
 	{feature_safeplace_path,"/system/bin/bpfloader"},
 	{feature_safeplace_path,"/system/bin/btfloader"},
 	{feature_safeplace_path,"/vendor/bin/system_dlkm_modprobe.sh"},
+	{feature_safeplace_path,"/apex/com.android.art/bin/art_boot"},
 	{feature_safeplace_path,"/tmp/update_binary;updater_intermediates/updater;obj/EXECUTABLES"},
 	{feature_safeplace_path,"/tmp/update-binary"},
 	{feature_safeplace_path,"/system/bin/install-recovery.sh"},	/* DEFAULT */
@@ -266,10 +277,13 @@
 	{feature_immutable_src_exception,"/system/bin/lshal"},
 	{feature_immutable_src_exception,"/apex/com.android.runtime/bin/crash_dump32"},	/* DEFAULT */
 	{feature_immutable_src_exception,"/apex/com.android.runtime/bin/crash_dump64"},	/* DEFAULT */
+	{feature_immutable_src_exception,"/data/local/tests/unrestricted/CtsBionicTestCases/arm64/CtsBionicTestCases"},	/* DEFAULT */
+	{feature_immutable_src_exception,"/data/local/tests/unrestricted/CtsBionicTestCases/arm/CtsBionicTestCases"},	/* DEFAULT */
 	{feature_integrity_check,"/vendor/bin/hw/android.hardware.gatekeeper@1.0-service"},
 	{feature_integrity_check,"/vendor/bin/hw/android.hardware.keymaster@4.0-service"},
 	{feature_integrity_check,"/vendor/bin/hw/android.hardware.security.keymint-service"},
 	{feature_integrity_check,"/vendor/bin/hw/vendor.samsung.hardware.tlc.kg@1.0-service"},
+	{feature_integrity_check,"/vendor/bin/hw/vendor.samsung.hardware.security.wsm-service"},
 	{feature_integrity_check,"/vendor/bin/vendor.samsung.hardware.security.wsm@1.0-service"},
 	{feature_integrity_check,"/vendor/bin/vaultkeeperd"},
 	{feature_integrity_check,"/vendor/bin/hw/vendor.samsung.hardware.tlc.kg@1.1-service"},

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 #include <linux/compat.h>
 #include <linux/eventfd.h>
@@ -187,6 +187,12 @@ static void tx_worker(struct vhost_hab_pchannel *vh_pchan)
 				pr_err("hab_msg_recv error %d\n", ret);
 
 			total_len += out_len;
+
+			if (vh_pchan->pchan->sequence_rx + 1 != header.sequence)
+				pr_err("%s: expected sequence_rx is %u, received is %u\n",
+						vh_pchan->pchan->name,
+						vh_pchan->pchan->sequence_rx,
+						header.sequence);
 			vh_pchan->pchan->sequence_rx = header.sequence;
 		}
 
@@ -265,16 +271,16 @@ static int vhost_hab_open(struct inode *inode, struct file *f)
 		list_for_each_entry_safe(vh_pchan, vh_pchan_t,
 					&g_vh.vh_pchan_list, node) {
 
-			pr_info("%s: vh-pchan id %d\n", __func__,
+			pr_debug("%s: vh-pchan id %d\n", __func__,
 				vh_pchan->habdev->id);
 
 			if (vh_pchan->habdev == habdev) {
-				pr_info("%s: find vh_pchan for mmid %d\n",
+				pr_debug("%s: find vh_pchan for mmid %d\n",
 					__func__, habdev->id);
 				list_move_tail(&vh_pchan->node,
 						&vh_dev->vh_pchan_list);
 				vh_pchan_found = true;
-				pr_info("%s: num_pchan %d\n", __func__,
+				pr_debug("%s: num_pchan %d\n", __func__,
 					num_pchan);
 				num_pchan++;
 				break;
@@ -635,7 +641,7 @@ static int vhost_hab_set_config(struct vhost_hab_dev *vh_dev,
 		return ret;
 	}
 
-	pr_info("vmid=%d\n", vmid);
+	pr_debug("vmid=%d\n", vmid);
 	return vhost_hab_set_pchannels(vh_dev, vmid);
 }
 
@@ -769,6 +775,8 @@ void hab_hypervisor_unregister(void)
 	class_destroy(g_vh.class);
 	unregister_chrdev_region(g_vh.major, max_devices);
 }
+
+int hab_hypervisor_register_post(void) { return 0; }
 
 void hab_pipe_read_dump(struct physical_channel *pchan) {};
 
@@ -989,13 +997,17 @@ err_unlock:
 
 int physical_channel_send(struct physical_channel *pchan,
 			struct hab_header *header,
-			void *payload)
+			void *payload,
+			unsigned int flags)
 {
 	struct vhost_hab_pchannel *vh_pchan = pchan->hyp_data;
 	struct vhost_virtqueue *vq;
 	struct vhost_hab_dev *vh_dev;
 	struct vhost_hab_send_node *send_node;
 	size_t sizebytes = HAB_HEADER_GET_SIZE(*header);
+
+	/* Only used in virtio arch */
+	(void)flags;
 
 	if (!vh_pchan) {
 		pr_err("pchan is not ready yet\n");
@@ -1244,7 +1256,7 @@ int habhyp_commdev_alloc(void **commdev, int is_be, char *name,
 	list_add_tail(&vh_pchan->node, &g_vh.vh_pchan_list);
 	*commdev = pchan;
 
-	pr_info("pchan %s vchans %d refcnt %d\n",
+	pr_debug("pchan %s vchans %d refcnt %d\n",
 		pchan->name, pchan->vcnt, get_refcnt(pchan->refcount));
 
 	return 0;

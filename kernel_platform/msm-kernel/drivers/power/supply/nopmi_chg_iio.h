@@ -94,7 +94,7 @@ static const char * const cc_ext_iio_chan_name[] = {
 };
 
 enum cp_ext_iio_channels {
-	CHARGE_PUMP_CHARGING_ENABLED,
+	CP_CHARGE_PUMP_CHARGING_ENABLED,
 	//CHARGE_PUMP_CHIP_ID,
 	CHARGE_PUMP_SP_BUS_CURRENT,
 	CHARGE_PUMP_SP_BUS_VOLTAGE,
@@ -108,7 +108,7 @@ enum cp_ext_iio_channels {
 };
 
 static const char * const cp_ext_iio_chan_name[] = {
-	[CHARGE_PUMP_CHARGING_ENABLED] = "charging_enabled",
+	[CP_CHARGE_PUMP_CHARGING_ENABLED] = "charging_enabled",
 	//[CHARGE_PUMP_CHIP_ID] = "sc_chip_id",
 	[CHARGE_PUMP_SP_BUS_CURRENT] = "sp2130_bus_current", //sp2130 ibus
 	[CHARGE_PUMP_SP_BUS_VOLTAGE] = "sp2130_bus_voltage",     //sp2130 vbus

@@ -39,6 +39,11 @@ ifeq ($(findstring yes, $(found)), yes)
 cppflags-y += -DCFG80211_LINK_STA_PARAMS_PRESENT
 endif
 
+found = $(shell if grep -qF "unsigned int link_id, u16 punct_bitmap" $(srctree)/include/net/cfg80211.h; then echo "yes" ;else echo "no" ;fi;)
+ifeq ($(findstring yes, $(found)), yes)
+cppflags-y += -DCFG80211_RU_PUNCT_NOTIFY
+endif
+
 include $(WLAN_ROOT)/configs/$(CONFIG_QCA_CLD_WLAN_PROFILE)_defconfig
 
 # add configurations in WLAN_CFG_OVERRIDE
@@ -2458,6 +2463,33 @@ endif
 
 $(call add-wlan-objs,coex,$(COEX_OBJS))
 
+###### COAP ########
+COAP_HDD_SRC := core/hdd/src
+COAP_OS_IF_SRC := os_if/coap/src
+COAP_TGT_SRC := components/target_if/coap/src
+COAP_CORE_SRC  := components/coap/core/src
+COAP_DISPATCHER_SRC := components/coap/dispatcher/src
+COAP_WMI_SRC := components/wmi/src
+
+COAP_OS_IF_INC  := -I$(WLAN_ROOT)/os_if/coap/inc
+COAP_TGT_INC := -I$(WLAN_ROOT)/components/target_if/coap/inc
+COAP_DISPATCHER_INC := -I$(WLAN_ROOT)/components/coap/dispatcher/inc
+COAP_CORE_INC := -I$(WLAN_ROOT)/components/coap/core/inc
+COAP_WMI_INC := -I$(WLAN_ROOT)/components/wmi/inc
+
+ifeq ($(CONFIG_WLAN_FEATURE_COAP), y)
+COAP_OBJS := \
+	$(COAP_HDD_SRC)/wlan_hdd_coap.o \
+	$(COAP_OS_IF_SRC)/wlan_cfg80211_coap.o \
+	$(COAP_TGT_SRC)/target_if_coap.o  \
+	$(COAP_CORE_SRC)/wlan_coap_main.o  \
+	$(COAP_DISPATCHER_SRC)/wlan_coap_tgt_api.o \
+	$(COAP_DISPATCHER_SRC)/wlan_coap_ucfg_api.o \
+	$(COAP_WMI_SRC)/wmi_unified_coap_tlv.o
+endif
+
+$(call add-wlan-objs,coap,$(COAP_OBJS))
+
 ############## HTC ##########
 HTC_DIR := htc
 HTC_INC := -I$(WLAN_COMMON_INC)/$(HTC_DIR)
@@ -2974,6 +3006,12 @@ INCS +=		$(COEX_OS_IF_INC)
 INCS +=		$(COEX_TGT_INC)
 INCS +=		$(COEX_DISPATCHER_INC)
 INCS +=		$(COEX_CORE_INC)
+################ COAP ################
+INCS +=		$(COAP_OS_IF_INC)
+INCS +=		$(COAP_TGT_INC)
+INCS +=		$(COAP_DISPATCHER_INC)
+INCS +=		$(COAP_CORE_INC)
+INCS +=		$(COAP_WMI_INC)
 
 ccflags-y += $(INCS)
 
@@ -3724,6 +3762,8 @@ cppflags-$(CONFIG_WLAN_FEATURE_PKT_CAPTURE_V2) += -DWLAN_FEATURE_PKT_CAPTURE_V2
 
 cppflags-$(CONFIG_DP_RX_UDP_OVER_PEER_ROAM) += -DDP_RX_UDP_OVER_PEER_ROAM
 
+cppflags-$(CONFIG_WLAN_BOOST_CPU_FREQ_IN_ROAM) += -DWLAN_BOOST_CPU_FREQ_IN_ROAM
+
 cppflags-$(CONFIG_QCA_WIFI_EMULATION) += -DQCA_WIFI_EMULATION
 cppflags-$(CONFIG_SHADOW_V2) += -DCONFIG_SHADOW_V2
 cppflags-$(CONFIG_QCA6290_HEADERS_DEF) += -DQCA6290_HEADERS_DEF
@@ -4275,6 +4315,7 @@ cppflags-$(CONFIG_DEVICE_FORCE_WAKE_ENABLE) += -DDEVICE_FORCE_WAKE_ENABLE
 cppflags-$(CONFIG_WINDOW_REG_PLD_LOCK_ENABLE) += -DWINDOW_REG_PLD_LOCK_ENABLE
 cppflags-$(CONFIG_DUMP_REO_QUEUE_INFO_IN_DDR) += -DDUMP_REO_QUEUE_INFO_IN_DDR
 cppflags-$(CONFIG_DP_RX_REFILL_CPU_PERF_AFFINE_MASK) += -DDP_RX_REFILL_CPU_PERF_AFFINE_MASK
+ccflags-$(CONFIG_FEATURE_ENABLE_CE_DP_IRQ_AFFINE) += -DFEATURE_ENABLE_CE_DP_IRQ_AFFINE
 
 ifdef CONFIG_MAX_CLIENTS_ALLOWED
 ccflags-y += -DWLAN_MAX_CLIENTS_ALLOWED=$(CONFIG_MAX_CLIENTS_ALLOWED)
@@ -4348,6 +4389,9 @@ endif
 ifeq ($(CONFIG_DP_HW_TX_DELAY_STATS_ENABLE), y)
 cppflags-y += -DHW_TX_DELAY_STATS_ENABLE
 endif
+
+# Flag to enable Constrained Application Protocol feature
+cppflags-$(CONFIG_WLAN_FEATURE_COAP) += -DWLAN_FEATURE_COAP
 
 KBUILD_CPPFLAGS += $(cppflags-y)
 

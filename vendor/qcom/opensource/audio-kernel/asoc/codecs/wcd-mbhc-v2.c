@@ -32,6 +32,7 @@
 struct class *audio_class;
 EXPORT_SYMBOL(audio_class);
 int earjack_state = 0;
+EXPORT_SYMBOL(earjack_state);
 //zhangsen1 earjack test end
 
 static const unsigned int mbhc_ext_dev_supported_table[] = {

@@ -19,6 +19,7 @@
 #include <linux/pm_wakeup.h>
 #include <linux/power_supply.h>
 #include <linux/reboot.h>
+#include <linux/thermal.h>
 #include <linux/soc/qcom/pmic_glink.h>
 #include <linux/soc/qcom/battery_charger.h>
 #include <linux/soc/qcom/panel_event_notifier.h>
@@ -225,6 +226,7 @@ struct battery_chg_dev {
 	struct class			battery_class;
 	struct pmic_glink_client	*client;
 	struct mutex			rw_lock;
+	struct rw_semaphore		state_sem;
 	struct completion		ack;
 	struct completion		fw_buf_ack;
 	struct completion		fw_update_ack;
@@ -258,6 +260,7 @@ struct battery_chg_dev {
 	/* To track the driver initialization status */
 	bool				initialized;
 	bool				notify_en;
+	bool				error_prop;
 };
 
 static const int battery_prop_map[BATT_PROP_MAX] = {
@@ -341,8 +344,10 @@ static int battery_chg_fw_write(struct battery_chg_dev *bcdev, void *data,
 {
 	int rc;
 
+	down_read(&bcdev->state_sem);
 	if (atomic_read(&bcdev->state) == PMIC_GLINK_STATE_DOWN) {
 		pr_debug("glink state is down\n");
+		up_read(&bcdev->state_sem);
 		return -ENOTCONN;
 	}
 
@@ -353,12 +358,14 @@ static int battery_chg_fw_write(struct battery_chg_dev *bcdev, void *data,
 					msecs_to_jiffies(WLS_FW_WAIT_TIME_MS));
 		if (!rc) {
 			pr_err("Error, timed out sending message\n");
+			up_read(&bcdev->state_sem);
 			return -ETIMEDOUT;
 		}
 
 		rc = 0;
 	}
 
+	up_read(&bcdev->state_sem);
 	return rc;
 }
 
@@ -372,29 +379,48 @@ static int battery_chg_write(struct battery_chg_dev *bcdev, void *data,
 	 * known values until it comes back up. Hence, return 0 so that
 	 * pmic_glink_write() is not attempted until pmic glink is up.
 	 */
+	down_read(&bcdev->state_sem);
 	if (atomic_read(&bcdev->state) == PMIC_GLINK_STATE_DOWN) {
 		pr_debug("glink state is down\n");
+		up_read(&bcdev->state_sem);
 		return 0;
 	}
 
-	if (bcdev->debug_battery_detected && bcdev->block_tx)
+	if (bcdev->debug_battery_detected && bcdev->block_tx) {
+		up_read(&bcdev->state_sem);
 		return 0;
+	}
 
 	mutex_lock(&bcdev->rw_lock);
 	reinit_completion(&bcdev->ack);
+	bcdev->error_prop = false;
 	rc = pmic_glink_write(bcdev->client, data, len);
 	if (!rc) {
 		rc = wait_for_completion_timeout(&bcdev->ack,
 					msecs_to_jiffies(BC_WAIT_TIME_MS));
 		if (!rc) {
 			pr_err("Error, timed out sending message\n");
+			up_read(&bcdev->state_sem);
 			mutex_unlock(&bcdev->rw_lock);
 			return -ETIMEDOUT;
 		}
-
 		rc = 0;
+
+		/*
+		 * In case the opcode used is not supported, the remote
+		 * processor might ack it immediately with a return code indicating
+		 * an error. This additional check is to check if such an error has
+		 * happened and return immediately with error in that case. This
+		 * avoids wasting time waiting in the above timeout condition for this
+		 * type of error.
+		 */
+		if (bcdev->error_prop) {
+			bcdev->error_prop = false;
+			rc = -ENODATA;
+		}
 	}
 	mutex_unlock(&bcdev->rw_lock);
+	up_read(&bcdev->state_sem);
 
 	return rc;
 }
@@ -497,12 +523,15 @@ static void battery_chg_state_cb(void *priv, enum pmic_glink_state state)
 
 	pr_debug("state: %d\n", state);
 
+	down_write(&bcdev->state_sem);
 	if (!bcdev->initialized) {
 		pr_warn("Driver not initialized, pmic_glink state %d\n", state);
+		up_write(&bcdev->state_sem);
 		return;
 	}
-
 	atomic_set(&bcdev->state, state);
+	up_write(&bcdev->state_sem);
+
 	if (state == PMIC_GLINK_STATE_UP)
 		schedule_work(&bcdev->subsys_up_work);
 	else if (state == PMIC_GLINK_STATE_DOWN)
@@ -558,8 +587,8 @@ int qti_battery_charger_get_prop(const char *name,
 }
 EXPORT_SYMBOL(qti_battery_charger_get_prop);
 
-static bool validate_message(struct battery_charger_resp_msg *resp_msg,
-				size_t len)
+static bool validate_message(struct battery_chg_dev *bcdev,
+			struct battery_charger_resp_msg *resp_msg, size_t len)
 {
 	if (len != sizeof(*resp_msg)) {
 		pr_err("Incorrect response length %zu for opcode %#x\n", len,
@@ -568,9 +597,10 @@ static bool validate_message(struct battery_charger_resp_msg *resp_msg,
 	}
 
 	if (resp_msg->ret_code) {
-		pr_err("Error in response for opcode %#x prop_id %u, rc=%d\n",
+		pr_err_ratelimited("Error in response for opcode %#x prop_id %u, rc=%d\n",
 			resp_msg->hdr.opcode, resp_msg->property_id,
 			(int)resp_msg->ret_code);
+		bcdev->error_prop = true;
 		return false;
 	}
 
@@ -604,7 +634,7 @@ static void handle_message(struct battery_chg_dev *bcdev, void *data,
 		}
 
 		/* Other response should be of same type as they've u32 value */
-		if (validate_message(resp_msg, len) &&
+		if (validate_message(bcdev, resp_msg, len) &&
 		    resp_msg->property_id < pst->prop_count) {
 			pst->prop[resp_msg->property_id] = resp_msg->value;
 			ack_set = true;
@@ -613,7 +643,7 @@ static void handle_message(struct battery_chg_dev *bcdev, void *data,
 		break;
 	case BC_USB_STATUS_GET:
 		pst = &bcdev->psy_list[PSY_TYPE_USB];
-		if (validate_message(resp_msg, len) &&
+		if (validate_message(bcdev, resp_msg, len) &&
 		    resp_msg->property_id < pst->prop_count) {
 			pst->prop[resp_msg->property_id] = resp_msg->value;
 			ack_set = true;
@@ -622,7 +652,7 @@ static void handle_message(struct battery_chg_dev *bcdev, void *data,
 		break;
 	case BC_WLS_STATUS_GET:
 		pst = &bcdev->psy_list[PSY_TYPE_WLS];
-		if (validate_message(resp_msg, len) &&
+		if (validate_message(bcdev, resp_msg, len) &&
 		    resp_msg->property_id < pst->prop_count) {
 			pst->prop[resp_msg->property_id] = resp_msg->value;
 			ack_set = true;
@@ -632,7 +662,7 @@ static void handle_message(struct battery_chg_dev *bcdev, void *data,
 	case BC_BATTERY_STATUS_SET:
 	case BC_USB_STATUS_SET:
 	case BC_WLS_STATUS_SET:
-		if (validate_message(data, len))
+		if (validate_message(bcdev, data, len))
 			ack_set = true;
 
 		break;
@@ -692,7 +722,7 @@ static void handle_message(struct battery_chg_dev *bcdev, void *data,
 		break;
 	}
 
-	if (ack_set)
+	if (ack_set || bcdev->error_prop)
 		complete(&bcdev->ack);
 }
 
@@ -864,9 +894,12 @@ static int battery_chg_callback(void *priv, void *data, size_t len)
 	pr_debug("owner: %u type: %u opcode: %#x len: %zu\n", hdr->owner,
 		hdr->type, hdr->opcode, len);
 
+	down_read(&bcdev->state_sem);
+
 	if (!bcdev->initialized) {
 		pr_debug("Driver initialization failed: Dropping glink callback message: state %d\n",
 			 bcdev->state);
+		up_read(&bcdev->state_sem);
 		return 0;
 	}
 
@@ -874,6 +907,8 @@ static int battery_chg_callback(void *priv, void *data, size_t len)
 		handle_notification(bcdev, data, len);
 	else
 		handle_message(bcdev, data, len);
+
+	up_read(&bcdev->state_sem);
 
 	return 0;
 }
@@ -1411,6 +1446,8 @@ static int wireless_fw_check_for_update(struct battery_chg_dev *bcdev,
 	return battery_chg_write(bcdev, &req_msg, sizeof(req_msg));
 }
 
+#define IDT9415_FW_MAJOR_VER_OFFSET		0x84
+#define IDT9415_FW_MINOR_VER_OFFSET		0x86
 #define IDT_FW_MAJOR_VER_OFFSET		0x94
 #define IDT_FW_MINOR_VER_OFFSET		0x96
 static int wireless_fw_update(struct battery_chg_dev *bcdev, bool force)
@@ -1468,8 +1505,13 @@ static int wireless_fw_update(struct battery_chg_dev *bcdev, bool force)
 		goto release_fw;
 	}
 
-	maj_ver = le16_to_cpu(*(__le16 *)(fw->data + IDT_FW_MAJOR_VER_OFFSET));
-	min_ver = le16_to_cpu(*(__le16 *)(fw->data + IDT_FW_MINOR_VER_OFFSET));
+	if (strstr(bcdev->wls_fw_name, "9412")) {
+		maj_ver = le16_to_cpu(*(__le16 *)(fw->data + IDT_FW_MAJOR_VER_OFFSET));
+		min_ver = le16_to_cpu(*(__le16 *)(fw->data + IDT_FW_MINOR_VER_OFFSET));
+	} else {
+		maj_ver = le16_to_cpu(*(__le16 *)(fw->data + IDT9415_FW_MAJOR_VER_OFFSET));
+		min_ver = le16_to_cpu(*(__le16 *)(fw->data + IDT9415_FW_MINOR_VER_OFFSET));
+	}
 	version = maj_ver << 16 | min_ver;
 
 	if (force)
@@ -2157,11 +2199,50 @@ static int battery_chg_register_panel_notifier(struct battery_chg_dev *bcdev)
 	return 0;
 }
 
+static int
+battery_chg_get_max_charge_cntl_limit(struct thermal_cooling_device *tcd,
+					unsigned long *state)
+{
+	struct battery_chg_dev *bcdev = tcd->devdata;
+
+	*state = bcdev->num_thermal_levels;
+
+	return 0;
+}
+
+static int
+battery_chg_get_cur_charge_cntl_limit(struct thermal_cooling_device *tcd,
+					unsigned long *state)
+{
+	struct battery_chg_dev *bcdev = tcd->devdata;
+
+	*state = bcdev->curr_thermal_level;
+
+	return 0;
+}
+
+static int
+battery_chg_set_cur_charge_cntl_limit(struct thermal_cooling_device *tcd,
+					unsigned long state)
+{
+	struct battery_chg_dev *bcdev = tcd->devdata;
+
+	return battery_psy_set_charge_current(bcdev, (int)state);
+}
+
+static const struct thermal_cooling_device_ops battery_tcd_ops = {
+	.get_max_state = battery_chg_get_max_charge_cntl_limit,
+	.get_cur_state = battery_chg_get_cur_charge_cntl_limit,
+	.set_cur_state = battery_chg_set_cur_charge_cntl_limit,
+};
+
 static int battery_chg_probe(struct platform_device *pdev)
 {
 	struct battery_chg_dev *bcdev;
 	struct device *dev = &pdev->dev;
 	struct pmic_glink_client_data client_data = { };
+	struct thermal_cooling_device *tcd;
+	struct psy_state *pst;
 	int rc, i;
 
 	bcdev = devm_kzalloc(&pdev->dev, sizeof(*bcdev), GFP_KERNEL);
@@ -2195,6 +2276,7 @@ static int battery_chg_probe(struct platform_device *pdev)
 		return -ENOMEM;
 
 	mutex_init(&bcdev->rw_lock);
+	init_rwsem(&bcdev->state_sem);
 	init_completion(&bcdev->ack);
 	init_completion(&bcdev->fw_buf_ack);
 	init_completion(&bcdev->fw_update_ack);
@@ -2219,11 +2301,19 @@ static int battery_chg_probe(struct platform_device *pdev)
 		if (rc != -EPROBE_DEFER)
 			dev_err(dev, "Error in registering with pmic_glink %d\n",
 				rc);
-		return rc;
+		goto reg_error;
 	}
 
+	down_write(&bcdev->state_sem);
 	atomic_set(&bcdev->state, PMIC_GLINK_STATE_UP);
+	/*
+	 * This should be initialized here so that battery_chg_callback
+	 * can run successfully when battery_chg_parse_dt() starts
+	 * reading BATT_CHG_CTRL_LIM_MAX parameter and waits for a response.
+	 */
 	bcdev->initialized = true;
+	up_write(&bcdev->state_sem);
+
 	bcdev->reboot_notifier.notifier_call = battery_chg_ship_mode;
 	bcdev->reboot_notifier.priority = 255;
 	register_reboot_notifier(&bcdev->reboot_notifier);
@@ -2249,6 +2339,17 @@ static int battery_chg_probe(struct platform_device *pdev)
 		goto error;
 	}
 
+	pst = &bcdev->psy_list[PSY_TYPE_BATTERY];
+	tcd = devm_thermal_of_cooling_device_register(dev, dev->of_node,
+			(char *)pst->psy->desc->name, bcdev, &battery_tcd_ops);
+	if (IS_ERR_OR_NULL(tcd)) {
+		rc = PTR_ERR_OR_ZERO(tcd);
+		dev_err(dev, "Failed to register thermal cooling device rc=%d\n",
+			rc);
+		class_unregister(&bcdev->battery_class);
+		goto error;
+	}
+
 	bcdev->wls_fw_update_time_ms = WLS_FW_UPDATE_TIME_MS;
 	battery_chg_add_debugfs(bcdev);
 	bcdev->notify_en = false;
@@ -2258,32 +2359,43 @@ static int battery_chg_probe(struct platform_device *pdev)
 
 	return 0;
 error:
-	cancel_work_sync(&bcdev->subsys_up_work);
+	down_write(&bcdev->state_sem);
+	atomic_set(&bcdev->state, PMIC_GLINK_STATE_DOWN);
 	bcdev->initialized = false;
-	complete(&bcdev->ack);
+	up_write(&bcdev->state_sem);
+
 	pmic_glink_unregister_client(bcdev->client);
+	cancel_work_sync(&bcdev->usb_type_work);
+	cancel_work_sync(&bcdev->subsys_up_work);
+	cancel_work_sync(&bcdev->battery_check_work);
+	complete(&bcdev->ack);
 	unregister_reboot_notifier(&bcdev->reboot_notifier);
+reg_error:
+	if (bcdev->notifier_cookie)
+		panel_event_notifier_unregister(bcdev->notifier_cookie);
 	return rc;
 }
 
 static int battery_chg_remove(struct platform_device *pdev)
 {
 	struct battery_chg_dev *bcdev = platform_get_drvdata(pdev);
-	int rc;
+
+	down_write(&bcdev->state_sem);
+	atomic_set(&bcdev->state, PMIC_GLINK_STATE_DOWN);
+	bcdev->initialized = false;
+	up_write(&bcdev->state_sem);
 
 	if (bcdev->notifier_cookie)
 		panel_event_notifier_unregister(bcdev->notifier_cookie);
 
 	device_init_wakeup(bcdev->dev, false);
 	debugfs_remove_recursive(bcdev->debugfs_dir);
-	cancel_work_sync(&bcdev->subsys_up_work);
 	class_unregister(&bcdev->battery_class);
+	pmic_glink_unregister_client(bcdev->client);
+	cancel_work_sync(&bcdev->subsys_up_work);
+	cancel_work_sync(&bcdev->usb_type_work);
+	cancel_work_sync(&bcdev->battery_check_work);
 	unregister_reboot_notifier(&bcdev->reboot_notifier);
-	rc = pmic_glink_unregister_client(bcdev->client);
-	if (rc < 0) {
-		pr_err("Error unregistering from pmic_glink, rc=%d\n", rc);
-		return rc;
-	}
 
 	return 0;
 }

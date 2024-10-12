@@ -75,12 +75,6 @@ void kgsl_free_secure_page(struct page *page);
 
 struct page *kgsl_alloc_secure_page(void);
 
-#if IS_ENABLED(CONFIG_QCOM_SECURE_BUFFER)
-int kgsl_lock_sgt(struct sg_table *sgt, u64 size);
-
-int kgsl_unlock_sgt(struct sg_table *sgt);
-#endif
-
 /**
  * kgsl_zero_page() - zero out a page
  * @p: pointer to the struct page

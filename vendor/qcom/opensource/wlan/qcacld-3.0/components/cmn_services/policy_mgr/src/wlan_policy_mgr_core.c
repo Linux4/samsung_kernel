@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2012-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -1524,6 +1524,7 @@ void policy_mgr_dump_current_concurrency(struct wlan_objmgr_psoc *psoc)
 		}
 		policy_mgr_debug("%s", cc_mode);
 		break;
+	fallthrough;
 	default:
 		policy_mgr_debug("unexpected num_connections value %d",
 				 num_connections);
@@ -3342,8 +3343,9 @@ bool policy_mgr_allow_same_mac_same_freq(struct wlan_objmgr_psoc *psoc,
 		 */
 	} else if (policy_mgr_are_2_freq_on_same_mac(psoc, ch_freq,
 					pm_conc_connection_list[0].freq) &&
-		   !policy_mgr_is_3rd_conn_on_same_band_allowed(psoc, mode)) {
-			policy_mgr_rl_debug("don't allow 3rd home channel on same MAC – for sta+multi-AP");
+		   !policy_mgr_is_3rd_conn_on_same_band_allowed(
+					psoc, mode, ch_freq)) {
+		policy_mgr_rl_debug("don't allow 3rd home channel on same MAC for sta+multi-AP");
 			allow = false;
 	}
 

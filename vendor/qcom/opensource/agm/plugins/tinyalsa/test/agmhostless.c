@@ -77,7 +77,7 @@ int main(int argc, char **argv)
     unsigned int num_channels_input = 2;
     unsigned int num_channels_output = 2;
     unsigned int sample_rate = 48000;
-    unsigned int play_cap_time = 10;
+    unsigned int play_cap_time = 600;
     unsigned int c_audio_intf = 0;
     unsigned int p_audio_intf = 0;
     unsigned int c_dkv = HANDSETMIC;
