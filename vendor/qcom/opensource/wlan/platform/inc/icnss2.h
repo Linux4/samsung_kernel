@@ -131,6 +131,27 @@ enum icnss_driver_mode {
 	ICNSS_CALIBRATION,
 };
 
+enum icnss_rd_card_chain_cap {
+	ICNSS_RD_CARD_CHAIN_CAP_UNSPECIFIED,
+	ICNSS_RD_CARD_CHAIN_CAP_1x1,
+	ICNSS_RD_CARD_CHAIN_CAP_2x2,
+	ICNSS_RD_CARD_CHAIN_CAP_MAX_VAL,
+};
+
+enum icnss_phy_he_channel_width_cap {
+	ICNSS_PHY_HE_CHANNEL_WIDTH_CAP_UNSPECIFIED,
+	ICNSS_PHY_HE_CHANNEL_WIDTH_CAP_80MHZ,
+	ICNSS_PHY_HE_CHANNEL_WIDTH_CAP_160MHZ,
+	ICNSS_PHY_HE_CHANNEL_WIDTH_CAP_MAX_VAL,
+};
+
+enum icnss_phy_qam_cap {
+	ICNSS_PHY_QAM_CAP_UNSPECIFIED,
+	ICNSS_PHY_QAM_CAP_1K,
+	ICNSS_PHY_QAM_CAP_4K,
+	ICNSS_PHY_QAM_CAP_MAX_VAL,
+};
+
 struct icnss_soc_info {
 	void __iomem *v_addr;
 	phys_addr_t p_addr;
@@ -141,6 +162,9 @@ struct icnss_soc_info {
 	uint32_t fw_version;
 	char fw_build_timestamp[ICNSS_MAX_TIMESTAMP_LEN + 1];
 	char fw_build_id[ICNSS_WLFW_MAX_BUILD_ID_LEN + 1];
+	enum icnss_rd_card_chain_cap rd_card_chain_cap;
+	enum icnss_phy_he_channel_width_cap phy_he_channel_width_cap;
+	enum icnss_phy_qam_cap phy_qam_cap;
 };
 
 #define icnss_register_driver(ops)		\

@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2017-2020 The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -138,7 +138,7 @@ error:
 
 /**
  * wlan_serialization_destroy_cmd_pool() - Destroy the global cmd pool
- * @ser_pdev_obj: Serialization private pdev object
+ * @pdev_queue: Serialization pdev queue
  *
  * Return: None
  */
@@ -162,8 +162,8 @@ static void wlan_serialization_destroy_cmd_pool(
 
 /**
  * wlan_serialization_create_cmd_pool() - Create the global cmd pool
- * @pdev: PDEV Object
- * @ser_pdev_obj: Serialization private pdev object
+ * @pdev_queue: Serialization pdev queue
+ * @cmd_pool_size: Size of the command pool
  *
  * Global command pool of memory is created here.
  * It is safe to allocate memory individually for each command rather than
@@ -181,7 +181,7 @@ wlan_serialization_create_cmd_pool(
 		uint16_t cmd_pool_size)
 {
 	struct wlan_serialization_command_list *cmd_list_ptr;
-	uint8_t i;
+	uint16_t i;
 	QDF_STATUS status = QDF_STATUS_E_NOMEM;
 
 	qdf_list_create(&pdev_queue->cmd_pool_list, cmd_pool_size);
@@ -230,8 +230,8 @@ static QDF_STATUS wlan_serialization_pdev_create_handler(
 	QDF_STATUS status = QDF_STATUS_E_NOMEM;
 	uint8_t index;
 	uint8_t free_index;
-	uint8_t max_active_cmds;
-	uint8_t max_pending_cmds;
+	uint16_t max_active_cmds;
+	uint16_t max_pending_cmds;
 	uint16_t cmd_pool_size;
 
 	ser_pdev_obj =

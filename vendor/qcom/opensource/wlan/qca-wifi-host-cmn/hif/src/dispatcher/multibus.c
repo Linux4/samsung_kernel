@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2016-2018, 2020-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -37,6 +37,7 @@
 
 /**
  * hif_initialize_default_ops() - initializes default operations values
+ * @hif_sc: hif_context
  *
  * bus specific features should assign their dummy implementations here.
  */
@@ -70,15 +71,18 @@ static void hif_initialize_default_ops(struct hif_softc *hif_sc)
 #ifdef FEATURE_IRQ_AFFINITY
 	bus_ops->hif_set_grp_intr_affinity = &hif_dummy_set_grp_intr_affinity;
 #endif
+	bus_ops->hif_affinity_mgr_set_affinity =
+		&hif_dummy_affinity_mgr_set_affinity;
 }
 
 #define NUM_OPS (sizeof(struct hif_bus_ops) / sizeof(void *))
 
 /**
  * hif_verify_basic_ops() - ensure required bus apis are defined
+ * @hif_sc: hif_context
  *
  * all bus operations must be defined to avoid crashes
- * itterate over the structure and ensure all function pointers
+ * iterate over the structure and ensure all function pointers
  * are non null.
  *
  * Return: QDF_STATUS_SUCCESS if all the operations are defined
@@ -101,6 +105,7 @@ static QDF_STATUS hif_verify_basic_ops(struct hif_softc *hif_sc)
 
 /**
  * hif_bus_get_context_size - API to return size of the bus specific structure
+ * @bus_type: bus type
  *
  * Return: sizeof of hif_pci_softc
  */
@@ -126,8 +131,8 @@ int hif_bus_get_context_size(enum qdf_bus_type bus_type)
 
 /**
  * hif_bus_open() - initialize the bus_ops and call the bus specific open
- * hif_sc: hif_context
- * bus_type: type of bus being enumerated
+ * @hif_sc: hif_context
+ * @bus_type: type of bus being enumerated
  *
  * Return: QDF_STATUS_SUCCESS or error
  */
@@ -185,7 +190,7 @@ void hif_bus_close(struct hif_softc *hif_sc)
 
 /**
  * hif_bus_prevent_linkdown() - prevent linkdown
- * @hif_ctx: hif context
+ * @hif_sc: hif context
  * @flag: true = keep bus alive false = let bus go to sleep
  *
  * Keeps the bus awake during suspend.
@@ -398,7 +403,7 @@ void hif_clear_bus_stats(struct hif_opaque_softc *scn)
 /**
  * hif_enable_power_management() - enable power management after driver load
  * @hif_hdl: opaque pointer to the hif context
- * is_packet_log_enabled: true if packet log is enabled
+ * @is_packet_log_enabled: true if packet log is enabled
  *
  * Driver load and firmware download are done in a high performance mode.
  * Enable power management after the driver is loaded.
@@ -471,6 +476,9 @@ int hif_apps_irqs_disable(struct hif_opaque_softc *hif_ctx)
 	if (!scn)
 		return -EINVAL;
 
+	if (pld_is_one_msi(scn->qdf_dev->dev))
+		return 0;
+
 	/* if the wake_irq is shared, don't disable it twice */
 	for (i = 0; i < scn->ce_count; ++i) {
 		int irq = scn->bus_ops.hif_map_ce_to_irq(scn, i);
@@ -491,6 +499,9 @@ int hif_apps_irqs_enable(struct hif_opaque_softc *hif_ctx)
 	scn = HIF_GET_SOFTC(hif_ctx);
 	if (!scn)
 		return -EINVAL;
+
+	if (pld_is_one_msi(scn->qdf_dev->dev))
+		return 0;
 
 	/* if the wake_irq is shared, don't enable it twice */
 	for (i = 0; i < scn->ce_count; ++i) {
@@ -625,7 +636,7 @@ void hif_config_irq_clear_cpu_affinity(struct hif_opaque_softc *scn,
 							  intr_ctxt_id, cpu);
 }
 
-qdf_export_symbol(hif_config_irq_clear_affinity);
+qdf_export_symbol(hif_config_irq_clear_cpu_affinity);
 #endif
 
 #ifdef HIF_BUS_LOG_INFO
@@ -714,3 +725,16 @@ void hif_set_grp_intr_affinity(struct hif_opaque_softc *scn,
 						  perf);
 }
 #endif
+
+void hif_affinity_mgr_set_affinity(struct hif_opaque_softc *scn)
+{
+	struct hif_softc *hif_sc = HIF_GET_SOFTC(scn);
+
+	if (!hif_sc)
+		return;
+
+	if (!hif_sc->bus_ops.hif_affinity_mgr_set_affinity)
+		return;
+
+	hif_sc->bus_ops.hif_affinity_mgr_set_affinity(hif_sc);
+}

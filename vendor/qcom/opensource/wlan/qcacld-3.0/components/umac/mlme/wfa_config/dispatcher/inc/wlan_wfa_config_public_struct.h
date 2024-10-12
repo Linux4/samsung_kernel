@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2020 The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -30,7 +30,8 @@
 #include <qdf_types.h>
 
 /**
- * wlan_wfa_cmd_tx_ops - structure of tx function pointers for wfa test cmds
+ * struct wlan_wfa_cmd_tx_ops - structure of tx function pointers for wfa
+ *                              test cmds
  * @send_wfa_test_cmd: TX ops function pointer to send WFA test command
  */
 struct wlan_wfa_cmd_tx_ops {
@@ -39,7 +40,7 @@ struct wlan_wfa_cmd_tx_ops {
 };
 
 /**
- * wlan_wfa_test_feature_flags - WFA test feature flags
+ * enum wlan_wfa_test_feature_flags - WFA test feature flags
  * @WFA_TEST_IGNORE_RSNXE: Ignore the H2E RSNXE mismatch for 6g connection when
  *                         this flag is set
  */

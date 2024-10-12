@@ -98,6 +98,7 @@
         <codec codec_format="CODEC_TYPE_AAC" codec_type="enc|dec" codec_library="lib_bt_bundle.so" />
         <codec codec_format="CODEC_TYPE_SBC" codec_type="enc|dec" codec_library="lib_bt_bundle.so" />
         <codec codec_format="CODEC_TYPE_SSC" codec_type="enc|dec" codec_library="lib_bt_bundle.so" />
+        <codec codec_format="CODEC_TYPE_RVP" codec_type="enc|dec" codec_library="lib_bt_bundle.so" />
         <codec codec_format="CODEC_TYPE_LDAC" codec_type="enc" codec_library="lib_bt_bundle.so" />
         <codec codec_format="CODEC_TYPE_APTX" codec_type="enc" codec_library="lib_bt_aptx.so" />
         <codec codec_format="CODEC_TYPE_APTX_HD" codec_type="enc" codec_library="lib_bt_aptx.so" />
@@ -196,13 +197,13 @@
                     <channels>2</channels>
                     <bit_width>16</bit_width>
                     <ec_enable>1</ec_enable>
-                    <snd_device_name>bargein-aec-usb-headphones-mic</snd_device_name>
+                    <snd_device_name>bargein-aec-headphones-mic</snd_device_name>
                 </custom-config>
                 <custom-config key="bargein_tts">
                     <channels>2</channels>
                     <bit_width>16</bit_width>
                     <ec_enable>1</ec_enable>
-                    <snd_device_name>bargein-tts-usb-headphones-mic</snd_device_name>
+                    <snd_device_name>bargein-tts-headphones-mic</snd_device_name>
                 </custom-config>
                 <custom-config key="echo_main_mic">
                     <bit_width>16</bit_width>
@@ -301,7 +302,15 @@
                     <channels>1</channels>
                     <snd_device_name>call-headphone-mic</snd_device_name>
                 </custom-config>
+                <custom-config key="translation_headphone_mic">
+                    <channels>1</channels>
+                    <snd_device_name>call-headphone-mic</snd_device_name>
+                </custom-config>
                 <custom-config key="usb_headphone_mic">
+                    <channels>1</channels>
+                    <snd_device_name>call-usb-headphone-mic</snd_device_name>
+                </custom-config>
+                <custom-config key="translation_usb_headphone_mic">
                     <channels>1</channels>
                     <snd_device_name>call-usb-headphone-mic</snd_device_name>
                 </custom-config>
@@ -335,6 +344,14 @@
                 <snd_device_name>rec-main-mic</snd_device_name>
                 <custom-config key="vr">
                     <snd_device_name>vr-main-mic</snd_device_name>
+                </custom-config>
+                <custom-config key="vr_dual">
+                    <channels>2</channels>
+                    <snd_device_name>vr-dual-mic</snd_device_name>
+                </custom-config>
+                <custom-config key="rec_stereo_mic">
+                    <channels>2</channels>
+                    <snd_device_name>rec-stereo-mic</snd_device_name>
                 </custom-config>
                 <custom-config key="dual-mic">
                     <channels>2</channels>
@@ -551,6 +568,10 @@
                     <channels>1</channels>
                     <snd_device_name>call-dex-speaker-mic</snd_device_name>
                 </custom-config>
+                <custom-config key="translation_dex">
+                    <channels>1</channels>
+                    <snd_device_name>call-dex-speaker-mic</snd_device_name>
+                </custom-config>
                 <custom-config key="loopback_mic2_spk">
                     <channels>1</channels>
                     <snd_device_name>loopback-sub-mic</snd_device_name>
@@ -590,6 +611,14 @@
                 <custom-config key="vr">
                     <channels>1</channels>
                     <snd_device_name>vr-sub-mic</snd_device_name>
+                </custom-config>
+                <custom-config key="vr_dual">
+                    <channels>2</channels>
+                    <snd_device_name>vr-dual-mic</snd_device_name>
+                </custom-config>
+                <custom-config key="rec_stereo_mic">
+                    <channels>2</channels>
+                    <snd_device_name>rec-stereo-mic</snd_device_name>
                 </custom-config>
                 <custom-config key="karaoke">
                     <channels>1</channels>
@@ -1465,10 +1494,15 @@
             <back_end_name>DISPLAY_PORT-RX</back_end_name>
             <max_channels>32</max_channels>
             <channels>2</channels>
-            <samplerate>48000</samplerate>
             <bit_width>24</bit_width>
             <snd_device_name>display-port</snd_device_name>
             <fractional_sr>1</fractional_sr>
+            <!--specify the supported bit format on DP end point -->
+            <!--this should be in the form of pal_audio_fmt_id-->
+            <!--e.g <supported_bit_format >PAL_AUDIO_FMT_PCM_S24_3LE</supported_bit_format>-->
+            <!--We support 24 bit for DP as of now, as SPF needs to conform to IEC 60958 packet format -->
+            <!--This can be changed to PAL_AUDIO_FMT_PCM_S32_LE if 32 bit e2e support is required-->
+            <supported_bit_format>PAL_AUDIO_FMT_PCM_S24_3LE</supported_bit_format>
             <usecase>
                 <name>PAL_STREAM_VOICE_CALL</name>
                 <priority>1</priority>
@@ -1504,9 +1538,14 @@
             <max_channels>32</max_channels>
             <channels>2</channels>
             <fractional_sr>1</fractional_sr>
-            <samplerate>48000</samplerate>
             <bit_width>24</bit_width>
             <snd_device_name>display-port</snd_device_name>
+            <!--specify the supported bit format on DP end point -->
+            <!--this should be in the form of pal_audio_fmt_id-->
+            <!--e.g <supported_bit_format >PAL_AUDIO_FMT_PCM_S24_3LE</supported_bit_format>-->
+            <!--We support 24 bit for DP as of now, as SPF needs to conform to IEC 60958 packet format -->
+            <!--This can be changed to PAL_AUDIO_FMT_PCM_S32_LE if 32 bit e2e support is required-->
+            <supported_bit_format>PAL_AUDIO_FMT_PCM_S24_3LE</supported_bit_format>
             <usecase>
                 <name>PAL_STREAM_VOICE_CALL</name>
                 <priority>1</priority>

@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2012-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2022, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -85,9 +85,12 @@ enum eWniMsgTypes {
 	eWNI_SME_NEIGHBOR_REPORT_IND = SIR_SME_MSG_TYPES_BEGIN + 44,
 	eWNI_SME_BEACON_REPORT_REQ_IND = SIR_SME_MSG_TYPES_BEGIN + 45,
 	eWNI_SME_BEACON_REPORT_RESP_XMIT_IND = SIR_SME_MSG_TYPES_BEGIN + 46,
+	eWNI_SME_CHAN_LOAD_REQ_IND = SIR_SME_MSG_TYPES_BEGIN + 47,
+	eWNI_SME_CHAN_LOAD_REPORT_RESP_XMIT_IND = SIR_SME_MSG_TYPES_BEGIN + 48,
+	eWNI_SME_SAP_CH_WIDTH_UPDATE_REQ = SIR_SME_MSG_TYPES_BEGIN + 49,
+	eWNI_SME_SAP_CH_WIDTH_UPDATE_RSP = SIR_SME_MSG_TYPES_BEGIN + 50,
 
-	/* unused SIR_SME_MSG_TYPES_BEGIN + 47, */
-	/* unused SIR_SME_MSG_TYPES_BEGIN + 48, */
+	/* unused SIR_SME_MSG_TYPES_BEGIN + 51 */
 	eWNI_SME_FT_AGGR_QOS_REQ = SIR_SME_MSG_TYPES_BEGIN + 52,
 	eWNI_SME_FT_AGGR_QOS_RSP = SIR_SME_MSG_TYPES_BEGIN + 53,
 
@@ -237,7 +240,8 @@ enum eWniMsgTypes {
 	CM_ABORT_CONN_TIMER = SIR_SME_MSG_TYPES_BEGIN + 177,
 	WIFI_POS_PASN_PEER_DELETE_ALL = SIR_SME_MSG_TYPES_BEGIN + 178,
 	eWNI_SME_CHAN_INFO_EVENT = SIR_SME_MSG_TYPES_BEGIN + 179,
-	eWNI_SME_MSG_TYPES_END = SIR_SME_MSG_TYPES_BEGIN + 180
+	eWNI_SME_MSG_TYPES_END = SIR_SME_MSG_TYPES_BEGIN + 180,
+	eWNI_SME_VDEV_PAUSE_IND = SIR_SME_MSG_TYPES_BEGIN + 181
 };
 
 typedef struct sAniCfgTxRateCtrs {

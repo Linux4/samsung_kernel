@@ -14,13 +14,13 @@
 &soc {
 	qfprom: qfprom@780130 {
 		compatible = "qcom,qfprom";
-		reg = <0x00780130 0x4004>;
+		reg = <0x00780130 0x4>;
 		#address-cells = <1>;
 		#size-cells = <1>;
 		read-only;
 		ranges;
-		gpu_speed_bin: gpu_speed_bin@4002 {
-			reg = <0x4002 0x2>;
+		gpu_speed_bin: gpu_speed_bin@2 {
+			reg = <0x2 0x2>;
 			bits = <4 8>;
 			};
 		};
@@ -163,6 +163,41 @@
 &ufshc_mem {
 	vdd-hba-supply = <&ufs_phy_gdsc>;
 	vdd-hba-fixed-regulator;
+	vcc-supply = <&pm8195_1_l17>;
+	vccq-supply = <&pm8195_2_l5>;
+	//vccq2-supply = <&pm8195_s4>;
+	vcc-max-microamp = <750000>;
+	vccq-max-microamp = <750000>;
+	vccq2-max-microamp = <750000>;
+
+	nvmem-cells = <&ufs_dev>;
+	nvmem-cell-names = "ufs_dev";
+
+	limit-rate-ufs3;
+
+	qcom,vddp-ref-clk-supply = <&pm8195_2_l5>;
+	qcom,vddp-ref-clk-max-microamp = <100>;
+	qcom,vccq-parent-supply = <&pm8195_1_s2>;
+	qcom,vccq-parent-max-microamp = <210000>;
+
+	/* Disable Write Booster Feature */
+	qcom,disable-wb-support;
+
+	status= "ok";
+};
+&ufs2phy_mem {
+	compatible = "qcom,ufs-phy-qmp-v4";
+	vdda-phy-supply = <&pm8195_3_l5>;
+	vdda-pll-supply = <&pm8195_1_l9>;
+	vdda-phy-max-microamp = <138000>;
+	vdda-pll-max-microamp = <65100>;
+
+	status = "ok";
+};
+
+&ufshc2_mem {
+	vdd-hba-supply = <&ufs_card_2_gdsc>;
+	vdd-hba-fixed-regulator;
 	vcc-supply = <&pm8195_3_l10>;
 	vccq-supply = <&pm8195_1_l11>;
 	vccq2-supply = <&pm8195_3_l7>;
@@ -175,9 +210,8 @@
 	qcom,vccq-parent-supply = <&pm8195_1_s2>;
 	qcom,vccq-parent-max-microamp = <210000>;
 
-	/* Disable Write Booster Feature */
+	/* Disable Write Booster Feature 2nd UFS */
 	qcom,disable-wb-support;
-
 	status= "ok";
 };
 
@@ -205,3 +239,5 @@
 		gpio = <&tlmm 174 0>;
 	};
 };
+
+#include "sdmshrike-coresight.dtsi"

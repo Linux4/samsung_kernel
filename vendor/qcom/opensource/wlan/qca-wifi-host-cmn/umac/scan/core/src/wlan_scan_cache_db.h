@@ -17,7 +17,7 @@
  * PERFORMANCE OF THIS SOFTWARE.
  */
 
-/*
+/**
  * DOC: contains scan cache entry api
  */
 
@@ -35,10 +35,12 @@
 	(((const uint8_t *)(addr))[QDF_MAC_ADDR_SIZE - 1] % SCAN_HASH_SIZE)
 
 #define ADJACENT_CHANNEL_RSSI_THRESHOLD -80
+#define ADJACENT_CHANNEL_RSSI_DIFF_THRESHOLD 40
 
 /**
  * struct scan_dbs - scan cache data base definition
  * @num_entries: number of scan entries
+ * @scan_db_lock: lock for @scan_hash_tbl
  * @scan_hash_tbl: link list of bssid hashed scan cache entries for a pdev
  */
 struct scan_dbs {
@@ -172,7 +174,7 @@ scm_iterate_scan_db(struct wlan_objmgr_pdev *pdev,
 /**
  * scm_scan_register_bcn_cb() - API to register api to indicate bcn/probe
  * as soon as they are received
- * @pdev: psoc
+ * @psoc: psoc
  * @cb: callback to be registered
  * @type: Type of callback to be registered
  *
@@ -221,7 +223,7 @@ struct channel_list_db *scm_get_rnr_channel_db(struct wlan_objmgr_psoc *psoc);
 /**
  * scm_get_chan_meta() - API to return channel meta
  * @psoc: psoc
- * @freq: channel frequency
+ * @chan_freq: channel frequency
  *
  * Return: channel meta information
  */
@@ -266,7 +268,7 @@ void scm_update_rnr_from_scan_cache(struct wlan_objmgr_pdev *pdev);
  *                             during pno scan request
  * @vdev: vdev
  * @short_ssid: short ssid
- * @pno_chan_list: channel list
+ * @chan_list: channel list
  *
  * Remove FLAG_SCAN_ONLY_IF_RNR_FOUND flag in channel if ssid is different for
  * colocated AP, in pno scan request
@@ -302,6 +304,7 @@ scm_filter_rnr_flag_pno(struct wlan_objmgr_vdev *vdev,
  * scm_scan_update_mlme_by_bssinfo() - updates scan entry with mlme data
  * @pdev: pdev object
  * @bss_info: BSS information
+ * @mlme: scan entry MLME info
  *
  * This function updates scan db with scan_entry->mlme_info
  *
@@ -312,6 +315,19 @@ QDF_STATUS scm_scan_update_mlme_by_bssinfo(struct wlan_objmgr_pdev *pdev,
 
 uint32_t scm_get_last_scan_time_per_channel(struct wlan_objmgr_vdev *vdev,
 					    uint32_t freq);
+
+/**
+ * scm_scan_get_scan_entry_by_mac_freq() - Get scan entry by mac and freq
+ * @pdev: pdev info
+ * @bssid: BSSID of the bcn/probe response to be fetched from scan db
+ * @freq: freq for scan filter
+ *
+ * Return: scan entry if found, else NULL
+ */
+struct scan_cache_entry *
+scm_scan_get_scan_entry_by_mac_freq(struct wlan_objmgr_pdev *pdev,
+				    struct qdf_mac_addr *bssid,
+				    uint16_t freq);
 
 /**
  * scm_scan_get_entry_by_mac_addr() - Get bcn/probe rsp from scan db
@@ -340,4 +356,28 @@ scm_scan_get_entry_by_mac_addr(struct wlan_objmgr_pdev *pdev,
 struct scan_cache_entry *
 scm_scan_get_entry_by_bssid(struct wlan_objmgr_pdev *pdev,
 			    struct qdf_mac_addr *bssid);
+
+#ifdef WLAN_FEATURE_11BE_MLO
+/**
+ * scm_get_mld_addr_by_link_addr() - function to fetch the peer mld address from
+ * the scan entry for the given link address.
+ * @pdev: pdev object
+ * @link_addr: link address
+ * @mld_mac_addr: pointer to mld_mac_address
+ *
+ * Return : scan entry if found, else NULL
+ */
+QDF_STATUS
+scm_get_mld_addr_by_link_addr(struct wlan_objmgr_pdev *pdev,
+			      struct qdf_mac_addr *link_addr,
+			      struct qdf_mac_addr *mld_mac_addr);
+#else
+static inline QDF_STATUS
+scm_get_mld_addr_by_link_addr(struct wlan_objmgr_pdev *pdev,
+			      struct qdf_mac_addr *link_addr,
+			      struct qdf_mac_addr *mld_mac_addr)
+{
+	return QDF_STATUS_E_NOSUPPORT;
+}
+#endif
 #endif

@@ -1636,13 +1636,12 @@ static void handle_uaudio_stream_req(struct qmi_handle *handle,
 		goto response;
 	}
 
-	if (req_msg->enable) {
-		if (info_idx < 0) {
-			uaudio_err("interface# %d already in use card# %d\n",
-					subs->cur_audiofmt->iface, pcm_card_num);
-			ret = -EBUSY;
-			goto response;
-		}
+	if ((req_msg->enable) && (info_idx < 0)) {
+		uaudio_err("interface# %d already in use card# %d\n",
+				subs->cur_audiofmt ? subs->cur_audiofmt->iface : -1,
+				pcm_card_num);
+		ret = -EBUSY;
+		goto response;
 	}
 
 	if (req_msg->service_interval_valid) {
@@ -1659,7 +1658,7 @@ static void handle_uaudio_stream_req(struct qmi_handle *handle,
 	}
 
 	uadev[pcm_card_num].ctrl_intf = chip->ctrl_intf;
-
+	atomic_inc(&chip->usage_count);
 	if (req_msg->enable) {
 		ret = enable_audio_stream(subs,
 				map_pcm_format(req_msg->audio_format),
@@ -1705,6 +1704,9 @@ static void handle_uaudio_stream_req(struct qmi_handle *handle,
 	on = req_msg->enable;
 	store_usblog_notify(type, (void *)&on, NULL);
 #endif
+
+	if (atomic_dec_and_test(&chip->usage_count) && atomic_read(&chip->shutdown))
+		wake_up(&chip->shutdown_wait);
 
 response:
 	if (!req_msg->enable && ret != -EINVAL && ret != -ENODEV) {

@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2012-2018, 2020 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -21,7 +22,7 @@
 
 #include "wlan_policy_mgr_api.h"
 
-/**
+/*
  * next_action_two_connection_table - table which provides next
  * action while a new connection is coming up, with one
  * connection already in the system
@@ -46,7 +47,7 @@ static policy_mgr_next_action_two_connection_table_type
 	[PM_SAP_5_2x2] = {PM_DBS2_DOWNGRADE, PM_NOP},
 };
 
-/**
+/*
  * next_action_three_connection_table - table which provides next
  * action while a new connection is coming up, with two
  * connections already in the system

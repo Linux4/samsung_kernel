@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2020-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -116,7 +116,7 @@ static inline void dp_rx_schedule_refill_thread(struct dp_soc *soc)
 	if (tail > head)
 		num_refill = (tail - head - 1);
 	else
-		num_refill = (DP_RX_REFILL_BUFF_POOL_SIZE - head + tail - 1);
+		num_refill = (buff_pool->max_bufq_len - head + tail - 1);
 
 	if (soc->cdp_soc.ol_ops->dp_rx_sched_refill_thread &&
 	    num_refill >= DP_RX_REFILL_THRD_THRESHOLD)

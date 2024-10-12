@@ -191,7 +191,7 @@ QDF_STATUS lim_partner_link_info_change(struct wlan_objmgr_vdev *vdev)
 
 void lim_mlo_release_vdev_ref(struct wlan_objmgr_vdev *vdev)
 {
-	mlo_release_vdev_ref(vdev);
+	wlan_objmgr_vdev_release_ref(vdev, WLAN_MLO_MGR_ID);
 }
 
 struct pe_session *pe_find_partner_session_by_link_id(
@@ -212,7 +212,8 @@ struct pe_session *pe_find_partner_session_by_link_id(
 		return NULL;
 	}
 
-	vdev = mlo_get_vdev_by_link_id(session->vdev, link_id);
+	vdev = mlo_get_vdev_by_link_id(session->vdev, link_id,
+				       WLAN_LEGACY_MAC_ID);
 
 	if (!vdev) {
 		pe_err("vdev is null");
@@ -223,7 +224,7 @@ struct pe_session *pe_find_partner_session_by_link_id(
 			mac, vdev->vdev_objmgr.vdev_id);
 
 	if (!partner_session)
-		lim_mlo_release_vdev_ref(vdev);
+		wlan_objmgr_vdev_release_ref(vdev, WLAN_LEGACY_MAC_ID);
 
 	return partner_session;
 }
@@ -456,8 +457,8 @@ void lim_mlo_roam_peer_disconn_del(struct wlan_objmgr_vdev *vdev)
 
 	status = wlan_vdev_get_bss_peer_mac(vdev, &bssid);
 	if (QDF_IS_STATUS_ERROR(status)) {
-		pe_err("vdev id %d : failed to get bssid",
-		       wlan_vdev_get_id(vdev));
+		pe_debug("vdev id %d : failed to get bssid",
+			 wlan_vdev_get_id(vdev));
 		return;
 	}
 
@@ -671,6 +672,7 @@ QDF_STATUS lim_mlo_proc_assoc_req_frm(struct wlan_objmgr_vdev *vdev,
 	qdf_copy_macaddr(&link_bssid, (struct qdf_mac_addr *)session->bssId);
 	status = util_gen_link_assoc_req(
 				frm_body, frame_len, sub_type == LIM_REASSOC,
+				0,
 				link_bssid,
 				qdf_nbuf_data(assoc_req->assoc_req_buf),
 				qdf_nbuf_len(assoc_req->assoc_req_buf),
@@ -901,6 +903,14 @@ void lim_mlo_delete_link_peer(struct pe_session *pe_session,
 	wlan_objmgr_peer_release_ref(peer, WLAN_LEGACY_MAC_ID);
 }
 
+#if defined(SAP_MULTI_LINK_EMULATION)
+QDF_STATUS lim_mlo_assoc_ind_upper_layer(struct mac_context *mac,
+					 struct pe_session *pe_session,
+					 struct mlo_partner_info *mlo_info)
+{
+	return QDF_STATUS_SUCCESS;
+}
+#else
 QDF_STATUS lim_mlo_assoc_ind_upper_layer(struct mac_context *mac,
 					 struct pe_session *pe_session,
 					 struct mlo_partner_info *mlo_info)
@@ -1005,6 +1015,7 @@ QDF_STATUS lim_mlo_assoc_ind_upper_layer(struct mac_context *mac,
 
 	return status;
 }
+#endif
 
 void lim_mlo_save_mlo_info(tpDphHashNode sta_ds,
 			   struct mlo_partner_info *mlo_info)
@@ -1255,9 +1266,9 @@ QDF_STATUS lim_add_frag_ie_for_sta_profile(uint8_t *data, uint16_t *len)
 }
 
 uint16_t
-lim_send_assoc_req_mgmt_frame_mlo(struct mac_context *mac_ctx,
-				  struct pe_session *session,
-				  tDot11fAssocRequest *frm)
+lim_fill_assoc_req_mlo_ie(struct mac_context *mac_ctx,
+			  struct pe_session *session,
+			  tDot11fAssocRequest *frm)
 {
 	QDF_STATUS status;
 
@@ -1302,6 +1313,38 @@ lim_send_bcn_frame_mlo(struct mac_context *mac_ctx,
 	session->mlo_ie_total_len = 0;
 	qdf_mem_zero(&session->mlo_ie, sizeof(session->mlo_ie));
 	status = populate_dot11f_bcn_mlo_ie(mac_ctx, session);
+	if (QDF_IS_STATUS_SUCCESS(status))
+		session->mlo_ie_total_len =
+				lim_caculate_mlo_ie_length(&session->mlo_ie);
+
+	return session->mlo_ie_total_len;
+}
+
+uint16_t
+lim_send_probe_req_frame_mlo(struct mac_context *mac_ctx,
+			     struct pe_session *session)
+{
+	QDF_STATUS status;
+
+	session->mlo_ie_total_len = 0;
+	qdf_mem_zero(&session->mlo_ie, sizeof(session->mlo_ie));
+	status = populate_dot11f_probe_req_mlo_ie(mac_ctx, session);
+	if (QDF_IS_STATUS_SUCCESS(status))
+		session->mlo_ie_total_len =
+				lim_caculate_mlo_ie_length(&session->mlo_ie);
+
+	return session->mlo_ie_total_len;
+}
+
+uint16_t
+lim_send_tdls_mgmt_frame_mlo(struct mac_context *mac_ctx,
+			     struct pe_session *session)
+{
+	QDF_STATUS status;
+
+	session->mlo_ie_total_len = 0;
+	qdf_mem_zero(&session->mlo_ie, sizeof(session->mlo_ie));
+	status = populate_dot11f_tdls_mgmt_mlo_ie(mac_ctx, session);
 	if (QDF_IS_STATUS_SUCCESS(status))
 		session->mlo_ie_total_len =
 				lim_caculate_mlo_ie_length(&session->mlo_ie);
@@ -1358,21 +1401,21 @@ bool lim_is_emlsr_band_supported(struct pe_session *session)
 	uint32_t freq;
 	struct mlo_partner_info *partner_info;
 
-	partner_info = &session->lim_join_req->partner_info;
-
-	if (wlan_reg_is_24ghz_ch_freq(session->curr_op_freq)) {
-		pe_debug("Pri link freq: %d, EMLSR mode not allowed",
-			 session->curr_op_freq);
-		return false;
+	if (!session->lim_join_req) {
+		/* Initial connection */
+		partner_info = &session->ml_partner_info;
+	} else {
+		/* Roaming */
+		partner_info = &session->lim_join_req->partner_info;
 	}
+
+	if (wlan_reg_is_24ghz_ch_freq(session->curr_op_freq))
+		return false;
 
 	for (i = 0; i < partner_info->num_partner_links; i++) {
 		freq = partner_info->partner_link_info[i].chan_freq;
-		if (wlan_reg_is_24ghz_ch_freq(freq)) {
-			pe_debug("Partner link freq: %d, EMLSR mode not allwed",
-				 freq);
+		if (wlan_reg_is_24ghz_ch_freq(freq))
 			return false;
-		}
 	}
 
 	return true;

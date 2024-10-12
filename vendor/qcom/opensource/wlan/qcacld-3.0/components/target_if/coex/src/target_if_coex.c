@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2020, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -84,7 +84,7 @@ target_if_dbam_process_event(struct wlan_objmgr_psoc *psoc,
  * event from firmware.
  * @scn: scn handle
  * @data: data buffer foe the event
- * @data_len: data length
+ * @len: data length
  *
  * Return: 0 on success, and error code on failure
  */

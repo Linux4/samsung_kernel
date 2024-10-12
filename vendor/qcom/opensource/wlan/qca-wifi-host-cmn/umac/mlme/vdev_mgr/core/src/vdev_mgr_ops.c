@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2019-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -26,6 +26,7 @@
 #include "vdev_mgr_ops.h"
 #include <wlan_objmgr_vdev_obj.h>
 #include <wlan_vdev_mlme_api.h>
+#include <wlan_pdev_mlme.h>
 #include <wlan_mlme_dbg.h>
 #include <wlan_vdev_mgr_tgt_if_tx_api.h>
 #include <target_if.h>
@@ -41,12 +42,13 @@
 #include <wlan_mlo_mgr_ap.h>
 #endif
 #include <wlan_vdev_mgr_utils_api.h>
+#include <wlan_vdev_mgr_api.h>
 
 #ifdef QCA_VDEV_STATS_HW_OFFLOAD_SUPPORT
 /**
  * vdev_mgr_alloc_vdev_stats_id() - Allocate vdev stats id for vdev
- * @vdev - pointer to vdev
- * @param - pointer to vdev create params
+ * @vdev: pointer to vdev
+ * @param: pointer to vdev create params
  *
  * Return: none
  */
@@ -78,8 +80,8 @@ static void vdev_mgr_alloc_vdev_stats_id(struct wlan_objmgr_vdev *vdev,
 
 /**
  * vdev_mgr_reset_vdev_stats_id() -Reset vdev stats id
- * @vdev - pointer to vdev
- * @vdev_stats_id - Value of vdev_stats_id
+ * @vdev: pointer to vdev
+ * @vdev_stats_id: Value of vdev_stats_id
  *
  * Return: none
  */
@@ -260,6 +262,66 @@ vdev_mgr_start_param_update_mlo_mcast(struct wlan_objmgr_vdev *vdev,
 #define vdev_mgr_start_param_update_mlo_mcast(vdev, param)
 #endif
 
+#if defined(WLAN_FEATURE_11BE_MLO) && defined(WLAN_MLO_MULTI_CHIP)
+static QDF_STATUS
+mlo_ap_append_bridge_vdevs(struct wlan_objmgr_vdev *vdev,
+			   struct mlo_vdev_start_partner_links *mlo_ptr,
+			   uint8_t p_idx)
+{
+	struct wlan_objmgr_vdev *bridge_vdev_list[WLAN_UMAC_MLO_MAX_BRIDGE_VDEVS] = {NULL};
+	struct wlan_objmgr_pdev *pdev;
+	uint16_t num_links = 0;
+	uint8_t i = 0;
+
+	if (!vdev || !mlo_ptr)
+		return QDF_STATUS_E_FAILURE;
+
+	if (p_idx > WLAN_UMAC_MLO_MAX_VDEVS)
+		return QDF_STATUS_E_FAILURE;
+
+	mlo_ap_get_bridge_vdev_list(vdev, &num_links, bridge_vdev_list);
+	if (!num_links)
+		return QDF_STATUS_SUCCESS;
+
+	if (num_links > QDF_ARRAY_SIZE(bridge_vdev_list)) {
+		mlme_err("Invalid number of VDEVs under AP-MLD num_links:%u",
+			 num_links);
+		for (i = 0; i < QDF_ARRAY_SIZE(bridge_vdev_list); i++)
+			mlo_release_vdev_ref(bridge_vdev_list[i]);
+		return QDF_STATUS_E_FAILURE;
+	}
+
+	for (i = 0; i < WLAN_UMAC_MLO_MAX_BRIDGE_VDEVS; i++) {
+		if (bridge_vdev_list[i] == vdev) {
+			mlo_release_vdev_ref(bridge_vdev_list[i]);
+			continue;
+		}
+
+		pdev = wlan_vdev_get_pdev(bridge_vdev_list[i]);
+		mlo_ptr->partner_info[p_idx].vdev_id =
+			wlan_vdev_get_id(bridge_vdev_list[i]);
+		mlo_ptr->partner_info[p_idx].hw_mld_link_id =
+			wlan_mlo_get_pdev_hw_link_id(pdev);
+		qdf_mem_copy(mlo_ptr->partner_info[p_idx].mac_addr,
+			     wlan_vdev_mlme_get_macaddr(bridge_vdev_list[i]),
+			     QDF_MAC_ADDR_SIZE);
+		mlo_release_vdev_ref(bridge_vdev_list[i]);
+		p_idx++;
+	}
+	mlo_ptr->num_links = p_idx;
+
+	return QDF_STATUS_SUCCESS;
+}
+#else
+static inline QDF_STATUS
+mlo_ap_append_bridge_vdevs(struct wlan_objmgr_vdev *vdev,
+			   struct mlo_vdev_start_partner_links *mlo_ptr,
+			   uint8_t p_idx)
+{
+	return QDF_STATUS_SUCCESS;
+}
+#endif
+
 static void
 vdev_mgr_start_param_update_mlo_partner(struct wlan_objmgr_vdev *vdev,
 					struct vdev_start_params *param)
@@ -269,8 +331,13 @@ vdev_mgr_start_param_update_mlo_partner(struct wlan_objmgr_vdev *vdev,
 	struct wlan_objmgr_vdev *vdev_list[WLAN_UMAC_MLO_MAX_VDEVS] = {NULL};
 	uint16_t num_links = 0;
 	uint8_t i = 0, p_idx = 0;
+	QDF_STATUS status;
 
-	mlo_ap_get_vdev_list(vdev, &num_links, vdev_list);
+	if (wlan_vdev_mlme_is_mlo_bridge_vdev(vdev))
+		mlo_ap_get_vdev_list_no_flag(vdev, &num_links, vdev_list);
+	else
+		mlo_ap_get_vdev_list(vdev, &num_links, vdev_list);
+
 	if (!num_links) {
 		mlme_err("No VDEVs under AP-MLD");
 		return;
@@ -302,6 +369,10 @@ vdev_mgr_start_param_update_mlo_partner(struct wlan_objmgr_vdev *vdev,
 		p_idx++;
 	}
 	mlo_ptr->num_links = p_idx;
+
+	status = mlo_ap_append_bridge_vdevs(vdev, mlo_ptr, p_idx);
+	if (QDF_IS_STATUS_ERROR(status))
+		mlo_err("failed to append bridge vdev to partner link list");
 }
 
 static void
@@ -316,7 +387,8 @@ vdev_mgr_start_param_update_mlo(struct vdev_mlme_obj *mlme_obj,
 		return;
 	}
 
-	if (!wlan_vdev_mlme_is_mlo_vdev(vdev))
+	if (!wlan_vdev_mlme_is_mlo_vdev(vdev) &&
+	    !wlan_vdev_mlme_is_mlo_bridge_vdev(vdev))
 		return;
 
 	param->mlo_flags.mlo_enabled = 1;
@@ -356,11 +428,25 @@ vdev_mgr_start_param_update_cac_ms(struct wlan_objmgr_vdev *vdev,
 	param->cac_duration_ms =
 			wlan_util_vdev_mgr_get_cac_timeout_for_vdev(vdev);
 }
+
+static inline
+bool vdev_mgr_is_sta_max_phy_enabled(enum QDF_OPMODE op_mode,
+				     struct wlan_objmgr_pdev *pdev)
+{
+	return false;
+}
 #else
 static void
 vdev_mgr_start_param_update_cac_ms(struct wlan_objmgr_vdev *vdev,
 				   struct vdev_start_params *param)
 {
+}
+
+static inline
+bool vdev_mgr_is_sta_max_phy_enabled(enum QDF_OPMODE op_mode,
+				     struct wlan_objmgr_pdev *pdev)
+{
+	return (op_mode == QDF_STA_MODE && wlan_rptr_check_rpt_max_phy(pdev));
 }
 #endif
 
@@ -400,7 +486,8 @@ static QDF_STATUS vdev_mgr_start_param_update(
 	param->vdev_id = wlan_vdev_get_id(vdev);
 
 	op_mode = wlan_vdev_mlme_get_opmode(vdev);
-	if (vdev_mgr_is_opmode_sap_or_p2p_go(op_mode) &&
+	if (!vdev_mgr_is_sta_max_phy_enabled(op_mode, pdev) &&
+	    vdev_mgr_is_opmode_sap_or_p2p_go(op_mode) &&
 	    vdev_mgr_is_49G_5G_chan_freq(des_chan->ch_freq)) {
 		vdev_mgr_set_cur_chan_punc_bitmap(des_chan, &puncture_bitmap);
 		tgt_dfs_set_current_channel_for_freq(pdev, des_chan->ch_freq,
@@ -610,11 +697,17 @@ static QDF_STATUS vdev_mgr_up_param_update(
 {
 	struct vdev_mlme_mbss_11ax *mbss;
 	struct wlan_objmgr_vdev *vdev;
+	uint8_t bssid[QDF_MAC_ADDR_SIZE];
 
 	vdev = mlme_obj->vdev;
 	param->vdev_id = wlan_vdev_get_id(vdev);
 	param->assoc_id = mlme_obj->proto.sta.assoc_id;
+
 	mbss = &mlme_obj->mgmt.mbss_11ax;
+	wlan_vdev_mgr_get_param_bssid(vdev, bssid);
+	if (qdf_mem_cmp(bssid, mbss->non_trans_bssid, QDF_MAC_ADDR_SIZE))
+		return QDF_STATUS_SUCCESS;
+
 	param->profile_idx = mbss->profile_idx;
 	param->profile_num = mbss->profile_num;
 	qdf_mem_copy(param->trans_bssid, mbss->trans_bssid, QDF_MAC_ADDR_SIZE);
@@ -802,12 +895,14 @@ static QDF_STATUS vdev_mgr_multiple_restart_param_update(
 	param->cac_duration_ms = WLAN_DFS_WAIT_MS;
 	param->num_vdevs = num_vdevs;
 
-	qdf_mem_copy(param->vdev_ids, vdev_ids,
-		     sizeof(uint32_t) * (param->num_vdevs));
 	qdf_mem_copy(&param->ch_param, chan,
 		     sizeof(struct mlme_channel_param));
-	qdf_mem_copy(param->mvr_param, mvr_param,
-		     sizeof(*mvr_param) * (param->num_vdevs));
+
+	param->vdev_ids = vdev_ids;
+	param->mvr_param = mvr_param;
+	param->max_vdevs = wlan_pdev_get_max_vdev_count(pdev);
+	param->mvr_bmap_enabled = wlan_pdev_nif_feat_cap_get(pdev,
+				    WLAN_PDEV_F_MULTIVDEV_RESTART_BMAP);
 
 	return QDF_STATUS_SUCCESS;
 }

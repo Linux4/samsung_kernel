@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2011, 2016-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  * Copyright (c) 2010, Atheros Communications Inc.
  * All Rights Reserved.
  *
@@ -307,7 +307,7 @@ enum WLAN_DFS_EVENTS {
 };
 
 #if defined(WLAN_DFS_PARTIAL_OFFLOAD) && defined(WLAN_DFS_SYNTHETIC_RADAR)
-/**
+/*
  * Structure of Pulse to be injected into the DFS Module
  * ******************************************************
  * Header
@@ -375,7 +375,7 @@ struct seq_store {
 /**
  * enum dfs_agile_sm_evt - DFS Agile SM events.
  * @DFS_AGILE_SM_EV_AGILE_START: Event to start AGILE PreCAC/RCAC.
- * @DFS_AGILE_SM_EV_AGILE_DOWN:  Event to stop AGILE PreCAC/RCAC..
+ * @DFS_AGILE_SM_EV_AGILE_STOP:  Event to stop AGILE PreCAC/RCAC..
  * @DFS_AGILE_SM_EV_AGILE_DONE:  Event to complete AGILE PreCAC/RCAC..
  * @DFS_AGILE_SM_EV_ADFS_RADAR: Event to restart AGILE PreCAC/RCAC after radar.
  */

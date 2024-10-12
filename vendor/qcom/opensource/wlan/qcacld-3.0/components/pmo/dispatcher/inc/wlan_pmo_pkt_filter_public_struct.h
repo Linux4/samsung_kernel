@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2017 The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -126,7 +126,7 @@ struct pmo_rcv_pkt_fltr_cfg {
 };
 
 /**
- * struct pmo_rcv_pkt_fltr_cfg - pmo receive Filter Clear Parameters
+ * struct pmo_rcv_pkt_fltr_clear_param - pmo receive Filter Clear Parameters
  * @status:  only valid for response message
  * @filter_id:
  * @self_macaddr:

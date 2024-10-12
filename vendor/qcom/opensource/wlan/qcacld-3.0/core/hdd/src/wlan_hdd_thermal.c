@@ -391,7 +391,7 @@ hdd_get_curr_thermal_stats_val(struct wiphy *wiphy,
 	skb = wlan_cfg80211_vendor_cmd_alloc_reply_skb(wiphy,
 						       skb_len);
 	if (!skb) {
-		hdd_err_rl("cfg80211_vendor_cmd_alloc_reply_skb failed");
+		hdd_err_rl("wlan_cfg80211_vendor_cmd_alloc_reply_skb failed");
 		ret = -ENOMEM;
 		goto completed;
 	}
@@ -756,7 +756,7 @@ hdd_notify_thermal_throttle_handler(struct wlan_objmgr_psoc *psoc,
 				QCA_NL80211_VENDOR_SUBCMD_THERMAL_INDEX,
 				GFP_KERNEL);
 	if (!vendor_event) {
-		hdd_err("cfg80211_vendor_event_alloc failed");
+		hdd_err("wlan_cfg80211_vendor_event_alloc failed");
 		return QDF_STATUS_E_NOMEM;
 	}
 	level = convert_level_to_vendor_thermal_level(info->level);

@@ -42,7 +42,7 @@ enum monitor_mode_concurrency {
 };
 
 /**
- * enum wds_mode_type: wds mode
+ * enum wlan_wds_mode - wds mode
  * @WLAN_WDS_MODE_DISABLED: WDS is disabled
  * @WLAN_WDS_MODE_REPEATER: WDS repeater mode
  * @WLAN_WDS_MODE_LAST: last value in enum
@@ -63,6 +63,7 @@ enum wlan_wds_mode {
  * @WLAN_EHT_MODE_SLO: Single-link operation mode
  * @WLAN_EHT_MODE_MLSR: Multi-link Single-Radio mode
  * @WLAN_EHT_MODE_MLMR: Multi-link Multi-Radio mode
+ * @WLAN_EHT_MODE_EMLSR: Enhanced Multi-link Single-Radio mode
  * @WLAN_EHT_MODE_LAST: last value in enum
  * @WLAN_EHT_MODE_MAX: max value supported
  *
@@ -73,9 +74,52 @@ enum wlan_eht_mode {
 	WLAN_EHT_MODE_SLO       = 1,
 	WLAN_EHT_MODE_MLSR      = 2,
 	WLAN_EHT_MODE_MLMR      = 3,
+	WLAN_EHT_MODE_EMLSR     = 4,
 	/* keep this last */
 	WLAN_EHT_MODE_LAST,
 	WLAN_EHT_MODE_MAX = WLAN_EHT_MODE_LAST - 1,
+};
+
+/**
+ * enum wlan_emlsr_action_mode - EMLSR action mode
+ * @WLAN_EMLSR_MODE_DISABLED: EMLSR is disabled
+ * @WLAN_EMLSR_MODE_ENTER: Enter EMLSR operation mode
+ * @WLAN_EMLSR_MODE_EXIT: Exit EMLSR operation mode
+ * @WLAN_EMLSR_MODE_LAST: last value in enum
+ * @WLAN_EMLSR_MODE_MAX: max value supported
+ *
+ * This is used for 'type' values in emlsr_mode
+ */
+enum wlan_emlsr_action_mode {
+	WLAN_EMLSR_MODE_DISABLED = 0,
+	WLAN_EMLSR_MODE_ENTER    = 1,
+	WLAN_EMLSR_MODE_EXIT     = 2,
+	/* keep this last */
+	WLAN_EMLSR_MODE_LAST,
+	WLAN_EMLSR_MODE_MAX = WLAN_EMLSR_MODE_LAST - 1,
+};
+
+/**
+ * enum wlan_t2lm_negotiation_support - TID-to-link mapping negotiation support
+ * @WLAN_T2LM_DISABLE: T2LM support is disabled
+ * @WLAN_T2LM_SAME_LINK_SET: Mapping of all TIDs to the same link set, both DL
+ * and UL
+ * @WLAN_T2LM_RESERVED: This value is Reserved
+ * @WLAN_T2LM_SAME_DIFF_LINK_SET: Mapping of each TID to the same or different
+ * link set
+ * @WLAN_T2LM_SUPPORT_LAST: last value in enum
+ * @WLAN_T2LM_SUPPORT_MAX: max value supported
+ *
+ * This is used for 'type' values in T2LM support
+ */
+enum wlan_t2lm_negotiation_support {
+	WLAN_T2LM_DISABLE            = 0,
+	WLAN_T2LM_SAME_LINK_SET      = 1,
+	WLAN_T2LM_RESERVED           = 2,
+	WLAN_T2LM_SAME_DIFF_LINK_SET = 3,
+	/* keep this last */
+	WLAN_T2LM_SUPPORT_LAST,
+	WLAN_T2LM_SUPPORT_MAX = WLAN_T2LM_SUPPORT_LAST - 1,
 };
 
 /**
@@ -116,6 +160,36 @@ enum t2lm_negotiation_support {
 	T2LM_NEGOTIATION_LAST,
 	/* keep this last */
 	T2LM_NEGOTIATION_MAX = T2LM_NEGOTIATION_LAST - 1,
+};
+
+/**
+ * enum wlan_epcs_capability - EPCS capability
+ * @WLAN_EPCS_CAP_DISABLED: EPCS capability disable
+ * @WLAN_EPCS_CAP_ENABLE: EPCS capability enable
+ * @WLAN_EPCS_CAP_LAST: last value in enum
+ * @WLAN_EPCS_CAP_MAX: max value supported
+ */
+enum wlan_epcs_capability {
+	WLAN_EPCS_CAP_DISABLED  =  0,
+	WLAN_EPCS_CAP_ENABLE  =  1,
+	/* keep this last */
+	WLAN_EPCS_CAP_LAST,
+	WLAN_EPCS_CAP_MAX = WLAN_EPCS_CAP_LAST - 1,
+};
+
+/**
+ * enum wlan_epcs_frame - EPCS frame type
+ * @WLAN_EPCS_FRAME_TEARDOWN: EPCS teardown frame
+ * @WLAN_EPCS_FRAME_REQUEST: EPCS request frame
+ * @WLAN_EPCS_FRAME_LAST: last value in enum
+ * @WLAN_EPCS_FRAME_MAX: max value supported
+ */
+enum wlan_epcs_frame {
+	WLAN_EPCS_FRAME_TEARDOWN  =  0,
+	WLAN_EPCS_FRAME_REQUEST  =  1,
+	/* keep this last */
+	WLAN_EPCS_FRAME_LAST,
+	WLAN_EPCS_FRAME_MAX = WLAN_EPCS_FRAME_LAST - 1,
 };
 
 /*
@@ -246,6 +320,29 @@ enum t2lm_negotiation_support {
 
 #ifdef CONFIG_BAND_6GHZ
 /*
+ * disable_vlp_sta_conn_to_sp_ap - Disable VLP STA connection to SP AP
+ * @Min: 0
+ * @Max: 1
+ * @Default: 0
+ *
+ * This cfg is used to disable connection when AP is operating in 6 GHz
+ * SP mode but STA doesn't support SP mode and supports VLP mode.
+ *
+ * Related: None
+ *
+ * Supported Feature: STA
+ */
+#define CFG_DISABLE_VLP_STA_CONN_TO_SP_AP CFG_BOOL( \
+		"disable_vlp_sta_conn_to_sp_ap", \
+		0, \
+		"disable vlp sta conn to sp ap")
+#define CFG_DIS_VLP_STA_CONN_TO_SP_AP	CFG(CFG_DISABLE_VLP_STA_CONN_TO_SP_AP)
+#else
+#define CFG_DIS_VLP_STA_CONN_TO_SP_AP
+#endif
+
+#ifdef CONFIG_BAND_6GHZ
+/*
  * standard_6ghz_connection_policy - Enable 6 GHz standard connection policy
  * @Min: 0
  * @Max: 1
@@ -265,30 +362,6 @@ enum t2lm_negotiation_support {
 #define CFG_6GHZ_STD_CONN_POLICY	CFG(CFG_6GHZ_STANDARD_CONNECTION_POLICY)
 #else
 #define CFG_6GHZ_STD_CONN_POLICY
-#endif
-
-#ifdef CONFIG_BAND_6GHZ
-/*
- * relaxed_6ghz_conn_policy - Enable 6ghz relaxed connection policy
- * @Min: 0
- * @Max: 1
- * @Default: 0
- *
- * This cfg is used to set 6Ghz relaxed connection policies where STA
- * will be allowed to operate in VLP mode and scan/connect to 6 GHz BSS
- * with unmatching country code.
- *
- * Related: None
- *
- * Supported Feature: STA
- */
-#define CFG_RELAXED_6GHZ_CONN_POLICY CFG_BOOL( \
-		"relaxed_6ghz_conn_policy", \
-		0, \
-		"6ghz relaxed connection policy")
-#define CFG_RELAX_6GHZ_CONN_POLICY	CFG(CFG_RELAXED_6GHZ_CONN_POLICY)
-#else
-#define CFG_RELAX_6GHZ_CONN_POLICY
 #endif
 
 #ifdef WLAN_FEATURE_11BE_MLO
@@ -1145,7 +1218,7 @@ enum t2lm_negotiation_support {
  *
  * Supported Feature: STA
  */
-#define CFG_T2LM_NEGOTIATION_SUPPORT CFG_UINT( \
+#define CFG_T2LM_NEGOTIATION_SUPPORT CFG_INI_UINT( \
 					"t2lm_negotiation_supported", \
 					T2LM_NEGOTIATION_DISABLED, \
 					T2LM_NEGOTIATION_DISJOINT_MAPPING, \
@@ -1196,9 +1269,9 @@ enum t2lm_negotiation_support {
 	CFG_WDS_MODE_ALL \
 	CFG(CFG_TX_RETRY_MULTIPLIER) \
 	CFG(CFG_MGMT_FRAME_HW_TX_RETRY_COUNT) \
-	CFG_RELAX_6GHZ_CONN_POLICY \
 	CFG_6GHZ_STD_CONN_POLICY \
 	CFG_EMLSR_MODE_ENABLED \
 	CFG_SR_ENABLE_MODES_ALL \
-	CFG_T2LM_NEGOTIATION_SUPPORTED
+	CFG_T2LM_NEGOTIATION_SUPPORTED\
+	CFG_DIS_VLP_STA_CONN_TO_SP_AP
 #endif /* __CFG_MLME_GENERIC_H */

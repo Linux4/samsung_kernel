@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2014-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -20,19 +20,12 @@
 #ifndef __CDS_UTILS_H
 #define __CDS_UTILS_H
 
-/**=========================================================================
+/**
+ * DOC: cds_utils.h
+ *      Connectivity driver services (CDS) utility APIs
+ *      Various utility functions
+ */
 
-   \file  cds_utils.h
-
-   \brief Connectivity driver services (CDS) utility APIs
-
-   Various utility functions
-
-   ========================================================================*/
-
-/*--------------------------------------------------------------------------
-   Include Files
-   ------------------------------------------------------------------------*/
 #include <qdf_types.h>
 #include <qdf_status.h>
 #include <qdf_event.h>
@@ -83,9 +76,9 @@
 
 /**
  * enum cds_band_type - Band type - 2g, 5g or all
- * CDS_BAND_ALL: Both 2G and 5G are valid.
- * CDS_BAND_2GHZ: only 2G is valid.
- * CDS_BAND_5GHZ: only 5G is valid.
+ * @CDS_BAND_ALL: Both 2G and 5G are valid.
+ * @CDS_BAND_2GHZ: only 2G is valid.
+ * @CDS_BAND_5GHZ: only 5G is valid.
  */
 enum cds_band_type {
 	CDS_BAND_ALL = 0,
@@ -104,7 +97,7 @@ enum cds_band_type cds_chan_to_band(uint32_t chan);
 uint8_t cds_get_mmie_size(void);
 
 /**
- * cds_get_gmac_mmie_size: Gives length of GMAC MMIE size
+ * cds_get_gmac_mmie_size() - Gives length of GMAC MMIE size
  *
  * Return: Size of MMIE for GMAC
  */

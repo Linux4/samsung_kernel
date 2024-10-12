@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2019-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -51,7 +51,8 @@
 #define MAX_CFR_MU_USERS 4
 #define NUM_CHAN_CAPTURE_STATUS 4
 #define NUM_CHAN_CAPTURE_REASON 6
-#if defined(QCA_WIFI_QCA6750) || defined(QCA_WIFI_QCA6490)
+#if defined(QCA_WIFI_QCA6750) || defined(QCA_WIFI_QCA6490) || \
+	defined(QCA_WIFI_WCN6450)
 #define MAX_TA_RA_ENTRIES 4
 #define MAX_RESET_CFG_ENTRY 0xF
 #else
@@ -66,6 +67,7 @@
 #define CFR_MOD_PRD  10                 /* CFR period to be multiples of 10ms */
 
 #define MAX_AGC_GAIN 62
+#define INVALID_AGC_GAIN 0xFFFF
 
 enum cfrmetaversion {
 	CFR_META_VERSION_NONE,
@@ -122,6 +124,9 @@ enum cfrradiotype {
 	CFR_CAPTURE_RADIO_MANGO,
 	CFR_CAPTURE_RADIO_MIAMI,
 	CFR_CAPTURE_RADIO_YORK,
+	CFR_CAPTURE_RADIO_PEACH,
+	CFR_CAPTURE_RADIO_PEBBLE,
+	CFR_CAPTURE_RADIO_EVROS,
 	CFR_CAPTURE_RADIO_MAX = 0xFF,
 };
 
@@ -248,9 +253,9 @@ struct csi_cfr_header {
 
 /**
  * struct cfr_capture_params - structure to store cfr config param
- * bandwidth: bandwidth of capture
- * period: period of capture
- * method: enum of method being followed to capture cfr data. 0-QoS null data
+ * @bandwidth: bandwidth of capture
+ * @period: period of capture
+ * @method: enum of method being followed to capture cfr data. 0-QoS null data
  */
 struct cfr_capture_params {
 	u_int8_t   bandwidth;
@@ -260,16 +265,19 @@ struct cfr_capture_params {
 
 /**
  * struct psoc_cfr - private psoc object for cfr
- * psoc_obj: pointer to psoc object
- * is_cfr_capable: flag to determine if cfr is enabled or not
- * is_cap_interval_mode_sel_support: flag to determine if target supports both
- *				     capture_count and capture_duration modes
- *				     with a nob provided to configure
- * is_mo_marking_support: flag to determine if MO marking is supported or not
+ * @psoc_obj: pointer to psoc object
+ * @is_cfr_capable: flag to determine if cfr is enabled or not
+ * @is_cfr_pdev_id_soc: flag to send cfr request with PDEV_ID_SOC
+ * @is_cap_interval_mode_sel_support: flag to determine if target supports both
+ *				      capture_count and capture_duration modes
+ *				      with a nob provided to configure
+ * @is_mo_marking_support: flag to determine if MO marking is supported or not
+ * @is_aoa_for_rcc_support:
  */
 struct psoc_cfr {
 	struct wlan_objmgr_psoc *psoc_obj;
 	uint8_t is_cfr_capable;
+	uint8_t is_cfr_pdev_id_soc;
 #ifdef WLAN_ENH_CFR_ENABLE
 	uint8_t is_cap_interval_mode_sel_support;
 	uint8_t is_mo_marking_support;
@@ -279,10 +287,10 @@ struct psoc_cfr {
 
 /**
  * struct cfr_wmi_host_mem_chunk - wmi mem chunk related
- * vaddr: pointer to virtual address
- * paddr: physical address
- * len: len of the mem chunk allocated
- * req_id: reqid related to the mem chunk
+ * @vaddr: pointer to virtual address
+ * @paddr: physical address
+ * @len: len of the mem chunk allocated
+ * @req_id: reqid related to the mem chunk
  */
 struct cfr_wmi_host_mem_chunk {
 	uint32_t *vaddr;
@@ -324,24 +332,24 @@ struct whal_cfir_dma_hdr {
 /**
  * struct look_up_table - Placeholder for 2 asynchronous events (DBR and
  * TXRX event)
- * dbr_recv: Indicates whether WMI for DBR completion is received or not
- * tx_recv: Indicates whether WMI for TX completion (or) WDI event for RX
+ * @dbr_recv: Indicates whether WMI for DBR completion is received or not
+ * @tx_recv: Indicates whether WMI for TX completion (or) WDI event for RX
  * status is received or not
- * data: pointer to CFR data that ucode DMAs to host memory
- * data_len: length of CFR data DMAed by ucode
- * dbr_ppdu_id: PPDU id retrieved from DBR completion WMI event
- * tx_ppdu_id: PPDU id retrieved from WMI TX completion event (or) PPDU status
+ * @data: pointer to CFR data that ucode DMAs to host memory
+ * @data_len: length of CFR data DMAed by ucode
+ * @dbr_ppdu_id: PPDU id retrieved from DBR completion WMI event
+ * @tx_ppdu_id: PPDU id retrieved from WMI TX completion event (or) PPDU status
  * TLV
- * dbr_address: Physical address of the CFR data dump retrieved from DBR
+ * @dbr_address: Physical address of the CFR data dump retrieved from DBR
  * completion WMI event
- * tx_address1: Physical address of the CFR data from TX/RX event
- * tx_address2: Physical address of the CFR data from TX/RX event
- * csi_cfr_header: CFR header constructed by host
- * whal_cfir_enhanced_hdr: CFR header constructed by ucode
- * tx_tstamp: Timestamp when TX/RX event was received
- * dbr_tstamp: Timestamp when DBR completion event was received
- * header_length: Length of header DMAed by ucode in words
- * payload_length: Length of CFR payload
+ * @tx_address1: Physical address of the CFR data from TX/RX event
+ * @tx_address2: Physical address of the CFR data from TX/RX event
+ * @header: CFR header constructed by host
+ * @dma_hdr: CFR header constructed by ucode
+ * @txrx_tstamp: Timestamp when TX/RX event was received
+ * @dbr_tstamp: Timestamp when DBR completion event was received
+ * @header_length: Length of header DMAed by ucode in words
+ * @payload_length: Length of CFR payload
  */
 struct look_up_table {
 	bool dbr_recv;
@@ -371,34 +379,36 @@ struct unassoc_pool_entry {
 /**
  * struct ta_ra_cfr_cfg - structure to store configuration of 16 groups in
  * M_TA_RA mode
- * filter_group_id: Filter group number for which the below filters needs to be
+ * @filter_group_id: Filter group number for which the below filters needs to be
  * applied
- * bw: CFR capture will be done for packets matching the bandwidths specified
+ * @bw: CFR capture will be done for packets matching the bandwidths specified
  * within this bitmask
- * nss: CFR capture will be done for packets matching the Nss specified within
+ * @nss: CFR capture will be done for packets matching the Nss specified within
  * this bitmask
- * valid_ta: Ta_addr is valid if set
- * valid_ta_mask: Ta_addr_mask is valid if set
- * valid_ra: Ra_addr is valid if set
- * valid_ra_mask: Ra_addr_mask is valid if set
- * valid_bw_mask: Bandwidth is valid if set
- * valid_nss_mask: NSS is valid if set
- * valid_mgmt_subtype: Mgmt_subtype is valid if set
- * valid_ctrl_subtype: Ctrl_subtype is valid if set
- * valid_data_subtype: Data_subtype is valid if set
- * mgmt_subtype_filter: Managments Packets matching the subtype filter
+ * @rsvd0: reserved bits
+ * @valid_ta: Ta_addr is valid if set
+ * @valid_ta_mask: Ta_addr_mask is valid if set
+ * @valid_ra: Ra_addr is valid if set
+ * @valid_ra_mask: Ra_addr_mask is valid if set
+ * @valid_bw_mask: Bandwidth is valid if set
+ * @valid_nss_mask: NSS is valid if set
+ * @valid_mgmt_subtype: Mgmt_subtype is valid if set
+ * @valid_ctrl_subtype: Ctrl_subtype is valid if set
+ * @valid_data_subtype: Data_subtype is valid if set
+ * @rsvd1: reserved bits
+ * @mgmt_subtype_filter: Managments Packets matching the subtype filter
  * categories will be filtered in by MAC for CFR capture.
- * ctrl_subtype_filter: Control Packets matching the subtype filter
+ * @ctrl_subtype_filter: Control Packets matching the subtype filter
  * categories will be filtered in by MAC for CFR capture.
- * data_subtype_filter: Data Packets matching the subtype filter
+ * @data_subtype_filter: Data Packets matching the subtype filter
  * categories will be filtered in by MAC for CFR capture.
- * tx_addr: Packets whose transmitter address matches (tx_addr & tx_addr_mask)
+ * @tx_addr: Packets whose transmitter address matches (tx_addr & tx_addr_mask)
  * will be filtered in by MAC
- * tx_addr_mask: Packets whose transmitter address matches (tx_addr &
+ * @tx_addr_mask: Packets whose transmitter address matches (tx_addr &
  * tx_addr_mask) will be filtered in by MAC
- * rx_addr: Packets whose receiver address matches (rx_addr & rx_addr_mask)
+ * @rx_addr: Packets whose receiver address matches (rx_addr & rx_addr_mask)
  * will be filtered in by MAC
- * rx_addr_mask: Packets whose receiver address matches (rx_addr &
+ * @rx_addr_mask: Packets whose receiver address matches (rx_addr &
  * rx_addr_mask) will be filtered in by MAC
  */
 struct ta_ra_cfr_cfg {
@@ -428,38 +438,41 @@ struct ta_ra_cfr_cfg {
 
 /**
  * struct cfr_rcc_param - structure to store cfr config param
- * pdev_id: pdev_id for identifying the MAC
- * vdev_id: vdev_id of current rcc configures
- * srng_id: srng id of current rcc configures
- * capture_duration: Capture Duration field for which CFR capture has to happen,
- * in microsecond units
- * capture_interval: Capture interval field which is time in between
+ * @pdev_id: pdev_id for identifying the MAC
+ * @vdev_id: vdev_id of current rcc configures
+ * @srng_id: srng id of current rcc configures
+ * @capture_duration: Capture Duration field for which CFR capture has to
+ * happen, in microsecond units
+ * @capture_interval: Capture interval field which is time in between
  * consecutive CFR capture, in microsecond units
- * ul_mu_user_mask_lower: Bitfields indicates which of the users in the current
+ * @ul_mu_user_mask_lower: Bitfields indicates which of the users in the current
  * UL MU transmission are enabled for CFR capture.
- * ul_mu_user_mask_upper: This is continuation of the above lower mask.
- * freeze_tlv_delay_cnt_en: Enable Freeze TLV delay counter in MAC
- * freeze_tlv_delay_cnt_thr: Indicates the number of consecutive Rx packets to
+ * @ul_mu_user_mask_upper: This is continuation of the above lower mask.
+ * @freeze_tlv_delay_cnt_en: Enable Freeze TLV delay counter in MAC
+ * @freeze_tlv_delay_cnt_thr: Indicates the number of consecutive Rx packets to
  * be skipped before CFR capture is enabled again.
- * filter_group_bitmap: Bitfields set indicates which of the CFR group config is
- * enabled
- * m_directed_ftm: Filter Directed FTM ACK frames for CFR capture
- * m_all_ftm_ack: Filter All FTM ACK frames for CFR capture
- * m_ndpa_ndp_directed: Filter NDPA NDP Directed Frames for CFR capture
- * m_ndpa_ndp_all: Filter all NDPA NDP for CFR capture
- * m_ta_ra_filter: Filter Frames based on TA/RA/Subtype as provided in CFR Group
- * config
- * m_all_packet: Filter in All packets for CFR Capture
- * en_ta_ra_filter_in_as_fp: Filter in frames as FP/MO in m_ta_ra_filter mode
- * num_grp_tlvs: Indicates the number of groups in M_TA_RA mode, that have
+ * @rsvd0: reserved bits
+ * @filter_group_bitmap: Bitfields set indicates which of the CFR group config
+ * is enabled
+ * @m_directed_ftm: Filter Directed FTM ACK frames for CFR capture
+ * @m_all_ftm_ack: Filter All FTM ACK frames for CFR capture
+ * @m_ndpa_ndp_directed: Filter NDPA NDP Directed Frames for CFR capture
+ * @m_ndpa_ndp_all: Filter all NDPA NDP for CFR capture
+ * @m_ta_ra_filter: Filter Frames based on TA/RA/Subtype as provided in CFR
+ * Group config
+ * @m_all_packet: Filter in All packets for CFR Capture
+ * @en_ta_ra_filter_in_as_fp: Filter in frames as FP/MO in m_ta_ra_filter mode
+ * @rsvd1: reserved bits
+ * @num_grp_tlvs: Indicates the number of groups in M_TA_RA mode, that have
  * changes in the current commit session, use to construct WMI group TLV(s)
- * curr: Placeholder for M_TA_RA group config in current commit session
- * modified_in_curr_session: Bitmap indicating number of groups in M_TA_RA mode
+ * @curr: Placeholder for M_TA_RA group config in current commit session
+ * @modified_in_curr_session: Bitmap indicating number of groups in M_TA_RA mode
  * that have changed in current commit session.
- * capture_count: After capture_count+1 number of captures, MAC stops RCC  and
+ * @capture_count: After capture_count+1 number of captures, MAC stops RCC  and
  * waits for capture_interval duration before enabling again
- * capture_intval_mode_sel: 0 indicates capture_duration mode, 1 indicates the
+ * @capture_intval_mode_sel: 0 indicates capture_duration mode, 1 indicates the
  * capture_count mode.
+ * @rsvd2: reserved bits
  */
 struct cfr_rcc_param {
 	uint8_t pdev_id;
@@ -493,9 +506,9 @@ struct cfr_rcc_param {
 
 /**
  * struct nl_event_cb - nl event cb for cfr data
- * vdev_id: vdev id
- * pid: PID to which data is sent via unicast nl event
- * cfr_nl_cb: callback to send nl event
+ * @vdev_id: vdev id
+ * @pid: PID to which data is sent via unicast nl event
+ * @cfr_nl_cb: callback to send nl event
  */
 struct nl_event_cb {
 	uint8_t vdev_id;
@@ -506,63 +519,80 @@ struct nl_event_cb {
 
 /**
  * struct pdev_cfr - private pdev object for cfr
- * pdev_obj: pointer to pdev object
- * is_cfr_capable: flag to determine if cfr is enabled or not
- * cfr_timer_enable: flag to enable/disable timer
- * chip_type: chip type which is defined in enum cfrradiotype
- * cfr_mem_chunk: Region of memory used for storing cfr data
- * cfr_max_sta_count: Maximum stations supported in one-shot capture mode
- * num_subbufs: No. of sub-buffers used in relayfs
- * subbuf_size: Size of sub-buffer used in relayfs
- * chan_ptr: Channel in relayfs
- * dir_ptr: Parent directory of relayfs file
- * lut: lookup table used to store asynchronous DBR and TX/RX events for
+ * @pdev_obj: pointer to pdev object
+ * @is_cfr_capable: flag to determine if cfr is enabled or not
+ * @cfr_timer_enable: flag to enable/disable timer
+ * @chip_type: chip type which is defined in enum cfrradiotype
+ * @cfr_mem_chunk: Region of memory used for storing cfr data
+ * @cfr_max_sta_count: Maximum stations supported in one-shot capture mode
+ * @cfr_current_sta_count:
+ * @num_subbufs: No. of sub-buffers used in relayfs
+ * @subbuf_size: Size of sub-buffer used in relayfs
+ * @chan_ptr: Channel in relayfs
+ * @dir_ptr: Parent directory of relayfs file
+ * @lut: lookup table used to store asynchronous DBR and TX/RX events for
  * correlation
- * lut_num: Number of lut
- * dbr_buf_size: Size of DBR completion buffer
- * dbr_num_bufs: No. of DBR completions
- * tx_evt_cnt: No. of TX completion events till CFR stop was issued
- * total_tx_evt_cnt: No. of Tx completion events since wifi was up
- * dbr_evt_cnt: No. of WMI DBR completion events
- * release_cnt: No. of CFR data buffers relayed to userspace
- * tx_peer_status_cfr_fail: No. of tx events without tx status set to
+ * @lut_num: Number of lut
+ * @dbr_buf_size: Size of DBR completion buffer
+ * @dbr_num_bufs: No. of DBR completions
+ * @max_mu_users: Max number of MU users
+ * @tx_evt_cnt: No. of TX completion events till CFR stop was issued
+ * @total_tx_evt_cnt: No. of Tx completion events since wifi was up
+ * @dbr_evt_cnt: No. of WMI DBR completion events
+ * @release_cnt: No. of CFR data buffers relayed to userspace
+ * @tx_peer_status_cfr_fail: No. of tx events without tx status set to
  * PEER_CFR_CAPTURE_EVT_STATUS_MASK indicating CFR capture failure on a peer.
- * tx_evt_status_cfr_fail: No. of tx events without tx status set to
+ * @tx_evt_status_cfr_fail: No. of tx events without tx status set to
  * CFR_TX_EVT_STATUS_MASK indicating CFR capture status failure.
- * tx_dbr_cookie_lookup_fail: No. of dbr cookie lookup failures during tx event
+ * @tx_dbr_cookie_lookup_fail: No. of dbr cookie lookup failures during tx event
  * process.
- * rcc_param: Structure to store CFR config for the current commit session
- * global: Structure to store accumulated CFR config
- * rx_tlv_evt_cnt: Number of CFR WDI events from datapath
- * lut_age_timer: Timer to flush pending TXRX/DBR events in lookup table
- * lut_timer_init: flag to determine if lut_age_timer is initialized or not
- * is_cfr_rcc_capable: Flag to determine if RCC is enabled or not.
- * flush_dbr_cnt: No. of un-correlated DBR completions flushed when a newer PPDU
- * is correlated successfully with newer DBR completion
- * invalid_dma_length_cnt: No. of buffers for which CFR DMA header length (or)
+ * @rcc_param: Structure to store CFR config for the current commit session
+ * @global: Structure to store accumulated CFR config
+ * @rx_tlv_evt_cnt: Number of CFR WDI events from datapath
+ * @lut_age_timer: Timer to flush pending TXRX/DBR events in lookup table
+ * @lut_timer_init: flag to determine if lut_age_timer is initialized or not
+ * @is_cfr_rcc_capable: Flag to determine if RCC is enabled or not.
+ * @flush_dbr_cnt: No. of un-correlated DBR completions flushed when a newer
+ * PPDU is correlated successfully with newer DBR completion
+ * @invalid_dma_length_cnt: No. of buffers for which CFR DMA header length (or)
  * data length was invalid
- * flush_timeout_dbr_cnt: No. of DBR completion flushed out in ageout logic
- * clear_txrx_event: No. of PPDU status TLVs over-written in LUT
- * last_success_tstamp: DBR timestamp which indicates that both DBR and TX/RX
+ * @flush_timeout_dbr_cnt: No. of DBR completion flushed out in ageout logic
+ * @clear_txrx_event: No. of PPDU status TLVs over-written in LUT
+ * @last_success_tstamp: DBR timestamp which indicates that both DBR and TX/RX
  * events have been received successfully.
- * cfr_dma_aborts: No. of CFR DMA aborts in ucode
- * is_cap_interval_mode_sel_support: flag to determine if target supports both
- * is_mo_marking_support: flag to determine if MO marking is supported or not
- * is_aoa_for_rcc_support: flag to determine if AoA is available for RCC or not
+ * @cfr_dma_aborts: No. of CFR DMA aborts in ucode
+ * @is_cap_interval_mode_sel_support: flag to determine if target supports both
+ * @is_mo_marking_support: flag to determine if MO marking is supported or not
+ * @is_aoa_for_rcc_support: flag to determine if AoA is available for RCC or not
  * capture_count and capture_duration modes with a nob provided to configure.
- * unassoc_pool: Pool of un-associated clients used when capture method is
+ * @unassoc_pool: Pool of un-associated clients used when capture method is
  * CFR_CAPTURE_METHOD_PROBE_RESPONSE
- * nl_cb: call back to register for nl event for cfr data
- * lut_lock: Lock to protect access to cfr lookup table
- * is_prevent_suspend: CFR wake lock acquired or not
- * wake_lock: wake lock for cfr
- * runtime_lock: runtime lock for cfr
- * freq: current operating freq for which AoA Phase delta values reported by FW
- * max_aoa_chains: Indicate the max number of chains to which target supports
+ * @nl_cb: call back to register for nl event for cfr data
+ * @lut_lock: Lock to protect access to cfr lookup table
+ * @lut_lock_initialised: Check lut_lock initialised or not.
+ * @is_prevent_suspend: CFR wake lock acquired or not
+ * @wake_lock: wake lock for cfr
+ * @runtime_lock: runtime lock for cfr
+ * @freq: current operating freq for which AoA Phase delta values reported by FW
+ * @max_aoa_chains: Indicate the max number of chains to which target supports
  * AoA data.
- * phase_delta: per chain phase delta associated with 62 gain values reported by
- * FW via WMI_PDEV_AOA_PHASEDELTA_EVENTID.
- * ibf_cal_val: Per chain IBF cal value from FW.
+ * @phase_delta: per chain phase delta associated with 62 gain values reported
+ * by FW via WMI_PDEV_AOA_PHASEDELTA_EVENTID. This is for the targets which
+ * supports only default gain table.
+ * @ibf_cal_val: Per chain IBF cal value from FW.
+ * @is_enh_aoa_data: flag to indicate the pdev supports enhanced AoA.
+ * @max_agc_gain_tbls: Max rx AGC gain tables supported & advertised by target.
+ * @max_agc_gain_per_tbl_2g: Max possible rx AGC gain per table on 2GHz band.
+ * @max_agc_gain_per_tbl_5g: Max possible rx AGC gain per table on 5GHz band.
+ * @max_agc_gain_per_tbl_6g: Max possbile rx AGC gain per table on 6GHz band.
+ * @max_bdf_entries_per_tbl: Max entries per table in gain & phase array.
+ * @max_entries_all_table: Max entries across table in gain & phase array.
+ * @gain_stop_index_array: This array has optimized gain range values stored.
+ * @enh_phase_delta_array: This array has optimized phase delta values stored
+ * aligning with gain_stop_index_array.
+ * @start_ent: array where each entry indicates the offset index per table to be
+ * applied on gain_stop_index_array and enh_phase_delta_array
+ * @xbar_config: xbar config to be used to map bb to rf chainmask.
  */
 /*
  * To be extended if we get more capbality info
@@ -612,6 +642,7 @@ struct pdev_cfr {
 	struct unassoc_pool_entry unassoc_pool[MAX_CFR_ENABLED_CLIENTS];
 	struct nl_event_cb nl_cb;
 	qdf_spinlock_t lut_lock;
+	bool lut_lock_initialised;
 #ifdef WLAN_CFR_PM
 	bool is_prevent_suspend;
 	qdf_wake_lock_t wake_lock;
@@ -622,25 +653,39 @@ struct pdev_cfr {
 	uint32_t max_aoa_chains;
 	uint16_t phase_delta[HOST_MAX_CHAINS][MAX_AGC_GAIN];
 	uint32_t ibf_cal_val[HOST_MAX_CHAINS];
-#endif
+#ifdef WLAN_RCC_ENHANCED_AOA_SUPPORT
+	bool is_enh_aoa_data;
+	uint32_t max_agc_gain_tbls;
+	uint16_t max_agc_gain_per_tbl_2g[PSOC_MAX_NUM_AGC_GAIN_TBLS];
+	uint16_t max_agc_gain_per_tbl_5g[PSOC_MAX_NUM_AGC_GAIN_TBLS];
+	uint16_t max_agc_gain_per_tbl_6g[PSOC_MAX_NUM_AGC_GAIN_TBLS];
+	uint8_t max_bdf_entries_per_tbl[PSOC_MAX_NUM_AGC_GAIN_TBLS];
+	uint32_t max_entries_all_table;
+	uint16_t *gain_stop_index_array;
+	uint16_t *enh_phase_delta_array;
+	uint8_t start_ent[PSOC_MAX_NUM_AGC_GAIN_TBLS];
+	uint32_t xbar_config;
+#endif /* WLAN_RCC_ENHANCED_AOA_SUPPORT */
+#endif /* WLAN_ENH_CFR_ENABLE */
 };
 
 /**
  * enum cfr_capt_status - CFR capture status
+ * @PEER_CFR_CAPTURE_DISABLE: Capture not in progress
+ * @PEER_CFR_CAPTURE_ENABLE: Capture in progress
  */
 enum cfr_capt_status {
-	/* Capture not in progress */
 	PEER_CFR_CAPTURE_DISABLE,
-	/* Capture in progress */
 	PEER_CFR_CAPTURE_ENABLE,
 };
 
 /**
  * struct peer_cfr - private peer object for cfr
- * peer_obj: pointer to peer_obj
- * request: Type of request (start/stop)
- * bandwidth: bandwitdth of capture for this peer
- * capture_method: enum determining type of cfr data capture.
+ * @peer_obj: pointer to peer_obj
+ * @request: Type of request (start/stop)
+ * @bandwidth: bandwidth of capture for this peer
+ * @period: period of capture for this peer
+ * @capture_method: enum determining type of cfr data capture.
  *                 0-Qos null data
  */
 struct peer_cfr {
@@ -707,7 +752,7 @@ uint8_t count_set_bits(unsigned long value);
 
 /**
  * wlan_cfr_is_feature_disabled() - Check if cfr feature is disabled
- * @pdev - the physical device object.
+ * @pdev: the physical device object.
  *
  * Return : true if cfr is disabled, else false.
  */
@@ -717,7 +762,7 @@ bool wlan_cfr_is_feature_disabled(struct wlan_objmgr_pdev *pdev);
 /**
  * wlan_cfr_rx_tlv_process() - Process PPDU status TLVs and store info in
  * lookup table
- * @pdev_obj: PDEV object
+ * @pdev: PDEV object
  * @nbuf: ppdu info
  *
  * Return: none

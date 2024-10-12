@@ -431,6 +431,7 @@ struct wacom_g5_platform_data {
 	bool support_cover_noti;
 	bool support_cover_detection;
 	bool support_pogo_cover;
+	bool support_dual_garage;
 	bool enable_sysinput_enabled;
 
 	u32	area_indicator;
@@ -458,7 +459,6 @@ struct wacom_i2c {
 	struct mutex ble_charge_mode_lock;
 	bool power_enable;
 	struct wakeup_source *wacom_ws;
-	bool pm_suspend;
 	volatile bool probe_done;
 	bool query_status;
 	struct completion resume_done;
@@ -467,6 +467,7 @@ struct wacom_i2c {
 	int irq;
 	int irq_pdct;
 	int pen_pdct;
+	int pen_pdct_direction;		// for dual garage(GTS9~)
 	bool pdct_lock_fail;
 	struct delayed_work open_test_dwork;
 

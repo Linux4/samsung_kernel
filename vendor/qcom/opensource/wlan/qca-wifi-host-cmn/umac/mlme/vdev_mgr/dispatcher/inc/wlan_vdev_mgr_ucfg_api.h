@@ -144,7 +144,7 @@ struct wlan_vdev_mgr_cfg {
 };
 
 /**
- * ucfg_wlan_vdev_mgr_set_param() – ucfg MLME API to
+ * ucfg_wlan_vdev_mgr_set_param() - ucfg MLME API to
  * set value into mlme vdev mgr component
  * @vdev: pointer to vdev object
  * @param_id: param of type wlan_mlme_cfg_id
@@ -157,7 +157,7 @@ QDF_STATUS ucfg_wlan_vdev_mgr_set_param(struct wlan_objmgr_vdev *vdev,
 					struct wlan_vdev_mgr_cfg mlme_cfg);
 
 /**
- * ucfg_wlan_vdev_mgr_get_param() – ucfg MLME API to
+ * ucfg_wlan_vdev_mgr_get_param() - ucfg MLME API to
  * get value from mlme vdev mgr component
  * @vdev: pointer to vdev object
  * @param_id: param of type wlan_mlme_cfg_id
@@ -170,7 +170,7 @@ void ucfg_wlan_vdev_mgr_get_param(struct wlan_objmgr_vdev *vdev,
 				  uint32_t *param_value);
 
 /**
- * ucfg_wlan_vdev_mgr_get_param_ssid() – ucfg MLME API to
+ * ucfg_wlan_vdev_mgr_get_param_ssid() - ucfg MLME API to
  * get ssid from mlme vdev mgr component
  * @vdev: pointer to vdev object
  * @ssid: pointer to store the ssid
@@ -183,7 +183,7 @@ void ucfg_wlan_vdev_mgr_get_param_ssid(struct wlan_objmgr_vdev *vdev,
 				       uint8_t *ssid_len);
 
 /**
- * ucfg_wlan_vdev_mgr_get_param_bssid() – ucfg MLME API to
+ * ucfg_wlan_vdev_mgr_get_param_bssid() - ucfg MLME API to
  * get bssid from mlme vdev mgr component
  * @vdev: pointer to vdev object
  * @bssid: pointer to store the bssid
@@ -194,7 +194,7 @@ void ucfg_wlan_vdev_mgr_get_param_bssid(
 				uint8_t *bssid);
 
 /**
- * ucfg_wlan_vdev_mgr_get_beacon_buffer() – ucfg MLME API to
+ * ucfg_wlan_vdev_mgr_get_beacon_buffer() - ucfg MLME API to
  * get beacon buffer from mlme vdev mgr component
  * @vdev: pointer to vdev object
  * @buf: pointer to store the beacon buffer
@@ -205,7 +205,7 @@ void ucfg_wlan_vdev_mgr_get_beacon_buffer(struct wlan_objmgr_vdev *vdev,
 					  qdf_nbuf_t buf);
 
 /**
- * ucfg_wlan_vdev_mgr_get_trans_bssid() – ucfg MLME API to
+ * ucfg_wlan_vdev_mgr_get_trans_bssid() - ucfg MLME API to
  * get transmission bssid from mlme vdev mgr component
  * @vdev: pointer to vdev object
  * @addr: pointer to store the transmission bssid
@@ -216,7 +216,7 @@ void ucfg_wlan_vdev_mgr_get_trans_bssid(struct wlan_objmgr_vdev *vdev,
 					uint8_t *addr);
 
 /**
- * ucfg_wlan_vdev_mgr_get_tsf_adjust() – ucfg MLME API to
+ * ucfg_wlan_vdev_mgr_get_tsf_adjust() - ucfg MLME API to
  * get tsf_adjust from mlme vdev mgr component
  * @vdev: pointer to vdev object
  * @tsf_adjust: pointer to store the tsf adjust value
@@ -236,7 +236,7 @@ void ucfg_wlan_vdev_mgr_get_tsf_adjust(struct wlan_objmgr_vdev *vdev,
 QDF_STATUS ucfg_vdev_mgr_cdp_vdev_attach(struct wlan_objmgr_vdev *vdev);
 
 /**
- * vdev_mgr_cdp_vdev_detach() - ucfg MLME API to detach CDP vdev
+ * ucfg_vdev_mgr_cdp_vdev_detach() - ucfg MLME API to detach CDP vdev
  * @vdev: pointer to vdev object
  *
  * Return: QDF_STATUS - Success or Failure

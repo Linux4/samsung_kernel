@@ -73,6 +73,51 @@ struct hdd_tsf_op_response {
 };
 
 /**
+ * enum hdd_tsf_auto_rpt_source - trigger source of tsf auto report
+ * @HDD_TSF_AUTO_RPT_SOURCE_UPLINK_DELAY: uplink delay feature
+ * @HDD_TSF_AUTO_RPT_SOURCE_TX_LATENCY: transmit latency statistics
+ */
+enum hdd_tsf_auto_rpt_source {
+	HDD_TSF_AUTO_RPT_SOURCE_UPLINK_DELAY,
+	HDD_TSF_AUTO_RPT_SOURCE_TX_LATENCY,
+};
+
+#ifdef WLAN_FEATURE_TSF_AUTO_REPORT
+/**
+ * hdd_set_tsf_auto_report() - enable or disable tsf auto report
+ * for an adapter
+ * @adapter: pointer to Adapter context
+ * @ena: requesting state (true or false)
+ * @source: source of the request
+ *
+ * Return: 0 for success or non-zero negative failure code
+ */
+int
+hdd_set_tsf_auto_report(struct hdd_adapter *adapter, bool ena,
+			enum hdd_tsf_auto_rpt_source source);
+
+/**
+ * hdd_tsf_auto_report_init() - initialize tsf auto report related
+ * structures for an adapter
+ * @adapter: pointer to Adapter context
+ *
+ * Return: None
+ */
+void hdd_tsf_auto_report_init(struct hdd_adapter *adapter);
+#else
+static inline int
+hdd_set_tsf_auto_report(struct hdd_adapter *adapter, bool ena,
+			enum hdd_tsf_auto_rpt_source source)
+{
+	return -ENOTSUPP;
+}
+
+static inline void hdd_tsf_auto_report_init(struct hdd_adapter *adapter)
+{
+}
+#endif
+
+/**
  * struct hdd_vdev_tsf - Adapter level tsf params
  * @cur_target_time: tsf value received from firmware.
  * @cur_tsf_sync_soc_time: Current SOC time.
@@ -97,7 +142,7 @@ struct hdd_tsf_op_response {
  * @continuous_cap_retry_count: to store the count of continuous capture retry.
  * @tsf_sync_ready_flag: to indicate whether tsf_sync has been initialized.
  * @gpio_tsf_sync_work: work to sync send TSF CAP WMI command.
- * @tsf_auto_report: to indicate if TSF auto report is enabled or not.
+ * @auto_rpt_src: bitmap to record trigger sources of TSF auto report
  */
 struct hdd_vdev_tsf {
 	uint64_t cur_target_time;
@@ -130,8 +175,9 @@ struct hdd_vdev_tsf {
 	qdf_work_t gpio_tsf_sync_work;
 #endif
 #endif /* WLAN_FEATURE_TSF_PLUS */
-#ifdef WLAN_FEATURE_TSF_UPLINK_DELAY
-qdf_atomic_t tsf_auto_report;
+#ifdef WLAN_FEATURE_TSF_AUTO_REPORT
+	unsigned long auto_rpt_src;
+
 #endif /* WLAN_FEATURE_TSF_UPLINK_DELAY */
 };
 
@@ -394,6 +440,16 @@ void hdd_capture_req_timer_expired_handler(void *arg);
 bool hdd_tsf_is_tsf64_tx_set(struct hdd_context *hdd);
 
 /**
+ * hdd_tsf_is_time_sync_enabled_cfg() - check ini configuration
+ * @hdd_ctx: pointer to hdd context
+ *
+ * This function checks tsf configuration for ptp for tsf
+ * sync period
+ * Return: true on enable, false on disable
+ */
+bool hdd_tsf_is_time_sync_enabled_cfg(struct hdd_context *hdd_ctx);
+
+/**
  * hdd_update_dynamic_tsf_sync - Configure TSF mode for vdev
  * @adapter: pointer to hdd adapter
  *
@@ -447,6 +503,12 @@ static inline
 bool hdd_tsf_is_tsf64_tx_set(struct hdd_context *hdd)
 {
 	return FALSE;
+}
+
+static inline
+bool hdd_tsf_is_time_sync_enabled_cfg(struct hdd_context *hdd_ctx)
+{
+	return false;
 }
 
 static inline

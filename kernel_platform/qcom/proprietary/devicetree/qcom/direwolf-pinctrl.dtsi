@@ -2183,6 +2183,20 @@
 		};
 	};
 
+	bt_en_active_1: bt_en_active_1 {
+		mux {
+			pins = "gpio31";
+			function = "gpio";
+		};
+
+		config {
+			pins = "gpio31";
+			drive-strength = <2>;
+			output-low;
+			bias-pull-down;
+		};
+	};
+
 	conn_power_1p8_active: conn_power_1p8_active {
 		mux {
 			pins = "gpio128";

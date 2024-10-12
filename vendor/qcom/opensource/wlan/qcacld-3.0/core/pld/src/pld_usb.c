@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2016-2020 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -45,7 +46,7 @@ atomic_t pld_usb_reg_done;
  * pld_usb_probe() - pld_usb_probe
  * @interface: pointer to usb_interface structure
  * @id: pointer to usb_device_id obtained from the enumerated device
-
+ *
  * Return: int 0 on success and errno on failure.
  */
 static int pld_usb_probe(struct usb_interface *interface,
@@ -215,7 +216,7 @@ static void pld_usb_shutdown(struct usb_interface *interface)
 /**
  * pld_usb_uevent() - update wlan driver status callback function
  * @interface: USB interface
- * @status driver uevent status
+ * @status: driver uevent status
  *
  * This function will be called when platform driver wants to update wlan
  * driver's status.
@@ -264,22 +265,12 @@ struct cnss_usb_wlan_driver pld_usb_ops = {
 #endif
 };
 
-/**
- * pld_usb_register_driver() - registration routine for wlan usb drive
- *
- * Return: int negative error code on failure and 0 on success
- */
 int pld_usb_register_driver(void)
 {
 	pr_info("%s usb_register\n", __func__);
 	return cnss_usb_wlan_register_driver(&pld_usb_ops);
 }
 
-/**
- * pld_usb_unregister_driver() - de-registration routine for wlan usb driver
- *
- * Return: void
- */
 void pld_usb_unregister_driver(void)
 {
 	cnss_usb_wlan_unregister_driver(&pld_usb_ops);
@@ -340,11 +331,6 @@ struct usb_driver pld_usb_ops = {
 	.supports_autosuspend = true,
 };
 
-/**
- * pld_usb_register_driver() - registration routine for wlan usb driver
- *
- * Return: int negative error code on failure and 0 on success
- */
 int pld_usb_register_driver(void)
 {
 	int status;
@@ -364,11 +350,6 @@ int pld_usb_register_driver(void)
 	return status;
 }
 
-/**
- * pld_usb_unregister_driver() - de-registration routine for wlan usb driver
- *
- * Return: void
- */
 void pld_usb_unregister_driver(void)
 {
 	struct pld_context *pld_context;

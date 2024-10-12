@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2017-2019, 2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -59,8 +59,8 @@ QDF_STATUS pmo_psoc_object_created_notification(struct wlan_objmgr_psoc *psoc,
 						void *arg);
 
 /**
- *  pmo_psoc_object_destroyed_notification(): pmo psoc delete handler
- * @psco: psoc which is going to delete by objmgr
+ * pmo_psoc_object_destroyed_notification(): pmo psoc delete handler
+ * @psoc: psoc which is going to delete by objmgr
  * @arg: argument for vdev delete handler
  *
  * PMO, register this api with objmgr to detect psoc is deleted in fwr
@@ -85,6 +85,7 @@ QDF_STATUS pmo_vdev_object_created_notification(struct wlan_objmgr_vdev *vdev,
 /**
  * pmo_vdev_ready() - handles vdev ready in firmware event
  * @vdev: vdev which is ready in firmware
+ * @bridgeaddr: Bridge MAC address
  *
  * Objmgr vdev_create event does not guarantee vdev creation in firmware.
  * Any logic that would normally go in the vdev_create event, but needs to
@@ -92,7 +93,8 @@ QDF_STATUS pmo_vdev_object_created_notification(struct wlan_objmgr_vdev *vdev,
  *
  * Return QDF_STATUS
  */
-QDF_STATUS pmo_vdev_ready(struct wlan_objmgr_vdev *vdev);
+QDF_STATUS pmo_vdev_ready(struct wlan_objmgr_vdev *vdev,
+			  struct qdf_mac_addr *bridgeaddr);
 
 /**
  * pmo_vdev_object_destroyed_notification(): pmo vdev delete handler
@@ -292,6 +294,57 @@ wlan_pmo_get_sap_mode_bus_suspend(struct wlan_objmgr_psoc *psoc);
 bool
 wlan_pmo_get_go_mode_bus_suspend(struct wlan_objmgr_psoc *psoc);
 
+/*
+ * wlan_pmo_enable_ssr_on_page_fault: Enable/disable ssr on pagefault
+ * @psoc: objmgr psoc
+ *
+ * Return: True if SSR is enabled on pagefault
+ */
+bool wlan_pmo_enable_ssr_on_page_fault(struct wlan_objmgr_psoc *psoc);
+
+/*
+ * wlan_pmo_get_max_pagefault_wakeups_for_ssr: get max pagefault wakeups for ssr
+ * @psoc: objmgr psoc
+ *
+ * Return: Max pagefault wakeups for SSR
+ */
+uint8_t
+wlan_pmo_get_max_pagefault_wakeups_for_ssr(struct wlan_objmgr_psoc *psoc);
+
+/*
+ * wlan_pmo_get_interval_for_pagefault_wakeup_counts: get ssr interval for
+ * pagefault
+ * @psoc: objmgr psoc
+ *
+ * Return: SSR interval for pagefault
+ */
+uint32_t
+wlan_pmo_get_interval_for_pagefault_wakeup_counts(
+						struct wlan_objmgr_psoc *psoc);
+
+QDF_STATUS wlan_pmo_get_listen_interval(struct wlan_objmgr_vdev *vdev,
+					uint32_t *listen_interval);
+
+/**
+ * wlan_pmo_set_ps_params() - Set vdev OPM params
+ * @vdev: pointer to vdev object
+ * @ps_params: pointer to OPM params
+ *
+ * Return: None
+ */
+void wlan_pmo_set_ps_params(struct wlan_objmgr_vdev *vdev,
+			    struct pmo_ps_params *ps_params);
+
+/**
+ * wlan_pmo_get_ps_params() - Get vdev OPM params
+ * @vdev: pointer to vdev object
+ * @ps_params: Pointer to get OPM params
+ *
+ * Return: QDF Status
+ */
+QDF_STATUS wlan_pmo_get_ps_params(struct wlan_objmgr_vdev *vdev,
+				  struct pmo_ps_params *ps_params);
+
 #else /* WLAN_POWER_MANAGEMENT_OFFLOAD */
 
 static inline QDF_STATUS pmo_init(void)
@@ -323,7 +376,7 @@ pmo_vdev_object_created_notification(struct wlan_objmgr_vdev *vdev, void *arg)
 }
 
 static inline QDF_STATUS
-pmo_vdev_ready(struct wlan_objmgr_vdev *vdev)
+pmo_vdev_ready(struct wlan_objmgr_vdev *vdev, struct qdf_mac_addr *bridgeaddr)
 {
 	return QDF_STATUS_SUCCESS;
 }
@@ -455,6 +508,42 @@ wlan_pmo_get_go_mode_bus_suspend(struct wlan_objmgr_psoc *psoc)
 	return false;
 }
 
+static inline bool
+wlan_pmo_enable_ssr_on_page_fault(struct wlan_objmgr_psoc *psoc)
+{
+	return 0;
+}
+
+static inline uint8_t
+wlan_pmo_get_max_pagefault_wakeups_for_ssr(struct wlan_objmgr_psoc *psoc)
+{
+	return 0;
+}
+
+static inline uint32_t
+wlan_pmo_get_interval_for_pagefault_wakeup_counts(struct wlan_objmgr_psoc *psoc)
+{
+	return 0;
+}
+
+static QDF_STATUS wlan_pmo_get_listen_interval(struct wlan_objmgr_vdev *vdev,
+					       uint32_t *listen_interval)
+{
+	return QDF_STATUS_SUCCESS;
+}
+
+static inline
+void wlan_pmo_set_ps_params(struct wlan_objmgr_vdev *vdev,
+			    struct pmo_ps_params *ps_params)
+{
+}
+
+static inline QDF_STATUS
+wlan_pmo_get_ps_params(struct wlan_objmgr_vdev *vdev,
+		       struct pmo_ps_params *ps_params)
+{
+	return QDF_STATUS_SUCCESS;
+}
 #endif /* WLAN_POWER_MANAGEMENT_OFFLOAD */
 
 #endif /* end  of _WLAN_PMO_OBJ_MGMT_API_H_ */

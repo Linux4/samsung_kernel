@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2011-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -115,12 +115,6 @@ struct csr_channel {
 	uint32_t channel_freq_list[CFG_VALID_CHANNEL_LIST_LEN];
 };
 
-struct bss_config_param {
-	tSirMacSSid SSID;
-	enum csr_cfgdot11mode uCfgDot11Mode;
-	tSirMacCapabilityInfo BssCap;
-};
-
 struct roam_cmd {
 	enum csr_roam_reason roamReason;
 	tSirMacAddr peerMac;
@@ -173,12 +167,9 @@ struct csr_channel_powerinfo {
 struct csr_scanstruct {
 	struct csr_channel channels11d;
 	struct channel_power defaultPowerTable[CFG_VALID_CHANNEL_LIST_LEN];
-	uint32_t numChannelsDefault;
 	struct csr_channel base_channels;  /* The channel base to work on */
 	tDblLinkList channelPowerInfoList24;
 	tDblLinkList channelPowerInfoList5G;
-	uint8_t countryCodeDefault[REG_ALPHA2_LEN + 1];
-	uint8_t countryCodeCurrent[REG_ALPHA2_LEN + 1];
 	/*
 	 * Customer wants to optimize the scan time. Avoiding scans(passive)
 	 * on DFS channels while swipping through both bands can save some time
@@ -453,7 +444,7 @@ QDF_STATUS csr_change_default_config_param(struct mac_context *mac,
 		struct csr_config_params *pParam);
 QDF_STATUS csr_msg_processor(struct mac_context *mac, void *msg_buf);
 QDF_STATUS csr_open(struct mac_context *mac);
-QDF_STATUS csr_init_chan_list(struct mac_context *mac, uint8_t *alpha2);
+QDF_STATUS csr_init_chan_list(struct mac_context *mac);
 QDF_STATUS csr_close(struct mac_context *mac);
 QDF_STATUS csr_start(struct mac_context *mac);
 QDF_STATUS csr_stop(struct mac_context *mac);
@@ -487,10 +478,21 @@ uint32_t csr_get_beaconing_concurrent_channel(struct mac_context *mac_ctx,
 					      uint8_t vdev_id_to_skip);
 
 #ifdef FEATURE_WLAN_MCC_TO_SCC_SWITCH
-uint16_t csr_check_concurrent_channel_overlap(
-		struct mac_context *mac,
-		uint32_t sap_ch_freq, eCsrPhyMode sap_phymode,
-		uint8_t cc_switch_mode, uint8_t vdev_id);
+/**
+ * csr_check_concurrent_channel_overlap() - To check concurrent overlap chnls
+ * @mac: Pointer to mac context
+ * @sap_freq: Requested SAP freq
+ * @sap_phymode: SAP phy mode
+ * @cc_switch_mode: concurrent switch mode
+ * @vdev_id: vdev id of SAP/GO requesting
+ *
+ * This routine will be called to check concurrent overlap channels
+ *
+ * Return: uint16_t
+ */
+uint16_t csr_check_concurrent_channel_overlap(struct mac_context *mac,
+				uint32_t sap_freq, eCsrPhyMode sap_phymode,
+				uint8_t cc_switch_mode, uint8_t vdev_id);
 #endif
 
 /* Returns whether the current association is a 11r assoc or not */
@@ -628,4 +630,15 @@ csr_roam_auth_offload_callback(struct mac_context *mac_ctx,
 QDF_STATUS csr_invoke_neighbor_report_request(uint8_t session_id,
 				struct sRrmNeighborReq *neighbor_report_req,
 				bool send_resp_to_host);
+
+/**
+ * csr_set_vdev_ies_per_band() - sends the per band IEs to vdev
+ * @mac_handle: Opaque handle to the global MAC context
+ * @vdev_id: vdev_id for which IE is targeted
+ * @device_mode: vdev mode
+ *
+ * Return: None
+ */
+void csr_set_vdev_ies_per_band(mac_handle_t mac_handle, uint8_t vdev_id,
+			       enum QDF_OPMODE device_mode);
 #endif

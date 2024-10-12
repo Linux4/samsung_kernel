@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2012-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -83,14 +83,14 @@ __wlan_hdd_cfg80211_monitor_rssi(struct wiphy *wiphy,
 		return -EPERM;
 	}
 
-	if (wlan_hdd_validate_vdev_id(adapter->vdev_id))
+	if (wlan_hdd_validate_vdev_id(adapter->deflink->vdev_id))
 		return -EINVAL;
 
 	ret = wlan_hdd_validate_context(hdd_ctx);
 	if (ret)
 		return ret;
 
-	if (!hdd_cm_is_vdev_associated(adapter)) {
+	if (!hdd_cm_is_vdev_associated(adapter->deflink)) {
 		hdd_err("Not in Connected state!");
 		return -ENOTSUPP;
 	}
@@ -112,7 +112,7 @@ __wlan_hdd_cfg80211_monitor_rssi(struct wiphy *wiphy,
 	}
 
 	req.request_id = nla_get_u32(tb[PARAM_REQUEST_ID]);
-	req.vdev_id = adapter->vdev_id;
+	req.vdev_id = adapter->deflink->vdev_id;
 	control = nla_get_u32(tb[PARAM_CONTROL]);
 
 	if (control == QCA_WLAN_RSSI_MONITORING_START) {
@@ -190,6 +190,8 @@ void hdd_rssi_threshold_breached(hdd_handle_t hdd_handle,
 {
 	struct hdd_context *hdd_ctx  = hdd_handle_to_context(hdd_handle);
 	struct sk_buff *skb;
+	enum qca_nl80211_vendor_subcmds_index index =
+		QCA_NL80211_VENDOR_SUBCMD_MONITOR_RSSI_INDEX;
 
 	hdd_enter();
 
@@ -200,11 +202,10 @@ void hdd_rssi_threshold_breached(hdd_handle_t hdd_handle,
 		return;
 	}
 
-	skb = cfg80211_vendor_event_alloc(hdd_ctx->wiphy,
-				  NULL,
-				  EXTSCAN_EVENT_BUF_SIZE + NLMSG_HDRLEN,
-				  QCA_NL80211_VENDOR_SUBCMD_MONITOR_RSSI_INDEX,
-				  GFP_KERNEL);
+	skb = wlan_cfg80211_vendor_event_alloc(hdd_ctx->wiphy, NULL,
+					       EXTSCAN_EVENT_BUF_SIZE +
+					       NLMSG_HDRLEN,
+					       index, GFP_KERNEL);
 
 	if (!skb) {
 		hdd_err("mem alloc failed");
@@ -226,10 +227,10 @@ void hdd_rssi_threshold_breached(hdd_handle_t hdd_handle,
 		goto fail;
 	}
 
-	cfg80211_vendor_event(skb, GFP_KERNEL);
+	wlan_cfg80211_vendor_event(skb, GFP_KERNEL);
 	return;
 
 fail:
-	kfree_skb(skb);
+	wlan_cfg80211_vendor_free_skb(skb);
 }
 

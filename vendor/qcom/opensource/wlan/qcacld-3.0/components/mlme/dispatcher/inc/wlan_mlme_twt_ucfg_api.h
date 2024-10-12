@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -246,7 +246,7 @@ ucfg_mlme_get_twt_bcast_requestor(struct wlan_objmgr_psoc *psoc,
 QDF_STATUS
 ucfg_mlme_get_twt_bcast_responder(struct wlan_objmgr_psoc *psoc,
 				  bool *val);
-/**
+/*
  * 1. If both of the new service caps
  * WMI_SERVICE_BROADCAST_TWT_REQUESTER And
  * WMI_SERVICE_BROADCAST_TWT_RESPONDER are enabled then the old
@@ -780,14 +780,6 @@ ucfg_mlme_set_twt_requestor_flag(struct wlan_objmgr_psoc *psoc,
 static inline QDF_STATUS
 ucfg_mlme_set_twt_responder_flag(struct wlan_objmgr_psoc *psoc,
 				 bool val)
-{
-	return QDF_STATUS_E_NOSUPPORT;
-}
-
-static inline QDF_STATUS
-ucfg_mlme_reset_twt_reset_cmd(struct wlan_objmgr_psoc *psoc,
-			      struct qdf_mac_addr *peer_mac,
-			      uint8_t dialog_id)
 {
 	return QDF_STATUS_E_NOSUPPORT;
 }

@@ -106,6 +106,19 @@ mlo_roam_get_link_freq_from_mac_addr(struct roam_offload_synch_ind *sync_ind,
 				     uint8_t *link_mac_addr);
 
 /**
+ * mlo_roam_get_link_id_from_mac_addr - get link id of given link addr
+ * @sync_ind: roam sync ind pointer
+ * @link_mac_addr: Link mac address
+ * @link_id: Buffer to fill link corresponds to link mac address
+ *
+ * This api will be called to get the link id
+ *
+ * Return: QDF_STATUS
+ */
+QDF_STATUS
+mlo_roam_get_link_id_from_mac_addr(struct roam_offload_synch_ind *sync_ind,
+				   uint8_t *link_mac_addr, uint32_t *link_id);
+/**
  * mlo_roam_get_link_id - get link id
  *
  * @vdev_id: vdev id
@@ -160,15 +173,18 @@ QDF_STATUS mlo_enable_rso(struct wlan_objmgr_pdev *pdev,
 /**
  * mlo_roam_copy_partner_info - copy partner link info to connect response
  *
+ * @partner_info: Destination buffer to fill partner info from roam sync ind
  * @sync_ind: roam sync ind pointer
- * @connect_rsp: connect resp structure pointer
+ * @skip_vdev_id: Skip to copy the link info corresponds to this vdev_id
+ * @fill_all_links: Fill all the links for connect response to userspace
  *
  * This api will be called to copy partner link info to connect response.
  *
  * Return: none
  */
-void mlo_roam_copy_partner_info(struct wlan_cm_connect_resp *connect_rsp,
-				struct roam_offload_synch_ind *sync_ind);
+void mlo_roam_copy_partner_info(struct mlo_partner_info *partner_info,
+				struct roam_offload_synch_ind *sync_ind,
+				uint8_t skip_vdev_id, bool fill_all_links);
 
 /**
  * mlo_roam_init_cu_bpcc() - init cu bpcc per roam sync data
@@ -322,6 +338,20 @@ void mlo_roam_free_copied_reassoc_rsp(struct wlan_objmgr_vdev *vdev);
 
 #ifdef WLAN_FEATURE_11BE_MLO_ADV_FEATURE
 /**
+ * mlo_mgr_roam_update_ap_link_info() - Update AP links information
+ * @vdev: Object Manager vdev
+ * @src_link_info: Source link setup information
+ * @channel: Channel information
+ *
+ * Update AP link information for each link of AP MLD
+ *
+ * Return: None
+ */
+void mlo_mgr_roam_update_ap_link_info(struct wlan_objmgr_vdev *vdev,
+				      struct ml_setup_link_param *src_link_info,
+				      struct wlan_channel *channel);
+
+/**
  * mlo_cm_roam_sync_cb - Callback function from CM to MLO mgr
  *
  * @vdev: vdev pointer
@@ -361,10 +391,22 @@ wlan_mlo_roam_abort_on_link(struct wlan_objmgr_psoc *psoc,
  * This api will check if all the requested links are  in CM connected
  * state.
  *
- * Return: QDF_STATUS
+ * Return: bool, true: all links of mld connected
  */
 bool
 mlo_check_if_all_links_up(struct wlan_objmgr_vdev *vdev);
+
+/**
+ * mlo_check_if_all_vdev_up - Check if all vdev are up
+ * @vdev: vdev pointer
+ *
+ * This api will check if all the requested vdev are  in up
+ * state.
+ *
+ * Return: bool, true: all assoc/link vdevs of mld in UP state
+ */
+bool
+mlo_check_if_all_vdev_up(struct wlan_objmgr_vdev *vdev);
 
 /**
  * mlo_roam_set_link_id - set link id post roaming
@@ -393,6 +435,45 @@ mlo_roam_set_link_id(struct wlan_objmgr_vdev *vdev,
 bool
 mlo_is_roaming_in_progress(struct wlan_objmgr_psoc *psoc,
 			   uint8_t vdev_id);
+
+/**
+ * mlo_add_all_link_probe_rsp_to_scan_db - Extract and add all ML link probe
+ * rsps to scan db
+ * @psoc: psoc pointer
+ * @rcvd_frame: Received frame from firmware
+ *
+ * This api will be called to generate ML probe responses corresponds to each
+ * link from the received probe response and add them to scan db
+ *
+ * Return: QDF_STATUS
+ */
+QDF_STATUS
+mlo_add_all_link_probe_rsp_to_scan_db(struct wlan_objmgr_psoc *psoc,
+			      struct roam_scan_candidate_frame *rcvd_frame);
+
+/**
+ * mlo_is_enable_roaming_on_connected_sta_allowed() - whether connected STA is
+ * allowed to enable roaming if link vdev disconnects
+ * @vdev: vdev object
+ *
+ * Return: true if connected STA is allowed to enable roaming, false otherwise.
+ */
+bool
+mlo_is_enable_roaming_on_connected_sta_allowed(struct wlan_objmgr_vdev *vdev);
+
+/**
+ * mlo_check_is_given_vdevs_on_same_mld() - check if the 2 given vdev's are on
+ * same MLD
+ * @psoc: PSOC object
+ * @vdev_id_1: Current connected station vdev id on which roaming is to be
+ * enabled
+ * @vdev_id_2: vdev id on which disconnection is happening
+ *
+ * Return: true if both vdev ids are on same MLD, false otherwise.
+ */
+bool
+mlo_check_is_given_vdevs_on_same_mld(struct wlan_objmgr_psoc *psoc,
+				     uint8_t vdev_id_1, uint8_t vdev_id_2);
 #else /* WLAN_FEATURE_11BE_MLO */
 #ifdef WLAN_FEATURE_ROAM_OFFLOAD
 static inline
@@ -426,6 +507,13 @@ mlo_roam_get_link_id(uint8_t vdev_id,
 }
 
 #ifdef WLAN_FEATURE_11BE_MLO_ADV_FEATURE
+/**
+ * mlo_cm_roam_sync_cb() - MLO callback to handle roam synch event
+ * for MLO vdev
+ * @vdev: Pointer to objmgr vdev
+ * @event: Pointer to event
+ * @event_data_len: event data length
+ */
 QDF_STATUS mlo_cm_roam_sync_cb(struct wlan_objmgr_vdev *vdev,
 			       void *event, uint32_t event_data_len);
 #else
@@ -458,8 +546,9 @@ QDF_STATUS mlo_enable_rso(struct wlan_objmgr_pdev *pdev,
 }
 
 static inline void
-mlo_roam_copy_partner_info(struct wlan_cm_connect_resp *connect_rsp,
-			   struct roam_offload_synch_ind *sync_ind)
+mlo_roam_copy_partner_info(struct mlo_partner_info *partner_info,
+			   struct roam_offload_synch_ind *sync_ind,
+			   uint8_t skip_vdev_id, bool fill_all_links)
 {}
 
 static inline
@@ -507,6 +596,12 @@ mlo_check_if_all_links_up(struct wlan_objmgr_vdev *vdev)
 	return false;
 }
 
+static inline bool
+mlo_check_if_all_vdev_up(struct wlan_objmgr_vdev *vdev)
+{
+	return false;
+}
+
 static inline void
 mlo_roam_set_link_id(struct wlan_objmgr_vdev *vdev,
 		     struct roam_offload_synch_ind *sync_ind)
@@ -547,10 +642,19 @@ mlo_get_link_mac_addr_from_reassoc_rsp(struct wlan_objmgr_vdev *vdev,
 	return QDF_STATUS_E_NOSUPPORT;
 }
 
+static inline
+void mlo_mgr_roam_update_ap_link_info(struct wlan_objmgr_vdev *vdev,
+				      struct ml_setup_link_param *src_info,
+				      struct wlan_channel *channel)
+{}
+
 static inline uint32_t
 mlo_roam_get_link_freq_from_mac_addr(struct roam_offload_synch_ind *sync_ind,
 				     uint8_t *link_mac_addr)
 {
+	if (sync_ind)
+		return sync_ind->chan_freq;
+
 	return 0;
 }
 
@@ -560,5 +664,19 @@ mlo_is_roaming_in_progress(struct wlan_objmgr_psoc *psoc,
 {
 	return false;
 }
+
+static inline bool
+mlo_is_enable_roaming_on_connected_sta_allowed(struct wlan_objmgr_vdev *vdev)
+{
+	return true;
+}
+
+static inline bool
+mlo_check_is_given_vdevs_on_same_mld(struct wlan_objmgr_psoc *psoc,
+				     uint8_t vdev_id_1, uint8_t vdev_id_2)
+{
+	return false;
+}
+
 #endif /* WLAN_FEATURE_11BE_MLO */
 #endif

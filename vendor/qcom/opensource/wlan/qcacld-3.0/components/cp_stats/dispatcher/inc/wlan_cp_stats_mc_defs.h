@@ -21,7 +21,7 @@
  * DOC: wlan_cp_stats_mc_defs.h
  *
  * This file provide definition for structure/enums/defines related to control
- * path stats componenet
+ * path stats component
  */
 
 #ifndef __WLAN_CP_STATS_MC_DEFS_H__
@@ -332,6 +332,24 @@ struct pdev_mc_cp_extd_stats {
 	uint32_t rx_other_11ax_msdu_cnt;
 };
 
+/* Max supported bandwidth is 320Mhz, so max 16 subbands for 20Mhz */
+#define MAX_WIDE_BAND_SCAN_CHAN 16
+
+/**
+ * struct wide_band_scan_chan_info - wide band scan channel info
+ * @vdev_id: vdev id
+ * @num_chan: number of channels (for each subbands fo 20Mhz)
+ * @is_wide_band_scan: wide band scan or not
+ * @cca_busy_subband_info: CCA busy for each possible 20Mhz subbands
+ * of the wideband scan channel
+ */
+struct wide_band_scan_chan_info {
+	uint32_t vdev_id;
+	uint8_t num_chan;
+	bool is_wide_band_scan;
+	uint32_t cca_busy_subband_info[MAX_WIDE_BAND_SCAN_CHAN];
+};
+
 /**
  * struct channel_status
  * @channel_freq: Channel freq
@@ -347,6 +365,7 @@ struct pdev_mc_cp_extd_stats {
  * @mac_clk_mhz: sample frequency
  * @channel_id: channel index
  * @cmd_flags: indicate which stat event is this status coming from
+ * @subband_info: wide band scan channel info
  */
 struct channel_status {
 	uint32_t    channel_freq;
@@ -362,6 +381,7 @@ struct channel_status {
 	uint32_t    mac_clk_mhz;
 	uint32_t    channel_id;
 	uint32_t    cmd_flags;
+	struct wide_band_scan_chan_info subband_info;
 };
 
 /**
@@ -442,12 +462,25 @@ struct pmf_bcn_protect_stats {
 };
 
 /**
+ * struct vdev_summary_extd_stats - vdev summary extended stats
+ * @vdev_id: vdev_id of the event
+ * @is_mlo_vdev_active: is the mlo vdev currently active
+ * @vdev_tx_power: vdev tx power
+ */
+struct vdev_summary_extd_stats {
+	uint8_t vdev_id;
+	bool is_mlo_vdev_active;
+	uint32_t vdev_tx_power;
+};
+
+/**
  * struct vdev_mc_cp_stats - vdev specific stats
  * @cca: cca stats
  * @tx_rate_flags: tx rate flags (enum tx_rate_info)
  * @chain_rssi: chain rssi
  * @vdev_summary_stats: vdev's summary stats
  * @pmf_bcn_stats: pmf beacon protect stats
+ * @vdev_extd_stats: vdev summary extended stats
  */
 struct vdev_mc_cp_stats {
 	struct cca_stats cca;
@@ -455,6 +488,7 @@ struct vdev_mc_cp_stats {
 	int8_t chain_rssi[MAX_NUM_CHAINS];
 	struct summary_stats vdev_summary_stats;
 	struct pmf_bcn_protect_stats pmf_bcn_stats;
+	struct vdev_summary_extd_stats vdev_extd_stats;
 };
 
 /**
@@ -743,9 +777,12 @@ struct peer_stats_info_ext_event {
  * @tx_rate_flags: tx rate flags, (enum tx_rate_info)
  * @last_event: The LSB indicates if the event is the last event or not and the
  *              MSB indicates if this feature is supported by FW or not.
+ * @mac_seq_num: sequence number of event when fw update to host
  * @num_peer_stats_info_ext: number of peer extended stats info
  * @peer_stats_info_ext: peer extended stats info
  * @bcn_protect_stats: pmf bcn protect stats
+ * @num_vdev_extd_stats: number of vdev extended stats
+ * @vdev_extd_stats: if populated indicates array of ext summary stats per vdev
  */
 struct stats_event {
 	uint32_t num_pdev_stats;
@@ -771,9 +808,12 @@ struct stats_event {
 	uint32_t rx_rate;
 	enum tx_rate_info tx_rate_flags;
 	uint32_t last_event;
+	uint8_t mac_seq_num;
 	uint32_t num_peer_stats_info_ext;
 	struct peer_stats_info_ext_event *peer_stats_info_ext;
 	struct pmf_bcn_protect_stats bcn_protect_stats;
+	uint32_t num_vdev_extd_stats;
+	struct vdev_summary_extd_stats *vdev_extd_stats;
 };
 
 /**

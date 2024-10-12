@@ -260,6 +260,7 @@ typedef struct sLimMlmAssocInd {
 	tDot11fIEHTCaps ht_caps;
 	tDot11fIEVHTCaps vht_caps;
 	bool he_caps_present;
+	bool eht_caps_present;
 	bool is_sae_authenticated;
 #ifdef WLAN_FEATURE_11BE_MLO
 	tSirMacAddr peer_mld_addr;
@@ -454,12 +455,12 @@ void lim_process_beacon_eht(struct mac_context *mac_ctx,
 /**
  * lim_process_beacon_eht_op() - process beacon 11be eht op IE
  * @session: pe session
- * @eht_op: pointer to eht op IE
+ * @bcn_ptr: pointer to bcn ptr
  *
  * Return none
  */
 void lim_process_beacon_eht_op(struct pe_session *session,
-			       tDot11fIEeht_op *eht_op);
+			       struct sSirProbeRespBeacon *bcn_ptr);
 #else
 static inline
 void lim_process_beacon_eht(struct mac_context *mac_ctx,
@@ -470,7 +471,7 @@ void lim_process_beacon_eht(struct mac_context *mac_ctx,
 
 static inline
 void lim_process_beacon_eht_op(struct pe_session *session,
-			       tDot11fIEeht_op *eht_op)
+			       struct sSirProbeRespBeacon *bcn_ptr)
 {
 }
 #endif
@@ -1351,9 +1352,9 @@ void lim_wpspbc_close(struct mac_context *mac, struct pe_session *pe_session);
 #define LIM_WPS_OVERLAP_TIMER_MS                 10000
 
 void lim_process_disassoc_ack_timeout(struct mac_context *mac);
-void lim_process_deauth_ack_timeout(struct mac_context *mac);
+void lim_process_deauth_ack_timeout(void *pMacGlobal, uint32_t vdev_id);
 QDF_STATUS lim_send_disassoc_cnf(struct mac_context *mac);
-QDF_STATUS lim_send_deauth_cnf(struct mac_context *mac);
+QDF_STATUS lim_send_deauth_cnf(struct mac_context *mac, uint8_t vdev_id);
 
 /**
  * lim_disassoc_tx_complete_cnf() - callback to indicate Tx completion
@@ -1416,16 +1417,6 @@ QDF_STATUS lim_process_sme_del_all_tdls_peers(struct mac_context *p_mac,
  */
 void lim_send_bcn_rsp(struct mac_context *mac_ctx, tpSendbeaconParams rsp);
 
-/**
- * lim_process_rx_channel_status_event() - processes
- * event WDA_RX_CHN_STATUS_EVENT
- * @mac_ctx Pointer to Global MAC structure
- * @buf: Received message info
- *
- * Return: None
- */
-void lim_process_rx_channel_status_event(struct mac_context *mac_ctx, void *buf);
-
 /* / Bit value data structure */
 typedef enum sHalBitVal         /* For Bit operations */
 {
@@ -1443,6 +1434,7 @@ typedef enum sHalBitVal         /* For Bit operations */
  * @amsdu_support: amsdu in ampdu support
  * @is_wep: protected bit in fc
  * @calc_buff_size: Calculated buf size from peer and self capabilities
+ * @bssid: peer BSSID
  *
  * This function is called when ADDBA request is successful. ADDBA response is
  * setup by calling addba_response_setup API and frame is then sent out OTA.
@@ -1454,7 +1446,8 @@ QDF_STATUS lim_send_addba_response_frame(struct mac_context *mac_ctx,
 					 struct pe_session *session,
 					 uint8_t addba_extn_present,
 					 uint8_t amsdu_support, uint8_t is_wep,
-					 uint16_t calc_buff_size);
+					 uint16_t calc_buff_size,
+					 tSirMacAddr bssid);
 
 /**
  * lim_send_delba_action_frame() - Send delba to peer
@@ -1473,6 +1466,23 @@ QDF_STATUS lim_send_delba_action_frame(struct mac_context *mac_ctx,
 
 #ifdef WLAN_FEATURE_11BE_MLO
 /**
+ * lim_send_t2lm_action_req_frame() - Send T2LM negotiation request to peer
+ * @vdev: vdev pointer
+ * @peer_mac: Peer mac addr
+ * @args: Pointer to action frame args
+ * @ongoing_t2lm_neg: T2LM negotiation request
+ * @token: Dialog token
+ *
+ * Return: 0 for success, non-zero for failure
+ */
+QDF_STATUS
+lim_send_t2lm_action_req_frame(struct wlan_objmgr_vdev *vdev,
+			       uint8_t *peer_mac,
+			       struct wlan_action_frame_args *args,
+			       struct wlan_t2lm_onging_negotiation_info *t2lm_neg,
+			       uint8_t token);
+
+/**
  * lim_send_t2lm_action_rsp_frame() - Send T2LM negotiation response to peer
  * @mac_ctx: mac context
  * @peer_mac: Peer mac addr
@@ -1488,12 +1498,82 @@ lim_send_t2lm_action_rsp_frame(struct mac_context *mac_ctx,
 			       struct pe_session *session,
 			       uint8_t token,
 			       enum wlan_t2lm_resp_frm_type status_code);
+
+/**
+ * lim_send_epcs_update_edca_params() - Wrapper for EPCS update edca
+ * @vdev: vdev object
+ * @edca: the pointer of edca parameters
+ * @mu_edca: the flag of mu edca
+ *
+ * Return: 0 for success, non-zero for failure
+ */
+QDF_STATUS
+lim_send_epcs_update_edca_params(struct wlan_objmgr_vdev *vdev,
+				 tSirMacEdcaParamRecord *edca, bool mu_edca);
+
+/**
+ * lim_send_epcs_restore_edca_params() - Restore edca parameters
+ * @vdev: vdev object
+ *
+ * Return: 0 for success, non-zero for failure
+ */
+QDF_STATUS
+lim_send_epcs_restore_edca_params(struct wlan_objmgr_vdev *vdev);
+
+/**
+ * lim_send_epcs_action_rsp_frame() - Send EPCS action response frame
+ * @vdev: vdev object
+ * @peer_mac: peer mac address pointer
+ * @args: the pointer of action frame args
+ *
+ * Return: 0 for success, non-zero for failure
+ */
+QDF_STATUS
+lim_send_epcs_action_rsp_frame(struct wlan_objmgr_vdev *vdev,
+			       uint8_t *peer_mac,
+			       struct wlan_action_frame_args *args);
+
+/**
+ * lim_send_epcs_action_req_frame() - Send EPCS action request frame
+ * @vdev: vdev object
+ * @peer_mac: peer mac address pointer
+ * @args: the pointer of action frame args
+ *
+ * Return: 0 for success, non-zero for failure
+ */
+QDF_STATUS
+lim_send_epcs_action_req_frame(struct wlan_objmgr_vdev *vdev,
+			       uint8_t *peer_mac,
+			       struct wlan_action_frame_args *args);
+
+/**
+ * lim_send_epcs_action_teardown_frame() - Send EPCS action teardown frame
+ * @vdev: vdev object
+ * @peer_mac: peer mac address pointer
+ * @args: the pointer of action frame args
+ *
+ * Return: 0 for success, non-zero for failure
+ */
+QDF_STATUS
+lim_send_epcs_action_teardown_frame(struct wlan_objmgr_vdev *vdev,
+				    uint8_t *peer_mac,
+				    struct wlan_action_frame_args *args);
 #else
 static inline QDF_STATUS
 lim_send_t2lm_action_rsp_frame(struct mac_context *mac_ctx,
 			       tSirMacAddr peer_mac,
 			       struct pe_session *session, uint8_t token,
 			       enum wlan_t2lm_resp_frm_type status_code)
+{
+	return QDF_STATUS_SUCCESS;
+}
+
+static inline QDF_STATUS
+lim_send_t2lm_action_req_frame(struct wlan_objmgr_vdev *vdev,
+			       uint8_t *peer_mac,
+			       struct wlan_action_frame_args *args,
+			       struct wlan_t2lm_onging_negotiation_info *t2lm_neg,
+			       uint8_t token)
 {
 	return QDF_STATUS_SUCCESS;
 }
@@ -1545,6 +1625,15 @@ void lim_process_assoc_failure_timeout(struct mac_context *mac_ctx,
  * @Return: None
  */
 void lim_process_sae_auth_timeout(struct mac_context *mac_ctx);
+
+/**
+ * lim_process_rrm_sta_stats_rsp_timeout() - This function is called to process
+ * sta stats response timeout
+ * @mac_ctx: Pointer to Global MAC structure
+ *
+ * @Return: None
+ */
+void lim_process_rrm_sta_stats_rsp_timeout(struct mac_context *mac_ctx);
 
 /**
  * lim_send_frame() - API to send frame

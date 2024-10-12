@@ -68,6 +68,8 @@ CONFIG_CAMERA_HW_ERROR_DETECT := y
 CONFIG_SAMSUNG_FRONT_TOP :=y
 CONFIG_SAMSUNG_FRONT_TOP_EEPROM :=y
 CONFIG_SAMSUNG_OIS_ADC_TEMPERATURE_SUPPORT :=y
+CONFIG_SOF_FREEZE_FRAME_CNT_READ :=y
+CONFIG_ACTUATOR_RETRY_SUPPORT :=y
 endif
 
 ifeq ($(PROJECT_NAME), $(filter $(PROJECT_NAME),b5q e5q))
@@ -78,6 +80,7 @@ CONFIG_CAMERA_CDR_TEST := y
 CONFIG_CAMERA_HW_ERROR_DETECT := y
 CONFIG_SAMSUNG_PMIC_FLASH := y
 CONFIG_SAMSUNG_OIS_ADC_TEMPERATURE_SUPPORT :=y
+CONFIG_SAMSUNG_CAMERA_SENSOR_FLIP :=y
 endif
 
 ifeq ($(PROJECT_NAME), $(filter $(PROJECT_NAME),gts9u gts9uwifi))
@@ -96,12 +99,6 @@ endif
 ifeq ($(PROJECT_NAME), $(filter $(PROJECT_NAME),gts9 gts9wifi))
 CONFIG_SEC_GTS9_PROJECT := y
 CONFIG_HI1337_OTP := y
-endif
-
-ifneq ($(filter jpn%, $(PROJECT_REGION)),)
-CONFIG_FLASH_CURRENT_JAPAN := y
-else ifeq ($(PROJECT_REGION), $(filter $(PROJECT_REGION),jpn_dcmw jpn_kdiw jpn_rktw jpn_openw))
-CONFIG_FLASH_CURRENT_JAPAN := y
 endif
 
 # Flags to pass into C preprocessor
@@ -186,6 +183,8 @@ ccflags-y += -DCONFIG_CAMERA_HW_ERROR_DETECT=1
 ccflags-y += -DCONFIG_SAMSUNG_FRONT_TOP=1
 ccflags-y += -DCONFIG_SAMSUNG_FRONT_TOP_EEPROM=1
 ccflags-y += -DCONFIG_SAMSUNG_OIS_ADC_TEMPERATURE_SUPPORT=1
+ccflags-y += -DCONFIG_SOF_FREEZE_FRAME_CNT_READ=1
+ccflags-y += -DCONFIG_ACTUATOR_RETRY_SUPPORT=1
 endif
 
 ifeq ($(PROJECT_NAME), $(filter $(PROJECT_NAME),b5q e5q))
@@ -196,6 +195,7 @@ ccflags-y += -DCONFIG_CAMERA_CDR_TEST=1
 ccflags-y += -DCONFIG_CAMERA_HW_ERROR_DETECT=1
 ccflags-y += -DCONFIG_SAMSUNG_PMIC_FLASH=1
 ccflags-y += -DCONFIG_SAMSUNG_OIS_ADC_TEMPERATURE_SUPPORT=1
+ccflags-y += -DCONFIG_SAMSUNG_CAMERA_SENSOR_FLIP=1
 endif
 
 ifeq ($(PROJECT_NAME), $(filter $(PROJECT_NAME),gts9u gts9uwifi))
@@ -216,12 +216,6 @@ endif
 ifeq ($(PROJECT_NAME), $(filter $(PROJECT_NAME),gts9 gts9wifi))
 ccflags-y += -DCONFIG_SEC_GTS9_PROJECT=1
 ccflags-y += -DCONFIG_HI1337_OTP=1
-endif
-
-ifneq ($(filter jpn%, $(PROJECT_REGION)),)
-ccflags-y += -DCONFIG_FLASH_CURRENT_JAPAN=1
-else ifeq ($(PROJECT_REGION), $(filter $(PROJECT_REGION),jpn_dcmw jpn_kdiw jpn_rktw jpn_openw))
-ccflags-y += -DCONFIG_FLASH_CURRENT_JAPAN=1
 endif
 
 # External Dependencies

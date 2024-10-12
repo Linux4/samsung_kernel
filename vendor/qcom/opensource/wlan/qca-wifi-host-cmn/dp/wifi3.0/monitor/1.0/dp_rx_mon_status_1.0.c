@@ -47,7 +47,7 @@ QDF_STATUS dp_rx_mon_status_buffers_replenish(struct dp_soc *dp_soc,
 					      uint8_t owner);
 
 /**
- * dp_rx_mon_handle_status_buf_done () - Handle status buf DMA not done
+ * dp_rx_mon_handle_status_buf_done() - Handle status buf DMA not done
  *
  * @pdev: DP pdev handle
  * @mon_status_srng: Monitor status SRNG
@@ -428,7 +428,6 @@ dp_rx_mon_status_process_tlv(struct dp_soc *soc, struct dp_intr *int_ctx,
 	uint8_t *rx_tlv;
 	uint8_t *rx_tlv_start;
 	uint32_t tlv_status = HAL_TLV_STATUS_BUF_DONE;
-	QDF_STATUS enh_log_status = QDF_STATUS_SUCCESS;
 	struct cdp_pdev_mon_stats *rx_mon_stats;
 	int smart_mesh_status;
 	enum WDI_EVENT pktlog_mode = WDI_NO_VAL;
@@ -489,8 +488,11 @@ dp_rx_mon_status_process_tlv(struct dp_soc *soc, struct dp_intr *int_ctx,
 				rx_tlv = hal_rx_status_get_next_tlv(rx_tlv,
 						mon_pdev->is_tlv_hdr_64_bit);
 
-				if (qdf_unlikely((rx_tlv - rx_tlv_start)) >=
-					RX_MON_STATUS_BUF_SIZE)
+				if (qdf_unlikely(((rx_tlv - rx_tlv_start) >=
+						RX_MON_STATUS_BUF_SIZE) ||
+						(RX_MON_STATUS_BUF_SIZE -
+						(rx_tlv - rx_tlv_start) <
+						mon_pdev->tlv_hdr_size)))
 					break;
 
 			} while ((tlv_status == HAL_TLV_STATUS_PPDU_NOT_DONE) ||
@@ -525,6 +527,14 @@ dp_rx_mon_status_process_tlv(struct dp_soc *soc, struct dp_intr *int_ctx,
 						pdev, ppdu_info, status_nbuf);
 			if (smart_mesh_status)
 				qdf_nbuf_free(status_nbuf);
+		} else if (qdf_unlikely(IS_LOCAL_PKT_CAPTURE_RUNNING(mon_pdev,
+				is_local_pkt_capture_running))) {
+			int ret;
+
+			ret = dp_rx_handle_local_pkt_capture(pdev, ppdu_info,
+							     status_nbuf);
+			if (ret)
+				qdf_nbuf_free(status_nbuf);
 		} else if (qdf_unlikely(mon_pdev->mcopy_mode)) {
 			dp_rx_process_mcopy_mode(soc, pdev,
 						 ppdu_info, tlv_status,
@@ -534,7 +544,6 @@ dp_rx_mon_status_process_tlv(struct dp_soc *soc, struct dp_intr *int_ctx,
 				qdf_nbuf_free(status_nbuf);
 
 			if (tlv_status == HAL_TLV_STATUS_PPDU_DONE)
-				enh_log_status =
 				dp_rx_handle_enh_capture(soc,
 							 pdev, ppdu_info);
 		} else {
@@ -851,11 +860,9 @@ dp_rx_pdev_mon_status_buffers_alloc(struct dp_pdev *pdev, uint32_t mac_id)
 	struct dp_srng *mon_status_ring;
 	uint32_t num_entries;
 	struct rx_desc_pool *rx_desc_pool;
-	struct wlan_cfg_dp_soc_ctxt *soc_cfg_ctx;
 	union dp_rx_desc_list_elem_t *desc_list = NULL;
 	union dp_rx_desc_list_elem_t *tail = NULL;
 
-	soc_cfg_ctx = soc->wlan_cfg_ctx;
 	mon_status_ring = &soc->rxdma_mon_status_ring[mac_id];
 
 	num_entries = mon_status_ring->num_entries;
@@ -879,9 +886,7 @@ dp_rx_pdev_mon_status_desc_pool_alloc(struct dp_pdev *pdev, uint32_t mac_id)
 	struct dp_srng *mon_status_ring;
 	uint32_t num_entries;
 	struct rx_desc_pool *rx_desc_pool;
-	struct wlan_cfg_dp_soc_ctxt *soc_cfg_ctx;
 
-	soc_cfg_ctx = soc->wlan_cfg_ctx;
 	mon_status_ring = &soc->rxdma_mon_status_ring[mac_id];
 
 	num_entries = mon_status_ring->num_entries;
@@ -890,7 +895,7 @@ dp_rx_pdev_mon_status_desc_pool_alloc(struct dp_pdev *pdev, uint32_t mac_id)
 
 	dp_debug("Mon RX Desc Pool[%d] entries=%u", pdev_id, num_entries);
 
-	rx_desc_pool->desc_type = DP_RX_DESC_STATUS_TYPE;
+	rx_desc_pool->desc_type = QDF_DP_RX_DESC_STATUS_TYPE;
 	return dp_rx_desc_pool_alloc(soc, num_entries + 1, rx_desc_pool);
 }
 
@@ -903,10 +908,8 @@ dp_rx_pdev_mon_status_desc_pool_init(struct dp_pdev *pdev, uint32_t mac_id)
 	struct dp_srng *mon_status_ring;
 	uint32_t num_entries;
 	struct rx_desc_pool *rx_desc_pool;
-	struct wlan_cfg_dp_soc_ctxt *soc_cfg_ctx;
 	struct dp_mon_pdev *mon_pdev = pdev->monitor_pdev;
 
-	soc_cfg_ctx = soc->wlan_cfg_ctx;
 	mon_status_ring = &soc->rxdma_mon_status_ring[mac_id];
 
 	num_entries = mon_status_ring->num_entries;
@@ -1030,6 +1033,7 @@ QDF_STATUS dp_rx_mon_status_buffers_replenish(struct dp_soc *dp_soc,
 	union dp_rx_desc_list_elem_t *next;
 	void *rxdma_srng;
 	struct dp_pdev *dp_pdev = dp_get_pdev_for_lmac_id(dp_soc, mac_id);
+	uint32_t hp, tp;
 
 	if (!dp_pdev) {
 		dp_rx_mon_status_debug("%pK: pdev is null for mac_id = %d",
@@ -1089,8 +1093,19 @@ QDF_STATUS dp_rx_mon_status_buffers_replenish(struct dp_soc *dp_soc,
 		 * to fill in buffer at current HP.
 		 */
 		if (qdf_unlikely(!rx_netbuf)) {
-			dp_rx_mon_status_err("%pK: qdf_nbuf allocate or map fail, count %d",
-					     dp_soc, count);
+			hal_get_sw_hptp(dp_soc->hal_soc, rxdma_srng, &tp, &hp);
+			dp_err("%pK: qdf_nbuf allocate or map fail, count %d hp:%u tp:%u",
+			       dp_soc, count, hp, tp);
+			/*
+			 * If buffer allocation fails on current HP, then
+			 * decrement HP so it will be set to previous index
+			 * where proper buffer is attached.
+			 */
+			hal_srng_src_dec_hp(dp_soc->hal_soc,
+					    rxdma_srng);
+
+			hal_get_sw_hptp(dp_soc->hal_soc, rxdma_srng, &tp, &hp);
+			dp_err("HP adjusted to proper buffer index, hp:%u tp:%u", hp, tp);
 			break;
 		}
 
@@ -1292,18 +1307,18 @@ dp_mon_status_srng_drop_for_mac(struct dp_pdev *pdev, uint32_t mac_id,
 }
 
 uint32_t dp_mon_drop_packets_for_mac(struct dp_pdev *pdev, uint32_t mac_id,
-				     uint32_t quota)
+				     uint32_t quota, bool force_flush)
 {
 	uint32_t work_done;
 
 	work_done = dp_mon_status_srng_drop_for_mac(pdev, mac_id, quota);
-	dp_mon_dest_srng_drop_for_mac(pdev, mac_id);
+	dp_mon_dest_srng_drop_for_mac(pdev, mac_id, force_flush);
 
 	return work_done;
 }
 #else
 uint32_t dp_mon_drop_packets_for_mac(struct dp_pdev *pdev, uint32_t mac_id,
-				     uint32_t quota)
+				     uint32_t quota, bool force_flush)
 {
 	return 0;
 }

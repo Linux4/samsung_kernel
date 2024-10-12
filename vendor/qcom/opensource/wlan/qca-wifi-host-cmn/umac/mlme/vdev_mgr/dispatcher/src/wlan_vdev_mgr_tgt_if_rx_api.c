@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2019-2020 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -34,6 +34,9 @@
 #include <include/wlan_psoc_mlme.h>
 #include <include/wlan_mlme_cmn.h>
 #include <wlan_vdev_mgr_utils_api.h>
+#ifdef WLAN_POLICY_MGR_ENABLE
+#include "wlan_policy_mgr_api.h"
+#endif
 
 void
 tgt_vdev_mgr_reset_response_timer_info(struct wlan_objmgr_psoc *psoc)
@@ -270,7 +273,7 @@ static inline void tgt_vdev_mgr_reg_set_mac_address_response(
 				struct wlan_lmac_if_mlme_rx_ops *mlme_rx_ops)
 {
 	mlme_rx_ops->vdev_mgr_set_mac_addr_response =
-				mlme_vdev_mgr_notify_set_mac_addr_response;
+				wlan_vdev_mlme_notify_set_mac_addr_response;
 }
 #else
 static inline void tgt_vdev_mgr_reg_set_mac_address_response(
@@ -327,6 +330,39 @@ static void tgt_vdev_mgr_set_max_channel_switch_time(
 	}
 }
 
+#ifdef WLAN_POLICY_MGR_ENABLE
+static QDF_STATUS
+tgt_vdev_mgr_csa_received_handler(struct wlan_objmgr_psoc *psoc,
+				  uint8_t vdev_id,
+				  struct csa_offload_params *csa_event)
+{
+	if (!psoc) {
+		mlme_err("PSOC is NULL");
+		return QDF_STATUS_E_INVAL;
+	}
+	if (!csa_event) {
+		mlme_err("CSA IE Received Event is NULL");
+		return QDF_STATUS_E_INVAL;
+	}
+
+	/* If received CSA is with no-TX mode, then only move SAP / GO */
+	if (!csa_event->switch_mode) {
+		mlme_err("CSA IE Received without no-Tx mode, ignoring 1st SAP / GO movement");
+		return QDF_STATUS_E_INVAL;
+	}
+
+	return policy_mgr_sta_sap_dfs_scc_conc_check(psoc, vdev_id, csa_event);
+}
+#else
+static QDF_STATUS
+tgt_vdev_mgr_csa_received_handler(struct wlan_objmgr_psoc *psoc,
+				  uint8_t vdev_id,
+				  struct csa_offload_params *csa_event)
+{
+	return QDF_STATUS_E_NOSUPPORT;
+}
+#endif
+
 #ifdef WLAN_FEATURE_11BE_MLO
 static QDF_STATUS
 tgt_vdev_mgr_quiet_offload_handler(struct wlan_objmgr_psoc *psoc,
@@ -370,6 +406,8 @@ void tgt_vdev_mgr_register_rx_ops(struct wlan_lmac_if_rx_ops *rx_ops)
 		tgt_vdev_mgr_multi_vdev_restart_resp_handler;
 	mlme_rx_ops->vdev_mgr_set_max_channel_switch_time =
 		tgt_vdev_mgr_set_max_channel_switch_time;
+	mlme_rx_ops->vdev_mgr_csa_received =
+		tgt_vdev_mgr_csa_received_handler;
 	tgt_psoc_reg_wakelock_info_rx_op(&rx_ops->mops);
 	tgt_vdev_mgr_reg_set_mac_address_response(mlme_rx_ops);
 	tgt_vdev_mgr_reg_quiet_offload(mlme_rx_ops);

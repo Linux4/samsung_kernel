@@ -51,6 +51,9 @@
 
 #define NON_LRU_SWAPPINESS 99
 
+#define print_hex_dump_fmt(src, size) \
+	print_hex_dump(KERN_ERR, "", DUMP_PREFIX_OFFSET, 16, 1, src, size, 1)
+
 static DEFINE_IDR(zram_index_idr);
 /* idr index must be protected */
 static DEFINE_MUTEX(zram_index_mutex);
@@ -1072,9 +1075,10 @@ static bool zram_should_writeback(struct zram *zram,
 				unsigned long pages, bool trigger)
 {
 	unsigned long stored = atomic64_read(&zram->stats.lru_pages);
-	unsigned long writtenback = atomic64_read(&zram->stats.bd_objcnt) -
-				    atomic64_read(&zram->stats.bd_ppr_objcnt) -
-				    atomic64_read(&zram->stats.bd_expire);
+	long writtenback = max_t(long, 0,
+			atomic64_read(&zram->stats.bd_objcnt) -
+			atomic64_read(&zram->stats.bd_ppr_objcnt) -
+			atomic64_read(&zram->stats.bd_expire));
 	unsigned long min_stored_byte;
 	int writtenback_ratio = stored ? (writtenback * 100) / stored : 0;
 	int min_writtenback_ratio = zram_balance_ratio;
@@ -1174,22 +1178,19 @@ static void print_hex_dump_pages(struct page **src_page, int nr_pages,
 	if (nr_pages == NR_ZWBS && cur_idx != 0) {
 		pr_err("Previous page\n");
 		src = kmap_atomic(src_page[cur_idx - 1]);
-		print_hex_dump(KERN_DEBUG, "", DUMP_PREFIX_OFFSET, 16, 1,
-				src, PAGE_SIZE, 1);
+		print_hex_dump_fmt(src, PAGE_SIZE);
 		kunmap_atomic(src);
 	}
 
 	pr_err("This page\n");
 	src = kmap_atomic(src_page[cur_idx]);
-	print_hex_dump(KERN_DEBUG, "", DUMP_PREFIX_OFFSET, 16, 1, src,
-			PAGE_SIZE, 1);
+	print_hex_dump_fmt(src, PAGE_SIZE);
 	kunmap_atomic(src);
 
 	if (nr_pages == NR_ZWBS && cur_idx != NR_ZWBS - 1) {
 		pr_err("Next page\n");
 		src = kmap_atomic(src_page[cur_idx + 1]);
-		print_hex_dump(KERN_DEBUG, "", DUMP_PREFIX_OFFSET, 16, 1,
-				src, PAGE_SIZE, 1);
+		print_hex_dump_fmt(src, PAGE_SIZE);
 		kunmap_atomic(src);
 	}
 }
@@ -1209,8 +1210,7 @@ static void check_marker(void *addr, int size, struct hex_dump_pages *hdp)
 	if (hdp)
 		print_hex_dump_pages(hdp->pages, hdp->nr_pages, hdp->idx);
 	else
-		print_hex_dump(KERN_DEBUG, "", DUMP_PREFIX_OFFSET, 16, 1, addr,
-				size, 1);
+		print_hex_dump_fmt(addr, size);
 	BUG();
 }
 
@@ -1232,8 +1232,7 @@ static void handle_decomp_fail(char *comp, int err, u32 index, void *src,
 	if (hdp)
 		print_hex_dump_pages(hdp->pages, hdp->nr_pages, hdp->idx);
 	else
-		print_hex_dump(KERN_DEBUG, "", DUMP_PREFIX_OFFSET, 16, 1, src,
-				size, 1);
+		print_hex_dump_fmt(src, size);
 
 	if (is_marker_err)
 		BUG();
@@ -1689,6 +1688,11 @@ static int zram_writeback_list(struct list_head *list)
 		    zram_writeback_index(zram, index, &zram->buf, true))
 			return -EINVAL;
 		zram_slot_lock(zram, index);
+		/* skip touched entry */
+		if (!zram_test_flag(zram, index, ZRAM_UNDER_PPR)) {
+			zram_slot_unlock(zram, index);
+			continue;
+		}
 		zram_clear_flag(zram, index, ZRAM_UNDER_PPR);
 		spin_lock_irqsave(&zram->list_lock, flags);
 		if (!list_empty(&zram->table[index].lru_list))

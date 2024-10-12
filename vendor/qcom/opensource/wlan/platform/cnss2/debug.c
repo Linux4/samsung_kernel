@@ -13,10 +13,38 @@
 
 #define MMIO_REG_ACCESS_MEM_TYPE		0xFF
 #define MMIO_REG_RAW_ACCESS_MEM_TYPE		0xFE
+// The print type has been temporarily changed to Warning for debugging purpose
+#if 0
+#define DEFAULT_KERNEL_LOG_LEVEL               INFO_LOG
+#else
+#define DEFAULT_KERNEL_LOG_LEVEL               MAX_LOG
+#endif
+#define DEFAULT_IPC_LOG_LEVEL			DEBUG_LOG
+
+enum log_level cnss_kernel_log_level = DEFAULT_KERNEL_LOG_LEVEL;
 
 #if IS_ENABLED(CONFIG_IPC_LOGGING)
 void *cnss_ipc_log_context;
 void *cnss_ipc_log_long_context;
+enum log_level cnss_ipc_log_level = DEFAULT_IPC_LOG_LEVEL;
+
+static int cnss_set_ipc_log_level(u32 val)
+{
+	if (val < MAX_LOG) {
+		cnss_ipc_log_level = val;
+		return 0;
+	}
+
+	return -EINVAL;
+}
+
+static u32 cnss_get_ipc_log_level(void)
+{
+	return cnss_ipc_log_level;
+}
+#else
+static int cnss_set_ipc_log_level(int val) { return -EINVAL; }
+static u32 cnss_get_ipc_log_level(void) { return MAX_LOG; }
 #endif
 
 static int cnss_pin_connect_show(struct seq_file *s, void *data)
@@ -757,7 +785,12 @@ static ssize_t cnss_control_params_debug_write(struct file *fp,
 		plat_priv->ctrl_params.bdf_type = val;
 	else if (strcmp(cmd, "time_sync_period") == 0)
 		plat_priv->ctrl_params.time_sync_period = val;
-	else
+	else if (strcmp(cmd, "kern_log_level") == 0) {
+		if (val < MAX_LOG)
+			cnss_kernel_log_level = val;
+	} else if (strcmp(cmd, "ipc_log_level") == 0) {
+		return cnss_set_ipc_log_level(val) ? -EINVAL : count;
+	} else
 		return -EINVAL;
 
 	return count;
@@ -832,6 +865,7 @@ static int cnss_show_quirks_state(struct seq_file *s,
 static int cnss_control_params_debug_show(struct seq_file *s, void *data)
 {
 	struct cnss_plat_data *cnss_priv = s->private;
+	u32 ipc_log_level;
 
 	seq_puts(s, "\nUsage: echo <params_name> <value> > <debugfs_path>/cnss/control_params\n");
 	seq_puts(s, "<params_name> can be one of below:\n");
@@ -850,6 +884,11 @@ static int cnss_control_params_debug_show(struct seq_file *s, void *data)
 	seq_printf(s, "bdf_type: %u\n", cnss_priv->ctrl_params.bdf_type);
 	seq_printf(s, "time_sync_period: %u\n",
 		   cnss_priv->ctrl_params.time_sync_period);
+	seq_printf(s, "kern_log_level: %u\n", cnss_kernel_log_level);
+
+	ipc_log_level = cnss_get_ipc_log_level();
+	if (ipc_log_level != MAX_LOG)
+		seq_printf(s, "ipc_log_level: %u\n", ipc_log_level);
 
 	return 0;
 }
@@ -914,6 +953,39 @@ static const struct file_operations cnss_dynamic_feature_fops = {
 	.llseek = seq_lseek,
 };
 
+static int cnss_smmu_fault_timestamp_show(struct seq_file *s, void *data)
+{
+	struct cnss_plat_data *plat_priv = s->private;
+	struct cnss_pci_data *pci_priv = plat_priv->bus_priv;
+
+	if (!pci_priv)
+		return -ENODEV;
+
+	seq_printf(s, "smmu irq cb entry timestamp : %llu ns\n",
+		   pci_priv->smmu_fault_timestamp[SMMU_CB_ENTRY]);
+	seq_printf(s, "smmu irq cb before doorbell ring timestamp : %llu ns\n",
+		   pci_priv->smmu_fault_timestamp[SMMU_CB_DOORBELL_RING]);
+	seq_printf(s, "smmu irq cb after doorbell ring timestamp : %llu ns\n",
+		   pci_priv->smmu_fault_timestamp[SMMU_CB_EXIT]);
+
+	return 0;
+}
+
+static int cnss_smmu_fault_timestamp_open(struct inode *inode,
+					  struct file *file)
+{
+	return single_open(file, cnss_smmu_fault_timestamp_show,
+			   inode->i_private);
+}
+
+static const struct file_operations cnss_smmu_fault_timestamp_fops = {
+	.read = seq_read,
+	.release = single_release,
+	.open = cnss_smmu_fault_timestamp_open,
+	.owner = THIS_MODULE,
+	.llseek = seq_lseek,
+};
+
 #ifdef CONFIG_DEBUG_FS
 #ifdef CONFIG_CNSS2_DEBUG
 static int cnss_create_debug_only_node(struct cnss_plat_data *plat_priv)
@@ -932,6 +1004,8 @@ static int cnss_create_debug_only_node(struct cnss_plat_data *plat_priv)
 			    &cnss_control_params_debug_fops);
 	debugfs_create_file("dynamic_feature", 0600, root_dentry, plat_priv,
 			    &cnss_dynamic_feature_fops);
+	debugfs_create_file("cnss_smmu_fault_timestamp", 0600, root_dentry,
+			    plat_priv, &cnss_smmu_fault_timestamp_fops);
 
 	return 0;
 }
@@ -992,7 +1066,8 @@ void cnss_debugfs_destroy(struct cnss_plat_data *plat_priv)
 
 #if IS_ENABLED(CONFIG_IPC_LOGGING)
 void cnss_debug_ipc_log_print(void *log_ctx, char *process, const char *fn,
-			      const char *log_level, char *fmt, ...)
+			      enum log_level kern_log_level,
+			      enum log_level ipc_log_level, char *fmt, ...)
 {
 	struct va_format vaf;
 	va_list va_args;
@@ -1001,10 +1076,56 @@ void cnss_debug_ipc_log_print(void *log_ctx, char *process, const char *fn,
 	vaf.fmt = fmt;
 	vaf.va = &va_args;
 
-	if (log_level)
-		printk("%scnss: %pV", log_level, &vaf);
+	if (kern_log_level <= cnss_kernel_log_level) {
+		switch (kern_log_level) {
+		case EMERG_LOG:
+			pr_emerg("cnss: %pV", &vaf);
+			break;
+		case ALERT_LOG:
+			pr_alert("cnss: %pV", &vaf);
+			break;
+		case CRIT_LOG:
+			pr_crit("cnss: %pV", &vaf);
+			break;
+		case ERR_LOG:
+			pr_err("cnss: %pV", &vaf);
+			break;
+		case WARNING_LOG:
+			pr_warn("cnss: %pV", &vaf);
+			break;
+// The print type has been temporarily changed to Warning for debugging purpose
+#if 0
+		case NOTICE_LOG:
+			pr_notice("cnss: %pV", &vaf);
+			break;
+		case INFO_LOG:
+			pr_info("cnss: %pV", &vaf);
+			break;
+		case DEBUG_LOG:
+		case DEBUG_HI_LOG:
+			pr_debug("cnss: %pV", &vaf);
+			break;
+#else
+		case NOTICE_LOG:
+			pr_warn("cnss: %pV", &vaf);
+			break;
+		case INFO_LOG:
+			pr_warn("cnss: %pV", &vaf);
+			break;
+		case DEBUG_LOG:
+			pr_warn("cnss: %pV", &vaf);
+			break;
+		case DEBUG_HI_LOG:
+			pr_debug("cnss: %pV", &vaf);
+			break;
+#endif
+		default:
+			break;
+		}
+	}
 
-	ipc_log_string(log_ctx, "[%s] %s: %pV", process, fn, &vaf);
+	if (ipc_log_level <= cnss_ipc_log_level)
+		ipc_log_string(log_ctx, "[%s] %s: %pV", process, fn, &vaf);
 
 	va_end(va_args);
 }
@@ -1045,7 +1166,8 @@ static void cnss_ipc_logging_deinit(void)
 static int cnss_ipc_logging_init(void) { return 0; }
 static void cnss_ipc_logging_deinit(void) {}
 void cnss_debug_ipc_log_print(void *log_ctx, char *process, const char *fn,
-			      const char *log_level, char *fmt, ...)
+			      enum log_level kern_log_level,
+			      enum log_level ipc_log_level, char *fmt, ...)
 {
 	struct va_format vaf;
 	va_list va_args;
@@ -1054,8 +1176,51 @@ void cnss_debug_ipc_log_print(void *log_ctx, char *process, const char *fn,
 	vaf.fmt = fmt;
 	vaf.va = &va_args;
 
-	if (log_level)
-		printk("%scnss: %pV", log_level, &vaf);
+	if (kern_log_level <= cnss_kernel_log_level) {
+		switch (kern_log_level) {
+		case EMERG_LOG:
+			pr_emerg("cnss: %pV", &vaf);
+			break;
+		case ALERT_LOG:
+			pr_alert("cnss: %pV", &vaf);
+			break;
+		case CRIT_LOG:
+			pr_crit("cnss: %pV", &vaf);
+			break;
+		case ERR_LOG:
+			pr_err("cnss: %pV", &vaf);
+			break;
+		case WARNING_LOG:
+			pr_warn("cnss: %pV", &vaf);
+			break;
+// The print type has been temporarily changed to Warning for debugging purpose
+#if 0
+		case NOTICE_LOG:
+			pr_notice("cnss: %pV", &vaf);
+			break;
+		case INFO_LOG:
+			pr_info("cnss: %pV", &vaf);
+			break;
+		case DEBUG_LOG:
+		case DEBUG_HI_LOG:
+			pr_debug("cnss: %pV", &vaf);
+			break;
+#else
+		case NOTICE_LOG:
+			pr_warn("cnss: %pV", &vaf);
+			break;
+		case INFO_LOG:
+			pr_warn("cnss: %pV", &vaf);
+			break;
+		case DEBUG_LOG:
+		case DEBUG_HI_LOG:
+			pr_warn("cnss: %pV", &vaf);
+			break;
+#endif
+		default:
+			break;
+		}
+	}
 
 	va_end(va_args);
 }

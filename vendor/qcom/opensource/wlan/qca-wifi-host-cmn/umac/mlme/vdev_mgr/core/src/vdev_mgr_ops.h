@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2019-2020 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021, 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -33,7 +33,7 @@
 #include "include/wlan_vdev_mlme.h"
 
 /**
- * vdev_mgr_create_send() – MLME API to create command to
+ * vdev_mgr_create_send() - MLME API to create command to
  * target_if
  * @mlme_obj: pointer to vdev_mlme_obj
  *
@@ -42,7 +42,7 @@
 QDF_STATUS vdev_mgr_create_send(struct vdev_mlme_obj *mlme_obj);
 
 /**
- * vdev_mgr_start_send() – MLME API to send start request to
+ * vdev_mgr_start_send() - MLME API to send start request to
  * target_if
  * @mlme_obj: pointer to vdev_mlme_obj
  * @restart: flag to indicate type of request START/RESTART
@@ -52,7 +52,7 @@ QDF_STATUS vdev_mgr_create_send(struct vdev_mlme_obj *mlme_obj);
 QDF_STATUS vdev_mgr_start_send(struct vdev_mlme_obj *mlme_obj, bool restart);
 
 /**
- * vdev_mgr_delete_send() – MLME API to send delete request to
+ * vdev_mgr_delete_send() - MLME API to send delete request to
  * target_if
  * @mlme_obj: pointer to vdev_mlme_obj
  *
@@ -61,7 +61,7 @@ QDF_STATUS vdev_mgr_start_send(struct vdev_mlme_obj *mlme_obj, bool restart);
 QDF_STATUS vdev_mgr_delete_send(struct vdev_mlme_obj *mlme_obj);
 
 /**
- * vdev_mgr_peer_flush_tids_send () – MLME API to setup peer flush tids
+ * vdev_mgr_peer_flush_tids_send () - MLME API to setup peer flush tids
  * @mlme_obj: pointer to vdev_mlme_obj
  * @mac: pointer to peer mac address
  * @peer_tid_bitmap: peer tid bitmap
@@ -72,7 +72,7 @@ QDF_STATUS vdev_mgr_peer_flush_tids_send(struct vdev_mlme_obj *mlme_obj,
 					 uint8_t *mac,
 					 uint32_t peer_tid_bitmap);
 /**
- * vdev_mgr_stop_send () – MLME API to send STOP request
+ * vdev_mgr_stop_send () - MLME API to send STOP request
  * @mlme_obj: pointer to vdev_mlme_obj
  *
  * Return: QDF_STATUS - Success or Failure
@@ -80,7 +80,7 @@ QDF_STATUS vdev_mgr_peer_flush_tids_send(struct vdev_mlme_obj *mlme_obj,
 QDF_STATUS vdev_mgr_stop_send(struct vdev_mlme_obj *mlme_obj);
 
 /**
- * vdev_mgr_up_send () – MLME API to send UP command
+ * vdev_mgr_up_send () - MLME API to send UP command
  * @mlme_obj: pointer to vdev_mlme_obj
  *
  * Return: QDF_STATUS - Success or Failure
@@ -88,7 +88,7 @@ QDF_STATUS vdev_mgr_stop_send(struct vdev_mlme_obj *mlme_obj);
 QDF_STATUS vdev_mgr_up_send(struct vdev_mlme_obj *mlme_obj);
 
 /**
- * vdev_mgr_down_send () – MLME API to send down command
+ * vdev_mgr_down_send () - MLME API to send down command
  * @mlme_obj: pointer to vdev_mlme_obj
  *
  * Return: QDF_STATUS - Success or Failure
@@ -96,7 +96,7 @@ QDF_STATUS vdev_mgr_up_send(struct vdev_mlme_obj *mlme_obj);
 QDF_STATUS vdev_mgr_down_send(struct vdev_mlme_obj *mlme_obj);
 
 /**
- * vdev_mgr_set_param_send() – MLME API to send vdev param
+ * vdev_mgr_set_param_send() - MLME API to send vdev param
  * @mlme_obj: pointer to vdev_mlme_obj
  * @param_id: parameter id
  * @param_value: value corresponding to parameter id
@@ -108,7 +108,7 @@ QDF_STATUS vdev_mgr_set_param_send(struct vdev_mlme_obj *mlme_obj,
 				   uint32_t param_value);
 
 /**
- * vdev_mgr_set_neighbour_rx_cmd_send() – MLME API to send neighbour Rx
+ * vdev_mgr_set_neighbour_rx_cmd_send() - MLME API to send neighbour Rx
  * cmd
  * @mlme_obj: pointer to vdev_mlme_obj
  * @param: pointer to set neighbour rx params
@@ -120,7 +120,7 @@ QDF_STATUS vdev_mgr_set_neighbour_rx_cmd_send(
 				struct set_neighbour_rx_params *param);
 
 /**
- * vdev_mgr_set_nac_rssi_send() – MLME API to send nac rssi
+ * vdev_mgr_nac_rssi_send() - MLME API to send nac rssi
  * @mlme_obj: pointer to vdev_mlme_obj
  * @param: pointer to vdev_scan_nac_rssi_params
  *
@@ -131,7 +131,7 @@ QDF_STATUS vdev_mgr_nac_rssi_send(
 			struct vdev_scan_nac_rssi_params *param);
 
 /**
- * vdev_mgr_sifs_trigger_send() – MLME API to send SIFS trigger
+ * vdev_mgr_sifs_trigger_send() - MLME API to send SIFS trigger
  * @mlme_obj: pointer to vdev_mlme_obj
  * @param_value: parameter value
  *
@@ -142,8 +142,7 @@ QDF_STATUS vdev_mgr_sifs_trigger_send(
 			uint32_t param_value);
 
 /**
- * vdev_mgr_set_custom_aggr_size_cmd_send() – MLME API to send custom aggr
- * size
+ * vdev_mgr_set_custom_aggr_size_send() - MLME API to send custom aggr size
  * @mlme_obj: pointer to vdev_mlme_obj
  * @is_amsdu: boolean to indicate value corresponds to amsdu/ampdu
  *
@@ -153,7 +152,7 @@ QDF_STATUS vdev_mgr_set_custom_aggr_size_send(
 			struct vdev_mlme_obj *mlme_obj, bool is_amsdu);
 
 /**
- * vdev_mgr_onfig_ratemask_cmd_send() – MLME API to send ratemask
+ * vdev_mgr_config_ratemask_cmd_send() - MLME API to send ratemask
  * @mlme_obj: pointer to vdev_mlme_obj
  * @type: type of ratemask configuration
  * @lower32: Lower 32 bits in the 1st 64-bit value
@@ -170,7 +169,7 @@ QDF_STATUS vdev_mgr_config_ratemask_cmd_send(
 				uint32_t lower32_2);
 
 /**
- * vdev_mgr_beacon_stop() – MLME API to stop beacon
+ * vdev_mgr_beacon_stop() - MLME API to stop beacon
  * @mlme_obj: pointer to vdev_mlme_obj
  *
  * Return: QDF_STATUS - Success or Failure
@@ -178,7 +177,7 @@ QDF_STATUS vdev_mgr_config_ratemask_cmd_send(
 QDF_STATUS vdev_mgr_beacon_stop(struct vdev_mlme_obj *mlme_obj);
 
 /**
- * vdev_mgr_beacon_free() – MLME API to free beacon
+ * vdev_mgr_beacon_free() - MLME API to free beacon
  * @mlme_obj: pointer to vdev_mlme_obj
  *
  * Return: QDF_STATUS - Success or Failure
@@ -186,7 +185,7 @@ QDF_STATUS vdev_mgr_beacon_stop(struct vdev_mlme_obj *mlme_obj);
 QDF_STATUS vdev_mgr_beacon_free(struct vdev_mlme_obj *mlme_obj);
 
 /**
- * vdev_mgr_beacon_send() – MLME API to send beacon
+ * vdev_mgr_beacon_send() - MLME API to send beacon
  * @mlme_obj: pointer to vdev_mlme_obj
  * @param: pointer to beacon_params
  *
@@ -196,7 +195,7 @@ QDF_STATUS vdev_mgr_beacon_send(struct vdev_mlme_obj *mlme_obj,
 				struct beacon_params *param);
 
 /**
- * vdev_mgr_beacon_tmpl_send() – MLME API to send beacon template
+ * vdev_mgr_beacon_tmpl_send() - MLME API to send beacon template
  * @mlme_obj: pointer to vdev_mlme_obj
  * @param: pointer to beacon_tmpl_params
  *
@@ -206,7 +205,7 @@ QDF_STATUS vdev_mgr_beacon_tmpl_send(struct vdev_mlme_obj *mlme_obj,
 				     struct beacon_tmpl_params *param);
 
 /**
- * vdev_mgr_bcn_miss_offload_send() – MLME API to send bcn miss offload
+ * vdev_mgr_bcn_miss_offload_send() - MLME API to send bcn miss offload
  * @mlme_obj: pointer to vdev_mlme_obj
  *
  * Return: QDF_STATUS - Success or Failure
@@ -214,7 +213,7 @@ QDF_STATUS vdev_mgr_beacon_tmpl_send(struct vdev_mlme_obj *mlme_obj,
 QDF_STATUS vdev_mgr_bcn_miss_offload_send(struct vdev_mlme_obj *mlme_obj);
 
 /**
- * vdev_mgr_multiple_restart_send() – MLME API to send multiple vdev restart
+ * vdev_mgr_multiple_restart_send() - MLME API to send multiple vdev restart
  * @pdev: pointer to pdev object
  * @chan: pointer to channel param structure
  * @disable_hw_ack: ddisable hw ack value
@@ -233,7 +232,7 @@ QDF_STATUS vdev_mgr_multiple_restart_send(
 					struct vdev_mlme_mvr_param *mvr_param);
 
 /**
- * vdev_mgr_peer_delete_all_send() – MLME API to send peer delete all request
+ * vdev_mgr_peer_delete_all_send() - MLME API to send peer delete all request
  * @mlme_obj: pointer to vdev_mlme_obj
  *
  * Return: QDF_STATUS - Success or Failure

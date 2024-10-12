@@ -32,6 +32,8 @@
 #endif
 
 #define CM_ID_INVALID 0xFFFFFFFF
+#define CM_ID_LSWITCH_BIT 0x10000000
+
 typedef uint32_t wlan_cm_id;
 
 /* Diconnect active timeout */
@@ -76,6 +78,13 @@ struct wlan_cm_wep_key_params {
  *	MAX_WEP_KEYS WEP keys
  * @rsn_caps: rsn caps
  * @mgmt_ciphers: mgmt cipher bitmask
+ * @user_mfp: Management frame protection state configured by user
+ * @user_auth_type: user provided auth type
+ * @user_grp_cipher: user provided  group cipher
+ * @user_akm_suite: user provided AKM suite. First akm suite value
+ * is populated from akm suites array received from userspace
+ * @user_cipher_pairwise: user provided pairwise cipher. First pairwise
+ * cipher values populated from pairwise cipher array received from userspace
  */
 struct wlan_cm_connect_crypto_info {
 	uint32_t wpa_versions;
@@ -86,6 +95,13 @@ struct wlan_cm_connect_crypto_info {
 	struct wlan_cm_wep_key_params wep_keys;
 	uint16_t rsn_caps;
 	uint32_t mgmt_ciphers;
+	uint8_t user_mfp;
+#ifdef CONNECTIVITY_DIAG_EVENT
+	uint32_t user_auth_type;
+	uint32_t user_grp_cipher;
+	uint32_t user_akm_suite;
+	uint32_t user_cipher_pairwise;
+#endif
 };
 
 #ifdef WLAN_FEATURE_FILS_SK
@@ -117,6 +133,7 @@ enum wlan_fils_auth_type {
  * @next_seq_num: next seq number
  * @rrk_len: rrk length
  * @rrk: rrk
+ * @auth_type: FILS authentication type
  */
 struct wlan_fils_con_info {
 	bool is_fils_connection;
@@ -153,6 +170,9 @@ struct wlan_fils_con_info {
  * @CM_MLO_LINK_VDEV_DISCONNECT: Disconnect req for ML link
  * @CM_MLO_LINK_VDEV_CONNECT: Connect req for ML link
  * @CM_MLO_ROAM_INTERNAL_DISCONNECT: Disconnect req triggered for mlo roaming
+ * @CM_MLO_LINK_SWITCH_CONNECT: Connect req triggered for mlo link switch
+ * @CM_MLO_LINK_SWITCH_DISCONNECT: Disconnect req triggered for mlo link switch
+ * @CM_ROAMING_USER: Roaming request initiated by user
  * @CM_SOURCE_MAX: max value of connection manager source
  * @CM_SOURCE_INVALID: Invalid connection manager req source
  */
@@ -173,6 +193,9 @@ enum wlan_cm_source {
 	CM_MLO_LINK_VDEV_DISCONNECT,
 	CM_MLO_LINK_VDEV_CONNECT,
 	CM_MLO_ROAM_INTERNAL_DISCONNECT,
+	CM_MLO_LINK_SWITCH_CONNECT,
+	CM_MLO_LINK_SWITCH_DISCONNECT,
+	CM_ROAMING_USER,
 	CM_SOURCE_MAX,
 	CM_SOURCE_INVALID = CM_SOURCE_MAX,
 };
@@ -197,7 +220,7 @@ enum wlan_cm_source {
  * for production.
  * @is_wps_connection: if its wps connection
  * @is_osen_connection: if its osen connection
- * @reassoc_in_non_connected: if reassoc received in non connected
+ * @reassoc_in_non_init: if reassoc received in non init state
  * @dot11mode_filter: dot11mode filter used to restrict connection to
  * 11n/11ac/11ax.
  * @sae_pwe: SAE mechanism for PWE derivation
@@ -227,7 +250,7 @@ struct wlan_cm_connect_req {
 	uint8_t force_rsne_override:1,
 		is_wps_connection:1,
 		is_osen_connection:1,
-		reassoc_in_non_connected:1;
+		reassoc_in_non_init:1;
 	enum dot11_mode_filter dot11mode_filter;
 	uint8_t sae_pwe;
 	uint16_t ht_caps;
@@ -292,7 +315,6 @@ struct wlan_cm_vdev_connect_req {
 /**
  * struct wlan_cm_roam_req - roam req from requester
  * @forced_roaming: Roaming to be done without giving bssid, and channel.
- * @self_reassoc: used to determine self reassoc in host roaming
  * @vdev_id: vdev id
  * @source: source of the req
  * @bssid: bssid given
@@ -300,8 +322,7 @@ struct wlan_cm_vdev_connect_req {
  * @chan_freq: channel of the AP
  */
 struct wlan_cm_roam_req {
-	uint8_t forced_roaming:1,
-		self_reassoc:1;
+	uint8_t forced_roaming:1;
 	uint8_t vdev_id;
 	enum wlan_cm_source source;
 	struct qdf_mac_addr bssid;
@@ -314,13 +335,12 @@ struct wlan_cm_roam_req {
  * vdev mgr
  * @vdev_id: vdev id
  * @cm_id: Connect manager id
- * @self_reassoc: if self reassoc
+ * @prev_bssid: previous BSSID
  * @bss: scan entry for the candidate
  */
 struct wlan_cm_vdev_reassoc_req {
 	uint8_t vdev_id;
 	wlan_cm_id cm_id;
-	bool self_reassoc;
 	struct qdf_mac_addr prev_bssid;
 	struct scan_cache_node *bss;
 };
@@ -376,7 +396,7 @@ struct wlan_cm_vdev_discon_req {
  * @CM_VALID_CANDIDATE_CHECK_FAIL: Valid Candidate Check fail
  */
 enum wlan_cm_connect_fail_reason {
-	CM_NO_CANDIDATE_FOUND,
+	CM_NO_CANDIDATE_FOUND = 1,
 	CM_ABORT_DUE_TO_NEW_REQ_RECVD,
 	CM_BSS_SELECT_IND_FAILED,
 	CM_PEER_CREATE_FAILED,
@@ -434,12 +454,13 @@ struct fils_connect_rsp_params {
 #endif
 
 /**
- * struct connect_rsp_ies - connect rsp ies stored in vdev filled during connect
+ * struct wlan_connect_rsp_ies - connect rsp ies stored in vdev filled during
+ *                               connect
  * @bcn_probe_rsp: Raw beacon or probe rsp of connected AP
  * @link_bcn_probe_rsp: Raw beacon or probe rsp of connected non-assoc link
  * @assoc_req: assoc req IE pointer send during connect
- * @assoc_rsq: assoc rsp IE received during connection
- * @fills_ie: fills connection ie received during connection
+ * @assoc_rsp: assoc rsp IE received during connection
+ * @fils_ie: fills connection ie received during connection
  */
 struct wlan_connect_rsp_ies {
 	struct element_info bcn_probe_rsp;
@@ -490,7 +511,7 @@ struct wlan_roam_sync_info {
 #endif
 
 /**
- * struct wlan_cm_connect_rsp - connect resp from VDEV mgr and will be sent to
+ * struct wlan_cm_connect_resp - connect resp from VDEV mgr and will be sent to
  * OSIF
  * @vdev_id: vdev id
  * @is_wps_connection: if its wps connection
@@ -511,6 +532,7 @@ struct wlan_roam_sync_info {
  * @connect_ies: connect related IE required by osif to send to kernel
  * @roaming_info: roam sync info received
  * @is_fils_connection: is fils connection
+ * @mld_addr: MLD address of the ML AP
  * @ml_parnter_info: ml partner link info
  */
 struct wlan_cm_connect_resp {
@@ -537,21 +559,48 @@ struct wlan_cm_connect_resp {
 	bool is_fils_connection;
 #endif
 #ifdef WLAN_FEATURE_11BE_MLO
+	struct qdf_mac_addr mld_addr;
 	struct mlo_partner_info ml_parnter_info;
 #endif
 };
 
 #ifdef WLAN_VENDOR_HANDOFF_CONTROL
-/* As per enum WMI_ROAM_GET_VENDOR_CONTROL_PARAM_ID */
+/* As per enum vendor_control_roam_param */
 #define MAX_VENDOR_CONTROL_PARAMS 8
+
+/**
+ * enum vendor_control_roam_param - vendor control roam parameters
+ * @VENDOR_CONTROL_PARAM_ROAM_TRIGGER: roam trigger
+ * @VENDOR_CONTROL_PARAM_ROAM_DELTA: roam delta
+ * @VENDOR_CONTROL_PARAM_ROAM_FULL_SCANPERIOD: full scan period
+ * @VENDOR_CONTROL_PARAM_ROAM_PARTIAL_SCANPERIOD: partial scan period
+ * @VENDOR_CONTROL_PARAM_ROAM_ACTIVE_CH_DWELLTIME: active ch dwell time
+ * @VENDOR_CONTROL_PARAM_ROAM_PASSIVE_CH_DWELLTIME: passive ch dwell time
+ * @VENDOR_CONTROL_PARAM_ROAM_HOME_CH_TIME: home ch dwell time
+ * @VENDOR_CONTROL_PARAM_ROAM_AWAY_TIME: away time
+ * @VENDOR_CONTROL_PARAM_ROAM_ALL: Sending query for all params of
+ * enum vendor_control_roam_param
+ */
+enum vendor_control_roam_param {
+	VENDOR_CONTROL_PARAM_ROAM_TRIGGER = 1,
+	VENDOR_CONTROL_PARAM_ROAM_DELTA,
+	VENDOR_CONTROL_PARAM_ROAM_FULL_SCANPERIOD,
+	VENDOR_CONTROL_PARAM_ROAM_PARTIAL_SCANPERIOD,
+	VENDOR_CONTROL_PARAM_ROAM_ACTIVE_CH_DWELLTIME,
+	VENDOR_CONTROL_PARAM_ROAM_PASSIVE_CH_DWELLTIME,
+	VENDOR_CONTROL_PARAM_ROAM_HOME_CH_TIME,
+	VENDOR_CONTROL_PARAM_ROAM_AWAY_TIME,
+	VENDOR_CONTROL_PARAM_ROAM_ALL = 0xFFFFFFFF,
+};
+
 /*
  * struct roam_param_info: vendor handoff related parameters
- * @param_id : vendor control Param ID from enum
- * WMI_ROAM_GET_VENDOR_CONTROL_PARAM_ID
- * @param_value : vendor control param value
+ * @param_id: vendor control Param ID from enum
+ * vendor_control_roam_param
+ * @param_value: vendor control param value
  */
 struct roam_param_info {
-	uint32_t param_id;
+	enum vendor_control_roam_param param_id;
 	uint32_t param_value;
 };
 
@@ -646,4 +695,18 @@ enum wlan_cm_active_request_type {
 	CM_ROAM_ACTIVE,
 };
 
+/*
+ * enum MLO_TYPE: ML type of bss
+ * @SLO: Non-ML or Single link ML
+ * @MLSR: Multi link Single Radio, indicates that both links
+ *        have to be on one mac
+ * @MLMR: Multi link Multi Radio, indicates that both links
+ *        can be on different macs
+ */
+enum MLO_TYPE {
+	SLO,
+	MLSR,
+	MLMR,
+	MLO_TYPE_MAX
+};
 #endif /* __WLAN_CM_PUBLIC_STRUCT_H__ */

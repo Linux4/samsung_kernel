@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2017-2020 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -148,6 +149,15 @@ void wma_update_vdev_he_ops(uint32_t *he_ops, tDot11fIEhe_op *he_op);
 #define HE_MUBFER 3
 
 /**
+ * wma_get_hemu_mode() - get hemu mode
+ * @hemumode: pointer to have hemumode
+ * @mac: pointer to mac context
+ *
+ * Return: Success on proper hemumode else failure
+ */
+QDF_STATUS wma_get_hemu_mode(uint32_t *hemumode, struct mac_context *mac);
+
+/**
  * wma_set_he_txbf_params() - set HE Tx beamforming params to FW
  * @vdev_id: VDEV id
  * @su bfer: SU beamformer capability
@@ -230,7 +240,8 @@ QDF_STATUS wma_get_he_capabilities(struct he_capability *he_cap);
  *
  * Result: None
  */
-void wma_set_he_vdev_param(struct wma_txrx_node *intr, WMI_VDEV_PARAM param_id,
+void wma_set_he_vdev_param(struct wma_txrx_node *intr,
+			   wmi_conv_vdev_param_id param_id,
 			   uint32_t value);
 
 /**
@@ -241,8 +252,25 @@ void wma_set_he_vdev_param(struct wma_txrx_node *intr, WMI_VDEV_PARAM param_id,
  * Result: param value
  */
 uint32_t wma_get_he_vdev_param(struct wma_txrx_node *intr,
-			       WMI_VDEV_PARAM param_id);
+			       wmi_conv_vdev_param_id param_id);
 
+/**
+ * wma_prevent_suspend_on_obss_color_collision() - prevent suspend on obss color
+ *						collision
+ * @vdev: pointer to vdev object
+ *
+ * Return: none
+ */
+void wma_prevent_suspend_on_obss_color_collision(struct wlan_objmgr_vdev *vdev);
+
+/**
+ * wma_allow_suspend_after_obss_color_change() - allow suspend on obss color
+ *						change
+ * @vdev: pointer to vdev object
+ *
+ * Return: none
+ */
+void wma_allow_suspend_after_obss_color_change(struct wlan_objmgr_vdev *vdev);
 #else
 static inline void wma_print_he_cap(tDot11fIEhe_cap *he_cap)
 {
@@ -291,6 +319,12 @@ void wma_update_vdev_he_ops(uint32_t *he_ops, tDot11fIEhe_op *he_op)
 {
 }
 
+static inline QDF_STATUS wma_get_hemu_mode(uint32_t *hemumode,
+					   struct mac_context *mac)
+{
+	return QDF_STATUS_E_FAILURE;
+}
+
 static inline void wma_set_he_txbf_params(uint8_t vdev_id, bool su_bfer,
 					  bool su_bfee, bool mu_bfer)
 {
@@ -323,16 +357,25 @@ static inline bool wma_is_peer_he_capable(tpAddStaParams params)
 }
 
 static inline void wma_set_he_vdev_param(struct wma_txrx_node *intr,
-			WMI_VDEV_PARAM param_id, uint32_t value)
+			wmi_conv_vdev_param_id param_id, uint32_t value)
 {
 }
 
 static inline uint32_t wma_get_he_vdev_param(struct wma_txrx_node *intr,
-					     WMI_VDEV_PARAM param_id)
+					     wmi_conv_vdev_param_id param_id)
 {
 	return 0;
 }
 
+static inline void wma_prevent_suspend_on_obss_color_collision(
+						struct wlan_objmgr_vdev *vdev)
+{
+}
+
+static inline void wma_allow_suspend_after_obss_color_change(
+						struct wlan_objmgr_vdev *vdev)
+{
+}
 #endif
 
 #endif /* __WMA_HE_H */

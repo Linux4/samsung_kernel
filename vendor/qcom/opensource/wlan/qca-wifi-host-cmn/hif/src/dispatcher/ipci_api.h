@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2020-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -20,7 +20,7 @@
 struct hif_exec_context;
 
 /**
- * hif_ipci_open(): hif_bus_open
+ * hif_ipci_open() - hif_bus_open
  * @hif_ctx: hif context
  * @bus_type: bus type
  *
@@ -30,7 +30,7 @@ QDF_STATUS hif_ipci_open(struct hif_softc *hif_ctx,
 			 enum qdf_bus_type bus_type);
 
 /**
- * hif_ipci_close(): hif_bus_close
+ * hif_ipci_close() - hif_bus_close
  * @hif_ctx: hif context
  *
  * Return: n/a
@@ -38,7 +38,7 @@ QDF_STATUS hif_ipci_open(struct hif_softc *hif_ctx,
 void hif_ipci_close(struct hif_softc *hif_ctx);
 
 /**
- * hif_bus_prevent_linkdown(): allow or permit linkdown
+ * hif_ipci_prevent_linkdown() - allow or permit linkdown
  * @scn: struct hif_softc
  * @flag: true prevents linkdown, false allows
  *
@@ -50,7 +50,7 @@ void hif_ipci_close(struct hif_softc *hif_ctx);
 void hif_ipci_prevent_linkdown(struct hif_softc *scn, bool flag);
 
 /**
- * hif_ipci_bus_suspend(): prepare hif for suspend
+ * hif_ipci_bus_suspend() - prepare hif for suspend
  * @scn: struct hif_softc
  *
  * Return: Errno
@@ -69,7 +69,7 @@ int hif_ipci_bus_suspend(struct hif_softc *scn);
 int hif_ipci_bus_suspend_noirq(struct hif_softc *scn);
 
 /**
- * hif_ipci_bus_resume(): prepare hif for resume
+ * hif_ipci_bus_resume() - prepare hif for resume
  * @scn: struct hif_softc
  *
  * Return: Errno
@@ -88,7 +88,7 @@ int hif_ipci_bus_resume(struct hif_softc *scn);
 int hif_ipci_bus_resume_noirq(struct hif_softc *scn);
 
 /**
- * hif_ipci_disable_isr(): disable interrupt
+ * hif_ipci_disable_isr() - disable interrupt
  * @scn: struct hif_softc
  *
  * Return: n/a
@@ -96,7 +96,7 @@ int hif_ipci_bus_resume_noirq(struct hif_softc *scn);
 void hif_ipci_disable_isr(struct hif_softc *scn);
 
 /**
- * hif_ipci_nointrs(): disable IRQ
+ * hif_ipci_nointrs() - disable IRQ
  * @scn: struct hif_softc
  *
  * This function stops interrupt(s)
@@ -106,7 +106,7 @@ void hif_ipci_disable_isr(struct hif_softc *scn);
 void hif_ipci_nointrs(struct hif_softc *scn);
 
 /**
- * hif_ipci_dump_registers(): dump bus debug registers
+ * hif_ipci_dump_registers() - dump bus debug registers
  * @scn: struct hif_opaque_softc
  *
  * This function dumps hif bus debug registers
@@ -116,15 +116,15 @@ void hif_ipci_nointrs(struct hif_softc *scn);
 int hif_ipci_dump_registers(struct hif_softc *scn);
 
 /**
- * hif_ipci_enable_bus(): enable bus
+ * hif_ipci_enable_bus() - enable bus
+ * @scn: soft_sc struct
+ * @dev: device pointer
+ * @bdev: bus dev pointer
+ * @bid: bus id pointer
+ * @type: enum hif_enable_type such as HIF_ENABLE_TYPE_PROBE
  *
  * This function enables the bus
  *
- * @ol_sc: soft_sc struct
- * @dev: device pointer
- * @bdev: bus dev pointer
- * bid: bus id pointer
- * type: enum hif_enable_type such as HIF_ENABLE_TYPE_PROBE
  * Return: QDF_STATUS
  */
 QDF_STATUS hif_ipci_enable_bus(
@@ -134,11 +134,10 @@ QDF_STATUS hif_ipci_enable_bus(
 			enum hif_enable_type type);
 
 /**
- * hif_ipci_disable_bus(): hif_disable_bus
+ * hif_ipci_disable_bus() - hif_disable_bus
+ * @scn: struct hif_softc
  *
  * This function disables the bus
- *
- * @scn: struct hif_softc
  *
  * Return: none
  */
@@ -146,7 +145,7 @@ void hif_ipci_disable_bus(struct hif_softc *scn);
 
 /**
  * hif_ipci_bus_configure() - configure the pcie bus
- * @hif_sc: pointer to the hif context.
+ * @scn: pointer to the hif context.
  *
  * return: 0 for success. nonzero for failure.
  */
@@ -226,7 +225,7 @@ bool hif_ipci_needs_bmi(struct hif_softc *scn);
 const char *hif_ipci_get_irq_name(int irq_no);
 
 /**
- * hif_ipci_enable_grp_irqs(): enable grp IRQs
+ * hif_ipci_enable_grp_irqs() - enable grp IRQs
  * @scn: struct hif_softc
  *
  * This function enables grp irqs
@@ -236,13 +235,14 @@ const char *hif_ipci_get_irq_name(int irq_no);
 int hif_ipci_enable_grp_irqs(struct hif_softc *scn);
 
 #ifdef HIF_CPU_PERF_AFFINE_MASK
-/** hif_ipci_config_irq_affinity() - set the irq affinity
+/**
+ * hif_ipci_config_irq_affinity() - set the irq affinity
  * @scn: hif context
  *
  * set irq affinity hint for wlan irqs to gold cores only for
  * defconfig builds.
  *
- * return: none
+ * Return: none
  */
 void hif_ipci_config_irq_affinity(struct hif_softc *scn);
 #endif
@@ -267,7 +267,7 @@ void hif_ipci_config_irq_clear_cpu_affinity(struct hif_softc *scn,
 #endif
 
 /**
- * hif_ipci_disable_grp_irqs(): disable grp IRQs
+ * hif_ipci_disable_grp_irqs() - disable grp IRQs
  * @scn: struct hif_softc
  *
  * This function disables grp irqs
@@ -277,7 +277,7 @@ void hif_ipci_config_irq_clear_cpu_affinity(struct hif_softc *scn,
 int hif_ipci_disable_grp_irqs(struct hif_softc *scn);
 
 #ifdef FEATURE_IRQ_AFFINITY
-/*
+/**
  * hif_ipci_set_grp_intr_affinity() - Set irq affinity hint for grp
  *  intrs based on bitmask
  * @scn: hif context

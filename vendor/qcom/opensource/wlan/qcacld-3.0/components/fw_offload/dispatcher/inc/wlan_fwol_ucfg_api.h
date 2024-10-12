@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2018-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -59,7 +59,7 @@ void ucfg_fwol_psoc_close(struct wlan_objmgr_psoc *psoc);
 QDF_STATUS ucfg_fwol_psoc_enable(struct wlan_objmgr_psoc *psoc);
 
 /**
- * ucfg_fwol_psoc_close() - FWOL component disable
+ * ucfg_fwol_psoc_disable() - FWOL component disable
  * @psoc: pointer to psoc object
  *
  * Return: None
@@ -167,7 +167,8 @@ ucfg_fwol_get_thermal_temp(struct wlan_objmgr_psoc *psoc,
 			   struct wlan_fwol_thermal_temp *thermal_temp);
 
 /**
- * ucfg_fwol_get_neighbor_report_req() - Get neighbor report request bit
+ * ucfg_fwol_is_neighbor_report_req_supported() - Get neighbor report request
+ *                                                supported bit
  * @psoc: Pointer to psoc object
  * @neighbor_report_req: Pointer to return value
  *
@@ -208,8 +209,10 @@ QDF_STATUS
 ucfg_fwol_get_all_allowlist_params(struct wlan_objmgr_psoc *psoc,
 				   struct wlan_fwol_ie_allowlist *allowlist);
 
-/** ucfg_fwol_get_ani_enabled() - Assigns the ani_enabled value
+/**
+ * ucfg_fwol_get_ani_enabled() - Assigns the ani_enabled value
  * @psoc: pointer to the psoc object
+ * @ani_enabled: pointer to return ani_enabled value
  *
  * Return: QDF Status
  */
@@ -217,8 +220,20 @@ QDF_STATUS ucfg_fwol_get_ani_enabled(struct wlan_objmgr_psoc *psoc,
 				     bool *ani_enabled);
 
 /**
- * ucfg_fwol_get_ani_enabled() - Assigns the enable_rts_sifsbursting value
+ * ucfg_fwol_get_pcie_config() - Assigns the pcie_config value
  * @psoc: pointer to the psoc object
+ * @pcie_config: pointer to return pcie_config value
+ *
+ * Return: QDF Status
+ */
+QDF_STATUS ucfg_fwol_get_pcie_config(struct wlan_objmgr_psoc *psoc,
+				     uint8_t *pcie_config);
+
+/**
+ * ucfg_get_enable_rts_sifsbursting() - Assigns the enable_rts_sifsbursting
+ *                                      value
+ * @psoc: pointer to the psoc object
+ * @enable_rts_sifsbursting: pointer to return enable_rts_sifsbursting value
  *
  * Return: QDF Status
  */
@@ -238,6 +253,7 @@ QDF_STATUS ucfg_get_enable_sifs_burst(struct wlan_objmgr_psoc *psoc,
 /**
  * ucfg_get_max_mpdus_inampdu() - Assigns the max_mpdus_inampdu value
  * @psoc: pointer to the psoc object
+ * @max_mpdus_inampdu: pointer to return max_mpdus_inampdu value
  *
  * Return: QDF Status
  */
@@ -247,6 +263,7 @@ QDF_STATUS ucfg_get_max_mpdus_inampdu(struct wlan_objmgr_psoc *psoc,
 /**
  * ucfg_get_enable_phy_reg_retention() - Assigns enable_phy_reg_retention value
  * @psoc: pointer to the psoc object
+ * @enable_phy_reg_retention: pointer to return enable_phy_reg_retention value
  *
  * Return: QDF Status
  */
@@ -256,6 +273,7 @@ QDF_STATUS ucfg_get_enable_phy_reg_retention(struct wlan_objmgr_psoc *psoc,
 /**
  * ucfg_get_upper_brssi_thresh() - Assigns upper_brssi_thresh value
  * @psoc: pointer to the psoc object
+ * @upper_brssi_thresh: pointer to return upper_brssi_thresh value
  *
  * Return: QDF Status
  */
@@ -265,6 +283,7 @@ QDF_STATUS ucfg_get_upper_brssi_thresh(struct wlan_objmgr_psoc *psoc,
 /**
  * ucfg_get_lower_brssi_thresh() - Assigns lower_brssi_thresh value
  * @psoc: pointer to the psoc object
+ * @lower_brssi_thresh: pointer to return lower_brssi_thresh value
  *
  * Return: QDF Status
  */
@@ -274,6 +293,7 @@ QDF_STATUS ucfg_get_lower_brssi_thresh(struct wlan_objmgr_psoc *psoc,
 /**
  * ucfg_get_enable_dtim_1chrx() - Assigns enable_dtim_1chrx value
  * @psoc: pointer to the psoc object
+ * @enable_dtim_1chrx: pointer to return enable_dtim_1chrx value
  *
  * Return: QDF Status
  */
@@ -281,8 +301,11 @@ QDF_STATUS ucfg_get_enable_dtim_1chrx(struct wlan_objmgr_psoc *psoc,
 				      bool *enable_dtim_1chrx);
 
 /**
- * ucfg_get_alternate_chainmask_enabled() - Assigns alt chainmask_enabled value
+ * ucfg_get_alternative_chainmask_enabled() - Assigns alt chainmask_enabled
+ *                                            value
  * @psoc: pointer to the psoc object
+ * @alternative_chainmask_enabled: pointer to return
+ *                                 alternative_chainmask_enabled value
  *
  * Return: QDF Status
  */
@@ -293,6 +316,7 @@ ucfg_get_alternative_chainmask_enabled(struct wlan_objmgr_psoc *psoc,
 /**
  * ucfg_get_smart_chainmask_enabled() - Assigns smart_chainmask_enabled value
  * @psoc: pointer to the psoc object
+ * @smart_chainmask_enabled: pointer to return smart_chainmask_enabled value
  *
  * Return: QDF Status
  */
@@ -302,6 +326,7 @@ QDF_STATUS ucfg_get_smart_chainmask_enabled(struct wlan_objmgr_psoc *psoc,
 /**
  * ucfg_fwol_get_rts_profile() - Assigns get_rts_profile value
  * @psoc: pointer to the psoc object
+ * @get_rts_profile: pointer to return RTS profile value
  *
  * Return: QDF Status
  */
@@ -311,6 +336,7 @@ QDF_STATUS ucfg_fwol_get_rts_profile(struct wlan_objmgr_psoc *psoc,
 /**
  * ucfg_fwol_get_enable_fw_log_level() - Assigns enable_fw_log_level value
  * @psoc: pointer to the psoc object
+ * @enable_fw_log_level: pointer to return firmware log level enable bitmap
  *
  * Return: QDF Status
  */
@@ -320,11 +346,13 @@ QDF_STATUS ucfg_fwol_get_enable_fw_log_level(struct wlan_objmgr_psoc *psoc,
 /**
  * ucfg_fwol_get_enable_fw_log_type() - Assigns enable_fw_log_type value
  * @psoc: pointer to the psoc object
+ * @enable_fw_log_type: pointer to return firmware log type bitmap
  *
  * Return: QDF Status
  */
 QDF_STATUS ucfg_fwol_get_enable_fw_log_type(struct wlan_objmgr_psoc *psoc,
 					    uint16_t *enable_fw_log_type);
+
 /**
  * ucfg_fwol_get_enable_fw_module_log_level() - Assigns
  * enable_fw_module_log_level string
@@ -372,6 +400,7 @@ QDF_STATUS ucfg_fwol_get_sap_xlna_bypass(struct wlan_objmgr_psoc *psoc,
 /**
  * ucfg_fwol_set_is_rate_limit_enabled() - Sets the is_rate_limit_enabled value
  * @psoc: pointer to the psoc object
+ * @is_rate_limit_enabled: value to set rate limit enabled bool
  *
  * Return: QDF Status
  */
@@ -381,6 +410,7 @@ QDF_STATUS ucfg_fwol_set_is_rate_limit_enabled(struct wlan_objmgr_psoc *psoc,
 /**
  * ucfg_fwol_get_is_rate_limit_enabled() - Assigns is_rate_limit_enabled value
  * @psoc: pointer to the psoc object
+ * @is_rate_limit_enabled: pointer to return rate limit enabled bool
  *
  * Return: QDF Status
  */
@@ -392,6 +422,7 @@ QDF_STATUS ucfg_fwol_get_is_rate_limit_enabled(struct wlan_objmgr_psoc *psoc,
 /**
  * ucfg_fwol_get_tsf_gpio_pin() - Assigns tsf_gpio_pin value
  * @psoc: pointer to the psoc object
+ * @tsf_gpio_pin: pointer to return TSF GPIO pin value
  *
  * Return: QDF Status
  */
@@ -403,6 +434,7 @@ QDF_STATUS ucfg_fwol_get_tsf_gpio_pin(struct wlan_objmgr_psoc *psoc,
 /**
  * ucfg_fwol_get_tsf_irq_host_gpio_pin() - Assigns tsf_irq_host_gpio_pin value
  * @psoc: pointer to the psoc object
+ * @tsf_irq_host_gpio_pin: pointer to return the TSF IRQ GPIO pin number
  *
  * Return: QDF Status
  */
@@ -416,6 +448,7 @@ ucfg_fwol_get_tsf_irq_host_gpio_pin(struct wlan_objmgr_psoc *psoc,
 /**
  * ucfg_fwol_get_tsf_sync_host_gpio_pin() - Assigns tsf_sync_host_gpio_pin value
  * @psoc: pointer to the psoc object
+ * @tsf_irq_host_gpio_pin: pointer to return the TSF sync GPIO pin number
  *
  * Return: QDF Status
  */
@@ -429,6 +462,8 @@ ucfg_fwol_get_tsf_sync_host_gpio_pin(struct wlan_objmgr_psoc *psoc,
 /**
  * ucfg_fwol_get_enable_dhcp_server_offload()-Assign enable_dhcp_server_offload
  * @psoc: pointer to the psoc object
+ * @enable_dhcp_server_offload: pointer to return enable_dhcp_server_offload
+ *                              value
  *
  * Return: QDF Status
  */
@@ -439,6 +474,7 @@ ucfg_fwol_get_enable_dhcp_server_offload(struct wlan_objmgr_psoc *psoc,
 /**
  * ucfg_fwol_get_dhcp_max_num_clients() - Assigns dhcp_max_num_clients value
  * @psoc: pointer to the psoc object
+ * @dhcp_max_num_clients: pointer to return the max number of DHC clients value
  *
  * Return: QDF Status
  */
@@ -520,14 +556,14 @@ static inline QDF_STATUS ucfg_fwol_get_ofdm_scrambler_seed(
 				struct wlan_objmgr_psoc *psoc,
 				bool *enable_ofdm_scrambler_seed)
 {
-	return QDF_STATUS_SUCCESS;
+	return QDF_STATUS_E_NOSUPPORT;
 }
 #endif
 
 /**
  * ucfg_fwol_get_enable_secondary_rate() - Get enable secondary rate
  * @psoc: pointer to the psoc object
- * @enable_tx_sch_delay: Pointer to return enable secondary rate value
+ * @enable_secondary_rate: Pointer to return enable secondary rate value
  *
  * Return: QDF Status
  */
@@ -535,7 +571,7 @@ QDF_STATUS ucfg_fwol_get_enable_secondary_rate(struct wlan_objmgr_psoc *psoc,
 					       uint32_t *enable_secondary_rate);
 /**
  * ucfg_fwol_get_all_adaptive_dwelltime_params() - Get all adaptive
-						   dwelltime_params
+ *						   dwelltime_params
  * @psoc: Pointer to psoc object
  * @dwelltime_params: Pointer to struct adaptive_dwelltime_params
  *
@@ -568,7 +604,7 @@ ucfg_fwol_get_adaptive_dwell_mode_enabled(struct wlan_objmgr_psoc *psoc,
  * For uses : see enum scan_dwelltime_adaptive_mode
  *
  * @psoc: pointer to psoc object
- * global_adapt_dwelltime_mode@: global adaptive dwell mode value
+ * @global_adapt_dwelltime_mode: global adaptive dwell mode value
  *
  * Return: QDF Status
  */
@@ -616,7 +652,7 @@ QDF_STATUS ucfg_fwol_get_adapt_dwell_wifi_act_threshold(
  * ucfg_fwol_init_adapt_dwelltime_in_cfg - API to initialize adaptive
  *                                         dwell params
  * @psoc: pointer to psoc object
- * @adaptive_dwelltime_params: pointer to adaptive_dwelltime_params structure
+ * @dwelltime_params: pointer to adaptive_dwelltime_params structure
  *
  * Return: QDF Status
  */
@@ -631,7 +667,7 @@ ucfg_fwol_init_adapt_dwelltime_in_cfg(
 /**
  * ucfg_fwol_set_adaptive_dwelltime_config - API to set adaptive
  *                                           dwell params config
- * @adaptive_dwelltime_params: adaptive_dwelltime_params structure
+ * @dwelltime_params: adaptive_dwelltime_params structure
  *
  * Return: QDF Status
  */
@@ -736,11 +772,23 @@ QDF_STATUS ucfg_fwol_configure_global_params(struct wlan_objmgr_psoc *psoc,
 					     struct wlan_objmgr_pdev *pdev);
 
 /**
- * ucfg_fwol_configure_vdev_params - API to configure vdev specific params
+ * ucfg_fwol_set_ilp_config - API to configure Interface Low Power (ILP)
  * @psoc: pointer to psoc object
  * @pdev: pointer to pdev object
- * @device_mode: device mode
- * @vdev_id: vdev ID
+ * @enable: enable
+ *
+ * This API is used to enable/disable Interface Low Power (IPL) feature.
+ *
+ * Return: QDF Status
+ */
+QDF_STATUS ucfg_fwol_set_ilp_config(struct wlan_objmgr_psoc *psoc,
+				    struct wlan_objmgr_pdev *pdev,
+				    uint32_t enable);
+
+/**
+ * ucfg_fwol_configure_vdev_params - API to configure vdev specific params
+ * @psoc: pointer to psoc object
+ * @vdev: pointer to vdev object
  *
  * Used to configure per vdev firmware params based on device mode. This is
  * invoked from hdd during vdev creation.
@@ -748,9 +796,7 @@ QDF_STATUS ucfg_fwol_configure_global_params(struct wlan_objmgr_psoc *psoc,
  * Return: QDF Status
  */
 QDF_STATUS ucfg_fwol_configure_vdev_params(struct wlan_objmgr_psoc *psoc,
-					   struct wlan_objmgr_pdev *pdev,
-					   enum QDF_OPMODE device_mode,
-					   uint8_t vdev_id);
+					   struct wlan_objmgr_vdev *vdev);
 #else
 static inline QDF_STATUS ucfg_fwol_psoc_open(struct wlan_objmgr_psoc *psoc)
 {
@@ -842,6 +888,13 @@ ucfg_fwol_get_all_allowlist_params(struct wlan_objmgr_psoc *psoc,
 static inline QDF_STATUS
 ucfg_fwol_get_ani_enabled(struct wlan_objmgr_psoc *psoc,
 			  bool *ani_enabled)
+{
+	return QDF_STATUS_E_FAILURE;
+}
+
+static inline QDF_STATUS
+ucfg_fwol_get_pcie_config(struct wlan_objmgr_psoc *psoc,
+			  uint8_t *pcie_config)
 {
 	return QDF_STATUS_E_FAILURE;
 }
@@ -1062,8 +1115,7 @@ ucfg_fwol_configure_global_params(struct wlan_objmgr_psoc *psoc,
 
 static inline QDF_STATUS
 ucfg_fwol_configure_vdev_params(struct wlan_objmgr_psoc *psoc,
-				struct wlan_objmgr_pdev *pdev,
-				enum QDF_OPMODE device_mode, uint8_t vdev_id)
+				struct wlan_objmgr_vdev *vdev)
 {
 	return QDF_STATUS_E_FAILURE;
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -15,6 +15,8 @@
  * TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
  * PERFORMANCE OF THIS SOFTWARE.
  */
+
+#if defined(WLAN_SUPPORT_TWT)
 
 /**
  * wlan_twt_is_max_sessions_reached() - Check if the maximum number of
@@ -278,7 +280,7 @@ wlan_twt_get_session_state(struct wlan_objmgr_psoc *psoc,
  * @peer_mac: Pointer to peer mac address
  * @dialog_id: Dialog id
  * @cmd: TWT command
- * @active_cmd: Fill the active command in this output parameter
+ * @pactive_cmd: Fill the active command in this output parameter
  *
  * Return: True if given command is in progress.
  */
@@ -293,6 +295,7 @@ bool wlan_twt_is_command_in_progress(struct wlan_objmgr_psoc *psoc,
  * @vdev: vdev pointer
  * @peer_mac: mac address of peer
  * @dialog_id: dialog_id of TWT session
+ * @is_ps_disabled: Whether power save is disabled or not
  * @twt_next_action: Set next action to do before work scheduled
  *
  * Return: None
@@ -301,6 +304,7 @@ void wlan_twt_set_work_params(
 			struct wlan_objmgr_vdev *vdev,
 			struct qdf_mac_addr *peer_mac,
 			uint8_t dialog_id,
+			bool is_ps_disabled,
 			uint32_t twt_next_action);
 
 /**
@@ -314,3 +318,180 @@ void wlan_twt_set_work_params(
 void wlan_twt_get_work_params(struct wlan_objmgr_vdev *vdev,
 			      struct twt_work_params *params,
 			      uint32_t *next_action);
+#else
+
+static inline bool
+wlan_twt_is_max_sessions_reached(struct wlan_objmgr_psoc *psoc,
+				 struct qdf_mac_addr *peer_mac,
+				 uint8_t dialog_id)
+{
+	return true;
+}
+
+static inline QDF_STATUS
+wlan_twt_set_command_in_progress(struct wlan_objmgr_psoc *psoc,
+				 struct qdf_mac_addr *peer_mac,
+				 uint8_t dialog_id,
+				 enum wlan_twt_commands cmd)
+{
+	return QDF_STATUS_SUCCESS;
+}
+
+static inline QDF_STATUS
+wlan_twt_setup_req(struct wlan_objmgr_psoc *psoc,
+		   struct twt_add_dialog_param *req,
+		   void *context)
+{
+	return QDF_STATUS_SUCCESS;
+}
+
+static inline QDF_STATUS
+wlan_twt_teardown_req(struct wlan_objmgr_psoc *psoc,
+		      struct twt_del_dialog_param *req,
+		      void *context)
+{
+	return QDF_STATUS_SUCCESS;
+}
+
+static inline QDF_STATUS
+wlan_twt_pause_req(struct wlan_objmgr_psoc *psoc,
+		   struct twt_pause_dialog_cmd_param *req,
+		   void *context)
+{
+	return QDF_STATUS_SUCCESS;
+}
+
+static inline QDF_STATUS
+wlan_twt_resume_req(struct wlan_objmgr_psoc *psoc,
+		    struct twt_resume_dialog_cmd_param *req,
+		    void *context)
+{
+	return QDF_STATUS_SUCCESS;
+}
+
+static inline QDF_STATUS
+wlan_twt_nudge_req(struct wlan_objmgr_psoc *psoc,
+		   struct twt_nudge_dialog_cmd_param *req,
+		   void *context)
+{
+	return QDF_STATUS_SUCCESS;
+}
+
+static inline QDF_STATUS
+wlan_twt_ac_pdev_param_send(struct wlan_objmgr_psoc *psoc,
+			    enum twt_traffic_ac twt_ac)
+{
+	return QDF_STATUS_SUCCESS;
+}
+
+static inline bool
+wlan_twt_is_setup_in_progress(struct wlan_objmgr_psoc *psoc,
+			      struct qdf_mac_addr *peer_mac,
+			      uint8_t dialog_id)
+{
+	return true;
+}
+
+static inline QDF_STATUS
+wlan_twt_setup_complete_event_handler(struct wlan_objmgr_psoc *psoc,
+				   struct twt_add_dialog_complete_event *event)
+{
+	return QDF_STATUS_SUCCESS;
+}
+
+static inline QDF_STATUS
+wlan_twt_ack_event_handler(struct wlan_objmgr_psoc *psoc,
+			   struct twt_ack_complete_event_param *event)
+{
+	return QDF_STATUS_SUCCESS;
+}
+
+static inline QDF_STATUS
+wlan_twt_teardown_complete_event_handler(struct wlan_objmgr_psoc *psoc,
+			     struct twt_del_dialog_complete_event_param *event)
+{
+	return QDF_STATUS_SUCCESS;
+}
+
+static inline QDF_STATUS
+wlan_twt_pause_complete_event_handler(struct wlan_objmgr_psoc *psoc,
+			  struct twt_pause_dialog_complete_event_param *event)
+{
+	return QDF_STATUS_SUCCESS;
+}
+
+static inline QDF_STATUS
+wlan_twt_resume_complete_event_handler(struct wlan_objmgr_psoc *psoc,
+			  struct twt_resume_dialog_complete_event_param *event)
+{
+	return QDF_STATUS_SUCCESS;
+}
+
+static inline QDF_STATUS
+wlan_twt_nudge_complete_event_handler(struct wlan_objmgr_psoc *psoc,
+			   struct twt_nudge_dialog_complete_event_param *event)
+{
+	return QDF_STATUS_SUCCESS;
+}
+
+static inline QDF_STATUS
+wlan_twt_notify_event_handler(struct wlan_objmgr_psoc *psoc,
+			      struct twt_notify_event_param *event)
+{
+	return QDF_STATUS_SUCCESS;
+}
+
+static inline QDF_STATUS
+wlan_twt_init_context(struct wlan_objmgr_psoc *psoc,
+		      struct qdf_mac_addr *peer_mac,
+		      uint8_t dialog_id)
+{
+	return QDF_STATUS_SUCCESS;
+}
+
+static inline
+QDF_STATUS wlan_twt_update_beacon_template(void)
+{
+	return QDF_STATUS_SUCCESS;
+}
+
+static inline
+bool wlan_twt_is_setup_done(struct wlan_objmgr_psoc *psoc,
+			    struct qdf_mac_addr *peer_mac, uint8_t dialog_id)
+{
+	return true;
+}
+
+static inline
+enum wlan_twt_session_state
+wlan_twt_get_session_state(struct wlan_objmgr_psoc *psoc,
+			   struct qdf_mac_addr *peer_mac, uint8_t dialog_id)
+{
+	return WLAN_TWT_SETUP_STATE_NOT_ESTABLISHED;
+}
+
+static inline
+bool wlan_twt_is_command_in_progress(struct wlan_objmgr_psoc *psoc,
+				     struct qdf_mac_addr *peer_mac,
+				     uint8_t dialog_id,
+				     enum wlan_twt_commands cmd,
+				     enum wlan_twt_commands *pactive_cmd)
+{
+	return true;
+}
+
+static inline
+void wlan_twt_set_work_params(
+			struct wlan_objmgr_vdev *vdev,
+			struct twt_add_dialog_complete_event_param *params,
+			uint32_t twt_next_action)
+{
+}
+
+static inline
+void wlan_twt_get_work_params(struct wlan_objmgr_vdev *vdev,
+			      struct twt_work_params *params,
+			      uint32_t *next_action)
+{
+}
+#endif

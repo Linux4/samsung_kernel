@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2019-2020 The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -50,7 +50,7 @@ mlme_psoc_ext_t *wlan_psoc_mlme_get_ext_hdl(struct wlan_objmgr_psoc *psoc);
 /**
  * wlan_psoc_mlme_set_ext_hdl() - Set legacy handle
  * @psoc_mlme: psoc_mlme object
- * psoc_ext_hdl: PSOC level legacy handle
+ * @psoc_ext_hdl: PSOC level legacy handle
  *
  * Sets legacy handle in psoc mlme component object
  *

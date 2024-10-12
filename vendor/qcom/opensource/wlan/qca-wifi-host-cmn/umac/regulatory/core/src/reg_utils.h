@@ -33,8 +33,8 @@
 #define REG_DSRC_END_FREQ   channel_map[MAX_DSRC_CHANNEL].center_freq
 #endif
 
-#define REG_ETSI13_SRD_START_FREQ 5745
-#define REG_ETSI13_SRD_END_FREQ   5865
+#define REG_ETSI_SRD_START_FREQ 5745
+#define REG_ETSI_SRD_END_FREQ   5865
 
 /**
  * reg_is_world_ctry_code() - Check if the given country code is WORLD regdomain
@@ -48,6 +48,7 @@ bool reg_is_world_ctry_code(uint16_t ctry_code);
 /**
  * reg_chan_has_dfs_attribute_for_freq() - check channel frequency has dfs
  * attribute or not
+ * @pdev: Pointer to physical dev
  * @freq: channel frequency.
  *
  * This API gets initial dfs attribute flag of the channel frequency from
@@ -62,7 +63,7 @@ bool reg_chan_has_dfs_attribute_for_freq(struct wlan_objmgr_pdev *pdev,
  * reg_is_passive_or_disable_for_pwrmode() - Check if the given channel is
  * passive or disabled.
  * @pdev: Pointer to physical dev
- * @chan: Channel frequency
+ * @freq: Channel frequency
  * @in_6g_pwr_mode: Input 6GHz power mode
  *
  * Return: true if channel frequency is passive or disabled, else false.
@@ -138,6 +139,27 @@ QDF_STATUS reg_cache_channel_freq_state(struct wlan_objmgr_pdev *pdev,
 
 #ifdef CONFIG_REG_CLIENT
 /**
+ * reg_get_keep_6ghz_sta_cli_connection() - Get keep 6ghz sta cli
+ *                                               connection flag
+ * @pdev: The physical pdev to get keep_6ghz_sta_cli_connection
+ *
+ * Return: Return true if keep_6ghz_sta_cli_connection set else return false
+ */
+bool reg_get_keep_6ghz_sta_cli_connection(struct wlan_objmgr_pdev *pdev);
+
+/**
+ * reg_set_keep_6ghz_sta_cli_connection() - Set keep 6ghz sta cli connection
+ *                                          flag
+ * @pdev: The physical pdev to get keep_6ghz_sta_cli_connection
+ * @keep_6ghz_sta_cli_connection: Parameter to set
+ *
+ * Return: QDF_STATUS
+ */
+QDF_STATUS reg_set_keep_6ghz_sta_cli_connection(
+					struct wlan_objmgr_pdev *pdev,
+					bool keep_6ghz_sta_cli_connection);
+
+/**
  * reg_set_band() - Sets the band information for the PDEV
  * @pdev: The physical dev to set the band for
  * @band_bitmap: The set band parameters to configure for the physical device
@@ -157,7 +179,8 @@ QDF_STATUS reg_get_band(struct wlan_objmgr_pdev *pdev, uint32_t *band_bitmap);
 
 /**
  * reg_set_fcc_constraint() - Apply fcc constraints on channels 12/13
- * @pdev: The physical dev to set the band for
+ * @pdev: The physical dev to set
+ * @fcc_constraint: true to set FCC constraint
  *
  * This function reduces the transmit power on channels 12 and 13, to comply
  * with FCC regulations in the USA.
@@ -178,6 +201,40 @@ QDF_STATUS reg_set_fcc_constraint(struct wlan_objmgr_pdev *pdev,
 bool reg_get_fcc_constraint(struct wlan_objmgr_pdev *pdev, uint32_t freq);
 
 /**
+ * reg_get_country_max_allowed_bw() - get max allowed bw as per all reg rules
+ * of client
+ * @pdev: physical dev to get
+ *
+ * Return: max allowed channel width for current country code
+ */
+uint32_t reg_get_country_max_allowed_bw(struct wlan_objmgr_pdev *pdev);
+
+/**
+ * reg_is_fcc_constraint_set() - Check if FCC constraint set
+ * @pdev: physical dev to get
+ *
+ * Return: True if FCC constraint is set, else false.
+ */
+bool reg_is_fcc_constraint_set(struct wlan_objmgr_pdev *pdev);
+
+/**
+ * reg_is_6ghz_band_set - Check if 6 GHz band set
+ * @pdev: Pointer to pdev
+ *
+ * Return: True if 6 GHz band set else return flase
+ */
+bool reg_is_6ghz_band_set(struct wlan_objmgr_pdev *pdev);
+
+/**
+ * reg_is_user_country_set_allowed() - Checks whether user country is allowed
+ * to set
+ * @psoc: psoc ptr
+ *
+ * Return: bool
+ */
+bool reg_is_user_country_set_allowed(struct wlan_objmgr_psoc *psoc);
+
+/**
  * reg_read_current_country() - Get the current regulatory country
  * @psoc: The physical SoC to get current country from
  * @country_code: the buffer to populate the country code into
@@ -190,7 +247,7 @@ QDF_STATUS reg_read_current_country(struct wlan_objmgr_psoc *psoc,
 /**
  * reg_set_default_country() - Set the default regulatory country
  * @psoc: The physical SoC to set default country for
- * @req: The country information to configure
+ * @country: The country code to configure
  *
  * Return: QDF_STATUS
  */
@@ -260,27 +317,33 @@ QDF_STATUS reg_get_domain_from_country_code(v_REGDOMAIN_t *reg_domain_ptr,
 
 #ifdef CONFIG_REG_CLIENT
 /**
- * reg_get_6g_power_type_for_ctry() - Return power type for 6G based on cntry IE
+ * reg_get_best_6g_power_type() - Return best power type for 6 GHz connection
  * @psoc: pointer to psoc
  * @pdev: pointer to pdev
- * @ap_ctry: pointer to country string in country IE
- * @sta_ctry: pointer to sta programmed country
  * @pwr_type_6g: pointer to 6G power type
- * @ctry_code_match: Check for country IE and sta country code match
  * @ap_pwr_type: AP's power type as advertised in HE ops IE
+ * @chan_freq: Connection channel frequency
+ *
+ * This function computes best power type for 6 GHz connection.
+ * SP power type is selected only if AP advertises SP and client supports SP.
+ * LPI power type is selected only if AP advertises LPI and client supports LPI.
+ * VLP power type is selected for the below cases,
+ * a) AP advertises VLP and client supports VLP.
+ * b) AP advertises SP but client doesn't support SP but supports VLP.
+ * c) AP advertises LPI but client doesn't support LPI but supports VLP.
+ *
  * Return: QDF_STATUS
  */
 QDF_STATUS
-reg_get_6g_power_type_for_ctry(struct wlan_objmgr_psoc *psoc,
-			       struct wlan_objmgr_pdev *pdev,
-			       uint8_t *ap_ctry, uint8_t *sta_ctry,
-			       enum reg_6g_ap_type *pwr_type_6g,
-			       bool *ctry_code_match,
-			       enum reg_6g_ap_type ap_pwr_type);
+reg_get_best_6g_power_type(struct wlan_objmgr_psoc *psoc,
+			   struct wlan_objmgr_pdev *pdev,
+			   enum reg_6g_ap_type *pwr_type_6g,
+			   enum reg_6g_ap_type ap_pwr_type,
+			   uint32_t chan_freq);
 #endif
 
 /**
- * reg_set_config_vars () - set configuration variables
+ * reg_set_config_vars() - set configuration variables
  * @psoc: psoc ptr
  * @config_vars: configuration struct
  *
@@ -463,18 +526,42 @@ bool reg_get_fcc_constraint(struct wlan_objmgr_pdev *pdev, uint32_t freq)
 	return false;
 }
 
+static inline
+bool reg_is_6ghz_band_set(struct wlan_objmgr_pdev *pdev)
+{
+	return true;
+}
+
+static inline
+bool reg_is_user_country_set_allowed(struct wlan_objmgr_psoc *psoc)
+{
+	return true;
+}
+
 static inline enum reg_6g_ap_type
 reg_decide_6g_ap_pwr_type(struct wlan_objmgr_pdev *pdev)
 {
 	return REG_CURRENT_MAX_AP_TYPE;
 }
+
+static inline
+bool reg_get_keep_6ghz_sta_cli_connection(struct wlan_objmgr_pdev *pdev)
+{
+	return false;
+}
+
+static inline
+QDF_STATUS reg_set_keep_6ghz_sta_cli_connection(struct wlan_objmgr_pdev *pdev,
+					bool keep_6ghz_sta_cli_connection)
+{
+	return QDF_STATUS_SUCCESS;
+}
 #endif /* CONFIG_REG_CLIENT */
 
 #if defined(WLAN_FEATURE_DSRC) && defined(CONFIG_REG_CLIENT)
 /**
- * reg_is_dsrc_freq () - Checks the channel frequency is DSRC or not
+ * reg_is_dsrc_freq() - Checks the channel frequency is DSRC or not
  * @freq: Channel center frequency
- * @pdev: pdev ptr
  *
  * Return: true or false
  */
@@ -482,13 +569,13 @@ reg_decide_6g_ap_pwr_type(struct wlan_objmgr_pdev *pdev)
 bool reg_is_dsrc_freq(qdf_freq_t freq);
 #endif /* CONFIG_CHAN_FREQ_API*/
 
-static inline bool reg_is_etsi13_regdmn(struct wlan_objmgr_pdev *pdev)
+static inline bool reg_is_etsi_regdmn(struct wlan_objmgr_pdev *pdev)
 {
 	return false;
 }
 
 /**
- * reg_is_etsi13_srd_chan_for_freq() - Checks the channel for ETSI13 srd ch
+ * reg_is_etsi_srd_chan_for_freq() - Checks the channel for ETSI13 srd ch
  * frequency or not
  * @freq: Channel center frequency
  * @pdev: pdev ptr
@@ -496,13 +583,13 @@ static inline bool reg_is_etsi13_regdmn(struct wlan_objmgr_pdev *pdev)
  * Return: true or false
  */
 static inline bool
-reg_is_etsi13_srd_chan_for_freq(struct wlan_objmgr_pdev *pdev, uint16_t freq)
+reg_is_etsi_srd_chan_for_freq(struct wlan_objmgr_pdev *pdev, uint16_t freq)
 {
 	return false;
 }
 
 static inline bool
-reg_is_etsi13_srd_chan_allowed_master_mode(struct wlan_objmgr_pdev *pdev)
+reg_is_etsi_srd_chan_allowed_master_mode(struct wlan_objmgr_pdev *pdev)
 {
 	return true;
 }
@@ -513,27 +600,28 @@ static inline bool reg_is_dsrc_freq(qdf_freq_t freq)
 }
 
 #ifdef CONFIG_CHAN_FREQ_API
-bool reg_is_etsi13_srd_chan_for_freq(struct wlan_objmgr_pdev
-				     *pdev, uint16_t freq);
+bool reg_is_etsi_srd_chan_for_freq(struct wlan_objmgr_pdev
+				   *pdev, uint16_t freq);
 #endif /*CONFIG_CHAN_FREQ_API */
 
 /**
- * reg_is_etsi13_regdmn () - Checks if the current reg domain is ETSI13 or not
+ * reg_is_etsi_regdmn() - Check if the current reg domain is
+ * ETSI13/ETSI18/ETSI20 or not
  * @pdev: pdev ptr
  *
  * Return: true or false
  */
-bool reg_is_etsi13_regdmn(struct wlan_objmgr_pdev *pdev);
+bool reg_is_etsi_regdmn(struct wlan_objmgr_pdev *pdev);
 
 /**
- * reg_is_etsi13_srd_chan_allowed_master_mode() - Checks if regdmn is ETSI13
+ * reg_is_etsi_srd_chan_allowed_master_mode() - Checks if regdmn is ETSI13
  * and SRD channels are allowed in master mode or not.
  *
  * @pdev: pdev ptr
  *
  * Return: true or false
  */
-bool reg_is_etsi13_srd_chan_allowed_master_mode(struct wlan_objmgr_pdev *pdev);
+bool reg_is_etsi_srd_chan_allowed_master_mode(struct wlan_objmgr_pdev *pdev);
 #else
 static inline bool reg_is_dsrc_freq(qdf_freq_t freq)
 {
@@ -541,23 +629,39 @@ static inline bool reg_is_dsrc_freq(qdf_freq_t freq)
 }
 
 static inline
-bool reg_is_etsi13_srd_chan_for_freq(struct wlan_objmgr_pdev *pdev,
-				     uint16_t freq)
+bool reg_is_etsi_srd_chan_for_freq(struct wlan_objmgr_pdev *pdev,
+				   uint16_t freq)
 {
 	return false;
 }
 
-static inline bool reg_is_etsi13_regdmn(struct wlan_objmgr_pdev *pdev)
+static inline bool reg_is_etsi_regdmn(struct wlan_objmgr_pdev *pdev)
 {
 	return false;
 }
 
 static inline bool
-reg_is_etsi13_srd_chan_allowed_master_mode(struct wlan_objmgr_pdev *pdev)
+reg_is_etsi_srd_chan_allowed_master_mode(struct wlan_objmgr_pdev *pdev)
 {
 	return false;
 }
 
 #endif
 
+#if defined(CONFIG_REG_CLIENT) && defined(CONFIG_BAND_6GHZ)
+/**
+ * reg_get_6ghz_cli_pwr_type_per_ap_pwr_type() - Find client power type
+ *                                               corresponding to AP power type
+ * @pdev: Pointer to pdev
+ * @ap_pwr_type: 6 GHz AP power type
+ * @cli_pwr_type: To be filled 6 GHz client power type pointer
+ *
+ * Return: QDF_STATUS
+ */
+QDF_STATUS
+reg_get_6ghz_cli_pwr_type_per_ap_pwr_type(
+				struct wlan_objmgr_pdev *pdev,
+				enum reg_6g_ap_type ap_pwr_type,
+				enum supported_6g_pwr_types *cli_pwr_type);
+#endif
 #endif

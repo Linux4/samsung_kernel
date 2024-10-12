@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2011-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  *
  */
 
@@ -78,6 +78,9 @@ static struct subsystem_data subsystems[] = {
 	{ "adsp", 606, 2 },
 	{ "adsp_island", 613, 2 },
 	{ "cdsp", 607, 5 },
+	{ "cdsp1", 607, 12 },
+	{ "gpdsp0", 607, 17 },
+	{ "gpdsp1", 607, 18 },
 	{ "slpi", 608, 3 },
 	{ "slpi_island", 613, 3 },
 	{ "gpu", 609, 0 },
@@ -85,13 +88,6 @@ static struct subsystem_data subsystems[] = {
 	{ "apss", 631, QCOM_SMEM_HOST_ANY },
 };
 #endif
-
-struct stats_config {
-	unsigned int offset_addr;
-	unsigned int ddr_offset_addr;
-	unsigned int num_records;
-	bool appended_stats_avail;
-};
 
 struct stats_entry {
 	uint32_t name;
@@ -111,11 +107,6 @@ struct sleep_stats {
 	u64 last_entered_at;
 	u64 last_exited_at;
 	u64 accumulated;
-};
-
-struct appended_stats {
-	u32 client_votes;
-	u32 reserved[3];
 };
 
 #if IS_ENABLED(CONFIG_MSM_QMP)
@@ -147,7 +138,7 @@ static bool ddr_freq_update;
 #include <linux/workqueue.h>
 #include <linux/soc/qcom/cdsp-loader.h>
 
-#define MAX_COUNT 7
+#define MAX_COUNT 10
 
 #ifdef CONFIG_SEC_FACTORY
 #define MAX_DSP_ENTRY 2
@@ -162,6 +153,7 @@ struct _dsp_entry {
 	uint64_t prev_exit_sec;
 	uint64_t prev_exit_msec;
 	uint64_t error_count;
+	struct timespec64 interval;
 #ifdef CONFIG_SEC_FACTORY
 	u32 prev_count;
 	struct timespec64 sleep_enter_kts;
@@ -179,35 +171,26 @@ static u64 deep_sleep_last_exited_time;
 uint64_t get_aosd_sleep_exit_time(void)
 {
 	int i;
-	uint32_t offset;
 	u64 last_exited_at;
 	u32 count;
 	static u32 saved_deep_sleep_count;
 	u32 s_type = 0;
 	char stat_type[5] = {0};
 	struct stats_prv_data *drv = gdata;
-	void __iomem *reg;
 
 	for (i = 0; i < drv->config->num_records; i++) {
-		offset = STAT_TYPE_ADDR + (i * sizeof(struct sleep_stats));
-
-		if (drv[i].config->appended_stats_avail)
-			offset += i * sizeof(struct appended_stats);
-
-		reg = drv[i].reg + offset;
-
-		s_type = readl_relaxed(reg);
+		s_type = readl_relaxed(drv[i].reg);
 		memcpy(stat_type, &s_type, sizeof(u32));
 		strim(stat_type);
 
 		if (!memcmp((const void *)stat_type, (const void *)"aosd", 4)) {
-			count = readl_relaxed(reg + COUNT_ADDR);
+			count = readl_relaxed(drv[i].reg + COUNT_ADDR);
 
 			if (saved_deep_sleep_count == count)
 				deep_sleep_last_exited_time = 0;
 			else {
 				saved_deep_sleep_count = count;
-				last_exited_at = readq_relaxed(reg + LAST_EXITED_AT_ADDR);
+				last_exited_at = readq_relaxed(drv[i].reg + LAST_EXITED_AT_ADDR);
 				deep_sleep_last_exited_time = last_exited_at;
 			}
 			break;
@@ -283,12 +266,10 @@ static void  print_ddr_stats(struct seq_file *s, int *count,
 
 	u32 cp_idx = 0;
 	u32 name;
-	u64 duration = 0;
+	u32 duration = 0;
 
-	if (accumulated_duration) {
-		duration = data->duration * 100;
-		do_div(duration, accumulated_duration);
-	}
+	if (accumulated_duration)
+		duration = (data->duration * 100) / accumulated_duration;
 
 	name = (data->name >> 8) & 0xFF;
 	if (name == 0x0) {
@@ -537,7 +518,7 @@ static struct dentry *create_debugfs_entries(void __iomem *reg,
 {
 	struct dentry *root;
 	char stat_type[sizeof(u32) + 1] = {0};
-	u32 offset, type, key;
+	u32 type, key;
 	int i;
 #if IS_ENABLED(CONFIG_QCOM_SMEM)
 	const char *name;
@@ -547,13 +528,6 @@ static struct dentry *create_debugfs_entries(void __iomem *reg,
 	root = debugfs_create_dir("qcom_sleep_stats", NULL);
 
 	for (i = 0; i < prv_data[0].config->num_records; i++) {
-		offset = STAT_TYPE_ADDR + (i * sizeof(struct sleep_stats));
-
-		if (prv_data[0].config->appended_stats_avail)
-			offset += i * sizeof(struct appended_stats);
-
-		prv_data[i].reg = reg + offset;
-
 		type = readl_relaxed(prv_data[i].reg);
 		memcpy(stat_type, &type, sizeof(u32));
 		strim(stat_type);
@@ -731,8 +705,21 @@ static void sec_sleep_stats_show(const char *annotation)
 							duration_msec == dsp_entry->entry_msec) &&
 						(duration_sec == dsp_entry->prev_exit_sec &&
 						 duration_msec == dsp_entry->prev_exit_msec)) {
-					dsp_entry->error_count++;
-					printk("entry error cnt : %d\n", dsp_entry->error_count);
+
+					struct timespec64 curr_kts = ktime_to_timespec64(ktime_get_boottime());
+
+					if (dsp_entry->interval.tv_sec != 0) {
+						time64_t diff_kts = curr_kts.tv_sec - dsp_entry->interval.tv_sec;
+
+						if (diff_kts > 60) { // don't update error count within 1 min
+							dsp_entry->error_count++;
+							printk("entry error cnt : %d\n", dsp_entry->error_count);
+							dsp_entry->interval = ktime_to_timespec64(ktime_get_boottime());
+						}
+					} else { 
+						dsp_entry->interval = ktime_to_timespec64(ktime_get_boottime());
+					}
+
 				} else {
 					dsp_entry->error_count = 0;
 				}
@@ -860,6 +847,7 @@ static int soc_sleep_stats_probe(struct platform_device *pdev)
 	u32 name;
 	void __iomem *reg;
 #endif
+	u32 offset;
 
 #if IS_ENABLED(CONFIG_SEC_PM)
 	/* Register callback for cheking subsystem stats */
@@ -896,8 +884,15 @@ static int soc_sleep_stats_probe(struct platform_device *pdev)
 	if (!prv_data)
 		return -ENOMEM;
 
-	for (i = 0; i < config->num_records; i++)
+	for (i = 0; i < config->num_records; i++) {
 		prv_data[i].config = config;
+		offset = STAT_TYPE_ADDR + (i * sizeof(struct sleep_stats));
+
+		if (prv_data[0].config->appended_stats_avail)
+			offset += i * sizeof(struct appended_stats);
+
+		prv_data[i].reg = reg_base + offset;
+	}
 
 	if (!config->ddr_offset_addr)
 		goto skip_ddr_stats;

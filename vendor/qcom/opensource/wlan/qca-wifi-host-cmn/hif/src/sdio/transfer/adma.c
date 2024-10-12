@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2019-2020 The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -27,6 +27,7 @@
  * hif_dev_get_fifo_address() - get the fifo addresses for dma
  * @pdev:  SDIO HIF object
  * @c : FIFO address config pointer
+ * @config_len: config length
  *
  * Return : 0 for success, non-zero for error
  */
@@ -63,8 +64,9 @@ int hif_dev_configure_pipes(struct hif_sdio_dev *pdev, struct sdio_func *func)
 	return 0;
 }
 
-/** hif_dev_set_mailbox_swap() - Set the mailbox swap
- * @pdev : The HIF layer object
+/**
+ * hif_dev_set_mailbox_swap() - Set the mailbox swap
+ * @pdev: The HIF layer object
  *
  * Return: none
  */
@@ -73,8 +75,9 @@ void hif_dev_set_mailbox_swap(struct hif_sdio_dev *pdev)
 	/* SDIO AL doesn't use mailbox architecture */
 }
 
-/** hif_dev_get_mailbox_swap() - Get the mailbox swap setting
- * @pdev : The HIF layer object
+/**
+ * hif_dev_get_mailbox_swap() - Get the mailbox swap setting
+ * @pdev: The HIF layer object
  *
  * Return: true or false
  */
@@ -86,7 +89,6 @@ bool hif_dev_get_mailbox_swap(struct hif_sdio_dev *pdev)
 
 /**
  * hif_dev_dsr_handler() - Synchronous interrupt handler
- *
  * @context: hif send context
  *
  * Return: 0 for success and non-zero for failure
@@ -99,10 +101,10 @@ QDF_STATUS hif_dev_dsr_handler(void *context)
 
 /**
  * hif_dev_map_service_to_pipe() - maps ul/dl pipe to service id.
- * @pDev: SDIO HIF object
- * @ServiceId: service index
- * @ULPipe: uplink pipe id
- * @DLPipe: down-linklink pipe id
+ * @pdev: SDIO HIF object
+ * @svc: service index
+ * @ul_pipe: uplink pipe id
+ * @dl_pipe: down-linklink pipe id
  *
  * Return: 0 on success, error value on invalid map
  */
@@ -145,10 +147,10 @@ QDF_STATUS hif_dev_map_service_to_pipe(struct hif_sdio_dev *pdev, uint16_t svc,
 }
 
 /**
- * hif_bus_configure() - configure the bus
+ * hif_sdio_bus_configure() - configure the bus
  * @hif_sc: pointer to the hif context.
  *
- * return: 0 for success. nonzero for failure.
+ * Return: 0 for success. nonzero for failure.
  */
 int hif_sdio_bus_configure(struct hif_softc *hif_sc)
 {
@@ -168,7 +170,8 @@ int hif_sdio_bus_configure(struct hif_softc *hif_sc)
 	return pld_wlan_enable(hif_sc->qdf_dev->dev, &cfg, mode);
 }
 
-/** hif_dev_setup_device() - Setup device specific stuff here required for hif
+/**
+ * hif_dev_setup_device() - Setup device specific stuff here required for hif
  * @pdev : HIF layer object
  *
  * return 0 on success, error otherwise
@@ -180,8 +183,9 @@ int hif_dev_setup_device(struct hif_sdio_device *pdev)
 	return 0;
 }
 
-/** hif_dev_mask_interrupts() - Disable the interrupts in the device
- * @pdev SDIO HIF Object
+/**
+ * hif_dev_mask_interrupts() - Disable the interrupts in the device
+ * @pdev: SDIO HIF Object
  *
  * Return: NONE
  */
@@ -190,8 +194,9 @@ void hif_dev_mask_interrupts(struct hif_sdio_device *pdev)
 	/* SDIO AL Handles Interrupts */
 }
 
-/** hif_dev_unmask_interrupts() - Enable the interrupts in the device
- * @pdev SDIO HIF Object
+/**
+ * hif_dev_unmask_interrupts() - Enable the interrupts in the device
+ * @pdev: SDIO HIF Object
  *
  * Return: NONE
  */
@@ -202,7 +207,7 @@ void hif_dev_unmask_interrupts(struct hif_sdio_device *pdev)
 
 /**
  * hif_dev_map_pipe_to_adma_chan() - maps pipe id to adma chan
- * @pdev: The pointer to the hif device object
+ * @dev: The pointer to the hif device object
  * @pipeid: pipe index
  *
  * Return: adma channel handle
@@ -250,6 +255,7 @@ uint8_t hif_dev_map_adma_chan_to_pipe(struct hif_sdio_device *pdev,
  * hif_get_send_address() - Get the transfer pipe address
  * @pdev: The pointer to the hif device object
  * @pipe: The pipe identifier
+ * @addr: returned pipe address
  *
  * Return 0 for success and non-zero for failure to map
  */
@@ -275,6 +281,7 @@ int hif_get_send_address(struct hif_sdio_device *pdev,
 /**
  * hif_fixup_write_param() - Tweak the address and length parameters
  * @pdev: The pointer to the hif device object
+ * @req:
  * @length: The length pointer
  * @addr: The addr pointer
  *
@@ -335,7 +342,7 @@ QDF_STATUS hif_disable_func(struct hif_sdio_dev *device,
  *
  * @ol_sc: HIF object pointer
  * @device: HIF device pointer
- * @sdio_func: SDIO function pointer
+ * @func: SDIO function pointer
  * @resume: If this is called from resume or probe
  *
  * Return: 0 in case of success, else error value
@@ -367,10 +374,11 @@ QDF_STATUS hif_enable_func(struct hif_softc *ol_sc, struct hif_sdio_dev *device,
 }
 
 /**
- * hif_sdio_get_net_buf() - Get a network buffer from the rx q
- * @dev - HIF device object
+ * hif_sdio_get_nbuf() - Get a network buffer from the rx q
+ * @dev: HIF device object
+ * @buf_len: buffer length
  *
- * Return - NULL if out of buffers, else qdf_nbuf_t
+ * Return: NULL if out of buffers, else qdf_nbuf_t
  */
 #if HIF_MAX_RX_Q_ALLOC
 static qdf_nbuf_t hif_sdio_get_nbuf(struct hif_sdio_dev *dev, uint16_t buf_len)
@@ -418,7 +426,7 @@ static qdf_nbuf_t hif_sdio_get_nbuf(struct hif_sdio_dev *dev, uint16_t buf_len)
 #endif
 /**
  * hif_sdio_rx_q_alloc() - Deferred work for pre-alloc rx q
- * @ctx - Pointer to context object
+ * @ctx: Pointer to context object
  *
  * Return NONE
  */
@@ -560,8 +568,8 @@ void hif_dev_unregister_channels(struct hif_sdio_dev *dev,
 /**
  * hif_read_write() - queue a read/write request
  * @dev: pointer to hif device structure
- * @address: address to read, actually channel pointer
- * @buffer: buffer to hold read/write data
+ * @sdio_al_ch_handle: address to read, actually channel pointer
+ * @cbuffer: buffer to hold read/write data
  * @length: length to read/write
  * @request: read/write/sync/async request
  * @context: pointer to hold calling context
@@ -667,7 +675,7 @@ hif_read_write(struct hif_sdio_dev *dev,
  * ul_xfer_cb() - Completion call back for asynchronous transfer
  * @ch_handle: The sdio al channel handle
  * @result: The result of the operation
- * @context: pointer to request context
+ * @ctx: pointer to request context
  *
  * Return: None
  */

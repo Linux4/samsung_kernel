@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2016-2021 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -25,6 +26,7 @@
 #include "nan_ucfg_api.h"
 #include "target_if_nan.h"
 #include "wlan_nan_api.h"
+#include "target_if.h"
 #include "wmi_unified_api.h"
 #include "scheduler_api.h"
 #include <wmi_unified.h>
@@ -1163,11 +1165,18 @@ void target_if_nan_set_vdev_feature_config(struct wlan_objmgr_psoc *psoc,
 		return;
 	}
 
+	if (!target_if_is_vdev_valid(vdev_id)) {
+		target_if_err("vdev_id: %d is invalid, reject the req: param id %d",
+			      vdev_id,
+			      wmi_vdev_param_enable_disable_nan_config_features);
+		return;
+	}
+
 	ucfg_get_nan_feature_config(psoc, &nan_features);
 	target_if_debug("vdev_id:%d NAN features:0x%x", vdev_id, nan_features);
 
 	param.vdev_id = vdev_id;
-	param.param_id = WMI_VDEV_PARAM_ENABLE_DISABLE_NAN_CONFIG_FEATURES;
+	param.param_id = wmi_vdev_param_enable_disable_nan_config_features;
 	param.param_value = nan_features;
 
 	status = wmi_unified_vdev_set_param_send(wmi_handle, &param);

@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2016-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -79,8 +79,8 @@
 #define WLAN_PDEV_F_STA_AMPDU_DIS           0x01000000
 /* do not send probe request in passive channel */
 #define WLAN_PDEV_F_STRICT_PSCAN_EN         0x02000000
-  /* dupie (ANA,pre ANA ) */
-/*#define WLAN_PDEV_F_DUPIE                 0x00200000*/
+/* Multivdev restart enabled with Bitmap */
+#define WLAN_PDEV_F_MULTIVDEV_RESTART_BMAP  0x04000000
 /* Chan concurrency enabled */
 #define WLAN_PDEV_F_CHAN_CONCURRENCY        0x08000000
 /* Multivdev restart enabled */
@@ -113,6 +113,10 @@
 #define WLAN_PDEV_FEXT_AGILE_SPECTRAL_SCAN_320_DIS     0x00000100
 /* WiFi Radar support enabled */
 #define WLAN_PDEV_FEXT_WIFI_RADAR_ENABLE               0x00000200
+/* Scan blanking support enabled.valid only for scan radio supported pdevs */
+#define WLAN_PDEV_FEXT_SCAN_BLANKING_EN                0x00000400
+/* Overlapping frequency support */
+#define WLAN_PDEV_FEXT_OVERLAPPING_FREQ                0x00000800
 
 /* PDEV op flags */
    /* Enable htrate for wep and tkip */
@@ -160,7 +164,7 @@ struct osif_pdev_priv;
  * @pdev_feature_caps:  radio specific feature capabilities
  * @pdev_feature_ext_caps:  radio specific feature capabilities extended
  * @pdev_ospriv:        OS specific pointer
- * @macaddr[]:          MAC address
+ * @macaddr:            MAC address
  * @notified_ap_vdev:   ap vdev
  */
 struct wlan_objmgr_pdev_nif {
@@ -212,6 +216,7 @@ struct wlan_beacon_process {
  * @ref_cnt:           Ref count
  * @ref_id_dbg:        Array to track Ref count
  * @wlan_mlo_vdev_count: MLO VDEVs count
+ * @wlan_mlo_bridge_vdev_count: MLO bridge VDEVs count
  * @bcn:               Struct to keep track of beacon count
  */
 struct wlan_objmgr_pdev_objmgr {
@@ -229,6 +234,7 @@ struct wlan_objmgr_pdev_objmgr {
 	qdf_atomic_t ref_id_dbg[WLAN_REF_ID_MAX];
 #ifdef WLAN_FEATURE_11BE_MLO
 	qdf_atomic_t wlan_mlo_vdev_count;
+	qdf_atomic_t wlan_mlo_bridge_vdev_count;
 #endif
 	struct wlan_beacon_process bcn;
 };
@@ -239,8 +245,8 @@ struct wlan_objmgr_pdev_objmgr {
  * @pdev_nif:          pdev nif structure
  * @pdev_objmgr:       pdev object manager structure
  * @pdev_mlme:         pdev MLME structure
- * @pdev_comp_priv_obj[]:   component's private object array
- * @obj_status[]:      object status of each component object
+ * @pdev_comp_priv_obj:   component's private object array
+ * @obj_status:        object status of each component object
  * @obj_state:         object state
  * @tgt_if_handle:     Target interface handle
  * @pdev_lock:         lock to protect object
@@ -248,6 +254,7 @@ struct wlan_objmgr_pdev_objmgr {
  * @peer_free_list:    list to hold freed peer
  * @peer_obj_free_work:delayed work to be queued into workqueue
  * @active_work_cnt:   active work counts
+ * @standby_active: Pdev in standby mode while power down
 */
 struct wlan_objmgr_pdev {
 	struct wlan_chan_list *current_chan_list;
@@ -265,15 +272,18 @@ struct wlan_objmgr_pdev {
 	qdf_work_t peer_obj_free_work;
 	uint32_t active_work_cnt;
 #endif
+#ifdef WLAN_MLO_MULTI_CHIP
+	bool standby_active;
+#endif
 };
 
-/**
- ** APIs to Create/Delete Global object APIs
+/*
+ * APIs to Create/Delete Global object APIs
  */
 /**
  * wlan_objmgr_pdev_obj_create() - pdev create
  * @psoc: PSOC object
- * @scn: os private object
+ * @osif_priv: os private object
  *
  * Creates PDEV object, initializes with default values
  * Invokes the registered notifiers to create component object
@@ -287,7 +297,7 @@ struct wlan_objmgr_pdev *wlan_objmgr_pdev_obj_create(
 
 /**
  * wlan_objmgr_pdev_obj_delete() - pdev delete
- * @psoc: PDEV object
+ * @pdev: PDEV object
  *
  * Logically deletes PDEV object,
  * Once all the references are released, object manager invokes the registered
@@ -297,12 +307,12 @@ struct wlan_objmgr_pdev *wlan_objmgr_pdev_obj_create(
  */
 QDF_STATUS wlan_objmgr_pdev_obj_delete(struct wlan_objmgr_pdev *pdev);
 
-/**
- ** APIs to attach/detach component objects
+/*
+ * APIs to attach/detach component objects
  */
 /**
  * wlan_objmgr_pdev_component_obj_attach() - pdev comp object attach
- * @psoc: PDEV object
+ * @pdev: PDEV object
  * @id: Component id
  * @comp_priv_obj: component's private object pointer
  * @status: Component's private object creation status
@@ -320,7 +330,7 @@ QDF_STATUS wlan_objmgr_pdev_component_obj_attach(
 
 /**
  * wlan_objmgr_pdev_component_obj_detach() - pdev comp object detach
- * @psoc: PDEV object
+ * @pdev: PDEV object
  * @id: Component id
  * @comp_priv_obj: component's private object pointer
  *
@@ -335,8 +345,8 @@ QDF_STATUS wlan_objmgr_pdev_component_obj_detach(
 		enum wlan_umac_comp_id id,
 		void *comp_priv_obj);
 
-/**
- ** APIs to operations on pdev objects
+/*
+ * APIs to operations on pdev objects
  */
 
 typedef void (*wlan_objmgr_pdev_op_handler)(struct wlan_objmgr_pdev *pdev,
@@ -413,14 +423,14 @@ QDF_STATUS wlan_objmgr_trigger_pdev_comp_priv_object_deletion(
  *         NULL on FAILURE
  */
 #ifdef WLAN_OBJMGR_REF_ID_TRACE
+#define wlan_objmgr_get_vdev_by_id_from_pdev(pdev, vdev_id, dbg_id) \
+		wlan_objmgr_get_vdev_by_id_from_pdev_debug(pdev, \
+		vdev_id, dbg_id, __func__, __LINE__)
+
 struct wlan_objmgr_vdev *wlan_objmgr_get_vdev_by_id_from_pdev_debug(
 			struct wlan_objmgr_pdev *pdev, uint8_t vdev_id,
 			wlan_objmgr_ref_dbgid dbg_id,
 			const char *func, int line);
-
-#define wlan_objmgr_get_vdev_by_id_from_pdev(pdev, vdev_id, dbgid) \
-		wlan_objmgr_get_vdev_by_id_from_pdev_debug(pdev, \
-		vdev_id, dbgid, __func__, __LINE__)
 #else
 struct wlan_objmgr_vdev *wlan_objmgr_get_vdev_by_id_from_pdev(
 			struct wlan_objmgr_pdev *pdev, uint8_t vdev_id,
@@ -444,15 +454,15 @@ struct wlan_objmgr_vdev *wlan_objmgr_get_vdev_by_id_from_pdev(
  *         NULL on FAILURE
  */
 #ifdef WLAN_OBJMGR_REF_ID_TRACE
+#define wlan_objmgr_get_vdev_by_id_from_pdev_no_state(pdev, \
+	vdev_id, dbg_id) \
+		wlan_objmgr_get_vdev_by_id_from_pdev_no_state_debug(pdev, \
+		vdev_id, dbg_id, __func__, __LINE__)
+
 struct wlan_objmgr_vdev *wlan_objmgr_get_vdev_by_id_from_pdev_no_state_debug(
 			struct wlan_objmgr_pdev *pdev, uint8_t vdev_id,
 			wlan_objmgr_ref_dbgid dbg_id,
 			const char *func, int line);
-
-#define wlan_objmgr_get_vdev_by_id_from_pdev_no_state(pdev, \
-	vdev_id, dbgid) \
-		wlan_objmgr_get_vdev_by_id_from_pdev_no_state_debug(pdev, \
-		vdev_id, dbgid, __func__, __LINE__)
 #else
 struct wlan_objmgr_vdev *wlan_objmgr_get_vdev_by_id_from_pdev_no_state(
 			struct wlan_objmgr_pdev *pdev, uint8_t vdev_id,
@@ -475,14 +485,14 @@ struct wlan_objmgr_vdev *wlan_objmgr_get_vdev_by_id_from_pdev_no_state(
  *         NULL on FAILURE
  */
 #ifdef WLAN_OBJMGR_REF_ID_TRACE
+#define wlan_objmgr_get_vdev_by_macaddr_from_pdev(pdev, macaddr, dbg_id) \
+		wlan_objmgr_get_vdev_by_macaddr_from_pdev_debug(pdev, macaddr, \
+		dbg_id, __func__, __LINE__)
+
 struct wlan_objmgr_vdev *wlan_objmgr_get_vdev_by_macaddr_from_pdev_debug(
 		struct wlan_objmgr_pdev *pdev, const uint8_t *macaddr,
 		wlan_objmgr_ref_dbgid dbg_id,
 		const char *fnc, int ln);
-
-#define wlan_objmgr_get_vdev_by_macaddr_from_pdev(pdev, macaddr, dbgid) \
-		wlan_objmgr_get_vdev_by_macaddr_from_pdev_debug(pdev, macaddr, \
-		dbgid, __func__, __LINE__)
 #else
 struct wlan_objmgr_vdev *wlan_objmgr_get_vdev_by_macaddr_from_pdev(
 		struct wlan_objmgr_pdev *pdev, const uint8_t *macaddr,
@@ -506,16 +516,16 @@ struct wlan_objmgr_vdev *wlan_objmgr_get_vdev_by_macaddr_from_pdev(
  *         NULL on FAILURE
  */
 #ifdef WLAN_OBJMGR_REF_ID_TRACE
+#define wlan_objmgr_get_vdev_by_macaddr_from_pdev_no_state(pdev, macaddr, \
+	dbg_id) \
+		wlan_objmgr_get_vdev_by_macaddr_from_pdev_no_state_debug(pdev, \
+		macaddr, dbg_id, __func__, __LINE__)
+
 struct wlan_objmgr_vdev
 	*wlan_objmgr_get_vdev_by_macaddr_from_pdev_no_state_debug(
 		struct wlan_objmgr_pdev *pdev, const uint8_t *macaddr,
 		wlan_objmgr_ref_dbgid dbg_id,
 		const char *func, int line);
-
-#define wlan_objmgr_get_vdev_by_macaddr_from_pdev_no_state(pdev, macaddr, \
-	dbgid) \
-		wlan_objmgr_get_vdev_by_macaddr_from_pdev_no_state_debug(pdev, \
-		macaddr, dbgid, __func__, __LINE__)
 #else
 struct wlan_objmgr_vdev *wlan_objmgr_get_vdev_by_macaddr_from_pdev_no_state(
 		struct wlan_objmgr_pdev *pdev, const uint8_t *macaddr,
@@ -532,19 +542,32 @@ struct wlan_objmgr_vdev *wlan_objmgr_get_vdev_by_macaddr_from_pdev_no_state(
  * Return: reference to first vdev
  */
 #ifdef WLAN_OBJMGR_REF_ID_TRACE
+#define wlan_objmgr_pdev_get_first_vdev(pdev, dbg_id) \
+		wlan_objmgr_pdev_get_first_vdev_debug(pdev, dbg_id, \
+		__func__, __LINE__)
+
 struct wlan_objmgr_vdev *wlan_objmgr_pdev_get_first_vdev_debug(
 		struct wlan_objmgr_pdev *pdev,
 		wlan_objmgr_ref_dbgid dbg_id,
 		const char *func, int line);
-
-#define wlan_objmgr_pdev_get_first_vdev(pdev, dbgid) \
-		wlan_objmgr_pdev_get_first_vdev_debug(pdev, dbgid, \
-		__func__, __LINE__)
 #else
 struct wlan_objmgr_vdev *wlan_objmgr_pdev_get_first_vdev(
 		struct wlan_objmgr_pdev *pdev,
 		wlan_objmgr_ref_dbgid dbg_id);
 #endif
+
+/**
+ * wlan_objmgr_pdev_get_roam_vdev() - Get roam vdev of pdev
+ * @pdev: PDEV object
+ * @dbg_id: Object Manager ref debug id
+ *
+ * API to get reference to vdev which is in roaming from pdev.
+ *
+ * Return: reference to roam vdev
+ */
+struct wlan_objmgr_vdev *wlan_objmgr_pdev_get_roam_vdev(
+						struct wlan_objmgr_pdev *pdev,
+						wlan_objmgr_ref_dbgid dbg_id);
 
 /**
  * wlan_objmgr_pdev_get_comp_private_obj() - get pdev component private object
@@ -595,8 +618,7 @@ static inline void wlan_pdev_obj_unlock(struct wlan_objmgr_pdev *pdev)
  *
  * API to get the psoc object from PDEV
  *
- * Return:
- * @psoc: PSOC object
+ * Return: PSOC object
  */
 static inline struct wlan_objmgr_psoc *wlan_pdev_get_psoc(
 			struct wlan_objmgr_pdev *pdev)
@@ -869,7 +891,7 @@ static inline void wlan_pdev_reset_ospriv(struct wlan_objmgr_pdev *pdev)
 /**
  * wlan_pdev_set_max_vdev_count() - set pdev max vdev count
  * @pdev: PDEV object
- * @vdev count: Max vdev count
+ * @max_vdev_count: Max vdev count
  *
  * API to set Max vdev count
  *
@@ -1030,7 +1052,7 @@ target_pdev_info_t *wlan_pdev_get_tgt_if_handle(struct wlan_objmgr_pdev *pdev)
 
 /**
  * wlan_pdev_set_max_peer_count() - set max peer count
- * @vdev: PDEV object
+ * @pdev: PDEV object
  * @count: Max peer count
  *
  * API to set max peer count of PDEV
@@ -1088,7 +1110,7 @@ static inline uint64_t wlan_pdev_get_max_beacon_count(
 }
 
 /**
- * wlan_pdev_incr_beacon_count() - incr beacon count for rx beacon frames
+ * wlan_pdev_incr_wlan_beacon_count() - incr beacon count for rx beacon frames
  * @pdev: pdev object
  *
  * API to incr beacon count of pdev
@@ -1102,7 +1124,7 @@ static inline void wlan_pdev_incr_wlan_beacon_count(
 }
 
 /**
- * wlan_pdev_get_wlan_beacon_count() - set wlan beacon count
+ * wlan_pdev_set_wlan_beacon_count() - set wlan beacon count
  * @pdev: pdev object
  * @count: count to reset beacon count
  *
@@ -1117,12 +1139,12 @@ static inline void wlan_pdev_set_wlan_beacon_count(
 }
 
 /**
- * wlan_pdev_get_wlan_beacon_limit() - get wlan beacon limit
+ * wlan_pdev_get_wlan_beacon_count() - get wlan beacon count
  * @pdev: pdev object
  *
- * API to get wlan beacon limit of pdev
+ * API to get wlan beacon count of pdev
  *
- * Return: beacon limit
+ * Return: beacon count
  */
 static inline uint64_t wlan_pdev_get_wlan_beacon_count(
 					struct wlan_objmgr_pdev *pdev)
@@ -1131,7 +1153,7 @@ static inline uint64_t wlan_pdev_get_wlan_beacon_count(
 }
 
 /**
- * wlan_pdev_set_wlan_beacon_count() - set wlan beacon limit
+ * wlan_pdev_set_max_beacon_limit() - set max beacon limit
  * @pdev: pdev object
  * @limit: limit for thresholding
  *
@@ -1146,7 +1168,7 @@ static inline void wlan_pdev_set_max_beacon_limit(
 }
 
 /**
- * wlan_pdev_get_wlan_beacon_limit() - get wlan beacon limit
+ * wlan_pdev_get_max_beacon_limit() - get max beacon limit
  * @pdev: pdev object
  *
  * API to get wlan beacon limit of pdev
@@ -1383,6 +1405,66 @@ void wlan_pdev_dec_mlo_vdev_count(struct wlan_objmgr_pdev *pdev)
 
 	qdf_atomic_dec(&pdev->pdev_objmgr.wlan_mlo_vdev_count);
 }
+
+/**
+ * wlan_pdev_init_mlo_bridge_vdev_count() - Initialize PDEV MLO bridge
+ *					    vdev count
+ * @pdev: PDEV object
+ *
+ * API to initialize MLO bridge vdev count from PDEV
+ *
+ * Return: void
+ */
+static inline
+void wlan_pdev_init_mlo_bridge_vdev_count(struct wlan_objmgr_pdev *pdev)
+{
+	qdf_atomic_init(&pdev->pdev_objmgr.wlan_mlo_bridge_vdev_count);
+}
+
+/**
+ * wlan_pdev_get_mlo_bridge_vdev_count() - get PDEV MLO bridge vdev count
+ * @pdev: PDEV object
+ *
+ * API to get MLO bridge vdev count from PDEV
+ *
+ * Return: MLO vdev_count - pdev's MLO bridge vdev count
+ */
+static inline
+uint32_t wlan_pdev_get_mlo_bridge_vdev_count(struct wlan_objmgr_pdev *pdev)
+{
+	return qdf_atomic_read(&pdev->pdev_objmgr.wlan_mlo_bridge_vdev_count);
+}
+
+/**
+ * wlan_pdev_inc_mlo_bridge_vdev_count() - Increment PDEV MLO bridge vdev count
+ * @pdev: PDEV object
+ *
+ * API to increment MLO bridge vdev count from PDEV
+ *
+ * Return: void
+ */
+static inline
+void wlan_pdev_inc_mlo_bridge_vdev_count(struct wlan_objmgr_pdev *pdev)
+{
+	qdf_atomic_inc(&pdev->pdev_objmgr.wlan_mlo_bridge_vdev_count);
+}
+
+/**
+ * wlan_pdev_dec_mlo_bridge_vdev_count() - Decrement PDEV MLO bridge vdev count
+ * @pdev: PDEV object
+ *
+ * API to decrement MLO bridge vdev count from PDEV
+ *
+ * Return: void
+ */
+static inline
+void wlan_pdev_dec_mlo_bridge_vdev_count(struct wlan_objmgr_pdev *pdev)
+{
+	qdf_assert_always
+	(qdf_atomic_read(&pdev->pdev_objmgr.wlan_mlo_bridge_vdev_count));
+
+	qdf_atomic_dec(&pdev->pdev_objmgr.wlan_mlo_bridge_vdev_count);
+}
 #else
 static inline
 void wlan_pdev_init_mlo_vdev_count(struct wlan_objmgr_pdev *pdev)
@@ -1402,6 +1484,27 @@ void wlan_pdev_inc_mlo_vdev_count(struct wlan_objmgr_pdev *pdev)
 
 static inline
 void wlan_pdev_dec_mlo_vdev_count(struct wlan_objmgr_pdev *pdev)
+{
+}
+
+static inline
+void wlan_pdev_init_mlo_bridge_vdev_count(struct wlan_objmgr_pdev *pdev)
+{
+}
+
+static inline
+uint32_t wlan_pdev_get_mlo_bridge_vdev_count(struct wlan_objmgr_pdev *pdev)
+{
+	return 0;
+}
+
+static inline
+void wlan_pdev_inc_mlo_bridge_vdev_count(struct wlan_objmgr_pdev *pdev)
+{
+}
+
+static inline
+void wlan_pdev_dec_mlo_bridge_vdev_count(struct wlan_objmgr_pdev *pdev)
 {
 }
 #endif /* WLAN_FEATURE_11BE_MLO */

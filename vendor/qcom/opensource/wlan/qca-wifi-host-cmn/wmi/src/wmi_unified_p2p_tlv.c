@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2013-2018, 2020 The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -27,7 +27,7 @@
  * @wmi_handle: wmi handle
  * @noa: p2p power save parameters
  *
- * Return: CDF status
+ * Return: QDF status
  */
 static QDF_STATUS send_set_p2pgo_noa_req_cmd_tlv(wmi_unified_t wmi_handle,
 						 struct p2p_ps_params *noa)
@@ -70,11 +70,11 @@ static QDF_STATUS send_set_p2pgo_noa_req_cmd_tlv(wmi_unified_t wmi_handle,
 	noa_discriptor->type_count = noa->count;
 	noa_discriptor->duration = duration;
 	noa_discriptor->interval = noa->interval;
-	noa_discriptor->start_time = 0;
+	noa_discriptor->start_time = noa->start;
 
-	wmi_debug("SET P2P GO NOA:vdev_id:%d count:%d duration:%d interval:%d",
-		 cmd->vdev_id, noa->count, noa_discriptor->duration,
-		 noa->interval);
+	wmi_debug("SET P2P GO NOA:vdev_id:%d count:%d duration:%d interval:%d start:%d",
+		  cmd->vdev_id, noa->count, noa_discriptor->duration,
+		  noa->interval, noa->start);
 	wmi_mtrace(WMI_FWTEST_P2P_SET_NOA_PARAM_CMDID, cmd->vdev_id, 0);
 	status = wmi_unified_cmd_send(wmi_handle, buf, len,
 				      WMI_FWTEST_P2P_SET_NOA_PARAM_CMDID);
@@ -90,9 +90,9 @@ end:
 /**
  * send_set_p2pgo_oppps_req_cmd_tlv() - send p2p go opp power save request to fw
  * @wmi_handle: wmi handle
- * @noa: p2p opp power save parameters
+ * @oppps: p2p opp power save parameters
  *
- * Return: CDF status
+ * Return: QDF status
  */
 static QDF_STATUS send_set_p2pgo_oppps_req_cmd_tlv(wmi_unified_t wmi_handle,
 						   struct p2p_ps_params *oppps)
@@ -134,8 +134,8 @@ end:
 /**
  * extract_p2p_noa_ev_param_tlv() - extract p2p noa information from event
  * @wmi_handle: wmi handle
- * @param evt_buf: pointer to event buffer
- * @param param: Pointer to hold p2p noa info
+ * @evt_buf: pointer to event buffer
+ * @param: Pointer to hold p2p noa info
  *
  * Return: QDF_STATUS_SUCCESS for success or error code
  */
@@ -325,7 +325,7 @@ static QDF_STATUS send_p2p_lo_start_cmd_tlv(wmi_unified_t wmi_handle,
 /**
  * send_p2p_lo_stop_cmd_tlv() - send p2p lo stop request to fw
  * @wmi_handle: wmi handle
- * @param: p2p listen offload stop parameters
+ * @vdev_id: vdev identifier
  *
  * Return: QDF status
  */
@@ -373,8 +373,8 @@ static QDF_STATUS send_p2p_lo_stop_cmd_tlv(wmi_unified_t wmi_handle,
  * extract_p2p_lo_stop_ev_param_tlv() - extract p2p lo stop
  * information from event
  * @wmi_handle: wmi handle
- * @param evt_buf: pointer to event buffer
- * @param param: Pointer to hold p2p lo stop event information
+ * @evt_buf: pointer to event buffer
+ * @param: Pointer to hold p2p lo stop event information
  *
  * Return: QDF_STATUS_SUCCESS for success or error code
  */

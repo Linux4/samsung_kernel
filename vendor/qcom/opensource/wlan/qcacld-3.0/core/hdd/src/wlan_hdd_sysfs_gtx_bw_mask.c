@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2011-2020 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -35,7 +36,8 @@ static int hdd_sysfs_set_green_tx_param(struct hdd_adapter *adapter,
 	int errno;
 
 	hdd_debug("%s %d", id_string, value);
-	errno = wma_cli_set_command(adapter->vdev_id, id, value, GTX_CMD);
+	errno = wma_cli_set_command(adapter->deflink->vdev_id,
+				    id, value, GTX_CMD);
 	if (errno)
 		hdd_err("Failed to set firmware, errno %d", errno);
 
@@ -51,7 +53,7 @@ static int hdd_sysfs_get_green_tx_param(struct hdd_adapter *adapter,
 {
 	int value;
 
-	value = wma_cli_get_command(adapter->vdev_id, id, GTX_CMD);
+	value = wma_cli_get_command(adapter->deflink->vdev_id, id, GTX_CMD);
 
 	hdd_debug("%s %d", id_string, value);
 
@@ -103,7 +105,7 @@ __hdd_sysfs_gtx_bw_mask_store(struct net_device *net_dev,
 		return -EINVAL;
 
 	ret = hdd_sysfs_set_green_tx_param(adapter,
-					   WMI_VDEV_PARAM_GTX_BW_MASK,
+					   wmi_vdev_param_gtx_bw_mask,
 					   value);
 
 	if (ret) {
@@ -153,7 +155,7 @@ __hdd_sysfs_gtx_bw_mask_show(struct net_device *net_dev, char *buf)
 		return -EINVAL;
 
 	value = hdd_sysfs_get_green_tx_param(adapter,
-					     WMI_VDEV_PARAM_GTX_BW_MASK);
+					     wmi_vdev_param_gtx_bw_mask);
 	if (value < 0) {
 		hdd_err_rl("failed to get green tx BW Mask");
 		return -EINVAL;

@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2016-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -16,9 +16,10 @@
  * TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
  * PERFORMANCE OF THIS SOFTWARE.
  */
- /**
-  * DOC: Public APIs to perform operations on Global objects
-  */
+
+/**
+ * DOC: Public APIs to perform operations on Global objects
+ */
 
 #include "wlan_objmgr_global_obj_i.h"
 #include <wlan_objmgr_global_obj.h>
@@ -33,8 +34,8 @@ struct wlan_objmgr_global *g_umac_glb_obj;
 qdf_export_symbol(g_umac_glb_obj);
 
 /*
-** APIs to Create/Delete Global object APIs
-*/
+ * APIs to Create/Delete Global object APIs
+ */
 QDF_STATUS wlan_objmgr_global_obj_init(void)
 {
 	struct wlan_objmgr_global *umac_global_obj;
@@ -84,8 +85,8 @@ QDF_STATUS wlan_objmgr_global_obj_deinit(void)
 }
 qdf_export_symbol(wlan_objmgr_global_obj_deinit);
 
-/**
- ** APIs to register/unregister handlers
+/*
+ * APIs to register/unregister handlers
  */
 QDF_STATUS wlan_objmgr_register_psoc_create_handler(
 		enum wlan_umac_comp_id id,
@@ -899,6 +900,22 @@ struct wlan_objmgr_psoc
 
 qdf_export_symbol(wlan_objmgr_get_psoc_by_id);
 
+#ifdef QCA_SUPPORT_DP_GLOBAL_CTX
+struct dp_global_context *wlan_objmgr_get_global_ctx(void)
+{
+	return g_umac_glb_obj->global_ctx;
+}
+
+qdf_export_symbol(wlan_objmgr_get_global_ctx);
+
+void wlan_objmgr_set_global_ctx(struct dp_global_context *ctx)
+{
+	g_umac_glb_obj->global_ctx = ctx;
+}
+
+qdf_export_symbol(wlan_objmgr_set_global_ctx);
+#endif
+
 #ifdef WLAN_FEATURE_11BE_MLO
 struct mlo_mgr_context *wlan_objmgr_get_mlo_ctx(void)
 {
@@ -913,26 +930,32 @@ void wlan_objmgr_set_mlo_ctx(struct mlo_mgr_context *ctx)
 }
 
 #ifdef WLAN_MLO_MULTI_CHIP
-void wlan_objmgr_set_dp_mlo_ctx(void *dp_handle)
+void wlan_objmgr_set_dp_mlo_ctx(void *dp_handle, uint8_t grp_id)
 {
 	struct mlo_mgr_context *mlo_ctx = wlan_objmgr_get_mlo_ctx();
 
 	if (!mlo_ctx)
 		return;
 
-	mlo_ctx->setup_info.dp_handle = dp_handle;
+	if (grp_id >= mlo_ctx->total_grp)
+		return;
+
+	mlo_ctx->setup_info[grp_id].dp_handle = dp_handle;
 }
 
 qdf_export_symbol(wlan_objmgr_set_dp_mlo_ctx);
 
-void *wlan_objmgr_get_dp_mlo_ctx(void)
+void *wlan_objmgr_get_dp_mlo_ctx(uint8_t grp_id)
 {
 	struct mlo_mgr_context *mlo_ctx = wlan_objmgr_get_mlo_ctx();
 
 	if (!mlo_ctx)
 		return NULL;
 
-	return mlo_ctx->setup_info.dp_handle;
+	if (grp_id >= mlo_ctx->total_grp)
+		return NULL;
+
+	return mlo_ctx->setup_info[grp_id].dp_handle;
 }
 
 qdf_export_symbol(wlan_objmgr_get_dp_mlo_ctx);

@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2019-2021 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -27,11 +28,12 @@
 #ifndef __WLAN_EXT_MLME_OBJ_TYPE_H__
 #define __WLAN_EXT_MLME_OBJ_TYPE_H__
 
+struct opaque_mlme_pdev_ext;
+
 /**
  * typedef mlme_pdev_ext_t - Opaque definition of pdev mlme pointer
  * Define ext_pdev_ptr from external umac/mlme component point to this type
  */
-struct opaque_mlme_pdev_ext;
 typedef struct opaque_mlme_pdev_ext mlme_pdev_ext_t;
 
 /**

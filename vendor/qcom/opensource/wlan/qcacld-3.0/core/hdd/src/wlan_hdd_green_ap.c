@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2012-2018, 2020 The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -219,6 +219,7 @@ __wlan_hdd_enter_sap_low_pwr_mode(struct wiphy *wiphy,
 	QDF_STATUS status;
 	struct hdd_context *hdd_ctx = wiphy_priv(wiphy);
 	struct hdd_adapter *adapter = WLAN_HDD_GET_PRIV_PTR(wdev->netdev);
+	struct hdd_ap_ctx *ap_ctx = WLAN_HDD_GET_AP_CTX_PTR(adapter->deflink);
 	struct nlattr *tb[QCA_WLAN_VENDOR_ATTR_DOZED_AP_MAX + 1];
 	struct sk_buff *skb;
 
@@ -248,15 +249,15 @@ __wlan_hdd_enter_sap_low_pwr_mode(struct wiphy *wiphy,
 	hdd_debug("state: %s",
 		  lp_flags == QCA_WLAN_DOZED_AP_ENABLE ? "ENABLE" : "DISABLE");
 
-	status = ucfg_green_ap_ll_ps(hdd_ctx->pdev, adapter->vdev, lp_flags,
-				     adapter->session.ap.sap_config.beacon_int,
-				     &cookie_id);
+	status = ucfg_green_ap_ll_ps(
+			hdd_ctx->pdev, adapter->deflink->vdev, lp_flags,
+			ap_ctx->sap_config.beacon_int, &cookie_id);
 	if (status != QDF_STATUS_SUCCESS) {
 		hdd_err("unable to send low latency power save cmd");
 		return -EINVAL;
 	}
 
-	hdd_debug("Cookie id received : %u", cookie_id);
+	hdd_debug("Cookie id received : %llu", cookie_id);
 
 	len = NLMSG_HDRLEN;
 	/*QCA_WLAN_VENDOR_ATTR_DOZED_AP_COOKIE*/
@@ -360,7 +361,7 @@ QDF_STATUS wlan_hdd_send_green_ap_ll_ps_event(
 		goto nla_put_failure;
 	}
 
-	hdd_debug("next_tsf : %llu, cookie: %llu beacon multiplier: %u",
+	hdd_debug("next_tsf : %llu, cookie: %u beacon multiplier: %u",
 		  ll_ps_param->next_tsf, ll_ps_param->dialog_token,
 		  ll_ps_param->bcn_mult);
 

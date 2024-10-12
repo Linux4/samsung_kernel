@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -80,14 +80,13 @@ int hdd_son_deliver_assoc_disassoc_event(struct hdd_adapter *adapter,
 					 enum assoc_disassoc_event flag);
 /**
  * hdd_son_deliver_peer_authorize_event() - Deliver peer auth event to SON
- * @adapter: objmgr adapter
+ * @link_info: Link info pointer in HDD adapter
  * @peer_mac: Peer mac address
  *
  * Return: Void
  */
-void
-hdd_son_deliver_peer_authorize_event(struct hdd_adapter *adapter,
-				     uint8_t *peer_mac);
+void hdd_son_deliver_peer_authorize_event(struct wlan_hdd_link_info *link_info,
+					  uint8_t *peer_mac);
 
 /**
  * hdd_son_send_set_wifi_generic_command() - Send Generic SET command to SON
@@ -122,6 +121,16 @@ int hdd_son_send_get_wifi_generic_command(struct wiphy *wiphy,
  */
 uint32_t hdd_son_get_peer_max_mcs_idx(struct wlan_objmgr_vdev *vdev,
 				      struct wlan_objmgr_peer *peer);
+
+/**
+ * hdd_son_deliver_chan_change_event() - send chan change to SON
+ * @adapter: pointer to adapter
+ * @freq: new operating channel frequency
+ *
+ * Return: 0 on success
+ */
+int hdd_son_deliver_chan_change_event(struct hdd_adapter *adapter,
+				      qdf_freq_t freq);
 #else
 
 static inline void hdd_son_register_callbacks(struct hdd_context *hdd_ctx)
@@ -151,7 +160,7 @@ static inline int
 }
 
 static inline void
-hdd_son_deliver_peer_authorize_event(struct hdd_adapter *adapter,
+hdd_son_deliver_peer_authorize_event(struct wlan_hdd_link_info *link_info,
 				     uint8_t *peer_mac)
 {
 }
@@ -179,5 +188,11 @@ uint32_t hdd_son_get_peer_max_mcs_idx(struct wlan_objmgr_vdev *vdev,
 	return 0;
 }
 
+static inline
+int hdd_son_deliver_chan_change_event(struct hdd_adapter *adapter,
+				      qdf_freq_t freq)
+{
+	return 0;
+}
 #endif /* WLAN_FEATURE_SON */
 #endif

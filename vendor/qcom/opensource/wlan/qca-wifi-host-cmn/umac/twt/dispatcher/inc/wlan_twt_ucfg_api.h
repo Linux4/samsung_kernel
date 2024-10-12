@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -27,16 +27,6 @@
 #include <wlan_twt_public_structs.h>
 
 /**
- * ucfg_twt_get_requestor() - twt get requestor
- * @psoc: psoc handle
- * @val: pointer to the output variable
- *
- * return: QDF_STATUS
- */
-QDF_STATUS
-ucfg_twt_get_requestor(struct wlan_objmgr_psoc *psoc, bool *val);
-
-/**
  * ucfg_twt_get_responder() - twt get responder
  * @psoc: psoc handle
  * @val: pointer to the output variable
@@ -45,38 +35,6 @@ ucfg_twt_get_requestor(struct wlan_objmgr_psoc *psoc, bool *val);
  */
 QDF_STATUS
 ucfg_twt_get_responder(struct wlan_objmgr_psoc *psoc, bool *val);
-
-/**
- * ucfg_twt_get_legacy_bcast_twt_support() - get legacy bcast support
- * @psoc: psoc handle
- * @val: pointer to the output variable
- *
- * return: QDF_STATUS
- */
-QDF_STATUS
-ucfg_twt_get_legacy_bcast_twt_support(struct wlan_objmgr_psoc *psoc,
-				      bool *val);
-
-/**
- * ucfg_twt_get_twt_bcast_req_support() - get bcast requestor support
- * @psoc: psoc handle
- * @val: pointer to the output variable
- *
- * return: QDF_STATUS
- */
-QDF_STATUS
-ucfg_twt_get_twt_bcast_req_support(struct wlan_objmgr_psoc *psoc,
-				   bool *val);
-/**
- * ucfg_twt_get_twt_bcast_res_support() - get bcast responder support
- * @psoc: psoc handle
- * @val: pointer to the output variable
- *
- * return: QDF_STATUS
- */
-QDF_STATUS
-ucfg_twt_get_twt_bcast_res_support(struct wlan_objmgr_psoc *psoc,
-				   bool *val);
 
 /**
  * ucfg_twt_get_twt_nudge_enabled() - get twt nudge enabled
@@ -333,4 +291,15 @@ QDF_STATUS
 ucfg_twt_get_peer_capabilities(struct wlan_objmgr_psoc *psoc,
 			       struct qdf_mac_addr *peer_mac,
 			       uint8_t *peer_cap);
+
+/**
+ * ucfg_twt_get_restricted_twt_supported() - Get tgt restricted-twt
+ *                                              support caps
+ * @psoc: psoc handle
+ * @val: pointer to get caps enabled/disabled
+ *
+ * return: QDF_STATUS
+ */
+QDF_STATUS ucfg_twt_get_restricted_twt_supported(struct wlan_objmgr_psoc *psoc,
+						 bool *val);
 #endif /* _WLAN_TWT_UCFG_API_H_ */

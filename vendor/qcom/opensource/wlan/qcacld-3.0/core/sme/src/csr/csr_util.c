@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2011-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -356,7 +356,7 @@ static bool csr_is_conn_state_ap(struct mac_context *mac, uint32_t sessionId)
 {
 	enum QDF_OPMODE opmode;
 
-	opmode = wlan_get_opmode_vdev_id(mac->pdev, sessionId);
+	opmode = wlan_get_opmode_from_vdev_id(mac->pdev, sessionId);
 	if (opmode == QDF_SAP_MODE || opmode == QDF_P2P_GO_MODE)
 		return true;
 
@@ -555,7 +555,8 @@ static void csr_handle_conc_chnl_overlap_for_sap_go(
 		struct csr_roam_session *session,
 		uint32_t *sap_ch_freq, uint32_t *sap_hbw, uint32_t *sap_cfreq,
 		uint32_t *intf_ch_freq, uint32_t *intf_hbw,
-		uint32_t *intf_cfreq, enum QDF_OPMODE op_mode)
+		uint32_t *intf_cfreq, enum QDF_OPMODE op_mode,
+		uint8_t cc_switch_mode)
 {
 	qdf_freq_t op_chan_freq;
 	qdf_freq_t freq_seg_0;
@@ -577,7 +578,10 @@ static void csr_handle_conc_chnl_overlap_for_sap_go(
 			*sap_ch_freq = op_chan_freq;
 			*sap_cfreq = freq_seg_0;
 			*sap_hbw = csr_get_half_bw(ch_width);
-		} else if (*sap_ch_freq != op_chan_freq) {
+		} else if (*sap_ch_freq != op_chan_freq ||
+			   (cc_switch_mode ==
+				QDF_MCC_TO_SCC_SWITCH_WITH_FAVORITE_CHANNEL &&
+			    op_mode == QDF_P2P_GO_MODE)) {
 			*intf_ch_freq = op_chan_freq;
 			*intf_cfreq = freq_seg_0;
 			*intf_hbw = csr_get_half_bw(ch_width);
@@ -589,18 +593,6 @@ static void csr_handle_conc_chnl_overlap_for_sap_go(
 	}
 }
 
-
-/**
- * csr_check_concurrent_channel_overlap() - To check concurrent overlap chnls
- * @mac_ctx: Pointer to mac context
- * @sap_ch: SAP channel
- * @sap_phymode: SAP phy mode
- * @cc_switch_mode: concurrent switch mode
- *
- * This routine will be called to check concurrent overlap channels
- *
- * Return: uint16_t
- */
 uint16_t csr_check_concurrent_channel_overlap(struct mac_context *mac_ctx,
 			uint32_t sap_ch_freq, eCsrPhyMode sap_phymode,
 			uint8_t cc_switch_mode, uint8_t vdev_id)
@@ -618,11 +610,7 @@ uint16_t csr_check_concurrent_channel_overlap(struct mac_context *mac_ctx,
 			QDF_MCC_TO_SCC_SWITCH_DISABLE)
 		return 0;
 
-	op_mode = wlan_get_opmode_vdev_id(mac_ctx->pdev, vdev_id);
-	if (policy_mgr_is_ll_sap_present(
-			mac_ctx->psoc,
-			policy_mgr_convert_device_mode_to_qdf_type(op_mode),
-			vdev_id))
+	if (policy_mgr_is_vdev_ll_lt_sap(mac_ctx->psoc, vdev_id))
 		return 0;
 
 	if (sap_ch_freq != 0) {
@@ -652,6 +640,16 @@ uint16_t csr_check_concurrent_channel_overlap(struct mac_context *mac_ctx,
 		if ((op_mode == QDF_STA_MODE ||
 		     op_mode == QDF_P2P_CLIENT_MODE) &&
 		    cm_is_vdevid_connected(mac_ctx->pdev, i)) {
+			if (op_mode == QDF_STA_MODE &&
+			    policy_mgr_is_ml_vdev_id(mac_ctx->psoc,
+						     session->vdev_id) &&
+			    policy_mgr_vdev_is_force_inactive(
+							mac_ctx->psoc,
+							session->vdev_id)) {
+				sme_debug("skip inactive ml sta vdev %d",
+					  session->vdev_id);
+				continue;
+			}
 			wlan_get_op_chan_freq_info_vdev_id(mac_ctx->pdev,
 					   session->vdev_id,
 					   &intf_ch_freq, &intf_cfreq,
@@ -671,7 +669,8 @@ uint16_t csr_check_concurrent_channel_overlap(struct mac_context *mac_ctx,
 			csr_handle_conc_chnl_overlap_for_sap_go(mac_ctx,
 					session, &sap_ch_freq, &sap_hbw,
 					&sap_cfreq, &intf_ch_freq, &intf_hbw,
-					&intf_cfreq, op_mode);
+					&intf_cfreq, op_mode,
+					cc_switch_mode);
 		}
 		if (intf_ch_freq &&
 		    ((intf_ch_freq <= wlan_reg_ch_to_freq(CHAN_ENUM_2484) &&
@@ -704,11 +703,18 @@ uint16_t csr_check_concurrent_channel_overlap(struct mac_context *mac_ctx,
 			intf_ch_freq = 0;
 	} else if (intf_ch_freq && sap_ch_freq != intf_ch_freq &&
 		   (policy_mgr_is_force_scc(mac_ctx->psoc))) {
-		policy_mgr_check_scc_sbs_channel(mac_ctx->psoc, &intf_ch_freq,
-						 sap_ch_freq, vdev_id,
-						 cc_switch_mode);
+		policy_mgr_check_scc_channel(mac_ctx->psoc, &intf_ch_freq,
+					     sap_ch_freq, vdev_id,
+					     cc_switch_mode);
 	} else if ((intf_ch_freq == sap_ch_freq) && (cc_switch_mode ==
 				QDF_MCC_TO_SCC_SWITCH_WITH_FAVORITE_CHANNEL)) {
+		status = policy_mgr_handle_go_sap_fav_channel(
+					mac_ctx->psoc, vdev_id,
+					sap_ch_freq, &intf_ch_freq);
+		if (QDF_IS_STATUS_SUCCESS(status) &&
+		    intf_ch_freq && intf_ch_freq != sap_ch_freq)
+			goto end;
+
 		if (WLAN_REG_IS_24GHZ_CH_FREQ(intf_ch_freq) ||
 		    WLAN_REG_IS_6GHZ_CHAN_FREQ(sap_ch_freq)) {
 			status =
@@ -719,7 +725,7 @@ uint16_t csr_check_concurrent_channel_overlap(struct mac_context *mac_ctx,
 				sme_err("no mandatory channel");
 		}
 	}
-
+end:
 	if (intf_ch_freq == sap_ch_freq)
 		intf_ch_freq = 0;
 
@@ -1202,12 +1208,6 @@ uint16_t sme_chn_to_freq(uint8_t chanNum)
 	return 0;
 }
 
-/**
- * sme_bsstype_to_string() - converts bss type to string.
- * @bss_type: bss type enum
- *
- * Return: printable string for bss type
- */
 const char *sme_bss_type_to_string(const uint8_t bss_type)
 {
 	switch (bss_type) {

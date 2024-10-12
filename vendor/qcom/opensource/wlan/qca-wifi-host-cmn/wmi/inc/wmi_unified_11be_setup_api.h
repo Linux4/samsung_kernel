@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -68,7 +68,7 @@ wmi_extract_mlo_setup_cmpl_event(wmi_unified_t wmi_handle,
  *  wmi_extract_mlo_teardown_cmpl_event() - Extract MLO teardown completion
  *  @wmi_handle: WMI handle for this pdev
  *  @buf: Event buffer
- *  @params: MLO teardown event params
+ *  @param: MLO teardown event params
  *
  *  Return: QDF_STATUS code
  */

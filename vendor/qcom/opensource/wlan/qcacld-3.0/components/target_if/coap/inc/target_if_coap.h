@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -33,7 +33,7 @@ target_if_coap_register_tx_ops(struct wlan_lmac_if_tx_ops *tx_ops);
 
 /**
  * target_if_coap_get_tx_ops() - get tx ops
- * @tx_ops: pointer to target_if tx ops
+ * @psoc: pointer to psoc object
  *
  * API to retrieve the CoAP tx ops from the psoc context
  *

@@ -350,6 +350,7 @@ struct cam_ife_hw_mgr_ctx {
 	uint32_t                                   curr_num_exp;
 	uint32_t                                   try_recovery_cnt;
 	uint64_t                                   recovery_req_id;
+	uint32_t                                   timeout_count;
 };
 
 /**

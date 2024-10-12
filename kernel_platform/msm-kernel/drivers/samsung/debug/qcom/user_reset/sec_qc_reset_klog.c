@@ -169,6 +169,9 @@ static ssize_t sec_qc_reset_klog_proc_read(struct file *file,
 	struct qc_user_reset_proc *reset_klog = PDE_DATA(file_inode(file));
 	loff_t pos = *ppos;
 
+	if (pos < 0 || pos > reset_klog->len)
+		return 0;
+
 	nbytes = min_t(size_t, nbytes, reset_klog->len - pos);
 	if (copy_to_user(buf, &reset_klog->buf[pos], nbytes))
 		return -EFAULT;

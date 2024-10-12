@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2017-2019 The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -67,10 +67,10 @@
 #define WLAN_GREEN_AP_PS_SUSPEND 2
 /**
  * enum wlan_green_ap_ps_state - PS states
- * @WLAN_GREEN_AP_PS_IDLE_STATE - Idle
- * @WLAN_GREEN_AP_PS_OFF_STATE  - Off
- * @WLAN_GREEN_AP_PS_WAIT_STATE - Wait
- * @WLAN_GREEN_AP_PS_ON_STATE   - On
+ * @WLAN_GREEN_AP_PS_IDLE_STATE: Idle
+ * @WLAN_GREEN_AP_PS_OFF_STATE: Off
+ * @WLAN_GREEN_AP_PS_WAIT_STATE: Wait
+ * @WLAN_GREEN_AP_PS_ON_STATE: On
  */
 enum wlan_green_ap_ps_state {
 	WLAN_GREEN_AP_PS_IDLE_STATE = 1,
@@ -81,14 +81,14 @@ enum wlan_green_ap_ps_state {
 
 /**
  * enum wlan_green_ap_ps_event   - PS event
- * @WLAN_GREEN_AP_PS_START_EVENT - Start
- * @WLAN_GREEN_AP_PS_STOP_EVENT  - Stop
- * @WLAN_GREEN_AP_ADD_STA_EVENT  - Sta assoc
- * @WLAN_GREEN_AP_DEL_STA_EVENT  - Sta disassoc
- * @WLAN_GREEN_AP_ADD_MULTISTREAM_STA_EVENT - Multistream sta assoc
- * @WLAN_GREEN_AP_DEL_MULTISTREAM_STA_EVENT - Multistream sta disassoc
- * @WLAN_GREEN_AP_PS_ON_EVENT    - PS on
- * @WLAN_GREEN_AP_PS_OFF_EVENT   - PS off
+ * @WLAN_GREEN_AP_PS_START_EVENT: Start
+ * @WLAN_GREEN_AP_PS_STOP_EVENT: Stop
+ * @WLAN_GREEN_AP_ADD_STA_EVENT: Sta assoc
+ * @WLAN_GREEN_AP_DEL_STA_EVENT: Sta disassoc
+ * @WLAN_GREEN_AP_ADD_MULTISTREAM_STA_EVENT: Multistream sta assoc
+ * @WLAN_GREEN_AP_DEL_MULTISTREAM_STA_EVENT: Multistream sta disassoc
+ * @WLAN_GREEN_AP_PS_ON_EVENT: PS on
+ * @WLAN_GREEN_AP_PS_WAIT_EVENT: PS wait
  */
 enum wlan_green_ap_ps_event {
 	WLAN_GREEN_AP_PS_START_EVENT = 1,
@@ -103,8 +103,8 @@ enum wlan_green_ap_ps_event {
 
 /**
  * enum wlan_green_ap_ll_ps_state - PS state
- * @WLAN_GREEN_AP_LL_PS_DISABLE - Disable PS
- * @WLAN_GREEN_AP_LL_PS_ENABLE - Enable PS
+ * @WLAN_GREEN_AP_LL_PS_DISABLE: Disable PS
+ * @WLAN_GREEN_AP_LL_PS_ENABLE: Enable PS
  */
 enum wlan_green_ap_ll_ps_state {
 	WLAN_GREEN_AP_LL_PS_DISABLE = 0,

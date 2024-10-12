@@ -16,7 +16,7 @@
  * TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
  * PERFORMANCE OF THIS SOFTWARE.
  */
- /**
+/**
  * DOC: Public APIs to perform operations on Peer object
  */
 #include <wlan_objmgr_cmn.h>
@@ -34,8 +34,8 @@
 #include "wlan_objmgr_vdev_obj_i.h"
 
 
-/**
- ** APIs to Create/Delete Peer object APIs
+/*
+ * APIs to Create/Delete Peer object APIs
  */
 static QDF_STATUS wlan_objmgr_peer_object_status(
 		struct wlan_objmgr_peer *peer)
@@ -549,7 +549,7 @@ QDF_STATUS wlan_objmgr_peer_obj_delete(struct wlan_objmgr_peer *peer)
 
 	print_idx = qdf_get_pidx();
 	wlan_objmgr_print_peer_ref_ids(peer, QDF_TRACE_LEVEL_DEBUG);
-	/**
+	/*
 	 * Update VDEV object state to LOGICALLY DELETED
 	 * It prevents further access of this object
 	 */
@@ -562,8 +562,8 @@ QDF_STATUS wlan_objmgr_peer_obj_delete(struct wlan_objmgr_peer *peer)
 	return QDF_STATUS_SUCCESS;
 }
 qdf_export_symbol(wlan_objmgr_peer_obj_delete);
-/**
- ** APIs to attach/detach component objects
+/*
+ * APIs to attach/detach component objects
  */
 QDF_STATUS wlan_objmgr_peer_component_obj_attach(
 		struct wlan_objmgr_peer *peer,

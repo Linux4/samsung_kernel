@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2020-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -40,12 +40,12 @@ enum pkt_capture_mode {
  * enum pkt_capture_config - packet capture config
  * @PACKET_CAPTURE_CONFIG_TRIGGER_ENABLE: enable capture for trigger frames only
  * @PACKET_CAPTURE_CONFIG_QOS_ENABLE: enable capture for qos frames only
- * @PACKET_CAPTURE_CONFIG_CONNECT_NO_BEACON_ENABLE: drop all beacons, when
- *                                                  device in connected state
- * @PACKET_CAPTURE_CONFIG_CONNECT_BEACON_ENABLE: enable only connected BSSID
+ * @PACKET_CAPTURE_CONFIG_BEACON_ENABLE: enable only connected BSSID
  *                                      beacons, when device in connected state
- * @PACKET_CAPTURE_CONFIG_CONNECT_OFF_CHANNEL_BEACON_ENABLE: enable off channel
+ * @PACKET_CAPTURE_CONFIG_OFF_CHANNEL_BEACON_ENABLE: enable off channel
  *                                      beacons, when device in connected state
+ * @PACKET_CAPTURE_CONFIG_NO_BEACON_ENABLE: drop all beacons, when
+ *                                          device in connected state
  */
 enum pkt_capture_config {
 	PACKET_CAPTURE_CONFIG_TRIGGER_ENABLE = BIT(0),
@@ -73,7 +73,7 @@ enum pkt_capture_config {
 struct mgmt_offload_event_params {
 	uint32_t tsf_l32;
 	uint32_t chan_freq;
-	uint32_t rate_kbps;
+	uint16_t rate_kbps;
 	uint32_t rssi;
 	uint32_t buf_len;
 	uint32_t tx_status;
@@ -83,7 +83,7 @@ struct mgmt_offload_event_params {
 
 struct smu_event_params {
 	uint32_t vdev_id;
-	int32_t rx_avg_rssi;
+	uint8_t rx_vht_sgi;
 };
 
 /**
@@ -99,6 +99,7 @@ struct pkt_capture_callbacks {
  * pointers for packet capture component
  * @pkt_capture_send_mode: send packet capture mode
  * @pkt_capture_send_config: send packet capture config
+ * @pkt_capture_send_beacon_interval: send beacon interval
  *
  */
 struct wlan_pkt_capture_tx_ops {
@@ -135,8 +136,26 @@ struct wlan_pkt_capture_rx_ops {
 };
 
 /**
- * pkt_capture_data_frame_type - Represent the various
+ * enum pkt_capture_data_frame_type - Represent the various
  * data types to be filtered in packet capture.
+ * @PKT_CAPTURE_DATA_FRAME_TYPE_ALL:
+ * @PKT_CAPTURE_DATA_FRAME_TYPE_ARP:
+ * @PKT_CAPTURE_DATA_FRAME_TYPE_DHCPV4:
+ * @PKT_CAPTURE_DATA_FRAME_TYPE_DHCPV6:
+ * @PKT_CAPTURE_DATA_FRAME_TYPE_EAPOL:
+ * @PKT_CAPTURE_DATA_FRAME_TYPE_DNSV4:
+ * @PKT_CAPTURE_DATA_FRAME_TYPE_DNSV6:
+ * @PKT_CAPTURE_DATA_FRAME_TYPE_TCP_SYN:
+ * @PKT_CAPTURE_DATA_FRAME_TYPE_TCP_SYNACK:
+ * @PKT_CAPTURE_DATA_FRAME_TYPE_TCP_FIN:
+ * @PKT_CAPTURE_DATA_FRAME_TYPE_TCP_FINACK:
+ * @PKT_CAPTURE_DATA_FRAME_TYPE_TCP_ACK:
+ * @PKT_CAPTURE_DATA_FRAME_TYPE_TCP_RST:
+ * @PKT_CAPTURE_DATA_FRAME_TYPE_ICMPV4:
+ * @PKT_CAPTURE_DATA_FRAME_TYPE_ICMPV6:
+ * @PKT_CAPTURE_DATA_FRAME_TYPE_RTP:
+ * @PKT_CAPTURE_DATA_FRAME_TYPE_SIP:
+ * @PKT_CAPTURE_DATA_FRAME_QOS_NULL:
  */
 enum pkt_capture_data_frame_type {
 	PKT_CAPTURE_DATA_FRAME_TYPE_ALL = BIT(0),
@@ -161,14 +180,14 @@ enum pkt_capture_data_frame_type {
 };
 
 /**
- * pkt_capture_mgmt_frame_type - Represent the various
+ * enum pkt_capture_mgmt_frame_type - Represent the various
  * mgmt types to be sent over the monitor interface.
  * @PKT_CAPTURE_MGMT_FRAME_TYPE_ALL: All the MGMT Frames.
  * @PKT_CAPTURE_MGMT_CONNECT_NO_BEACON: All the MGMT Frames
  * except the Beacons. Valid only in the Connect state.
  * @PKT_CAPTURE_MGMT_CONNECT_BEACON: Only the connected
  * BSSID Beacons. Valid only in the Connect state.
- * @PKT_CAPTURE_MONITOR_MGMT_CONNECT_SCAN_BEACON: Represents
+ * @PKT_CAPTURE_MGMT_CONNECT_SCAN_BEACON: Represents
  * the Beacons obtained during the scan (off channel and connected channel)
  * when in connected state.
  */
@@ -182,7 +201,7 @@ enum pkt_capture_mgmt_frame_type {
 };
 
 /**
- * pkt_capture_ctrl_frame_type - Represent the various
+ * enum pkt_capture_ctrl_frame_type - Represent the various
  * ctrl types to be sent over the monitor interface.
  * @PKT_CAPTURE_CTRL_FRAME_TYPE_ALL: All the ctrl Frames.
  * @PKT_CAPTURE_CTRL_TRIGGER_FRAME: Trigger Frame.
@@ -197,6 +216,8 @@ enum pkt_capture_ctrl_frame_type {
  * enum pkt_capture_attr_set_monitor_mode - Used by the
  * vendor command QCA_NL80211_VENDOR_SUBCMD_SET_MONITOR_MODE to set the
  * monitor mode.
+ *
+ * @PKT_CAPTURE_ATTR_SET_MONITOR_MODE_INVALID: Invalid value
  *
  * @PKT_CAPTURE_ATTR_SET_MONITOR_MODE_DATA_TX_FRAME_TYPE: u32 attribute,
  * Represents the tx data packet type to be monitored (u32). These data packets
@@ -226,6 +247,9 @@ enum pkt_capture_ctrl_frame_type {
  * An interval only for the connected beacon interval, which expects that the
  * connected BSSID's beacons shall be sent on the monitor interface only on this
  * specific interval.
+ *
+ * @PKT_CAPTURE_ATTR_SET_MONITOR_MODE_AFTER_LAST: Internal use
+ * @PKT_CAPTURE_ATTR_SET_MONITOR_MODE_MAX: Value of last valid enumeration
  */
 enum pkt_capture_attr_set_monitor_mode {
 	PKT_CAPTURE_ATTR_SET_MONITOR_MODE_INVALID = 0,

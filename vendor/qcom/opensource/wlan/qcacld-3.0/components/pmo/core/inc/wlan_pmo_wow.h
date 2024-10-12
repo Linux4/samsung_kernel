@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2017-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -109,7 +109,7 @@
 #define PMO_WOW_MAX_EVENT_BM_LEN 4
 
 #define PMO_WOW_FILTERS_ARP_NS		2
-#define PMO_WOW_FILTERS_PKT_OR_APF	5
+#define PMO_WOW_FILTERS_PKT_OR_APF	6
 
 /**
  * pmo_get_and_increment_wow_default_ptrn() -Get and increment wow default ptrn
@@ -208,8 +208,9 @@ static inline uint8_t pmo_get_wow_default_ptrn(
 }
 
 /**
- * pmo_get_wow_default_ptrn() -Set wow default ptrn
+ * pmo_set_wow_default_ptrn() - Set wow default ptrn
  * @vdev_ctx: pmo vdev priv ctx
+ * @value: WoW default pattern
  *
  * API to set wow default ptrn
  *
@@ -324,7 +325,7 @@ QDF_STATUS pmo_core_add_wow_user_pattern(struct wlan_objmgr_vdev *vdev,
 /**
  * pmo_core_del_wow_user_pattern() - Function which will delete the WoWL pattern
  * @vdev: pointer to the vdev
- * @ptrn: pointer to the pattern string to be delete
+ * @pattern_id: pointer to the pattern string to be delete
  *
  * Return: error if any errors encountered, QDF_STATUS_SUCCESS otherwise
  */
@@ -356,7 +357,7 @@ void pmo_core_disable_wakeup_event(struct wlan_objmgr_psoc *psoc,
 				   WOW_WAKE_EVENT_TYPE wow_event);
 
 /**
- * pmo_is_wow_applicable(): should enable wow
+ * pmo_core_is_wow_applicable(): should enable wow
  * @psoc: objmgr psoc object
  *
  *  Enable WOW if any one of the condition meets,
@@ -393,7 +394,7 @@ void pmo_core_update_wow_enable(struct pmo_psoc_priv_obj *psoc_ctx,
 }
 
 /**
- * pmo_core_is_wow_mode_enabled() - check if wow needs to be enabled in fw
+ * pmo_core_is_wow_enabled() - check if wow needs to be enabled in fw
  * @psoc_ctx: Pointer to objmgr psoc handle
  *
  * API to check if wow mode is enabled in fwr as part of apps suspend or not
@@ -422,14 +423,17 @@ bool pmo_core_is_wow_enabled(struct pmo_psoc_priv_obj *psoc_ctx)
  * pmo_core_set_wow_nack() - Set wow nack flag
  * @psoc_ctx: Pointer to objmgr psoc handle
  * @value: true if received wow nack from else false
+ * @reason_code: WoW status reason code
  *
  * Return: None
  */
 static inline
-void pmo_core_set_wow_nack(struct pmo_psoc_priv_obj *psoc_ctx, bool value)
+void pmo_core_set_wow_nack(struct pmo_psoc_priv_obj *psoc_ctx, bool value,
+			   uint16_t reason_code)
 {
 	qdf_spin_lock_bh(&psoc_ctx->lock);
 	psoc_ctx->wow.wow_nack = value;
+	psoc_ctx->wow.reason_code = reason_code;
 	qdf_spin_unlock_bh(&psoc_ctx->lock);
 }
 
@@ -450,6 +454,25 @@ bool pmo_core_get_wow_nack(struct pmo_psoc_priv_obj *psoc_ctx)
 
 	return value;
 }
+
+/**
+ * pmo_core_get_wow_reason_code() - Get wow status reason code
+ * @psoc_ctx: Pointer to objmgr psoc handle
+ *
+ * Return: wow status reason code
+ */
+static inline
+uint16_t pmo_core_get_wow_reason_code(struct pmo_psoc_priv_obj *psoc_ctx)
+{
+	uint16_t value;
+
+	qdf_spin_lock_bh(&psoc_ctx->lock);
+	value = psoc_ctx->wow.reason_code;
+	qdf_spin_unlock_bh(&psoc_ctx->lock);
+
+	return value;
+}
+
 /**
  * pmo_core_update_wow_enable_cmd_sent() - update wow enable cmd sent flag
  * @psoc_ctx: Pointer to objmgr psoc handle
@@ -607,7 +630,7 @@ void pmo_core_update_p2plo_in_progress(struct wlan_objmgr_vdev *vdev,
 #ifdef WLAN_FEATURE_LPSS
 /**
  * pmo_core_is_lpass_enabled() - check if lpass is enabled
- * @posc: objmgr psoc object
+ * @psoc: objmgr psoc object
  *
  * WoW is needed if LPASS or NaN feature is enabled in INI because
  * target can't wake up itself if its put in PDEV suspend when LPASS

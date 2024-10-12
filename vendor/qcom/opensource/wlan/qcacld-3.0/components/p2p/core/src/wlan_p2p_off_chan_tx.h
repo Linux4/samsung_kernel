@@ -171,9 +171,11 @@ struct p2p_frame_info {
  * @off_chan:       Is this off channel tx
  * @no_cck:         Required cck or not
  * @no_ack:         Required ack or not
+ * @rand_mac_tx:    Use random MAC address
  * @duration:       Duration for the RoC
  * @tx_timer:       RoC timer
  * @frame_info:     Frame type information
+ * @nbuf:           Network buffer
  */
 struct tx_action_context {
 	qdf_list_node_t node;

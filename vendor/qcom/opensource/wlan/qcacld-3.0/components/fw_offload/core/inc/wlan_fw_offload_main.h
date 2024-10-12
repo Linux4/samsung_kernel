@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2012 - 2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -51,8 +51,11 @@
 
 /**
  * enum wlan_fwol_southbound_event - fw offload south bound event type
+ * @WLAN_FWOL_EVT_INVALID: invalid/unknown value
  * @WLAN_FWOL_EVT_GET_ELNA_BYPASS_RESPONSE: get eLNA bypass response
  * @WLAN_FWOL_EVT_GET_THERMAL_STATS_RESPONSE: get Thermal Stats response
+ * @WLAN_FWOL_EVT_LAST: internal use
+ * @WLAN_FWOL_EVT_MAX: value of last valid enumerator
  */
 enum wlan_fwol_southbound_event {
 	WLAN_FWOL_EVT_INVALID = 0,
@@ -110,9 +113,9 @@ struct wlan_fwol_coex_config {
 #endif
 };
 
-#define FWOL_THERMAL_LEVEL_MAX 4
+#define FWOL_THERMAL_LEVEL_MAX 6
 #define FWOL_THERMAL_THROTTLE_LEVEL_MAX 6
-/*
+/**
  * struct wlan_fwol_thermal_temp - Thermal temperature config items
  * @thermal_temp_min_level: Array of temperature minimum levels
  * @thermal_temp_max_level: Array of temperature maximum levels
@@ -218,6 +221,7 @@ struct wlan_fwol_tsf_accuracy_configs {
  * @ie_allowlist_cfg: IE Allowlist related config items
  * @neighbor_report_cfg: 11K neighbor report config
  * @ani_enabled: ANI enable/disable
+ * @pcie_config: to control pcie gen and lane params
  * @enable_rts_sifsbursting: Enable RTS SIFS Bursting
  * @enable_sifs_burst: Enable SIFS burst
  * @max_mpdus_inampdu: Max number of MPDUS
@@ -261,6 +265,7 @@ struct wlan_fwol_cfg {
 	struct wlan_fwol_ie_allowlist ie_allowlist_cfg;
 	struct wlan_fwol_neighbor_report_cfg neighbor_report_cfg;
 	bool ani_enabled;
+	uint8_t pcie_config;
 	bool enable_rts_sifsbursting;
 	uint8_t enable_sifs_burst;
 	uint8_t max_mpdus_inampdu;
@@ -329,7 +334,7 @@ struct wlan_fwol_thermal_throttle_info {
 /**
  * struct wlan_fwol_capability_info - FW offload capability component
  * @fw_thermal_stats_cap: Thermal Stats Fw capability
- **/
+ */
 struct wlan_fwol_capability_info {
 #ifdef THERMAL_STATS_SUPPORT
 	bool fw_thermal_stats_cap;
@@ -379,14 +384,14 @@ struct wlan_fwol_rx_event {
 };
 
 /**
- * wlan_psoc_get_fwol_obj() - private API to get fwol object from psoc
+ * fwol_get_psoc_obj() - private API to get fwol object from psoc
  * @psoc: psoc object
  *
  * Return: fwol object
  */
 struct wlan_fwol_psoc_obj *fwol_get_psoc_obj(struct wlan_objmgr_psoc *psoc);
 
-/*
+/**
  * fwol_cfg_on_psoc_enable() - Populate FWOL structure from CFG and INI
  * @psoc: pointer to the psoc object
  *
@@ -396,7 +401,7 @@ struct wlan_fwol_psoc_obj *fwol_get_psoc_obj(struct wlan_objmgr_psoc *psoc);
  */
 QDF_STATUS fwol_cfg_on_psoc_enable(struct wlan_objmgr_psoc *psoc);
 
-/*
+/**
  * fwol_cfg_on_psoc_disable() - Clear the CFG structure on psoc disable
  * @psoc: pointer to the psoc object
  *
@@ -414,7 +419,7 @@ QDF_STATUS fwol_cfg_on_psoc_disable(struct wlan_objmgr_psoc *psoc);
  */
 QDF_STATUS fwol_process_event(struct scheduler_msg *msg);
 
-/*
+/**
  * fwol_release_rx_event() - Release fw offload RX event
  * @event: fw offload RX event
  *
@@ -422,7 +427,7 @@ QDF_STATUS fwol_process_event(struct scheduler_msg *msg);
  */
 void fwol_release_rx_event(struct wlan_fwol_rx_event *event);
 
-/*
+/**
  * fwol_init_neighbor_report_cfg() - Populate default neighbor report CFG values
  * @psoc: pointer to the psoc object
  * @fwol_neighbor_report_cfg: Pointer to Neighbor report config data structure
@@ -434,7 +439,7 @@ QDF_STATUS fwol_init_neighbor_report_cfg(struct wlan_objmgr_psoc *psoc,
 					 *fwol_neighbor_report_cfg);
 
 /**
- * wlan_fwol_init_adapt_dwelltime_in_cfg - initialize adaptive dwell time params
+ * fwol_init_adapt_dwelltime_in_cfg() - initialize adaptive dwell time params
  * @psoc: Pointer to struct wlan_objmgr_psoc context
  * @dwelltime_params: Pointer to dwell time params
  *
@@ -448,9 +453,9 @@ fwol_init_adapt_dwelltime_in_cfg(
 			struct adaptive_dwelltime_params *dwelltime_params);
 
 /**
- * fwol_set_adaptive_dwelltime_config - API to set adaptive dwell params config
- *
- * @adaptive_dwelltime_params: adaptive_dwelltime_params structure
+ * fwol_set_adaptive_dwelltime_config() - API to set adaptive dwell params
+ *                                        config
+ * @dwelltime_params: adaptive_dwelltime_params structure
  *
  * Return: QDF Status
  */
@@ -484,7 +489,7 @@ QDF_STATUS fwol_set_sap_sho(struct wlan_objmgr_psoc *psoc, uint8_t vdev_id,
 /**
  * fwol_configure_hw_assist() - API to configure HW assist feature in FW
  * @pdev: pointer to the pdev object
- * @disable_he_assist: Flag to enable/disable HW assist feature
+ * @disable_hw_assist: Flag to enable/disable HW assist feature
  *
  * Return: QDF_STATUS
  */

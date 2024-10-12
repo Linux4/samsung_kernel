@@ -315,6 +315,12 @@ static int icnss_stats_show_capability(struct seq_file *s,
 			   priv->fw_version_info.fw_build_timestamp);
 		seq_printf(s, "Firmware Build ID: %s\n",
 			   priv->fw_build_id);
+		seq_printf(s, "RD card chain cap: %d\n",
+			   priv->rd_card_chain_cap);
+		seq_printf(s, "PHY HE channel width cap: %d\n",
+			   priv->phy_he_channel_width_cap);
+		seq_printf(s, "PHY QAM cap: %d\n",
+			   priv->phy_qam_cap);
 	}
 
 	return 0;
@@ -422,6 +428,9 @@ static int icnss_stats_show_state(struct seq_file *s, struct icnss_priv *priv)
 			continue;
 		case ICNSS_SLATE_UP:
 			seq_puts(s, "ICNSS SLATE UP");
+			continue;
+		case ICNSS_SLATE_READY:
+			seq_puts(s, "ICNSS SLATE READY");
 			continue;
 		case ICNSS_LOW_POWER:
 			seq_puts(s, "ICNSS LOW POWER");

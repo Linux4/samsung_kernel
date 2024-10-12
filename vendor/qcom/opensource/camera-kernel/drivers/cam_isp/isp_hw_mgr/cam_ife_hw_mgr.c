@@ -956,7 +956,7 @@ static int cam_ife_mgr_csid_start_hw(
 			start_args.is_secure = is_secure;
 			start_args.is_internal_start = is_internal_start;
 			hw_intf->hw_ops.start(hw_intf->hw_priv, &start_args,
-			    sizeof(start_args));
+				sizeof(start_args));
 		}
 	}
 
@@ -5540,8 +5540,8 @@ static int cam_ife_mgr_acquire_dev(void *hw_mgr_priv, void *acquire_hw_args)
 	isp_resource = (struct cam_isp_resource *)acquire_args->acquire_info;
 
 	gen_port_info = kcalloc(acquire_args->num_acq,
-			    sizeof(struct cam_isp_in_port_generic_info),
-			    GFP_KERNEL);
+				sizeof(struct cam_isp_in_port_generic_info),
+				GFP_KERNEL);
 
 	if (!gen_port_info) {
 		CAM_ERR(CAM_ISP, "No memory available");
@@ -6455,18 +6455,39 @@ static int cam_ife_mgr_config_hw(void *hw_mgr_priv,
 
 		if (cfg->init_packet || hw_update_data->mup_en ||
 			(ctx->ctx_config & CAM_IFE_CTX_CFG_SW_SYNC_ON)) {
+			ctx->timeout_count = 0;
 			rem_jiffies = cam_common_wait_for_completion_timeout(
 				&ctx->config_done_complete,
 				msecs_to_jiffies(60));
 			if (rem_jiffies == 0) {
+				ctx->timeout_count++;
 				CAM_ERR(CAM_ISP,
-					"config done completion timeout for req_id=%llu ctx_index %d",
-					cfg->request_id, ctx->ctx_index);
+					"config done completion timeout for req_id=%llu ctx_index %d count:%d",
+					cfg->request_id, ctx->ctx_index, ctx->timeout_count);
 				rc = cam_cdm_detect_hang_error(ctx->cdm_handle);
 				if (rc < 0) {
-					cam_cdm_dump_debug_registers(
-						ctx->cdm_handle);
-					rc = -ETIMEDOUT;
+					if (ctx->timeout_count < 2) {
+						/* there is a possibility of cdm irq delay, hence wait for some more time */
+						rem_jiffies = cam_common_wait_for_completion_timeout(
+							&ctx->config_done_complete,
+							msecs_to_jiffies(60));
+						if (rem_jiffies == 0) {
+							ctx->timeout_count++;
+							CAM_ERR(CAM_ISP,
+							"config done completion timeout for req_id=%llu ctx_index %d count:%d",
+							cfg->request_id, ctx->ctx_index, ctx->timeout_count);
+							rc = cam_cdm_detect_hang_error(ctx->cdm_handle);
+							if (rc < 0) {
+								cam_cdm_dump_debug_registers(
+								ctx->cdm_handle);
+								rc = -ETIMEDOUT;
+							}
+						}
+					} else {
+						cam_cdm_dump_debug_registers(
+							ctx->cdm_handle);
+						rc = -ETIMEDOUT;
+					}
 				} else {
 					CAM_DBG(CAM_ISP,
 						"Wq delayed but IRQ CDM done");
@@ -6490,6 +6511,7 @@ static int cam_ife_mgr_config_hw(void *hw_mgr_priv,
 						CAM_ISP_PACKET_META_REG_DUMP_PER_REQUEST,
 						NULL, false);
 			}
+			ctx->timeout_count = 0;
 		}
 
 		cam_ife_mgr_send_frame_event(cfg->request_id, ctx->ctx_index);
@@ -8530,9 +8552,9 @@ static int cam_isp_blob_csid_dynamic_switch_update(
 	ctx = prepare->ctxt_to_hw_map;
 	ife_hw_mgr = ctx->hw_mgr;
 
-	CAM_INFO(CAM_ISP,
-                "csid mup value=%u req: %lld ctx: %u",
-                mup_config->mup, prepare->packet->header.request_id, ctx->ctx_index);
+	CAM_DBG(CAM_ISP,
+				"csid mup value=%u req: %lld ctx: %u",
+				mup_config->mup, prepare->packet->header.request_id, ctx->ctx_index);
 
 	prepare_hw_data = (struct cam_isp_prepare_hw_update_data  *)
 			prepare->priv;
@@ -8557,6 +8579,11 @@ static int cam_isp_blob_csid_dynamic_switch_update(
 
 		hw_intf = ife_hw_mgr->csid_devices[ctx->base[i].idx];
 		if (hw_intf && hw_intf->hw_ops.process_cmd) {
+#if defined(CONFIG_SAMSUNG_DEBUG_SENSOR_I2C)
+			CAM_INFO(CAM_ISP, "[SEN_DBG] CSID[%u] MUP %u reqId %lld",
+				hw_intf->hw_idx, prepare_hw_data->mup_val, prepare->packet->header.request_id);
+#endif
+
 			rc = hw_intf->hw_ops.process_cmd(
 				hw_intf->hw_priv,
 				CAM_ISP_HW_CMD_CSID_DYNAMIC_SWITCH_UPDATE,
@@ -12980,7 +13007,7 @@ static int  cam_ife_hw_mgr_find_affected_ctx(
 		if (notify_err_cb)
 			notify_err_cb(ife_hwr_mgr_ctx->common.cb_priv,
 				CAM_ISP_HW_EVENT_ERROR,
-			        (void *)error_event_data);
+					(void *)error_event_data);
 		else {
 			CAM_WARN(CAM_ISP, "Error call back is not set");
 			goto end;

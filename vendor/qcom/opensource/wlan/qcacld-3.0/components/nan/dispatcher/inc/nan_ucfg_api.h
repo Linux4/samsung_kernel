@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2017-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -36,11 +36,18 @@
 	 ucfg_is_nan_conc_control_supported(psoc))
 
 #ifdef WLAN_FEATURE_NAN
+/**
+ * ucfg_nan_set_ndi_state: set ndi state
+ * @vdev: pointer to vdev object
+ * @state: value to set
+ *
+ * Return: status of operation
+ */
 #define ucfg_nan_set_ndi_state(vdev, state) \
 	__ucfg_nan_set_ndi_state(vdev, state, __func__)
 
 /**
- * ucfg_nan_set_ndi_state: set ndi state
+ * __ucfg_nan_set_ndi_state: set ndi state
  * @vdev: pointer to vdev object
  * @state: value to set
  * @func: Caller of this API
@@ -217,7 +224,6 @@ QDF_STATUS ucfg_nan_get_callbacks(struct wlan_objmgr_psoc *psoc,
  * process nan datapath initiator request from userspace
  * @vdev: nan vdev pointer
  * @in_req: NDP request
- * @psoc: pointer to psoc object
  * @req_type: type of request
  *
  * Return: status of operation
@@ -243,14 +249,13 @@ void ucfg_nan_datapath_event_handler(struct wlan_objmgr_psoc *psoc,
  * ucfg_nan_register_hdd_callbacks: ucfg API to set hdd callbacks
  * @psoc: pointer to psoc object
  * @cb_obj: structs containing callbacks
- * @os_if_event_handler: os if event handler callback
  *
  * Return: status of operation
  */
 int ucfg_nan_register_hdd_callbacks(struct wlan_objmgr_psoc *psoc,
 				    struct nan_callbacks *cb_obj);
 
-/*
+/**
  * ucfg_nan_register_lim_callbacks: ucfg API to set lim callbacks
  * @psoc: pointer to psoc object
  * @cb_obj: structs containing callbacks
@@ -310,7 +315,7 @@ bool ucfg_is_nan_dbs_supported(struct wlan_objmgr_psoc *psoc);
 bool ucfg_is_ndi_dbs_supported(struct wlan_objmgr_psoc *psoc);
 
 /**
- * ucfg_is_nan_dbs_supported() - ucfg API to query NAN SAP support
+ * ucfg_is_nan_sap_supported() - ucfg API to query NAN SAP support
  * @psoc: pointer to psoc object
  *
  * This function returns NAN SAP support status
@@ -324,11 +329,13 @@ bool ucfg_is_nan_sap_supported(struct wlan_objmgr_psoc *psoc);
  * allowed
  * @psoc: pointer to psoc object
  * @nan_ch_freq: NAN Discovery primary social channel
+ * @vdev_id: Vdev Id
  *
  * Return: True if NAN Discovery enable is allowed, False otherwise
  */
 bool ucfg_is_nan_enable_allowed(struct wlan_objmgr_psoc *psoc,
-				uint32_t nan_ch_freq);
+				uint32_t nan_ch_freq,
+				uint8_t vdev_id);
 
 /**
  * ucfg_is_nan_disc_active() - ucfg API to query if NAN Discovery is
@@ -529,7 +536,7 @@ bool ucfg_is_nan_allowed_on_freq(struct wlan_objmgr_pdev *pdev, uint32_t freq);
 bool ucfg_get_disable_6g_nan(struct wlan_objmgr_psoc *psoc);
 
 /**
- * ucfg_nan_is_mlo_sta_nan_ndi_allowed()- Get support for MLO STA +
+ * ucfg_is_mlo_sta_nan_ndi_allowed()- Get support for MLO STA +
  * NAN Disc + NDI concurrency
  * @psoc: pointer to psoc object
  *

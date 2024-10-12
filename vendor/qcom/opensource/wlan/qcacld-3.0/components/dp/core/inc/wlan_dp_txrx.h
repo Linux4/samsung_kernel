@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -58,12 +58,12 @@ uint32_t wlan_dp_intf_get_pkt_type_bitmap_value(void *intf_ctx);
 #if defined(WLAN_SUPPORT_RX_FISA)
 /**
  * dp_rx_skip_fisa() - Set flags to skip fisa aggregation
- * @cdp_soc: core txrx main context
+ * @dp_ctx: DP component handle
  * @value: allow or skip fisa
  *
  * Return: None
  */
-void dp_rx_skip_fisa(struct cdp_soc_t *cdp_soc, uint32_t value);
+void dp_rx_skip_fisa(struct wlan_dp_psoc_context *dp_ctx, uint32_t value);
 #endif
 
 /**
@@ -90,19 +90,19 @@ void dp_softap_check_wait_for_tx_eap_pkt(struct wlan_dp_intf *dp_intf,
 #ifdef SAP_DHCP_FW_IND
 /**
  * dp_post_dhcp_ind() - Send DHCP START/STOP indication to FW
- * @dp_intf: pointer to dp interface
+ * @dp_link: DP link handle
  * @mac_addr: mac address
- * @type: WMA message type
+ * @dhcp_start: true if DHCP start, otherwise DHCP stop
  *
  * Return: error number
  */
-int dp_post_dhcp_ind(struct wlan_dp_intf *dp_intf,
+int dp_post_dhcp_ind(struct wlan_dp_link *dp_link,
 		     uint8_t *mac_addr, bool dhcp_start);
 
 /**
  * dp_softap_inspect_dhcp_packet() - Inspect DHCP packet
- * @dp_intf: pointer to dp interface
- * @skb: pointer to OS packet (sk_buff)
+ * @dp_link: DP link handle
+ * @nbuf: pointer to OS packet (sk_buff)
  * @dir: direction
  *
  * Inspect the Tx/Rx frame, and send DHCP START/STOP notification to the FW
@@ -126,19 +126,19 @@ int dp_post_dhcp_ind(struct wlan_dp_intf *dp_intf,
  *
  * Return: error number
  */
-int dp_softap_inspect_dhcp_packet(struct wlan_dp_intf *dp_intf,
+int dp_softap_inspect_dhcp_packet(struct wlan_dp_link *dp_link,
 				  qdf_nbuf_t nbuf,
 				  enum qdf_proto_dir dir);
 #else
 static inline
-int dp_post_dhcp_ind(struct wlan_dp_intf *dp_intf,
+int dp_post_dhcp_ind(struct wlan_dp_link *dp_link,
 		     uint8_t *mac_addr, bool dhcp_start)
 {
 	return 0;
 }
 
 static inline
-int dp_softap_inspect_dhcp_packet(struct wlan_dp_intf *dp_intf,
+int dp_softap_inspect_dhcp_packet(struct wlan_dp_link *dp_link,
 				  qdf_nbuf_t nbuf,
 				  enum qdf_proto_dir dir)
 {
@@ -148,8 +148,8 @@ int dp_softap_inspect_dhcp_packet(struct wlan_dp_intf *dp_intf,
 
 /**
  * dp_rx_flush_packet_cbk() - flush rx packet handler
- * @dp_intf_context: pointer to DP interface context
- * @vdev_id: vdev_id of the packets to be flushed
+ * @dp_link_context: pointer to DP link context
+ * @link_id: vdev_id of the packets to be flushed
  *
  * Flush rx packet callback registered with data path. DP will call this to
  * notify when packets for a particular vdev is to be flushed out.
@@ -157,16 +157,16 @@ int dp_softap_inspect_dhcp_packet(struct wlan_dp_intf *dp_intf,
  * Return: QDF_STATUS_E_FAILURE if any errors encountered,
  *	   QDF_STATUS_SUCCESS otherwise
  */
-QDF_STATUS dp_rx_flush_packet_cbk(void *dp_intf_ctx, uint8_t vdev_id);
+QDF_STATUS dp_rx_flush_packet_cbk(void *dp_link_context, uint8_t link_id);
 
 /**
  * dp_softap_start_xmit() - Transmit a frame for SAP interface
  * @nbuf: pointer to Network buffer
- * @dp_intf: DP interface
+ * @dp_link: DP link handle
  *
  * Return: QDF_STATUS_SUCCESS on successful transmission
  */
-QDF_STATUS dp_softap_start_xmit(qdf_nbuf_t nbuf, struct wlan_dp_intf *dp_intf);
+QDF_STATUS dp_softap_start_xmit(qdf_nbuf_t nbuf, struct wlan_dp_link *dp_link);
 
 /**
  * dp_softap_tx_timeout() - TX timeout handler
@@ -182,7 +182,7 @@ void dp_softap_tx_timeout(struct wlan_dp_intf *dp_intf);
 
 /**
  * dp_softap_rx_packet_cbk() - Receive packet handler for SAP
- * @dp_intf_context: pointer to DP interface context
+ * @intf_ctx: pointer to DP interface context
  * @rx_buf: pointer to rx qdf_nbuf
  *
  * Receive callback registered with data path.  DP will call this to notify
@@ -198,12 +198,12 @@ dp_softap_rx_packet_cbk(void *intf_ctx, qdf_nbuf_t rx_buf);
 /**
  * dp_start_xmit() - Transmit a frame for STA interface
  * @nbuf: pointer to Network buffer
- * @dp_intf: DP interface
+ * @dp_link: DP link handle
  *
  * Return: QDF_STATUS_SUCCESS on successful transmission
  */
 QDF_STATUS
-dp_start_xmit(struct wlan_dp_intf *dp_intf, qdf_nbuf_t nbuf);
+dp_start_xmit(struct wlan_dp_link *dp_link, qdf_nbuf_t nbuf);
 
 /**
  * dp_tx_timeout() - DP Tx timeout API
@@ -217,7 +217,7 @@ void dp_tx_timeout(struct wlan_dp_intf *dp_intf);
 
 /**
  * dp_rx_packet_cbk() - Receive packet handler
- * @dp_intf_context: pointer to DP interface context
+ * @dp_link_context: pointer to DP link context
  * @rx_buf: pointer to rx qdf_nbuf
  *
  * Receive callback registered with data path.  DP will call this to notify
@@ -227,24 +227,24 @@ void dp_tx_timeout(struct wlan_dp_intf *dp_intf);
  * Return: QDF_STATUS_E_FAILURE if any errors encountered,
  *	   QDF_STATUS_SUCCESS otherwise
  */
-QDF_STATUS dp_rx_packet_cbk(void *dp_intf_context, qdf_nbuf_t rx_buf);
+QDF_STATUS dp_rx_packet_cbk(void *dp_link_context, qdf_nbuf_t rx_buf);
 
 #if defined(WLAN_SUPPORT_RX_FISA)
 /**
  * wlan_dp_rx_fisa_cbk() - Entry function to FISA to handle aggregation
- * @soc: core txrx main context
- * @vdev: Handle DP vdev
+ * @dp_soc: core txrx main context
+ * @dp_vdev: Handle DP vdev
  * @nbuf_list: List nbufs to be aggregated
  *
  * Return: Success on aggregation
  */
 QDF_STATUS wlan_dp_rx_fisa_cbk(void *dp_soc, void *dp_vdev,
-			       qdf_nbuf_t rxbuf_list);
+			       qdf_nbuf_t nbuf_list);
 
 /**
  * wlan_dp_rx_fisa_flush_by_ctx_id() - Flush function to end of context
  *				   flushing of aggregates
- * @soc: core txrx main context
+ * @dp_soc: core txrx main context
  * @ring_num: REO number to flush the flow Rxed on the REO
  *
  * Return: Success on flushing the flows for the REO
@@ -253,7 +253,7 @@ QDF_STATUS wlan_dp_rx_fisa_flush_by_ctx_id(void *dp_soc, int ring_num);
 
 /**
  * wlan_dp_rx_fisa_flush_by_vdev_id() - Flush fisa aggregates per vdev id
- * @soc: core txrx main context
+ * @dp_soc: core txrx main context
  * @vdev_id: vdev ID
  *
  * Return: Success on flushing the flows for the vdev
@@ -268,8 +268,9 @@ static inline QDF_STATUS wlan_dp_rx_fisa_flush_by_vdev_id(void *dp_soc,
 #endif
 
 /**
- * dp_rx_deliver_to_stack() - DP helper function to deliver RX pkts to stack
- * @dp_intf_context: pointer to DP interface context
+ * wlan_dp_rx_deliver_to_stack() - DP helper function to deliver RX pkts to
+ *                                 stack
+ * @dp_intf: pointer to DP interface context
  * @nbuf: pointer to nbuf
  *
  * The function calls the appropriate stack function depending upon the packet
@@ -283,7 +284,7 @@ QDF_STATUS wlan_dp_rx_deliver_to_stack(struct wlan_dp_intf *dp_intf,
 
 /**
  * dp_rx_thread_gro_flush_ind_cbk() - receive handler to flush GRO packets
- * @dp_intf_context: pointer to DP interface context
+ * @link_ctx: pointer to DP interface context
  * @rx_ctx_id: RX CTX Id for which flush should happen
  *
  * Receive callback registered with DP layer which flushes GRO packets
@@ -292,11 +293,11 @@ QDF_STATUS wlan_dp_rx_deliver_to_stack(struct wlan_dp_intf *dp_intf,
  * Return: QDF_STATUS_E_FAILURE if any errors encountered,
  *	   QDF_STATUS_SUCCESS otherwise
  */
-QDF_STATUS dp_rx_thread_gro_flush_ind_cbk(void *dp_intf_ctx, int rx_ctx_id);
+QDF_STATUS dp_rx_thread_gro_flush_ind_cbk(void *link_ctx, int rx_ctx_id);
 
 /**
  * dp_rx_pkt_thread_enqueue_cbk() - receive pkt handler to enqueue into thread
- * @dp_intf_context: pointer to DP interface context
+ * @link_ctx: pointer to DP link context
  * @nbuf_list: pointer to qdf_nbuf list
  *
  * Receive callback registered with DP layer which enqueues packets into dp rx
@@ -305,7 +306,7 @@ QDF_STATUS dp_rx_thread_gro_flush_ind_cbk(void *dp_intf_ctx, int rx_ctx_id);
  * Return: QDF_STATUS_E_FAILURE if any errors encountered,
  *	   QDF_STATUS_SUCCESS otherwise
  */
-QDF_STATUS dp_rx_pkt_thread_enqueue_cbk(void *dp_intf_ctx,
+QDF_STATUS dp_rx_pkt_thread_enqueue_cbk(void *link_ctx,
 					qdf_nbuf_t nbuf_list);
 
 /**
@@ -385,7 +386,7 @@ qdf_nbuf_t dp_nbuf_orphan(struct wlan_dp_intf *dp_intf,
 
 	tx_flow_low_watermark =
 	   dp_ops->dp_get_tx_flow_low_watermark(dp_ops->callback_ctx,
-						dp_intf->intf_id);
+						dp_intf->dev);
 	if (tx_flow_low_watermark > 0) {
 #if (LINUX_VERSION_CODE > KERNEL_VERSION(3, 19, 0))
 		/*
@@ -425,12 +426,12 @@ qdf_nbuf_t dp_nbuf_orphan(struct wlan_dp_intf *dp_intf,
 
 /**
  * dp_get_tx_resource() - check tx resources and take action
- * @dp_intf: DP interface
+ * @dp_link: DP link handle
  * @mac_addr: mac address
  *
  * Return: none
  */
-void dp_get_tx_resource(struct wlan_dp_intf *dp_intf,
+void dp_get_tx_resource(struct wlan_dp_link *dp_link,
 			struct qdf_mac_addr *mac_addr);
 
 #else
@@ -480,13 +481,13 @@ qdf_nbuf_t dp_nbuf_orphan(struct wlan_dp_intf *dp_intf,
 
 /**
  * dp_get_tx_resource() - check tx resources and take action
- * @dp_intf: DP interface
+ * @dp_link: DP link handle
  * @mac_addr: mac address
  *
  * Return: none
  */
 static inline
-void dp_get_tx_resource(struct wlan_dp_intf *dp_intf,
+void dp_get_tx_resource(struct wlan_dp_link *dp_link,
 			struct qdf_mac_addr *mac_addr)
 {
 }
@@ -494,7 +495,7 @@ void dp_get_tx_resource(struct wlan_dp_intf *dp_intf,
 
 /**
  * dp_start_xmit() - Transmit a frame
- * @dp_intf: pointer to DP interface
+ * @dp_link: DP link handle
  * @nbuf: n/w buffer
  *
  * Function called to Transmit a n/w buffer in STA mode.
@@ -502,13 +503,13 @@ void dp_get_tx_resource(struct wlan_dp_intf *dp_intf,
  * Return: Status of the transmission
  */
 QDF_STATUS
-dp_start_xmit(struct wlan_dp_intf *dp_intf, qdf_nbuf_t nbuf);
+dp_start_xmit(struct wlan_dp_link *dp_link, qdf_nbuf_t nbuf);
 
 #ifdef FEATURE_MONITOR_MODE_SUPPORT
 /**
  * dp_mon_rx_packet_cbk() - Receive callback registered with OL layer.
  * @context: pointer to qdf context
- * @rx_buf: pointer to rx qdf_nbuf
+ * @rxbuf: pointer to rx qdf_nbuf
  *
  * TL will call this to notify the HDD when one or more packets were
  * received for a registered STA.
@@ -565,9 +566,9 @@ void dp_rx_monitor_callback(ol_osif_vdev_handle vdev, qdf_nbuf_t mpdu,
 void dp_sta_notify_tx_comp_cb(qdf_nbuf_t nbuf, void *ctx, uint16_t flag);
 
 /**
- * dp_softap_notify_tx_comp_cb() - notify softap tx comp registered with dp
+ * dp_softap_notify_tx_compl_cbk() - notify softap tx comp registered with dp
  * @nbuf: pointer to nbuf
- * @ctx: osif context
+ * @context: osif context
  * @flag: tx status flag
  *
  * Return: None
@@ -589,12 +590,10 @@ static inline bool dp_rx_pkt_tracepoints_enabled(void)
 
 #ifdef CONFIG_DP_PKT_ADD_TIMESTAMP
 /**
- * dp_pkt_add_timestamp() - add timestamp in data payload
- *
- * @dp_intf - DP interface
- * @index - timestamp index which decides offset in payload
- * @time - time to update in payload
- * @nbuf - Network socket buffer
+ * wlan_dp_pkt_add_timestamp() - add timestamp in data payload
+ * @dp_intf: DP interface
+ * @index: timestamp index which decides offset in payload
+ * @nbuf: Network socket buffer
  *
  * Return: none
  */

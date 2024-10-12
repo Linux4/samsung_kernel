@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2018-2019 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -310,7 +311,7 @@ struct wlan_ocb_tx_ops {
 typedef void (*ocb_sync_callback)(void *context, void *response);
 
 /**
- * struct ocb_callback - structure containing callback to legacy driver
+ * struct ocb_callbacks - structure containing callback to legacy driver
  * @ocb_set_config_context: context for set channel config callback
  * @ocb_set_config_callback: set channel config callback
  * @ocb_get_tsf_timer_context: context for get tsf timer callback

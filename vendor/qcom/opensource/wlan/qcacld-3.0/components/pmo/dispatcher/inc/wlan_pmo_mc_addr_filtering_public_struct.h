@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2017 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -46,7 +47,7 @@ struct pmo_mc_addr_list_params {
 };
 
 /**
- * struct pmo_mc_addr_list -pmo mc address list params for vdev
+ * struct pmo_mc_addr_list - pmo mc address list params for vdev
  * @is_filter_applied: is mc list filter applied on vdev
  * @mc_cnt: mc address count
  * @mc_addr:mc address list
@@ -58,7 +59,7 @@ struct pmo_mc_addr_list {
 };
 
 /**
- * struct mcast_filter_params - mcast filter parameters
+ * struct pmo_mcast_filter_params - mcast filter parameters
  * @multicast_addr_cnt: num of addresses
  * @multicast_addr: address array
  * @action: operation to perform

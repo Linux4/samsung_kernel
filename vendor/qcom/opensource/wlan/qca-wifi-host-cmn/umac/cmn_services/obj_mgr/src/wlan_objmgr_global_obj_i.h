@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2016-2019, 2021 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -15,9 +16,10 @@
  * TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
  * PERFORMANCE OF THIS SOFTWARE.
  */
- /**
-  * DOC: Define the global data structure of UMAC
-  */
+
+/**
+ * DOC: Define the global data structure of UMAC
+ */
 #ifndef _WLAN_OBJMGR_GLOBAL_OBJ_I_H_
 #define _WLAN_OBJMGR_GLOBAL_OBJ_I_H_
 
@@ -28,41 +30,46 @@
 
 struct wlan_objmgr_debug_info;
 /**
- *  struct wlan_objmgr_global - Global object definition
- *  @psoc[]:                    Array of PSOCs to maintain PSOC's list,
- *                              its optional
- *  @psoc_create_handler[]:     PSOC create handler array
- *  @psoc_create_handler_arg[]: PSOC create handler args array
- *  @psoc_destroy_handler[]:     PSOC destroy handler array
- *  @psoc_destroy_handler_arg[]: PSOC destroy handler args array
- *  @psoc_status_handler[]:     PSOC status handler array
- *  @psoc_status_handler_arg[]: PSOC status handler args array
- *  @pdev_create_handler[]:     PDEV create handler array
- *  @pdev_create_handler_arg[]: PDEV create handler args array
- *  @pdev_destroy_handler[]:     PDEV destroy handler array
- *  @pdev_destroy_handler_arg[]: PDEV destroy handler args array
- *  @pdev_status_handler[]:     PDEV status handler array
- *  @pdev_status_handler_arg[]: PDEV status handler args array
- *  @vdev_create_handler[]:     VDEV create handler array
- *  @vdev_create_handler_arg[]: VDEV create handler args array
- *  @vdev_destroy_handler[]:     VDEV destroy handler array
- *  @vdev_destroy_handler_arg[]: VDEV destroy handler args array
- *  @vdev_peer_free_notify_handler[]: VDEV peer free notify handler array
- *  @vdev_status_handler[]:     VDEV status handler array
- *  @vdev_status_handler_arg[]: VDEV status handler args array
- *  @peer_create_handler[]:     PEER create handler array
- *  @peer_create_handler_arg[]: PEER create handler args array
- *  @peer_destroy_handler[]:     PEER destroy handler array
- *  @peer_destroy_handler_arg[]: PEER destroy handler args array
- *  @peer_status_handler[]:     PEER status handler array
- *  @peer_status_handler_arg[]: PEER status handler args array
- *  @debug_info:                Objmgr debug information
- *  @global_lock:               Global lock
+ * struct wlan_objmgr_global - Global object definition
+ * @psoc:                      Array of PSOCs to maintain PSOC's list,
+ *                             its optional
+ * @mlo_ctx:                   MLO manager global context
+ * @global_ctx:                DP global context
+ * @psoc_create_handler:       PSOC create handler array
+ * @psoc_create_handler_arg:   PSOC create handler args array
+ * @psoc_destroy_handler:      PSOC destroy handler array
+ * @psoc_destroy_handler_arg:  PSOC destroy handler args array
+ * @psoc_status_handler:       PSOC status handler array
+ * @psoc_status_handler_arg:   PSOC status handler args array
+ * @pdev_create_handler:       PDEV create handler array
+ * @pdev_create_handler_arg:   PDEV create handler args array
+ * @pdev_destroy_handler:      PDEV destroy handler array
+ * @pdev_destroy_handler_arg:  PDEV destroy handler args array
+ * @pdev_status_handler:       PDEV status handler array
+ * @pdev_status_handler_arg:   PDEV status handler args array
+ * @vdev_create_handler:       VDEV create handler array
+ * @vdev_create_handler_arg:   VDEV create handler args array
+ * @vdev_destroy_handler:      VDEV destroy handler array
+ * @vdev_destroy_handler_arg:  VDEV destroy handler args array
+ * @vdev_peer_free_notify_handler: VDEV peer free notify handler array
+ * @vdev_status_handler:       VDEV status handler array
+ * @vdev_status_handler_arg:   VDEV status handler args array
+ * @peer_create_handler:       PEER create handler array
+ * @peer_create_handler_arg:   PEER create handler args array
+ * @peer_destroy_handler:      PEER destroy handler array
+ * @peer_destroy_handler_arg:  PEER destroy handler args array
+ * @peer_status_handler:       PEER status handler array
+ * @peer_status_handler_arg:   PEER status handler args array
+ * @debug_info:                Objmgr debug information
+ * @global_lock:               Global lock
  */
 struct wlan_objmgr_global {
 	struct wlan_objmgr_psoc *psoc[WLAN_OBJMGR_MAX_DEVICES];
 #ifdef WLAN_FEATURE_11BE_MLO
 	struct mlo_mgr_context *mlo_ctx;
+#endif
+#ifdef QCA_SUPPORT_DP_GLOBAL_CTX
+	struct dp_global_context *global_ctx;
 #endif
 	wlan_objmgr_psoc_create_handler
 		psoc_create_handler[WLAN_UMAC_MAX_COMPONENTS];
@@ -112,7 +119,7 @@ extern struct wlan_objmgr_global *g_umac_glb_obj;
 
 /**
  * wlan_objmgr_psoc_object_attach() - attach psoc to global object
- * @psoc - PSOC object
+ * @psoc: PSOC object
  *
  * attaches PSOC to global psoc list
  *
@@ -124,7 +131,7 @@ QDF_STATUS wlan_objmgr_psoc_object_attach(
 
 /**
  * wlan_objmgr_psoc_object_detach() - detach psoc from global object
- * @psoc - PSOC object
+ * @psoc: PSOC object
  *
  * detaches PSOC from global psoc list
  *
@@ -136,10 +143,10 @@ QDF_STATUS wlan_objmgr_psoc_object_detach(
 
 /**
  * wlan_objmgr_print_ref_ids() - Print ref counts of modules
- * @id - array of ref debug
- * @log_level - log level
+ * @id: array of ref debug
+ * @log_level: log level
  *
- * Itertes through array, and prints the ref count debug
+ * Iterates through array, and prints the ref count debug
  *
  * Return: nothing
  */

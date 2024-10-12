@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -15,7 +15,7 @@
  */
 
 /**
- * DOC : contains interface prototypes for OS_IF layer
+ * DOC: contains interface prototypes for OS_IF layer
  */
 #ifndef _SPATIAL_REUSE_UCFG_API_H_
 #define _SPATIAL_REUSE_UCFG_API_H_
@@ -50,12 +50,11 @@ void ucfg_spatial_reuse_get_sr_config(struct wlan_objmgr_vdev *vdev,
 				      uint8_t *non_srg_max_pd_offset,
 				      bool *he_spr_enabled);
 /**
- * ucfg_spatial_reuse_get_sr_config() - Spatial reuse config set
+ * ucfg_spatial_reuse_set_sr_config() - Spatial reuse config set
  *
  * @vdev: object manager vdev
  * @sr_ctrl: spatial reuse sr control
  * @non_srg_max_pd_offset: non-srg max pd offset
- * @he_spr_enabled: Spatial reuse enabled
  *
  * Return: void
  */

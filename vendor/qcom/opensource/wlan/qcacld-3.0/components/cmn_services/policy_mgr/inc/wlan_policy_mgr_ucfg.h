@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2018-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -25,6 +25,7 @@
 
 /**
  * ucfg_policy_mgr_psoc_open() - This API sets CFGs to policy manager context
+ * @psoc: pointer to psoc
  *
  * This API pulls policy manager's context from PSOC and initialize the CFG
  * structure of policy manager.
@@ -32,8 +33,10 @@
  * Return: QDF_STATUS_SUCCESS up on success and any other status for failure.
  */
 QDF_STATUS ucfg_policy_mgr_psoc_open(struct wlan_objmgr_psoc *psoc);
+
 /**
  * ucfg_policy_mgr_psoc_close() - This API resets CFGs for policy manager ctx
+ * @psoc: pointer to psoc
  *
  * This API pulls policy manager's context from PSOC and resets the CFG
  * structure of policy manager.
@@ -130,7 +133,7 @@ QDF_STATUS ucfg_policy_mgr_get_conc_rule2(struct wlan_objmgr_psoc *psoc,
 						uint8_t *conc_rule2);
 
 /**
- * policy_mgr_get_chnl_select_plcy() - to get channel selection policy
+ * ucfg_policy_mgr_get_chnl_select_plcy() - to get channel selection policy
  * @psoc: pointer to psoc
  * @chnl_select_plcy: value to be filled
  *
@@ -142,7 +145,7 @@ QDF_STATUS ucfg_policy_mgr_get_conc_rule2(struct wlan_objmgr_psoc *psoc,
 QDF_STATUS ucfg_policy_mgr_get_chnl_select_plcy(struct wlan_objmgr_psoc *psoc,
 						uint32_t *chnl_select_plcy);
 /**
- * policy_mgr_get_mcc_adaptive_sch() - to get mcc adaptive scheduler
+ * ucfg_policy_mgr_get_mcc_adaptive_sch() - to get mcc adaptive scheduler
  * @psoc: pointer to psoc
  * @enable_mcc_adaptive_sch: value to be filled
  *
@@ -376,7 +379,6 @@ ucfg_policy_mgr_get_indoor_chnl_marking(struct wlan_objmgr_psoc *psoc,
  * ucfg_policy_mgr_get_sta_sap_scc_on_indoor_chnl() - to get if
  * sta sap scc on indoor channel is allowed
  * @psoc: pointer to psoc
- * @sap_scc_on_indoor: value to be filled
  *
  * This API is used to get the value of  sta+sap scc on indoor channel
  *
@@ -385,4 +387,71 @@ ucfg_policy_mgr_get_indoor_chnl_marking(struct wlan_objmgr_psoc *psoc,
 
 bool
 ucfg_policy_mgr_get_sta_sap_scc_on_indoor_chnl(struct wlan_objmgr_psoc *psoc);
+
+/**
+ * ucfg_policy_mgr_is_fw_supports_dbs() - to check whether FW supports DBS or
+ * not
+ * @psoc: pointer to psoc
+ *
+ * Return: true if DBS is supported else false
+ */
+bool ucfg_policy_mgr_is_fw_supports_dbs(struct wlan_objmgr_psoc *psoc);
+
+/**
+ * ucfg_policy_mgr_get_connection_count() - Get number of connections
+ * @psoc: pointer to psoc
+ *
+ * This API is used to get the count of current connections.
+ *
+ * Return: connection count
+ */
+uint32_t ucfg_policy_mgr_get_connection_count(struct wlan_objmgr_psoc *psoc);
+
+/**
+ * ucfg_policy_mgr_is_hw_sbs_capable() - Check if HW is SBS capable
+ * @psoc: pointer to psoc
+ *
+ * This API is to check if the HW is SBS capable.
+ *
+ * Return: true if the HW is SBS capable
+ */
+bool ucfg_policy_mgr_is_hw_sbs_capable(struct wlan_objmgr_psoc *psoc);
+
+/*
+ * ucfg_policy_mgr_get_vdev_same_freq_new_conn() - Get vdev_id of the first
+ *					           connection that has same
+ *					           channel frequency as new_freq
+ * @psoc: psoc object pointer
+ * @new_freq: channel frequency for the new connection
+ * @vdev_id: Output parameter to return vdev id of the first existing connection
+ *	     that has same channel frequency as @new_freq
+ *
+ * This function is to return the first connection that has same
+ * channel frequency as @new_freq.
+ *
+ * Return: true if connection that has same channel frequency as
+ *	   @new_freq exists. Otherwise false.
+ */
+bool ucfg_policy_mgr_get_vdev_same_freq_new_conn(struct wlan_objmgr_psoc *psoc,
+						 uint32_t new_freq,
+						 uint8_t *vdev_id);
+/*
+ * ucfg_policy_mgr_get_vdev_diff_freq_new_conn() - Get vdev id of the first
+ *						   connection that has different
+ *						   channel freq from new_freq
+ * @psoc: psoc object pointer
+ * @new_freq: channel frequency for the new connection
+ * @vdev_id: Output parameter to return vdev id of the first existing connection
+ *	     that has different channel frequency from @new_freq
+ *
+ * This function is to return the first connection that has different
+ * channel frequency from @new_freq.
+ *
+ * Return: true if connection that has different channel frequency from
+ *	   @new_freq exists. Otherwise false.
+ */
+bool ucfg_policy_mgr_get_vdev_diff_freq_new_conn(struct wlan_objmgr_psoc *psoc,
+						 uint32_t new_freq,
+						 uint8_t *vdev_id);
+
 #endif //__WLAN_POLICY_MGR_UCFG

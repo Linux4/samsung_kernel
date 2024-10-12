@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -41,6 +41,7 @@
  * @all_twt_enabled: all twt enabled
  * @twt_stats_enabled: twt stats enabled
  * @twt_ack_supported: twt ack supported
+ * @restricted_twt_support: Restricted TWT supported
  */
 struct twt_tgt_caps {
 	bool twt_requestor;
@@ -52,6 +53,7 @@ struct twt_tgt_caps {
 	bool all_twt_enabled;
 	bool twt_stats_enabled;
 	bool twt_ack_supported;
+	bool restricted_twt_support;
 };
 
 /**
@@ -60,12 +62,14 @@ struct twt_tgt_caps {
  * @twt_caps: twt caps
  * @enable_context: enable context
  * @disable_context: disable context
+ * @twt_pmo_disabled: twt pmo disabled
  */
 struct twt_psoc_priv_obj {
 	psoc_twt_ext_cfg_params_t cfg_params;
 	struct twt_tgt_caps twt_caps;
 	struct twt_en_dis_context enable_context;
 	struct twt_en_dis_context disable_context;
+	uint32_t twt_pmo_disabled;
 };
 
 /**
@@ -73,12 +77,14 @@ struct twt_psoc_priv_obj {
  * @twt_wait_for_notify: wait for notify
  * @dialog_id: TWT dialog id
  * @peer_macaddr: Peer mac address
+ * @is_ps_disabled: Whether power save is disabled or not
  * @next_action: next action of TWT worker queue
  */
 struct twt_vdev_priv_obj {
 	bool twt_wait_for_notify;
 	uint32_t dialog_id;
 	struct qdf_mac_addr peer_macaddr;
+	bool is_ps_disabled;
 	enum HOST_TWT_NEXT_WORK_ACTION next_action;
 };
 
@@ -89,6 +95,8 @@ struct twt_vdev_priv_obj {
  * @setup_done: setup done
  * @active_cmd: active command
  * @twt_ack_ctx: twt ack context
+ * @wake_dur: TWT wake duration
+ * @wake_interval: TWT wake interval
  */
 struct twt_session {
 	uint8_t dialog_id;
@@ -96,6 +104,8 @@ struct twt_session {
 	bool setup_done;
 	enum wlan_twt_commands active_cmd;
 	void *twt_ack_ctx;
+	uint32_t wake_dur;
+	uint32_t wake_interval;
 };
 
 /**

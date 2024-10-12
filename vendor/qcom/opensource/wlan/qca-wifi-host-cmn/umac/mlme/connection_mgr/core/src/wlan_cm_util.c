@@ -29,17 +29,20 @@
 #endif
 #include "wlan_cm_roam.h"
 #include <qdf_platform.h>
+#include <wlan_mlo_mgr_link_switch.h>
 
 static uint32_t cm_get_prefix_for_cm_id(enum wlan_cm_source source) {
 	switch (source) {
 	case CM_OSIF_CONNECT:
 	case CM_OSIF_CFG_CONNECT:
 	case CM_MLO_LINK_VDEV_CONNECT:
+	case CM_MLO_LINK_SWITCH_CONNECT:
 		return CONNECT_REQ_PREFIX;
 	case CM_ROAMING_HOST:
 	case CM_ROAMING_FW:
 	case CM_ROAMING_NUD_FAILURE:
 	case CM_ROAMING_LINK_REMOVAL:
+	case CM_ROAMING_USER:
 		return ROAM_REQ_PREFIX;
 	default:
 		return DISCONNECT_REQ_PREFIX;
@@ -58,6 +61,9 @@ wlan_cm_id cm_get_cm_id(struct cnx_mgr *cm_ctx, enum wlan_cm_source source)
 	cm_id = (cm_id & CM_ID_MASK);
 	cm_id = CM_ID_SET_VDEV_ID(cm_id, vdev_id);
 	cm_id = (cm_id | prefix);
+	if (source == CM_MLO_LINK_SWITCH_DISCONNECT ||
+	    source == CM_MLO_LINK_SWITCH_CONNECT)
+		cm_id |= CM_ID_LSWITCH_BIT;
 
 	return cm_id;
 }
@@ -439,8 +445,87 @@ struct cm_req *cm_get_req_by_cm_id_fl(struct cnx_mgr *cm_ctx, wlan_cm_id cm_id,
 	return NULL;
 }
 
+#ifdef WLAN_FEATURE_11BE_MLO
+void
+cm_connect_resp_fill_mld_addr_from_candidate(struct wlan_objmgr_vdev *vdev,
+					     struct scan_cache_entry *entry,
+					     struct wlan_cm_connect_resp *resp)
+{
+	struct qdf_mac_addr *mld_addr;
+
+	if (!entry || !vdev || !wlan_vdev_mlme_is_mlo_vdev(vdev))
+		return;
+
+	mld_addr = util_scan_entry_mldaddr(entry);
+	if (!mld_addr)
+		return;
+
+	qdf_copy_macaddr(&resp->mld_addr, mld_addr);
+}
+
+void
+cm_connect_resp_fill_mld_addr_from_cm_id(struct wlan_objmgr_vdev *vdev,
+					 wlan_cm_id cm_id,
+					 struct wlan_cm_connect_resp *rsp)
+{
+	struct cm_req *cm_req;
+	struct cnx_mgr *cm_ctx;
+	qdf_list_node_t *cur_node = NULL, *next_node = NULL;
+	struct scan_cache_entry *entry;
+
+	if (!wlan_vdev_mlme_is_mlo_vdev(vdev))
+		return;
+
+	cm_ctx = cm_get_cm_ctx(vdev);
+	if (!cm_ctx)
+		return;
+
+	cm_req_lock_acquire(cm_ctx);
+	qdf_list_peek_front(&cm_ctx->req_list, &cur_node);
+	while (cur_node) {
+		qdf_list_peek_next(&cm_ctx->req_list, cur_node, &next_node);
+		cm_req = qdf_container_of(cur_node, struct cm_req, node);
+
+		if (cm_req->cm_id != cm_id) {
+			cur_node = next_node;
+			next_node = NULL;
+			continue;
+		}
+
+		if (!cm_req->connect_req.cur_candidate ||
+		    !cm_req->connect_req.cur_candidate->entry)
+			break;
+
+		entry = cm_req->connect_req.cur_candidate->entry;
+		cm_connect_resp_fill_mld_addr_from_candidate(vdev, entry, rsp);
+		break;
+	}
+	cm_req_lock_release(cm_ctx);
+}
+
+static void
+cm_connect_resp_fill_mld_addr_from_scan_db(struct wlan_objmgr_vdev *vdev,
+					   struct qdf_mac_addr *bssid,
+					   struct wlan_cm_connect_resp *resp)
+{
+	if (!wlan_vdev_mlme_is_mlo_vdev(vdev))
+		return;
+
+	wlan_scan_get_mld_addr_by_link_addr(wlan_vdev_get_pdev(vdev), bssid,
+					    &resp->mld_addr);
+}
+#else
+static inline void
+cm_connect_resp_fill_mld_addr_from_scan_db(struct wlan_objmgr_vdev *vdev,
+					   struct qdf_mac_addr *bssid,
+					   struct wlan_cm_connect_resp *resp)
+{
+}
+#endif
+
 /**
  * cm_fill_connect_resp_from_req() - Fill connect resp from connect request
+ * @vdev: VDEV objmgr pointer
  * @resp: cm connect response
  * @cm_req: cm request
  *
@@ -449,7 +534,8 @@ struct cm_req *cm_get_req_by_cm_id_fl(struct cnx_mgr *cm_ctx, wlan_cm_id cm_id,
  * Return: void
  */
 static void
-cm_fill_connect_resp_from_req(struct wlan_cm_connect_resp *resp,
+cm_fill_connect_resp_from_req(struct wlan_objmgr_vdev *vdev,
+			      struct wlan_cm_connect_resp *resp,
 			      struct cm_req *cm_req)
 {
 	struct scan_cache_node *candidate;
@@ -457,17 +543,27 @@ cm_fill_connect_resp_from_req(struct wlan_cm_connect_resp *resp,
 
 	req = &cm_req->connect_req.req;
 	candidate = cm_req->connect_req.cur_candidate;
-	if (candidate)
+	if (candidate) {
 		qdf_copy_macaddr(&resp->bssid, &candidate->entry->bssid);
-	else if (!qdf_is_macaddr_zero(&req->bssid))
+		cm_connect_resp_fill_mld_addr_from_candidate(vdev,
+							     candidate->entry,
+							     resp);
+	} else if (!qdf_is_macaddr_zero(&req->bssid)) {
 		qdf_copy_macaddr(&resp->bssid, &req->bssid);
-	else
+		cm_connect_resp_fill_mld_addr_from_scan_db(vdev, &req->bssid,
+							   resp);
+	} else {
 		qdf_copy_macaddr(&resp->bssid, &req->bssid_hint);
+		cm_connect_resp_fill_mld_addr_from_scan_db(vdev, &req->bssid,
+							   resp);
+	}
 
 	if (candidate)
 		resp->freq = candidate->entry->channel.chan_freq;
-	else
+	else if (req->chan_freq)
 		resp->freq = req->chan_freq;
+	else
+		resp->freq = req->chan_freq_hint;
 
 	resp->ssid = req->ssid;
 	resp->is_wps_connection = req->is_wps_connection;
@@ -503,9 +599,17 @@ cm_handle_connect_flush(struct cnx_mgr *cm_ctx, struct cm_req *cm_req)
 		resp->reason = CM_ABORT_DUE_TO_NEW_REQ_RECVD;
 
 	/* Get bssid and ssid and freq for the cm id from the req list */
-	cm_fill_connect_resp_from_req(resp, cm_req);
+	cm_fill_connect_resp_from_req(cm_ctx->vdev, resp, cm_req);
 
-	cm_notify_connect_complete(cm_ctx, resp);
+	cm_notify_connect_complete(cm_ctx, resp, 0);
+
+	/* For link switch connect request, notify MLO mgr */
+	if (cm_is_link_switch_connect_resp(resp)) {
+		cm_reset_active_cm_id(cm_ctx->vdev, resp->cm_id);
+		mlo_mgr_link_switch_connect_done(cm_ctx->vdev,
+						 resp->connect_status);
+	}
+
 	qdf_mem_free(resp);
 }
 
@@ -535,6 +639,13 @@ cm_handle_disconnect_flush(struct cnx_mgr *cm_ctx, struct cm_req *cm_req)
 	 * was already in serialization active queue and thus wasn't flushed.
 	 */
 	mlme_cm_osif_disconnect_complete(cm_ctx->vdev, &resp);
+
+	if (cm_is_link_switch_disconnect_resp(&resp)) {
+		cm_reset_active_cm_id(cm_ctx->vdev, resp.req.cm_id);
+		mlo_mgr_link_switch_disconnect_done(cm_ctx->vdev,
+						    QDF_STATUS_E_ABORTED,
+						    true);
+	}
 }
 
 void cm_remove_cmd_from_serialization(struct cnx_mgr *cm_ctx, wlan_cm_id cm_id)
@@ -681,7 +792,8 @@ cm_fill_bss_info_in_connect_rsp_by_cm_id(struct cnx_mgr *cm_ctx,
 		cm_req = qdf_container_of(cur_node, struct cm_req, node);
 
 		if (cm_req->cm_id == cm_id) {
-			cm_fill_connect_resp_from_req(resp, cm_req);
+			cm_fill_connect_resp_from_req(cm_ctx->vdev,
+						      resp, cm_req);
 			cm_req_lock_release(cm_ctx);
 			return QDF_STATUS_SUCCESS;
 		}
@@ -786,7 +898,6 @@ static void cm_zero_and_free_memory(uint8_t *ptr, uint32_t len)
 	qdf_mem_free(ptr);
 }
 
-#ifdef CONN_MGR_ADV_FEATURE
 #ifdef WLAN_FEATURE_ROAM_OFFLOAD
 /**
  * cm_free_roaming_info() - Function to free all params in roaming info
@@ -873,6 +984,43 @@ void cm_free_connect_rsp_ies(struct wlan_cm_connect_resp *connect_rsp)
 	cm_free_roaming_info(connect_rsp);
 }
 
+static void cm_free_connect_req_ies(struct wlan_cm_connect_req *req)
+{
+	cm_zero_and_free_memory(req->assoc_ie.ptr, req->assoc_ie.len);
+	req->assoc_ie.ptr = NULL;
+	cm_zero_and_free_memory(req->scan_ie.ptr, req->scan_ie.len);
+	req->scan_ie.ptr = NULL;
+}
+
+void cm_free_wep_key_params(struct wlan_cm_connect_req *req)
+{
+	cm_zero_and_free_memory(req->crypto.wep_keys.key,
+				req->crypto.wep_keys.key_len);
+	req->crypto.wep_keys.key = NULL;
+	cm_zero_and_free_memory(req->crypto.wep_keys.seq,
+				req->crypto.wep_keys.seq_len);
+	req->crypto.wep_keys.seq = NULL;
+}
+
+void cm_free_connect_req_param(struct wlan_cm_connect_req *req)
+{
+	cm_free_connect_req_ies(req);
+	cm_free_wep_key_params(req);
+}
+
+void cm_free_connect_req(struct wlan_cm_connect_req *req)
+{
+	cm_free_connect_req_param(req);
+	cm_zero_and_free_memory((uint8_t *)req, sizeof(*req));
+}
+
+void cm_free_connect_rsp(struct wlan_cm_connect_resp *connect_rsp)
+{
+	cm_free_connect_rsp_ies(connect_rsp);
+	cm_zero_and_free_memory((uint8_t *)connect_rsp, sizeof(*connect_rsp));
+}
+
+#ifdef CONN_MGR_ADV_FEATURE
 /**
  * cm_free_first_connect_rsp() - Function to free all params in connect rsp
  * @req: pointer to connect req struct
@@ -889,8 +1037,7 @@ void cm_free_first_connect_rsp(struct cm_connect_req *req)
 	if (!connect_rsp)
 		return;
 
-	cm_free_connect_rsp_ies(connect_rsp);
-	cm_zero_and_free_memory((uint8_t *)connect_rsp, sizeof(*connect_rsp));
+	cm_free_connect_rsp(connect_rsp);
 }
 #else
 static inline
@@ -908,13 +1055,7 @@ void cm_free_connect_req_mem(struct cm_connect_req *connect_req)
 	if (connect_req->candidate_list)
 		wlan_scan_purge_results(connect_req->candidate_list);
 
-	cm_zero_and_free_memory(req->assoc_ie.ptr, req->assoc_ie.len);
-	cm_zero_and_free_memory(req->scan_ie.ptr, req->scan_ie.len);
-
-	cm_zero_and_free_memory(req->crypto.wep_keys.key,
-				req->crypto.wep_keys.key_len);
-	cm_zero_and_free_memory(req->crypto.wep_keys.seq,
-				req->crypto.wep_keys.seq_len);
+	cm_free_connect_req_param(req);
 
 	cm_free_first_connect_rsp(connect_req);
 
@@ -1012,6 +1153,11 @@ void cm_remove_cmd(struct cnx_mgr *cm_ctx, wlan_cm_id *cm_id_to_remove)
 	status = cm_delete_req_from_list(cm_ctx, cm_id);
 	if (QDF_IS_STATUS_ERROR(status))
 		return;
+
+	if (cm_is_link_switch_cmd(cm_id)) {
+		mlme_debug("Skip cmd remove for link switch connect/disconnect");
+		return;
+	}
 
 	cm_remove_cmd_from_serialization(cm_ctx, cm_id);
 }
@@ -1373,6 +1519,46 @@ void cm_fill_ml_partner_info(struct wlan_cm_connect_req *req,
 }
 #endif
 
+bool cm_find_bss_from_candidate_list(qdf_list_t *candidate_list,
+				     struct qdf_mac_addr *bssid,
+				     struct scan_cache_node **entry_found)
+{
+	struct scan_cache_node *scan_entry;
+	qdf_list_node_t *cur_node = NULL, *next_node = NULL;
+	struct qdf_mac_addr *bssid2;
+
+	if (qdf_is_macaddr_zero(bssid) ||
+	    qdf_is_macaddr_broadcast(bssid))
+		return false;
+
+	if (qdf_list_peek_front(candidate_list, &cur_node) !=
+					QDF_STATUS_SUCCESS) {
+		mlme_err("failed to peer front of candidate_list");
+		return false;
+	}
+
+	while (cur_node) {
+		qdf_list_peek_next(candidate_list, cur_node, &next_node);
+
+		scan_entry = qdf_container_of(cur_node, struct scan_cache_node,
+					      node);
+		bssid2 = &scan_entry->entry->bssid;
+		if (qdf_is_macaddr_zero(bssid2))
+			goto next;
+
+		if (qdf_is_macaddr_equal(bssid, bssid2)) {
+			if (entry_found)
+				*entry_found = scan_entry;
+			return true;
+		}
+next:
+		cur_node = next_node;
+		next_node = NULL;
+	}
+
+	return false;
+}
+
 bool cm_is_connect_req_reassoc(struct wlan_cm_connect_req *req)
 {
 	if (!qdf_is_macaddr_zero(&req->prev_bssid) &&
@@ -1382,6 +1568,72 @@ bool cm_is_connect_req_reassoc(struct wlan_cm_connect_req *req)
 		return true;
 
 	return false;
+}
+
+bool cm_is_first_candidate_connect_attempt(struct wlan_objmgr_vdev *vdev)
+{
+	struct cnx_mgr *cm_ctx;
+	struct cm_req *cm_req;
+	bool status = false;
+
+	cm_ctx = cm_get_cm_ctx(vdev);
+	if (!cm_ctx)
+		return status;
+
+	cm_req_lock_acquire(cm_ctx);
+	cm_req = cm_get_req_by_cm_id(cm_ctx, cm_ctx->active_cm_id);
+	if (!cm_req)
+		goto out;
+
+	if (cm_req->connect_req.cur_candidate_retries ||
+	    cm_req->connect_req.connect_attempts > 1)
+		goto out;
+
+	status = true;
+
+out:
+	cm_req_lock_release(cm_ctx);
+	return status;
+}
+
+QDF_STATUS
+cm_get_active_connect_req_param(struct wlan_objmgr_vdev *vdev,
+				struct wlan_cm_connect_req *req)
+{
+	struct cnx_mgr *cm_ctx;
+	qdf_list_node_t *cur_node = NULL, *next_node = NULL;
+	struct cm_req *cm_req = NULL;
+	QDF_STATUS status = QDF_STATUS_E_FAILURE;
+	uint32_t cm_id_prefix;
+
+	cm_ctx = cm_get_cm_ctx(vdev);
+	if (!cm_ctx)
+		return QDF_STATUS_E_FAILURE;
+
+	cm_req_lock_acquire(cm_ctx);
+	qdf_list_peek_front(&cm_ctx->req_list, &cur_node);
+	while (cur_node) {
+		qdf_list_peek_next(&cm_ctx->req_list, cur_node, &next_node);
+
+		cm_req = qdf_container_of(cur_node, struct cm_req, node);
+		cm_id_prefix = CM_ID_GET_PREFIX((cm_req->cm_id));
+
+		if (cm_req->cm_id != cm_ctx->active_cm_id ||
+		    cm_id_prefix != CONNECT_REQ_PREFIX) {
+			cur_node = next_node;
+			next_node = NULL;
+			continue;
+		}
+
+		*req = cm_req->connect_req.req;
+		qdf_mem_zero(&req->assoc_ie, sizeof(struct element_info));
+		qdf_mem_zero(&req->scan_ie, sizeof(struct element_info));
+		status = QDF_STATUS_SUCCESS;
+		break;
+	}
+
+	cm_req_lock_release(cm_ctx);
+	return status;
 }
 
 bool cm_get_active_connect_req(struct wlan_objmgr_vdev *vdev,
@@ -1523,29 +1775,112 @@ wlan_cm_id cm_get_cm_id_by_scan_id(struct cnx_mgr *cm_ctx,
 	return CM_ID_INVALID;
 }
 
+QDF_STATUS cm_get_rnr(struct wlan_objmgr_vdev *vdev, wlan_cm_id cm_id,
+		      struct reduced_neighbor_report *rnr)
+{
+	qdf_list_node_t *cur_node = NULL, *next_node = NULL;
+	struct cm_req *cm_req;
+	uint32_t prefix = CM_ID_GET_PREFIX(cm_id);
+	struct cnx_mgr *cm_ctx;
+
+	if (prefix != CONNECT_REQ_PREFIX)
+		return QDF_STATUS_E_INVAL;
+
+	cm_ctx = cm_get_cm_ctx(vdev);
+	if (!cm_ctx)
+		return QDF_STATUS_E_INVAL;
+
+	cm_req_lock_acquire(cm_ctx);
+	qdf_list_peek_front(&cm_ctx->req_list, &cur_node);
+	while (cur_node) {
+		qdf_list_peek_next(&cm_ctx->req_list, cur_node, &next_node);
+		cm_req = qdf_container_of(cur_node, struct cm_req, node);
+
+		if (cm_req->cm_id == cm_id) {
+			if (!cm_req->connect_req.cur_candidate ||
+			    !cm_req->connect_req.cur_candidate->entry)
+				break;
+
+			qdf_mem_copy(rnr,
+				&cm_req->connect_req.cur_candidate->entry->rnr,
+				sizeof(*rnr));
+			cm_req_lock_release(cm_ctx);
+			return QDF_STATUS_SUCCESS;
+		}
+
+		cur_node = next_node;
+		next_node = NULL;
+	}
+	cm_req_lock_release(cm_ctx);
+
+	return QDF_STATUS_E_FAILURE;
+}
+
+struct scan_cache_entry *
+cm_get_curr_candidate_entry(struct wlan_objmgr_vdev *vdev,
+			    wlan_cm_id cm_id)
+{
+	qdf_list_node_t *cur_node = NULL, *next_node = NULL;
+	struct cm_req *cm_req;
+	uint32_t prefix = CM_ID_GET_PREFIX(cm_id);
+	struct cnx_mgr *cm_ctx;
+	struct scan_cache_entry *entry = NULL;
+
+	if (prefix != CONNECT_REQ_PREFIX)
+		return NULL;
+
+	cm_ctx = cm_get_cm_ctx(vdev);
+	if (!cm_ctx)
+		return NULL;
+
+	cm_req_lock_acquire(cm_ctx);
+	qdf_list_peek_front(&cm_ctx->req_list, &cur_node);
+	while (cur_node) {
+		qdf_list_peek_next(&cm_ctx->req_list, cur_node, &next_node);
+		cm_req = qdf_container_of(cur_node, struct cm_req, node);
+
+		if (cm_req->cm_id != cm_id) {
+			cur_node = next_node;
+			next_node = NULL;
+			continue;
+		}
+
+		if (!cm_req->connect_req.cur_candidate ||
+		    !cm_req->connect_req.cur_candidate->entry)
+			break;
+
+		entry = cm_req->connect_req.cur_candidate->entry;
+		break;
+	}
+	cm_req_lock_release(cm_ctx);
+
+	return entry;
+}
+
 #ifdef WLAN_POLICY_MGR_ENABLE
 static void
 cm_get_pcl_chan_weigtage_for_sta(struct wlan_objmgr_pdev *pdev,
-				 struct pcl_freq_weight_list *pcl_lst)
+				 struct pcl_freq_weight_list *pcl_lst,
+				 struct wlan_objmgr_vdev *vdev)
 {
-	enum QDF_OPMODE opmode = QDF_STA_MODE;
-	enum policy_mgr_con_mode pm_mode;
 	uint32_t num_entries = 0;
+	uint8_t vdev_id;
 	QDF_STATUS status;
 
-	if (!pcl_lst)
+	if (!pcl_lst || !vdev)
 		return;
 
-	if (policy_mgr_map_concurrency_mode(&opmode, &pm_mode)) {
-		status = policy_mgr_get_pcl(wlan_pdev_get_psoc(pdev), pm_mode,
-					    pcl_lst->pcl_freq_list,
-					    &num_entries,
-					    pcl_lst->pcl_weight_list,
-					    NUM_CHANNELS);
-		if (QDF_IS_STATUS_ERROR(status))
-			return;
-		pcl_lst->num_of_pcl_channels = num_entries;
-	}
+	vdev_id = wlan_vdev_get_id(vdev);
+
+	status = policy_mgr_get_pcl(wlan_pdev_get_psoc(pdev),
+				    PM_STA_MODE,
+				    pcl_lst->pcl_freq_list,
+				    &num_entries,
+				    pcl_lst->pcl_weight_list,
+				    NUM_CHANNELS, vdev_id);
+	if (QDF_IS_STATUS_ERROR(status))
+		return;
+	pcl_lst->num_of_pcl_channels = num_entries;
 }
 
 void cm_calculate_scores(struct cnx_mgr *cm_ctx,
@@ -1556,13 +1891,15 @@ void cm_calculate_scores(struct cnx_mgr *cm_ctx,
 
 	if (!filter->num_of_bssid) {
 		pcl_lst = qdf_mem_malloc(sizeof(*pcl_lst));
-		cm_get_pcl_chan_weigtage_for_sta(pdev, pcl_lst);
+		cm_get_pcl_chan_weigtage_for_sta(pdev, pcl_lst, cm_ctx->vdev);
 		if (pcl_lst && !pcl_lst->num_of_pcl_channels) {
 			qdf_mem_free(pcl_lst);
 			pcl_lst = NULL;
 		}
 	}
-	wlan_cm_calculate_bss_score(pdev, pcl_lst, list, &filter->bssid_hint);
+	wlan_cm_calculate_bss_score(pdev, pcl_lst, list, &filter->bssid_hint,
+				    (struct qdf_mac_addr *)
+				    wlan_vdev_mlme_get_macaddr(cm_ctx->vdev));
 	if (pcl_lst)
 		qdf_mem_free(pcl_lst);
 }
@@ -1572,7 +1909,8 @@ void cm_calculate_scores(struct cnx_mgr *cm_ctx,
 			 struct wlan_objmgr_pdev *pdev,
 			 struct scan_filter *filter, qdf_list_t *list)
 {
-	wlan_cm_calculate_bss_score(pdev, NULL, list, &filter->bssid_hint);
+	wlan_cm_calculate_bss_score(pdev, NULL, list, &filter->bssid_hint,
+				    NULL);
 
 	/*
 	 * Custom sorting if enabled
@@ -1648,8 +1986,8 @@ void cm_req_history_del(struct cnx_mgr *cm_ctx,
 
 void cm_req_history_init(struct cnx_mgr *cm_ctx)
 {
-	qdf_spinlock_create(&cm_ctx->req_history.cm_req_hist_lock);
 	qdf_mem_zero(&cm_ctx->req_history, sizeof(struct cm_req_history));
+	qdf_spinlock_create(&cm_ctx->req_history.cm_req_hist_lock);
 }
 
 void cm_req_history_deinit(struct cnx_mgr *cm_ctx)

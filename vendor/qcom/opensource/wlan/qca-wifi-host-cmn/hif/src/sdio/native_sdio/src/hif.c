@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2013-2020 The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -376,6 +376,7 @@ err_attach1:
 /**
  * power_state_change_notify() - SDIO bus power notification handler
  * @ol_sc: HIF device context
+ * @device: SDIO device
  * @config: hif device power change type
  *
  * Return: 0 on success, error number otherwise.
@@ -445,7 +446,7 @@ power_state_change_notify(struct hif_softc *ol_sc,
  * @device: pointer to hif device structure
  * @opcode: configuration type
  * @config: configuration value to set
- * @configLen: configuration length
+ * @config_len: configuration length
  *
  * Return: 0 on success, error number otherwise.
  */
@@ -706,10 +707,10 @@ void hif_ack_interrupt(struct hif_sdio_dev *device)
 
 /**
  * hif_sdio_configure_pipes - Configure pipes for the lower layer bus
- * @pdev - HIF layer object
- * @func - SDIO bus function object
+ * @dev: HIF layer object
+ * @func: SDIO bus function object
  *
- * Return - error in case of failure to configure, else success
+ * Return: error in case of failure to configure, else success
  */
 int hif_sdio_configure_pipes(struct hif_sdio_dev *dev, struct sdio_func *func)
 {
@@ -745,7 +746,7 @@ struct bus_request *hif_allocate_bus_request(struct hif_sdio_dev *device)
 /**
  * hif_free_bus_request() - Free hif bus request
  * @device: pointer to struct hif_sdio_dev
- *
+ * @busrequest: bus request
  *
  * Return: None.
  */

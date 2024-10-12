@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
 
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -154,6 +154,7 @@
 #define CE_DDR_ADDRESS_FOR_RRI_HIGH MISSING
 
 #define HOST_CMEM_ADDRESS 0xC100000
+#define PMM_SCRATCH_BASE 0xCB500FC
 #define HOST_CE_ADDRESS CE_CFG_WFSS_CE_REG_BASE
 #define HOST_IE_ADDRESS \
 	HWIO_WFSS_CE_COMMON_R0_CE_HOST_IE_0_ADDR(\

@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2017-2018 The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -60,7 +60,7 @@ QDF_STATUS ucfg_green_ap_ll_ps(struct wlan_objmgr_pdev *pdev,
 /**
  * ucfg_green_ap_set_ps_config() - Set ps value
  * @pdev: pdev pointer
- * @value - value to be set
+ * @value: value to be set
  *
  * Return: Success or Failure
  */
@@ -103,6 +103,7 @@ QDF_STATUS ucfg_green_ap_get_transition_time(struct wlan_objmgr_pdev *pdev,
 /**
  * ucfg_green_ap_config() - Config green AP
  * @pdev: pdev pointer
+ * @val: config value
  *
  * Return: Success or Failure
  */
@@ -111,6 +112,7 @@ QDF_STATUS ucfg_green_ap_config(struct wlan_objmgr_pdev *pdev, uint8_t val);
 /**
  * ucfg_green_ap_enable_debug_prints() - Enable debugs
  * @pdev: pdev pointer
+ * @val: debug value
  *
  * Return: None
  */

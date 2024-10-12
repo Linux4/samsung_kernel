@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -144,6 +144,18 @@ ucfg_twt_cfg_get_bcast_requestor(struct wlan_objmgr_psoc *psoc, bool *val)
 }
 
 QDF_STATUS
+ucfg_twt_cfg_get_bcast_responder(struct wlan_objmgr_psoc *psoc, bool *val)
+{
+	return wlan_twt_cfg_get_bcast_responder(psoc, val);
+}
+
+QDF_STATUS
+ucfg_twt_cfg_get_rtwt_requestor(struct wlan_objmgr_psoc *psoc, bool *val)
+{
+	return wlan_twt_cfg_get_rtwt_requestor(psoc, val);
+}
+
+QDF_STATUS
 ucfg_twt_cfg_get_flex_sched(struct wlan_objmgr_psoc *psoc, bool *val)
 {
 	return wlan_twt_cfg_get_flex_sched(psoc, val);
@@ -216,10 +228,11 @@ void ucfg_twt_set_work_params(
 		struct wlan_objmgr_vdev *vdev,
 		struct qdf_mac_addr *peer_mac,
 		uint8_t dialog_id,
+		bool is_ps_disabled,
 		uint32_t twt_next_action)
 {
 	return wlan_twt_set_work_params(vdev, peer_mac, dialog_id,
-					twt_next_action);
+					is_ps_disabled, twt_next_action);
 }
 
 void ucfg_twt_get_work_params(
@@ -229,3 +242,9 @@ void ucfg_twt_get_work_params(
 {
 	return wlan_twt_get_work_params(vdev, params, next_action);
 }
+
+bool ucfg_twt_get_pmo_allowed(struct wlan_objmgr_psoc *psoc)
+{
+	return wlan_twt_get_pmo_allowed(psoc);
+}
+

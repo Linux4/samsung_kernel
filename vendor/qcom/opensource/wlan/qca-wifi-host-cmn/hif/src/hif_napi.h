@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2015-2019 The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -31,7 +31,7 @@
 /* CLD headers */
 #include <hif.h> /* struct hif_opaque_softc; */
 
-/**
+/*
  * common stuff
  * The declarations until #ifdef FEATURE_NAPI below
  * are valid whether or not FEATURE_NAPI has been
@@ -39,6 +39,16 @@
  */
 
 /**
+ * enum qca_napi_event - NAPI Events
+ * @NAPI_EVT_INVALID: invalid event
+ * @NAPI_EVT_INI_FILE: ini file processed
+ * @NAPI_EVT_CMD_STATE: userspace command
+ * @NAPI_EVT_INT_STATE: internal event
+ * @NAPI_EVT_CPU_STATE: CPU hotplus events
+ * @NAPI_EVT_TPUT_STATE: throughput triggers
+ * @NAPI_EVT_USR_SERIAL: WMA/Roaming Start
+ * @NAPI_EVT_USR_NORMAL: WMA/Roaming End
+ *
  * NAPI manages the following states:
  * NAPI state: per NAPI instance, ENABLED/DISABLED
  * CPU  state: per CPU,           DOWN/UP
@@ -70,7 +80,8 @@ enum qca_napi_event {
 	NAPI_EVT_USR_SERIAL,
 	NAPI_EVT_USR_NORMAL
 };
-/**
+
+/*
  * Following are some of NAPI related features controlled using feature flag
  * These flags need to be enabled in the qca_napi_data->flags variable for the
  * feature to kick in.
@@ -82,7 +93,7 @@ enum qca_napi_event {
 #define QCA_NAPI_FEATURE_IRQ_BLACKLISTING          BIT(2)
 #define QCA_NAPI_FEATURE_CORE_CTL_BOOST            BIT(3)
 
-/**
+/*
  * Macros to map ids -returned by ...create()- to pipes and vice versa
  */
 #define NAPI_ID2PIPE(i) ((i)-1)
@@ -92,7 +103,7 @@ enum qca_napi_event {
 /**
  * hif_napi_rx_offld_flush_cb_register() - Register flush callback for Rx offld
  * @hif_hdl: pointer to hif context
- * @offld_flush_handler: register offld flush callback
+ * @rx_ol_flush_handler: register offld flush callback
  *
  * Return: None
  */
@@ -110,7 +121,7 @@ void hif_napi_rx_offld_flush_cb_deregister(struct hif_opaque_softc *hif_hdl);
 
 /**
  * hif_napi_get_lro_info() - returns the address LRO data for napi_id
- * @hif: pointer to hif context
+ * @hif_hdl: pointer to hif context
  * @napi_id: napi instance
  *
  * Description:
@@ -129,7 +140,7 @@ enum qca_denylist_op {
 
 #ifdef FEATURE_NAPI
 
-/**
+/*
  * NAPI HIF API
  *
  * the declarations below only apply to the case
@@ -200,7 +211,7 @@ int hif_napi_poll(struct hif_opaque_softc *hif_ctx,
 void hif_update_napi_max_poll_time(struct CE_state *ce_state,
 				   int ce_id,
 				   int cpu_id);
-/**
+/*
  * Local interface to HIF implemented functions of NAPI CPU affinity management.
  * Note:
  * 1- The symbols in this file are NOT supposed to be used by any
@@ -212,7 +223,7 @@ void hif_update_napi_max_poll_time(struct CE_state *ce_state,
 
 #else /* ! defined(FEATURE_NAPI) */
 
-/**
+/*
  * Stub API
  *
  * The declarations in this section are valid only

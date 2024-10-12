@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2020 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -86,8 +87,8 @@ __hdd_sysfs_rts_cts_store(struct net_device *net_dev,
 		return -EINVAL;
 	}
 
-	ret = wma_cli_set_command(adapter->vdev_id,
-				  WMI_VDEV_PARAM_ENABLE_RTSCTS,
+	ret = wma_cli_set_command(adapter->deflink->vdev_id,
+				  wmi_vdev_param_enable_rtscts,
 				  value, VDEV_CMD);
 	if (ret) {
 		hdd_err_rl("Failed to set firmware, ret %d", ret);

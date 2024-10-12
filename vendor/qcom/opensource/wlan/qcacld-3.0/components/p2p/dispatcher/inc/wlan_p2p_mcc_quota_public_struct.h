@@ -51,7 +51,7 @@ enum mcc_quota_type {
 };
 
 /**
- * struct chan_quota - mcc channel quota
+ * struct channel_quota - mcc channel quota
  * @chan_mhz: frequency of the channel for which the quota is set
  * @channel_time_quota: channel time quota expressed as percentage
  */

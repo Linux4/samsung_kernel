@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2011-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -63,7 +63,7 @@ QDF_STATUS cm_reassoc_rsp(struct wlan_objmgr_vdev *vdev,
 /**
  * cm_roam_disconnect_rsp() - Connection manager api to post connect event
  * @vdev: VDEV object
- * @cm_discon_rsp: Disconnect response
+ * @resp: Disconnect response
  *
  * Context: Any context.
  *
@@ -89,7 +89,7 @@ QDF_STATUS cm_reassoc_complete(struct cnx_mgr *cm_ctx,
  * cm_get_active_reassoc_req() - Get copy of active reassoc request
  * @vdev: vdev pointer
  * @req: pointer to the copy of the active reassoc request
- * *
+ *
  * Context: Should be called only in the context of the
  * cm request activation
  *
@@ -214,7 +214,7 @@ cm_send_reassoc_start_fail(struct cnx_mgr *cm_ctx,
 			   bool sync);
 
 #ifdef CONN_MGR_ADV_FEATURE
-/*
+/**
  * cm_update_advance_roam_scan_filter() - fill scan filter for roam
  * @vdev: vdev
  * @filter: scan filter
@@ -226,7 +226,7 @@ QDF_STATUS cm_update_advance_roam_scan_filter(
 #endif
 
 #ifdef WLAN_FEATURE_PREAUTH_ENABLE
-/*
+/**
  * cm_host_roam_preauth_start() - start preauth process
  * @cm_ctx: Connection manager context
  * @cm_req: Struct containing the roam request
@@ -250,7 +250,7 @@ QDF_STATUS cm_preauth_active(struct cnx_mgr *cm_ctx, wlan_cm_id *cm_id);
  * cm_preauth_done_resp() - This API would be called when preauth
  * response msg handling
  * @cm_ctx: connection manager context
- * @cm_id: Connection mgr ID assigned to this preauth request.
+ * @rsp: Preauth resp
  *
  * Return: void
  */
@@ -361,7 +361,7 @@ void cm_free_roam_req_mem(struct cm_roam_req *roam_req);
 /**
  * cm_add_roam_req_to_list() - add connect req to the connection manager
  * req list
- * @vdev: vdev on which connect is received
+ * @cm_ctx: connection manager context
  * @cm_req: Roam req provided
  *
  * Return: QDF status
@@ -465,7 +465,7 @@ struct cm_roam_req *cm_get_first_roam_command(struct wlan_objmgr_vdev *vdev);
 /**
  * cm_prepare_roam_cmd() - Prepare roam req
  * @cm_ctx: connection mgr context
- * @cm_req: connection mgr req
+ * @roam_req: connection mgr req
  * @source: connection mgr req source
  *
  * This function prepares roam request when roam start ind is received

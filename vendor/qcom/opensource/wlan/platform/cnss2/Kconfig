@@ -117,3 +117,71 @@ config CNSS2_CONDITIONAL_POWEROFF
 	  for the first time to avoid potential subsequent failures during
 	  device re-probe(after wlan function driver loaded) under very bad
 	  thermal conditions.
+
+config DISABLE_CNSS_SRAM_DUMP
+	bool "Disable sram_dump"
+	depends on CNSS2
+	depends on CNSS2_DEBUG
+	help
+	  If enabled, CNSS plafrom driver will not dump sram when MHI power on
+	  timeout for CNSS QCA6490 chipset only. Since this feature about
+	  sram dump costs 4M memory.
+
+config CNSS2_SMMU_DB_SUPPORT
+	bool "Enable early trace stop support"
+	depends on CNSS2
+	help
+	  If enabled, CNSS platform driver will notify wlan fw to stop
+	  traces by ringing MHI host doorbell register. This feature helps
+	  to get traces which contain smmu fault address and enables
+	  debugging.
+
+config CNSS_HW_SECURE_DISABLE
+	bool "Enable HW secure disable"
+	depends on CNSS2
+	help
+	  If enabled, WLAN HW can be securely disabled. It would be able to
+	  handle WLAN cold boot initialization sequence changes if HW is
+	  disabled at boot and WLAN resume sequence after WLAN HW is enabled.
+
+config CNSS_HW_SECURE_SMEM
+	bool "Enable SMEM API based HW peripheral security"
+	depends on CNSS2
+	help
+	  If enabled, CNSS platform driver will use SMEM APIs intead of SCM
+	  APIs to check peripheral secure state of HW.
+
+config CNSS2_SSR_DRIVER_DUMP
+	bool "Enable Host SSR DRIVER DUMP Collection"
+	depends on CNSS2
+	help
+	  If enabled, host driver dump will be collected upon SSR.
+
+config CNSS_OUT_OF_TREE
+	bool "Enable Out of Tree Usage"
+	depends on CNSS2
+	help
+	  If enabled, CNSS platform driver modules would be able to access
+	  functions from the other modules in the platform driver.
+
+config WCNSS_MEM_PRE_ALLOC
+	tristate "WCNSS pre-alloc memory support"
+	help
+	  Pre-allocate memory for the WLAN driver module.
+	  This feature enable cld wlan driver to use pre allocated memory
+	  for it's internal usage and release it to back to pre allocated pool.
+	  This memory is allocated at the cold boot time.
+
+config CNSS2_ENUM_WITH_LOW_SPEED
+	bool "Enable/Disable enumurate with low speed feature"
+	depends on CNSS2
+	depends on PCI
+	help
+	  Set link target speed to Gen1 before enum, and then restore default
+	  RC speed to re-establish link speed. For Genoa chip, needn't restore.
+
+config SEC_SS_CNSS_FEATURE_SYSFS
+	bool "Enable CNSS SS Feature"
+	depends on CNSS2
+	help
+	  If enabled, SS specific feature will be operated.

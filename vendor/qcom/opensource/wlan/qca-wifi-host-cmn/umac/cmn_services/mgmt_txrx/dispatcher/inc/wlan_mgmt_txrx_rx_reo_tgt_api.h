@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -104,6 +104,7 @@ tgt_mgmt_rx_reo_get_valid_hw_link_bitmap(struct wlan_objmgr_psoc *psoc,
  * @id: Snapshot ID
  * @value: Pointer to the snapshot value where the snapshot
  * should be written
+ * @raw_snapshot: Raw snapshot data
  *
  * Read management rx-reorder snapshots from target.
  *
@@ -180,6 +181,26 @@ QDF_STATUS tgt_mgmt_rx_reo_frame_handler(
 QDF_STATUS
 tgt_mgmt_rx_reo_host_drop_handler(struct wlan_objmgr_pdev *pdev,
 				  struct mgmt_rx_reo_params *params);
+
+/**
+ * tgt_mgmt_rx_reo_release_frames() - Release management frames which are ready
+ * for delivery
+ * @psoc: Pointer to psoc object
+ *
+ * Return: QDF_STATUS
+ */
+QDF_STATUS
+tgt_mgmt_rx_reo_release_frames(struct wlan_objmgr_psoc *psoc);
+
+/**
+ * tgt_mgmt_rx_reo_schedule_delivery() - Helper API to schedule the delivery of
+ * a management frame.
+ * @psoc: Pointer to psoc object
+ *
+ * Return: QDF_STATUS
+ */
+QDF_STATUS
+tgt_mgmt_rx_reo_schedule_delivery(struct wlan_objmgr_psoc *psoc);
 #else
 /**
  * tgt_mgmt_rx_reo_frame_handler() - REO handler for management Rx frames.

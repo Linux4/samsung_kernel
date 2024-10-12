@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2018-2021 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -27,7 +28,7 @@
 #include "qdf_types.h"
 
 /**
- * qdf_self_recovery_callback() - callback for self recovery
+ * typedef qdf_self_recovery_callback() - callback for self recovery
  * @psoc: pointer to the posc object
  * @reason: the reason for the recovery request
  * @func: the caller's function name
@@ -41,7 +42,7 @@ typedef void (*qdf_self_recovery_callback)(void *psoc,
 					   const uint32_t line);
 
 /**
- * qdf_is_fw_down_callback() - callback to query if fw is down
+ * typedef qdf_is_fw_down_callback() - callback to query if fw is down
  *
  * Return: true if fw is down and false if fw is not down
  */
@@ -64,7 +65,7 @@ void qdf_register_fw_down_callback(qdf_is_fw_down_callback is_fw_down);
 bool qdf_is_fw_down(void);
 
 /**
- * qdf_wmi_recv_qmi_cb() - callback to receive WMI over QMI
+ * typedef qdf_wmi_recv_qmi_cb() - callback to receive WMI over QMI
  * @cb_ctx: WMI event recv callback context(wmi_handle)
  * @buf: WMI buffer
  * @len: WMI buffer len
@@ -74,7 +75,7 @@ bool qdf_is_fw_down(void);
 typedef int (*qdf_wmi_recv_qmi_cb)(void *cb_ctx, void *buf, int len);
 
 /**
- * qdf_wmi_send_over_qmi_callback() - callback to send WMI over QMI
+ * typedef qdf_wmi_send_over_qmi_callback() - callback to send WMI over QMI
  * @buf: WMI buffer
  * @len: WMI buffer len
  * @cb_ctx: WMI event recv callback context(wmi_handle)
@@ -89,7 +90,7 @@ typedef QDF_STATUS (*qdf_wmi_send_over_qmi_callback)(void *buf, uint32_t len,
 
 /**
  * qdf_register_wmi_send_recv_qmi_callback() - Register WMI over QMI callback
- * @qdf_wmi_send_over_qmi_callback: callback to send recv WMI data over QMI
+ * @wmi_send_recv_qmi_cb: callback to send recv WMI data over QMI
  *
  * Return: none
  */
@@ -109,8 +110,8 @@ QDF_STATUS qdf_wmi_send_recv_qmi(void *buf, uint32_t len, void *cb_ctx,
 				 qdf_wmi_recv_qmi_cb wmi_rx_cb);
 
 /**
- * qdf_is_driver_unloading_callback() - callback to get driver unloading in progress
- * or not
+ * typedef qdf_is_driver_unloading_callback() - callback to get driver
+ *                                              unloading in progress or not
  *
  * Return: true if driver is unloading else false
  */
@@ -126,8 +127,8 @@ void qdf_register_is_driver_unloading_callback(
 				qdf_is_driver_unloading_callback callback);
 
 /**
- * qdf_is_driver_state_module_stop_callback() - callback to get driver state is
- * module stop or not
+ * typedef qdf_is_driver_state_module_stop_callback() - callback to get driver
+ *                                                 state is module stop or not
  *
  * Return: true if driver state is module stop else false
  */
@@ -168,7 +169,7 @@ void __qdf_trigger_self_recovery(void *psoc, enum qdf_hang_reason reason,
 				 const char *func, const uint32_t line);
 
 /**
- * qdf_is_recovering_callback() - callback to get driver recovering in
+ * typedef qdf_is_recovering_callback() - callback to get driver recovering in
  * progress or not
  *
  * Return: true if driver is doing recovering else false
@@ -178,6 +179,7 @@ typedef bool (*qdf_is_recovering_callback)(void);
 /**
  * qdf_register_recovering_state_query_callback() - register recover status
  * query callback
+ * @is_recovering: true if driver is recovering
  *
  * Return: none
  */
@@ -207,7 +209,7 @@ bool qdf_is_driver_state_module_stop(void);
  */
 bool qdf_is_recovering(void);
 
-/**
+/*
  * struct qdf_op_sync - opaque operation synchronization context handle
  */
 struct qdf_op_sync;
@@ -239,6 +241,8 @@ void __qdf_op_unprotect(struct qdf_op_sync *sync, const char *func);
 
 /**
  * qdf_op_callbacks_register() - register driver operation protection callbacks
+ * @on_protect: callback on protect
+ * @on_unprotect: callback on unprotect
  *
  * Return: None
  */
@@ -246,7 +250,8 @@ void qdf_op_callbacks_register(qdf_op_protect_cb on_protect,
 			       qdf_op_unprotect_cb on_unprotect);
 
 /**
- * qdf_is_drv_connected_callback() - callback to query if drv is connected
+ * typedef qdf_is_drv_connected_callback() - callback to query if drv
+ *                                           is connected
  *
  * Return: true if drv is connected else false
  */
@@ -283,14 +288,14 @@ void qdf_register_drv_connected_callback(qdf_is_drv_connected_callback
 void qdf_check_state_before_panic(const char *func, const uint32_t line);
 
 /**
- * qdf_is_drv_supported_callback() - callback to query if drv is supported
+ *typedef qdf_is_drv_supported_callback() - callback to query if drv is supported
  *
  * Return: true if drv is supported else false
  */
 typedef bool (*qdf_is_drv_supported_callback)(void);
 
 /**
- * qdf_is_drv_supported_callback() - API to check if drv is supported or not
+ * qdf_is_drv_supported() - API to check if drv is supported or not
  *
  * DRV is dynamic request voting using which fw can do page fault and
  * bring in page back without apps wake up
@@ -309,13 +314,17 @@ bool qdf_is_drv_supported(void);
 void qdf_register_drv_supported_callback(qdf_is_drv_supported_callback
 					 is_drv_supported);
 
+/**
+ * typedef qdf_recovery_reason_update_callback() - recovery reason update callback
+ * @reason: recovery reason
+ */
 typedef void (*qdf_recovery_reason_update_callback)(enum qdf_hang_reason
 						    reason);
 
 /**
  * qdf_register_recovery_reason_update() - Register callback to update recovery
  *                                         reason
- * @qdf_recovery_reason_update_callback: callback to update recovery reason
+ * @callback: callback to update recovery reason
  *
  * Return: none
  */
@@ -331,7 +340,7 @@ void qdf_register_recovery_reason_update(qdf_recovery_reason_update_callback
 void qdf_recovery_reason_update(enum qdf_hang_reason reason);
 
 /**
- * qdf_bus_reg_dump() - callback for getting bus specific register dump
+ * typedef qdf_bus_reg_dump() - callback for getting bus specific register dump
  * @dev: Bus specific device
  * @buf: Hang event buffer in which the data will be populated
  * @len: length of data to be populated in the hang event buffer
@@ -344,7 +353,7 @@ typedef void (*qdf_bus_reg_dump)(struct device *dev, uint8_t *buf,
 /**
  * qdf_register_get_bus_reg_dump() - Register callback to update bus register
  *                                   dump
- * @qdf_bus_reg_dump: callback to update bus register dump
+ * @callback: callback to update bus register dump
  *
  * Return: none
  */
@@ -353,10 +362,29 @@ void qdf_register_get_bus_reg_dump(qdf_bus_reg_dump callback);
 /**
  * qdf_get_bus_reg_dump() - Get the register dump for the bus
  * @dev: device
- * @buffer: buffer for hang data
+ * @buf: buffer for hang data
  * @len: len of hang data
  *
  * Return: none
  */
 void qdf_get_bus_reg_dump(struct device *dev, uint8_t *buf, uint32_t len);
+
+#ifdef WLAN_SUPPORT_DPDK
+/**
+ * qdf_uio_register_device() - register dev to UIO dev
+ * @parent: parent device to be registered with UIO dev
+ * @info: UIO device capabilities
+ *
+ * Return: zero on success or a negative error code
+ */
+int qdf_uio_register_device(struct device *parent, qdf_uio_info_t *info);
+
+/**
+ * qdf_uio_unregister_device - unregister a UIO device
+ * @info: UIO device capabilities
+ *
+ * Return: none
+ */
+void qdf_uio_unregister_device(qdf_uio_info_t *info);
+#endif
 #endif /*_QDF_PLATFORM_H*/

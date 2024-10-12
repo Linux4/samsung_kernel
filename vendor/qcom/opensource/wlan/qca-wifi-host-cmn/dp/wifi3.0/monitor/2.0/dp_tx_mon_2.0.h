@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -24,9 +24,9 @@
 struct dp_mon_desc;
 
 /**
- * dp_tx_mon_desc_list - structure to store double linked liskt
- * @tx_ppdu_info_dlist_elem: support adding to double linked list
- * @tx_ppdu_info_slist_elem: support adding to single linked list
+ * struct dp_tx_mon_desc_list - structure to store descriptor linked list
+ * @desc_list: descriptor list
+ * @tail: descriptor list tail
  * @tx_mon_reap_cnt: tx monitor reap count
  */
 struct dp_tx_mon_desc_list {
@@ -35,34 +35,16 @@ struct dp_tx_mon_desc_list {
 	uint32_t tx_mon_reap_cnt;
 };
 
-/*
- * dp_tx_mon_buffers_alloc() - allocate tx monitor buffers
- * @soc: DP soc handle
- *
- * Return: QDF_STATUS_SUCCESS: Success
- *         QDF_STATUS_E_FAILURE: Error
- */
-QDF_STATUS
-dp_tx_mon_buffers_alloc(struct dp_soc *soc, uint32_t size);
-
-/*
- * dp_tx_mon_buffers_free() - free tx monitor buffers
- * @soc: dp soc handle
- *
- */
-void
-dp_tx_mon_buffers_free(struct dp_soc *soc);
-
-/*
- * dp_tx_mon_desc_pool_deinit() - deinit tx monitor descriptor pool
+/**
+ * dp_tx_mon_buf_desc_pool_deinit() - deinit tx monitor descriptor pool
  * @soc: dp soc handle
  *
  */
 void
 dp_tx_mon_buf_desc_pool_deinit(struct dp_soc *soc);
 
-/*
- * dp_tx_mon_desc_pool_deinit() - deinit tx monitor descriptor pool
+/**
+ * dp_tx_mon_buf_desc_pool_init() - init tx monitor descriptor pool
  * @soc: dp soc handle
  *
  * Return: QDF_STATUS_SUCCESS: Success
@@ -71,29 +53,19 @@ dp_tx_mon_buf_desc_pool_deinit(struct dp_soc *soc);
 QDF_STATUS
 dp_tx_mon_buf_desc_pool_init(struct dp_soc *soc);
 
-/*
+/**
  * dp_tx_mon_buf_desc_pool_free() - free tx monitor descriptor pool
  * @soc: dp soc handle
  *
  */
 void dp_tx_mon_buf_desc_pool_free(struct dp_soc *soc);
 
-/*
- * dp_tx_mon_buf_desc_pool_alloc() - allocate tx monitor descriptor pool
- * @soc: DP soc handle
- *
- * Return: QDF_STATUS_SUCCESS: Success
- *         QDF_STATUS_E_FAILURE: Error
- */
-QDF_STATUS
-dp_tx_mon_buf_desc_pool_alloc(struct dp_soc *soc);
-
 /**
  * dp_tx_mon_update_end_reason() - API to update end reason
  *
- * @mon_pdev - DP_MON_PDEV handle
- * @ppdu_id - ppdu_id
- * @end_reason - monitor destination descriptor end reason
+ * @mon_pdev: DP_MON_PDEV handle
+ * @ppdu_id: ppdu_id
+ * @end_reason: monitor destination descriptor end reason
  *
  * Return: void
  */
@@ -115,6 +87,8 @@ dp_tx_mon_status_free_packet_buf(struct dp_pdev *pdev,
 				 uint32_t end_offset,
 				 struct dp_tx_mon_desc_list *mon_desc_list_ref);
 
+#if defined(WLAN_TX_PKT_CAPTURE_ENH_BE) && defined(WLAN_PKT_CAPTURE_TX_2_0) && \
+	defined(BE_PKTLOG_SUPPORT)
 /**
  * dp_tx_process_pktlog_be() - process pktlog
  * @soc: dp soc handle
@@ -130,15 +104,24 @@ dp_tx_mon_status_free_packet_buf(struct dp_pdev *pdev,
 QDF_STATUS
 dp_tx_process_pktlog_be(struct dp_soc *soc, struct dp_pdev *pdev,
 			void *status_frag, uint32_t end_offset);
-/*
+#else
+static inline QDF_STATUS
+dp_tx_process_pktlog_be(struct dp_soc *soc, struct dp_pdev *pdev,
+			void *status_frag, uint32_t end_offset)
+{
+	return QDF_STATUS_SUCCESS;
+}
+#endif
+
+/**
  * dp_tx_mon_process_status_tlv() - API to processed TLV
  * invoked from interrupt handler
  *
- * @soc - DP_SOC handle
- * @pdev - DP_PDEV handle
- * @mon_ring_desc - descriptor status info
- * @addr - status buffer frag address
- * @end_offset - end offset of buffer that has valid buffer
+ * @soc: DP_SOC handle
+ * @pdev: DP_PDEV handle
+ * @mon_ring_desc: descriptor status info
+ * @status_frag: status buffer frag address
+ * @end_offset: end offset of buffer that has valid buffer
  * @mon_desc_list_ref: tx monitor descriptor list reference
  *
  * Return: QDF_STATUS
@@ -151,7 +134,7 @@ dp_tx_mon_process_status_tlv(struct dp_soc *soc,
 			     uint32_t end_offset,
 			     struct dp_tx_mon_desc_list *mon_desc_list_ref);
 
-/*
+/**
  * dp_tx_mon_process_2_0() - tx monitor interrupt process
  * @soc: dp soc handle
  * @int_ctx: interrupt context
@@ -163,7 +146,7 @@ uint32_t
 dp_tx_mon_process_2_0(struct dp_soc *soc, struct dp_intr *int_ctx,
 		      uint32_t mac_id, uint32_t quota);
 
-/*
+/**
  * dp_tx_mon_print_ring_stat_2_0() - Print monitor ring stats
  * @pdev: dp pdev handle
  *
@@ -175,7 +158,7 @@ dp_tx_mon_print_ring_stat_2_0(struct dp_pdev *pdev);
 #define MAX_MONITOR_HEADER (512)
 #define MAX_DUMMY_FRM_BODY (128)
 
-#define MAX_STATUS_BUFFER_IN_PPDU (64)
+#define MAX_STATUS_BUFFER_IN_PPDU (128)
 #define TXMON_NO_BUFFER_SZ (64)
 
 #define DP_BA_ACK_FRAME_SIZE (sizeof(struct ieee80211_ctlframe_addr2) + 36)
@@ -201,8 +184,13 @@ dp_tx_mon_print_ring_stat_2_0(struct dp_pdev *pdev);
 #define INITIATOR_WINDOW 0
 #define RESPONSE_WINDOW 1
 
+#ifdef WLAN_PKT_CAPTURE_TX_2_0
 /**
- * bf_type -  tx monitor supported Beamformed type
+ * enum bf_type -  tx monitor supported Beamformed type
+ * @NO_BF:
+ * @LEGACY_BF:
+ * @SU_BF:
+ * @MU_BF:
  */
 enum bf_type {
 	NO_BF = 0,
@@ -212,7 +200,9 @@ enum bf_type {
 };
 
 /**
- * dot11b_preamble_type - tx monitor supported 11b preamble type
+ * enum dot11b_preamble_type - tx monitor supported 11b preamble type
+ * @SHORT_PREAMBLE:
+ * @LONG_PREAMBLE:
  */
 enum dot11b_preamble_type {
 	SHORT_PREAMBLE = 0,
@@ -220,7 +210,13 @@ enum dot11b_preamble_type {
 };
 
 /**
- * bw_type - tx monitor supported bandwidth type
+ * enum bw_type - tx monitor supported bandwidth type
+ * @TXMON_BW_20_MHZ:
+ * @TXMON_BW_40_MHZ:
+ * @TXMON_BW_80_MHZ:
+ * @TXMON_BW_160_MHZ:
+ * @TXMON_BW_240_MHZ:
+ * @TXMON_BW_320_MHZ:
  */
 enum bw_type {
 	TXMON_BW_20_MHZ = 0,
@@ -232,7 +228,13 @@ enum bw_type {
 };
 
 /**
- * ppdu_start_reason - tx monitor supported PPDU start reason type
+ * enum ppdu_start_reason - tx monitor supported PPDU start reason type
+ * @TXMON_FES_PROTECTION_FRAME:
+ * @TXMON_FES_AFTER_PROTECTION:
+ * @TXMON_FES_ONLY:
+ * @TXMON_RESPONSE_FRAME:
+ * @TXMON_TRIG_RESPONSE_FRAME:
+ * @TXMON_DYNAMIC_PROTECTION_FES_ONLY:
  */
 enum ppdu_start_reason {
 	TXMON_FES_PROTECTION_FRAME,
@@ -244,7 +246,11 @@ enum ppdu_start_reason {
 };
 
 /**
- * guard_interval - tx monitor supported Guard interval type
+ * enum guard_interval - tx monitor supported Guard interval type
+ * @TXMON_GI_0_8_US:
+ * @TXMON_GI_0_4_US:
+ * @TXMON_GI_1_6_US:
+ * @TXMON_GI_3_2_US:
  */
 enum guard_interval {
 	TXMON_GI_0_8_US = 0,
@@ -254,7 +260,19 @@ enum guard_interval {
 };
 
 /**
- * RU_size_start - tx monitor supported RU size start type
+ * enum RU_size_start - tx monitor supported RU size start type
+ * @TXMON_RU_26:
+ * @TXMON_RU_52:
+ * @TXMON_RU_106:
+ * @TXMON_RU_242:
+ * @TXMON_RU_484:
+ * @TXMON_RU_996:
+ * @TXMON_RU_1992:
+ * @TXMON_RU_FULLBW_240:
+ * @TXMON_RU_FULLBW_320:
+ * @TXMON_RU_MULTI_LARGE:
+ * @TXMON_RU_78:
+ * @TXMON_RU_132:
  */
 enum RU_size_start {
 	TXMON_RU_26 = 0,
@@ -272,7 +290,33 @@ enum RU_size_start {
 };
 
 /**
- * response_type_expected - expected response type
+ * enum response_type_expected - expected response type
+ * @TXMON_RESP_NO_RESP:
+ * @TXMON_RESP_ACK:
+ * @TXMON_RESP_BA_64_BITMAP:
+ * @TXMON_RESP_BA_256:
+ * @TXMON_RESP_ACTIONNOACK:
+ * @TXMON_RESP_ACK_BA:
+ * @TXMON_RESP_CTS:
+ * @TXMON_RESP_ACK_DATA:
+ * @TXMON_RESP_NDP_ACK:
+ * @TXMON_RESP_NDP_MODIFIED_ACK:
+ * @TXMON_RESP_NDP_BA:
+ * @TXMON_RESP_NDP_CTS:
+ * @TXMON_RESP_NDP_ACK_OR_NDP_MODIFIED_ACK:
+ * @TXMON_RESP_UL_MU_BA:
+ * @TXMON_RESP_UL_MU_BA_AND_DATA:
+ * @TXMON_RESP_UL_MU_CBF:
+ * @TXMON_RESP_UL_MU_FRAMES:
+ * @TXMON_RESP_ANY_RESP_TO_DEVICE:
+ * @TXMON_RESP_ANY_RESP_ACCEPTED:
+ * @TXMON_RESP_FRAMELESS_PHYRX_RESP_ACCEPTED:
+ * @TXMON_RESP_RANGING_NDP_AND_LMR:
+ * @TXMON_RESP_BA_512:
+ * @TXMON_RESP_BA_1024:
+ * @TXMON_RESP_UL_MU_RANGING_CTS2S:
+ * @TXMON_RESP_UL_MU_RANGING_NDP:
+ * @TXMON_RESP_UL_MU_RANGING_LMR:
  */
 enum response_type_expected {
 	TXMON_RESP_NO_RESP = 0,
@@ -304,7 +348,11 @@ enum response_type_expected {
 };
 
 /**
- * resposne_to_respone - tx monitor supported response to response type
+ * enum resposne_to_respone - tx monitor supported response to response type
+ * @TXMON_RESP_TO_RESP_NONE:
+ * @TXMON_RESP_TO_RESP_SU_BA:
+ * @TXMON_RESP_TO_RESP_MU_BA:
+ * @TXMON_RESP_TO_RESP_CMD:
  */
 enum resposne_to_respone {
 	TXMON_RESP_TO_RESP_NONE = 0,
@@ -314,7 +362,14 @@ enum resposne_to_respone {
 };
 
 /**
- * medium_protection_type - tx monitor supported protection type
+ * enum medium_protection_type - tx monitor supported protection type
+ * @TXMON_MEDIUM_NO_PROTECTION:
+ * @TXMON_MEDIUM_RTS_LEGACY:
+ * @TXMON_MEDIUM_RTS_11AC_STATIC_BW:
+ * @TXMON_MEDIUM_RTS_11AC_DYNAMIC_BW:
+ * @TXMON_MEDIUM_CTS2SELF:
+ * @TXMON_MEDIUM_QOS_NULL_NO_ACK_3ADDR:
+ * @TXMON_MEDIUM_QOS_NULL_NO_ACK_4ADDR:
  */
 enum medium_protection_type {
 	TXMON_MEDIUM_NO_PROTECTION,
@@ -327,7 +382,11 @@ enum medium_protection_type {
 };
 
 /**
- * ndp_frame - tx monitor supported ndp frame type
+ * enum ndp_frame - tx monitor supported ndp frame type
+ * @TXMON_NO_NDP_TRANSMISSION:
+ * @TXMON_BEAMFORMING_NDP:
+ * @TXMON_HE_RANGING_NDP:
+ * @TXMON_HE_FEEDBACK_NDP:
  */
 enum ndp_frame {
 	TXMON_NO_NDP_TRANSMISSION,
@@ -337,7 +396,9 @@ enum ndp_frame {
 };
 
 /**
- * tx_ppdu_info_type - tx monitor supported ppdu type
+ * enum tx_ppdu_info_type - tx monitor supported ppdu type
+ * @TX_PROT_PPDU_INFO:
+ * @TX_DATA_PPDU_INFO:
  */
 enum tx_ppdu_info_type {
 	TX_PROT_PPDU_INFO,
@@ -345,10 +406,11 @@ enum tx_ppdu_info_type {
 };
 
 /**
- * dp_tx_ppdu_info - structure to store tx ppdu info
+ * struct dp_tx_ppdu_info - structure to store tx ppdu info
  * @ppdu_id: current ppdu info ppdu id
- * @frametype: ppdu info frame type
+ * @frame_type: ppdu info frame type
  * @cur_usr_idx: current user index of ppdu info
+ * @ulist: union of linked lists
  * @tx_ppdu_info_dlist_elem: support adding to double linked list
  * @tx_ppdu_info_slist_elem: support adding to single linked list
  * @hal_txmon: hal tx monitor info for that ppdu
@@ -370,7 +432,8 @@ struct dp_tx_ppdu_info {
 };
 
 /**
- * dp_tx_monitor_drop_stats - structure to store tx monitor drop statistic
+ * struct dp_tx_monitor_drop_stats - structure to store tx monitor drop
+ *                                   statistics
  * @ppdu_drop_cnt: ppdu drop counter
  * @mpdu_drop_cnt: mpdu drop counter
  * @tlv_drop_cnt: tlv drop counter
@@ -412,7 +475,7 @@ struct dp_tx_monitor_drop_stats {
 };
 
 /**
- * dp_tx_monitor_mode - tx monitor supported mode
+ * enum dp_tx_monitor_mode - tx monitor supported mode
  * @TX_MON_BE_DISABLE: tx monitor disable
  * @TX_MON_BE_FULL_CAPTURE: tx monitor mode to capture full packet
  * @TX_MON_BE_PEER_FILTER: tx monitor mode to capture peer filter
@@ -424,7 +487,7 @@ enum dp_tx_monitor_mode {
 };
 
 /**
- * dp_tx_monitor_framework_mode - tx monitor framework mode
+ * enum dp_tx_monitor_framework_mode - tx monitor framework mode
  * @TX_MON_BE_FRM_WRK_DISABLE: tx monitor frame work disable
  * @TX_MON_BE_FRM_WRK_FULL_CAPTURE: tx monitor frame work full capture
  * @TX_MON_BE_FRM_WRK_128B_CAPTURE: tx monitor frame work 128B capture
@@ -460,9 +523,9 @@ enum dp_tx_monitor_framework_mode {
 				   tx_ppdu_info_next);			\
 	} while (0)
 
-#ifndef WLAN_TX_PKT_CAPTURE_ENH_BE
+#ifdef WLAN_TX_MON_CORE_DEBUG
 /**
- * dp_pdev_tx_monitor_be - info to store tx capture information in pdev
+ * struct dp_pdev_tx_monitor_be - info to store tx capture information in pdev
  * @be_ppdu_id: current ppdu id
  * @mode: tx monitor core framework current mode
  * @stats: tx monitor drop stats for that mac
@@ -475,14 +538,15 @@ struct dp_pdev_tx_monitor_be {
 };
 
 /**
- * dp_peer_tx_capture_be: Tx monitor peer structure
+ * struct dp_peer_tx_capture_be - Tx monitor peer structure
  *
  * This is a dummy structure
  */
 struct dp_peer_tx_capture_be {
 };
-#else
+#endif
 
+#ifdef WLAN_TX_PKT_CAPTURE_ENH_BE
 /**
  * struct dp_txmon_frag_vec - a contiguous range of physical memory address
  * @frag_buf: frag buffer address
@@ -493,8 +557,10 @@ struct dp_txmon_frag_vec {
 	uint32_t end_offset;
 };
 
-/**
- * dp_pdev_tx_monitor_be - info to store tx capture information in pdev
+/*
+ * NB: intentionally not using kernel-doc comment because the kernel-doc
+ *     script does not handle the STAILQ_HEAD macro
+ * struct dp_pdev_tx_monitor_be - info to store tx capture information in pdev
  * @be_ppdu_id: current ppdu id
  * @be_end_reason_bitmap: current end reason bitmap
  * @mode: tx monitor current mode
@@ -556,27 +622,18 @@ struct dp_pdev_tx_monitor_be {
 };
 
 /**
- * dp_peer_tx_capture_be: Tx monitor peer structure
+ * struct dp_peer_tx_capture_be - Tx monitor peer structure
  *
  * need to be added here
  */
 struct dp_peer_tx_capture_be {
 };
-#endif /* WLAN_TX_PKT_CAPTURE_ENH_BE */
 
-/*
- * dp_tx_mon_ppdu_info_free() - API to free dp_tx_ppdu_info
- * @tx_ppdu_info - pointer to tx_ppdu_info
- *
- * Return: void
- */
-void dp_tx_mon_ppdu_info_free(struct dp_tx_ppdu_info *tx_ppdu_info);
-
-/*
+/**
  * dp_tx_mon_free_usr_mpduq() - API to free user mpduq
- * @tx_ppdu_info - pointer to tx_ppdu_info
- * @usr_idx - user index
- * @tx_cap_be - pointer to tx capture be
+ * @tx_ppdu_info: pointer to tx_ppdu_info
+ * @usr_idx: user index
+ * @tx_mon_be: pointer to tx monitor be
  *
  * Return: void
  */
@@ -584,22 +641,32 @@ void dp_tx_mon_free_usr_mpduq(struct dp_tx_ppdu_info *tx_ppdu_info,
 			      uint8_t usr_idx,
 			      struct dp_pdev_tx_monitor_be *tx_mon_be);
 
-/*
+#endif /* WLAN_TX_PKT_CAPTURE_ENH_BE */
+
+/**
+ * dp_tx_mon_ppdu_info_free() - API to free dp_tx_ppdu_info
+ * @tx_ppdu_info: pointer to tx_ppdu_info
+ *
+ * Return: void
+ */
+void dp_tx_mon_ppdu_info_free(struct dp_tx_ppdu_info *tx_ppdu_info);
+
+/**
  * dp_tx_mon_free_ppdu_info() - API to free dp_tx_ppdu_info
- * @tx_ppdu_info - pointer to tx_ppdu_info
- * @tx_cap_be - pointer to tx capture be
+ * @tx_ppdu_info: pointer to tx_ppdu_info
+ * @tx_mon_be: pointer to tx monitor be
  *
  * Return: void
  */
 void dp_tx_mon_free_ppdu_info(struct dp_tx_ppdu_info *tx_ppdu_info,
 			      struct dp_pdev_tx_monitor_be *tx_mon_be);
 
-/*
+/**
  * dp_tx_mon_get_ppdu_info() - API to allocate dp_tx_ppdu_info
- * @pdev - pdev handle
- * @type - type of ppdu_info data or protection
- * @num_user - number user in a ppdu_info
- * @ppdu_id - ppdu_id number
+ * @pdev: pdev handle
+ * @type: type of ppdu_info data or protection
+ * @num_user: number user in a ppdu_info
+ * @ppdu_id: ppdu_id number
  *
  * Return: pointer to dp_tx_ppdu_info
  */
@@ -608,64 +675,167 @@ struct dp_tx_ppdu_info *dp_tx_mon_get_ppdu_info(struct dp_pdev *pdev,
 						uint8_t num_user,
 						uint32_t ppdu_id);
 
-#ifdef WLAN_TX_PKT_CAPTURE_ENH_BE
+#endif /* WLAN_PKT_CAPTURE_TX_2_0 */
+
+#if (defined(WIFI_MONITOR_SUPPORT) && defined(WLAN_TX_PKT_CAPTURE_ENH_BE))
 /**
- * dp_tx_ppdu_stats_attach_2_0 - Initialize Tx PPDU stats and enhanced capture
- * @pdev: DP PDEV
- *
- * Return: none
- */
-void dp_tx_ppdu_stats_attach_2_0(struct dp_pdev *pdev);
-
-/**
- * dp_tx_ppdu_stats_detach_2_0 - Cleanup Tx PPDU stats and enhanced capture
- * @pdev: DP PDEV
- *
- * Return: none
- */
-void dp_tx_ppdu_stats_detach_2_0(struct dp_pdev *pdev);
-
-/*
- * dp_print_pdev_tx_monitor_stats_2_0: print tx capture stats
- * @pdev: DP PDEV handle
- *
- * return: void
- */
-void dp_print_pdev_tx_monitor_stats_2_0(struct dp_pdev *pdev);
-
-/*
- * dp_config_enh_tx_monitor_2_0()- API to enable/disable enhanced tx capture
- * @pdev_handle: DP_PDEV handle
+ * dp_config_enh_tx_monitor_2_0()- API to validate tx monitor feature
+ * @pdev: DP_PDEV handle
  * @val: user provided value
  *
  * Return: QDF_STATUS
  */
 QDF_STATUS dp_config_enh_tx_monitor_2_0(struct dp_pdev *pdev, uint8_t val);
+#endif
 
-/*
- * dp_peer_set_tx_capture_enabled_2_0() -  add tx monitor peer filter
- * @pdev: Datapath PDEV handle
- * @peer: Datapath PEER handle
- * @is_tx_pkt_cap_enable: flag for tx capture enable/disable
- * @peer_mac: peer mac address
- *
- * Return: status
- */
-QDF_STATUS dp_peer_set_tx_capture_enabled_2_0(struct dp_pdev *pdev_handle,
-					      struct dp_peer *peer_handle,
-					      uint8_t is_tx_pkt_cap_enable,
-					      uint8_t *peer_mac);
-#endif /* WLAN_TX_PKT_CAPTURE_ENH_BE */
-
-#if (defined(WIFI_MONITOR_SUPPORT) && !defined(WLAN_TX_PKT_CAPTURE_ENH_BE))
-/*
+#ifdef WLAN_TX_MON_CORE_DEBUG
+/**
  * dp_config_enh_tx_core_monitor_2_0()- API to validate core framework
- * @pdev_handle: DP_PDEV handle
+ * @pdev: DP_PDEV handle
  * @val: user provided value
  *
  * Return: QDF_STATUS
  */
 QDF_STATUS dp_config_enh_tx_core_monitor_2_0(struct dp_pdev *pdev, uint8_t val);
+#endif
+
+#ifdef WLAN_PKT_CAPTURE_TX_2_0
+QDF_STATUS dp_tx_mon_pdev_htt_srng_setup_2_0(struct dp_soc *soc,
+					     struct dp_pdev *pdev,
+					     int mac_id,
+					     int mac_for_pdev);
+QDF_STATUS dp_tx_mon_soc_htt_srng_setup_2_0(struct dp_soc *soc,
+					    int mac_id);
+QDF_STATUS dp_tx_mon_pdev_rings_alloc_2_0(struct dp_pdev *pdev, uint32_t lmac_id);
+void dp_tx_mon_pdev_rings_free_2_0(struct dp_pdev *pdev, uint32_t lmac_id);
+QDF_STATUS dp_tx_mon_pdev_rings_init_2_0(struct dp_pdev *pdev, uint32_t lmac_id);
+void dp_tx_mon_pdev_rings_deinit_2_0(struct dp_pdev *pdev, uint32_t lmac_id);
+QDF_STATUS dp_tx_mon_soc_init_2_0(struct dp_soc *soc);
+QDF_STATUS dp_tx_mon_soc_attach_2_0(struct dp_soc *soc, uint32_t lmac_id);
+QDF_STATUS dp_tx_mon_soc_detach_2_0(struct dp_soc *soc, uint32_t lmac_id);
+void dp_tx_mon_soc_deinit_2_0(struct dp_soc *soc, uint32_t lmac_id);
+void dp_print_pdev_tx_monitor_stats_2_0(struct dp_pdev *pdev);
+QDF_STATUS
+dp_tx_mon_buffers_alloc(struct dp_soc *soc, uint32_t size);
+void
+dp_tx_mon_buffers_free(struct dp_soc *soc);
+QDF_STATUS
+dp_tx_mon_buf_desc_pool_alloc(struct dp_soc *soc);
+void dp_tx_ppdu_stats_attach_2_0(struct dp_pdev *pdev);
+QDF_STATUS dp_config_enh_tx_monitor_2_0(struct dp_pdev *pdev, uint8_t val);
+QDF_STATUS dp_peer_set_tx_capture_enabled_2_0(struct dp_pdev *pdev_handle,
+					      struct dp_peer *peer_handle,
+					      uint8_t is_tx_pkt_cap_enable,
+					      uint8_t *peer_mac);
+void dp_tx_ppdu_stats_detach_2_0(struct dp_pdev *pdev);
+#else
+static inline
+QDF_STATUS dp_tx_mon_pdev_htt_srng_setup_2_0(struct dp_soc *soc,
+					     struct dp_pdev *pdev,
+					     int mac_id,
+					     int mac_for_pdev)
+{
+	return QDF_STATUS_SUCCESS;
+}
+
+static inline
+QDF_STATUS dp_tx_mon_soc_htt_srng_setup_2_0(struct dp_soc *soc,
+					    int mac_id)
+{
+	return QDF_STATUS_SUCCESS;
+}
+
+static inline
+QDF_STATUS dp_tx_mon_pdev_rings_alloc_2_0(struct dp_pdev *pdev, uint32_t lmac_id)
+{
+	return QDF_STATUS_SUCCESS;
+}
+
+static inline
+void dp_tx_mon_pdev_rings_free_2_0(struct dp_pdev *pdev, uint32_t lmac_id)
+{
+}
+
+static inline
+QDF_STATUS dp_tx_mon_pdev_rings_init_2_0(struct dp_pdev *pdev, uint32_t lmac_id)
+{
+	return QDF_STATUS_SUCCESS;
+}
+
+static inline
+void dp_tx_mon_pdev_rings_deinit_2_0(struct dp_pdev *pdev, uint32_t lmac_id)
+{
+}
+
+static inline
+QDF_STATUS dp_tx_mon_soc_init_2_0(struct dp_soc *soc)
+{
+	return QDF_STATUS_SUCCESS;
+}
+
+static inline
+QDF_STATUS dp_tx_mon_soc_attach_2_0(struct dp_soc *soc, uint32_t lmac_id)
+{
+	return QDF_STATUS_SUCCESS;
+}
+
+static inline
+QDF_STATUS dp_tx_mon_soc_detach_2_0(struct dp_soc *soc, uint32_t lmac_id)
+{
+	return QDF_STATUS_SUCCESS;
+}
+
+static inline
+void dp_tx_mon_soc_deinit_2_0(struct dp_soc *soc, uint32_t lmac_id)
+{
+}
+
+static inline void
+dp_print_pdev_tx_monitor_stats_2_0(struct dp_pdev *pdev)
+{
+}
+
+static inline QDF_STATUS
+dp_tx_mon_buffers_alloc(struct dp_soc *soc, uint32_t size)
+{
+	return QDF_STATUS_SUCCESS;
+}
+
+static inline void
+dp_tx_mon_buffers_free(struct dp_soc *soc)
+{
+}
+
+static inline QDF_STATUS
+dp_tx_mon_buf_desc_pool_alloc(struct dp_soc *soc)
+{
+	return QDF_STATUS_SUCCESS;
+}
+
+static inline void
+dp_tx_ppdu_stats_attach_2_0(struct dp_pdev *pdev)
+{
+}
+
+static inline QDF_STATUS
+dp_config_enh_tx_monitor_2_0(struct dp_pdev *pdev, uint8_t val)
+{
+	return QDF_STATUS_SUCCESS;
+}
+
+static inline QDF_STATUS
+dp_peer_set_tx_capture_enabled_2_0(struct dp_pdev *pdev_handle,
+				   struct dp_peer *peer_handle,
+				   uint8_t is_tx_pkt_cap_enable,
+				   uint8_t *peer_mac)
+{
+	return QDF_STATUS_SUCCESS;
+}
+
+static inline void
+dp_tx_ppdu_stats_detach_2_0(struct dp_pdev *pdev)
+{
+}
 #endif
 
 #endif /* _DP_TX_MON_2_0_H_ */

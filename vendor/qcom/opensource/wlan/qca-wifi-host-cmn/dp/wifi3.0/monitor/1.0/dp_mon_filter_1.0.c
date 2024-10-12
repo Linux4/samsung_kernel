@@ -157,10 +157,6 @@ void dp_mon_filter_setup_enhanced_stats_1_0(struct dp_pdev *pdev)
 	mon_pdev->filter[mode][srng_type] = filter;
 }
 
-/**
- * dp_mon_filter_reset_enhanced_stats() - Reset the enhanced stats filter
- * @pdev: DP pdev handle
- */
 void dp_mon_filter_reset_enhanced_stats_1_0(struct dp_pdev *pdev)
 {
 	struct dp_mon_filter filter = {0};
@@ -180,11 +176,6 @@ void dp_mon_filter_reset_enhanced_stats_1_0(struct dp_pdev *pdev)
 #endif /* QCA_ENHANCED_STATS_SUPPORT */
 
 #ifdef QCA_UNDECODED_METADATA_SUPPORT
-/**
- * mon_filter_setup_undecoded_metadata_capture() - Setup undecoded frame
- * capture phyrx aborted frame filter setup
- * @pdev: DP pdev handle
- */
 void dp_mon_filter_setup_undecoded_metadata_capture_1_0(struct dp_pdev *pdev)
 {
 	struct dp_mon_filter filter = {0};
@@ -224,11 +215,6 @@ void dp_mon_filter_setup_undecoded_metadata_capture_1_0(struct dp_pdev *pdev)
 	mon_pdev->filter[mode][srng_type] = filter;
 }
 
-/**
- * mon_filter_reset_undecoded_metadata_capture() - Reset undecoded frame
- * capture phyrx aborted frame filter
- * @pdev: DP pdev handle
- */
 void dp_mon_filter_reset_undecoded_metadata_capture_1_0(struct dp_pdev *pdev)
 {
 	struct dp_mon_filter filter = {0};
@@ -373,10 +359,6 @@ void dp_mon_filter_reset_mcopy_mode_1_0(struct dp_pdev *pdev)
 #endif
 
 #if defined(ATH_SUPPORT_NAC_RSSI) || defined(ATH_SUPPORT_NAC)
-/**
- * dp_mon_filter_setup_smart_monitor() - Setup the smart monitor mode filter
- * @pdev: DP pdev handle
- */
 void dp_mon_filter_setup_smart_monitor_1_0(struct dp_pdev *pdev)
 {
 	struct dp_mon_filter filter = {0};
@@ -680,14 +662,6 @@ static void dp_mon_set_reset_mon_filter(struct dp_mon_filter *filter, bool val)
 	}
 }
 
-/**
- * dp_mon_set_reset_mon_mac_filter_1_0() - Set/Reset monitor buffer and status
- * filter
- * @pdev: DP pdev handle
- * @val: Set or reset the filter
- *
- * Return: void
- */
 void dp_mon_set_reset_mon_mac_filter_1_0(struct dp_pdev *pdev, bool val)
 {
 	struct dp_mon_filter filter = {0};
@@ -919,7 +893,7 @@ void dp_mon_filter_reset_rx_pktlog_cbf_1_0(struct dp_pdev *pdev)
  * This function is used as WAR till WIN cleans up the monitor mode
  * function for targets where monitor mode is not enabled.
  *
- * Returns: true
+ * Return: true
  */
 static inline bool dp_mon_should_reset_buf_ring_filter(struct dp_pdev *pdev)
 {
@@ -941,6 +915,7 @@ static QDF_STATUS dp_mon_filter_dest_update(struct dp_pdev *pdev,
 	struct dp_mon_pdev *mon_pdev = pdev->monitor_pdev;
 	enum dp_mon_filter_srng_type srng_type;
 	QDF_STATUS status = QDF_STATUS_SUCCESS;
+	uint32_t target_type = hal_get_target_type(soc->hal_soc);
 
 	srng_type = ((soc->wlan_cfg_ctx->rxdma1_enable) ?
 			DP_MON_FILTER_SRNG_TYPE_RXDMA_MON_BUF :
@@ -958,7 +933,8 @@ static QDF_STATUS dp_mon_filter_dest_update(struct dp_pdev *pdev,
 		 * For WIN case the monitor buffer ring is used and it does need
 		 * reset when monitor mode gets enabled/disabled.
 		 */
-		if (soc->wlan_cfg_ctx->rxdma1_enable) {
+		if (soc->wlan_cfg_ctx->rxdma1_enable ||
+		    target_type == TARGET_TYPE_QCN9160) {
 			if (mon_pdev->monitor_configured || *pmon_mode_set) {
 				status = dp_mon_ht2_rx_ring_cfg(soc, pdev,
 								srng_type,
@@ -1000,14 +976,12 @@ QDF_STATUS dp_mon_filter_update_1_0(struct dp_pdev *pdev)
 	bool mon_mode_set = false;
 	struct dp_mon_filter filter = {0};
 	QDF_STATUS status = QDF_STATUS_SUCCESS;
-	struct dp_mon_pdev *mon_pdev;
 
 	if (!pdev) {
 		dp_mon_filter_err("pdev Context is null");
 		return QDF_STATUS_E_FAILURE;
 	}
 
-	mon_pdev = pdev->monitor_pdev;
 	soc = pdev->soc;
 	if (!soc) {
 		dp_mon_filter_err("Soc Context is null");
@@ -1164,6 +1138,6 @@ static void dp_cfr_filter_1_0(struct cdp_soc_t *soc_hdl,
 
 void dp_cfr_filter_register_1_0(struct cdp_ops *ops)
 {
-	ops->cfr_ops->txrx_cfr_filter = dp_cfr_filter_1_0;
+	ops->mon_ops->txrx_cfr_filter = dp_cfr_filter_1_0;
 }
 #endif

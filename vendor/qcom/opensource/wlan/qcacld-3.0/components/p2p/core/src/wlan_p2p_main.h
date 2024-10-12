@@ -116,7 +116,7 @@ enum p2p_event_type {
 /**
  * struct p2p_tx_conf_event - p2p tx confirm event
  * @p2p_soc_obj:        p2p soc private object
- * @buf:                buffer address
+ * @nbuf:               buffer address
  * @status:             tx status
  */
 struct p2p_tx_conf_event {
@@ -294,7 +294,8 @@ struct action_frame_random_mac {
 };
 
 /**
- * p2p_request_mgr_callback_t() - callback to process set mac filter result
+ * typedef p2p_request_mgr_callback_t() - callback to process set mac filter
+ *                                        result
  * @result: bool
  * @context: callback context.
  *

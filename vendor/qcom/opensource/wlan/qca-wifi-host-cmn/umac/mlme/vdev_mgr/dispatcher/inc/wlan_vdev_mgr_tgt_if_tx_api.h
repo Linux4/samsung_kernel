@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2019, 2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -33,7 +33,7 @@
 #include <include/wlan_vdev_mlme.h>
 
 /**
- * tgt_vdev_mgr_create_send() – API to send create command
+ * tgt_vdev_mgr_create_send() - API to send create command
  * @mlme_obj: pointer to vdev_mlme_obj
  * @param: pointer to vdev_create_params
  *
@@ -44,7 +44,7 @@ QDF_STATUS tgt_vdev_mgr_create_send(
 				struct vdev_create_params *param);
 
 /**
- * tgt_vdev_mgr_create_complete() – API to send wmi cfg corresponding
+ * tgt_vdev_mgr_create_complete() - API to send wmi cfg corresponding
  * to create command
  * @mlme_obj: pointer to vdev_mlme_obj
  *
@@ -53,7 +53,7 @@ QDF_STATUS tgt_vdev_mgr_create_send(
 QDF_STATUS tgt_vdev_mgr_create_complete(struct vdev_mlme_obj *mlme_obj);
 
 /**
- * tgt_vdev_mgr_start_send() – API to send start command
+ * tgt_vdev_mgr_start_send() - API to send start command
  * @mlme_obj: pointer to vdev_mlme_obj
  * @param: pointer to vdev_start_params
  *
@@ -64,7 +64,7 @@ QDF_STATUS tgt_vdev_mgr_start_send(
 				struct vdev_start_params *param);
 
 /**
- * tgt_vdev_mgr_delete_send() – API to send delete
+ * tgt_vdev_mgr_delete_send() - API to send delete
  * @mlme_obj: pointer to vdev_mlme_obj
  * @param: pointer to vdev_delete_params
  *
@@ -75,7 +75,7 @@ QDF_STATUS tgt_vdev_mgr_delete_send(
 				struct vdev_delete_params *param);
 
 /**
- * tgt_vdev_mgr_peer_flush_tids_send() – API to send peer flush tids in FW
+ * tgt_vdev_mgr_peer_flush_tids_send() - API to send peer flush tids in FW
  * @mlme_obj: pointer to vdev_mlme_obj
  * @param: pointer to peer_flush_params
  *
@@ -86,7 +86,7 @@ QDF_STATUS tgt_vdev_mgr_peer_flush_tids_send(
 				struct peer_flush_params *param);
 
 /**
- * tgt_vdev_mgr_stop_send() – API to send stop command
+ * tgt_vdev_mgr_stop_send() - API to send stop command
  * @mlme_obj: pointer to vdev_mlme_obj
  * @param: pointer to vdev_stop_params
  *
@@ -97,7 +97,7 @@ QDF_STATUS tgt_vdev_mgr_stop_send(
 				struct vdev_stop_params *param);
 
 /**
- * tgt_vdev_mgr_beacon_stop() – API to handle beacon buffer
+ * tgt_vdev_mgr_beacon_stop() - API to handle beacon buffer
  * @mlme_obj: pointer to vdev_mlme_obj
  *
  * Return: QDF_STATUS - Success or Failure
@@ -105,7 +105,7 @@ QDF_STATUS tgt_vdev_mgr_stop_send(
 QDF_STATUS tgt_vdev_mgr_beacon_stop(struct vdev_mlme_obj *mlme_obj);
 
 /**
- * tgt_vdev_mgr_beacon_free() – API to free beacon buffer
+ * tgt_vdev_mgr_beacon_free() - API to free beacon buffer
  * @mlme_obj: pointer to vdev_mlme_obj
  *
  * Return: QDF_STATUS - Success or Failure
@@ -113,7 +113,7 @@ QDF_STATUS tgt_vdev_mgr_beacon_stop(struct vdev_mlme_obj *mlme_obj);
 QDF_STATUS tgt_vdev_mgr_beacon_free(struct vdev_mlme_obj *mlme_obj);
 
 /**
- * tgt_vdev_mgr_up_send() – API to send up
+ * tgt_vdev_mgr_up_send() - API to send up
  * @mlme_obj: pointer to vdev_mlme_obj
  * @param: pointer to vdev_up_params
  *
@@ -124,7 +124,7 @@ QDF_STATUS tgt_vdev_mgr_up_send(
 				struct vdev_up_params *param);
 
 /**
- * tgt_vdev_mgr_down_send() – API to send down
+ * tgt_vdev_mgr_down_send() - API to send down
  * @mlme_obj: pointer to vdev_mlme_obj
  * @param: pointer to vdev_down_params
  *
@@ -135,7 +135,7 @@ QDF_STATUS tgt_vdev_mgr_down_send(
 				struct vdev_down_params *param);
 
 /**
- * tgt_vdev_mgr_set_neighbour_rx_cmd_send() – API to send neighbour rx
+ * tgt_vdev_mgr_set_neighbour_rx_cmd_send() - API to send neighbour rx
  * @mlme_obj: pointer to vdev_mlme_obj
  * @param: pointer to set_neighbour_rx_params
  *
@@ -146,7 +146,7 @@ QDF_STATUS tgt_vdev_mgr_set_neighbour_rx_cmd_send(
 				struct set_neighbour_rx_params *param);
 
 /**
- * tgt_vdev_mgr_nac_rssi_send() – API to send NAC RSSI
+ * tgt_vdev_mgr_nac_rssi_send() - API to send NAC RSSI
  * @mlme_obj: pointer to vdev_mlme_obj
  * @param: pointer to vdev_scan_nac_rssi_params
  *
@@ -157,7 +157,7 @@ QDF_STATUS tgt_vdev_mgr_nac_rssi_send(
 				struct vdev_scan_nac_rssi_params *param);
 
 /**
- * tgt_vdev_mgr_sifs_trigger_send() – API to send SIFS trigger
+ * tgt_vdev_mgr_sifs_trigger_send() - API to send SIFS trigger
  * @mlme_obj: pointer to vdev_mlme_obj
  * @param: pointer to sifs_trigger_param
  *
@@ -168,7 +168,7 @@ QDF_STATUS tgt_vdev_mgr_sifs_trigger_send(
 				struct sifs_trigger_param *param);
 
 /**
- * tgt_vdev_mgr_set_custom_aggr_size_send() – API to send custom aggr size
+ * tgt_vdev_mgr_set_custom_aggr_size_send() - API to send custom aggr size
  * @mlme_obj: pointer to vdev_mlme_obj
  * @param: pointer to set_custom_aggr_size_params
  *
@@ -179,7 +179,7 @@ QDF_STATUS tgt_vdev_mgr_set_custom_aggr_size_send(
 				struct set_custom_aggr_size_params *param);
 
 /**
- * tgt_vdev_mgr_config_ratemask_cmd_send() – API to configure ratemask
+ * tgt_vdev_mgr_config_ratemask_cmd_send() - API to configure ratemask
  * @mlme_obj: pointer to vdev_mlme_obj
  * @param: pointer to config_ratemask_params
  *
@@ -190,7 +190,7 @@ QDF_STATUS tgt_vdev_mgr_config_ratemask_cmd_send(
 				struct config_ratemask_params *param);
 
 /**
- * tgt_vdev_mgr_sta_ps_param_send() – API to send sta power save configuration
+ * tgt_vdev_mgr_sta_ps_param_send() - API to send sta power save configuration
  * @mlme_obj: pointer to vdev_mlme_obj
  * @param: pointer to sta_ps_params
  *
@@ -201,7 +201,7 @@ QDF_STATUS tgt_vdev_mgr_sta_ps_param_send(
 				struct sta_ps_params *param);
 
 /**
- * tgt_vdev_mgr_beacon_cmd_send() – API to send beacon
+ * tgt_vdev_mgr_beacon_cmd_send() - API to send beacon
  * @mlme_obj: pointer to vdev_mlme_obj
  * @param: pointer to beacon_params
  *
@@ -212,7 +212,7 @@ QDF_STATUS tgt_vdev_mgr_beacon_cmd_send(
 				struct beacon_params *param);
 
 /**
- * tgt_vdev_mgr_beacon_tmpl_send() – API to send beacon template
+ * tgt_vdev_mgr_beacon_tmpl_send() - API to send beacon template
  * @mlme_obj: pointer to vdev_mlme_obj
  * @param: pointer to beacon_tmpl_params
  *
@@ -250,7 +250,7 @@ static inline QDF_STATUS tgt_vdev_mgr_fils_enable_send(
 #endif
 
 /**
- * tgt_vdev_mgr_multiple_vdev_restart_send() – API to send multiple vdev
+ * tgt_vdev_mgr_multiple_vdev_restart_send() - API to send multiple vdev
  * restart
  * @pdev: pointer to pdev
  * @param: pointer to multiple_vdev_restart_params
@@ -262,7 +262,7 @@ QDF_STATUS tgt_vdev_mgr_multiple_vdev_restart_send(
 				struct multiple_vdev_restart_params *param);
 
 /**
- * tgt_vdev_mgr_multiple_vdev_set_param() – API to send multiple vdev
+ * tgt_vdev_mgr_multiple_vdev_set_param() - API to send multiple vdev
  * param
  * @pdev: pointer to pdev
  * @param: pointer to multiple_vdev_set_param
@@ -274,10 +274,10 @@ QDF_STATUS tgt_vdev_mgr_multiple_vdev_set_param(
 				struct multiple_vdev_set_param *param);
 
 /**
- * tgt_vdev_mgr_set_tx_rx_decap_type() – API to send tx rx decap type
+ * tgt_vdev_mgr_set_tx_rx_decap_type() - API to send tx rx decap type
  * @mlme_obj: pointer to vdev mlme obj
  * @param_id: param id
- * value: value to set for param id
+ * @value: value to set for param id
  *
  * Return: QDF_STATUS - Success or Failure
  */
@@ -286,7 +286,7 @@ QDF_STATUS tgt_vdev_mgr_set_tx_rx_decap_type(struct vdev_mlme_obj *mlme_obj,
 					     uint32_t value);
 
 /**
- * tgt_vdev_mgr_set_param_send() – API to send parameter cfg
+ * tgt_vdev_mgr_set_param_send() - API to send parameter cfg
  * @mlme_obj: pointer to vdev_mlme_obj
  * @param: pointer to vdev_set_params
  *
@@ -297,7 +297,7 @@ QDF_STATUS tgt_vdev_mgr_set_param_send(
 				struct vdev_set_params *param);
 
 /**
- * tgt_vdev_mgr_bcn_miss_offload_send() – API to send beacon miss offload
+ * tgt_vdev_mgr_bcn_miss_offload_send() - API to send beacon miss offload
  * @mlme_obj: pointer to vdev_mlme_obj
  *
  * Return: QDF_STATUS - Success or Failure
@@ -305,7 +305,7 @@ QDF_STATUS tgt_vdev_mgr_set_param_send(
 QDF_STATUS tgt_vdev_mgr_bcn_miss_offload_send(struct vdev_mlme_obj *mlme_obj);
 
 /**
- * tgt_vdev_mgr_peer_delete_all_send() – API to send peer delete all request
+ * tgt_vdev_mgr_peer_delete_all_send() - API to send peer delete all request
  * @mlme_obj: pointer to vdev_mlme_obj
  * @param: pointer to peer_delete_all_params
  *

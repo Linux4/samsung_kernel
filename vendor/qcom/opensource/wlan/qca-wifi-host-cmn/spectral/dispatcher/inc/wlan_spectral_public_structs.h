@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2011,2017-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  *
  * Permission to use, copy, modify, and/or distribute this software for
@@ -140,6 +140,7 @@
  * @SPECTRAL_MSG_BUF_NEW: Allocate new buffer
  * @SPECTRAL_MSG_BUF_SAVED: Reuse last buffer, used for secondary segment report
  *                          in case of 160 MHz.
+ * @SPECTRAL_MSG_BUF_TYPE_MAX: Max enumeration
  */
 enum spectral_msg_buf_type {
 	SPECTRAL_MSG_BUF_NEW,
@@ -195,11 +196,11 @@ enum spectral_capability_type {
 
 /**
  * enum spectral_cp_error_code - Spectral control path response code
- * @SPECTRAL_SCAN_RESP_ERR_INVALID: Invalid error identifier
- * @SPECTRAL_SCAN_RESP_ERR_PARAM_UNSUPPORTED: parameter unsupported
- * @SPECTRAL_SCAN_RESP_ERR_MODE_UNSUPPORTED: mode unsupported
- * @SPECTRAL_SCAN_RESP_ERR_PARAM_INVALID_VALUE: invalid parameter value
- * @SPECTRAL_SCAN_RESP_ERR_PARAM_NOT_INITIALIZED: parameter uninitialized
+ * @SPECTRAL_SCAN_ERR_INVALID: Invalid error identifier
+ * @SPECTRAL_SCAN_ERR_PARAM_UNSUPPORTED: parameter unsupported
+ * @SPECTRAL_SCAN_ERR_MODE_UNSUPPORTED: mode unsupported
+ * @SPECTRAL_SCAN_ERR_PARAM_INVALID_VALUE: invalid parameter value
+ * @SPECTRAL_SCAN_ERR_PARAM_NOT_INITIALIZED: parameter uninitialized
  */
 enum spectral_cp_error_code {
 	SPECTRAL_SCAN_ERR_INVALID,
@@ -347,6 +348,8 @@ struct wlan_objmgr_pdev;
  * @send_nl_bcast:  Send data to the application using netlink broadcast
  * @send_nl_unicast:  Send data to the application using netlink unicast
  * @free_sbuff: Free the socket buffer for a particular message type
+ * @convert_to_nl_ch_width:
+ * @convert_to_phy_ch_width:
  */
 struct spectral_nl_cb {
 	void *(*get_sbuff)(struct wlan_objmgr_pdev *pdev,
@@ -451,6 +454,13 @@ struct spectral_scan_dma_debug_request {
  * @ss_mode: Spectral scan mode
  * @req_id: Request identifier
  * @vdev_id: VDEV id
+ * @config_req: Spectral scan config request
+ * @action_req: Spectral scan action request
+ * @caps_req: Spectral scan get caps request
+ * @diag_req: Spectral scan get diag request
+ * @chan_width_req:Spectral scan get chan width request
+ * @status_req: Spectral scan get status request
+ * @debug_req: Spectral scan debug request
  * @dma_debug_req: Spectral DMA debug request
  */
 struct spectral_cp_request {

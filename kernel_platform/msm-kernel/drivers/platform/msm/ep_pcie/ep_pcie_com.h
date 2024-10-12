@@ -74,6 +74,11 @@
 #define PCIE20_PARF_CLKREQ_IN_OVERRIDE_ENABLE_EN	1
 #define PCIE20_PARF_CLKREQ_OE_OVERRIDE_ENABLE	BIT(0)
 
+#define PCIE20_PARF_DEBUG_CNT_IN_L0S (0xc10)
+#define PCIE20_PARF_DEBUG_CNT_IN_L1 (0xc0c)
+#define PCIE20_PARF_DEBUG_CNT_IN_L1SUB_L1 (0xc84)
+#define PCIE20_PARF_DEBUG_CNT_IN_L1SUB_L2 (0xc88)
+
 #define PCIE20_PARF_SLV_ADDR_MSB_CTRL  0x2C0
 #define PCIE20_PARF_DBI_BASE_ADDR      0x350
 #define PCIE20_PARF_DBI_BASE_ADDR_HI   0x354
@@ -170,6 +175,7 @@
 #define PCIE20_IATU_O_LTAR(n)          (PCIE20_IATU_BASE(n) + 0x14)
 #define PCIE20_IATU_O_UTAR(n)          (PCIE20_IATU_BASE(n) + 0x18)
 #define PCIE20_IATU_O_CTRL3(n)         (PCIE20_IATU_BASE(n) + 0x1C)
+#define PCIE20_IATU_O_ULAR(n)          (PCIE20_IATU_BASE(n) + 0x20)
 
 #define PCIE20_IATU_I_CTRL1(n)         (PCIE20_IATU_BASE(n) + 0x100)
 #define PCIE20_IATU_I_CTRL2(n)         (PCIE20_IATU_BASE(n) + 0x104)
@@ -178,6 +184,8 @@
 #define PCIE20_IATU_I_LAR(n)           (PCIE20_IATU_BASE(n) + 0x110)
 #define PCIE20_IATU_I_LTAR(n)          (PCIE20_IATU_BASE(n) + 0x114)
 #define PCIE20_IATU_I_UTAR(n)          (PCIE20_IATU_BASE(n) + 0x118)
+
+#define PCIE20_IATU_O_INCREASE_REGION_SIZE	0x2000
 
 #define PCIE20_MHICFG                  0x110
 #define PCIE20_BHI_EXECENV             0x228
@@ -223,7 +231,7 @@
 
 #define EP_PCIE_LOG_PAGES 50
 #define EP_PCIE_MAX_VREG 4
-#define EP_PCIE_MAX_CLK 16
+#define EP_PCIE_MAX_CLK 22
 #define EP_PCIE_MAX_PIPE_CLK 1
 #define EP_PCIE_MAX_RESET 2
 
@@ -264,6 +272,13 @@
 #define EP_PCIE_DUMP(dev, fmt, arg...) do {			\
 	ipc_log_string((dev)->ipc_log_dump, \
 		"DUMP:%s: " fmt, __func__, arg); \
+	if (ep_pcie_get_debug_mask())   \
+		pr_alert("%s: " fmt, __func__, arg); \
+	} while (0)
+
+#define EP_PCIE_EOM(lane, dev, fmt, arg...) do {			\
+	ipc_log_string((dev)->ipc_log_eom, \
+		"" fmt, arg); \
 	if (ep_pcie_get_debug_mask())   \
 		pr_alert("%s: " fmt, __func__, arg); \
 	} while (0)
@@ -411,9 +426,11 @@ struct ep_pcie_dev_t {
 	bool			     mhi_soc_reset_en;
 	bool			     aoss_rst_clear;
 	bool			     avoid_reboot_in_d3hot;
+	bool			     dma_wake;
 	u32                          dbi_base_reg;
 	u32                          slv_space_reg;
 	u32                          phy_status_reg;
+	u32			     pcie_cesta_clkreq_offset;
 	u32			phy_status_bit_mask_bit;
 	u32                          phy_init_len;
 	u32			     mhi_soc_reset_offset;
@@ -433,6 +450,7 @@ struct ep_pcie_dev_t {
 	void                         *ipc_log_sel;
 	void                         *ipc_log_ful;
 	void                         *ipc_log_dump;
+	void                         *ipc_log_eom;
 	struct mutex                 setup_mtx;
 	struct mutex                 ext_mtx;
 	spinlock_t                   ext_lock;
@@ -482,6 +500,12 @@ struct ep_pcie_dev_t {
 	struct clk		     *ref_clk_src;
 
 	bool				override_disable_sriov;
+	bool				no_path_from_ipa_to_pcie;
+	u32				tcsr_perst_separation_en_offset;
+	u32				tcsr_reset_separation_offset;
+	u32				tcsr_perst_enable_offset;
+	u32				perst_raw_rst_status_mask;
+	u32				pcie_disconnect_req_reg_mask;
 };
 
 extern struct ep_pcie_dev_t ep_pcie_dev;

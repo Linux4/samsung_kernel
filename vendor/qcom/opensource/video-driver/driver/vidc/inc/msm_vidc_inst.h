@@ -85,7 +85,7 @@ enum msm_vidc_state {
 };
 
 #define MSM_VIDC_SUB_STATE_NONE          0
-#define MSM_VIDC_MAX_SUB_STATES          6
+#define MSM_VIDC_MAX_SUB_STATES          7
 /*
  * max value of inst->sub_state if all
  * the 6 valid bits are set i.e 111111==>63
@@ -99,6 +99,7 @@ enum msm_vidc_sub_state {
 	MSM_VIDC_DRC_LAST_BUFFER           = BIT(3),
 	MSM_VIDC_INPUT_PAUSE               = BIT(4),
 	MSM_VIDC_OUTPUT_PAUSE              = BIT(5),
+	MSM_VIDC_FIRST_IPSC                = BIT(6),
 };
 
 struct buf_queue {

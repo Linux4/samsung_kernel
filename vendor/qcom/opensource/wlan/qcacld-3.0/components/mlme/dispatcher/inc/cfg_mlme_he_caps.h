@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2012-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -117,11 +117,11 @@
 				0, \
 				"HE Ofdma Ra")
 
-#define CFG_HE_MAX_AMPDU_LEN CFG_UINT( \
+#define CFG_HE_MAX_AMPDU_LEN CFG_INI_UINT( \
 				"he_max_ampdu_len", \
 				0, \
 				3, \
-				0, \
+				3, \
 				CFG_VALUE_OR_DEFAULT, \
 				"HE Max Ampdu Len")
 
@@ -225,7 +225,7 @@
 				"he_rx_pream_punc", \
 				0, \
 				0xF, \
-				0, \
+				0x3, \
 				CFG_VALUE_OR_DEFAULT, \
 				"He Rx Pream Punc")
 

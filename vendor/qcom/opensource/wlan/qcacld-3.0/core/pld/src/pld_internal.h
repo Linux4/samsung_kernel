@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2018-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -37,10 +37,34 @@ struct pld_context {
 	uint8_t mode;
 };
 
+/**
+ * pld_get_global_context() - Get global context of PLD
+ *
+ * Return: PLD global context
+ */
 struct pld_context *pld_get_global_context(void);
+
+/**
+ * pld_add_dev() - Add dev node to global context
+ * @pld_context: PLD global context
+ * @dev: device
+ * @ifdev: interface device
+ * @type: Bus type
+ *
+ * Return: 0 for success
+ *         Non zero failure code for errors
+ */
 int pld_add_dev(struct pld_context *pld_context,
 		struct device *dev, struct device *ifdev,
 		enum pld_bus_type type);
+
+/**
+ * pld_del_dev() - Delete dev node from global context
+ * @pld_context: PLD global context
+ * @dev: device
+ *
+ * Return: void
+ */
 void pld_del_dev(struct pld_context *pld_context,
 		 struct device *dev);
 

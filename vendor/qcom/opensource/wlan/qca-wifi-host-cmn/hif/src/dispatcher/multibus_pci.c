@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2016-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -27,7 +27,7 @@
 
 /**
  * hif_initialize_pci_ops() - initialize the pci ops
- * @bus_ops: hif_bus_ops table pointer to initialize
+ * @hif_sc: HIF context
  *
  * Return: QDF_STATUS_SUCCESS
  */
@@ -98,7 +98,9 @@ QDF_STATUS hif_initialize_pci_ops(struct hif_softc *hif_sc)
 #ifdef FEATURE_IRQ_AFFINITY
 	bus_ops->hif_set_grp_intr_affinity = &hif_pci_set_grp_intr_affinity;
 #endif
-
+#ifdef WLAN_FEATURE_AFFINITY_MGR
+	bus_ops->hif_affinity_mgr_set_affinity = &hif_affinity_mgr_affine_irq;
+#endif
 	return QDF_STATUS_SUCCESS;
 }
 

@@ -38,6 +38,7 @@
 #include "qdf_platform.h"
 #include "wlan_osif_request_manager.h"
 #include "wlan_p2p_api.h"
+#include "wlan_mlme_vdev_mgr_interface.h"
 
 QDF_STATUS nan_set_discovery_state(struct wlan_objmgr_psoc *psoc,
 				   enum nan_disc_state new_state)
@@ -413,6 +414,8 @@ ndi_remove_and_update_primary_connection(struct wlan_objmgr_psoc *psoc,
 	struct nan_peer_priv_obj *peer_nan_obj = NULL;
 	struct wlan_objmgr_peer *peer, *peer_next;
 	qdf_list_t *peer_list;
+	void (*nan_conc_callback)(void);
+
 
 	psoc_nan_obj = nan_get_psoc_priv_obj(psoc);
 	if (!psoc_nan_obj) {
@@ -455,6 +458,11 @@ ndi_remove_and_update_primary_connection(struct wlan_objmgr_psoc *psoc,
 		policy_mgr_decr_session_set_pcl(psoc, QDF_NDI_MODE,
 						wlan_vdev_get_id(vdev));
 		vdev_nan_obj->ndp_init_done = false;
+
+		nan_conc_callback = psoc_nan_obj->cb_obj.nan_concurrency_update;
+		if (nan_conc_callback)
+			nan_conc_callback();
+
 		return QDF_STATUS_SUCCESS;
 	}
 
@@ -557,6 +565,7 @@ static QDF_STATUS nan_handle_confirm(struct nan_datapath_confirm_event *confirm)
 	struct nan_psoc_priv_obj *psoc_nan_obj;
 	struct nan_vdev_priv_obj *vdev_nan_obj;
 	struct wlan_objmgr_peer *peer;
+	void (*nan_conc_callback)(void);
 
 	vdev_id = wlan_vdev_get_id(confirm->vdev);
 	psoc = wlan_vdev_get_psoc(confirm->vdev);
@@ -625,6 +634,10 @@ static QDF_STATUS nan_handle_confirm(struct nan_datapath_confirm_event *confirm)
 			ndi_update_policy_mgr_conn_table(confirm, psoc,
 							 vdev_id);
 			vdev_nan_obj->ndp_init_done = true;
+
+			nan_conc_callback = psoc_nan_obj->cb_obj.nan_concurrency_update;
+			if (nan_conc_callback)
+				nan_conc_callback();
 		}
 	}
 
@@ -942,6 +955,7 @@ QDF_STATUS nan_disable_cleanup(struct wlan_objmgr_psoc *psoc)
 		if (psoc_nan_obj->is_explicit_disable && call_back)
 			call_back(psoc_nan_obj->nan_disc_request_ctx);
 
+		nan_handle_emlsr_concurrency(psoc, false);
 		policy_mgr_nan_sap_post_disable_conc_check(psoc);
 	} else {
 		/* Should not happen, NAN state can always be disabled */
@@ -986,38 +1000,16 @@ static QDF_STATUS nan_handle_schedule_update(
 }
 
 /**
- * nan_handle_host_update() - Updates Host about NAN Datapath status
+ * nan_handle_host_update() - extract the vdev from host event
  * @evt: Event data received from firmware
  * @vdev: pointer to vdev
  *
- * Return: status of operation
+ * Return: none
  */
-static QDF_STATUS nan_handle_host_update(struct nan_datapath_host_event *evt,
+static void nan_handle_host_update(struct nan_datapath_host_event *evt,
 					 struct wlan_objmgr_vdev **vdev)
 {
-	//struct wlan_objmgr_psoc *psoc;
-	//struct nan_psoc_priv_obj *psoc_nan_obj;
-	nan_err("__DEBUG__");
 	*vdev = evt->vdev;
-#if 0
-	psoc = wlan_vdev_get_psoc(evt->vdev);
-	if (!psoc) {
-		nan_err("psoc is NULL");
-		return QDF_STATUS_E_NULL_VALUE;
-	}
-
-	psoc_nan_obj = nan_get_psoc_priv_obj(psoc);
-	if (!psoc_nan_obj) {
-		nan_err("psoc_nan_obj is NULL");
-		return QDF_STATUS_E_NULL_VALUE;
-	}
-
-	psoc_nan_obj->cb_obj.os_if_ndp_event_handler(psoc, evt->vdev,
-						     NDP_HOST_UPDATE, evt);
-
-#endif
-
-	return QDF_STATUS_SUCCESS;
 }
 
 QDF_STATUS nan_discovery_event_handler(struct scheduler_msg *msg)
@@ -1109,7 +1101,6 @@ QDF_STATUS nan_datapath_event_handler(struct scheduler_msg *pe_msg)
 		nan_handle_schedule_update(pe_msg->bodyptr);
 		break;
 	case NDP_HOST_UPDATE:
-		nan_err("__DEBUG__");
 		nan_handle_host_update(pe_msg->bodyptr, &cmd.vdev);
 		cmd.cmd_type = WLAN_SER_CMD_NDP_END_ALL_REQ;
 		wlan_serialization_remove_cmd(&cmd);
@@ -1122,7 +1113,8 @@ QDF_STATUS nan_datapath_event_handler(struct scheduler_msg *pe_msg)
 	return status;
 }
 
-bool nan_is_enable_allowed(struct wlan_objmgr_psoc *psoc, uint32_t nan_ch_freq)
+bool nan_is_enable_allowed(struct wlan_objmgr_psoc *psoc, uint32_t nan_ch_freq,
+			   uint8_t vdev_id)
 {
 	if (!psoc) {
 		nan_err("psoc object object is NULL");
@@ -1132,7 +1124,7 @@ bool nan_is_enable_allowed(struct wlan_objmgr_psoc *psoc, uint32_t nan_ch_freq)
 	return (NAN_DISC_DISABLED == nan_get_discovery_state(psoc) &&
 		policy_mgr_allow_concurrency(psoc, PM_NAN_DISC_MODE,
 					     nan_ch_freq, HW_MODE_20_MHZ,
-					     0));
+					     0, vdev_id));
 }
 
 bool nan_is_disc_active(struct wlan_objmgr_psoc *psoc)
@@ -1189,11 +1181,61 @@ static QDF_STATUS nan_set_hw_mode(struct wlan_objmgr_psoc *psoc,
 		goto pre_enable_failure;
 	}
 
+	if (wlan_util_is_vdev_in_cac_wait(pdev, WLAN_NAN_ID)) {
+		nan_err_rl("cac is in progress");
+		status = QDF_STATUS_E_FAILURE;
+		goto pre_enable_failure;
+	}
+
 pre_enable_failure:
 	if (pdev)
 		wlan_objmgr_pdev_release_ref(pdev, WLAN_NAN_ID);
 
 	return status;
+}
+
+void nan_handle_emlsr_concurrency(struct wlan_objmgr_psoc *psoc,
+				  bool nan_enable)
+{
+	if (nan_enable) {
+		/*
+		 * Check if any set link is already progress,
+		 * wait for it to complete
+		 */
+		policy_mgr_wait_for_set_link_update(psoc);
+
+		wlan_handle_emlsr_sta_concurrency(psoc, true, false);
+
+		/* Wait till rsp is received if NAN enable causes a set link */
+		policy_mgr_wait_for_set_link_update(psoc);
+	} else {
+		wlan_handle_emlsr_sta_concurrency(psoc, false, true);
+	}
+}
+
+bool nan_is_sta_sta_concurrency_present(struct wlan_objmgr_psoc *psoc)
+{
+	uint32_t sta_cnt;
+
+	sta_cnt = policy_mgr_mode_specific_connection_count(psoc, PM_STA_MODE,
+							    NULL);
+	/* Allow if STA is not in connected state */
+	if (!sta_cnt)
+		return false;
+
+	/*
+	 * sta > 2 : (STA + STA + STA) or (ML STA + STA) or (ML STA + ML STA),
+	 * STA concurrency will be present.
+	 *
+	 * ML STA: Although both links would be treated as separate STAs
+	 * (sta cnt = 2) from policy mgr perspective, but it is not considered
+	 * as STA concurrency
+	 */
+	if (sta_cnt > 2 ||
+	    (sta_cnt == 2 && policy_mgr_is_non_ml_sta_present(psoc)))
+		return true;
+
+	return false;
 }
 
 QDF_STATUS nan_discovery_pre_enable(struct wlan_objmgr_pdev *pdev,
@@ -1202,6 +1244,11 @@ QDF_STATUS nan_discovery_pre_enable(struct wlan_objmgr_pdev *pdev,
 	QDF_STATUS status = QDF_STATUS_E_INVAL;
 	struct wlan_objmgr_psoc *psoc = wlan_pdev_get_psoc(pdev);
 
+	if (!psoc) {
+		nan_err("psoc is null");
+		return QDF_STATUS_E_INVAL;
+	}
+
 	status = nan_set_discovery_state(psoc, NAN_DISC_ENABLE_IN_PROGRESS);
 
 	if (QDF_IS_STATUS_ERROR(status)) {
@@ -1209,12 +1256,21 @@ QDF_STATUS nan_discovery_pre_enable(struct wlan_objmgr_pdev *pdev,
 		goto pre_enable_failure;
 	}
 
-	if (policy_mgr_mode_specific_connection_count(psoc, PM_SAP_MODE,
-						      NULL) &&
+	if ((policy_mgr_get_sap_mode_count(psoc, NULL)) &&
 	    !policy_mgr_nan_sap_pre_enable_conc_check(psoc, PM_NAN_DISC_MODE,
 						      nan_ch_freq)) {
 		nan_debug("NAN not enabled due to concurrency constraints");
 		status = QDF_STATUS_E_INVAL;
+		goto pre_enable_failure;
+	}
+
+	/*
+	 * Reject STA+STA in below case
+	 * Non-ML STA: STA+STA+NAN concurrency is not supported
+	 */
+	if (nan_is_sta_sta_concurrency_present(psoc)) {
+		nan_err("STA+STA+NAN concurrency is not allowed");
+		status = QDF_STATUS_E_FAILURE;
 		goto pre_enable_failure;
 	}
 
@@ -1225,6 +1281,8 @@ QDF_STATUS nan_discovery_pre_enable(struct wlan_objmgr_pdev *pdev,
 		if (QDF_IS_STATUS_ERROR(status))
 			goto pre_enable_failure;
 	}
+
+	nan_handle_emlsr_concurrency(psoc, true);
 
 	/* Try to teardown TDLS links, but do not wait */
 	status = ucfg_tdls_teardown_links(psoc);

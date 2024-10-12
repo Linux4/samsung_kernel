@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2018-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -18,7 +18,7 @@
  */
 
 /**
- * Doc: wlan_cp_stats_om_handler.c
+ * DOC: wlan_cp_stats_om_handler.c
  *
  * This file provide definitions to APIs invoked on receiving common object
  * respective create/destroy event notifications, which further
@@ -426,6 +426,25 @@ wlan_cp_stats_infra_cp_register_resp_cb(struct wlan_objmgr_psoc *psoc,
 }
 
 QDF_STATUS
+wlan_cp_stats_infra_cp_deregister_resp_cb(struct wlan_objmgr_psoc *psoc)
+{
+	struct psoc_cp_stats *psoc_cp_stats_priv;
+
+	psoc_cp_stats_priv = wlan_cp_stats_get_psoc_stats_obj(psoc);
+	if (!psoc_cp_stats_priv) {
+		cp_stats_err("psoc cp stats object is null");
+		return QDF_STATUS_E_NULL_VALUE;
+	}
+
+	wlan_cp_stats_psoc_obj_lock(psoc_cp_stats_priv);
+	if (psoc_cp_stats_priv->get_infra_cp_stats)
+		psoc_cp_stats_priv->get_infra_cp_stats = NULL;
+	wlan_cp_stats_psoc_obj_unlock(psoc_cp_stats_priv);
+
+	return QDF_STATUS_SUCCESS;
+}
+
+QDF_STATUS
 wlan_cp_stats_infra_cp_get_context(struct wlan_objmgr_psoc *psoc,
 				   get_infra_cp_stats_cb *resp_cb,
 				   void **context)
@@ -439,8 +458,10 @@ wlan_cp_stats_infra_cp_get_context(struct wlan_objmgr_psoc *psoc,
 	}
 
 	wlan_cp_stats_psoc_obj_lock(psoc_cp_stats_priv);
-	*resp_cb = psoc_cp_stats_priv->get_infra_cp_stats;
-	*context = psoc_cp_stats_priv->infra_cp_stats_req_context;
+	if (psoc_cp_stats_priv->get_infra_cp_stats)
+		*resp_cb = psoc_cp_stats_priv->get_infra_cp_stats;
+	if (psoc_cp_stats_priv->infra_cp_stats_req_context)
+		*context = psoc_cp_stats_priv->infra_cp_stats_req_context;
 	wlan_cp_stats_psoc_obj_unlock(psoc_cp_stats_priv);
 
 	return QDF_STATUS_SUCCESS;
@@ -466,13 +487,34 @@ wlan_cp_stats_send_infra_cp_req(struct wlan_objmgr_psoc *psoc,
 }
 #endif /* WLAN_SUPPORT_INFRA_CTRL_PATH_STATS */
 
+#ifdef WLAN_CONFIG_TELEMETRY_AGENT
+QDF_STATUS
+wlan_cp_stats_send_telemetry_cp_req(struct wlan_objmgr_pdev *pdev,
+				    struct infra_cp_stats_cmd_info *req)
+{
+	struct wlan_lmac_if_cp_stats_tx_ops *tx_ops;
+
+	tx_ops = target_if_cp_stats_get_tx_ops(wlan_pdev_get_psoc(pdev));
+	if (!tx_ops) {
+		cp_stats_err("could not get tx_ops");
+		return QDF_STATUS_E_NULL_VALUE;
+	}
+
+	if (!tx_ops->send_req_telemetry_cp_stats) {
+		cp_stats_err("could not get send_req_infra_twt_stats");
+		return QDF_STATUS_E_NULL_VALUE;
+	}
+	return tx_ops->send_req_telemetry_cp_stats(pdev, req);
+}
+#endif
+
 #if defined(WLAN_SUPPORT_TWT) && defined (WLAN_TWT_CONV_SUPPORTED)
 /**
  * wlan_cp_stats_twt_get_peer_session_param() - Obtains twt session parameters
  * of a peer if twt session is valid
- * @mc_cp_stats: pointer to peer specific stats
- * @param: Pointer to copy twt session parameters
- * @num_twt_sessions Pointer holding total number of valid twt sessions
+ * @peer_cp_stat_prv: pointer to peer specific stats
+ * @params: Pointer to copy twt session parameters
+ * @num_twt_session: Pointer holding total number of valid twt sessions
  *
  * Return: QDF_STATUS success if valid twt session parameters are obtained
  * else other qdf error values
@@ -512,7 +554,7 @@ wlan_cp_stats_twt_get_peer_session_param(struct peer_cp_stats *peer_cp_stat_prv,
  * wlan_cp_stats_twt_get_all_peer_session_params()- Retrieves twt session
  * parameters of all peers with valid twt session
  * @psoc_obj: psoc object
- * @vdvev_id: vdev_id
+ * @vdev_id: vdev_id
  * @params: array of pointer to store peer twt session parameters
  *
  * Return: total number of valid twt sessions

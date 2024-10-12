@@ -39,7 +39,7 @@
 
 #define CM_ID_MASK                  0x0000FFFF
 
-#define CM_ID_GET_PREFIX(cm_id)     cm_id & 0xFF000000
+#define CM_ID_GET_PREFIX(cm_id)     cm_id & 0x0F000000
 #define CM_VDEV_ID_SHIFT            16
 #define CM_VDEV_ID_MASK             0x00FF0000
 #define CM_ID_GET_VDEV_ID(cm_id) (cm_id & CM_VDEV_ID_MASK) >> CM_VDEV_ID_SHIFT
@@ -137,6 +137,7 @@ QDF_STATUS cm_connect_scan_start(struct cnx_mgr *cm_ctx,
 /**
  * cm_connect_scan_resp() - Handle the connect scan resp and next action
  * scan if no candidate are found in scan db.
+ * @cm_ctx: connection manager context
  * @scan_id: scan id of the req
  * @status: Connect scan status
  *
@@ -244,13 +245,17 @@ QDF_STATUS cm_connect_rsp(struct wlan_objmgr_vdev *vdev,
  * connect response notification
  * @cm_ctx: connection manager context
  * @resp: connection complete resp.
+ * @acquire_lock: Flag to indicate whether this function needs
+ * cm_ctx lock or not.
  *
  * This API would be called after connection completion resp from VDEV mgr
  *
  * Return: QDF status
  */
 QDF_STATUS cm_notify_connect_complete(struct cnx_mgr *cm_ctx,
-				      struct wlan_cm_connect_resp *resp);
+				      struct wlan_cm_connect_resp *resp,
+				      bool acquire_lock);
+
 /**
  * cm_connect_complete() - This API would be called after connect complete
  * request from the serialization.
@@ -267,7 +272,7 @@ QDF_STATUS cm_connect_complete(struct cnx_mgr *cm_ctx,
 /**
  * cm_add_connect_req_to_list() - add connect req to the connection manager
  * req list
- * @vdev: vdev on which connect is received
+ * @cm_ctx: connection manager context
  * @req: Connection req provided
  *
  * Return: QDF status
@@ -301,6 +306,18 @@ cm_send_connect_start_fail(struct cnx_mgr *cm_ctx,
 			   struct cm_connect_req *req,
 			   enum wlan_cm_connect_fail_reason reason);
 
+/**
+ * cm_find_bss_from_candidate_list() - get bss entry by bssid value
+ * @candidate_list: candidate list
+ * @bssid: bssid to find
+ * @entry_found: found bss entry
+ *
+ * Return: true if find bss entry with bssid
+ */
+bool cm_find_bss_from_candidate_list(qdf_list_t *candidate_list,
+				     struct qdf_mac_addr *bssid,
+				     struct scan_cache_node **entry_found);
+
 #ifdef WLAN_POLICY_MGR_ENABLE
 /**
  * cm_hw_mode_change_resp() - HW mode change response
@@ -315,19 +332,22 @@ void cm_hw_mode_change_resp(struct wlan_objmgr_pdev *pdev, uint8_t vdev_id,
 			    wlan_cm_id cm_id, QDF_STATUS status);
 
 /**
- * cm_handle_hw_mode_change() - SM handling of hw mode change resp
+ * cm_ser_connect_after_mode_change_resp() - SM handling of
+ * hw mode change/bearer switch resp
  * @cm_ctx: connection manager context
  * @cm_id: Connection mgr ID assigned to this connect request.
- * @event: HW mode success or failure event
+ * @event: success or failure event
  *
  * Return: QDF_STATUS
  */
-QDF_STATUS cm_handle_hw_mode_change(struct cnx_mgr *cm_ctx, wlan_cm_id *cm_id,
-				    enum wlan_cm_sm_evt event);
+QDF_STATUS cm_ser_connect_after_mode_change_resp(struct cnx_mgr *cm_ctx,
+						wlan_cm_id *cm_id,
+						enum wlan_cm_sm_evt event);
 #else
 static inline
-QDF_STATUS cm_handle_hw_mode_change(struct cnx_mgr *cm_ctx, wlan_cm_id *cm_id,
-				    enum wlan_cm_sm_evt event)
+QDF_STATUS cm_ser_connect_after_mode_change_resp(struct cnx_mgr *cm_ctx,
+						wlan_cm_id *cm_id,
+						enum wlan_cm_sm_evt event)
 {
 	return QDF_STATUS_SUCCESS;
 }
@@ -383,7 +403,7 @@ QDF_STATUS cm_disconnect_complete(struct cnx_mgr *cm_ctx,
 /**
  * cm_add_disconnect_req_to_list() - add disconnect req to the connection
  * manager req list
- * @vdev: vdev on which connect is received
+ * @cm_ctx: connection manager context
  * @req: Disconnection req provided
  *
  * Return: QDF status
@@ -448,9 +468,9 @@ QDF_STATUS cm_vdev_down_req(struct wlan_objmgr_vdev *vdev, uint32_t status);
 /**
  * cm_disconnect_rsp() - Connection manager api to post connect event
  * @vdev: VDEV object
- * @cm_discon_rsp: Disconnect response
+ * @resp: Disconnect response
  *
- * This function is called when disconnecte response is received, to deliver
+ * This function is called when disconnect response is received, to deliver
  * disconnect event to SM
  *
  * Context: Any context.
@@ -620,6 +640,83 @@ QDF_STATUS cm_bss_select_ind_rsp(struct wlan_objmgr_vdev *vdev,
 {
 	return QDF_STATUS_SUCCESS;
 }
+
+/**
+ * cm_is_link_switch_connect_req() - API to check if connect request
+ * is for link switch.
+ * @req: Connect request
+ *
+ * Return true if the request for connection is due to link switch or else
+ * return false.
+ *
+ * Return: bool
+ */
+static inline bool cm_is_link_switch_connect_req(struct cm_connect_req *req)
+{
+	return req->req.source == CM_MLO_LINK_SWITCH_CONNECT;
+}
+
+/**
+ * cm_is_link_switch_disconnect_req() - API to check if disconnect request is
+ * for link switch.
+ * @req: Disconnect request.
+ *
+ * Return true if the request for disconnection is due to link switch or else
+ * return false.
+ *
+ * Return: bool
+ */
+static inline bool
+cm_is_link_switch_disconnect_req(struct cm_disconnect_req *req)
+{
+	return req->req.source == CM_MLO_LINK_SWITCH_DISCONNECT;
+}
+
+/**
+ * cm_is_link_switch_cmd() - Check if the CM ID is for link switch
+ * @cm_id: Connection manager request ID
+ *
+ * Return true if the bit corresponding to link switch is set for @cm_id or
+ * else return false.
+ *
+ * Return: bool
+ */
+static inline bool cm_is_link_switch_cmd(wlan_cm_id cm_id)
+{
+	return cm_id & CM_ID_LSWITCH_BIT;
+}
+
+/**
+ * cm_is_link_switch_disconnect_resp() - API to check if the disconnect
+ * response is for link switch.
+ * @resp: Disconnect response.
+ *
+ * Return true if the disconnect response is for link switch or else return
+ * false.
+ *
+ * Return: bool
+ */
+static inline bool
+cm_is_link_switch_disconnect_resp(struct wlan_cm_discon_rsp *resp)
+{
+	return cm_is_link_switch_cmd(resp->req.cm_id);
+}
+
+/**
+ * cm_is_link_switch_connect_resp() - API to check if the connect response
+ * is for link switch.
+ * @resp: Connect response.
+ *
+ * Return true if the connect response is for link switch or else return
+ * false.
+ *
+ * Return: bool
+ */
+static inline bool
+cm_is_link_switch_connect_resp(struct wlan_cm_connect_resp *resp)
+{
+	return cm_is_link_switch_cmd(resp->cm_id);
+}
 #else
 static inline void cm_store_wep_key(struct cnx_mgr *cm_ctx,
 				    struct wlan_cm_connect_crypto_info *crypto,
@@ -655,6 +752,34 @@ cm_peer_create_on_bss_select_ind_resp(struct cnx_mgr *cm_ctx,
  */
 QDF_STATUS cm_bss_select_ind_rsp(struct wlan_objmgr_vdev *vdev,
 				 QDF_STATUS status);
+
+static inline bool cm_is_link_switch_connect_req(struct cm_connect_req *req)
+{
+	return false;
+}
+
+static inline bool
+cm_is_link_switch_disconnect_req(struct cm_disconnect_req *req)
+{
+	return false;
+}
+
+static inline bool cm_is_link_switch_cmd(wlan_cm_id cm_id)
+{
+	return false;
+}
+
+static inline bool
+cm_is_link_switch_disconnect_resp(struct wlan_cm_discon_rsp *resp)
+{
+	return false;
+}
+
+static inline bool
+cm_is_link_switch_connect_resp(struct wlan_cm_connect_resp *resp)
+{
+	return false;
+}
 #endif
 
 #ifdef WLAN_FEATURE_FILS_SK
@@ -852,6 +977,7 @@ cm_fill_disconnect_resp_from_cm_id(struct cnx_mgr *cm_ctx, wlan_cm_id cm_id,
  * @cm_ctx: connection manager context
  * @bcn_probe: beacon or probe resp received during connect
  * @len: beacon or probe resp length
+ * @freq: scan frequency in MHz
  * @rssi: rssi of the beacon or probe resp
  * @cm_id: cm id of connect/disconnect req
  *
@@ -1022,7 +1148,7 @@ bool cm_get_active_connect_req(struct wlan_objmgr_vdev *vdev,
 bool cm_get_active_disconnect_req(struct wlan_objmgr_vdev *vdev,
 				  struct wlan_cm_vdev_discon_req *req);
 
-/*
+/**
  * cm_connect_handle_event_post_fail() - initiate connect failure if msg posting
  * to SM fails
  * @cm_ctx: connection manager context
@@ -1050,6 +1176,94 @@ cm_connect_handle_event_post_fail(struct cnx_mgr *cm_ctx, wlan_cm_id cm_id);
  */
 struct cm_req *cm_get_req_by_scan_id(struct cnx_mgr *cm_ctx,
 				     wlan_scan_id scan_id);
+
+#ifdef WLAN_FEATURE_11BE_MLO
+/**
+ * cm_connect_resp_fill_mld_addr_from_candidate() - API to fill MLD
+ * address in connect resp from scan entry.
+ * @vdev: VDEV objmgr pointer.
+ * @entry: Scan entry.
+ * @resp: connect response pointer.
+ *
+ * If the MLO VDEV flag is set, get the MLD address from the scan
+ * entry and fill in MLD address field in @resp.
+ *
+ * Return: void
+ */
+void
+cm_connect_resp_fill_mld_addr_from_candidate(struct wlan_objmgr_vdev *vdev,
+					     struct scan_cache_entry *entry,
+					     struct wlan_cm_connect_resp *resp);
+/**
+ * cm_connect_resp_fill_mld_addr_from_cm_id() - API to fill MLD address
+ * in connect resp from connect request ID.
+ * @vdev: VDEV objmgr pointer.
+ * @cm_id: connect request ID.
+ * @rsp: connect resp pointer.
+ *
+ * The API gets scan entry from the connect request using the connect request
+ * ID and fills MLD address from the scan entry into the connect response.
+ *
+ * Return: void
+ */
+void
+cm_connect_resp_fill_mld_addr_from_cm_id(struct wlan_objmgr_vdev *vdev,
+					 wlan_cm_id cm_id,
+					 struct wlan_cm_connect_resp *rsp);
+
+static inline void
+cm_connect_rsp_get_mld_addr_or_bssid(struct wlan_cm_connect_resp *resp,
+				     struct qdf_mac_addr *bssid)
+{
+	if (!qdf_is_macaddr_zero(&resp->mld_addr))
+		qdf_copy_macaddr(bssid, &resp->mld_addr);
+	else
+		qdf_copy_macaddr(bssid, &resp->bssid);
+}
+#else
+static inline void
+cm_connect_resp_fill_mld_addr_from_candidate(struct wlan_objmgr_vdev *vdev,
+					     struct scan_cache_entry *entry,
+					     struct wlan_cm_connect_resp *resp)
+{
+}
+
+static inline void
+cm_connect_resp_fill_mld_addr_from_cm_id(struct wlan_objmgr_vdev *vdev,
+					 wlan_cm_id cm_id,
+					 struct wlan_cm_connect_resp *rsp)
+{
+}
+
+static inline void
+cm_connect_rsp_get_mld_addr_or_bssid(struct wlan_cm_connect_resp *resp,
+				     struct qdf_mac_addr *bssid)
+{
+	qdf_copy_macaddr(bssid, &resp->bssid);
+}
+#endif
+
+#ifdef WLAN_FEATURE_11BE_MLO_ADV_FEATURE
+/**
+ * cm_standby_link_update_mlme_by_bssid() - update the scan mlme info for
+ * standby_link
+ * @vdev: Object manager vdev
+ * @assoc_state: association state
+ * @ssid: SSID of the connection
+ *
+ * Return: void
+ */
+void cm_standby_link_update_mlme_by_bssid(struct wlan_objmgr_vdev *vdev,
+					  uint32_t assoc_state,
+					  struct wlan_ssid ssid);
+#else
+static inline void
+cm_standby_link_update_mlme_by_bssid(struct wlan_objmgr_vdev *vdev,
+				     uint32_t assoc_state,
+				     struct wlan_ssid ssid)
+{
+}
+#endif
 
 /**
  * cm_get_cm_id_by_scan_id() - Get cm id by matching the scan id
@@ -1129,7 +1343,7 @@ void cm_req_history_del(struct cnx_mgr *cm_ctx,
 			enum cm_req_del_type del_type);
 
 /**
- * cm_history_init() - Initialize the history data struct
+ * cm_req_history_init() - Initialize the history data struct
  * @cm_ctx: Connection manager context
  *
  * Return: void
@@ -1137,7 +1351,7 @@ void cm_req_history_del(struct cnx_mgr *cm_ctx,
 void cm_req_history_init(struct cnx_mgr *cm_ctx);
 
 /**
- * cm_history_deinit() - Deinitialize the history data struct
+ * cm_req_history_deinit() - Deinitialize the history data struct
  * @cm_ctx: Connection manager context
  *
  * Return: void
@@ -1145,7 +1359,7 @@ void cm_req_history_init(struct cnx_mgr *cm_ctx);
 void cm_req_history_deinit(struct cnx_mgr *cm_ctx);
 
 /**
- * cm_history_print() - Print the history data struct
+ * cm_req_history_print() - Print the history data struct
  * @cm_ctx: Connection manager context
  *
  * Return: void
@@ -1220,7 +1434,42 @@ void cm_set_candidate_custom_sort_cb(
  */
 bool cm_is_connect_req_reassoc(struct wlan_cm_connect_req *req);
 
-#ifdef CONN_MGR_ADV_FEATURE
+/**
+ * cm_is_first_candidate_connect_attempt() - Is it a first attempt to
+ * connect to a candidate after receiving connect request
+ * @vdev: vdev pointer
+ *
+ * Return: True if it is the first connect attempt to a candidate
+ * after receiving the connect request from the userspace
+ */
+bool cm_is_first_candidate_connect_attempt(struct wlan_objmgr_vdev *vdev);
+
+/**
+ * cm_get_active_connect_req_param() - Get Connect request parameter
+ * @vdev: vdev pointer
+ * @req: Connection request buffer to be filled
+ *
+ * Return: QDF_STATUS
+ */
+QDF_STATUS
+cm_get_active_connect_req_param(struct wlan_objmgr_vdev *vdev,
+				struct wlan_cm_connect_req *req);
+
+/**
+ * cm_get_rnr() - get rnr
+ * @vdev:vdev
+ * @cm_id: connect mgr id
+ * @rnr: pointer to copy rnr info
+ *
+ * Return: QDF_STATUS
+ */
+QDF_STATUS cm_get_rnr(struct wlan_objmgr_vdev *vdev, wlan_cm_id cm_id,
+		      struct reduced_neighbor_report *rnr);
+
+struct scan_cache_entry *
+cm_get_curr_candidate_entry(struct wlan_objmgr_vdev *vdev,
+			    wlan_cm_id cm_id);
+
 /**
  * cm_free_connect_rsp_ies() - Function to free all connection IEs.
  * @connect_rsp: pointer to connect rsp
@@ -1231,6 +1480,48 @@ bool cm_is_connect_req_reassoc(struct wlan_cm_connect_req *req);
  */
 void cm_free_connect_rsp_ies(struct wlan_cm_connect_resp *connect_rsp);
 
+/**
+ * cm_free_connect_req() - Function to free up connect request and its sub memory.
+ * @connect_req: pointer to connect req
+ *
+ * Function to free up connect request and its sub memory.
+ *
+ * Return: void
+ */
+void cm_free_connect_req(struct wlan_cm_connect_req *connect_req);
+
+/**
+ * cm_free_connect_rsp() - Function to free up connect response and its sub memory.
+ * @connect_rsp: pointer to connect rsp
+ *
+ * Function to free up connect response and its sub memory.
+ *
+ * Return: void
+ */
+void cm_free_connect_rsp(struct wlan_cm_connect_resp *connect_rsp);
+
+/**
+ * cm_free_connect_req_param() - Function to free up connect request sub memory.
+ * @req: pointer to connect req
+ *
+ * Function to free up connect request sub memory parameters.
+ *
+ * Return: void
+ */
+void cm_free_connect_req_param(struct wlan_cm_connect_req *req);
+
+/**
+ * cm_free_wep_key_params() - Function to free up connect request wep key params
+ * sub memory
+ * @req: pointer to connect req
+ *
+ * Function to free up connect request wep key params sub memory.
+ *
+ * Return: void
+ */
+void cm_free_wep_key_params(struct wlan_cm_connect_req *req);
+
+#ifdef CONN_MGR_ADV_FEATURE
 /**
  * cm_store_first_candidate_rsp() - store the connection failure response
  * @cm_ctx: connection manager context
@@ -1275,11 +1566,6 @@ cm_get_first_candidate_rsp(struct cnx_mgr *cm_ctx, wlan_cm_id cm_id,
 void cm_store_n_send_failed_candidate(struct cnx_mgr *cm_ctx, wlan_cm_id cm_id);
 #else
 static inline
-void cm_free_connect_rsp_ies(struct wlan_cm_connect_resp *connect_rsp)
-{
-}
-
-static inline
 void cm_store_first_candidate_rsp(struct cnx_mgr *cm_ctx, wlan_cm_id cm_id,
 				  struct wlan_cm_connect_resp *resp)
 {
@@ -1290,4 +1576,41 @@ void cm_store_n_send_failed_candidate(struct cnx_mgr *cm_ctx, wlan_cm_id cm_id)
 {
 }
 #endif /* CONN_MGR_ADV_FEATURE */
+
+#ifdef WLAN_FEATURE_11BE_MLO
+/**
+ * cm_bss_mlo_type() - Check if the scan entry is of MLO type
+ * @psoc: Pointer to psoc
+ * @entry: scan cache entry
+ * @scan_list: list of scan entries to look for if @entry is of ML type
+ *
+ * Return: MLO AP type: SLO, MLMR or EMLSR.
+ */
+enum MLO_TYPE cm_bss_mlo_type(struct wlan_objmgr_psoc *psoc,
+			      struct scan_cache_entry *entry,
+			      qdf_list_t *scan_list);
+#else
+static inline enum MLO_TYPE
+cm_bss_mlo_type(struct wlan_objmgr_psoc *psoc,
+		struct scan_cache_entry *entry,
+		qdf_list_t *scan_list)
+{
+	return SLO;
+}
+#endif
+
+#ifdef WLAN_FEATURE_LL_LT_SAP
+/**
+ * cm_bearer_switch_resp() - Bearer switch response
+ * @psoc: Psoc pointer
+ * @vdev_id: vdev id
+ * @cm_id: connection ID which gave the hw mode change request
+ * @status: status of the bearer switch
+ *
+ * Return: void
+ */
+void cm_bearer_switch_resp(struct wlan_objmgr_psoc *psoc, uint8_t vdev_id,
+			   wlan_cm_id cm_id, QDF_STATUS status);
+#endif
+
 #endif /* __WLAN_CM_MAIN_API_H__ */

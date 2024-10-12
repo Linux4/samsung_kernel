@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -85,7 +85,7 @@ struct pre_cac_psoc_priv {
 };
 
 /**
- * pre_cac_vdev_create_notification(): Handler for vdev create notify.
+ * pre_cac_vdev_create_notification() - Handler for vdev create notify.
  * @vdev: vdev which is going to be created by objmgr
  * @arg: argument for notification handler.
  *
@@ -97,7 +97,7 @@ QDF_STATUS pre_cac_vdev_create_notification(struct wlan_objmgr_vdev *vdev,
 					    void *arg);
 
 /**
- * pre_cac_vdev_destroy_notification(): Handler for vdev destroy notify.
+ * pre_cac_vdev_destroy_notification() - Handler for vdev destroy notify.
  * @vdev: vdev which is going to be destroyed by objmgr
  * @arg: argument for notification handler.
  *
@@ -133,12 +133,22 @@ pre_cac_psoc_create_notification(struct wlan_objmgr_psoc *psoc, void *arg);
 QDF_STATUS
 pre_cac_psoc_destroy_notification(struct wlan_objmgr_psoc *psoc, void *arg);
 
+/**
+ * pre_cac_vdev_get_priv_fl() - retrieve vdev priv obj
+ * @vdev: vdev pointer
+ * @func: invoking function (for debugging)
+ * @line: invoking source file line number (for debugging)
+ *
+ * Retrieves pre_cac vdev private object pointer.
+ *
+ * Return: Private object of vdev
+ */
 struct pre_cac_vdev_priv *
 pre_cac_vdev_get_priv_fl(struct wlan_objmgr_vdev *vdev,
 			 const char *func, uint32_t line);
 
 /**
- * pre_cac_vdev_get_priv_fl(): Wrapper to retrieve vdev priv obj
+ * pre_cac_vdev_get_priv() - Wrapper to retrieve vdev priv obj
  * @vdev: vdev pointer
  *
  * Wrapper for pre_cac to get vdev private object pointer.
@@ -148,12 +158,22 @@ pre_cac_vdev_get_priv_fl(struct wlan_objmgr_vdev *vdev,
 #define pre_cac_vdev_get_priv(vdev) \
 			      pre_cac_vdev_get_priv_fl(vdev, __func__, __LINE__)
 
+/**
+ * pre_cac_psoc_get_priv_fl() - retrieve psoc priv obj
+ * @psoc: psoc pointer
+ * @func: invoking function (for debugging)
+ * @line: invoking source file line number (for debugging)
+ *
+ * Retrieves pre_cac psoc private object pointer.
+ *
+ * Return: pre_cac psoc private object
+ */
 struct pre_cac_psoc_priv *
 pre_cac_psoc_get_priv_fl(struct wlan_objmgr_psoc *psoc,
 			 const char *func, uint32_t line);
 
 /**
- * pre_cac_psoc_get_priv_fl(): Wrapper to retrieve psoc priv obj
+ * pre_cac_psoc_get_priv() - Wrapper to retrieve psoc priv obj
  * @psoc: psoc pointer
  *
  * Wrapper for pre_cac to get psoc private object pointer.
@@ -184,7 +204,7 @@ QDF_STATUS pre_cac_init(void);
 void pre_cac_deinit(void);
 
 /**
- * pre_cac_set_osif_cb(): set pre cac osif callbacks
+ * pre_cac_set_osif_cb() - set pre cac osif callbacks
  * @osif_pre_cac_ops: pre cac ops
  *
  *
@@ -193,7 +213,7 @@ void pre_cac_deinit(void);
 void pre_cac_set_osif_cb(struct pre_cac_ops *osif_pre_cac_ops);
 
 /**
- * pre_cac_is_active(): status of pre_cac
+ * pre_cac_is_active() - status of pre_cac
  * @psoc: psoc pointer
  *
  * Return: status of pre_cac
@@ -201,7 +221,7 @@ void pre_cac_set_osif_cb(struct pre_cac_ops *osif_pre_cac_ops);
 bool pre_cac_is_active(struct wlan_objmgr_psoc *psoc);
 
 /**
- * pre_cac_clear_work(): clear pre cac work fn and arg
+ * pre_cac_clear_work() - clear pre cac work fn and arg
  * @psoc: psoc object manager
  *
  * Return: None

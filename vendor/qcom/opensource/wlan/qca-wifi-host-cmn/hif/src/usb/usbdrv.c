@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2013-2020 The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -326,7 +326,7 @@ static uint8_t usb_hif_get_logical_pipe_num
 #endif /* QCN7605_SUPPORT */
 
 /**
- * usb_hif_get_logical_pipe_num() - setup urb resources for all pipes
+ * usb_hif_setup_pipe_resources() - setup urb resources for all pipes
  * @device: pointer to HIF_DEVICE_USB structure
  *
  * Return: QDF_STATUS_SUCCESS if success else an appropriate QDF_STATUS error

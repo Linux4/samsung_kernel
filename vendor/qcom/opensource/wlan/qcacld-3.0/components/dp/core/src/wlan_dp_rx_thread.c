@@ -85,13 +85,14 @@ dp_rx_refill_thread_set_affinity(struct dp_rx_refill_thread *refill_thread)
 	unsigned int cpus;
 	char new_mask_str[10];
 	qdf_cpu_mask new_mask;
+	int perf_cpu_cluster = hif_get_perf_cluster_bitmap();
+	int package_id;
 
 	qdf_cpumask_clear(&new_mask);
 	qdf_for_each_online_cpu(cpus) {
-		if (qdf_topology_physical_package_id(cpus) ==
-		    CPU_CLUSTER_TYPE_PERF) {
+		package_id = qdf_topology_physical_package_id(cpus);
+		if (package_id >= 0 && BIT(package_id) & perf_cpu_cluster)
 			qdf_cpumask_set_cpu(cpus, &new_mask);
-		}
 	}
 
 	qdf_thread_set_cpus_allowed_mask(refill_thread->task, &new_mask);
@@ -762,9 +763,9 @@ static int dp_rx_refill_thread_loop(void *arg)
 			QDF_DEBUG_PANIC("wait_event_interruptible returned -ERESTARTSYS");
 			break;
 		}
-		dp_rx_refill_thread_sub_loop(rx_thread, &shutdown);
 		qdf_atomic_clear_bit(RX_REFILL_POST_EVENT,
 				     &rx_thread->event_flag);
+		dp_rx_refill_thread_sub_loop(rx_thread, &shutdown);
 	}
 
 	/* If we get here the scheduler thread must exit */
@@ -1520,6 +1521,7 @@ QDF_STATUS dp_txrx_init(ol_txrx_soc_handle soc, uint8_t pdev_id,
 		if (qdf_status != QDF_STATUS_SUCCESS) {
 			dp_err("Failed to initialize RX refill thread status:%d",
 			       qdf_status);
+			qdf_mem_free(dp_ext_hdl);
 			return qdf_status;
 		}
 		cdp_register_rx_refill_thread_sched_handler(soc,

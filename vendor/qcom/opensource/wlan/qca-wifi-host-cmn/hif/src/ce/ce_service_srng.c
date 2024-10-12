@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2016-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -446,16 +446,13 @@ ce_completed_recv_next_nolock_srng(struct CE_state *CE_state,
 	int nbytes;
 	struct ce_srng_dest_status_desc dest_status_info;
 
-	if (hal_srng_access_start(scn->hal_soc, status_ring->srng_ctx)) {
-		status = QDF_STATUS_E_FAILURE;
-		goto done;
-	}
+	if (hal_srng_access_start(scn->hal_soc, status_ring->srng_ctx))
+		return QDF_STATUS_E_FAILURE;
 
 	dest_status = hal_srng_dst_peek(scn->hal_soc, status_ring->srng_ctx);
 	if (!dest_status) {
-		status = QDF_STATUS_E_FAILURE;
 		hal_srng_access_end_reap(scn->hal_soc, status_ring->srng_ctx);
-		goto done;
+		return QDF_STATUS_E_FAILURE;
 	}
 
 	/*
@@ -981,7 +978,7 @@ static void ce_ring_cleanup_srng(struct hif_softc *scn,
 	}
 
 	if (hal_srng)
-		hal_srng_cleanup(scn->hal_soc, hal_srng);
+		hal_srng_cleanup(scn->hal_soc, hal_srng, 0);
 }
 
 static void ce_construct_shadow_config_srng(struct hif_softc *scn)
@@ -1102,8 +1099,9 @@ int ce_get_index_info_srng(struct hif_softc *scn, void *ce_state,
  * ce_set_srng_msi_irq_config_by_ceid(): Set srng MSI irq configuration for CE
  *  given by id
  * @scn: HIF Context
- * @ce_state: CE opaque handle
- * @info: CE info
+ * @ce_id:
+ * @addr:
+ * @data:
  *
  * Return: 0 for success and non zero for failure
  */
@@ -1162,8 +1160,7 @@ uint16_t ce_get_direct_link_dest_srng_buffers(struct hif_softc *scn,
 	struct HIF_CE_state *hif_state = HIF_GET_CE_STATE(scn);
 	struct CE_state *ce_state;
 	struct service_to_pipe *tgt_svc_cfg;
-	qdf_nbuf_t nbuf;
-	uint64_t *nbuf_dmaaddr = NULL;
+	uint64_t *dma_addr_arr = NULL;
 	uint32_t i;
 	uint32_t j = 0;
 
@@ -1181,25 +1178,23 @@ uint16_t ce_get_direct_link_dest_srng_buffers(struct hif_softc *scn,
 			return QDF_STATUS_E_FAILURE;
 		}
 
-		nbuf_dmaaddr = qdf_mem_malloc(sizeof(*nbuf_dmaaddr) *
-					      ce_state->dest_ring->nentries);
-		if (!nbuf_dmaaddr)
+		QDF_ASSERT(scn->dl_recv_pages.dma_pages);
+
+		dma_addr_arr = qdf_mem_malloc(sizeof(*dma_addr_arr) *
+					      scn->dl_recv_pages.num_pages);
+		if (!dma_addr_arr)
 			return 0;
 
-		for (j = 0; j < ce_state->dest_ring->nentries; j++) {
-			nbuf = ce_state->dest_ring->per_transfer_context[j];
-			if (!nbuf)
-				break;
-
-			nbuf_dmaaddr[j] = QDF_NBUF_CB_PADDR(nbuf);
-		}
+		for (j = 0; j < scn->dl_recv_pages.num_pages; j++)
+			dma_addr_arr[j] =
+				scn->dl_recv_pages.dma_pages[j].page_p_addr;
 
 		*buf_size = ce_state->src_sz_max;
 
 		break;
 	}
 
-	*dma_addr = nbuf_dmaaddr;
+	*dma_addr = dma_addr_arr;
 
 	return j;
 }

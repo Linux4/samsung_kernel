@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2018-2020 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -50,8 +51,8 @@ void wlan_sm_save_history(struct wlan_sm *sm,
 
 void wlan_sm_history_init(struct wlan_sm *sm)
 {
-	qdf_spinlock_create(&sm->history.sm_history_lock);
 	qdf_mem_zero(&sm->history, sizeof(struct wlan_sm_history));
+	qdf_spinlock_create(&sm->history.sm_history_lock);
 }
 
 void wlan_sm_history_delete(struct wlan_sm *sm)

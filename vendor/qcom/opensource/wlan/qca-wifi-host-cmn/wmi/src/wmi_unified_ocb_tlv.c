@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2013-2020 The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -24,7 +24,7 @@
 #include <wmi_unified_ocb_api.h>
 
 /**
- * send_ocb_set_utc_time_cmd() - send the UTC time to the firmware
+ * send_ocb_set_utc_time_cmd_tlv() - send the UTC time to the firmware
  * @wmi_handle: pointer to the wmi handle
  * @utc: pointer to the UTC time struct
  *
@@ -178,7 +178,7 @@ static QDF_STATUS send_ocb_stop_timing_advert_cmd_tlv(wmi_unified_t wmi_handle,
 /**
  * send_ocb_get_tsf_timer_cmd_tlv() - get ocb tsf timer val
  * @wmi_handle: pointer to the wmi handle
- * @request: pointer to the request
+ * @vdev_id: vdev identifier
  *
  * Return: 0 on success
  */

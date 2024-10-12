@@ -29,7 +29,7 @@
 #include <wlan_cm_public_struct.h>
 
 /* Max candidate/attempts to be tried to connect */
-#define CM_MAX_CONNECT_ATTEMPTS 5
+#define CM_MAX_CONNECT_ATTEMPTS 10
 /*
  * Default connect timeout to consider 3 sec join timeout + 5 sec auth timeout +
  * 2 sec assoc timeout + 5 sec buffer for vdev related timeouts.
@@ -63,6 +63,8 @@
  * @WLAN_CM_SS_REASSOC:                 Roam substate for reassoc state
  * @WLAN_CM_SS_ROAM_STARTED:            Roaming in progress (LFR 3.0)
  * @WLAN_CM_SS_ROAM_SYNC:               Roam sync indication from FW
+ * @WLAN_CM_SS_IDLE_DUE_TO_LINK_SWITCH: Substate when VDEV moves to INIT state
+ *                                      due to link switch.
  * @WLAN_CM_SS_MAX:                     Max Substate
  */
 enum wlan_cm_sm_state {
@@ -80,7 +82,8 @@ enum wlan_cm_sm_state {
 	WLAN_CM_SS_REASSOC = 11,
 	WLAN_CM_SS_ROAM_STARTED = 12,
 	WLAN_CM_SS_ROAM_SYNC = 13,
-	WLAN_CM_SS_MAX = 14,
+	WLAN_CM_SS_IDLE_DUE_TO_LINK_SWITCH = 14,
+	WLAN_CM_SS_MAX = 15,
 };
 
 /**
@@ -183,6 +186,7 @@ struct cm_req {
  * @CM_REQ_DEL_ACTIVE: Remove request from active queue
  * @CM_REQ_DEL_PENDING: Remove request from pending queue
  * @CM_REQ_DEL_FLUSH: Request removed due to request list flush
+ * @CM_REQ_DEL_MAX: Maximum enumeration
  */
 enum cm_req_del_type {
 	CM_REQ_DEL_ACTIVE,
@@ -247,7 +251,9 @@ struct cm_req_history {
  * @scan_requester_id: scan requester id.
  * @disconnect_complete: disconnect completion wait event
  * @ext_cm_ptr: connection manager ext pointer
- * @history: Holds the connection manager history
+ * @req_history: Holds the connection manager history
+ * @cm_candidate_advance_filter:
+ * @cm_candidate_list_custom_sort:
  */
 struct cnx_mgr {
 	struct wlan_objmgr_vdev *vdev;
@@ -294,7 +300,7 @@ struct vdev_op_search_arg {
 
 /**
  * wlan_cm_init() - Invoke connection manager init
- * @vdev_mlme_obj:  VDEV MLME comp object
+ * @vdev_mlme:  VDEV MLME comp object
  *
  * API allocates CM and init
  *
@@ -305,7 +311,7 @@ QDF_STATUS wlan_cm_init(struct vdev_mlme_obj *vdev_mlme);
 
 /**
  * wlan_cm_deinit() - Invoke connection manager deinit
- * @vdev_mlme_obj:  VDEV MLME comp object
+ * @vdev_mlme:  VDEV MLME comp object
  *
  * API destroys CM
  *

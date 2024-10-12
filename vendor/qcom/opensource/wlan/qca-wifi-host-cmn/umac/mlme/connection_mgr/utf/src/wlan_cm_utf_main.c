@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -14,7 +15,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-/*
+/**
  * DOC: Implements CM UTF
  */
 
@@ -88,7 +89,7 @@ struct cm_utf_debugfs_info cm_utf_debugfs_infos[NUM_UTF_DEBUGFS_INFOS] = {
 };
 
 /**
- * wlan_cm_debugfs_create() - Create debugfs entry for cm db
+ * wlan_cm_utf_debugfs_create() - Create debugfs entry for cm db
  * @cm_utf: CM UTF object
  *
  * Return: QDF_STATUS
@@ -724,7 +725,8 @@ static QDF_STATUS wlan_cm_utf_osif_disconnect_cb(
  * wlan_cm_utf_update_conn_id_and_src_cb: Connection manager UTF
  * callback to update connect id and source of the connect request
  * @vdev: VDEV object
- * @cm_disconn_rsp: Disconnect Response
+ * @source: connect source
+ * @cm_id: connect id
  *
  * Return: None
  */
@@ -887,7 +889,7 @@ wlan_cm_utf_update_connect_param(struct wlan_cm_utf *cm_utf, char *buffer)
 /**
  * wlan_cm_utf_start_test: Connection manager UTF entry function
  * @cm_utf: Connection Manager UTF object
- * *test_id: Test ID requested by user
+ * @buffer: test command buffer
  *
  */
 static void wlan_cm_utf_start_test(struct wlan_cm_utf *cm_utf, void *buffer)

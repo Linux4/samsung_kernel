@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2018-2021 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -20,7 +21,7 @@
 #include "qdf_trace.h"
 #include "qdf_platform.h"
 
-/**
+/*
  * The following callbacks should be defined static to make sure they are
  * initialized to NULL
  */
@@ -252,3 +253,19 @@ void qdf_get_bus_reg_dump(struct device *dev, uint8_t *buf, uint32_t len)
 }
 
 qdf_export_symbol(qdf_get_bus_reg_dump);
+
+#ifdef WLAN_SUPPORT_DPDK
+int qdf_uio_register_device(struct device *parent, qdf_uio_info_t *info)
+{
+	return uio_register_device(parent, (struct uio_info *)info);
+}
+
+qdf_export_symbol(qdf_uio_register_device);
+
+void qdf_uio_unregister_device(qdf_uio_info_t *info)
+{
+	uio_unregister_device(info);
+}
+
+qdf_export_symbol(qdf_uio_unregister_device);
+#endif

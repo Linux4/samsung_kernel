@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2013-2020 The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -91,7 +91,7 @@ MODULE_PARM_DESC(brokenirq,
 
 #ifdef CONFIG_SDIO_TRANSFER_MAILBOX
 /**
- * hif_sdio_force_drive_strength() - Set SDIO drive strength
+ * hif_sdio_quirk_force_drive_strength() - Set SDIO drive strength
  * @ol_sc: softc instance
  * @func: pointer to sdio_func
  *
@@ -214,7 +214,7 @@ int hif_sdio_quirk_async_intr(struct hif_softc *ol_sc, struct sdio_func *func)
 }
 #else
 /**
- * hif_sdio_force_drive_strength() - Set SDIO drive strength
+ * hif_sdio_quirk_force_drive_strength() - Set SDIO drive strength
  * @ol_sc: softc instance
  * @func: pointer to sdio_func
  *
@@ -595,6 +595,7 @@ void hif_un_mask_interrupt(struct hif_sdio_dev *device)
  * hif_sdio_func_disable() - Handle device enabling as per device
  * @device: HIF device object
  * @func: function pointer
+ * @reset:
  *
  * Return success or failure
  */

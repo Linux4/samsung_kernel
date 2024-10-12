@@ -690,6 +690,11 @@ static void sm5714_notify_rp_abnormal(void *_data)
 	struct i2c_client *i2c = pdic_data->i2c;
 	u8 cc_status = 0, rp_currentlvl = RP_CURRENT_ABNORMAL;
 
+#if defined(CONFIG_SM5714_WATER_DETECTION_ENABLE)
+	if (pdic_data->is_water_detect)
+		return;
+#endif
+
 	sm5714_usbpd_read_reg(i2c, SM5714_REG_CC_STATUS, &cc_status);
 
 	/* PDIC = SINK */
@@ -2182,6 +2187,11 @@ void sm5714_src_transition_to_default(void *_data)
 	sm5714_usbpd_write_reg(i2c, SM5714_REG_PD_CNTL2, val); /* BIST Off */
 
 	sm5714_set_vconn_source(data, USBPD_VCONN_OFF);
+#if IS_ENABLED(CONFIG_VBUS_NOTIFIER)
+	if (pdic_data->vbus_noti_status == STATUS_VBUS_HIGH && !pdic_data->is_otg_vboost)
+		sm5714_usbpd_turn_off_reverse_booster(data);
+#endif
+
 	sm5714_vbus_turn_on_ctrl(pdic_data, 0);
 	if (manager->dp_is_connect == 1) {
 		pdic_data->detach_done_wait = 1;
@@ -2568,7 +2578,8 @@ static bool sm5714_poll_status(void *_data, int irq)
 	}
 	mutex_unlock(&pdic_data->lpm_mutex);
 
-	if (intr[3] & SM5714_REG_INT_STATUS4_HRST_RCVED) {
+	if ((intr[3] & SM5714_REG_INT_STATUS4_HRST_RCVED) &&
+			(status[0] & SM5714_REG_INT_STATUS1_ATTACH)) {
 		pdic_data->status_reg |= BITMSG(MSG_HARDRESET);
 		goto out;
 	}
@@ -4051,7 +4062,7 @@ static void sm5714_usbpd_debug_reg_log(struct work_struct *work)
 		container_of(work, struct sm5714_phydrv_data,
 				debug_work.work);
 	struct i2c_client *i2c = pdic_data->i2c;
-	u8 data[20] = {0, };
+	u8 data[21] = {0, };
 
 	sm5714_usbpd_read_reg(i2c, SM5714_REG_JIGON_CONTROL, &data[0]);
 	sm5714_usbpd_read_reg(i2c, SM5714_REG_CORR_CNTL1, &data[1]);
@@ -4073,12 +4084,14 @@ static void sm5714_usbpd_debug_reg_log(struct work_struct *work)
 	sm5714_usbpd_read_reg(i2c, SM5714_REG_PD_STATE5, &data[17]);
 	sm5714_usbpd_read_reg(i2c, SM5714_REG_COMP_CNTL, &data[18]);
 	sm5714_usbpd_read_reg(i2c, SM5714_REG_CLK_CNTL, &data[19]);
+	/* ETC log added by SS */
+	sm5714_usbpd_read_reg(i2c, 0x32, &data[20]);
 
-	pr_info("%s JIGON:0x%02x CR_CT[1: 0x%02x 4:0x%02x 5:0x%02x] CC_ST:0x%02x CC_CT[1:0x%02x 2:0x%02x 3:0x%02x 7:0x%02x] PD_CT[1:0x%02x 4:0x%02x] RX_BUF_ST:0x%02x PROBE0:0x%02x PD_ST[0:0x%02x 2:0x%02x 3:0x%02x 4:0x%02x 5:0x%02x]COMP:0x%02x CLK:0x%02x\n",
+	pr_info("%s JIGON:0x%02x CR_CT[1: 0x%02x 4:0x%02x 5:0x%02x] CC_ST:0x%02x CC_CT[1:0x%02x 2:0x%02x 3:0x%02x 7:0x%02x] PD_CT[1:0x%02x 4:0x%02x] RX_BUF_ST:0x%02x PROBE0:0x%02x PD_ST[0:0x%02x 2:0x%02x 3:0x%02x 4:0x%02x 5:0x%02x]COMP:0x%02x CLK:0x%02x ETC:0x%02x\n",
 			__func__, data[0], data[1], data[2], data[3], data[4],
 			data[5], data[6], data[7], data[8], data[9], data[10],
 			data[11], data[12], data[13], data[14], data[15],
-			data[16], data[17],data[18], data[19]);
+			data[16], data[17],data[18], data[19], data[20]);
 
 	if (!pdic_data->suspended)
 		schedule_delayed_work(&pdic_data->debug_work,
@@ -4463,6 +4476,7 @@ static int sm5714_usbpd_remove(struct i2c_client *i2c)
 #endif
 		kfree(_data);
 	}
+	wakeup_source_unregister(pd_data->policy_engine_wake);
 	return 0;
 }
 
@@ -4496,9 +4510,10 @@ static void sm5714_usbpd_shutdown(struct i2c_client *i2c)
 	free_irq(i2c->irq, _data);
 	pr_err("%s free irq\n", __func__);
 
+#if IS_ENABLED(CONFIG_VBUS_NOTIFIER)
 	if (_data->vbus_noti_status == STATUS_VBUS_HIGH && !_data->is_attached)
 		pr_err("%s : VBUS is valid without CC Attach\n", __func__);
-
+#endif
 	cancel_delayed_work_sync(&_data->debug_work);
 	sm5714_usbpd_set_vbus_dischg_gpio(_data, 0);
 

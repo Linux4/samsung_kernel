@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2016-2019 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -76,8 +77,31 @@ static inline uint8_t *pld_sdio_get_wlan_mac_address(struct device *dev,
 	return NULL;
 }
 #else
+/**
+ * pld_sdio_register_driver() - Register SDIO device callback functions
+ *
+ * Return: int
+ */
 int pld_sdio_register_driver(void);
+
+/**
+ * pld_sdio_unregister_driver() - Unregister SDIO device callback functions
+ *
+ * Return: void
+ */
 void pld_sdio_unregister_driver(void);
+
+/**
+ * pld_sdio_get_fw_files_for_target() - Get FW file names
+ * @pfw_files: buffer for FW file names
+ * @target_type: target type
+ * @target_version: target version
+ *
+ * Return target specific FW file names to the buffer.
+ *
+ * Return: 0 for success
+ *         Non zero failure code for errors
+ */
 int pld_sdio_get_fw_files_for_target(struct pld_fw_files *pfw_files,
 				     u32 target_type, u32 target_version);
 #ifdef CONFIG_CNSS
@@ -245,6 +269,19 @@ struct sdio_al_channel_handle *ch_handle
 	cnss_sdio_wlan_unregister_sdio_al_channel(ch_handle);
 }
 
+/**
+ * pld_sdio_wlan_enable() - Enable WLAN
+ * @dev: device
+ * @config: NA
+ * @mode: WLAN mode
+ * @host_version: host software version
+ *
+ * This function enables WLAN FW. It passed
+ * WLAN mode and host software version to FW.
+ *
+ * Return: 0 for success
+ *         Non zero failure code for errors
+ */
 int pld_sdio_wlan_enable(struct device *dev, struct pld_wlan_enable_cfg *config,
 			 enum pld_driver_mode mode, const char *host_version);
 #else

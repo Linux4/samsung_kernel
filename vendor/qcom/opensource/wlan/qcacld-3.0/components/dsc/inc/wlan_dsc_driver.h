@@ -26,7 +26,7 @@
 
 #include "qdf_status.h"
 
-/**
+/*
  * struct dsc_driver - opaque dsc driver context
  */
 struct dsc_driver;

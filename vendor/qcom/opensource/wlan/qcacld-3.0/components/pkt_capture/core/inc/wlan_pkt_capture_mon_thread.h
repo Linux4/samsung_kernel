@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2020 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -46,7 +47,7 @@ typedef void (*pkt_capture_mon_thread_cb)(
 			uint8_t *bssid,
 			uint8_t tx_retry_cnt);
 
-/*
+/**
  * struct pkt_capture_mon_pkt - mon packet wrapper for mon data from TXRX
  * @list: List for storing mon packets
  * @context: Callback context
@@ -130,7 +131,7 @@ struct radiotap_header {
 
 /**
  * pkt_capture_suspend_mon_thread() - suspend packet capture mon thread
- * vdev: pointer to vdev object manager
+ * @vdev: pointer to vdev object manager
  *
  * Return: 0 on success, -EINVAL on failure
  */
@@ -138,7 +139,7 @@ int pkt_capture_suspend_mon_thread(struct wlan_objmgr_vdev *vdev);
 
 /**
  * pkt_capture_resume_mon_thread() - resume packet capture mon thread
- * vdev: pointer to vdev object manager
+ * @vdev: pointer to vdev object manager
  *
  * Resume packet capture MON thread by completing RX thread resume event.
  *
@@ -148,7 +149,7 @@ void pkt_capture_resume_mon_thread(struct wlan_objmgr_vdev *vdev);
 
 /**
  * pkt_capture_drop_monpkt() - API to drop pending mon packets
- * mon_ctx: pointer to packet capture mon context
+ * @mon_ctx: pointer to packet capture mon context
  *
  * This api drops all the pending packets in the queue.
  *

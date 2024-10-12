@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2017-2020 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -188,7 +189,7 @@ QDF_STATUS target_if_pmo_send_lphb_udp_params(struct wlan_objmgr_psoc *psoc,
 }
 
 /**
- * target_if_pmo_lphb_send_udp_pkt_filter() - Send LPHB udp pkt filter req
+ * target_if_pmo_send_lphb_udp_pkt_filter() - Send LPHB udp pkt filter req
  * @psoc: objmgr psoc handle
  * @ts_lphb_udp_filter: lphb udp filter request which needs to configure in fwr
  *

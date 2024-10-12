@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -26,6 +26,7 @@
 #include <wlan_objmgr_psoc_obj.h>
 #include <wlan_twt_public_structs.h>
 
+#if defined(WLAN_SUPPORT_TWT) && defined(WLAN_TWT_CONV_SUPPORTED)
 /**
  * ucfg_twt_cfg_get_requestor() - get TWT requestor
  * @psoc: Pointer to global PSOC object
@@ -87,6 +88,26 @@ QDF_STATUS
 ucfg_twt_cfg_get_bcast_requestor(struct wlan_objmgr_psoc *psoc, bool *val);
 
 /**
+ * ucfg_twt_cfg_get_bcast_responder() - Get TWT broadcast requestor
+ * @psoc: Pointer to global psoc object
+ * @val: pointer to output variable
+ *
+ * Return: QDF_STATUS_SUCCESS
+ */
+QDF_STATUS
+ucfg_twt_cfg_get_bcast_responder(struct wlan_objmgr_psoc *psoc, bool *val);
+
+/**
+ * ucfg_twt_cfg_get_rtwt_requestor() - Get restricted TWT requestor
+ * @psoc: Pointer to global psoc object
+ * @val: pointer to output variable
+ *
+ * Return: QDF_STATUS_SUCCESS
+ */
+QDF_STATUS
+ucfg_twt_cfg_get_rtwt_requestor(struct wlan_objmgr_psoc *psoc, bool *val);
+
+/**
  * ucfg_twt_cfg_get_flex_sched() - Get TWT flex scheduling
  * @psoc: Pointer to global psoc object
  * @val: pointer to output variable
@@ -95,6 +116,7 @@ ucfg_twt_cfg_get_bcast_requestor(struct wlan_objmgr_psoc *psoc, bool *val);
  */
 QDF_STATUS
 ucfg_twt_cfg_get_flex_sched(struct wlan_objmgr_psoc *psoc, bool *val);
+
 #else
 static inline
 QDF_STATUS ucfg_twt_cfg_get_requestor(struct wlan_objmgr_psoc *psoc, bool *val)
@@ -140,10 +162,24 @@ ucfg_twt_cfg_get_bcast_requestor(struct wlan_objmgr_psoc *psoc, bool *val)
 }
 
 static inline QDF_STATUS
-ucfg_twt_cfg_get_flex_sched(struct wlan_objmgr_psoc *psoc, bool *val)
+ucfg_twt_cfg_get_bcast_responder(struct wlan_objmgr_psoc *psoc, bool *val)
 {
 	*val = false;
 	return QDF_STATUS_SUCCESS;
 }
 
+static inline QDF_STATUS
+ucfg_twt_cfg_get_rtwt_requestor(struct wlan_objmgr_psoc *psoc, bool *val)
+{
+	*val = false;
+	return QDF_STATUS_SUCCESS;
+}
+
+static inline QDF_STATUS
+ucfg_twt_cfg_get_flex_sched(struct wlan_objmgr_psoc *psoc, bool *val)
+{
+	*val = false;
+	return QDF_STATUS_SUCCESS;
+}
+#endif /* WLAN_TWT_CONV_SUPPORTED */
 #endif /* _WLAN_TWT_UCFG_EXT_CFG_H_ */

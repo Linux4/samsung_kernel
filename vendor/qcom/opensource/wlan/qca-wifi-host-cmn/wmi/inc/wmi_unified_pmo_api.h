@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2017-2019, 2021 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -93,7 +94,7 @@ QDF_STATUS wmi_unified_wow_patterns_to_fw_cmd(
  * wmi_unified_add_clear_mcbc_filter_cmd() - set mcast filter command to fw
  * @wmi_handle: wmi handle
  * @vdev_id: vdev id
- * @multicastAddr: mcast address
+ * @multicast_addr: mcast address
  * @clear_list: clear list flag
  *
  * Return: QDF_STATUS_SUCCESS on success and QDF_STATUS_E_FAILURE for failure
@@ -109,7 +110,7 @@ QDF_STATUS wmi_unified_add_clear_mcbc_filter_cmd(
  *						      filter command to fw
  * @wmi_handle: wmi handle
  * @vdev_id: vdev id
- * @filter_params: mcast filter params
+ * @filter_param: mcast filter params
  *
  * Return: QDF_STATUS_SUCCESS on success and QDF_STATUS_E_FAILURE for failure
  */
@@ -135,7 +136,8 @@ QDF_STATUS wmi_unified_wow_sta_ra_filter_cmd(wmi_unified_t wmi_handle,
 #endif
 
 /**
- * wmi_unified_enable_enhance_multicast_offload() - enhance multicast offload
+ * wmi_unified_enable_enhance_multicast_offload_cmd() - enhance multicast
+ *                                                      offload
  * @wmi_handle: wmi handle
  * @vdev_id: vdev id
  * @action: true for enable else false
@@ -152,12 +154,12 @@ QDF_STATUS wmi_unified_enable_enhance_multicast_offload_cmd(
  * @wmi_handle: wmi handle
  * @evt_buf: pointer to event buffer
  * @gtk_rsp_param: Pointer to gtk rsp parameters
- * @ len: len of gtk rsp event
+ * @len: len of gtk rsp event
  *
  * Return: QDF_STATUS_SUCCESS on success and QDF_STATUS_E_FAILURE for failure
  */
 QDF_STATUS wmi_extract_gtk_rsp_event(
-	wmi_unified_t wmi_hdl, void *evt_buf,
+	wmi_unified_t wmi_handle, void *evt_buf,
 	struct pmo_gtk_rsp_params *gtk_rsp_param, uint32_t len);
 
 /**
@@ -202,7 +204,7 @@ QDF_STATUS wmi_unified_send_gtk_offload_cmd(wmi_unified_t wmi_handle,
 
 /**
  * wmi_unified_enable_arp_ns_offload_cmd() - enable ARP NS offload
- * @wmi_hdl: wmi handle
+ * @wmi_handle: wmi handle
  * @arp_offload_req: arp offload request
  * @ns_offload_req: ns offload request
  * @vdev_id: vdev id
@@ -379,7 +381,7 @@ QDF_STATUS wmi_unified_set_app_type2_params_in_fw_cmd(
 
 /**
  * wmi_unified_app_type1_params_in_fw_cmd() - set app type1 params in fw
- * @wmi_hdl: wmi handle
+ * @wmi_handle: wmi handle
  * @app_type1_params: app type1 params
  *
  * Return: QDF_STATUS_SUCCESS on success and QDF_STATUS_E_FAILURE for failure
@@ -392,7 +394,7 @@ QDF_STATUS wmi_unified_app_type1_params_in_fw_cmd(
 #ifdef WLAN_FEATURE_IGMP_OFFLOAD
 /**
  * wmi_unified_send_igmp_offload_cmd() - send igmp offload cmd to fw
- * @wmi_hdl: wmi handle
+ * @wmi_handle: wmi handle
  * @pmo_igmp_req: igmp params
  *
  * Return: Success or failure
@@ -405,7 +407,7 @@ wmi_unified_send_igmp_offload_cmd(wmi_unified_t wmi_handle,
 #ifdef WLAN_FEATURE_ICMP_OFFLOAD
 /**
  * wmi_unified_config_icmp_offload_cmd() - enable ICMP offload
- * @wmi_hdl: wmi handle
+ * @wmi_handle: wmi handle
  * @pmo_icmp_req: icmp offload request
  *
  * To configure ICMP offload data to firmware

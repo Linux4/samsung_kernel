@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2017-2018, 2020 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -67,7 +68,7 @@ void target_if_nan_register_tx_ops(struct wlan_nan_tx_ops *tx_ops);
 
 /**
  * target_if_nan_register_rx_ops() - registers nan rx ops
- * @tx_ops: rx ops
+ * @rx_ops: rx ops
  *
  * Return: none
  */

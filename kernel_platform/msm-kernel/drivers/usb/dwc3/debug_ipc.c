@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2018-2019 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include "debug-ipc.h"
@@ -139,6 +140,23 @@ void dwc3_dbg_trace_event(void *log_ctxt, u32 event, struct dwc3 *dwc)
 	kfree(event_str);
 }
 
+void dwc3_dbg_trace_ep(void *log_ctxt, struct dwc3_ep *dep)
+{
+
+	ipc_log_string(log_ctxt,
+		"%s: mps %d/%d streams %d burst %d ring %d/%d flags %c:%c%c%c%c:%c",
+		dep->name, dep->endpoint.maxpacket,
+		dep->endpoint.maxpacket_limit, dep->endpoint.max_streams,
+		dep->endpoint.maxburst, dep->trb_enqueue,
+		dep->trb_dequeue,
+		dep->flags & DWC3_EP_ENABLED ? 'E' : 'e',
+		dep->flags & DWC3_EP_STALL ? 'S' : 's',
+		dep->flags & DWC3_EP_WEDGE ? 'W' : 'w',
+		dep->flags & DWC3_EP_TRANSFER_STARTED ? 'B' : 'b',
+		dep->flags & DWC3_EP_PENDING_REQUEST ? 'P' : 'p',
+		dep->direction ? '<' : '>');
+}
+
 /**
  * dwc3_dbg_print:  prints the common part of the event
  * @addr:   endpoint address
@@ -242,6 +260,11 @@ void dwc3_dbg_print_reg(void *log_ctxt, const char *name, int reg)
 		return;
 
 	ipc_log_string(log_ctxt, "%s = 0x%08x", name, reg);
+}
+
+void dbg_dwc3_dump_regs(void *log_ctxt, char *name, int offset, int value)
+{
+	ipc_log_string(log_ctxt, "[%s: 0x%x\t0x%08X]", name, offset, value);
 }
 
 void dwc3_dbg_dma_unmap(void *log_ctxt, u8 ep_num, struct dwc3_request *req)

@@ -669,14 +669,12 @@
  * TRCDEVARCH	- CoreSight architected register
  *                - Bits[15:12] - Major version
  *                - Bits[19:16] - Minor version
- * TRCIDR1	- ETM architected register
- *                - Bits[11:8] - Major version
- *                - Bits[7:4]  - Minor version
- * We must rely on TRCDEVARCH for the version information,
- * however we don't want to break the support for potential
- * old implementations which might not implement it. Thus
- * we fall back to TRCIDR1 if TRCDEVARCH is not implemented
- * for memory mapped components.
+ *
+ * We must rely only on TRCDEVARCH for the version information. Even though,
+ * TRCIDR1 also provides the architecture version, it is a "Trace" register
+ * and as such must be accessed only with Trace power domain ON. This may
+ * not be available at probe time.
+ *
  * Now to make certain decisions easier based on the version
  * we use an internal representation of the version in the
  * driver, as follows :
@@ -700,12 +698,6 @@ static inline u8 etm_devarch_to_arch(u32 devarch)
 {
 	return ETM_ARCH_VERSION(ETM_DEVARCH_ARCHID_ARCH_VER(devarch),
 				ETM_DEVARCH_REVISION(devarch));
-}
-
-static inline u8 etm_trcidr_to_arch(u32 trcidr1)
-{
-	return ETM_ARCH_VERSION(ETM_TRCIDR1_ARCH_MAJOR(trcidr1),
-				ETM_TRCIDR1_ARCH_MINOR(trcidr1));
 }
 
 enum etm_impdef_type {
@@ -872,7 +864,8 @@ struct etmv4_save_state {
  * @csdev:      Component vitals needed by the framework.
  * @spinlock:   Only one at a time pls.
  * @mode:	This tracer's mode, i.e sysFS, Perf or disabled.
- * @cpu:        The cpu this component is affined to.
+ * @cpu:        The logical cpu this component is affined to.
+ * @pcpu:       The physical cpu this component is affined to.
  * @arch:       ETM architecture version.
  * @nr_pe:	The number of processing entity available for tracing.
  * @nr_pe_cmp:	The number of processing entity comparator inputs that are
@@ -938,6 +931,7 @@ struct etmv4_drvdata {
 	spinlock_t			spinlock;
 	local_t				mode;
 	int				cpu;
+	int				pcpu;
 	u8				arch;
 	u8				nr_pe;
 	u8				nr_pe_cmp;

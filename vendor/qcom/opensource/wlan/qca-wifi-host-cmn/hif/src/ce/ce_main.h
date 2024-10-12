@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2015-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -51,10 +51,8 @@
 #define CE_ALL_BITMAP  0xFFFF
 
 #define HIF_REQUESTED_EVENTS 20
-/**
- * enum ce_id_type
- *
- * @ce_id_type: Copy engine ID
+/*
+ * enum ce_id_type - Copy engine ID
  */
 enum ce_id_type {
 	CE_ID_0,
@@ -78,10 +76,9 @@ enum ce_id_type {
 	CE_ID_MAX
 };
 
+#ifdef CE_TASKLET_DEBUG_ENABLE
 /**
- * enum ce_buckets
- *
- * @ce_buckets: CE tasklet time buckets
+ * enum ce_buckets - CE tasklet time buckets
  * @CE_BUCKET_500_US: tasklet bucket to store 0-0.5ms
  * @CE_BUCKET_1_MS: tasklet bucket to store 0.5-1ms
  * @CE_BUCKET_2_MS: tasklet bucket to store 1-2ms
@@ -90,7 +87,6 @@ enum ce_id_type {
  * @CE_BUCKET_BEYOND: tasklet bucket to store > 10ms
  * @CE_BUCKET_MAX: enum max value
  */
-#ifdef CE_TASKLET_DEBUG_ENABLE
 enum ce_buckets {
 	CE_BUCKET_500_US,
 	CE_BUCKET_1_MS,
@@ -147,8 +143,8 @@ struct HIF_CE_pipe_info {
  * @intr_tq: intr_tq
  * @ce_id: ce_id
  * @inited: inited
+ * @hi_tasklet_ce:
  * @hif_ce_state: hif_ce_state
- * @from_irq: from_irq
  */
 struct ce_tasklet_entry {
 	struct tasklet_struct intr_tq;
@@ -180,6 +176,9 @@ extern struct hif_execution_ops napi_sched_ops;
  * @ce_tasklet_sched_bucket: Tasklet time in queue buckets
  * @ce_tasklet_exec_last_update: Latest timestamp when bucket is updated
  * @ce_tasklet_sched_last_update: Latest timestamp when bucket is updated
+ * @ce_ring_full_count:
+ * @ce_manual_tasklet_schedule_count:
+ * @ce_last_manual_tasklet_schedule_ts:
  */
 struct ce_stats {
 	uint32_t ce_per_cpu[CE_COUNT_MAX][QDF_MAX_AVAILABLE_CPU];
@@ -284,6 +283,7 @@ struct ce_info {
  * struct ce_index
  *
  * @id: CE id
+ * @u: union of legacy_info and srng_info
  * @sw_index: sw index
  * @write_index: write index
  * @hp: ring head pointer
@@ -313,6 +313,7 @@ struct ce_index {
  * @tlv_header: tlv header
  * @active_tasklet_count: active tasklet count
  * @active_grp_tasklet_cnt: active grp tasklet count
+ * @ce_count:
  * @ce_info: CE info
  */
 struct hang_event_info {
@@ -378,4 +379,10 @@ void hif_select_epping_service_to_pipe_map(struct service_to_pipe
 void ce_service_register_module(enum ce_target_type target_type,
 				struct ce_ops* (*ce_attach)(void));
 
+#ifdef CONFIG_SHADOW_V3
+void hif_get_shadow_reg_config_v3(struct hif_softc *scn,
+				  struct pld_shadow_reg_v3_cfg **shadow_config,
+				  int *num_shadow_registers_configured);
+void hif_preare_shadow_register_cfg_v3(struct hif_softc *scn);
+#endif
 #endif /* __CE_H__ */

@@ -30,6 +30,7 @@
 #include <wlan_mlme_api.h>
 #include <wlan_mlme_main.h>
 #include "wma_tgt_cfg.h"
+#include "wlan_mlme_vdev_mgr_interface.h"
 
 /**
  * ucfg_mlme_init() - initialize mlme_ctx context.
@@ -80,6 +81,39 @@ void ucfg_mlme_psoc_close(struct wlan_objmgr_psoc *psoc);
 QDF_STATUS ucfg_mlme_pdev_open(struct wlan_objmgr_pdev *pdev);
 
 /**
+ * ucfg_mlme_set_ml_link_control_mode() - set ml_link_control_mode
+ * @psoc: pointer to psoc object
+ * @vdev_id: vdev id
+ * @value: value to set
+ *
+ * API get call when host receives vendor command
+ * QCA_NL80211_VENDOR_SUBCMD_MLO_LINK_STATE to configure link control mode.
+ *
+ * Return: none
+ */
+void ucfg_mlme_set_ml_link_control_mode(struct wlan_objmgr_psoc *psoc,
+					uint8_t vdev_id, uint8_t value);
+
+/**
+ * ucfg_mlme_set_bt_profile_con() - set Bluetooth connection profile
+ * @psoc: Pointer to psoc object
+ * @bt_profile_con: Bluetooth connection profile indicator
+ *
+ * Return: None
+ */
+void ucfg_mlme_set_bt_profile_con(struct wlan_objmgr_psoc *psoc,
+				  bool bt_profile_con);
+/**
+ * ucfg_mlme_get_ml_link_control_mode() - get ml_link_control_mode
+ * @psoc: pointer to psoc object
+ * @vdev_id: vdev id
+ *
+ * Return: value of ml_link_control_mode in success
+ */
+uint8_t ucfg_mlme_get_ml_link_control_mode(struct wlan_objmgr_psoc *psoc,
+					   uint8_t vdev_id);
+
+/**
  * ucfg_mlme_pdev_close() - MLME component pdev close
  * @pdev: pointer to pdev object
  *
@@ -114,7 +148,7 @@ QDF_STATUS ucfg_mlme_global_deinit(void);
 void ucfg_mlme_cfg_chan_to_freq(struct wlan_objmgr_pdev *pdev);
 
 /**
- * wlan_mlme_get_power_usage() - Get the power usage info
+ * ucfg_mlme_get_power_usage() - Get the power usage info
  * @psoc: pointer to psoc object
  *
  * Return: pointer to character array of power usage
@@ -166,7 +200,7 @@ QDF_STATUS ucfg_mlme_get_phy_max_freq_range(struct wlan_objmgr_psoc *psoc,
 /**
  * ucfg_mlme_get_ht_cap_info() - Get the HT cap info config
  * @psoc: pointer to psoc object
- * @value: pointer to the value which will be filled for the caller
+ * @ht_cap_info: pointer to the value which will be filled for the caller
  *
  * Inline UCFG API to be used by HDD/OSIF callers
  *
@@ -183,7 +217,7 @@ QDF_STATUS ucfg_mlme_get_ht_cap_info(struct wlan_objmgr_psoc *psoc,
 /**
  * ucfg_mlme_set_ht_cap_info() - Set the HT cap info config
  * @psoc: pointer to psoc object
- * @value: Value that needs to be set from the caller
+ * @ht_cap_info: Value that needs to be set from the caller
  *
  * Inline UCFG API to be used by HDD/OSIF callers
  *
@@ -267,6 +301,45 @@ QDF_STATUS ucfg_mlme_get_band_capability(struct wlan_objmgr_psoc *psoc,
 	return wlan_mlme_get_band_capability(psoc, band_capability);
 }
 
+/**
+ * ucfg_mlme_peer_config_vlan() - Send VLAN id to FW for
+ * RX packet
+ * @vdev: vdev pointer
+ * @macaddr: Peer mac address
+ *
+ * Return: QDF_STATUS
+ */
+static inline QDF_STATUS
+ucfg_mlme_peer_config_vlan(struct wlan_objmgr_vdev *vdev,
+			   uint8_t *macaddr)
+{
+	return wlan_mlme_peer_config_vlan(vdev, macaddr);
+}
+
+/**
+ * ucfg_mlme_get_tdls_prohibited() - get if TDLS prohibited is advertised by
+ * the connected AP.
+ * @vdev: vdev pointer
+ *
+ * Return: bool
+ */
+static inline
+bool ucfg_mlme_get_tdls_prohibited(struct wlan_objmgr_vdev *vdev)
+{
+	return mlme_get_tdls_prohibited(vdev);
+}
+
+/**
+ * ucfg_mlme_get_tdls_chan_switch_prohibited() - get tdls chan switch prohibited
+ * @vdev: vdev pointer
+ *
+ * Return: bool
+ */
+static inline
+bool ucfg_mlme_get_tdls_chan_switch_prohibited(struct wlan_objmgr_vdev *vdev)
+{
+	return mlme_get_tdls_chan_switch_prohibited(vdev);
+}
 #ifdef MULTI_CLIENT_LL_SUPPORT
 /**
  * ucfg_mlme_get_wlm_multi_client_ll_caps() - Get multi client latency level
@@ -598,7 +671,7 @@ ucfg_mlme_get_external_acs_policy(struct wlan_objmgr_psoc *psoc,
 }
 
 /**
- * ucfg_mlme_set_ht_cap_info() - Set the HT cap info config
+ * ucfg_mlme_get_acs_support_for_dfs_ltecoex() - Is DFS LTE CoEx ACS supported
  * @psoc: pointer to psoc object
  * @value: Value that needs to be set from the caller
  *
@@ -732,11 +805,10 @@ ucfg_mlme_get_wmm_uapsd_vo_sus_intv(struct wlan_objmgr_psoc *psoc,
 }
 
 /**
- *
  * ucfg_mlme_get_sap_inactivity_override() - Check if sap max inactivity
- * override flag is set.
+ *                                           override flag is set.
  * @psoc: pointer to psoc object
- * @sme_config - Sme config struct
+ * @value: Value that needs to be set from the caller
  *
  * Inline UCFG API to be used by HDD/OSIF callers to call
  * the mlme function wlan_mlme_get_sap_inactivity_override
@@ -1123,6 +1195,21 @@ ucfg_mlme_get_roaming_triggers(struct wlan_objmgr_psoc *psoc)
 {
 	return wlan_mlme_get_roaming_triggers(psoc);
 }
+
+/**
+ * ucfg_mlme_set_roaming_triggers() - Set roaming triggers bitmap
+ * value
+ * @psoc: pointer to psoc object
+ * @trigger_bitmap: Roaming triggers bitmap to set
+ *
+ * Return: void
+ */
+static inline void
+ucfg_mlme_set_roaming_triggers(struct wlan_objmgr_psoc *psoc,
+			       uint32_t trigger_bitmap)
+{
+	wlan_mlme_set_roaming_triggers(psoc, trigger_bitmap);
+}
 #else
 static inline QDF_STATUS
 ucfg_mlme_get_roam_disable_config(struct wlan_objmgr_psoc *psoc,
@@ -1151,6 +1238,12 @@ static inline uint32_t
 ucfg_mlme_get_roaming_triggers(struct wlan_objmgr_psoc *psoc)
 {
 	return 0xffff;
+}
+
+static inline void
+ucfg_mlme_set_roaming_triggers(struct wlan_objmgr_psoc *psoc,
+			       uint32_t trigger_bitmap)
+{
 }
 #endif
 
@@ -2119,10 +2212,8 @@ QDF_STATUS ucfg_mlme_set_primary_interface(struct wlan_objmgr_psoc *psoc,
 
 /**
  * ucfg_mlme_get_mcc_duty_cycle_percentage() - Get primary STA iface MCC
- * duty-cycle
- *
- * @psoc: pointer to psoc object
- * @value: value that needs to be set from the caller
+ *                                             duty-cycle
+ * @pdev: pointer to pdev object
  *
  * primary and secondary STA iface MCC duty-cycle value in below format
  * ******************************************************
@@ -2662,6 +2753,92 @@ ucfg_mlme_get_restart_sap_on_dynamic_nss_chains_cfg(
 }
 
 /**
+ * ucfg_mlme_update_dynamic_nss_chains_support() - API to update
+ * dynamic_nss_chains_support
+ *
+ * @psoc: psoc context
+ * @val: data to be set
+ *
+ * API is used to update dynamic_nss_chains_support flag in wlan_mlme_cfg
+ * to maintain this value in mlme context
+ *
+ * Return: QDF_STATUS_SUCCESS or QDF_STATUS_FAILURE
+ */
+static inline QDF_STATUS
+ucfg_mlme_update_dynamic_nss_chains_support(struct wlan_objmgr_psoc *psoc,
+					    bool val)
+{
+	return wlan_mlme_cfg_set_dynamic_nss_chains_support(psoc, val);
+}
+
+/**
+ * ucfg_mlme_get_sta_num_tx_chains() - UCFG API to get station num tx chains
+ *
+ * @psoc: psoc context
+ * @vdev: pointer to vdev
+ * @tx_chains : tx_chains out parameter
+ *
+ * Return: QDF_STATUS_SUCCESS or QDF_STATUS_FAILURE
+ */
+static inline QDF_STATUS
+ucfg_mlme_get_sta_num_tx_chains(struct wlan_objmgr_psoc *psoc,
+				struct wlan_objmgr_vdev *vdev,
+				uint8_t *tx_chains)
+{
+	return wlan_mlme_get_sta_num_tx_chains(psoc, vdev, tx_chains);
+}
+
+/**
+ * ucfg_mlme_get_sta_num_rx_chains() - UCFG API to get station num rx chains
+ *
+ * @psoc: psoc context
+ * @vdev: pointer to vdev
+ * @rx_chains : rx_chains out parameter
+ *
+ * Return: QDF_STATUS_SUCCESS or QDF_STATUS_FAILURE
+ */
+static inline QDF_STATUS
+ucfg_mlme_get_sta_num_rx_chains(struct wlan_objmgr_psoc *psoc,
+				struct wlan_objmgr_vdev *vdev,
+				uint8_t *rx_chains)
+{
+	return wlan_mlme_get_sta_num_rx_chains(psoc, vdev, rx_chains);
+}
+
+/**
+ * ucfg_mlme_get_sta_tx_nss() - UCFG API to get station tx NSS
+ *
+ * @psoc: psoc context
+ * @vdev: pointer to vdev
+ * @tx_nss : tx_nss out parameter
+ *
+ * Return: QDF_STATUS_SUCCESS or QDF_STATUS_FAILURE
+ */
+static inline QDF_STATUS
+ucfg_mlme_get_sta_tx_nss(struct wlan_objmgr_psoc *psoc,
+			 struct wlan_objmgr_vdev *vdev, uint8_t *tx_nss)
+{
+	return wlan_mlme_get_sta_tx_nss(psoc, vdev, tx_nss);
+}
+
+/**
+ * ucfg_mlme_get_sta_rx_nss() - UCFG API to get station rx NSS
+ *
+ * @psoc: psoc context
+ * @vdev: pointer to vdev
+ * @rx_nss : rx_nss out parameter
+ *
+ * Return: QDF_STATUS_SUCCESS or QDF_STATUS_FAILURE
+ */
+static inline QDF_STATUS
+ucfg_mlme_get_sta_rx_nss(struct wlan_objmgr_psoc *psoc,
+			 struct wlan_objmgr_vdev *vdev,
+			 uint8_t *rx_nss)
+{
+	return wlan_mlme_get_sta_rx_nss(psoc, vdev, rx_nss);
+}
+
+/**
  * ucfg_mlme_get_vht_enable2x2() - Enables/disables VHT Tx/Rx MCS values for 2x2
  * @psoc: psoc context
  * @value: data to be set
@@ -2782,7 +2959,7 @@ ucfg_mlme_get_vendor_vht_for_24ghz(struct wlan_objmgr_psoc *psoc, bool *value)
 /**
  * ucfg_mlme_update_vht_cap() - Update vht capabilities
  * @psoc: psoc context
- * @value: data to be set
+ * @cfg: data to be set
  *
  * Inline UCFG API to be used by HDD/OSIF callers to get the
  * ignore_peer_ht_opmode flag value
@@ -2797,10 +2974,9 @@ QDF_STATUS ucfg_mlme_update_vht_cap(struct wlan_objmgr_psoc *psoc,
 }
 
 /**
- * ucfg_mlme_update_nss_vht_cap() -Update the number of spatial
- * streams supported for vht
+ * ucfg_mlme_update_nss_vht_cap() - Update the number of spatial
+ *                                  streams supported for vht
  * @psoc: psoc context
- * @value: data to be set
  *
  * Inline UCFG API to be used by HDD/OSIF callers to get the
  * ignore_peer_ht_opmode flag value
@@ -2904,8 +3080,8 @@ ucfg_mlme_set_rf_test_mode_enabled(struct wlan_objmgr_psoc *psoc, bool value)
 }
 
 /**
- * ucfg_mlme_is_relaxed_6ghz_conn_policy_enabled() - Get 6ghz relaxed
- *                                                   connection policy flag
+ * ucfg_mlme_is_disable_vlp_sta_conn_to_sp_ap_enabled() - Get disable vlp sta
+ *                                                        conn to sp ap flag
  * @psoc: pointer to psoc object
  * @value: pointer to hold the value of flag
  *
@@ -2914,10 +3090,11 @@ ucfg_mlme_set_rf_test_mode_enabled(struct wlan_objmgr_psoc *psoc, bool value)
  * Return: QDF Status
  */
 static inline QDF_STATUS
-ucfg_mlme_is_relaxed_6ghz_conn_policy_enabled(struct wlan_objmgr_psoc *psoc,
-					      bool *value)
+ucfg_mlme_is_disable_vlp_sta_conn_to_sp_ap_enabled(
+						struct wlan_objmgr_psoc *psoc,
+						bool *value)
 {
-	return wlan_mlme_is_relaxed_6ghz_conn_policy_enabled(psoc, value);
+	return wlan_mlme_is_disable_vlp_sta_conn_to_sp_ap_enabled(psoc, value);
 }
 
 /**
@@ -2935,23 +3112,6 @@ ucfg_mlme_is_standard_6ghz_conn_policy_enabled(struct wlan_objmgr_psoc *psoc,
 					       bool *value)
 {
 	return wlan_mlme_is_standard_6ghz_conn_policy_enabled(psoc, value);
-}
-
-/**
- * ucfg_mlme_set_relaxed_6ghz_conn_policy() - Set 6ghz relaxed
- *                                            connection policy flag
- * @psoc: pointer to psoc object
- * @value: Value that needs to be set
- *
- * Inline UCFG API to be used by HDD/OSIF callers
- *
- * Return: QDF Status
- */
-static inline QDF_STATUS
-ucfg_mlme_set_relaxed_6ghz_conn_policy(struct wlan_objmgr_psoc *psoc,
-				       bool value)
-{
-	return wlan_mlme_set_relaxed_6ghz_conn_policy(psoc, value);
 }
 
 /**
@@ -2985,6 +3145,21 @@ ucfg_mlme_get_eht_mode(struct wlan_objmgr_psoc *psoc, enum wlan_eht_mode *value)
 }
 
 /**
+ * ucfg_mlme_is_multipass_sap() - check whether FW supports
+ * multipass sap capabilities
+ * @psoc: pointer to psoc object
+ *
+ * Inline UCFG API to be used by HDD/OSIF callers
+ *
+ * Return: True if FW support mulitpass sap
+ */
+static inline bool
+ucfg_mlme_is_multipass_sap(struct wlan_objmgr_psoc *psoc)
+{
+	return  wlan_mlme_is_multipass_sap(psoc);
+}
+
+/**
  * ucfg_mlme_set_emlsr_mode_enabled() - Set eMLSR mode flag
  * @psoc: pointer to psoc object
  * @value: Value that needs to be set from the caller
@@ -3015,8 +3190,26 @@ ucfg_mlme_get_emlsr_mode_enabled(struct wlan_objmgr_psoc *psoc, bool *value)
 }
 
 /**
+ * ucfg_mlme_set_t2lm_negotiation_supported() - Enables/disables t2lm
+ * negotiation support value
+ * @psoc: psoc context
+ * @value: data to be set
+ *
+ * Inline UCFG API to be used by HDD/OSIF callers to set the
+ * t2lm negotiation supported value
+ *
+ * Return: QDF_STATUS_SUCCESS or QDF_STATUS_FAILURE
+ */
+static inline QDF_STATUS
+ucfg_mlme_set_t2lm_negotiation_supported(struct wlan_objmgr_psoc *psoc,
+					 bool value)
+{
+	return wlan_mlme_set_t2lm_negotiation_supported(psoc, value);
+}
+
+/**
  * ucfg_mlme_get_opr_rate() - Get operational rate set
- * @psoc: pointer to vdev object
+ * @vdev: pointer to vdev object
  * @buf: buffer to get rates set
  * @len: length of the buffer
  *
@@ -3031,7 +3224,7 @@ ucfg_mlme_get_opr_rate(struct wlan_objmgr_vdev *vdev, uint8_t *buf,
 
 /**
  * ucfg_mlme_get_ext_opr_rate() - Get extended operational rate set
- * @psoc: pointer to vdev object
+ * @vdev: pointer to vdev object
  * @buf: buffer to get rates set
  * @len: length of the buffer
  *
@@ -3046,7 +3239,7 @@ ucfg_mlme_get_ext_opr_rate(struct wlan_objmgr_vdev *vdev, uint8_t *buf,
 
 /**
  * ucfg_mlme_get_mcs_rate() - Get MCS based rate set
- * @psoc: pointer to vdev object
+ * @vdev: pointer to vdev object
  * @buf: buffer to get rates set
  * @len: length of the buffer
  *
@@ -3142,8 +3335,7 @@ bool
 ucfg_mlme_stats_is_link_speed_report_actual(struct wlan_objmgr_psoc *psoc);
 
 /**
- * ucfg_mlme_stats_is_link_speed_report_max() - is link speed report set
- * max
+ * ucfg_mlme_stats_is_link_speed_report_max() - is link speed report set max
  * @psoc: pointer to psoc object
  *
  * Return: True is report set to max
@@ -3153,7 +3345,7 @@ ucfg_mlme_stats_is_link_speed_report_max(struct wlan_objmgr_psoc *psoc);
 
 /**
  * ucfg_mlme_stats_is_link_speed_report_max_scaled() - is link speed report set
- * max scaled
+ *                                                     max scaled
  * @psoc: pointer to psoc object
  *
  * Return: True is report set to max scaled
@@ -3163,7 +3355,7 @@ ucfg_mlme_stats_is_link_speed_report_max_scaled(struct wlan_objmgr_psoc *psoc);
 
 /**
  * ucfg_mlme_get_tl_delayed_trgr_frm_int() - Get delay interval(in ms)
- * of UAPSD auto trigger.
+ *                                           of UAPSD auto trigger.
  * @psoc: pointer to psoc object
  * @value: Value that needs to be set from the caller
  *
@@ -3179,8 +3371,7 @@ void ucfg_mlme_get_tl_delayed_trgr_frm_int(struct wlan_objmgr_psoc *psoc,
 }
 
 /**
- * ucfg_mlme_get_wmm_dir_ac_vi() - Get TSPEC direction
- * for VI
+ * ucfg_mlme_get_wmm_dir_ac_vi() - Get TSPEC direction for VI
  * @psoc: pointer to psoc object
  * @value: Value that needs to be set from the caller
  *
@@ -3195,8 +3386,7 @@ ucfg_mlme_get_wmm_dir_ac_vi(struct wlan_objmgr_psoc *psoc, uint8_t *value)
 }
 
 /**
- * ucfg_mlme_get_wmm_nom_msdu_size_ac_vi() - Get normal
- * MSDU size for VI
+ * ucfg_mlme_get_wmm_nom_msdu_size_ac_vi() - Get normal MSDU size for VI
  * @psoc: pointer to psoc object
  * @value: Value that needs to be set from the caller
  *
@@ -3212,8 +3402,7 @@ QDF_STATUS ucfg_mlme_get_wmm_nom_msdu_size_ac_vi(struct wlan_objmgr_psoc *psoc,
 }
 
 /**
- * ucfg_mlme_get_wmm_mean_data_rate_ac_vi() - mean data
- * rate for VI
+ * ucfg_mlme_get_wmm_mean_data_rate_ac_vi() - mean data rate for VI
  * @psoc: pointer to psoc object
  * @value: Value that needs to be set from the caller
  *
@@ -3229,8 +3418,7 @@ QDF_STATUS ucfg_mlme_get_wmm_mean_data_rate_ac_vi(struct wlan_objmgr_psoc *psoc,
 }
 
 /**
- * ucfg_mlme_get_wmm_min_phy_rate_ac_vi() - min PHY
- * rate for VI
+ * ucfg_mlme_get_wmm_min_phy_rate_ac_vi() - min PHY rate for VI
  * @psoc: pointer to psoc object
  * @value: Value that needs to be set from the caller
  *
@@ -3246,8 +3434,7 @@ QDF_STATUS ucfg_mlme_get_wmm_min_phy_rate_ac_vi(struct wlan_objmgr_psoc *psoc,
 }
 
 /**
- * ucfg_mlme_get_wmm_sba_ac_vi() - surplus bandwidth
- * allowance for VI
+ * ucfg_mlme_get_wmm_sba_ac_vi() - surplus bandwidth allowance for VI
  * @psoc: pointer to psoc object
  * @value: Value that needs to be set from the caller
  *
@@ -3263,7 +3450,7 @@ ucfg_mlme_get_wmm_sba_ac_vi(struct wlan_objmgr_psoc *psoc, uint16_t *value)
 
 /**
  * ucfg_mlme_get_wmm_uapsd_vi_srv_intv() - Get Uapsd service
- * interval for video
+ *                                         interval for video
  * @psoc: pointer to psoc object
  * @value: pointer to the value which will be filled for the caller
  *
@@ -3280,7 +3467,7 @@ ucfg_mlme_get_wmm_uapsd_vi_srv_intv(struct wlan_objmgr_psoc *psoc,
 
 /**
  * ucfg_mlme_get_wmm_uapsd_vi_sus_intv() - Get Uapsd suspension
- * interval for video
+ *                                         interval for video
  * @psoc: pointer to psoc object
  * @value: Value that needs to be set from the caller
  *
@@ -3296,8 +3483,7 @@ ucfg_mlme_get_wmm_uapsd_vi_sus_intv(struct wlan_objmgr_psoc *psoc,
 }
 
 /**
- * ucfg_mlme_get_wmm_dir_ac_be() - Get TSPEC direction
- * for BE
+ * ucfg_mlme_get_wmm_dir_ac_be() - Get TSPEC direction for BE
  * @psoc: pointer to psoc object
  * @value: Value that needs to be set from the caller
  *
@@ -3312,8 +3498,7 @@ ucfg_mlme_get_wmm_dir_ac_be(struct wlan_objmgr_psoc *psoc, uint8_t *value)
 }
 
 /**
- * ucfg_mlme_get_wmm_nom_msdu_size_ac_be() - Get normal
- * MSDU size for BE
+ * ucfg_mlme_get_wmm_nom_msdu_size_ac_be() - Get normal MSDU size for BE
  * @psoc: pointer to psoc object
  * @value: Value that needs to be set from the caller
  *
@@ -3329,8 +3514,7 @@ QDF_STATUS ucfg_mlme_get_wmm_nom_msdu_size_ac_be(struct wlan_objmgr_psoc *psoc,
 }
 
 /**
- * ucfg_mlme_get_wmm_mean_data_rate_ac_be() - mean data
- * rate for BE
+ * ucfg_mlme_get_wmm_mean_data_rate_ac_be() - mean data rate for BE
  * @psoc: pointer to psoc object
  * @value: Value that needs to be set from the caller
  *
@@ -3346,8 +3530,7 @@ QDF_STATUS ucfg_mlme_get_wmm_mean_data_rate_ac_be(struct wlan_objmgr_psoc *psoc,
 }
 
 /**
- * ucfg_mlme_get_wmm_min_phy_rate_ac_be() - min PHY
- * rate for BE
+ * ucfg_mlme_get_wmm_min_phy_rate_ac_be() - min PHY rate for BE
  * @psoc: pointer to psoc object
  * @value: Value that needs to be set from the caller
  *
@@ -3363,8 +3546,7 @@ QDF_STATUS ucfg_mlme_get_wmm_min_phy_rate_ac_be(struct wlan_objmgr_psoc *psoc,
 }
 
 /**
- * ucfg_mlme_get_wmm_sba_ac_be() - surplus bandwidth
- * allowance for BE
+ * ucfg_mlme_get_wmm_sba_ac_be() - surplus bandwidth allowance for BE
  * @psoc: pointer to psoc object
  * @value: Value that needs to be set from the caller
  *
@@ -3379,8 +3561,7 @@ ucfg_mlme_get_wmm_sba_ac_be(struct wlan_objmgr_psoc *psoc, uint16_t *value)
 }
 
 /**
- * ucfg_mlme_get_wmm_uapsd_be_srv_intv() - Get Uapsd service
- * interval for BE
+ * ucfg_mlme_get_wmm_uapsd_be_srv_intv() - Get Uapsd service interval for BE
  * @psoc: pointer to psoc object
  * @value: pointer to the value which will be filled for the caller
  *
@@ -3396,8 +3577,7 @@ ucfg_mlme_get_wmm_uapsd_be_srv_intv(struct wlan_objmgr_psoc *psoc,
 }
 
 /**
- * ucfg_mlme_get_wmm_uapsd_be_sus_intv() - Get Uapsd suspension
- * interval for BE
+ * ucfg_mlme_get_wmm_uapsd_be_sus_intv() - Get Uapsd suspension interval for BE
  * @psoc: pointer to psoc object
  * @value: Value that needs to be set from the caller
  *
@@ -3413,8 +3593,7 @@ ucfg_mlme_get_wmm_uapsd_be_sus_intv(struct wlan_objmgr_psoc *psoc,
 }
 
 /**
- * ucfg_mlme_get_wmm_dir_ac_bk() - Get TSPEC direction
- * for BK
+ * ucfg_mlme_get_wmm_dir_ac_bk() - Get TSPEC direction for BK
  * @psoc: pointer to psoc object
  * @value: Value that needs to be set from the caller
  *
@@ -3429,8 +3608,7 @@ ucfg_mlme_get_wmm_dir_ac_bk(struct wlan_objmgr_psoc *psoc, uint8_t *value)
 }
 
 /**
- * ucfg_mlme_get_wmm_nom_msdu_size_ac_be() - Get normal
- * MSDU size for BE
+ * ucfg_mlme_get_wmm_nom_msdu_size_ac_bk() - Get normal MSDU size for BK
  * @psoc: pointer to psoc object
  * @value: Value that needs to be set from the caller
  *
@@ -3446,8 +3624,7 @@ QDF_STATUS ucfg_mlme_get_wmm_nom_msdu_size_ac_bk(struct wlan_objmgr_psoc *psoc,
 }
 
 /**
- * ucfg_mlme_get_wmm_mean_data_rate_ac_bk() - mean data
- * rate for BK
+ * ucfg_mlme_get_wmm_mean_data_rate_ac_bk() - mean data rate for BK
  * @psoc: pointer to psoc object
  * @value: Value that needs to be set from the caller
  *
@@ -3463,8 +3640,7 @@ QDF_STATUS ucfg_mlme_get_wmm_mean_data_rate_ac_bk(struct wlan_objmgr_psoc *psoc,
 }
 
 /**
- * ucfg_mlme_get_wmm_min_phy_rate_ac_bk() - min PHY
- * rate for BE
+ * ucfg_mlme_get_wmm_min_phy_rate_ac_bk() - min PHY rate for BE
  * @psoc: pointer to psoc object
  * @value: Value that needs to be set from the caller
  *
@@ -3480,8 +3656,7 @@ QDF_STATUS ucfg_mlme_get_wmm_min_phy_rate_ac_bk(struct wlan_objmgr_psoc *psoc,
 }
 
 /**
- * ucfg_mlme_get_wmm_sba_ac_bk() - surplus bandwidth
- * allowance for BE
+ * ucfg_mlme_get_wmm_sba_ac_bk() - surplus bandwidt allowance for BE
  * @psoc: pointer to psoc object
  * @value: Value that needs to be set from the caller
  *
@@ -3496,8 +3671,7 @@ ucfg_mlme_get_wmm_sba_ac_bk(struct wlan_objmgr_psoc *psoc, uint16_t *value)
 }
 
 /**
- * ucfg_mlme_get_wmm_uapsd_bk_srv_intv() - Get Uapsd service
- * interval for BK
+ * ucfg_mlme_get_wmm_uapsd_bk_srv_intv() - Get Uapsd service interval for BK
  * @psoc: pointer to psoc object
  * @value: pointer to the value which will be filled for the caller
  *
@@ -3513,8 +3687,7 @@ ucfg_mlme_get_wmm_uapsd_bk_srv_intv(struct wlan_objmgr_psoc *psoc,
 }
 
 /**
- * ucfg_mlme_get_wmm_uapsd_bk_sus_intv() - Get Uapsd suspension
- * interval for BK
+ * ucfg_mlme_get_wmm_uapsd_bk_sus_intv() - Get Uapsd suspension interval for BK
  * @psoc: pointer to psoc object
  * @value: Value that needs to be set from the caller
  *
@@ -3681,6 +3854,12 @@ ucfg_mlme_update_tgt_eht_cap(struct wlan_objmgr_psoc *psoc,
 	return mlme_update_tgt_eht_caps_in_cfg(psoc, cfg);
 }
 
+static inline QDF_STATUS
+ucfg_mlme_update_tgt_mlo_cap(struct wlan_objmgr_psoc *psoc)
+{
+	return mlme_update_tgt_mlo_caps_in_cfg(psoc);
+}
+
 /**
  * ucfg_mlme_get_usr_disable_sta_eht() - Get user disable sta eht flag
  * @psoc: psoc object
@@ -3707,6 +3886,12 @@ void ucfg_mlme_set_usr_disable_sta_eht(struct wlan_objmgr_psoc *psoc,
 	wlan_mlme_set_usr_disable_sta_eht(psoc, disable);
 }
 #else
+static inline QDF_STATUS
+ucfg_mlme_update_tgt_mlo_cap(struct wlan_objmgr_psoc *psoc)
+{
+	return QDF_STATUS_SUCCESS;
+}
+
 static inline
 bool ucfg_mlme_get_usr_disable_sta_eht(struct wlan_objmgr_psoc *psoc)
 {
@@ -3719,6 +3904,51 @@ void ucfg_mlme_set_usr_disable_sta_eht(struct wlan_objmgr_psoc *psoc,
 {
 }
 #endif
+
+#ifdef WLAN_FEATURE_11BE_MLO
+/**
+ * ucfg_mlme_get_eht_mld_id() - Get the MLD ID of the requested BSS
+ * @psoc: pointer to psoc object
+ *
+ * This API gives the MLD ID of the requested BSS
+ *
+ * Return: MLD ID of the requested BSS
+ */
+static inline uint8_t
+ucfg_mlme_get_eht_mld_id(struct wlan_objmgr_psoc *psoc)
+{
+	return wlan_mlme_get_eht_mld_id(psoc);
+}
+
+/**
+ * ucfg_mlme_set_eht_mld_id() - Set MLD ID of the requested BSS information
+ * @psoc: pointer to psoc object
+ * @value: set MLD ID
+ *
+ * This API sets the MLD ID of the requested BSS information within the ML
+ * probe request.
+ *
+ * Return: QDF_STATUS
+ */
+static inline QDF_STATUS
+ucfg_mlme_set_eht_mld_id(struct wlan_objmgr_psoc *psoc,
+			 uint8_t value)
+{
+	return wlan_mlme_set_eht_mld_id(psoc, value);
+}
+#else
+static inline uint8_t
+ucfg_mlme_get_eht_mld_id(struct wlan_objmgr_psoc *psoc)
+{
+	return 0;
+}
+
+static inline QDF_STATUS
+ucfg_mlme_set_eht_mld_id(struct wlan_objmgr_psoc *psoc, uint8_t value)
+{
+	return QDF_STATUS_E_NOSUPPORT;
+}
+#endif /* WLAN_FEATURE_11BE_MLO */
 
 /**
  * ucfg_mlme_get_80211e_is_enabled() - Enable 802.11e feature
@@ -4271,7 +4501,8 @@ ucfg_mlme_get_11d_in_world_mode(struct wlan_objmgr_psoc *psoc,
 				bool *value);
 
 /**
- * ucfg_mlme_restart_beaconing_on_ch_avoid() - get restart beaconing on ch avoid
+ * ucfg_mlme_get_restart_beaconing_on_ch_avoid() - get restart beaconing on
+ *                                                 channel avoid
  * @psoc:   pointer to psoc object
  * @value:  pointer to the value which will be filled for the caller
  *
@@ -4333,7 +4564,7 @@ ucfg_mlme_get_valid_channel_freq_list(struct wlan_objmgr_psoc *psoc,
  * ucfg_mlme_is_subnet_detection_enabled() - check if sub net detection is
  * enabled/disabled
  * @psoc: pointer to psoc object
- * @value: value that is requested by the caller
+ * @val: value that is requested by the caller
  *
  * Inline UCFG API to be used by HDD/OSIF callers
  *
@@ -4406,7 +4637,31 @@ ucfg_mlme_set_obss_color_collision_offload_enabled(
  */
 QDF_STATUS
 ucfg_mlme_set_bss_color_collision_det_sta(struct wlan_objmgr_psoc *psoc,
-					  uint8_t value);
+					  bool value);
+
+/**
+ * ucfg_mlme_set_bss_color_collision_det_support() - Set bss color collision
+ * detection offload support from FW for STA mode
+ * @psoc:  pointer to psoc object
+ * @value: enable or disable
+ *
+ * Return: QDF Status
+ */
+QDF_STATUS
+ucfg_mlme_set_bss_color_collision_det_support(struct wlan_objmgr_psoc *psoc,
+					      bool value);
+
+/**
+ * ucfg_mlme_get_bss_color_collision_det_support() - Get bss color collision
+ * detection offload FW support for STA mode
+ * @psoc:  pointer to psoc object
+ * @value: pointer to the value which will be filled for the caller
+ *
+ * Return: QDF Status
+ */
+QDF_STATUS
+ucfg_mlme_get_bss_color_collision_det_support(struct wlan_objmgr_psoc *psoc,
+					      bool *value);
 
 /**
  * ucfg_mlme_set_restricted_80p80_bw_supp() - Set the restricted 80p80 support
@@ -4600,6 +4855,18 @@ ucfg_mlme_set_roam_reason_vsie_status(struct wlan_objmgr_psoc *psoc,
 #endif
 
 /**
+ * ucfg_mlme_set_vdev_wifi_std()  - Set vdev wifi standard support
+ * @psoc: pointer to psoc object
+ * @vdev_id: Vdev id
+ * @wifi_std: wifi standard version
+ *
+ * Return: QDF_STATUS
+ */
+QDF_STATUS
+ucfg_mlme_set_vdev_wifi_std(struct wlan_objmgr_psoc *psoc, uint8_t vdev_id,
+			    WMI_HOST_WIFI_STANDARD wifi_std);
+
+/**
  * ucfg_mlme_set_vdev_traffic_low_latency()  - Set/clear vdev low latency
  * config
  * @psoc: pointer to psoc object
@@ -4613,18 +4880,41 @@ ucfg_mlme_set_vdev_traffic_low_latency(struct wlan_objmgr_psoc *psoc,
 				       uint8_t vdev_id, bool set);
 
 /**
+ * ucfg_mlme_update_bss_rate_flags() - update bss rate flag as per new channel
+ * width
+ * @psoc: pointer to psoc object
+ * @vdev_id: Vdev id
+ * @ch_width: channel width to update
+ * @eht_present: connected bss is eht capable or not
+ * @he_present: connected bss is he capable or not
+ * @vht_present: connected bss is vht capable or not
+ * @ht_present: connected bss is ht capable or not
+ *
+ * Return: QDF_STATUS
+ */
+QDF_STATUS ucfg_mlme_update_bss_rate_flags(struct wlan_objmgr_psoc *psoc,
+					   uint8_t vdev_id,
+					   enum phy_ch_width ch_width,
+					   uint8_t eht_present,
+					   uint8_t he_present,
+					   uint8_t vht_present,
+					   uint8_t ht_present);
+
+/**
  * ucfg_mlme_send_ch_width_update_with_notify() - Send chwidth with notify
  * capability of FW
  * @psoc: pointer to psoc object
  * @vdev_id: Vdev id
  * @ch_width: channel width to update
+ * @link_id: mlo link id
  *
  * Return: QDF_STATUS
  */
 QDF_STATUS
 ucfg_mlme_send_ch_width_update_with_notify(struct wlan_objmgr_psoc *psoc,
 					   uint8_t vdev_id,
-					   enum phy_ch_width ch_width);
+					   enum phy_ch_width ch_width,
+					   uint8_t link_id);
 
 /**
  * ucfg_mlme_is_chwidth_with_notify_supported() - Get chwidth with notify
@@ -4642,10 +4932,10 @@ ucfg_mlme_is_chwidth_with_notify_supported(struct wlan_objmgr_psoc *psoc);
  * @psoc: pointer to psoc object
  * @vdev_id: Vdev id
  *
- * Return: none
+ * Return: QDF_STATUS
  */
-void ucfg_mlme_connected_chan_stats_request(struct wlan_objmgr_psoc *psoc,
-					    uint8_t vdev_id);
+QDF_STATUS ucfg_mlme_connected_chan_stats_request(struct wlan_objmgr_psoc *psoc,
+						  uint8_t vdev_id);
 
 /**
  * ucfg_mlme_set_vdev_traffic_high_throughput()  - Set/clear vdev high
@@ -4756,7 +5046,6 @@ ucfg_mlme_cfg_get_ht_smps(struct wlan_objmgr_psoc *psoc,
  * ucfg_mlme_get_coex_unsafe_chan_nb_user_prefer() - get coex unsafe nb
  * support
  * @psoc:   pointer to psoc object
- * @value:  pointer to the value which will be filled for the caller
  *
  * Return: coex_unsafe_chan_nb_user_prefer
  */
@@ -4767,7 +5056,6 @@ bool ucfg_mlme_get_coex_unsafe_chan_nb_user_prefer(
  * ucfg_mlme_get_coex_unsafe_chan_reg_disable() - get reg disable cap for
  * coex unsafe channels support
  * @psoc:   pointer to psoc object
- * @value:  pointer to the value which will be filled for the caller
  *
  * Return: coex_unsafe_chan_reg_disable
  */
@@ -4866,6 +5154,19 @@ static inline uint32_t
 ucfg_mlme_get_wds_mode(struct wlan_objmgr_psoc *psoc)
 {
 	return wlan_mlme_get_wds_mode(psoc);
+}
+
+/**
+ * ucfg_mlme_set_wds_mode() - Set the configured WDS mode
+ * @psoc: pointer to psoc object
+ * @mode: wds mode to set
+ *
+ * Return: void
+ */
+static inline void
+ucfg_mlme_set_wds_mode(struct wlan_objmgr_psoc *psoc, uint32_t mode)
+{
+	wlan_mlme_set_wds_mode(psoc, mode);
 }
 
 #ifdef WLAN_FEATURE_SON
@@ -5066,4 +5367,39 @@ ucfg_mlme_get_sr_enable_modes(struct wlan_objmgr_psoc *psoc,
 QDF_STATUS
 ucfg_mlme_get_valid_channels(struct wlan_objmgr_psoc *psoc,
 			     uint32_t *ch_freq_list, uint32_t *list_len);
+
+/**
+ * ucfg_mlme_set_ul_mu_config - set ul mu config
+ * @psoc: pointer to psoc object
+ * @vdev_id : vdev ID
+ * @ulmu_disable: ul mu value
+ *
+ * Inline UCFG API to be used by HDD/OSIF callers
+ *
+ * Return: QDF_STATUS_SUCCESS or non-zero on failure
+ */
+static inline
+QDF_STATUS ucfg_mlme_set_ul_mu_config(struct wlan_objmgr_psoc *psoc,
+				      uint8_t vdev_id,
+				      uint8_t ulmu_disable)
+{
+	return wlan_mlme_set_ul_mu_config(psoc, vdev_id, ulmu_disable);
+}
+
+/**
+ * ucfg_mlme_assemble_rate_code - assemble rate code to be sent to FW
+ * @preamble: rate preamble
+ * @nss: number of spatial streams
+ * @rate: rate index
+ *
+ * Rate code assembling is different for targets which are 11ax capable.
+ * Check for the target support and assemble the rate code accordingly.
+ *
+ * Return: assembled rate code
+ */
+static inline uint32_t
+ucfg_mlme_assemble_rate_code(uint8_t preamble, uint8_t nss, uint8_t rate)
+{
+	return wlan_mlme_assemble_rate_code(preamble, nss, rate);
+}
 #endif /* _WLAN_MLME_UCFG_API_H_ */

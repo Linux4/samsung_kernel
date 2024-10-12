@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2012-2020 The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -94,7 +94,7 @@ static int __wlan_hdd_cfg80211_txpower_scale(struct wiphy *wiphy,
 		return -EINVAL;
 	}
 
-	status = wma_set_tx_power_scale(adapter->vdev_id, scale_value);
+	status = wma_set_tx_power_scale(adapter->deflink->vdev_id, scale_value);
 
 	if (status != QDF_STATUS_SUCCESS) {
 		hdd_err("Set tx power scale failed");
@@ -180,7 +180,7 @@ __wlan_hdd_cfg80211_txpower_scale_decr_db(struct wiphy *wiphy,
 	scale_value = nla_get_u8(tb
 		    [QCA_WLAN_VENDOR_ATTR_TXPOWER_SCALE_DECR_DB]);
 
-	status = wma_set_tx_power_scale_decr_db(adapter->vdev_id,
+	status = wma_set_tx_power_scale_decr_db(adapter->deflink->vdev_id,
 						scale_value);
 
 	if (status != QDF_STATUS_SUCCESS) {

@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2013-2014, 2016-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -54,7 +54,8 @@ typedef void (*HTC_TARGET_FAILURE)(void *Instance, QDF_STATUS Status);
 struct htc_init_info {
 	void *pContext;         /* context for target notifications */
 	void (*TargetFailure)(void *Instance, QDF_STATUS Status);
-	void (*TargetSendSuspendComplete)(void *ctx, bool is_nack);
+	void (*TargetSendSuspendComplete)(void *ctx, bool is_nack,
+					  uint16_t reason_code);
 	void (*target_initial_wakeup_cb)(void *cb_ctx);
 	void *target_psoc;
 	uint32_t cfg_wmi_credit_cnt;
@@ -299,7 +300,7 @@ struct htc_endpoint_credit_dist {
 #define IS_EP_ACTIVE(epDist)  ((epDist)->DistFlags & HTC_EP_ACTIVE)
 #define SET_EP_ACTIVE(epDist) (epDist)->DistFlags |= HTC_EP_ACTIVE
 
-/* credit distribution code that is passed into the distrbution function,
+/* credit distribution code that is passed into the distribution function,
  * there are mandatory and optional codes that must be handled
  */
 enum htc_credit_dist_reason {
@@ -390,13 +391,14 @@ struct htc_endpoint_stats {
 };
 
 /**
- * htc_link_vote_user_id - user ids for each link vote type
+ * enum htc_link_vote_user_id - user ids for each link vote type
  * @HTC_LINK_VOTE_INVALID_MIN_USER_ID: min user id
  * @HTC_LINK_VOTE_SAP_USER_ID: sap user id
  * @HTC_LINK_VOTE_GO_USER_ID: go user id
  * @HTC_LINK_VOTE_NDP_USER_ID: ndp user id
  * @HTC_LINK_VOTE_SAP_DFS_USER_ID: sap dfs user id
  * @HTC_LINK_VOTE_STA_USER_ID: sta user id
+ * @HTC_LINK_VOTE_DIRECT_LINK_USER_ID: Direct link user ID
  * @HTC_LINK_VOTE_INVALID_MAX_USER_ID: max user id
  */
 enum htc_link_vote_user_id {
@@ -406,12 +408,13 @@ enum htc_link_vote_user_id {
 	HTC_LINK_VOTE_NDP_USER_ID = 3,
 	HTC_LINK_VOTE_SAP_DFS_USER_ID = 4,
 	HTC_LINK_VOTE_STA_USER_ID = 5,
+	HTC_LINK_VOTE_DIRECT_LINK_USER_ID = 6,
 	HTC_LINK_VOTE_INVALID_MAX_USER_ID
 };
 
 /* ------ Function Prototypes ------ */
 /**
- * htc_create - Create an instance of HTC over the underlying HIF device
+ * htc_create() - Create an instance of HTC over the underlying HIF device
  * @HifDevice: hif device handle,
  * @pInfo: initialization information
  * @osdev: QDF device structure
@@ -423,7 +426,7 @@ HTC_HANDLE htc_create(void *HifDevice, struct htc_init_info *pInfo,
 			qdf_device_t osdev, uint32_t con_mode);
 
 /**
- * htc_get_hif_device - Get the underlying HIF device handle
+ * htc_get_hif_device() - Get the underlying HIF device handle
  * @HTCHandle: handle passed into the AddInstance callback
  *
  * Return: opaque HIF device handle usable in HIF API calls.
@@ -431,19 +434,22 @@ HTC_HANDLE htc_create(void *HifDevice, struct htc_init_info *pInfo,
 void *htc_get_hif_device(HTC_HANDLE HTCHandle);
 
 /**
- * htc_set_credit_distribution - Set credit distribution parameters
+ * htc_set_credit_distribution() - Set credit distribution parameters
  * @HTCHandle: HTC handle
- * @pCreditDistCont: caller supplied context to pass into distribution functions
+ * @pCreditDistContext: caller supplied context to pass into distribution
+ *                      functions
  * @CreditDistFunc: Distribution function callback
- * @CreditDistInit: Credit Distribution initialization callback
+ * @CreditInitFunc: Credit Distribution initialization callback
  * @ServicePriorityOrder: Array containing list of service IDs, lowest index
- * @is highestpriority: ListLength - number of elements in ServicePriorityOrder
+ *                        is highestpriority
+ * @ListLength: number of elements in ServicePriorityOrder
  *
  * The user can set a custom credit distribution function to handle
  * special requirementsfor each endpoint.  A default credit distribution
  * routine can be used by setting CreditInitFunc to NULL. The default
  * credit distribution is only provided for simple "fair" credit distribution
  * without regard to any prioritization.
+ *
  * Return: None
  */
 void htc_set_credit_distribution(HTC_HANDLE HTCHandle,
@@ -453,21 +459,21 @@ void htc_set_credit_distribution(HTC_HANDLE HTCHandle,
 				 HTC_SERVICE_ID ServicePriorityOrder[],
 				 int ListLength);
 
-/*+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
- * Wait for the target to indicate the HTC layer is ready
- * htc_wait_target
- * @HTCHandle - HTC handle
+/**
+ * htc_wait_target() - Wait for the target to indicate the HTC layer is ready
+ * @HTCHandle: HTC handle
  *
  * This API blocks until the target responds with an HTC ready message.
  * The caller should not connect services until the target has indicated it is
  * ready.
+ *
  * Return: None
  */
 QDF_STATUS htc_wait_target(HTC_HANDLE HTCHandle);
 
 /**
- * htc_start - Start target service communications
- * @HTCHandle - HTC handle
+ * htc_start() - Start target service communications
+ * @HTCHandle: HTC handle
  *
  * This API indicates to the target that the service connection phase
  * is completeand the target can freely start all connected services.  This
@@ -480,10 +486,10 @@ QDF_STATUS htc_wait_target(HTC_HANDLE HTCHandle);
 QDF_STATUS htc_start(HTC_HANDLE HTCHandle);
 
 /**
- * htc_connect_service - Connect to an HTC service
- * @HTCHandle - HTC handle
- * @pReq - connection details
- * @pResp - connection response
+ * htc_connect_service() - Connect to an HTC service
+ * @HTCHandle: HTC handle
+ * @pReq: connection details
+ * @pResp: connection response
  *
  * Service connections must be performed before htc_start.
  * User provides callback handlersfor various endpoint events.
@@ -494,41 +500,147 @@ QDF_STATUS htc_connect_service(HTC_HANDLE HTCHandle,
 			     struct htc_service_connect_resp *pResp);
 
 /**
- * htc_dump - HTC register log dump
- * @HTCHandle - HTC handle
- * @CmdId - Log command
- * @start - start/print logs
+ * htc_dump() - HTC register log dump
+ * @HTCHandle: HTC handle
+ * @CmdId: Log command
+ * @start: start/print logs
  *
  * Register logs will be started/printed/ be flushed.
+ *
  * Return: None
  */
 void htc_dump(HTC_HANDLE HTCHandle, uint8_t CmdId, bool start);
 
 /**
- * htc_ce_taklet_debug_dump - Dump ce tasklet rings debug data
- * @HTCHandle - HTC handle
+ * htc_ce_tasklet_debug_dump() - Dump ce tasklet rings debug data
+ * @htc_handle: HTC handle
  *
  * Debug logs will be printed.
+ *
  * Return: None
  */
 void htc_ce_tasklet_debug_dump(HTC_HANDLE htc_handle);
 
 /**
- * htc_send_pkt - Send an HTC packet
- * @HTCHandle - HTC handle
- * @pPacket - packet to send
+ * htc_send_pkt() - Send an HTC packet
+ * @HTCHandle: HTC handle
+ * @pPacket: packet to send
  *
  * Caller must initialize packet using SET_HTC_PACKET_INFO_TX() macro.
  * This interface is fully asynchronous.  On error, HTC SendPkt will
  * call the registered Endpoint callback to cleanup the packet.
+ *
  * Return: QDF_STATUS_SUCCESS
  */
 QDF_STATUS htc_send_pkt(HTC_HANDLE HTCHandle, HTC_PACKET *pPacket);
 
+#ifdef CUSTOM_CB_SCHEDULER_SUPPORT
 /**
- * htc_send_data_pkt - Send an HTC packet containing a tx descriptor and data
- * @HTCHandle - HTC handle
- * @pPacket - packet to send
+ * htc_register_custom_cb() - Helper API to register the custom callback
+ * @htc_handle: HTC handle
+ * @endpoint_id: Endpoint ID
+ * @custom_cb: Custom call back function pointer
+ * @custom_cb_context: Custom callback context
+ *
+ * return: QDF_STATUS
+ */
+QDF_STATUS
+htc_register_custom_cb(HTC_HANDLE htc_handle, HTC_ENDPOINT_ID endpoint_id,
+		       void (*custom_cb)(void *), void *custom_cb_context);
+
+/**
+ * htc_unregister_custom_cb() - Helper API to unregister the custom callback
+ * @htc_handle: HTC handle
+ * @endpoint_id: Endpoint ID
+ *
+ * return: QDF_STATUS
+ */
+QDF_STATUS
+htc_unregister_custom_cb(HTC_HANDLE htc_handle, HTC_ENDPOINT_ID endpoint_id);
+
+/**
+ * htc_enable_custom_cb() - Helper API to enable the custom callback
+ * @htc_handle: HTC handle
+ * @endpoint_id: Endpoint ID
+ *
+ * return: QDF_STATUS
+ */
+QDF_STATUS
+htc_enable_custom_cb(HTC_HANDLE htc_handle, HTC_ENDPOINT_ID endpoint_id);
+
+/**
+ * htc_disable_custom_cb() - Helper API to disable the custom callback
+ * @htc_handle: HTC handle
+ * @endpoint_id: Endpoint ID
+ *
+ * return: QDF_STATUS
+ */
+QDF_STATUS
+htc_disable_custom_cb(HTC_HANDLE htc_handle, HTC_ENDPOINT_ID endpoint_id);
+#else
+/**
+ * htc_register_custom_cb() - Helper API to register the custom callback
+ * @htc_handle: HTC handle
+ * @endpoint_id: Endpoint ID
+ * @custom_cb: Custom call back function pointer
+ * @custom_cb_context: Custom callback context
+ *
+ * return: QDF_STATUS
+ */
+static inline QDF_STATUS
+htc_register_custom_cb(HTC_HANDLE htc_handle, HTC_ENDPOINT_ID endpoint_id,
+		       void (*custom_cb)(void *), void *custom_cb_context)
+{
+	return QDF_STATUS_SUCCESS;
+}
+
+/**
+ * htc_unregister_custom_cb() - Helper API to unregister the custom callback
+ * @htc_handle: HTC handle
+ * @endpoint_id: Endpoint ID
+ *
+ * return: QDF_STATUS
+ */
+static inline QDF_STATUS
+htc_unregister_custom_cb(HTC_HANDLE htc_handle, HTC_ENDPOINT_ID endpoint_id)
+{
+	return QDF_STATUS_SUCCESS;
+}
+
+/**
+ * htc_enable_custom_cb() - Helper API to enable the custom callback
+ * @htc_handle: HTC handle
+ * @endpoint_id: Endpoint ID
+ *
+ * return: QDF_STATUS
+ */
+static inline QDF_STATUS
+htc_enable_custom_cb(HTC_HANDLE htc_handle, HTC_ENDPOINT_ID endpoint_id)
+{
+	return QDF_STATUS_SUCCESS;
+}
+
+/**
+ * htc_disable_custom_cb() - Helper API to disable the custom callback
+ * @htc_handle: HTC handle
+ * @endpoint_id: Endpoint ID
+ *
+ * return: QDF_STATUS
+ */
+static inline QDF_STATUS
+htc_disable_custom_cb(HTC_HANDLE htc_handle, HTC_ENDPOINT_ID endpoint_id)
+{
+	return QDF_STATUS_SUCCESS;
+}
+#endif /* CUSTOM_CB_SCHEDULER_SUPPORT */
+
+#ifdef ATH_11AC_TXCOMPACT
+/**
+ * htc_send_data_pkt() - Send an HTC packet containing a tx descriptor and data
+ * @HTCHandle: HTC handle
+ * @netbuf: network buffer containing the packet to send
+ * @Epid: endpoint id
+ * @ActualLength: actual length of the packet
  *
  * Caller must initialize packet using SET_HTC_PACKET_INFO_TX() macro.
  * Caller must provide headroom in an initial fragment added to the
@@ -536,20 +648,35 @@ QDF_STATUS htc_send_pkt(HTC_HANDLE HTCHandle, HTC_PACKET *pPacket);
  * This interface is fully asynchronous.  On error, htc_send_data_pkt will
  * call the registered Endpoint EpDataTxComplete callback to cleanup
  * the packet.
- * Return: A_OK
+ *
+ * Return: QDF_STATUS
  */
-#ifdef ATH_11AC_TXCOMPACT
 QDF_STATUS htc_send_data_pkt(HTC_HANDLE HTCHandle, qdf_nbuf_t netbuf,
 			   int Epid, int ActualLength);
 #else                           /*ATH_11AC_TXCOMPACT */
+/**
+ * htc_send_data_pkt() - Send an HTC packet containing a tx descriptor and data
+ * @HTCHandle: HTC handle
+ * @pPacket: packet to send
+ * @more_data:
+ *
+ * Caller must initialize packet using SET_HTC_PACKET_INFO_TX() macro.
+ * Caller must provide headroom in an initial fragment added to the
+ * network buffer to store a HTC_FRAME_HDR.
+ * This interface is fully asynchronous.  On error, htc_send_data_pkt will
+ * call the registered Endpoint EpDataTxComplete callback to cleanup
+ * the packet.
+ *
+ * Return: QDF_STATUS
+ */
 QDF_STATUS htc_send_data_pkt(HTC_HANDLE HTCHandle, HTC_PACKET *pPacket,
 			   uint8_t more_data);
 #endif /*ATH_11AC_TXCOMPACT */
 
 /**
- * htc_flush_surprise_remove - Flush HTC when target is removed surprisely
+ * htc_flush_surprise_remove() - Flush HTC when target is removed surprisely
  *                             service communications
- * @HTCHandle - HTC handle
+ * @HTCHandle: HTC handle
  *
  * All receive and pending TX packets will be flushed.
  * Return: None
@@ -557,8 +684,8 @@ QDF_STATUS htc_send_data_pkt(HTC_HANDLE HTCHandle, HTC_PACKET *pPacket,
 void htc_flush_surprise_remove(HTC_HANDLE HTCHandle);
 
 /**
- * htc_stop - Stop HTC service communications
- * @HTCHandle - HTC handle
+ * htc_stop() - Stop HTC service communications
+ * @HTCHandle: HTC handle
  *
  * HTC communications is halted.  All receive and pending TX packets
  * will  be flushed.
@@ -567,8 +694,8 @@ void htc_flush_surprise_remove(HTC_HANDLE HTCHandle);
 void htc_stop(HTC_HANDLE HTCHandle);
 
 /**
- * htc_destroy - Destroy HTC service
- * @HTCHandle - HTC handle
+ * htc_destroy() - Destroy HTC service
+ * @HTCHandle: HTC handle
  *
  * This cleans up all resources allocated by htc_create().
  * Return: None
@@ -576,10 +703,10 @@ void htc_stop(HTC_HANDLE HTCHandle);
 void htc_destroy(HTC_HANDLE HTCHandle);
 
 /**
- * htc_flush_endpoint - Flush pending TX packets
- * @HTCHandle - HTC handle
- * @Endpoint - Endpoint to flush
- * @Tag - flush tag
+ * htc_flush_endpoint() - Flush pending TX packets
+ * @HTCHandle: HTC handle
+ * @Endpoint: Endpoint to flush
+ * @Tag: flush tag
  *
  * The Tag parameter is used to selectively flush packets with matching
  * tags. The value of 0 forces all packets to be flush regardless of tag
@@ -588,8 +715,8 @@ void htc_destroy(HTC_HANDLE HTCHandle);
 void htc_flush_endpoint(HTC_HANDLE HTCHandle, HTC_ENDPOINT_ID Endpoint,
 			HTC_TX_TAG Tag);
 /**
- * htc_dump_credit_states - Dump credit distribution state
- * @HTCHandle - HTC handle
+ * htc_dump_credit_states() - Dump credit distribution state
+ * @HTCHandle: HTC handle
  *
  * This dumps all credit distribution information to the debugger
  * Return: None
@@ -597,11 +724,11 @@ void htc_flush_endpoint(HTC_HANDLE HTCHandle, HTC_ENDPOINT_ID Endpoint,
 void htc_dump_credit_states(HTC_HANDLE HTCHandle);
 
 /**
- * htc_indicate_activity_change - Indicate a traffic activity change on an
+ * htc_indicate_activity_change() - Indicate a traffic activity change on an
  *                                endpoint
- * @HTCHandle - HTC handle
- * @Endpoint - endpoint in which activity has changed
- * @Active - true if active, false if it has become inactive
+ * @HTCHandle: HTC handle
+ * @Endpoint: endpoint in which activity has changed
+ * @Active: true if active, false if it has become inactive
  *
  * This triggers the registered credit distribution function to
  * re-adjust credits for active/inactive endpoints.
@@ -611,11 +738,11 @@ void htc_indicate_activity_change(HTC_HANDLE HTCHandle,
 				  HTC_ENDPOINT_ID Endpoint, bool Active);
 
 /**
- * htc_get_endpoint_statistics - Get endpoint statistics
- * @HTCHandle - HTC handle
- * @Endpoint - Endpoint identifier
- * @Action - action to take with statistics
- * @pStats - statistics that were sampled (can be NULL if Action is
+ * htc_get_endpoint_statistics() - Get endpoint statistics
+ * @HTCHandle: HTC handle
+ * @Endpoint: Endpoint identifier
+ * @Action: action to take with statistics
+ * @pStats: statistics that were sampled (can be NULL if Action is
  *           HTC_EP_STAT_CLEAR)
  *
  * Statistics is a compile-time option and this function may return
@@ -636,8 +763,8 @@ bool htc_get_endpoint_statistics(HTC_HANDLE HTCHandle,
 				   struct htc_endpoint_stats *pStats);
 
 /**
- * htc_unblock_recv - Unblock HTC message reception
- * @HTCHandle - HTC handle
+ * htc_unblock_recv() - Unblock HTC message reception
+ * @HTCHandle: HTC handle
  *
  * HTC will block the receiver if the EpRecvAlloc callback fails to provide a
  * packet. The caller can use this API to indicate to HTC when resources
@@ -650,9 +777,9 @@ bool htc_get_endpoint_statistics(HTC_HANDLE HTCHandle,
 void htc_unblock_recv(HTC_HANDLE HTCHandle);
 
 /**
- * htc_add_receive_pkt_multiple - Add multiple receive packets to HTC
- * @HTCHandle - HTC handle
- * @pPktQueue - HTC receive packet queue holding packets to add
+ * htc_add_receive_pkt_multiple() - Add multiple receive packets to HTC
+ * @HTCHandle: HTC handle
+ * @pPktQueue: HTC receive packet queue holding packets to add
  *
  * User must supply HTC packets for capturing incoming HTC frames.
  * The caller mmust initialize each HTC packet using the
@@ -668,9 +795,9 @@ A_STATUS htc_add_receive_pkt_multiple(HTC_HANDLE HTCHandle,
 				      HTC_PACKET_QUEUE *pPktQueue);
 
 /**
- * htc_is_endpoint_active - Check if an endpoint is marked active
- * @HTCHandle - HTC handle
- * @Endpoint - endpoint to check for active state
+ * htc_is_endpoint_active() - Check if an endpoint is marked active
+ * @HTCHandle: HTC handle
+ * @Endpoint: endpoint to check for active state
  *
  * Return: returns true if Endpoint is Active
  */
@@ -678,18 +805,18 @@ bool htc_is_endpoint_active(HTC_HANDLE HTCHandle,
 			      HTC_ENDPOINT_ID Endpoint);
 
 /**
- * htc_set_pkt_dbg - Set up debug flag for HTC packets
- * @HTCHandle - HTC handle
- * @dbg_flag - enable or disable flag
+ * htc_set_pkt_dbg() - Set up debug flag for HTC packets
+ * @handle: HTC handle
+ * @dbg_flag: enable or disable flag
  *
  * Return: none
  */
 void htc_set_pkt_dbg(HTC_HANDLE handle, A_BOOL dbg_flag);
 
 /**
- * htc_set_nodrop_pkt - Set up nodrop pkt flag for mboxping nodrop pkt
- * @HTCHandle - HTC handle
- * @isNodropPkt - indicates whether it is nodrop pkt
+ * htc_set_nodrop_pkt() - Set up nodrop pkt flag for mboxping nodrop pkt
+ * @HTCHandle: HTC handle
+ * @isNodropPkt: indicates whether it is nodrop pkt
  *
  * Return: None
  *
@@ -697,9 +824,9 @@ void htc_set_pkt_dbg(HTC_HANDLE handle, A_BOOL dbg_flag);
 void htc_set_nodrop_pkt(HTC_HANDLE HTCHandle, A_BOOL isNodropPkt);
 
 /**
- * htc_enable_hdr_length_check - Set up htc_hdr_length_check flag
- * @HTCHandle - HTC handle
- * @htc_hdr_length_check - flag to indicate whether htc header length check is
+ * htc_enable_hdr_length_check() - Set up htc_hdr_length_check flag
+ * @htc_handle: HTC handle
+ * @htc_hdr_length_check: flag to indicate whether htc header length check is
  *                         required
  *
  * Return: None
@@ -709,10 +836,10 @@ void
 htc_enable_hdr_length_check(HTC_HANDLE htc_handle, bool htc_hdr_length_check);
 
 /**
- * htc_get_num_recv_buffers - Get the number of recv buffers currently queued
+ * htc_get_num_recv_buffers() - Get the number of recv buffers currently queued
  *                            into an HTC endpoint
- * @HTCHandle - HTC handle
- * @Endpoint - endpoint to check
+ * @HTCHandle: HTC handle
+ * @Endpoint: endpoint to check
  *
  * Return: returns number of buffers in queue
  *
@@ -721,10 +848,10 @@ int htc_get_num_recv_buffers(HTC_HANDLE HTCHandle,
 			     HTC_ENDPOINT_ID Endpoint);
 
 /**
- * htc_set_target_failure_callback - Set the target failure handling callback
+ * htc_set_target_failure_callback() - Set the target failure handling callback
  *                                   in HTC layer
- * @HTCHandle - HTC handle
- * @Callback - target failure handling callback
+ * @HTCHandle: HTC handle
+ * @Callback: target failure handling callback
  *
  * Return: None
  */
@@ -744,7 +871,7 @@ struct ol_ath_htc_stats *ieee80211_ioctl_get_htc_stats(HTC_HANDLE
 /**
  * htc_get_tx_queue_depth() - get the tx queue depth of an htc endpoint
  * @htc_handle: htc handle
- * @enpoint_id: endpoint to check
+ * @endpoint_id: endpoint to check
  *
  * Return: htc_handle tx queue depth
  */
@@ -833,7 +960,7 @@ int32_t htc_dec_return_htt_runtime_cnt(HTC_HANDLE htc)
 
 #ifdef WLAN_DEBUG_LINK_VOTE
 /**
- * htc_log_link_user_votes - API to log link user votes
+ * htc_log_link_user_votes() - API to log link user votes
  *
  * API to log the link user votes
  *
@@ -842,7 +969,7 @@ int32_t htc_dec_return_htt_runtime_cnt(HTC_HANDLE htc)
 void htc_log_link_user_votes(void);
 
 /**
- * htc_vote_link_down - API to vote for link down
+ * htc_vote_link_down() - API to vote for link down
  * @htc_handle: HTC handle
  * @id: PCIe link vote user id
  *
@@ -853,7 +980,7 @@ void htc_log_link_user_votes(void);
 void htc_vote_link_down(HTC_HANDLE htc_handle, enum htc_link_vote_user_id id);
 
 /**
- * htc_vote_link_up - API to vote for link up
+ * htc_vote_link_up() - API to vote for link up
  * @htc_handle: HTC Handle
  * @id: PCIe link vote user id
  *
@@ -885,12 +1012,11 @@ void htc_vote_link_up(HTC_HANDLE htc_handle, enum htc_link_vote_user_id id)
   *           user should call this function after htc_connect_service before
   *           queueing any packets to end point
   * @HTCHandle: htc handle
-  * @HTC_ENDPOINT_ID: end point id
+  * @htc_ep_id: end point id
   * @value: true or false
   *
   * Return: None
   */
-
 void htc_set_async_ep(HTC_HANDLE HTCHandle,
 			HTC_ENDPOINT_ID htc_ep_id, bool value);
 

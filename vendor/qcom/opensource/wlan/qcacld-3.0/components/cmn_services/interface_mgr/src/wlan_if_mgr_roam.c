@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -35,6 +35,40 @@
 #include "wlan_mlme_vdev_mgr_interface.h"
 #include "wlan_cm_api.h"
 #include "wlan_scan_api.h"
+#include "wlan_mlo_mgr_roam.h"
+#include "wlan_mlo_mgr_sta.h"
+#include "wlan_mlo_mgr_link_switch.h"
+
+#ifdef WLAN_FEATURE_11BE_MLO
+static inline bool
+if_mgr_is_assoc_link_of_vdev(struct wlan_objmgr_pdev *pdev,
+			     struct wlan_objmgr_vdev *vdev,
+			     uint8_t cur_vdev_id)
+{
+	struct wlan_objmgr_vdev *cur_vdev, *assoc_vdev;
+
+	cur_vdev = wlan_objmgr_get_vdev_by_id_from_pdev(pdev, cur_vdev_id,
+							WLAN_IF_MGR_ID);
+	if (!cur_vdev)
+		return false;
+
+	assoc_vdev = wlan_mlo_get_assoc_link_vdev(cur_vdev);
+
+	wlan_objmgr_vdev_release_ref(cur_vdev, WLAN_IF_MGR_ID);
+	if (vdev == assoc_vdev)
+		return true;
+
+	return false;
+}
+#else
+static inline bool
+if_mgr_is_assoc_link_of_vdev(struct wlan_objmgr_pdev *pdev,
+			     struct wlan_objmgr_vdev *vdev,
+			     uint8_t cur_vdev_id)
+{
+	return false;
+}
+#endif
 
 static void if_mgr_enable_roaming_on_vdev(struct wlan_objmgr_pdev *pdev,
 					  void *object, void *arg)
@@ -46,13 +80,16 @@ static void if_mgr_enable_roaming_on_vdev(struct wlan_objmgr_pdev *pdev,
 	vdev_id = wlan_vdev_get_id(vdev);
 	curr_vdev_id = roam_arg->curr_vdev_id;
 
-	if (wlan_vdev_mlme_is_mlo_vdev(vdev))
+	if (wlan_vdev_mlme_get_opmode(vdev) != QDF_STA_MODE)
+		return;
+
+	if (wlan_vdev_mlme_is_mlo_link_vdev(vdev) ||
+	    if_mgr_is_assoc_link_of_vdev(pdev, vdev, curr_vdev_id))
 		return;
 
 	if (curr_vdev_id != vdev_id &&
-	    vdev->vdev_mlme.vdev_opmode == QDF_STA_MODE &&
 	    vdev->vdev_mlme.mlme_state == WLAN_VDEV_S_UP) {
-		ifmgr_debug("Roaming enabled on vdev_id %d", vdev_id);
+		ifmgr_debug("Enable roaming for vdev_id %d", vdev_id);
 		wlan_cm_enable_rso(pdev, vdev_id,
 				   roam_arg->requestor,
 				   REASON_DRIVER_ENABLED);
@@ -131,17 +168,25 @@ if_mgr_enable_roaming_on_connected_sta(struct wlan_objmgr_pdev *pdev,
 				       struct wlan_objmgr_vdev *vdev)
 {
 	struct wlan_objmgr_psoc *psoc;
-	uint8_t vdev_id;
+	uint8_t vdev_id = wlan_vdev_get_id(vdev);
+
+	if (wlan_vdev_mlme_get_opmode(vdev) != QDF_STA_MODE)
+		return QDF_STATUS_E_FAILURE;
+
+	/*
+	 * When link switch is in progress, don't send RSO Enable before vdev
+	 * is up. RSO Enable will be sent as part of install keys once
+	 * link switch connect sequence is complete.
+	 */
+	if (mlo_mgr_is_link_switch_in_progress(vdev))
+		return QDF_STATUS_SUCCESS;
 
 	psoc = wlan_vdev_get_psoc(vdev);
 	if (!psoc)
 		return QDF_STATUS_E_FAILURE;
 
 	if (policy_mgr_is_sta_active_connection_exists(psoc) &&
-	    wlan_vdev_mlme_get_opmode(vdev) == QDF_STA_MODE &&
-	    !wlan_vdev_mlme_is_mlo_link_vdev(vdev)) {
-		vdev_id = wlan_vdev_get_id(vdev);
-		ifmgr_debug("Enable roaming on connected sta for vdev_id %d", vdev_id);
+	    mlo_is_enable_roaming_on_connected_sta_allowed(vdev)) {
 		wlan_cm_enable_roaming_on_connected_sta(pdev, vdev_id);
 		policy_mgr_set_pcl_for_connected_vdev(psoc, vdev_id, true);
 	}
@@ -750,6 +795,7 @@ if_mgr_get_conc_ext_flags(struct wlan_objmgr_vdev *vdev,
 }
 
 static void if_mgr_update_candidate(struct wlan_objmgr_psoc *psoc,
+				    struct wlan_objmgr_vdev *vdev,
 				    struct validate_bss_data *candidate_info)
 {
 	struct scan_cache_entry *scan_entry = candidate_info->scan_entry;
@@ -760,8 +806,10 @@ static void if_mgr_update_candidate(struct wlan_objmgr_psoc *psoc,
 
 	if (mlme_get_bss_11be_allowed(psoc, &candidate_info->peer_addr,
 				      util_scan_entry_ie_data(scan_entry),
-				      util_scan_entry_ie_len(scan_entry)))
+				      util_scan_entry_ie_len(scan_entry)) &&
+	    (!wlan_vdev_mlme_get_user_dis_eht_flag(vdev)))
 		return;
+
 	scan_entry->ie_list.multi_link_bv = NULL;
 	scan_entry->ie_list.ehtcap = NULL;
 	scan_entry->ie_list.ehtop = NULL;
@@ -777,6 +825,7 @@ if_mgr_get_conc_ext_flags(struct wlan_objmgr_vdev *vdev,
 }
 
 static void if_mgr_update_candidate(struct wlan_objmgr_psoc *psoc,
+				    struct wlan_objmgr_vdev *vdev,
 				    struct validate_bss_data *candidate_info)
 {
 }
@@ -805,7 +854,7 @@ QDF_STATUS if_mgr_validate_candidate(struct wlan_objmgr_vdev *vdev,
 	if (!psoc)
 		return QDF_STATUS_E_FAILURE;
 
-	if_mgr_update_candidate(psoc, candidate_info);
+	if_mgr_update_candidate(psoc, vdev, candidate_info);
 	/*
 	 * Do not allow STA to connect on 6Ghz or indoor channel for non dbs
 	 * hardware if SAP and skip_6g_and_indoor_freq_scan ini are present
@@ -843,7 +892,8 @@ QDF_STATUS if_mgr_validate_candidate(struct wlan_objmgr_vdev *vdev,
 	 * If concurrency enabled take the concurrent connected channel first.
 	 * Valid multichannel concurrent sessions exempted
 	 */
-	mode = policy_mgr_convert_device_mode_to_qdf_type(op_mode);
+	mode = policy_mgr_qdf_opmode_to_pm_con_mode(psoc, op_mode,
+						    wlan_vdev_get_id(vdev));
 
 	/* If concurrency is not allowed select next bss */
 	conc_ext_flags = if_mgr_get_conc_ext_flags(vdev, candidate_info);
@@ -854,7 +904,8 @@ QDF_STATUS if_mgr_validate_candidate(struct wlan_objmgr_vdev *vdev,
 	 */
 	if (!wlan_vdev_mlme_is_mlo_link_vdev(vdev) &&
 	    !policy_mgr_is_concurrency_allowed(psoc, mode, chan_freq,
-					  HW_MODE_20_MHZ, conc_ext_flags)) {
+					       HW_MODE_20_MHZ, conc_ext_flags,
+					       NULL)) {
 		ifmgr_info("Concurrency not allowed for this channel freq %d bssid "QDF_MAC_ADDR_FMT", selecting next",
 			   chan_freq,
 			   QDF_MAC_ADDR_REF(bssid_arg.peer_addr.bytes));

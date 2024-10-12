@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2017-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -23,23 +23,6 @@
 #include <hif.h>
 #include <hif_irq_affinity.h>
 #include <linux/cpumask.h>
-/*Number of buckets for latency*/
-#define HIF_SCHED_LATENCY_BUCKETS 8
-
-/*Buckets for latency between 0 to 2 ms*/
-#define HIF_SCHED_LATENCY_BUCKET_0_2 2
-/*Buckets for latency between 3 to 10 ms*/
-#define HIF_SCHED_LATENCY_BUCKET_3_10 10
-/*Buckets for latency between 11 to 20 ms*/
-#define HIF_SCHED_LATENCY_BUCKET_11_20 20
-/*Buckets for latency between 21 to 50 ms*/
-#define HIF_SCHED_LATENCY_BUCKET_21_50 50
-/*Buckets for latency between 50 to 100 ms*/
-#define HIF_SCHED_LATENCY_BUCKET_51_100 100
-/*Buckets for latency between 100 to 250 ms*/
-#define HIF_SCHED_LATENCY_BUCKET_101_250 250
-/*Buckets for latency between 250 to 500 ms*/
-#define HIF_SCHED_LATENCY_BUCKET_251_500 500
 
 #ifndef IRQ_DISABLED_MAX_DURATION_NS
 #define IRQ_DISABLED_MAX_DURATION_NS 100000000
@@ -55,31 +38,43 @@ struct hif_execution_ops {
 };
 
 /**
- * hif_exec_context: only ever allocated as a subtype eg.
+ * struct hif_exec_context - only ever allocated as a subtype eg.
  *					hif_tasklet_exec_context
  *
- * @context: context for the handler function to use.
+ * @sched_ops: HIF executon ops
+ * @hif: HIF context
+ * @numirq: number of IRQs
+ * @irq: irq handle corresponding to hw block
+ * @os_irq: irq handle for irq_affinity
+ * @cpumask:
+ * @grp_id:
+ * @scale_bin_shift:
  * @context_name: a pointer to a const string for debugging.
  *		this should help whenever there could be ambiguity
  *		in what type of context the void* context points to
- * @irq: irq handle corresponding to hw block
- * @os_irq: irq handle for irq_affinity
- * @cpu: the cpu this context should be affined to
+ * @context: context for the handler function to use.
+ * @handler: interrupt handler
  * @work_complete: Function call called when leaving the execution context to
  *	determine if this context should reschedule or wait for an interrupt.
  *	This function may be used as a hook for post processing.
- *
+ * @irq_enable: called when the context leaves polling mode
+ * @irq_disable: called before scheduling the context.
+ * @irq_name: pointer to function to return irq name/string mapped to irq number
  * @sched_latency_stats: schedule latency stats for different latency buckets
  * @tstamp: timestamp when napi poll happens
- * @irq_disable: called before scheduling the context.
- * @irq_enable: called when the context leaves polling mode
- * @irq_name: pointer to function to return irq name/string mapped to irq number
+ * @cpu: the cpu this context should be affined to
+ * @stats:
+ * @inited:
+ * @configured:
+ * @irq_requested:
+ * @irq_enabled:
  * @irq_lock: spinlock used while enabling/disabling IRQs
  * @type: type of execution context
  * @poll_start_time: hif napi poll start time in nanoseconds
  * @force_break: flag to indicate if HIF execution context was forced to return
  *		 to HIF. This means there is more work to be done. Hence do not
  *		 call napi_complete.
+ * @new_cpu_mask: Stores the affinity hint mask for each WLAN IRQ
  * @force_napi_complete: do a force napi_complete when this flag is set to -1
  * @irq_disabled_start_time: irq disabled start time for single MSI
  */
@@ -115,7 +110,6 @@ struct hif_exec_context {
 	bool force_break;
 #if defined(FEATURE_IRQ_AFFINITY) || defined(HIF_CPU_PERF_AFFINE_MASK) || \
 	defined(HIF_CPU_CLEAR_AFFINITY)
-	/* Stores the affinity hint mask for each WLAN IRQ */
 	qdf_cpu_mask new_cpu_mask[HIF_MAX_GRP_IRQ];
 #endif
 #ifdef FEATURE_IRQ_AFFINITY
@@ -197,7 +191,7 @@ void hif_pci_irq_set_affinity_hint(struct hif_exec_context *hif_ext_group,
 
 /**
  * hif_pci_ce_irq_set_affinity_hint() - API to set IRQ affinity
- * @hif_softc: hif_softc to extract the CE irq info
+ * @scn: hif_softc to extract the CE irq info
  *
  * This function will set the CE IRQ affinity to the gold cores
  * only for defconfig builds
@@ -228,10 +222,10 @@ static inline void hif_ce_irq_remove_affinity_hint(int irq)
 #endif /* ifdef HIF_CPU_PERF_AFFINE_MASK */
 
 #ifdef HIF_CPU_CLEAR_AFFINITY
-/*
- * hif_pci_config_irq_clear_affinity() - Remove cpu affinity of IRQ
+/**
+ * hif_pci_config_irq_clear_cpu_affinity() - Remove cpu affinity of IRQ
  * @scn: HIF handle
- * @intr_ctxt: interrupt group index
+ * @intr_ctxt_id: interrupt group index
  * @cpu: CPU core to clear
  *
  * Return: None

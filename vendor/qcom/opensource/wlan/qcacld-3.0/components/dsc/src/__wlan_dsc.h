@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2018-2019, 2021 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -334,6 +335,7 @@ bool __dsc_trans_active_or_queued(struct dsc_trans *trans);
 /**
  * __dsc_driver_trans_trigger_checked() - trigger any next pending driver
  *	transition, only after passing the "can trans" check
+ * @driver: driver context
  *
  * Return: true if the trigger was "handled." This indicates down-tree nodes
  * should _not_ attempt to trigger a new transition.
@@ -343,6 +345,7 @@ bool __dsc_driver_trans_trigger_checked(struct dsc_driver *driver);
 /**
  * __dsc_psoc_trans_trigger_checked() - trigger any next pending psoc
  *	transition, only after passing the "can trans" check
+ * @psoc: psoc context
  *
  * Return: true if the trigger was "handled." This indicates down-tree nodes
  * should _not_ attempt to trigger a new transition.

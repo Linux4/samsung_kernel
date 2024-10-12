@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2012-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -193,7 +193,11 @@ enum hdd_dot11_mode {
 #ifdef QCA_WIFI_EMULATION
 #define CFG_INTERFACE_CHANGE_WAIT_DEFAULT	300000
 #else
+#ifdef SHUTDOWN_WLAN_IN_SYSTEM_SUSPEND
+#define CFG_INTERFACE_CHANGE_WAIT_DEFAULT	10000
+#else
 #define CFG_INTERFACE_CHANGE_WAIT_DEFAULT	250
+#endif
 #endif
 
 /*
@@ -1287,6 +1291,25 @@ enum host_log_level {
 #define CFG_DYNAMIC_MAC_ADDR_UPDATE_SUPPORTED_ALL
 #endif
 
+/*
+ * <ini>
+ * exclude_selftx_from_cca_busy_time - Exclude self tx time from cca busy time
+ * @Default: false
+ *
+ * This ini is used to exclude self tx time from cca busy time.
+ *
+ * false: Don't exclude self tx time from cca busy time.
+ * true: Deduct tx time from cca busy time.
+ *
+ * Usage: External
+ *
+ * </ini>
+ */
+#define CFG_EXCLUDE_SELFTX_FROM_CCA_BUSY_TIME CFG_INI_BOOL( \
+	"exclude_selftx_from_cca_busy_time", \
+	false, \
+	"This ini is used to exclude self tx time from CCA busy time")
+
 #define CFG_HDD_ALL \
 	CFG_DYNAMIC_MAC_ADDR_UPDATE_SUPPORTED_ALL \
 	CFG_ENABLE_PACKET_LOG_ALL \
@@ -1324,5 +1347,6 @@ enum host_log_level {
 	CFG(CFG_ENABLE_HOST_MODULE_LOG_LEVEL) \
 	SAR_SAFETY_FEATURE_ALL \
 	CFG_GET_WIFI_FEATURES_ALL \
-	CFG_CPU_CXPC_THRESHOLD_ALL
+	CFG_CPU_CXPC_THRESHOLD_ALL \
+	CFG(CFG_EXCLUDE_SELFTX_FROM_CCA_BUSY_TIME)
 #endif

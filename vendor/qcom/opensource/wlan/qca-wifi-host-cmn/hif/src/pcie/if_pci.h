@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2013-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -71,13 +71,16 @@ struct hang_event_bus_info {
 	uint16_t dev_id;
 } qdf_packed;
 
-/**
+/*
  * struct hif_msi_info - Structure to hold msi info
  * @magic: cookie
  * @magic_da: dma address
- * @dmaContext: dma address
+ * @dmacontext: dma address
  *
  * Structure to hold MSI information for PCIe interrupts
+ *
+ * NB: Intentionally not using kernel-doc comment since the kernel-doc
+ *     script doesn't handle the OS_DMA_MEM_CONTEXT() macro
  */
 struct hif_msi_info {
 	void *magic;
@@ -93,6 +96,7 @@ struct hif_msi_info {
  * @soc_force_wake_register_write_success: write to soc wake
  * @soc_force_wake_failure: soc force wake failure
  * @soc_force_wake_success: soc force wake success
+ * @mhi_force_wake_release_failure: mhi force wake release failure
  * @mhi_force_wake_release_success: mhi force wake release success
  * @soc_force_wake_release_success: soc force wake release
  */
@@ -120,6 +124,7 @@ struct hif_pci_softc {
 	void __iomem *mem;      /* PCI address. */
 	void __iomem *mem_ce;   /* PCI address for CE. */
 	void __iomem *mem_cmem;   /* PCI address for CMEM. */
+	void __iomem *mem_pmm_base;   /* address for PMM. */
 	size_t mem_len;
 
 	struct device *dev;	/* For efficiency, should be first in struct */
@@ -152,6 +157,7 @@ struct hif_pci_softc {
 	qdf_cpu_mask ce_irq_cpu_mask[CE_COUNT_MAX];
 #endif
 	struct hif_soc_info device_version;
+	qdf_spinlock_t force_wake_lock;
 };
 
 bool hif_pci_targ_is_present(struct hif_softc *scn, void *__iomem *mem);
@@ -199,7 +205,7 @@ int hif_pci_addr_in_boundary(struct hif_softc *scn, uint32_t offset);
 #ifdef FORCE_WAKE
 /**
  * hif_print_pci_stats() - Display HIF PCI stats
- * @hif_ctx - HIF pci handle
+ * @pci_scn: HIF pci handle
  *
  * Return: None
  */

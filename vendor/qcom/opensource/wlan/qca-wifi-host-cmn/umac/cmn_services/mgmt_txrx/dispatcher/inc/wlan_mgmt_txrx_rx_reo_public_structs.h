@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -109,6 +109,7 @@ struct mgmt_rx_reo_snapshot_info {
  * @valid: Whether these params are valid
  * @pdev_id: pdev ID for which FW consumed event is received
  * @link_id: link ID for which FW consumed event is received
+ * @mlo_grp_id: MLO group ID which it belongs to
  * @mgmt_pkt_ctr: MGMT packet counter of the frame that is consumed
  * @global_timestamp: Global timestamp of the frame that is consumed
  * @duration_us: duration in us
@@ -119,6 +120,7 @@ struct mgmt_rx_reo_params {
 	bool valid;
 	uint8_t pdev_id;
 	uint8_t link_id;
+	uint8_t mlo_grp_id;
 	uint16_t mgmt_pkt_ctr;
 	uint32_t global_timestamp;
 	uint16_t duration_us;

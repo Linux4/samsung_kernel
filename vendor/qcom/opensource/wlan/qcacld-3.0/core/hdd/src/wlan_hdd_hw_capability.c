@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2019 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -78,16 +79,13 @@ static int hdd_post_isolation(struct hdd_context *hdd_ctx,
 			      struct sir_isolation_resp *isolation)
 {
 	struct sk_buff *skb;
+	uint32_t skb_len = NLMSG_HDRLEN;
 
-	skb = cfg80211_vendor_cmd_alloc_reply_skb(hdd_ctx->wiphy,
-						  (sizeof(u8) + NLA_HDRLEN) +
-						  (sizeof(u8) + NLA_HDRLEN) +
-						  (sizeof(u8) + NLA_HDRLEN) +
-						  (sizeof(u8) + NLA_HDRLEN) +
-						  NLMSG_HDRLEN);
-
+	skb_len += (sizeof(u8) + NLA_HDRLEN) + (sizeof(u8) + NLA_HDRLEN) +
+		(sizeof(u8) + NLA_HDRLEN) + (sizeof(u8) + NLA_HDRLEN);
+	skb = wlan_cfg80211_vendor_cmd_alloc_reply_skb(hdd_ctx->wiphy, skb_len);
 	if (!skb) {
-		hdd_err("cfg80211_vendor_event_alloc failed");
+		hdd_err("wlan_cfg80211_vendor_event_alloc failed");
 		return -ENOMEM;
 	}
 
@@ -115,11 +113,11 @@ static int hdd_post_isolation(struct hdd_context *hdd_ctx,
 		goto nla_put_failure;
 	}
 
-	cfg80211_vendor_cmd_reply(skb);
+	wlan_cfg80211_vendor_cmd_reply(skb);
 	return 0;
 
 nla_put_failure:
-	kfree_skb(skb);
+	wlan_cfg80211_vendor_free_skb(skb);
 	return -EINVAL;
 }
 

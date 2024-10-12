@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2014-2016, 2018-2020 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -16,19 +17,12 @@
  * PERFORMANCE OF THIS SOFTWARE.
  */
 
-/**=========================================================================
+/**
+ * DOC: cds_packet.c
+ *      Connectivity driver services (CDS) network Packet APIs
+ *      Network Protocol packet/buffer support interfaces
+ */
 
-   \file        cds_packet.c
-
-   \brief       Connectivity driver services (CDS) network Packet APIs
-
-   Network Protocol packet/buffer support interfaces
-
-   ========================================================================*/
-
-/*--------------------------------------------------------------------------
-   Include Files
-   ------------------------------------------------------------------------*/
 #include <cds_packet.h>
 #include <i_cds_packet.h>
 #include <qdf_mc_timer.h>
@@ -40,10 +34,6 @@
 
 #define TX_PKT_MIN_HEADROOM          (64)
 
-/**
- * cds_pkt_return_packet  Free the cds Packet
- * @ cds Packet
- */
 QDF_STATUS cds_pkt_return_packet(cds_pkt_t *packet)
 {
 	/* Validate the input parameter pointer */
@@ -62,21 +52,6 @@ QDF_STATUS cds_pkt_return_packet(cds_pkt_t *packet)
 	return QDF_STATUS_SUCCESS;
 }
 
-/**--------------------------------------------------------------------------
-
-   \brief cds_pkt_get_packet_length() - Get packet length for a cds Packet
-
-   This API returns the total length of the data in a cds Packet.
-
-   \param pPacket - the cds Packet to get the packet length from.
-
-   \param pPacketSize - location to return the total size of the data contained
-   in the cds Packet.
-   \return
-
-   \sa
-
-   ---------------------------------------------------------------------------*/
 QDF_STATUS
 cds_pkt_get_packet_length(cds_pkt_t *pPacket, uint16_t *pPacketSize)
 {
@@ -92,10 +67,6 @@ cds_pkt_get_packet_length(cds_pkt_t *pPacket, uint16_t *pPacketSize)
 }
 
 #ifdef MEMORY_DEBUG
-/*---------------------------------------------------------------------------
-* @brief cds_packet_alloc_debug() -
-      Allocate a network buffer for TX
-   ---------------------------------------------------------------------------*/
 QDF_STATUS cds_packet_alloc_debug(uint16_t size, void **data, void **ppPacket,
 				  const char *func_name, uint32_t line_num)
 {
@@ -118,10 +89,6 @@ QDF_STATUS cds_packet_alloc_debug(uint16_t size, void **data, void **ppPacket,
 	return qdf_ret_status;
 }
 #else
-/*---------------------------------------------------------------------------
-* @brief cds_packet_alloc() -
-      Allocate a network buffer for TX
-   ---------------------------------------------------------------------------*/
 QDF_STATUS cds_packet_alloc(uint16_t size, void **data, void **ppPacket)
 {
 	QDF_STATUS qdf_ret_status = QDF_STATUS_E_FAILURE;
@@ -142,10 +109,7 @@ QDF_STATUS cds_packet_alloc(uint16_t size, void **data, void **ppPacket)
 }
 
 #endif
-/*---------------------------------------------------------------------------
-* @brief cds_packet_free() -
-      Free input network buffer
-   ---------------------------------------------------------------------------*/
+
 void cds_packet_free(void *pPacket)
 {
 	qdf_nbuf_free((qdf_nbuf_t) pPacket);

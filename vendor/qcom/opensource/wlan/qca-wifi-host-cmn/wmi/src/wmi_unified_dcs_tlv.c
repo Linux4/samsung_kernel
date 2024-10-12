@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -22,8 +23,8 @@
  * extract_dcs_interference_type_tlv() - extract dcs interference type
  * from event
  * @wmi_handle: wmi handle
- * @param evt_buf: pointer to event buffer
- * @param param: Pointer to hold dcs interference param
+ * @evt_buf: pointer to event buffer
+ * @param: Pointer to hold dcs interference param
  *
  * Return: 0 for success or error code
  */
@@ -56,8 +57,8 @@ static QDF_STATUS extract_dcs_interference_type_tlv(
 /**
  * extract_dcs_im_tgt_stats_tlv() - extract dcs im target stats from event
  * @wmi_handle: wmi handle
- * @param evt_buf: pointer to event buffer
- * @param wlan_stat: Pointer to hold wlan stats
+ * @evt_buf: pointer to event buffer
+ * @wlan_stat: Pointer to hold wlan stats
  *
  * Return: 0 for success or error code
  */

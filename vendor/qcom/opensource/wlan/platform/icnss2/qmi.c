@@ -784,14 +784,23 @@ int wlfw_cap_send_sync_msg(struct icnss_priv *priv)
 		strlcpy(priv->fw_build_id, resp->fw_build_id,
 			QMI_WLFW_MAX_BUILD_ID_LEN_V01 + 1);
 
-	if (resp->rd_card_chain_cap_valid &&
-	    resp->rd_card_chain_cap == WLFW_RD_CARD_CHAIN_CAP_1x1_V01)
-		priv->is_chain1_supported = false;
+	if (resp->rd_card_chain_cap_valid) {
+		priv->rd_card_chain_cap = (enum icnss_rd_card_chain_cap)resp->rd_card_chain_cap;
+		if (resp->rd_card_chain_cap == WLFW_RD_CARD_CHAIN_CAP_1x1_V01)
+			priv->is_chain1_supported = false;
+	}
 
 	if (resp->foundry_name_valid)
 		priv->foundry_name = resp->foundry_name[0];
 	else if (resp->chip_info_valid && priv->chip_info.chip_id == UMC_CHIP_ID)
 		priv->foundry_name = 'u';
+
+	if (resp->he_channel_width_cap_valid)
+		priv->phy_he_channel_width_cap =
+			(enum icnss_phy_he_channel_width_cap)resp->he_channel_width_cap;
+
+	if (resp->phy_qam_cap_valid)
+		priv->phy_qam_cap = (enum icnss_phy_qam_cap)resp->phy_qam_cap;
 
 	icnss_pr_dbg("Capability, chip_id: 0x%x, chip_family: 0x%x, board_id: 0x%x, soc_id: 0x%x",
 		     priv->chip_info.chip_id, priv->chip_info.chip_family,
@@ -801,6 +810,10 @@ int wlfw_cap_send_sync_msg(struct icnss_priv *priv)
 		     priv->fw_version_info.fw_version,
 		     priv->fw_version_info.fw_build_timestamp,
 		     priv->fw_build_id);
+
+	icnss_pr_dbg("RD card chain cap: %d, PHY HE channel width cap: %d, PHY QAM cap: %d",
+		     priv->rd_card_chain_cap, priv->phy_he_channel_width_cap,
+		     priv->phy_qam_cap);
 
 	kfree(resp);
 	kfree(req);
@@ -1110,7 +1123,7 @@ int icnss_wlfw_bdf_dnld_send_sync(struct icnss_priv *priv, u32 bdf_type)
 	if (ret)
 		goto err_req_fw;
 
-	ret = request_firmware(&fw_entry, filename, &priv->pdev->dev);
+	ret = firmware_request_nowarn(&fw_entry, filename, &priv->pdev->dev);
 	if (ret) {
 		icnss_pr_err("Failed to load %s: %s ret:%d\n",
 			     icnss_bdf_type_to_str(bdf_type), filename, ret);
@@ -1348,8 +1361,8 @@ int icnss_wlfw_qdss_dnld_send_sync(struct icnss_priv *priv)
 	}
 
 	icnss_add_fw_prefix_name(priv, filename, QDSS_TRACE_CONFIG_FILE);
-	ret = request_firmware(&fw_entry, filename,
-			       &priv->pdev->dev);
+	ret = firmware_request_nowarn(&fw_entry, filename,
+				      &priv->pdev->dev);
 	if (ret) {
 		icnss_pr_err("Failed to load QDSS: %s ret:%d\n",
 			     filename, ret);

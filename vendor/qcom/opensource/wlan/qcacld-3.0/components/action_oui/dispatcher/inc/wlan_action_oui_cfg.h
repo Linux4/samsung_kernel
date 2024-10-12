@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2012-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -423,48 +423,6 @@
 
 /*
  * <ini>
- * gActionOUIForceMaxNss - Used to specify action OUIs for Max NSS connection
- * @Default:
- * Note: User should strictly add new action OUIs at the end of this
- * default value.
- *
- * Default OUIs: (All values in Hex)
- * OUI 1 :001018
- *   OUI data Len : 06
- *   OUI Data : 0201009c0000
- *   OUI data Mask: FC
- *   Info Mask : 01 - only OUI present in Info mask
- * OUI 2 :001018
- *   OUI data Len : 06
- *   OUI Data : 0201001c0000
- *   OUI data Mask: FC
- *   Info Mask : 01 - only OUI present in Info mask
- * OUI 3 :001018
- *   OUI data Len : 06
- *   OUI Data : 0200009c0000
- *   OUI data Mask: FC
- *   Info Mask : 01 - only OUI present in Info mask
- *
- * This ini is used to specify the AP OUIs with which max capability is
- * sent in association request even though AP advertises 1x1 capability.
- *
- * Related: None
- *
- * Supported Feature: Action OUIs
- *
- * Usage: External
- *
- * </ini>
- */
-#define CFG_ACTION_OUI_FORCE_MAX_NSS CFG_INI_STRING( \
-			"gActionOUIForceMaxNss", \
-			0, \
-			ACTION_OUI_MAX_STR_LEN, \
-			"001018 06 0201009c0000 FC 01 001018 06 0201001c0000 FC 01 001018 06 0200009c0000 FC 01", \
-			"Used to specify action OUIs for forcing max NSS connection")
-
-/*
- * <ini>
  * gActionOUIDisableAggressiveEDCA - Used to specify action OUIs to control
  * EDCA configuration when join the candidate AP
  *
@@ -674,6 +632,166 @@
 	"", \
 	"Used to specify 11be allowed ap oui list")
 
+/*
+ * <ini>
+ * gActionOUIDisableDynamicQosNullTxRate - Used to turn off FW's dynamic qos
+ * null tx rate feature if specific vendor OUI received in beacon
+ *
+ * Some APs sometimes don't honor Qos null frames with some specific rate.
+ * This ini will disable dynamic qos null tx rate feature for specified APs.
+ *
+ * Default OUIs: (All values in Hex)
+ * OUI 1: 00e04c
+ *   OUI data Len: 03
+ *   OUI Data : 020160
+ *   OUI data Mask: E0 - 11100000
+ *   Info Mask : 01 - only OUI present in Info mask
+ *
+ * OUI 2: 001018
+ *   OUI data Len : 06
+ *   OUI Data : 02FF009C0000
+ *   OUI data Mask: BC - 10111100
+ *   Info Mask : 01 - only OUI present in Info mask
+ * Refer to gEnableActionOUI for more detail about the format.
+ *
+ * Related: gEnableActionOUI
+ *
+ * Supported Feature: Action OUIs
+ *
+ * Usage: External
+ *
+ * </ini>
+ */
+#define CFG_ACTION_OUI_DISABLE_DYNAMIC_QOS_NULL_TX_RATE CFG_INI_STRING( \
+	"gActionOUIDisableDynamicQosNullTxRate", \
+	0, \
+	ACTION_OUI_MAX_STR_LEN, \
+	"00e04c 03 020160 E0 01 001018 06 02FF009c0000 BC 01", \
+	"Used to turn off FW's dynamic qos null tx rate for specified APs")
+
+/*
+ * <ini>
+ * gActionOUIAuthAssoc6Mbps2GHz - Used to send auth/assoc req with 6 Mbps rate
+ * on 2.4 GHz for specified AP
+ *
+ * Some AP sometimes doesn't honor auth/assoc with CCK rate.
+ * This ini will provide 6 Mbps rate for auth/assoc in 2.4 GHz.
+ *
+ * Example OUIs: (All values in Hex)
+ * OUI 1: 000c43
+ *       OUI data Len: 04
+ *       OUI Data : 03000000
+ *       OUI data Mask: F0 - 11110000
+ *       Info Mask : 01 - only OUI present in Info mask
+ *
+ * Refer to gEnableActionOUI for more detail about the format.
+ *
+ * Related: gEnableActionOUI
+ *
+ * Supported Feature: Action OUIs
+ *
+ * Usage: External
+ *
+ * </ini>
+ */
+#define CFG_ACTION_OUI_AUTH_ASSOC_6MBPS_2GHZ CFG_INI_STRING( \
+	"gActionOUIAuthAssoc6Mbps2GHz", \
+	0, \
+	ACTION_OUI_MAX_STR_LEN, \
+	"", \
+	"send auth/assoc req with 6 Mbps rate on 2.4 GHz for specified APs")
+
+/*
+ * <ini>
+ * CFG_ACTION_OUI_DISABLE_BFORMEE - Used to disable SU/MU beamformee
+ * capability for specified AP with some conditions
+ *
+ * Example OUIs: (All values in Hex)
+ * OUI 1: 000c43
+ *       OUI data Len: 04
+ *       OUI Data : 03000000
+ *       OUI data Mask: F0 - 11110000
+ *       Info Mask : 01 - only OUI present in Info mask
+ *
+ * Refer to gEnableActionOUI for more detail about the format.
+ *
+ * Related: gEnableActionOUI
+ *
+ * Supported Feature: Action OUIs
+ *
+ * Usage: External
+ *
+ * </ini>
+ */
+#define CFG_ACTION_OUI_DISABLE_BFORMEE CFG_INI_STRING( \
+	"gActionOUIDisableBFORMEE", \
+	0, \
+	ACTION_OUI_MAX_STR_LEN, \
+	"", \
+	"disable SU/MU beamformee capability for specified AP")
+
+/*
+ * <ini>
+ * gActionOUIEnableCTS2SelfWithQoSNull - Used to enable CTS2SELF with QoS null
+ * frame for specified APs
+ *
+ * Sample OUIs: (All values in Hex)
+ * OUI 1: 000c43
+ *   OUI data Len: 04
+ *   OUI Data : 03000000
+ *   OUI data Mask: F0 - 11110000
+ *   Info Mask : 01 - only OUI present in Info mask
+ *
+ * gActionOUIEnableCTS2SelfWithQoSNull=000c43 04 03000000 F0 01
+ *
+ * Refer to gEnableActionOUI for more detail about the format.
+ *
+ * Related: gEnableActionOUI
+ *
+ * Supported Feature: Action OUIs
+ *
+ * Usage: External
+ *
+ * </ini>
+ */
+#define CFG_ACTION_OUI_ENABLE_CTS2SELF_WITH_QOS_NULL CFG_INI_STRING( \
+	"gActionOUIEnableCTS2SelfWithQoSNull", \
+	0, \
+	ACTION_OUI_MAX_STR_LEN, \
+	"", \
+	"Used to enable CTS2SELF with QoS null frame for specified APs")
+
+/*
+ * <ini>
+ * gActionOUISendSMPSFrameWithOMN - Used to send SMPS frame along with OMN
+ * for specified APs
+ *
+ * Sample OUIs: (All values in Hex)
+ * OUI 1: 000ce7
+ *   OUI data Len: 04
+ *   OUI Data : 88000000
+ *   OUI data Mask: F0 - 11110000
+ *   Info Mask : 01 - only OUI present in Info mask
+ *
+ * gActionOUISendSMPSFrameWithOMN=000ce7 04 88000000 F0 01
+ *
+ * Refer to gEnableActionOUI for more detail about the format.
+ *
+ * Related: gEnableActionOUI
+ *
+ * Supported Feature: Action OUIs
+ *
+ * Usage: External
+ *
+ * </ini>
+ */
+#define CFG_ACTION_OUI_SEND_SMPS_FRAME_WITH_OMN CFG_INI_STRING( \
+	"gActionOUISendSMPSFrameWithOMN", \
+	0, \
+	ACTION_OUI_MAX_STR_LEN, \
+	"", \
+	"Used to send SMPS frame along with OMN for specified APs")
+
 #define CFG_ACTION_OUI \
 	CFG(CFG_ACTION_OUI_CCKM_1X1) \
 	CFG(CFG_ACTION_OUI_CONNECT_1X1) \
@@ -681,7 +799,6 @@
 	CFG(CFG_ACTION_OUI_ITO_ALTERNATE) \
 	CFG(CFG_ACTION_OUI_ITO_EXTENSION) \
 	CFG(CFG_ACTION_OUI_DISABLE_AGGRESSIVE_TX) \
-	CFG(CFG_ACTION_OUI_FORCE_MAX_NSS) \
 	CFG(CFG_ACTION_OUI_DISABLE_AGGRESSIVE_EDCA) \
 	CFG(CFG_ACTION_OUI_EXTEND_WOW_ITO) \
 	CFG(CFG_ACTION_OUI_SWITCH_TO_11N_MODE) \
@@ -689,5 +806,10 @@
 	CFG(CFG_ACTION_OUI_DISABLE_TWT) \
 	CFG(CFG_ACTION_OUI_TAKE_ALL_BAND_INFO) \
 	CFG(CFG_ACTION_OUI_11BE_ALLOW_LIST) \
+	CFG(CFG_ACTION_OUI_DISABLE_DYNAMIC_QOS_NULL_TX_RATE) \
+	CFG(CFG_ACTION_OUI_ENABLE_CTS2SELF_WITH_QOS_NULL) \
+	CFG(CFG_ACTION_OUI_SEND_SMPS_FRAME_WITH_OMN) \
+	CFG(CFG_ACTION_OUI_AUTH_ASSOC_6MBPS_2GHZ) \
+	CFG(CFG_ACTION_OUI_DISABLE_BFORMEE) \
 	CFG(CFG_ENABLE_ACTION_OUI)
 #endif

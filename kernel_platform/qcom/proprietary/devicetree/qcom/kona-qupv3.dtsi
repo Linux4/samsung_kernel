@@ -47,7 +47,6 @@
 		qcom,gpi-ee-offset = <0x1000>;
 		iommus = <&apps_smmu 0x5b6 0x0>;
 		qcom,iommu-dma-addr-pool = <0x100000 0x100000>;
-		dma-coherent;
 		status = "ok";
 	};
 
@@ -72,7 +71,6 @@
 		qcom,gpi-ee-offset = <0x6000>;
 		iommus = <&apps_smmu 0x56 0x0>;
 		qcom,iommu-dma-addr-pool = <0x100000 0x100000>;
-		dma-coherent;
 		status = "ok";
 	};
 
@@ -97,7 +95,6 @@
 		qcom,gpi-ee-offset = <0x6000>;
 		iommus = <&apps_smmu 0x76 0x0>;
 		qcom,iommu-dma-addr-pool = <0x100000 0x100000>;
-		dma-coherent;
 		status = "ok";
 	};
 
@@ -113,7 +110,6 @@
 		iommus = <&apps_smmu 0x5a3 0x0>;
 		qcom,iommu-dma-addr-pool = <0x40000000 0xc0000000>;
 		qcom,iommu-dma = "fastmap";
-		dma-coherent;
 		ranges;
 		status = "ok";
 
@@ -151,13 +147,15 @@
 			<&aggre2_noc MASTER_QUP_0 &mc_virt  SLAVE_EBI1>,
 			<&aggre2_noc MASTER_QUP_0 &mc_virt  SLAVE_EBI1>,
 			<&aggre2_noc MASTER_QUP_0 &mc_virt  SLAVE_EBI1>;
-			pinctrl-names = "default", "active", "sleep";
-			pinctrl-0 = <&qupv3_se6_default_cts>,
-				<&qupv3_se6_default_rtsrx>, <&qupv3_se6_default_tx>;
-			pinctrl-1 = <&qupv3_se6_ctsrx>, <&qupv3_se6_rts>,
-								<&qupv3_se6_tx>;
-			pinctrl-2 = <&qupv3_se6_ctsrx>, <&qupv3_se6_rts>,
-								<&qupv3_se6_tx>;
+			pinctrl-names = "default", "active", "sleep", "shutdown";
+			pinctrl-0 = <&qupv3_se6_default_cts>, <&qupv3_se6_default_rts>,
+								<&qupv3_se6_default_tx>, <&qupv3_se6_default_rx>;
+			pinctrl-1 = <&qupv3_se6_cts>, <&qupv3_se6_rts>,
+								<&qupv3_se6_tx>, <&qupv3_se6_rx>;
+			pinctrl-2 = <&qupv3_se6_cts>, <&qupv3_se6_rts>,
+								<&qupv3_se6_tx>, <&qupv3_se6_default_rx>;
+			pinctrl-3 = <&qupv3_se6_default_cts>, <&qupv3_se6_default_rts>,
+								<&qupv3_se6_default_tx>, <&qupv3_se6_default_rx>;
 			interrupts-extended = <&intc GIC_SPI 607 IRQ_TYPE_LEVEL_HIGH>,
 						<&tlmm 19 GPIO_ACTIVE_HIGH>;
 			qcom,wakeup-byte = <0xFD>;
@@ -547,7 +545,6 @@
 		iommus = <&apps_smmu 0x43 0x0>;
 		qcom,iommu-dma-addr-pool = <0x40000000 0xc0000000>;
 		qcom,iommu-dma = "fastmap";
-		dma-coherent;
 		ranges;
 		status = "ok";
 
@@ -569,6 +566,32 @@
 			pinctrl-1 = <&qupv3_se12_2uart_sleep>;
 			status = "disabled";
 		};
+
+	qupv3_se13_4uart: qcom,qup_uart@a94000 {
+		compatible = "qcom,msm-geni-serial-hs";
+		reg = <0xa94000 0x4000>;
+		reg-names = "se_phys";
+		clock-names = "se-clk";
+		clocks = <&gcc GCC_QUPV3_WRAP1_S5_CLK>;
+		interconnect-names = "qup-core", "qup-config", "qup-memory";
+		interconnects =
+		<&aggre1_noc MASTER_QUP_1 &mc_virt  SLAVE_EBI1>,
+		<&aggre1_noc MASTER_QUP_1 &mc_virt  SLAVE_EBI1>,
+		<&aggre1_noc MASTER_QUP_1 &mc_virt  SLAVE_EBI1>;
+		pinctrl-names = "default", "active", "sleep", "shutdown";
+		pinctrl-0 = <&qupv3_se13_default_cts>, <&qupv3_se13_default_rtsrx>,
+							<&qupv3_se13_default_tx>;
+		pinctrl-1 = <&qupv3_se13_ctsrx>, <&qupv3_se13_rts>,
+							<&qupv3_se13_tx>;
+		pinctrl-2 = <&qupv3_se13_ctsrx>, <&qupv3_se13_rts>,
+							<&qupv3_se13_tx>;
+		pinctrl-3 = <&qupv3_se13_default_cts>, <&qupv3_se13_default_rtsrx>,
+							<&qupv3_se13_default_tx>;
+		interrupts-extended = <&intc GIC_SPI 358 IRQ_TYPE_LEVEL_HIGH>,
+					<&tlmm 39 GPIO_ACTIVE_HIGH>;
+		status = "disabled";
+		qcom,wakeup-byte = <0xFD>;
+	};
 
 		/*  I2C  */
 		qupv3_se8_i2c: i2c@a80000 {
@@ -862,7 +885,6 @@
 		iommus = <&apps_smmu 0x63 0x0>;
 		qcom,iommu-dma-addr-pool = <0x40000000 0xc0000000>;
 		qcom,iommu-dma = "fastmap";
-		dma-coherent;
 		ranges;
 		status = "ok";
 

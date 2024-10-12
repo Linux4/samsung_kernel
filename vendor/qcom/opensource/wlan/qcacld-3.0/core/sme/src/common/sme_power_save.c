@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2015-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -313,6 +313,27 @@ QDF_STATUS sme_ps_process_command(struct mac_context *mac_ctx, uint32_t session_
 	return status;
 }
 
+#ifdef QCA_WIFI_EMULATION
+static QDF_STATUS sme_ps_enable_user_check(bool usr_cfg_ps_enable,
+					   enum sme_ps_cmd command,
+					   uint32_t session_id)
+{
+	return QDF_STATUS_SUCCESS;
+}
+#else
+static QDF_STATUS sme_ps_enable_user_check(bool usr_cfg_ps_enable,
+					   enum sme_ps_cmd command,
+					   uint32_t session_id)
+{
+	if (command == SME_PS_ENABLE && !usr_cfg_ps_enable) {
+		sme_debug("vdev:%d Cannot initiate PS. PS is disabled by usr(ioctl)",
+			  session_id);
+		return QDF_STATUS_E_FAILURE;
+	}
+	return QDF_STATUS_SUCCESS;
+}
+#endif
+
 /**
  * sme_enable_sta_ps_check(): Checks if it is ok to enable power save or not.
  * @mac_ctx: global mac context
@@ -342,11 +363,10 @@ QDF_STATUS sme_enable_sta_ps_check(struct mac_context *mac_ctx,
 	}
 
 	usr_cfg_ps_enable = mlme_get_user_ps(mac_ctx->psoc, session_id);
-	if (command == SME_PS_ENABLE && !usr_cfg_ps_enable) {
-		sme_debug("vdev:%d Cannot initiate PS. PS is disabled by usr(ioctl)",
-			  session_id);
+
+	if (sme_ps_enable_user_check(usr_cfg_ps_enable, command, session_id)
+	    != QDF_STATUS_SUCCESS)
 		return QDF_STATUS_E_FAILURE;
-	}
 
 	/* Check whether the given session is Infra and in Connected State
 	 * also if command is power save disable  there is not need to check
@@ -420,6 +440,23 @@ QDF_STATUS sme_ps_update(mac_handle_t mac_handle, uint32_t vdev_id)
 
 	return status;
 }
+
+#ifdef QCA_WIFI_EMULATION
+static
+QDF_STATUS sme_ps_set_powersave_disable_auto_timer(mac_handle_t mac_handle,
+						   uint8_t vdev_id)
+{
+	return QDF_STATUS_SUCCESS;
+}
+#else
+static
+QDF_STATUS sme_ps_set_powersave_disable_auto_timer(mac_handle_t mac_handle,
+						   uint8_t vdev_id)
+{
+	return sme_ps_disable_auto_ps_timer(mac_handle,
+					      vdev_id);
+}
+#endif
 
 QDF_STATUS sme_ps_set_powersave(mac_handle_t mac_handle,
 				uint8_t vdev_id, bool allow_power_save,
@@ -497,9 +534,8 @@ QDF_STATUS sme_ps_set_powersave(mac_handle_t mac_handle,
 		 * Enter Full power command received from GUI
 		 * this means we are disconnected
 		 */
-		status = sme_ps_disable_auto_ps_timer(mac_handle,
-						      vdev_id);
-
+		status = sme_ps_set_powersave_disable_auto_timer(mac_handle,
+								 vdev_id);
 		if (status != QDF_STATUS_SUCCESS)
 			goto end;
 
@@ -871,6 +907,18 @@ QDF_STATUS sme_post_pe_message(struct mac_context *mac_ctx,
 	return QDF_STATUS_SUCCESS;
 }
 
+#ifdef QCA_WIFI_EMULATION
+static QDF_STATUS sme_ps_scale_auto_ps_timeout(uint32_t timeout)
+{
+	return AUTO_PS_EMULATION_TIMEOUT;
+}
+#else
+static QDF_STATUS sme_ps_scale_auto_ps_timeout(uint32_t timeout)
+{
+	return timeout;
+}
+#endif
+
 QDF_STATUS sme_ps_enable_auto_ps_timer(mac_handle_t mac_handle,
 				       uint32_t session_id, uint32_t timeout)
 {
@@ -898,6 +946,7 @@ QDF_STATUS sme_ps_enable_auto_ps_timer(mac_handle_t mac_handle,
 		return QDF_STATUS_SUCCESS;
 	}
 
+	timeout = sme_ps_scale_auto_ps_timeout(timeout);
 	sme_debug("Start auto_ps_timer for %d ms", timeout);
 	qdf_status = qdf_mc_timer_start(&ps_param->auto_ps_enable_timer,
 		timeout);

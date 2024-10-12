@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -96,11 +97,12 @@ QDF_STATUS iot_sim_get_index_for_action_frm(uint8_t *frm, uint8_t *cat,
 					    uint8_t *act, bool rx);
 
 /**
- * iot_sim_find_peer_from_mac - function to find the iot sim peer data
- *                              based on the mac address provided
+ * iot_sim_find_peer_from_mac() - function to find the iot sim peer data
+ *                                based on the mac address provided
  *
  * @isc: iot_sim pdev private object
  * @mac: mac address of the peer
+ *
  * Return: iot_sim_rule_per_peer reference if exists else NULL
  */
 struct iot_sim_rule_per_peer *
@@ -111,6 +113,7 @@ iot_sim_find_peer_from_mac(struct iot_sim_context *isc,
  * iot_sim_frame_update() - Management frame update
  * @pdev: reference to global pdev object
  * @nbuf: frame buffer
+ * @param: beacon template parameters
  * @tx: TRUE in case of tx
  * @rx_param: mgmt_rx_event_params
  *
@@ -126,7 +129,7 @@ QDF_STATUS iot_sim_frame_update(struct wlan_objmgr_pdev *pdev,
 				bool tx,
 				struct mgmt_rx_event_params *rx_param);
 
-/*
+/**
  * iot_sim_get_ctx_from_pdev() - API to get iot_sim context object
  *                               from pdev
  * @pdev : Reference to psoc global object
@@ -150,9 +153,9 @@ iot_sim_get_ctx_from_pdev(struct wlan_objmgr_pdev *pdev)
 	return isc;
 }
 
-/*
- * iot_sim_delete_rule_for_mac - function to delete content change rule
- *                               for given peer mac
+/**
+ * iot_sim_delete_rule_for_mac() - function to delete content change rule
+ *                                 for given peer mac
  * @isc: iot sim context
  * @oper: iot sim operation
  * @seq: authentication sequence number, mostly 0 for non-authentication frame
@@ -170,11 +173,10 @@ iot_sim_delete_rule_for_mac(struct iot_sim_context *isc,
 			    uint8_t subtype,
 			    struct qdf_mac_addr *mac,
 			    bool action);
-/*
- * iot_sim_parse_user_input_content_change - function to parse user input into
- *					     predefined format for content
- *					     change operation. All arguments
- *					     passed will be filled upon success
+/**
+ * iot_sim_parse_user_input_content_change() - function to parse user input into
+ *					       predefined format for content
+ *					       change operation.
  * @isc: iot sim context
  * @userbuf: local copy of user input
  * @count: length of userbuf
@@ -184,6 +186,8 @@ iot_sim_delete_rule_for_mac(struct iot_sim_context *isc,
  * @length: address of length variable
  * @content: double pointer to storage to store frame content after processing
  * @mac: pointer to mac address
+ *
+ * All arguments passed will be filled upon success
  *
  * Return: QDF_STATUS_SUCCESS on success
  *	   QDF_STATUS_E_FAILURE otherwise

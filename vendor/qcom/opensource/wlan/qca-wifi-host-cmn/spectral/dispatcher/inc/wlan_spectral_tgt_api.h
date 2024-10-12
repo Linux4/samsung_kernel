@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2017-2020 The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -112,8 +112,8 @@ QDF_STATUS tgt_set_spectral_config(struct wlan_objmgr_pdev *pdev,
 /**
  * tgt_get_spectral_config() - Get spectral configuration
  * @pdev: Pointer to pdev object
- * @param: Pointer to spectral_config structure in which the configuration
- * should be returned
+ * @sptrl_config: Pointer to spectral_config structure in which the
+ *                configuration should be returned
  * @smode: Spectral scan mode
  *
  * Implementation for getting the current spectral configuration

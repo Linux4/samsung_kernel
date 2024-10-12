@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2017-2019 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -58,6 +59,9 @@ enum pmo_ns_addr_scope {
  * @target_ipv6_addr_valid: target ipv6 address are valid or not
  * @target_ipv6_addr_ac_type: target ipv6 address type (unicast or anycast)
  * @slot_idx: slot index
+ * @bssid: BSSID
+ * @scope: scope
+ * @is_offload_applied: has the offload been applied to firmware
  */
 struct pmo_ns_offload_params {
 	uint8_t enable;
@@ -85,6 +89,7 @@ struct pmo_ns_offload_params {
  * @count: ns entries count
  * @ipv6_addr: ipv6 address array
  * @ipv6_addr_type: ipv6 address type (unicast/anycast) array
+ * @scope: scope
  */
 struct pmo_ns_req {
 	struct wlan_objmgr_psoc *psoc;

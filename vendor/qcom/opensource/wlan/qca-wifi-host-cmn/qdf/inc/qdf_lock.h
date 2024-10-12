@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2014-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -18,7 +18,7 @@
  */
 
 /**
- * @file qdf_lock.h
+ * DOC: qdf_lock.h
  * This file abstracts locking operations.
  */
 
@@ -199,8 +199,11 @@ static inline void qdf_lock_stats_destroy(struct lock_stats *stats)
 #define qdf_mem_malloc_debug(x, y, z) qdf_mem_malloc(x)
 #endif
 
-/* qdf_lock_stats_create() - initialize the lock stats structure
- *
+/**
+ * qdf_lock_stats_create() - initialize the lock stats structure
+ * @stats: stats to initialize
+ * @func: calling function
+ * @line: calling line number
  */
 static inline void qdf_lock_stats_create(struct lock_stats *stats,
 					 const char *func, int line)
@@ -224,6 +227,7 @@ static inline void qdf_lock_stats_create(struct lock_stats *stats,
  * qdf_semaphore_acquire_timeout() - Take the semaphore before timeout
  * @m: semaphore to take
  * @timeout: maximum time to try to take the semaphore
+ *
  * Return: int
  */
 static inline int qdf_semaphore_acquire_timeout(struct semaphore *m,
@@ -238,32 +242,91 @@ struct qdf_spinlock {
 };
 
 /**
- * @brief Platform spinlock object
+ * typedef qdf_spinlock_t - Abstracted spinlock object
+ *
+ * Abstracted object. Clients must not make any assumptions about the
+ * composition of this object
  */
 typedef struct qdf_spinlock qdf_spinlock_t;
 
-
 /**
- * @brief Platform mutex object
+ * typedef qdf_semaphore_t - Abstracted semaphore object
+ *
+ * Abstracted object. Clients must not make any assumptions about the
+ * composition of this object
  */
 typedef __qdf_semaphore_t qdf_semaphore_t;
-typedef __qdf_mutex_t qdf_mutex_t;
-
-/* function Declaration */
-QDF_STATUS qdf_mutex_create(qdf_mutex_t *m, const char *func, int line);
-#define qdf_mutex_create(m) qdf_mutex_create(m, __func__, __LINE__)
-
-QDF_STATUS qdf_mutex_acquire(qdf_mutex_t *m);
-
-QDF_STATUS qdf_mutex_release(qdf_mutex_t *m);
-
-QDF_STATUS qdf_mutex_destroy(qdf_mutex_t *lock);
 
 /**
- * qdf_spinlock_create - Initialize a spinlock
- * @lock: spinlock object pointer
- * Return: none
+ * typedef qdf_mutex_t - Abstracted mutex object
+ *
+ * Abstracted object. Clients must not make any assumptions about the
+ * composition of this object
  */
+typedef __qdf_mutex_t qdf_mutex_t;
+
+QDF_STATUS qdf_mutex_create(qdf_mutex_t *lock, const char *func, int line);
+
+/**
+ * qdf_mutex_create() - Initialize a mutex
+ * @lock: pointer to the qdf_mutex_t mutex to initialize
+ *
+ * Return: QDF_STATUS_SUCCESS on success, else QDF_STATUS failure
+ */
+#define qdf_mutex_create(lock) qdf_mutex_create(lock, __func__, __LINE__)
+
+/**
+ * qdf_mutex_acquire() - acquire a QDF lock
+ * @lock: Pointer to the opaque lock object to acquire
+ *
+ * A lock object is acquired by calling qdf_mutex_acquire().  If the lock
+ * is already locked, the calling thread shall block until the lock becomes
+ * available. This operation shall return with the lock object referenced by
+ * lock in the locked state with the calling thread as its owner.
+ *
+ * Return:
+ * QDF_STATUS_SUCCESS if lock was successfully initialized
+ * QDF failure reason codes if lock is not initialized and can't be used
+ */
+QDF_STATUS qdf_mutex_acquire(qdf_mutex_t *lock);
+
+/**
+ * qdf_mutex_release() - release a QDF lock
+ * @lock: Pointer to the opaque lock object to be released
+ *
+ * qdf_mutex_release() function shall release the lock object
+ * referenced by 'lock'.
+ *
+ * If a thread attempts to release a lock that it unlocked or is not
+ * initialized, an error is returned.
+ *
+ * Return:
+ * QDF_STATUS_SUCCESS if lock was successfully initialized
+ * QDF failure reason codes if lock is not initialized and can't be used
+ */
+QDF_STATUS qdf_mutex_release(qdf_mutex_t *lock);
+
+/**
+ * qdf_mutex_destroy() - destroy a QDF lock
+ * @lock: Pointer to the opaque lock object to be destroyed
+ *
+ * function shall destroy the lock object referenced by lock. After a
+ * successful return from qdf_mutex_destroy()
+ * the lock object becomes, in effect, uninitialized.
+ *
+ * A destroyed lock object can be reinitialized using qdf_mutex_create();
+ * the results of otherwise referencing the object after it has been destroyed
+ * are undefined.  Calls to QDF lock functions to manipulate the lock such
+ * as qdf_mutex_acquire() will fail if the lock is destroyed.  Therefore,
+ * don't use the lock after it has been destroyed until it has
+ * been re-initialized.
+ *
+ * Return:
+ * QDF_STATUS_SUCCESS if lock was successfully initialized
+ * QDF failure reason codes if lock is not initialized and can't be used
+ */
+QDF_STATUS qdf_mutex_destroy(qdf_mutex_t *lock);
+
 static inline void qdf_spinlock_create(qdf_spinlock_t *lock, const char *func,
 				       int line)
 {
@@ -273,11 +336,18 @@ static inline void qdf_spinlock_create(qdf_spinlock_t *lock, const char *func,
 	qdf_lock_stats_create(&lock->stats, func, line);
 }
 
-#define qdf_spinlock_create(x) qdf_spinlock_create(x, __func__, __LINE__)
+/**
+ * qdf_spinlock_create() - Initialize a spinlock
+ * @lock: spinlock object pointer
+ *
+ * Return: none
+ */
+#define qdf_spinlock_create(lock) qdf_spinlock_create(lock, __func__, __LINE__)
 
 /**
- * qdf_spinlock_destroy - Delete a spinlock
+ * qdf_spinlock_destroy() - Delete a spinlock
  * @lock: spinlock object pointer
+ *
  * Return: none
  */
 static inline void qdf_spinlock_destroy(qdf_spinlock_t *lock)
@@ -297,12 +367,6 @@ static inline int qdf_spin_is_locked(qdf_spinlock_t *lock)
 	return __qdf_spin_is_locked(&lock->lock);
 }
 
-/**
- * qdf_spin_trylock_bh() - spin trylock bottomhalf
- * @lock: spinlock object
- *
- * Return: nonzero if lock is acquired
- */
 static inline int qdf_spin_trylock_bh(qdf_spinlock_t *lock, const char *func)
 {
 	int trylock_return;
@@ -313,13 +377,15 @@ static inline int qdf_spin_trylock_bh(qdf_spinlock_t *lock, const char *func)
 
 	return trylock_return;
 }
-#define qdf_spin_trylock_bh(lock) qdf_spin_trylock_bh(lock, __func__)
 
 /**
- * qdf_spin_trylock() - spin trylock
+ * qdf_spin_trylock_bh() - spin trylock bottomhalf
  * @lock: spinlock object
- * Return: int
+ *
+ * Return: nonzero if lock is acquired
  */
+#define qdf_spin_trylock_bh(lock) qdf_spin_trylock_bh(lock, __func__)
+
 static inline int qdf_spin_trylock(qdf_spinlock_t *lock, const char *func)
 {
 	int result = 0;
@@ -331,13 +397,14 @@ static inline int qdf_spin_trylock(qdf_spinlock_t *lock, const char *func)
 	return result;
 }
 
+/**
+ * qdf_spin_trylock() - spin trylock
+ * @lock: spinlock object
+ *
+ * Return: nonzero if lock is acquired
+ */
 #define qdf_spin_trylock(lock) qdf_spin_trylock(lock, __func__)
 
-/**
- * qdf_spin_lock_bh() - locks the spinlock mutex in soft irq context
- * @lock: spinlock object pointer
- * Return: none
- */
 static inline void qdf_spin_lock_bh(qdf_spinlock_t *lock, const char *func)
 {
 	BEFORE_LOCK(lock, qdf_spin_is_locked(lock));
@@ -345,11 +412,18 @@ static inline void qdf_spin_lock_bh(qdf_spinlock_t *lock, const char *func)
 	AFTER_LOCK(lock, func);
 }
 
+/**
+ * qdf_spin_lock_bh() - locks the spinlock mutex in soft irq context
+ * @lock: spinlock object pointer
+ *
+ * Return: none
+ */
 #define qdf_spin_lock_bh(lock) qdf_spin_lock_bh(lock, __func__)
 
 /**
  * qdf_spin_unlock_bh() - unlocks the spinlock mutex in soft irq context
  * @lock: spinlock object pointer
+ *
  * Return: none
  */
 static inline void qdf_spin_unlock_bh(qdf_spinlock_t *lock)
@@ -359,12 +433,13 @@ static inline void qdf_spin_unlock_bh(qdf_spinlock_t *lock)
 }
 
 /**
- * qdf_spinlock_irq_exec - Execute the input function with spinlock held
- * and interrupt disabled.
+ * qdf_spinlock_irq_exec() - Execute the input function with spinlock held
+ *                           and interrupt disabled.
  * @hdl: OS handle
  * @lock: spinlock to be held for the critical region
  * @func: critical region function that to be executed
- * @context: context of the critical region function
+ * @arg: argument of the critical region function
+ *
  * Return: Boolean status returned by the critical region function
  */
 static inline bool qdf_spinlock_irq_exec(qdf_handle_t hdl,
@@ -374,18 +449,19 @@ static inline bool qdf_spinlock_irq_exec(qdf_handle_t hdl,
 	return __qdf_spinlock_irq_exec(hdl, &lock->lock, func, arg);
 }
 
-/**
- * qdf_spin_lock() - Acquire a Spinlock(SMP) & disable Preemption (Preemptive)
- * @lock: Lock object
- *
- * Return: none
- */
 static inline void qdf_spin_lock(qdf_spinlock_t *lock, const char *func)
 {
 	BEFORE_LOCK(lock, qdf_spin_is_locked(lock));
 	__qdf_spin_lock(&lock->lock);
 	AFTER_LOCK(lock, func);
 }
+
+/**
+ * qdf_spin_lock() - Acquire a Spinlock(SMP) & disable Preemption (Preemptive)
+ * @lock: Lock object
+ *
+ * Return: none
+ */
 #define qdf_spin_lock(lock) qdf_spin_lock(lock, __func__)
 
 /**
@@ -400,13 +476,6 @@ static inline void qdf_spin_unlock(qdf_spinlock_t *lock)
 	__qdf_spin_unlock(&lock->lock);
 }
 
-/**
- * qdf_spin_lock_irq() - Acquire a Spinlock(SMP) & save the irq state
- * @lock: Lock object
- * @flags: flags
- *
- * Return: none
- */
 static inline void qdf_spin_lock_irq(qdf_spinlock_t *lock, unsigned long flags,
 				     const char *func)
 {
@@ -414,26 +483,35 @@ static inline void qdf_spin_lock_irq(qdf_spinlock_t *lock, unsigned long flags,
 	__qdf_spin_lock_irq(&lock->lock.spinlock, flags);
 	AFTER_LOCK(lock, func);
 }
-#define qdf_spin_lock_irq(lock, flags) qdf_spin_lock_irq(lock, flags, __func__)
 
 /**
- * qdf_spin_lock_irqsave() - Acquire a Spinlock (SMP) & disable Preemption
- * (Preemptive) and disable IRQs
+ * qdf_spin_lock_irq() - Acquire a Spinlock(SMP) & save the irq state
  * @lock: Lock object
+ * @flags: flags
  *
  * Return: none
  */
+#define qdf_spin_lock_irq(lock, flags) qdf_spin_lock_irq(lock, flags, __func__)
+
 static inline void qdf_spin_lock_irqsave(qdf_spinlock_t *lock, const char *func)
 {
 	BEFORE_LOCK(lock, qdf_spin_is_locked(lock));
 	__qdf_spin_lock_irqsave(&lock->lock);
 	AFTER_LOCK(lock, func);
 }
+
+/**
+ * qdf_spin_lock_irqsave() - Acquire a Spinlock (SMP) & disable Preemption
+ *                           (Preemptive) and disable IRQs
+ * @lock: Lock object
+ *
+ * Return: none
+ */
 #define qdf_spin_lock_irqsave(lock) qdf_spin_lock_irqsave(lock, __func__)
 
 /**
  * qdf_spin_unlock_irqrestore() - Unlock the spinlock and enables the
- * Preemption and enable IRQ
+ *                                Preemption and enable IRQ
  * @lock: Lock object
  *
  * Return: none
@@ -471,6 +549,7 @@ static inline void qdf_semaphore_init(qdf_semaphore_t *m)
 /**
  * qdf_semaphore_acquire() - take the semaphore
  * @m: Semaphore to take
+ *
  * Return: int
  */
 static inline int qdf_semaphore_acquire(qdf_semaphore_t *m)
@@ -481,6 +560,7 @@ static inline int qdf_semaphore_acquire(qdf_semaphore_t *m)
 /**
  * qdf_semaphore_release() - give the semaphore
  * @m: Semaphore to give
+ *
  * Return: None
  */
 static inline void qdf_semaphore_release(qdf_semaphore_t *m)
@@ -489,10 +569,16 @@ static inline void qdf_semaphore_release(qdf_semaphore_t *m)
 }
 
 /**
- * qdf_semaphore_acquire_intr - Take the semaphore, interruptible version
- * @osdev: OS Device
+ * qdf_semaphore_acquire_intr() - Take the semaphore, interruptible
  * @m: mutex to take
- * Return: int
+ *
+ * This function allows a user-space process that is waiting on a
+ * semaphore to be interrupted by the user.  If the operation is
+ * interrupted, the function returns a nonzero value, and the caller
+ * does not hold the semaphore.  Always check the return value and
+ * responding accordingly.
+ *
+ * Return: 0 if the semaphore was acquired, non-zero if not acquired
  */
 static inline int qdf_semaphore_acquire_intr(qdf_semaphore_t *m)
 {
@@ -533,8 +619,8 @@ static inline void qdf_wake_lock_feature_deinit(void) { }
  * @func: caller function
  * @line: caller line
  * Return:
- * QDF status success: if wake lock is initialized
- * QDF status failure: if wake lock was not initialized
+ * QDF status success if wake lock is initialized
+ * QDF status failure if wake lock was not initialized
  */
 QDF_STATUS __qdf_wake_lock_create(qdf_wake_lock_t *lock, const char *name,
 				  const char *func, uint32_t line);
@@ -549,12 +635,48 @@ QDF_STATUS __qdf_wake_lock_create(qdf_wake_lock_t *lock, const char *name,
 #define qdf_wake_lock_create(lock, name) \
 	__qdf_wake_lock_create(lock, name, __func__, __LINE__)
 
+/**
+ * qdf_wake_lock_acquire() - acquires a wake lock
+ * @lock: The wake lock to acquire
+ * @reason: Reason for wakelock
+ *
+ * Return:
+ * QDF status success if wake lock is acquired
+ * QDF status failure if wake lock was not acquired
+ */
 QDF_STATUS qdf_wake_lock_acquire(qdf_wake_lock_t *lock, uint32_t reason);
 
+/**
+ * qdf_wake_lock_name() - This function returns the name of the wakelock
+ * @lock: Pointer to the wakelock
+ *
+ * This function returns the name of the wakelock
+ *
+ * Return: Pointer to the name if it is valid or a default string
+ */
 const char *qdf_wake_lock_name(qdf_wake_lock_t *lock);
+
+/**
+ * qdf_wake_lock_timeout_acquire() - acquires a wake lock with a timeout
+ * @lock: The wake lock to acquire
+ * @msec: timeout in ms (0 for no timeout)
+ *
+ * Return:
+ * QDF status success if wake lock is acquired
+ * QDF status failure if wake lock was not acquired
+ */
 QDF_STATUS qdf_wake_lock_timeout_acquire(qdf_wake_lock_t *lock,
 					 uint32_t msec);
 
+/**
+ * qdf_wake_lock_release() - releases a wake lock
+ * @lock: the wake lock to release
+ * @reason: Reason for wakelock
+ *
+ * Return:
+ * QDF status success if wake lock is acquired
+ * QDF status failure if wake lock was not acquired
+ */
 QDF_STATUS qdf_wake_lock_release(qdf_wake_lock_t *lock, uint32_t reason);
 
 /**
@@ -577,14 +699,31 @@ void __qdf_wake_lock_destroy(qdf_wake_lock_t *lock,
 #define qdf_wake_lock_destroy(lock) \
 	__qdf_wake_lock_destroy(lock, __func__, __LINE__)
 
+/**
+ * qdf_pm_system_wakeup() - wakeup system
+ *
+ * Return: None
+ */
 void qdf_pm_system_wakeup(void);
 
+/**
+ * qdf_spinlock_acquire() - acquires a spin lock
+ * @lock: Spin lock to acquire
+ *
+ * Return: QDF status success if wake lock is acquired
+ */
 QDF_STATUS qdf_spinlock_acquire(qdf_spinlock_t *lock);
 
+/**
+ * qdf_spinlock_release() - release a spin lock
+ * @lock: Spin lock to release
+ *
+ * Return: QDF status success if wake lock is acquired
+ */
 QDF_STATUS qdf_spinlock_release(qdf_spinlock_t *lock);
 
 /**
- * enum qdf_rtpm_type - Get and Put calls types
+ * enum qdf_rtpm_call_type - Get and Put calls types
  * @QDF_RTPM_GET: Increment usage count and when system is suspended
  *               schedule resume process, return depends on pm state.
  * @QDF_RTPM_GET_FORCE: Increment usage count and when system is suspended
@@ -612,16 +751,26 @@ enum qdf_rtpm_call_type {
  * enum qdf_rtpm_client_id - modules registered with runtime pm module
  * @QDF_RTPM_ID_RESERVED: Reserved ID
  * @QDF_RTPM_ID_PM_QOS_NOTIFY: PM QOS context
- * @QDF_RTPM_ID_BUS_SUSPEND: APSS Bus suspend context
+ * @QDF_RTPM_ID_WIPHY_SUSPEND: APSS Bus suspend context
  * @QDF_RTPM_ID_MAX: Max id
  */
-enum  qdf_rtpm_client_id {
+enum qdf_rtpm_client_id {
 	QDF_RTPM_ID_RESERVED,
 	QDF_RTPM_ID_PM_QOS_NOTIFY,
 	QDF_RTPM_ID_WIPHY_SUSPEND,
 	QDF_RTPM_ID_MAX
 };
 
+/**
+ * qdf_runtime_lock_init() - initialize runtime lock
+ * @lock: the lock to initialize
+ *
+ * Initialize a runtime pm lock.  This lock can be used
+ * to prevent the runtime pm system from putting the bus
+ * to sleep.
+ *
+ * Return: Success if lock initialized
+ */
 #define qdf_runtime_lock_init(lock) __qdf_runtime_lock_init(lock, #lock)
 
 #ifdef FEATURE_RUNTIME_PM
@@ -629,7 +778,6 @@ enum  qdf_rtpm_client_id {
  * qdf_rtpm_register() - QDF wrapper to register a module with runtime PM.
  * @id: ID of the module which needs to be registered
  * @hif_rpm_cbk: callback to be called when get was called in suspended state.
- * @prevent_multiple_get: not allow simultaneous get calls or put calls
  *
  * Return: success status if registered
  */
@@ -644,7 +792,8 @@ QDF_STATUS qdf_rtpm_register(uint32_t id, void (*hif_rpm_cbk)(void));
 QDF_STATUS qdf_rtpm_deregister(uint32_t id);
 
 /**
- * qdf_runtime_lock_init() - initialize runtime lock
+ * __qdf_runtime_lock_init() - initialize runtime lock
+ * @lock: the lock to initialize
  * @name: name of the runtime lock
  *
  * Initialize a runtime pm lock.  This lock can be used
@@ -666,18 +815,18 @@ QDF_STATUS __qdf_runtime_lock_init(qdf_runtime_lock_t *lock, const char *name);
 void qdf_runtime_lock_deinit(qdf_runtime_lock_t *lock);
 
 /**
- * qdf_rtpm_get() - Incremeant usage_count on the device to avoid suspend.
+ * qdf_rtpm_get() - Increment usage_count on the device to avoid suspend.
  * @type: get call types from hif_rpm_type
- * @id: ID of the module calling get()
+ * @id: ID of the module calling qdf_rtpm_get()
  *
  * Return: success if a get has been issued, else error code.
  */
 QDF_STATUS qdf_rtpm_get(uint8_t type, uint32_t id);
 
 /**
- * qdf_rtpm_put() - Decremeant usage_count on the device to avoid suspend.
+ * qdf_rtpm_put() - Decrement usage_count on the device to avoid suspend.
  * @type: put call types from hif_rpm_type
- * @id: ID of the module calling put()
+ * @id: ID of the module calling qdf_rtpm_put()
  *
  * Return: success if a put has been issued, else error code.
  */
@@ -685,7 +834,7 @@ QDF_STATUS qdf_rtpm_put(uint8_t type, uint32_t id);
 
 /**
  * qdf_runtime_pm_prevent_suspend() - Prevent Runtime suspend
- * @data: runtime PM lock
+ * @lock: runtime PM lock
  *
  * This function will prevent runtime suspend, by incrementing
  * device's usage count.
@@ -696,7 +845,7 @@ QDF_STATUS qdf_runtime_pm_prevent_suspend(qdf_runtime_lock_t *lock);
 
 /**
  * qdf_runtime_pm_prevent_suspend_sync() - Synchronized Prevent Runtime suspend
- * @data: runtime PM lock
+ * @lock: runtime PM lock
  *
  * This function will prevent runtime suspend, by incrementing
  * device's usage count  and waits till system is in resumed state.
@@ -707,7 +856,7 @@ QDF_STATUS qdf_runtime_pm_prevent_suspend_sync(qdf_runtime_lock_t *lock);
 
 /**
  * qdf_runtime_pm_allow_suspend() - Allow Runtime suspend
- * @data: runtime PM lock
+ * @lock: runtime PM lock
  *
  * This function will allow runtime suspend, by decrementing
  * device's usage count.
@@ -717,7 +866,7 @@ QDF_STATUS qdf_runtime_pm_prevent_suspend_sync(qdf_runtime_lock_t *lock);
 QDF_STATUS qdf_runtime_pm_allow_suspend(qdf_runtime_lock_t *lock);
 
 /**
- * qdf_pm_runtime_sync_resume() - Invoke synchronous runtime resume.
+ * qdf_rtpm_sync_resume() - Invoke synchronous runtime resume.
  *
  * This function will invoke synchronous runtime resume.
  *

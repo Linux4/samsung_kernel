@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2017-2020 The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -23,11 +23,11 @@
 
 #include "wlan_green_ap_main_i.h"
 
-/*
+/**
  * wlan_green_ap_ant_ps_reset() - Reset function
- * @green_ap - green ap context
+ * @green_ap_ctx: green ap context
  *
- * Reset fiunction, so that Antenna Mask can come into effect.
+ * Reset function, so that Antenna Mask can come into effect.
  *                This applies for only few of the hardware chips
  *
  * Return: QDF_STATUS
@@ -113,11 +113,11 @@ qdf_export_symbol(wlan_is_egap_enabled);
 
 /**
  * wlan_green_ap_ps_event_state_update() - Update PS state and event
- * @pdev: pdev pointer
+ * @green_ap_ctx: Green AP pdev context
  * @state: ps state
  * @event: ps event
  *
- * @Return: Success or Failure
+ * Return: Success or Failure
  */
 static QDF_STATUS wlan_green_ap_ps_event_state_update(
 			struct wlan_pdev_green_ap_ctx *green_ap_ctx,

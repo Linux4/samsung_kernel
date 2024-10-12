@@ -32,9 +32,9 @@
 
 /**
  * enum fwol_extlna_mode - provides elna modes
- * @EXTLNA_MODE_DISABLE_ELNA_BYPASS - disables elna bypass
- * @EXTLNA_MODE_ENABLE_ELNA_BYPASS  - enables elna bypass
- * @EXTLNA_MODE_FIRMWARE_DEFAULT    - Reset eLNA bypass configuration,
+ * @EXTLNA_MODE_DISABLE_ELNA_BYPASS:  disables elna bypass
+ * @EXTLNA_MODE_ENABLE_ELNA_BYPASS:   enables elna bypass
+ * @EXTLNA_MODE_FIRMWARE_DEFAULT:     Reset eLNA bypass configuration,
  *                                    the driver should revert to the default
  *                                    configuration of eLNA bypass
  */

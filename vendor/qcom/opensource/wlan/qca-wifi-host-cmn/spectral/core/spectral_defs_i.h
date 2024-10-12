@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2017-2020 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  *
  * Permission to use, copy, modify, and/or distribute this software for
@@ -100,9 +101,10 @@ struct spectral_tgt_ops;
  * struct spectral_context - spectral global context
  * @psoc_obj:               Reference to psoc global object
  * @psoc_target_handle: Reference to psoc target_if object
- * @spectral_legacy_cbacks: Spectral legacy callbacks
+ * @legacy_cbacks: Spectral legacy callbacks
  *
  * Call back functions to invoke independent of OL/DA
+ * @sptrlc_spectral_control:
  * @sptrlc_ucfg_phyerr_config:     ucfg handler for phyerr
  * @sptrlc_pdev_spectral_init: Init pdev Spectral
  * @sptrlc_pdev_spectral_deinit: Deinit pdev Spectral
@@ -119,7 +121,7 @@ struct spectral_tgt_ops;
  * @sptrlc_get_spectral_capinfo:   Get spectral capability info
  * @sptrlc_get_spectral_diagstats: Get spectral diag status
  * @sptrlc_register_spectral_wmi_ops: Register Spectral WMI operations
- * @ptrlc_register_spectral_tgt_ops: Register Spectral target operations
+ * @sptrlc_register_spectral_tgt_ops: Register Spectral target operations
  * @sptrlc_register_netlink_cb: Register Netlink callbacks
  * @sptrlc_use_nl_bcast: Check whether to use Netlink broadcast/unicast
  * @sptrlc_deregister_netlink_cb: De-register Netlink callbacks

@@ -20,6 +20,7 @@
 #include <linux/debugfs.h>
 #include <linux/pm_wakeup.h>
 #include <linux/spinlock.h>
+#include <linux/suspend.h>
 
 #define is_between(left, right, value) \
 	(((left) >= (right) && (left) >= (value) \
@@ -81,6 +82,7 @@ struct smb23x_chip {
 	int				thermal_levels;
 	u32				workaround_flags;
 	int				batt_id_ohm;
+	bool				usb_poll;
 	const char			*bms_psy_name;
 	struct power_supply		*usb_psy;
 	struct power_supply		*bms_psy;
@@ -212,6 +214,8 @@ static int hot_bat_decidegc_table[] = {
 #define SAFETY_TIMER_MASK	SMB_MASK(4, 3)
 #define SAFETY_TIMER_OFFSET	3
 #define SAFETY_TIMER_DISABLE	SMB_MASK(4, 3)
+#define SYSTEM_VOLATGE_MASK	SMB_MASK(1, 0)
+#define TEMP_MASK		SMB_MASK(7, 0)
 
 #define CFG_REG_5		0x05
 #define BAT_THERM_DIS_BIT	BIT(7)
@@ -225,6 +229,7 @@ static int hot_bat_decidegc_table[] = {
 
 #define CFG_REG_6		0x06
 #define CHG_INHIBIT_THRESH_MASK	SMB_MASK(7, 6)
+#define SYS_THRESHOLD_MASK	SMB_MASK(5, 4)
 #define INHIBIT_THRESH_OFFSET	6
 #define BMD_ALGO_MASK		SMB_MASK(1, 0)
 #define BMD_ALGO_THERM_IO	SMB_MASK(1, 0)
@@ -872,6 +877,13 @@ static int smb23x_hw_init(struct smb23x_chip *chip)
 			return rc;
 		}
 		chip->apsd_enabled = false;
+
+		rc = smb23x_masked_write(chip, CFG_REG_5, AICL_EN_BIT, 0);
+		if (rc < 0) {
+			pr_err("Disable CFG_5 failed, rc=%d\n", rc);
+			return rc;
+		}
+
 	} else {
 		rc = smb23x_read(chip, CFG_REG_5, &tmp);
 		if (rc < 0) {
@@ -1223,6 +1235,19 @@ static void smb23x_irq_polling_work_fn(struct work_struct *work)
 			msecs_to_jiffies(IRQ_POLLING_MS));
 }
 
+#define DEBUG_BATT_ID_LOW	6000
+#define DEBUG_BATT_ID_HIGH	9000
+static bool is_debug_batt_id(struct smb23x_chip *chip)
+{
+	pr_info("DEBUG_BATT: DEBUG BATT ID value is %d\n", chip->batt_id_ohm);
+
+	if (is_between(DEBUG_BATT_ID_LOW, DEBUG_BATT_ID_HIGH,
+						chip->batt_id_ohm))
+		return true;
+
+	return false;
+}
+
 /*
  * On some of the parts, the Non-volatile register values will
  * be reloaded upon unplug event. Even the unplug event won't be
@@ -1236,11 +1261,15 @@ static void reconfig_upon_unplug(struct smb23x_chip *chip)
 	int rc;
 	int reason;
 
+	if (is_debug_batt_id(chip))
+		return;
+
 	if (chip->workaround_flags & WRKRND_IRQ_POLLING) {
-		if (chip->usb_present) {
+		if (chip->usb_present && chip->usb_poll) {
 			pm_stay_awake(chip->dev);
 			schedule_delayed_work(&chip->irq_polling_work,
 					msecs_to_jiffies(IRQ_POLLING_MS));
+			chip->usb_poll = false;
 		} else {
 			pr_debug("restore software settings after unplug\n");
 			pm_relax(chip->dev);
@@ -1286,7 +1315,8 @@ static int usbin_uv_irq_handler(struct smb23x_chip *chip, u8 rt_sts)
 		return 0;
 
 	chip->usb_present = usb_present;
-	reconfig_upon_unplug(chip);
+	if (!chip->cfg_apsd_disabled)
+		reconfig_upon_unplug(chip);
 	pval.intval = usb_present;
 	power_supply_set_property(chip->usb_psy,
 			POWER_SUPPLY_PROP_PRESENT, &pval);
@@ -1409,21 +1439,6 @@ static struct irq_handler_info handlers[] = {
 	},
 };
 
-#define DEBUG_BATT_ID_LOW	6000
-#define DEBUG_BATT_ID_HIGH	9000
-static bool is_debug_batt_id(struct smb23x_chip *chip)
-{
-	pr_info("DEBUG_BATT: DEBUG BATT ID value is %d\n", chip->batt_id_ohm);
-
-	if (is_between(DEBUG_BATT_ID_LOW, DEBUG_BATT_ID_HIGH,
-						chip->batt_id_ohm))
-		return true;
-
-
-	return false;
-
-}
-
 #define UPDATE_IRQ_STAT(irq_reg, value) \
 	handlers[irq_reg - IRQ_A_STATUS_REG].prev_val = value
 static int smb23x_determine_initial_status(struct smb23x_chip *chip)
@@ -1505,6 +1520,7 @@ static int smb23x_determine_initial_status(struct smb23x_chip *chip)
 		power_supply_set_property(chip->usb_psy,
 					POWER_SUPPLY_PROP_PRESENT,
 						&pval);
+		chip->usb_poll = true;
 		reconfig_upon_unplug(chip);
 	}
 
@@ -1772,8 +1788,11 @@ static void smb23x_update_desc_type(struct smb23x_chip *chip)
 	switch (chip->charger_type) {
 	case POWER_SUPPLY_TYPE_USB_CDP:
 	case POWER_SUPPLY_TYPE_USB_DCP:
-	case POWER_SUPPLY_TYPE_USB:
 	case POWER_SUPPLY_TYPE_USB_ACA:
+		chip->usb_psy_desc.type = chip->charger_type;
+		reconfig_upon_unplug(chip);
+		break;
+	case POWER_SUPPLY_TYPE_USB:
 		chip->usb_psy_desc.type = chip->charger_type;
 		break;
 	default:
@@ -1851,6 +1870,9 @@ static int smb23x_usb_set_property(struct power_supply *psy,
 				pr_err("Couldn't set USB current rc = %d\n", rc);
 			break;
 		}
+	case POWER_SUPPLY_PROP_PRESENT:
+		chip->usb_present = val->intval;
+		break;
 	default:
 		return -EINVAL;
 	}
@@ -2370,7 +2392,7 @@ static int smb23x_probe(struct i2c_client *client,
 	 * set USB_SUSPEND to cutoff USB power completely
 	 */
 	rc = smb23x_suspend_usb(chip, USER,
-		chip->cfg_charging_disabled | chip->debug_batt ? true : false);
+		(chip->cfg_charging_disabled | chip->debug_batt) ? true : false);
 	if (rc < 0) {
 		pr_err("%suspend USB failed\n",
 			chip->cfg_charging_disabled ? "S" : "Un-s");
@@ -2409,15 +2431,97 @@ destroy_mutex:
 	return rc;
 }
 
+static int smb23x_freeze(struct device *dev)
+{
+	struct i2c_client *client = to_i2c_client(dev);
+	struct smb23x_chip *chip = i2c_get_clientdata(client);
+
+	pr_debug("Entering hibernation via smb23x freeze\n");
+	disable_irq(client->irq);
+	cancel_delayed_work_sync(&chip->irq_polling_work);
+
+	return 0;
+}
+
+static int smb23x_restore(struct device *dev)
+{
+	struct i2c_client *client = to_i2c_client(dev);
+	struct smb23x_chip *chip = i2c_get_clientdata(client);
+	int rc;
+
+	pr_debug("Resuming from hibernation via smb23x restore\n");
+	devm_free_irq(&client->dev, client->irq, chip);
+
+	/*
+	 * Enable register based battery charging as the hw_init moves CHG_EN
+	 * control from pin-based to register based.
+	 */
+	rc = smb23x_charging_disable(chip, USER, false);
+	if (rc < 0) {
+		pr_err("Register control based charging enable failed\n");
+		return rc;
+	}
+
+	rc = smb23x_hw_init(chip);
+	if (rc < 0) {
+		pr_err("smb23x hw init failed rc=%d\n", rc);
+		return rc;
+	}
+
+	/*
+	 * Disable charging if device tree (USER) requested:
+	 * set USB_SUSPEND to cutoff USB power completely
+	 */
+	rc = smb23x_suspend_usb(chip, USER,
+		chip->cfg_charging_disabled ? true : false);
+	if (rc < 0) {
+		pr_err("%suspend USB failed\n",
+			chip->cfg_charging_disabled ? "S" : "Un-s");
+		return rc;
+	}
+
+	rc = smb23x_determine_initial_status(chip);
+	if (rc < 0) {
+		pr_err("Update initial status failed\n");
+		return rc;
+	}
+
+	smb23x_irq_polling_wa_check(chip);
+
+	/* Register IRQ */
+	if (client->irq) {
+		rc = devm_request_threaded_irq(&client->dev, client->irq, NULL,
+				smb23x_stat_handler, IRQF_ONESHOT,
+				"smb23x_stat_irq", chip);
+		if (rc < 0) {
+			pr_err("Request IRQ(%d) failed, rc = %d\n",
+				client->irq, rc);
+			return rc;
+		}
+		enable_irq_wake(client->irq);
+	}
+
+	pr_debug("Restoring all hardware context in smb23x restore\n");
+
+	return 0;
+}
+
 static int smb23x_suspend(struct device *dev)
 {
 	struct i2c_client *client = to_i2c_client(dev);
 	struct smb23x_chip *chip = i2c_get_clientdata(client);
 	int rc;
 
+#ifdef CONFIG_DEEPSLEEP
+	if (pm_suspend_via_firmware()) {
+		pr_debug("Entering deepsleep via smb23x suspend\n");
+		smb23x_freeze(dev);
+	}
+#endif
+
 	/* Save the current IRQ config */
 	rc = smb23x_read(chip, IRQ_CFG_REG_9, &chip->irq_cfg_mask);
-	if (rc)
+	if (rc < 0)
 		pr_err("Save irq config failed, rc=%d\n", rc);
 
 	/* enable only important IRQs */
@@ -2456,6 +2560,12 @@ static int smb23x_resume(struct device *dev)
 	if (rc)
 		pr_err("Restore irq cfg reg failed, rc=%d\n", rc);
 
+#ifdef CONFIG_DEEPSLEEP
+	if (pm_suspend_via_firmware()) {
+		pr_debug("Resuming from Deepsleep via smb23x resume\n");
+		smb23x_restore(dev);
+	}
+#endif
 	mutex_lock(&chip->irq_complete);
 	chip->resume_completed = true;
 	if (chip->irq_waiting) {
@@ -2484,9 +2594,11 @@ static int smb23x_remove(struct i2c_client *client)
 }
 
 static const struct dev_pm_ops smb23x_pm_ops = {
+	.freeze		= smb23x_freeze,
+	.restore		= smb23x_restore,
 	.resume		= smb23x_resume,
 	.suspend_noirq	= smb23x_suspend_noirq,
-	.suspend	= smb23x_suspend,
+	.suspend		= smb23x_suspend,
 };
 
 static const struct of_device_id smb23x_match_table[] = {

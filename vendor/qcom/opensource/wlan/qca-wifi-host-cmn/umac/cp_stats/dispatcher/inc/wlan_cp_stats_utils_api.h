@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2018,2020 The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -75,7 +75,7 @@ enum wlan_cp_stats_comp_id {
 QDF_STATUS wlan_cp_stats_init(void);
 
 /**
- * wlan_cp_stats_init(): API to deinit stats component
+ * wlan_cp_stats_deinit(): API to deinit stats component
  *
  * This API is invoked from dispatcher deinit during all component deinit.
  * This API will unregister all required handlers for psoc, pdev,vdev
@@ -130,14 +130,13 @@ QDF_STATUS wlan_cp_stats_enable(struct wlan_objmgr_psoc *psoc);
 QDF_STATUS wlan_cp_stats_disable(struct wlan_objmgr_psoc *psoc);
 
 /**
- * wlan_cp_stats_comp_obj_cfg() - public API to umac for
- * attach/detach
+ * wlan_cp_stats_comp_obj_cfg() - public API to umac for attach/detach
  * component specific stat obj to cp stats obj
  * @obj_type: common object type
  * @cfg_state: config state either to attach of detach
  * @comp_id: umac component id
  * @cmn_obj: pointer to common object
- * @comp_priv_obj: pointer to component specific cp stats object
+ * @data: pointer to component specific cp stats object
  *
  * Return: QDF_STATUS_SUCCESS on success, QDF_STATUS_E_** on error
  */
@@ -149,13 +148,13 @@ QDF_STATUS wlan_cp_stats_comp_obj_cfg(
 		void *data);
 
 /**
- * wlan_cp_stats_vdev_ucast_rx_pnerr() - public API to umac for updating
+ * wlan_cp_stats_vdev_mcast_rx_pnerr() - public API to umac for updating
  * vdev rx_pnerr stats
  * @vdev: pointer to vdev
  *
  * Return: None
  */
-void wlan_cp_stats_vdev_ucast_rx_pnerr(struct wlan_objmgr_vdev *vdev);
+void wlan_cp_stats_vdev_mcast_rx_pnerr(struct wlan_objmgr_vdev *vdev);
 
 /**
  * wlan_cp_stats_peer_rx_pnerr() - public API to umac for updating
@@ -190,7 +189,7 @@ tgt_cp_stats_twt_get_session_evt_handler(
 
 #else /* QCA_SUPPORT_CP_STATS */
 static inline
-void wlan_cp_stats_vdev_ucast_rx_pnerr(struct wlan_objmgr_vdev *vdev)
+void wlan_cp_stats_vdev_mcast_rx_pnerr(struct wlan_objmgr_vdev *vdev)
 {}
 
 static inline

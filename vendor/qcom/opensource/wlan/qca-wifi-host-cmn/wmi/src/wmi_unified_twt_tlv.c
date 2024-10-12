@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2018-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -66,6 +66,7 @@ static QDF_STATUS send_twt_enable_cmd_tlv(wmi_unified_t wmi_handle,
 	cmd->remove_sta_slot_interval =     params->remove_sta_slot_interval;
 
 	TWT_EN_DIS_FLAGS_SET_BTWT(cmd->flags, params->b_twt_enable);
+	TWT_EN_DIS_FLAGS_SET_B_R_TWT(cmd->flags, params->r_twt_enable);
 	TWT_EN_DIS_FLAGS_SET_L_MBSSID(cmd->flags,
 				      params->b_twt_legacy_mbss_enable);
 	TWT_EN_DIS_FLAGS_SET_AX_MBSSID(cmd->flags,
@@ -198,6 +199,9 @@ send_twt_add_dialog_cmd_tlv(wmi_unified_t wmi_handle,
 	cmd->sp_start_tsf_lo = (uint32_t)(params->wake_time_tsf & 0xFFFFFFFF);
 	cmd->sp_start_tsf_hi = (uint32_t)(params->wake_time_tsf >> 32);
 	cmd->announce_timeout_us = params->announce_timeout_us;
+	cmd->link_id_bitmap = params->link_id_bitmap;
+	cmd->r_twt_dl_tid_bitmap = params->r_twt_dl_tid_bitmap;
+	cmd->r_twt_ul_tid_bitmap = params->r_twt_ul_tid_bitmap;
 	TWT_FLAGS_SET_CMD(cmd->flags, params->twt_cmd);
 	TWT_FLAGS_SET_BROADCAST(cmd->flags, params->flag_bcast);
 	TWT_FLAGS_SET_TRIGGER(cmd->flags, params->flag_trigger);
@@ -405,6 +409,8 @@ send_twt_btwt_invite_sta_cmd_tlv(wmi_unified_t wmi_handle,
 	WMI_CHAR_ARRAY_TO_MAC_ADDR(params->peer_macaddr.bytes,
 				   &cmd->peer_macaddr);
 	cmd->dialog_id = params->dialog_id;
+	cmd->r_twt_dl_tid_bitmap = params->r_twt_dl_tid_bitmap;
+	cmd->r_twt_ul_tid_bitmap = params->r_twt_ul_tid_bitmap;
 
 	status = wmi_unified_cmd_send(wmi_handle, buf, sizeof(*cmd),
 				      WMI_TWT_BTWT_INVITE_STA_CMDID);
@@ -441,6 +447,8 @@ send_twt_btwt_remove_sta_cmd_tlv(wmi_unified_t wmi_handle,
 	WMI_CHAR_ARRAY_TO_MAC_ADDR(params->peer_macaddr.bytes,
 				   &cmd->peer_macaddr);
 	cmd->dialog_id = params->dialog_id;
+	cmd->r_twt_dl_tid_bitmap = params->r_twt_dl_tid_bitmap;
+	cmd->r_twt_ul_tid_bitmap = params->r_twt_ul_tid_bitmap;
 
 	status = wmi_unified_cmd_send(wmi_handle, buf, sizeof(*cmd),
 				      WMI_TWT_BTWT_REMOVE_STA_CMDID);
@@ -565,6 +573,10 @@ wmi_get_converted_twt_add_dialog_status(WMI_ADD_TWT_STATUS_T tgt_status)
 		return HOST_TWT_ADD_STATUS_CHAN_SW_IN_PROGRESS;
 	case WMI_ADD_TWT_STATUS_SCAN_IN_PROGRESS:
 		return HOST_TWT_ADD_STATUS_SCAN_IN_PROGRESS;
+	case WMI_ADD_TWT_STATUS_LINK_SWITCH_IN_PROGRESS:
+		return HOST_TWT_ADD_STATUS_LINK_SWITCH_IN_PROGRESS;
+	case WMI_ADD_TWT_STATUS_UNSUPPORTED_MODE_MLMR:
+		return HOST_TWT_ADD_STATUS_UNSUPPORTED_MODE_MLMR;
 	default:
 		return HOST_TWT_ADD_STATUS_UNKNOWN_ERROR;
 	}
@@ -1255,6 +1267,7 @@ static QDF_STATUS send_twt_enable_cmd_tlv(wmi_unified_t wmi_handle,
 	cmd->remove_sta_slot_interval =     params->remove_sta_slot_interval;
 
 	TWT_EN_DIS_FLAGS_SET_BTWT(cmd->flags, params->b_twt_enable);
+	TWT_EN_DIS_FLAGS_SET_B_R_TWT(cmd->flags, params->r_twt_enable);
 	TWT_EN_DIS_FLAGS_SET_L_MBSSID(cmd->flags,
 				      params->b_twt_legacy_mbss_enable);
 	TWT_EN_DIS_FLAGS_SET_AX_MBSSID(cmd->flags,
@@ -1365,6 +1378,9 @@ send_twt_add_dialog_cmd_tlv(wmi_unified_t wmi_handle,
 	cmd->sp_start_tsf_lo = (uint32_t)(params->wake_time_tsf & 0xFFFFFFFF);
 	cmd->sp_start_tsf_hi = (uint32_t)(params->wake_time_tsf >> 32);
 	cmd->announce_timeout_us = params->announce_timeout_us;
+	cmd->link_id_bitmap = params->link_id_bitmap;
+	cmd->r_twt_dl_tid_bitmap = params->r_twt_dl_tid_bitmap;
+	cmd->r_twt_ul_tid_bitmap = params->r_twt_ul_tid_bitmap;
 	TWT_FLAGS_SET_CMD(cmd->flags, params->twt_cmd);
 	TWT_FLAGS_SET_BROADCAST(cmd->flags, params->flag_bcast);
 	TWT_FLAGS_SET_TRIGGER(cmd->flags, params->flag_trigger);
@@ -1690,6 +1706,10 @@ wmi_get_converted_twt_add_dialog_status(WMI_ADD_TWT_STATUS_T tgt_status)
 		return WMI_HOST_ADD_TWT_STATUS_CHAN_SW_IN_PROGRESS;
 	case WMI_ADD_TWT_STATUS_SCAN_IN_PROGRESS:
 		return WMI_HOST_ADD_TWT_STATUS_SCAN_IN_PROGRESS;
+	case WMI_ADD_TWT_STATUS_LINK_SWITCH_IN_PROGRESS:
+		return WMI_HOST_ADD_TWT_STATUS_LINK_SWITCH_IN_PROGRESS;
+	case WMI_ADD_TWT_STATUS_UNSUPPORTED_MODE_MLMR:
+		return WMI_HOST_ADD_TWT_STATUS_UNSUPPORTED_MODE_MLMR;
 	default:
 		return WMI_HOST_ADD_TWT_STATUS_UNKNOWN_ERROR;
 	}

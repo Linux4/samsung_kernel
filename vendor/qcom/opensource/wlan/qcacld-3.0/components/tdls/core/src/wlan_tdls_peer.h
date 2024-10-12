@@ -37,7 +37,7 @@ struct tdls_search_peer_param {
 };
 
 /**
- * struct tdls_progress_param - used to search progress TDLS peer
+ * struct tdls_search_progress_param - used to search progress TDLS peer
  * @skip_self: skip self peer
  * @macaddr: MAC address of peer
  * @peer: pointer to the found peer
@@ -86,8 +86,8 @@ struct tdls_peer *
 tdls_find_all_peer(struct tdls_soc_priv_obj *soc_obj, const uint8_t *macaddr);
 
 /**
- * tdls_find_all_peer() - find peer matching the input MACaddr in soc range
- * @soc_obj: TDLS soc object
+ * tdls_find_opclass() - find Operating Class based upon channel
+ * @psoc: objmgr soc object
  * @channel:channel number
  * @bw_offset: offset to bandwidth
  *
@@ -136,8 +136,8 @@ qdf_freq_t tdls_get_offchan_freq(struct wlan_objmgr_vdev *vdev,
 				 struct tdls_soc_priv_obj *soc_obj);
 
 /**
- * tdls_get_offchan_freq() - Get preferred offchannel bandwidth on basis of
- *                           frequency
+ * tdls_get_offchan_bw() - Get preferred offchannel bandwidth on basis of
+ *                         frequency
  * @soc_obj: TDLS SOC object
  * @off_chan_freq: Offchannel frequency
  *
@@ -162,7 +162,7 @@ void tdls_extract_peer_state_param(struct tdls_peer_update_state *peer_param,
 				   struct tdls_peer *peer);
 
 /**
- * tdls_set_link_status() - set link statue for TDLS peer
+ * tdls_set_peer_link_status() - set link statue for TDLS peer
  * @peer: TDLS peer
  * @link_state: link state
  * @link_reason: reason with link status

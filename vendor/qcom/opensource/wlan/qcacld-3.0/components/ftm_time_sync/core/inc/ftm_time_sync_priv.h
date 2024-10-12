@@ -44,7 +44,7 @@ struct wlan_time_sync_pair {
 };
 
 /**
- * struct ftm_time_sync_vdev_priv - Private object to be stored in vdev
+ * struct ftm_time_sync_priv - Private object to be stored in vdev
  * @qtime_ref: qtime ref
  * @mac_ref: mac time ref
  * @time_pair: array of initiator/target qtime pair

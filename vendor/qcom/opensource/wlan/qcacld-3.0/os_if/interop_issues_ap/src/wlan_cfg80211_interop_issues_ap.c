@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2019-2020 The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -84,8 +84,8 @@ wlan_cfg80211_send_interop_issues_ap_cb(
 
 	index = QCA_NL80211_VENDOR_SUBCMD_INTEROP_ISSUES_AP_INDEX;
 	len = nla_total_size(QDF_MAC_ADDR_SIZE + NLMSG_HDRLEN);
-	skb = cfg80211_vendor_event_alloc(os_priv->wiphy, NULL, len, index,
-					  GFP_KERNEL);
+	skb = wlan_cfg80211_vendor_event_alloc(os_priv->wiphy, NULL, len, index,
+					       GFP_KERNEL);
 	if (!skb) {
 		osif_err("skb alloc failed");
 		return;
@@ -98,11 +98,11 @@ wlan_cfg80211_send_interop_issues_ap_cb(
 		    QCA_WLAN_VENDOR_ATTR_INTEROP_ISSUES_AP_BSSID,
 		    QDF_MAC_ADDR_SIZE, data->rap_addr.bytes)) {
 		osif_err("nla put fail");
-		kfree_skb(skb);
+		wlan_cfg80211_vendor_free_skb(skb);
 		return;
 	}
 
-	cfg80211_vendor_event(skb, GFP_KERNEL);
+	wlan_cfg80211_vendor_event(skb, GFP_KERNEL);
 }
 
 static void wlan_interop_issues_ap_register_cbk(struct wlan_objmgr_pdev *pdev)
@@ -187,7 +187,8 @@ __wlan_cfg80211_set_interop_issues_ap_config(struct wiphy *wiphy,
 		return -EPERM;
 	}
 
-	vdev = hdd_objmgr_get_vdev_by_user(adapter, WLAN_INTEROP_ISSUES_AP_ID);
+	vdev = hdd_objmgr_get_vdev_by_user(adapter->deflink,
+					   WLAN_INTEROP_ISSUES_AP_ID);
 	if (!vdev) {
 		osif_err("Invalid vdev");
 		return -EINVAL;

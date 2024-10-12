@@ -44,6 +44,8 @@
 #include <lim_mlo.h>
 #include "wlan_mlo_mgr_sta.h"
 #endif
+#include <wlan_lmac_if_def.h>
+#include "target_if_mlme.h"
 
 static struct vdev_mlme_ops sta_mlme_ops;
 static struct vdev_mlme_ops ap_mlme_ops;
@@ -88,12 +90,24 @@ QDF_STATUS mlme_register_mlme_ext_ops(void)
 #ifdef WLAN_FEATURE_11BE_MLO
 QDF_STATUS mlme_register_mlo_ext_ops(void)
 {
+	QDF_STATUS status;
 	struct mlo_mgr_context *mlo_ctx = wlan_objmgr_get_mlo_ctx();
 
-	if (mlo_ctx)
-		mlo_reg_mlme_ext_cb(mlo_ctx, &mlo_ext_ops);
+	if (!mlo_ctx)
+		return QDF_STATUS_E_FAILURE;
 
-	return QDF_STATUS_SUCCESS;
+	mlo_reg_mlme_ext_cb(mlo_ctx, &mlo_ext_ops);
+
+	status = mlo_mgr_register_link_switch_notifier(WLAN_UMAC_COMP_MLME,
+						       wlan_cm_link_switch_notif_cb);
+	if (status == QDF_STATUS_E_NOSUPPORT) {
+		status = QDF_STATUS_SUCCESS;
+		mlme_debug("Link switch not supported");
+	} else if (QDF_IS_STATUS_ERROR(status)) {
+		mlme_err("Failed to register link switch notifier for mlme!");
+	}
+
+	return status;
 }
 
 QDF_STATUS mlme_unregister_mlo_ext_ops(void)
@@ -214,8 +228,8 @@ static QDF_STATUS sta_mlme_vdev_restart_send(struct vdev_mlme_obj *vdev_mlme,
 /**
  * sta_mlme_vdev_start_req_failed() - MLME start fail callback
  * @vdev_mlme: vdev mlme object
- * @event_data_len: event data length
- * @event_data: event data
+ * @data_len: event data length
+ * @data: event data
  *
  * This function is called to send the vdev stop to firmware
  *
@@ -249,6 +263,171 @@ static QDF_STATUS sta_mlme_vdev_start_connection(struct vdev_mlme_obj *vdev_mlme
 	return QDF_STATUS_SUCCESS;
 }
 
+#if defined WLAN_FEATURE_SR
+int mlme_sr_is_enable(struct wlan_objmgr_vdev *vdev)
+{
+	uint8_t sr_ctrl;
+
+	sr_ctrl = wlan_vdev_mlme_get_sr_ctrl(vdev);
+	return (!sr_ctrl || !(sr_ctrl & NON_SRG_PD_SR_DISALLOWED) ||
+		(sr_ctrl & SRG_INFO_PRESENT));
+}
+
+/**
+ * mlme_sr_handle_conc(): Handle concurrency scenario i.e Single MAC
+ * concurrency is not supoprted for SR, Disable SR if it is enable on other
+ * VDEV and enable it back once the once the concurrent vdev is down.
+ *
+ * @vdev: object manager vdev
+ * @conc_vdev: cuncurrent vdev object
+ * @en_sr_curr_vdev: indicates spatial reuse enable/disable
+ *
+ */
+static void
+mlme_sr_handle_conc(struct wlan_objmgr_vdev *vdev,
+		    struct wlan_objmgr_vdev *conc_vdev, bool en_sr_curr_vdev)
+{
+	uint32_t val = 0;
+	struct wlan_objmgr_pdev *pdev;
+	struct wlan_objmgr_psoc *psoc;
+	struct wlan_lmac_if_tx_ops *tx_ops;
+	struct wlan_lmac_if_spatial_reuse_tx_ops *sr_tx_ops;
+	uint8_t conc_vdev_id = wlan_vdev_get_id(conc_vdev);
+
+	pdev = wlan_vdev_get_pdev(vdev);
+	if (!pdev) {
+		mlme_err("pdev is NULL");
+		return;
+	}
+
+	psoc = wlan_vdev_get_psoc(vdev);
+	tx_ops = wlan_psoc_get_lmac_if_txops(psoc);
+	if (!tx_ops) {
+		mlme_err("tx_ops is NULL");
+		return;
+	}
+
+	sr_tx_ops = &tx_ops->spatial_reuse_tx_ops;
+	if (en_sr_curr_vdev) {
+		wlan_vdev_mlme_set_sr_disable_due_conc(vdev, true);
+		wlan_vdev_mlme_set_sr_disable_due_conc(conc_vdev, true);
+
+		if (!wlan_vdev_mlme_get_he_spr_enabled(conc_vdev))
+			return;
+
+		if (mlme_sr_is_enable(conc_vdev)) {
+			if (sr_tx_ops->target_if_sr_update)
+				sr_tx_ops->target_if_sr_update
+						(pdev, conc_vdev_id, val);
+
+			wlan_spatial_reuse_osif_event(conc_vdev,
+						      SR_OPERATION_SUSPEND,
+						   SR_REASON_CODE_CONCURRENCY);
+		}
+	} else if (wlan_vdev_mlme_is_sr_disable_due_conc(conc_vdev)) {
+		wlan_vdev_mlme_set_sr_disable_due_conc(conc_vdev, false);
+
+		if (!wlan_vdev_mlme_get_he_spr_enabled(conc_vdev))
+			return;
+
+		if (mlme_sr_is_enable(conc_vdev)) {
+			wlan_mlme_update_sr_data(conc_vdev, &val, 0, 0, true);
+
+			if (sr_tx_ops->target_if_sr_update)
+				sr_tx_ops->target_if_sr_update
+						(pdev, conc_vdev_id, val);
+
+			wlan_spatial_reuse_osif_event(conc_vdev,
+						      SR_OPERATION_RESUME,
+						      SR_REASON_CODE_CONCURRENCY);
+		} else {
+			mlme_debug("SR Disabled in SR Control");
+		}
+	}
+}
+
+void mlme_sr_update(struct wlan_objmgr_vdev *vdev, bool enable)
+{
+	struct wlan_objmgr_vdev *conc_vdev;
+	struct wlan_objmgr_psoc *psoc;
+	struct wlan_objmgr_pdev *pdev;
+	struct wlan_lmac_if_tx_ops *tx_ops;
+	uint32_t conc_vdev_id;
+	uint32_t val = 0;
+	uint8_t vdev_id;
+	uint8_t mac_id;
+
+	if (!vdev) {
+		mlme_err("vdev is NULL");
+		return;
+	}
+	vdev_id = wlan_vdev_get_id(vdev);
+
+	pdev = wlan_vdev_get_pdev(vdev);
+	if (!pdev) {
+		mlme_err("pdev is NULL");
+		return;
+	}
+
+	psoc = wlan_vdev_get_psoc(vdev);
+	if (!psoc) {
+		mlme_err("psoc is NULL");
+		return;
+	}
+
+	policy_mgr_get_mac_id_by_session_id(psoc, vdev_id, &mac_id);
+	conc_vdev_id = policy_mgr_get_conc_vdev_on_same_mac(psoc, vdev_id,
+							    mac_id);
+	if (conc_vdev_id != WLAN_INVALID_VDEV_ID &&
+	    !policy_mgr_sr_same_mac_conc_enabled(psoc)) {
+		/*
+		 * Single MAC concurrency is not supoprted for SR,
+		 * Disable SR if it is enable on other VDEV and enable
+		 * it back once the once the concurrent vdev is down.
+		 */
+		mlme_debug("SR with concurrency is not allowed");
+		conc_vdev =
+		wlan_objmgr_get_vdev_by_id_from_psoc(psoc, conc_vdev_id,
+						     WLAN_MLME_SB_ID);
+		if (!conc_vdev) {
+			mlme_err("Can't get vdev by vdev_id:%d", conc_vdev_id);
+		} else {
+			mlme_sr_handle_conc(vdev, conc_vdev, enable);
+			wlan_objmgr_vdev_release_ref(conc_vdev,
+						     WLAN_MLME_SB_ID);
+			goto err;
+		}
+	}
+
+	if (!wlan_vdev_mlme_get_he_spr_enabled(vdev)) {
+		mlme_err("Spatial Reuse disabled for vdev_id: %d", vdev_id);
+		goto err;
+	}
+
+	if (mlme_sr_is_enable(vdev)) {
+		if (enable) {
+			wlan_mlme_update_sr_data(vdev, &val, 0, 0, true);
+		} else {
+			/* VDEV down, disable SR */
+			wlan_vdev_mlme_set_he_spr_enabled(vdev, false);
+			wlan_vdev_mlme_set_sr_ctrl(vdev, 0);
+			wlan_vdev_mlme_set_non_srg_pd_offset(vdev, 0);
+		}
+
+		mlme_debug("SR param val: %x, Enable: %x", val, enable);
+
+		tx_ops = wlan_psoc_get_lmac_if_txops(psoc);
+		if (tx_ops && tx_ops->spatial_reuse_tx_ops.target_if_sr_update)
+			tx_ops->spatial_reuse_tx_ops.target_if_sr_update
+							(pdev, vdev_id, val);
+	} else {
+		mlme_debug("Spatial reuse is disabled in SR control");
+	}
+err:
+	return;
+}
+#endif
+
 /**
  * sta_mlme_vdev_up_send() - MLME vdev UP callback
  * @vdev_mlme: vdev mlme object
@@ -263,9 +442,16 @@ static QDF_STATUS sta_mlme_vdev_up_send(struct vdev_mlme_obj *vdev_mlme,
 					uint16_t event_data_len,
 					void *event_data)
 {
+	QDF_STATUS status;
+
 	mlme_legacy_debug("vdev id = %d ",
 			  vdev_mlme->vdev->vdev_objmgr.vdev_id);
-	return wma_sta_vdev_up_send(vdev_mlme, event_data_len, event_data);
+	status = wma_sta_vdev_up_send(vdev_mlme, event_data_len, event_data);
+
+	if (QDF_IS_STATUS_SUCCESS(status))
+		mlme_sr_update(vdev_mlme->vdev, true);
+
+	return status;
 }
 
 /**
@@ -315,6 +501,7 @@ QDF_STATUS sta_mlme_vdev_notify_roam_start(struct vdev_mlme_obj *vdev_mlme,
  * @vdev_mlme: vdev mlme object
  * @event_data_len: event data length
  * @event_data: event data
+ * @is_disconnect_legacy_only: flag to indicate legacy disconnect
  *
  * This function is called to disconnect BSS/send deauth to AP
  *
@@ -322,7 +509,8 @@ QDF_STATUS sta_mlme_vdev_notify_roam_start(struct vdev_mlme_obj *vdev_mlme,
  */
 static QDF_STATUS sta_mlme_vdev_disconnect_bss(struct vdev_mlme_obj *vdev_mlme,
 					       uint16_t event_data_len,
-					       void *event_data)
+					       void *event_data,
+					       bool is_disconnect_legacy_only)
 {
 	mlme_legacy_debug("vdev id = %d ",
 			  vdev_mlme->vdev->vdev_objmgr.vdev_id);
@@ -333,8 +521,8 @@ static QDF_STATUS sta_mlme_vdev_disconnect_bss(struct vdev_mlme_obj *vdev_mlme,
 /**
  * sta_mlme_vdev_stop_send() - MLME vdev stop send callback
  * @vdev_mlme: vdev mlme object
- * @event_data_len: event data length
- * @event_data: event data
+ * @data_len: event data length
+ * @data: event data
  *
  * This function is called to send the vdev stop to firmware
  *
@@ -352,8 +540,8 @@ static QDF_STATUS sta_mlme_vdev_stop_send(struct vdev_mlme_obj *vdev_mlme,
 /**
  * sta_mlme_vdev_sta_disconnect_start() - MLME vdev disconnect send callback
  * @vdev_mlme: vdev mlme object
- * @event_data_len: event data length
- * @event_data: event data
+ * @data_len: event data length
+ * @data: event data
  *
  * This function is called to trigger the vdev stop to firmware when
  * reassoc failure
@@ -373,8 +561,8 @@ sta_mlme_vdev_sta_disconnect_start(struct vdev_mlme_obj *vdev_mlme,
 /**
  * vdevmgr_mlme_stop_continue() - MLME vdev stop send callback
  * @vdev_mlme: vdev mlme object
- * @event_data_len: event data length
- * @event_data: event data
+ * @data_len: event data length
+ * @data: event data
  *
  * This function is called to initiate operations on
  * LMAC/FW stop response such as remove peer.
@@ -409,7 +597,7 @@ static QDF_STATUS ap_mlme_vdev_start_send(struct vdev_mlme_obj *vdev_mlme,
 }
 
 /**
- * ap_start_continue () - vdev start rsp callback
+ * ap_mlme_start_continue () - vdev start rsp callback
  * @vdev_mlme: vdev mlme object
  * @data_len: event data length
  * @data: event data
@@ -467,19 +655,11 @@ static QDF_STATUS ap_mlme_vdev_up_send(struct vdev_mlme_obj *vdev_mlme,
 }
 
 #ifdef WLAN_FEATURE_11BE_MLO
-void wlan_handle_emlsr_sta_concurrency(struct wlan_objmgr_vdev *vdev,
-				       bool ap_coming_up, bool sta_coming_up,
+void wlan_handle_emlsr_sta_concurrency(struct wlan_objmgr_psoc *psoc,
+				       bool conc_con_coming_up,
 				       bool emlsr_sta_coming_up)
 {
-	struct wlan_objmgr_psoc *psoc = wlan_vdev_get_psoc(vdev);
-
-	if (!psoc) {
-		mlme_legacy_debug("psoc Null");
-		return;
-	}
-
-	policy_mgr_handle_emlsr_sta_concurrency(psoc, vdev, ap_coming_up,
-						sta_coming_up,
+	policy_mgr_handle_emlsr_sta_concurrency(psoc, conc_con_coming_up,
 						emlsr_sta_coming_up);
 }
 #endif
@@ -513,13 +693,15 @@ ap_mlme_vdev_notify_up_complete(struct vdev_mlme_obj *vdev_mlme,
  * @vdev_mlme: vdev mlme object
  * @data_len: event data length
  * @data: event data
+ * @is_disconnect_legacy_only: flag to indicate is disconnect legacy
  *
  * This function is called to disconnect all connected peers
  *
  * Return: QDF_STATUS
  */
 static QDF_STATUS ap_mlme_vdev_disconnect_peers(struct vdev_mlme_obj *vdev_mlme,
-						uint16_t data_len, void *data)
+						uint16_t data_len, void *data,
+						bool is_disconnect_legacy_only)
 {
 	mlme_legacy_debug("vdev id = %d ",
 			  vdev_mlme->vdev->vdev_objmgr.vdev_id);
@@ -572,7 +754,7 @@ ap_mlme_vdev_is_newchan_no_cac(struct vdev_mlme_obj *vdev_mlme)
 }
 
 /**
- * ap_mlme_vdev_down_send() - callback to send vdev down req
+ * vdevmgr_mlme_vdev_down_send() - callback to send vdev down req
  * @vdev_mlme: vdev mlme object
  * @data_len: event data length
  * @data: event data
@@ -584,9 +766,17 @@ ap_mlme_vdev_is_newchan_no_cac(struct vdev_mlme_obj *vdev_mlme)
 static QDF_STATUS vdevmgr_mlme_vdev_down_send(struct vdev_mlme_obj *vdev_mlme,
 					      uint16_t data_len, void *data)
 {
-	mlme_legacy_debug("vdev id = %d ",
-			  vdev_mlme->vdev->vdev_objmgr.vdev_id);
-	return wma_ap_mlme_vdev_down_send(vdev_mlme, data_len, data);
+	QDF_STATUS status;
+	uint8_t vdev_id;
+
+	vdev_id = wlan_vdev_get_id(vdev_mlme->vdev);
+
+	mlme_legacy_debug("vdev id = %d ", vdev_id);
+	status = wma_ap_mlme_vdev_down_send(vdev_mlme, data_len, data);
+	if (QDF_IS_STATUS_SUCCESS(status))
+		mlme_sr_update(vdev_mlme->vdev, false);
+
+	return status;
 }
 
 /**
@@ -627,7 +817,7 @@ static QDF_STATUS ap_mlme_vdev_start_req_failed(struct vdev_mlme_obj *vdev_mlme,
 }
 
 /**
- * ap_mlme_vdev_restart_send() a callback to send vdev restart
+ * ap_mlme_vdev_restart_send() - a callback to send vdev restart
  * @vdev_mlme: vdev mlme object
  * @data_len: event data length
  * @data: event data
@@ -677,6 +867,8 @@ QDF_STATUS mlme_set_chan_switch_in_progress(struct wlan_objmgr_vdev *vdev,
 	}
 
 	mlme_priv->chan_switch_in_progress = val;
+	mlme_legacy_info("Set chan_switch_in_progress: %d vdev %d",
+			 val, wlan_vdev_get_id(vdev));
 
 	return QDF_STATUS_SUCCESS;
 }
@@ -1065,6 +1257,22 @@ bool wlan_is_vdev_traffic_ll_ht(struct wlan_objmgr_vdev *vdev)
 	return false;
 }
 
+WMI_HOST_WIFI_STANDARD mlme_get_vdev_wifi_std(struct wlan_objmgr_vdev *vdev)
+{
+	struct mlme_legacy_priv *mlme_priv;
+
+	mlme_priv = wlan_vdev_mlme_get_ext_hdl(vdev);
+	if (!mlme_priv) {
+		mlme_legacy_err("vdev legacy private object is NULL");
+		return WMI_HOST_WIFI_STANDARD_7;
+	}
+
+	if (!mlme_priv->is_user_std_set)
+		return WMI_HOST_WIFI_STANDARD_7;
+
+	return mlme_priv->wifi_std;
+}
+
 enum vdev_assoc_type  mlme_get_assoc_type(struct wlan_objmgr_vdev *vdev)
 {
 	struct mlme_legacy_priv *mlme_priv;
@@ -1152,6 +1360,8 @@ QDF_STATUS mlme_set_mbssid_info(struct wlan_objmgr_vdev *vdev,
 	mbss_11ax->profile_num = mbssid_info->profile_count;
 	qdf_mem_copy(mbss_11ax->trans_bssid,
 		     mbssid_info->trans_bssid, QDF_MAC_ADDR_SIZE);
+	qdf_mem_copy(mbss_11ax->non_trans_bssid,
+		     mbssid_info->non_trans_bssid, QDF_MAC_ADDR_SIZE);
 
 	return QDF_STATUS_SUCCESS;
 }
@@ -1373,59 +1583,20 @@ static void mlme_ext_handler_destroy(struct vdev_mlme_obj *vdev_mlme)
 {
 	if (!vdev_mlme || !vdev_mlme->ext_vdev_ptr)
 		return;
+	qdf_runtime_lock_deinit(
+		&vdev_mlme->ext_vdev_ptr->bss_color_change_runtime_lock);
+	qdf_wake_lock_destroy(
+		&vdev_mlme->ext_vdev_ptr->bss_color_change_wakelock);
+	qdf_runtime_lock_deinit(
+		&vdev_mlme->ext_vdev_ptr->disconnect_runtime_lock);
 	mlme_free_self_disconnect_ies(vdev_mlme->vdev);
 	mlme_free_peer_disconnect_ies(vdev_mlme->vdev);
 	mlme_free_sae_auth_retry(vdev_mlme->vdev);
 	mlme_deinit_wait_for_key_timer(&vdev_mlme->ext_vdev_ptr->wait_key_timer);
 	mlme_free_fils_info(&vdev_mlme->ext_vdev_ptr->connect_info);
+	mlme_cm_free_roam_stats_info(vdev_mlme->ext_vdev_ptr);
 	qdf_mem_free(vdev_mlme->ext_vdev_ptr);
 	vdev_mlme->ext_vdev_ptr = NULL;
-}
-/**
- * vdevmgr_mlme_ext_hdl_create () - Create mlme legacy priv object
- * @vdev_mlme: vdev mlme object
- *
- * Return: QDF_STATUS
- */
-static
-QDF_STATUS vdevmgr_mlme_ext_hdl_create(struct vdev_mlme_obj *vdev_mlme)
-{
-	QDF_STATUS status;
-
-	mlme_legacy_debug("vdev id = %d ",
-			  vdev_mlme->vdev->vdev_objmgr.vdev_id);
-	vdev_mlme->ext_vdev_ptr =
-		qdf_mem_malloc(sizeof(struct mlme_legacy_priv));
-	if (!vdev_mlme->ext_vdev_ptr)
-		return QDF_STATUS_E_NOMEM;
-
-	mlme_init_rate_config(vdev_mlme);
-	vdev_mlme->ext_vdev_ptr->connect_info.fils_con_info = NULL;
-	mlme_init_wait_for_key_timer(vdev_mlme->vdev,
-				     &vdev_mlme->ext_vdev_ptr->wait_key_timer);
-
-	sme_get_vdev_type_nss(wlan_vdev_mlme_get_opmode(vdev_mlme->vdev),
-			      &vdev_mlme->proto.generic.nss_2g,
-			      &vdev_mlme->proto.generic.nss_5g);
-
-	status = mlme_get_vdev_types(wlan_vdev_mlme_get_opmode(vdev_mlme->vdev),
-				     &vdev_mlme->mgmt.generic.type,
-				     &vdev_mlme->mgmt.generic.subtype);
-	if (QDF_IS_STATUS_ERROR(status)) {
-		mlme_err("Get vdev type failed; status:%d", status);
-		mlme_ext_handler_destroy(vdev_mlme);
-		return status;
-	}
-
-	status = vdev_mgr_create_send(vdev_mlme);
-	if (QDF_IS_STATUS_ERROR(status)) {
-		mlme_err("Failed to create vdev for vdev id %d",
-			 wlan_vdev_get_id(vdev_mlme->vdev));
-		mlme_ext_handler_destroy(vdev_mlme);
-		return status;
-	}
-
-	return status;
 }
 
 static QDF_STATUS
@@ -1491,6 +1662,63 @@ QDF_STATUS vdevmgr_mlme_ext_hdl_destroy(struct vdev_mlme_obj *vdev_mlme)
 	return QDF_STATUS_SUCCESS;
 }
 
+/**
+ * vdevmgr_mlme_ext_hdl_create () - Create mlme legacy priv object
+ * @vdev_mlme: vdev mlme object
+ *
+ * Return: QDF_STATUS
+ */
+static
+QDF_STATUS vdevmgr_mlme_ext_hdl_create(struct vdev_mlme_obj *vdev_mlme)
+{
+	QDF_STATUS status;
+
+	mlme_legacy_debug("vdev id = %d ",
+			  vdev_mlme->vdev->vdev_objmgr.vdev_id);
+	vdev_mlme->ext_vdev_ptr =
+		qdf_mem_malloc(sizeof(struct mlme_legacy_priv));
+	if (!vdev_mlme->ext_vdev_ptr)
+		return QDF_STATUS_E_NOMEM;
+
+	mlme_init_rate_config(vdev_mlme);
+	mlme_init_connect_chan_info_config(vdev_mlme);
+	mlme_cm_alloc_roam_stats_info(vdev_mlme);
+	vdev_mlme->ext_vdev_ptr->connect_info.fils_con_info = NULL;
+	mlme_init_wait_for_key_timer(vdev_mlme->vdev,
+				     &vdev_mlme->ext_vdev_ptr->wait_key_timer);
+
+	qdf_wake_lock_create(
+			&vdev_mlme->ext_vdev_ptr->bss_color_change_wakelock,
+			"bss_color_change_wakelock");
+	qdf_runtime_lock_init(
+		&vdev_mlme->ext_vdev_ptr->bss_color_change_runtime_lock);
+	qdf_runtime_lock_init(
+		&vdev_mlme->ext_vdev_ptr->disconnect_runtime_lock);
+
+	sme_get_vdev_type_nss(wlan_vdev_mlme_get_opmode(vdev_mlme->vdev),
+			      &vdev_mlme->proto.generic.nss_2g,
+			      &vdev_mlme->proto.generic.nss_5g);
+
+	status = mlme_get_vdev_types(wlan_vdev_mlme_get_opmode(vdev_mlme->vdev),
+				     &vdev_mlme->mgmt.generic.type,
+				     &vdev_mlme->mgmt.generic.subtype);
+	if (QDF_IS_STATUS_ERROR(status)) {
+		mlme_err("Get vdev type failed; status:%d", status);
+		mlme_ext_handler_destroy(vdev_mlme);
+		return status;
+	}
+
+	status = vdev_mgr_create_send(vdev_mlme);
+	if (QDF_IS_STATUS_ERROR(status)) {
+		mlme_err("Failed to create vdev for vdev id %d",
+			 wlan_vdev_get_id(vdev_mlme->vdev));
+		vdevmgr_mlme_ext_hdl_destroy(vdev_mlme);
+		return status;
+	}
+
+	return status;
+}
+
 #ifdef WLAN_FEATURE_DYNAMIC_MAC_ADDR_UPDATE
 static
 QDF_STATUS vdevmgr_mlme_vdev_send_set_mac_addr(struct qdf_mac_addr mac_addr,
@@ -1502,7 +1730,7 @@ QDF_STATUS vdevmgr_mlme_vdev_send_set_mac_addr(struct qdf_mac_addr mac_addr,
 #endif
 
 /**
- * ap_vdev_dfs_cac_timer_stop() – callback to stop cac timer
+ * ap_vdev_dfs_cac_timer_stop() - callback to stop cac timer
  * @vdev_mlme: vdev mlme object
  * @event_data_len: event data length
  * @event_data: event data
@@ -1540,7 +1768,7 @@ static QDF_STATUS mon_mlme_vdev_start_restart_send(
 }
 
 /**
- * mon_start_continue () - vdev start rsp callback
+ * mon_mlme_start_continue () - vdev start rsp callback
  * @vdev_mlme: vdev mlme object
  * @data_len: event data length
  * @data: event data
@@ -1580,6 +1808,7 @@ static QDF_STATUS mon_mlme_vdev_up_send(struct vdev_mlme_obj *vdev_mlme,
  * @vdev_mlme: vdev mlme object
  * @data_len: event data length
  * @data: event data
+ * @is_disconnect_legacy_only: flag to indicate legacy disconnect
  *
  * montior mode no connected peers, only do VDEV state transition.
  *
@@ -1587,7 +1816,8 @@ static QDF_STATUS mon_mlme_vdev_up_send(struct vdev_mlme_obj *vdev_mlme,
  */
 static QDF_STATUS mon_mlme_vdev_disconnect_peers(
 		struct vdev_mlme_obj *vdev_mlme,
-		uint16_t data_len, void *data)
+		uint16_t data_len, void *data,
+		bool is_disconnect_legacy_only)
 {
 	mlme_legacy_debug("vdev id = %d",
 			  vdev_mlme->vdev->vdev_objmgr.vdev_id);
@@ -1635,7 +1865,7 @@ static QDF_STATUS mon_mlme_vdev_down_send(struct vdev_mlme_obj *vdev_mlme,
 
 /**
  * vdevmgr_vdev_delete_rsp_handle() - callback to handle vdev delete response
- * @vdev_mlme: vdev mlme object
+ * @psoc: psoc object
  * @rsp: pointer to vdev delete response
  *
  * This function is called to handle vdev delete response and send result to
@@ -1732,6 +1962,10 @@ QDF_STATUS psoc_mlme_ext_hdl_create(struct psoc_mlme_obj *psoc_mlme)
 			&psoc_mlme->ext_psoc_ptr->wfa_testcmd.tx_ops);
 	target_if_cm_roam_register_rx_ops(
 			&psoc_mlme->ext_psoc_ptr->rso_rx_ops);
+	wlan_mlme_register_rx_ops(&psoc_mlme->ext_psoc_ptr->mlme_rx_ops);
+
+	target_if_mlme_register_tx_ops(
+			&psoc_mlme->ext_psoc_ptr->mlme_tx_ops);
 
 	return QDF_STATUS_SUCCESS;
 }
@@ -1781,7 +2015,8 @@ vdevmgr_vdev_start_rsp_handle(struct vdev_mlme_obj *vdev_mlme,
 }
 
 /**
- * vdevmgr_vdev_delete_rsp_handle() - callback to handle vdev delete response
+ * vdevmgr_vdev_peer_delete_all_rsp_handle() - callback to handle vdev delete
+ *                                             all response
  * @vdev_mlme: vdev mlme object
  * @rsp: pointer to vdev delete response
  *
@@ -1826,11 +2061,23 @@ vdevmgr_vdev_peer_delete_all_rsp_handle(struct vdev_mlme_obj *vdev_mlme,
 static QDF_STATUS vdevmgr_reconfig_req_cb(struct scheduler_msg *msg)
 {
 	struct wlan_objmgr_vdev *vdev = msg->bodyptr;
+	struct wlan_objmgr_psoc *psoc;
+	uint8_t vdev_id;
 
 	if (!vdev) {
 		mlme_err("vdev null");
 		return QDF_STATUS_E_INVAL;
 	}
+
+	psoc = wlan_vdev_get_psoc(vdev);
+	if (!psoc) {
+		mlme_err("Failed to get psoc");
+		return QDF_STATUS_E_INVAL;
+	}
+
+	vdev_id = wlan_vdev_get_id(vdev);
+	if (!wlan_get_vdev_link_removed_flag_by_vdev_id(psoc, vdev_id))
+		mlme_cm_osif_link_reconfig_notify(vdev);
 
 	policy_mgr_handle_link_removal_on_vdev(vdev);
 	mlo_sta_stop_reconfig_timer_by_vdev(vdev);
@@ -2034,37 +2281,22 @@ static QDF_STATUS ap_mlme_vdev_csa_complete(struct vdev_mlme_obj *vdev_mlme)
 	return QDF_STATUS_SUCCESS;
 }
 
-/**
- * struct sta_mlme_ops - VDEV MLME operation callbacks structure for sta
- * @mlme_vdev_start_send:               callback to initiate actions of VDEV
- *                                      MLME start operation
- * @mlme_vdev_restart_send:             callback to initiate actions of VDEV
- *                                      MLME restart operation
- * @mlme_vdev_stop_start_send:          callback to block start/restart VDEV
- *                                      request command
- * @mlme_vdev_sta_conn_start:           callback to initiate connection
- * @mlme_vdev_start_continue:           callback to initiate operations on
- *                                      LMAC/FW start response
- * @mlme_vdev_up_send:                  callback to initiate actions of VDEV
- *                                      MLME up operation
- * @mlme_vdev_notify_up_complete:       callback to notify VDEV MLME on moving
- *                                      to UP state
- * @mlme_vdev_update_beacon:            callback to initiate beacon update
- * @mlme_vdev_disconnect_peers:         callback to initiate disconnection of
- *                                      peers
- * @mlme_vdev_stop_send:                callback to initiate actions of VDEV
- *                                      MLME stop operation
- * @mlme_vdev_stop_continue:            callback to initiate operations on
- *                                      LMAC/FW stop response
- * @mlme_vdev_down_send:                callback to initiate actions of VDEV
- *                                      MLME down operation
- * @mlme_vdev_notify_down_complete:     callback to notify VDEV MLME on moving
- *                                      to INIT state
- * @mlme_vdev_sta_disconn_start         callback to trigger vdev stop to
- *                                      firmware when resaaoc failure
- * @mlme_vdev_ext_peer_delete_all_rsp:  Callback to trigger Delete all
- *                                      peers for the given vdev
- */
+#ifdef WLAN_FEATURE_LL_LT_SAP
+QDF_STATUS
+wlan_ll_sap_sort_channel_list(uint8_t vdev_id, qdf_list_t *list,
+			      struct sap_sel_ch_info *ch_info)
+{
+	return wlansap_sort_channel_list(vdev_id, list, ch_info);
+}
+#endif
+
+void
+wlan_sap_get_user_config_acs_ch_list(uint8_t vdev_id,
+				     struct scan_filter *filter)
+{
+	wlansap_get_user_config_acs_ch_list(vdev_id, filter);
+}
+
 static struct vdev_mlme_ops sta_mlme_ops = {
 	.mlme_vdev_start_send = sta_mlme_vdev_start_send,
 	.mlme_vdev_restart_send = sta_mlme_vdev_restart_send,
@@ -2092,38 +2324,6 @@ static struct vdev_mlme_ops sta_mlme_ops = {
 #endif
 };
 
-/**
- * struct ap_mlme_ops - VDEV MLME operation callbacks structure for beaconing
- *                      interface
- * @mlme_vdev_start_send:               callback to initiate actions of VDEV
- *                                      MLME start operation
- * @mlme_vdev_restart_send:             callback to initiate actions of VDEV
- *                                      MLME restart operation
- * @mlme_vdev_stop_start_send:          callback to block start/restart VDEV
- *                                      request command
- * @mlme_vdev_start_continue:           callback to initiate operations on
- *                                      LMAC/FW start response
- * @mlme_vdev_up_send:                  callback to initiate actions of VDEV
- *                                      MLME up operation
- * @mlme_vdev_notify_up_complete:       callback to notify VDEV MLME on moving
- *                                      to UP state
- * @mlme_vdev_update_beacon:            callback to initiate beacon update
- * @mlme_vdev_disconnect_peers:         callback to initiate disconnection of
- *                                      peers
- * @mlme_vdev_dfs_cac_timer_stop:       callback to stop the DFS CAC timer
- * @mlme_vdev_stop_send:                callback to initiate actions of VDEV
- *                                      MLME stop operation
- * @mlme_vdev_stop_continue:            callback to initiate operations on
- *                                      LMAC/FW stop response
- * @mlme_vdev_down_send:                callback to initiate actions of VDEV
- *                                      MLME down operation
- * @mlme_vdev_notify_down_complete:     callback to notify VDEV MLME on moving
- *                                      to INIT state
- * @mlme_vdev_is_newchan_no_cac:        callback to check if new channel is DFS
- *                                      and cac is not required
- * @mlme_vdev_ext_peer_delete_all_rsp:  callback to handle vdev delete all peer
- *                                      response and send result to upper layer
- */
 static struct vdev_mlme_ops ap_mlme_ops = {
 	.mlme_vdev_start_send = ap_mlme_vdev_start_send,
 	.mlme_vdev_restart_send = ap_mlme_vdev_restart_send,

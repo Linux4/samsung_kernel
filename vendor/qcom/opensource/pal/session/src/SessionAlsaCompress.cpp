@@ -342,6 +342,11 @@ void SessionAlsaCompress::updateCodecOptions(
             case PAL_AUDIO_FMT_VORBIS:
                 codec.format = pal_snd_dec->vorbis_dec.bit_stream_fmt;
             break;
+#ifdef SEC_AUDIO_OFFLOAD_COMPRESSED_OPUS
+            case PAL_AUDIO_FMT_COMPRESSED_EXTENDED_OPUS:
+                PAL_DBG(LOG_TAG, "case for PAL_AUDIO_FMT_COMPRESSED_EXTENDED_OPUS(%x)", audio_fmt);
+            break;
+#endif
             default:
                 PAL_ERR(LOG_TAG, "Entered default, format %x", audio_fmt);
             break;
@@ -456,6 +461,12 @@ int SessionAlsaCompress::getSndCodecId(pal_audio_fmt_t fmt)
         case PAL_AUDIO_FMT_VORBIS:
             id = SND_AUDIOCODEC_VORBIS;
             break;
+#ifdef SEC_AUDIO_OFFLOAD_COMPRESSED_OPUS
+        case PAL_AUDIO_FMT_COMPRESSED_EXTENDED_OPUS:
+            /* SND_AUDIOCODEC_OPUS is defined @agm_api.h */
+            id = SND_AUDIOCODEC_OPUS;
+            break;
+#endif
         default:
             PAL_ERR(LOG_TAG, "Entered default format %x", fmt);
             break;
@@ -497,6 +508,11 @@ bool SessionAlsaCompress::isGaplessFormat(pal_audio_fmt_t fmt)
             break;
         case PAL_AUDIO_FMT_FLAC_OGG:
             break;
+#ifdef SEC_AUDIO_OFFLOAD_COMPRESSED_OPUS
+        case PAL_AUDIO_FMT_COMPRESSED_EXTENDED_OPUS:
+            isSupported = true;
+            break;
+#endif
         default:
             break;
     }
@@ -530,6 +546,10 @@ bool SessionAlsaCompress::isCodecConfigNeeded(
             case PAL_AUDIO_FMT_ALAC:
             case PAL_AUDIO_FMT_FLAC_OGG:
                 break;
+#ifdef SEC_AUDIO_OFFLOAD_COMPRESSED_OPUS
+            case PAL_AUDIO_FMT_COMPRESSED_EXTENDED_OPUS:
+                break;
+#endif
             default:
                 break;
         }
@@ -1338,6 +1358,10 @@ int SessionAlsaCompress::start(Stream * s)
                 codec.ch_in = CHS_2;
                 codec.ch_out = codec.ch_in;
             }
+
+#ifdef SEC_AUDIO_OFFLOAD_COMPRESSED_OPUS
+            PAL_DBG(LOG_TAG, "codec.id  : %d ", codec.id );    
+#endif
             compress_config.fragment_size = out_buf_size;
             compress_config.fragments = out_buf_count;
             compress_config.codec = &codec;
@@ -1781,7 +1805,6 @@ int SessionAlsaCompress::close(Stream * s)
                 PAL_ERR(LOG_TAG, "session alsa close failed with %d", status);
             }
             if (compress) {
-                compress_close(compress);
                 if (rm->cardState == CARD_STATUS_OFFLINE) {
                     std::shared_ptr<offload_msg> msg = std::make_shared<offload_msg>(OFFLOAD_CMD_ERROR);
                     std::lock_guard<std::mutex> lock(cv_mutex_);
@@ -1802,6 +1825,7 @@ int SessionAlsaCompress::close(Stream * s)
                 /* empty the pending messages in queue */
                 while (!msg_queue_.empty())
                     msg_queue_.pop();
+                compress_close(compress);
             }
             PAL_DBG(LOG_TAG, "out of compress close");
 

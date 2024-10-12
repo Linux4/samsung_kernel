@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2019-2020 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -53,7 +54,7 @@ QDF_STATUS tgt_fwol_register_rx_ops(struct wlan_fwol_rx_ops *rx_ops);
 /**
  * tgt_fwol_pdev_param_send() - send pdev params to firmware
  * @pdev: pdev handle
- * @pdev_params: pdev params
+ * @pdev_param: pdev params
  *
  * Return: QDF_STATUS_SUCCESS on success
  */
@@ -63,7 +64,7 @@ QDF_STATUS tgt_fwol_pdev_param_send(struct wlan_objmgr_pdev *pdev,
 /**
  * tgt_fwol_vdev_param_send() - send vdev params to firmware
  * @psoc: psoc handle
- * @vdev_set_params: vdev params
+ * @vdev_param: vdev params
  *
  * Return: QDF_STATUS_SUCCESS on success
  */

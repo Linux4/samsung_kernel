@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -168,9 +168,11 @@ void osif_dp_send_tcp_param_update_event(struct wlan_objmgr_psoc *psoc,
 	bool tcp_del_ack_ind_enabled = false;
 	bool tcp_adv_win_scl_enabled = false;
 	enum wlan_tp_level next_tp_level = WLAN_SVC_TP_NONE;
+	enum qca_nl80211_vendor_subcmds_index index =
+		QCA_NL80211_VENDOR_SUBCMD_THROUGHPUT_CHANGE_EVENT_INDEX;
 
 	event_len = sizeof(uint8_t) + sizeof(uint8_t) + NLMSG_HDRLEN;
-	pdev = wlan_objmgr_get_pdev_by_id(psoc, 0, WLAN_OSIF_ID);
+	pdev = wlan_objmgr_get_pdev_by_id(psoc, 0, WLAN_DP_ID);
 	if (!pdev)
 		return;
 
@@ -207,15 +209,12 @@ void osif_dp_send_tcp_param_update_event(struct wlan_objmgr_psoc *psoc,
 		return;
 	}
 
-	vendor_event =
-	cfg80211_vendor_event_alloc(
-			os_priv->wiphy,
-			NULL, event_len,
-			QCA_NL80211_VENDOR_SUBCMD_THROUGHPUT_CHANGE_EVENT_INDEX,
-			GFP_KERNEL);
+	vendor_event = wlan_cfg80211_vendor_event_alloc(os_priv->wiphy,
+							NULL, event_len,
+							index, GFP_KERNEL);
 
 	if (!vendor_event) {
-		dp_err("cfg80211_vendor_event_alloc failed");
+		dp_err("wlan_cfg80211_vendor_event_alloc failed");
 		wlan_objmgr_pdev_release_ref(pdev, WLAN_DP_ID);
 		return;
 	}
@@ -259,14 +258,14 @@ void osif_dp_send_tcp_param_update_event(struct wlan_objmgr_psoc *psoc,
 		 WIN_SCALE_LOW : WIN_SCALE_HI))))
 		goto tcp_param_change_nla_failed;
 
-	cfg80211_vendor_event(vendor_event, GFP_KERNEL);
+	wlan_cfg80211_vendor_event(vendor_event, GFP_KERNEL);
 	wlan_objmgr_pdev_release_ref(pdev, WLAN_DP_ID);
 	return;
 
 tcp_param_change_nla_failed:
 	wlan_objmgr_pdev_release_ref(pdev, WLAN_DP_ID);
 	dp_err("nla_put api failed");
-	kfree_skb(vendor_event);
+	wlan_cfg80211_vendor_free_skb(vendor_event);
 }
 #else
 static
@@ -1041,7 +1040,7 @@ int osif_dp_get_nud_stats(struct wiphy *wiphy,
 	ucfg_dp_set_nud_stats_cb(psoc, osif_request_cookie(request));
 
 	arp_stats_params.pkt_type = WLAN_NUD_STATS_ARP_PKT_TYPE;
-	arp_stats_params.vdev_id = ucfg_dp_get_intf_id(vdev);
+	arp_stats_params.vdev_id = ucfg_dp_get_link_id(vdev);
 
 	/* send NUD failure event only when ARP tracking is enabled. */
 	if (ucfg_dp_nud_fail_data_stall_evt_enabled() &&
@@ -1077,10 +1076,10 @@ int osif_dp_get_nud_stats(struct wiphy *wiphy,
 		goto exit;
 	}
 
-	skb = cfg80211_vendor_cmd_alloc_reply_skb(wiphy,
-						  WLAN_NUD_STATS_LEN);
+	skb = wlan_cfg80211_vendor_cmd_alloc_reply_skb(wiphy,
+						       WLAN_NUD_STATS_LEN);
 	if (!skb) {
-		dp_err("cfg80211_vendor_cmd_alloc_reply_skb failed");
+		dp_err("wlan_cfg80211_vendor_cmd_alloc_reply_skb failed");
 		err = -ENOMEM;
 		goto exit;
 	}
@@ -1102,7 +1101,7 @@ int osif_dp_get_nud_stats(struct wiphy *wiphy,
 	    nla_put_u16(skb, RSP_COUNT_OUT_OF_ORDER_DROP,
 			arp_stats->rx_host_drop_reorder)) {
 		dp_err("nla put fail");
-		kfree_skb(skb);
+		wlan_cfg80211_vendor_free_skb(skb);
 		err = -EINVAL;
 		goto exit;
 	}
@@ -1121,7 +1120,7 @@ int osif_dp_get_nud_stats(struct wiphy *wiphy,
 		}
 	}
 
-	cfg80211_vendor_cmd_reply(skb);
+	wlan_cfg80211_vendor_cmd_reply(skb);
 exit:
 	ucfg_dp_clear_nud_stats_cb(psoc);
 	osif_request_put(request);
@@ -1208,7 +1207,7 @@ int osif_dp_set_nud_stats(struct wiphy *wiphy,
 
 	dp_info("STATS_SET_START Received flag %d!", arp_stats_params.flag);
 
-	arp_stats_params.vdev_id = ucfg_dp_get_intf_id(vdev);
+	arp_stats_params.vdev_id = ucfg_dp_get_link_id(vdev);
 
 	if (QDF_STATUS_SUCCESS !=
 	    ucfg_dp_req_set_arp_stats(psoc, &arp_stats_params)) {

@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2019-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -181,6 +181,9 @@ void tgt_cfr_stop_lut_age_timer(struct wlan_objmgr_pdev *pdev);
  * tgt_cfr_default_ta_ra_cfg() - API to configure default values in TA_RA mode
  * entries
  * @pdev: pointer to pdev_object
+ * @rcc_param:
+ * @allvalid:
+ * @reset_cfg:
  *
  * Return: none
  */
@@ -196,7 +199,7 @@ void tgt_cfr_dump_lut_enh(struct wlan_objmgr_pdev *pdev);
 
 /**
  * tgt_cfr_rx_tlv_process() - Process PPDU status TLVs
- * @pdev_obj: pointer to pdev_object
+ * @pdev: pointer to pdev_object
  * @nbuf: pointer to cdp_rx_indication_ppdu
  */
 void tgt_cfr_rx_tlv_process(struct wlan_objmgr_pdev *pdev, void *nbuf);

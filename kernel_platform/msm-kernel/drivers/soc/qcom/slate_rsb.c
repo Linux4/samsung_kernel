@@ -151,6 +151,10 @@ void slatersb_rx_msg(void *data, int len)
 	struct slatersb_priv *dev =
 		container_of(slatersb_drv, struct slatersb_priv, lhndl);
 
+	if (len > SLATERSB_GLINK_INTENT_SIZE) {
+		pr_err("Invalid slatersb glink intent size\n");
+		return;
+	}
 	dev->slate_resp_cmplt = true;
 	wake_up(&dev->link_state_wait);
 	memcpy(dev->rx_buf, data, len);
@@ -167,7 +171,7 @@ static void slatersb_slateup_work(struct work_struct *work)
 			pr_err("slatersb-rpmsg is not probed yet\n");
 
 		ret = wait_event_timeout(dev->link_state_wait,
-			dev->rsb_rpmsg, msecs_to_jiffies(TIMEOUT_MS));
+			dev->rsb_rpmsg, msecs_to_jiffies(TIMEOUT_MS_GLINK_OPEN));
 		if (ret == 0) {
 			pr_err("channel connection time out %d\n",
 						ret);

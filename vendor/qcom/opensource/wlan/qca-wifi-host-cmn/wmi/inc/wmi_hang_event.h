@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -31,7 +32,6 @@ QDF_STATUS wmi_hang_event_notifier_register(struct wmi_unified *wmi_hdl);
 
 /**
  * wmi_hang_event_notifier_unregister() - wmi hang event notifier unregister
- * @wmi_hdl: WMI Handle
  *
  * This function unregisters wmi layer notifier for the hang event notifier
  * chain.

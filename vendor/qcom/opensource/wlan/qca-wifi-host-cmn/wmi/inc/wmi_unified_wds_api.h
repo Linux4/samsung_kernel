@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2021 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -29,7 +30,7 @@
 
 /**
  *  wmi_unified_peer_add_wds_entry_cmd() - WMI add wds entry cmd function
- *  @wmi_hdl: handle to WMI
+ *  @wmi_handle: handle to WMI
  *  @param: pointer to hold wds entry param
  *
  *  Return: QDF_STATUS_SUCCESS on success and QDF_STATUS_E_FAILURE for failure
@@ -40,7 +41,7 @@ wmi_unified_peer_add_wds_entry_cmd(wmi_unified_t wmi_handle,
 
 /**
  *  wmi_unified_peer_del_wds_entry_cmd() - WMI del wds entry cmd function
- *  @wmi_hdl: handle to WMI
+ *  @wmi_handle: handle to WMI
  *  @param: pointer to hold wds entry param
  *
  *  Return: QDF_STATUS_SUCCESS on success and QDF_STATUS_E_FAILURE for failure
@@ -52,7 +53,7 @@ wmi_unified_peer_del_wds_entry_cmd(wmi_unified_t wmi_handle,
 /**
  *  wmi_unified_update_wds_entry_cmd() - WMI update wds entry
  *  cmd function
- *  @wmi_hdl: handle to WMI
+ *  @wmi_handle: handle to WMI
  *  @param: pointer to hold wds entry param
  *
  *  Return: QDF_STATUS_SUCCESS on success and QDF_STATUS_E_FAILURE for failure

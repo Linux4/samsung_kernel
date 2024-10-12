@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2012-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -63,6 +63,14 @@ extern "C" {
 #define       SAP_MAX_NUM_SESSION          5
 #define       SAP_MAX_OBSS_STA_CNT         1    /* max # of OBSS STA */
 #define       SAP_ACS_WEIGHT_MAX           (26664)
+/* ACS will mark non ACS channels(filtered by PCL) or channels not in
+ * ACS scan list to SAP_ACS_WEIGHT_MAX.
+ * But the filtered channel still need a reasonable weight to
+ * calculate the combined weight for ACS bw 40/80/160/320.
+ * Assign SAP_ACS_WEIGHT_ADJUSTABLE to such channels and update it
+ * with reasonable weight after all channels weight are computed.
+ */
+#define       SAP_ACS_WEIGHT_ADJUSTABLE    (SAP_ACS_WEIGHT_MAX - 1)
 
 #define SAP_DEFAULT_24GHZ_CHANNEL     (6)
 #define SAP_DEFAULT_5GHZ_CHANNEL      (40)
@@ -119,6 +127,10 @@ typedef enum {
 typedef enum {
 	ADD_STA_TO_ACL = 0,       /* cmd to add STA to access control list */
 	DELETE_STA_FROM_ACL = 1,  /* cmd to del STA from access control list */
+	/* only add STA to ACL, do not trigger deauth */
+	ADD_STA_TO_ACL_NO_DEAUTH = 2,
+	/* only delete STA from ACL, do not trigger deauth */
+	DELETE_STA_FROM_ACL_NO_DEAUTH = 3,
 } eSapACLCmdType;
 
 typedef enum {
@@ -281,6 +293,7 @@ typedef struct sap_StationAssocReassocCompleteEvent_s {
 	uint8_t supported_band;
 	tDot11fIEHTCaps ht_caps;
 	tDot11fIEVHTCaps vht_caps;
+	bool eht_caps_present;
 	tSirMacCapabilityInfo capability_info;
 	bool he_caps_present;
 	struct qdf_mac_addr sta_mld;
@@ -375,6 +388,16 @@ struct sap_ch_change_ind {
 	uint32_t new_chan_freq;
 };
 
+/**
+ * struct sap_ch_change_rsp - channel change response
+ * @sap_ch_selected: channel parameters of new channel
+ * @ch_change_rsp_status: channel change response status
+ */
+struct sap_ch_change_rsp {
+	struct sap_ch_selected_s sap_ch_selected;
+	eSapStatus ch_change_rsp_status;
+};
+
 /*
  * This struct will be filled in and passed to sap_event_cb that is
  * provided during wlansap_start_bss call The event id corresponding to
@@ -409,8 +432,8 @@ struct sap_event {
 		tSap_MaxAssocExceededEvent sapMaxAssocExceeded;
 		struct sap_ch_selected_s sap_ch_selected;
 		struct sap_ch_change_ind sap_chan_cng_ind;
+		struct sap_ch_change_rsp sap_chan_cng_rsp;
 		struct sap_acs_scan_complete_event sap_acs_scan_comp;
-		QDF_STATUS ch_change_rsp_status;
 	} sapevt;
 };
 
@@ -447,12 +470,13 @@ struct sap_acs_cfg {
 	/* ACS Algo Input */
 	uint8_t    acs_mode;
 	eCsrPhyMode hw_mode;
-	uint32_t    start_ch_freq;
-	uint32_t    end_ch_freq;
-	uint32_t   *freq_list;
+	qdf_freq_t    start_ch_freq;
+	qdf_freq_t    end_ch_freq;
+	qdf_freq_t   *freq_list;
 	uint8_t    ch_list_count;
-	uint32_t   *master_freq_list;
+	qdf_freq_t   *master_freq_list;
 	uint8_t    master_ch_list_count;
+	bool master_ch_list_updated;
 #ifdef FEATURE_WLAN_AP_AP_ACS_OPTIMIZE
 	uint8_t    skip_scan_status;
 	uint32_t    skip_scan_range1_stch;
@@ -544,11 +568,16 @@ struct sap_config {
 	struct hdd_channel_info *channel_info;
 	uint32_t channel_info_count;
 	bool dfs_cac_offload;
+#ifdef WLAN_SUPPORT_TWT
+	bool cfg80211_twt_responder;
+#endif
 #ifdef WLAN_FEATURE_11BE_MLO
 	bool mlo_sap;
 	uint8_t link_id;
 	uint8_t num_link;
 #endif
+	qdf_freq_t last_acs_freq;
+	qdf_time_t last_acs_complete_time;
 };
 
 #ifdef FEATURE_WLAN_AP_AP_ACS_OPTIMIZE
@@ -584,7 +613,6 @@ typedef struct sSapDfsInfo {
 	 */
 	uint32_t target_chan_freq;
 	uint8_t ignore_cac;
-	eSapDfsCACState_t cac_state;
 	uint32_t user_provided_target_chan_freq;
 
 	/*
@@ -691,6 +719,7 @@ typedef struct tagSapStruct {
 #endif /* FEATURE_AP_MCC_CH_AVOIDANCE */
 	bool acs_with_more_param;
 	bool enable_dfs_phy_error_logs;
+	uint8_t one_time_csa_count;
 #ifdef DCS_INTERFERENCE_DETECTION
 	struct sap_dcs_info dcs_info;
 #endif
@@ -1137,14 +1166,16 @@ QDF_STATUS wlansap_set_dfs_ignore_cac(mac_handle_t mac_handle,
 /**
  * wlansap_get_dfs_cac_state() - Get cac_state value
  * @mac_handle: Opaque handle to the global MAC context
+ * @sap_context: sap adapter context
  * @cac_state: Location to store cac_state value
  *
- * This API is used to Get the value of ignore_cac value
+ * This API is used to Get the value of current cac state
  *
  * Return: The QDF_STATUS code associated with performing the operation
  */
 QDF_STATUS wlansap_get_dfs_cac_state(mac_handle_t mac_handle,
-				     eSapDfsCACState_t *cac_state);
+				     struct sap_context *sap_context,
+				     bool *cac_state);
 
 /**
  * wlansap_get_csa_chanwidth_from_phymode() - function to populate
@@ -1539,6 +1570,7 @@ bool wlansap_is_6ghz_included_in_acs_range(struct sap_context *sap_ctx);
  * wlansap_get_safe_channel_from_pcl_and_acs_range() - Get safe channel for SAP
  * restart
  * @sap_ctx: sap context
+ * @ch_width: selected channel bandwdith
  *
  * Get a safe channel to restart SAP. PCL already takes into account the
  * unsafe channels. So, the PCL is validated with the ACS range to provide
@@ -1548,7 +1580,8 @@ bool wlansap_is_6ghz_included_in_acs_range(struct sap_context *sap_ctx);
  * failure, the channel number returned is zero.
  */
 uint32_t
-wlansap_get_safe_channel_from_pcl_and_acs_range(struct sap_context *sap_ctx);
+wlansap_get_safe_channel_from_pcl_and_acs_range(struct sap_context *sap_ctx,
+						enum phy_ch_width *ch_width);
 
 /**
  * wlansap_get_safe_channel_from_pcl_for_sap() - Get safe and active channel
@@ -1858,7 +1891,6 @@ static inline void sap_acs_set_puncture_support(struct sap_context *sap_ctx,
 }
 #endif /* WLAN_FEATURE_11BE */
 
-#ifdef PRE_CAC_SUPPORT
 /**
  * sap_cac_end_notify() - Notify CAC end to HDD
  * @mac_handle: Opaque handle to the global MAC context
@@ -1870,14 +1902,6 @@ static inline void sap_acs_set_puncture_support(struct sap_context *sap_ctx,
  */
 QDF_STATUS sap_cac_end_notify(mac_handle_t mac_handle,
 			      struct csr_roam_info *roamInfo);
-#else
-static inline QDF_STATUS
-sap_cac_end_notify(mac_handle_t mac_handle,
-		   struct csr_roam_info *roamInfo)
-{
-	return QDF_STATUS_SUCCESS;
-}
-#endif /* PRE_CAC_SUPPORT */
 
 #ifdef WLAN_FEATURE_SAP_ACS_OPTIMIZE
 static inline bool sap_is_acs_scan_optimize_enable(void)
@@ -1900,6 +1924,49 @@ void wlansap_process_chan_info_event(struct sap_context *sap_ctx,
 }
 #endif
 
+/**
+ * wlansap_update_ll_lt_sap_acs_result() - Update acs result of LL_LT_SAP
+ * @sap_ctx: sap context
+ * @last_acs_freq: last acs frequency to be set
+ *
+ * This function is used to update stored acs channel frequency
+ *
+ * Return: None
+ */
+void wlansap_update_ll_lt_sap_acs_result(struct sap_context *sap_ctx,
+					 qdf_freq_t last_acs_freq);
+
+/**
+ * wlansap_update_sap_chan_list() - set channel list of sap
+ * @sap_config: sap config
+ * @freq_list: freq list sent by userspace
+ * @count: valid freq count
+ *
+ * Return: 0 on success, else error number
+ */
+int wlansap_update_sap_chan_list(struct sap_config *sap_config,
+				 qdf_freq_t *freq_list, uint16_t count);
+
+/**
+ * wlansap_sort_channel_list() - Sort channel list
+ * @vdev_id: Vdev Id
+ * @list: List of channels which needs to sort
+ * @ch_info: Fill sorted channels list in ch_info
+ *
+ * Return: QDF_STATUS
+ */
+QDF_STATUS wlansap_sort_channel_list(uint8_t vdev_id, qdf_list_t *list,
+				     struct sap_sel_ch_info *ch_info);
+
+/**
+ * wlansap_get_user_config_acs_ch_list() - Get user config ACS channel list
+ * @vdev_id: Vdev Id
+ * @filter: Filter to apply to get scan result
+ *
+ * Return: None
+ */
+void wlansap_get_user_config_acs_ch_list(uint8_t vdev_id,
+					 struct scan_filter *filter);
 #ifdef __cplusplus
 }
 #endif

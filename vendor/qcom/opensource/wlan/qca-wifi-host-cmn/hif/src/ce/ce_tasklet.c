@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2015-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -40,7 +40,8 @@
  * struct tasklet_work
  *
  * @id: ce_id
- * @work: work
+ * @data: data
+ * @reg_work: work
  */
 struct tasklet_work {
 	enum ce_id_type id;
@@ -109,8 +110,9 @@ static void init_tasklet_work(struct work_struct *work,
 }
 
 /**
- * init_tasklet_workers() - init_tasklet_workers
+ * init_tasklet_worker_by_ceid() - init_tasklet_workers
  * @scn: HIF Context
+ * @ce_id: copy engine ID
  *
  * Return: N/A
  */
@@ -236,10 +238,8 @@ hif_ce_latency_stats(struct hif_softc *hif_ctx)
 /**
  * ce_tasklet_update_bucket() - update ce execution and scehduled time latency
  *                              in corresponding time buckets
- * @stats: struct ce_stats
+ * @hif_ce_state: HIF CE state
  * @ce_id: ce_id_type
- * @entry_us: timestamp when tasklet is started to execute
- * @exit_us: timestamp when tasklet is completed execution
  *
  * Return: N/A
  */
@@ -362,43 +362,45 @@ hif_reset_ce_full_count(struct hif_softc *scn, uint8_t ce_id)
 }
 #endif
 
-#ifdef HIF_DETECTION_LATENCY_ENABLE
-static inline
-void hif_latency_detect_tasklet_sched(
-	struct hif_softc *scn,
-	struct ce_tasklet_entry *tasklet_entry)
+#ifdef CUSTOM_CB_SCHEDULER_SUPPORT
+/**
+ * ce_get_custom_cb_pending() - Helper API to check whether the custom
+ * callback is pending
+ * @CE_state: Pointer to CE state
+ *
+ * return: bool
+ */
+static bool
+ce_get_custom_cb_pending(struct CE_state *CE_state)
 {
-	if (tasklet_entry->ce_id != CE_ID_2)
-		return;
-
-	scn->latency_detect.ce2_tasklet_sched_cpuid = qdf_get_cpu();
-	scn->latency_detect.ce2_tasklet_sched_time = qdf_system_ticks();
+	return (qdf_atomic_dec_if_positive(&CE_state->custom_cb_pending) >= 0);
 }
 
-static inline
-void hif_latency_detect_tasklet_exec(
-	struct hif_softc *scn,
-	struct ce_tasklet_entry *tasklet_entry)
+/**
+ * ce_execute_custom_cb() - Helper API to execute custom callback
+ * @CE_state: Pointer to CE state
+ *
+ * return: void
+ */
+static void
+ce_execute_custom_cb(struct CE_state *CE_state)
 {
-	if (tasklet_entry->ce_id != CE_ID_2)
-		return;
-
-	scn->latency_detect.ce2_tasklet_exec_time = qdf_system_ticks();
-	hif_check_detection_latency(scn, false, BIT(HIF_DETECT_TASKLET));
+	while (ce_get_custom_cb_pending(CE_state) && CE_state->custom_cb &&
+	       CE_state->custom_cb_context)
+		CE_state->custom_cb(CE_state->custom_cb_context);
 }
 #else
-static inline
-void hif_latency_detect_tasklet_sched(
-	struct hif_softc *scn,
-	struct ce_tasklet_entry *tasklet_entry)
-{}
-
-static inline
-void hif_latency_detect_tasklet_exec(
-	struct hif_softc *scn,
-	struct ce_tasklet_entry *tasklet_entry)
-{}
-#endif
+/**
+ * ce_execute_custom_cb() - Helper API to execute custom callback
+ * @CE_state: Pointer to CE state
+ *
+ * return: void
+ */
+static void
+ce_execute_custom_cb(struct CE_state *CE_state)
+{
+}
+#endif /* CUSTOM_CB_SCHEDULER_SUPPORT */
 
 /**
  * ce_tasklet() - ce_tasklet
@@ -420,13 +422,15 @@ static void ce_tasklet(unsigned long data)
 	if (scn->ce_latency_stats)
 		hif_record_tasklet_exec_entry_ts(scn, tasklet_entry->ce_id);
 
-	hif_latency_detect_tasklet_exec(scn, tasklet_entry);
+	hif_tasklet_latency_record_exec(scn, tasklet_entry->ce_id);
 
 	if (qdf_atomic_read(&scn->link_suspended)) {
 		hif_err("ce %d tasklet fired after link suspend",
 			tasklet_entry->ce_id);
 		QDF_BUG(0);
 	}
+
+	ce_execute_custom_cb(CE_state);
 
 	ce_per_engine_service(scn, tasklet_entry->ce_id);
 
@@ -449,7 +453,7 @@ static void ce_tasklet(unsigned long data)
 					 NULL, NULL, -1, 0);
 
 		ce_tasklet_schedule(tasklet_entry);
-		hif_latency_detect_tasklet_sched(scn, tasklet_entry);
+		hif_tasklet_latency_record_sched(scn, tasklet_entry->ce_id);
 
 		hif_reset_ce_full_count(scn, tasklet_entry->ce_id);
 		if (scn->ce_latency_stats) {
@@ -506,7 +510,7 @@ void ce_tasklet_init(struct HIF_CE_state *hif_ce_state, uint32_t mask)
 }
 /**
  * ce_tasklet_kill() - ce_tasklet_kill
- * @hif_ce_state: hif_ce_state
+ * @scn: HIF context
  *
  * Context: Non-Atomic context
  * Return: N/A
@@ -656,7 +660,7 @@ hif_ce_increment_interrupt_count(struct HIF_CE_state *hif_ce_state, int ce_id)
 
 /**
  * hif_display_ce_stats() - display ce stats
- * @hif_ce_state: ce state
+ * @hif_ctx: HIF context
  *
  * Return: none
  */
@@ -744,7 +748,7 @@ static inline bool hif_tasklet_schedule(struct hif_opaque_softc *hif_ctx,
 	/* keep it before tasklet_schedule, this is to happy whunt.
 	 * in whunt, tasklet may run before finished hif_tasklet_schedule.
 	 */
-	hif_latency_detect_tasklet_sched(scn, tasklet_entry);
+	hif_tasklet_latency_record_sched(scn, tasklet_entry->ce_id);
 	ce_tasklet_schedule(tasklet_entry);
 
 	hif_reset_ce_full_count(scn, tasklet_entry->ce_id);
@@ -755,6 +759,7 @@ static inline bool hif_tasklet_schedule(struct hif_opaque_softc *hif_ctx,
 }
 
 #ifdef WLAN_FEATURE_WMI_DIAG_OVER_CE7
+#define CE_LOOP_MAX_COUNT	20
 /**
  * ce_poll_reap_by_id() - reap the available frames from CE by polling per ce_id
  * @scn: hif context
@@ -769,6 +774,7 @@ static int ce_poll_reap_by_id(struct hif_softc *scn, enum ce_id_type ce_id)
 {
 	struct HIF_CE_state *hif_ce_state = (struct HIF_CE_state *)scn;
 	struct CE_state *CE_state = scn->ce_id_to_state[ce_id];
+	int i;
 
 	if (scn->ce_latency_stats)
 		hif_record_tasklet_exec_entry_ts(scn, ce_id);
@@ -776,13 +782,23 @@ static int ce_poll_reap_by_id(struct hif_softc *scn, enum ce_id_type ce_id)
 	hif_record_ce_desc_event(scn, ce_id, HIF_CE_REAP_ENTRY,
 				 NULL, NULL, -1, 0);
 
-	ce_per_engine_service(scn, ce_id);
+	for (i = 0; i < CE_LOOP_MAX_COUNT; i++) {
+		ce_per_engine_service(scn, ce_id);
+
+		if (ce_check_rx_pending(CE_state))
+			hif_record_ce_desc_event(scn, ce_id,
+						 HIF_CE_TASKLET_REAP_REPOLL,
+						 NULL, NULL, -1, 0);
+		else
+			break;
+	}
 
 	/*
 	 * In an unlikely case, if frames are still pending to reap,
 	 * could be an infinite loop, so return -EBUSY.
 	 */
-	if (ce_check_rx_pending(CE_state))
+	if (ce_check_rx_pending(CE_state) &&
+	    i == CE_LOOP_MAX_COUNT)
 		return -EBUSY;
 
 	hif_record_ce_desc_event(scn, ce_id, HIF_CE_REAP_EXIT,
@@ -903,12 +919,12 @@ irqreturn_t ce_dispatch_interrupt(int ce_id,
 		return IRQ_NONE;
 	}
 
-	hif_irq_disable(scn, ce_id);
-
 	if (!TARGET_REGISTER_ACCESS_ALLOWED(scn)) {
 		ce_interrupt_unlock(ce_state);
 		return IRQ_HANDLED;
 	}
+
+	hif_irq_disable(scn, ce_id);
 
 	hif_record_ce_desc_event(scn, ce_id, HIF_IRQ_EVENT,
 				NULL, NULL, 0, 0);
@@ -933,11 +949,6 @@ irqreturn_t ce_dispatch_interrupt(int ce_id,
 	return IRQ_HANDLED;
 }
 
-/**
- * const char *ce_name
- *
- * @ce_name: ce_name
- */
 const char *ce_name[CE_COUNT_MAX] = {
 	"WLAN_CE_0",
 	"WLAN_CE_1",

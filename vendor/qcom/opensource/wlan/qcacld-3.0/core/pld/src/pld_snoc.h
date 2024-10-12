@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2016-2020 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -206,12 +206,59 @@ pld_snoc_get_audio_wlan_timestamp(struct device *dev,
 #endif /* FEATURE_WLAN_TIME_SYNC_FTM */
 
 #else
+/**
+ * pld_snoc_register_driver() - Register platform device callback functions
+ *
+ * Return: int
+ */
 int pld_snoc_register_driver(void);
+
+/**
+ * pld_snoc_unregister_driver() - Unregister platform device callback functions
+ *
+ * Return: void
+ */
 void pld_snoc_unregister_driver(void);
+
+/**
+ * pld_snoc_wlan_enable() - Enable WLAN
+ * @dev: device
+ * @config: WLAN configuration data
+ * @mode: WLAN mode
+ * @host_version: host software version
+ *
+ * This function enables WLAN FW. It passed WLAN configuration data,
+ * WLAN mode and host software version to FW.
+ *
+ * Return: 0 for success
+ *         Non zero failure code for errors
+ */
 int pld_snoc_wlan_enable(struct device *dev,
 			 struct pld_wlan_enable_cfg *config,
 			 enum pld_driver_mode mode, const char *host_version);
+
+/**
+ * pld_snoc_wlan_disable() - Disable WLAN
+ * @dev: device
+ * @mode: WLAN mode
+ *
+ * This function disables WLAN FW. It passes WLAN mode to FW.
+ *
+ * Return: 0 for success
+ *         Non zero failure code for errors
+ */
 int pld_snoc_wlan_disable(struct device *dev, enum pld_driver_mode mode);
+
+/**
+ * pld_snoc_get_soc_info() - Get SOC information
+ * @dev: device
+ * @info: buffer to SOC information
+ *
+ * Return SOC info to the buffer.
+ *
+ * Return: 0 for success
+ *         Non zero failure code for errors
+ */
 int pld_snoc_get_soc_info(struct device *dev, struct pld_soc_info *info);
 
 #ifdef FEATURE_WLAN_TIME_SYNC_FTM

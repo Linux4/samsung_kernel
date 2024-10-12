@@ -27,10 +27,12 @@
 #include <linux/slab.h>
 #include <linux/spinlock.h>
 #include <linux/string.h>
+#include <linux/suspend.h>
 #include <linux/types.h>
 #include <soc/qcom/rpm-notifier.h>
 #include <soc/qcom/rpm-smd.h>
 #include <soc/qcom/mpm.h>
+#include "rpmsg_internal.h"
 
 #define CREATE_TRACE_POINTS
 #include <trace/events/trace_rpm_smd.h>
@@ -60,6 +62,8 @@
 #define RPM_RSC_ID_SIZE 12
 #define RPM_DATA_LEN_OFFSET 0
 #define RPM_DATA_LEN_SIZE 16
+#define ACTIVE 0
+#define CLOSED 1
 #define RPM_HDR_SIZE ((rpm_msg_fmt_ver == RPM_MSG_V0_FMT) ?\
 		sizeof(struct rpm_v0_hdr) : sizeof(struct rpm_v1_hdr))
 #define CLEAR_FIELD(offset, size) (~GENMASK(offset + size - 1, offset))
@@ -93,8 +97,6 @@ struct msm_rpm_driver_data {
 	uint32_t ch_type;
 	struct smd_channel *ch_info;
 	struct work_struct work;
-	spinlock_t smd_lock_write;
-	spinlock_t smd_lock_read;
 	struct completion smd_open;
 };
 
@@ -109,11 +111,12 @@ struct qcom_smd_rpm {
 };
 
 struct qcom_smd_rpm *rpm;
-struct qcom_smd_rpm priv_rpm;
 
 static ATOMIC_NOTIFIER_HEAD(msm_rpm_sleep_notifier);
 static bool standalone;
 static int probe_status = -EPROBE_DEFER;
+static int channel_status = ACTIVE;
+static int quickboot_done;
 static void msm_rpm_process_ack(uint32_t msg_id, int errno);
 
 int msm_rpm_register_notifier(struct notifier_block *nb)
@@ -206,7 +209,6 @@ enum rpm_msg_fmts {
 };
 
 static struct rb_root tr_root = RB_ROOT;
-static int msm_rpm_send_smd_buffer(char *buf, uint32_t size);
 static uint32_t msm_rpm_get_next_msg_id(void);
 
 static inline uint32_t get_offset_value(uint32_t val, uint32_t offset,
@@ -722,8 +724,8 @@ static int msm_rpm_flush_requests(void)
 
 		set_msg_id(s->buf, msm_rpm_get_next_msg_id());
 
-		ret = msm_rpm_send_smd_buffer(s->buf,
-					get_buf_len(s->buf));
+		ret = rpmsg_send(rpm->rpm_channel, s->buf, get_buf_len(s->buf));
+
 		WARN_ON(ret != 0);
 		trace_rpm_smd_send_sleep_set(get_msg_id(s->buf), type, id);
 
@@ -1185,17 +1187,6 @@ static void msm_rpm_log_request(struct msm_rpm_request *cdata)
 	pr_info("request info %s\n", buf);
 }
 
-static int msm_rpm_send_smd_buffer(char *buf, uint32_t size)
-{
-	unsigned long flags;
-	int ret;
-
-	spin_lock_irqsave(&msm_rpm_data.smd_lock_write, flags);
-	ret = rpmsg_send(rpm->rpm_channel, buf, size);
-	spin_unlock_irqrestore(&msm_rpm_data.smd_lock_write, flags);
-	return ret;
-}
-
 static int msm_rpm_send_data(struct msm_rpm_request *cdata,
 		int msg_type, bool noack)
 {
@@ -1290,7 +1281,7 @@ static int msm_rpm_send_data(struct msm_rpm_request *cdata,
 
 	msm_rpm_add_wait_list(msg_id, noack);
 
-	ret = msm_rpm_send_smd_buffer(&cdata->buf[0], msg_size);
+	ret = rpmsg_send(rpm->rpm_channel, &cdata->buf[0], msg_size);
 
 	if (!ret) {
 		for (i = 0; (i < cdata->write_idx); i++)
@@ -1491,8 +1482,14 @@ static int msm_rpm_enter_sleep(void)
 	ret = smd_mask_receive_interrupt(true, &cpumask);
 	if (!ret) {
 		ret = msm_rpm_flush_requests();
-		if (ret)
+		if (ret) {
 			smd_mask_receive_interrupt(false, NULL);
+			return ret;
+		}
+#ifdef CONFIG_DEEPSLEEP
+		if (channel_status != ACTIVE)
+			probe_status = -EPROBE_DEFER;
+#endif
 	}
 
 	return msm_mpm_enter_sleep(&cpumask);
@@ -1519,17 +1516,51 @@ static int rpm_smd_power_cb(struct notifier_block *nb, unsigned long action, voi
 	case GENPD_NOTIFY_OFF:
 		if (msm_rpm_waiting_for_ack())
 			return NOTIFY_BAD;
+
+		if (pm_suspend_via_firmware())
+			channel_status = CLOSED;
+
 		if (msm_rpm_enter_sleep())
 			return NOTIFY_BAD;
 
 		break;
 	case GENPD_NOTIFY_ON:
+		if (pm_suspend_via_firmware())
+			channel_status = ACTIVE;
+
 		msm_rpm_exit_sleep();
 		break;
 	}
 
 	return NOTIFY_OK;
 }
+
+static int rpm_smd_pm_notifier(struct notifier_block *nb, unsigned long event, void *unused)
+{
+	int ret;
+
+	if (event == PM_SUSPEND_PREPARE) {
+		ret = msm_rpm_flush_requests();
+		pr_debug("ret = %d\n", ret);
+	}
+
+	/* continue to suspend */
+	return NOTIFY_OK;
+}
+
+static struct notifier_block rpm_smd_pm_nb = {
+	.notifier_call = rpm_smd_pm_notifier,
+};
+
+static int qcom_smd_rpm_suspend(struct device *dev)
+{
+	channel_status = CLOSED;
+	return 0;
+}
+
+static const struct dev_pm_ops qcom_smd_rpm_dev_pm_ops = {
+	.poweroff_noirq = qcom_smd_rpm_suspend,
+};
 
 static int qcom_smd_rpm_callback(struct rpmsg_device *rpdev, void *ptr,
 				int size, void *priv, u32 addr)
@@ -1579,6 +1610,9 @@ static int qcom_smd_rpm_probe(struct rpmsg_device *rpdev)
 	void __iomem *reg_base;
 	uint32_t version = V0_PROTOCOL_VERSION; /* set to default v0 format */
 
+	if (quickboot_done)
+		return 0;
+
 	p = of_find_compatible_node(NULL, NULL, "qcom,rpm-smd");
 	if (!p) {
 		pr_err("Unable to find rpm-smd\n");
@@ -1618,16 +1652,21 @@ static int qcom_smd_rpm_probe(struct rpmsg_device *rpdev)
 		goto fail;
 	}
 
-	rpm = devm_kzalloc(&rpdev->dev, sizeof(*rpm), GFP_KERNEL);
+	rpm = kzalloc(sizeof(*rpm), GFP_KERNEL);
 	if (!rpm) {
 		probe_status = -ENOMEM;
 		goto fail;
 	}
 
+	ret = register_pm_notifier(&rpm_smd_pm_nb);
+	if (ret) {
+		pr_err("%s: power state notif error %d\n", __func__, ret);
+		probe_status = -ENODEV;
+		goto fail;
+	}
+
 	rpm->dev = &rpdev->dev;
 	rpm->rpm_channel = rpdev->ept;
-	dev_set_drvdata(&rpdev->dev, rpm);
-	priv_rpm = *rpm;
 	rpm->irq = irq;
 
 	if (of_find_property(p, "power-domains", NULL)) {
@@ -1643,8 +1682,6 @@ static int qcom_smd_rpm_probe(struct rpmsg_device *rpdev)
 
 	mutex_init(&rpm->lock);
 	init_completion(&rpm->ack);
-	spin_lock_init(&msm_rpm_data.smd_lock_write);
-	spin_lock_init(&msm_rpm_data.smd_lock_read);
 
 skip_init:
 	probe_status = of_platform_populate(p, NULL, NULL, &rpdev->dev);
@@ -1666,6 +1703,7 @@ static struct rpmsg_driver qcom_smd_rpm_driver = {
 	.id_table = rpmsg_driver_rpm_id_table,
 	.drv  = {
 		.name  = "qcom_rpm_smd",
+		.pm = &qcom_smd_rpm_dev_pm_ops,
 		.owner = THIS_MODULE,
 	},
 };
@@ -1680,6 +1718,52 @@ static int rpm_driver_probe(struct platform_device *pdev)
 
 	return ret;
 }
+
+int qcom_smd_rpm_quickboot(struct rpmsg_device *rpdev, int status)
+{
+	struct rpmsg_channel_info chinfo = {};
+	struct rpmsg_endpoint *ept = NULL;
+	struct rb_node *t;
+
+	if (!probe_status)
+		return 0;
+
+	strscpy(chinfo.name, rpdev->id.name, 32);
+	chinfo.src = rpdev->src;
+	chinfo.dst = RPMSG_ADDR_ANY;
+
+	ept = rpmsg_create_ept(rpdev, qcom_smd_rpm_driver.callback, NULL, chinfo);
+	if (!ept) {
+		pr_err("%s: failed to create endpoint\n", __func__);
+		return -ENOMEM;
+	}
+
+	rpdev->ept = ept;
+	rpdev->src = ept->addr;
+	rpm->dev = &rpdev->dev;
+	rpm->rpm_channel = rpdev->ept;
+
+	for (t = rb_first(&tr_root); t; t = rb_next(t)) {
+
+		struct slp_buf *s = rb_entry(t, struct slp_buf, node);
+
+		rb_erase(&s->node, &tr_root);
+	}
+
+	quickboot_done = 1;
+	probe_status = 0;
+	/*
+	 * We only masked it during msm_rpm_enter_sleep()
+	 * but msm_rpm_exit_sleep() won't unmask same
+	 * since probe_status is not ok.
+	 *
+	 * Lets unmask when glink is ready.
+	 */
+	smd_mask_receive_interrupt(false, NULL);
+
+	return 0;
+}
+EXPORT_SYMBOL(qcom_smd_rpm_quickboot);
 
 static const struct of_device_id rpm_of_match[] = {
 	{ .compatible = "qcom,rpm-smd" },

@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2015-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -54,10 +54,9 @@ static void hnc_dump_cpus(struct qca_napi_data *napid) { /* no-op */ };
 
 #ifdef HIF_IRQ_AFFINITY
 /**
- *
  * hif_exec_event() - reacts to events that impact irq affinity
- * @hif : pointer to hif context
- * @evnt: event that has been detected
+ * @hif_ctx: pointer to hif context
+ * @event: event that has been detected
  * @data: more data regarding the event
  *
  * Description:
@@ -230,10 +229,10 @@ int hif_exec_event(struct hif_opaque_softc *hif_ctx, enum qca_napi_event event,
 #endif
 
 /**
- * hncm_migrate_to() - migrates a NAPI to a CPU
+ * hncm_exec_migrate_to() - migrates a NAPI to a CPU
  * @napid: pointer to NAPI block
- * @ce_id: CE_id of the NAPI instance
- * @didx : index in the CPU topology table for the CPU to migrate to
+ * @ctx_id: CE_id of the NAPI instance
+ * @didx: index in the CPU topology table for the CPU to migrate to
  *
  * Migrates NAPI (identified by the CE_id) to the destination core
  * Updates the napi_map of the destination entry
@@ -351,10 +350,12 @@ retry_disperse:
 	NAPI_DEBUG("<--%s[dest=%d]", __func__, destidx);
 	return destidx;
 }
+
 /**
- * hif_napi_cpu_migrate() - migrate IRQs away
+ * hif_exec_cpu_migrate() - migrate IRQs away
+ * @napid: pointer to qca_napi_data structure
  * @cpu: -1: all CPUs <n> specific CPU
- * @act: COLLAPSE | DISPERSE
+ * @action: COLLAPSE | DISPERSE
  *
  * Moves IRQs/NAPIs from specific or all CPUs (specified by @cpu) to eligible
  * cores. Eligible cores are:
@@ -465,7 +466,7 @@ static inline void hif_exec_dl_irq(struct qca_napi_data *napid, bool dl_flag)
 }
 
 /**
- * hif_napi_cpu_denylist() - en(dis)ables denylisting for NAPI RX interrupts.
+ * hif_exec_cpu_denylist() - en(dis)ables denylisting for NAPI RX interrupts.
  * @napid: pointer to qca_napi_data structure
  * @op: denylist operation to perform
  *

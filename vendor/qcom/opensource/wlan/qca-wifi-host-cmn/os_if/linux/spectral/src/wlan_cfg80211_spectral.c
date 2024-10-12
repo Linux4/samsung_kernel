@@ -851,6 +851,8 @@ int wlan_cfg80211_spectral_scan_get_cap(struct wiphy *wiphy,
 
 	sscan_req.req_id = SPECTRAL_GET_CAPABILITY_INFO;
 	status = ucfg_spectral_control(pdev, &sscan_req);
+	if (QDF_IS_STATUS_ERROR(status))
+		return -EINVAL;
 	scaps = &sscan_req.caps_req.sscan_caps;
 
 	skb = wlan_cfg80211_vendor_cmd_alloc_reply_skb(wiphy,

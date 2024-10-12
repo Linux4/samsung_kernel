@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2018-2019 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -39,8 +39,8 @@
  * @psoc: psoc
  * @vdev_id: vdev id
  * @pdev_id: pdev id
- * @peer_macaddr: peer mac address
- * @hw_qdesc: hw queue descriptor
+ * @peer_mac: peer mac address
+ * @hw_qdesc_paddr: hw queue descriptor
  * @tid: tid number
  * @queue_no: queue number
  * @ba_window_size_valid: BA window size validity flag
@@ -89,7 +89,7 @@ target_if_peer_set_default_routing(struct cdp_ctrl_objmgr_psoc *psoc,
 				   uint8_t lmac_peer_id_msb);
 /**
  * target_if_peer_rx_reorder_queue_setup() - setup rx reorder queue
- * @pdev: pdev pointer
+ * @psoc: psoc pointer
  * @pdev_id: pdev id
  * @vdev_id: vdev id
  * @peer_macaddr: peer mac address
@@ -128,7 +128,8 @@ target_if_peer_rx_reorder_queue_remove(struct cdp_ctrl_objmgr_psoc *psoc,
 
 /**
  * target_if_lro_hash_config() - send LRO hash config to FW
- * @psoc_handle: psoc handle pointer
+ * @psoc: psoc pointer
+ * @pdev_id: pdev id
  * @lro_hash_cfg: LRO hash config parameters
  *
  * return: QDF_STATUS_SUCCESS for success or error code

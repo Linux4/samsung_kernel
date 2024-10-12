@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2013-2014, 2016-2017, 2019-2021 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -59,7 +60,7 @@ struct htc_tx_packet_info {
 	uint32_t Flags;
 };
 
-/**
+/*
  * HTC_TX_PACKET_TAG_XXX - #defines for tagging packets for special handling
  * HTC_TX_PACKET_TAG_ALL: zero is reserved and used to flush ALL packets
  * HTC_TX_PACKET_TAG_INTERNAL: internal tags start here
@@ -313,8 +314,8 @@ static inline HTC_PACKET *htc_packet_dequeue_tail(HTC_PACKET_QUEUE *queue)
 
 /**
  * htc_packet_set_magic_cookie() - set magic cookie in htc packet
- * htc_pkt - pointer to htc packet
- * value - value to set in magic cookie
+ * @htc_pkt: pointer to htc packet
+ * @value: value to set in magic cookie
  *
  * This API sets the magic cookie passed in htc packet.
  *
@@ -327,8 +328,8 @@ static inline void htc_packet_set_magic_cookie(HTC_PACKET *htc_pkt,
 }
 
 /**
- * htc_packet_set_magic_cookie() - get magic cookie in htc packet
- * htc_pkt - pointer to htc packet
+ * htc_packet_get_magic_cookie() - get magic cookie in htc packet
+ * @htc_pkt: pointer to htc packet
  *
  * This API returns the magic cookie in htc packet.
  *

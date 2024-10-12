@@ -21,7 +21,6 @@
 #define __NAN_CFG_H__
 
 /**
- *
  * DOC: nan_cfg.h
  *
  * NAN feature INI configuration parameter definitions
@@ -253,7 +252,7 @@
  *
  * This parameter helps to enable/disable a particular feature config by setting
  * corresponding bit and send to firmware through the VDEV param
- * WMI_VDEV_PARAM_ENABLE_DISABLE_NAN_CONFIG_FEATURES
+ * wmi_vdev_param_enable_disable_nan_config_features
  * Acceptable values for this:
  * BIT(0): Allow DW configuration from framework in sync role.
  *	   If this is not set, firmware shall follow the spec/default behavior.

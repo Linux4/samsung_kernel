@@ -57,7 +57,7 @@ struct twt_context {
 /**
  * struct wlan_twt_features  - TWT features info
  * @enable_twt: Enable TWT
- * enable_twt_requester Enable TWT requester
+ * @enable_twt_requester: Enable TWT requester
  * @enable_twt_broadcast: Enable TWT broadcast
  * @enable_twt_flexible: Enable flexible TWT
  */

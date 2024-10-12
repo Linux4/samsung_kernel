@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2011-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2023, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -1122,7 +1122,7 @@ ol_tx_completion_handler(ol_txrx_pdev_handle pdev,
 			sizeof(qdf_nbuf_data(netbuf)), tx_desc->id, status,
 			dp_status,
 			tx_desc->vdev->qdf_opmode));
-		htc_pm_runtime_put(pdev->htt_pdev->htc_pdev);
+
 		/*
 		 * If credits are reported through credit_update_ind then do not
 		 * update group credits on tx_complete_ind.

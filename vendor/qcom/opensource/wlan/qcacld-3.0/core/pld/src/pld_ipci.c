@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2016-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -37,7 +37,7 @@
 #ifdef CONFIG_PLD_IPCI_ICNSS
 
 #define WCN6750_DEVICE_ID 0x6750
-
+#define WCN6450_DEVICE_ID 0x6450
 /**
  * pld_ipci_probe() - Probe function for platform driver
  * @dev: device
@@ -182,7 +182,7 @@ static int pld_ipci_pm_suspend(struct device *dev)
 
 /**
  * pld_ipci_pm_resume() - PM resume callback function for power management
- * @pdev: device
+ * @dev: device
  *
  * This function is to resume the platform device when power management
  * is enabled.
@@ -224,7 +224,7 @@ static int pld_ipci_suspend_noirq(struct device *dev)
 
 /**
  * pld_ipci_resume_noirq() - Prepare for the execution of resume()
- * @pdev: device
+ * @dev: device
  *
  * Prepare for the execution of resume() by carrying out any
  * operations required for resuming the device that might be racing with
@@ -274,7 +274,7 @@ static int pld_ipci_runtime_suspend(struct device *dev)
 
 /**
  * pld_ipci_runtime_resume() - Runtime resume callback for power management
- * @pdev: device
+ * @dev: device
  *
  * This function is to runtime resume the platform device when power management
  * is enabled.
@@ -399,7 +399,7 @@ out:
 
 /**
  * pld_ipci_idle_restart_cb() - Perform idle restart
- * @pdev: platform device
+ * @dev: platform device
  *
  * This function will be called if there is an idle restart request
  *
@@ -423,8 +423,7 @@ static int pld_ipci_idle_restart_cb(struct device *dev)
 
 /**
  * pld_ipci_idle_shutdown_cb() - Perform idle shutdown
- * @pdev: PCIE device
- * @id: PCIE device ID
+ * @dev: PCIE device
  *
  * This function will be called if there is an idle shutdown request
  *
@@ -484,7 +483,11 @@ static int pld_ipci_set_thermal_state(struct device *dev,
 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0))
 static struct device_info pld_ipci_dev_info[] = {
+#ifdef QCA_WIFI_QCA6750
 	{ "wcn6750", WCN6750_DEVICE_ID },
+#elif defined(QCA_WIFI_WCN6450)
+	{ "wcn6450", WCN6450_DEVICE_ID },
+#endif
 	{ { 0 } }
 };
 #endif
@@ -511,39 +514,32 @@ struct icnss_driver_ops pld_ipci_ops = {
 	.set_therm_cdev_state = pld_ipci_set_thermal_state,
 };
 
-/**
- * pld_ipci_register_driver() - Register platform device callback functions
- *
- * Return: int
- */
 int pld_ipci_register_driver(void)
 {
 	return icnss_register_driver(&pld_ipci_ops);
 }
 
-/**
- * pld_ipci_unregister_driver() - Unregister platform device callback functions
- *
- * Return: void
- */
 void pld_ipci_unregister_driver(void)
 {
 	icnss_unregister_driver(&pld_ipci_ops);
 }
 
-/**
- * pld_ipci_wlan_enable() - Enable WLAN
- * @dev: device
- * @config: WLAN configuration data
- * @mode: WLAN mode
- * @host_version: host software version
- *
- * This function enables WLAN FW. It passed WLAN configuration data,
- * WLAN mode and host software version to FW.
- *
- * Return: 0 for success
- *         Non zero failure code for errors
- */
+#ifdef CONFIG_SHADOW_V3
+static inline void
+pld_ipci_populate_shadow_v3_cfg(struct icnss_wlan_enable_cfg *cfg,
+				struct pld_wlan_enable_cfg *config)
+{
+	cfg->num_shadow_reg_v3_cfg = config->num_shadow_reg_v3_cfg;
+	cfg->shadow_reg_v3_cfg = (struct icnss_shadow_reg_v3_cfg *)
+				 config->shadow_reg_v3_cfg;
+}
+#else
+static inline void
+pld_ipci_populate_shadow_v3_cfg(struct icnss_wlan_enable_cfg *cfg,
+				struct pld_wlan_enable_cfg *config)
+{
+}
+#endif
 
 int pld_ipci_wlan_enable(struct device *dev, struct pld_wlan_enable_cfg *config,
 			 enum pld_driver_mode mode, const char *host_version)
@@ -574,6 +570,8 @@ int pld_ipci_wlan_enable(struct device *dev, struct pld_wlan_enable_cfg *config,
 			 config->rri_over_ddr_cfg.base_addr_high;
 	}
 
+	pld_ipci_populate_shadow_v3_cfg(&cfg, config);
+
 	switch (mode) {
 	case PLD_FTM:
 		icnss_mode = ICNSS_FTM;
@@ -589,16 +587,6 @@ int pld_ipci_wlan_enable(struct device *dev, struct pld_wlan_enable_cfg *config,
 	return icnss_wlan_enable(dev, &cfg, icnss_mode, host_version);
 }
 
-/**
- * pld_ipci_wlan_disable() - Disable WLAN
- * @dev: device
- * @mode: WLAN mode
- *
- * This function disables WLAN FW. It passes WLAN mode to FW.
- *
- * Return: 0 for success
- *         Non zero failure code for errors
- */
 int pld_ipci_wlan_disable(struct device *dev, enum pld_driver_mode mode)
 {
 	if (!dev)
@@ -607,16 +595,25 @@ int pld_ipci_wlan_disable(struct device *dev, enum pld_driver_mode mode)
 	return icnss_wlan_disable(dev, ICNSS_OFF);
 }
 
-/**
- * pld_ipci_get_soc_info() - Get SOC information
- * @dev: device
- * @info: buffer to SOC information
- *
- * Return SOC info to the buffer.
- *
- * Return: 0 for success
- *         Non zero failure code for errors
- */
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 15, 0))
+static void pld_ipci_populate_hw_cap_info(struct icnss_soc_info *icnss_info,
+					  struct pld_soc_info *info)
+{
+	/*WLAN HW cap info*/
+	info->hw_cap_info.nss =
+		(enum pld_wlan_hw_nss_info)icnss_info->rd_card_chain_cap;
+	info->hw_cap_info.bw =
+	(enum pld_wlan_hw_channel_bw_info)icnss_info->phy_he_channel_width_cap;
+	info->hw_cap_info.qam =
+		(enum pld_wlan_hw_qam_info)icnss_info->phy_qam_cap;
+}
+#else
+static void pld_ipci_populate_hw_cap_info(struct icnss_soc_info *icnss_info,
+					  struct pld_soc_info *info)
+{
+}
+#endif
+
 int pld_ipci_get_soc_info(struct device *dev, struct pld_soc_info *info)
 {
 	int errno;
@@ -638,7 +635,40 @@ int pld_ipci_get_soc_info(struct device *dev, struct pld_soc_info *info)
 	info->fw_version = icnss_info.fw_version;
 	strlcpy(info->fw_build_timestamp, icnss_info.fw_build_timestamp,
 		sizeof(info->fw_build_timestamp));
+	strlcpy(info->fw_build_id, icnss_info.fw_build_id,
+		sizeof(info->fw_build_id));
+
+	pld_ipci_populate_hw_cap_info(&icnss_info, info);
 
 	return 0;
+}
+
+/*
+ * pld_ipci_get_irq() - Get irq by ce_id
+ * @dev: device
+ * @ce_id: CE id for which irq is requested
+ *
+ * Return irq number.
+ *
+ * Return: irq number for success
+ *		Non zero failure code for errors
+ */
+int pld_ipci_get_irq(struct device *dev, int ce_id)
+{
+	uint32_t msi_data_start;
+	uint32_t msi_data_count;
+	uint32_t msi_irq_start;
+	uint32_t msi_data;
+	int ret;
+
+	ret = icnss_get_user_msi_assignment(dev, "CE", &msi_data_count,
+					    &msi_data_start, &msi_irq_start);
+	if (ret)
+		return ret;
+
+	msi_data = (ce_id % msi_data_count) + msi_irq_start;
+	ret = icnss_get_msi_irq(dev, msi_data);
+
+	return ret;
 }
 #endif

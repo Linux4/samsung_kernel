@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2013-2019 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -37,7 +38,8 @@ static uint32_t *p_bmi_cmd_credits = &command_credits;
 
 /**
  * hif_bmi_buffer_send - call to send bmi buffer
- * @device: hif context
+ * @scn: hif context
+ * @device: hif SDIO device
  * @buffer: buffer
  * @length: length
  *

@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2017-2021 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -32,7 +33,6 @@
  * target_if_pmo_enable_wow_wakeup_event() - Enable wow wakeup events.
  * @vdev:objmgr vdev handle
  * @bitmap: Event bitmap
- * @enable: enable/disable
  *
  * Return: QDF status
  */
@@ -43,7 +43,6 @@ QDF_STATUS target_if_pmo_enable_wow_wakeup_event(struct wlan_objmgr_vdev *vdev,
  * target_if_pmo_disable_wow_wakeup_event() -  Disable wow wakeup events.
  * @vdev:objmgr vdev handle
  * @bitmap: Event bitmap
- * @enable: enable/disable
  *
  * Return: QDF status
  */
@@ -75,7 +74,7 @@ QDF_STATUS target_if_pmo_del_wow_patterns_to_fw(struct wlan_objmgr_vdev *vdev,
 /**
  * target_if_pmo_send_enhance_mc_offload_req() - send enhance mc offload req
  * @vdev: objmgr vdev
- * @action: enable or disable enhance multicast offload
+ * @enable: enable or disable enhance multicast offload
  *
  * Return: QDF_STATUS_SUCCESS on success else error code
  */
@@ -86,7 +85,7 @@ QDF_STATUS target_if_pmo_send_enhance_mc_offload_req(
 /**
  * target_if_pmo_set_mc_filter_req() - set mcast filter command to fw
  * @vdev: objmgr vdev handle
- * @multicastAddr: mcast address
+ * @multicast_addr: mcast address
  *
  * Return: 0 for success or error code
  */
@@ -96,7 +95,7 @@ QDF_STATUS target_if_pmo_set_mc_filter_req(struct wlan_objmgr_vdev *vdev,
 /**
  * target_if_pmo_clear_mc_filter_req() - clear mcast filter command to fw
  * @vdev: objmgr vdev handle
- * @multicastAddr: mcast address
+ * @multicast_addr: mcast address
  *
  * Return: 0 for success or error code
  */
@@ -117,7 +116,7 @@ bool target_if_pmo_get_multiple_mc_filter_support(
  * target_if_pmo_set_multiple_mc_filter_req() - set multiple mcast filter
  *						command to fw
  * @vdev: objmgr vdev handle
- * @multicastAddr: mcast address
+ * @mc_list: mcast address list
  *
  * Return: 0 for success or error code
  */
@@ -129,7 +128,7 @@ QDF_STATUS target_if_pmo_set_multiple_mc_filter_req(
  * target_if_pmo_clear_multiple_mc_filter_req() - clear multiple mcast
  *						  filter command to fw
  * @vdev: objmgr vdev handle
- * @multicastAddr: mcast address
+ * @mc_list: mcast address list
  *
  * Return: 0 for success or error code
  */
@@ -150,8 +149,8 @@ QDF_STATUS target_if_pmo_send_ra_filter_req(struct wlan_objmgr_vdev *vdev,
 
 /**
  * target_if_pmo_send_action_frame_patterns() - register action frame map to fw
- * @handle: Pointer to wma handle
- * @vdev_id: VDEV ID
+ * @vdev: objmgr vdev handle
+ * @ip_cmd: Action frame wakeup params
  *
  * This is called to push action frames wow patterns from local
  * cache to firmware.
@@ -537,4 +536,11 @@ target_if_pmo_send_icmp_offload_req(struct wlan_objmgr_psoc *psoc,
 				    struct pmo_icmp_offload *pmo_icmp_req);
 #endif
 
+/**
+ * target_if_pmo_set_wow_enable_ack_failed() - set wow enable ack failure status
+ * @psoc: objmgr psoc
+ *
+ * Return: none
+ */
+void target_if_pmo_set_wow_enable_ack_failed(struct wlan_objmgr_psoc *psoc);
 #endif

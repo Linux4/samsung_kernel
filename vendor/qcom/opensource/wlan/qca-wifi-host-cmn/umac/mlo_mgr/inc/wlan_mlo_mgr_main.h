@@ -517,6 +517,62 @@ void tsf_recalculation_lock_release(struct wlan_mlo_dev_context *mldev)
 {
 	qdf_spin_unlock_bh(&mldev->tsf_recalculation_lock);
 }
+
+/**
+ * mlo_ap_lock_create - Create MLO AP mutex/spinlock
+ * @ap_ctx:  ML device AP context
+ *
+ * Creates mutex/spinlock
+ *
+ * Return: void
+ */
+static inline
+void mlo_ap_lock_create(struct wlan_mlo_ap *ap_ctx)
+{
+	qdf_spinlock_create(&ap_ctx->mlo_ap_lock);
+}
+
+/**
+ * mlo_ap_lock_destroy - Destroy MLO AP mutex/spinlock
+ * @ap_ctx:  ML device AP context
+ *
+ * Destroy mutex/spinlock
+ *
+ * Return: void
+ */
+static inline
+void mlo_ap_lock_destroy(struct wlan_mlo_ap *ap_ctx)
+{
+	qdf_spinlock_destroy(&ap_ctx->mlo_ap_lock);
+}
+
+/**
+ * mlo_ap_lock_acquire - Acquire MLO AP mutex/spinlock
+ * @ap_ctx:  ML device AP context
+ *
+ * acquire mutex/spinlock
+ *
+ * return: void
+ */
+static inline
+void mlo_ap_lock_acquire(struct wlan_mlo_ap *ap_ctx)
+{
+	qdf_spin_lock_bh(&ap_ctx->mlo_ap_lock);
+}
+
+/**
+ * mlo_ap_lock_release - Release MLO AP mutex/spinlock
+ * @ap_ctx:  ML device AP context
+ *
+ * release mutex/spinlock
+ *
+ * return: void
+ */
+static inline
+void mlo_ap_lock_release(struct wlan_mlo_ap *ap_ctx)
+{
+	qdf_spin_unlock_bh(&ap_ctx->mlo_ap_lock);
+}
 #else /* WLAN_MLO_USE_SPINLOCK */
 static inline
 void ml_link_lock_create(struct mlo_mgr_context *mlo_ctx)
@@ -739,6 +795,30 @@ void tsf_recalculation_lock_release(struct wlan_mlo_dev_context *mldev)
 {
 	qdf_mutex_release(&mldev->tsf_recalculation_lock);
 }
+
+static inline
+void mlo_ap_lock_create(struct wlan_mlo_ap *ap_ctx)
+{
+	qdf_mutex_create(&ap_ctx->mlo_ap_lock);
+}
+
+static inline
+void mlo_ap_lock_destroy(struct wlan_mlo_ap *ap_ctx)
+{
+	qdf_mutex_destroy(&ap_ctx->mlo_ap_lock);
+}
+
+static inline
+void mlo_ap_lock_acquire(struct wlan_mlo_ap *ap_ctx)
+{
+	qdf_mutex_acquire(&ap_ctx->mlo_ap_lock);
+}
+
+static inline
+void mlo_ap_lock_release(struct wlan_mlo_ap *ap_ctx)
+{
+	qdf_mutex_release(&ap_ctx->mlo_ap_lock);
+}
 #endif /* WLAN_MLO_USE_SPINLOCK */
 
 /**
@@ -805,6 +885,30 @@ uint8_t wlan_mlo_get_sta_mld_ctx_count(void);
  */
 struct wlan_mlo_dev_context
 *wlan_mlo_get_mld_ctx_by_mldaddr(struct qdf_mac_addr *mldaddr);
+
+/**
+ * wlan_mlo_list_peek_head() - Returns the head of linked list
+ *
+ * @ml_list: Pointer to the list of MLDs
+ *
+ * API to retrieve the head from the list of active MLDs
+ *
+ * Return: Pointer to mlo device context
+ */
+struct wlan_mlo_dev_context *wlan_mlo_list_peek_head(qdf_list_t *ml_list);
+
+/**
+ * wlan_mlo_get_next_mld_ctx() - Return next mlo dev node from the list
+ *
+ * @ml_list:  Pointer to the list of MLDs
+ * @mld_cur: Pointer to the current mlo dev node
+ *
+ * API to retrieve the next node from the list of active MLDs
+ *
+ * Return: Pointer to mlo device context
+ */
+struct wlan_mlo_dev_context *wlan_mlo_get_next_mld_ctx(qdf_list_t *ml_list,
+					struct wlan_mlo_dev_context *mld_cur);
 
 /**
  * wlan_mlo_check_valid_config() - Check vap config is valid for mld
@@ -874,6 +978,50 @@ void wlan_mlo_update_action_frame_from_user(struct wlan_objmgr_vdev *vdev,
 void wlan_mlo_update_action_frame_to_user(struct wlan_objmgr_vdev *vdev,
 					  uint8_t *frame,
 					  uint32_t frame_len);
+
+/**
+ * wlan_mlo_mgr_mld_vdev_attach() - Attach VDEV to MLD
+ * @vdev: VDEV object
+ * @mld_addr: MLD address of MLD, where this VDEV should be attached
+ *
+ * API to set MLD MAC address and  Attaches VDEV to existing MLD.
+ *
+ * Return: QDF_STATUS
+ */
+QDF_STATUS wlan_mlo_mgr_mld_vdev_attach(struct wlan_objmgr_vdev *vdev,
+					struct qdf_mac_addr *mld_addr);
+
+/**
+ * wlan_mlo_mgr_mld_vdev_detach() - Detach VDEV from MLD
+ * @vdev: VDEV object
+ *
+ * API to reset MLD MAC address and  Detaches VDEV from its MLD.
+ *
+ * Return: QDF_STATUS
+ */
+QDF_STATUS wlan_mlo_mgr_mld_vdev_detach(struct wlan_objmgr_vdev *vdev);
+
+#ifdef WLAN_MLO_MULTI_CHIP
+#ifdef WLAN_WSI_STATS_SUPPORT
+/**
+ * mlo_wsi_link_info_update_soc() - Update PSOC group in WSI stats
+ * @psoc: PSOC object
+ * @grp_id: Group ID
+ *
+ * API to update PSOC group id in WSI statas.
+ *
+ * Return: void
+ */
+void mlo_wsi_link_info_update_soc(struct wlan_objmgr_psoc *psoc,
+				  uint8_t grp_id);
+#else
+static void mlo_wsi_link_info_update_soc(struct wlan_objmgr_psoc *psoc,
+					 uint8_t grp_id)
+{
+}
+#endif
+#endif
+
 #else
 static inline QDF_STATUS wlan_mlo_mgr_init(void)
 {
@@ -918,5 +1066,19 @@ uint8_t wlan_mlo_get_sta_mld_ctx_count(void)
 {
 	return 0;
 }
+
+static inline
+QDF_STATUS wlan_mlo_mgr_mld_vdev_attach(struct wlan_objmgr_vdev *vdev,
+					struct qdf_mac_addr *mld_addr)
+{
+	return QDF_STATUS_SUCCESS;
+}
+
+static inline
+QDF_STATUS wlan_mlo_mgr_mld_vdev_detach(struct wlan_objmgr_vdev *vdev)
+{
+	return QDF_STATUS_SUCCESS;
+}
+
 #endif
 #endif

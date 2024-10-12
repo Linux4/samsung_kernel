@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2017-2020 The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -49,8 +49,8 @@ target_if_p2p_lo_register_tx_ops(struct wlan_lmac_if_p2p_tx_ops *p2p_tx_ops)
 /**
  * target_p2p_lo_event_handler() - WMI callback for lo stop event
  * @scn:       pointer to scn
- * @event_buf: event buffer
- * @len:       buffer length
+ * @data:      event buffer
+ * @datalen:   buffer length
  *
  * This function gets called from WMI when triggered wmi event
  * wmi_p2p_lo_stop_event_id.
@@ -203,8 +203,8 @@ target_if_p2p_lo_register_tx_ops(struct wlan_lmac_if_p2p_tx_ops *p2p_tx_ops)
 /**
  * target_p2p_noa_event_handler() - WMI callback for noa event
  * @scn:       pointer to scn
- * @event_buf: event buffer
- * @len:       buffer length
+ * @data:      event buffer
+ * @datalen:   buffer length
  *
  * This function gets called from WMI when triggered WMI event
  * wmi_p2p_noa_event_id.
@@ -340,6 +340,7 @@ QDF_STATUS target_if_p2p_set_ps(struct wlan_objmgr_psoc *psoc,
 	cmd.single_noa_duration = ps_config->single_noa_duration;
 	cmd.ps_selection = ps_config->ps_selection;
 	cmd.session_id =  ps_config->vdev_id;
+	cmd.start = ps_config->start;
 
 	if (ps_config->opp_ps)
 		status = wmi_unified_set_p2pgo_oppps_req(wmi_handle,
@@ -369,7 +370,7 @@ QDF_STATUS target_if_p2p_set_noa(struct wlan_objmgr_psoc *psoc,
 	target_if_debug("psoc:%pK, vdev_id:%d disable_noa:%d",
 				psoc, vdev_id, disable_noa);
 	param.vdev_id = vdev_id;
-	param.param_id = WMI_VDEV_PARAM_DISABLE_NOA_P2P_GO;
+	param.param_id = wmi_vdev_param_disable_noa_p2p_go;
 	param.param_value = (uint32_t)disable_noa;
 
 	return wmi_unified_vdev_set_param_send(wmi_handle, &param);

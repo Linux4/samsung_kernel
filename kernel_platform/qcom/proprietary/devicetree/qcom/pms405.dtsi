@@ -74,26 +74,20 @@
 			#thermal-sensor-cells = <1>;
 			#address-cells = <1>;
 			#size-cells = <0>;
-			io-channels = <&pms405_vadc ADC5_XO_THERM_100K_PU>,
-					<&pms405_vadc ADC5_AMUX_THM1_100K_PU>,
-					<&pms405_vadc ADC5_AMUX_THM3_100K_PU>;
 
 			xo_therm {
-				reg = <ADC5_XO_THERM_100K_PU>;
-				qcom,ratiometric;
-				qcom,hw-settle-time = <200>;
+				reg = <0>;
+				io-channels = <&pms405_vadc ADC5_XO_THERM_100K_PU>;
 			};
 
 			pa_therm1 {
-				reg = <ADC5_AMUX_THM1_100K_PU>;
-				qcom,ratiometric;
-				qcom,hw-settle-time = <200>;
+				reg = <1>;
+				io-channels = <&pms405_vadc ADC5_AMUX_THM1_100K_PU>;
 			};
 
 			pa_therm3 {
-				reg = <ADC5_AMUX_THM3_100K_PU>;
-				qcom,ratiometric;
-				qcom,hw-settle-time = <200>;
+				reg = <2>;
+				io-channels = <&pms405_vadc ADC5_AMUX_THM3_100K_PU>;
 			};
 		};
 
@@ -111,6 +105,18 @@
 				qcom,pull-up;
 				linux,code = <KEY_POWER>;
 			};
+		};
+
+		pms405_clkdiv: clock-controller@5b00 {
+			compatible = "qcom,spmi-clkdiv";
+			reg = <0x5b00>;
+			#clock-cells = <1>;
+			qcom,num-clkdivs = <1>;
+			clock-output-names = "pms405_div_clk1";
+			clocks = <&rpmcc RPM_SMD_XO_CLK_SRC>;
+			clock-names = "xo";
+			assigned-clocks = <&pms405_clkdiv 1>;
+			assigned-clock-rates = <9600000>;
 		};
 
 		/* QCS405 + PMS405 GPIO configuration */

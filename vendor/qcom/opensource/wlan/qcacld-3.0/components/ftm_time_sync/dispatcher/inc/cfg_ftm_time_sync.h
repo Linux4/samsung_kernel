@@ -19,7 +19,6 @@
 #define __FTM_TIME_SYNC_CFG_H__
 
 /**
- *
  * DOC: ftm_time_sync_cfg.h
  *
  * FTM TIME SYNC feature INI configuration parameter definitions

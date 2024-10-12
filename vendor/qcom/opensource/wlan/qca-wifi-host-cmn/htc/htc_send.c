@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2013-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -52,7 +52,8 @@ static unsigned int ep_debug_mask =
 #ifdef QCA_WIFI_EMULATION
 #define HTC_EMULATION_DELAY_IN_MS 20
 /**
- * htc_add_delay(): Adds a delay in before proceeding, only for emulation
+ * htc_add_emulation_delay() - Adds a delay in before proceeding, only for
+ *                             emulation
  *
  * Return: None
  */
@@ -185,7 +186,7 @@ static void log_packet_info(HTC_TARGET *target, HTC_PACKET *pPacket)
 }
 
 /**
- * htc_inc_htt_runtime_cnt: Increment htc htt runtime count
+ * htc_inc_htt_runtime_cnt() - Increment htc htt runtime count
  * @target: handle of HTC context
  *
  * Return: None
@@ -988,7 +989,7 @@ static QDF_STATUS htc_issue_packets(HTC_TARGET *target,
 
 #ifdef FEATURE_RUNTIME_PM
 /**
- * extract_htc_pm_packets(): move pm packets from endpoint into queue
+ * extract_htc_pm_packets() - move pm packets from endpoint into queue
  * @endpoint: which endpoint to extract packets from
  * @queue: a queue to store extracted packets in.
  *
@@ -1014,7 +1015,7 @@ static void extract_htc_pm_packets(HTC_ENDPOINT *endpoint,
 }
 
 /**
- * queue_htc_pm_packets(): queue pm packets with priority
+ * queue_htc_pm_packets() - queue pm packets with priority
  * @endpoint: endpoint to queue packets to
  * @queue: queue of pm packets to enqueue
  *
@@ -1109,8 +1110,8 @@ htc_send_pkts_get_rtpm_id(HTC_SERVICE_ID service_id)
 
 #ifdef SYSTEM_PM_CHECK
 /**
- * extract_htc_system_resume_pkts(): Move system pm resume packets from endpoint
- *  into queue
+ * extract_htc_system_resume_pkts() - Move system pm resume packets from
+ *                                    endpoint into queue
  * @endpoint: which endpoint to extract packets from
  * @queue: a queue to store extracted packets in.
  *
@@ -1199,7 +1200,11 @@ static void get_htc_send_packets_credit_based(HTC_TARGET *target,
 			ret = hif_rtpm_get(HIF_RTPM_GET_ASYNC, rtpm_code);
 			if (ret) {
 				/* bus suspended, runtime resume issued */
-				QDF_ASSERT(HTC_PACKET_QUEUE_DEPTH(pQueue) == 0);
+				if (HTC_PACKET_QUEUE_DEPTH(pQueue) > 0)
+					AR_DEBUG_PRINTF(ATH_DEBUG_WARN,
+							(" pQueue depth: %d\n",
+							 HTC_PACKET_QUEUE_DEPTH(pQueue)));
+
 				pPacket = htc_get_pkt_at_head(tx_queue);
 				if (!pPacket)
 					break;
@@ -1994,6 +1999,174 @@ static inline QDF_STATUS __htc_send_pkt(HTC_HANDLE HTCHandle,
 	return QDF_STATUS_SUCCESS;
 }
 
+#ifdef CUSTOM_CB_SCHEDULER_SUPPORT
+/**
+ * htc_get_endpoint_ul_pipeid() - Helper API to get uplink pipe ID
+ * @htc_handle: HTC handle
+ * @endpoint_id: Endpoint ID
+ * @ul_pipeid: Pointer to uplink pipe ID
+ *
+ * return: QDF_STATUS
+ */
+static QDF_STATUS
+htc_get_endpoint_ul_pipeid(HTC_HANDLE htc_handle, HTC_ENDPOINT_ID endpoint_id,
+			   uint8_t *ul_pipeid)
+{
+	HTC_TARGET *target;
+	HTC_ENDPOINT *end_point;
+
+	if (!htc_handle) {
+		AR_DEBUG_PRINTF(ATH_DEBUG_ERR,
+				("%s: HTCHandle is NULL\n", __func__));
+		return QDF_STATUS_E_NULL_VALUE;
+	}
+	target = GET_HTC_TARGET_FROM_HANDLE(htc_handle);
+
+	if (endpoint_id >= ENDPOINT_MAX || endpoint_id <= ENDPOINT_UNUSED) {
+		AR_DEBUG_PRINTF(ATH_DEBUG_SEND,
+				("%s endpoint is invalid\n", __func__));
+		AR_DEBUG_ASSERT(0);
+		return QDF_STATUS_E_INVAL;
+	}
+	end_point = &target->endpoint[endpoint_id];
+
+	if (!end_point->service_id) {
+		AR_DEBUG_PRINTF(ATH_DEBUG_SEND, ("%s service_id is invalid\n",
+						 __func__));
+		return QDF_STATUS_E_INVAL;
+	}
+
+	*ul_pipeid = end_point->UL_PipeID;
+
+	return QDF_STATUS_SUCCESS;
+}
+
+QDF_STATUS
+htc_register_custom_cb(HTC_HANDLE htc_handle, HTC_ENDPOINT_ID endpoint_id,
+		       void (*custom_cb)(void *), void *custom_cb_context)
+{
+	QDF_STATUS status = QDF_STATUS_SUCCESS;
+	uint8_t ul_pipeid;
+
+	AR_DEBUG_PRINTF(ATH_DEBUG_SEND, ("+%s\n", __func__));
+
+	status = htc_get_endpoint_ul_pipeid(htc_handle, endpoint_id,
+					    &ul_pipeid);
+	if (QDF_IS_STATUS_ERROR(status)) {
+		AR_DEBUG_PRINTF(ATH_DEBUG_SEND, ("%s Failed to get ul pipeid\n",
+						 __func__));
+		goto exit;
+	}
+
+	status = hif_register_ce_custom_cb(htc_get_hif_device(htc_handle),
+					   ul_pipeid, custom_cb,
+					   custom_cb_context);
+	if (QDF_IS_STATUS_ERROR(status)) {
+		AR_DEBUG_PRINTF(ATH_DEBUG_SEND, ("%s Failed to register cb\n",
+						 __func__));
+		goto exit;
+	}
+
+exit:
+	AR_DEBUG_PRINTF(ATH_DEBUG_SEND, ("-%s\n", __func__));
+
+	return status;
+}
+
+QDF_STATUS
+htc_unregister_custom_cb(HTC_HANDLE htc_handle, HTC_ENDPOINT_ID endpoint_id)
+{
+	QDF_STATUS status = QDF_STATUS_SUCCESS;
+	uint8_t ul_pipeid;
+
+	AR_DEBUG_PRINTF(ATH_DEBUG_SEND, ("+%s\n", __func__));
+
+	status = htc_get_endpoint_ul_pipeid(htc_handle, endpoint_id,
+					    &ul_pipeid);
+	if (QDF_IS_STATUS_ERROR(status)) {
+		AR_DEBUG_PRINTF(ATH_DEBUG_SEND, ("%s Failed to get ul pipeid\n",
+						 __func__));
+		goto exit;
+	}
+
+	status = hif_unregister_ce_custom_cb(htc_get_hif_device(htc_handle),
+					     ul_pipeid);
+	if (QDF_IS_STATUS_ERROR(status)) {
+		AR_DEBUG_PRINTF(ATH_DEBUG_SEND, ("%s Failed to unregister cb\n",
+						 __func__));
+		status = QDF_STATUS_E_INVAL;
+		goto exit;
+	}
+
+exit:
+	AR_DEBUG_PRINTF(ATH_DEBUG_SEND, ("-%s\n", __func__));
+
+	return status;
+}
+
+QDF_STATUS
+htc_enable_custom_cb(HTC_HANDLE htc_handle, HTC_ENDPOINT_ID endpoint_id)
+{
+	QDF_STATUS status = QDF_STATUS_SUCCESS;
+	uint8_t ul_pipeid;
+
+	AR_DEBUG_PRINTF(ATH_DEBUG_SEND, ("+%s\n", __func__));
+
+	status = htc_get_endpoint_ul_pipeid(htc_handle, endpoint_id,
+					    &ul_pipeid);
+	if (QDF_IS_STATUS_ERROR(status)) {
+		AR_DEBUG_PRINTF(ATH_DEBUG_SEND, ("%s Failed to get ul pipeid\n",
+						 __func__));
+		goto exit;
+	}
+
+	status = hif_enable_ce_custom_cb(htc_get_hif_device(htc_handle),
+					 ul_pipeid);
+	if (QDF_IS_STATUS_ERROR(status)) {
+		AR_DEBUG_PRINTF(ATH_DEBUG_SEND, ("%s Failed to enable cb\n",
+						 __func__));
+		status = QDF_STATUS_E_INVAL;
+		goto exit;
+	}
+
+exit:
+	AR_DEBUG_PRINTF(ATH_DEBUG_SEND, ("-%s\n", __func__));
+
+	return status;
+}
+
+QDF_STATUS
+htc_disable_custom_cb(HTC_HANDLE htc_handle, HTC_ENDPOINT_ID endpoint_id)
+{
+	QDF_STATUS status = QDF_STATUS_SUCCESS;
+	uint8_t ul_pipeid;
+
+	AR_DEBUG_PRINTF(ATH_DEBUG_SEND, ("+%s\n", __func__));
+
+	status = htc_get_endpoint_ul_pipeid(htc_handle, endpoint_id,
+					    &ul_pipeid);
+	if (QDF_IS_STATUS_ERROR(status)) {
+		AR_DEBUG_PRINTF(ATH_DEBUG_SEND, ("%s Failed to get ul pipeid\n",
+						 __func__));
+		goto exit;
+	}
+
+	status = hif_disable_ce_custom_cb(htc_get_hif_device(htc_handle),
+					  ul_pipeid);
+	if (QDF_IS_STATUS_ERROR(status)) {
+		AR_DEBUG_PRINTF(ATH_DEBUG_SEND, ("%s Failed to disable cb\n",
+						 __func__));
+		status = QDF_STATUS_E_INVAL;
+		goto exit;
+	}
+
+exit:
+	AR_DEBUG_PRINTF(ATH_DEBUG_SEND, ("-%s\n", __func__));
+
+	return status;
+}
+#endif /* CUSTOM_CB_SCHEDULER_SUPPORT */
+
 /* HTC API - htc_send_pkt */
 QDF_STATUS htc_send_pkt(HTC_HANDLE htc_handle, HTC_PACKET *htc_packet)
 {
@@ -2020,9 +2193,10 @@ qdf_export_symbol(htc_send_pkt);
 #ifdef ATH_11AC_TXCOMPACT
 /**
  * htc_send_data_pkt() - send single data packet on an endpoint
- * @HTCHandle: pointer to HTC handle
+ * @htc_hdl: pointer to HTC handle
  * @netbuf: network buffer containing the data to be sent
- * @ActualLength: length of data that needs to be transmitted
+ * @ep_id: endpoint identifier
+ * @actual_length: length of data that needs to be transmitted
  *
  * Return: QDF_STATUS_SUCCESS for success or an appropriate QDF_STATUS error
  */
@@ -2550,9 +2724,9 @@ QDF_STATUS htc_tx_completion_handler(void *Context,
 
 #ifdef WLAN_FEATURE_FASTPATH
 /**
- * htc_ctrl_msg_cmpl(): checks for tx completion for the endpoint specified
- * @HTC_HANDLE : pointer to the htc target context
- * @htc_ep_id  : end point id
+ * htc_ctrl_msg_cmpl() - checks for tx completion for the endpoint specified
+ * @htc_pdev: pointer to the htc context
+ * @htc_ep_id: end point id
  *
  * checks HTC tx completion
  *
@@ -2599,7 +2773,7 @@ void htc_tx_resource_avail_handler(void *context, uint8_t pipeID)
 
 #ifdef FEATURE_RUNTIME_PM
 /**
- * htc_kick_queues(): resumes tx transactions of suspended endpoints
+ * htc_kick_queues() - resumes tx transactions of suspended endpoints
  * @context: pointer to the htc target context
  *
  * Iterates through the endpoints and provides a context to empty queues

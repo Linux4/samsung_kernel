@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2012-2015, 2020-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -34,6 +34,9 @@
 #include "connection_mgr/core/src/wlan_cm_roam.h"
 #include <wlan_mlo_mgr_sta.h>
 #include "wlan_mlo_mgr_roam.h"
+#include "wlan_t2lm_api.h"
+#include "wlan_mlo_link_force.h"
+#include <wlan_mlo_mgr_public_api.h>
 
 static void cm_abort_connect_request_timers(struct wlan_objmgr_vdev *vdev)
 {
@@ -73,13 +76,19 @@ QDF_STATUS cm_disconnect_start_ind(struct wlan_objmgr_vdev *vdev,
 		return QDF_STATUS_E_INVAL;
 	}
 	mlo_sta_stop_reconfig_timer(vdev);
+	if (req->source != CM_MLO_LINK_SWITCH_DISCONNECT)
+		ml_nlink_conn_change_notify(
+			psoc, wlan_vdev_get_id(vdev),
+			ml_nlink_disconnect_start_evt, NULL);
 	if (cm_csr_is_ss_wait_for_key(req->vdev_id)) {
 		mlme_debug("Stop Wait for key timer");
 		cm_stop_wait_for_key_timer(psoc, req->vdev_id);
 		cm_csr_set_ss_none(req->vdev_id);
 	}
 
-	user_disconnect = req->source == CM_OSIF_DISCONNECT ? true : false;
+	user_disconnect =
+		(req->source == CM_OSIF_DISCONNECT ||
+		 req->source == CM_MLO_LINK_SWITCH_DISCONNECT) ? true : false;
 	if (user_disconnect) {
 		wlan_p2p_cleanup_roc_by_vdev(vdev, false);
 		wlan_tdls_notify_sta_disconnect(req->vdev_id, false,
@@ -87,10 +96,13 @@ QDF_STATUS cm_disconnect_start_ind(struct wlan_objmgr_vdev *vdev,
 	}
 	cm_abort_connect_request_timers(vdev);
 
-	if (req->source != CM_MLO_ROAM_INTERNAL_DISCONNECT) {
+	if (req->source != CM_MLO_ROAM_INTERNAL_DISCONNECT &&
+	    req->source != CM_MLO_LINK_SWITCH_DISCONNECT) {
 		mlme_debug("Free copied reassoc rsp");
 		mlo_roam_free_copied_reassoc_rsp(vdev);
 	}
+
+	wlan_t2lm_clear_all_tid_mapping(vdev);
 
 	return QDF_STATUS_SUCCESS;
 }
@@ -135,10 +147,10 @@ cm_handle_disconnect_req(struct wlan_objmgr_vdev *vdev,
 		return QDF_STATUS_E_NOMEM;
 
 	cm_csr_handle_diconnect_req(vdev, req);
-	wlan_roam_reset_roam_params(psoc);
+	wlan_roam_reset_roam_params(vdev);
 	cm_roam_restore_default_config(pdev, vdev_id);
 	opmode = wlan_vdev_mlme_get_opmode(vdev);
-	if (opmode == QDF_STA_MODE)
+	if (opmode == QDF_STA_MODE && !wlan_vdev_mlme_is_link_sta_vdev(vdev))
 		wlan_cm_roam_state_change(pdev, vdev_id,
 					  WLAN_ROAM_DEINIT,
 					  REASON_DISCONNECTED);
@@ -248,8 +260,12 @@ cm_disconnect_complete_ind(struct wlan_objmgr_vdev *vdev,
 	cm_disconnect_diag_event(vdev, rsp);
 	wlan_tdls_notify_sta_disconnect(vdev_id, false, false, vdev);
 	policy_mgr_decr_session_set_pcl(psoc, op_mode, vdev_id);
-	wlan_clear_mlo_sta_link_removed_flag(vdev);
-	cm_update_associated_ch_width(vdev, false);
+	if (rsp->req.req.source != CM_MLO_LINK_SWITCH_DISCONNECT) {
+		wlan_clear_mlo_sta_link_removed_flag(vdev);
+		ml_nlink_conn_change_notify(
+			psoc, vdev_id, ml_nlink_disconnect_completion_evt,
+			NULL);
+	}
 
 	return QDF_STATUS_SUCCESS;
 }
@@ -311,9 +327,15 @@ QDF_STATUS cm_send_sb_disconnect_req(struct scheduler_msg *msg)
 		return QDF_STATUS_E_INVAL;
 	}
 
-	status = mlo_disconnect(vdev, ind->disconnect_param.source,
-				ind->disconnect_param.reason_code,
-				&ind->disconnect_param.bssid);
+	status = wlan_mlo_mgr_link_switch_defer_disconnect_req(vdev,
+							       ind->disconnect_param.source,
+							       ind->disconnect_param.reason_code);
+	if (QDF_IS_STATUS_ERROR(status)) {
+		status = mlo_disconnect(vdev, ind->disconnect_param.source,
+					ind->disconnect_param.reason_code,
+					&ind->disconnect_param.bssid);
+	}
+
 	qdf_mem_free(ind);
 	wlan_objmgr_vdev_release_ref(vdev, WLAN_MLME_CM_ID);
 

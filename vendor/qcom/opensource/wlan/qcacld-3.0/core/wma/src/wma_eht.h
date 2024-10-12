@@ -29,7 +29,6 @@ enum EHT_TXRX_MCS_NSS_IDX {
 
 #if defined(WLAN_FEATURE_11BE)
 #define MAX_EHT_DCM_INDEX 2
-#define MAX_EHT_MCS_IDX 14
 /* valid only for mcs-15 */
 #define IS_EHT_ MCS_HAS_DCM_RATE(val)  ((val) == 15)
 /**
@@ -248,6 +247,17 @@ inline bool wma_is_eht_phymode_supported(enum wlan_phymode bss_phymode)
 {
 	return IS_WLAN_PHYMODE_EHT(bss_phymode);
 }
+
+/**
+ * wma_set_eht_txbf_vdev_params() - set EHT Tx beamforming params to FW
+ * @mac: mac context
+ * @mode: mode address to access mode value
+ *
+ * Return: success
+ */
+QDF_STATUS
+wma_set_eht_txbf_vdev_params(struct mac_context *mac, uint32_t *mode);
+
 #else
 static inline void wma_eht_update_tgt_services(struct wmi_unified *wmi_handle,
 					       struct wma_tgt_services *cfg)
@@ -349,5 +359,19 @@ static inline bool wma_is_eht_phymode_supported(enum wlan_phymode bss_phymode)
 {
 	return false;
 }
+
+static inline
+QDF_STATUS wma_set_eht_txbf_vdev_params(struct mac_context *mac, uint32_t *mode)
+{
+	return QDF_STATUS_E_NOSUPPORT;
+}
+#endif
+
+#ifdef WLAN_FEATURE_11BE_MLO
+void wma_vdev_set_listen_interval(uint8_t vdev_id, uint8_t val);
+#else
+static inline
+void wma_vdev_set_listen_interval(uint8_t vdev_id, uint8_t val)
+{}
 #endif
 #endif

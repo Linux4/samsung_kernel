@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -20,19 +21,20 @@
 #define _WLAN_IOT_SIM__PUBLIC_STRUCTS_H_
 
 /**
- * struct simulation_test_params
- * pdev_id: pdev id
- * vdev_id: vdev id
- * peer_macaddr: peer MAC address
- * test_cmd_type: test command type
- * test_subcmd_type: test command sub type
- * frame_type: frame type
- * frame_subtype: frame subtype
- * seq: sequence number
- * offset: Frame content offset
- * frame_length: Frame content length
- * buf_len: Buffer length
- * bufp: buffer
+ * struct simulation_test_params - IOT Similation test parameters
+ * @pdev_id: pdev id
+ * @vdev_id: vdev id
+ * @peer_mac: peer MAC address
+ * @test_cmd_type: test command type
+ * @test_subcmd_type: test command sub type
+ * @frame_type: frame type
+ * @frame_subtype: frame subtype
+ * @seq: sequence number
+ * @reserved: reserved for future use
+ * @offset: Frame content offset
+ * @frame_length: Frame content length
+ * @buf_len: Buffer length
+ * @bufp: buffer
  */
 struct simulation_test_params {
 	u32 pdev_id;

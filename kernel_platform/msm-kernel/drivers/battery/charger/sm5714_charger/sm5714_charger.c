@@ -874,6 +874,8 @@ static void psy_chg_set_charging_enable(struct sm5714_charger_data *charger, int
 	switch (charger->charge_mode) {
 	case SEC_BAT_CHG_MODE_BUCK_OFF:
 		buck_off = true;
+		charger->is_charging = false;
+		break;
 	case SEC_BAT_CHG_MODE_CHARGING_OFF:
 		charger->is_charging = false;
 		break;

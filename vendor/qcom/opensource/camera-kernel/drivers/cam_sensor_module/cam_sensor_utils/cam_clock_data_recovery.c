@@ -89,7 +89,6 @@ int cam_clock_data_recovery_write_register(void __iomem *csiphybase)
 			cam_io_r_mb(csiphybase + final_num[i]),
 			final_num[i+2]);
 	}
-
 	return 1;
 }
 

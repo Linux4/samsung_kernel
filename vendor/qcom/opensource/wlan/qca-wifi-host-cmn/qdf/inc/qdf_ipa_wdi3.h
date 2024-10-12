@@ -125,6 +125,8 @@ typedef __qdf_ipa_wdi_pipe_setup_info_smmu_t qdf_ipa_wdi_pipe_setup_info_smmu_t;
 	__QDF_IPA_WDI_SETUP_INFO_SMMU_DESC_FORMAT_TEMPLATE(txrx)
 #define QDF_IPA_WDI_SETUP_INFO_SMMU_RX_BANK_ID(txrx, bid)	\
 	__QDF_IPA_WDI_SETUP_INFO_SMMU_RX_BANK_ID(txrx, bid)
+#define QDF_IPA_WDI_SETUP_INFO_SMMU_RX_PMAC_ID(txrx, pmac_id)	\
+	__QDF_IPA_WDI_SETUP_INFO_SMMU_RX_PMAC_ID(txrx, pmac_id)
 
 typedef __qdf_ipa_ep_cfg_t qdf_ipa_ep_cfg_t;
 
@@ -271,6 +273,8 @@ typedef __qdf_ipa_wdi_pipe_setup_info_t qdf_ipa_wdi_pipe_setup_info_t;
 	__QDF_IPA_WDI_SETUP_INFO_DESC_FORMAT_TEMPLATE(txrx)
 #define QDF_IPA_WDI_SETUP_INFO_RX_BANK_ID(txrx, bid)	\
 	__QDF_IPA_WDI_SETUP_INFO_RX_BANK_ID(txrx, bid)
+#define QDF_IPA_WDI_SETUP_INFO_RX_PMAC_ID(txrx, pmac_id)	\
+	__QDF_IPA_WDI_SETUP_INFO_RX_PMAC_ID(txrx, pmac_id)
 
 /**
  * qdf_ipa_wdi_conn_in_params_t - information provided by
@@ -563,6 +567,19 @@ static inline int qdf_ipa_wdi_opt_dpath_notify_flt_rlsd_per_inst(
 {
 	return __qdf_ipa_wdi_opt_dpath_notify_flt_rlsd_per_inst(hdl,
 								is_success);
+}
+
+#else
+static inline int qdf_ipa_wdi_opt_dpath_notify_flt_rsvd_per_inst(
+				ipa_wdi_hdl_t hdl, bool is_success)
+{
+	return 0;
+}
+
+static inline int qdf_ipa_wdi_opt_dpath_notify_flt_rlsd_per_inst(
+				ipa_wdi_hdl_t hdl, bool is_success)
+{
+	return 0;
 }
 #endif /* IPA_OPT_WIFI_DP  */
 #endif /* IPA_OFFLOAD */

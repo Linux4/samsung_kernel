@@ -86,6 +86,16 @@
 #define mlo_nofl_debug_rl(format, args...) \
 		QDF_TRACE_DEBUG_RL_NO_FL(QDF_MODULE_ID_MLO, format, ## args)
 
+#if defined(WLAN_FEATURE_11BE_MLO_ENABLE_ENHANCED_TRACE)
+#define mlo_etrace_debug(format, args...) \
+		QDF_TRACE_DEBUG(QDF_MODULE_ID_MLO, format, ## args)
+#define mlo_etrace_err_rl(format, args...) \
+		QDF_TRACE_ERROR_RL(QDF_MODULE_ID_MLO, format, ## args)
+#else
+#define mlo_etrace_debug(format, args...)
+#define mlo_etrace_err_rl(format, args...)
+#endif
+
 #define MLO_INVALID_LINK_IDX 0xFF
 /**
  * mlo_get_link_information() - get partner link information
@@ -108,15 +118,13 @@ void is_mlo_all_links_up(struct wlan_mlo_dev_context *ml_dev);
  * mlo_get_vdev_by_link_id() - get vdev by link id
  * @vdev: vdev pointer
  * @link_id: link id
- *
- * Caller should make sure to release the reference of thus obtained vdev
- * by calling mlo_release_vdev_ref() after usage of vdev.
+ * @id: debug id
  *
  * Return: vdev object pointer to link id
  */
 struct wlan_objmgr_vdev *mlo_get_vdev_by_link_id(
 			struct wlan_objmgr_vdev *vdev,
-			uint8_t link_id);
+			uint8_t link_id, wlan_objmgr_ref_dbgid id);
 
 /**
  * mlo_release_vdev_ref() - release vdev reference
@@ -143,6 +151,41 @@ QDF_STATUS mlo_reg_mlme_ext_cb(struct mlo_mgr_context *ctx,
  * Return: QDF_STATUS_SUCCESS on success else failure
  */
 QDF_STATUS mlo_unreg_mlme_ext_cb(struct mlo_mgr_context *ctx);
+
+#ifdef WLAN_FEATURE_11BE_MLO_ADV_FEATURE
+/**
+ * wlan_mlo_mgr_register_osif_ext_ops() - Function to register OSIF callbacks
+ * @mlo_ctx: Global MLO manager pointer
+ * @ops: Pointer to the struct containing OSIF callbacks.
+ *
+ * Return: QDF_STATUS
+ */
+QDF_STATUS wlan_mlo_mgr_register_osif_ext_ops(struct mlo_mgr_context *mlo_ctx,
+					      struct mlo_osif_ext_ops *ops);
+
+/**
+ * wlan_mlo_mgr_unregister_osif_ext_ops() - Function to unregister OSIF
+ * callbacks
+ * @mlo_ctx: Global MLO manager pointer
+ *
+ * Return: QDF_STATUS
+ */
+QDF_STATUS
+wlan_mlo_mgr_unregister_osif_ext_ops(struct mlo_mgr_context *mlo_ctx);
+#else
+static inline QDF_STATUS
+wlan_mlo_mgr_register_osif_ext_ops(struct mlo_mgr_context *mlo_ctx,
+				   struct mlo_osif_ext_ops *ops)
+{
+	return QDF_STATUS_SUCCESS;
+}
+
+static inline QDF_STATUS
+wlan_mlo_mgr_unregister_osif_ext_ops(struct mlo_mgr_context *mlo_ctx)
+{
+	return QDF_STATUS_SUCCESS;
+}
+#endif
 
 /**
  * mlo_mlme_clone_sta_security() - Clone Security params in partner vdevs
@@ -175,7 +218,7 @@ QDF_STATUS mlo_mlme_validate_conn_req(struct wlan_objmgr_vdev *vdev,
 				      void *ext_data);
 
 /**
- * mlo_mlme_ext_create_link_vdev() - Create link vdev for ML STA
+ * mlo_mlme_create_link_vdev() - Create link vdev for ML STA
  * @vdev: Object manager vdev
  * @ext_data: Data object to be passed to callback
  *
@@ -197,6 +240,20 @@ void mlo_mlme_peer_create(struct wlan_objmgr_vdev *vdev,
 			  struct wlan_mlo_peer_context *ml_peer,
 			  struct qdf_mac_addr *addr,
 			  qdf_nbuf_t frm_buf);
+
+/**
+ * mlo_mlme_bridge_peer_create() - Create mlo bridge peer
+ * @vdev: Object manager vdev
+ * @ml_peer: MLO peer context
+ * @addr: Peer addr
+ * @frm_buf: Frame buffer for IE processing
+ *
+ * Return: void
+ */
+void mlo_mlme_bridge_peer_create(struct wlan_objmgr_vdev *vdev,
+				 struct wlan_mlo_peer_context *ml_peer,
+				 struct qdf_mac_addr *addr,
+				 qdf_nbuf_t frm_buf);
 
 /**
  * mlo_mlme_peer_assoc() - Send ML Peer assoc
@@ -252,7 +309,7 @@ void mlo_mlme_peer_deauth(struct wlan_objmgr_peer *peer, uint8_t is_disassoc);
 #ifdef UMAC_MLO_AUTH_DEFER
 /**
  * mlo_mlme_peer_process_auth() - Process deferred auth request
- * @auth_params: deferred auth params
+ * @auth_param: deferred auth params
  *
  * Return: void
  */
@@ -265,8 +322,22 @@ mlo_mlme_peer_process_auth(struct mlpeer_auth_params *auth_param)
 #endif
 
 /**
+ * mlo_mlme_peer_reassoc() - Reassoc mlo peer
+ * @vdev: Object manager vdev
+ * @ml_peer: MLO peer context
+ * @addr: Peer addr
+ * @frm_buf: Frame buffer for IE processing
+ *
+ * Return: void
+ */
+void mlo_mlme_peer_reassoc(struct wlan_objmgr_vdev *vdev,
+			   struct wlan_mlo_peer_context *ml_peer,
+			   struct qdf_mac_addr *addr,
+			   qdf_nbuf_t frm_buf);
+
+/**
  * mlo_get_link_vdev_ix() - Get index of link VDEV in MLD
- * @ml_dev: ML device context
+ * @mldev: ML device context
  * @vdev: VDEV object
  *
  * Return: link index
@@ -301,30 +372,35 @@ void mlo_mlme_handle_sta_csa_param(struct wlan_objmgr_vdev *vdev,
 #define INVALID_HW_LINK_ID 0xFFFF
 #define WLAN_MLO_INVALID_NUM_LINKS             (-1)
 #ifdef WLAN_MLO_MULTI_CHIP
+#define WLAN_MLO_GROUP_INVALID                 0xFF
+#define WLAN_MLO_CHIP_ID_INVALID               0xFF
 /**
  * wlan_mlo_get_max_num_links() - Get the maximum number of MLO links
  * possible in the system
+ * @grp_id: Id of the required MLO Group
  *
  * Return: Maximum number of MLO links in the system
  */
-int8_t wlan_mlo_get_max_num_links(void);
+int8_t wlan_mlo_get_max_num_links(uint8_t grp_id);
 
 /**
  * wlan_mlo_get_num_active_links() - Get the number of active MLO links
  * in the system
+ * @grp_id: Id of the required MLO Group
  *
  * Return: Number of active MLO links in the system
  */
-int8_t wlan_mlo_get_num_active_links(void);
+int8_t wlan_mlo_get_num_active_links(uint8_t grp_id);
 
 /**
  * wlan_mlo_get_valid_link_bitmap() - Get the bitmap indicating the valid
  * MLO links in the system. If bit position i is set, link with id i is
  * valid.
+ * @grp_id: Id of the required MLO Group
  *
  * Return: Valid link bitmap
  */
-uint16_t wlan_mlo_get_valid_link_bitmap(void);
+uint16_t wlan_mlo_get_valid_link_bitmap(uint8_t grp_id);
 
 /**
  * wlan_mlo_get_pdev_hw_link_id() - Get hw_link_id of pdev
@@ -335,22 +411,49 @@ uint16_t wlan_mlo_get_valid_link_bitmap(void);
 uint16_t wlan_mlo_get_pdev_hw_link_id(struct wlan_objmgr_pdev *pdev);
 
 /**
+ * wlan_mlo_get_psoc_group_id() - Get MLO group id of psoc
+ * @psoc: psoc object
+ *
+ * Return: MLO group id of the psoc
+ */
+uint8_t wlan_mlo_get_psoc_group_id(struct wlan_objmgr_psoc *psoc);
+
+/**
+ * wlan_mlo_get_psoc_mlo_chip_id() - Get MLO chip id of psoc
+ * @psoc: psoc object
+ *
+ * Return: MLO group id of the psoc
+ */
+uint8_t wlan_mlo_get_psoc_mlo_chip_id(struct wlan_objmgr_psoc *psoc);
+
+/**
+ * wlan_mlo_get_psoc_capable() - Get if MLO capable psoc
+ * @psoc: Pointer to psoc object
+ *
+ * Return: True if MLO capable else false
+ */
+bool wlan_mlo_get_psoc_capable(struct wlan_objmgr_psoc *psoc);
+
+/**
  * struct hw_link_id_iterator: Argument passed in psoc/pdev iterator to
  *                             find pdev from hw_link_id
  * @hw_link_id: HW link id of pdev to find
+ * @mlo_grp_id: MLO Group id which it belongs to
  * @dbgid: Module ref id used in iterator
  * @pdev: Pointer to pdev. This will be set inside itertor callback
  *        if hw_link_id match is found.
  */
 struct hw_link_id_iterator {
 	uint16_t hw_link_id;
+	uint8_t mlo_grp_id;
 	wlan_objmgr_ref_dbgid dbgid;
 	struct wlan_objmgr_pdev *pdev;
 };
 
 /**
- * wlan_objmgr_get_pdev_by_hw_link_id() - Get pdev object from hw_link_id
+ * wlan_mlo_get_pdev_by_hw_link_id() - Get pdev object from hw_link_id
  * @hw_link_id: HW link id of the pdev
+ * @ml_grp_id: MLO Group id which it belongs to
  * @refdbgid: dbgid of module used for taking reference to pdev object
  *
  * Return: Pointer to pdev object if hw_link_id is valid. Else, NULL
@@ -358,30 +461,30 @@ struct hw_link_id_iterator {
  *         Caller should free this reference.
  */
 struct wlan_objmgr_pdev *
-wlan_mlo_get_pdev_by_hw_link_id(uint16_t hw_link_id,
+wlan_mlo_get_pdev_by_hw_link_id(uint16_t hw_link_id, uint8_t ml_grp_id,
 				wlan_objmgr_ref_dbgid refdbgid);
 
 #else
 static inline int8_t
-wlan_mlo_get_max_num_links(void)
+wlan_mlo_get_max_num_links(uint8_t grp_id)
 {
 	return WLAN_MLO_INVALID_NUM_LINKS;
 }
 
 static inline int8_t
-wlan_mlo_get_num_active_links(void)
+wlan_mlo_get_num_active_links(uint8_t grp_id)
 {
 	return WLAN_MLO_INVALID_NUM_LINKS;
 }
 
 static inline uint16_t
-wlan_mlo_get_valid_link_bitmap(void)
+wlan_mlo_get_valid_link_bitmap(uint8_t grp_id)
 {
 	return 0;
 }
 
 static inline struct wlan_objmgr_pdev *
-wlan_mlo_get_pdev_by_hw_link_id(uint16_t hw_link_id,
+wlan_mlo_get_pdev_by_hw_link_id(uint16_t hw_link_id, uint8_t ml_grp_id,
 				wlan_objmgr_ref_dbgid refdbgid)
 {
 	return NULL;
@@ -391,6 +494,18 @@ static inline
 uint16_t wlan_mlo_get_pdev_hw_link_id(struct wlan_objmgr_pdev *pdev)
 {
 	return INVALID_HW_LINK_ID;
+}
+
+static inline
+uint8_t wlan_mlo_get_psoc_group_id(struct wlan_objmgr_psoc *psoc)
+{
+	return -EINVAL;
+}
+
+static inline
+bool wlan_mlo_get_psoc_capable(struct wlan_objmgr_psoc *psoc)
+{
+	return false;
 }
 #endif/*WLAN_MLO_MULTI_CHIP*/
 
@@ -414,8 +529,10 @@ mlo_process_link_set_active_resp(struct wlan_objmgr_psoc *psoc,
  */
 QDF_STATUS mlo_ser_set_link_req(struct mlo_link_set_active_req *req);
 
-/*
- * API to have operation on ml vdevs
+/**
+ * typedef mlo_vdev_ops_handler() - API to have operation on ml vdevs
+ * @vdev: vdev object
+ * @arg: operation-specific argument
  */
 typedef void (*mlo_vdev_ops_handler)(struct wlan_objmgr_vdev *vdev,
 				     void *arg);
@@ -521,4 +638,61 @@ mlo_get_link_state_register_resp_cb(struct wlan_objmgr_vdev *vdev,
 QDF_STATUS ml_post_get_link_state_msg(struct wlan_objmgr_vdev *vdev);
 
 #endif
+#endif
+#ifdef WLAN_FEATURE_11BE
+/**
+ * util_add_bw_ind() - Adding bandwidth indiacation element
+ * @bw_ind: pointer to bandwidth indication element
+ * @ccfs0: EHT Channel Centre Frequency Segment0 information
+ * @ccfs1: EHT Channel Centre Frequency Segment1 information
+ * @ch_width: channel width
+ * @puncture_bitmap: puncturing information
+ * @bw_ind_len: pointer to length of bandwidth indication element
+ */
+QDF_STATUS
+util_add_bw_ind(struct wlan_ie_bw_ind *bw_ind, uint8_t ccfs0,
+		uint8_t ccfs1, enum phy_ch_width ch_width,
+		uint16_t puncture_bitmap, int *bw_ind_len);
+
+/**
+ * util_parse_bw_ind() - Parsing of bandwidth indiacation element
+ * @bw_ind: pointer to bandwidth indication element
+ * @ccfs0: EHT Channel Centre Frequency Segment0 information
+ * @ccfs1: EHT Channel Centre Frequency Segment1 information
+ * @ch_width: channel width
+ * @puncture_bitmap: puncturing information
+ */
+
+QDF_STATUS
+util_parse_bw_ind(struct wlan_ie_bw_ind *bw_ind, uint8_t *ccfs0,
+		  uint8_t *ccfs1, enum phy_ch_width *ch_width,
+		  uint16_t *puncture_bitmap);
+#endif
+
+#ifdef QCA_SUPPORT_PRIMARY_LINK_MIGRATE
+/**
+ * mlo_mlme_ptqm_migrate_timer_cb() - Timer callback for ptqm migration
+ * @arg: timer function argument
+ *
+ * Return: None
+ */
+void mlo_mlme_ptqm_migrate_timer_cb(void *arg);
+
+/*
+ * wlan_mlo_set_ptqm_migration() - API to trigger ptqm migration.
+ * @vdev: vdev object
+ * @ml_peer: ml peer object
+ * @link_migration: flag to indicate if all peers of vdev need migration
+ * or individual peer migration
+ * @link_id: link id for new ptqm
+ * @force_mig: allow migration to vdevs which are disabled to be pumac
+ * using primary_umac_skip ini
+ *
+ * Return: Success if migration is triggered, else failure
+ */
+QDF_STATUS wlan_mlo_set_ptqm_migration(struct wlan_objmgr_vdev *vdev,
+				       struct wlan_mlo_peer_context *ml_peer,
+				       bool link_migration,
+				       uint32_t link_id,
+				       bool force_mig);
 #endif

@@ -27,7 +27,7 @@
 #include "qdf_status.h"
 #include "wlan_dsc_driver.h"
 
-/**
+/*
  * struct dsc_psoc - opaque dsc psoc context
  */
 struct dsc_psoc;

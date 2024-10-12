@@ -184,6 +184,8 @@ static void wlan_p2p_lo_event_callback(void *user_data,
 	struct vdev_osif_priv *osif_priv;
 	struct wireless_dev *wdev;
 	struct sk_buff *vendor_event;
+	enum qca_nl80211_vendor_subcmds_index index =
+		QCA_NL80211_VENDOR_SUBCMD_P2P_LO_EVENT_INDEX;
 
 	osif_debug("user data:%pK, vdev id:%d, reason code:%d",
 		   user_data, p2p_lo_event->vdev_id,
@@ -214,12 +216,12 @@ static void wlan_p2p_lo_event_callback(void *user_data,
 		goto fail;
 	}
 
-	vendor_event = cfg80211_vendor_event_alloc(wdev->wiphy, NULL,
-			sizeof(uint32_t) + NLMSG_HDRLEN,
-			QCA_NL80211_VENDOR_SUBCMD_P2P_LO_EVENT_INDEX,
-			GFP_KERNEL);
+	vendor_event = wlan_cfg80211_vendor_event_alloc(wdev->wiphy, NULL,
+							sizeof(uint32_t) +
+							NLMSG_HDRLEN,
+							index, GFP_KERNEL);
 	if (!vendor_event) {
-		osif_err("cfg80211_vendor_event_alloc failed");
+		osif_err("wlan_cfg80211_vendor_event_alloc failed");
 		goto fail;
 	}
 
@@ -227,11 +229,11 @@ static void wlan_p2p_lo_event_callback(void *user_data,
 		QCA_WLAN_VENDOR_ATTR_P2P_LISTEN_OFFLOAD_STOP_REASON,
 		p2p_lo_event->reason_code)) {
 		osif_err("nla put failed");
-		kfree_skb(vendor_event);
+		wlan_cfg80211_vendor_free_skb(vendor_event);
 		goto fail;
 	}
 
-	cfg80211_vendor_event(vendor_event, GFP_KERNEL);
+	wlan_cfg80211_vendor_event(vendor_event, GFP_KERNEL);
 
 fail:
 	wlan_objmgr_vdev_release_ref(vdev, WLAN_P2P_ID);

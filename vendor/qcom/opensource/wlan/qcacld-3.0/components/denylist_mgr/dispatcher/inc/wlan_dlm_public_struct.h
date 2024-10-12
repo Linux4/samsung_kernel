@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2019-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -31,7 +31,7 @@
 #define PDEV_MAX_NUM_BSSID_DISALLOW_LIST   28
 
 /**
- * enum dlm_reject_ap_reason - Rejection reason for adding BSSID to DLM
+ * enum dlm_reject_ap_source - Source of adding BSSID to DLM
  * @ADDED_BY_DRIVER: Source adding this BSSID is driver
  * @ADDED_BY_TARGET: Source adding this BSSID is target
  */

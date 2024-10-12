@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2016-2020 The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -37,9 +37,10 @@
 #include "wmi_unified_param.h"
 
 /**
- * enum cfg_sub_20_channel_width: ini values for su 20 mhz channel width
- * @WLAN_SUB_20_CH_WIDTH_5: Use 5 mhz channel width
- * @WLAN_SUB_20_CH_WIDTH_10: Use 10 mhz channel width
+ * enum cfg_sub_20_channel_width: ini values for su 20 MHz channel width
+ * @WLAN_SUB_20_CH_WIDTH_NONE: No sub-20 MHz channel width
+ * @WLAN_SUB_20_CH_WIDTH_5: Use 5 MHz channel width
+ * @WLAN_SUB_20_CH_WIDTH_10: Use 10 MHz channel width
  */
 enum cfg_sub_20_channel_width {
 	WLAN_SUB_20_CH_WIDTH_NONE = 0,
@@ -86,15 +87,20 @@ struct wlan_cds_feature_set {
  * @is_lpass_enabled: Indicate whether LPASS is enabled or not
  * @tx_chain_mask_cck: Tx chain mask enabled or not
  * @sub_20_channel_width: Sub 20 MHz ch width, ini intersected with fw cap
- * @is_fw_timeout: Indicate whether crash host when fw timesout or not
+ * @max_msdus_per_rxinorderind:
+ * @self_recovery_enabled:
+ * @fw_timeout_crash: Indicate whether crash host when fw timesout or not
+ * @ac_specs:
  * @ito_repeat_count: Indicates ito repeated count
  * @force_target_assert_enabled: Indicate whether target assert enabled or not
  * @bandcapability: Configured band by user
  * @rps_enabled: RPS enabled in SAP mode
  * Structure for holding cds ini parameters.
  * @num_vdevs: Configured max number of VDEVs can be supported in the stack.
+ * @enable_tx_compl_tsf64:
  * @cds_feature_set: CDS feature set structure.
  * @get_wifi_features: Get wifi features from fw
+ * @exclude_selftx_from_cca_busy: Exclude selx tx time from cca busy time
  */
 
 struct cds_config_info {
@@ -131,5 +137,6 @@ struct cds_config_info {
 	struct wlan_cds_feature_set cds_feature_set;
 	bool get_wifi_features;
 #endif
+	bool exclude_selftx_from_cca_busy;
 };
 #endif /* !defined( __CDS_CONFIG_H ) */

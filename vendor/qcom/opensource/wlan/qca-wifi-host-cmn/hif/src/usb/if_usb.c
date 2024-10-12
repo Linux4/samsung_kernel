@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2013-2020 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -93,7 +94,7 @@ hif_usb_procfs_init(struct hif_softc *scn)
 }
 
 /**
- * hif_nointrs(): disable IRQ
+ * hif_usb_nointrs() - disable IRQ
  * @scn: pointer to struct hif_softc
  *
  * This function stops interrupt(s)
@@ -170,7 +171,7 @@ exit:
 
 /**
  * hif_usb_enable_bus() - enable usb bus
- * @ol_sc: hif_softc struct
+ * @scn: hif_softc struct
  * @dev: device pointer
  * @bdev: bus dev pointer
  * @bid: bus id pointer
@@ -277,8 +278,8 @@ err_usb:
 
 
 /**
- * hif_usb_close(): close bus, delete hif_sc
- * @ol_sc: soft_sc struct
+ * hif_usb_close() - close bus, delete hif_sc
+ * @scn: pointer to the hif context.
  *
  * Return: none
  */
@@ -288,7 +289,7 @@ void hif_usb_close(struct hif_softc *scn)
 }
 
 /**
- * hif_usb_disable_bus(): This function disables usb bus
+ * hif_usb_disable_bus() - This function disables usb bus
  * @hif_ctx: pointer to struct hif_softc
  *
  * Return: none
@@ -374,7 +375,7 @@ int hif_usb_bus_resume(struct hif_softc *hif_ctx)
 
 /**
  * hif_usb_bus_reset_resume() - resume the bus after reset
- * @scn: struct hif_opaque_softc
+ * @hif_ctx: HIF context
  *
  * This function is called to tell the driver that USB device has been resumed
  * and it has also been reset. The driver should redo any necessary
@@ -396,7 +397,7 @@ int hif_usb_bus_reset_resume(struct hif_softc *hif_ctx)
 
 /**
  * hif_usb_open()- initialization routine for usb bus
- * @ol_sc: ol_sc
+ * @hif_ctx: HIF context
  * @bus_type: bus type
  *
  * Return: QDF_STATUS_SUCCESS on success and error QDF status on failure
@@ -409,7 +410,7 @@ QDF_STATUS hif_usb_open(struct hif_softc *hif_ctx,
 }
 
 /**
- * hif_usb_disable_isr(): disable isr
+ * hif_usb_disable_isr() - disable isr
  * @hif_ctx: struct hif_softc
  *
  * Return: void
@@ -487,7 +488,7 @@ void hif_usb_reg_tbl_attach(struct hif_softc *scn)
 /**
  * hif_usb_get_hw_info()- attach register table for USB
  * @hif_ctx: pointer to hif_softc structure
-
+ *
  * This function is used to attach the host and target register tables.
  * Ideally, we should not attach register tables as a part of this function.
  * There is scope of cleanup to move register table attach during
@@ -511,7 +512,7 @@ void hif_usb_get_hw_info(struct hif_softc *hif_ctx)
 
 #if defined(CONFIG_PLD_USB_CNSS) && !defined(CONFIG_BYPASS_QMI)
 /**
- * hif_bus_configure() - configure the bus
+ * hif_usb_bus_configure() - configure the bus
  * @scn: pointer to the hif context.
  *
  * return: 0 for success. nonzero for failure.
@@ -535,7 +536,7 @@ int hif_usb_bus_configure(struct hif_softc *scn)
 }
 #else
 /**
- * hif_bus_configure() - configure the bus
+ * hif_usb_bus_configure() - configure the bus
  * @scn: pointer to the hif context.
  *
  * return: 0 for success. nonzero for failure.
@@ -666,7 +667,7 @@ void hif_fw_assert_ramdump_pattern(struct hif_usb_softc *sc)
 }
 
 /**
- * hif_usb_ramdump_handler(): dump bus debug registers
+ * hif_usb_ramdump_handler() - dump bus debug registers
  * @scn: struct hif_opaque_softc
  *
  * This function is to receive information of firmware crash dump, and
@@ -746,9 +747,8 @@ void hif_usb_ramdump_handler(struct hif_opaque_softc *scn)
 
 #ifndef QCA_WIFI_3_0
 /**
- * hif_check_fw_reg(): hif_check_fw_reg
+ * hif_check_fw_reg() - hif_check_fw_reg
  * @scn: scn
- * @state:
  *
  * Return: int
  */

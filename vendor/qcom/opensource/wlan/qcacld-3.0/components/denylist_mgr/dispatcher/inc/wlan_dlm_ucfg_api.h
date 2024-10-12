@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2019-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -151,7 +151,7 @@ ucfg_dlm_add_bssid_to_reject_list(struct wlan_objmgr_pdev *pdev,
 
 /**
  * ucfg_dlm_wifi_off() - Inform the denylist manager about wifi off
- * @dlm_ctx: denylist manager pdev priv object
+ * @pdev: Pdev object
  *
  * This API will inform the denylist manager that the user has turned wifi off
  * from the UI, and the denylist manager can take action based upon this.

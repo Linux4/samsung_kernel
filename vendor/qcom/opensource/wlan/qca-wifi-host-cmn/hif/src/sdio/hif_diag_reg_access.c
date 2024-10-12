@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2013-2019 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -34,8 +35,8 @@
 #define WORD_NON_ALIGNMENT_MASK                  0x03
 
 /**
- * hif_ar6000_set_address_window_register - set the window address register
- *                                          (using 4-byte register access).
+ * hif_ar6000_set_address_window_register() - set the window address register
+ *                                            (using 4-byte register access).
  * @hif_device: hif context
  * @register_addr: register address
  * @addr: addr
@@ -74,7 +75,7 @@ QDF_STATUS hif_ar6000_set_address_window_register(
 }
 
 /**
- * hif_diag_read_access - Read from the AR6000 through its diagnostic window.
+ * hif_diag_read_access() - Read from the AR6000 through its diagnostic window.
  * @hif_ctx: hif context
  * @address: address
  * @data: data
@@ -123,7 +124,7 @@ QDF_STATUS hif_diag_read_access(struct hif_opaque_softc *hif_ctx,
 }
 
 /**
- * hif_diag_write_access - Write to the AR6000 through its diagnostic window.
+ * hif_diag_write_access() - Write to the AR6000 through its diagnostic window.
  * @hif_ctx: hif context
  * @address: address
  * @data: data
@@ -168,8 +169,8 @@ QDF_STATUS hif_diag_write_access(struct hif_opaque_softc *hif_ctx,
 }
 
 /**
- * hif_diag_write_mem - Write a block data to the AR6000 through its diagnostic
- *                      window.
+ * hif_diag_write_mem() - Write a block data to the AR6000 through its
+ *                        diagnostic window.
  * @scn: hif context
  * @address: address
  * @data: data
@@ -212,9 +213,10 @@ QDF_STATUS hif_diag_write_mem(struct hif_opaque_softc *scn, uint32_t address,
 }
 
 /**
- * hif_diag_read_mem - Read a block data to the AR6000 through its diagnostic
- *                     window.
+ * hif_diag_read_mem() - Read a block data to the AR6000 through its diagnostic
+ *                       window.
  * @scn: hif context
+ * @address: target address
  * @data: data
  * @nbytes: nbytes
  *
@@ -258,7 +260,7 @@ QDF_STATUS hif_diag_read_mem(struct hif_opaque_softc *scn,
 qdf_export_symbol(hif_diag_read_mem);
 
 /**
- * hif_ar6k_read_target_register - call to read target register values
+ * hif_ar6k_read_target_register() - call to read target register values
  * @hif_device: hif context
  * @regsel: register selection
  * @regval: reg value
@@ -303,7 +305,7 @@ static QDF_STATUS hif_ar6k_read_target_register(struct hif_sdio_dev *hif_device,
 }
 
 /**
- * hif_ar6k_fetch_target_regs - call to fetch target reg values
+ * hif_ar6k_fetch_target_regs() - call to fetch target reg values
  * @hif_device: hif context
  * @targregs: target regs
  *

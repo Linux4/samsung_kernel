@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2019-2021 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -107,7 +108,7 @@ wmi_unified_send_set_mdns_config_cmd(struct wmi_unified *wmi_handle,
  * @wmi_handle: wmi handle
  * @req_type: Request type
  * @temp_offset: temperature offset for setting the range for thermal stats
-
+ *
  * Send WMI get thermal stats req command to firmware.
  *
  * Return: QDF_STATUS

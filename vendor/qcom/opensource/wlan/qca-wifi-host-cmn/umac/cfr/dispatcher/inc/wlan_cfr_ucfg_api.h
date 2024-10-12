@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2019-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -62,7 +62,7 @@ int ucfg_cfr_stop_capture(struct wlan_objmgr_pdev *pdev,
  *					unassociated clients
  * @pdev: pointer to pdev object
  * @unassoc_mac: mac address of un-associated client
- * @cfr_params: config params to cfr capture
+ * @params: config params to cfr capture
  *
  * Return: status of start capture.
  */
@@ -108,7 +108,7 @@ int ucfg_cfr_get_timer(struct wlan_objmgr_pdev *pdev);
 
 /**
  * ucfg_cfr_stop_indication() - User space API to write cfr stop string
- * @vdev - pointer to vdev object
+ * @vdev: pointer to vdev object
  *
  * Write stop string and indicate to up layer.
  *

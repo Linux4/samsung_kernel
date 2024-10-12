@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2011-2020 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -33,7 +34,7 @@ __hdd_sysfs_wowl_del_ptrn_store(struct net_device *net_dev,
 {
 	struct hdd_adapter *adapter = netdev_priv(net_dev);
 	struct hdd_context *hdd_ctx;
-	char buf_local[MAX_SYSFS_USER_COMMAND_SIZE_LENGTH + 1];
+	char *buf_local = NULL;
 	int ret;
 
 	if (hdd_validate_adapter(adapter))
@@ -47,21 +48,27 @@ __hdd_sysfs_wowl_del_ptrn_store(struct net_device *net_dev,
 	if (!wlan_hdd_validate_modules_state(hdd_ctx))
 		return -EINVAL;
 
-	ret = hdd_sysfs_validate_and_copy_buf(buf_local, sizeof(buf_local),
-					      buf, count);
-	if (ret) {
-		hdd_err_rl("invalid input");
-		return ret;
-	}
+	if (count > MAX_CMD_INPUT)
+		return -EINVAL;
+
+	buf_local = (char *)qdf_mem_malloc(sizeof(char) * count);
+	if (!buf_local)
+		return -EINVAL;
+
+	strlcpy(buf_local, buf, count);
+
+	buf_local[count - 1] = '\0';
 
 	hdd_debug("wowl_del_ptrn: count %zu buf_local:(%s)",
 		  count, buf_local);
 
 	if (!hdd_del_wowl_ptrn(adapter, buf_local)) {
 		hdd_err_rl("Failed to delete wowl ptrn");
+		qdf_mem_free(buf_local);
 		return -EINVAL;
 	}
 
+	qdf_mem_free(buf_local);
 	return count;
 }
 

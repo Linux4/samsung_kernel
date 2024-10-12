@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2019-2020 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -24,7 +25,7 @@
 #include <include/wlan_vdev_mlme.h>
 #include <wlan_ext_mlme_obj_types.h>
 
-/*
+/**
  * struct pdev_restart_attr - Pdev restart attributes
  * @vdev: vdev on which the pdev restart cmd was enqueued
  * @restart_bmap: Bitmap for vdev requesting multivdev restart
@@ -44,6 +45,8 @@ struct pdev_restart_attr {
  * @restart_pend_vdev_bmap: Bitmap for VDEV RESTART command pending
  * @restart_send_vdev_bmap: Bitmap for VDEV RESTART command sending
  * @start_send_vdev_arr:   Bitmap for VDEV START command sending
+ * @pdev_restart: Pdev restart attributes structure
+ * @multivdev_restart_wait_cnt: multi vdev restart wait counter
  */
 struct pdev_mlme_obj {
 	struct wlan_objmgr_pdev *pdev;
@@ -58,4 +61,13 @@ struct pdev_mlme_obj {
 	qdf_atomic_t multivdev_restart_wait_cnt;
 };
 
+#ifdef MOBILE_DFS_SUPPORT
+static inline
+bool wlan_rptr_check_rpt_max_phy(struct wlan_objmgr_pdev *pdev)
+{
+	return false;
+}
+#else
+bool wlan_rptr_check_rpt_max_phy(struct wlan_objmgr_pdev *pdev);
+#endif /* MOBILE_DFS_SUPPORT */
 #endif

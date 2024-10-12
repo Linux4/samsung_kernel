@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -144,6 +144,83 @@ dp_get_intf_by_macaddr(struct wlan_dp_psoc_context *dp_ctx,
 struct wlan_dp_intf*
 dp_get_intf_by_netdev(struct wlan_dp_psoc_context *dp_ctx, qdf_netdev_t dev);
 
+/**
+ * dp_get_front_link_no_lock() - Get the first link from the dp links list
+ * This API does not use any lock in it's implementation. It is the caller's
+ * directive to ensure concurrency safety.
+ * @dp_intf: DP interface handle
+ * @out_link: double pointer to pass the next link
+ *
+ * Return: QDF_STATUS
+ */
+QDF_STATUS
+dp_get_front_link_no_lock(struct wlan_dp_intf *dp_intf,
+			  struct wlan_dp_link **out_link);
+
+/**
+ * dp_get_next_link_no_lock() - Get the next link from the link list
+ * This API does not use any lock in it's implementation. It is the caller's
+ * directive to ensure concurrency safety.
+ * @dp_intf: DP interface handle
+ * @cur_link: pointer to the currentlink
+ * @out_link: double pointer to pass the nextlink
+ *
+ * Return: QDF_STATUS
+ */
+QDF_STATUS
+dp_get_next_link_no_lock(struct wlan_dp_intf *dp_intf,
+			 struct wlan_dp_link *cur_link,
+			 struct wlan_dp_link **out_link);
+
+/**
+ * __dp_take_ref_and_fetch_front_link_safe - Helper macro to lock, fetch
+ * front and next link, take ref and unlock.
+ * @dp_intf: DP interface handle
+ * @dp_link: an dp_link pointer to use as a cursor
+ * @dp_link_next: dp_link pointer to nextlink
+ */
+#define __dp_take_ref_and_fetch_front_link_safe(dp_intf, dp_link, \
+						dp_link_next) \
+	qdf_spin_lock_bh(&(dp_intf)->dp_link_list_lock), \
+	dp_get_front_link_no_lock(dp_intf, &(dp_link)), \
+	dp_get_next_link_no_lock(dp_intf, dp_link, &(dp_link_next)), \
+	qdf_spin_unlock_bh(&(dp_intf)->dp_link_list_lock)
+
+/**
+ * __dp_take_ref_and_fetch_next_link_safe - Helper macro to lock, fetch next
+ * interface, take ref and unlock.
+ * @dp_intf: DP interface handle
+ * @dp_link: dp_link pointer to use as a cursor
+ * @dp_link_next: dp_link pointer to next link
+ */
+#define __dp_take_ref_and_fetch_next_link_safe(dp_intf, dp_link, \
+					       dp_link_next) \
+	qdf_spin_lock_bh(&(dp_intf)->dp_link_list_lock), \
+	dp_link = dp_link_next, \
+	dp_get_next_link_no_lock(dp_intf, dp_link, &(dp_link_next)), \
+	qdf_spin_unlock_bh(&(dp_intf)->dp_link_list_lock)
+
+/**
+ * __dp_is_link_valid - Helper macro to return true/false for valid interface.
+ * @_dp_link: an dp_link pointer to use as a cursor
+ */
+#define __dp_is_link_valid(_dp_link) !!(_dp_link)
+
+/**
+ * dp_for_each_link_held_safe - Interface iterator called
+ *                                      in a delete safe manner
+ * @dp_intf: DP interface handle
+ * @dp_link: an dp_link pointer to use as a cursor
+ * @dp_link_next: dp_link pointer to the next interface
+ *
+ */
+#define dp_for_each_link_held_safe(dp_intf, dp_link, dp_link_next) \
+	for (__dp_take_ref_and_fetch_front_link_safe(dp_intf, dp_link, \
+						     dp_link_next); \
+	     __dp_is_link_valid(dp_link); \
+	     __dp_take_ref_and_fetch_next_link_safe(dp_intf, dp_link, \
+						    dp_link_next))
+
 /* MAX iteration count to wait for dp packet process to complete */
 #define DP_TASK_MAX_WAIT_CNT  100
 /* Milli seconds to wait when packet is getting processed */
@@ -168,6 +245,103 @@ void dp_wait_complete_tasks(struct wlan_dp_psoc_context *dp_ctx);
 
 #define dp_enter() QDF_TRACE_ENTER(QDF_MODULE_ID_DP, "enter")
 #define dp_exit() QDF_TRACE_EXIT(QDF_MODULE_ID_DP, "exit")
+
+/**
+ * __wlan_dp_runtime_suspend() - Runtime suspend DP handler
+ * @soc: CDP SoC handle
+ * @pdev_id: DP PDEV ID
+ *
+ * Return: QDF_STATUS
+ */
+QDF_STATUS __wlan_dp_runtime_suspend(ol_txrx_soc_handle soc, uint8_t pdev_id);
+
+/**
+ * __wlan_dp_runtime_resume() - Runtime suspend DP handler
+ * @soc: CDP SoC handle
+ * @pdev_id: DP PDEV ID
+ *
+ * Return: QDF_STATUS
+ */
+QDF_STATUS __wlan_dp_runtime_resume(ol_txrx_soc_handle soc, uint8_t pdev_id);
+
+/**
+ * __wlan_dp_bus_suspend() - BUS suspend DP handler
+ * @soc: CDP SoC handle
+ * @pdev_id: DP PDEV ID
+ *
+ * Return: QDF_STATUS
+ */
+QDF_STATUS __wlan_dp_bus_suspend(ol_txrx_soc_handle soc, uint8_t pdev_id);
+
+/**
+ * __wlan_dp_bus_resume() - BUS resume DP handler
+ * @soc: CDP SoC handle
+ * @pdev_id: DP PDEV ID
+ *
+ * Return: QDF_STATUS
+ */
+QDF_STATUS __wlan_dp_bus_resume(ol_txrx_soc_handle soc, uint8_t pdev_id);
+
+/**
+ * wlan_dp_txrx_soc_attach() - Datapath soc attach
+ * @params: SoC attach params
+ * @is_wifi3_0_target: [OUT] Pointer to update if the target is wifi3.0
+ *
+ * Return: SoC handle
+ */
+void *wlan_dp_txrx_soc_attach(struct dp_txrx_soc_attach_params *params,
+			      bool *is_wifi3_0_target);
+
+/**
+ * wlan_dp_txrx_soc_detach() - Datapath SoC detach
+ * @soc: DP SoC handle
+ *
+ * Return: None
+ */
+void wlan_dp_txrx_soc_detach(ol_txrx_soc_handle soc);
+
+/**
+ * wlan_dp_txrx_attach_target() - DP target attach
+ * @soc: DP SoC handle
+ * @pdev_id: DP pdev id
+ *
+ * Return: QDF_STATUS
+ */
+QDF_STATUS wlan_dp_txrx_attach_target(ol_txrx_soc_handle soc, uint8_t pdev_id);
+
+/**
+ * wlan_dp_txrx_pdev_attach() - DP pdev attach
+ * @soc: DP SoC handle
+ *
+ * Return: QDF_STATUS
+ */
+QDF_STATUS wlan_dp_txrx_pdev_attach(ol_txrx_soc_handle soc);
+
+/**
+ * wlan_dp_txrx_pdev_detach() - DP pdev detach
+ * @soc: DP SoC handle
+ * @pdev_id: DP pdev id
+ * @force: indicates if force detach is to be done or not
+ *
+ * Return: QDF_STATUS
+ */
+QDF_STATUS wlan_dp_txrx_pdev_detach(ol_txrx_soc_handle soc, uint8_t pdev_id,
+				    int force);
+
+#ifdef WLAN_FEATURE_11BE_MLO
+/**
+ * dp_link_switch_notification() - DP notifier for MLO link switch
+ * @vdev: Objmgr vdev handle
+ * @lswitch_req: Link switch request params
+ * @notify_reason: Reason of notification
+ *
+ * Return: QDF_STATUS
+ */
+QDF_STATUS
+dp_link_switch_notification(struct wlan_objmgr_vdev *vdev,
+			    struct wlan_mlo_link_switch_req *lswitch_req,
+			    enum wlan_mlo_link_switch_notify_reason notify_reason);
+#endif
 
 /**
  * dp_peer_obj_create_notification(): dp peer create handler
@@ -315,10 +489,18 @@ static inline void
 dp_add_latency_critical_client(struct wlan_objmgr_vdev *vdev,
 			       enum qca_wlan_802_11_mode phymode)
 {
-	struct wlan_dp_intf *dp_intf = dp_get_vdev_priv_obj(vdev);
+	struct wlan_dp_link *dp_link = dp_get_vdev_priv_obj(vdev);
+	struct wlan_dp_intf *dp_intf;
 
+	if (!dp_link) {
+		dp_err("No dp_link for objmgr vdev %pK", vdev);
+		return;
+	}
+
+	dp_intf = dp_link->dp_intf;
 	if (!dp_intf) {
-		dp_err("Unable to get DP interface");
+		dp_err("Invalid dp_intf for dp_link %pK (" QDF_MAC_ADDR_FMT ")",
+		       dp_link, QDF_MAC_ADDR_REF(dp_link->mac_addr.bytes));
 		return;
 	}
 
@@ -328,9 +510,9 @@ dp_add_latency_critical_client(struct wlan_objmgr_vdev *vdev,
 		qdf_atomic_inc(&dp_intf->dp_ctx->num_latency_critical_clients);
 
 		dp_debug("Adding latency critical connection for vdev %d",
-			 dp_intf->intf_id);
+			 dp_link->link_id);
 		cdp_vdev_inform_ll_conn(cds_get_context(QDF_MODULE_ID_SOC),
-					dp_intf->intf_id,
+					dp_link->link_id,
 					CDP_VDEV_LL_CONN_ADD);
 		break;
 	default:
@@ -353,10 +535,18 @@ static inline void
 dp_del_latency_critical_client(struct wlan_objmgr_vdev *vdev,
 			       enum qca_wlan_802_11_mode phymode)
 {
-	struct wlan_dp_intf *dp_intf = dp_get_vdev_priv_obj(vdev);
+	struct wlan_dp_link *dp_link = dp_get_vdev_priv_obj(vdev);
+	struct wlan_dp_intf *dp_intf;
 
+	if (!dp_link) {
+		dp_err("No dp_link for objmgr vdev %pK", vdev);
+		return;
+	}
+
+	dp_intf = dp_link->dp_intf;
 	if (!dp_intf) {
-		dp_err("Unable to get DP interface");
+		dp_err("Invalid dp_intf for dp_link %pK (" QDF_MAC_ADDR_FMT ")",
+		       dp_link, QDF_MAC_ADDR_REF(dp_link->mac_addr.bytes));
 		return;
 	}
 
@@ -366,9 +556,9 @@ dp_del_latency_critical_client(struct wlan_objmgr_vdev *vdev,
 		qdf_atomic_dec(&dp_intf->dp_ctx->num_latency_critical_clients);
 
 		dp_info("Removing latency critical connection for vdev %d",
-			dp_intf->intf_id);
+			dp_link->link_id);
 		cdp_vdev_inform_ll_conn(cds_get_context(QDF_MODULE_ID_SOC),
-					dp_intf->intf_id,
+					dp_link->link_id,
 					CDP_VDEV_LL_CONN_DEL);
 		break;
 	default:
@@ -385,6 +575,16 @@ dp_del_latency_critical_client(struct wlan_objmgr_vdev *vdev,
  * Return: non zero value on interface valid
  */
 int is_dp_intf_valid(struct wlan_dp_intf *dp_intf);
+
+/**
+ * is_dp_link_valid() - check if DP link is valid
+ * @dp_link: DP link handle
+ *
+ * API to check whether DP link is valid
+ *
+ * Return: true if dp_link is valid, else false.
+ */
+bool is_dp_link_valid(struct wlan_dp_link *dp_link);
 
 /**
  * dp_send_rps_ind() - send rps indication to daemon
@@ -669,10 +869,11 @@ QDF_STATUS dp_direct_link_init(struct wlan_dp_psoc_context *dp_ctx);
 /**
  * dp_direct_link_deinit() - De-initializes Direct Link datapath
  * @dp_ctx: DP private context
+ * @is_ssr: true if SSR is in progress else false
  *
  * Return: None
  */
-void dp_direct_link_deinit(struct wlan_dp_psoc_context *dp_ctx);
+void dp_direct_link_deinit(struct wlan_dp_psoc_context *dp_ctx, bool is_ssr);
 
 /**
  * dp_config_direct_link: Set direct link config of vdev
@@ -685,7 +886,6 @@ void dp_direct_link_deinit(struct wlan_dp_psoc_context *dp_ctx);
 QDF_STATUS dp_config_direct_link(struct wlan_dp_intf *dp_intf,
 				 bool config_direct_link,
 				 bool enable_low_latency);
-
 #else
 static inline
 QDF_STATUS dp_direct_link_init(struct wlan_dp_psoc_context *dp_ctx)
@@ -694,7 +894,7 @@ QDF_STATUS dp_direct_link_init(struct wlan_dp_psoc_context *dp_ctx)
 }
 
 static inline
-void dp_direct_link_deinit(struct wlan_dp_psoc_context *dp_ctx)
+void dp_direct_link_deinit(struct wlan_dp_psoc_context *dp_ctx, bool is_ssr)
 {
 }
 
@@ -706,4 +906,107 @@ QDF_STATUS dp_config_direct_link(struct wlan_dp_intf *dp_intf,
 	return QDF_STATUS_SUCCESS;
 }
 #endif
+#ifdef WLAN_FEATURE_11BE
+/**
+ * __wlan_dp_update_peer_map_unmap_version() - update peer map unmap version
+ * @version: Peer map unmap version pointer to be updated
+ *
+ * Return: None
+ */
+static inline void
+__wlan_dp_update_peer_map_unmap_version(uint8_t *version)
+{
+	/* 0x32 -> host supports HTT peer map v3 format and peer unmap v2 format. */
+	*version = 0x32;
+}
+#else
+static inline void
+__wlan_dp_update_peer_map_unmap_version(uint8_t *version)
+{
+}
+#endif
+
+#ifdef WLAN_DP_PROFILE_SUPPORT
+/**
+ * wlan_dp_get_profile_info() - Get DP memory profile info
+ *
+ * Return: None
+ */
+struct wlan_dp_memory_profile_info *wlan_dp_get_profile_info(void);
+
+/**
+ * wlan_dp_select_profile_cfg() - Select DP profile configuration
+ * @psoc: psoc context
+ *
+ * Return: QDF_STATUS
+ */
+QDF_STATUS wlan_dp_select_profile_cfg(struct wlan_objmgr_psoc *psoc);
+
+/**
+ * wlan_dp_soc_cfg_sync_profile() - Sync DP soc cfg items with profile
+ * @cdp_soc: cdp soc context
+ *
+ * Return: None
+ */
+void wlan_dp_soc_cfg_sync_profile(struct cdp_soc_t *cdp_soc);
+
+/**
+ * wlan_dp_pdev_cfg_sync_profile() - Sync DP pdev cfg items with profile
+ * @cdp_soc: cdp soc context
+ * @pdev_id: pdev id
+ *
+ * Return: QDF_STATUS
+ */
+void wlan_dp_pdev_cfg_sync_profile(struct cdp_soc_t *cdp_soc, uint8_t pdev_id);
+#else
+
+static inline
+QDF_STATUS wlan_dp_select_profile_cfg(struct wlan_objmgr_psoc *psoc)
+{
+	return QDF_STATUS_E_NOSUPPORT;
+}
+#endif
+
+/* DP CFG APIs - START */
+
+#ifdef WLAN_SUPPORT_RX_FISA
+/**
+ * wlan_dp_cfg_is_rx_fisa_enabled() - Get Rx FISA enabled flag
+ * @dp_cfg: soc configuration context
+ *
+ * Return: true if enabled, false otherwise.
+ */
+static inline
+bool wlan_dp_cfg_is_rx_fisa_enabled(struct wlan_dp_psoc_cfg *dp_cfg)
+{
+	return dp_cfg->is_rx_fisa_enabled;
+}
+
+/**
+ * wlan_dp_cfg_is_rx_fisa_lru_del_enabled() - Get Rx FISA LRU del enabled flag
+ * @dp_cfg: soc configuration context
+ *
+ * Return: true if enabled, false otherwise.
+ */
+static inline
+bool wlan_dp_cfg_is_rx_fisa_lru_del_enabled(struct wlan_dp_psoc_cfg *dp_cfg)
+{
+	return dp_cfg->is_rx_fisa_lru_del_enabled;
+}
+#else
+static inline
+bool wlan_dp_cfg_is_rx_fisa_enabled(struct wlan_dp_psoc_cfg *dp_cfg)
+{
+	return false;
+}
+
+static inline
+bool wlan_dp_cfg_is_rx_fisa_lru_del_enabled(struct wlan_dp_psoc_cfg *dp_cfg)
+{
+	return false;
+}
+#endif
+
+
+/* DP CFG APIs - END */
 #endif

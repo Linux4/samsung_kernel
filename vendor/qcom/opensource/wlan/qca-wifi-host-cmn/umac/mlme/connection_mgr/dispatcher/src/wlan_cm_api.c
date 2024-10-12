@@ -131,6 +131,30 @@ QDF_STATUS wlan_cm_reassoc_rsp(struct wlan_objmgr_vdev *vdev,
 }
 #endif
 
+void wlan_cm_free_connect_req(struct wlan_cm_connect_req *connect_req)
+{
+	if (!connect_req)
+		return;
+
+	cm_free_connect_req(connect_req);
+}
+
+void wlan_cm_free_connect_resp(struct wlan_cm_connect_resp *connect_rsp)
+{
+	if (!connect_rsp)
+		return;
+
+	cm_free_connect_rsp(connect_rsp);
+}
+
+void wlan_cm_free_connect_req_param(struct wlan_cm_connect_req *req)
+{
+	if (!req)
+		return;
+
+	cm_free_connect_req_param(req);
+}
+
 void wlan_cm_set_max_connect_attempts(struct wlan_objmgr_vdev *vdev,
 				      uint8_t max_connect_attempts)
 {
@@ -209,9 +233,31 @@ bool wlan_cm_get_active_connect_req(struct wlan_objmgr_vdev *vdev,
 	return cm_get_active_connect_req(vdev, req);
 }
 
+QDF_STATUS
+wlan_cm_get_active_connect_req_param(struct wlan_objmgr_vdev *vdev,
+				     struct wlan_cm_connect_req *req)
+{
+	return cm_get_active_connect_req_param(vdev, req);
+}
+
 cm_ext_t *wlan_cm_get_ext_hdl(struct wlan_objmgr_vdev *vdev)
 {
 	return cm_get_ext_hdl(vdev);
+}
+
+bool wlan_cm_is_first_candidate_connect_attempt(struct wlan_objmgr_vdev *vdev)
+{
+	return cm_is_first_candidate_connect_attempt(vdev);
+}
+
+bool wlan_cm_is_link_switch_disconnect_resp(struct wlan_cm_discon_rsp *resp)
+{
+	return cm_is_link_switch_disconnect_resp(resp);
+}
+
+bool wlan_cm_is_link_switch_connect_resp(struct wlan_cm_connect_resp *resp)
+{
+	return cm_is_link_switch_connect_resp(resp);
 }
 
 #ifdef WLAN_FEATURE_HOST_ROAM
@@ -315,6 +361,14 @@ void wlan_cm_hw_mode_change_resp(struct wlan_objmgr_pdev *pdev, uint8_t vdev_id,
 }
 #endif /* ifdef POLICY_MGR_ENABLE */
 
+#ifdef WLAN_FEATURE_LL_LT_SAP
+void wlan_cm_bearer_switch_resp(struct wlan_objmgr_psoc *psoc, uint8_t vdev_id,
+				wlan_cm_id cm_id, QDF_STATUS status)
+{
+	cm_bearer_switch_resp(psoc, vdev_id, cm_id, status);
+}
+#endif
+
 #ifdef SM_ENG_HIST_ENABLE
 void wlan_cm_sm_history_print(struct wlan_objmgr_vdev *vdev)
 {
@@ -351,32 +405,52 @@ void wlan_cm_set_candidate_custom_sort_cb(
 
 #endif
 
-struct reduced_neighbor_report *wlan_cm_get_rnr(struct wlan_objmgr_vdev *vdev,
-						wlan_cm_id cm_id)
+QDF_STATUS wlan_cm_get_rnr(struct wlan_objmgr_vdev *vdev, wlan_cm_id cm_id,
+			   struct reduced_neighbor_report *rnr)
 {
 	enum QDF_OPMODE op_mode = wlan_vdev_mlme_get_opmode(vdev);
-	struct cm_req *cm_req;
-	struct cnx_mgr *cm_ctx;
 
 	if (op_mode != QDF_STA_MODE && op_mode != QDF_P2P_CLIENT_MODE) {
 		mlme_err("vdev %d Invalid mode %d",
 			 wlan_vdev_get_id(vdev), op_mode);
-		return NULL;
+		return QDF_STATUS_E_NOSUPPORT;
 	}
 
-	cm_ctx = cm_get_cm_ctx(vdev);
-	if (!cm_ctx)
-		return NULL;
-	cm_req = cm_get_req_by_cm_id(cm_ctx, cm_id);
-	if (!cm_req)
-		return NULL;
-
-	if (cm_req->connect_req.cur_candidate &&
-	    cm_req->connect_req.cur_candidate->entry)
-		return &cm_req->connect_req.cur_candidate->entry->rnr;
-
-	return NULL;
+	return cm_get_rnr(vdev, cm_id, rnr);
 }
+
+struct scan_cache_entry *
+wlan_cm_get_curr_candidate_entry(struct wlan_objmgr_vdev *vdev, wlan_cm_id cm_id)
+{
+	return cm_get_curr_candidate_entry(vdev, cm_id);
+}
+
+void
+wlan_cm_connect_resp_fill_mld_addr_from_cm_id(struct wlan_objmgr_vdev *vdev,
+					     wlan_cm_id cm_id,
+					     struct wlan_cm_connect_resp *rsp)
+{
+	return cm_connect_resp_fill_mld_addr_from_cm_id(vdev, cm_id, rsp);
+}
+
+#ifdef WLAN_FEATURE_11BE_MLO
+void
+wlan_cm_connect_resp_fill_mld_addr_from_vdev_id(struct wlan_objmgr_psoc *psoc,
+						uint8_t vdev_id,
+						struct scan_cache_entry *entry,
+						struct wlan_cm_connect_resp *rsp)
+{
+	struct wlan_objmgr_vdev *vdev;
+
+	vdev = wlan_objmgr_get_vdev_by_id_from_psoc(psoc, vdev_id,
+						    WLAN_MLME_CM_ID);
+	if (!vdev)
+		return;
+
+	cm_connect_resp_fill_mld_addr_from_candidate(vdev, entry, rsp);
+	wlan_objmgr_vdev_release_ref(vdev, WLAN_MLME_CM_ID);
+}
+#endif
 
 QDF_STATUS
 wlan_cm_disc_cont_after_rso_stop(struct wlan_objmgr_vdev *vdev,
@@ -400,7 +474,7 @@ QDF_STATUS wlan_cm_sta_set_chan_param(struct wlan_objmgr_vdev *vdev,
 	qdf_freq_t center_freq_320 = 0;
 	qdf_freq_t center_freq_40 = 0;
 	uint8_t band_mask;
-	uint16_t new_punc;
+	uint16_t new_punc = 0;
 
 	if (!vdev || !chan_param) {
 		mlme_err("invalid input parameters");
@@ -444,10 +518,11 @@ QDF_STATUS wlan_cm_sta_set_chan_param(struct wlan_objmgr_vdev *vdev,
 	if (chan_param->ch_width != CH_WIDTH_320MHZ)
 		center_freq_320 = 0;
 	qdf_mem_zero(&chan_list, sizeof(chan_list));
-	wlan_reg_fill_channel_list(pdev, ch_freq,
-				   sec_ch_2g_freq, chan_param->ch_width,
-				   center_freq_320, &chan_list,
-				   true);
+	wlan_reg_fill_channel_list_for_pwrmode(pdev, ch_freq,
+					       sec_ch_2g_freq,
+					       chan_param->ch_width,
+					       center_freq_320, &chan_list,
+					       REG_CURRENT_PWR_MODE, true);
 	*chan_param = chan_list.chan_param[0];
 	if (chan_param->ch_width == ori_bw)
 		new_punc = ori_punc;
@@ -524,3 +599,10 @@ wlan_cm_check_mlo_roam_auth_status(struct wlan_objmgr_vdev *vdev)
 }
 #endif
 #endif
+enum MLO_TYPE
+wlan_cm_bss_mlo_type(struct wlan_objmgr_psoc *psoc,
+		     struct scan_cache_entry *entry,
+		     qdf_list_t *scan_list)
+{
+	return cm_bss_mlo_type(psoc, entry, scan_list);
+}

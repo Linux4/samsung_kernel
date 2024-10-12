@@ -99,7 +99,7 @@
  * Usage: Internal
  *
  */
-#define CFG_STA_BSS_MAX_IDLE_PERIOD CFG_UINT( \
+#define CFG_STA_BSS_MAX_IDLE_PERIOD CFG_INI_UINT( \
 	"bss_max_idle_period", \
 	0, \
 	100, \
@@ -494,12 +494,13 @@
  * <ini>
  * gStaKeepAliveMethod - Which keepalive method to use
  * @Min: 1
- * @Max: 2
+ * @Max: 3
  * @Default: 1
  *
  * This ini determines which keepalive method to use for station interfaces
  *	 1) Use null data packets
  *	 2) Use gratuitous ARP packets
+ *	 3) Use unsolicited ARP response packets
  *
  * Related: gStaKeepAlivePeriod, gApKeepAlivePeriod, gGoKeepAlivePeriod
  *
@@ -512,7 +513,7 @@
 #define CFG_STA_KEEPALIVE_METHOD CFG_INI_INT( \
 			"gStaKeepAliveMethod", \
 			MLME_STA_KEEPALIVE_NULL_DATA, \
-			MLME_STA_KEEPALIVE_GRAT_ARP, \
+			MLME_STA_KEEPALIVE_UNSOLICIT_ARP_RSP, \
 			MLME_STA_KEEPALIVE_NULL_DATA, \
 			CFG_VALUE_OR_DEFAULT, \
 			"Which keepalive method to use")
@@ -568,23 +569,23 @@
 
 #ifdef WLAN_FEATURE_11BE_MLO
 /*
- * <cfg>
+ * <ini>
  * mlo_support_link_num - Set number of link mlo connection supports for sta
  * @Min: 1
  * @Max: 3
  * @Default: 2
  *
- * This cfg is used to configure the number of link mlo connection supports
+ * This ini is used to configure the number of link mlo connection supports
  *
  * Related: None
  *
  * Supported Feature: STA
  *
- * Usage: Internal
+ * Usage: Internal/External
  *
- * </cfg>
+ * </ini>
  */
-#define CFG_MLO_SUPPORT_LINK_NUM CFG_UINT( \
+#define CFG_MLO_SUPPORT_LINK_NUM CFG_INI_UINT( \
 			"mlo_support_link_num", \
 			1, \
 			3, \
@@ -656,10 +657,91 @@
 			"supported mlo link band")
 
 #define CFG_MLO_SUPPORT_LINK_BAND_CFG CFG(CFG_MLO_SUPPORT_LINK_BAND)
+/*
+ * <cfg>
+ * RoamCommon_Mlo_TpPrefer - percentage to boost mlo scoring
+ *
+ * @Min: -20
+ * @Max: +20
+ * @Default: 10
+ *
+ * This cfg is used to boost/reduce the mlo weightage with configured
+ * value.
+ *
+ * Supported Feature: STA
+ *
+ * Usage: External
+ *
+ * </cfg>
+ */
+#define CFG_MLO_PREFER_PERCENTAGE CFG_INI_INT(\
+			"RoamCommon_Mlo_TpPrefer", \
+			-20, \
+			20, \
+			10,\
+			CFG_VALUE_OR_DEFAULT, \
+			"mlo prefer percentage")
+
+#define CFG_MLO_PREFER_PERCENTAGE_CFG CFG(CFG_MLO_PREFER_PERCENTAGE)
+
 #else
 #define CFG_MLO_SUPPORT_LINK_NUM_CFG
 #define CFG_MLO_SUPPORT_LINK_BAND_CFG
 #define CFG_MLO_MAX_SIMULTANEOUS_LINKS_CFG
+#define CFG_MLO_PREFER_PERCENTAGE_CFG
+#endif
+
+/*
+ * <cfg>
+ * mlo_same_link_mld_addr - Use one of the links address as same mld address
+ * @Default: false
+ *
+ * This cfg is used to configure the one of link address as same mld address
+ *
+ * Related: None
+ *
+ * Supported Feature: STA
+ *
+ * Usage: Internal
+ *
+ *
+ * </cfg>
+ */
+#define CFG_MLO_SAME_LINK_MLD_ADDR CFG_BOOL( \
+			"mlo_same_link_mld_addr",\
+			0, \
+			"same address for mlo link/mld")
+
+#ifdef WLAN_HDD_MULTI_VDEV_SINGLE_NDEV
+#define CFG_MLO_SAME_LINK_MLD_ADDR_CFG CFG(CFG_MLO_SAME_LINK_MLD_ADDR)
+#else
+#define CFG_MLO_SAME_LINK_MLD_ADDR_CFG
+#endif
+
+/*
+ * <ini>
+ * eht_disable_punct_in_us_lpi - Flag to Disable eht puncture in US LPI mode
+ * @Min: false
+ * @Max: true
+ * @Default: false
+ *
+ * Related: None
+ *
+ * Supported Feature: 802.11be protocol
+ *
+ * Usage: Internal
+ *
+ * </ini>
+ */
+#define CFG_EHT_DISABLE_PUNCT_IN_US_LPI \
+	CFG_BOOL("eht_disable_punct_in_us_lpi", \
+		 false, \
+		 "Disable eht puncture in US LPI mode")
+
+#ifdef WLAN_FEATURE_11BE
+#define CFG_EHT_DISABLE_PUNCT_IN_US_LPI_CFG CFG(CFG_EHT_DISABLE_PUNCT_IN_US_LPI)
+#else
+#define CFG_EHT_DISABLE_PUNCT_IN_US_LPI_CFG
 #endif
 
 #define CFG_STA_ALL \
@@ -685,6 +767,8 @@
 	CFG(CFG_MAX_LI_MODULATED_DTIM_MS) \
 	CFG_MLO_SUPPORT_LINK_NUM_CFG \
 	CFG_MLO_MAX_SIMULTANEOUS_LINKS_CFG \
-	CFG_MLO_SUPPORT_LINK_BAND_CFG
-
+	CFG_MLO_SUPPORT_LINK_BAND_CFG \
+	CFG_MLO_PREFER_PERCENTAGE_CFG \
+	CFG_MLO_SAME_LINK_MLD_ADDR_CFG \
+	CFG_EHT_DISABLE_PUNCT_IN_US_LPI_CFG
 #endif /* CFG_MLME_STA_H__ */

@@ -134,12 +134,12 @@
  * used to indicate the Linux kernel contains support for multi AKM connect
  * support
  *
- * This feature was backported to Android Common Kernel 5.15 via:
- * https://android-review.googlesource.com/c/kernel/common/+/2115619
+ * This feature was introduced in Linux Kernel 6.0 via:
+ * ecad3b0b99bf wifi: cfg80211: Increase akm_suites array size in
+ * cfg80211_crypto_settings.
  */
-#if (defined(__ANDROID_COMMON_KERNEL__) && \
-	(LINUX_VERSION_CODE >= KERNEL_VERSION(5, 15, 0)) && \
-	(LINUX_VERSION_CODE < KERNEL_VERSION(5, 16, 0)))
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 0, 0) || \
+	(defined CFG80211_MAX_NUM_AKM_SUITES))
 #define CFG80211_MULTI_AKM_CONNECT_SUPPORT 1
 #endif
 
@@ -257,6 +257,93 @@
  */
 #if (defined CFG80211_TID_LINK_MAP_SUPPORT)
 #define WLAN_TID_LINK_MAP_SUPPORT
+#endif
+
+/*
+ * CFG80211_EXT_FEATURE_SECURE_NAN
+ * Used to indicate Linux kernel contains support to secure NAN feature
+ *
+ * This feature was introduced in Linux Kernel 6.4 via:
+ * 9b89495e479c wifi: nl80211: Allow authentication frames and set keys on NAN
+ *                             interface
+ */
+#if ((LINUX_VERSION_CODE >= KERNEL_VERSION(6, 4, 0)) || \
+	(defined CFG80211_EXT_FEATURE_SECURE_NAN))
+#define WLAN_EXT_FEATURE_SECURE_NAN
+#endif
+
+/*
+ * CFG80211_EXT_FEATURE_AUTH_AND_DEAUTH_RANDOM_TA
+ * Used to indicate Linux kernel contains support to auth and deauth random TA
+ *
+ * This feature was introduced in Linux Kernel 6.4 via:
+ * 6933486133ec wifi: nl80211: Add support for randomizing TA of auth and deauth
+ *                             frames
+ */
+#if ((LINUX_VERSION_CODE >= KERNEL_VERSION(6, 4, 0)) || \
+	(defined CFG80211_EXT_FEATURE_AUTH_AND_DEAUTH_RANDOM_TA))
+#define WLAN_EXT_FEATURE_AUTH_AND_DEAUTH_RANDOM_TA
+#endif
+
+/*
+ * WLAN_MLD_AP_STA_CONNECT_SUPPORT
+ * Used to indicate Linux Upstream Kernel supports ML connection on SAP.
+ *
+ * This feature was introduced in Linux Kernel 6.3 via:
+ * a42e59e: wifi: cfg80211: Extend cfg80211_new_sta() for MLD AP
+ * 8bb588d: wifi: cfg80211: Extend cfg80211_update_owe_info_event() for MLD AP
+ *
+ * This feature was backported to Android Common Kernel 5.15.74 via:
+ * https://android-review.googlesource.com/c/kernel/common/+/2450265
+ * https://android-review.googlesource.com/c/kernel/common/+/2450266
+ *
+ * This feature was backported to Android Common Kernel 6.1 via:
+ * https://android-review.googlesource.com/c/kernel/common/+/2470890
+ * https://android-review.googlesource.com/c/kernel/common/+/2470891
+ */
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 4, 0) || \
+	(defined CFG80211_MLD_AP_STA_CONNECT_UPSTREAM_SUPPORT))
+#define WLAN_MLD_AP_STA_CONNECT_UPSTREAM_SUPPORT 1
+#endif
+
+/*
+ * WLAN_LINK_STA_PARAMS_PRESENT
+ * WLAN_EHT_CAPABILITY_PRESENT
+ *
+ * To deterministically identify where EHT fields are present (whether in
+ * link_sta_params or station_parameters), enable either
+ * WLAN_LINK_STA_PARAMS_PRESENT or WLAN_EHT_CAPABILITY_PRESENT but not both.
+ *
+ * Incase EHT fields are present in link_sta_parameters only define
+ * WLAN_LINK_STA_PARAMS_PRESENT flag.
+ *
+ * If WLAN_LINK_STA_PARAMS_PRESENT is not defined, then EHT cap can be present
+ * in station_parameters structure, in such case WLAN_EHT_CAPABILITY_PRESENT
+ * flag will be defined.
+ *
+ * If both flags are not enabled then kernel is not EHT capable.
+ *
+ * WLAN_LINK_STA_PARAMS_PRESENT
+ * 577e5b8 wifi: cfg80211: add API to add/modify/remove a link station
+ * b95eb7f wifi: cfg80211/mac80211: separate link params from station params
+ *
+ * The changes are backported to ACK from below commits.
+ * https://android-review.googlesource.com/c/kernel/common/+/2227406
+ * https://android-review.googlesource.com/c/kernel/common/+/2227407
+ *
+ * WLAN_EHT_CAPABILITY_PRESENT
+ * ea05fd3 cfg80211: Support configuration of station EHT capabilities
+ *
+ * The changes are backported to ACK from below commit.
+ * https://android-review.googlesource.com/c/kernel/common/+/1996268
+ *
+ */
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 0, 0) || \
+	(defined CFG80211_LINK_STA_PARAMS_PRESENT))
+#define WLAN_LINK_STA_PARAMS_PRESENT 1
+#elif (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 18, 0) || \
+	(defined NL80211_EHT_MIN_CAPABILITY_LEN))
+#define WLAN_EHT_CAPABILITY_PRESENT 1
 #endif
 
 #endif

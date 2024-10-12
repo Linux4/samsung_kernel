@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2019-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -37,12 +37,14 @@
 
 /**
  * enum wlan_vdev_mgr_tgt_if_rsp_bit - response status bit
- * START_RESPONSE_BIT: vdev start response bit
- * RESTART_RESPONSE_BIT: vdev restart response bit
- * STOP_RESPONSE_BIT: vdev stop response bit
- * DELETE_RESPONSE_BIT:  vdev delete response bit
- * PEER_DELETE_ALL_RESPONSE_BIT: vdev peer delete all response bit
- * RSO_STOP_RESPONSE_BIT : RSO stop response bit
+ * @START_RESPONSE_BIT: vdev start response bit
+ * @RESTART_RESPONSE_BIT: vdev restart response bit
+ * @STOP_RESPONSE_BIT: vdev stop response bit
+ * @DELETE_RESPONSE_BIT:  vdev delete response bit
+ * @PEER_DELETE_ALL_RESPONSE_BIT: vdev peer delete all response bit
+ * @RSO_STOP_RESPONSE_BIT: RSO stop response bit
+ * @UPDATE_MAC_ADDR_RESPONSE_BIT: MAC address update response bit
+ * @RESPONSE_BIT_MAX: Max enumeration
  */
 enum wlan_vdev_mgr_tgt_if_rsp_bit {
 	START_RESPONSE_BIT = 0,
@@ -51,12 +53,13 @@ enum wlan_vdev_mgr_tgt_if_rsp_bit {
 	DELETE_RESPONSE_BIT = 3,
 	PEER_DELETE_ALL_RESPONSE_BIT = 4,
 	RSO_STOP_RESPONSE_BIT = 5,
+	UPDATE_MAC_ADDR_RESPONSE_BIT = 6,
 	RESPONSE_BIT_MAX,
 };
 
 /**
  * string_from_rsp_bit() - Convert response bit to string
- * @bit - response bit as in wlan_vdev_mgr_tgt_if_rsp_bit
+ * @bit: response bit as in wlan_vdev_mgr_tgt_if_rsp_bit
  *
  * Please note to add new string in the array at index equal to
  * its enum value in wlan_vdev_mgr_tgt_if_rsp_bit.
@@ -69,6 +72,7 @@ static inline char *string_from_rsp_bit(enum wlan_vdev_mgr_tgt_if_rsp_bit bit)
 					"DELETE",
 					"PEER DELETE ALL",
 					"RSO STOP",
+					"UPDATE_MAC_ADDR",
 					"RESPONE MAX"};
 	return (char *)strings[bit];
 }

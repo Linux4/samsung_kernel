@@ -28,9 +28,9 @@ static bool __damon_pa_mkold(struct page *page, struct vm_area_struct *vma,
 	while (page_vma_mapped_walk(&pvmw)) {
 		addr = pvmw.address;
 		if (pvmw.pte)
-			damon_ptep_mkold(pvmw.pte, vma->vm_mm, addr);
+			damon_ptep_mkold(pvmw.pte, vma, addr);
 		else
-			damon_pmdp_mkold(pvmw.pmd, vma->vm_mm, addr);
+			damon_pmdp_mkold(pvmw.pmd, vma, addr);
 	}
 	return true;
 }
@@ -231,16 +231,15 @@ static unsigned long damon_pa_apply_scheme(struct damon_ctx *ctx,
 
 		ClearPageReferenced(page);
 		test_and_clear_page_young(page);
-		if (isolate_lru_page(page)) {
-			put_page(page);
-			continue;
-		}
-		if (PageUnevictable(page)) {
+		if (isolate_lru_page(page))
+			goto put_page;
+		if (PageUnevictable(page))
 			putback_lru_page(page);
-		} else {
+		else
 			list_add(&page->lru, &page_list);
-			put_page(page);
-		}
+
+put_page:
+		put_page(page);
 	}
 	applied = reclaim_pages(&page_list);
 	cond_resched();

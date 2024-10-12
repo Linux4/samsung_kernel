@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2017-2019 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -43,10 +44,11 @@ struct pmo_arp_req {
 };
 
 /**
- * struct pmo_arp_req - pmo arp offload param for target interface
+ * struct pmo_arp_offload_params - pmo arp offload param for target interface
  * @enable: true when arp offload is enabled else false
  * @host_ipv4_addr: host interface ipv4 address
  * @bssid: peer ap address
+ * @is_offload_applied: Has offload been applied to the target
  */
 struct pmo_arp_offload_params {
 	uint8_t enable;

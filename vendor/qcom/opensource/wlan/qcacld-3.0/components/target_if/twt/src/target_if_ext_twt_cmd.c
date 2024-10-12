@@ -137,7 +137,7 @@ target_if_twt_ac_param_send(struct wlan_objmgr_psoc *psoc,
 		return QDF_STATUS_E_NULL_VALUE;
 	}
 
-	params.param_id = WMI_PDEV_PARAM_TWT_AC_CONFIG;
+	params.param_id = wmi_pdev_param_twt_ac_config;
 	params.param_value = target_if_twt_convert_ac_value(twt_ac);
 
 	return wmi_unified_pdev_param_send(wmi_handle, &params, mac_id);

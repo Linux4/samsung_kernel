@@ -114,7 +114,7 @@ osif_pre_cac_send_conditional_freq_switch_status(struct wlan_objmgr_psoc *psoc,
 		  QCA_NL80211_VENDOR_SUBCMD_SAP_CONDITIONAL_CHAN_SWITCH_INDEX,
 		  GFP_KERNEL);
 	if (!event) {
-		osif_err("cfg80211_vendor_event_alloc failed");
+		osif_err("wlan_cfg80211_vendor_event_alloc failed");
 		goto fail;
 	}
 
@@ -122,7 +122,7 @@ osif_pre_cac_send_conditional_freq_switch_status(struct wlan_objmgr_psoc *psoc,
 			QCA_WLAN_VENDOR_ATTR_SAP_CONDITIONAL_CHAN_SWITCH_STATUS,
 			status)) {
 		osif_err("nla put failed");
-		kfree_skb(event);
+		wlan_cfg80211_vendor_free_skb(event);
 		goto fail;
 	}
 

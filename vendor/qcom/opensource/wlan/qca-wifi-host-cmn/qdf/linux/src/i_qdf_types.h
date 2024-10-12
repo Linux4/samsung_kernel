@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2014-2020 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -64,6 +64,9 @@
 #include <linux/if.h>
 #ifdef IPA_OFFLOAD
 #include <linux/ipa.h>
+#endif
+#ifdef WLAN_SUPPORT_DPDK
+#include <linux/uio_driver.h>
 #endif
 
 #define __qdf_must_check __must_check
@@ -142,6 +145,9 @@ typedef unsigned long __sgtable_t;
  */
 #define __QDF_MAX_SCATTER        1
 #define __QDF_NSEC_PER_MSEC NSEC_PER_MSEC
+#define __QDF_NSEC_PER_USEC NSEC_PER_USEC
+#define __QDF_USEC_PER_MSEC USEC_PER_MSEC
+#define __QDF_NSEC_PER_SEC NSEC_PER_SEC
 
 #if defined(__LITTLE_ENDIAN_BITFIELD)
 #define QDF_LITTLE_ENDIAN_MACHINE
@@ -210,9 +216,9 @@ typedef struct __qdf_shared_mem_info {
 #define qdf_get_dma_mem_context(var, field)   ((qdf_dma_context_t)(var->field))
 
 /**
- * typedef struct __qdf_resource - qdf resource type
+ * typedef __qdf_resource_t - qdf resource type
  * @paddr: Physical address
- * @paddr: Virtual address
+ * @vaddr: Virtual address
  * @len: Length
  */
 typedef struct __qdf_resource {
@@ -361,6 +367,10 @@ enum __qdf_net_wireless_evcode {
 #define __QDF_DMA_FROM_DEVICE    DMA_TO_DEVICE
 #endif
 #define __qdf_inline             inline
+
+#if defined(WLAN_SUPPORT_DPDK) && defined(__KERNEL__)
+typedef struct uio_info qdf_uio_info_t;
+#endif
 
 /*
  * 1. GNU C/C++ Compiler

@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2013-2020 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -42,7 +43,7 @@
 
 /**
  * hif_dev_alloc_rx_buffer() - allocate rx buffer.
- * @pDev: sdio device context
+ * @pdev: sdio device context
  *
  *
  * Return: htc buffer pointer
@@ -114,7 +115,7 @@ struct hif_sdio_device *hif_dev_create(struct hif_sdio_dev *hif_device,
 
 /**
  * hif_dev_destroy() - destroy hif device.
- * @pDev: sdio device context
+ * @pdev: sdio device context
  *
  *
  * Return: none
@@ -134,7 +135,7 @@ void hif_dev_destroy(struct hif_sdio_device *pdev)
 
 /**
  * hif_dev_from_hif() - get sdio device from hif device.
- * @pDev: hif device context
+ * @hif_device: hif device context
  *
  *
  * Return: hif sdio device context
@@ -156,7 +157,7 @@ struct hif_sdio_device *hif_dev_from_hif(struct hif_sdio_dev *hif_device)
 
 /**
  * hif_dev_disable_interrupts() - disable hif device interrupts.
- * @pDev: sdio device context
+ * @pdev: sdio device context
  *
  *
  * Return: int
@@ -178,7 +179,7 @@ QDF_STATUS hif_dev_disable_interrupts(struct hif_sdio_device *pdev)
 
 /**
  * hif_dev_enable_interrupts() - enables hif device interrupts.
- * @pDev: sdio device context
+ * @pdev: sdio device context
  *
  *
  * Return: int
@@ -210,7 +211,7 @@ QDF_STATUS hif_dev_enable_interrupts(struct hif_sdio_device *pdev)
 
 /**
  * hif_dev_setup() - set up sdio device.
- * @pDev: sdio device context
+ * @pdev: sdio device context
  *
  *
  * Return: int

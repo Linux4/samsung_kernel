@@ -11,14 +11,19 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+"""
+Build initramfs.
+"""
 
-load(":debug.bzl", "debug")
 load(":image/image_utils.bzl", "image_utils")
 
-InitramfsInfo = provider(fields = {
-    "initramfs_img": "Output image",
-    "initramfs_staging_archive": "Archive of initramfs staging directory",
-})
+InitramfsInfo = provider(
+    doc = "Provides information about initramfs outputs.",
+    fields = {
+        "initramfs_img": "Output image",
+        "initramfs_staging_archive": "Archive of initramfs staging directory",
+    },
+)
 
 def _initramfs_impl(ctx):
     initramfs_img = ctx.actions.declare_file("{}/initramfs.img".format(ctx.label.name))
@@ -61,7 +66,8 @@ def _initramfs_impl(ctx):
                mkdir -p {initramfs_staging_dir}
              # Build initramfs
                create_modules_staging "${{MODULES_LIST}}" {modules_staging_dir} \
-                 {initramfs_staging_dir} "${{MODULES_BLOCKLIST}}" "-e"
+                       {initramfs_staging_dir} "${{MODULES_BLOCKLIST}}" \
+                       "${{MODULES_RECOVERY_LIST:-""}}" "${{MODULES_CHARGER_LIST:-""}}" "-e"
                modules_root_dir=$(readlink -e {initramfs_staging_dir}/lib/modules/*) || exit 1
                cp ${{modules_root_dir}}/modules.load {modules_load}
                {cp_vendor_boot_modules_load_cmd}

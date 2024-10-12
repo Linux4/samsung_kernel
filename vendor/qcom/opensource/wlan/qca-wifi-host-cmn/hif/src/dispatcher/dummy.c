@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2016-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021, 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -23,7 +23,7 @@
 
 /**
  * hif_dummy_bus_prevent_linkdown() - prevent linkdown
- * @hif_ctx: hif context
+ * @scn: hif context
  * @flag: weather to keep the bus alive or not
  *
  * Dummy function for busses and platforms that do not support
@@ -36,11 +36,10 @@ void hif_dummy_bus_prevent_linkdown(struct hif_softc *scn, bool flag)
 }
 
 /**
- * hif_reset_soc(): reset soc
+ * hif_dummy_reset_soc(): reset soc
+ * @hif_ctx: HIF context
  *
  * this function resets soc
- *
- * @hif_ctx: HIF context
  *
  * Return: void
  */
@@ -50,7 +49,7 @@ void hif_dummy_reset_soc(struct hif_softc *hif_ctx)
 }
 
 /**
- * hif_dummy_suspend() - suspend the bus
+ * hif_dummy_bus_suspend() - suspend the bus
  * @hif_ctx: hif context
  *
  * dummy for busses that don't need to suspend.
@@ -63,7 +62,8 @@ int hif_dummy_bus_suspend(struct hif_softc *hif_ctx)
 }
 
 /**
- * hif_dummy_resume() - hif resume API
+ * hif_dummy_bus_resume() - hif resume API
+ * @hif_ctx: hif context
  *
  * This function resumes the bus. but snoc doesn't need to resume.
  * Therefore do nothing.
@@ -76,7 +76,7 @@ int hif_dummy_bus_resume(struct hif_softc *hif_ctx)
 }
 
 /**
- * hif_dummy_suspend_noirq() - suspend the bus
+ * hif_dummy_bus_suspend_noirq() - suspend the bus
  * @hif_ctx: hif context
  *
  * dummy for busses that don't need to synchronize
@@ -90,7 +90,7 @@ int hif_dummy_bus_suspend_noirq(struct hif_softc *hif_ctx)
 }
 
 /**
- * hif_dummy_resume_noirq() - resume the bus
+ * hif_dummy_bus_resume_noirq() - resume the bus
  * @hif_ctx: hif context
  *
  * dummy for busses that don't need to synchronize
@@ -116,17 +116,17 @@ int hif_dummy_target_sleep_state_adjust(struct hif_softc *scn,
 }
 
 /**
- * hif_dummy_enable_power_management - dummy call
- * hif_ctx: hif context
- * is_packet_log_enabled: true if packet log is enabled
+ * hif_dummy_enable_power_management() - dummy call
+ * @hif_ctx: hif context
+ * @is_packet_log_enabled: true if packet log is enabled
  */
 void hif_dummy_enable_power_management(struct hif_softc *hif_ctx,
 				 bool is_packet_log_enabled)
 {}
 
 /**
- * hif_dummy_disable_power_management - dummy call
- * hif_ctx: hif context
+ * hif_dummy_disable_power_management() - dummy call
+ * @hif_ctx: hif context
  *
  * Return: none
  */
@@ -134,8 +134,8 @@ void hif_dummy_disable_power_management(struct hif_softc *hif_ctx)
 {}
 
 /**
- * hif_dummy_disable_isr - dummy call
- * hif_ctx: hif context
+ * hif_dummy_disable_isr() - dummy call
+ * @scn: hif context
  *
  * Return: none
  */
@@ -143,8 +143,8 @@ void hif_dummy_disable_isr(struct hif_softc *scn)
 {}
 
 /**
- * hif_dummy_nointrs - dummy call
- * hif_sc: hif context
+ * hif_dummy_nointrs() - dummy call
+ * @hif_sc: hif context
  *
  * Return: none
  */
@@ -152,8 +152,8 @@ void hif_dummy_nointrs(struct hif_softc *hif_sc)
 {}
 
 /**
- * hif_dummy_bus_configure - dummy call
- * hif_ctx: hif context
+ * hif_dummy_bus_configure() - dummy call
+ * @hif_sc: hif context
  *
  * Return: 0 for success
  */
@@ -163,7 +163,7 @@ int hif_dummy_bus_configure(struct hif_softc *hif_sc)
 }
 
 /**
- * hif_dummy_get_config_item - dummy call
+ * hif_dummy_get_config_item() - dummy call
  * @hif_sc: hif context
  * @opcode: configuration type
  * @config: configuration value to set
@@ -179,7 +179,7 @@ hif_dummy_get_config_item(struct hif_softc *hif_sc,
 }
 
 /**
- * hif_dummy_set_mailbox_swap - dummy call
+ * hif_dummy_set_mailbox_swap() - dummy call
  * @hif_sc: hif context
  *
  * Return: None
@@ -190,7 +190,7 @@ hif_dummy_set_mailbox_swap(struct hif_softc *hif_sc)
 }
 
 /**
- * hif_dummy_claim_device - dummy call
+ * hif_dummy_claim_device() - dummy call
  * @hif_sc: hif context
  *
  * Return: None
@@ -201,7 +201,7 @@ hif_dummy_claim_device(struct hif_softc *hif_sc)
 }
 
 /**
- * hif_dummy_cancel_deferred_target_sleep - dummy call
+ * hif_dummy_cancel_deferred_target_sleep() - dummy call
  * @hif_sc: hif context
  *
  * Return: None
@@ -212,8 +212,8 @@ hif_dummy_cancel_deferred_target_sleep(struct hif_softc *hif_sc)
 }
 
 /**
- * hif_dummy_irq_enable - dummy call
- * hif_ctx: hif context
+ * hif_dummy_irq_enable() - dummy call
+ * @hif_sc: hif context
  * @irq_id: irq id
  *
  * Return: none
@@ -222,9 +222,9 @@ void hif_dummy_irq_enable(struct hif_softc *hif_sc, int irq_id)
 {}
 
 /**
- * hif_dummy_grp_irq_enable - dummy call
- * hif_ctx: hif context
- * @irq_id: grp id
+ * hif_dummy_grp_irq_enable() - dummy call
+ * @hif_sc: hif context
+ * @grp_id: grp id
  *
  * Return: none
  */
@@ -232,8 +232,8 @@ void hif_dummy_grp_irq_enable(struct hif_softc *hif_sc, uint32_t grp_id)
 {}
 
 /**
- * hif_dummy_irq_disable - dummy call
- * hif_ctx: hif context
+ * hif_dummy_irq_disable() - dummy call
+ * @hif_sc: hif context
  * @irq_id: irq id
  *
  * Return: none
@@ -242,8 +242,8 @@ void hif_dummy_irq_disable(struct hif_softc *hif_sc, int irq_id)
 {}
 
 /**
- * hif_dummy_grp_irq_disable- dummy call
- * hif_ctx: hif context
+ * hif_dummy_grp_irq_disable() - dummy call
+ * @hif_sc: hif context
  * @grp_id: grp id
  *
  * Return: none
@@ -252,8 +252,9 @@ void hif_dummy_grp_irq_disable(struct hif_softc *hif_sc, uint32_t grp_id)
 {}
 
 /**
- * hif_dummy_grp_irq_configure - dummy call
- * hif_ctx: hif context
+ * hif_dummy_grp_irq_configure() - dummy call
+ * @hif_sc: hif context
+ * @exec:
  *
  * Return: none
  */
@@ -264,8 +265,8 @@ int hif_dummy_grp_irq_configure(struct hif_softc *hif_sc,
 }
 
 /**
- * hif_dummy_grp_irq_deconfigure - dummy call
- * hif_sc: hif context
+ * hif_dummy_grp_irq_deconfigure() - dummy call
+ * @hif_sc: hif context
  *
  * Return: none
  */
@@ -274,8 +275,8 @@ void hif_dummy_grp_irq_deconfigure(struct hif_softc *hif_sc)
 }
 
 /**
- * hif_dummy_dump_registers - dummy call
- * hif_sc: hif context
+ * hif_dummy_dump_registers() - dummy call
+ * @hif_sc: hif context
  *
  * Return: 0 for success
  */
@@ -285,7 +286,7 @@ int hif_dummy_dump_registers(struct hif_softc *hif_sc)
 }
 
 /**
- * hif_dummy_dump_target_memory - dummy call
+ * hif_dummy_dump_target_memory() - dummy call
  * @hif_sc: hif context
  * @ramdump_base: base
  * @address: address
@@ -311,8 +312,8 @@ void hif_dummy_bus_reg_write32(struct hif_softc *hif_sc,
 }
 
 /**
- * hif_dummy_ipa_get_ce_resource - dummy call
- * @scn: HIF context
+ * hif_dummy_ipa_get_ce_resource() - dummy call
+ * @hif_sc: HIF context
  * @ce_sr: copyengine source ring resource info
  * @sr_ring_size: source ring size
  * @reg_paddr: bus physical address
@@ -327,7 +328,7 @@ void hif_dummy_ipa_get_ce_resource(struct hif_softc *hif_sc,
 }
 
 /**
- * hif_dummy_mask_interrupt_call - dummy call
+ * hif_dummy_mask_interrupt_call() - dummy call
  * @hif_sc: hif context
  *
  * Return: None
@@ -338,8 +339,8 @@ hif_dummy_mask_interrupt_call(struct hif_softc *hif_sc)
 }
 
 /**
- * hif_dummy_display_stats - dummy call
- * hif_ctx: hif context
+ * hif_dummy_display_stats() - dummy call
+ * @hif_ctx: hif context
  *
  * Return: none
  */
@@ -347,16 +348,18 @@ void hif_dummy_display_stats(struct hif_softc *hif_ctx)
 {}
 
 /**
- * hif_dummy_clear_stats - dummy call
- * hif_ctx: hif context
+ * hif_dummy_clear_stats() - dummy call
+ * @hif_ctx: hif context
  *
  * Return: none
  */
 void hif_dummy_clear_stats(struct hif_softc *hif_ctx)
-{}
+{
+}
+
 /**
  * hif_dummy_set_bundle_mode() - dummy call
- * @hif_sc: hif context
+ * @hif_ctx: hif context
  * @enabled: flag to enable/disable bundling
  * @rx_bundle_cnt: bundle count to be used for RX
  *
@@ -369,7 +372,7 @@ void hif_dummy_set_bundle_mode(struct hif_softc *hif_ctx,
 
 /**
  * hif_dummy_bus_reset_resume() - dummy call
- * @hif_sc: hif context
+ * @hif_ctx: hif context
  *
  * Return: int 0 for success, non zero for failure
  */
@@ -391,7 +394,7 @@ int hif_dummy_addr_in_boundary(struct hif_softc *scn, uint32_t offset)
 }
 
 /**
- * hif_dummy_config_irq_affinity - dummy call
+ * hif_dummy_config_irq_affinity() - dummy call
  * @scn: hif context
  *
  * Return: None
@@ -401,9 +404,10 @@ void hif_dummy_config_irq_affinity(struct hif_softc *scn)
 }
 
 /**
- * hif_dummy_config_irq_by_ceid - dummy call
+ * hif_dummy_config_irq_by_ceid() - dummy call
  * @scn: hif context
  * @ce_id : copy engine id
+ *
  * Return: 0
  */
 int hif_dummy_config_irq_by_ceid(struct hif_softc *scn, int ce_id)
@@ -412,7 +416,7 @@ int hif_dummy_config_irq_by_ceid(struct hif_softc *scn, int ce_id)
 }
 
 /**
- * hif_config_irq_clear_affinity() - dummy call
+ * hif_dummy_config_irq_clear_cpu_affinity() - dummy call
  * @scn: HIF handle
  * @intr_ctxt_id: interrupt group index
  * @cpu: CPU core to clear
@@ -425,7 +429,7 @@ void hif_dummy_config_irq_clear_cpu_affinity(struct hif_softc *scn,
 }
 
 /**
- * hif_dummy_log_bus_info - dummy call
+ * hif_dummy_log_bus_info() - dummy call
  * @scn: hif context
  * @data: hang event data buffer
  * @offset: offset at which data needs to be written
@@ -439,8 +443,9 @@ bool hif_dummy_log_bus_info(struct hif_softc *scn, uint8_t *data,
 }
 
 /**
- * hif_dummy_enable_grp_irqs - dummy call
+ * hif_dummy_enable_grp_irqs() - dummy call
  * @scn: hif context
+ *
  * Return: EOPNOTSUPP
  */
 int hif_dummy_enable_grp_irqs(struct hif_softc *scn)
@@ -449,8 +454,9 @@ int hif_dummy_enable_grp_irqs(struct hif_softc *scn)
 }
 
 /**
- * hif_dummy_disable_grp_irqs - dummy call
+ * hif_dummy_disable_grp_irqs() - dummy call
  * @scn: hif context
+ *
  * Return: EOPNOTSUPP
  */
 int hif_dummy_disable_grp_irqs(struct hif_softc *scn)
@@ -464,3 +470,7 @@ void hif_dummy_set_grp_intr_affinity(struct hif_softc *scn,
 {
 }
 #endif
+
+void hif_dummy_affinity_mgr_set_affinity(struct hif_softc *scn)
+{
+}

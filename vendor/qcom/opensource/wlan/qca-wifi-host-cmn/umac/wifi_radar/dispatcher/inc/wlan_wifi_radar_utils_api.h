@@ -1,10 +1,10 @@
 /*
- * Copyright (c) 2021, Qualcomm Innovation Center, Inc. All rights reserved.
-
+ * Copyright (c) 2021, 2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
  * copyright notice and this permission notice appear in all copies.
-
+ *
  * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
  * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
  * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
@@ -37,8 +37,8 @@
 
 /**
  * struct psoc_wifi_radar - private psoc object for WiFi Radar
- * psoc_obj: pointer to psoc object
- * is_wifi_radar_capable: flag to determine if wifi radar is enabled or not
+ * @psoc_obj: pointer to psoc object
+ * @is_wifi_radar_capable: flag to determine if wifi radar is enabled or not
  */
 struct psoc_wifi_radar {
 	struct wlan_objmgr_psoc *psoc_obj;
@@ -47,12 +47,12 @@ struct psoc_wifi_radar {
 
 /**
  * struct pdev_wifi_radar - private pdev object for WiFi Radar
- * pdev_obj: pointer to pdev object
- * is_wifi_radar_capable: flag to determine if wifi radar is enabled or not
- * chan_ptr: Channel in relayfs
- * dir_ptr: Parent directory of relayfs file
- * num_subbufs: No. of sub-buffers used in relayfs
- * subbuf_size: Size of sub-buffer used in relayfs
+ * @pdev_obj: pointer to pdev object
+ * @is_wifi_radar_capable: flag to determine if wifi radar is enabled or not
+ * @chan_ptr: Channel in relayfs
+ * @dir_ptr: Parent directory of relayfs file
+ * @num_subbufs: No. of sub-buffers used in relayfs
+ * @subbuf_size: Size of sub-buffer used in relayfs
  */
 struct pdev_wifi_radar {
 	struct wlan_objmgr_pdev *pdev_obj;
@@ -65,7 +65,7 @@ struct pdev_wifi_radar {
 
 /**
  * struct peer_wifi_radar - private peer object for WiFi Radar
- * peer_obj: pointer to peer_obj
+ * @peer_obj: pointer to peer_obj
  */
 struct peer_wifi_radar {
 	struct wlan_objmgr_peer *peer_obj;
@@ -120,7 +120,7 @@ QDF_STATUS wifi_radar_deinitialize_pdev(struct wlan_objmgr_pdev *pdev);
 /**
  * wlan_wifi_radar_is_feature_disabled() - Check if wifi radarfeature
  * is disabled
- * @pdev - the physical device object.
+ * @pdev: the physical device object.
  *
  * Return : true if wifi radar is disabled, else false.
  */

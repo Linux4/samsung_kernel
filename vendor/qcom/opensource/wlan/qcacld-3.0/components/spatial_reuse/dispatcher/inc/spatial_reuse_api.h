@@ -15,7 +15,7 @@
  */
 
 /**
- * DOC : contains interface prototypes for spatial_reuse api
+ * DOC: contains interface prototypes for spatial_reuse api
  */
 
 #ifndef _SPATIAL_REUSE_API_H_
@@ -54,7 +54,7 @@ enum sr_osif_reason_code {
 };
 
 /**
- * sr_osif_event_cb() - CB to deliver SR events
+ * typedef sr_osif_event_cb() - CB to deliver SR events
  * @vdev: objmgr manager vdev
  * @sr_osif_oper: SR Operation like suspend / resume
  * @sr_osif_rc: Event reason code

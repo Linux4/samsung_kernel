@@ -47,6 +47,9 @@
 /* Index into soc->tcl_data_ring[] and soc->tx_comp_ring[] */
 #define IPA_TX_ALT_RING_IDX 4
 #define IPA_TX_ALT_COMP_RING_IDX IPA_TX_ALT_RING_IDX
+#elif defined(QCA_WIFI_QCN9224)
+#define IPA_TX_ALT_RING_IDX 3
+#define IPA_TX_ALT_COMP_RING_IDX IPA_TX_ALT_RING_IDX
 #else /* !KIWI */
 #define IPA_TX_ALT_RING_IDX 1
 /*
@@ -68,7 +71,7 @@ struct dp_ipa_uc_tx_hdr {
 } __packed;
 
 /**
- * struct dp_ipa_uc_tx_hdr - full tx header registered to IPA hardware
+ * struct dp_ipa_uc_tx_vlan_hdr - full tx header registered to IPA hardware
  * @eth:     ether II header
  */
 struct dp_ipa_uc_tx_vlan_hdr {
@@ -96,12 +99,13 @@ struct dp_ipa_uc_rx_hdr {
 #define DP_IPA_HDL_INVALID	0xFF
 #define DP_IPA_HDL_FIRST	0
 #define DP_IPA_HDL_SECOND	1
+#define DP_IPA_HDL_THIRD	2
 /**
  * wlan_ipa_get_hdl() - Get ipa handle from IPA component
- * @psoc - control psoc object
- * @pdev_id - pdev id
+ * @psoc: control psoc object
+ * @pdev_id: pdev id
  *
- * IPA componenet will return the IPA handle based on pdev_id
+ * IPA component will return the IPA handle based on pdev_id
  *
  * Return: IPA handle
  */
@@ -109,8 +113,8 @@ qdf_ipa_wdi_hdl_t wlan_ipa_get_hdl(void *psoc, uint8_t pdev_id);
 
 /**
  * dp_ipa_get_resource() - Client request resource information
- * @soc_hdl - data path soc handle
- * @pdev_id - device instance id
+ * @soc_hdl: data path soc handle
+ * @pdev_id: device instance id
  *
  *  IPA client will request IPA UC related resource information
  *  Resource information will be distributed to IPA module
@@ -121,57 +125,55 @@ qdf_ipa_wdi_hdl_t wlan_ipa_get_hdl(void *psoc, uint8_t pdev_id);
 QDF_STATUS dp_ipa_get_resource(struct cdp_soc_t *soc_hdl, uint8_t pdev_id);
 
 /**
- * dp_ipa_set_doorbell_paddr () - Set doorbell register physical address to SRNG
- * @soc_hdl - data path soc handle
- * @pdev_id - device instance id
+ * dp_ipa_set_doorbell_paddr() - Set doorbell register physical address to SRNG
+ * @soc_hdl: data path soc handle
+ * @pdev_id: device instance id
  *
  * Set TX_COMP_DOORBELL register physical address to WBM Head_Ptr_MemAddr_LSB
  * Set RX_READ_DOORBELL register physical address to REO Head_Ptr_MemAddr_LSB
  *
- * Return: none
+ * Return: QDF_STATUS
  */
 QDF_STATUS dp_ipa_set_doorbell_paddr(struct cdp_soc_t *soc_hdl,
 				     uint8_t pdev_id);
 
 /**
  * dp_ipa_iounmap_doorbell_vaddr() - unmap ipa RX db vaddr
- * @soc_hdl - data path soc handle
- * @pdev_id - device instance id
+ * @soc_hdl: data path soc handle
+ * @pdev_id: device instance id
  *
- * Return: none
+ * Return: QDF_STATUS
  */
 QDF_STATUS dp_ipa_iounmap_doorbell_vaddr(struct cdp_soc_t *soc_hdl,
 					 uint8_t pdev_id);
 
-QDF_STATUS dp_ipa_uc_set_active(struct cdp_soc_t *soc_hdl, uint8_t pdev_id,
-				bool uc_active, bool is_tx);
-
 /**
  * dp_ipa_op_response() - Handle OP command response from firmware
- * @soc_hdl - data path soc handle
- * @pdev_id - device instance id
+ * @soc_hdl: data path soc handle
+ * @pdev_id: device instance id
  * @op_msg: op response message from firmware
  *
- * Return: none
+ * Return: QDF_STATUS
  */
 QDF_STATUS dp_ipa_op_response(struct cdp_soc_t *soc_hdl, uint8_t pdev_id,
 			      uint8_t *op_msg);
 
 /**
  * dp_ipa_register_op_cb() - Register OP handler function
- * @soc_hdl - data path soc handle
- * @pdev_id - device instance id
+ * @soc_hdl: data path soc handle
+ * @pdev_id: device instance id
  * @op_cb: handler function pointer
+ * @usr_ctxt: user context passed back to handler function
  *
- * Return: none
+ * Return: QDF_STATUS
  */
 QDF_STATUS dp_ipa_register_op_cb(struct cdp_soc_t *soc_hdl, uint8_t pdev_id,
 				 ipa_uc_op_cb_type op_cb, void *usr_ctxt);
 
 /**
- * dp_ipa_register_op_cb() - Deregister OP handler function
- * @soc_hdl - data path soc handle
- * @pdev_id - device instance id
+ * dp_ipa_deregister_op_cb() - Deregister OP handler function
+ * @soc_hdl: data path soc handle
+ * @pdev_id: device instance id
  *
  * Return: none
  */
@@ -179,10 +181,10 @@ void dp_ipa_deregister_op_cb(struct cdp_soc_t *soc_hdl, uint8_t pdev_id);
 
 /**
  * dp_ipa_get_stat() - Get firmware wdi status
- * @soc_hdl - data path soc handle
- * @pdev_id - device instance id
+ * @soc_hdl: data path soc handle
+ * @pdev_id: device instance id
  *
- * Return: none
+ * Return: QDF_STATUS
  */
 QDF_STATUS dp_ipa_get_stat(struct cdp_soc_t *soc_hdl, uint8_t pdev_id);
 
@@ -198,24 +200,26 @@ qdf_nbuf_t dp_tx_send_ipa_data_frame(struct cdp_soc_t *soc_hdl, uint8_t vdev_id,
 				     qdf_nbuf_t skb);
 
 /**
- * dp_ipa_enable_autonomy() – Enable autonomy RX path
- * @soc_hdl - data path soc handle
- * @pdev_id - device instance id
+ * dp_ipa_enable_autonomy() - Enable autonomy RX path
+ * @soc_hdl: data path soc handle
+ * @pdev_id: device instance id
  *
  * Set all RX packet route to IPA REO ring
  * Program Destination_Ring_Ctrl_IX_0 REO register to point IPA REO ring
- * Return: none
+ *
+ * Return: QDF_STATUS
  */
 QDF_STATUS dp_ipa_enable_autonomy(struct cdp_soc_t *soc_hdl, uint8_t pdev_id);
 
 /**
- * dp_ipa_disable_autonomy() – Disable autonomy RX path
- * @soc_hdl - data path soc handle
- * @pdev_id - device instance id
+ * dp_ipa_disable_autonomy() - Disable autonomy RX path
+ * @soc_hdl: data path soc handle
+ * @pdev_id: device instance id
  *
  * Disable RX packet routing to IPA REO
  * Program Destination_Ring_Ctrl_IX_0 REO register to disable
- * Return: none
+ *
+ * Return: QDF_STATUS
  */
 QDF_STATUS dp_ipa_disable_autonomy(struct cdp_soc_t *soc_hdl, uint8_t pdev_id);
 
@@ -223,8 +227,8 @@ QDF_STATUS dp_ipa_disable_autonomy(struct cdp_soc_t *soc_hdl, uint8_t pdev_id);
 	defined(CONFIG_IPA_WDI_UNIFIED_API)
 /**
  * dp_ipa_setup() - Setup and connect IPA pipes
- * @soc_hdl - data path soc handle
- * @pdev_id - device instance id
+ * @soc_hdl: data path soc handle
+ * @pdev_id: device instance id
  * @ipa_i2w_cb: IPA to WLAN callback
  * @ipa_w2i_cb: WLAN to IPA callback
  * @ipa_wdi_meter_notifier_cb: IPA WDI metering callback
@@ -235,6 +239,7 @@ QDF_STATUS dp_ipa_disable_autonomy(struct cdp_soc_t *soc_hdl, uint8_t pdev_id);
  * @rx_pipe_handle: pointer to Rx pipe handle
  * @is_smmu_enabled: Is SMMU enabled or not
  * @sys_in: parameters to setup sys pipe in mcc mode
+ * @over_gsi:
  * @hdl: IPA handle
  * @id: IPA instance id
  * @ipa_ast_notify_cb: IPA to WLAN callback for ast create and update
@@ -254,8 +259,8 @@ QDF_STATUS dp_ipa_setup(struct cdp_soc_t *soc_hdl, uint8_t pdev_id,
 #else /* CONFIG_IPA_WDI_UNIFIED_API */
 /**
  * dp_ipa_setup() - Setup and connect IPA pipes
- * @soc_hdl - data path soc handle
- * @pdev_id - device instance id
+ * @soc_hdl: data path soc handle
+ * @pdev_id: device instance id
  * @ipa_i2w_cb: IPA to WLAN callback
  * @ipa_w2i_cb: WLAN to IPA callback
  * @ipa_wdi_meter_notifier_cb: IPA WDI metering callback
@@ -264,7 +269,6 @@ QDF_STATUS dp_ipa_setup(struct cdp_soc_t *soc_hdl, uint8_t pdev_id,
  * @is_rm_enabled: Is IPA RM enabled or not
  * @tx_pipe_handle: pointer to Tx pipe handle
  * @rx_pipe_handle: pointer to Rx pipe handle
- * @hdl: IPA handle
  *
  * Return: QDF_STATUS
  */
@@ -275,25 +279,54 @@ QDF_STATUS dp_ipa_setup(struct cdp_soc_t *soc_hdl, uint8_t pdev_id,
 			bool is_rm_enabled, uint32_t *tx_pipe_handle,
 			uint32_t *rx_pipe_handle);
 #endif /* CONFIG_IPA_WDI_UNIFIED_API */
+
+/**
+ * dp_ipa_cleanup() - Disconnect IPA pipes
+ * @soc_hdl: dp soc handle
+ * @pdev_id: dp pdev id
+ * @tx_pipe_handle: Tx pipe handle
+ * @rx_pipe_handle: Rx pipe handle
+ * @hdl: IPA handle
+ *
+ * Return: QDF_STATUS
+ */
 QDF_STATUS dp_ipa_cleanup(struct cdp_soc_t *soc_hdl, uint8_t pdev_id,
-			  uint32_t tx_pipe_handle,
-			  uint32_t rx_pipe_handle, qdf_ipa_wdi_hdl_t hdl);
-QDF_STATUS dp_ipa_remove_header(char *name);
-int dp_ipa_add_header_info(char *ifname, uint8_t *mac_addr,
-		uint8_t session_id, bool is_ipv6_enabled);
-int dp_ipa_register_interface(char *ifname, bool is_ipv6_enabled);
+			  uint32_t tx_pipe_handle, uint32_t rx_pipe_handle,
+			  qdf_ipa_wdi_hdl_t hdl);
+
+/**
+ * dp_ipa_setup_iface() - Setup IPA header and register interface
+ * @ifname: Interface name
+ * @mac_addr: Interface MAC address
+ * @prod_client: IPA prod client type
+ * @cons_client: IPA cons client type
+ * @session_id: Session ID
+ * @is_ipv6_enabled: Is IPV6 enabled or not
+ * @hdl: IPA handle
+ *
+ * Return: QDF_STATUS
+ */
 QDF_STATUS dp_ipa_setup_iface(char *ifname, uint8_t *mac_addr,
-		qdf_ipa_client_type_t prod_client,
-		qdf_ipa_client_type_t cons_client,
-		uint8_t session_id, bool is_ipv6_enabled,
-		qdf_ipa_wdi_hdl_t hdl);
+			      qdf_ipa_client_type_t prod_client,
+			      qdf_ipa_client_type_t cons_client,
+			      uint8_t session_id, bool is_ipv6_enabled,
+			      qdf_ipa_wdi_hdl_t hdl);
+
+/**
+ * dp_ipa_cleanup_iface() - Cleanup IPA header and deregister interface
+ * @ifname: Interface name
+ * @is_ipv6_enabled: Is IPV6 enabled or not
+ * @hdl: IPA handle
+ *
+ * Return: QDF_STATUS
+ */
 QDF_STATUS dp_ipa_cleanup_iface(char *ifname, bool is_ipv6_enabled,
 				qdf_ipa_wdi_hdl_t hdl);
 
 /**
- * dp_ipa_uc_enable_pipes() - Enable and resume traffic on Tx/Rx pipes
- * @soc_hdl - handle to the soc
- * @pdev_id - pdev id number, to get the handle
+ * dp_ipa_enable_pipes() - Enable and resume traffic on Tx/Rx pipes
+ * @soc_hdl: handle to the soc
+ * @pdev_id: pdev id number, to get the handle
  * @hdl: IPA handle
  *
  * Return: QDF_STATUS
@@ -302,15 +335,24 @@ QDF_STATUS dp_ipa_enable_pipes(struct cdp_soc_t *soc_hdl, uint8_t pdev_id,
 			       qdf_ipa_wdi_hdl_t hdl);
 
 /**
- * dp_ipa_disable_pipes() – Suspend traffic and disable Tx/Rx pipes
- * @soc_hdl - handle to the soc
- * @pdev_id - pdev id number, to get the handle
+ * dp_ipa_disable_pipes() - Suspend traffic and disable Tx/Rx pipes
+ * @soc_hdl: handle to the soc
+ * @pdev_id: pdev id number, to get the handle
  * @hdl: IPA handle
  *
  * Return: QDF_STATUS
  */
 QDF_STATUS dp_ipa_disable_pipes(struct cdp_soc_t *soc_hdl, uint8_t pdev_id,
 				qdf_ipa_wdi_hdl_t hdl);
+
+/**
+ * dp_ipa_set_perf_level() - Set IPA clock bandwidth based on data rates
+ * @client: Client type
+ * @max_supported_bw_mbps: Maximum bandwidth needed (in Mbps)
+ * @hdl: IPA handle
+ *
+ * Return: QDF_STATUS
+ */
 QDF_STATUS dp_ipa_set_perf_level(int client, uint32_t max_supported_bw_mbps,
 				 qdf_ipa_wdi_hdl_t hdl);
 #ifdef IPA_OPT_WIFI_DP
@@ -318,6 +360,19 @@ QDF_STATUS dp_ipa_rx_super_rule_setup(struct cdp_soc_t *soc_hdl,
 				      void *flt_params);
 int dp_ipa_pcie_link_up(struct cdp_soc_t *soc_hdl);
 void dp_ipa_pcie_link_down(struct cdp_soc_t *soc_hdl);
+#endif
+
+#ifdef QCA_SUPPORT_WDS_EXTENDED
+/**
+ * dp_ipa_rx_wdsext_iface() -  Forward RX exception packets to wdsext interface
+ * @soc_hdl: data path SoC handle
+ * @peer_id: Peer ID to get respective peer
+ * @skb: socket buffer
+ *
+ * Return: bool
+ */
+bool dp_ipa_rx_wdsext_iface(struct cdp_soc_t *soc_hdl, uint8_t peer_id,
+			    qdf_nbuf_t skb);
 #endif
 
 /**
@@ -337,12 +392,28 @@ bool dp_ipa_rx_intrabss_fwd(struct cdp_soc_t *soc_hdl, uint8_t vdev_id,
 			    qdf_nbuf_t nbuf, bool *fwd_success);
 int dp_ipa_uc_detach(struct dp_soc *soc, struct dp_pdev *pdev);
 int dp_ipa_uc_attach(struct dp_soc *soc, struct dp_pdev *pdev);
+
+/**
+ * dp_ipa_ring_resource_setup() - setup IPA ring resources
+ * @soc: data path SoC handle
+ * @pdev:
+ *
+ * Return: status
+ */
 int dp_ipa_ring_resource_setup(struct dp_soc *soc,
-		struct dp_pdev *pdev);
+			       struct dp_pdev *pdev);
+
 bool dp_reo_remap_config(struct dp_soc *soc, uint32_t *remap0,
 			 uint32_t *remap1, uint32_t *remap2);
 bool dp_ipa_is_mdm_platform(void);
 
+/**
+ * dp_ipa_handle_rx_reo_reinject() - Handle RX REO reinject skb buffer
+ * @soc: soc
+ * @nbuf: skb
+ *
+ * Return: nbuf if success and otherwise NULL
+ */
 qdf_nbuf_t dp_ipa_handle_rx_reo_reinject(struct dp_soc *soc, qdf_nbuf_t nbuf);
 
 QDF_STATUS dp_ipa_handle_rx_buf_smmu_mapping(struct dp_soc *soc,
@@ -351,7 +422,6 @@ QDF_STATUS dp_ipa_handle_rx_buf_smmu_mapping(struct dp_soc *soc,
 					     bool create,
 					     const char *func,
 					     uint32_t line);
-
 /**
  * dp_ipa_tx_buf_smmu_mapping() - Create SMMU mappings for IPA
  *				  allocated TX buffers
@@ -379,6 +449,13 @@ QDF_STATUS dp_ipa_tx_buf_smmu_mapping(struct cdp_soc_t *soc_hdl,
 QDF_STATUS dp_ipa_tx_buf_smmu_unmapping(struct cdp_soc_t *soc_hdl,
 					uint8_t pdev_id, const char *func,
 					uint32_t line);
+QDF_STATUS dp_ipa_rx_buf_pool_smmu_mapping(struct cdp_soc_t *soc_hdl,
+					   uint8_t pdev_id,
+					   bool create,
+					   const char *func,
+					   uint32_t line);
+QDF_STATUS dp_ipa_set_smmu_mapped(struct cdp_soc_t *soc, int val);
+int dp_ipa_get_smmu_mapped(struct cdp_soc_t *soc);
 
 #ifndef QCA_OL_DP_SRNG_LOCK_LESS_ACCESS
 static inline void
@@ -443,7 +520,7 @@ dp_ipa_reo_ctx_buf_mapping_unlock(struct dp_soc *soc,
 /**
  * dp_ipa_ast_create() - Create/update AST entry in AST table
  *			 for learning/roaming packets from IPA
- * @soc: data path soc handle
+ * @soc_hdl: data path soc handle
  * @data: Structure used for updating the AST table
  *
  * Create/update AST entry in AST table for learning/roaming packets from IPA
@@ -491,7 +568,65 @@ static inline void dp_ipa_opt_dp_ixo_remap(uint8_t *ix0_map)
 {
 }
 #endif
+#ifdef QCA_ENHANCED_STATS_SUPPORT
+/**
+ * dp_ipa_txrx_get_peer_stats - fetch peer stats
+ * @soc: soc handle
+ * @vdev_id: id of vdev handle
+ * @peer_mac: peer mac address
+ * @peer_stats: buffer to hold peer stats
+ *
+ * Return: status success/failure
+ */
+QDF_STATUS dp_ipa_txrx_get_peer_stats(struct cdp_soc_t *soc, uint8_t vdev_id,
+				      uint8_t *peer_mac,
+				      struct cdp_peer_stats *peer_stats);
 
+/**
+ * dp_ipa_txrx_get_vdev_stats - fetch vdev stats
+ * @soc_hdl: soc handle
+ * @vdev_id: id of vdev handle
+ * @buf: buffer to hold vdev stats
+ * @is_aggregate: for aggregation
+ *
+ * Return: int
+ */
+int dp_ipa_txrx_get_vdev_stats(struct cdp_soc_t *soc_hdl, uint8_t vdev_id,
+			       void *buf, bool is_aggregate);
+
+/**
+ * dp_ipa_txrx_get_pdev_stats() - fetch pdev stats
+ * @soc: DP soc handle
+ * @pdev_id: id of DP pdev handle
+ * @pdev_stats: buffer to hold pdev stats
+ *
+ * Return: status success/failure
+ */
+QDF_STATUS dp_ipa_txrx_get_pdev_stats(struct cdp_soc_t *soc, uint8_t pdev_id,
+				      struct cdp_pdev_stats *pdev_stats);
+
+/**
+ * dp_ipa_update_peer_rx_stats() - update peer rx stats
+ * @soc: soc handle
+ * @vdev_id: vdev id
+ * @peer_mac: Peer Mac Address
+ * @nbuf: data nbuf
+ *
+ * Return: status success/failure
+ */
+QDF_STATUS dp_ipa_update_peer_rx_stats(struct cdp_soc_t *soc, uint8_t vdev_id,
+				       uint8_t *peer_mac, qdf_nbuf_t nbuf);
+#endif
+/**
+ * dp_ipa_get_wdi_version() - Get WDI version
+ * @soc_hdl: data path soc handle
+ * @wdi_ver: Out parameter for wdi version
+ *
+ * Get WDI version based on soc arch
+ *
+ * Return: None
+ */
+void dp_ipa_get_wdi_version(struct cdp_soc_t *soc_hdl, uint8_t *wdi_ver);
 #else
 static inline int dp_ipa_uc_detach(struct dp_soc *soc, struct dp_pdev *pdev)
 {
@@ -563,6 +698,26 @@ static inline QDF_STATUS dp_ipa_tx_buf_smmu_unmapping(struct cdp_soc_t *soc_hdl,
 	return QDF_STATUS_SUCCESS;
 }
 
+static inline QDF_STATUS dp_ipa_rx_buf_pool_smmu_mapping(
+						      struct cdp_soc_t *soc_hdl,
+						      uint8_t pdev_id,
+						      bool create,
+						      const char *func,
+						      uint32_t line)
+{
+	return QDF_STATUS_SUCCESS;
+}
+
+static inline QDF_STATUS dp_ipa_set_smmu_mapped(struct cdp_soc_t *soc, int val)
+{
+	return QDF_STATUS_SUCCESS;
+}
+
+static inline int dp_ipa_get_smmu_mapped(struct cdp_soc_t *soc)
+{
+	return QDF_STATUS_SUCCESS;
+}
+
 #ifdef IPA_WDS_EASYMESH_FEATURE
 static inline QDF_STATUS dp_ipa_ast_create(struct cdp_soc_t *soc_hdl,
 					   qdf_ipa_ast_info_type_t *data)
@@ -570,6 +725,9 @@ static inline QDF_STATUS dp_ipa_ast_create(struct cdp_soc_t *soc_hdl,
 	return QDF_STATUS_SUCCESS;
 }
 #endif
-
+static inline void dp_ipa_get_wdi_version(struct cdp_soc_t *soc_hdl,
+					  uint8_t *wdi_ver)
+{
+}
 #endif
 #endif /* _DP_IPA_H_ */

@@ -959,7 +959,8 @@ int sec_dc_step_charging_dt(struct sec_battery_info *battery, struct device *dev
 		kfree(iout_temp);
 	}
 
-	if (dc_step_chg_type & STEP_CHARGING_CONDITION_INPUT_CURRENT) {
+	if ((dc_step_chg_type & STEP_CHARGING_CONDITION_INPUT_CURRENT) ||
+		(dc_step_chg_type & STEP_CHARGING_CONDITION_FG_CURRENT)) {
 		p = of_get_property(np, "battery,dc_step_chg_cond_iin", &len);
 		if (!p) {
 			pr_info("%s: dc_step_chg_cond_iin is Empty, set default (Iout / 2)\n", __func__);

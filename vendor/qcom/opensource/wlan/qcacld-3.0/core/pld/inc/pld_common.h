@@ -25,6 +25,12 @@
 #include <linux/pm.h>
 #include <osapi_linux.h>
 
+#ifdef CONFIG_CNSS_OUT_OF_TREE
+#include "cnss2.h"
+#else
+#include <net/cnss2.h>
+#endif
+
 #ifdef CNSS_UTILS
 #ifdef CONFIG_CNSS_OUT_OF_TREE
 #include "cnss_utils.h"
@@ -113,6 +119,7 @@ enum pld_bus_type {
  * @PLD_BUS_WIDTH_VERY_HIGH: vote for very high bus bandwidth
  * @PLD_BUS_WIDTH_ULTRA_HIGH: vote for ultra high bus bandwidth
  * @PLD_BUS_WIDTH_LOW_LATENCY: vote for low latency bus bandwidth
+ * @PLD_BUS_WIDTH_MAX:
  */
 enum pld_bus_width_type {
 	PLD_BUS_WIDTH_NONE,
@@ -130,7 +137,7 @@ enum pld_bus_width_type {
 #define PLD_MAX_FILE_NAME NAME_MAX
 
 /**
- * struct pld_fw_file - WLAN FW file names
+ * struct pld_fw_files - WLAN FW file names
  * @image_file: WLAN FW image file
  * @board_data: WLAN FW board data file
  * @otp_data: WLAN FW OTP file
@@ -139,6 +146,7 @@ enum pld_bus_width_type {
  * @epping_file: WLAN FW EPPING mode file
  * @evicted_data: WLAN FW evicted file
  * @setup_file: WLAN FW setup file
+ * @ibss_image_file: WLAN FW IBSS mode file
  *
  * pld_fw_files is used to store WLAN FW file names
  */
@@ -194,6 +202,8 @@ struct pld_platform_cap {
  * @PLD_FW_RECOVERY_START: firmware is starting recovery
  * @PLD_FW_HANG_EVENT: firmware update hang event
  * @PLD_BUS_EVENT: update bus/link event
+ * @PLD_SMMU_FAULT: SMMU fault
+ * @PLD_SYS_REBOOT: system is rebooting
  */
 enum pld_uevent {
 	PLD_FW_DOWN,
@@ -202,6 +212,7 @@ enum pld_uevent {
 	PLD_FW_HANG_EVENT,
 	PLD_BUS_EVENT,
 	PLD_SMMU_FAULT,
+	PLD_SYS_REBOOT,
 };
 
 /**
@@ -219,7 +230,7 @@ enum pld_bus_event {
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 19, 0))
 /**
  * enum pld_device_config - Get PLD device config
- * @PLD_IPA_DISABLD: IPA is disabled
+ * @PLD_IPA_DISABLED: IPA is disabled
  */
 enum pld_device_config {
 	PLD_IPA_DISABLED,
@@ -231,7 +242,7 @@ enum pld_device_config {
  * @uevent: uevent type
  * @fw_down: FW down info
  * @hang_data: FW hang data
- * @bus_event: bus related data
+ * @bus_data: bus related data
  */
 struct pld_uevent_data {
 	enum pld_uevent uevent;
@@ -316,7 +327,7 @@ struct pld_shadow_reg_v3_cfg {
 #endif
 
 /**
- * struct pld_rri_over_ddr_cfg_s - rri_over_ddr configuration
+ * struct pld_rri_over_ddr_cfg - rri_over_ddr configuration
  * @base_addr_low: lower 32bit
  * @base_addr_high: higher 32bit
  *
@@ -340,6 +351,8 @@ struct pld_rri_over_ddr_cfg {
  * @shadow_reg_v2_cfg: shadow register version 2 configuration
  * @rri_over_ddr_cfg_valid: valid flag for rri_over_ddr config
  * @rri_over_ddr_cfg: rri over ddr config
+ * @num_shadow_reg_v3_cfg: number of shadow register version 3 configuration
+ * @shadow_reg_v3_cfg: shadow register version 3 configuration
  *
  * pld_wlan_enable_cfg stores WLAN FW configurations. It will be
  * passed to WLAN FW when WLAN host driver calls wlan_enable.
@@ -410,6 +423,54 @@ struct pld_dev_mem_info {
 	u64 size;
 };
 
+/**
+ * enum pld_wlan_hw_nss_info - WLAN HW nss info
+ * @PLD_WLAN_HW_CAP_NSS_UNSPECIFIED: nss info not specified
+ * @PLD_WLAN_HW_CAP_NSS_1x1: supported nss link 1x1
+ * @PLD_WLAN_HW_CAP_NSS_2x2: supported nss link 2x2
+ */
+enum pld_wlan_hw_nss_info {
+	PLD_WLAN_HW_CAP_NSS_UNSPECIFIED,
+	PLD_WLAN_HW_CAP_NSS_1x1,
+	PLD_WLAN_HW_CAP_NSS_2x2
+};
+
+/**
+ * enum pld_wlan_hw_channel_bw_info - WLAN HW channel bw info
+ * @PLD_WLAN_HW_CHANNEL_BW_UNSPECIFIED: bw info not specified
+ * @PLD_WLAN_HW_CHANNEL_BW_80MHZ: supported bw 80MHZ
+ * @PLD_WLAN_HW_CHANNEL_BW_160MHZ: supported bw 160MHZ
+ */
+enum pld_wlan_hw_channel_bw_info  {
+	PLD_WLAN_HW_CHANNEL_BW_UNSPECIFIED,
+	PLD_WLAN_HW_CHANNEL_BW_80MHZ,
+	PLD_WLAN_HW_CHANNEL_BW_160MHZ
+};
+
+/**
+ * enum pld_wlan_hw_qam_info - WLAN HW qam info
+ * @PLD_WLAN_HW_QAM_UNSPECIFIED: QAM info not specified
+ * @PLD_WLAN_HW_QAM_1K: 1K QAM supported
+ * @PLD_WLAN_HW_QAM_4K: 4K QAM supported
+ */
+enum pld_wlan_hw_qam_info  {
+	PLD_WLAN_HW_QAM_UNSPECIFIED,
+	PLD_WLAN_HW_QAM_1K,
+	PLD_WLAN_HW_QAM_4K
+};
+
+/**
+ * struct pld_wlan_hw_cap_info - WLAN HW cap info
+ * @nss: nss info
+ * @bw: bw info
+ * @qam: qam info
+ */
+struct pld_wlan_hw_cap_info {
+	enum pld_wlan_hw_nss_info nss;
+	enum pld_wlan_hw_channel_bw_info bw;
+	enum pld_wlan_hw_qam_info qam;
+};
+
 #define PLD_MAX_TIMESTAMP_LEN 32
 #define PLD_WLFW_MAX_BUILD_ID_LEN 128
 #define PLD_MAX_DEV_MEM_NUM 4
@@ -426,6 +487,8 @@ struct pld_dev_mem_info {
  * @fw_build_timestamp: FW build timestamp
  * @device_version: WLAN device version info
  * @dev_mem_info: WLAN device memory info
+ * @fw_build_id: Firmware build identifier
+ * @hw_cap_info: WLAN HW capabilities info
  *
  * pld_soc_info is used to store WLAN SOC information.
  */
@@ -441,6 +504,7 @@ struct pld_soc_info {
 	struct pld_device_version device_version;
 	struct pld_dev_mem_info dev_mem_info[PLD_MAX_DEV_MEM_NUM];
 	char fw_build_id[PLD_WLFW_MAX_BUILD_ID_LEN + 1];
+	struct pld_wlan_hw_cap_info hw_cap_info;
 };
 
 /**
@@ -505,10 +569,14 @@ struct pld_ch_avoid_ind_type {
  *           is enabled
  * @resume: required operation, will be called for power management
  *          is enabled
+ * @reset_resume: required operation, will be called for power management
+ *                is enabled
  * @modem_status: optional operation, will be called when platform driver
  *                sending modem power status to WLAN FW
  * @uevent: optional operation, will be called when platform driver
  *                 updating driver status
+ * @collect_driver_dump: optional operation, will be called during SSR to
+ *                       collect driver memory dump
  * @runtime_suspend: optional operation, prepare the device for a condition
  *                   in which it won't be able to communicate with the CPU(s)
  *                   and RAM due to power management.
@@ -551,6 +619,13 @@ struct pld_driver_ops {
 			     enum pld_bus_type bus_type,
 			     int state);
 	void (*uevent)(struct device *dev, struct pld_uevent_data *uevent);
+#ifdef WLAN_FEATURE_SSR_DRIVER_DUMP
+	int (*collect_driver_dump)(struct device *dev,
+				   enum pld_bus_type bus_type,
+				   struct cnss_ssr_driver_dump_entry
+				   *input_array,
+				   size_t *num_entries_loaded);
+#endif
 	int (*runtime_suspend)(struct device *dev,
 			       enum pld_bus_type bus_type);
 	int (*runtime_resume)(struct device *dev,
@@ -564,7 +639,19 @@ struct pld_driver_ops {
 					 int mon_id);
 };
 
+/**
+ * pld_init() - Initialize PLD module
+ *
+ * Return: 0 for success
+ *         Non zero failure code for errors
+ */
 int pld_init(void);
+
+/**
+ * pld_deinit() - Uninitialize PLD module
+ *
+ * Return: void
+ */
 void pld_deinit(void);
 
 /**
@@ -576,18 +663,115 @@ void pld_deinit(void);
  */
 int pld_set_mode(u8 mode);
 
+/**
+ * pld_register_driver() - Register driver to kernel
+ * @ops: Callback functions that will be registered to kernel
+ *
+ * This function should be called when other modules want to
+ * register platform driver callback functions to kernel. The
+ * probe() is expected to be called after registration if the
+ * device is online.
+ *
+ * Return: 0 for success
+ *         Non zero failure code for errors
+ */
 int pld_register_driver(struct pld_driver_ops *ops);
+
+/**
+ * pld_unregister_driver() - Unregister driver to kernel
+ *
+ * This function should be called when other modules want to
+ * unregister callback functions from kernel. The remove() is
+ * expected to be called after registration.
+ *
+ * Return: void
+ */
 void pld_unregister_driver(void);
 
+/**
+ * pld_wlan_enable() - Enable WLAN
+ * @dev: device
+ * @config: WLAN configuration data
+ * @mode: WLAN mode
+ *
+ * This function enables WLAN FW. It passed WLAN configuration data,
+ * WLAN mode and host software version to FW.
+ *
+ * Return: 0 for success
+ *         Non zero failure code for errors
+ */
 int pld_wlan_enable(struct device *dev, struct pld_wlan_enable_cfg *config,
 		    enum pld_driver_mode mode);
+
+/**
+ * pld_wlan_disable() - Disable WLAN
+ * @dev: device
+ * @mode: WLAN mode
+ *
+ * This function disables WLAN FW. It passes WLAN mode to FW.
+ *
+ * Return: 0 for success
+ *         Non zero failure code for errors
+ */
 int pld_wlan_disable(struct device *dev, enum pld_driver_mode mode);
+
+/**
+ * pld_set_fw_log_mode() - Set FW debug log mode
+ * @dev: device
+ * @fw_log_mode: 0 for No log, 1 for WMI, 2 for DIAG
+ *
+ * Switch Fw debug log mode between DIAG logging and WMI logging.
+ *
+ * Return: 0 for success
+ *         Non zero failure code for errors
+ */
 int pld_set_fw_log_mode(struct device *dev, u8 fw_log_mode);
+
+/**
+ * pld_get_default_fw_files() - Get default FW file names
+ * @pfw_files: buffer for FW file names
+ *
+ * Return default FW file names to the buffer.
+ *
+ * Return: void
+ */
 void pld_get_default_fw_files(struct pld_fw_files *pfw_files);
+
+/**
+ * pld_get_fw_files_for_target() - Get FW file names
+ * @dev: device
+ * @pfw_files: buffer for FW file names
+ * @target_type: target type
+ * @target_version: target version
+ *
+ * Return target specific FW file names to the buffer.
+ *
+ * Return: 0 for success
+ *         Non zero failure code for errors
+ */
 int pld_get_fw_files_for_target(struct device *dev,
 				struct pld_fw_files *pfw_files,
 				u32 target_type, u32 target_version);
+
+/**
+ * pld_prevent_l1() - Prevent PCIe enter L1 state
+ * @dev: device
+ *
+ * Prevent PCIe enter L1 and L1ss states
+ *
+ * Return: 0 for success
+ *         Non zero failure code for errors
+ */
 int pld_prevent_l1(struct device *dev);
+
+/**
+ * pld_allow_l1() - Allow PCIe enter L1 state
+ * @dev: device
+ *
+ * Allow PCIe enter L1 and L1ss states
+ *
+ * Return: void
+ */
 void pld_allow_l1(struct device *dev);
 
 /**
@@ -601,13 +785,66 @@ void pld_allow_l1(struct device *dev);
  */
 int pld_set_pcie_gen_speed(struct device *dev, u8 pcie_gen_speed);
 
+/**
+ * pld_is_pci_link_down() - Notification for pci link down event
+ * @dev: device
+ *
+ * Notify platform that pci link is down.
+ *
+ * Return: void
+ */
 void pld_is_pci_link_down(struct device *dev);
+
+/**
+ * pld_get_bus_reg_dump() - Get bus reg dump
+ * @dev: device
+ * @buf: buffer for hang data
+ * @len: len of hang data
+ *
+ * Get pci reg dump for hang data.
+ *
+ * Return: void
+ */
 void pld_get_bus_reg_dump(struct device *dev, uint8_t *buf, uint32_t len);
+
 int pld_shadow_control(struct device *dev, bool enable);
+
+/**
+ * pld_schedule_recovery_work() - Schedule recovery work
+ * @dev: device
+ * @reason: recovery reason
+ *
+ * Schedule a system self recovery work.
+ *
+ * Return: void
+ */
 void pld_schedule_recovery_work(struct device *dev,
 				enum pld_recovery_reason reason);
+
+/**
+ * pld_wlan_hw_enable() - Enable WLAN HW
+ *
+ * This function enables WLAN HW. If WLAN is secured disabled at boot all wlan
+ * boot time activities are deferred. This is used to run deferred activities
+ * after wlan is enabled.
+ *
+ * Return: 0 for success
+ *         Non zero failure code for errors
+ */
 int pld_wlan_hw_enable(void);
+
 #ifdef FEATURE_WLAN_TIME_SYNC_FTM
+/**
+ * pld_get_audio_wlan_timestamp() - Get audio timestamp
+ * @dev: device pointer
+ * @type: trigger type
+ * @ts: audio timestamp
+ *
+ * This API can be used to get audio timestamp.
+ *
+ * Return: 0 if trigger to get audio timestamp is successful
+ *         Non zero failure code for errors
+ */
 int pld_get_audio_wlan_timestamp(struct device *dev,
 				 enum pld_wlan_time_sync_trigger_type type,
 				 uint64_t *ts);
@@ -811,7 +1048,28 @@ static inline int pld_get_driver_load_cnt(struct device *dev)
 	return -EINVAL;
 }
 #endif
+
+/**
+ * pld_wlan_pm_control() - WLAN PM control on PCIE
+ * @dev: device
+ * @vote: 0 for enable PCIE PC, 1 for disable PCIE PC
+ *
+ * This is for PCIE power collapse control during suspend/resume.
+ * When PCIE power collapse is disabled, WLAN FW can access memory
+ * through PCIE when system is suspended.
+ *
+ * Return: 0 for success
+ *         Non zero failure code for errors
+ */
 int pld_wlan_pm_control(struct device *dev, bool vote);
+
+/**
+ * pld_get_virt_ramdump_mem() - Get virtual ramdump memory
+ * @dev: device
+ * @size: buffer to virtual memory size
+ *
+ * Return: virtual ramdump memory address
+ */
 void *pld_get_virt_ramdump_mem(struct device *dev, unsigned long *size);
 
 /**
@@ -822,19 +1080,132 @@ void *pld_get_virt_ramdump_mem(struct device *dev, unsigned long *size);
  * Return: void
  */
 void pld_release_virt_ramdump_mem(struct device *dev, void *address);
+
+/**
+ * pld_device_crashed() - Notification for device crash event
+ * @dev: device
+ *
+ * Notify subsystem a device crashed event. A subsystem restart
+ * is expected to happen after calling this function.
+ *
+ * Return: void
+ */
 void pld_device_crashed(struct device *dev);
+
+/**
+ * pld_device_self_recovery() - Device self recovery
+ * @dev: device
+ * @reason: recovery reason
+ *
+ * Return: void
+ */
 void pld_device_self_recovery(struct device *dev,
 			      enum pld_recovery_reason reason);
+
+/**
+ * pld_intr_notify_q6() - Notify Q6 FW interrupts
+ * @dev: device
+ *
+ * Notify Q6 that a FW interrupt is triggered.
+ *
+ * Return: void
+ */
 void pld_intr_notify_q6(struct device *dev);
+
+/**
+ * pld_request_pm_qos() - Request system PM
+ * @dev: device
+ * @qos_val: request value
+ *
+ * It votes for the value of aggregate QoS expectations.
+ *
+ * Return: void
+ */
 void pld_request_pm_qos(struct device *dev, u32 qos_val);
+
+/**
+ * pld_remove_pm_qos() - Remove system PM
+ * @dev: device
+ *
+ * Remove the vote request for Qos expectations.
+ *
+ * Return: void
+ */
 void pld_remove_pm_qos(struct device *dev);
+
+/**
+ * pld_request_bus_bandwidth() - Request bus bandwidth
+ * @dev: device
+ * @bandwidth: bus bandwidth
+ *
+ * Votes for HIGH/MEDIUM/LOW bus bandwidth.
+ *
+ * Return: 0 for success
+ *         Non zero failure code for errors
+ */
 int pld_request_bus_bandwidth(struct device *dev, int bandwidth);
+
+/**
+ * pld_get_platform_cap() - Get platform capabilities
+ * @dev: device
+ * @cap: buffer to the capabilities
+ *
+ * Return capabilities to the buffer.
+ *
+ * Return: 0 for success
+ *         Non zero failure code for errors
+ */
 int pld_get_platform_cap(struct device *dev, struct pld_platform_cap *cap);
+
+/**
+ * pld_get_sha_hash() - Get sha hash number
+ * @dev: device
+ * @data: input data
+ * @data_len: data length
+ * @hash_idx: hash index
+ * @out:  output buffer
+ *
+ * Return computed hash to the out buffer.
+ *
+ * Return: 0 for success
+ *         Non zero failure code for errors
+ */
 int pld_get_sha_hash(struct device *dev, const u8 *data,
 		     u32 data_len, u8 *hash_idx, u8 *out);
+
+/**
+ * pld_get_fw_ptr() - Get secure FW memory address
+ * @dev: device
+ *
+ * Return: secure memory address
+ */
 void *pld_get_fw_ptr(struct device *dev);
+
+/**
+ * pld_auto_suspend() - Auto suspend
+ * @dev: device
+ *
+ * Return: 0 for success
+ *         Non zero failure code for errors
+ */
 int pld_auto_suspend(struct device *dev);
+
+/**
+ * pld_auto_resume() - Auto resume
+ * @dev: device
+ *
+ * Return: 0 for success
+ *         Non zero failure code for errors
+ */
 int pld_auto_resume(struct device *dev);
+
+/**
+ * pld_force_wake_request() - Request vote to assert WAKE register
+ * @dev: device
+ *
+ * Return: 0 for success
+ *         Non zero failure code for errors
+ */
 int pld_force_wake_request(struct device *dev);
 
 /**
@@ -865,35 +1236,228 @@ int pld_force_wake_request_sync(struct device *dev, int timeout_us);
  *         Non zero failure code for errors
  */
 int pld_exit_power_save(struct device *dev);
+
+/**
+ * pld_is_device_awake() - Check if it's ready to access MMIO registers
+ * @dev: device
+ *
+ * Return: True for device awake
+ *         False for device not awake
+ *         Negative failure code for errors
+ */
 int pld_is_device_awake(struct device *dev);
+
+/**
+ * pld_force_wake_release() - Release vote to assert WAKE register
+ * @dev: device
+ *
+ * Return: 0 for success
+ *         Non zero failure code for errors
+ */
 int pld_force_wake_release(struct device *dev);
+
+/**
+ * pld_ce_request_irq() - Register IRQ for CE
+ * @dev: device
+ * @ce_id: CE number
+ * @handler: IRQ callback function
+ * @flags: IRQ flags
+ * @name: IRQ name
+ * @ctx: IRQ context
+ *
+ * Return: 0 for success
+ *         Non zero failure code for errors
+ */
 int pld_ce_request_irq(struct device *dev, unsigned int ce_id,
 		       irqreturn_t (*handler)(int, void *),
 		       unsigned long flags, const char *name, void *ctx);
+
+/**
+ * pld_ce_free_irq() - Free IRQ for CE
+ * @dev: device
+ * @ce_id: CE number
+ * @ctx: IRQ context
+ *
+ * Return: 0 for success
+ *         Non zero failure code for errors
+ */
 int pld_ce_free_irq(struct device *dev, unsigned int ce_id, void *ctx);
+
+/**
+ * pld_enable_irq() - Enable IRQ for CE
+ * @dev: device
+ * @ce_id: CE number
+ *
+ * Return: void
+ */
 void pld_enable_irq(struct device *dev, unsigned int ce_id);
+
+/**
+ * pld_disable_irq() - Disable IRQ for CE
+ * @dev: device
+ * @ce_id: CE number
+ *
+ * Return: void
+ */
 void pld_disable_irq(struct device *dev, unsigned int ce_id);
+
+/**
+ * pld_get_soc_info() - Get SOC information
+ * @dev: device
+ * @info: buffer to SOC information
+ *
+ * Return SOC info to the buffer.
+ *
+ * Return: 0 for success
+ *         Non zero failure code for errors
+ */
 int pld_get_soc_info(struct device *dev, struct pld_soc_info *info);
+
+/**
+ * pld_get_mhi_state() - Get MHI state Info
+ * @dev: device
+ *
+ * MHI state can be determined by reading this address.
+ *
+ * Return: MHI state
+ */
 int pld_get_mhi_state(struct device *dev);
+
+/**
+ * pld_is_pci_ep_awake() - Check if PCI EP is L0 state
+ * @dev: device
+ *
+ * Return: True for PCI EP awake
+ *         False for PCI EP not awake
+ *         Negative failure code for errors
+ */
 int pld_is_pci_ep_awake(struct device *dev);
+
+/**
+ * pld_get_ce_id() - Get CE number for the provided IRQ
+ * @dev: device
+ * @irq: IRQ number
+ *
+ * Return: CE number
+ */
 int pld_get_ce_id(struct device *dev, int irq);
+
+/**
+ * pld_get_irq() - Get IRQ number for given CE ID
+ * @dev: device
+ * @ce_id: CE ID
+ *
+ * Return: IRQ number
+ */
 int pld_get_irq(struct device *dev, int ce_id);
+
+/**
+ * pld_lock_reg_window() - Lock register window spinlock
+ * @dev: device pointer
+ * @flags: variable pointer to save CPU states
+ *
+ * It uses spinlock_bh so avoid calling in top half context.
+ *
+ * Return: void
+ */
 void pld_lock_reg_window(struct device *dev, unsigned long *flags);
+
+/**
+ * pld_unlock_reg_window() - Unlock register window spinlock
+ * @dev: device pointer
+ * @flags: variable pointer to save CPU states
+ *
+ * It uses spinlock_bh so avoid calling in top half context.
+ *
+ * Return: void
+ */
 void pld_unlock_reg_window(struct device *dev, unsigned long *flags);
+
+/**
+ * pld_get_pci_slot() - Get PCI slot of attached device
+ * @dev: device
+ *
+ * Return: pci slot
+ */
 int pld_get_pci_slot(struct device *dev);
+
+/**
+ * pld_power_on() - Power on WLAN hardware
+ * @dev: device
+ *
+ * Return: 0 for success
+ *         Non zero failure code for errors
+ */
 int pld_power_on(struct device *dev);
+
+/**
+ * pld_power_off() - Power off WLAN hardware
+ * @dev: device
+ *
+ * Return: 0 for success
+ *         Non zero failure code for errors
+ */
 int pld_power_off(struct device *dev);
+
+/**
+ * pld_athdiag_read() - Read data from WLAN FW
+ * @dev: device
+ * @offset: address offset
+ * @memtype: memory type
+ * @datalen: data length
+ * @output: output buffer
+ *
+ * Return: 0 for success
+ *         Non zero failure code for errors
+ */
 int pld_athdiag_read(struct device *dev, uint32_t offset, uint32_t memtype,
 		     uint32_t datalen, uint8_t *output);
+
+/**
+ * pld_athdiag_write() - Write data to WLAN FW
+ * @dev: device
+ * @offset: address offset
+ * @memtype: memory type
+ * @datalen: data length
+ * @input: input buffer
+ *
+ * Return: 0 for success
+ *         Non zero failure code for errors
+ */
 int pld_athdiag_write(struct device *dev, uint32_t offset, uint32_t memtype,
 		      uint32_t datalen, uint8_t *input);
+
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 19, 0))
+/**
+ * pld_smmu_get_domain() - Get SMMU domain
+ * @dev: device
+ *
+ * Return: Pointer to the domain
+ */
 void *pld_smmu_get_domain(struct device *dev);
 #else
+/**
+ * pld_smmu_get_mapping() - Get SMMU mapping context
+ * @dev: device
+ *
+ * Return: Pointer to the mapping context
+ */
 void *pld_smmu_get_mapping(struct device *dev);
 #endif
+
+/**
+ * pld_smmu_map() - Map SMMU
+ * @dev: device
+ * @paddr: physical address that needs to map to
+ * @iova_addr: IOVA address
+ * @size: size to be mapped
+ *
+ * Return: 0 for success
+ *         Non zero failure code for errors
+ */
 int pld_smmu_map(struct device *dev, phys_addr_t paddr,
 		 uint32_t *iova_addr, size_t size);
+
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 15, 0))
 struct kobject *pld_get_wifi_kobj(struct device *dev);
 #else
@@ -902,6 +1466,16 @@ static inline struct kobject *pld_get_wifi_kobj(struct device *dev)
 	return NULL;
 }
 #endif
+
+/**
+ * pld_smmu_unmap() - Unmap SMMU
+ * @dev: device
+ * @iova_addr: IOVA address to be unmapped
+ * @size: size to be unmapped
+ *
+ * Return: 0 for success
+ *         Non zero failure code for errors
+ */
 #ifdef CONFIG_SMMU_S1_UNMAP
 int pld_smmu_unmap(struct device *dev,
 		   uint32_t iova_addr, size_t size);
@@ -912,25 +1486,182 @@ static inline int pld_smmu_unmap(struct device *dev,
 	return 0;
 }
 #endif
+
+/**
+ * pld_get_user_msi_assignment() - Get MSI assignment information
+ * @dev: device structure
+ * @user_name: name of the user who requests the MSI assignment
+ * @num_vectors: number of the MSI vectors assigned for the user
+ * @user_base_data: MSI base data assigned for the user, this equals to
+ *                  endpoint base data from config space plus base vector
+ * @base_vector: base MSI vector (offset) number assigned for the user
+ *
+ * Return: 0 for success
+ *         Negative failure code for errors
+ */
 int pld_get_user_msi_assignment(struct device *dev, char *user_name,
 				int *num_vectors, uint32_t *user_base_data,
 				uint32_t *base_vector);
+
+/**
+ * pld_get_msi_irq() - Get MSI IRQ number used for request_irq()
+ * @dev: device structure
+ * @vector: MSI vector (offset) number
+ *
+ * Return: Positive IRQ number for success
+ *         Negative failure code for errors
+ */
 int pld_get_msi_irq(struct device *dev, unsigned int vector);
+
+/**
+ * pld_get_msi_address() - Get the MSI address
+ * @dev: device structure
+ * @msi_addr_low: lower 32-bit of the address
+ * @msi_addr_high: higher 32-bit of the address
+ *
+ * Return: Void
+ */
 void pld_get_msi_address(struct device *dev, uint32_t *msi_addr_low,
 			 uint32_t *msi_addr_high);
+
+/**
+ * pld_is_drv_connected() - Check if DRV subsystem is connected
+ * @dev: device structure
+ *
+ *  Return: 1 DRV is connected
+ *          0 DRV is not connected
+ *          Non zero failure code for errors
+ */
 int pld_is_drv_connected(struct device *dev);
+
+/**
+ * pld_socinfo_get_serial_number() - Get SOC serial number
+ * @dev: device
+ *
+ * Return: SOC serial number
+ */
 unsigned int pld_socinfo_get_serial_number(struct device *dev);
+
+/**
+ * pld_is_qmi_disable() - Check QMI support is present or not
+ * @dev: device
+ *
+ *  Return: 1 QMI is not supported
+ *          0 QMI is supported
+ *          Non zero failure code for errors
+ */
 int pld_is_qmi_disable(struct device *dev);
+
+/**
+ * pld_is_fw_down() - Check WLAN fw is down or not
+ *
+ * @dev: device
+ *
+ * This API will be called to check if WLAN FW is down or not.
+ *
+ *  Return: 0 FW is not down
+ *          Otherwise FW is down
+ *          Always return 0 for unsupported bus type
+ */
 int pld_is_fw_down(struct device *dev);
+
+/**
+ * pld_force_assert_target() - Send a force assert request to FW.
+ * @dev: device pointer
+ *
+ * This can use various sideband requests available at platform driver to
+ * initiate a FW assert.
+ *
+ * Context: Any context
+ * Return:
+ * 0 - force assert of FW is triggered successfully.
+ * -EOPNOTSUPP - force assert is not supported.
+ * Other non-zero codes - other failures or errors
+ */
 int pld_force_assert_target(struct device *dev);
+
+/**
+ * pld_force_collect_target_dump() - Collect FW dump after asserting FW.
+ * @dev: device pointer
+ *
+ * This API will send force assert request to FW and wait till FW dump has
+ * been collected.
+ *
+ * Context: Process context only since this is a blocking call.
+ * Return:
+ * 0 - FW dump is collected successfully.
+ * -EOPNOTSUPP - forcing assert and collecting FW dump is not supported.
+ * -ETIMEDOUT - FW dump collection is timed out for any reason.
+ * Other non-zero codes - other failures or errors
+ */
 int pld_force_collect_target_dump(struct device *dev);
+
+/**
+ * pld_qmi_send_get() - Indicate certain data to be sent over QMI
+ * @dev: device pointer
+ *
+ * This API can be used to indicate certain data to be sent over QMI.
+ * pld_qmi_send() is expected to be called later.
+ *
+ * Return: 0 for success
+ *         Non zero failure code for errors
+ */
 int pld_qmi_send_get(struct device *dev);
+
+/**
+ * pld_qmi_send_put() - Indicate response sent over QMI has been processed
+ * @dev: device pointer
+ *
+ * This API can be used to indicate response of the data sent over QMI has
+ * been processed.
+ *
+ * Return: 0 for success
+ *         Non zero failure code for errors
+ */
 int pld_qmi_send_put(struct device *dev);
+
+/**
+ * pld_qmi_send() - Send data request over QMI
+ * @dev: device pointer
+ * @type: type of the send data operation
+ * @cmd: buffer pointer of send data request command
+ * @cmd_len: size of the command buffer
+ * @cb_ctx: context pointer if any to pass back in callback
+ * @cb: callback pointer to pass response back
+ *
+ * This API can be used to send data request over QMI.
+ *
+ * Return: 0 if data request sends successfully
+ *         Non zero failure code for errors
+ */
 int pld_qmi_send(struct device *dev, int type, void *cmd,
 		 int cmd_len, void *cb_ctx,
 		 int (*cb)(void *ctx, void *event, int event_len));
+
+/**
+ * pld_is_fw_dump_skipped() - get fw dump skipped status.
+ * @dev: device
+ *
+ * The subsys ssr status help the driver to decide whether to skip
+ * the FW memory dump when FW assert.
+ * For SDIO case, the memory dump progress takes 1 minutes to
+ * complete, which is not acceptable in SSR enabled.
+ *
+ * Return: true if need to skip FW dump.
+ */
 bool pld_is_fw_dump_skipped(struct device *dev);
 
+/**
+ * pld_is_low_power_mode() - Check WLAN fw is in low power
+ * @dev: device
+ *
+ * This API will be called to check if WLAN FW is in low power or not.
+ * Low power means either Deep Sleep or Hibernate state.
+ *
+ * Return: 0 FW is not in low power mode
+ *         Otherwise FW is low power mode
+ *         Always return 0 for unsupported bus type
+ */
 #ifdef CONFIG_ENABLE_LOW_POWER_MODE
 int pld_is_low_power_mode(struct device *dev);
 #else
@@ -942,6 +1673,7 @@ static inline int pld_is_low_power_mode(struct device *dev)
 
 /**
  * pld_is_pdr() - Check WLAN PD is Restarted
+ * @dev: device
  *
  * Help the driver decide whether FW down is due to
  * WLAN PD Restart.
@@ -953,6 +1685,7 @@ int pld_is_pdr(struct device *dev);
 
 /**
  * pld_is_fw_rejuvenate() - Check WLAN fw is rejuvenating
+ * @dev: device
  *
  * Help the driver decide whether FW down is due to
  * SSR or FW rejuvenate.
@@ -1155,6 +1888,23 @@ const char *pld_bus_width_type_to_str(enum pld_bus_width_type level);
 int pld_get_thermal_state(struct device *dev, unsigned long *thermal_state,
 			  int mon_id);
 
+/**
+ * pld_set_tsf_sync_period() - Set TSF sync period
+ * @dev: device
+ * @val: TSF sync time value
+ *
+ * Return: void
+ */
+void pld_set_tsf_sync_period(struct device *dev, u32 val);
+
+/**
+ * pld_reset_tsf_sync_period() - Reset TSF sync period
+ * @dev: device
+ *
+ * Return: void
+ */
+void pld_reset_tsf_sync_period(struct device *dev);
+
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 19, 0))
 /**
  * pld_is_ipa_offload_disabled() - Check if IPA offload is enabled or not
@@ -1164,7 +1914,8 @@ int pld_get_thermal_state(struct device *dev, unsigned long *thermal_state,
  */
 int pld_is_ipa_offload_disabled(struct device *dev);
 #else
-int pld_is_ipa_offload_disabled(struct device *dev);
+static inline
+int pld_is_ipa_offload_disabled(struct device *dev)
 {
 	return 0;
 }
@@ -1208,6 +1959,43 @@ static inline int pld_nbuf_pre_alloc_free(struct sk_buff *skb)
 	return 0;
 }
 #endif
+
+#ifdef CONFIG_AFC_SUPPORT
+/**
+ * pld_send_buffer_to_afcmem() - Send afc data to afc memory
+ * @dev: The device structure
+ * @afcdb: Pointer to afc data buffer
+ * @len: Length of afc data
+ * @slotid: Slot id of afc memory
+ *
+ * Return: Non-zero code for error; zero for success
+ */
+int pld_send_buffer_to_afcmem(struct device *dev, const uint8_t *afcdb,
+			      uint32_t len, uint8_t slotid);
+
+/**
+ * pld_reset_afcmem() - Reset afc data in afc memory
+ * @dev: The device structure
+ * @slotid: Slot id of afc memory
+ *
+ * Return: Non-zero code for error; zero for success
+ */
+int pld_reset_afcmem(struct device *dev, uint8_t slotid);
+#else
+static inline
+int pld_send_buffer_to_afcmem(struct device *dev, const uint8_t *afcdb,
+			      uint32_t len, uint8_t slotid)
+{
+	return -EINVAL;
+}
+
+static inline
+int pld_reset_afcmem(struct device *dev, uint8_t slotid)
+{
+	return -EINVAL;
+}
+#endif
+
 /**
  * pld_get_bus_type() - Bus type of the device
  * @dev: device

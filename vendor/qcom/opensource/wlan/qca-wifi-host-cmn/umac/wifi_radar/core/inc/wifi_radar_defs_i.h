@@ -1,10 +1,10 @@
 /*
- * Copyright (c) 2021-2022, Qualcomm Innovation Center, Inc. All rights reserved.
-
+ * Copyright (c) 2021-2023, Qualcomm Innovation Center, Inc. All rights reserved.
+ *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
  * copyright notice and this permission notice appear in all copies.
-
+ *
  * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
  * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
  * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
@@ -32,8 +32,8 @@
 /**
  * wlan_wifi_radar_psoc_obj_create_handler() -
  * psoc object create handler for WiFi Radar
- * @psoc - pointer to psoc object
- * @args - void pointer in case it needs arguments
+ * @psoc: pointer to psoc object
+ * @arg: void pointer in case it needs arguments
  *
  * Return: status of object creation
  */
@@ -44,8 +44,8 @@ struct wlan_objmgr_psoc *psoc, void *arg);
 /**
  * wlan_wifi_radar_psoc_obj_destroy_handler() -
  * psoc object destroy handler for WiFi Radar
- * @psoc - pointer to psoc object
- * @args - void pointer in case it needs arguments
+ * @psoc: pointer to psoc object
+ * @arg: void pointer in case it needs arguments
  *
  * Return: status of destroy object
  */
@@ -56,8 +56,8 @@ struct wlan_objmgr_psoc *psoc, void *arg);
 /**
  * wlan_wifi_radar_pdev_obj_create_handler() -
  * pdev object create handler for WiFi Radar
- * @pdev - pointer to pdev object
- * @args - void pointer in case it needs arguments
+ * @pdev: pointer to pdev object
+ * @arg: void pointer in case it needs arguments
  *
  * Return: status of object creation
  */
@@ -68,8 +68,8 @@ struct wlan_objmgr_pdev *pdev, void *arg);
 /**
  * wlan_wifi_radar_pdev_obj_destroy_handler() -
  * pdev object destroy handler for WiFi Radar
- * @pdev - pointer to pdev object
- * @args - void pointer in case it needs arguments
+ * @pdev: pointer to pdev object
+ * @arg: void pointer in case it needs arguments
  *
  * Return: status of destroy object
  */
@@ -80,8 +80,8 @@ struct wlan_objmgr_pdev *pdev, void *arg);
 /**
  * wlan_wifi_radar_peer_obj_create_handler() -
  * peer object create handler for WiFi Radar
- * @peer - pointer to peer object
- * @args - void pointer in case it needs arguments
+ * @peer: pointer to peer object
+ * @arg: void pointer in case it needs arguments
  *
  * Return: status of object creation
  */
@@ -92,8 +92,8 @@ struct wlan_objmgr_peer *peer, void *arg);
 /**
  * wlan_wifi_radar_peer_obj_destroy_handler() -
  * peer object destroy handler for WiFi radar
- * @peer - pointer to peer object
- * @args - void pointer in case it needs arguments
+ * @peer: pointer to peer object
+ * @arg: void pointer in case it needs arguments
  *
  * Return: status ofi destroy object
  */
@@ -103,7 +103,7 @@ struct wlan_objmgr_peer *peer, void *arg);
 
 /**
  * wifi_radar_streamfs_init() - stream filesystem init
- * @pdev - pointer to pdev object
+ * @pdev: pointer to pdev object
  *
  * Return: status of fs init
  */
@@ -112,7 +112,7 @@ wifi_radar_streamfs_init(struct wlan_objmgr_pdev *pdev);
 
 /**
  * wifi_radar_streamfs_remove() - stream filesystem remove
- * @pdev - pointer to pdev object
+ * @pdev: pointer to pdev object
  *
  * Return: status of fs remove
  */
@@ -121,9 +121,9 @@ wifi_radar_streamfs_remove(struct wlan_objmgr_pdev *pdev);
 
 /**
  * wifi_radar_streamfs_write() - write to stream filesystem
- * @pa - pointer to pdev_cfr object
- * @write_data - Pointer to data
- * @write_len - data len
+ * @pa: pointer to pdev_cfr object
+ * @write_data: Pointer to data
+ * @write_len: data len
  *
  * Return: status of fs write
  */
@@ -134,7 +134,7 @@ size_t write_len);
 
 /**
  * wifi_radar_streamfs_flush() - flush the write to streamfs
- * @pa - pointer to pdev_cfr object
+ * @pa: pointer to pdev_cfr object
  *
  * Return: status of fs flush
  */

@@ -1,6 +1,6 @@
-/**
+/*
  * Copyright (c) 2020 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -35,7 +35,7 @@
 #define WLAN_CFG_CE_STATUS_RING_BATCH_COUNT_THRESH_DEFAULT 1
 
 #ifdef WLAN_CE_INTERRUPT_THRESHOLD_CONFIG
-/**
+/*
  * <ini>
  * ce_status_ring_timer_thresh - ce status srng timer threshold
  * @Min: 0
@@ -62,7 +62,7 @@
 
 #define CFG_RING_TIMER_THRESHOLD CFG(CFG_CE_STATUS_RING_TIMER_THRESHOLD)
 
-/**
+/*
  * <ini>
  * ce_status_ring_batch_count_thresh - ce status srng batch count threshold
  * @Min: 0
@@ -120,9 +120,32 @@
 	0, \
 	"Disable wake IRQ")
 
+/*
+ * <ini>
+ * irq_affine_audio_use_case - IRQ affinity for audio use case supported
+ * @Min: 0
+ * @Max: 1
+ * @Default: 0
+ *
+ * This ini controls driver to enable IRQ affinity for Pro audio use case.
+ *
+ * Related: None.
+ *
+ * Supported Feature: IRQ Affinity
+ *
+ * Usage: External
+ *
+ * </ini>
+ */
+#define CFG_IRQ_AFFINE_AUDIO_USE_CASE CFG_INI_BOOL( \
+	"irq_affine_audio_use_case", \
+	0, \
+	"Enable IRQ affinity for audio use case")
+
 #define CFG_HIF \
 	CFG_RING_TIMER_THRESHOLD \
 	CFG_BATCH_COUNT_THRESHOLD \
-	CFG(CFG_DISABLE_WAKE_IRQ)
+	CFG(CFG_DISABLE_WAKE_IRQ) \
+	CFG(CFG_IRQ_AFFINE_AUDIO_USE_CASE)
 
 #endif /* _CFG_HIF_H_ */

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -15,7 +15,7 @@
  */
 
 /**
- * DOC : contains interface prototypes for OS_IF layer
+ * DOC: contains interface prototypes for OS_IF layer
  */
 #include <qdf_trace.h>
 #include <spatial_reuse_ucfg_api.h>
@@ -138,12 +138,16 @@ QDF_STATUS ucfg_spatial_reuse_operation_allowed(struct wlan_objmgr_psoc *psoc,
 {
 	uint32_t conc_vdev_id;
 	uint8_t vdev_id, mac_id;
-	QDF_STATUS status;
+	QDF_STATUS status = QDF_STATUS_SUCCESS;
 
 	if (!vdev || !psoc)
 		return QDF_STATUS_E_NULL_VALUE;
 
 	vdev_id = wlan_vdev_get_id(vdev);
+	if (!policy_mgr_get_connection_count(psoc)) {
+		mlme_debug("No active vdev");
+		return status;
+	}
 	status = policy_mgr_get_mac_id_by_session_id(psoc, vdev_id, &mac_id);
 	if (QDF_IS_STATUS_ERROR(status))
 		return status;
@@ -152,6 +156,5 @@ QDF_STATUS ucfg_spatial_reuse_operation_allowed(struct wlan_objmgr_psoc *psoc,
 	if (conc_vdev_id != WLAN_INVALID_VDEV_ID &&
 	    !policy_mgr_sr_same_mac_conc_enabled(psoc))
 		return QDF_STATUS_E_NOSUPPORT;
-
 	return status;
 }

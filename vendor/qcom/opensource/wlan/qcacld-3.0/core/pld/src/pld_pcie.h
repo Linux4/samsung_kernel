@@ -57,8 +57,27 @@ static inline int pld_pcie_get_ce_id(struct device *dev, int irq)
 	return 0;
 }
 #else
+/**
+ * pld_pcie_register_driver() - Register PCIE device callback functions
+ *
+ * Return: int
+ */
 int pld_pcie_register_driver(void);
+
+/**
+ * pld_pcie_unregister_driver() - Unregister PCIE device callback functions
+ *
+ * Return: void
+ */
 void pld_pcie_unregister_driver(void);
+
+/**
+ * pld_pcie_get_ce_id() - Get CE number for the provided IRQ
+ * @dev: device
+ * @irq: IRQ number
+ *
+ * Return: CE number
+ */
 int pld_pcie_get_ce_id(struct device *dev, int irq);
 #endif
 
@@ -83,9 +102,35 @@ static inline int pld_pcie_wlan_hw_enable(void)
 }
 
 #else
+
+/**
+ * pld_pcie_wlan_enable() - Enable WLAN
+ * @dev: device
+ * @config: WLAN configuration data
+ * @mode: WLAN mode
+ * @host_version: host software version
+ *
+ * This function enables WLAN FW. It passed WLAN configuration data,
+ * WLAN mode and host software version to FW.
+ *
+ * Return: 0 for success
+ *         Non zero failure code for errors
+ */
 int pld_pcie_wlan_enable(struct device *dev, struct pld_wlan_enable_cfg *config,
 			 enum pld_driver_mode mode, const char *host_version);
+
+/**
+ * pld_pcie_wlan_disable() - Disable WLAN
+ * @dev: device
+ * @mode: WLAN mode
+ *
+ * This function disables WLAN FW. It passes WLAN mode to FW.
+ *
+ * Return: 0 for success
+ *         Non zero failure code for errors
+ */
 int pld_pcie_wlan_disable(struct device *dev, enum pld_driver_mode mode);
+
 #ifdef FEATURE_CNSS_HW_SECURE_DISABLE
 static inline int pld_pcie_wlan_hw_enable(void)
 {
@@ -278,6 +323,14 @@ static inline void pld_pcie_request_pm_qos(struct device *dev, u32 qos_val)
 }
 
 static inline void pld_pcie_remove_pm_qos(struct device *dev)
+{
+}
+
+static inline void pld_pcie_set_tsf_sync_period(struct device *dev, u32 val)
+{
+}
+
+static inline void pld_pcie_reset_tsf_sync_period(struct device *dev)
 {
 }
 
@@ -488,13 +541,63 @@ static inline int pld_pcie_set_wfc_mode(struct device *dev,
 }
 #endif
 
+/**
+ * pld_pcie_get_fw_files_for_target() - Get FW file names
+ * @dev: device
+ * @pfw_files: buffer for FW file names
+ * @target_type: target type
+ * @target_version: target version
+ *
+ * Return target specific FW file names to the buffer.
+ *
+ * Return: 0 for success
+ *         Non zero failure code for errors
+ */
 int pld_pcie_get_fw_files_for_target(struct device *dev,
 				     struct pld_fw_files *pfw_files,
 				     u32 target_type, u32 target_version);
+
+/**
+ * pld_pcie_get_platform_cap() - Get platform capabilities
+ * @dev: device
+ * @cap: buffer to the capabilities
+ *
+ * Return capabilities to the buffer.
+ *
+ * Return: 0 for success
+ *         Non zero failure code for errors
+ */
 int pld_pcie_get_platform_cap(struct device *dev, struct pld_platform_cap *cap);
+
+/**
+ * pld_pcie_get_soc_info() - Get SOC information
+ * @dev: device
+ * @info: buffer to SOC information
+ *
+ * Return SOC info to the buffer.
+ *
+ * Return: 0 for success
+ *         Non zero failure code for errors
+ */
 int pld_pcie_get_soc_info(struct device *dev, struct pld_soc_info *info);
+
+/**
+ * pld_pcie_schedule_recovery_work() - schedule recovery work
+ * @dev: device
+ * @reason: recovery reason
+ *
+ * Return: void
+ */
 void pld_pcie_schedule_recovery_work(struct device *dev,
 				     enum pld_recovery_reason reason);
+
+/**
+ * pld_pcie_device_self_recovery() - device self recovery
+ * @dev: device
+ * @reason: recovery reason
+ *
+ * Return: void
+ */
 void pld_pcie_device_self_recovery(struct device *dev,
 				   enum pld_recovery_reason reason);
 static inline int pld_pcie_collect_rddm(struct device *dev)
@@ -648,6 +751,25 @@ static inline void pld_pcie_remove_pm_qos(struct device *dev)
 	cnss_remove_pm_qos(dev);
 }
 
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0))
+static inline void pld_pcie_set_tsf_sync_period(struct device *dev, u32 val)
+{
+	cnss_update_time_sync_period(dev, val);
+}
+
+static inline void pld_pcie_reset_tsf_sync_period(struct device *dev)
+{
+	cnss_reset_time_sync_period(dev);
+}
+#else
+static inline void pld_pcie_set_tsf_sync_period(struct device *dev, u32 val)
+{
+}
+
+static inline void pld_pcie_reset_tsf_sync_period(struct device *dev)
+{
+}
+#endif
 static inline int pld_pcie_request_bus_bandwidth(struct device *dev,
 						 int bandwidth)
 {
@@ -697,7 +819,7 @@ static inline void pld_pcie_unlock_reg_window(struct device *dev,
 	cnss_pci_unlock_reg_window(dev, flags);
 }
 
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0))
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 4, 0))
 static inline int pld_pcie_get_pci_slot(struct device *dev)
 {
 	return cnss_get_pci_slot(dev);

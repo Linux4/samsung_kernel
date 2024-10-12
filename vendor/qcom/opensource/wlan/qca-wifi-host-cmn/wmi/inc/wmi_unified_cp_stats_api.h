@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2013-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2021 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021,2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -24,8 +24,10 @@
 #ifdef QCA_SUPPORT_MC_CP_STATS
 #include <wmi_unified_mc_cp_stats_api.h>
 #endif
+#include <wlan_cp_stats_public_structs.h>
 
-#ifdef WLAN_SUPPORT_INFRA_CTRL_PATH_STATS
+#if defined(WLAN_SUPPORT_INFRA_CTRL_PATH_STATS) || \
+	defined(WLAN_CONFIG_TELEMETRY_AGENT)
 /**
  * wmi_unified_infra_cp_stats_request_send() - WMI request infra_cp_stats
  * function
@@ -56,7 +58,16 @@ wmi_unified_extract_infra_cp_stats(wmi_unified_t wmi_handle,
 				   void *evt_buf, uint32_t evt_buf_len,
 				   struct infra_cp_stats_event *params);
 
-QDF_STATUS wmi_stats_handler(void *buff, int32_t len,
+/**
+ * wmi_stats_handler() - parse the wmi event and fill the stats values
+ * @wmi_handle: wmi handle
+ * @buff: Buffer containing wmi event
+ * @len: length of event buffer
+ * @params: buffer to hold parameters extracted from response event
+ *
+ * Return: QDF_STATUS_SUCCESS on success, else other qdf error values
+ */
+QDF_STATUS wmi_stats_handler(wmi_unified_t wmi_handle, void *buff, int32_t len,
 			     struct infra_cp_stats_event *params);
 
 QDF_STATUS

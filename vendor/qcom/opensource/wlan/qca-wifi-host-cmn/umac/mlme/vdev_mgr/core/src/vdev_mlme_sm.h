@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2018-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -83,8 +83,8 @@ void mlme_vdev_sm_history_print(struct vdev_mlme_obj *vdev_mlme);
 #endif
 
 /**
- * mlme_vdev_sm_create - Invoke SME creation for VDEV
- * @vdev_mlme_obj:  VDEV MLME comp object
+ * mlme_vdev_sm_create() - Invoke SME creation for VDEV
+ * @vdev_mlme:  VDEV MLME comp object
  *
  * API allocates VDEV MLME SM and initializes SM lock
  *
@@ -94,8 +94,8 @@ void mlme_vdev_sm_history_print(struct vdev_mlme_obj *vdev_mlme);
 QDF_STATUS mlme_vdev_sm_create(struct vdev_mlme_obj *vdev_mlme);
 
 /**
- * mlme_vdev_sm_destroy - Invoke SME destroy for VDEV
- * @vdev_mlme_obj:  VDEV MLME comp object
+ * mlme_vdev_sm_destroy() - Invoke SME destroy for VDEV
+ * @vdev_mlme:  VDEV MLME comp object
  *
  * API frees VDEV MLME SM and destroys the SM lock
  *
@@ -105,8 +105,8 @@ QDF_STATUS mlme_vdev_sm_create(struct vdev_mlme_obj *vdev_mlme);
 QDF_STATUS mlme_vdev_sm_destroy(struct vdev_mlme_obj *vdev_mlme);
 
 /**
- * mlme_vdev_validate_basic_params - Validate basic params
- * @vdev_mlme_obj:  VDEV MLME comp object
+ * mlme_vdev_validate_basic_params() - Validate basic params
+ * @vdev_mlme:  VDEV MLME comp object
  * @event_data_len: data size
  * @event_data: event data
  *
@@ -129,8 +129,8 @@ static inline QDF_STATUS mlme_vdev_validate_basic_params(
 }
 
 /**
- * mlme_vdev_reset_proto_params - Reset VDEV protocol params
- * @vdev_mlme_obj:  VDEV MLME comp object
+ * mlme_vdev_reset_proto_params() - Reset VDEV protocol params
+ * @vdev_mlme:  VDEV MLME comp object
  * @event_data_len: data size
  * @event_data: event data
  *
@@ -153,8 +153,8 @@ static inline QDF_STATUS mlme_vdev_reset_proto_params(
 }
 
 /**
- * mlme_vdev_start_send - Invokes VDEV start operation
- * @vdev_mlme_obj:  VDEV MLME comp object
+ * mlme_vdev_start_send() - Invokes VDEV start operation
+ * @vdev_mlme:  VDEV MLME comp object
  * @event_data_len: data size
  * @event_data: event data
  *
@@ -177,8 +177,8 @@ static inline QDF_STATUS mlme_vdev_start_send(
 }
 
 /**
- * mlme_vdev_restart_send - Invokes VDEV restart operation
- * @vdev_mlme_obj:  VDEV MLME comp object
+ * mlme_vdev_restart_send() - Invokes VDEV restart operation
+ * @vdev_mlme:  VDEV MLME comp object
  * @event_data_len: data size
  * @event_data: event data
  *
@@ -201,8 +201,8 @@ static inline QDF_STATUS mlme_vdev_restart_send(
 }
 
 /**
- * mlme_vdev_stop_start_send - Invoke block VDEV restart operation
- * @vdev_mlme_obj:  VDEV MLME comp object
+ * mlme_vdev_stop_start_send() - Invoke block VDEV restart operation
+ * @vdev_mlme:  VDEV MLME comp object
  * @restart: restart req/start req
  * @event_data_len: data size
  * @event_data: event data
@@ -226,8 +226,8 @@ static inline QDF_STATUS mlme_vdev_stop_start_send(
 }
 
 /**
- * mlme_vdev_start_continue - VDEV start response handling
- * @vdev_mlme_obj:  VDEV MLME comp object
+ * mlme_vdev_start_continue() - VDEV start response handling
+ * @vdev_mlme:  VDEV MLME comp object
  * @event_data_len: data size
  * @event_data: event data
  *
@@ -250,8 +250,8 @@ static inline QDF_STATUS mlme_vdev_start_continue(
 }
 
 /**
- * mlme_vdev_start_req_failed - Invoke Station VDEV connection, if it pause
- * @vdev_mlme_obj:  VDEV MLME comp object
+ * mlme_vdev_start_req_failed() - Invoke Station VDEV connection, if it pause
+ * @vdev_mlme:  VDEV MLME comp object
  * @event_data_len: data size
  * @event_data: event data
  *
@@ -274,8 +274,8 @@ static inline QDF_STATUS mlme_vdev_start_req_failed(
 }
 
 /**
- * mlme_vdev_sta_conn_start - Invoke Station VDEV connection, if it pause
- * @vdev_mlme_obj:  VDEV MLME comp object
+ * mlme_vdev_sta_conn_start() - Invoke Station VDEV connection, if it pause
+ * @vdev_mlme:  VDEV MLME comp object
  * @event_data_len: data size
  * @event_data: event data
  *
@@ -298,8 +298,8 @@ static inline QDF_STATUS mlme_vdev_sta_conn_start(
 }
 
 /**
- * mlme_vdev_sta_disconn_start - Invoke Station VDEV disconnection
- * @vdev_mlme_obj:  VDEV MLME comp object
+ * mlme_vdev_sta_disconn_start() - Invoke Station VDEV disconnection
+ * @vdev_mlme:  VDEV MLME comp object
  * @event_data_len: data size
  * @event_data: event data
  *
@@ -322,8 +322,8 @@ static inline QDF_STATUS mlme_vdev_sta_disconn_start(
 }
 
 /**
- * mlme_vdev_up_send - VDEV up operation
- * @vdev_mlme_obj:  VDEV MLME comp object
+ * mlme_vdev_up_send() - VDEV up operation
+ * @vdev_mlme:  VDEV MLME comp object
  * @event_data_len: data size
  * @event_data: event data
  *
@@ -346,8 +346,8 @@ static inline QDF_STATUS mlme_vdev_up_send(
 }
 
 /**
- * mlme_vdev_notify_up_complete - VDEV up state transition notification
- * @vdev_mlme_obj:  VDEV MLME comp object
+ * mlme_vdev_notify_up_complete() - VDEV up state transition notification
+ * @vdev_mlme:  VDEV MLME comp object
  * @event_data_len: data size
  * @event_data: event data
  *
@@ -371,8 +371,8 @@ QDF_STATUS mlme_vdev_notify_up_complete(struct vdev_mlme_obj *vdev_mlme,
 }
 
 /**
- * mlme_vdev_notify_roam_start - VDEV Roaming notification
- * @vdev_mlme_obj:  VDEV MLME comp object
+ * mlme_vdev_notify_roam_start() - VDEV Roaming notification
+ * @vdev_mlme:  VDEV MLME comp object
  * @event_len: data size
  * @event_data: event data
  *
@@ -396,8 +396,8 @@ QDF_STATUS mlme_vdev_notify_roam_start(struct vdev_mlme_obj *vdev_mlme,
 }
 
 /**
- * mlme_vdev_update_beacon - Updates beacon
- * @vdev_mlme_obj:  VDEV MLME comp object
+ * mlme_vdev_update_beacon() - Updates beacon
+ * @vdev_mlme:  VDEV MLME comp object
  * @op: beacon update type
  * @event_data_len: data size
  * @event_data: event data
@@ -422,10 +422,12 @@ QDF_STATUS mlme_vdev_update_beacon(struct vdev_mlme_obj *vdev_mlme,
 }
 
 /**
- * mlme_vdev_disconnect_peers - Disconnect peers
- * @vdev_mlme_obj:  VDEV MLME comp object
+ * mlme_vdev_disconnect_peers() - Disconnect peers
+ * @vdev_mlme:  VDEV MLME comp object
  * @event_data_len: data size
  * @event_data: event data
+ * @discon_legacy_only: flag indicating that only legacy peer to be
+ * disconnected
  *
  * API trigger stations disconnection with AP VDEV or AP disconnection with STA
  * VDEV
@@ -435,20 +437,22 @@ QDF_STATUS mlme_vdev_update_beacon(struct vdev_mlme_obj *vdev_mlme,
  */
 static inline QDF_STATUS mlme_vdev_disconnect_peers(
 				struct vdev_mlme_obj *vdev_mlme,
-				uint16_t event_data_len, void *event_data)
+				uint16_t event_data_len, void *event_data,
+				bool discon_legacy_only)
 {
 	QDF_STATUS ret = QDF_STATUS_SUCCESS;
 
 	if ((vdev_mlme->ops) && vdev_mlme->ops->mlme_vdev_disconnect_peers)
 		ret = vdev_mlme->ops->mlme_vdev_disconnect_peers(
-					vdev_mlme, event_data_len, event_data);
+					vdev_mlme, event_data_len, event_data,
+					discon_legacy_only);
 
 	return ret;
 }
 
 /**
- * mlme_vdev_dfs_cac_timer_stop - Stop CAC timer
- * @vdev_mlme_obj:  VDEV MLME comp object
+ * mlme_vdev_dfs_cac_timer_stop() - Stop CAC timer
+ * @vdev_mlme:  VDEV MLME comp object
  * @event_data_len: data size
  * @event_data: event data
  *
@@ -471,8 +475,8 @@ static inline QDF_STATUS mlme_vdev_dfs_cac_timer_stop(
 }
 
 /**
- * mlme_vdev_stop_send - Invokes VDEV stop operation
- * @vdev_mlme_obj:  VDEV MLME comp object
+ * mlme_vdev_stop_send() - Invokes VDEV stop operation
+ * @vdev_mlme:  VDEV MLME comp object
  * @event_data_len: data size
  * @event_data: event data
  *
@@ -495,8 +499,8 @@ static inline QDF_STATUS mlme_vdev_stop_send(
 }
 
 /**
- * mlme_vdev_stop_continue - VDEV stop response handling
- * @vdev_mlme_obj:  VDEV MLME comp object
+ * mlme_vdev_stop_continue() - VDEV stop response handling
+ * @vdev_mlme:  VDEV MLME comp object
  * @event_data_len: data size
  * @event_data: event data
  *
@@ -520,8 +524,8 @@ static inline QDF_STATUS mlme_vdev_stop_continue(
 }
 
 /**
- * mlme_vdev_down_send - VDEV down operation
- * @vdev_mlme_obj:  VDEV MLME comp object
+ * mlme_vdev_down_send() - VDEV down operation
+ * @vdev_mlme:  VDEV MLME comp object
  * @event_data_len: data size
  * @event_data: event data
  *
@@ -544,8 +548,8 @@ static inline QDF_STATUS mlme_vdev_down_send(
 }
 
 /**
- * mlme_vdev_notify_down_complete - VDEV init state transition notification
- * @vdev_mlme_obj:  VDEV MLME comp object
+ * mlme_vdev_notify_down_complete() - VDEV init state transition notification
+ * @vdev_mlme:  VDEV MLME comp object
  * @event_data_len: data size
  * @event_data: event data
  *
@@ -568,8 +572,8 @@ static inline QDF_STATUS mlme_vdev_notify_down_complete(
 }
 
 /**
- * mlme_vdev_notify_start_state_exit - VDEV SM start state exit notification
- * @vdev_mlme_obj:  VDEV MLME comp object
+ * mlme_vdev_notify_start_state_exit() - VDEV SM start state exit notification
+ * @vdev_mlme:  VDEV MLME comp object
  *
  * API notifies on start state exit
  *
@@ -590,8 +594,8 @@ static inline QDF_STATUS mlme_vdev_notify_start_state_exit(
 }
 
 /**
- * mlme_vdev_is_newchan_no_cac - Checks new channel requires CAC
- * @vdev_mlme_obj:  VDEV MLME comp object
+ * mlme_vdev_is_newchan_no_cac() - Checks new channel requires CAC
+ * @vdev_mlme:  VDEV MLME comp object
  *
  * API checks whether Channel needs CAC period,
  * if yes, it moves to SUSPEND_RESTART to disconnect stations before
@@ -612,8 +616,8 @@ static inline QDF_STATUS mlme_vdev_is_newchan_no_cac(
 }
 
 /**
- * mlme_vdev_dfs_cac_wait_notify - Notifies DFS CAC wait state
- * @vdev_mlme_obj:  VDEV MLME comp object
+ * mlme_vdev_dfs_cac_wait_notify() - Notifies DFS CAC wait state
+ * @vdev_mlme:  VDEV MLME comp object
  *
  * Return: NO_SUPPORT if the callback is not supported.
  *         SUCCESS if DFS CAC Wait notification handled by caller
@@ -630,7 +634,7 @@ static inline QDF_STATUS mlme_vdev_dfs_cac_wait_notify(
 }
 
 /**
- * mlme_vdev_chan_switch_disable_notify_dfs - Notifies DFS when channel
+ * mlme_vdev_chan_switch_disable_notify_dfs() - Notifies DFS when channel
  * switch is disabled
  * @vdev_mlme: VDEV MLME comp object
  *
@@ -643,7 +647,7 @@ static inline QDF_STATUS mlme_vdev_chan_switch_disable_notify_dfs(
 }
 #ifdef WLAN_FEATURE_11BE_MLO
 /**
- * mlme_vdev_up_notify_mlo_mgr - notify mlo link is ready to up
+ * mlme_vdev_up_notify_mlo_mgr() - notify mlo link is ready to up
  * @vdev_mlme:  VDEV MLME comp object
  *
  * Return: true if MLO_SYNC_COMPLETE is posted, else false
@@ -657,8 +661,8 @@ static inline bool mlme_vdev_up_notify_mlo_mgr(struct vdev_mlme_obj *vdev_mlme)
 }
 
 /**
- * mlme_vdev_start_rsp_notify_mlo_mgr - notify mlo link is started
- * @vdev_mlme_obj:  VDEV MLME comp object
+ * mlme_vdev_start_rsp_notify_mlo_mgr() - notify mlo link is started
+ * @vdev_mlme:  VDEV MLME comp object
  *
  * Return: VOID.
  */
@@ -670,8 +674,8 @@ static inline void mlme_vdev_start_rsp_notify_mlo_mgr(
 }
 
 /**
- * mlme_vdev_down_cmpl_notify_mlo_mgr - notify mlo link is down complete
- * @vdev_mlme_obj:  VDEV MLME comp object
+ * mlme_vdev_down_cmpl_notify_mlo_mgr() - notify mlo link is down complete
+ * @vdev_mlme:  VDEV MLME comp object
  *
  * Return: VOID.
  */
@@ -683,8 +687,8 @@ static inline void mlme_vdev_down_cmpl_notify_mlo_mgr(
 }
 
 /**
- * mlme_vdev_up_active_notify_mlo_mgr - notify mlo link is up active
- * @vdev_mlme_obj:  VDEV MLME comp object
+ * mlme_vdev_up_active_notify_mlo_mgr() - notify mlo link is up active
+ * @vdev_mlme:  VDEV MLME comp object
  *
  * Return: VOID.
  */
@@ -697,8 +701,8 @@ static inline void mlme_vdev_up_active_notify_mlo_mgr(
 }
 
 /**
- * mlme_vdev_notify_mlo_sync_wait_entry - Notifies mlo sync wait state
- * @vdev_mlme_obj:  VDEV MLME comp object
+ * mlme_vdev_notify_mlo_sync_wait_entry() - Notifies mlo sync wait state
+ * @vdev_mlme:  VDEV MLME comp object
  *
  * Return: NO_SUPPORT if the callback is not supported.
  *         SUCCESS if notification is handled by caller
@@ -744,8 +748,8 @@ static inline QDF_STATUS mlme_vdev_notify_mlo_sync_wait_entry(
 
 #ifdef VDEV_SM_LOCK_SUPPORT
 /**
- * mlme_vdev_sm_spinlock_create - Create VDEV MLME spinlock
- * @vdev_mlme_obj:  VDEV MLME comp object
+ * mlme_vdev_sm_spinlock_create() - Create VDEV MLME spinlock
+ * @vdev_mlme:  VDEV MLME comp object
  *
  * Creates VDEV MLME spinlock
  *
@@ -757,8 +761,8 @@ static inline void mlme_vdev_sm_spinlock_create(struct vdev_mlme_obj *vdev_mlme)
 }
 
 /**
- * mlme_vdev_sm_spinlock_destroy - Destroy VDEV MLME spinlock
- * @vdev_mlme_obj:  VDEV MLME comp object
+ * mlme_vdev_sm_spinlock_destroy() - Destroy VDEV MLME spinlock
+ * @vdev_mlme:  VDEV MLME comp object
  *
  * Destroy VDEV MLME spinlock
  *
@@ -771,8 +775,8 @@ static inline void mlme_vdev_sm_spinlock_destroy(
 }
 
 /**
- * mlme_vdev_sm_spin_lock - acquire spinlock
- * @vdev_mlme_obj:  vdev mlme comp object
+ * mlme_vdev_sm_spin_lock() - acquire spinlock
+ * @vdev_mlme:  vdev mlme comp object
  *
  * acquire vdev mlme spinlock
  *
@@ -784,8 +788,8 @@ static inline void mlme_vdev_sm_spin_lock(struct vdev_mlme_obj *vdev_mlme)
 }
 
 /**
- * mlme_vdev_sm_spin_unlock - release spinlock
- * @vdev_mlme_obj:  vdev mlme comp object
+ * mlme_vdev_sm_spin_unlock() - release spinlock
+ * @vdev_mlme:  vdev mlme comp object
  *
  * release vdev mlme spinlock
  *
@@ -797,8 +801,8 @@ static inline void mlme_vdev_sm_spin_unlock(struct vdev_mlme_obj *vdev_mlme)
 }
 
 /**
- * mlme_vdev_cmd_mutex_create - Create VDEV MLME cmd mutex
- * @vdev_mlme_obj:  VDEV MLME comp object
+ * mlme_vdev_cmd_mutex_create() - Create VDEV MLME cmd mutex
+ * @vdev_mlme:  VDEV MLME comp object
  *
  * Creates VDEV MLME cmd mutex
  *
@@ -811,8 +815,8 @@ mlme_vdev_cmd_mutex_create(struct vdev_mlme_obj *vdev_mlme)
 }
 
 /**
- * mlme_vdev_cmd_mutex_destroy - Destroy VDEV MLME cmd mutex
- * @vdev_mlme_obj:  VDEV MLME comp object
+ * mlme_vdev_cmd_mutex_destroy() - Destroy VDEV MLME cmd mutex
+ * @vdev_mlme:  VDEV MLME comp object
  *
  * Destroy VDEV MLME cmd mutex
  *
@@ -825,8 +829,8 @@ mlme_vdev_cmd_mutex_destroy(struct vdev_mlme_obj *vdev_mlme)
 }
 
 /**
- * mlme_vdev_cmd_mutex_acquire - acquire mutex
- * @vdev_mlme_obj:  vdev mlme comp object
+ * mlme_vdev_cmd_mutex_acquire() - acquire mutex
+ * @vdev_mlme:  vdev mlme comp object
  *
  * acquire vdev mlme cmd mutex
  *
@@ -838,8 +842,8 @@ static inline void mlme_vdev_cmd_mutex_acquire(struct vdev_mlme_obj *vdev_mlme)
 }
 
 /**
- * mlme_vdev_cmd_mutex_release - release mutex
- * @vdev_mlme_obj:  vdev mlme comp object
+ * mlme_vdev_cmd_mutex_release() - release mutex
+ * @vdev_mlme:  vdev mlme comp object
  *
  * release vdev mlme cmd mutex
  *

@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -62,7 +62,7 @@ struct dp_peer_li {
 };
 
 /**
- * dp_get_soc_context_size_LI() - get context size for dp_soc_li
+ * dp_get_soc_context_size_li() - get context size for dp_soc_li
  *
  * Return: value in bytes for LI specific soc structure
  */
@@ -78,7 +78,7 @@ void dp_initialize_arch_ops_li(struct dp_arch_ops *arch_ops);
 
 /**
  * dp_get_context_size_li() - get LI specific size for peer/vdev/pdev/soc
- * @arch_ops: arch ops pointer
+ * @context_type: DP context type for which the size is needed
  *
  * Return: size in bytes for the context_type
  */

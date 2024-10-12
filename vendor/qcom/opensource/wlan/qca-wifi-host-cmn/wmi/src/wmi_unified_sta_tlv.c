@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2013-2020 The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -84,7 +84,7 @@ static QDF_STATUS send_set_sta_sa_query_param_cmd_tlv(wmi_unified_t wmi_handle,
  *
  * This function sets keep alive related parameters in fw.
  *
- * Return: CDF status
+ * Return: QDF status
  */
 static QDF_STATUS
 send_set_sta_keep_alive_cmd_tlv(wmi_unified_t wmi_handle,
@@ -254,9 +254,9 @@ static QDF_STATUS send_process_dhcp_ind_cmd_tlv(wmi_unified_t wmi_handle,
 /**
  * send_get_link_speed_cmd_tlv() -send command to get linkspeed
  * @wmi_handle: wmi handle
- * @pLinkSpeed: link speed info
+ * @peer_macaddr: peer address
  *
- * Return: CDF status
+ * Return: QDF status
  */
 static QDF_STATUS send_get_link_speed_cmd_tlv(wmi_unified_t wmi_handle,
 					      wmi_mac_addr peer_macaddr)
@@ -296,7 +296,7 @@ static QDF_STATUS send_get_link_speed_cmd_tlv(wmi_unified_t wmi_handle,
 
 /**
  * send_fw_profiling_cmd_tlv() - send FW profiling cmd to WLAN FW
- * @wmi_handl: wmi handle
+ * @wmi_handle: wmi handle
  * @cmd: Profiling command index
  * @value1: parameter1 value
  * @value2: parameter2 value
@@ -544,7 +544,9 @@ static uint8_t tdls_get_wmi_offchannel_mode(uint8_t tdls_sw_mode)
 	case DISABLE_CHANSWITCH:
 		off_chan_mode = WMI_TDLS_DISABLE_OFFCHANNEL;
 		break;
-
+	case DISABLE_ACTIVE_CHANSWITCH:
+		off_chan_mode = WMI_TDLS_ACTIVE_DISABLE_OFFCHANNEL;
+		break;
 	default:
 		wmi_debug("unknown tdls_sw_mode: %d", tdls_sw_mode);
 		off_chan_mode = WMI_TDLS_DISABLE_OFFCHANNEL;
@@ -554,7 +556,7 @@ static uint8_t tdls_get_wmi_offchannel_mode(uint8_t tdls_sw_mode)
 
 /**
  * tdls_get_wmi_offchannel_bw - Get WMI tdls off channel Bandwidth
- * @tdls_sw_mode: tdls_sw_mode
+ * @tdls_off_ch_bw_offset: bandwidth offset
  *
  * This function returns wmi tdls offchannel bandwidth
  *
@@ -600,12 +602,21 @@ static QDF_STATUS send_set_tdls_offchan_mode_cmd_tlv(wmi_unified_t wmi_handle,
 {
 	wmi_tdls_set_offchan_mode_cmd_fixed_param *cmd;
 	wmi_buf_t wmi_buf;
+	uint8_t *buf_ptr;
+	struct tdls_ch_params *src_chan_info;
+	wmi_channel *chan_info;
+	uint16_t i;
 	u_int16_t len = sizeof(wmi_tdls_set_offchan_mode_cmd_fixed_param);
+
+	len += WMI_TLV_HDR_SIZE +
+	       sizeof(wmi_channel) * chan_switch_params->num_off_channels;
 
 	wmi_buf = wmi_buf_alloc(wmi_handle, len);
 	if (!wmi_buf) {
 		return QDF_STATUS_E_FAILURE;
 	}
+
+	buf_ptr = (uint8_t *)wmi_buf_data(wmi_buf);
 	cmd = (wmi_tdls_set_offchan_mode_cmd_fixed_param *)
 		wmi_buf_data(wmi_buf);
 	WMITLV_SET_HDR(&cmd->tlv_header,
@@ -641,6 +652,38 @@ static QDF_STATUS send_set_tdls_offchan_mode_cmd_tlv(wmi_unified_t wmi_handle,
 		 cmd->is_peer_responder,
 		 cmd->offchan_oper_class);
 
+	buf_ptr += sizeof(*cmd);
+	WMITLV_SET_HDR(buf_ptr, WMITLV_TAG_ARRAY_STRUC,
+		       sizeof(wmi_channel) *
+		       chan_switch_params->num_off_channels);
+	chan_info = (wmi_channel *)(buf_ptr + WMI_TLV_HDR_SIZE);
+	for (i = 0; i < chan_switch_params->num_off_channels; i++) {
+		WMITLV_SET_HDR(&chan_info->tlv_header,
+			       WMITLV_TAG_STRUC_wmi_channel,
+			       WMITLV_GET_STRUCT_TLVLEN(wmi_channel));
+
+		src_chan_info = &chan_switch_params->allowed_off_channels[i];
+
+		chan_info->mhz = src_chan_info->ch_freq;
+		chan_info->band_center_freq1 = chan_info->mhz;
+		chan_info->band_center_freq2 = 0;
+		if (WLAN_REG_IS_24GHZ_CH_FREQ(chan_info->mhz))
+			WMI_SET_CHANNEL_MODE(chan_info, MODE_11G);
+		else
+			WMI_SET_CHANNEL_MODE(chan_info, MODE_11A);
+
+		if (src_chan_info->dfs_set)
+			WMI_SET_CHANNEL_FLAG(chan_info, WMI_CHAN_FLAG_PASSIVE);
+
+		WMI_SET_CHANNEL_MAX_TX_POWER(chan_info, src_chan_info->pwr);
+		WMI_SET_CHANNEL_REG_POWER(chan_info, src_chan_info->pwr);
+		wmi_debug("chan[%d] = %u TX power:%d DFS[%d]", i,
+			  chan_info->mhz, src_chan_info->pwr,
+			  src_chan_info->dfs_set);
+
+		chan_info++;
+	}
+
 	wmi_mtrace(WMI_TDLS_SET_OFFCHAN_MODE_CMDID, cmd->vdev_id, 0);
 	if (wmi_unified_cmd_send(wmi_handle, wmi_buf, len,
 		WMI_TDLS_SET_OFFCHAN_MODE_CMDID)) {
@@ -655,7 +698,8 @@ static QDF_STATUS send_set_tdls_offchan_mode_cmd_tlv(wmi_unified_t wmi_handle,
 /**
  * send_update_fw_tdls_state_cmd_tlv() - send enable/disable tdls for a vdev
  * @wmi_handle: wmi handle
- * @pwmaTdlsparams: TDLS params
+ * @tdls_param: TDLS params
+ * @tdls_state: TDLS state
  *
  * Return: 0 for success or error code
  */
@@ -747,6 +791,7 @@ send_update_fw_tdls_state_cmd_tlv(wmi_unified_t wmi_handle,
  * send_update_tdls_peer_state_cmd_tlv() - update TDLS peer state
  * @wmi_handle: wmi handle
  * @peer_state: TDLS peer state params
+ * @ch_mhz: peer channels
  *
  * Return: QDF_STATUS_SUCCESS for success or error code
  */
@@ -905,8 +950,8 @@ send_update_tdls_peer_state_cmd_tlv(wmi_unified_t wmi_handle,
 /**
  * extract_vdev_tdls_ev_param_tlv() - extract vdev tdls param from event
  * @wmi_handle: wmi handle
- * @param evt_buf: pointer to event buffer
- * @param param: Pointer to hold vdev tdls param
+ * @evt_buf: pointer to event buffer
+ * @param: Pointer to hold vdev tdls param
  *
  * Return: QDF_STATUS_SUCCESS for success or error code
  */
@@ -1259,7 +1304,7 @@ void wmi_denylist_mgr_attach_tlv(struct wmi_unified *wmi_handle)
 /**
  * send_sar_limit_cmd_tlv() - send sar limit cmd to fw
  * @wmi_handle: wmi handle
- * @params: sar limit params
+ * @sar_limit_params: sar limit params
  *
  * Return: QDF_STATUS_SUCCESS for success or error code
  */
@@ -1497,7 +1542,6 @@ static QDF_STATUS extract_sar_limit_event_tlv(wmi_unified_t wmi_handle,
  * send_set_del_pmkid_cache_cmd_tlv() - send wmi cmd of set del pmkid
  * @wmi_handle: wmi handler
  * @pmk_info: pointer to PMK cache entry
- * @vdev_id: vdev id
  *
  * Return: 0 for success and non zero for failure
  */
@@ -1578,9 +1622,10 @@ send_cmd:
 /**
  * send_del_ts_cmd_tlv() - send DELTS request to fw
  * @wmi_handle: wmi handle
- * @msg: delts params
+ * @vdev_id: vdev identifier
+ * @ac: access category
  *
- * Return: CDF status
+ * Return: QDF status
  */
 static QDF_STATUS send_del_ts_cmd_tlv(wmi_unified_t wmi_handle, uint8_t vdev_id,
 				uint8_t ac)
@@ -1616,13 +1661,13 @@ static QDF_STATUS send_del_ts_cmd_tlv(wmi_unified_t wmi_handle, uint8_t vdev_id,
 /**
  * send_aggr_qos_cmd_tlv() - send aggr qos request to fw
  * @wmi_handle: handle to wmi
- * @aggr_qos_rsp_msg - combined struct for all ADD_TS requests.
+ * @aggr_qos_rsp_msg: combined struct for all ADD_TS requests.
  *
  * A function to handle WMI_AGGR_QOS_REQ. This will send out
  * ADD_TS requests to firmware in loop for all the ACs with
  * active flow.
  *
- * Return: CDF status
+ * Return: QDF status
  */
 static QDF_STATUS send_aggr_qos_cmd_tlv(wmi_unified_t wmi_handle,
 		      struct aggr_add_ts_param *aggr_qos_rsp_msg)
@@ -1683,7 +1728,7 @@ static QDF_STATUS send_aggr_qos_cmd_tlv(wmi_unified_t wmi_handle,
  * @wmi_handle: wmi handle
  * @msg: ADDTS params
  *
- * Return: CDF status
+ * Return: QDF status
  */
 static QDF_STATUS send_add_ts_cmd_tlv(wmi_unified_t wmi_handle,
 		 struct add_ts_param *msg)
@@ -1838,7 +1883,7 @@ static QDF_STATUS send_process_del_periodic_tx_ptrn_cmd_tlv(
  * @wmi_handle: wmi handle
  * @timer_val: auto shutdown timer value
  *
- * Return: CDF status
+ * Return: QDF status
  */
 static QDF_STATUS send_set_auto_shutdown_timer_cmd_tlv(wmi_unified_t wmi_handle,
 						  uint32_t timer_val)
@@ -1883,7 +1928,7 @@ static QDF_STATUS send_set_auto_shutdown_timer_cmd_tlv(wmi_unified_t wmi_handle,
  * @wmi_handle: wmi handle
  * @flashing: flashing request
  *
- * Return: CDF status
+ * Return: QDF status
  */
 static QDF_STATUS send_set_led_flashing_cmd_tlv(wmi_unified_t wmi_handle,
 				struct flashing_req_params *flashing)
@@ -1923,9 +1968,8 @@ static QDF_STATUS send_set_led_flashing_cmd_tlv(wmi_unified_t wmi_handle,
 /**
  * send_process_ch_avoid_update_cmd_tlv() - handles channel avoid update request
  * @wmi_handle: wmi handle
- * @ch_avoid_update_req: channel avoid update params
  *
- * Return: CDF status
+ * Return: QDF status
  */
 static QDF_STATUS send_process_ch_avoid_update_cmd_tlv(wmi_unified_t wmi_handle)
 {
@@ -2085,7 +2129,7 @@ void wmi_policy_mgr_attach_tlv(struct wmi_unified *wmi_handle)
 /**
  * send_adapt_dwelltime_params_cmd_tlv() - send wmi cmd of adaptive dwelltime
  * configuration params
- * @wma_handle:  wma handler
+ * @wmi_handle:  wmi handler
  * @dwelltime_params: pointer to dwelltime_params
  *
  * Return: QDF_STATUS_SUCCESS on success and QDF failure reason code for failure

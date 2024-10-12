@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -104,7 +104,8 @@ wlan_cm_tgt_exclude_rm_partial_scan_freq(struct wlan_objmgr_psoc *psoc,
  * in roam full scan only on prior discovery of any 6 GHz support in the
  * environment.
  * @psoc: PSOC pointer
- * @roam_inc_6ghz_if_disc: Include the 6 GHz channels in roam full scan:
+ * @vdev_id: vdev ID
+ * @roam_full_scan_6ghz_on_disc: Include the 6 GHz channels in roam full scan:
  * 1 - Include only on prior discovery of any 6 GHz support in the environment
  * 0 - Include all the supported 6 GHz channels by default
  *
@@ -194,7 +195,7 @@ wlan_cm_tgt_send_roam_vendor_handoff_config(struct wlan_objmgr_psoc *psoc,
 #define CFG_DISABLE_4WAY_HS_OFFLOAD_DEFAULT BIT(0)
 
 /**
- * wlan_cm_tgt_send_roam_offload_init()  - Send WMI_VDEV_PARAM_ROAM_FW_OFFLOAD
+ * wlan_cm_tgt_send_roam_offload_init()  - Send wmi_vdev_param_roam_fw_offload
  * to init/deinit roaming module at firmware
  * @psoc: PSOC pointer
  * @vdev_id: vdev id
@@ -230,7 +231,7 @@ QDF_STATUS wlan_cm_tgt_send_roam_stop_req(struct wlan_objmgr_psoc *psoc,
 					 struct wlan_roam_stop_config *req);
 
 /**
- * wlan_cm_tgt_send_roam_start_req()  - Send roam update command to firmware
+ * wlan_cm_tgt_send_roam_update_req()  - Send roam update command to firmware
  * @psoc:    psoc pointer
  * @vdev_id: vdev id
  * @req: roam update config parameter
@@ -276,7 +277,7 @@ QDF_STATUS wlan_cm_tgt_send_roam_triggers(struct wlan_objmgr_psoc *psoc,
 					  struct wlan_roam_triggers *req);
 
 /**
- * wlan_cm_tgt_send_roam_triggers()  - Send roam trigger command to FW
+ * wlan_cm_tgt_send_roam_invoke_req()  - Send roam trigger command to FW
  * @psoc: psoc pointer
  * @roam_invoke_req: roam invoke parameter
  *

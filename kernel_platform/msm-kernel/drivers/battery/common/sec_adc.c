@@ -76,6 +76,9 @@ int adc_read_type(struct device *dev, int channel)
 #if defined(CONFIG_ARCH_MTK_PROJECT) && (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 19, 0))
 			ret = (batt_adc_list[channel].is_used) ?
 				iio_read_channel_raw(batt_adc_list[channel].channel, &adc) : 0;
+#elif IS_ENABLED(CONFIG_SEC_MTK_CHARGER) /* mtk model >= kernel 5.15 */
+			ret = (batt_adc_list[channel].is_used) ?
+				iio_read_channel_raw(batt_adc_list[channel].channel, &adc) : 0;
 #else
 			ret = (batt_adc_list[channel].is_used) ?
 				iio_read_channel_processed(batt_adc_list[channel].channel, &adc) : 0;

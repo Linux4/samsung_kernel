@@ -121,6 +121,12 @@ int agm_init()
     property_set("vendor.audio.use.primary.default", "true");
     goto exit;
 #endif
+#ifdef SEC_AUDIO_BOOT_ON_ERR
+    if (property_get_bool("vendor.audio.use.primary.default", false)) {
+        AGM_LOGE("fail to init agm, sndcard is not active");
+        goto exit;
+    }
+#endif
 
     if (agm_initialized)
         goto exit;

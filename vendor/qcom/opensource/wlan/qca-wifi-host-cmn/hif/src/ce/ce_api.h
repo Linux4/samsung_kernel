@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2013-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -163,6 +163,17 @@ int ce_send_fast(struct CE_handle *copyeng, qdf_nbuf_t msdu,
 	unsigned int transfer_id, uint32_t download_len);
 
 #endif
+
+/*
+ * ce_enqueue_desc() - enqueu desc to CE ring.
+ * @copyeng: which copy engine to use
+ * @msdu: data buffer
+ * @transfer_id: arbitrary ID; reflected to destination
+ * @download_len: length of the packet download to FW.
+ *
+ */
+int ce_enqueue_desc(struct CE_handle *copyeng, qdf_nbuf_t msdu,
+		    unsigned int transfer_id, uint32_t download_len);
 
 void ce_update_tx_ring(struct CE_handle *ce_tx_hdl, uint32_t num_htt_cmpls);
 extern qdf_nbuf_t ce_batch_send(struct CE_handle *ce_tx_hdl,
@@ -375,11 +386,63 @@ QDF_STATUS ce_completed_send_next(struct CE_handle *copyeng,
 				  unsigned int *hw_idx,
 				  uint32_t *toeplitz_hash_result);
 
+#ifdef CUSTOM_CB_SCHEDULER_SUPPORT
+/*==================CE custom callbacks=================================*/
+
+/**
+ * ce_register_custom_cb() - Helper API to register the custom callback
+ * @copyeng: Pointer to CE handle
+ * @custom_cb: Custom call back function pointer
+ * @custom_cb_context: Custom callback context
+ *
+ * return: void
+ */
+void
+ce_register_custom_cb(struct CE_handle *copyeng, void (*custom_cb)(void *),
+		      void *custom_cb_context);
+
+/**
+ * ce_unregister_custom_cb() - Helper API to unregister the custom callback
+ * @copyeng: Pointer to CE handle
+ *
+ * return: void
+ */
+void
+ce_unregister_custom_cb(struct CE_handle *copyeng);
+
+/**
+ * ce_enable_custom_cb() - Helper API to enable the custom callback
+ * @copyeng: Pointer to CE handle
+ *
+ * return: void
+ */
+void
+ce_enable_custom_cb(struct CE_handle *copyeng);
+
+/**
+ * ce_disable_custom_cb() - Helper API to disable the custom callback
+ * @copyeng: Pointer to CE handle
+ *
+ * return: void
+ */
+void
+ce_disable_custom_cb(struct CE_handle *copyeng);
+#endif /* CUSTOM_CB_SCHEDULER_SUPPORT */
+
 /*==================CE Engine Initialization=================================*/
 
 /* Initialize an instance of a CE */
 struct CE_handle *ce_init(struct hif_softc *scn,
 			  unsigned int CE_id, struct CE_attr *attr);
+
+/*
+ * hif_ce_desc_history_log_register() - Register hif_ce_desc_history buffers
+ * to SSR driver dump.
+ * @scn: HIF context
+ *
+ * Return: None
+ */
+void hif_ce_desc_history_log_register(struct hif_softc *scn);
 
 /*==================CE Engine Shutdown=======================================*/
 /*
@@ -409,6 +472,14 @@ ce_cancel_send_next(struct CE_handle *copyeng,
 
 void ce_fini(struct CE_handle *copyeng);
 
+/*
+ * hif_ce_desc_history_log_unregister() - unregister hif_ce_desc_history
+ * buffers from SSR driver dump.
+ *
+ * Return: None
+ */
+void hif_ce_desc_history_log_unregister(void);
+
 /*==================CE Interrupt Handlers====================================*/
 void ce_per_engine_service_any(int irq, struct hif_softc *scn);
 int ce_per_engine_service(struct hif_softc *scn, unsigned int CE_id);
@@ -425,6 +496,9 @@ bool ce_get_rx_pending(struct hif_softc *scn);
 
 /**
  * war_ce_src_ring_write_idx_set() - Set write index for CE source ring
+ * @scn: HIF context
+ * @ctrl_addr: address
+ * @write_index: write index
  *
  * Return: None
  */
@@ -634,4 +708,15 @@ void ce_engine_service_reg(struct hif_softc *scn, int CE_id);
  */
 void ce_per_engine_service_fast(struct hif_softc *scn, int ce_id);
 
+void ce_tx_ring_write_idx_update_wrapper(struct CE_handle *ce_tx_hdl,
+					int coalesce);
+
+/*
+ * ce_ring_flush_write_idx() - CE handler to flush write index
+ * @ce_tx_hdl: ce handle
+ * @force_flush: force flush the write idx if it set to true.
+ *
+ * Returns void
+ */
+void ce_flush_tx_ring_write_idx(struct CE_handle *ce_tx_hdl, bool force_flush);
 #endif /* __COPY_ENGINE_API_H__ */

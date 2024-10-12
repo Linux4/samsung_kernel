@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -21,32 +21,9 @@
 #include <wlan_twt_ucfg_api.h>
 #include "twt/core/src/wlan_twt_common.h"
 
-QDF_STATUS ucfg_twt_get_requestor(struct wlan_objmgr_psoc *psoc, bool *val)
-{
-	return wlan_twt_tgt_caps_get_requestor(psoc, val);
-}
-
 QDF_STATUS ucfg_twt_get_responder(struct wlan_objmgr_psoc *psoc, bool *val)
 {
 	return wlan_twt_tgt_caps_get_responder(psoc, val);
-}
-
-QDF_STATUS ucfg_twt_get_legacy_bcast_twt_support(struct wlan_objmgr_psoc *psoc,
-						bool *val)
-{
-	return wlan_twt_tgt_caps_get_legacy_bcast_support(psoc, val);
-}
-
-QDF_STATUS ucfg_twt_get_twt_bcast_req_support(struct wlan_objmgr_psoc *psoc,
-						bool *val)
-{
-	return wlan_twt_tgt_caps_get_bcast_req_support(psoc, val);
-}
-
-QDF_STATUS ucfg_twt_get_twt_bcast_res_support(struct wlan_objmgr_psoc *psoc,
-						bool *val)
-{
-	return wlan_twt_tgt_caps_get_bcast_res_support(psoc, val);
 }
 
 QDF_STATUS ucfg_twt_get_twt_nudge_enabled(struct wlan_objmgr_psoc *psoc,
@@ -121,4 +98,10 @@ ucfg_twt_get_peer_capabilities(struct wlan_objmgr_psoc *psoc,
 			       uint8_t *peer_cap)
 {
 	return wlan_twt_get_peer_capabilities(psoc, peer_mac, peer_cap);
+}
+
+QDF_STATUS ucfg_twt_get_restricted_twt_supported(struct wlan_objmgr_psoc *psoc,
+						 bool *val)
+{
+	return wlan_twt_tgt_caps_get_restricted_support(psoc, val);
 }

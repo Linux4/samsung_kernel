@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2015-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef __DWC3_DEBUG_IPC_H
@@ -164,6 +164,9 @@ static struct debugfs_reg32 qscratch_reg[] = {
 #define dbg_ep_map(ep_num, req) \
 	dwc3_dbg_dma_map(mdwc->dwc_dma_ipc_log_ctxt, ep_num, req)
 
+#define dump_dwc3_regs(name, offset, value) \
+	dbg_dwc3_dump_regs(mdwc->dwc_dma_ipc_log_ctxt, name, offset, value)
+
 #define dbg_log_string(fmt, ...) \
 	ipc_log_string(mdwc->dwc_ipc_log_ctxt,\
 			"%s: " fmt, __func__, ##__VA_ARGS__)
@@ -192,6 +195,10 @@ static struct debugfs_reg32 qscratch_reg[] = {
 #define dbg_trace_event(event, dwc) \
 	dwc3_dbg_trace_event(dwc_trace_ipc_log_ctxt, event, dwc)
 
+#define dbg_trace_ep(dep) \
+	dwc3_dbg_trace_ep(dwc_trace_ipc_log_ctxt, dep)
+
+void dwc3_dbg_trace_ep(void *log_ctxt, struct dwc3_ep *dep);
 void dwc3_dbg_trace_log_ctrl(void *log_ctxt, struct usb_ctrlrequest *ctrl);
 void dwc3_dbg_trace_log_request(void *log_ctxt, struct dwc3_request *req,
 				char *tag);
@@ -222,5 +229,6 @@ void dwc3_dbg_dma_map(void *log_ctxt, u8 ep_num,
 			struct dwc3_request *req);
 void dwc3_dbg_dma_unmap(void *log_ctxt, u8 ep_num,
 			struct dwc3_request *req);
+void dbg_dwc3_dump_regs(void *log_ctxt, char *name, int offset, int value);
 
 #endif /* __DWC3_DEBUG_IPC_H */

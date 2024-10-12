@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -15,6 +15,10 @@
  * TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
  * PERFORMANCE OF THIS SOFTWARE.
  */
+
+#ifndef _WLAN_TWT_CFG_H
+#define _WLAN_TWT_CFG_H
+
 #include <wlan_objmgr_psoc_obj.h>
 
 #if defined(WLAN_SUPPORT_TWT) && defined(WLAN_TWT_CONV_SUPPORTED)
@@ -150,7 +154,7 @@ QDF_STATUS
 wlan_twt_cfg_set_responder_flag(struct wlan_objmgr_psoc *psoc, bool val);
 
 /**
- * wlan_twt_cfg_get_flex_twt_sched() - get flex scheduling
+ * wlan_twt_cfg_get_flex_sched() - get flex scheduling
  * @psoc: Pointer to global psoc
  * @val: pointer to output variable
  *
@@ -190,6 +194,26 @@ QDF_STATUS
 wlan_twt_cfg_get_bcast_responder(struct wlan_objmgr_psoc *psoc, bool *val);
 
 /**
+ * wlan_twt_cfg_get_rtwt_requestor() - get rtwt requestor
+ * @psoc: Pointer to global psoc
+ * @val: pointer to output variable
+ *
+ * Return: QDF_STATUS
+ */
+QDF_STATUS
+wlan_twt_cfg_get_rtwt_requestor(struct wlan_objmgr_psoc *psoc, bool *val);
+
+/**
+ * wlan_twt_cfg_get_rtwt_responder() - get rtwt responder
+ * @psoc: Pointer to global psoc
+ * @val: pointer to output variable
+ *
+ * Return: QDF_STATUS
+ */
+QDF_STATUS
+wlan_twt_cfg_get_rtwt_responder(struct wlan_objmgr_psoc *psoc, bool *val);
+
+/**
  * wlan_twt_cfg_get_support_in_11n_mode() - Get TWT support in 11n mode
  * @psoc: Pointer to global psoc
  * @val: pointer to output variable
@@ -199,5 +223,145 @@ wlan_twt_cfg_get_bcast_responder(struct wlan_objmgr_psoc *psoc, bool *val);
 QDF_STATUS
 wlan_twt_cfg_get_support_in_11n_mode(struct wlan_objmgr_psoc *psoc,
 				     bool *val);
+/**
+ * wlan_twt_get_restricted_support() - Get rTWT support
+ * @psoc: Pointer to global psoc
+ * @val: pointer to output variable
+ *
+ * Return: QDF_STATUS
+ */
+QDF_STATUS
+wlan_twt_get_restricted_support(struct wlan_objmgr_psoc *psoc, bool *val);
+
+/**
+ * wlan_twt_get_pmo_allowed() - Get pmo allowed
+ * @psoc: psoc handler
+ *
+ * Return: True if twt pmo is allowed otherwise false
+ */
+bool
+wlan_twt_get_pmo_allowed(struct wlan_objmgr_psoc *psoc);
+#else
+
+static inline QDF_STATUS wlan_twt_cfg_init(struct wlan_objmgr_psoc *psoc)
+{
+	return QDF_STATUS_SUCCESS;
+}
+
+static inline QDF_STATUS wlan_twt_cfg_deinit(struct wlan_objmgr_psoc *psoc)
+{
+	return QDF_STATUS_SUCCESS;
+}
+
+static inline QDF_STATUS wlan_twt_cfg_update(struct wlan_objmgr_psoc *psoc)
+{
+	return QDF_STATUS_SUCCESS;
+}
+
+static inline QDF_STATUS
+wlan_twt_cfg_get_requestor(struct wlan_objmgr_psoc *psoc, bool *val)
+{
+	return QDF_STATUS_SUCCESS;
+}
+
+static inline QDF_STATUS
+wlan_twt_cfg_get_responder(struct wlan_objmgr_psoc *psoc, bool *val)
+{
+	return QDF_STATUS_SUCCESS;
+}
+
+static inline QDF_STATUS
+wlan_twt_cfg_set_responder(struct wlan_objmgr_psoc *psoc, bool val)
+{
+	return QDF_STATUS_SUCCESS;
+}
+
+static inline bool
+wlan_twt_cfg_is_twt_enabled(struct wlan_objmgr_psoc *psoc)
+{
+	return QDF_STATUS_SUCCESS;
+}
+
+static inline QDF_STATUS
+wlan_twt_cfg_get_congestion_timeout(struct wlan_objmgr_psoc *psoc,
+				    uint32_t *val)
+{
+	return QDF_STATUS_SUCCESS;
+}
+
+static inline QDF_STATUS
+wlan_twt_cfg_set_congestion_timeout(struct wlan_objmgr_psoc *psoc,
+				    uint32_t val)
+{
+	return QDF_STATUS_SUCCESS;
+}
+
+static inline QDF_STATUS
+wlan_twt_cfg_get_requestor_flag(struct wlan_objmgr_psoc *psoc, bool *val)
+{
+	return QDF_STATUS_SUCCESS;
+}
+
+static inline QDF_STATUS
+wlan_twt_cfg_set_requestor_flag(struct wlan_objmgr_psoc *psoc, bool val)
+{
+	return QDF_STATUS_SUCCESS;
+}
+
+static inline QDF_STATUS
+wlan_twt_cfg_get_responder_flag(struct wlan_objmgr_psoc *psoc, bool *val)
+{
+	return QDF_STATUS_SUCCESS;
+}
+
+static inline QDF_STATUS
+wlan_twt_cfg_set_responder_flag(struct wlan_objmgr_psoc *psoc, bool val)
+{
+	return QDF_STATUS_SUCCESS;
+}
+
+static inline QDF_STATUS
+wlan_twt_cfg_get_flex_sched(struct wlan_objmgr_psoc *psoc, bool *val)
+{
+	return QDF_STATUS_SUCCESS;
+}
+
+static inline QDF_STATUS
+wlan_twt_cfg_get_24ghz_enabled(struct wlan_objmgr_psoc *psoc, bool *val)
+{
+	return QDF_STATUS_SUCCESS;
+}
+
+static inline QDF_STATUS
+wlan_twt_cfg_get_bcast_requestor(struct wlan_objmgr_psoc *psoc, bool *val)
+{
+	return QDF_STATUS_SUCCESS;
+}
+
+static inline QDF_STATUS
+wlan_twt_cfg_get_bcast_responder(struct wlan_objmgr_psoc *psoc, bool *val)
+{
+	return QDF_STATUS_SUCCESS;
+}
+
+static inline QDF_STATUS
+wlan_twt_cfg_get_support_in_11n_mode(struct wlan_objmgr_psoc *psoc,
+				     bool *val)
+{
+	return QDF_STATUS_SUCCESS;
+}
+
+static inline QDF_STATUS
+wlan_twt_get_restricted_support(struct wlan_objmgr_psoc *psoc, bool *val)
+{
+	return QDF_STATUS_SUCCESS;
+}
+
+static inline bool
+wlan_twt_get_pmo_allowed(struct wlan_objmgr_psoc *psoc)
+{
+	return true;
+}
 #endif
 
+#endif /* End of _WLAN_TWT_CFG_H */

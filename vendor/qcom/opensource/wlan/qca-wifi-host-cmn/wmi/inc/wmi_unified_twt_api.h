@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2018-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -159,7 +159,7 @@ QDF_STATUS wmi_extract_twt_disable_comp_event(
 /**
  * wmi_extract_twt_add_dialog_comp_event() - Extract WMI event params for TWT
  *                               add dialog completion event
- * @wmi_hdl: wmi handle
+ * @wmi_handle: wmi handle
  * @evt_buf: Pointer event buffer
  * @params: Parameters to extract
  *
@@ -173,7 +173,7 @@ QDF_STATUS wmi_extract_twt_add_dialog_comp_event(
 /**
  * wmi_extract_twt_add_dialog_comp_additional_params() - Extracts additional
  * twt parameters, as part of add dialog completion event
- * @wmi_hdl: wmi handle
+ * @wmi_handle: wmi handle
  * @evt_buf: Pointer event buffer
  * @evt_buf_len: length of the add dialog event buffer
  * @idx: index of num_twt_params to extract
@@ -189,7 +189,7 @@ QDF_STATUS wmi_extract_twt_add_dialog_comp_additional_params(
 /**
  * wmi_extract_twt_del_dialog_comp_event() - Extract WMI event params for TWT
  *                               delete dialog completion event
- * @wmi_hdl: wmi handle
+ * @wmi_handle: wmi handle
  * @evt_buf: Pointer event buffer
  * @params: Parameters to extract
  *
@@ -326,7 +326,7 @@ void wmi_twt_attach_tlv(struct wmi_unified *wmi_handle);
  *                                         service ready2 event
  * @wmi_handle: WMI handle
  * @evt_buf: Event buffer
- * @param: Pointer to TWT bitmap param
+ * @params: Pointer to TWT bitmap param
  *
  * Return: QDF_STATUS_SUCCESS for success or error code
  */
@@ -340,7 +340,7 @@ QDF_STATUS wmi_extract_twt_cap_service_ready_ext2(
  *
  * @wmi_handle: wmi handle
  * @evt_buf: Pointer event buffer
- * @params: Parameters to extract
+ * @param: Parameters to extract
  *
  * Return: QDF_STATUS_SUCCESS on success and QDF_STATUS_E_FAILURE for failure
  */
@@ -482,7 +482,7 @@ QDF_STATUS wmi_extract_twt_disable_comp_event(
 /**
  * wmi_extract_twt_add_dialog_comp_event() - Extract WMI event params for TWT
  *                               add dialog completion event
- * @wmi_hdl: wmi handle
+ * @wmi_handle: wmi handle
  * @evt_buf: Pointer event buffer
  * @params: Parameters to extract
  *
@@ -496,7 +496,7 @@ QDF_STATUS wmi_extract_twt_add_dialog_comp_event(
 /**
  * wmi_extract_twt_add_dialog_comp_additional_params() - Extracts additional
  * twt parameters, as part of add dialog completion event
- * @wmi_hdl: wmi handle
+ * @wmi_handle: wmi handle
  * @evt_buf: Pointer event buffer
  * @evt_buf_len: length of the add dialog event buffer
  * @idx: index of num_twt_params to extract
@@ -512,7 +512,7 @@ QDF_STATUS wmi_extract_twt_add_dialog_comp_additional_params(
 /**
  * wmi_extract_twt_del_dialog_comp_event() - Extract WMI event params for TWT
  *                               delete dialog completion event
- * @wmi_hdl: wmi handle
+ * @wmi_handle: wmi handle
  * @evt_buf: Pointer event buffer
  * @params: Parameters to extract
  *
@@ -649,7 +649,7 @@ void wmi_twt_attach_tlv(struct wmi_unified *wmi_handle);
  *                                         service ready2 event
  * @wmi_handle: WMI handle
  * @evt_buf: Event buffer
- * @param: Pointer to TWT bitmap param
+ * @params: Pointer to TWT bitmap param
  *
  * Return: QDF_STATUS_SUCCESS for success or error code
  */
@@ -663,7 +663,7 @@ QDF_STATUS wmi_extract_twt_cap_service_ready_ext2(
  *
  * @wmi_handle: wmi handle
  * @evt_buf: Pointer event buffer
- * @params: Parameters to extract
+ * @param: Parameters to extract
  *
  * Return: QDF_STATUS_SUCCESS on success and QDF_STATUS_E_FAILURE for failure
  */

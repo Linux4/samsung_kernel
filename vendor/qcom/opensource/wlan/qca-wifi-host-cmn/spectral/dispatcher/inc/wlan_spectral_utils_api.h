@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2017-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -31,7 +31,7 @@ struct spectral_tgt_ops;
 /**
  * wlan_spectral_is_feature_disabled_pdev() - Check if spectral feature
  * is disabled for a given pdev
- * @pdev - pointer to pdev
+ * @pdev: pointer to pdev
  *
  * Return : true if spectral is disabled, else false.
  */
@@ -40,7 +40,7 @@ bool wlan_spectral_is_feature_disabled_pdev(struct wlan_objmgr_pdev *pdev);
 /**
  * wlan_spectral_is_feature_disabled_ini() - Check if spectral feature
  * is disabled in INI
- * @psoc - pointer to psoc
+ * @psoc: pointer to psoc
  *
  * Return : true if spectral is disabled, else false.
  */
@@ -49,7 +49,7 @@ bool wlan_spectral_is_feature_disabled_ini(struct wlan_objmgr_psoc *psoc);
 /**
  * wlan_spectral_is_feature_disabled_psoc() - Check if spectral feature
  * is disabled for a given psoc
- * @psoc - pointer to psoc
+ * @psoc: pointer to psoc
  *
  * Return : true if spectral is disabled, else false.
  */
@@ -58,8 +58,8 @@ bool wlan_spectral_is_feature_disabled_psoc(struct wlan_objmgr_psoc *psoc);
 /**
  * wlan_spectral_is_mode_disabled_pdev() - Check if a given spectral mode
  * is disabled for a given pdev
- * @pdev - pointer to pdev
- * @smode - spectral scan mode
+ * @pdev: pointer to pdev
+ * @smode: spectral scan mode
  *
  * Return : true if spectral mode is disabled, else false.
  */
@@ -103,8 +103,8 @@ wlan_lmac_if_sptrl_register_rx_ops(struct wlan_lmac_if_rx_ops *rx_ops);
 
 /**
  * wlan_register_spectral_wmi_ops() - Register Spectral WMI operations
- * @psoc - Pointer to psoc object
- * @wmi_ops - pointer to the structure holding the Spectral WMI
+ * @psoc: Pointer to psoc object
+ * @wmi_ops: pointer to the structure holding the Spectral WMI
  *            operations
  *
  * API to register Spectral WMI operations
@@ -117,8 +117,8 @@ wlan_register_spectral_wmi_ops(struct wlan_objmgr_psoc *psoc,
 
 /**
  * wlan_register_spectral_tgt_ops() - Register Spectral target operations
- * @psoc - Pointer to psoc object
- * @tgt_ops - pointer to the structure holding the Spectral target
+ * @psoc: Pointer to psoc object
+ * @tgt_ops: pointer to the structure holding the Spectral target
  *            operations
  *
  * API to register Spectral target operations
@@ -145,7 +145,7 @@ struct spectral_legacy_cbacks {
 };
 
 /**
- * spectral_vdev_get_chan_freq - Get vdev channel frequency
+ * spectral_vdev_get_chan_freq() - Get vdev channel frequency
  * @vdev:          vdev object
  *
  * Return: vdev operating frequency
@@ -153,7 +153,7 @@ struct spectral_legacy_cbacks {
 int16_t spectral_vdev_get_chan_freq(struct wlan_objmgr_vdev *vdev);
 
 /**
- * spectral_vdev_get_chan_freq_seg2 - Get vdev's secondary 80 center frequency
+ * spectral_vdev_get_chan_freq_seg2() - Get vdev's secondary 80 center frequency
  * @vdev: vdev object
  *
  * Return: vdev secondary 80 center frequency
@@ -161,7 +161,7 @@ int16_t spectral_vdev_get_chan_freq(struct wlan_objmgr_vdev *vdev);
 int16_t spectral_vdev_get_chan_freq_seg2(struct wlan_objmgr_vdev *vdev);
 
 /**
- * spectral_vdev_get_sec20chan_freq_mhz - Get vdev secondary channel frequency
+ * spectral_vdev_get_sec20chan_freq_mhz() - Get vdev secondary channel frequency
  * @vdev:   vdev object
  * @sec20chan_freq: secondary channel frequency
  *
@@ -173,8 +173,8 @@ int spectral_vdev_get_sec20chan_freq_mhz(struct wlan_objmgr_vdev *vdev,
 /**
  * spectral_register_legacy_cb() - Register spectral legacy callbacks
  * commands on spectral parameters
- * @psoc    - the physical device object
- * @legacy_cbacks - Reference to struct spectral_legacy_cbacks from which
+ * @psoc: the physical device object
+ * @legacy_cbacks: Reference to struct spectral_legacy_cbacks from which
  * function pointers need to be copied
  *
  * API to register spectral related legacy callbacks
@@ -188,7 +188,7 @@ QDF_STATUS spectral_register_legacy_cb(
 
 /**
  * spectral_vdev_get_ch_width() - Get the channel bandwidth
- * @vdev    - Pointer to vdev
+ * @vdev: Pointer to vdev
  *
  * API to get the channel bandwidth of a given vdev
  *

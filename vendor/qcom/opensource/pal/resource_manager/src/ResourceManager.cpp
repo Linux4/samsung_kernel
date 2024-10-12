@@ -149,6 +149,9 @@
 #define WAKE_LOCK_NAME "audio_pal_wl"
 #define WAKE_LOCK_PATH "/sys/power/wake_lock"
 #define WAKE_UNLOCK_PATH "/sys/power/wake_unlock"
+#ifdef SEC_AUDIO_EARLYDROP_PATCH
+#define MAX_WAKE_LOCK_LENGTH 1024
+#endif
 
 #define CLOCK_SRC_DEFAULT 1
 
@@ -1219,7 +1222,14 @@ void ResourceManager::loadAdmLib()
 
 int ResourceManager::initWakeLocks(void) {
 
+#ifdef SEC_AUDIO_EARLYDROP_PATCH
+    char buf[MAX_WAKE_LOCK_LENGTH] = {};
+    int size = 0, ret = 0;
+
+    wake_lock_fd = ::open(WAKE_LOCK_PATH, O_RDWR|O_APPEND);
+#else
     wake_lock_fd = ::open(WAKE_LOCK_PATH, O_WRONLY|O_APPEND);
+#endif
     if (wake_lock_fd < 0) {
         PAL_ERR(LOG_TAG, "Unable to open %s, err:%s",
             WAKE_LOCK_PATH, strerror(errno));
@@ -1237,6 +1247,22 @@ int ResourceManager::initWakeLocks(void) {
         wake_lock_fd = -1;
         return -EINVAL;
     }
+
+#ifdef SEC_AUDIO_EARLYDROP_PATCH
+    size = ::read(wake_lock_fd, buf, sizeof(buf) - 1);
+    buf[MAX_WAKE_LOCK_LENGTH - 1] = '\0';
+    if (size >= 0) {
+        if (strstr(buf, WAKE_LOCK_NAME)) {
+            PAL_INFO(LOG_TAG, "Clean up wake lock after restart");
+            ret = ::write(wake_unlock_fd, WAKE_LOCK_NAME, strlen(WAKE_LOCK_NAME));
+            if (ret < 0) {
+                PAL_ERR(LOG_TAG, "Failed to release wakelock %d %s",
+                    ret, strerror(errno));
+                return ret;
+            }
+        }
+    }
+#endif
     return 0;
 }
 
@@ -1506,12 +1532,13 @@ int ResourceManager::init_audio()
     status = -EINVAL;
     goto exit;
 #endif
-
+#ifdef SEC_AUDIO_BOOT_ON_ERR
     if (property_get_bool("vendor.audio.use.primary.default", false)) {
         PAL_ERR(LOG_TAG, "skip audio mixer open because sndcard is not active");
         status = -EINVAL;
         goto exit;
     }
+#endif
 
     do {
         /* Look for only default codec sound card */
@@ -2846,57 +2873,54 @@ int32_t ResourceManager::getDeviceConfig(struct pal_device *deviceattr,
 
                 getChannelMap(&(dev_ch_info.ch_map[0]), channels);
                 deviceattr->config.ch_info = dev_ch_info;
-#ifdef SEC_AUDIO_EARLYDROP_PATCH
+#ifdef SEC_AUDIO_SUPPORT_UHQ
+                int target_sample_rate = deviceattr->config.sample_rate;
+                if ((sAttr->type == PAL_STREAM_DEEP_BUFFER)
+                        || (sAttr->type == PAL_STREAM_COMPRESSED)) {
+                    target_sample_rate = rm->stateUHQA;
+                }
+                if (dp_device->isSupportedSR(NULL, target_sample_rate)) {
+                    deviceattr->config.sample_rate = target_sample_rate;
+                } else
+#else
                 if (!dp_device->isSupportedSR(NULL,
                             deviceattr->config.sample_rate))
-#else
-                if (dp_device->isSupportedSR(NULL,
-                            sAttr->out_media_config.sample_rate)) {
-                    deviceattr->config.sample_rate =
-                            sAttr->out_media_config.sample_rate;
-                } else
 #endif
                 {
-                    int sr = dp_device->getHighestSupportedSR();
-                    if (sAttr->out_media_config.sample_rate > sr)
-                        deviceattr->config.sample_rate = sr;
-                    else
-                        deviceattr->config.sample_rate = SAMPLINGRATE_48K;
+                    deviceattr->config.sample_rate = dp_device->getHighestSupportedSR();
 
-                    if (sAttr->out_media_config.sample_rate < SAMPLINGRATE_32K) {
-                        if ((sAttr->out_media_config.sample_rate % SAMPLINGRATE_8K) == 0)
-                            deviceattr->config.sample_rate = SAMPLINGRATE_48K;
-                        else if ((sAttr->out_media_config.sample_rate % 11025) == 0)
+                    if (sAttr->out_media_config.sample_rate < SAMPLINGRATE_32K &&
+                        (sAttr->out_media_config.sample_rate % 11025) == 0 &&
+                        dp_device->isSupportedSR(NULL,SAMPLINGRATE_44K)) {
                             deviceattr->config.sample_rate = SAMPLINGRATE_44K;
                     }
                 }
 
-#ifdef SEC_AUDIO_EARLYDROP_PATCH
                 if (DisplayPort::isBitWidthSupported(
-                            deviceattr->config.bit_width) != 0)
-#else
-                if (DisplayPort::isBitWidthSupported(
-                            sAttr->out_media_config.bit_width)) {
-                    deviceattr->config.bit_width =
-                            sAttr->out_media_config.bit_width;
-                } else
-#endif
-                {
+                            deviceattr->config.bit_width) != 0) {
                     int bps = dp_device->getHighestSupportedBps();
                     if (sAttr->out_media_config.bit_width > bps)
                         deviceattr->config.bit_width = bps;
                     else
                         deviceattr->config.bit_width = BITWIDTH_16;
                 }
-                if (deviceattr->config.bit_width == 32) {
-                    deviceattr->config.aud_fmt_id = PAL_AUDIO_FMT_PCM_S32_LE;
-                } else if (deviceattr->config.bit_width == 24) {
-                    if (sAttr->out_media_config.aud_fmt_id == PAL_AUDIO_FMT_PCM_S24_LE)
-                        deviceattr->config.aud_fmt_id = PAL_AUDIO_FMT_PCM_S24_LE;
-                    else
-                        deviceattr->config.aud_fmt_id = PAL_AUDIO_FMT_PCM_S24_3LE;
+                if ((deviceattr->config.bit_width == BITWIDTH_32) &&
+                            (devinfo.bitFormatSupported != PAL_AUDIO_FMT_PCM_S32_LE)) {
+                    PAL_DBG(LOG_TAG, "32 bit is not supported; update with supported bit format");
+                    deviceattr->config.aud_fmt_id = devinfo.bitFormatSupported;
+                    deviceattr->config.bit_width =
+                            palFormatToBitwidthLookup(devinfo.bitFormatSupported);
                 } else {
-                    deviceattr->config.aud_fmt_id = PAL_AUDIO_FMT_PCM_S16_LE;
+                    if (deviceattr->config.bit_width == 32) {
+                        deviceattr->config.aud_fmt_id = PAL_AUDIO_FMT_PCM_S32_LE;
+                    } else if (deviceattr->config.bit_width == 24) {
+                        if (sAttr->out_media_config.aud_fmt_id == PAL_AUDIO_FMT_PCM_S24_LE)
+                            deviceattr->config.aud_fmt_id = PAL_AUDIO_FMT_PCM_S24_LE;
+                        else
+                            deviceattr->config.aud_fmt_id = PAL_AUDIO_FMT_PCM_S24_3LE;
+                    } else {
+                        deviceattr->config.aud_fmt_id = PAL_AUDIO_FMT_PCM_S16_LE;
+                    }
                 }
 
                 PAL_DBG(LOG_TAG, "devcie %d sample rate %d bitwidth %d",
@@ -9375,37 +9399,39 @@ int ResourceManager::setParameter(uint32_t param_id, void *param_payload,
                                param_bt_a2dp.dev_id = PAL_DEVICE_OUT_BLUETOOTH_A2DP;
                                param_bt_a2dp.a2dp_suspended = true;
                                PAL_DBG(LOG_TAG, "Applying cached a2dp_suspended true param");
+                               mResourceManagerMutex.unlock();
                                status = dev->setDeviceParameter(PAL_PARAM_ID_BT_A2DP_SUSPENDED,
                                                                 &param_bt_a2dp);
+                               mResourceManagerMutex.lock();
                            } else {
                                a2dp_suspended = false;
                            }
                         }
-                    }
 #ifdef SEC_PRODUCT_FEATURE_BLUETOOTH_SUPPORT_A2DP_OFFLOAD
-                    // check a2dp restart needed for a2dp playback
-                    // (TODO) Need to check for BLE //TEMP_FOR_SETUP_T
-                    if ((device_connection->id == PAL_DEVICE_OUT_BLUETOOTH_A2DP)
-                        && (device_connection->connection_state)
-                        && !device_available) {
-                        std::vector<Stream*> activestreams;
-                        getActiveStream_l(activestreams, dev);
-                        // if active stream exist on a2dp device,
-                        // call suspend to reroute / start a2dp again
-                        if (activestreams.size() != 0) {
-                            PAL_INFO(LOG_TAG, "active streams found on a2dp device, set suspend t->f");
-                            pal_param_bta2dp_t param_bt_a2dp;
-                            param_bt_a2dp.dev_id = PAL_DEVICE_OUT_BLUETOOTH_A2DP;
-                            param_bt_a2dp.a2dp_suspended = true;
-                            mResourceManagerMutex.unlock();
-                            dev->setDeviceParameter(PAL_PARAM_ID_BT_A2DP_SUSPENDED, &param_bt_a2dp);
-                            param_bt_a2dp.a2dp_suspended = false;
-                            dev->setDeviceParameter(PAL_PARAM_ID_BT_A2DP_SUSPENDED, &param_bt_a2dp);
-                            mResourceManagerMutex.lock();
-                            a2dp_suspended = false;
+                        // check a2dp restart needed for a2dp playback
+                        // (TODO) Need to check for BLE
+                        if ((device_connection->id == PAL_DEVICE_OUT_BLUETOOTH_A2DP)
+                                && (device_connection->connection_state)
+                                && !device_available) {
+                            std::vector<Stream*> activestreams;
+                            getActiveStream_l(activestreams, dev);
+                            // if active stream exist on a2dp device,
+                            // call suspend to reroute / start a2dp again
+                            if (activestreams.size() != 0) {
+                                PAL_INFO(LOG_TAG, "active streams found on a2dp device, set suspend t->f");
+                                pal_param_bta2dp_t param_bt_a2dp;
+                                param_bt_a2dp.dev_id = PAL_DEVICE_OUT_BLUETOOTH_A2DP;
+                                param_bt_a2dp.a2dp_suspended = true;
+                                mResourceManagerMutex.unlock();
+                                dev->setDeviceParameter(PAL_PARAM_ID_BT_A2DP_SUSPENDED, &param_bt_a2dp);
+                                param_bt_a2dp.a2dp_suspended = false;
+                                dev->setDeviceParameter(PAL_PARAM_ID_BT_A2DP_SUSPENDED, &param_bt_a2dp);
+                                mResourceManagerMutex.lock();
+                                a2dp_suspended = false;
+                            }
                         }
-                    }
 #endif
+                    }
                 } else {
                     /* Handle device switch for Sound Trigger streams */
                     if (device_connection->id == PAL_DEVICE_IN_WIRED_HEADSET) {
@@ -9598,8 +9624,7 @@ int ResourceManager::setParameter(uint32_t param_id, void *param_payload,
                             }
                             dAttr.id = (pal_device_id_t)associatedDevices[i]->getSndDeviceId();
                             dev = Device::getInstance(&dAttr, rm);
-                            if (dev && (!isBtScoDevice(dAttr.id)) &&
-                                (dAttr.id != PAL_DEVICE_OUT_PROXY) &&
+                            if (dev && (dAttr.id != PAL_DEVICE_OUT_PROXY) &&
                                 isDeviceAvailable(PAL_DEVICE_OUT_BLUETOOTH_SCO)) {
 
 #ifdef SEC_AUDIO_BLE_OFFLOAD
@@ -9608,7 +9633,7 @@ int ResourceManager::setParameter(uint32_t param_id, void *param_payload,
                                     rxBleDevices.push_back(dev);
                                 } else
 #endif
-								{
+                                {
                                     rxDevices.push_back(dev);
                                 }
                             }
@@ -9624,8 +9649,7 @@ int ResourceManager::setParameter(uint32_t param_id, void *param_payload,
                             }
                             dAttr.id = (pal_device_id_t)associatedDevices[i]->getSndDeviceId();
                             dev = Device::getInstance(&dAttr, rm);
-                            if (dev && (!isBtScoDevice(dAttr.id)) &&
-                                    isDeviceAvailable(PAL_DEVICE_IN_BLUETOOTH_SCO_HEADSET)) {
+                            if (dev && isDeviceAvailable(PAL_DEVICE_IN_BLUETOOTH_SCO_HEADSET)) {
                                 txDevices.push_back(dev);
                             }
                         }
@@ -9654,11 +9678,28 @@ int ResourceManager::setParameter(uint32_t param_id, void *param_payload,
 #ifdef SEC_AUDIO_BLE_OFFLOAD
                 SortAndUnique(rxBleDevices);
 #endif
+#ifdef SEC_AUDIO_EARLYDROP_PATCH
+                /*
+                 * If there a switch in SCO configurations and at the time of BT_SCO=on,
+                 * there are streams active with old SCO configs as well as on another
+                 * device. In this case, we need to disconnect streams over SCO first and
+                 * move them to new SCO configs, before we move streams on other devices
+                 * to SCO. This is ensured by moving SCO to the beginning of the disconnect
+                 * device list.
+                 */
+                {
+                    dAttr.id = PAL_DEVICE_OUT_BLUETOOTH_SCO;
+                    dev = Device::getInstance(&dAttr, rm);
+                    auto it = std::find(rxDevices.begin(),rxDevices.end(),dev);
+                    if ((it != rxDevices.end()) && (it != rxDevices.begin()))
+                        std::iter_swap(it, rxDevices.begin());
+                }
+#endif
                 mActiveStreamMutex.unlock();
 
 #ifdef SEC_AUDIO_BLE_OFFLOAD
                 // do routing ble to sco as fisrt
-				// prevent graph start err on bld dual mode -> sco call case
+                // prevent graph start err on bld dual mode -> sco call case
                 for (auto& device : rxBleDevices) {
                     rm->forceDeviceSwitch(device, &sco_rx_dattr);
                 }
@@ -12627,7 +12668,8 @@ void ResourceManager::dump(int fd)
     dprintf(fd, " \n");
     dprintf(fd, "ResourceManager : \n");
     if (ssrTimeinfo) {
-        dprintf(fd, "ssr occurred: %s \n", asctime(ssrTimeinfo));
+        dprintf(fd, "\tssr occurred: %s", asctime(ssrTimeinfo));
     }
+    sec_pal_sysfs_dump(fd);
 }
 #endif

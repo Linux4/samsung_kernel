@@ -29,6 +29,7 @@ Properties:
 		"qcom,mpm-scuba"
 		"qcom,mpm-sa410m"
 		"qcom,mpm-qcs405"
+		"qcom,mpm-trinket"
 
 - interrupts:
 	Usage: required

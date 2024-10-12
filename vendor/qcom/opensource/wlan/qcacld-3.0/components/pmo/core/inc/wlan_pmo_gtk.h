@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2017-2018 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -63,7 +64,7 @@ QDF_STATUS pmo_core_disable_gtk_offload_in_fwr(struct wlan_objmgr_vdev *vdev);
 /**
  * pmo_core_get_gtk_rsp(): API to send gtk response request to fwr
  * @vdev: objmgr vdev handle
- * @gtk_rsp: pmo gtk response request
+ * @gtk_rsp_req: pmo gtk response request
  *
  * This api will send gtk response request to fwr
  *

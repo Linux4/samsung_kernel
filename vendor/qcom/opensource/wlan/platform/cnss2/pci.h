@@ -9,6 +9,7 @@
 
 #include <linux/cma.h>
 #include <linux/iommu.h>
+#include <linux/qcom-iommu-util.h>
 #include <linux/mhi.h>
 #if IS_ENABLED(CONFIG_MHI_BUS_MISC)
 #include <linux/mhi_misc.h>
@@ -18,6 +19,12 @@
 #endif
 #include <linux/of_reserved_mem.h>
 #include <linux/pci.h>
+#include <linux/sched_clock.h>
+#include <linux/version.h>
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 2, 0))
+#include <linux/sched/clock.h>
+#endif
+
 
 #include "main.h"
 
@@ -32,6 +39,10 @@
 
 #define LINK_TRAINING_RETRY_DELAY_MS		500
 #define MSI_USERS			4
+
+#define CNSS_MHI_IN_MISSION_MODE(ee) (ee == MHI_EE_AMSS || \
+				      ee == MHI_EE_WFW || \
+				      ee == MHI_EE_FP)
 
 enum cnss_mhi_state {
 	CNSS_MHI_INIT,
@@ -65,6 +76,13 @@ enum cnss_pci_reg_dev_mask {
 	REG_MASK_KIWI,
 	REG_MASK_MANGO,
 	REG_MASK_PEACH,
+};
+
+enum cnss_smmu_fault_time {
+	SMMU_CB_ENTRY,
+	SMMU_CB_DOORBELL_RING,
+	SMMU_CB_EXIT,
+	SMMU_CB_MAX,
 };
 
 struct cnss_msi_user {
@@ -147,9 +165,11 @@ struct cnss_pci_data {
 	void __iomem *bar;
 	struct cnss_msi_config *msi_config;
 	u32 msi_ep_base_data;
+	u32 msix_addr;
 	struct mhi_controller *mhi_ctrl;
 	unsigned long mhi_state;
 	u32 remap_window;
+	struct completion wake_event_complete;
 	struct timer_list dev_rddm_timer;
 	struct timer_list boot_debug_timer;
 	struct delayed_work time_sync_work;
@@ -164,6 +184,7 @@ struct cnss_pci_data {
 	u8 iommu_geometry;
 	bool drv_supported;
 	bool is_smmu_fault;
+	unsigned long long smmu_fault_timestamp[SMMU_CB_MAX];
 };
 
 static inline void cnss_set_pci_priv(struct pci_dev *pci_dev, void *data)
@@ -238,8 +259,10 @@ void cnss_pci_add_fw_prefix_name(struct cnss_pci_data *pci_priv,
 int cnss_pci_alloc_fw_mem(struct cnss_pci_data *pci_priv);
 int cnss_pci_alloc_qdss_mem(struct cnss_pci_data *pci_priv);
 void cnss_pci_free_qdss_mem(struct cnss_pci_data *pci_priv);
+int cnss_pci_load_tme_patch(struct cnss_pci_data *pci_priv);
 int cnss_pci_load_m3(struct cnss_pci_data *pci_priv);
 void cnss_pci_free_blob_mem(struct cnss_pci_data *pci_priv);
+int cnss_pci_load_aux(struct cnss_pci_data *pci_priv);
 int cnss_pci_handle_dev_sol_irq(struct cnss_pci_data *pci_priv);
 int cnss_pci_start_mhi(struct cnss_pci_data *pci_priv);
 void cnss_pci_collect_dump_info(struct cnss_pci_data *pci_priv, bool in_panic);
@@ -304,4 +327,10 @@ int cnss_pci_update_time_sync_period(struct cnss_pci_data *pci_priv,
 int cnss_pci_set_therm_cdev_state(struct cnss_pci_data *pci_priv,
 				  unsigned long thermal_state,
 				  int tcdev_id);
+int cnss_pci_get_user_msi_assignment(struct cnss_pci_data *pci_priv,
+				     char *user_name,
+				     int *num_vectors,
+				     u32 *user_base_data,
+				     u32 *base_vector);
+void cnss_register_iommu_fault_handler_irq(struct cnss_pci_data *pci_priv);
 #endif /* _CNSS_PCI_H */

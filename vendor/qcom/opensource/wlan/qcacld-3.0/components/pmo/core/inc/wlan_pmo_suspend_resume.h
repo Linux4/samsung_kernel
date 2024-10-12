@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2017-2018, 2020-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -30,7 +30,7 @@
 
 /**
  * pmo_core_configure_dynamic_wake_events(): configure dynamic wake events
- * @wma: wma handle
+ * @psoc: objmgr psoc handle
  *
  * Some wake events need to be enabled dynamically. Control those here.
  *
@@ -132,7 +132,7 @@ QDF_STATUS pmo_core_psoc_suspend_target(struct wlan_objmgr_psoc *psoc,
 		int disable_target_intr);
 
 /**
- * pmo_core_psoc_bus_resume() -handle bus resume request for psoc
+ * pmo_core_psoc_bus_resume_req() - handle bus resume request for psoc
  * @psoc: objmgr psoc handle
  * @type: is this suspend part of runtime suspend or system suspend?
  *
@@ -287,8 +287,8 @@ pmo_core_dynamic_arp_ns_offload_runtime_allow(struct wlan_objmgr_vdev *vdev)
 #endif
 
 /**
- * pmo_core_update_power_save_mode() - update power save mode
- * @vdev: objmgr vdev handle
+ * pmo_core_psoc_update_power_save_mode() - update power save mode
+ * @psoc: objmgr psoc handle
  * @value:describe vdev power save mode
  *
  * Return: None
@@ -348,12 +348,10 @@ uint16_t pmo_core_vdev_get_pause_bitmap(struct pmo_psoc_priv_obj *psoc_ctx,
 }
 
 /**
- * wma_is_vdev_in_ap_mode() - check that vdev is in ap mode or not
- * @wma: wma handle
- * @vdev_id: vdev id
+ * pmo_is_vdev_in_ap_mode() - check that vdev is in ap mode or not
+ * @vdev: objmgr vdev handle
  *
- * Helper function to know whether given vdev id
- * is in AP mode or not.
+ * Helper function to know whether given vdev is in AP mode or not.
  *
  * Return: True/False
  */
@@ -368,7 +366,7 @@ bool pmo_is_vdev_in_ap_mode(struct wlan_objmgr_vdev *vdev)
 }
 
 /**
- * pmo_handle_initial_wake_up() - handle initial wake up
+ * pmo_core_psoc_handle_initial_wake_up() - handle initial wake up
  * @cb_ctx: callback context
  *
  * Return: None
@@ -377,6 +375,7 @@ void pmo_core_psoc_handle_initial_wake_up(void *cb_ctx);
 
 /**
  * pmo_core_psoc_is_target_wake_up_received() - check for initial wake up
+ * @psoc: objmgr psoc handle
  *
  * Check if target initial wake up is received and fail PM suspend gracefully
  *
@@ -386,6 +385,7 @@ int pmo_core_psoc_is_target_wake_up_received(struct wlan_objmgr_psoc *psoc);
 
 /**
  * pmo_core_psoc_clear_target_wake_up() - clear initial wake up
+ * @psoc: objmgr psoc handle
  *
  * Clear target initial wake up reason
  *
@@ -397,10 +397,12 @@ int pmo_core_psoc_clear_target_wake_up(struct wlan_objmgr_psoc *psoc);
  * pmo_core_psoc_target_suspend_acknowledge() - update target susspend status
  * @context: HTC_INIT_INFO->context
  * @wow_nack: true when wow is rejected
+ * @reason_code : WoW status reason code
  *
  * Return: none
  */
-void pmo_core_psoc_target_suspend_acknowledge(void *context, bool wow_nack);
+void pmo_core_psoc_target_suspend_acknowledge(void *context, bool wow_nack,
+					      uint16_t reason_code);
 
 /**
  * pmo_core_psoc_wakeup_host_event_received() - received host wake up event

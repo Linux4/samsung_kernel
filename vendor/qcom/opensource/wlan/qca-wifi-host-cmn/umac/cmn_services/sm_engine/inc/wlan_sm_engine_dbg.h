@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2018-2020 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -54,8 +55,8 @@
 struct wlan_sm;
 /**
  * enum wlan_sm_trace_type - history element type
- * @SM_EVENT_STATE_TRANSITION - Represents state transition
- * @SM_EVENT_MSG_PROCESSING - Represents event processing
+ * @SM_EVENT_STATE_TRANSITION: Represents state transition
+ * @SM_EVENT_MSG_PROCESSING: Represents event processing
  */
 enum wlan_sm_trace_type {
 	SM_EVENT_STATE_TRANSITION = 1,
@@ -70,6 +71,7 @@ enum wlan_sm_trace_type {
  * @event_type:      Type of the event
  * @initial_state:   Current state (state/sub-state)
  * @final_state:     New state
+ * @time:            Timestamp
  */
 struct wlan_sm_history_info {
 	enum wlan_sm_trace_type trace_type;

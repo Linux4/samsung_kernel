@@ -1,5 +1,8 @@
 // SPDX-License-Identifier: GPL-2.0-only
-/* Copyright (c) 2018-2021, The Linux Foundation. All rights reserved. */
+/*
+ * Copyright (c) 2018-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ */
 
 #include <net/genetlink.h>
 #ifdef CONFIG_CNSS_OUT_OF_TREE
@@ -9,6 +12,7 @@
 #endif
 #include <linux/module.h>
 #include <linux/of.h>
+#include <linux/version.h>
 
 #define CLD80211_GENL_NAME "cld80211"
 
@@ -66,6 +70,24 @@ static const struct nla_policy cld80211_policy[CLD80211_ATTR_MAX + 1] = {
 	[CLD80211_ATTR_CMD_TAG_DATA] = { .type = NLA_NESTED },
 };
 
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 2, 0))
+static int cld80211_pre_doit(const struct genl_split_ops *ops,
+			     struct sk_buff *skb,
+			     struct genl_info *info)
+{
+	u8 cmd_id = ops->cmd;
+	struct cld80211_nl_data *nl = get_local_ctx();
+
+	if (cmd_id < 1 || cmd_id > CLD80211_MAX_COMMANDS) {
+		pr_err("CLD80211: Command Not supported: %u\n", cmd_id);
+		return -EOPNOTSUPP;
+	}
+	info->user_ptr[0] = nl->cld_ops[cmd_id - 1].cb;
+	info->user_ptr[1] = nl->cld_ops[cmd_id - 1].cb_ctx;
+
+	return 0;
+}
+#else
 static int cld80211_pre_doit(const struct genl_ops *ops, struct sk_buff *skb,
 			     struct genl_info *info)
 {
@@ -81,7 +103,7 @@ static int cld80211_pre_doit(const struct genl_ops *ops, struct sk_buff *skb,
 
 	return 0;
 }
-
+#endif
 /* The netlink family */
 static struct genl_family cld80211_fam __ro_after_init = {
 	.name = CLD80211_GENL_NAME,

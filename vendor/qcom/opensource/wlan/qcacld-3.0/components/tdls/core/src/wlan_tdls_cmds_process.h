@@ -141,7 +141,7 @@ tdls_release_serialization_command(struct wlan_objmgr_vdev *vdev,
 
 /**
  * tdls_get_connected_peer_count_from_vdev() -  Get TDLS connected peer count
- * @tdls_vdev: Pointer to vdev obj
+ * @vdev: Pointer to vdev obj
  *
  * Return: Connected peer count
  */
@@ -176,7 +176,7 @@ QDF_STATUS tdls_send_mgmt_tx_completion(
 			struct tdls_mgmt_tx_completion_ind *tx_complete);
 
 /**
- * tdls_process_add_peer_rsp() - handle response for delete TDLS peer
+ * tdls_process_del_peer_rsp() - handle response for delete TDLS peer
  * @rsp: TDLS delete peer response
  *
  * Return: QDF status
@@ -214,8 +214,8 @@ QDF_STATUS tdls_process_connection_tracker_notify(struct wlan_objmgr_vdev *vdev,
 						  struct tdls_event_info *evt);
 
 /**
- * tdls_validate_mgmt_request() -validate mgmt request
- * @tdls_validate: action frame request
+ * tdls_validate_mgmt_request() - validate mgmt request
+ * @tdls_mgmt_req: action frame request
  *
  * Return: 0 for success or -EINVAL otherwise
  */

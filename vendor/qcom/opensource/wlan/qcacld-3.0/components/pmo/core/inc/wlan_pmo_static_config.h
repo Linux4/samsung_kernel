@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2017-2020 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -42,7 +43,7 @@ void pmo_register_wow_wakeup_events(struct wlan_objmgr_vdev *vdev);
 
 /**
  * pmo_register_wow_default_patterns() - register default wow patterns with fw
- * @vdev_id: vdev id
+ * @vdev: objmgr vdev
  *
  * WoW default wake up pattern rule is:
  *  - For STA & P2P CLI mode register for same STA specific wow patterns
@@ -104,6 +105,97 @@ void pmo_set_sta_wow_bitmask(uint32_t *bitmask, uint32_t wow_bitmask_size);
  * Return: none
  */
 void pmo_set_sap_wow_bitmask(uint32_t *bitmask, uint32_t wow_bitmask_size);
+
+/**
+ * pmo_core_vdev_set_ps_params() - set vdev ps_params
+ * @vdev: objmgr vdev handle
+ * @ps_params: vdev OPM parameters
+ *
+ * Return: None
+ */
+static inline
+void pmo_core_vdev_set_ps_params(struct wlan_objmgr_vdev *vdev,
+				 struct pmo_ps_params *ps_params)
+{
+	struct pmo_vdev_priv_obj *vdev_ctx;
+
+	vdev_ctx = pmo_vdev_get_priv(vdev);
+	qdf_spin_lock_bh(&vdev_ctx->pmo_vdev_lock);
+	vdev_ctx->ps_params = *ps_params;
+	qdf_spin_unlock_bh(&vdev_ctx->pmo_vdev_lock);
+}
+
+/**
+ * pmo_core_vdev_get_ps_params() - get vdev ps_params
+ * @vdev: objmgr vdev handle
+ * @ps_params: pointer to get vdev ps_params
+ *
+ * Return: QDF_STATUS
+ */
+static inline
+QDF_STATUS pmo_core_vdev_get_ps_params(struct wlan_objmgr_vdev *vdev,
+				       struct pmo_ps_params *ps_params)
+{
+	struct pmo_vdev_priv_obj *vdev_ctx;
+
+	vdev_ctx = pmo_vdev_get_priv(vdev);
+	if (!vdev_ctx)
+		return QDF_STATUS_E_NULL_VALUE;
+
+	qdf_spin_lock_bh(&vdev_ctx->pmo_vdev_lock);
+	*ps_params = vdev_ctx->ps_params;
+	qdf_spin_unlock_bh(&vdev_ctx->pmo_vdev_lock);
+	return QDF_STATUS_SUCCESS;
+}
+
+/**
+ * pmo_vdev_set_ps_opm_mode() - set OPM mode
+ * @vdev: objmgr vdev handle
+ * @opm_mode: OPM mode
+ *
+ * Return: QDF_STATUS
+ */
+static inline
+QDF_STATUS pmo_vdev_set_ps_opm_mode(struct wlan_objmgr_vdev *vdev,
+					 enum powersave_mode opm_mode)
+{
+	struct pmo_vdev_priv_obj *vdev_ctx;
+
+	vdev_ctx = pmo_vdev_get_priv(vdev);
+	if (!vdev_ctx) {
+		pmo_err("vdev ctx is null");
+		return QDF_STATUS_E_NULL_VALUE;
+	}
+
+	qdf_spin_lock_bh(&vdev_ctx->pmo_vdev_lock);
+	vdev_ctx->ps_params.opm_mode = opm_mode;
+	qdf_spin_unlock_bh(&vdev_ctx->pmo_vdev_lock);
+
+	return QDF_STATUS_SUCCESS;
+}
+
+/**
+ * pmo_vdev_get_ps_opm_mode() - get OPM mode
+ * @vdev: objmgr vdev handle
+ * @opm_mode: OPM mode
+ *
+ * Return: QDF_STATUS
+ */
+static inline
+QDF_STATUS pmo_vdev_get_ps_opm_mode(struct wlan_objmgr_vdev *vdev,
+					 enum powersave_mode *opm_mode)
+{
+	struct pmo_vdev_priv_obj *vdev_ctx;
+
+	vdev_ctx = pmo_vdev_get_priv(vdev);
+	if (!vdev_ctx)
+		return QDF_STATUS_E_NULL_VALUE;
+
+	qdf_spin_lock_bh(&vdev_ctx->pmo_vdev_lock);
+	*opm_mode = vdev_ctx->ps_params.opm_mode;
+	qdf_spin_unlock_bh(&vdev_ctx->pmo_vdev_lock);
+	return QDF_STATUS_SUCCESS;
+}
 
 #ifdef WLAN_FEATURE_NAN
 /**

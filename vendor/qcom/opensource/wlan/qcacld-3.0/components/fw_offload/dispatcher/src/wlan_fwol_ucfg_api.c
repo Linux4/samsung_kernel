@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2018-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -319,6 +319,21 @@ QDF_STATUS ucfg_fwol_get_ani_enabled(struct wlan_objmgr_psoc *psoc,
 	}
 
 	*ani_enabled = fwol_obj->cfg.ani_enabled;
+	return QDF_STATUS_SUCCESS;
+}
+
+QDF_STATUS ucfg_fwol_get_pcie_config(struct wlan_objmgr_psoc *psoc,
+				     uint8_t *pcie_config)
+{
+	struct wlan_fwol_psoc_obj *fwol_obj;
+
+	fwol_obj = fwol_get_psoc_obj(psoc);
+	if (!fwol_obj) {
+		fwol_err("Failed to get FWOL obj");
+		return QDF_STATUS_E_FAILURE;
+	}
+
+	*pcie_config = fwol_obj->cfg.pcie_config;
 	return QDF_STATUS_SUCCESS;
 }
 
@@ -1226,26 +1241,35 @@ QDF_STATUS ucfg_fwol_configure_global_params(struct wlan_objmgr_psoc *psoc,
 	return status;
 }
 
-QDF_STATUS ucfg_fwol_configure_vdev_params(struct wlan_objmgr_psoc *psoc,
-					   struct wlan_objmgr_pdev *pdev,
-					   enum QDF_OPMODE device_mode,
-					   uint8_t vdev_id)
+QDF_STATUS ucfg_fwol_set_ilp_config(struct wlan_objmgr_psoc *psoc,
+				    struct wlan_objmgr_pdev *pdev,
+				    uint32_t enable_ilp)
 {
-	QDF_STATUS status = QDF_STATUS_SUCCESS;
-	uint32_t value;
+	return fwol_set_ilp_config(pdev, enable_ilp);
+}
 
-	if (device_mode == QDF_SAP_MODE) {
+QDF_STATUS ucfg_fwol_configure_vdev_params(struct wlan_objmgr_psoc *psoc,
+					   struct wlan_objmgr_vdev *vdev)
+{
+	uint32_t value;
+	QDF_STATUS status;
+	uint8_t vdev_id = wlan_vdev_get_id(vdev);
+
+	switch (wlan_vdev_mlme_get_opmode(vdev)) {
+	case QDF_SAP_MODE:
 		status = ucfg_fwol_get_sap_sho(psoc, &value);
 		if (QDF_IS_STATUS_ERROR(status))
-			return status;
+			break;
 
 		status = fwol_set_sap_sho(psoc, vdev_id, value);
 		if (QDF_IS_STATUS_ERROR(status))
-			return status;
+			break;
 
 		status = fwol_set_sap_wds_config(psoc, vdev_id);
-		if (QDF_IS_STATUS_ERROR(status))
-			return status;
+		break;
+	default:
+		status = QDF_STATUS_SUCCESS;
+		break;
 	}
 
 	return status;

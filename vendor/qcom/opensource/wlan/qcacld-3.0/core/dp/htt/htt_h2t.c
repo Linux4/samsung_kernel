@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2011-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -214,7 +214,7 @@ QDF_STATUS htt_h2t_frag_desc_bank_cfg_msg(struct htt_pdev_t *pdev)
 		qdf_nbuf_data(msg),
 		qdf_nbuf_len(msg),
 		pdev->htc_tx_endpoint,
-		1); /* tag - not relevant here */
+		HTC_TX_PACKET_TAG_RUNTIME_PUT);
 
 	SET_HTC_PACKET_NET_BUF_CONTEXT(&pkt->htc_pkt, msg);
 
@@ -301,7 +301,7 @@ QDF_STATUS htt_h2t_ver_req_msg(struct htt_pdev_t *pdev)
 			       htt_h2t_send_complete_free_netbuf,
 			       qdf_nbuf_data(msg), qdf_nbuf_len(msg),
 			       pdev->htc_tx_endpoint,
-			       1); /* tag - not relevant here */
+			       HTC_TX_PACKET_TAG_RTPM_PUT_RC);
 
 	SET_HTC_PACKET_NET_BUF_CONTEXT(&pkt->htc_pkt, msg);
 	HTT_SEND_HTC_PKT(pdev, pkt);
@@ -386,7 +386,7 @@ QDF_STATUS htt_h2t_rx_ring_rfs_cfg_msg_ll(struct htt_pdev_t *pdev)
 			       htt_h2t_send_complete_free_netbuf,
 			       qdf_nbuf_data(msg), qdf_nbuf_len(msg),
 			       pdev->htc_tx_endpoint,
-			       1); /* tag - not relevant here */
+			       HTC_TX_PACKET_TAG_RUNTIME_PUT);
 
 	SET_HTC_PACKET_NET_BUF_CONTEXT(&pkt->htc_pkt, msg);
 	HTT_SEND_HTC_PKT(pdev, pkt);

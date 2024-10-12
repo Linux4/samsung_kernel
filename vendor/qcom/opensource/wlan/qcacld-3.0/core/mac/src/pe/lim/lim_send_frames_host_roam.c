@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2016-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -265,8 +265,7 @@ void lim_send_reassoc_req_with_ft_ies_mgmt_frame(struct mac_context *mac_ctx,
 		mac_ctx->mlme_cfg->lfr.ese_enabled)
 		populate_dot11f_ese_version(&frm->ESEVersion);
 	/* For ESE Associations fill the ESE IEs */
-	if (pe_session->isESEconnection &&
-	    mac_ctx->mlme_cfg->lfr.ese_enabled) {
+	if (wlan_cm_get_ese_assoc(mac_ctx->pdev, vdev_id)) {
 #ifndef FEATURE_DISABLE_RM
 		populate_dot11f_ese_rad_mgmt_cap(&frm->ESERadMgmtCap);
 #endif
@@ -280,7 +279,7 @@ void lim_send_reassoc_req_with_ft_ies_mgmt_frame(struct mac_context *mac_ctx,
 		if (wsm_enabled)
 			populate_dot11f_wmm_caps(&frm->WMMCaps);
 #ifdef FEATURE_WLAN_ESE
-		if (pe_session->isESEconnection) {
+		if (wlan_cm_get_ese_assoc(mac_ctx->pdev, vdev_id)) {
 			uint32_t phymode;
 			uint8_t rate;
 
@@ -319,7 +318,7 @@ void lim_send_reassoc_req_with_ft_ies_mgmt_frame(struct mac_context *mac_ctx,
 	if (pe_session->pLimReAssocReq->bssDescription.mdiePresent &&
 	    (mlme_priv->connect_info.ft_info.add_mdie)
 #if defined FEATURE_WLAN_ESE
-	    && !pe_session->isESEconnection
+	    && !wlan_cm_get_ese_assoc(mac_ctx->pdev, vdev_id)
 #endif
 	    ) {
 		populate_mdie(mac_ctx, &frm->MobilityDomain,
@@ -442,7 +441,8 @@ void lim_send_reassoc_req_with_ft_ies_mgmt_frame(struct mac_context *mac_ctx,
 	/* Paranoia: */
 	qdf_mem_zero(frame, bytes + ft_ies_length);
 
-	lim_print_mac_addr(mac_ctx, pe_session->limReAssocbssId, LOGD);
+	pe_debug("BSSID: "QDF_MAC_ADDR_FMT,
+		 QDF_MAC_ADDR_REF(pe_session->limReAssocbssId));
 	/* Next, we fill out the buffer descriptor: */
 	lim_populate_mac_header(mac_ctx, frame, SIR_MAC_MGMT_FRAME,
 		SIR_MAC_MGMT_REASSOC_REQ, pe_session->limReAssocbssId,
@@ -631,6 +631,7 @@ void lim_send_reassoc_req_mgmt_frame(struct mac_context *mac,
 	uint8_t *bcn_ie = NULL;
 	uint32_t bcn_ie_len = 0;
 	uint8_t *p_ext_cap = NULL;
+	enum rateid min_rid = RATEID_DEFAULT;
 
 	if (!pe_session)
 		return;
@@ -928,12 +929,16 @@ void lim_send_reassoc_req_mgmt_frame(struct mac_context *mac,
 	lim_diag_mgmt_tx_event_report(mac, pMacHdr,
 				      pe_session, QDF_STATUS_SUCCESS,
 				      QDF_STATUS_SUCCESS);
+
+	if (pe_session->is_oui_auth_assoc_6mbps_2ghz_enable)
+		min_rid = RATEID_6MBPS;
+
 	qdf_status =
 		wma_tx_frame(mac, pPacket,
 			   (uint16_t) (sizeof(tSirMacMgmtHdr) + nPayload),
 			   TXRX_FRM_802_11_MGMT, ANI_TXDIR_TODS, 7,
 			   lim_tx_complete, pFrame, txFlag, smeSessionId, 0,
-			   RATEID_DEFAULT, 0);
+			   min_rid, 0);
 	MTRACE(qdf_trace
 		       (QDF_MODULE_ID_PE, TRACE_CODE_TX_COMPLETE,
 		       pe_session->peSessionId, qdf_status));

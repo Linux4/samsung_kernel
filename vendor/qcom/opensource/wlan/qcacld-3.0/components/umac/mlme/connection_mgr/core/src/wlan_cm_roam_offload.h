@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2012-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -221,7 +221,7 @@ QDF_STATUS cm_roam_send_rso_cmd(struct wlan_objmgr_psoc *psoc,
  * cm_rso_set_roam_trigger() - Send roam trigger bitmap firmware
  * @pdev: Pointer to pdev
  * @vdev_id: vdev id
- * @triggers: Carries pointer of the object containing vdev id and
+ * @trigger: Carries pointer of the object containing vdev id and
  *  roam_trigger_bitmap.
  *
  * Return: QDF_STATUS
@@ -279,7 +279,7 @@ void cm_dump_freq_list(struct rso_chan_info *chan_info);
 
 /**
  * cm_start_roam_invoke() - Validate and send Roam invoke req to CM
- * @pdev: Pdev pointer
+ * @psoc: Psoc pointer
  * @vdev: vdev
  * @bssid: Target bssid
  * @chan_freq: channel frequency on which reassoc should be send
@@ -466,7 +466,7 @@ cm_exclude_rm_partial_scan_freq(struct wlan_objmgr_psoc *psoc,
 /**
  * cm_roam_full_scan_6ghz_on_disc() - Include the 6 GHz channels in roam full
  * scan only on prior discovery of any 6 GHz support in the environment
- * @pdev: Pointer to pdev
+ * @psoc: Pointer to psoc
  * @vdev_id: vdev id
  * @param_value: Include the 6 GHz channels in roam full scan:
  * 1 - Include only on prior discovery of any 6 GHz support in the environment
@@ -555,36 +555,36 @@ void cm_update_owe_info(struct wlan_objmgr_vdev *vdev,
 
 #ifdef WLAN_FEATURE_11BE_MLO
 QDF_STATUS
-cm_handle_mlo_rso_state_change(struct wlan_objmgr_pdev *pdev,
-			       uint8_t *vdev_id,
-			       uint8_t reason,
-			       bool *is_rso_skip);
+cm_handle_mlo_rso_state_change(struct wlan_objmgr_pdev *pdev, uint8_t *vdev_id,
+			       enum roam_offload_state requested_state,
+			       uint8_t reason, bool *is_rso_skip);
 #else
 static inline QDF_STATUS
-cm_handle_mlo_rso_state_change(struct wlan_objmgr_pdev *pdev,
-			       uint8_t *vdev_id,
-			       uint8_t reason,
-			       bool *is_rso_skip)
+cm_handle_mlo_rso_state_change(struct wlan_objmgr_pdev *pdev, uint8_t *vdev_id,
+			       enum roam_offload_state requested_state,
+			       uint8_t reason, bool *is_rso_skip)
 {
 	return QDF_STATUS_E_NOSUPPORT;
 }
 
 #endif
 
-#if (defined(WLAN_FEATURE_CONNECTIVITY_LOGGING) || \
-	defined(CONNECTIVITY_DIAG_EVENT)) && \
-	defined(WLAN_FEATURE_ROAM_OFFLOAD)
+#if (defined(CONNECTIVITY_DIAG_EVENT) && \
+	defined(WLAN_FEATURE_ROAM_OFFLOAD))
 /**
  * cm_roam_mgmt_frame_event() - Roam management frame event
+ * @vdev: vdev pointer
  * @frame_data: frame_data
  * @scan_data: Roam scan data
- * @vdev_id: vdev_id
+ * @result: Roam result
  *
  * Return: QDF_STATUS
  */
 QDF_STATUS
-cm_roam_mgmt_frame_event(struct roam_frame_info *frame_data,
-			 struct wmi_roam_scan_data *scan_data, uint8_t vdev_id);
+cm_roam_mgmt_frame_event(struct wlan_objmgr_vdev *vdev,
+			 struct roam_frame_info *frame_data,
+			 struct wmi_roam_scan_data *scan_data,
+			 struct wmi_roam_result *result);
 
 /**
  * cm_roam_btm_req_event  - Send BTM request related logging event
@@ -660,8 +660,10 @@ cm_roam_neigh_rpt_resp_event(struct wmi_neighbor_report_data *neigh_rpt,
 			     uint8_t vdev_id);
 #else
 static inline QDF_STATUS
-cm_roam_mgmt_frame_event(struct roam_frame_info *frame_data,
-			 struct wmi_roam_scan_data *scan_data, uint8_t vdev_id)
+cm_roam_mgmt_frame_event(struct wlan_objmgr_vdev *vdev,
+			 struct roam_frame_info *frame_data,
+			 struct wmi_roam_scan_data *scan_data,
+			 struct wmi_roam_result *result)
 {
 	return QDF_STATUS_E_NOSUPPORT;
 }

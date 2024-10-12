@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -41,7 +41,7 @@ enum wlan_host_dcs_type {
 /**
  * struct wlan_host_dcs_interference_param - dcs interference parameters
  * @interference_type: type of DCS interference
- * @uint32_t pdev_id: pdev id
+ * @pdev_id: pdev id
  */
 struct wlan_host_dcs_interference_param {
 	uint32_t interference_type;
@@ -104,7 +104,7 @@ struct wlan_host_dcs_im_tgt_stats {
  * struct wlan_host_dcs_ch_util_stats - DCS IM chan utilization stats
  * @rx_cu: rx channel utilization
  * @tx_cu: tx channel utilization
- * @rx_obss_cu: obss rx channel utilization
+ * @obss_rx_cu: obss rx channel utilization
  * @total_cu: total channel utilization
  * @chan_nf: Channel noise floor (units are in dBm)
  */

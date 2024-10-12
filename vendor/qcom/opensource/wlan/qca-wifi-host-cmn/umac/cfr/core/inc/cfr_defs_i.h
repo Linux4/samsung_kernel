@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2019-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -36,8 +36,8 @@
 
 /**
  * wlan_cfr_psoc_obj_create_handler() - psoc object create handler for cfr
- * @psoc - pointer to psoc object
- * @args - void pointer in case it needs arguments
+ * @psoc: pointer to psoc object
+ * @arg: void pointer in case it needs arguments
  *
  * Return: status of object creation
  */
@@ -46,8 +46,8 @@ wlan_cfr_psoc_obj_create_handler(struct wlan_objmgr_psoc *psoc, void *arg);
 
 /**
  * wlan_cfr_psoc_obj_destroy_handler() - psoc object destroy handler for cfr
- * @psoc - pointer to psoc object
- * @args - void pointer in case it needs arguments
+ * @psoc: pointer to psoc object
+ * @arg: void pointer in case it needs arguments
  *
  * Return: status of destroy object
  */
@@ -56,8 +56,8 @@ wlan_cfr_psoc_obj_destroy_handler(struct wlan_objmgr_psoc *psoc, void *arg);
 
 /**
  * wlan_cfr_pdev_obj_create_handler() - pdev object create handler for cfr
- * @pdev - pointer to pdev object
- * @args - void pointer in case it needs arguments
+ * @pdev: pointer to pdev object
+ * @arg: void pointer in case it needs arguments
  *
  * Return: status of object creation
  */
@@ -66,8 +66,8 @@ wlan_cfr_pdev_obj_create_handler(struct wlan_objmgr_pdev *pdev, void *arg);
 
 /**
  * wlan_cfr_pdev_obj_destroy_handler() - pdev object destroy handler for cfr
- * @pdev - pointer to pdev object
- * @args - void pointer in case it needs arguments
+ * @pdev: pointer to pdev object
+ * @arg: void pointer in case it needs arguments
  *
  * Return: status of destroy object
  */
@@ -76,8 +76,8 @@ wlan_cfr_pdev_obj_destroy_handler(struct wlan_objmgr_pdev *pdev, void *arg);
 
 /**
  * wlan_cfr_peer_obj_create_handler() - peer object create handler for cfr
- * @peer - pointer to peer object
- * @args - void pointer in case it needs arguments
+ * @peer: pointer to peer object
+ * @arg: void pointer in case it needs arguments
  *
  * Return: status of object creation
  */
@@ -86,8 +86,8 @@ wlan_cfr_peer_obj_create_handler(struct wlan_objmgr_peer *peer, void *arg);
 
 /**
  * wlan_cfr_peer_obj_destroy_handler() - peer object destroy handler for cfr
- * @peer - pointer to peer object
- * @args - void pointer in case it needs arguments
+ * @peer: pointer to peer object
+ * @arg: void pointer in case it needs arguments
  *
  * Return: status ofi destroy object
  */
@@ -96,7 +96,7 @@ wlan_cfr_peer_obj_destroy_handler(struct wlan_objmgr_peer *peer, void *arg);
 
 /**
  * cfr_streamfs_init() - stream filesystem init
- * @pdev - pointer to pdev object
+ * @pdev: pointer to pdev object
  *
  * Return: status of fs init
  */
@@ -105,7 +105,7 @@ cfr_streamfs_init(struct wlan_objmgr_pdev *pdev);
 
 /**
  * cfr_streamfs_remove() - stream filesystem remove
- * @pdev - pointer to pdev object
+ * @pdev: pointer to pdev object
  *
  * Return: status of fs remove
  */
@@ -114,9 +114,9 @@ cfr_streamfs_remove(struct wlan_objmgr_pdev *pdev);
 
 /**
  * cfr_streamfs_write() - write to stream filesystem
- * @pa - pointer to pdev_cfr object
- * @write_data - Pointer to data
- * @write_len - data len
+ * @pa: pointer to pdev_cfr object
+ * @write_data: Pointer to data
+ * @write_len: data len
  *
  * Return: status of fs write
  */
@@ -126,7 +126,7 @@ cfr_streamfs_write(struct pdev_cfr *pa, const void *write_data,
 
 /**
  * cfr_streamfs_flush() - flush the write to streamfs
- * @pa - pointer to pdev_cfr object
+ * @pa: pointer to pdev_cfr object
  *
  * Return: status of fs flush
  */
@@ -135,7 +135,7 @@ cfr_streamfs_flush(struct pdev_cfr *pa);
 
 /**
  * cfr_stop_indication() - write cfr stop string
- * @vdev - pointer to vdev object
+ * @vdev: pointer to vdev object
  *
  * Write stop string and indicate to up layer.
  *
@@ -146,7 +146,7 @@ QDF_STATUS cfr_stop_indication(struct wlan_objmgr_vdev *vdev);
 #ifdef WLAN_CFR_PM
 /**
  * cfr_prevent_suspend() - Acquire wake lock and prevent suspend
- * @pcfr - pointer to pdev_cfr object
+ * @pcfr: pointer to pdev_cfr object
  *
  * Return: QDF status
  */
@@ -154,7 +154,7 @@ QDF_STATUS cfr_prevent_suspend(struct pdev_cfr *pcfr);
 
 /**
  * cfr_allow_suspend() - Release wake lock and allow suspend
- * @pcfr - pointer to pdev_cfr object
+ * @pcfr: pointer to pdev_cfr object
  *
  * Return: QDF status
  */

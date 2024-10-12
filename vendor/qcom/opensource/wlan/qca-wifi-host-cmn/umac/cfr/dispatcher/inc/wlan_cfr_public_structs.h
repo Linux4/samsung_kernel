@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -26,9 +26,15 @@
 #define MAX_CAPTURE_COUNT_VAL 0xFFFF
 
 /**
- * cfr_cwm_width : Capture bandwidth
- * 0 : 20MHz, 1 : 40MHz, 2 : 80MHz, 3 : 160MHz, 4 : 80+80MHz
- * 5 : 320MHz
+ * enum cfr_cwm_width - Capture bandwidth
+ * @CFR_CWM_WIDTH20: 20 MHz
+ * @CFR_CWM_WIDTH40: 40 MHz
+ * @CFR_CWM_WIDTH80: 80 MHz
+ * @CFR_CWM_WIDTH160: 160 MHz
+ * @CFR_CWM_WIDTH80_80: 80+80 MHz
+ * @CFR_CWM_WIDTH320: 320 MHz
+ * @CFR_CWM_WIDTH_MAX:
+ * @CFR_CWM_WIDTHINVALID:
  */
 enum cfr_cwm_width {
 	CFR_CWM_WIDTH20,
@@ -43,11 +49,14 @@ enum cfr_cwm_width {
 };
 
 /**
- * cfr_capture_method : Tx based CFR capture method
+ * enum cfr_capture_method - Tx based CFR capture method
  * @CFR_CAPTURE_METHOD_QOS_NULL : Send QOS Null frame and capture CFR on ACK
  * @CFR_CAPTURE_METHOD_QOS_NULL_WITH_PHASE: Send QoS Null frame with phase
  * @CFR_CAPTURE_METHOD_PROBE_RESPONSE : Capture is enabled on probe response
  * If node is not found, trigger unassociated capture.
+ * @CFR_CAPTURE_METHOD_LAST_VALID:
+ * @CFR_CAPTURE_METHOD_AUTO:
+ * @CFR_CAPTURE_METHOD_MAX:
  */
 enum cfr_capture_method {
 	CFR_CAPTURE_METHOD_QOS_NULL = 0,
@@ -59,7 +68,7 @@ enum cfr_capture_method {
 };
 
 /**
- * cfr_wlanconfig_param : CFR params used to store user provided inputs
+ * struct cfr_wlanconfig_param - CFR params used to store user provided inputs
  * @bandwidth : CFR capture bandwidth
  * @periodicity : CFR capture periodicity in milli seconds
  * @capture_method : CFR capture method
@@ -67,7 +76,7 @@ enum cfr_capture_method {
  * @ta : Tx address
  * @ra : Rx Address
  * @ta_mask: Tx address mask
- * @ra_mask; Rx address mask
+ * @ra_mask: Rx address mask
  * *** Controls for different capture modes in RCC ***
  * @en_directed_ftm: Enable capture for directed RTT FTM Packet
  * @en_directed_ndpa_ndp: Enable NDPA filter followed by directed NDP capture
@@ -85,44 +94,54 @@ enum cfr_capture_method {
  * @en_ta_ra_filter_in_as_fp: Filter in frames as FP/MO in m_ta_ra_filter mode
  *		0: as MO
  *		1: as FP
+ * @rsvd0: reserved bits
  *
  * **** Fixed parameters ****
  * @cap_dur: Capture duration
+ * @rsvd1: reserved bits
  * @cap_intvl: Capture interval
  * FW may limit the interval and duration during which HW may attempt
  * to capture by programming the user provided values.
  * These values(cap_dur, cap_intvl) range from 1 us to roughly 16.8 in 1 us
  * units. Max value is 0xFFFFFF, i.e., 16.777215 s
+ * @rsvd2: reserved bits
  * @bw: Bandwidth: 20, 40, 80, 160, 240, 320MHz
  * @nss: 8 bits are allotted for NSS mask. Specifies which numbers of
  * spatial streams (MIMO factor) are permitted
  * @grp_id:  Group id could of any value between 0 and 15
- * @expected_mgmt_subtype/ expected_ctrl_subtype / expected_data_subtype:
+ * @rsvd3: reserved bits
+ * @expected_mgmt_subtype:
+ * @expected_ctrl_subtype:
+ * @expected_data_subtype:
  * corresponds to mgmt/ ctrl/ data, all are bitmasks, in which each bit
  * represents the corresponding type/ subtype value as per IEEE80211.
+ * @rsvd5: reserved bits
  *
- * @en_cfg and reset_cfg: This bitmap of 16 bits, indicates 16 groups.
+ * @en_cfg:
+ * @reset_cfg: This bitmap of 16 bits, indicates 16 groups.
  * Valid entry should be in between 0 to 0xFFFF.
  * Turning on a bit in en_cfg will enable MAC TA_RA filter
  * for corresponding group; whereas turning on a bit in reset_cfg
  * will reset all 9 params in the corresponding group to default values.
  *
- * @ul_mu_user_mask_lower, ul_mu_user_mask_upper :
- * Since Cypress supports max bandwidth of 80Mhz, maximum number
+ * @ul_mu_user_mask_lower:
+ * @ul_mu_user_mask_upper:
+ * Since Cypress supports max bandwidth of 80 MHz, maximum number
  * of users in a UL MU-MIMO transmission would be 37.
  * mask_lower_32: Bits from 31 to 0 indicate user indices for 32 users.
  * mask_upper_32: Bits from 0 to 4 indicate user indices from 33 to 37.
  *
- * @ freeze_tlv_delay_cnt_en, freeze_tlv_delay_cnt_thr :
- * freeze_tlv_delay_cnt_thr will decide the threshold for MAC to drop the
- * freeze TLV. freeze_tlv_delay_cnt_thr will only be applicable if
- * freeze_tlv_delay_cnt_en is enabled.
+ * @freeze_tlv_delay_cnt_en: set to enable @freeze_tlv_delay_cnt_thr
+ * @freeze_tlv_delay_cnt_thr: the threshold for MAC to drop the
+ * freeze TLV. only be applicable if @freeze_tlv_delay_cnt_en is enabled.
+ * @rsvd6: reserved bits
  *
  * @cap_count: After capture_count+1 number of captures, MAC stops RCC and
  * waits for capture_interval duration before enabling again
  *
  * @cap_intval_mode_sel: 0 indicates capture_duration mode, 1 indicates the
  * capture_count mode.
+ * @rsvd7: reserved bits
  */
 struct cfr_wlanconfig_param {
 	enum cfr_cwm_width bandwidth;

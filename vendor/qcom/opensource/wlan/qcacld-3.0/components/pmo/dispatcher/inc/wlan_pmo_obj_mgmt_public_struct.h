@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2017-2021 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -36,47 +37,79 @@
 #include "wlan_pmo_lphb_public_struct.h"
 
 /**
- * typedef for vdev notifying the vdev pause bitmap new value to mlme
+ * typedef pmo_notify_pause_bitmap() - function for vdev notifying the vdev
+ *                                     pause bitmap new value to mlme
+ * @vdev_id: ID of objmgr vdev object
+ * @value: new pause bitmap value
  */
 typedef void (*pmo_notify_pause_bitmap)(uint8_t vdev_id, uint16_t value);
 
 /**
- * typedef for function that gets cfg integer from mlme
+ * typedef pmo_get_cfg_int() - function that gets cfg integer from mlme
+ * @cfg_id: configuration item to retrieve
+ * @value: location to store the configuration item's value
+ *
+ * Return: QDF_STATUS_SUCCESS on success, otherwise QDF_STATUS_E_*
  */
 typedef QDF_STATUS (*pmo_get_cfg_int)(int cfg_id, int *value);
 
 /**
- * typedef for function that gets dtim period from mlme
+ * typedef pmo_get_dtim_period() - function that gets dtim period from mlme
+ * @vdev_id: ID of objmgr vdev object
+ * @value: location to store the DTIM period
+ *
+ * Return: QDF_STATUS_SUCCESS on success, otherwise QDF_STATUS_E_*
  */
 typedef QDF_STATUS (*pmo_get_dtim_period)(uint8_t vdev_id, uint8_t *value);
 
 /**
- * typedef for function that gets  beacon interval from mlme
+ * typedef pmo_get_beacon_interval() - function that gets beacon interval
+ *                                     from mlme
+ * @vdev_id: ID of objmgr vdev object
+ * @value: location to store the beacon interval
+ *
+ * Return: QDF_STATUS_SUCCESS on success, otherwise QDF_STATUS_E_*
  */
 typedef QDF_STATUS (*pmo_get_beacon_interval)(uint8_t vdev_id, uint16_t *value);
 
 /**
- * typedef for getting vdev pause bitmap
+ * typedef pmo_get_pause_bitmap() - function for getting vdev pause bitmap
+ * @vdev_id: ID of objmgr vdev object
+ *
+ * Return: vdev pause bitmap
  */
 typedef  uint16_t(*pmo_get_pause_bitmap)(uint8_t vdev_id);
 
 /**
- * typedef for getting vdev datapath handle
+ * typedef pmo_get_vdev_dp_handle() - for getting vdev datapath handle
+ * @vdev_id: ID of objmgr vdev object
+ *
+ * Return: datapath handle of the associated vdev if found, or NULL
  */
-typedef struct cdp_vdev * (*pmo_get_vdev_dp_handle)(uint8_t vdev_id);
+typedef struct cdp_vdev *(*pmo_get_vdev_dp_handle)(uint8_t vdev_id);
 
 /**
- * typedef to know is deviec is in power save mode
+ * typedef pmo_is_device_in_low_pwr_mode() - to know is device is in power
+ *                                           save mode
+ * @vdev_id: ID of objmgr vdev object
+ *
+ * Return: true if associated devicce is in power save
  */
 typedef  bool (*pmo_is_device_in_low_pwr_mode)(uint8_t vdev_id);
 
-/*
- * typedef for pld auto suspend callback during runtime suspend
+/**
+ * typedef pmo_pld_auto_suspend_cb() - pld auto suspend callback during runtime
+ *                                     suspend
+ *
+ * Return: 0 on success, negative errno on failure
  */
 typedef int (*pmo_pld_auto_suspend_cb)(void);
 
-/*
- * typedef for pld auto resume callback during runtime resume
+/**
+ * typedef pmo_pld_auto_resume_cb() - pld auto resume callback during runtime
+ *                                    resume
+ *
+ * Return: 0 on success, negative errno on failure
  */
 typedef int (*pmo_pld_auto_resume_cb)(void);
 
@@ -84,12 +117,13 @@ typedef int (*pmo_pld_auto_resume_cb)(void);
  * struct wlan_pmo_tx_ops - structure of tx function
  *					pointers for pmo component
  * @send_arp_offload_req: fp to send arp offload request
+ * @send_conf_hw_filter_req: fp to configure hardware filter in DTIM mode
  * @send_ns_offload_req: fp to send ns offload request
  * @send_non_arp_bcast_filter_req: for enable/disable  broadcast filter
  * @send_set_pkt_filter: send set packet filter
  * @send_clear_pkt_filter: send clear packet filter
- * @send_enable_wakeup_event_req: fp to send enable wow wakeup events req
- * @send_disable_wakeup_event_req: fp to send disable wow wakeup events req
+ * @send_enable_wow_wakeup_event_req: fp to send enable wow wakeup events req
+ * @send_disable_wow_wakeup_event_req: fp to send disable wow wakeup events req
  * @send_add_wow_pattern: fp to send wow pattern request
  * @del_wow_pattern: fp to delete wow pattern from firmware
  * @send_enhance_mc_offload_req: fp to send enhanced multicast offload request
@@ -108,11 +142,15 @@ typedef int (*pmo_pld_auto_resume_cb)(void);
  * @send_lphb_upd_params: fp to send lphb udp params request command
  * @send_lphb_udp_filter_req: fp to send lphb udp packet filter request command
  * @send_vdev_param_update_req: fp to send vdev param request
- * @send_vdev_set_sta_ps_param: fp to send sta vdev ps power set req
+ * @send_vdev_sta_ps_param_req: fp to send sta vdev ps power set req
+ * @send_igmp_offload_req: fp to send IGMP offload request
  * @psoc_update_wow_bus_suspend: fp to update bus suspend req flag at wmi
  * @psoc_get_host_credits: fp to get the host credits
  * @psoc_get_pending_cmnds: fp to get the host pending wmi commands
  * @update_target_suspend_flag: fp to update target suspend flag at wmi
+ * @update_target_suspend_acked_flag: fp to update target suspend acked flag
+ *                                    at wmi
+ * @is_target_suspended: fp to test if target is suspended
  * @psoc_send_wow_enable_req: fp to send wow enable request
  * @psoc_send_supend_req: fp to send target suspend request
  * @psoc_set_runtime_pm_in_progress: fp to set runtime pm is in progress status
@@ -124,6 +162,7 @@ typedef int (*pmo_pld_auto_resume_cb)(void);
  * @psoc_send_idle_roam_suspend_mode: fp to send suspend mode for
  * idle roam  trigger to firmware.
  * @send_icmp_offload_req: fp to send icmp offload request
+ * @psoc_set_wow_enable_ack_failed: fp to set wow enable ack failure status
  */
 struct wlan_pmo_tx_ops {
 	QDF_STATUS (*send_arp_offload_req)(struct wlan_objmgr_vdev *vdev,
@@ -239,6 +278,7 @@ struct wlan_pmo_tx_ops {
 			struct wlan_objmgr_psoc *psoc,
 			struct pmo_icmp_offload *pmo_icmp_req);
 #endif
+	void (*psoc_set_wow_enable_ack_failed)(struct wlan_objmgr_psoc *psoc);
 };
 
 #endif /* end  of _WLAN_PMO_OBJ_MGMT_PUBLIC_STRUCT_H_ */

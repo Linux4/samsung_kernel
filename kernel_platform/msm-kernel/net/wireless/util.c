@@ -85,6 +85,10 @@ u32 ieee80211_channel_to_freq_khz(int chan, enum nl80211_band band)
 			return MHZ_TO_KHZ(2484);
 		else if (chan < 14)
 			return MHZ_TO_KHZ(2407 + chan * 5);
+		else if (chan == 221 || chan == 222)
+			return MHZ_TO_KHZ(2477 + (chan - 221) * 5);
+		else if (chan >= 203 && chan <= 216)
+			return MHZ_TO_KHZ(2399 + (chan - 200) * 5);
 		break;
 	case NL80211_BAND_5GHZ:
 		if (chan >= 182 && chan <= 196)
@@ -986,7 +990,9 @@ void cfg80211_process_wdev_events(struct wireless_dev *wdev)
 			__cfg80211_leave(wiphy_to_rdev(wdev->wiphy), wdev);
 			break;
 		case EVENT_PORT_AUTHORIZED:
-			__cfg80211_port_authorized(wdev, ev->pa.bssid);
+			__cfg80211_port_authorized(wdev, ev->pa.bssid,
+						   ev->pa.td_bitmap,
+						   ev->pa.td_bitmap_len);
 			break;
 		}
 		wdev_unlock(wdev);

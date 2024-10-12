@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2018-2020 The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -90,7 +90,7 @@ static QDF_STATUS fake_ocb_set_utc_time_cmd_tlv(wmi_unified_t wmi_handle,
 /**
  * fake_ocb_get_tsf_timer_cmd_tlv() - get ocb tsf timer val
  * @wmi_handle: pointer to the wmi handle
- * @request: pointer to the request
+ * @vdev_id: vdev of interest
  *
  * Return: 0 on success
  */
@@ -357,9 +357,7 @@ fake_ocb_start_timing_advert_cmd_tlv(wmi_unified_t wmi_handle,
 /**
  * fake_peer_create_cmd_tlv() - send peer create command to fw
  * @wmi: wmi handle
- * @peer_addr: peer mac address
- * @peer_type: peer type
- * @vdev_id: vdev id
+ * @param: peer create parameters
  *
  * Return: QDF_STATUS_SUCCESS for success or error code
  */
@@ -374,7 +372,7 @@ static QDF_STATUS fake_peer_create_cmd_tlv(wmi_unified_t wmi,
  * fake_peer_delete_cmd_tlv() - send PEER delete command to fw
  * @wmi: wmi handle
  * @peer_addr: peer mac addr
- * @vdev_id: vdev id
+ * @param: peer delete parameters
  *
  * Return: QDF_STATUS_SUCCESS for success or error code
  */
@@ -429,9 +427,8 @@ static QDF_STATUS fake_vdev_down_cmd_tlv(wmi_unified_t wmi, uint8_t vdev_id)
 
 /**
  *  fake_vdev_set_param_cmd_tlv() - WMI vdev set parameter function
- *  @param wmi_handle      : handle to WMI.
- *  @param macaddr        : MAC address
- *  @param param    : pointer to hold vdev set parameter
+ *  @wmi_handle: handle to WMI.
+ *  @param: pointer to hold vdev set parameter
  *
  *  Return: 0  on success and -ve on failure.
  */
@@ -447,6 +444,7 @@ static QDF_STATUS fake_vdev_set_param_cmd_tlv(wmi_unified_t wmi_handle,
  *  faked API to enable/disable mcc scheduler
  * @wmi_handle: wmi handle
  * @mcc_adaptive_scheduler: enable/disable
+ * @pdev_id: pdev ID
  *
  * This function enable/disable mcc adaptive scheduler in fw.
  *
@@ -460,10 +458,10 @@ static QDF_STATUS fake_set_enable_disable_mcc_adaptive_scheduler_cmd_tlv(
 	return QDF_STATUS_SUCCESS;
 }
 
-/*
+/**
  * fake_process_set_ie_info_cmd_tlv() - Function to send IE info to firmware
  * @wmi_handle:    Pointer to WMi handle
- * @ie_data:       Pointer for ie data
+ * @ie_info:       Pointer for ie info
  *
  * This function sends IE information to firmware
  *

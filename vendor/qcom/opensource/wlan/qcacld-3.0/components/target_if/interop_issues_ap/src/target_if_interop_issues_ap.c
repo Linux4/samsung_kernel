@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2019-2020 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -35,6 +36,7 @@
 
 /**
  * target_if_interop_issues_ap_event_handler() - callback for event
+ * @sc: scn handle
  * @event: firmware event
  * @len: the event length
  *
@@ -139,7 +141,7 @@ target_if_interop_issues_ap_unregister_event_handler(
 /**
  * target_if_set_interop_issues_ap_req() - API to send stats request to wmi
  * @psoc: pointer to psoc object
- * @raq: pointer to interop issues ap info
+ * @rap: pointer to interop issues ap info
  *
  * Return: status of operation.
  */

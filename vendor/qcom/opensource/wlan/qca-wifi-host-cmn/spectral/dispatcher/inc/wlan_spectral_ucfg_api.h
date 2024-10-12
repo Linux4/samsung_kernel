@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2017-2020 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  *
  * Permission to use, copy, modify, and/or distribute this software for
@@ -63,7 +64,7 @@ QDF_STATUS ucfg_spectral_create_cp_req(struct spectral_cp_request *sscan_req,
 				       void *indata, u_int32_t insize);
 
 /**
- * ucfg_spectral_create_cp_req() - Extract response from Spectral CP request
+ * ucfg_spectral_extract_response() - Extract response from Spectral CP request
  * @sscan_req: Pointer to Spectral scan request
  * @outdata: pointer output data
  * @outsize: Size of output data

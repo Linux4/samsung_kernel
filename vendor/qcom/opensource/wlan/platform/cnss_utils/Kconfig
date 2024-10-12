@@ -18,3 +18,8 @@ config CNSS_PLAT_IPC_QMI_SVC
 	tristate "CNSS Platform QMI IPC Support"
 	help
 	  Add CNSS platform kernel and user space components IPC using QMI.
+
+config CNSS_OUT_OF_TREE
+	bool "Build module out-of-tree"
+	help
+	  This enables building the module out of the main kernel tree

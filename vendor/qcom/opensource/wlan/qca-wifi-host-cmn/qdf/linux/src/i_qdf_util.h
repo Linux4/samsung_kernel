@@ -166,8 +166,8 @@ static inline void __qdf_zero_macaddr(struct qdf_mac_addr *mac_addr)
  * Return: true if the MacAddress's are equal
  *      not true if the MacAddress's are not equal
  */
-static inline bool __qdf_is_macaddr_equal(struct qdf_mac_addr *mac_addr1,
-					  struct qdf_mac_addr *mac_addr2)
+static inline bool __qdf_is_macaddr_equal(const struct qdf_mac_addr *mac_addr1,
+					  const struct qdf_mac_addr *mac_addr2)
 {
 	return 0 == memcmp(mac_addr1, mac_addr2, QDF_MAC_ADDR_SIZE);
 }
@@ -177,7 +177,7 @@ static inline bool __qdf_is_macaddr_equal(struct qdf_mac_addr *mac_addr1,
 #define __qdf_min(_a, _b) min(_a, _b)
 #define __qdf_max(_a, _b) max(_a, _b)
 
-/**
+/*
  * Setting it to blank as feature is not intended to be supported
  * on linux version less than 4.3
  */
@@ -203,9 +203,6 @@ static inline bool __qdf_is_macaddr_equal(struct qdf_mac_addr *mac_addr1,
 
 #define MEMINFO_KB(x)  ((x) << (PAGE_SHIFT - 10))   /* In kilobytes */
 
-/**
- * @brief Assert
- */
 #define __qdf_assert(expr)  do { \
 		if (unlikely(!(expr))) { \
 			pr_err("Assertion failed! %s:%s %s:%d\n", \
@@ -215,9 +212,18 @@ static inline bool __qdf_is_macaddr_equal(struct qdf_mac_addr *mac_addr1,
 		} \
 } while (0)
 
-/**
- * @brief Assert
- */
+#define __qdf_assert_with_debug(expr, debug_fp, ...)			\
+	do {								\
+		typeof(debug_fp) _debug_fp = debug_fp;			\
+		if (unlikely(!(expr))) {				\
+			pr_err("Assertion failed! %s:%s %s:%d\n",	\
+			       # expr, __func__, __FILE__, __LINE__);	\
+			if (_debug_fp)					\
+				_debug_fp(__VA_ARGS__);			\
+			QDF_BUG_ON_ASSERT(0);				\
+		}							\
+	} while (0)
+
 #define __qdf_target_assert(expr)  do {    \
 	if (unlikely(!(expr))) {                                 \
 		qdf_err("Assertion failed! %s:%s %s:%d",   \
@@ -227,9 +233,6 @@ static inline bool __qdf_is_macaddr_equal(struct qdf_mac_addr *mac_addr1,
 	}     \
 } while (0)
 
-/**
- * @brief Compile time Assert
- */
 #define QDF_COMPILE_TIME_ASSERT(assertion_name, predicate) \
     typedef char assertion_name[(predicate) ? 1 : -1]
 
@@ -257,9 +260,6 @@ static inline bool __qdf_is_macaddr_equal(struct qdf_mac_addr *mac_addr1,
 #define __qdf_be32_to_cpu be32_to_cpu
 #define __qdf_be64_to_cpu be64_to_cpu
 
-/**
- * @brief memory barriers.
- */
 #define __qdf_wmb()                wmb()
 #define __qdf_rmb()                rmb()
 #define __qdf_mb()                 mb()
@@ -421,10 +421,11 @@ int __qdf_set_dma_coherent_mask(struct device *dev, uint8_t addr_bits)
 }
 #endif
 /**
- * qdf_get_random_bytes() - returns nbytes bytes of random
- * data
+ * __qdf_get_random_bytes() - returns nbytes bytes of random data
+ * @buf: buffer to fill
+ * @nbytes: number of bytes to fill
  *
- * Return: random bytes of data
+ * Return: void
  */
 static inline
 void __qdf_get_random_bytes(void *buf, int nbytes)

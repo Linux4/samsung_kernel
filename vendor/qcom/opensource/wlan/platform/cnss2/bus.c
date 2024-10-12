@@ -48,6 +48,7 @@ enum cnss_dev_bus_type cnss_get_bus_type(struct cnss_plat_data *plat_priv)
 	case QCA6174_DEVICE_ID:
 	case QCA6290_DEVICE_ID:
 	case QCA6390_DEVICE_ID:
+	case QCN7605_DEVICE_ID:
 	case QCA6490_DEVICE_ID:
 	case KIWI_DEVICE_ID:
 	case MANGO_DEVICE_ID:
@@ -138,6 +139,21 @@ void cnss_bus_add_fw_prefix_name(struct cnss_plat_data *plat_priv,
 	}
 }
 
+int cnss_bus_load_tme_patch(struct cnss_plat_data *plat_priv)
+{
+	if (!plat_priv)
+		return -ENODEV;
+
+	switch (plat_priv->bus_type) {
+	case CNSS_BUS_PCI:
+		return cnss_pci_load_tme_patch(plat_priv->bus_priv);
+	default:
+		cnss_pr_err("Unsupported bus type: %d\n",
+			    plat_priv->bus_type);
+		return -EINVAL;
+	}
+}
+
 int cnss_bus_load_m3(struct cnss_plat_data *plat_priv)
 {
 	if (!plat_priv)
@@ -146,6 +162,21 @@ int cnss_bus_load_m3(struct cnss_plat_data *plat_priv)
 	switch (plat_priv->bus_type) {
 	case CNSS_BUS_PCI:
 		return cnss_pci_load_m3(plat_priv->bus_priv);
+	default:
+		cnss_pr_err("Unsupported bus type: %d\n",
+			    plat_priv->bus_type);
+		return -EINVAL;
+	}
+}
+
+int cnss_bus_load_aux(struct cnss_plat_data *plat_priv)
+{
+	if (!plat_priv)
+		return -ENODEV;
+
+	switch (plat_priv->bus_type) {
+	case CNSS_BUS_PCI:
+		return cnss_pci_load_aux(plat_priv->bus_priv);
 	default:
 		cnss_pr_err("Unsupported bus type: %d\n",
 			    plat_priv->bus_type);
@@ -647,6 +678,28 @@ int cnss_bus_set_therm_cdev_state(struct cnss_plat_data *plat_priv,
 		return cnss_pci_set_therm_cdev_state(plat_priv->bus_priv,
 						     thermal_state,
 						     tcdev_id);
+	default:
+		cnss_pr_err("Unsupported bus type: %d\n", plat_priv->bus_type);
+		return -EINVAL;
+	}
+}
+
+int cnss_bus_get_msi_assignment(struct cnss_plat_data *plat_priv,
+				char *msi_name,
+				int *num_vectors,
+				u32 *user_base_data,
+				u32 *base_vector)
+{
+	if (!plat_priv)
+		return -ENODEV;
+
+	switch (plat_priv->bus_type) {
+	case CNSS_BUS_PCI:
+		return cnss_pci_get_user_msi_assignment(plat_priv->bus_priv,
+							msi_name,
+							num_vectors,
+							user_base_data,
+							base_vector);
 	default:
 		cnss_pr_err("Unsupported bus type: %d\n", plat_priv->bus_type);
 		return -EINVAL;

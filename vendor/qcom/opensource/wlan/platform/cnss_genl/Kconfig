@@ -7,3 +7,8 @@ config CNSS_GENL
 	  used by cld driver and userspace utilities to communicate over
 	  netlink sockets. This module creates different multicast groups to
 	  facilitate the same.
+
+config CNSS_OUT_OF_TREE
+	bool "Build module out-of-tree"
+	help
+	  This enables building the module out of the main kernel tree

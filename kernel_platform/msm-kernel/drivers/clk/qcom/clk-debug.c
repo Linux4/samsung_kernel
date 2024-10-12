@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /* Copyright (c) 2016, 2019-2021, The Linux Foundation. All rights reserved. */
-/* Copyright (c) 2022, Qualcomm Innovation Center, Inc. All rights reserved. */
+/* Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved. */
 
 #include <linux/clk.h>
 #include <linux/export.h>
@@ -488,6 +488,10 @@ static int clk_debug_measure_get(void *data, u64 *val)
 
 	trace_clk_measure(clk_hw_get_name(hw), *val);
 exit:
+	ret = clk_set_parent(measure->clk, NULL);
+	if (ret)
+		pr_err("Failed to orphan debug mux.\n");
+
 	mutex_unlock(&clk_debug_lock);
 	clk_runtime_put_debug_mux(meas);
 	return ret;
@@ -871,6 +875,13 @@ static int clock_debug_print_clock(struct hw_debug_clk *dclk, struct seq_file *s
 			clock_debug_output_cont(s, "%s%s [%ld]", start,
 				clk_hw_get_name(clk_hw),
 				clk_rate);
+
+#if 1
+			if (sec_debug_is_enabled()) {
+				if (!strncmp(clk_hw_get_name(clk_hw), "disp_cc_mdss", strlen("disp_cc_mdss")) && (clk_rate > 0))
+					panic("display clock is alive");
+			}
+#endif			
 		}
 
 		if (atomic)

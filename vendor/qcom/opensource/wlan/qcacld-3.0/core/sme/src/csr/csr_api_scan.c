@@ -278,8 +278,7 @@ void csr_apply_power2_current(struct mac_context *mac)
 }
 
 void csr_apply_channel_power_info_to_fw(struct mac_context *mac_ctx,
-					struct csr_channel *ch_lst,
-					uint8_t *countryCode)
+					struct csr_channel *ch_lst)
 {
 	int i;
 	uint8_t num_ch = 0;
@@ -310,6 +309,7 @@ static void csr_diag_reset_country_information(struct mac_context *mac)
 
 	host_log_802_11d_pkt_type *p11dLog;
 	int Index;
+	uint8_t reg_cc[REG_ALPHA2_LEN + 1];
 
 	WLAN_HOST_DIAG_LOG_ALLOC(p11dLog, host_log_802_11d_pkt_type,
 				 LOG_WLAN_80211D_C);
@@ -317,7 +317,8 @@ static void csr_diag_reset_country_information(struct mac_context *mac)
 		return;
 
 	p11dLog->eventId = WLAN_80211D_EVENT_RESET;
-	qdf_mem_copy(p11dLog->countryCode, mac->scan.countryCodeCurrent, 3);
+	wlan_reg_read_current_country(mac->psoc, reg_cc);
+	qdf_mem_copy(p11dLog->countryCode, reg_cc, 3);
 	p11dLog->numChannel = mac->scan.base_channels.numChannels;
 	if (p11dLog->numChannel <= HOST_LOG_MAX_NUM_CHANNEL) {
 		for (Index = 0;
@@ -352,8 +353,7 @@ void csr_apply_channel_power_info_wrapper(struct mac_context *mac)
 	csr_save_channel_power_for_band(mac, false);
 	csr_save_channel_power_for_band(mac, true);
 	/* apply the channel list, power settings, and the country code. */
-	csr_apply_channel_power_info_to_fw(mac,
-		&mac->scan.base_channels, mac->scan.countryCodeCurrent);
+	csr_apply_channel_power_info_to_fw(mac, &mac->scan.base_channels);
 	/* clear the 11d channel list */
 	qdf_mem_zero(&mac->scan.channels11d, sizeof(mac->scan.channels11d));
 }
@@ -949,18 +949,12 @@ error:
 
 QDF_STATUS csr_scan_get_result_for_bssid(struct mac_context *mac_ctx,
 					 struct qdf_mac_addr *bssid,
-					 tCsrScanResultInfo *res)
+					 qdf_list_t **ret_list)
 {
-	QDF_STATUS status = QDF_STATUS_E_FAILURE;
 	struct scan_filter *scan_filter;
-	tScanResultHandle filtered_scan_result = NULL;
-	tCsrScanResultInfo *scan_result;
+	qdf_list_t *list = NULL;
 
-	if (!mac_ctx) {
-		sme_err("mac_ctx is NULL");
-		return QDF_STATUS_E_FAILURE;
-	}
-
+	*ret_list = NULL;
 	scan_filter = qdf_mem_malloc(sizeof(*scan_filter));
 	if (!scan_filter)
 		return QDF_STATUS_E_NOMEM;
@@ -968,37 +962,21 @@ QDF_STATUS csr_scan_get_result_for_bssid(struct mac_context *mac_ctx,
 	scan_filter->num_of_bssid = 1;
 	qdf_mem_copy(scan_filter->bssid_list[0].bytes, bssid->bytes,
 		     QDF_MAC_ADDR_SIZE);
+	scan_filter->ignore_auth_enc_type = true;
 
-	status = csr_scan_get_result(mac_ctx, scan_filter,
-				&filtered_scan_result);
+	list = wlan_scan_get_result(mac_ctx->pdev, scan_filter);
+	qdf_mem_free(scan_filter);
+	if (!list || (list && !qdf_list_size(list)))
+		goto purge_list;
 
-	if (!QDF_IS_STATUS_SUCCESS(status)) {
-		sme_err("Failed to get scan result");
-		goto free_filter;
-	}
+	*ret_list = list;
+	return QDF_STATUS_SUCCESS;
 
-	scan_result = csr_scan_result_get_first(mac_ctx, filtered_scan_result);
+purge_list:
+	if (list)
+		wlan_scan_purge_results(list);
 
-	if (scan_result) {
-		res->pvIes = NULL;
-		res->ssId.length = scan_result->ssId.length;
-		qdf_mem_copy(&res->ssId.ssId, &scan_result->ssId.ssId,
-			res->ssId.length);
-		res->timer = scan_result->timer;
-		qdf_mem_copy(&res->BssDescriptor, &scan_result->BssDescriptor,
-			sizeof(struct bss_description));
-		status = QDF_STATUS_SUCCESS;
-	} else {
-		status = QDF_STATUS_E_FAILURE;
-	}
-
-	csr_scan_result_purge(mac_ctx, filtered_scan_result);
-
-free_filter:
-	if (scan_filter)
-		qdf_mem_free(scan_filter);
-
-	return status;
+	return QDF_STATUS_E_FAILURE;
 }
 
 QDF_STATUS csr_scan_filter_results(struct mac_context *mac_ctx)

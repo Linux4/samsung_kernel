@@ -535,6 +535,12 @@ static int ss_monitor_setup(struct usb_function *f,
 			if (ctrl->bRequest == 0xA3) {
 				pr_info("[USB] %s: (mtp) RECEIVE PC GUID / line[%d]\n",
 							__func__, __LINE__);
+				if (w_length > MAX_GUID_SIZE) {
+					pr_info("usb: [%s] Invalid GUID size / line[%d]\n",
+								__func__, __LINE__);
+					goto unknown;
+				}
+
 				value = w_length;
 				req->complete = mtp_complete_get_guid;
 				req->zero = 0;
@@ -620,18 +626,19 @@ void make_suspend_current_event(void)
 
 	pr_info("[USB] %s\n", __func__);
 
-	if (!g_ss_monitor) {
+	if (!g_ss_monitor | !g_ss_monitor->ss_monitor) {
 		pr_info("[USB] %s, g_ss_monitor is NULL\n", __func__);
 		return;
 	}
 
-	if (g_ss_monitor->ss_monitor && g_ss_monitor->ss_monitor->is_bind) {
-		f = g_ss_monitor->ss_monitor->function;
-		if (f.config->cdev && f.config->cdev->suspended) {
-			pr_info("[USB] %s, cdev->suspended!\n", __func__);
+	f = g_ss_monitor->ss_monitor->function;
+	if (f.config->cdev && f.config->cdev->suspended) {
+		pr_info("[USB] %s, cdev->suspended!\n", __func__);
+		if (g_ss_monitor->ss_monitor && g_ss_monitor->ss_monitor->is_bind) {
 			g_ss_monitor->ss_monitor->vbus_current = USB_CURRENT_SUSPENDED;
 			schedule_work(&g_ss_monitor->ss_monitor->set_vbus_current_work);
-		}
+		} else
+			pr_info("[USB] %s, skip set_vbus_current_work\n", __func__);
 	}
 }
 EXPORT_SYMBOL(make_suspend_current_event);

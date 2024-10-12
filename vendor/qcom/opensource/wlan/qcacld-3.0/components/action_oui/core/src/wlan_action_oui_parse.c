@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2012-2020 The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -630,6 +630,12 @@ action_oui_parse(struct action_oui_psoc_priv *psoc_priv,
 			break;
 		}
 
+		if (action_id >= ACTION_OUI_HOST_ONLY) {
+			qdf_mutex_acquire(&oui_priv->extension_lock);
+			psoc_priv->host_only_extensions++;
+			qdf_mutex_release(&oui_priv->extension_lock);
+		}
+
 		oui_index++;
 		if (oui_index == ACTION_OUI_MAX_EXTENSIONS) {
 			if (str1)
@@ -754,6 +760,16 @@ QDF_STATUS action_oui_send(struct action_oui_psoc_priv *psoc_priv,
 	extension_list = &oui_priv->extension_list;
 	qdf_mutex_acquire(&oui_priv->extension_lock);
 
+	if (psoc_priv->max_extensions -
+	    (psoc_priv->total_extensions - psoc_priv->host_only_extensions) < 0) {
+		action_oui_err("total_extensions: %d exceeds max_extensions: %d, do not update",
+			       psoc_priv->max_extensions,
+			       (psoc_priv->total_extensions -
+				psoc_priv->host_only_extensions));
+		qdf_mutex_release(&oui_priv->extension_lock);
+		return QDF_STATUS_E_FAILURE;
+	}
+
 	no_oui_extensions = qdf_list_size(extension_list);
 	len = sizeof(*req) + no_oui_extensions * sizeof(*extension);
 	req = qdf_mem_malloc(len);
@@ -764,7 +780,7 @@ QDF_STATUS action_oui_send(struct action_oui_psoc_priv *psoc_priv,
 
 	req->action_id = oui_priv->id;
 	req->no_oui_extensions = no_oui_extensions;
-	req->total_no_oui_extensions = psoc_priv->total_extensions;
+	req->total_no_oui_extensions = psoc_priv->max_extensions;
 
 	extension = req->extension;
 	qdf_list_peek_front(extension_list, &node);
@@ -936,18 +952,13 @@ action_oui_is_empty(struct action_oui_psoc_priv *psoc_priv,
 	qdf_list_t *extension_list;
 
 	oui_priv = psoc_priv->oui_priv[action_id];
-	if (!oui_priv) {
-		action_oui_debug("action oui for id %d is empty",
-				 action_id);
+	if (!oui_priv)
 		return true;
-	}
 
 	extension_list = &oui_priv->extension_list;
 	qdf_mutex_acquire(&oui_priv->extension_lock);
 	if (qdf_list_empty(extension_list)) {
 		qdf_mutex_release(&oui_priv->extension_lock);
-		action_oui_debug("action oui for id %d list is empty",
-				 action_id);
 		return true;
 	}
 	qdf_mutex_release(&oui_priv->extension_lock);

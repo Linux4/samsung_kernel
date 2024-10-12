@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2016-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -24,6 +24,19 @@
 #include <dp_rx.h>
 #include "dp_li.h"
 
+/**
+ * dp_rx_process_li() - Brain of the Rx processing functionality
+ *		     Called from the bottom half (tasklet/NET_RX_SOFTIRQ)
+ * @int_ctx: per interrupt context
+ * @hal_ring_hdl: opaque pointer to the HAL Rx Ring, which will be serviced
+ * @reo_ring_num: ring number (0, 1, 2 or 3) of the reo ring.
+ * @quota: No. of units (packets) that can be serviced in one shot.
+ *
+ * This function implements the core of Rx functionality. This is
+ * expected to handle only non-error frames.
+ *
+ * Return: uint32_t: No. of elements processed
+ */
 uint32_t dp_rx_process_li(struct dp_intr *int_ctx,
 			  hal_ring_handle_t hal_ring_hdl, uint8_t reo_ring_num,
 			  uint32_t quota);
@@ -140,7 +153,9 @@ dp_rx_peer_metadata_peer_id_get_li(struct dp_soc *soc, uint32_t peer_metadata)
 bool
 dp_rx_intrabss_handle_nawds_li(struct dp_soc *soc, struct dp_txrx_peer *ta_peer,
 			       qdf_nbuf_t nbuf_copy,
-			       struct cdp_tid_rx_stats *tid_stats);
+			       struct cdp_tid_rx_stats *tid_stats,
+			       uint8_t link_id);
+
 #ifdef QCA_DP_RX_NBUF_AND_NBUF_DATA_PREFETCH
 static inline
 void dp_rx_prefetch_nbuf_data(qdf_nbuf_t nbuf, qdf_nbuf_t next)
@@ -202,7 +217,8 @@ void *dp_rx_cookie_2_va_rxdma_buf_prefetch(struct dp_soc *soc, uint32_t cookie)
 
 /**
  * dp_rx_prefetch_hw_sw_nbuf_desc() - function to prefetch HW and SW desc
- * @soc: Handle to HAL Soc structure
+ * @soc: Handle to DP Soc structure
+ * @hal_soc: Handle to HAL Soc structure
  * @num_entries: valid number of HW descriptors
  * @hal_ring_hdl: Destination ring pointer
  * @last_prefetched_hw_desc: pointer to the last prefetched HW descriptor
@@ -268,4 +284,57 @@ QDF_STATUS dp_peer_rx_reorder_queue_setup_li(struct dp_soc *soc,
 
 	return QDF_STATUS_SUCCESS;
 }
+
+/**
+ * dp_rx_wbm_err_reap_desc_li() - Function to reap and replenish
+ *                                WBM RX Error descriptors
+ *
+ * @int_ctx: pointer to DP interrupt context
+ * @soc: core DP main context
+ * @hal_ring_hdl: opaque pointer to the HAL Rx Error Ring, to be serviced
+ * @quota: No. of units (packets) that can be serviced in one shot.
+ * @rx_bufs_used: No. of descriptors reaped
+ *
+ * This function implements the core Rx functionality like reap and
+ * replenish the RX error ring Descriptors, and create a nbuf list
+ * out of it. It also reads wbm error information from descriptors
+ * and update the nbuf tlv area.
+ *
+ * Return: qdf_nbuf_t: head pointer to the nbuf list created
+ */
+qdf_nbuf_t
+dp_rx_wbm_err_reap_desc_li(struct dp_intr *int_ctx, struct dp_soc *soc,
+			   hal_ring_handle_t hal_ring_hdl, uint32_t quota,
+			   uint32_t *rx_bufs_used);
+
+/**
+ * dp_rx_null_q_desc_handle_li() - Function to handle NULL Queue
+ *                                 descriptor violation on either a
+ *                                 REO or WBM ring
+ *
+ * @soc: core DP main context
+ * @nbuf: buffer pointer
+ * @rx_tlv_hdr: start of rx tlv header
+ * @pool_id: mac id
+ * @txrx_peer: txrx peer handle
+ * @is_reo_exception: flag to check if the error is from REO or WBM
+ * @link_id: link Id on which packet is received
+ *
+ * This function handles NULL queue descriptor violations arising out
+ * a missing REO queue for a given peer or a given TID. This typically
+ * may happen if a packet is received on a QOS enabled TID before the
+ * ADDBA negotiation for that TID, when the TID queue is setup. Or
+ * it may also happen for MC/BC frames if they are not routed to the
+ * non-QOS TID queue, in the absence of any other default TID queue.
+ * This error can show up both in a REO destination or WBM release ring.
+ *
+ * Return: QDF_STATUS_SUCCESS, if nbuf handled successfully. QDF status code
+ *         if nbuf could not be handled or dropped.
+ */
+QDF_STATUS
+dp_rx_null_q_desc_handle_li(struct dp_soc *soc, qdf_nbuf_t nbuf,
+			    uint8_t *rx_tlv_hdr, uint8_t pool_id,
+			    struct dp_txrx_peer *txrx_peer,
+			    bool is_reo_exception,
+			    uint8_t link_id);
 #endif

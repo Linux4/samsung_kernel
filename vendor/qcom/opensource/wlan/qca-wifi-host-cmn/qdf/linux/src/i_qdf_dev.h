@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2019-2021 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -85,7 +86,7 @@ __qdf_dev_release_mem(struct qdf_dev *qdfdev, struct qdf_devm *mrptr)
 }
 
 /**
- * __qdf_dev_modify_irq() - modify irq
+ * __qdf_dev_modify_irq_status() - modify irq
  * @irnum: irq number
  * @cmask: Bitmap to be cleared for the property mask
  * @smask: Bitmap to be set for the property mask
@@ -121,6 +122,7 @@ __qdf_dev_set_irq_affinity(uint32_t irnum, struct qdf_cpu_mask *cpmask)
 	return qdf_status_from_os_return(ret);
 }
 
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 0, 0))
 /**
  * __qdf_topology_physical_package_id() - API to retrieve the
  * cluster info
@@ -129,17 +131,33 @@ __qdf_dev_set_irq_affinity(uint32_t irnum, struct qdf_cpu_mask *cpmask)
  * This function returns the cluster information for give cpu
  * core
  *
- * Return: 1 for perf and 0 for non-perf cluster
+ * Return: Cluster ID of the CPU
+ */
+static inline int __qdf_topology_physical_package_id(unsigned int cpu)
+{
+	return topology_cluster_id(cpu);
+}
+#else
+/**
+ * __qdf_topology_physical_package_id() - API to retrieve the
+ * cluster info
+ * @cpu: cpu core
+ *
+ * This function returns the cluster information for give cpu
+ * core
+ *
+ * Return: Cluster ID of the CPU
  */
 static inline int __qdf_topology_physical_package_id(unsigned int cpu)
 {
 	return topology_physical_package_id(cpu);
 }
+#endif
 
 /**
  * __qdf_cpumask_subset() - API to check for subset in cpumasks
  * @srcp1: first cpu mask
- * @srcp1: second cpu mask
+ * @srcp2: second cpu mask
  *
  * This checks for *srcp1 & ~*srcp2
  *
@@ -155,7 +173,7 @@ static inline int __qdf_cpumask_subset(qdf_cpu_mask *srcp1,
  * __qdf_cpumask_intersects() - API to check if cpumasks
  * intersect
  * @srcp1: first cpu mask
- * @srcp1: second cpu mask
+ * @srcp2: second cpu mask
  *
  * This checks for (*srcp1 & *srcp2) != 0
  *
@@ -171,6 +189,7 @@ static inline int __qdf_cpumask_intersects(qdf_cpu_mask *srcp1,
 /**
  * __qdf_core_ctl_set_boost() - This API is used to move tasks
  * to CPUs with higher capacity
+ * @boost: value to set
  *
  * This function moves tasks to higher capacity CPUs than those
  * where the tasks would have  normally ended up. This is
@@ -209,7 +228,7 @@ __qdf_dev_set_irq_status_flags(unsigned int irnum, unsigned long set)
 /**
  * __qdf_dev_clear_irq_status_flags() - clear irq status flags
  * @irnum: irq number
- * @clear: status flag to clear
+ * @clr: status flag to clear
  *
  * This function will set the status for an irq
  *

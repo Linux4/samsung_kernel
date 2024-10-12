@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  * Copyright (c) 2012-2021, The Linux Foundation. All rights reserved.
  */
 
@@ -701,6 +701,9 @@ static void dp_ctrl_set_clock_rate(struct dp_ctrl_private *ctrl,
 {
 	u32 num = ctrl->parser->mp[clk_type].num_clk;
 	struct dss_clk *cfg = ctrl->parser->mp[clk_type].clk_config;
+
+	/* convert to HZ for byte2 ops */
+	rate *= 1000;
 
 	while (num && strcmp(cfg->clk_name, name)) {
 		num--;
@@ -1497,6 +1500,45 @@ static void dp_ctrl_stream_off(struct dp_ctrl *dp_ctrl, struct dp_panel *panel)
 }
 
 #ifdef SECDP_OPTIMAL_LINK_RATE
+static u32 secdp_check_link_clk(struct dp_panel *dp_panel, u32 link_rate)
+{
+	struct dp_panel_info *max_timing;
+	u32 ret_link_rate = link_rate;
+
+	if (!secdp_adapter_check_parade())
+		goto end;
+
+	if (!secdp_adapter_check_ps176())
+		goto end;
+
+	if (dp_panel->link_info.num_lanes < 4)
+		goto end;
+
+	max_timing = &dp_panel->max_timing_info;
+
+	DP_INFO("lane_count:%d max:%ux%u@%uhz\n", dp_panel->link_info.num_lanes,
+		max_timing->h_active, max_timing->v_active,
+		max_timing->refresh_rate);
+
+	if (max_timing->h_active == 1920 &&
+			max_timing->v_active == 1080 &&
+			max_timing->refresh_rate == 144) {
+		DP_INFO("needs link_rate <%u> up\n", link_rate);
+
+		if (link_rate == 162000)
+			ret_link_rate = 270000;
+		else if (link_rate == 270000)
+			ret_link_rate = 540000;
+#ifndef SECDP_MAX_HBR2
+		else if (link_rate == 540000)
+			ret_link_rate = 810000;
+#endif
+	}
+
+end:
+	return ret_link_rate;
+}
+
 static u32 secdp_dp_gen_link_clk(struct dp_panel *dp_panel)
 {
 	u32 calc_link_rate, min_link_rate;
@@ -1526,6 +1568,8 @@ static u32 secdp_dp_gen_link_clk(struct dp_panel *dp_panel)
 #endif
 	else
 		DP_ERR("too big!, set default\n");
+
+	calc_link_rate = secdp_check_link_clk(dp_panel, calc_link_rate);
 
 	DP_INFO("min_link_rate <%u>, calc_link_rate <%u>\n",
 		min_link_rate, calc_link_rate);

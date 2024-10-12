@@ -18,11 +18,10 @@
  * PERFORMANCE OF THIS SOFTWARE.
  */
 
- /**
- * @file wlan_reg_services_api.c
- * @brief contains regulatory service functions
+/**
+ * DOC: wlan_reg_services_api.c
+ *      contains regulatory service functions
  */
-
 
 #include <qdf_status.h>
 #include <qdf_types.h>
@@ -43,12 +42,6 @@
 #include <../../core/src/reg_offload_11d_scan.h>
 #include <wlan_objmgr_global_obj.h>
 
-/**
- * wlan_reg_read_default_country() - Read the default country for the regdomain
- * @country: pointer to the country code.
- *
- * Return: None
- */
 QDF_STATUS wlan_reg_read_default_country(struct wlan_objmgr_psoc *psoc,
 					 uint8_t *country)
 {
@@ -56,6 +49,11 @@ QDF_STATUS wlan_reg_read_default_country(struct wlan_objmgr_psoc *psoc,
 	 * Get the default country information
 	 */
 	return reg_read_default_country(psoc, country);
+}
+
+enum phy_ch_width wlan_get_next_lower_bandwidth(enum phy_ch_width ch_width)
+{
+	return get_next_lower_bandwidth(ch_width);
 }
 
 QDF_STATUS wlan_reg_read_current_country(struct wlan_objmgr_psoc *psoc,
@@ -111,25 +109,17 @@ qdf_export_symbol(wlan_reg_get_pwrmode_chan_list);
 
 #ifdef CONFIG_REG_CLIENT
 QDF_STATUS
-wlan_reg_get_6g_power_type_for_ctry(struct wlan_objmgr_psoc *psoc,
-				    struct wlan_objmgr_pdev *pdev,
-				    uint8_t *ap_ctry, uint8_t *sta_ctry,
-				    enum reg_6g_ap_type *pwr_type_6g,
-				    bool *ctry_code_match,
-				    enum reg_6g_ap_type ap_pwr_type)
+wlan_reg_get_best_6g_power_type(struct wlan_objmgr_psoc *psoc,
+				struct wlan_objmgr_pdev *pdev,
+				enum reg_6g_ap_type *pwr_type_6g,
+				enum reg_6g_ap_type ap_pwr_type,
+				uint32_t chan_freq)
 {
-	return reg_get_6g_power_type_for_ctry(psoc, pdev, ap_ctry, sta_ctry,
-					      pwr_type_6g, ctry_code_match,
-					      ap_pwr_type);
+	return reg_get_best_6g_power_type(psoc, pdev, pwr_type_6g,
+					  ap_pwr_type, chan_freq);
 }
 #endif
 
-/**
- * wlan_reg_get_dfs_region () - Get the current dfs region
- * @dfs_reg: pointer to dfs region
- *
- * Return: Status
- */
 QDF_STATUS wlan_reg_get_dfs_region(struct wlan_objmgr_pdev *pdev,
 			     enum dfs_reg *dfs_reg)
 {
@@ -194,24 +184,8 @@ wlan_reg_get_6g_afc_mas_chan_list(struct wlan_objmgr_pdev *pdev,
 }
 
 qdf_export_symbol(wlan_reg_get_6g_afc_mas_chan_list);
-
-bool
-wlan_reg_is_6ghz_freq_txable(struct wlan_objmgr_pdev *pdev,
-			     qdf_freq_t freq,
-			     enum supported_6g_pwr_types in_6ghz_pwr_mode)
-{
-	return reg_is_6ghz_freq_txable(pdev, freq, in_6ghz_pwr_mode);
-}
-
-qdf_export_symbol(wlan_reg_is_6ghz_freq_txable);
 #endif
 
-/**
- * wlan_reg_get_bw_value() - give bandwidth value
- * bw: bandwidth enum
- *
- * Return: uint16_t
- */
 uint16_t wlan_reg_get_bw_value(enum phy_ch_width bw)
 {
 	return reg_get_bw_value(bw);
@@ -219,12 +193,6 @@ uint16_t wlan_reg_get_bw_value(enum phy_ch_width bw)
 
 qdf_export_symbol(wlan_reg_get_bw_value);
 
-/**
- * wlan_reg_set_dfs_region () - Get the current dfs region
- * @dfs_reg: pointer to dfs region
- *
- * Return: None
- */
 void wlan_reg_set_dfs_region(struct wlan_objmgr_pdev *pdev,
 			     enum dfs_reg dfs_reg)
 {
@@ -304,11 +272,13 @@ wlan_reg_get_opclass_details(struct wlan_objmgr_pdev *pdev,
 			     struct regdmn_ap_cap_opclass_t *reg_ap_cap,
 			     uint8_t *n_opclasses,
 			     uint8_t max_supp_op_class,
-			     bool global_tbl_lookup)
+			     bool global_tbl_lookup,
+			     enum supported_6g_pwr_types in_6g_pwr_mode)
 {
 	return reg_get_opclass_details(pdev, reg_ap_cap, n_opclasses,
 				       max_supp_op_class,
-				       global_tbl_lookup);
+				       global_tbl_lookup,
+				       in_6g_pwr_mode);
 }
 
 QDF_STATUS
@@ -318,13 +288,15 @@ wlan_reg_get_opclass_for_cur_hwmode(struct wlan_objmgr_pdev *pdev,
 				    uint8_t max_supp_op_class,
 				    bool global_tbl_lookup,
 				    enum phy_ch_width max_chwidth,
-				    bool is_80p80_supp)
+				    bool is_80p80_supp,
+				    enum supported_6g_pwr_types in_6g_pwr_mode)
 {
 	return reg_get_opclass_for_cur_hwmode(pdev, reg_ap_cap, n_opclasses,
 					      max_supp_op_class,
 					      global_tbl_lookup,
 					      max_chwidth,
-					      is_80p80_supp);
+					      is_80p80_supp,
+					      in_6g_pwr_mode);
 }
 
 enum country_src wlan_reg_get_cc_and_src(struct wlan_objmgr_psoc *psoc,
@@ -537,6 +509,9 @@ QDF_STATUS regulatory_psoc_open(struct wlan_objmgr_psoc *psoc)
 		tx_ops->register_11d_new_cc_handler(psoc, NULL);
 	if (tx_ops->register_ch_avoid_event_handler)
 		tx_ops->register_ch_avoid_event_handler(psoc, NULL);
+	if (tx_ops->register_rate2power_table_update_event_handler)
+		tx_ops->register_rate2power_table_update_event_handler(psoc,
+								       NULL);
 
 	return QDF_STATUS_SUCCESS;
 }
@@ -554,6 +529,9 @@ QDF_STATUS regulatory_psoc_close(struct wlan_objmgr_psoc *psoc)
 	regulatory_assign_unregister_afc_event_handler(psoc, tx_ops);
 	if (tx_ops->unregister_ch_avoid_event_handler)
 		tx_ops->unregister_ch_avoid_event_handler(psoc, NULL);
+	if (tx_ops->unregister_rate2power_table_update_event_handler)
+		tx_ops->unregister_rate2power_table_update_event_handler(psoc,
+									 NULL);
 
 	return QDF_STATUS_SUCCESS;
 }
@@ -665,6 +643,8 @@ qdf_freq_t wlan_reg_legacy_chan_to_freq(struct wlan_objmgr_pdev *pdev,
 	return reg_legacy_chan_to_freq(pdev, chan_num);
 }
 
+qdf_export_symbol(wlan_reg_legacy_chan_to_freq);
+
 QDF_STATUS wlan_reg_set_country(struct wlan_objmgr_pdev *pdev,
 				       uint8_t *country)
 {
@@ -735,20 +715,34 @@ bool wlan_reg_11d_enabled_on_host(struct wlan_objmgr_psoc *psoc)
 	return reg_11d_enabled_on_host(psoc);
 }
 
-bool wlan_reg_is_etsi13_regdmn(struct wlan_objmgr_pdev *pdev)
+bool wlan_reg_is_etsi_regdmn(struct wlan_objmgr_pdev *pdev)
 {
-	return reg_is_etsi13_regdmn(pdev);
+	return reg_is_etsi_regdmn(pdev);
 }
 
-bool wlan_reg_is_etsi13_srd_chan_allowed_master_mode(struct wlan_objmgr_pdev
+bool wlan_reg_is_etsi_srd_chan_allowed_master_mode(struct wlan_objmgr_pdev
 						     *pdev)
 {
-	return reg_is_etsi13_srd_chan_allowed_master_mode(pdev);
+	return reg_is_etsi_srd_chan_allowed_master_mode(pdev);
 }
 
+bool wlan_reg_is_6ghz_band_set(struct wlan_objmgr_pdev *pdev)
+{
+	return reg_is_6ghz_band_set(pdev);
+}
+
+bool wlan_reg_get_keep_6ghz_sta_cli_connection(struct wlan_objmgr_pdev *pdev)
+{
+	return reg_get_keep_6ghz_sta_cli_connection(pdev);
+}
 bool wlan_reg_get_fcc_constraint(struct wlan_objmgr_pdev *pdev, uint32_t freq)
 {
 	return reg_get_fcc_constraint(pdev, freq);
+}
+
+uint32_t wlan_reg_get_country_max_allowed_bw(struct wlan_objmgr_pdev *pdev)
+{
+	return reg_get_country_max_allowed_bw(pdev);
 }
 
 QDF_STATUS wlan_reg_get_chip_mode(struct wlan_objmgr_pdev *pdev,
@@ -810,6 +804,8 @@ QDF_STATUS wlan_reg_get_freq_range(struct wlan_objmgr_pdev *pdev,
 
 	return QDF_STATUS_SUCCESS;
 }
+
+qdf_export_symbol(wlan_reg_get_freq_range);
 
 struct wlan_lmac_if_reg_tx_ops *
 wlan_reg_get_tx_ops(struct wlan_objmgr_psoc *psoc)
@@ -919,6 +915,8 @@ bool wlan_reg_is_range_overlap_6g(qdf_freq_t low_freq, qdf_freq_t high_freq)
 {
 	return reg_is_range_overlap_6g(low_freq, high_freq);
 }
+
+qdf_export_symbol(wlan_reg_is_range_overlap_6g);
 #endif
 
 uint16_t wlan_reg_min_6ghz_chan_freq(void)
@@ -953,6 +951,11 @@ wlan_reg_get_max_txpower_for_6g_tpe(struct wlan_objmgr_pdev *pdev,
 					      reg_ap,
 					      reg_client, is_psd,
 					      tx_power);
+}
+
+bool wlan_reg_is_6ghz_unii5_chan_freq(qdf_freq_t freq)
+{
+	return reg_is_6ghz_unii5_chan_freq(freq);
 }
 #endif /* CONFIG_BAND_6GHZ */
 
@@ -1038,12 +1041,6 @@ bool wlan_reg_is_regdmn_en302502_applicable(struct wlan_objmgr_pdev *pdev)
 }
 #endif
 
-/**
- * wlan_reg_modify_pdev_chan_range() - Compute current channel list for the
- * modified regcap.
- * @pdev: pointer to struct wlan_objmgr_pdev
- *
- */
 QDF_STATUS wlan_reg_modify_pdev_chan_range(struct wlan_objmgr_pdev *pdev)
 {
 	return reg_modify_pdev_chan_range(pdev);
@@ -1088,10 +1085,10 @@ bool wlan_reg_is_freq_present_in_cur_chan_list(struct wlan_objmgr_pdev *pdev,
 	return reg_is_freq_present_in_cur_chan_list(pdev, freq);
 }
 
-bool wlan_reg_is_etsi13_srd_chan_for_freq(struct wlan_objmgr_pdev *pdev,
-					  qdf_freq_t freq)
+bool wlan_reg_is_etsi_srd_chan_for_freq(struct wlan_objmgr_pdev *pdev,
+					qdf_freq_t freq)
 {
-	return reg_is_etsi13_srd_chan_for_freq(pdev, freq);
+	return reg_is_etsi_srd_chan_for_freq(pdev, freq);
 }
 
 bool wlan_reg_is_dsrc_freq(qdf_freq_t freq)
@@ -1179,7 +1176,9 @@ wlan_reg_decide_6ghz_power_within_bw_for_freq(struct wlan_objmgr_pdev *pdev,
 					      bool *is_psd,
 					      uint16_t *min_tx_power,
 					      int16_t *min_psd_eirp,
-					      enum reg_6g_ap_type *power_type)
+					      enum reg_6g_ap_type *power_type,
+					      enum supported_6g_pwr_types pwr_mode,
+					      uint16_t input_punc_bitmap)
 {
 	return reg_decide_6ghz_power_within_bw_for_freq(pdev,
 							freq,
@@ -1187,7 +1186,9 @@ wlan_reg_decide_6ghz_power_within_bw_for_freq(struct wlan_objmgr_pdev *pdev,
 							is_psd,
 							min_tx_power,
 							min_psd_eirp,
-							power_type);
+							power_type,
+							pwr_mode,
+							input_punc_bitmap);
 }
 #endif
 
@@ -1214,29 +1215,6 @@ wlan_reg_chan_has_dfs_attribute_for_freq(struct wlan_objmgr_pdev *pdev,
 	return reg_chan_has_dfs_attribute_for_freq(pdev, freq);
 }
 
-enum channel_state
-wlan_reg_get_5g_bonded_channel_state_for_freq(struct wlan_objmgr_pdev *pdev,
-					      qdf_freq_t freq,
-					      enum phy_ch_width bw)
-{
-	struct ch_params params = {0};
-
-	if (reg_is_ch_width_320(bw)) {
-		const struct bonded_channel_freq *bonded_chan_ptr_ptr = NULL;
-
-		return reg_get_5g_bonded_channel_for_freq(pdev, freq, bw,
-							  &bonded_chan_ptr_ptr);
-	}
-
-	params.ch_width = bw;
-
-	return reg_get_5g_bonded_channel_state_for_freq(pdev, freq, &params);
-}
-
-qdf_export_symbol(wlan_reg_get_5g_bonded_channel_state_for_freq);
-
-
-#ifdef CONFIG_REG_6G_PWRMODE
 enum channel_state
 wlan_reg_get_5g_bonded_channel_state_for_pwrmode(struct wlan_objmgr_pdev *pdev,
 						 qdf_freq_t freq,
@@ -1266,32 +1244,6 @@ wlan_reg_get_5g_bonded_channel_state_for_pwrmode(struct wlan_objmgr_pdev *pdev,
 							   ch_params,
 							   in_6g_pwr_type);
 }
-#else
-enum channel_state
-wlan_reg_get_5g_bonded_channel_state_for_pwrmode(struct wlan_objmgr_pdev *pdev,
-						 qdf_freq_t freq,
-						 struct ch_params *ch_params,
-						 enum supported_6g_pwr_types
-						 in_6g_pwr_type)
-{
-	enum phy_ch_width bw;
-
-	if (!ch_params) {
-		reg_err_rl("Invalid ch_params");
-		return CHANNEL_STATE_INVALID;
-	}
-	bw = ch_params->ch_width;
-
-	if (reg_is_ch_width_320(bw)) {
-		const struct bonded_channel_freq *bonded_ch_ptr_ptr = NULL;
-
-		return reg_get_5g_bonded_channel_for_freq(pdev, freq, bw,
-							  &bonded_ch_ptr_ptr);
-	}
-
-	return reg_get_5g_bonded_channel_state_for_freq(pdev, freq, ch_params);
-}
-#endif
 
 qdf_export_symbol(wlan_reg_get_5g_bonded_channel_state_for_pwrmode);
 
@@ -1331,19 +1283,6 @@ wlan_reg_get_bonded_chan_entry(qdf_freq_t freq, enum phy_ch_width chwidth,
 }
 
 #ifdef WLAN_FEATURE_11BE
-void wlan_reg_fill_channel_list(struct wlan_objmgr_pdev *pdev,
-				qdf_freq_t freq,
-				qdf_freq_t sec_ch_2g_freq,
-				enum phy_ch_width ch_width,
-				qdf_freq_t band_center_320,
-				struct reg_channel_list *chan_list,
-				bool treat_nol_chan_as_disabled)
-{
-	reg_fill_channel_list(pdev, freq, sec_ch_2g_freq, ch_width,
-			      band_center_320, chan_list,
-			      treat_nol_chan_as_disabled);
-}
-
 #ifdef CONFIG_REG_6G_PWRMODE
 void
 wlan_reg_fill_channel_list_for_pwrmode(struct wlan_objmgr_pdev *pdev,
@@ -1369,13 +1308,11 @@ bool wlan_reg_is_punc_bitmap_valid(enum phy_ch_width bw,
 	return reg_is_punc_bitmap_valid(bw, puncture_bitmap);
 }
 
-#ifdef QCA_DFS_BW_PUNCTURE
 uint16_t wlan_reg_find_nearest_puncture_pattern(enum phy_ch_width bw,
 						uint16_t proposed_bitmap)
 {
 	return reg_find_nearest_puncture_pattern(bw, proposed_bitmap);
 }
-#endif /* QCA_DFS_BW_PUNCTURE */
 
 QDF_STATUS wlan_reg_extract_puncture_by_bw(enum phy_ch_width ori_bw,
 					   uint16_t ori_puncture_bitmap,
@@ -1480,6 +1417,8 @@ void wlan_reg_freq_width_to_chan_op_class(struct wlan_objmgr_pdev *pdev,
 					       chan_num);
 }
 
+qdf_export_symbol(wlan_reg_freq_width_to_chan_op_class);
+
 void wlan_reg_freq_width_to_chan_op_class_auto(struct wlan_objmgr_pdev *pdev,
 					       qdf_freq_t freq,
 					       uint16_t chan_width,
@@ -1521,32 +1460,16 @@ bool wlan_reg_is_freq_in_country_opclass(struct wlan_objmgr_pdev *pdev,
 }
 
 enum channel_state
-wlan_reg_get_5g_bonded_channel_and_state_for_freq(struct wlan_objmgr_pdev *pdev,
-						  uint16_t freq,
-						  enum phy_ch_width bw,
-						  const
-						  struct bonded_channel_freq
-						  **bonded_chan_ptr_ptr)
-{
-	/*
-	 * Get channel frequencies and state from regulatory
-	 */
-	return reg_get_5g_bonded_channel_for_freq(pdev, freq, bw,
-						  bonded_chan_ptr_ptr);
-}
-
-#ifdef CONFIG_REG_6G_PWRMODE
-enum channel_state
 wlan_reg_get_5g_bonded_channel_and_state_for_pwrmode(
-						  struct wlan_objmgr_pdev *pdev,
-						  uint16_t freq,
-						  enum phy_ch_width bw,
-						  const
-						  struct bonded_channel_freq
-						  **bonded_chan_ptr_ptr,
-						  enum supported_6g_pwr_types
-						  in_6g_pwr_mode,
-						  uint16_t input_puncture_bitmap)
+					struct wlan_objmgr_pdev *pdev,
+					uint16_t freq,
+					enum phy_ch_width bw,
+					const
+					struct bonded_channel_freq
+					**bonded_chan_ptr_ptr,
+					enum supported_6g_pwr_types
+					in_6g_pwr_mode,
+					uint16_t input_puncture_bitmap)
 {
 	/*
 	 * Get channel frequencies and state from regulatory
@@ -1558,14 +1481,15 @@ wlan_reg_get_5g_bonded_channel_and_state_for_pwrmode(
 }
 
 qdf_export_symbol(wlan_reg_get_5g_bonded_channel_and_state_for_pwrmode);
-#endif
 
 #if defined(WLAN_FEATURE_11BE) && defined(CONFIG_REG_CLIENT)
 enum channel_state
-wlan_reg_get_bonded_channel_state_for_freq(struct wlan_objmgr_pdev *pdev,
-					   qdf_freq_t freq,
-					   enum phy_ch_width bw,
-					   qdf_freq_t sec_freq)
+wlan_reg_get_bonded_channel_state_for_pwrmode(struct wlan_objmgr_pdev *pdev,
+					      qdf_freq_t freq,
+					      enum phy_ch_width bw,
+					      qdf_freq_t sec_freq,
+					      enum supported_6g_pwr_types
+					      in_6g_pwr_mode)
 {
 	if (WLAN_REG_IS_24GHZ_CH_FREQ(freq))
 		return reg_get_2g_bonded_channel_state_for_freq(pdev, freq,
@@ -1573,68 +1497,23 @@ wlan_reg_get_bonded_channel_state_for_freq(struct wlan_objmgr_pdev *pdev,
 	if (bw == CH_WIDTH_320MHZ) {
 		const struct bonded_channel_freq *bonded_chan_ptr_ptr = NULL;
 
-		return reg_get_5g_bonded_channel_for_freq(pdev, freq, bw,
-							  &bonded_chan_ptr_ptr);
+		return reg_get_chan_state_for_320(pdev, freq, 0,
+						  bw,
+						  &bonded_chan_ptr_ptr,
+						  in_6g_pwr_mode, true,
+						  NO_SCHANS_PUNC);
 	} else {
 		struct ch_params params = {0};
 
 		params.ch_width = bw;
 
-		return reg_get_5g_bonded_channel_state_for_freq(pdev, freq,
-								&params);
-	}
-}
-
-qdf_export_symbol(wlan_reg_get_5g_bonded_channel_and_state_for_freq);
-
-#else
-enum channel_state
-wlan_reg_get_bonded_channel_state_for_freq(struct wlan_objmgr_pdev *pdev,
-					   qdf_freq_t freq,
-					   enum phy_ch_width bw,
-					   qdf_freq_t sec_freq)
-{
-	if (WLAN_REG_IS_24GHZ_CH_FREQ(freq)) {
-		return reg_get_2g_bonded_channel_state_for_freq(pdev, freq,
-						       sec_freq, bw);
-	} else {
-		struct ch_params params = {0};
-
-		params.ch_width = bw;
-
-		return reg_get_5g_bonded_channel_state_for_freq(pdev, freq,
-								&params);
-	}
-}
-
-qdf_export_symbol(wlan_reg_get_5g_bonded_channel_and_state_for_freq);
-
-#ifdef CONFIG_REG_6G_PWRMODE
-enum channel_state
-wlan_reg_get_bonded_channel_state_for_pwrmode(struct wlan_objmgr_pdev *pdev,
-					      qdf_freq_t freq,
-					      enum phy_ch_width bw,
-					      qdf_freq_t sec_freq,
-					      enum supported_6g_pwr_types
-					      in_6g_pwr_mode,
-					      uint16_t input_punc_bitmap)
-{
-	if (WLAN_REG_IS_24GHZ_CH_FREQ(freq)) {
-		return reg_get_2g_bonded_channel_state_for_freq(pdev, freq,
-						       sec_freq, bw);
-	} else {
-		struct ch_params params = {0};
-
-		params.ch_width = bw;
-
-		return reg_get_5g_bonded_channel_state_for_pwrmode(pdev, freq,
-								&params,
-								in_6g_pwr_mode);
+		return reg_get_5g_bonded_channel_state_for_pwrmode(
+						pdev, freq,
+						&params, in_6g_pwr_mode);
 	}
 }
 
 qdf_export_symbol(wlan_reg_get_bonded_channel_state_for_pwrmode);
-#endif
 #endif
 #endif /* CONFIG CHAN FREQ API */
 
@@ -1656,11 +1535,15 @@ bool wlan_reg_is_2ghz_op_class(const uint8_t *country, uint8_t op_class)
 	return reg_is_2ghz_op_class(country, op_class);
 }
 
+qdf_export_symbol(wlan_reg_is_2ghz_op_class);
+
 bool wlan_reg_is_6ghz_op_class(struct wlan_objmgr_pdev *pdev,
 			       uint8_t op_class)
 {
 	return reg_is_6ghz_op_class(pdev, op_class);
 }
+
+qdf_export_symbol(wlan_reg_is_6ghz_op_class);
 
 #ifdef CONFIG_REG_CLIENT
 bool wlan_reg_is_6ghz_supported(struct wlan_objmgr_psoc *psoc)
@@ -1689,6 +1572,14 @@ uint16_t wlan_reg_chan_opclass_to_freq(uint8_t chan,
 		return 0;
 
 	return reg_chan_opclass_to_freq(chan, op_class, global_tbl_lookup);
+}
+
+qdf_freq_t wlan_reg_compute_6g_center_freq_from_cfi(uint8_t ieee_6g_cfi)
+{
+	if (!ieee_6g_cfi)
+		return 0;
+
+	return reg_compute_6g_center_freq_from_cfi(ieee_6g_cfi);
 }
 
 qdf_freq_t wlan_reg_chan_opclass_to_freq_auto(uint8_t chan, uint8_t op_class,
@@ -1824,6 +1715,15 @@ wlan_reg_set_ap_pwr_and_update_chan_list(struct wlan_objmgr_pdev *pdev,
 
 qdf_export_symbol(wlan_reg_set_ap_pwr_and_update_chan_list);
 
+uint8_t
+wlan_reg_get_num_rules_of_ap_pwr_type(struct wlan_objmgr_pdev *pdev,
+				      enum reg_6g_ap_type ap_pwr_type)
+{
+	return reg_get_num_rules_of_ap_pwr_type(pdev, ap_pwr_type);
+}
+
+qdf_export_symbol(wlan_reg_get_num_rules_of_ap_pwr_type);
+
 QDF_STATUS wlan_reg_get_superchan_entry(
 		struct wlan_objmgr_pdev *pdev,
 		enum channel_enum chan_enum,
@@ -1953,12 +1853,12 @@ wlan_reg_get_best_pwr_mode(struct wlan_objmgr_pdev *pdev, qdf_freq_t freq,
 
 qdf_export_symbol(wlan_reg_get_best_pwr_mode);
 
-uint8_t wlan_reg_get_eirp_pwr(struct wlan_objmgr_pdev *pdev, qdf_freq_t freq,
-			      qdf_freq_t cen320, uint16_t bw,
-			      enum reg_6g_ap_type ap_pwr_type,
-			      uint16_t in_punc_pattern,
-			      bool is_client_list_lookup_needed,
-			      enum reg_6g_client_type client_type)
+int8_t wlan_reg_get_eirp_pwr(struct wlan_objmgr_pdev *pdev, qdf_freq_t freq,
+			     qdf_freq_t cen320, uint16_t bw,
+			     enum reg_6g_ap_type ap_pwr_type,
+			     uint16_t in_punc_pattern,
+			     bool is_client_list_lookup_needed,
+			     enum reg_6g_client_type client_type)
 {
 	return reg_get_eirp_pwr(pdev, freq, cen320, bw, ap_pwr_type,
 				in_punc_pattern, is_client_list_lookup_needed,
@@ -2026,11 +1926,16 @@ wlan_reg_get_num_afc_freq_obj(struct wlan_objmgr_pdev *pdev,
 {
 	return reg_get_num_afc_freq_obj(pdev, num_freq_obj);
 }
+
+QDF_STATUS wlan_reg_set_afc_power_event_received(struct wlan_objmgr_pdev *pdev,
+						 bool val)
+{
+	return reg_set_afc_power_event_received(pdev, val);
+}
 #endif
 
 #endif
 
-#ifdef CONFIG_REG_CLIENT
 QDF_STATUS
 wlan_reg_recompute_current_chan_list(struct wlan_objmgr_psoc *psoc,
 				     struct wlan_objmgr_pdev *pdev)
@@ -2048,6 +1953,7 @@ wlan_reg_recompute_current_chan_list(struct wlan_objmgr_psoc *psoc,
 	return reg_send_scheduler_msg_nb(psoc, pdev);
 }
 
+#ifdef CONFIG_REG_CLIENT
 QDF_STATUS
 wlan_reg_modify_indoor_concurrency(struct wlan_objmgr_pdev *pdev,
 				   uint8_t vdev_id, uint32_t freq,
@@ -2059,3 +1965,33 @@ wlan_reg_modify_indoor_concurrency(struct wlan_objmgr_pdev *pdev,
 		return reg_remove_indoor_concurrency(pdev, vdev_id, freq);
 }
 #endif
+
+void
+wlan_reg_register_is_chan_connected_callback(struct wlan_objmgr_psoc *psoc,
+					     void *cbk)
+{
+	reg_register_is_chan_connected_callback(psoc,
+				(reg_get_connected_chan_for_mode_callback)cbk);
+}
+
+void
+wlan_reg_unregister_is_chan_connected_callback(struct wlan_objmgr_psoc *psoc,
+					       void *cbk)
+{
+	reg_unregister_is_chan_connected_callback(psoc,
+				(reg_get_connected_chan_for_mode_callback)cbk);
+}
+
+qdf_freq_t
+wlan_reg_get_endchan_cen_from_bandstart(qdf_freq_t band_start,
+					uint16_t bw)
+{
+	return reg_get_endchan_cen_from_bandstart(band_start, bw);
+}
+
+QDF_STATUS
+wlan_reg_get_opclass_from_map(const struct reg_dmn_op_class_map_t **map,
+			      bool is_global_op_table_needed)
+{
+	return reg_get_opclass_from_map(map, is_global_op_table_needed);
+}

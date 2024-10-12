@@ -1365,7 +1365,7 @@ static void goodix_ts_report_finger(struct goodix_ts_core *cd, unsigned int tid)
 	int recal_tc = 0;
 	static int prev_tc;
 
-	sec_input_coord_event(cd->bus->dev, tid);
+	sec_input_coord_event_fill_slot(cd->bus->dev, tid);
 
 	ts_debug("press_cnt: %d", cd->plat_data->touch_count);
 
@@ -1621,6 +1621,8 @@ restart:
 
 			event_data += BYTES_PER_POINT;
 		} while (--event_num);
+
+		sec_input_coord_event_sync_slot(cd->bus->dev);
 	} else if ((buffer[0] & 0x80) && (event_num == 0)) {
 		/* if event_num equal 0, realease all fingers */
 		ts_debug("event num is zero [%02x%02x%02x]", buffer[0], buffer[1], buffer[2]);

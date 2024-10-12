@@ -40,7 +40,7 @@ struct p2p_protocol_callbacks;
 struct mcc_quota_info;
 
 /**
- * p2p_rx_callback() - Callback for rx mgmt frame
+ * typedef p2p_rx_callback() - Callback for rx mgmt frame
  * @user_data: user data associated to this rx mgmt frame.
  * @rx_frame: RX mgmt frame
  *
@@ -52,7 +52,7 @@ typedef void (*p2p_rx_callback)(void *user_data,
 	struct p2p_rx_mgmt_frame *rx_frame);
 
 /**
- * p2p_action_tx_cnf_callback() - Callback for tx confirmation
+ * typedef p2p_action_tx_cnf_callback() - Callback for tx confirmation
  * @user_data: user data associated to this tx confirmation
  * @tx_cnf: tx confirmation information
  *
@@ -65,7 +65,7 @@ typedef void (*p2p_action_tx_cnf_callback)(void *user_data,
 	struct p2p_tx_cnf *tx_cnf);
 
 /**
- * p2p_lo_event_callback() - Callback for listen offload event
+ * typedef p2p_lo_event_callback() - Callback for listen offload event
  * @user_data: user data associated to this lo event
  * @p2p_lo_event: listen offload event information
  *
@@ -77,7 +77,7 @@ typedef void (*p2p_lo_event_callback)(void *user_data,
 	struct p2p_lo_event *p2p_lo_event);
 
 /**
- * p2p_event_callback() - Callback for P2P event
+ * typedef p2p_event_callback() - Callback for P2P event
  * @user_data: user data associated to this p2p event
  * @p2p_event: p2p event information
  *
@@ -89,7 +89,7 @@ typedef void (*p2p_event_callback)(void *user_data,
 	struct p2p_event *p2p_event);
 
 /**
- * mcc_quota_event_callback() - Callback for mcc quota
+ * typedef mcc_quota_event_callback() - Callback for mcc quota
  * @psoc: psoc object
  * @vdev: vdev object
  * @mcc_quota: mcc quota event information
@@ -105,10 +105,10 @@ typedef QDF_STATUS (*mcc_quota_event_callback)(struct wlan_objmgr_psoc *psoc,
 /**
  * struct p2p_start_param - p2p soc start parameters. Below callbacks
  *                          will be registered by the HDD
- * @rx_callback:      Function pointer to hdd rx callback. This
+ * @rx_cb:            Function pointer to hdd rx callback. This
  *                    function will be used to give rx frames to hdd
  * @rx_cb_data:       RX callback user data
- * @event_cb:         Founction pointer to hdd p2p event callback.
+ * @event_cb:         Function pointer to hdd p2p event callback.
  *                    This function will be used to give p2p event
  *                    to hdd
  * @event_cb_data:    Pointer to p2p event callback user data
@@ -116,7 +116,7 @@ typedef QDF_STATUS (*mcc_quota_event_callback)(struct wlan_objmgr_psoc *psoc,
  *                    This function will be used to give tx confirm
  *                    to hdd
  * @tx_cnf_cb_data:   Pointer to p2p tx confirm callback user data
- * @lo_event_cb:      Founction pointer to p2p listen offload
+ * @lo_event_cb:      Function pointer to p2p listen offload
  *                    callback. This function will be used to give
  *                    listen offload stopped event to hdd
  * @lo_event_cb_data: Pointer to p2p listen offload callback user data
@@ -230,7 +230,7 @@ QDF_STATUS ucfg_p2p_roc_cancel_req(struct wlan_objmgr_psoc *soc,
 QDF_STATUS ucfg_p2p_cleanup_roc_by_vdev(struct wlan_objmgr_vdev *vdev);
 
 /**
- * ucfg_p2p_cleanup_roc_by_poc() - Cleanup roc request by psoc
+ * ucfg_p2p_cleanup_roc_by_psoc() - Cleanup roc request by psoc
  * @psoc: pointer to psoc object
  *
  * This function call P2P API to cleanup roc request by psoc
@@ -250,7 +250,7 @@ QDF_STATUS ucfg_p2p_cleanup_roc_by_psoc(struct wlan_objmgr_psoc *psoc);
 QDF_STATUS ucfg_p2p_cleanup_tx_by_vdev(struct wlan_objmgr_vdev *vdev);
 
 /**
- * ucfg_p2p_cleanup_tx_by_poc() - Cleanup tx request by psoc
+ * ucfg_p2p_cleanup_tx_by_psoc() - Cleanup tx request by psoc
  * @psoc: pointer to psoc object
  *
  * This function call P2P API to cleanup tx action frame request by psoc

@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2012-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -1642,9 +1642,9 @@ static enum sme_qos_statustype sme_qos_internal_modify_req(struct mac_context *m
 		flow_info->QoSInfo.suspension_interval) &&
 	    (pQoSInfo->surplus_bw_allowance ==
 		flow_info->QoSInfo.surplus_bw_allowance)) {
-		sme_err("the addts parameters are same as last request, dropping the current request");
+		sme_debug("the addts parameters are same as last request, dropping the current request");
 
-		return SME_QOS_STATUS_MODIFY_SETUP_FAILURE_RSP;
+		return SME_QOS_STATUS_MODIFY_SETUP_SUCCESS_APSD_SET_ALREADY;
 	}
 
 	/* check to consider the following flowing scenario.
@@ -1914,6 +1914,7 @@ static enum sme_qos_statustype sme_qos_internal_release_req(struct mac_context *
 			if (QDF_IS_STATUS_SUCCESS(hstatus)) {
 				sme_debug("Buffered release request for flow = %d",
 					  QosFlowID);
+				return SME_QOS_STATUS_RELEASE_REQ_PENDING_RSP;
 			}
 		}
 		return SME_QOS_STATUS_RELEASE_INVALID_PARAMS_RSP;
@@ -3130,7 +3131,7 @@ static QDF_STATUS sme_qos_process_ft_reassoc_req_ev(
 	 */
 	entry = csr_ll_peek_head(&sme_qos_cb.flow_list, false);
 	if (!entry) {
-		sme_warn("Flow List empty, nothing to update");
+		sme_debug("Flow List empty, nothing to update");
 		return QDF_STATUS_E_FAILURE;
 	}
 
@@ -3983,7 +3984,7 @@ static QDF_STATUS sme_qos_process_del_ts_ind(struct mac_context *mac,
 	search_key.key.ac_type = ac;
 	search_key.index = SME_QOS_SEARCH_KEY_INDEX_2;
 	search_key.sessionId = sessionId;
-	/* find all Flows on the perticular AC & delete them, also send HDD
+	/* find all Flows on the particular AC & delete them, also send HDD
 	 * indication through the callback it registered per request
 	 */
 	if (!QDF_IS_STATUS_SUCCESS
@@ -5848,7 +5849,7 @@ static QDF_STATUS sme_qos_delete_existing_flows(struct mac_context *mac,
 
 	pEntry = csr_ll_peek_head(&sme_qos_cb.flow_list, true);
 	if (!pEntry) {
-		sme_err("Flow List empty, nothing to delete");
+		sme_debug("Flow List empty, nothing to delete");
 		return QDF_STATUS_E_FAILURE;
 	}
 	while (pEntry) {
@@ -6213,7 +6214,7 @@ static QDF_STATUS sme_qos_modify_fnp(struct mac_context *mac, tListElem *pEntry)
 
 /*
  * sme_qos_del_ts_ind_fnp() - Utility function (pointer) to find all Flows on
- *  the perticular AC & delete them, also send HDD indication through the
+ *  the particular AC & delete them, also send HDD indication through the
  * callback it registered per request
  *
  * mac - Pointer to the global MAC parameter structure.
@@ -7063,7 +7064,7 @@ enum sme_qos_statustype sme_qos_re_request_add_ts(struct mac_context *mac_ctx,
 	case SME_QOS_LINK_UP:
 	default:
 		/* print error msg, */
-		sme_err("ReAdd request in unexpected state = %d",
+		sme_err("Re-Add request in unexpected state = %d",
 			ac_info->curr_state);
 		break;
 	}

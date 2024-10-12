@@ -46,13 +46,14 @@
 #include <linux/reboot.h>
 #include <linux/sec_displayport.h>
 #include <linux/sched/clock.h>
+#include <linux/bitmap.h>
 #include "secdp.h"
 #include "secdp_sysfs.h"
 #if defined(CONFIG_SECDP_BIGDATA)
 #include <linux/secdp_bigdata.h>
 #endif
-/*#undef CONFIG_SWITCH*/
-#if IS_ENABLED(CONFIG_SWITCH)
+/*#undef CONFIG_SECDP_SWITCH*/
+#if defined(CONFIG_SECDP_SWITCH)
 #include <linux/switch.h>
 
 static struct switch_dev switch_secdp_msg = {
@@ -335,7 +336,7 @@ __visible_for_testing void secdp_send_poor_connection_event(bool edid_fail)
 	if (!edid_fail)
 		dp->link->poor_connection = true;
 
-#if IS_ENABLED(CONFIG_SWITCH)
+#if defined(CONFIG_SECDP_SWITCH)
 	switch_set_state(&switch_secdp_msg, 1);
 	switch_set_state(&switch_secdp_msg, 0);
 #else
@@ -362,6 +363,24 @@ __visible_for_testing void secdp_send_poor_connection_event(bool edid_fail)
 }
 #endif
 	dp->sec.dex.prev = dp->sec.dex.curr = DEX_DISABLED;
+}
+
+static void secdp_show_clk_status(struct dp_display_private *dp)
+{
+	struct dp_power *dp_power;
+	bool core, link, stream0, stream1;
+
+	if (!dp || !dp->power)
+		return;
+
+	dp_power = dp->power;
+
+	core = dp_power->clk_status(dp_power, DP_CORE_PM);
+	link = dp_power->clk_status(dp_power, DP_LINK_PM);
+	stream0 = dp_power->clk_status(dp_power, DP_STREAM0_PM);
+	stream1 = dp_power->clk_status(dp_power, DP_STREAM1_PM);
+
+	DP_DEBUG("core:%d link:%d strm0:%d strm1:%d\n", core, link, stream0, stream1);
 }
 
 /** check if dp has powered on */
@@ -586,8 +605,9 @@ void secdp_dex_adapter_skip_store(bool skip)
 	DP_INFO("skip: %d\n", dp->sec.dex.adapter_check_skip);
 }
 
-static bool secdp_adapter_check_parade(struct dp_display_private *dp)
+bool secdp_adapter_check_parade(void)
 {
+	struct dp_display_private *dp = g_secdp_priv;
 	struct secdp_adapter *adapter = &dp->sec.adapter;
 
 	if (adapter->ieee_oui[0] == 0x00 &&
@@ -598,8 +618,9 @@ static bool secdp_adapter_check_parade(struct dp_display_private *dp)
 	return false;
 }
 
-static bool secdp_adapter_check_ps176(struct dp_display_private *dp)
+bool secdp_adapter_check_ps176(void)
 {
+	struct dp_display_private *dp = g_secdp_priv;
 	struct secdp_adapter *adapter = &dp->sec.adapter;
 
 	if (adapter->devid_str[0] == '1' &&
@@ -614,10 +635,10 @@ static bool secdp_adapter_check_ps176_legacy(struct dp_display_private *dp)
 {
 	struct secdp_adapter *adapter = &dp->sec.adapter;
 
-	if (!secdp_adapter_check_parade(dp))
+	if (!secdp_adapter_check_parade())
 		return false;
 
-	if (!secdp_adapter_check_ps176(dp))
+	if (!secdp_adapter_check_ps176())
 		return false;
 
 	if (adapter->fw_ver[1] != 0x07)
@@ -2031,6 +2052,8 @@ static int dp_display_host_ready(struct dp_display_private *dp)
 {
 	int rc = 0;
 
+	DP_ENTER("\n");
+
 	if (!dp_display_state_is(DP_STATE_INITIALIZED)) {
 		rc = dp_display_host_init(dp);
 		if (rc) {
@@ -2043,8 +2066,6 @@ static int dp_display_host_ready(struct dp_display_private *dp)
 		dp_display_state_log("[already ready]");
 		return rc;
 	}
-
-	DP_ENTER("\n");
 
 	/*
 	 * Reset the aborted state for AUX and CTRL modules. This will
@@ -2153,6 +2174,10 @@ static int dp_display_process_hpd_high(struct dp_display_private *dp)
 		}
 	}
 
+#if defined(CONFIG_SECDP)
+	secdp_set_wakelock(dp, true);
+#endif
+
 	/*
 	 * If dp video session is not restored from a previous session teardown
 	 * by userspace, ensure the host_init is executed, in such a scenario,
@@ -2198,8 +2223,12 @@ static int dp_display_process_hpd_high(struct dp_display_private *dp)
 	dp->link->psm_config(dp->link, &dp->panel->link_info, false);
 	dp->debug->psm_enabled = false;
 
-	if (!dp->dp_display.base_connector)
+	if (!dp->dp_display.base_connector) {
+#if defined(CONFIG_SECDP)
+		secdp_set_wakelock(dp, false);
+#endif
 		goto end;
+	}
 
 	rc = dp->panel->read_sink_caps(dp->panel,
 			dp->dp_display.base_connector, dp->hpd->multi_func);
@@ -2214,12 +2243,20 @@ static int dp_display_process_hpd_high(struct dp_display_private *dp)
 	 * ETIMEDOUT --> cable may have been removed
 	 * ENOTCONN --> no downstream device connected
 	 */
+#if !defined(CONFIG_SECDP)
 	if (rc == -ETIMEDOUT || rc == -ENOTCONN) {
 		dp_display_state_remove(DP_STATE_CONNECTED);
 		goto end;
 	}
-
-#if defined(CONFIG_SECDP)
+#else
+	if (rc == -ENOTCONN) {
+		dp_display_state_remove(DP_STATE_CONNECTED);
+		goto end;
+	}
+	if (rc == -ETIMEDOUT) {
+		/* turn core clk off */
+		goto off;
+	}
 	if (rc == -EINVAL) {
 		/* read EDID is corrupted or invalid, failsafe case */
 		secdp_send_poor_connection_event(true);
@@ -2259,9 +2296,6 @@ static int dp_display_process_hpd_high(struct dp_display_private *dp)
 
 	dp_display_set_mst_mgr_state(dp, true);
 
-#if defined(CONFIG_SECDP)
-	secdp_set_wakelock(dp, true);
-#endif
 end:
 	mutex_unlock(&dp->session_lock);
 
@@ -2315,6 +2349,10 @@ end:
 		dp_display_send_hpd_notification(dp, false);
 
 skip_notify:
+#if defined(CONFIG_SECDP)
+	if (rc || dp_display_state_is(DP_STATE_ABORTED))
+		secdp_set_wakelock(dp, false);
+#endif
 	SDE_EVT32_EXTERNAL(SDE_EVTLOG_FUNC_EXIT, dp->state,
 		wait_timeout_ms, rc);
 	return rc;
@@ -2327,6 +2365,7 @@ off:
 
 	mutex_unlock(&dp->session_lock);
 
+	secdp_set_wakelock(dp, false);
 	secdp_send_poor_connection_event(false);
 	return rc;
 #endif
@@ -3183,6 +3222,7 @@ static void secdp_process_attention(struct dp_display_private *dp,
 		sec->dex.status = sec->dex.prev = sec->dex.curr = DEX_DISABLED;
 		secdp_clear_link_status_cnt(dp->link);
 		dp_display_disconnect_sync(dp);
+		dp_display_host_deinit(dp);
 		goto end;
 	}
 
@@ -3433,6 +3473,10 @@ static void secdp_pdic_handle_linkconf(struct dp_display_private *dp,
 
 	sec->link_conf = true;
 
+	/* see dp_display_usbpd_configure_cb() */
+	dp_display_state_remove(DP_STATE_ABORTED);
+	dp_display_state_add(DP_STATE_CONFIGURED);
+
 #ifdef SECDP_USB_CONCURRENCY
 	if (noti->sub1 == PDIC_NOTIFY_DP_PIN_B ||
 			noti->sub1 == PDIC_NOTIFY_DP_PIN_D ||
@@ -3676,11 +3720,11 @@ bool secdp_phy_reset_check(void)
 	struct dp_display_private *dp = g_secdp_priv;
 	bool ret = false;
 
-	if (!dp)
+	if (!dp || !dp->power)
 		goto end;
 
 	/* check if core clk is off */
-	if (!secdp_get_clk_status(DP_CORE_PM)) {
+	if (!dp->power->clk_status(dp->power, DP_CORE_PM)) {
 		ret = true;
 		goto end;
 	}
@@ -3803,6 +3847,11 @@ static void secdp_poor_disconnect_work(struct work_struct *work)
 		dp->link->poor_connection = true;
 
 	dp_display_disconnect_sync(dp);
+
+	mutex_lock(&dp->session_lock);
+	dp_display_host_deinit(dp);
+	dp_display_state_remove(DP_STATE_CONFIGURED);
+	mutex_unlock(&dp->session_lock);
 }
 
 #define LINK_BACKOFF_TIMER	120000	/*2min*/
@@ -3952,7 +4001,7 @@ __visible_for_testing int secdp_init(struct dp_display_private *dp)
 	register_reboot_notifier(&sec->reboot_nb);
 #endif
 
-#if IS_ENABLED(CONFIG_SWITCH)
+#if defined(CONFIG_SECDP_SWITCH)
 	rc = switch_dev_register(&switch_secdp_msg);
 	if (rc)
 		DP_INFO("Failed to register secdp_msg switch:%d\n", rc);
@@ -3990,7 +4039,7 @@ __visible_for_testing void secdp_deinit(struct dp_display_private *dp)
 	secdp_sysfs_deinit(sec->sysfs);
 	sec->sysfs = NULL;
 
-#if IS_ENABLED(CONFIG_SWITCH)
+#if defined(CONFIG_SECDP_SWITCH)
 	switch_dev_unregister(&switch_secdp_msg);
 #endif
 end:
@@ -4560,6 +4609,7 @@ end:
 	mutex_unlock(&dp->session_lock);
 
 	SDE_EVT32_EXTERNAL(SDE_EVTLOG_FUNC_EXIT, dp->state, rc);
+	DP_LEAVE("\n");
 	return rc;
 }
 
@@ -4977,8 +5027,10 @@ static int dp_display_unprepare(struct dp_display *dp_display, void *panel)
 	/* log this as it results from user action of cable dis-connection */
 	DP_INFO("unprepare[OK]\n");
 end:
+	mutex_lock(&dp->accounting_lock);
 	dp->tot_lm_blks_in_use -= dp_panel->max_lm;
 	dp_panel->max_lm = 0;
+	mutex_unlock(&dp->accounting_lock);
 	dp_panel->deinit(dp_panel, flags);
 	mutex_unlock(&dp->session_lock);
 	SDE_EVT32_EXTERNAL(SDE_EVTLOG_FUNC_EXIT, dp->state);
@@ -5450,6 +5502,31 @@ end:
 	return ret;
 }
 
+#if defined(REMOVE_YUV420_AT_PREFER)
+__visible_for_testing bool secdp_prefer_remove_yuv420(struct dp_display_private *dp,
+				struct drm_display_mode *mode)
+{
+	struct drm_connector *connector = dp->dp_display.base_connector;
+	u8 vic;
+	bool result = false;
+
+	if (!secdp_check_prefer_resolution(dp, mode))
+		goto exit;
+
+	if (!drm_mode_is_420_only(&connector->display_info, mode))
+		goto exit;
+
+	vic = drm_match_cea_mode(mode);
+
+	/* HACK: prevent preferred from becomming ycbcr420 */
+	bitmap_clear(connector->display_info.hdmi.y420_vdb_modes, vic, 1);
+	DP_INFO("unset ycbcr420 of vic %d\n", vic);
+	result = true;
+exit:
+	return result;
+}
+#endif
+
 __visible_for_testing bool secdp_check_resolution(struct dp_display_private *dp,
 				struct drm_display_mode *mode,
 				bool supported)
@@ -5484,6 +5561,10 @@ __visible_for_testing bool secdp_check_resolution(struct dp_display_private *dp,
 		DP_INFO_M("prefer timing found! %dx%d@%dhz, %s\n",
 			prefer->hdisp, prefer->vdisp, prefer->refresh,
 			secdp_aspect_ratio_to_string(prefer->ratio));
+
+#if defined(REMOVE_YUV420_AT_PREFER)
+		secdp_prefer_remove_yuv420(dp, mode);
+#endif
 
 		if (!prefer_support) {
 			DP_INFO("remove prefer!\n");
@@ -5630,8 +5711,10 @@ static int dp_display_validate_topology(struct dp_display_private *dp,
 		num_3dmux = 1;
 	}
 
-	avail_lm = avail_res->num_lm + avail_res->num_lm_in_use - dp->tot_lm_blks_in_use;
-	if ((num_lm > dp_panel->max_lm) && (num_lm > avail_lm)) {
+	avail_lm = avail_res->num_lm + avail_res->num_lm_in_use - dp->tot_lm_blks_in_use
+			+ dp_panel->max_lm;
+
+	if (num_lm > avail_lm) {
 		DP_DEBUG("mode %sx%d is invalid, not enough lm %d %d\n",
 				mode->name, fps, num_lm, avail_res->num_lm);
 		rc = -EPERM;
@@ -5652,10 +5735,8 @@ static int dp_display_validate_topology(struct dp_display_private *dp,
 	DP_DEBUG_V("mode %sx%d is valid, supported DP topology lm:%d dsc:%d 3dmux:%d\n",
 				mode->name, fps, num_lm, num_dsc, num_3dmux);
 #endif
-	dp->tot_lm_blks_in_use -= dp_panel->max_lm;
-	dp_panel->max_lm = num_lm > avail_res->num_lm_in_use ? max(dp_panel->max_lm, num_lm) : 0;
-	dp->tot_lm_blks_in_use += dp_panel->max_lm;
 
+	dp_mode->lm_count = num_lm;
 	rc = 0;
 
 end:
@@ -5715,9 +5796,16 @@ static enum drm_mode_status dp_display_validate_mode(
 		goto end;
 
 	mode_status = MODE_OK;
+
+	if (!avail_res->num_lm_in_use) {
+		mutex_lock(&dp->accounting_lock);
+		dp->tot_lm_blks_in_use -= dp_panel->max_lm;
+		dp_panel->max_lm = max(dp_panel->max_lm, dp_mode.lm_count);
+		dp->tot_lm_blks_in_use += dp_panel->max_lm;
+		mutex_unlock(&dp->accounting_lock);
+	}
+
 end:
-	if (mode_status != MODE_OK)
-		dp_display_clear_reservation(dp_display, dp_panel);
 	mutex_unlock(&dp->session_lock);
 
 #if !defined(CONFIG_SECDP)
@@ -6549,6 +6637,9 @@ static int dp_pm_prepare(struct device *dev)
 	dp_display_state_add(DP_STATE_SUSPENDED);
 	mutex_unlock(&dp->session_lock);
 	SDE_EVT32_EXTERNAL(SDE_EVTLOG_FUNC_EXIT, dp->state);
+#if defined(CONFIG_SECDP)
+	secdp_show_clk_status(dp);
+#endif
 
 	return 0;
 }

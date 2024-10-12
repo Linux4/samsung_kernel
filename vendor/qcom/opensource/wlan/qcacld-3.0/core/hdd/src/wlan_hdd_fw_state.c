@@ -77,13 +77,12 @@ static int hdd_post_get_fw_state_rsp(struct hdd_context *hdd_ctx,
 	struct sk_buff *skb;
 	enum qca_wlan_vendor_attr_fw_state fw_state;
 
-	skb = cfg80211_vendor_cmd_alloc_reply_skb(hdd_ctx->wiphy,
-						  sizeof(uint8_t) +
-						  NLA_HDRLEN +
-						  NLMSG_HDRLEN);
-
+	skb = wlan_cfg80211_vendor_cmd_alloc_reply_skb(hdd_ctx->wiphy,
+						       sizeof(uint8_t) +
+						       NLA_HDRLEN +
+						       NLMSG_HDRLEN);
 	if (!skb) {
-		hdd_err("cfg80211_vendor_event_alloc failed");
+		hdd_err("wlan_cfg80211_vendor_event_alloc failed");
 		return -ENOMEM;
 	}
 
@@ -98,11 +97,11 @@ static int hdd_post_get_fw_state_rsp(struct hdd_context *hdd_ctx,
 		goto nla_put_failure;
 	}
 
-	cfg80211_vendor_cmd_reply(skb);
+	wlan_cfg80211_vendor_cmd_reply(skb);
 	return 0;
 
 nla_put_failure:
-	kfree_skb(skb);
+	wlan_cfg80211_vendor_free_skb(skb);
 	return -EINVAL;
 }
 

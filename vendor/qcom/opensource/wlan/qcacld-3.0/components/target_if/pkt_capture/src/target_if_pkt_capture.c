@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -56,7 +56,7 @@ target_if_set_packet_capture_mode(struct wlan_objmgr_psoc *psoc,
 			psoc, vdev_id, mode);
 
 	param.vdev_id = vdev_id;
-	param.param_id = WMI_VDEV_PARAM_PACKET_CAPTURE_MODE;
+	param.param_id = wmi_vdev_param_packet_capture_mode;
 	param.param_value = (uint32_t)mode;
 
 	status = wmi_unified_vdev_set_param_send(wmi_handle, &param);
@@ -104,7 +104,7 @@ target_if_set_packet_capture_config
 			psoc, vdev_id, config_value);
 
 	param.vdev_id = vdev_id;
-	param.param_id = WMI_VDEV_PARAM_SMART_MONITOR_CONFIG;
+	param.param_id = wmi_vdev_param_smart_monitor_config;
 	param.param_value = (uint32_t)config_value;
 
 	status = wmi_unified_vdev_set_param_send(wmi_handle, &param);
@@ -155,7 +155,7 @@ target_if_set_packet_capture_beacon_interval
 			psoc, vdev_id, nth_value);
 
 	param.vdev_id = vdev_id;
-	param.param_id = WMI_VDEV_PARAM_NTH_BEACON_TO_HOST;
+	param.param_id = wmi_vdev_param_nth_beacon_to_host;
 	param.param_value = nth_value;
 
 	status = wmi_unified_vdev_set_param_send(wmi_handle, &param);

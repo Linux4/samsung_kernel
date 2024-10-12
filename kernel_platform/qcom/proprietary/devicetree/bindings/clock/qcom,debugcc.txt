@@ -23,6 +23,11 @@ Required properties :
 			"qcom,lemans-debugcc"
 			"qcom,sa410m-debugcc"
 			"qcom,sm8250-debugcc"
+			"qcom,qcs404-debugcc"
+			"qcom,crow-debugcc"
+			"qcom,monaco_auto-debugcc"
+			"qcom,trinket-debugcc"
+			"qcom,sdm845-debugcc"
 
 - qcom,gcc: phandle to the GCC device node.
 - qcom,videocc: phandle to the Video CC device node.

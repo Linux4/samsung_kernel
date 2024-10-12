@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2016-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -32,9 +32,10 @@
 #include "wlan_objmgr_psoc_obj_i.h"
 #include "wlan_objmgr_pdev_obj_i.h"
 #include <wlan_utility.h>
+#include <wlan_cm_api.h>
 
-/**
- ** APIs to Create/Delete Global object APIs
+/*
+ * APIs to Create/Delete Global object APIs
  */
 static QDF_STATUS wlan_objmgr_pdev_object_status(
 		struct wlan_objmgr_pdev *pdev)
@@ -139,6 +140,7 @@ struct wlan_objmgr_pdev *wlan_objmgr_pdev_obj_create(
 	pdev->pdev_objmgr.temp_peer_count = 0;
 	pdev->pdev_objmgr.max_peer_count = wlan_psoc_get_max_peer_count(psoc);
 	wlan_pdev_init_mlo_vdev_count(pdev);
+	wlan_pdev_init_mlo_bridge_vdev_count(pdev);
 	/* Save HDD/OSIF pointer */
 	pdev->pdev_nif.pdev_ospriv = osdev_priv;
 	qdf_atomic_init(&pdev->pdev_objmgr.ref_cnt);
@@ -274,8 +276,8 @@ QDF_STATUS wlan_objmgr_pdev_obj_delete(struct wlan_objmgr_pdev *pdev)
 }
 qdf_export_symbol(wlan_objmgr_pdev_obj_delete);
 
-/**
- ** APIs to attach/detach component objects
+/*
+ * APIs to attach/detach component objects
  */
 QDF_STATUS wlan_objmgr_pdev_component_obj_attach(
 		struct wlan_objmgr_pdev *pdev,
@@ -308,7 +310,7 @@ QDF_STATUS wlan_objmgr_pdev_component_obj_attach(
 
 	if (pdev->obj_state != WLAN_OBJ_STATE_PARTIALLY_CREATED)
 		return QDF_STATUS_SUCCESS;
-	/**
+	/*
 	 * If PDEV object status is partially created means, this API is
 	 * invoked with different context, this block should be executed for
 	 * async components only
@@ -405,8 +407,8 @@ QDF_STATUS wlan_objmgr_pdev_component_obj_detach(
 }
 qdf_export_symbol(wlan_objmgr_pdev_component_obj_detach);
 
-/**
- ** APIs to operations on pdev objects
+/*
+ * APIs to operations on pdev objects
  */
 static void wlan_objmgr_pdev_vdev_iterate_peers(struct wlan_objmgr_pdev *pdev,
 				struct wlan_objmgr_vdev *vdev,
@@ -820,6 +822,47 @@ struct wlan_objmgr_vdev *wlan_objmgr_pdev_get_first_vdev(
 qdf_export_symbol(wlan_objmgr_pdev_get_first_vdev);
 #endif
 
+struct wlan_objmgr_vdev *wlan_objmgr_pdev_get_roam_vdev(
+		struct wlan_objmgr_pdev *pdev,
+		wlan_objmgr_ref_dbgid dbg_id)
+{
+	struct wlan_objmgr_pdev_objmgr *objmgr = &pdev->pdev_objmgr;
+	qdf_list_t *vdev_list = NULL;
+	struct wlan_objmgr_vdev *vdev;
+	qdf_list_node_t *node = NULL;
+	qdf_list_node_t *prev_node = NULL;
+
+	wlan_pdev_obj_lock(pdev);
+
+	/* VDEV list */
+	vdev_list = &objmgr->wlan_vdev_list;
+	if (qdf_list_peek_front(vdev_list, &node) != QDF_STATUS_SUCCESS) {
+		wlan_pdev_obj_unlock(pdev);
+		return NULL;
+	}
+
+	do {
+		vdev = qdf_container_of(node, struct wlan_objmgr_vdev,
+					vdev_node);
+		if (wlan_objmgr_vdev_try_get_ref(vdev, dbg_id) ==
+						QDF_STATUS_SUCCESS) {
+			if (wlan_cm_is_vdev_roaming(vdev)) {
+				wlan_pdev_obj_unlock(pdev);
+				return vdev;
+			}
+
+			wlan_objmgr_vdev_release_ref(vdev, dbg_id);
+		}
+
+		prev_node = node;
+	} while (qdf_list_peek_next(vdev_list, prev_node, &node) ==
+						QDF_STATUS_SUCCESS);
+
+	wlan_pdev_obj_unlock(pdev);
+
+	return NULL;
+}
+
 #ifdef WLAN_OBJMGR_REF_ID_TRACE
 struct wlan_objmgr_vdev *wlan_objmgr_get_vdev_by_id_from_pdev_debug(
 			struct wlan_objmgr_pdev *pdev, uint8_t vdev_id,
@@ -837,7 +880,7 @@ struct wlan_objmgr_vdev *wlan_objmgr_get_vdev_by_id_from_pdev_debug(
 	vdev_list = &objmgr->wlan_vdev_list;
 	/* Get first vdev */
 	vdev = wlan_pdev_vdev_list_peek_head(vdev_list);
-	/**
+	/*
 	 * Iterate through pdev's vdev list, till vdev id matches with
 	 * entry of vdev list
 	 */
@@ -876,7 +919,7 @@ struct wlan_objmgr_vdev *wlan_objmgr_get_vdev_by_id_from_pdev(
 	vdev_list = &objmgr->wlan_vdev_list;
 	/* Get first vdev */
 	vdev = wlan_pdev_vdev_list_peek_head(vdev_list);
-	/**
+	/*
 	 * Iterate through pdev's vdev list, till vdev id matches with
 	 * entry of vdev list
 	 */
@@ -917,7 +960,7 @@ struct wlan_objmgr_vdev *wlan_objmgr_get_vdev_by_id_from_pdev_no_state_debug(
 	vdev_list = &objmgr->wlan_vdev_list;
 	/* Get first vdev */
 	vdev = wlan_pdev_vdev_list_peek_head(vdev_list);
-	/**
+	/*
 	 * Iterate through pdev's vdev list, till vdev id matches with
 	 * entry of vdev list
 	 */
@@ -955,7 +998,7 @@ struct wlan_objmgr_vdev *wlan_objmgr_get_vdev_by_id_from_pdev_no_state(
 	vdev_list = &objmgr->wlan_vdev_list;
 	/* Get first vdev */
 	vdev = wlan_pdev_vdev_list_peek_head(vdev_list);
-	/**
+	/*
 	 * Iterate through pdev's vdev list, till vdev id matches with
 	 * entry of vdev list
 	 */
@@ -994,7 +1037,7 @@ struct wlan_objmgr_vdev *wlan_objmgr_get_vdev_by_macaddr_from_pdev_debug(
 	vdev_list = &objmgr->wlan_vdev_list;
 	/* Get first vdev */
 	vdev = wlan_pdev_vdev_list_peek_head(vdev_list);
-	/**
+	/*
 	 * Iterate through pdev's vdev list, till vdev macaddr matches with
 	 * entry of vdev list
 	 */
@@ -1031,7 +1074,7 @@ struct wlan_objmgr_vdev *wlan_objmgr_get_vdev_by_macaddr_from_pdev(
 	vdev_list = &objmgr->wlan_vdev_list;
 	/* Get first vdev */
 	vdev = wlan_pdev_vdev_list_peek_head(vdev_list);
-	/**
+	/*
 	 * Iterate through pdev's vdev list, till vdev macaddr matches with
 	 * entry of vdev list
 	 */
@@ -1071,7 +1114,7 @@ struct wlan_objmgr_vdev
 	vdev_list = &objmgr->wlan_vdev_list;
 	/* Get first vdev */
 	vdev = wlan_pdev_vdev_list_peek_head(vdev_list);
-	/**
+	/*
 	 * Iterate through pdev's vdev list, till vdev macaddr matches with
 	 * entry of vdev list
 	 */
@@ -1107,7 +1150,7 @@ struct wlan_objmgr_vdev *wlan_objmgr_get_vdev_by_macaddr_from_pdev_no_state(
 	vdev_list = &objmgr->wlan_vdev_list;
 	/* Get first vdev */
 	vdev = wlan_pdev_vdev_list_peek_head(vdev_list);
-	/**
+	/*
 	 * Iterate through pdev's vdev list, till vdev macaddr matches with
 	 * entry of vdev list
 	 */

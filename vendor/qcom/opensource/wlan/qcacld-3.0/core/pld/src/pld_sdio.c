@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2016-2020 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -66,7 +67,7 @@ static const struct pld_fw_files fw_files_default = {
 
 /**
  * pld_sdio_probe() - Probe function for SDIO platform driver
- * sdio_func: pointer to sdio device function
+ * @sdio_func: pointer to sdio device function
  * @id: SDIO device ID table
  *
  * The probe function will be called when SDIO device provided
@@ -377,39 +378,16 @@ struct cnss_sdio_wlan_driver pld_sdio_ops = {
 #endif
 };
 
-/**
- * pld_sdio_register_driver() - Register SDIO device callback functions
- *
- * Return: int
- */
 int pld_sdio_register_driver(void)
 {
 	return cnss_sdio_wlan_register_driver(&pld_sdio_ops);
 }
 
-/**
- * pld_sdio_unregister_driver() - Unregister SDIO device callback functions
- *
- * Return: void
- */
 void pld_sdio_unregister_driver(void)
 {
 	cnss_sdio_wlan_unregister_driver(&pld_sdio_ops);
 }
 
-/**
- * pld_sdio_wlan_enable() - Enable WLAN
- * @dev: device
- * @config: NA
- * @mode: WLAN mode
- * @host_version: host software version
- *
- * This function enables WLAN FW. It passed
- * WLAN mode and host software version to FW.
- *
- * Return: 0 for success
- *         Non zero failure code for errors
- */
 int pld_sdio_wlan_enable(struct device *dev, struct pld_wlan_enable_cfg *config,
 			 enum pld_driver_mode mode, const char *host_version)
 {
@@ -475,17 +453,6 @@ static inline int pld_sdio_is_tufello_dual_fw_supported(void)
 #endif
 }
 
-/**
- * pld_sdio_get_fw_files_for_target() - Get FW file names
- * @pfw_files: buffer for FW file names
- * @target_type: target type
- * @target_version: target version
- *
- * Return target specific FW file names to the buffer.
- *
- * Return: 0 for success
- *         Non zero failure code for errors
- */
 int pld_sdio_get_fw_files_for_target(struct pld_fw_files *pfw_files,
 				     u32 target_type, u32 target_version)
 {

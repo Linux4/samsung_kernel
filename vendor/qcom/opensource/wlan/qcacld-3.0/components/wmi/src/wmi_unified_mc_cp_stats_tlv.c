@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2013-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -74,10 +74,9 @@ extract_per_chain_rssi_stats_tlv(wmi_unified_t wmi_handle, void *evt_buf,
 
 /**
  * extract_peer_adv_stats_tlv() - extract adv peer stats from event
- * @param wmi_handle: wmi handle
- * @param evt_buf: pointer to event buffer
- * @param index: Index into extended peer stats
- * @param peer_adv_stats: Pointer to hold adv peer stats
+ * @wmi_handle: wmi handle
+ * @evt_buf: pointer to event buffer
+ * @peer_adv_stats: Pointer to hold adv peer stats
  *
  * Return: QDF_STATUS_SUCCESS for success or error code
  */
@@ -116,8 +115,8 @@ static QDF_STATUS extract_peer_adv_stats_tlv(wmi_unified_t wmi_handle,
 /**
  * extract_mib_stats_tlv() - extract mib stats from event
  * @wmi_handle: wmi handle
- * @param evt_buf: pointer to event buffer
- * @param mib_stats: pointer to hold mib stats
+ * @evt_buf: pointer to event buffer
+ * @mib_stats: pointer to hold mib stats
  *
  * Return: QDF_STATUS_SUCCESS for success or error code
  */
@@ -518,9 +517,9 @@ extract_peer_stats_info_tlv(wmi_unified_t wmi_handle, void *evt_buf,
 #ifdef WLAN_FEATURE_BIG_DATA_STATS
 /**
  * extract_big_data_stats_tlv() - extract big data from event
- * @param wmi_handle: wmi handle
- * @param evt_buf: pointer to event buffer
- * @param stats_param: Pointer to hold big data stats
+ * @wmi_handle: wmi handle
+ * @evt_buf: pointer to event buffer
+ * @stats: Pointer to hold big data stats
  *
  * Return: QDF_STATUS_SUCCESS for success or error code
  */

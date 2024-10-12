@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -101,24 +102,31 @@ enum iot_sim_action_cat_type {
 	IOT_SIM_MAX_CAT,
 };
 
-/*
+/**
  * struct iot_sim_debugfs - contains dentry pointer for opened
  *			    iot sim files and directory
- * @iot_sim_dir_de - dentry pointer to pdev specific folder
- * @iot_sim_file_de - dentry pointer representing operation specific files
+ * @iot_sim_dir_de: dentry pointer to pdev specific folder
+ * @iot_sim_file_de: dentry pointer representing operation specific files
  */
 struct iot_sim_debugfs {
 	struct dentry *iot_sim_dir_de;
 	struct dentry *iot_sim_file_de[IOT_SIM_DEBUGFS_FILE_NUM];
 };
 
-/*
+/**
  * struct iot_sim_rule - represent user configured rules
- * @len - Length of the content provided by user
- * @offset - offset at which modification done in capture frame
- * @frm_content - actual user data in hex
- * @drop - frame marked for drop
- * @delay_dur - duration of delay
+ * @len: Length of the content provided by user
+ * @offset: offset at which modification done in capture frame
+ * @frm_content: actual user data in hex
+ * @drop: frame marked for drop
+ * @delay_dur: duration of delay
+ * @rule_bitmap:
+ * @nbuf_list:
+ * @peer:
+ * @sec_buf:
+ * @dwork:
+ * @rx_param:
+ * @iot_sim_delay_lock:
  */
 struct iot_sim_rule {
 	uint16_t len;
@@ -135,12 +143,13 @@ struct iot_sim_rule {
 	qdf_spinlock_t iot_sim_delay_lock;
 };
 
-/*
+/**
  * struct iot_sim_rule_per_seq - rule structure per sequence iot sim files
  *				 and directory
  *
- * @rule_per_type - 2d array of iot_sim_rule per type subtype
- * @use_count - usage reference
+ * @rule_per_type: 2d array of iot_sim_rule per type subtype
+ * @rule_per_action_frm: 2d array of iot_sim_rule per category/action
+ * @use_count: usage reference
  */
 struct iot_sim_rule_per_seq {
 	struct iot_sim_rule *rule_per_type[N_FRAME_TYPE][N_FRAME_SUBTYPE];
@@ -148,13 +157,12 @@ struct iot_sim_rule_per_seq {
 	uint8_t use_count;
 };
 
-/*
+/**
  * struct iot_sim_rule_per_peer - peer specific structure for iot sim ops
  *
- * @addr - address of peer
- * @iot_sim_lock - spinlock
- * @rule_per_seq - array of iot_sim_rule_per_seq
- * @list - list variable
+ * @node: list node
+ * @addr: address of peer
+ * @rule_per_seq: array of iot_sim_rule_per_seq
  */
 struct iot_sim_rule_per_peer {
 	qdf_list_node_t node;
@@ -167,6 +175,11 @@ struct iot_sim_rule_per_peer {
  * @pdev_obj:Reference to pdev global object
  * @iot_sim_peer_list: peer list for peer specific rules
  * @bcast_peer: broadcast peer entry for storing rules for all peers
+ * @peer_list:
+ * @iot_sim_lock:
+ * @iot_sim_dbgfs_ctx:
+ * @iot_sim_update_beacon_trigger:
+ * @bcn_buf:
  */
 struct iot_sim_context {
 	struct wlan_objmgr_pdev *pdev_obj;
@@ -179,13 +192,12 @@ struct iot_sim_context {
 	qdf_nbuf_t bcn_buf;
 };
 
-/* enum iot_sim_operations - iot sim operations
- *
- * @INVALID_OPERATION - invalid operation
- * @CONTENT_CHANGE - Frame Content Change operation
- * @DROP - Frame drop operation
- * @DELAY - Frame delay operation
- * @IOT_SIM_MAX_OPERATION - iot sim max operation
+/**
+ * enum iot_sim_operations - iot sim operations
+ * @CONTENT_CHANGE: Frame Content Change operation
+ * @DROP: Frame drop operation
+ * @DELAY: Frame delay operation
+ * @IOT_SIM_MAX_OPERATION: iot sim max operation
  */
 enum iot_sim_operations {
 	CONTENT_CHANGE,
@@ -194,13 +206,13 @@ enum iot_sim_operations {
 	IOT_SIM_MAX_OPERATION
 };
 
-/* enum iot_sim_subcmd - iot sim FW related subcommands
- *
- * @ADD_RULE - Add Rule
- * @DEL_RULE - Delete Rule
- * @ADD_RULE_ACTION - Add rule for action frame
- * @DEL_RULE_ACTION - Del rule for action frame
- * @IOT_SIM_MAX_SUBCMD - iot sim max subcmd
+/**
+ * enum iot_sim_subcmd - iot sim FW related subcommands
+ * @ADD_RULE: Add Rule
+ * @DEL_RULE: Delete Rule
+ * @ADD_RULE_ACTION: Add rule for action frame
+ * @DEL_RULE_ACTION: Del rule for action frame
+ * @IOT_SIM_MAX_SUBCMD: iot sim max subcmd
  */
 enum iot_sim_subcmd {
 	ADD_RULE = 0,

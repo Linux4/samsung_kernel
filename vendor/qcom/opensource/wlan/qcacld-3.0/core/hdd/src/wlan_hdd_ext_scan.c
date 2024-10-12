@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2012-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -391,10 +391,10 @@ wlan_hdd_cfg80211_extscan_cached_results_ind(struct hdd_context *hdd_ctx,
 		}
 	}
 
-	skb = cfg80211_vendor_cmd_alloc_reply_skb(hdd_ctx->wiphy, nl_buf_len);
-
+	skb = wlan_cfg80211_vendor_cmd_alloc_reply_skb(hdd_ctx->wiphy,
+						       nl_buf_len);
 	if (!skb) {
-		hdd_err("cfg80211_vendor_cmd_alloc_reply_skb failed");
+		hdd_err("wlan_cfg80211_vendor_cmd_alloc_reply_skb failed");
 		goto fail;
 	}
 	hdd_debug("Req Id %u Num_scan_ids %u More Data %u",
@@ -499,7 +499,7 @@ wlan_hdd_cfg80211_extscan_cached_results_ind(struct hdd_context *hdd_ctx,
 		nla_nest_end(skb, nla_results);
 	}
 
-	cfg80211_vendor_cmd_reply(skb);
+	wlan_cfg80211_vendor_cmd_reply(skb);
 
 	if (!data->more_data) {
 		spin_lock(&context->context_lock);
@@ -510,9 +510,7 @@ wlan_hdd_cfg80211_extscan_cached_results_ind(struct hdd_context *hdd_ctx,
 	return;
 
 fail:
-	if (skb)
-		kfree_skb(skb);
-
+	wlan_cfg80211_vendor_free_skb(skb);
 	spin_lock(&context->context_lock);
 	context->response_status = -EINVAL;
 	spin_unlock(&context->context_lock);
@@ -550,14 +548,14 @@ wlan_hdd_cfg80211_extscan_hotlist_match_ind(struct hdd_context *hdd_ctx,
 	else
 		index = QCA_NL80211_VENDOR_SUBCMD_EXTSCAN_HOTLIST_AP_LOST_INDEX;
 
-	skb = cfg80211_vendor_event_alloc(
+	skb = wlan_cfg80211_vendor_event_alloc(
 		  hdd_ctx->wiphy,
 		  NULL,
 		  EXTSCAN_EVENT_BUF_SIZE + NLMSG_HDRLEN,
 		  index, flags);
 
 	if (!skb) {
-		hdd_err("cfg80211_vendor_event_alloc failed");
+		hdd_err("wlan_cfg80211_vendor_event_alloc failed");
 		return;
 	}
 	hdd_debug("Req Id: %u Num_APs: %u MoreData: %u ap_found: %u",
@@ -634,12 +632,12 @@ wlan_hdd_cfg80211_extscan_hotlist_match_ind(struct hdd_context *hdd_ctx,
 			goto fail;
 	}
 
-	cfg80211_vendor_event(skb, flags);
+	wlan_cfg80211_vendor_event(skb, flags);
 	hdd_exit();
 	return;
 
 fail:
-	kfree_skb(skb);
+	wlan_cfg80211_vendor_free_skb(skb);
 }
 
 /**
@@ -673,7 +671,7 @@ wlan_hdd_cfg80211_extscan_signif_wifi_change_results_ind(
 		return;
 	}
 
-	skb = cfg80211_vendor_event_alloc(
+	skb = wlan_cfg80211_vendor_event_alloc(
 		hdd_ctx->wiphy,
 		NULL,
 		EXTSCAN_EVENT_BUF_SIZE + NLMSG_HDRLEN,
@@ -681,7 +679,7 @@ wlan_hdd_cfg80211_extscan_signif_wifi_change_results_ind(
 		flags);
 
 	if (!skb) {
-		hdd_err("cfg80211_vendor_event_alloc failed");
+		hdd_err("wlan_cfg80211_vendor_event_alloc failed");
 		return;
 	}
 	hdd_debug("Req Id %u Num results %u More Data %u",
@@ -760,11 +758,11 @@ wlan_hdd_cfg80211_extscan_signif_wifi_change_results_ind(
 			goto fail;
 	}
 
-	cfg80211_vendor_event(skb, flags);
+	wlan_cfg80211_vendor_event(skb, flags);
 	return;
 
 fail:
-	kfree_skb(skb);
+	wlan_cfg80211_vendor_free_skb(skb);
 	return;
 
 }
@@ -802,7 +800,7 @@ wlan_hdd_cfg80211_extscan_full_scan_result_event(struct hdd_context *hdd_ctx,
 		hdd_err("Frame exceeded NL size limitation, drop it!!");
 		return;
 	}
-	skb = cfg80211_vendor_event_alloc(
+	skb = wlan_cfg80211_vendor_event_alloc(
 		  hdd_ctx->wiphy,
 		  NULL,
 		  EXTSCAN_EVENT_BUF_SIZE + NLMSG_HDRLEN,
@@ -810,7 +808,7 @@ wlan_hdd_cfg80211_extscan_full_scan_result_event(struct hdd_context *hdd_ctx,
 		  flags);
 
 	if (!skb) {
-		hdd_err("cfg80211_vendor_event_alloc failed");
+		hdd_err("wlan_cfg80211_vendor_event_alloc failed");
 		return;
 	}
 
@@ -890,11 +888,11 @@ wlan_hdd_cfg80211_extscan_full_scan_result_event(struct hdd_context *hdd_ctx,
 	}
 	spin_unlock(&context->context_lock);
 
-	cfg80211_vendor_event(skb, flags);
+	wlan_cfg80211_vendor_event(skb, flags);
 	return;
 
 nla_put_failure:
-	kfree_skb(skb);
+	wlan_cfg80211_vendor_free_skb(skb);
 }
 
 /**
@@ -924,7 +922,7 @@ wlan_hdd_cfg80211_extscan_scan_res_available_event(
 		return;
 	}
 
-	skb = cfg80211_vendor_event_alloc(
+	skb = wlan_cfg80211_vendor_event_alloc(
 		 hdd_ctx->wiphy,
 		 NULL,
 		 EXTSCAN_EVENT_BUF_SIZE + NLMSG_HDRLEN,
@@ -932,7 +930,7 @@ wlan_hdd_cfg80211_extscan_scan_res_available_event(
 		 flags);
 
 	if (!skb) {
-		hdd_err("cfg80211_vendor_event_alloc failed");
+		hdd_err("wlan_cfg80211_vendor_event_alloc failed");
 		return;
 	}
 
@@ -948,12 +946,12 @@ wlan_hdd_cfg80211_extscan_scan_res_available_event(
 		goto nla_put_failure;
 	}
 
-	cfg80211_vendor_event(skb, flags);
+	wlan_cfg80211_vendor_event(skb, flags);
 	hdd_exit();
 	return;
 
 nla_put_failure:
-	kfree_skb(skb);
+	wlan_cfg80211_vendor_free_skb(skb);
 }
 
 /**
@@ -984,7 +982,7 @@ wlan_hdd_cfg80211_extscan_scan_progress_event(struct hdd_context *hdd_ctx,
 		return;
 	}
 
-	skb = cfg80211_vendor_event_alloc(
+	skb = wlan_cfg80211_vendor_event_alloc(
 			hdd_ctx->wiphy,
 			NULL,
 			EXTSCAN_EVENT_BUF_SIZE + NLMSG_HDRLEN,
@@ -992,7 +990,7 @@ wlan_hdd_cfg80211_extscan_scan_progress_event(struct hdd_context *hdd_ctx,
 			flags);
 
 	if (!skb) {
-		hdd_err("cfg80211_vendor_event_alloc failed");
+		hdd_err("wlan_cfg80211_vendor_event_alloc failed");
 		return;
 	}
 
@@ -1024,11 +1022,11 @@ wlan_hdd_cfg80211_extscan_scan_progress_event(struct hdd_context *hdd_ctx,
 		goto nla_put_failure;
 	}
 
-	cfg80211_vendor_event(skb, flags);
+	wlan_cfg80211_vendor_event(skb, flags);
 	return;
 
 nla_put_failure:
-	kfree_skb(skb);
+	wlan_cfg80211_vendor_free_skb(skb);
 }
 
 /**
@@ -1050,6 +1048,8 @@ wlan_hdd_cfg80211_extscan_epno_match_found(struct hdd_context *hdd_ctx,
 	struct sk_buff *skb;
 	uint32_t len, i;
 	int flags = cds_get_gfp_flags();
+	enum qca_nl80211_vendor_subcmds_index index =
+		QCA_NL80211_VENDOR_SUBCMD_EXTSCAN_PNO_NETWORK_FOUND_INDEX;
 
 	hdd_enter();
 
@@ -1074,14 +1074,12 @@ wlan_hdd_cfg80211_extscan_epno_match_found(struct hdd_context *hdd_ctx,
 		return;
 	}
 
-	skb = cfg80211_vendor_event_alloc(hdd_ctx->wiphy,
-		  NULL,
-		  EXTSCAN_EVENT_BUF_SIZE + NLMSG_HDRLEN,
-		QCA_NL80211_VENDOR_SUBCMD_EXTSCAN_PNO_NETWORK_FOUND_INDEX,
-		  flags);
-
+	skb = wlan_cfg80211_vendor_event_alloc(hdd_ctx->wiphy, NULL,
+					       EXTSCAN_EVENT_BUF_SIZE +
+					       NLMSG_HDRLEN,
+					       index, flags);
 	if (!skb) {
-		hdd_err("cfg80211_vendor_event_alloc failed");
+		hdd_err("wlan_cfg80211_vendor_event_alloc failed");
 		return;
 	}
 
@@ -1126,11 +1124,11 @@ wlan_hdd_cfg80211_extscan_epno_match_found(struct hdd_context *hdd_ctx,
 		nla_nest_end(skb, nla_aps);
 	}
 
-	cfg80211_vendor_event(skb, flags);
+	wlan_cfg80211_vendor_event(skb, flags);
 	return;
 
 fail:
-	kfree_skb(skb);
+	wlan_cfg80211_vendor_free_skb(skb);
 }
 
 /**
@@ -1154,6 +1152,8 @@ wlan_hdd_cfg80211_passpoint_match_found(void *ctx,
 	uint32_t len, i, num_matches = 1, more_data = 0;
 	struct nlattr *nla_aps, *nla_bss;
 	int flags = cds_get_gfp_flags();
+	enum qca_nl80211_vendor_subcmds_index index =
+		QCA_NL80211_VENDOR_SUBCMD_EXTSCAN_PNO_PASSPOINT_NETWORK_FOUND_INDEX;
 
 	hdd_enter();
 
@@ -1170,14 +1170,12 @@ wlan_hdd_cfg80211_passpoint_match_found(void *ctx,
 		return;
 	}
 
-	skb = cfg80211_vendor_event_alloc(hdd_ctx->wiphy,
-		  NULL,
-		  EXTSCAN_EVENT_BUF_SIZE + NLMSG_HDRLEN,
-		  QCA_NL80211_VENDOR_SUBCMD_EXTSCAN_PNO_PASSPOINT_NETWORK_FOUND_INDEX,
-		  flags);
-
+	skb = wlan_cfg80211_vendor_event_alloc(hdd_ctx->wiphy, NULL,
+					       EXTSCAN_EVENT_BUF_SIZE +
+					       NLMSG_HDRLEN,
+					       index, flags);
 	if (!skb) {
-		hdd_err("cfg80211_vendor_event_alloc failed");
+		hdd_err("wlan_cfg80211_vendor_event_alloc failed");
 		return;
 	}
 
@@ -1245,11 +1243,11 @@ wlan_hdd_cfg80211_passpoint_match_found(void *ctx,
 	}
 	nla_nest_end(skb, nla_aps);
 
-	cfg80211_vendor_event(skb, flags);
+	wlan_cfg80211_vendor_event(skb, flags);
 	return;
 
 fail:
-	kfree_skb(skb);
+	wlan_cfg80211_vendor_free_skb(skb);
 }
 
 /**
@@ -1417,7 +1415,6 @@ static int wlan_hdd_send_ext_scan_capability(struct hdd_context *hdd_ctx)
 		return ret;
 
 	data = &(ext_scan_context.capability_response);
-
 	nl_buf_len = NLMSG_HDRLEN;
 	nl_buf_len += (sizeof(data->requestId) + NLA_HDRLEN) +
 	(sizeof(data->status) + NLA_HDRLEN) +
@@ -1434,11 +1431,10 @@ static int wlan_hdd_send_ext_scan_capability(struct hdd_context *hdd_ctx)
 	(sizeof(data->max_number_epno_networks_by_ssid) + NLA_HDRLEN) +
 	(sizeof(data->max_number_of_allow_listed_ssid) + NLA_HDRLEN) +
 	(sizeof(data->max_number_of_deny_listed_bssid) + NLA_HDRLEN);
-
-	skb = cfg80211_vendor_cmd_alloc_reply_skb(hdd_ctx->wiphy, nl_buf_len);
-
+	skb = wlan_cfg80211_vendor_cmd_alloc_reply_skb(hdd_ctx->wiphy,
+						       nl_buf_len);
 	if (!skb) {
-		hdd_err("cfg80211_vendor_cmd_alloc_reply_skb failed");
+		hdd_err("wlan_cfg80211_vendor_cmd_alloc_reply_skb failed");
 		return -ENOMEM;
 	}
 
@@ -1491,19 +1487,19 @@ static int wlan_hdd_send_ext_scan_capability(struct hdd_context *hdd_ctx)
 			data->max_number_epno_networks) ||
 	    nla_put_u32(skb, MAX_NUM_EPNO_NETS_BY_SSID,
 			data->max_number_epno_networks_by_ssid) ||
-	    nla_put_u32(skb, MAX_NUM_ALLOWLISTED_SSID,
+	    nla_put_u32(skb, MAX_NUM_WHITELISTED_SSID,
 			data->max_number_of_allow_listed_ssid) ||
-	    nla_put_u32(skb, MAX_NUM_DENYLISTED_BSSID,
+	    nla_put_u32(skb, MAX_NUM_BLACKLISTED_BSSID,
 			data->max_number_of_deny_listed_bssid)) {
 		hdd_err("nla put fail");
 		goto nla_put_failure;
 	}
 
-	cfg80211_vendor_cmd_reply(skb);
+	wlan_cfg80211_vendor_cmd_reply(skb);
 	return 0;
 
 nla_put_failure:
-	kfree_skb(skb);
+	wlan_cfg80211_vendor_free_skb(skb);
 	return -EINVAL;
 }
 /*
@@ -1584,7 +1580,7 @@ __wlan_hdd_cfg80211_extscan_get_capabilities(struct wiphy *wiphy,
 	}
 
 	params.request_id = nla_get_u32(tb[id]);
-	params.vdev_id = adapter->vdev_id;
+	params.vdev_id = adapter->deflink->vdev_id;
 	hdd_debug("Req Id %d Vdev Id %d", params.request_id, params.vdev_id);
 
 	context = &ext_scan_context;
@@ -1653,7 +1649,7 @@ int wlan_hdd_cfg80211_extscan_get_capabilities(struct wiphy *wiphy,
  * invokes the SME Api and blocks on a completion variable.
  * Each WMI event with cached scan results data chunk results in
  * function call wlan_hdd_cfg80211_extscan_cached_results_ind and each
- * data chunk is sent up the layer in cfg80211_vendor_cmd_alloc_reply_skb.
+ * data chunk is sent up the layer in wlan_cfg80211_vendor_cmd_alloc_reply_skb.
  *
  * If timeout happens before receiving all of the data, this function sets
  * a context variable @ignore_cached_results to %true, all of the next data
@@ -1706,7 +1702,7 @@ __wlan_hdd_cfg80211_extscan_get_cached_results(struct wiphy *wiphy,
 	}
 
 	params.request_id = nla_get_u32(tb[id]);
-	params.vdev_id = adapter->vdev_id;
+	params.vdev_id = adapter->deflink->vdev_id;
 
 	/* Parse and fetch flush parameter */
 	id = QCA_WLAN_VENDOR_ATTR_EXTSCAN_GET_CACHED_SCAN_RESULTS_CONFIG_PARAM_FLUSH;
@@ -1758,7 +1754,7 @@ __wlan_hdd_cfg80211_extscan_get_cached_results(struct wiphy *wiphy,
  * invokes the SME Api and blocks on a completion variable.
  * Each WMI event with cached scan results data chunk results in
  * function call wlan_hdd_cfg80211_extscan_cached_results_ind and each
- * data chunk is sent up the layer in cfg80211_vendor_cmd_alloc_reply_skb.
+ * data chunk is sent up the layer in wlan_cfg80211_vendor_cmd_alloc_reply_skb.
  *
  * If timeout happens before receiving all of the data, this function sets
  * a context variable @ignore_cached_results to %true, all of the next data
@@ -1920,7 +1916,7 @@ __wlan_hdd_cfg80211_extscan_set_bssid_hotlist(struct wiphy *wiphy,
 			params->num_ap, WMI_WLAN_EXTSCAN_MAX_HOTLIST_APS);
 		goto fail;
 	}
-	params->vdev_id = adapter->vdev_id;
+	params->vdev_id = adapter->deflink->vdev_id;
 	hdd_debug("Number of AP %d vdev Id %d",
 		  params->num_ap, params->vdev_id);
 
@@ -2130,7 +2126,7 @@ __wlan_hdd_cfg80211_extscan_set_significant_change(struct wiphy *wiphy,
 		goto fail;
 	}
 
-	params->vdev_id = adapter->vdev_id;
+	params->vdev_id = adapter->deflink->vdev_id;
 	hdd_debug("Number of AP %d Vdev Id %d",
 		  params->num_ap, params->vdev_id);
 
@@ -2805,7 +2801,7 @@ __wlan_hdd_cfg80211_extscan_start(struct wiphy *wiphy,
 	}
 
 	params->request_id = nla_get_u32(tb[id]);
-	params->vdev_id = adapter->vdev_id;
+	params->vdev_id = adapter->deflink->vdev_id;
 
 	/* Parse and fetch base period */
 	id = QCA_WLAN_VENDOR_ATTR_EXTSCAN_SCAN_CMD_PARAMS_BASE_PERIOD;
@@ -3007,7 +3003,7 @@ __wlan_hdd_cfg80211_extscan_stop(struct wiphy *wiphy,
 		return -EINVAL;
 	}
 	params.request_id = nla_get_u32(tb[id]);
-	params.vdev_id = adapter->vdev_id;
+	params.vdev_id = adapter->deflink->vdev_id;
 	hdd_debug("Req Id %d Vdev Id %d",
 		  params.request_id, params.vdev_id);
 
@@ -3125,7 +3121,7 @@ __wlan_hdd_cfg80211_extscan_reset_bssid_hotlist(struct wiphy *wiphy,
 	}
 
 	params.request_id = nla_get_u32(tb[id]);
-	params.vdev_id = adapter->vdev_id;
+	params.vdev_id = adapter->deflink->vdev_id;
 	hdd_debug("Req Id %d vdev Id %d", params.request_id, params.vdev_id);
 
 	context = &ext_scan_context;
@@ -3244,7 +3240,7 @@ __wlan_hdd_cfg80211_extscan_reset_significant_change(struct wiphy *wiphy,
 	}
 
 	params.request_id = nla_get_u32(tb[id]);
-	params.vdev_id = adapter->vdev_id;
+	params.vdev_id = adapter->deflink->vdev_id;
 	hdd_debug("Req Id %d Vdev Id %d", params.request_id, params.vdev_id);
 
 	context = &ext_scan_context;
@@ -3516,7 +3512,7 @@ static int __wlan_hdd_cfg80211_set_epno_list(struct wiphy *wiphy,
 	req_msg->request_id = nla_get_u32(tb[id]);
 	hdd_debug("Req Id %u", req_msg->request_id);
 
-	req_msg->vdev_id = adapter->vdev_id;
+	req_msg->vdev_id = adapter->deflink->vdev_id;
 	hdd_debug("Vdev Id %d", req_msg->vdev_id);
 
 	if (num_networks) {
@@ -3838,7 +3834,7 @@ static int __wlan_hdd_cfg80211_set_passpoint_list(struct wiphy *wiphy,
 	}
 	req_msg->request_id = nla_get_u32(tb[id]);
 
-	req_msg->vdev_id = adapter->vdev_id;
+	req_msg->vdev_id = adapter->deflink->vdev_id;
 	hdd_debug("Req Id %u Vdev Id %d",
 		  req_msg->request_id, req_msg->vdev_id);
 
@@ -3947,7 +3943,7 @@ static int __wlan_hdd_cfg80211_reset_passpoint_list(struct wiphy *wiphy,
 	}
 	req_msg->request_id = nla_get_u32(tb[id]);
 
-	req_msg->vdev_id = adapter->vdev_id;
+	req_msg->vdev_id = adapter->deflink->vdev_id;
 	hdd_debug("Req Id %u Vdev Id %d",
 		  req_msg->request_id, req_msg->vdev_id);
 

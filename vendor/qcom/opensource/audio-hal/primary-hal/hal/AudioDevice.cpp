@@ -75,6 +75,9 @@ bool AudioDevice::mic_characteristics_available = false;
 #ifdef SEC_AUDIO_SPEAKER_CALIBRATION
 #include "Calibration_Interface.h"
 #endif
+#ifdef SEC_AUDIO_LEVEL_DUMP
+#include "SecLevelDump.h"
+#endif
 
 card_status_t AudioDevice::sndCardState = CARD_STATUS_ONLINE;
 
@@ -568,7 +571,8 @@ int AudioDevice::CreateAudioPatch(audio_patch_handle_t *handle,
 
         // call routing primary -> deep -> ... -> voip rx by audio_policy_configuration define
         // to reduce voip routing delay, call voip routing on primary routing case
-        if (astream_out && (voice_->mode_ == AUDIO_MODE_IN_COMMUNICATION)) {
+        if (astream_out && ((voice_->mode_ == AUDIO_MODE_IN_COMMUNICATION) ||
+                             astream_out->HasPalStreamHandle())) {
             AHAL_DBG("Playback route for voip rx");
             ret |= astream_out->RouteStream(device_types);
         }
@@ -674,7 +678,8 @@ int AudioDevice::ReleaseAudioPatch(audio_patch_handle_t handle) {
 
         // call routing primary -> deep -> ... -> voip rx by audio_policy_configuration define
         // to reduce voip routing delay, call voip routing on primary routing case
-        if (astream_out && (voice_->mode_ == AUDIO_MODE_IN_COMMUNICATION)) {
+        if (astream_out && ((voice_->mode_ == AUDIO_MODE_IN_COMMUNICATION) ||
+                             astream_out->HasPalStreamHandle())) {
             AHAL_DBG("Playback route for voip rx");
             ret |= astream_out->RouteStream({AUDIO_DEVICE_NONE});
         }
@@ -761,7 +766,7 @@ extern "C" audio_stream_t* sec_get_audio_stream_instance(audio_hw_device_t *dev,
         for (int i = 0; i < SEC_AUDIO_MAX_STREAM_CNT; i++) {
             in = (struct stream_in *)adevice->sec_in_streams[i];
             astream_in = adevice->InGetStream((audio_stream_t*)in);
-            if (in && (astream_in->GetHandle() == handle)) {
+            if (in && astream_in && (astream_in->GetHandle() == handle)) {
                 stream = adevice->sec_in_streams[i];
                 break;
             }
@@ -772,7 +777,7 @@ extern "C" audio_stream_t* sec_get_audio_stream_instance(audio_hw_device_t *dev,
         for (int i = 0; i < SEC_AUDIO_MAX_STREAM_CNT; i++) {
             out = (struct stream_out *)adevice->sec_out_streams[i];
             astream_out = adevice->OutGetStream((audio_stream_t*)out);
-            if (out && (astream_out->GetHandle() == handle)) {
+            if (out && astream_out && (astream_out->GetHandle() == handle)) {
                 stream = adevice->sec_out_streams[i];
                 break;
             }
@@ -1091,6 +1096,14 @@ static int adev_open_input_stream(struct audio_hw_device *dev,
         goto exit;
     }
 
+#ifdef SEC_AUDIO_CALL_RECORD
+    if (source == AUDIO_SOURCE_VOICE_CALL && audio_channel_count_from_in_mask(config->channel_mask) < 2) {
+        config->channel_mask = AUDIO_CHANNEL_IN_STEREO;
+        AHAL_DBG("change channel mask to %#x for input source %d", config->channel_mask, source);
+        ret = -EINVAL;
+        goto exit;
+    }
+#endif
 
     astream = adevice->InGetStream(handle);
     if (astream == nullptr)
@@ -1341,9 +1354,9 @@ static int adev_dump(const audio_hw_device_t *device, int fd)
     if (adevice) {
 #ifdef SEC_AUDIO_CALL
         std::shared_ptr<AudioVoice> avoice = adevice->voice_;
-        dprintf(fd, " \n");
-        dprintf(fd, "max_voice_sessions_: %d \n", avoice->max_voice_sessions_);
         if (avoice) {
+            dprintf(fd, " \n");
+            dprintf(fd, "max_voice_sessions_: %d \n", avoice->max_voice_sessions_);        
             for (int i = 0; i < MAX_VOICE_SESSIONS; i++) {
                 dprintf(fd, "voice_.session[%d].vsid: 0x%x \n", i, avoice->voice_.session[i].vsid);
                 dprintf(fd, "voice_.session[%d].state.current_: %s \n",
@@ -1361,6 +1374,9 @@ static int adev_dump(const audio_hw_device_t *device, int fd)
         }
     }
     pal_dump(fd);
+#endif
+#ifdef SEC_AUDIO_LEVEL_DUMP
+    SEC_LEVEL_DUMP(fd);
 #endif
 
     return 0;
@@ -2764,6 +2780,14 @@ static int adev_open(const hw_module_t *module, const char *name __unused,
     if (!adevice) {
         AHAL_ERR("error, GetInstance failed");
     }
+
+#ifdef SEC_AUDIO_BOOT_ON_ERR
+    if (property_get_bool("vendor.audio.use.primary.default", false)) {
+        AHAL_ERR("fail to open audio device, sndcard is not active");
+        ret = -EINVAL;
+        goto exit;
+    }
+#endif
 
     adevice->adev_init_mutex.lock();
     if (adevice->adev_init_ref_count != 0) {

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -102,6 +102,7 @@ QDF_STATUS ucfg_pre_cac_set_status(struct wlan_objmgr_vdev *vdev, bool status);
 static inline QDF_STATUS
 ucfg_pre_cac_set_status(struct wlan_objmgr_vdev *vdev, bool status)
 {
+	return QDF_STATUS_SUCCESS;
 }
 #endif
 
@@ -135,7 +136,7 @@ bool ucfg_pre_cac_adapter_is_active(struct wlan_objmgr_vdev *vdev);
 
 #if defined(FEATURE_SAP_COND_CHAN_SWITCH)
 /**
- * pre_cac_set_freq_before_pre_cac() - Set frequency before pre cac
+ * ucfg_pre_cac_set_freq_before_pre_cac() - Set frequency before pre cac
  * @vdev: vdev object manager
  * @freq: frequency
  *

@@ -211,7 +211,7 @@ flush_ref:
  * tgt_ocb_dcc_stats_indicate() - handler for DCC stats indication
  * @psoc: psoc handle
  * @response: DCC stats
- * @bool: true for active query, false for passive indicate
+ * @active: true for active query, false for passive indicate
  *
  * Return: QDF_STATUS_SUCCESS on success
  */

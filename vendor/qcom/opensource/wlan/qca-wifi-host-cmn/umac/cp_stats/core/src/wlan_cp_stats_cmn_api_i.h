@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2018 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -29,7 +30,7 @@
 
 /**
  * wlan_cp_stats_psoc_cs_init() - common psoc obj initialization
- * @psoc: pointer to psoc object
+ * @psoc_cs: pointer to psoc control path statistics
  *
  * Return: QDF_STATUS - Success or Failure
  */
@@ -37,7 +38,7 @@ QDF_STATUS wlan_cp_stats_psoc_cs_init(struct psoc_cp_stats *psoc_cs);
 
 /**
  * wlan_cp_stats_psoc_cs_deinit() - common psoc obj deinitialization
- * @psoc: pointer to psoc object
+ * @psoc_cs: pointer to psoc control path statistics
  *
  * Return: QDF_STATUS - Success or Failure
  */
@@ -45,7 +46,7 @@ QDF_STATUS wlan_cp_stats_psoc_cs_deinit(struct psoc_cp_stats *psoc_cs);
 
 /**
  * wlan_cp_stats_pdev_cs_init() - common pdev obj initialization
- * @pdev: pointer to pdev object
+ * @pdev_cs: pointer to pdev control path statistics
  *
  * Return: QDF_STATUS - Success or Failure
  */
@@ -53,7 +54,7 @@ QDF_STATUS wlan_cp_stats_pdev_cs_init(struct pdev_cp_stats *pdev_cs);
 
 /**
  * wlan_cp_stats_pdev_cs_deinit() - common pdev obj deinitialization
- * @pdev: pointer to pdev object
+ * @pdev_cs: pointer to pdev control path statistics
  *
  * Return: QDF_STATUS - Success or Failure
  */
@@ -61,7 +62,7 @@ QDF_STATUS wlan_cp_stats_pdev_cs_deinit(struct pdev_cp_stats *pdev_cs);
 
 /**
  * wlan_cp_stats_vdev_cs_init() - common vdev obj initialization
- * @vdev: pointer to vdev object
+ * @vdev_cs: pointer to vdev control path statistics
  *
  * Return: QDF_STATUS - Success or Failure
  */
@@ -69,7 +70,7 @@ QDF_STATUS wlan_cp_stats_vdev_cs_init(struct vdev_cp_stats *vdev_cs);
 
 /**
  * wlan_cp_stats_vdev_cs_deinit() - common vdev obj deinitialization
- * @vdev: pointer to vdev object
+ * @vdev_cs: pointer to vdev control path statistics
  *
  * Return: QDF_STATUS - Success or Failure
  */
@@ -77,7 +78,7 @@ QDF_STATUS wlan_cp_stats_vdev_cs_deinit(struct vdev_cp_stats *vdev_cs);
 
 /**
  * wlan_cp_stats_peer_cs_init() - common peer obj initialization
- * @peer: pointer to peer object
+ * @peer_cs: pointer to peer control path statistics
  *
  * Return: QDF_STATUS - Success or Failure
  */
@@ -85,7 +86,7 @@ QDF_STATUS wlan_cp_stats_peer_cs_init(struct peer_cp_stats *peer_cs);
 
 /**
  * wlan_cp_stats_peer_cs_deinit() - common peer obj deinitialization
- * @peer: pointer to peer object
+ * @peer_cs: pointer to peer control path statistics
  *
  * Return: QDF_STATUS - Success or Failure
  */

@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2012-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -521,6 +521,22 @@ static uint16_t sch_get_tim_size(uint32_t max_aid)
 	return tim_size;
 }
 
+#ifdef SAP_MULTI_LINK_EMULATION
+static void omit_caps_for_2link_sap(tDot11fBeacon2 *bcn_2)
+{
+	qdf_mem_zero(&bcn_2->HTCaps, sizeof(bcn_2->HTCaps));
+	qdf_mem_zero(&bcn_2->EDCAParamSet, sizeof(bcn_2->EDCAParamSet));
+	qdf_mem_zero(&bcn_2->PowerConstraints, sizeof(bcn_2->PowerConstraints));
+	qdf_mem_zero(&bcn_2->TPCReport, sizeof(bcn_2->TPCReport));
+
+	pe_debug("Removed caps from beacon/probe rsp");
+}
+#else
+static inline void omit_caps_for_2link_sap(tDot11fBeacon2 *bcn_2)
+{
+}
+#endif
+
 /**
  * sch_set_fixed_beacon_fields() - sets the fixed params in beacon frame
  * @mac_ctx:       mac global context
@@ -661,7 +677,8 @@ sch_set_fixed_beacon_fields(struct mac_context *mac_ctx, struct pe_session *sess
 		WLAN_REG_IS_6GHZ_CHAN_FREQ
 			(session->gLimChannelSwitch.sw_target_freq);
 	if (session->limSystemRole == eLIM_AP_ROLE &&
-	    session->dfsIncludeChanSwIe == true) {
+	    (session->dfsIncludeChanSwIe == true ||
+	     session->bw_update_include_ch_sw_ie == true)) {
 		if (!CHAN_HOP_ALL_BANDS_ENABLE ||
 		    session->lim_non_ecsa_cap_num == 0 || is_6ghz_chsw) {
 			tDot11fIEext_chan_switch_ann *ext_csa =
@@ -674,6 +691,13 @@ sch_set_fixed_beacon_fields(struct mac_context *mac_ctx, struct pe_session *sess
 				 ext_csa->new_reg_class,
 				 ext_csa->new_channel,
 				 ext_csa->switch_count);
+
+			if (lim_is_session_eht_capable(session)) {
+				bcn_2->ChannelSwitchWrapper.present = 1;
+				populate_dot11f_bw_ind_element(mac_ctx,
+						session,
+				&bcn_2->ChannelSwitchWrapper.bw_ind_element);
+			}
 		}
 
 		if (session->lim_non_ecsa_cap_num &&
@@ -872,6 +896,7 @@ sch_set_fixed_beacon_fields(struct mac_context *mac_ctx, struct pe_session *sess
 		 */
 		lim_strip_he_ies_from_add_ies(mac_ctx, session);
 		lim_strip_eht_ies_from_add_ies(mac_ctx, session);
+		lim_strip_wapi_ies_from_add_ies(mac_ctx, session);
 
 		addn_ielen = session->add_ie_params.probeRespBCNDataLen;
 		addn_ie = qdf_mem_malloc(addn_ielen);
@@ -910,6 +935,8 @@ sch_set_fixed_beacon_fields(struct mac_context *mac_ctx, struct pe_session *sess
 			     WLAN_ELEMID_OP_MODE_NOTIFY, ONE_BYTE, NULL, 0,
 			     NULL, SIR_MAC_VHT_OPMODE_SIZE - 2);
 	}
+
+	omit_caps_for_2link_sap(bcn_2);
 
 	n_status = dot11f_pack_beacon2(mac_ctx, bcn_2,
 				       session->pSchBeaconFrameEnd,

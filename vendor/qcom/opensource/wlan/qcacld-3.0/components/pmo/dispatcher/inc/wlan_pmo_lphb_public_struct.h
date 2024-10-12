@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2017-2018 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -104,10 +105,10 @@ struct pmo_lphb_tcp_filter_req {
  * @dev_ip: destination ip address
  * @src_port: source port
  * @dst_port: destination port
+ * @interval: time period in seconds
  * @timeout: tcp timeout value
  * @session: session on which lphb needs to be configured
  * @gateway_mac: gateway mac address
- * @time_period_sec: time period in seconds
  */
 struct pmo_lphb_udp_params {
 	uint32_t srv_ip;

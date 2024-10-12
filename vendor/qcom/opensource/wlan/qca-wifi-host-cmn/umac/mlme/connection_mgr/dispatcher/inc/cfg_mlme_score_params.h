@@ -26,10 +26,16 @@
 #define RoamAPScore_RSSIWeight_min 0
 #define RoamAPScore_RSSIWeight_max 100
 #define RoamAPScore_RSSIWeight_default 65
+# define ROAMAPSCORE_CUWEIGHT_MIN 0
+# define ROAMAPSCORE_CUWEIGHT_MAX 100
+# define ROAMAPSCORE_CUWEIGHT_DEFAULT 35
 #else
 #define RoamAPScore_RSSIWeight_min 0
 #define RoamAPScore_RSSIWeight_max 100
 #define RoamAPScore_RSSIWeight_default 20
+# define ROAMAPSCORE_CUWEIGHT_MIN 0
+# define ROAMAPSCORE_CUWEIGHT_MAX 100
+# define ROAMAPSCORE_CUWEIGHT_DEFAULT 25
 #endif
 /*
  * <ini>
@@ -171,14 +177,13 @@
  * calculate best candidate
  * @Min: 0
  * @Max: 100
- * @Default: 2
+ * @Default: 3
  *
  * This ini is used to increase/decrease Channel Band Preference weightage
- * in best candidate selection. 5GHZ AP get this additional boost compare to
- * 2GHZ AP before   rssi_pref_5g_rssi_thresh and 2.4Ghz get weightage after
- * rssi_pref_5g_rssi_thresh.
+ * in best candidate selection. 5/6 GHz AP get additional boost compare to
+ * 2 GHz AP.
  *
- * Related: rssi_pref_5g_rssi_thresh, band_weight_per_index
+ * Related: band_weight_per_index
  *
  * Supported Feature: STA Candidate selection
  *
@@ -190,7 +195,7 @@
 	"chan_band_weightage", \
 	0, \
 	100, \
-	2, \
+	3, \
 	CFG_VALUE_OR_DEFAULT, \
 	"Channel Band Weightage")
 
@@ -278,7 +283,7 @@
 
 /*
  * <ini>
- * channel_congestion_weightage/RoamAPScore_CUWeight - channel Congestion
+ * channel_congestion_weightage - channel Congestion
  * Weightage to
  * calculate best candidate
  * @Min: 0
@@ -296,11 +301,32 @@
  *
  * </ini>
  */
+
+/*
+ * <ini>
+ * RoamAPScore_CUWeight - roamapscore cu weight
+ * Weightage to
+ * calculate best candidate
+ * @Min: 0
+ * @Max: 100
+ * @Default: 35
+ *
+ * This ini is used to increase/decrease channel congestion weightage in
+ * candidate selection. Congestion is measured with the help of ESP/QBSS load.
+ *
+ * Related: num_esp_qbss_slots
+ *
+ * Supported Feature: STA Candidate selection
+ *
+ * Usage: External
+ *
+ * </ini>
+ */
 #define CFG_SCORING_CHAN_CONGESTION_WEIGHTAGE CFG_INI_UINT( \
 	"channel_congestion_weightage RoamAPScore_CUWeight", \
-	0, \
-	100, \
-	25, \
+	ROAMAPSCORE_CUWEIGHT_MIN, \
+	ROAMAPSCORE_CUWEIGHT_MAX, \
+	ROAMAPSCORE_CUWEIGHT_DEFAULT, \
 	CFG_VALUE_OR_DEFAULT, \
 	"Channel Congestion Weightage")
 
@@ -768,20 +794,14 @@
  * band_weight_per_index - percentage as per band
  * @Min: 0x00000000
  * @Max: 0x64646464
- * @Default: 0x0000644B
- *
- * This INI give percentage value of chan_band_weightage to be used as per band.
- * If RSSI is greater than rssi_pref_5g_rssi_thresh preference is given for 5Ghz
- * else, it's given for 2.4Ghz.
+ * @Default: 0x00644300
  *
  * Indexes are defined in this way.
- *     0 Index (BITS 0-7): 2.4GHz - Def 10%
- *     1 Index (BITS 8-15): 5GHz - Def 20%
+ *     0 Index (BITS 0-7): 2.4GHz - Def 0%
+ *     1 Index (BITS 8-15): 5GHz - Def 67%
  *     2 Index (BITS 16-23): 6Ghz - Def - 100%
  *     3 Index (BITS 24-31): Reserved
- * These percentage values are stored in HEX. For any index max value, can be 64
- *
- * Related: chan_band_weightage, rssi_pref_5g_rssi_thresh
+ * These percentage values are stored in HEX. For any index max value is 0x64
  *
  * Supported Feature: STA Candidate selection
  *
@@ -793,7 +813,7 @@
 	"band_weight_per_index", \
 	0x00000000, \
 	0x64646464, \
-	0x00644B32, \
+	0x00644300, \
 	CFG_VALUE_OR_DEFAULT, \
 	"Band weight per index")
 
@@ -1315,7 +1335,7 @@
 #endif
 
 #ifdef WLAN_FEATURE_11BE_MLO
-/**
+/*
  * <ini>
  * eht_caps_weightage - EHT caps Weightage to calculate best candidate
  * @Min: 0
@@ -1342,7 +1362,7 @@
 	CFG_VALUE_OR_DEFAULT, \
 	"EHT Caps Weightage")
 
-/**
+/*
  * <ini>
  * mlo_weightage - MLO Weightage to calculate best candidate
  * @Min: 0
@@ -1369,7 +1389,7 @@
 	CFG_VALUE_OR_DEFAULT, \
 	"MLO Weightage")
 
-/**
+/*
  * <ini>
  * emlsr_weightage - eMLSR Weightage to calculate best candidate
  * @Min: 0
@@ -1396,7 +1416,7 @@
 	CFG_VALUE_OR_DEFAULT, \
 	"eMLSR Weightage")
 
-/**
+/*
  * <ini>
  * wlm_indication_weightage - WLM indication Weightage to calculate best
  *                            candidate
@@ -1424,7 +1444,7 @@
 	CFG_VALUE_OR_DEFAULT, \
 	"WLM indication Weightage")
 
-/**
+/*
  * <ini>
  * mlsr_link_selection - MLSR link selection criteria
  * @Min: 0
@@ -1453,7 +1473,7 @@
 	CFG_VALUE_OR_DEFAULT, \
 	"MLSR link selection")
 
-/**
+/*
  * <ini>
  * joint_rssi_alpha - Joint RSSI alpha to select best ML candidate
  * @Min: 0
@@ -1482,7 +1502,7 @@
 	CFG_VALUE_OR_DEFAULT, \
 	"Joint RSSI alpha")
 
-/**
+/*
  * <ini>
  * low_band_rssi_boost - Low band RSSI boost in joint RSSI calculation
  * @Min: 0
@@ -1514,7 +1534,7 @@
 				1, \
 				"Low band RSSI boost ")
 
-/**
+/*
  * <ini>
  * joint_esp_alpha - Joint ESP alpha to select best ML candidate
  * @Min: 0
@@ -1543,7 +1563,7 @@
 	CFG_VALUE_OR_DEFAULT, \
 	"Joint ESP alpha")
 
-/**
+/*
  * <ini>
  * low_band_esp_boost - Low band ESP boost in joint ESP calculation
  * @Min: 0
@@ -1575,7 +1595,7 @@
 				1, \
 				"Low band ESP boost ")
 
-/**
+/*
  * <ini>
  * joint_oce_alpha - Joint OCE alpha to select best ML candidate
  * @Min: 0
@@ -1604,7 +1624,7 @@
 	CFG_VALUE_OR_DEFAULT, \
 	"Joint OCE alpha")
 
-/**
+/*
  * <ini>
  * low_band_oce_boost - Low band OCE boost in joint OCE calculation
  * @Min: 0

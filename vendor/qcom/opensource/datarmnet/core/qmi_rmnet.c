@@ -441,10 +441,11 @@ static void __qmi_rmnet_update_mq(struct net_device *dev,
 			qmi_rmnet_flow_control(dev, bearer->ack_mq_idx, 1);
 		}
 	} else {
-		net_log("WARN: skip update_mp! %s m=%d current(b=%u q=%d) new(b=%u f=%u ip=%d q=%d)",
-			dev->name, qos_info->mux_id,
-			mq->bearer->bearer_id, mq->bearer->mq_idx,
-			itm->bearer_id, itm->flow_id, itm->ip_type, itm->mq_idx);
+		if (mq->bearer->bearer_id != itm->bearer_id)
+			net_log("WARN: skip update_mp! %s m=%d current(b=%u q=%d) new(b=%u f=%u ip=%d q=%d)",
+				dev->name, qos_info->mux_id,
+				mq->bearer->bearer_id, mq->bearer->mq_idx,
+				itm->bearer_id, itm->flow_id, itm->ip_type, itm->mq_idx);
 	}
 }
 

@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2012-2021 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -21,7 +22,7 @@
 
 #include "wlan_policy_mgr_api.h"
 
-/**
+/*
  * second_connection_pcl_dbs_1x1_table - table which provides PCL
  * for the 2nd connection, when we have a connection already in
  * the system (with DBS supported by HW)
@@ -133,7 +134,7 @@ pm_second_connection_pcl_dbs_1x1_table = {
 	[PM_P2P_GO_MODE] = {PM_SCC_CH_24G, PM_SCC_CH_24G, PM_SCC_CH_24G} },
 };
 
-/**
+/*
  * third_connection_pcl_dbs_table - table which provides PCL for
  * the 3rd connection, when we have two connections already in
  * the system (with DBS supported by HW). For helium that is NON-DBS,
@@ -2167,7 +2168,7 @@ pm_third_connection_pcl_dbs_1x1_table = {
 	},
 };
 
-/**
+/*
  * next_action_two_connection_table - table which provides next
  * action while a new connection is coming up, with one
  * connection already in the system
@@ -2192,7 +2193,7 @@ static policy_mgr_next_action_two_connection_table_type
 	[PM_SAP_5_2x2] = {PM_DBS_DOWNGRADE,   PM_NOP},
 };
 
-/**
+/*
  * next_action_three_connection_table - table which provides next
  * action while a new connection is coming up, with two
  * connections already in the system

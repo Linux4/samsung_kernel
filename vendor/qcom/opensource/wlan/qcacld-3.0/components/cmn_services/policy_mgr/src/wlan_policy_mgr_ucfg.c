@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2018-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -127,6 +127,8 @@ static QDF_STATUS policy_mgr_init_cfg(struct wlan_objmgr_psoc *psoc)
 	policy_mgr_init_same_mac_conc_sr_status(psoc);
 	cfg->use_sap_original_bw =
 		cfg_get(psoc, CFG_SAP_DEFAULT_BW_FOR_RESTART);
+	cfg->move_sap_go_1st_on_dfs_sta_csa =
+		cfg_get(psoc, CFG_MOVE_SAP_GO_1ST_ON_DFS_STA_CSA);
 
 	return QDF_STATUS_SUCCESS;
 }
@@ -330,3 +332,33 @@ ucfg_policy_mgr_get_sta_sap_scc_on_indoor_chnl(struct wlan_objmgr_psoc *psoc)
 	return policy_mgr_get_sta_sap_scc_allowed_on_indoor_chnl(psoc) ?
 								true : false;
 }
+
+bool ucfg_policy_mgr_is_fw_supports_dbs(struct wlan_objmgr_psoc *psoc)
+{
+	return policy_mgr_find_if_fw_supports_dbs(psoc);
+}
+
+uint32_t ucfg_policy_mgr_get_connection_count(struct wlan_objmgr_psoc *psoc)
+{
+	return policy_mgr_get_connection_count(psoc);
+}
+
+bool ucfg_policy_mgr_is_hw_sbs_capable(struct wlan_objmgr_psoc *psoc)
+{
+	return policy_mgr_is_hw_dbs_capable(psoc);
+}
+
+bool ucfg_policy_mgr_get_vdev_same_freq_new_conn(struct wlan_objmgr_psoc *psoc,
+						 uint32_t new_freq,
+						 uint8_t *vdev_id)
+{
+	return policy_mgr_get_vdev_same_freq_new_conn(psoc, new_freq, vdev_id);
+}
+
+bool ucfg_policy_mgr_get_vdev_diff_freq_new_conn(struct wlan_objmgr_psoc *psoc,
+						 uint32_t new_freq,
+						 uint8_t *vdev_id)
+{
+	return policy_mgr_get_vdev_diff_freq_new_conn(psoc, new_freq, vdev_id);
+}
+

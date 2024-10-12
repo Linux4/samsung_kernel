@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2017-2018 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -115,7 +116,7 @@ QDF_STATUS target_if_p2p_unregister_noa_event_handler(
 /**
  * target_if_p2p_set_ps() - Set power save
  * @psoc: soc object
- * @arg: additional argument
+ * @ps_config: powersave configuration
  *
  * Target interface API to set power save.
  *

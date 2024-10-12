@@ -168,6 +168,8 @@
 #define WLAN_VDEV_FEXT2_MLO_MCAST           0x00000004
 	/* 20TU BCAST PROBE RESP on 6G SAP*/
 #define WLAN_VDEV_FEXT2_20TU_PRB_RESP       0x00000008
+	/* STA VDEV is TDLS link type */
+#define WLAN_VDEV_FEXT2_MLO_STA_TDLS        0x00000010
 
 /* VDEV OP flags  */
   /* if the vap destroyed by user */
@@ -236,6 +238,15 @@
 
 /* MLO link removal is in progress on this VDEV */
 #define WLAN_VDEV_OP_MLO_LINK_REMOVAL_IN_PROGRESS 0x01000000
+/* MLO link switch is in progress on this VDEV */
+#define WLAN_VDEV_OP_MLO_LINK_SWITCH_IN_PROGRESS 0x02000000
+
+ /* flag to indicate disconnect only legacy peers due to moving to DFS channel
+  * from non-DFS channel
+  */
+#define WLAN_VDEV_OP_MLME_LEGACY_PEER_DISCON_TRIG 0x02000000
+  /* for mlo reconfig link removal functionality */
+#define WLAN_VDEV_OP_MLO_REMOVE_LINK_VDEV      0x04000000
 
  /* CAPABILITY: IBSS available */
 #define WLAN_VDEV_C_IBSS                    0x00000001
@@ -275,9 +286,9 @@
  * @flags:          create flags
  * @size_vdev_priv: Size of vdev private
  * @legacy_osif:    Legacy os_if private member
- * @macaddr[]:      MAC address
- * @mataddr[]:      MAT address
- * @mldaddr[]:      MLD address
+ * @macaddr:        MAC address
+ * @mataddr:        MAT address
+ * @mldaddr:        MLD address
  */
 struct wlan_vdev_create_params {
 	enum QDF_OPMODE opmode;
@@ -325,7 +336,7 @@ struct wlan_channel {
  * struct wlan_objmgr_vdev_mlme - VDEV MLME specific sub structure
  * @vdev_opmode:        Opmode of VDEV
  * @mlme_state:         VDEV MLME SM state
- * @mlme_state:         VDEV MLME SM substate
+ * @mlme_substate:      VDEV MLME SM substate
  * @bss_chan:           BSS channel
  * @des_chan:           Desired channel, for STA Desired may not be used
  * @vdev_caps:          VDEV capabilities
@@ -333,14 +344,17 @@ struct wlan_channel {
  * @vdev_feat_ext_caps: VDEV Extended feature caps
  * @vdev_feat_ext2_caps: More VDEV Extended feature caps
  * @vdev_op_flags:      Operation flags
- * @mataddr[]:          MAT address
- * @macaddr[]:          Contains link MAC address for ML connection and
+ * @mataddr:            MAT address
+ * @macaddr:            Contains link MAC address for ML connection and
  *                      net dev address for non-ML connection
- * @mldaddr[]:          MLD address
- * @linkaddr[]:         Link MAC address
+ * @mldaddr:            MLD address
+ * @linkaddr:           Link MAC address
+ * @epcs_enable:        EPCS enable flag
  * @mlo_link_id: link id for mlo connection
  * @mlo_external_sae_auth: MLO external SAE auth
+ * @user_disable_eht: user disable eht for IOT issues
  * @wlan_vdev_mlo_lock: lock to protect the set/clear of
+ * @skip_pumac_cnt: Counter to skip vdev to be selected as pumac
  * WLAN_VDEV_FEXT2_MLO feature flag in vdev MLME
  */
 struct wlan_objmgr_vdev_mlme {
@@ -359,12 +373,17 @@ struct wlan_objmgr_vdev_mlme {
 	uint8_t  mldaddr[QDF_MAC_ADDR_SIZE];
 	uint8_t  linkaddr[QDF_MAC_ADDR_SIZE];
 #ifdef WLAN_FEATURE_11BE_MLO
+	bool epcs_enable;
 	uint8_t  mlo_link_id;
 	bool mlo_external_sae_auth;
+	bool user_disable_eht;
 #ifdef WLAN_MLO_USE_SPINLOCK
 	qdf_spinlock_t wlan_vdev_mlo_lock;
 #else
 	qdf_mutex_t wlan_vdev_mlo_lock;
+#endif
+#ifdef QCA_SUPPORT_PRIMARY_LINK_MIGRATE
+	qdf_atomic_t skip_pumac_cnt;
 #endif
 #endif
 };
@@ -379,18 +398,21 @@ struct wlan_objmgr_vdev_nif {
 
 /**
  *  struct wlan_objmgr_vdev_objmgr - vdev object manager sub structure
- *  @vdev_id:           VDEV id
- *  @print_cnt:         Count to throttle Logical delete prints
- *  @self_peer:         Self PEER
- *  @bss_peer:          BSS PEER
- *  @wlan_peer_list:    PEER list
- *  @wlan_pdev:         PDEV pointer
- *  @wlan_peer_count:   Peer count
- *  @max_peer_count:    Max Peer count
- *  @c_flags:           creation specific flags
- *  @ref_cnt:           Ref count
- *  @ref_id_dbg:        Array to track Ref count
- *  @wlan_objmgr_trace: Trace ref and deref
+ *  @vdev_id:            VDEV id
+ *  @print_cnt:          Count to throttle Logical delete prints
+ *  @self_peer:          Self PEER
+ *  @bss_peer:           BSS PEER
+ *  @wlan_peer_list:     PEER list
+ *  @wlan_pdev:          PDEV pointer
+ *  @wlan_peer_count:    Peer count
+ *  @wlan_ml_peer_count: Multilink Peer count
+ *  @mlo_bridge_vdev:    Indicates it is bridge VDEV
+ *  @mlo_central_vdev:   Indicates it is central VDEV
+ *  @max_peer_count:     Max Peer count
+ *  @c_flags:            creation specific flags
+ *  @ref_cnt:            Ref count
+ *  @ref_id_dbg:         Array to track Ref count
+ *  @trace:              Trace ref and deref
  */
 struct wlan_objmgr_vdev_objmgr {
 	uint8_t vdev_id;
@@ -400,6 +422,13 @@ struct wlan_objmgr_vdev_objmgr {
 	qdf_list_t wlan_peer_list;
 	struct wlan_objmgr_pdev *wlan_pdev;
 	uint16_t wlan_peer_count;
+#ifdef WLAN_FEATURE_11BE_MLO
+	qdf_atomic_t wlan_ml_peer_count;
+#ifdef WLAN_MLO_MULTI_CHIP
+	bool mlo_bridge_vdev;
+	bool mlo_central_vdev;
+#endif
+#endif
 	uint16_t max_peer_count;
 	uint32_t c_flags;
 	qdf_atomic_t ref_cnt;
@@ -415,8 +444,8 @@ struct wlan_objmgr_vdev_objmgr {
  * @vdev_mlme:      VDEV MLME substructure
  * @vdev_objmgr:    VDEV Object Mgr substructure
  * @vdev_nif:       VDEV HDD substructure
- * @vdev_comp_priv_obj[]:Component's private objects list
- * @obj_status[]:   Component object status
+ * @vdev_comp_priv_obj:Component's private objects list
+ * @obj_status:     Component object status
  * @obj_state:      VDEV object state
  * @vdev_lock:      VDEV lock
  * @mlo_dev_ctx:    MLO device context
@@ -439,8 +468,8 @@ struct wlan_objmgr_vdev {
 #endif
 };
 
-/**
- ** APIs to Create/Delete Global object APIs
+/*
+ * APIs to Create/Delete Global object APIs
  */
 /**
  * wlan_objmgr_vdev_obj_create() - vdev object create
@@ -471,8 +500,8 @@ struct wlan_objmgr_vdev *wlan_objmgr_vdev_obj_create(
  */
 QDF_STATUS wlan_objmgr_vdev_obj_delete(struct wlan_objmgr_vdev *vdev);
 
-/**
- ** APIs to attach/detach component objects
+/*
+ * APIs to attach/detach component objects
  */
 /**
  * wlan_objmgr_vdev_component_obj_attach() - vdev comp object attach
@@ -508,9 +537,10 @@ QDF_STATUS wlan_objmgr_vdev_component_obj_detach(
 		struct wlan_objmgr_vdev *vdev,
 		enum wlan_umac_comp_id id,
 		void *comp_priv_obj);
+
 /*
- ** APIs to operations on vdev objects
-*/
+ * APIs to operations on vdev objects
+ */
 
 typedef void (*wlan_objmgr_vdev_op_handler)(struct wlan_objmgr_vdev *vdev,
 					void *object,
@@ -617,14 +647,13 @@ static inline struct wlan_objmgr_pdev *wlan_vdev_get_pdev(
 
 /**
  * wlan_pdev_vdev_list_peek_head() - get first vdev from pdev list
- * @peer_list: qdf_list_t
+ * @vdev_list: qdf_list_t
  *
  * API to get the head vdev of given vdev (of pdev's vdev list)
  *
  * Caller need to acquire lock with wlan_vdev_obj_lock()
  *
- * Return:
- * @peer: head peer
+ * Return: head peer
  */
 static inline struct wlan_objmgr_vdev *wlan_pdev_vdev_list_peek_head(
 					qdf_list_t *vdev_list)
@@ -643,14 +672,14 @@ static inline struct wlan_objmgr_vdev *wlan_pdev_vdev_list_peek_head(
 
 /**
  * wlan_vdev_get_next_vdev_of_pdev() - get next vdev
+ * @vdev_list: qdf_list_t
  * @vdev: VDEV object
  *
  * API to get next vdev object pointer of vdev
  *
  * Caller need to acquire lock with wlan_vdev_obj_lock()
  *
- * Return:
- * @vdev_next: VDEV object
+ * Return: VDEV object
  */
 static inline struct wlan_objmgr_vdev *wlan_vdev_get_next_vdev_of_pdev(
 					qdf_list_t *vdev_list,
@@ -722,7 +751,7 @@ static inline struct wlan_objmgr_psoc *wlan_vdev_get_psoc(
  *
  * API to get VDEV's psoc id
  *
- * Return: @psoc_id: psoc id
+ * Return: psoc id
  */
 static inline uint8_t wlan_vdev_get_psoc_id(struct wlan_objmgr_vdev *vdev)
 {
@@ -731,6 +760,26 @@ static inline uint8_t wlan_vdev_get_psoc_id(struct wlan_objmgr_vdev *vdev)
 	psoc = wlan_vdev_get_psoc(vdev);
 
 	return wlan_psoc_get_id(psoc);
+}
+
+/**
+ * wlan_vdev_skip_pumac() - get primary umac support
+ * @vdev: VDEV object
+ *
+ * API to get Primary umac support for MLO
+ *
+ * Return: get primary umac support (bool)
+ */
+static inline bool wlan_vdev_skip_pumac(struct wlan_objmgr_vdev *vdev)
+{
+	struct wlan_objmgr_psoc *psoc;
+
+	psoc = wlan_vdev_get_psoc(vdev);
+
+	if (wlan_psoc_get_pumac_skip(psoc))
+		return true;
+
+	return false;
 }
 
 /**
@@ -754,8 +803,7 @@ static inline void wlan_vdev_mlme_set_opmode(struct wlan_objmgr_vdev *vdev,
  *
  * API to set opmode of vdev object
  *
- * Return:
- * @mode: VDEV op mode
+ * Return: VDEV op mode
  */
 static inline enum QDF_OPMODE wlan_vdev_mlme_get_opmode(
 					struct wlan_objmgr_vdev *vdev)
@@ -789,8 +837,7 @@ static inline void wlan_vdev_mlme_set_macaddr(struct wlan_objmgr_vdev *vdev,
  *
  * Caller need to acquire lock with wlan_vdev_obj_lock()
  *
- * Return:
- * @macaddr: MAC address
+ * Return: MAC address
  */
 static inline uint8_t *wlan_vdev_mlme_get_macaddr(struct wlan_objmgr_vdev *vdev)
 {
@@ -824,8 +871,7 @@ static inline void wlan_vdev_mlme_set_mataddr(struct wlan_objmgr_vdev *vdev,
  *
  * Caller need to acquire lock with wlan_vdev_obj_lock()
  *
- * Return:
- * @macaddr: MAC address
+ * Return: MAC address
  */
 static inline uint8_t *wlan_vdev_mlme_get_mldaddr(struct wlan_objmgr_vdev *vdev)
 {
@@ -852,6 +898,22 @@ static inline void wlan_vdev_mlme_set_mldaddr(struct wlan_objmgr_vdev *vdev,
 }
 
 /**
+ * wlan_vdev_mlme_reset_mldaddr() - clear vdev mldaddr
+ * @vdev: VDEV object
+ *
+ * API to clear MLD addr in vdev object
+ *
+ * Caller need to acquire lock with wlan_vdev_obj_lock()
+ *
+ * Return: void
+ */
+static inline void wlan_vdev_mlme_reset_mldaddr(struct wlan_objmgr_vdev *vdev)
+{
+	/* This API is invoked with lock acquired, do not add log prints */
+	qdf_zero_macaddr((struct qdf_mac_addr *)vdev->vdev_mlme.mldaddr);
+}
+
+/**
  * wlan_vdev_mlme_get_linkaddr() - get vdev linkaddr
  * @vdev: VDEV object
  *
@@ -859,8 +921,7 @@ static inline void wlan_vdev_mlme_set_mldaddr(struct wlan_objmgr_vdev *vdev,
  *
  * Caller need to acquire lock with wlan_vdev_obj_lock()
  *
- * Return:
- * @linkaddr: Link MAC address
+ * Return: Link MAC address
  */
 static inline
 uint8_t *wlan_vdev_mlme_get_linkaddr(struct wlan_objmgr_vdev *vdev)
@@ -896,8 +957,7 @@ static inline void wlan_vdev_mlme_set_linkaddr(struct wlan_objmgr_vdev *vdev,
  *
  * Caller need to acquire lock with wlan_vdev_obj_lock()
  *
- * Return:
- * @mataddr: MAT address
+ * Return: MAT address
  */
 static inline uint8_t *wlan_vdev_mlme_get_mataddr(struct wlan_objmgr_vdev *vdev)
 {
@@ -911,8 +971,7 @@ static inline uint8_t *wlan_vdev_mlme_get_mataddr(struct wlan_objmgr_vdev *vdev)
  *
  * API to get vdev id
  *
- * Return:
- * @id: vdev id
+ * Return: vdev id
  */
 static inline uint8_t wlan_vdev_get_id(struct wlan_objmgr_vdev *vdev)
 {
@@ -1074,8 +1133,7 @@ void wlan_destroy_vdev_mlo_lock(struct wlan_objmgr_vdev *vdev)
  *
  * Caller need to acquire lock with wlan_vdev_obj_lock()
  *
- * Return:
- * @macaddr: HW MAC address
+ * Return: HW MAC address
  */
 static inline uint8_t *wlan_vdev_get_hw_macaddr(struct wlan_objmgr_vdev *vdev)
 {
@@ -1139,8 +1197,7 @@ static inline void wlan_vdev_mlme_set_bss_chan(
  *
  * API to get the BSS channel
  *
- * Return:
- * @bss_chan: Channel
+ * Return: Channel
  */
 static inline struct wlan_channel *wlan_vdev_mlme_get_bss_chan(
 				struct wlan_objmgr_vdev *vdev)
@@ -1170,8 +1227,7 @@ static inline void wlan_vdev_mlme_set_des_chan(
  *
  * API to get the desired channel
  *
- * Return:
- * @des_chan: Channel configured by user
+ * Return: Channel configured by user
  */
 static inline struct wlan_channel *wlan_vdev_mlme_get_des_chan(
 				struct wlan_objmgr_vdev *vdev)
@@ -1467,8 +1523,7 @@ static inline void wlan_vdev_set_selfpeer(struct wlan_objmgr_vdev *vdev,
  *
  * API to get the self peer of VDEV
  *
- * Return:
- * @peer: peer pointer
+ * Return: peer pointer
  */
 static inline struct wlan_objmgr_peer *wlan_vdev_get_selfpeer(
 					struct wlan_objmgr_vdev *vdev)
@@ -1499,8 +1554,7 @@ static inline void wlan_vdev_set_bsspeer(struct wlan_objmgr_vdev *vdev,
  * preferred to use outside obj manager to take and handle ref count of
  * bss_peer with ref debug ID.
  *
- * Return:
- * @peer: BSS peer pointer
+ * Return: BSS peer pointer
  */
 static inline struct wlan_objmgr_peer *wlan_vdev_get_bsspeer(
 					struct wlan_objmgr_vdev *vdev)
@@ -1516,8 +1570,7 @@ static inline struct wlan_objmgr_peer *wlan_vdev_get_bsspeer(
  *
  * API to get and increment ref count of BSS peer of VDEV
  *
- * Return:
- * @peer: peer pointer to the peer of the mac address
+ * Return: peer pointer to the peer of the mac address
  */
 struct wlan_objmgr_peer *
 wlan_objmgr_vdev_find_peer_by_mac(struct wlan_objmgr_vdev *vdev,
@@ -1532,8 +1585,7 @@ wlan_objmgr_vdev_find_peer_by_mac(struct wlan_objmgr_vdev *vdev,
  *
  * API to get and increment ref count of BSS peer of VDEV
  *
- * Return:
- * @peer: BSS peer pointer if bss peer is present and valid else NULL
+ * Return: BSS peer pointer if bss peer is present and valid else NULL
  */
 struct wlan_objmgr_peer *wlan_objmgr_vdev_try_get_bsspeer(
 					struct wlan_objmgr_vdev *vdev,
@@ -1578,6 +1630,29 @@ static inline uint16_t wlan_vdev_get_peer_count(struct wlan_objmgr_vdev *vdev)
 	return vdev->vdev_objmgr.wlan_peer_count;
 }
 
+#ifdef WLAN_FEATURE_11BE_MLO
+/**
+ * wlan_vdev_get_legacy_peer_count() - get vdev peer count
+ * @vdev: VDEV object
+ *
+ * API to get legacy peer count from VDEV
+ *
+ * Return: peer_count - vdev's peer count
+ */
+static inline uint16_t wlan_vdev_get_legacy_peer_count(
+					struct wlan_objmgr_vdev *vdev)
+{
+	return vdev->vdev_objmgr.wlan_peer_count -
+	       qdf_atomic_read(&vdev->vdev_objmgr.wlan_ml_peer_count);
+}
+#else
+static inline uint16_t wlan_vdev_get_legacy_peer_count(
+					struct wlan_objmgr_vdev *vdev)
+{
+	return vdev->vdev_objmgr.wlan_peer_count;
+}
+#endif
+
 /**
  * wlan_vdev_mlme_is_ap() - Check whether @vdev is an AP or not
  * @vdev: VDEV object
@@ -1599,6 +1674,33 @@ static inline bool wlan_vdev_mlme_is_ap(struct wlan_objmgr_vdev *vdev)
  */
 bool wlan_vdev_mlme_is_mlo_vdev(struct wlan_objmgr_vdev *vdev);
 
+#ifdef WLAN_MLO_MULTI_CHIP
+/**
+ * wlan_vdev_mlme_is_mlo_bridge_vdev() - check if it is bridge vdev
+ * @vdev: Object manager VDEV object
+ *
+ * API to get if given vdev is bridge vdev or not
+ *
+ * Return: True if it is bridge vdev, otherwise false.
+ */
+bool wlan_vdev_mlme_is_mlo_bridge_vdev(struct wlan_objmgr_vdev *vdev);
+#else
+static inline bool
+wlan_vdev_mlme_is_mlo_bridge_vdev(struct wlan_objmgr_vdev *vdev)
+{
+	return false;
+}
+#endif
+
+/**
+ * wlan_vdev_mlme_is_tdls_vdev() - Determine whether the given vdev is tdls MLO
+ * vdev or not
+ * @vdev: VDEV object
+ *
+ * Return: True if it is tdls MLO, otherwise false.
+ */
+bool wlan_vdev_mlme_is_tdls_vdev(struct wlan_objmgr_vdev *vdev);
+
 /**
  * wlan_vdev_mlme_is_mlo_ap() - whether it is mlo ap or not
  * @vdev: VDEV object
@@ -1610,6 +1712,41 @@ static inline bool wlan_vdev_mlme_is_mlo_ap(struct wlan_objmgr_vdev *vdev)
 	return (wlan_vdev_mlme_get_opmode(vdev) == QDF_SAP_MODE) &&
 		wlan_vdev_mlme_is_mlo_vdev(vdev);
 }
+
+/**
+ * wlan_vdev_mlme_set_epcs_flag() - Set epcs flag for vdev
+ * @vdev: VDEV object
+ * @flag: True or Flase
+ *
+ * Return: void
+ */
+void wlan_vdev_mlme_set_epcs_flag(struct wlan_objmgr_vdev *vdev, bool flag);
+
+/**
+ * wlan_vdev_mlme_get_epcs_flag() - Get epcs flag for vdev
+ * @vdev: VDEV object
+ *
+ * Return: bool
+ */
+bool wlan_vdev_mlme_get_epcs_flag(struct wlan_objmgr_vdev *vdev);
+
+/**
+ * wlan_vdev_mlme_set_user_dis_eht_flag() - Set user disable eht flag for vdev
+ * @vdev: VDEV object
+ * @flag: True or Flase
+ *
+ * Return: void
+ */
+void wlan_vdev_mlme_set_user_dis_eht_flag(struct wlan_objmgr_vdev *vdev,
+					  bool flag);
+
+/**
+ * wlan_vdev_mlme_get_user_dis_eht_flag() - Get user disable eht flag for vdev
+ * @vdev: VDEV object
+ *
+ * Return: bool
+ */
+bool wlan_vdev_mlme_get_user_dis_eht_flag(struct wlan_objmgr_vdev *vdev);
 
 /**
  * wlan_vdev_mlme_set_mlo_vdev() - Set vdev as an MLO vdev
@@ -1643,6 +1780,70 @@ void wlan_vdev_mlme_set_mlo_link_vdev(struct wlan_objmgr_vdev *vdev);
  * Return: void
  */
 void wlan_vdev_mlme_clear_mlo_link_vdev(struct wlan_objmgr_vdev *vdev);
+
+#ifdef WLAN_FEATURE_11BE_MLO_ADV_FEATURE
+/**
+ * wlan_vdev_mlme_set_mlo_link_switch_in_progress() - Set link switch in
+ * progress flag for VDEV.
+ * @vdev: VDEV object manager.
+ *
+ * Return: void
+ */
+static inline void
+wlan_vdev_mlme_set_mlo_link_switch_in_progress(struct wlan_objmgr_vdev *vdev)
+{
+	unsigned long flag = WLAN_VDEV_OP_MLO_LINK_SWITCH_IN_PROGRESS;
+
+	wlan_vdev_mlme_op_flags_set(vdev, flag);
+}
+
+/**
+ * wlan_vdev_mlme_clear_mlo_link_switch_in_progress() - Clear link switch in
+ * progress flag for VDEV.
+ * @vdev: VDEV object manager
+ *
+ * Return: void
+ */
+static inline void
+wlan_vdev_mlme_clear_mlo_link_switch_in_progress(struct wlan_objmgr_vdev *vdev)
+{
+	unsigned long flag = WLAN_VDEV_OP_MLO_LINK_SWITCH_IN_PROGRESS;
+
+	wlan_vdev_mlme_op_flags_clear(vdev, flag);
+}
+
+/**
+ * wlan_vdev_mlme_is_mlo_link_switch_in_progress() - Return true if VDEV is
+ * in link transitioning state.
+ * @vdev: VDEV object manager.
+ *
+ * Return: bool
+ */
+static inline bool
+wlan_vdev_mlme_is_mlo_link_switch_in_progress(struct wlan_objmgr_vdev *vdev)
+{
+	unsigned long flag = WLAN_VDEV_OP_MLO_LINK_SWITCH_IN_PROGRESS;
+
+	return wlan_vdev_mlme_op_flags_get(vdev, flag);
+}
+#else
+static inline void
+wlan_vdev_mlme_set_mlo_link_switch_in_progress(struct wlan_objmgr_vdev *vdev)
+{
+}
+
+static inline void
+wlan_vdev_mlme_clear_mlo_link_switch_in_progress(struct wlan_objmgr_vdev *vdev)
+{
+}
+
+static inline bool
+wlan_vdev_mlme_is_mlo_link_switch_in_progress(struct wlan_objmgr_vdev *vdev)
+{
+	return false;
+}
+#endif /* WLAN_FEATURE_11BE_MLO_ADV_FEATURE  */
+
 #ifdef WLAN_MCAST_MLO
 /**
  * wlan_vdev_mlme_is_mlo_mcast_vdev() - whether it is mlo mcast vdev or not
@@ -1716,7 +1917,25 @@ bool wlan_vdev_mlme_is_link_sta_vdev(struct wlan_objmgr_vdev *vdev)
 }
 #else
 static inline
+void wlan_vdev_mlme_set_user_dis_eht_flag(struct wlan_objmgr_vdev *vdev,
+					  bool flag)
+{
+}
+
+static inline
+bool wlan_vdev_mlme_get_user_dis_eht_flag(struct wlan_objmgr_vdev *vdev)
+{
+	return false;
+}
+
+static inline
 bool wlan_vdev_mlme_is_mlo_vdev(struct wlan_objmgr_vdev *vdev)
+{
+	return false;
+}
+
+static inline bool
+wlan_vdev_mlme_is_mlo_bridge_vdev(struct wlan_objmgr_vdev *vdev)
 {
 	return false;
 }
@@ -1744,6 +1963,22 @@ void wlan_vdev_mlme_set_mlo_link_vdev(struct wlan_objmgr_vdev *vdev)
 static inline
 void wlan_vdev_mlme_clear_mlo_link_vdev(struct wlan_objmgr_vdev *vdev)
 {
+}
+
+static inline void
+wlan_vdev_mlme_set_mlo_link_switch_in_progress(struct wlan_objmgr_vdev *vdev)
+{
+}
+
+static inline void
+wlan_vdev_mlme_clear_mlo_link_switch_in_progress(struct wlan_objmgr_vdev *vdev)
+{
+}
+
+static inline bool
+wlan_vdev_mlme_is_mlo_link_switch_in_progress(struct wlan_objmgr_vdev *vdev)
+{
+	return false;
 }
 
 static inline
@@ -1806,12 +2041,12 @@ bool wlan_vdev_mlme_is_link_sta_vdev(struct wlan_objmgr_vdev *vdev)
  * Return: void
  */
 #ifdef WLAN_OBJMGR_REF_ID_TRACE
+#define wlan_objmgr_vdev_get_ref(vdev, id) \
+		wlan_objmgr_vdev_get_ref_debug(vdev, id, __func__, __LINE__)
+
 void wlan_objmgr_vdev_get_ref_debug(struct wlan_objmgr_vdev *vdev,
 				    wlan_objmgr_ref_dbgid id,
 				    const char *func, int line);
-
-#define wlan_objmgr_vdev_get_ref(vdev, dbgid) \
-		wlan_objmgr_vdev_get_ref_debug(vdev, dbgid, __func__, __LINE__)
 #else
 void wlan_objmgr_vdev_get_ref(struct wlan_objmgr_vdev *vdev,
 				wlan_objmgr_ref_dbgid id);
@@ -1827,13 +2062,13 @@ void wlan_objmgr_vdev_get_ref(struct wlan_objmgr_vdev *vdev,
  * Return: void
  */
 #ifdef WLAN_OBJMGR_REF_ID_TRACE
+#define wlan_objmgr_vdev_try_get_ref(vdev, id) \
+		wlan_objmgr_vdev_try_get_ref_debug(vdev, id, \
+		__func__, __LINE__)
+
 QDF_STATUS wlan_objmgr_vdev_try_get_ref_debug(struct wlan_objmgr_vdev *vdev,
 					      wlan_objmgr_ref_dbgid id,
 					      const char *func, int line);
-
-#define wlan_objmgr_vdev_try_get_ref(vdev, dbgid) \
-		wlan_objmgr_vdev_try_get_ref_debug(vdev, dbgid, \
-		__func__, __LINE__)
 #else
 QDF_STATUS wlan_objmgr_vdev_try_get_ref(struct wlan_objmgr_vdev *vdev,
 						wlan_objmgr_ref_dbgid id);
@@ -1850,13 +2085,13 @@ QDF_STATUS wlan_objmgr_vdev_try_get_ref(struct wlan_objmgr_vdev *vdev,
  * Return: void
  */
 #ifdef WLAN_OBJMGR_REF_ID_TRACE
+#define wlan_objmgr_vdev_release_ref(vdev, id)\
+		wlan_objmgr_vdev_release_ref_debug(vdev, id, \
+		__func__, __LINE__)
+
 void wlan_objmgr_vdev_release_ref_debug(struct wlan_objmgr_vdev *vdev,
 					wlan_objmgr_ref_dbgid id,
 					const char *func, int line);
-
-#define wlan_objmgr_vdev_release_ref(vdev, dbgid)\
-		wlan_objmgr_vdev_release_ref_debug(vdev, dbgid, \
-		__func__, __LINE__)
 #else
 void wlan_objmgr_vdev_release_ref(struct wlan_objmgr_vdev *vdev,
 						wlan_objmgr_ref_dbgid id);
@@ -1871,20 +2106,19 @@ void wlan_objmgr_vdev_release_ref(struct wlan_objmgr_vdev *vdev,
  *
  * API to get next active vdev object pointer of vdev
  *
- * Return:
- * @vdev_next: VDEV object
+ * Return: VDEV object
  */
 #ifdef WLAN_OBJMGR_REF_ID_TRACE
+#define wlan_vdev_get_next_active_vdev_of_pdev(pdev, vdev_list, vdev, dbg_id) \
+		wlan_vdev_get_next_active_vdev_of_pdev_debug(pdev, vdev_list, \
+		vdev, dbg_id, __func__, __LINE__)
+
 struct wlan_objmgr_vdev *wlan_vdev_get_next_active_vdev_of_pdev_debug(
 					struct wlan_objmgr_pdev *pdev,
 					qdf_list_t *vdev_list,
 					struct wlan_objmgr_vdev *vdev,
 					wlan_objmgr_ref_dbgid dbg_id,
 					const char *func, int line);
-
-#define wlan_vdev_get_next_active_vdev_of_pdev(pdev, vdev_list, vdev, dbgid) \
-		wlan_vdev_get_next_active_vdev_of_pdev_debug(pdev, vdev_list, \
-		vdev, dbgid, __func__, __LINE__)
 #else
 struct wlan_objmgr_vdev *wlan_vdev_get_next_active_vdev_of_pdev(
 					struct wlan_objmgr_pdev *pdev,
@@ -1903,14 +2137,14 @@ struct wlan_objmgr_vdev *wlan_vdev_get_next_active_vdev_of_pdev(
  * Return:
  */
 #ifdef WLAN_OBJMGR_REF_ID_TRACE
+#define wlan_pdev_peek_active_first_vdev(pdev, dbg_id) \
+		wlan_pdev_peek_active_first_vdev_debug(pdev, dbg_id, \
+		__func__, __LINE__)
+
 struct wlan_objmgr_vdev *wlan_pdev_peek_active_first_vdev_debug(
 		struct wlan_objmgr_pdev *pdev,
 		wlan_objmgr_ref_dbgid dbg_id,
 		const char *func, int line);
-
-#define wlan_pdev_peek_active_first_vdev(pdev, dbgid) \
-		wlan_pdev_peek_active_first_vdev_debug(pdev, dbgid, \
-		__func__, __LINE__)
 #else
 struct wlan_objmgr_vdev *wlan_pdev_peek_active_first_vdev(
 		struct wlan_objmgr_pdev *pdev,
@@ -1919,25 +2153,24 @@ struct wlan_objmgr_vdev *wlan_pdev_peek_active_first_vdev(
 
 /**
  * wlan_pdev_vdev_list_peek_active_head() - get first active vdev from pdev list
- * @vdev: VDEV object
+ * @pdev: PDEV object
  * @vdev_list: qdf_list_t
  * @dbg_id: id of the caller
  *
  * API to get the head active vdev of given vdev (of pdev's vdev list)
  *
- * Return:
- * @peer: head peer
+ * Return: head peer
  */
 #ifdef WLAN_OBJMGR_REF_ID_TRACE
+#define wlan_pdev_vdev_list_peek_active_head(pdev, vdev_list, dbg_id) \
+		wlan_pdev_vdev_list_peek_active_head_debug(pdev, vdev_list, \
+		dbg_id, __func__, __LINE__)
+
 struct wlan_objmgr_vdev *wlan_pdev_vdev_list_peek_active_head_debug(
 				struct wlan_objmgr_pdev *pdev,
 				qdf_list_t *vdev_list,
 				wlan_objmgr_ref_dbgid dbg_id,
 				const char *func, int line);
-
-#define wlan_pdev_vdev_list_peek_active_head(pdev, vdev_list, dbgid) \
-		wlan_pdev_vdev_list_peek_active_head_debug(pdev, vdev_list, \
-		dbgid, __func__, __LINE__)
 #else
 struct wlan_objmgr_vdev *wlan_pdev_vdev_list_peek_active_head(
 				struct wlan_objmgr_pdev *pdev,
@@ -2084,6 +2317,24 @@ wlan_objmgr_vdev_trace_del_ref_list(struct wlan_objmgr_vdev *vdev)
 #endif
 
 /**
+ * wlan_vdev_get_bss_peer_mac_for_pmksa() - To get bss peer mac/mld
+ * address based on association to cache/retrieve PMK.
+ * @vdev: Pointer to vdev
+ * @bss_peer_mac: Pointer to BSS peer MAC address.
+ *
+ * The PMKSA entry for an ML candaidate will be present with MLD
+ * address, whereas for non-ML candidate legacy MAC address is used
+ * to save the PMKSA. To get the right entry during lookup, this API
+ * will return MLD address if the VDEV is MLO VDEV else return
+ * MAC address of BSS peer.
+ *
+ * Return: QDF_STATUS
+ */
+QDF_STATUS
+wlan_vdev_get_bss_peer_mac_for_pmksa(struct wlan_objmgr_vdev *vdev,
+				     struct qdf_mac_addr *bss_peer_mac);
+
+/**
  * wlan_vdev_get_bss_peer_mac() - to get bss peer mac address
  * @vdev: pointer to vdev
  * @bss_peer_mac: pointer to bss_peer_mac_address
@@ -2111,6 +2362,144 @@ QDF_STATUS wlan_vdev_get_bss_peer_mac(struct wlan_objmgr_vdev *vdev,
  */
 QDF_STATUS wlan_vdev_get_bss_peer_mld_mac(struct wlan_objmgr_vdev *vdev,
 					  struct qdf_mac_addr *mld_mac);
+
+/**
+ * wlan_vdev_get_mlo_dev_ctx() - get MLO dev context
+ * @vdev: VDEV object
+ *
+ * API to get MLO dev context pointer from vdev
+ *
+ * Return: MLO dev context pointer
+ */
+static inline struct wlan_mlo_dev_context *wlan_vdev_get_mlo_dev_ctx(
+				struct wlan_objmgr_vdev *vdev)
+{
+	return vdev->mlo_dev_ctx;
+}
+
+/**
+ * wlan_objmgr_vdev_init_ml_peer_count() - initialize ml_peer_count
+ * @vdev: vdev object pointer
+ *
+ * Return: void
+ */
+static inline void
+wlan_objmgr_vdev_init_ml_peer_count(struct wlan_objmgr_vdev *vdev)
+{
+	qdf_atomic_init(&vdev->vdev_objmgr.wlan_ml_peer_count);
+}
+
+#else
+static inline
+QDF_STATUS wlan_vdev_get_bss_peer_mld_mac(struct wlan_objmgr_vdev *vdev,
+					  struct qdf_mac_addr *mld_mac)
+{
+	return QDF_STATUS_E_INVAL;
+}
+
+static inline void
+wlan_objmgr_vdev_init_ml_peer_count(struct wlan_objmgr_vdev *vdev)
+{
+}
+
+static inline
+bool wlan_vdev_mlme_is_tdls_vdev(struct wlan_objmgr_vdev *vdev)
+{
+	return false;
+}
+
+#endif
+
+/**
+ * wlan_mlo_peer_delete_is_not_allowed()
+ * @vdev: VDEV object
+ *
+ * API to check if WLAN_VDEV_OP_MLME_LEGACY_PEER_DISCON_TRIG is set therefore
+ * whether mlo peer delete should be allowed or not
+ *
+ * Return: True if MLO peer delete is not allowed, otherwise false.
+ */
+static inline bool wlan_mlo_peer_delete_is_not_allowed(
+		struct wlan_objmgr_vdev *vdev)
+{
+	return wlan_vdev_mlme_op_flags_get(vdev,
+				WLAN_VDEV_OP_MLME_LEGACY_PEER_DISCON_TRIG);
+}
+
+#ifdef QCA_SUPPORT_PRIMARY_LINK_MIGRATE
+/**
+ * wlan_vdev_init_skip_pumac_cnt() - init skip_pumac_cnt
+ * @vdev: VDEV object
+ *
+ * API to initialize skip_pumac_cnt
+ *
+ * Return: void
+ */
+static inline void
+wlan_vdev_init_skip_pumac_cnt(struct wlan_objmgr_vdev *vdev)
+{
+	qdf_atomic_init(&vdev->vdev_mlme.skip_pumac_cnt);
+}
+
+/**
+ * wlan_vdev_inc_skip_pumac_cnt() - inc skip_pumac_cnt
+ * @vdev: VDEV object
+ *
+ * API to increment skip_pumac_cnt
+ *
+ * Return: void
+ */
+static inline void
+wlan_vdev_inc_skip_pumac_cnt(struct wlan_objmgr_vdev *vdev)
+{
+	qdf_atomic_inc(&vdev->vdev_mlme.skip_pumac_cnt);
+}
+
+/**
+ * wlan_vdev_dec_skip_pumac_cnt() - dec skip_pumac_cnt
+ * @vdev: VDEV object
+ *
+ * API to decrement skip_pumac_cnt
+ *
+ * Return: void
+ */
+static inline void
+wlan_vdev_dec_skip_pumac_cnt(struct wlan_objmgr_vdev *vdev)
+{
+	qdf_atomic_dec(&vdev->vdev_mlme.skip_pumac_cnt);
+}
+
+/**
+ * wlan_vdev_read_skip_pumac_cnt() - read skip_pumac_cnt
+ * @vdev: VDEV object
+ *
+ * API to read skip_pumac_cnt value
+ *
+ * Return: skip_pumac_cnt value
+ */
+static inline int32_t
+wlan_vdev_read_skip_pumac_cnt(struct wlan_objmgr_vdev *vdev)
+{
+	return qdf_atomic_read(&vdev->vdev_mlme.skip_pumac_cnt);
+}
+#else
+static inline void
+wlan_vdev_init_skip_pumac_cnt(struct wlan_objmgr_vdev *vdev)
+{ }
+
+static inline void
+wlan_vdev_inc_skip_pumac_cnt(struct wlan_objmgr_vdev *vdev)
+{ }
+
+static inline void
+wlan_vdev_dec_skip_pumac_cnt(struct wlan_objmgr_vdev *vdev)
+{ }
+
+static inline int32_t
+wlan_vdev_read_skip_pumac_cnt(struct wlan_objmgr_vdev *vdev)
+{
+	return 0;
+}
 #endif
 
 #endif /* _WLAN_OBJMGR_VDEV_OBJ_H_*/

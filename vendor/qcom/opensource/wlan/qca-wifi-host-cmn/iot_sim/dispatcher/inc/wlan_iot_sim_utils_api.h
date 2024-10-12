@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -28,7 +29,7 @@ struct wmi_iot_sim_cmd_ops;
 
 /**
  * struct iot_sim_cbacks - IOT Sim callbacks
- * @reg_beacon_trigger_handler: reg_beacon_trigger_handler
+ * @update_beacon_trigger: reg_beacon_trigger_handler
  */
 struct iot_sim_cbacks {
 	void (*update_beacon_trigger)(mlme_pdev_ext_t *);
@@ -36,10 +37,11 @@ struct iot_sim_cbacks {
 
 /**
  * iot_sim_cmd_handler() - IOT SIM frame handler function
- * @vdev - vdev object.
- * @buf - skb
- * @tx - TRUE in case of Tx
- * @rx_param - mgmt_rx_event_params
+ * @vdev: vdev object.
+ * @buf: skb
+ * @bcn_param:
+ * @tx: TRUE in case of Tx
+ * @param: mgmt_rx_event_params
  *
  * Return : QDF_STATUS_E_SUCCESS/QDF_STATUS_E_FAILURE.
  */
@@ -59,7 +61,7 @@ QDF_STATUS iot_sim_cmd_handler(struct wlan_objmgr_vdev *vdev, qdf_nbuf_t buf,
  */
 QDF_STATUS wlan_iot_sim_init(void);
 
-/*
+/**
  * wlan_iot_sim_deinit() - API to deinit iot_sim component
  *
  * This API is invoked from dispatcher deinit during all component deinit.
@@ -85,8 +87,8 @@ void wlan_lmac_if_iot_sim_register_rx_ops(struct wlan_lmac_if_rx_ops *rx_ops);
 /**
  * wlan_register_wmi_iot_sim_cmd_ops() - Register operations related to wmi
  * commands on iot_sim parameters
- * @pdev    - the physical device object
- * @cmd_ops - pointer to the structure holding the operations
+ * @pdev: the physical device object
+ * @cmd_ops: pointer to the structure holding the operations
  *	     related to wmi commands on iot_sim parameters
  *
  * API to register operations related to wmi commands on iot_sim parameters

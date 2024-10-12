@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -16,7 +16,7 @@
  */
 
 /**
- * DOC : contains interface prototypes for son api
+ * DOC: contains interface prototypes for son api
  */
 #ifndef _SON_API_H_
 #define _SON_API_H_
@@ -173,12 +173,12 @@ struct son_cbs {
 };
 
 /**
- * mlme_deliver_cb - cb to deliver mlme event
+ * typedef mlme_deliver_cb() - cb to deliver mlme event
  * @vdev: pointer to vdev
  * @event_len: event length
  * @event_buf: event buffer
  *
- * @Return: 0 if event is sent successfully
+ * Return: 0 if event is sent successfully
  */
 typedef int (*mlme_deliver_cb)(struct wlan_objmgr_vdev *vdev,
 			       uint32_t event_len,
@@ -344,6 +344,7 @@ bool wlan_son_peer_is_kickout_allow(struct wlan_objmgr_vdev *vdev,
 /**
  * wlan_son_ind_assoc_req_frm() - indicate assoc req frame to son
  * @vdev: pointer to vdev
+ * @macaddr: MAC address
  * @is_reassoc: true if it is reassoc req
  * @frame: frame body
  * @frame_len: frame body length
@@ -355,6 +356,7 @@ void wlan_son_ind_assoc_req_frm(struct wlan_objmgr_vdev *vdev,
 				uint8_t *macaddr, bool is_reassoc,
 				uint8_t *frame, uint16_t frame_len,
 				QDF_STATUS status);
+
 /**
  * wlan_son_deliver_tx_power() - notify son module of tx power
  * @vdev: vdev

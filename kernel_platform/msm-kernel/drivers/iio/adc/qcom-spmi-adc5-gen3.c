@@ -21,6 +21,7 @@
 #include <linux/thermal.h>
 #include <linux/thermal_minidump.h>
 #include <linux/slab.h>
+#include <linux/suspend.h>
 #include <linux/iio/iio.h>
 #include <linux/iio/adc/qcom-vadc-common.h>
 
@@ -615,7 +616,9 @@ handler_end:
 static void tm_handler_work(struct work_struct *work)
 {
 	struct adc5_channel_prop *chan_prop;
-	u8 tm_status[2], buf[16], val;
+	u8 tm_status[2] = {0};
+	u8 buf[16] = {0};
+	u8 val;
 	int ret, i, sdam_index = -1;
 	struct adc5_chip *adc = container_of(work, struct adc5_chip,
 						tm_handler_work);
@@ -1236,7 +1239,7 @@ EXPORT_SYMBOL(adc_tm_channel_measure_gen3);
 int32_t adc_tm_disable_chan_meas_gen3(struct adc5_chip *chip,
 					struct adc_tm_param *param)
 {
-	int ret, i;
+	int ret = 0, i;
 	uint32_t dt_index = 0, v_channel;
 	struct adc_tm_client_info *client_info = NULL;
 
@@ -1860,9 +1863,27 @@ static void adc5_gen3_shutdown(struct platform_device *pdev)
 	}
 }
 
+static int adc5_gen3_suspend(struct device *dev)
+{
+	if (pm_suspend_via_firmware())
+		return adc5_gen3_freeze(dev);
+
+	return 0;
+}
+
+static int adc5_gen3_resume(struct device *dev)
+{
+	if (pm_suspend_via_firmware())
+		return adc5_gen3_restore(dev);
+
+	return 0;
+}
+
 static const struct dev_pm_ops adc5_gen3_pm_ops = {
 	.freeze = adc5_gen3_freeze,
 	.restore = adc5_gen3_restore,
+	.suspend = adc5_gen3_suspend,
+	.resume = adc5_gen3_resume,
 };
 
 static struct platform_driver adc5_gen3_driver = {

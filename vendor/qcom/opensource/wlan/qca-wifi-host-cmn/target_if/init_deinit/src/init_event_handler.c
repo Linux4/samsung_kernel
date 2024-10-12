@@ -33,12 +33,17 @@
 #include <service_ready_param.h>
 #include <init_cmd_api.h>
 #include <cdp_txrx_cmn.h>
+#ifdef DP_TX_PACKET_INSPECT_FOR_ILP
+#include <cdp_txrx_misc.h>
+#endif
 #include <wlan_reg_ucfg_api.h>
 #if defined(WLAN_FEATURE_11BE_MLO) && defined(WLAN_MLO_MULTI_CHIP)
 #include <wlan_mlo_mgr_cmn.h>
+#include <wlan_mlo_mgr_ap.h>
 #include <wlan_mlo_mgr_setup.h>
 #endif
 #include <target_if_twt.h>
+#include <target_if_scan.h>
 
 static void init_deinit_set_send_init_cmd(struct wlan_objmgr_psoc *psoc,
 					  struct target_psoc_info *tgt_hdl)
@@ -98,6 +103,11 @@ init_deinit_update_wifi_pos_caps(struct wmi_unified *wmi_handle,
 					      WLAN_RTT_11AZ_TB_SUPPORT);
 
 	if (wmi_service_enabled(wmi_handle,
+				wmi_service_rtt_11az_tb_rsta_support))
+		wlan_psoc_nif_fw_ext2_cap_set(psoc,
+					      WLAN_RTT_11AZ_TB_RSTA_SUPPORT);
+
+	if (wmi_service_enabled(wmi_handle,
 				wmi_service_rtt_11az_mac_sec_support))
 		wlan_psoc_nif_fw_ext2_cap_set(psoc,
 					      WLAN_RTT_11AZ_MAC_SEC_SUPPORT);
@@ -129,6 +139,27 @@ static inline void
 init_deinit_update_roam_stats_cap(struct wmi_unified *wmi_handle,
 				  struct wlan_objmgr_psoc *psoc)
 {}
+#endif
+
+#ifdef DP_TX_PACKET_INSPECT_FOR_ILP
+static void
+init_deinit_update_tx_ilp_cap(struct wlan_objmgr_psoc *psoc,
+			      struct tgt_info *info)
+{
+	ol_txrx_soc_handle soc;
+
+	soc = wlan_psoc_get_dp_handle(psoc);
+	info->wlan_res_cfg.tx_ilp_enable =
+		cdp_evaluate_update_tx_ilp_cfg(
+			soc, info->service_ext2_param.num_msdu_idx_qtype_map,
+			info->msdu_idx_qtype_map);
+}
+#else
+static void
+init_deinit_update_tx_ilp_cap(struct wlan_objmgr_psoc *psoc,
+			      struct tgt_info *info)
+{
+}
 #endif
 
 #ifdef MULTI_CLIENT_LL_SUPPORT
@@ -180,6 +211,26 @@ init_deinit_update_vendor_handoff_control_caps(struct wmi_unified *wmi_handle,
 					       struct wlan_objmgr_psoc *psoc)
 {}
 #endif
+
+#ifdef FEATURE_WLAN_TDLS
+static void init_deinit_update_tdls_caps(struct wmi_unified *wmi,
+					 struct wlan_objmgr_psoc *psoc)
+{
+	if (wmi_service_enabled(wmi, wmi_service_tdls_concurrency_support))
+		wlan_psoc_nif_fw_ext2_cap_set(psoc,
+					      WLAN_TDLS_CONCURRENCIES_SUPPORT);
+}
+#else
+static inline void init_deinit_update_tdls_caps(struct wmi_unified *wmi_handle,
+						struct wlan_objmgr_psoc *psoc)
+{}
+#endif
+static void
+init_deinit_pdev_wsi_stats_info_support(struct wmi_unified *wmi_handle,
+					struct wlan_objmgr_psoc *psoc);
+
+static void init_deinit_mlo_tsf_sync_support(struct wmi_unified *wmi_handle,
+					     struct wlan_objmgr_psoc *psoc);
 
 static int init_deinit_service_ready_event_handler(ol_scn_t scn_handle,
 							uint8_t *event,
@@ -237,7 +288,8 @@ static int init_deinit_service_ready_event_handler(ol_scn_t scn_handle,
 		wlan_psoc_nif_op_flag_set(psoc, WLAN_SOC_OP_VHT_INVALID_CAP);
 	}
 
-	if (wmi_service_enabled(wmi_handle, wmi_service_tt))
+	if (wmi_service_enabled(wmi_handle, wmi_service_tt) ||
+	    wmi_service_enabled(wmi_handle, wmi_service_thermal_mgmt))
 		wlan_psoc_nif_fw_ext_cap_set(psoc, WLAN_SOC_CEXT_TT_SUPPORT);
 
 	if (wmi_service_enabled(wmi_handle, wmi_service_widebw_scan))
@@ -334,6 +386,11 @@ static int init_deinit_service_ready_event_handler(ol_scn_t scn_handle,
 	init_deinit_update_roam_stats_cap(wmi_handle, psoc);
 
 	init_deinit_update_wifi_pos_caps(wmi_handle, psoc);
+	init_deinit_update_tdls_caps(wmi_handle, psoc);
+
+	init_deinit_pdev_wsi_stats_info_support(wmi_handle, psoc);
+
+	init_deinit_mlo_tsf_sync_support(wmi_handle, psoc);
 
 	/* override derived value, if it exceeds max peer count */
 	if ((wlan_psoc_get_max_peer_count(psoc) >
@@ -373,16 +430,12 @@ static int init_deinit_service_ready_event_handler(ol_scn_t scn_handle,
 	target_if_reg_set_6ghz_info(psoc);
 	target_if_reg_set_5dot9_ghz_info(psoc);
 	target_if_twt_fill_tgt_caps(psoc, wmi_handle);
+	target_if_update_aux_support(psoc);
 
 	/* Send num_msdu_desc to DP layer */
 	cdp_soc_set_param(wlan_psoc_get_dp_handle(psoc),
 			  DP_SOC_PARAM_MSDU_EXCEPTION_DESC,
 			  tgt_hdl->info.target_caps.num_msdu_desc);
-
-	/* Send CMEM FSE support to DP layer */
-	if (wmi_service_enabled(wmi_handle, wmi_service_fse_cmem_alloc_support))
-		cdp_soc_set_param(wlan_psoc_get_dp_handle(psoc),
-				  DP_SOC_PARAM_CMEM_FSE_SUPPORT, 1);
 
 	/* Send multi_peer_group support to DP layer */
 	if (wmi_service_enabled(wmi_handle,
@@ -516,6 +569,16 @@ static int init_deinit_service_ext2_ready_event_handler(ol_scn_t scn_handle,
 		goto exit;
 	}
 
+	err_code = init_deinit_populate_msdu_idx_qtype_map_ext2(wmi_handle,
+								event, info);
+
+	if (err_code) {
+		target_if_err("failed to populate msdu index qtype map ext2");
+		goto exit;
+	}
+
+	init_deinit_update_tx_ilp_cap(psoc, info);
+
 	err_code = init_deinit_populate_twt_cap_ext2(psoc, wmi_handle, event,
 						     info);
 
@@ -532,6 +595,23 @@ static int init_deinit_service_ext2_ready_event_handler(ol_scn_t scn_handle,
 	if (err_code)
 		target_if_debug("failed to populate sap_coex_capability ext2");
 
+	if (info->service_ext2_param.num_aux_dev_caps) {
+		err_code = init_deinit_populate_aux_dev_cap_ext2(psoc,
+								 wmi_handle,
+								 event, info);
+		if (err_code)
+			target_if_debug("failed to populate aux_dev cap ext2");
+	}
+
+	if (wmi_service_enabled(wmi_handle,
+				wmi_service_aoa_for_rcc_supported)) {
+		err_code = init_deinit_populate_rcc_aoa_cap_ext2(psoc,
+								 wmi_handle,
+								 event, info);
+		if (err_code)
+			target_if_debug("failed to populate aoa cap ext2");
+	}
+
 	legacy_callback = target_if_get_psoc_legacy_service_ready_cb();
 	if (legacy_callback)
 		if (legacy_callback(wmi_service_ready_ext2_event_id,
@@ -539,6 +619,12 @@ static int init_deinit_service_ext2_ready_event_handler(ol_scn_t scn_handle,
 			target_if_err("Legacy callback return error!");
 			goto exit;
 		}
+
+	if (wmi_service_enabled(wmi_handle, wmi_service_radar_flags_support)) {
+		target_if_debug("Full bw nol supported");
+		info->wlan_res_cfg.is_full_bw_nol_supported = true;
+	}
+
 	target_if_regulatory_set_ext_tpc(psoc);
 
 	target_if_reg_set_lower_6g_edge_ch_info(psoc);
@@ -738,16 +824,44 @@ static bool init_deinit_mlo_capable(struct wlan_objmgr_psoc *psoc)
 	return false;
 }
 
+static bool init_deinit_mlo_get_group_id(struct wlan_objmgr_psoc *psoc,
+					 uint8_t *grp_id)
+{
+	struct target_psoc_info *tgt_hdl;
+
+	tgt_hdl = wlan_psoc_get_tgt_if_handle(psoc);
+	if (!tgt_hdl) {
+		target_if_err("target_psoc_info is null");
+		return false;
+	}
+
+	if ((tgt_hdl->tif_ops) &&
+	    (tgt_hdl->tif_ops->mlo_get_group_id)) {
+		*grp_id = tgt_hdl->tif_ops->mlo_get_group_id(psoc);
+		return true;
+	}
+
+	return false;
+}
+
 static void init_deinit_mlo_update_soc_ready(struct wlan_objmgr_psoc *psoc)
 {
-	if (init_deinit_mlo_capable(psoc))
-		mlo_setup_update_soc_ready(psoc);
+	uint8_t grp_id = 0;
+
+	if (init_deinit_mlo_capable(psoc)) {
+		if (!init_deinit_mlo_get_group_id(psoc, &grp_id)) {
+			target_if_err("Invalid MLD group id");
+			return;
+		}
+		mlo_setup_update_soc_ready(psoc, grp_id);
+	}
 }
 
 static void init_deinit_send_ml_link_ready(struct wlan_objmgr_psoc *psoc,
 					   void *object, void *arg)
 {
 	struct wlan_objmgr_pdev *pdev = object;
+	uint8_t grp_id = 0;
 
 	if (!init_deinit_mlo_capable(psoc))
 		return;
@@ -755,7 +869,10 @@ static void init_deinit_send_ml_link_ready(struct wlan_objmgr_psoc *psoc,
 	qdf_assert_always(psoc);
 	qdf_assert_always(pdev);
 
-	mlo_setup_link_ready(pdev);
+	if (!init_deinit_mlo_get_group_id(psoc, &grp_id))
+		qdf_assert_always(grp_id);
+
+	mlo_setup_link_ready(pdev, grp_id);
 }
 
 static void init_deinit_mlo_update_pdev_ready(struct wlan_objmgr_psoc *psoc,
@@ -768,11 +885,49 @@ static void init_deinit_mlo_update_pdev_ready(struct wlan_objmgr_psoc *psoc,
 				     init_deinit_send_ml_link_ready,
 				     NULL, 0, WLAN_INIT_DEINIT_ID);
 }
+
+static void
+init_deinit_pdev_wsi_stats_info_support(struct wmi_unified *wmi_handle,
+					struct wlan_objmgr_psoc *psoc)
+{
+	bool wsi_stats_info_support = false;
+
+	if (!init_deinit_mlo_capable(psoc))
+		return;
+
+	if (wmi_service_enabled(wmi_handle,
+				wmi_service_pdev_wsi_stats_info_support))
+		wsi_stats_info_support = true;
+
+	mlo_update_wsi_stats_info_support(psoc, wsi_stats_info_support);
+}
+
+static void init_deinit_mlo_tsf_sync_support(struct wmi_unified *wmi_handle,
+					     struct wlan_objmgr_psoc *psoc)
+{
+	bool mlo_tsf_sync_enab = false;
+
+	if (!init_deinit_mlo_capable(psoc))
+		return;
+
+	if (wmi_service_enabled(wmi_handle, wmi_service_mlo_tsf_sync))
+		mlo_tsf_sync_enab = true;
+
+	mlo_update_tsf_sync_support(psoc, mlo_tsf_sync_enab);
+}
+
 #else
 static void init_deinit_mlo_update_soc_ready(struct wlan_objmgr_psoc *psoc)
 {}
 static void init_deinit_mlo_update_pdev_ready(struct wlan_objmgr_psoc *psoc,
 					      uint8_t num_radios)
+{}
+static void
+init_deinit_pdev_wsi_stats_info_support(struct wmi_unified *wmi_handle,
+					struct wlan_objmgr_psoc *psoc)
+{}
+static void init_deinit_mlo_tsf_sync_support(struct wmi_unified *wmi_handle,
+					     struct wlan_objmgr_psoc *psoc)
 {}
 #endif /*WLAN_FEATURE_11BE_MLO && WLAN_MLO_MULTI_CHIP*/
 
@@ -1057,6 +1212,7 @@ static int init_deinit_mlo_setup_comp_event_handler(ol_scn_t scn_handle,
 	struct target_psoc_info *tgt_hdl;
 	struct wmi_unified *wmi_handle;
 	struct wmi_mlo_setup_complete_params params;
+	uint8_t grp_id = 0;
 
 	if (!scn_handle) {
 		target_if_err("scn handle NULL");
@@ -1064,16 +1220,24 @@ static int init_deinit_mlo_setup_comp_event_handler(ol_scn_t scn_handle,
 	}
 
 	psoc = target_if_get_psoc_from_scn_hdl(scn_handle);
+
 	if (!psoc) {
 		target_if_err("psoc is null");
 		return -EINVAL;
 	}
 
+	if (!init_deinit_mlo_get_group_id(psoc, &grp_id)) {
+		target_if_err("Invalid MLD group id");
+		return -EINVAL;
+	}
+
 	tgt_hdl = wlan_psoc_get_tgt_if_handle(psoc);
+
 	if (!tgt_hdl) {
 		target_if_err("target_psoc_info is null");
 		return -EINVAL;
 	}
+
 	wmi_handle = target_psoc_get_wmi_hdl(tgt_hdl);
 
 	if (wmi_extract_mlo_setup_cmpl_event(wmi_handle, event, &params) !=
@@ -1082,8 +1246,16 @@ static int init_deinit_mlo_setup_comp_event_handler(ol_scn_t scn_handle,
 
 	pdev = wlan_objmgr_get_pdev_by_id(psoc, params.pdev_id,
 					  WLAN_INIT_DEINIT_ID);
+
+	if (mlo_ap_update_max_ml_peer_ids(
+				params.pdev_id, params.max_ml_peer_ids)
+			!= QDF_STATUS_SUCCESS) {
+		target_if_err("max_ml_peer_ids update failed for pdev_id: %d",
+			      params.pdev_id);
+	}
+
 	if (pdev) {
-		mlo_link_setup_complete(pdev);
+		mlo_link_setup_complete(pdev, grp_id);
 		wlan_objmgr_pdev_release_ref(pdev, WLAN_INIT_DEINIT_ID);
 	}
 
@@ -1101,6 +1273,7 @@ static int init_deinit_mlo_teardown_comp_event_handler(ol_scn_t scn_handle,
 	struct target_psoc_info *tgt_hdl;
 	struct wmi_unified *wmi_handle;
 	struct wmi_mlo_teardown_cmpl_params params;
+	uint8_t grp_id = 0;
 
 	if (!scn_handle) {
 		target_if_err("scn handle NULL");
@@ -1110,6 +1283,11 @@ static int init_deinit_mlo_teardown_comp_event_handler(ol_scn_t scn_handle,
 	psoc = target_if_get_psoc_from_scn_hdl(scn_handle);
 	if (!psoc) {
 		target_if_err("psoc is null");
+		return -EINVAL;
+	}
+
+	if (!init_deinit_mlo_get_group_id(psoc, &grp_id)) {
+		target_if_err("Invalid MLD group id");
 		return -EINVAL;
 	}
 
@@ -1127,7 +1305,7 @@ static int init_deinit_mlo_teardown_comp_event_handler(ol_scn_t scn_handle,
 	pdev = wlan_objmgr_get_pdev_by_id(psoc, params.pdev_id,
 					  WLAN_INIT_DEINIT_ID);
 	if (pdev) {
-		mlo_link_teardown_complete(pdev);
+		mlo_link_teardown_complete(pdev, grp_id);
 		wlan_objmgr_pdev_release_ref(pdev, WLAN_INIT_DEINIT_ID);
 	}
 

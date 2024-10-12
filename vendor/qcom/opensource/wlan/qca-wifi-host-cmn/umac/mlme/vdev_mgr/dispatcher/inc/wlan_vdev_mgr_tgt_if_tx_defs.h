@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2019-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -32,24 +32,54 @@
 #endif
 #include <wlan_mlme_dbg.h>
 
-/** slot time long */
+/* slot time long */
 #define WLAN_MLME_VDEV_SLOT_TIME_LONG   0x1
-/** slot time short */
+/* slot time short */
 #define WLAN_MLME_VDEV_SLOT_TIME_SHORT  0x2
 
 #define WLAN_MU_SNIF_MAX_AIDS 4
 
 /**
  * enum mlme_dev_setparam - type of set params pdev/vdev
+ * @MLME_PDEV_SETPARAM: pdev param
+ * @MLME_VDEV_SETPARAM: vdev param
  */
 enum mlme_dev_setparam {
 	MLME_PDEV_SETPARAM = 0,
 	MLME_VDEV_SETPARAM,
 };
 
+#ifdef WLAN_BCN_RATECODE_ENABLE
 /**
- * enum MLME_bcn_tx_rate_code - beacon tx rate code
+ * enum mlme_bcn_tx_rate_code - beacon tx rate code
+ * @MLME_BCN_TX_RATE_CODE_1_M:
+ * @MLME_BCN_TX_RATE_CODE_2_M:
+ * @MLME_BCN_TX_RATE_CODE_5_5_M:
+ * @MLME_BCN_TX_RATE_CODE_6_M:
+ * @MLME_BCN_TX_RATE_CODE_9_M:
+ * @MLME_BCN_TX_RATE_CODE_11M:
+ * @MLME_BCN_TX_RATE_CODE_12_M:
+ * @MLME_BCN_TX_RATE_CODE_18_M:
+ * @MLME_BCN_TX_RATE_CODE_24_M:
+ * @MLME_BCN_TX_RATE_CODE_36_M:
+ * @MLME_BCN_TX_RATE_CODE_48_M:
+ * @MLME_BCN_TX_RATE_CODE_54_M:
  */
+enum mlme_bcn_tx_rate_code {
+	MLME_BCN_TX_RATE_CODE_1_M = 0x83,
+	MLME_BCN_TX_RATE_CODE_2_M = 0x82,
+	MLME_BCN_TX_RATE_CODE_5_5_M = 0x81,
+	MLME_BCN_TX_RATE_CODE_6_M = 0x03,
+	MLME_BCN_TX_RATE_CODE_9_M = 0x07,
+	MLME_BCN_TX_RATE_CODE_11M = 0x80,
+	MLME_BCN_TX_RATE_CODE_12_M = 0x02,
+	MLME_BCN_TX_RATE_CODE_18_M = 0x06,
+	MLME_BCN_TX_RATE_CODE_24_M = 0x01,
+	MLME_BCN_TX_RATE_CODE_36_M = 0x05,
+	MLME_BCN_TX_RATE_CODE_48_M = 0x00,
+	MLME_BCN_TX_RATE_CODE_54_M = 0x04,
+};
+#else
 enum mlme_bcn_tx_rate_code {
 	MLME_BCN_TX_RATE_CODE_1_M = 0x43,
 	MLME_BCN_TX_RATE_CODE_2_M = 0x42,
@@ -64,9 +94,18 @@ enum mlme_bcn_tx_rate_code {
 	MLME_BCN_TX_RATE_CODE_48_M = 0x00,
 	MLME_BCN_TX_RATE_CODE_54_M = 0x04,
 };
+#endif
 
 /**
  * enum wlan_mlme_host_sta_ps_param_uapsd - STA UPASD params
+ * @WLAN_MLME_HOST_STA_PS_UAPSD_AC0_DELIVERY_EN:
+ * @WLAN_MLME_HOST_STA_PS_UAPSD_AC0_TRIGGER_EN:
+ * @WLAN_MLME_HOST_STA_PS_UAPSD_AC1_DELIVERY_EN:
+ * @WLAN_MLME_HOST_STA_PS_UAPSD_AC1_TRIGGER_EN:
+ * @WLAN_MLME_HOST_STA_PS_UAPSD_AC2_DELIVERY_EN:
+ * @WLAN_MLME_HOST_STA_PS_UAPSD_AC2_TRIGGER_EN:
+ * @WLAN_MLME_HOST_STA_PS_UAPSD_AC3_DELIVERY_EN:
+ * @WLAN_MLME_HOST_STA_PS_UAPSD_AC3_TRIGGER_EN:
  */
 enum wlan_mlme_host_sta_ps_param_uapsd {
 	WLAN_MLME_HOST_STA_PS_UAPSD_AC0_DELIVERY_EN = (1 << 0),
@@ -81,6 +120,15 @@ enum wlan_mlme_host_sta_ps_param_uapsd {
 
 /**
  * enum wlan_mlme_host_vdev_start_status - vdev start status code
+ * @WLAN_MLME_HOST_VDEV_START_OK:
+ * @WLAN_MLME_HOST_VDEV_START_CHAN_INVALID:
+ * @WLAN_MLME_HOST_VDEV_START_CHAN_BLOCKED:
+ * @WLAN_MLME_HOST_VDEV_START_CHAN_DFS_VIOLATION:
+ * @WLAN_MLME_HOST_VDEV_START_CHAN_INVALID_REGDOMAIN:
+ * @WLAN_MLME_HOST_VDEV_START_CHAN_INVALID_BAND:
+ * @WLAN_MLME_HOST_VDEV_START_TIMEOUT:
+ * @WLAN_MLME_HOST_VDEV_START_TX_VAP_CFG_INVALID:
+ * @WLAN_MLME_HOST_VDEV_START_MAX_REASON: Max enumeration
  */
 enum wlan_mlme_host_vdev_start_status {
 	WLAN_MLME_HOST_VDEV_START_OK = 0,
@@ -90,13 +138,14 @@ enum wlan_mlme_host_vdev_start_status {
 	WLAN_MLME_HOST_VDEV_START_CHAN_INVALID_REGDOMAIN,
 	WLAN_MLME_HOST_VDEV_START_CHAN_INVALID_BAND,
 	WLAN_MLME_HOST_VDEV_START_TIMEOUT,
+	WLAN_MLME_HOST_VDEV_START_TX_VAP_CFG_INVALID,
 	/* Add new response status code from here */
 	WLAN_MLME_HOST_VDEV_START_MAX_REASON,
 };
 
 /**
  * string_from_start_rsp_status() - Convert start response status to string
- * @start_rsp - start response status
+ * @start_rsp: start response status
  *
  * Please note to add new string in the array at index equal to
  * its enum value in wlan_mlme_host_vdev_start_status.
@@ -111,6 +160,7 @@ static inline char *string_from_start_rsp_status(
 					"CHAN_INVALID_REGDOMAIN",
 					"CHAN_INVALID_BAND",
 					"START_RESPONSE_TIMEOUT",
+					"TX_VAP_CONFIG_INVALID",
 					"START_RESPONSE_UNKNOWN"};
 
 	if (start_rsp >= WLAN_MLME_HOST_VDEV_START_MAX_REASON)
@@ -121,6 +171,8 @@ static inline char *string_from_start_rsp_status(
 
 /**
  * enum wlan_mlme_host_start_event_param - start/restart resp event
+ * @WLAN_MLME_HOST_VDEV_START_RESP_EVENT: Start response
+ * @WLAN_MLME_HOST_VDEV_RESTART_RESP_EVENT: Restart response
  */
 enum wlan_mlme_host_start_event_param {
 	WLAN_MLME_HOST_VDEV_START_RESP_EVENT = 0,
@@ -359,8 +411,8 @@ struct fils_discovery_tmpl_params {
  * @cfreq2: centre frequency on secondary
  * @maxpower: max power for channel
  * @minpower: min power for channel
- * @maxreqpower: Max regulatory power
- * @antennamac: Max antenna
+ * @maxregpower: Max regulatory power
+ * @antennamax: Max antenna
  * @reg_class_id: Regulatory class id.
  * @puncture_bitmap: 11be static puncture bitmap
  */
@@ -411,7 +463,9 @@ struct vdev_mlme_mvr_param {
  * @num_vdevs: No. of vdevs that need to be restarted
  * @ch_param: Pointer to channel_param
  * @vdev_ids: Pointer to array of vdev_ids
- * @mvr_param: array holding multi vdev restart param
+ * @mvr_param: Pointer to array of multi vdev restart param
+ * @max_vdevs: Maximum vdev count of this pdev
+ * @mvr_bmap_enabled: flag indicating mvr-bitmap support
  */
 struct multiple_vdev_restart_params {
 	uint32_t pdev_id;
@@ -420,8 +474,10 @@ struct multiple_vdev_restart_params {
 	uint32_t cac_duration_ms;
 	uint32_t num_vdevs;
 	struct mlme_channel_param ch_param;
-	uint32_t vdev_ids[WLAN_UMAC_PDEV_MAX_VDEVS];
-	struct vdev_mlme_mvr_param mvr_param[WLAN_UMAC_PDEV_MAX_VDEVS];
+	uint32_t *vdev_ids;
+	struct vdev_mlme_mvr_param *mvr_param;
+	uint32_t max_vdevs;
+	uint8_t mvr_bmap_enabled;
 };
 
 /**
@@ -453,9 +509,9 @@ struct peer_flush_params {
 };
 
 /**
- * struct peer_delete_params - peer delete cmd parameter
+ * struct peer_delete_cmd_params - peer delete cmd parameter
  * @vdev_id: vdev id
- * @mlo_logical_link_id_bitmap: logical link id bitmap for peers
+ * @hw_link_id_bitmap: logical link id bitmap for peers
  * not getting created
  */
 struct peer_delete_cmd_params {
@@ -502,7 +558,13 @@ struct config_ratemask_params {
  * @vdev_id : vdev id
  * @tx_aggr_size : TX aggr size
  * @rx_aggr_size : RX aggr size
- * @enable_bitmap: Bitmap for aggr size check
+ * @ac:
+ * @aggr_type:
+ * @tx_aggr_size_disable:
+ * @rx_aggr_size_disable:
+ * @tx_ac_enable:
+ * @aggr_ba_enable:
+ * @reserved: spare bits
  */
 struct set_custom_aggr_size_params {
 	uint32_t  vdev_id;
@@ -571,12 +633,14 @@ struct vdev_scan_nac_rssi_params {
 
 #ifdef WLAN_FEATURE_11BE_MLO
 /**
+ * struct mlo_vdev_start_flags - MLO start flags
  * @mlo_enabled: indicate is MLO enabled
  * @mlo_assoc_link: indicate is the link used to initialize
  *                  the association of mlo connection
  * @mlo_mcast_vdev: MLO cast vdev
  * @emlsr_support: indicate non AP MLD STA supports eMLSR mode
  * @mlo_link_add: Dynamic link addition
+ * @rsvd: reserved bits
  */
 struct mlo_vdev_start_flags {
 	uint32_t mlo_enabled:1,
@@ -600,13 +664,17 @@ struct ml_vdev_start_partner_info {
 };
 
 /**
- * struct mlo_vdev_start__partner_links - ML partner links
+ * struct mlo_vdev_start_partner_links - ML partner links
  * @num_links: Number of links
  * @partner_info: Partner link info
  */
 struct mlo_vdev_start_partner_links {
 	uint8_t num_links;
+#ifdef WLAN_MLO_MULTI_CHIP
+	struct ml_vdev_start_partner_info partner_info[WLAN_UMAC_MLO_MAX_VDEVS + WLAN_UMAC_MLO_MAX_BRIDGE_VDEVS];
+#else
 	struct ml_vdev_start_partner_info partner_info[WLAN_UMAC_MLO_MAX_VDEVS];
+#endif
 };
 #endif
 /**
@@ -626,11 +694,13 @@ struct mlo_vdev_start_partner_links {
  * @regdomain: Regulatory domain
  * @he_ops: HE ops
  * @eht_ops: EHT ops
- * @channel_param: Channel params required by target.
+ * @channel: Channel params required by target.
  * @bcn_tx_rate_code: Beacon tx rate code.
  * @ldpc_rx_enabled: Enable/Disable LDPC RX for this vdev
  * @mbssid_flags: MBSSID flags to FW
  * @vdevid_trans: Tx VDEV ID
+ * @mlo_flags: Flags for multi-link operation
+ * @mlo_partner: Partner links for multi-link operation
  * @mbssid_multi_group_flag: Flag to identify multi group mbssid support
  * @mbssid_multi_group_id: Group id of current vdev
  */
@@ -678,7 +748,7 @@ struct vdev_set_params {
 };
 
 /**
- * struct dev_set_param_info - vdev/pdev set param info
+ * struct dev_set_param - vdev/pdev set param info
  * @param_id: parameter id
  * @param_value: parameter value
  */
@@ -733,7 +803,7 @@ QDF_STATUS mlme_check_index_setparam(struct dev_set_param *param,
 }
 
 /**
- * struct vdev_set_mu_snif_params - vdev set mu sniffer cmd parameter
+ * struct vdev_set_mu_snif_param - vdev set mu sniffer cmd parameter
  * @vdev_id: vdev id
  * @mode: mu snif mode
  * @num_user: max number of user
@@ -762,6 +832,7 @@ struct vdev_set_mu_snif_param {
  * @mbssid_flags: MBSS IE flags indicating vdev type
  * @vdevid_trans: id of transmitting vdev for MBSS IE
  * @special_vdev_mode: indicates special vdev mode
+ * @mlo_mac: Multilink Operation MAC address
  */
 struct vdev_create_params {
 	uint8_t vdev_id;
@@ -837,6 +908,7 @@ struct peer_delete_all_params {
 #define WMI_MUEDCA_PARAM_MASK 0xff
 /**
  * struct muedca_params - MU-EDCA parameters
+ * @pdev_id: pdev id
  * @muedca_ecwmin: CWmin in exponential form
  * @muedca_ecwmax: CWmax in exponential form
  * @muedca_aifsn:  AIFSN parameter

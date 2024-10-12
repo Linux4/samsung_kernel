@@ -6,9 +6,6 @@
 
 #include <linux/clk.h>
 #include <linux/delay.h>
-#if IS_ENABLED(CONFIG_MSM_QMP)
-#include <linux/mailbox/qmp.h>
-#endif
 #include <linux/of.h>
 #include <linux/of_gpio.h>
 #include <linux/pinctrl/consumer.h>
@@ -21,6 +18,9 @@
 #include "main.h"
 #include "debug.h"
 #include "bus.h"
+#if IS_ENABLED(CONFIG_MSM_QMP)
+#include <linux/soc/qcom/qcom_aoss.h>
+#endif
 
 #if IS_ENABLED(CONFIG_ARCH_QCOM)
 static struct cnss_vreg_cfg cnss_vreg_list[] = {
@@ -1323,36 +1323,78 @@ out:
 }
 
 #if IS_ENABLED(CONFIG_MSM_QMP)
-int cnss_aop_mbox_init(struct cnss_plat_data *plat_priv)
+/**
+ * cnss_aop_interface_init: Initialize AOP interface: either mbox channel or direct QMP
+ * @plat_priv: Pointer to cnss platform data
+ *
+ * Device tree file should have either mbox or qmp configured, but not both.
+ * Based on device tree configuration setup mbox channel or QMP
+ *
+ * Return: 0 for success, otherwise error code
+ */
+int cnss_aop_interface_init(struct cnss_plat_data *plat_priv)
 {
 	struct mbox_client *mbox = &plat_priv->mbox_client_data;
 	struct mbox_chan *chan;
 	int ret;
 
 	plat_priv->mbox_chan = NULL;
+	plat_priv->qmp = NULL;
+	plat_priv->use_direct_qmp = false;
 
 	mbox->dev = &plat_priv->plat_dev->dev;
 	mbox->tx_block = true;
 	mbox->tx_tout = CNSS_MBOX_TIMEOUT_MS;
 	mbox->knows_txdone = false;
 
+	/* First try to get mbox channel, if it fails then try qmp_get
+	 * In device tree file there should be either mboxes or qmp,
+	 * cannot have both properties at the same time.
+	 */
 	chan = mbox_request_channel(mbox, 0);
 	if (IS_ERR(chan)) {
-		cnss_pr_err("Failed to get mbox channel\n");
-		return PTR_ERR(chan);
+		cnss_pr_dbg("Failed to get mbox channel, try qmp get\n");
+		plat_priv->qmp = qmp_get(&plat_priv->plat_dev->dev);
+		if (IS_ERR(plat_priv->qmp)) {
+			cnss_pr_err("Failed to get qmp\n");
+			return PTR_ERR(plat_priv->qmp);
+		} else {
+			plat_priv->use_direct_qmp = true;
+			cnss_pr_dbg("QMP initialized\n");
+		}
+	} else {
+		plat_priv->mbox_chan = chan;
+		cnss_pr_dbg("Mbox channel initialized\n");
 	}
 
-	plat_priv->mbox_chan = chan;
-	cnss_pr_dbg("Mbox channel initialized\n");
 	ret = cnss_aop_pdc_reconfig(plat_priv);
 	if (ret)
 		cnss_pr_err("Failed to reconfig WLAN PDC, err = %d\n", ret);
 
-	return 0;
+	return ret;
 }
 
 /**
- * cnss_aop_send_msg: Sends json message to AOP using QMP
+ * cnss_aop_interface_deinit: Cleanup AOP interface
+ * @plat_priv: Pointer to cnss platform data
+ *
+ * Cleanup mbox channel or QMP whichever was configured during initialization.
+ *
+ * Return: None
+ */
+void cnss_aop_interface_deinit(struct cnss_plat_data *plat_priv)
+{
+	if (!IS_ERR_OR_NULL(plat_priv->mbox_chan))
+		mbox_free_channel(plat_priv->mbox_chan);
+
+	if (!IS_ERR_OR_NULL(plat_priv->qmp)) {
+		qmp_put(plat_priv->qmp);
+		plat_priv->use_direct_qmp = false;
+	}
+}
+
+/**
+ * cnss_aop_send_msg: Sends json message to AOP using either mbox channel or direct QMP
  * @plat_priv: Pointer to cnss platform data
  * @msg: String in json format
  *
@@ -1370,15 +1412,24 @@ int cnss_aop_send_msg(struct cnss_plat_data *plat_priv, char *mbox_msg)
 	struct qmp_pkt pkt;
 	int ret = 0;
 
-	cnss_pr_dbg("Sending AOP Mbox msg: %s\n", mbox_msg);
-	pkt.size = CNSS_MBOX_MSG_MAX_LEN;
-	pkt.data = mbox_msg;
 
-	ret = mbox_send_message(plat_priv->mbox_chan, &pkt);
-	if (ret < 0)
-		cnss_pr_err("Failed to send AOP mbox msg: %s\n", mbox_msg);
-	else
-		ret = 0;
+	if (plat_priv->use_direct_qmp) {
+		cnss_pr_dbg("Sending AOP QMP msg: %s\n", mbox_msg);
+		ret = qmp_send(plat_priv->qmp, mbox_msg, CNSS_MBOX_MSG_MAX_LEN);
+		if (ret < 0)
+			cnss_pr_err("Failed to send AOP QMP msg: %s\n", mbox_msg);
+		else
+			ret = 0;
+	} else {
+		cnss_pr_dbg("Sending AOP Mbox msg: %s\n", mbox_msg);
+		pkt.size = CNSS_MBOX_MSG_MAX_LEN;
+		pkt.data = mbox_msg;
+		ret = mbox_send_message(plat_priv->mbox_chan, &pkt);
+		if (ret < 0)
+			cnss_pr_err("Failed to send AOP mbox msg: %s\n", mbox_msg);
+		else
+			ret = 0;
+	}
 
 	return ret;
 }
@@ -1470,11 +1521,13 @@ int cnss_aop_ol_cpr_cfg_setup(struct cnss_plat_data *plat_priv,
 	if (config_done)
 		return 0;
 
-	if (plat_priv->pmu_vreg_map_len <= 0 || !plat_priv->mbox_chan ||
-	    !plat_priv->pmu_vreg_map) {
-		cnss_pr_dbg("Mbox channel / PMU VReg Map not configured\n");
+	if (plat_priv->pmu_vreg_map_len <= 0 ||
+	    !plat_priv->pmu_vreg_map ||
+	    (!plat_priv->mbox_chan && !plat_priv->qmp)) {
+		cnss_pr_dbg("Mbox channel / QMP / PMU VReg Map not configured\n");
 		goto end;
 	}
+
 	if (!fw_pmu_cfg)
 		return -EINVAL;
 
@@ -1574,9 +1627,13 @@ end:
 }
 
 #else
-int cnss_aop_mbox_init(struct cnss_plat_data *plat_priv)
+int cnss_aop_interface_init(struct cnss_plat_data *plat_priv)
 {
 	return 0;
+}
+
+void cnss_aop_interface_deinit(struct cnss_plat_data *plat_priv)
+{
 }
 
 int cnss_aop_send_msg(struct cnss_plat_data *plat_priv, char *msg)
@@ -1726,8 +1783,9 @@ int cnss_update_cpr_info(struct cnss_plat_data *plat_priv)
 	if (plat_priv->device_id != QCA6490_DEVICE_ID)
 		return -EINVAL;
 
-	if (!plat_priv->vreg_ol_cpr || !plat_priv->mbox_chan) {
-		cnss_pr_dbg("Mbox channel / OL CPR Vreg not configured\n");
+	if (!plat_priv->vreg_ol_cpr ||
+	    (!plat_priv->mbox_chan && !plat_priv->qmp)) {
+		cnss_pr_dbg("Mbox channel / QMP / OL CPR Vreg not configured\n");
 	} else {
 		return cnss_aop_set_vreg_param(plat_priv,
 					       plat_priv->vreg_ol_cpr,
@@ -1806,8 +1864,9 @@ int cnss_enable_int_pow_amp_vreg(struct cnss_plat_data *plat_priv)
 		return 0;
 	}
 
-	if (!plat_priv->vreg_ipa || !plat_priv->mbox_chan) {
-		cnss_pr_dbg("Mbox channel / IPA Vreg not configured\n");
+	if (!plat_priv->vreg_ipa ||
+	    (!plat_priv->mbox_chan && !plat_priv->qmp)) {
+		cnss_pr_dbg("Mbox channel / QMP / IPA Vreg not configured\n");
 	} else {
 		ret = cnss_aop_set_vreg_param(plat_priv,
 					      plat_priv->vreg_ipa,

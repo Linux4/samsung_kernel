@@ -42,6 +42,20 @@ void wlan_scan_get_feature_info(struct wlan_objmgr_psoc *psoc,
 #endif
 
 /**
+ * wlan_scan_get_scan_entry_by_mac_freq() - API to get scan entry
+ * info from scan db by mac addr
+ * @pdev: pointer to pdev object
+ * @bssid: pointer to mac addr
+ * @freq: frequency for scan filter
+ *
+ * Return: scan entry if found, else NULL
+ */
+struct scan_cache_entry *
+wlan_scan_get_scan_entry_by_mac_freq(struct wlan_objmgr_pdev *pdev,
+				     struct qdf_mac_addr *bssid,
+				     uint16_t freq);
+
+/**
  * wlan_scan_cfg_set_active_2g_dwelltime() - API to set scan active 2g dwelltime
  * @psoc: pointer to psoc object
  * @dwell_time: scan active dwell time
@@ -112,11 +126,28 @@ QDF_STATUS wlan_scan_cfg_get_passive_6g_dwelltime(struct wlan_objmgr_psoc *psoc,
  */
 void wlan_scan_cfg_get_min_dwelltime_6g(struct wlan_objmgr_psoc *psoc,
 					uint32_t *min_dwell_time_6ghz);
+
+/**
+ * wlan_scan_cfg_set_scan_mode_6g() - API to set scan mode for 6 GHz
+ * @psoc: pointer to psoc object
+ * @scan_mode_6g: scan mode value for 6 GHz
+ *
+ * Return: QDF_STATUS
+ */
+QDF_STATUS wlan_scan_cfg_set_scan_mode_6g(struct wlan_objmgr_psoc *psoc,
+					  enum scan_mode_6ghz scan_mode_6g);
 #else
 static inline
 void wlan_scan_cfg_get_min_dwelltime_6g(struct wlan_objmgr_psoc *psoc,
 					uint32_t *min_dwell_time_6ghz)
 {
+}
+
+static inline
+QDF_STATUS wlan_scan_cfg_set_scan_mode_6g(struct wlan_objmgr_psoc *psoc,
+					  enum scan_mode_6ghz scan_mode_6g)
+{
+	return QDF_STATUS_E_NOSUPPORT;
 }
 #endif
 
@@ -500,7 +531,6 @@ wlan_scan_get_entry_by_mac_addr(struct wlan_objmgr_pdev *pdev,
 void
 wlan_scan_get_last_scan_ageout_time(struct wlan_objmgr_psoc *psoc,
 				    uint32_t *last_scan_ageout_time);
-
 /**
  * wlan_scan_get_entry_by_bssid() - function to get scan entry by bssid
  * @pdev: pdev object
@@ -511,4 +541,32 @@ wlan_scan_get_last_scan_ageout_time(struct wlan_objmgr_psoc *psoc,
 struct scan_cache_entry *
 wlan_scan_get_entry_by_bssid(struct wlan_objmgr_pdev *pdev,
 			     struct qdf_mac_addr *bssid);
+
+/**
+ * wlan_scan_get_mld_addr_by_link_addr() - Function to get MLD address
+ * in the scan entry from the link BSSID.
+ * @pdev: pdev object
+ * @link_addr: Link BSSID to match the scan filter
+ * @mld_mac_addr: Pointer to fill the MLD address.
+ *
+ * A wrapper API which fills @mld_mac_addr with MLD address of scan entry
+ * whose bssid field matches @link_addr.
+ *
+ * Return: QDF_STATUS
+ */
+QDF_STATUS
+wlan_scan_get_mld_addr_by_link_addr(struct wlan_objmgr_pdev *pdev,
+				    struct qdf_mac_addr *link_addr,
+				    struct qdf_mac_addr *mld_mac_addr);
+
+/**
+ * wlan_scan_get_aux_support() - get aux scan policy
+ * @psoc: psoc object
+ *
+ * Set aux scan bits in scan_ctrl_ext_flag value depending on scan type.
+ *
+ * Return: true/false
+ */
+bool wlan_scan_get_aux_support(struct wlan_objmgr_psoc *psoc);
+
 #endif

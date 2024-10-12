@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2013-2020 The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -107,6 +107,11 @@ void hif_sdio_stop(struct hif_softc *hif_ctx)
 /**
  * hif_send_head() - send data on hif bus interface.
  * @hif_ctx: HIF context
+ * @pipe:
+ * @transfer_id:
+ * @nbytes:
+ * @buf:
+ * @data_attr:
  *
  * send tx data on a given pipe id
  *
@@ -127,12 +132,12 @@ QDF_STATUS hif_send_head(struct hif_opaque_softc *hif_ctx, uint8_t pipe,
 
 /**
  * hif_map_service_to_pipe() - maps ul/dl pipe to service id.
- * @hif_ctx: HIF hdl
- * @ServiceId: service index
+ * @hif_hdl: HIF hdl
+ * @service_id: service index
  * @ul_pipe: uplink pipe id
  * @dl_pipe: down-linklink pipe id
  * @ul_is_polled: if ul is polling based
- * @ul_is_polled: if dl is polling based
+ * @dl_is_polled: if dl is polling based
  *
  * Return: int
  */

@@ -51,6 +51,7 @@ struct cnx_mgr;
 #define WLAN_VDEV_MLME_SUBTYPE_MESH 0x5
 #define WLAN_VDEV_MLME_SUBTYPE_MESH_11S   0x6
 #define WLAN_VDEV_MLME_SUBTYPE_SMART_MONITOR 0x7
+#define WLAN_VDEV_MLME_SUBTYPE_MLO_BRIDGE 0x8
 
 /* vdev control flags (per bits) */
 #define WLAN_VDEV_MLME_FLAGS_NON_MBSSID_AP      0x00000001
@@ -223,6 +224,9 @@ struct vdev_mlme_he_ops_info {
  * @eht_phycap_mubfmrlt80mhz         : MU Beamformer (BW <= 80 MHz)
  * @eht_phycap_mubfmr160mhz          : MU Beamformer (BW = 160 MHz)
  * @eht_phycap_mubfmr320mhz          : MU Beamformer (BW = 320 MHz)
+ * @eht_phycap_tb_sounding_feedback_rl:
+ * @eht_phycap_rx1024qamwiderbwdlofdma:
+ * @eht_phycap_rx4096qamwiderbwdlofdma:
  */
 struct vdev_mlme_eht_caps_info {
 	uint32_t eht_maccap_epcspriaccess_support :1,
@@ -291,11 +295,11 @@ struct vdev_mlme_eht_ops_info {
 
 /**
  * enum mlme_vdev_dot11_mode - Dot11 mode of the vdev
- * MLME_VDEV_DOT11_MODE_AUTO: vdev uses mlme_dot11_mode
- * MLME_VDEV_DOT11_MODE_11N: vdev supports 11N mode
- * MLME_VDEV_DOT11_MODE_11AC: vdev supports 11AC mode
- * MLME_VDEV_DOT11_MODE_11AX: vdev supports 11AX mode
- * MLME_VDEV_DOT11_MODE_11BE: vdev supports 11BE mode
+ * @MLME_VDEV_DOT11_MODE_AUTO: vdev uses mlme_dot11_mode
+ * @MLME_VDEV_DOT11_MODE_11N: vdev supports 11N mode
+ * @MLME_VDEV_DOT11_MODE_11AC: vdev supports 11AC mode
+ * @MLME_VDEV_DOT11_MODE_11AX: vdev supports 11AX mode
+ * @MLME_VDEV_DOT11_MODE_11BE: vdev supports 11BE mode
  */
 enum mlme_vdev_dot11_mode {
 	MLME_VDEV_DOT11_MODE_AUTO,
@@ -306,7 +310,7 @@ enum mlme_vdev_dot11_mode {
 };
 
 /**
- * struct vdev_mlme_he_ops_info - vdev protocol structure holding information
+ * struct vdev_mlme_proto - vdev protocol structure holding information
  * that is used in frames
  * @vdev_dot11_mode: supported dot11 mode
  * @generic: generic protocol information
@@ -341,7 +345,7 @@ struct vdev_mlme_proto {
  * @probe_delay: time in msec for delaying to send first probe request
  * @repeat_probe_time: probe request transmission time
  * @drop_unencry: drop unencrypted status
- * @ tx_pwrlimit: Tx power limit
+ * @tx_pwrlimit: Tx power limit
  * @tx_power: Tx power
  * @minpower: Min power
  * @maxpower: Max power
@@ -353,19 +357,22 @@ struct vdev_mlme_proto {
  * @ssid: service set identifier
  * @ssid_len: ssid length
  * @type: vdev type
- * @sub_type: vdev subtype
+ * @subtype: vdev subtype
  * @rx_decap_type: rx decap type
  * @tx_encap_type: tx encap type
  * @disable_hw_ack: disable ha ack flag
  * @bssid: bssid
  * @phy_mode: phy mode
  * @special_vdev_mode: indicates special vdev mode
+ * @is_sap_go_moved_1st_on_csa: Indicates if STA receives
+ *				CSA to a DFS channel
  * @he_spr_sr_ctrl:     Spatial reuse SR control
  * @he_spr_non_srg_pd_max_offset: Non-SRG PD max offset
  * @he_spr_srg_max_pd_offset: SRG PD max offset
  * @he_spr_srg_min_pd_offset: SRG PD min offset
  * @he_spr_enabled:     Spatial reuse enabled or not
  * @he_spr_disabled_due_conc: spr disabled due to concurrency
+ * @sr_prohibit_enabled:
  * @srg_bss_color: srg bss color
  * @srg_partial_bssid: srg partial bssid
  * @he_curr_non_srg_pd_threshold: current configured NON-SRG PD threshold
@@ -385,7 +392,7 @@ struct vdev_mlme_mgmt_generic {
 	uint8_t maxregpower;
 	uint8_t antennamax;
 	uint8_t reg_class_id;
-	uint8_t ampdu;
+	uint16_t ampdu;
 	uint8_t amsdu;
 	char ssid[WLAN_SSID_MAX_LEN + 1];
 	uint8_t ssid_len;
@@ -397,6 +404,7 @@ struct vdev_mlme_mgmt_generic {
 	uint8_t bssid[QDF_MAC_ADDR_SIZE];
 	uint32_t phy_mode;
 	bool special_vdev_mode;
+	bool is_sap_go_moved_1st_on_csa;
 #ifdef WLAN_FEATURE_SR
 	uint8_t he_spr_sr_ctrl;
 	uint8_t he_spr_non_srg_pd_max_offset;
@@ -413,8 +421,8 @@ struct vdev_mlme_mgmt_generic {
 #endif
 };
 
-/*
- * struct wlan_vdev_aid_mgr – AID manager
+/**
+ * struct wlan_vdev_aid_mgr - AID manager
  * @aid_bitmap: AID bitmap array
  * @start_aid: start of AID index
  * @max_aid: Max allowed AID
@@ -477,13 +485,16 @@ struct vdev_mlme_inactivity_params {
  * @WLAN_VDEV_RATEMASK_TYPE_CCK: phy type CCK
  * @WLAN_VDEV_RATEMASK_TYPE_HT: phy type ht
  * @WLAN_VDEV_RATEMASK_TYPE_VHT: phy type vht
- * WLAN_VDEV_RATEMASK_TYPE_HE: phy type he
+ * @WLAN_VDEV_RATEMASK_TYPE_HE: phy type he
+ * @WLAN_VDEV_RATEMASK_TYPE_EHT: phy type eht
+ * @WLAN_VDEV_RATEMASK_TYPE_MAX: Maximum enumeration
  */
 enum vdev_ratemask_type {
 	WLAN_VDEV_RATEMASK_TYPE_CCK,
 	WLAN_VDEV_RATEMASK_TYPE_HT,
 	WLAN_VDEV_RATEMASK_TYPE_VHT,
 	WLAN_VDEV_RATEMASK_TYPE_HE,
+	WLAN_VDEV_RATEMASK_TYPE_EHT,
 	WLAN_VDEV_RATEMASK_TYPE_MAX,
 };
 
@@ -510,6 +521,7 @@ struct vdev_ratemask_params {
  * @tx_mgmt_rate: Tx Mgmt rate
  * @bcn_tx_rate: beacon Tx rate
  * @bcn_tx_rate_code: beacon Tx rate code
+ * @rtscts_tx_rate: RTS/CTS Tx rate
  * @ratemask_params: vdev ratemask params per phy type
  * @half_rate: Half rate
  * @quarter_rate: quarter rate
@@ -574,14 +586,14 @@ struct vdev_mlme_beacon_info {
  * struct vdev_mlme_mbss_11ax - mbss 11ax fields required for up cmd
  * @profile_idx: profile index of the connected non-trans ap (mbssid case).
  *              0  means invalid.
- * @profile_num: the total profile numbers of non-trans aps (mbssid
- * case).
+ * @profile_num: the total profile numbers of non-trans aps (mbssid case).
  *              0 means non-MBSS AP.
- * @mbssid-flags: MBSS IE flags indicating vdev type
+ * @mbssid_flags: MBSS IE flags indicating vdev type
  * @vdevid_trans: id of transmitting vdev for MBSS IE
  * @vdev_bmap: vdev bitmap of VAPs in MBSS group
  * @is_cmn_param: flag to check mbss common param
  * @trans_bssid: bssid of transmitted AP (MBSS IE case)
+ * @non_trans_bssid: bssid of non transmitted AP (MBSS IE case)
  * @is_multi_mbssid: Flag to identify multi group mbssid support
  * @grp_id: Group id of current vdev
  */
@@ -593,6 +605,7 @@ struct vdev_mlme_mbss_11ax {
 	unsigned long vdev_bmap;
 	bool is_cmn_param;
 	uint8_t trans_bssid[QDF_MAC_ADDR_SIZE];
+	uint8_t non_trans_bssid[QDF_MAC_ADDR_SIZE];
 	bool is_multi_mbssid;
 	uint32_t grp_id;
 };
@@ -674,6 +687,7 @@ enum vdev_start_resp_type {
  * @mlme_vdev_start_continue:           callback to initiate operations on
  *                                      LMAC/FW start response
  * @mlme_vdev_sta_conn_start:           callback to initiate STA connection
+ * @mlme_vdev_start_req_failed:
  * @mlme_vdev_up_send:                  callback to initiate actions of VDEV
  *                                      MLME up operation
  * @mlme_vdev_notify_up_complete:       callback to notify VDEV MLME on moving
@@ -691,6 +705,9 @@ enum vdev_start_resp_type {
  *                                      peer delete completion
  * @mlme_vdev_down_send:                callback to initiate actions of VDEV
  *                                      MLME down operation
+ * @mlme_vdev_notify_down_complete:
+ * @mlme_vdev_ext_stop_rsp:
+ * @mlme_vdev_ext_start_rsp:
  * @mlme_vdev_notify_start_state_exit:  callback to notify on vdev start
  *                                      start state exit
  * @mlme_vdev_is_newchan_no_cac:        callback to check CAC is required
@@ -704,6 +721,7 @@ enum vdev_start_resp_type {
  *                                      the first ml reconfig IE
  * @mlme_vdev_reconfig_timer_complete:  callback to process ml reconfing
  *                                      operation
+ * @mlme_vdev_notify_mlo_sync_wait_entry:
  */
 struct vdev_mlme_ops {
 	QDF_STATUS (*mlme_vdev_validate_basic_params)(
@@ -746,7 +764,8 @@ struct vdev_mlme_ops {
 				uint16_t event_data_len, void *event_data);
 	QDF_STATUS (*mlme_vdev_disconnect_peers)(
 				struct vdev_mlme_obj *vdev_mlme,
-				uint16_t event_data_len, void *event_data);
+				uint16_t event_data_len, void *event_data,
+				bool discon_legacy_only);
 	QDF_STATUS (*mlme_vdev_dfs_cac_timer_stop)(
 				struct vdev_mlme_obj *vdev_mlme,
 				uint16_t event_data_len, void *event_data);
@@ -835,8 +854,8 @@ struct vdev_mlme_obj {
  *
  * Caller need to acquire lock with wlan_vdev_obj_lock()
  *
- * Return: SUCCESS, if update is done
- *          FAILURE, if ssid length is > max ssid len
+ * Return: QDF_STATUS_SUCCESS, if update is done
+ *         QDF_STATUS error, if ssid length is > max ssid len
  */
 static inline QDF_STATUS wlan_vdev_mlme_set_ssid(
 				struct wlan_objmgr_vdev *vdev,
@@ -922,8 +941,7 @@ static inline void wlan_vdev_mlme_set_nss(
  *
  * API to get the Number of Spatial Streams
  *
- * Return:
- * @nss: nss value
+ * Return: nss value
  */
 static inline uint8_t wlan_vdev_mlme_get_nss(
 				struct wlan_objmgr_vdev *vdev)
@@ -966,8 +984,7 @@ static inline void wlan_vdev_mlme_set_txchainmask(
  *
  * API to get the Tx chainmask
  *
- * Return:
- * @chainmask : Tx chainmask either configured by user or max supported
+ * Return: Tx chainmask either configured by user or max supported
  */
 static inline uint8_t wlan_vdev_mlme_get_txchainmask(
 				struct wlan_objmgr_vdev *vdev)
@@ -1009,8 +1026,7 @@ static inline void wlan_vdev_mlme_set_rxchainmask(
  *
  * API to get the Rx chainmask
  *
- * Return:
- * @chainmask : Rx chainmask either configured by user or max supported
+ * Return: Rx chainmask either configured by user or max supported
  */
 static inline uint8_t wlan_vdev_mlme_get_rxchainmask(
 				struct wlan_objmgr_vdev *vdev)
@@ -1053,8 +1069,7 @@ static inline void wlan_vdev_mlme_set_txpower(
  *
  * API to get the tx power
  *
- * Return:
- * @txpow: tx power either configured by used or max allowed
+ * Return: tx power either configured by used or max allowed
  */
 static inline uint8_t wlan_vdev_mlme_get_txpower(
 				struct wlan_objmgr_vdev *vdev)
@@ -1096,8 +1111,7 @@ static inline void wlan_vdev_mlme_set_maxrate(
  *
  * API to get the max rate the vdev supports
  *
- * Return:
- * @maxrate: configured by used or based on configured mode
+ * Return: configured by used or based on configured mode
  */
 static inline uint32_t wlan_vdev_mlme_get_maxrate(
 				struct wlan_objmgr_vdev *vdev)
@@ -1139,8 +1153,7 @@ static inline void wlan_vdev_mlme_set_txmgmtrate(
  *
  * API to get Mgmt Tx rate
  *
- * Return:
- * @txmgmtrate: Tx Mgmt rate
+ * Return: Tx Mgmt rate
  */
 static inline uint32_t wlan_vdev_mlme_get_txmgmtrate(
 				struct wlan_objmgr_vdev *vdev)
@@ -1177,6 +1190,56 @@ static inline bool wlan_vdev_mlme_is_special_vdev(
 	return vdev_mlme->mgmt.generic.special_vdev_mode;
 }
 
+/**
+ * wlan_vdev_mlme_is_sap_go_move_before_sta() - check if SAP / GO
+ * moved to new channel before STA's movement upon receiving CSA
+ *
+ * @vdev: VDEV object
+ *
+ * API to check in STA+SAP/GO SCC concurrency, whether SAP / GO moved before
+ * STA's movement on receiving CSA from peer AP to connected STA.
+ *
+ * Return: true if SAP / GO moved before STA else false
+ */
+static inline
+bool wlan_vdev_mlme_is_sap_go_move_before_sta(struct wlan_objmgr_vdev *vdev)
+{
+	struct vdev_mlme_obj *vdev_mlme;
+
+	vdev_mlme = wlan_vdev_mlme_get_cmpt_obj(vdev);
+	if (!vdev_mlme)
+		return false;
+
+	return vdev_mlme->mgmt.generic.is_sap_go_moved_1st_on_csa;
+}
+
+/**
+ * wlan_vdev_mlme_set_sap_go_move_before_sta() - Set flag if SAP / GO
+ * moves to new channel before STA's movement upon receiving CSA
+ *
+ * @vdev: VDEV object
+ * @sap_go_moved_before_sta: Flag to indicate True when SAP / GO
+ *  moves before STA
+ *
+ * API to set True in STA+SAP/GO SCC concurrency, when SAP / GO moves before
+ * STA's movement on receiving CSA from peer AP to connected STA.
+ *
+ * Return: void
+ */
+static inline
+void wlan_vdev_mlme_set_sap_go_move_before_sta(struct wlan_objmgr_vdev *vdev,
+					       bool sap_go_moved_before_sta)
+{
+	struct vdev_mlme_obj *vdev_mlme;
+
+	vdev_mlme = wlan_vdev_mlme_get_cmpt_obj(vdev);
+	if (!vdev_mlme)
+		return;
+
+	vdev_mlme->mgmt.generic.is_sap_go_moved_1st_on_csa =
+						sap_go_moved_before_sta;
+}
+
 #ifdef WLAN_FEATURE_11AX
 /**
  * wlan_vdev_mlme_set_he_mcs_12_13_map() - set he mcs12/13 map
@@ -1206,8 +1269,7 @@ static inline void wlan_vdev_mlme_set_he_mcs_12_13_map(
  *
  * API to get he mcs12/13 support capability
  *
- * Return:
- * @he_mcs_12_13_map: he mcs12/13 map
+ * Return: he mcs12/13 map
  */
 static inline uint16_t wlan_vdev_mlme_get_he_mcs_12_13_map(
 				struct wlan_objmgr_vdev *vdev)
@@ -1230,8 +1292,7 @@ static inline uint16_t wlan_vdev_mlme_get_he_mcs_12_13_map(
  *
  * Caller need to acquire lock with wlan_vdev_obj_lock()
  *
- * Return:
- * @he_spr_sr_ctrl: SR control
+ * Return: SR control
  */
 static inline uint8_t wlan_vdev_mlme_get_sr_ctrl(struct wlan_objmgr_vdev *vdev)
 {
@@ -1250,8 +1311,7 @@ static inline uint8_t wlan_vdev_mlme_get_sr_ctrl(struct wlan_objmgr_vdev *vdev)
  *
  * API to retrieve the spatial reuse pd offset from VDEV
  *
- * Return:
- * @he_spr_non_srg_pd_max_offset: max non srg pd offset
+ * Return: max non srg pd offset
  */
 static inline uint8_t wlan_vdev_mlme_get_non_srg_pd_offset(
 						struct wlan_objmgr_vdev *vdev)
@@ -1271,8 +1331,7 @@ static inline uint8_t wlan_vdev_mlme_get_non_srg_pd_offset(
  *
  * API to check whether the spatial reuse enabled or not
  *
- * Return:
- * @he_spr_enabled: Spatial reuse enabled or not
+ * Return: true if Spatial reuse enabled, false if not
  */
 static inline bool wlan_vdev_mlme_get_he_spr_enabled(
 						struct wlan_objmgr_vdev *vdev)
@@ -1319,8 +1378,7 @@ bool wlan_vdev_mlme_is_sr_disable_due_conc(struct wlan_objmgr_vdev *vdev)
  *
  * Caller need to acquire lock with wlan_vdev_obj_lock()
  *
- * Return:
- * @sr_prohibit_enabled: Spatial reuse PD prohibit enabled / disabled
+ * Return: true/false: Spatial reuse PD prohibit enabled / disabled
  */
 static inline
 bool wlan_vdev_mlme_is_sr_prohibit_en(struct wlan_objmgr_vdev *vdev)
@@ -1337,6 +1395,7 @@ bool wlan_vdev_mlme_is_sr_prohibit_en(struct wlan_objmgr_vdev *vdev)
 /**
  * wlan_vdev_mlme_set_sr_ctrl() - set spatial reuse SR control
  * @vdev: VDEV object
+ * @sr_ctrl: value to set
  *
  * API to set the spatial reuse SR control
  *
@@ -1360,6 +1419,7 @@ static inline void wlan_vdev_mlme_set_sr_ctrl(struct wlan_objmgr_vdev *vdev,
  * wlan_vdev_mlme_set_non_srg_pd_offset() - set spatial reuse non srg
  * pd max offset
  * @vdev: VDEV object
+ * @non_srg_pd_max_offset: value to set
  *
  * API to set the spatial reuse pd max offset
  *
@@ -1382,6 +1442,7 @@ wlan_vdev_mlme_set_non_srg_pd_offset(struct wlan_objmgr_vdev *vdev,
 /**
  * wlan_vdev_mlme_set_he_spr_enabled() - set spatial reuse enabled
  * @vdev: VDEV object
+ * @enable_he_spr: value to set
  *
  * API to set the spatial reuse enabled
  *
@@ -1404,6 +1465,7 @@ static inline void wlan_vdev_mlme_set_he_spr_enabled(
  * wlan_vdev_mlme_set_sr_disable_due_conc() - set spatial reuse disabled due
  *					      to concurrency
  * @vdev: VDEV object
+ * @he_spr_disabled_due_conc: value to set
  *
  * API to set the spatial reuse disabled due to concurrency
  *
@@ -1501,8 +1563,8 @@ void wlan_vdev_mlme_get_srg_pd_offset(struct wlan_objmgr_vdev *vdev,
 }
 
 /**
- * wlan_vdev_mlme_set_srg_bss_color() - set spatial reuse bss
- *					colorbitmap
+ * wlan_vdev_mlme_set_srg_bss_color_bit_map() - set spatial reuse bss
+ *					        color bitmap
  * @vdev: VDEV object
  * @srg_bss_color: SRG BSS color bitmap
  *

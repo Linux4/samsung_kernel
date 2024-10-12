@@ -31,6 +31,10 @@ Optional property:
 		MHI driver on the host. This property is required if iatu
 		property qcom,mhi-config-iatu is present.
   - qcom,enable-m2: If property is present M2 autonomous is enabled.
+  - qcom,no-path-from-ipa-to-pcie: boolean type; No direct path from the IPA to PCIe.
+  - qcom,mhi-num-ipc-pages-dev-fac: If property is present reduce the MHI ipc
+		logging size based on the divisor factor. This property also
+		represents the divisor factor.
 
 MSM MHI DEV NET
 

@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2016-2018, 2020, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -287,7 +287,7 @@ static QDF_STATUS send_set_epno_network_list_cmd_tlv(wmi_unified_t wmi_handle,
  *
  * This function send request to fw to get extscan capabilities.
  *
- * Return: CDF status
+ * Return: QDF status
  */
 static QDF_STATUS send_extscan_get_capabilities_cmd_tlv(wmi_unified_t wmi_handle,
 		    struct extscan_capabilities_params *pgetcapab)
@@ -329,7 +329,7 @@ static QDF_STATUS send_extscan_get_capabilities_cmd_tlv(wmi_unified_t wmi_handle
  *
  * This function send request to fw to get cached results.
  *
- * Return: CDF status
+ * Return: QDF status
  */
 static QDF_STATUS send_extscan_get_cached_results_cmd_tlv(wmi_unified_t wmi_handle,
 		  struct extscan_cached_result_params *pcached_results)
@@ -373,7 +373,7 @@ static QDF_STATUS send_extscan_get_cached_results_cmd_tlv(wmi_unified_t wmi_hand
  *
  * This function sends stop change monitor request to fw.
  *
- * Return: CDF status
+ * Return: QDF status
  */
 static QDF_STATUS send_extscan_stop_change_monitor_cmd_tlv
 			(wmi_unified_t wmi_handle,
@@ -516,7 +516,7 @@ static QDF_STATUS wmi_get_buf_extscan_change_monitor_cmd
  *
  * This function sends start change monitor request to fw.
  *
- * Return: CDF status
+ * Return: QDF status
  */
 static QDF_STATUS send_extscan_start_change_monitor_cmd_tlv
 			(wmi_unified_t wmi_handle,
@@ -555,7 +555,7 @@ static QDF_STATUS send_extscan_start_change_monitor_cmd_tlv
  *
  * This function configures hotlist monitor to stop in fw.
  *
- * Return: CDF status
+ * Return: QDF status
  */
 static QDF_STATUS send_extscan_stop_hotlist_monitor_cmd_tlv
 		(wmi_unified_t wmi_handle,

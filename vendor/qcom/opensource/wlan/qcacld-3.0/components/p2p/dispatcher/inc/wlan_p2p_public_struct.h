@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2017-2019, 2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -47,6 +47,7 @@
  * @single_noa_duration: single shot noa duration
  * @ps_selection: power save selection
  * @session_id: session id
+ * @start: start time
  */
 struct p2p_ps_params {
 	uint8_t opp_ps;
@@ -57,6 +58,7 @@ struct p2p_ps_params {
 	uint32_t single_noa_duration;
 	uint8_t ps_selection;
 	uint8_t session_id;
+	uint32_t start;
 };
 
 /**
@@ -177,6 +179,7 @@ struct p2p_set_mac_filter_evt {
  * @interval:              Interval
  * @single_noa_duration:   Single shot noa duration
  * @ps_selection:          power save selection
+ * @start:                 Start time
  */
 struct p2p_ps_config {
 	uint32_t vdev_id;
@@ -187,6 +190,7 @@ struct p2p_ps_config {
 	uint32_t interval;
 	uint32_t single_noa_duration;
 	uint32_t ps_selection;
+	uint32_t start;
 };
 
 /**
@@ -245,7 +249,7 @@ struct noa_descriptor {
  * @opps_ps:           opps ps state of the AP
  * @ct_window:         ct window in TUs
  * @vdev_id:           vdev id
- * @num_descriptors:   number of NOA descriptors
+ * @num_desc:          number of NOA descriptors
  * @noa_desc:          noa descriptors
  */
 struct p2p_noa_info {
@@ -267,7 +271,7 @@ struct p2p_protocol_callbacks {
 
 /**
  * enum p2p_attr_id - enum for P2P attributes ID in P2P IE
- * @P2P_ATTR_STATUS - Attribute Status none
+ * @P2P_ATTR_STATUS: Attribute Status none
  * @P2P_ATTR_MINOR_REASON_CODE: Minor reason code attribute
  * @P2P_ATTR_CAPABILITY: Capability attribute
  * @P2P_ATTR_DEVICE_ID: device ID attribute
@@ -289,13 +293,13 @@ struct p2p_protocol_callbacks {
  * @P2P_ATTR_OOB_GO_NEG_CHANNEL: GO neg channel attribute
  * @P2P_ATTR_SERVICE_HASH: Service HASH attribute
  * @P2P_ATTR_SESSION_INFORMATION_DATA: Session Info data attribute
- * @P2P_ATTR_CONNECTION_CAPABILITY = Connection capability attribute
- * @P2P_ATTR_ADVERTISEMENT_ID = Advertisement ID attribute
- * @P2P_ATTR_ADVERTISED_SERVICE = Advertised Service attribute
- * @P2P_ATTR_SESSION_ID = Session ID attribute
- * @P2P_ATTR_FEATURE_CAPABILITY = Feature capability attribute
- * @P2P_ATTR_PERSISTENT_GROUP -Persistent group attribute
- * @P2P_ATTR_VENDOR_SPECIFIC - Vendor specific attribute
+ * @P2P_ATTR_CONNECTION_CAPABILITY: Connection capability attribute
+ * @P2P_ATTR_ADVERTISEMENT_ID: Advertisement ID attribute
+ * @P2P_ATTR_ADVERTISED_SERVICE: Advertised Service attribute
+ * @P2P_ATTR_SESSION_ID: Session ID attribute
+ * @P2P_ATTR_FEATURE_CAPABILITY: Feature capability attribute
+ * @P2P_ATTR_PERSISTENT_GROUP: Persistent group attribute
+ * @P2P_ATTR_VENDOR_SPECIFIC: Vendor specific attribute
  */
 enum p2p_attr_id {
 	P2P_ATTR_STATUS = 0,

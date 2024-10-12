@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2019-2020 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -24,8 +25,8 @@
 /**
  * extract_interop_issues_ap_ev_param_tlv() - extract info from event
  * @wmi_handle: wmi handle
- * @param evt_buf: pointer to event buffer
- * @param param: Pointer to hold interop issues ap info
+ * @evt_buf: pointer to event buffer
+ * @data: Pointer to hold interop issues ap info
  *
  * Return: QDF_STATUS_SUCCESS for success or error code
  */

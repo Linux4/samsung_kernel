@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2012-2019 The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -34,6 +34,10 @@
  * bit2 - IPv6 enable
  * bit3 - IPA Resource Manager (RM) enable
  * bit4 - IPA Clock scaling enable
+ * bit5 - IPA UC enable
+ * bit6 - IPA UC STA enable
+ * bit8 - IPA real time debugging
+ * bit9 - IPA Optional wifi dp enable
  */
 
 /*
@@ -88,7 +92,7 @@
  * <ini>
  * gIPAHighBandwidthMbps - IPA high bw threshold
  * @Min: 200
- * @Max: 1000
+ * @Max: 4294967295UL
  * @Default: 400
  *
  * This ini specifies the IPA high bw threshold
@@ -104,7 +108,7 @@
  #define CFG_DP_IPA_HIGH_BANDWIDTH_MBPS \
 		CFG_INI_UINT("gIPAHighBandwidthMbps", \
 		200, \
-		1000, \
+		4294967295UL, \
 		400, \
 		CFG_VALUE_OR_DEFAULT, "IPA high bw threshold")
 
@@ -112,7 +116,7 @@
  * <ini>
  * gIPAMediumBandwidthMbps - IPA medium bw threshold
  * @Min: 100
- * @Max: 400
+ * @Max: 4294967295UL
  * @Default: 200
  *
  * This ini specifies the IPA medium bw threshold
@@ -128,7 +132,7 @@
  #define CFG_DP_IPA_MEDIUM_BANDWIDTH_MBPS \
 		CFG_INI_UINT("gIPAMediumBandwidthMbps", \
 		100, \
-		400, \
+		4294967295UL, \
 		200, \
 		CFG_VALUE_OR_DEFAULT, "IPA medium bw threshold")
 
@@ -136,7 +140,7 @@
  * <ini>
  * gIPALowBandwidthMbps - IPA low bw threshold
  * @Min: 0
- * @Max: 100
+ * @Max: 4294967295UL
  * @Default: 100
  *
  * This ini specifies the IPA low bw threshold
@@ -152,7 +156,7 @@
  #define CFG_DP_IPA_LOW_BANDWIDTH_MBPS \
 		CFG_INI_UINT("gIPALowBandwidthMbps", \
 		0, \
-		100, \
+		4294967295UL, \
 		100, \
 		CFG_VALUE_OR_DEFAULT, "IPA low bw threshold")
 

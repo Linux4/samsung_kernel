@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2013-2018 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -66,9 +67,9 @@ QDF_STATUS wmi_unified_ocb_get_tsf_timer(struct wmi_unified *wmi_handle,
 					 struct ocb_get_tsf_timer_param *req);
 
 /**
- * wmi_unified_ocb_set_utc_time_cmd() - get ocb tsf timer val
+ * wmi_unified_ocb_set_utc_time_cmd() - set OCB UTC time
  * @wmi_handle: pointer to the wmi handle
- * @vdev_id: vdev id
+ * @utc: UTC time
  *
  * Return: QDF_STATUS_SUCCESS on success and QDF_STATUS_E_FAILURE for failure
  */
@@ -145,7 +146,7 @@ QDF_STATUS wmi_extract_dcc_update_ndl_resp(struct wmi_unified *wmi_handle,
  * wmi_extract_dcc_stats() - extract DCC stats from wmi event
  * @wmi_handle: wmi handle
  * @evt_buf: pointer to event buffer
- * @resp: DCC stats
+ * @response: DCC stats
  *
  * Since length of the response is variable, response buffer will be allocated.
  * The caller must free the response buffer.

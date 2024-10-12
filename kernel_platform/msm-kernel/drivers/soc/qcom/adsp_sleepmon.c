@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0-only
-//Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+//Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
 /*
  * Copyright (c) 2021, The Linux Foundation. All rights reserved.
  */
@@ -46,6 +46,12 @@
 #if IS_ENABLED(CONFIG_SND_SOC_SAMSUNG_AUDIO)
 #include <soc/qcom/adsp_sleepmon.h>
 #endif
+#if IS_ENABLED(CONFIG_SEC_SENSORS_SSC) && !IS_ENABLED(CONFIG_SEC_FACTORY)
+#include <linux/time.h>
+#include <linux/ktime.h>
+#include <linux/time64.h>
+#endif
+
 #define ADSPSLEEPMON_SMEM_ADSP_PID                              2
 #define ADSPSLEEPMON_SLEEPSTATS_ADSP_SMEM_ID                    606
 #define ADSPSLEEPMON_SLEEPSTATS_ADSP_LPI_SMEM_ID                613
@@ -263,6 +269,15 @@ struct sleepmon_request {
 	bool busy;
 };
 
+#if IS_ENABLED(CONFIG_SEC_SENSORS_SSC) && !IS_ENABLED(CONFIG_SEC_FACTORY)
+struct sleepmon_ap_sleep_check {
+	struct timespec64 suspend_ts;
+	struct timespec64 resume_ts;
+	u32 no_sleep_count; 
+	u32 frequent_wakeup_count; 
+};
+#endif
+
 struct adspsleepmon {
 	bool b_enable;
 	bool timer_event;
@@ -277,8 +292,10 @@ struct adspsleepmon {
 	bool b_config_adsp_panic_lpm;
 	bool b_config_adsp_panic_lpi;
 	bool b_config_adsp_panic_lpm_overall;
-#if IS_ENABLED(CONFIG_SEC_SENSORS_SSC)
-	bool b_config_adsp_recovery_lpm_overall;
+#if IS_ENABLED(CONFIG_SEC_SENSORS_SSC) && !IS_ENABLED(CONFIG_SEC_FACTORY)
+	bool b_config_enable_adsp_sleep_checker_ss;
+	bool b_config_enable_adsp_frequent_wakeup_panic_ss;
+	u32 adsp_crash_ssr;
 #endif
 	bool b_rpmsg_register;
 	u32 lpm_wait_time;
@@ -316,6 +333,10 @@ struct adspsleepmon {
 #if IS_ENABLED(CONFIG_QCOM_ADSP_SLEEPMON_RPROC_RESTART)
 	phandle adsp_rproc_phandle;
 	struct rproc *adsp_rproc;
+#endif
+#if IS_ENABLED(CONFIG_SEC_SENSORS_SSC) && !IS_ENABLED(CONFIG_SEC_FACTORY)
+	struct sleepmon_ap_sleep_check ap_sleep_checker;
+	struct sleep_stats suspend_prepare_stats;
 #endif
 };
 
@@ -431,6 +452,10 @@ static int adspsleepmon_suspend_notify(struct notifier_block *nb,
 		 * Not acquiring mutex here, see if it is needed!
 		 */
 		pr_info("PM_POST_SUSPEND\n");
+#if IS_ENABLED(CONFIG_SEC_SENSORS_SSC) && !IS_ENABLED(CONFIG_SEC_FACTORY)
+		g_adspsleepmon.ap_sleep_checker.resume_ts = 
+			ktime_to_timespec64(ktime_get_boottime());
+#endif			
 		if (!g_adspsleepmon.audio_stats.num_sessions ||
 			(g_adspsleepmon.audio_stats.num_sessions ==
 				g_adspsleepmon.audio_stats.num_lpi_sessions)) {
@@ -439,6 +464,17 @@ static int adspsleepmon_suspend_notify(struct notifier_block *nb,
 		}
 		break;
 	}
+#if IS_ENABLED(CONFIG_SEC_SENSORS_SSC) && !IS_ENABLED(CONFIG_SEC_FACTORY)
+	case PM_SUSPEND_PREPARE:
+	{
+		memcpy(&g_adspsleepmon.suspend_prepare_stats,
+			g_adspsleepmon.lpm_stats,
+			sizeof(struct sleep_stats));			
+		g_adspsleepmon.ap_sleep_checker.suspend_ts = 
+			ktime_to_timespec64(ktime_get_boottime());
+		break;
+	}
+#endif
 	default:
 		/*
 		 * Not handling other PM states, just return
@@ -495,33 +531,36 @@ static int adspsleepmon_smem_init(void)
 	g_adspsleepmon.lpm_stats = qcom_smem_get(
 						ADSPSLEEPMON_SMEM_ADSP_PID,
 						ADSPSLEEPMON_SLEEPSTATS_ADSP_SMEM_ID,
-						NULL);
+						&size);
 
-	if (IS_ERR_OR_NULL(g_adspsleepmon.lpm_stats)) {
-		pr_err("Failed to get sleep stats from SMEM for ADSP: %d\n",
-				PTR_ERR(g_adspsleepmon.lpm_stats));
+	if (IS_ERR_OR_NULL(g_adspsleepmon.lpm_stats) ||
+		(sizeof(struct sleep_stats) > size)) {
+		pr_err("Failed to get sleep stats from SMEM for ADSP: %d, size: %d\n",
+				PTR_ERR(g_adspsleepmon.lpm_stats), size);
 		return -ENOMEM;
 	}
 
 	g_adspsleepmon.lpi_stats = qcom_smem_get(
 						ADSPSLEEPMON_SMEM_ADSP_PID,
 						ADSPSLEEPMON_SLEEPSTATS_ADSP_LPI_SMEM_ID,
-						NULL);
+						&size);
 
-	if (IS_ERR_OR_NULL(g_adspsleepmon.lpi_stats)) {
-		pr_err("Failed to get LPI sleep stats from SMEM for ADSP: %d\n",
-				PTR_ERR(g_adspsleepmon.lpi_stats));
+	if (IS_ERR_OR_NULL(g_adspsleepmon.lpi_stats) ||
+		(sizeof(struct sleep_stats) > size)) {
+		pr_err("Failed to get LPI sleep stats from SMEM for ADSP: %d, size: %d\n",
+				PTR_ERR(g_adspsleepmon.lpi_stats), size);
 		return -ENOMEM;
 	}
 
 	g_adspsleepmon.dsppm_stats = qcom_smem_get(
 						   ADSPSLEEPMON_SMEM_ADSP_PID,
 						ADSPSLEEPMON_DSPPMSTATS_SMEM_ID,
-						NULL);
+						&size);
 
-	if (IS_ERR_OR_NULL(g_adspsleepmon.dsppm_stats)) {
-		pr_err("Failed to get DSPPM stats from SMEM for ADSP: %d\n",
-				PTR_ERR(g_adspsleepmon.dsppm_stats));
+	if (IS_ERR_OR_NULL(g_adspsleepmon.dsppm_stats) ||
+		(sizeof(struct dsppm_stats) > size)) {
+		pr_err("Failed to get DSPPM stats from SMEM for ADSP: %d, size: %d\n",
+				PTR_ERR(g_adspsleepmon.dsppm_stats), size);
 		return -ENOMEM;
 	}
 
@@ -899,9 +938,13 @@ static int adspsleepmon_driver_probe(struct platform_device *pdev)
 	g_adspsleepmon.b_config_adsp_panic_lpm_overall = of_property_read_bool(dev->of_node,
 			"qcom,enable_adsp_panic_lpm_overall");
 
-#if IS_ENABLED(CONFIG_SEC_SENSORS_SSC)
-	g_adspsleepmon.b_config_adsp_recovery_lpm_overall = of_property_read_bool(dev->of_node,
-			"qcom,enable_adsp_recovery_lpm_overall");
+#if IS_ENABLED(CONFIG_SEC_SENSORS_SSC) && !IS_ENABLED(CONFIG_SEC_FACTORY)
+	g_adspsleepmon.b_config_enable_adsp_sleep_checker_ss = of_property_read_bool(dev->of_node,
+			"qcom,enable_adsp_sleep_checker_ss");
+	g_adspsleepmon.b_config_enable_adsp_frequent_wakeup_panic_ss = of_property_read_bool(dev->of_node,
+			"qcom,enable_adsp_frequent_wakeup_panic_ss");			
+	of_property_read_u32(dev->of_node, "qcom,adsp_crash_ssr_ss",
+						 &g_adspsleepmon.adsp_crash_ssr);
 #endif
 
 	of_property_read_u32(dev->of_node, "qcom,wait_time_lpm",
@@ -1018,20 +1061,6 @@ static void adspsleepmon_lpm_adsp_panic(void)
 	}
 }
 
-#if IS_ENABLED(CONFIG_SEC_SENSORS_SSC)
-extern void send_ssc_recovery_command(void);
-static void adspsleepmon_send_recovery_overall(u32 sleep_latency)
-{
-	// check no audio, suspend, no direct channel
-	if (g_adspsleepmon.b_config_adsp_recovery_lpm_overall) {
-		if (g_adspsleepmon.suspend_event && sleep_latency == 0) {
-			pr_err("Sending recovery command to ADSP for LPM violation\n");
-			send_ssc_recovery_command();
-		}
-	}
-}
-#endif
-
 static void adspsleepmon_lpm_adsp_panic_overall(void)
 {
 	if (g_adspsleepmon.b_config_adsp_panic_lpm_overall) {
@@ -1044,6 +1073,111 @@ static void adspsleepmon_lpm_adsp_panic_overall(void)
 		sleepmon_send_ssr_command();
 	}
 }
+
+#if IS_ENABLED(CONFIG_SEC_SENSORS_SSC) && !IS_ENABLED(CONFIG_SEC_FACTORY)
+extern void send_ssc_recovery_command(int type);
+static void adspsleepmon_adsp_sleep_check_panic(void)
+{
+	pr_err("adsp_crash_ssr:%u \n", g_adspsleepmon.adsp_crash_ssr);
+	if (g_adspsleepmon.adsp_crash_ssr == 1) { // panic
+		panic("ADSP sleep issue detected, panic");
+	} else if (g_adspsleepmon.adsp_crash_ssr == 2) { // ssr_dump
+		send_ssc_recovery_command(1);
+	} else if (g_adspsleepmon.adsp_crash_ssr == 3) { // ssr
+		send_ssc_recovery_command(0);
+	} else { //nothing
+		pr_err("ADSP sleep issue detected, But ignore\n");
+	}
+}
+
+static void sleepmon_lpm_dsp_sleep_check(struct sleep_stats* curr_lpm_stats)
+{
+	time64_t diff_kts = -1;
+
+	if (g_adspsleepmon.ap_sleep_checker.resume_ts.tv_sec > 
+		g_adspsleepmon.ap_sleep_checker.suspend_ts.tv_sec)
+		diff_kts = g_adspsleepmon.ap_sleep_checker.resume_ts.tv_sec - 
+			g_adspsleepmon.ap_sleep_checker.suspend_ts.tv_sec;
+		
+	// check when ap sleep more than 10s
+	if (diff_kts > 10) {
+		struct dsppm_stats curr_dsppm_stats;
+		struct sysmon_event_stats sysmon_event_stats;
+		bool is_audio_active = false;
+
+		memcpy(&curr_dsppm_stats,g_adspsleepmon.dsppm_stats,
+			sizeof(struct dsppm_stats));
+		is_audio_active = sleepmon_is_audio_active(&curr_dsppm_stats);
+		memcpy(&sysmon_event_stats,
+			g_adspsleepmon.sysmon_event_stats,
+			sizeof(struct sysmon_event_stats));
+
+		pr_info("suspend ts:%d, resume ts:%d, diff_kts:%d, a:%d, l:%d\n",
+			(int)g_adspsleepmon.ap_sleep_checker.suspend_ts.tv_sec,
+			(int)g_adspsleepmon.ap_sleep_checker.resume_ts.tv_sec,
+			(int)diff_kts, (int)is_audio_active,
+			(int)sysmon_event_stats.sleep_latency);
+
+		if (!is_audio_active && sysmon_event_stats.sleep_latency == 0) {
+			int wakeup_rate = 0;
+			u32 diff_count = 0;
+			u64 accumulated;
+
+			pr_info("count:%d:%d, no_sleep_count:%d \n",
+				(int)curr_lpm_stats->count,
+				(int)g_adspsleepmon.suspend_prepare_stats.count,
+				(int)g_adspsleepmon.ap_sleep_checker.no_sleep_count);
+
+			// no adsp island
+			accumulated = curr_lpm_stats->accumulated;
+			if (curr_lpm_stats->last_entered_at >
+				curr_lpm_stats->last_exited_at) {
+				accumulated += arch_timer_read_counter() -
+					curr_lpm_stats->last_entered_at;
+			}
+
+			pr_info("accumulated:%u:%u, %u:%u \n",
+				(uint32_t)(g_adspsleepmon.suspend_prepare_stats.accumulated >> 32),
+				(uint32_t)(g_adspsleepmon.suspend_prepare_stats.accumulated & 0xFFFF),
+				(uint32_t)(accumulated >> 32),
+				(uint32_t)(accumulated & 0xFFFF));
+
+			if (curr_lpm_stats->count != 0 &&
+				(g_adspsleepmon.suspend_prepare_stats.count == 
+					curr_lpm_stats->count) &&
+				(g_adspsleepmon.suspend_prepare_stats.accumulated ==
+					accumulated)) {
+				g_adspsleepmon.ap_sleep_checker.no_sleep_count++;
+				if (g_adspsleepmon.ap_sleep_checker.no_sleep_count > 2) {
+					panic("ADSP sleep issue detected, no adsp island\n");
+					adspsleepmon_adsp_sleep_check_panic();
+				}
+			} else {
+				g_adspsleepmon.ap_sleep_checker.no_sleep_count = 0;
+			}
+
+			// frequent adsp wakeup
+			if (g_adspsleepmon.b_config_enable_adsp_frequent_wakeup_panic_ss) {
+				if (curr_lpm_stats->count >
+					g_adspsleepmon.suspend_prepare_stats.count)
+					diff_count = curr_lpm_stats->count - 
+						g_adspsleepmon.suspend_prepare_stats.count;
+				if (diff_count > 0)
+					wakeup_rate = (int)(diff_count/diff_kts);
+
+				pr_info("diff_count:%d, wakeup_rate:%d \n",
+					(int)diff_count, wakeup_rate);
+				// panic if adsp wakeup more than 50hz from island.
+				if (wakeup_rate > 50) {
+					adspsleepmon_adsp_sleep_check_panic();
+				}
+			}
+		} else {
+			g_adspsleepmon.ap_sleep_checker.no_sleep_count = 0;
+		}
+	}
+}
+#endif
 
 static void sleepmon_lpm_exception_check(u64 curr_timestamp, u64 elapsed_time)
 {
@@ -1112,11 +1246,6 @@ static void sleepmon_lpm_exception_check(u64 curr_timestamp, u64 elapsed_time)
 					(g_adspsleepmon.accumulated_resumes >=
 						g_adspsleepmon.min_required_resumes)) {
 					adspsleepmon_lpm_adsp_panic_overall();
-#if IS_ENABLED(CONFIG_SEC_SENSORS_SSC)
-					if (!is_audio_active) {
-						adspsleepmon_send_recovery_overall(sysmon_event_stats.sleep_latency);
-					}
-#endif
 					g_adspsleepmon.accumulated_duration = 0;
 					g_adspsleepmon.accumulated_resumes = 0;
 				}
@@ -1133,6 +1262,12 @@ static void sleepmon_lpm_exception_check(u64 curr_timestamp, u64 elapsed_time)
 		sizeof(struct sleep_stats));
 
 	g_adspsleepmon.backup_lpm_timestamp = __arch_counter_get_cntvct();
+
+#if IS_ENABLED(CONFIG_SEC_SENSORS_SSC) && !IS_ENABLED(CONFIG_SEC_FACTORY)
+	if (g_adspsleepmon.b_config_enable_adsp_sleep_checker_ss)
+		if (!g_adspsleepmon.timer_event && g_adspsleepmon.suspend_event)
+			sleepmon_lpm_dsp_sleep_check(&curr_lpm_stats);
+#endif
 }
 
 static void sleepmon_lpi_exception_check(u64 curr_timestamp, u64 elapsed_time)
@@ -1241,19 +1376,11 @@ static int adspsleepmon_worker(void *data)
 					g_adspsleepmon.backup_lpm_timestamp +
 					curr_timestamp;
 
-			if (!g_adspsleepmon.timer_event && g_adspsleepmon.suspend_event) {
-				/*
-				 * Check if we have elapsed enough duration
-				 * to make a decision if it is not timer
-				 * event
-				 */
-				if (elapsed_time <
-					(g_adspsleepmon.lpm_wait_time *
-					ADSPSLEEPMON_SYS_CLK_TICKS_PER_SEC)) {
-					mutex_unlock(&g_adspsleepmon.lock);
-					g_adspsleepmon.suspend_event = false;
-					continue;
-				}
+			/* Check elapsed time for both suspend and timer events */
+			if (elapsed_time <
+				(g_adspsleepmon.lpm_wait_time *
+				ADSPSLEEPMON_SYS_CLK_TICKS_PER_SEC)) {
+				goto TIME_NOT_ELAPSED;
 			}
 
 			sleepmon_lpm_exception_check(curr_timestamp, elapsed_time);
@@ -1272,26 +1399,16 @@ static int adspsleepmon_worker(void *data)
 						g_adspsleepmon.backup_lpi_timestamp +
 						curr_timestamp;
 
-			if (!g_adspsleepmon.timer_event && g_adspsleepmon.suspend_event) {
-				/*
-				 * Check if we have elapsed enough duration
-				 * to make a decision if it is not timer
-				 * event
-				 */
-
-
-				if (elapsed_time <
-					(g_adspsleepmon.lpi_wait_time *
-					ADSPSLEEPMON_SYS_CLK_TICKS_PER_SEC)) {
-					mutex_unlock(&g_adspsleepmon.lock);
-					g_adspsleepmon.suspend_event = false;
-					continue;
-				}
+			/* Check elapsed time for both suspend and timer events */
+			if (elapsed_time <
+				(g_adspsleepmon.lpi_wait_time *
+				ADSPSLEEPMON_SYS_CLK_TICKS_PER_SEC)) {
+				goto TIME_NOT_ELAPSED;
 			}
 
 			sleepmon_lpi_exception_check(curr_timestamp, elapsed_time);
 		}
-
+TIME_NOT_ELAPSED:
 		if (g_adspsleepmon.timer_event) {
 			g_adspsleepmon.timer_event = false;
 			g_adspsleepmon.timer_pending = false;

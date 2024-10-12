@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -51,7 +52,7 @@ tgt_set_gpio_output_req(struct wlan_objmgr_psoc *psoc,
 			struct gpio_output_params *param);
 
 /**
- * tgt_if_gpio_config() - API to send gpio config request
+ * tgt_gpio_config() - API to send gpio config request
  * @psoc: pointer to psoc object
  * @gpio_num: gpio pin number
  * @input: enable/disable the gpio pin
@@ -68,7 +69,7 @@ QDF_STATUS tgt_gpio_config(struct wlan_objmgr_psoc *psoc, uint32_t gpio_num,
 			   uint32_t intr_mode,  uint32_t mux_config_val,
 			   uint32_t drive, uint32_t init_enable);
 /**
- * tgt_if_gpio_output() - API to send gpio output request
+ * tgt_gpio_output() - API to send gpio output request
  * @psoc: pointer to psoc object
  * @gpio_num: gpio pin number
  * @set: enable/disable the gpio pin

@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2016-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -117,8 +117,8 @@ enum wlan_objmgr_obj_type {
 };
 
 /**
- * struct wlan_peer_list {
- * @peer_hash[]:    peer sub lists
+ * struct wlan_peer_list - peer list hash
+ * @peer_hash:      peer sub lists
  * @peer_list_lock: List lock, this has to be acquired on
  *		    accessing/updating the list
  *
@@ -216,6 +216,7 @@ typedef void (*wlan_objmgr_peer_status_handler)(
  * @WLAN_NAN_ID:                nan operations
  * @WLAN_REGULATORY_SB_ID:      SB regulatory operations
  * @WLAN_REGULATORY_NB_ID:      NB regulatory operations
+ * @WLAN_OFFCHAN_TXRX_ID:       Offchannel TxRx
  * @WLAN_POLICY_MGR_ID:         Policy Manager operations
  * @WLAN_SON_ID:                SON
  * @WLAN_SA_API_ID:             SA PAI
@@ -264,12 +265,12 @@ typedef void (*wlan_objmgr_peer_status_handler)(
  * @WLAN_MISC_ID:               power manager, PAPI, rate set, etc.
  * @WLAN_FWOL_NB_ID:            fw offload northbound operations
  * @WLAN_FWOL_SB_ID:            fw offload southbound operations
- * @WLAN_PSOC_TARGET_IF_ID      PSOC related target_if operations
+ * @WLAN_PSOC_TARGET_IF_ID:     PSOC related target_if operations
  * @FTM_TIME_SYNC_ID:           ftm time sync operations
- * @WLAN_PKT_CAPTURE_ID         Packet capture operations
+ * @WLAN_PKT_CAPTURE_ID:        Packet capture operations
  * @WLAN_DCS_ID:                DCS operations
  * @WLAN_IOT_SIM_ID:            IOT Simulation feature
- * @WLAN_MLME_CM_ID             Connection Manager reference ID
+ * @WLAN_MLME_CM_ID:            Connection Manager reference ID
  * @WLAN_IF_MGR_ID:             Interface manager reference ID
  * @WLAN_OSIF_SCAN_ID:          SCAN operations in OS IF
  * @WLAN_OSIF_MGMT_ID:          MGMT frame operations in OS IF
@@ -283,15 +284,22 @@ typedef void (*wlan_objmgr_peer_status_handler)(
  * @WLAN_OSIF_CM_ID:            Connection manager osif reference id
  * @WLAN_TXRX_STREAMS_ID:       Preferred TX & RX streams operations
  * @WLAN_MLO_MGR_ID:            MLO manager reference id
+ * @WLAN_MBSS_ID:               MBSS reference ID
  * @WLAN_MGMT_RX_REO_ID:        Management rx reorder reference id
  * @WLAN_MGMT_RX_REO_SIM_ID:    Management rx reorder simulation reference id
+ * @WLAN_TWT_ID:                TWT component id
  * @WLAN_LITE_MON_ID:           Lite monitor operations
  * @WLAN_PRE_CAC_ID:            Pre-CAC operations
  * @WLAN_DP_ID:                 DP component
+ * @WLAN_UMAC_RESET_ID:         Umac reset feature reference id
  * @WLAN_COAP_ID:               Constrained Application Protocol reference id
  * @WLAN_SAWF_ID:               Service Aware Wifi reference id
  * @WLAN_QMI_ID:                QMI component id
  * @WLAN_AFC_ID:                AFC reference id
+ * @WLAN_INTRA_BSS:             Intra bss reference id
+ * @WLAN_ROAM_ID:               Roam reference id
+ * @WLAN_LL_SAP_ID:             LL SAP reference id
+ * @WLAN_COEX_ID:               COEX reference id
  * @WLAN_REF_ID_MAX:            Max id used to generate ref count tracking array
  */
  /* New value added to the enum must also be reflected in function
@@ -402,12 +410,16 @@ typedef enum {
 	WLAN_SAWF_ID          = 100,
 	WLAN_QMI_ID           = 101,
 	WLAN_AFC_ID           = 102,
+	WLAN_INTRA_BSS        = 103,
+	WLAN_ROAM_ID          = 104,
+	WLAN_LL_SAP_ID        = 105,
+	WLAN_COEX_ID          = 106,
 	WLAN_REF_ID_MAX,
 } wlan_objmgr_ref_dbgid;
 
 /**
  * string_from_dbgid() - Convert Refcnt dbgid to respective string
- * @id - Reference count debug id
+ * @id: Reference count debug id
  *
  * Debug support function to convert refcnt dbgid to string.
  * Please note to add new string in the array at index equal to
@@ -513,10 +525,15 @@ static inline const char *string_from_dbgid(wlan_objmgr_ref_dbgid id)
 					"WLAN_LITE_MON_ID",
 					"WLAN_PRE_CAC_ID",
 					"WLAN_DP_ID",
+					"WLAN_UMAC_RESET_ID",
 					"WLAN_COAP_ID",
 					"WLAN_SAWF_ID",
 					"WLAN_QMI_ID",
-					"WLAN_AFC_ID"
+					"WLAN_AFC_ID",
+					"WLAN_INTRA_BSS",
+					"WLAN_ROAM_ID",
+					"WLAN_LL_SAP_ID",
+					"WLAN_COEX_ID"
 					};
 
 	if (id >= WLAN_REF_ID_MAX)

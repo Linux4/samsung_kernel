@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2014-2020 The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -111,10 +111,11 @@ struct sched_qdf_mc_timer_cb_wrapper *scheduler_qdf_mc_timer_init(
 		void *data);
 
 /**
- * scheduler_qdf_mc_timer_callback_t_wrapper() - wrapper for mc timer callbacks
+ * scheduler_qdf_mc_timer_deinit_return_data_ptr() - deinitialize callback and
+ *                                                   return data
  * @wrapper_ptr: wrapper ptr
  *
- * Return: return void ptr
+ * Return: original data supplied to scheduler_qdf_mc_timer_init()
  */
 void *scheduler_qdf_mc_timer_deinit_return_data_ptr(
 		struct sched_qdf_mc_timer_cb_wrapper *wrapper_ptr);
@@ -219,14 +220,17 @@ static inline QDF_STATUS scheduler_post_msg(uint32_t qid,
 }
 
 /**
- * scheduler_post_message() - post normal messages(no priority)
+ * scheduler_post_message_debug() - post normal messages(no priority)
  * @src_id: Source module of the message
  * @dest_id: Destination module of the message
  * @que_id: Queue to which the message has to posted.
  * @msg: message pointer
+ * @line: caller line number
+ * @func: caller function
  *
  * This function will mask the src_id, and destination id to qid of
  * scheduler_post_msg
+ *
  * Return: QDF status
  */
 QDF_STATUS scheduler_post_message_debug(QDF_MODULE_ID src_id,
@@ -236,6 +240,18 @@ QDF_STATUS scheduler_post_message_debug(QDF_MODULE_ID src_id,
 					int line,
 					const char *func);
 
+/**
+ * scheduler_post_message() - post normal messages(no priority)
+ * @src_id: Source module of the message
+ * @dest_id: Destination module of the message
+ * @que_id: Queue to which the message has to posted.
+ * @msg: message pointer
+ *
+ * This function will mask the src_id, and destination id to qid of
+ * scheduler_post_msg
+ *
+ * Return: QDF status
+ */
 #define scheduler_post_message(src_id, dest_id, que_id, msg) \
 	scheduler_post_message_debug(src_id, dest_id, que_id, msg, \
 				     __LINE__, __func__)
@@ -251,7 +267,8 @@ QDF_STATUS scheduler_post_message_debug(QDF_MODULE_ID src_id,
 void scheduler_resume(void);
 
 /**
- * scheduler_set_timeout() - set scheduler timeout for msg processing
+ * scheduler_set_watchdog_timeout() - set scheduler timeout for msg processing
+ * @timeout: timeout value in milliseconds
  *
  * Configure the timeout for triggering the scheduler watchdog timer
  * in milliseconds
@@ -262,7 +279,7 @@ void scheduler_set_watchdog_timeout(uint32_t timeout);
 
 /**
  * scheduler_register_hdd_suspend_callback() - suspend callback to hdd
- * @callback: hdd callback to be called when controllred thread is suspended
+ * @callback: hdd callback to be called when controller thread is suspended
  *
  * Return: none
  */

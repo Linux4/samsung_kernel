@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2013-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -257,6 +257,7 @@ static void htc_cleanup(HTC_TARGET *target)
 #ifdef FEATURE_RUNTIME_PM
 /**
  * htc_runtime_pm_init(): runtime pm related initialization
+ * @target: HTC target
  *
  * need to initialize a work item.
  */
@@ -1169,7 +1170,7 @@ void *htc_get_targetdef(HTC_HANDLE htc_handle)
 /**
  * htc_ipa_get_ce_resource() - get uc resource on lower layer
  * @htc_handle: htc context
- * @ce_sr_base_paddr: copyengine source ring base physical address
+ * @ce_sr: copyengine source ring base physical address
  * @ce_sr_ring_size: copyengine source ring size
  * @ce_reg_paddr: copyengine register physical address
  *

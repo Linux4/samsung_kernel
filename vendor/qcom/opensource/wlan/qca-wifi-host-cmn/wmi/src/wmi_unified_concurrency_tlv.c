@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2013-2020 The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -30,6 +30,7 @@
  *							     mcc scheduler
  * @wmi_handle: wmi handle
  * @mcc_adaptive_scheduler: enable/disable
+ * @pdev_id: pdev identifier
  *
  * This function enable/disable mcc adaptive scheduler in fw.
  *
@@ -75,15 +76,15 @@ static QDF_STATUS send_set_enable_disable_mcc_adaptive_scheduler_cmd_tlv(
 
 /**
  * send_set_mcc_channel_time_latency_cmd_tlv() -set MCC channel time latency
- * @wmi: wmi handle
- * @mcc_channel: mcc channel
+ * @wmi_handle: wmi handle
+ * @mcc_channel_freq: mcc channel frequency in MHz
  * @mcc_channel_time_latency: MCC channel time latency.
  *
  * Currently used to set time latency for an MCC vdev/adapter using operating
  * channel of it and channel number. The info is provided run time using
  * iwpriv command: iwpriv <wlan0 | p2p0> setMccLatency <latency in ms>.
  *
- * Return: CDF status
+ * Return: QDF status
  */
 static QDF_STATUS send_set_mcc_channel_time_latency_cmd_tlv(
 					wmi_unified_t wmi_handle,
@@ -150,12 +151,12 @@ static QDF_STATUS send_set_mcc_channel_time_latency_cmd_tlv(
 
 /**
  * send_set_mcc_channel_time_quota_cmd_tlv() -set MCC channel time quota
- * @wmi: wmi handle
- * @adapter_1_chan_number: adapter 1 channel number
+ * @wmi_handle: wmi handle
+ * @adapter_1_chan_freq: adapter 1 channel frequency in MHz
  * @adapter_1_quota: adapter 1 quota
- * @adapter_2_chan_number: adapter 2 channel number
+ * @adapter_2_chan_freq: adapter 2 channel frequency in MHz
  *
- * Return: CDF status
+ * Return: QDF status
  */
 static QDF_STATUS send_set_mcc_channel_time_quota_cmd_tlv(
 					wmi_unified_t wmi_handle,
@@ -259,8 +260,8 @@ static enum mcc_quota_type convert_to_host_quota_type(uint32_t quota_type)
  * extract_mcc_quota_ev_param_tlv() - extract mcc quota information from wmi
  *    event
  * @wmi_handle: wmi handle
- * @param evt_buf: pointer to event buffer
- * @param param: Pointer to hold mcc quota info
+ * @evt_buf: pointer to event buffer
+ * @param: Pointer to hold mcc quota info
  *
  * Return: QDF_STATUS_SUCCESS for success or error code
  */

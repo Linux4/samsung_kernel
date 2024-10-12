@@ -498,6 +498,7 @@
 		qcom,hyplog-enabled;
 		hyplog-address-offset = <0x410>;
 		hyplog-size-offset = <0x414>;
+		tmecrashdump-address-offset = <0x808a0000>;
 	};
 
 
@@ -869,8 +870,10 @@
 	qcom,chd {
 		compatible = "qcom,core-hang-detect";
 		label = "core";
-		qcom,threshold-arr = <0x17800058 0x17810058 0x17820058 0x17830058>;
-		qcom,config-arr = <0x17800060 0x17810060 0x17820060 0x17830060>;
+		qcom,chd-percpu-info = <&CPU0 0x17800058 0x17800060>,
+					<&CPU1 0x17810058 0x17810060>,
+					<&CPU2 0x17820058 0x17820060>,
+					<&CPU3 0x17830058 0x17830060>;
 	};
 
 	cluster-device {
@@ -1219,7 +1222,7 @@
 		qcom,freq-hw-domain = <&cpufreq_hw 0>;
 	};
 
-	tsc@1da0000 {
+	tsc: tsc@1da0000 {
 		compatible = "qcom,tsc";
 		reg = <0x1da0000 0x2000>, <0x01db0000 0x10000>;
 		reg-names = "tsc", "etu";
@@ -1277,8 +1280,8 @@
 				<0x01c00000 0x4000>,
 				<0x01c10000 0x10000>,
 				<0x01c04000 0x1000>,
-				<0x01fcb000 0x1000>,
-				<0xc2f1000 0x4>,
+				<0x01fc6000 0x1000>,
+				<0xc2fa000 0x4>,
 				<0x48030000 0x100>;
 			reg-names = "msi", "dm_core", "dm_core_vf", "elbi", "iatu",
 					"msix_table", "msix_pba", "parf",
@@ -1302,10 +1305,10 @@
 
 			gdsc-vdd-supply = <&gcc_pcie_0_gdsc>;
 			gdsc-phy-vdd-supply = <&gcc_pcie_0_phy_gdsc>;
-			vreg-1p8-supply = <&pm8150_a_l3>;
+			vreg-1p2-supply = <&pm8150_a_l3>;
 			vreg-0p9-supply = <&pm8150_a_l6>;
 			vreg-mx-supply = <&VDD_MX_LEVEL>;
-			qcom,vreg-1p8-voltage-level = <1200000 1200000 30000>;
+			qcom,vreg-1p2-voltage-level = <1200000 1200000 30000>;
 			qcom,vreg-0p9-voltage-level = <912000 912000 132000>;
 			qcom,vreg-mx-voltage-level = <RPMH_REGULATOR_LEVEL_MAX RPMH_REGULATOR_LEVEL_NOM 0>;
 
@@ -1356,11 +1359,16 @@
 			qcom,pcie-active-config;
 			qcom,pcie-aggregated-irq;
 			qcom,pcie-mhi-a7-irq;
-			qcom,tcsr-not-supported;
+			qcom,aoss-rst-clr;
 			qcom,phy-status-reg2 = <0x1214>;
 			qcom,mhi-soc-reset-offset = <0xb001b8>;
 			qcom,aux-clk = <0x11>;
 			qcom,sriov-mask = <0x1E0>;
+			qcom,tcsr-perst-separation-enable-offset= <0x14>;
+			qcom,tcsr-reset-separation-offset = <0x4>;
+			qcom,tcsr-perst-enable-offset = <0x8>;
+			qcom,pcie-disconnect-req-reg-b = <5>;
+			qcom,perst-raw-rst-status-b = <0>;
 
 			qcom,phy-init = <0x9040 0x01 0x0
 				0x8030 0x0a 0x0
@@ -1668,6 +1676,24 @@
 		reg = <0>;
 	};
 
+};
+
+&qupv3_se8_i2c {
+	#address-cells = <1>;
+	#size-cells = <0>;
+	status = "ok";
+
+	power-sensor@42 {
+		compatible = "ti,ina234";
+		reg = <0x42>;
+		shunt-resistor = <10000>;
+	};
+
+	power-sensor@43 {
+		compatible = "ti,ina234";
+		reg = <0x43>;
+		shunt-resistor = <10000>;
+	};
 };
 
 #include "cinder-thermal.dtsi"

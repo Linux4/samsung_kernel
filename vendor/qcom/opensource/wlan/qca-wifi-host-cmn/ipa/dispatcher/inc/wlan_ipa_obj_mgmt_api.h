@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2018, 2020-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -72,7 +72,7 @@ static inline bool wlan_ipa_config_is_enabled(void)
 
 /**
  * wlan_ipa_get_hdl() - Get ipa hdl set by IPA driver
- * @psoc: void psoc object
+ * @soc: void psoc object
  * @pdev_id: pdev id
  *
  * Return: IPA handle
@@ -80,7 +80,7 @@ static inline bool wlan_ipa_config_is_enabled(void)
 qdf_ipa_wdi_hdl_t wlan_ipa_get_hdl(void *soc, uint8_t pdev_id);
 
 /**
- * wlan_ipa_is_vlan enabled() - get IPA vlan support enable status
+ * wlan_ipa_is_vlan_enabled() - get IPA vlan support enable status
  *
  * Return: true - ipa vlan support is enabled
  *         false - ipa vlan support is not enabled
@@ -106,6 +106,11 @@ static inline QDF_STATUS ipa_register_is_ipa_ready(
 
 static inline void ipa_disable_register_cb(void)
 {
+}
+
+static inline bool ipa_config_is_opt_wifi_dp_enabled(void)
+{
+	return false;
 }
 
 static inline bool wlan_ipa_config_is_enabled(void)

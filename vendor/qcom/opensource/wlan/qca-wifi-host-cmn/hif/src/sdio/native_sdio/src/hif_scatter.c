@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2013-2019 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -237,12 +238,12 @@ QDF_STATUS do_hif_read_write_scatter(struct hif_sdio_dev *device,
 }
 
 /**
- * alloc_scatter_req() - callback to issue a read-write
+ * hif_read_write_scatter() - callback to issue a read-write
  * scatter request.
  * @device: hif device context
- * @pReq: rd/wr scatter request
+ * @req: rd/wr scatter request
  *
- * Return: int
+ * Return: QDF_STATUS
  */
 static QDF_STATUS hif_read_write_scatter(struct hif_sdio_dev *device,
 				   struct _HIF_SCATTER_REQ *req)
@@ -343,7 +344,7 @@ static QDF_STATUS hif_read_write_scatter(struct hif_sdio_dev *device,
  * setup_hif_scatter_support() - setup of HIF scatter resources
  * scatter request.
  * @device: hif device context
- * @pInfo: scatter info
+ * @info: scatter info
  *
  * Return: int
  */

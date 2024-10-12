@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2012-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -223,19 +223,19 @@ static int hdd_sar_send_response(struct wiphy *wiphy,
 	int errno;
 
 	len = hdd_sar_get_response_len(event);
-	skb = cfg80211_vendor_cmd_alloc_reply_skb(wiphy, len);
+	skb = wlan_cfg80211_vendor_cmd_alloc_reply_skb(wiphy, len);
 	if (!skb) {
-		hdd_err("cfg80211_vendor_cmd_alloc_reply_skb failed");
+		hdd_err("wlan_cfg80211_vendor_cmd_alloc_reply_skb failed");
 		return -ENOMEM;
 	}
 
 	errno = hdd_sar_fill_response(skb, event);
 	if (errno) {
-		kfree_skb(skb);
+		wlan_cfg80211_vendor_free_skb(skb);
 		return errno;
 	}
 
-	return cfg80211_vendor_cmd_reply(skb);
+	return wlan_cfg80211_vendor_cmd_reply(skb);
 }
 
 /**
@@ -324,6 +324,10 @@ static u32 hdd_to_nl_sar_version(enum sar_version hdd_sar_version)
 		return QCA_WLAN_VENDOR_SAR_VERSION_2;
 	case (SAR_VERSION_3):
 		return QCA_WLAN_VENDOR_SAR_VERSION_3;
+	case (SAR_VERSION_4):
+	case (SAR_VERSION_5):
+	case (SAR_VERSION_6):
+		return QCA_WLAN_VENDOR_SAR_VERSION_1;
 	default:
 		hdd_err("Unexpected SAR version received :%u, sending default to userspace",
 			hdd_sar_version);
@@ -350,7 +354,8 @@ static int hdd_sar_fill_capability_response(struct sk_buff *skb,
 	attr = QCA_WLAN_VENDOR_ATTR_SAR_CAPABILITY_VERSION;
 	value = hdd_to_nl_sar_version(hdd_ctx->sar_version);
 
-	hdd_debug("Sending SAR Version = %u to userspace", value);
+	hdd_debug("Sending SAR Version = %u to userspace, fw_sar_version: %d",
+		  value, hdd_ctx->sar_version);
 
 	errno = nla_put_u32(skb, attr, value);
 
@@ -372,23 +377,21 @@ static int hdd_sar_send_capability_response(struct wiphy *wiphy,
 	int errno;
 
 	len = NLMSG_HDRLEN;
-
 	/* QCA_WLAN_VENDOR_ATTR_SAR_CAPABILITY_VERSION */
 	len += NLA_HDRLEN + sizeof(u32);
-
-	skb = cfg80211_vendor_cmd_alloc_reply_skb(wiphy, len);
+	skb = wlan_cfg80211_vendor_cmd_alloc_reply_skb(wiphy, len);
 	if (!skb) {
-		hdd_err("cfg80211_vendor_cmd_alloc_reply_skb failed");
+		hdd_err("wlan_cfg80211_vendor_cmd_alloc_reply_skb failed");
 		return -ENOMEM;
 	}
 
 	errno = hdd_sar_fill_capability_response(skb, hdd_ctx);
 	if (errno) {
-		kfree_skb(skb);
+		wlan_cfg80211_vendor_free_skb(skb);
 		return errno;
 	}
 
-	return cfg80211_vendor_cmd_reply(skb);
+	return wlan_cfg80211_vendor_cmd_reply(skb);
 }
 
 /**
@@ -1095,7 +1098,7 @@ config_sar_failed:
 
 void hdd_configure_sar_sleep_index(struct hdd_context *hdd_ctx)
 {
-	if (!hdd_ctx->config->enable_sar_safety)
+	if (!(hdd_ctx->config->enable_sar_safety & SAR_SAFETY_ENABLED_TIMER))
 		return;
 
 	if (hdd_ctx->config->config_sar_safety_sleep_index) {
@@ -1112,7 +1115,7 @@ void hdd_configure_sar_sleep_index(struct hdd_context *hdd_ctx)
 
 void hdd_configure_sar_resume_index(struct hdd_context *hdd_ctx)
 {
-	if (!hdd_ctx->config->enable_sar_safety)
+	if (!(hdd_ctx->config->enable_sar_safety & SAR_SAFETY_ENABLED_TIMER))
 		return;
 
 	hdd_nofl_debug("Configure SAR safety index %d on wlan resume",
@@ -1133,17 +1136,17 @@ static void hdd_send_sar_unsolicited_event(struct hdd_context *hdd_ctx)
 
 	len = NLMSG_HDRLEN;
 	vendor_event =
-		cfg80211_vendor_event_alloc(
+		wlan_cfg80211_vendor_event_alloc(
 			hdd_ctx->wiphy, NULL, len,
 			QCA_NL80211_VENDOR_SUBCMD_REQUEST_SAR_LIMITS_INDEX,
 			GFP_KERNEL);
 
 	if (!vendor_event) {
-		hdd_err("cfg80211_vendor_event_alloc failed");
+		hdd_err("wlan_cfg80211_vendor_event_alloc failed");
 		return;
 	}
 
-	cfg80211_vendor_event(vendor_event, GFP_KERNEL);
+	wlan_cfg80211_vendor_event(vendor_event, GFP_KERNEL);
 }
 
 static void hdd_sar_unsolicited_work_cb(void *user_data)
@@ -1201,7 +1204,7 @@ static void hdd_sar_safety_timer_cb(void *user_data)
 
 void wlan_hdd_sar_unsolicited_timer_start(struct hdd_context *hdd_ctx)
 {
-	if (!hdd_ctx->config->enable_sar_safety)
+	if (!(hdd_ctx->config->enable_sar_safety & SAR_SAFETY_ENABLED_TIMER))
 		return;
 
 	if (qdf_atomic_read(
@@ -1218,7 +1221,7 @@ void wlan_hdd_sar_timers_reset(struct hdd_context *hdd_ctx)
 {
 	QDF_STATUS status;
 
-	if (!hdd_ctx->config->enable_sar_safety)
+	if (!(hdd_ctx->config->enable_sar_safety & SAR_SAFETY_ENABLED_TIMER))
 		return;
 
 	if (hdd_ctx->sar_version == SAR_VERSION_1)
@@ -1247,7 +1250,7 @@ void wlan_hdd_sar_timers_init(struct hdd_context *hdd_ctx)
 {
 	QDF_STATUS status;
 
-	if (!hdd_ctx->config->enable_sar_safety)
+	if (!(hdd_ctx->config->enable_sar_safety & SAR_SAFETY_ENABLED_TIMER))
 		return;
 
 	hdd_enter();
@@ -1273,7 +1276,7 @@ hdd_exit:
 
 void wlan_hdd_sar_timers_deinit(struct hdd_context *hdd_ctx)
 {
-	if (!hdd_ctx->config->enable_sar_safety)
+	if (!(hdd_ctx->config->enable_sar_safety & SAR_SAFETY_ENABLED_TIMER))
 		return;
 
 	hdd_enter();

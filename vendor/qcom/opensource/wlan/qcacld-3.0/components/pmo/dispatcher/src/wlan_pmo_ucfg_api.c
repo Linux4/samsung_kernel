@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2017-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -525,9 +525,11 @@ int ucfg_pmo_psoc_clear_target_wake_up(struct wlan_objmgr_psoc *psoc)
 	return pmo_core_psoc_clear_target_wake_up(psoc);
 }
 
-void ucfg_pmo_psoc_target_suspend_acknowledge(void *context, bool wow_nack)
+void ucfg_pmo_psoc_target_suspend_acknowledge(void *context, bool wow_nack,
+					      uint16_t reason_code)
 {
-	pmo_core_psoc_target_suspend_acknowledge(context, wow_nack);
+	pmo_core_psoc_target_suspend_acknowledge(context, wow_nack,
+						 reason_code);
 }
 
 void ucfg_pmo_psoc_wakeup_host_event_received(struct wlan_objmgr_psoc *psoc)
@@ -563,6 +565,12 @@ QDF_STATUS ucfg_pmo_config_listen_interval(struct wlan_objmgr_vdev *vdev,
 	return pmo_core_config_listen_interval(vdev, listen_interval);
 }
 
+QDF_STATUS ucfg_pmo_get_listen_interval(struct wlan_objmgr_vdev *vdev,
+					uint32_t *listen_interval)
+{
+	return pmo_core_get_listen_interval(vdev, listen_interval);
+}
+
 QDF_STATUS ucfg_pmo_config_modulated_dtim(struct wlan_objmgr_vdev *vdev,
 					  uint32_t mod_dtim)
 {
@@ -584,6 +592,31 @@ ucfg_pmo_set_wow_enable(struct wlan_objmgr_psoc *psoc,
 	struct pmo_psoc_priv_obj *pmo_psoc_ctx = pmo_psoc_get_priv(psoc);
 
 	pmo_psoc_ctx->psoc_cfg.wow_enable = val;
+}
+
+void
+ucfg_pmo_set_ps_params(struct wlan_objmgr_vdev *vdev,
+		       struct pmo_ps_params *ps_params)
+{
+	pmo_core_vdev_set_ps_params(vdev, ps_params);
+}
+
+QDF_STATUS ucfg_pmo_get_ps_params(struct wlan_objmgr_vdev *vdev,
+				  struct pmo_ps_params *ps_params)
+{
+	return pmo_core_vdev_get_ps_params(vdev, ps_params);
+}
+
+QDF_STATUS ucfg_pmo_core_vdev_set_ps_opm_mode(struct wlan_objmgr_vdev *vdev,
+					      enum powersave_mode opm_mode)
+{
+	return pmo_vdev_set_ps_opm_mode(vdev, opm_mode);
+}
+
+QDF_STATUS ucfg_pmo_core_vdev_get_ps_opm_mode(struct wlan_objmgr_vdev *vdev,
+					      enum powersave_mode *opm_mode)
+{
+	return pmo_vdev_get_ps_opm_mode(vdev, opm_mode);
 }
 
 bool
@@ -1024,6 +1057,12 @@ uint32_t ucfg_pmo_get_moddtim_user(struct wlan_objmgr_vdev *vdev)
 	return pmo_core_vdev_get_moddtim_user(vdev);
 }
 
+uint32_t
+ucfg_pmo_get_ssr_frequency_on_pagefault(struct wlan_objmgr_psoc *psoc)
+{
+	return pmo_get_ssr_frequency_on_pagefault(psoc);
+}
+
 bool
 ucfg_pmo_get_disconnect_sap_tdls_in_wow(struct wlan_objmgr_psoc *psoc)
 {
@@ -1053,3 +1092,15 @@ QDF_STATUS ucfg_pmo_config_icmp_offload(struct wlan_objmgr_psoc *psoc,
 	return pmo_tgt_config_icmp_offload_req(psoc, pmo_icmp_req);
 }
 #endif
+
+QDF_STATUS ucfg_pmo_set_vdev_bridge_addr(struct wlan_objmgr_vdev *vdev,
+					 struct qdf_mac_addr *bridgeaddr)
+{
+	return pmo_set_vdev_bridge_addr(vdev, bridgeaddr);
+}
+
+QDF_STATUS ucfg_pmo_get_vdev_bridge_addr(struct wlan_objmgr_vdev *vdev,
+					 struct qdf_mac_addr *bridgeaddr)
+{
+	return pmo_get_vdev_bridge_addr(vdev, bridgeaddr);
+}

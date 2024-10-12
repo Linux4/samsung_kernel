@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -55,7 +56,7 @@ struct bssid_search_arg {
 };
 
 /**
- * allow_mcc_go_diff_bi_definition - Defines the config values for allowing
+ * enum allow_mcc_go_diff_bi_definition - Defines the config values for allowing
  * different beacon intervals between P2P-G0 and STA
  * @ALLOW_MCC_GO_DIFF_BI_WFA_CERT: GO Beacon interval is not changed.
  *	MCC GO doesn't work well in optimized way. In worst scenario, it may

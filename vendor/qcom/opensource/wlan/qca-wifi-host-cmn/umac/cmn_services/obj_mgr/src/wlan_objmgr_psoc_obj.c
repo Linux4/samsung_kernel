@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2016-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -16,9 +16,9 @@
  * TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
  * PERFORMANCE OF THIS SOFTWARE.
  */
- /**
-  * DOC: Public APIs to perform operations on Global objects
-  */
+/**
+ * DOC: Public APIs to perform operations on Global objects
+ */
 
 #include <wlan_objmgr_cmn.h>
 #include <wlan_objmgr_global_obj.h>
@@ -36,8 +36,8 @@
 #include "wlan_objmgr_vdev_obj_i.h"
 #include <wlan_utility.h>
 
-/**
- ** APIs to Create/Delete Global object APIs
+/*
+ * APIs to Create/Delete Global object APIs
  */
 static QDF_STATUS wlan_objmgr_psoc_object_status(
 			struct wlan_objmgr_psoc *psoc)
@@ -1345,22 +1345,25 @@ static QDF_STATUS wlan_peer_bssid_match(struct wlan_objmgr_peer *peer,
 		return QDF_STATUS_E_FAILURE;
 }
 
+#ifdef WLAN_OBJMGR_REF_ID_TRACE
 /**
- * wlan_obj_psoc_peerlist_get_peer_by_pdev_id() - get peer from
+ * wlan_obj_psoc_peerlist_get_peer_by_pdev_id_debug() - get peer from
  *                                                      psoc peer list
- * @psoc: PSOC object
+ * @obj_list: Peer object list
  * @macaddr: MAC address
- * #pdev_id: Pdev id
+ * @pdev_id: Pdev id
+ * @dbg_id: id of the caller
+ * @func: function name
+ * @line: line number
  *
  * API to finds peer object pointer by MAC addr and pdev id from hash list
  *
  * Return: peer pointer
  *         NULL on FAILURE
  */
-#ifdef WLAN_OBJMGR_REF_ID_TRACE
 static struct wlan_objmgr_peer
 	*wlan_obj_psoc_peerlist_get_peer_by_pdev_id_debug(
-				qdf_list_t *obj_list, uint8_t *macaddr,
+				qdf_list_t *obj_list, const uint8_t *macaddr,
 				uint8_t pdev_id, wlan_objmgr_ref_dbgid dbg_id,
 				const char *func, int line)
 {
@@ -1389,8 +1392,21 @@ static struct wlan_objmgr_peer
 	return NULL;
 }
 #else
+/**
+ * wlan_obj_psoc_peerlist_get_peer_by_pdev_id() - get peer from
+ *                                                      psoc peer list
+ * @obj_list: Peer object list
+ * @macaddr: MAC address
+ * @pdev_id: Pdev id
+ * @dbg_id: id of the caller
+ *
+ * API to finds peer object pointer by MAC addr and pdev id from hash list
+ *
+ * Return: peer pointer
+ *         NULL on FAILURE
+ */
 static struct wlan_objmgr_peer *wlan_obj_psoc_peerlist_get_peer_by_pdev_id(
-				qdf_list_t *obj_list, uint8_t *macaddr,
+				qdf_list_t *obj_list, const uint8_t *macaddr,
 				uint8_t pdev_id, wlan_objmgr_ref_dbgid dbg_id)
 {
 	struct wlan_objmgr_peer *peer;
@@ -1418,17 +1434,20 @@ static struct wlan_objmgr_peer *wlan_obj_psoc_peerlist_get_peer_by_pdev_id(
 }
 #endif
 
+#ifdef WLAN_OBJMGR_REF_ID_TRACE
 /**
- * wlan_obj_psoc_peerlist_get_peer() - get peer from psoc peer list
- * @psoc: PSOC object
+ * wlan_obj_psoc_peerlist_get_peer_debug() - get peer from psoc peer list
+ * @obj_list: Peer object list
  * @macaddr: MAC address
+ * @dbg_id: id of the caller
+ * @func: function name
+ * @line: line number
  *
  * API to finds peer object pointer by MAC addr from hash list
  *
  * Return: peer pointer
  *         NULL on FAILURE
  */
-#ifdef WLAN_OBJMGR_REF_ID_TRACE
 static struct wlan_objmgr_peer *wlan_obj_psoc_peerlist_get_peer_debug(
 		qdf_list_t *obj_list, uint8_t *macaddr,
 		wlan_objmgr_ref_dbgid dbg_id,
@@ -1458,6 +1477,17 @@ static struct wlan_objmgr_peer *wlan_obj_psoc_peerlist_get_peer_debug(
 	return NULL;
 }
 #else
+/**
+ * wlan_obj_psoc_peerlist_get_peer() - get peer from psoc peer list
+ * @obj_list: Peer object list
+ * @macaddr: MAC address
+ * @dbg_id: id of the caller
+ *
+ * API to finds peer object pointer by MAC addr from hash list
+ *
+ * Return: peer pointer
+ *         NULL on FAILURE
+ */
 static struct wlan_objmgr_peer *wlan_obj_psoc_peerlist_get_peer(
 		qdf_list_t *obj_list, uint8_t *macaddr,
 		wlan_objmgr_ref_dbgid dbg_id)
@@ -1486,18 +1516,21 @@ static struct wlan_objmgr_peer *wlan_obj_psoc_peerlist_get_peer(
 }
 #endif
 
+#ifdef WLAN_OBJMGR_REF_ID_TRACE
 /**
- * wlan_obj_psoc_peerlist_get_peer_logically_deleted() - get peer
+ * wlan_obj_psoc_peerlist_get_peer_logically_deleted_debug() - get peer
  * from psoc peer list
- * @psoc: PSOC object
+ * @obj_list: Peer object list
  * @macaddr: MAC address
+ * @dbg_id: id of the caller
+ * @func: function name
+ * @line: line number
  *
  * API to finds peer object pointer of logically deleted peer
  *
  * Return: peer pointer
  *         NULL on FAILURE
  */
-#ifdef WLAN_OBJMGR_REF_ID_TRACE
 static struct wlan_objmgr_peer *
 		wlan_obj_psoc_peerlist_get_peer_logically_deleted_debug(
 				qdf_list_t *obj_list, uint8_t *macaddr,
@@ -1532,6 +1565,18 @@ static struct wlan_objmgr_peer *
 	return NULL;
 }
 #else
+/**
+ * wlan_obj_psoc_peerlist_get_peer_logically_deleted() - get peer
+ * from psoc peer list
+ * @obj_list: Peer object list
+ * @macaddr: MAC address
+ * @dbg_id: id of the caller
+ *
+ * API to finds peer object pointer of logically deleted peer
+ *
+ * Return: peer pointer
+ *         NULL on FAILURE
+ */
 static struct wlan_objmgr_peer *
 			wlan_obj_psoc_peerlist_get_peer_logically_deleted(
 				qdf_list_t *obj_list, uint8_t *macaddr,
@@ -1644,14 +1689,19 @@ static struct wlan_objmgr_peer
 }
 #endif
 
+#ifdef WLAN_OBJMGR_REF_ID_TRACE
 /**
- * wlan_obj_psoc_peerlist_get_peer_by_mac_n_bssid() - get peer
+ * wlan_obj_psoc_peerlist_get_peer_by_mac_n_bssid_debug() - get peer
  *                                                    from psoc peer
  *                                                    list using mac and vdev
  *                                                    self mac
- * @psoc: PSOC object
+ * @obj_list: Peer object list
  * @macaddr: MAC address
  * @bssid: BSSID address
+ * @pdev_id: Pdev id
+ * @dbg_id: id of the caller
+ * @func: function name
+ * @line: line number
  *
  * API to finds peer object pointer by MAC addr and BSSID from
  * peer hash list, bssid check is done on matching peer
@@ -1659,7 +1709,6 @@ static struct wlan_objmgr_peer
  * Return: peer pointer
  *         NULL on FAILURE
  */
-#ifdef WLAN_OBJMGR_REF_ID_TRACE
 static struct wlan_objmgr_peer
 		*wlan_obj_psoc_peerlist_get_peer_by_mac_n_bssid_debug(
 					qdf_list_t *obj_list, uint8_t *macaddr,
@@ -1701,6 +1750,23 @@ static struct wlan_objmgr_peer
 	return NULL;
 }
 #else
+/**
+ * wlan_obj_psoc_peerlist_get_peer_by_mac_n_bssid() - get peer
+ *                                                    from psoc peer
+ *                                                    list using mac and vdev
+ *                                                    self mac
+ * @obj_list: Peer object list
+ * @macaddr: MAC address
+ * @bssid: BSSID address
+ * @pdev_id: Pdev id
+ * @dbg_id: id of the caller
+ *
+ * API to finds peer object pointer by MAC addr and BSSID from
+ * peer hash list, bssid check is done on matching peer
+ *
+ * Return: peer pointer
+ *         NULL on FAILURE
+ */
 static struct wlan_objmgr_peer *wlan_obj_psoc_peerlist_get_peer_by_mac_n_bssid(
 					qdf_list_t *obj_list, uint8_t *macaddr,
 					uint8_t *bssid, uint8_t pdev_id,
@@ -1796,14 +1862,16 @@ static struct wlan_objmgr_peer *wlan_obj_psoc_peerlist_get_peer_no_state(
 }
 #endif
 
+#ifdef WLAN_OBJMGR_REF_ID_TRACE
 /**
- * wlan_obj_psoc_populate_logically_del_peerlist_by_mac_n_bssid() -
+ * wlan_obj_psoc_populate_logically_del_peerlist_by_mac_n_bssid_debug() -
  *                                           get peer
  *                                           from psoc peer list using
  *                                           mac and vdev self mac
  * @obj_list: peer object list
  * @macaddr: MAC address
  * @bssid: BSSID address
+ * @pdev_id: pdev id
  * @dbg_id: id of the caller
  * @func: function name
  * @line: line number
@@ -1817,7 +1885,6 @@ static struct wlan_objmgr_peer *wlan_obj_psoc_peerlist_get_peer_no_state(
  * Return: list of peer pointers
  *         NULL on FAILURE
  */
-#ifdef WLAN_OBJMGR_REF_ID_TRACE
 static qdf_list_t
 	*wlan_obj_psoc_populate_logically_del_peerlist_by_mac_n_bssid_debug(
 				qdf_list_t *obj_list, uint8_t *macaddr,
@@ -1903,6 +1970,26 @@ static qdf_list_t
 	}
 }
 #else
+/**
+ * wlan_obj_psoc_populate_logically_del_peerlist_by_mac_n_bssid() -
+ *                                           get peer
+ *                                           from psoc peer list using
+ *                                           mac and vdev self mac
+ * @obj_list: peer object list
+ * @macaddr: MAC address
+ * @bssid: BSSID address
+ * @pdev_id: pdev id
+ * @dbg_id: id of the caller
+ *
+ * API to finds peer object pointer by MAC addr and BSSID from
+ * peer hash list for a node which is in logically deleted state,
+ * bssid check is done on matching peer
+ *
+ * Caller to free the list allocated in this function
+ *
+ * Return: list of peer pointers
+ *         NULL on FAILURE
+ */
 static qdf_list_t
 	*wlan_obj_psoc_populate_logically_del_peerlist_by_mac_n_bssid(
 				qdf_list_t *obj_list, uint8_t *macaddr,
@@ -2076,7 +2163,7 @@ QDF_STATUS wlan_objmgr_psoc_peer_detach(struct wlan_objmgr_psoc *psoc,
 #ifdef WLAN_OBJMGR_REF_ID_TRACE
 struct wlan_objmgr_peer *wlan_objmgr_get_peer_debug(
 			struct wlan_objmgr_psoc *psoc, uint8_t pdev_id,
-			uint8_t *macaddr, wlan_objmgr_ref_dbgid dbg_id,
+			const uint8_t *macaddr, wlan_objmgr_ref_dbgid dbg_id,
 			const char *func, int line)
 {
 	struct wlan_objmgr_psoc_objmgr *objmgr;
@@ -2116,7 +2203,7 @@ qdf_export_symbol(wlan_objmgr_get_peer_debug);
 #else
 struct wlan_objmgr_peer *wlan_objmgr_get_peer(
 			struct wlan_objmgr_psoc *psoc, uint8_t pdev_id,
-			uint8_t *macaddr, wlan_objmgr_ref_dbgid dbg_id)
+			const uint8_t *macaddr, wlan_objmgr_ref_dbgid dbg_id)
 {
 	struct wlan_objmgr_psoc_objmgr *objmgr;
 	uint8_t hash_index;
@@ -2563,27 +2650,6 @@ struct wlan_objmgr_peer *wlan_objmgr_get_peer_no_state(
 qdf_export_symbol(wlan_objmgr_get_peer_no_state);
 #endif
 
-/**
- * wlan_objmgr_populate_logically_deleted_peerlist_by_mac_n_vdev() -
- *                                                           get peer from psoc
- *                                                           peer list using
- *                                                           mac and vdev
- *                                                           self mac
- * @psoc: PSOC object
- * @pdev_id: Pdev id
- * @macaddr: MAC address
- * @bssid: BSSID address. NULL mac means search all.
- * @dbg_id: id of the caller
- * @func: function name
- * @line: line number
- *
- * API to finds peer object pointer by MAC addr and BSSID from
- * peer hash list, bssid check is done on matching peer
- *
- * Return: list of peer pointer pointers
- *         NULL on FAILURE
- */
-
 #ifdef WLAN_OBJMGR_REF_ID_TRACE
 qdf_list_t *wlan_objmgr_populate_logically_deleted_peerlist_by_mac_n_vdev_debug(
 			struct wlan_objmgr_psoc *psoc, uint8_t pdev_id,
@@ -2772,9 +2838,8 @@ static void wlan_objmgr_psoc_peer_ref_print(struct wlan_objmgr_psoc *psoc,
 	vdev_id = wlan_vdev_get_id(wlan_peer_get_vdev(peer));
 	wlan_peer_obj_unlock(peer);
 
-	obj_mgr_alert("Peer MAC:%02x:%02x:%02x:%02x:%02x:%02x state:%d vdev_id:%d",
-		  macaddr[0], macaddr[1], macaddr[2], macaddr[3],
-		  macaddr[4], macaddr[5], obj_state, vdev_id);
+	obj_mgr_alert("Peer MAC:" QDF_MAC_ADDR_FMT "state:%d vdev_id:%d",
+		      QDF_MAC_ADDR_REF(macaddr), obj_state, vdev_id);
 	wlan_objmgr_print_peer_ref_ids(peer, QDF_TRACE_LEVEL_FATAL);
 }
 

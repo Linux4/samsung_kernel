@@ -86,29 +86,125 @@ enum cnss_driver_status {
 	CNSS_FW_DOWN,
 	CNSS_HANG_EVENT,
 	CNSS_BUS_EVENT,
+	CNSS_SYS_REBOOT,
 };
 
 enum cnss_host_dump_type {
-	CNSS_HOST_WLAN_LOGS,
-	CNSS_HOST_HTC_CREDIT,
-	CNSS_HOST_WMI_TX_CMP,
-	CNSS_HOST_WMI_COMMAND_LOG,
-	CNSS_HOST_WMI_EVENT_LOG,
-	CNSS_HOST_WMI_RX_EVENT,
-	CNSS_HOST_HAL_SOC,
-	CNSS_HOST_WMI_HANG_DATA,
-	CNSS_HOST_CE_HANG_EVT,
-	CNSS_HOST_PEER_MAC_ADDR_HANG_DATA,
-	CNSS_HOST_CP_VDEV_INFO,
-	CNSS_HOST_GWLAN_LOGGING,
-	CNSS_HOST_WMI_DEBUG_LOG_INFO,
-	CNSS_HOST_HTC_CREDIT_IDX,
-	CNSS_HOST_HTC_CREDIT_LEN,
-	CNSS_HOST_WMI_TX_CMP_IDX,
-	CNSS_HOST_WMI_COMMAND_LOG_IDX,
-	CNSS_HOST_WMI_EVENT_LOG_IDX,
-	CNSS_HOST_WMI_RX_EVENT_IDX,
-	CNSS_HOST_DUMP_TYPE_MAX,
+	CNSS_HOST_WLAN_LOGS		 = 0,
+	CNSS_HOST_HTC_CREDIT		 = 1,
+	CNSS_HOST_WMI_TX_CMP		 = 2,
+	CNSS_HOST_WMI_COMMAND_LOG	 = 3,
+	CNSS_HOST_WMI_EVENT_LOG		 = 4,
+	CNSS_HOST_WMI_RX_EVENT		 = 5,
+	CNSS_HOST_HAL_SOC		 = 6,
+	CNSS_HOST_GWLAN_LOGGING		 = 7,
+	CNSS_HOST_WMI_DEBUG_LOG_INFO	 = 8,
+	CNSS_HOST_HTC_CREDIT_IDX	 = 9,
+	CNSS_HOST_HTC_CREDIT_LEN	 = 10,
+	CNSS_HOST_WMI_TX_CMP_IDX	 = 11,
+	CNSS_HOST_WMI_COMMAND_LOG_IDX	 = 12,
+	CNSS_HOST_WMI_EVENT_LOG_IDX	 = 13,
+	CNSS_HOST_WMI_RX_EVENT_IDX	 = 14,
+	CNSS_HOST_HIF_CE_DESC_HISTORY_BUFF = 15,
+	CNSS_HOST_HANG_EVENT_DATA	 = 16,
+	CNSS_HOST_CE_DESC_HIST		 = 17,
+	CNSS_HOST_CE_COUNT_MAX		 = 18,
+	CNSS_HOST_CE_HISTORY_MAX	 = 19,
+	CNSS_HOST_ONLY_FOR_CRIT_CE	 = 20,
+	CNSS_HOST_HIF_EVENT_HISTORY	 = 21,
+	CNSS_HOST_HIF_EVENT_HIST_MAX	 = 22,
+	CNSS_HOST_DP_WBM_DESC_REL	 = 23,
+	CNSS_HOST_DP_WBM_DESC_REL_HANDLE = 24,
+	CNSS_HOST_DP_TCL_CMD		 = 25,
+	CNSS_HOST_DP_TCL_CMD_HANDLE	 = 26,
+	CNSS_HOST_DP_TCL_STATUS		 = 27,
+	CNSS_HOST_DP_TCL_STATUS_HANDLE	 = 28,
+	CNSS_HOST_DP_REO_REINJ		 = 29,
+	CNSS_HOST_DP_REO_REINJ_HANDLE	 = 30,
+	CNSS_HOST_DP_RX_REL		 = 31,
+	CNSS_HOST_DP_RX_REL_HANDLE	 = 32,
+	CNSS_HOST_DP_REO_EXP		 = 33,
+	CNSS_HOST_DP_REO_EXP_HANDLE	 = 34,
+	CNSS_HOST_DP_REO_CMD		 = 35,
+	CNSS_HOST_DP_REO_CMD_HANDLE	 = 36,
+	CNSS_HOST_DP_REO_STATUS		 = 37,
+	CNSS_HOST_DP_REO_STATUS_HANDLE	 = 38,
+	CNSS_HOST_DP_TCL_DATA_0		 = 39,
+	CNSS_HOST_DP_TCL_DATA_0_HANDLE	 = 40,
+	CNSS_HOST_DP_TX_COMP_0		 = 41,
+	CNSS_HOST_DP_TX_COMP_0_HANDLE	 = 42,
+	CNSS_HOST_DP_TCL_DATA_1		 = 43,
+	CNSS_HOST_DP_TCL_DATA_1_HANDLE	 = 44,
+	CNSS_HOST_DP_TX_COMP_1		 = 45,
+	CNSS_HOST_DP_TX_COMP_1_HANDLE	 = 46,
+	CNSS_HOST_DP_TCL_DATA_2		 = 47,
+	CNSS_HOST_DP_TCL_DATA_2_HANDLE	 = 48,
+	CNSS_HOST_DP_TX_COMP_2		 = 49,
+	CNSS_HOST_DP_TX_COMP_2_HANDLE	 = 50,
+	CNSS_HOST_DP_REO_DST_0		 = 51,
+	CNSS_HOST_DP_REO_DST_0_HANDLE	 = 52,
+	CNSS_HOST_DP_REO_DST_1		 = 53,
+	CNSS_HOST_DP_REO_DST_1_HANDLE	 = 54,
+	CNSS_HOST_DP_REO_DST_2		 = 55,
+	CNSS_HOST_DP_REO_DST_2_HANDLE	 = 56,
+	CNSS_HOST_DP_REO_DST_3		 = 57,
+	CNSS_HOST_DP_REO_DST_3_HANDLE	 = 58,
+	CNSS_HOST_DP_REO_DST_4		 = 59,
+	CNSS_HOST_DP_REO_DST_4_HANDLE	 = 60,
+	CNSS_HOST_DP_REO_DST_5		 = 61,
+	CNSS_HOST_DP_REO_DST_5_HANDLE	 = 62,
+	CNSS_HOST_DP_REO_DST_6		 = 63,
+	CNSS_HOST_DP_REO_DST_6_HANDLE	 = 64,
+	CNSS_HOST_DP_REO_DST_7		 = 65,
+	CNSS_HOST_DP_REO_DST_7_HANDLE	 = 66,
+	CNSS_HOST_DP_PDEV_0		 = 67,
+	CNSS_HOST_DP_WLAN_CFG_CTX	 = 68,
+	CNSS_HOST_DP_SOC		 = 69,
+	CNSS_HOST_HAL_RX_FST		 = 70,
+	CNSS_HOST_DP_FISA		 = 71,
+	CNSS_HOST_DP_FISA_HW_FSE_TABLE	 = 72,
+	CNSS_HOST_DP_FISA_SW_FSE_TABLE	 = 73,
+	CNSS_HOST_HIF			 = 74,
+	CNSS_HOST_QDF_NBUF_HIST		 = 75,
+	CNSS_HOST_TCL_WBM_MAP		 = 76,
+	CNSS_HOST_RX_MAC_BUF_RING_0	 = 77,
+	CNSS_HOST_RX_MAC_BUF_RING_0_HANDLE = 78,
+	CNSS_HOST_RX_MAC_BUF_RING_1	 = 79,
+	CNSS_HOST_RX_MAC_BUF_RING_1_HANDLE = 80,
+	CNSS_HOST_RX_REFILL_0		 = 81,
+	CNSS_HOST_RX_REFILL_0_HANDLE	 = 82,
+	CNSS_HOST_CE_0			 = 83,
+	CNSS_HOST_CE_0_SRC_RING		 = 84,
+	CNSS_HOST_CE_0_SRC_RING_CTX	 = 85,
+	CNSS_HOST_CE_1			 = 86,
+	CNSS_HOST_CE_1_STATUS_RING	 = 87,
+	CNSS_HOST_CE_1_STATUS_RING_CTX	 = 88,
+	CNSS_HOST_CE_1_DEST_RING	 = 89,
+	CNSS_HOST_CE_1_DEST_RING_CTX	 = 90,
+	CNSS_HOST_CE_2			 = 91,
+	CNSS_HOST_CE_2_STATUS_RING	 = 92,
+	CNSS_HOST_CE_2_STATUS_RING_CTX	 = 93,
+	CNSS_HOST_CE_2_DEST_RING	 = 94,
+	CNSS_HOST_CE_2_DEST_RING_CTX	 = 95,
+	CNSS_HOST_CE_3			 = 96,
+	CNSS_HOST_CE_3_SRC_RING		 = 97,
+	CNSS_HOST_CE_3_SRC_RING_CTX	 = 98,
+	CNSS_HOST_CE_4			 = 99,
+	CNSS_HOST_CE_4_SRC_RING		 = 100,
+	CNSS_HOST_CE_4_SRC_RING_CTX	 = 101,
+	CNSS_HOST_CE_5			 = 102,
+	CNSS_HOST_CE_6			 = 103,
+	CNSS_HOST_CE_7			 = 104,
+	CNSS_HOST_CE_7_STATUS_RING	 = 105,
+	CNSS_HOST_CE_7_STATUS_RING_CTX	 = 106,
+	CNSS_HOST_CE_7_DEST_RING	 = 107,
+	CNSS_HOST_CE_7_DEST_RING_CTX	 = 108,
+	CNSS_HOST_CE_8			 = 109,
+	CNSS_HOST_DP_TCL_DATA_3		 = 110,
+	CNSS_HOST_DP_TCL_DATA_3_HANDLE	 = 111,
+	CNSS_HOST_DP_TX_COMP_3		 = 112,
+	CNSS_HOST_DP_TX_COMP_3_HANDLE	 = 113,
+	CNSS_HOST_DUMP_TYPE_MAX		 = 114,
 };
 
 enum cnss_bus_event_type {
@@ -224,6 +320,7 @@ struct cnss_wlan_enable_cfg {
 	struct cnss_rri_over_ddr_cfg rri_over_ddr_cfg;
 	u32 num_shadow_reg_v3_cfg;
 	struct cnss_shadow_reg_v3_cfg *shadow_reg_v3_cfg;
+	bool send_msi_ce;
 };
 
 enum cnss_driver_mode {
@@ -247,6 +344,7 @@ enum cnss_recovery_reason {
 
 enum cnss_fw_caps {
 	CNSS_FW_CAP_DIRECT_LINK_SUPPORT,
+	CNSS_FW_CAP_AUX_UC_SUPPORT,
 };
 
 enum cnss_remote_mem_type {
@@ -345,15 +443,11 @@ extern int cnss_get_pci_slot(struct device *dev);
 extern int cnss_pci_get_reg_dump(struct device *dev, uint8_t *buffer,
 				 uint32_t len);
 extern struct kobject *cnss_get_wifi_kobj(struct device *dev);
-extern int cnss_send_buffer_to_afcmem(struct device *dev, char *afcdb,
+extern int cnss_send_buffer_to_afcmem(struct device *dev, const uint8_t *afcdb,
 				      uint32_t len, uint8_t slotid);
 extern int cnss_reset_afcmem(struct device *dev, uint8_t slotid);
 extern bool cnss_get_fw_cap(struct device *dev, enum cnss_fw_caps fw_cap);
 extern int cnss_set_wfc_mode(struct device *dev, struct cnss_wfc_cfg cfg);
-//#ifdef CONFIG_SEC_SS_CNSS_FEATURE_SYSFS
-extern int cnss_sysfs_get_pm_info(void);
-extern void cnss_sysfs_update_driver_status(int32_t new_status, void *version, void *softap);
-//#endif /*CONFIG_SEC_SS_CNSS_FEATURE_SYSFS*/
 extern int cnss_thermal_cdev_register(struct device *dev,
 				      unsigned long max_state,
 				      int tcdev_id);
@@ -361,4 +455,12 @@ extern void cnss_thermal_cdev_unregister(struct device *dev, int tcdev_id);
 extern int cnss_get_curr_therm_cdev_state(struct device *dev,
 					  unsigned long *thermal_state,
 					  int tcdev_id);
+//#ifdef CONFIG_SEC_SS_CNSS_FEATURE_SYSFS
+extern int cnss_sysfs_get_pm_info(void);
+extern void cnss_sysfs_update_driver_status(int32_t new_status, void *version, void *softap);
+//#endif /*CONFIG_SEC_SS_CNSS_FEATURE_SYSFS*/
+
+extern int cnss_update_time_sync_period(struct device *dev,
+					 uint32_t time_sync_period);
+extern int cnss_reset_time_sync_period(struct device *dev);
 #endif /* _NET_CNSS2_H */

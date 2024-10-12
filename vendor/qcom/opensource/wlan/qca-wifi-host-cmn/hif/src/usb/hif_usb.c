@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2013-2020 The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -269,7 +269,6 @@ err:
  * @transfer_id: endpoint ID on which data is to be sent
  * @nbytes: number of bytes to be transmitted
  * @wbuf: qdf_nbuf_t containing data to be transmitted
- * @hdr_buf: any header buf to be prepended, currently ignored
  * @data_attr: data_attr field from cvg_nbuf_cb of wbuf
  *
  * Return: QDF_STATUS_SUCCESS on success and error QDF status on failure
@@ -451,7 +450,7 @@ QDF_STATUS hif_start(struct hif_opaque_softc *scn)
 
 /**
  * hif_usb_stop_device() - Stop/flush all HIF communication
- * @scn: pointer to hif_opaque_softc structure
+ * @hif_sc: pointer to hif_opaque_softc structure
  *
  * Return: none
  */
@@ -470,7 +469,7 @@ void hif_usb_stop_device(struct hif_softc *hif_sc)
  * hif_get_default_pipe() - get default pipes for HIF TX/RX
  * @scn: pointer to hif_opaque_softc structure
  * @ul_pipe: pointer to TX pipe
- * @ul_pipe: pointer to TX pipe
+ * @dl_pipe: pointer to RX pipe
  *
  * Return: none
  */
@@ -489,7 +488,7 @@ void hif_get_default_pipe(struct hif_opaque_softc *scn, uint8_t *ul_pipe,
  * @ul_pipe: pointer to uplink pipe id
  * @dl_pipe: pointer to down-linklink pipe id
  * @ul_is_polled: if ul is polling based
- * @ul_is_polled: if dl is polling based
+ * @dl_is_polled: if dl is polling based
  *
  * Return: status
  */
@@ -544,7 +543,7 @@ int hif_map_service_to_pipe(struct hif_opaque_softc *scn, uint16_t svc_id,
  * @ul_pipe: pointer to uplink pipe id
  * @dl_pipe: pointer to down-linklink pipe id
  * @ul_is_polled: if ul is polling based
- * @ul_is_polled: if dl is polling based
+ * @dl_is_polled: if dl is polling based
  *
  * Return: status
  */
@@ -667,10 +666,12 @@ static QDF_STATUS hif_ctrl_msg_exchange(struct HIF_DEVICE_USB *macp,
 /**
  * hif_exchange_bmi_msg() - send/recev ctrl message of type BMI_CMD/BMI_RESP
  * @scn: pointer to hif_opaque_softc
+ * @cmd:
+ * @rsp:
  * @bmi_request: pointer to data to send
  * @request_length: length in bytes of the data to send
  * @bmi_response: pointer to response msg
- * @bmi_response_length: length of the response message
+ * @bmi_response_lengthp: length of the response message
  * @timeout_ms: timeout to wait for response (ignored in current implementation)
  *
  * Return: QDF_STATUS_SUCCESS if success else an appropriate QDF_STATUS error

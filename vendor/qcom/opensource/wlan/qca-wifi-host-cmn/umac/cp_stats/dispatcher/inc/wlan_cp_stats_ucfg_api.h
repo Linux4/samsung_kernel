@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2018, 2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -32,7 +32,7 @@
 #include "../../core/src/wlan_cp_stats_cmn_api_i.h"
 
 /**
- * @ucfg_infra_cp_stats_register_resp_cb() - Register the response callback
+ * ucfg_infra_cp_stats_register_resp_cb() - Register the response callback
  * and cookie in the psoc mc_stats object
  * @psoc: pointer to psoc object
  * @req: pointer to request parameter structure
@@ -45,7 +45,18 @@ ucfg_infra_cp_stats_register_resp_cb(struct wlan_objmgr_psoc *psoc,
 				     struct infra_cp_stats_cmd_info *req);
 
 /**
- * @ucfg_send_infra_cp_stats_request() - send a infra cp stats command
+ * ucfg_infra_cp_stats_deregister_resp_cb() - Deregister the response callback
+ * and cookie in the psoc mc_stats object
+ * @psoc: pointer to psoc object
+ *
+ * Return: QDF_STATUS_SUCCESS on Success, other QDF_STATUS error codes on
+ * failure
+ */
+QDF_STATUS
+ucfg_infra_cp_stats_deregister_resp_cb(struct wlan_objmgr_psoc *psoc);
+
+/**
+ * ucfg_send_infra_cp_stats_request() - send a infra cp stats command
  * @vdev: pointer to vdev object
  * @req: pointer to request parameter structure
  *
@@ -55,6 +66,20 @@ ucfg_infra_cp_stats_register_resp_cb(struct wlan_objmgr_psoc *psoc,
 QDF_STATUS
 ucfg_send_infra_cp_stats_request(struct wlan_objmgr_vdev *vdev,
 				 struct infra_cp_stats_cmd_info *req);
+
+#ifdef WLAN_CONFIG_TELEMETRY_AGENT
+/**
+ * ucfg_send_telemetry_cp_stats_request() - send a telemetry cp stats command
+ * @pdev: pointer to pdev object
+ * @req: pointer to request parameter structure
+ *
+ * Return: QDF_STATUS_SUCCESS on Success, other QDF_STATUS error codes
+ * on failure
+ */
+QDF_STATUS
+ucfg_send_telemetry_cp_stats_request(struct wlan_objmgr_pdev *pdev,
+				     struct infra_cp_stats_cmd_info *req);
+#endif
 
 #if defined(WLAN_SUPPORT_TWT) && defined (WLAN_TWT_CONV_SUPPORTED)
 int ucfg_cp_stats_twt_get_peer_session_params(

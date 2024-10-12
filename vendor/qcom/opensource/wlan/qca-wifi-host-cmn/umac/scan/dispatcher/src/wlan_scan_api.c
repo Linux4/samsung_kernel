@@ -163,6 +163,20 @@ void wlan_scan_cfg_get_min_dwelltime_6g(struct wlan_objmgr_psoc *psoc,
 		return;
 	*min_dwell_time_6ghz = scan_obj->scan_def.min_dwell_time_6g;
 }
+
+QDF_STATUS wlan_scan_cfg_set_scan_mode_6g(struct wlan_objmgr_psoc *psoc,
+					  enum scan_mode_6ghz scan_mode_6g)
+{
+	struct wlan_scan_obj *scan_obj;
+
+	scan_obj = wlan_psoc_get_scan_obj(psoc);
+	if (!scan_obj)
+		return QDF_STATUS_E_INVAL;
+
+	scan_obj->scan_def.scan_mode_6g = scan_mode_6g;
+
+	return QDF_STATUS_SUCCESS;
+}
 #endif
 
 #ifdef WLAN_POLICY_MGR_ENABLE
@@ -178,12 +192,7 @@ void wlan_scan_update_pno_dwell_time(struct wlan_objmgr_vdev *vdev,
 	if (!psoc)
 		return;
 
-	sap_or_p2p_present = policy_mgr_mode_specific_connection_count
-			       (psoc,
-				PM_SAP_MODE, NULL) ||
-				policy_mgr_mode_specific_connection_count
-			       (psoc,
-				PM_P2P_GO_MODE, NULL) ||
+	sap_or_p2p_present = policy_mgr_get_beaconing_mode_count(psoc, NULL) ||
 				policy_mgr_mode_specific_connection_count
 			       (psoc,
 				PM_P2P_CLIENT_MODE, NULL);
@@ -408,8 +417,7 @@ QDF_STATUS wlan_scan_start(struct scan_start_request *req)
 
 	if (!req || !req->vdev) {
 		scm_err("req or vdev within req is NULL");
-		if (req)
-			scm_scan_free_scan_request_mem(req);
+		scm_scan_free_scan_request_mem(req);
 		return QDF_STATUS_E_NULL_VALUE;
 	}
 
@@ -876,3 +884,37 @@ wlan_scan_get_entry_by_bssid(struct wlan_objmgr_pdev *pdev,
 {
 	return scm_scan_get_entry_by_bssid(pdev, bssid);
 }
+
+QDF_STATUS
+wlan_scan_get_mld_addr_by_link_addr(struct wlan_objmgr_pdev *pdev,
+				    struct qdf_mac_addr *link_addr,
+				    struct qdf_mac_addr *mld_mac_addr)
+{
+	return scm_get_mld_addr_by_link_addr(pdev, link_addr, mld_mac_addr);
+}
+
+struct scan_cache_entry *
+wlan_scan_get_scan_entry_by_mac_freq(struct wlan_objmgr_pdev *pdev,
+				     struct qdf_mac_addr *bssid,
+				     uint16_t freq)
+{
+	return scm_scan_get_scan_entry_by_mac_freq(pdev, bssid, freq);
+}
+
+bool wlan_scan_get_aux_support(struct wlan_objmgr_psoc *psoc)
+
+{
+	struct wlan_scan_obj *scan_obj;
+
+	scan_obj = wlan_psoc_get_scan_obj(psoc);
+	if (!scan_obj)
+		return false;
+
+	if (scan_obj->aux_mac_support)
+		scm_debug("aux mac support: %d", scan_obj->aux_mac_support);
+	else
+		scm_debug("aux mac not supported");
+
+	return scan_obj->aux_mac_support;
+}
+

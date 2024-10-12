@@ -27,7 +27,7 @@
 #include "qdf_status.h"
 #include "wlan_dsc_psoc.h"
 
-/**
+/*
  * struct dsc_vdev - opaque dsc vdev context
  */
 struct dsc_vdev;

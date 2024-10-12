@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -25,13 +25,13 @@
 #include <cfg_ucfg_api.h>
 
 QDF_STATUS
-ucfg_wlan_mgmt_rx_reo_sim_start(void)
+ucfg_wlan_mgmt_rx_reo_sim_start(uint8_t ml_grp_id)
 {
 	QDF_STATUS status;
 
-	if (!wlan_mgmt_rx_reo_is_simulation_in_progress()) {
+	if (!wlan_mgmt_rx_reo_is_simulation_in_progress(ml_grp_id)) {
 		mgmt_rx_reo_debug("Starting rx reo simulation");
-		status = wlan_mgmt_rx_reo_sim_start();
+		status = wlan_mgmt_rx_reo_sim_start(ml_grp_id);
 		if (QDF_IS_STATUS_ERROR(status)) {
 			mgmt_rx_reo_err("Failed to start rx reo sim");
 			return status;
@@ -45,13 +45,13 @@ ucfg_wlan_mgmt_rx_reo_sim_start(void)
 qdf_export_symbol(ucfg_wlan_mgmt_rx_reo_sim_start);
 
 QDF_STATUS
-ucfg_wlan_mgmt_rx_reo_sim_stop(void)
+ucfg_wlan_mgmt_rx_reo_sim_stop(uint8_t ml_grp_id)
 {
 	QDF_STATUS status;
 
-	if (wlan_mgmt_rx_reo_is_simulation_in_progress()) {
+	if (wlan_mgmt_rx_reo_is_simulation_in_progress(ml_grp_id)) {
 		mgmt_rx_reo_debug("Stopping simulation");
-		status = wlan_mgmt_rx_reo_sim_stop();
+		status = wlan_mgmt_rx_reo_sim_stop(ml_grp_id);
 		if (QDF_IS_STATUS_ERROR(status)) {
 			mgmt_rx_reo_err("Failed to stop rx reo sim");
 			return status;
@@ -65,9 +65,9 @@ ucfg_wlan_mgmt_rx_reo_sim_stop(void)
 qdf_export_symbol(ucfg_wlan_mgmt_rx_reo_sim_stop);
 
 bool
-ucfg_wlan_mgmt_rx_reo_is_simulation_in_progress(void)
+ucfg_wlan_mgmt_rx_reo_is_simulation_in_progress(uint8_t ml_grp_id)
 {
-	return wlan_mgmt_rx_reo_is_simulation_in_progress();
+	return wlan_mgmt_rx_reo_is_simulation_in_progress(ml_grp_id);
 }
 
 qdf_export_symbol(ucfg_wlan_mgmt_rx_reo_is_simulation_in_progress);

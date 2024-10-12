@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2012-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -50,9 +50,6 @@ struct comeback_timer_info {
 /*--------------------------------------------------------------------------
    Preprocessor definitions and constants
    ------------------------------------------------------------------------*/
-/* Maximum Number of WEP KEYS */
-#define MAX_WEP_KEYS 4
-
 #define SCH_PROTECTION_RESET_TIME 4000
 
 /*--------------------------------------------------------------------------
@@ -197,6 +194,18 @@ struct mld_capab_and_op {
 };
 
 /**
+ * struct ext_mld_capab_and_op - EXT MLD capability and operations info
+ * @op_parameter_update_support: operation parameter update support
+ * @rec_max_simultaneous_links: recommended max simultaneous links
+ * @reserved: reserved
+ */
+struct ext_mld_capab_and_op {
+	uint16_t op_parameter_update_support:1;
+	uint16_t rec_max_simultaneous_links:3;
+	uint16_t reserved:11;
+};
+
+/**
  * struct wlan_mlo_ie - wlan ML IE info
  * @type: the variant of the ML IE
  * @reserved: reserved
@@ -206,6 +215,8 @@ struct mld_capab_and_op {
  * @eml_capab_present: the present flag of EML capability
  * @mld_capab_and_op_present: the present flag of MLD capability and operation
  * @mld_id_present: the present flag of MLD ID
+ * @ext_mld_capab_and_op_present: Extended MLD Capabilities And
+ *                                Operations Present
  * @reserved_1: reserved
  * @common_info_length: common info length
  * @mld_mac_addr: MLD mac address
@@ -215,6 +226,7 @@ struct mld_capab_and_op {
  * @eml_capabilities_info: structure of eml_capabilities
  * @mld_capab_and_op_info: structure of mld_capabilities and operations
  * @mld_id_info: MLD ID
+ * @ext_mld_capab_and_op_info: structure of ext_mld_capab_and operations
  * @num_sta_profile: the number of sta profile
  * @sta_profile: structure of wlan_mlo_sta_profile
  * @num_data: the length of data
@@ -230,7 +242,8 @@ struct wlan_mlo_ie {
 	uint16_t eml_capab_present:1;
 	uint16_t mld_capab_and_op_present: 1;
 	uint16_t mld_id_present: 1;
-	uint16_t reserved_1:6;
+	uint16_t ext_mld_capab_and_op_present: 1;
+	uint16_t reserved_1:5;
 	uint8_t common_info_length;
 	uint8_t mld_mac_addr[6];
 	uint8_t link_id;
@@ -239,6 +252,7 @@ struct wlan_mlo_ie {
 	struct eml_capabilities eml_capabilities_info;
 	struct mld_capab_and_op mld_capab_and_op_info;
 	uint8_t mld_id_info;
+	struct ext_mld_capab_and_op ext_mld_capab_and_op_info;
 	uint16_t num_sta_profile;
 	struct wlan_mlo_sta_profile sta_profile[WLAN_MLO_MAX_VDEVS];
 	uint16_t num_data;
@@ -320,6 +334,8 @@ struct mlo_link_ie_info {
  * @medium_sync_delay_info_present: Medium sync delay information present
  * @bss_param_change_cnt_present: BSS parameter change count present
  * @link_id_info_present: Link ID information present
+ * @ext_mld_capab_and_op_present: Extended MLD Capabilities And
+ *                                Operations Present
  * @reserved: reserved bit
  * @type: Type bits
  */
@@ -327,7 +343,8 @@ struct wlan_mlo_ie_info {
 #ifndef ANI_LITTLE_BIT_ENDIAN
 	uint8_t mld_mac_addr[6];
 	uint8_t common_info_length;
-	uint16_t reserved_1:6;
+	uint16_t reserved_1:5;
+	uint16_t ext_mld_capab_and_op_present:1;
 	uint16_t mld_id_present:1;
 	uint16_t mld_capab_and_op_present:1;
 	uint16_t eml_capab_present:1;
@@ -345,7 +362,8 @@ struct wlan_mlo_ie_info {
 	uint16_t eml_capab_present:1;
 	uint16_t mld_capab_and_op_present:1;
 	uint16_t mld_id_present:1;
-	uint16_t reserved_1:6;
+	uint16_t ext_mld_capab_and_op_present:1;
+	uint16_t reserved_1:5;
 	uint8_t common_info_length;
 	uint8_t mld_mac_addr[6];
 #endif
@@ -501,16 +519,15 @@ struct wlan_mlo_ie_info {
  * @vhtCapability:
  * @gLimOperatingMode:
  * @vhtCapabilityPresentInBeacon:
- * @ch_center_freq_seg0: center freq number as advertized OTA
- * @ch_width:
+ * @ch_center_freq_seg0: center freq number as advertised OTA
+ * @ch_width:    Session max channel width
+ * @ap_ch_width: AP advertised channel width
  * @puncture_bitmap:
  * @ch_center_freq_seg1:
  * @enableVhtpAid:
  * @enableVhtGid:
  * @gLimWiderBWChannelSwitch:
  * @enableAmpduPs:
- * @enableHtSmps:
- * @htSmpsvalue:
  * @send_smps_action:
  * @spectrumMgtEnabled:
  * @gLimSpecMgmt:
@@ -555,6 +572,8 @@ struct wlan_mlo_ie_info {
  * @chainMask:
  * @dfsIncludeChanSwIe: Flag to indicate Chan Sw announcement is required
  * @dfsIncludeChanWrapperIe: Flag to indicate Chan Wrapper Element is required
+ * @bw_update_include_ch_sw_ie: Flag to indicate chan switch Element is required
+ *                              due to bandwidth update
  * @cc_switch_mode:
  * @isCiscoVendorAP:
  * @add_ie_params:
@@ -646,10 +665,8 @@ struct wlan_mlo_ie_info {
  * @prot_status_code:
  * @result_code:
  * @dfs_regdomain:
- * @ap_power_type: AP power type
- * @same_ctry_code: If AP Country IE has same country code as STA programmed
- *                  country
- * @ap_power_type_6g: AP power type for 6G (LPI, SP, or VLP)
+ * @ap_defined_power_type_6g: 6 GHz power type advertised by AP
+ * @best_6g_power_type: best 6 GHz power type
  * @sta_follows_sap_power:
  * @eht_capable:
  * @eht_config:
@@ -659,6 +676,10 @@ struct wlan_mlo_ie_info {
  * @mlo_ie_total_len:
  * @mlo_ie:
  * @user_edca_set:
+ * @is_oui_auth_assoc_6mbps_2ghz_enable: send auth/assoc req with 6 Mbps rate
+ * @is_unexpected_peer_error: true if unexpected peer error
+ * on 2.4 GHz
+ * @join_probe_cnt: join probe request count
  */
 struct pe_session {
 	uint8_t available;
@@ -768,8 +789,6 @@ struct pe_session {
 
 	uint8_t privacy;
 	tAniAuthType authType;
-	tSirKeyMaterial WEPKeyMaterial[MAX_WEP_KEYS];
-
 	tDot11fIEWMMParams wmm_params;
 	tDot11fIERSN gStartBssRSNIe;
 	tDot11fIEWPA gStartBssWPAIe;
@@ -800,11 +819,8 @@ struct pe_session {
 	bool is_adaptive_11r_connection;
 
 #ifdef FEATURE_WLAN_ESE
-	bool isESEconnection;
 	tEsePEContext eseContext;
 #endif
-	bool isFastTransitionEnabled;
-	bool isFastRoamIniFeatureEnabled;
 	tSirP2PNoaAttr p2pGoPsUpdate;
 	uint32_t defaultAuthFailureTimeout;
 
@@ -820,6 +836,7 @@ struct pe_session {
 	uint8_t vhtCapabilityPresentInBeacon;
 	uint8_t ch_center_freq_seg0;
 	enum phy_ch_width ch_width;
+	enum phy_ch_width ap_ch_width;
 #ifdef WLAN_FEATURE_11BE
 	uint16_t puncture_bitmap;
 #endif
@@ -828,8 +845,6 @@ struct pe_session {
 	uint8_t enableVhtGid;
 	tLimWiderBWChannelSwitchInfo gLimWiderBWChannelSwitch;
 	uint8_t enableAmpduPs;
-	uint8_t enableHtSmps;
-	uint8_t htSmpsvalue;
 	bool send_smps_action;
 	uint8_t spectrumMgtEnabled;
 
@@ -870,6 +885,7 @@ struct pe_session {
 	uint8_t dfsIncludeChanSwIe;
 
 	uint8_t dfsIncludeChanWrapperIe;
+	uint8_t bw_update_include_ch_sw_ie;
 
 #ifdef FEATURE_WLAN_MCC_TO_SCC_SWITCH
 	uint8_t cc_switch_mode;
@@ -976,9 +992,8 @@ struct pe_session {
 	uint16_t prot_status_code;
 	tSirResultCodes result_code;
 	uint32_t dfs_regdomain;
-	uint8_t ap_power_type;
-	bool same_ctry_code;
-	uint8_t ap_power_type_6g;
+	uint8_t ap_defined_power_type_6g;
+	uint8_t best_6g_power_type;
 	bool sta_follows_sap_power;
 #ifdef WLAN_FEATURE_11BE
 	bool eht_capable;
@@ -992,6 +1007,9 @@ struct pe_session {
 #endif
 #endif /* WLAN_FEATURE_11BE */
 	uint8_t user_edca_set;
+	bool is_oui_auth_assoc_6mbps_2ghz_enable;
+	bool is_unexpected_peer_error;
+	uint8_t join_probe_cnt;
 };
 
 /*-------------------------------------------------------------------------
@@ -1160,6 +1178,53 @@ struct pe_session *pe_find_session_by_scan_id(struct mac_context *mac_ctx,
 				       uint32_t scan_id);
 
 uint8_t pe_get_active_session_count(struct mac_context *mac_ctx);
+
+/**
+ * lim_dump_session_info() - Dump the key parameters of PE session
+ * @mac_ctx: Global MAC context
+ * @pe_session: PE session
+ *
+ * Dumps the fields from the @pe_session for debugging.
+ *
+ * Return: void
+ */
+void lim_dump_session_info(struct mac_context *mac_ctx,
+			   struct pe_session *pe_session);
+
+#ifdef WLAN_FEATURE_11AX
+/**
+ * lim_dump_he_info() - Dump HE fields in PE session
+ * @mac: Global MAC context
+ * @session: PE session
+ *
+ * Dumps the fields related to HE from the @session for debugging
+ *
+ * Return: void
+ */
+void lim_dump_he_info(struct mac_context *mac, struct pe_session *session);
+#else
+static inline void lim_dump_he_info(struct mac_context *mac,
+				    struct pe_session *session)
+{
+}
+#endif
+
+#ifdef WLAN_FEATURE_11BE_MLO
+/**
+ * lim_dump_eht_info() - Dump EHT fields in PE session
+ * @session: PE session
+ *
+ * Dumps the fields related to EHT from @session for debugging
+ *
+ * Return: void
+ */
+void lim_dump_eht_info(struct pe_session *session);
+#else
+static inline void lim_dump_eht_info(struct pe_session *session)
+{
+}
+#endif
+
 #ifdef WLAN_FEATURE_FILS_SK
 /**
  * pe_delete_fils_info: API to delete fils session info

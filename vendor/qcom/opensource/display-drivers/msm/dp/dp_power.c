@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2021-2022, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  * Copyright (c) 2012-2021, The Linux Foundation. All rights reserved.
  */
 
@@ -30,7 +30,7 @@
 #endif/*CONFIG_SECDP*/
 
 #define DP_CLIENT_NAME_SIZE	20
-#define XO_CLK_KHZ	19200
+#define XO_CLK_HZ	19200000
 
 struct dp_power_private {
 	struct dp_parser *parser;
@@ -40,6 +40,8 @@ struct dp_power_private {
 	struct clk *pixel_parent;
 	struct clk *pixel1_clk_rcg;
 	struct clk *xo_clk;
+	struct clk *link_clk_rcg;
+	struct clk *link_parent;
 
 	struct dp_power dp_power;
 
@@ -51,6 +53,7 @@ struct dp_power_private {
 	bool strm1_clks_parked;
 #if defined(CONFIG_SECDP)
 	bool aux_pullup_on;
+	struct mutex dp_clk_lock;
 
 	void (*redrv_onoff)(bool enable, int lane);
 	void (*redrv_aux_ctrl)(int cross);
@@ -376,6 +379,24 @@ static int dp_power_clk_init(struct dp_power_private *power, bool enable)
 				goto err_pixel1_clk_rcg;
 			}
 		}
+
+		power->link_clk_rcg = clk_get(dev, "link_clk_src");
+		if (IS_ERR(power->link_clk_rcg)) {
+			DP_DEBUG("Unable to get DP link clk RCG: %ld\n",
+					PTR_ERR(power->link_clk_rcg));
+			rc = PTR_ERR(power->link_clk_rcg);
+			power->link_clk_rcg = NULL;
+			goto err_link_clk_rcg;
+		}
+
+		power->link_parent = clk_get(dev, "link_parent");
+		if (IS_ERR(power->link_parent)) {
+			DP_DEBUG("Unable to get DP link parent: %ld\n",
+					PTR_ERR(power->link_parent));
+			rc = PTR_ERR(power->link_parent);
+			power->link_parent = NULL;
+			goto err_link_parent;
+		}
 	} else {
 		if (power->pixel1_clk_rcg)
 			clk_put(power->pixel1_clk_rcg);
@@ -386,10 +407,21 @@ static int dp_power_clk_init(struct dp_power_private *power, bool enable)
 		if (power->pixel_clk_rcg)
 			clk_put(power->pixel_clk_rcg);
 
+		if (power->link_parent)
+			clk_put(power->link_parent);
+
+		if (power->link_clk_rcg)
+			clk_put(power->link_clk_rcg);
+
 		dp_power_clk_put(power);
 	}
 
 	return rc;
+
+err_link_parent:
+	clk_put(power->link_clk_rcg);
+err_link_clk_rcg:
+	clk_put(power->pixel1_clk_rcg);
 err_pixel1_clk_rcg:
 	clk_put(power->xo_clk);
 err_xo_clk:
@@ -441,7 +473,7 @@ static int dp_power_park_module(struct dp_power_private *power, enum dp_pm_type 
 		goto exit;
 	}
 
-	mp->clk_config->rate = XO_CLK_KHZ;
+	mp->clk_config->rate = XO_CLK_HZ;
 	rc = msm_dss_clk_set_rate(mp->clk_config, mp->num_clk);
 	if (rc) {
 		DP_ERR("failed to set clk rate.\n");
@@ -460,7 +492,11 @@ static int dp_power_clk_set_rate(struct dp_power_private *power,
 {
 	int rc = 0;
 	struct dss_module_power *mp;
+#if defined(CONFIG_SECDP)
+	static bool prev[DP_MAX_PM];
 
+	mutex_lock(&power->dp_clk_lock);
+#endif
 	if (!power) {
 		DP_ERR("invalid power data\n");
 		rc = -EINVAL;
@@ -468,6 +504,13 @@ static int dp_power_clk_set_rate(struct dp_power_private *power,
 	}
 
 	mp = &power->parser->mp[module];
+
+#if defined(CONFIG_SECDP)
+	if (prev[module] == enable) {
+		DP_DEBUG("%d clk already %s\n", module, enable ? "enabled" : "disabled");
+		goto exit;
+	}
+#endif
 
 	if (enable) {
 		rc = msm_dss_clk_set_rate(mp->clk_config, mp->num_clk);
@@ -490,7 +533,14 @@ static int dp_power_clk_set_rate(struct dp_power_private *power,
 
 		dp_power_park_module(power, module);
 	}
+
+#if defined(CONFIG_SECDP)
+	prev[module] = enable;
+#endif
 exit:
+#if defined(CONFIG_SECDP)
+	mutex_unlock(&power->dp_clk_lock);
+#endif
 	return rc;
 }
 
@@ -552,39 +602,13 @@ static int dp_power_clk_enable(struct dp_power *dp_power,
 		}
 	}
 
-#if defined(CONFIG_SECDP)
-	if (!enable) {
-		/* consider below abnormal sequence :
-		 * PDIC_NOTIFY_ATTACH
-		 * -> no PDIC_NOTIFY_ID_DP_LINK_CONF, no PDIC_NOTIFY_ID_DP_HPD
-		 * -> PDIC_NOTIFY_DETACH
-		 */
-		if ((pm_type == DP_CORE_PM) && (!power->core_clks_on)) {
-			DP_DEBUG("core clks already disabled\n");
-			return 0;
-		}
-
-		if ((pm_type == DP_CTRL_PM) && (!power->link_clks_on)) {
-			DP_DEBUG("links clks already disabled\n");
-			return 0;
-		}
-
-		if ((pm_type == DP_STREAM0_PM) && (!power->strm0_clks_on)) {
-			DP_DEBUG("strm0 clks already disabled\n");
-			return 0;
-		}
-
-		if ((pm_type == DP_STREAM1_PM) && (!power->strm1_clks_on)) {
-			DP_DEBUG("strm1 clks already disabled\n");
-			return 0;
-		}
-
-		if (pm_type == DP_LINK_PM && !power->link_clks_on) {
-			DP_DEBUG("links clks already disabled\n");
-			return 0;
+	if (pm_type == DP_LINK_PM && enable && power->link_parent) {
+		rc = clk_set_parent(power->link_clk_rcg, power->link_parent);
+		if (rc) {
+			DP_ERR("failed to set link parent\n");
+			goto error;
 		}
 	}
-#endif
 
 	rc = dp_power_clk_set_rate(power, pm_type, enable);
 	if (rc) {
@@ -1123,32 +1147,6 @@ enum dp_hpd_plug_orientation secdp_get_plug_orientation(void)
 	/*cannot be here*/
 	return ORIENTATION_NONE;
 }
-
-bool secdp_get_clk_status(enum dp_pm_type type)
-{
-	struct dp_power_private *power = g_secdp_power;
-	bool ret = false;
-
-	switch (type) {
-	case DP_CORE_PM:
-		ret = power->core_clks_on;
-		break;
-	case DP_STREAM0_PM:
-		ret = power->strm0_clks_on;
-		break;
-	case DP_STREAM1_PM:
-		ret = power->strm1_clks_on;
-		break;
-	case DP_LINK_PM:
-		ret = power->link_clks_on;
-		break;
-	default:
-		DP_ERR("invalid type:%d\n", type);
-		break;
-	}
-
-	return ret;
-}
 #endif
 
 static int dp_power_config_gpios(struct dp_power_private *power, bool flip,
@@ -1505,6 +1503,7 @@ struct dp_power *dp_power_get(struct dp_parser *parser, struct dp_pll *pll)
 
 #if defined(CONFIG_SECDP)
 	secdp_redriver_register(power);
+	mutex_init(&power->dp_clk_lock);
 	g_secdp_power = power;
 #endif
 

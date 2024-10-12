@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -30,6 +30,7 @@
 
 struct mgmt_txrx_priv_pdev_context;
 
+#ifdef WLAN_MGMT_RX_REO_SUPPORT
 /**
  * wlan_get_mlo_link_id_from_pdev() - Helper API to get the MLO HW link id
  * from the pdev object.
@@ -42,17 +43,47 @@ int8_t
 wlan_get_mlo_link_id_from_pdev(struct wlan_objmgr_pdev *pdev);
 
 /**
+ * wlan_get_mlo_grp_id_from_pdev() - Helper API to get the MLO Group id
+ * from the pdev object.
+ * @pdev: Pointer to pdev object
+ *
+ * Return: On success returns the MLO Group id corresponding to the pdev
+ * object. On failure returns -1.
+ */
+int8_t
+wlan_get_mlo_grp_id_from_pdev(struct wlan_objmgr_pdev *pdev);
+
+/**
  * wlan_get_pdev_from_mlo_link_id() - Helper API to get the pdev
  * object from the link id.
  * @mlo_link_id: MLO HW link id
+ * @ml_grp_id: MLO Group id which it belongs to
  * @refdbgid: Reference debug id
  *
  * Return: On success returns the pdev object from the link_id.
  * On failure returns NULL.
  */
 struct wlan_objmgr_pdev *
-wlan_get_pdev_from_mlo_link_id(uint8_t mlo_link_id,
+wlan_get_pdev_from_mlo_link_id(uint8_t mlo_link_id, uint8_t ml_grp_id,
 			       wlan_objmgr_ref_dbgid refdbgid);
+#else
+static inline int8_t
+wlan_get_mlo_link_id_from_pdev(struct wlan_objmgr_pdev *pdev)
+{
+	return 0;
+}
+static inline int8_t
+wlan_get_mlo_grp_id_from_pdev(struct wlan_objmgr_pdev *pdev)
+{
+	return 0;
+}
+static inline struct wlan_objmgr_pdev *
+wlan_get_pdev_from_mlo_link_id(uint8_t mlo_link_id, uint8_t ml_grp_id,
+			       wlan_objmgr_ref_dbgid refdbgid)
+{
+	return NULL;
+}
+#endif
 
 #ifdef WLAN_MGMT_RX_REO_SUPPORT
 
@@ -103,15 +134,17 @@ wlan_get_pdev_from_mlo_link_id(uint8_t mlo_link_id,
  * This API starts the simulation framework which mimics the management frame
  * generation by target. MAC HW is modelled as a kthread. FW and host layers
  * are modelled as an ordered work queues.
+ * @ml_grp_id: MLO group id of the required mlo context
  *
  * Return: QDF_STATUS
  */
 QDF_STATUS
-wlan_mgmt_rx_reo_sim_start(void);
+wlan_mgmt_rx_reo_sim_start(uint8_t ml_grp_id);
 
 /**
  * wlan_mgmt_rx_reo_sim_stop() - Helper API to stop management Rx reorder
  * simulation
+ * @ml_grp_id: MLO group id of the required mlo context
  *
  * This API stops the simulation framework which mimics the management frame
  * generation by target. MAC HW is modelled as a kthread. FW and host layers
@@ -120,18 +153,19 @@ wlan_mgmt_rx_reo_sim_start(void);
  * Return: QDF_STATUS
  */
 QDF_STATUS
-wlan_mgmt_rx_reo_sim_stop(void);
+wlan_mgmt_rx_reo_sim_stop(uint8_t ml_grp_id);
 #else
 /**
  * wlan_mgmt_rx_reo_sim_start() - Helper API to start management Rx reorder
  * simulation
+ * @ml_grp_id: MLO group id of the required mlo context
  *
  * Error print is added to indicate that simulation framework is not compiled.
  *
  * Return: QDF_STATUS_E_INVAL
  */
 static inline QDF_STATUS
-wlan_mgmt_rx_reo_sim_start(void)
+wlan_mgmt_rx_reo_sim_start(uint8_t ml_grp_id)
 {
 	mgmt_txrx_err("Mgmt rx reo simulation is not compiled");
 
@@ -141,13 +175,14 @@ wlan_mgmt_rx_reo_sim_start(void)
 /**
  * wlan_mgmt_rx_reo_sim_stop() - Helper API to stop management Rx reorder
  * simulation
+ * @ml_grp_id: MLO group id of the required mlo context
  *
  * Error print is added to indicate that simulation framework is not compiled.
  *
  * Return: QDF_STATUS_E_INVAL
  */
 static inline QDF_STATUS
-wlan_mgmt_rx_reo_sim_stop(void)
+wlan_mgmt_rx_reo_sim_stop(uint8_t ml_grp_id)
 {
 	mgmt_txrx_err("Mgmt rx reo simulation is not compiled");
 
@@ -281,24 +316,40 @@ QDF_STATUS
 wlan_mgmt_rx_reo_psoc_obj_destroy_notification(struct wlan_objmgr_psoc *psoc);
 
 /**
- * wlan_mgmt_rx_reo_attach() - Initializes the per pdev data structures related
+ * wlan_mgmt_rx_reo_pdev_attach() - Initializes the per pdev data structures
+ * related to management rx-reorder module
+ * @pdev: pointer to pdev object
+ *
+ * Return: QDF_STATUS
+ */
+QDF_STATUS wlan_mgmt_rx_reo_pdev_attach(struct wlan_objmgr_pdev *pdev);
+
+/**
+ * wlan_mgmt_rx_reo_psoc_attach() - Initializes the per psoc data structures
+ * related to management rx-reorder module
+ * @psoc: pointer to psoc object
+ *
+ * Return: QDF_STATUS
+ */
+QDF_STATUS wlan_mgmt_rx_reo_psoc_attach(struct wlan_objmgr_psoc *psoc);
+
+/**
+ * wlan_mgmt_rx_reo_pdev_detach() - Clears the per pdev data structures related
  * to management rx-reorder module
  * @pdev: pointer to pdev object
  *
  * Return: QDF_STATUS
  */
-QDF_STATUS
-wlan_mgmt_rx_reo_attach(struct wlan_objmgr_pdev *pdev);
+QDF_STATUS wlan_mgmt_rx_reo_pdev_detach(struct wlan_objmgr_pdev *pdev);
 
 /**
- * wlan_mgmt_rx_reo_detach() - Clears the per pdev data structures related to
- * management rx-reorder module
- * @pdev: pointer to pdev object
+ * wlan_mgmt_rx_reo_psoc_detach() - Clears the per psoc data structures related
+ * to management rx-reorder module
+ * @psoc: pointer to psoc object
  *
  * Return: QDF_STATUS
  */
-QDF_STATUS
-wlan_mgmt_rx_reo_detach(struct wlan_objmgr_pdev *pdev);
+QDF_STATUS wlan_mgmt_rx_reo_psoc_detach(struct wlan_objmgr_psoc *psoc);
 
 /**
  * wlan_mgmt_rx_reo_is_feature_enabled_at_psoc() - Check if MGMT Rx REO feature
@@ -313,12 +364,32 @@ wlan_mgmt_rx_reo_is_feature_enabled_at_psoc(struct wlan_objmgr_psoc *psoc);
 /**
  * wlan_mgmt_rx_reo_is_feature_enabled_at_pdev() - Check if MGMT Rx REO feature
  * is enabled on a given pdev
- * @psoc: pointer to pdev object
+ * @pdev: pointer to pdev object
  *
  * Return: true if the feature is enabled, else false
  */
 bool
 wlan_mgmt_rx_reo_is_feature_enabled_at_pdev(struct wlan_objmgr_pdev *pdev);
+
+/**
+ * wlan_mgmt_rx_reo_is_scheduler_enabled_at_psoc() - Check if MGMT Rx REO
+ * scheduler is enabled on a given psoc
+ * @psoc: pointer to psoc object
+ *
+ * Return: true if the scheduler is enabled, else false
+ */
+bool
+wlan_mgmt_rx_reo_is_scheduler_enabled_at_psoc(struct wlan_objmgr_psoc *psoc);
+
+/**
+ * wlan_mgmt_rx_reo_is_scheduler_enabled_at_pdev() - Check if MGMT Rx REO
+ * scheduler is enabled on a given pdev
+ * @pdev: pointer to pdev object
+ *
+ * Return: true if the scheduler is enabled, else false
+ */
+bool
+wlan_mgmt_rx_reo_is_scheduler_enabled_at_pdev(struct wlan_objmgr_pdev *pdev);
 
 /**
  * wlan_mgmt_rx_reo_get_pkt_ctr_delta_thresh() - Get the packet counter delta
@@ -330,6 +401,7 @@ wlan_mgmt_rx_reo_is_feature_enabled_at_pdev(struct wlan_objmgr_pdev *pdev);
 uint16_t
 wlan_mgmt_rx_reo_get_pkt_ctr_delta_thresh(struct wlan_objmgr_psoc *psoc);
 
+#ifdef WLAN_MGMT_RX_REO_DEBUG_SUPPORT
 /**
  * wlan_mgmt_rx_reo_get_ingress_frame_debug_list_size() - Get the size of
  * ingress  frame debug list
@@ -353,17 +425,48 @@ wlan_mgmt_rx_reo_get_egress_frame_debug_list_size
 					(struct wlan_objmgr_psoc *psoc);
 
 /**
+ * wlan_mgmt_rx_reo_get_scheduler_debug_list_size() - Get the size of
+ * scheduler debug list
+ * @psoc: pointer to psoc object
+ *
+ * Return: Size of scheduler debug list
+ */
+uint16_t
+wlan_mgmt_rx_reo_get_scheduler_debug_list_size(struct wlan_objmgr_psoc *psoc);
+#else
+static inline uint16_t
+wlan_mgmt_rx_reo_get_ingress_frame_debug_list_size(struct wlan_objmgr_psoc *psoc)
+{
+	return 0;
+}
+
+static inline uint16_t
+wlan_mgmt_rx_reo_get_egress_frame_debug_list_size(struct wlan_objmgr_psoc *psoc)
+{
+	return 0;
+}
+
+static inline uint16_t
+wlan_mgmt_rx_reo_get_scheduler_debug_list_size(struct wlan_objmgr_psoc *psoc)
+{
+	return 0;
+}
+#endif /* WLAN_MGMT_RX_REO_DEBUG_SUPPORT */
+
+/**
  * wlan_mgmt_rx_reo_is_simulation_in_progress() - API to check whether
  * simulation is in progress
+ * @ml_grp_id: MLO group id of the required mlo context
  *
  * Return: true if simulation is in progress, else false
  */
 bool
-wlan_mgmt_rx_reo_is_simulation_in_progress(void);
+wlan_mgmt_rx_reo_is_simulation_in_progress(uint8_t ml_grp_id);
 
 /**
  * wlan_mgmt_rx_reo_print_ingress_frame_stats() - Helper API to print
  * stats related to incoming management frames
+ * @ml_grp_id: MLO group id of the required mlo context
  *
  * This API prints stats related to management frames entering management
  * Rx reorder module.
@@ -371,11 +474,12 @@ wlan_mgmt_rx_reo_is_simulation_in_progress(void);
  * Return: QDF_STATUS
  */
 QDF_STATUS
-wlan_mgmt_rx_reo_print_ingress_frame_stats(void);
+wlan_mgmt_rx_reo_print_ingress_frame_stats(uint8_t ml_grp_id);
 
 /**
  * wlan_mgmt_rx_reo_print_ingress_frame_info() - Print the debug information
  * about the latest frames entered the reorder module
+ * @ml_grp_id: MLO group id of the required mlo context
  * @num_frames: Number of frames for which the debug information is to be
  * printed. If @num_frames is 0, then debug information about all the frames
  * in the ring buffer will be  printed.
@@ -383,11 +487,13 @@ wlan_mgmt_rx_reo_print_ingress_frame_stats(void);
  * Return: QDF_STATUS of operation
  */
 QDF_STATUS
-wlan_mgmt_rx_reo_print_ingress_frame_info(uint16_t num_frames);
+wlan_mgmt_rx_reo_print_ingress_frame_info(uint8_t ml_grp_id,
+					  uint16_t num_frames);
 
 /**
  * wlan_mgmt_rx_reo_print_egress_frame_stats() - Helper API to print
  * stats related to outgoing management frames
+ * @ml_grp_id: MLO group id of the required mlo context
  *
  * This API prints stats related to management frames exiting management
  * Rx reorder module.
@@ -395,7 +501,7 @@ wlan_mgmt_rx_reo_print_ingress_frame_info(uint16_t num_frames);
  * Return: QDF_STATUS
  */
 QDF_STATUS
-wlan_mgmt_rx_reo_print_egress_frame_stats(void);
+wlan_mgmt_rx_reo_print_egress_frame_stats(uint8_t ml_grp_id);
 
 /**
  * wlan_mgmt_rx_reo_print_egress_frame_info() - Print the debug information
@@ -403,11 +509,24 @@ wlan_mgmt_rx_reo_print_egress_frame_stats(void);
  * @num_frames: Number of frames for which the debug information is to be
  * printed. If @num_frames is 0, then debug information about all the frames
  * in the ring buffer will be  printed.
+ * @ml_grp_id: MLO group id of the required mlo context
  *
  * Return: QDF_STATUS of operation
  */
 QDF_STATUS
-wlan_mgmt_rx_reo_print_egress_frame_info(uint16_t num_frames);
+wlan_mgmt_rx_reo_print_egress_frame_info(uint8_t ml_grp_id,
+					 uint16_t num_frames);
+
+/**
+ * wlan_mgmt_rx_reo_release_frames() - Release management frames which are ready
+ * for delivery
+ * @mlo_grp_id: MLO group ID
+ * @link_bitmap: Link bitmap
+ *
+ * Return: QDF_STATUS
+ */
+QDF_STATUS
+wlan_mgmt_rx_reo_release_frames(uint8_t mlo_grp_id, uint32_t link_bitmap);
 #else
 static inline QDF_STATUS
 wlan_mgmt_rx_reo_validate_mlo_link_info(struct wlan_objmgr_psoc *psoc)
@@ -480,31 +599,59 @@ wlan_mgmt_rx_reo_psoc_obj_create_notification(struct wlan_objmgr_psoc *psoc)
 static inline QDF_STATUS
 wlan_mgmt_rx_reo_psoc_obj_destroy_notification(struct wlan_objmgr_psoc *psoc)
 {
+	if (!psoc)
+		return QDF_STATUS_E_FAILURE;
 	return QDF_STATUS_SUCCESS;
 }
 
 /**
- * wlan_mgmt_rx_reo_attach() - Initializes the per pdev data structures related
+ * wlan_mgmt_rx_reo_pdev_attach() - Initializes the per pdev data structures
+ * related to management rx-reorder module
+ * @pdev: pointer to pdev object
+ *
+ * Return: QDF_STATUS
+ */
+static inline QDF_STATUS
+wlan_mgmt_rx_reo_pdev_attach(struct wlan_objmgr_pdev *pdev)
+{
+	return QDF_STATUS_SUCCESS;
+}
+
+/**
+ * wlan_mgmt_rx_reo_psoc_attach() - Initializes the per psoc data structures
+ * related to management rx-reorder module
+ * @psoc: pointer to psoc object
+ *
+ * Return: QDF_STATUS
+ */
+static inline QDF_STATUS
+wlan_mgmt_rx_reo_psoc_attach(struct wlan_objmgr_psoc *psoc)
+{
+	return QDF_STATUS_SUCCESS;
+}
+
+/**
+ * wlan_mgmt_rx_reo_pdev_detach() - Clears the per pdev data structures related
  * to management rx-reorder module
  * @pdev: pointer to pdev object
  *
  * Return: QDF_STATUS
  */
 static inline QDF_STATUS
-wlan_mgmt_rx_reo_attach(struct wlan_objmgr_pdev *pdev)
+wlan_mgmt_rx_reo_pdev_detach(struct wlan_objmgr_pdev *pdev)
 {
 	return QDF_STATUS_SUCCESS;
 }
 
 /**
- * wlan_mgmt_rx_reo_detach() - Clears the per pdev data structures related to
- * management rx-reorder module
- * @pdev: pointer to pdev object
+ * wlan_mgmt_rx_reo_psoc_detach() - Clears the per psoc data structures related
+ * to management rx-reorder module
+ * @psoc: pointer to psoc object
  *
  * Return: QDF_STATUS
  */
 static inline QDF_STATUS
-wlan_mgmt_rx_reo_detach(struct wlan_objmgr_pdev *pdev)
+wlan_mgmt_rx_reo_psoc_detach(struct wlan_objmgr_psoc *psoc)
 {
 	return QDF_STATUS_SUCCESS;
 }

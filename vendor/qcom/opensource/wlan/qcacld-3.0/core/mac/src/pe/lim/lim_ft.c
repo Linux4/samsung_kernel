@@ -268,7 +268,9 @@ void lim_ft_prepare_add_bss_req(struct mac_context *mac,
 			if (lim_is_session_he_capable(ft_session) &&
 				pBeaconStruct->he_cap.present)
 				lim_intersect_ap_he_caps(ft_session,
-					pAddBssParams, pBeaconStruct, NULL);
+							 pAddBssParams,
+							 pBeaconStruct, NULL,
+							 bssDescription);
 
 			if (lim_is_session_eht_capable(ft_session) &&
 			    pBeaconStruct->eht_cap.present)
@@ -530,7 +532,7 @@ void lim_fill_ft_session(struct mac_context *mac,
 	tSchBeaconStruct *pBeaconStruct;
 	ePhyChanBondState cbEnabledMode;
 	struct vdev_mlme_obj *mlme_obj;
-	bool is_pwr_constraint;
+	bool is_pwr_constraint = false;
 
 	pBeaconStruct = qdf_mem_malloc(sizeof(tSchBeaconStruct));
 	if (!pBeaconStruct)
@@ -594,13 +596,15 @@ void lim_fill_ft_session(struct mac_context *mac,
 		 && pBeaconStruct->HTCaps.present);
 
 	if (IS_DOT11_MODE_HE(ft_session->dot11mode) &&
-	    pBeaconStruct->he_cap.present)
+	    pBeaconStruct->he_cap.present) {
 		lim_update_session_he_capable(mac, ft_session);
-
+		lim_copy_join_req_he_cap(ft_session);
+	}
 	if (IS_DOT11_MODE_EHT(ft_session->dot11mode) &&
-	    pBeaconStruct->eht_cap.present)
+	    pBeaconStruct->eht_cap.present) {
 		lim_update_session_eht_capable(mac, ft_session);
-
+		lim_copy_join_req_eht_cap(ft_session);
+	}
 	/* Assign default configured nss value in the new session */
 	if (!wlan_reg_is_24ghz_ch_freq(ft_session->curr_op_freq))
 		ft_session->vdev_nss = mac->vdev_type_nss_5g.sta;
@@ -721,20 +725,16 @@ void lim_fill_ft_session(struct mac_context *mac,
 	if (is_pwr_constraint)
 		localPowerConstraint = regMax - localPowerConstraint;
 
+	mlme_obj->reg_tpc_obj.is_power_constraint_abs = !is_pwr_constraint;
+
 	ft_session->limReassocBssQosCaps =
 		ft_session->limCurrentBssQosCaps;
 
 	ft_session->is11Rconnection = pe_session->is11Rconnection;
 #ifdef FEATURE_WLAN_ESE
-	ft_session->isESEconnection = pe_session->isESEconnection;
 	ft_session->is_ese_version_ie_present =
 		pBeaconStruct->is_ese_ver_ie_present;
 #endif
-	ft_session->isFastTransitionEnabled =
-		pe_session->isFastTransitionEnabled;
-
-	ft_session->isFastRoamIniFeatureEnabled =
-		pe_session->isFastRoamIniFeatureEnabled;
 
 	mlme_obj->reg_tpc_obj.reg_max[0] = regMax;
 	mlme_obj->reg_tpc_obj.ap_constraint_power = localPowerConstraint;
@@ -761,8 +761,6 @@ void lim_fill_ft_session(struct mac_context *mac,
 	/* Load default OBSS parameters to session entry */
 	lim_init_obss_params(mac, ft_session);
 
-	ft_session->enableHtSmps = pe_session->enableHtSmps;
-	ft_session->htSmpsvalue = pe_session->htSmpsvalue;
 	/*
 	 * By default supported NSS 1x1 is set to true
 	 * and later on updated while determining session
@@ -771,8 +769,8 @@ void lim_fill_ft_session(struct mac_context *mac,
 	 */
 	ft_session->supported_nss_1x1 = true;
 	pe_debug("FT enable smps: %d mode: %d supported nss 1x1: %d",
-		ft_session->enableHtSmps,
-		ft_session->htSmpsvalue,
+		mac->mlme_cfg->ht_caps.enable_smps,
+		mac->mlme_cfg->ht_caps.smps,
 		ft_session->supported_nss_1x1);
 
 	qdf_mem_free(pBeaconStruct);

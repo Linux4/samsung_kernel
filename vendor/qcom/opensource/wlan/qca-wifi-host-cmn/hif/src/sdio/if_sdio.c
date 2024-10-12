@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2013-2020 The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -62,6 +62,7 @@ struct ol_pl_os_dep_funcs *g_ol_pl_os_dep_funcs;
 
 /**
  * hif_sdio_bus_suspend() - suspend the bus
+ * @hif_ctx: hif context
  *
  * This function suspends the bus, but sdio doesn't need to suspend.
  * Therefore do nothing.
@@ -80,6 +81,7 @@ int hif_sdio_bus_suspend(struct hif_softc *hif_ctx)
 
 /**
  * hif_sdio_bus_resume() - hif resume API
+ * @hif_ctx: hif context
  *
  * This function resumes the bus. but sdio doesn't need to resume.
  * Therefore do nothing.
@@ -98,6 +100,7 @@ int hif_sdio_bus_resume(struct hif_softc *hif_ctx)
 
 /**
  * hif_enable_power_gating() - enable HW power gating
+ * @hif_ctx: hif context
  *
  * Return: n/a
  */
@@ -107,6 +110,7 @@ void hif_enable_power_gating(void *hif_ctx)
 
 /**
  * hif_sdio_close() - hif_bus_close
+ * @hif_sc: hif context
  *
  * Return: None
  */
@@ -148,7 +152,7 @@ void hif_get_target_revision(struct hif_softc *ol_sc)
 
 /**
  * hif_sdio_enable_bus() - hif_enable_bus
- * @hif_sc: hif context
+ * @ol_sc: hif context
  * @dev: dev
  * @bdev: bus dev
  * @bid: bus id

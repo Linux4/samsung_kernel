@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2011-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -45,9 +46,9 @@ __hdd_sysfs_range_ext_show(struct net_device *net_dev, char *buf)
 	if (!wlan_hdd_validate_modules_state(hdd_ctx))
 		return -EINVAL;
 
-	hdd_debug("GET WMI_VDEV_PARAM_HE_RANGE_EXT");
-	value = wma_cli_get_command(adapter->vdev_id,
-				    WMI_VDEV_PARAM_HE_RANGE_EXT, VDEV_CMD);
+	hdd_debug("GET wmi_vdev_param_he_range_ext");
+	value = wma_cli_get_command(adapter->deflink->vdev_id,
+				    wmi_vdev_param_he_range_ext, VDEV_CMD);
 
 	return scnprintf(buf, PAGE_SIZE, "%d\n", value);
 }
@@ -112,9 +113,9 @@ static ssize_t __hdd_sysfs_range_ext_store(struct net_device *net_dev,
 	if (kstrtou32(token, 0, &value))
 		return -EINVAL;
 
-	hdd_debug("WMI_VDEV_PARAM_HE_RANGE_EXT %d", value);
-	errno = wma_cli_set_command(adapter->vdev_id,
-				    WMI_VDEV_PARAM_HE_RANGE_EXT,
+	hdd_debug("wmi_vdev_param_he_range_ext %d", value);
+	errno = wma_cli_set_command(adapter->deflink->vdev_id,
+				    wmi_vdev_param_he_range_ext,
 				    value, VDEV_CMD);
 	if (errno)
 		hdd_err("Failed to set he_range_ext firmware param, errno %d",

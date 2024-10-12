@@ -59,7 +59,7 @@ enum wlan_dcs_debug_level {
  * @dcs_ch_util_im_stats: chan utilization statistics
  * @im_intfr_cnt: number of times the interference is
  *                detected within detection window
- * @im_sample_cnt: sample counter
+ * @im_samp_cnt: sample counter
  */
 struct pdev_dcs_im_stats {
 	struct wlan_host_dcs_im_tgt_stats prev_dcs_im_stats;
@@ -215,7 +215,7 @@ struct dcs_pdev_priv_obj {
 };
 
 /**
- * wlan_dcs_chan_seg - Different segments in the channel band.
+ * enum wlan_dcs_chan_seg - Different segments in the channel band.
  * @WLAN_DCS_SEG_INVALID: invalid segment
  * @WLAN_DCS_SEG_PRI20: primary 20MHz
  * @WLAN_DCS_SEG_SEC20: secondary 20MHz
@@ -370,7 +370,7 @@ void wlan_dcs_set_algorithm_process(struct wlan_objmgr_psoc *psoc,
 				    uint32_t pdev_id,
 				    bool dcs_algorithm_process);
 
-/*
+/**
  * wlan_dcs_pdev_obj_lock() - private API to acquire spinlock at pdev
  * @dcs_pdev: pointer to dcs pdev object
  *

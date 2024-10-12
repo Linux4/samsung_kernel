@@ -400,8 +400,17 @@ static void cflm_update_current_freq(void)
 		cpufreq_cpu_put(policy);
 	}
 
-	pr_info("%s: current freq: s(%d ~ %d), g(%d ~ %d), p(%d ~ %d)\n",
-			__func__, s_min, s_max, g_min, g_max, p_min, p_max);
+	if (param.aboost_enabled) {
+		unsigned int a_low = 0, a_high = 0;
+
+		cpufreq_walt_get_adaptive_freq(param.s_first, &a_low, &a_high);
+		pr_info("%s: s((%d, %d) ~ %d), g(%d ~ %d), p(%d ~ %d)\n",
+				__func__, a_low, a_high, s_max, g_min, g_max, p_min, p_max);
+
+	} else {
+		pr_info("%s: s(%d ~ %d), g(%d ~ %d), p(%d ~ %d)\n",
+				__func__, s_min, s_max, g_min, g_max, p_min, p_max);
+	}
 
 	/* sched boost condition */
 	if ((param.sched_boost_type) && (p_min > 748800))	/* TEMP: hard coding */
@@ -463,7 +472,7 @@ static unsigned int cflm_get_vol_matched_freq(unsigned int in_freq)
 	int i;
 	unsigned int out_freq = in_freq;
 
-	if (param.vbf_offset > cflm_vbf.count) {
+	if (param.vbf_offset > cflm_vbf.count || param.vbf_offset < 0) {
 		pr_err("%s: bad condition(off(%d), cnt(%d))",
 			__func__, param.vbf_offset, cflm_vbf.count);
 		return out_freq;
@@ -509,7 +518,6 @@ static int cflm_adaptive_boost(int first_cpu, int min)
 {
 	struct cpufreq_policy *policy;
 	int cpu = 0;
-	unsigned int aboost_low = 0;
 	int ret = 0;
 
 	if (!param.aboost_enabled)
@@ -527,10 +535,14 @@ static int cflm_adaptive_boost(int first_cpu, int min)
 	}
 
 	/* now only for silver */
-	aboost_low = param.aboost_silver_low;
 	for_each_cpu(cpu, policy->related_cpus) {
-		ret = cpufreq_walt_set_adaptive_freq(cpu, aboost_low, min);
-		pr_debug("%s: aboost: cpu%d: %d, %d\n", __func__, cpu, aboost_low, min);
+		if (min > 0) {
+			pr_debug("%s: set aboost: cpu%d: %d, %d\n", __func__, cpu, param.aboost_silver_low, min);
+			ret = cpufreq_walt_set_adaptive_freq(cpu, param.aboost_silver_low, min);
+		} else {
+			pr_debug("%s: clear aboost: cpu%d\n", __func__, cpu);
+			ret = cpufreq_walt_reset_adaptive_freq(cpu);
+		}
 	}
 
 	cpufreq_cpu_put(policy);

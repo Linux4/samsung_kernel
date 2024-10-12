@@ -7,3 +7,8 @@ config WCNSS_MEM_PRE_ALLOC
 	  This feature enable cld wlan driver to use pre allocated memory
 	  for it's internal usage and release it to back to pre allocated pool.
 	  This memory is allocated at the cold boot time.
+
+config CNSS_OUT_OF_TREE
+	bool "Build module out-of-tree"
+	help
+	  This enables building the module out of the main kernel tree

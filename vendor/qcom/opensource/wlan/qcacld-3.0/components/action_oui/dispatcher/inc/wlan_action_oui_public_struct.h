@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2016-2020 The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -42,6 +42,17 @@
  * each action oui category
  */
 #define ACTION_OUI_MAX_EXTENSIONS 10
+
+/*
+ * Firmware allocates memory for the extensions only during init time.
+ * Therefore, inaddition to the total extensions configured during
+ * init time, driver has to add extra space to allow runtime extensions.
+ *
+ * Example: ACTION_OUI_11BE_OUI_ALLOW
+ *
+ * Max. value should be increased with the addition of new runtime extensions.
+ */
+#define ACTION_OUI_MAX_ADDNL_EXTENSIONS 10
 
 #define ACTION_OUI_MAX_OUI_LENGTH 5
 #define ACTION_OUI_MAX_DATA_LENGTH 20
@@ -92,18 +103,27 @@
  * @ACTION_OUI_SWITCH_TO_11N_MODE: connect in 11n
  * @ACTION_OUI_CONNECT_1X1_WITH_1_CHAIN: connect in 1x1 & disable diversity gain
  * @ACTION_OUI_DISABLE_AGGRESSIVE_TX: disable aggressive TX in firmware
- * @ACTION_OUI_FORCE_MAX_NSS: Force Max NSS connection with few IOT APs
  * @ACTION_OUI_DISABLE_AGGRESSIVE_EDCA: disable aggressive EDCA with the ap
  * @ACTION_OUI_DISABLE_TWT: disable TWT with the ap
  * @ACTION_OUI_EXTEND_WOW_ITO: extend ITO under WOW mode if vendor OUI is
  * received in beacon.
  * @ACTION_OUI_11BE_OUI_ALLOW: ap oui for which station can connect with
  * 11be mode
+ * @ACTION_OUI_DISABLE_DYNAMIC_QOS_NULL_TX_RATE: Turn off FW's dynamic qos
+ * null tx rate feature if specific vendor OUI received in beacon
+ * @ACTION_OUI_ENABLE_CTS2SELF_WITH_QOS_NULL: Enable CTS2SELF with QoS null
+ * frame for specified IoT APs.
+ * @ACTION_OUI_SEND_SMPS_FRAME_WITH_OMN: Send SMPS frame along with OMN
+ * frame for specified IoT APs.
  * @ACTION_OUI_HOST_ONLY: host only action id start - placeholder.
  * New Firmware related "ACTION" needs to be added before this placeholder.
  * @ACTION_OUI_HOST_RECONN: reconnect to the same BSSID when wait for
  * association response timeout from AP
  * @ACTION_OUI_TAKE_ALL_BAND_INFO: let AP country ie take all band info
+ * @ACTION_OUI_AUTH_ASSOC_6MBPS_2GHZ: send auth/assoc req with 6 Mbps rate
+ * on 2.4 GHz
+ * @ACTION_OUI_DISABLE_BFORMEE: disable SU/MU beam formee capability for
+ * specified AP
  * @ACTION_OUI_MAXIMUM_ID: maximum number of action oui types
  */
 enum action_oui_id {
@@ -114,14 +134,20 @@ enum action_oui_id {
 	ACTION_OUI_SWITCH_TO_11N_MODE = 4,
 	ACTION_OUI_CONNECT_1X1_WITH_1_CHAIN = 5,
 	ACTION_OUI_DISABLE_AGGRESSIVE_TX = 6,
-	ACTION_OUI_FORCE_MAX_NSS = 7,
-	ACTION_OUI_DISABLE_AGGRESSIVE_EDCA = 8,
-	ACTION_OUI_DISABLE_TWT = 9,
-	ACTION_OUI_EXTEND_WOW_ITO = 10,
-	ACTION_OUI_11BE_OUI_ALLOW = 11,
+	ACTION_OUI_DISABLE_TWT = 7,
+	ACTION_OUI_EXTEND_WOW_ITO = 8,
+	ACTION_OUI_11BE_OUI_ALLOW = 9,
+	ACTION_OUI_DISABLE_DYNAMIC_QOS_NULL_TX_RATE = 10,
+	ACTION_OUI_ENABLE_CTS2SELF_WITH_QOS_NULL = 11,
+	ACTION_OUI_SEND_SMPS_FRAME_WITH_OMN = 12,
+	/* host&fw interface add above here */
+
 	ACTION_OUI_HOST_ONLY,
 	ACTION_OUI_HOST_RECONN = ACTION_OUI_HOST_ONLY,
 	ACTION_OUI_TAKE_ALL_BAND_INFO,
+	ACTION_OUI_AUTH_ASSOC_6MBPS_2GHZ,
+	ACTION_OUI_DISABLE_BFORMEE,
+	ACTION_OUI_DISABLE_AGGRESSIVE_EDCA,
 	ACTION_OUI_MAXIMUM_ID
 };
 

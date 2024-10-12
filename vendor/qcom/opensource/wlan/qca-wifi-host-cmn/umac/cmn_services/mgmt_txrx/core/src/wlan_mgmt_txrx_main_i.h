@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2016-2021 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -57,8 +58,8 @@
 #define IEEE80211_FCO_SUBTYPE_ACTION_NO_ACK 0xe0
 
 /**
- * mgmt_wakelock_reason - reasons mgmt_txrx might hold a wakelock
- * @MGMT_TXRX_WAKELOCK_REASON_TX_CMP - wait for mgmt_tx_complete event
+ * enum mgmt_txrx_wakelock_reason - reasons mgmt_txrx might hold a wakelock
+ * @MGMT_TXRX_WAKELOCK_REASON_TX_CMP: wait for mgmt_tx_complete event
  */
 enum mgmt_txrx_wakelock_reason {
 	MGMT_TXRX_WAKELOCK_REASON_TX_CMP
@@ -202,7 +203,7 @@ struct mgmt_txrx_priv_psoc_context {
 };
 
 /**
- * struct mgmt_txrx_priv_context_dev - mgmt txrx private context
+ * struct mgmt_txrx_priv_pdev_context - mgmt txrx private context
  * @pdev:     pdev context
  * @mgmt_desc_pool:   pointer to mgmt desc. pool
  * @mgmt_txrx_stats:  pointer to mgmt txrx stats

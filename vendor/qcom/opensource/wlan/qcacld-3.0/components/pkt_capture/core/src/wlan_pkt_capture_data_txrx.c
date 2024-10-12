@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2020-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -181,12 +181,14 @@ static void pkt_capture_tx_get_phy_info(
 			mcs = 8 + pktcapture_hdr->mcs;
 		else
 			mcs = pktcapture_hdr->mcs;
+
+		tx_status->ht_mcs = mcs;
 		break;
 	case 0x3:
 		tx_status->vht_flags = 1;
 		mcs = pktcapture_hdr->mcs;
 		tx_status->vht_flag_values3[0] =
-			mcs << 0x4 | (pktcapture_hdr->nss + 1);
+			mcs << 0x4 | (pktcapture_hdr->nss);
 		tx_status->vht_flag_values2 = pktcapture_hdr->bw;
 		break;
 	case 0x4:
@@ -207,9 +209,9 @@ static void pkt_capture_tx_get_phy_info(
 		break;
 	}
 
-	if (preamble == 0)
+	if (preamble_type != HAL_TX_PKT_TYPE_11B)
 		tx_status->ofdm_flag = 1;
-	else if (preamble == 1)
+	else
 		tx_status->cck_flag = 1;
 
 	tx_status->mcs = mcs;
@@ -229,7 +231,7 @@ static void pkt_capture_tx_get_phy_info(
  * pkt capture mode(normal tx + offloaded tx) to prepare radiotap header
  * @pdev: device handler
  * @tx_status: tx status to be updated
- * @mon_hdr: tx data header
+ * @pktcapture_hdr: tx data header
  *
  * Return: none
  */
@@ -654,6 +656,7 @@ void pkt_capture_msdu_process_pkts(
 #ifdef WLAN_FEATURE_PKT_CAPTURE_V2
 /**
  * pkt_capture_dp_rx_skip_tlvs() - Skip TLVs len + L2 hdr_offset, save in nbuf
+ * @soc: DP soc context
  * @nbuf: nbuf to be updated
  * @l3_padding: l3_padding
  *
@@ -687,6 +690,7 @@ static void pkt_capture_rx_get_phy_info(void *context, void *psoc,
 	struct dp_soc *soc = psoc;
 	hal_soc_handle_t hal_soc;
 	struct wlan_objmgr_vdev *vdev = context;
+	struct pkt_capture_vdev_priv *vdev_priv;
 
 	hal_soc = soc->hal_soc;
 	preamble_type = hal_rx_tlv_get_pkt_type(hal_soc, rx_tlv_hdr);
@@ -694,6 +698,7 @@ static void pkt_capture_rx_get_phy_info(void *context, void *psoc,
 	bw = hal_rx_tlv_bw_get(hal_soc, rx_tlv_hdr);
 	mcs = hal_rx_tlv_rate_mcs_get(hal_soc, rx_tlv_hdr);
 	sgi = hal_rx_tlv_sgi_get(hal_soc, rx_tlv_hdr);
+	vdev_priv = pkt_capture_vdev_get_priv(vdev);
 
 	switch (preamble_type) {
 	case HAL_RX_PKT_TYPE_11A:
@@ -712,6 +717,7 @@ static void pkt_capture_rx_get_phy_info(void *context, void *psoc,
 		rx_status->ht_mcs = mcs;
 		break;
 	case HAL_RX_PKT_TYPE_11AC:
+		sgi = vdev_priv->rx_vht_sgi;
 		rx_status->vht_flags = 1;
 		rx_status->vht_flag_values3[0] = mcs << 0x4 | nss;
 		bw = vdev->vdev_mlme.des_chan->ch_width;
@@ -730,9 +736,9 @@ static void pkt_capture_rx_get_phy_info(void *context, void *psoc,
 		break;
 	}
 
-	if (preamble == 0)
+	if (preamble_type != HAL_RX_PKT_TYPE_11B)
 		rx_status->ofdm_flag = 1;
-	else if (preamble == 1)
+	else
 		rx_status->cck_flag = 1;
 
 	rx_status->bw = bw;
@@ -782,7 +788,7 @@ uint8_t pkt_capture_get_rx_rtap_flags(struct hal_rx_pkt_capture_flags *flags)
 /**
  * pkt_capture_rx_mon_get_rx_status() - Get rx status
  * @context: objmgr vdev
- * @psoc: dp_soc handle
+ * @dp_soc: dp_soc handle
  * @desc: Pointer to struct rx_pkt_tlvs
  * @rx_status: Pointer to struct mon_rx_status
  *
@@ -1082,14 +1088,14 @@ free_buf:
 /**
  * pkt_capture_tx_data_cb() - process data tx and rx packets
  * for pkt capture mode. (normal tx/rx + offloaded tx/rx)
+ * @context: capture context (unused)
+ * @ppdev: pdev handle
+ * @nbuf_list: netbuf list
  * @vdev_id: vdev id for which packet is captured
- * @mon_buf_list: netbuf list
- * @type: data process type
  * @tid:  tid number
  * @status: Tx status
- * @pktformat: Frame format
+ * @pkt_format: Frame format
  * @bssid: bssid
- * @pdev: pdev handle
  * @tx_retry_cnt: tx retry count
  *
  * Return: none

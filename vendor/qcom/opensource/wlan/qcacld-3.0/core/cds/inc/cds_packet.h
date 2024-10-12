@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2014-2016, 2018, 2020 The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -20,19 +20,12 @@
 #if !defined(__CDS_PKT_H)
 #define __CDS_PKT_H
 
-/**=========================================================================
+/**
+ * DOC: cds_packet.h
+ *      Connectivity driver services (CDS) network Packet APIs
+ *      Network Protocol packet/buffer support interfaces
+ */
 
-   \file        cds_packet.h
-
-   \brief       Connectivity driver services (CDS) network Packet APIs
-
-   Network Protocol packet/buffer support interfaces
-
-   ========================================================================*/
-
-/*--------------------------------------------------------------------------
-   Include Files
-   ------------------------------------------------------------------------*/
 #include <qdf_types.h>
 #include <qdf_status.h>
 
@@ -49,14 +42,21 @@ typedef struct cds_pkt_t cds_pkt_t;
 #include "qdf_nbuf.h"
 
 /**
- * cds_pkt_return_packet  Free the cds Packet
- * @ cds Packet
+ * cds_pkt_return_packet() - Free the cds Packet
+ * @packet: cds Packet
+ *
+ * Return: QDF_STATUS
  */
 QDF_STATUS cds_pkt_return_packet(cds_pkt_t *packet);
 
 /**
- * cds_pkt_get_packet_length  Returns the packet length
- * @ cds Packet
+ * cds_pkt_get_packet_length() - Get packet length for a cds Packet
+ * @pPacket: the cds Packet to get the packet length from
+ * @pPacketSize: location to return the total size of the data
+ *               contained in the cds Packet.
+ *
+ * Return: QDF_STATUS_SUCCESS if the length was returned, otherwise an
+ *         appropriate QDF_STATUS_E_* status code.
  */
 QDF_STATUS cds_pkt_get_packet_length(cds_pkt_t *pPacket,
 				     uint16_t *pPacketSize);
@@ -69,9 +69,24 @@ QDF_STATUS cds_pkt_get_packet_length(cds_pkt_t *pPacket,
  * from HDD and other layers
  * below code will be removed
  */
+
+/**
+ * cds_packet_alloc() - Allocate a network buffer for TX
+ * @size: size of the packet
+ * @data: packet payload
+ * @ppPacket: pointer to return allocated packet
+ *
+ * Allocates a packet of the indicated @size, populates it with the
+ * @data payload, and returns the pointer via @ppPacket. Caller is
+ * responsible for calling cds_packet_free() after the packet has been
+ * sent to reclaim the packet.
+ *
+ * Return: QDF_STATUS_SUCCESS if a packet is allocated, otherwise a
+ * appropriate QDF_STATUS_E_* status code.
+ */
 #ifdef MEMORY_DEBUG
-#define cds_packet_alloc(s, d, p)	\
-	cds_packet_alloc_debug(s, d, p, __func__, __LINE__)
+#define cds_packet_alloc(size, data, ppPacket)	\
+	cds_packet_alloc_debug(size, data, ppPacket, __func__, __LINE__)
 
 QDF_STATUS cds_packet_alloc_debug(uint16_t size, void **data, void **ppPacket,
 				  const char *func_name, uint32_t line_num);
@@ -79,6 +94,10 @@ QDF_STATUS cds_packet_alloc_debug(uint16_t size, void **data, void **ppPacket,
 QDF_STATUS cds_packet_alloc(uint16_t size, void **data, void **ppPacket);
 #endif
 
+/**
+ * cds_packet_free() - Free input network buffer
+ * @pPacket: network buffer
+ */
 void cds_packet_free(void *pPacket);
 
 #endif /* !defined( __CDS_PKT_H ) */

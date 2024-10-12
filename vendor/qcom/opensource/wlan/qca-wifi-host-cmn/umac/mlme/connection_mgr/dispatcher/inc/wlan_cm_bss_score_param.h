@@ -49,6 +49,7 @@
  * @low_band_rssi_boost: Flag to assign higher alpha weightage low band RSSI
  * @low_band_esp_boost: Flag to assign higher alpha weightage low band esp
  * @low_band_oce_boost: Flag to assign higher alpha weightage low band oce
+ * @reserved: reserved/unused bits
  * @wlm_indication_weightage: WLM indication weightage
  * @emlsr_weightage: eMLSR weightage
  * @security_weightage: Security weightage
@@ -111,26 +112,26 @@ struct rssi_config_score  {
 /**
  * struct per_slot_score - define % score for different slots for a
  *                               scoring param.
- * num_slot: number of slots in which the param will be divided.
+ * @num_slot: number of slots in which the param will be divided.
  *           Max 15. index 0 is used for 'not_present. Num_slot will
  *           equally divide 100. e.g, if num_slot = 4 slot 0 = 0-25%, slot
  *           1 = 26-50% slot 2 = 51-75%, slot 3 = 76-100%
- * score_pcnt3_to_0: Contains score percentage for slot 0-3
+ * @score_pcnt3_to_0: Contains score percentage for slot 0-3
  *             BITS 0-7   :- the scoring pcnt when not present
  *             BITS 8-15  :- SLOT_1
  *             BITS 16-23 :- SLOT_2
  *             BITS 24-31 :- SLOT_3
- * score_pcnt7_to_4: Contains score percentage for slot 4-7
+ * @score_pcnt7_to_4: Contains score percentage for slot 4-7
  *             BITS 0-7   :- SLOT_4
  *             BITS 8-15  :- SLOT_5
  *             BITS 16-23 :- SLOT_6
  *             BITS 24-31 :- SLOT_7
- * score_pcnt11_to_8: Contains score percentage for slot 8-11
+ * @score_pcnt11_to_8: Contains score percentage for slot 8-11
  *             BITS 0-7   :- SLOT_8
  *             BITS 8-15  :- SLOT_9
  *             BITS 16-23 :- SLOT_10
  *             BITS 24-31 :- SLOT_11
- * score_pcnt15_to_12: Contains score percentage for slot 12-15
+ * @score_pcnt15_to_12: Contains score percentage for slot 12-15
  *             BITS 0-7   :- SLOT_12
  *             BITS 8-15  :- SLOT_13
  *             BITS 16-23 :- SLOT_14
@@ -222,7 +223,7 @@ enum cm_security_idx {
 
 /**
  * struct scoring_cfg - Scoring related configuration
- * @weight_cfg: weigtage config for config
+ * @weight_config: weightage config for scoring config
  * @rssi_score: Rssi related config for scoring config
  * @esp_qbss_scoring: esp and qbss related scoring config
  * @oce_wan_scoring: oce related scoring config
@@ -232,10 +233,10 @@ enum cm_security_idx {
  * @is_bssid_hint_priority: True if bssid_hint is given priority
  * @check_assoc_disallowed: Should assoc be disallowed if MBO OCE IE indicate so
  * @vendor_roam_score_algorithm: Preferred ETP vendor roam score algorithm
- * @check_6ghz_security: check security for 6Ghz candidate
- * @relaxed_6ghz_conn_policy: check for 6Ghz relaxed connection policy
+ * @check_6ghz_security: check security for 6 GHz candidate
  * @standard_6ghz_conn_policy: check for 6 GHz standard connection policy
- * @key_mgmt_mask_6ghz: user configurable mask for 6ghz AKM
+ * @disable_vlp_sta_conn_to_sp_ap: check for disable vlp sta conn to sp ap
+ * @key_mgmt_mask_6ghz: user configurable mask for 6 GHz AKM
  * @mlsr_link_selection: MLSR link selection config
  * @roam_tgt_score_cap: Roam score capability
  * @security_weight_per_index: security weight per index
@@ -252,8 +253,8 @@ struct scoring_cfg {
 		 check_assoc_disallowed:1,
 		 vendor_roam_score_algorithm:1,
 		 check_6ghz_security:1,
-		 relaxed_6ghz_conn_policy:1,
-		 standard_6ghz_conn_policy:1;
+		 standard_6ghz_conn_policy:1,
+		 disable_vlp_sta_conn_to_sp_ap:1;
 
 	uint32_t key_mgmt_mask_6ghz;
 #ifdef WLAN_FEATURE_11BE_MLO
@@ -324,17 +325,49 @@ wlan_denylist_action_on_bssid(struct wlan_objmgr_pdev *pdev,
 /**
  * wlan_cm_calculate_bss_score() - calculate bss score for the scan list
  * @pdev: pointer to pdev object
- * @pcl_list: pcl list for scoring
+ * @pcl_lst: pcl list for scoring
  * @scan_list: scan list, contains the input list and after the
  *             func it will have sorted list
  * @bssid_hint: bssid hint
+ * @self_mac: connecting vdev self mac address
  *
  * Return: void
  */
 void wlan_cm_calculate_bss_score(struct wlan_objmgr_pdev *pdev,
 				 struct pcl_freq_weight_list *pcl_lst,
 				 qdf_list_t *scan_list,
-				 struct qdf_mac_addr *bssid_hint);
+				 struct qdf_mac_addr *bssid_hint,
+				 struct qdf_mac_addr *self_mac);
+
+#ifdef WLAN_FEATURE_11BE
+#ifdef WLAN_FEATURE_11BE_MLO_ADV_FEATURE
+/**
+ * wlan_cm_is_eht_allowed_for_current_security() - checks the current security,
+ * if eht allowed or not.
+ * @psoc: psoc context
+ * @scan_entry: pointer to scan cache entry
+ *
+ * Return: true if eht allowed for current security
+ **/
+bool wlan_cm_is_eht_allowed_for_current_security(
+			struct wlan_objmgr_psoc *psoc,
+			struct scan_cache_entry *scan_entry);
+#else
+static inline bool wlan_cm_is_eht_allowed_for_current_security(
+			struct wlan_objmgr_psoc *psoc,
+			struct scan_cache_entry *scan_entry)
+{
+	return true;
+}
+#endif
+#else
+static inline bool wlan_cm_is_eht_allowed_for_current_security(
+			struct wlan_objmgr_psoc *psoc,
+			struct scan_cache_entry *scan_entry)
+{
+	return false;
+}
+#endif
 
 /**
  * wlan_cm_init_score_config() - Init score INI and config
@@ -347,7 +380,8 @@ void wlan_cm_init_score_config(struct wlan_objmgr_psoc *psoc,
 			       struct scoring_cfg *score_cfg);
 
 /**
- * wlan_cm_6ghz_allowed_for_akm() - check if 6Ghz channel can be allowed for AKM
+ * wlan_cm_6ghz_allowed_for_akm() - check if 6 GHz channel can be allowed
+ *                                  for AKM
  * @psoc: pointer to psoc object
  * @key_mgmt: key mgmt used
  * @rsn_caps: rsn caps
@@ -364,7 +398,7 @@ bool wlan_cm_6ghz_allowed_for_akm(struct wlan_objmgr_psoc *psoc,
 				  bool is_wps);
 
 /**
- * wlan_cm_set_check_6ghz_security() - Set check 6Ghz security
+ * wlan_cm_set_check_6ghz_security() - Set check 6 GHz security
  * @psoc: pointer to psoc object
  * @value: value to be set
  *
@@ -374,8 +408,8 @@ void wlan_cm_set_check_6ghz_security(struct wlan_objmgr_psoc *psoc,
 				     bool value);
 
 /**
- * wlan_cm_reset_check_6ghz_security() - reset check 6Ghz security to original
- * value
+ * wlan_cm_reset_check_6ghz_security() - reset check 6 GHz security to original
+ *                                       value
  * @psoc: pointer to psoc object
  *
  * Return: void
@@ -383,17 +417,17 @@ void wlan_cm_set_check_6ghz_security(struct wlan_objmgr_psoc *psoc,
 void wlan_cm_reset_check_6ghz_security(struct wlan_objmgr_psoc *psoc);
 
 /**
- * wlan_cm_get_check_6ghz_security() - Get 6Ghz allowed AKM mask
+ * wlan_cm_get_check_6ghz_security() - Get 6 GHz allowed AKM mask
  * @psoc: pointer to psoc object
- * @value: value to be set
  *
  * Return: value
  */
 bool wlan_cm_get_check_6ghz_security(struct wlan_objmgr_psoc *psoc);
 
 /**
- * wlan_cm_set_6ghz_key_mgmt_mask() - Set 6Ghz allowed AKM mask
+ * wlan_cm_set_6ghz_key_mgmt_mask() - Set 6 GHz allowed AKM mask
  * @psoc: pointer to psoc object
+ * @value: value to be set
  *
  * Return: void
  */
@@ -401,7 +435,7 @@ void wlan_cm_set_6ghz_key_mgmt_mask(struct wlan_objmgr_psoc *psoc,
 				    uint32_t value);
 
 /**
- * wlan_cm_get_6ghz_key_mgmt_mask() - Get 6Ghz allowed AKM mask
+ * wlan_cm_get_6ghz_key_mgmt_mask() - Get 6 GHz allowed AKM mask
  * @psoc: pointer to psoc object
  *
  * Return: value
@@ -409,23 +443,24 @@ void wlan_cm_set_6ghz_key_mgmt_mask(struct wlan_objmgr_psoc *psoc,
 uint32_t wlan_cm_get_6ghz_key_mgmt_mask(struct wlan_objmgr_psoc *psoc);
 
 /**
- * wlan_cm_set_relaxed_6ghz_conn_policy() - Set 6Ghz relaxed connection policy
+ * wlan_cm_get_disable_vlp_sta_conn_to_sp_ap() - Set disable vlp sta connection
+ *                                               to sp ap
+ * @psoc: pointer to psoc object
+ *
+ * Return: value
+ */
+bool wlan_cm_get_disable_vlp_sta_conn_to_sp_ap(struct wlan_objmgr_psoc *psoc);
+
+/**
+ * wlan_cm_set_disable_vlp_sta_conn_to_sp_ap() - Set disable vlp sta connection
+ *                                               to sp ap
  * @psoc: pointer to psoc object
  * @value: value to be set
  *
  * Return: void
  */
-void wlan_cm_set_relaxed_6ghz_conn_policy(struct wlan_objmgr_psoc *psoc,
-					  bool value);
-/**
- * wlan_cm_get_relaxed_6ghz_conn_policy() - Get 6Ghz relaxed connection policy
- *                                          flag
- * @psoc: pointer to psoc object
- *
- * Return: value
- */
-bool wlan_cm_get_relaxed_6ghz_conn_policy(struct wlan_objmgr_psoc *psoc);
-
+void wlan_cm_set_disable_vlp_sta_conn_to_sp_ap(struct wlan_objmgr_psoc *psoc,
+					       bool value);
 /**
  * wlan_cm_set_standard_6ghz_conn_policy() - Set 6 GHz standard connection
  *					     policy
@@ -482,6 +517,17 @@ bool wlan_cm_get_standard_6ghz_conn_policy(struct wlan_objmgr_psoc *psoc)
 }
 
 static inline
+void wlan_cm_set_disable_vlp_sta_conn_to_sp_ap(struct wlan_objmgr_psoc *psoc,
+					       bool value)
+{}
+
+static inline
+bool wlan_cm_get_disable_vlp_sta_conn_to_sp_ap(struct wlan_objmgr_psoc *psoc)
+{
+	return false;
+}
+
+static inline
 void wlan_cm_set_6ghz_key_mgmt_mask(struct wlan_objmgr_psoc *psoc,
 				    uint32_t value) {}
 
@@ -489,17 +535,6 @@ static inline
 uint32_t wlan_cm_get_6ghz_key_mgmt_mask(struct wlan_objmgr_psoc *psoc)
 {
 	return DEFAULT_KEYMGMT_6G_MASK;
-}
-
-static inline
-void wlan_cm_set_relaxed_6ghz_conn_policy(struct wlan_objmgr_psoc *psoc,
-					  bool value)
-{}
-
-static inline
-bool wlan_cm_get_relaxed_6ghz_conn_policy(struct wlan_objmgr_psoc *psoc)
-{
-	return false;
 }
 #endif
 
@@ -524,4 +559,7 @@ void wlan_cm_set_check_assoc_disallowed(struct wlan_objmgr_psoc *psoc,
 void wlan_cm_get_check_assoc_disallowed(struct wlan_objmgr_psoc *psoc,
 					bool *value);
 #endif
+
+struct scan_cache_entry *cm_get_entry(qdf_list_t *scan_list,
+					struct qdf_mac_addr *link_addr);
 #endif

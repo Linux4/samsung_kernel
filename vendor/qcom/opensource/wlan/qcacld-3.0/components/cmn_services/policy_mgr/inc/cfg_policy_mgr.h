@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2012-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -430,7 +430,7 @@ CFG_INI_UINT("g_sta_sap_scc_on_dfs_chan", 0, 2, 2, CFG_VALUE_OR_DEFAULT, \
  * when STA is connected on indoor channel.
  * @Min: false
  * @Max: true
- * @Default: true
+ * @Default: false
  *
  * This ini is used to allow STA+SAP SCC on indoor channel
  * 0 - Disallow STA+SAP SCC on Indoor only channel
@@ -449,7 +449,7 @@ CFG_INI_UINT("g_sta_sap_scc_on_dfs_chan", 0, 2, 2, CFG_VALUE_OR_DEFAULT, \
  */
 #define CFG_STA_SAP_SCC_ON_INDOOR_CHAN CFG_INI_BOOL(\
 			"sta_sap_scc_on_indoor_chan", \
-			true, \
+			false, \
 			"Allow STA+SAP SCC on indoor channel")
 
 /*
@@ -604,7 +604,7 @@ CFG_INI_UINT("g_mark_sap_indoor_as_disable", 0, 1, 0, CFG_VALUE_OR_DEFAULT, \
 CFG_INI_UINT("g_enable_go_force_scc", 0, 2, 0, CFG_VALUE_OR_DEFAULT, \
 	     "Enable/Disable P2P GO force SCC")
 
-/**
+/*
  * <ini>
  * g_pcl_band_priority - Set 5G/6G Channel order
  * Options.
@@ -709,6 +709,48 @@ CFG_INI_BOOL("g_enable_sr_in_same_mac_conc", 1, \
 CFG_INI_BOOL("g_use_original_bw_for_sap_restart", 0, \
 	     "Use SAP original bandwidth when do restart")
 
+/*
+ * <ini>
+ * g_move_sap_go_1st_on_dfs_sta_csa - Move SAP / GO first to enforce scc
+ * @Min: 0
+ * @Max: 1
+ * @Default: 0
+ *
+ * This ini moves SAP / GO first to enforce scc in STA+SAP (GO) DFS SCC
+ * 0 - Keep default MCC to SCC enforcement movement
+ * 1 - Move SAP / GO first before STA's movement to non-DFS channel
+ *
+ * In STA+SAP / GO concurrency, SCC is enforced by moving SAP / GO
+ * to STA's operating channel. STA side, if there is a CSA
+ * then SCC will be enforced only after STA moves to new channel.
+ *
+ * In usecase of STA + GO SCC on DFS channel, CSA is sent with no-TX
+ * and STA's movement will only happen once CSA count becomes 0.
+ * This will block data transmission till then, which will have bad
+ * user experience in case of XR where, it needs to have periodic data
+ * transmission in every 1 second with GO interface.
+ *
+ * To resolve this, it is better to move GO / SAP first to allow 1
+ * second periodic transmissions. And once the STA moves to new channel,
+ * existing logic will be triggered to enforce SCC.
+ *
+ * This INI is added to change the behavior only in this specific case.
+ * If this INI is set, then move SAP / GO first upon receiving very first
+ * CSA from AP to a non-DFS channel. Current MCC to SCC rules will be applied
+ * once STA moves to new channel after CSA count becomes 0.
+ *
+ * Dependency: g_sta_sap_scc_on_dfs_chan, g_enable_go_force_scc
+ *
+ * Supported Feature: SAP / P2P-GO
+ *
+ * Usage: External
+ *
+ * </ini>
+ */
+#define CFG_MOVE_SAP_GO_1ST_ON_DFS_STA_CSA \
+CFG_INI_BOOL("g_move_sap_go_1st_on_dfs_sta_csa", 0, \
+	     "Move SAP / GO first to enforce scc on dfs sta csa")
+
 #define CFG_POLICY_MGR_ALL \
 		CFG(CFG_MCC_TO_SCC_SWITCH) \
 		CFG(CFG_CONC_SYS_PREF) \
@@ -734,5 +776,6 @@ CFG_INI_BOOL("g_use_original_bw_for_sap_restart", 0, \
 		CFG(CFG_PCL_BAND_PRIORITY) \
 		CFG(CFG_MULTI_SAP_ALLOWED_ON_SAME_BAND) \
 		CFG_SPATIAL_REUSE \
-		CFG(CFG_SAP_DEFAULT_BW_FOR_RESTART)
+		CFG(CFG_SAP_DEFAULT_BW_FOR_RESTART) \
+		CFG(CFG_MOVE_SAP_GO_1ST_ON_DFS_STA_CSA)
 #endif

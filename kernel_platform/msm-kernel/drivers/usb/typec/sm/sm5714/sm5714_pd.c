@@ -17,6 +17,8 @@
 #include <linux/workqueue.h>
 #include <linux/slab.h>
 #include <linux/sched.h>
+#include <linux/pm_wakeup.h>
+#include <linux/version.h>
 #if IS_ENABLED(CONFIG_BATTERY_NOTIFIER)
 #include <linux/battery/battery_notifier.h>
 #else
@@ -71,6 +73,11 @@ void sm5714_usbpd_change_source_cap(int enable, int max_cur, int init)
 	}
 	if (!init)
 		sm5714_usbpd_command_to_policy(pd_data->dev, MANAGER_REQ_SRCCAP_CHANGE);
+}
+
+void sm5714_usbpd_forced_change_srccap(int max_cur)
+{
+	sm5714_usbpd_change_source_cap(2, max_cur, 0);
 }
 
 void sm5714_select_pdo(int num)
@@ -435,9 +442,18 @@ EXPORT_SYMBOL(sm5714_request_default_power_src);
 int sm5714_usbpd_check_fled_state(bool enable, u8 mode)
 {
 	struct sm5714_usbpd_data *pd_data = sm5714_g_pd_data;
-	struct sm5714_phydrv_data *pdic_data = pd_data->phy_driver_data;
-	struct sm5714_usbpd_manager_data *manager = &pd_data->manager;
-	int pdo_num = pd_data->pd_noti.sink_status.selected_pdo_num;
+	struct sm5714_phydrv_data *pdic_data;
+	struct sm5714_usbpd_manager_data *manager;
+	int pdo_num;
+
+	if (pd_data == NULL) {
+		pr_info("[%s] pd_data is null\n", __func__);
+		return -EPROBE_DEFER;
+	}
+
+	pdic_data = pd_data->phy_driver_data;
+	manager = &pd_data->manager;
+	pdo_num = pd_data->pd_noti.sink_status.selected_pdo_num;
 
 	pr_info("[%s] enable(%d), mode(%d)\n", __func__, enable, mode);
 
@@ -1151,6 +1167,7 @@ void sm5714_usbpd_power_ready(struct device *dev,
 	PDIC_OTP_MODE power_role)
 {
 	struct sm5714_usbpd_data *pd_data = dev_get_drvdata(dev);
+	struct sm5714_usbpd_manager_data *manager = &pd_data->manager;
 #if IS_ENABLED(CONFIG_BATTERY_SAMSUNG)
 	struct sm5714_policy_data *policy = &pd_data->policy;
 	PD_NOTI_ATTACH_TYPEDEF pd_notifier;
@@ -1171,8 +1188,8 @@ void sm5714_usbpd_power_ready(struct device *dev,
 #endif
 			pd_data->pd_noti.sink_status.available_pdo_num = 1;
 			pd_data->pd_noti.sink_status.power_list[1].max_current =
-				pd_data->pd_noti.sink_status.power_list[1].max_current > 1800 ?
-				1800 : pd_data->pd_noti.sink_status.power_list[1].max_current;
+				pd_data->pd_noti.sink_status.power_list[1].max_current > manager->short_cable_current ?
+				manager->short_cable_current : pd_data->pd_noti.sink_status.power_list[1].max_current;
 			pd_data->pd_noti.sink_status.has_apdo = false;
 		}
 #endif
@@ -1752,7 +1769,12 @@ int sm5714_usbpd_evaluate_capability(struct sm5714_usbpd_data *pd_data)
 	if ((pdic_sink_status->available_pdo_num > 0) &&
 			(pdic_sink_status->available_pdo_num != available_pdo_num)) {
 		policy->send_sink_cap = 1;
-		pdic_sink_status->selected_pdo_num = 1;
+		if ((available_pdo_num == 3) && (pdic_sink_status->power_list[3].pdo_type == VPDO_TYPE))
+			pdic_sink_status->selected_pdo_num = 3;
+		else if ((available_pdo_num == 2) && (pdic_sink_status->power_list[2].pdo_type == VPDO_TYPE))
+			pdic_sink_status->selected_pdo_num = 2;
+		else
+			pdic_sink_status->selected_pdo_num = 1;
 	}
 
 	if ((available_pdo_num == 1) &&
@@ -2280,6 +2302,9 @@ void sm5714_usbpd_protocol_rx(struct sm5714_usbpd_data *pd_data)
 			case USBPD_Get_Sink_Cap_Ext:
 				pdic_data->status_reg |= BITMSG(MSG_GET_SNK_CAP_EXT);
 				break;
+			case USBPD_Get_Source_Info:
+				pdic_data->status_reg |= BITMSG(MSG_GET_SRC_INFO);
+				break;
 			case USBPD_Get_Revision:
 				pdic_data->status_reg |= BITMSG(MSG_NOT_SUPPORTED);
 				break;
@@ -2389,9 +2414,17 @@ static int of_sm5714_usbpd_dt(struct sm5714_usbpd_manager_data *_data)
 	} else {
 		_data->support_vpdo = of_property_read_bool(np,
 						"battery,support_vpdo");
+		_data->support_15w_vpdo = of_property_read_bool(np,
+						"battery,support_15w_vpdo");
+		ret = of_property_read_u32(np, "battery,short_cable_current", &_data->short_cable_current);
+		if (ret) {
+			pr_info("%s : short_cable_current is Empty, set as 1800 mA\n", __func__);
+			_data->short_cable_current  = 1800;
+		}
 	}
 #else
 	_data->support_vpdo = false;
+	_data->support_15w_vpdo = false;
 #endif
 
 	return ret;
@@ -2418,10 +2451,17 @@ static void sm5714_usbpd_init_source_cap_data(struct sm5714_usbpd_manager_data *
 	data_obj->power_data_obj.usb_comm_capable = 1;
 	data_obj->power_data_obj.reserved = 0;
 
-	(data_obj + 1)->power_data_obj_variable.supply_type = POWER_TYPE_VARIABLE;
-	(data_obj + 1)->power_data_obj_variable.max_voltage = 9000/50;
-	(data_obj + 1)->power_data_obj_variable.min_voltage = 7000/50;
-	(data_obj + 1)->power_data_obj_variable.max_current = 1000/10;
+	if (_data->support_15w_vpdo) {
+		(data_obj + 1)->power_data_obj_variable.supply_type = POWER_TYPE_VARIABLE;
+		(data_obj + 1)->power_data_obj_variable.max_voltage = 9000/50;
+		(data_obj + 1)->power_data_obj_variable.min_voltage = 7000/50;
+		(data_obj + 1)->power_data_obj_variable.max_current = 1650/10;
+	} else {
+		(data_obj + 1)->power_data_obj_variable.supply_type = POWER_TYPE_VARIABLE;
+		(data_obj + 1)->power_data_obj_variable.max_voltage = 9000/50;
+		(data_obj + 1)->power_data_obj_variable.min_voltage = 7000/50;
+		(data_obj + 1)->power_data_obj_variable.max_current = 1000/10;
+	}
 }
 
 static int sm5714_usbpd_manager_init(struct sm5714_usbpd_data *pd_data)
@@ -2449,6 +2489,7 @@ static int sm5714_usbpd_manager_init(struct sm5714_usbpd_data *pd_data)
 	pd_data->pd_noti.sink_status.fp_sec_pd_manual_ccopen_req = sm5714_pd_manual_ccopen_req;
 #endif
 	pd_data->pd_noti.sink_status.fp_sec_pd_manual_jig_ctrl = sm5714_pd_manual_jig_ctrl;
+	pd_data->pd_noti.sink_status.fp_sec_pd_change_src = sm5714_usbpd_forced_change_srccap;
 #endif
 	manager->pd_data = pd_data;
 	manager->power_role_swap = true;
@@ -2567,8 +2608,10 @@ void sm5714_usbpd_reinit(struct device *dev)
 	sm5714_usbpd_init_policy(pd_data);
 	reinit_completion(&pd_data->msg_arrived);
 	pd_data->wait_for_msg_arrived = 0;
-	pd_data->auth_type = AUTH_NONE;
-	sm5714_usbpd_change_source_cap(1, 500, 1);
+	if (!pdic_data->is_attached) {
+		pd_data->auth_type = AUTH_NONE;
+		sm5714_usbpd_change_source_cap(1, 500, 1);
+	}
 	if ((pdic_data->power_role == PDIC_SOURCE) && !pdic_data->is_otg_vboost)
 		sm5714_usbpd_turn_off_reverse_booster(pd_data);
 	sm5714_usbpd_start_discover_msg_cancel(pd_data->dev);
@@ -2614,7 +2657,16 @@ int sm5714_usbpd_init(struct device *dev, void *phy_driver_data)
 	sm5714_usbpd_init_policy(pd_data);
 	sm5714_usbpd_manager_init(pd_data);
 	sm5714_usbpd_change_source_cap(1, 500, 1);
-
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 19, 188)
+	wakeup_source_init(pd_data->policy_engine_wake, "policy_engine_wake");	 // 4.19 R
+	if (!(pd_data->policy_engine_wake)) {
+		pd_data->policy_engine_wake = wakeup_source_create("policy_engine_wake"); // 4.19 Q
+		if (pd_data->policy_engine_wake)
+			wakeup_source_add(pd_data->policy_engine_wake);
+	}
+#else
+	pd_data->policy_engine_wake = wakeup_source_register(NULL, "policy_engine_wake"); // 5.4 R
+#endif
 	INIT_WORK(&pd_data->worker, sm5714_usbpd_policy_work);
 	init_completion(&pd_data->msg_arrived);
 	init_completion(&pd_data->pd_completion);

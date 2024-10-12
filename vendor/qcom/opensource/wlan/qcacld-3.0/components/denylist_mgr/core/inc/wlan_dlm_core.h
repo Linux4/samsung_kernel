@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2011-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -120,9 +120,28 @@ struct dlm_reject_ap_timestamp {
  * @bssid: Bssid of the AP entry.
  * @rssi_reject_params: Rssi reject params of the AP entry.
  * @bad_bssid_counter: It represent how many times data stall happened.
- * @ap_timestamp: Ap timestamp.
- * @reject_ap_type: what is the type of rejection for the AP (avoid, deny etc.)
- * @reject_ap_reason: reason for adding the BSSID to DLM
+ * @ap_timestamp: AP timestamp.
+ * @reject_ap_type: consolidated bitmap of rejection types for the AP
+ * @userspace_denylist: AP in userspace denylist
+ * @driver_denylist: AP in driver denylist
+ * @userspace_avoidlist: AP in userspace avoidlist
+ * @driver_avoidlist: AP in driver avoidlist
+ * @rssi_reject_list: AP has bad RSSI
+ * @driver_monitorlist: AP is monitored
+ * @reject_ap_reason: consolidated bitmap of rejection reasons for the AP
+ * @nud_fail: NUD fail reason
+ * @sta_kickout: STA kickout reason
+ * @ho_fail: Handoff failure reason
+ * @poor_rssi: Poor RSSI reason
+ * @oce_assoc_reject: OCE association rejected reason
+ * @denylist_userspace: Userspace denylist reason
+ * @avoid_userspace: Userspace avoidlist reason
+ * @btm_disassoc_imminent: BTM disassociation imminent reason
+ * @btm_bss_termination: BTM BSS termination reason
+ * @btm_mbo_retry: BTM MBO retry reason
+ * @reassoc_rssi_reject: Reassociation RSSI rejection reason
+ * @no_more_stas: AP reached STA capacity reason
+ * @source: source of the rejection
  * @connect_timestamp: Timestamp when the STA got connected with this BSSID
  */
 struct dlm_reject_ap {

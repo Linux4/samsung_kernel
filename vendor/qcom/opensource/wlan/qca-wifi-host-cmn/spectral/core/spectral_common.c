@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2011,2017-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  *
  * Permission to use, copy, modify, and/or distribute this software for
@@ -53,7 +53,10 @@ spectral_get_vdev(struct wlan_objmgr_pdev *pdev, uint8_t vdev_id)
 {
 	struct wlan_objmgr_vdev *vdev = NULL;
 
-	qdf_assert_always(pdev);
+	if (!pdev) {
+		spectral_err("pdev is null");
+		return NULL;
+	}
 
 	if (vdev_id == WLAN_INVALID_VDEV_ID)
 		vdev = wlan_objmgr_pdev_get_first_vdev(pdev, WLAN_SPECTRAL_ID);
@@ -491,7 +494,7 @@ bad:
 
 /**
  * spectral_ctx_deinit() - De-initialize function pointers from spectral context
- * @sc - Reference to spectral_context object
+ * @sc: Reference to spectral_context object
  *
  * Return: None
  */
