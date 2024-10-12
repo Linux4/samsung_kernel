@@ -370,7 +370,7 @@ static ssize_t mode_show(struct device *dev,
 static ssize_t mode_store(struct device *dev,
 		struct device_attribute *attr, const char *buf, size_t size)
 {
-	int value;
+	int value = 0;
 	struct mdnie_lite_tun_type *mdnie_tune_state = NULL;
 	struct samsung_display_driver_data *vdd = NULL;
 
@@ -444,7 +444,7 @@ static ssize_t scenario_store(struct device *dev,
 					  struct device_attribute *attr,
 					  const char *buf, size_t size)
 {
-	int value;
+	int value = 0;
 	struct mdnie_lite_tun_type *mdnie_tune_state = NULL;
 	struct samsung_display_driver_data *vdd = NULL;
 
@@ -492,14 +492,16 @@ static ssize_t outdoor_store(struct device *dev,
 					       struct device_attribute *attr,
 					       const char *buf, size_t size)
 {
-	int value;
+	int value = 0;
 	struct mdnie_lite_tun_type *mdnie_tune_state = NULL;
 	struct samsung_display_driver_data *vdd = NULL;
 
 	sscanf(buf, "%d", &value);
 
-	if (value < OUTDOOR_OFF_MODE || value >= MAX_OUTDOOR_MODE)
+	if (value < OUTDOOR_OFF_MODE || value >= MAX_OUTDOOR_MODE) {
 		DPRINT("[ERROR] : wrong outdoor mode value : %d\n", value);
+		return size;
+	}
 
 	list_for_each_entry_reverse(mdnie_tune_state, &mdnie_list , used_list) {
 		if (!vdd)
@@ -538,7 +540,7 @@ static ssize_t bypass_store(struct device *dev,
 					  const char *buf, size_t size)
 {
 	struct mdnie_lite_tun_type *mdnie_tune_state = NULL;
-	int value;
+	int value = 0;
 	struct samsung_display_driver_data *vdd = NULL;
 
 	sscanf(buf, "%d", &value);
@@ -589,7 +591,7 @@ static ssize_t accessibility_store(struct device *dev,
 			const char *buf, size_t size)
 {
 	struct mdnie_lite_tun_type *mdnie_tune_state = NULL;
-	int cmd_value;
+	int cmd_value = 0;
 	char buffer[MDNIE_COLOR_BLINDE_CMD_SIZE] = {0,};
 	int buffer2[MDNIE_COLOR_BLINDE_CMD_SIZE/2] = {0,};
 	int loop;
@@ -669,7 +671,7 @@ static ssize_t sensorRGB_show(struct device *dev,
 static ssize_t sensorRGB_store(struct device *dev,
 		struct device_attribute *attr, const char *buf, size_t size)
 {
-	int white_red, white_green, white_blue;
+	int white_red = 0, white_green = 0, white_blue = 0;
 	struct mdnie_lite_tun_type *mdnie_tune_state = NULL;
 	struct mdnie_lite_tun_type *real_mdnie_tune_state = NULL;
 	struct dsi_cmd_desc *data_dsi0 = NULL;
@@ -763,7 +765,7 @@ static ssize_t whiteRGB_store(struct device *dev,
 		struct device_attribute *attr, const char *buf, size_t size)
 {
 	int i;
-	int white_red, white_green, white_blue;
+	int white_red = 0, white_green = 0, white_blue = 0;
 	struct mdnie_lite_tun_type *mdnie_tune_state = NULL;
 	struct mdnie_lite_tun_type *real_mdnie_tune_state = NULL;
 	struct dsi_cmd_desc *white_tunning_data = NULL;
@@ -833,7 +835,7 @@ static ssize_t mdnie_ldu_show(struct device *dev,
 static ssize_t mdnie_ldu_store(struct device *dev,
 		struct device_attribute *attr, const char *buf, size_t size)
 {
-	int i, j, idx;
+	int i, j, idx = 0;
 	struct mdnie_lite_tun_type *mdnie_tune_state = NULL;
 	struct mdnie_lite_tun_type *real_mdnie_tune_state = NULL;
 	struct dsi_cmd_desc *ldu_tunning_data = NULL;
@@ -895,7 +897,7 @@ static ssize_t night_mode_show(struct device *dev,
 static ssize_t night_mode_store(struct device *dev,
 		struct device_attribute *attr, const char *buf, size_t size)
 {
-	int enable, idx;
+	int enable = 0, idx = 0;
 	char *buffer;
 	struct mdnie_lite_tun_type *mdnie_tune_state = NULL;
 	struct mdnie_lite_tun_type *real_mdnie_tune_state = NULL;
@@ -954,7 +956,7 @@ static ssize_t color_lens_show(struct device *dev,
 static ssize_t color_lens_store(struct device *dev,
 		struct device_attribute *attr, const char *buf, size_t size)
 {
-	int enable, color, level;
+	int enable = 0, color = 0, level = 0;
 	char *buffer;
 	struct mdnie_lite_tun_type *mdnie_tune_state = NULL;
 	struct mdnie_lite_tun_type *real_mdnie_tune_state = NULL;
@@ -1025,7 +1027,7 @@ static ssize_t hdr_store(struct device *dev,
 					  struct device_attribute *attr,
 					  const char *buf, size_t size)
 {
-	int value;
+	int value = 0;
 	int backup;
 	struct mdnie_lite_tun_type *mdnie_tune_state = NULL;
 	struct samsung_display_driver_data *vdd = NULL;
@@ -1074,7 +1076,7 @@ static ssize_t light_notification_store(struct device *dev,
 					  struct device_attribute *attr,
 					  const char *buf, size_t size)
 {
-	int value;
+	int value = 0;
 	int backup;
 	struct mdnie_lite_tun_type *mdnie_tune_state = NULL;
 	struct samsung_display_driver_data *vdd = NULL;
@@ -1124,7 +1126,7 @@ static ssize_t cabc_store(struct device *dev,
 					  const char *buf, size_t size)
 {
 	struct mdnie_lite_tun_type *mdnie_tune_state = NULL;
-	int value;
+	int value = 0;
 
 	sscanf(buf, "%d", &value);
 
@@ -1159,7 +1161,7 @@ static ssize_t hmt_color_temperature_store(struct device *dev,
 					  struct device_attribute *attr,
 					  const char *buf, size_t size)
 {
-	int value;
+	int value = 0;
 	int backup;
 	struct mdnie_lite_tun_type *mdnie_tune_state = NULL;
 	struct samsung_display_driver_data *vdd = NULL;

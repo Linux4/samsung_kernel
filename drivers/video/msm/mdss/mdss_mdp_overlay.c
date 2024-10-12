@@ -1799,7 +1799,7 @@ end:
 
 int mdss_mode_switch(struct msm_fb_data_type *mfd, u32 mode)
 {
-	struct mdss_rect l_roi, r_roi;
+	struct mdss_rect l_roi  = {0}, r_roi = {0};
 	struct mdss_mdp_ctl *ctl = mfd_to_ctl(mfd);
 	struct mdss_overlay_private *mdp5_data = mfd_to_mdp5_data(mfd);
 	struct mdss_mdp_ctl *sctl;
@@ -3672,13 +3672,15 @@ int mdss_mdp_overlay_vsync_ctrl(struct msm_fb_data_type *mfd, int en)
 			mfd->index);
 		goto end;
 	}
+ 
+	mdp5_data->vsync_en = en;
 
 	if (!ctl->panel_data->panel_info.cont_splash_enabled
 		&& (!mdss_mdp_ctl_is_power_on(ctl) ||
 		mdss_panel_is_power_on_ulp(ctl->power_state))) {
 		pr_debug("fb%d vsync pending first update en=%d, ctl power state:%d\n",
 				mfd->index, en, ctl->power_state);
-		rc = -EPERM;
+		rc = 0;
 		goto end;
 	}
 
@@ -6028,6 +6030,13 @@ static int mdss_mdp_overlay_on(struct msm_fb_data_type *mfd)
 	}
 
 panel_on:
+	if (mdp5_data->vsync_en) {
+		pr_info("reenabling vsync for fb%d\n", mfd->index);
+		mdss_mdp_clk_ctrl(MDP_BLOCK_POWER_ON);
+		rc = ctl->ops.add_vsync_handler(ctl, &ctl->vsync_handler);
+		mdss_mdp_clk_ctrl(MDP_BLOCK_POWER_OFF);
+	}
+
 	if (IS_ERR_VALUE(rc)) {
 		pr_err("Failed to turn on fb%d\n", mfd->index);
 		mdss_mdp_overlay_off(mfd);
@@ -6417,8 +6426,11 @@ static void __vsync_retire_signal(struct msm_fb_data_type *mfd, int val)
 	mutex_lock(&mfd->mdp_sync_pt_data.sync_mutex);
 	if (mdp5_data->retire_cnt > 0) {
 		sw_sync_timeline_inc(mdp5_data->vsync_timeline, val);
-
 		mdp5_data->retire_cnt -= min(val, mdp5_data->retire_cnt);
+		pr_debug("Retire signaled! timeline val=%d remaining=%d\n",
+				mdp5_data->vsync_timeline->value,
+				mdp5_data->retire_cnt);
+
 		MDSS_XLOG(mdp5_data->retire_cnt, val, mdp5_data->vsync_timeline);
 		if (mdp5_data->retire_cnt == 0) {
 			mdss_mdp_clk_ctrl(MDP_BLOCK_POWER_ON);
@@ -6611,6 +6623,13 @@ int mdss_mdp_input_event_handler(struct msm_fb_data_type *mfd)
 	return rc;
 }
 
+static void mdss_mdp_signal_retire_fence(struct msm_fb_data_type *mfd,
+						int retire_cnt)
+{
+	__vsync_retire_signal(mfd, retire_cnt);
+	pr_debug("Signaled (%d) pending retire fence\n", retire_cnt);
+}
+
 int mdss_mdp_overlay_init(struct msm_fb_data_type *mfd)
 {
 	struct device *dev = mfd->fbi->dev;
@@ -6659,6 +6678,8 @@ int mdss_mdp_overlay_init(struct msm_fb_data_type *mfd)
 	mdp5_interface->splash_init_fnc = mdss_mdp_splash_init;
 	mdp5_interface->configure_panel = mdss_mdp_update_panel_info;
 	mdp5_interface->input_event_handler = mdss_mdp_input_event_handler;
+	mdp5_interface->signal_retire_fence = mdss_mdp_signal_retire_fence;
+	mdp5_interface->is_twm_en = NULL;
 
 	if (mfd->panel_info->type == WRITEBACK_PANEL) {
 		mdp5_interface->atomic_validate =
@@ -6791,6 +6812,7 @@ int mdss_mdp_overlay_init(struct msm_fb_data_type *mfd)
 		}
 	}
 	mfd->mdp_sync_pt_data.async_wait_fences = true;
+	mdp5_data->vsync_en = false;
 
 	pm_runtime_set_suspended(&mfd->pdev->dev);
 	pm_runtime_enable(&mfd->pdev->dev);
@@ -6860,7 +6882,7 @@ static int mdss_mdp_scaler_lut_init(struct mdss_data_type *mdata,
 		return -EFAULT;
 
 	mutex_lock(&mdata->scaler_off->scaler_lock);
-		
+	
 	qseed3_lut_tbl = &mdata->scaler_off->lut_tbl;
 	if ((lut_tbl->dir_lut_size !=
 		DIR_LUT_IDX * DIR_LUT_COEFFS * sizeof(uint32_t)) ||
@@ -6904,7 +6926,6 @@ static int mdss_mdp_scaler_lut_init(struct mdss_data_type *mdata,
 
 	/* Invalidate before updating */
 	qseed3_lut_tbl->valid = false;
-
 
 	if (copy_from_user(qseed3_lut_tbl->dir_lut,
 				(void *)(unsigned long)lut_tbl->dir_lut,

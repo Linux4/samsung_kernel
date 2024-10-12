@@ -1,6 +1,6 @@
 /**
    @copyright
-   Copyright (c) 2013 - 2015, INSIDE Secure Oy. All rights reserved.
+   Copyright (c) 2013 - 2017, INSIDE Secure Oy. All rights reserved.
 */
 
 #ifndef IP_SELECTOR_MATCH_H
@@ -9,23 +9,10 @@
 #include "public_defs.h"
 #include "ip_selector.h"
 
-struct IPSelectorFields
-{
-    uint8_t source_address[16];
-    uint8_t destination_address[16];
-
-    int32_t source_port;
-    int32_t destination_port;
-
-    int32_t ip_version;
-    int32_t ip_protocol;
-};
-
-
 int
 ip_selector_match_validate_selector_group(
         const struct IPSelectorGroup *selector_group,
-        int bytecount);
+        unsigned bytecount);
 
 
 int

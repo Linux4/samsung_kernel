@@ -464,10 +464,21 @@ static void fw_update(void *device_data)
 	int ret = 0;
 	char buff[16] = {0};
 
+	set_default_result(fdata);
+
+#if defined(CONFIG_SAMSUNG_PRODUCT_SHIP)
+	if (fdata->cmd_param[0] == 1) {
+		snprintf(buff, sizeof(buff), "OK");
+		set_cmd_result(fdata, buff, strnlen(buff, sizeof(buff)));
+		fdata->cmd_state = CMD_STATUS_OK;
+		input_info(true, dev, "%s: user_ship, skip\n", __func__);
+		return;
+	}
+#endif
+
 	memset(&fw_info, 0, sizeof(struct mxt_fw_info));
 	fw_info.data = data;
 
-	set_default_result(fdata);
 	switch (fdata->cmd_param[0]) {
 
 	case MXT_FW_FROM_UMS:

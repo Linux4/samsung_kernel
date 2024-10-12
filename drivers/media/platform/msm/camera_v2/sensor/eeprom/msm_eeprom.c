@@ -880,9 +880,14 @@ FREE:
 static int eeprom_config_erase(struct msm_eeprom_ctrl_t *e_ctrl,
 			       struct msm_eeprom_cfg_data *cdata)
 {
-	int rc;
+	int rc = 0;
 	bool down;
 	bool bShowLog = FALSE;
+
+	if ((e_ctrl->eeprom_device_type != MSM_CAMERA_SPI_DEVICE) ||
+		(e_ctrl->i2c_client.spi_client == NULL)) {
+		return rc;
+	}
 
 	pr_warn("%s: erasing addr 0x%x, size %u\n", __func__,
 		cdata->cfg.erase_data.addr, cdata->cfg.erase_data.num_bytes);
@@ -1216,6 +1221,7 @@ static int msm_eeprom_config32(struct msm_eeprom_ctrl_t *e_ctrl,
 	struct msm_eeprom_cfg_data cdata;
 	int rc = 0;
 	size_t length = 0;
+	uint32_t num_bytes = 0;
 
 	CDBG("%s:%d E: subdevid: %d\n",__func__,__LINE__,e_ctrl->subdev_id);
 	cdata.cfgtype = cdata32->cfgtype;
@@ -1289,9 +1295,13 @@ static int msm_eeprom_config32(struct msm_eeprom_ctrl_t *e_ctrl,
 		/* Update Cal. data to sysfs */
 		eeprom_write_cal_data_sysfs(e_ctrl);
 #endif
+
+		num_bytes = cdata.cfg.read_data.num_bytes;
+		if (num_bytes > e_ctrl->cal_data.num_data)
+			num_bytes = e_ctrl->cal_data.num_data;
 		rc = copy_to_user(cdata.cfg.read_data.dbuffer,
 			e_ctrl->cal_data.mapdata,
-			cdata.cfg.read_data.num_bytes);
+			num_bytes);
 		break;
 	case CFG_EEPROM_GET_ERASESIZE:
 		CDBG("%s E CFG_EEPROM_GET_ERASESIZE: %d\n",

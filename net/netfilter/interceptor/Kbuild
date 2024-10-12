@@ -6,6 +6,7 @@ vpnclient-y := \
 	kernelspd_main.o \
 	kernelspd_hooks.o \
 	kernelspd_procfs.o \
+	kernel_stats.o \
 	ipsec_boundary.o \
 	debug_filter.o \
 	debug_strf.o \

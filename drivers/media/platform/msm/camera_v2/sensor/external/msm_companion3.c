@@ -365,6 +365,11 @@ static int msm_companion_read_cal_tbl(struct companion_device *companion_dev, ui
 	struct msm_camera_i2c_client *client = &companion_dev->companion_i2c_client;
 	int rc = 0;
 
+	if ((companion_dev->device_type != MSM_CAMERA_SPI_DEVICE) ||
+		(client->spi_client == NULL)) {
+		return rc;
+	}
+
 	rc = client->i2c_func_tbl->i2c_write(
 	client, 0x642C, (offset & 0xFFFF0000) >> 16, MSM_CAMERA_I2C_WORD_DATA);
 	if(rc < 0)
@@ -1741,6 +1746,11 @@ static int msm_companion_read_stats2(struct companion_device *companion_dev, uns
 	int rc = 0;
 
 	CDBG("[syscamera][%s::%d] Enter\n", __FUNCTION__, __LINE__);
+
+	if ((companion_dev->device_type != MSM_CAMERA_SPI_DEVICE) ||
+		(client->spi_client == NULL)) {
+		return rc;
+	}
 
 	rc = client->i2c_func_tbl->i2c_write(
 		client, 0x642c, STAT2_READREG_ADDR_MSB, MSM_CAMERA_I2C_WORD_DATA);

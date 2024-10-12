@@ -1,6 +1,6 @@
 /**
    @copyright
-   Copyright (c) 2011 - 2015, INSIDE Secure Oy. All rights reserved.
+   Copyright (c) 2011 - 2016, INSIDE Secure Oy. All rights reserved.
 */
 
 
@@ -46,7 +46,7 @@ debug_strbuf_buffer_commit(
 const char *
 debug_strbuf_sshrender(
         DEBUG_STRBUF_TYPE buf,
-        int (*ssh_renderer)(unsigned char *, int, int, void *),
+        int (*ssh_renderer)(char *, int, int, void *),
         void *render_datum);
 
 const char *

@@ -1,6 +1,6 @@
 /**
    @copyright
-   Copyright (c) 2013 - 2015, INSIDE Secure Oy. All rights reserved.
+   Copyright (c) 2013 - 2017, INSIDE Secure Oy. All rights reserved.
 */
 
 #include "public_defs.h"
@@ -63,5 +63,17 @@ struct IPSelectorGroup
     uint32_t bytecount;
 };
 
+
+struct IPSelectorFields
+{
+    uint8_t source_address[16];
+    uint8_t destination_address[16];
+
+    int32_t source_port;
+    int32_t destination_port;
+
+    int32_t ip_version;
+    int32_t ip_protocol;
+};
 
 #endif /* IP_SELECTOR_H */

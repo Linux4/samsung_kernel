@@ -141,20 +141,20 @@ static int valid_ecryptfs_desc(const char *ecryptfs_desc)
  */
 static int valid_master_desc(const char *new_desc, const char *orig_desc)
 {
-   int prefix_len;
+	int prefix_len;
 
-   if (!strncmp(new_desc, KEY_TRUSTED_PREFIX, KEY_TRUSTED_PREFIX_LEN))
-      prefix_len = KEY_TRUSTED_PREFIX_LEN;
-   else if (!strncmp(new_desc, KEY_USER_PREFIX, KEY_USER_PREFIX_LEN))
-      prefix_len = KEY_USER_PREFIX_LEN;
-   else
-      return -EINVAL;
+	if (!strncmp(new_desc, KEY_TRUSTED_PREFIX, KEY_TRUSTED_PREFIX_LEN))
+		prefix_len = KEY_TRUSTED_PREFIX_LEN;
+	else if (!strncmp(new_desc, KEY_USER_PREFIX, KEY_USER_PREFIX_LEN))
+		prefix_len = KEY_USER_PREFIX_LEN;
+	else
+		return -EINVAL;
 
-   if (!new_desc[prefix_len])
-      return -EINVAL;
+	if (!new_desc[prefix_len])
+		return -EINVAL;
 
-   if (orig_desc && strncmp(new_desc, orig_desc, prefix_len))
-      return -EINVAL;
+	if (orig_desc && strncmp(new_desc, orig_desc, prefix_len))
+		return -EINVAL;
 
 	return 0;
 }
@@ -314,6 +314,13 @@ static struct key *request_user_key(const char *master_desc, u8 **master_key,
 
 	down_read(&ukey->sem);
 	upayload = ukey->payload.data;
+	if (!upayload) {
+		/* key was revoked before we acquired its semaphore */
+		up_read(&ukey->sem);
+		key_put(ukey);
+		ukey = ERR_PTR(-EKEYREVOKED);
+		goto error;
+	}
 	*master_key = upayload->data;
 	*master_keylen = upayload->datalen;
 error:

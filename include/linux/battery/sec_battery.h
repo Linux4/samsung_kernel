@@ -172,7 +172,11 @@ struct sec_battery_info {
 
 #if defined(CONFIG_BATTERY_CISD)
 	struct cisd cisd;
-#endif	
+#endif
+
+#if defined(CONFIG_PREVENT_SWELLING_BATTERY)
+	void *psb;
+#endif
 
 	/* battery check */
 	unsigned int check_count;

@@ -30,5 +30,6 @@ int mmc_gpiod_request_ro(struct mmc_host *host, const char *con_id,
 			 unsigned int debounce, bool *gpio_invert);
 void mmc_gpiod_free_cd(struct mmc_host *host);
 void mmc_gpiod_request_cd_irq(struct mmc_host *host);
+void mmc_gpiod_update_status(struct mmc_host *host, int present);
 
 #endif

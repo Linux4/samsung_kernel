@@ -95,7 +95,9 @@
 #define IPA_IOCTL_ALLOC_IPV6CT_TABLE            53
 #define IPA_IOCTL_DEL_NAT_TABLE                 54
 #define IPA_IOCTL_DEL_IPV6CT_TABLE              55
-#define IPA_IOCTL_MAX                           56
+#define IPA_IOCTL_CLEANUP                       56
+#define IPA_IOCTL_QUERY_WLAN_CLIENT             57
+#define IPA_IOCTL_MAX				58
 
 /**
  * max size of the header to be inserted
@@ -166,6 +168,8 @@
 #define IPA_FLT_MAC_DST_ADDR_L2TP	(1ul << 22)
 #define IPA_FLT_TCP_SYN			(1ul << 23)
 #define IPA_FLT_TCP_SYN_L2TP		(1ul << 24)
+#define IPA_FLT_L2TP_INNER_IP_TYPE  (1ul << 25)
+#define IPA_FLT_L2TP_INNER_IPV4_DST_ADDR (1ul << 26)
 
 /**
  * maximal number of NAT PDNs in the PDN config table
@@ -471,7 +475,13 @@ enum ipa_ssr_event {
 	IPA_SSR_EVENT_MAX,
 };
 
-#define IPA_EVENT_MAX_NUM (IPA_SSR_EVENT_MAX)
+enum ipa_wlan_fw_ssr_event {
+	WLAN_FWR_SSR_BEFORE_SHUTDOWN = IPA_SSR_EVENT_MAX,
+	IPA_WLAN_FW_SSR_EVENT_MAX
+#define IPA_WLAN_FW_SSR_EVENT_MAX IPA_WLAN_FW_SSR_EVENT_MAX
+};
+
+#define IPA_EVENT_MAX_NUM (IPA_WLAN_FW_SSR_EVENT_MAX)
 
 /**
  * enum ipa_rm_resource_name - IPA RM clients identification names
@@ -1965,6 +1975,10 @@ struct ipa_tether_device_info {
 #define IPA_IOC_DEL_L2TP_VLAN_MAPPING _IOWR(IPA_IOC_MAGIC, \
 				IPA_IOCTL_DEL_L2TP_VLAN_MAPPING, \
 				struct ipa_ioc_l2tp_vlan_mapping_info *)
+#define IPA_IOC_CLEANUP _IO(IPA_IOC_MAGIC,\
+					IPA_IOCTL_CLEANUP)
+#define IPA_IOC_QUERY_WLAN_CLIENT _IO(IPA_IOC_MAGIC,\
+					IPA_IOCTL_QUERY_WLAN_CLIENT)
 /*
  * unique magic number of the Tethering bridge ioctls
  */

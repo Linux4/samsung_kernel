@@ -1,4 +1,4 @@
-/* Copyright (c) 2013-2017, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2013-2018, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -203,6 +203,9 @@ static int mdss_mdp_tearcheck_enable(struct mdss_mdp_ctl *ctl, bool enable)
 
 	sctl = mdss_mdp_get_split_ctl(ctl);
 	te = &ctl->panel_data->panel_info.te;
+	
+	pr_debug("%s: enable=%d\n", __func__, enable);
+	
 	mdss_mdp_pingpong_write(mixer->pingpong_base,
 		MDSS_MDP_REG_PP_TEAR_CHECK_EN,
 		(te ? te->tear_check_en : 0) && enable);
@@ -1145,6 +1148,7 @@ static int mdss_mdp_cmd_intf_recovery(void *data, int event)
 		reset_done = true;
 	}
 
+	MDSS_XLOG(reset_done, atomic_read(&ctx->koff_cnt));
 	spin_lock_irqsave(&ctx->koff_lock, flags);
 	if (reset_done && atomic_add_unless(&ctx->koff_cnt, -1, 0)) {
 		pr_debug("%s: intf_num=%d\n", __func__, ctx->ctl->intf_num);
@@ -1238,6 +1242,8 @@ static void mdss_mdp_cmd_pingpong_done(void *arg)
 	pr_debug("%s: ctl_num=%d intf_num=%d ctx=%d cnt=%d\n", __func__,
 			ctl->num, ctl->intf_num, ctx->current_pp_num,
 			atomic_read(&ctx->koff_cnt));
+
+	MDSS_XLOG(ctl->num, atomic_read(&ctx->koff_cnt), ctx->current_pp_num);
 
 	trace_mdp_cmd_pingpong_done(ctl, ctx->current_pp_num,
 		atomic_read(&ctx->koff_cnt));
@@ -3060,17 +3066,23 @@ int mdss_mdp_cmd_stop(struct mdss_mdp_ctl *ctl, int panel_power_state)
 		return 0;
 	}
 
+	pr_debug("%s: transition from %d --> %d koff_cnt=%d\n", __func__,
+		ctx->panel_power_state, panel_power_state, atomic_read(&ctx->koff_cnt));
+	MDSS_XLOG(0x1111, ctx->panel_power_state, panel_power_state, atomic_read(&ctx->koff_cnt));
 	if (sctl)
 		sctx = (struct mdss_mdp_cmd_ctx *) sctl->intf_ctx[MASTER_CTX];
-
-	pr_info("%s: transition from %d --> %d\n", __func__,
-		ctx->panel_power_state, panel_power_state);
-	MDSS_XLOG(ctx->panel_power_state, panel_power_state);
 
 	mutex_lock(&ctl->offlock);
 	mutex_lock(&cmd_off_mtx);
 	if (mdss_panel_is_power_off(panel_power_state)) {
 		/* Transition to display off */
+		if (atomic_read(&ctx->koff_cnt)) {
+			MDSS_XLOG(0x2222, ctx->panel_power_state, panel_power_state);
+			MDSS_XLOG(ctl->num, atomic_read(&ctx->koff_cnt));
+			mdss_mdp_cmd_wait4pingpong(ctl, NULL);
+			if (sctl)
+				mdss_mdp_cmd_wait4pingpong(sctl, NULL);
+		}
 		send_panel_events = true;
 		turn_off_clocks = true;
 		panel_off = true;
@@ -3081,6 +3093,13 @@ int mdss_mdp_cmd_stop(struct mdss_mdp_ctl *ctl, int panel_power_state)
 		 * so that the panel can be configured in low power
 		 * mode.
 		 */
+		if (atomic_read(&ctx->koff_cnt)) {
+			MDSS_XLOG(0x3333, ctx->panel_power_state, panel_power_state);
+			MDSS_XLOG(ctl->num, atomic_read(&ctx->koff_cnt));
+			mdss_mdp_cmd_wait4pingpong(ctl, NULL);
+			if (sctl)
+				mdss_mdp_cmd_wait4pingpong(sctl, NULL);
+		}
 		send_panel_events = true;
 		if (mdss_panel_is_power_on_ulp(panel_power_state))
 			turn_off_clocks = true;

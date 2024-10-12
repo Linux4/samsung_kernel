@@ -525,10 +525,18 @@ __mmap_switched:
 	bl	__pi_memset
 	dsb	ishst				// Make zero page visible to PTW
 
+#ifdef CONFIG_THREAD_INFO_IN_TASK
+        adrp    x4, init_thread_union
+        add     sp, x4, #THREAD_SIZE
+        adr_l   x5, init_task
+        msr     sp_el0, x5                      // Save thread_info
+#else
 	adr_l	sp, initial_sp, x4
 	mov	x4, sp
 	and	x4, x4, #~(THREAD_SIZE - 1)
 	msr	sp_el0, x4			// Save thread_info
+#endif
+
 	str_l	x21, __fdt_pointer, x5		// Save FDT pointer
 	str_l	x24, memstart_addr, x6		// Save PHYS_OFFSET
 	mov	x29, #0
@@ -551,6 +559,7 @@ ENDPROC(__mmap_switched)
  * booted in EL1 or EL2 respectively.
  */
 ENTRY(el2_setup)
+	msr	SPsel, #1			// We want to use SP_EL{1,2}
 	mrs	x0, CurrentEL
 	cmp	x0, #CurrentEL_EL2
 	b.ne	1f
@@ -717,6 +726,13 @@ ENTRY(secondary_startup)
 ENDPROC(secondary_startup)
 
 ENTRY(__secondary_switched)
+#ifdef CONFIG_THREAD_INFO_IN_TASK
+	adr_l	x0, secondary_data
+	ldr	x1, [x0, #CPU_BOOT_STACK]	// get secondary_data.stack
+	mov	sp, x1
+	ldr	x2, [x0, #CPU_BOOT_TASK]
+	msr	sp_el0, x2
+#else
 	ldr	x0, [x21]			// get secondary_data.stack
 	mov	sp, x0
 #ifdef CONFIG_RKP_CFP_ROPP
@@ -729,6 +745,7 @@ ENTRY(__secondary_switched)
 #endif
 	and	x0, x0, #~(THREAD_SIZE - 1)
 	msr	sp_el0, x0			// save thread_info
+#endif
 	mov	x29, #0
 	b	secondary_start_kernel
 ENDPROC(__secondary_switched)

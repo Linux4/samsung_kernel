@@ -1534,6 +1534,7 @@ struct platform_device *qcom_ice_get_pdevice(struct device_node *node)
 			break;
 		}
 	}
+
 	if(ice_pdev)
 		pr_info("%s: matching platform device %pK\n", __func__, ice_pdev);
 out:

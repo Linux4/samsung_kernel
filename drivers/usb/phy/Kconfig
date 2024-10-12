@@ -268,7 +268,7 @@ config USB_PHY_HOSTMODE
 
 config DUAL_ROLE_USB_INTF
 	bool "Generic DUAL ROLE sysfs interface"
-	depends on SYSFS && USB_PHY
+	depends on SYSFS && USB_PHY && !TYPEC
 	help
 	  A generic sysfs interface to track and change the state of
 	  dual role usb phys. The usb phy drivers can register to

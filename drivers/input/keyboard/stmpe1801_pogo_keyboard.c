@@ -1104,7 +1104,6 @@ static int stmpe1801_set_input_dev(struct stmpe1801_dev *device_data)
 	__set_bit(EV_KEY, device_data->input_dev->evbit);
 	if (device_data->dtdata->repeat)
 		__set_bit(EV_REP, device_data->input_dev->evbit);
-	set_bit(KEY_SLEEP, device_data->input_dev->keybit);
 
 	device_data->input_dev->keycode = device_data->keycode;
 	device_data->input_dev->keycodesize = sizeof(unsigned short);
@@ -1154,19 +1153,8 @@ static void stmpe1801_keyboard_connect_work(struct work_struct *work)
 	}
 
 	if (data->input_dev) {
-		if (ret >= 0) {
-#ifndef CONFIG_SEC_FACTORY
-			if (!data->connect_state) {
-				input_report_key(data->input_dev, KEY_SLEEP, 1);
-				input_sync(data->input_dev);
-				input_report_key(data->input_dev, KEY_SLEEP, 0);
-				input_sync(data->input_dev);
-				input_info(true, &data->client->dev,
-						"%s: 0x%2X\n", __func__, KEY_SLEEP);
-			}
-#endif
+		if (ret >= 0)
 			data->current_connect_state = data->connect_state;
-		}
 
 		if (!data->current_connect_state) {
 			usleep_range(1000, 1000);

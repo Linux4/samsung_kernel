@@ -44,6 +44,7 @@
 #include <linux/interrupt.h>
 #include <linux/init.h>
 #include <linux/blkdev.h>
+#include <linux/backing-dev.h>
 #include <linux/blkpg.h>
 #include <linux/delay.h>
 #include <linux/mutex.h>
@@ -1911,6 +1912,8 @@ sd_spinup_disk(struct scsi_disk *sdkp)
 				break;	/* standby */
 			if (sshdr.asc == 4 && sshdr.ascq == 0xc)
 				break;	/* unavailable */
+			if (sshdr.asc == 4 && sshdr.ascq == 0x1b)
+				break;	/* sanitize in progress */
 			/*
 			 * Issue command to spin up drive when not ready
 			 */
@@ -3238,14 +3241,34 @@ static int sd_probe(struct device *dev)
 			blk_queue_rq_timeout(sdp->request_queue,
 					     SD_UFS_TIMEOUT);
 	}
-        
-#ifdef CONFIG_LARGE_DIRTY_BUFFER
+
+#ifdef CONFIG_SCSI_UFSHCD
 	if (!sdp->host->by_ufs) {
-		sdp->request_queue->backing_dev_info.max_ratio = 10;
-		sdp->request_queue->backing_dev_info.min_ratio = 10;
-		sdp->request_queue->backing_dev_info.capabilities |= BDI_CAP_STRICTLIMIT;
-	}
+#else
+	if (1) { /* apply to all SCSI devices on non-UFS system */
 #endif
+		struct request_queue *q = sdp->request_queue;
+
+		/* decrease max # of requests to 32. The goal of this tunning is
+		 * reducing the time for draining elevator when elevator_switch
+		 * function is called. It is effective for slow USB memory.
+		 */
+		q->nr_requests = BLKDEV_MAX_RQ / 8;
+		if (q->nr_requests < 32) q->nr_requests = 32;
+#ifdef CONFIG_LARGE_DIRTY_BUFFER
+		/* apply more throttle on non-ufs scsi device */	
+		sdp->request_queue->backing_dev_info.max_ratio = 20;
+		sdp->request_queue->backing_dev_info.min_ratio = 20;
+		sdp->request_queue->backing_dev_info.capabilities |= BDI_CAP_STRICTLIMIT;
+#endif
+		pr_info("Parameters for SCSI-dev(%s): min/max_ratio: %u/%u "
+				"strictlimit: on nr_requests: %lu read_ahead_kb: %lu\n",
+				gd->disk_name,
+				q->backing_dev_info.min_ratio,
+				q->backing_dev_info.max_ratio,
+				q->nr_requests,
+				q->backing_dev_info.ra_pages * 4);
+	}
 
 	device_initialize(&sdkp->dev);
 	sdkp->dev.parent = dev;

@@ -1926,7 +1926,11 @@ static int sm5705_fg_parse_dt(struct sec_fuelgauge_info *fuelgauge)
 					__func__, ret);
 		fuelgauge->pdata->repeated_fuelalert = of_property_read_bool(np,
 				"fuelgaguge,repeated_fuelalert");
-
+		ret = of_property_read_u32(np, "fuelgauge,capacity",
+				&fuelgauge->capacity);
+		if (ret < 0)
+			pr_err("%s error reading battery capacity %d\n",
+					__func__, ret);
 		pr_info("%s: fg_irq: %d, "
 				"calculation_type: 0x%x, fuel_alert_soc: %d,\n"
 				"repeated_fuelalert: %d\n", __func__, fuelgauge->pdata->fg_irq,
@@ -2621,6 +2625,9 @@ static int sm5705_fg_get_property(struct power_supply *psy,
 	case POWER_SUPPLY_PROP_CHARGE_FULL:
 	case POWER_SUPPLY_PROP_ENERGY_NOW:
 		return -ENODATA;
+	case POWER_SUPPLY_PROP_CHARGE_COUNTER:
+		val->intval = fuelgauge->capacity * sm5705_get_soc(fuelgauge->client); // uAh
+		break; 
 	default:
 		return -EINVAL;
 	}

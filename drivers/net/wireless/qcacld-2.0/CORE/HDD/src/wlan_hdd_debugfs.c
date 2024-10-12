@@ -31,7 +31,6 @@
 #include <vos_sched.h>
 #include "wlan_hdd_debugfs.h"
 #include "wlan_hdd_debugfs_ocb.h"
-#include "wlan_hdd_request_manager.h"
 
 #define MAX_USER_COMMAND_SIZE_WOWL_ENABLE 8
 #define MAX_USER_COMMAND_SIZE_WOWL_PATTERN 512
@@ -600,59 +599,78 @@ int wlan_hdd_debugfs_open(struct inode *inode, struct file *file)
 }
 
 #ifdef WLAN_POWER_DEBUGFS
-struct power_stats_priv {
-	struct power_stats_response power_stats;
-};
-
-static void hdd_power_debugstats_dealloc(void *priv)
-{
-	struct power_stats_priv *stats = priv;
-
-	if (stats->power_stats.debug_registers) {
-		vos_mem_free(stats->power_stats.debug_registers);
-		stats->power_stats.debug_registers = NULL;
-	}
-}
-
+/**
+ * hdd_power_debugstats_cb() - callback routine for Power stats debugs
+ * @response: Pointer to Power stats response
+ * @context: Pointer to statsContext
+ *
+ * Return: None
+ */
 static void hdd_power_debugstats_cb(struct power_stats_response *response,
 						void *context)
 {
-	struct hdd_request *request;
-	struct power_stats_priv *priv;
-	uint32_t *debug_registers;
-	uint32_t debug_registers_len;
+	struct statsContext *stats_context;
+	struct power_stats_response *power_stats;
+	hdd_adapter_t *adapter;
+	uint32_t power_stats_len;
+	uint32_t stats_registers_len;
 
 	ENTER();
-
-	request = hdd_request_get(context);
-	if (!request) {
-		hddLog(LOGE, FL("Obsolete request"));
+	if (NULL == context) {
+		hddLog(LOGE, FL("context is NULL"));
 		return;
 	}
 
-	priv = hdd_request_priv(request);
+	stats_context = (struct statsContext *)context;
 
-	/* copy fixed-sized data */
-	priv->power_stats = *response;
+	spin_lock(&hdd_context_lock);
+	adapter = stats_context->pAdapter;
+	if ((POWER_STATS_MAGIC != stats_context->magic) ||
+	    (NULL == adapter) ||
+	    (WLAN_HDD_ADAPTER_MAGIC != adapter->magic)) {
+		spin_unlock(&hdd_context_lock);
+		hddLog(LOGE, FL("Invalid context, adapter [%pK] magic [%08x]"),
+			adapter, stats_context->magic);
+		return;
+	}
 
-	/* copy variable-size data */
-	if (response->num_debug_register) {
-		debug_registers_len = (sizeof(response->debug_registers[0]) *
+	/* Invalidate the Stats context magic */
+	stats_context->magic = 0;
+
+	stats_registers_len = (sizeof(response->debug_registers[0]) *
 					response->num_debug_register);
-		debug_registers = vos_mem_malloc(debug_registers_len);
-		priv->power_stats.debug_registers = debug_registers;
-		if (debug_registers) {
-			vos_mem_copy(debug_registers,
-				     response->debug_registers,
-				     debug_registers_len);
-		} else {
+	power_stats_len = stats_registers_len + sizeof(*power_stats);
+	adapter->chip_power_stats = vos_mem_malloc(power_stats_len);
+	if (!adapter->chip_power_stats) {
 		hddLog(LOGE, FL("Power stats memory alloc fails!"));
-			priv->power_stats.num_debug_register = 0;
+		goto exit_stats_cb;
 	}
-	}
-	hdd_request_complete(request);
-	hdd_request_put(request);
 
+	power_stats = adapter->chip_power_stats;
+	vos_mem_zero(power_stats, power_stats_len);
+
+	power_stats->cumulative_sleep_time_ms
+			= response->cumulative_sleep_time_ms;
+	power_stats->cumulative_total_on_time_ms
+			= response->cumulative_total_on_time_ms;
+	power_stats->deep_sleep_enter_counter
+			= response->deep_sleep_enter_counter;
+	power_stats->last_deep_sleep_enter_tstamp_ms
+			= response->last_deep_sleep_enter_tstamp_ms;
+	power_stats->debug_register_fmt
+			= response->debug_register_fmt;
+	power_stats->num_debug_register
+			= response->num_debug_register;
+
+	power_stats->debug_registers = (uint32_t *)(power_stats + 1);
+
+	vos_mem_copy(power_stats->debug_registers,
+			response->debug_registers,
+			stats_registers_len);
+
+exit_stats_cb:
+	complete(&stats_context->completion);
+	spin_unlock(&hdd_context_lock);
 	EXIT();
 }
 
@@ -671,20 +689,12 @@ static ssize_t __wlan_hdd_read_power_debugfs(struct file *file,
 {
 	hdd_adapter_t *adapter;
 	hdd_context_t *hdd_ctx;
-	VOS_STATUS status;
+	struct statsContext context;
 	struct power_stats_response *chip_power_stats;
 	ssize_t ret_cnt = 0;
-	int j;
+	int rc = 0, j;
 	unsigned int len = 0;
-	char *power_debugfs_buf = NULL;
-	void *cookie;
-	struct hdd_request *request;
-	struct power_stats_priv *priv;
-	static const struct hdd_request_params params = {
-		.priv_size = sizeof(*priv),
-		.timeout_ms = WLAN_WAIT_TIME_POWER_STATS,
-		.dealloc = hdd_power_debugstats_dealloc,
-	};
+	char *power_debugfs_buf;
 
 	ENTER();
 	adapter = (hdd_adapter_t *)file->private_data;
@@ -699,38 +709,52 @@ static ssize_t __wlan_hdd_read_power_debugfs(struct file *file,
 	if (0 != ret_cnt)
 		return ret_cnt;
 
-	request = hdd_request_alloc(&params);
-	if (!request) {
-		hddLog(LOGE, FL("Request allocation failure"));
-		return -ENOMEM;
-	}
-	vos_mem_zero(hdd_request_priv(request), sizeof(*priv));
-	cookie = hdd_request_cookie(request);
+	mutex_lock(&hdd_ctx->power_stats_lock);
 
-	status = sme_power_debug_stats_req(hdd_ctx->hHal,
+	if (adapter->chip_power_stats)
+		vos_mem_free(adapter->chip_power_stats);
+
+	adapter->chip_power_stats = NULL;
+	context.pAdapter = adapter;
+	context.magic = POWER_STATS_MAGIC;
+
+	init_completion(&context.completion);
+
+	if (eHAL_STATUS_SUCCESS !=
+		sme_power_debug_stats_req(hdd_ctx->hHal,
 					hdd_power_debugstats_cb,
-					   cookie);
-	if (!VOS_IS_STATUS_SUCCESS(status)) {
+					&context)) {
 		hddLog(LOGE, FL("chip power stats request failed"));
 		ret_cnt = -EINVAL;
-		goto cleanup;
+		goto out;
 	}
 
-	ret_cnt = hdd_request_wait_for_response(request);
-	if (ret_cnt) {
+	rc = wait_for_completion_timeout(&context.completion,
+			msecs_to_jiffies(WLAN_WAIT_TIME_POWER_STATS));
+	if (!rc) {
 		hddLog(LOGE, FL("Target response timed out Power stats"));
+		/* Invalidate the Stats context magic */
+		spin_lock(&hdd_context_lock);
+		context.magic = 0;
+		spin_unlock(&hdd_context_lock);
 		ret_cnt = -ETIMEDOUT;
-		goto cleanup;
+		goto out;
 	}
 
-	priv = hdd_request_priv(request);
-	chip_power_stats = &priv->power_stats;
+	chip_power_stats = adapter->chip_power_stats;
+	if (!chip_power_stats) {
+		hddLog(LOGE, FL("Power stats retrieval fails!"));
+		ret_cnt = -EINVAL;
+		goto out;
+	}
 
 	power_debugfs_buf = vos_mem_malloc(POWER_DEBUGFS_BUFFER_MAX_LEN);
 	if (!power_debugfs_buf) {
 		hddLog(LOGE, FL("Power stats buffer alloc fails!"));
+		vos_mem_free(chip_power_stats);
+		adapter->chip_power_stats = NULL;
 		ret_cnt = -EINVAL;
-		goto cleanup;
+		goto out;
 	}
 
 	len += scnprintf(power_debugfs_buf, POWER_DEBUGFS_BUFFER_MAX_LEN,
@@ -758,14 +782,15 @@ static ssize_t __wlan_hdd_read_power_debugfs(struct file *file,
 			j = chip_power_stats->num_debug_register;
 	}
 
+	vos_mem_free(chip_power_stats);
+	adapter->chip_power_stats = NULL;
+
 	ret_cnt = simple_read_from_buffer(buf, count, pos,
 					power_debugfs_buf, len);
-cleanup:
-	if (power_debugfs_buf)
 	vos_mem_free(power_debugfs_buf);
 
-	hdd_request_put(request);
-
+out:
+	mutex_unlock(&hdd_ctx->power_stats_lock);
 	return ret_cnt;
 }
 
@@ -868,6 +893,8 @@ static VOS_STATUS wlan_hdd_init_power_stats_debugfs(hdd_adapter_t *adapter,
 				&fops_powerdebugs))
 		return VOS_STATUS_E_FAILURE;
 
+	mutex_init(&hdd_ctx->power_stats_lock);
+
 	return VOS_STATUS_SUCCESS;
 }
 
@@ -878,6 +905,7 @@ static VOS_STATUS wlan_hdd_init_power_stats_debugfs(hdd_adapter_t *adapter,
  */
 static void wlan_hdd_deinit_power_stats_debugfs(hdd_context_t *hdd_ctx)
 {
+	mutex_destroy(&hdd_ctx->power_stats_lock);
 }
 #else
 static VOS_STATUS wlan_hdd_init_power_stats_debugfs(hdd_adapter_t *adapter,

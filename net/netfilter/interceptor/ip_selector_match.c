@@ -1,6 +1,6 @@
 /**
    @copyright
-   Copyright (c) 2013 - 2015, INSIDE Secure Oy. All rights reserved.
+   Copyright (c) 2013 - 2017, INSIDE Secure Oy. All rights reserved.
 */
 
 #include "implementation_defs.h"
@@ -18,7 +18,6 @@ ip_selector_match_validate_selector(
     if (length < size)
     {
         DEBUG_FAIL(
-                check,
                 "Selector %p check failed length %d shorter "
                 "than size of header %d.",
                 selector,
@@ -53,8 +52,7 @@ ip_selector_match_validate_selector(
     if (length < size)
     {
         DEBUG_FAIL(
-                check,
-                "Selector %p check failed length %d shorter "
+                "Selector %p check failed length %u shorter "
                 "than computed size %d.",
                 selector,
                 length,
@@ -66,7 +64,6 @@ ip_selector_match_validate_selector(
     if (selector->bytecount != size)
     {
         DEBUG_FAIL(
-                check,
                 "Selector %p check failed bytecount %d not "
                 "equal to computed size %d.",
                 selector,
@@ -83,12 +80,11 @@ ip_selector_match_validate_selector(
 int
 ip_selector_match_validate_selector_group(
         const struct IPSelectorGroup *selector_group,
-        int bytecount)
+        unsigned bytecount)
 {
     if (bytecount < sizeof *selector_group)
     {
         DEBUG_FAIL(
-                check,
                 "IP Selector Group header size %d "
                 "is bigger than given size %d.",
                 (int) sizeof *selector_group,
@@ -100,7 +96,6 @@ ip_selector_match_validate_selector_group(
     if (bytecount != selector_group->bytecount)
     {
         DEBUG_FAIL(
-                check,
                 "IP Selector Group bytecount %d not equal to given size %d.",
                 (int) selector_group->bytecount,
                 (int) bytecount);
@@ -111,7 +106,7 @@ ip_selector_match_validate_selector_group(
     {
         int i;
         char *start = (void *) selector_group;
-        int offset = sizeof *selector_group;
+        unsigned offset = sizeof *selector_group;
         int status = 0;
 
 
@@ -132,7 +127,6 @@ ip_selector_match_validate_selector_group(
         if (offset != bytecount)
         {
             DEBUG_FAIL(
-                    check,
                     "IP Selector Group %p check failed computed size %d "
                     "differs from length %d.",
                     selector_group,
@@ -150,7 +144,7 @@ ip_selector_match_validate_selector_group(
 static int
 ip_selector_match_debug_log_endpoint_list(
         const uint8_t *base,
-        int offset,
+        unsigned offset,
         int endpoint_count)
 {
     int i;
@@ -160,7 +154,6 @@ ip_selector_match_debug_log_endpoint_list(
         struct IPSelectorEndpoint *endpoint = (void *) (base + offset);
 
         DEBUG_LOW(
-                dump,
                 "Selector %p: "
                 "ip_version %d, ip_protocol %d, %pI6c - %pI6c, %d - %d.",
                 base,
@@ -181,7 +174,7 @@ ip_selector_match_debug_log_endpoint_list(
 static int
 ip_selector_match_debug_log_address_list(
         const uint8_t *base,
-        int offset,
+        unsigned offset,
         int address_count)
 {
     int i;
@@ -191,7 +184,6 @@ ip_selector_match_debug_log_address_list(
         struct IPSelectorAddress *address = (void *) (base + offset);
 
         DEBUG_LOW(
-                dump,
                 "Selector %p: %pI6c - %pI6c.",
                 base,
                 address->begin,
@@ -207,7 +199,7 @@ ip_selector_match_debug_log_address_list(
 static int
 ip_selector_match_debug_log_port_list(
         const uint8_t *base,
-        int offset,
+        unsigned offset,
         int port_count)
 {
     int i;
@@ -217,7 +209,6 @@ ip_selector_match_debug_log_port_list(
         struct IPSelectorPort *port = (void *) (base + offset);
 
         DEBUG_LOW(
-                dump,
                 "Selector %p: %d - %d.",
                 base,
                 port->begin,
@@ -235,22 +226,19 @@ ip_selector_match_debug_log_selector(
         const struct IPSelector *selector)
 {
     const uint8_t *base = (void *) selector;
-    int offset = sizeof *selector;
+    unsigned offset = sizeof *selector;
 
     DEBUG_LOW(
-            dump,
             "Selector %p: ip version %d.",
             selector,
             selector->ip_version);
 
     DEBUG_LOW(
-            dump,
             "Selector %p: ip protocol %d.",
             selector,
             selector->ip_protocol);
 
     DEBUG_LOW(
-            dump,
             "Selector %p: Source endpoint count %d.",
             selector,
             selector->source_endpoint_count);
@@ -262,7 +250,6 @@ ip_selector_match_debug_log_selector(
                 selector->source_endpoint_count);
 
     DEBUG_LOW(
-            dump,
             "Selector %p: Destination endpoint count %d.",
             selector,
             selector->destination_endpoint_count);
@@ -274,7 +261,6 @@ ip_selector_match_debug_log_selector(
                 selector->destination_endpoint_count);
 
     DEBUG_LOW(
-            dump,
             "Selector %p: Source address count %d.",
             selector,
             selector->source_address_count);
@@ -286,7 +272,6 @@ ip_selector_match_debug_log_selector(
                  selector->source_address_count);
 
     DEBUG_LOW(
-            dump,
             "Selector %p: Destination address count %d.",
             selector,
             selector->destination_address_count);
@@ -298,7 +283,6 @@ ip_selector_match_debug_log_selector(
                  selector->destination_address_count);
 
     DEBUG_LOW(
-            dump,
             "Selector %p: Source port count %d.",
             selector,
             selector->source_port_count);
@@ -310,7 +294,6 @@ ip_selector_match_debug_log_selector(
                  selector->source_port_count);
 
     DEBUG_LOW(
-            dump,
             "Selector %p: Destination port count %d.",
             selector,
             selector->destination_port_count);
@@ -328,7 +311,6 @@ ip_selector_match_debug_log_group(
         const struct IPSelectorGroup *selector_group)
 {
     DEBUG_LOW(
-            dump,
             "Selector_Group %p: selector count %u, bytecount %u:",
             selector_group,
             selector_group->selector_count,
@@ -336,7 +318,7 @@ ip_selector_match_debug_log_group(
 
     {
         const uint8_t *base = (void *) selector_group;
-        int offset = sizeof *selector_group;
+        unsigned offset = sizeof *selector_group;
         int i;
 
         for (i = 0; i < selector_group->selector_count; i++)
@@ -344,7 +326,6 @@ ip_selector_match_debug_log_group(
             const struct IPSelector *selector = (void *)(base + offset);
 
             DEBUG_LOW(
-                    dump,
                     "Selector_Group %p: Selector %p:",
                     selector_group,
                     selector);
@@ -366,7 +347,7 @@ debug_str_ip_selector_fields(
     const struct IPSelectorFields *fields = data;
     char *p;
     int p_len;
-    int offset = 0;
+    unsigned offset = 0;
 
     ASSERT(len == sizeof *fields);
 
@@ -408,14 +389,6 @@ debug_str_ip_selector_fields(
                 p + offset, p_len - offset,
                 fields->destination_address);
 
-    if (fields->destination_port < 0)
-    {
-        offset +=
-            snprintf(p + offset,
-                     p_len - offset,
-                     "]");
-    }
-    else
     if (fields->ip_protocol == /* ICMP */ 1 ||
         fields->ip_protocol == /* ICMPv6 */ 58)
     {
@@ -423,8 +396,16 @@ debug_str_ip_selector_fields(
             snprintf(p + offset,
                      p_len - offset,
                      "] type %d code %d",
-                     (int) ((fields->destination_port >> 8) & 0xff),
-                     (int) ((fields->destination_port) & 0xff));
+                     (int) ((fields->source_port >> 8) & 0xff),
+                     (int) ((fields->source_port) & 0xff));
+    }
+    else
+    if (fields->destination_port < 0)
+    {
+        offset +=
+            snprintf(p + offset,
+                     p_len - offset,
+                     "]");
     }
     else
     {
@@ -446,29 +427,42 @@ debug_dump_endpoint_list(
         void *context,
         const char *prefix,
         const uint8_t *base,
-        int offset,
+        unsigned offset,
+        unsigned bytecount,
         int endpoint_count)
 {
     int i;
 
-    for (i = 0; i < endpoint_count; i++)
+    for (i = 0; i < endpoint_count && offset < bytecount; i++)
     {
         struct IPSelectorEndpoint *endpoint = (void *) (base + offset);
 
-        DEBUG_DUMP_LINE(
-                context,
-                "  %sendpoint ipv %d, proto %d, [%s - %s], [%d - %d].",
-                prefix,
-                endpoint->ip_version,
-                endpoint->ip_protocol,
-                debug_strbuf_ipaddress(
-                        DEBUG_STRBUF_GET(), endpoint->address.begin),
-                debug_strbuf_ipaddress(
-                        DEBUG_STRBUF_GET(), endpoint->address.end),
-                endpoint->port.begin,
-                endpoint->port.end);
-
         offset += sizeof *endpoint;
+        if (offset <= bytecount)
+        {
+            DEBUG_DUMP_LINE(
+                    context,
+                    "  %sendpoint ipv %d, proto %d, [%s - %s], [%d - %d].",
+                    prefix,
+                    endpoint->ip_version,
+                    endpoint->ip_protocol,
+                    debug_strbuf_ipaddress(
+                            DEBUG_STRBUF_GET(),
+                            endpoint->address.begin),
+                    debug_strbuf_ipaddress(
+                            DEBUG_STRBUF_GET(),
+                            endpoint->address.end),
+                    endpoint->port.begin,
+                    endpoint->port.end);
+        }
+        else
+        {
+            DEBUG_DUMP_LINE(
+                    context,
+                    "offset %d exceeded byte count %d",
+                    offset,
+                    bytecount);
+        }
     }
 
     return offset;
@@ -480,23 +474,34 @@ debug_dump_address_list(
         void *context,
         const char *prefix,
         const uint8_t *base,
-        int offset,
+        unsigned offset,
+        unsigned bytecount,
         int address_count)
 {
     int i;
 
-    for (i = 0; i < address_count; i++)
+    for (i = 0; i < address_count && offset < bytecount; i++)
     {
         struct IPSelectorAddress *address = (void *) (base + offset);
 
-        DEBUG_DUMP_LINE(
-                context,
-                "  %saddress range [%s - %s]",
-                prefix,
-                debug_strbuf_ipaddress(DEBUG_STRBUF_GET(), address->begin),
-                debug_strbuf_ipaddress(DEBUG_STRBUF_GET(), address->end));
-
         offset += sizeof *address;
+        if (offset <= bytecount)
+        {
+            DEBUG_DUMP_LINE(
+                    context,
+                    "  %saddress range [%s - %s]",
+                    prefix,
+                    debug_strbuf_ipaddress(DEBUG_STRBUF_GET(), address->begin),
+                    debug_strbuf_ipaddress(DEBUG_STRBUF_GET(), address->end));
+        }
+        else
+        {
+            DEBUG_DUMP_LINE(
+                    context,
+                    "offset %d exceeded byte count %d",
+                    offset,
+                    bytecount);
+        }
     }
 
     return offset;
@@ -508,23 +513,34 @@ debug_dump_port_list(
         void *context,
         const char *prefix,
         const uint8_t *base,
-        int offset,
+        unsigned offset,
+        unsigned bytecount,
         int port_count)
 {
     int i;
 
-    for (i = 0; i < port_count; i++)
+    for (i = 0; i < port_count && offset < bytecount; i++)
     {
         struct IPSelectorPort *port = (void *) (base + offset);
 
-        DEBUG_DUMP_LINE(
-                context,
-                "  %sport range [%d-%d]",
-                prefix,
-                port->begin,
-                port->end);
-
         offset += sizeof *port;
+        if (offset <= bytecount)
+        {
+            DEBUG_DUMP_LINE(
+                    context,
+                    "  %sport range [%d-%d]",
+                    prefix,
+                    port->begin,
+                    port->end);
+        }
+        else
+        {
+            DEBUG_DUMP_LINE(
+                    context,
+                    "offset %d exceeded byte count %d",
+                    offset,
+                    bytecount);
+        }
     }
 
     return offset;
@@ -539,7 +555,7 @@ debug_dump_ip_selector(
 {
     const struct IPSelector *selector = data;
     const uint8_t *base = (void *) data;
-    int offset = sizeof *selector;
+    unsigned offset = sizeof *selector;
 
     DEBUG_DUMP_LINE(
             context,
@@ -559,6 +575,7 @@ debug_dump_ip_selector(
                 "src ",
                 base,
                 offset,
+                bytecount,
                 selector->source_endpoint_count);
 
     offset =
@@ -567,6 +584,7 @@ debug_dump_ip_selector(
                 "dst ",
                 base,
                 offset,
+                bytecount,
                 selector->destination_endpoint_count);
 
     offset =
@@ -575,6 +593,7 @@ debug_dump_ip_selector(
                 "src ",
                 base,
                 offset,
+                bytecount,
                 selector->source_address_count);
 
     offset =
@@ -583,6 +602,7 @@ debug_dump_ip_selector(
                 "dst ",
                 base,
                 offset,
+                bytecount,
                 selector->destination_address_count);
 
     offset =
@@ -591,6 +611,7 @@ debug_dump_ip_selector(
                 "src ",
                 base,
                 offset,
+                bytecount,
                 selector->source_port_count);
 
     (void)
@@ -599,6 +620,7 @@ debug_dump_ip_selector(
                 "dst ",
                 base,
                 offset,
+                bytecount,
                 selector->destination_port_count);
 }
 
@@ -611,25 +633,56 @@ debug_dump_ip_selector_group(
 {
     const struct IPSelectorGroup *selector_group = data;
 
-    DEBUG_DUMP_LINE(
-            context,
-            "Selector_Group %p: selector count %u, bytecount %u:",
-            selector_group,
-            selector_group->selector_count,
-            selector_group->bytecount);
-
+    if (bytecount < sizeof *selector_group)
+    {
+        DEBUG_DUMP_LINE(
+                context,
+                "Selector_Group %p: Given bytecount %u too small.",
+                selector_group,
+                bytecount);
+    }
+    else
+    if (bytecount < selector_group->bytecount)
+    {
+        DEBUG_DUMP_LINE(
+                context,
+                "Selector_Group %p: Given bytecount %u too small.",
+                selector_group,
+                bytecount);
+    }
+    else
     {
         const uint8_t *base = (void *) selector_group;
-        int offset = sizeof *selector_group;
+        const uint32_t selector_count = selector_group->selector_count;
+        const unsigned group_bytecount = selector_group->bytecount;
+        unsigned offset = sizeof *selector_group;
         int i;
 
-        for (i = 0; i < selector_group->selector_count; i++)
+        DEBUG_DUMP_LINE(
+                context,
+                "Selector_Group %p: selector count %u, bytecount %u:",
+                selector_group,
+                selector_count,
+                group_bytecount);
+
+        for (i = 0; i < selector_count && offset < group_bytecount; i++)
         {
             const struct IPSelector *selector = (void *)(base + offset);
 
-            debug_dump_ip_selector(context, selector, selector->bytecount);
-
             offset += selector->bytecount;
+
+            if (offset <= group_bytecount)
+            {
+                debug_dump_ip_selector(context, selector, selector->bytecount);
+            }
+            else
+            {
+                DEBUG_DUMP_LINE(
+                        context,
+                        "offset %u exceeded bytecount %u",
+                        offset,
+                        group_bytecount);
+            }
         }
     }
 }
@@ -640,7 +693,6 @@ ip_selector_match_debug_log_fields(
         const struct IPSelectorFields *fields)
 {
     DEBUG_LOW(
-            dump,
             "Selector fields %p: "
             "ip version %d ip protocol %d from %pI6c:%d to %pI6c :%d.",
             fields,
@@ -690,7 +742,7 @@ ip_selector_match_port_value(
 static int
 ip_selector_match_endpoint_match(
         const uint8_t *base,
-        int *offset,
+        unsigned *offset,
         int endpoint_count,
         int ip_version,
         int ip_protocol,
@@ -746,7 +798,7 @@ ip_selector_match_endpoint_match(
 static int
 ip_selector_match_address_match(
         const uint8_t *base,
-        int *offset,
+        unsigned *offset,
         int address_count,
         const uint8_t address[16])
 {
@@ -779,7 +831,7 @@ ip_selector_match_address_match(
 static int
 ip_selector_match_port_match(
         const uint8_t *base,
-        int *offset,
+        unsigned *offset,
         int port_count,
         int32_t port)
 {
@@ -814,11 +866,10 @@ ip_selector_match_selector_match(
         const struct IPSelectorFields *fields)
 {
     const uint8_t *base = (void *) selector;
-    int offset = sizeof *selector;
+    unsigned offset = sizeof *selector;
     int match = 1;
 
     DEBUG_LOW(
-            lookup,
             "Fields %p: matching selector %p.",
             fields,
             selector);
@@ -830,7 +881,6 @@ ip_selector_match_selector_match(
             selector->ip_version != fields->ip_version)
         {
             DEBUG_LOW(
-                    lookup,
                     "Fields %p: No match for protocol.",
                     fields);
 
@@ -844,7 +894,6 @@ ip_selector_match_selector_match(
             selector->ip_protocol != fields->ip_protocol)
         {
             DEBUG_LOW(
-                    lookup,
                     "Fields %p: No match for protocol.",
                     fields);
 
@@ -864,7 +913,6 @@ ip_selector_match_selector_match(
                     fields->source_port))
         {
             DEBUG_LOW(
-                    lookup,
                     "Fields %p: No match for source endpoint.",
                     fields);
 
@@ -884,7 +932,6 @@ ip_selector_match_selector_match(
                     fields->destination_port))
         {
             DEBUG_LOW(
-                    lookup,
                     "Fields %p: No match for destination endpoint.",
                     fields);
 
@@ -901,7 +948,6 @@ ip_selector_match_selector_match(
                     fields->source_address))
         {
             DEBUG_LOW(
-                    lookup,
                     "Fields %p: No match for source address.",
                     fields);
 
@@ -918,7 +964,6 @@ ip_selector_match_selector_match(
                     fields->destination_address))
         {
             DEBUG_LOW(
-                    lookup,
                     "Fields %p: No match for destination address.",
                     fields);
 
@@ -935,7 +980,6 @@ ip_selector_match_selector_match(
                     fields->source_port))
         {
             DEBUG_LOW(
-                    lookup,
                     "Fields %p: No match for source port.",
                     fields);
 
@@ -952,7 +996,6 @@ ip_selector_match_selector_match(
                     fields->destination_port))
         {
             DEBUG_LOW(
-                    lookup,
                     "Fields %p: No match for destination port.",
                     fields);
 
@@ -970,11 +1013,11 @@ ip_selector_match_fields_to_group(
         const struct IPSelectorFields *fields)
 {
     const char *first = (void *) selector_group;
-    int offset = sizeof *selector_group;
+    unsigned offset = sizeof *selector_group;
     int i;
     bool match = true;
 
-    DEBUG_LOW(lookup, "Fields %p: Match Group %p:", fields, selector_group);
+    DEBUG_LOW("Fields %p: Match Group %p:", fields, selector_group);
     ip_selector_match_debug_log_fields(fields);
 
     for (i = 0; i < selector_group->selector_count; i++)
@@ -985,7 +1028,6 @@ ip_selector_match_fields_to_group(
         {
             match = true;
             DEBUG_LOW(
-                    lookup,
                     "Fields %p on selector %p: match.",
                     fields,
                     selector);
@@ -994,7 +1036,6 @@ ip_selector_match_fields_to_group(
         else
         {
             DEBUG_LOW(
-                    lookup,
                     "Fields %p on selector %p: no match.",
                     fields,
                     selector);
@@ -1007,7 +1048,6 @@ ip_selector_match_fields_to_group(
     if (match == true)
     {
         DEBUG_LOW(
-                lookup,
                 "Fields %p matched Selector Group %p.",
                 fields,
                 selector_group);
@@ -1015,7 +1055,6 @@ ip_selector_match_fields_to_group(
     else
     {
         DEBUG_LOW(
-                lookup,
                 "Fields %p did not match Selector Group %p.",
                 fields,
                 selector_group);

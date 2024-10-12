@@ -51,6 +51,13 @@ static ssize_t barcode_emul_store(struct device *dev,
 {
 	struct msg_big_data message;
 	u8 cmd, i;
+	int len;
+
+	if (size <= 1) {
+		pr_info("%s - not enough size(%d)",
+			__func__, (int)size);
+		return size;
+	}
 
 	if (buf[0] == 0xFF && buf[1] != 0) {
 		if (is_beaming)
@@ -69,13 +76,19 @@ static ssize_t barcode_emul_store(struct device *dev,
 	} else if (buf[0] == 0x00) {
 		cmd = NETLINK_MESSAGE_MOBEAM_SEND_DATA;
 		message.msg_size = 128;
-		memcpy(message.msg, &buf[2], message.msg_size);
+		len = ((int)size - 2 > 128) ? 128 : ((int)size - 2);
+		memcpy(message.msg, &buf[2], len);
 	} else if (buf[0] == 0x80) {
 		cmd = NETLINK_MESSAGE_MOBEAM_SEND_COUNT;
 		message.msg_size = 1;
 		memcpy(message.msg, &buf[1], message.msg_size);
 	} else {
 		u8 send_buf[6];
+		if (size < 8) {
+			pr_info("%s - not enough size(%d)",
+				__func__, (int)size);
+			return size;
+		}
 		for (i = 0; i < MAX_COUNT; i++) {
 			if (reg_id_table[i][0] == buf[0])
 				send_buf[0] = reg_id_table[i][1];

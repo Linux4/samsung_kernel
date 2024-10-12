@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2017, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2018, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -76,13 +76,15 @@ static inline u64 fudge_factor(u64 val, u32 numer, u32 denom)
 	u64 result = val;
 
 	if (val) {
-		u64 temp = -1UL;
+		u64 temp = U64_MAX;
 
 		do_div(temp, val);
 		if (temp > numer) {
 			/* no overflow, so we can do the operation*/
 			result = (val * (u64)numer);
 			do_div(result, denom);
+		} else {
+			pr_warn("Overflow, skip fudge factor\n");
 		}
 	}
 	return result;
@@ -933,7 +935,7 @@ static u32 mdss_mdp_calc_prefill_line_time(struct mdss_mdp_ctl *ctl,
 {
 	u32 prefill_us = 0;
 	u32 prefill_amortized = 0;
-	struct mdss_data_type *mdata;
+	struct mdss_data_type *mdata = mdss_mdp_get_mdata();
 	struct mdss_mdp_mixer *mixer;
 	struct mdss_panel_info *pinfo;
 	u32 fps, v_total;
@@ -4345,9 +4347,11 @@ void mdss_mdp_check_ctl_reset_status(struct mdss_mdp_ctl *ctl)
 		return;
 
 	pr_debug("hw ctl reset is set for ctl:%d\n", ctl->num);
-	status = mdss_mdp_poll_ctl_reset_status(ctl, 5);
+	/* poll for at least ~1 frame */
+	status = mdss_mdp_poll_ctl_reset_status(ctl, 320);
 	if (status) {
-		pr_err("hw recovery is not complete for ctl:%d\n", ctl->num);
+		pr_err("hw recovery is not complete for ctl:%d status:0x%x\n",
+			ctl->num, status);
 		MDSS_XLOG_TOUT_HANDLER("mdp", "vbif", "vbif_nrt", "dbg_bus",
 			"vbif_dbg_bus", "panic");
 	}

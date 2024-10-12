@@ -5760,10 +5760,6 @@ static int validate_scan_freqs(struct nlattr *freqs)
 		if (nla_len(attr1) != sizeof(u32))
 			return 0;
 
-	nla_for_each_nested(attr1, freqs, tmp1)
-		if (nla_len(attr1) != sizeof(u32))
-			return 0;
-
 	nla_for_each_nested(attr1, freqs, tmp1) {
 		n_channels++;
 		/*
@@ -9640,6 +9636,9 @@ static int nl80211_set_rekey_data(struct sk_buff *skb, struct genl_info *info)
 	if (err)
 		return err;
 
+	if (!tb[NL80211_REKEY_DATA_REPLAY_CTR] || !tb[NL80211_REKEY_DATA_KEK] ||
+	    !tb[NL80211_REKEY_DATA_KCK])
+		return -EINVAL;
 	if (nla_len(tb[NL80211_REKEY_DATA_REPLAY_CTR]) != NL80211_REPLAY_CTR_LEN)
 		return -ERANGE;
 	if (nla_len(tb[NL80211_REKEY_DATA_KEK]) != NL80211_KEK_LEN)
@@ -9853,6 +9852,7 @@ static int nl80211_update_ft_ies(struct sk_buff *skb, struct genl_info *info)
 		return -EOPNOTSUPP;
 
 	if (!info->attrs[NL80211_ATTR_MDID] ||
+	    !info->attrs[NL80211_ATTR_IE] ||
 	    !is_valid_ie_attr(info->attrs[NL80211_ATTR_IE]))
 		return -EINVAL;
 
@@ -12200,12 +12200,6 @@ void cfg80211_ch_switch_notify(struct net_device *dev,
 
 	trace_cfg80211_ch_switch_notify(dev, chandef);
 
-	if (WARN_ON(wdev->iftype != NL80211_IFTYPE_AP &&
-		    wdev->iftype != NL80211_IFTYPE_P2P_GO &&
-		    wdev->iftype != NL80211_IFTYPE_P2P_CLIENT &&
-		    wdev->iftype != NL80211_IFTYPE_ADHOC &&
-		    wdev->iftype != NL80211_IFTYPE_MESH_POINT))
-		return;
 
 	wdev->chandef = *chandef;
 	wdev->preset_chandef = *chandef;

@@ -1009,6 +1009,9 @@ static void  mdss_panel_init(struct samsung_display_driver_data *vdd)
 
 	dsi_update_mdnie_data();
 
+	/* Enable panic on first pingpong timeout */
+	vdd->debug_data->panic_on_pptimeout = true;
+
 	/* ACL default 15% ON, */
 	vdd->acl_status = 1;
 	vdd->gradual_acl_val = 0x12;

@@ -223,6 +223,7 @@ struct sec_fuelgauge_info {
 	u8 reg_data[2];
 
 	int fg_irq;
+	int capacity;
 };
 
 ssize_t sm5705_fg_show_attrs(struct device *dev,

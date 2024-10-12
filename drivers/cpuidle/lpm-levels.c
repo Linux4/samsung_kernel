@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2017, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2018, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -379,10 +379,12 @@ static void msm_pm_set_timer(uint32_t modified_time_us)
 	hrtimer_start(&lpm_hrtimer, modified_ktime, HRTIMER_MODE_REL_PINNED);
 }
 
-int set_l2_mode(struct low_power_ops *ops, int mode, bool notify_rpm)
+int set_l2_mode(struct low_power_ops *ops, int mode,
+				struct lpm_cluster_level *level)
 {
 	int lpm = mode;
 	int rc = 0;
+	bool notify_rpm = level->notify_rpm;
 	struct low_power_ops *cpu_ops = per_cpu(cpu_cluster,
 			smp_processor_id())->lpm_dev;
 
@@ -394,7 +396,10 @@ int set_l2_mode(struct low_power_ops *ops, int mode, bool notify_rpm)
 	case MSM_SPM_MODE_STANDALONE_POWER_COLLAPSE:
 	case MSM_SPM_MODE_POWER_COLLAPSE:
 	case MSM_SPM_MODE_FASTPC:
-		cpu_ops->tz_flag = MSM_SCM_L2_OFF;
+		if (level->no_cache_flush)
+			cpu_ops->tz_flag = MSM_SCM_L2_GDHS;
+		else
+			cpu_ops->tz_flag = MSM_SCM_L2_OFF;
 		coresight_cti_ctx_save();
 		break;
 	case MSM_SPM_MODE_GDHS:
@@ -425,8 +430,10 @@ int set_l2_mode(struct low_power_ops *ops, int mode, bool notify_rpm)
 	return rc;
 }
 
-int set_l3_mode(struct low_power_ops *ops, int mode, bool notify_rpm)
+int set_l3_mode(struct low_power_ops *ops, int mode,
+				struct lpm_cluster_level *level)
 {
+	bool notify_rpm = level->notify_rpm;
 	struct low_power_ops *cpu_ops = per_cpu(cpu_cluster,
 			smp_processor_id())->lpm_dev;
 
@@ -443,8 +450,10 @@ int set_l3_mode(struct low_power_ops *ops, int mode, bool notify_rpm)
 }
 
 
-int set_system_mode(struct low_power_ops *ops, int mode, bool notify_rpm)
+int set_system_mode(struct low_power_ops *ops, int mode,
+				struct lpm_cluster_level *level)
 {
+	bool notify_rpm = level->notify_rpm;
 	return msm_spm_config_low_power_mode(ops->spm, mode, notify_rpm);
 }
 
@@ -459,7 +468,7 @@ static int set_device_mode(struct lpm_cluster *cluster, int ndevice,
 	ops = &cluster->lpm_dev[ndevice];
 	if (ops && ops->set_mode)
 		return ops->set_mode(ops, level->mode[ndevice],
-				level->notify_rpm);
+				level);
 	else
 		return -EINVAL;
 }
@@ -837,6 +846,9 @@ static void cluster_unprepare(struct lpm_cluster *cluster,
 
 		if (cluster->no_saw_devices && !use_psci)
 			msm_spm_set_rpm_hs(false);
+
+		if (!from_idle)
+			suspend_wake_time = 0;
 	}
 
 	update_debug_pc_event(CLUSTER_EXIT, cluster->last_level,
@@ -1188,7 +1200,7 @@ static int cluster_cpuidle_register(struct lpm_cluster *cl)
 		struct cpuidle_state *st = &cl->drv->states[i];
 		struct lpm_cpu_level *cpu_level = &cl->cpu->levels[i];
 		snprintf(st->name, CPUIDLE_NAME_LEN, "C%u\n", i);
-		snprintf(st->desc, CPUIDLE_DESC_LEN, cpu_level->name);
+		snprintf(st->desc, CPUIDLE_DESC_LEN, "%s", cpu_level->name);
 		st->flags = 0;
 		st->exit_latency = cpu_level->pwr.latency_us;
 		st->power_usage = cpu_level->pwr.ss_power;

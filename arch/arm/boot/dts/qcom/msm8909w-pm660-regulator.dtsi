@@ -1,4 +1,4 @@
-/* Copyright (c) 2017, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2017-2018, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -130,9 +130,9 @@
 	rpm-regulator-ldoa2 {
 		status = "okay";
 		pm660_l2: regulator-l2 {
-			regulator-min-microvolt = <1300000>;
-			regulator-max-microvolt = <1300000>;
-			qcom,init-voltage = <1300000>;
+			regulator-min-microvolt = <1200000>;
+			regulator-max-microvolt = <1200000>;
+			qcom,init-voltage = <1200000>;
 			status = "okay";
 		};
 	};
@@ -326,9 +326,6 @@
 			reg = <0x1400 0x100>;
 			regulator-min-microvolt = <1052000>;
 			regulator-max-microvolt = <1352000>;
-
-			/* TODO: remove after SAW support is enabled */
-			qcom,bypass-spm;
 		};
 	};
 };

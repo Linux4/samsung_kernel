@@ -44,6 +44,16 @@ config ANDROID_BINDER_DEVICES
 	  created. Each binder device has its own context manager, and is
 	  therefore logically separated from the other devices.
 
+config ANDROID_BINDER_IPC_SELFTEST
+        bool "Android Binder IPC Driver Selftest"
+        depends on ANDROID_BINDER_IPC
+        ---help---
+          This feature allows binder selftest to run.
+
+          Binder selftest checks the allocation and free of binder buffers
+          exhaustively with combinations of various buffer sizes and
+          alignments.
+
 config SEC_TRACE_BINDERCNT
 	bool "Trace process binder count"
 	default n
@@ -176,9 +186,17 @@ config ONESHOT_SYNC_USER
 	help
 	  Provide a userspace API for creating oneshot sync objects.
 
+config ANDROID_VSOC
+	tristate "Android Virtual SoC support"
+	default n
+	depends on PCI_MSI
+	---help---
+	  This option adds support for the Virtual SoC driver needed to boot
+	  a 'cuttlefish' Android image inside QEmu. The driver interacts with
+	  a QEmu ivshmem device. If built as a module, it will be called vsoc.
+
 source "drivers/staging/android/ion/Kconfig"
 
-source "drivers/staging/android/fiq_debugger/Kconfig"
 
 endif # if ANDROID
 

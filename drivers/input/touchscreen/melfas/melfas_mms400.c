@@ -1017,6 +1017,11 @@ static ssize_t mms_sys_fw_update(struct device *dev,
 	u8 data[255];
 	int ret = 0;
 
+#if defined(CONFIG_SAMSUNG_PRODUCT_SHIP)
+	input_info(true, &info->client->dev, "%s: user_ship, skip\n", __func__);
+	return snprintf(buf, PAGE_SIZE, "user_ship, skip\n");
+#endif
+
 	memset(info->print_buf, 0, PAGE_SIZE);
 
 	input_info(true, &info->client->dev, "%s [START]\n", __func__);

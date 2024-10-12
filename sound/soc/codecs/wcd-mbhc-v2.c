@@ -1537,6 +1537,9 @@ static void wcd_mbhc_detect_plug_type(struct wcd_mbhc *mbhc)
 		wcd_enable_curr_micbias(mbhc, WCD_MBHC_EN_MB);
 
 #if defined(CONFIG_SND_SOC_WCD_MBHC_SLOW_DET)
+	/* add delay to determine slow insertion corretly */
+	usleep_range(5000, 5100);
+
 	/* slow: Check schmitt trigger value of each pin */
 	WCD_MBHC_REG_READ(WCD_MBHC_ELECT_SCHMT_ISRC, reg);
 	WCD_MBHC_REG_UPDATE_BITS(WCD_MBHC_ELECT_SCHMT_ISRC, 1);

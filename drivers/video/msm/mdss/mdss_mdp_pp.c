@@ -1637,7 +1637,7 @@ int mdss_mdp_scaler_lut_cfg(struct mdp_scale_data_v2 *scaler,
 		pr_err("%s:Invalid QSEED3 LUT TABLE\n", __func__);
 		return -EINVAL;
 	}
-	
+
 	if ((scaler->lut_flag & SCALER_LUT_DIR_WR) ||
 		(scaler->lut_flag & SCALER_LUT_Y_CIR_WR) ||
 		(scaler->lut_flag & SCALER_LUT_UV_CIR_WR) ||

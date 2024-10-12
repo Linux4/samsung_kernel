@@ -17,6 +17,10 @@
  */
 
 #include <linux/atomic.h>
+
+
+#include <linux/device.h>
+
 #include <linux/err.h>
 #include <linux/file.h>
 #include <linux/freezer.h>
@@ -408,7 +412,9 @@ static void ion_handle_get(struct ion_handle *handle)
 }
 
 /* Must hold the client lock */
-static struct ion_handle* ion_handle_get_check_overflow(struct ion_handle *handle)
+
+static struct ion_handle* ion_handle_get_check_overflow(
+					struct ion_handle *handle)
 {
 	if (atomic_read(&handle->ref.refcount) + 1 == 0)
 		return ERR_PTR(-EOVERFLOW);
@@ -673,7 +679,15 @@ struct ion_handle *ion_alloc(struct ion_client *client, size_t len,
 			     size_t align, unsigned int heap_id_mask,
 			     unsigned int flags)
 {
-	return __ion_alloc(client, len, align, heap_id_mask, flags, false);
+	struct ion_handle *handle;
+
+	handle = __ion_alloc(client, len, align, heap_id_mask, flags, false);
+	if (IS_ERR(handle)) {
+		pr_err("%s: len %zu align %zu heap_id_mask %#x flags %x ret %ld\n",
+		       __func__, len, align, heap_id_mask, flags,
+		       PTR_ERR(handle));
+	}
+	return handle;
 }
 EXPORT_SYMBOL(ion_alloc);
 
@@ -1539,6 +1553,11 @@ static int ion_sync_for_device(struct ion_client *client, int fd)
 	}
 	buffer = dmabuf->priv;
 
+	if (get_secure_vmid(buffer->flags) > 0) {
+		pr_err("%s: cannot sync a secure dmabuf\n", __func__);
+		dma_buf_put(dmabuf);
+		return -EINVAL;
+	}
 	dma_sync_sg_for_device(NULL, buffer->sg_table->sgl,
 			       buffer->sg_table->nents, DMA_BIDIRECTIONAL);
 	dma_buf_put(dmabuf);
@@ -1591,8 +1610,14 @@ static long ion_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 						data.allocation.align,
 						data.allocation.heap_id_mask,
 						data.allocation.flags, true);
-		if (IS_ERR(handle))
+		if (IS_ERR(handle)) {
+			pr_err("%s: len %zu align %zu heap_id_mask %#x flags %x ret %ld\n",
+			       __func__, data.allocation.len,
+			       data.allocation.align,
+			       data.allocation.heap_id_mask,
+			       data.allocation.flags, PTR_ERR(handle));
 			return PTR_ERR(handle);
+		}
 		pass_to_user(handle);
 		data.allocation.handle = handle->id;
 

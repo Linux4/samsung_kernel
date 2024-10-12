@@ -962,6 +962,7 @@ void mdss_tft_autobrightness_cabc_update(struct mdss_dsi_ctrl_pdata *ctrl);
 void mdss_samsung_panel_data_read(struct mdss_dsi_ctrl_pdata *ctrl, struct dsi_panel_cmds *cmds, char *buffer, int level_key);
 void mdss_samsung_cabc_update(void);
 void mdss_samsung_panel_low_power_config(struct mdss_panel_data *pdata, int enable);
+void mdss_samsung_update_current_resolution(struct mdss_panel_timing *timing);
 
 /*
  * Check lcd attached status for DISPLAY_1 or DISPLAY_2

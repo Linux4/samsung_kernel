@@ -24,7 +24,7 @@
  *
  * <<Broadcom-WL-IPTag/Open:>>
  *
- * $Id: wl_cfgvendor.c 744879 2018-02-06 02:45:32Z $
+ * $Id: wl_cfgvendor.c 792083 2018-12-03 12:02:51Z $
  */
 
 /*
@@ -2100,17 +2100,23 @@ wl_cfgvendor_priv_string_handler(struct wiphy *wiphy,
 
 	WL_ERR(("entry: cmd = %d\n", nlioc->cmd));
 
+	if (nlioc->offset != sizeof(struct bcm_nlmsg_hdr) ||
+		len <= sizeof(struct bcm_nlmsg_hdr)) {
+		WL_ERR(("invalid offset %d\n", nlioc->offset));
+		return BCME_BADARG;
+	}
 	len -= sizeof(struct bcm_nlmsg_hdr);
 	ret_len = nlioc->len;
 	if (ret_len > 0 || len > 0) {
-		if (len > DHD_IOCTL_MAXLEN) {
+		if (len >= DHD_IOCTL_MAXLEN) {
 			WL_ERR(("oversize input buffer %d\n", len));
-			len = DHD_IOCTL_MAXLEN;
+			len = DHD_IOCTL_MAXLEN - 1;
 		}
-		if (ret_len > DHD_IOCTL_MAXLEN) {
+		if (ret_len >= DHD_IOCTL_MAXLEN) {
 			WL_ERR(("oversize return buffer %d\n", ret_len));
-			ret_len = DHD_IOCTL_MAXLEN;
+			ret_len = DHD_IOCTL_MAXLEN - 1;
 		}
+
 		payload = max(ret_len, len) + 1;
 		buf = vzalloc(payload);
 		if (!buf) {
@@ -2165,12 +2171,13 @@ wl_cfgvendor_priv_string_handler(struct wiphy *wiphy,
 
 struct net_device *
 wl_cfgvendor_get_ndev(struct bcm_cfg80211 *cfg, struct wireless_dev *wdev,
-	const void *data, unsigned long int *out_addr)
+	const char *data, unsigned long int *out_addr)
 {
 	char *pos, *pos1;
 	char ifname[IFNAMSIZ + 1] = {0};
 	struct net_info *iter, *next;
 	struct net_device *ndev = NULL;
+	u32 ifname_len;
 	*out_addr = (unsigned long int) data; /* point to command str by default */
 
 	/* check whether ifname=<ifname> is provided in the command */
@@ -2182,7 +2189,12 @@ wl_cfgvendor_get_ndev(struct bcm_cfg80211 *cfg, struct wireless_dev *wdev,
 			WL_ERR(("command format error \n"));
 			return NULL;
 		}
-		memcpy(ifname, pos, (pos1 - pos));
+
+		ifname_len = pos1 - pos;
+		if (memcpy(ifname, pos, ifname_len) != BCME_OK) {
+			WL_ERR(("Failed to copy data. len: %d\n", ifname_len));
+			return NULL;
+		}
 #if defined(STRICT_GCC_WARNINGS) && defined(__GNUC__)
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wcast-qual"
@@ -2219,6 +2231,10 @@ wl_cfgvendor_get_ndev(struct bcm_cfg80211 *cfg, struct wireless_dev *wdev,
  * string.
  */
 #define WL_DRIVER_PRIV_CMD_LEN 512
+
+#ifdef BCM_PRIV_CMD_SUPPORT
+/* strlen("ifname=") + IFNAMESIZE + strlen(" ") + '\0' */
+#define ANDROID_PRIV_CMD_IF_PREFIX_LEN	(7 + IFNAMSIZ + 2)
 static int
 wl_cfgvendor_priv_bcm_handler(struct wiphy *wiphy,
 	struct wireless_dev *wdev, const void  *data, int len)
@@ -2227,14 +2243,19 @@ wl_cfgvendor_priv_bcm_handler(struct wiphy *wiphy,
 	int err = 0;
 	int data_len = 0, cmd_len = 0, tmp = 0, type = 0;
 	struct net_device *ndev = wdev->netdev;
-	char *reply_buf = NULL;
 	char *cmd = NULL;
 	struct bcm_cfg80211 *cfg = wiphy_priv(wiphy);
 	int bytes_written;
 	struct net_device *net = NULL;
 	unsigned long int cmd_out = 0;
-	u32 reply_len = WL_DRIVER_PRIV_CMD_LEN;
 
+#if defined(WL_ANDROID_PRIV_CMD_OVER_NL80211)
+	u32 cmd_buf_len = WL_DRIVER_PRIV_CMD_LEN;
+	char cmd_prefix[ANDROID_PRIV_CMD_IF_PREFIX_LEN + 1] = {0};
+	char *cmd_buf = NULL;
+	char *current_pos;
+	u32 cmd_offset;
+#endif /* WL_ANDROID_PRIV_CMD_OVER_NL80211 && OEM_ANDROID */
 
 	WL_DBG(("%s: Enter \n", __func__));
 
@@ -2253,62 +2274,105 @@ wl_cfgvendor_priv_bcm_handler(struct wiphy *wiphy,
 			goto exit;
 		}
 
+#if defined(WL_ANDROID_PRIV_CMD_OVER_NL80211)
 		if (type == BRCM_ATTR_DRIVER_CMD) {
-			if (cmd_len >= WL_DRIVER_PRIV_CMD_LEN) {
-				WL_ERR(("Unexpected command length. Ignore the command\n"));
+			if ((cmd_len >= WL_DRIVER_PRIV_CMD_LEN) ||
+				(cmd_len < ANDROID_PRIV_CMD_IF_PREFIX_LEN)) {
+				WL_ERR(("Unexpected command length (%u)."
+					"Ignore the command\n", cmd_len));
 				err = -EINVAL;
 				goto exit;
 			}
-			net = wl_cfgvendor_get_ndev(cfg, wdev, cmd, &cmd_out);
-			if (!cmd_out || !net) {
-				err = -ENODEV;
-				goto exit;
-			}
-			cmd = (char *)cmd_out;
-			reply_buf = kzalloc(reply_len, GFP_KERNEL);
-			if (!reply_buf) {
-				WL_ERR(("memory alloc failed for %u \n", cmd_len));
+
+			/* check whether there is any ifname prefix provided */
+			if (memcpy(cmd_prefix, cmd, ANDROID_PRIV_CMD_IF_PREFIX_LEN) != BCME_OK) {
+				WL_ERR(("memcpy failed for cmd buffer. len:%d\n", cmd_len));
 				err = -ENOMEM;
 				goto exit;
 			}
-			memcpy(reply_buf, cmd, cmd_len);
-			WL_DBG(("vendor_command: %s len: %u \n", cmd, cmd_len));
-			bytes_written = wl_handle_private_cmd(net, reply_buf, reply_len);
+
+			net = wl_cfgvendor_get_ndev(cfg, wdev, cmd_prefix, &cmd_out);
+			if (!cmd_out || !net) {
+				WL_ERR(("ndev not found\n"));
+				err = -ENODEV;
+				goto exit;
+			}
+
+			/* find offset of the command */
+			current_pos = (char *)cmd_out;
+			cmd_offset = current_pos - cmd_prefix;
+
+			if (!current_pos || (cmd_offset) > ANDROID_PRIV_CMD_IF_PREFIX_LEN) {
+				WL_ERR(("Invalid len cmd_offset: %u \n", cmd_offset));
+				err = -EINVAL;
+				goto exit;
+			}
+
+			/* Private command data in expected to be in str format. To ensure that
+			 * the data is null terminated, copy to a local buffer before use
+			 */
+			cmd_buf = (char *)MALLOCZ(cfg->osh, cmd_buf_len);
+			if (!cmd_buf) {
+				WL_ERR(("memory alloc failed for %u \n", cmd_buf_len));
+				err = -ENOMEM;
+				goto exit;
+			}
+
+			/* Point to the start of command */
+			if (memcpy(cmd_buf, (const void *)(cmd + cmd_offset),
+				(cmd_len - cmd_offset - 1)) != BCME_OK) {
+				WL_ERR(("memcpy failed for cmd buffer. len:%d\n", cmd_len));
+				err = -ENOMEM;
+				goto exit;
+			}
+			cmd_buf[WL_DRIVER_PRIV_CMD_LEN - 1] = '\0';
+
+			WL_DBG(("vendor_command: %s len: %u \n", cmd_buf, cmd_buf_len));
+			bytes_written = wl_handle_private_cmd(net, cmd_buf, cmd_buf_len);
 			WL_DBG(("bytes_written: %d \n", bytes_written));
 			if (bytes_written == 0) {
-				snprintf(reply_buf, reply_len, "%s", "OK");
+				snprintf(cmd_buf, cmd_buf_len, "%s", "OK");
 				data_len = strlen("OK");
 			} else if (bytes_written > 0) {
-				data_len = bytes_written > reply_len ?
-					reply_len : bytes_written;
+				if (bytes_written >= (cmd_buf_len - 1)) {
+					/* Not expected */
+					ASSERT(0);
+					err = -EINVAL;
+					goto exit;
+				}
+				data_len = bytes_written;
 			} else {
 				/* -ve return value. Propagate the error back */
 				err = bytes_written;
 				goto exit;
 			}
+			if ((data_len > 0) && (data_len < (cmd_buf_len - 1)) && cmd_buf) {
+				err =  wl_cfgvendor_send_cmd_reply(wiphy, cmd_buf, data_len+1);
+				if (unlikely(err)) {
+					WL_ERR(("Vendor Command reply failed ret:%d \n", err));
+				} else {
+					WL_DBG(("Vendor Command reply sent successfully!\n"));
+				}
+			} else {
+				/* No data to be sent back as reply */
+				WL_ERR(("Vendor_cmd: No reply expected. data_len:%u cmd_buf %p \n",
+					data_len, cmd_buf));
+			}
 			break;
 		}
-	}
-
-	if ((data_len > 0) && reply_buf) {
-		err =  wl_cfgvendor_send_cmd_reply(wiphy, wdev->netdev,
-			reply_buf, data_len+1);
-		if (unlikely(err))
-			WL_ERR(("Vendor Command reply failed ret:%d \n", err));
-		else
-			WL_DBG(("Vendor Command reply sent successfully!\n"));
-	} else {
-		/* No data to be sent back as reply */
-		WL_ERR(("Vendor_cmd: No reply expected. data_len:%u reply_buf %p \n",
-			data_len, reply_buf));
+#endif /* WL_ANDROID_PRIV_CMD_OVER_NL80211 && OEM_ANDROID */
 	}
 
 exit:
-	if (reply_buf)
-		kfree(reply_buf);
+#if defined(WL_ANDROID_PRIV_CMD_OVER_NL80211)
+	if (cmd_buf) {
+		MFREE(cfg->osh, cmd_buf, cmd_buf_len);
+	}
+#endif /* WL_ANDROID_PRIV_CMD_OVER_NL80211 && OEM_ANDROID */
 	net_os_wake_unlock(ndev);
 	return err;
 }
+#endif /* BCM_PRIV_CMD_SUPPORT */
 
 
 #ifdef LINKSTAT_SUPPORT
@@ -2316,6 +2380,32 @@ exit:
 #define NUM_PEER 1
 #define NUM_CHAN 11
 #define HEADER_SIZE sizeof(ver_len)
+
+static int wl_cfgvendor_lstats_get_bcn_mbss(char *buf, uint32 *rxbeaconmbss)
+{
+	wl_cnt_info_t *cbuf = (wl_cnt_info_t *)buf;
+	const void *cnt;
+
+	if ((cnt = (const void *)bcm_get_data_from_xtlv_buf(cbuf->data, cbuf->datalen,
+		WL_CNT_XTLV_CNTV_LE10_UCODE, NULL, BCM_XTLV_OPTION_ALIGN32)) != NULL) {
+		*rxbeaconmbss = ((const wl_cnt_v_le10_mcst_t *)cnt)->rxbeaconmbss;
+	} else if ((cnt = (const void *)bcm_get_data_from_xtlv_buf(cbuf->data, cbuf->datalen,
+		WL_CNT_XTLV_LT40_UCODE_V1, NULL, BCM_XTLV_OPTION_ALIGN32)) != NULL) {
+		*rxbeaconmbss = ((const wl_cnt_lt40mcst_v1_t *)cnt)->rxbeaconmbss;
+	} else if ((cnt = (const void *)bcm_get_data_from_xtlv_buf(cbuf->data, cbuf->datalen,
+		WL_CNT_XTLV_GE40_UCODE_V1, NULL, BCM_XTLV_OPTION_ALIGN32)) != NULL) {
+		*rxbeaconmbss = ((const wl_cnt_ge40mcst_v1_t *)cnt)->rxbeaconmbss;
+	} else if ((cnt = (const void *)bcm_get_data_from_xtlv_buf(cbuf->data, cbuf->datalen,
+		WL_CNT_XTLV_GE80_UCODE_V1, NULL, BCM_XTLV_OPTION_ALIGN32)) != NULL) {
+		*rxbeaconmbss = ((const wl_cnt_ge80mcst_v1_t *)cnt)->rxbeaconmbss;
+	} else {
+		*rxbeaconmbss = 0;
+		return BCME_NOTFOUND;
+	}
+
+	return BCME_OK;
+}
+
 static int wl_cfgvendor_lstats_get_info(struct wiphy *wiphy,
 	struct wireless_dev *wdev, const void  *data, int len)
 {
@@ -2325,7 +2415,6 @@ static int wl_cfgvendor_lstats_get_info(struct wiphy *wiphy,
 	wifi_radio_stat *radio;
 	wifi_radio_stat_h radio_h;
 	wl_wme_cnt_t *wl_wme_cnt;
-	wl_cnt_ge40mcst_v1_t *macstat_cnt;
 	wl_cnt_wlc_t *wlc_cnt;
 	scb_val_t scbval;
 	char *output = NULL;
@@ -2333,6 +2422,7 @@ static int wl_cfgvendor_lstats_get_info(struct wiphy *wiphy,
 	wifi_rate_stat_v1 *p_wifi_rate_stat_v1 = NULL;
 	wifi_rate_stat *p_wifi_rate_stat = NULL;
 	uint total_len = 0;
+	uint32 rxbeaconmbss;
 	wifi_iface_stat iface;
 	wlc_rev_info_t revinfo;
 #ifdef CONFIG_COMPAT
@@ -2448,19 +2538,9 @@ static int wl_cfgvendor_lstats_get_info(struct wiphy *wiphy,
 
 	COMPAT_ASSIGN_VALUE(iface, ac[WIFI_AC_BE].retries, wlc_cnt->txretry);
 
-	if ((macstat_cnt = bcm_get_data_from_xtlv_buf(((wl_cnt_info_t *)iovar_buf)->data,
-			((wl_cnt_info_t *)iovar_buf)->datalen,
-			WL_CNT_XTLV_CNTV_LE10_UCODE, NULL,
-			BCM_XTLV_OPTION_ALIGN32)) == NULL) {
-		macstat_cnt = bcm_get_data_from_xtlv_buf(((wl_cnt_info_t *)iovar_buf)->data,
-				((wl_cnt_info_t *)iovar_buf)->datalen,
-				WL_CNT_XTLV_GE40_UCODE_V1, NULL,
-				BCM_XTLV_OPTION_ALIGN32);
-	}
-
-	if (macstat_cnt == NULL) {
-		printf("wlmTxGetAckedPackets: macstat_cnt NULL!\n");
-		err = BCME_ERROR;
+	err = wl_cfgvendor_lstats_get_bcn_mbss(iovar_buf, &rxbeaconmbss);
+	if (unlikely(err)) {
+		WL_ERR(("get_bcn_mbss error (%d)\n", err));
 		goto exit;
 	}
 
@@ -2470,7 +2550,7 @@ static int wl_cfgvendor_lstats_get_info(struct wiphy *wiphy,
 		goto exit;
 	}
 
-	COMPAT_ASSIGN_VALUE(iface, beacon_rx, macstat_cnt->rxbeaconmbss);
+	COMPAT_ASSIGN_VALUE(iface, beacon_rx, rxbeaconmbss);
 	COMPAT_ASSIGN_VALUE(iface, rssi_mgmt, scbval.val);
 	COMPAT_ASSIGN_VALUE(iface, num_peers, NUM_PEER);
 	COMPAT_ASSIGN_VALUE(iface, peer_info->num_rate, NUM_RATE);
@@ -3320,6 +3400,7 @@ static const struct wiphy_vendor_command wl_vendor_cmds [] = {
 		.flags = WIPHY_VENDOR_CMD_NEED_WDEV | WIPHY_VENDOR_CMD_NEED_NETDEV,
 		.doit = wl_cfgvendor_priv_string_handler
 	},
+#ifdef BCM_PRIV_CMD_SUPPORT
 	{
 		{
 			.vendor_id = OUI_BRCM,
@@ -3328,6 +3409,7 @@ static const struct wiphy_vendor_command wl_vendor_cmds [] = {
 		.flags = WIPHY_VENDOR_CMD_NEED_WDEV | WIPHY_VENDOR_CMD_NEED_NETDEV,
 		.doit = wl_cfgvendor_priv_bcm_handler
 	},
+#endif	/* BCM_PRIV_CMD_SUPPORT */
 #ifdef GSCAN_SUPPORT
 	{
 		{
@@ -3726,42 +3808,40 @@ static const struct wiphy_vendor_command wl_vendor_cmds [] = {
 };
 
 static const struct  nl80211_vendor_cmd_info wl_vendor_events [] = {
-		{ OUI_BRCM, BRCM_VENDOR_EVENT_UNSPEC },
-		{ OUI_BRCM, BRCM_VENDOR_EVENT_PRIV_STR },
-#ifdef GSCAN_SUPPORT
-		{ OUI_GOOGLE, GOOGLE_GSCAN_SIGNIFICANT_EVENT },
-		{ OUI_GOOGLE, GOOGLE_GSCAN_GEOFENCE_FOUND_EVENT },
-		{ OUI_GOOGLE, GOOGLE_GSCAN_BATCH_SCAN_EVENT },
-		{ OUI_GOOGLE, GOOGLE_SCAN_FULL_RESULTS_EVENT },
-#endif /* GSCAN_SUPPORT */
-#ifdef RTT_SUPPORT
-		{ OUI_GOOGLE, GOOGLE_RTT_COMPLETE_EVENT },
-#endif /* RTT_SUPPORT */
-#ifdef GSCAN_SUPPORT
-		{ OUI_GOOGLE, GOOGLE_SCAN_COMPLETE_EVENT },
-		{ OUI_GOOGLE, GOOGLE_GSCAN_GEOFENCE_LOST_EVENT },
-		{ OUI_GOOGLE, GOOGLE_SCAN_EPNO_EVENT },
-#endif /* GSCAN_SUPPORT */
-		{ OUI_GOOGLE, GOOGLE_DEBUG_RING_EVENT },
-		{ OUI_GOOGLE, GOOGLE_FW_DUMP_EVENT },
-#ifdef GSCAN_SUPPORT
-		{ OUI_GOOGLE, GOOGLE_PNO_HOTSPOT_FOUND_EVENT },
-#endif /* GSCAN_SUPPORT */
-		{ OUI_GOOGLE, GOOGLE_RSSI_MONITOR_EVENT },
-		{ OUI_GOOGLE, GOOGLE_MKEEP_ALIVE_EVENT },
-		{ OUI_GOOGLE, GOOGLE_NAN_EVENT_ENABLED},
-		{ OUI_GOOGLE, GOOGLE_NAN_EVENT_DISABLED},
-		{ OUI_GOOGLE, GOOGLE_NAN_EVENT_PUBLISH_TERMINATED},
-		{ OUI_GOOGLE, GOOGLE_NAN_EVENT_SUBSCRIBE_MATCH},
-		{ OUI_GOOGLE, GOOGLE_NAN_EVENT_SUBSCRIBE_UNMATCH},
-		{ OUI_GOOGLE, GOOGLE_NAN_EVENT_SUBSCRIBE_TERMINATED},
-		{ OUI_GOOGLE, GOOGLE_NAN_EVENT_DE_EVENT},
-		{ OUI_GOOGLE, GOOGLE_NAN_EVENT_FOLLOWUP},
-		{ OUI_GOOGLE, GOOGLE_NAN_EVENT_TCA},
-#ifdef NAN_DP
-		{ OUI_GOOGLE, GOOGLE_NAN_EVENT_DATA_PATH_OPEN},
-#endif /* NAN_DP */
-		{ OUI_GOOGLE, GOOGLE_NAN_EVENT_UNKNOWN}
+	{ OUI_BRCM, BRCM_VENDOR_EVENT_UNSPEC },
+	{ OUI_BRCM, BRCM_VENDOR_EVENT_PRIV_STR },
+	{ OUI_GOOGLE, GOOGLE_GSCAN_SIGNIFICANT_EVENT },
+	{ OUI_GOOGLE, GOOGLE_GSCAN_GEOFENCE_FOUND_EVENT },
+	{ OUI_GOOGLE, GOOGLE_GSCAN_BATCH_SCAN_EVENT },
+	{ OUI_GOOGLE, GOOGLE_SCAN_FULL_RESULTS_EVENT },
+	{ OUI_GOOGLE, GOOGLE_RTT_COMPLETE_EVENT },
+	{ OUI_GOOGLE, GOOGLE_SCAN_COMPLETE_EVENT },
+	{ OUI_GOOGLE, GOOGLE_GSCAN_GEOFENCE_LOST_EVENT },
+	{ OUI_GOOGLE, GOOGLE_SCAN_EPNO_EVENT },
+	{ OUI_GOOGLE, GOOGLE_DEBUG_RING_EVENT },
+	{ OUI_GOOGLE, GOOGLE_FW_DUMP_EVENT },
+	{ OUI_GOOGLE, GOOGLE_PNO_HOTSPOT_FOUND_EVENT },
+	{ OUI_GOOGLE, GOOGLE_RSSI_MONITOR_EVENT },
+	{ OUI_GOOGLE, GOOGLE_MKEEP_ALIVE_EVENT },
+	{ OUI_GOOGLE, GOOGLE_NAN_EVENT_ENABLED},
+	{ OUI_GOOGLE, GOOGLE_NAN_EVENT_DISABLED},
+	{ OUI_GOOGLE, GOOGLE_NAN_EVENT_SUBSCRIBE_MATCH},
+	{ OUI_GOOGLE, GOOGLE_NAN_EVENT_REPLIED},
+	{ OUI_GOOGLE, GOOGLE_NAN_EVENT_PUBLISH_TERMINATED},
+	{ OUI_GOOGLE, GOOGLE_NAN_EVENT_SUBSCRIBE_TERMINATED},
+	{ OUI_GOOGLE, GOOGLE_NAN_EVENT_DE_EVENT},
+	{ OUI_GOOGLE, GOOGLE_NAN_EVENT_FOLLOWUP},
+	{ OUI_GOOGLE, GOOGLE_NAN_EVENT_TRANSMIT_FOLLOWUP_IND},
+	{ OUI_GOOGLE, GOOGLE_NAN_EVENT_DATA_REQUEST},
+	{ OUI_GOOGLE, GOOGLE_NAN_EVENT_DATA_CONFIRMATION},
+	{ OUI_GOOGLE, GOOGLE_NAN_EVENT_DATA_END},
+	{ OUI_GOOGLE, GOOGLE_NAN_EVENT_BEACON},
+	{ OUI_GOOGLE, GOOGLE_NAN_EVENT_SDF},
+	{ OUI_GOOGLE, GOOGLE_NAN_EVENT_TCA},
+	{ OUI_GOOGLE, GOOGLE_NAN_EVENT_SUBSCRIBE_UNMATCH},
+	{ OUI_GOOGLE, GOOGLE_NAN_EVENT_UNKNOWN},
+	{ OUI_GOOGLE, GOOGLE_ROAM_EVENT_START},
+	{ OUI_BRCM, BRCM_VENDOR_EVENT_HANGED}
 };
 
 int wl_cfgvendor_attach(struct wiphy *wiphy, dhd_pub_t *dhd)

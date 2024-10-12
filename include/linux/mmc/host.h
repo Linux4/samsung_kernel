@@ -636,6 +636,7 @@ struct mmc_host {
 	unsigned int		card_detect_cnt;
 	unsigned int		cmdq_reset_cnt;
 	unsigned int		cmdq_reset_done_cnt;
+        int                     pm_progress;    /* pm_notify is in progress */
 	unsigned long		private[0] ____cacheline_aligned;
 };
 

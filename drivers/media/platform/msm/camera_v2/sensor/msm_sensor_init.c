@@ -691,7 +691,7 @@ static ssize_t ssrm_camera_info_show(struct device *dev,
     int rc = 0;
 	CDBG("ssrm_camera_info : %s\n", ssrm_camera_info);
 
-	rc = snprintf(buf, sizeof(ssrm_camera_info), ssrm_camera_info, strlen(ssrm_camera_info));
+	rc = scnprintf(buf, PAGE_SIZE, "%s", ssrm_camera_info);
 	if (rc)
 		return rc;
 	return 0;
@@ -701,7 +701,7 @@ static ssize_t ssrm_camera_info_store(struct device *dev,
 					  struct device_attribute *attr, const char *buf, size_t size)
 {
 	CDBG("ssrm_camera_info buf : %s\n", buf);
-	snprintf(ssrm_camera_info, size, "%s", buf);
+	scnprintf(ssrm_camera_info, sizeof(ssrm_camera_info), "%s", buf);
 
 	return size;
 }

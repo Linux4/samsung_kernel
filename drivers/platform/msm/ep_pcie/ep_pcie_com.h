@@ -1,4 +1,4 @@
-/* Copyright (c) 2015-2017, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2015-2018, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -100,6 +100,12 @@
 
 #define PCIE20_MHICFG                  0x110
 #define PCIE20_BHI_EXECENV             0x228
+#define PCIE20_MHIVER                  0x108
+#define PCIE20_MHICTRL                 0x138
+#define PCIE20_MHISTATUS               0x148
+#define PCIE20_BHI_VERSION_LOWER	0x200
+#define PCIE20_BHI_VERSION_UPPER	0x204
+#define PCIE20_BHI_INTVEC		0x220
 
 #define PCIE20_AUX_CLK_FREQ_REG        0xB40
 
@@ -323,7 +329,7 @@ struct ep_pcie_dev_t {
 	ulong                        global_irq_counter;
 
 	bool                         dump_conf;
-
+	bool                         config_mmio_init;
 	bool                         enumerated;
 	enum ep_pcie_link_status     link_status;
 	bool                         perst_deast;
@@ -332,10 +338,13 @@ struct ep_pcie_dev_t {
 	bool                         l23_ready;
 	bool                         l1ss_enabled;
 	struct ep_pcie_msi_config    msi_cfg;
+	bool                         no_notify;
+	bool                         client_ready;
 
 	struct ep_pcie_register_event *event_reg;
 	struct work_struct	     handle_perst_work;
 	struct work_struct           handle_bme_work;
+	struct work_struct           handle_d3cold_work;
 };
 
 extern struct ep_pcie_dev_t ep_pcie_dev;

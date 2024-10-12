@@ -1,4 +1,4 @@
-/* Copyright (c) 2016-2017, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2016-2018, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -22,6 +22,7 @@
 #include <linux/cdev.h>
 #include <linux/platform_device.h>
 #include <linux/vmalloc.h>
+#include <linux/of_device.h>
 #include <soc/qcom/glink.h>
 #include "sound/wcd-dsp-glink.h"
 
@@ -40,12 +41,14 @@
 #define RESP_QUEUE_SIZE 3
 #define QOS_PKT_SIZE 1024
 #define TIMEOUT_MS 1000
+#define GLINK_EDGE_MAX 16
 
 struct wdsp_glink_dev {
 	struct class *cls;
 	struct device *dev;
 	struct cdev cdev;
 	dev_t dev_num;
+	char glink_edge[GLINK_EDGE_MAX];
 };
 
 struct wdsp_glink_rsp_que {
@@ -88,6 +91,9 @@ struct wdsp_glink_ch {
 	/* Wait for ch connect state before sending any command */
 	wait_queue_head_t ch_connect_wait;
 
+	/* Wait for ch local and remote disconnect before channel free */
+	wait_queue_head_t ch_free_wait;
+
 	/*
 	 * Glink channel configuration. This has to be the last
 	 * member of the strucuture as it has variable size
@@ -115,6 +121,7 @@ struct wdsp_glink_priv {
 	u8 no_of_channels;
 	struct work_struct ch_open_cls_wrk;
 	struct workqueue_struct *work_queue;
+	const char *glink_edge;
 
 	wait_queue_head_t link_state_wait;
 
@@ -308,7 +315,7 @@ static void wdsp_glink_notify_state(void *handle, const void *priv,
 	mutex_lock(&ch->mutex);
 	ch->channel_state = event;
 	if (event == GLINK_CONNECTED) {
-		dev_dbg(wpriv->dev, "%s: glink channel: %s connected\n",
+		dev_info(wpriv->dev, "%s: glink channel: %s connected\n",
 			__func__, ch->ch_cfg.name);
 
 		for (i = 0; i < ch->ch_cfg.no_of_intents; i++) {
@@ -330,31 +337,29 @@ static void wdsp_glink_notify_state(void *handle, const void *priv,
 				ch->ch_cfg.name);
 
 		wake_up(&ch->ch_connect_wait);
-		mutex_unlock(&ch->mutex);
 	} else if (event == GLINK_LOCAL_DISCONNECTED) {
 		/*
 		 * Don't use dev_dbg here as dev may not be valid if channel
 		 * closed from driver close.
 		 */
-		pr_debug("%s: channel: %s disconnected locally\n",
+		pr_info("%s: channel: %s disconnected locally\n",
 			 __func__, ch->ch_cfg.name);
 		mutex_unlock(&ch->mutex);
-
-		if (ch->free_mem) {
-			kfree(ch);
-			ch = NULL;
-		}
+		ch->free_mem = true;
+		wake_up(&ch->ch_free_wait);
+		return;
 	} else if (event == GLINK_REMOTE_DISCONNECTED) {
-		dev_dbg(wpriv->dev, "%s: remote channel: %s disconnected remotely\n",
+		pr_info("%s: remote channel: %s disconnected remotely\n",
 			 __func__, ch->ch_cfg.name);
-		mutex_unlock(&ch->mutex);
 		/*
 		 * If remote disconnect happens, local side also has
 		 * to close the channel as per glink design in a
 		 * separate work_queue.
 		 */
-		queue_work(wpriv->work_queue, &ch->lcl_ch_cls_wrk);
+		if (wpriv && wpriv->work_queue != NULL)
+			queue_work(wpriv->work_queue, &ch->lcl_ch_cls_wrk);
 	}
+	mutex_unlock(&ch->mutex);
 }
 
 /*
@@ -401,7 +406,7 @@ static int wdsp_glink_open_ch(struct wdsp_glink_ch *ch)
 	if (!ch->handle) {
 		memset(&open_cfg, 0, sizeof(open_cfg));
 		open_cfg.options = GLINK_OPT_INITIAL_XPORT;
-		open_cfg.edge = WDSP_EDGE;
+		open_cfg.edge = wpriv->glink_edge;
 		open_cfg.notify_rx = wdsp_glink_notify_rx;
 		open_cfg.notify_tx_done = wdsp_glink_notify_tx_done;
 		open_cfg.notify_tx_abort = wdsp_glink_notify_tx_abort;
@@ -421,6 +426,7 @@ static int wdsp_glink_open_ch(struct wdsp_glink_ch *ch)
 			ch->handle = NULL;
 			ret = -EINVAL;
 		}
+		ch->free_mem = false;
 	} else {
 		dev_err(wpriv->dev, "%s: ch %s is already opened\n", __func__,
 			ch->ch_cfg.name);
@@ -511,10 +517,8 @@ static void wdsp_glink_link_state_cb(struct glink_link_state_cb_info *cb_info,
 
 	wpriv = (struct wdsp_glink_priv *)priv;
 
-	mutex_lock(&wpriv->glink_mutex);
 	wpriv->glink_state.link_state = cb_info->link_state;
 	wake_up(&wpriv->link_state_wait);
-	mutex_unlock(&wpriv->glink_mutex);
 
 	queue_work(wpriv->work_queue, &wpriv->ch_open_cls_wrk);
 }
@@ -601,6 +605,7 @@ static int wdsp_glink_ch_info_init(struct wdsp_glink_priv *wpriv,
 			goto err_ch_mem;
 		}
 		ch[i]->channel_state = GLINK_LOCAL_DISCONNECTED;
+		ch[i]->free_mem = true;
 		memcpy(&ch[i]->ch_cfg, payload, ch_cfg_size);
 		payload += ch_cfg_size;
 
@@ -624,6 +629,7 @@ static int wdsp_glink_ch_info_init(struct wdsp_glink_priv *wpriv,
 		INIT_WORK(&ch[i]->lcl_ch_open_wrk, wdsp_glink_lcl_ch_open_wrk);
 		INIT_WORK(&ch[i]->lcl_ch_cls_wrk, wdsp_glink_lcl_ch_cls_wrk);
 		init_waitqueue_head(&ch[i]->ch_connect_wait);
+		init_waitqueue_head(&ch[i]->ch_free_wait);
 	}
 
 	INIT_WORK(&wpriv->ch_open_cls_wrk, wdsp_glink_ch_open_cls_wrk);
@@ -631,7 +637,7 @@ static int wdsp_glink_ch_info_init(struct wdsp_glink_priv *wpriv,
 	/* Register glink link_state notification */
 	link_info.glink_link_state_notif_cb = wdsp_glink_link_state_cb;
 	link_info.transport = NULL;
-	link_info.edge = WDSP_EDGE;
+	link_info.edge = wpriv->glink_edge;
 
 	wpriv->glink_state.link_state = GLINK_LINK_STATE_DOWN;
 	wpriv->glink_state.handle = glink_register_link_state_cb(&link_info,
@@ -971,7 +977,7 @@ static int wdsp_glink_open(struct inode *inode, struct file *file)
 		ret = -EINVAL;
 		goto err_wq;
 	}
-	
+	wpriv->glink_edge = wdev->glink_edge;
 	wpriv->glink_state.link_state = GLINK_LINK_STATE_DOWN;
 	init_completion(&wpriv->rsp_complete);
 	init_waitqueue_head(&wpriv->link_state_wait);
@@ -1030,36 +1036,48 @@ static int wdsp_glink_release(struct inode *inode, struct file *file)
 		goto done;
 	}
 
+	dev_info(wpriv->dev, "%s: closing wdsp_glink driver\n", __func__);
 	if (wpriv->glink_state.handle)
 		glink_unregister_link_state_cb(wpriv->glink_state.handle);
 
 	flush_workqueue(wpriv->work_queue);
-	destroy_workqueue(wpriv->work_queue);
-
 	/*
-	 * Clean up glink channel memory in channel state
-	 * callback only if close channels are called from here.
+	 * Wait for channel local and remote disconnect state notifications
+	 * before freeing channel memory.
 	 */
-	if (wpriv->ch) {
-		for (i = 0; i < wpriv->no_of_channels; i++) {
-			if (wpriv->ch[i]) {
-				wpriv->ch[i]->free_mem = true;
-				/*
-				 * Channel handle NULL means channel is already
-				 * closed. Free the channel memory here itself.
-				 */
-				if (!wpriv->ch[i]->handle) {
-					kfree(wpriv->ch[i]);
-					wpriv->ch[i] = NULL;
-				} else {
-					wdsp_glink_close_ch(wpriv->ch[i]);
-				}
+	for (i = 0; i < wpriv->no_of_channels; i++) {
+		if (wpriv->ch && wpriv->ch[i]) {
+			/*
+			 * Only close glink channel from here if REMOTE has
+			 * not already disconnected it
+			 */
+			wdsp_glink_close_ch(wpriv->ch[i]);
+
+			ret = wait_event_timeout(wpriv->ch[i]->ch_free_wait,
+					(wpriv->ch[i]->free_mem == true),
+					msecs_to_jiffies(TIMEOUT_MS));
+			if (!ret) {
+				pr_err("%s: glink ch %s failed to notify states properly %d\n",
+					__func__, wpriv->ch[i]->ch_cfg.name,
+					wpriv->ch[i]->channel_state);
+				ret = -EINVAL;
+				goto done;
 			}
 		}
-
-		kfree(wpriv->ch);
-		wpriv->ch = NULL;
 	}
+
+	flush_workqueue(wpriv->work_queue);
+	destroy_workqueue(wpriv->work_queue);
+	wpriv->work_queue = NULL;
+
+	for (i = 0; i < wpriv->no_of_channels; i++) {
+		if (wpriv->ch && wpriv->ch[i]) {
+			kfree(wpriv->ch[i]);
+			wpriv->ch[i] = NULL;
+		}
+	}
+	kfree(wpriv->ch);
+	wpriv->ch = NULL;
 
 	mutex_destroy(&wpriv->glink_mutex);
 	mutex_destroy(&wpriv->rsp_mutex);
@@ -1087,6 +1105,7 @@ static int wdsp_glink_probe(struct platform_device *pdev)
 {
 	int ret;
 	struct wdsp_glink_dev *wdev;
+	const char *str = NULL;
 
 	wdev = devm_kzalloc(&pdev->dev, sizeof(*wdev), GFP_KERNEL);
 	if (!wdev) {
@@ -1126,6 +1145,20 @@ static int wdsp_glink_probe(struct platform_device *pdev)
 			__func__, ret);
 		goto err_cdev_add;
 	}
+	ret = of_property_read_string(pdev->dev.of_node,
+				"qcom,msm-codec-glink-edge", &str);
+	if (ret < 0) {
+		strlcpy(wdev->glink_edge, WDSP_EDGE, GLINK_EDGE_MAX);
+		dev_info(&pdev->dev,
+			"%s: qcom,msm-codec-glink-edge not set use default %s\n",
+			__func__, wdev->glink_edge);
+		ret = 0;
+	} else {
+		strlcpy(wdev->glink_edge, str, GLINK_EDGE_MAX);
+		dev_info(&pdev->dev, "%s: glink edge is %s\n", __func__,
+					wdev->glink_edge);
+	}
+
 	platform_set_drvdata(pdev, wdev);
 	goto done;
 

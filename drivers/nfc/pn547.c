@@ -104,6 +104,7 @@ static struct pn547_dev *pn547_dev;
 static struct semaphore ese_access_sema;
 static void release_ese_lock(p61_access_state_t  p61_current_state);
 static struct semaphore svdd_sync_onoff_sema;
+static struct semaphore dwp_onoff_sema;
 int get_ese_lock(p61_access_state_t  p61_current_state, int timeout);
 static unsigned char svdd_sync_wait;
 #endif
@@ -429,7 +430,7 @@ static void p61_update_access_state(struct pn547_dev *pn547_dev, p61_access_stat
             pn547_dev->p61_current_state |= current_state;
         }
         else{
-            pn547_dev->p61_current_state ^= current_state;
+            pn547_dev->p61_current_state &= (unsigned int)(~current_state);
             if(!pn547_dev->p61_current_state)
                 pn547_dev->p61_current_state = P61_STATE_IDLE;
         }
@@ -458,7 +459,33 @@ static void p61_access_unlock(struct pn547_dev *pn547_dev)
     mutex_unlock(&pn547_dev->p61_state_mutex);
     pr_info("%s: Exit\n", __func__);
 }
-#endif
+
+static void set_nfc_pid(unsigned long arg)
+{
+	pid_t pid = arg;
+	struct task_struct *task;
+
+	pn547_dev->nfc_service_pid = arg;
+
+	if (arg == 0)
+		goto done;
+
+	task = pid_task(find_vpid(pid), PIDTYPE_PID);
+	if (task) {
+		pr_info("task->comm: %s\n", task->comm);
+		if (!strncmp(task->comm, "com.android.nfc", 15)) {
+			pn547_dev->nfc_service_pid = arg;
+			goto done;
+		} else {
+			pr_info("it's not nfc pid : %ld, %s\n", pn547_dev->nfc_service_pid, task->comm);
+		}
+	}
+
+	pn547_dev->nfc_service_pid = 0;
+done:
+	pr_info("The NFC Service PID is %ld\n", pn547_dev->nfc_service_pid);
+}
+
 static int signal_handler(p61_access_state_t state, long nfc_pid)
 {
     struct siginfo sinfo;
@@ -492,6 +519,31 @@ static int signal_handler(p61_access_state_t state, long nfc_pid)
     pr_info("%s: Exit\n", __func__);
 
 	return ret;
+}
+
+static void dwp_OnOff(long nfc_service_pid, p61_access_state_t origin)
+{
+	int timeout = 100; //100 ms timeout
+	unsigned long tempJ = msecs_to_jiffies(timeout);
+	if(nfc_service_pid)
+	{
+		if (0 == signal_handler(origin, nfc_service_pid))
+		{
+			sema_init(&dwp_onoff_sema, 0);
+			if(down_timeout(&dwp_onoff_sema, tempJ) != 0)
+			{
+				pr_info("Dwp On/off wait protection: Timeout");
+			}
+			pr_info("Dwp On/Off wait protection : released");
+		}
+	}
+}
+
+static int release_dwpOnOff_wait(void)
+{
+	pr_info("%s: Enter \n", __func__);
+	up(&dwp_onoff_sema);
+	return 0;
 }
 
 static void svdd_sync_onoff(long nfc_service_pid, p61_access_state_t origin)
@@ -534,7 +586,7 @@ static int release_svdd_wait(void)
     pr_info("%s: Exit\n", __func__);
     return 0;
 }
-
+#endif
 
 static int pn547_dev_open(struct inode *inode, struct file *filp)
 {
@@ -561,6 +613,10 @@ long pn547_dev_ioctl(struct file *filp,
 	else if(cmd == P547_REL_SVDD_WAIT)
 	{
 		return release_svdd_wait();
+	}
+	else if(cmd == P547_REL_DWPONOFF_WAIT)
+	{
+		return release_dwpOnOff_wait();
 	}
 
 	p61_access_lock(pn547_dev);
@@ -689,7 +745,7 @@ long pn547_dev_ioctl(struct file *filp,
 				{
 					if(pn547_dev->nfc_service_pid){
 						pr_info("nfc service pid %s   ---- %ld", __func__, pn547_dev->nfc_service_pid);
-						signal_handler(P61_STATE_SPI, pn547_dev->nfc_service_pid);
+						dwp_OnOff(pn547_dev->nfc_service_pid, P61_STATE_SPI);
 					}
 					else{
 						pr_info(" invalid nfc service pid....signalling failed%s   ---- %ld", __func__, pn547_dev->nfc_service_pid);
@@ -806,7 +862,7 @@ long pn547_dev_ioctl(struct file *filp,
 				{
 					if(pn547_dev->nfc_service_pid){
 						pr_info("nfc service pid %s   ---- %ld", __func__, pn547_dev->nfc_service_pid);
-						signal_handler(P61_STATE_SPI_PRIO, pn547_dev->nfc_service_pid);
+						dwp_OnOff(pn547_dev->nfc_service_pid, P61_STATE_SPI_PRIO);
 					}
 					else{
 						pr_info(" invalid nfc service pid....signalling failed%s   ---- %ld", __func__, pn547_dev->nfc_service_pid);
@@ -951,7 +1007,7 @@ long pn547_dev_ioctl(struct file *filp,
             release_ese_lock(P61_STATE_WIRED);
 
         pr_info("%s : The NFC Service PID is %ld\n", __func__, arg);
-        pn547_dev->nfc_service_pid = arg;
+	set_nfc_pid(arg);
 
     }
     break;
@@ -1519,6 +1575,7 @@ static int pn547_probe(struct i2c_client *client,
 #ifdef CONFIG_NFC_PN547_ESE_SUPPORT //ese
 	sema_init(&ese_access_sema, 1);
 	mutex_init(&pn547_dev->p61_state_mutex);
+	sema_init(&dwp_onoff_sema, 0);
 #endif
 
 	pn547_dev->pn547_device.minor = MISC_DYNAMIC_MINOR;

@@ -1,0 +1,199 @@
+/* Copyright (c) 2012, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+&soc {
+	i2c_1: i2c@75ba000 {
+		compatible = "qcom,i2c-msm-v2";
+		#address-cells = <1>;
+		#size-cells = <0>;
+		reg-names = "qup_phys_addr";
+		reg = <0x75ba000 0x1000>;
+		interrupt-names = "qup_irq";
+		interrupts = <0 106 0>;
+		dmas = <&dma_blsp2 22 64 0x20000020 0x20>,
+			<&dma_blsp2 23 32 0x20000020 0x20>;
+		dma-names = "tx", "rx";
+		qcom,master-id = <84>;
+		qcom,clk-freq-out = <400000>;
+		qcom,clk-freq-in  = <19200000>;
+		clock-names = "iface_clk", "core_clk";
+		clocks = <&clock_gcc clk_gcc_blsp2_ahb_clk>,
+			 <&clock_gcc clk_gcc_blsp2_qup6_i2c_apps_clk>;
+		pinctrl-names = "i2c_active", "i2c_sleep";
+		pinctrl-0 = <&s2mpb02_i2c_active>;
+		pinctrl-1 = <&s2mpb02_i2c_suspend>;
+
+		qcom,disable-dma;
+
+		s2mpb02@59 {
+			compatible = "samsung,s2mpb02";
+			reg = <0x59>;
+			interrupt-parent = <&tlmm>;
+			status = "okay";
+
+			regulators {
+				s2mpb02_l1: s2mpb02-ldo1 {
+					regulator-name = "s2mpb02-ldo1";
+					regulator-min-microvolt = <600000>;
+					regulator-max-microvolt = <2187500>;
+				};
+
+				s2mpb02_l2: s2mpb02-ldo2 {
+					regulator-name = "s2mpb02-ldo2";
+					regulator-min-microvolt = <600000>;
+					regulator-max-microvolt = <2187500>;
+				};
+
+				s2mpb02_l3: s2mpb02-ldo3 {
+					regulator-name = "s2mpb02-ldo3";
+					regulator-min-microvolt = <600000>;
+					regulator-max-microvolt = <2187500>;
+				};
+
+				s2mpb02_l4: s2mpb02-ldo4 {
+					regulator-name = "s2mpb02-ldo4";
+					regulator-min-microvolt = <600000>;
+					regulator-max-microvolt = <2187500>;
+				};
+
+				s2mpb02_l5: s2mpb02-ldo5 {
+					regulator-name = "s2mpb02-ldo5";
+					regulator-min-microvolt = <600000>;
+					regulator-max-microvolt = <2187500>;
+				};
+
+				s2mpb02_l6: s2mpb02-ldo6 {
+					regulator-name = "s2mpb02-ldo6";
+					regulator-min-microvolt = <600000>;
+					regulator-max-microvolt = <3775000>;
+				};
+
+				s2mpb02_l7: s2mpb02-ldo7 {
+					regulator-name = "s2mpb02-ldo7";
+					regulator-min-microvolt = <600000>;
+					regulator-max-microvolt = <3775000>;
+				};
+
+				s2mpb02_l8: s2mpb02-ldo8 {
+					regulator-name = "s2mpb02-ldo8";
+					regulator-min-microvolt = <600000>;
+					regulator-max-microvolt = <3775000>;
+				};
+
+				s2mpb02_l9: s2mpb02-ldo9 {
+					regulator-name = "s2mpb02-ldo9";
+					regulator-min-microvolt = <600000>;
+					regulator-max-microvolt = <3775000>;
+				};
+
+				s2mpb02_l10: s2mpb02-ldo10 {
+					regulator-name = "s2mpb02-ldo10";
+					regulator-min-microvolt = <600000>;
+					regulator-max-microvolt = <3775000>;
+				};
+
+				s2mpb02_l11: s2mpb02-ldo11 {
+					regulator-name = "s2mpb02-ldo11";
+					regulator-min-microvolt = <600000>;
+					regulator-max-microvolt = <3775000>;
+				};
+
+				s2mpb02_l12: s2mpb02-ldo12 {
+					regulator-name = "s2mpb02-ldo12";
+					regulator-min-microvolt = <600000>;
+					regulator-max-microvolt = <3775000>;
+				};
+
+				s2mpb02_l13: s2mpb02-ldo13 {
+					regulator-name = "s2mpb02-ldo13";
+					regulator-min-microvolt = <600000>;
+					regulator-max-microvolt = <3775000>;
+				};
+
+				s2mpb02_l14: s2mpb02-ldo14 {
+					regulator-name = "s2mpb02-ldo14";
+					regulator-min-microvolt = <600000>;
+					regulator-max-microvolt = <3775000>;
+				};
+
+				s2mpb02_l15: s2mpb02-ldo15 {
+					regulator-name = "s2mpb02-ldo15";
+					regulator-min-microvolt = <600000>;
+					regulator-max-microvolt = <3775000>;
+				};
+
+				s2mpb02_l16: s2mpb02-ldo16 {
+					regulator-name = "s2mpb02-ldo16";
+					regulator-min-microvolt = <600000>;
+					regulator-max-microvolt = <3775000>;
+				};
+
+				s2mpb02_l17: s2mpb02-ldo17 {
+					regulator-name = "s2mpb02-ldo17";
+					regulator-min-microvolt = <600000>;
+					regulator-max-microvolt = <3775000>;
+				};
+
+				s2mpb02_l18: s2mpb02-ldo18 {
+					regulator-name = "s2mpb02-ldo18";
+					regulator-min-microvolt = <600000>;
+					regulator-max-microvolt = <3775000>;
+				};
+
+				s2mpb02_b1: s2mpb02-buck1 {
+					regulator-name = "s2mpb02-buck1";
+					regulator-min-microvolt = <1300000>;
+					regulator-max-microvolt = <1300000>;
+					regulator-always-on;
+				};
+
+				s2mpb02_b2: s2mpb02-buck2 {
+					regulator-name = "s2mpb02-buck2";
+					regulator-min-microvolt = <500000>;
+					regulator-max-microvolt = <1300000>;
+				};
+
+				s2mpb02_bb: s2mpb02-bb {
+					regulator-name = "s2mpb02-bb";
+					regulator-min-microvolt = <3500000>;
+					regulator-max-microvolt = <3500000>;
+					regulator-always-on;
+				};
+			};
+
+			torch {
+				status = "okay";
+				s2mpb02_leds1: s2mpb02-leds1 {
+					ledname = "leds-sec1";
+					/* S2MPB02_FLASH_LED_1 */
+					id = <0>;
+					/* S2MPB02_FLASH_CURRENT */
+					brightness = <0xA>;
+					/* S2MPB02_FLASH_TIMEOUT */
+					timeout = <0x7>;
+					default-trigger = "flash_trigger";
+				};
+
+				s2mpb02_leds2: s2mpb02-leds2 {
+					ledname = "torch-sec1";
+					/* S2MPB02_TORCH_LED_1 */
+					id = <1>;
+					/* S2MPB02_TORCH_CURRENT */
+					brightness = <0x9>;
+					/* S2MPB02_TORCH_TIMEOUT */
+					timeout = <0xF>;
+					default-trigger = "torch_trigger";
+				};
+			};
+		};
+	};
+};

@@ -1,4 +1,4 @@
-/* Copyright (c) 2014-2017, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2014-2018, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -23,6 +23,7 @@
 #include "dsi-panel-auo-qvga-cmd.dtsi"
 #include "dsi-panel-auo-cx-qvga-cmd.dtsi"
 #include "dsi-panel-390p-auo-cmd.dtsi"
+#include "dsi-panel-auo-400p-cmd.dtsi"
 
 &soc {
 	dsi_panel_pwr_supply: dsi_panel_pwr_supply {

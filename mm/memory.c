@@ -1070,6 +1070,7 @@ int copy_page_range(struct mm_struct *dst_mm, struct mm_struct *src_mm,
 	return ret;
 }
 
+#define ERR_VALUE (0xFFFFFFC000000000ULL)
 static unsigned long zap_pte_range(struct mmu_gather *tlb,
 				struct vm_area_struct *vma, pmd_t *pmd,
 				unsigned long addr, unsigned long end,
@@ -1081,6 +1082,7 @@ static unsigned long zap_pte_range(struct mmu_gather *tlb,
 	spinlock_t *ptl;
 	pte_t *start_pte;
 	pte_t *pte;
+	unsigned long prev = addr;
 
 again:
 	init_rss_vec(rss);
@@ -1089,6 +1091,10 @@ again:
 	arch_enter_lazy_mmu_mode();
 	do {
 		pte_t ptent = *pte;
+		if (addr > ERR_VALUE || end > ERR_VALUE) {
+			pr_err("%s %d prev %lx curr %lx end %lx\n", __func__, __LINE__, prev, addr, end);
+			BUG();
+		}
 		if (pte_none(ptent)) {
 			continue;
 		}
@@ -1212,9 +1218,14 @@ static inline unsigned long zap_pmd_range(struct mmu_gather *tlb,
 {
 	pmd_t *pmd;
 	unsigned long next;
+	unsigned long prev = addr;
 
 	pmd = pmd_offset(pud, addr);
 	do {
+		if (addr > ERR_VALUE || end > ERR_VALUE) {
+			pr_err("%s %d prev %lx curr %lx end %lx\n", __func__, __LINE__, prev, addr, end);
+			BUG();
+		}
 		next = pmd_addr_end(addr, end);
 		if (pmd_trans_huge(*pmd)) {
 			if (next - addr != HPAGE_PMD_SIZE) {
@@ -1256,9 +1267,14 @@ static inline unsigned long zap_pud_range(struct mmu_gather *tlb,
 {
 	pud_t *pud;
 	unsigned long next;
+	unsigned long prev = addr;
 
 	pud = pud_offset(pgd, addr);
 	do {
+		if (addr > ERR_VALUE || end > ERR_VALUE) {
+			pr_err("%s %d prev %lx curr %lx end %lx\n", __func__, __LINE__, prev, addr, end);
+			BUG();
+		}
 		next = pud_addr_end(addr, end);
 		if (pud_none_or_clear_bad(pud))
 			continue;
@@ -1275,6 +1291,7 @@ static void unmap_page_range(struct mmu_gather *tlb,
 {
 	pgd_t *pgd;
 	unsigned long next;
+	unsigned long prev = addr;
 
 	if (details && !details->check_mapping && !details->nonlinear_vma)
 		details = NULL;
@@ -1283,6 +1300,10 @@ static void unmap_page_range(struct mmu_gather *tlb,
 	tlb_start_vma(tlb, vma);
 	pgd = pgd_offset(vma->vm_mm, addr);
 	do {
+		if (addr > ERR_VALUE || end > ERR_VALUE) {
+			pr_err("%s %d prev %lx curr %lx end %lx\n", __func__, __LINE__, prev, addr, end);
+			BUG();
+		}
 		next = pgd_addr_end(addr, end);
 		if (pgd_none_or_clear_bad(pgd))
 			continue;

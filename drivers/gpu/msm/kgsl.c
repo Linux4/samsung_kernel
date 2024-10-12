@@ -319,7 +319,7 @@ kgsl_mem_entry_destroy(struct kref *kref)
 			    entry->memdesc.sgt->nents, i) {
 			page = sg_page(sg);
 			for (j = 0; j < (sg->length >> PAGE_SHIFT); j++)
-				set_page_dirty(nth_page(page, j));
+				set_page_dirty_lock(nth_page(page, j));
 		}
 	}
 
@@ -347,8 +347,10 @@ static int kgsl_mem_entry_track_gpuaddr(struct kgsl_device *device,
 	/*
 	 * If SVM is enabled for this object then the address needs to be
 	 * assigned elsewhere
+	 * Also do not proceed further in case of NoMMU.
 	 */
-	if (kgsl_memdesc_use_cpu_map(&entry->memdesc))
+	if (kgsl_memdesc_use_cpu_map(&entry->memdesc) ||
+		(kgsl_mmu_get_mmutype(device) == KGSL_MMU_TYPE_NONE))
 		return 0;
 
 	pagetable = kgsl_memdesc_is_secured(&entry->memdesc) ?
@@ -443,6 +445,10 @@ static void kgsl_mem_entry_detach_process(struct kgsl_mem_entry *entry)
 
 	type = kgsl_memdesc_usermem_type(&entry->memdesc);
 	entry->priv->stats[type].cur -= entry->memdesc.size;
+
+	if (type != KGSL_MEM_ENTRY_ION)
+		entry->priv->gpumem_mapped -= entry->memdesc.mapsize;
+
 	spin_unlock(&entry->priv->mem_lock);
 
 	kgsl_mmu_put_gpuaddr(&entry->memdesc);		
@@ -516,14 +522,21 @@ int kgsl_context_init(struct kgsl_device_private *dev_priv,
 	int ret = 0, id;
 	struct kgsl_process_private  *proc_priv = dev_priv->process_priv;
 
+	/*
+	 * Read and increment the context count under lock to make sure
+	 * no process goes beyond the specified context limit.
+	 */
+	spin_lock(&proc_priv->ctxt_count_lock);
 	if (atomic_read(&proc_priv->ctxt_count) > KGSL_MAX_CONTEXTS_PER_PROC) {
 		KGSL_DRV_ERR(device,
 			"Per process context limit reached for pid %u",
 			dev_priv->process_priv->pid);
+		spin_unlock(&proc_priv->ctxt_count_lock);
 		return -ENOSPC;
 	}
 
 	atomic_inc(&proc_priv->ctxt_count);
+	spin_unlock(&proc_priv->ctxt_count_lock);
 
 	id = _kgsl_get_context_id(device);
 	if (id == -ENOSPC) {
@@ -615,7 +628,7 @@ static void kgsl_context_detach(struct kgsl_context *context)
 	trace_kgsl_context_detach(device, context);
 
 	context->timers[1] = local_clock();
-	pr_err("KGSL: Detaching context %d, clock:%llu\n", context->id, context->timers[1]);
+	pr_debug("KGSL: Detaching context %d, clock:%llu\n", context->id, context->timers[1]);
 	context->device->ftbl->drawctxt_detach(context);
 
 	/*
@@ -670,12 +683,12 @@ kgsl_context_destroy(struct kref *kref)
 	kgsl_process_private_put(context->proc_priv);
 
 	context->timers[2] = local_clock();
-	pr_err("KGSL: Destroying context %d alive:%llu detached:%llu\n", id,
+	pr_debug("KGSL: Destroying context %d alive:%llu detached:%llu\n", id,
 			context->timers[1] - context->timers[0],
 			context->timers[2] - context->timers[1]);
 
 	device->ftbl->drawctxt_destroy(context);
-	pr_err("KGSL: Destroyed  context %d\n", id);
+	pr_debug("KGSL: Destroyed  context %d\n", id);
 }
 
 struct kgsl_device *kgsl_get_device(int dev_idx)
@@ -902,6 +915,7 @@ static struct kgsl_process_private *kgsl_process_private_new(
 
 	spin_lock_init(&private->mem_lock);
 	spin_lock_init(&private->syncsource_lock);
+	spin_lock_init(&private->ctxt_count_lock);
 
 	idr_init(&private->mem_idr);
 	idr_init(&private->syncsource_idr);
@@ -1373,6 +1387,45 @@ long kgsl_ioctl_device_getproperty(struct kgsl_device_private *dev_priv,
 		kgsl_context_put(context);
 		break;
 	}
+	case KGSL_PROP_SECURE_BUFFER_ALIGNMENT:
+	{
+		unsigned int align;
+
+		if (param->sizebytes != sizeof(unsigned int)) {
+			result = -EINVAL;
+			break;
+		}
+		/*
+		 * XPUv2 impose the constraint of 1MB memory alignment,
+		 * on the other hand Hypervisor does not have such
+		 * constraints. So driver should fulfill such
+		 * requirements when allocating secure memory.
+		 */
+		align = MMU_FEATURE(&dev_priv->device->mmu,
+				KGSL_MMU_HYP_SECURE_ALLOC) ? PAGE_SIZE : SZ_1M;
+
+		if (copy_to_user(param->value, &align, sizeof(align)))
+			result = -EFAULT;
+
+		break;
+	}
+	case KGSL_PROP_SECURE_CTXT_SUPPORT:
+	{
+		unsigned int secure_ctxt;
+
+		if (param->sizebytes != sizeof(unsigned int)) {
+			result = -EINVAL;
+			break;
+		}
+
+		secure_ctxt = dev_priv->device->mmu.secured ? 1 : 0;
+
+		if (copy_to_user(param->value, &secure_ctxt,
+				sizeof(secure_ctxt)))
+			result = -EFAULT;
+
+		break;
+	}
 	default:
 		if (is_compat_task())
 			result = dev_priv->device->ftbl->getproperty_compat(
@@ -1687,7 +1740,7 @@ long kgsl_ioctl_drawctxt_create(struct kgsl_device_private *dev_priv,
 		goto done;
 	}
 	context->timers[0] = local_clock();
-	pr_err("KGSL: Creating   context %d, clock:%llu tid:%d\n",
+	pr_debug("KGSL: Creating   context %d, clock:%llu tid:%d\n",
 			context->id, context->timers[0], context->tid);
 	trace_kgsl_context_create(dev_priv->device, context, param->flags);
 
@@ -3062,7 +3115,15 @@ long kgsl_ioctl_gpuobj_alloc(struct kgsl_device_private *dev_priv,
 {
 	struct kgsl_gpuobj_alloc *param = data;
 	struct kgsl_mem_entry *entry;
+#if defined(CONFIG_DISPLAY_SAMSUNG)
+	struct kgsl_process_private *private = dev_priv->process_priv;
+	uint64_t debug_size;
+	debug_size = param->size >> 10;
 
+	if(debug_size > 200000) {
+		pr_err("kgsl: huge memory %lldKB is requested from pid = %d comm = %s\n", debug_size, private->pid, private->comm);
+	}
+#endif
 	entry = gpumem_alloc_entry(dev_priv, param->size, param->flags);
 
 	if (IS_ERR(entry))
@@ -3199,6 +3260,7 @@ long kgsl_ioctl_gpuobj_set_info(struct kgsl_device_private *dev_priv,
 	struct kgsl_process_private *private = dev_priv->process_priv;
 	struct kgsl_gpuobj_set_info *param = data;
 	struct kgsl_mem_entry *entry;
+	int ret = 0;
 
 	if (param->id == 0)
 		return -EINVAL;
@@ -3211,12 +3273,16 @@ long kgsl_ioctl_gpuobj_set_info(struct kgsl_device_private *dev_priv,
 		copy_metadata(entry, param->metadata, param->metadata_len);
 
 	if (param->flags & KGSL_GPUOBJ_SET_INFO_TYPE) {
-		entry->memdesc.flags &= ~((uint64_t) KGSL_MEMTYPE_MASK);
-		entry->memdesc.flags |= param->type << KGSL_MEMTYPE_SHIFT;
+		if (param->type <= (KGSL_MEMTYPE_MASK >> KGSL_MEMTYPE_SHIFT)) {
+			entry->memdesc.flags &= ~((uint64_t) KGSL_MEMTYPE_MASK);
+			entry->memdesc.flags |= (uint64_t)((param->type <<
+				KGSL_MEMTYPE_SHIFT) & KGSL_MEMTYPE_MASK);
+		} else
+			ret = -EINVAL;
 	}
 
 	kgsl_mem_entry_put(entry);
-	return 0;
+	return ret;
 }
 
 long kgsl_ioctl_cff_syncmem(struct kgsl_device_private *dev_priv,
@@ -3354,13 +3420,18 @@ static int
 kgsl_gpumem_vm_fault(struct vm_area_struct *vma, struct vm_fault *vmf)
 {
 	struct kgsl_mem_entry *entry = vma->vm_private_data;
+	int ret;
 
 	if (!entry)
 		return VM_FAULT_SIGBUS;
 	if (!entry->memdesc.ops || !entry->memdesc.ops->vmfault)
 		return VM_FAULT_SIGBUS;
 
-	return entry->memdesc.ops->vmfault(&entry->memdesc, vma, vmf);
+	ret = entry->memdesc.ops->vmfault(&entry->memdesc, vma, vmf);
+	if ((ret == 0) || (ret == VM_FAULT_NOPAGE))
+		entry->priv->gpumem_mapped += PAGE_SIZE;
+
+	return ret;
 }
 
 static void
@@ -3639,13 +3710,13 @@ kgsl_get_unmapped_area(struct file *file, unsigned long addr,
 	if (!kgsl_memdesc_use_cpu_map(&entry->memdesc)) {
 		val = get_unmapped_area(NULL, addr, len, 0, flags);
 		if (IS_ERR_VALUE(val))
-			KGSL_MEM_ERR(device,
+			KGSL_DRV_ERR_RATELIMIT(device,
 				"get_unmapped_area: pid %d addr %lx pgoff %lx len %ld failed error %d\n",
 				private->pid, addr, pgoff, len, (int) val);
 	} else {
 		 val = _get_svm_area(private, entry, addr, len, flags);
 		 if (IS_ERR_VALUE(val))
-			KGSL_MEM_ERR(device,
+			KGSL_DRV_ERR_RATELIMIT(device,
 				"_get_svm_area: pid %d addr %lx pgoff %lx len %ld failed error %d\n",
 				private->pid, addr, pgoff, len, (int) val);
 	}

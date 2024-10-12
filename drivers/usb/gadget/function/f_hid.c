@@ -197,6 +197,7 @@ static ssize_t f_hidg_read(struct file *file, char __user *buffer,
 	/* pick the first one */
 	list = list_first_entry(&hidg->completed_out_req,
 				struct f_hidg_req_list, list);
+
 	
     /*
      * Remove this from list to protect it from beign free()
@@ -224,15 +225,18 @@ static ssize_t f_hidg_read(struct file *file, char __user *buffer,
 		req->length = hidg->report_length;
 		ret = usb_ep_queue(hidg->out_ep, req, GFP_KERNEL);
 		if (ret < 0) {
-            free_ep_req(hidg->out_ep, req);
+			free_ep_req(hidg->out_ep, req);
             return ret;
         }
-    } else {
-        spin_lock_irqsave(&hidg->spinlock, flags);
-        list_add(&list->list, &hidg->completed_out_req);
-        spin_unlock_irqrestore(&hidg->spinlock, flags);
+    
+	} else {
+		spin_lock_irqsave(&hidg->spinlock, flags);
+		list_add(&list->list, &hidg->completed_out_req);
+		spin_unlock_irqrestore(&hidg->spinlock, flags);
 
-        wake_up(&hidg->read_queue);
+		wake_up(&hidg->read_queue);
+
+
 	}
 
 	return count;
@@ -467,7 +471,7 @@ static void hidg_disable(struct usb_function *f)
 {
 	struct f_hidg *hidg = func_to_hidg(f);
 	struct f_hidg_req_list *list, *next;
-	unsigned long flags;
+        unsigned long flags;
 
 	usb_ep_disable(hidg->in_ep);
 	hidg->in_ep->driver_data = NULL;

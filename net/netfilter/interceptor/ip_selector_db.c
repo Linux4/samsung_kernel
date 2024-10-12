@@ -1,6 +1,6 @@
 /**
    @copyright
-   Copyright (c) 2013 - 2015, INSIDE Secure Oy. All rights reserved.
+   Copyright (c) 2013 - 2017, INSIDE Secure Oy. All rights reserved.
 */
 
 #include "implementation_defs.h"
@@ -48,7 +48,7 @@ ip_selector_db_entry_add(
     {
         struct IPSelectorDbEntry *tmp = *loc;
 
-        if (tmp->priority >= insertion_priority)
+        if (tmp->priority > insertion_priority)
         {
             break;
         }
@@ -60,7 +60,6 @@ ip_selector_db_entry_add(
     *loc = entry;
 
     DEBUG_DUMP(
-            db,
             debug_dump_ip_selector_group,
             (struct IPSelectorGroup *)(entry + 1),
             ((struct IPSelectorGroup *)(entry + 1))->bytecount,
@@ -103,7 +102,6 @@ ip_selector_db_entry_remove(
     if (removed != NULL)
     {
         DEBUG_DUMP(
-                db,
                 debug_dump_ip_selector_group,
                 (struct IPSelectorGroup *)(removed + 1),
                 ((struct IPSelectorGroup *)(removed + 1))->bytecount,
@@ -118,7 +116,6 @@ ip_selector_db_entry_remove(
     else
     {
         DEBUG_FAIL(
-                db,
                 "Remove failed for db part %d id %d.",
                 part,
                 id);
@@ -166,7 +163,6 @@ ip_selector_db_lookup(
     int action = -1;
 
     DEBUG_LOW(
-            lookup,
             "Fields %p: Lookup db part %d: %s",
             fields,
             part,
@@ -178,7 +174,6 @@ ip_selector_db_lookup(
     if (entry == NULL)
     {
         DEBUG_LOW(
-                lookup,
                 "Fields %p: Lookup db part %d: no entries; no match",
                 fields,
                 part);
@@ -192,14 +187,14 @@ ip_selector_db_lookup(
         {
             action = entry->action;
 
-            DEBUG_LOW(lookup, "Fields %p matched entry %p.", fields, entry);
+            DEBUG_LOW("Fields %p matched entry %p.", fields, entry);
             break;
         }
 
         entry = entry->next;
     }
 
-    DEBUG_LOW(lookup, "Fields %p action is %d.", fields, action);
+    DEBUG_LOW("Fields %p action is %d.", fields, action);
 
     return action;
 }

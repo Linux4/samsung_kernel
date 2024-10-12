@@ -71,6 +71,10 @@
  */
 #define PN547_SET_DWNLD_STATUS    _IOW(PN547_MAGIC, 0x09, long)
 
+/*
+  NFC will call the ioctl to release the dwp on/off protection
+*/
+#define P547_REL_DWPONOFF_WAIT _IOW(PN547_MAGIC, 0x0A, long)
 
 #define NFC_I2C_LDO_ON	1
 #define NFC_I2C_LDO_OFF	0

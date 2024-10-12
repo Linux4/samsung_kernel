@@ -463,6 +463,9 @@ static void msm_restart_prepare(const char *cmd)
 			printk(KERN_NOTICE "%s : value of cmd is NULL.\n", __func__);
 			hard_reset_reason = PON_RESTART_REASON_NORMALBOOT;
 			qpnp_pon_set_restart_reason(hard_reset_reason);
+		} else if (!strncmp(cmd, "adb", 3)) {
+			hard_reset_reason = PON_RESTART_REASON_NORMALBOOT;
+			qpnp_pon_set_restart_reason(hard_reset_reason);
 #endif
 #ifdef CONFIG_MUIC_SUPPORT_RUSTPROOF
 		} else if (!strncmp(cmd, "swsel", 5) /* set switch value */

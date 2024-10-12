@@ -56,7 +56,7 @@ EXPORT_TRACEPOINT_SYMBOL_GPL(mmc_blk_erase_end);
 EXPORT_TRACEPOINT_SYMBOL_GPL(mmc_blk_rw_start);
 EXPORT_TRACEPOINT_SYMBOL_GPL(mmc_blk_rw_end);
 #ifdef CONFIG_MMC_SUPPORT_STLOG
-#include <linux/stlog.h>
+#include <linux/fslog.h>
 #else
 #define ST_LOG(fmt,...)
 #endif
@@ -3038,6 +3038,7 @@ static void _mmc_detect_change(struct mmc_host *host, unsigned long delay,
 	/* wake lock : 500ms */
 	if (!(host->caps & MMC_CAP_NONREMOVABLE))
 		wake_lock_timeout(&host->detect_wake_lock, HZ / 2);
+
 	mmc_schedule_delayed_work(&host->detect, delay);
 }
 
@@ -4017,6 +4018,7 @@ void mmc_rescan(struct work_struct *work)
 	mmc_release_host(host);
 
  out:
+	host->pm_progress = 0;
 	if (extend_wakelock && !host->rescan_disable)
 		wake_lock_timeout(&host->detect_wake_lock, HZ / 2);
 	else if (wake_lock_active(&host->detect_wake_lock))
@@ -4210,7 +4212,7 @@ int mmc_pm_notify(struct notifier_block *notify_block,
 	struct mmc_host *host = container_of(
 		notify_block, struct mmc_host, pm_notify);
 	unsigned long flags;
-	int err = 0;
+	int err = 0, present = 0;
 
 	switch (mode) {
 	case PM_HIBERNATION_PREPARE:
@@ -4243,6 +4245,14 @@ int mmc_pm_notify(struct notifier_block *notify_block,
 		if (!err)
 			break;
 
+		if (!mmc_card_is_removable(host)) {
+			dev_warn(mmc_dev(host),
+				 "pre_suspend failed for non-removable host: "
+				 "%d\n", err);
+			/* Avoid removing non-removable hosts */
+			break;
+		}
+
 		/* Calling bus_ops->remove() with a claimed host can deadlock */
 		host->bus_ops->remove(host);
 		mmc_claim_host(host);
@@ -4258,7 +4268,22 @@ int mmc_pm_notify(struct notifier_block *notify_block,
 
 		spin_lock_irqsave(&host->lock, flags);
 		host->rescan_disable = 0;
+		if (mmc_card_is_removable(host)) {
+			present = !!mmc_gpio_get_cd(host);
+			mmc_gpiod_update_status(host, present);
+		}
+	#ifndef CONFIG_MMC_BLOCK_DEFERRED_RESUME
+		if (mmc_bus_manual_resume(host) && present)
+		{
+			spin_unlock_irqrestore(&host->lock, flags);
+			break;
+		}
+	#endif
+
 		spin_unlock_irqrestore(&host->lock, flags);
+		/* SD sync mode will be enabled during pm_progress is set */
+		if (host->card && mmc_card_sd(host->card))
+			host->pm_progress = 1;
 		_mmc_detect_change(host, 0, false);
 
 	}

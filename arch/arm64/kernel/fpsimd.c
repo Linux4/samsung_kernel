@@ -157,6 +157,43 @@ void do_fpsimd_exc(unsigned int esr, struct pt_regs *regs)
 	send_sig_info(SIGFPE, &info, current);
 }
 
+#ifdef CONFIG_KERNEL_MODE_NEON_DEBUG 
+void print_fpsimd_status(struct task_struct *next, struct fpsimd_state *current_st, struct fpsimd_state *saved_st)
+{
+	int i = 0;
+
+	pr_info("next task_struct:[0x%p], current_st:[0x%p], saved_st:[0x%p]\n", next, current_st, saved_st);
+	for(i = 0 ; i < 32 ; i++) {
+		pr_info("saved_st[%d]:[0x%llx] / current_st[%d][0x%llx]\n", i,
+			(unsigned long long)(saved_st->vregs[i]  & 0xFFFFFFFFFFFFFFFF), i,
+			(unsigned long long)(current_st->vregs[i] & 0xFFFFFFFFFFFFFFFF));
+	}
+}
+
+void fpsimd_context_check(struct task_struct *next)
+{
+	int simd_reg_index;
+	struct fpsimd_state current_st, *saved_st;
+	saved_st = &next->thread.fpsimd_state;
+	fpsimd_save_state(&current_st);
+	
+	for (simd_reg_index = 1; simd_reg_index < 32; simd_reg_index++)
+	{
+		if(current_st.vregs[simd_reg_index] != saved_st->vregs[simd_reg_index]) {
+			pr_info("Detected fpsimd_context_check at regs[%d]\n", simd_reg_index);
+			print_fpsimd_status(next, &current_st, saved_st);
+			BUG();
+		}
+	}
+
+	if((current_st.fpsr != saved_st->fpsr) || (current_st.fpcr != saved_st->fpcr)) {
+			pr_info("Detected fpsimd_context_check with fpsr/fpcr\n");
+			print_fpsimd_status(next, &current_st, saved_st);
+			BUG();
+	}
+}
+#endif
+
 void fpsimd_thread_switch(struct task_struct *next)
 {
 	/*
@@ -183,9 +220,14 @@ void fpsimd_thread_switch(struct task_struct *next)
 		struct fpsimd_state *st = &next->thread.fpsimd_state;
 
 		if (__this_cpu_read(fpsimd_last_state) == st
-		    && st->cpu == smp_processor_id())
+		    && st->cpu == smp_processor_id()) {
+
+#ifdef CONFIG_KERNEL_MODE_NEON_DEBUG 
+			fpsimd_context_check(next);
+#endif 
 			clear_ti_thread_flag(task_thread_info(next),
 					     TIF_FOREIGN_FPSTATE);
+		}
 		else
 			set_ti_thread_flag(task_thread_info(next),
 					   TIF_FOREIGN_FPSTATE);

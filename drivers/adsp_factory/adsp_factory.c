@@ -142,9 +142,9 @@ int adsp_factory_unregister(unsigned int type)
 		sensors_unregister(data->sensor_device[type],
 			data->sensor_attr[type]);
 		data->sysfs_created[type] = false;
-	} else
-		pr_info("[FACTORY] %s: skip sensors_unregister for type %u\n",
-			__func__, type);
+	} else {
+		pr_info("[FACTORY] %s: skip type %u\n", __func__, type);
+	}
 	return 0;
 }
 
@@ -454,6 +454,7 @@ static int __init factory_adsp_init(void)
 		mutex_init(&data->raw_stream_lock[i]);
 		data->sysfs_created[i] = false;
 	}
+	mutex_init(&data->remove_sysfs_mutex);
 
 	pr_info("[FACTORY] %s: Timer Init\n", __func__);
 	return 0;
@@ -467,6 +468,7 @@ static void __exit factory_adsp_exit(void)
 		del_timer(&data->command_timer[i]);
 		mutex_destroy(&data->raw_stream_lock[i]);
 	}
+	mutex_destroy(&data->remove_sysfs_mutex);
 	pr_info("[FACTORY] %s\n", __func__);
 }
 

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2009-2017, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2009-2018, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -66,6 +66,7 @@ enum {
 	HW_PLATFORM_STP = 23,
 	HW_PLATFORM_SBC = 24,
 	HW_PLATFORM_ADP = 25,
+	HW_PLATFORM_TTP = 30,
 	HW_PLATFORM_INVALID
 };
 
@@ -87,6 +88,7 @@ const char *hw_platform[] = {
 	[HW_PLATFORM_STP] = "STP",
 	[HW_PLATFORM_SBC] = "SBC",
 	[HW_PLATFORM_ADP] = "ADP",
+	[HW_PLATFORM_TTP] = "TTP",
 };
 
 enum {
@@ -559,6 +561,8 @@ static struct msm_soc_info cpu_of_id[] = {
 
 	/* SDM450 ID */
 	[338] = {MSM_CPU_SDM450, "SDM450"},
+	[351] = {MSM_CPU_SDM450, "SDA450"},
+
 
 	/* 9607 IDs */
 	[290] = {MSM_CPU_9607, "MDM9607"},
@@ -594,6 +598,9 @@ static struct msm_soc_info cpu_of_id[] = {
 
 	/* MSM8940 IDs */
 	[313] = {MSM_CPU_8940, "MSM8940"},
+
+	/* MDM9150 IDs */
+	[359] = {MSM_CPU_9150, "MDM9150"},
 
 	/* Uninitialized IDs are not known to run Linux.
 	   MSM_CPU_UNKNOWN is set to 0 to ensure these IDs are
@@ -1301,6 +1308,10 @@ static void * __init setup_dummy_socinfo(void)
 		dummy_socinfo.id = 338;
 		strlcpy(dummy_socinfo.build_id, "sdm450 - ",
 			sizeof(dummy_socinfo.build_id));
+	} else if (early_machine_is_sda450()) {
+		dummy_socinfo.id = 351;
+		strlcpy(dummy_socinfo.build_id, "sda450 - ",
+			sizeof(dummy_socinfo.build_id));
 	} else if (early_machine_is_mdm9607()) {
 		dummy_socinfo.id = 290;
 		strlcpy(dummy_socinfo.build_id, "mdm9607 - ",
@@ -1395,7 +1406,7 @@ static void __init populate_soc_sysfs_files(struct device *msm_soc_device)
 	return;
 }
 
-#if defined (CONFIG_SEC_BSP)
+#if 0
 #define HMSS_DBG_APC1_CPU0_DBG_MIDR_EL1		(0x03A10D00)
 #define QFPROM_RAW_PTE_ROW3_MSB				(0x0007014C)
 /*
@@ -1442,7 +1453,7 @@ static void  __init soc_info_populate(struct soc_device_attribute *soc_dev_attr)
 	soc_dev_attr->soc_id   = kasprintf(GFP_KERNEL, "%d", socinfo_get_id());
 	soc_dev_attr->family  =  "Snapdragon";
 	soc_dev_attr->machine  = socinfo_get_id_string();
-#if defined (CONFIG_SEC_BSP)
+#if 0
 	soc_dev_attr->revision = kasprintf(GFP_KERNEL, "%u.%u.%u",
 			SOCINFO_VERSION_MAJOR(soc_version),
 			SOCINFO_VERSION_MINOR(soc_version),
@@ -1488,6 +1499,7 @@ static int __init socinfo_init_sysfs(void)
 
 late_initcall(socinfo_init_sysfs);
 
+#ifndef CONFIG_SAMSUNG_PRODUCT_SHIP
 static void socinfo_print(void)
 {
 	uint32_t f_maj = SOCINFO_VERSION_MAJOR(socinfo_format);
@@ -1616,6 +1628,7 @@ static void socinfo_print(void)
 		break;
 	}
 }
+#endif
 
 static void socinfo_select_format(void)
 {
@@ -1663,7 +1676,9 @@ int __init socinfo_init(void)
 		cur_cpu = cpu_of_id[socinfo->v0_1.id].generic_soc_type;
 
 	boot_stats_init();
+#ifndef CONFIG_SAMSUNG_PRODUCT_SHIP
 	socinfo_print();
+#endif
 	arch_read_hardware_id = msm_read_hardware_id;
 	socinfo_init_done = true;
 

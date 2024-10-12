@@ -1,6 +1,6 @@
 /**
    @copyright
-   Copyright (c) 2011 - 2015, INSIDE Secure Oy. All rights reserved.
+   Copyright (c) 2011 - 2017, INSIDE Secure Oy. All rights reserved.
 */
 
 /*
@@ -279,24 +279,31 @@
    level            preprocessing token defining debug level and
                     is one of FAIL, HIGH, MEDIUM, LOW
 
-   flow             a preprocessing token defining debug flow and
-                    may be any valid identifier string e.g.
-                    DEBUG_FAIL(INIT, "Error happened!");
-
    ...              includes a printf format string and possible
                     arguments
 */
-#define DEBUG_FAIL(flow, ...)   DEBUG_IMPLEMENTATION(FAIL, flow, __VA_ARGS__)
-#define DEBUG_HIGH(flow, ...)   DEBUG_IMPLEMENTATION(HIGH, flow, __VA_ARGS__)
-#define DEBUG_MEDIUM(flow, ...) DEBUG_IMPLEMENTATION(MEDIUM, flow, __VA_ARGS__)
-#define DEBUG_LOW(flow, ...)    DEBUG_IMPLEMENTATION(LOW, flow, __VA_ARGS__)
+#define DEBUG_FAIL(...)   DEBUG_IMPLEMENTATION(FAIL, flow, __VA_ARGS__)
+#define DEBUG_HIGH(...)   DEBUG_IMPLEMENTATION(HIGH, flow, __VA_ARGS__)
+#define DEBUG_MEDIUM(...) DEBUG_IMPLEMENTATION(MEDIUM, flow, __VA_ARGS__)
+#define DEBUG_LOW(...)    DEBUG_IMPLEMENTATION(LOW, flow, __VA_ARGS__)
 
+#define DEBUG_FIRST_ARG(f, ...) f
+#define DEBUG_REST_ARGS(f, ...) __VA_ARGS__
 
-#define DEBUG_DUMP(flow, dumper, data, len, ...) \
+#define DEBUG_DUMP(dumper, data, len, ...) \
     DEBUG_DUMP_IMPLEMENTATION(flow, dumper, data, len, __VA_ARGS__)
 
 #define DEBUG_DUMP_LINE(context, ...) \
     DEBUG_DUMP_LINE_IMPLEMENTATION(context, __VA_ARGS__)
+
+#define DEBUG_DUMP_INIT_ARGS(one, two, three, ...)        \
+    one, two, three
+
+#define DEBUG_DUMP_FORMAT_ARG(one, two, three, format, ...)      \
+    format
+
+#define DEBUG_DUMP_REST_ARGS(one, two, three, format, ...)       \
+    __VA_ARGS__
 
 /*
   DEBUG_STRBUF_GET

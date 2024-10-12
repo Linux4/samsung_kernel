@@ -201,6 +201,9 @@ void process_pd(void *data, u8 plug_attach_done, u8 *pdic_attach, MSG_IRQ_STATUS
 	uint16_t REG_ADD;
 	uint8_t rp_currentlvl, is_src;
 	REQUEST_FIXED_SUPPLY_STRUCT_Typedef *request_power_number;
+#if defined (CONFIG_TYPEC)
+	enum typec_pwr_opmode mode = TYPEC_PWR_MODE_USB;
+#endif
 
 	printk("%s\n",__func__);
 
@@ -212,9 +215,16 @@ void process_pd(void *data, u8 plug_attach_done, u8 *pdic_attach, MSG_IRQ_STATUS
 	{
 		usbpd_data->is_pr_swap++;
 		dev_info(&i2c->dev, "PR_Swap requested to %s\n", is_src ? "SOURCE" : "SINK");
+#if defined(CONFIG_DUAL_ROLE_USB_INTF)		
 		if (is_src && (usbpd_data->power_role == DUAL_ROLE_PROP_PR_SNK)) {
 			ccic_event_work(usbpd_data, CCIC_NOTIFY_DEV_BATTERY, CCIC_NOTIFY_ID_ATTACH, 0, 0, 0);
 		}
+#elif defined (CONFIG_TYPEC)
+		if (is_src && (usbpd_data->typec_power_role == TYPEC_SINK)) {
+			ccic_event_work(usbpd_data, CCIC_NOTIFY_DEV_BATTERY, CCIC_NOTIFY_ID_ATTACH, 0, 0, 0);
+		}
+#endif
+
 #if defined(CONFIG_DUAL_ROLE_USB_INTF)
 		usbpd_data->power_role = is_src ? DUAL_ROLE_PROP_PR_SRC : DUAL_ROLE_PROP_PR_SNK;
 		if (usbpd_data->power_role == DUAL_ROLE_PROP_PR_SRC) {
@@ -227,6 +237,20 @@ void process_pd(void *data, u8 plug_attach_done, u8 *pdic_attach, MSG_IRQ_STATUS
 				CCIC_NOTIFY_DEV_MUIC, CCIC_NOTIFY_ID_ATTACH, 1/*attach*/, 1/*rprd*/, 0);
 		}
 		ccic_event_work(usbpd_data, CCIC_NOTIFY_DEV_PDIC, CCIC_NOTIFY_ID_ROLE_SWAP, 0, 0, 0);
+#elif defined (CONFIG_TYPEC)
+		usbpd_data->typec_power_role = is_src ? TYPEC_SOURCE : TYPEC_SINK;
+		if (usbpd_data->typec_power_role == TYPEC_SOURCE) {
+			ccic_event_work(usbpd_data,
+				CCIC_NOTIFY_DEV_MUIC, CCIC_NOTIFY_ID_ATTACH, 1/*attach*/, 1/*rprd*/, 0);
+			vbus_turn_on_ctrl(is_src);
+		} else if (usbpd_data->typec_power_role == TYPEC_SINK) {
+			vbus_turn_on_ctrl(is_src);
+			ccic_event_work(usbpd_data,
+				CCIC_NOTIFY_DEV_MUIC, CCIC_NOTIFY_ID_ATTACH, 1/*attach*/, 1/*rprd*/, 0);
+		}
+		typec_set_pwr_role(usbpd_data->port, usbpd_data->typec_power_role);
+		mode = s2mm005_get_pd_support(usbpd_data);
+		typec_set_pwr_opmode(usbpd_data->port, mode);
 #endif
 	}
 

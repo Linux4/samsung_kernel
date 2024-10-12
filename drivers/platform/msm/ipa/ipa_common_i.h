@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2017, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2018, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -19,6 +19,10 @@
 #include <linux/ipa.h>
 #include <linux/ipa_uc_offload.h>
 #include <linux/ipa_wdi3.h>
+#include <linux/ratelimit.h>
+
+#define WARNON_RATELIMIT_BURST 1
+#define IPA_RATELIMIT_BURST 1
 
 #define __FILENAME__ \
 	(strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
@@ -103,6 +107,39 @@
 		IPA_ACTIVE_CLIENTS_PREP_SPECIAL(log_info, id_str); \
 		ipa_dec_client_disable_clks(&log_info); \
 	} while (0)
+
+/*
+ * Printing one warning message in 5 seconds if multiple warning messages
+ * are coming back to back.
+ */
+
+#define WARN_ON_RATELIMIT_IPA(condition)				\
+({								\
+	static DEFINE_RATELIMIT_STATE(_rs,			\
+				DEFAULT_RATELIMIT_INTERVAL,	\
+				WARNON_RATELIMIT_BURST);	\
+	int rtn = !!(condition);				\
+								\
+	if (unlikely(rtn && __ratelimit(&_rs)))			\
+		WARN_ON(rtn);					\
+})
+
+/*
+ * Printing one error message in 5 seconds if multiple error messages
+ * are coming back to back.
+ */
+
+#define pr_err_ratelimited_ipa(fmt, ...)				\
+	printk_ratelimited_ipa(KERN_ERR pr_fmt(fmt), ##__VA_ARGS__)
+#define printk_ratelimited_ipa(fmt, ...)				\
+({									\
+	static DEFINE_RATELIMIT_STATE(_rs,				\
+				      DEFAULT_RATELIMIT_INTERVAL,	\
+				      IPA_RATELIMIT_BURST);		\
+									\
+	if (__ratelimit(&_rs))						\
+		printk(fmt, ##__VA_ARGS__);				\
+})
 
 #define ipa_assert_on(condition)\
 do {\
@@ -297,11 +334,13 @@ struct ipa_mhi_connect_params_internal {
  * @link: entry's link in global header offset entries list
  * @offset: the offset
  * @bin: bin
+ * @ipacm_installed: indicate if installed by ipacm
  */
 struct ipa_hdr_offset_entry {
 	struct list_head link;
 	u32 offset;
 	u32 bin;
+	bool ipacm_installed;
 };
 
 extern const char *ipa_clients_strings[];

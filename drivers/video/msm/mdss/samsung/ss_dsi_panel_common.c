@@ -1326,6 +1326,7 @@ int mdss_samsung_send_cmd(struct mdss_dsi_ctrl_pdata *ctrl, enum mipi_samsung_cm
 
 	mutex_lock(&vdd->vdd_blank_unblank_lock); /* To block blank & unblank operation while sending cmds */
 
+#if 0
 	/* To check registered FB */
 	if (IS_ERR_OR_NULL(vdd->mfd_dsi[ctrl->ndx])) {
 		/* Do not send any CMD data under FB_BLANK_POWERDOWN condition*/
@@ -1342,6 +1343,7 @@ int mdss_samsung_send_cmd(struct mdss_dsi_ctrl_pdata *ctrl, enum mipi_samsung_cm
 			return 0;
 		}
 	}
+#endif
 
 	mutex_lock(&vdd->vdd_lock);
 	pcmds = mdss_samsung_cmds_select(ctrl, cmd, &flags);
@@ -2720,8 +2722,9 @@ int mdss_samsung_brightness_dcs(struct mdss_dsi_ctrl_pdata *ctrl, int level)
 				mdss_samsung_send_cmd(ctrl, PANEL_BLIC_DIMMING);
 			}
 
-			LCD_INFO("DSI%d level : %d  candela : %dCD hbm : %d (%d)\n",
-				ndx, vdd->bl_level, vdd->candela_level, vdd->display_status_dsi[ndx].hbm_mode, vdd->auto_brightness);
+			LCD_INFO("DSI%d level : %d  candela : %dCD hbm : %d (%d)  acl : %d\n",
+				ndx, vdd->bl_level, vdd->candela_level, vdd->display_status_dsi[ndx].hbm_mode,
+				vdd->auto_brightness, vdd->acl_status);
 		} else
 			LCD_INFO("DSDI%d single_transmission_fail error\n", ndx);
 	} else
@@ -3691,7 +3694,26 @@ void mdss_samsung_panel_parse_dt_cmds(struct device_node *np,
 
 	}
 }
+void mdss_samsung_update_current_resolution(struct mdss_panel_timing *timing)
+{
+	struct samsung_display_driver_data *vdd = samsung_get_vdd();
 
+	if(vdd->multires_stat.is_support)
+	{
+		switch(vdd->multires_stat.curr_mode)
+		{
+			case 0:
+				sec_set_param(param_index_lcd_resolution, "WQHD");
+				break;
+			case 1:
+				sec_set_param(param_index_lcd_resolution, "FHD");
+				break;
+			case 2:
+				sec_set_param(param_index_lcd_resolution, "HD");
+				break;
+		}
+	}
+}
 void mdss_samsung_check_hw_config(struct platform_device *pdev)
 {
 	struct mdss_dsi_data *dsi_res = platform_get_drvdata(pdev);

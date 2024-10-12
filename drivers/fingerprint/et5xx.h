@@ -180,6 +180,8 @@ struct etspi_data {
 	struct workqueue_struct *wq_dbg;
 	struct timer_list dbg_timer;
 	int sensortype;
+	int reset_count;
+	int interrupt_count;
 #ifdef CONFIG_SENSORS_FINGERPRINT_SYSFS
 	struct device *fp_device;
 #endif

@@ -4851,15 +4851,12 @@ static int _qce_suspend(void *handle)
 	if (handle == NULL)
 		return -ENODEV;
 
-	qce_enable_clk(pce_dev);
-
 	sps_pipe_info = pce_dev->ce_bam_info.consumer.pipe;
 	sps_disconnect(sps_pipe_info);
 
 	sps_pipe_info = pce_dev->ce_bam_info.producer.pipe;
 	sps_disconnect(sps_pipe_info);
 
-	qce_disable_clk(pce_dev);
 	return 0;
 }
 
@@ -4872,8 +4869,6 @@ static int _qce_resume(void *handle)
 
 	if (handle == NULL)
 		return -ENODEV;
-
-	qce_enable_clk(pce_dev);
 
 	sps_pipe_info = pce_dev->ce_bam_info.consumer.pipe;
 	sps_connect_info = &pce_dev->ce_bam_info.consumer.connect;
@@ -4897,7 +4892,6 @@ static int _qce_resume(void *handle)
 	if (rc)
 		pr_err("Producer callback registration failed rc = %d\n", rc);
 
-	qce_disable_clk(pce_dev);
 	return rc;
 }
 

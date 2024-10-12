@@ -1236,10 +1236,12 @@ static ssize_t tc300k_update_store(struct device *dev,
 	case 'S':
 		fw_path = FW_INKERNEL;
 		break;
+#ifndef CONFIG_SAMSUNG_PRODUCT_SHIP
 	case 'i':
 	case 'I':
 		fw_path = FW_SDCARD;
 		break;
+#endif
 	case 'f':
 	case 'F':
 		fw_path = FW_INKERNEL;

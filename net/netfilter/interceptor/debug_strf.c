@@ -1,6 +1,6 @@
 /**
    @copyright
-   Copyright (c) 2011 - 2015, INSIDE Secure Oy. All rights reserved.
+   Copyright (c) 2011 - 2016, INSIDE Secure Oy. All rights reserved.
 */
 
 #include "implementation_defs.h"
@@ -20,7 +20,7 @@ debug_str_hexbuf(
     DEBUG_STRBUF_BUFFER_GET(buf, &p, &p_len);
     for (i = 0; i < len && offset + 3 < p_len; i++)
     {
-        offset += snprintf(p + offset, len - offset, "%02x", u_data[i]);
+        offset += snprintf(p + offset, p_len - offset, "%02x", u_data[i]);
     }
 
     if (i < len && offset >= 4)
@@ -37,14 +37,14 @@ debug_str_hexbuf(
 const char *
 debug_strbuf_sshrender(
         DEBUG_STRBUF_TYPE dsb,
-        int (*ssh_renderer)(unsigned char *, int, int, void *),
+        int (*ssh_renderer)(char *, int, int, void *),
         void *render_datum)
 {
     char *p = DEBUG_STRBUF_ALLOC(dsb, 32);
 
     if (p != NULL)
     {
-        ssh_renderer((unsigned char *) p, 32, -1, render_datum);
+        ssh_renderer(p, 32, -1, render_datum);
 
         return p;
     }

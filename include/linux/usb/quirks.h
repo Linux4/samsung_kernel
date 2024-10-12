@@ -50,4 +50,7 @@
 /* device can't handle Link Power Management */
 #define USB_QUIRK_NO_LPM			BIT(10)
 
+/* Device needs a pause after every control message. */
+#define USB_QUIRK_DELAY_CTRL_MSG		BIT(13)
+
 #endif /* __LINUX_USB_QUIRKS_H */

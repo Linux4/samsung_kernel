@@ -24,7 +24,7 @@ debug_strbuf_get_block(
 {
     char *p = NULL;
 
-    if (size + 1 < (sizeof buf->buffer) - buf->offset)
+    if (size + 1 < (sizeof buf->buffer) - buf->offset - 1)
     {
         p = buf->buffer + buf->offset;
         buf->offset += size + 1;
@@ -41,7 +41,8 @@ debug_strbuf_buffer_get(
         int *len_p)
 {
     *str_p = buf->buffer + buf->offset;
-    *len_p = (sizeof buf->buffer) - buf->offset;
+    *len_p = (sizeof buf->buffer) - buf->offset - 1;
+    **str_p = 0;
 }
 
 
@@ -50,7 +51,9 @@ debug_strbuf_buffer_commit(
         struct DebugStrbuf *buf,
         int len)
 {
-    ASSERT(buf->offset + len <= sizeof buf->buffer);
+    ASSERT(buf->offset + len < sizeof buf->buffer);
 
     buf->offset += len;
+    buf->buffer[buf->offset] = 0;
+    buf->offset++;
 }

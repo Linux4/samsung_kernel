@@ -861,7 +861,7 @@ static int uas_switch_interface(struct usb_device *udev,
 		return -ENODEV;
 
 	return usb_set_interface(udev, alt->desc.bInterfaceNumber,
-		alt->desc.bAlternateSetting);
+			alt->desc.bAlternateSetting);
 }
 
 static int uas_configure_endpoints(struct uas_dev_info *devinfo)

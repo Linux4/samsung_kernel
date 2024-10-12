@@ -104,6 +104,13 @@ First Level Node - FG Gen3 device
 		    this property is not specified, then the default value used
 		    will be 75mA.
 
+- qcom,fg-cutoff-current
+	Usage:      optional
+	Value type: <u32>
+	Definition: Minimum Battery current (in mA) used for cutoff SOC
+		    estimate. If this property is not specified, then a default
+		    value of 500 mA will be applied.
+
 - qcom,fg-delta-soc-thr
 	Usage:      optional
 	Value type: <u32>
@@ -167,6 +174,14 @@ First Level Node - FG Gen3 device
 		    asleep and the battery is discharging. This option requires
 		    qcom,fg-esr-timer-awake to be defined. Array of 2 elements
 		    if specified.
+		    Element 0 - Retry value for timer
+		    Element 1 - Maximum value for timer
+
+- qcom,fg-esr-timer-shutdown
+	Usage:      optional
+	Value type: <prop-encoded-array>
+	Definition: Number of cycles between ESR pulses at/after shutdwon. This is
+		    defined when TWM (traditional watch mode) is supported.
 		    Element 0 - Retry value for timer
 		    Element 1 - Maximum value for timer
 
@@ -301,6 +316,13 @@ First Level Node - FG Gen3 device
 		    is specified to make it fully functional. Value has no
 		    unit. Allowed range is 0 to 62200 in micro units.
 
+- qcom,ki-coeff-full-dischg
+	Usage:      optional
+	Value type: <u32>
+	Definition: Ki coefficient full SOC value that will be applied during
+		    discharging. If not specified, a value of 0 will be set.
+		    Allowed range is from 245 to 62256.
+
 - qcom,fg-rconn-mohms
 	Usage:      optional
 	Value type: <u32>
@@ -384,6 +406,23 @@ First Level Node - FG Gen3 device
 		    These coefficients have to be specified along with the
 		    property "qcom,slope-limit-temp-threshold" to make dynamic
 		    slope limit adjustment functional.
+
+- qcom,fg-use-sw-esr
+	Usage:      optional
+	Value type: <empty>
+	Definition: A boolean property when defined uses software based
+		    ESR during charging.
+
+- qcom,fg-disable-esr-pull-dn
+	Usage:      optional
+	Value type: <empty>
+	Definition: A boolean property which disables ESR pull-down.
+		    This is to be used for debug purposes only.
+
+- qcom,fg-sync-sleep-threshold-ma
+	Usage:      optional
+	Value type: <u32>
+	Definition: The minimum battery current for FG to enter into sync-sleep.
 
 ==========================================================
 Second Level Nodes - Peripherals managed by FG Gen3 driver

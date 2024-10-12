@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2017, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2018, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -29,6 +29,8 @@
 #include <linux/regulator/machine.h>
 #include <linux/regulator/of_regulator.h>
 #include <linux/qpnp/power-on.h>
+#include <linux/qpnp/qpnp-pbs.h>
+#include <linux/qpnp-misc.h>
 #ifdef CONFIG_SEC_DEBUG
 #include <linux/qcom/sec_debug.h>
 #endif
@@ -211,6 +213,7 @@ struct qpnp_pon {
 	struct list_head	list;
 	struct delayed_work	bark_work;
 	struct dentry		*debugfs;
+	struct device_node	*pbs_dev_node;
 	int			pon_trigger_reason;
 	int			pon_power_off_reason;
 	int			num_pon_reg;
@@ -226,10 +229,13 @@ struct qpnp_pon {
 	u8			pon_ver;
 	u8			warm_reset_reason1;
 	u8			warm_reset_reason2;
+	u8			twm_state;
 	bool			is_spon;
 	bool			store_hard_reset_reason;
 	bool			kpdpwr_dbc_enable;
+	bool			support_twm_config;
 	ktime_t			kpdpwr_last_release_time;
+	struct notifier_block	pon_nb;
 #ifdef CONFIG_SEC_PM_DEBUG
 	int powerkey_state;
 #endif
@@ -514,13 +520,53 @@ static ssize_t qpnp_pon_dbc_store(struct device *dev,
 	return size;
 }
 
+static struct qpnp_pon_config *
+qpnp_get_cfg(struct qpnp_pon *pon, u32 pon_type)
+{
+	int i;
+
+	for (i = 0; i < pon->num_pon_config; i++) {
+		if (pon_type == pon->pon_cfg[i].pon_type)
+			return  &pon->pon_cfg[i];
+	}
+
+	return NULL;
+}
+
 static DEVICE_ATTR(debounce_us, 0664, qpnp_pon_dbc_show, qpnp_pon_dbc_store);
 
+#define PON_TWM_ENTRY_PBS_BIT		BIT(0)
 static int qpnp_pon_reset_config(struct qpnp_pon *pon,
 		enum pon_power_off_type type)
 {
 	int rc;
 	u16 rst_en_reg;
+	struct qpnp_pon_config *cfg;
+
+	/* Ignore the PS_HOLD reset config if TWM ENTRY is enabled */
+	if (pon->support_twm_config && pon->twm_state == PMIC_TWM_ENABLE) {
+		rc = qpnp_pbs_trigger_event(pon->pbs_dev_node,
+					PON_TWM_ENTRY_PBS_BIT);
+		if (rc < 0) {
+			pr_err("Unable to trigger PBS trigger for TWM entry rc=%d\n",
+							rc);
+			return rc;
+		}
+
+		cfg = qpnp_get_cfg(pon, PON_KPDPWR);
+		if (cfg) {
+			/* configure KPDPWR_S2 to Hard reset */
+			rc = qpnp_pon_masked_write(pon, cfg->s2_cntl_addr,
+						QPNP_PON_S2_CNTL_TYPE_MASK,
+						PON_POWER_OFF_HARD_RESET);
+			if (rc < 0)
+				pr_err("Unable to config KPDPWR_N S2 for hard-reset rc=%d\n",
+					rc);
+		}
+
+		pr_crit("PMIC configured for TWM entry\n");
+		return 0;
+	}
 
 	if (pon->pon_ver == QPNP_PON_GEN1_V1)
 		rst_en_reg = QPNP_PON_PS_HOLD_RST_CTL(pon);
@@ -803,19 +849,6 @@ static int qpnp_pon_store_and_clear_warm_reset(struct qpnp_pon *pon)
 	}
 
 	return 0;
-}
-
-static struct qpnp_pon_config *
-qpnp_get_cfg(struct qpnp_pon *pon, u32 pon_type)
-{
-	int i;
-
-	for (i = 0; i < pon->num_pon_config; i++) {
-		if (pon_type == pon->pon_cfg[i].pon_type)
-			return  &pon->pon_cfg[i];
-	}
-
-	return NULL;
 }
 
 static int
@@ -2125,6 +2158,35 @@ static int read_gen2_pon_off_reason(struct qpnp_pon *pon, u16 *reason,
 	return 0;
 }
 
+static int pon_twm_notifier_cb(struct notifier_block *nb,
+				unsigned long action, void *data)
+{
+	struct qpnp_pon *pon = container_of(nb, struct qpnp_pon, pon_nb);
+
+	if (action != PMIC_TWM_CLEAR &&
+			action != PMIC_TWM_ENABLE) {
+		pr_debug("Unsupported option %lu\n", action);
+		return NOTIFY_OK;
+	}
+
+	pon->twm_state = (u8)action;
+	pr_debug("TWM state = %d\n", pon->twm_state);
+
+	return NOTIFY_OK;
+}
+
+static int pon_register_twm_notifier(struct qpnp_pon *pon)
+{
+	int rc;
+
+	pon->pon_nb.notifier_call = pon_twm_notifier_cb;
+	rc = qpnp_misc_twm_notifier_register(&pon->pon_nb);
+	if (rc < 0)
+		pr_err("Failed to register pon_twm_notifier_cb rc=%d\n", rc);
+
+	return rc;
+}
+
 static ssize_t  sysfs_powerkey_onoff_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
@@ -2144,6 +2206,7 @@ static DEVICE_ATTR(sec_powerkey_pressed, 0444 , sysfs_powerkey_onoff_show, NULL)
 static int qpnp_wake_enabled(const char *val, const struct kernel_param *kp)
 {
 	int ret = 0;
+	int old_val = wake_enabled;
 	struct qpnp_pon_config *cfg;
 
 	ret = param_set_bool(val, kp);
@@ -2151,6 +2214,9 @@ static int qpnp_wake_enabled(const char *val, const struct kernel_param *kp)
 		pr_err("Unable to set qpnp_wake_enabled: %d\n", ret);
 		return ret;
 	}
+
+	if (old_val == wake_enabled)
+		return ret;
 
 	cfg = qpnp_get_cfg(sys_reset_dev, PON_KPDPWR);
 	if (!cfg) {
@@ -2163,7 +2229,8 @@ static int qpnp_wake_enabled(const char *val, const struct kernel_param *kp)
 	else
 		enable_irq_wake(cfg->state_irq);
 
-	pr_info("%s: wake_enabled = %d\n", KBUILD_MODNAME, wake_enabled);
+	pr_info("%s: wake_enabled changed [%d -> %d]\n",
+			__func__, old_val, wake_enabled);
 
 	return ret;
 }
@@ -2466,6 +2533,22 @@ static int qpnp_pon_probe(struct spmi_device *spmi)
 		dev_err(&spmi->dev,
 			"Unable to initialize PON configurations rc: %d\n", rc);
 		return rc;
+	}
+
+	if (of_property_read_bool(pon->spmi->dev.of_node,
+					"qcom,support-twm-config")) {
+		pon->support_twm_config = true;
+		rc = pon_register_twm_notifier(pon);
+		if (rc < 0) {
+			pr_err("Failed to register TWM notifier rc=%d\n", rc);
+			return rc;
+		}
+		pon->pbs_dev_node = of_parse_phandle(pon->spmi->dev.of_node,
+						"qcom,pbs-client", 0);
+		if (!pon->pbs_dev_node) {
+			pr_err("Missing qcom,pbs-client property\n");
+			return -EINVAL;
+		}
 	}
 
 	rc = of_property_read_u32(pon->spmi->dev.of_node,

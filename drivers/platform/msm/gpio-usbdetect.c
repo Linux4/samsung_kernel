@@ -1,4 +1,4 @@
-/* Copyright (c) 2013-2017, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2013-2018, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -37,8 +37,15 @@ struct gpio_usbdetect {
 	struct regulator	*vdd33;
 	struct regulator	*vdd12;
 	int			gpio_usbdetect;
+
+	int			id;
+	int			id_det_gpio;
+	int			id_det_irq;
+
 	bool			notify_host_mode;
 	bool			disable_device_mode;
+
+	int			dpdm_switch_gpio;
 };
 
 static int gpio_enable_ldos(struct gpio_usbdetect *usb, int on)
@@ -154,15 +161,28 @@ disable_vin:
 	return ret;
 }
 
-static irqreturn_t gpio_usbdetect_vbus_irq(int irq, void *data)
+static irqreturn_t gpio_usbdetect_irq(int irq, void *data)
 {
 	struct gpio_usbdetect *usb = data;
+
+	if (gpio_is_valid(usb->id_det_gpio)) {
+		usb->id = gpio_get_value(usb->id_det_gpio);
+		if (usb->id) {
+			dev_dbg(&usb->pdev->dev, "ID\n");
+			usb->vbus = gpio_get_value(usb->gpio_usbdetect);
+			goto queue_chg_work;
+		}
+		dev_dbg(&usb->pdev->dev, "!ID\n");
+		schedule_delayed_work(&usb->chg_work, 0);
+		return IRQ_HANDLED;
+	}
 
 	if (gpio_is_valid(usb->gpio_usbdetect))
 		usb->vbus = gpio_get_value(usb->gpio_usbdetect);
 	else
 		usb->vbus = !!irq_read_line(irq);
 
+queue_chg_work:
 	pm_wakeup_event(&usb->pdev->dev, WAKEUP_SRC_TIMEOUT_MS);
 	if (!usb->vbus)
 		schedule_delayed_work(&usb->chg_work, 0);
@@ -173,23 +193,76 @@ static irqreturn_t gpio_usbdetect_vbus_irq(int irq, void *data)
 	return IRQ_HANDLED;
 }
 
+static int gpio_usbdetect_notify_usb_type(struct gpio_usbdetect *usb,
+					enum power_supply_type type)
+{
+	int rc;
+	union power_supply_propval pval = {0, };
+
+	pval.intval = type;
+	rc = usb->usb_psy->set_property(usb->usb_psy,
+			POWER_SUPPLY_PROP_REAL_TYPE, &pval);
+	if (rc < 0) {
+		if (rc == -EINVAL) {
+			rc = usb->usb_psy->set_property(usb->usb_psy,
+					POWER_SUPPLY_PROP_TYPE, &pval);
+			if (!rc)
+				return 0;
+		}
+		pr_err("notify charger type to usb_psy failed, rc=%d\n", rc);
+	}
+
+	return rc;
+}
+
 static void gpio_usbdetect_chg_work(struct work_struct *w)
 {
 	struct gpio_usbdetect *usb = container_of(w, struct gpio_usbdetect,
 							chg_work.work);
+
+	if (gpio_is_valid(usb->id_det_gpio)) {
+		dev_dbg(&usb->pdev->dev, "ID:%d VBUS:%d\n",
+						usb->id, usb->vbus);
+		if (!usb->id) {
+			gpio_usbdetect_notify_usb_type(usb,
+					POWER_SUPPLY_TYPE_UNKNOWN);
+			power_supply_set_present(usb->usb_psy, 0);
+			power_supply_set_usb_otg(usb->usb_psy, 1);
+			if (gpio_is_valid(usb->dpdm_switch_gpio))
+				gpio_set_value(usb->dpdm_switch_gpio, 1);
+
+			return;
+		}
+
+		power_supply_set_usb_otg(usb->usb_psy, 0);
+		if (gpio_is_valid(usb->dpdm_switch_gpio))
+			gpio_set_value(usb->dpdm_switch_gpio, 0);
+
+		if (usb->vbus) {
+			gpio_usbdetect_notify_usb_type(usb,
+						POWER_SUPPLY_TYPE_USB);
+			power_supply_set_present(usb->usb_psy, usb->vbus);
+		} else {
+			gpio_usbdetect_notify_usb_type(usb,
+					POWER_SUPPLY_TYPE_UNKNOWN);
+			power_supply_set_present(usb->usb_psy, usb->vbus);
+		}
+
+		return;
+	}
 
 	if (usb->vbus) {
 		if (usb->notify_host_mode)
 			power_supply_set_usb_otg(usb->usb_psy, 0);
 
 		if (!usb->disable_device_mode) {
-			power_supply_set_supply_type(usb->usb_psy,
+			gpio_usbdetect_notify_usb_type(usb,
 						POWER_SUPPLY_TYPE_USB);
 			power_supply_set_present(usb->usb_psy, usb->vbus);
 		}
 	} else {
 		/* notify gpio_state = LOW as disconnect */
-		power_supply_set_supply_type(usb->usb_psy,
+		gpio_usbdetect_notify_usb_type(usb,
 				POWER_SUPPLY_TYPE_UNKNOWN);
 		power_supply_set_present(usb->usb_psy, usb->vbus);
 
@@ -254,7 +327,7 @@ static int gpio_usbdetect_probe(struct platform_device *pdev)
 	}
 
 	rc = devm_request_irq(&pdev->dev, usb->vbus_det_irq,
-			      gpio_usbdetect_vbus_irq,
+			      gpio_usbdetect_irq,
 			      IRQF_TRIGGER_RISING | IRQF_TRIGGER_FALLING,
 			      "vbus_det_irq", usb);
 	if (rc) {
@@ -263,14 +336,48 @@ static int gpio_usbdetect_probe(struct platform_device *pdev)
 		goto disable_ldo;
 	}
 
+	usb->id_det_gpio = of_get_named_gpio(pdev->dev.of_node,
+						"qcom,id-det-gpio", 0);
+	if (gpio_is_valid(usb->id_det_gpio)) {
+		rc = devm_gpio_request(&pdev->dev, usb->id_det_gpio,
+					"GPIO_ID_DET");
+		if (rc) {
+			dev_err(&pdev->dev, "gpio req failed for gpio_%d\n",
+							usb->id_det_gpio);
+			goto disable_ldo;
+		}
+
+		usb->id_det_irq = gpio_to_irq(usb->id_det_gpio);
+		if (usb->id_det_irq < 0) {
+			dev_err(&pdev->dev, "get id_det_irq failed\n");
+			goto disable_ldo;
+		}
+		rc = devm_request_irq(&pdev->dev, usb->id_det_irq,
+					gpio_usbdetect_irq,
+					IRQF_TRIGGER_RISING |
+					IRQF_TRIGGER_FALLING, "id_det_irq",
+					usb);
+		if (rc) {
+			dev_err(&pdev->dev, "request for id_det_irq failed:%d\n",
+					rc);
+			goto disable_ldo;
+		}
+	}
+
+	usb->dpdm_switch_gpio = of_get_named_gpio(pdev->dev.of_node,
+						"qcom,dpdm_switch_gpio", 0);
+	dev_dbg(&pdev->dev, "is dpdm_switch_gpio valid:%d\n",
+					gpio_is_valid(usb->dpdm_switch_gpio));
+
 	device_init_wakeup(&pdev->dev, 1);
 
 	enable_irq_wake(usb->vbus_det_irq);
+	enable_irq_wake(usb->id_det_irq);
 	dev_set_drvdata(&pdev->dev, usb);
 
 	/* Read and report initial VBUS state */
 	local_irq_save(flags);
-	gpio_usbdetect_vbus_irq(usb->vbus_det_irq, usb);
+	gpio_usbdetect_irq(usb->vbus_det_irq, usb);
 	local_irq_restore(flags);
 
 	return 0;

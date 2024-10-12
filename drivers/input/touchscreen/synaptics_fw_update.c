@@ -1769,7 +1769,6 @@ static ssize_t fwu_sysfs_store_image(struct file *data_file,
 		struct kobject *kobj, struct bin_attribute *attributes,
 		char *buf, loff_t pos, size_t count)
 {
-<<<<<<< HEAD
 	ssize_t retval;
 
 	if (!mutex_trylock(&fwu_sysfs_mutex))
@@ -1780,19 +1779,13 @@ static ssize_t fwu_sysfs_store_image(struct file *data_file,
 		retval = -EAGAIN;
 		goto exit;
 	}
-=======
->>>>>>> 17d1c3594c1c... upsync SS N //TASK/LEGACY/NOUGAT/Combination/MSM8996/kernel/... @12304742
 	if (count > fwu->image_size - fwu->data_pos) {
 		dev_err(&fwu->rmi4_data->i2c_client->dev,
 				"%s: Not enough space in buffer\n",
 				__func__);
-<<<<<<< HEAD
 
 		retval = -EINVAL;
 		goto exit;
-=======
-		return -EINVAL;
->>>>>>> 17d1c3594c1c... upsync SS N //TASK/LEGACY/NOUGAT/Combination/MSM8996/kernel/... @12304742
 	}
 
 	memcpy((void *)(&fwu->ext_data_source[fwu->data_pos]),

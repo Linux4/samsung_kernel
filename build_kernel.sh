@@ -1,10 +1,14 @@
+
 #!/bin/bash
 
-export CROSS_COMPILE=$(pwd)/../PLATFORM/prebuilts/gcc/linux-x86/aarch64/aarch64-linux-android-4.9/bin/aarch64-linux-android-
+export PATH=$(pwd)/../PLATFORM/prebuilts/gcc/linux-x86/aarch64/aarch64-linux-android-4.9/bin:$PATH
+# export SEC_BUILD_OPTION_HW_REVISION=02
 
 mkdir out
-export ARCH=arm64
-make -C $(pwd) O=$(pwd)/out KCFLAGS=-mno-android gts3llte_eur_open_defconfig
-make -j64 -C $(pwd) O=$(pwd)/out KCFLAGS=-mno-android
+
+make -C $(pwd) O=$(pwd)/out ARCH=arm64 CROSS_COMPILE=aarch64-linux-android- KCFLAGS=-mno-android VARIANT_DEFCONFIG=msm8996_sec_gts3llte_mea_jv_defconfig msm8996_sec_defconfig SELINUX_DEFCONFIG=selinux_defconfig SELINUX_LOG_DEFCONFIG=selinux_log_defconfig 
+
+make -j64 -C $(pwd) O=$(pwd)/out ARCH=arm64 CROSS_COMPILE=aarch64-linux-android- KCFLAGS=-mno-android
 
 cp out/arch/arm64/boot/Image $(pwd)/arch/arm64/boot/Image
+

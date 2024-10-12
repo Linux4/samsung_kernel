@@ -1,4 +1,4 @@
-/* Copyright (c) 2017, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2017-2018, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -25,7 +25,10 @@
 #include <linux/gpio.h>
 #include <linux/of_gpio.h>
 #include <linux/kthread.h>
+#include <linux/dma-mapping.h>
 #include "bgcom.h"
+#include "bgrsb.h"
+#include "bgcom_interface.h"
 
 #define BG_SPI_WORD_SIZE (0x04)
 #define BG_SPI_READ_LEN (0x04)
@@ -37,14 +40,23 @@
 #define BG_SPI_AHB_CMD_LEN (0x05)
 #define BG_SPI_AHB_READ_CMD_LEN (0x08)
 #define BG_STATUS_REG (0x05)
+#define BG_CMND_REG (0x14)
 
 #define BG_SPI_MAX_WORDS (0x3FFFFFFD)
 #define BG_SPI_MAX_REGS (0x0A)
+#define HED_EVENT_ID_LEN (0x02)
+#define HED_EVENT_SIZE_LEN (0x02)
+#define HED_EVENT_DATA_STRT_LEN (0x05)
+#define CMA_BFFR_POOL_SIZE (128*1024)
+
+#define MAX_RETRY 500
 
 enum bgcom_state {
 	/*BGCOM Staus ready*/
 	BGCOM_PROB_SUCCESS = 0,
 	BGCOM_PROB_WAIT = 1,
+	BGCOM_STATE_SUSPEND = 2,
+	BGCOM_STATE_ACTIVE = 3
 };
 
 enum bgcom_req_type {
@@ -52,6 +64,7 @@ enum bgcom_req_type {
 	BGCOM_READ_REG = 0,
 	BGCOM_READ_FIFO = 1,
 	BGCOM_READ_AHB = 2,
+	BGCOM_WRITE_REG = 3,
 };
 
 struct bg_spi_priv {
@@ -63,6 +76,8 @@ struct bg_spi_priv {
 	struct spi_message msg1;
 	struct spi_transfer xfer1;
 	int irq_lock;
+
+	enum bgcom_state bg_state;
 };
 
 struct cb_data {
@@ -80,19 +95,77 @@ struct bg_context {
 	struct cb_data *cb;
 };
 
+struct event_list {
+	struct event *evnt;
+	struct list_head list;
+};
 static void *bg_com_drv;
 static uint32_t g_slav_status_reg;
 
 /* BGCOM client callbacks set-up */
+static void send_input_events(struct work_struct *work);
 static struct list_head cb_head = LIST_HEAD_INIT(cb_head);
-
+static struct list_head pr_lst_hd = LIST_HEAD_INIT(pr_lst_hd);
 static enum bgcom_spi_state spi_state;
+
+
+static struct workqueue_struct *wq;
+static DECLARE_WORK(input_work , send_input_events);
+
+static struct mutex bg_resume_mutex;
+
+static atomic_t  bg_is_spi_active;
+static int bg_irq;
+
+static uint8_t *fxd_mem_buffer;
+static struct mutex cma_buffer_lock;
+
+static struct spi_device *get_spi_device(void)
+{
+	struct bg_spi_priv *bg_spi = container_of(bg_com_drv,
+						struct bg_spi_priv, lhandle);
+	struct spi_device *spi = bg_spi->spi;
+	return spi;
+}
+
+static void augmnt_fifo(uint8_t *data, int pos)
+{
+	data[pos] = '\0';
+}
+
+static void send_input_events(struct work_struct *work)
+{
+	struct list_head *temp;
+	struct list_head *pos;
+	struct event_list *node;
+	struct event *evnt;
+
+	if (list_empty(&pr_lst_hd))
+		return;
+
+	list_for_each_safe(pos, temp, &pr_lst_hd) {
+		node = list_entry(pos, struct event_list, list);
+		evnt = node->evnt;
+		bgrsb_send_input(evnt);
+		kfree(evnt);
+		list_del(&node->list);
+		kfree(node);
+	}
+}
 
 int bgcom_set_spi_state(enum bgcom_spi_state state)
 {
+	struct bg_spi_priv *bg_spi = container_of(bg_com_drv,
+						struct bg_spi_priv, lhandle);
 	if (state < 0 || state > 1)
 		return -EINVAL;
+
+	if (state == spi_state)
+		return 0;
+
+	mutex_lock(&bg_spi->xfer_mutex);
 	spi_state = state;
+	mutex_unlock(&bg_spi->xfer_mutex);
 	return 0;
 }
 EXPORT_SYMBOL(bgcom_set_spi_state);
@@ -105,7 +178,7 @@ void add_to_irq_list(struct  cb_data *data)
 
 static bool is_bgcom_ready(void)
 {
-	return bg_com_drv ? true : false;
+	return (bg_com_drv != NULL ? true : false);
 }
 
 static void bg_spi_reinit_xfer(struct spi_transfer *xfer)
@@ -138,6 +211,10 @@ static int read_bg_locl(enum bgcom_req_type req_type,
 	case BGCOM_READ_FIFO:
 		ret = bgcom_fifo_read(&clnt_handle, no_of_words, buf);
 		break;
+	case BGCOM_WRITE_REG:
+		ret = bgcom_reg_write(&clnt_handle, BG_CMND_REG,
+					no_of_words, buf);
+		break;
 	case BGCOM_READ_AHB:
 		break;
 	}
@@ -159,6 +236,8 @@ static int bgcom_transfer(void *handle, uint8_t *tx_buf,
 	cntx = (struct bg_context *)handle;
 
 	if (cntx->state == BGCOM_PROB_WAIT) {
+		if (!is_bgcom_ready())
+			return -ENODEV;
 		cntx->bg_spi = container_of(bg_com_drv,
 						struct bg_spi_priv, lhandle);
 		cntx->state = BGCOM_PROB_SUCCESS;
@@ -170,6 +249,9 @@ static int bgcom_transfer(void *handle, uint8_t *tx_buf,
 
 	tx_xfer = &bg_spi->xfer1;
 	spi = bg_spi->spi;
+
+	if (!atomic_read(&bg_is_spi_active))
+		return -ECANCELED;
 
 	mutex_lock(&bg_spi->xfer_mutex);
 	bg_spi_reinit_xfer(tx_xfer);
@@ -201,6 +283,62 @@ void send_event(enum bgcom_event_type event,
 		cb->bgcom_notification_cb(cb->handle,
 		cb->priv,  event, data);
 	}
+}
+
+void bgcom_bgdown_handler(void)
+{
+	send_event(BGCOM_EVENT_RESET_OCCURRED, NULL);
+	g_slav_status_reg = 0;
+}
+EXPORT_SYMBOL(bgcom_bgdown_handler);
+
+static void parse_fifo(uint8_t *data, union bgcom_event_data_type *event_data)
+{
+	uint16_t p_len;
+	uint8_t sub_id;
+	uint32_t evnt_tm;
+	uint16_t event_id;
+	void *evnt_data;
+	struct event *evnt;
+	struct event_list *data_list;
+
+	while (*data != '\0') {
+
+		event_id = *((uint16_t *) data);
+		data = data + HED_EVENT_ID_LEN;
+		p_len = *((uint16_t *) data);
+		data = data + HED_EVENT_SIZE_LEN;
+
+		if (event_id == 0xFFFE) {
+
+			sub_id = *data;
+			evnt_tm = *((uint32_t *)(data+1));
+
+			evnt = kmalloc(sizeof(*evnt), GFP_KERNEL);
+			evnt->sub_id = sub_id;
+			evnt->evnt_tm = evnt_tm;
+			evnt->evnt_data =
+				*(int16_t *)(data + HED_EVENT_DATA_STRT_LEN);
+
+			data_list = kmalloc(sizeof(*data_list), GFP_KERNEL);
+			data_list->evnt = evnt;
+			list_add_tail(&data_list->list, &pr_lst_hd);
+
+		} else if (event_id == 0x0001) {
+			evnt_data = kmalloc(p_len, GFP_KERNEL);
+			if (evnt_data != NULL) {
+				memcpy(evnt_data, data, p_len);
+				event_data->fifo_data.to_master_fifo_used =
+						p_len/BG_SPI_WORD_SIZE;
+				event_data->fifo_data.data = evnt_data;
+				send_event(BGCOM_EVENT_TO_MASTER_FIFO_USED,
+						event_data);
+			}
+		}
+		data = data + p_len;
+	}
+	if (!list_empty(&pr_lst_hd))
+		queue_work(wq, &input_work);
 }
 
 static void send_back_notification(uint32_t slav_status_reg,
@@ -277,25 +415,22 @@ static void send_back_notification(uint32_t slav_status_reg,
 	}
 
 	if (master_fifo_used > 0) {
-		ptr = kzalloc(master_fifo_used*BG_SPI_WORD_SIZE,
+		ptr = kzalloc(master_fifo_used*BG_SPI_WORD_SIZE + 1,
 			GFP_KERNEL | GFP_ATOMIC);
 		if (ptr != NULL) {
 			ret = read_bg_locl(BGCOM_READ_FIFO,
 				master_fifo_used,  ptr);
 			if (!ret) {
-				event_data.fifo_data.to_master_fifo_used =
-					master_fifo_used;
-				event_data.fifo_data.data = ptr;
-				send_event(BGCOM_EVENT_TO_MASTER_FIFO_USED,
-					&event_data);
+				augmnt_fifo((uint8_t *)ptr,
+					master_fifo_used*BG_SPI_WORD_SIZE);
+				parse_fifo((uint8_t *)ptr, &event_data);
 			}
+			kfree(ptr);
 		}
 	}
 
-	if (slave_fifo_free > 0) {
-		event_data.to_slave_fifo_free = slave_fifo_free;
-		send_event(BGCOM_EVENT_TO_SLAVE_FIFO_FREE, &event_data);
-	}
+	event_data.to_slave_fifo_free = slave_fifo_free;
+	send_event(BGCOM_EVENT_TO_SLAVE_FIFO_FREE, &event_data);
 }
 
 static void bg_irq_tasklet_hndlr_l(void)
@@ -328,6 +463,7 @@ static void bg_irq_tasklet_hndlr_l(void)
 int bgcom_ahb_read(void *handle, uint32_t ahb_start_addr,
 	uint32_t num_words, void *read_buf)
 {
+	dma_addr_t dma_hndl_tx, dma_hndl_rx;
 	uint32_t txn_len;
 	uint8_t *tx_buf;
 	uint8_t *rx_buf;
@@ -335,6 +471,7 @@ int bgcom_ahb_read(void *handle, uint32_t ahb_start_addr,
 	int ret;
 	uint8_t cmnd = 0;
 	uint32_t ahb_addr = 0;
+	struct spi_device *spi = get_spi_device();
 
 	if (!handle || !read_buf || num_words == 0
 		|| num_words > BG_SPI_MAX_WORDS) {
@@ -349,18 +486,24 @@ int bgcom_ahb_read(void *handle, uint32_t ahb_start_addr,
 		return -EBUSY;
 	}
 
+	if (bgcom_resume(handle)) {
+		pr_err("Failed to resume\n");
+		return -EBUSY;
+	}
+
 	size = num_words*BG_SPI_WORD_SIZE;
 	txn_len = BG_SPI_AHB_READ_CMD_LEN + size;
 
-	tx_buf = kzalloc(txn_len, GFP_KERNEL);
 
+	tx_buf = dma_zalloc_coherent(&spi->dev, txn_len,
+					&dma_hndl_tx, GFP_KERNEL);
 	if (!tx_buf)
 		return -ENOMEM;
 
-	rx_buf = kzalloc(txn_len, GFP_KERNEL);
-
+	rx_buf = dma_zalloc_coherent(&spi->dev, txn_len,
+					&dma_hndl_rx, GFP_KERNEL);
 	if (!rx_buf) {
-		kfree(tx_buf);
+		dma_free_coherent(&spi->dev, txn_len, tx_buf, dma_hndl_tx);
 		return -ENOMEM;
 	}
 
@@ -375,8 +518,8 @@ int bgcom_ahb_read(void *handle, uint32_t ahb_start_addr,
 	if (!ret)
 		memcpy(read_buf, rx_buf+BG_SPI_AHB_READ_CMD_LEN, size);
 
-	kfree(tx_buf);
-	kfree(rx_buf);
+	dma_free_coherent(&spi->dev, txn_len, tx_buf, dma_hndl_tx);
+	dma_free_coherent(&spi->dev, txn_len, rx_buf, dma_hndl_rx);
 	return ret;
 }
 EXPORT_SYMBOL(bgcom_ahb_read);
@@ -384,12 +527,15 @@ EXPORT_SYMBOL(bgcom_ahb_read);
 int bgcom_ahb_write(void *handle, uint32_t ahb_start_addr,
 	uint32_t num_words, void *write_buf)
 {
+	dma_addr_t dma_hndl;
 	uint32_t txn_len;
 	uint8_t *tx_buf;
 	uint32_t size;
 	int ret;
+	bool is_cma_used = false;
 	uint8_t cmnd = 0;
 	uint32_t ahb_addr = 0;
+	struct spi_device *spi = get_spi_device();
 
 	if (!handle || !write_buf || num_words == 0
 		|| num_words > BG_SPI_MAX_WORDS) {
@@ -405,13 +551,29 @@ int bgcom_ahb_write(void *handle, uint32_t ahb_start_addr,
 		return -EBUSY;
 	}
 
+	if (bgcom_resume(handle)) {
+		pr_err("Failed to resume\n");
+		return -EBUSY;
+	}
+
+
+	mutex_lock(&cma_buffer_lock);
 	size = num_words*BG_SPI_WORD_SIZE;
 	txn_len = BG_SPI_AHB_CMD_LEN + size;
+	if (fxd_mem_buffer != NULL && txn_len <= CMA_BFFR_POOL_SIZE) {
+		memset(fxd_mem_buffer, 0, txn_len);
+		tx_buf = fxd_mem_buffer;
+		is_cma_used = true;
+	} else {
+		pr_info("DMA memory used for size[%d]\n", txn_len);
+		tx_buf = dma_zalloc_coherent(&spi->dev, txn_len,
+						&dma_hndl, GFP_KERNEL);
+	}
 
-	tx_buf = kzalloc(txn_len, GFP_KERNEL);
-
-	if (!tx_buf)
+	if (!tx_buf) {
+		mutex_unlock(&cma_buffer_lock);
 		return -ENOMEM;
+	}
 
 	cmnd |= BG_SPI_AHB_WRITE_CMD;
 	ahb_addr |= ahb_start_addr;
@@ -421,7 +583,9 @@ int bgcom_ahb_write(void *handle, uint32_t ahb_start_addr,
 	memcpy(tx_buf+BG_SPI_AHB_CMD_LEN, write_buf, size);
 
 	ret = bgcom_transfer(handle, tx_buf, NULL, txn_len);
-	kfree(tx_buf);
+	if (!is_cma_used)
+		dma_free_coherent(&spi->dev, txn_len, tx_buf, dma_hndl);
+	mutex_unlock(&cma_buffer_lock);
 	return ret;
 }
 EXPORT_SYMBOL(bgcom_ahb_write);
@@ -446,6 +610,11 @@ int bgcom_fifo_write(void *handle, uint32_t num_words,
 
 	if (spi_state == BGCOM_SPI_BUSY) {
 		pr_err("Device busy\n");
+		return -EBUSY;
+	}
+
+	if (bgcom_resume(handle)) {
+		pr_err("Failed to resume\n");
 		return -EBUSY;
 	}
 
@@ -488,6 +657,11 @@ int bgcom_fifo_read(void *handle, uint32_t num_words,
 
 	if (spi_state == BGCOM_SPI_BUSY) {
 		pr_err("Device busy\n");
+		return -EBUSY;
+	}
+
+	if (bgcom_resume(handle)) {
+		pr_err("Failed to resume\n");
 		return -EBUSY;
 	}
 
@@ -538,6 +712,11 @@ int bgcom_reg_write(void *handle, uint8_t reg_start_addr,
 
 	if (spi_state == BGCOM_SPI_BUSY) {
 		pr_err("Device busy\n");
+		return -EBUSY;
+	}
+
+	if (bgcom_resume(handle)) {
+		pr_err("Failed to resume\n");
 		return -EBUSY;
 	}
 
@@ -611,16 +790,73 @@ int bgcom_reg_read(void *handle, uint8_t reg_start_addr,
 }
 EXPORT_SYMBOL(bgcom_reg_read);
 
+static int is_bg_resume(void *handle)
+{
+	uint32_t txn_len;
+	int ret;
+	uint8_t tx_buf[8] = {0};
+	uint8_t rx_buf[8] = {0};
+	uint32_t cmnd_reg = 0;
+
+	if (spi_state == BGCOM_SPI_BUSY) {
+		printk_ratelimited("SPI is held by TZ\n");
+		goto ret_err;
+	}
+
+	txn_len = 0x08;
+	tx_buf[0] = 0x05;
+	ret = bgcom_transfer(handle, tx_buf, rx_buf, txn_len);
+	if (!ret)
+		memcpy(&cmnd_reg, rx_buf+BG_SPI_READ_LEN, 0x04);
+
+ret_err:
+	return cmnd_reg & BIT(31);
+}
+
 int bgcom_resume(void *handle)
 {
-	return handle ? 0 : -EINVAL;
+	struct bg_spi_priv *bg_spi;
+	struct bg_context *cntx;
+	int retry = 0;
+
+	if (handle == NULL)
+		return -EINVAL;
+
+	if (!atomic_read(&bg_is_spi_active))
+		return -ECANCELED;
+
+	cntx = (struct bg_context *)handle;
+	bg_spi = cntx->bg_spi;
+
+	mutex_lock(&bg_resume_mutex);
+	if (bg_spi->bg_state == BGCOM_STATE_ACTIVE)
+		goto unlock;
+	do {
+		if (is_bg_resume(handle)) {
+			bg_spi->bg_state = BGCOM_STATE_ACTIVE;
+			break;
+		}
+		udelay(10);
+		++retry;
+	} while (retry < MAX_RETRY);
+
+unlock:
+	mutex_unlock(&bg_resume_mutex);
+	if (retry == MAX_RETRY) {
+		/* BG failed to resume. Trigger BG soft reset. */
+		pr_err("BG failed to resume\n");
+		bg_soft_reset();
+		return -ETIMEDOUT;
+	}
+	return 0;
 }
 EXPORT_SYMBOL(bgcom_resume);
 
 int bgcom_suspend(void *handle)
 {
-	return handle ? 0 : -EINVAL;
-
+	if (!handle)
+		return -EINVAL;
+	return 0;
 }
 EXPORT_SYMBOL(bgcom_suspend);
 
@@ -688,11 +924,17 @@ EXPORT_SYMBOL(bgcom_close);
 static irqreturn_t bg_irq_tasklet_hndlr(int irq, void *device)
 {
 	struct bg_spi_priv *bg_spi = device;
+
 	/* check if call-back exists */
-	if (list_empty(&cb_head)) {
-		pr_debug("No callback registered\n");
+	if (!atomic_read(&bg_is_spi_active)) {
+		printk_ratelimited("Interrupt received in suspend state\n");
+		return IRQ_HANDLED;
+	} else if (list_empty(&cb_head)) {
+		pr_err("No callback registered\n");
 		return IRQ_HANDLED;
 	} else if (spi_state == BGCOM_SPI_BUSY) {
+		/* delay for spi to be freed */
+		msleep(50);
 		return IRQ_HANDLED;
 	} else if (!bg_spi->irq_lock) {
 		bg_spi->irq_lock = 1;
@@ -715,10 +957,21 @@ static void bg_spi_init(struct bg_spi_priv *bg_spi)
 	spi_message_add_tail(&bg_spi->xfer1, &bg_spi->msg1);
 
 	/* BGCOM IRQ set-up */
-	bg_com_drv = &bg_spi->lhandle;
 	bg_spi->irq_lock = 0;
 
 	spi_state = BGCOM_SPI_FREE;
+
+	wq = create_singlethread_workqueue("input_wq");
+
+	bg_spi->bg_state = BGCOM_STATE_ACTIVE;
+
+	bg_com_drv = &bg_spi->lhandle;
+
+	mutex_init(&bg_resume_mutex);
+
+	fxd_mem_buffer = kmalloc(CMA_BFFR_POOL_SIZE, GFP_KERNEL | GFP_ATOMIC);
+
+	mutex_init(&cma_buffer_lock);
 }
 
 static int bg_spi_probe(struct spi_device *spi)
@@ -726,7 +979,6 @@ static int bg_spi_probe(struct spi_device *spi)
 	struct bg_spi_priv *bg_spi;
 	struct device_node *node;
 	int irq_gpio = 0;
-	int bg_irq = 0;
 	int ret;
 
 	bg_spi = devm_kzalloc(&spi->dev, sizeof(*bg_spi),
@@ -763,6 +1015,10 @@ static int bg_spi_probe(struct spi_device *spi)
 
 	if (ret)
 		goto err_ret;
+
+	atomic_set(&bg_is_spi_active, 1);
+	dma_set_coherent_mask(&spi->dev, DMA_BIT_MASK(64));
+	pr_info("Bgcom Probed successfully\n");
 	return ret;
 
 err_ret:
@@ -779,9 +1035,58 @@ static int bg_spi_remove(struct spi_device *spi)
 	mutex_destroy(&bg_spi->xfer_mutex);
 	devm_kfree(&spi->dev, bg_spi);
 	spi_set_drvdata(spi, NULL);
-
+	if (fxd_mem_buffer != NULL)
+		kfree(fxd_mem_buffer);
+	mutex_destroy(&cma_buffer_lock);
 	return 0;
 }
+
+static void bg_spi_shutdown(struct spi_device *spi)
+{
+	bg_spi_remove(spi);
+}
+
+static int bgcom_pm_suspend(struct device *dev)
+{
+	uint32_t cmnd_reg = 0;
+	struct spi_device *s_dev = to_spi_device(dev);
+	struct bg_spi_priv *bg_spi = spi_get_drvdata(s_dev);
+	int ret = 0;
+
+	if (bg_spi->bg_state == BGCOM_STATE_SUSPEND)
+		return 0;
+
+	cmnd_reg |= BIT(31);
+	ret = read_bg_locl(BGCOM_WRITE_REG, 1, &cmnd_reg);
+	if (ret == 0) {
+		bg_spi->bg_state = BGCOM_STATE_SUSPEND;
+		atomic_set(&bg_is_spi_active, 0);
+		disable_irq(bg_irq);
+	}
+	pr_info("suspended with : %d\n", ret);
+	return ret;
+}
+
+static int bgcom_pm_resume(struct device *dev)
+{
+	struct bg_context clnt_handle;
+	int ret;
+	struct bg_spi_priv *spi =
+		container_of(bg_com_drv, struct bg_spi_priv, lhandle);
+
+	clnt_handle.bg_spi = spi;
+	atomic_set(&bg_is_spi_active, 1);
+	ret = bgcom_resume(&clnt_handle);
+	if (ret == 0)
+		enable_irq(bg_irq);
+	pr_info("Bgcom resumed with : %d\n", ret);
+	return ret;
+}
+
+static const struct dev_pm_ops bgcom_pm = {
+	.suspend = bgcom_pm_suspend,
+	.resume = bgcom_pm_resume,
+};
 
 static const struct of_device_id bg_spi_of_match[] = {
 	{ .compatible = "qcom,bg-spi", },
@@ -793,9 +1098,11 @@ static struct spi_driver bg_spi_driver = {
 	.driver = {
 		.name = "bg-spi",
 		.of_match_table = bg_spi_of_match,
+		.pm = &bgcom_pm,
 	},
 	.probe = bg_spi_probe,
 	.remove = bg_spi_remove,
+	.shutdown = bg_spi_shutdown,
 };
 
 module_spi_driver(bg_spi_driver);

@@ -1530,10 +1530,12 @@ static ssize_t tc3xxk_update_store(struct device *dev,
 	case 'F':
 		fw_path = FW_INKERNEL;
 		break;
+#ifndef CONFIG_SAMSUNG_PRODUCT_SHIP
 	case 'i':
 	case 'I':
 		fw_path = FW_SDCARD;
 		break;
+#endif
 	default:
 		input_err(true, &client->dev, "[TK] %s wrong command fail\n", __func__);
 		data->fw_update_status = TK_UPDATE_FAIL;

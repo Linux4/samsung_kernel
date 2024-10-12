@@ -1,4 +1,4 @@
-/* Copyright (c) 2008-2017, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2008-2018, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -60,7 +60,7 @@ enum fps_resolution {
 #define WRITEBACK_PANEL		10	/* Wifi display */
 #define LVDS_PANEL		11	/* LVDS */
 #define EDP_PANEL		12	/* LVDS */
-
+#define SPI_PANEL		13
 #define DSC_PPS_LEN		128
 
 /* HDR propeties count */
@@ -108,6 +108,7 @@ enum {
 	MDSS_PANEL_INTF_DSI,
 	MDSS_PANEL_INTF_EDP,
 	MDSS_PANEL_INTF_HDMI,
+	MDSS_PANEL_INTF_SPI,
 };
 
 enum {
@@ -117,10 +118,6 @@ enum {
 	MDSS_PANEL_POWER_LP2,
 };
 
-enum {
-	MDSS_PANEL_LOW_PERSIST_MODE_OFF = 0,
-	MDSS_PANEL_LOW_PERSIST_MODE_ON,
-};
 #if defined(CONFIG_FB_MSM_MDSS_SAMSUNG)
 enum {
 	MDSS_PANEL_BLANK_BLANK = 0,
@@ -128,7 +125,18 @@ enum {
 	MDSS_PANEL_BLANK_LOW_POWER,
 	MDSS_PANEL_BLANK_READY_TO_UNBLANK,
 };
+#else 
+enum {
+	MDSS_PANEL_BLANK_BLANK = 0,
+	MDSS_PANEL_BLANK_UNBLANK,
+	MDSS_PANEL_BLANK_LOW_POWER,
+};
 #endif
+
+enum {
+	MDSS_PANEL_LOW_PERSIST_MODE_OFF = 0,
+	MDSS_PANEL_LOW_PERSIST_MODE_ON,
+};
 
 enum {
 	MODE_GPIO_NOT_VALID = 0,
@@ -445,6 +453,10 @@ struct edp_panel_info {
 	char frame_rate;	/* fps */
 };
 
+struct spi_panel_info {
+	char frame_rate;
+};
+
 /**
  * struct dynamic_fps_data - defines dynamic fps related data
  * @hfp: horizontal front porch
@@ -751,6 +763,7 @@ struct mdss_panel_info {
 	struct lcd_panel_info lcdc;
 	struct fbc_panel_info fbc;
 	struct mipi_panel_info mipi;
+	struct spi_panel_info spi;
 	struct lvds_panel_info lvds;
 	struct edp_panel_info edp;
 
@@ -771,6 +784,8 @@ struct mdss_panel_info {
 	struct mdss_panel_hdr_properties hdr_properties;	
 #if defined(CONFIG_FB_MSM_MDSS_SAMSUNG)
 	int panel_state;
+	int blank_state;
+#else
 	int blank_state;
 #endif
 };
@@ -840,6 +855,7 @@ struct mdss_panel_data {
 	struct mdss_panel_data *next;
 
 	int panel_te_gpio;
+	int panel_en_gpio;
 	struct completion te_done;
 #if defined(CONFIG_FB_MSM_MDSS_SAMSUNG)
 	void *panel_private;
@@ -895,6 +911,9 @@ static inline u32 mdss_panel_get_framerate(struct mdss_panel_info *panel_info,
 			frame_rate = panel_info->lcdc.frame_rate;
 			break;
 		}
+	case SPI_PANEL:
+		frame_rate = panel_info->spi.frame_rate;
+		break;
 	default:
 		pixel_total = (panel_info->lcdc.h_back_porch +
 			  panel_info->lcdc.h_front_porch +

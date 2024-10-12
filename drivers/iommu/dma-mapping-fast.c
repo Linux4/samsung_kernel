@@ -397,10 +397,20 @@ static void *fast_smmu_alloc(struct device *dev, size_t size,
 	av8l_fast_iopte *ptep;
 	unsigned long flags;
 	struct sg_mapping_iter miter;
-	unsigned int count = ALIGN(size, SZ_4K) >> PAGE_SHIFT;
+	size_t count = ALIGN(size, SZ_4K) >> PAGE_SHIFT;
 	int prot = IOMMU_READ | IOMMU_WRITE; /* TODO: extract from attrs */
 	pgprot_t remap_prot = pgprot_writecombine(PAGE_KERNEL);
 	struct page **pages;
+
+	/*
+	 * sg_alloc_table_from_pages accepts unsigned int value for count
+	 * so check count doesn't exceed UINT_MAX.
+	 */
+
+	if (count > UINT_MAX) {
+		dev_err(dev, "count: %zx exceeds UNIT_MAX\n", count);
+		return NULL;
+	}
 
 	*handle = DMA_ERROR_CODE;
 

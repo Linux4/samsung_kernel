@@ -118,6 +118,10 @@
 #define HDD_SET_MCBC_FILTERS_TO_FW      1
 #define HDD_DELETE_MCBC_FILTERS_FROM_FW 0
 
+#ifdef SEC_WRITE_VERSION_IN_SYSFS
+tANI_U8 sec_versionString[128];
+#endif /* SEC_WRITE_VERSION_IN_SYSFS */
+
 static int ioctl_debug;
 module_param(ioctl_debug, int, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
 
@@ -898,16 +902,11 @@ void hdd_wlan_get_version(hdd_adapter_t *pAdapter, union iwreq_data *wrqu,
                                      CRMId,
                                      pHWversion);
     } else {
-#ifdef SEC_WRITE_VERSION_IN_FILE
-        tANI_U8 versionString[128];
-        scnprintf(versionString, 128,
+#ifdef SEC_WRITE_VERSION_IN_SYSFS
+        scnprintf(sec_versionString, 128,
 				"Host SW:%s, FW:%d.%d.%d.%d, HW:%s",
 				QWLAN_VERSIONSTR, MSPId, mSPId, SIId, CRMId, pHWversion);
-        if (!wlan_hdd_sec_write_version_file(versionString)) {
-			hddLog(VOS_TRACE_LEVEL_FATAL,
-					"%s: faild to write version info in the file",__func__);
-        }
-#endif /* SEC_WRITE_VERSION_IN_FILE */
+#endif /* SEC_WRITE_VERSION_IN_SYSFS */
         pr_info("Host SW:%s, FW:%d.%d.%d.%d, HW:%s\n",
                 QWLAN_VERSIONSTR,
                 MSPId,
@@ -3583,27 +3582,6 @@ static int iw_get_range(struct net_device *dev, struct iw_request_info *info,
 }
 
 /**
- * iw_power_callback_func() - Callback function registered with PMC
- * @context: cookie originally registered with PMC
- * @status: status code indicated by PMC state machine
- *
- * Return: None
- */
-static void iw_power_callback_func(void *context, eHalStatus status)
-{
-	struct hdd_request *request = hdd_request_get(context);
-
-	if (!request) {
-		hddLog(VOS_TRACE_LEVEL_ERROR,
-		       "%s: Obsolete request", __func__);
-		return;
-	}
-
-	hdd_request_complete(request);
-	hdd_request_put(request);
-}
-
-/**
  * iw_power_offload_callback_fn() - Callback function registered with PMC to
  * know status of PMC request
  *
@@ -3616,16 +3594,96 @@ static void iw_power_callback_func(void *context, eHalStatus status)
 static void iw_power_offload_callback_fn(void *context, tANI_U32 session_id,
 					  eHalStatus status)
 {
-	struct hdd_request *request;
+	struct statsContext *stats_context;
 
-	request = hdd_request_get(context);
-	if (!request) {
-		hddLog(VOS_TRACE_LEVEL_ERROR, "%s: Obsolete request", __func__);
+	if (NULL == context) {
+		hddLog(VOS_TRACE_LEVEL_ERROR,
+			FL("Bad param, context [%pK]"),
+			context);
 		return;
 	}
 
-	hdd_request_complete(request);
-	hdd_request_put(request);
+	stats_context = (struct statsContext *)context;
+
+	/*
+	 * there is a race condition that exists between this callback
+	 * function and the caller since the caller could time out either
+	 * before or while this code is executing.  we use a spinlock to
+	 * serialize these actions
+	 */
+	spin_lock(&hdd_context_lock);
+
+	if (POWER_CONTEXT_MAGIC != stats_context->magic) {
+		/* the caller presumably timed out */
+		spin_unlock(&hdd_context_lock);
+		hddLog(VOS_TRACE_LEVEL_WARN,
+			FL("Invalid context, magic [%08x]"),
+			stats_context->magic);
+
+		if (ioctl_debug)
+			pr_info("%s: Invalid context, magic [%08x]\n",
+				__func__, stats_context->magic);
+		return;
+	}
+	/* context is valid so caller is still waiting */
+
+	/* paranoia: invalidate the magic */
+	stats_context->magic = 0;
+
+	/* notify the caller */
+	complete(&stats_context->completion);
+
+	/* serialization is complete */
+	spin_unlock(&hdd_context_lock);
+}
+
+/* Callback function registered with PMC to know status of PMC request */
+static void iw_power_callback_fn (void *pContext, eHalStatus status)
+{
+   struct statsContext *pStatsContext;
+
+   if (NULL == pContext)
+   {
+       hddLog(VOS_TRACE_LEVEL_ERROR,
+            "%s: Bad param, pContext [%pK]",
+              __func__, pContext);
+       return;
+   }
+
+   pStatsContext = (struct statsContext *)pContext;
+
+   /* there is a race condition that exists between this callback
+      function and the caller since the caller could time out either
+      before or while this code is executing.  we use a spinlock to
+      serialize these actions */
+   spin_lock(&hdd_context_lock);
+
+   if (POWER_CONTEXT_MAGIC != pStatsContext->magic)
+   {
+       /* the caller presumably timed out so there is nothing we can do */
+       spin_unlock(&hdd_context_lock);
+       hddLog(VOS_TRACE_LEVEL_WARN,
+              "%s: Invalid context, magic [%08x]",
+              __func__, pStatsContext->magic);
+
+       if (ioctl_debug)
+       {
+           pr_info("%s: Invalid context, magic [%08x]\n",
+                   __func__, pStatsContext->magic);
+       }
+       return;
+  }
+
+  /* context is valid so caller is still waiting */
+
+  /* paranoia: invalidate the magic */
+  pStatsContext->magic = 0;
+
+  /* notify the caller */
+  complete(&pStatsContext->completion);
+
+  /* serialization is complete */
+  spin_unlock(&hdd_context_lock);
 }
 
 /* Callback function for tx per hit */
@@ -4125,111 +4183,9 @@ static int iw_get_isolation(struct net_device *dev,
 
 VOS_STATUS  wlan_hdd_enter_bmps(hdd_adapter_t *pAdapter, int mode)
 {
-	struct hdd_request *request;
-	void *cookie;
-	eHalStatus status;
-	hdd_context_t *pHddCtx;
-	static const struct hdd_request_params params = {
-		.priv_size = 0,
-		.timeout_ms = WLAN_WAIT_TIME_POWER,
-	};
-
-	if (NULL == pAdapter)
-	{
-		hddLog(VOS_TRACE_LEVEL_FATAL, "Adapter NULL");
-		return VOS_STATUS_E_FAULT;
-	}
-
-	hddLog(VOS_TRACE_LEVEL_INFO_HIGH, "power mode=%d", mode);
-	pHddCtx = WLAN_HDD_GET_CTX(pAdapter);
-	if (pHddCtx->isLogpInProgress) {
-		VOS_TRACE(VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_ERROR,
-			"%s:LOGP in Progress. Ignore!!!", __func__);
-		return VOS_STATUS_E_FAILURE;
-	}
-
-	request = hdd_request_alloc(&params);
-	if (!request) {
-		hddLog(VOS_TRACE_LEVEL_ERROR,
-			"%s: Request allocation failure", __func__);
-		return VOS_STATUS_E_NOMEM;
-	}
-
-	cookie = hdd_request_cookie(request);
-
-	if (DRIVER_POWER_MODE_ACTIVE == mode)
-	{
-		hddLog(VOS_TRACE_LEVEL_INFO_HIGH, "%s:Wlan driver Entering "
-			"Full Power", __func__);
-		status = sme_RequestFullPower(WLAN_HDD_GET_HAL_CTX(pAdapter),
-			iw_power_callback_func, cookie,
-			eSME_FULL_PWR_NEEDED_BY_HDD);
-		/*
-		 * Enter Full power command received from GUI this means we are
-		 * disconnected. Set PMC remainInPowerActiveTillDHCP flag to
-		 * disable auto BMPS entry by PMC
-		 */
-		sme_SetDHCPTillPowerActiveFlag(pHddCtx->hHal, TRUE);
-		if (eHAL_STATUS_PMC_PENDING == status)
-		{
-			int rc;
-			/* request was sent -- wait for the response */
-			rc = hdd_request_wait_for_response(request);
-			if (rc)
-				hddLog(VOS_TRACE_LEVEL_ERROR,
-					FL("SME timed out while requesting full power"));
-		}
-	}
-	else if (DRIVER_POWER_MODE_AUTO == mode)
-	{
-		if (pHddCtx->cfg_ini->fIsBmpsEnabled)
-		{
-			hddLog(VOS_TRACE_LEVEL_INFO_HIGH, "%s:Wlan driver Entering Bmps ",
-				__func__);
-			/*
-			 * Enter BMPS command received from GUI this means DHCP
-			 * is completed.  Clear PMC remainInPowerActiveTillDHCP
-			 * flag to enable auto BMPS entry.
-			 */
-			sme_SetDHCPTillPowerActiveFlag(
-				WLAN_HDD_GET_HAL_CTX(pAdapter), FALSE);
-			status = sme_RequestBmps(WLAN_HDD_GET_HAL_CTX(pAdapter),
-				iw_power_callback_func, cookie);
-			if (eHAL_STATUS_PMC_PENDING == status)
-			{
-				int rc;
-				/* request was sent -- wait for the response */
-				rc = hdd_request_wait_for_response(request);
-				if (rc)
-					hddLog(VOS_TRACE_LEVEL_ERROR,
-						FL("SME timed out while requesting BMPS"));
-			}
-		} else {
-			hddLog(VOS_TRACE_LEVEL_INFO_HIGH, "BMPS is not "
-				"enabled in the cfg");
-		}
-	}
-
-	/*
-	 * either we never sent a request, we sent a request and
-	 * received a response or we sent a request and timed out.
-	 * regardless we are done with the request.
-	 */
-	hdd_request_put(request);
-
-	return VOS_STATUS_SUCCESS;
-}
-
-VOS_STATUS  wlan_hdd_set_powersave(hdd_adapter_t *pAdapter, int mode)
-{
-   hdd_context_t *pHddCtx;
+   struct statsContext context;
    eHalStatus status;
-   void *cookie;
-   struct hdd_request *request;
-   static const struct hdd_request_params params = {
-       .priv_size = 0,
-       .timeout_ms = WLAN_WAIT_TIME_POWER,
-   };
+   hdd_context_t *pHddCtx;
 
    if (NULL == pAdapter)
    {
@@ -4237,17 +4193,113 @@ VOS_STATUS  wlan_hdd_set_powersave(hdd_adapter_t *pAdapter, int mode)
        return VOS_STATUS_E_FAULT;
    }
 
-   request = hdd_request_alloc(&params);
-   if (!request) {
-       hddLog(VOS_TRACE_LEVEL_ERROR,
-              "%s: Request allocation failure", __func__);
-       return VOS_STATUS_E_NOMEM;
+   hddLog(VOS_TRACE_LEVEL_INFO_HIGH, "power mode=%d", mode);
+   pHddCtx = WLAN_HDD_GET_CTX(pAdapter);
+   if (pHddCtx->isLogpInProgress) {
+      VOS_TRACE(VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_ERROR,
+                "%s:LOGP in Progress. Ignore!!!", __func__);
+      return VOS_STATUS_E_FAILURE;
    }
-   cookie = hdd_request_cookie(request);
+
+   init_completion(&context.completion);
+
+   context.pAdapter = pAdapter;
+   context.magic = POWER_CONTEXT_MAGIC;
+
+   if (DRIVER_POWER_MODE_ACTIVE == mode)
+   {
+       hddLog(VOS_TRACE_LEVEL_INFO_HIGH, "%s:Wlan driver Entering "
+               "Full Power", __func__);
+       status = sme_RequestFullPower(WLAN_HDD_GET_HAL_CTX(pAdapter),
+                       iw_power_callback_fn, &context,
+                       eSME_FULL_PWR_NEEDED_BY_HDD);
+       // Enter Full power command received from GUI this means we are disconnected
+       // Set PMC remainInPowerActiveTillDHCP flag to disable auto BMPS entry by PMC
+       sme_SetDHCPTillPowerActiveFlag(pHddCtx->hHal, TRUE);
+       if (eHAL_STATUS_PMC_PENDING == status)
+       {
+           unsigned long rc;
+           /* request was sent -- wait for the response */
+           rc = wait_for_completion_timeout(
+                   &context.completion,
+                   msecs_to_jiffies(WLAN_WAIT_TIME_POWER));
+
+           if (!rc) {
+               hddLog(VOS_TRACE_LEVEL_ERROR,
+                  FL("SME timed out while requesting full power"));
+           }
+       }
+   }
+   else if (DRIVER_POWER_MODE_AUTO == mode)
+   {
+       if (pHddCtx->cfg_ini->fIsBmpsEnabled)
+       {
+           hddLog(VOS_TRACE_LEVEL_INFO_HIGH, "%s:Wlan driver Entering Bmps ",
+                  __func__);
+           // Enter BMPS command received from GUI this means DHCP is completed
+           // Clear PMC remainInPowerActiveTillDHCP flag to enable auto BMPS entry
+           sme_SetDHCPTillPowerActiveFlag(WLAN_HDD_GET_HAL_CTX(pAdapter),
+                    FALSE);
+           status = sme_RequestBmps(WLAN_HDD_GET_HAL_CTX(pAdapter),
+                           iw_power_callback_fn, &context);
+           if (eHAL_STATUS_PMC_PENDING == status)
+           {
+               unsigned long rc;
+               /* request was sent -- wait for the response */
+               rc = wait_for_completion_timeout(
+                           &context.completion,
+                           msecs_to_jiffies(WLAN_WAIT_TIME_POWER));
+               if (!rc) {
+                   hddLog(VOS_TRACE_LEVEL_ERROR,
+                       FL("SME timed out while requesting BMPS"));
+               }
+           }
+       }
+       else
+       {
+           hddLog(VOS_TRACE_LEVEL_INFO_HIGH, "BMPS is not "
+                   "enabled in the cfg");
+       }
+   }
+
+   /* either we never sent a request, we sent a request and received a
+      response or we sent a request and timed out.  if we never sent a
+      request or if we sent a request and got a response, we want to
+      clear the magic out of paranoia.  if we timed out there is a
+      race condition such that the callback function could be
+      executing at the same time we are. of primary concern is if the
+      callback function had already verified the "magic" but had not
+      yet set the completion variable when a timeout occurred. we
+      serialize these activities by invalidating the magic while
+      holding a shared spinlock which will cause us to block if the
+      callback is currently executing */
+   spin_lock(&hdd_context_lock);
+   context.magic = 0;
+   spin_unlock(&hdd_context_lock);
+
+   return VOS_STATUS_SUCCESS;
+}
+
+VOS_STATUS  wlan_hdd_set_powersave(hdd_adapter_t *pAdapter, int mode)
+{
+   hdd_context_t *pHddCtx;
+   eHalStatus status;
+   struct statsContext context;
+
+   if (NULL == pAdapter)
+   {
+       hddLog(VOS_TRACE_LEVEL_FATAL, "Adapter NULL");
+       return VOS_STATUS_E_FAULT;
+   }
 
    hddLog(VOS_TRACE_LEVEL_INFO_HIGH, "power mode=%d", mode);
 
    pHddCtx = WLAN_HDD_GET_CTX(pAdapter);
+
+   init_completion(&context.completion);
+
+   context.pAdapter = pAdapter;
+   context.magic = POWER_CONTEXT_MAGIC;
 
    if (DRIVER_POWER_MODE_ACTIVE == mode)
    {
@@ -4259,16 +4311,20 @@ VOS_STATUS  wlan_hdd_set_powersave(hdd_adapter_t *pAdapter, int mode)
         * this means we are disconnected
         */
        status = sme_PsOffloadDisablePowerSave(WLAN_HDD_GET_HAL_CTX(pAdapter),
-                                     iw_power_offload_callback_fn, cookie,
+                                     iw_power_offload_callback_fn, &context,
                                      pAdapter->sessionId);
        if (eHAL_STATUS_PMC_PENDING == status) {
-           if (hdd_request_wait_for_response(request)) {
-               hddLog(VOS_TRACE_LEVEL_WARN,
-                      FL("SME timed out while requesting full power"));
+           unsigned long rc;
+           /* request was sent -- wait for the response */
+           rc = wait_for_completion_timeout(
+                   &context.completion,
+                   msecs_to_jiffies(WLAN_WAIT_TIME_POWER));
+
+           if (!rc) {
+               hddLog(VOS_TRACE_LEVEL_ERROR,
+                  FL("SME timed out while disabling power save"));
            }
        }
-       hdd_request_put(request);
-
        if (pHddCtx->cfg_ini->fIsBmpsEnabled)
           sme_ConfigDisablePowerSave(pHddCtx->hHal,
                              ePMC_BEACON_MODE_POWER_SAVE);
@@ -4295,7 +4351,9 @@ VOS_STATUS  wlan_hdd_set_powersave(hdd_adapter_t *pAdapter, int mode)
                    "enabled in the cfg");
        }
    }
-
+   spin_lock(&hdd_context_lock);
+   context.magic = 0;
+   spin_unlock(&hdd_context_lock);
    return VOS_STATUS_SUCCESS;
 }
 
@@ -5896,39 +5954,45 @@ static int __iw_setint_getnone(struct net_device *dev,
            {
               case  0: //Full Power
               {
-                 struct hdd_request *request;
-                 void *cookie;
-                 static const struct hdd_request_params params = {
-                    .priv_size = 0,
-                    .timeout_ms = WLAN_WAIT_TIME_POWER,
-                 };
+                 struct statsContext context;
                  eHalStatus status = eHAL_STATUS_FAILURE;
+
+                 init_completion(&context.completion);
+
+                 context.pAdapter = pAdapter;
+                 context.magic = POWER_CONTEXT_MAGIC;
 
                  if (NULL == hHal)
                     return -EINVAL;
 
-                 request = hdd_request_alloc(&params);
-                 if (!request) {
-                    hddLog(VOS_TRACE_LEVEL_ERROR,
-                           "%s: Request allocation failure", __func__);
-                    return VOS_STATUS_E_NOMEM;
-                 }
+                 status = sme_RequestFullPower(WLAN_HDD_GET_HAL_CTX(pAdapter),
+                              iw_power_callback_fn, &context,
+                              eSME_FULL_PWR_NEEDED_BY_HDD);
+                 if (eHAL_STATUS_PMC_PENDING == status)
+                 {
+                    unsigned long rc;
+                    rc = wait_for_completion_timeout(
+                                &context.completion,
+                                 msecs_to_jiffies(WLAN_WAIT_TIME_POWER));
 
-                 cookie = hdd_request_cookie(request);
-                 status = sme_RequestFullPower(hHal,
-                                               iw_power_callback_func, cookie,
-                                               eSME_FULL_PWR_NEEDED_BY_HDD);
-                 if (eHAL_STATUS_PMC_PENDING == status) {
-                    if(hdd_request_wait_for_response(request))
+                    if (!rc) {
                        hddLog(VOS_TRACE_LEVEL_ERROR,
-                              FL("SME timed out while requesting full power"));
+                           FL("SME timed out while requesting full power"));
+                    }
                  }
-                 /*
-                  * either we never sent a request, we sent a request and
-                  * received a response or we sent a request and timed out.
-                  * regardless we are done with the request.
-                  */
-                 hdd_request_put(request);
+                 /* either we have a response or we timed out.  if we timed
+                    out there is a race condition such that the callback
+                    function could be executing at the same time we are. of
+                    primary concern is if the callback function had already
+                    verified the "magic" but had not yet set the completion
+                    variable when a timeout occurred. we serialize these
+                    activities by invalidating the magic while holding a
+                    shared spinlock which will cause us to block if the
+                    callback is currently executing */
+                 spin_lock(&hdd_context_lock);
+                 context.magic = 0;
+                 spin_unlock(&hdd_context_lock);
+
                  hddLog(LOGE, "iwpriv Full Power completed");
                  break;
               }
@@ -5946,38 +6010,44 @@ static int __iw_setint_getnone(struct net_device *dev,
                  break;
               case  3: //Request Bmps
               {
-                 struct hdd_request *request;
-                 void *cookie;
-                 static const struct hdd_request_params params = {
-                    .priv_size = 0,
-                    .timeout_ms = WLAN_WAIT_TIME_POWER,
-                 };
+                 struct statsContext context;
                  eHalStatus status = eHAL_STATUS_FAILURE;
+
+                 init_completion(&context.completion);
+
+                 context.pAdapter = pAdapter;
+                 context.magic = POWER_CONTEXT_MAGIC;
 
                  if (NULL == hHal)
                     return -EINVAL;
 
-                 request = hdd_request_alloc(&params);
-                 if (!request) {
-                    hddLog(VOS_TRACE_LEVEL_ERROR,
-                           "%s: Request allocation failure", __func__);
-                    return VOS_STATUS_E_NOMEM;
-                 }
-
-                 cookie = hdd_request_cookie(request);
                  status = sme_RequestBmps(WLAN_HDD_GET_HAL_CTX(pAdapter),
-                                          iw_power_callback_func, cookie);
-                 if (eHAL_STATUS_PMC_PENDING == status) {
-                    if (hdd_request_wait_for_response(request))
+                              iw_power_callback_fn, &context);
+                 if (eHAL_STATUS_PMC_PENDING == status)
+                 {
+                    unsigned long rc;
+                    rc = wait_for_completion_timeout(
+                              &context.completion,
+                              msecs_to_jiffies(WLAN_WAIT_TIME_POWER));
+                    if (!rc) {
                        hddLog(VOS_TRACE_LEVEL_ERROR,
-                              FL("SME timed out while requesting BMPS"));
+                           FL("SME timed out while requesting BMPS"));
+                    }
                  }
-                 /*
-                  * either we never sent a request, we sent a request and
-                  * received a response or we sent a request and timed out.
-                  * regardless we are done with the request.
-                  */
-                 hdd_request_put(request);
+                 /* either we have a response or we timed out.  if we
+                    timed out there is a race condition such that the
+                    callback function could be executing at the same
+                    time we are. of primary concern is if the callback
+                    function had already verified the "magic" but had
+                    not yet set the completion variable when a timeout
+                    occurred. we serialize these activities by
+                    invalidating the magic while holding a shared
+                    spinlock which will cause us to block if the
+                    callback is currently executing */
+                 spin_lock(&hdd_context_lock);
+                 context.magic = 0;
+                 spin_unlock(&hdd_context_lock);
+
                  hddLog(LOGE, "iwpriv Request BMPS completed");
                  break;
               }

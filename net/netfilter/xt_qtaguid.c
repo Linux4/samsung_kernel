@@ -1769,7 +1769,7 @@ static bool qtaguid_mt(const struct sk_buff *skb, struct xt_action_param *par)
 		kgid_t gid_max = make_kgid(&init_user_ns, info->gid_max);
 		set_sk_callback_lock = true;
 		read_lock_bh(&sk->sk_callback_lock);
-		MT_DEBUG("qtaguid[%d]: sk=%pK->sk_socket=%pK->file=%pK\n",
+		MT_DEBUG("qtaguid[%d]: sk=%p->sk_socket=%p->file=%p\n",
 			 par->hooknum, sk, sk->sk_socket,
 			 sk->sk_socket ? sk->sk_socket->file : (void *)-1LL);
 		filp = sk->sk_socket ? sk->sk_socket->file : NULL;
@@ -2307,7 +2307,7 @@ static int ctrl_cmd_tag(const char *input)
 			tag_ref_entry->num_sock_tags--;
 			free_tag_ref_from_utd_entry(tag_ref_entry,
 						    uid_tag_data_entry);
-			spin_unlock_bh(&uid_tag_data_tree_lock);	   
+			spin_unlock_bh(&uid_tag_data_tree_lock);
 			spin_unlock_bh(&sock_tag_list_lock);
 			res = -ENOMEM;
 			goto err_put;

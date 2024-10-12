@@ -193,6 +193,47 @@ static char *country_code;
 static int   enable_11d = -1;
 static int   enable_dfs_chan_scan = -1;
 
+#if defined (SEC_READ_MACADDR) || defined (SEC_WRITE_VERSION_IN_SYSFS) || defined (SEC_WRITE_SOFTAP_INFO_IN_SYSFS)
+struct kobject *sec_sysfs_kobject;
+
+static ssize_t show_mac_addr(struct kobject *kobj,
+			       struct kobj_attribute *attr,
+			       char *buf);
+static ssize_t store_mac_addr(struct kobject *kobj,
+			       struct kobj_attribute *attr,
+			    const char *buf, size_t count);
+static ssize_t show_verinfo(struct kobject *kobj,
+			       struct kobj_attribute *attr,
+			       char *buf);
+static ssize_t show_softapinfo(struct kobject *kobj,
+			       struct kobj_attribute *attr,
+			       char *buf);
+
+static struct kobj_attribute sec_mac_addr_attribute =
+	__ATTR(mac_addr, 0640, show_mac_addr, store_mac_addr);
+static struct kobj_attribute sec_verinfo_sysfs_attribute =
+	__ATTR(wifiver, 0440, show_verinfo, NULL);
+static struct kobj_attribute sec_softapinfo_sysfs_attribute =
+	__ATTR(softap, 0440, show_softapinfo, NULL);
+
+static struct attribute *sec_sysfs_attrs[] = {
+	&sec_mac_addr_attribute.attr,
+	&sec_verinfo_sysfs_attribute.attr,
+	&sec_softapinfo_sysfs_attribute.attr,
+	NULL
+};
+
+static struct attribute_group sec_sysfs_attr_group = {
+	.attrs = sec_sysfs_attrs,
+};
+
+void sec_sysfs_create(void);
+void sec_sysfs_destroy(void);
+extern tANI_U8 sec_versionString[128];
+extern tANI_U8 sec_softapinfoString[256];
+#endif /* SEC_READ_MACADDR || SEC_WRITE_VERSION_IN_SYSFS || SEC_WRITE_SOFTAP_INFO_IN_SYSFS */
+
+
 #ifndef MODULE
 static int wlan_hdd_inited;
 static char fwpath_mode_local[BUF_LEN];
@@ -3779,6 +3820,9 @@ void hdd_indicate_mgmt_frame(tSirSmeMgmtFrameInd *frame_ind)
 	hdd_adapter_t *adapter;
 	v_CONTEXT_t vos_context;
 	int i;
+	struct ieee80211_mgmt *mgmt =
+		(struct ieee80211_mgmt *)frame_ind->frameBuf;
+
 
 	/* Get the global VOSS context.*/
 	vos_context = vos_get_global_context(VOS_MODULE_ID_SYS, NULL);
@@ -3792,6 +3836,11 @@ void hdd_indicate_mgmt_frame(tSirSmeMgmtFrameInd *frame_ind)
 
 	if (0 != wlan_hdd_validate_context(hdd_ctx))
 		return;
+
+	if (frame_ind->frame_len < ieee80211_hdrlen(mgmt->frame_control)) {
+		hddLog(LOGE, FL("Invalid frame length"));
+		return;
+		}
 
 	if (HDD_SESSION_ID_ANY == frame_ind->sessionId) {
 		for (i = 0; i < HDD_SESSION_MAX; i++) {
@@ -10182,6 +10231,7 @@ static int hdd_set_mac_address(struct net_device *dev, void *addr)
 
 v_MACADDR_t sec_mac_addrs[VOS_MAX_CONCURRENCY_PERSONA];
 static int sec_mac_loaded = 0;
+static int sec_mac_loaded_sysfs = 0;
 
 static int wlan_hdd_read_mac_addr(unsigned char *mac);
 
@@ -14532,11 +14582,11 @@ void hdd_prevent_suspend_timeout(v_U32_t timeout, uint32_t reason)
                                       reason);
 }
 
-// write version info in /data/misc/conn/.wifiver.info
+// write version info in /data/vendor/conn/.wifiver.info
 #ifdef SEC_WRITE_VERSION_IN_FILE
 #include "qwlan_version.h"
 
-#define SEC_VERSION_FILEPATH	"/data/misc/conn/.wifiver.info"
+#define SEC_VERSION_FILEPATH	"/data/vendor/conn/.wifiver.info"
 
 int wlan_hdd_sec_write_version_file(char *swversion)
 {
@@ -14568,7 +14618,7 @@ int wlan_hdd_sec_write_version_file(char *swversion)
 #endif /* SEC_WRITE_VERSION_IN_FILE */
 
 #ifdef SEC_WRITE_ANT_GPIO_INFO_IN_FILE
-#define SEC_ANTCABLE_FILEPATH "/data/misc/conn/.wificable.info"
+#define SEC_ANTCABLE_FILEPATH "/data/vendor/conn/.wificable.info"
 void cnss_read_roam_cable(void)
 {
 	struct device_node *np;
@@ -17338,11 +17388,17 @@ static int hdd_driver_init( void)
 #ifdef MODULE
 static int __init hdd_module_init ( void)
 {
+#if defined (SEC_READ_MACADDR) || defined (SEC_WRITE_VERSION_IN_SYSFS) || defined (SEC_WRITE_SOFTAP_INFO_IN_SYSFS)
+	sec_sysfs_create();
+#endif /* SEC_READ_MACADDR || SEC_WRITE_VERSION_IN_SYSFS || SEC_WRITE_SOFTAP_INFO_IN_SYSFS */
    return hdd_driver_init();
 }
 #else /* #ifdef MODULE */
 static int __init hdd_module_init ( void)
 {
+#if defined (SEC_READ_MACADDR) || defined (SEC_WRITE_VERSION_IN_SYSFS) || defined (SEC_WRITE_SOFTAP_INFO_IN_SYSFS)
+       sec_sysfs_create();
+#endif /* SEC_READ_MACADDR || SEC_WRITE_VERSION_IN_SYSFS || SEC_WRITE_SOFTAP_INFO_IN_SYSFS */
    /* Driver initialization is delayed to fwpath_changed_handler */
    return 0;
 }
@@ -17544,7 +17600,139 @@ done:
 static void __exit hdd_module_exit(void)
 {
    hdd_driver_exit();
+   
+#if defined (SEC_READ_MACADDR) || defined (SEC_WRITE_VERSION_IN_SYSFS) || defined (SEC_WRITE_SOFTAP_INFO_IN_SYSFS)
+	sec_sysfs_destroy();
+#endif /* SEC_READ_MACADDR || SEC_WRITE_VERSION_IN_SYSFS || SEC_WRITE_SOFTAP_INFO_IN_SYSFS */
 }
+
+#if defined (SEC_READ_MACADDR) || defined (SEC_WRITE_VERSION_IN_SYSFS) || defined (SEC_WRITE_SOFTAP_INFO_IN_SYSFS)
+static ssize_t __show_mac_addr(struct kobject *kobj,
+				 struct kobj_attribute *attr,
+				 char *buf)
+{
+	return scnprintf(buf, PAGE_SIZE, MAC_ADDRESS_STR, MAC_ADDR_ARRAY(sec_mac_addrs[0].bytes));
+}
+
+static ssize_t show_mac_addr(struct kobject *kobj,
+			       struct kobj_attribute *attr,
+			       char *buf)
+{
+	ssize_t ret_val = 0;
+
+	if (sec_mac_loaded_sysfs)
+		ret_val = __show_mac_addr(kobj, attr, buf);
+
+	return ret_val;
+}
+
+static ssize_t __store_mac_addr(struct kobject *kobj,
+			    struct kobj_attribute *attr,
+			    const char *buf,
+			    size_t count)
+{
+
+	sscanf(buf, "%02X:%02X:%02X:%02X:%02X:%02X",
+		(unsigned int *)&(sec_mac_addrs->bytes[0]), (unsigned int *)&(sec_mac_addrs->bytes[1]),
+		(unsigned int *)&(sec_mac_addrs->bytes[2]), (unsigned int *)&(sec_mac_addrs->bytes[3]),
+		(unsigned int *)&(sec_mac_addrs->bytes[4]), (unsigned int *)&(sec_mac_addrs->bytes[5]));
+
+	sec_mac_loaded_sysfs = 1;
+	printk("Assigned Sec Mac from Macloader %d\n", sec_mac_loaded_sysfs);
+
+	return count;
+}
+
+static ssize_t store_mac_addr(struct kobject *kobj,
+			    struct kobj_attribute *attr,
+			    const char *buf,
+			    size_t count)
+{
+	ssize_t ret_val = 0;
+
+	if (!sec_mac_loaded_sysfs)
+		ret_val = __store_mac_addr(kobj, attr, buf, count);
+
+	return ret_val;
+}
+
+static ssize_t __show_verinfo(struct kobject *kobj,
+				 struct kobj_attribute *attr,
+				 char *buf)
+{
+	return scnprintf(buf, PAGE_SIZE,
+			   "%s\n", sec_versionString);
+}
+
+static ssize_t show_verinfo(struct kobject *kobj,
+			       struct kobj_attribute *attr,
+			       char *buf)
+{
+	ssize_t ret_val = 0;
+
+	vos_ssr_protect(__func__);
+	ret_val = __show_verinfo(kobj, attr, buf);
+	vos_ssr_unprotect(__func__);
+
+	return ret_val;
+}
+
+static ssize_t __show_softapinfo(struct kobject *kobj,
+				 struct kobj_attribute *attr,
+				 char *buf)
+{
+	
+	return scnprintf(buf, PAGE_SIZE,
+			   "%s\n", sec_softapinfoString);
+}
+
+static ssize_t show_softapinfo(struct kobject *kobj,
+			       struct kobj_attribute *attr,
+			       char *buf)
+{
+	ssize_t ret_val = 0;
+
+	vos_ssr_protect(__func__);
+	ret_val = __show_softapinfo(kobj, attr, buf);
+	vos_ssr_unprotect(__func__);
+
+	return ret_val;
+}
+
+void sec_sysfs_destroy(void)
+{
+	if (sec_sysfs_kobject) {
+		kobject_put(sec_sysfs_kobject);
+		sec_sysfs_kobject = NULL;
+	}
+}
+
+void sec_sysfs_create(void)
+{
+	int error = 0;
+
+	sec_sysfs_kobject = kobject_create_and_add("wifi", NULL);
+	if (!sec_sysfs_kobject) {
+		hddLog( VOS_TRACE_LEVEL_FATAL,
+			"%s: could not allocate sec_sysfs kobject", __func__);
+		return;
+	}
+
+	error = sysfs_create_group(sec_sysfs_kobject, &sec_sysfs_attr_group);
+	if (error) {
+		hddLog( VOS_TRACE_LEVEL_FATAL,
+			"%s: could not create group", __func__);
+		goto error_sec_sysfs_kobject;
+	}
+
+	return;
+
+error_sec_sysfs_kobject:
+	kobject_put(sec_sysfs_kobject);
+	sec_sysfs_kobject = NULL;
+}
+#endif /* SEC_READ_MACADDR || SEC_WRITE_VERSION_IN_SYSFS || SEC_WRITE_SOFTAP_INFO_IN_SYSFS */
+
 
 #ifdef MODULE
 static int fwpath_changed_handler(const char *kmessage,

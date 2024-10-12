@@ -44,7 +44,7 @@
 #include <trace/events/block.h>
 
 #ifdef CONFIG_PROC_STLOG
-#include <linux/stlog.h>
+#include <linux/fslog.h>
 #else
 #define ST_LOG(fmt,...)
 #endif

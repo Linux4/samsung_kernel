@@ -1596,16 +1596,19 @@ static void slow_chg_detect_work(struct work_struct *work)
 		container_of(work, struct sm5705_charger_data, slow_chg_work.work);
 	union power_supply_propval value;
 
-	if (sm5705_get_input_current(charger) <= SLOW_CHARGING_CURRENT_STANDARD){
-		if(charger->aicl_on != true){
+	psy_do_property("battery", get, POWER_SUPPLY_PROP_POWER_NOW, value);
+
+	if (value.intval < 5000) {
+		if (charger->aicl_on != true) {
+			pr_info("%s charge_power(%d)\n",__func__, value.intval);
 			charger->aicl_on = true;
 			value.intval = POWER_SUPPLY_CHARGE_TYPE_SLOW;
 			psy_do_property("battery", set, POWER_SUPPLY_PROP_CHARGE_TYPE, value);
 		}
-	}else
+	} else
 		charger->aicl_on = false;
 
-	pr_info("%s aicl_on(%d)\n",__func__,charger->aicl_on);
+	pr_info("%s aicl_on(%d)\n",__func__, charger->aicl_on);
 }
 
 static void wc_afc_detect_work(struct work_struct *work)

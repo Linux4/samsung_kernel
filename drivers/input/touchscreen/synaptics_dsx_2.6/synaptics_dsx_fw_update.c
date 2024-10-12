@@ -45,10 +45,9 @@
 #include "synaptics_dsx_core.h"
 
 #define FW_IMAGE_NAME "synaptics/startup_fw_update.img"
-/*
+
 #define DO_STARTUP_FW_UPDATE
-*/
-/*
+
 #ifdef DO_STARTUP_FW_UPDATE
 #ifdef CONFIG_FB
 #define WAIT_FOR_FB_READY
@@ -56,7 +55,7 @@
 #define FB_READY_TIMEOUT_S 30
 #endif
 #endif
-*/
+
 #define FORCE_UPDATE false
 #define DO_LOCKDOWN false
 
@@ -3429,6 +3428,7 @@ static int fwu_start_reflash(void)
 	enum flash_area flash_area;
 	const struct firmware *fw_entry = NULL;
 	struct synaptics_rmi4_data *rmi4_data = fwu->rmi4_data;
+	const unsigned char *image_name;
 
 	if (rmi4_data->sensor_sleep) {
 		dev_err(rmi4_data->pdev->dev.parent,
@@ -3444,9 +3444,14 @@ static int fwu_start_reflash(void)
 	pr_notice("%s: Start of reflash process\n", __func__);
 
 	if (fwu->image == NULL) {
+		if (rmi4_data->hw_if->board_data->fw_name)
+			image_name = rmi4_data->hw_if->board_data->fw_name;
+		else
+			image_name = FW_IMAGE_NAME;
+
 		retval = secure_memcpy(fwu->image_name, MAX_IMAGE_NAME_LEN,
-				FW_IMAGE_NAME, sizeof(FW_IMAGE_NAME),
-				sizeof(FW_IMAGE_NAME));
+				image_name, strlen(image_name),
+				strlen(image_name));
 		if (retval < 0) {
 			dev_err(rmi4_data->pdev->dev.parent,
 					"%s: Failed to copy image file name\n",

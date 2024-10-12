@@ -27,6 +27,15 @@ static void cmd_fw_update(void *device_data)
 
 	sec_cmd_set_default_result(sec);
 
+#if defined(CONFIG_SAMSUNG_PRODUCT_SHIP)
+	if (sec->cmd_param[0] == 1) {
+		sprintf(buf, "%s", "OK");
+		sec->cmd_state = SEC_CMD_STATUS_OK;
+		input_info(true, &info->client->dev, "%s: user_ship, skip\n", __func__);
+		goto EXIT;
+	}
+#endif
+
 	switch (fw_location) {
 	case 0:
 		if (mms_fw_update_from_kernel(info, true)) {

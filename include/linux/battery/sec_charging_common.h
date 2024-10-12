@@ -946,6 +946,11 @@ static inline struct power_supply *get_power_supply_by_name(char *name)
 	}	\
 }
 
+#define is_nocharge_type(cable_type) ( \
+	cable_type == POWER_SUPPLY_TYPE_BATTERY || \
+	cable_type == POWER_SUPPLY_TYPE_OTG || \
+	cable_type == POWER_SUPPLY_TYPE_POWER_SHARING)
+
 #ifndef CONFIG_OF
 #define adc_init(pdev, pdata, channel)	\
 	(((pdata)->adc_api)[((((pdata)->adc_type[(channel)]) <	\

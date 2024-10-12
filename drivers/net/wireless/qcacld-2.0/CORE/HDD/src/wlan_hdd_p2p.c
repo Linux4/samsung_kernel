@@ -51,7 +51,6 @@
 #include "vos_types.h"
 #include "vos_trace.h"
 #include "vos_sched.h"
-#include "wlan_hdd_request_manager.h"
 
 //Ms to Micro Sec
 #define MS_TO_MUS(x)   ((x)*1000)
@@ -166,10 +165,6 @@ static bool hdd_p2p_is_action_type_rsp( const u8 *buf, uint32_t len )
     return FALSE;
 }
 
-struct random_mac_priv {
-	bool set_random_addr;
-};
-
 /**
  * hdd_random_mac_callback() - Callback invoked from wmi layer
  * @set_random_addr: Status of random mac filter set operation
@@ -182,20 +177,32 @@ struct random_mac_priv {
  */
 static void hdd_random_mac_callback(bool set_random_addr, void *context)
 {
-	struct hdd_request *request;
-	struct random_mac_priv *priv;
+	struct random_mac_context *rnd_ctx;
+	hdd_adapter_t *adapter;
 
-	request = hdd_request_get(context);
-	if (!request) {
-		hddLog(LOGE,FL("invalid request"));
+	if (!context) {
+		hddLog(LOGE, FL("Bad param, pContext"));
 		return;
 	}
 
-	priv = hdd_request_priv(request);
-	priv->set_random_addr = set_random_addr;
+	rnd_ctx = context;
+	adapter = rnd_ctx->adapter;
 
-	hdd_request_complete(request);
-	hdd_request_put(request);
+	spin_lock(&hdd_context_lock);
+	if ((!adapter) ||
+	    (rnd_ctx->magic != ACTION_FRAME_RANDOM_CONTEXT_MAGIC)) {
+		spin_unlock(&hdd_context_lock);
+		hddLog(VOS_TRACE_LEVEL_WARN,
+		       FL("Invalid context, magic [%08x]"), rnd_ctx->magic);
+		return;
+	}
+
+	rnd_ctx->magic = 0;
+	if (set_random_addr)
+		rnd_ctx->set_random_addr = true;
+
+	complete(&rnd_ctx->random_mac_completion);
+	spin_unlock(&hdd_context_lock);
 }
 
 /**
@@ -207,17 +214,11 @@ static void hdd_random_mac_callback(bool set_random_addr, void *context)
  */
 static bool hdd_set_random_mac(hdd_adapter_t *adapter, uint8_t *random_mac_addr)
 {
+	struct random_mac_context context;
 	hdd_context_t *hdd_ctx;
 	eHalStatus sme_status;
 	unsigned long rc;
-	void *cookie;
 	bool status = false;
-	struct hdd_request     *request;
-	struct random_mac_priv *priv;
-	static const struct hdd_request_params params = {
-		.priv_size = sizeof(*priv),
-		.timeout_ms = WLAN_WAIT_TIME_SET_RND,
-	};
 
 	ENTER();
 	hdd_ctx = WLAN_HDD_GET_CTX(adapter);
@@ -226,33 +227,32 @@ static bool hdd_set_random_mac(hdd_adapter_t *adapter, uint8_t *random_mac_addr)
 		return false;
 	}
 
-	request = hdd_request_alloc(&params);
-	if (!request) {
-		hddLog(LOGE, FL("Request allocation failure"));
-		return false;
-	}
-
-	cookie = hdd_request_cookie(request);
+	init_completion(&context.random_mac_completion);
+	context.adapter = adapter;
+	context.magic = ACTION_FRAME_RANDOM_CONTEXT_MAGIC;
+	context.set_random_addr = false;
 
 	sme_status = sme_set_random_mac(hdd_ctx->hHal, hdd_random_mac_callback,
 				     adapter->sessionId, random_mac_addr,
-				     cookie);
+				     &context);
 
 	if (sme_status != eHAL_STATUS_SUCCESS) {
 		hddLog(LOGE,FL("Unable to set random mac"));
 	} else {
-		rc = hdd_request_wait_for_response(request);
-		if (rc) {
-			hddLog(LOGE, FL("SME timed out while setting random mac"));
-		} else {
-			priv = hdd_request_priv(request);
-			status = priv->set_random_addr;
+		rc = wait_for_completion_timeout(&context.random_mac_completion,
+                                    msecs_to_jiffies(WLAN_WAIT_TIME_SET_RND));
+		if (!rc) {
+			hddLog(LOGE,
+			FL("SME timed out while setting random mac"));
 		}
 	}
 
-	hdd_request_put(request);
-	EXIT();
+	spin_lock(&hdd_context_lock);
+	context.magic = 0;
+	status = context.set_random_addr;
+	spin_unlock(&hdd_context_lock);
 
+	EXIT();
 	return status;
 }
 
@@ -3142,7 +3142,9 @@ void __hdd_indicate_mgmt_frame(hdd_adapter_t *pAdapter,
     if ((type == SIR_MAC_MGMT_FRAME) &&
         (subType != SIR_MAC_MGMT_PROBE_REQ) &&
         !vos_is_macaddr_broadcast(
-         (v_MACADDR_t *)&pbFrames[WLAN_HDD_80211_FRM_DA_OFFSET]))
+         (v_MACADDR_t *)&pbFrames[WLAN_HDD_80211_FRM_DA_OFFSET]) &&
+	(nFrameLength > WLAN_HDD_80211_FRM_DA_OFFSET + VOS_MAC_ADDR_SIZE))
+
     {
          pAdapter = hdd_get_adapter_by_macaddr(pHddCtx,
                             &pbFrames[WLAN_HDD_80211_FRM_DA_OFFSET]);
@@ -3204,12 +3206,15 @@ void __hdd_indicate_mgmt_frame(hdd_adapter_t *pAdapter,
     cfgState = WLAN_HDD_GET_CFG_STATE_PTR( pAdapter );
 
     if ((type == SIR_MAC_MGMT_FRAME) &&
-        (subType == SIR_MAC_MGMT_ACTION) && !broadcast)
+        (subType == SIR_MAC_MGMT_ACTION) && !broadcast && 
+	(nFrameLength > WLAN_HDD_PUBLIC_ACTION_FRAME_OFFSET + 1))
     {
         if(pbFrames[WLAN_HDD_PUBLIC_ACTION_FRAME_OFFSET] == WLAN_HDD_PUBLIC_ACTION_FRAME)
         {
             // public action frame
-            if((pbFrames[WLAN_HDD_PUBLIC_ACTION_FRAME_OFFSET+1] == SIR_MAC_ACTION_VENDOR_SPECIFIC) &&
+            if((WLAN_HDD_PUBLIC_ACTION_FRAME_OFFSET + SIR_MAC_P2P_OUI_SIZE + 2 <
+		nFrameLength) &&
+	       (pbFrames[WLAN_HDD_PUBLIC_ACTION_FRAME_OFFSET+1] == SIR_MAC_ACTION_VENDOR_SPECIFIC) &&
                 vos_mem_compare(&pbFrames[WLAN_HDD_PUBLIC_ACTION_FRAME_OFFSET+2], SIR_MAC_P2P_OUI, SIR_MAC_P2P_OUI_SIZE))
             // P2P action frames
             {

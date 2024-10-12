@@ -60,6 +60,10 @@
 #include <pmcApi.h>
 #include <wlan_hdd_misc.h>
 
+#ifdef SEC_WRITE_SOFTAP_INFO_IN_SYSFS
+tANI_U8 sec_softapinfoString[256];
+#endif /* SEC_WRITE_SOFTAP_INFO_IN_SYSFS */
+
 #ifdef SEC_CONFIG_PSM
 unsigned int wlan_hdd_sec_get_psm(unsigned int original_value);
 #endif /* SEC_CONFIG_PSM */
@@ -6357,7 +6361,7 @@ config_exit:
 }
 
 #ifdef SEC_CONFIG_PSM
-#define SEC_PSM_FILEPATH		"/data/misc/conn/.psm.info"
+#define SEC_PSM_FILEPATH		"/data/vendor/conn/.psm.info"
 
 unsigned int wlan_hdd_sec_get_psm(unsigned int original_value)
 {
@@ -6504,6 +6508,22 @@ static VOS_STATUS hdd_apply_cfg_ini( hdd_context_t *pHddCtx, tCfgIniEntry* iniTa
 			 printk("[WIFI] %s: sec_control_psm = %u", pRegEntry->RegName, value);
 		 }
 #endif /* SEC_CONFIG_PSM */
+
+#ifdef SEC_WRITE_VERSION_IN_SYSFS
+		 if (!strcmp(pRegEntry->RegName, CFG_BAND_CAPABILITY_NAME)) {
+		 	scnprintf(sec_softapinfoString, 256,
+			"#softap.info\nDualBandConcurrency=%s\n5G=%s\nmaxClient=%d\nHalFn_setCountryCodeHal=%s\nHalFn_getValidChannels=%s\nDualInterface=%s\n",
+        	"no",
+        	value ? "no" : "yes",
+        	(WLAN_MAX_STA_COUNT > 10) ? 10 : WLAN_MAX_STA_COUNT,
+        	"yes",
+        	"yes",
+        	"no"
+			);
+			printk("\n[WIFI] softapinfo=[%s]\n", sec_softapinfoString);
+		 }
+#endif /* SEC_WRITE_VERSION_IN_SYSFS */
+
 
          // Move the variable into the output field.
          memcpy( pField, &value, pRegEntry->VarSize );

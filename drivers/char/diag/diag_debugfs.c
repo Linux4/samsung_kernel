@@ -373,7 +373,7 @@ static ssize_t diag_dbgfs_read_mempool(struct file *file, char __user *ubuf,
 		mempool = &diag_mempools[i];
 		bytes_written = scnprintf(buf+bytes_in_buffer, bytes_remaining,
 			"%-24s\t"
-			"%-10p\t"
+			"%-10pK\t"
 			"%-5d\t"
 			"%-5d\t"
 			"%-5d\n",

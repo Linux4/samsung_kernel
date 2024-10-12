@@ -2995,12 +2995,12 @@ static void sdhci_show_adma_error(struct sdhci_host *host)
 
 		if (host->flags & SDHCI_USE_ADMA_64BIT) {
 			__le64 *dma = (__le64 *)(desc + 4);
-			pr_info("%s: %p: DMA %llx, LEN 0x%04x, Attr=0x%02x\n",
+			pr_info("%s: %pK: DMA %llx, LEN 0x%04x, Attr=0x%02x\n",
 			    name, desc, (long long)le64_to_cpu(*dma),
 			    le16_to_cpu(*len), attr);
 		} else {
 			__le32 *dma = (__le32 *)(desc + 4);
-			pr_info("%s: %p: DMA 0x%08x, LEN 0x%04x, Attr=0x%02x\n",
+			pr_info("%s: %pK: DMA 0x%08x, LEN 0x%04x, Attr=0x%02x\n",
 			    name, desc, le32_to_cpu(*dma), le16_to_cpu(*len),
 			    attr);
 		}
@@ -3227,7 +3227,7 @@ static irqreturn_t sdhci_irq(int irq, void *dev_id)
 		return IRQ_NONE;
 	}
 
-	if (!host->clock && host->mmc->card &&
+	if (!(!host->mmc->clk_gated && host->clock) && host->mmc->card &&
 			mmc_card_sdio(host->mmc->card)) {
 		if (!mmc_card_and_host_support_async_int(host->mmc)) {
 			spin_unlock(&host->lock);

@@ -73,7 +73,7 @@
 
 #define ECRYPTFS_BASE_PATH_SIZE 1024
 #define ECRYPTFS_LABEL_SIZE 1024
-
+#define SEC_ECRYPTFS_HMAC_KEY_SIZE   32
 #ifdef CONFIG_SDP
 #define PKG_NAME_SIZE 16
 #endif
@@ -112,11 +112,16 @@ struct ecryptfs_page_crypt_context {
 static inline struct ecryptfs_auth_tok *
 ecryptfs_get_encrypted_key_payload_data(struct key *key)
 {
-	if (key->type == &key_type_encrypted)
-		return (struct ecryptfs_auth_tok *)
-			(&((struct encrypted_key_payload *)key->payload.data)->payload_data);
-	else
+	struct encrypted_key_payload *payload;
+
+	if (key->type != &key_type_encrypted)
 		return NULL;
+
+	payload = key->payload.data;
+	if (!payload)
+		return ERR_PTR(-EKEYREVOKED);
+
+	return (struct ecryptfs_auth_tok *)payload->payload_data;
 }
 
 static inline struct key *ecryptfs_get_encrypted_key(char *sig)
@@ -142,13 +147,17 @@ static inline struct ecryptfs_auth_tok *
 ecryptfs_get_key_payload_data(struct key *key)
 {
 	struct ecryptfs_auth_tok *auth_tok;
+	struct user_key_payload *ukp;
 
 	auth_tok = ecryptfs_get_encrypted_key_payload_data(key);
-	if (!auth_tok)
-		return (struct ecryptfs_auth_tok *)
-			(((struct user_key_payload *)key->payload.data)->data);
-	else
+	if (auth_tok)
 		return auth_tok;
+
+	ukp = key->payload.data;
+	if (!ukp)
+		return ERR_PTR(-EKEYREVOKED);
+
+	return (struct ecryptfs_auth_tok *)ukp->data;
 }
 
 #ifdef CONFIG_CRYPTO_FIPS
@@ -279,6 +288,7 @@ struct ecryptfs_crypt_stat {
 #ifdef CONFIG_DLP
 #define ECRYPTFS_DLP_ENABLED		  0x04000000
 #endif
+#define ECRYPTFS_SUPPORT_HMAC_KEY     0x00010000
 
 	u32 flags;
 	unsigned int file_version;

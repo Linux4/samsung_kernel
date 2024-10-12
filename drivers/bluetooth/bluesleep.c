@@ -203,8 +203,11 @@ static void hsuart_power(int on)
 		return;
 	}
 
-	if (on)
-	{
+	if (on) {
+		if (!test_bit(BT_PROTO, &flags)) {
+			BT_DBG("%s called. But bluesleep already stopped ", __func__);
+			return;
+		}
 		clk_cnt = bluesleep_get_uart_clock_count();
 		client_cnt = bluesleep_get_uart_client_count();
 
@@ -605,10 +608,9 @@ static void bluesleep_tx_timer_expire(unsigned long data)
 	} else {
 		BT_DBG("Tx data during last period");
 		mod_timer(&tx_timer, jiffies + (TX_TIMER_INTERVAL*HZ));
+		/* clear the incoming data flag */
+		clear_bit(BT_TXDATA, &flags);
 	}
-
-	/* clear the incoming data flag */
-	clear_bit(BT_TXDATA, &flags);
 }
 
 /**

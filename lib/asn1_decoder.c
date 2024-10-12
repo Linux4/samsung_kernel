@@ -220,7 +220,7 @@ next_op:
 		hdr = 2;
 
 		/* Extract a tag from the data */
-		if (unlikely(dp >= datalen - 1))
+		if (unlikely(datalen - dp < 2))
 			goto data_overrun_error;
 		tag = data[dp++];
 		if (unlikely((tag & 0x1f) == ASN1_LONG_TAG))
@@ -266,7 +266,7 @@ next_op:
 				int n = len - 0x80;
 				if (unlikely(n > 2))
 					goto length_too_long;
-				if (unlikely(dp >= datalen - n))
+				if (unlikely(n > datalen - dp))
 					goto data_overrun_error;
 				hdr += n;
 				for (len = 0; n > 0; n--) {
@@ -315,11 +315,11 @@ next_op:
 	case ASN1_OP_COND_MATCH_ACT_OR_SKIP:
 	case ASN1_OP_COND_MATCH_ANY:
 	case ASN1_OP_COND_MATCH_ANY_ACT:
-	
+
 		if (!(flags & FLAG_CONS)) {
 			if (flags & FLAG_INDEFINITE_LENGTH) {
 				size_t tmp = dp;
-				
+
 				ret = asn1_find_indefinite_length(
 					data, datalen, &tmp, &len, &errmsg);
 				if (ret < 0)
@@ -341,7 +341,7 @@ next_op:
 		}
 
 		if (!(flags & FLAG_CONS))
-			dp += len;		
+			dp += len;
 		pc += asn1_op_lengths[op];
 		goto next_op;
 
@@ -427,6 +427,8 @@ next_op:
 			else
 				act = machine[pc + 1];
 			ret = actions[act](context, hdr, 0, data + tdp, len);
+			if (ret < 0)
+				return ret;
 		}
 		pc += asn1_op_lengths[op];
 		goto next_op;

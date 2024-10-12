@@ -490,6 +490,12 @@ ol_rx_defrag_waitlist_flush(
         }
 
         tid = rx_reorder->tid;
+		if (tid >= OL_TXRX_NUM_EXT_TIDS) {
+            TXRX_PRINT(TXRX_PRINT_LEVEL_ERR,
+                    "%s:  invalid tid, %u\n", __func__, tid);
+            WARN_ON(1);
+            continue;
+        }
         /* get index 0 of the rx_reorder array */
         rx_reorder_base = rx_reorder - tid;
         peer = container_of(rx_reorder_base, struct ol_txrx_peer_t, tids_rx_reorder[0]);

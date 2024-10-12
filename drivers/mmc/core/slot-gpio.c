@@ -199,6 +199,27 @@ void mmc_gpiod_request_cd_irq(struct mmc_host *host)
 EXPORT_SYMBOL(mmc_gpiod_request_cd_irq);
 
 /**
+ * mmc_gpiod_update_status - update ctx->status to current status
+ * @host: mmc_host
+ * @present: current status from get_cd()
+ *
+ * It is to update card detection status.
+ */
+void mmc_gpiod_update_status(struct mmc_host *host, int present)
+{
+	struct mmc_gpio *ctx = host->slot.handler_priv;
+	bool ctx_status;
+
+	if (present < 0)
+		return;
+
+	ctx_status = !!present;
+	if (ctx && (ctx->status ^ ctx_status))
+		ctx->status = ctx_status;
+}
+EXPORT_SYMBOL(mmc_gpiod_update_status);
+
+/**
  * mmc_gpio_request_cd - request a gpio for card-detection
  * @host: mmc host
  * @gpio: gpio number requested

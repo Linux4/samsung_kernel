@@ -1,0 +1,20 @@
+/* Copyright (c) 2013, Samsung Electronics Corporation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+&soc {
+	sec-mst {
+		compatible = "sec-mst";
+		sec-mst,mst-pwr-gpio = <&pm8004_mpps 3 0>;
+		sec-mst,mst-vdd = "s2mpb02-ldo17";
+	};
+};
+	

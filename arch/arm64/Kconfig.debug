@@ -187,6 +187,13 @@ config SEC_RESTRICT_ROOTING_LOG
 	   Say Y here if you want to see result of restricting SETUID or FORK. It will
 	   be displayed by kernel error log. Saying N will not be displayed anything.
 
+config KERNEL_MODE_NEON_DEBUG
+	bool "enable kernel neon mode debug. ex) fp/simd context checking "
+	depends on KERNEL_MODE_NEON
+	default n
+	help
+	  Say Y here if you want to check debug information for simd/fp in kernel
+
 comment "BSP Feature"
 menuconfig SEC_BSP
 	bool "Samsung TN BSP Feature"

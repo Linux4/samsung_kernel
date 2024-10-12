@@ -369,6 +369,9 @@ struct mmc_card_error_log {
         u32     cc_cnt;         // status[20] : internal card controller error
         u32     ecc_cnt;        // status[21] : ecc error
         u32     wp_cnt;         // status[26] : write protection error
+	u32     halt_cnt;       // cq halt / unhalt fail
+	u32     cq_cnt;         // cq enable / disable fail
+	u32     rpmb_cnt;       // RPMB switch fail
         u32     oor_cnt;        // status[31] : out of range error
 };
 
@@ -425,6 +428,8 @@ struct mmc_card {
 
 /* Make sure CMDQ is empty before queuing DCMD */
 #define MMC_QUIRK_CMDQ_EMPTY_BEFORE_DCMD (1 << 17)
+
+#define MMC_QUIRK_QCA9379_SETTINGS (1 << 18)	/* QCA9379 card settings*/
 
 	unsigned int		erase_size;	/* erase size in sectors */
  	unsigned int		erase_shift;	/* if erase unit is power 2 */
@@ -727,6 +732,11 @@ static inline bool mmc_enable_qca6574_settings(const struct mmc_card *c)
 static inline bool mmc_enable_qca9377_settings(const struct mmc_card *c)
 {
 	return c->quirks & MMC_QUIRK_QCA9377_SETTINGS;
+}
+
+static inline bool mmc_enable_qca9379_settings(const struct mmc_card *c)
+{
+	return c->quirks & MMC_QUIRK_QCA9379_SETTINGS;
 }
 
 #define mmc_card_name(c)	((c)->cid.prod_name)

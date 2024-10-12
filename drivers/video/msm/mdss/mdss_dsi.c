@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2018, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2019, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -348,7 +348,6 @@ static int mdss_dsi_panel_power_on(struct mdss_panel_data *pdata)
 		pr_err("%s: Invalid input data\n", __func__);
 		return -EINVAL;
 	}
-
 	ctrl_pdata = container_of(pdata, struct mdss_dsi_ctrl_pdata,
 				panel_data);
 
@@ -521,7 +520,7 @@ static int mdss_dsi_panel_power_ulp(struct mdss_panel_data *pdata,
 int mdss_dsi_panel_power_ctrl(struct mdss_panel_data *pdata,
 	int power_state)
 {
-	int ret;
+	int ret = 0;
 	struct mdss_panel_info *pinfo;
 	struct mdss_dsi_ctrl_pdata *ctrl_pdata = NULL;
 
@@ -1025,7 +1024,8 @@ static ssize_t mdss_dsi_cmd_write(struct file *file, const char __user *p,
 static int mdss_dsi_cmd_flush(struct file *file, fl_owner_t id)
 {
 	struct buf_data *pcmds = file->private_data;
-	int blen, len, i;
+	unsigned int len;
+	int blen, i;
 	char *buf, *bufp, *bp;
 	struct dsi_ctrl_hdr *dchdr;
 
@@ -1068,7 +1068,7 @@ static int mdss_dsi_cmd_flush(struct file *file, fl_owner_t id)
 	while (len >= sizeof(*dchdr)) {
 		dchdr = (struct dsi_ctrl_hdr *)bp;
 		dchdr->dlen = ntohs(dchdr->dlen);
-		if (dchdr->dlen > len || dchdr->dlen < 0) {
+		if (dchdr->dlen > (len - sizeof(*dchdr)) || dchdr->dlen < 0) {
 			pr_err("%s: dtsi cmd=%x error, len=%d\n",
 				__func__, dchdr->dtype, dchdr->dlen);
 			kfree(buf);
@@ -2015,7 +2015,8 @@ static int mdss_dsi_blank(struct mdss_panel_data *pdata, int power_state)
 			ATRACE_BEGIN("dsi_panel_off");
 			ret = ctrl_pdata->off(pdata);
 			if (ret) {
-				pr_err("%s: Panel OFF failed\n", __func__);
+				pr_err("%s: Panel OFF failed\n",
+					__func__);
 				goto error;
 			}
 			ATRACE_END("dsi_panel_off");
@@ -3039,6 +3040,7 @@ static int mdss_dsi_event_handler(struct mdss_panel_data *pdata,
 	case MDSS_EVENT_PANEL_OFF:
 		pr_err("[MDSS_EVENT_PANEL_OFF] \n");
 		power_state = (int) (unsigned long) arg;
+		disable_esd_thread();
 		ctrl_pdata->ctrl_state &= ~CTRL_STATE_MDP_ACTIVE;
 		if (ctrl_pdata->off_cmds.link_state == DSI_LP_MODE)
 			rc = mdss_dsi_blank(pdata, power_state);
@@ -3120,6 +3122,7 @@ static int mdss_dsi_event_handler(struct mdss_panel_data *pdata,
 		break;
 	case MDSS_EVENT_PANEL_TIMING_SWITCH:
 		rc = mdss_dsi_panel_timing_switch(ctrl_pdata, arg);
+		mdss_samsung_update_current_resolution(arg);
 		break;
 	case MDSS_EVENT_FB_REGISTERED:
 		pr_err("[MDSS_EVENT_FB_REGISTERED] \n");
@@ -3584,6 +3587,7 @@ static int mdss_dsi_ctrl_probe(struct platform_device *pdev)
 	struct mdss_util_intf *util;
 	static int te_irq_registered;
 	struct mdss_panel_data *pdata;
+	struct mdss_panel_cfg *pan_cfg = NULL;
 
 	pr_info("%s ++ \n", __func__);
 
@@ -3615,6 +3619,14 @@ static int mdss_dsi_ctrl_probe(struct platform_device *pdev)
 	util = mdss_get_util_intf();
 	if (util == NULL) {
 		pr_err("Failed to get mdss utility functions\n");
+		return -ENODEV;
+	}
+
+	pan_cfg = util->panel_intf_type(MDSS_PANEL_INTF_SPI);
+	if (IS_ERR(pan_cfg)) {
+		return PTR_ERR(pan_cfg);
+	} else if (pan_cfg) {
+		pr_debug("%s: SPI is primary\n", __func__);
 		return -ENODEV;
 	}
 
@@ -4173,6 +4185,12 @@ static int mdss_dsi_probe(struct platform_device *pdev)
 		return -EPROBE_DEFER;
 	}
 
+	if (util->display_disabled) {
+		pr_info("%s: Display is disabled, not progressing with dsi probe\n",
+			__func__);
+		return -ENOTSUPP;
+	}
+
 	if (!pdev || !pdev->dev.of_node) {
 		pr_err("%s: DSI driver only supports device tree probe\n",
 			__func__);
@@ -4496,6 +4514,7 @@ static int mdss_dsi_parse_gpio_params(struct platform_device *ctrl_pdev,
 		if (!gpio_is_valid(ctrl_pdata->disp_en_gpio))
 			pr_debug("%s:%d, Disp_en gpio not specified\n",
 					__func__, __LINE__);
+		pdata->panel_en_gpio = ctrl_pdata->disp_en_gpio;
 	}
 
 	ctrl_pdata->disp_te_gpio = of_get_named_gpio(ctrl_pdev->dev.of_node,

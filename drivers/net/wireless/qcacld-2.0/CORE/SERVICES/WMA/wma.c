@@ -1353,10 +1353,20 @@ static int wma_vdev_start_rsp_ind(tp_wma_handle wma, u_int8_t *buf)
 
 	iface = &wma->interfaces[resp_event->vdev_id];
 
+	req_msg = wma_find_vdev_req(wma, resp_event->vdev_id,
+				    WMA_TARGET_REQ_TYPE_VDEV_START);
+
+	if (!req_msg) {
+		WMA_LOGE("%s: Failed to lookup request message for vdev %d",
+			 __func__, resp_event->vdev_id);
+		return -EINVAL;
+	}
+
 	if ((resp_event->vdev_id < wma->max_bssid) &&
 		(adf_os_atomic_read(
 		&wma->interfaces[resp_event->vdev_id].vdev_restart_params.hidden_ssid_restart_in_progress)) &&
-		(wma_is_vdev_in_ap_mode(wma, resp_event->vdev_id) == true)) {
+		(wma_is_vdev_in_ap_mode(wma, resp_event->vdev_id) == true) &&
+		(req_msg->msg_type == WDA_HIDDEN_SSID_VDEV_RESTART)) {
 		WMA_LOGE(
 			"%s: vdev restart event recevied for hidden ssid set using IOCTL",
 			__func__);
@@ -1379,15 +1389,6 @@ static int wma_vdev_start_rsp_ind(tp_wma_handle wma, u_int8_t *buf)
 		                            OL_TXQ_PAUSE_REASON_VDEV_STOP);
 		iface->pause_bitmap &= ~(1 << PAUSE_TYPE_HOST);
 
-	}
-
-	req_msg = wma_find_vdev_req(wma, resp_event->vdev_id,
-				    WMA_TARGET_REQ_TYPE_VDEV_START);
-
-	if (!req_msg) {
-		WMA_LOGE("%s: Failed to lookup request message for vdev %d",
-			 __func__, resp_event->vdev_id);
-		return -EINVAL;
 	}
 
 	vos_timer_stop(&req_msg->event_timeout);
@@ -2596,6 +2597,12 @@ static void wma_vdev_stats_lost_link_helper(tp_wma_handle wma,
 	uint8_t zero_mac[ETH_ALEN] = {0};
 	int8_t bcn_snr, dat_snr;
 
+	if (vdev_stats->vdev_id >= wma->max_bssid) {
+		WMA_LOGE("%s: Invalid vdev_id %hu",
+		 __func__, vdev_stats->vdev_id);
+		return;
+	}
+
 	node = &wma->interfaces[vdev_stats->vdev_id];
 	if (node->vdev_up &&
 	    vos_mem_compare(node->bssid, zero_mac, ETH_ALEN)) {
@@ -2639,6 +2646,12 @@ static void wma_update_vdev_stats(tp_wma_handle wma,
 	tAniGetRssiReq *pGetRssiReq = (tAniGetRssiReq*)wma->pGetRssiReq;
 	vos_msg_t sme_msg = {0};
 	int8_t bcn_snr, dat_snr;
+
+	if (vdev_stats->vdev_id >= wma->max_bssid) {
+		WMA_LOGE("%s: Invalid vdev_id %hu",
+		 __func__, vdev_stats->vdev_id);
+		return;
+	}
 
 	node = &wma->interfaces[vdev_stats->vdev_id];
 	stats_rsp_params = node->stats_rsp;
@@ -2898,6 +2911,12 @@ static void wma_update_rssi_stats(tp_wma_handle wma,
 	uint8_t *stats_buf;
 	uint32_t temp_mask;
 	uint8_t vdev_id;
+
+	if (rssi_stats->vdev_id >= wma->max_bssid) {
+		WMA_LOGE("%s: Invalid vdev_id %hu",
+		 __func__, rssi_stats->vdev_id);
+		return;
+	}
 
 	vdev_id = rssi_stats->vdev_id;
 	node = &wma->interfaces[vdev_id];
@@ -4788,12 +4807,14 @@ static int wma_extscan_change_results_event_handler(void *handle,
 							src_rssi[count++];
 			}
 		}
-		dest_ap += dest_ap->numOfRssi * sizeof(tANI_S32);
+		dest_ap = (tSirWifiSignificantChange *)((char *)dest_ap +
+				dest_ap->numOfRssi * sizeof(tANI_S32) +
+				sizeof(*dest_ap));
 		src_chglist++;
 	}
 	dest_chglist->requestId = event->request_id;
 	dest_chglist->moreData = moredata;
-	dest_chglist->numResults = event->total_entries;
+	dest_chglist->numResults = numap;
 
 	pMac->sme.pExtScanIndCb(pMac->hHdd,
 				eSIR_EXTSCAN_SIGNIFICANT_WIFI_CHANGE_RESULTS_IND,
@@ -5249,6 +5270,15 @@ static int wma_unified_radio_tx_power_level_stats_event_handler(void *handle,
 	rs_results = (tSirWifiRadioStat *) &link_stats_results->results[0];
 	tx_power_level_values = (uint8 *) param_tlvs->tx_time_per_power_level;
 
+	if (rs_results->total_num_tx_power_levels &&
+	    fixed_param->total_num_tx_power_levels >
+		rs_results->total_num_tx_power_levels) {
+		WMA_LOGE("%s: excess tx_power buffers:%d, total_num_tx_power_levels:%d",
+			 __func__, fixed_param->total_num_tx_power_levels,
+			 rs_results->total_num_tx_power_levels);
+		return -EINVAL;
+	}
+
 	rs_results->total_num_tx_power_levels =
 				fixed_param->total_num_tx_power_levels;
 	if (!rs_results->total_num_tx_power_levels)
@@ -5359,6 +5389,22 @@ static int wma_unified_link_radio_stats_event_handler(void *handle,
 	}
 
 	link_stats_results = wma_handle->link_stats_results;
+	if (link_stats_results->num_radio == 0) {
+		link_stats_results->num_radio = fixed_param->num_radio;
+	} else if (link_stats_results->num_radio < fixed_param->num_radio) {
+		/*
+		 * The link stats results size allocated based on num_radio of
+		 * first event must be same as following events. Otherwise these
+		 * events may be spoofed. Drop all of them and report error.
+		 */
+		WMA_LOGE("Invalid following WMI_RADIO_LINK_STATS_EVENTID. Discarding this set");
+		rs_results->tx_time_per_power_level = NULL;
+		vos_mem_free(wma_handle->link_stats_results);
+		wma_handle->link_stats_results = NULL;
+		vos_mem_free(rs_results->tx_time_per_power_level);
+		return -EINVAL;
+	}
+
 	vos_mem_zero(link_stats_results, link_stats_results_size);
 
 	link_stats_results->paramId            = WMI_LINK_STATS_RADIO;
@@ -11403,6 +11449,8 @@ VOS_STATUS wma_get_buf_start_scan_cmd(tp_wma_handle wma_handle,
 		case P2P_SCAN_TYPE_SEARCH:
 			WMA_LOGD("P2P_SCAN_TYPE_SEARCH");
 			cmd->scan_ctrl_flags |= WMI_SCAN_FILTER_PROBE_REQ;
+			if (!scan_req->numSsid)
+				cmd->scan_ctrl_flags |= WMI_SCAN_ADD_BCAST_PROBE_REQ;
 			/* Default P2P burst duration of 120 ms will cover
 			 * 3 channels with default max dwell time 40 ms.
 			 * Cap limit will be set by
@@ -23966,7 +24014,15 @@ static int wma_wow_wakeup_host_event(void *handle, u_int8_t *event,
 	}
 
 	vos_event_set(&wma->wma_resume_event);
-
+	if (param_buf->wow_packet_buffer) {
+		wow_buf_pkt_len = *(uint32_t *)param_buf->wow_packet_buffer;
+		if (wow_buf_pkt_len > (param_buf->num_wow_packet_buffer - 4)) {
+			WMA_LOGE("Invalid wow buf pkt len from firmware, wow_buf_pkt_len: %u, num_wow_packet_buffer: %u",
+					wow_buf_pkt_len,
+					param_buf->num_wow_packet_buffer);
+			return -EINVAL;
+		}
+	}
 	switch (wake_info->wake_reason) {
 	case WOW_REASON_AUTH_REQ_RECV:
 	case WOW_REASON_ASSOC_REQ_RECV:
@@ -24105,8 +24161,6 @@ static int wma_wow_wakeup_host_event(void *handle, u_int8_t *event,
 		if (param_buf->wow_packet_buffer) {
 		    /* Roam event is embedded in wow_packet_buffer */
 		    WMA_LOGD("Host woken up because of roam event");
-		    vos_mem_copy((u_int8_t *) &wow_buf_pkt_len,
-				param_buf->wow_packet_buffer, 4);
 		    WMA_LOGD("wow_packet_buffer dump");
 				vos_trace_hex_dump(VOS_MODULE_ID_WDA,
 				VOS_TRACE_LEVEL_DEBUG,
@@ -24134,8 +24188,6 @@ static int wma_wow_wakeup_host_event(void *handle, u_int8_t *event,
 		if (param_buf->wow_packet_buffer) {
 		    /* station kickout event embedded in wow_packet_buffer */
 		    WMA_LOGD("Host woken up because of sta_kickout event");
-		    vos_mem_copy((u_int8_t *) &wow_buf_pkt_len,
-				param_buf->wow_packet_buffer, 4);
 		    WMA_LOGD("wow_packet_buffer dump");
 				vos_trace_hex_dump(VOS_MODULE_ID_WDA,
 				VOS_TRACE_LEVEL_DEBUG,
@@ -24177,8 +24229,6 @@ static int wma_wow_wakeup_host_event(void *handle, u_int8_t *event,
 			WMA_LOGD("Host woken up because of rssi breach reason");
 			/* rssi breach event is embedded in wow_packet_buffer */
 			if (param_buf->wow_packet_buffer) {
-				vos_mem_copy((u_int8_t *) &wow_buf_pkt_len,
-					param_buf->wow_packet_buffer, 4);
 				if (wow_buf_pkt_len >= sizeof(param)) {
 					param.fixed_param =
 					(wmi_rssi_breach_event_fixed_param *)
@@ -29441,7 +29491,7 @@ VOS_STATUS wma_stats_ext_req(void *wda_handle,
 	tp_wma_handle wma = (tp_wma_handle)wda_handle;
 	wmi_req_stats_ext_cmd_fixed_param *cmd;
 	wmi_buf_t buf;
-	u_int16_t len;
+	size_t len;
 	u_int8_t *buf_ptr;
 
 	len = sizeof(*cmd) + WMI_TLV_HDR_SIZE +
@@ -30931,6 +30981,18 @@ static VOS_STATUS wma_nan_req(void *wda_handle, tpNanRequest nan_req)
 	nan_data_len = nan_req->request_data_len;
 	nan_data_len_aligned = roundup(nan_req->request_data_len,
 				sizeof(u_int32_t));
+	if (nan_data_len_aligned < nan_req->request_data_len) {
+		WMA_LOGE("%s: integer overflow while rounding up data_len",
+			 __func__);
+		return VOS_STATUS_E_NOMEM;
+	}
+
+	if (nan_data_len_aligned > WMA_SVC_MSG_MAX_SIZE - WMI_TLV_HDR_SIZE) {
+		WMA_LOGE("%s: wmi_max_msg_size overflow for given datalen",
+			 __func__);
+		return VOS_STATUS_E_NOMEM;
+	}
+
 	len += WMI_TLV_HDR_SIZE + nan_data_len_aligned;
 	buf = wmi_buf_alloc(wma_handle->wmi_handle, len);
 	if (!buf) {
@@ -35693,8 +35755,11 @@ int wma_scpc_event_handler(void *handle, u_int8_t *event_buf, u_int32_t len)
 	param_buf = (WMI_PDEV_UTF_SCPC_EVENTID_param_tlvs *)event_buf;
 	scpc_event = param_buf->fixed_param;
 	length = len - sizeof(wmi_scpc_event_fixed_param);
-
-
+	if (length < sizeof(u_int32_t)) {
+		WMA_LOGE("%s: invalid length", __func__);
+		return -EINVAL;
+	}
+	
 	buf = (u_int8_t *)scpc_event + sizeof(wmi_scpc_event_fixed_param);
 
 	WMA_LOGD("%s: section count is %d, data length is %d, tag is 0x%x.\n",
@@ -35702,21 +35767,30 @@ int wma_scpc_event_handler(void *handle, u_int8_t *event_buf, u_int32_t len)
 
 	/* skip the tag */
 	buf += sizeof(u_int32_t);
+	length -= sizeof(u_int32_t);
+	if (length < sizeof(struct _bd)) {
+		WMA_LOGE("%s: invalid length", __func__);
+		return -EINVAL;
+	}
+
 
 	i = n = 0;
-	bd_data = (struct _bd *)&buf[n];
-	n += roundup((sizeof(struct _bd) + bd_data->length), 4);
 
-	while ((n < length) && (i < scpc_event->num_patch)) {
+	while ((n <= length - sizeof(struct _bd)) && (i < scpc_event->num_patch)) {
 		bd_data = (struct _bd *)&buf[n];
 
 		WMA_LOGD("%s: board data patch%i, offset= %d, length= %d.\n",
 			__func__, i, bd_data->offset, bd_data->length);
+		if (bd_data->length > length - sizeof(struct _bd) - n)
+			break;
+			
 		/* cache the data section */
 		vos_cache_boarddata(bd_data->offset,
-				bd_data->length, bd_data->data);
-
-		n += roundup((sizeof(struct _bd) + bd_data->length), 4);
+				    bd_data->length, bd_data->data);
+		len = roundup((sizeof(struct _bd) + bd_data->length), 4);
+		if (len > length - n)
+			break;
+		n += len;
 		i++;
 	}
 

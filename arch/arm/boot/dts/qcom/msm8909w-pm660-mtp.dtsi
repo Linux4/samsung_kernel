@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2017-2018, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -40,6 +40,12 @@
 		qcom,iris-vddrfa-supply  = <&pm660_l6>;
 		qcom,iris-vdddig-supply  = <&pm660_l13>;
 		qcom,wcn-external-gpio-support;
+
+		clocks = <&clock_rpm clk_xo_wlan_clk>,
+			<&clock_rpm clk_rf_clk1>,
+			<&clock_debug clk_gcc_debug_mux>,
+			<&clock_gcc clk_wcnss_m_clk>;
+		clock-names = "xo", "rf_clk", "measure", "wcnss_debug";
 	};
 
 	qcom,pronto@a21b000 {
@@ -76,9 +82,33 @@
 };
 
 &i2c_1 {
-	mpu6050@68 {
-		/delete-property/ vdd-supply;
-		/delete-property/ vlogic-supply;
+	/delete-node/ mpu6050@68;
+	/delete-node/ avago@39;
+	/delete-node/ akm@c;
+};
+
+&msm_gpio {
+	/delete-node/ mpu6050_int_pin;
+	/delete-node/ apds99xx_int_pin;
+	/delete-node/ ak8963_int_pin;
+
+	pmx_mdss {
+		mdss_dsi_active: mdss_dsi_active {
+			mux {
+				pins = "gpio25", "gpio37", "gpio59";
+			};
+			config {
+				pins = "gpio25", "gpio37", "gpio59";
+			};
+		};
+		mdss_dsi_suspend: mdss_dsi_suspend {
+			mux {
+				pins = "gpio25", "gpio37", "gpio59";
+			};
+			config {
+				pins = "gpio25", "gpio37", "gpio59";
+			};
+		};
 	};
 };
 
@@ -107,9 +137,6 @@
 	};
 };
 
-&audio_codec_mtp {
-	/delete-property/ asoc-codec;
-};
 
 &sdhc_2 {
 	/delete-property/ vdd-supply;
@@ -166,6 +193,27 @@
 	qcom,clock-a7@0b011050 {
 		cpu-vdd-supply = <&apc_vreg_corner>;
 	};
+
+	qcom,rpmcc@1800000 {
+		compatible = "qcom,rpmcc-8909-pm660";
+	};
+
+	qcom,sensor-information {
+		sensor_information9: qcom,sensor-information-9 {
+			qcom,sensor-type = "adc";
+			qcom,sensor-name = "emmc_therm";
+		};
+
+		sensor_information10: qcom,sensor-information-10 {
+			qcom,sensor-type = "adc";
+			qcom,sensor-name = "msm_therm";
+		};
+
+		sensor_information11: qcom,sensor-information-11 {
+			qcom,sensor-type = "adc";
+			qcom,sensor-name = "quiet_therm";
+		};
+	};
 };
 
 &sdhc_1 {
@@ -199,6 +247,7 @@
 &mdss_dsi0{
 	qcom,dsi-pref-prim-pan = <&dsi_auo_390p_cmd>;
 	qcom,platform-bklight-en-gpio = <&msm_gpio 52 0>;
+	qcom,platform-enable-gpio = <&msm_gpio 59 0>;
 };
 
 &mdss_dsi0_pll {
@@ -206,6 +255,15 @@
 };
 
 &pm660_gpios {
+	/* GPIO 4 (NFC_CLK_REQ) */
+	gpio@c300 {
+		qcom,mode = <0>;
+		qcom,vin-sel = <1>;
+		qcom,src-sel = <0>;
+		qcom,master-en = <1>;
+		status = "okay";
+	};
+
 	gpio@cb00 {
 		status = "ok";
 		qcom,mode = <1>;
@@ -214,4 +272,55 @@
 		qcom,master-en = <1>;
 		qcom,out-strength = <2>;
 	};
+
+	gpio@c400 {
+		status = "ok";
+		qcom,mode = <1>;
+		qcom,pull = <5>;
+		qcom,vin-sel = <0>;
+		qcom,src-sel = <2>;
+		qcom,master-en = <1>;
+		qcom,out-strength = <2>;
+	};
+};
+
+&pm660_misc {
+	qcom,support-twm-config;
+};
+
+&pm660_pbs {
+	status = "okay";
+};
+
+&pm660_pon {
+	qcom,support-twm-config;
+	qcom,pbs-client = <&pm660_pbs>;
+};
+
+/ {
+	/delete-node/ qcom,battery-data;
+	mtp_batterydata: qcom,battery-data {
+		qcom,batt-id-range-pct = <15>;
+		#include "fg-gen3-batterydata-palladium-1500mah.dtsi"
+	};
+};
+
+&pm660_charger {
+	qcom,pd-not-supported;
+};
+
+&pm660_fg {
+	qcom,battery-data = <&mtp_batterydata>;
+	qcom,fg-rsense-sel = <1>;	/* External rsense */
+	qcom,fg-cutoff-voltage = <3400>;
+	qcom,fg-recharge-voltage = <4100>;
+
+	qcom,fg-use-sw-esr;
+	qcom,fg-esr-pulse-thresh-ma = <40>;
+	qcom,fg-esr-meas-curr-ma = <60>;
+	qcom,fg-cutoff-current = <50>;
+
+	qcom,fg-esr-timer-shutdown = <2048 2048>;
+	qcom,fg-esr-timer-asleep = <512 512>;
+	qcom,fg-sync-sleep-threshold-ma = <30>;
 };

@@ -175,6 +175,7 @@ extern void get_iowait_load(unsigned long *nr_waiters, unsigned long *load);
 
 extern void sched_update_nr_prod(int cpu, long delta, bool inc);
 extern void sched_get_nr_running_avg(int *avg, int *iowait_avg, int *big_avg);
+extern u64 sched_get_cpu_last_busy_time(int cpu);
 
 extern void calc_global_load(unsigned long ticks);
 extern void update_cpu_load_nohz(void);
@@ -2648,6 +2649,11 @@ static inline void mmdrop(struct mm_struct * mm)
 
 /* mmput gets rid of the mappings and all user-space */
 extern int mmput(struct mm_struct *);
+/* same as above but performs the slow path from the async kontext. Can
+ * be called from the atomic context as well
+ */
+extern void mmput_async(struct mm_struct *);
+
 /* Grab a reference to a task's mm, if it is not already going away */
 extern struct mm_struct *get_task_mm(struct task_struct *task);
 /*

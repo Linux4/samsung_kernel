@@ -2549,7 +2549,7 @@ typedef enum
 #endif
 
 #define CFG_LIST_OF_NON_DFS_COUNTRY_CODE                    "gListOfNonDfsCountryCode"
-#define CFG_LIST_OF_NON_DFS_COUNTRY_CODE_DEFAULT            "JO,MA"
+#define CFG_LIST_OF_NON_DFS_COUNTRY_CODE_DEFAULT            ""
 
 
 /*

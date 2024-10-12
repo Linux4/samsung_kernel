@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2015,2017, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2015,2018, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -503,6 +503,20 @@ rtc_rw_fail:
 }
 
 #ifdef CONFIG_RTC_AUTO_PWRON
+static void
+sapa_normalize_alarm(struct rtc_wkalrm *alarm)
+{
+	if (!alarm->enabled) {
+		/* 50 years after RTC reset */
+		alarm->time.tm_year = 70 + 50;
+		alarm->time.tm_mon = 1;
+		alarm->time.tm_mday = 1;
+		alarm->time.tm_hour = 1;
+		alarm->time.tm_min = 1;
+		alarm->time.tm_sec = 1;
+	}
+}
+
 static void sapa_reboot(struct work_struct *work)
 {
 	/* machine_restart(NULL); */
@@ -1048,6 +1062,7 @@ static int qpnp_rtc_probe(struct spmi_device *spmi)
 	}
 #ifdef CONFIG_RTC_AUTO_PWRON_PARAM
 	alarm_reg = rtc_dd->alarm_ctrl_reg1;
+	sapa_saved_time.enabled = (alarm_reg & BIT_RTC_ALARM_ENABLE) ? 1 : 0;
 #endif
 	/* Enable abort enable feature */
 	rtc_dd->alarm_ctrl_reg1 |= BIT_RTC_ABORT_ENABLE;
@@ -1068,6 +1083,7 @@ static int qpnp_rtc_probe(struct spmi_device *spmi)
 			rtc_dd->alarm_base + REG_OFFSET_ALARM_RW, NUM_8_BIT_RTC_REGS);
 	if (rc) pr_err("Read from ALARM reg failed\n");
 	pmic_secs = TO_SECS(value);
+	rtc_time_to_tm(pmic_secs, &sapa_saved_time.time);
 
 	pr_info("[SAPA] alarm_reg=%02x, rtc=%lu pmic=%lu\n", alarm_reg, rtc_secs, pmic_secs);
 #endif
@@ -1076,7 +1092,7 @@ static int qpnp_rtc_probe(struct spmi_device *spmi)
 		qpnp_rtc_ops.set_time = qpnp_rtc_set_time;
 
 	dev_set_drvdata(&spmi->dev, rtc_dd);
-
+	device_init_wakeup(&spmi->dev, 1);
 	/* Register the RTC device */
 	rtc_dd->rtc = rtc_device_register("qpnp_rtc", &spmi->dev,
 						&qpnp_rtc_ops, THIS_MODULE);
@@ -1104,7 +1120,6 @@ static int qpnp_rtc_probe(struct spmi_device *spmi)
 	}
 	wake_lock_init(&sapa_wakelock, WAKE_LOCK_SUSPEND, "alarm_trigger");
 #endif
-	device_init_wakeup(&spmi->dev, 1);
 	enable_irq_wake(rtc_dd->rtc_alarm_irq);
 
 	dev_dbg(&spmi->dev, "Probe success !!\n");
@@ -1121,7 +1136,7 @@ static int qpnp_rtc_probe(struct spmi_device *spmi)
 		INIT_DELAYED_WORK(&sapa_load_param_work, sapa_load_kparam);
 		INIT_DELAYED_WORK(&sapa_reboot_work, sapa_reboot);
 		INIT_DELAYED_WORK(&sapa_check_work, sapa_check_alarm);
-		queue_delayed_work(sapa_workq, &sapa_load_param_work, (5*HZ));
+		queue_delayed_work(sapa_workq, &sapa_load_param_work, (20*HZ));
 		queue_delayed_work(sapa_check_workq, &sapa_check_work, (60*HZ));
 	}
 #endif
@@ -1131,6 +1146,7 @@ static int qpnp_rtc_probe(struct spmi_device *spmi)
 fail_req_irq:
 	rtc_device_unregister(rtc_dd->rtc);
 fail_rtc_enable:
+	device_init_wakeup(&spmi->dev, 0);
 	dev_set_drvdata(&spmi->dev, NULL);
 
 	return rc;
@@ -1199,6 +1215,7 @@ static void qpnp_rtc_shutdown(struct spmi_device *spmi)
 	struct qpnp_rtc *rtc_dd = dev_get_drvdata(&spmi->dev);
 
 	shutdown_loaded = 1;
+	sapa_normalize_alarm(&sapa_saved_time);
 	qpnp_rtc0_resetbootalarm(&spmi->dev);
 
 	/* Check if the RTC is on, else turn it on */

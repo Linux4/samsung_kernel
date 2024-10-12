@@ -1,4 +1,4 @@
-/* Copyright (c) 2017, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2018, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -50,6 +50,8 @@
 #define BGCOM_TO_MASTER_FIFO_READY 0x00000004
 #define BGCOM_AHB_READY 0x00000008
 #define WORD_SIZE 4
+#define TX_BLOCKED_CMD_RESERVE 16
+#define FIFO_FULL_RESERVE (TX_BLOCKED_CMD_RESERVE/WORD_SIZE)
 #define BGCOM_LINKUP (BGCOM_APPLICATION_RUNNING \
 			| BGCOM_TO_SLAVE_FIFO_READY \
 			| BGCOM_TO_MASTER_FIFO_READY \
@@ -216,6 +218,11 @@ static int glink_bgcom_get_tx_avail(struct edge_info *einfo)
 
 	mutex_lock(&einfo->tx_avail_lock);
 	tx_avail = einfo->fifo_fill.tx_avail;
+	if (tx_avail < FIFO_FULL_RESERVE)
+		tx_avail = 0;
+	else
+		tx_avail -= FIFO_FULL_RESERVE;
+
 	mutex_unlock(&einfo->tx_avail_lock);
 	return tx_avail;
 }
@@ -286,13 +293,19 @@ static void send_tx_blocked_signal(struct edge_info *einfo)
 		uint64_t reserved3;
 	};
 	struct read_notif_request read_notif_req = {0};
+	int size_in_word = sizeof(read_notif_req)/WORD_SIZE;
+	void *src = &read_notif_req;
+	int ret;
 
 	read_notif_req.cmd = READ_NOTIF_CMD;
-
 	if (!einfo->tx_blocked_signal_sent) {
 		einfo->tx_blocked_signal_sent = true;
-		glink_bgcom_xprt_tx_cmd_safe(einfo, &read_notif_req,
-					    sizeof(read_notif_req));
+		ret = bgcom_fifo_write(einfo->bgcom_handle, size_in_word, src);
+		if (ret < 0) {
+			GLINK_ERR("%s: Err %d send blocked\n", __func__, ret);
+			return;
+		}
+		glink_bgcom_update_tx_avail(einfo, size_in_word);
 	}
 }
 
@@ -555,13 +568,11 @@ static void process_rx_cmd(struct edge_info *einfo,
  * tx_wakeup_worker() - worker function to wakeup tx blocked thread
  * @work:	kwork associated with the edge to process commands on.
  */
-static void tx_wakeup_worker(struct work_struct *work)
+static void tx_wakeup_worker(struct edge_info *einfo)
 {
-	struct edge_info *einfo;
 	int rcu_id;
 	struct bgcom_fifo_fill fifo_fill;
 
-	einfo = container_of(work, struct edge_info, wakeup_work);
 	mutex_lock(&einfo->tx_avail_lock);
 	bgcom_reg_read(einfo->bgcom_handle, BGCOM_REG_FIFO_FILL, 1,
 						&fifo_fill);
@@ -1266,8 +1277,10 @@ static int tx_data(struct glink_transport_if *if_ptr, uint16_t cmd_id,
 	/* Need enough space to write the command */
 	if (glink_bgcom_get_tx_avail(einfo) <= sizeof(cmd)/WORD_SIZE) {
 		einfo->tx_resume_needed = true;
+		send_tx_blocked_signal(einfo);
 		mutex_unlock(&einfo->write_lock);
 		srcu_read_unlock(&einfo->use_ref, rcu_id);
+		GLINK_ERR("%s: No Space in Fifo\n", __func__);
 		return -EAGAIN;
 	}
 	cmd.addr = 0;
@@ -1277,7 +1290,7 @@ static int tx_data(struct glink_transport_if *if_ptr, uint16_t cmd_id,
 	if (cmd.id == TRACER_PKT_CMD)
 		tracer_pkt_log_event((void *)(pctx->data), GLINK_XPRT_TX);
 
-	bgcom_resume(&einfo->bgcom_handle);
+	bgcom_resume(einfo->bgcom_handle);
 	bgcom_ahb_write(einfo->bgcom_handle, (uint32_t)(size_t)dst,
 				ALIGN(tx_size, WORD_SIZE)/WORD_SIZE,
 				data_start);
@@ -1440,7 +1453,7 @@ static void glink_bgcom_event_handler(void *handle,
 		break;
 	case BGCOM_EVENT_TO_SLAVE_FIFO_FREE:
 		if (einfo->water_mark_reached)
-			queue_work(system_unbound_wq, &einfo->wakeup_work);
+			tx_wakeup_worker(einfo);
 		break;
 	case BGCOM_EVENT_RESET_OCCURRED:
 		einfo->bgcom_status = BGCOM_RESET;
@@ -1592,7 +1605,6 @@ static int glink_bgcom_probe(struct platform_device *pdev)
 	init_xprt_cfg(einfo, subsys_name);
 	init_xprt_if(einfo);
 
-	INIT_WORK(&einfo->wakeup_work, tx_wakeup_worker);
 	init_kthread_worker(&einfo->kworker);
 	init_srcu_struct(&einfo->use_ref);
 	mutex_init(&einfo->write_lock);
@@ -1646,7 +1658,6 @@ bgcom_open_fail:
 	glink_core_unregister_transport(&einfo->xprt_if);
 reg_xprt_fail:
 	flush_kthread_worker(&einfo->kworker);
-	flush_work(&einfo->wakeup_work);
 	kthread_stop(einfo->task);
 	einfo->task = NULL;
 kthread_fail:
@@ -1690,14 +1701,14 @@ static int glink_bgcom_suspend(struct platform_device *pdev,
 	int rc = -EBUSY;
 
 	einfo = (struct edge_info *)dev_get_drvdata(&pdev->dev);
-	if (strcmp(einfo->xprt_cfg.edge, "bgcom"))
+	if (strcmp(einfo->xprt_cfg.edge, "bg"))
 		return 0;
 
 	spin_lock_irqsave(&einfo->activity_lock, flags);
 	suspend = !(einfo->activity_flag);
 	spin_unlock_irqrestore(&einfo->activity_lock, flags);
 	if (suspend)
-		rc = bgcom_suspend(&einfo->bgcom_handle);
+		rc = bgcom_suspend(einfo->bgcom_handle);
 	if (rc < 0)
 		GLINK_ERR("%s: Could not suspend activity_flag %d, rc %d\n",
 			__func__, einfo->activity_flag, rc);

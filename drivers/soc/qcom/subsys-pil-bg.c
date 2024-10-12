@@ -1,4 +1,4 @@
-/* Copyright (c) 2017, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2017-2018, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -30,6 +30,7 @@
 #include "peripheral-loader.h"
 #include "../../misc/qseecom_kernel.h"
 #include "pil_bg_intf.h"
+#include "bgcom_interface.h"
 
 #define INVALID_GPIO	-1
 #define NUM_GPIOS	4
@@ -37,7 +38,8 @@
 #define desc_to_data(d)	container_of(d, struct pil_bg_data, desc)
 #define subsys_to_data(d) container_of(d, struct pil_bg_data, subsys_desc)
 #define BG_RAMDUMP_SZ	0x00102000
-#define BG_CRASH_IN_TWM	2
+#define BG_VERSION_SZ	32
+#define BG_CRASH_IN_TWM	-2
 /**
  * struct pil_bg_data
  * @qseecom_handle: handle of TZ app
@@ -90,9 +92,18 @@ static irqreturn_t bg_status_change(int irq, void *dev_id);
 static void bg_app_shutdown_notify(const struct subsys_desc *subsys)
 {
 	struct pil_bg_data *bg_data = subsys_to_data(subsys);
+
+	/* Disable irq if already BG is up */
+	if (bg_data->is_ready) {
+		disable_irq(bg_data->status_irq);
+		disable_irq(bg_data->errfatal_irq);
+		bg_data->is_ready = false;
+	}
 	/* Toggle AP2BG err fatal gpio here to inform apps err fatal event */
-	if (gpio_is_valid(bg_data->gpios[2]))
+	if (gpio_is_valid(bg_data->gpios[2])) {
+		pr_debug("Sending Apps shutdown signal\n");
 		gpio_set_value(bg_data->gpios[2], 1);
+	}
 }
 
 /**
@@ -106,9 +117,18 @@ static int bg_app_reboot_notify(struct notifier_block *nb,
 {
 	struct pil_bg_data *bg_data = container_of(nb,
 					struct pil_bg_data, reboot_blk);
+
+	/* Disable irq if already BG is up */
+	if (bg_data->is_ready) {
+		disable_irq(bg_data->status_irq);
+		disable_irq(bg_data->errfatal_irq);
+		bg_data->is_ready = false;
+	}
 	/* Toggle AP2BG err fatal gpio here to inform apps err fatal event */
-	if (gpio_is_valid(bg_data->gpios[2]))
+	if (gpio_is_valid(bg_data->gpios[2])) {
+		pr_debug("Sending reboot signal\n");
 		gpio_set_value(bg_data->gpios[2], 1);
+	}
 	return NOTIFY_DONE;
 }
 
@@ -173,6 +193,9 @@ static long bgpil_tzapp_comm(struct pil_bg_data *pbd,
 	struct tzapp_bg_req *bg_tz_req;
 	struct tzapp_bg_rsp *bg_tz_rsp;
 	int rc, req_len, rsp_len;
+	unsigned char *ascii;
+	char fiwmare_version[100] = {'\0'};
+	char ascii_string[5];
 
 	/* Fill command structure */
 	req_len = sizeof(struct tzapp_bg_req);
@@ -194,6 +217,21 @@ static long bgpil_tzapp_comm(struct pil_bg_data *pbd,
 		pbd->cmd_status = bg_tz_rsp->status;
 	else
 		pbd->cmd_status = 0;
+	/* if last command sent was BG_VERSION print the version*/
+	if (req->tzapp_bg_cmd == BGPIL_GET_BG_VERSION) {
+		int i;
+
+		pr_info("BG FW version ");
+		for (i = 0; i < bg_tz_rsp->bg_info_len; i++) {
+			pr_info("0x%08x ", bg_tz_rsp->bg_info[i]);
+			ascii = (unsigned char *)&bg_tz_rsp->bg_info[i];
+			snprintf(ascii_string, PAGE_SIZE, "%c%c%c%c", ascii[0],
+						ascii[1], ascii[2], ascii[3]);
+			strlcat(fiwmare_version, ascii_string,
+						PAGE_SIZE);
+		}
+		pr_info("%s\n", fiwmare_version);
+	}
 end:
 	return rc;
 }
@@ -266,7 +304,6 @@ static int bg_powerup(const struct subsys_desc *subsys)
 		return ret;
 	}
 	enable_irq(bg_data->status_irq);
-	enable_irq(bg_data->errfatal_irq);
 	ret = wait_for_err_ready(bg_data);
 	if (ret) {
 		dev_err(bg_data->desc.dev,
@@ -289,10 +326,12 @@ static int bg_shutdown(const struct subsys_desc *subsys, bool force_stop)
 {
 	struct pil_bg_data *bg_data = subsys_to_data(subsys);
 
-	disable_irq(bg_data->status_irq);
-	devm_free_irq(bg_data->desc.dev, bg_data->status_irq, bg_data);
-	disable_irq(bg_data->errfatal_irq);
-	bg_data->is_ready = false;
+	if (bg_data->is_ready) {
+		disable_irq(bg_data->status_irq);
+		devm_free_irq(bg_data->desc.dev, bg_data->status_irq, bg_data);
+		disable_irq(bg_data->errfatal_irq);
+		bg_data->is_ready = false;
+	}
 	return 0;
 }
 
@@ -370,6 +409,28 @@ static int bg_get_firmware_addr(struct pil_desc *pil,
 	return 0;
 }
 
+static int bg_get_version(const struct subsys_desc *subsys)
+{
+	struct pil_bg_data *bg_data = subsys_to_data(subsys);
+	struct pil_desc desc = bg_data->desc;
+	struct tzapp_bg_req bg_tz_req;
+	int ret;
+
+	init_dma_attrs(&desc.attrs);
+	dma_set_attr(DMA_ATTR_SKIP_ZEROING, &desc.attrs);
+	dma_set_attr(DMA_ATTR_NO_KERNEL_MAPPING, &desc.attrs);
+
+	bg_tz_req.tzapp_bg_cmd = BGPIL_GET_BG_VERSION;
+
+	ret = bgpil_tzapp_comm(bg_data, &bg_tz_req);
+	if (ret || bg_data->cmd_status) {
+		dev_dbg(desc.dev, "%s: BG PIL get BG version failed error %d\n",
+			__func__, bg_data->cmd_status);
+		return bg_data->cmd_status;
+	}
+
+	return 0;
+}
 
 /**
  * bg_auth_and_xfer() - Called by Peripheral loader framework
@@ -391,7 +452,9 @@ static int bg_auth_and_xfer(struct pil_desc *pil)
 	ret = bgpil_tzapp_comm(bg_data, &bg_tz_req);
 	if (bg_data->cmd_status == BG_CRASH_IN_TWM) {
 		/* Do ramdump and resend boot cmd */
-		bg_data->subsys_desc.ramdump(true, &bg_data->subsys_desc);
+		if (is_twm_exit())
+			bg_data->subsys_desc.ramdump(true,
+				&bg_data->subsys_desc);
 		bg_tz_req.tzapp_bg_cmd = BGPIL_DLOAD_CONT;
 		ret = bgpil_tzapp_comm(bg_data, &bg_tz_req);
 	}
@@ -402,6 +465,7 @@ static int bg_auth_and_xfer(struct pil_desc *pil)
 		pil_free_memory(&bg_data->desc);
 		return bg_data->cmd_status;
 	}
+	ret = bg_get_version(&bg_data->subsys_desc);
 	/* BG Transfer of image is complete, free up the memory */
 	pr_debug("BG Firmware authentication and transfer done\n");
 	pil_free_memory(&bg_data->desc);
@@ -519,7 +583,6 @@ static irqreturn_t bg_status_change(int irq, void *dev_id)
 	} else if (value == false && drvdata->is_ready) {
 		dev_err(drvdata->desc.dev,
 			"BG got unexpected reset: irq state changed 1->0\n");
-			drvdata->is_ready = false;
 		queue_work(drvdata->bg_queue, &drvdata->restart_work);
 	} else {
 		dev_err(drvdata->desc.dev,
@@ -581,7 +644,6 @@ static int setup_bg_gpio_irq(struct platform_device *pdev,
 		goto err;
 	}
 	drvdata->errfatal_irq = irq;
-	enable_irq(drvdata->errfatal_irq);
 	/* Configure outgoing GPIO's */
 	if (gpio_request(drvdata->gpios[2], "AP2BG_ERRFATAL")) {
 		dev_err(&pdev->dev,

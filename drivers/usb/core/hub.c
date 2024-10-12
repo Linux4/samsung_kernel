@@ -1768,7 +1768,7 @@ static int hub_probe(struct usb_interface *intf, const struct usb_device_id *id)
 	 */
 #ifdef CONFIG_PM_RUNTIME
 	if (hdev->dev.power.autosuspend_delay >= 0)
-		pm_runtime_set_autosuspend_delay(&hdev->dev, 0);
+		pm_runtime_set_autosuspend_delay(&hdev->dev, 2000);
 #endif
 
 	/*

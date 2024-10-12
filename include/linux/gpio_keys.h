@@ -1,7 +1,7 @@
 #ifndef _GPIO_KEYS_H
 #define _GPIO_KEYS_H
 
-#define GPIO_KEYS_DEV_NAME "gpio-keys"
+#define GPIO_KEYS_DEV_NAME "gpio_keys"
 
 struct device;
 

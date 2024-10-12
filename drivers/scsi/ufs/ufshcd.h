@@ -901,7 +901,8 @@ struct ufs_hba {
 	int scsi_block_reqs_cnt;
 
 	int			latency_hist_enabled;
-	struct io_latency_state io_lat_s;
+	struct io_latency_state io_lat_read;
+	struct io_latency_state io_lat_write;
 #define UFS_PW_ON	0
 #define UFS_PW_OFF	1
 	int hw_reset_gpio;

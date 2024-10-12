@@ -66,6 +66,10 @@
 
 #include <trace/events/sched.h>
 
+#ifdef CONFIG_SECURITY_DEFEX
+#include <linux/defex.h>
+#endif
+
 #ifdef CONFIG_RKP_KDP
 #define rkp_is_nonroot(x) ((x->cred->type)>>1 & 1)
 #endif /*CONFIG_RKP_KDP*/
@@ -1737,6 +1741,15 @@ static int do_execve_common(struct filename *filename,
 	retval = PTR_ERR(file);
 	if (IS_ERR(file))
 		goto out_unmark;
+
+#ifdef CONFIG_SECURITY_DEFEX
+	retval = task_defex_enforce(current, file, -__NR_execve);
+	if (retval < 0) {
+		bprm->file = file;
+		retval = -EPERM;
+		goto out_unmark;
+	 }
+#endif
 
 	sched_exec();
 

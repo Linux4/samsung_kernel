@@ -47,11 +47,13 @@ obj-$(CONFIG_MSM_GLINK_SMEM_NATIVE_XPRT) += glink_smem_native_xprt.o
 obj-$(CONFIG_MSM_GLINK_BGCOM_XPRT) += glink_bgcom_xprt.o
 obj-$(CONFIG_MSM_SPCOM) += spcom.o
 obj-$(CONFIG_MSM_SMEM_LOGGING) += smem_log.o
-obj-$(CONFIG_MSM_SMP2P)	+=	smp2p_loopback.o smp2p.o smp2p_debug.o smp2p_sleepstate.o
+obj-$(CONFIG_MSM_BG_GLINK) += bg_glink.o
+obj-$(CONFIG_MSM_SMP2P) += smp2p.o smp2p_loopback.o smp2p_debug.o smp2p_sleepstate.o
 obj-$(CONFIG_MSM_QMI_INTERFACE) += qmi_interface.o
 obj-$(CONFIG_MSM_IPC_ROUTER_SMD_XPRT) += ipc_router_smd_xprt.o
 obj-$(CONFIG_MSM_IPC_ROUTER_HSIC_XPRT) += ipc_router_hsic_xprt.o
 obj-$(CONFIG_MSM_IPC_ROUTER_MHI_XPRT) += ipc_router_mhi_xprt.o
+obj-$(CONFIG_MSM_IPC_ROUTER_MHI_DEV_XPRT) += ipc_router_mhi_dev_xprt.o
 obj-$(CONFIG_MSM_IPC_ROUTER_GLINK_XPRT) += ipc_router_glink_xprt.o
 obj-$(CONFIG_MSM_SYSMON_GLINK_COMM) += sysmon-glink.o sysmon-qmi.o
 obj-$(CONFIG_MSM_SHARED_HEAP_ACCESS) += shared_memory.o
@@ -91,6 +93,7 @@ ifdef CONFIG_MSM_SUBSYSTEM_RESTART
 	obj-y += ramdump.o
 endif
 
+obj-$(CONFIG_MSM_BGRSB) += bg_rsb.o
 obj-$(CONFIG_MSM_BGCOM_INTERFACE) += bgcom_interface.o
 obj-$(CONFIG_MSM_SERVICE_NOTIFIER) += service-notifier.o
 obj-$(CONFIG_MSM_SYSMON_COMM) += sysmon.o sysmon-qmi.o
@@ -107,3 +110,4 @@ obj-$(CONFIG_MSM_REMOTEQDSS) += remoteqdss.o
 obj-$(CONFIG_QCOM_SMCINVOKE) += smcinvoke.o
 obj-$(CONFIG_QCOM_EARLY_RANDOM)	+= early_random.o
 obj-$(CONFIG_MSM_HAB) += hab/
+obj-$(CONFIG_QCOM_QDSS_BRIDGE) += qdss_bridge.o

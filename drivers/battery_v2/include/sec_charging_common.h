@@ -51,6 +51,7 @@ enum power_supply_ext_property {
 	POWER_SUPPLY_EXT_PROP_BATTERY_TEMP,
 	POWER_SUPPLY_EXT_PROP_CHIP_ID,
 	POWER_SUPPLY_EXT_PROP_USB_CONFIGURE,
+	POWER_SUPPLY_EXT_PROP_HV_DISABLE,
 };
 
 enum sec_battery_usb_conf {
@@ -827,10 +828,14 @@ struct sec_battery_platform_data {
 	int max_input_current;
 	int pre_afc_work_delay;
 
+	int default_input_current;
+	int default_charging_current;
+
 	sec_charger_functions_t chg_functions_setting;
 
 	bool fake_capacity;
 
+	unsigned int battery_full_capacity;
 	/* ADC setting */
 	unsigned int adc_check_count;
 	/* ADC type for each channel */

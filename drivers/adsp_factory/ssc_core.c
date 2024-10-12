@@ -147,20 +147,23 @@ static ssize_t remove_sensor_sysfs_store(struct device *dev,
 	struct device_attribute *attr, const char *buf, size_t size)
 {
 	unsigned int type = ADSP_FACTORY_SENSOR_MAX;
+	struct adsp_data *data = dev_get_drvdata(dev);
 
 	if (kstrtouint(buf, 10, &type)) {
 		pr_err("[FACTORY] %s: kstrtouint fail\n", __func__);
 		return -EINVAL;
 	}
 
-	if (type >= ADSP_FACTORY_SENSOR_MAX) {
+	if (type > ADSP_FACTORY_PROX && type != ADSP_FACTORY_HH_HOLE) {
 		pr_err("[FACTORY] %s: Invalid type %u\n", __func__, type);
 		return size;
 	}
 
 	pr_info("[FACTORY] %s: type = %u\n", __func__, type);
 
+	mutex_lock(&data->remove_sysfs_mutex);
 	adsp_factory_unregister(type);
+	mutex_unlock(&data->remove_sysfs_mutex);
 
 	return size;
 }
