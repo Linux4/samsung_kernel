@@ -53,7 +53,7 @@
 		};
 	};
 #endif
-#ifdef CONFIG_HQ_PROJECT_O22
+#if defined(CONFIG_HQ_PROJECT_O22) || defined(CONFIG_HQ_PROJECT_O8)
 	mt6357keys: mt6357keys {
 		compatible = "mediatek,mt6357-keys";
 		mediatek,long-press-mode = <2>;
@@ -177,7 +177,7 @@
 		nvmem-cell-names = "initialization", "state-of-charge";
 	};
 #endif
-#ifdef CONFIG_HQ_PROJECT_O22
+#if defined(CONFIG_HQ_PROJECT_O22) || defined(CONFIG_HQ_PROJECT_O8)
 	mtk_gauge: mtk_gauge {
 		compatible = "mediatek,mt6357-gauge";
 		charger = <&mt6370_chg>;

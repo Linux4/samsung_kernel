@@ -68,7 +68,7 @@
 #define ACCDET_TIME_OUT 0x61A80
 
 /*hs14 code for AL6528A-338 by liudi at 20221018 start*/
-#ifdef CONFIG_HQ_PROJECT_O22
+#if defined(CONFIG_HQ_PROJECT_O22) || defined(CONFIG_HQ_PROJECT_O8)
 #include <linux/notifier.h>
 #define HEADSET_PLUGOUT_STATE    0
 #define HEADSET_PLUGIN_STATE    1

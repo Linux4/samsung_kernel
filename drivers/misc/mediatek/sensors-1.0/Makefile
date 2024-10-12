@@ -22,6 +22,8 @@ endif
 #hs14 code for SR-AL6528A-01-376 by xiongxiaoliang at 2022/09/02 start
 ifeq ($(CONFIG_HQ_PROJECT_O22), y)
 obj-$(CONFIG_CUSTOM_KERNEL_SAR_SENSOR) += o22_sar/
+else ifeq ($(CONFIG_HQ_PROJECT_O8), y)
+obj-$(CONFIG_CUSTOM_KERNEL_SAR_SENSOR) += o22_sar/
 else
 obj-$(CONFIG_CUSTOM_KERNEL_SAR_SENSOR) += sar/
 endif

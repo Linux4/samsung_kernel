@@ -593,7 +593,7 @@ static const struct file_operations cameraModuleInfo_fops = {
 };
 #endif
 
-#ifdef CONFIG_HQ_PROJECT_O22
+#if defined(CONFIG_HQ_PROJECT_O22) || defined(CONFIG_HQ_PROJECT_O8)
 #define HQEXTEND_CAM_MODULE_INFO "cameraModuleInfo"
 static char hqextend_cameraModuleInfo[255];
 static struct proc_dir_entry *hqextend_proc_entry;
@@ -656,7 +656,7 @@ enum IMGSENSOR_RETURN imgsensor_proc_init(void)
 #if CAM_MODULE_INFO_CONFIG
     proc_create(CAM_MODULE_INFO, 0664, NULL, &cameraModuleInfo_fops);
 #endif
-#ifdef CONFIG_HQ_PROJECT_O22
+#if defined(CONFIG_HQ_PROJECT_O22) || defined(CONFIG_HQ_PROJECT_O8)
     hqextend_proc_entry=proc_create(HQEXTEND_CAM_MODULE_INFO,
                                 0664, NULL,
                                 &hqextend_cameraModuleInfo_fops);

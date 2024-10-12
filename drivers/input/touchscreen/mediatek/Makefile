@@ -1,4 +1,5 @@
 ifneq ($(CONFIG_HQ_PROJECT_O22),y)
+ifneq ($(CONFIG_HQ_PROJECT_O8),y)
 obj-y   +=  tpd_control.o
 obj-y   +=  tpd_button.o
 obj-y   +=  tpd_debug.o
@@ -24,6 +25,7 @@ obj-$(CONFIG_TOUCHSCREEN_GALAXYCORE_CHIPSET_M04) += M04/galaxycore/
 obj-$(CONFIG_TOUCHSCREEN_CHIPONE_CHIPSET_M04) += M04/chipone/
 # hs04 code for DEAL6398A-1876 by tangsumian at 20221012 end
 endif
+endif
 
 ifeq ($(CONFIG_HQ_PROJECT_O22),y)
 # hs14 code for AL6528A-213 by hehaoran5 at 20221002 start
@@ -47,4 +49,16 @@ obj-$(CONFIG_TOUCHSCREEN_HIMAX_CHIPSET_O22) += O22/hxchipset/
 # hs14 code for SR-AL6528A-01-491 by hehaoran5 at 20220914 start
 obj-$(CONFIG_TOUCHSCREEN_CHIPONE_TDDI_O22) += O22/chipone-tddi/
 # hs14 code for SR-AL6528A-01-491 by hehaoran5 at 20220914 end
+endif
+
+ifeq ($(CONFIG_HQ_PROJECT_O8),y)
+subdir-ccflags-y += -I$(srctree)/drivers/misc/mediatek/video/include/
+subdir-ccflags-y += -I$(srctree)/drivers/misc/mediatek/accdet/mt6358/
+subdir-ccflags-y += -I$(srctree)/drivers/input/keyboard/mediatek/mt6768/
+# a06 code for AL7160A-5 by wenghailong at 20240313 start
+obj-$(CONFIG_TOUCHSCREEN_HX83108B_CHIPSET_O8) += O8/hxchipset_hx83108b/
+# a06 code for AL7160A-5 by wenghailong at 20240313 end
+# a06 code for AL7160A-5 by wenghailong at 20240313 start
+obj-$(CONFIG_ODM_SEC_COMMON) += O8/touch_common/
+# a06 code for AL7160A-5 by wenghailong at 20240313 end
 endif

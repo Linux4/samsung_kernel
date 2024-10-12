@@ -516,7 +516,7 @@ static int mt6577_auxadc_remove(struct platform_device *pdev)
 }
 
 /* hs14 code for SR-AL6528A-60 by shanxinkai at 2022/09/29 start*/
-#if defined(CONFIG_HQ_PROJECT_O22)
+#if defined(CONFIG_HQ_PROJECT_O22) || defined(CONFIG_HQ_PROJECT_O8)
 static const struct dev_pm_ops mt6577_auxadc_pm_ops = {
 	SET_NOIRQ_SYSTEM_SLEEP_PM_OPS(mt6577_auxadc_suspend,
 			      mt6577_auxadc_resume)

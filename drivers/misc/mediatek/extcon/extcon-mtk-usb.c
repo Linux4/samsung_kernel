@@ -27,7 +27,7 @@
 #include <linux/usb/role.h>
 #include <linux/workqueue.h>
 /*hs14 code for SR-AL6528A-01-257 by chengyuanhang at 2022/09/28 start*/
-#if defined(CONFIG_HQ_PROJECT_O22)
+#if defined(CONFIG_HQ_PROJECT_O22) || defined(CONFIG_HQ_PROJECT_O8)
 #include <linux/delay.h>
 /* hs14 code for P221231-00979 by gaozhengwei at 2023/01/02 start */
 #include <linux/chg-tcpc_info.h>
@@ -60,7 +60,7 @@ extern enum tcpc_cc_supplier tcpc_info;
 
 static struct mtk_extcon_info *g_extcon;
 /*hs14 code for SR-AL6528A-01-257 by chengyuanhang at 2022/09/28 start*/
-#if defined(CONFIG_HQ_PROJECT_O22)
+#if defined(CONFIG_HQ_PROJECT_O22) || defined(CONFIG_HQ_PROJECT_O8)
 /*hs14 code for AL6528ADEU-2606 by gaozhengwei at 2022/11/22 start*/
 bool usb_data_enabled = true;
 EXPORT_SYMBOL(usb_data_enabled);
@@ -84,7 +84,7 @@ static void mtk_usb_extcon_update_role(struct work_struct *work)
 	cur_dr = extcon->c_role;
 	new_dr = role->d_role;
 /*hs14 code for SR-AL6528A-01-257 by chengyuanhang at 2022/09/28 start*/
-#if defined(CONFIG_HQ_PROJECT_O22)
+#if defined(CONFIG_HQ_PROJECT_O22) || defined(CONFIG_HQ_PROJECT_O8)
 	p_role = extcon->c_role;
 
 	dev_info(extcon->dev, "cur_dr(%d) new_dr(%d) p_role (%d)\n", cur_dr, new_dr, p_role);
@@ -365,7 +365,7 @@ static int mtk_usb_extcon_psy_init(struct mtk_extcon_info *extcon)
 	union power_supply_propval tval;
 
 	/* hs14 code for SR-AL6528A-01-312 by wenyaqi at 2022/09/08 start */
-#if defined(CONFIG_HQ_PROJECT_O22)
+#if defined(CONFIG_HQ_PROJECT_O22) || defined(CONFIG_HQ_PROJECT_O8)
 	extcon->usb_psy = power_supply_get_by_name("charger");
 #else
 	extcon->usb_psy = devm_power_supply_get_by_phandle(dev, "charger");
@@ -784,7 +784,7 @@ void mt_usb_disconnect_v1(void)
 #ifdef CONFIG_TCPC_CLASS
 	/* disconnect by tcpc notifier */
 /* hs14 code for AL6528ADEU-3679|P221231-00979 by gaozhengwei at 2023/01/02 start */
-#if defined(CONFIG_HQ_PROJECT_O22)
+#if defined(CONFIG_HQ_PROJECT_O22) || defined(CONFIG_HQ_PROJECT_O8)
 	if (tcpc_info == FUSB302) {
 		pr_info("%s: tcpc_info = %d\n", __func__, tcpc_info);
 		issue_connection_work(DUAL_PROP_DR_NONE);
@@ -799,7 +799,7 @@ EXPORT_SYMBOL_GPL(mt_usb_disconnect_v1);
 #endif //ADAPT_PSY_V1
 
 /*hs14 code for SR-AL6528A-01-257 by chengyuanhang at 2022/09/28 start*/
-#if defined(CONFIG_HQ_PROJECT_O22)
+#if defined(CONFIG_HQ_PROJECT_O22) || defined(CONFIG_HQ_PROJECT_O8)
 extern void set_extcon_otg_vbus(struct mtk_extcon_info *extcon, long val);
 void set_extcon_otg_vbus(struct mtk_extcon_info *extcon, long val)
 {

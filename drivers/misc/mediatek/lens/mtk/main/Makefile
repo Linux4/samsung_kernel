@@ -98,6 +98,13 @@ mainaf-y  += common/a1402dw9767af/A1402DW9767AF.o
 mainaf-y  += common/a1403gt9778af/A1403GT9778AF.o
 mainaf-y  += common/a1404aw8601waf/A1404AW8601WAF.o
 ##################### A14 AF CODE START #########################
+else ifeq ($(CONFIG_HQ_PROJECT_O8), y)
+##################### A14 AF CODE START #########################
+mainaf-y  += common/a1401aw8601waf/A1401AW8601WAF.o
+mainaf-y  += common/a1402dw9767af/A1402DW9767AF.o
+mainaf-y  += common/a1403gt9778af/A1403GT9778AF.o
+mainaf-y  += common/a1404aw8601waf/A1404AW8601WAF.o
+##################### A14 AF CODE START #########################
 endif
 #hs14 code for AL6528ADEU-2675 by pengxutao at 2022/11/18 end
 mainaf-y  += common/lc898212af/LC898212AF.o

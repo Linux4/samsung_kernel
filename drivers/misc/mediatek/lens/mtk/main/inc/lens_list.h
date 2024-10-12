@@ -201,7 +201,7 @@ extern int CN3927XLAF_GetFileName(unsigned char *pFileName);
 #endif
 /*hs04 code for DEVAL6398A-46 by renxinglin at  2022/10/14 end*/
 /*hs14 code for AL6528ADEU-2675 by pengxutao at 2022/11/18 start*/
-#ifdef CONFIG_HQ_PROJECT_O22
+#if defined(CONFIG_HQ_PROJECT_O22) || defined(CONFIG_HQ_PROJECT_O8)
 #define A1401AW8601WAF_SetI2Cclient A1401AW8601WAF_SetI2Cclient_Main
 #define A1401AW8601WAF_Ioctl A1401AW8601WAF_Ioctl_Main
 #define A1401AW8601WAF_Release A1401AW8601WAF_Release_Main

@@ -231,4 +231,53 @@ PVRSRVGetMaxDevMemSizeKM(CONNECTION_DATA * psConnection,
                          IMG_DEVMEM_SIZE_T *puiLMASize,
                          IMG_DEVMEM_SIZE_T *puiUMASize);
 
+/*************************************************************************/ /*!
+@Function       PhysMemValidateMappingTable
+@Description    Checks the PMR mapping table provided is valid (ie has
+                no entries with an index value outside the valid range
+                of indices for the allocation and has no repeated indices)
+
+@Input          ui32TotalNumVirtChunks Total number of virtual chunks
+                                       the allocation has.
+@Input          ui32IndexCount         Number of entries in the mapping
+                                       table.
+@Input          pui32MappingTable      Mapping Table.
+@Return         PVRSRV_OK              if parameters are valid.
+                PVRSRV_ERROR_PMR_INVALID_MAP_INDEX_ARRAY if mapping table
+                                       contains an index out of range or a
+                                       repeated index
+                PVRSRV_ERROR_OUT_OF_MEMORY if unable to allocate memory
+                                       for the index tracking table
+                                       (used internally in this function)
+*/ /**************************************************************************/
+PVRSRV_ERROR
+PhysMemValidateMappingTable(IMG_UINT32 ui32TotalNumVirtChunks,
+                            IMG_UINT32 ui32IndexCount,
+                            const IMG_UINT32 *pui32MappingTable);
+
+/*************************************************************************/ /*!
+@Function       PhysMemValidateParams
+@Description    Checks the PMR creation parameters and adjusts them
+                if possible and necessary
+
+@Input          ui32NumPhysChunks      Number of physical chunks.
+@Input          ui32NumVirtChunks      Number of virtual chunks.
+@Input          pui32MappingTable      Mapping Table.
+@Input          uiFlags                Allocation flags.
+@Inout          puiLog2AllocPageSize   Log2 of allocation page size.
+                                       May be adjusted.
+@Inout          puiSize                Size of the allocation.
+                                       May be adjusted.
+@Inout          puiChunkSize           Size of a backed or unbacked chunk
+@Return         PVRSRV_OK if parameters are valid.
+*/ /**************************************************************************/
+PVRSRV_ERROR
+PhysMemValidateParams(IMG_UINT32 ui32NumPhysChunks,
+                      IMG_UINT32 ui32NumVirtChunks,
+                      IMG_UINT32 *pui32MappingTable,
+                      PVRSRV_MEMALLOCFLAGS_T uiFlags,
+                      IMG_UINT32 *puiLog2AllocPageSize,
+                      IMG_DEVMEM_SIZE_T *puiSize,
+                      PMR_SIZE_T *puiChunkSize);
+
 #endif /* SRVSRV_PHYSMEM_H */

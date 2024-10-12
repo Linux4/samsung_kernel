@@ -62,7 +62,7 @@ static bool blinkenlights;
 module_param(blinkenlights, bool, S_IRUGO);
 MODULE_PARM_DESC(blinkenlights, "true to cycle leds on hubs");
 
-#ifdef CONFIG_HQ_PROJECT_O22
+#if defined(CONFIG_HQ_PROJECT_O22) || defined(CONFIG_HQ_PROJECT_O8)
     /* modify code for O22 */
 #ifndef HQ_FACTORY_BUILD	//ss version
 int g_usb_connected_unconfigured = 0;

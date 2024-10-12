@@ -596,7 +596,22 @@ static int ss_battery_aging_update(struct charger_manager *info)
 		if (ret) {
 			chr_err("[%s] get battery_cycle failed\n", __func__);
 			info->data.ss_batt_cycle = 0;
+		/* hs14_u code for AL6528AU-247 by liufurong at 20240123 start */
+		} else {
+			info->data.ss_batt_cycle = cycle_val.intval;
 		}
+		ret = power_supply_get_property(bat_psy,
+			POWER_SUPPLY_PROP_BATTERY_CYCLE_DEBUG, &cycle_val);
+		if (ret) {
+			chr_err("[%s] get battery_cycle debug failed\n", __func__);
+		} else {
+			if (cycle_val.intval != 0) {
+				info->data.ss_batt_cycle = cycle_val.intval;
+				chr_err("[%s] get battery_cycle debug = %d\n", __func__, info->data.ss_batt_cycle);
+			}
+		}
+		/* hs14_u code for AL6528AU-247 by liufurong at 20240123 end */
+
 	} else {
 		chr_err("[%s] get bat_psy failed\n", __func__);
 		info->data.ss_batt_cycle = 0;

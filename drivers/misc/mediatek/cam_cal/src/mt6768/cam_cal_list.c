@@ -10,7 +10,7 @@
 #include "kd_imgsensor.h"
 
 /*hs14 code for SR-AL5628-01-161 Universal macro adaptation by lisizhou at 2022/9/23 start*/
-#ifdef CONFIG_HQ_PROJECT_O22
+#if defined(CONFIG_HQ_PROJECT_O22) || defined(CONFIG_HQ_PROJECT_O8)
 #include "eeprom_i2c_a1402widesc520cstxd_driver.h"
 #include "eeprom_i2c_a1401widehi556wly_driver.h"
 #endif
@@ -18,7 +18,7 @@
 
 struct stCAM_CAL_LIST_STRUCT g_camCalList[] = {
 /*hs14 code for AL6528ADEU-2675 by pengxutao at 2022/11/18 start*/
-#ifdef CONFIG_HQ_PROJECT_O22
+#if defined(CONFIG_HQ_PROJECT_O22) || defined(CONFIG_HQ_PROJECT_O8)
     {A1401BACKS5KJN1HLT_SENSOR_ID,      0xA0, Common_read_region},
     {A1401FRONTS5K3L6LY_SENSOR_ID,      0xA2, Common_read_region},
     {A1401WIDEHI556WLY_SENSOR_ID,       0x50, a1401widehi556wly_read_region},

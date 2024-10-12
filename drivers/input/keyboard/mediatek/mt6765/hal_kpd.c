@@ -27,6 +27,7 @@ atomic_t pow_key_long_press_flag = ATOMIC_INIT(0);
 #endif
 /*Tab A7 lite_U code for SR-AX3565U-01-4  by zhengkunbang at 20230807 start*/
 #ifndef CONFIG_HQ_PROJECT_O22
+#ifndef CONFIG_HQ_PROJECT_O8
 struct tag_bootmode {
 	u32 size;
 	u32 tag;
@@ -55,6 +56,7 @@ enum boot_mode_t tp_get_boot_mode(void) {
 	return boot_mode;
 }
 EXPORT_SYMBOL(tp_get_boot_mode);
+#endif
 #endif
 /*Tab A7 lite_U code for SR-AX3565U-01-4  by zhengkunbang at 20230807 end*/
 

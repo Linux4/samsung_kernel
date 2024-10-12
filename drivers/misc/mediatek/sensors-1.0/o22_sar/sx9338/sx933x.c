@@ -863,6 +863,12 @@ static ssize_t sx933x_enable_show(struct device *dev,
 
     pr_info("%s: dev->name:%s\n", __func__, temp_input_dev->name); 
 
+    if(!this)
+    {
+        pr_info("%s: !this\n", __func__);    
+        return snprintf(buf, 8, "0\n");
+    }
+
     if(!strncmp(temp_input_dev->name,"grip_sensor",sizeof("grip_sensor")))
     {
         if(this->channel_status & 0x01) {
@@ -872,7 +878,7 @@ static ssize_t sx933x_enable_show(struct device *dev,
         }
     }
 
-    if(!strncmp(temp_input_dev->name,"grip_sensor_wifi",sizeof("grip_sensor_wifi")))
+    if(!strncmp(temp_input_dev->name,"grip_sensor_sub",sizeof("grip_sensor_sub")))
     {
         if(this->channel_status & 0x02) {
             status = 1;    
@@ -901,7 +907,13 @@ static ssize_t sx933x_enable_store (struct device *dev,
         return ret;
     }
 
-    pr_info("%s: dev->name:%s new_value = %u\n", __func__, temp_input_dev->name, enable); 
+    pr_info("%s: dev->name:%s new_value = %u\n", __func__, temp_input_dev->name, enable);
+
+    if(!this)
+    {
+        pr_info("%s: !this\n", __func__);    
+        return 0;
+    }
 
     if(!strncmp(temp_input_dev->name,"grip_sensor",sizeof("grip_sensor")))
     {

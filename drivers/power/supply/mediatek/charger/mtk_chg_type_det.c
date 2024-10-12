@@ -187,6 +187,9 @@ struct mt_charger {
 	/* hs14 code for  SR-AL6528A-01-259 by zhouyuhang at 2022/09/15 start*/
 	bool shipmode_flag;
 	/* hs14 code for  SR-AL6528A-01-259 by zhouyuhang at 2022/09/15 end*/
+	/* HS04_U/HS14_U/TabA7 Lite U for P231128-06029 by liufurong at 20231204 start */
+	int batt_slate_mode;
+	/* HS04_U/HS14_U/TabA7 Lite U for P231128-06029 by liufurong at 20231204 end */
 };
 
 static int mt_charger_online(struct mt_charger *mtk_chg)
@@ -224,6 +227,12 @@ static int mt_charger_online(struct mt_charger *mtk_chg)
 			pr_notice("%s: Unplug Charger/USB\n", __func__);
 /* hs14 code for AL6528ADEU-342 by wenyaqi at 2022/10/11 start */
 #if defined(CONFIG_HQ_PROJECT_O22)
+				pr_notice("%s: system_state=%d\n", __func__,
+					system_state);
+				if (system_state != SYSTEM_POWER_OFF)
+					return ret;
+#endif
+#if defined(CONFIG_HQ_PROJECT_O8)
 				pr_notice("%s: system_state=%d\n", __func__,
 					system_state);
 				if (system_state != SYSTEM_POWER_OFF)
@@ -308,6 +317,10 @@ static int mt_charger_get_property(struct power_supply *psy,
 /* hs14 code for SR-AL6528A-01-242 by shanxinkai at 2022/10/12 start */
 #ifndef HQ_FACTORY_BUILD	//ss version
 	case POWER_SUPPLY_PROP_BATT_SLATE_MODE:
+	/* HS04_U/HS14_U/TabA7 Lite U for P231128-06029 by liufurong at 20231204 start */
+		val->intval = mtk_chg->batt_slate_mode;
+		break;
+	/* HS04_U/HS14_U/TabA7 Lite U for P231128-06029 by liufurong at 20231204 end */
 #endif
 /* hs14 code for SR-AL6528A-01-242 by shanxinkai at 2022/10/12 end */
 	/* hs14 code for SR-AL6528A-01-299 by gaozhengwei at 2022/09/02 start */
@@ -459,7 +472,10 @@ static void usb_extcon_detect_cable(struct work_struct *work)
 		extcon_set_state_sync(info->edev, EXTCON_USB, false);
 }
 #endif
-
+/* HS14_U/TabA7 Lite U for AL6528AU-249/AX3565AU-309 by liufurong at 20231212 start */
+extern void pd_dpm_send_source_caps_switch(int cur);
+extern int fusb302_send_5v_source_caps(int ma);
+/* HS14_U/TabA7 Lite U for AL6528AU-249/AX3565AU-309 by liufurong at 20231212 end */
 static int mt_charger_set_property(struct power_supply *psy,
 	enum power_supply_property psp, const union power_supply_propval *val)
 {
@@ -505,6 +521,51 @@ static int mt_charger_set_property(struct power_supply *psy,
 /* hs14 code for SR-AL6528A-01-242 by shanxinkai at 2022/10/12 start */
 #ifndef HQ_FACTORY_BUILD	//ss version
 	case POWER_SUPPLY_PROP_BATT_SLATE_MODE:
+	/* HS04_U/HS14_U/TabA7 Lite U for P231128-06029 by liufurong at 20231204 start */
+		if (pinfo == NULL) {
+			return -EINVAL;
+		}
+		/* HS14_U/TabA7 Lite U for AL6528AU-249/AX3565AU-309 by liufurong at 20231212 start */
+		if (val->intval == SEC_SLATE_OFF || val->intval == SEC_SLATE_MODE) {
+			mtk_chg->input_suspend = val->intval;
+			pinfo->input_suspend_flag = mtk_chg->input_suspend;
+			pr_err("%s: set input_suspend value = %d\n",__func__, pinfo->input_suspend_flag);
+			if (val->intval) {
+				charger_manager_input_suspend(cti->chg_consumer,
+					MAIN_CHARGER,
+					true);
+			} else {
+				charger_manager_input_suspend(cti->chg_consumer,
+					MAIN_CHARGER,
+					false);
+				if (mtk_chg->batt_slate_mode == SEC_SMART_SWITCH_SRC || mtk_chg->batt_slate_mode == SEC_SMART_SWITCH_SLATE) {
+					if (tcpc_info == FUSB302) {
+						fusb302_send_5v_source_caps(1000);
+					} else {
+						pd_dpm_send_source_caps_switch(1000);
+					}
+				}
+			}
+		} else if (val->intval == SEC_SMART_SWITCH_SLATE) {
+			if (tcpc_info == FUSB302) {
+				fusb302_send_5v_source_caps(500);
+			} else {
+				pd_dpm_send_source_caps_switch(500);
+			}
+			pr_err("%s:  dont suppot this slate mode %d\n", __func__, val->intval);
+		} else if (val->intval == SEC_SMART_SWITCH_SRC) {
+			if (tcpc_info == FUSB302) {
+				fusb302_send_5v_source_caps(0);
+			} else {
+				pd_dpm_send_source_caps_switch(0);
+			}
+			pr_err("%s:  dont suppot this slate mode %d\n", __func__, val->intval);
+		}
+		/* HS14_U/TabA7 Lite U for AL6528AU-249/AX3565AU-309 by liufurong at 20231212 end */
+		mtk_chg->batt_slate_mode = val->intval;;
+		pr_err("%s:  set slate mode %d\n", __func__, val->intval);
+		break;
+	/* HS04_U/HS14_U/TabA7 Lite U for P231128-06029 by liufurong at 20231204 end */
 #endif
 /* hs14 code for SR-AL6528A-01-242 by shanxinkai at 2022/10/12 end */
 	/* hs14 code for SR-AL6528A-01-299 by gaozhengwei at 2022/09/02 start */

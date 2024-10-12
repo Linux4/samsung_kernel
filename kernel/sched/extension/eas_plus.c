@@ -9,7 +9,7 @@
 #endif
 #include "../../drivers/misc/mediatek/base/power/include/mtk_upower.h"
 /* hs14 code for AL6528A-992 by gaozhengwei at 2022/11/25 start */
-#if defined(CONFIG_HQ_PROJECT_O22) && (!defined(HQ_FACTORY_BUILD))
+#if (defined(CONFIG_HQ_PROJECT_O22) || defined(CONFIG_HQ_PROJECT_O8)) && (!defined(HQ_FACTORY_BUILD))
 #include <mt-plat/mtk_boot_common.h>
 extern int hq_get_boot_mode(void);
 #endif
@@ -216,7 +216,7 @@ inline unsigned int cpu_is_fastest(int cpu)
 
 	if (!pod_is_ready()) {
 /* hs14 code for AL6528A-992 by gaozhengwei at 2022/11/25 start */
-#if defined(CONFIG_HQ_PROJECT_O22) && (!defined(HQ_FACTORY_BUILD))
+#if (defined(CONFIG_HQ_PROJECT_O22) || defined(CONFIG_HQ_PROJECT_O8)) && (!defined(HQ_FACTORY_BUILD))
 		if ((hq_get_boot_mode() != KERNEL_POWER_OFF_CHARGING_BOOT) ||
 			(hq_get_boot_mode() != LOW_POWER_OFF_CHARGING_BOOT)) {
 			printk_deferred("Perf order domain is not ready!\n");
@@ -240,7 +240,7 @@ inline unsigned int cpu_is_slowest(int cpu)
 
 	if (!pod_is_ready()) {
 /* hs14 code for AL6528A-992 by gaozhengwei at 2022/11/25 start */
-#if defined(CONFIG_HQ_PROJECT_O22) && (!defined(HQ_FACTORY_BUILD))
+#if (defined(CONFIG_HQ_PROJECT_O22) || defined(CONFIG_HQ_PROJECT_O8)) && (!defined(HQ_FACTORY_BUILD))
 		if ((hq_get_boot_mode() != KERNEL_POWER_OFF_CHARGING_BOOT) ||
 			(hq_get_boot_mode() != LOW_POWER_OFF_CHARGING_BOOT)) {
 			printk_deferred("Perf order domain is not ready!\n");
@@ -263,7 +263,7 @@ bool is_intra_domain(int prev, int target)
 
 	if (!pod_is_ready()) {
 /* hs14 code for AL6528A-992 by gaozhengwei at 2022/11/25 start */
-#if defined(CONFIG_HQ_PROJECT_O22) && (!defined(HQ_FACTORY_BUILD))
+#if (defined(CONFIG_HQ_PROJECT_O22) || defined(CONFIG_HQ_PROJECT_O8)) && (!defined(HQ_FACTORY_BUILD))
 		if ((hq_get_boot_mode() != KERNEL_POWER_OFF_CHARGING_BOOT) ||
 			(hq_get_boot_mode() != LOW_POWER_OFF_CHARGING_BOOT)) {
 			printk_deferred("Perf order domain is not ready!\n");

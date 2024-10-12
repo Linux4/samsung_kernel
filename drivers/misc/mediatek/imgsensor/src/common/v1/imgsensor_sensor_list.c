@@ -248,7 +248,7 @@ struct IMGSENSOR_INIT_FUNC_LIST kdSensorList[MAX_NUM_OF_SUPPORT_SENSOR] = {
 	#endif
 #endif
 /*hs04 code for DEVAL6398A-46 by renxinglin at  2022/10/14 end*/
-#ifdef CONFIG_HQ_PROJECT_O22
+#if defined(CONFIG_HQ_PROJECT_O22) || defined(CONFIG_HQ_PROJECT_O8)
     /*hs14 code for AL6528ADEU-2675 by pengxutao at 2022/11/18 start*/
     //1 supply
     #if defined(A1401BACKS5KJN1HLT_MIPI_RAW)

@@ -26,7 +26,7 @@ struct alspshub_ipi_data {
 
 	/*data */
 	u16		als;
-#ifdef CONFIG_HQ_PROJECT_O22
+#if defined(CONFIG_HQ_PROJECT_O22) || defined(CONFIG_HQ_PROJECT_O8)
 	/* hs14 code for SR-AL6528A-01-363 by xiongxiaoliang at 2022/09/05 start */
 	u16		ps;
 	/* hs14 code for SR-AL6528A-01-363 by xiongxiaoliang at 2022/09/05 end */
@@ -79,7 +79,7 @@ enum {
 	CMC_TRC_CVT_PS = 0x0040,
 	CMC_TRC_DEBUG = 0x8000,
 } CMC_TRC;
-#ifdef CONFIG_HQ_PROJECT_O22
+#if defined(CONFIG_HQ_PROJECT_O22) || defined(CONFIG_HQ_PROJECT_O8)
 /* hs14 code for SR-AL6528A-01-363 by xiongxiaoliang at 2022/09/05 start */
 long alspshub_read_ps(u16 *ps)
 /* hs14 code for SR-AL6528A-01-363 by xiongxiaoliang at 2022/09/05 end */
@@ -194,7 +194,7 @@ static ssize_t ps_show(struct device_driver *ddri, char *buf)
 	if (res)
 		return snprintf(buf, PAGE_SIZE, "ERROR: %d\n", (int)res);
 	else
-#ifdef CONFIG_HQ_PROJECT_O22
+#if defined(CONFIG_HQ_PROJECT_O22) || defined(CONFIG_HQ_PROJECT_O8)
 		return snprintf(buf, PAGE_SIZE, "%d\n", obj->ps);
 #else
 		return snprintf(buf, PAGE_SIZE, "0x%04X\n", obj->ps);
@@ -294,7 +294,7 @@ static ssize_t ps_rawdata_show(struct device_driver *ddri, char *buf)
     return sprintf(buf, "%s:%u\n", ps_devinfo.name, ps_rawdata);
 }
 
-#ifdef CONFIG_HQ_PROJECT_O22
+#if defined(CONFIG_HQ_PROJECT_O22) || defined(CONFIG_HQ_PROJECT_O8)
 /*hs14 code for AL6528A-18 by xiongxiaoliang at 2022/09/06 start*/
 static int ps_dynamic_set_threshold(int32_t thresh_high, int32_t thresh_low)
 {
@@ -392,7 +392,7 @@ static DRIVER_ATTR_WO(test_cali);
 static DRIVER_ATTR_RO(cali);
 static DRIVER_ATTR_RO(cali_status);
 static DRIVER_ATTR_RO(ps_rawdata);
-#ifdef CONFIG_HQ_PROJECT_O22
+#if defined(CONFIG_HQ_PROJECT_O22) || defined(CONFIG_HQ_PROJECT_O8)
 static DRIVER_ATTR_WO(ps_mmi_cali);
 static DRIVER_ATTR_RO(ps_cali_status);
 #endif
@@ -407,7 +407,7 @@ static struct driver_attribute *alspshub_attr_list[] = {
 	&driver_attr_cali,
 	&driver_attr_cali_status,
 	&driver_attr_ps_rawdata,
-#ifdef CONFIG_HQ_PROJECT_O22
+#if defined(CONFIG_HQ_PROJECT_O22) || defined(CONFIG_HQ_PROJECT_O8)
 	&driver_attr_ps_mmi_cali,
 	&driver_attr_ps_cali_status,
 #endif
@@ -1043,7 +1043,7 @@ static int als_set_cali(uint8_t *data, uint8_t count)
 /*TabA7 Lite code for OT8-3912|SR-AX3565-01-853|SR-AX3565-01-870 by Hujincan at 20210531 end*/
 #endif
 
-#ifdef CONFIG_HQ_PROJECT_O22
+#if defined(CONFIG_HQ_PROJECT_O22) || defined(CONFIG_HQ_PROJECT_O8)
 /* hs03s code for DEVAL5625-928 by xiongxiaoliang at 2021/06/02 start */
 /* hs14 code for SR-AL6528A-01-437|AL6528A-190 by houxin at 2022/09/28 start */
 struct lcd_id_info lcd_info[] = {

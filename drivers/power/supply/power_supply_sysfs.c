@@ -48,7 +48,7 @@ static const char * const power_supply_type_text[] = {
 	"BMS", "Parallel", "Main", "USB_C_UFP", "USB_C_DFP",
 	"Charge_Pump",
 /* hs14 code for SR-AL6528A-01-245 by wenyaqi at 2022/10/02 start */
-#if defined(CONFIG_HQ_PROJECT_O22)
+#if defined(CONFIG_HQ_PROJECT_O22) || defined(CONFIG_HQ_PROJECT_O8)
 #ifndef HQ_FACTORY_BUILD	//ss version
 	"MISC", "HV_WIRELESS", "PMA_WIRELESS", "CARDOCK", "UARTOFF", "OTG",
 #endif
@@ -124,11 +124,32 @@ static const char * const power_supply_typec_src_rp_text[] = {
 	"Rp-Default", "Rp-1.5A", "Rp-3A"
 };
 
+/* Tab A7 lite_U code for AX3565AU-313 by shanxinkai at 20240120 start */
+#if defined(CONFIG_HQ_PROJECT_OT8) && (!defined(HQ_FACTORY_BUILD))
+static char power_supply_protection_mode[32] = {
+	"100"
+};
+#endif
+/* Tab A7 lite_U code for AX3565AU-313 by shanxinkai at 20240120 end */
+
+/*hs04_u for  AL6398AU-178 by shixuanxuan at 20240117 start*/
+#if defined(CONFIG_HQ_PROJECT_HS04) && (!defined(HQ_FACTORY_BUILD))
+static char power_supply_protection_mode[32] = {
+	"100"
+};
+#endif
+/*hs04_u for  AL6398AU-178 by shixuanxuan at 20240117 end*/
+
 /* hs14 code for AL6528A-1055 by qiaodan at 2023/01/18 start */
-#if defined(CONFIG_HQ_PROJECT_O22) && (!defined(HQ_FACTORY_BUILD))
+#if defined(CONFIG_HQ_PROJECT_O22) || defined(CONFIG_HQ_PROJECT_O8) && (!defined(HQ_FACTORY_BUILD))
 static char power_supply_batt_type[32] = {
 	"Unknown"
 };
+/* hs14_u code for AL6528AU-252 by liufurong at 2024/01/11 start */
+static char power_supply_protection_mode[32] = {
+	"100"
+};
+/* hs14_u code for AL6528AU-252 by liufurong at 2024/01/11 end */
 #endif
 /* hs14 code for AL6528A-1055 by qiaodan at 2023/01/18 end */
 
@@ -271,7 +292,9 @@ static ssize_t power_supply_store_property(struct device *dev,
 	#endif
 	/*HS03s for SR-AL5625-01-277 by wenyaqi at 20210427 end*/
 /* hs14 code for AL6528A-1055 by qiaodan at 2023/01/18 start */
-#if defined(CONFIG_HQ_PROJECT_O22) && (!defined(HQ_FACTORY_BUILD))
+/* Tab A7 lite_U code for AX3565AU-313 by shanxinkai at 20240120 start */
+#if (defined(CONFIG_HQ_PROJECT_O22) || defined(CONFIG_HQ_PROJECT_OT8) || defined(CONFIG_HQ_PROJECT_HS04) || defined(CONFIG_HQ_PROJECT_O8)) && (!defined(HQ_FACTORY_BUILD))
+/* Tab A7 lite_U code for AX3565AU-313 by shanxinkai at 20240120 end */
 	char *type_str = NULL;
 #endif
 /* hs14 code for AL6528A-1055 by qiaodan at 2023/01/18 end */
@@ -295,8 +318,19 @@ static ssize_t power_supply_store_property(struct device *dev,
 	case POWER_SUPPLY_PROP_SCOPE:
 		ret = match_string(power_supply_scope_text, ARRAY_SIZE(power_supply_scope_text), buf);
 		break;
+	/*hs04_u for  AL6398AU-178 by shixuanxuan at 20240117 start*/
+	#if defined(CONFIG_HQ_PROJECT_HS04)
+	case POWER_SUPPLY_PROP_BATT_FULL_CAPACITY:
+		strncpy(power_supply_protection_mode, buf, count);
+		power_supply_protection_mode[count] = '\0';
+		type_str = power_supply_protection_mode;
+		dev_info(dev, "power_supply_protection_mode= %s \n", type_str);
+		value.strval = type_str;
+		break;
+	#endif
+	/*hs04_u for  AL6398AU-178 by shixuanxuan at 20240117 end*/
 	/*HS03s for SR-AL5625-01-277 by wenyaqi at 20210427 start*/
-#if defined(CONFIG_HQ_PROJECT_O22)
+#if defined(CONFIG_HQ_PROJECT_O22) || defined(CONFIG_HQ_PROJECT_O8)
 	/* hs14 code for SR-AL6528A-01-244 by shanxinkai at 2022/11/04 start */
 	#ifndef HQ_FACTORY_BUILD	//ss version
 	case POWER_SUPPLY_PROP_STORE_MODE:
@@ -314,9 +348,29 @@ static ssize_t power_supply_store_property(struct device *dev,
 		dev_info(dev, "batt_type type_str= %s \n", type_str);
 		break;
 	/* hs14 code for AL6528A-1055 by qiaodan at 2023/01/18 end */
+	/* hs14_u code for AL6528AU-252 by liufurong at 2024/01/11 start */
+	case POWER_SUPPLY_PROP_BATT_FULL_CAPICITY:
+		strncpy(power_supply_protection_mode, buf, count);
+		power_supply_protection_mode[count] = '\0';
+		type_str = power_supply_protection_mode;
+		dev_info(dev, "power_supply_protection_mode= %s \n", type_str);
+		break;
+	/* hs14_u code for AL6528AU-252 by liufurong at 2024/01/11 end */
 	#endif
 	/* hs14 code for SR-AL6528A-01-244 by shanxinkai at 2022/11/04 end */
+/* Tab A7 lite_U code for AX3565AU-313 by shanxinkai at 20240120 start */
 #else
+#if defined(CONFIG_HQ_PROJECT_OT8)
+	#ifndef HQ_FACTORY_BUILD	//ss version
+	case POWER_SUPPLY_PROP_BATT_FULL_CAPACITY:
+		strncpy(power_supply_protection_mode, buf, count);
+		power_supply_protection_mode[count] = '\0';
+		type_str = power_supply_protection_mode;
+		dev_info(dev, "power_supply_protection_mode= %s \n", type_str);
+		break;
+	#endif
+/* Tab A7 lite_U code for AX3565AU-313 by shanxinkai at 20240120 end */
+#endif
 	#ifndef HQ_FACTORY_BUILD	//ss version
 	case POWER_SUPPLY_PROP_STORE_MODE:
 		if (sscanf(buf, "%10d\n", &store_mode) == 1) {
@@ -347,7 +401,9 @@ static ssize_t power_supply_store_property(struct device *dev,
 	}
 
 /* hs14 code for AL6528A-1055 by qiaodan at 2023/01/18 start */
-#if defined(CONFIG_HQ_PROJECT_O22) && (!defined(HQ_FACTORY_BUILD))
+/* Tab A7 lite_U code for AX3565AU-313 by shanxinkai at 20240120 start */
+#if (defined(CONFIG_HQ_PROJECT_HS04) || defined(CONFIG_HQ_PROJECT_O22) || defined(CONFIG_HQ_PROJECT_O8) || defined(CONFIG_HQ_PROJECT_OT8)) && (!defined(HQ_FACTORY_BUILD))
+/* Tab A7 lite_U code for AX3565AU-313 by shanxinkai at 20240120 end */
 	if (type_str != NULL) {
 		value.strval = type_str;
 	} else {
@@ -449,6 +505,9 @@ static struct device_attribute power_supply_attrs[] = {
 	/* HS04_T for DEAL6398A-1879 by shixuanxuan at 20221012 start */
 #ifndef HQ_FACTORY_BUILD
 	POWER_SUPPLY_ATTR(batt_full_capacity),
+	/*hs04_u for  AL6398AU-178 by shixuanxuan at 20240117 start*/
+	POWER_SUPPLY_ATTR(batt_soc_rechg),
+	/*hs04_u for  AL6398AU-178 by shixuanxuan at 20240117 end*/
 #endif
 	POWER_SUPPLY_ATTR(shipmode),
 	POWER_SUPPLY_ATTR(shipmode_reg),
@@ -501,10 +560,13 @@ static struct device_attribute power_supply_attrs[] = {
 	/* TabA7 Lite code for OT8-5454 by shixuanxuan at 20220404 start */
 	#ifndef HQ_FACTORY_BUILD
 	POWER_SUPPLY_ATTR(batt_full_capacity),
+	/* Tab A7 lite_U code for AX3565AU-313 by shanxinkai at 20240120 start */
+	POWER_SUPPLY_ATTR(batt_soc_rechg),
+	/* Tab A7 lite_U code for AX3565AU-313 by shanxinkai at 20240120 end */
 	#endif
 	/* TabA7 Lite code for OT8-5454 by shixuanxuan at 20220404 end */
 	/* hs14 code for SR-AL6528A-01-259 by zhouyuhang at 2022/09/15 start*/
-#elif defined(CONFIG_HQ_PROJECT_O22)
+#elif defined(CONFIG_HQ_PROJECT_O22) || defined(CONFIG_HQ_PROJECT_O8)
 	POWER_SUPPLY_ATTR(shipmode),
 	POWER_SUPPLY_ATTR(shipmode_reg),
 	/* hs14 code for SR-AL6528A-01-259 by zhouyuhang at 2022/09/15 end*/
@@ -524,6 +586,9 @@ static struct device_attribute power_supply_attrs[] = {
 #ifndef HQ_FACTORY_BUILD
 	/* hs14 code for SR-AL6528A-01-338 | SR-AL6528A-01-337 by chengyuanhang at 2022/10/08 start */
 	POWER_SUPPLY_ATTR(battery_cycle),
+	/* hs14_u code for AL6528AU-247 by liufurong at 20240123 start */
+	POWER_SUPPLY_ATTR(battery_cycle_debug),
+	/* hs14_u code for AL6528AU-247 by liufurong at 20240123 end */
 	POWER_SUPPLY_ATTR(batt_current_ua_now),
 	/* hs14 code for SR-AL6528A-01-338 | SR-AL6528A-01-337 by chengyuanhang at 2022/10/08 end */
 	/* hs14 code for SR-AL6528A-01-346 by zhouyuhang at 2022/10/11 start*/
@@ -531,6 +596,9 @@ static struct device_attribute power_supply_attrs[] = {
 	/* hs14 code for SR-AL6528A-01-346 by zhouyuhang at 2022/10/11 end*/
 	/* hs14 code for SR-AL6528A-01-261 | SR-AL6528A-01-343 by chengyuanhang at 2022/10/11 start */
 	POWER_SUPPLY_ATTR(batt_full_capacity),
+	/* hs14_u code for AL6528AU-252 by liufurong at 2024/01/11 start */
+	POWER_SUPPLY_ATTR(batt_soc_rechg),
+	/* hs14_u code for AL6528AU-252 by liufurong at 2024/01/11 end*/
 	POWER_SUPPLY_ATTR(batt_misc_event),
 	/* hs14 code for SR-AL6528A-01-261 | SR-AL6528A-01-343 by chengyuanhang at 2022/10/11 end */
 	/* hs14 code for SR-AL6528A-01-242 by shanxinkai at 2022/10/12 start */
@@ -780,7 +848,7 @@ static struct device_attribute power_supply_attrs[] = {
 	POWER_SUPPLY_ATTR(ptmc_id),
 	POWER_SUPPLY_ATTR(manufacturer),
 	POWER_SUPPLY_ATTR(battery_type),
-#if defined(CONFIG_HQ_PROJECT_O22)
+#if defined(CONFIG_HQ_PROJECT_O22) || defined(CONFIG_HQ_PROJECT_O8)
 	/* hs14 code for SR-AL6528A-01-258 by shanxinkai at 2022/09/13 start */
 	POWER_SUPPLY_ATTR(chg_info),
 	POWER_SUPPLY_ATTR(tcpc_info),

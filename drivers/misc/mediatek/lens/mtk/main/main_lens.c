@@ -146,7 +146,7 @@ static struct stAF_DrvList g_stAF_DrvList[MAX_NUM_OF_LENS] = {
 #endif
 /*hs04 code for DEVAL6398A-46 by renxinglin at  2022/10/14 end*/
 /*hs14 code for AL6528ADEU-2675 by pengxutao at 2022/11/18 start*/
-#ifdef CONFIG_HQ_PROJECT_O22
+#if defined(CONFIG_HQ_PROJECT_O22) || defined(CONFIG_HQ_PROJECT_O8)
     //ADD AF FOR A1401AW8601WAF
 	{1, AFDRV_A1401AW8601WAF, A1401AW8601WAF_SetI2Cclient, A1401AW8601WAF_Ioctl,
 	 A1401AW8601WAF_Release, A1401AW8601WAF_GetFileName, NULL},

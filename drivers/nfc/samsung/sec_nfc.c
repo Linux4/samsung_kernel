@@ -104,7 +104,7 @@ struct sec_nfc_info {
 };
 
 /*hs14_U code for NFC customize by lijun at 2023/06/28 start */
-#ifdef CONFIG_HQ_PROJECT_O22
+#if defined(CONFIG_HQ_PROJECT_O22) || defined(CONFIG_HQ_PROJECT_O8)
 static struct pinctrl *pinctrl = NULL;
 static struct pinctrl_state *pin_active = NULL;
 static struct pinctrl_state *pin_suspend = NULL;
@@ -928,7 +928,7 @@ static int __sec_nfc_probe(struct device *dev)
 
 /*hs14_U code for NFC customize by lijun at 2023/06/28 start */
 
-#ifdef CONFIG_HQ_PROJECT_O22
+#if defined(CONFIG_HQ_PROJECT_O22) || defined(CONFIG_HQ_PROJECT_O8)
     pinctrl = devm_pinctrl_get(dev);
     if (IS_ERR_OR_NULL(pinctrl)) {
         pr_err("%s, No pinctrl config specified\n", __func__);

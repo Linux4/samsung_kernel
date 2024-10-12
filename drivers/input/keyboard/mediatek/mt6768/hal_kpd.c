@@ -18,7 +18,7 @@
 static int kpd_enable_lprst = 1;
 #endif
 /*hs14 code for SR-AL6528A-01-403 by hehaoran5 at 20220908 start*/
-#if defined(CONFIG_HQ_PROJECT_O22)
+#if defined(CONFIG_HQ_PROJECT_O22) || defined(CONFIG_HQ_PROJECT_O8)
 extern void get_volumedown_state(int keycode,int pressed);
 extern void get_power_state(int keycode,int pressed);
 #else
@@ -35,7 +35,7 @@ unsigned int get_boot_mode(void)
 }
 
 /*hs14 code for AL6528ADEU-723 by hehaoran5 at 20221021 start*/
-#ifdef CONFIG_HQ_PROJECT_O22
+#if defined(CONFIG_HQ_PROJECT_O22) || defined(CONFIG_HQ_PROJECT_O8)
 struct tag_bootmode {
 	u32 size;
 	u32 tag;
@@ -247,7 +247,7 @@ void kpd_pmic_rstkey_hal(unsigned long pressed)
 		       pressed ? "pressed" : "released",
 		       kpd_dts_data.kpd_sw_rstkey);
 /*hs14 code for SR-AL6528A-01-403 by hehaoran5 at 20220908 start*/
-#if defined(CONFIG_HQ_PROJECT_O22)
+#if defined(CONFIG_HQ_PROJECT_O22) || defined(CONFIG_HQ_PROJECT_O8)
 		get_volumedown_state(kpd_dts_data.kpd_sw_rstkey,pressed);
 #else
 //no new add
@@ -263,7 +263,7 @@ void kpd_pmic_pwrkey_hal(unsigned long pressed)
 	kpd_print(KPD_SAY "(%s) HW keycode =%d using PMIC\n",
 	       pressed ? "pressed" : "released", kpd_dts_data.kpd_sw_pwrkey);
 /*hs14 code for SR-AL6528A-01-403 by hehaoran5 at 20220908 start*/
-#if defined(CONFIG_HQ_PROJECT_O22)
+#if defined(CONFIG_HQ_PROJECT_O22) || defined(CONFIG_HQ_PROJECT_O8)
 	get_power_state(kpd_dts_data.kpd_sw_pwrkey,pressed);
 #else
 //no new add

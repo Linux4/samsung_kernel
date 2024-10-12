@@ -101,7 +101,7 @@ int gcore_tp_esd_fail = false;
 /* hs03s_NM code added for DEVAL5626-839 by fengzhigang at 20220523 end */
 /* HS03S code added for SR-AL5625-01-428 by gaozhengwei at 20210601 end */
 #endif
-#ifdef CONFIG_HQ_PROJECT_O22
+#if defined(CONFIG_HQ_PROJECT_O22) || defined(CONFIG_HQ_PROJECT_O8)
 /* HS03S code added for SR-AL5625-01-428 by gaozhengwei at 20210601 start */
 extern enum tp_module_used tp_is_used;
 /* hs03s_NM code added for DEVAL5626-839 by fengzhigang at 20220523 start */
@@ -1037,7 +1037,7 @@ static int primary_display_check_recovery_worker_kthread(void *data)
 #ifdef CONFIG_HQ_PROJECT_HS03S
 	char *lcm_cmdline = saved_command_line;
 #endif
-#ifdef CONFIG_HQ_PROJECT_O22
+#if defined(CONFIG_HQ_PROJECT_O22) || defined(CONFIG_HQ_PROJECT_O8)
 	char *lcm_cmdline = saved_command_line;
 #endif
 #ifdef CONFIG_HQ_PROJECT_HS04
@@ -1097,7 +1097,7 @@ static int primary_display_check_recovery_worker_kthread(void *data)
 			}
 			/* hs03s_NM code added for DEVAL5626-839 by fengzhigang at 20220523 end */
 #endif
-#ifdef CONFIG_HQ_PROJECT_O22
+#if defined(CONFIG_HQ_PROJECT_O22) || defined(CONFIG_HQ_PROJECT_O8)
 			/* hs03s_NM code added for DEVAL5626-839 by fengzhigang at 20220523 start */
 			if (NULL != strstr(lcm_cmdline, "lcd_gc7202_ls_hsd_mipi_hdp_video")) {
 				DISPWARN("Esd check from Tp, gcore_tp_esd_fail = %d\n", gcore_tp_esd_fail);
@@ -1142,7 +1142,7 @@ static int primary_display_check_recovery_worker_kthread(void *data)
 			}
 			/* HS03S code added for SR-AL5625-01-428 by gaozhengwei at 20210601 end */
 #endif
-#ifdef CONFIG_HQ_PROJECT_O22
+#if defined(CONFIG_HQ_PROJECT_O22) || defined(CONFIG_HQ_PROJECT_O8)
 			/* HS03S code added for SR-AL5625-01-428 by gaozhengwei at 20210601 start */
 			if (tp_is_used == JADARD_JD9365T) {
 				if (((i%2) == 0) && (i > 0)) {
@@ -1272,7 +1272,7 @@ int primary_display_esd_recovery(void)
 	tpd_driver_esd_suspend();
 	/* hs03s code for SR-AL5625-01-198 by gaozhengwei at 2021/04/25 end */
 #endif
-#ifdef CONFIG_HQ_PROJECT_O22
+#if defined(CONFIG_HQ_PROJECT_O22) || defined(CONFIG_HQ_PROJECT_O8)
 	/* hs03s code for SR-AL5625-01-198 by gaozhengwei at 2021/04/25 start */
 	tpd_driver_esd_suspend();
 	/* hs03s code for SR-AL5625-01-198 by gaozhengwei at 2021/04/25 end */
@@ -1315,7 +1315,7 @@ int primary_display_esd_recovery(void)
 	msleep(20); /* esd revovery : (AVDD power on - AVDD power off) > 20ms */
 	/* A03s code for SR-AL5625-01-198 by gaozhengwei at 2021/04/21 end */
 #endif
-#ifdef CONFIG_HQ_PROJECT_O22
+#if defined(CONFIG_HQ_PROJECT_O22) || defined(CONFIG_HQ_PROJECT_O8)
     /* modify code for O22 */
 	/* A03s code for SR-AL5625-01-198 by gaozhengwei at 2021/04/21 start */
 	if (pgc->plcm->drv)
@@ -1359,7 +1359,7 @@ int primary_display_esd_recovery(void)
 	tpd_driver_esd_resume();
 	/* hs03s code for SR-AL5625-01-198 by gaozhengwei at 2021/04/25 end */
 #endif
-#ifdef CONFIG_HQ_PROJECT_O22
+#if defined(CONFIG_HQ_PROJECT_O22) || defined(CONFIG_HQ_PROJECT_O8)
 	/* hs03s code for SR-AL5625-01-198 by gaozhengwei at 2021/04/25 start */
 	tpd_driver_esd_resume();
 	/* hs03s code for SR-AL5625-01-198 by gaozhengwei at 2021/04/25 end */

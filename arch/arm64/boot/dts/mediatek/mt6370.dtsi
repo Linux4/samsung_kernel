@@ -50,7 +50,7 @@
 #ifdef CONFIG_HQ_PROJECT_HS03S
 			enable_otg_wdt;
 #endif
-#ifdef CONFIG_HQ_PROJECT_O22
+#if defined(CONFIG_HQ_PROJECT_O22) || defined(CONFIG_HQ_PROJECT_O8)
 			enable_otg_wdt;
 #endif
 #ifdef CONFIG_HQ_PROJECT_HS04
@@ -157,7 +157,7 @@
 #ifdef CONFIG_HQ_PROJECT_HS03S
 			mt,chan_en  = <0xC>; /* bit 0 1 2 3 -> chan 1 2 3 4 */
 #endif
-#ifdef CONFIG_HQ_PROJECT_O22
+#if defined(CONFIG_HQ_PROJECT_O22) || defined(CONFIG_HQ_PROJECT_O8)
 			mt,chan_en  = <0xC>; /* bit 0 1 2 3 -> chan 1 2 3 4 */
 #endif
 #ifdef CONFIG_HQ_PROJECT_HS04
@@ -207,7 +207,7 @@
 #ifdef CONFIG_HQ_PROJECT_HS03S
 			mt,max_bled_brightness = <1570>; /* maximum 2047 */
 #endif
-#ifdef CONFIG_HQ_PROJECT_O22
+#if defined(CONFIG_HQ_PROJECT_O22) || defined(CONFIG_HQ_PROJECT_O8)
 			mt,max_bled_brightness = <1570>; /* maximum 2047 */
 #endif
 #ifdef CONFIG_HQ_PROJECT_HS04

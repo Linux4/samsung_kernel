@@ -149,6 +149,31 @@ static enum power_supply_property typec_port_properties[] = {
 	POWER_SUPPLY_PROP_TYPEC_CC_ORIENTATION,
 };
 /* hs14 code for SR-AL6528A-01-300 by wenyaqi at 2022/09/11 end */
+/* HS14_U/TabA7 Lite U for AL6528AU-249/AX3565AU-309 by liufurong at 20231212 start */
+int fusb302_send_5v_source_caps(int ma)
+{
+	struct fusb30x_chip* chip = fusb30x_GetChip();
+	struct Port *port = &chip->port;
+
+	port->PolicyMsgTxSop = SOP_TYPE_SOP;
+	port->PDTransmitHeader.word = 0;
+	port->PDTransmitHeader.MessageType = DMTSourceCapabilities;
+	port->PDTransmitHeader.NumDataObjects = 1;
+	port->PDTransmitHeader.PortDataRole = port->PolicyIsDFP;
+	port->PDTransmitHeader.PortPowerRole = port->PolicyIsSource;
+	port->PDTransmitHeader.SpecRevision = DPM_SpecRev(port, SOP_TYPE_SOP);
+
+	port->src_caps[0].FPDOSupply.MaxCurrent = ma/10;
+
+	port->USBPDTxFlag = TRUE;
+	if (!chip->queued)
+	{
+		chip->queued = TRUE;
+		queue_work(chip->highpri_wq, &chip->sm_worker);
+	}
+	return 0;
+}
+/* HS14_U/TabA7 Lite U for AL6528AU-249/AX3565AU-309 by liufurong at 20231212 end */
 
 #define FUSB302_PROBE_CNT_MAX 3
 

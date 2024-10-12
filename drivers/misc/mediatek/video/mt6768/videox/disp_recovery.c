@@ -648,7 +648,7 @@ static int primary_display_check_recovery_worker_kthread(void *data)
 	int esd_try_cnt = 5; /* 20; */
 	int recovery_done = 0;
 /*hs14 code for AL6528ADEU-721 by duanyaoming at 20221013 start*/
-#ifdef CONFIG_HQ_PROJECT_O22
+#if defined(CONFIG_HQ_PROJECT_O22) || defined(CONFIG_HQ_PROJECT_O8)
 	char *lcm_cmdline = saved_command_line;
 #endif
 /*hs14 code for AL6528ADEU-721 by duanyaoming at 20221013 end*/
@@ -688,7 +688,7 @@ static int primary_display_check_recovery_worker_kthread(void *data)
 			if (!ret) /* success */
 				break;
 /*hs14 code for AL6528ADEU-721 by duanyaoming at 20221013 start*/
-#ifdef CONFIG_HQ_PROJECT_O22
+#if defined(CONFIG_HQ_PROJECT_O22) || defined(CONFIG_HQ_PROJECT_O8)
 			if (NULL != strstr(lcm_cmdline, "lcd_jd9522t_xx_boe_mipi_fhd_video")) {
 				if (((i%2) == 0) && (i > 0)) {
 					DISPERR(
@@ -813,10 +813,8 @@ int primary_display_esd_recovery(void)
 
 	DISPDBG("[POWER]lcm suspend[begin]\n");
 /*hs14 code for AL6528A-213 by hehaoran5 at 20221002 start*/
-#ifdef CONFIG_HQ_PROJECT_O22
+#if defined(CONFIG_HQ_PROJECT_O22) || defined(CONFIG_HQ_PROJECT_O8)
 	esd_tp_recovery_notifier_call_chain(FB_BLANK_POWERDOWN,NULL);
-#else
-
 #endif
 /*hs14 code for AL6528A-213 by hehaoran5 at 20221002 end*/
 	/*after dsi_stop, we should enable the dsi basic irq.*/
@@ -865,10 +863,8 @@ int primary_display_esd_recovery(void)
 	DISPDBG("[ESD]lcm recover[begin]\n");
 	disp_lcm_esd_recover(primary_get_lcm());
 /*hs14 code for AL6528A-213 by hehaoran5 at 20221002 start*/
-#ifdef CONFIG_HQ_PROJECT_O22
+#if defined(CONFIG_HQ_PROJECT_O22) || defined(CONFIG_HQ_PROJECT_O8)
 	esd_tp_recovery_notifier_call_chain(FB_BLANK_UNBLANK,NULL);
-#else
-
 #endif
 /*hs14 code for AL6528A-213 by hehaoran5 at 20221002 end*/
 	DISPCHECK("[ESD]lcm recover[end]\n");

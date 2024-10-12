@@ -11,6 +11,9 @@ ifdef HUAQIN_BUILD
 ifdef CONFIG_HQ_PROJECT_O22
 obj-y   += combine_key_trigger.o
 endif
+ifdef CONFIG_HQ_PROJECT_O8
+obj-y   += combine_key_trigger.o
+endif
 endif
 #hs03s code for DEVAL5625-88 by ningkaixuan at 2022/02/15 end
 #hs14 code for SR-AL6528A-01-111 by  TangYuhang at 20221110 end

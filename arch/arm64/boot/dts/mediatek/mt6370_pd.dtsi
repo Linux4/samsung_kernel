@@ -50,7 +50,13 @@
 			 * PPS 3V~5.9V, 3A <0xC0761E3C>
 			 */
 			pd,source-pdo-size = <1>;
+/* TabA7 lite U code for P231208-08206 by liufurong at 20240126 start */
+#ifdef CONFIG_HQ_PROJECT_OT8
+			pd,source-pdo-data = <0x00019064>; /* 5V, 1000 mA */
+#else
 			pd,source-pdo-data = <0x00019096>; /* 5V, 1500 mA */
+#endif
+/* TabA7 lite U code for P231208-08206 by liufurong at 20240126 end */
 			pd,sink-pdo-size = <1>;
 			pd,sink-pdo-data = <0x000190c8>;
 

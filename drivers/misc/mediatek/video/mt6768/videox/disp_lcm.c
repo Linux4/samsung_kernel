@@ -16,7 +16,7 @@
 #if defined(MTK_LCM_DEVICE_TREE_SUPPORT)
 #include <linux/of.h>
 #endif
-#ifdef CONFIG_HQ_PROJECT_O22
+#if defined(CONFIG_HQ_PROJECT_O22) || defined(CONFIG_HQ_PROJECT_O8)
 /*hs14 code for AL6528A-16 by hehaoran5 at 20220905 start*/
 bool smart_wakeup_open_flag = 0; // doubule click geture flag
 /*hs14 code for AL6528A-16 by hehaoran5 at 20220905 end*/
@@ -1032,7 +1032,7 @@ void load_lcm_resources_from_DT(struct LCM_DRIVER *lcm_drv)
 }
 #endif
 
-/*hs14 code for AL6528A-20 by duanyaoming at 20220906 start*/
+/*a06 code for AL7160A-5 by wenghailong at 20240313 start*/
 struct disp_lcm_handle *disp_lcm_probe(char *plcm_name,
 	enum LCM_INTERFACE_ID lcm_id, int is_lcm_inited)
 {
@@ -1080,13 +1080,26 @@ struct disp_lcm_handle *disp_lcm_probe(char *plcm_name,
 		return NULL;
 	} else if (_lcm_count() == 1) {
 		if (plcm_name == NULL) {
+			#if defined(CONFIG_HQ_PROJECT_O22)
 			lcm_drv = o22_lcm_driver_list[0];
+			#elif defined(CONFIG_HQ_PROJECT_O8)
+			lcm_drv = o8_lcm_driver_list[0];
+			#else
+			lcm_drv = lcm_driver_list[0];
+			#endif
 
 			isLCMFound = true;
 			isLCMInited = false;
 			DISPCHECK("LCM Name NULL\n");
 		} else {
+			#if defined(CONFIG_HQ_PROJECT_O22)
 			lcm_drv = o22_lcm_driver_list[0];
+			#elif defined(CONFIG_HQ_PROJECT_O8)
+			lcm_drv = o8_lcm_driver_list[0];
+			#else
+			lcm_drv = lcm_driver_list[0];
+			#endif
+
 			if (strcmp(lcm_drv->name, plcm_name)) {
 				DISPERR(
 					"FATAL ERROR!!!LCM Driver defined in kernel(%s) is different with LK(%s)\n",
@@ -1111,7 +1124,13 @@ struct disp_lcm_handle *disp_lcm_probe(char *plcm_name,
 			int i = 0;
 
 			for (i = 0; i < _lcm_count(); i++) {
+				#if defined(CONFIG_HQ_PROJECT_O22)
 				lcm_drv = o22_lcm_driver_list[i];
+				#elif defined(CONFIG_HQ_PROJECT_O8)
+				lcm_drv = o8_lcm_driver_list[i];
+				#else
+				lcm_drv = lcm_driver_list[i];
+				#endif
 				if (!strcmp(lcm_drv->name, plcm_name)) {
 					isLCMFound = true;
 					isLCMInited = true;
@@ -1185,7 +1204,7 @@ FAIL:
 	kfree(lcm_param);
 	return NULL;
 }
-/*hs14 code for AL6528A-20 by duanyaoming at 20220906 end*/
+/*a06 code for AL7160A-5 by wenghailong at 20240313 end*/
 
 struct disp_lcm_handle *disp_ext_lcm_probe(char *plcm_name,
 	enum LCM_INTERFACE_ID lcm_id, int is_lcm_inited)
@@ -1403,11 +1422,9 @@ int disp_lcm_esd_recover(struct disp_lcm_handle *plcm)
 		} else {
 			disp_lcm_init(plcm, 1);
 /*hs14 code for AL6528A-213 by hehaoran5 at 20221002 start*/
-#ifdef CONFIG_HQ_PROJECT_O22
+#if defined(CONFIG_HQ_PROJECT_O22) || defined(CONFIG_HQ_PROJECT_O8)
 			DISPINFO("%s, ESD Recovery to send Platform default BL cmd(103) again!\n", __func__);
 			disp_lcm_set_backlight(plcm, NULL, ESD_RECOVERY_BRIGHTNESS);
-#else
-
 #endif
 /*hs14 code for AL6528A-213 by hehaoran5 at 20221002 end*/
 		}
@@ -1432,7 +1449,7 @@ int disp_lcm_suspend(struct disp_lcm_handle *plcm)
 			return -1;
 		}
 /*hs14 code for SR-AL6528A-01-423 by duanyaoming at 20220926 start*/
-#ifdef CONFIG_HQ_PROJECT_O22
+#if defined(CONFIG_HQ_PROJECT_O22) || defined(CONFIG_HQ_PROJECT_O8)
 
 #else
 		if (lcm_drv->suspend_power)
@@ -1456,8 +1473,10 @@ int disp_lcm_resume(struct disp_lcm_handle *plcm)
 		lcm_drv = plcm->drv;
 /*hs14 code for AL6528ADEU-693 by duanyaoming at 20221013 start*/
 #ifndef CONFIG_HQ_PROJECT_O22
+#ifndef CONFIG_HQ_PROJECT_O8
 		if (lcm_drv->resume_power)
 			lcm_drv->resume_power();
+#endif
 #endif
 /*hs14 code for AL6528ADEU-693 by duanyaoming at 20221013 end*/
 		if (lcm_drv->resume) {

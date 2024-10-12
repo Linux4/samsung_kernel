@@ -18,7 +18,7 @@
 #include <mt-plat/v1/charger_type.h>
 #include <mt-plat/v1/charger_class.h>
 /* hs14 code for AL6528ADEU-342 by wenyaqi at 2022/10/11 start */
-#if defined(CONFIG_HQ_PROJECT_O22)
+#if defined(CONFIG_HQ_PROJECT_O22) || defined(CONFIG_HQ_PROJECT_O8)
 #include <linux/chg-tcpc_info.h>
 
 extern enum tcpc_cc_supplier tcpc_info;
@@ -162,7 +162,7 @@ extern bool ss_fast_charger_status(struct charger_manager *info);
 /* hs14 code for SR-AL6528A-01-321 by gaozhengwei at 2022/09/22 end */
 #endif /* __MTK_CHARGER_H__ */
 /*hs14 code for SR-AL6528A-01-380 by lichang at 2022/09/26 start*/
-#ifdef CONFIG_HQ_PROJECT_O22
+#if defined(CONFIG_HQ_PROJECT_O22) || defined(CONFIG_HQ_PROJECT_O8)
 extern int register_usb_check_notifier(struct notifier_block *nb);
 extern int unregister_usb_check_notifier(struct notifier_block *nb);
 #endif

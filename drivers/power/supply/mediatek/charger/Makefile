@@ -62,3 +62,7 @@ obj-$(CONFIG_CHARGER_UPM6910)	+= upm6910_charger.o
 #hs14 code for SR-AL6528A-01-305 by shanxinkai at 2022/09/19 start
 obj-$(CONFIG_CHARGER_VBUS) += vbus_ctrl.o
 #hs14 code for SR-AL6528A-01-305 by shanxinkai at 2022/09/19 end
+
+# hs14_u code for AL6528AU-252 by liufurong at 2024/01/11 start
+obj-$(CONFIG_GXY_BATT_TIME_TO_FULL) += gxy_battery_ttf.o
+# hs14_u code for AL6528AU-252 by liufurong at 2024/01/11 end

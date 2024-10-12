@@ -245,17 +245,16 @@ TLOpenStream_exit:
 			PVR_ASSERT((eError == PVRSRV_OK)
 				   || (eError == PVRSRV_ERROR_RETRY));
 
-			/* Avoid freeing/destroying/releasing the resource a second time below */
-			psSDInt = NULL;
 			/* Release now we have cleaned up creation handles. */
 			UnlockHandle(psConnection->psHandleBase);
 
 		}
 
-		if (psSDInt)
+		else if (psSDInt)
 		{
 			TLServerCloseStreamKM(psSDInt);
 		}
+
 	}
 
 	/* Allocated space should be equal to the last updated offset */
@@ -427,6 +426,8 @@ TLReleaseData_exit:
 
 static_assert(PRVSRVTL_MAX_STREAM_NAME_SIZE <= IMG_UINT32_MAX,
 	      "PRVSRVTL_MAX_STREAM_NAME_SIZE must not be larger than IMG_UINT32_MAX");
+static_assert(PVRSRVTL_MAX_DISCOVERABLE_STREAMS_BUFFER <= IMG_UINT32_MAX,
+			"PVRSRVTL_MAX_DISCOVERABLE_STREAMS_BUFFER must not be larger than IMG_UINT32_MAX");
 
 static IMG_INT
 PVRSRVBridgeTLDiscoverStreams(IMG_UINT32 ui32DispatchTableEntry,
@@ -868,35 +869,51 @@ PVRSRV_ERROR InitPVRTLBridge(void)
 
 	SetDispatchTableEntry(PVRSRV_BRIDGE_PVRTL,
 			      PVRSRV_BRIDGE_PVRTL_TLOPENSTREAM,
-			      PVRSRVBridgeTLOpenStream, NULL);
+			      PVRSRVBridgeTLOpenStream, NULL,
+			      sizeof(PVRSRV_BRIDGE_IN_TLOPENSTREAM),
+			      sizeof(PVRSRV_BRIDGE_OUT_TLOPENSTREAM));
 
 	SetDispatchTableEntry(PVRSRV_BRIDGE_PVRTL,
 			      PVRSRV_BRIDGE_PVRTL_TLCLOSESTREAM,
-			      PVRSRVBridgeTLCloseStream, NULL);
+			      PVRSRVBridgeTLCloseStream, NULL,
+			      sizeof(PVRSRV_BRIDGE_IN_TLCLOSESTREAM),
+			      sizeof(PVRSRV_BRIDGE_OUT_TLCLOSESTREAM));
 
 	SetDispatchTableEntry(PVRSRV_BRIDGE_PVRTL,
 			      PVRSRV_BRIDGE_PVRTL_TLACQUIREDATA,
-			      PVRSRVBridgeTLAcquireData, NULL);
+			      PVRSRVBridgeTLAcquireData, NULL,
+			      sizeof(PVRSRV_BRIDGE_IN_TLACQUIREDATA),
+			      sizeof(PVRSRV_BRIDGE_OUT_TLACQUIREDATA));
 
 	SetDispatchTableEntry(PVRSRV_BRIDGE_PVRTL,
 			      PVRSRV_BRIDGE_PVRTL_TLRELEASEDATA,
-			      PVRSRVBridgeTLReleaseData, NULL);
+			      PVRSRVBridgeTLReleaseData, NULL,
+			      sizeof(PVRSRV_BRIDGE_IN_TLRELEASEDATA),
+			      sizeof(PVRSRV_BRIDGE_OUT_TLRELEASEDATA));
 
 	SetDispatchTableEntry(PVRSRV_BRIDGE_PVRTL,
 			      PVRSRV_BRIDGE_PVRTL_TLDISCOVERSTREAMS,
-			      PVRSRVBridgeTLDiscoverStreams, NULL);
+			      PVRSRVBridgeTLDiscoverStreams, NULL,
+			      sizeof(PVRSRV_BRIDGE_IN_TLDISCOVERSTREAMS),
+			      sizeof(PVRSRV_BRIDGE_OUT_TLDISCOVERSTREAMS));
 
 	SetDispatchTableEntry(PVRSRV_BRIDGE_PVRTL,
 			      PVRSRV_BRIDGE_PVRTL_TLRESERVESTREAM,
-			      PVRSRVBridgeTLReserveStream, NULL);
+			      PVRSRVBridgeTLReserveStream, NULL,
+			      sizeof(PVRSRV_BRIDGE_IN_TLRESERVESTREAM),
+			      sizeof(PVRSRV_BRIDGE_OUT_TLRESERVESTREAM));
 
 	SetDispatchTableEntry(PVRSRV_BRIDGE_PVRTL,
 			      PVRSRV_BRIDGE_PVRTL_TLCOMMITSTREAM,
-			      PVRSRVBridgeTLCommitStream, NULL);
+			      PVRSRVBridgeTLCommitStream, NULL,
+			      sizeof(PVRSRV_BRIDGE_IN_TLCOMMITSTREAM),
+			      sizeof(PVRSRV_BRIDGE_OUT_TLCOMMITSTREAM));
 
 	SetDispatchTableEntry(PVRSRV_BRIDGE_PVRTL,
 			      PVRSRV_BRIDGE_PVRTL_TLWRITEDATA,
-			      PVRSRVBridgeTLWriteData, NULL);
+			      PVRSRVBridgeTLWriteData, NULL,
+			      sizeof(PVRSRV_BRIDGE_IN_TLWRITEDATA),
+			      sizeof(PVRSRV_BRIDGE_OUT_TLWRITEDATA));
 
 	return PVRSRV_OK;
 }

@@ -1,0 +1,23 @@
+&spi2 {
+    status = "okay";
+    #address-cells = <1>;
+    #size-cells = <0>;
+    /delete-property/mediatek,pad-select;
+    mediatek,pad-select = <0>,<0>,<0>,<0>;
+    cs-gpios = <0>,<0>,<0>,<0>;
+
+    himax_ts@0 {
+        compatible = "himax,hxcommon";
+        reg = <0>;
+        spi-max-frequency = <10000000>;
+        spi-cpha;
+        interrupt-parent = <&pio>;
+        // vdd-supply = <&pm8994_l14>;
+        // avdd-supply = <&pm8994_l22>;
+        himax,panel-coords = <0 720 0 1600>;
+        himax,display-coords = <0 720 0 1600>;
+        himax,irq-gpio = <&pio 1 0x00>;
+        himax,rst-gpio = <&pio 98 0x00>;
+        report_type = <1>;
+    };
+};

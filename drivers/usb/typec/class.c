@@ -1121,7 +1121,7 @@ port_type_store(struct device *dev, struct device_attribute *attr,
 		return -EOPNOTSUPP;
 	}
 #endif
-#ifdef CONFIG_HQ_PROJECT_O22
+#if defined(CONFIG_HQ_PROJECT_O22) || defined(CONFIG_HQ_PROJECT_O8)
     /* modify code for O22 */
 	if (!port->cap->port_type_set || port->cap->type != TYPEC_PORT_DRP) {
 		dev_dbg(dev, "changing port type not supported\n");

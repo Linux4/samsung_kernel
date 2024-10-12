@@ -26,6 +26,9 @@ obj-y += eeprom_i2c_custom_driver.o
 ifeq ($(CONFIG_HQ_PROJECT_O22), y)
 obj-y += eeprom_i2c_a1401widehi556wly_driver.o
 obj-y += eeprom_i2c_a1402widesc520cstxd_driver.o
+else ifeq ($(CONFIG_HQ_PROJECT_O8), y)
+obj-y += eeprom_i2c_a1401widehi556wly_driver.o
+obj-y += eeprom_i2c_a1402widesc520cstxd_driver.o
 endif
 # hs14 code for SR-AL6528-01-161 Universal macro adaptation by renxinglin at 2022/9/27 end
 

@@ -1004,7 +1004,7 @@ static void send_key_event(u32 keycode, u32 flag)
 }
 
 /*hs14 code for AL6528A-338 by liudi at 20221018 start*/
-#ifdef CONFIG_HQ_PROJECT_O22
+#if defined(CONFIG_HQ_PROJECT_O22) || defined(CONFIG_HQ_PROJECT_O8)
 static BLOCKING_NOTIFIER_HEAD(headset_notifier);
 /**
 *Name: <headset_notifier_register>
@@ -1062,7 +1062,7 @@ static void send_accdet_status_event(u32 cable_type, u32 status)
 		 * visible.
 		 */
 /*hs14 code for AL6528A-338 by liudi at 20221018 start*/
-#ifdef CONFIG_HQ_PROJECT_O22
+#if defined(CONFIG_HQ_PROJECT_O22) || defined(CONFIG_HQ_PROJECT_O8)
 		if (status == 0) {
 			input_report_switch(accdet_input_dev,
 				SW_MICROPHONE_INSERT, status);
@@ -1090,7 +1090,7 @@ static void send_accdet_status_event(u32 cable_type, u32 status)
 		 * reported for slow plug-in case
 		 */
 /*hs14 code for AL6528A-338 by liudi at 20221018 start*/
-#ifdef CONFIG_HQ_PROJECT_O22
+#if defined(CONFIG_HQ_PROJECT_O22) || defined(CONFIG_HQ_PROJECT_O8)
 		if (status == 0) {
 			input_report_switch(accdet_input_dev,
 				SW_HEADPHONE_INSERT, status);

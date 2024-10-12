@@ -1874,7 +1874,7 @@ static void kcpu_queue_process(struct kbase_kcpu_command_queue *queue,
 			}
 			break;
 		}
-		case BASE_KCPU_COMMAND_TYPE_JIT_FREE:
+		case BASE_KCPU_COMMAND_TYPE_JIT_FREE: {
 			KBASE_TLSTREAM_TL_KBASE_KCPUQUEUE_EXECUTE_JIT_FREE_START(
 				kbdev, queue);
 
@@ -1885,21 +1885,24 @@ static void kcpu_queue_process(struct kbase_kcpu_command_queue *queue,
 			KBASE_TLSTREAM_TL_KBASE_KCPUQUEUE_EXECUTE_JIT_FREE_END(
 				kbdev, queue);
 			break;
+		}
 		case BASE_KCPU_COMMAND_TYPE_GROUP_SUSPEND: {
 			struct kbase_suspend_copy_buffer *sus_buf =
 					cmd->info.suspend_buf_copy.sus_buf;
 
-			KBASE_TLSTREAM_TL_KBASE_KCPUQUEUE_EXECUTE_GROUP_SUSPEND_START(
-				kbdev, queue);
+			if (!ignore_waits) {
+				KBASE_TLSTREAM_TL_KBASE_KCPUQUEUE_EXECUTE_GROUP_SUSPEND_START(
+					kbdev, queue);
 
-			status = kbase_csf_queue_group_suspend_process(
-					queue->kctx, sus_buf,
-					cmd->info.suspend_buf_copy.group_handle);
-			if (status)
-				queue->has_error = true;
+				status = kbase_csf_queue_group_suspend_process(
+						queue->kctx, sus_buf,
+						cmd->info.suspend_buf_copy.group_handle);
+				if (status)
+					queue->has_error = true;
 
-			KBASE_TLSTREAM_TL_KBASE_KCPUQUEUE_EXECUTE_GROUP_SUSPEND_END(
-				kbdev, queue, status);
+				KBASE_TLSTREAM_TL_KBASE_KCPUQUEUE_EXECUTE_GROUP_SUSPEND_END(
+					kbdev, queue, status);
+			}
 
 			if (!sus_buf->cpu_alloc) {
 				int i;

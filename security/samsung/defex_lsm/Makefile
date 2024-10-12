@@ -53,15 +53,11 @@ defex-y += catch_engine/defex_ht.o
 defex-y += defex_rules.o
 defex-$(CONFIG_COMPAT) += catch_engine/defex_catch_list_compat.o
 
-ifeq ($(SEC_BUILD_CONF_VENDOR_BUILD_OS), 14)
-    ifeq ($(filter a25x% m53x% m55xq%, $(TARGET_PRODUCT)),)
-        DEFEX_DEFINES := -DDEFEX_PERMISSIVE_IM
-        DEFEX_DEFINES += -DDEFEX_PERMISSIVE_INT
-    endif
-else
-    DEFEX_DEFINES := -DDEFEX_PERMISSIVE_IM
-    DEFEX_DEFINES += -DDEFEX_PERMISSIVE_INT
-endif
+# Immutable Feature is applied with permissive mode first.
+DEFEX_DEFINES := -DDEFEX_PERMISSIVE_IM
+
+# Integrity Feature is applied with permissive mode first.
+DEFEX_DEFINES += -DDEFEX_PERMISSIVE_INT
 
 ifeq ($(CONFIG_DEFEX_KERNEL_ONLY), y)
     DEFEX_DEFINES += -DDEFEX_KERNEL_ONLY

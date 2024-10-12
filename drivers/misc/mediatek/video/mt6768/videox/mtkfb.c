@@ -72,7 +72,7 @@
 #include "smi_public.h"
 
 /* hs14 code for AL6528A-318 by gaozhengwei at 2022/10/18 start */
-#if defined(CONFIG_HQ_PROJECT_O22) && defined(HQ_FACTORY_BUILD)
+#if (defined(CONFIG_HQ_PROJECT_O22) || defined(CONFIG_HQ_PROJECT_O8)) && defined(HQ_FACTORY_BUILD)
 #include <linux/input.h>
 #include <uapi/linux/input-event-codes.h>
 #include <mt-plat/v1/mtk_charger.h>
@@ -2511,7 +2511,7 @@ static struct fb_info *allocate_fb_by_index(struct device *dev)
 #endif
 
 /* hs14 code for AL6528A-318 by gaozhengwei at 2022/10/18 start */
-#if defined(CONFIG_HQ_PROJECT_O22) && defined(HQ_FACTORY_BUILD)
+#if (defined(CONFIG_HQ_PROJECT_O22) || defined(CONFIG_HQ_PROJECT_O8)) && defined(HQ_FACTORY_BUILD)
 static int mtkfb_usb_plug_notify_callback(struct notifier_block *self,
         unsigned long event, void *data)
 {
@@ -2719,7 +2719,7 @@ static int mtkfb_probe(struct platform_device *pdev)
 	}
 
 /* hs14 code for AL6528A-318 by gaozhengwei at 2022/10/18 start */
-#if defined(CONFIG_HQ_PROJECT_O22) && defined(HQ_FACTORY_BUILD)
+#if (defined(CONFIG_HQ_PROJECT_O22) || defined(CONFIG_HQ_PROJECT_O8)) && defined(HQ_FACTORY_BUILD)
 	/* Create input device */
 	fbdev->input = input_allocate_device();
 	if (!fbdev->input) {
@@ -2775,7 +2775,7 @@ static int mtkfb_remove(struct platform_device *pdev)
 	/* FIXME: wait till completion of pending events */
 
 /* hs14 code for AL6528A-318 by gaozhengwei at 2022/10/18 start */
-#if defined(CONFIG_HQ_PROJECT_O22) && defined(HQ_FACTORY_BUILD)
+#if (defined(CONFIG_HQ_PROJECT_O22) || defined(CONFIG_HQ_PROJECT_O8)) && defined(HQ_FACTORY_BUILD)
 	unregister_usb_check_notifier(&fbdev->usbplug_notify);
 	/* hs14 code for AL6528A-1067 by gaozhengwei at 2023/01/10 start */
 	mutex_lock(&fbdev->lock);
@@ -2821,7 +2821,7 @@ static int mtkfb_resume(struct platform_device *pdev)
 static void mtkfb_shutdown(struct platform_device *pdev)
 {
 /* hs14 code for AL6528A-318 by gaozhengwei at 2022/10/18 start */
-#if defined(CONFIG_HQ_PROJECT_O22) && defined(HQ_FACTORY_BUILD)
+#if (defined(CONFIG_HQ_PROJECT_O22) || defined(CONFIG_HQ_PROJECT_O8)) && defined(HQ_FACTORY_BUILD)
 	struct mtkfb_device *fbdev = dev_get_drvdata(&pdev->dev);
 #endif
 /* hs14 code for AL6528A-318 by gaozhengwei at 2022/10/18 start */
@@ -2835,7 +2835,7 @@ static void mtkfb_shutdown(struct platform_device *pdev)
 	primary_display_suspend();
 
 /* hs14 code for AL6528A-318 by gaozhengwei at 2022/10/18 start */
-#if defined(CONFIG_HQ_PROJECT_O22) && defined(HQ_FACTORY_BUILD)
+#if (defined(CONFIG_HQ_PROJECT_O22) || defined(CONFIG_HQ_PROJECT_O8)) && defined(HQ_FACTORY_BUILD)
 	unregister_usb_check_notifier(&fbdev->usbplug_notify);
 	/* hs14 code for AL6528A-1067 by gaozhengwei at 2023/01/10 start */
 	mutex_lock(&fbdev->lock);

@@ -19,7 +19,8 @@ enum LCM_DSI_MODE_CON lcm_dsi_mode;
 #define LCD_HW_ID_STATUS_HIGH     1
 #define LCD_HW_ID_STATUS_FLOAT 0x02
 #define LCD_HW_ID_STATUS_ERROR  0x03
-
+/*a06 code for AL7160A-5 by wenghailong at 20240313 start*/
+#ifdef CONFIG_HQ_PROJECT_O22
 struct LCM_DRIVER *o22_lcm_driver_list[] = {
 /*hs14 code for SR-AL6528A-01-406 by tangzhen at 20220907 start*/
 #if defined(LCD_HX83112F_TXD_BOE_MIPI_FHD_VIDEO)
@@ -48,6 +49,15 @@ struct LCM_DRIVER *o22_lcm_driver_list[] = {
         &lcd_default_mipi_fhd_video_lcm_drv,
 #endif
 };
+#endif
+#if defined(CONFIG_HQ_PROJECT_O8)
+struct LCM_DRIVER *o8_lcm_driver_list[] = {
+#if defined(LCD_HX83108B_XX_HKC_MIPI_HD_VIDEO)
+	&lcd_hx83108b_xx_hkc_mipi_hd_video_lcm_drv,
+#endif
+};
+#endif
+#if defined(CONFIG_HQ_PROJECT_HS04)
 /*hs04 code for DEAL6398A-1875 by zhawei at 20221017 start*/
 struct LCM_DRIVER *hs04_lcm_driver_list[] = {
 #if defined(LCD_JD9365T_TXD_CTC_MIPI_HDP_VIDEO)
@@ -72,7 +82,8 @@ struct LCM_DRIVER *hs04_lcm_driver_list[] = {
         &hs04_hdplus1600_dsi_default_vdo_lcm_drv,
 #endif
 };
-/*hs04 code for DEAL6398A-1875 by zhawei at 20221017 end*/
+#endif
+/*a06 code for AL7160A-5 by wenghailong at 20240313 end*/
 struct LCM_DRIVER *lcm_driver_list[] = {
 #if defined(HX83102P_WXGA_VDO_INCELL_BOE)
 	&hx83102p_wxga_vdo_incell_boe_lcm_drv,
@@ -1521,17 +1532,19 @@ unsigned char lcm_name_list[][128] = {
 	char assertion_failed_at_line_##line[(condition) ? 1 : -1]
 
 
-/*hs14 code for AL6528A-20 by duanyaoming at 20220906 start*/
-#ifdef CONFIG_HQ_PROJECT_O22
+/*a06 code for AL7160A-5 by wenghailong at 20240313 start*/
+#if defined(CONFIG_HQ_PROJECT_O22)
 unsigned int lcm_count =
 	sizeof(o22_lcm_driver_list) / sizeof(struct LCM_DRIVER *);
 LCM_COMPILE_ASSERT(sizeof(o22_lcm_driver_list) / sizeof(struct LCM_DRIVER *) != 0);
-/*hs14 code for AL6528A-20 by duanyaoming at 20220906 end*/
-/*hs04 code for DEAL6398A-1875 by zhawei at 20221017 start*/
+#elif defined(CONFIG_HQ_PROJECT_O8)
+unsigned int lcm_count =
+	sizeof(o8_lcm_driver_list) / sizeof(struct LCM_DRIVER *);
+LCM_COMPILE_ASSERT(sizeof(o8_lcm_driver_list) / sizeof(struct LCM_DRIVER *) != 0);
 #elif defined CONFIG_HQ_PROJECT_HS04
 unsigned int lcm_count = sizeof(hs04_lcm_driver_list) / sizeof(struct LCM_DRIVER *);
 LCM_COMPILE_ASSERT(sizeof(hs04_lcm_driver_list) / sizeof(struct LCM_DRIVER *) != 0);
-/*hs04 code for DEAL6398A-1875 by zhawei at 20221017 end*/
+/*a06 code for AL7160A-5 by wenghailong at 20240313 end*/
 #else
 unsigned int lcm_count =
 	sizeof(lcm_driver_list) / sizeof(struct LCM_DRIVER *);

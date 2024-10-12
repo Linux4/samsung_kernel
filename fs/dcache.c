@@ -1440,6 +1440,9 @@ static enum d_walk_ret select_collect(void *_data, struct dentry *dentry)
                 #if defined(CONFIG_HQ_PROJECT_O22)
                     goto out;
                 #endif
+                #if defined(CONFIG_HQ_PROJECT_O8)
+                    goto out;
+                #endif
                 #if defined(CONFIG_HQ_PROJECT_HS03S)
                     goto out;
                 #endif

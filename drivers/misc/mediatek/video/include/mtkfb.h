@@ -10,7 +10,7 @@
 #include <linux/types.h>
 #include "mtkfb_info.h"
 /* hs14 code for AL6528A-318 by gaozhengwei at 2022/10/18 start */
-#if defined(CONFIG_HQ_PROJECT_O22) && defined(HQ_FACTORY_BUILD)
+#if (defined(CONFIG_HQ_PROJECT_O22) || defined(CONFIG_HQ_PROJECT_O8)) && defined(HQ_FACTORY_BUILD)
 #include <linux/notifier.h>
 #endif
 /* hs14 code for AL6528A-318 by gaozhengwei at 2022/10/18 end */
@@ -396,7 +396,7 @@ struct mtkfb_device {
 	struct ion_client *ion_client;
 
 /* hs14 code for AL6528A-318 by gaozhengwei at 2022/10/18 start */
-#if defined(CONFIG_HQ_PROJECT_O22) && defined(HQ_FACTORY_BUILD)
+#if (defined(CONFIG_HQ_PROJECT_O22) || defined(CONFIG_HQ_PROJECT_O8)) && defined(HQ_FACTORY_BUILD)
 	struct notifier_block usbplug_notify;
 	bool usb_connected;
 	struct input_dev *input;

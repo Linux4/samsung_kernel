@@ -30,6 +30,9 @@ extern struct LCM_DRIVER *lcm_driver_list[];
 /*hs14 code for AL6528A-20 by duanyaoming at 20220906 start*/
 extern struct LCM_DRIVER *o22_lcm_driver_list[];
 /*hs14 code for AL6528A-20 by duanyaoming at 20220906 end*/
+/*a06 code for AL7160A-5 by wenghailong at 20240313 start*/
+extern struct LCM_DRIVER *o8_lcm_driver_list[];
+/*a06 code for AL7160A-5 by wenghailong at 20240313 end*/
 extern unsigned int lcm_count;
 
 

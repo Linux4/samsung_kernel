@@ -110,3 +110,9 @@ config TOUCHSCREEN_CHIPONE_CHIPSET_M04
 
 source "drivers/input/touchscreen/mediatek/M04/chipone/Kconfig"
 # hs04 code for DEAL6398A-1876 by tangsumian at 20221012 end
+# a06 code for AL7160A-5 by wenghailong at 20240313 start
+source "drivers/input/touchscreen/mediatek/O8/hxchipset_hx83108b/Kconfig"
+# a06 code for AL7160A-5 by wenghailong at 20240313 end
+# a06 code for AL7160A-5 by wenghailong at 20240313 start
+source "drivers/input/touchscreen/mediatek/O8/touch_common/Kconfig"
+# a06 code for AL7160A-5 by wenghailong at 20240313 end

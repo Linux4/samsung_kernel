@@ -116,7 +116,7 @@
 #define tPSHardResetMax			34		* TICK_SCALE_TO_MS
 #define tPSTransition			500		* TICK_SCALE_TO_MS
 /* hs14 code for P221201-03712 by wenyaqi at 2022/12/09 start */
-#if defined(CONFIG_HQ_PROJECT_O22)
+#if defined(CONFIG_HQ_PROJECT_O22) || defined(CONFIG_HQ_PROJECT_O8)
 #define tPSSourceOff			1400	* TICK_SCALE_TO_MS
 #define tPSSourceOn				950		* TICK_SCALE_TO_MS
 #else

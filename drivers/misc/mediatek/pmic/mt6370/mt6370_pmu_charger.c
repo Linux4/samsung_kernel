@@ -2959,7 +2959,7 @@ static int mt6370_dump_register(struct charger_device *chg_dev)
 	chg_data->ss_vbat = adc_vbat;
 
 #endif
-#ifdef CONFIG_HQ_PROJECT_O22
+#if defined(CONFIG_HQ_PROJECT_O22) || defined(CONFIG_HQ_PROJECT_O8)
     /* modify code for O22 */
 	chg_data->ss_aicr = aicr;
 	chg_data->ss_ibus = adc_ibus;
@@ -4093,7 +4093,7 @@ static int mt6370_chg_init_setting(struct mt6370_pmu_charger_data *chg_data)
 #ifdef CONFIG_HQ_PROJECT_HS03S
 		ret = __mt6370_set_aicr(chg_data, chg_desc->aicr);
 #endif
-#ifdef CONFIG_HQ_PROJECT_O22
+#if defined(CONFIG_HQ_PROJECT_O22) || defined(CONFIG_HQ_PROJECT_O8)
 		ret = __mt6370_set_aicr(chg_data, chg_desc->aicr);
 #endif
 #ifdef CONFIG_HQ_PROJECT_HS04
@@ -4993,6 +4993,9 @@ static int mt6370_pmu_charger_probe(struct platform_device *pdev)
 	memcpy(&chg_data->psy_desc,
 		&mt6370_pmu_chg_desc, sizeof(chg_data->psy_desc));
 	chg_data->psy_desc.name = dev_name(&pdev->dev);
+	/* Tab A7 lite_U code for P240216-02710 by shanxinkai at 20240307 start */
+	chg_data->psy_desc.type  = POWER_SUPPLY_TYPE_UNKNOWN;
+	/* Tab A7 lite_U code for P240216-02710 by shanxinkai at 20240307 end */
 
 	charger_cfg.drv_data = chg_data;
 	charger_cfg.of_node = pdev->dev.of_node;

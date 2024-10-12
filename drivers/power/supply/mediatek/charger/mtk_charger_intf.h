@@ -37,6 +37,9 @@ struct charger_data;
 #include "afc_charger_intf.h"
 #endif
 /* hs14 code for SR-AL6528A-01-321 by gaozhengwei at 2022/09/22 end */
+/* hs14_u code for AL6528AU-252 by liufurong at 2024/01/11 start */
+#include <linux/power_supply.h>
+/* hs14_u code for AL6528AU-252 by liufurong at 2024/01/11 end */
 
 #define CHARGING_INTERVAL 10
 #define CHARGING_FULL_INTERVAL 20
@@ -513,6 +516,10 @@ struct charger_manager {
 	int batt_status;
 	int capacity;
 /* hs14 code for SR-AL6528A-01-261 | SR-AL6528A-01-343 by chengyuanhang at 2022/10/11 end */
+	/* hs14_u code for AL6528AU-252 by liufurong at 2024/01/11 start */
+	int cust_batt_rechg;
+	BATT_PROTECTION_T batt_protection_mode;
+	/* hs14_u code for AL6528AU-252 by liufurong at 2024/01/11 end*/
 #endif
 
 	/* hs14 code for AL6528ADEU-580 by gaozhengwei at 2022/10/09 start */

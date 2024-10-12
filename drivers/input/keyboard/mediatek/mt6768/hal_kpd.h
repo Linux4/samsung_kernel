@@ -59,7 +59,7 @@ void kpd_double_key_enable(int en);
 #define KPD_NUM_KEYS	72	/* 4 * 16 + KPD_MEM5_BITS */
 #endif
 /*hs14 code for AL6528ADEU-723 by hehaoran5 at 20221021 start*/
-#ifdef CONFIG_HQ_PROJECT_O22
+#if defined(CONFIG_HQ_PROJECT_O22) || defined(CONFIG_HQ_PROJECT_O8)
 #include <mt-plat/mtk_boot_common.h>
 extern enum boot_mode_t tp_get_boot_mode(void);
 #endif

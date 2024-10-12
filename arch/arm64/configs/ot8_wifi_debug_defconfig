@@ -662,6 +662,9 @@ CONFIG_BATTERY_ID_ADC=y
 # TabA7 Lite code for OT8-106 add afc charger driver by wenyaqi at 20201201 start
 CONFIG_AFC_CHARGER=y
 # TabA7 Lite code for OT8-106 add afc charger driver by wenyaqi at 20201201 end
+# Tab A7 lite_U code for AX3565AU-313 by shanxinkai at 20240221 start
+CONFIG_BATT_TIME_TO_FULL=y
+# Tab A7 lite_U code for AX3565AU-313 by shanxinkai at 20240221 end
 
 # [ SEC_SELINUX_PORTING_COMMON
 CONFIG_EXT4_FS_XATTR=y

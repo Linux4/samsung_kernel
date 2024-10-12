@@ -3197,14 +3197,13 @@ PVRSRV_ERROR DevDeInitRGX(PVRSRV_DEVICE_NODE *psDeviceNode)
 
 	eError = DeviceDepBridgeDeInit(psDevInfo->sDevFeatureCfg.ui64Features);
 	PVR_LOG_IF_ERROR(eError, "DeviceDepBridgeDeInit");
-#if	defined(PDUMP)
+
 	DevmemIntFreeDefBackingPage(psDeviceNode,
 								&psDeviceNode->sDummyPage,
 								DUMMY_PAGE);
 	DevmemIntFreeDefBackingPage(psDeviceNode,
 								&psDeviceNode->sDevZeroPage,
 								DEV_ZERO_PAGE);
-#endif
 
 #if defined(PVRSRV_FORCE_UNLOAD_IF_BAD_STATE)
 	if (PVRSRVGetPVRSRVData()->eServicesState != PVRSRV_SERVICES_STATE_OK)
@@ -3465,9 +3464,6 @@ static INLINE DEVMEM_HEAP_BLUEPRINT _blueprint_init(IMG_CHAR *name,
 		IMG_DEVMEM_SIZE_T heap_reserved_region_length,
 		IMG_UINT32 log2_import_alignment)
 {
-	void *pvAppHintState = NULL;
-	IMG_UINT32 ui32AppHintDefault = PVRSRV_APPHINT_GENERALNON4KHEAPPAGESIZE;
-	IMG_UINT32 ui32GeneralNon4KHeapPageSize;
 	IMG_UINT32	ui32OSLog2PageShift = OSGetPageShift();
 	IMG_UINT32	ui32OSPageSize;
 
@@ -3502,9 +3498,24 @@ static INLINE DEVMEM_HEAP_BLUEPRINT _blueprint_init(IMG_CHAR *name,
 
 	if (!OSStringNCompare(name, RGX_GENERAL_NON4K_HEAP_IDENT, sizeof(RGX_GENERAL_NON4K_HEAP_IDENT)))
 	{
-		OSCreateKMAppHintState(&pvAppHintState);
-		OSGetKMAppHintUINT32(pvAppHintState, GeneralNon4KHeapPageSize,
-				&ui32AppHintDefault, &ui32GeneralNon4KHeapPageSize);
+		IMG_UINT32 ui32AppHintDefault = PVRSRV_APPHINT_GENERALNON4KHEAPPAGESIZE;
+		IMG_UINT32 ui32GeneralNon4KHeapPageSize;
+
+		/* We support Non4K pages only on platforms with 4KB pages. */
+		if (ui32OSLog2PageShift > RGX_HEAP_4KB_PAGE_SHIFT)
+		{
+			ui32GeneralNon4KHeapPageSize = ui32OSPageSize;
+		}
+		else
+		{
+			void *pvAppHintState = NULL;
+
+			OSCreateKMAppHintState(&pvAppHintState);
+			OSGetKMAppHintUINT32(pvAppHintState, GeneralNon4KHeapPageSize,
+			                     &ui32AppHintDefault, &ui32GeneralNon4KHeapPageSize);
+			OSFreeKMAppHintState(pvAppHintState);
+		}
+
 		switch (ui32GeneralNon4KHeapPageSize)
 		{
 			case (1<<RGX_HEAP_4KB_PAGE_SHIFT):
@@ -3533,7 +3544,6 @@ static INLINE DEVMEM_HEAP_BLUEPRINT _blueprint_init(IMG_CHAR *name,
 						 ui32AppHintDefault));
 				break;
 		}
-		OSFreeKMAppHintState(pvAppHintState);
 	}
 
 	return b;
@@ -3589,9 +3599,8 @@ static PVRSRV_ERROR RGXInitHeaps(PVRSRV_RGXDEV_INFO *psDevInfo,
 								 IMG_UINT32 *pui32Log2DummyPgSize)
 {
 	DEVMEM_HEAP_BLUEPRINT *psDeviceMemoryHeapCursor;
-	void *pvAppHintState = NULL;
-	IMG_UINT32 ui32AppHintDefault = PVRSRV_APPHINT_GENERALNON4KHEAPPAGESIZE;
 	IMG_UINT32 ui32GeneralNon4KHeapPageSize;
+	IMG_UINT32 ui32OSLog2PageShift = OSGetPageShift();
 
 	psNewMemoryInfo->psDeviceMemoryHeap = OSAllocMem(sizeof(DEVMEM_HEAP_BLUEPRINT) * RGX_MAX_HEAP_ID);
 	if (psNewMemoryInfo->psDeviceMemoryHeap == NULL)
@@ -3601,12 +3610,23 @@ static PVRSRV_ERROR RGXInitHeaps(PVRSRV_RGXDEV_INFO *psDevInfo,
 		goto e0;
 	}
 
-	/* Get the page size for the dummy page from the NON4K heap apphint */
-	OSCreateKMAppHintState(&pvAppHintState);
-	OSGetKMAppHintUINT32(pvAppHintState, GeneralNon4KHeapPageSize,
-			&ui32AppHintDefault, &ui32GeneralNon4KHeapPageSize);
-	*pui32Log2DummyPgSize = ExactLog2(ui32GeneralNon4KHeapPageSize);
-	OSFreeKMAppHintState(pvAppHintState);
+	/* We support Non4K pages only on platforms with 4KB pages. */
+	if (ui32OSLog2PageShift > RGX_HEAP_4KB_PAGE_SHIFT)
+	{
+		*pui32Log2DummyPgSize = ui32OSLog2PageShift;
+	}
+	else
+	{
+		void *pvAppHintState = NULL;
+		IMG_UINT32 ui32AppHintDefault = PVRSRV_APPHINT_GENERALNON4KHEAPPAGESIZE;
+
+		/* Get the page size for the dummy page from the NON4K heap apphint */
+		OSCreateKMAppHintState(&pvAppHintState);
+		OSGetKMAppHintUINT32(pvAppHintState, GeneralNon4KHeapPageSize,
+		                     &ui32AppHintDefault, &ui32GeneralNon4KHeapPageSize);
+		*pui32Log2DummyPgSize = ExactLog2(ui32GeneralNon4KHeapPageSize);
+		OSFreeKMAppHintState(pvAppHintState);
+	}
 
 	/* Initialise the heaps */
 	psDeviceMemoryHeapCursor = psNewMemoryInfo->psDeviceMemoryHeap;
@@ -4247,7 +4267,6 @@ PVRSRV_ERROR RGXRegisterDevice (PVRSRV_DEVICE_NODE *psDeviceNode)
 	eError = RGXDebugInit(psDevInfo);
 	PVR_LOG_GOTO_IF_ERROR(eError, "RGXDebugInit", e16);
 
-#if defined(PDUMP)
 	eError = DevmemIntAllocDefBackingPage(psDeviceNode,
 										  &psDeviceNode->sDummyPage,
 										  PVR_DUMMY_PAGE_INIT_VALUE,
@@ -4268,7 +4287,6 @@ PVRSRV_ERROR RGXRegisterDevice (PVRSRV_DEVICE_NODE *psDeviceNode)
 		PVR_DPF((PVR_DBG_ERROR, "%s: Failed to allocate Zero page.", __func__));
 		goto e18;
 	}
-#endif
 
 
 	/* Initialise the device dependent bridges */
@@ -4277,14 +4295,12 @@ PVRSRV_ERROR RGXRegisterDevice (PVRSRV_DEVICE_NODE *psDeviceNode)
 
 	return PVRSRV_OK;
 
-#if defined(PDUMP)
 e18:
 	DevmemIntFreeDefBackingPage(psDeviceNode,
 								&psDeviceNode->sDummyPage,
 								DUMMY_PAGE);
 e17:
 	RGXDebugDeinit(psDevInfo);
-#endif
 e16:
 #if defined(SUPPORT_VALIDATION)
 	RGXPowerDomainDeInitState(&psDevInfo->sPowerDomainState);

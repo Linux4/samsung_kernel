@@ -394,7 +394,8 @@ extern struct LCM_DRIVER nt36523b_txd_mdt_incell_vdo_lcm_drv;
 extern struct LCM_DRIVER hx83102e_hy_mdt_incell_vdo_lcm_drv;
 /*TabA7 Lite code for OT8-5317 by huangzhongjie at 20220217 end*/
 
-#ifdef CONFIG_HQ_PROJECT_O22
+/*a06 code for AL7160A-5 by wenghailong at 20240313 start*/
+#if defined(CONFIG_HQ_PROJECT_O22)
 /*hs14 code for SR-AL6528A-01-406 by tangzhen at 20220907 start*/
 extern struct LCM_DRIVER lcd_hx83112f_txd_boe_mipi_fhd_video_lcm_drv;
 /*hs14 code for SR-AL6528A-01-406 by tangzhen at 20220907 end*/
@@ -414,14 +415,19 @@ extern struct LCM_DRIVER lcd_td4375_txd_jdi_mipi_fhd_video_lcm_drv;
 extern struct LCM_DRIVER lcd_default_mipi_fhd_video_lcm_drv;
 /*hs14 code for AL6528A-20 by duanyaoming at 20220906 end*/
 #endif
-
+#if defined(CONFIG_HQ_PROJECT_O8)
+extern struct LCM_DRIVER lcd_hx83108b_xx_hkc_mipi_hd_video_lcm_drv;
+extern struct LCM_DRIVER lcd_default_mipi_fhd_video_lcm_drv;
+#endif
+#if defined(CONFIG_HQ_PROJECT_HS04)
 /*hs04 code for DEAL6398A-1875 by zhawei at 20221017 start*/
 extern struct LCM_DRIVER lcd_nl9911c_hlt_hkc_mipi_hdp_video_lcm_drv;
 extern struct LCM_DRIVER lcd_jd9365t_txd_boe_mipi_hdp_video_lcm_drv;
 extern struct LCM_DRIVER lcd_nl9911c_hr_hr_mipi_hdp_video_lcm_drv;
 extern struct LCM_DRIVER lcd_jd9365t_txd_ctc_jbpd_mipi_hdp_video_lcm_drv;
 /*hs04 code for DEAL6398A-1875 by zhawei at 20221017 end*/
-
+#endif
+/*a06 code for AL7160A-5 by wenghailong at 20240313 end*/
 #ifdef BUILD_LK
 extern void mdelay(unsigned long msec);
 #endif

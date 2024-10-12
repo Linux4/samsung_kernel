@@ -632,6 +632,9 @@ CONFIG_BATTERY_ID_ADC=y
 # for afc
 CONFIG_AFC_CHARGER=y
 # hs14 code for SR-AL6528A-01-321 by gaozhengwei at 2022/09/22 end
+# hs14_u code for AL6528AU-252 by liufurong at 2024/01/11 start
+CONFIG_GXY_BATT_TIME_TO_FULL=y
+# hs14_u code for AL6528AU-252 by liufurong at 2024/01/11 end
 # AL6528A code for SR-AL6528A-01-7 by lijun at 2022/08/31 start
 # For XO_NFC  PMIC
 CONFIG_MTK_CLKBUF_NFC=y

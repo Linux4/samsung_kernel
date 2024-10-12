@@ -308,7 +308,7 @@ imgsensor_sensor_open(struct IMGSENSOR_SENSOR *psensor)
 		mDELAY(5);
 		pr_info("[hs04 E] camera poweron delay 5ms");
 #endif
-#ifdef CONFIG_HQ_PROJECT_O22
+#if defined(CONFIG_HQ_PROJECT_O22) || defined(CONFIG_HQ_PROJECT_O8)
 		mDELAY(5);
 		pr_info("[hs04 E] camera poweron delay 5ms");
 #endif
@@ -586,7 +586,7 @@ static inline int imgsensor_check_is_alive(struct IMGSENSOR_SENSOR *psensor)
 			psensor->inst.sensor_idx, false);
 	pr_info("[hs04 I]disable vcama oc before power on");
 #endif
-#ifdef CONFIG_HQ_PROJECT_O22
+#if defined(CONFIG_HQ_PROJECT_O22) || defined(CONFIG_HQ_PROJECT_O8)
 	if (pgimgsensor->imgsensor_oc_irq_enable != NULL)
 	pgimgsensor->imgsensor_oc_irq_enable(
 			psensor->inst.sensor_idx, false);

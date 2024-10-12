@@ -874,6 +874,23 @@ config CHARGER_SY6974
 	  SY6974 driver.
 # HS03s for SR-AL5625-01-542 by wenyaqi at 20210609 end
 
+# Tab A7 lite_U code for AX3565AU-313 by shanxinkai at 20240120 start
+config BATT_TIME_TO_FULL
+	bool "Using time to full feature"
+	default n
+	help
+	  If you say yes here you will get support for
+	  the batt time to full.
+# Tab A7 lite_U code for AX3565AU-313 by shanxinkai at 20240120 end
+# hs04_u for  AL6398AU-178 by shixuanxuan at 20240117 start
+config GXY_HS04_BATT_TIME_TO_FULL
+	bool "Using gxy time to full feature"
+	default n
+	help
+	  If you say yes here you will get support for
+	  the gxy batt time to full.
+# hs04_u for  AL6398AU-178 by shixuanxuan at 20240117 end
+
 config CUSTOM_BATTERY_EXTERNAL_CHANNEL
 	bool "customer external gauge test"
 	depends on MTK_PMIC_CHIP_MT6359P

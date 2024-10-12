@@ -1125,7 +1125,7 @@ extern struct pinctrl_state *lcd_disp_pwm_gpio;
 /* HS03S code for SR-AL5625-01-313 by gaozhengwei at 2021/04/25 start */
 /* HS03S code for SR-AL5625-01-313 by gaozhengwei at 2021/04/25 end */
 #endif
-#ifdef CONFIG_HQ_PROJECT_O22
+#if defined(CONFIG_HQ_PROJECT_O22) || defined(CONFIG_HQ_PROJECT_O8)
 
 #define GPIO_OUT_LOW 0
 #define GPIO_OUT_ONE 1

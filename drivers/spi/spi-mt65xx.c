@@ -424,7 +424,7 @@ static void mtk_spi_prepare_transfer(struct spi_master *master,
 #ifdef CONFIG_HQ_PROJECT_HS03S
         cs_time = sck_time * 2;
 #endif
-#ifdef CONFIG_HQ_PROJECT_O22
+#if defined(CONFIG_HQ_PROJECT_O22) || defined(CONFIG_HQ_PROJECT_O8)
         cs_time = sck_time * 2;
 #endif
 #ifdef CONFIG_HQ_PROJECT_HS04

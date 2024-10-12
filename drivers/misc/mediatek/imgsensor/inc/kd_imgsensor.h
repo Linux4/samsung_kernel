@@ -287,7 +287,7 @@
 /*hs04 code for DEVAL6398A-46 by renxinglin at  2022/10/14 end*/
 
 /*hs14 code for AL6528ADEU-2675 by pengxutao at 2022/11/19 start*/
-#ifdef CONFIG_HQ_PROJECT_O22
+#if defined(CONFIG_HQ_PROJECT_O22) || defined(CONFIG_HQ_PROJECT_O8)
     //1 supply
     #define A1401BACKS5KJN1HLT_SENSOR_ID                    0x38E1
     #define SENSOR_DRVNAME_A1401BACKS5KJN1HLT_MIPI_RAW      "a1401backs5kjn1hlt_mipi_raw"

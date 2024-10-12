@@ -8,7 +8,11 @@
 obj-$(CONFIG_INPUT)		+= input-core.o
 input-core-y := input.o input-compat.o input-mt.o ff-core.o
 
+# a06 code for AL7160A-5 by wenghailong at 20240313 start
+ifneq ($(CONFIG_HQ_PROJECT_O8),y)
 obj-$(CONFIG_INPUT_TOUCHSCREEN) += sec_cmd.o
+endif
+# a06 code for AL7160A-5 by wenghailong at 20240313 end
 
 obj-$(CONFIG_INPUT_FF_MEMLESS)	+= ff-memless.o
 obj-$(CONFIG_INPUT_POLLDEV)	+= input-polldev.o

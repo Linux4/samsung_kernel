@@ -529,7 +529,7 @@ struct fuelgauge_temperature Fg_Temperature_Table[25] = {
 		{75, 12635},
 		{80, 10566}
 };
-#elif defined(CONFIG_HQ_PROJECT_O22)
+#elif defined(CONFIG_HQ_PROJECT_O22) || defined(CONFIG_HQ_PROJECT_O8)
 /* hs14 code for  SR-AL6528A-01-313 by zhouyuhang at 20220907 start*/
 struct fuelgauge_temperature Fg_Temperature_Table[21] = {
 		{-40, 205200},

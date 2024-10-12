@@ -33,6 +33,8 @@ endif
 # hs14 code for SR-AL5628-01-161 by lisizhou at 2022-9-26 start
 ifeq ($(CONFIG_HQ_PROJECT_O22), y)
 obj-$(CONFIG_MTK_FLASHLIGHT_SGM3785_GPIO)  += flashlights-sgm3785-gpio-hq.o
+else ifeq ($(CONFIG_HQ_PROJECT_O8), y)
+obj-$(CONFIG_MTK_FLASHLIGHT_SGM3785_GPIO)  += flashlights-sgm3785-gpio-hq.o
 else
 obj-$(CONFIG_MTK_FLASHLIGHT_SGM3785_GPIO)  += flashlights-sgm3785-gpio.o
 endif

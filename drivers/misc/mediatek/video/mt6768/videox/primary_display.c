@@ -4895,7 +4895,7 @@ int primary_display_suspend(void)
 	if (disp_helper_get_option(DISP_OPT_MET_LOG))
 		set_enterulps(1);
 /*hs14 code for SR-AL6528A-01-423 by duanyaoming at 20220926 start*/
-#ifdef CONFIG_HQ_PROJECT_O22
+#if defined(CONFIG_HQ_PROJECT_O22) || defined(CONFIG_HQ_PROJECT_O8)
 	if (g_system_is_shutdown || !smart_wakeup_open_flag) {
 		if (pgc->plcm->drv->suspend_power) {
 			pgc->plcm->drv->suspend_power();

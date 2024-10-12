@@ -1191,7 +1191,7 @@ static int is_db_ok(struct musb *musb, struct musb_ep *musb_ep)
 			| (ep->address & 0x0f);
 	/* HS04_T for DEAL6398A-1879 by shixuanxuan at 20221012 start */
 /* hs14 code for AL6528A-657 by shanxinkai at 2022/11/08 start */
-#if defined (CONFIG_HQ_PROJECT_HS04) || defined(CONFIG_HQ_PROJECT_O22)
+#if defined (CONFIG_HQ_PROJECT_HS04) || defined(CONFIG_HQ_PROJECT_O22) || defined(CONFIG_HQ_PROJECT_O8)
 /* hs14 code for AL6528A-657 by shanxinkai at 2022/11/08 end */
 	if (!IS_ERR_OR_NULL(cdev->config)) {
 		list_for_each_entry(f, &cdev->config->functions, list) {
@@ -1458,7 +1458,7 @@ static int musb_gadget_enable
 	}
 	/* HS04_T for DEAL6398A-1879 by shixuanxuan at 20221012 start */
 /* hs14 code for AL6528A-657 by shanxinkai at 2022/11/08 start */
-#if defined (CONFIG_HQ_PROJECT_HS04) || defined(CONFIG_HQ_PROJECT_O22)
+#if defined (CONFIG_HQ_PROJECT_HS04) || defined(CONFIG_HQ_PROJECT_O22) || defined(CONFIG_HQ_PROJECT_O8)
 /* hs14 code for AL6528A-657 by shanxinkai at 2022/11/08 end */
 	if (musb->is_active) {
 		fifo_setup(musb, musb_ep);

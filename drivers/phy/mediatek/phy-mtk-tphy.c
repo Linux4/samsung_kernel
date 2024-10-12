@@ -1566,7 +1566,7 @@ static void u2_phy_instance_power_on(struct mtk_tphy *tphy,
 	tmp = readl(com + U3P_USBPHYACR6);
 	tmp &= ~PA6_RG_U2_PHY_REV6;
 /* hs14 code for AL6528A-656 by wenyaqi at 2022/11/07 start */
-#if defined(CONFIG_HQ_PROJECT_O22)
+#if defined(CONFIG_HQ_PROJECT_O22) || defined(CONFIG_HQ_PROJECT_O8)
 	if (instance->eye_rev6 >= 0) {
 		tmp |= PA6_RG_U2_PHY_REV6_VAL(instance->eye_rev6);
 	} else {
@@ -1596,7 +1596,7 @@ static void u2_phy_instance_power_on(struct mtk_tphy *tphy,
 	tmp = readl(com + U3P_USBPHYACR6);
 	tmp &= ~PA6_RG_U2_DISCTH;
 /* hs14 code for AL6528A-656 by wenyaqi at 2022/11/09 start */
-#if defined(CONFIG_HQ_PROJECT_O22)
+#if defined(CONFIG_HQ_PROJECT_O22) || defined(CONFIG_HQ_PROJECT_O8)
 	if (instance->eye_disc >= 0) {
 		tmp |= PA6_RG_U2_DISCTH_VAL(instance->eye_disc);
 	} else {
@@ -1659,7 +1659,7 @@ static void u2_phy_instance_power_off(struct mtk_tphy *tphy,
 
 	tmp = readl(com + U3P_USBPHYACR6);
 /* hs14 code for AL6528A-656 by wenyaqi at 2022/11/07 start */
-#if defined(CONFIG_HQ_PROJECT_O22)
+#if defined(CONFIG_HQ_PROJECT_O22) || defined(CONFIG_HQ_PROJECT_O8)
 	if (instance->eye_rev6 >= 0) {
 		tmp |= PA6_RG_U2_PHY_REV6_VAL(instance->eye_rev6);
 	} else {

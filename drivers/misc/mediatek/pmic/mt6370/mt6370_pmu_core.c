@@ -35,7 +35,7 @@ void primary_display_shutdown_set_power_mode(void);
 /* HS03S code added for SR-AL5625-01-506 by gaozhengwei at 20210526 end */
 /* HS03S code for SR-AL5625-01-313 by gaozhengwei at 2021/04/25 end */
 #endif
-#ifdef CONFIG_HQ_PROJECT_O22
+#if defined(CONFIG_HQ_PROJECT_O22) || defined(CONFIG_HQ_PROJECT_O8)
     /* modify code for O22 */
 /* HS03S code for SR-AL5625-01-313 by gaozhengwei at 2021/04/25 start */
 /* HS03S code added for SR-AL5625-01-506 by gaozhengwei at 20210526 start */
@@ -304,7 +304,7 @@ static void mt6370_pmu_core_shutdown(struct platform_device *pdev)
 /* HS03S code added for SR-AL5625-01-506 by gaozhengwei at 20210526 end */
 	/* HS03S code for SR-AL5625-01-313 by gaozhengwei at 2021/04/25 end */
 #endif
-#ifdef CONFIG_HQ_PROJECT_O22
+#if defined(CONFIG_HQ_PROJECT_O22) || defined(CONFIG_HQ_PROJECT_O8)
     /* modify code for O22 */
 	/* HS03S code for SR-AL5625-01-313 by gaozhengwei at 2021/04/25 start */
 /* HS03S code added for SR-AL5625-01-506 by gaozhengwei at 20210526 start */

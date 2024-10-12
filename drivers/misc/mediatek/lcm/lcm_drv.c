@@ -98,7 +98,7 @@ static void lcm_request_gpio_control(struct device *dev)
 	}
 }
 #endif
-#ifdef CONFIG_HQ_PROJECT_O22
+#if defined(CONFIG_HQ_PROJECT_O22) || defined(CONFIG_HQ_PROJECT_O8)
 unsigned int GPIO_LCD_RST;
 /* hs03s_NM code added for SR-AL5625-01-609 by fengzhigang at 20220424 start */
 unsigned int GPIO_TSP_RST;
@@ -207,7 +207,7 @@ static int lcm_driver_probe(struct device *dev, void const *data)
 #ifdef CONFIG_HQ_PROJECT_HS04
 	lcm_request_gpio_control(dev);
 #endif
-#ifdef CONFIG_HQ_PROJECT_O22
+#if defined(CONFIG_HQ_PROJECT_O22) || defined(CONFIG_HQ_PROJECT_O8)
 	lcm_request_gpio_control(dev);
 #endif
 	return 0;
