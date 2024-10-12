@@ -10,9 +10,10 @@
 		reg = <0x0c271000 0x1ff>, /* TM */
 			<0x0c222000 0x1ff>; /* SROT */
 		#qcom,sensors = <16>;
-		interrupts = <GIC_SPI 506 IRQ_TYPE_LEVEL_HIGH>,
-			     <GIC_SPI 640 IRQ_TYPE_LEVEL_HIGH>;
-		interrupt-names = "uplow","critical";
+		interrupts-extended = <&intc GIC_SPI 506 IRQ_TYPE_LEVEL_HIGH>,
+			     <&intc GIC_SPI 640 IRQ_TYPE_LEVEL_HIGH>,
+				 <&pdc 20 IRQ_TYPE_EDGE_RISING>;
+		interrupt-names = "uplow","critical", "cold";
 		#thermal-sensor-cells = <1>;
 	};
 
@@ -74,16 +75,19 @@
 
 		APC1_pause: apc1-pause {
 			qcom,cpus = <&CPU4 &CPU5 &CPU6 &CPU7>;
+			qcom,cdev-alias = "thermal-pause-F0";
 			#cooling-cells = <2>;
 		};
 
 		cpu_4_5_pause: cpu-4-5-pause {
 			qcom,cpus = <&CPU4 &CPU5>;
+			qcom,cdev-alias = "thermal-pause-30";
 			#cooling-cells = <2>;
 		};
 
 		cpu_6_7_pause: cpu-6-7-pause {
-			qcom,cpus = <&CPU4 &CPU5>;
+			qcom,cpus = <&CPU6 &CPU7>;
+			qcom,cdev-alias = "thermal-pause-C0";
 			#cooling-cells = <2>;
 		};
 
@@ -172,7 +176,7 @@
 
 	qcom,cpu-voltage-cdev {
 		compatible = "qcom,cc-cooling-devices";
-		apc1_cluster: thermal-cluster-4-7 {
+		apc1_cluster: thermal-cluster-1-2 {
 			qcom,cluster0 = <&CPU4 &CPU5 &CPU6>;
 			qcom,cluster1 = <&CPU7>;
 			#cooling-cells = <2>;
@@ -1165,6 +1169,32 @@
 			gpu1_cdev {
 				trip = <&gpu1_tj_cfg>;
 				cooling-device = <&msm_gpu 0 THERMAL_NO_LIMIT>;
+			};
+		};
+	};
+
+	zeroc {
+		polling-delay-passive = <0>;
+		polling-delay = <0>;
+		thermal-sensors = <&tsens0 128>;
+		trips {
+			thermal-engine-config {
+				temperature = <1>;
+				hysteresis = <1>;
+				type = "passive";
+			};
+
+			min_temp_trip: cold-trip {
+				temperature = <1>;
+				hysteresis = <1>;
+				type = "passive";
+			};
+		};
+
+		cooling-maps {
+			modem_vdd_cdev {
+				trip = <&min_temp_trip>;
+				cooling-device = <&modem_vdd 1 1>;
 			};
 		};
 	};

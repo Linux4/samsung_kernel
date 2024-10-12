@@ -1331,12 +1331,12 @@ int max77705_store_hmd_dev(struct max77705_usbc_platform_data *usbc_data, char *
 	tok = strsep(&str, ",");
 	i = 0, j = 0;
 	while (tok != NULL && *tok != 0xa/*LF*/) {
-		if (i > num_hmd * HMD_POWER_FIELD_MAX) {
+		if (i >= num_hmd * HMD_POWER_FIELD_MAX) {
 			msg_maxim("num of tok cannot exceed <%dx%d>!",
 				num_hmd, HMD_POWER_FIELD_MAX);
 			break;
 		}
-		if (j > MAX_NUM_HMD) {
+		if (j >= MAX_NUM_HMD) {
 			msg_maxim("num of HMD cannot exceed %d!",
 				MAX_NUM_HMD);
 			break;
@@ -1718,6 +1718,11 @@ static void max77705_init_opcode
 		max77705_set_enable_alternate_mode(ALTERNATE_MODE_START);
 		max77705_muic_enable_detecting_short(usbc_data->muic_data);
 	}
+#ifndef CONFIG_DISABLE_LOCKSCREEN_USB_RESTRICTION
+	else {
+		max77705_set_enable_alternate_mode(ALTERNATE_MODE_READY | ALTERNATE_MODE_STOP);
+	}
+#endif	
 }
 
 static bool max77705_check_recover_opcode(u8 opcode)

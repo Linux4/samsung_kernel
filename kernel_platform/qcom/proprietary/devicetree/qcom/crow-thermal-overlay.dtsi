@@ -18,11 +18,6 @@
 				cooling-device = <&modem_nr_dsc 6 6>;
 			};
 
-			vph_cpu_4_5 {
-				trip = <&bcl_lvl0>;
-				cooling-device = <&cpu_4_5_pause 1 1>;
-			};
-
 			vph_cdsp0 {
 				trip = <&bcl_lvl0>;
 				cooling-device = <&cdsp_sw 2 2>;
@@ -52,11 +47,6 @@
 				cooling-device = <&modem_nr_dsc 9 9>;
 			};
 
-			vph_cpu_6_7 {
-				trip = <&bcl_lvl1>;
-				cooling-device = <&cpu_6_7_pause 1 1>;
-			};
-
 			vph_cdsp1 {
 				trip = <&bcl_lvl1>;
 				cooling-device = <&cdsp_sw 4 4>;
@@ -64,7 +54,7 @@
 
 			vph_gpu1 {
 				trip = <&bcl_lvl1>;
-				cooling-device = <&msm_gpu 4 4>;
+				cooling-device = <&msm_gpu 3 3>;
 			};
 		};
 	};
@@ -73,12 +63,12 @@
 		cooling-maps {
 			vph_cdsp2 {
 				trip = <&bcl_lvl2>;
-				cooling-device = <&cdsp_sw 5 THERMAL_NO_LIMIT>;
+				cooling-device = <&cdsp_sw 7 7>;
 			};
 
 			vph_gpu2 {
 				trip = <&bcl_lvl2>;
-				cooling-device = <&msm_gpu 5 THERMAL_NO_LIMIT>;
+				cooling-device = <&msm_gpu 7 7>;
 			};
 		};
 	};
@@ -112,6 +102,25 @@
 			pm8550vs_d_gpu {
 				trip = <&pm8550vs_d_trip0>;
 				cooling-device = <&msm_gpu 5 THERMAL_NO_LIMIT>;
+			};
+		};
+	};
+
+	sys-therm-11 {
+		cooling-maps {
+			display_cdev1 {
+				trip = <&display_test_config1>;
+				cooling-device = <&display_fps 1 1>;
+			};
+
+			display_cdev2 {
+				trip = <&display_test_config2>;
+				cooling-device = <&display_fps 2 2>;
+			};
+
+			display_cdev3 {
+				trip = <&display_test_config3>;
+				cooling-device = <&display_fps 3 3>;
 			};
 		};
 	};

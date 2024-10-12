@@ -724,7 +724,11 @@ static int __init qbtspi_init(void)
 		return status;
 	}
 
+#if (KERNEL_VERSION(6, 3, 0) <= LINUX_VERSION_CODE)
+	qbtspi_class = class_create(QBTSPI_DEV);
+#else
 	qbtspi_class = class_create(THIS_MODULE, QBTSPI_DEV);
+#endif
 	if (IS_ERR(qbtspi_class)) {
 		unregister_chrdev(QBTSPI_MAJOR, QBTSPI_DEV);
 		pr_err("%s: class_create failed\n", __func__);

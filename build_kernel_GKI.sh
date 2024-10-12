@@ -1,15 +1,17 @@
 #!/bin/bash
 
 #1. target config
-BUILD_TARGET=dm1q_eur_openx
-export MODEL=$(echo ${BUILD_TARGET} | cut -d'_' -f1)
+BUILD_TARGET=$1
+export MODEL=$(echo $BUILD_TARGET | cut -d'_' -f1)
 export PROJECT_NAME=${MODEL}
-export REGION=$(echo ${BUILD_TARGET} | cut -d'_' -f2)
-export CARRIER=$(echo ${BUILD_TARGET} | cut -d'_' -f3)
-export TARGET_BUILD_VARIANT= user
+export REGION=$(echo $BUILD_TARGET | cut -d'_' -f2)
+export CARRIER=$(echo $BUILD_TARGET | cut -d'_' -f3)
+export TARGET_BUILD_VARIANT=$2
+		
 		
 #2. sm8550 common config
- CHIPSET_NAME=kalama
+CHIPSET_NAME=$3
+
 export ANDROID_BUILD_TOP=$(pwd)
 export TARGET_PRODUCT=gki
 export TARGET_BOARD_PLATFORM=gki

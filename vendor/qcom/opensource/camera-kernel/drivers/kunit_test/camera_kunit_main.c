@@ -330,6 +330,31 @@ struct kunit_case cam_sysfs_null_module_type2_test_cases[] = {
 	{},
 };
 
+struct kunit_case sensor_util_tc_get_seq_sen_id[] = {
+	KUNIT_CASE(cam_sensor_util_tc_get_seq_sen_id),
+	{},
+};
+
+struct kunit_case sensor_util_tc_parse_reg[] = {
+	KUNIT_CASE(cam_sensor_util_tc_parse_reg),
+	{},
+};
+
+struct kunit_case sensor_util_tc_check_aeb_on_test_ok[] = {
+	KUNIT_CASE(cam_sensor_util_tc_check_aeb_on_test_ok),
+	{},
+};
+
+struct kunit_case sensor_util_tc_check_aeb_on_test_ng[] = {
+	KUNIT_CASE(cam_sensor_util_tc_check_aeb_on_test_ng),
+	{},
+};
+
+struct kunit_case sensor_util_tc_get_vc_pick_idx[] = {
+	KUNIT_CASE(cam_sensor_util_tc_get_vc_pick_idx),
+	{},
+};
+
 struct kunit_suite cam_kunit_i2c_sensor_rear = {
 	.name = "cam_kunit_i2c_sensor_rear_test",
 	.init = hw_bigdata_test_init,
@@ -754,10 +779,35 @@ struct kunit_suite cam_kunit_sysfs_null_module_type2 = {
 	.test_cases = cam_sysfs_null_module_type2_test_cases,
 };
 
+struct kunit_suite cam_kunit_sen_util__get_seq_sen_id = {
+	.name = "get_seq_sensor_id test",
+	.test_cases = sensor_util_tc_get_seq_sen_id,
+};
+
+struct kunit_suite cam_kunit_sen_util__parse_reg = {
+	.name = "cam_sensor_parse_reg test",
+	.test_cases = sensor_util_tc_parse_reg,
+};
+
+struct kunit_suite cam_kunit_sen_util__check_aeb_on_ok = {
+	.name = "cam_sensor_check_aeb_on OK test",
+	.test_cases = sensor_util_tc_check_aeb_on_test_ok,
+};
+
+struct kunit_suite cam_kunit_sen_util__check_aeb_on_ng = {
+	.name = "cam_sensor_check_aeb_on NG test",
+	.test_cases = sensor_util_tc_check_aeb_on_test_ng,
+};
+
+struct kunit_suite cam_kunit_sen_util__get_vc_pick_idx = {
+	.name = "get_vc_pick_idx test",
+	.test_cases = sensor_util_tc_get_vc_pick_idx,
+};
+
 int cam_kunit_hw_bigdata_test(void)
 {
 	CAM_INFO(CAM_UTIL, "Start");
-	
+
 	kunit_run_tests(&cam_kunit_i2c_sensor_rear);
 	kunit_run_tests(&cam_kunit_i2c_sensor_rear2);
 	kunit_run_tests(&cam_kunit_i2c_sensor_rear3);
@@ -795,7 +845,7 @@ int cam_kunit_hw_bigdata_test(void)
 int cam_kunit_eeprom_test(void)
 {
 	CAM_INFO(CAM_UTIL, "Start");
-	
+
 	kunit_run_tests(&cam_kunit_update_rear_module_info);
 	kunit_run_tests(&cam_kunit_update_rear2_module_info);
 	kunit_run_tests(&cam_kunit_update_rear3_module_info);
@@ -828,7 +878,7 @@ int cam_kunit_eeprom_test(void)
 int cam_kunit_clock_data_recovery_test(void)
 {
 	CAM_INFO(CAM_UTIL, "Start");
-	
+
 	kunit_run_tests(&cam_kunit_apply_cdr_value);
 	kunit_run_tests(&cam_kunit_apply_result_value);
 
@@ -857,7 +907,7 @@ int cam_kunit_adaptive_mipi_test(void)
 	kunit_run_tests(&cam_kunit_mipi_get_clock_string_invalid);
 
 	CAM_INFO(CAM_UTIL, "End");
-	
+
 	return 0;
 }
 
@@ -874,8 +924,23 @@ int cam_kunit_sysfs_hw_bigdata_test(void)
 	kunit_run_tests(&cam_kunit_sysfs_null_module_type2);
 
 	CAM_INFO(CAM_UTIL, "End");
-	
+
 	return 0;
 }
+
+int cam_kunit_sensor_util_test(void)
+{
+	CAM_INFO(CAM_UTIL, "Start");
+
+	kunit_run_tests(&cam_kunit_sen_util__get_seq_sen_id);
+	kunit_run_tests(&cam_kunit_sen_util__parse_reg);
+	kunit_run_tests(&cam_kunit_sen_util__check_aeb_on_ok);
+	kunit_run_tests(&cam_kunit_sen_util__check_aeb_on_ng);
+	kunit_run_tests(&cam_kunit_sen_util__get_vc_pick_idx);
+
+	CAM_INFO(CAM_UTIL, "End");
+	return 0;
+}
+
 
 MODULE_LICENSE("GPL v2");

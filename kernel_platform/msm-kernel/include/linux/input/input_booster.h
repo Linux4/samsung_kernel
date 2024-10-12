@@ -75,7 +75,7 @@
 			send_ev_enable = sendevent[0]; \
 			debug_flag = debug_level[0]; \
 			if (IS_ENABLED(CONFIG_SEC_INPUT_BOOSTER_MODE)) \
-				u_ib_mode = ib_mode_state[0]; \
+				u_ib_mode = ib_mode_state[0] >= num_of_mode ? u_ib_mode : ib_mode_state[0]; \
 			enable_event_booster = enable_event[0]; \
 			pr_booster("[Input Booster8] %s buf : %s\n", __func__, buf); \
 			if (sscanf _ARGU_ != _COUNT_) { \

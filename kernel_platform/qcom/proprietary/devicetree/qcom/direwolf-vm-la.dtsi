@@ -48,6 +48,10 @@
 	status = "okay";
 };
 
+&pcie4 {
+	status = "okay";
+};
+
 &pcie0 {
 	status = "okay";
 };
@@ -56,15 +60,15 @@
 	status = "okay";
 };
 
-&pcie4 {
-	status = "okay";
-};
-
 &pcie4_msi_snps {
 	status = "okay";
 };
 
 &qupv3_se2_4uart {
+	status = "okay";
+};
+
+&qupv3_se6_4uart {
 	status = "okay";
 };
 

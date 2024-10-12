@@ -361,7 +361,7 @@ static int __naked sec_arm64_ap_context_on_panic(struct notifier_block *nb,
 		"bl	__sec_arm64_ap_context_on_panic \n\t"
 
 		"add	sp, sp, %0 \n\t"
-		"ldp	x0, x30, [sp], #0x10 \n\t"
+		"ldp	x1, x30, [sp], #0x10 \n\t"
 		"ret \n\t"
 		:
 		: "i"(sizeof(struct pt_regs))

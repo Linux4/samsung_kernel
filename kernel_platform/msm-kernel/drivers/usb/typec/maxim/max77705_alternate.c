@@ -1240,6 +1240,10 @@ void max77705_set_enable_alternate_mode(int mode)
 						status[7], status[8], status[9], status[10]);
 					usbpd_data->is_first_booting = 0;
 				} else if (mode & ALTERNATE_MODE_STOP) {
+#ifndef CONFIG_DISABLE_LOCKSCREEN_USB_RESTRICTION					
+					max77705_vdm_process_set_samsung_alternate_mode(usbpd_data,
+						MAXIM_ENABLE_ALTERNATE_SRCCAP);
+#endif						
 					msg_maxim("[ON BOOTING TIME] alternate mode is stopped!");
 				}
 				break;

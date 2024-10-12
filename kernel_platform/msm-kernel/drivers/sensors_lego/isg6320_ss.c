@@ -65,7 +65,7 @@
 
 #define ISG6320_INIT_DELAYEDWORK
 #define GRIP_LOG_TIME			5
-#define MAX_I2C_FAIL_COUNT 		3
+#define MAX_I2C_FAIL_COUNT 		9
 
 #define SHCEDULE_INTERVAL       2000  // 2 sec * 5 = 10 sec
 #define SHCEDULE_INTERVAL_MAX   20000 // 20 sec * 5 = 100 sec
@@ -99,7 +99,7 @@ enum grip_error_state {
 	FAIL_UPDATE_PREV_STATE = 0,
 	FAIL_SETUP_REGISTER,
 	FAIL_I2C_ENABLE,
-	FAIL_I2C_READ_3_TIMES,
+	FAIL_I2C_WR_MULTI_TIMES,
 	FAIL_DATA_STUCK,
 	FAIL_RESET,
 	FAIL_MCC_RESET,
@@ -261,13 +261,13 @@ static void enter_error_mode(struct isg6320_data *data, enum grip_error_state er
 		data->is_irq_active = false;
 	}
 
+	isg6320_set_channel_disable(data); //To reduce current consumption
 	data->check_abnormal_working = true;
 	data->err_state |= 0x1 << err_state;
 	enter_unknown_mode(data, TYPE_FORCE);
 #if IS_ENABLED(CONFIG_SENSORS_GRIP_FAILURE_DEBUG)
 	update_grip_error(data->ic_num, data->err_state);
 #endif
-	isg6320_set_channel_disable(data); //To reduce current consumption
 	pr_info("[GRIP_%d] %s - %d exit\n", data->ic_num, __func__, data->err_state);
 }
 
@@ -315,14 +315,14 @@ static int isg6320_i2c_write(struct isg6320_data *data, u8 cmd, u8 val)
 	msg.len = 2;
 	msg.buf = buf;
 
-	if (data->i2c_fail_count < 3)
+	if (data->i2c_fail_count < MAX_I2C_FAIL_COUNT)
 		ret = i2c_transfer(data->client->adapter, &msg, 1);
 
 	if (ret < 0) {
-		if (data->i2c_fail_count < 3)
+		if (data->i2c_fail_count < MAX_I2C_FAIL_COUNT)
 			data->i2c_fail_count++;
-		if (data->i2c_fail_count >= 3)
-			enter_error_mode(data, FAIL_I2C_READ_3_TIMES);
+		if (data->i2c_fail_count >= MAX_I2C_FAIL_COUNT)
+			enter_error_mode(data, FAIL_I2C_WR_MULTI_TIMES);
 		pr_err("[GRIP_%d] %s fail(%d, %d)\n", data->ic_num, __func__, ret, data->i2c_fail_count);
 	} else {
 		data->i2c_fail_count = 0;
@@ -350,14 +350,14 @@ static int isg6320_i2c_read(struct isg6320_data *data, u8 cmd, u8 *val,
 		},
 	};
 
-	if (data->i2c_fail_count < 3)
+	if (data->i2c_fail_count < MAX_I2C_FAIL_COUNT)
 		ret = i2c_transfer(data->client->adapter, msgs, 2);
 
 	if (ret < 0) {
-		if (data->i2c_fail_count < 3)
+		if (data->i2c_fail_count < MAX_I2C_FAIL_COUNT)
 			data->i2c_fail_count++;
-		if (data->i2c_fail_count >= 3)
-			enter_error_mode(data, FAIL_I2C_READ_3_TIMES);
+		if (data->i2c_fail_count >= MAX_I2C_FAIL_COUNT)
+			enter_error_mode(data, FAIL_I2C_WR_MULTI_TIMES);
 		pr_err("[GRIP_%d] %s fail(%d, %d)\n", data->ic_num, __func__, ret, data->i2c_fail_count);
 	} else {
 		data->i2c_fail_count = 0;
@@ -397,32 +397,31 @@ static void isg6320_set_channel_disable(struct isg6320_data *data)
 {
 	int ret = 0;
 
-	mutex_lock(&data->lock);
-
-	data->i2c_fail_count = 0;
+	if (data->check_abnormal_working || data->i2c_fail_count >= MAX_I2C_FAIL_COUNT)
+		return;
 
 	ret = isg6320_i2c_write(data, ISG6320_WUTDATA_REG, 0x01);
 	if (ret < 0) {
 		pr_err("[GRIP_%d] scan rate H failed(%d)\n", data->ic_num, ret);
-		goto exit_channel_disable;
+		return;
 	}
 
 	ret = isg6320_i2c_write(data, ISG6320_WUTDATA_LSB_REG, 0x80);
 	if (ret < 0) {
 		pr_err("[GRIP_%d] scan rate L failed(%d)\n", data->ic_num, ret);
-		goto exit_channel_disable;
+		return;
 	}
 
 	ret = isg6320_i2c_write(data, ISG6320_ACTSCAN_REG, ISG6320_CHANNEL_DISABLE);
 	if (ret < 0) {
 		pr_err("[GRIP_%d] channel disable failed(%d)\n", data->ic_num, ret);
-		goto exit_channel_disable;
+		return;
 	}
 
 	ret = isg6320_i2c_write(data, ISG6320_SCANCTRL1_REG, ISG6320_DFE_ENABLE);
 	if (ret < 0) {
 		pr_err("[GRIP_%d] DFE off failed(%d)\n", data->ic_num, ret);
-		goto exit_channel_disable;
+		return;
 	}
 
 	usleep_range(1000, 1100);
@@ -430,7 +429,7 @@ static void isg6320_set_channel_disable(struct isg6320_data *data)
 	ret = isg6320_i2c_write(data, ISG6320_SCANCTRL1_REG, ISG6320_SCAN_STOP);
 	if (ret < 0) {
 		pr_err("[GRIP_%d] scan off(%d)\n", data->ic_num, ret);
-		goto exit_channel_disable;
+		return;
 	}
 
 	msleep(100);
@@ -438,12 +437,8 @@ static void isg6320_set_channel_disable(struct isg6320_data *data)
 	ret = isg6320_i2c_write(data, ISG6320_SCANCTRL1_REG, ISG6320_CFCAL_START);
 	if (ret < 0) {
 		pr_err("[GRIP_%d] calibration failed(%d)\n", data->ic_num, ret);
-		goto exit_channel_disable;
+		return;
 	}
-
-exit_channel_disable:
-	data->i2c_fail_count = 3;
-	mutex_unlock(&data->lock);
 }
 
 static int isg6320_reset(struct isg6320_data *data)
@@ -790,9 +785,13 @@ static int isg6320_get_raw_data(struct isg6320_data *data, bool log_print)
 	mutex_unlock(&data->lock);
 
 	if (data->invalid_count == 0) {
-#ifdef CONFIG_USE_MULTI_CHANNEL	
-		if (data->mul_ch->invalid_count_b == 0)
+#ifdef CONFIG_USE_MULTI_CHANNEL
+		if (data->multi_use) {
+			if (data->mul_ch->invalid_count_b == 0)
+				data->reset_fail_cnt = 0;
+		}
 #endif
+		if (!data->multi_use)
 			data->reset_fail_cnt = 0;
 	}
 	if (log_print || (data->debug_cnt >= GRIP_LOG_TIME)) {
@@ -1345,6 +1344,7 @@ static void isg6320_set_debug_work(struct isg6320_data *data, bool enable,
 static void isg6320_set_enable(struct isg6320_data *data, int enable)
 {
 	u8 state = 0;
+	u8 buf = 0;
 	int ret = 0;
 	int retry = 3;
 
@@ -1437,7 +1437,7 @@ static void isg6320_set_enable(struct isg6320_data *data, int enable)
 		}
 		input_sync(data->input_dev);
 
-		ret = isg6320_i2c_read_retry(data, ISG6320_IRQSRC_REG, &state, 1, 3);
+		ret = isg6320_i2c_read_retry(data, ISG6320_IRQSRC_REG, &buf, 1, 3);
 		if (ret < 0)
 			pr_err("[GRIP_%d] %s IRQSRC read fail\n", data->ic_num, __func__);
 
@@ -2438,6 +2438,13 @@ static ssize_t isg6320_direct_store(struct device *dev,
 	}
 
 	if (direct->cmd == DIRECT_CMD_WRITE) {
+#if defined(CONFIG_TABLET_MODEL_CONCEPT)
+		//for tuning
+		if (direct->addr == ISG6320_A_LSUM_TYPE_REG)
+			data->lsum_a = direct->val;
+		if (direct->addr == ISG6320_B_LSUM_TYPE_REG)
+			data->lsum_b = direct->val;
+#endif
 		ret = isg6320_i2c_write(data, direct->addr, direct->val);
 		if (ret < 0)
 			pr_err("[GRIP_%d] direct write fail\n", data->ic_num);
@@ -2766,6 +2773,8 @@ static DEVICE_ATTR(irq_count_b, 0664,
 static DEVICE_ATTR(sampling_freq_b, 0440, isg6320_sampling_freq_b_show, NULL);
 static DEVICE_ATTR(unknown_state_2ch, 0664,
 	isg6320_unknown_state_2ch_show, isg6320_unknown_state_store);
+static DEVICE_ATTR(unknown_state_b, 0664,
+	isg6320_unknown_state_2ch_show, isg6320_unknown_state_store);
 #endif
 #if !IS_ENABLED(CONFIG_SAMSUNG_PRODUCT_SHIP)
 static DEVICE_ATTR(debug_raw_data, 0444, isg6320_debug_raw_data_show, NULL);
@@ -2895,6 +2904,7 @@ static struct device_attribute *multi_sensor_attrs[] = {
 	&dev_attr_irq_count_b,
 	&dev_attr_sampling_freq_b,
 	&dev_attr_unknown_state_2ch,
+	&dev_attr_unknown_state_b,
 	NULL,
 };
 #endif
@@ -3521,6 +3531,13 @@ static int isg6320_probe(struct i2c_client *client,
 		goto err_register_input_dev;
 	}
 
+	ret = input_register_device(noti_input_dev);
+	if (ret) {
+		input_free_device(noti_input_dev);
+		pr_err("[GRIP_U] failed to register input dev for noti (%d)\n", ret);
+		goto err_register_input_dev_noti;
+	}
+
 #if defined(CONFIG_SENSORS_CORE_AP)
 	ret = sensors_create_symlink(&input_dev->dev.kobj,
 					 input_dev->name);
@@ -3558,12 +3575,6 @@ static int isg6320_probe(struct i2c_client *client,
 		pr_err("[GRIP_%d] fail to reg sensor(%d)\n", data->ic_num, ret);
 		goto err_sensor_register;
 	}
-	ret = input_register_device(noti_input_dev);
-	if (ret) {
-		input_free_device(noti_input_dev);
-		pr_err("[GRIP_U] failed to register input dev for noti (%d)\n", ret);
-		goto err_register_input_dev_noti;
-	}
 #else //!CONFIG_SENSORS_CORE_AP
 	ret = sensors_create_symlink(input_dev);
 	if (ret < 0) {
@@ -3590,21 +3601,15 @@ static int isg6320_probe(struct i2c_client *client,
 		memcpy(grip_sensor_attrs + sensor_attrs_size - 1, multi_sensor_attrs, sizeof(multi_sensor_attrs));
 	}
 
-	ret = sensors_register(data->dev, data, grip_sensor_attrs,
+	ret = sensors_register(&data->dev, data, grip_sensor_attrs,
 				(char *)module_name[data->ic_num]);
 #else
-	ret = sensors_register(data->dev, data, sensor_attrs,
+	ret = sensors_register(&data->dev, data, sensor_attrs,
 				(char *)module_name[data->ic_num]);
 #endif
 	if (ret) {
 		pr_err("[GRIP_%d] fail to reg sensor(%d).\n", data->ic_num, ret);
 		goto err_sensor_register;
-	}
-	ret = input_register_device(noti_input_dev);
-	if (ret) {
-		input_free_device(noti_input_dev);
-		pr_err("[GRIP_U] failed to register input dev for noti (%d)\n", ret);
-		goto err_register_input_dev_noti;
 	}
 #endif
 
@@ -3666,7 +3671,6 @@ static int isg6320_probe(struct i2c_client *client,
 	return 0;
 
 err_sensor_register:
-err_register_input_dev_noti:
 	sysfs_remove_group(&input_dev->dev.kobj, &isg6320_attribute_group);
 err_sysfs_create_group:
 #if defined(CONFIG_SENSORS_CORE_AP)
@@ -3675,6 +3679,8 @@ err_sysfs_create_group:
 	sensors_remove_symlink(input_dev);
 #endif
 err_create_symlink:
+	input_unregister_device(noti_input_dev);
+err_register_input_dev_noti:
 	input_unregister_device(input_dev);
 err_register_input_dev:
 	mutex_destroy(&data->lock);
@@ -3719,6 +3725,7 @@ static int isg6320_remove(struct i2c_client *client)
 	sensors_remove_symlink(data->input_dev);
 #endif
 	sysfs_remove_group(&data->input_dev->dev.kobj, &isg6320_attribute_group);
+	input_unregister_device(data->noti_input_dev);
 	input_unregister_device(data->input_dev);
 	mutex_destroy(&data->lock);
 

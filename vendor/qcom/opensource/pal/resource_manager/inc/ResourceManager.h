@@ -1040,6 +1040,9 @@ public:
     struct tm * ssrTimeinfo = NULL;
     void dump(int fd);
 #endif
+#ifdef SEC_AUDIO_INTERPRETER_MODE
+    static int interpreter_mode;
+#endif
 };
 
 #endif

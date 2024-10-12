@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2008-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 #ifndef __KGSL_H
 #define __KGSL_H
@@ -347,6 +347,8 @@ struct kgsl_mem_entry {
 	 * debugfs accounting
 	 */
 	atomic_t map_count;
+	/** @vbo_count: Count how many VBO ranges this entry is mapped in */
+	atomic_t vbo_count;
 };
 
 struct kgsl_device_private;
@@ -649,6 +651,16 @@ kgsl_mem_entry_put(struct kgsl_mem_entry *entry)
 	if (!IS_ERR_OR_NULL(entry))
 		kref_put(&entry->refcount, kgsl_mem_entry_destroy);
 }
+
+/*
+ * kgsl_mem_entry_put_deferred() - Puts refcount and triggers deferred
+ * mem_entry destroy when refcount is the last refcount.
+ * @entry: memory entry to be put.
+ *
+ * Use this to put a memory entry when we don't want to block
+ * the caller while destroying memory entry.
+ */
+void kgsl_mem_entry_put_deferred(struct kgsl_mem_entry *entry);
 
 /*
  * kgsl_addr_range_overlap() - Checks if 2 ranges overlap

@@ -235,6 +235,8 @@
 	{feature_safeplace_path,"/system/bin/bpfloader"},
 	{feature_safeplace_path,"/system/bin/btfloader"},
 	{feature_safeplace_path,"/vendor/bin/system_dlkm_modprobe.sh"},
+	{feature_safeplace_path,"/apex/com.android.sdkext/bin/derive_classpath"},
+	{feature_safeplace_path,"/apex/com.android.sdkext@340819010.tmp/bin/derive_classpath"},
 	{feature_safeplace_path,"/tmp/update_binary;updater_intermediates/updater;obj/EXECUTABLES"},
 	{feature_safeplace_path,"/tmp/update-binary"},
 	{feature_safeplace_path,"/system/bin/install-recovery.sh"},	/* DEFAULT */
@@ -264,6 +266,8 @@
 	{feature_immutable_src_exception,"/system/bin/lshal"},
 	{feature_immutable_src_exception,"/apex/com.android.runtime/bin/crash_dump32"},	/* DEFAULT */
 	{feature_immutable_src_exception,"/apex/com.android.runtime/bin/crash_dump64"},	/* DEFAULT */
+	{feature_immutable_src_exception,"/data/local/tests/unrestricted/CtsBionicTestCases/arm64/CtsBionicTestCases"},	/* DEFAULT */
+	{feature_immutable_src_exception,"/data/local/tests/unrestricted/CtsBionicTestCases/arm/CtsBionicTestCases"},	/* DEFAULT */
 	{feature_integrity_check,"/vendor/bin/hw/android.hardware.gatekeeper@1.0-service"},
 	{feature_integrity_check,"/vendor/bin/hw/android.hardware.keymaster@4.0-service"},
 	{feature_integrity_check,"/vendor/bin/hw/android.hardware.security.keymint-service"},

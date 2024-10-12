@@ -1054,14 +1054,6 @@ void stm_ts_read_info_work(struct work_struct *work)
 
 	stm_ts_run_rawdata_all(ts);
 
-	/* read cmoffset & fail history data at booting time */
-	input_info(true, &ts->client->dev, "%s: read cm data in tsp ic\n", __func__);
-	if (ts->plat_data->bringup == 0) {
-		get_cmoffset_dump(ts, ts->cmoffset_sdc_proc, OFFSET_FW_SDC);
-		get_cmoffset_dump(ts, ts->cmoffset_sub_proc, OFFSET_FW_SUB);
-		get_cmoffset_dump(ts, ts->cmoffset_main_proc, OFFSET_FW_MAIN);
-	}
-
 	ts->info_work_done = true;
 
 	/* reinit */
@@ -1323,7 +1315,7 @@ void stm_set_grip_data_to_ic(struct device *dev, u8 flag)
 			data[1] = (ts->plat_data->grip_data.edgehandler_start_y << 4 & 0xF0)
 					| ((ts->plat_data->grip_data.edgehandler_end_y >> 8) & 0xF);
 			data[2] = ts->plat_data->grip_data.edgehandler_end_y & 0xFF;
-			data[3] = ts->plat_data->grip_data.edgehandler_direction & 0x3;
+			data[3] = ts->plat_data->grip_data.edgehandler_direction & 0xF;
 		}
 		address[1] = STM_TS_FUNCTION_EDGE_HANDLER;
 		ts->stm_ts_write(ts, address, 2, data, 4);

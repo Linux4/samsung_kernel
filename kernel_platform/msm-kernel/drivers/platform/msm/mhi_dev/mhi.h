@@ -599,6 +599,7 @@ struct mhi_dev {
 	u32				mhi_ep_msi_num;
 	u32				mhi_version;
 	u32				mhi_chan_hw_base;
+	u32				mhi_num_ipc_pages_dev_fac;
 	void				*dma_cache;
 	void				*read_handle;
 	void				*write_handle;
@@ -742,7 +743,8 @@ extern void *mhi_ipc_default_err_log;
 		pr_err("[0x%x %s] "_msg, bhi_imgtxdb, \
 				__func__, ##__VA_ARGS__); \
 	} \
-	if (mhi_ipc_vf_log[vf_id] && (_msg_lvl >= mhi_ipc_msg_lvl)) { \
+	if (vf_id < MHI_MAX_NUM_INSTANCES && mhi_ipc_vf_log[vf_id] &&    \
+			(_msg_lvl >= mhi_ipc_msg_lvl)) { \
 		ipc_log_string(mhi_ipc_vf_log[vf_id],                     \
 		"[0x%x %s] " _msg, bhi_imgtxdb, __func__, ##__VA_ARGS__); \
 	} \

@@ -99,9 +99,6 @@
 #define FINE_TUNE_MODE_EN	BIT(27)
 #define BIAS_OK_SIGNAL		BIT(29)
 
-#define DLL_CONFIG_3_LOW_FREQ_VAL	0x08
-#define DLL_CONFIG_3_HIGH_FREQ_VAL	0x10
-
 #define CORE_VENDOR_SPEC_POR_VAL 0xa9c
 #define CORE_CLK_PWRSAVE	BIT(1)
 #define CORE_VNDR_SPEC_ADMA_ERR_SIZE_EN	BIT(7)
@@ -801,8 +798,6 @@ static int msm_init_cm_dll(struct sdhci_host *host,
 				| CORE_LOW_FREQ_MODE), host->ioaddr +
 				msm_offset->core_dll_config_2);
 		}
-		/* wait for 5us before enabling DLL clock */
-		udelay(5);
 	}
 
 	/*
@@ -814,28 +809,6 @@ static int msm_init_cm_dll(struct sdhci_host *host,
 			msm_offset->core_dll_config) |
 			(msm_host->dll_hsr->dll_config & 0xffff)),
 			host->ioaddr + msm_offset->core_dll_config);
-	}
-
-	/*
-	 * Configure DLL user control register to enable DLL status.
-	 * This setting is applicable to SDCC v5.1 onwards only.
-	 */
-	if (msm_host->uses_tassadar_dll) {
-		u32 config;
-		config = DLL_USR_CTL_POR_VAL | FINE_TUNE_MODE_EN |
-			ENABLE_DLL_LOCK_STATUS | BIAS_OK_SIGNAL;
-		writel_relaxed(config, host->ioaddr +
-				msm_offset->core_dll_usr_ctl);
-
-		config = readl_relaxed(host->ioaddr +
-				msm_offset->core_dll_config_3);
-		config &= ~0xFF;
-		if (msm_host->clk_rate < 150000000)
-			config |= DLL_CONFIG_3_LOW_FREQ_VAL;
-		else
-			config |= DLL_CONFIG_3_HIGH_FREQ_VAL;
-		writel_relaxed(config, host->ioaddr +
-			msm_offset->core_dll_config_3);
 	}
 
 	/* Step 11 - Wait for 52us */
@@ -2333,6 +2306,8 @@ static int sdhci_msm_vreg_init(struct device *dev,
 	int ret = 0;
 	struct sdhci_msm_vreg_data *curr_slot;
 	struct sdhci_msm_reg_data *curr_vdd_reg, *curr_vdd_io_reg;
+	struct mmc_host *mmc = msm_host->mmc;
+	struct sdhci_host *host = mmc_priv(mmc);
 
 	curr_slot = msm_host->vreg_data;
 	if (!curr_slot)
@@ -2354,8 +2329,15 @@ static int sdhci_msm_vreg_init(struct device *dev,
 		if (ret)
 			goto out;
 	}
-	if (curr_vdd_io_reg)
+	if (curr_vdd_io_reg) {
 		ret = sdhci_msm_vreg_init_reg(dev, curr_vdd_io_reg);
+
+		/* In eMMC case vdd-io might be a fixed 1.8V regulator */
+		if (mmc->caps & MMC_CAP_NONREMOVABLE &&
+			!regulator_is_supported_voltage(curr_vdd_io_reg->reg,
+				2700000, 3600000))
+			host->flags &= ~SDHCI_SIGNALING_330;
+	}
 out:
 	if (ret)
 		dev_err(dev, "vreg reset failed (%d)\n", ret);
@@ -3740,8 +3722,16 @@ static void sdhci_msm_bus_voting(struct sdhci_host *host, bool enable)
 
 static void sdhci_msm_reset(struct sdhci_host *host, u8 mask)
 {
+	struct sdhci_pltfm_host *pltfm_host = sdhci_priv(host);
+	struct sdhci_msm_host *msm_host = sdhci_pltfm_priv(pltfm_host);
+
 	if ((host->mmc->caps2 & MMC_CAP2_CQE) && (mask & SDHCI_RESET_ALL))
 		cqhci_deactivate(host->mmc);
+
+	if (msm_host->rst_n_disable && host->mmc && host->mmc->card &&
+		host->mmc->card->ext_csd.rst_n_function != EXT_CSD_RST_N_ENABLED)
+		host->mmc->card->ext_csd.rst_n_function = true;
+
 	sdhci_reset(host, mask);
 }
 
@@ -4165,6 +4155,9 @@ static inline void sdhci_msm_get_of_property(struct platform_device *pdev,
 		msm_host->ddr_config = DDR_CONFIG_POR_VAL;
 
 	of_property_read_u32(node, "qcom,dll-config", &msm_host->dll_config);
+
+	if (of_device_is_compatible(node, "qcom,msm8916-sdhci"))
+		host->quirks2 |= SDHCI_QUIRK2_BROKEN_64_BIT_DMA;
 }
 
 static void sdhci_msm_clkgate_bus_delayed_work(struct work_struct *work)
@@ -4465,7 +4458,15 @@ static void sdhci_msm_qos_init(struct sdhci_msm_host *msm_host)
 	struct device_node *group_node;
 	struct sdhci_msm_qos_req *qr;
 	struct qos_cpu_group *qcg;
-	int i, err, mask = 0;
+
+	cpumask_t silver_mask;
+	cpumask_t gold_mask;
+	cpumask_t gold_prime_mask;
+	int cid_cpu[MAX_NUM_CLUSTERS] = {-1, -1, -1};
+	int cid = -1;
+	int prev_cid = -1;
+	int cpu;
+	int i, err;
 
 	qr = kzalloc(sizeof(*qr), GFP_KERNEL);
 	if (!qr)
@@ -4490,22 +4491,45 @@ static void sdhci_msm_qos_init(struct sdhci_msm_host *msm_host)
 	}
 
 	/*
+	 * Due to Logical contiguous CPU numbering, one to one mapping
+	 * between physical and logical cpu is no more applicable.
+	 * Hence we don't need to pass the qos mask from the device tree
+	 * and instead need to populate the mask dynamically
+	 * using available kernel API.
+	 */
+
+	for_each_cpu(cpu, cpu_possible_mask) {
+		cid = topology_physical_package_id(cpu);
+		if (cid != prev_cid) {
+			cid_cpu[cid] = cpu;
+			prev_cid = cid;
+		}
+	}
+
+	if (cid_cpu[SILVER_CORE] != -1)
+		silver_mask.bits[0] =
+			topology_core_cpumask(cid_cpu[SILVER_CORE])->bits[0];
+
+	if (cid_cpu[GOLD_CORE] != -1)
+		gold_mask.bits[0] =
+			topology_core_cpumask(cid_cpu[GOLD_CORE])->bits[0];
+
+	if (cid_cpu[GOLD_PRIME_CORE] != -1)
+		gold_prime_mask.bits[0] =
+			topology_core_cpumask(cid_cpu[GOLD_PRIME_CORE])->bits[0];
+
+	/*
 	 * Assign qos cpu group/cluster to host qos request and
 	 * read child entries of qos node
 	 */
 	qr->qcg = qcg;
+
 	for_each_available_child_of_node(np, group_node) {
-		err = of_property_read_u32(group_node, "mask", &mask);
-		if (err) {
-			dev_dbg(&pdev->dev, "Error reading group mask: %d\n",
-					err);
-			continue;
-		}
-		qcg->mask.bits[0] = mask & cpu_possible_mask->bits[0];
-		if (!cpumask_subset(&qcg->mask, cpu_possible_mask)) {
-			dev_err(&pdev->dev, "Invalid group mask\n");
-			goto out_vote_err;
-		}
+		if (of_property_read_bool(group_node, "perf"))
+			qcg->mask.bits[0] = gold_mask.bits[0] |
+						gold_prime_mask.bits[0];
+		else
+			qcg->mask.bits[0] = silver_mask.bits[0];
 
 		err = of_property_count_u32_elems(group_node, "vote");
 		if (err <= 0) {
@@ -5040,11 +5064,11 @@ static int sdhci_msm_probe(struct platform_device *pdev)
 		goto pltfm_free;
 
 	if (pdev->dev.of_node) {
-		ret = of_alias_get_id(pdev->dev.of_node, "sdhc");
-		if (ret <= 0)
+		ret = of_alias_get_id(pdev->dev.of_node, "mmc");
+		if (ret < 0)
 			dev_err(&pdev->dev, "get slot index failed %d\n", ret);
-		else if (ret <= 2)
-			sdhci_slot[ret-1] = msm_host;
+		else if (ret <= 1)
+			sdhci_slot[ret] = msm_host;
 	}
 
 	/*
@@ -5335,6 +5359,11 @@ static int sdhci_msm_probe(struct platform_device *pdev)
 		ret = sdhci_add_host(host);
 	if (ret)
 		goto pm_runtime_disable;
+
+	if (of_property_read_bool(node, "mmc-rst-n-disable"))
+		msm_host->rst_n_disable = true;
+	else
+		msm_host->rst_n_disable = false;
 
 	/* For SDHC v5.0.0 onwards, ICE 3.0 specific registers are added
 	 * in CQ register space, due to which few CQ registers are

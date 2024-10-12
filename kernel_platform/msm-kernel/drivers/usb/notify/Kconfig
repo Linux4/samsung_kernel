@@ -152,3 +152,13 @@ config USB_LPM_CHARGING_SYNC
 	 the final charging method and show it only once.
 	 It is a function that syncs with the driver stage through sysfs
 	 to let the LPM know the final charging type.
+
+config DISABLE_LOCKSCREEN_USB_RESTRICTION
+	bool "disable usb restriction during lockscreen"
+	depends on USB_NOTIFY_LAYER
+	default y
+	help
+	 Restricting the usb function on the lock screen is a concept applied for usb security
+	 it has been applied since v os (oneui 7.0) or higher
+	 This feature is to avoid applying the concept.
+	 Enable this feature to enable usb communication on the lock screen.

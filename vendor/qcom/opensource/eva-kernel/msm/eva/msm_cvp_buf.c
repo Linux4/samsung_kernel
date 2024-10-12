@@ -370,9 +370,10 @@ int msm_cvp_unmap_buf_dsp(struct msm_cvp_inst *inst, struct eva_kmd_buffer *buf)
 			break;
 		}
 	}
-	mutex_unlock(&inst->cvpdspbufs.lock);
+
 	if (!found) {
 		print_client_buffer(CVP_ERR, "invalid", inst, buf);
+		mutex_unlock(&inst->cvpdspbufs.lock);
 		return -EINVAL;
 	}
 
@@ -381,7 +382,6 @@ int msm_cvp_unmap_buf_dsp(struct msm_cvp_inst *inst, struct eva_kmd_buffer *buf)
 		msm_cvp_smem_put_dma_buf(cbuf->smem->dma_buf);
 	}
 
-	mutex_lock(&inst->cvpdspbufs.lock);
 	list_del(&cbuf->list);
 	mutex_unlock(&inst->cvpdspbufs.lock);
 
@@ -615,14 +615,12 @@ int msm_cvp_unmap_buf_wncc(struct msm_cvp_inst *inst,
 		mutex_unlock(&inst->cvpwnccbufs.lock);
 		return -EINVAL;
 	}
-	mutex_unlock(&inst->cvpwnccbufs.lock);
 
 	if (cbuf->smem->device_addr) {
 		msm_cvp_unmap_smem(inst, cbuf->smem, "unmap wncc");
 		msm_cvp_smem_put_dma_buf(cbuf->smem->dma_buf);
 	}
 
-	mutex_lock(&inst->cvpwnccbufs.lock);
 	list_del(&cbuf->list);
 	inst->cvpwnccbufs_table[buf_idx].fd = 0;
 	inst->cvpwnccbufs_table[buf_idx].iova = 0;

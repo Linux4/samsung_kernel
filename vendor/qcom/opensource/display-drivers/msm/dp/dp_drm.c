@@ -556,7 +556,12 @@ int dp_connector_atomic_check(struct drm_connector *connector,
 	 * to configure the new colorspace in HW
 	 */
 	if (c_state->colorspace != old_state->colorspace) {
+#if !defined(CONFIG_SECDP)
 		DP_DEBUG("colorspace has been updated\n");
+#else
+		DP_INFO("colorspace has been updated %d %d\n",
+			old_state->colorspace, c_state->colorspace);
+#endif
 		sde_conn->colorspace_updated = true;
 	}
 

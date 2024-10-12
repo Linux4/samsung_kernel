@@ -825,10 +825,12 @@ static struct elv_fs_entry ssg_attrs[] = {
 #if IS_ENABLED(CONFIG_MQ_IOSCHED_SSG_WB)
 	SSG_ATTR(wb_on_rqs),
 	SSG_ATTR(wb_off_rqs),
-	SSG_ATTR(wb_on_write_bytes),
-	SSG_ATTR(wb_off_write_bytes),
+	SSG_ATTR(wb_on_dirty_bytes),
+	SSG_ATTR(wb_off_dirty_bytes),
 	SSG_ATTR(wb_on_sync_write_bytes),
 	SSG_ATTR(wb_off_sync_write_bytes),
+	SSG_ATTR(wb_on_dirty_busy_written_bytes),
+	SSG_ATTR(wb_on_dirty_busy_msecs),
 	SSG_ATTR(wb_off_delay_msecs),
 	SSG_ATTR_RO(wb_triggered),
 #endif

@@ -27,7 +27,7 @@
  * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *
  * Changes from Qualcomm Innovation Center are provided under the following license:
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022,2024 Qualcomm Innovation Center, Inc. All rights reserved.
  * SPDX-License-Identifier: BSD-3-Clause-Clear
  */
 
@@ -129,6 +129,7 @@ struct client_info {
 
 struct PAL : public IPAL /*, public android::hardware::hidl_death_recipient*/{
     public:
+    std::mutex mClientLock;
     PAL()
     {
         sInstance = this;
@@ -220,6 +221,7 @@ private:
     static PAL* sInstance;
     int find_dup_fd_from_input_fd(const uint64_t streamHandle, int input_fd, int *dup_fd);
     void add_input_and_dup_fd(const uint64_t streamHandle, int input_fd, int dup_fd);
+    bool isValidstreamHandle(const uint64_t streamHandle);
 };
 
 class PalClientDeathRecipient : public android::hardware::hidl_death_recipient

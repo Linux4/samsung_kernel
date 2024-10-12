@@ -1,6 +1,7 @@
 /dts-v1/;
 /plugin/;
 
+#include "qcs405-iot-sku6.dtsi"
 
 / {
 	model = "Qualcomm Technologies, Inc. QCS405 EVB1 4000 CSRA1 IOT";

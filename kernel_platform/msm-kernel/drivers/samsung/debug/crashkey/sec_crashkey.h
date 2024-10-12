@@ -22,7 +22,7 @@ struct crashkey_timer {
 };
 
 struct crashkey_notify {
-	struct atomic_notifier_head list;
+	struct raw_notifier_head list;
 	struct notifier_block panic;
 	const char *panic_msg;
 };

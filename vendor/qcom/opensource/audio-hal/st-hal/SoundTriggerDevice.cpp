@@ -668,6 +668,14 @@ static int stdev_open(const hw_module_t* module, const char* name,
         goto exit;
     }
 
+#ifdef SEC_AUDIO_BOOT_ON_ERR
+    if (property_get_bool("vendor.audio.use.primary.default", false)) {
+        ALOGE("%s: skip stdev_open because sndcard is not active", __func__);
+        status = -EINVAL;
+        goto exit;
+    }
+#endif
+
     st_device = SoundTriggerDevice::GetInstance();
     if (!st_device) {
         ALOGE("%s: error, GetInstance failed", __func__);

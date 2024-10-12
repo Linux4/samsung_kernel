@@ -17,7 +17,7 @@ struct crashkey_long_keylog {
 struct crashkey_long_notify {
 	struct timer_list tl;
 	unsigned int expire_msec;
-	struct atomic_notifier_head list;
+	struct raw_notifier_head list;
 	struct notifier_block panic;
 	const char *panic_msg;
 };

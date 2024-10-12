@@ -2389,7 +2389,8 @@ static void cam_soc_util_regulator_disable_default(
 				soc_info->rgltr_delay[j]);
 		} else {
 			if (soc_info->rgltr[j])
-				regulator_disable(soc_info->rgltr[j]);
+				if (regulator_is_enabled(soc_info->rgltr[j]))
+					regulator_disable(soc_info->rgltr[j]);
 		}
 	}
 }

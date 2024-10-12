@@ -17,8 +17,8 @@ struct qc_rbcmd_drvdata {
 	bool use_on_reboot;
 	bool use_on_restart;
 	struct qc_rbcmd_stage stage[SEC_RBCMD_STAGE_MAX];
-	struct atomic_notifier_head pon_rr_writers;
-	struct atomic_notifier_head sec_rr_writers;
+	struct raw_notifier_head pon_rr_writers;
+	struct raw_notifier_head sec_rr_writers;
 };
 
 struct qc_rbcmd_reset_reason {

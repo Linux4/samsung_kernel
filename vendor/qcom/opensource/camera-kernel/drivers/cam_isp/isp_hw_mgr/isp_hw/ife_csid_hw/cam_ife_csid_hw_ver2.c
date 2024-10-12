@@ -140,7 +140,7 @@ static void cam_ife_csid_ver2_record_sof_ts(struct cam_ife_csid_ver2_hw* csid_hw
 #define CAM_IFE_CSID_MAX_IRQ_ERROR_COUNT               100
 
 /* Max sensor switch out of sync threshold */
-#define CAM_IFE_CSID_MAX_OUT_OF_SYNC_ERR_COUNT         3
+#define CAM_IFE_CSID_MAX_OUT_OF_SYNC_ERR_COUNT         6
 
 #define CAM_CSID_IRQ_CTRL_NAME_LEN                     10
 
@@ -178,9 +178,9 @@ static bool cam_ife_csid_ver2_disable_sof_retime(
 	struct cam_isp_resource_node    *res)
 {
 	struct cam_ife_csid_ver2_reg_info  *csid_reg = (struct cam_ife_csid_ver2_reg_info *)
-							    csid_hw->core_info->csid_reg;
+								csid_hw->core_info->csid_reg;
 	struct cam_ife_csid_ver2_path_cfg  *path_cfg = (struct cam_ife_csid_ver2_path_cfg *)
-							    res->res_priv;
+								res->res_priv;
 	const struct cam_ife_csid_ver2_path_reg_info *path_reg = csid_reg->path_reg[res->res_id];
 
 	if (!(path_reg->capabilities & CAM_IFE_CSID_CAP_SOF_RETIME_DIS))
@@ -1646,7 +1646,7 @@ void cam_ife_csid_hw_ver2_mup_mismatch_handler(
 	void *csid, void *resource)
 {
 	struct cam_ife_csid_ver2_hw       *csid_hw = csid;
-        struct cam_isp_resource_node      *res = resource;
+	struct cam_isp_resource_node      *res = resource;
 	struct cam_ife_csid_ver2_path_cfg *path_cfg =
 		(struct cam_ife_csid_ver2_path_cfg *)res->res_priv;
 	struct cam_ife_csid_cid_data      *cid_data = &csid_hw->cid_data[path_cfg->cid];
@@ -1748,7 +1748,7 @@ void cam_ife_csid_ver2_print_illegal_programming_irq_status(
 	}
 
 	if (!(csid_hw->debug_info.debug_val &
-		    CAM_IFE_CSID_DEBUG_DISABLE_EARLY_EOF) &&
+			CAM_IFE_CSID_DEBUG_DISABLE_EARLY_EOF) &&
 		csid_reg->cmn_reg->early_eof_supported) {
 		if (!((cfg1 & path_reg->early_eof_en_shift_val) &&
 			(cfg1 & path_reg->crop_v_en_shift_val))) {
@@ -1777,7 +1777,7 @@ static void cam_ife_csid_ver2_print_debug_reg_status(
 
 	soc_info = &csid_hw->hw_info->soc_info;
 	csid_reg = (struct cam_ife_csid_ver2_reg_info *)
-		    csid_hw->core_info->csid_reg;
+			csid_hw->core_info->csid_reg;
 
 	mem_base = soc_info->reg_map[CAM_IFE_CSID_CLC_MEM_BASE_ID].mem_base;
 
@@ -1853,7 +1853,7 @@ static int cam_ife_csid_ver2_parse_path_irq_status(
 	uint8_t                                 *log_buf = NULL;
 
 	csid_reg = (struct cam_ife_csid_ver2_reg_info *)
-		    csid_hw->core_info->csid_reg;
+			csid_hw->core_info->csid_reg;
 
 	log_buf = csid_hw->log_buf;
 
@@ -2038,7 +2038,7 @@ void cam_ife_csid_ver2_print_format_measure_info(
 	void *csid, void *resource)
 {
 	struct cam_ife_csid_ver2_hw       *csid_hw = csid;
-        struct cam_isp_resource_node      *res = resource;
+	struct cam_isp_resource_node      *res = resource;
 	struct cam_ife_csid_ver2_reg_info *csid_reg = csid_hw->core_info->csid_reg;
 	const struct cam_ife_csid_ver2_path_reg_info *path_reg =
 		csid_reg->path_reg[res->res_id];
@@ -2579,10 +2579,10 @@ static int cam_ife_csid_ver2_internal_reset(
 	/*Program the reset location */
 	if (rst_location == CAM_IFE_CSID_RESET_LOC_PATH_ONLY)
 		val |= (csid_reg->cmn_reg->rst_loc_path_only_val <<
-		       csid_reg->cmn_reg->rst_location_shift_val);
+			   csid_reg->cmn_reg->rst_location_shift_val);
 	else if (rst_location == CAM_IFE_CSID_RESET_LOC_COMPLETE)
 		val |= (csid_reg->cmn_reg->rst_loc_complete_csid_val <<
-		       csid_reg->cmn_reg->rst_location_shift_val);
+			   csid_reg->cmn_reg->rst_location_shift_val);
 
 	/*Program the mode */
 	if (rst_mode == CAM_CSID_HALT_AT_FRAME_BOUNDARY)
@@ -3842,7 +3842,7 @@ static int cam_ife_csid_ver2_init_config_pxl_path(
 
 	/*enable early eof based on crop enable */
 	if (!(csid_hw->debug_info.debug_val &
-		    CAM_IFE_CSID_DEBUG_DISABLE_EARLY_EOF) &&
+			CAM_IFE_CSID_DEBUG_DISABLE_EARLY_EOF) &&
 		cmn_reg->early_eof_supported &&
 		path_cfg->crop_enable)
 		cfg1 |= (1 << path_reg->early_eof_en_shift_val);
@@ -4060,7 +4060,7 @@ static int cam_ife_csid_ver2_program_rdi_path(
 
 	soc_info = &csid_hw->hw_info->soc_info;
 	csid_reg = (struct cam_ife_csid_ver2_reg_info *)
-		    csid_hw->core_info->csid_reg;
+			csid_hw->core_info->csid_reg;
 
 	path_reg = csid_reg->path_reg[res->res_id];
 
@@ -4685,7 +4685,7 @@ static int cam_ife_csid_ver2_enable_core(struct cam_ife_csid_ver2_hw *csid_hw)
 	uint32_t irq_mask = 0;
 
 	csid_reg = (struct cam_ife_csid_ver2_reg_info *)
-		    csid_hw->core_info->csid_reg;
+			csid_hw->core_info->csid_reg;
 	soc_info = &csid_hw->hw_info->soc_info;
 
 	/* overflow check before increment */
@@ -5917,11 +5917,11 @@ static int cam_ife_csid_ver2_print_hbi_vbi(
 			CAM_INFO(CAM_ISP, "FRONT_CAM : measure_h_blank %d, measure_v_blank %d",
 			measure_h_blank, measure_v_blank);
 		else if ((csid_hw->rx_cfg.phy_sel - 1) == COVER_CAM)
-                        CAM_INFO(CAM_ISP, "COVER_CAM : measure_h_blank %d, measure_v_blank %d",
-                        measure_h_blank, measure_v_blank);
+						CAM_INFO(CAM_ISP, "COVER_CAM : measure_h_blank %d, measure_v_blank %d",
+						measure_h_blank, measure_v_blank);
 		else if ((csid_hw->rx_cfg.phy_sel - 1) == FRONT_AUX)
-                        CAM_INFO(CAM_ISP, "FRONT_AUX : measure_h_blank %d, measure_v_blank %d",
-                        measure_h_blank, measure_v_blank);
+						CAM_INFO(CAM_ISP, "FRONT_AUX : measure_h_blank %d, measure_v_blank %d",
+						measure_h_blank, measure_v_blank);
 		else
 			CAM_ERR(CAM_ISP, "Unknown camera");
 	}
@@ -5946,11 +5946,7 @@ static int cam_ife_csid_ver2_set_dynamic_switch_config(
 	cam_ife_csid_ver2_dump_sof_ts(csid_hw);
 #endif
 	csid_hw->rx_cfg.mup = switch_update->mup_args.mup;
-#if defined(CONFIG_SAMSUNG_DEBUG_SENSOR_I2C)
-	CAM_INFO(CAM_ISP, "[AEB_DBG] CSID[%u] MUP %u",
-#else
 	CAM_DBG(CAM_ISP, "CSID[%u] MUP %u",
-#endif
 		csid_hw->hw_intf->hw_idx, csid_hw->rx_cfg.mup);
 
 	/* Handle number of frames to initially drop based on num starting exposures */

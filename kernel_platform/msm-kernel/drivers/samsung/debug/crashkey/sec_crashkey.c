@@ -54,7 +54,7 @@ __ss_static int __crashkey_add_preparing_panic_locked(
 {
 	struct crashkey_notify *notify = &drvdata->notify;
 
-	return atomic_notifier_chain_register(&notify->list, nb);
+	return raw_notifier_chain_register(&notify->list, nb);
 }
 
 int sec_crashkey_add_preparing_panic(struct notifier_block *nb,
@@ -92,7 +92,7 @@ __ss_static int __crashkey_del_preparing_panic_locked(
 {
 	struct crashkey_notify *notify = &drvdata->notify;
 
-	return atomic_notifier_chain_unregister(&notify->list, nb);
+	return raw_notifier_chain_unregister(&notify->list, nb);
 }
 
 int sec_crashkey_del_preparing_panic(struct notifier_block *nb,
@@ -163,7 +163,7 @@ static __always_inline void __crashkey_call_crashkey_notify(
 {
 	struct crashkey_notify *notify = &drvdata->notify;
 
-	atomic_notifier_call_chain(&notify->list, 0, NULL);
+	raw_notifier_call_chain(&notify->list, 0, NULL);
 }
 
 __ss_static int __crashkey_notifier_call(struct crashkey_drvdata *drvdata,
@@ -323,7 +323,7 @@ __ss_static int __crashkey_probe_prolog(struct builder *bd)
 	struct crashkey_kelog *keylog = &drvdata->keylog;
 	struct crashkey_timer *timer = &drvdata->timer;
 
-	ATOMIC_INIT_NOTIFIER_HEAD(&notify->list);
+	RAW_INIT_NOTIFIER_HEAD(&notify->list);
 
 	ratelimit_state_init(&timer->rs, timer->interval,
 			keylog->nr_pattern - 1);

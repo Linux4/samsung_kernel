@@ -1,5 +1,9 @@
 #include <dt-bindings/thermal/thermal_qti.h>
 
+&msm_gpu {
+    #cooling-cells = <2>;
+};
+
 &soc {
 	tsens0: tsens@4a8000 {
 		compatible = "qcom,qcs405-tsens";
@@ -12,55 +16,6 @@
 		interrupts = <GIC_SPI 184 IRQ_TYPE_LEVEL_HIGH>;
 		interrupt-names = "tsens-upper-lower";
 		#thermal-sensor-cells = <1>;
-	};
-
-	qcom,cpu-pause {
-		compatible = "qcom,thermal-pause";
-
-		cpu0_pause: cpu0-pause {
-			qcom,cpus = <&CPU0>;
-			qcom,cdev-alias = "thermal-pause-1";
-			#cooling-cells = <2>;
-		};
-
-		cpu1_pause: cpu1-pause {
-			qcom,cpus = <&CPU1>;
-			qcom,cdev-alias = "thermal-pause-2";
-			#cooling-cells = <2>;
-		};
-
-		cpu2_pause: cpu2-pause {
-			qcom,cpus = <&CPU2>;
-			qcom,cdev-alias = "thermal-pause-4";
-			#cooling-cells = <2>;
-		};
-
-		cpu3_pause: cpu3-pause {
-			qcom,cpus = <&CPU3>;
-			qcom,cdev-alias = "thermal-pause-8";
-			#cooling-cells = <2>;
-		};
-
-		/* Thermal-engine cooling devices */
-		pause-cpu0 {
-			qcom,cpus = <&CPU0>;
-			qcom,cdev-alias = "pause-cpu0";
-		};
-
-		pause-cpu1 {
-			qcom,cpus = <&CPU1>;
-			qcom,cdev-alias = "pause-cpu1";
-		};
-
-		pause-cpu2 {
-			qcom,cpus = <&CPU2>;
-			qcom,cdev-alias = "pause-cpu2";
-		};
-
-		pause-cpu3 {
-			qcom,cpus = <&CPU3>;
-			qcom,cdev-alias = "pause-cpu3";
-		};
 	};
 
 	qcom,cpu-hotplug {
@@ -285,7 +240,7 @@
 		cooling-maps {
 			cpu0_cdev {
 				trip = <&cpuss0_config>;
-				cooling-device = <&cpu0_pause 1 1>;
+				cooling-device = <&cpu0_hotplug 1 1>;
 			};
 		};
 	};
@@ -317,7 +272,7 @@
 		cooling-maps {
 			cpu1_cdev {
 				trip = <&cpuss1_config>;
-				cooling-device = <&cpu1_pause 1 1>;
+				cooling-device = <&cpu1_hotplug 1 1>;
 			};
 		};
 	};
@@ -349,7 +304,7 @@
 		cooling-maps {
 			cpu2_cdev {
 				trip = <&cpuss2_config>;
-				cooling-device = <&cpu2_pause 1 1>;
+				cooling-device = <&cpu2_hotplug 1 1>;
 			};
 		};
 	};
@@ -381,7 +336,35 @@
 		cooling-maps {
 			cpu3_cdev {
 				trip = <&cpuss3_config>;
-				cooling-device = <&cpu3_pause 1 1>;
+				cooling-device = <&cpu3_hotplug 1 1>;
+			};
+		};
+	};
+
+	gpu {
+		polling-delay-passive = <250>;
+		polling-delay = <0>;
+		thermal-sensors = <&tsens0 9>;
+		trips {
+			thermal-engine-config {
+				temperature = <125000>;
+				hysteresis = <1000>;
+				type = "passive";
+			};
+
+			gpu_step_trip: gpu-step-trip {
+				temperature = <105000>;
+				hysteresis = <0>;
+				type = "passive";
+			};
+		};
+
+		cooling-maps {
+			gpu_cdev0 {
+				trip = <&gpu_step_trip>;
+				cooling-device =
+					<&msm_gpu THERMAL_NO_LIMIT
+						THERMAL_NO_LIMIT>;
 			};
 		};
 	};

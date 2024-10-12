@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2018-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -4784,6 +4784,9 @@ ucfg_mlme_cfg_get_ht_smps(struct wlan_objmgr_psoc *psoc,
 bool ucfg_mlme_get_coex_unsafe_chan_nb_user_prefer(
 		struct wlan_objmgr_psoc *psoc);
 
+bool ucfg_mlme_get_coex_unsafe_chan_nb_user_prefer_for_sap(
+		struct wlan_objmgr_psoc *psoc);
+
 /**
  * ucfg_mlme_get_coex_unsafe_chan_reg_disable() - get reg disable cap for
  * coex unsafe channels support
@@ -4797,6 +4800,13 @@ bool ucfg_mlme_get_coex_unsafe_chan_reg_disable(
 #else
 static inline
 bool ucfg_mlme_get_coex_unsafe_chan_nb_user_prefer(
+		struct wlan_objmgr_psoc *psoc)
+{
+	return false;
+}
+
+static inline
+bool ucfg_mlme_get_coex_unsafe_chan_nb_user_prefer_for_sap(
 		struct wlan_objmgr_psoc *psoc)
 {
 	return false;

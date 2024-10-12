@@ -39,7 +39,7 @@ __ss_static int __crashkey_long_add_preparing_panic(
 
 	notify = &drvdata->notify;
 
-	err = atomic_notifier_chain_register(&notify->list, nb);
+	err = raw_notifier_chain_register(&notify->list, nb);
 	if (err) {
 		struct device *dev = drvdata->bd.dev;
 
@@ -67,7 +67,7 @@ __ss_static int __crashkey_long_del_preparing_panic(
 
 	notify = &drvdata->notify;
 
-	err = atomic_notifier_chain_unregister(&notify->list, nb);
+	err = raw_notifier_chain_unregister(&notify->list, nb);
 	if (err) {
 		struct device *dev = drvdata->bd.dev;
 
@@ -163,7 +163,7 @@ static void sec_crashkey_long_do_on_expired(struct timer_list *tl)
 	struct crashkey_long_notify *notify =
 			container_of(tl, struct crashkey_long_notify, tl);
 
-	atomic_notifier_call_chain(&notify->list,
+	raw_notifier_call_chain(&notify->list,
 			SEC_CRASHKEY_LONG_NOTIFY_TYPE_EXPIRED, NULL);
 }
 
@@ -184,7 +184,7 @@ __ss_static bool __crashkey_long_is_mached_received_pattern(
 __ss_static void __crashkey_long_invoke_notifier_on_matched(
 		struct crashkey_long_notify *notify)
 {
-	atomic_notifier_call_chain(&notify->list,
+	raw_notifier_call_chain(&notify->list,
 			SEC_CRASHKEY_LONG_NOTIFY_TYPE_MATCHED, NULL);
 }
 
@@ -220,7 +220,7 @@ static void __crashkey_long_on_matched(struct crashkey_long_drvdata *drvdata)
 __ss_static void __crashkey_long_invoke_notifier_on_unmatched(
 		struct crashkey_long_notify *notify)
 {
-	atomic_notifier_call_chain(&notify->list,
+	raw_notifier_call_chain(&notify->list,
 			SEC_CRASHKEY_LONG_NOTIFY_TYPE_UNMATCHED, NULL);
 }
 
@@ -362,7 +362,7 @@ __ss_static int __crashkey_long_probe_prolog(struct builder *bd)
 			container_of(bd, struct crashkey_long_drvdata, bd);
 	struct crashkey_long_notify *notify = &drvdata->notify;
 
-	ATOMIC_INIT_NOTIFIER_HEAD(&notify->list);
+	RAW_INIT_NOTIFIER_HEAD(&notify->list);
 	spin_lock_init(&drvdata->state_lock);
 
 	return 0;
