@@ -2164,7 +2164,7 @@ static void msm_isp_handle_done_buf_frame_id_mismatch(
 		ret = vfe_dev->buf_mgr->ops->buf_done(vfe_dev->buf_mgr,
 			buf->bufq_handle, buf->buf_idx, time_stamp,
 			frame_id,
-			stream_info->runtime_output_format);
+			stream_info->runtime_output_format, 0);
 	if (ret == -EFAULT) {
 		msm_isp_halt_send_error(vfe_dev, ISP_EVENT_BUF_FATAL_ERROR);
 		return;
@@ -2242,7 +2242,7 @@ static int msm_isp_process_done_buf(struct vfe_device *vfe_dev,
 				vfe_dev->buf_mgr,
 				buf->bufq_handle, buf->buf_idx,
 				time_stamp, frame_id,
-				stream_info->runtime_output_format);
+				stream_info->runtime_output_format, false);
 
 		if (rc == -EFAULT) {
 			msm_isp_halt_send_error(vfe_dev,
@@ -2250,7 +2250,7 @@ static int msm_isp_process_done_buf(struct vfe_device *vfe_dev,
 			return rc;
 		}
 		if (!rc) {
-			ISP_DBG("%s:%d vfe_id %d Buffer dropped %d\n",
+			pr_err("%s:%d vfe_id %d Buffer dropped %d\n",
 				__func__, __LINE__, vfe_dev->pdev->id,
 				frame_id);
 			/*
@@ -2310,7 +2310,7 @@ static int msm_isp_process_done_buf(struct vfe_device *vfe_dev,
 		buf->buf_debug.put_state_last ^= 1;
 		rc = vfe_dev->buf_mgr->ops->buf_done(vfe_dev->buf_mgr,
 		 buf->bufq_handle, buf->buf_idx, time_stamp,
-		 frame_id, stream_info->runtime_output_format);
+		 frame_id, stream_info->runtime_output_format, 0);
 		if (rc == -EFAULT) {
 			msm_isp_halt_send_error(vfe_dev,
 					ISP_EVENT_BUF_FATAL_ERROR);
@@ -3603,7 +3603,8 @@ static int msm_isp_return_empty_buffer(struct vfe_device *vfe_dev,
 	rc = vfe_dev->buf_mgr->ops->buf_done(vfe_dev->buf_mgr,
 		buf->bufq_handle, buf->buf_idx,
 		&timestamp.buf_time, frame_id,
-		stream_info->runtime_output_format);
+		stream_info->runtime_output_format, 0xEB);
+	pr_err("%s: buf_done send 0xE8 for frame_id :%d\n", __func__, frame_id);
 	if (rc == -EFAULT) {
 		msm_isp_halt_send_error(vfe_dev,
 			ISP_EVENT_BUF_FATAL_ERROR);
@@ -3678,7 +3679,7 @@ static int msm_isp_request_frame(struct vfe_device *vfe_dev,
 		(stream_info->undelivered_request_cnt <=
 			MAX_BUFFERS_IN_HW)
 		) {
-		pr_debug("%s:%d invalid time to request frame %d try drop_reconfig\n",
+		pr_err("%s:%d invalid time to request frame %d try drop_reconfig\n",
 			__func__, __LINE__, frame_id);
 		vfe_dev->isp_page->drop_reconfig = 1;
 		return 0;
@@ -3705,7 +3706,7 @@ static int msm_isp_request_frame(struct vfe_device *vfe_dev,
 		goto error;
 	}
 	if (stream_info->undelivered_request_cnt >= MAX_BUFFERS_IN_HW) {
-		pr_debug("%s:%d invalid undelivered_request_cnt %d frame id %d\n",
+		pr_err("%s:%d invalid undelivered_request_cnt %d frame id %d\n",
 			__func__, __LINE__,
 			stream_info->undelivered_request_cnt,
 			vfe_dev->axi_data.src_info[VFE_PIX_0].frame_id);
@@ -3721,7 +3722,7 @@ static int msm_isp_request_frame(struct vfe_device *vfe_dev,
 		 * instead of dropping frame in this error scenario use
 		 * drop_reconfig flag to process the request in next sof.
 		 */
-		pr_debug("%s:%d vfe %d frame_id %d prev_pattern %x stream_id %x\n",
+		pr_err("%s:%d vfe %d frame_id %d prev_pattern %x stream_id %x\n",
 			__func__, __LINE__, vfe_dev->pdev->id, frame_id,
 			stream_info->activated_framedrop_period,
 			stream_info->stream_id);
@@ -3744,8 +3745,8 @@ static int msm_isp_request_frame(struct vfe_device *vfe_dev,
 		pingpong_bit = ((pingpong_status >>
 					stream_info->wm[vfe_idx][0]) & 0x1);
 		if (stream_info->sw_ping_pong_bit == !pingpong_bit) {
-			ISP_DBG("%s:Return Empty Buffer stream id 0x%X\n",
-				__func__, stream_info->stream_id);
+			pr_err("%s:Return Empty Buffer stream id 0x%X frame_id %d\n",
+				__func__, stream_info->stream_id, frame_id);
 			rc = msm_isp_return_empty_buffer(vfe_dev, stream_info,
 				user_stream_id, frame_id, buf_index,
 				frame_src);
@@ -3870,6 +3871,8 @@ static int msm_isp_request_frame(struct vfe_device *vfe_dev,
 
 	return rc;
 error:
+	pr_err("%s:Return Empty Buffer frame_id %d\n",
+				__func__, frame_id);
 	rc = msm_isp_return_empty_buffer(vfe_dev, stream_info,
 		user_stream_id, frame_id, buf_index, frame_src);
 	if (rc < 0)

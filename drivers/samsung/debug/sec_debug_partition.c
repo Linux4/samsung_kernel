@@ -248,6 +248,7 @@ static void init_debug_partition(void)
 
 	/*++ add here need init data ++*/
 	init_ap_health_data();
+	init_lcd_debug_data();
 	/*-- add here need init data --*/
 
 	while (1) {

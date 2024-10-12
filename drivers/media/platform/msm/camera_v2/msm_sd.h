@@ -79,7 +79,7 @@ struct msm_sd_req_vb2_q {
 		unsigned int stream_id);
 	int (*buf_done)(struct vb2_v4l2_buffer *vb2_v4l2_buf, int session_id,
 		unsigned int stream_id, uint32_t sequence, struct timeval *ts,
-		uint32_t reserved);
+		uint32_t reserved, uint32_t reserved2);
 	int (*flush_buf)(int session_id, unsigned int stream_id);
 	int (*buf_error)(struct vb2_v4l2_buffer *vb2_v4l2_buf, int session_id,
 		unsigned int stream_id, uint32_t sequence, struct timeval *ts,

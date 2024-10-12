@@ -84,6 +84,13 @@ config SEC_DEBUG_SCHED_LOG_PER_CPU
 	help
 	  Samsung Scheduler Logging using per_cpu Feature for Debug use.
 
+config SEC_DEBUG_SCHED_LOG_IRQ_V2
+	bool "Samsung Scheduler IRQ Logging V2"
+	default n
+	depends on SEC_DEBUG_SCHED_LOG
+	help
+	  Samsung Scheduler IRQ Logging V2.
+
 config SEC_DEBUG_MSG_LOG
 	bool "Message Log for ram dump debug (DEPRECATED)"
 	default n

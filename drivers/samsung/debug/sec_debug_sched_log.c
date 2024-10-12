@@ -20,6 +20,8 @@
 #include <linux/kernel.h>
 #include <linux/sched.h>
 #include <linux/slab.h>
+#include <linux/interrupt.h>
+#include <linux/irq.h>
 
 #include <asm/io.h>
 
@@ -123,7 +125,7 @@ void sec_debug_task_sched_log(int cpu, bool preempt,
 	sched_buf->prev_prio = prev->prio;
 }
 
-void sec_debug_irq_sched_log(unsigned int irq, void *fn,
+void sec_debug_softirq_sched_log(unsigned int irq, void *fn,
 		char *name, unsigned int en)
 {
 	struct irq_buf *irq_buf;
@@ -148,11 +150,55 @@ void sec_debug_irq_sched_log(unsigned int irq, void *fn,
 
 	irq_buf->time = cpu_clock(cpu);
 	irq_buf->irq = irq;
-	irq_buf->fn = (void *)fn;
+	irq_buf->fn = fn;
 	irq_buf->name = name;
+	irq_buf->context = &cpu;
 	irq_buf->en = irqs_disabled();
 	irq_buf->preempt_count = preempt_count();
+	irq_buf->pid = current->pid;
+	irq_buf->entry_exit = en;
+}
+
+void sec_debug_irq_sched_log(unsigned int irq, void *desc_or_fn,
+		void *action_or_name, unsigned int en)
+{
+	struct irq_buf *irq_buf;
+	int cpu = smp_processor_id();
+	int i;
+#if defined(CONFIG_SEC_DEBUG_SCHED_LOG_IRQ_V2)
+	struct irq_desc *desc = (struct irq_desc *)desc_or_fn;
+	struct irqaction *action = (struct irqaction *)action_or_name;
+#endif
+
+#if defined(CONFIG_SEC_DEBUG_SCHED_LOG_PER_CPU)
+	struct sec_debug_log *sec_dbg_log;
+	sec_dbg_log = &per_cpu(sec_debug_log_cpu, cpu);
+	if (unlikely(!sec_dbg_log))
+		return;
+
+	i = ++(sec_dbg_log->irq.idx) & (SCHED_LOG_MAX - 1);
+	irq_buf = &sec_dbg_log->irq.buf[i];
+#else
+	if (unlikely(!secdbg_log))
+		return;
+
+	i = ++(secdbg_log->irq[cpu].idx) & (SCHED_LOG_MAX - 1);
+	irq_buf = &secdbg_log->irq[cpu].buf[i];
+#endif
+
+	irq_buf->time = cpu_clock(cpu);
+	irq_buf->irq = irq;
+#if defined(CONFIG_SEC_DEBUG_SCHED_LOG_IRQ_V2)
+	irq_buf->fn = action->handler;
+	irq_buf->name = (char *)action->name;
+	irq_buf->hwirq = desc->irq_data.hwirq;
+#else
+	irq_buf->fn = (void *)desc_or_fn;
+	irq_buf->name = (char *)action_or_name;
 	irq_buf->context = &cpu;
+#endif
+	irq_buf->en = irqs_disabled();
+	irq_buf->preempt_count = preempt_count();
 	irq_buf->pid = current->pid;
 	irq_buf->entry_exit = en;
 }

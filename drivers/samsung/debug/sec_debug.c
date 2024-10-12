@@ -791,15 +791,17 @@ static int __init __sec_debug_dt_addr_init(void)
 		return -ENODEV;
 	}
 
-	watchdog_base = of_iomap(np, 0);
-	if (unlikely(!watchdog_base)) {
-		pr_err("unable to map watchdog_base offset\n");
-		return -ENODEV;
-	}
+	if (of_device_is_available(np)) {
+		watchdog_base = of_iomap(np, 0);
+		if (unlikely(!watchdog_base)) {
+			pr_err("unable to map watchdog_base offset\n");
+			return -ENODEV;
+		}
 
-	/* check upload_cause here */
-	pr_emerg("watchdog_base addr : 0x%p(0x%llx)\n", watchdog_base,
-			(unsigned long long)virt_to_phys(watchdog_base));
+		/* check upload_cause here */
+		pr_emerg("watchdog_base addr : 0x%p(0x%llx)\n", watchdog_base,
+				(unsigned long long)virt_to_phys(watchdog_base));
+	}
 #endif
 
 	return 0;
@@ -844,7 +846,7 @@ static int __init sec_debug_init(void)
 	case ANDROID_DEBUG_LEVEL_MID:
 #endif
 
-#if defined(CONFIG_SEC_A52Q_PROJECT) || defined(CONFIG_SEC_A72Q_PROJECT)
+#if defined(CONFIG_ARCH_ATOLL) || defined(CONFIG_ARCH_SEC_SM7150)
 		if (!force_upload)
 			qcom_scm_disable_sdi();
 #endif

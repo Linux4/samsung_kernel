@@ -252,8 +252,11 @@ static int qusb_phy_enable_power(struct qusb_phy *qphy, bool on)
 		return 0;
 	}
 
-	if (!on)
+	if (!on) {
+		dev_err(qphy->phy.dev, "%s turn off regulators skip!!!\n",__func__);
+		return ret;
 		goto disable_vdda33;
+	}
 
 	ret = qusb_phy_config_vdd(qphy, true);
 	if (ret) {

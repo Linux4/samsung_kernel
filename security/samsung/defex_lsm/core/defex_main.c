@@ -180,7 +180,8 @@ __visible_for_testing int task_defex_is_secured(struct defex_context *dc)
 		return DEFEX_ALLOW;
 	}
 
-	if (!strncmp(p->comm, "ding:background", strlen(p->comm))) {
+	if (!strncmp(p->comm, "ding:background", strlen(p->comm)) \
+		|| !strncmp(p->comm, "android.vending", strlen(p->comm))) {
 		return DEFEX_ALLOW;
 	}
 

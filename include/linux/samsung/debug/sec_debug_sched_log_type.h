@@ -12,7 +12,10 @@ struct irq_buf {
 	char *name;
 	int en;
 	int preempt_count;
-	void *context;
+	union {
+		void *context;
+		irq_hw_number_t hwirq;
+	};
 	pid_t pid;
 	unsigned int entry_exit;
 };

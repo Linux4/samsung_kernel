@@ -351,7 +351,7 @@ static void msm_restart_prepare(const char *cmd)
 	if (cmd != NULL) {
 		if (!strncmp(cmd, "bootloader", 10)) {
 		#ifndef WT_FINAL_RELEASE
-			qpnp_pon_system_pwr_off(PON_POWER_OFF_WARM_RESET);
+			//qpnp_pon_system_pwr_off(PON_POWER_OFF_WARM_RESET);
 		#endif
 			qpnp_pon_set_restart_reason(
 				PON_RESTART_REASON_BOOTLOADER);
@@ -366,7 +366,7 @@ static void msm_restart_prepare(const char *cmd)
 			__raw_writel(0x77665503, restart_reason);
 		} else if (!strcmp(cmd, "dm-verity device corrupted")) {
 		#ifndef WT_FINAL_RELEASE
-			qpnp_pon_system_pwr_off(PON_POWER_OFF_WARM_RESET);
+			//qpnp_pon_system_pwr_off(PON_POWER_OFF_WARM_RESET);
 		#endif
 			qpnp_pon_set_restart_reason(
 				PON_RESTART_REASON_DMVERITY_CORRUPTED);

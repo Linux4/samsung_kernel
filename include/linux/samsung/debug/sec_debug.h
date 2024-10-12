@@ -10,8 +10,13 @@
 
 #include <asm/cacheflush.h>
 
+#if defined(CONFIG_SEC_DEBUG_SCHED_LOG_IRQ_V2)
+#define IRQ_ENTRY_V2	0x76324945
+#define IRQ_EXIT_V2	0x76324958
+#else
 #define IRQ_ENTRY	0x4945
 #define IRQ_EXIT	0x4958
+#endif
 
 #define SOFTIRQ_ENTRY	0x5345
 #define SOFTIRQ_EXIT	0x5358
