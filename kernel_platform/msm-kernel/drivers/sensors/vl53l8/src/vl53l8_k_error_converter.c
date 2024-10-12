@@ -103,17 +103,16 @@ void vl53l8_last_error_counter(struct vl53l8_k_module_t *p_module, int err)
 	if (err == VL53L8_DELAYED_LOAD_FIRMWARE)
 		return;
 
+	if (p_module->ldo_status != 0)
+		err = VL53L8_LDO_ERROR - p_module->ldo_status;
+
 	if (err < -2000 || err >= 0)
 		return;
-
-	if (p_module->ldo_status != 0)
-		err = -1000 - p_module->ldo_status;
 
 	vl53l8_error_counter_by_hash(p_module, err);
 }
 #endif
 #endif
-
 
 void vl53l8_k_store_error(struct vl53l8_k_module_t *p_module,
 			  int32_t vl53l8_k_error)

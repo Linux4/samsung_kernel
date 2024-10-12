@@ -14,14 +14,7 @@
 #include "../adsprpc_compat.h"
 #include "../adsprpc_shared.h"
 #include "virtio_fastrpc_base.h"
-#if IS_ENABLED(CONFIG_MSM_BOOT_TIME_MARKER)
 #include <soc/qcom/boot_stats.h>
-#else
-static inline unsigned long long msm_timer_get_sclk_ticks(void)
-{
-	return 0;
-}
-#endif
 
 #define ADSP_MMAP_HEAP_ADDR		4
 #define ADSP_MMAP_REMOTE_HEAP_ADDR	8
@@ -86,7 +79,7 @@ struct vfastrpc_invoke_ctx {
 	size_t size;
 	struct vfastrpc_buf_desc *desc;
 	struct hlist_node hn;
-	struct list_head asyncn;
+	struct hlist_node asyncn;
 	struct vfastrpc_mmap **maps;
 	remote_arg_t *lpra;
 	int *fds;

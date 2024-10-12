@@ -49,6 +49,13 @@
 
 #include "common_ese.h"
 #include "p73.h"
+#if IS_ENABLED(CONFIG_SAMSUNG_NFC)
+#include <linux/regulator/consumer.h>
+#include "common.h"
+
+static int nfc_reboot_cb(struct notifier_block *nb,
+				unsigned long action, void *data);
+#endif
 
 #ifdef FEATURE_CORE_RESET_NTF_CHECK
 struct nfc_core_reset_type {
@@ -674,6 +681,10 @@ int nfc_i2c_dev_probe(struct i2c_client *client, const struct i2c_device_id *id)
 #if IS_ENABLED(CONFIG_SAMSUNG_NFC)
 	nfc_dev->nfc_enable_clk_intr = i2c_enable_clk_irq;
 	nfc_dev->nfc_disable_clk_intr = i2c_disable_clk_irq;
+
+	/* reboot notifier callback */
+	nfc_dev->reboot_nb.notifier_call = nfc_reboot_cb;
+	register_reboot_notifier(&nfc_dev->reboot_nb);
 #endif
 #ifdef CONFIG_MAKE_NODE_USING_PLATFORM_DEVICE
 	if (!nfc_configs->late_pvdd_en) {
@@ -927,9 +938,71 @@ int nfc_i2c_dev_resume(struct device *device)
 }
 
 #if IS_ENABLED(CONFIG_SAMSUNG_NFC)
+#define SN300_PVDD_MIN	1100000
+#define SN300_PVDD_MAX	1300000
+
+static int nfc_pvdd_off(struct nfc_dev *nfc_dev)
+{
+	struct platform_configs *nfc_configs;
+	int ret = 0, pvdd_val;
+
+//	NFC_LOG_INFO("nfc_pvdd_off ++\n");
+
+	nfc_configs = &nfc_dev->configs;
+
+	pvdd_val = regulator_get_voltage(nfc_configs->nfc_pvdd);
+	NFC_LOG_INFO("pvdd_val %d\n", pvdd_val);
+	
+	if (SN300_PVDD_MIN < pvdd_val && pvdd_val < SN300_PVDD_MAX) {
+//		NFC_LOG_INFO("nfc IO force off\n");
+		ret = nfc_regulator_onoff(nfc_dev, 0);
+		if (ret < 0)
+			NFC_LOG_ERR("%s pn547 regulator_on FAIL %d\n", __func__, ret);
+	}
+
+//	NFC_LOG_INFO("nfc_pvdd_off --\n");
+//exit:
+	return ret;
+}
+
+static int nfc_reboot_cb(struct notifier_block *nb,
+				unsigned long action, void *data)
+{
+	struct nfc_dev *nfc_dev = container_of(nb, struct nfc_dev, reboot_nb);
+	struct platform_gpio *nfc_gpio;
+	struct platform_configs *nfc_configs;
+	int ret;
+
+	if (!nfc_dev) {
+		NFC_LOG_INFO("no nfc dev\n");
+		goto exit;
+	}
+
+	NFC_LOG_INFO("nfc_reboot_cb ++\n");
+
+	nfc_gpio = &nfc_dev->configs.gpio;
+	nfc_configs = &nfc_dev->configs;
+
+	if (nfc_configs->ap_vendor == AP_VENDOR_QCT) {
+		ret = gpio_direction_output(nfc_gpio->ven, 0);
+		if (ret)
+			NFC_LOG_ERR("VEN control fail %d\n", ret);
+
+		usleep_range(300, 301);
+		nfc_pvdd_off(nfc_dev);
+	}
+
+	NFC_LOG_INFO("nfc_reboot_cb --\n");
+exit:
+	return NOTIFY_OK;
+}
+
 static void nfc_shutdown(struct i2c_client *client)
 {
 	struct nfc_dev *nfc_dev = i2c_get_clientdata(client);
+	int ret;
+
+	NFC_LOG_INFO("nfc_shutdown ++\n");
 
 	if (nfc_dev) {
 		struct platform_gpio *nfc_gpio = &nfc_dev->configs.gpio;
@@ -952,9 +1025,18 @@ static void nfc_shutdown(struct i2c_client *client)
 				NFC_LOG_ERR("i2c off pinctrl called\n");
 			};
 
-			gpio_direction_output(nfc_gpio->ven, 0);
+			ret = gpio_direction_output(nfc_gpio->ven, 0);
+			if (ret)
+				NFC_LOG_ERR("VEN control fail %d\n", ret);
+
+			if (nfc_configs->ap_vendor == AP_VENDOR_QCT) {
+				usleep_range(300, 301);
+				nfc_pvdd_off(nfc_dev);
+			}
 		}
 	}
+
+	NFC_LOG_INFO("nfc_shutdown --\n");
 }
 #endif
 

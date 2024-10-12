@@ -156,6 +156,7 @@
 		interconnect-names = "usb-ddr", "ddr-usb";
 		interconnects = <&aggre1_noc MASTER_USB3_1 &mc_virt SLAVE_EBI1>,
 				<&gem_noc MASTER_APPSS_PROC &config_noc SLAVE_USB3_1>;
+		qcom,disable-host-ssphy-powerdown;
 
 		dwc3@a800000 {
 			compatible = "snps,dwc3";

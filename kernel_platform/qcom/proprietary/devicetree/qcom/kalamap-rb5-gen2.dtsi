@@ -29,7 +29,137 @@
 	qcom,uses_level_shifter;
 };
 
+&tlmm {
+	/* 32 33 qupv3_se1_i2c for sx1508q */
+	/* 36 - 39 qupv3_se2_spi for tdk temp sensor */
+	qcom,gpios-reserved = <34 35>;
+
+	pice0_usb_power_1p05_default: pice0_usb_power_1p05_default {
+		mux {
+			pins = "gpio179";
+			function = "gpio";
+		};
+
+		config {
+			pins = "gpio179";
+			drive-strength = <2>;
+			output-high;
+			bias-pull-up;
+		};
+	};
+
+	pice0_usb_power_3p3_default: pice0_usb_power_3p3_default {
+		mux {
+			pins = "gpio13";
+			function = "gpio";
+		};
+
+		config {
+			pins = "gpio13";
+			drive-strength = <2>;
+			output-high;
+			bias-pull-up;
+		};
+	};
+
+	pice0_usb_ponrst_default: pice0_usb_ponrst_default {
+		mux {
+			pins = "gpio182";
+			function = "gpio";
+		};
+
+		config {
+			pins = "gpio182";
+			drive-strength = <2>;
+			output-high;
+			bias-pull-up;
+		};
+	};
+};
+
 &soc {
+
+	qps615_bridge0_0p9_vreg: qps615_bridge0_0p9_vreg {
+		compatible = "regulator-fixed";
+		regulator-name = "qps615_bridge0_0p9_vreg";
+		gpio = <&tlmm 67 GPIO_ACTIVE_HIGH>;
+		regulator-min-microvolt = <1000000>;
+		regulator-max-microvolt = <1000000>;
+		enable-active-high;
+		regulator-enable-ramp-delay = <4300>;
+	};
+
+	qps615_bridge1_0p9_vreg: qps615_bridge1_0p9_vreg {
+		compatible = "regulator-fixed";
+		regulator-name = "qps615_bridge1_0p9_vreg";
+		gpio = <&tlmm 42 GPIO_ACTIVE_HIGH>;
+		regulator-min-microvolt = <1000000>;
+		regulator-max-microvolt = <1000000>;
+		enable-active-high;
+		regulator-enable-ramp-delay = <4300>;
+	};
+
+	qps615_resx0_0p9_vreg: qps615_resx0_0p9_vreg {
+		compatible = "regulator-fixed";
+		regulator-name = "qps615_resx0_0p9_vreg";
+		gpio = <&tlmm 64 GPIO_ACTIVE_HIGH>;
+		vin-supply = <&qps615_bridge0_0p9_vreg>;
+		regulator-min-microvolt = <1000000>;
+		regulator-max-microvolt = <1000000>;
+		enable-active-high;
+		regulator-enable-ramp-delay = <2000>;
+	};
+
+	qps615_resx1_0p9_vreg: qps615_resx1_0p9_vreg {
+	compatible = "regulator-fixed";
+		regulator-name = "qps615_resx1_0p9_vreg";
+		gpio = <&tlmm 65 GPIO_ACTIVE_HIGH>;
+		vin-supply = <&qps615_bridge1_0p9_vreg>;
+		regulator-min-microvolt = <1000000>;
+		regulator-max-microvolt = <1000000>;
+		enable-active-high;
+		regulator-enable-ramp-delay = <2000>;
+	};
+
+	pcie_usb_hub_1p05_vreg: pcie_usb_hub_1p05_vreg {
+		compatible = "regulator-fixed";
+		regulator-name = "pcie_usb_hub_1p05_vreg";
+		pinctrl-names = "default";
+		pinctrl-0 = <&pice0_usb_power_1p05_default>;
+		gpio = <&tlmm 179 GPIO_ACTIVE_HIGH>;
+		vin-supply = <&qps615_resx0_0p9_vreg>;
+		regulator-min-microvolt = <1000000>;
+		regulator-max-microvolt = <1000000>;
+		enable-active-high;
+		regulator-enable-ramp-delay = <5000>;
+	};
+
+	pcie_usb_hub_3p3_vreg: pcie_usb_hub_3p3_vreg {
+		compatible = "regulator-fixed";
+		regulator-name = "pcie_usb_hub_3p3_vreg";
+		pinctrl-names = "default";
+		pinctrl-0 = <&pice0_usb_power_3p3_default>;
+		gpio = <&tlmm 13 GPIO_ACTIVE_HIGH>;
+		vin-supply = <&pcie_usb_hub_1p05_vreg>;
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
+		enable-active-high;
+		regulator-enable-ramp-delay = <10000>;
+	};
+
+	usb_hub_rest_vreg: usb_hub_rest_vreg {
+		compatible = "regulator-fixed";
+		regulator-name = "usb_hub_rest_vreg";
+		pinctrl-names = "default";
+		pinctrl-0 = <&pice0_usb_ponrst_default>;
+		gpio = <&tlmm 182 GPIO_ACTIVE_HIGH>;
+		vin-supply = <&pcie_usb_hub_3p3_vreg>;
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
+		enable-active-high;
+		regulator-enable-ramp-delay = <10000>;
+	};
+
 	gpio_key {
 		compatible = "gpio-keys";
 		label = "gpio-keys";
@@ -46,6 +176,28 @@
 			debounce-interval = <15>;
 			linux,can-disable;
 		};
+	};
+
+	clk40M: can_clock {
+		compatible = "fixed-clock";
+		#clock-cells = <0>;
+		clock-frequency = <40000000>;
+	};
+};
+
+&qupv3_se11_spi {
+	status = "ok";
+	can@0 {
+		compatible = "microchip,mcp2518fd";
+		reg = <0>;
+		clocks = <&clk40M>;
+		interrupts-extended = <&tlmm 55 IRQ_TYPE_LEVEL_LOW>;
+		interrupt-names = "can_irq";
+		spi-max-frequency = <10000000>;
+		gpio-controller;
+		vdd-supply = <&L14B>;
+		xceiver-supply = <&L14B>;
+		status = "ok";
 	};
 };
 
@@ -208,6 +360,72 @@
 	status = "ok";
 };
 
+&qupv3_se1_i2c {
+	status = "ok";
+	qcom,clk-freq-out = <400000>;
+	#address-cells = <1>;
+	#size-cells = <0>;
+
+	/* TDK Chirp IO Expander */
+	ch_io_expander@22 {
+		#gpio-cells = <2>;
+		#interrupt-cells = <2>;
+		compatible = "semtech,sx1508q";
+		reg = <0x22>;
+		gpio-controller;
+	};
+};
+
+&qupv3_hub_i2c2 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+	status = "ok";
+	qcom,clk-freq-out = <400000>;
+
+	/* TDK Chirp 3, 4, and 5 are connected to QUP hub i2c2 */
+	ch101_1: ch101_1@45 {
+		compatible = "invensense,ch101";
+		reg = <0x45>;
+		rst-gpios = <&tlmm 127 GPIO_ACTIVE_HIGH>;
+		rtc_rst-gpios = <&tlmm 88 GPIO_ACTIVE_HIGH>;
+		prg-gpios = <3 4 5>;
+		int-gpios = <&tlmm 14 GPIO_ACTIVE_HIGH>,
+			<&tlmm 19 GPIO_ACTIVE_HIGH>,
+			<&tlmm 86 GPIO_ACTIVE_HIGH>;
+	};
+};
+
+&qupv3_hub_i2c4 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+	status = "ok";
+	qcom,clk-freq-out = <400000>;
+
+	/* TDK Chirp 0, 1, and 2 are connected to QUP hub i2c4 */
+	ch101_0: ch101_0@45 {
+		compatible = "invensense,ch101";
+		reg = <0x45>;
+		rst-gpios = <&tlmm 127 GPIO_ACTIVE_HIGH>;
+		rtc_rst-gpios = <&tlmm 88 GPIO_ACTIVE_HIGH>;
+		prg-gpios = <0 1 2>;
+		int-gpios = <&tlmm 18 GPIO_ACTIVE_HIGH>,
+			<&tlmm 129 GPIO_ACTIVE_HIGH>,
+			<&tlmm 17 GPIO_ACTIVE_HIGH>;
+	};
+};
+
+&qupv3_se2_spi {
+	status = "okay";
+	temp_sensor@0 {
+		compatible = "tdktherm";
+		reg = <0>; // Chip select ID
+		spi-max-frequency = <10000000>; // Can support up to 24 MHz
+		spi-cpol;
+		spi-cpha;
+		status = "okay";
+	};
+};
+
 &qupv3_se4_spi {
 	#address-cells = <1>;
 	#size-cells = <0>;
@@ -253,8 +471,17 @@
 	};
 };
 
+&qupv3_se4_4uart {
+	status = "ok";
+	qrc:qrc@100 {
+		compatible = "qcom,qrc-uart";
+		status = "ok";
+		qcom,qrc-reset-gpio = <&tlmm 168 0>;
+	};
+};
+
 &usb_qmp_dp_phy {
-	pinctrl-names = "default";
+	pinctrl-names = "unused";
 
 	qcom,qmp-phy-override-seq =
 		/* <reg_offset,		value> */
@@ -265,20 +492,21 @@
 };
 
 &qupv3_hub_i2c2 {
-	status = "disabled";
+	status = "ok";
 
 	#address-cells = <1>;
 	#size-cells = <0>;
 	redriver: redriver@1c {
 		compatible = "onnn,redriver";
 		reg = <0x1c>;
-		status = "disabled";
 
 		lane-channel-swap;
 
 		pinctrl-names = "default";
 		pinctrl-0 = <&usb3phy_portselect_gpio>;
 		gpios = <&tlmm 11 0>;
+		set-aux;
+		aux-orientation-violate-usb;
 
 		eq = /bits/ 8 <
 				/* Parameters for USB */
@@ -423,8 +651,62 @@
 	periph-d46-supply = <&L7N>;
 };
 
+&qupv3_hub_i2c4 {
+	status = "ok";
+
+	pcie0_i2c_ctrl: pcie0_i2c_ctrl {
+		compatible = "qcom,pcie-i2c-ntn3";
+		rc-index = <0x0>;
+		reg = <0x77>;
+		gpio-config-reg = <0x801208>;
+		ep-reset-reg = <0x801210>;
+		ep-reset-gpio-mask = <0xc>;
+		version-reg = <0x800000>;
+		dump-regs = <0x801330 0x801350 0x801370>;
+		reg_update = <0x82c030 0x1
+					0x828000 0x3
+					0x82bd00 0x8
+					0x82c030 0x2
+					0x828000 0x3
+					0x82bd00 0x8
+					0x82c030 0x8
+					0x828000 0x1
+					0x82bd00 0x8
+					0x82c01c 0x10
+					0x82c030 0xf
+					0x828000 0xf
+					0x82b268 0x2>;
+		/*FOM for preset caluclation*/
+		switch_reg_update = <0x82c02c 0x00000007
+					0x824a10 0x00000001
+					0x82c030 0x00000008
+					0x828000 0x00000001
+					0x82b074 0x00000020
+					0x82b2bc 0x00000001>;
+	};
+};
+
+&reserved_memory {
+	pci_usb_mem: pci_usb_region {
+		compatible = "shared-dma-pool";
+		alloc-ranges = <0x0 0x00000000 0x0 0xffffffff>;
+		reusable;
+		alignment = <0x0 0x400000>;
+		size = <0x0 0x2000000>;
+	};
+};
+
+&pcie0_msi {
+	status = "ok";
+};
+
 &pcie0 {
-	qcom,boot-option = <0x0>;
+	qcom,boot-option = <0x2>;
+
+	pcie-i2c-phandle = <&qupv3_hub_i2c4>;
+	vreg-3p3-supply = <&usb_hub_rest_vreg>;
+	msi-parent = <&pcie0_msi>;
+
 	 qcom,pcie-phy-ver = <102>;
 			qcom,phy-sequence = <0x0240 0x03 0x0
 					0x00c0 0x01 0x0
@@ -533,6 +815,7 @@
 					0x060c 0x1d 0x0
 					0x0614 0x07 0x0
 					0x0620 0xc1 0x0
+					0x0624 0x40 0x0
 					0x0694 0x00 0x0
 					0x03d0 0x8c 0x0
 					0x0368 0x0f 0x0
@@ -541,12 +824,296 @@
 					0x0200 0x00 0x0
 					0x0244 0x03 0x0>;
 
+	iommu-map = <0x0 &apps_smmu 0x1400 0x1>,
+		<0x100 &apps_smmu 0x1401 0x1>,
+		<0x208 &apps_smmu 0x1402 0x1>,
+		<0x210 &apps_smmu 0x1403 0x1>,
+		<0x218 &apps_smmu 0x1404 0x1>,
+		<0x300 &apps_smmu 0x1407 0x1>,
+		<0x400 &apps_smmu 0x1408 0x1>,
+		<0x500 &apps_smmu 0x140c 0x1>,
+		<0x501 &apps_smmu 0x140e 0x1>;
+};
+
+&pcie0_rp {
+	#address-cells = <5>;
+	#size-cells = <0>;
+
+	/* BDF 1.0.0 */
+	pcie0_bus1_dev0_fn0: pcie0_bus1_dev0_fn0 {
+		reg = <0 0 0 0 0>;
+
+		/* BDF 2.1.0 */
+		pcie0_bus2_dev1_fn0: pcie0_bus2_dev1_fn0 {
+			reg = <0x800 0x0 0x0 0x0 0x0>;
+		};
+
+		/* BDF 2.2.0 */
+		pcie0_bus2_dev2_fn0: pcie0_bus2_dev2_fn0 {
+			reg = <0x1000 0x0 0x0 0x0 0x0>;
+
+			/* BDF 4.0.0 */
+			pcie0_bus4_dev0_fn0: pcie0_bus4_dev0_fn0 {
+				reg = <0x0 0x0 0x0 0x0 0x0>;
+				qcom,iommu-group = <&xhci_pci_iommu_group0>;
+				memory-region = <&pci_usb_mem>;
+				#address-cells = <1>;
+				#size-cells = <1>;
+
+				xhci_pci_iommu_group0: xhci_pci_iommu_group0 {
+					qcom,iommu-msi-size = <0x1000>;
+					qcom,iommu-dma-addr-pool = <0xa0000000 0x10000000>;
+					qcom,iommu-dma = "fastmap";
+					qcom,iommu-pagetable = "coherent";
+					qcom,iommu-faults = "stall-disable", "HUPCF", "no-CFRE", "non-fatal";
+				};
+			};
+		};
+
+		/* BDF 2.3.0 */
+		pcie0_bus2_dev3_fn0: pcie0_bus2_dev3_fn0 {
+			reg = <0x1800 0x0 0x0 0x0 0x0>;
+		};
+	};
+};
+
+&qupv3_hub_i2c3 {
+	status = "ok";
+
+	pcie1_i2c_ctrl: pcie1_i2c_ctrl {
+		compatible = "qcom,pcie-i2c-ntn3";
+		rc-index = <0x1>;
+		reg = <0x77>;
+		gpio-config-reg = <0x801208>;
+		ep-reset-reg = <0x801210>;
+		ep-reset-gpio-mask = <0xc>;
+		version-reg = <0x800000>;
+		dump-regs = <0x801330 0x801350 0x801370>;
+		reg_update = <0x82c030 0x1
+					0x828000 0x3
+					0x82bd00 0x8
+					0x82c030 0x2
+					0x828000 0x3
+					0x82bd00 0x8
+					0x82c030 0x8
+					0x828000 0x1
+					0x82bd00 0x8
+					0x82c01c 0x10
+					0x82c030 0xf
+					0x828000 0xf
+					0x82b268 0x2>;
+		/*FOM for preset caluclation*/
+		switch_reg_update = <0x82c02c 0x00000007
+					0x824a10 0x00000001
+					0x82c030 0x00000008
+					0x828000 0x00000001
+					0x82b074 0x00000020
+					0x82b2bc 0x00000001>;
+	};
+};
+
+&pcie1_msi {
+	status = "ok";
 };
 
 &pcie1 {
-	qcom,boot-option = <0x0>;
+	pcie-i2c-phandle = <&qupv3_hub_i2c3>;
+	qcom,boot-option = <0x1>;
+	vreg-3p3-supply = <&qps615_resx1_0p9_vreg>;
 	qcom,apss-based-l1ss-sleep;
+	msi-parent = <&pcie1_msi>;
+	qcom,phy-sequence = <0x1240 0x03 0x0
+			0x0030 0x1d 0x0
+			0x0034 0x03 0x0
+			0x0078 0x01 0x0
+			0x007c 0x00 0x0
+			0x0080 0x51 0x0
+			0x00ac 0x34 0x0
+			0x0208 0x0c 0x0
+			0x020c 0x0a 0x0
+			0x0218 0x04 0x0
+			0x0220 0x16 0x0
+			0x0234 0x00 0x0
+			0x029c 0x80 0x0
+			0x02a0 0x7c 0x0
+			0x02b4 0x05 0x0
+			0x02e8 0x0a 0x0
+			0x030c 0x0d 0x0
+			0x0320 0x0b 0x0
+			0x0348 0x1c 0x0
+			0x0388 0x20 0x0
+			0x0394 0x30 0x0
+			0x03dc 0x09 0x0
+			0x03f4 0x14 0x0
+			0x03f8 0xb3 0x0
+			0x03fc 0x58 0x0
+			0x0400 0x9a 0x0
+			0x0404 0x26 0x0
+			0x0408 0xb6 0x0
+			0x040c 0xee 0x0
+			0x0410 0xdb 0x0
+			0x0414 0xdb 0x0
+			0x0418 0xa0 0x0
+			0x041c 0xdf 0x0
+			0x0420 0x78 0x0
+			0x0424 0x76 0x0
+			0x0428 0xff 0x0
+			0x0830 0x1d 0x0
+			0x0834 0x03 0x0
+			0x0878 0x01 0x0
+			0x087c 0x00 0x0
+			0x0880 0x51 0x0
+			0x08ac 0x34 0x0
+			0x0a08 0x0c 0x0
+			0x0a0c 0x0a 0x0
+			0x0a18 0x04 0x0
+			0x0a20 0x16 0x0
+			0x0a34 0x00 0x0
+			0x0a9c 0x80 0x0
+			0x0aa0 0x7c 0x0
+			0x0ab4 0x05 0x0
+			0x0ae8 0x0a 0x0
+			0x0b0c 0x0d 0x0
+			0x0b20 0x0b 0x0
+			0x0b48 0x1c 0x0
+			0x0b88 0x20 0x0
+			0x0b94 0x30 0x0
+			0x0bdc 0x09 0x0
+			0x0bf4 0x14 0x0
+			0x0bf8 0xb3 0x0
+			0x0bfc 0x58 0x0
+			0x0c00 0x9a 0x0
+			0x0c04 0x26 0x0
+			0x0c08 0xb6 0x0
+			0x0c0c 0xee 0x0
+			0x0c10 0xdb 0x0
+			0x0c14 0xdb 0x0
+			0x0c18 0xa0 0x0
+			0x0c1c 0xdf 0x0
+			0x0c20 0x78 0x0
+			0x0c24 0x76 0x0
+			0x0c28 0xff 0x0
+			0x0ea0 0x01 0x0
+			0x0eb4 0x00 0x0
+			0x0ec4 0x00 0x0
+			0x0ec8 0x1f 0x0
+			0x0ed4 0x12 0x0
+			0x0ed8 0x12 0x0
+			0x0edc 0xdb 0x0
+			0x0ee0 0x9a 0x0
+			0x0ee4 0x38 0x0
+			0x0ee8 0xb6 0x0
+			0x0eec 0x64 0x0
+			0x0ef0 0x1f 0x0
+			0x0ef4 0x1f 0x0
+			0x0ef8 0x1f 0x0
+			0x0efc 0x1f 0x0
+			0x0f00 0x1f 0x0
+			0x0f04 0x1f 0x0
+			0x0f0c 0x1f 0x0
+			0x0f14 0x1f 0x0
+			0x0f1c 0x1f 0x0
+			0x0f28 0x5b 0x0
+			0x1000 0x26 0x0
+			0x1004 0x03 0x0
+			0x1010 0x06 0x0
+			0x1014 0x16 0x0
+			0x1018 0x36 0x0
+			0x101c 0x04 0x0
+			0x1020 0x0a 0x0
+			0x1024 0x1a 0x0
+			0x1028 0x68 0x0
+			0x1030 0xab 0x0
+			0x1034 0xaa 0x0
+			0x1038 0x02 0x0
+			0x103c 0x12 0x0
+			0x1060 0xf8 0x0
+			0x1064 0x01 0x0
+			0x1070 0x06 0x0
+			0x1074 0x16 0x0
+			0x1078 0x36 0x0
+			0x107c 0x0a 0x0
+			0x1080 0x04 0x0
+			0x1084 0x0d 0x0
+			0x1088 0x41 0x0
+			0x1090 0xab 0x0
+			0x1094 0xaa 0x0
+			0x1098 0x01 0x0
+			0x109c 0x00 0x0
+			0x10bc 0x0a 0x0
+			0x10c0 0x01 0x0
+			0x10cc 0x62 0x0
+			0x10d0 0x02 0x0
+			0x10d8 0x40 0x0
+			0x10dc 0x14 0x0
+			0x10e0 0x90 0x0
+			0x10e4 0x82 0x0
+			0x10f4 0x0f 0x0
+			0x1110 0x08 0x0
+			0x1120 0x46 0x0
+			0x1124 0x04 0x0
+			0x1140 0x14 0x0
+			0x1164 0x34 0x0
+			0x1170 0xa0 0x0
+			0x1174 0x06 0x0
+			0x1184 0x88 0x0
+			0x1188 0x14 0x0
+			0x1198 0x0f 0x0
+			0x1378 0x2e 0x0
+			0x1390 0xcc 0x0
+			0x13f8 0x00 0x0
+			0x13fc 0x22 0x0
+			0x141c 0xc1 0x0
+			0x1490 0x00 0x0
+			0x14a0 0x16 0x0
+			0x1420 0x40 0x0
+			0x1508 0x02 0x0
+			0x155c 0x2e 0x0
+			0x157c 0x03 0x0
+			0x1584 0x28 0x0
+			0x13dc 0x04 0x0
+			0x13e0 0x02 0x0
+			0x1418 0xc0 0x0
+			0x140c 0x1d 0x0
+			0x158c 0x0f 0x0
+			0x15ac 0xf2 0x0
+			0x15c0 0xf2 0x0
+			0x1200 0x00 0x0
+			0x1244 0x03 0x0>;
+
+	iommu-map = <0x0 &apps_smmu 0x1480 0x1>,
+		<0x100 &apps_smmu 0x1481 0x1>,
+		<0x208 &apps_smmu 0x1482 0x1>,
+		<0x210 &apps_smmu 0x1483 0x1>,
+		<0x218 &apps_smmu 0x1484 0x1>,
+		<0x300 &apps_smmu 0x1487 0x1>,
+		<0x400 &apps_smmu 0x1488 0x1>,
+		<0x500 &apps_smmu 0x148c 0x1>,
+		<0x501 &apps_smmu 0x148e 0x1>;
 };
+
+&pcie1_rp {
+	#address-cells = <5>;
+	#size-cells = <0>;
+
+	/* BDF 1.0.0 */
+	pcie1_bus1_dev0_fn0: pcie1_bus1_dev0_fn0 {
+		reg = <0 0 0 0 0>;
+		/* BDF 2.1.0 */
+		pcie1_bus2_dev1_fn0: pcie1_bus2_dev1_fn0 {
+			reg = <0x800 0x0 0x0 0x0 0x0>;
+		};
+		/* BDF 2.2.0 */
+		pcie1_bus2_dev2_fn0: pcie1_bus2_dev2_fn0 {
+			reg = <0x1000 0x0 0x0 0x0 0x0>;
+		};
+		/* BDF 2.3.0 */
+		pcie1_bus2_dev3_fn0: pcie1_bus2_dev3_fn0 {
+			reg = <0x1800 0x0 0x0 0x0 0x0>;
+		};
+	};
+};
+
 &thermal_zones {
 	skin-msm-therm {
 		status = "disabled";
@@ -563,4 +1130,8 @@
 	rear-tof-therm {
 		status = "disabled";
 	};
+};
+
+&qcom_qbt {
+	status = "disabled";
 };

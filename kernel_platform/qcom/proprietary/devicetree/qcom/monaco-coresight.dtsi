@@ -504,7 +504,7 @@
 		arm,primecell-periphid = <0x000bb95d>;
 		reg = <0x9040000 0x1000>;
 		cpu = <&CPU0>;
-		qcom,tupwr-disable;
+		qcom,skip-power-up;
 		coresight-name = "coresight-etm0";
 
 		clocks = <&rpmcc RPM_SMD_QDSS_CLK>;
@@ -524,7 +524,7 @@
 		arm,primecell-periphid = <0x000bb95d>;
 		reg = <0x9140000 0x1000>;
 		cpu = <&CPU1>;
-		qcom,tupwr-disable;
+		qcom,skip-power-up;
 		coresight-name = "coresight-etm1";
 
 		clocks = <&rpmcc RPM_SMD_QDSS_CLK>;
@@ -544,7 +544,7 @@
 		arm,primecell-periphid = <0x000bb95d>;
 		reg = <0x9240000 0x1000>;
 		cpu = <&CPU2>;
-		qcom,tupwr-disable;
+		qcom,skip-power-up;
 		coresight-name = "coresight-etm2";
 
 		clocks = <&rpmcc RPM_SMD_QDSS_CLK>;
@@ -564,7 +564,7 @@
 		arm,primecell-periphid = <0x000bb95d>;
 		reg = <0x9340000 0x1000>;
 		cpu = <&CPU3>;
-		qcom,tupwr-disable;
+		qcom,skip-power-up;
 		coresight-name = "coresight-etm3";
 
 		clocks = <&rpmcc RPM_SMD_QDSS_CLK>;

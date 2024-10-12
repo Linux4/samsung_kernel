@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright (c) 2022, STMicroelectronics - All Rights Reserved
+* Copyright (c) 2023, STMicroelectronics - All Rights Reserved
 *
 * This file is part of VL53L8 Kernel Driver and is dual licensed,
 * either 'STMicroelectronics Proprietary license'
@@ -81,6 +81,10 @@
 #ifdef CONFIG_SENSORS_LAF_FAILURE_DEBUG
 #define MAX_TABLE 152
 #endif
+#define AVDD	0
+#define IOVDD	1
+#define COREVDD	2
+#define VDD_MAX_CNT	3
 struct vl53l8_k_module_t {
 #ifdef STM_VL53L5_KOR_CODE
 		struct input_dev *input_dev_ps;
@@ -182,6 +186,8 @@ struct vl53l8_k_module_t {
 	struct vl53l5_patch_version_t patch_ver;
 
 	unsigned int transfer_speed_hz;
+	
+	struct vl53l8_k_bin_version bin_version;
 
 #ifdef STM_VL53L5_SUPPORT_SEC_CODE
 	struct vl53l8_cal_data_t cal_data;
@@ -192,6 +198,9 @@ struct vl53l8_k_module_t {
 #ifdef CONFIG_SEPARATE_IO_CORE_POWER
 	struct regulator *corevdd_vreg;
 	struct delayed_work power_delayed_work;
+#ifdef CONFIG_SENSORS_VL53L8_SUPPORT_RESUME_WORK
+	struct work_struct resume_work;
+#endif
 #endif
 	struct notifier_block dump_nb;
 	struct vl53l5_range_fac_results_t {
@@ -239,6 +248,7 @@ struct vl53l8_k_module_t {
 	int8_t update_flag;
 	int8_t pass_fail_flag;
 	int8_t file_list;
+	uint8_t ldo_prev_state[VDD_MAX_CNT];
 
 	bool load_calibration;
 	bool read_p2p_cal_data;

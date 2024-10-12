@@ -241,7 +241,6 @@ static int perform_cold_reset_protection(struct nfc_dev *nfc_dev,
 		}
 	}
 err:
-	mutex_unlock(&nfc_dev->dev_ref_mutex);
 	return ret;
 }
 
@@ -324,7 +323,7 @@ int perform_ese_cold_reset(unsigned long arg)
 			return -EPERM;
 		}
 	}
-	NFC_LOG_DBG("%s: arg = %d ret = %lu\n", __func__, arg, ret);
+	NFC_LOG_DBG("%s: arg = %lu ret = %d\n", __func__, arg, ret);
 	return ret;
 }
 EXPORT_SYMBOL(perform_ese_cold_reset);

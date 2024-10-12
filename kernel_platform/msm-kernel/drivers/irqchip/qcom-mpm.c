@@ -23,6 +23,7 @@
 #include <linux/soc/qcom/irq.h>
 #include <linux/spinlock.h>
 #include <linux/suspend.h>
+#include <linux/syscore_ops.h>
 
 #include <soc/qcom/mpm.h>
 
@@ -73,6 +74,12 @@ struct mpm_pin {
 static int num_mpm_irqs = 64;
 static struct msm_mpm_device_data msm_mpm_dev_data;
 static unsigned int *mpm_to_irq;
+#ifdef CONFIG_DEEPSLEEP
+static unsigned int mpm_enabled[MAX_REG_WIDTH];
+static unsigned int mpm_type_raising_edge[MAX_REG_WIDTH];
+static unsigned int mpm_type_falling_edge[MAX_REG_WIDTH];
+static unsigned int mpm_type_level[MAX_REG_WIDTH];
+#endif
 static DEFINE_SPINLOCK(mpm_lock);
 
 static irq_hw_number_t get_parent_hwirq(struct irq_domain *d,
@@ -482,6 +489,7 @@ static irqreturn_t msm_mpm_irq(int irq, void *dev_id)
 	unsigned int mpm_irq;
 	struct irq_desc *desc = NULL;
 	unsigned int reg = MPM_REG_ENABLE;
+	bool pending_status;
 
 	for (i = 0; i < QCOM_MPM_REG_WIDTH; i++) {
 		value[i] = msm_mpm_read(reg, i);
@@ -502,15 +510,69 @@ static irqreturn_t msm_mpm_irq(int irq, void *dev_id)
 			desc = apps_irq ?
 				irq_to_desc(apps_irq) : NULL;
 
-			if (desc && !irqd_is_level_type(&desc->irq_data))
-				irq_set_irqchip_state(apps_irq,
+			if (desc && !irqd_is_level_type(&desc->irq_data)) {
+				irq_get_irqchip_state(apps_irq,
+						IRQCHIP_STATE_PENDING, &pending_status);
+
+				if (!pending_status)
+					irq_set_irqchip_state(apps_irq,
 						IRQCHIP_STATE_PENDING, true);
+			}
 
 		}
 
 	}
 	return IRQ_HANDLED;
 }
+
+#ifdef CONFIG_DEEPSLEEP
+static int mpm_suspend(void)
+{
+	int i;
+	unsigned int reg;
+
+	for (i = 0; i < QCOM_MPM_REG_WIDTH; i++) {
+		reg = MPM_REG_RISING_EDGE;
+		mpm_type_raising_edge[i] = msm_mpm_read(reg, i);
+
+		reg = MPM_REG_FALLING_EDGE;
+		mpm_type_falling_edge[i] = msm_mpm_read(reg, i);
+
+		reg = MPM_REG_POLARITY;
+		mpm_type_level[i] = msm_mpm_read(reg, i);
+
+		reg = MPM_REG_ENABLE;
+		mpm_enabled[i] =  msm_mpm_read(reg, i);
+	}
+
+	return 0;
+}
+
+static void mpm_resume(void)
+{
+	int i;
+	unsigned int reg;
+
+	for (i = 0; i < QCOM_MPM_REG_WIDTH; i++) {
+		reg = MPM_REG_RISING_EDGE;
+		msm_mpm_write(reg, i, mpm_type_raising_edge[i]);
+
+		reg = MPM_REG_FALLING_EDGE;
+		msm_mpm_write(reg, i, mpm_type_falling_edge[i]);
+
+		reg = MPM_REG_POLARITY;
+		msm_mpm_write(reg, i, mpm_type_level[i]);
+
+		reg = MPM_REG_ENABLE;
+		msm_mpm_write(reg, i, mpm_enabled[i]);
+	}
+}
+
+static struct syscore_ops mpm_syscore_ops = {
+	.suspend = mpm_suspend,
+	.resume = mpm_resume,
+};
+#endif
 
 static int msm_mpm_init(struct device_node *node)
 {
@@ -573,6 +635,10 @@ static int msm_mpm_init(struct device_node *node)
 		goto ipc_irq_err;
 	}
 
+#ifdef CONFIG_DEEPSLEEP
+	register_syscore_ops(&mpm_syscore_ops);
+#endif
+
 	return 0;
 
 ipc_irq_err:
@@ -625,7 +691,7 @@ const struct mpm_pin mpm_monaco_gic_chip_data[] = {
 };
 
 const struct mpm_pin mpm_trinket_gic_chip_data[] = {
-	{2, 190},
+	{2, 275},
 	{12, 422}, /* b3_lfps_rxterm_irq */
 	{86, 183}, /* mpm_wake,spmi_m */
 	{90, 260}, /* eud_p0_dpse_int_mx */

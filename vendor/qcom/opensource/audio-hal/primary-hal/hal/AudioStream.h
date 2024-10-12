@@ -414,7 +414,7 @@ const std::map<uint32_t, uint32_t> getAlsaSupportedFmt {
     {AUDIO_FORMAT_PCM_16_BIT,           AUDIO_FORMAT_PCM_16_BIT},
 };
 
-#ifdef SEC_AUDIO_SUPPORT_VOIP_MICMODE_DEFAULT
+#ifdef SEC_AUDIO_CALL_VOIP
 // refer to vendor/qcom/proprietary/mm-audio/ar-acdb/acdbdata/inc/kvh2xml.h
 const std::map<uint32_t, uint32_t> getVoipSampleRate {
     {8000,     0 /* VOIP_SR_NB */},
@@ -677,7 +677,7 @@ public:
     std::shared_ptr<SecAudioStreamOut> SecStreamOutInit();
     ssize_t isAndroidOutDevicesSize() {return mAndroidOutDevices.size();}
     int ForceRouteStream(const std::set<audio_devices_t>& new_devices);
-    int SetVideoCallEffectKvParams(int mode);
+    int SetVoipMicModeEffectKvParams(int mode);
 #ifdef SEC_AUDIO_SUPPORT_AFE_LISTENBACK
     int UpdateListenback(bool on);
     void CheckAndSwitchListenbackMode(bool on);
@@ -796,7 +796,7 @@ public:
 #ifdef SEC_AUDIO_COMMON
     audio_source_t GetInputSource() { return source_; }
     int ForceRouteStream(const std::set<audio_devices_t>& new_devices);
-    int SetVideoCallEffectKvParams(int mode);
+    int SetVoipMicModeEffectKvParams(int mode);
 #ifdef SEC_AUDIO_CALL_VOIP // { CONFIG_EFFECTS_VIDEOCALL
     int SetVideoCallEffectParams(int mode);
 #endif // } CONFIG_EFFECTS_VIDEOCALL

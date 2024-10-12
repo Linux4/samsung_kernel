@@ -40,6 +40,66 @@
 	status = "ok";
 };
 
+&battery_charger {
+	qcom,thermal-mitigation-step = <500000>;
+	#cooling-cells = <2>;
+};
+
+&pmic_glink_debug {
+	i2c@109 {
+		reg = <0x109>; /* I2C instance 9 in ADSP */
+		#address-cells = <1>;
+		#size-cells = <0>;
+		qcom,bus-type = "i2c";
+
+		qcom,smb1502@68 {
+			compatible = "qcom,i2c-pmic";
+			reg = <0x68>;
+			qcom,can-sleep;
+		};
+
+		qcom,smb1502@69 {
+			compatible = "qcom,i2c-pmic";
+			reg = <0x69>;
+			qcom,can-sleep;
+		};
+	};
+};
+
+&pmic_glink_adc {
+	status = "ok";
+
+	smb1502_1_iin {
+		reg = <0x1096801>;
+		label = "smb1502_1_iin";
+	};
+
+	smb1502_1_ichg {
+		reg = <0x1096802>;
+		label = "smb1502_1_ichg";
+	};
+
+	smb1502_1_die_temp {
+		reg = <0x1096803>;
+		label = "smb1502_1_die_temp";
+	};
+
+	smb1502_2_iin {
+		reg = <0x1096901>;
+		label = "smb1502_2_iin";
+	};
+
+	smb1502_2_ichg {
+		reg = <0x1096902>;
+		label = "smb1502_2_ichg";
+	};
+
+	smb1502_2_die_temp {
+		reg = <0x1096903>;
+		label = "smb1502_2_die_temp";
+	};
+};
+
 &qupv3_se0_spi {
 	#address-cells = <1>;
 	#size-cells = <0>;
@@ -76,6 +136,14 @@
 
 		goodix,touch-type = "primary";
 		goodix,qts_en;
+		qts,trusted-touch-mode = "vm_mode";
+		qts,touch-environment = "pvm";
+		qts,trusted-touch-type = "primary";
+		qts,trusted-touch-spi-irq = <666>;
+		qts,trusted-touch-io-bases = <0x880000 0x810000>;
+		qts,trusted-touch-io-sizes = <0x1000 0x4000>;
+		qts,trusted-touch-vm-gpio-list = <&tlmm 0 0 &tlmm 1 0 &tlmm 2 0
+						&tlmm 3 0 &tlmm 28 0 &tlmm 21 0x2008>;
 	};
 };
 
@@ -112,6 +180,9 @@
 	vccq2-supply = <&L2D>;
 	vccq2-max-microamp = <750000>;
 
+	qcom,vccq-shutdown-supply = <&L2D>;
+	qcom,vccq-shutdown-max-microamp = <750000>;
+
 	/* VDD_PX10 is voted for the ufs_reset_n */
 	qcom,vddp-ref-clk-supply = <&L5B>;
 	qcom,vddp-ref-clk-max-microamp = <100>;
@@ -141,6 +212,52 @@
 	pinctrl-1 = <&sdc2_off>;
 
 	cd-gpios = <&tlmm 9 GPIO_ACTIVE_LOW>;
+};
+
+&qupv3_se8_i2c {
+	status = "ok";
+
+	#address-cells = <1>;
+	#size-cells = <0>;
+	redriver: redriver@1c {
+		compatible = "onnn,redriver";
+		reg = <0x1c>;
+
+		lane-channel-swap;
+
+		pinctrl-names = "default";
+		pinctrl-0 = <&usb3phy_portselect_gpio>;
+		gpios = <&tlmm 83 0>;
+
+		eq = /bits/ 8 <
+				/* Parameters for USB */
+				0x4 0x6 0x6 0x4
+				/* Parameters for DP */
+				0x4 0x6 0x6 0x4>;
+		flat-gain = /bits/ 8 <
+				/* Parameters for USB */
+				0x3 0x3 0x3 0x3
+				/* Parameters for DP */
+				0x0 0x3 0x3 0x0>;
+		output-comp = /bits/ 8 <
+				/* Parameters for USB */
+				0x3 0x3 0x3 0x3
+				/* Parameters for DP */
+				0x3 0x3 0x3 0x3>;
+		loss-match = /bits/ 8 <
+				/* Parameters for USB */
+				0x1 0x3 0x3 0x1
+				/* Parameters for DP */
+				0x3 0x3 0x3 0x3>;
+	};
+};
+
+&usb_qmp_dp_phy {
+	pinctrl-names = "unused";
+};
+
+&usb0 {
+	ssusb_redriver = <&redriver>;
 };
 
 &qupv3_se8_i2c {

@@ -44,3 +44,9 @@ config SENSORS_LAF_FAILURE_DEBUG
 	default n
 	help
 	  This option enables error code collection.
+
+config SENSORS_VL53L8_SUPPORT_RESUME_WORK
+	tristate "VL53L8 work func to reduce resume time"
+	default n
+	help
+	  VL53L8 ranging sensor feature to reduce resume time.

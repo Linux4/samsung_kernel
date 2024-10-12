@@ -518,11 +518,17 @@ typedef struct {
 	cable_type == SEC_BATTERY_CABLE_PREPARE_WIRELESS_20 || \
 	cable_type == SEC_BATTERY_CABLE_WIRELESS_TX)
 
-#define is_wireless_type(cable_type) \
-	(is_hv_wireless_type(cable_type) || is_nv_wireless_type(cable_type))
+#define is_wireless_type(cable_type) ( \
+	is_hv_wireless_type(cable_type) || \
+	is_nv_wireless_type(cable_type))
 
-#define is_wireless_fake_type(cable_type) \
-	(is_wireless_type(cable_type) || (cable_type == SEC_BATTERY_CABLE_WIRELESS_FAKE))
+#define is_wireless_fake_type(cable_type) ( \
+	cable_type == SEC_BATTERY_CABLE_WIRELESS_FAKE || \
+	cable_type == SEC_BATTERY_CABLE_WIRELESS_EPP_FAKE)
+
+#define is_wireless_all_type(cable_type) ( \
+	is_wireless_type(cable_type) || \
+	is_wireless_fake_type(cable_type))
 
 #define is_not_wireless_type(cable_type) ( \
 	cable_type != SEC_BATTERY_CABLE_WIRELESS && \

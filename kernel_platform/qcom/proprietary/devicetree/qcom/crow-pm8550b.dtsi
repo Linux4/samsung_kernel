@@ -36,6 +36,11 @@
 	};
 };
 
+&pm8550b_bcl {
+	nvmem-cells = <&smb1510_present>;
+	nvmem-cell-names = "smb1510_present";
+};
+
 &pmk8550_vadc {
 	pinctrl-names = "default";
 	pinctrl-0 = <&sys_therm_2_gpio7_default &sys_therm_6_gpio10_default>;
@@ -65,9 +70,9 @@
 		qcom,pre-scaling = <1 1>;
 	};
 
-	pm8550b_sys_therm_7 {
+	pm8550b_sys_therm_8 {
 		reg = <PM8550B_ADC5_GEN3_AMUX_THM4_USB_THERM_100K_PU>;
-		label = "pm8550b_sys_therm_7";
+		label = "pm8550b_sys_therm_8";
 		qcom,ratiometric;
 		qcom,hw-settle-time = <200>;
 		qcom,pre-scaling = <1 1>;
@@ -105,7 +110,7 @@
 		};
 	};
 
-	sys-therm-7 {
+	sys-therm-8 {
 		polling-delay-passive = <0>;
 		polling-delay = <0>;
 		thermal-sensors = <&pmk8550_vadc PM8550B_ADC5_GEN3_AMUX_THM4_USB_THERM_100K_PU>;
@@ -137,22 +142,6 @@
 
 
 &thermal_zones {
-	pm8550b-ibat-lvl0 {
-		trips {
-			ibat-lvl0 {
-				temperature = <7000>;
-			};
-		};
-	};
-
-	pm8550b-ibat-lvl1 {
-		trips {
-			ibat-lvl1 {
-				temperature = <9000>;
-			};
-		};
-	};
-
 	socd {
 		cooling-maps {
 			socd_apc1 {
@@ -172,6 +161,34 @@
 		};
 	};
 
+	pm8550b-2s-ibat-0 {
+		polling-delay-passive = <0>;
+		polling-delay = <0>;
+		thermal-sensors = <&pm8550b_bcl 8>;
+
+		trips {
+			ibat_2s_lvl0: ibat-2s-lvl0 {
+				temperature = <5000>;
+				hysteresis = <200>;
+				type = "passive";
+			};
+		};
+	};
+
+	pm8550b-2s-ibat-1 {
+		polling-delay-passive = <0>;
+		polling-delay = <0>;
+		thermal-sensors = <&pm8550b_bcl 9>;
+
+		trips {
+			ibat_2s_lvl1: ibat-2s-lvl1 {
+				temperature = <7000>;
+				hysteresis = <200>;
+				type = "passive";
+			};
+		};
+	};
+
 	pm8550b-bcl-lvl0 {
 		cooling-maps {
 			lbat_0_mdm_lte {
@@ -187,11 +204,6 @@
 			lbat_0_nr {
 				trip = <&b_bcl_lvl0>;
 				cooling-device = <&modem_nr_dsc 6 6>;
-			};
-
-			lbat_cpu_4_5 {
-				trip = <&b_bcl_lvl0>;
-				cooling-device = <&cpu_4_5_pause 1 1>;
 			};
 
 			lbat_cdsp0 {
@@ -223,11 +235,6 @@
 				cooling-device = <&modem_nr_dsc 9 9>;
 			};
 
-			lbat_cpu_6_7 {
-				trip = <&b_bcl_lvl1>;
-				cooling-device = <&cpu_6_7_pause 1 1>;
-			};
-
 			lbat_cdsp1 {
 				trip = <&b_bcl_lvl1>;
 				cooling-device = <&cdsp_sw 4 4>;
@@ -235,7 +242,7 @@
 
 			lbat_gpu1 {
 				trip = <&b_bcl_lvl1>;
-				cooling-device = <&msm_gpu 4 4>;
+				cooling-device = <&msm_gpu 3 3>;
 			};
 		};
 	};
@@ -244,12 +251,12 @@
 		cooling-maps {
 			lbat_cdsp2 {
 				trip = <&b_bcl_lvl2>;
-				cooling-device = <&cdsp_sw 5 THERMAL_NO_LIMIT>;
+				cooling-device = <&cdsp_sw 7 7>;
 			};
 
 			lbat_gpu2 {
 				trip = <&b_bcl_lvl2>;
-				cooling-device = <&msm_gpu 5 THERMAL_NO_LIMIT>;
+				cooling-device = <&msm_gpu 7 7>;
 			};
 		};
 	};

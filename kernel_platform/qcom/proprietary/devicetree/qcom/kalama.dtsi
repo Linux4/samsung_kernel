@@ -29,6 +29,7 @@
 
 	chosen: chosen {
 			bootargs = "loglevel=6 kpti=0 log_buf_len=256K kernel.panic_on_rcu_stall=1 service_locator.enable=1 msm_rtb.filter=0x237 rcupdate.rcu_expedited=1 rcu_nocbs=0-7 swiotlb=noforce loop.max_part=7 fw_devlink.strict=1 allow_mismatched_32bit_el0 cpufreq.default_governor=performance printk.console_no_auto_verbose=1 kasan=off sysctl.kernel.sched_pelt_multiplier=4 can.stats_timer=0 pcie_ports=compat irqaffinity=0-2 disable_dma32=on no-steal-acc cgroup.memory=nokmem,nosocket";
+			stdout-path = "/soc/qcom,qupv3_1_geni_se@ac0000/qcom,qup_uart@a9c000";
 	};
 
 	reserved_memory: reserved-memory { };
@@ -324,6 +325,10 @@
 
 
 	soc: soc { };
+
+	sched_walt: sched_walt {
+		panic_on_walt_bug = <0x4544DE33>;
+	};
 };
 
 &reserved_memory {
@@ -681,7 +686,7 @@
 	ranges = <0 0 0 0xffffffff>;
 	compatible = "simple-bus";
 
-	disp_rdump_region {
+	disp_rdump_region@b8000000 {
 	};
 
 	dsi_pll_codes {
@@ -1374,6 +1379,10 @@
 		status = "ok";
 
 		memory-region = <&spss_region_mem>;
+
+		qcom,signal-aop;
+		qcom,qmp = <&aoss_qmp>;
+
 		qcom,spss-scsr-bits = <24 25>;
 		qcom,extra-size = <4096>;
 
@@ -1846,12 +1855,11 @@
 		operating-points-v2 = <&sdhc2_opp_table>;
 
 		qos0 {
-			mask = <0xf0>;
+			perf;
 			vote = <44>;
 		};
 
 		qos1 {
-			mask = <0x0f>;
 			vote = <44>;
 		};
 	};
@@ -1909,8 +1917,7 @@
 		phy-names = "ufsphy";
 		#reset-cells = <1>;
 
-		qcom,prime-mask = <0x80>;
-		qcom,silver-mask = <0x0f>;
+		qcom,dynamic-irq-affinity;
 		lanes-per-direction = <2>;
 		dev-ref-clk-freq = <0>; /* 19.2 MHz */
 		clock-names =
@@ -2021,13 +2028,11 @@
 
 		status = "disabled";
 		qos0 {
-			mask = <0xf0>;
 			vote = <44>;
 			perf;
 		};
 
 		qos1 {
-			mask = <0x0f>;
 			vote = <44>;
 		};
 	};

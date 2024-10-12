@@ -63,6 +63,8 @@
 #include "vl53l8_k_module_data.h"
 #include "vl53l8_k_user_data.h"
 
+int vl53l8_get_firmware_version(struct vl53l8_k_module_t *p_module, struct vl53l8_k_version_t *p_version);
+int vl53l8_ioctl_get_version(struct vl53l8_k_module_t *p_module, void __user *p);
 int vl53l8_ioctl_init(struct vl53l8_k_module_t *p_module);
 
 int vl53l8_ioctl_term(struct vl53l8_k_module_t *p_module);
@@ -147,16 +149,13 @@ int vl53l8_ioctl_set_transfer_speed_hz(struct vl53l8_k_module_t *p_module,
 					 void __user *p);
 #endif
 #ifdef STM_VL53L5_SUPPORT_SEC_CODE
-#define IOVDD	0
-#define AVDD	1
-#define COREVDD	2
 #ifdef CONFIG_SEPARATE_IO_CORE_POWER
 #define ALL_VDD_ENABLED 0x7
 #else
 #define ALL_VDD_ENABLED 0x3
 #endif
 #ifdef CONFIG_SENSORS_LAF_FAILURE_DEBUG
-int vl53l8_check_ldo_onoff(struct vl53l8_k_module_t *data);
+void vl53l8_check_ldo_onoff(struct vl53l8_k_module_t *data);
 #endif
 #ifdef CONFIG_SEPARATE_IO_CORE_POWER
 int vl53l8_regulator_init_state(struct vl53l8_k_module_t *data);
