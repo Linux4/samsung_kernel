@@ -55,5 +55,6 @@ int init_led_cover_event(bool en);
 int init_thermistor(bool en);
 int init_device_orientation(bool en);
 int init_device_orientation_wu(bool en);
+int init_sar_backoff_motion(bool en);
 
 #endif

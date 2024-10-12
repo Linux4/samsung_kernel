@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
 /*
  *
- * (C) COPYRIGHT 2010-2021 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2010-2022 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -1486,6 +1486,9 @@ static int kbasep_kcpu_queue_enqueue(struct kbase_context *kctx,
 static int kbasep_cs_tiler_heap_init(struct kbase_context *kctx,
 		union kbase_ioctl_cs_tiler_heap_init *heap_init)
 {
+	if (heap_init->in.group_id >= MEMORY_GROUP_MANAGER_NR_GROUPS)
+		return -EINVAL;
+
 	kctx->jit_group_id = heap_init->in.group_id;
 
 	return kbase_csf_tiler_heap_init(kctx, heap_init->in.chunk_size,
@@ -2067,6 +2070,9 @@ static ssize_t kbase_read(struct file *filp, char __user *buf, size_t count, lof
 	if (unlikely(!kctx))
 		return -EPERM;
 
+	if (count < data_size)
+		return -ENOBUFS;
+
 	if (atomic_read(&kctx->event_count))
 		read_event = true;
 	else
@@ -2111,6 +2117,8 @@ static ssize_t kbase_read(struct file *filp, char __user *buf, size_t count, lof
 
 	if (count < sizeof(uevent))
 		return -ENOBUFS;
+
+	memset(&uevent, 0, sizeof(uevent));
 
 	do {
 		while (kbase_event_dequeue(kctx, &uevent)) {

@@ -59,6 +59,7 @@ shub-y += sensor/super.o
 shub-y += sensor/thermistor.o
 shub-y += sensor/pocket_mode.o
 shub-y += sensor/device_orientation.o
+shub-y += sensor/sar_backoff_motion.o
 
 shub-y += sensor/physical_sensor/accelerometer/accelerometer_icm42605m.o
 shub-y += sensor/physical_sensor/accelerometer/accelerometer_lsm6dsl.o

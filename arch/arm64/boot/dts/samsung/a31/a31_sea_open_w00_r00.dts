@@ -685,7 +685,7 @@
 	};
 };
 
-/* /home/dpi/qb5_8815/workspace/P4_1716/android/kernel/kmodule/sensorhub/mtk/mt6768_shub/dts/sensorhub_mt6768_shub.a31.dtsi */
+/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/sensorhub/mtk/mt6768_shub/dts/sensorhub_mt6768_shub.a31.dtsi */
 / {
 	fragment@model {
 		target-path = "/";
@@ -706,7 +706,7 @@
 	};
 };
 
-/* /home/dpi/qb5_8815/workspace/P4_1716/android/kernel/kmodule/sensorhub/mtk/mt6768_shub/dts/sensorhub_mt6768_shub.a31_sea_open.00.dtsi */
+/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/sensorhub/mtk/mt6768_shub/dts/sensorhub_mt6768_shub.a31_sea_open.00.dtsi */
 / {
 	fragment@model {
 		target-path = "/";
@@ -1356,7 +1356,7 @@
 	};
 };
 
-/* /home/dpi/qb5_8815/workspace/P4_1716/android/kernel/kmodule/hwmon/sec_thermistor/sec_thermistor_mtk.a31.dtsi */
+/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/hwmon/sec_thermistor/sec_thermistor_mtk.a31.dtsi */
 &sec_ap_thermistor {
 	use_iio_processed;
 	adc_array = <106 123 172 204 240 293 354 426 511 577
@@ -1980,7 +1980,7 @@
 		};
 };
 
-/* /home/dpi/qb5_8815/workspace/P4_1716/android/kernel/kmodule/battery/fuelgauge/s2mu106_fuelgauge/s2mu106_fuelgauge.a31.dtsi */
+/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/battery/fuelgauge/s2mu106_fuelgauge/s2mu106_fuelgauge.a31.dtsi */
 
 &s2mu106_fuelgauge {
 		fuelgauge,low_voltage_limit_lowtemp = <3100>;
@@ -2174,7 +2174,7 @@
 };
 
 
-/* /home/dpi/qb5_8815/workspace/P4_1716/android/kernel/kmodule/battery/charger/s2mu106_charger/s2mu106_charger.a31.dtsi */
+/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/battery/charger/s2mu106_charger/s2mu106_charger.a31.dtsi */
 
 &s2mu106_charger {
 		charger,mrstbtmr_factory = <2>;
@@ -2498,7 +2498,7 @@
 	};
 };
 
-/* /home/dpi/qb5_8815/workspace/P4_1716/android/kernel/kmodule/battery/common/dts/battery_common.a31.dtsi */
+/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/battery/common/dts/battery_common.a31.dtsi */
 &sec_battery {
 	pinctrl-names = "default";
 

@@ -79,6 +79,7 @@ init_sensor init_sensor_funcs[] = {
 	init_led_cover_event,
 	init_device_orientation,
 	init_device_orientation_wu,
+	init_sar_backoff_motion,
 };
 
 static int make_sensor_instance(void)

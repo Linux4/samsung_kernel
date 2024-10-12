@@ -9,7 +9,7 @@
 	};
 };
 
-/* /home/dpi/qb5_8815/workspace/P4_1716/android/kernel/kmodule/sensorhub/mtk/mt6768_shub/dts/sensorhub_mt6768_shub.a31.dtsi */
+/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/sensorhub/mtk/mt6768_shub/dts/sensorhub_mt6768_shub.a31.dtsi */
 / {
 	fragment@model {
 		target-path = "/";
@@ -30,7 +30,7 @@
 	};
 };
 
-/* /home/dpi/qb5_8815/workspace/P4_1716/android/kernel/kmodule/sensorhub/mtk/mt6768_shub/dts/sensorhub_mt6768_shub.a31.03.dtsi */
+/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/sensorhub/mtk/mt6768_shub/dts/sensorhub_mt6768_shub.a31.03.dtsi */
 / {
 	fragment@model {
 		target-path = "/";
@@ -51,7 +51,7 @@
 	};
 };
 
-/* /home/dpi/qb5_8815/workspace/P4_1716/android/kernel/kmodule/sensorhub/mtk/mt6768_shub/dts/sensorhub_mt6768_shub.a31_sea_open.00.dtsi */
+/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/sensorhub/mtk/mt6768_shub/dts/sensorhub_mt6768_shub.a31_sea_open.00.dtsi */
 / {
 	fragment@model {
 		target-path = "/";
