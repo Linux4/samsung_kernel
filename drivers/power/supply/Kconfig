@@ -591,6 +591,14 @@ config CHARGER_SC89890H
 	  Say Y to include support for SC SC89890H Battery Charger.
 # Tab A7 Lite T618 code for SR-AX6189A-01-103 by shixuanxuan at 20220105 end
 
+# Tab A8 code for AX6300U-207 by  lina at 20240205 start
+config GXY_TIME_TO_FULL_NOW
+	bool "Using gxy time to full feature"
+	default n
+	help
+	  Say Y to include support for the gxy battery time to full..
+# Tab A8 code for AX6300U-207 by  lina at 20240205 end
+
 config CHARGER_SMB347
 	tristate "Summit Microelectronics SMB347 Battery Charger"
 	depends on I2C

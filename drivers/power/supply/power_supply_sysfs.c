@@ -111,7 +111,11 @@ static const char * const power_supply_capacity_level_text[] = {
 static const char * const power_supply_scope_text[] = {
 	"Unknown", "System", "Device"
 };
-
+/* Tab A8 code for AX6300U-207 by  lina at 20240205 start */
+static char power_supply_protection_mode[32] = {
+	"100"
+};
+/* Tab A8 code for AX6300U-207 by  lina at 20240205 end */
 static ssize_t power_supply_show_usb_type(struct device *dev,
 					  enum power_supply_usb_type *usb_types,
 					  ssize_t num_usb_types,
@@ -225,6 +229,9 @@ static ssize_t power_supply_store_property(struct device *dev,
 /* Tab A8 code for P211103-05531 by qiaodan at 20211112 start */
 #ifndef HQ_FACTORY_BUILD //ss version
 	int store_mode = 0;
+	/* Tab A8 code for AX6300U-207 by  lina at 20240205 start */
+	char *type_str = NULL;
+	/* Tab A8 code for AX6300U-207 by  lina at 20240205 end */
 #endif
 /* Tab A8 code for P211103-05531 by qiaodan at 20211112 end */
 	/* maybe it is a enum property? */
@@ -259,6 +266,16 @@ static ssize_t power_supply_store_property(struct device *dev,
 		break;
 #endif
 /* Tab A8 code for P211103-05531 by qiaodan at 20211112 end */
+	/* Tab A8 code for AX6300U-207 by  lina at 20240205 start */
+	#if !defined(HQ_FACTORY_BUILD)
+	case POWER_SUPPLY_PROP_BATT_FULL_CAPACITY:
+		strncpy(power_supply_protection_mode, buf, count);
+		power_supply_protection_mode[count] = '\0';
+		type_str = power_supply_protection_mode;
+		dev_info(dev, "power_supply_protection_mode= %s \n", type_str);
+		break;
+	#endif
+	/* Tab A8 code for AX6300U-207 by  lina at 20240205 end */
 	default:
 		ret = -EINVAL;
 	}
@@ -276,8 +293,17 @@ static ssize_t power_supply_store_property(struct device *dev,
 
 		ret = long_val;
 	}
-
+	/* Tab A8 code for AX6300U-207 by  lina at 20240205 start */
+	#if !defined(HQ_FACTORY_BUILD)
+	if (type_str != NULL) {
+		value.strval = type_str;
+	} else {
+		value.intval = ret;
+	}
+	#else
 	value.intval = ret;
+	#endif
+	/* Tab A8 code for AX6300U-207 by  lina at 20240205 end */
 
 	ret = power_supply_set_property(psy, off, &value);
 	if (ret < 0)
@@ -438,6 +464,11 @@ static struct device_attribute power_supply_attrs[] = {
 	POWER_SUPPLY_ATTR(en_batt_protect),
 	#endif
 	/* HS03 code for SR-SL6215-01-255 by shixuanxuan at 20210902 end */
+    /* Tab A8 code for AX6300U-207 by  lina at 20240205 start */
+	#if !defined(HQ_FACTORY_BUILD)
+	POWER_SUPPLY_ATTR(batt_soc_rechg),
+	#endif
+  	/* Tab A8 code for AX6300U-207 by  lina at 20240205 end */
 	/* Local extensions of type int64_t */
 	POWER_SUPPLY_ATTR(charge_counter_ext),
 	/* Properties of type `const char *' */

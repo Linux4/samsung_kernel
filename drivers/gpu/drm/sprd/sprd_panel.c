@@ -597,6 +597,7 @@ static const struct drm_panel_funcs sprd_panel_funcs = {
 static int sprd_panel_esd_check(struct sprd_panel *panel)
 {
 	struct panel_info *info = &panel->info;
+	struct sprd_dsi *dsi;
 	/*Tab A8 code for AX6300DEV-875 by fengzhigang at 20210926 start*/
 	u8 read_val[16] = {0x00};
 	int i = 0;
@@ -607,7 +608,17 @@ static int sprd_panel_esd_check(struct sprd_panel *panel)
 
 	if (!panel->base.connector ||
 	    !panel->base.connector->encoder ||
-	    !panel->base.connector->encoder->crtc) {
+	    !panel->base.connector->encoder->crtc ||
+	    (panel->base.connector->encoder->crtc->state &&
+	    !panel->base.connector->encoder->crtc->state->active)) {
+		mutex_unlock(&panel_lock);
+		DRM_INFO("skip esd during panel suspend\n");
+		return 0;
+	}
+
+	dsi = container_of(panel->base.connector, struct sprd_dsi, connector);
+	if (!dsi->ctx.is_inited) {
+		DRM_WARN("dsi is not initialized, skip esd check\n");
 		mutex_unlock(&panel_lock);
 		return 0;
 	}
@@ -698,15 +709,29 @@ static int sprd_panel_te_check(struct sprd_panel *panel)
 {
 	static int te_wq_inited;
 	struct sprd_dpu *dpu;
+	struct sprd_dsi *dsi;
 	int ret;
 	bool irq_occur = false;
 
 	mutex_lock(&panel_lock);
+
 	if (!panel->base.connector ||
 	    !panel->base.connector->encoder ||
-	    !panel->base.connector->encoder->crtc) {
+	    !panel->base.connector->encoder->crtc ||
+	    (panel->base.connector->encoder->crtc->state &&
+	    !panel->base.connector->encoder->crtc->state->active)) {
 	/*Tab A8 code for AX6300DEV-875 by fengzhigang at 20210926 start*/
 		mutex_unlock(&panel_lock);
+		DRM_INFO("skip esd during panel suspend\n");
+		return 0;
+	}
+
+	dsi = container_of(panel->base.connector, struct sprd_dsi, connector);
+	if (!dsi->ctx.is_inited) {
+		DRM_WARN("dsi is not initialized，skip esd check\n");
+		/* Tab A8 code for AX6300U-83 by tangzhen at 20231019 start */
+		mutex_unlock(&panel_lock);
+		/* Tab A8 code for AX6300U-83 by tangzhen at 20231019 end */
 		return 0;
 	}
 

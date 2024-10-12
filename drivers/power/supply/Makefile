@@ -126,3 +126,6 @@ obj-$(CONFIG_CHARGER_BQ25910) += bq25910_charger.o
 # HS03 code for SR-SL6215-01-177 by jiahao at 20210810 start
 obj-$(CONFIG_CHARGER_RT9471)	+= rt9471_charger.o
 # HS03 code for SR-SL6215-01-177 by jiahao at 20210810 end
+# Tab A8 code for AX6300U-207 by  lina at 20240205 start
+obj-$(CONFIG_GXY_TIME_TO_FULL_NOW)	+= gxy_battery_ttf.o
+# Tab A8 code for AX6300U-207 by  lina at 20240205 end

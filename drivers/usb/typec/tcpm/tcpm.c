@@ -437,6 +437,31 @@ static bool tcpm_port_is_disconnected(struct tcpm_port *port)
 				    port->cc2 == TYPEC_CC_OPEN)));
 }
 
+/* Tab A8_U code for AX6300U-203 by liufurong at 20231212 start */
+void sprd_tcpm_source_pdo_switch(struct tcpm_port *port, int mv, int ma)
+{
+	unsigned long flags = 0;
+	int ret = 0;
+
+	if (!port) {
+		pr_err("%s tcpm_sysfs->port is null\n", __func__);
+		return;
+	}
+	flags |= (GENMASK(29,25) & port->src_pdo[0]);
+
+	port->src_pdo[0] = PDO_FIXED(mv, ma, flags);
+	ret = tcpm_update_source_capabilities(port,port->src_pdo,1);
+	if (ret < 0) {
+		pr_err("%s: tcpm_update_source_capabilities fail\n", __func__);
+		return;
+	}
+
+	pr_err("%s source_pdo mv = %d ma = %d success\n", __func__, mv,ma);
+	return;
+}
+EXPORT_SYMBOL_GPL(sprd_tcpm_source_pdo_switch);
+/* Tab A8_U code for AX6300U-203 by liufurong at 20231212 end */
+
 /*
  * Logging
  */
@@ -5357,7 +5382,6 @@ struct tcpm_port *tcpm_register_port(struct device *dev, struct tcpc_dev *tcpc)
 			paltmode++;
 		}
 	}
-
 	mutex_lock(&port->lock);
 	tcpm_init(port);
 	mutex_unlock(&port->lock);

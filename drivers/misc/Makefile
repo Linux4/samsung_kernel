@@ -99,6 +99,9 @@ obj-$(CONFIG_INPUT_HX9031A) += sar/hx9031/
 #Tab A8 code for AX6300DEV-457 by mayuhang at 2021/9/18 start
 obj-y += sensors_class/
 #Tab A8 code for AX6300DEV-457 by mayuhang at 2021/9/18 end
+# Tab A8_U code for SR-AX6300U-01-1 by wentao at 2023/7/26 start
+obj-$(CONFIG_INPUT_HX9031A) += sar/
+# Tab A8_U code for SR-AX6300U-01-1 by wentao at 2023/7/26 end
 # HS03 code for P211007-03235 by zhangziyi at 2021/10/12 start
 obj-$(CONFIG_LED_SC27XX_VIBRA) += vibrator/
 # HS03 code for P211007-03235 by zhangziyi at 2021/10/12 end

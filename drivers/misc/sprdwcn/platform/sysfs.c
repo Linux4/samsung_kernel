@@ -47,7 +47,7 @@ int notify_at_cmd_finish(void *buf, unsigned char len)
 	return 0;
 }
 
-int wcn_send_atcmd(void *cmd, unsigned char cmd_len,
+int wcn_send_atcmd(void *cmd, size_t cmd_len,
 		   void *response, size_t *response_len)
 {
 	struct mbuf_t *head = NULL;
@@ -82,6 +82,12 @@ int wcn_send_atcmd(void *cmd, unsigned char cmd_len,
 		return 0;
 	}
 #endif
+
+	if (cmd_len > 128) {
+		WCN_ERR("%s:cmd_len %ld should not be larger than 128\n", __func__, cmd_len);
+		return -1;
+	}
+
 	mutex_lock(&sysfs_info.mutex);
 	ret = sprdwcn_bus_list_alloc(0, &head, &tail, &num);
 	if (ret || head == NULL || tail == NULL) {

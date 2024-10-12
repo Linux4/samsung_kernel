@@ -1,0 +1,1 @@
+obj-$(CONFIG_INPUT_HX9031A) += sensor_user_node.o

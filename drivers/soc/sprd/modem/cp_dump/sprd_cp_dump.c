@@ -244,6 +244,10 @@ static int cp_dump_set_something(struct cp_dump_device *cp_dump,
 				current->comm);
 		return -EBUSY;
 	}
+	
+	if (strcmp(current->comm, "modem_control") && strcmp(current->comm, "cp_dump_dbg"))
+		return -EPERM;
+	
 	if (copy_from_user(to, (void __user *)arg, _IOC_SIZE(cmd)))
 		return -EFAULT;
 

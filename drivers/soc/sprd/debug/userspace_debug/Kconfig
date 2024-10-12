@@ -1,0 +1,7 @@
+config SHOW_UREGS_WITH_PHYSICAL
+	bool "Show user regs with their physcial address"
+	depends on ARM64
+        default y
+	help
+	  This option enables process show user regs with their physcial
+          address before coredump

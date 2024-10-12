@@ -635,7 +635,6 @@ static int vbc_normal_suspend(void)
 		return 0;
 	}
 	pr_info("%s send shutdown\n", __func__);
-	normal_vbc_protect_mutex_lock(stream);
 	normal_vbc_protect_spin_lock(stream);
 	set_normal_p_running_status(SNDRV_PCM_STREAM_PLAYBACK, false);
 	normal_vbc_protect_spin_unlock(stream);

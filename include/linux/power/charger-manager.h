@@ -810,6 +810,10 @@ struct charger_desc {
 	/* Tab A8 code for P220915-04436  and AX6300TDEV-163 by  xuliqin at 20220920 start */
 #if !defined(HQ_FACTORY_BUILD)
 	int batt_full_cap;
+	/* Tab A8 code for AX6300U-207 by  lina at 20240205 start */
+	bool gxy_batt_soc_rechg;
+	BATT_PROTECTION_T batt_protection_mode;
+	/* Tab A8 code for AX6300U-207 by  lina at 20240205 end */
 #endif
 	/* Tab A8 code for P220915-04436 and AX6300TDEV-163 by  xuliqin at 20220920 end */
 };
@@ -889,6 +893,9 @@ struct charger_manager {
 	u64 charging_end_time;
 	u32 charging_status;
 	int battery_status;
+	/* TabA8_U code for P231127-08057 by liufurong at 20231205 start */
+	int batt_slate_mode;
+	/* TabA8_U code for P231127-08057 by liufurong at 20231205 end */
 	/* HS03 code for SR-SL6215-01-238 by qiaodan at 20210802 start */
 	bool input_suspend;
 	bool power_path_enabled;

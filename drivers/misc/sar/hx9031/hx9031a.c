@@ -44,6 +44,9 @@
 #include "hx9031a.h"
 #include <linux/fs.h>
 #include <linux/notifier.h>
+/*Tab A8_U code for SR-AX6300U-01-1 by wentao at 2023/7/26 start*/
+#include "../sensor_user_node.h"
+/*Tab A8_U code for SR-AX6300U-01-1 by wentao at 2023/7/26 end*/
 /*Tab A8 code for AX6300DEV-1840 by mayuhang at 2021/10/21 start*/
 #define SDCARD_INSERT_EVENT 0x1U
 RAW_NOTIFIER_HEAD(sdcard_hx9031_notify);
@@ -97,6 +100,10 @@ static struct wake_lock hx9031a_wake_lock;
 /*Tab A8_T code for SR-AX6301A-01-112 by lichang at 2022/10/18 start*/
 static int anfr_status = 1;
 static int irq_count = 0;
+/*Tab A8_U code for SR-AX6300U-01-1 by wentao at 2023/7/26 start*/
+//true = on; false = off;
+static bool g_onoff_flag = true;
+/*Tab A8_U code for SR-AX6300U-01-1 by wentao at 2023/7/26 end*/
 /*Tab A8_T code for SR-AX6301A-01-112 by lichang at 2022/10/18 end*/
 
 /* Tab A8 code for AX6300DEV-735 by mayuhang at 2021/9/23 start */
@@ -805,6 +812,134 @@ void self_cali(void)
 const int g_anfr_event = 1;
 const int g_noanfr_event = 2;
 
+/*Tab A8_U code for SR-AX6300U-01-1 by wentao at 2023/7/26 start*/
+static void hx9031a_onoff_enablereport(void)
+{
+    int ii = 0;
+    uint8_t touch_state = 0;
+    int num_channels = 0;
+    struct input_dev *input = NULL;
+    struct hx9031a_channel_info *channel_p  = NULL;
+
+    num_channels = ARRAY_SIZE(hx9031a_channels);
+
+    if (unlikely(NULL == hx9031a_channels)) {
+        PRINT_ERR("hx9031a_channels==NULL!!!\n");
+        return;
+    }
+    if (!g_onoff_flag) {
+        PRINT_ERR("%s:hx9031 onoff sar off\n", __func__);
+        return ;
+    }
+    if (irq_count <= IRQ_EXIT_NUM && anfr_status == 1) {
+        PRINT_ERR("lc_self_cali  irq_count = %d\n",irq_count);
+        irq_count++;
+        self_cali();
+    }
+    PRINT_ERR("lc_anfr_status = %d\n",anfr_status);
+
+    for (ii = 0; ii < num_channels; ii++) {
+        if (false == hx9031a_channels[ii].enabled) {
+            PRINT_DBG("ch_%d(name:%s) is disabled, nothing report\n", ii, hx9031a_channels[ii].name);
+            continue;
+        }
+        if (false == hx9031a_channels[ii].used) {
+            PRINT_DBG("ch_%d(name:%s) is unused, nothing report\n", ii, hx9031a_channels[ii].name);
+            continue;
+        }
+        channel_p = &hx9031a_channels[ii];
+        if (NULL == channel_p) {
+            PRINT_ERR("ch_%d is NULL!!!\n", ii);
+            return;
+        }
+        input = channel_p->hx9031a_input_dev;
+        if (NULL == input) {
+            PRINT_ERR("ch_%d input device is NULL!!!\n", ii);
+            return;
+        }
+        if (anfr_status == SELF_CALI_NUM) {
+            PRINT_ERR("LC_SELF\n");
+            input_report_abs(input, ABS_DISTANCE, 0);
+            input_report_rel(input, REL_X, g_anfr_event);
+            input_sync(input);
+        } else {
+            PRINT_ERR("LC_recover\n");
+            touch_state = hx9031a_pdata.prox_state_reg >> ii & 0x1;
+            if (BODYACTIVE == touch_state) {
+                if (channel_p->state == BODYACTIVE)
+                    PRINT_DBG("%s already BODYACTIVE, nothing report\n", channel_p->name);
+                else {
+    #ifdef CONFIG_PM_WAKELOCKS
+                    __pm_wakeup_event(&hx9031a_wake_lock, 1000);
+    #else
+                    wake_lock_timeout(&hx9031a_wake_lock, HZ * 1);
+    #endif
+                    if(0 == ii){
+                            input_report_abs(input, ABS_DISTANCE, 0);
+                            input_report_rel(input, REL_X, g_noanfr_event);
+                            input_sync(input);
+                    }else if(1 == ii){
+                            input_report_abs(input, ABS_DISTANCE, 0);
+                            input_report_rel(input, REL_X, g_noanfr_event);
+                            input_sync(input);
+                    }else if(2 == ii){
+                            input_report_abs(input, ABS_DISTANCE, 0);
+                            input_report_rel(input, REL_X, g_noanfr_event);
+                            input_sync(input);
+                    }
+                    channel_p->state = BODYACTIVE;
+                    PRINT_DBG("%s report BODYACTIVE(5mm)\n", channel_p->name);
+                }
+            } else if (PROXACTIVE == touch_state) {
+    #ifdef CONFIG_PM_WAKELOCKS
+                    __pm_wakeup_event(&hx9031a_wake_lock, 1000);
+    #else
+                    wake_lock_timeout(&hx9031a_wake_lock, HZ * 1);
+    #endif
+                    if(0 == ii){
+                            input_report_abs(input, ABS_DISTANCE, 0);
+                            input_report_rel(input, REL_X, g_noanfr_event);
+                            input_sync(input);
+                    }else if(1 == ii){
+                            input_report_abs(input, ABS_DISTANCE, 0);
+                            input_report_rel(input, REL_X, g_noanfr_event);
+                            input_sync(input);
+                    }else if(2 == ii){
+                            input_report_abs(input, ABS_DISTANCE, 0);
+                            input_report_rel(input, REL_X, g_noanfr_event);
+                            input_sync(input);
+                    }
+                    channel_p->state = PROXACTIVE;
+                    PRINT_DBG("%s report PROXACTIVE(15mm)\n", channel_p->name);
+            } else if (IDLE == touch_state) {
+    #ifdef CONFIG_PM_WAKELOCKS
+                    __pm_wakeup_event(&hx9031a_wake_lock, 1000);
+    #else
+                    wake_lock_timeout(&hx9031a_wake_lock, HZ * 1);
+    #endif
+                    if(0 == ii){
+                            input_report_abs(input, ABS_DISTANCE, 5);
+                            input_report_rel(input, REL_X, g_noanfr_event);
+                            input_sync(input);
+                    }else if(1 == ii){
+                            input_report_abs(input, ABS_DISTANCE, 5);
+                            input_report_rel(input, REL_X, g_noanfr_event);
+                            input_sync(input);
+                    }else if(2 == ii){
+                            input_report_abs(input, ABS_DISTANCE, 5);
+                            input_report_rel(input, REL_X, g_noanfr_event);
+                            input_sync(input);
+                    }
+                    channel_p->state = IDLE;
+                    PRINT_DBG("%s report released\n", channel_p->name);
+            } else {
+                PRINT_ERR("unknow touch state! touch_state=%d\n", touch_state);
+            }
+        }
+    }
+}
+/*Tab A8_U code for SR-AX6300U-01-1 by wentao at 2023/7/26 end*/
+
 static void hx9031a_input_report(void)
 {
     int ii = 0;
@@ -819,7 +954,12 @@ static void hx9031a_input_report(void)
         PRINT_ERR("hx9031a_channels==NULL!!!\n");
         return;
     }
-
+    /*Tab A8_U code for SR-AX6300U-01-1 by wentao at 2023/7/26 start*/
+    if (!g_onoff_flag) {
+        PRINT_ERR("%s:hx9031 onoff sar off\n", __func__);
+        return ;
+    }
+    /*Tab A8_U code for SR-AX6300U-01-1 by wentao at 2023/7/26 end*/
     /*Tab A8_T code for SR-AX6301A-01-112 by lichang at 2022/10/18 start*/
     if (irq_count <= IRQ_EXIT_NUM && anfr_status == 1) {
         PRINT_ERR("lc_self_cali  irq_count = %d\n",irq_count);
@@ -1260,6 +1400,13 @@ static int hx9031a_set_enable(struct sensors_classdev *sensors_cdev, unsigned in
                 /* Tab A8 code for AX6300DEV-3809 by xiongxiaoliang at 2021/12/16 start */
                 hx9031a_sample();
                 hx9031a_get_prox_state(data_diff, HX9031A_CH_NUM);
+                /*Tab A8_U code for SR-AX6300U-01-1 by wentao at 2023/7/26 start*/
+                if (!g_onoff_flag) {
+                    PRINT_ERR("%s:hx9031 onoff sar off\n", __func__);
+                    mutex_unlock(&hx9031a_ch_en_mutex);
+                    return 0;
+                }
+                /*Tab A8_U code for SR-AX6300U-01-1 by wentao at 2023/7/26 end*/
                 /*Tab A8_T code for SR-AX6301A-01-112 by lichang at 2022/10/18 start*/
                 if (anfr_status == 1) {
                     PRINT_ERR("lc_enable\n");
@@ -2274,6 +2421,36 @@ int sdcard_calibration_func(struct notifier_block *nb, unsigned long event, void
     return 0;
 }
 
+/*Tab A8_U code for SR-AX6300U-01-1 by wentao at 2023/7/26 start*/
+ssize_t hx9031a_set_onoff(const char *buf, size_t count)
+{
+    if (!strncmp(buf, "1", 1)) {
+        g_onoff_flag = true;
+        hx9031a_onoff_enablereport();
+        pr_err("%s :set %d on success", __func__, g_onoff_flag);
+    } else if (!strncmp(buf, "0", 1)) {
+        g_onoff_flag = false;
+        if (hx9031a_channels[0].enabled || hx9031a_channels[1].enabled || hx9031a_channels[2].enabled) {
+            input_report_abs(hx9031a_channels[0].hx9031a_input_dev, ABS_DISTANCE, 5);
+            input_report_abs(hx9031a_channels[1].hx9031a_input_dev, ABS_DISTANCE, 5);
+            input_report_abs(hx9031a_channels[2].hx9031a_input_dev, ABS_DISTANCE, 5);
+            input_sync(hx9031a_channels[0].hx9031a_input_dev);
+            input_sync(hx9031a_channels[1].hx9031a_input_dev);
+            input_sync(hx9031a_channels[2].hx9031a_input_dev);
+        }
+    } else {
+        pr_err("Invalid");
+    }
+    return count;
+}
+
+ssize_t hx9031a_get_onoff(char *buf)
+{
+    return snprintf(buf, 8,"%d\n",g_onoff_flag);
+}
+/*Tab A8_U code for SR-AX6300U-01-1 by wentao at 2023/7/26 end*/
+
+
 /*Tab A8 code for AX6300DEV-1840 by mayuhang at 2021/10/21 end*/
 void sar_usb_callback_init(void)
 {
@@ -2443,6 +2620,10 @@ static int hx9031a_probe(struct i2c_client *client, const struct i2c_device_id *
             }
         }
     }
+    /*Tab A8_U code for SR-AX6300U-01-1 by wentao at 2023/7/26 start*/
+    sar_func.set_onoff = hx9031a_set_onoff;
+    sar_func.get_onoff = hx9031a_get_onoff;
+    /*Tab A8_U code for SR-AX6300U-01-1 by wentao at 2023/7/26 end*/
     spin_lock_init(&hx9031a_pdata.lock);
     INIT_DELAYED_WORK(&hx9031a_pdata.polling_work, hx9031a_polling_work_func);
     /*Tab A8 code for SR-AX6300-01-80 by mayuhang at 2021/8/21 start*/

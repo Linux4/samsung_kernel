@@ -165,6 +165,54 @@ int str_to_u8_array(const char *p, u32 base, u8 array[], u8 size)
 }
 EXPORT_SYMBOL_GPL(str_to_u8_array);
 
+bool parse_ctm(int16_t ctm_final[12], struct drm_color_ctm *ctm)
+{
+	int16_t ctm_hwc[16];
+	int i, j;
+	int k = 0;
+	int16_t ctm_unisoc[12];
+
+	/*
+	 * ctm->matrix[8] means whether ctm has changed, 0 means samed as last
+	 */
+	if (!ctm->matrix[8])
+		return 1;
+	ctm->matrix[8] = 0;
+
+	/*
+	 * ctm->matrix[j] is combined by two elements of colorMatrix in hwc hal,
+	 * so need to be parsed here
+	 */
+	for (j = 0; j < 16; j += 2) {
+		ctm_hwc[j] = (int16_t)(ctm->matrix[j / 2] & 0xffff);
+		ctm_hwc[j+1] = (int16_t)((ctm->matrix[j / 2] >> 16) & 0xffff);
+	}
+
+	/*
+	 * there are 16 elements in colorMatrix from hwc-hal,
+	 * however only 12 elements in unisoc colorMatrix
+	 */
+	for (i = 0; i < 16; i++) {
+		if ((i + 1) % 4 == 0)
+			continue;
+		ctm_unisoc[k] = ctm_hwc[i];
+		k++;
+	}
+
+	/*
+	 * the order of colorMatrix is different between hwc-hal and unisoc,
+	 * so they need to correspond
+	 */
+	for (k = 0; k < 12; k++) {
+		if (k % 3 == 0)
+			ctm_final[k / 3] = ctm_unisoc[k] * 1024 / 10000;
+		else
+			ctm_final[(k / 3) + (k % 3) * 4] = ctm_unisoc[k] * 1024 / 10000;
+	}
+
+	return 0;
+}
+
 int dump_bmp32(const char *p, u32 width, u32 height,
 		bool noflip, const char *filename)
 {

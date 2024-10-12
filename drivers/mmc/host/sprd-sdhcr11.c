@@ -940,7 +940,6 @@ static int irq_err_handle(struct sprd_sdhc_host *host, u32 intmask)
 	if (host->cmd->data) {
 		uint32_t i = 0;
 
-		sprd_sdhc_dma_unmap(host);
 		/*
 		 * if send cmd with data err happened, sw reset cannot stop
 		 * controller.It must check following bit before sw reset,
@@ -961,8 +960,13 @@ static int irq_err_handle(struct sprd_sdhc_host *host, u32 intmask)
 	}
 	sprd_sdhc_disable_all_int(host);
 
-	sprd_sdhc_reset(host, SPRD_SDHC_BIT_RST_CMD|SPRD_SDHC_BIT_RST_DAT);
+	if (SPRD_SDHC_INT_FILTER_ERR_CMD & intmask)
+		sprd_sdhc_reset(host, SPRD_SDHC_BIT_RST_CMD);
+	else
+		sprd_sdhc_reset(host, SPRD_SDHC_BIT_RST_DAT);
 
+	if (host->cmd->data)
+		sprd_sdhc_dma_unmap(host);
 	/* if current error happened in data token, we send cmd12 to stop it */
 #ifndef CONFIG_EMMC_SOFTWARE_CQ_SUPPORT
 	if ((host->mrq->cmd == host->cmd) && (host->mrq->stop)) {

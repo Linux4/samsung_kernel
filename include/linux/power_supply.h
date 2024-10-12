@@ -105,6 +105,14 @@ enum {
 	POWER_SUPPLY_SCOPE_SYSTEM,
 	POWER_SUPPLY_SCOPE_DEVICE,
 };
+/* TabA8_U code for P231127-08057 by liufurong at 20231205 start */
+enum sec_battery_slate_mode {
+	SEC_SLATE_OFF = 0,
+	SEC_SLATE_MODE,
+	SEC_SMART_SWITCH_SLATE,
+	SEC_SMART_SWITCH_SRC,
+};
+/* TabA8_U code for P231127-08057 by liufurong at 20231205 end */
 
 enum power_supply_property {
 	/* Properties of type `int' */
@@ -255,6 +263,9 @@ enum power_supply_property {
 	#if !defined(HQ_FACTORY_BUILD)
 	POWER_SUPPLY_PROP_BATT_PROTECT_FLAG,
 	POWER_SUPPLY_PROP_EN_BATT_PROTECT,
+	/* Tab A8 code for AX6300U-207 by  lina at 20240205 start */
+	POWER_SUPPLY_PROP_BATT_SOC_RECHG,
+	/* Tab A8 code for AX6300U-207 by  lina at 20240205 end */
 	#endif
 	/* HS03 code for SR-SL6215-01-255 by shixuanxuan at 20210902 end */
 	/* Local extensions of type int64_t */
@@ -360,6 +371,16 @@ enum batt_current_event_ss{
  };
  #endif
 	/* HS03 code for SR-SL6215-01-549 by ditong at 20210823 end */
+/* Tab A8 code for AX6300U-207 by  lina at 20240205 start */
+#ifndef HQ_FACTORY_BUILD
+typedef enum batt_protection {
+	BASE_MODE,
+	OPTION_MODE,
+	SLEEP_MODE,
+	HIGHSOC_MODE
+} BATT_PROTECTION_T;
+#endif
+/* Tab A8 code for AX6300U-207 by  lina at 20240205 end */
 
 union power_supply_propval {
 	int intval;

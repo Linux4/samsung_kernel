@@ -12,6 +12,7 @@ source "drivers/soc/sprd/debug/dmc_mpu/Kconfig"
 source "drivers/soc/sprd/debug/sysdump/Kconfig"
 source "drivers/soc/sprd/debug/native_hang_monitor/Kconfig"
 source "drivers/soc/sprd/debug/hang_debug/Kconfig"
+source "drivers/soc/sprd/debug/userspace_debug/Kconfig"
 config SPRD_LOOK_AT
 	bool "Sprdtrum lookat tool support"
 	depends on SPRD_DEBUG

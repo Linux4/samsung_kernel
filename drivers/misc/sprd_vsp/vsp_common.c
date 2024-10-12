@@ -31,6 +31,30 @@
 #endif
 #define pr_fmt(fmt) "sprd-vsp: " fmt
 
+struct vsp_iommu_map_entry {
+	struct list_head list;
+
+	int fd;
+	unsigned long iova_addr;
+	size_t iova_size;
+
+	struct dma_buf *dmabuf;
+	struct dma_buf_attachment *attachment;
+	struct sg_table *table;
+};
+
+struct system_heap_buffer {
+	struct dma_heap *heap;
+	struct list_head attachments;
+	struct mutex lock;
+	unsigned long len;
+	struct sg_table sg_table;
+	int vmap_cnt;
+	void *vaddr;
+
+	bool uncached;
+};
+
 struct register_gpr regs[ARRAY_SIZE(tb_name)];
 
 struct clk *vsp_get_clk_src_name(struct clock_name_map_t clock_name_map[],
@@ -62,6 +86,34 @@ int find_vsp_freq_level(struct clock_name_map_t clock_name_map[],
 	}
 	return level;
 }
+
+int vsp_get_dmabuf(int fd, struct dma_buf **dmabuf, void **buf, size_t *size)
+{
+	struct system_heap_buffer *buffer;
+
+	if (fd < 0 && !dmabuf) {
+		pr_err("%s, input fd: %d, dmabuf: %p error\n", __func__, fd, dmabuf);
+		return -EINVAL;
+	}
+
+	if (fd >= 0) {
+		*dmabuf = dma_buf_get(fd);
+		if (IS_ERR_OR_NULL(*dmabuf)) {
+			pr_err("%s, dmabuf error: %p !\n", __func__, *dmabuf);
+			return PTR_ERR(*dmabuf);
+		}
+	}
+	buffer = (*dmabuf)->priv;
+
+	if (IS_ERR(buffer))
+		return PTR_ERR(buffer);
+
+	*buf = (void *)buffer;
+	*size = buffer->len;
+
+	return 0;
+}
+
 
 #ifdef CONFIG_COMPAT
 static int compat_get_mmu_map_data(struct compat_vsp_iommu_map_data __user *
@@ -240,19 +292,81 @@ int vsp_get_iova(struct vsp_dev_t *vsp_hw_dev,
 		 struct vsp_iommu_map_data *mapdata, void __user *arg)
 {
 	int ret = 0;
-	struct sprd_iommu_map_data iommu_map_data;
 	u32 power_state1 = 0, vsp_eb_reg = 0;
+	struct sprd_iommu_map_data iommu_map_data = {0};
+	struct sprd_iommu_unmap_data iommu_ummap_data = {0};
+	struct dma_buf *dmabuf = NULL;
+	struct dma_buf_attachment *attachment = NULL;
+	struct sg_table *table = NULL;
+	struct vsp_iommu_map_entry *entry = NULL;
 
 	vsp_clk_enable(vsp_hw_dev);
 	vsp_check_pw_status(vsp_hw_dev);
-	ret = sprd_ion_get_buffer(mapdata->fd, NULL,
-					&(iommu_map_data.buf),
-					&iommu_map_data.iova_size);
+	ret = vsp_get_dmabuf(mapdata->fd, &dmabuf,
+				&(iommu_map_data.buf),
+				&iommu_map_data.iova_size);
 	if (ret) {
-		pr_err("get_sg_table failed, ret %d\n", ret);
-		vsp_clk_disable(vsp_hw_dev);
-		return ret;
+		pr_err("vsp_get_dmabuf failed: ret=%d\n", ret);
+		goto err_get_dmabuf;
 	}
+
+	attachment = dma_buf_attach(dmabuf, vsp_hw_dev->vsp_dev);
+	if (IS_ERR_OR_NULL(attachment)) {
+		pr_err("Failed to attach dmabuf=%p\n", dmabuf);
+		ret = PTR_ERR(attachment);
+		goto err_attach;
+	}
+
+
+	table = dma_buf_map_attachment(attachment, DMA_BIDIRECTIONAL);
+	if (IS_ERR_OR_NULL(table)) {
+		pr_err("Failed to map attachment=%p\n", attachment);
+		ret = PTR_ERR(table);
+		goto err_map_attachment;
+	}
+
+	iommu_map_data.ch_type = SPRD_IOMMU_FM_CH_RW;
+	ret = sprd_iommu_map(vsp_hw_dev->vsp_dev, &iommu_map_data);
+	if (!ret) {
+		mutex_lock(&vsp_hw_dev->map_lock);
+		entry = kzalloc(sizeof(*entry), GFP_KERNEL);
+		if (!entry) {
+			mutex_unlock(&vsp_hw_dev->map_lock);
+			iommu_ummap_data.iova_addr = iommu_map_data.iova_addr;
+			iommu_ummap_data.iova_size = iommu_map_data.iova_size;
+			iommu_ummap_data.ch_type = SPRD_IOMMU_FM_CH_RW;
+			iommu_ummap_data.buf = NULL;
+			ret = -ENOMEM;
+			pr_err("fatal error! kzalloc fail!, ret=%d\n", ret);
+			goto err_kzalloc;
+		}
+		entry->fd = mapdata->fd;
+		entry->iova_addr = iommu_map_data.iova_addr;
+		entry->iova_size = iommu_map_data.iova_size;
+		entry->dmabuf = dmabuf;
+		entry->attachment = attachment;
+		entry->table = table;
+		list_add(&entry->list, &vsp_hw_dev->map_list);
+		mutex_unlock(&vsp_hw_dev->map_lock);
+
+		mapdata->iova_addr = iommu_map_data.iova_addr;
+		mapdata->size = iommu_map_data.iova_size;
+		pr_info("vsp iommu map success iova addr=%#llx size=%llu\n",
+			mapdata->iova_addr, mapdata->size);
+		ret = copy_to_user((void __user *)arg, (void *)mapdata,
+					sizeof(struct vsp_iommu_map_data));
+		if (ret) {
+			pr_err("fatal error! copy_to_user failed, ret=%d\n", ret);
+			goto err_copy_to_user;
+		}
+		pr_info("suceess to add map_node(iova_addr=%#llx, size=%llu)\n",
+			mapdata->iova_addr, mapdata->size);
+	} else {
+		pr_err("vsp iommu map failed, ret=%d, map_size=%zu\n",
+			ret, iommu_map_data.iova_size);
+		goto err_iommu_map;
+	}
+
 	if (vsp_hw_dev->version == SHARKL3) {
 		regmap_read(regs[PMU_PWR_STATUS].gpr, regs[PMU_PWR_STATUS].reg,
 			&power_state1);
@@ -262,50 +376,84 @@ int vsp_get_iova(struct vsp_dev_t *vsp_hw_dev,
 			regs[PMU_PWR_STATUS].reg, power_state1, regs[VSP_DOMAIN_EB].reg,
 			vsp_eb_reg);
 	}
-	iommu_map_data.ch_type = SPRD_IOMMU_FM_CH_RW;
-	ret = sprd_iommu_map(vsp_hw_dev->vsp_dev, &iommu_map_data);
-	if (!ret) {
-		mapdata->iova_addr = iommu_map_data.iova_addr;
-		mapdata->size = iommu_map_data.iova_size;
-		pr_debug("vsp iommu map success iova addr 0x%lx size 0x%zx\n",
-			mapdata->iova_addr, mapdata->size);
-		ret = copy_to_user((void __user *)arg, (void *)mapdata,
-					sizeof(struct vsp_iommu_map_data));
-		if (ret) {
-			pr_err("copy_to_user failed, ret %d\n", ret);
-			vsp_clk_disable(vsp_hw_dev);
-			return ret;
-		}
-	} else
-		pr_err("vsp iommu map failed, ret %d, map size 0x%zx\n",
-			ret, iommu_map_data.iova_size);
+
 	vsp_clk_disable(vsp_hw_dev);
 	return ret;
+
+err_copy_to_user:
+	mutex_lock(&vsp_hw_dev->map_lock);
+	list_del(&entry->list);
+	kfree(entry);
+	mutex_unlock(&vsp_hw_dev->map_lock);
+err_kzalloc:
+	ret = sprd_iommu_unmap(vsp_hw_dev->vsp_dev, &iommu_ummap_data);
+	if (ret) {
+		pr_err("sprd_iommu_unmap failed, ret=%d, addr&size: 0x%lx 0x%zx\n",
+			ret, iommu_ummap_data.iova_addr, iommu_ummap_data.iova_size);
+	}
+err_iommu_map:
+	dma_buf_unmap_attachment(attachment, table, DMA_BIDIRECTIONAL);
+err_map_attachment:
+	dma_buf_detach(dmabuf, attachment);
+err_attach:
+	dma_buf_put(dmabuf);
+err_get_dmabuf:
+	vsp_clk_disable(vsp_hw_dev);
+
+	return ret;
+
 }
 
 int vsp_free_iova(struct vsp_dev_t *vsp_hw_dev,
 		  struct vsp_iommu_map_data *ummapdata)
 {
 	int ret = 0;
-	struct sprd_iommu_unmap_data iommu_ummap_data;
+	int b_find = 0;
+	struct vsp_iommu_map_entry *entry = NULL;
+	struct sprd_iommu_unmap_data iommu_ummap_data = {0};
 
 	vsp_clk_enable(vsp_hw_dev);
-	iommu_ummap_data.iova_addr = ummapdata->iova_addr;
-	iommu_ummap_data.iova_size = ummapdata->size;
-	iommu_ummap_data.ch_type = SPRD_IOMMU_FM_CH_RW;
-	iommu_ummap_data.buf = NULL;
+	list_for_each_entry(entry, &vsp_hw_dev->map_list, list) {
+		if (entry->iova_addr == ummapdata->iova_addr &&
+			entry->iova_size == ummapdata->size) {
+			b_find = 1;
+			break;
+		}
+	}
+	if (b_find) {
+		iommu_ummap_data.iova_addr = entry->iova_addr;
+		iommu_ummap_data.iova_size = entry->iova_size;
+		iommu_ummap_data.ch_type = SPRD_IOMMU_FM_CH_RW;
+		iommu_ummap_data.buf = NULL;
+		list_del(&entry->list);
+		pr_info("success to find node(inst %p, iova_addr=%#llx, size=%llu)\n",
+			ummapdata->iova_addr, ummapdata->size);
+	} else {
+		pr_err("fatal error! not find node(inst %p, iova_addr=%#llx, size=%llu)\n",
+			ummapdata->iova_addr, ummapdata->size);
+		mutex_unlock(&vsp_hw_dev->map_lock);
+		vsp_clk_disable(vsp_hw_dev);
+		return -EFAULT;
+	}
+	mutex_unlock(&vsp_hw_dev->map_lock);
 
 	ret = sprd_iommu_unmap(vsp_hw_dev->vsp_dev,
 					&iommu_ummap_data);
 
-	if (ret)
+	if (ret) {
 		pr_err("vsp iommu-unmap failed ret %d addr&size 0x%lx 0x%zx\n",
 			ret, ummapdata->iova_addr, ummapdata->size);
-	else
-		pr_debug("vsp iommu-unmap success iova addr 0x%lx size 0x%zx\n",
+		vsp_clk_disable(vsp_hw_dev);
+		return ret;
+	}
+	pr_debug("vsp iommu-unmap success iova addr 0x%lx size 0x%zx\n",
 			ummapdata->iova_addr, ummapdata->size);
-	vsp_clk_disable(vsp_hw_dev);
+	dma_buf_unmap_attachment(entry->attachment, entry->table, DMA_BIDIRECTIONAL);
+	dma_buf_detach(entry->dmabuf, entry->attachment);
+	dma_buf_put(entry->dmabuf);
+	kfree(entry);
 
+	vsp_clk_disable(vsp_hw_dev);
 	return ret;
 }
 

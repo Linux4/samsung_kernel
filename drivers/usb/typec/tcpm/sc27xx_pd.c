@@ -1748,7 +1748,7 @@ static int sc27xx_pd_init(struct tcpc_dev *tcpc)
 
 	return sc27xx_pd_module_init(pd);
 }
-/* Tab A8 code for AX6300DEV-2368 by qiaodan at 20211028 start */
+/* Tab A8 code for AX6300DEV-2368 | P221227-03533 by qiaodan at 20230106 start */
 static irqreturn_t sc27xx_pd_irq(int irq, void *dev_id)
 {
 	struct sc27xx_pd *pd = dev_id;
@@ -1782,6 +1782,7 @@ static irqreturn_t sc27xx_pd_irq(int irq, void *dev_id)
 		sprd_pd_log(pd, "pd irq: start_time.tv_sec = %d", pd->start_time.tv_sec);
 		if ((cur_time.tv_sec - pd->start_time.tv_sec) <= SC27XX_PD_RX_ERROR_TIME_THRESHOLD) {
 			sprd_pd_log(pd, "pd irq: disable rx error int and ignore hard reset");
+			dev_warn(pd->dev, "IRQ: disable rx error int and ignore hard reset");
 			pd->ignore_hard_reset = true;
 			regmap_update_bits(pd->regmap, pd->base + SC27XX_INT_EN,
 					   rx_error_mask, ~rx_error_mask);
@@ -1815,6 +1816,7 @@ static irqreturn_t sc27xx_pd_irq(int irq, void *dev_id)
 
 		if (pd->ignore_hard_reset) {
 			sprd_pd_log(pd, "pd irq: ignore hard reset, hard_reset_cnt = %d", pd->hard_reset_cnt);
+			dev_warn(pd->dev, "IRQ: ignore hard reset, hard_reset_cnt = %d", pd->hard_reset_cnt);
 			ret = regmap_update_bits(pd->regmap, pd->base + SC27XX_INT_CLR,
 						 SC27XX_PD_HARD_RST_RV_CLR,
 						 SC27XX_PD_HARD_RST_RV_CLR);
@@ -1826,10 +1828,11 @@ static irqreturn_t sc27xx_pd_irq(int irq, void *dev_id)
 			if (pd->hard_reset_cnt) {
 				cur_time = ktime_to_timespec64(ktime_get_boottime());
 				sprd_pd_log(pd, "pd irq: hard reset cur_time.tv_sec = %d", cur_time.tv_sec);
+				dev_warn(pd->dev, "IRQ: hard reset cur_time.tv_sec = %d", cur_time.tv_sec);
 				if ((cur_time.tv_sec - pd->hard_start_time.tv_sec) <= SC27XX_PD_HARD_RESET_TIME_THRESHOLD) {
 					pd->hard_reset_cnt = 0;
 					sprd_pd_log(pd, "pd irq: handle hard reset");
-					goto irq_hard_reset;
+					// goto irq_hard_reset;
 				} else {
 					pd->hard_reset_cnt = 0;
 				}
@@ -1842,7 +1845,7 @@ static irqreturn_t sc27xx_pd_irq(int irq, void *dev_id)
 			}
 			goto done;
 		}
-irq_hard_reset:
+// irq_hard_reset:
 		if (pd->need_retry) {
 			sprd_pd_log(pd, "start cancle retry read msg");
 			pd->need_retry = false;
@@ -2018,7 +2021,7 @@ done:
 
 	return IRQ_HANDLED;
 }
-/* Tab A8 code for AX6300DEV-2368 by qiaodan at 20211028 end */
+/* Tab A8 code for AX6300DEV-2368 | P221227-03533 by qiaodan at 20230106 end */
 static int sc27xx_get_vbus_status(struct sc27xx_pd *pd)
 {
 	u32 status = 0;
@@ -2167,7 +2170,11 @@ static int sc27xx_pd_update_header(struct sc27xx_pd *pd)
 
 	return 0;
 }
-
+/* Tab A8 code for AX6300U-207 by  lina at 20240205 start */
+#ifdef CONFIG_GXY_TIME_TO_FULL_NOW
+extern void gxy_ttf_work_cancel(void);
+#endif
+/* Tab A8 code for AX6300U-207 by  lina at 20240205 end */
 static int sc27xx_pd_check_vbus_cc_status(struct sc27xx_pd *pd)
 {
 	u32 val = 0;
@@ -2203,6 +2210,11 @@ static int sc27xx_pd_check_vbus_cc_status(struct sc27xx_pd *pd)
 			regmap_update_bits(pd->regmap, pd->base + SC27XX_INT_EN,
 					   rx_error_mask, rx_error_mask);
 		}
+	/* Tab A8 code for AX6300U-207 by  lina at 20240205 start */
+	#ifdef CONFIG_GXY_TIME_TO_FULL_NOW
+	gxy_ttf_work_cancel();
+	#endif
+	/* Tab A8 code for AX6300U-207 by  lina at 20240205 end */
 #ifdef CONFIG_DEBUG_FS
 		if (pd->pd_attached) {
 			cancel_delayed_work(&pd->log2printk);
