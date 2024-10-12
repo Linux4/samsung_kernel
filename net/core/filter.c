@@ -1676,13 +1676,13 @@ static const struct bpf_func_proto bpf_csum_update_proto = {
 
 static inline int __bpf_rx_skb(struct net_device *dev, struct sk_buff *skb)
 {
-	return dev_forward_skb(dev, skb);
+	return dev_forward_skb_nomtu(dev, skb);
 }
 
 static inline int __bpf_rx_skb_no_mac(struct net_device *dev,
 				      struct sk_buff *skb)
 {
-	int ret = ____dev_forward_skb(dev, skb);
+	int ret = ____dev_forward_skb(dev, skb, false);
 
 	if (likely(!ret)) {
 		skb->dev = dev;
@@ -2097,8 +2097,6 @@ static int bpf_skb_proto_4_to_6(struct sk_buff *skb)
 			skb_shinfo(skb)->gso_type |=  SKB_GSO_TCPV6;
 		}
 
-		/* Due to IPv6 header, MSS needs to be downgraded. */
-		skb_shinfo(skb)->gso_size -= len_diff;
 		/* Header must be checked, and gso_segs recomputed. */
 		skb_shinfo(skb)->gso_type |= SKB_GSO_DODGY;
 		skb_shinfo(skb)->gso_segs = 0;
@@ -2133,8 +2131,6 @@ static int bpf_skb_proto_6_to_4(struct sk_buff *skb)
 			skb_shinfo(skb)->gso_type |=  SKB_GSO_TCPV4;
 		}
 
-		/* Due to IPv4 header, MSS can be upgraded. */
-		skb_shinfo(skb)->gso_size += len_diff;
 		/* Header must be checked, and gso_segs recomputed. */
 		skb_shinfo(skb)->gso_type |= SKB_GSO_DODGY;
 		skb_shinfo(skb)->gso_segs = 0;

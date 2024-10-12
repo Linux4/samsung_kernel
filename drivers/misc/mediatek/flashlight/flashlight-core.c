@@ -78,7 +78,6 @@ static int pt_is_low(int pt_low_vol, int pt_low_bat, int pt_over_cur);
 extern bool sm5714_is_fd_in_use(void);
 #endif
 
-
 /******************************************************************************
  * Weak functions
  *****************************************************************************/
@@ -911,17 +910,16 @@ static int flashlight_release(struct inode *inode, struct file *file)
 	struct flashlight_dev *fdev;
 
 	mutex_lock(&fl_mutex);
-
-#ifdef CONFIG_MTK_SM5714_FLASHLIGHT
-	if (!sm5714_is_fd_in_use())
-#endif
 #ifdef CONFIG_MTK_S2MU106_FLASHLIGHT
 	if (!s2mu106_is_fd_in_use())
 #endif
 #ifdef CONFIG_MTK_S2MU005_FLASHLIGHT
 	if (!s2mu005_is_fd_in_use())
-#endif
+#endif	
 
+#ifdef CONFIG_MTK_SM5714_FLASHLIGHT
+	if (!sm5714_is_fd_in_use())
+#endif
 	{
 		list_for_each_entry(fdev, &flashlight_list, node) {
 			if (!fdev->ops)
@@ -932,7 +930,7 @@ static int flashlight_release(struct inode *inode, struct file *file)
 			if (fdev->enable != 0)
 				fl_enable(fdev, 0);
 			fdev->ops->flashlight_release();
-	}
+		}
 	}
 	mutex_unlock(&fl_mutex);
 

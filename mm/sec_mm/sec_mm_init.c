@@ -12,6 +12,7 @@
 static int __init sec_mm_init(void)
 {
 	init_lowfile_detect();
+	init_panic_hander();
 	pr_info("sec_mm init was done\n");
 	return 0;
 }
@@ -19,6 +20,7 @@ static int __init sec_mm_init(void)
 static void __exit sec_mm_exit(void)
 {
 	exit_lowfile_detect();
+	exit_panic_hander();
 }
 
 module_init(sec_mm_init);

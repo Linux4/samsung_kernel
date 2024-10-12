@@ -36,6 +36,9 @@
 unsigned int lcdtype = 1;
 EXPORT_SYMBOL(lcdtype);
 
+unsigned int blictype = 1;
+EXPORT_SYMBOL(blictype);
+
 static int __init get_lcd_type(char *arg)
 {
 	get_option(&arg, &lcdtype);
@@ -45,6 +48,16 @@ static int __init get_lcd_type(char *arg)
 	return 0;
 }
 early_param("lcdtype", get_lcd_type);
+
+static int __init get_blic_type(char *arg)
+{
+	get_option(&arg, &blictype);
+
+	dbg_info("%s: blictype: %6X\n", __func__, blictype);
+
+	return 0;
+}
+early_param("blictype", get_blic_type);
 
 /* -------------------------------------------------------------------------- */
 /* helper to parse dt */
@@ -440,11 +453,50 @@ static int smcdsd_panel_get_params_from_dt(struct device_node *np, struct mipi_d
 
 	lcm_params->dsi.data_rate = config->data_rate[0];
 
+	smcdsd_of_property_read_u32(np, "lcm_params-dsi-is_cphy",
+		&lcm_params->dsi.IsCphy);
+
 	smcdsd_of_property_read_u32(np, "drm_params-vrefresh", &drm->vrefresh);
 
-	config->vrr_count = of_count_phandle_with_args(np, "vrr_info", NULL);
+	if (of_count_phandle_with_args(np, "vrr_info", NULL) > 0) {
+		config->vrr_count = of_count_phandle_with_args(np, "vrr_info", NULL);
 
-	smcdsd_of_property_read_u32(np, "ext_params-dyn_fps-vact_timing_fps", &ext->dyn_fps.vact_timing_fps);
+		smcdsd_of_property_read_u32(np, "ext_params-dyn_fps-vact_timing_fps", &ext->dyn_fps.vact_timing_fps);
+	}
+
+	smcdsd_of_property_read_u32(np, "ext_params-output_mode", &lcm_params->dsi.output_mode);
+	smcdsd_of_property_read_u32(np, "dsc_params-enable", &lcm_params->dsi.dsc_enable);
+	smcdsd_of_property_read_u32(np, "dsc_params-ver", &lcm_params->dsi.dsc_params.ver);
+	smcdsd_of_property_read_u32(np, "dsc_params-slice_mode", &lcm_params->dsi.dsc_params.slice_mode);
+	smcdsd_of_property_read_u32(np, "dsc_params-rgb_swap", &lcm_params->dsi.dsc_params.rgb_swap);
+	smcdsd_of_property_read_u32(np, "dsc_params-dsc_cfg", &lcm_params->dsi.dsc_params.dsc_cfg);
+	smcdsd_of_property_read_u32(np, "dsc_params-rct_on", &lcm_params->dsi.dsc_params.rct_on);
+	smcdsd_of_property_read_u32(np, "dsc_params-bit_per_channel", &lcm_params->dsi.dsc_params.bit_per_channel);
+	smcdsd_of_property_read_u32(np, "dsc_params-dsc_line_buf_depth", &lcm_params->dsi.dsc_params.dsc_line_buf_depth);
+	smcdsd_of_property_read_u32(np, "dsc_params-bp_enable", &lcm_params->dsi.dsc_params.bp_enable);
+	smcdsd_of_property_read_u32(np, "dsc_params-bit_per_pixel", &lcm_params->dsi.dsc_params.bit_per_pixel);
+	smcdsd_of_property_read_u32(np, "dsc_params-pic_height", &lcm_params->dsi.dsc_params.pic_height);
+	smcdsd_of_property_read_u32(np, "dsc_params-pic_width", &lcm_params->dsi.dsc_params.pic_width);
+	smcdsd_of_property_read_u32(np, "dsc_params-slice_height", &lcm_params->dsi.dsc_params.slice_height);
+	smcdsd_of_property_read_u32(np, "dsc_params-slice_width", &lcm_params->dsi.dsc_params.slice_width);
+	smcdsd_of_property_read_u32(np, "dsc_params-chunk_size", &lcm_params->dsi.dsc_params.chunk_size);
+	smcdsd_of_property_read_u32(np, "dsc_params-xmit_delay", &lcm_params->dsi.dsc_params.xmit_delay);
+	smcdsd_of_property_read_u32(np, "dsc_params-dec_delay", &lcm_params->dsi.dsc_params.dec_delay);
+	smcdsd_of_property_read_u32(np, "dsc_params-scale_value", &lcm_params->dsi.dsc_params.scale_value);
+	smcdsd_of_property_read_u32(np, "dsc_params-increment_interval", &lcm_params->dsi.dsc_params.increment_interval);
+	smcdsd_of_property_read_u32(np, "dsc_params-decrement_interval", &lcm_params->dsi.dsc_params.decrement_interval);
+	smcdsd_of_property_read_u32(np, "dsc_params-line_bpg_offset", &lcm_params->dsi.dsc_params.line_bpg_offset);
+	smcdsd_of_property_read_u32(np, "dsc_params-nfl_bpg_offset", &lcm_params->dsi.dsc_params.nfl_bpg_offset);
+	smcdsd_of_property_read_u32(np, "dsc_params-slice_bpg_offset", &lcm_params->dsi.dsc_params.slice_bpg_offset);
+	smcdsd_of_property_read_u32(np, "dsc_params-initial_offset", &lcm_params->dsi.dsc_params.initial_offset);
+	smcdsd_of_property_read_u32(np, "dsc_params-final_offset", &lcm_params->dsi.dsc_params.final_offset);
+	smcdsd_of_property_read_u32(np, "dsc_params-flatness_minqp", &lcm_params->dsi.dsc_params.flatness_minqp);
+	smcdsd_of_property_read_u32(np, "dsc_params-flatness_maxqp", &lcm_params->dsi.dsc_params.flatness_maxqp);
+	smcdsd_of_property_read_u32(np, "dsc_params-rc_model_size", &lcm_params->dsi.dsc_params.rc_model_size);
+	smcdsd_of_property_read_u32(np, "dsc_params-rc_edge_factor", &lcm_params->dsi.dsc_params.rc_edge_factor);
+	smcdsd_of_property_read_u32(np, "dsc_params-rc_quant_incr_limit0", &lcm_params->dsi.dsc_params.rc_quant_incr_limit0);
+	smcdsd_of_property_read_u32(np, "dsc_params-rc_quant_incr_limit1", &lcm_params->dsi.dsc_params.rc_quant_incr_limit1);
+	smcdsd_of_property_read_u32(np, "dsc_params-rc_tgt_offset_hi", &lcm_params->dsi.dsc_params.rc_tgt_offset_hi);
 
 	return ret;
 }
@@ -483,11 +535,47 @@ static int smcdsd_panel_fit_config(struct mipi_dsi_lcd_config *config)
 	ext->data_rate = lcm->dsi.data_rate;
 	ext->pll_clk = lcm->dsi.PLL_CLOCK;
 	ext->dyn_fps.switch_en = !!ext->dyn_fps.vact_timing_fps;
+	ext->is_cphy = !!lcm->dsi.IsCphy;
+
+	lcm->dsi.output_mode = (lcm->dsi.output_mode != MTK_PANEL_SINGLE_PORT) ? lcm->dsi.output_mode : (lcm->dsi.dsc_enable ? MTK_PANEL_DSC_SINGLE_PORT : MTK_PANEL_SINGLE_PORT);
+	ext->output_mode = lcm->dsi.output_mode;
+	ext->dsc_params.enable = lcm->dsi.dsc_enable;
+	ext->dsc_params.ver = lcm->dsi.dsc_params.ver;
+	ext->dsc_params.slice_mode = lcm->dsi.dsc_params.slice_mode;
+	ext->dsc_params.rgb_swap = lcm->dsi.dsc_params.rgb_swap;
+	ext->dsc_params.dsc_cfg = lcm->dsi.dsc_params.dsc_cfg;
+	ext->dsc_params.rct_on = lcm->dsi.dsc_params.rct_on;
+	ext->dsc_params.bit_per_channel = lcm->dsi.dsc_params.bit_per_channel;
+	ext->dsc_params.dsc_line_buf_depth = lcm->dsi.dsc_params.dsc_line_buf_depth;
+	ext->dsc_params.bp_enable = lcm->dsi.dsc_params.bp_enable;
+	ext->dsc_params.bit_per_pixel = lcm->dsi.dsc_params.bit_per_pixel;
+	ext->dsc_params.pic_height = lcm->dsi.dsc_params.pic_height;
+	ext->dsc_params.pic_width = lcm->dsi.dsc_params.pic_width;
+	ext->dsc_params.slice_height = lcm->dsi.dsc_params.slice_height;
+	ext->dsc_params.slice_width = lcm->dsi.dsc_params.slice_width;
+	ext->dsc_params.chunk_size = lcm->dsi.dsc_params.chunk_size;
+	ext->dsc_params.xmit_delay = lcm->dsi.dsc_params.xmit_delay;
+	ext->dsc_params.dec_delay = lcm->dsi.dsc_params.dec_delay;
+	ext->dsc_params.scale_value = lcm->dsi.dsc_params.scale_value;
+	ext->dsc_params.increment_interval = lcm->dsi.dsc_params.increment_interval;
+	ext->dsc_params.decrement_interval = lcm->dsi.dsc_params.decrement_interval;
+	ext->dsc_params.line_bpg_offset = lcm->dsi.dsc_params.line_bpg_offset;
+	ext->dsc_params.nfl_bpg_offset = lcm->dsi.dsc_params.nfl_bpg_offset;
+	ext->dsc_params.slice_bpg_offset = lcm->dsi.dsc_params.slice_bpg_offset;
+	ext->dsc_params.initial_offset = lcm->dsi.dsc_params.initial_offset;
+	ext->dsc_params.final_offset = lcm->dsi.dsc_params.final_offset;
+	ext->dsc_params.flatness_minqp = lcm->dsi.dsc_params.flatness_minqp;
+	ext->dsc_params.flatness_maxqp = lcm->dsi.dsc_params.flatness_maxqp;
+	ext->dsc_params.rc_model_size = lcm->dsi.dsc_params.rc_model_size;
+	ext->dsc_params.rc_edge_factor = lcm->dsi.dsc_params.rc_edge_factor;
+	ext->dsc_params.rc_quant_incr_limit0 = lcm->dsi.dsc_params.rc_quant_incr_limit0;
+	ext->dsc_params.rc_quant_incr_limit1 = lcm->dsi.dsc_params.rc_quant_incr_limit1;
+	ext->dsc_params.rc_tgt_offset_hi = lcm->dsi.dsc_params.rc_tgt_offset_hi;
 
 	dsi->lanes = lcm->dsi.LANE_NUM;
 	dsi->format = MIPI_DSI_FMT_RGB888;
 
-	dsi->mode_flags = MIPI_DSI_MODE_LPM | MIPI_DSI_MODE_EOT_PACKET;	/* todo */
+	dsi->mode_flags = MIPI_DSI_MODE_EOT_PACKET;
 
 	if (lcm->dsi.mode == BURST_VDO_MODE)
 		dsi->mode_flags |= (MIPI_DSI_MODE_VIDEO | MIPI_DSI_MODE_VIDEO_BURST);
@@ -496,8 +584,17 @@ static int smcdsd_panel_fit_config(struct mipi_dsi_lcd_config *config)
 	else if (lcm->dsi.mode == SYNC_EVENT_VDO_MODE)
 		dsi->mode_flags |= (MIPI_DSI_MODE_VIDEO);
 
+	if (dsi->mode_flags & MIPI_DSI_MODE_VIDEO)
+		dsi->mode_flags |= MIPI_DSI_MODE_LPM;	/* todo */
+
+	if (lcm->dsi.cont_clock & lcm->dsi.noncont_clock)
+		dbg_info("%s: cont_clock(%u) noncont_clock(%u)\n", __func__, lcm->dsi.cont_clock, lcm->dsi.noncont_clock);
+
 	if (lcm->dsi.noncont_clock)
 		dsi->mode_flags |= MIPI_DSI_CLOCK_NON_CONTINUOUS;
+
+	if (lcm->dsi.cont_clock)
+		dsi->mode_flags &= ~MIPI_DSI_CLOCK_NON_CONTINUOUS;
 
 	return 0;
 }
@@ -588,7 +685,7 @@ exit:
 static void __lcd_driver_dts_update(void)
 {
 	struct device_node *nplcd = NULL, *np = NULL;
-	int i = 0, count = 0, ret = -EINVAL;
+	int i = 0, pcount, count = 0, ret = -EINVAL;
 	unsigned int id_index, mask, expect;
 	u32 id_match_info[10] = {0, };
 
@@ -598,13 +695,13 @@ static void __lcd_driver_dts_update(void)
 		return;
 	}
 
-	count = of_count_phandle_with_args(nplcd, PANEL_DTS_NAME, NULL);
-	if (count < 2) {
+	pcount = of_count_phandle_with_args(nplcd, PANEL_DTS_NAME, NULL);
+	if (pcount < 2) {
 		/* dbg_info("%s: %s property phandle count is %d. so no need to update check\n", __func__, PANEL_DTS_NAME, count); */
 		return;
 	}
 
-	for (i = 0; i < count; i++) {
+	for (i = 0; i < pcount; i++) {
 		np = of_parse_phandle(nplcd, PANEL_DTS_NAME, i);
 		dbg_info("%s: %dth dts is %s\n", __func__, i, (np && np->name) ? np->name : "null");
 		if (!np || !of_get_property(np, "id_match", NULL))

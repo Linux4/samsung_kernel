@@ -395,7 +395,7 @@ static void mtkfb_ion_free_handle(struct ion_client *client,
 static size_t mtkfb_ion_phys_mmu_addr(struct ion_client *client,
 	struct ion_handle *handle, unsigned int *mva, int type)
 {
-	size_t size;
+	size_t size = 0;
 	ion_phys_addr_t phy_addr = 0;
 	struct ion_mm_data mm_data;
 
@@ -1032,41 +1032,6 @@ void mtkfb_release_layer_fence(unsigned int session_id, unsigned int layer_id)
 	mtkfb_release_fence(session_id, layer_id, fence);
 }
 
-int mtkfb_release_present_fence(unsigned int session, unsigned int fence_idx)
-{
-	struct disp_sync_info *l_info = NULL;
-	unsigned int timeline_id = 0;
-	int fence_increment = 0;
-
-	timeline_id = disp_sync_get_present_timeline_id();
-	l_info = _get_sync_info(session, timeline_id);
-	if (l_info == NULL) {
-		DISPERR("layer_info is null\n");
-		return -1;
-	}
-
-	mutex_lock(&l_info->sync_lock);
-	fence_increment = fence_idx - l_info->timeline->value;
-
-	DISPPR_FENCE("RL PF %u %u\n", l_info->timeline->value, fence_idx);
-	if (fence_increment >= 2)
-		DISPPR_FENCE("Warning, R/%s%d/L%d/timeline idx:%d/fence:%d\n",
-			disp_session_mode_spy(session),
-			DISP_SESSION_DEV(session), timeline_id,
-			l_info->timeline->value, fence_idx);
-
-	if (fence_increment > 0) {
-		timeline_inc(l_info->timeline, fence_increment);
-		DISPPR_FENCE("RL+/%s%d/L%d/id%d\n",
-		     disp_session_mode_spy(session),
-		     DISP_SESSION_DEV(session), timeline_id, fence_idx);
-	}
-
-	mutex_unlock(&l_info->sync_lock);
-
-	return 0;
-}
-
 void mtkfb_release_session_fence(unsigned int session_id)
 {
 	struct disp_session_sync_info *session_sync_info = NULL;
@@ -1572,3 +1537,31 @@ int disp_sync_get_debug_info(char *stringbuf, int buf_len)
 
 	return len;
 }
+
+struct ion_handle *disp_snyc_get_ion_handle(unsigned int session_id,
+	unsigned int timeline_id, unsigned int idx)
+{
+	struct mtkfb_fence_buf_info *buf = NULL;
+	struct disp_sync_info *layer_info = NULL;
+	struct ion_handle *handle = NULL;
+
+	layer_info = _get_sync_info(session_id, timeline_id);
+	if (layer_info == NULL) {
+		DISPERR("layer_info is null, layer_info=%p\n", layer_info);
+		return 0;
+	}
+
+	mutex_lock(&layer_info->sync_lock);
+	list_for_each_entry(buf, &layer_info->buf_list, list) {
+		if (buf->idx == idx) {
+			/* use local variable here to avoid polluted pointer */
+			handle = buf->hnd;
+			DISPMSG("%s, get handle", __func__);
+			break;
+		}
+	}
+	mutex_unlock(&layer_info->sync_lock);
+
+	return handle;
+}
+

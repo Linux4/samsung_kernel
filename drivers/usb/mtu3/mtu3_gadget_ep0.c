@@ -17,7 +17,6 @@
  */
 
 #include "mtu3.h"
-#include "mtu3_hal.h"
 
 /* ep0 is always mtu3->in_eps[0] */
 #define	next_ep0_request(mtu)	next_request((mtu)->ep0)
@@ -277,22 +276,18 @@ static int handle_test_mode(struct mtu3 *mtu, struct usb_ctrlrequest *setup)
 	case TEST_J:
 		dev_dbg(mtu->dev, "TEST_J\n");
 		mtu->test_mode_nr = TEST_J_MODE;
-		ssusb_set_preemphasis(false);
 		break;
 	case TEST_K:
 		dev_dbg(mtu->dev, "TEST_K\n");
 		mtu->test_mode_nr = TEST_K_MODE;
-		ssusb_set_preemphasis(false);
 		break;
 	case TEST_SE0_NAK:
 		dev_dbg(mtu->dev, "TEST_SE0_NAK\n");
 		mtu->test_mode_nr = TEST_SE0_NAK_MODE;
-		ssusb_set_preemphasis(true);
 		break;
 	case TEST_PACKET:
 		dev_dbg(mtu->dev, "TEST_PACKET\n");
 		mtu->test_mode_nr = TEST_PACKET_MODE;
-		ssusb_set_preemphasis(true);
 		break;
 	default:
 		handled = -EINVAL;
@@ -659,6 +654,7 @@ __acquires(mtu->lock)
 	void __iomem *mbase = mtu->mac_base;
 	int handled = 0;
 
+	memset(&setup, 0, sizeof(setup));
 	ep0_read_setup(mtu, &setup);
 
 	if ((setup.bRequestType & USB_TYPE_MASK) == USB_TYPE_STANDARD)

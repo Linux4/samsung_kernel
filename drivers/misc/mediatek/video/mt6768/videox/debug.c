@@ -69,6 +69,7 @@
 #endif
 #include "layering_rule.h"
 #include "ddp_clkmgr.h"
+#include "ddp_disp_bdg.h"
 
 #if IS_ENABLED(CONFIG_DEBUG_FS)
 static struct dentry *mtkfb_dbgfs;
@@ -904,6 +905,50 @@ static void process_dbg_opt(const char *opt)
 	if (strncmp(opt, "helper", 6) == 0) {
 		/*ex: echo helper:DISP_OPT_BYPASS_OVL,0 > /d/mtkfb */
 		do_helper_opt(opt);
+#ifdef CONFIG_MTK_MT6382_BDG
+	} else if (strncmp(opt, "mipi_hopping:on", 15) == 0) {
+		if (pgc->state == DISP_SLEPT) {
+			DISPWARN("primary display is already slept\n");
+			return;
+		}
+
+		if (pgc->pm == FB_SUSPEND || _is_power_on_status(DISP_MODULE_DSI0) == 0) {
+			DISPWARN("Power mode is FB_SUSPEND[pgc->pm:%d] or DSI power off[%d]:\n",
+				pgc->pm, _is_power_on_status(DISP_MODULE_DSI0));
+			return;
+		}
+
+		primary_display_idlemgr_kick(__func__, 1);
+		if (dpmgr_path_is_busy(pgc->dpmgr_handle))
+			dpmgr_wait_event_timeout(pgc->dpmgr_handle,
+				DISP_PATH_EVENT_FRAME_DONE, HZ * 1);
+		DSI_Stop(DISP_MODULE_DSI0, NULL);
+
+		bdg_mipi_clk_change(1, 1);
+
+		DSI_Start(DISP_MODULE_DSI0, NULL);
+	} else if (strncmp(opt, "mipi_hopping:off", 16) == 0) {
+		if (pgc->state == DISP_SLEPT) {
+			DISPWARN("primary display is already slept\n");
+			return;
+		}
+
+		if (pgc->pm == FB_SUSPEND || _is_power_on_status(DISP_MODULE_DSI0) == 0) {
+			DISPWARN("Power mode is FB_SUSPEND[pgc->pm:%d] or DSI power off[%d]:\n",
+				pgc->pm, _is_power_on_status(DISP_MODULE_DSI0));
+			return;
+		}
+
+		primary_display_idlemgr_kick(__func__, 1);
+		if (dpmgr_path_is_busy(pgc->dpmgr_handle))
+			dpmgr_wait_event_timeout(pgc->dpmgr_handle,
+				DISP_PATH_EVENT_FRAME_DONE, HZ * 1);
+		DSI_Stop(DISP_MODULE_DSI0, NULL);
+
+		bdg_mipi_clk_change(1, 0);
+
+		DSI_Start(DISP_MODULE_DSI0, NULL);
+#endif
 	} else if (strncmp(opt, "switch_mode:", 12) == 0) {
 		int session_id = MAKE_DISP_SESSION(DISP_SESSION_PRIMARY, 0);
 		int sess_mode;
@@ -955,6 +1000,163 @@ static void process_dbg_opt(const char *opt)
 			primary_display_manual_unlock();
 			return;
 		}
+#ifdef CONFIG_MTK_MT6382_BDG
+	} else if (strncmp(opt, "set_data_rate:", 14) == 0) {
+		unsigned int data_rate = 0;
+		int ret = -1;
+
+		ret = sscanf(opt, "set_data_rate:%d\n",
+			&data_rate);
+		if (ret != 1) {
+			DISPERR("%d error to parse set_data_rate cmd %s\n",
+				__LINE__, opt);
+			return;
+		}
+
+		set_bdg_data_rate(data_rate);
+
+	} else if (strncmp(opt, "6382_rst_test_0:", 16) == 0) {
+		bdg_tx_set_6382_reset_pin(0);
+	} else if (strncmp(opt, "6382_rst_test_1:", 16) == 0) {
+		bdg_tx_set_6382_reset_pin(1);
+	} else if (strncmp(opt, "dsi_enable:", 11) == 0) {
+		struct LCM_PARAMS *lcm_param = NULL;
+		struct disp_ddp_path_config *data_config;
+		unsigned int dsi_on = 0;
+		int ret = -1;
+
+		ret = sscanf(opt, "dsi_enable:%d\n",
+			&dsi_on);
+		if (ret != 1) {
+			DISPERR("%d error to parse dsi_enable cmd %s\n",
+				__LINE__, opt);
+			return;
+		}
+
+		lcm_param = disp_lcm_get_params(pgc->plcm);
+
+		if (!lcm_param) {
+			DISPMSG("lcm_param is null\n");
+			return;
+		}
+
+		data_config = dpmgr_path_get_last_config(pgc->dpmgr_handle);
+		memcpy(&(data_config->dispif_config), lcm_param,
+		       sizeof(struct LCM_PARAMS));
+
+		if (dsi_on) {
+			bdg_tx_init(DISP_BDG_DSI0, data_config, NULL);
+			bdg_tx_bist_pattern(DISP_BDG_DSI0, NULL, TRUE, 0, 0x3ff, 0, 0);
+			bdg_tx_start(DISP_BDG_DSI0, NULL);
+		} else {
+			bdg_tx_stop(DISP_BDG_DSI0, NULL);
+			bdg_tx_wait_for_idle(DISP_BDG_DSI0);
+			bdg_tx_bist_pattern(DISP_BDG_DSI0, NULL, FALSE, 0, 0, 0, 0);
+			bdg_tx_deinit(DISP_BDG_DSI0, NULL);
+		}
+
+	} else if (strncmp(opt, "dump", 4) == 0) {
+
+		DSI_DumpRegisters(DISP_MODULE_DSI0, 1);
+
+	} else if (strncmp(opt, "xdump", 5) == 0) {
+
+		bdg_dsi_dump_reg(DISP_BDG_DSI0, 1);
+
+	} else if (strncmp(opt, "bdg_int", 7) == 0) {
+		struct LCM_PARAMS *lcm_param = NULL;
+		struct disp_ddp_path_config *data_config;
+
+		lcm_param = disp_lcm_get_params(pgc->plcm);
+
+		if (!lcm_param)
+			DISPMSG("lcm_param is null\n");
+
+		data_config = dpmgr_path_get_last_config(pgc->dpmgr_handle);
+		memcpy(&(data_config->dispif_config), lcm_param,
+		       sizeof(struct LCM_PARAMS));
+
+		bdg_common_init(DISP_BDG_DSI0, data_config, NULL);
+		mipi_dsi_rx_mac_init(DISP_BDG_DSI0, data_config, NULL);
+	} else if (strncmp(opt, "xbdg_int", 8) == 0) {
+		struct LCM_PARAMS *lcm_param = NULL;
+		struct disp_ddp_path_config *data_config;
+
+		lcm_param = disp_lcm_get_params(pgc->plcm);
+
+		if (!lcm_param)
+			DISPMSG("lcm_param is null\n");
+
+		data_config = dpmgr_path_get_last_config(pgc->dpmgr_handle);
+		memcpy(&(data_config->dispif_config), lcm_param,
+			sizeof(struct LCM_PARAMS));
+
+		bdg_common_init_for_rx_pat(DISP_BDG_DSI0, data_config, NULL);
+
+	} else if (!strncmp(opt, "set_mask_spi:", 13)) {
+		unsigned int addr = 0, val = 0, mask = 0;
+		int ret = -1;
+
+		ret = sscanf(opt, "set_mask_spi:addr=0x%x,mask=0x%x,val=0x%x\n",
+			&addr, &mask, &val);
+		if (ret != 3) {
+			DISPERR("%d error to parse set_mt6382_spi cmd %s\n",
+				__LINE__, opt);
+			return;
+		}
+
+		ret = mtk_spi_mask_write(addr, mask, val);
+		if (ret < 0) {
+			DISPERR("write mt6382 fail,addr:0x%x, val:0x%x\n",
+				addr, val);
+			return;
+		}
+
+	} else if (!strncmp(opt, "set_mt6382_spi:", 15)) {
+		unsigned int addr = 0, val = 0;
+		int ret = -1;
+
+		ret = sscanf(opt, "set_mt6382_spi:addr=0x%x,val=0x%x\n",
+			&addr, &val);
+		if (ret != 2) {
+			DISPERR("%d error to parse set_mt6382_spi cmd %s\n",
+				__LINE__, opt);
+			return;
+		}
+
+		ret = mtk_spi_write(addr, val);
+//		ret = dsp_spi_write_ex(addr, &val, 4, speed);
+		if (ret < 0) {
+			DISPERR("write mt6382 fail,addr:0x%x, val:0x%x\n",
+				addr, val);
+			return;
+		}
+
+	} else if (!strncmp(opt, "read_mt6382_spi:", 16)) {
+		unsigned int addr = 0, val = 0;
+
+		ret = sscanf(opt, "read_mt6382_spi:addr=0x%x\n", &addr);
+		if (ret != 1) {
+			DISPERR("%d error to parse read_mt6382_spi cmd %s\n",
+				__LINE__, opt);
+			return;
+		}
+
+		val = mtk_spi_read(addr);
+//		ret = dsp_spi_read_ex(addr, &val, 4, speed);
+//		if (ret < 0) {
+//			DISPERR("read mt6382 fail,addr:0x%x\n",
+//				addr);
+//			return;
+//		}
+		DISPMSG("mt6382 read addr:0x%08x, val:0x%08x\n", addr, val);
+
+	} else if (strncmp(opt, "check", 5) == 0) {
+		if (check_stopstate(NULL) == 0)
+			bdg_tx_start(DISP_BDG_DSI0, NULL);
+		mdelay(100);
+		return;
+#endif
 	} else if (strncmp(opt, "mobile:", 7) == 0) {
 		if (strncmp(opt + 7, "on", 2) == 0)
 			g_mobilelog = 1;
@@ -1533,6 +1735,11 @@ static void process_dbg_opt(const char *opt)
 		unsigned int cfg_id = 0;
 
 		ret = kstrtouint(p, 10, &cfg_id);
+		if (ret) {
+			DISPWARN("%d error to parse cmd %s\n", __LINE__, opt);
+			return;
+		}
+
 		DDPMSG("debug:set_cfg_id:%d start\n", cfg_id);
 		primary_display_dynfps_chg_fps(cfg_id);
 		g_force_cfg_id = cfg_id;
@@ -1542,6 +1749,12 @@ static void process_dbg_opt(const char *opt)
 		unsigned int enable_force_fps = 0;
 
 		ret = kstrtouint(p, 10, &enable_force_fps);
+
+		if (ret) {
+			DISPWARN("%d error to parse cmd %s\n", __LINE__, opt);
+			return;
+		}
+
 		g_force_cfg = !!enable_force_fps;
 		DDPMSG("debug:g_force_cfg:%d\n", g_force_cfg);
 
@@ -1554,7 +1767,9 @@ static void process_dbg_opt(const char *opt)
 		primary_display_get_multi_configs(&cfgs);
 
 		DISPMSG("debug:get_multi_cfg:=%d\n", cfgs.config_num);
-		for (i = 0; i < cfgs.config_num; i++) {
+
+		for (i = 0; i < cfgs.config_num &&
+			cfgs.config_num <= MULTI_CONFIG_NUM; i++) {
 			dyn_info = &(cfgs.dyn_cfgs[i]);
 			DISPMSG("debug:%d,%dfps\n", i, dyn_info->vsyncFPS);
 		}
@@ -1661,6 +1876,31 @@ static ssize_t debug_read(struct file *file,
 out:
 	return simple_read_from_buffer(ubuf, count, ppos, debug_buffer, n);
 }
+
+#if defined(CONFIG_SMCDSD_PANEL)
+int mtkfb_debug_show(struct seq_file *m, void *unused)
+{
+	int debug_bufmax;
+	static int n;
+
+	if (!is_buffer_init)
+		goto out;
+
+	DISPFUNC();
+
+	debug_bufmax = DEBUG_BUFFER_SIZE - 1;
+	n = debug_get_info(debug_buffer, debug_bufmax);
+	/* debug_info_dump_to_printk(); */
+out:
+	//return simple_read_from_buffer(ubuf, count, ppos, debug_buffer, n);
+	seq_puts(m, "------ DISPLAY DEBUG INFO (/proc/mtkfb) ------\n");
+	if (debug_buffer)
+		seq_puts(m, debug_buffer);
+
+	return 0;
+}
+EXPORT_SYMBOL(mtkfb_debug_show);
+#endif
 
 static ssize_t debug_write(struct file *file,
 	const char __user *ubuf, size_t count, loff_t *ppos)

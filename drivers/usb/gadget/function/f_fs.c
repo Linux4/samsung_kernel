@@ -40,6 +40,10 @@
 #include "u_os_desc.h"
 #include "configfs.h"
 
+#ifdef CONFIG_MEDIATEK_SOLUTION
+#include "usb_boost.h"
+#endif
+
 #define FUNCTIONFS_MAGIC	0xa647361 /* Chosen by a honest dice roll ;) */
 
 /* Reference counter handling */
@@ -199,7 +203,7 @@ struct ffs_epfile {
 	unsigned char			isoc;	/* P: ffs->eps_lock */
 
 	unsigned char			_pad;
-	atomic_t				opened;
+	atomic_t			opened;
 };
 
 struct ffs_buffer {
@@ -272,6 +276,7 @@ static void ffs_ep0_complete(struct usb_ep *ep, struct usb_request *req)
 }
 
 static int __ffs_ep0_queue_wait(struct ffs_data *ffs, char *data, size_t len)
+	__releases(&ffs->ev.waitq.lock)
 {
 	struct usb_request *req = ffs->ep0req;
 	int ret;
@@ -299,11 +304,15 @@ static int __ffs_ep0_queue_wait(struct ffs_data *ffs, char *data, size_t len)
 
 	ret = wait_for_completion_interruptible(&ffs->ep0req_completion);
 	if (unlikely(ret)) {
+		if (!ffs->gadget)
+			return -EINTR;
 		usb_ep_dequeue(ffs->gadget->ep0, req);
 		return -EINTR;
 	}
 
 	ffs->setup_state = FFS_NO_SETUP;
+	if (!ffs->ep0req)
+		return -EINTR;
 	return req->status ? req->status : req->actual;
 }
 
@@ -464,6 +473,7 @@ done_spin:
 /* Called with ffs->ev.waitq.lock and ffs->mutex held, both released on exit. */
 static ssize_t __ffs_ep0_read_events(struct ffs_data *ffs, char __user *buf,
 				     size_t n)
+	__releases(&ffs->ev.waitq.lock)
 {
 	/*
 	 * n cannot be bigger than ffs->ev.count, which cannot be bigger than
@@ -707,12 +717,8 @@ static const struct file_operations ffs_ep0_operations = {
 
 static void ffs_epfile_io_complete(struct usb_ep *_ep, struct usb_request *req)
 {
-	struct ffs_ep *ep = _ep->driver_data;
-
 	ENTER();
-
-	/* req may be freed during unbind */
-	if (ep && ep->req && likely(req->context)) {
+	if (likely(req->context)) {
 		struct ffs_ep *ep = _ep->driver_data;
 		ep->status = req->status ? req->status : req->actual;
 		complete(req->context);
@@ -887,63 +893,6 @@ static ssize_t __ffs_epfile_read_data(struct ffs_epfile *epfile,
 	return ret;
 }
 
-/* Trigger re-start adbd ****************************************************/
-static pid_t tid;
-static int cnxn_cnt;
-#define ABORTION_WORK_DELAY 300
-void abortion(struct work_struct *data)
-{
-	/* send SIGKILL to adbd */
-	struct task_struct *t;
-	struct siginfo info;
-
-	memset(&info, 0, sizeof(struct siginfo));
-	info.si_signo = SIGPOLL;
-	info.si_code = POLL_ERR;
-
-	rcu_read_lock();
-	t = find_task_by_vpid(tid);
-	rcu_read_unlock();
-
-	if (t != NULL) {
-		pr_info("%s, tid<%d>, comm<%s>\n", __func__, tid, t->comm);
-		send_sig_info(SIGKILL, &info, t);
-	}
-}
-static void abortion_user(void)
-{
-	static struct delayed_work abortion_work;
-
-	INIT_DELAYED_WORK(&abortion_work, abortion);
-	tid = current->pid;
-	schedule_delayed_work(&abortion_work,
-			msecs_to_jiffies(ABORTION_WORK_DELAY));
-}
-
-static int write_in;
-static int write_out;
-#define ADB_WRITE_MONITOR_DELAY 5000
-static struct delayed_work wmonitor_wk;
-static void do_wmonitor_wk(struct work_struct *work)
-{
-	static int state;
-	static int last_write_in;
-
-	if ((write_in != write_out) && (last_write_in == write_in)) {
-		if (state == 2)
-			pr_notice("USB write stuck, <%d,%d,%d>\n",
-					write_in, write_out, last_write_in);
-		else
-			state++;
-	} else
-		state = 0;
-
-	last_write_in = write_in;
-	schedule_delayed_work(&wmonitor_wk,
-			msecs_to_jiffies(ADB_WRITE_MONITOR_DELAY));
-}
-
-
 static ssize_t ffs_epfile_io(struct file *file, struct ffs_io_data *io_data)
 {
 	struct ffs_epfile *epfile = file->private_data;
@@ -969,10 +918,8 @@ static ssize_t ffs_epfile_io(struct file *file, struct ffs_io_data *io_data)
 			return -EAGAIN;
 
 		/* Don't wait on write if device is offline */
-		if (!io_data->read) {
-			ret = -ENODEV;
-			goto error;
-		}
+		if (!io_data->read)
+			return -ENODEV;
 
 		/* to get updated error atomic variable value */
 		smp_mb__before_atomic();
@@ -986,10 +933,9 @@ static ssize_t ffs_epfile_io(struct file *file, struct ffs_io_data *io_data)
 			if (ret < 0)
 				return -EINTR;
 		}
-		if (!ep) {
-			ret = -ENODEV;
-			goto error;
-		}
+
+		if (!ep)
+			return -ENODEV;
 	}
 
 	/* Do we halt? */
@@ -1053,6 +999,10 @@ static ssize_t ffs_epfile_io(struct file *file, struct ffs_io_data *io_data)
 		}
 	}
 
+#ifdef CONFIG_MEDIATEK_SOLUTION
+	if (!strncmp(epfile->ffs->dev_name, "mtp", 3))
+		usb_boost();
+#endif
 	spin_lock_irq(&epfile->ffs->eps_lock);
 
 	if (epfile->ep != ep) {
@@ -1134,62 +1084,9 @@ static ssize_t ffs_epfile_io(struct file *file, struct ffs_io_data *io_data)
 		if (epfile->ep == ep)
 			ret = ep->status;
 		spin_unlock_irq(&epfile->ffs->eps_lock);
-		if (io_data->read && ret > 0) {
-			if (unlikely(ret > data_len))
-				pr_err("%s(), ret<%d>, org<%d>\n",
-						__func__,
-						(int)ret, (int)data_len);
-
-			if (req->actual == 24) {
-				char *data = req->buf;
-
-				if (data[0] == 'C' && data[1] == 'N'
-						&& data[2] == 'X'
-						&& data[3] == 'N') {
-					cnxn_cnt++;
-					pr_info("%s: cnxn_cnt=%d\n",
-							__func__, cnxn_cnt);
-				} else {
-					cnxn_cnt = 0;
-				}
-
-				if (cnxn_cnt == 3) {
-					cnxn_cnt = 0;
-					pr_info("%s trigger abort\n", __func__);
-					abortion_user();
-				}
-			}
-		}
-
-		if (io_data->read && ret > 0) {
-			if (unlikely(ret > data_len))
-				pr_err("%s(), ret<%d>, org<%d>\n",
-						__func__,
-						(int)ret, (int)data_len);
-
-			if (req->actual == 24) {
-				char *data = req->buf;
-
-				if (data && data[0] == 'C' && data[1] == 'N'
-						&& data[2] == 'X'
-						&& data[3] == 'N') {
-					cnxn_cnt++;
-					pr_info("%s: cnxn_cnt=%d\n",
-							__func__, cnxn_cnt);
-				} else {
-					cnxn_cnt = 0;
-				}
-
-				if (cnxn_cnt == 3) {
-					cnxn_cnt = 0;
-					pr_info("%s trigger abort\n", __func__);
-					abortion_user();
-				}
-			}
-
+		if (io_data->read && ret > 0)
 			ret = __ffs_epfile_read_data(epfile, data, ep->status,
 						     &io_data->data);
-		}
 		goto error_mutex;
 	} else if (!(req = usb_ep_alloc_request(ep->ep, GFP_ATOMIC))) {
 		ret = -ENOMEM;
@@ -1242,8 +1139,8 @@ ffs_epfile_open(struct inode *inode, struct file *file)
 	/* to get updated opened atomic variable value */
 	smp_mb__before_atomic();
 	if (atomic_read(&epfile->opened)) {
-		pr_err("%s(): ep(%s) is already opened.\n",
-				__func__, epfile->name);
+		pr_info("%s(): ep(%s) is already opened.\n",
+					__func__, epfile->name);
 		return -EBUSY;
 	}
 
@@ -1841,11 +1738,14 @@ static void ffs_data_closed(struct ffs_data *ffs)
 	if (atomic_dec_and_test(&ffs->opened)) {
 		if (ffs->no_disconnect) {
 			ffs->state = FFS_DEACTIVATED;
+			/* Blocking inode NULL */
+			mutex_lock(&ffs->mutex);
 			if (ffs->epfiles) {
 				ffs_epfiles_destroy(ffs->epfiles,
 						   ffs->eps_count);
 				ffs->epfiles = NULL;
 			}
+			mutex_unlock(&ffs->mutex);
 			if (ffs->setup_state == FFS_SETUP_PENDING)
 				__ffs_ep0_stall(ffs);
 		} else {
@@ -1903,8 +1803,13 @@ static void ffs_data_clear(struct ffs_data *ffs)
 
 	BUG_ON(ffs->gadget);
 
-	if (ffs->epfiles)
+	/* Blocking inode NULL */
+	mutex_lock(&ffs->mutex);
+	if (ffs->epfiles) {
 		ffs_epfiles_destroy(ffs->epfiles, ffs->eps_count);
+		ffs->epfiles = NULL;
+	}
+	mutex_unlock(&ffs->mutex);
 
 	if (ffs->ffs_eventfd)
 		eventfd_ctx_put(ffs->ffs_eventfd);
@@ -1985,11 +1890,14 @@ static int functionfs_bind(struct ffs_data *ffs, struct usb_composite_dev *cdev)
 
 static void functionfs_unbind(struct ffs_data *ffs)
 {
+	struct usb_request *temp_ep0req;
+	
 	ENTER();
 
 	if (!WARN_ON(!ffs->gadget)) {
-		usb_ep_free_request(ffs->gadget->ep0, ffs->ep0req);
+		temp_ep0req = ffs->ep0req;
 		ffs->ep0req = NULL;
+		usb_ep_free_request(ffs->gadget->ep0, temp_ep0req);
 		ffs->gadget = NULL;
 		clear_bit(FFS_FL_BOUND, &ffs->flags);
 		ffs_data_put(ffs);
@@ -2046,6 +1954,7 @@ static void ffs_epfiles_destroy(struct ffs_epfile *epfiles, unsigned count)
 	}
 
 	kfree(epfiles);
+	epfiles = NULL;
 }
 
 static void ffs_func_eps_disable(struct ffs_function *func)
@@ -2097,6 +2006,10 @@ static int ffs_func_eps_enable(struct ffs_function *func)
 
 		ret = usb_ep_enable(ep->ep);
 		if (likely(!ret)) {
+			if (epfile == NULL) {
+				pr_info("%s - UAF fix\n", __func__);
+				break;
+			}
 			epfile->ep = ep;
 			epfile->in = usb_endpoint_dir_in(ep->ep->desc);
 			epfile->isoc = usb_endpoint_xfer_isoc(ep->ep->desc);
@@ -3376,6 +3289,12 @@ static int ffs_func_set_alt(struct usb_function *f,
 	struct ffs_data *ffs = func->ffs;
 	int ret = 0, intf;
 
+	pr_info("%s - ffs->state:%d\n", __func__, ffs->state);
+	if (ffs->epfiles == NULL) {
+		pr_info("%s - UAF fix\n", __func__);
+		return -ENODEV;
+	}
+
 	if (alt != (unsigned)-1) {
 		intf = ffs_func_revmap_intf(func, interface);
 		if (unlikely(intf < 0))
@@ -3674,6 +3593,9 @@ static void ffs_func_unbind(struct usb_configuration *c,
 		ffs->func = NULL;
 	}
 
+	/* Drain any pending AIO completions */
+	drain_workqueue(ffs->io_completion_wq);
+
 	if (!--opts->refcnt)
 		functionfs_unbind(ffs);
 
@@ -3704,6 +3626,7 @@ static void ffs_func_unbind(struct usb_configuration *c,
 static struct usb_function *ffs_alloc(struct usb_function_instance *fi)
 {
 	struct ffs_function *func;
+	struct ffs_dev *dev;
 
 	ENTER();
 
@@ -3711,7 +3634,8 @@ static struct usb_function *ffs_alloc(struct usb_function_instance *fi)
 	if (unlikely(!func))
 		return ERR_PTR(-ENOMEM);
 
-	func->function.name    = "adb";
+	dev = to_f_fs_opts(fi)->dev;
+	func->function.name    = dev->name;
 
 	func->function.bind    = ffs_func_bind;
 	func->function.unbind  = ffs_func_unbind;

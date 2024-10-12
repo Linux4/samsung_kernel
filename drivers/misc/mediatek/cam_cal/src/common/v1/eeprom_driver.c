@@ -435,6 +435,8 @@ static int compat_put_cal_info_struct
 	err |= put_user(i, &data32->sensorID);
 	err |= get_user(i, &data->deviceID);
 	err |= put_user(i, &data32->deviceID);
+	err |= get_user(i, &data->command);
+	err |= put_user(i, &data32->command);
 
 	/* Assume pointer is not change */
 #if 1
@@ -460,6 +462,8 @@ static int EEPROM_compat_get_info
 	err |= put_user(i, &data->sensorID);
 	err |= get_user(i, &data32->deviceID);
 	err |= put_user(i, &data->deviceID);
+	err |= get_user(i, &data32->command);
+	err |= put_user(i, &data->command);
 
 	err |= get_user(p, &data32->pu1Params);
 	err |= put_user(compat_ptr(p), &data->pu1Params);
@@ -580,7 +584,7 @@ long eeprom_ioctl_control_command(struct stCAM_CAL_INFO_STRUCT *camCalInfo,
 		pr_debug("[%s] Not used anymore", __func__);
 		return -EINVAL;
 	default:
-		pr_debug("[%s] No such command %d\n", __func__, camCalInfo->command);
+		pr_info("[%s] No such command %d\n", __func__, camCalInfo->command);
 		return -EINVAL;
 	}
 	for (i = 0; i < camCalInfo->u4Length; i++) {
@@ -616,7 +620,7 @@ static long EEPROM_drv_ioctl(struct file *file,
 		pBuff = kmalloc(sizeof(struct stCAM_CAL_INFO_STRUCT),
 					GFP_KERNEL);
 		if (pBuff == NULL) {
-			pr_debug("ioctl allocate pBuff mem failed\n");
+			pr_err("ioctl allocate pBuff mem failed\n");
 			return -ENOMEM;
 		}
 
@@ -625,7 +629,7 @@ static long EEPROM_drv_ioctl(struct file *file,
 				sizeof(struct stCAM_CAL_INFO_STRUCT))) {
 			/*get input structure address */
 			kfree(pBuff);
-			pr_debug("ioctl copy from user failed\n");
+			pr_err("ioctl copy from user failed\n");
 			return -EFAULT;
 		}
 
@@ -634,7 +638,7 @@ static long EEPROM_drv_ioctl(struct file *file,
 		if ((ptempbuf->u4Length <= 0) ||
 			(ptempbuf->u4Length > CAM_CAL_MAX_BUF_SIZE)) {
 			kfree(pBuff);
-			pr_debug("Buffer Length Error!\n");
+			pr_err("Buffer Length Error!\n");
 			return -EFAULT;
 		}
 
@@ -642,7 +646,7 @@ static long EEPROM_drv_ioctl(struct file *file,
 
 		if (pu1Params == NULL) {
 			kfree(pBuff);
-			pr_debug("ioctl allocate pu1Params mem failed\n");
+			pr_err("ioctl allocate pu1Params mem failed\n");
 			return -ENOMEM;
 		}
 
@@ -651,12 +655,12 @@ static long EEPROM_drv_ioctl(struct file *file,
 		    ptempbuf->u4Length)) {
 			kfree(pBuff);
 			kfree(pu1Params);
-			pr_debug("ioctl copy from user failed\n");
+			pr_err("ioctl copy from user failed\n");
 			return -EFAULT;
 		}
 	}
 	if (ptempbuf == NULL) {	/*It have to add */
-		pr_debug("ptempbuf is Null !!!");
+		pr_err("ptempbuf is Null !!!");
 		return -EFAULT;
 	}
 	switch (a_u4Command) {
@@ -675,7 +679,7 @@ static long EEPROM_drv_ioctl(struct file *file,
 		    (pcmdInf->maxEepromSize != 0) &&
 		    (pcmdInf->maxEepromSize <
 		     (ptempbuf->u4Offset + ptempbuf->u4Length))) {
-			pr_debug("Error!! not support address >= 0x%x!!\n",
+			pr_err("Error!! not support address >= 0x%x!!\n",
 				 pcmdInf->maxEepromSize);
 			kfree(pBuff);
 			kfree(pu1Params);
@@ -685,7 +689,7 @@ static long EEPROM_drv_ioctl(struct file *file,
 		if (pcmdInf != NULL && g_lastDevID != ptempbuf->deviceID) {
 			if (EEPROM_set_i2c_bus(ptempbuf->deviceID,
 					       pcmdInf) != 0) {
-				pr_debug("deviceID Error!\n");
+				pr_err("deviceID Error!\n");
 				kfree(pBuff);
 				kfree(pu1Params);
 				return -EFAULT;
@@ -702,9 +706,9 @@ static long EEPROM_drv_ioctl(struct file *file,
 					pu1Params,
 					ptempbuf->u4Length);
 			} else
-				pr_debug("pcmdInf->writeCMDFunc == NULL\n");
+				pr_err("pcmdInf->writeCMDFunc == NULL\n");
 		} else
-			pr_debug("pcmdInf == NULL\n");
+			pr_err("pcmdInf == NULL\n");
 
 #ifdef CAM_CALGETDLT_DEBUG
 		do_gettimeofday(&ktv2);
@@ -726,8 +730,7 @@ static long EEPROM_drv_ioctl(struct file *file,
 #ifdef CAM_CALGETDLT_DEBUG
 		do_gettimeofday(&ktv1);
 #endif
-		pr_debug("SensorID=%x DeviceID=%x\n",
-			ptempbuf->sensorID, ptempbuf->deviceID);
+		pr_info("[%s] SensorID=%x DeviceID=%x\n", __func__, ptempbuf->sensorID, ptempbuf->deviceID);
 		pcmdInf = EEPROM_get_cmd_info_ex(
 			ptempbuf->sensorID,
 			ptempbuf->deviceID);
@@ -755,7 +758,7 @@ static long EEPROM_drv_ioctl(struct file *file,
 		    (pcmdInf->maxEepromSize != 0) &&
 		    (pcmdInf->maxEepromSize <
 		     (ptempbuf->u4Offset + ptempbuf->u4Length))) {
-			pr_debug("Error!! not support address >= 0x%x!!\n",
+			pr_err("Error!! not support address >= 0x%x!!\n",
 				 pcmdInf->maxEepromSize);
 			kfree(pBuff);
 			kfree(pu1Params);
@@ -765,7 +768,7 @@ static long EEPROM_drv_ioctl(struct file *file,
 		if (pcmdInf != NULL && g_lastDevID != ptempbuf->deviceID) {
 			if (EEPROM_set_i2c_bus(ptempbuf->deviceID,
 					       pcmdInf) != 0) {
-				pr_debug("deviceID Error!\n");
+				pr_err("deviceID Error!\n");
 				kfree(pBuff);
 				kfree(pu1Params);
 				return -EFAULT;
@@ -782,7 +785,7 @@ static long EEPROM_drv_ioctl(struct file *file,
 							  pu1Params,
 							  ptempbuf->u4Length);
 			} else {
-				pr_debug("pcmdInf->readCMDFunc == NULL\n");
+				pr_err("pcmdInf->readCMDFunc == NULL\n");
 				kfree(pBuff);
 				kfree(pu1Params);
 				return -EFAULT;
@@ -809,7 +812,7 @@ static long EEPROM_drv_ioctl(struct file *file,
 		break;
 
 	default:
-		pr_debug("No CMD\n");
+		pr_info("No CMD\n");
 		i4RetValue = -EINVAL;
 		break;
 	}
@@ -820,7 +823,7 @@ static long EEPROM_drv_ioctl(struct file *file,
 				ptempbuf->u4Length)) {
 			kfree(pBuff);
 			kfree(pu1Params);
-			pr_debug("ioctl copy to user failed\n");
+			pr_err("ioctl copy to user failed\n");
 			return -EFAULT;
 		}
 	}
@@ -834,11 +837,11 @@ static int EEPROM_drv_open(struct inode *a_pstInode, struct file *a_pstFile)
 {
 	int ret = 0;
 
-	pr_debug("%s start\n", __func__);
+	pr_info("%s start\n", __func__);
 	spin_lock(&g_spinLock);
 	if (g_drvOpened) {
 		spin_unlock(&g_spinLock);
-		pr_debug("Opened, return -EBUSY\n");
+		pr_err("Opened, return -EBUSY\n");
 		ret = -EBUSY;
 	} else {
 		g_drvOpened = 1;

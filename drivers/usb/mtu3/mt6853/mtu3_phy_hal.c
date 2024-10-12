@@ -45,34 +45,6 @@
 static struct phy *mtk_phy;
 struct pm_qos_request vcore_pm_qos;
 
-void ssusb_set_preemphasis(bool enable)
-{
-	struct ssusb_mtk *ssusb;
-	struct phy *phy;
-	u32 val = 0;
-
-	ssusb = get_ssusb();
-
-	if (!ssusb || !ssusb->phys[0]) {
-		pr_info("ssusb not ready\n");
-		return;
-	}
-
-	pr_info("%s enable %d\n", __func__, enable);
-
-	phy = ssusb->phys[0];
-
-	if (enable) {
-		val = usb_phy_get_data(phy, "enhance");
-		if (!val)
-			val = 0x2;
-		u3phywrite32(phy, 0x18, 0x3 << 30,
-			val << 30);
-	} else
-		u3phywrite32(phy, 0x18, 0x3 << 30,
-			0x0 << 30);
-}
-
 #if !defined(CONFIG_USB_MU3D_DRV)
 void Charger_Detect_Init(void)
 {

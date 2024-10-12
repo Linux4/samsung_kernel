@@ -16,6 +16,7 @@
 
 #include "five_hooks.h"
 #include "five_porting.h"
+#include "five_testing.h"
 
 #include <linux/fs.h>
 #include <linux/slab.h>
@@ -274,9 +275,11 @@ void five_hook_task_forked(struct task_struct *parent,
 	get_task_struct(parent);
 	get_task_struct(child);
 	event.forked.parent = parent;
-	event.forked.parent_tint_value = task_integrity_read(TASK_INTEGRITY(parent));
+	event.forked.parent_tint_value =
+				task_integrity_read(TASK_INTEGRITY(parent));
 	event.forked.child = child;
-	event.forked.child_tint_value = task_integrity_read(TASK_INTEGRITY(child));
+	event.forked.child_tint_value =
+				task_integrity_read(TASK_INTEGRITY(child));
 
 	if (__push_event(&event, GFP_ATOMIC) < 0)
 		hook_wq_event_destroy(&event);
@@ -292,6 +295,7 @@ int five_hook_wq_init(void)
 	return 0;
 }
 
+__mockable
 void five_hook_integrity_reset(struct task_struct *task,
 			       struct file *file,
 			       enum task_integrity_reset_cause cause)

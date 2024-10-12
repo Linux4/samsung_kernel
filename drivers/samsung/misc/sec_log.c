@@ -302,7 +302,7 @@ static int sec_log_combine_pmsg(char *buffer, size_t count, unsigned int level)
 					pr_info("%s\n", buffer);
 #ifdef CONFIG_SEC_BOOTSTAT
 					if (count > 5 && strncmp(buffer, "!@Boot", 6) == 0)
-						sec_boot_stat_add(buffer);
+					sec_boot_stat_add(buffer);
 #endif /* CONFIG_SEC_BOOTSTAT */
 				}
 			}

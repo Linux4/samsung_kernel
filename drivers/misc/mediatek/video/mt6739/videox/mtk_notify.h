@@ -23,8 +23,8 @@
 #include <linux/errno.h>
 #include <linux/trace_events.h>
 #include "ddp_hal.h"
-#include "ddp_irq.h"
 #if !defined(CONFIG_SMCDSD_PANEL)
+#include "ddp_irq.h"
 #include "primary_display.h"
 #endif
 

@@ -33,7 +33,9 @@
 #define GC02M1_SENSOR_GAIN_MAP_SIZE         16
 #define GC02M1_SENSOR_DGAIN_BASE            0x400
 
-enum{
+#define GC02M1_OTP_START_ADDR    0x0078
+
+enum IMGSENSOR_MODE {
 	IMGSENSOR_MODE_INIT,
 	IMGSENSOR_MODE_PREVIEW,
 	IMGSENSOR_MODE_CAPTURE,
@@ -45,6 +47,13 @@ enum{
 	IMGSENSOR_MODE_CUSTOM3,
 	IMGSENSOR_MODE_CUSTOM4,
 	IMGSENSOR_MODE_CUSTOM5,
+	IMGSENSOR_MODE_MAX
+};
+
+struct setfile_mode_info {
+	kal_uint16 *setfile;
+	kal_uint32 size;
+	char *name;
 };
 
 struct imgsensor_mode_struct {
@@ -86,7 +95,6 @@ struct imgsensor_info_struct {
 	kal_uint32 checksum_value;
 	struct imgsensor_mode_struct pre;
 	struct imgsensor_mode_struct cap;
-	struct imgsensor_mode_struct cap1;
 	struct imgsensor_mode_struct normal_video;
 	struct imgsensor_mode_struct hs_video;
 	struct imgsensor_mode_struct slim_video;
@@ -128,6 +136,7 @@ struct imgsensor_info_struct {
 	kal_uint32 max_gain;
 	kal_uint32 min_gain_iso;
 	kal_uint32 gain_step;
+	kal_uint32 exp_step;
 	kal_uint32 gain_type;
 };
 

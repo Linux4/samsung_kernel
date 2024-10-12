@@ -64,7 +64,7 @@ static ssize_t param_write(struct file *f, const char __user *user_buf,
 	struct params_list_info *params_list = ((struct seq_file *)f->private_data)->private;
 	struct param_info *param = NULL;
 
-	unsigned char ibuf[MAX_INPUT] = {0, };
+	char ibuf[MAX_INPUT] = {0, };
 	unsigned int tbuf[MAX_INPUT] = {0, };
 	unsigned int value = 0, end = 0, input_w = 0, input_h = 0, offset_w = 0, offset_h = 0, param_old, param_new;
 	char *pbuf, *token = NULL;
@@ -76,7 +76,7 @@ static ssize_t param_write(struct file *f, const char __user *user_buf,
 		goto exit;
 	}
 
-	if (!strncmp(ibuf, "0", count - 1)) {
+	if (sysfs_streq(ibuf, "0")) {
 		dbg_info("input is 0(zero). reset param to default\n");
 
 		list_for_each_entry(param, &params_list->node, node) {
@@ -207,7 +207,7 @@ static int param_show(struct seq_file *m, void *unused)
 
 	seq_puts(m, "  |");
 	for (i = 0; i < params_list->max_size; i++)
-		seq_printf(m, (params_list->max_type == 32) ? " %4d" : " %2d", i);
+		seq_printf(m, (params_list->max_type == U32_MAX) ? " %4d" : " %2d", i);
 	seq_puts(m, "| <- input X first\n");
 	seq_puts(m, "--+");
 	for (i = 0; i < params_list->max_size * ((params_list->max_type == U32_MAX) ? 5 : 3) ; i++)
@@ -250,7 +250,6 @@ static const struct file_operations param_fops = {
 	.open		= param_open,
 	.write		= param_write,
 	.read		= seq_read,
-	.llseek		= no_llseek,
 	.release	= single_release,
 };
 
@@ -271,7 +270,7 @@ static int help_show(struct seq_file *m, void *unused)
 	seq_puts(m, "------------------------------------------------------------\n");
 	seq_puts(m, "\n");
 	seq_puts(m, "---------- usage\n");
-	seq_puts(m, "# cd /d/dd_param\n");
+	seq_puts(m, "# cd /d/dd/param\n");
 	seq_puts(m, "----------\n");
 
 	for (i = 0; i < (u32)ARRAY_SIZE(params_lists); i++) {
@@ -322,15 +321,14 @@ static int help_open(struct inode *inode, struct file *f)
 static const struct file_operations help_fops = {
 	.open		= help_open,
 	.read		= seq_read,
-	.llseek		= seq_lseek,
-	.release	= seq_release,
+	.release	= single_release,
 };
 
 static int add_param(struct params_list_info *params_list, void *ptr, u32 ptr_type, u32 ptr_size)
 {
 	struct param_info *param;
 
-	if (params_list->max_h > U8_MAX) {
+	if (params_list->max_h > U32_MAX) {
 		dbg_info("params_list->max_h(%d) invalid\n", params_list->max_h);
 		return 0;
 	}
@@ -393,6 +391,7 @@ void init_debugfs_param(const char *name, void *ptr, u32 ptr_type, u32 sum_size,
 {
 	struct params_list_info *params_list = find_params_list(name);
 	int i = 0;
+	static struct dentry *dd_debugfs_root;
 
 	if (!name || !ptr || !ptr_type || !sum_size || !params_list) {
 		dbg_info("invalid param\n");
@@ -404,12 +403,12 @@ void init_debugfs_param(const char *name, void *ptr, u32 ptr_type, u32 sum_size,
 		return;
 	}
 
-	if (sum_size > 64) {
+	if (sum_size > U32_MAX) {
 		dbg_info("sum_size(%d) invalid\n", sum_size);
 		return;
 	}
 
-	if (ptr_unit > 64) {
+	if (ptr_unit > U32_MAX) {
 		dbg_info("ptr_unit(%d) invalid\n", ptr_unit);
 		return;
 	}
@@ -419,8 +418,11 @@ void init_debugfs_param(const char *name, void *ptr, u32 ptr_type, u32 sum_size,
 		ptr_unit = sum_size;
 	}
 
+	dd_debugfs_root = debugfs_lookup("dd", NULL);
+	dd_debugfs_root = dd_debugfs_root ? dd_debugfs_root : debugfs_create_dir("dd", NULL);
+
 	if (!debugfs_root) {
-		debugfs_root = debugfs_create_dir("dd_param", NULL);
+		debugfs_root = debugfs_create_dir("param", dd_debugfs_root);
 		debugfs_create_file("_help", 0400, debugfs_root, NULL, &help_fops);
 	}
 

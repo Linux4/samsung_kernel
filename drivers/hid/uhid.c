@@ -785,7 +785,6 @@ static struct miscdevice uhid_misc = {
 	.minor		= UHID_MINOR,
 	.name		= UHID_NAME,
 };
-
 static int fb_state_change(struct notifier_block *nb,
     unsigned long val, void *data)
 {
@@ -825,7 +824,6 @@ static void __exit uhid_exit(void)
 	fb_unregister_client(&fb_block);
 	misc_deregister(&uhid_misc);
 }
-
 module_init(uhid_init);
 module_exit(uhid_exit);
 

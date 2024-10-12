@@ -12,6 +12,7 @@
  */
 
 #include <linux/kthread.h>
+#include <linux/mutex.h>
 
 #ifdef CONFIG_MTK_TINYSYS_SSPM_SUPPORT
 #include <sspm_ipi_id.h>
@@ -19,9 +20,13 @@
 #endif
 
 #include "mtk_qos_bound.h"
+#ifdef QOS_PREFETCH_SUPPORT
+#include "mtk_qos_prefetch.h"
+#endif /* QOS_PREFETCH_SUPPORT */
 #include "mtk_qos_ipi.h"
 
 #if defined(CONFIG_MTK_TINYSYS_SSPM_SUPPORT)
+static DEFINE_MUTEX(qos_ipi_mutex);
 static int qos_sspm_ready;
 int qos_ipi_ackdata;
 struct qos_ipi_data qos_recv_ackdata;
@@ -38,7 +43,7 @@ static int qos_ipi_recv_thread(void *arg)
 {
 	struct qos_ipi_data *qos_ipi_d;
 
-	pr_info("qos_ipi_recv_thread start!\n");
+	pr_info("%s start!\n", __func__);
 	do {
 		mtk_ipi_recv(&sspm_ipidev, IPIR_I_QOS);
 
@@ -50,6 +55,17 @@ static int qos_ipi_recv_thread(void *arg)
 					qos_ipi_d->u.qos_bound.state,
 					get_qos_bound());
 			break;
+#ifdef QOS_PREFETCH_SUPPORT
+		case QOS_IPI_QOS_PREFETCH_CB:
+			prefetch_notifier_call_chain(
+					qos_ipi_d->u.qos_prefetch_cb.state,
+					NULL);
+			break;
+		case QOS_IPI_QOS_PREFETCH_UPDATE:
+			if (is_qos_prefetch_enabled())
+				qos_prefetch_update_all();
+			break;
+#endif /* QOS_PREFETCH_SUPPORT */
 		default:
 			pr_info("wrong QoS IPI command: %d\n", qos_ipi_d->cmd);
 		}
@@ -62,9 +78,11 @@ static int qos_ipi_recv_thread(void *arg)
 int qos_ipi_to_sspm_command(void *buffer, int slot)
 {
 #if defined(CONFIG_MTK_TINYSYS_SSPM_SUPPORT)
-	int ret;
+	int ret, ackdata;
 	struct qos_ipi_data *qos_ipi_d = buffer;
 	int slot_num = sizeof(struct qos_ipi_data)/SSPM_MBOX_SLOT_SIZE;
+
+	mutex_lock(&qos_ipi_mutex);
 
 	if (qos_sspm_ready != 1) {
 		pr_info("qos ipi not ready, skip cmd=%d\n", qos_ipi_d->cmd);
@@ -93,9 +111,11 @@ int qos_ipi_to_sspm_command(void *buffer, int slot)
 		qos_ipi_d->cmd, qos_ipi_ackdata);
 		goto error;
 	}
-
-	return qos_ipi_ackdata;
+	ackdata = qos_ipi_ackdata;
+	mutex_unlock(&qos_ipi_mutex);
+	return ackdata;
 error:
+	mutex_unlock(&qos_ipi_mutex);
 #endif
 	return -1;
 }

@@ -33,10 +33,10 @@
 #include "flashlight-dt.h"
 
 /* MUIC header file */
-#include <linux/ssdev_in_mtk/muic/muic.h>
-//#include <linux/ssdev_in_mtk/muic/s2mu106-muic.h>
-#include <linux/ssdev_in_mtk/muic/s2mu106-muic-hv.h>
-#include <linux/ssdev_in_mtk/usb/typec/slsi/usbpd_ext.h>
+#include <linux/usb/typec/slsi/common/usbpd_ext.h>
+#include <linux/muic/slsi/s2mu106/s2mu106-muic.h>
+
+
 
 #define S2MU106_NAME "flashlights-s2mu106"
 

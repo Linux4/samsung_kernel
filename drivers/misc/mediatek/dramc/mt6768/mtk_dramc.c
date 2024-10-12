@@ -238,7 +238,7 @@ int exit_pasr_dpd_config(void)
 #define MEM_TEST_SIZE 0x2000
 #define PATTERN1 0x5A5A5A5A
 #define PATTERN2 0xA5A5A5A5
-int Binning_DRAM_complex_mem_test(unsigned int len)
+int Binning_DRAM_complex_mem_test(void)
 {
 	unsigned char *MEM8_BASE;
 	unsigned short *MEM16_BASE;
@@ -249,10 +249,11 @@ int Binning_DRAM_complex_mem_test(unsigned int len)
 	unsigned short pattern16;
 	unsigned int i, j, size, pattern32;
 	unsigned int value;
+	unsigned int len = MEM_TEST_SIZE;
 	void *ptr;
 	int ret = 1;
 
-	ptr = vmalloc(len);
+	ptr = vmalloc(MEM_TEST_SIZE);
 
 	if (!ptr) {
 		/*dramc_info("fail to vmalloc\n");*/
@@ -266,8 +267,8 @@ int Binning_DRAM_complex_mem_test(unsigned int len)
 	MEM32_BASE = (unsigned int *)ptr;
 	MEM_BASE = (unsigned int *)ptr;
 	/* dramc_info("Test DRAM start address 0x%lx\n", (unsigned long)ptr); */
-	dramc_info("Test DRAM start address %pK\n", ptr);
-	dramc_info("Test DRAM SIZE 0x%x\n", len);
+	dramc_info("Test DRAM start address %p\n", ptr);
+	dramc_info("Test DRAM SIZE 0x%x\n", MEM_TEST_SIZE);
 	size = len >> 2;
 
 	/* === Verify the tied bits (tied high) === */
@@ -772,7 +773,7 @@ static ssize_t complex_mem_test_show(struct device_driver *driver, char *buf)
 {
 	int ret;
 
-	ret = Binning_DRAM_complex_mem_test(MEM_TEST_SIZE);
+	ret = Binning_DRAM_complex_mem_test();
 	if (ret > 0)
 		return snprintf(buf, PAGE_SIZE, "MEM Test all pass\n");
 	else
@@ -785,28 +786,6 @@ const char *buf, size_t count)
 	/*snprintf(buf, "do nothing\n");*/
 	return count;
 }
-
-static unsigned int dram_complex_test_size[4] = {MEM_TEST_SIZE, };
-#define DEFINE_COMPLEX_TEST_ATTR_RW(n) \
-	static ssize_t emi_clk_mem_test##n##_show(struct device_driver *driver, char *buf) { \
-		int ret = Binning_DRAM_complex_mem_test(dram_complex_test_size[n-1]); \
-		if (ret > 0) return snprintf(buf, PAGE_SIZE, "MEM Test(0x%x) all pass\n", dram_complex_test_size[n-1]); \
-		else return snprintf(buf, PAGE_SIZE, "MEM TEST(0x%x) failed %d\n", dram_complex_test_size[n-1], ret); \
-	} \
-	static ssize_t emi_clk_mem_test##n##_store(struct device_driver *driver, const char *buf, size_t count) { \
-		unsigned int size; \
-		int ret = kstrtouint(buf, 16, &size); \
-		if (!ret) dram_complex_test_size[n-1] = size; \
-		return count; \
-	 } \
-	static DRIVER_ATTR_RW(emi_clk_mem_test##n);
-#define MAKE_COMPLEX_TEST_ATTR_RW(n) \
-	ret = driver_create_file(pdev->dev.driver, &driver_attr_emi_clk_mem_test##n); \
-	if (ret) { dramc_info("fail to create emi_clk_mem_test##n files\n"); return ret; }
-DEFINE_COMPLEX_TEST_ATTR_RW(1);
-DEFINE_COMPLEX_TEST_ATTR_RW(2);
-DEFINE_COMPLEX_TEST_ATTR_RW(3);
-DEFINE_COMPLEX_TEST_ATTR_RW(4);
 
 static ssize_t read_dram_data_rate_show(struct device_driver *driver, char *buf)
 {
@@ -916,11 +895,6 @@ static int dram_probe(struct platform_device *pdev)
 		dramc_info("fail to create emi_clk_mem_test sysfs files\n");
 		return ret;
 	}
-
-	MAKE_COMPLEX_TEST_ATTR_RW(1)
-	MAKE_COMPLEX_TEST_ATTR_RW(2)
-	MAKE_COMPLEX_TEST_ATTR_RW(3)
-	MAKE_COMPLEX_TEST_ATTR_RW(4)
 
 	ret = driver_create_file(pdev->dev.driver,
 	&driver_attr_read_dram_data_rate);

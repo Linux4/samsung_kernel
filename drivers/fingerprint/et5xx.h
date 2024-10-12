@@ -77,7 +77,6 @@
 #define FP_RESET_SET					0x07
 #define FP_REGISTER_BREAD				0x20
 #define FP_REGISTER_BWRITE				0x21
-#define FP_REGISTER_MREAD				0x22
 #define FP_REGISTER_MWRITE				0x23
 #define FP_REGISTER_BREAD_BACKWARD		0x24
 #define FP_REGISTER_BWRITE_BACKWARD		0x25
@@ -86,7 +85,6 @@
 #define FP_NVM_READ						0X40
 #define FP_NVM_WRITE					0x41
 #define FP_NVM_OFF						0x42
-#define FP_NVM_WRITEEX					0x43
 
 #ifdef ENABLE_SENSORS_FPRINT_SECURE
 #define FP_DISABLE_SPI_CLOCK				0x10
@@ -126,6 +124,7 @@
 #define MAX_NVM_LEN (32 * 2) /* NVM length in bytes (32 * 16 bits internally) */
 #define NVM_WRITE_LENGTH 4096
 #define DETECT_ADM 1
+static unsigned int bufsiz = 30 * 1024;
 
 struct egis_ioc_transfer {
 	u8 *tx_buf;
@@ -216,8 +215,6 @@ int et5xx_io_burst_write_register_backward(struct et5xx_data *etspi,
 		struct egis_ioc_transfer *ioc);
 int et5xx_io_read_register(struct et5xx_data *etspi,
 		u8 *addr, u8 *buf);
-int et5xx_io_read_registerex(struct et5xx_data *etspi,
-		u8 *addr, u8 *buf, u32 len);
 int et5xx_io_write_register(struct et5xx_data *etspi,
 		u8 *buf);
 int et5xx_read_register(struct et5xx_data *etspi,
@@ -227,8 +224,6 @@ int et5xx_write_register(struct et5xx_data *etspi,
 int et5xx_io_nvm_read(struct et5xx_data *etspi,
 		struct egis_ioc_transfer *ioc);
 int et5xx_io_nvm_write(struct et5xx_data *etspi,
-		struct egis_ioc_transfer *ioc);
-int et5xx_io_nvm_writeex(struct et5xx_data *etspi,
 		struct egis_ioc_transfer *ioc);
 int et5xx_io_nvm_off(struct et5xx_data *etspi,
 		struct egis_ioc_transfer *ioc);

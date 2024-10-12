@@ -52,7 +52,7 @@
 #define EEPROM_I2C_MSG_SIZE_READ 2
 
 #ifndef EEPROM_I2C_READ_MSG_LENGTH_MAX
-#define EEPROM_I2C_READ_MSG_LENGTH_MAX 1024
+#define EEPROM_I2C_READ_MSG_LENGTH_MAX 255
 #endif
 #ifndef EEPROM_I2C_WRITE_MSG_LENGTH_MAX
 #define EEPROM_I2C_WRITE_MSG_LENGTH_MAX 32
@@ -198,7 +198,7 @@ static int iWriteData_CAM_CAL(struct i2c_client *client,
 #endif
 
 unsigned int Common_read_region(struct i2c_client *client, struct CAM_CAL_SENSOR_INFO sensor_info,
-								unsigned int addr, unsigned char *data, unsigned int size)
+				unsigned int addr, unsigned char *data, unsigned int size)
 {
 	unsigned int ret = 0;
 	struct timeval t;
@@ -214,7 +214,7 @@ unsigned int Common_read_region(struct i2c_client *client, struct CAM_CAL_SENSOR
 }
 
 unsigned int Common_write_region(struct i2c_client *client, struct CAM_CAL_SENSOR_INFO sensor_info,
-								unsigned int addr, unsigned char *data, unsigned int size)
+				unsigned int addr, unsigned char *data, unsigned int size)
 {
 	unsigned int ret = 0;
 #if EEPROM_WRITE_EN
@@ -233,8 +233,8 @@ unsigned int Common_write_region(struct i2c_client *client, struct CAM_CAL_SENSO
 	return ret;
 }
 
-unsigned int DW9763_write_region(struct i2c_client *client, unsigned int addr,
-				unsigned char *data, unsigned int size)
+unsigned int DW9763_write_region(struct i2c_client *client, struct CAM_CAL_SENSOR_INFO sensor_info,
+				unsigned int addr, unsigned char *data, unsigned int size)
 {
 	unsigned int ret = 0;
 #if EEPROM_WRITE_EN
@@ -276,7 +276,7 @@ unsigned int DW9763_write_region(struct i2c_client *client, unsigned int addr,
 }
 
 unsigned int BL24SA64_write_region(struct i2c_client *client, unsigned int addr,
-				unsigned char *data, unsigned int size)
+				   struct CAM_CAL_SENSOR_INFO sensor_info, unsigned char *data, unsigned int size)
 {
 	unsigned int ret = 0;
 #if EEPROM_WRITE_EN

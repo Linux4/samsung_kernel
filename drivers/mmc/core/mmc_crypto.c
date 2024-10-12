@@ -291,7 +291,7 @@ static int mmc_prepare_mqr_crypto_spec(struct mmc_host *host,
 	 * with F2FS (dun is 512 bytes), the dun[0] had
 	 * multiplied by 8.
 	 */
-	if (bc->hie_ext4 == true)
+	if (bc->hie_ext4)
 		mrq->data_unit_num =
 			(blk_rq_pos(request) & 0xFFFFFFFF);
 	else

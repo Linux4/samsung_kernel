@@ -484,15 +484,6 @@ static void mtk_gpufreq_pg_debug_dump(enum subsys_id sys)
 			0x102150D8,
 			readl(g_infra_bcrm + 0x0D8));
 	}
-
-	// 0x10001000
-	if (g_infracfg_ao) {
-		gpufreq_pr_info("infra ao info 0x%x:0x%08x\n",
-			0x10001E98,
-			readl(g_infracfg_ao + 0xE98));
-	}
-
-	mt_gpufreq_dump_infra_status();
 }
 
 static struct pg_callbacks mtk_gpufreq_pg_handle = {
@@ -713,9 +704,13 @@ void mt_gpufreq_set_timestamp(void)
 {
 	gpufreq_pr_debug("@%s\n", __func__);
 
-	/* write 1 into 0x13fb_f130 bit 0 to enable timestamp register */
-	/* timestamp will be used by clGetEventProfilingInfo*/
-	writel(0x00000001, g_mfg_base + 0x130);
+	/* timestamp will be used by clGetEventProfilingInfo
+	 * 0x13fb_f130
+	 * [0] : write 1 to enable timestamp register
+	 * [1] : 0: timer from internal module
+	 *     : 1: timer from soc
+	 */
+	writel(0x00000003, g_mfg_base + 0x130);
 }
 
 void mt_gpufreq_check_bus_idle(void)
@@ -756,18 +751,10 @@ static void mt_gpufreq_external_cg_control(void)
 
 	/* [D] MFG_GLOBAL_CON 0x13FB_F0B0 [10] GPU_CLK_FREE_RUN = 0x0 */
 	/* [D] MFG_GLOBAL_CON 0x13FB_F0B0 [9] MFG_SOC_OUT_AXI_FREE_RUN = 0x0 */
-	/*
 	val = readl(g_mfg_base + 0xB0);
 	val &= ~(1UL << 10);
 	val &= ~(1UL << 9);
 	writel(val, g_mfg_base + 0xB0);
-	*/
-
-	// 0x10006000
-	if (g_sleep) {
-		readl(g_sleep + 0x16C);
-		readl(g_sleep + 0x170);
-	}
 
 	/* [D] MFG_QCHANNEL_CON 0x13FB_F0B4 [4] QCHANNEL_ENABLE = 0x1 */
 	val = readl(g_mfg_base + 0xB4);
@@ -776,27 +763,10 @@ static void mt_gpufreq_external_cg_control(void)
 
 	/* [E] MFG_GLOBAL_CON 0x13FB_F0B0 [19] PWR_CG_FREE_RUN = 0x0 */
 	/* [P] MFG_GLOBAL_CON 0x13FB_F0B0 [8] MFG_SOC_IN_AXI_FREE_RUN = 0x0 */
-	/*
 	val = readl(g_mfg_base + 0xB0);
 	val &= ~(1UL << 19);
 	val &= ~(1UL << 8);
 	writel(val, g_mfg_base + 0xB0);
-	*/
-
-	// 0x10006000
-	if (g_sleep) {
-		gpufreq_pr_info("ON: pwr info 0x%x:0x%08x, pwr con 0x%x:0x%08x\n",
-			0x10006000 + 0x16C,
-			readl(g_sleep + 0x16C),
-			0x10006000 + 0x308,
-			readl(g_sleep + 0x308));
-		readl(g_sleep + 0x170);
-	}
-
-	// 0x13FBF000
-	if (g_mfg_base) {
-		readl(g_mfg_base + 0x20);
-	}
 
 	/*[O] MFG_ASYNC_CON_1 0x13FB_F024 [0] FAXI_CK_SOC_IN_EN_ENABLE = 0x1*/
 	val = readl(g_mfg_base + 0x24);
@@ -809,14 +779,12 @@ static void mt_gpufreq_cg_control(enum mt_power_state power)
 	gpufreq_pr_debug("@%s: power = %d", __func__, power);
 
 	if (power == POWER_ON) {
-		spm_mtcmos_ctrl_mfg1_bus_prot(POWER_ON);
 		if (clk_prepare_enable(g_clk->subsys_bg3d))
 			gpufreq_pr_info("failed when enable subsys-bg3d\n");
 
 		mt_gpufreq_external_cg_control();
 	} else {
 		clk_disable_unprepare(g_clk->subsys_bg3d);
-		spm_mtcmos_ctrl_mfg1_bus_prot(POWER_OFF);
 	}
 
 	g_cg_on = power;
@@ -1118,14 +1086,6 @@ void mt_gpufreq_power_control(enum mt_power_state power, enum mt_cg_state cg,
 			mt_gpufreq_mtcmos_control(power);
 
 		gpu_dvfs_vgpu_footprint(GPU_DVFS_VGPU_STEP_7);
-
-		if (g_sleep) {
-			gpufreq_pr_info("OFF: pwr info 0x%x:0x%08x, pwr con 0x%x:0x%08x\n",
-				0x10006000 + 0x16C,
-				readl(g_sleep + 0x16C),
-				0x10006000 + 0x308,
-				readl(g_sleep + 0x308));
-		}
 
 		if (buck == BUCK_OFF)
 			mt_gpufreq_buck_control(power);
@@ -3032,7 +2992,7 @@ static void __mt_gpufreq_kick_pbm(int enable)
 	unsigned int power;
 	unsigned int cur_freq;
 	unsigned int cur_vgpu;
-	unsigned int found = 0;
+	bool found = 0;
 	int tmp_idx = -1;
 	int i;
 
@@ -3098,13 +3058,9 @@ static void __mt_gpufreq_init_table(void)
 /* Special SW setting */
 #if defined(CONFIG_ARM64)
 #if defined(K6853TV1)
-	gpufreq_pr_info("@%s: k6853tv1 flavor name: %s\n",
-		__func__, K6853TV1);
 	g_segment_max_opp_idx = 0;
 #endif
 #if defined(TURBO)
-	gpufreq_pr_info("@%s: turbo flavor name: %s\n",
-		__func__, TURBO);
 	g_segment_max_opp_idx = 0;
 #endif
 #endif
@@ -3622,9 +3578,6 @@ static int __mt_gpufreq_pdrv_probe(struct platform_device *pdev)
 	// for debug only. simulate gpu dfd trigger state
 	//__mt_gpufreq_gpu_dfd_trigger_simulate();
 #endif
-
-	gpufreq_pr_info("@%s: MFG bus protect control by gpufreq\n",
-		__func__);
 
 	g_probe_done = true;
 	gpufreq_pr_info("@%s: GPU driver init done\n", __func__);

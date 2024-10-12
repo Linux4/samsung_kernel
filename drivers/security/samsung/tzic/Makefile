@@ -5,13 +5,7 @@
 ccflags-$(CONFIG_TZDEV) += -I$(srctree)/drivers/misc/tzdev/include
 MTK_PLATFORM := $(subst ",,$(CONFIG_MTK_PLATFORM))
 
-ifeq ($(CONFIG_ARCH_LAHAINA),y)
-  ifeq ($(CONFIG_QGKI), y)
-    obj-m += tzic_driver.o
-  endif
-else
-  obj-$(CONFIG_TZIC) += tzic_driver.o
-endif
+obj-$(CONFIG_TZIC) += tzic_driver.o
 
 tzic_driver-y += tzic64.o
 

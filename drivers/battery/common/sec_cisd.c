@@ -13,7 +13,7 @@
 #include "sec_battery_sysfs.h"
 #include "sec_cisd.h"
 
-#if defined(CONFIG_SEC_ABC)
+#if IS_ENABLED(CONFIG_SEC_ABC)
 #include <linux/sti/abc_common.h>
 #endif
 
@@ -73,8 +73,12 @@ bool sec_bat_cisd_check(struct sec_battery_info *battery)
 			pcisd->data[CISD_DATA_VBAT_OVP]++;
 			pcisd->data[CISD_DATA_VBAT_OVP_PER_DAY]++;
 			pcisd->state |= CISD_STATE_OVER_VOLTAGE;
-#if defined(CONFIG_SEC_ABC)
-			sec_abc_send_event("MODULE=battery@ERROR=over_voltage");
+#if IS_ENABLED(CONFIG_SEC_ABC)
+#if IS_ENABLED(CONFIG_SEC_FACTORY)
+			sec_abc_send_event("MODULE=battery@INFO=over_voltage");
+#else
+			sec_abc_send_event("MODULE=battery@WARN=over_voltage");
+#endif
 #endif
 		}
 
@@ -135,8 +139,12 @@ bool sec_bat_cisd_check(struct sec_battery_info *battery)
 				pcisd->data[CISD_DATA_VBAT_OVP]++;
 				pcisd->data[CISD_DATA_VBAT_OVP_PER_DAY]++;
 				pcisd->state |= CISD_STATE_OVER_VOLTAGE;
-#if defined(CONFIG_SEC_ABC)
-				sec_abc_send_event("MODULE=battery@ERROR=over_voltage");
+#if IS_ENABLED(CONFIG_SEC_ABC)
+#if IS_ENABLED(CONFIG_SEC_FACTORY)
+				sec_abc_send_event("MODULE=battery@INFO=over_voltage");
+#else
+				sec_abc_send_event("MODULE=battery@WARN=over_voltage");
+#endif
 #endif
 			}
 		}
@@ -309,6 +317,7 @@ void sec_battery_cisd_init(struct sec_battery_info *battery)
 	battery->cisd.data[CISD_DATA_CHG_WPC_TEMP_MIN] = 1000;
 	battery->cisd.data[CISD_DATA_CHG_USB_TEMP_MIN] = 1000;
 	battery->cisd.data[CISD_DATA_CAP_MIN] = 0xFFFF;
+	battery->cisd.data[CISD_DATA_ASOC] = 100;
 
 	battery->cisd.data[CISD_DATA_FULL_COUNT_PER_DAY] = 1;
 	battery->cisd.data[CISD_DATA_BATT_TEMP_MAX_PER_DAY] = -300;

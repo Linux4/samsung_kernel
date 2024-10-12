@@ -27,11 +27,23 @@
 #define SBCH_EN_NUM    (1)
 
 #ifdef CONFIG_MTK_ROUND_CORNER_SUPPORT
+#ifdef CONFIG_MTK_DX_HDCP_DDP_SUPPORT
 #define TOTAL_OVL_LAYER_NUM	(3+2)
 #else
-#define TOTAL_OVL_LAYER_NUM	(4+3)
+#define TOTAL_OVL_LAYER_NUM	(4+3+1+2)
 #endif
+#else
+#ifdef CONFIG_MTK_DX_HDCP_DDP_SUPPORT
+#define TOTAL_OVL_LAYER_NUM	(4+3)
+#else
+#define TOTAL_OVL_LAYER_NUM	(4+3+2+3)
+#endif
+#endif
+#ifdef CONFIG_MTK_DX_HDCP_DDP_SUPPORT
 #define TOTAL_REAL_OVL_LAYER_NUM (4+3)
+#else
+#define TOTAL_REAL_OVL_LAYER_NUM (4+3+2+3)
+#endif
 #define OVL_NUM			(3)
 #define OVL_MODULE_MAX_PHY_LAYER (4)
 #define OVL_MODULE_MAX_EXT_LAYER (3)

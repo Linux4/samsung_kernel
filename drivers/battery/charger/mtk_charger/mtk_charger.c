@@ -224,12 +224,12 @@ int afc_set_voltage(int volt)
 	pr_info("[DEBUG]%s: %dV to AFC driver\n", __func__, volt);
 	if (volt == SEC_INPUT_VOLTAGE_9V) {
 		set_afc_voltage_for_performance(false);
-		set_afc_voltage(0x9);
+		return set_afc_voltage(0x9);
 	} else if (volt == SEC_INPUT_VOLTAGE_5V) {
 		set_afc_voltage_for_performance(true);
-		set_afc_voltage(0x5);
-	} else
-		pr_info("[DEBUG]%s: unsupported voltage\n", __func__);
+		return set_afc_voltage(0x5);
+	}
+	return -EINVAL;
 }
 EXPORT_SYMBOL(afc_set_voltage);
 #endif
@@ -414,7 +414,7 @@ static void mtk_charger_ob_mode(struct mtk_charger_data *charger, bool enable)
 		charger_dev_enable_powerpath(charger->chg_dev, true);
 		/* Set VSYS (float voltage) to 4.0V */
 		charger_dev_set_constant_voltage(charger->chg_dev,
-								(4000 * 1000));
+								(4200 * 1000));
 		/* Select 3.25A input current limit from CHG_ILIM */
 		/* CHG_CTRL2: IINLMTSEL set AICR 3.25A, 0x12[3:2] = 00 */
 		charger_dev_set_iinlmtsel(charger->chg_dev, false);
@@ -590,13 +590,14 @@ static int mtk_charger_get_charge_type(struct mtk_charger_data *charger)
 	else
 		pr_info("[DEBUG]%s: charge type: %d\n", __func__, charge_type);
 
-	if (charge_type == POWER_SUPPLY_CHARGE_TYPE_SLOW) {
+	if ((charge_type == POWER_SUPPLY_CHARGE_TYPE_SLOW) ||
+		(charge_type == POWER_SUPPLY_CHARGE_TYPE_TRICKLE)) {
 		charger->slow_charging = true;
 		pr_info("%s: slow-charging mode\n", __func__);
 	}
 
 	if (charger->slow_charging)
-		charge_type = POWER_SUPPLY_CHARGE_TYPE_SLOW;
+		charge_type = POWER_SUPPLY_CHARGE_TYPE_TRICKLE;
 
 	return charge_type;
 }
@@ -629,7 +630,8 @@ static int mtk_charger_get_charging_health(struct mtk_charger_data *charger)
 		pr_info("[DEBUG]%s: charging health: %d\n", __func__,
 							charging_health);
 
-	if (charging_health != POWER_SUPPLY_HEALTH_GOOD)
+	if ((charging_health != POWER_SUPPLY_HEALTH_GOOD) &&
+		(charger->cable_type != SEC_BATTERY_CABLE_NONE))
 		mtk_charger_test_read(charger);
 
 	return charging_health;
@@ -1059,7 +1061,7 @@ static int mtk_charger_parse_dt(struct device *dev,
 				__func__, pdata->chg_float_voltage);
 	}
 
-	pr_info("%s DT file parsed succesfully, %d\n", __func__, ret);
+	pr_info("%s DT file parsed successfully, %d\n", __func__, ret);
 	return ret;
 }
 

@@ -1265,6 +1265,10 @@ struct LCM_DRIVER *lcm_driver_list[] = {
 	&nt36672c_fhdp_dsi_vdo_auo_cphy_90hz_lcm_drv,
 #endif
 
+#if defined(NT36672C_FHDP_DSI_VDO_60HZ_WO_DSC_SHENCHAO)
+	&nt36672c_fhdp_dsi_vdo_60hz_wo_dsc_shenchao_lcm_drv,
+#endif
+
 #if defined(OTM1287_WXGA_DSI_VDO_AUO_GUOXIAN)
 	&otm1287_wxga_dsi_vdo_auo_guoxian_lcm_drv,
 #endif
@@ -1305,12 +1309,37 @@ struct LCM_DRIVER *lcm_driver_list[] = {
 	&s6e3fc3_fhdp_cmd_lcm_drv,
 #endif
 
-#if defined(TD4150_HDP_DSI_LM36274)
-	&td4150_hdp_dsi_lm36274_lcm_drv,
-#endif
-
 #if defined(NT36525B_HDP_DSI_VDO_LM36274)
 	&nt36525b_hdp_dsi_vdo_lm36274_lcm_drv,
+#endif
+
+#if defined(FT8756_FHDP_DSI_VDO_AUO_RT4801)
+	&ft8756_fhdp_dsi_vdo_auo_rt4801_lcm_drv,
+#endif
+
+
+#if defined(HX83102P_WUXGA2000_DSI_VDO_BOE)
+	&hx83102p_wuxga2000_dsi_vdo_boe_lcm_drv,
+#endif
+
+#if defined(NT36672C_FHDP_DSI_VDO_60HZ_SHENCHAO)
+	&nt36672c_fhdp_dsi_vdo_60hz_shenchao_lcm_drv,
+#endif
+
+#if defined(NT36672C_FHDP_DSI_VDO_90HZ_SHENCHAO)
+	&nt36672c_fhdp_dsi_vdo_90hz_shenchao_lcm_drv,
+#endif
+
+#if defined(NT36672C_FHDP_DSI_VDO_90HZ_SHENCHAO_6382)
+	&nt36672c_fhdp_dsi_vdo_90hz_shenchao_6382_lcm_drv,
+#endif
+
+#if defined(NT36672C_FHDP_DSI_VDO_120HZ_SHENCHAO_6382)
+	&nt36672c_fhdp_dsi_vdo_120hz_shenchao_6382_lcm_drv,
+#endif
+
+#if defined(R66451_FHDP_DSI_CMD_TIANMA)
+	&r66451_fhdp_dsi_cmd_tianma_lcm_drv,
 #endif
 
 #if defined(S6E3FC3_FHDP_CMD_A22_LTE)
@@ -1319,14 +1348,6 @@ struct LCM_DRIVER *lcm_driver_list[] = {
 
 #if defined(S6E3FC3_HDP_CMD_A22_LTE)
 	&s6e3fc3_hdp_cmd_a22_lte_lcm_drv,
-#endif
-
-#if defined(NT36525B_HDP_DSI_VDO_LM36274_CSOT_SHARP)
-	&nt36525b_hdp_dsi_vdo_lm36274_csot_sharp_lcm_drv,
-#endif
-
-#if defined(NT36525B_HDP_DSI_VDO_LM36274_BOE)
-	&nt36525b_hdp_dsi_vdo_lm36274_boe_lcm_drv,
 #endif
 };
 

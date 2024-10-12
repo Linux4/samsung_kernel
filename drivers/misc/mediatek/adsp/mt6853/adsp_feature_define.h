@@ -9,9 +9,6 @@
 /* reset recovery feature kernel option*/
 #define CFG_RECOVERY_SUPPORT
 
-/* adsp platform configs*/
-#define ADSP_EMI_PROTECTION_ENABLE       (1)
-
 /* adsp feature PRI list */
 /* The higher number, higher priority */
 enum adsp_feature_pri {
@@ -24,7 +21,7 @@ enum adsp_feature_pri {
 	OFFLOAD_FEATURE_PRI,
 	PRIMARY_FEATURE_PRI,
 	VOIP_FEATURE_PRI,
-	CAPTURE_UL1_FEATURE_PRI,
+	CAPTURE_FEATURE_PRI,
 	AUDIO_DATAPROVIDER_FEATURE_PRI,
 	AUDIO_PLAYBACK_FEATURE_PRI,
 	VOICE_CALL_FEATURE_PRI,
@@ -46,7 +43,7 @@ enum adsp_feature_id {
 	AUDIO_MUSIC_FEATURE_ID		= 9,
 	RESERVED0_FEATURE_ID		= 10,
 	RESERVED1_FEATURE_ID		= 11,
-	CAPTURE_UL1_FEATURE_ID		= 12,
+	CAPTURE_FEATURE_ID		= 12,
 	AUDIO_DATAPROVIDER_FEATURE_ID	= 13,
 	VOICE_CALL_FEATURE_ID		= 14,
 	VOIP_FEATURE_ID			= 15,
@@ -55,6 +52,10 @@ enum adsp_feature_id {
 	A2DP_PLAYBACK_FEATURE_ID	= 18,
 	KTV_FEATURE_ID			= 19,
 	CAPTURE_RAW_FEATURE_ID		= 20,
+	FM_ADSP_FEATURE_ID		= 21,
+	VOICE_CALL_SUB_FEATURE_ID	= 22,
+	BLE_CALL_DL_FEATURE_ID          = 27,
+	BLE_CALL_UL_FEATURE_ID          = 28,
 	ADSP_NUM_FEATURE_ID,
 };
 
@@ -77,6 +78,7 @@ ssize_t adsp_dump_feature_state(u32 cid, char *buffer, int size);
 int adsp_get_feature_index(const char *str);
 bool is_feature_in_set(u32 cid, u32 fid);
 bool adsp_feature_is_active(u32 cid);
+bool is_adsp_feature_in_active(void);
 bool flush_suspend_work(u32 cid);
 
 int _adsp_register_feature(u32 cid, u32 fid, u32 opt);

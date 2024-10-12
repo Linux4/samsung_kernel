@@ -12,6 +12,10 @@
 #ifndef _DTS_IOMMU_PORT_MT6853_H_
 #define _DTS_IOMMU_PORT_MT6853_H_
 
+#if defined CONFIG_MACH_MT6877
+#include "mt6877-larb-port.h"
+#else
+
 #define MTK_M4U_ID(larb, port)			(((larb) << 5) | (port))
 
 /* Local arbiter ID */
@@ -55,8 +59,8 @@
 #define M4U_PORT_L4_VDEC_VLD_EXT		MTK_M4U_ID(4, 7)
 #define M4U_PORT_L4_VDEC_VLD2_EXT		MTK_M4U_ID(4, 8)
 #define M4U_PORT_L4_VDEC_AVC_MV_EXT		MTK_M4U_ID(4, 9)
-#define M4U_PORT_L4_VDEC_RG_CTRL_DMA_EXT	MTK_M4U_ID(4, 10)
 #define M4U_PORT_L4_VDEC_UFO_ENC_EXT		MTK_M4U_ID(4, 10)
+#define M4U_PORT_L4_VDEC_RG_CTRL_DMA_EXT	MTK_M4U_ID(4, 11)
 /* larb5 -- null */
 /* larb6 -- null */
 /* larb7 -- 13 */
@@ -295,5 +299,6 @@
 #define APU_IOMMU_INDEX				(1)
 
 #define MTK_IOMMU_PORT_TRANSFER_DISABLE
+#endif
 
 #endif

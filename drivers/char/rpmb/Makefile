@@ -29,8 +29,8 @@ ifeq ($(CONFIG_TEEGRIS_TEE_SUPPORT),y)
 ifeq ($(CONFIG_MTK_PLATFORM), "mt6739")
 ccflags-y += -DNO_MTK_SVP_RELEASE
 endif
-ccflags-y += -I$(srctree)/drivers/misc/tzdev
-ccflags-y += -I$(srctree)/drivers/misc/tzdev/include/tzdev
+ccflags-y += -I$(srctree)/drivers/misc/tzdev/$(CONFIG_TEEGRIS_VERSION_STRING)
+include $(srctree)/drivers/misc/tzdev/Makefile.include
 ccflags-y += -I$(srctree)/drivers/mmc/host/mediatek/rpmb/drrpmb/public
 ccflags-y += -I$(srctree)/drivers/mmc/host/mediatek/rpmb/drrpmb_gp/public
 ccflags-y += -I$(srctree)/drivers/mmc/host/mediatek/rpmb/tlrpmb/public

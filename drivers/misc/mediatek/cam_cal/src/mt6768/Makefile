@@ -41,11 +41,11 @@ ifneq ($(wildcard $(CAM_CAL_PLATFORM_SRC_PATH)/$(CAM_CAL_MODEL_FOLDER)),)
 obj-y                += $(CAM_CAL_MODEL_FOLDER)
 subdir-ccflags-y     += -I$(CAM_CAL_SRC_PATH)/$(MTK_PLATFORM)/$(CAM_CAL_MODEL_FOLDER)
 else
-obj-y                += cam_cal_list_default.o
+obj-y                += cam_cal_list.o
 obj-y                += eeprom_i2c_dev.o
 endif
 else
-obj-y                += cam_cal_list_default.o
+obj-y                += cam_cal_list.o
 obj-y                += eeprom_i2c_dev.o
 endif
 

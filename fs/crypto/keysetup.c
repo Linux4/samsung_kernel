@@ -610,6 +610,24 @@ int fscrypt_get_encryption_info(struct inode *inode)
 		res = fscrypt_context_size(dummy_ctx);
 		memcpy(&ctx, dummy_ctx, res);
 	}
+#ifdef CONFIG_FSCRYPT_SDP
+	switch (ctx.version) {
+	case FSCRYPT_CONTEXT_V1: {
+		if (res == offsetof(struct fscrypt_context_v1, knox_flags)) {
+			ctx.v1.knox_flags = 0;
+			res = sizeof(ctx.v1);
+		}
+		break;
+	}
+	case FSCRYPT_CONTEXT_V2: {
+		if (res == offsetof(struct fscrypt_context_v2, knox_flags)) {
+			ctx.v2.knox_flags = 0;
+			res = sizeof(ctx.v2);
+		}
+		break;
+	}
+	}
+#endif
 
 	crypt_info = kmem_cache_zalloc(fscrypt_info_cachep, GFP_NOFS);
 	if (!crypt_info)
@@ -1069,7 +1087,7 @@ int fscrypt_get_encryption_kek(
 	case FSCRYPT_POLICY_V1:
 		res = find_and_derive_v1_fskey(crypt_info, kek);
 		break;
-	case FSCRYPT_POLICY_V2:
+	case FSCRYPT_POLICY_V2:	
 		res = __find_and_derive_fskey(crypt_info, kek);
 		break;
 	default:

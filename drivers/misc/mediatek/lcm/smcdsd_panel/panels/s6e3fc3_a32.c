@@ -159,15 +159,14 @@ struct lcd_info {
 	bool					mask_state;
 	bool					force_normal_transition;
 	int 					mask_delay;
+	int 					pre_mask_delay;
 
 	unsigned int			mask_framedone_check_req;
 
 	unsigned int			acl_dimming_update_req;
 	unsigned int			acl_dimming;
-	struct workqueue_struct *panel_wq;
-	struct delayed_work panel_dwork;
-	unsigned int recovery_cnt;
-	unsigned int total_recovery_cnt;
+
+	unsigned int			total_invalid_cnt;
 
 #if defined(CONFIG_SMCDSD_DOZE)
 	union lpm_info			alpm;
@@ -254,7 +253,7 @@ static int smcdsd_dsi_tx_data(struct lcd_info *lcd, u8 *cmd, u32 len)
 	 * We assume that all the TX function will be called in lcd->lock
 	 * If not, Stop here for debug.
 	 */
-	if (!mutex_is_locked(&lcd->lock)) {
+	if (IS_ENABLED(CONFIG_MTK_FB) && !mutex_is_locked(&lcd->lock)) {
 		dev_info(&lcd->ld->dev, "%s: fail. lcd->lock should be locked.\n", __func__);
 		BUG();
 	}
@@ -566,6 +565,17 @@ static int smcdsd_panel_set_wrctrld(struct lcd_info *lcd, u8 force)
 			}
 		}
 		DSI_WRITE(lcd->hbm_table[lcd->trans_dimming][hbm_level], HBM_CMD_CNT);
+		/*
+			delay for mask brightness
+			90Hz : 11msec
+			60Hz : 6msec
+		*/
+		if (lcd->mask_delay) {
+			mdelay(lcd->mask_delay);
+			dev_info(&lcd->ld->dev, "%s: mask delay : %d\n", __func__, lcd->mask_delay);
+			lcd->mask_delay = 0;
+		}
+
 		DSI_WRITE(bl_reg, ARRAY_SIZE(bl_reg));
 		lcd->current_wrctrld.value = wrctrld.value;
 	}
@@ -769,22 +779,18 @@ static int low_level_set_brightness(struct lcd_info *lcd, int force)
 
 	DSI_WRITE(SEQ_S6E3FC3_TEST_KEY_ON_F0, ARRAY_SIZE(SEQ_S6E3FC3_TEST_KEY_ON_F0));
 
+	if (lcd->pre_mask_delay) {
+		DSI_WRITE(SEQ_S6E3FC3_HBM_OFF_DIMMING_OFF, ARRAY_SIZE(SEQ_S6E3FC3_HBM_OFF_DIMMING_OFF));
+		mdelay(lcd->pre_mask_delay);
+		dev_info(&lcd->ld->dev, "%s: pre mask delay : %d\n", __func__, lcd->pre_mask_delay);
+		lcd->pre_mask_delay = 0;
+	}
+
 	smcdsd_panel_set_wrctrld(lcd, force);
 
 	smcdsd_panel_set_elvss(lcd, force);
 
 	smcdsd_panel_set_acl(lcd, force);
-
-	/*
-		delay for mask brightness
-		90Hz : 11msec
-		60Hz : 6msec
-	*/
-	if (lcd->mask_delay) {
-		mdelay(lcd->mask_delay);
-		dev_info(&lcd->ld->dev, "%s: mask delay : %d\n", __func__, lcd->mask_delay);
-		lcd->mask_delay = 0;
-	}
 
 	smcdsd_panel_set_aor(lcd);
 	DSI_WRITE(SEQ_S6E3FC3_LTPS_UPDATE, ARRAY_SIZE(SEQ_S6E3FC3_LTPS_UPDATE));
@@ -955,7 +961,7 @@ static int s6e3fc3_read_esderr(struct lcd_info *lcd)
 #endif
 
 /// for debug, it will be removed
-static int s6e3fc3_read_eareg(struct lcd_info *lcd)
+static int s6e3fc3_read_dsierr(struct lcd_info *lcd)
 {
 	int ret = 0;
 
@@ -1009,7 +1015,7 @@ static int s6e3fc3_read_id(struct lcd_info *lcd)
 			smcdsd_abd_save_bit(&pdata->abd, BITS_PER_BYTE * LDI_LEN_ID, cpu_to_be32(lcd->id_info.value), LDI_BIT_DESC_ID);
 	}
 
-	dev_info(&lcd->ld->dev, "%s: %x, %d\n", __func__, cpu_to_be32(lcd->id_info.value), lcd->recovery_cnt);
+	dev_info(&lcd->ld->dev, "%s: %x\n", __func__, cpu_to_be32(lcd->id_info.value));
 
 	return ret;
 }
@@ -1107,9 +1113,8 @@ static int s6e3fc3_exit(struct lcd_info *lcd)
 	int ret = 0;
 
 	dev_info(&lcd->ld->dev, "%s\n", __func__);
-	flush_workqueue(lcd->panel_wq);
 
-	s6e3fc3_read_eareg(lcd);		// for debug
+	s6e3fc3_read_dsierr(lcd);		// for debug
 	s6e3fc3_read_rddpm(lcd);
 	s6e3fc3_read_rddsm(lcd);
 #if defined(CONFIG_SMCDSD_DPUI)
@@ -1136,17 +1141,19 @@ static int s6e3fc3_exit(struct lcd_info *lcd)
 static int s6e3fc3_init(struct lcd_info *lcd)
 {
 	int ret = 0;
-	int i = 0;
 
 	dev_info(&lcd->ld->dev, "%s panel rev: %d\n", __func__, lcd->panel_rev);
 	s6e3fc3_read_id(lcd);
 
 	usleep_range(10000, 11000);
 
-	for (i = 0; i < 3; i++) {
-		DSI_WRITE(SEQ_S6E3FC3_SLEEP_OUT, ARRAY_SIZE(SEQ_S6E3FC3_SLEEP_OUT));
-		usleep_range(100, 110);
-	}
+	DSI_WRITE(SEQ_S6E3FC3_SLEEP_OUT, ARRAY_SIZE(SEQ_S6E3FC3_SLEEP_OUT));
+	usleep_range(100, 110);
+	DSI_WRITE(SEQ_S6E3FC3_SLEEP_OUT, ARRAY_SIZE(SEQ_S6E3FC3_SLEEP_OUT));
+	usleep_range(100, 110);
+	DSI_WRITE(SEQ_S6E3FC3_SLEEP_OUT, ARRAY_SIZE(SEQ_S6E3FC3_SLEEP_OUT));
+	usleep_range(100, 110);
+
 	usleep_range(30000, 31000);
 
 	if (lcd->panel_rev < 3)
@@ -1172,9 +1179,6 @@ static int s6e3fc3_init(struct lcd_info *lcd)
 	usleep_range(90000, 91000);
 
 	s6e3fc3_read_init_info(lcd);
-
-	if (!of_gpio_abnormal("gpio_det"))
-		lcd->recovery_cnt = 2;
 
 	return ret;
 }
@@ -1268,8 +1272,8 @@ static int panel_dpci_notifier_callback(struct notifier_block *self,
 
 	lcd = container_of(self, struct lcd_info, dpci_notif);
 
-	inc_dpui_u32_field(DPUI_KEY_EXY_SWRCV, lcd->total_recovery_cnt);
-	lcd->total_recovery_cnt = 0;
+	inc_dpui_u32_field(DPUI_KEY_EXY_SWRCV, lcd->total_invalid_cnt);
+	lcd->total_invalid_cnt = 0;
 
 	return NOTIFY_DONE;
 }
@@ -1283,8 +1287,8 @@ static int fb_notifier_callback(struct notifier_block *self,
 	int fb_blank;
 
 	switch (event) {
-	case FB_EVENT_BLANK:
-	case FB_EARLY_EVENT_BLANK:
+	case SMCDSD_EVENT_BLANK:
+	case SMCDSD_EARLY_EVENT_BLANK:
 	case SMCDSD_EVENT_DOZE:
 	case SMCDSD_EARLY_EVENT_DOZE:
 		break;
@@ -1310,7 +1314,6 @@ static int fb_notifier_callback(struct notifier_block *self,
 		lcd->enable = 1;
 
 		s6e3fc3_displayon(lcd);
-		queue_delayed_work(lcd->panel_wq, &lcd->panel_dwork, msecs_to_jiffies(1));
 	}
 
 	if (IS_ENABLED(CONFIG_MTK_FB))
@@ -1357,24 +1360,13 @@ static int s6e3fc3_register_notifier(struct lcd_info *lcd)
 	return 0;
 }
 
-static void panel_blank_handler(struct work_struct *work)
+static irqreturn_t s6e3fc3_invalid_handler(int id, void *dev_id)
 {
-	struct lcd_info *lcd  = container_of(to_delayed_work(work), struct lcd_info, panel_dwork);
-	struct abd_protect *abd = &lcd->pdata->abd;
+	struct lcd_info *lcd  = (struct lcd_info *)dev_id;
 
-	if (lcd->enable && of_gpio_abnormal("gpio_det")) {
-		if (lcd->recovery_cnt) {
-			lcd->recovery_cnt--;		// if det is normal, recovery cnt = 2
-			smcdsd_abd_save_str(abd, "panel recovery");
-			smcdsd_abd_blank(abd);
-		} else {
-			// frame bypass? or device reboot? or do nothing
-			;
-		}
-		lcd->total_recovery_cnt++;
-	}
+	lcd->total_invalid_cnt++;
 
-	dev_info(&lcd->ld->dev, "%s: recovery_cnt: %d\n", __func__, lcd->recovery_cnt);
+	return IRQ_HANDLED;
 }
 
 static int s6e3fc3_probe(struct lcd_info *lcd)
@@ -1428,17 +1420,6 @@ static int s6e3fc3_probe(struct lcd_info *lcd)
 
 	lcd->fac_info = lcd->fac_done = lcd->enable_fd = IS_ENABLED(CONFIG_SEC_FACTORY) ? 1 : 0;
 
-	INIT_DELAYED_WORK(&lcd->panel_dwork, panel_blank_handler);
-	lcd->panel_wq = create_singlethread_workqueue("panel-blank-wq");
-	if (lcd->panel_wq == NULL) {
-		dev_info(&lcd->ld->dev, "%s failed to create %s workqueue\n", "panel-blank-wq");
-		return -ENOMEM;
-	}
-
-	if (!of_gpio_abnormal("gpio_det"))
-		lcd->recovery_cnt = 2;
-	lcd->total_recovery_cnt = 0;
-
 	dev_info(&lcd->ld->dev, "- %s\n", __func__);
 
 	return 0;
@@ -1481,7 +1462,7 @@ static ssize_t lcd_type_show(struct device *dev,
 {
 	struct lcd_info *lcd = dev_get_drvdata(dev);
 
-	sprintf(buf, "SDC_%02X%02X%02X\n", lcd->id_info.id[0], lcd->id_info.id[1], lcd->id_info.id[2]);
+	sprintf(buf, "%s_%02X%02X%02X\n", LCD_TYPE_VENDOR, lcd->id_info.id[0], lcd->id_info.id[1], lcd->id_info.id[2]);
 
 	return strlen(buf);
 }
@@ -2563,6 +2544,14 @@ static int smcdsd_panel_set_mask(struct platform_device *p, int on)
 
 	lcd->acl_dimming_update_req = 1;
 	lcd->mask_delay = get_mask_brightness_delay(lcd);
+	if (lcd->mask_state) {
+		if (lcd->fps == FPS_60)
+			lcd->pre_mask_delay = 34;
+		else
+			lcd->pre_mask_delay = 23;
+	} else {
+		lcd->pre_mask_delay = 0;
+	}
 
 	/*
 	 * 2ms for wait for VFP period
@@ -2574,11 +2563,6 @@ static int smcdsd_panel_set_mask(struct platform_device *p, int on)
 //	_smcdsd_panel_set_brightness(lcd, 1, false);
 	smcdsd_panel_set_mask_brightness(lcd);
 	lcd->mask_framedone_check_req = true;
-
-	if (on)
-		dbg_info("[SEC_MASK] : mask_brightness");
-	else
-		dbg_info("[SEC_MASK] : prev_brightness");
 
 	return 0;
 }
@@ -2618,11 +2602,6 @@ static int smcdsd_panel_framedone_mask(struct platform_device *p)
 		} else {
 			lcd->actual_mask_brightness = lcd->mask_brightness;
 		}
-
-		if (lcd->mask_state)
-			dbg_info("[SEC_MASK] mask_done");
-		else
-			dbg_info("[SEC_MASK] prev_done");
 
 		sysfs_notify(&lcd->ld->dev.kobj, NULL, "actual_mask_brightness");
 
@@ -2901,11 +2880,13 @@ struct mipi_dsi_lcd_driver s6e3fc3_mipi_lcd_driver = {
 };
 __XX_ADD_LCD_DRIVER(s6e3fc3_mipi_lcd_driver);
 
-static int __init panel_conn_init(void)
+static int __init panel_late_init(void)
 {
 	struct lcd_info *lcd = NULL;
 	struct mipi_dsi_lcd_common *pdata = NULL;
 	struct platform_device *pdev = NULL;
+	struct abd_protect *abd = NULL;
+	int gpio = -EINVAL, irq = -EINVAL;
 
 	pdev = of_find_device_by_path("/panel");
 	if (!pdev) {
@@ -2940,9 +2921,23 @@ static int __init panel_conn_init(void)
 
 	panel_conn_register(lcd);
 
+	abd = &pdata->abd;
+
+	gpio = of_get_gpio_with_name("gpio_det");
+	if (!gpio_is_valid(gpio))
+		return 0;
+
+	smcdsd_abd_pin_register_handler(abd, gpio, s6e3fc3_invalid_handler, lcd);
+
+	irq = gpio_to_irq(gpio);
+	if (irq < 0)
+		return 0;
+
+	smcdsd_abd_pin_register_handler(abd, irq, s6e3fc3_invalid_handler, lcd);
+
 	dev_info(&lcd->ld->dev, "%s: %s: done\n", kbasename(__FILE__), __func__);
 
 	return 0;
 }
-late_initcall_sync(panel_conn_init);
+late_initcall_sync(panel_late_init);
 

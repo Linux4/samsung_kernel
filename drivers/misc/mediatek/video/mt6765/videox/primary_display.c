@@ -4635,6 +4635,10 @@ int primary_display_suspend(void)
 {
 	enum DISP_STATUS ret = DISP_STATUS_OK;
 
+#if defined(CONFIG_MTK_VSYNC_PRINT)
+	disp_unregister_irq_callback(vsync_print_handler);
+	pr_info("%s: vsync_print\n", __func__);
+#endif
 	DISPCHECK("%s begin\n", __func__);
 	mmprofile_log_ex(ddp_mmp_get_events()->primary_suspend,
 		MMPROFILE_FLAG_START, 0, 0);
@@ -5295,6 +5299,10 @@ done:
 #ifdef CONFIG_MTK_AEE_FEATURE
 	aee_kernel_wdt_kick_Powkey_api("mtkfb_late_resume",
 		WDT_SETBY_Display);
+#endif
+#if defined(CONFIG_MTK_VSYNC_PRINT)
+	disp_register_irq_callback(vsync_print_handler);
+	pr_info("%s: vsync_print\n", __func__);
 #endif
 	mmprofile_log_ex(ddp_mmp_get_events()->primary_resume,
 		MMPROFILE_FLAG_END, 0, 0);

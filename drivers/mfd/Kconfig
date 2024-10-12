@@ -447,6 +447,16 @@ config MFD_INTEL_QUARK_I2C_GPIO
 	  their respective IO driver.
 	  The GPIO exports a total amount of 8 interrupt-capable GPIOs.
 
+config MFD_S2MU106
+	bool "SAMSUNG Electronics IF PMIC Series Support"
+	depends on I2C=y
+	select MFD_CORE
+	help
+	  Support for the Samsung Electronics MFD series.
+	  This driver provides common support for accessing the device,
+	  additional drivers must be enabled in order to use the functionality
+	  of the device
+
 config LPC_ICH
 	tristate "Intel ICH LPC"
 	depends on PCI

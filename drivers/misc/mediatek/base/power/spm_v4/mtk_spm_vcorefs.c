@@ -559,7 +559,16 @@ static int spm_trigger_dvfs(int kicker, int opp, bool fix)
 		dvfsrc_hw_policy_mask(1);
 	else
 		dvfsrc_hw_policy_mask(0);
-
+#if 1
+	/* check DVFS idle */
+	r = wait_spm_complete_by_condition(is_dvfs_in_progress() == 0,
+		SPM_DVFS_TIMEOUT);
+	if (r < 0) {
+		spm_vcorefs_dump_dvfs_regs(NULL);
+/* aee_kernel_warning("SPM Warring", "Vcore DVFS timeout warning"); */
+		return -1;
+	}
+#endif
 	spm_write(DVFSRC_VCORE_REQUEST,
 		(spm_read(DVFSRC_VCORE_REQUEST) & ~(0x3 << 20))
 		| (vcore_req[opp] << 20));
@@ -576,17 +585,6 @@ static int spm_trigger_dvfs(int kicker, int opp, bool fix)
 		__func__, fix, opp,
 		spm_read(DVFSRC_VCORE_REQUEST), spm_read(DVFSRC_EMI_REQUEST),
 		spm_read(DVFSRC_MD_REQUEST));
-#if 1
-	udelay(1);
-	/* check DVFS idle */
-	r = wait_spm_complete_by_condition(is_dvfs_in_progress() == 0,
-		SPM_DVFS_TIMEOUT);
-	if (r < 0)
-		spm_vcorefs_warn("DVFSRC_LEVEL (0x%x)\n",
-			spm_read(DVFSRC_LEVEL));
-
-	udelay(1);
-#endif
 #if 1
 	/* check DVFS timer */
 	if (fix)

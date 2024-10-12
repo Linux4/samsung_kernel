@@ -18,6 +18,19 @@
 #define FPGA_PLATFORM
 #endif
 
+#define MSK_RG_USB20_HSTX_SRCTRL 0x7
+
+struct mt_usb_phy_data {
+	const char *name;
+	u32 offset;
+	u32 shift;
+	u32 mask;
+	u32 value;
+	u32 host;
+};
+
+#define MT_USB_PHY_SET(n, o, s, v, m)	.name = n, .offset = o, .shift = s, .value = v .mask = m
+
 struct mt_usb_work {
 	struct delayed_work dwork;
 	int ops;
@@ -100,6 +113,8 @@ extern struct clk *musb_clk_univpll3_d4;
 extern void __iomem *ap_gpio_base;
 extern bool in_uart_mode;
 #endif
+extern struct mt_usb_phy_data *phy_data;
+extern int phy_data_cnt;
 extern int usb20_phy_init_debugfs(void);
 extern enum charger_type mt_get_charger_type(void);
 #ifndef CONFIG_FPGA_EARLY_PORTING

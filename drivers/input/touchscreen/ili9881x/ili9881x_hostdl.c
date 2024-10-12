@@ -815,7 +815,9 @@ static int ilitek_tdd_fw_hex_open(u8 op, u8 *pfw)
 		if (ilits->signing) {
 			/* name 3, digest 32, signature 512 */
 			spu_fw_size = fsize;
+#ifdef SUPPORT_FW_SIGNED
 			fsize -= SPU_METADATA_SIZE(TSP);
+#endif
 		}
 
 		ilits->tp_fw.size = 0;
@@ -836,7 +838,7 @@ static int ilitek_tdd_fw_hex_open(u8 op, u8 *pfw)
 		set_fs(get_ds());
 		set_fs(KERNEL_DS);
 		if (ilits->signing) {
-#ifdef CONFIG_SPU_VERIFY
+#ifdef SUPPORT_FW_SIGNED
 			unsigned char *spu_fw_data;
 			size_t spu_ret = 0;
 

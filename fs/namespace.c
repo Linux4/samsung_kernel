@@ -21,7 +21,6 @@
 #include <linux/fs_struct.h>	/* get_fs_root et.al. */
 #include <linux/fsnotify.h>	/* fsnotify_vfsmount_delete */
 #include <linux/uaccess.h>
-#include <linux/file.h>
 #include <linux/proc_ns.h>
 #include <linux/magic.h>
 #include <linux/bootmem.h>
@@ -150,62 +149,6 @@ static inline struct hlist_head *m_hash(struct vfsmount *mnt, struct dentry *den
 	return &mount_hashtable[tmp & m_hash_mask];
 }
 
-enum {
-	UMOUNT_STATUS_ADD_TASK = 0,
-	UMOUNT_STATUS_REMAIN_NS,
-	UMOUNT_STATUS_REMAIN_MNT_COUNT,
-	UMOUNT_STATUS_ADD_DELAYED_WORK,
-	UMOUNT_STATUS_MAX
-};
-
-static const char *umount_exit_str[UMOUNT_STATUS_MAX] = {
-	"ADDED_TASK", "REMAIN_NS", "REMAIN_CNT", "DELAY_TASK"
-};
-
-static const char *exception_process[] = {
-	"main", "ch_zygote", "usap32", "usap64", NULL,
-};
-
-static inline void sys_umount_trace_set_status(unsigned int status)
-{
-	sys_umount_trace_status = status;
-}
-
-static inline int is_exception(char *comm)
-{
-	unsigned int idx = 0;
-
-	do {
-		if (!strcmp(comm, exception_process[idx]))
-			return 1;
-	} while (exception_process[++idx]);
-
-	return 0;
-}
-
-static inline void sys_umount_trace_print(struct mount *mnt, int flags)
-{
-#if defined(CONFIG_KDP_NS) || defined(CONFIG_RUSTUH_KDP_NS)
-	struct super_block *sb = mnt->mnt->mnt_sb;
-	int mnt_flags = mnt->mnt->mnt_flags;
-#else
-	struct super_block *sb = mnt->mnt.mnt_sb;
-	int mnt_flags = mnt->mnt.mnt_flags;
-#endif
-	/* We don`t want to see what zygote`s umount */
-	if (((sb->s_magic == SDFAT_SUPER_MAGIC) ||
-		(sb->s_magic == MSDOS_SUPER_MAGIC)) &&
-		((current_uid().val == 0) && !is_exception(current->comm))) {
-		struct block_device *bdev = sb->s_bdev;
-		dev_t bd_dev = bdev ? bdev->bd_dev : 0;
-
-		ST_LOG("[SYS](%s[%d:%d]): "
-			"umount(mf:0x%x, f:0x%x, %s)\n",
-			sb->s_id, MAJOR(bd_dev), MINOR(bd_dev), mnt_flags,
-			flags, umount_exit_str[sys_umount_trace_status]);
-	}
-}
-
 #ifdef CONFIG_KDP_NS
 extern u8 ns_prot;
 unsigned int cmp_ns_integrity(void)
@@ -259,6 +202,66 @@ void rkp_set_data(struct vfsmount *mnt, void *data)
 	uh_call(UH_APP_RKP, RKP_KDP_X55, (u64)mnt, (u64)data, 0, 0);
 }
 #endif
+
+enum {
+	UMOUNT_STATUS_ADD_TASK = 0,
+	UMOUNT_STATUS_REMAIN_NS,
+	UMOUNT_STATUS_REMAIN_MNT_COUNT,
+	UMOUNT_STATUS_ADD_DELAYED_WORK,
+	UMOUNT_STATUS_MAX
+};
+
+static const char *umount_exit_str[UMOUNT_STATUS_MAX] = {
+	"ADDED_TASK", "REMAIN_NS", "REMAIN_CNT", "DELAY_TASK"
+};
+
+static const char *exception_process[] = {
+	"main", "ch_zygote", "usap32", "usap64", NULL,
+};
+
+static inline void sys_umount_trace_set_status(unsigned int status)
+{
+	sys_umount_trace_status = status;
+}
+
+static inline int is_exception(char *comm)
+{
+	unsigned int idx = 0;
+
+	do {
+		if (!strcmp(comm, exception_process[idx]))
+			return 1;
+	} while (exception_process[++idx]);
+
+	return 0;
+}
+
+static inline void sys_umount_trace_print(struct mount *mnt, int flags)
+{
+#if defined(CONFIG_KDP_NS) || defined(CONFIG_RUSTUH_KDP_NS)
+	struct super_block *sb = mnt->mnt->mnt_sb;
+	int mnt_flags = mnt->mnt->mnt_flags;
+#else
+	struct super_block *sb = mnt->mnt.mnt_sb;
+	int mnt_flags = mnt->mnt.mnt_flags;
+#endif
+
+#ifndef SDFAT_SUPER_MAGIC
+#define SDFAT_SUPER_MAGIC       (0x5EC5DFA4UL)
+#endif /* SDFAT_SUPER_MAGIC */
+	/* We don`t want to see what zygote`s umount */
+	if (((sb->s_magic == SDFAT_SUPER_MAGIC) ||
+		(sb->s_magic == MSDOS_SUPER_MAGIC)) &&
+		((current_uid().val == 0) && !is_exception(current->comm))) {
+		struct block_device *bdev = sb->s_bdev;
+		dev_t bd_dev = bdev ? bdev->bd_dev : 0;
+
+		ST_LOG("[SYS](%s[%d:%d]): "
+			"umount(mf:0x%x, f:0x%x, %s)\n",
+			sb->s_id, MAJOR(bd_dev), MINOR(bd_dev), mnt_flags,
+			flags, umount_exit_str[sys_umount_trace_status]);
+	}
+}
 
 static inline struct hlist_head *mp_hash(struct dentry *dentry)
 {
@@ -1593,12 +1596,6 @@ static void delayed_mntput(struct work_struct *unused)
 }
 static DECLARE_DELAYED_WORK(delayed_mntput_work, delayed_mntput);
 
-void flush_delayed_mntput_wait(void)
-{
-	delayed_mntput(NULL);
-	flush_delayed_work(&delayed_mntput_work);
-}
-
 static void mntput_no_expire(struct mount *mnt)
 {
 	rcu_read_lock();
@@ -2195,7 +2192,6 @@ SYSCALL_DEFINE2(umount, char __user *, name, int, flags)
 	struct mount *mnt;
 	int retval;
 	int lookup_flags = 0;
-	bool user_request = !(current->flags & PF_KTHREAD);
 
 	if (flags & ~(MNT_FORCE | MNT_DETACH | MNT_EXPIRE | UMOUNT_NOFOLLOW))
 		return -EINVAL;
@@ -2229,10 +2225,6 @@ SYSCALL_DEFINE2(umount, char __user *, name, int, flags)
 	if (flags & MNT_FORCE && !capable(CAP_SYS_ADMIN))
 		goto dput_and_out;
 
-	/* flush delayed_fput to put mnt_count */
-	if (user_request)
-		flush_delayed_fput_wait();
-
 	retval = do_umount(mnt, flags);
 dput_and_out:
 	/* we mustn't call path_put() as that would clear mnt_expiry_mark */
@@ -2240,31 +2232,6 @@ dput_and_out:
 	mntput_no_expire(mnt);
 	if (!retval)
 		sys_umount_trace_print(mnt, flags);
-
-	if (!user_request)
-		goto out;
-
-	if (!retval) {
-		/*
-		 * If the last delayed_fput() is called during do_umount()
-		 * and makes mnt_count zero, we need to guarantee to register
-		 * delayed_mntput by waiting for delayed_fput work again.
-		 */
-		flush_delayed_fput_wait();
-
-		/* flush delayed_mntput_work to put sb->s_active */
-		flush_delayed_mntput_wait();
-	}
-	if (!retval || (flags & MNT_FORCE)) {
-		/* filesystem needs to handle unclosed namespaces */
-#if defined(CONFIG_KDP_NS) || defined(CONFIG_RUSTUH_KDP_NS)
-		if (mnt->mnt->mnt_sb->s_op->umount_end)
-			mnt->mnt->mnt_sb->s_op->umount_end(mnt->mnt->mnt_sb, flags);
-#else
-		if (mnt->mnt.mnt_sb->s_op->umount_end)
-			mnt->mnt.mnt_sb->s_op->umount_end(mnt->mnt.mnt_sb, flags);
-#endif
-	}
 out:
 	return retval;
 }

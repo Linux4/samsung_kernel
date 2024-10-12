@@ -1429,9 +1429,9 @@ stop:
 				reserved_segments(sbi),
 				prefree_segments(sbi));
 
+	up_write(&sbi->gc_lock);
 	sbi->sec_stat.gc_count[gc_type]++;
 	f2fs_update_gc_total_time(sbi, gc_start_time, gc_end_time, gc_type);
-	up_write(&sbi->gc_lock);
 
 	put_gc_inode(&gc_list);
 

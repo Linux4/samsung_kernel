@@ -479,14 +479,6 @@ static void write_cmos_sensor_8(kal_uint32 addr, kal_uint32 para)
 		imgsensor.i2c_write_id, imgsensor_info.i2c_speed);
 }
 
-static kal_uint8 hi2021q_otp_read_byte(kal_uint16 addr)
-{
-	write_cmos_sensor_8(0x030A, (addr >> 8) & 0xFF); //High address
-	write_cmos_sensor_8(0x030B, addr & 0xFF); //Low address
-	write_cmos_sensor_8(0x0302, 0x01);
-	return (kal_uint8)read_cmos_sensor(0x0308);
-}
-
 static void set_dummy(void)
 {
 	LOG_INF("dummyline = %d, dummypixels = %d \n", imgsensor.dummy_line, imgsensor.dummy_pixel);
@@ -5478,108 +5470,6 @@ static struct SENSOR_FUNCTION_STRUCT sensor_func = {
 	control,
 	close
 };
-
-int hi2021q_otp_init(void)
-{
-	write_cmos_sensor(0x0790, 0x0100);
-	write_cmos_sensor(0x2000, 0x0000);
-	write_cmos_sensor(0x2002, 0x007F);
-	write_cmos_sensor(0x2006, 0x40B2);
-	write_cmos_sensor(0x2008, 0xB00E);
-	write_cmos_sensor(0x200A, 0x8446);
-	write_cmos_sensor(0x200C, 0x4130);
-	write_cmos_sensor(0x200E, 0x403D);
-	write_cmos_sensor(0x2010, 0x0011);
-	write_cmos_sensor(0x2012, 0x403E);
-	write_cmos_sensor(0x2014, 0xC092);
-	write_cmos_sensor(0x2016, 0x403F);
-	write_cmos_sensor(0x2018, 0x0A80);
-	write_cmos_sensor(0x201A, 0x1292);
-	write_cmos_sensor(0x201C, 0x8440);
-	write_cmos_sensor(0x201E, 0x40F2);
-	write_cmos_sensor(0x2020, 0xFFC0);
-	write_cmos_sensor(0x2022, 0x0531);
-	write_cmos_sensor(0x2024, 0xC3D2);
-	write_cmos_sensor(0x2026, 0x0702);
-	write_cmos_sensor(0x2028, 0x0C64);
-	write_cmos_sensor(0x202A, 0xC3D2);
-	write_cmos_sensor(0x202C, 0x0742);
-	write_cmos_sensor(0x202E, 0xC3D2);
-	write_cmos_sensor(0x2030, 0x0732);
-	write_cmos_sensor(0x2032, 0x4130);
-	write_cmos_sensor(0x0708, 0xEF82);
-	write_cmos_sensor(0x070C, 0x0000);
-	write_cmos_sensor(0x0732, 0x0300);
-	write_cmos_sensor(0x0736, 0x0063);
-	write_cmos_sensor(0x0738, 0x0002);
-	write_cmos_sensor(0x0742, 0x0300);
-	write_cmos_sensor(0x0746, 0x014A);
-	write_cmos_sensor(0x0748, 0x0003);
-	write_cmos_sensor(0x074C, 0x0000);
-	write_cmos_sensor(0x0266, 0x0000);
-	write_cmos_sensor(0x0360, 0xAC8E);
-	write_cmos_sensor(0x027E, 0x0100);
-	write_cmos_sensor(0x0B00, 0x0000);
-
-	return 0;
-}
-
-int hi2021q_read_otp_cal(unsigned int addr, unsigned char *data, unsigned int size)
-{	kal_uint32 i = 0;
-	kal_uint8 otp_bank = 0;
-	kal_uint32 read_addr = 0;
-
-	LOG_INF("%s - E\n", __func__);
-
-	if (data == NULL) {
-		pr_err("%s: fail, data is NULL\n", __func__);
-		return -1;
-	}
-
-	// OTP initial setting
-	hi2021q_otp_init();
-
-	write_cmos_sensor_8(0x0B00, 0x00);
-	usleep_range(10000, 10100);
-	write_cmos_sensor_8(0x027E, 0x00);
-	usleep_range(5000, 5100);
-	write_cmos_sensor_8(0x0260, 0x10);
-	write_cmos_sensor_8(0x027E, 0x01);
-	usleep_range(5000, 5100);
-	write_cmos_sensor_8(0x0B00, 0x01);
-	usleep_range(1000, 1100);
-
-	otp_bank = hi2021q_otp_read_byte(HI2021Q_OTP_CHECK_BANK);
-	pr_info("%s, check OTP bank:0x%x, size: %d\n", __func__, otp_bank, size);
-
-	switch (otp_bank) {
-	case HI2021Q_OTP_BANK1_MARK:
-		read_addr = HI2021Q_OTP_BANK1_START_ADDR;
-	break;
-	case HI2021Q_OTP_BANK2_MARK:
-		read_addr = HI2021Q_OTP_BANK2_START_ADDR;
-		break;
-	default:
-		pr_err("%s, check bank: fail\n", __func__);
-		return -1;
-	}
-
-	for (i = 0; i < size; i++) {
-		*(data + i) = hi2021q_otp_read_byte(read_addr);
-		LOG_INF("read data read_addr: %x, data: %x", read_addr, *(data + i));
-		read_addr++;
-	}
-
-	// OTP off setting
-	write_cmos_sensor_8(0x0B00, 0x00);
-	usleep_range(10000, 10100);
-	write_cmos_sensor_8(0x0260, 0x00);
-	write_cmos_sensor_8(0x0B00, 0x01);
-	usleep_range(1000, 1100);
-	LOG_INF("%s - X\n", __func__);
-
-	return (int)size;
-}
 
 /*UINT32 HI846_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc)*/
 UINT32 HI2021Q_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc)

@@ -21,6 +21,7 @@
 #include "ccci_config.h"
 #include <linux/clk.h>
 #include <mach/mtk_pbm.h>
+#include <clk-mt6768-pg.h>
 
 #define FEATURE_CLK_BUF
 #ifdef FEATURE_CLK_BUF
@@ -110,6 +111,31 @@ void md_cldma_hw_reset(unsigned char md_id)
 	ccci_write32(infra_ao_base, INFRA_CLDMA_CTRL_REG, reg_value);
 	CCCI_DEBUG_LOG(md_id, TAG, "set cldma ctrl reg as:0x%x\n", reg_value);
 }
+
+void md1_subsys_debug_dump(enum subsys_id sys)
+{
+	struct ccci_modem *md = NULL;
+
+	if (sys != SYS_MD1)
+		return;
+		/* add debug dump */
+
+	CCCI_NORMAL_LOG(0, TAG, "%s\n", __func__);
+	md = ccci_md_get_modem_by_id(0);
+	if (md != NULL) {
+		CCCI_NORMAL_LOG(0, TAG, "%s dump start\n", __func__);
+		md->ops->dump_info(md, DUMP_FLAG_CCIF_REG | DUMP_FLAG_CCIF |
+			DUMP_FLAG_REG | DUMP_FLAG_QUEUE_0_1 |
+			DUMP_MD_BOOTUP_STATUS, NULL, 0);
+		mdelay(1000);
+		md->ops->dump_info(md, DUMP_FLAG_REG, NULL, 0);
+	}
+	CCCI_NORMAL_LOG(0, TAG, "%s exit\n", __func__);
+}
+
+struct pg_callbacks md1_subsys_handle = {
+	.debug_dump = md1_subsys_debug_dump,
+};
 
 int md_cd_get_modem_hw_info(struct platform_device *dev_ptr,
 	struct ccci_dev_cfg *dev_cfg, struct md_hw_info *hw_info)
@@ -297,7 +323,7 @@ int md_cd_get_modem_hw_info(struct platform_device *dev_ptr,
 		"cldma_irq:%d,ccif_irq0:%d,ccif_irq1:%d,md_wdt_irq:%d\n",
 		cldma_hw->cldma_irq_id, hw_info->ap_ccif_irq0_id,
 		hw_info->ap_ccif_irq1_id, hw_info->md_wdt_irq_id);
-
+	register_pg_callback(&md1_subsys_handle);
 	return 0;
 }
 
@@ -1521,3 +1547,42 @@ void ccci_modem_sysresume(void)
 	if (md != NULL)
 		ccci_modem_restore_reg(md);
 }
+
+/* no support atf-1.4, so write scp smem addr to scp reg direct */
+void ccci_notify_set_scpmem(void)
+{
+	unsigned long long key = 0;
+	struct device_node *node = NULL;
+	void __iomem *ap_ccif2_base;
+	unsigned long long scp_smem_addr = 0;
+	int size = 0;
+
+	node = of_find_compatible_node(NULL, NULL, "mediatek,ap_ccif2");
+	if (node) {
+		ap_ccif2_base = of_iomap(node, 0);
+		if (!ap_ccif2_base) {
+			CCCI_ERROR_LOG(-1, TAG, "ap_ccif2_base fail\n");
+			return;
+		}
+	} else {
+		CCCI_ERROR_LOG(-1, TAG, "can't find node ccif2 !\n");
+		return;
+	}
+	scp_smem_addr = (unsigned long long) get_smem_phy_start_addr(MD_SYS1,
+		SMEM_USER_CCISM_SCP, &size);
+	if (scp_smem_addr) {
+		ccci_write32(ap_ccif2_base, 0x100, (unsigned int)SCP_SMEM_KEY);
+		ccci_write32(ap_ccif2_base, 0x104, (unsigned int)(SCP_SMEM_KEY >> 32));
+		ccci_write32(ap_ccif2_base, 0x108, (unsigned int)scp_smem_addr);
+		ccci_write32(ap_ccif2_base, 0x10c, (unsigned int)(scp_smem_addr >> 32));
+
+		key = (unsigned long long) ccci_read32(ap_ccif2_base, 0x104);
+		key = (key << 32 ) |
+			((unsigned long long) ccci_read32(ap_ccif2_base, 0x100));
+		CCCI_NORMAL_LOG(MD_SYS1, TAG,
+			"%s: scp_smem_addr 0x%llx size: 0x%x  magic key: 0x%llx\n",
+			__func__, scp_smem_addr, size, key);
+	} else
+		CCCI_ERROR_LOG(MD_SYS1, TAG, "%s get_smem fail\n", __func__);
+}
+

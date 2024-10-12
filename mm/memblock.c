@@ -536,8 +536,7 @@ void free_memsize_reserved(phys_addr_t free_base, phys_addr_t free_size)
 	struct reserved_mem_reg *rmem_reg;
 	phys_addr_t free_end, end;
 
-	for (i = 0 ; i < reserved_mem_reg_count; i++)
-	{
+	for (i = 0 ; i < reserved_mem_reg_count; i++) {
 		rmem_reg = &reserved_mem_reg[i];
 
 		end = rmem_reg->base + rmem_reg->size;
@@ -605,7 +604,7 @@ int late_free_memsize_page(unsigned long ip, struct page *page)
 	int idx, ret = 0;
 	struct page *first = NULL, *last = NULL;
 
-	idx =__get_late_free_idx(ip);
+	idx = __get_late_free_idx(ip);
 	if (idx < 0) {
 		ret = -1;
 		goto out;
@@ -632,15 +631,14 @@ void update_memsize_late_free(void)
 	phys_addr_t first, last;
 	unsigned long addr;
 
-	for (i = 0; i < late_free_new_idx; i++)
-	{
+	for (i = 0; i < late_free_new_idx; i++) {
 		if (!late_free_ip_addr[i] || !late_free_first_page[i])
 			continue;
 		addr = late_free_ip_addr[i];
 		first = page_to_pfn(late_free_first_page[i]) << PAGE_SHIFT;
 		last = page_to_pfn(late_free_last_page[i]) << PAGE_SHIFT;
 		pr_debug("%s %lx--%lx %ps\n", __func__, first, last + PAGE_SIZE,
-			 (void*)addr);
+			 (void *)addr);
 		free_memsize_reserved(first, last + PAGE_SIZE - first);
 		late_free_first_page[i] = 0;
 	}
@@ -716,8 +714,7 @@ static bool memsize_update_nomap_region(const char *name, phys_addr_t base,
 	if (!name || nomap)
 		return false;
 
-	for (i = 0; i < reserved_mem_reg_count; i++)
-	{
+	for (i = 0; i < reserved_mem_reg_count; i++) {
 		rmem_reg = &reserved_mem_reg[i];
 
 		if (!rmem_reg->nomap)
@@ -2235,8 +2232,7 @@ static int memsize_reserved_show(struct seq_file *m, void *private)
 	sort(reserved_mem_reg, reserved_mem_reg_count,
 	     sizeof(reserved_mem_reg[0]), __rmem_reg_cmp, NULL);
 	seq_printf(m, "v1\n");
-	for (i = 0 ; i < reserved_mem_reg_count; i++)
-	{
+	for (i = 0 ; i < reserved_mem_reg_count; i++) {
 		rmem_reg = &reserved_mem_reg[i];
 		seq_printf(m, "0x%09lx-0x%09lx 0x%08lx ( %7lu KB ) %s %s %s\n",
 #if defined(CONFIG_SAMSUNG_PRODUCT_SHIP)

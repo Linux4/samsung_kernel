@@ -934,12 +934,6 @@ static long ccu_ioctl(struct file *flip, unsigned int cmd, unsigned long arg)
 			break;
 	}
 
-	case CCU_READ_REGISTER:
-		{
-			int regToRead = (int)arg;
-
-			return ccu_read_info_reg(regToRead);
-		}
 	default:
 		LOG_WARN("ioctl:No such command!\n");
 		ret = -EINVAL;

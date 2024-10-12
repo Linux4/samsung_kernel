@@ -549,8 +549,10 @@ int m4u_alloc_pte(struct m4u_domain_t *domain,
 	for (retry_cnt = 0; retry_cnt < 5; retry_cnt++) {
 		pte_new_va = kmem_cache_zalloc(gM4u_pte_kmem,
 					       GFP_KERNEL | GFP_DMA);
-		if (likely(pte_new_va))
+		if (likely(pte_new_va)) {
+			kmemleak_ignore(pte_new_va); //ignored by kmemleak tool
 			break;
+		}
 	}
 	write_lock_domain(domain);
 	if (unlikely(!pte_new_va)) {
@@ -1237,6 +1239,12 @@ int m4u_pgtable_init(struct m4u_device *m4u_dev,
 		struct m4u_domain_t *m4u_domain, int m4u_id)
 {
 	/* ======= alloc pagetable======================= */
+
+	if (unlikely((unsigned int)m4u_id >= TOTAL_M4U_NUM)) {
+		m4u_info("%s #%d: m4u_id error:%d\n",
+			 __func__, __LINE__, m4u_id);
+		return -EINVAL;
+	}
 	m4u_domain->pgd =
 	    dma_alloc_coherent(m4u_dev->pDev[m4u_id],
 			M4U_PGD_SIZE, &(m4u_domain->pgd_pa), GFP_KERNEL);

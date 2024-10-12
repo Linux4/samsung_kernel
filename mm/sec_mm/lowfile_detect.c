@@ -11,7 +11,7 @@
 #include <linux/ratelimit.h>
 #include "sec_mm.h"
 
-static DEFINE_RATELIMIT_STATE(mm_debug_rs, 30 * HZ, 1);
+static DEFINE_RATELIMIT_STATE(mm_debug_rs, 10 * HZ, 1);
 
 #define MIN_FILE_SIZE_HIGH	300
 #define MIN_FILE_SIZE_LOW	200

@@ -29,7 +29,7 @@
 #if (CONFIG_MTK_GAUGE_VERSION == 30)
 #include <mt-plat/mtk_charger.h>
 #else
-#if !defined(CONFIG_MACH_MT8168)
+#if defined(CONFIG_MACH_MT8168)
 #include <charging.h>
 #endif
 #endif

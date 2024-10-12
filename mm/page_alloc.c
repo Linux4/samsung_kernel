@@ -2222,6 +2222,10 @@ static void reserve_highatomic_pageblock(struct page *page, struct zone *zone,
 	 * Check is race-prone but harmless.
 	 */
 	max_managed = (zone->managed_pages / 100) + pageblock_nr_pages;
+#if CONFIG_HIGHATOMIC_PAGEBLOCKS > 0
+	max_managed = min_t(unsigned long, max_managed,
+			    pageblock_nr_pages * CONFIG_HIGHATOMIC_PAGEBLOCKS);
+#endif
 	if (zone->nr_reserved_highatomic >= max_managed)
 		return;
 
@@ -3168,11 +3172,15 @@ static inline bool zone_watermark_fast(struct zone *z, unsigned int order,
 	 * need to be calculated.
 	 */
 	if (!order) {
-		long fast_free;
+		long usable_free;
+		long reserved;
 
-		fast_free = free_pages;
-		fast_free -= __zone_watermark_unusable_free(z, 0, alloc_flags);
-		if (fast_free > mark + z->lowmem_reserve[classzone_idx])
+		usable_free = free_pages;
+		reserved = __zone_watermark_unusable_free(z, 0, alloc_flags);
+
+		/* reserved may over estimate high-atomic reserves. */
+		usable_free -= min(usable_free, reserved);
+		if (usable_free > mark + z->lowmem_reserve[classzone_idx])
 			return true;
 	}
 
@@ -3756,7 +3764,7 @@ retry:
 	 */
 	if (!page && !drained) {
 		unreserve_highatomic_pageblock(ac, false);
-		if (!need_memory_boosting(NULL))
+		if (!need_memory_boosting())
 			drain_all_pages(NULL);
 		drained = true;
 		goto retry;
@@ -4321,8 +4329,6 @@ __alloc_pages_nodemask(gfp_t gfp_mask, unsigned int order, int preferred_nid,
 	}
 
 	gfp_mask &= gfp_allowed_mask;
-	if (unlikely(current->flags & PF_NOFS_MASK))
-		gfp_mask &= ~__GFP_FS;
 	alloc_mask = gfp_mask;
 	if (!prepare_alloc_pages(gfp_mask, order, preferred_nid, nodemask, &ac, &alloc_mask, &alloc_flags))
 		return NULL;

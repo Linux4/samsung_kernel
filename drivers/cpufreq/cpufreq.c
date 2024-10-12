@@ -30,12 +30,9 @@
 #include <linux/suspend.h>
 #include <linux/syscore_ops.h>
 #include <linux/tick.h>
-#include <linux/ologk.h>
 #include <trace/events/power.h>
 
 static LIST_HEAD(cpufreq_policy_list);
-
-struct cpufreq_user_policy core_min_max_policy[NR_CPUS];
 
 static inline bool policy_is_inactive(struct cpufreq_policy *policy)
 {
@@ -409,8 +406,10 @@ wait:
 	policy->transition_task = current;
 
 	spin_unlock(&policy->transition_lock);
-
+#if !defined(CONFIG_MACH_MT6893) && !defined(CONFIG_MACH_MT6877) \
+	&& !defined(CONFIG_MACH_MT6781)
 	arch_set_freq_scale(policy->cpus, freqs->new, policy->cpuinfo.max_freq);
+#endif
 	arch_set_max_freq_scale(policy->cpus, policy->max);
 	arch_set_min_freq_scale(policy->cpus, policy->min);
 	update_cpu_capacity_cpumask(policy->cpus);
@@ -2261,15 +2260,6 @@ static int cpufreq_set_policy(struct cpufreq_policy *policy,
 	arch_set_min_freq_scale(policy->cpus, policy->min);
 
 	trace_cpu_frequency_limits(policy->max, policy->min, policy->cpu);
-	if(policy->cpu < NR_CPUS) {
-		if(/*core_min_max_policy[policy->cpu].min != policy->min ||*/ core_min_max_policy[policy->cpu].max != policy->max) {
-			if(policy->max < OLOG_CPU_FREQ_FILTER || core_min_max_policy[policy->cpu].max < OLOG_CPU_FREQ_FILTER) {
-				perflog(PERFLOG_CPUFREQ, "[%d] %lu, %lu", policy->cpu, policy->min / 1000, policy->max / 1000);
-			}
-			core_min_max_policy[policy->cpu].min = policy->min;
-			core_min_max_policy[policy->cpu].max = policy->max;
-		}
-	}
 
 	policy->cached_target_freq = UINT_MAX;
 

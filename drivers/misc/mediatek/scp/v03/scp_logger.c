@@ -144,8 +144,8 @@ static size_t scp_A_get_last_log(size_t b_len)
 {
 	size_t ret = 0;
 	int scp_awake_flag;
-	size_t log_end_idx;
-	size_t update_start_idx;
+	unsigned int log_end_idx;
+	unsigned int update_start_idx;
 	unsigned char *scp_last_log_buf =
 		(unsigned char *)(SCP_TCM + last_log_info.scp_log_buf_addr);
 
@@ -228,8 +228,7 @@ exit:
 
 ssize_t scp_A_log_read(char __user *data, size_t len)
 {
-	unsigned int w_pos, r_pos;
-	size_t datalen;
+	unsigned int w_pos, r_pos, datalen;
 	char *buf;
 
 	if (!scp_A_logger_inited)
@@ -513,8 +512,7 @@ DEVICE_ATTR(scp_A_get_last_log, 0444, scp_A_last_log_show, NULL);
 static ssize_t scp_A_mobile_log_UT_show(struct device *kobj,
 		struct device_attribute *attr, char *buf)
 {
-	unsigned int w_pos, r_pos;
-	size_t datalen;
+	unsigned int w_pos, r_pos, datalen;
 	char *logger_buf;
 	size_t len = 1024;
 
@@ -837,6 +835,9 @@ void scp_crash_log_move_to_buf(enum scp_core_id scp_id)
 	unsigned int log_start_idx;  /* SCP log start pointer */
 	unsigned int log_end_idx;    /* SCP log end pointer */
 	unsigned int w_pos;          /* buf write pointer */
+	char *dram_logger_limit = /* SCP log reserve limitation */
+		(char *)(scp_get_reserve_mem_virt(SCP_A_LOGGER_MEM_ID)
+		+ scp_get_reserve_mem_size(SCP_A_LOGGER_MEM_ID));
 	char *pre_scp_logger_buf = NULL;
 	char *dram_logger_buf;       /* dram buffer */
 	int scp_awake_flag;
@@ -954,6 +955,12 @@ void scp_crash_log_move_to_buf(enum scp_core_id scp_id)
 		/* copy to dram buffer */
 		dram_logger_buf = ((char *) SCP_A_log_ctl) +
 		    SCP_A_log_ctl->buff_ofs + w_pos;
+		/* check write address don't over logger reserve memory */
+		if (dram_logger_buf > dram_logger_limit) {
+			pr_debug("[SCP] %s: dram_logger_buf %x oversize reserve mem %x\n",
+			__func__, dram_logger_buf, dram_logger_limit);
+		goto exit;
+		}
 
 		/* memory copy from log buf */
 		pos = 0;

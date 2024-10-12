@@ -34,8 +34,8 @@ u32 STATE_NAME_LEN;
 u64 STAMP_TIME[STAMP_MAX][CHAIN_MAX];
 
 static u32 EVENT_TO_STAMP[EVENT_MAX] = {
-	[FB_EVENT_BLANK] =		SMCDSD_STAMP_AFTER,
-	[FB_EARLY_EVENT_BLANK] =	SMCDSD_STAMP_EARLY,
+	[SMCDSD_EVENT_BLANK] =		SMCDSD_STAMP_AFTER,
+	[SMCDSD_EARLY_EVENT_BLANK] =	SMCDSD_STAMP_EARLY,
 	[SMCDSD_EVENT_DOZE] =		SMCDSD_STAMP_AFTER,
 	[SMCDSD_EARLY_EVENT_DOZE] =	SMCDSD_STAMP_EARLY,
 	[SMCDSD_EVENT_FRAME] =		SMCDSD_STAMP_FRAME,
@@ -126,7 +126,8 @@ EXPORT_SYMBOL(smcdsd_notifier_call_chain);
 
 int smcdsd_simple_notifier_call_chain(unsigned long val, int blank)
 {
-	struct fb_info *fbinfo = registered_fb[0];
+	static struct fb_info dummy_fb = {0, };
+	struct fb_info *fbinfo = &dummy_fb;
 	struct fb_event v = {0, };
 	int fb_blank = blank;
 
@@ -157,8 +158,8 @@ static int smcdsd_fb_notifier_event(struct notifier_block *this,
 	int state = 0;
 
 	switch (val) {
-	case FB_EARLY_EVENT_BLANK:
-	case FB_EVENT_BLANK:
+	case SMCDSD_EARLY_EVENT_BLANK:
+	case SMCDSD_EVENT_BLANK:
 		break;
 	default:
 		return NOTIFY_DONE;
@@ -195,7 +196,7 @@ static int smcdsd_fb_notifier_blank_early(struct notifier_block *this,
 	int state = 0;
 
 	switch (val) {
-	case FB_EARLY_EVENT_BLANK:
+	case SMCDSD_EARLY_EVENT_BLANK:
 		break;
 	default:
 		return NOTIFY_DONE;
@@ -228,7 +229,7 @@ static int smcdsd_fb_notifier_blank_after(struct notifier_block *this,
 	int state = 0;
 
 	switch (val) {
-	case FB_EVENT_BLANK:
+	case SMCDSD_EVENT_BLANK:
 		break;
 	default:
 		return NOTIFY_DONE;
@@ -264,14 +265,60 @@ static struct notifier_block smcdsd_fb_notifier_blank_max = {
 	.priority = INT_MAX,
 };
 
+#if defined(CONFIG_DRM_MEDIATEK)
+static BLOCKING_NOTIFIER_HEAD(smcdsd_fb_notifier_list);
+
+int smcdsd_fb_register_client(struct notifier_block *nb)
+{
+	return blocking_notifier_chain_register(&smcdsd_fb_notifier_list, nb);
+}
+EXPORT_SYMBOL(smcdsd_fb_register_client);
+
+int smcdsd_fb_unregister_client(struct notifier_block *nb)
+{
+	return blocking_notifier_chain_unregister(&smcdsd_fb_notifier_list, nb);
+}
+EXPORT_SYMBOL(smcdsd_fb_unregister_client);
+
+int smcdsd_fb_notifier_call_chain(unsigned long val, void *v)
+{
+	return blocking_notifier_call_chain(&smcdsd_fb_notifier_list, val, v);
+}
+EXPORT_SYMBOL_GPL(smcdsd_fb_notifier_call_chain);
+
+int smcdsd_fb_simple_notifier_call_chain(unsigned long val, int blank)
+{
+	struct fb_info *fbinfo = registered_fb[0];
+	struct fb_event v = {0, };
+	int fb_blank = blank;
+
+	if (!fbinfo) {
+		dbg_info("%s: fbinfo invalid\n", __func__);
+		return NOTIFY_DONE;
+	}
+
+	v.info = fbinfo;
+	v.data = &fb_blank;
+
+	return smcdsd_fb_notifier_call_chain(val, &v);
+}
+EXPORT_SYMBOL(smcdsd_fb_simple_notifier_call_chain);
+#endif
+
 static int __init smcdsd_notifier_init(void)
 {
-	EVENT_NAME_LEN = EVENT_NAME[FB_EARLY_EVENT_BLANK] ? (u32)strlen(EVENT_NAME[FB_EARLY_EVENT_BLANK]) : EVENT_NAME_LEN;
+	EVENT_NAME_LEN = EVENT_NAME[SMCDSD_EARLY_EVENT_BLANK] ? (u32)strlen(EVENT_NAME[SMCDSD_EARLY_EVENT_BLANK]) : EVENT_NAME_LEN;
 	STATE_NAME_LEN = STATE_NAME[FB_BLANK_POWERDOWN] ? (u32)strlen(STATE_NAME[FB_BLANK_POWERDOWN]) : STATE_NAME_LEN;
 
+#if defined(CONFIG_DRM_MEDIATEK)
+	smcdsd_fb_register_client(&smcdsd_fb_notifier_blank_min);
+	smcdsd_fb_register_client(&smcdsd_fb_notifier);
+	smcdsd_fb_register_client(&smcdsd_fb_notifier_blank_max);
+#else
 	fb_register_client(&smcdsd_fb_notifier_blank_min);
 	fb_register_client(&smcdsd_fb_notifier);
 	fb_register_client(&smcdsd_fb_notifier_blank_max);
+#endif
 
 	return 0;
 }

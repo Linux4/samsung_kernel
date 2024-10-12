@@ -57,10 +57,14 @@
 #include "nfc_wakelock.h"
 #include "ese_p3.h"
 
-/* Undef if want to keep eSE Power LDO ALWAYS ON */
-#define FEATURE_ESE_POWER_ON_OFF
+#ifdef CONFIG_SEC_NFC_LOGGER
+#include "./nfc_logger/nfc_logger.h"
+#endif
 
 #define SPI_DEFAULT_SPEED 6500000L
+
+static int ese_param_support = -1;
+module_param(ese_param_support, int, 0440);
 
 #if defined(CONFIG_ESE_SECURE) && defined(CONFIG_ESE_USE_TZ_API)
 static TEEC_UUID ese_drv_uuid = {
@@ -88,6 +92,27 @@ enum P3_DEBUG_LEVEL {
 	P3_FULL_DEBUG
 };
 
+#ifdef CONFIG_SEC_NFC_LOGGER
+/* Variable to store current debug level request by ioctl */
+static unsigned char debug_level = P3_FULL_DEBUG;
+
+#define P3_DBG_MSG(msg...) do { \
+		switch (debug_level) { \
+		case P3_DEBUG_OFF: \
+			break; \
+		case P3_FULL_DEBUG: \
+			NFC_LOG_INFO("[ESE-P3] :  " msg); \
+			break; \
+			 /*fallthrough*/ \
+		default: \
+			NFC_LOG_ERR("[ESE-P3] : debug level %d", debug_level);\
+			break; \
+		}; \
+	} while (0)
+
+#define P3_ERR_MSG(msg...) NFC_LOG_ERR("[ESE-P3] : " msg)
+#define P3_INFO_MSG(msg...) NFC_LOG_INFO("[ESE-P3] : " msg)
+#else
 /* Variable to store current debug level request by ioctl */
 static unsigned char debug_level = P3_FULL_DEBUG;
 
@@ -107,6 +132,7 @@ static unsigned char debug_level = P3_FULL_DEBUG;
 
 #define P3_ERR_MSG(msg...) pr_err("[ESE-P3] : " msg)
 #define P3_INFO_MSG(msg...) pr_info("[ESE-P3] : " msg)
+#endif
 
 static DEFINE_MUTEX(device_list_lock);
 
@@ -136,9 +162,15 @@ struct p3_data {
 	struct regulator *ese_pvdd;
 	unsigned char *tx_buffer;
 	unsigned char *rx_buffer;
+
+	bool pwr_always_on;
+	enum coldrst_type coldrst_type;
 };
 
-#ifdef CONFIG_ESE_USE_TZ_API
+#ifdef CONFIG_MAKE_NODE_USING_PLATFORM_DEVICE
+struct p3_data *g_p3_dev;
+#endif
+
 #ifndef CONFIG_ESE_SECURE
 static void p3_pinctrl_config(struct p3_data *data, bool onoff)
 {
@@ -165,7 +197,7 @@ static void p3_pinctrl_config(struct p3_data *data, bool onoff)
 	}
 }
 #endif
-
+#ifdef CONFIG_ESE_USE_TZ_API
 #ifdef CONFIG_ESE_SECURE
 static uint32_t tz_tee_ese_drv(enum pm_mode mode)
 {
@@ -265,8 +297,7 @@ static int p3_regulator_onoff(struct p3_data *data, int onoff)
 	struct regulator *regulator_ese_pvdd = data->ese_pvdd;
 
 	if (!regulator_ese_pvdd) {
-		P3_ERR_MSG("%s - error: null regulator!\n", __func__);
-		rc = -ENODEV;
+		P3_ERR_MSG("%s - null regulator!\n", __func__);
 		goto done;
 	}
 
@@ -386,11 +417,26 @@ static int p3_rw_spi_message(struct p3_data *p3_device,
 }
 #endif
 
+#ifdef CONFIG_ESE_COLDRESET
+#if !IS_ENABLED(CONFIG_SAMSUNG_ESE_ONLY)
+extern int trig_nfc_wakeup(void);
+extern int trig_nfc_sleep(void);
+#endif
+#endif
+
 static int spip3_open(struct inode *inode, struct file *filp)
 {
-	struct p3_data *p3_dev = container_of(filp->private_data,
-			struct p3_data, p3_device);
+#ifdef CONFIG_MAKE_NODE_USING_PLATFORM_DEVICE
+	struct p3_data *p3_dev = g_p3_dev;
+#else
+	struct p3_data *p3_dev = container_of(filp->private_data, struct p3_data, p3_device);
+#endif
 	int ret = 0;
+
+	if (p3_dev == NULL) {
+		P3_ERR_MSG("%s: spi probe is not called\n", __func__);
+		return -EAGAIN;
+	}
 
 #if defined(CONFIG_ESE_SECURE) && defined(CONFIG_ESE_USE_TZ_API)
 	if (p3_dev->ese_secure_check == NOT_CHECKED) {
@@ -412,7 +458,11 @@ static int spip3_open(struct inode *inode, struct file *filp)
 		P3_ERR_MSG("%s - ALREADY opened!\n", __func__);
 		return -EBUSY;
 	}
-
+#ifdef CONFIG_ESE_COLDRESET
+#if !IS_ENABLED(CONFIG_SAMSUNG_ESE_ONLY)
+	trig_nfc_wakeup();
+#endif
+#endif
 	mutex_lock(&device_list_lock);
 	p3_dev->device_opened = true;
 	P3_INFO_MSG("open\n");
@@ -430,12 +480,12 @@ static int spip3_open(struct inode *inode, struct file *filp)
 #endif
 #endif
 
-#ifdef FEATURE_ESE_POWER_ON_OFF
-	ret = p3_regulator_onoff(p3_dev, 1);
-	if (ret < 0)
-		P3_ERR_MSG(" %s : failed to turn on LDO()\n", __func__);
-	usleep_range(2000, 2500);
-#endif
+	if (!p3_dev->pwr_always_on) {
+		ret = p3_regulator_onoff(p3_dev, 1);
+		if (ret < 0)
+			P3_ERR_MSG("%s : failed to turn on LDO()\n", __func__);
+		usleep_range(2000, 2500);
+	}
 
 	filp->private_data = p3_dev;
 
@@ -471,44 +521,55 @@ static int spip3_release(struct inode *inode, struct file *filp)
 
 #ifdef CONFIG_ESE_USE_TZ_API
 #ifdef CONFIG_ESE_SECURE
-	p3_clk_control(p3_dev, false);
-	tz_tee_ese_drv(PM_SUSPEND);
-	usleep_range(1000, 1500);
+		p3_clk_control(p3_dev, false);
+		tz_tee_ese_drv(PM_SUSPEND);
+		usleep_range(1000, 1500);
 #else
-	p3_pinctrl_config(p3_dev, false);
+		p3_pinctrl_config(p3_dev, false);
 #endif
 #endif
-#ifdef FEATURE_ESE_POWER_ON_OFF
-		ret = p3_regulator_onoff(p3_dev, 0);
-		if (ret < 0)
-			P3_ERR_MSG(" test: failed to turn off LDO()\n");
-
-#endif
+		if (!p3_dev->pwr_always_on) {
+			ret = p3_regulator_onoff(p3_dev, 0);
+			if (ret < 0)
+				P3_ERR_MSG("test: failed to turn off LDO()\n");
+		}
 	}
 	usleep_range(10000, 15000);
 
 	mutex_unlock(&device_list_lock);
-
+#ifdef CONFIG_ESE_COLDRESET
+#if !IS_ENABLED(CONFIG_SAMSUNG_ESE_ONLY)
+	trig_nfc_sleep();
+#endif
+#endif
 	P3_DBG_MSG("%s, users:%d, Major Minor No:%d %d\n", __func__,
 			p3_dev->users, imajor(inode), iminor(inode));
 	return 0;
 }
 
 #ifdef CONFIG_ESE_COLDRESET
+#if !IS_ENABLED(CONFIG_SAMSUNG_ESE_ONLY)
 extern int trig_cold_reset(void);
-
+#endif
 static void p3_power_reset(struct p3_data *data)
 {
 	/*Add Reset Sequence here*/
 
 	P3_INFO_MSG("%s: start\n", __func__);
 
+#if IS_ENABLED(CONFIG_SAMSUNG_ESE_ONLY)
+	if (data->coldrst_type == COLDRST_POWER_ONOFF) {
+		p3_regulator_onoff(data, 0);
+		msleep(100);
+		p3_regulator_onoff(data, 1);
+	}
+#else
 	trig_cold_reset();
-
+#endif
 	P3_DBG_MSG("%s: end\n", __func__);
 
 }
-#endif
+#endif /* CONFIG_ESE_COLDRESET */
 
 static long spip3_ioctl(struct file *filp, unsigned int cmd,
 		unsigned long arg)
@@ -746,24 +807,45 @@ static const struct file_operations spip3_dev_fops = {
 #endif
 };
 
+#ifdef CONFIG_MAKE_NODE_USING_PLATFORM_DEVICE
+static struct miscdevice p3_misc_device = {
+	.minor = MISC_DYNAMIC_MINOR,
+	.name = "p3",
+	.fops = &spip3_dev_fops,
+};
+#endif
+
 static int p3_parse_dt(struct device *dev, struct p3_data *data)
 {
-#ifdef CONFIG_ESE_USE_TZ_API
 	struct device_node *np = dev->of_node;
-#endif
+	const char *coldrst_type_str;
 	int ret = 0;
 
 #ifdef CONFIG_ESE_USE_TZ_API
 	data->cs_gpio = of_get_named_gpio(np, "ese_p3,cs-gpio", 0);
-	P3_INFO_MSG("cs-gpio : %d\n:", data->cs_gpio);
+	P3_INFO_MSG("cs-gpio : %d\n", data->cs_gpio);
 #endif
 
+	if (!of_property_read_string(np, "ese_p3,coldrst_type", &coldrst_type_str)) {
+		if (!strcmp(coldrst_type_str, "gpio"))
+			data->coldrst_type = COLDRST_GPIO;
+		else if (!strcmp(coldrst_type_str, "power_onoff"))
+			data->coldrst_type = COLDRST_POWER_ONOFF;
+		else
+			data->coldrst_type = COLDRST_NONE;
+		P3_INFO_MSG("coldrst type is %d\n", data->coldrst_type);
+	} else {
+		P3_INFO_MSG("coldrst type is not set\n");
+	}
+
 	data->ese_pvdd = regulator_get(dev, "p3-vdd");
-	if (!data->ese_pvdd) {
+	if (IS_ERR(data->ese_pvdd)) {
 		P3_ERR_MSG("get ese_pvdd error\n");
 		data->ese_pvdd = NULL;
 	} else
 		P3_INFO_MSG("LDO ese_pvdd: %pK\n", data->ese_pvdd);
+
+	data->pwr_always_on = of_property_read_bool(np, "ese_p3,pwr_always_on");
 
 	return ret;
 }
@@ -793,6 +875,10 @@ static int spip3_probe(struct spi_device *spi)
 			P3_ERR_MSG("%s : ese support model : %d\n", __func__, ese_support);
 		} else {
 			P3_ERR_MSG("%s : ese not support model : %d\n", __func__, ese_support);
+#ifdef CONFIG_MAKE_NODE_USING_PLATFORM_DEVICE
+			misc_deregister(&p3_misc_device);
+			P3_ERR_MSG("Misc Deregister\n");
+#endif
 			return -ENXIO;
 		}
 	}
@@ -810,21 +896,16 @@ static int spip3_probe(struct spi_device *spi)
 		goto p3_parse_dt_failed;
 	}
 
-#ifdef CONFIG_ESE_USE_TZ_API
-	if (data->vdd_1p8 != NULL) {
-		if (!strcmp(data->vdd_1p8, "VDD_ESE_SEN4") && !lpcharge) {
-			ret = p3_regulator_onoff(data, 3);
-			if (ret) {
-				P3_ERR_MSG("%s - Failed to enable regulator\n", __func__);
-				goto p3_parse_dt_failed;
-			}
-		}
-	}
+#if IS_ENABLED(CONFIG_BATTERY_SAMSUNG) && !defined(CONFIG_NFC_PVDD_LATE_ENABLE) && !IS_ENABLED(CONFIG_SAMSUNG_ESE_ONLY)
+	if (data->pwr_always_on && !lpcharge) {
+#else
+	if (data->pwr_always_on) {
 #endif
-	ret = p3_regulator_onoff(data, 1);
-	if (ret) {
-		P3_ERR_MSG("%s - Failed to enable regulator\n", __func__);
-		goto p3_parse_dt_failed;
+		ret = p3_regulator_onoff(data, 1);
+		if (ret) {
+			P3_ERR_MSG("%s - Failed to enable regulator\n", __func__);
+			goto p3_parse_dt_failed;
+		}
 	}
 
 #ifdef CONFIG_ESE_SECURE
@@ -858,10 +939,12 @@ static int spip3_probe(struct spi_device *spi)
 #endif
 	data->speed = SPI_DEFAULT_SPEED;
 	data->spi = spi;
+#ifndef CONFIG_MAKE_NODE_USING_PLATFORM_DEVICE
 	data->p3_device.minor = MISC_DYNAMIC_MINOR;
 	data->p3_device.name = "p3";
 	data->p3_device.fops = &spip3_dev_fops;
 	data->p3_device.parent = &spi->dev;
+#endif
 #if defined(CONFIG_ESE_SECURE) && defined(CONFIG_ESE_USE_TZ_API)
 	data->ese_secure_check = NOT_CHECKED;
 #endif
@@ -878,11 +961,13 @@ static int spip3_probe(struct spi_device *spi)
 
 	data->device_opened = false;
 
+#ifndef CONFIG_MAKE_NODE_USING_PLATFORM_DEVICE
 	ret = misc_register(&data->p3_device);
 	if (ret < 0) {
 		P3_ERR_MSG("misc_register failed! %d\n", ret);
 		goto err_misc_regi;
 	}
+#endif
 
 #ifdef CONFIG_ESE_USE_TZ_API
 	ret = gpio_request(data->cs_gpio, "ese_cs");
@@ -890,14 +975,7 @@ static int spip3_probe(struct spi_device *spi)
 		P3_ERR_MSG("failed to get gpio cs-gpio\n");
 #endif
 
-#ifdef FEATURE_ESE_POWER_ON_OFF
-	ret = p3_regulator_onoff(data, 0);
-	if (ret < 0) {
-		P3_ERR_MSG("%s failed to turn off LDO. [%d]\n", __func__, ret);
-		goto err_ldo_off;
-	}
-#endif
-#if !defined(CONFIG_ESE_SECURE) && defined(CONFIG_ESE_USE_TZ_API)
+#if !defined(CONFIG_ESE_SECURE)
 	p3_pinctrl_config(data, false);
 #endif
 
@@ -915,6 +993,9 @@ static int spip3_probe(struct spi_device *spi)
 		goto err_alloc_rx_buf;
 	}
 
+#ifdef CONFIG_MAKE_NODE_USING_PLATFORM_DEVICE
+	g_p3_dev = data;
+#endif
 	P3_INFO_MSG("%s finished...\n", __func__);
 	return ret;
 err_alloc_rx_buf:
@@ -922,9 +1003,15 @@ err_alloc_rx_buf:
 err_alloc_tx_buf:
 #ifdef FEATURE_ESE_POWER_ON_OFF
 err_ldo_off:
+#ifndef CONFIG_MAKE_NODE_USING_PLATFORM_DEVICE
 	misc_deregister(&data->p3_device);
 #endif
+#endif
+
+#ifndef CONFIG_MAKE_NODE_USING_PLATFORM_DEVICE
 err_misc_regi:
+#endif
+
 #ifdef FEATURE_ESE_WAKELOCK
 	wake_lock_destroy(&data->ese_lock);
 #endif
@@ -950,8 +1037,9 @@ static int spip3_remove(struct spi_device *spi)
 	wake_lock_destroy(&p3_dev->ese_lock);
 #endif
 	mutex_destroy(&p3_dev->buffer_mutex);
+#ifndef CONFIG_MAKE_NODE_USING_PLATFORM_DEVICE
 	misc_deregister(&p3_dev->p3_device);
-
+#endif
 	kfree(p3_dev);
 	P3_DBG_MSG("Exit : %s\n", __func__);
 	return 0;
@@ -980,38 +1068,90 @@ static struct spi_driver spip3_driver = {
 };
 
 #if IS_MODULE(CONFIG_SAMSUNG_NFC)
+#ifdef CONFIG_MAKE_NODE_USING_PLATFORM_DEVICE
+static int p3_platform_probe(struct platform_device *pdev)
+{
+	int ret = -1;
+
+	ret = misc_register(&p3_misc_device);
+	if (ret < 0)
+		P3_INFO_MSG("misc_register failed! %d\n", ret);
+
+	P3_INFO_MSG("%s: finished...\n", __func__);
+	return 0;
+}
+
+static int p3_platform_remove(struct platform_device *pdev)
+{
+	P3_INFO_MSG("Entry : %s\n", __func__);
+	misc_deregister(&p3_misc_device);
+
+	return 0;
+}
+
+static const struct of_device_id p3_platform_match_table[] = {
+	{ .compatible = "p3_platform",},
+	{},
+};
+
+static struct platform_driver p3_platform_driver = {
+	.driver = {
+		.name = "p3_platform",
+		.owner = THIS_MODULE,
+#ifdef CONFIG_OF
+		.of_match_table = p3_platform_match_table,
+#endif
+
+	},
+	.probe =  p3_platform_probe,
+	.remove = p3_platform_remove,
+};
+#endif
 int spip3_dev_init(void)
 {
-	debug_level = P61_DEBUG_OFF;
+	P3_INFO_MSG("Entry : %s\n", __func__);
 
-	P61_DBG_MSG("Entry : %s\n", __FUNCTION__);
-
-	return spi_register_driver(&p61_driver);
+	if (!ese_param_support) {
+		P3_INFO_MSG("%s, support : %d\n", __func__, ese_param_support);
+		return 0;
+	}
+#ifdef CONFIG_MAKE_NODE_USING_PLATFORM_DEVICE
+	if (platform_driver_register(&p3_platform_driver))
+		P3_INFO_MSG("fail to register early\n");
+#endif
+	return spi_register_driver(&spip3_driver);
 }
 EXPORT_SYMBOL(spip3_dev_init);
 
 void spip3_dev_exit(void)
 {
-	P61_DBG_MSG("Entry : %s\n", __FUNCTION__);
+	P3_INFO_MSG("Entry : %s\n", __func__);
 
-	spi_unregister_driver(&p61_driver);
+#ifdef CONFIG_MAKE_NODE_USING_PLATFORM_DEVICE
+	platform_driver_unregister(&p3_platform_driver);
+#endif
+	if (ese_param_support)
+		spi_unregister_driver(&spip3_driver);
 }
 EXPORT_SYMBOL(spip3_dev_exit);
 #else
 static int __init spip3_dev_init(void)
 {
 	P3_INFO_MSG("Entry : %s\n", __func__);
-#if (!defined(CONFIG_ESE_FACTORY_ONLY) || defined(CONFIG_SEC_FACTORY))
+
+	if (!ese_param_support) {
+		P3_INFO_MSG("%s, support : %d\n", __func__, ese_param_support);
+		return 0;
+	}
+
 	return spi_register_driver(&spip3_driver);
-#else
-	return -EPERM;
-#endif
 }
 
 static void __exit spip3_dev_exit(void)
 {
 	P3_INFO_MSG("Entry : %s\n", __func__);
-	spi_unregister_driver(&spip3_driver);
+	if (ese_param_support)
+		spi_unregister_driver(&spip3_driver);
 }
 
 module_init(spip3_dev_init);

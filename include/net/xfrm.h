@@ -144,7 +144,6 @@ struct xfrm_state {
 
 	refcount_t		refcnt;
 	spinlock_t		lock;
-
 	struct xfrm_id		id;
 	struct xfrm_selector	sel;
 	struct xfrm_mark	mark;
@@ -737,7 +736,6 @@ struct xfrm_spi_skb_cb {
 };
 
 #define XFRM_SPI_SKB_CB(__skb) ((struct xfrm_spi_skb_cb *)&((__skb)->cb[0]))
-
 // [ SEC_SELINUX_PORTING_COMMON - remove AUDIT_MAC_IPSEC_EVENT audit log, it conflict with security notification
 #if 0 // #ifdef CONFIG_AUDITSYSCALL
 static inline struct audit_buffer *xfrm_audit_start(const char *op)
@@ -828,7 +826,7 @@ static inline void xfrm_audit_state_icvfail(struct xfrm_state *x,
 {
 }
 #endif /* CONFIG_AUDITSYSCALL */
-// ] SEC_SELINUX_PORTING_COMMON - remove AUDIT_MAC_IPSEC_EVENT audit log, it conflict with security notification
+// ] SEC_SELINUX_PORTING_COMMON - remove AUDIT_MAC_IPSEC_EVENT audit log, it conflict with security notification															
 
 static inline void xfrm_pol_hold(struct xfrm_policy *policy)
 {

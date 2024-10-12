@@ -34,6 +34,10 @@
 #include <mtk_qos_sram.h>
 #endif
 
+#ifdef QOS_SHARE_SUPPORT
+#include <mtk_qos_share.h>
+#endif
+
 #ifdef CONFIG_MTK_PERF_OBSERVER
 #include <mt-plat/mtk_perfobserver.h>
 #endif
@@ -92,6 +96,7 @@ struct mtk_btag_mictx_iostat_struct {
 	__u32 reqcnt_r;  /* request count: read */
 	__u32 reqcnt_w;  /* request count: write */
 	__u16 wl;        /* storage device workload (%) */
+	__u16 top;       /* ratio of request (size) by top-app */
 	__u16 q_depth;   /* storage cmdq queue depth */
 };
 #endif
@@ -193,6 +198,22 @@ int __attribute__((weak)) get_cur_ddr_khz()
 	return 0;
 }
 
+unsigned int __attribute__((weak)) qos_rec_get_hist_bw(unsigned int idx, unsigned int type)
+{
+	return 0;
+}
+
+unsigned int __attribute__((weak)) qos_rec_get_hist_data_bw(unsigned int idx, unsigned int type)
+{
+	return 0;
+}
+
+unsigned int __attribute__((weak)) qos_rec_get_hist_idx(void)
+{
+	return 0xFFFF;
+}
+
+
 static inline u32 cpu_stall_ratio(int cpu)
 {
 #ifdef CM_STALL_RATIO_OFFSET
@@ -204,6 +225,8 @@ static inline u32 cpu_stall_ratio(int cpu)
 
 #define K(x) ((x) << (PAGE_SHIFT - 10))
 #define max_cpus 8
+#define bw_hist_nums 8
+#define bw_record_nums 32
 
 void __perf_tracker(u64 wallclock,
 		    long mm_available,
@@ -213,7 +236,8 @@ void __perf_tracker(u64 wallclock,
 #ifdef CONFIG_MTK_BLOCK_TAG
 	struct mtk_btag_mictx_iostat_struct *iostat = &iostatptr;
 #endif
-	int bw_c = 0, bw_g = 0, bw_mm = 0, bw_total = 0;
+	int bw_c = 0, bw_g = 0, bw_mm = 0, bw_total = 0, bw_idx = 0;
+	u32 bw_record = 0, bw_data[bw_record_nums] = {0};
 	int vcore_uv = 0;
 	int i;
 	int stall[max_cpus] = {0};
@@ -244,6 +268,29 @@ void __perf_tracker(u64 wallclock,
 	bw_mm = qos_sram_read(QOS_DEBUG_3);
 	bw_total = qos_sram_read(QOS_DEBUG_0);
 #endif
+	/* emi history */
+	bw_idx = qos_rec_get_hist_idx();
+	if (bw_idx != 0xFFFF) {
+		for (bw_record = 0; bw_record < bw_record_nums; bw_record += 8) {
+			/* occupied bw history */
+			bw_data[bw_record]   = qos_rec_get_hist_bw(bw_idx, 0);
+			bw_data[bw_record+1] = qos_rec_get_hist_bw(bw_idx, 1);
+			bw_data[bw_record+2] = qos_rec_get_hist_bw(bw_idx, 2);
+			bw_data[bw_record+3] = qos_rec_get_hist_bw(bw_idx, 3);
+			/* data bw history */
+			bw_data[bw_record+4] = qos_rec_get_hist_data_bw(bw_idx, 0);
+			bw_data[bw_record+5] = qos_rec_get_hist_data_bw(bw_idx, 1);
+			bw_data[bw_record+6] = qos_rec_get_hist_data_bw(bw_idx, 2);
+			bw_data[bw_record+7] = qos_rec_get_hist_data_bw(bw_idx, 3);
+
+			bw_idx -= 1;
+			if (bw_idx < 0)
+				bw_idx = bw_idx + bw_hist_nums;
+		}
+		/* trace for short bin */
+		trace_perf_index_sbin(bw_data, bw_record);
+	}
+
 	/* sched: cpu freq */
 	for (cid = 0; cid < cluster_nr; cid++)
 		sched_freq[cid] = mt_cpufreq_get_cur_freq(cid);
@@ -284,8 +331,9 @@ void __perf_tracker(u64 wallclock,
 			iostat->tp_req_w, iostat->tp_all_w,
 			iostat->reqsize_w, iostat->reqcnt_w,
 			iostat->duration, iostat->q_depth,
+			iostat->top,
 #else
-			0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+			0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 #endif
 			stall);
 }

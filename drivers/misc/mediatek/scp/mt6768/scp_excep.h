@@ -42,6 +42,9 @@ extern void aed_scp_exception_api(const int *log, int log_size,
 		const int *phy, int phy_size, const char *detail,
 		const int db_opt);
 extern void scp_excep_cleanup(void);
+#ifdef CONFIG_SHUB
+extern int get_scp_dump_size(void);
+#endif
 enum { r0, r1, r2, r3, r12, lr, pc, psr};
 extern int scp_ee_enable;
 

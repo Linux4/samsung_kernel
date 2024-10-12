@@ -21,6 +21,8 @@ enum {
 	USB_DPIDLE_SRAM,
 	USB_DPIDLE_TIMER,
 	USB_DPIDLE_AUDIO,
+	USB_DPIDLE_SUSPEND,
+	USB_DPIDLE_RESUME,
 };
 
 enum USB_DEV_SPEED {
@@ -59,6 +61,5 @@ extern void ssusb_set_phy_mode(int speed);
 extern void ssusb_debugfs_init(struct ssusb_mtk *ssusb);
 extern void ssusb_debugfs_exit(struct ssusb_mtk *ssusb);
 
-extern void ssusb_set_preemphasis(bool enable);
 #endif
 

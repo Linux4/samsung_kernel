@@ -28,7 +28,7 @@ struct mtk_dsi;
 struct cmdq_pkt;
 struct mtk_panel_para_table {
 	u8 count;
-	u8 para_list[64];
+	u8 para_list[510];
 };
 
 /*
@@ -205,13 +205,14 @@ struct dfps_switch_cmd {
 struct dynamic_fps_params {
 	unsigned int switch_en;
 	unsigned int vact_timing_fps;
+	unsigned int data_rate;
 	struct dfps_switch_cmd dfps_cmd_table[MAX_DYN_CMD_NUM];
-
-	unsigned int lfr_enable;
-	unsigned int lfr_minimum_fps;
 };
 
 struct mtk_panel_params {
+#if defined(CONFIG_SMCDSD_PANEL)
+	struct drm_panel *dpanel;
+#endif
 	unsigned int pll_clk;
 	unsigned int data_rate;
 	struct mtk_dsi_phy_timcon phy_timcon;
@@ -231,7 +232,11 @@ struct mtk_panel_params {
 	unsigned int corner_pattern_height;
 	unsigned int corner_pattern_height_bot;
 	unsigned int corner_pattern_tp_size;
+	unsigned int corner_pattern_tp_size_l;
+	unsigned int corner_pattern_tp_size_r;
 	void *corner_pattern_lt_addr;
+	void *corner_pattern_lt_addr_l;
+	void *corner_pattern_lt_addr_r;
 	unsigned int physical_width_um;
 	unsigned int physical_height_um;
 	unsigned int lane_swap_en;
@@ -240,11 +245,16 @@ struct mtk_panel_params {
 		lane_swap[MIPITX_PHY_PORT_NUM][MIPITX_PHY_LANE_NUM];
 	struct mtk_panel_dsc_params dsc_params;
 	unsigned int output_mode;
+	unsigned int lcm_cmd_if;
 	unsigned int hbm_en_time;
 	unsigned int hbm_dis_time;
 	unsigned int lcm_index;
 	unsigned int wait_sof_before_dec_vfp;
 	unsigned int doze_delay;
+
+	//Settings for LFR Function:
+	unsigned int lfr_enable;
+	unsigned int lfr_minimum_fps;
 };
 
 struct mtk_panel_ext {
@@ -260,8 +270,16 @@ struct mtk_panel_ctx {
 };
 
 struct mtk_panel_funcs {
+#if defined(CONFIG_SMCDSD_PANEL)
+	int (*late_register)(struct drm_panel *panel);
+	int (*set_power)(struct drm_panel *panel, int power);
+	int (*crtc_state_notify)(struct drm_panel *panel, int active, int prepare);
+	int (*framedone_notify)(struct drm_panel *panel);
+#endif
 	int (*set_backlight_cmdq)(void *dsi_drv, dcs_write_gce cb,
 		void *handle, unsigned int level);
+	int (*set_dispon_cmdq)(void *dsi_drv, dcs_write_gce cb,
+		void *handle);
 	int (*set_aod_light_mode)(void *dsi_drv, dcs_write_gce cb,
 		void *handle, unsigned int mode);
 	int (*set_backlight_grp_cmdq)(void *dsi_drv, dcs_grp_write_gce cb,
@@ -333,9 +351,6 @@ struct mtk_panel_funcs {
 	void (*hbm_get_state)(struct drm_panel *panel, bool *state);
 	void (*hbm_get_wait_state)(struct drm_panel *panel, bool *wait);
 	bool (*hbm_set_wait_state)(struct drm_panel *panel, bool wait);
-#if CONFIG_SMCDSD_PANEL
-	void (*lcm_path_lock)(bool need_lock);
-#endif
 };
 
 void mtk_panel_init(struct mtk_panel_ctx *ctx);
@@ -351,5 +366,5 @@ int mtk_panel_ext_create(struct device *dev,
 int mtk_panel_tch_handle_reg(struct drm_panel *panel);
 void **mtk_panel_tch_handle_init(void);
 int mtk_panel_tch_rst(struct drm_panel *panel);
-int mtk_ddic_dsi_read_cmd(struct mtk_ddic_dsi_msg *cmd_msg, bool need_lock);
+
 #endif

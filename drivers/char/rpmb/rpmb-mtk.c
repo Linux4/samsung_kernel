@@ -50,31 +50,31 @@
 #include "mtk_sd.h"
 #include "card.h"
 #ifdef CONFIG_TEEGRIS_TEE_SUPPORT
-#ifndef NO_MTK_SVP_RELEASE
 #include "tee_client_api.h"
 #include "tzdev.h"
 #endif
+
+#ifndef CONFIG_TEEGRIS_TEE_SUPPORT
+#ifdef CONFIG_MTK_UFS_SUPPORT
+#include "ufs-mtk.h"
+#endif
 #endif
 
-#ifdef CONFIG_MTK_UFS_SUPPORT
-//#include "ufs-mtk.h"
-struct rpmb_dev *ufs_mtk_rpmb_get_raw_dev(void);
-#endif
 #include <mt-plat/mtk_boot.h>
 
 /* #define __RPMB_MTK_DEBUG_MSG */
 /* #define __RPMB_MTK_DEBUG_HMAC_VERIFY */
-#if defined(CONFIG_TEEGRIS_TEE_SUPPORT) || defined(CONFIG_TRUSTONIC_TEE_SUPPORT)
-#ifndef NO_MTK_SVP_RELEASE
+#if defined(CONFIG_TEEGRIS_TEE_SUPPORT)
 #include "drrpmb_Api.h"
 #include "drrpmb_gp_Api.h"
 static struct dciMessage_t *rpmb_gp_dci;
-#endif
 #endif
 
 /* TEE usage */
 #ifdef CONFIG_TRUSTONIC_TEE_SUPPORT
 #include "mobicore_driver_api.h"
+#include "drrpmb_Api.h"
+#include "drrpmb_gp_Api.h"
 
 #ifndef CONFIG_MTK_TEE_GP_SUPPORT
 static struct mc_uuid_t rpmb_uuid = RPMB_UUID;
@@ -86,6 +86,7 @@ static struct dciMessage_t *rpmb_dci;
 static struct mc_uuid_t rpmb_gp_uuid = RPMB_GP_UUID;
 static struct mc_session_handle rpmb_gp_session = {0};
 static u32 rpmb_gp_devid = MC_DEVICE_ID_DEFAULT;
+static struct dciMessage_t *rpmb_gp_dci;
 
 #endif
 
@@ -103,6 +104,10 @@ static u32 rpmb_gp_devid = MC_DEVICE_ID_DEFAULT;
 #define RPMB_IPC_MAGIC			0x11111111
 #define RPMB_REQUEST_MAGIC		0x44444444
 #define RPMB_REPLY_MAGIC		0x66666666
+
+#ifdef CONFIG_TEEGRIS_TEE_SUPPORT
+struct rpmb_dev *ufs_mtk_rpmb_get_raw_dev(void);
+#endif
 
 struct rpmb_req {
 	uint16_t type;
@@ -2172,9 +2177,9 @@ static int rpmb_execute_ufs(u32 cmdId)
 }
 #endif
 
-static void rpmb_gp_execute_ufs(u32 cmdId)
+static int rpmb_gp_execute_ufs(u32 cmdId)
 {
-	int ret = 0;
+	int ret;
 
 	switch (cmdId) {
 
@@ -2222,12 +2227,12 @@ static void rpmb_gp_execute_ufs(u32 cmdId)
 
 	}
 
-	if (ret)
-		MSG(ERR, "%s: Error ret(%d).\n", __func__, ret);
+	return 0;
 }
 #endif
 
 #ifndef CONFIG_MTK_TEE_GP_SUPPORT
+#if defined(CONFIG_MMC_MTK_PRO)
 static int rpmb_execute_emmc(u32 cmdId)
 {
 	int ret;
@@ -2311,10 +2316,12 @@ static int rpmb_execute_emmc(u32 cmdId)
 	return 0;
 }
 #endif
+#endif
 
-static void rpmb_gp_execute_emmc(u32 cmdId)
+#if defined(CONFIG_MMC_MTK_PRO)
+static int rpmb_gp_execute_emmc(u32 cmdId)
 {
-	int ret = 0;
+	int ret;
 
 	struct mmc_card *card = mtk_msdc_host[0]->mmc->card;
 	struct emmc_rpmb_req rpmb_req;
@@ -2391,9 +2398,9 @@ static void rpmb_gp_execute_emmc(u32 cmdId)
 
 	}
 
-	if (ret)
-		MSG(ERR, "%s: Error ret(%d).\n", __func__, ret);
+	return 0;
 }
+#endif
 
 #ifndef CONFIG_MTK_TEE_GP_SUPPORT
 int rpmb_listenDci(void *data)
@@ -2557,10 +2564,10 @@ int rpmb_gp_listenDci(void *data)
 		/* Received exception. */
 		boot_type = get_boot_type();
 		if (boot_type == BOOTDEV_SDMMC)
-			rpmb_gp_execute_emmc(cmdId);
+			mc_ret = rpmb_gp_execute_emmc(cmdId);
 #ifdef CONFIG_MTK_UFS_SUPPORT
 		else if (boot_type == BOOTDEV_UFS)
-			rpmb_gp_execute_ufs(cmdId);
+			mc_ret = rpmb_gp_execute_ufs(cmdId);
 #endif
 
 		/* Notify the STH*/
@@ -2685,6 +2692,7 @@ static int rpmb_thread(void *context)
 static struct rpmb_ctx *create_rpmb_ctx(void)
 {
 	struct rpmb_ctx *ctx;
+
 	ctx = kzalloc(sizeof(struct rpmb_ctx), GFP_KERNEL);
 	if (!ctx) {
 		MSG(ERR, "%s rpmb context alloc failed\n", __func__);
@@ -2788,10 +2796,9 @@ static int register_rpmb_wsm(struct rpmb_ctx *ctx, struct sock_desc *rpmb_conn)
 		ret = len >= 0 ? -EMSGSIZE : len;
 		MSG(ERR, "failed to send reply, err = %d\n", ret);
 		return ret;
-	} else {
-		MSG(INFO, "%s registered WSM success\n", __func__);
 	}
 
+	MSG(INFO, "%s registered WSM success\n", __func__);
 	return 0;
 }
 
@@ -2837,10 +2844,9 @@ static int rpmb_send_reply(struct sock_desc *rpmb_conn)
 		ret = len >= 0 ? -EMSGSIZE : len;
 		MSG(ERR, "%s failed to send reply, err = %d\n", __func__, ret);
 		return ret;
-	} else {
-		MSG(INFO, "%s Sent reply\n", __func__);
 	}
 
+	MSG(INFO, "%s Sent reply\n", __func__);
 	return 0;
 }
 
@@ -2894,8 +2900,8 @@ static void rpmb_iwsock_execute_ufs(struct rpmb_ctx *ctx)
 
 		break;
 	default:
-		MSG(ERR, "%s: recieve an unknown command id(%d).\n",
-				__func__, ctx->req->type); 
+		MSG(ERR, "%s: receive an unknown command id(%d).\n",
+				__func__, ctx->req->type);
 		break;
 	}
 
@@ -2914,9 +2920,8 @@ static void rpmb_iwsock_execute_emmc(struct rpmb_ctx *ctx)
 	while (!card || !dev_get_drvdata(&card->dev)) {
 		msleep(100);
 		card = mtk_msdc_host[0]->mmc->card;
-		if (cnt++ > 200) {
+		if (cnt++ > 200)
 			return;
-		}
 	};
 
 	switch (ctx->req->type) {
@@ -2965,8 +2970,8 @@ static void rpmb_iwsock_execute_emmc(struct rpmb_ctx *ctx)
 
 		break;
 	default:
-		MSG(ERR, "%s: recieve an unknown command id(%d).\n",
-				__func__, ctx->req->type); 
+		MSG(ERR, "%s: receive an unknown command id(%d).\n",
+				__func__, ctx->req->type);
 		break;
 	}
 
@@ -2978,6 +2983,7 @@ static int rpmb_iwsock_thread(void *context)
 {
 	int ret;
 	int boot_type;
+
 	MSG(INFO, "%s teegris iwsock thread start\n", __func__);
 
 	struct rpmb_ctx *ctx;
@@ -3011,9 +3017,8 @@ static int rpmb_iwsock_thread(void *context)
 	/* rpmb kthread main function */
 	while (!kthread_should_stop()) {
 		ret = rpmb_wait_request(rpmb_conn);
-		if (ret) {
+		if (ret)
 			goto release_sock;
-		}
 
 		boot_type = get_boot_type();
 		mutex_lock(&rpmb_mutex);
@@ -3291,11 +3296,17 @@ long rpmb_ioctl_emmc(struct file *file, unsigned int cmd, unsigned long arg)
 	memset(&rpmbinfor, 0, sizeof(struct rpmb_infor));
 #endif
 
+#if defined(CONFIG_MMC_MTK_PRO)
 	if (!mtk_msdc_host[0] || !mtk_msdc_host[0]->mmc
 		|| !mtk_msdc_host[0]->mmc->card)
 		return -EFAULT;
 
 	card = mtk_msdc_host[0]->mmc->card;
+
+#else
+	card = NULL;
+	ret = -EFAULT;
+#endif
 
 #if defined(RPMB_IOCTL_UT)
 	err = copy_from_user(&param, (void *)arg, sizeof(param));
@@ -3572,7 +3583,6 @@ static const struct file_operations rpmb_fops_emmc = {
 };
 
 #ifdef CONFIG_TEEGRIS_TEE_SUPPORT
-#ifndef NO_MTK_SVP_RELEASE
 #ifdef CONFIG_MTK_UFS_SUPPORT
 static void rpmb_gp_execute_ufs(u32 cmdId)
 {
@@ -3716,7 +3726,7 @@ TEEC_UUID uuid_client = {
 	.timeLow = 0x00000000,
 	.timeMid = 0x4D54,
 	.timeHiAndVersion = 0x4B5F,
-	.clockSeqAndNode = {0x42, 0x46, 0x72, 0x70, 0x6D, 0x62, 0x64, 0x72},
+	.clockSeqAndNode = {0x42, 0x46, 0x72, 0x70, 0x6D, 0x62, 0x74, 0x61},
 };
 
 enum cmd_invoke {
@@ -3758,6 +3768,19 @@ TEEC_Result teegris_rpmb_open_session(TEEC_Context *context,
 	} while (1);
 
 	return res;
+}
+
+static int check_tee_return(TEEC_Result res)
+{
+	if (res == TEEC_ERROR_TARGET_DEAD) {
+#ifdef CONFIG_MTK_ENG_BUILD
+		BUG();
+#endif
+		return 1;
+	} else if (res != TEEC_SUCCESS){
+		return 1;
+	}
+	return 0;
 }
 
 TEEC_Result teegris_rpmb_run(TEEC_Context *context)
@@ -3838,8 +3861,10 @@ exit:
 int teegris_rpmb_thread(void *data)
 {
 	int cnt = 0;
+	int recovery_cnt = 0;
 	TEEC_Result res = -1;
 
+recovery:
 	rpmb_gp_session =
 		kzalloc(sizeof(struct TEE_GP_SESSION_DATA), GFP_KERNEL);
 	if (!rpmb_gp_session) {
@@ -3867,8 +3892,11 @@ int teegris_rpmb_thread(void *data)
 	}
 
 	res = teegris_rpmb_run(&rpmb_gp_session->context);
-	if (res)
+	if (check_tee_return(res)) {
 		kfree(rpmb_gp_session->wsm_buffer);
+		recovery_cnt++;
+		MSG(ERR, "RPMB recovery cnt %d\n", recovery_cnt);
+	}
 
 	MSG(ERR, "TEEC_FinalizeContex\n", res);
 
@@ -3876,9 +3904,10 @@ int teegris_rpmb_thread(void *data)
 
 	kfree(rpmb_gp_session);
 
+	goto recovery;
+
 	return (res != TEEC_SUCCESS);
 }
-#endif
 #endif
 
 static int __init rpmb_init(void)

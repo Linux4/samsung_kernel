@@ -16,7 +16,7 @@
 #define MIN_FILE_SIZE	300
 #define K(x) ((x) << (PAGE_SHIFT-10))
 
-noinline void tracing_mark_write(int type, const char *str)
+static noinline void tracing_mark_write(int type, const char *str)
 {
 	if (!tracing_is_on())
 		return;
@@ -31,6 +31,11 @@ noinline void tracing_mark_write(int type, const char *str)
 	default:
 		break;
 	}
+}
+
+void tracing_mark_write_helper(int type, const char *str)
+{
+	tracing_mark_write(type, str);
 }
 
 static DEFINE_RATELIMIT_STATE(mm_debug_rs, 30 * HZ, 1);

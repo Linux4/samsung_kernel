@@ -35,7 +35,9 @@ struct ccu_device_s {
 	unsigned long dmem_base;
 	unsigned long n3d_a_base;
 	unsigned int irq_num;
+	struct mutex dev_mutex;
 	struct mutex user_mutex;
+	struct mutex clk_mutex;
 	struct mutex ion_client_mutex;
 	/* list of vlist_type(ccu_user_t) */
 	struct list_head user_list;
@@ -169,8 +171,6 @@ int ccu_flushLog(int argc, int *argv);
 int ccu_memcpy(void *dest, void *src, int length);
 
 int ccu_memclr(void *dest, int length);
-
-int ccu_read_info_reg(int regNo);
 
 int ccu_query_power_status(void);
 

@@ -81,6 +81,10 @@ int ged_bridge_query_dvfs_freq_pred(
 	struct GED_BRIDGE_IN_QUERY_DVFS_FREQ_PRED *QueryDVFSFreqPredIn,
 	struct GED_BRIDGE_OUT_QUERY_DVFS_FREQ_PRED *QueryDVFSFreqPredOut);
 
+int ged_bridge_query_gpu_dvfs_info(
+	struct GED_BRIDGE_IN_QUERY_GPU_DVFS_INFO *QueryGPUDVFSInfoIn,
+	struct GED_BRIDGE_OUT_QUERY_GPU_DVFS_INFO *QueryGPUDVFSInfoOut);
+
 int ged_bridge_ge_alloc(
 	struct GED_BRIDGE_IN_GE_ALLOC *psALLOC_IN,
 	struct GED_BRIDGE_OUT_GE_ALLOC *psALLOC_OUT);
@@ -88,12 +92,12 @@ int ged_bridge_ge_alloc(
 int ged_bridge_ge_get(
 	struct GED_BRIDGE_IN_GE_GET *psGET_IN,
 	struct GED_BRIDGE_OUT_GE_GET *psGET_OUT,
-	int output_package_size);
+	int output_buffer_size);
 
 int ged_bridge_ge_set(
 	struct GED_BRIDGE_IN_GE_SET *psSET_IN,
 	struct GED_BRIDGE_OUT_GE_SET *psSET_OUT,
-	int input_package_size);
+	int input_buffer_size);
 
 int ged_bridge_ge_info(
 	struct GED_BRIDGE_IN_GE_INFO *psINFO_IN,

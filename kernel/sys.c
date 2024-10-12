@@ -782,6 +782,7 @@ SYSCALL_DEFINE1(setfsuid, uid_t, uid)
 	if (!uid_valid(kuid))
 		return old_fsuid;
 
+
 #ifdef CONFIG_SECURITY_DEFEX
 	if (task_defex_enforce(current, NULL, -__NR_setfsuid))
 		return old_fsuid;
@@ -825,6 +826,7 @@ SYSCALL_DEFINE1(setfsgid, gid_t, gid)
 	kgid = make_kgid(old->user_ns, gid);
 	if (!gid_valid(kgid))
 		return old_fsgid;
+
 
 #ifdef CONFIG_SECURITY_DEFEX
 	if (task_defex_enforce(current, NULL, -__NR_setfsgid))

@@ -242,8 +242,8 @@ static struct imgsensor_struct imgsensor = {
 static kal_uint16 imx258_type;
 static kal_uint16 test_Pmode;
 /*
- *-IMX258 0AQH5-C (BME-HDR version ,PDAF?¢Gsupport binning mode)
- *-IMX258 0APH5-C (Binning version ,HDR?¢Gsupport PDAF)
+ *-IMX258 0AQH5-C (BME-HDR version ,PDAF?Â¢Gsupport binning mode)
+ *-IMX258 0APH5-C (Binning version ,HDR?Â¢Gsupport PDAF)
  *-IMX258 0AMH5-C (B/W version)
  *-IMX258 0ATH5-C (Non-PDAF version ,|3HDR)
  *-IMX258 0AUH5-C (Horizontal Double Density version)
@@ -1275,7 +1275,7 @@ static void imx258_ImageQuality_Setting(void)
 static void sensor_init(void)
 {
 	int ret = 0;
-	struct cam_hw_param *hw_param = NULL;
+	//struct cam_hw_param *hw_param = NULL;
 
 	pr_debug("%s E\n", __func__);
 
@@ -1509,11 +1509,11 @@ static void sensor_init(void)
 	ret |= write_cmos_sensor(0x9250, 0x50);
 	ret |= write_cmos_sensor(0x9251, 0x3C);
 	ret |= write_cmos_sensor(0x9252, 0x14);
-	if (ret != 0) {
+	/*if (ret != 0) {
 		imgsensor_sec_get_hw_param(&hw_param, SENSOR_POSITION_REAR);
 		if (hw_param)
 			hw_param->i2c_sensor_err_cnt++;
-	}
+	}*/
 	pr_debug("%s X\n", __func__);
 } // sensor_init
 
@@ -3465,7 +3465,7 @@ static kal_uint32 feature_control(MSDK_SENSOR_FEATURE_ENUM feature_id,
 		case MSDK_SCENARIO_ID_CAMERA_CAPTURE_JPEG:
 		case MSDK_SCENARIO_ID_VIDEO_PREVIEW:
 		case MSDK_SCENARIO_ID_CUSTOM1:
-			*(MUINT32 *) (uintptr_t) (*(feature_data + 1)) = 1;
+			*(MUINT32 *) (uintptr_t) (*(feature_data + 1)) = 0;
 			break;
 
 		case MSDK_SCENARIO_ID_HIGH_SPEED_VIDEO:

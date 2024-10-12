@@ -1475,6 +1475,7 @@ static void mb_free_blocks(struct inode *inode, struct ext4_buddy *e4b,
 
 		print_block_data(sb, bitmap_blk, e4b->bd_bitmap, 0,
 				EXT4_BLOCK_SIZE(sb));
+
 		ext4_grp_locked_error(sb, e4b->bd_group,
 				inode ? inode->i_ino : 0, blocknr,
 				"freeing already freed block "

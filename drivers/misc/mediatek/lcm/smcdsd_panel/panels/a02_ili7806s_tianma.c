@@ -34,7 +34,7 @@
 #define DSI_WRITE(cmd, size)		do {				\
 {	\
 	int tx_ret = 0;	\
-	tx_ret = smcdsd_dsi_tx_data(lcd, cmd, size);			\
+	tx_ret = smcdsd_dsi_tx_data(lcd, cmd, size);		\
 	if (tx_ret < 0)							\
 		dev_info(&lcd->ld->dev, "%s: tx_ret(%d) failed to write %02x %s\n", __func__, tx_ret, cmd[0], #cmd);	\
 }	\
@@ -106,7 +106,7 @@ static int smcdsd_dsi_tx_data(struct lcd_info *lcd, u8 *cmd, u32 len)
 	 * We assume that all the TX function will be called in lcd->lock
 	 * If not, Stop here for debug.
 	 */
-	if (!mutex_is_locked(&lcd->lock)) {
+	if (IS_ENABLED(CONFIG_MTK_FB) && !mutex_is_locked(&lcd->lock)) {
 		dev_info(&lcd->ld->dev, "%s: fail. lcd->lock should be locked.\n", __func__);
 		BUG();
 	}
@@ -126,6 +126,24 @@ try_write:
 			dev_info(&lcd->ld->dev, "%s: fail. %02x, ret: %d\n", __func__, cmd[0], ret);
 	}
 
+	return ret;
+}
+
+static int smcdsd_dsi_tx_set(struct lcd_info *lcd, struct lcd_seq_info *seq, u32 num)
+{
+	int ret = 0, i;
+
+	for (i = 0; i < num; i++) {
+		if (seq[i].cmd) {
+			ret = smcdsd_dsi_tx_data(lcd, seq[i].cmd, seq[i].len);
+			if (ret < 0) {
+				dev_info(&lcd->ld->dev, "%s: %dth fail\n", __func__, i);
+				return ret;
+			}
+		}
+		if (seq[i].sleep)
+			usleep_range(seq[i].sleep, seq[i].sleep + (seq[i].sleep >> 1));
+	}
 	return ret;
 }
 
@@ -170,9 +188,9 @@ static int smcdsd_dsi_rx_data(struct lcd_info *lcd, u8 addr, u32 size, u8 *buf)
 
 	limit = 10;
 	remain = size;
+	offset = 0;
 
 again:
-	offset = size - remain;
 	slice = (remain > limit) ? limit : remain;
 	ret = _smcdsd_dsi_rx_data_offset(lcd, addr, slice, &buf[offset], offset);
 	if (ret < 0) {
@@ -181,6 +199,7 @@ again:
 	}
 
 	remain -= limit;
+	offset += limit;
 
 	if (remain > 0)
 		goto again;
@@ -206,7 +225,7 @@ exit:
 	return ret;
 }
 
-static int lm36274_array_write(struct i2c_client *client, u8 *ptr, u8 len)
+static int i2c_lcd_bias_array_write(struct i2c_client *client, u8 *ptr, u8 len)
 {
 	unsigned int i = 0, delay;
 	int ret = 0;
@@ -318,7 +337,7 @@ static const struct backlight_ops panel_backlight_ops = {
 
 static int ili7806s_read_id(struct lcd_info *lcd)
 {
-	int i, ret = 0;
+	int i = 0, ret = 0;
 	struct mipi_dsi_lcd_common *pdata = lcd->pdata;
 	static char *LDI_BIT_DESC_ID[BITS_PER_BYTE * LDI_LEN_ID] = {
 		[0 ... 23] = "ID Read Fail",
@@ -383,19 +402,12 @@ static int ili7806s_exit(struct lcd_info *lcd)
 static int ili7806s_init(struct lcd_info *lcd)
 {
 	int ret = 0;
-	unsigned int i;
 
 	dev_info(&lcd->ld->dev, "%s\n", __func__);
 
 	ili7806s_read_init_info(lcd);
 
-	for (i = 0; i < (u32)ARRAY_SIZE(LCD_SEQ_INIT_1); i++) {
-		if (LCD_SEQ_INIT_1[i].cmd)
-			DSI_WRITE(LCD_SEQ_INIT_1[i].cmd, LCD_SEQ_INIT_1[i].len);
-
-		if (LCD_SEQ_INIT_1[i].sleep)
-			usleep_range(LCD_SEQ_INIT_1[i].sleep, (LCD_SEQ_INIT_1[i].sleep) + (LCD_SEQ_INIT_1[i].sleep >> 1));
-	}
+	smcdsd_dsi_tx_set(lcd, LCD_SEQ_INIT_1, ARRAY_SIZE(LCD_SEQ_INIT_1));
 
 	DSI_WRITE(SEQ_ILI7806S_SLEEP_OUT, ARRAY_SIZE(SEQ_ILI7806S_SLEEP_OUT));
 	msleep(60);
@@ -414,8 +426,8 @@ static int fb_notifier_callback(struct notifier_block *self,
 	int fb_blank;
 
 	switch (event) {
-	case FB_EVENT_BLANK:
-	case FB_EARLY_EVENT_BLANK:
+	case SMCDSD_EVENT_BLANK:
+	case SMCDSD_EARLY_EVENT_BLANK:
 		break;
 	default:
 		return NOTIFY_DONE;
@@ -475,7 +487,7 @@ static int ili7806s_register_notifier(struct lcd_info *lcd)
 	return 0;
 }
 
-static int lm36274_probe(struct i2c_client *client,
+static int i2c_lcd_bias_probe(struct i2c_client *client,
 	const struct i2c_device_id *id)
 {
 	struct lcd_info *lcd = NULL;
@@ -506,28 +518,28 @@ exit:
 	return ret;
 }
 
-static struct i2c_device_id lm36274_i2c_id[] = {
-	{"lm36274", 0},
+static struct i2c_device_id i2c_lcd_bias_id[] = {
+	{"i2c_lcd_bias", 0},
 	{},
 };
 
-MODULE_DEVICE_TABLE(i2c, lm36274_i2c_id);
+MODULE_DEVICE_TABLE(i2c, i2c_lcd_bias_id);
 
-static const struct of_device_id lm36274_i2c_dt_ids[] = {
-	{ .compatible = "i2c,lm36274" },
+static const struct of_device_id i2c_lcd_bias_dt_ids[] = {
+	{ .compatible = "mediatek,i2c_lcd_bias" },
 	{ }
 };
 
-MODULE_DEVICE_TABLE(of, lm36274_i2c_dt_ids);
+MODULE_DEVICE_TABLE(of, i2c_lcd_bias_dt_ids);
 
-static struct i2c_driver lm36274_i2c_driver = {
+static struct i2c_driver i2c_lcd_bias_driver = {
 	.driver = {
 		.owner	= THIS_MODULE,
-		.name	= "lm36274",
-		.of_match_table	= of_match_ptr(lm36274_i2c_dt_ids),
+		.name	= "i2c_lcd_bias",
+		.of_match_table	= of_match_ptr(i2c_lcd_bias_dt_ids),
 	},
-	.id_table = lm36274_i2c_id,
-	.probe = lm36274_probe,
+	.id_table = i2c_lcd_bias_id,
+	.probe = i2c_lcd_bias_probe,
 };
 
 static int ili7806s_probe(struct lcd_info *lcd)
@@ -548,8 +560,8 @@ static int ili7806s_probe(struct lcd_info *lcd)
 
 	lcd->fac_info = lcd->fac_done = IS_ENABLED(CONFIG_SEC_FACTORY) ? 1 : 0;
 
-	lm36274_i2c_id[0].driver_data = (kernel_ulong_t)lcd;
-	i2c_add_driver(&lm36274_i2c_driver);
+	i2c_lcd_bias_id[0].driver_data = (kernel_ulong_t)lcd;
+	i2c_add_driver(&i2c_lcd_bias_driver);
 
 	dev_info(&lcd->ld->dev, "- %s\n", __func__);
 
@@ -561,7 +573,7 @@ static ssize_t lcd_type_show(struct device *dev,
 {
 	struct lcd_info *lcd = dev_get_drvdata(dev);
 
-	sprintf(buf, "TMC_%02X%02X%02X\n", lcd->id_info.id[0], lcd->id_info.id[1], lcd->id_info.id[2]);
+	sprintf(buf, "%s_%02X%02X%02X\n", LCD_TYPE_VENDOR, lcd->id_info.id[0], lcd->id_info.id[1], lcd->id_info.id[2]);
 
 	return strlen(buf);
 }
@@ -926,16 +938,16 @@ static int smcdsd_panel_power(struct platform_device *p, unsigned int on)
 		run_list(&p->dev, "panel_power_enable");
 
 		if (get_regulator_use_count(NULL, "gpio_lcd_bl_en") >= 2)
-			dev_info(&lcd->ld->dev, "%s i2c init cmd skip(%d)\n", __func__,
+			dev_info(&lcd->ld->dev, "%s: i2c init cmd skip(%d)\n", __func__,
 				get_regulator_use_count(NULL, "gpio_lcd_bl_en"));
 		else
-			lm36274_array_write(lcd->blic_client, LM36274_INIT, ARRAY_SIZE(LM36274_INIT));
+			i2c_lcd_bias_array_write(lcd->blic_client, LM36274_INIT, ARRAY_SIZE(LM36274_INIT));
 	} else {
 		if (get_regulator_use_count(NULL, "gpio_lcd_bl_en") >= 2)
-			dev_info(&lcd->ld->dev, "%s i2c exit cmd skip(%d)\n", __func__,
+			dev_info(&lcd->ld->dev, "%s: i2c exit cmd skip(%d)\n", __func__,
 				get_regulator_use_count(NULL, "gpio_lcd_bl_en"));
 		else
-			lm36274_array_write(lcd->blic_client, LM36274_EXIT, ARRAY_SIZE(LM36274_EXIT));
+			i2c_lcd_bias_array_write(lcd->blic_client, LM36274_EXIT, ARRAY_SIZE(LM36274_EXIT));
 
 		run_list(&p->dev, "panel_power_disable");
 	}
@@ -958,7 +970,7 @@ static int smcdsd_panel_exit(struct platform_device *p)
 
 	lcd->state = PANEL_STATE_SUSPENED;
 
-	dev_info(&lcd->ld->dev, "- %s: state(%d), connected(%d)\n", __func__, lcd->state, lcd->connected);
+	dev_info(&lcd->ld->dev, "- %s: state(%d) connected(%d)\n", __func__, lcd->state, lcd->connected);
 
 exit:
 	return 0;

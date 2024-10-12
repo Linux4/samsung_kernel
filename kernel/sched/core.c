@@ -61,6 +61,9 @@
 #include <linux/arm-smccc.h>
 #define GIC_ISO_CODE (1 << 0)
 #endif
+#ifdef CONFIG_MTK_QOS_FRAMEWORK
+#include <mt-plat/mtk_qos_prefetch_common.h>
+#endif /* CONFIG_MTK_QOS_FRAMEWORK */
 #ifdef CONFIG_SEC_DEBUG_EXTRA_INFO
 #include <linux/sec_debug.h>
 #endif
@@ -1316,7 +1319,7 @@ static inline void uclamp_cpu_put_id(struct task_struct *p, struct rq *rq,
 		rq->uclamp.group[clamp_id][group_id].tasks -= 1;
 #ifdef CONFIG_SCHED_DEBUG
 	else {
-		printk_deferred("[name:uclamp&] invalid CPU[%d] clamp group [%u:%u] refcount\n",
+		printk_deferred_once("[name:uclamp&] invalid CPU[%d] clamp group [%u:%u] refcount\n",
 		     cpu_of(rq), clamp_id, group_id);
 	}
 #endif
@@ -1327,7 +1330,7 @@ static inline void uclamp_cpu_put_id(struct task_struct *p, struct rq *rq,
 	clamp_value = rq->uclamp.group[clamp_id][group_id].value;
 #ifdef CONFIG_SCHED_DEBUG
 	if (unlikely(clamp_value > rq->uclamp.value[clamp_id])) {
-		printk_deferred("[name:uclamp&] invalid CPU[%d] clamp group [%u:%u] value\n",
+		printk_deferred_once("[name:uclamp&] invalid CPU[%d] clamp group [%u:%u] value\n",
 		     cpu_of(rq), clamp_id, group_id);
 	}
 #endif
@@ -1561,9 +1564,11 @@ retry:
 		/* Refcounting is expected to be always 0 for free groups */
 		if (unlikely(uc_cpu->group[clamp_id][group_id].tasks)) {
 #ifdef CONFIG_SCHED_DEBUG
-			WARN(1, "invalid CPU[%d] clamp group [%u:%u] refcount: [%u]\n",
+			WARN_ONCE(1, "invalid CPU[%d] clamp group [%u:%u] refcount: [%u] free_group_id: [%u] uc_map_new.se_count: [%lu]\n",
 			     cpu, clamp_id, group_id,
-			     uc_cpu->group[clamp_id][group_id].tasks);
+			     uc_cpu->group[clamp_id][group_id].tasks,
+				free_group_id,
+				uc_map_new.se_count);
 #endif
 			uc_cpu->group[clamp_id][group_id].tasks = 0;
 		}
@@ -2093,11 +2098,8 @@ static inline bool is_per_cpu_kthread(struct task_struct *p)
  */
 static inline bool is_cpu_allowed(struct task_struct *p, int cpu)
 {
-#ifdef CONFIG_SEC_PERF_MANAGER
-	if (!p->drawing_flag)
-#endif
-		if (!cpumask_test_cpu(cpu, &p->cpus_allowed))
-			return false;
+	if (!cpumask_test_cpu(cpu, &p->cpus_allowed))
+		return false;
 
 	if (is_per_cpu_kthread(p))
 		return cpu_online(cpu);
@@ -4349,9 +4351,6 @@ void scheduler_tick(void)
 #ifdef CONFIG_MTK_CACHE_CONTROL
 	hook_ca_scheduler_tick(cpu);
 #endif
-#ifdef CONFIG_MTK_PERF_TRACKER
-	perf_tracker(ktime_get_ns());
-#endif
 
 #ifdef CONFIG_SMP
 	rq->idle_balance = idle_cpu(cpu);
@@ -4363,12 +4362,20 @@ void scheduler_tick(void)
 	sched_max_util_task_tracking();
 #endif
 
+#ifdef CONFIG_MTK_PERF_TRACKER
+	perf_tracker(ktime_get_ns());
+#endif
+
 #ifdef CONFIG_MTK_SCHED_CPULOAD
 	cal_cpu_load(cpu);
 #endif
 
 	if (curr->sched_class == &fair_sched_class)
 		check_for_migration(rq, curr);
+
+#ifdef CONFIG_MTK_QOS_FRAMEWORK
+	qos_prefetch_tick(cpu);
+#endif /* CONFIG_MTK_QOS_FRAMEWORK */
 }
 
 #ifdef CONFIG_NO_HZ_FULL
@@ -5002,18 +5009,35 @@ void rt_mutex_setprio(struct task_struct *p, struct task_struct *pi_task)
 	struct rq *rq;
 
 #ifdef CONFIG_MTK_TASK_TURBO
+	rq = __task_rq_lock(p, &rf);
+	update_rq_clock(rq);
+
 	/* if rt boost, recover prio with backup */
 	if (unlikely(is_turbo_task(p))) {
 		if (!dl_prio(p->prio) && !rt_prio(p->prio)) {
 			int backup = p->nice_backup;
 
 			if (backup >= MIN_NICE && backup <= MAX_NICE) {
+				queued = task_on_rq_queued(p);
+				running = task_current(rq, p);
+				if (queued)
+					dequeue_task(rq, p, DEQUEUE_SAVE | DEQUEUE_NOCLOCK);
+				if (running)
+					put_prev_task(rq, p);
+
 				p->static_prio = NICE_TO_PRIO(backup);
+
 				p->prio = p->normal_prio = __normal_prio(p);
 				set_load_weight(p);
+
+				if (queued)
+					enqueue_task(rq, p, ENQUEUE_RESTORE | ENQUEUE_NOCLOCK);
+				if (running)
+					set_curr_task(rq, p);
 			}
 		}
 	}
+	__task_rq_unlock(rq, &rf);
 #endif
 	/* XXX used to be waiter->prio, not waiter->task->prio */
 	prio = __rt_effective_prio(pi_task, p->normal_prio);
@@ -7137,6 +7161,7 @@ out:
 			__func__, iso_prio, cpu, cpu_isolated_mask->bits[0]);
 	return ret_code;
 }
+EXPORT_SYMBOL(_sched_isolate_cpu);
 
 /*
  * Note: The client calling sched_isolate_cpu() is repsonsible for ONLY
@@ -7144,7 +7169,7 @@ out:
  * Client is also responsible for deisolating when a core goes offline
  * (after CPU is marked offline).
  */
-int __sched_deisolate_cpu_unlocked(int cpu)
+int sched_deisolate_cpu_unlocked(int cpu)
 {
 	int ret_code = 0;
 	struct rq *rq = cpu_rq(cpu);
@@ -7196,10 +7221,11 @@ int _sched_deisolate_cpu(int cpu)
 	int ret_code;
 
 	cpu_maps_update_begin();
-	ret_code = __sched_deisolate_cpu_unlocked(cpu);
+	ret_code = sched_deisolate_cpu_unlocked(cpu);
 	cpu_maps_update_done();
 	return ret_code;
 }
+EXPORT_SYMBOL(_sched_deisolate_cpu);
 
 void iso_cpumask_init(void)
 {
@@ -7472,9 +7498,9 @@ static void sched_rq_cpu_starting(unsigned int cpu)
 	struct rq *rq = cpu_rq(cpu);
 	struct rq_flags rf;
 
-	rq_lock(rq, &rf);
+	rq_lock_irqsave(rq, &rf);
 	walt_set_window_start(rq, &rf);
-	rq_unlock(rq, &rf);
+	rq_unlock_irqrestore(rq, &rf);
 
 	rq->calc_load_update = calc_load_update;
 	update_max_interval();

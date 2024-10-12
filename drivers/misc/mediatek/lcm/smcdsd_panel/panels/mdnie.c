@@ -902,7 +902,7 @@ static int fb_notifier_callback(struct notifier_block *self,
 	int fb_blank;
 
 	switch (event) {
-	case FB_EVENT_BLANK:
+	case SMCDSD_EVENT_BLANK:
 	case SMCDSD_EVENT_DOZE:
 		break;
 	default:
@@ -922,7 +922,7 @@ static int fb_notifier_callback(struct notifier_block *self,
 		mutex_lock(&mdnie->lock);
 		mdnie->lpm = 1;
 		mutex_unlock(&mdnie->lock);
-	} else if (event == FB_EVENT_BLANK) {
+	} else if (event == SMCDSD_EVENT_BLANK) {
 		mutex_lock(&mdnie->lock);
 		mdnie->lpm = 0;
 		mutex_unlock(&mdnie->lock);

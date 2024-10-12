@@ -311,6 +311,7 @@ RESERVEDMEM_OF_DECLARE(svp_memory, "mediatek,memory-svp",
 
 #if defined(CONFIG_TRUSTONIC_TRUSTED_UI) ||\
 	defined(CONFIG_BLOWFISH_TUI_SUPPORT) ||\
+	defined(CONFIG_TEEGRIS_TUI) ||\
 	defined(CONFIG_SAMSUNG_TUI)
 static int __init dedicate_tui_memory(struct reserved_mem *rmem)
 {
@@ -775,6 +776,7 @@ static int memory_region_online(struct SSMR_Feature *feature)
 
 #if defined(CONFIG_TRUSTONIC_TRUSTED_UI) ||\
 	defined(CONFIG_BLOWFISH_TUI_SUPPORT) ||\
+	defined(CONFIG_TEEGRIS_TUI) ||\
 	defined(CONFIG_SAMSUNG_TUI)
 int _tui_region_offline(phys_addr_t *pa, unsigned long *size,
 		u64 upper_limit)
@@ -1196,6 +1198,7 @@ static const struct file_operations ssmr_cma_fops = {
 };
 #endif // end of CONFIG_MTK_SEC_VIDEO_PATH_SUPPORT
 
+#ifdef CONFIG_MTK_ENG_BUILD
 #if CONFIG_SYSFS
 static ssize_t ssmr_store(struct kobject *kobj, struct kobj_attribute *attr,
 				const char *cmd, size_t count)
@@ -1203,6 +1206,11 @@ static ssize_t ssmr_store(struct kobject *kobj, struct kobj_attribute *attr,
 	char buf[64];
 	int buf_size;
 	int feat = 0, ret;
+
+	if (count >= sizeof(buf)) {
+		pr_info("%s: copy size too long\n", __func__);
+		return -EINVAL;
+	}
 
 	ret = snprintf(buf, sizeof(buf), "%s", cmd);
 	if (ret && ret < sizeof(buf)) {
@@ -1324,6 +1332,7 @@ static int memory_ssmr_sysfs_init(void)
 	return 0;
 }
 #endif /* end of CONFIG_SYSFS */
+#endif /* end of CONFIG_MTK_ENG_BUILD */
 
 static int __init ssmr_sanity(void)
 {
@@ -1342,7 +1351,7 @@ static int __init ssmr_sanity(void)
 		 */
 		pr_err("[INIT FAIL]: cma is not inited\n");
 		err_msg = "SSMR sanity: CMA init fail\n";
-		goto out;
+		return -1;
 	}
 
 	final_target_size = get_final_target_size();
@@ -1458,8 +1467,10 @@ static int __init memory_ssmr_debug_init(void)
 	pr_info("[PASS]: SSMR sanity.\n");
 
 	/* ssmr sys file init */
+#ifdef CONFIG_MTK_ENG_BUILD
 #if CONFIG_SYSFS
 	memory_ssmr_sysfs_init();
+#endif
 #endif
 
 	/*

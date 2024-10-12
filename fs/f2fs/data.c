@@ -611,6 +611,19 @@ static void __attach_io_flag(struct f2fs_io_info *fio)
 		fio->op_flags |= REQ_META;
 	if ((1 << fio->temp) & fua_flag)
 		fio->op_flags |= REQ_FUA;
+
+	/*
+	 * P221011-01695
+	 * flush_group: Process group in which file's is very important.
+	 * e.g., system_server, keystore, etc.
+	 */
+	if (fio->type == DATA && !(fio->op_flags & REQ_FUA) &&
+	    in_group_p(F2FS_OPTION(sbi).flush_group)) {
+		struct inode *inode = fio->page->mapping->host;
+
+		if (f2fs_is_atomic_file(inode) && f2fs_is_commit_atomic_write(inode))
+			fio->op_flags |= REQ_FUA;
+	}
 }
 
 static void __submit_merged_bio(struct f2fs_bio_info *io)
@@ -766,12 +779,6 @@ int f2fs_submit_page_bio(struct f2fs_io_info *fio)
 		wbc_account_io(fio->io_wbc, page, PAGE_SIZE);
 
 	__attach_io_flag(fio);
-	/* @fs.sec -- 0531f63f3688ffb680b8c83a53641dce37f186da -- */
-	if (fio->op_flags & F2FS_REQ_DEFKEY_BYPASS && is_read_io(fio->op)) {
-		f2fs_warn(fio->sbi, "Set bio bypass to get lower block");
-		bio_set_skip_dm_default_key(bio);
-		fio->op_flags &= ~F2FS_REQ_DEFKEY_BYPASS;
-	}
 	bio_set_op_attrs(bio, fio->op, fio->op_flags);
 
 	inc_page_count(fio->sbi, is_read_io(fio->op) ?
@@ -1328,15 +1335,20 @@ put_err:
 
 struct page *f2fs_find_data_page(struct inode *inode, pgoff_t index)
 {
+	struct f2fs_sb_info *sbi = F2FS_I_SB(inode);
 	struct address_space *mapping = inode->i_mapping;
 	struct page *page;
+	bool for_write = false;
 
 	page = find_get_page(mapping, index);
 	if (page && PageUptodate(page))
 		return page;
 	f2fs_put_page(page, 0);
 
-	page = f2fs_get_read_data_page(inode, index, 0, false);
+	if (unlikely(rwsem_is_locked(&sbi->cp_rwsem)))
+		for_write = true;
+
+	page = f2fs_get_read_data_page(inode, index, 0, for_write);
 	if (IS_ERR(page))
 		return page;
 
@@ -1747,9 +1759,12 @@ skip:
 sync_out:
 
 	/* for hardware encryption, but to avoid potential issue in future */
-	if (flag == F2FS_GET_BLOCK_DIO && map->m_flags & F2FS_MAP_MAPPED)
+	if (flag == F2FS_GET_BLOCK_DIO && map->m_flags & F2FS_MAP_MAPPED) {
 		f2fs_wait_on_block_writeback_range(inode,
 						map->m_pblk, map->m_len);
+		invalidate_mapping_pages(META_MAPPING(sbi),
+						map->m_pblk, map->m_pblk);
+	}
 
 	if (flag == F2FS_GET_BLOCK_PRECACHE) {
 		if (map->m_flags & F2FS_MAP_MAPPED) {
@@ -2843,8 +2858,20 @@ write:
 
 	/* Dentry/quota blocks are controlled by checkpoint */
 	if (S_ISDIR(inode->i_mode) || IS_NOQUOTA(inode)) {
+		/*
+		 * We need to wait for node_write to avoid block allocation during
+		 * checkpoint. This can only happen to quota writes which can cause
+		 * the below discard race condition.
+		 */
+		if (IS_NOQUOTA(inode))
+			down_read(&sbi->node_write);
+
 		fio.need_lock = LOCK_DONE;
 		err = f2fs_do_write_data_page(&fio);
+
+		if (IS_NOQUOTA(inode))
+			up_read(&sbi->node_write);
+
 		goto done;
 	}
 
@@ -2980,7 +3007,6 @@ static int f2fs_write_cache_pages(struct address_space *mapping,
 	};
 #endif
 	int nr_pages;
-	pgoff_t uninitialized_var(writeback_index);
 	pgoff_t index;
 	pgoff_t end;		/* Inclusive */
 	pgoff_t done_index;
@@ -2999,8 +3025,7 @@ static int f2fs_write_cache_pages(struct address_space *mapping,
 		clear_inode_flag(mapping->host, FI_HOT_DATA);
 
 	if (wbc->range_cyclic) {
-		writeback_index = mapping->writeback_index; /* prev offset */
-		index = writeback_index;
+		index = mapping->writeback_index; /* prev offset */
 		end = -1;
 	} else {
 		index = wbc->range_start >> PAGE_SHIFT;

@@ -56,6 +56,8 @@ extern void mt_irq_set_polarity(unsigned int irq, unsigned int polarity);
 
 #define ISP_REG_RANGE           (PAGE_SIZE*2)
 
+#define USERKEY_STR_LEN 32
+
 /* In order with the suquence of device nodes defined in dtsi */
 /* in dtsi rule, one hw module should mapping to one node. */
 enum ISP_DEV_NODE_ENUM {
@@ -167,7 +169,7 @@ struct ISP_WAIT_IRQ_STRUCT {
 
 struct ISP_REGISTER_USERKEY_STRUCT {
 	int userKey;
-	char userName[32]; /* this size must the same as the
+	char userName[USERKEY_STR_LEN]; /* this size must the same as the
 			    * icamiopipe api - registerIrq(...)
 			    */
 };
@@ -623,7 +625,9 @@ enum ISP_CMD_ENUM {
 	ISP_CMD_SET_MEM_INFO,
 	ISP_CMD_SET_PM_QOS,
 	ISP_CMD_SET_PM_QOS_INFO,
-	ISP_CMD_SET_SEC_DAPC_REG
+	ISP_CMD_SET_SEC_DAPC_REG,
+	ISP_CMD_NOTE_CQTHR0_BASE,
+	ISP_CMD_SET_VIR_CQCNT
 };
 
 enum ISP_HALT_DMA_ENUM {
@@ -685,6 +689,8 @@ enum ISP_HALT_DMA_ENUM {
 	_IOWR(ISP_MAGIC, ISP_CMD_GET_CUR_ISP_CLOCK, struct ISP_GET_CLK_INFO)
 #define ISP_GET_GLOBAL_TIME     \
 	_IOWR(ISP_MAGIC, ISP_CMD_GET_GLOBAL_TIME, unsigned long long)
+#define ISP_NOTE_CQTHR0_BASE                      \
+	_IOWR(ISP_MAGIC, ISP_CMD_NOTE_CQTHR0_BASE, unsigned int*)
 #define ISP_SET_PM_QOS          \
 	_IOWR(ISP_MAGIC, ISP_CMD_SET_PM_QOS, unsigned int)
 #define ISP_SET_PM_QOS_INFO     \
@@ -722,6 +728,9 @@ enum ISP_HALT_DMA_ENUM {
 
 #define ISP_SET_SEC_DAPC_REG        \
 	_IOW(ISP_MAGIC, ISP_CMD_SET_SEC_DAPC_REG, unsigned int)
+
+#define ISP_SET_VIR_CQCNT \
+	_IOWR(ISP_MAGIC, ISP_CMD_SET_VIR_CQCNT, unsigned int*)
 
 #ifdef CONFIG_COMPAT
 #define COMPAT_ISP_READ_REGISTER    \

@@ -1,10 +1,12 @@
 #include "fingerprint_common.h"
 #include <linux/version.h>
+#if defined(CONFIG_CPU_FREQ_LIMIT) || defined(CONFIG_CPU_FREQ_LIMIT_USERSPACE)
 #if (KERNEL_VERSION(5, 4, 0) > LINUX_VERSION_CODE)
 #include <linux/cpufreq.h>
 #else
 #include <linux/cpufreq_limit.h>
 extern int set_freq_limit(unsigned int id, unsigned int freq);
+#endif
 #endif
 
 #define FINGER_ID 2

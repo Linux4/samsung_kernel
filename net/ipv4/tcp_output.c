@@ -50,8 +50,8 @@ int sysctl_tcp_retrans_collapse __read_mostly = 1;
  */
 int sysctl_tcp_workaround_signed_windows __read_mostly = 0;
 
-/* Default TSQ limit of four TSO segments */
-int sysctl_tcp_limit_output_bytes __read_mostly = 262144;
+/* Default TSQ limit of 16 TSO segments */
+int sysctl_tcp_limit_output_bytes __read_mostly = 16 * 65536;
 
 /* This limits the percentage of the congestion window which we
  * will allow a single TSO frame to consume.  Building TSO frames
@@ -1017,6 +1017,10 @@ static int __tcp_transmit_skb(struct sock *sk, struct sk_buff *skb,
 			skb = skb_clone(skb, gfp_mask);
 		if (unlikely(!skb))
 			return -ENOBUFS;
+		/* retransmit skbs might have a non zero value in skb->dev
+		 * because skb->dev is aliased with skb->rbnode.rb_left
+		 */
+		skb->dev = NULL;
 	}
 	skb->skb_mstamp = tp->tcp_mstamp;
 

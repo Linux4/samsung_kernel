@@ -160,9 +160,11 @@ struct ISP_WAIT_IRQ_STRUCT {
 	struct ISP_WAIT_IRQ_ST EventInfo;
 };
 
+#define USERKEY_STR_LEN	32
+
 struct ISP_REGISTER_USERKEY_STRUCT {
 	int userKey;
-	char userName[32]; /* this size must the same as the icamiopipe api
+	char userName[USERKEY_STR_LEN]; /* this size must the same as the icamiopipe api
 			    * - registerIrq(...)
 			    */
 };
@@ -852,6 +854,8 @@ enum ISP_HALT_DMA_ENUM {
 					struct compat_ISP_MEM_INFO_STRUCT)
 #define COMPAT_ISP_SET_VIR_CQCNT      \
 	_IOWR(ISP_MAGIC, ISP_CMD_SET_VIR_CQCNT, unsigned int)
+#define COMPAT_ISP_TRANSFOR_CCU_REG     \
+	_IOWR(ISP_MAGIC, ISP_CMD_TRANSFOR_CCU_REG,   compat_uptr_t)
 #endif
 
 int32_t ISP_MDPClockOnCallback(uint64_t engineFlag);

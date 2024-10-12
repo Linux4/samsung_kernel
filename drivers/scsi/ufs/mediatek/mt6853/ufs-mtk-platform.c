@@ -36,6 +36,12 @@ static void __iomem *ufs_mtk_mmio_base_infracfg_ao;
 static void __iomem *ufs_mtk_mmio_base_apmixed;
 static void __iomem *ufs_mtk_mmio_base_ufs_mphy;
 
+#ifdef CONFIG_MACH_MT6833
+#define APMIXEDSYS_DTS_NAME "mediatek,mt6833-apmixedsys"
+#else
+#define APMIXEDSYS_DTS_NAME "mediatek,mt6853-apmixedsys"
+#endif
+
 /**
  * ufs_mtk_pltfrm_pwr_change_final_gear - change pwr mode fianl gear value.
  */
@@ -60,6 +66,9 @@ void random_delay(struct ufs_hba *hba)
 }
 void wdt_pmic_full_reset(struct ufs_hba *hba)
 {
+	/* disable irq first to prevent some unpredict interrupts */
+	ufshcd_disable_intr(hba, hba->intr_mask);
+
 	/* power off device VCC */
 	pmic_set_register_value_nolock(PMIC_RG_LDO_VEMC_EN, 0);
 
@@ -506,7 +515,7 @@ int ufs_mtk_pltfrm_host_sw_rst(struct ufs_hba *hba, u32 target)
 
 	dev_info(hba->dev, "ufs_mtk_host_sw_rst: 0x%x\n", target);
 
-	ufshcd_update_reg_hist(&hba->ufs_stats.sw_reset, (u32)target);
+	ufshcd_update_evt_hist(hba, UFS_EVT_SW_RESET, (u32)target);
 
 	if (target & SW_RST_TARGET_UFSHCI) {
 		/* reset HCI */
@@ -655,7 +664,7 @@ int ufs_mtk_pltfrm_parse_dt(struct ufs_hba *hba)
 	/* get ufs_mtk_mmio_base_apmixed */
 	node_apmixed =
 		of_find_compatible_node(NULL, NULL,
-				"mediatek,mt6853-apmixedsys");
+				APMIXEDSYS_DTS_NAME);
 	if (node_apmixed) {
 		ufs_mtk_mmio_base_apmixed = of_iomap(node_apmixed, 0);
 

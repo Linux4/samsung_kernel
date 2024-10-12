@@ -4,7 +4,7 @@
 #include <linux/proc_fs.h>
 #include <linux/highmem.h>
 #include <linux/kdev_t.h>
-#include <linux/sysfs.h> 
+#include <linux/sysfs.h>
 #include <linux/kobject.h>
 
 #include "dm-verity-debug.h"
@@ -101,7 +101,7 @@ ssize_t alta_bigdata_read(struct file *filep, char __user *buf, size_t size, lof
     size_t proc_offset = 0;
     char* proc_buf = kzalloc(ALTA_BUF_SIZE, GFP_KERNEL);
 
-    if(!proc_buf)
+    if (!proc_buf)
         return -ENOMEM;
 
     spin_lock(&alta_lock);
@@ -117,6 +117,7 @@ ssize_t alta_bigdata_read(struct file *filep, char __user *buf, size_t size, lof
         show_fc_blks_list();
     }
     spin_unlock(&alta_lock);
+
     ret = simple_read_from_buffer(buf, size, offset, proc_buf, proc_offset);
     kfree(proc_buf);
 

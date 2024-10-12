@@ -237,7 +237,7 @@
 
 		cccimdee-reserved-memory@44640000{
 			compatible = "mediatek,ccci-md-ee-dump";
-			reg = <0 0x48400000 0 0x12c000>;/* 600KB*2 */
+			reg = <0 0x4AE3E000 0 0x1c2000>;/* 1800KB */
 		};
 #ifdef CONFIG_SEC_DEBUG
 		sec-log-reserve-memory@0x4B000000 {
@@ -256,9 +256,9 @@
 			reg = <0 0x4B800000 0 0x10000>;
 		};
 #endif
-#ifdef CONFIG_SEC_DEBUG_EXTRA_INFO
-		sec-extrainfo-reserve-memory@0x4B810000 {
-			reg = <0 0x4B810000 0 0x1F0000>;
+#ifdef CONFIG_SEC_DEBUG_HIST_LOG
+		sec-hist-reserve-memory@0x4B900000 {
+			reg = <0 0x4B900000 0 0x80000>; 
 		};
 #endif
 #ifdef CONFIG_SEC_DEBUG_INIT_LOG
@@ -267,6 +267,7 @@
 		};
 #endif
 #endif
+
 		/*TODO: add reserved memory node here*/
 		consys-reserve-memory {
 			compatible = "mediatek,consys-reserve-memory";
@@ -549,50 +550,9 @@
 		#clock-cells = <1>;
 	};
 
-	fhctl-new@1000ce00 {
-		compatible = "mediatek,mt6739-fhctl";
-		reg = <0 0x1000ce00 0 0x100>,
-			  <0 0x1000c000 0 0x1000>;
-		num-pll = <6>;
-		map0 {
-			domain = "top";
-			method = "fhctl-ap";
-
-			armpll {
-				fh-id = <0>;
-				pll-id = <999>;
-				perms = <0x1>;
-			};
-
-			mainpll {
-				fh-id = <1>;
-				pll-id = <999>;
-				perms = <0x1C>;
-			};
-
-			msdcpll {
-				fh-id = <2>;
-				pll-id = <999>;
-				perms = <0x1C>;
-			};
-
-			mfgpll {
-				fh-id = <3>;
-				pll-id = <999>;
-			};
-
-			mempll {
-				fh-id = <4>;
-				pll-id = <999>;
-				perms = <0x1C>;
-				/* ssc-rate = <8>; */
-			};
-
-			mmpll {
-				fh-id = <5>;
-				pll-id = <999>;
-			};
-		};
+	fhctl@1000ce00 {
+		compatible = "mediatek,fhctl";
+		reg = <0 0x1000ce00 0 0x200>;
 	};
 
 	pwrap: pwrap@1000d000 {
@@ -1710,7 +1670,7 @@
 			host = <0x2>;
 		};
 	};
-
+	
 	audio: audio@11220000 {
 		compatible = "mediatek,audio", "syscon";
 		reg = <0 0x11220000 0 0x1000>;
@@ -2516,8 +2476,8 @@
 
 	mrdump_ext_rst: mrdump_ext_rst {
 		compatible = "mediatek, mrdump_ext_rst-eint";
-		force_mode = "EINT";
-		mode = "IRQ";
+		force_mode = "SYSRST";
+		mode = "RST";
 		status = "okay";
 	};
 

@@ -135,6 +135,8 @@ static int systracker_platform_probe_default(struct platform_device *pdev)
 	track_config.enable_timeout = 1;
 	track_config.enable_slave_err = 1;
 	track_config.enable_irq = 0;
+	track_config.enable_resp_mon = 0;
+	track_config.enable_resp_unmask = 1;
 	track_config.timeout_ms = 100;
 	track_config.timeout2_ms = 2000;
 
@@ -481,12 +483,18 @@ void systracker_enable_default(void)
 		con |= BUS_DBG_CON_TIMEOUT_EN;
 
 	if (track_config.enable_slave_err)
-		con |= (BUS_DBG_CON_SLV_ERR_EN | BUS_DBG_CON_WSLV_ERR_EN);
+		con |= BUS_DBG_CON_SLV_ERR_EN;
 
 	if (track_config.enable_irq) {
 		con |= BUS_DBG_CON_IRQ_EN;
 		con &= ~BUS_DBG_CON_IRQ_WP_EN;
 	}
+
+	if (track_config.enable_resp_mon)
+		con |= BUS_DBG_CON_RESP_MON_EN;
+
+	if (track_config.enable_resp_unmask)
+		con |= BUS_DBG_CON_RESP_UNMASK;
 
 	con |= BUS_DBG_CON_HALT_ON_EN;
 	writel(con, IOMEM(BUS_DBG_CON_INFRA));
@@ -817,6 +825,26 @@ static ssize_t tracker_swtrst_store
 }
 
 static DRIVER_ATTR_RW(tracker_swtrst);
+
+static ssize_t tracker_entry_dump_show
+	(struct device_driver *driver, char *buf)
+{
+	int ret = tracker_dump(buf);
+
+	if (ret == -1)
+		pr_notice("Dump error in %s, %d\n", __func__, __LINE__);
+
+	return strlen(buf);
+}
+
+static ssize_t tracker_entry_dump_store
+	(struct device_driver *driver, const char *buf, size_t count)
+{
+	return count;
+}
+
+static DRIVER_ATTR_RW(tracker_entry_dump);
+
 #ifdef SYSTRACKER_TEST_SUIT
 void systracker_wp_test(void)
 {
@@ -963,6 +991,8 @@ static int __init systracker_init(void)
 		return err;
 
 	/* Create sysfs entry */
+	ret  = driver_create_file(&mt_systracker_drv.driver.driver,
+		&driver_attr_tracker_entry_dump);
 	ret |= driver_create_file(&mt_systracker_drv.driver.driver,
 		&driver_attr_tracker_run);
 	ret |= driver_create_file(&mt_systracker_drv.driver.driver,

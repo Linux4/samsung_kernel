@@ -17,12 +17,14 @@
 #include <mt-plat/aee.h>
 #endif
 
+#ifdef CUST_FT_EMI_DUMP_EN
 #if (MD_GENERATION >= 6297)
 #include <memory/mediatek/emi.h>
 #endif
+#endif
 
 void mdee_set_ex_start_str(struct ccci_fsm_ee *ee_ctl,
-	unsigned int type, char *str)
+	const unsigned int type, const char *str)
 {
 	u64 ts_nsec;
 	unsigned long rem_nsec;
@@ -81,12 +83,14 @@ void fsm_md_exception_stage(struct ccci_fsm_ee *ee_ctl, int stage)
 {
 	unsigned long flags;
 
+#ifdef CUST_FT_EMI_DUMP_EN
 #if (MD_GENERATION >= 6297)
 	CCCI_ERROR_LOG(-1, FSM,
 		"Dump MD ee mtk_emidbg_dump start\n");
 	mtk_emidbg_dump();
 	CCCI_ERROR_LOG(-1, FSM,
 		"Dump MD ee mtk_emidbg_dump end\n");
+#endif
 #endif
 
 	if (stage == 0) { /* CCIF handshake just came in */
@@ -194,7 +198,9 @@ _dump_done:
 		struct ccci_smem_region *mdss_dbg
 			= ccci_md_get_smem_by_user_id(ee_ctl->md_id,
 				SMEM_USER_RAW_MDSS_DBG);
+#ifdef CUST_FT_EE_TRIGGER_REBOOT
 		struct ccci_modem *md;
+#endif
 
 		CCCI_ERROR_LOG(md_id, FSM, "MD exception stage 2!\n");
 		CCCI_MEM_LOG_TAG(md_id, FSM, "MD exception stage 2! ee=%x\n",
@@ -250,6 +256,7 @@ _dump_done:
 		CCCI_ERROR_LOG(md_id, FSM,
 			"MD exception stage 2:end\n");
 
+#ifdef CUST_FT_EE_TRIGGER_REBOOT
 		md = ccci_md_get_modem_by_id(ee_ctl->md_id);
 		if (md == NULL) {
 			CCCI_ERROR_LOG(md_id, FSM,
@@ -267,6 +274,7 @@ _dump_done:
 				"[md1] EE time out case, call panic\n");
 			drv_tri_panic_by_lvl(md_id);
 		}
+#endif
 	}
 }
 

@@ -18,9 +18,11 @@
 #include <linux/of_irq.h>
 #include <linux/platform_device.h>
 #include <linux/pm_runtime.h>
+#include <linux/ratelimit.h>
 #include <linux/soc/mediatek/mtk-cmdq.h>
 
 #include "mtk_drm_crtc.h"
+#include "mtk_drm_drv.h"
 #include "mtk_drm_ddp_comp.h"
 #include "mtk_dump.h"
 #include "mtk_drm_mmp.h"
@@ -41,6 +43,14 @@
 	#define CON_FLD_DSC_EN		REG_FLD_MSB_LSB(0, 0)
 	#define CON_FLD_DISP_DSC_BYPASS		REG_FLD_MSB_LSB(4, 4)
 
+#define DISP_REG_DSC_INTEN			0x0004
+#define DISP_REG_DSC_INTSTA			0x0008
+	#define DSC_DONE BIT(0)
+	#define DSC_ERR BIT(1)
+	#define DSC_ZERO_FIFO BIT(2)
+	#define DSC_ABN_EOF BIT(3)
+
+#define DISP_REG_DSC_INTACK			0x000C
 #define DISP_REG_DSC_PIC_W			0x0018
 	#define CFG_FLD_PIC_WIDTH	REG_FLD_MSB_LSB(15, 0)
 	#define CFG_FLD_PIC_HEIGHT_M1	REG_FLD_MSB_LSB(31, 16)
@@ -90,7 +100,8 @@
 #if defined(CONFIG_MACH_MT6885) || defined(CONFIG_MACH_MT6893)
 #define DISP_REG_DSC_SHADOW			0x0200
 	#define DSC_FORCE_COMMIT BIT(1)
-#elif defined(CONFIG_MACH_MT6873) || defined(CONFIG_MACH_MT6853)
+#elif defined(CONFIG_MACH_MT6873) || defined(CONFIG_MACH_MT6853) \
+	|| defined(CONFIG_MACH_MT6877) || defined(CONFIG_MACH_MT6781)
 #define DISP_REG_DSC_SHADOW			0x0200
 #define DSC_FORCE_COMMIT	BIT(0)
 #define DSC_BYPASS_SHADOW	BIT(1)
@@ -117,13 +128,66 @@ static inline struct mtk_disp_dsc *comp_to_dsc(struct mtk_ddp_comp *comp)
 	return container_of(comp, struct mtk_disp_dsc, ddp_comp);
 }
 
+static irqreturn_t mtk_dsc_irq_handler(int irq, void *dev_id)
+{
+	struct mtk_disp_dsc *priv = dev_id;
+	struct mtk_ddp_comp *dsc = &priv->ddp_comp;
+	unsigned int val = 0;
+	unsigned int ret = 0;
+
+	if (mtk_drm_top_clk_isr_get("dsc_irq") == false) {
+		DDPIRQ("%s, top clk off\n", __func__);
+		return IRQ_NONE;
+	}
+
+	val = readl(dsc->regs + DISP_REG_DSC_INTSTA);
+	if (!val) {
+		ret = IRQ_NONE;
+		goto out;
+	}
+
+	DDPIRQ("%s irq, val:0x%x\n", mtk_dump_comp_str(dsc), val);
+
+	writel(val, dsc->regs + DISP_REG_DSC_INTACK);
+	writel(0x0, dsc->regs + DISP_REG_DSC_INTACK);
+
+	if (val & (1 << 0))
+		DDPIRQ("[IRQ] %s: frame complete!\n",
+			mtk_dump_comp_str(dsc));
+
+	if (val & (1 << 1)) {
+		static DEFINE_RATELIMIT_STATE(err_ratelimit, 1 * HZ, 20);
+
+		if (__ratelimit(&err_ratelimit))
+			DDPPR_ERR("[IRQ] %s: err!\n",
+				  mtk_dump_comp_str(dsc));
+	}
+	if (val & (1 << 2)) {
+		static DEFINE_RATELIMIT_STATE(zfifo_ratelimit, 1 * HZ, 20);
+
+		if (__ratelimit(&zfifo_ratelimit))
+			DDPPR_ERR("[IRQ] %s: zero fifo!\n",
+				  mtk_dump_comp_str(dsc));
+	}
+	if (val & (1 << 3))
+		DDPPR_ERR("[IRQ] %s: abnormal EOF!\n",
+			  mtk_dump_comp_str(dsc));
+
+	ret = IRQ_HANDLED;
+out:
+	mtk_drm_top_clk_isr_put("dsc_irq");
+
+	return ret;
+}
+
 static void mtk_dsc_start(struct mtk_ddp_comp *comp, struct cmdq_pkt *handle)
 {
 	void __iomem *baddr = comp->regs;
 	struct mtk_disp_dsc *dsc = comp_to_dsc(comp);
 
 #if defined(CONFIG_MACH_MT6885) || defined(CONFIG_MACH_MT6893) \
-	|| defined(CONFIG_MACH_MT6873) || defined(CONFIG_MACH_MT6853)
+	|| defined(CONFIG_MACH_MT6873) || defined(CONFIG_MACH_MT6853) \
+	|| defined(CONFIG_MACH_MT6877)
 	mtk_ddp_write_mask(comp, DSC_FORCE_COMMIT,
 		DISP_REG_DSC_SHADOW, DSC_FORCE_COMMIT, handle);
 #endif
@@ -135,10 +199,6 @@ static void mtk_dsc_start(struct mtk_ddp_comp *comp, struct cmdq_pkt *handle)
 		/* DSC Empty flag always high */
 		mtk_ddp_write_mask(comp, 0x4000, DISP_REG_DSC_CON,
 				DSC_EMPTY_FLAG_SEL, handle);
-
-		/* DSC output buffer as FHD(plus) */
-		mtk_ddp_write_mask(comp, 0x800002C2, DISP_REG_DSC_OBUF,
-				0xFFFFFFFF, handle);
 	}
 
 	DDPINFO("%s, dsc_start:0x%x\n",
@@ -162,7 +222,8 @@ static void mtk_dsc_prepare(struct mtk_ddp_comp *comp)
 
 	mtk_ddp_comp_clk_prepare(comp);
 
-#if defined(CONFIG_MACH_MT6873) || defined(CONFIG_MACH_MT6853)
+#if defined(CONFIG_MACH_MT6873) || defined(CONFIG_MACH_MT6853) \
+	|| defined(CONFIG_MACH_MT6877)
 #if defined(CONFIG_DRM_MTK_SHADOW_REGISTER_SUPPORT)
 	if (dsc->data->support_shadow) {
 		/* Enable shadow register and read shadow register */
@@ -338,7 +399,10 @@ static void mtk_dsc_config(struct mtk_ddp_comp *comp,
 			dsc_params->slice_width-1) / dsc_params->slice_width;
 		init_delay_height_min =
 			(init_delay_limit > 15) ? 15 : init_delay_limit;
-		init_delay_height = init_delay_height_min;
+		if (!mtk_crtc_is_frame_trigger_mode(&comp->mtk_crtc->base))
+			init_delay_height = 1;
+		else
+			init_delay_height = 4;
 
 		reg_val = (!!dsc_params->slice_mode) |
 					(!!dsc_params->rgb_swap << 2) |
@@ -356,8 +420,10 @@ static void mtk_dsc_config(struct mtk_ddp_comp *comp,
 		mtk_ddp_write_mask(comp, DSC_CKSM_CAL_EN,
 					DISP_REG_DSC_DBG_CON, DSC_CKSM_CAL_EN,
 					handle);
+
 #if defined(CONFIG_MACH_MT6885) || defined(CONFIG_MACH_MT6893) \
-	|| defined(CONFIG_MACH_MT6873) || defined(CONFIG_MACH_MT6853)
+	|| defined(CONFIG_MACH_MT6873) || defined(CONFIG_MACH_MT6853) \
+	|| defined(CONFIG_MACH_MT6877) || defined(CONFIG_MACH_MT6781)
 		mtk_ddp_write_mask(comp,
 			(((dsc_params->ver & 0xf) == 2) ? 0x40 : 0x20),
 			DISP_REG_DSC_SHADOW, 0x60, handle);
@@ -438,6 +504,14 @@ static void mtk_dsc_config(struct mtk_ddp_comp *comp,
 		mtk_ddp_write(comp, 0x00007e7d, DISP_REG_DSC_PPS11, handle);
 		mtk_ddp_write(comp, 0x00800880, DISP_REG_DSC_PPS12, handle);
 		mtk_ddp_write(comp, 0xf8c100a1, DISP_REG_DSC_PPS13, handle);
+		mtk_ddp_write(comp, 0xe8e3f0e3, DISP_REG_DSC_PPS14, handle);
+		mtk_ddp_write(comp, 0xe103e0e3, DISP_REG_DSC_PPS15, handle);
+		mtk_ddp_write(comp, 0xd943e123,	DISP_REG_DSC_PPS16, handle);
+		mtk_ddp_write(comp, 0xd185d965,	DISP_REG_DSC_PPS17, handle);
+		mtk_ddp_write(comp, 0xd1a7d1a5,	DISP_REG_DSC_PPS18, handle);
+		mtk_ddp_write(comp, 0x0000d1ed,	DISP_REG_DSC_PPS19, handle);
+
+#if 0
 		if (comp->mtk_crtc->is_dual_pipe) {
 			mtk_ddp_write(comp, 0xe8e3f0e3,
 				DISP_REG_DSC_PPS14, handle);
@@ -467,7 +541,7 @@ static void mtk_dsc_config(struct mtk_ddp_comp *comp,
 			mtk_ddp_write(comp, 0x0000d1ed,
 				DISP_REG_DSC_PPS19, handle);
 		}
-
+#endif
 
 		dsc->enable = true;
 	} else {
@@ -490,11 +564,12 @@ void mtk_dsc_dump(struct mtk_ddp_comp *comp)
 		readl(baddr + DISP_REG_DSC_SLICE_W));
 	DDPDUMP("(0x024)DSC_SLICE_HIGHT=0x%x\n",
 		readl(baddr + DISP_REG_DSC_SLICE_H));
-	DDPDUMP("(0x000)DSC_WIDTH=0x%x\n", readl(baddr + DISP_REG_DSC_PIC_W));
-	DDPDUMP("(0x000)DSC_HEIGHT=0x%x\n", readl(baddr + DISP_REG_DSC_PIC_H));
+	DDPDUMP("(0x018)DSC_WIDTH=0x%x\n", readl(baddr + DISP_REG_DSC_PIC_W));
+	DDPDUMP("(0x01C)DSC_HEIGHT=0x%x\n", readl(baddr + DISP_REG_DSC_PIC_H));
 #if defined(CONFIG_MACH_MT6885) || defined(CONFIG_MACH_MT6893) \
-	|| defined(CONFIG_MACH_MT6873) || defined(CONFIG_MACH_MT6853)
-	DDPDUMP("(0x000)DSC_SHADOW=0x%x\n",
+	|| defined(CONFIG_MACH_MT6873) || defined(CONFIG_MACH_MT6853) \
+	|| defined(CONFIG_MACH_MT6877) || defined(CONFIG_MACH_MT6781)
+	DDPDUMP("(0x200)DSC_SHADOW=0x%x\n",
 		readl(baddr + DISP_REG_DSC_SHADOW));
 #endif
 	DDPDUMP("-- Start dump dsc registers --\n");
@@ -597,6 +672,16 @@ static int mtk_disp_dsc_probe(struct platform_device *pdev)
 
 	platform_set_drvdata(pdev, priv);
 
+	ret = devm_request_irq(dev, irq, mtk_dsc_irq_handler,
+			       IRQF_TRIGGER_NONE | IRQF_SHARED, dev_name(dev),
+			       priv);
+	if (ret < 0) {
+		DDPAEE("%s:%d, failed to request irq:%d ret:%d comp_id:%d\n",
+				__func__, __LINE__,
+				irq, ret, comp_id);
+		return ret;
+	}
+
 	pm_runtime_enable(dev);
 
 	ret = component_add(dev, &mtk_disp_dsc_component_ops);
@@ -629,6 +714,14 @@ static const struct mtk_disp_dsc_data mt6853_dsc_driver_data = {
 	.support_shadow = false,
 };
 
+static const struct mtk_disp_dsc_data mt6877_dsc_driver_data = {
+	.support_shadow = false,
+};
+
+static const struct mtk_disp_dsc_data mt6781_dsc_driver_data = {
+	.support_shadow = false,
+};
+
 static const struct of_device_id mtk_disp_dsc_driver_dt_match[] = {
 	{ .compatible = "mediatek,mt6885-disp-dsc",
 	  .data = &mt6885_dsc_driver_data},
@@ -636,6 +729,10 @@ static const struct of_device_id mtk_disp_dsc_driver_dt_match[] = {
 	  .data = &mt6873_dsc_driver_data},
 	{ .compatible = "mediatek,mt6853-disp-dsc",
 	  .data = &mt6853_dsc_driver_data},
+	{ .compatible = "mediatek,mt6877-disp-dsc",
+	  .data = &mt6877_dsc_driver_data},
+	{ .compatible = "mediatek,mt6781-disp-dsc",
+	  .data = &mt6781_dsc_driver_data},
 	{},
 };
 

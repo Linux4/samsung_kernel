@@ -63,8 +63,8 @@ struct mipi_dsi_lcd_driver {
 #endif
 	int (*set_mask)(struct platform_device *p, int on);
 	int (*get_mask)(struct platform_device *p);
-	int	(*path_lock)(struct platform_device *p, bool locking);
-	int	(*framedone_notify)(struct platform_device *p);
+	int (*path_lock)(struct platform_device *p, bool locking);
+	int (*framedone_notify)(struct platform_device *p);
 };
 
 extern struct mipi_dsi_lcd_common *g_lcd_common;

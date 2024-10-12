@@ -27,7 +27,7 @@ struct stCAM_CAL_LIST_STRUCT g_camCalList[] = {
 	//{IMX582_SENSOR_ID,  0xB0, Common_read_region, MAX_EEPROM_SIZE_16K},
 	// IMX582 with OIS
 	{IMX582_SENSOR_ID,  0xA0, Common_read_region, MAX_EEPROM_SIZE_16K},
-	{IMX258_SENSOR_ID,  0xA2, Common_read_region, MAX_EEPROM_SIZE_16K},
+	{IMX258F_SENSOR_ID, 0xA2, Common_read_region, MAX_EEPROM_SIZE_16K},
 	{IMX355_SENSOR_ID,  0xA8, Common_read_region, MAX_EEPROM_SIZE_16K},
 	{GC02M1B_SENSOR_ID, 0x6E, imgsensor_read_otp_cal},
 	{GC02M1_SENSOR_ID,  0xA4, Common_read_region, MAX_EEPROM_SIZE_16K},

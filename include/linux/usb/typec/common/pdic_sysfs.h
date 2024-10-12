@@ -1,6 +1,7 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
  *
- * Copyright (C) 2017-2020 Samsung Electronics
+ * Copyright (C) 2017-2021 Samsung Electronics
  *
  * Author:Wookwang Lee. <wookwang.lee@samsung.com>,
  * This program is free software; you can redistribute it and/or modify
@@ -30,6 +31,10 @@ enum {
 	SPU_VERIFICATION = 3,
 	FWUP_CMD_MAX = 4,
 };
+
+static const int RO_PERM = 0444;
+static const int WO_PERM = 0200;
+static const int RW_PERM = 0644;
 
 enum pdic_sysfs_property {
 	PDIC_SYSFS_PROP_CHIP_NAME = 0,
@@ -61,6 +66,7 @@ enum pdic_sysfs_property {
 	PDIC_SYSFS_PROP_VBUS_ADC,
 	PDIC_SYSFS_PROP_USB_BOOT_MODE,
 	PDIC_SYSFS_PROP_DP_SBU_SW_SEL,
+	PDIC_SYSFS_PROP_NOVBUS_RP22K,
 	PDIC_SYSFS_PROP_MAX_COUNT,
 };
 struct _pdic_data_t;

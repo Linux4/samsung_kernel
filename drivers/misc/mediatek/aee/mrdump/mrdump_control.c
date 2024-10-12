@@ -109,8 +109,6 @@ __init void mrdump_cblock_init(void)
 #if defined(CONFIG_ARM64)
 	machdesc_p->kimage_voffset = kimage_voffset;
 #endif
-	machdesc_p->kimage_sdata = (uintptr_t)_sdata;
-	machdesc_p->kimage_edata = (uintptr_t)_edata;
 
 	machdesc_p->vmalloc_start = (uint64_t)VMALLOC_START;
 	machdesc_p->vmalloc_end = (uint64_t)VMALLOC_END;
@@ -143,29 +141,6 @@ __init void mrdump_cblock_init(void)
 	pr_notice("%s: done.\n", __func__);
 
 end:
-	__inner_flush_dcache_all();
+	__flush_dcache_area(mrdump_cblock,
+			sizeof(struct mrdump_control_block));
 }
-
-/* mrdump_cb info from lk */
-static int __init mrdump_get_cb(char *p)
-{
-	unsigned long cbaddr, cbsize;
-	int ret;
-	ret = sscanf(p, "0x%lx,0x%lx", &cbaddr, &cbsize);
-
-	if (ret != 2) {
-		pr_notice("%s: no mrdump_sram_cb. (ret=%d, p=%s)\n",
-			__func__, ret, p);
-	} else {
-		mrdump_sram_cb.start_addr = cbaddr;
-		mrdump_sram_cb.size = cbsize;
-		pr_notice("%s: mrdump_cbaddr=%pa, mrdump_cbsize=%pa\n",
-			__func__,
-			&mrdump_sram_cb.start_addr,
-			&mrdump_sram_cb.size
-		);
-	}
-	return 0;
-}
-early_param("mrdump_cb", mrdump_get_cb);
-

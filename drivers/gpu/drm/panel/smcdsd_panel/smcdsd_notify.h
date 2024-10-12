@@ -62,7 +62,7 @@ enum {	STAMP_LIST	STAMP_MAX	};
 #undef __XX
 
 #define IS_EARLY(event)		(event == SMCDSD_EARLY_EVENT_BLANK || event == SMCDSD_EARLY_EVENT_DOZE)
-#define IS_AFTER(event)		(event == FB_EVENT_BLANK || event == SMCDSD_EVENT_DOZE)
+#define IS_AFTER(event)		(event == SMCDSD_EVENT_BLANK || event == SMCDSD_EVENT_DOZE)
 #define IS_FRAME(event)		(event == SMCDSD_EVENT_FRAME || event == SMCDSD_EVENT_FRAME_SEND || event == SMCDSD_EVENT_FRAME_DONE)
 
 extern struct notifier_block smcdsd_nb_priority_max;
@@ -73,10 +73,12 @@ extern int smcdsd_unregister_notifier(struct notifier_block *nb);
 extern int smcdsd_notifier_call_chain(unsigned long val, void *v);
 extern int smcdsd_simple_notifier_call_chain(unsigned long val, int blank);
 
+#if defined(CONFIG_DRM_MEDIATEK)
 extern int smcdsd_fb_register_client(struct notifier_block *nb);
 extern int smcdsd_fb_unregister_client(struct notifier_block *nb);
 extern int smcdsd_fb_notifier_call_chain(unsigned long val, void *v);
 extern int smcdsd_fb_simple_notifier_call_chain(unsigned long val, int blank);
+#endif
 
 #endif
 

@@ -62,7 +62,8 @@ int mip4_ts_config_regulator(struct mip4_ts_info *info)
 		if (ret) {
 			dev_err(&info->client->dev, "%s [ERROR] regulator_set_voltage : vd33\n", __func__);
 		} else {
-			dev_dbg(&info->client->dev, "%s - regulator_set_voltage : 3000000\n", __func__);
+			dev_dbg(&info->client->dev,
+					"%s - regulator_set_voltage : 3000000\n", __func__);
 		}
 	}
 #if 0
@@ -94,8 +95,7 @@ int mip4_ts_control_regulator(struct mip4_ts_info *info, int enable)
 #ifdef CONFIG_REGULATOR
 	int ret = 0;
 
-	dev_dbg(&info->client->dev, "%s [START]\n", __func__);
-	dev_info(&info->client->dev, "%s - switch : %d\n", __func__, enable);
+	dev_dbg(&info->client->dev, "%s - switch : %d\n", __func__, enable);
 
 	if (info->power == enable) {
 		dev_dbg(&info->client->dev, "%s - skip\n", __func__);
@@ -387,7 +387,10 @@ void mip4_ts_input_event_handler(struct mip4_ts_info *info, u8 sz, u8 *buf)
 	int virtual_key_info = 0;
 
 	dev_dbg(&info->client->dev, "%s [START]\n", __func__);
-	print_hex_dump(KERN_ERR, MIP4_TS_DEVICE_NAME " Event Packet : ", DUMP_PREFIX_OFFSET, 16, 1, buf, sz, false);
+	/*
+	 * print_hex_dump(KERN_DEBUG, MIP4_TS_DEVICE_NAME " Event Packet : ",
+	 *	DUMP_PREFIX_OFFSET, 16, 1, buf, sz, false);
+	 */
 
 	for (i = 0; i < sz; i += info->event_size) {
 		u8 *packet = &buf[i];
@@ -557,7 +560,6 @@ void mip4_ts_input_event_handler(struct mip4_ts_info *info, u8 sz, u8 *buf)
 						}
 					}
 
-					dev_info(&info->client->dev, "%s : finger %d\n", finger_cnt);
 					if (finger_cnt <= 0)
 					{
 						input_report_key(info->input_dev, BTN_TOUCH, 0);

@@ -156,6 +156,7 @@ static int pd_get_property(struct adapter_device *dev,
 	return -1;
 }
 
+#if defined(CONFIG_BATTERY_SAMSUNG)
 static bool pd_is_src_usb_suspend_support(struct adapter_device *dev)
 {
 	struct mtk_pd_adapter_info *info;
@@ -177,6 +178,7 @@ static bool pd_is_src_usb_communication_capable(struct adapter_device *dev)
 
 	return tcpm_is_src_usb_communication_capable(info->tcpc);
 }
+#endif
 
 static int pd_set_cap(struct adapter_device *dev, enum adapter_cap_type type,
 		int mV, int mA)
@@ -286,7 +288,7 @@ static int pd_get_cap(struct adapter_device *dev,
 
 	uint8_t cap_i = 0;
 	int ret;
-	int idx = 0;
+	unsigned int idx = 0;
 	int i;
 	struct mtk_pd_adapter_info *info;
 
@@ -369,8 +371,9 @@ static int pd_get_cap(struct adapter_device *dev,
 					tacap->type[i] = MTK_PD_APDO;
 				else
 					tacap->type[i] = MTK_CAP_TYPE_UNKNOWN;
-				/* Code bug */
-				/* tacap->type[i] = pd_cap.type[i]; */
+#if !defined(CONFIG_BATTERY_SAMSUNG)
+				tacap->type[i] = pd_cap.type[i];
+#endif
 
 				chr_err("[%s]:%d mv:[%d,%d] %d max:%d min:%d type:%d %d\n",
 					__func__, i, tacap->min_mv[i],
@@ -390,8 +393,10 @@ static struct adapter_ops adapter_ops = {
 	.get_output = pd_get_output,
 	.get_property = pd_get_property,
 	.get_cap = pd_get_cap,
+#if defined(CONFIG_BATTERY_SAMSUNG)
 	.is_src_usb_communication_capable = pd_is_src_usb_communication_capable,
 	.is_src_usb_suspend_support = pd_is_src_usb_suspend_support,
+#endif
 };
 
 static int adapter_parse_dt(struct mtk_pd_adapter_info *info,

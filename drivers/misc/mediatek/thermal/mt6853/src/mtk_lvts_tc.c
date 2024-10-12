@@ -634,7 +634,8 @@ static void dump_lvts_register_value_by_ctrl_num(int ctrl_num)
 	char buffer[512];
 
 	//for (i = 0; i < ARRAY_SIZE(lvts_tscpu_g_tc); i++) {
-		lvts_printk("[LVTS_ERROR][BEFROE][CONTROLLER_%d][DUMP]\n", ctrl_num);
+		lvts_printk("[LVTS_ERROR][BEFROE][CONTROLLER_%d][DUMP]\n",
+			ctrl_num);
 		tc_offset = lvts_tscpu_g_tc[ctrl_num].tc_offset; //tc offset
 
 		offset = sprintf(buffer, "[LVTS_ERROR][BEFORE][TC][DUMP] ");
@@ -657,7 +658,8 @@ static void dump_lvts_register_value_by_ctrl_num(int ctrl_num)
 	//}
 
 	//for (i = 0; i < ARRAY_SIZE(lvts_tscpu_g_tc); i++) {
-		lvts_printk("[LVTS_ERROR][AFTER][CONTROLLER_%d][DUMP]\n", ctrl_num);
+		lvts_printk("[LVTS_ERROR][AFTER][CONTROLLER_%d][DUMP]\n",
+			ctrl_num);
 		tc_offset = lvts_tscpu_g_tc[ctrl_num].tc_offset; //tc offset
 
 		offset = sprintf(buffer, "[LVTS_ERROR][AFTER][TC][DUMP] ");
@@ -895,7 +897,7 @@ void lvts_device_read_count_RC_N(void)
 			g_count_rc_now[s_index] = (data & _BITMASK_(23:0));
 #if LVTS_REFINE_MANUAL_RCK_WITH_EFUSE
 			lvts_printk("-refine_data_idx[%d]=%d\n",
-						s_index, refine_data_idx[s_index]);
+				s_index, refine_data_idx[s_index]);
 				if (refine_data_idx[s_index] == 1)
 					g_count_rc_now[s_index] = g_count_rc[i];
 #endif
@@ -1522,12 +1524,17 @@ int temperature, int temperature2, int tc_num)
 #endif
 
 #ifndef CONFIG_LVTS_DYNAMIC_ENABLE_REBOOT
+	/* set offset to 0x3FFF to avoid interrupt false triggered */
+	/* large offset can guarantee temp check is always false */
+	temp = readl(offset + LVTSPROTCTL_0);
+	mt_reg_sync_writel_print(temp | 0x3FFF, offset + LVTSPROTCTL_0);
+
 	temp = readl(offset + LVTSMONINT_0);
 	/* disable trigger SPM interrupt */
 	mt_reg_sync_writel_print(temp & 0x00000000, offset + LVTSMONINT_0);
 #endif
 
-	temp = readl(offset + LVTSPROTCTL_0) & ~(0xF << 16);
+	temp = readl(offset + LVTSPROTCTL_0);
 #if LVTS_USE_DOMINATOR_SENSING_POINT
 	/* Select protection sensor */
 	config = ((d_index << 2) + 0x2) << 16;
@@ -1542,8 +1549,14 @@ int temperature, int temperature2, int tc_num)
 	mt_reg_sync_writel_print(raw_high, offset + LVTSPROTTC_0);
 
 #ifndef CONFIG_LVTS_DYNAMIC_ENABLE_REBOOT
+	temp = readl(offset + LVTSMONINT_0);
 	/* enable trigger Hot SPM interrupt */
 	mt_reg_sync_writel_print(temp | 0x80000000, offset + LVTSMONINT_0);
+
+	/* clear offset after HW reset are configured. */
+	/* make sure LVTS controller uses latest sensor value to compare */
+	mt_reg_sync_writel_print(
+			readl(offset + LVTSPROTCTL_0) & ~0xFFFF, offset + LVTSPROTCTL_0);
 #endif
 }
 
@@ -2051,16 +2064,26 @@ void lvts_tscpu_reset_thermal(void)
 	//reset test
 		mt_reg_sync_writel_print(0xabcd1234, LVTSSPARE0_0);
 		mt_reg_sync_writel_print(0xdeadbeef, LVTSSPARE1_0);
-		lvts_printk("before reset LVTSSPARE0_0 0x%x\n", readl(LVTSSPARE0_0));
-		lvts_printk("before reset LVTSSPARE1_0 0x%x\n", readl(LVTSSPARE1_0));
-		lvts_printk("before reset LVTSEDATA00_0 0x%x\n", readl(LVTSEDATA00_0));
-		lvts_printk("before reset LVTSEDATA01_0 0x%x\n", readl(LVTSEDATA01_0));
-		lvts_printk("before reset LVTSEDATA02_0 0x%x\n", readl(LVTSEDATA02_0));
-		lvts_printk("before reset LVTSEDATA03_0 0x%x\n", readl(LVTSEDATA03_0));
-		lvts_printk("before reset LVTSMSR0_0 0x%x\n", readl(LVTSMSR0_0));
-		lvts_printk("before reset LVTSMSR1_0 0x%x\n", readl(LVTSMSR1_0));
-		lvts_printk("before reset LVTSMSR2_0 0x%x\n", readl(LVTSMSR2_0));
-		lvts_printk("before reset LVTSMSR3_0 0x%x\n", readl(LVTSMSR3_0));
+		lvts_printk("before reset LVTSSPARE0_0 0x%x\n",
+			readl(LVTSSPARE0_0));
+		lvts_printk("before reset LVTSSPARE1_0 0x%x\n",
+			readl(LVTSSPARE1_0));
+		lvts_printk("before reset LVTSEDATA00_0 0x%x\n",
+			readl(LVTSEDATA00_0));
+		lvts_printk("before reset LVTSEDATA01_0 0x%x\n",
+			readl(LVTSEDATA01_0));
+		lvts_printk("before reset LVTSEDATA02_0 0x%x\n",
+			readl(LVTSEDATA02_0));
+		lvts_printk("before reset LVTSEDATA03_0 0x%x\n",
+			readl(LVTSEDATA03_0));
+		lvts_printk("before reset LVTSMSR0_0 0x%x\n",
+			readl(LVTSMSR0_0));
+		lvts_printk("before reset LVTSMSR1_0 0x%x\n",
+			readl(LVTSMSR1_0));
+		lvts_printk("before reset LVTSMSR2_0 0x%x\n",
+			readl(LVTSMSR2_0));
+		lvts_printk("before reset LVTSMSR3_0 0x%x\n",
+			readl(LVTSMSR3_0));
 
 	/* reset AP thremal ctrl */
 	/* TODO: Is it necessary to read INFRA_GLOBALCON_RST_0_SET? */

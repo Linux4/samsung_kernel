@@ -26,22 +26,19 @@
 #include <linux/kern_levels.h>
 #include <linux/kobject.h>
 #include <linux/module.h>
-#include <linux/of_gpio.h>
 #include <linux/percpu-defs.h>
 #include <linux/pinctrl/consumer.h>
 #include <linux/platform_device.h>
-#include <linux/pm_qos.h>
-#include <linux/pm_wakeup.h>
 #include <linux/power_supply.h>
-#include <linux/regulator/consumer.h>
 #include <linux/sched.h>
 #include <linux/slab.h>
-#include <linux/spinlock.h>
 #include <linux/syscalls.h>
 #include <linux/threads.h>
 #include <linux/version.h>
 #include <linux/workqueue.h>
-
+#if defined(CONFIG_MFC_CHARGER)
+#include <linux/battery/sec_battery_common.h>
+#endif
 #include "mstdrv_main.h"
 
 /* defines */
@@ -54,236 +51,25 @@
 #define CMD_MST_LDO_ON			'1'	// MST LDO on
 #define CMD_SEND_TRACK1_DATA		'2'	// Send track1 test data
 #define CMD_SEND_TRACK2_DATA		'3'	// send track2 test data
-#define CMD_HW_RELIABILITY_TEST_START	'4'	// start HW reliability test
-#define CMD_HW_RELIABILITY_TEST_STOP	'5'	// stop HW reliability test
 #define ERROR_VALUE			-1	// Error value
 
-#if defined(CONFIG_MFC_CHARGER)
-#define MST_MODE_ON                     1                   // ON Message to MFC ic
-#define MST_MODE_OFF                    0                   // OFF Message to MFC ic
-static int sec_mst_chip_vendor_init(void);
-static int mfc_get_property(union power_supply_propval *val);
-static int mfc_get_chip_id(void);
-#if defined(CONFIG_MST_V2)
-#define MAX_I2C_ERROR_COUNT		30
-void mfc_check_i2c_error(struct mfc_charger_data *charger, bool is_error)
-{
-	charger->i2c_error_count =
-		(charger->wc_w_state && gpio_get_value(charger->pdata->wpc_det) && is_error) ?
-		(charger->i2c_error_count + 1) : 0;
-
-	if (charger->i2c_error_count > MAX_I2C_ERROR_COUNT) {
-		charger->i2c_error_count = 0;
-		queue_delayed_work(charger->wqueue, &charger->wpc_i2c_error_work, 0);
-	}
-}
-
-int mfc_reg_read(struct i2c_client *client, u16 reg, u8 *val)
-{
-	struct mfc_charger_data *charger = i2c_get_clientdata(client);
-	int ret;
-	struct i2c_msg msg[2];
-	u8 wbuf[2];
-	u8 rbuf[2];
-
-	msg[0].addr = client->addr;
-	msg[0].flags = client->flags & I2C_M_TEN;
-	msg[0].len = 2;
-	msg[0].buf = wbuf;
-
-	wbuf[0] = (reg & 0xFF00) >> 8;
-	wbuf[1] = (reg & 0xFF);
-
-	msg[1].addr = client->addr;
-	msg[1].flags = I2C_M_RD;
-	msg[1].len = 1;
-	msg[1].buf = rbuf;
-
-	mutex_lock(&charger->io_lock);
-	ret = i2c_transfer(client->adapter, msg, 2);
-	mfc_check_i2c_error(charger, (ret < 0));
-	mutex_unlock(&charger->io_lock);
-	if (ret < 0) {
-		pr_err("%s: i2c read error, reg: 0x%x, ret: %d (called by %ps)\n",
-			__func__, reg, ret, __builtin_return_address(0));
-		return -1;
-	}
-
-	*val = rbuf[0];
-
-	return ret;
-}
-
-int mfc_reg_update(struct i2c_client *client, u16 reg, u8 val, u8 mask)
-{
-	//val = 0b 0000 0001
-	//ms = 0b 1111 1110
-	struct mfc_charger_data *charger = i2c_get_clientdata(client);
-	unsigned char data[3] = {reg >> 8, reg & 0xff, val};
-	u8 data2;
-	int ret;
-
-	ret = mfc_reg_read(client, reg, &data2);
-	if (ret >= 0) {
-		u8 old_val = data2 & 0xff;
-		u8 new_val = (val & mask) | (old_val & (~mask));
-		data[2] = new_val;
-
-		mutex_lock(&charger->io_lock);
-		ret = i2c_master_send(client, data, 3);
-		mfc_check_i2c_error(charger, (ret < 3));
-		mutex_unlock(&charger->io_lock);
-		if (ret < 3) {
-			pr_err("%s: i2c write error, reg: 0x%x, ret: %d\n",
-				__func__, reg, ret);
-			return ret < 0 ? ret : -EIO;
-		}
-	}
-	mfc_reg_read(client, reg, &data2);
-
-	return ret;
-}
-
-int mfc_reg_write(struct i2c_client *client, u16 reg, u8 val)
-{
-	struct mfc_charger_data *charger = i2c_get_clientdata(client);
-	int ret;
-	unsigned char data[3] = { reg >> 8, reg & 0xff, val };
-
-//	pr_debug("%s: reg=0x%x, val=0x%x", __func__, reg, val);
-
-	mutex_lock(&charger->io_lock);
-	ret = i2c_master_send(client, data, 3);
-	mfc_check_i2c_error(charger, (ret < 3));
-	mutex_unlock(&charger->io_lock);
-	if (ret < 3) {
-		pr_err("%s: i2c write error, reg: 0x%x, ret: %d (called by %ps)\n",
-				__func__, reg, ret, __builtin_return_address(0));
-		return ret < 0 ? ret : -EIO;
-	}
-
-	return 0;
-}
-
-int mfc_reg_multi_write(struct i2c_client *client, u16 reg, const u8 * val, int size)
-{
-	struct mfc_charger_data *charger = i2c_get_clientdata(client);
-	int ret = 0;
-	const int sendsz = 16;
-	unsigned char data[sendsz + 2];
-	int cnt = 0;
-
-	pr_err("%s: size: 0x%x\n", __func__, size);
-	while(size > sendsz) {
-		data[0] = (reg + cnt) >> 8;
-		data[1] = (reg + cnt) & 0xff;
-		memcpy(data + 2, val + cnt, sendsz);
-		mutex_lock(&charger->io_lock);
-		ret = i2c_master_send(client, data, sendsz + 2);
-		mutex_unlock(&charger->io_lock);
-		if (ret < sendsz + 2) {
-			pr_err("%s: i2c write error, reg: 0x%x\n", __func__, reg);
-			return ret < 0 ? ret : -EIO;
-		}
-		cnt = cnt + sendsz;
-		size = size - sendsz;
-	}
-	if (size > 0) {
-		data[0] = (reg + cnt) >> 8;
-		data[1] = (reg + cnt) & 0xff;
-		memcpy(data + 2, val + cnt, size);
-		mutex_lock(&charger->io_lock);
-		ret = i2c_master_send(client, data, size + 2);
-		mutex_unlock(&charger->io_lock);
-		if (ret < size + 2) {
-			dev_err(&client->dev, "%s: i2c write error, reg: 0x%x\n", __func__, reg);
-			return ret < 0 ? ret : -EIO;
-		}
-	}
-
-	return ret;
-}
-
-void mfc_set_cmd_l_reg(struct mfc_charger_data *charger, u8 val, u8 mask)
-{
-	u8 temp = 0;
-	int ret = 0, i = 0;
-
-	do {
-		pr_info("%s\n", __func__);
-		ret = mfc_reg_update(charger->client, MFC_AP2MFC_CMD_L_REG, val, mask); // command
-		if (ret >= 0) {
-			msleep(10);
-			ret = mfc_reg_read(charger->client, MFC_AP2MFC_CMD_L_REG, &temp); // check out set bit exists
-			if (temp != 0)
-				pr_info("%s: CMD is not clear yet, cnt = %d\n", __func__, i);
-			if (ret < 0 || i > 3)
-				break;
-		}
-		i++;
-	} while ((temp != 0) && (i < 3));
-}
-#else
-static inline struct power_supply *get_power_supply_by_name(char *name)
-{
-	if (!name)
-		return (struct power_supply *)NULL;
-	else
-		return power_supply_get_by_name(name);
-}
-
-#define psy_do_property(name, function, property, value) \
-{    \
-	struct power_supply *psy;    \
-	int ret;    \
-	psy = get_power_supply_by_name((name));    \
-	if (!psy) {    \
-		mst_err("%s: Fail to "#function" psy (%s)\n",    \
-			__func__, (name));    \
-		value.intval = 0;    \
-	} else {    \
-		if (psy->desc->function##_property != NULL) { \
-			ret = psy->desc->function##_property(psy, (property), &(value)); \
-			if (ret < 0) {    \
-				mst_err("%s: Fail to %s "#function" (%d=>%d)\n", \
-					__func__, name, (property), ret);    \
-				value.intval = 0;    \
-			}    \
-		}    \
-	}    \
-}
-#endif
-#endif
-
+#if !defined(CONFIG_MST_DUMMY_DRV)
 /* global variables */
+struct workqueue_struct *cluster_freq_ctrl_wq;
+struct delayed_work dwork;
 static struct class *mst_drv_class;
 struct device *mst_drv_dev;
-static int escape_loop = 1;
 static int nfc_state;
-static struct wakeup_source *mst_ws;
-#if defined(CONFIG_MST_REGULATOR)
-struct regulator *regulator3_0;
-#else
 #if !defined(CONFIG_MST_IF_PMIC)
 static int mst_pwr_en;
-#endif
 #endif
 #if defined(CONFIG_MST_SUPPORT_GPIO)
 static int mst_support_check;
 #endif
-#if defined(CONFIG_MST_NONSECURE)
-static int mst_en;
-static int mst_data;
-static spinlock_t event_lock;
+#if defined(CONFIG_MST_PCR)
+static bool mst_pwr_use_uno;
 #endif
-#if defined(CONFIG_MFC_CHARGER)
-static int wpc_det;
 #endif
-#if defined(CONFIG_MST_LPM_DISABLE)
-static struct pm_qos_request mst_pm_qos_request;
-uint32_t mst_lpm_tag;
-#endif
-
 /* function */
 /**
  * mst_printk - print with mst tag
@@ -307,7 +93,11 @@ void mst_printk(int level, const char *fmt, ...)
 	va_end(args);
 }
 
+#if !defined(CONFIG_MST_DUMMY_DRV)
 #if defined(CONFIG_MST_ARCH_QCOM)
+uint32_t ss_mst_bus_hdl;
+
+DEFINE_MUTEX(mst_mutex);
 #if defined(_ARCH_ARM_MACH_MSM_BUS_H) // build error
 /**
  * boost_enable - set all CPUs freq upto Max
@@ -375,18 +165,19 @@ extern void mst_ctrl_of_mst_hw_onoff(bool on)
 		nfc_state = 0;
 		mst_info("%s: nfc_state unlocked, %d\n", __func__, nfc_state);
 	} else {
-#if defined(CONFIG_MST_REGULATOR)
-		if (regulator3_0) {
-			if (regulator_is_enabled(regulator3_0)) {
-				regulator_disable(regulator3_0);
-				mst_info("%s: regulator 3.0 is disabled\n",
-					 __func__);
-			}
-		}
-#else
 #if !defined(CONFIG_MST_IF_PMIC)
 		gpio_set_value(mst_pwr_en, 0);
 		mst_info("%s: mst_pwr_en LOW\n", __func__);
+#if defined(CONFIG_MST_PCR)
+		if (mst_pwr_use_uno) {
+			value.intval = OFF;
+			psy_do_property("battery", set,
+					POWER_SUPPLY_EXT_PROP_CHARGE_UNO_CONTROL, value);
+
+			value.intval = 1000;
+			psy_do_property("otg", set,
+					POWER_SUPPLY_EXT_PROP_WIRELESS_TX_IOUT, value);
+		}
 #endif
 #endif
 		usleep_range(800, 1000);
@@ -397,9 +188,9 @@ extern void mst_ctrl_of_mst_hw_onoff(bool on)
 				POWER_SUPPLY_PROP_TECHNOLOGY, value);
 		mst_info("%s: MST_MODE notify : %d\n", __func__, value.intval);
 
-                value.intval = 0;
-                psy_do_property("mfc-charger", set, POWER_SUPPLY_EXT_PROP_WPC_EN_MST, value);
-                mst_info("%s : MFC_IC Disable notify : %d\n", __func__, value.intval);
+		value.intval = 0;
+		psy_do_property("mfc-charger", set, POWER_SUPPLY_EXT_PROP_WPC_EN_MST, value);
+		mst_info("%s : MFC_IC Disable notify : %d\n", __func__, value.intval);
 #endif
 #if defined(CONFIG_MST_ARCH_QCOM)
 #if defined(_ARCH_ARM_MACH_MSM_BUS_H) // build error
@@ -408,29 +199,6 @@ extern void mst_ctrl_of_mst_hw_onoff(bool on)
 		mutex_lock(&mst_mutex);
 		if (boost_disable())
 			mst_err("%s: boost disable failed\n",__func__);
-#endif
-#endif
-#if defined(CONFIG_MST_LPM_CONTROL)
-		/* PCIe LPM Enable */
-		mst_info("%s: l1ss enable\n", __func__);
-#if defined(CONFIG_PCI_EXYNOS)
-		exynos_pcie_l1ss_ctrl(1, PCIE_L1SS_CTRL_MST);
-#elif defined(CONFIG_MST_ARCH_QCOM)
-		sec_pcie_l1ss_enable(L1SS_MST);
-#endif
-#endif
-#if defined(CONFIG_MST_LPM_DISABLE)
-		/* CPU LPM Enable*/
-		if (mst_lpm_tag) {
-			mst_info("%s: pm_qos remove\n", __func__);
-			pm_qos_remove_request(&mst_pm_qos_request);
-			mst_info("%s: core online lock disable\n", __func__);
-			core_ctl_set_boost(false);
-			mst_lpm_tag = 0;
-		}
-#endif
-#if defined(CONFIG_MST_ARCH_QCOM)
-#if defined(_ARCH_ARM_MACH_MSM_BUS_H) // build error
 		mutex_unlock(&mst_mutex);
 #endif
 #endif
@@ -440,7 +208,7 @@ extern void mst_ctrl_of_mst_hw_onoff(bool on)
 }
 
 /**
- * of_mst_hw_onoff - Enable/Disable MST LDO GPIO pin (or Regulator)
+ * of_mst_hw_onoff - Enable/Disable MST LDO GPIO pin
  * @on: on/off value
  */
 static void of_mst_hw_onoff(bool on)
@@ -451,14 +219,6 @@ static void of_mst_hw_onoff(bool on)
 #endif
 	mst_info("%s: on = %d\n", __func__, on);
 
-#if defined(CONFIG_MST_REGULATOR)
-	if (regulator3_0 == NULL) {
-		mst_err("%s: regulator_get retry\n", __func__);
-		regulator3_0 = regulator_get(NULL, "pm6150l_l7");
-		if(regulator3_0 == NULL)
-			mst_err("%s: regulator get failed\n", regulator3_0);
-	}
-#endif
 	if (nfc_state == 1) {
 		mst_info("%s: nfc_state on!!!\n", __func__);
 		return;
@@ -466,41 +226,35 @@ static void of_mst_hw_onoff(bool on)
 
 	if (on) {
 #if defined(CONFIG_MFC_CHARGER)
-                mst_info("%s : MFC_IC Enable notify start\n", __func__);
-                value.intval = 1;
-                psy_do_property("mfc-charger", set, POWER_SUPPLY_EXT_PROP_WPC_EN_MST, value);
-                mst_info("%s : MFC_IC Enable notified : %d\n", __func__, value.intval);
-
-		if (idt_i2c_command == -1) {
-			mst_info("%s: Value for checking the chip vendor is not set.\n", __func__);
-			gpio_set_value(mst_pwr_en, 1);
-			mst_info("%s: mst_pwr_en HIGH to get chip id\n", __func__);
-
-			if (sec_mst_chip_vendor_init() == -1) {
-				pr_info("%s Failed to set chip setting for MST!");
-			}
-
-			gpio_set_value(mst_pwr_en, 0);
-			mst_info("%s: mst_pwr_en LOW after trying to get chip id\n", __func__);
-			msleep(30);
-		}
+		mst_info("%s : MFC_IC Enable notify start\n", __func__);
+		value.intval = 1;
+		psy_do_property("mfc-charger", set, POWER_SUPPLY_EXT_PROP_WPC_EN_MST, value);
+		mst_info("%s : MFC_IC Enable notified : %d\n", __func__, value.intval);
 
 		value.intval = ON;
 		psy_do_property("mfc-charger", set,
 				POWER_SUPPLY_PROP_TECHNOLOGY, value);
 		mst_info("%s: MST_MODE notify : %d\n", __func__, value.intval);
+
+		psy_do_property("mfc-charger", get, POWER_SUPPLY_EXT_PROP_MST_DELAY, value);
+		mode_set_wait = value.intval;
+		mst_info("%s: Delay for MST : %d ms\n", __func__, mode_set_wait);
 #endif
 
-#if defined(CONFIG_MST_REGULATOR)
-		if (regulator3_0) {
-			regulator_enable(regulator3_0);
-			mst_info("%s: regulator 3.0 is enabled\n", __func__);
-		}
-#else
 #if !defined(CONFIG_MST_IF_PMIC)
+#if defined(CONFIG_MST_PCR)
+		if (mst_pwr_use_uno) {
+			value.intval = 1500;
+			psy_do_property("otg", set,
+					POWER_SUPPLY_EXT_PROP_WIRELESS_TX_IOUT, value);
+
+			value.intval = ON;
+			psy_do_property("battery", set,
+					POWER_SUPPLY_EXT_PROP_CHARGE_UNO_CONTROL, value);
+		}
+#endif
 		gpio_set_value(mst_pwr_en, 1);
 		mst_info("%s: mst_pwr_en HIGH\n", __func__);
-#endif
 #endif
 
 		cancel_delayed_work_sync(&dwork);
@@ -513,35 +267,6 @@ static void of_mst_hw_onoff(bool on)
 		mutex_lock(&mst_mutex);
 		if (!boost_enable())
 			mst_err("%s: boost enable is failed\n", __func__);
-#endif
-#endif
-
-#if defined(CONFIG_MST_LPM_CONTROL)
-		/* PCIe LPM Disable */
-		mst_info("%s: l1ss disable\n", __func__);
-#if defined(CONFIG_PCI_EXYNOS)
-		exynos_pcie_l1ss_ctrl(0, PCIE_L1SS_CTRL_MST);
-#elif defined(CONFIG_MST_ARCH_QCOM)
-		sec_pcie_l1ss_disable(L1SS_MST);
-#endif
-#endif
-
-#if defined(CONFIG_MST_LPM_DISABLE)
-		/* CPU LPM Disable */
-		if (mst_lpm_tag == 0) {
-			mst_info("%s: pm_qos add\n", __func__);
-			pm_qos_add_request(&mst_pm_qos_request,
-					   PM_QOS_CPU_DMA_LATENCY,
-					   PM_QOS_DEFAULT_VALUE);
-			pm_qos_update_request(&mst_pm_qos_request, 1);
-			mst_info("%s: core online lock enable\n", __func__);
-			core_ctl_set_boost(true);
-			mst_lpm_tag = 1;
-		}
-#endif
-
-#if defined(CONFIG_MST_ARCH_QCOM)
-#if defined(_ARCH_ARM_MACH_MSM_BUS_H) // build error
 		mutex_unlock(&mst_mutex);
 #endif
 #endif
@@ -549,13 +274,8 @@ static void of_mst_hw_onoff(bool on)
 
 #if defined(CONFIG_MFC_CHARGER)
 		while (--retry_cnt) {
-#if defined(CONFIG_MST_V2)
-                        mfc_get_property(&value);
-#else
-			psy_do_property("mfc-charger", get,
-					POWER_SUPPLY_PROP_TECHNOLOGY, value);
-#endif
-			if (value.intval == 0x02) {
+			psy_do_property("mfc-charger", get, POWER_SUPPLY_EXT_PROP_MST_MODE, value);
+			if (value.intval > 0) {
 				mst_info("%s: mst mode set!!! : %d\n", __func__,
 					 value.intval);
 				retry_cnt = 1;
@@ -570,15 +290,19 @@ static void of_mst_hw_onoff(bool on)
 		}
 #endif
 	} else {
-#if defined(CONFIG_MST_REGULATOR)
-		if (regulator3_0) {
-			regulator_disable(regulator3_0);
-			mst_info("%s: regulator 3.0 is disabled\n", __func__);
-		}
-#else
 #if !defined(CONFIG_MST_IF_PMIC)
 		gpio_set_value(mst_pwr_en, 0);
 		mst_info("%s: mst_pwr_en LOW\n", __func__);
+#if defined(CONFIG_MST_PCR)
+		if (mst_pwr_use_uno) {
+			value.intval = OFF;
+			psy_do_property("battery", set,
+					POWER_SUPPLY_EXT_PROP_CHARGE_UNO_CONTROL, value);
+
+			value.intval = 1000;
+			psy_do_property("otg", set,
+					POWER_SUPPLY_EXT_PROP_WIRELESS_TX_IOUT, value);
+		}
 #endif
 #endif
 		usleep_range(800, 1000);
@@ -590,9 +314,9 @@ static void of_mst_hw_onoff(bool on)
 		mst_info("%s: MST_MODE notify : %d\n", __func__,
 			 value.intval);
 
-                value.intval = 0;
-                psy_do_property("mfc-charger", set, POWER_SUPPLY_EXT_PROP_WPC_EN_MST, value);
-                mst_info("%s : MFC_IC Disable notify : %d\n", __func__, value.intval);
+		value.intval = 0;
+		psy_do_property("mfc-charger", set, POWER_SUPPLY_EXT_PROP_WPC_EN_MST, value);
+		mst_info("%s : MFC_IC Disable notify : %d\n", __func__, value.intval);
 #endif
 
 #if defined(CONFIG_MST_ARCH_QCOM)
@@ -602,32 +326,6 @@ static void of_mst_hw_onoff(bool on)
 		mutex_lock(&mst_mutex);
 		if (boost_disable())
 			mst_err("%s: boost disable is failed\n", __func__);
-#endif
-#endif
-
-#if defined(CONFIG_MST_LPM_CONTROL)
-		/* PCIe LPM Enable */
-		mst_info("%s: l1ss enable\n", __func__);
-#if defined(CONFIG_PCI_EXYNOS)
-		exynos_pcie_l1ss_ctrl(1, PCIE_L1SS_CTRL_MST);
-#elif defined(CONFIG_MST_ARCH_QCOM)
-		sec_pcie_l1ss_enable(L1SS_MST);
-#endif
-#endif
-
-#if defined(CONFIG_MST_LPM_DISABLE)
-		/* CPU LPM Enable*/
-		if (mst_lpm_tag) {
-			mst_info("%s: pm_qos remove\n", __func__);
-			pm_qos_remove_request(&mst_pm_qos_request);
-			mst_info("%s: core online lock disable\n", __func__);
-			core_ctl_set_boost(false);
-			mst_lpm_tag = 0;
-		}
-#endif
-
-#if defined(CONFIG_MST_ARCH_QCOM)
-#if defined(_ARCH_ARM_MACH_MSM_BUS_H) // build error
 		mutex_unlock(&mst_mutex);
 #endif
 #endif
@@ -636,7 +334,7 @@ static void of_mst_hw_onoff(bool on)
 
 #if !defined(CONFIG_MST_NONSECURE)
 #if defined(CONFIG_MST_TEEGRIS)
-uint32_t transmit_mst_teegris(uint32_t cmd)
+int transmit_mst_data(uint32_t track_number)
 {
 	TEEC_Context context;
 	TEEC_Session session_ta;
@@ -674,7 +372,7 @@ uint32_t transmit_mst_teegris(uint32_t cmd)
 	/* MST IOCTL - transmit track data */
 	mst_info("tracing mark write: MST transmission Start\n");
 	mst_info("%s: TEEC_InvokeCommand (TRACK1 or TRACK2)\n", __func__);
-	ret = TEEC_InvokeCommand(&session_ta, cmd, &operation, &origin);
+	ret = TEEC_InvokeCommand(&session_ta, track_number + 2, &operation, &origin);
 	if (ret != TEEC_SUCCESS) {
 		mst_err("%s: InvokeCommand failed, %d\n", __func__, ret);
 		goto ta_close_session;
@@ -682,9 +380,9 @@ uint32_t transmit_mst_teegris(uint32_t cmd)
 	mst_info("tracing mark write: MST transmission End\n");
 
 	if (ret) {
-		mst_info("%s: Send track%d data --> failed\n", __func__, cmd-2);
+		mst_info("%s: Send track%d data --> failed\n", __func__, track_number);
 	} else {
-		mst_info("%s: Send track%d data --> success\n", __func__, cmd-2);
+		mst_info("%s: Send track%d data --> success\n", __func__, track_number);
 	}
 
 	mst_info("%s: TEEC_InvokeCommand (CMD_CLOSE)\n", __func__);
@@ -701,38 +399,28 @@ finalize_context:
 exit:
 	return ret;
 }
-#endif
-
-#if defined(CONFIG_MST_ARCH_QCOM)
-/**
- * transmit_mst_data - Transmit test track data
- * @track: 1:track1, 2:track2
- */
-static int transmit_mst_data(int track)
+#elif defined(CONFIG_MST_ARCH_QCOM)
+int transmit_mst_data(int track_num)
 {
 	int ret = 0;
 	int qsee_ret = 0;
 	int retry = 5;
 	bool is_loaded = false;
-	char app_name[MAX_APP_NAME_SIZE];
 	mst_req_t *kreq = NULL;
 	mst_rsp_t *krsp = NULL;
 	int req_len = 0, rsp_len = 0;
-#if IS_BUILTIN(CONFIG_MST_LDO)
 	// Core Affinity
 	struct cpumask cpumask;
 	uint32_t cpu;
-#endif
 
 	if (!mutex_trylock(&transmit_mutex)) {
 		printk("[MST] failed to acquire transmit_mutex!\n");
 		return ERROR_VALUE;
 	}
-	snprintf(app_name, MAX_APP_NAME_SIZE, "%s", MST_TA);
 	if (NULL == qhandle) {
 		while(retry > 0) {
 			/* start the mst tzapp only when it is not loaded. */
-			qsee_ret = qseecom_start_app(&qhandle, app_name, 1024);
+			qsee_ret = qseecom_start_app(&qhandle, MST_TA, 1024);
 			if (qsee_ret == 0) {
 				is_loaded = true;
 				break;
@@ -750,7 +438,7 @@ static int transmit_mst_data(int track)
 
 	kreq = (struct mst_req_s *)qhandle->sbuf;
 
-	switch (track) {
+	switch (track_num) {
 	case TRACK1:
 		kreq->cmd_id = MST_CMD_TRACK1_TEST;
 		break;
@@ -769,7 +457,6 @@ static int transmit_mst_data(int track)
 	krsp = (struct mst_rsp_s *)(qhandle->sbuf + req_len);
 	rsp_len = sizeof(mst_rsp_t);
 
-#if IS_BUILTIN(CONFIG_MST_LDO)
 	// Core Affinity
 	printk("[MST] sched_setaffinity not to run on core0");
 	if (num_online_cpus() < 2) {
@@ -777,15 +464,15 @@ static int transmit_mst_data(int track)
 		for_each_cpu(cpu, &cpumask) {
 		if (cpu == 0)
 			continue;
-		cpu_up(cpu);
+		ADD_CPU(cpu);
 		break;
 		}
 	}
 	cpumask_clear(&cpumask);
 	cpumask_copy(&cpumask, cpu_online_mask);
 	cpumask_clear_cpu(0, &cpumask);
-	sched_setaffinity(0, &cpumask);
-#endif
+
+	SCHED_SETAFFINITY(current, cpumask);
 
 	mst_info("%s: cmd_id = %x, req_len = %d, rsp_len = %d\n", __func__,
 		 kreq->cmd_id, req_len, rsp_len);
@@ -805,9 +492,9 @@ static int transmit_mst_data(int track)
 	}
 
 	if (ret) {
-		mst_info("%s: Send track%d data --> failed\n", __func__, track);
+		mst_info("%s: Send track%d data --> failed\n", __func__, track_num);
 	} else {
-		mst_info("%s: Send track%d data --> success\n", __func__, track);
+		mst_info("%s: Send track%d data --> success\n", __func__, track_num);
 	}
 
 	mst_info("%s: shutting down the tzapp\n", __func__);
@@ -821,8 +508,55 @@ exit:
         mutex_unlock(&transmit_mutex);
 	return ret;
 }
+#else
+int transmit_mst_data(int track_num)
+{
+	int ret = 0;
+#if defined(CONFIG_MST_ARCH_MTK)
+	struct arm_smccc_res res;
+#endif
+
+#if defined(CONFIG_MST_ARCH_EXYNOS)
+	ret = exynos_smc((0x8300000f), track_num, 0, 0);
+#elif defined(CONFIG_MST_ARCH_MTK)
+	arm_smccc_smc(MTK_SIP_KERNEL_MST_TEST_TRANSMIT, track_num, 0, 0, 0, 0, 0, 0, &res);
+	ret = res.a0;
+	mst_debug("%s: result of ATF SMC call for MST transmit(0x%x, %d), ret0 : %lu\n", __func__, MTK_SIP_KERNEL_MST_TEST_TRANSMIT, track_num, res.a0);
+#endif
+	
+	return ret;
+}
 #endif
 #endif
+
+#if !defined(CONFIG_MST_IF_PMIC)
+int init_mst_pwr_en_gpio(struct device *dev)
+{
+	int ret = 0;
+	mst_pwr_en = of_get_named_gpio(dev->of_node, "sec-mst,mst-pwr-gpio", 0);
+	if (mst_pwr_en < 0) {
+		mst_err("%s: fail to get pwr gpio, %d\n", __func__, mst_pwr_en);
+		ret = -1;
+		return ret;
+	}
+
+	ret = gpio_request(mst_pwr_en, "sec-mst,mst-pwr-gpio");
+	if (ret) {
+		mst_err("%s: failed to request pwr gpio, %d, %d\n",
+			__func__, ret, mst_pwr_en);
+	}
+
+	mst_info("%s: gpio pwr en inited. Data_Value_ mst_pwr_en : %d\n", __func__,mst_pwr_en);
+	
+	if (!(ret < 0) && (mst_pwr_en > 0)) {
+		gpio_direction_output(mst_pwr_en, 0);
+		mst_info("%s: mst_pwr_en output\n", __func__);
+	}
+
+	return ret;
+}
+#endif
+
 
 /**
  * show_mst_drv - device attribute show sysfs operation
@@ -833,11 +567,7 @@ static ssize_t show_mst_drv(struct device *dev,
 	if (!dev)
 		return -ENODEV;
 
-	if (escape_loop == 0) {
-		return sprintf(buf, "%s\n", "activating");
-	} else {
-		return sprintf(buf, "%s\n", "waiting");
-	}
+	return sprintf(buf, "%s\n", "waiting");
 }
 
 /**
@@ -849,38 +579,9 @@ static ssize_t store_mst_drv(struct device *dev,
 {
 	char in = 0;
 	int ret = 0;
-#if defined(CONFIG_MST_ARCH_MTK) && !defined(CONFIG_MST_TEEGRIS)
-	struct arm_smccc_res res;
-#endif
-#if defined(CONFIG_MFC_CHARGER)
-	struct device_node *np;
-	enum of_gpio_flags irq_gpio_flags;
-#endif
 
 	sscanf(buf, "%c\n", &in);
 	mst_info("%s: in = %c\n", __func__, in);
-
-#if defined(CONFIG_MFC_CHARGER)
-	if (wpc_det < 0) {
-		np = of_find_node_by_name(NULL, "mfc-charger");
-		if (!np) {
-			mst_err("%s: np NULL\n", __func__);
-		} else {
-			/* wpc_det */
-			wpc_det = of_get_named_gpio_flags(np, "battery,wpc_det",
-							  0, &irq_gpio_flags);
-			if (wpc_det < 0) {
-				mst_err("%s: can't get wpc_det = %d\n",
-					__func__, wpc_det);
-			}
-		}
-	}
-
-	if (wpc_det && (gpio_get_value(wpc_det) == 1)) {
-		mst_info("%s: Wireless charging, no proceed MST\n", __func__);
-		return count;
-	}
-#endif
 
 	switch (in) {
 	case CMD_MST_LDO_OFF:
@@ -896,98 +597,21 @@ static ssize_t store_mst_drv(struct device *dev,
 		of_mst_hw_onoff(ON);
 #endif
 		mst_info("%s: send track1 data\n", __func__);
-#if defined(CONFIG_MST_NONSECURE)
-		ret = transmit_mst_data(TRACK1, mst_en, mst_data, event_lock);
-#elif defined(CONFIG_MST_ARCH_QCOM)
 		ret = transmit_mst_data(TRACK1);
-#elif defined(CONFIG_MST_TEEGRIS) // for EXYNOS and MTK TEEgris
-		ret = transmit_mst_teegris(CMD_TRACK1);
-#else // for Kinibi
-#if defined(CONFIG_MST_ARCH_EXYNOS)
-		ret = exynos_smc((0x8300000f), TRACK1, 0, 0);
-#elif defined(CONFIG_MST_ARCH_MTK)
-		arm_smccc_smc(MTK_SIP_KERNEL_MST_TEST_TRANSMIT, 1, 0, 0, 0, 0, 0, 0, &res);
-		mst_debug("%s: result of ATF SMC call for MST transmit(0x%x, %d), ret0 : %lu\n", __func__, MTK_SIP_KERNEL_MST_TEST_TRANSMIT, 1, res.a0);
-#endif
-#endif
 #if !defined(CONFIG_MFC_CHARGER)
-		of_mst_hw_onoff(0);
+		of_mst_hw_onoff(OFF);
 #endif
 		break;
 
 	case CMD_SEND_TRACK2_DATA:
 #if !defined(CONFIG_MFC_CHARGER)
-		of_mst_hw_onoff(1);
+		of_mst_hw_onoff(ON);
 #endif
 		mst_info("%s: send track2 data\n", __func__);
-#if defined(CONFIG_MST_NONSECURE)
-		ret = transmit_mst_data(TRACK2, mst_en, mst_data, event_lock);
-#elif defined(CONFIG_MST_ARCH_QCOM)
 		ret = transmit_mst_data(TRACK2);
-#elif defined(CONFIG_MST_TEEGRIS) // for EXYNOS and MTK TEEgris
-		ret = transmit_mst_teegris(CMD_TRACK2);
-#else // for Kinibi
-#if defined(CONFIG_MST_ARCH_EXYNOS)
-		ret = exynos_smc((0x8300000f), TRACK2, 0, 0);
-#elif defined(CONFIG_MST_ARCH_MTK)
-		arm_smccc_smc(MTK_SIP_KERNEL_MST_TEST_TRANSMIT, 2, 0, 0, 0, 0, 0, 0, &res);
-		mst_debug("%s: result of ATF SMC call for MST transmit(0x%x, %d), ret0 : %lu\n", __func__, MTK_SIP_KERNEL_MST_TEST_TRANSMIT, 2, res.a0);
-#endif
-#endif
 #if !defined(CONFIG_MFC_CHARGER)
-		of_mst_hw_onoff(0);
+		of_mst_hw_onoff(OFF);
 #endif
-		break;
-
-	case CMD_HW_RELIABILITY_TEST_START:
-		if (escape_loop) {
-#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 0)
-			wakeup_source_init(mst_ws, "mst_wakelock"); // 4.19 R
-			if (!(mst_ws)) {
-				mst_ws = wakeup_source_create("mst_wakelock"); // 4.19 Q
-				if (mst_ws)
-					wakeup_source_add(mst_ws);
-			}
-#else
-			mst_ws = wakeup_source_register(dev, "mst_wakelock"); // 5.4 R
-#endif
-			__pm_stay_awake(mst_ws);
-		}
-		escape_loop = 0;
-		while (1) {
-			if (escape_loop == 1)
-				break;
-#if !defined(CONFIG_MFC_CHARGER)
-			of_mst_hw_onoff(1);
-#endif
-			msleep(10);
-			mst_info("%s: Continuous track2 data\n", __func__);
-#if defined(CONFIG_MST_NONSECURE)
-			ret = transmit_mst_data(TRACK2, mst_en, mst_data, event_lock);
-#elif defined(CONFIG_MST_ARCH_QCOM)
-			ret = transmit_mst_data(TRACK2);
-#elif defined(CONFIG_MST_TEEGRIS) // for EXYNOS and MTK TEEgris
-			ret = transmit_mst_teegris(CMD_TRACK2);
-#else // for Kinibi
-#if defined(CONFIG_MST_ARCH_EXYNOS)
-			ret = exynos_smc((0x8300000f), TRACK2, 0, 0);
-#elif defined(CONFIG_MST_ARCH_MTK)
-			arm_smccc_smc(MTK_SIP_KERNEL_MST_TEST_TRANSMIT, 2, 0, 0, 0, 0, 0, 0, &res);
-			mst_debug("%s: result of ATF SMC call for MST transmit(0x%x, %d), ret0 : %lu\n", __func__, MTK_SIP_KERNEL_MST_TEST_TRANSMIT, 2, res.a0);
-#endif
-#endif
-#if !defined(CONFIG_MFC_CHARGER)
-			of_mst_hw_onoff(0);
-#endif
-			msleep(1000);
-		}
-		break;
-
-	case CMD_HW_RELIABILITY_TEST_STOP:
-		if (!escape_loop)
-			wakeup_source_unregister(mst_ws);
-		escape_loop = 1;
-		mst_info("%s: escape_loop value = %d\n", __func__, escape_loop);
 		break;
 
 	default:
@@ -1034,87 +658,6 @@ static DEVICE_ATTR(support, 0444, show_support, store_support);
 
 /* mfc_charger node */
 #if defined(CONFIG_MFC_CHARGER)
-static int mfc_get_property(union power_supply_propval *val) {
-        struct power_supply *psy;
-        struct mfc_charger_data *charger;
-        u8 mst_mode, reg_data;
-
-        psy = get_power_supply_by_name("mfc-charger");
-        charger = power_supply_get_drvdata(psy);
-        if (charger == NULL) {
-                pr_err("%s cannot get charger drvdata!\n", __func__);
-                return -1;
-        }
-
-        val->intval = mfc_reg_read(charger->client, MFC_MST_MODE_SEL_REG, &mst_mode);
-        if (val->intval < 0) {
-                pr_info("%s mst mode(0x2) i2c write failed, val->intval = %d\n",
-                                __func__, val->intval);
-                return -ENODATA;
-        }
-
-        val->intval = mfc_reg_read(charger->client, MFC_SYS_OP_MODE_REG, &reg_data);
-        if (val->intval < 0) {
-                pr_info("%s mst mode change irq(0x4) read failed, val->intval = %d\n",
-                                __func__, val->intval);
-                return -ENODATA;
-        }
-        reg_data &= 0x0C; /* use only [3:2]bit of sys_op_mode register for MST */
-
-        pr_info("%s mst mode check: mst_mode = %d, reg_data = %d\n",
-                        __func__, mst_mode, reg_data);
-        val->intval = 0;
-        if (reg_data == 0x4)
-                val->intval = mst_mode;
-
-        return 0;
-}
-
-static int mfc_get_chip_id()
-{
-	u8 chip_id = 0;
-	int retry_cnt = 3;
-	int ret = 0;
-	struct power_supply *psy = NULL;
-	struct mfc_charger_data *charger = NULL;
-
-	while (retry_cnt-- > 0) {
-		msleep(30);
-		
-		psy = get_power_supply_by_name("mfc-charger");
-		if (psy == NULL) {
-			pr_err("%s cannot get power supply!\n", __func__);
-			continue;
-		}
-
-		charger = power_supply_get_drvdata(psy);
-		if (charger == NULL) {
-			pr_err("%s cannot get charger drvdata!\n", __func__);
-			continue;
-		} else {
-			pr_info("%s success get charger drvdata!\n", __func__);
-			break;
-		}
-	}
-	if (charger == NULL) {
-		pr_info("%s : failed to get MFC IC chip ID !!!\n", __func__);
-		return -1;
-	}
-
-	ret = mfc_reg_read(charger->client, MFC_CHIP_ID_L_REG, &chip_id);
-	if (ret >= 0) {
-		if (chip_id == MFC_CHIP_ID_S2MIW04) {
-			ret = MFC_CHIP_ID_LSI;
-			pr_info("%s: MFC IC chip vendor is LSI(0x%x)\n", __func__, chip_id);
-		} else { /* 0x20 */
-			ret = MFC_CHIP_ID_IDT;
-			pr_info("%s: MFC IC chip vendor is IDT(0x%x)\n", __func__, chip_id);
-		}
-	} else
-		return -1;
-	return ret;
-}
-
 static ssize_t show_mfc(struct device *dev,
 			struct device_attribute *attr, char *buf)
 {
@@ -1131,120 +674,6 @@ static ssize_t store_mfc(struct device *dev,
 	return count;
 }
 static DEVICE_ATTR(mfc, 0770, show_mfc, store_mfc);
-
-#if defined(CONFIG_MST_V2)
-static int sec_mst_chip_vendor_init() {
-	int ret = -1;
-#if 0
-	union power_supply_propval value;        /* power_supply prop */
-	struct device_node *np;
-	enum of_gpio_flags irq_gpio_flags;
-
-	/* get wireless chraging check gpio */
-	np = of_find_node_by_name(NULL, "mfc-charger");
-	if (!np) {
-		mst_err("%s: np NULL\n", __func__);
-	} else {
-		/* wpc_det */
-		wpc_det = of_get_named_gpio_flags(np, "battery,wpc_det",
-						  0, &irq_gpio_flags);
-		if (wpc_det < 0) {
-			mst_err("%s: can't get wpc_det = %d\n",
-				__func__, wpc_det);
-		}
-	}
-
-	if (wpc_det && (gpio_get_value(wpc_det) != 1)) {
-		mst_info("%s: Not wireless charging! MFC IC Enable notify start.\n", __func__);
-		value.intval = 1;
-		psy_do_property("mfc-charger", set, POWER_SUPPLY_EXT_PROP_WPC_EN_MST, value);
-
-		mst_info("%s: Set mst-pwr-en to HIGH\n", __func__);
-		gpio_set_value(mst_pwr_en, 1);
-	}
-	msleep(30);
-#endif
-	ret = mfc_get_chip_id();
-	if (ret == -1) {
-		mst_err("%s : failed to read sec-mst,mfc-ic-chip-vendor. set wait time to default\n", __func__);
-	} else {
-		if (ret == MFC_CHIP_ID_LSI) {
-			mode_set_wait = 100;
-			idt_i2c_command = 0;
-		} else if (ret == MFC_CHIP_ID_IDT) {
-			idt_i2c_command = 1; // apply additional i2c command to IDT ic chip
-		}
-		mst_info("%s : set wait time after mst-pwr-en HIGH to %u, i2c command for IDT %d\n", __func__, mode_set_wait, idt_i2c_command);
-	}
-
-#if 0
-	if (wpc_det && (gpio_get_value(wpc_det) != 1)) {
-		mst_info("%s: Not wireless charging, set mst-pwr-en to LOW\n", __func__);
-		gpio_set_value(mst_pwr_en, 0);
-
-		value.intval = 0;
-		psy_do_property("mfc-charger", set, POWER_SUPPLY_EXT_PROP_WPC_EN_MST, value);
-		mst_info("%s : MFC_IC Disable notify : %d\n", __func__, value.intval);
-	}
-#endif
-	return ret;
-}
-
-int mfc_send_mst_cmd(int cmd, struct mfc_charger_data *charger, u8 irq_src_l, u8 irq_src_h) {
-        u8 sBuf[2] = {0, };
-        pr_info("%s: (called by %ps)\n", __func__,  __builtin_return_address(0));
-
-        switch(cmd) {
-        case MST_MODE_ON:
-                /* clear intterupt */
-                mfc_reg_write(charger->client, MFC_INT_A_CLEAR_L_REG, irq_src_l); // clear int
-                mfc_reg_write(charger->client, MFC_INT_A_CLEAR_H_REG, irq_src_h); // clear int
-                mfc_set_cmd_l_reg(charger, 0x20, MFC_CMD_CLEAR_INT_MASK); // command
-
-                if (idt_i2c_command == 1) {
-                    pr_info("%s: Execute i2c command for LDO\n", __func__);
-                    mfc_reg_write(charger->client, MFC_MST_LDO_CONFIG_1, 0xA5); /* MST LDO config 1 */
-                    mfc_reg_write(charger->client, MFC_MST_LDO_CONFIG_2, 0x03); /* MST LDO config 2 */
-                    mfc_reg_write(charger->client, MFC_MST_LDO_CONFIG_3, 0x14); /* MST LDO config 3 */
-                    mfc_reg_write(charger->client, MFC_MST_LDO_CONFIG_4, 0x0A); /* MST LDO config 4 */
-                    mfc_reg_write(charger->client, MFC_MST_LDO_CONFIG_5, 0x02); /* MST LDO config 5 */
-                    /* MST LDO config 6 */
-                    sBuf[0] = 0xFF;
-                    sBuf[1] = 0x01;
-                    mfc_reg_multi_write(charger->client, MFC_MST_LDO_CONFIG_6, sBuf, sizeof(sBuf));
-                    mfc_reg_write(charger->client, MFC_MST_LDO_TURN_ON, 0x08); /* MST LDO config 7 */
-                    mfc_reg_write(charger->client, MFC_MST_LDO_TURN_ON, 0x09); /* MST LDO turn on */
-                    msleep(10);
-                    mfc_reg_write(charger->client, MFC_MST_MODE_SEL_REG, 0x02); /* set MST mode2 */
-                    mfc_reg_write(charger->client, MFC_MST_LDO_CONFIG_8, 0x08); /* MST LDO config 8 */
-                    mfc_reg_write(charger->client, MFC_MST_OVER_TEMP_INT, 0x04); /* Enable Over temperature INT */
-                } else {
-                    mfc_reg_write(charger->client, MFC_MST_MODE_SEL_REG, 0x02); /* set MST mode2 */
-                }
-                pr_info("%s 2AC Missing ! : MST on REV : %d\n", __func__, charger->pdata->wc_ic_rev);
-    
-                /* clear intterupt */
-                mfc_reg_write(charger->client, MFC_INT_A_CLEAR_L_REG, irq_src_l); // clear int
-                mfc_reg_write(charger->client, MFC_INT_A_CLEAR_H_REG, irq_src_h); // clear int
-                mfc_set_cmd_l_reg(charger, 0x20, MFC_CMD_CLEAR_INT_MASK); // command
-    
-                msleep(10);
-                break;
-        case MST_MODE_OFF:
-                if (idt_i2c_command == 1) {
-                    mfc_reg_write(charger->client, MFC_MST_MODE_SEL_REG, 0x00); /* Exit MST mode */
-                    mfc_reg_write(charger->client, MFC_MST_LDO_CONFIG_1, 0x00); /* MST LDO config 7 */
-                }
-                pr_info("%s: set MST mode off\n", __func__);
-                break;
-        default:
-                break;
-        }
-
-        return 0;
-}
-EXPORT_SYMBOL(mfc_send_mst_cmd);
-#endif
 #endif
 
 /**
@@ -1253,93 +682,31 @@ EXPORT_SYMBOL(mfc_send_mst_cmd);
  */
 static int sec_mst_gpio_init(struct device *dev)
 {
-#if defined(CONFIG_MST_NONSECURE) || (!defined(CONFIG_MST_IF_PMIC) && !defined(CONFIG_MST_REGULATOR))
 	int ret = 0;
-#endif
-
-#if defined(CONFIG_MST_REGULATOR)
-	regulator3_0 = regulator_get(NULL, "pm6150l_l7");
-	if (regulator3_0 == NULL) {
-		mst_err("%s: regulator3_0 invalid(NULL)\n", __func__);
-	}
-#else
 #if !defined(CONFIG_MST_IF_PMIC)
-	mst_pwr_en = of_get_named_gpio(dev->of_node, "sec-mst,mst-pwr-gpio", 0);
-
-	mst_info("%s: Data Value : %d\n", __func__, mst_pwr_en);
-
-	/* check if gpio pin is inited */
-	if (mst_pwr_en < 0) {
-		mst_err("%s: fail to get pwr gpio, %d\n", __func__, mst_pwr_en);
-		return 1;
-	}
-	mst_info("%s: gpio pwr inited\n", __func__);
-
-	/* gpio request */
-	ret = gpio_request(mst_pwr_en, "sec-mst,mst-pwr-gpio");
-	if (ret) {
-		mst_err("%s: failed to request pwr gpio, %d, %d\n",
-			__func__, ret, mst_pwr_en);
-	}
-
-	/* set gpio direction */
-	if (!(ret < 0) && (mst_pwr_en > 0)) {
-		gpio_direction_output(mst_pwr_en, 0);
-		mst_info("%s: mst_pwr_en output\n", __func__);
-	}
-#endif
+	ret = init_mst_pwr_en_gpio(dev);
+	if (ret != 0)
+		return ret;
 #endif
 
 #if defined(CONFIG_MST_NONSECURE)
-	mst_en = of_get_named_gpio(dev->of_node, "sec-mst,mst-en-gpio", 0);
-	mst_data = of_get_named_gpio(dev->of_node, "sec-mst,mst-data-gpio", 0);
-	mst_info("%s: Data Value mst_en : %d, mst_data : %d\n",
-		 __func__, mst_en, mst_data);
-
-	/* check if gpio pin is available */
-	if (mst_en < 0) {
-		mst_err("%s: fail to get en gpio, %d\n", __func__, mst_en);
-		return 1;
-	}
-	mst_info("%s: gpio en inited\n", __func__);
-
-	if (mst_data < 0) {
-		mst_err("%s: fail to get data gpio, %d\n", __func__, mst_data);
-		return 1;
-	}
-	mst_info("%s: gpio data inited\n", __func__);
-
-	/* gpio request */
-	ret = gpio_request(mst_en, "sec-mst,mst-en-gpio");
-	if (ret) {
-		mst_err("%s: failed to request en gpio, %d, %d\n",
-			__func__, ret, mst_en);
-	}
-
-	ret = gpio_request(mst_data, "sec-mst,mst-data-gpio");
-	if (ret) {
-		mst_err("%s: failed to request data gpio, %d, %d\n",
-			__func__, ret, mst_data);
-	}
-
-	/* set gpio direction */
-	if (!(ret < 0) && (mst_en > 0)) {
-		gpio_direction_output(mst_en, 0);
-		mst_info("%s: mst_en output\n", __func__);
-	}
-	if (!(ret < 0)  && (mst_data > 0)) {
-		gpio_direction_output(mst_data, 0);
-		mst_info("%s: mst_data output\n", __func__);
-	}
+	ret = init_mst_en_gpio(dev);
+	if (ret != 0)
+		return ret;
+	ret = init_mst_data_gpio(dev);
+	if (ret != 0)
+		return ret;
 #endif
-	return 0;
+	return ret;
 }
 
 static int mst_ldo_device_probe(struct platform_device *pdev)
 {
 	int retval = 0;
-#if defined(CONFIG_MST_SUPPORT_GPIO)
+#if defined(CONFIG_MST_SUPPORT_GPIO) || defined(CONFIG_MST_PCR)
 	struct device *dev = &pdev->dev;
+#endif
+#if defined(CONFIG_MST_SUPPORT_GPIO)
 	uint8_t is_mst_support = 0;
 #endif
 
@@ -1385,8 +752,18 @@ static int mst_ldo_device_probe(struct platform_device *pdev)
 		return -1;
 	}
 #endif
+
+#if defined(CONFIG_MST_PCR)
+	mst_pwr_use_uno = of_property_read_bool(dev->of_node, "sec-mst,mst-use-uno-power");
+	if (mst_pwr_use_uno) {
+		mst_info("%s: support UNO for mst power\n", __func__);
+	} else {
+		mst_info("%s: Not support UNO. use VPH_PWR\n", __func__);
+	}
+#endif
+
 #if defined(CONFIG_MST_NONSECURE)
-	spin_lock_init(&event_lock);
+	init_spin_lock();
 #endif
 
 	if (sec_mst_gpio_init(&pdev->dev))
@@ -1443,22 +820,6 @@ static int mst_ldo_device_suspend(struct platform_device *dev,
 {
 #if !defined(CONFIG_MST_IF_PMIC)
 	uint8_t is_mst_pwr_on;
-#endif
-#if defined(CONFIG_MST_REGULATOR)
-	if (regulator3_0) {
-		is_mst_pwr_on = regulator_is_enabled(regulator3_0);
-		if (is_mst_pwr_on > 0) {
-			mst_info("%s: mst regulator is on, %d\n",
-				 __func__, is_mst_pwr_on);
-			of_mst_hw_onoff(OFF);
-			mst_info("%s: mst regulator off\n", __func__);
-		} else {
-			mst_info("%s: mst regulator is off, %d\n",
-				 __func__, is_mst_pwr_on);
-		}
-	}
-#else
-#if !defined(CONFIG_MST_IF_PMIC)
 	is_mst_pwr_on = gpio_get_value(mst_pwr_en);
 	if (is_mst_pwr_on == 1) {
 		mst_info("%s: mst power is on, %d\n", __func__, is_mst_pwr_on);
@@ -1467,7 +828,6 @@ static int mst_ldo_device_suspend(struct platform_device *dev,
 	} else {
 		mst_info("%s: mst power is off, %d\n", __func__, is_mst_pwr_on);
 	}
-#endif
 #endif
 	return 0;
 }
@@ -1494,22 +854,6 @@ static void mst_cluster_freq_ctrl_worker(struct work_struct *work)
 {
 #if !defined(CONFIG_MST_IF_PMIC)
 	uint8_t is_mst_pwr_on;
-#endif
-#if defined(CONFIG_MST_REGULATOR)
-	if (regulator3_0) {
-		is_mst_pwr_on = regulator_is_enabled(regulator3_0);
-		if (is_mst_pwr_on > 0) {
-			mst_info("%s: mst regulator is on, %d\n",
-				 __func__, is_mst_pwr_on);
-			of_mst_hw_onoff(OFF);
-			mst_info("%s: mst regulator off\n", __func__);
-		} else {
-			mst_info("%s: mst regulator is off, %d\n",
-				 __func__, is_mst_pwr_on);
-		}
-	}
-#else
-#if !defined(CONFIG_MST_IF_PMIC)
 	is_mst_pwr_on = gpio_get_value(mst_pwr_en);
 	if (is_mst_pwr_on == 1) {
 		mst_info("%s: mst power is on, %d\n", __func__, is_mst_pwr_on);
@@ -1519,17 +863,17 @@ static void mst_cluster_freq_ctrl_worker(struct work_struct *work)
 		mst_info("%s: mst power is off, %d\n", __func__, is_mst_pwr_on);
 	}
 #endif
-#endif
 	return;
 }
 
+#endif
 /**
  * mst_drv_init - Driver init function
  */
 static int __init mst_drv_init(void)
 {
 	int ret = 0;
-
+#if !defined(CONFIG_MST_DUMMY_DRV)
 	mst_info("%s\n", __func__);
 	ret = platform_driver_register(&sec_mst_ldo_driver);
 	mst_info("%s: init , ret : %d\n", __func__, ret);
@@ -1537,7 +881,9 @@ static int __init mst_drv_init(void)
 	cluster_freq_ctrl_wq =
 		create_singlethread_workqueue("mst_cluster_freq_ctrl_wq");
 	INIT_DELAYED_WORK(&dwork, mst_cluster_freq_ctrl_worker);
-
+#else
+	mst_info("%s: create dummy driver\n", __func__);
+#endif
 	return ret;
 }
 
@@ -1546,12 +892,13 @@ static int __init mst_drv_init(void)
  */
 static void __exit mst_drv_exit(void)
 {
+#if !defined(CONFIG_MST_DUMMY_DRV)
 	class_destroy(mst_drv_class);
-#if defined(CONFIG_MST_REGULATOR)
-	if (regulator3_0)
-		regulator_put(regulator3_0);
-#endif
 	mst_info("%s\n", __func__);
+#else
+	mst_info("%s: destroy dummy driver\n", __func__);
+#endif
+
 }
 
 MODULE_AUTHOR("yurak.choe@samsung.com");

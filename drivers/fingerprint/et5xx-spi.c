@@ -39,7 +39,6 @@ static DEFINE_MUTEX(device_list_lock);
 
 struct debug_logger *g_logger;
 static DECLARE_WAIT_QUEUE_HEAD(interrupt_waitq);
-static unsigned int bufsiz = 1024;
 
 static irqreturn_t et5xx_fingerprint_interrupt(int irq, void *dev_id)
 {
@@ -117,6 +116,7 @@ int et5xx_Interrupt_Free(struct et5xx_data *etspi)
 
 void et5xx_Interrupt_Abort(struct et5xx_data *etspi)
 {
+	etspi->finger_on = 1;
 	wake_up_interruptible(&interrupt_waitq);
 }
 
@@ -178,6 +178,7 @@ static void et5xx_pin_control(struct et5xx_data *etspi,
 static void et5xx_power_set(struct et5xx_data *etspi, int status)
 {
 	int rc = 0;
+
 	if (etspi->ldo_pin) {
 		pr_info("ldo\n");
 		if (status == 1) {
@@ -363,9 +364,8 @@ static long et5xx_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 		pr_debug("etspi FP_REGISTER_READ\n");
 
 		retval = et5xx_io_read_register(etspi, address, result);
-		if (retval < 0)	{
+		if (retval < 0)
 			pr_err("FP_REGISTER_READ error retval = %d\n", retval);
-		}
 		break;
 
 	/*
@@ -377,110 +377,85 @@ static long et5xx_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 		pr_debug("FP_REGISTER_WRITE\n");
 
 		retval = et5xx_io_write_register(etspi, buf);
-		if (retval < 0) {
+		if (retval < 0)
 			pr_err("FP_REGISTER_WRITE error retval = %d\n", retval);
-		}
 		break;
-	case FP_REGISTER_MREAD:
-		address = ioc->tx_buf;
-		result = ioc->rx_buf;
-		pr_debug("FP_REGISTER_MREAD\n");
-		retval = et5xx_io_read_registerex(etspi, address, result, ioc->len);
-		if (retval < 0) {
-			pr_err("FP_REGISTER_MREAD error retval = %d\n", retval);
-		}
-		break;
+
 	case FP_REGISTER_BREAD:
 		pr_debug("FP_REGISTER_BREAD\n");
 		retval = et5xx_io_burst_read_register(etspi, ioc);
-		if (retval < 0) {
+		if (retval < 0)
 			pr_err("FP_REGISTER_BREAD error retval = %d\n", retval);
-		}
 		break;
+
 	case FP_REGISTER_BWRITE:
 		pr_debug("FP_REGISTER_BWRITE\n");
 		retval = et5xx_io_burst_write_register(etspi, ioc);
-		if (retval < 0) {
+		if (retval < 0)
 			pr_err("FP_REGISTER_BWRITE error retval = %d\n", retval);
-		}
 		break;
+
 	case FP_REGISTER_BREAD_BACKWARD:
 		pr_debug("FP_REGISTER_BREAD_BACKWARD\n");
 		retval = et5xx_io_burst_read_register_backward(etspi, ioc);
-		if (retval < 0) {
+		if (retval < 0)
 			pr_err("FP_REGISTER_BREAD_BACKWARD error retval = %d\n", retval);
-		}
 		break;
+
 	case FP_REGISTER_BWRITE_BACKWARD:
 		pr_debug("FP_REGISTER_BWRITE_BACKWARD\n");
 		retval = et5xx_io_burst_write_register_backward(etspi, ioc);
-		if (retval < 0) {
+		if (retval < 0)
 			pr_err("FP_REGISTER_BWRITE_BACKWARD error retval = %d\n", retval);
-		}
 		break;
+
 	case FP_NVM_READ:
 		pr_debug("FP_NVM_READ, (%d)\n", etspi->clk_setting->spi_speed);
 		retval = et5xx_io_nvm_read(etspi, ioc);
-		if (retval < 0) {
+		if (retval < 0)
 			pr_err("FP_NVM_READ error retval = %d\n", retval);
-		}
 		retval = et5xx_io_nvm_off(etspi, ioc);
-		if (retval < 0) {
+		if (retval < 0)
 			pr_err("FP_NVM_OFF error retval = %d\n", retval);
-		} else {
+		else
 			pr_debug("FP_NVM_OFF\n");
-		}
 		break;
+
 	case FP_NVM_WRITE:
 		pr_debug("FP_NVM_WRITE, (%d)\n", etspi->clk_setting->spi_speed);
 		retval = et5xx_io_nvm_write(etspi, ioc);
-		if (retval < 0) {
+		if (retval < 0)
 			pr_err("FP_NVM_WRITE error retval = %d\n", retval);
-		}
 		retval = et5xx_io_nvm_off(etspi, ioc);
-		if (retval < 0) {
+		if (retval < 0)
 			pr_err("FP_NVM_OFF error retval = %d\n", retval);
-		} else {
+		else
 			pr_debug("FP_NVM_OFF\n");
-		}
 		break;
-	case FP_NVM_WRITEEX:
-		pr_debug("FP_NVM_WRITEEX, (%d)\n", etspi->clk_setting->spi_speed);
-		retval = et5xx_io_nvm_writeex(etspi, ioc);
-		if (retval < 0) {
-			pr_err("FP_NVM_WRITEEX error retval = %d\n", retval);
-		}
-		retval = et5xx_io_nvm_off(etspi, ioc);
-		if (retval < 0) {
-			pr_err("FP_NVM_OFF error retval = %d\n", retval);
-		} else {
-			pr_debug("FP_NVM_OFF\n");
-		}
-		break;
+
 	case FP_NVM_OFF:
 		pr_debug("FP_NVM_OFF\n");
 		retval = et5xx_io_nvm_off(etspi, ioc);
-		if (retval < 0) {
+		if (retval < 0)
 			pr_err("FP_NVM_OFF error retval = %d\n", retval);
-		}
 		break;
+
 	case FP_VDM_READ:
 		pr_debug("FP_VDM_READ\n");
 		retval = et5xx_io_vdm_read(etspi, ioc);
-		if (retval < 0) {
+		if (retval < 0)
 			pr_err("FP_VDM_READ error retval = %d\n", retval);
-		} else {
+		else
 			pr_debug("FP_VDM_READ finished.\n");
-		}
 		break;
+
 	case FP_VDM_WRITE:
 		pr_debug("FP_VDM_WRITE\n");
 		retval = et5xx_io_vdm_write(etspi, ioc);
-		if (retval < 0) {
+		if (retval < 0)
 			pr_err("FP_VDM_WRITE error retval = %d\n", retval);
-		} else {
+		else
 			pr_debug("FP_VDM_WRTIE finished.\n");
-		}
 		break;
 	/*
 	 * Get one frame data from sensor
@@ -490,9 +465,8 @@ static long et5xx_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 		pr_debug("FP_GET_ONE_IMG\n");
 
 		retval = et5xx_io_get_frame(etspi, fr, ioc->len);
-		if (retval < 0) {
+		if (retval < 0)
 			pr_err("FP_GET_ONE_IMG error retval = %d\n", retval);
-		}
 		break;
 
 	case FP_SENSOR_RESET:
@@ -573,7 +547,7 @@ static long et5xx_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 
 	case FP_SPI_VALUE:
 		etspi->spi_value = ioc->len;
-		pr_info("spi_value: 0x%x\n",etspi->spi_value);
+		pr_info("spi_value: 0x%x\n", etspi->spi_value);
 			break;
 	case FP_IOCTL_RESERVED_01:
 	case FP_IOCTL_RESERVED_02:
@@ -723,7 +697,7 @@ int et5xx_platformInit(struct et5xx_data *etspi)
 		goto et5xx_platformInit_default_failed;
 	}
 
-#if KERNEL_VERSION(5, 4, 0) > LINUX_VERSION_CODE
+#if KERNEL_VERSION(4, 19, 188) > LINUX_VERSION_CODE
 	/* 4.19 R */
 	wakeup_source_init(etspi->fp_signal_lock, "et5xx_sigwake_lock");
 	/* 4.19 Q */
@@ -827,9 +801,8 @@ static int et5xx_parse_dt(struct device *dev, struct et5xx_data *etspi)
 			pr_info("fail to get regulator_3p3\n");
 			etspi->regulator_3p3 = NULL;
 			return -EINVAL;
-		} else {
-			pr_info("btp_regulator ok\n");
 		}
+		pr_info("btp_regulator ok\n");
 	}
 
 	if (of_property_read_u32(np, "etspi-min_cpufreq_limit",
@@ -838,7 +811,7 @@ static int et5xx_parse_dt(struct device *dev, struct et5xx_data *etspi)
 
 	if (of_property_read_string_index(np, "etspi-chipid", 0,
 			(const char **)&etspi->chipid)) {
-		etspi->chipid = NULL;
+		etspi->chipid = "NULL";
 	}
 	pr_info("chipid: %s\n", etspi->chipid);
 
@@ -937,27 +910,27 @@ static int et5xx_type_check(struct et5xx_data *etspi)
 	 */
 
 	if ((buf1 == 0x00) && (buf2 == 0x10) && (buf3 == 0x05)) {
-		etspi->sensortype = SENSOR_EGIS;
+		etspi->sensortype = SENSOR_OK;
 		pr_info("sensor type is EGIS ET516A sensor\n");
 	} else if ((buf1 == 0x03) && (buf2 == 0x0A) && (buf3 == 0x05)) {
-		etspi->sensortype = SENSOR_EGIS;
+		etspi->sensortype = SENSOR_OK;
 		pr_info("sensor type is EGIS ET510D sensor\n");
 	} else if ((buf1 == 0x03) && (buf2 == 0x14) && (buf3 == 0x05)) {
-		etspi->sensortype = SENSOR_EGIS;
+		etspi->sensortype = SENSOR_OK;
 		pr_info("sensor type is EGIS ET520 sensor\n");
 	} else if ((buf1 == 0x04) && (buf2 == 0x14) && (buf3 == 0x05)) {
-		etspi->sensortype = SENSOR_EGIS;
+		etspi->sensortype = SENSOR_OK;
 		pr_info("sensor type is EGIS ET520E sensor\n");
 	} else if ((buf1 == 0x00) && (buf2 == 0x17) && (buf3 == 0x05)) {
-		etspi->sensortype = SENSOR_EGIS;
+		etspi->sensortype = SENSOR_OK;
 		pr_info("sensor type is EGIS ET523 sensor\n");
 	} else if ((buf2 == 0x1C) && (buf3 == 0x05)) {
-		etspi->sensortype = SENSOR_EGIS;
+		etspi->sensortype = SENSOR_OK;
 		pr_info("sensor type is EGIS ET528 sensor\n");
 	} else {
 		if ((buf4 == 0x00) && (buf5 == 0x66)
 				&& (buf6 == 0x00) && (buf7 == 0x33)) {
-			etspi->sensortype = SENSOR_EGIS;
+			etspi->sensortype = SENSOR_OK;
 			pr_info("sensor type is EGIS ET510C sensor\n");
 		} else {
 			etspi->sensortype = SENSOR_FAILED;
@@ -969,7 +942,7 @@ static int et5xx_type_check(struct et5xx_data *etspi)
 }
 #endif
 
-static ssize_t et5xx_bfs_values_show(struct device *dev,
+static ssize_t bfs_values_show(struct device *dev,
 				      struct device_attribute *attr, char *buf)
 {
 	struct et5xx_data *etspi = dev_get_drvdata(dev);
@@ -978,7 +951,7 @@ static ssize_t et5xx_bfs_values_show(struct device *dev,
 			etspi->clk_setting->spi_speed);
 }
 
-static ssize_t et5xx_type_check_show(struct device *dev,
+static ssize_t type_check_show(struct device *dev,
 				struct device_attribute *attr, char *buf)
 {
 	struct et5xx_data *etspi = dev_get_drvdata(dev);
@@ -997,13 +970,13 @@ static ssize_t et5xx_type_check_show(struct device *dev,
 	return snprintf(buf, PAGE_SIZE, "%d\n", etspi->sensortype);
 }
 
-static ssize_t et5xx_vendor_show(struct device *dev,
+static ssize_t vendor_show(struct device *dev,
 	struct device_attribute *attr, char *buf)
 {
 	return snprintf(buf, PAGE_SIZE, "%s\n", VENDOR);
 }
 
-static ssize_t et5xx_name_show(struct device *dev,
+static ssize_t name_show(struct device *dev,
 	struct device_attribute *attr, char *buf)
 {
 	struct et5xx_data *etspi = dev_get_drvdata(dev);
@@ -1011,13 +984,13 @@ static ssize_t et5xx_name_show(struct device *dev,
 	return snprintf(buf, PAGE_SIZE, "%s\n", etspi->chipid);
 }
 
-static ssize_t et5xx_adm_show(struct device *dev,
+static ssize_t adm_show(struct device *dev,
 	struct device_attribute *attr, char *buf)
 {
 	return snprintf(buf, PAGE_SIZE, "%d\n", DETECT_ADM);
 }
 
-static ssize_t et5xx_intcnt_show(struct device *dev,
+static ssize_t intcnt_show(struct device *dev,
 			       struct device_attribute *attr, char *buf)
 {
 	struct et5xx_data *etspi = dev_get_drvdata(dev);
@@ -1025,7 +998,7 @@ static ssize_t et5xx_intcnt_show(struct device *dev,
 	return snprintf(buf, PAGE_SIZE, "%d\n", etspi->interrupt_count);
 }
 
-static ssize_t et5xx_intcnt_store(struct device *dev,
+static ssize_t intcnt_store(struct device *dev,
 				struct device_attribute *attr, const char *buf,
 				size_t size)
 {
@@ -1038,14 +1011,15 @@ static ssize_t et5xx_intcnt_store(struct device *dev,
 	return size;
 }
 
-static ssize_t et5xx_resetcnt_show(struct device *dev,
+static ssize_t resetcnt_show(struct device *dev,
 			       struct device_attribute *attr, char *buf)
 {
 	struct et5xx_data *etspi = dev_get_drvdata(dev);
+
 	return snprintf(buf, PAGE_SIZE, "%d\n", etspi->reset_count);
 }
 
-static ssize_t et5xx_resetcnt_store(struct device *dev,
+static ssize_t resetcnt_store(struct device *dev,
 				struct device_attribute *attr, const char *buf,
 				size_t size)
 {
@@ -1058,13 +1032,13 @@ static ssize_t et5xx_resetcnt_store(struct device *dev,
 	return size;
 }
 
-static DEVICE_ATTR(bfs_values, 0444, et5xx_bfs_values_show, NULL);
-static DEVICE_ATTR(type_check, 0444, et5xx_type_check_show, NULL);
-static DEVICE_ATTR(vendor, 0444, et5xx_vendor_show, NULL);
-static DEVICE_ATTR(name, 0444, et5xx_name_show, NULL);
-static DEVICE_ATTR(adm, 0444, et5xx_adm_show, NULL);
-static DEVICE_ATTR(intcnt, 0664, et5xx_intcnt_show, et5xx_intcnt_store);
-static DEVICE_ATTR(resetcnt, 0664, et5xx_resetcnt_show, et5xx_resetcnt_store);
+static DEVICE_ATTR_RO(bfs_values);
+static DEVICE_ATTR_RO(type_check);
+static DEVICE_ATTR_RO(vendor);
+static DEVICE_ATTR_RO(name);
+static DEVICE_ATTR_RO(adm);
+static DEVICE_ATTR_RW(intcnt);
+static DEVICE_ATTR_RW(resetcnt);
 
 static struct device_attribute *fp_attrs[] = {
 	&dev_attr_bfs_values,
@@ -1087,7 +1061,7 @@ static void et5xx_work_func_debug(struct work_struct *work)
 	pr_info("ldo: %d, sleep: %d, tz: %d, spi_value: 0x%x, type: %s\n",
 		etspi->ldo_enabled, gpio_get_value(etspi->sleepPin),
 		etspi->tz_mode, etspi->spi_value,
-		sensor_status[etspi->sensortype + 2]);
+		etspi->sensortype > 0 ? etspi->chipid : sensor_status[etspi->sensortype + 2]);
 }
 
 static struct et5xx_data *alloc_platformdata(struct device *dev)

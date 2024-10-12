@@ -142,6 +142,9 @@ void mdw_usr_print_mem_usage(void)
 				goto free_mutex;
 			memcpy(u, user, sizeof(struct mdw_usr));
 
+			//Force string end
+			u->comm[TASK_COMM_LEN-1] = '\0';
+
 			list_add_tail(&u->m_item, &u_stat.list);
 
 			u_tmp.pid = user->pid;
@@ -207,13 +210,15 @@ free_mutex:
 	mutex_unlock(&u_mem_aee.mtx);
 }
 
-void mdw_usr_aee_mem(void *s_file)
+void mdw_usr_sys_aee_mem(char *buf, int *n)
 {
-	struct seq_file *s = (struct seq_file *)s_file;
 
 	mutex_lock(&u_mem_aee.mtx);
-	seq_printf(s, "%s", u_mem_aee.log_buf);
+	if (snprintf(buf, DUMP_LOG_SIZE, "%s", u_mem_aee.log_buf) < 0)
+		mdw_drv_warn("dump mem info fail\n");
 	mutex_unlock(&u_mem_aee.mtx);
+
+	*n = DUMP_LOG_SIZE;
 }
 
 static void mdw_usr_dump_sdev(struct seq_file *s, struct mdw_usr *u)
@@ -505,7 +510,7 @@ int mdw_usr_mem_free(struct apusys_mem *um, struct mdw_usr *u)
 		if (mm->kmem.fd == um->fd &&
 			mm->kmem.mem_type == um->mem_type &&
 			mm->kmem.uidr == um->khandle) {
-			mdw_mem_debug("get_fd(%d)type(%d)kd(%llx)idr(%d)\n",
+			mdw_mem_debug("get mem fd(%d) type(%d) kd(%x) idr(%u)\n",
 				mm->kmem.fd, mm->kmem.mem_type,
 				mm->kmem.khandle, mm->kmem.uidr);
 
@@ -522,7 +527,7 @@ int mdw_usr_mem_free(struct apusys_mem *um, struct mdw_usr *u)
 	if (mm)
 		u->iova_size = u->iova_size - mm->kmem.iova_size;
 	else
-		mdw_mem_debug("Not found fd(%d) type(%d) khandle(%llx)\n",
+		mdw_mem_debug("Not found fd(%d) type(%d) khandle(%d)\n",
 				um->fd, um->mem_type, um->khandle);
 
 	mutex_unlock(&u->mtx);
@@ -765,6 +770,12 @@ int mdw_usr_ucmd(struct apusys_ioctl_ucmd *uc)
 	struct apusys_kmem km;
 	struct mdw_dev_info *d = NULL;
 	int ret = 0;
+
+	/* check offset to avoid oob */
+	if (uc->offset) {
+		mdw_drv_err("don't support offset(%u)\n", uc->offset);
+		return -EINVAL;
+	}
 
 	memset(&km, 0, sizeof(km));
 

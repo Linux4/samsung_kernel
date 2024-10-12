@@ -215,5 +215,3 @@ config MTK_SM5714_FLASHLIGHT
 	  Select this only if your board has this IC.
 
 	  Say M here if you want to compile this driver as a module.
-
-

@@ -41,10 +41,23 @@
 	}	\
 }
 
+#if defined(CONFIG_SEC_DUMP_SINK)
+void sec_set_reboot_magic(int magic)
+{
+	int tmp;
+
+	tmp = LAST_RR_VAL(reboot_magic);
+	pr_info("%s: prev: %x\n", __func__, tmp);
+	tmp = magic;
+	pr_info("%s: set as: %x\n", __func__, tmp);
+	LAST_RR_SET(reboot_magic, tmp);
+}
+#endif
+
 static void sec_power_off(void)
 {
 	unsigned short released;
-	union power_supply_propval ac_val, usb_val, wc_val;
+	union power_supply_propval ac_val = {0, }, usb_val = {0, }, wc_val = {0, };
 	struct power_supply *ac_psy = power_supply_get_by_name("ac");
 	struct power_supply *usb_psy = power_supply_get_by_name("usb");
 	struct power_supply *wc_psy = power_supply_get_by_name("wireless");
@@ -111,6 +124,10 @@ static void sec_reboot(enum reboot_mode reboot_mode, const char *cmd)
 		else if (!strncmp(cmd, "debug", 5)
 			 && !kstrtoul(cmd + 5, 0, &value))
 			LAST_RR_SET(power_reset_reason, SEC_RESET_SET_DEBUG | value);
+#if defined(CONFIG_SEC_DUMP_SINK)
+		else if (!strncmp(cmd, "dump_sink", 9) && !kstrtoul(cmd + 9, 0, &value))
+			LAST_RR_SET(power_reset_reason, SEC_RESET_SET_DUMPSINK | (SEC_DUMPSINK_MASK & value));
+#endif
 		else if (!strncmp(cmd, "swsel", 5)
 			 && !kstrtoul(cmd + 5, 0, &value))
 			LAST_RR_SET(power_reset_reason, SEC_RESET_SET_SWSEL | value);

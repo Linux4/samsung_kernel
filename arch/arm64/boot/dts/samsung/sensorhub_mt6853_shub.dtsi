@@ -1,0 +1,54 @@
+/ {
+	fragment@model {
+		target-path = "/";
+		__overlay__ {
+			shub {
+				compatible = "shub";
+			};
+		};
+	};
+};
+
+/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/sensorhub/mtk/mt6853_shub/dts/sensorhub_mt6853_shub.a32x.dtsi */
+/ {
+    fragment@model {
+        target-path = "/";
+        __overlay__ {
+            shub {
+                acc-icm42605m-position = <0>;
+                acc-icm42632m-position = <0>;
+                acc-lsm6dsl-position = <0>;
+                acc-motor-coef = <5>;
+                mag-ak09918c-position = <2>;
+                mag-ak09918c-array = /bits/ 16 <9689 (-190) (-385) 114 11577 (-298) 234 (-681) 10972>;
+                light-position = /bits/ 32 <46 27 3 21 2 8>;
+                brightness-array-len = <5>;
+                brightness-array = /bits/ 32 <15 40 50 77 255>;
+                light-cam-lux = /bits/ 32 <100 200>;
+                light-cam-br = /bits/ 32 <60 60>;
+            };
+        };
+    };
+};
+/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/sensorhub/mtk/mt6853_shub/dts/sensorhub_mt6853_shub.a32x.05.dtsi */
+/ {
+    fragment@model {
+        target-path = "/";
+        __overlay__ {
+            shub {
+                acc-icm42605m-position = <0>;
+                acc-icm42632m-position = <0>;
+                acc-lsm6dsl-position = <0>;
+                mag-ak09918c-position = <2>;
+                mag-ak09918c-array = /bits/ 8 <7 81 71 111 133 61 0 139 213
+                                          54 186 21 58 179 255 179 253 112
+                                          248 195 191 252 23 21 8 5 16>;
+                light-position = /bits/ 32 <46 27 3 21 2 8>;
+                brightness-array-len = <5>;
+                brightness-array = /bits/ 32 <15 40 50 77 255>;
+                light-cam-lux = /bits/ 32 <100 200>;
+                light-cam-br = /bits/ 32 <60 60>;
+            };
+        };
+    };
+};

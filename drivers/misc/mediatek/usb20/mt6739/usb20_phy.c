@@ -60,7 +60,7 @@ void usb_phy_savecurrent(void)
 {
 }
 
-void usb_phy_recover(bool is_host)
+void usb_phy_recover(struct musb *musb)
 {
 }
 
@@ -639,7 +639,7 @@ void usb_phy_savecurrent(void)
 }
 
 /* M17_USB_PWR Sequence 20160603.xls */
-void usb_phy_recover(bool is_host)
+void usb_phy_recover(struct musb *musb)
 {
 	unsigned int efuse_val = 0;
 
@@ -738,7 +738,7 @@ void usb_phy_recover(bool is_host)
 	USBPHY_CLR32(0x18, (0xf0<<0));
 	USBPHY_SET32(0x18, (0x70<<0));
 
-	usb_phy_tuning(is_host);
+	usb_phy_tuning(musb->is_host);
 
 	DBG(0, "usb recovery success\n");
 }
@@ -804,4 +804,14 @@ void usb_phy_context_restore(void)
 #endif
 }
 
+void usb_dpdm_pullup(bool enable)
+{
+	if (enable) {
+		/* RG_USB20_EN_PU_DP, 1'b1, RG_USB20_PUPD_BIST_EN, 1'b1 */
+		USBPHY_SET32(0x1c, (0x1 << 9) | (0x1 << 12));
+	} else {
+		/* RG_USB20_EN_PU_DP, 1'b0, RG_USB20_PUPD_BIST_EN, 1'b0 */
+		USBPHY_CLR32(0x1c, (0x1 << 9) | (0x1 << 12));
+	}
+}
 #endif

@@ -61,6 +61,9 @@ enum pdic_message {
 	MSG_DP_DISCONN,
 	MSG_DP_LINK_CONF,
 	MSG_DP_HPD,
+	MSG_SELECT_PDO,
+	MSG_CURRENT_PDO,
+	MSG_PD_POWER_STATUS,
 	MSG_CCOFF,
 	MSG_MAX,
 };
@@ -111,15 +114,21 @@ struct pp_ic_data {
 	int vbus_dischar_gpio;
 	void *pp_data;
 	void *drv_data;
+	int typec_implemented;
 };
 
 #ifdef CONFIG_PDIC_POLICY
-extern int pdic_policy_send_msg(void *data, int msg);
+extern int pdic_policy_update_pdo_list(void *data, int max_v, int min_v,
+		int max_icl, int cnt, int num);
+extern int pdic_policy_send_msg(void *data, int msg, int param1, int param2);
 extern void *pdic_policy_init(struct pp_ic_data *ic_data);
 extern void pdic_policy_deinit(struct pp_ic_data *ic_data);
 #else
-inline int pdic_policy_send_msg(void *data, int msg) {return 0; }
-inline void *pdic_policy_init(struct pp_ic_data *ic_data) {return NULL; }
-inline void pdic_policy_deinit(struct pp_ic_data *ic_data) {}
+static inline int pdic_policy_update_pdo_list(void *data, int max_v, int min_v,
+		int max_icl, int cnt, int num) {return 0; }
+static inline int pdic_policy_send_msg(void *data, int msg,
+		int param1, int param2) {return 0; }
+static inline void *pdic_policy_init(struct pp_ic_data *ic_data) {return NULL; }
+static inline void pdic_policy_deinit(struct pp_ic_data *ic_data) {}
 #endif
 #endif /* __LINUX_PDIC_POLICY_H__ */

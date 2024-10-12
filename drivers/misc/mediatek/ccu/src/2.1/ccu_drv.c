@@ -438,7 +438,9 @@ static int ccu_open(struct inode *inode, struct file *flip)
 	int ret = 0, i;
 
 	struct ccu_user_s *user;
+
 	mutex_lock(&g_ccu_device->dev_mutex);
+
 	_clk_count = 0;
 	ccu_create_user(&user);
 	if (IS_ERR_OR_NULL(user)) {
@@ -453,6 +455,7 @@ static int ccu_open(struct inode *inode, struct file *flip)
 	for (i = 0; i < CCU_IMPORT_BUF_NUM; i++)
 		import_buffer_handle[i] =
 			(struct ion_handle *)CCU_IMPORT_BUF_UNDEF;
+
 	mutex_unlock(&g_ccu_device->dev_mutex);
 
 	return ret;
@@ -642,6 +645,7 @@ static long ccu_ioctl(struct file *flip, unsigned int cmd,
 
 	if ((cmd != CCU_IOCTL_WAIT_IRQ) && (cmd != CCU_IOCTL_WAIT_AF_IRQ))
 		mutex_lock(&g_ccu_device->dev_mutex);
+
 	LOG_DBG("%s+, cmd:%d\n", __func__, cmd);
 
 	if ((cmd != CCU_IOCTL_SET_POWER) && (cmd != CCU_IOCTL_FLUSH_LOG) &&
@@ -982,15 +986,6 @@ static long ccu_ioctl(struct file *flip, unsigned int cmd,
 		break;
 	}
 
-	case CCU_READ_REGISTER:
-	{
-		int regToRead = (int)arg;
-
-		int rc = ccu_read_info_reg(regToRead);
-		mutex_unlock(&g_ccu_device->dev_mutex);
-		return rc;
-	}
-
 	case CCU_IOCTL_IMPORT_MEM:
 	{
 		struct ion_handle *handle;
@@ -1045,6 +1040,7 @@ EXIT:
 
 	if ((cmd != CCU_IOCTL_WAIT_IRQ) && (cmd != CCU_IOCTL_WAIT_AF_IRQ))
 		mutex_unlock(&g_ccu_device->dev_mutex);
+
 	return ret;
 }
 
@@ -1052,6 +1048,7 @@ static int ccu_release(struct inode *inode, struct file *flip)
 {
 	struct ccu_user_s *user = flip->private_data;
 	int i = 0;
+
 	mutex_lock(&g_ccu_device->dev_mutex);
 
 	LOG_INF_MUST("%s +\n", __func__);
@@ -1073,6 +1070,7 @@ static int ccu_release(struct inode *inode, struct file *flip)
 	ccu_ion_uninit();
 
 	LOG_INF_MUST("%s -\n", __func__);
+
 	mutex_unlock(&g_ccu_device->dev_mutex);
 
 	return 0;
@@ -1508,9 +1506,9 @@ static int __init CCU_INIT(void)
 	/*g_ccu_device = dma_cache_coherent();*/
 
 	INIT_LIST_HEAD(&g_ccu_device->user_list);
+	mutex_init(&g_ccu_device->dev_mutex);
 	mutex_init(&g_ccu_device->user_mutex);
 	mutex_init(&g_ccu_device->clk_mutex);
-	mutex_init(&g_ccu_device->dev_mutex);
 	mutex_init(&g_ccu_device->ion_client_mutex);
 	init_waitqueue_head(&g_ccu_device->cmd_wait);
 

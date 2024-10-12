@@ -17,6 +17,7 @@
 #include <linux/slab.h>
 #include <linux/i2c.h>
 #include <linux/backlight.h>
+#include <linux/regmap.h>
 
 #include "dd.h"
 
@@ -31,23 +32,23 @@
  * echo min dft max out: platform_min platform_dft platform_max platform_out > bl_tuning
  * echo 0 > bl_tuning
  *
- * ex) echo 1 2 3 > /d/dd_backlight/bl_tuning
- * ex) echo 1 2 3 4 > /d/dd_backlight/bl_tuning
- * ex) echo 1 2 3: 4 5 6 > /d/dd_backlight/bl_tuning
- * ex) echo 1 2 3 4: 5 6 7 8 > /d/dd_backlight/bl_tuning = this means 1 2 3 4 for tune_value and 5 6 7 8 for brightness
- * ex) echo 0 > /d/dd_backlight/bl_tuning = this means reset brightness table to default
+ * ex) echo 1 2 3 > /d/dd/backlight/bl_tuning
+ * ex) echo 1 2 3 4 > /d/dd/backlight/bl_tuning
+ * ex) echo 1 2 3: 4 5 6 > /d/dd/backlight/bl_tuning
+ * ex) echo 1 2 3 4: 5 6 7 8 > /d/dd/backlight/bl_tuning = this means 1 2 3 4 for tune_value and 5 6 7 8 for brightness
+ * ex) echo 0 > /d/dd/backlight/bl_tuning = this means reset brightness table to default
  *
- * ex) echo 1 2 3 4: 5 6 7 > /d/dd_backlight/bl_tuning (X) because tune_value(1 2 3 4) part count is 4 but brightness(5 6 7) part count is 3
- * ex) echo 1 2 3 4: 5 6 7: 8 9 10 > /d/dd_backlight/bl_tuning (X) because we allow only one :(colon) to separate platform brightness point
+ * ex) echo 1 2 3 4: 5 6 7 > /d/dd/backlight/bl_tuning (X) because tune_value(1 2 3 4) part count is 4 but brightness(5 6 7) part count is 3
+ * ex) echo 1 2 3 4: 5 6 7: 8 9 10 > /d/dd/backlight/bl_tuning (X) because we allow only one :(colon) to separate platform brightness point
  *
  */
 
 /* ic tuning usage
- * echo addr (value. if you skip it, we regard this is read mode) > /d/dd_backlight/ic_tuning-i2c_client->name
+ * echo addr (value. if you skip it, we regard this is read mode) > /d/dd/backlight/ic_tuning-i2c_client->name
 
- * ex) echo 0x1 > /d/dd_backlight/ic_tuning-i2c_client
+ * ex) echo 0x1 > /d/dd/backlight/ic_tuning-i2c_client
  * = this means you assign read i2c_command as 0x1 when you cat this sysfs next time
- * ex) echo 0x1 0x2 > /d/dd_backlight/ic_tuning-i2c_client
+ * ex) echo 0x1 0x2 > /d/dd/backlight/ic_tuning-i2c_client
  * = this means you write to 0x01(i2c_command) with 0x02(value) and you assign read i2c_command as 0x1 when you cat this sysfs next time
  */
 
@@ -83,6 +84,7 @@ struct bl_info {
 
 	unsigned int input_tune_value[INPUT_LIMIT];
 	unsigned int input_brightness[INPUT_LIMIT];
+	unsigned int input_flat_value[INPUT_LIMIT];
 };
 
 struct ic_info {
@@ -93,6 +95,13 @@ struct ic_info {
 	int (*i2c_cmd)(struct i2c_client *client, unsigned int num, void *arg);
 
 	char *i2c_debugfs_name;
+
+	struct regmap *rmap;
+};
+
+static const struct regmap_config ic_regmap_default = {
+	.reg_bits = 8,
+	.val_bits = 8,
 };
 
 static LIST_HEAD(client_list);
@@ -107,7 +116,7 @@ static void make_bl_default_point(struct bl_info *bl)
 		bl->default_brightness[BL_POINT_OFF] = 0;
 		bl->default_brightness[BL_POINT_MIN] = 1;
 		bl->default_brightness[BL_POINT_DFT] = bl->bd->props.brightness;
-		bl->default_brightness[BL_POINT_MAX] = 255;
+		bl->default_brightness[BL_POINT_MAX] = U8_MAX;
 		bl->default_brightness[BL_POINT_OUT] = bl->bd->props.max_brightness;
 
 		for (i = 0; i <= bl->default_brightness[BL_POINT_MAX]; i++) {
@@ -143,11 +152,12 @@ static void reverse_order(unsigned int *o, unsigned int size)
 	}
 }
 
-static unsigned int parse_curve(char *str, char *delim, unsigned int *out)
+static unsigned int parse_curve(char *str, char *delim, unsigned int *out, unsigned int *flat)
 {
 	unsigned int i = 0;
 	char *p = NULL;
 	int ret;
+	int flat_option = flat ? 1 : 0;
 
 	if (!str) {
 		dbg_info("str is invalid. null\n");
@@ -156,7 +166,7 @@ static unsigned int parse_curve(char *str, char *delim, unsigned int *out)
 
 	/* trim */
 	for (i = 0; str[i]; i++) {
-		if (isdigit(str[i]))
+		if (isdigit(str[i]) || str[i] == '!')
 			break;
 	}
 	str = str + i;
@@ -166,6 +176,18 @@ static unsigned int parse_curve(char *str, char *delim, unsigned int *out)
 	while ((p = strsep(&str, delim)) != NULL) {
 		if (*p == '\0')
 			continue;
+
+		dbg_info("%dth is %s\n", i, p);
+
+		if (flat_option && (*p == '!')) {
+			dbg_info("%dth input has flat mark\n", i);
+			*(flat + i) = 1;
+			p++;
+		}
+
+		if (!isdigit(*p))
+			continue;
+
 		ret = kstrtouint(p, 0, out + i);
 		if (ret < 0)
 			break;
@@ -173,11 +195,13 @@ static unsigned int parse_curve(char *str, char *delim, unsigned int *out)
 	}
 
 	reverse_order(out, i);
+	if (flat)
+		reverse_order(flat, i);
 
 	return i;
 }
 
-static int make_bl_curve(struct bl_info *bl, unsigned int *tune_value_point, unsigned int *brightness_point)
+static int make_bl_curve(struct bl_info *bl, unsigned int *tune_value_point, unsigned int *brightness_point, unsigned int *flat_value_point)
 {
 	int i, idx;
 	unsigned int value;
@@ -188,23 +212,26 @@ static int make_bl_curve(struct bl_info *bl, unsigned int *tune_value_point, uns
 				break;
 		}
 
-		if ((i >= 255 && idx == 1) || tune_value_point[idx] == 0)	/* flat */
+		//if ((i >= 255 && idx == 1) || tune_value_point[idx] == 0)	/* flat */
+		if (tune_value_point[idx] == 0 || (flat_value_point && flat_value_point[idx]))
 			value = tune_value_point[idx];
 		else if (i >= brightness_point[idx])
 			value = (i - brightness_point[idx]) * (tune_value_point[idx - 1] - tune_value_point[idx]) / (brightness_point[idx - 1] - brightness_point[idx]) + tune_value_point[idx];
 		else
 			value = 0;
 
-		dbg_info("[%4d] = %4d -> %4d, idx: %d,\t%s\n", i, bl->brightness_table[i], value, idx, (value != bl->brightness_table[i]) ? "X" : "");
+		dbg_info("[%4d] = %4d -> %4d, idx: %d, %s\n", i, bl->brightness_table[i], value, idx, (value != bl->brightness_table[i]) ? "X" : "");
 		bl->brightness_table[i] = value;
 	}
 
 	memset(bl->input_tune_value, 0, sizeof(bl->input_tune_value));
 	memset(bl->input_brightness, 0, sizeof(bl->input_brightness));
+	memset(bl->input_flat_value, 0, sizeof(bl->input_flat_value));
 
 	for (i = 0; brightness_point[i]; i++) {
 		bl->input_tune_value[i] = tune_value_point[i];
 		bl->input_brightness[i] = brightness_point[i];
+		bl->input_flat_value[i] = flat_value_point ? flat_value_point[i] : 0;
 	}
 
 	return 0;
@@ -215,6 +242,7 @@ static int check_curve(struct bl_info *bl, char *str)
 	int i, ret = 0;
 	unsigned int brightness_point[INPUT_LIMIT] = {0, };
 	unsigned int tune_value_point[INPUT_LIMIT] = {0, };
+	unsigned int flat_value_point[INPUT_LIMIT] = {0, };
 	int max_brightness_point = 0;
 	int max_tune_value_point = 0;
 	int off_bl_point = BL_POINT_END - 1;
@@ -233,10 +261,10 @@ static int check_curve(struct bl_info *bl, char *str)
 		pos++;
 	}
 
-	max_tune_value_point = parse_curve(str, " ", tune_value_point);
-	max_brightness_point = parse_curve(pos, " ", brightness_point);
+	max_tune_value_point = parse_curve(str, " ", tune_value_point, flat_value_point);
+	max_brightness_point = parse_curve(pos, " ", brightness_point, NULL);
 
-	if (bl->bd->props.max_brightness <= 255)
+	if (bl->bd->props.max_brightness <= U8_MAX)
 		off_bl_point -= 1;
 
 	dbg_info("max_tune_value_point: %d, max_brightness_point: %d, total_bl_point: %d\n", max_tune_value_point, max_brightness_point, off_bl_point);
@@ -301,9 +329,9 @@ static int check_curve(struct bl_info *bl, char *str)
 	dbg_info("max_tune_value_point: %d, max_brightness_point: %d, off_bl_point: %d\n", max_tune_value_point, max_brightness_point, off_bl_point);
 
 	for (i = max_tune_value_point; i >= 0; i--)
-		dbg_info("tune_value_point: %4d, brightness_point: %4d\n", tune_value_point[i], brightness_point[i]);
+		dbg_info("tune_value_point: %4d, brightness_point: %4d, flat_value_point: %d\n", tune_value_point[i], brightness_point[i], flat_value_point[i]);
 
-	make_bl_curve(bl, tune_value_point, brightness_point);
+	make_bl_curve(bl, tune_value_point, brightness_point, flat_value_point);
 
 exit:
 	return ret;
@@ -353,7 +381,7 @@ static int bl_tuning_show(struct seq_file *m, void *unused)
 	if (off) {
 		seq_puts(m, "TUNING -------------------------------------------\n");
 		for (i = off; i >= 0; i--)
-			seq_printf(m, "%8s| %8d| %8d\n", " ", bl->input_tune_value[i], bl->input_brightness[i]);
+			seq_printf(m, "%8s| %8d| %8d%s\n", " ", bl->input_tune_value[i], bl->input_brightness[i], bl->input_flat_value[i] ? " (flat)" : "");
 	}
 
 	seq_puts(m, "TABLE 2-------------------------------------------\n");
@@ -395,9 +423,9 @@ static ssize_t bl_tuning_write(struct file *f, const char __user *user_buf,
 		goto exit;
 	}
 
-	if (!strncmp(ibuf, "0", count - 1)) {
+	if (sysfs_streq(ibuf, "0")) {
 		dbg_info("input is 0(zero). reset brightness table to default\n");
-		make_bl_curve(bl, bl->default_tune_value, bl->default_brightness);
+		make_bl_curve(bl, bl->default_tune_value, bl->default_brightness, NULL);
 		for (i = 0; i < bl->bd->props.max_brightness; i++) {
 			dbg_info("[%4d] = %4d, %4d%s\n", i, bl->brightness_table[i], bl->brightness_reset[i],
 				(bl->brightness_table[i] == bl->brightness_reset[i]) ? "" : ", (X)");
@@ -408,6 +436,7 @@ static ssize_t bl_tuning_write(struct file *f, const char __user *user_buf,
 		}
 		memset(bl->input_tune_value, 0, sizeof(bl->input_tune_value));
 		memset(bl->input_brightness, 0, sizeof(bl->input_brightness));
+		memset(bl->input_flat_value, 0, sizeof(bl->input_flat_value));
 		goto exit;
 	}
 
@@ -431,14 +460,23 @@ static const struct file_operations bl_tuning_fops = {
 	.open		= bl_tuning_open,
 	.write		= bl_tuning_write,
 	.read		= seq_read,
-	.llseek		= seq_lseek,
-	.release	= seq_release,
+	.release	= single_release,
 };
 
 static int ic_tuning_show(struct seq_file *m, void *unused)
 {
 	struct ic_info *ic = m->private;
 	int ret;
+	unsigned int value = 0x98;
+
+	/* this is hack code to prevent ic access afer screen off */
+	ic->bd = ic->bd ? ic->bd : backlight_device_get_by_type(BACKLIGHT_RAW);
+
+	if (!ic->bd) {
+		dbg_info("backlight device is invalid\n");
+		seq_printf(m, "backlight device is invalid\n");
+		return 0;
+	}
 
 	if (ic->bd->props.fb_blank != FB_BLANK_UNBLANK) {
 		dbg_info("fb_blank is invalid, %d\n", ic->bd->props.fb_blank);
@@ -446,11 +484,12 @@ static int ic_tuning_show(struct seq_file *m, void *unused)
 		return 0;
 	}
 
-	ret = ic->i2c_cmd ? ic->i2c_cmd(ic->client, I2C_M_RD, &ic->command) : i2c_smbus_read_byte_data(ic->client, ic->command);
+	//ret = ic->i2c_cmd ? ic->i2c_cmd(ic->client, I2C_M_RD, &ic->command) : i2c_smbus_read_byte_data(ic->client, ic->command);
+	ret = ic->i2c_cmd ? ic->i2c_cmd(ic->client, I2C_M_RD, &ic->command) : regmap_read(ic->rmap, ic->command, &value);
 	if (ret < 0)
-		seq_printf(m, "%02x, i2c_rx errno: %d\n", ic->command, ret);
+		seq_printf(m, "%02x, i2c_rx errno(%d) val(%2x)\n", ic->command, ret, value);
 	else
-		seq_printf(m, "%02x, i2c_rx %02x\n", ic->command, ret);
+		seq_printf(m, "%02x, i2c_rx val(%02x)\n", ic->command, value);
 
 	return 0;
 }
@@ -470,8 +509,21 @@ static ssize_t ic_tuning_write(struct file *f, const char __user *user_buf,
 	u8 i2c_wbuf[3] = {0, };
 	u8 i2c_rbuf[1] = {0, };
 
+	/* this is hack code to prevent ic access afer screen off */
+	ic->bd = ic->bd ? ic->bd : backlight_device_get_by_type(BACKLIGHT_RAW);
+
+	if (!ic->bd) {
+		dbg_info("backlight device is invalid\n");
+		goto exit;
+	}
+
 	if (ic->bd->props.fb_blank != FB_BLANK_UNBLANK) {
 		dbg_info("fb_blank is invalid, %d\n", ic->bd->props.fb_blank);
+		goto exit;
+	}
+
+	if (!ic->rmap && !ic->i2c_cmd) {
+		dbg_info("map and i2c_cmd are invalid\n");
 		goto exit;
 	}
 
@@ -532,17 +584,19 @@ static ssize_t ic_tuning_write(struct file *f, const char __user *user_buf,
 
 	/* tx */
 	if (ret == 2) {
-		ret = ic->i2c_cmd ? ic->i2c_cmd(ic->client, 1, (void *)&xfer) : i2c_smbus_write_byte_data(ic->client, ic->command, value);
+		//ret = ic->i2c_cmd ? ic->i2c_cmd(ic->client, 1, (void *)&xfer) : i2c_smbus_write_byte_data(ic->client, ic->command, value);
+		ret = ic->i2c_cmd ? ic->i2c_cmd(ic->client, 1, (void *)&xfer) : regmap_write(ic->rmap, ic->command, value);
 		if (ret < 0)
-			dbg_info("%02x, i2c_tx errno: %d\n", command, ret);
+			dbg_info("%02x, i2c_tx errno(%d)\n", ic->command, ret);
 	}
 
 	/* rx */
-	ret = ic->i2c_cmd ? ic->i2c_cmd(ic->client, 2, (void *)&xfer) : i2c_smbus_read_byte_data(ic->client, ic->command);
+	//ret = ic->i2c_cmd ? ic->i2c_cmd(ic->client, 2, (void *)&xfer) : i2c_smbus_read_byte_data(ic->client, ic->command);
+	ret = ic->i2c_cmd ? ic->i2c_cmd(ic->client, 2, (void *)&xfer) : regmap_read(ic->rmap, ic->command, &value);
 	if (ret < 0)
-		dbg_info("%02x, i2c_rx errno: %d\n", command, ret);
+		dbg_info("%02x, i2c_rx errno(%d) val(%2x)\n", ic->command, ret, value);
 	else
-		dbg_info("%02x, i2c_rx: %02x\n", command, ret);
+		dbg_info("%02x, i2c_rx val(%02x)\n", ic->command, value);
 
 exit:
 	return count;
@@ -552,8 +606,7 @@ static const struct file_operations ic_tuning_fops = {
 	.open		= ic_tuning_open,
 	.write		= ic_tuning_write,
 	.read		= seq_read,
-	.llseek		= seq_lseek,
-	.release	= seq_release,
+	.release	= single_release,
 };
 
 static int help_show(struct seq_file *m, void *unused)
@@ -575,7 +628,7 @@ static int help_show(struct seq_file *m, void *unused)
 	seq_puts(m, "------------------------------------------------------------\n");
 	seq_puts(m, "\n");
 	seq_puts(m, "---------- usage\n");
-	seq_puts(m, "# cd /d/dd_backlight\n");
+	seq_puts(m, "# cd /d/dd/backlight\n");
 	seq_puts(m, "\n");
 	seq_puts(m, "---------- bl_tuning usage\n");
 	if (end == BL_POINT_OUT) {
@@ -636,8 +689,7 @@ static int help_open(struct inode *inode, struct file *f)
 static const struct file_operations help_fops = {
 	.open		= help_open,
 	.read		= seq_read,
-	.llseek		= seq_lseek,
-	.release	= seq_release,
+	.release	= single_release,
 };
 
 static struct dentry *debugfs_root;
@@ -646,11 +698,12 @@ int init_debugfs_backlight(struct backlight_device *bd, unsigned int *table, str
 	struct bl_info *bl = NULL;
 	struct ic_info *ic = NULL;
 	int ret = 0, i2c_count;
-	char name_string[] = "ic_tuning-";
+	char name_string[] = "i2c-";
 	char full_string[I2C_NAME_SIZE + (u16)(ARRAY_SIZE(name_string))];
 	struct i2c_driver *driver;
+	static struct dentry *dd_debugfs_root;
 
-	if (!bd) {
+	if (!bd && table) {
 		dbg_warn("failed to get backlight_device\n");
 		ret = -ENODEV;
 		goto exit;
@@ -663,14 +716,18 @@ int init_debugfs_backlight(struct backlight_device *bd, unsigned int *table, str
 
 	dbg_info("+\n");
 
-	if (!debugfs_root) {
-		debugfs_root = debugfs_create_dir("dd_backlight", NULL);
+	dd_debugfs_root = debugfs_lookup("dd", NULL);
+	dd_debugfs_root = dd_debugfs_root ? dd_debugfs_root : debugfs_create_dir("dd", NULL);
 
+	if (!debugfs_root)
+		debugfs_root = debugfs_create_dir("backlight", dd_debugfs_root);
+
+	if (table) {
 		bl = kzalloc(sizeof(struct bl_info), GFP_KERNEL);
-		bl->bd = bd;
+		bl->bd = bd ? bd : backlight_device_get_by_type(BACKLIGHT_RAW);
 		bl->brightness_table = table ? table : kcalloc(bd->props.max_brightness, sizeof(unsigned int), GFP_KERNEL);
-		bl->brightness_reset = kmemdup(bl->brightness_table, bd->props.max_brightness * sizeof(unsigned int), GFP_KERNEL);
 		make_bl_default_point(bl);
+		bl->brightness_reset = kmemdup(bl->brightness_table, bd->props.max_brightness * sizeof(unsigned int), GFP_KERNEL);
 
 		debugfs_create_file("_help", 0400, debugfs_root, bl, &help_fops);
 		debugfs_create_file("bl_tuning", 0600, debugfs_root, bl, &bl_tuning_fops);
@@ -687,7 +744,7 @@ int init_debugfs_backlight(struct backlight_device *bd, unsigned int *table, str
 		ic = kzalloc(sizeof(struct ic_info), GFP_KERNEL);
 
 		memset(full_string, 0, sizeof(full_string));
-		scnprintf(full_string, sizeof(full_string), "%s%s", name_string, clients[i2c_count]->name);
+		scnprintf(full_string, sizeof(full_string), "%s%s", name_string, dev_name(&clients[i2c_count]->dev));
 		debugfs_create_file(full_string, 0600, debugfs_root, ic, &ic_tuning_fops);
 
 		ic->bd = bd;
@@ -696,7 +753,23 @@ int init_debugfs_backlight(struct backlight_device *bd, unsigned int *table, str
 		driver = to_i2c_driver(ic->client->dev.driver);
 		ic->i2c_cmd = driver->command ? driver->command : NULL;
 
-		dbg_info("%s %s %s\n", full_string, dev_name(&clients[i2c_count]->adapter->dev), dev_name(&clients[i2c_count]->dev));
+{
+		struct device *i2c_dev = &clients[i2c_count]->dev;
+
+		if (!ic->i2c_cmd) {
+			if (dev_get_regmap(i2c_dev, NULL))
+				ic->rmap = dev_get_regmap(i2c_dev, NULL);
+			else if (i2c_dev->parent && dev_get_regmap(i2c_dev->parent, NULL))
+				ic->rmap = dev_get_regmap(i2c_dev->parent, NULL);
+			else
+				ic->rmap = devm_regmap_init_i2c(clients[i2c_count], &ic_regmap_default);
+
+			if (!ic->rmap)
+				dbg_info("fail to get regmap\n");
+		}
+}
+
+		dbg_info("%s %s %s %s\n", full_string, dev_name(&clients[i2c_count]->adapter->dev), dev_name(&clients[i2c_count]->dev), clients[i2c_count]->name);
 
 		ic->i2c_debugfs_name = kstrdup(full_string, GFP_KERNEL);
 

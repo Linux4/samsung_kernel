@@ -43,7 +43,7 @@
 #define PIN_S_MSG_SIZE_MCDI		3	//uint 4 byts
 #define PIN_S_MSG_SIZE_SUSPEND		3	//uint 4 byts
 #define PIN_S_MSG_SIZE_SMET         4   //unit 4 bytes
-#define PIN_S_MSG_SIZE_RMET         4   //unit 4 bytes
+#define PIN_S_MSG_SIZE_RMET         1   //unit 4 bytes
 #define PIN_S_MSG_SIZE_EEMSN     4 //unit 4 bytes
 
 /* definition of slot size for send PINs */
@@ -61,7 +61,7 @@
 #define PIN_R_MSG_SIZE_FHCTL	1	//uint 4 byts
 #define PIN_R_MSG_SIZE_MCDI	1	//uint 4 byts
 #define PIN_R_MSG_SIZE_SUSPEND	1	//uint 4 byts
-#define PIN_R_MSG_SIZE_SMET     4   //uint 4 byts
+#define PIN_R_MSG_SIZE_SMET     1   //uint 4 byts
 #define PIN_R_MSG_SIZE_RMET     4   //uint 4 byts
 #define PIN_R_MSG_SIZE_EEMSN     1 //unit 4 bytes
 
@@ -153,10 +153,10 @@ struct mtk_mbox_pin_send mcupm_mbox_pin_send[] = {
 		4, CH_S_SUSPEND,
 		{ { 0 } }, { 0 }, { { { { 0 } } } } },
 	{5, PIN_S_OFFSET_RMET, 0, 0, PIN_S_MSG_SIZE_RMET,
-		5, IPIR_C_MET,
+		5, CH_IPIR_C_MET,
 		{ { 0 } }, { 0 }, { { { { 0 } } } } },
 	{6, PIN_S_OFFSET_SMET, 1, 0, PIN_S_MSG_SIZE_SMET,
-		6, IPIS_C_MET,
+		6, CH_IPIS_C_MET,
 		{ { 0 } }, { 0 }, { { { { 0 } } } } },
 	{7, PIN_S_OFFSET_EEMSN, 1, 0, PIN_S_MSG_SIZE_EEMSN,
 		7, CH_S_EEMSN,
@@ -190,7 +190,7 @@ struct mtk_mbox_pin_recv mcupm_mbox_pin_recv[] = {
 		PIN_R_MSG_SIZE_CPU_DVFS, 1,
 		CH_S_CPU_DVFS, { 0 }, 0, 0, 0, { { { { 0 } } } },
 		{0, 0, 0, 0, 0, 0} },
-	{2, PIN_R_OFFSET_FHCTL, 0, 0, 1, 0,
+	{2, PIN_R_OFFSET_FHCTL, 1, 0, 1, 1,
 		PIN_R_MSG_SIZE_FHCTL, 2,
 		CH_S_FHCTL, { 0 }, 0, 0, 0, { { { { 0 } } } },
 		{0, 0, 0, 0, 0, 0} },
@@ -202,13 +202,13 @@ struct mtk_mbox_pin_recv mcupm_mbox_pin_recv[] = {
 		PIN_R_MSG_SIZE_SUSPEND, 4,
 		CH_S_SUSPEND, { 0 }, 0, 0, 0, { { { { 0 } } } },
 		{0, 0, 0, 0, 0, 0} },
-	{5, PIN_R_OFFSET_SMET, 0, 0, 1, 0,
+	{5, PIN_R_OFFSET_RMET, 0, 0, 1, 1,
 		PIN_R_MSG_SIZE_RMET, 5,
-		IPIR_C_MET, { 0 }, 0, 0, 0, { { { { 0 } } } },
+		CH_IPIR_C_MET, { 0 }, 0, 0, 0, { { { { 0 } } } },
 		{0, 0, 0, 0, 0, 0} },
-	{6, PIN_R_OFFSET_RMET, 0, 0, 1, 0,
+	{6, PIN_R_OFFSET_SMET, 1, 0, 1, 1,
 		PIN_R_MSG_SIZE_SMET, 6,
-		IPIS_C_MET, { 0 }, 0, 0, 0, { { { { 0 } } } },
+		CH_IPIS_C_MET, { 0 }, 0, 0, 0, { { { { 0 } } } },
 		{0, 0, 0, 0, 0, 0} },
 	{7, PIN_R_OFFSET_EEMSN, 0, 0, 1, 0,
 		PIN_R_MSG_SIZE_EEMSN, 7,

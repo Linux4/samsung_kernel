@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016 MediaTek Inc.
+ * Copyright (C) 2020 MediaTek Inc.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -69,8 +69,20 @@
 #include "mtk_unified_power_data_mt6853.h"
 #endif
 
+#if defined(CONFIG_MACH_MT6833)
+#include "mtk_unified_power_data_mt6833.h"
+#endif
+
+#if defined(CONFIG_MACH_MT6877)
+#include "mtk_unified_power_data_mt6877.h"
+#endif
+
 #if defined(CONFIG_MACH_MT8168)
 #include "mtk_unified_power_data_mt8168.h"
+#endif
+
+#if defined(CONFIG_MACH_MT6781)
+#include "mtk_unified_power_data_mt6781.h"
 #endif
 
 #endif /* UNIFIED_POWER_DATA_H */

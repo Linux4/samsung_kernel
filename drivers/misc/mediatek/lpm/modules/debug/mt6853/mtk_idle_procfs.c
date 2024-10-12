@@ -79,7 +79,7 @@ static int idle_proc_enable_show(struct seq_file *m, void *v)
 
 		for (i = 1; i < drv->state_count; i++) {
 			if ((suspend_type == MTK_LPM_SUSPEND_S2IDLE) &&
-			    !strcmp(drv->states[i].name, S2IDLE_STATE_NAME))
+				!strcmp(drv->states[i].name, S2IDLE_STATE_NAME))
 				continue;
 			en += mtk_cpuidle_get_param(drv, i, IDLE_PARAM_EN);
 		}

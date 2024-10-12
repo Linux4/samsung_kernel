@@ -208,6 +208,9 @@
 		novatek,support_ear_detect_mode;
 		novatek,enable_settings_aot;
 
+		novatek,lcd_id_count = <1>;
+		novatek,lcd_id = <0x5>; // nt36525b(0x5)
+
 		/* MP */
 		/* novatek,mp-support-dt; */
 

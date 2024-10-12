@@ -3431,6 +3431,7 @@ static void sd_probe_async(void *data, async_cookie_t cookie)
 static int sd_probe(struct device *dev)
 {
 	struct scsi_device *sdp = to_scsi_device(dev);
+	struct scsi_host_template *sht = sdp->host->hostt;
 	struct scsi_disk *sdkp;
 	struct gendisk *gd;
 	int index;
@@ -3480,8 +3481,6 @@ static int sd_probe(struct device *dev)
 		goto out_free_index;
 	}
 
-	sdp->host->medium_err_cnt = 0;
-	sdp->host->hw_err_cnt = 0;
 	sdkp->device = sdp;
 	sdkp->driver = &sd_template;
 	sdkp->disk = gd;
@@ -3497,14 +3496,10 @@ static int sd_probe(struct device *dev)
 					     SD_MOD_TIMEOUT);
 	}
 
-#ifdef CONFIG_SCSI_UFSHCD
-	if (!sdp->host->by_ufs) {
-#else
-	if (1) { /* apply to all SCSI devices on non-UFS system */
-#endif
+	if (strncmp(sht->name, "ufshcd", 6)) {
 		struct request_queue *q = sdp->request_queue;
 
-		/* decrease max # of requests to 32. The goal of this tunning is
+		/* decrease max # of requests to 32. The goal of this tuning is
 		 * reducing the time for draining elevator when elevator_switch
 		 * function is called. It is effective for slow USB memory.
 		 */
@@ -3697,8 +3692,9 @@ static int sd_start_stop_device(struct scsi_disk *sdkp, int start)
 static void sd_shutdown(struct device *dev)
 {
 	struct scsi_disk *sdkp = dev_get_drvdata(dev);
-	struct scsi_device *sdp = to_scsi_device(dev);
+	struct scsi_device *sdp = sdkp->device;
 	struct request_queue *q = sdp->request_queue;
+	struct scsi_host_template *sht = sdp->host->hostt;
 	unsigned long flags;
 
 	if (!sdkp)
@@ -3717,7 +3713,7 @@ static void sd_shutdown(struct device *dev)
 		sd_start_stop_device(sdkp, 0);
 	}
 
-	if (sdp->host->by_ufs) {
+	if (!strncmp(sht->name, "ufshcd", 6)) {
 		spin_lock_irqsave(q->queue_lock, flags);
 		queue_flag_set(QUEUE_FLAG_DYING, q);
 		__blk_drain_queue(q, true);

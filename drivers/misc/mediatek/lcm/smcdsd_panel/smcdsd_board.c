@@ -17,6 +17,7 @@
 #include <linux/of_platform.h>
 #include <linux/regulator/consumer.h>
 #include <linux/regulator/driver.h>
+#include <linux/rtc.h>
 #include <linux/slab.h>
 #include "../../../../pinctrl/core.h"
 #include "../../../../regulator/dummy.h"
@@ -105,6 +106,8 @@ run_list(dev, "subnode_4"); pre-configured lcd_pin pinctrl at subnode_1 will be 
 #define BOARD_DTS_NAME	"smcdsd_board"
 #define PANEL_DTS_NAME	"smcdsd_panel"
 #define PANEL_LUT_NAME	"panel-lut"
+#define PANEL_VRR_NAME	"vrr_info"
+#define PANEL_PBA_NODE	"panel_not_connected"
 
 #if defined(CONFIG_BOARD_DEBUG)
 #define dbg_none(fmt, ...)		pr_debug(pr_fmt("%s: %3d: %s: " fmt), BOARD_DTS_NAME, __LINE__, __func__, ##__VA_ARGS__)
@@ -247,9 +250,9 @@ static int print_action(struct action_info *action)
 
 static int secprintf(char *buf, size_t size, s64 nsec)
 {
-	struct timeval tv = ns_to_timeval(nsec);
+	struct timespec64 ts = ns_to_timespec64(nsec);
 
-	return scnprintf(buf, size, "%lu.%06lu", (unsigned long)tv.tv_sec, tv.tv_usec);
+	return scnprintf(buf, size, "%lu.%06lu", (unsigned long)ts.tv_sec, ts.tv_nsec / 1000);
 }
 
 static void print_timer(struct timer_info *timer)
@@ -379,11 +382,13 @@ exit:
 static int is_dummy_regulator(struct regulator_bulk_data *bulk)
 {
 	struct regulator_dev *rdev = NULL;
+	const struct regulator_desc *desc;
 	int ret = 0;
 
 	rdev = bulk->consumer->rdev;
+	desc = rdev->desc;
 
-	ret = (rdev && rdev != dummy_regulator_rdev) ? 0 : 1;
+	ret = (strcmp("regulator-dummy", desc->name) == 0) ? 1 : 0;
 
 	return ret;
 }
@@ -413,7 +418,7 @@ static int decide_subinfo(struct device_node *np, struct action_info *action)
 	switch (action->idx) {
 	case ACTION_GPIO_HIGH:
 	case ACTION_GPIO_LOW:
-		action->gpio = of_get_named_gpio(np->parent, subinfo, 0);
+		action->gpio = of_get_named_gpio(np, subinfo, 0);
 		if (!gpio_is_valid(action->gpio)) {
 			dbg_warn("of_get_named_gpio fail %d %s\n", action->gpio, subinfo);
 			ret = -EINVAL;
@@ -516,7 +521,7 @@ static int decide_subinfo(struct device_node *np, struct action_info *action)
 		}
 		break;
 	case ACTION_PINCTRL:
-		pdev = of_find_device_by_node(np->parent);
+		pdev = of_find_device_by_node(np);
 		if (!pdev) {
 			dbg_warn("of_find_device_by_node fail\n");
 			ret = -EINVAL;
@@ -624,6 +629,41 @@ struct device_node *of_find_recommend_lcd_info(struct device *dev)
 	return np;
 }
 
+struct device_node *of_find_recommend_vrr_info(struct device *dev, int index)
+{
+	struct device_node *parent = NULL;
+	struct device_node *np = NULL;
+	int count = 0;
+
+	parent = of_find_recommend_lcd_info(dev);
+	if (!parent) {
+		dbg_info("of_find_recommend_lcd_info fail\n");
+		return np;
+	}
+
+	if (index < 0) {
+		dbg_info("index(%d) invalid\n", index);
+		return np;
+	}
+
+	count = of_count_phandle_with_args(parent, PANEL_VRR_NAME, NULL);
+	if (count <= 1) {
+		dbg_info("count(%d) invalid\n", count);
+		return np;
+	}
+
+	if (index >= count) {
+		dbg_info("index(%d) count(%d) invalid\n", index, count);
+		return np;
+	}
+
+	np = of_parse_phandle(parent, PANEL_VRR_NAME, index);
+
+	dbg_info("%s is found\n", of_node_full_name(np));
+
+	return np;
+}
+
 struct device_node *of_find_smcdsd_board(struct device *dev)
 {
 	struct device_node *parent = NULL;
@@ -642,6 +682,17 @@ struct device_node *of_find_smcdsd_board(struct device *dev)
 	dbg_info("%s property in %s has %s\n", BOARD_DTS_NAME, of_node_full_name(parent), of_node_full_name(np));
 
 	return np;
+}
+
+static int skip_list(const char *node_name, const char *type_name)
+{
+	if (STRNEQ(PANEL_PBA_NODE, node_name))
+		return 0;
+
+	if (!get_boot_lcdconnected() && !STRNEQ("delay", type_name) && !STRNEQ("timer", type_name))
+		return 1;
+
+	return 0;
 }
 
 static int make_list(struct device *dev, struct list_head *lh, const char *name)
@@ -676,7 +727,7 @@ static int make_list(struct device *dev, struct list_head *lh, const char *name)
 		of_property_read_string_index(np, "type", i * 2, &type);
 		of_property_read_string_index(np, "type", i * 2 + 1, &subinfo);
 
-		if (!get_boot_lcdconnected() && !STRNEQ("delay", type) && !STRNEQ("timer", type)) {
+		if (skip_list(name, type)) {
 			dbg_info("lcdtype(%d) is invalid, so skip to add %s: %2d: %s\n", get_boot_lcdtype(), name, count, type);
 			continue;
 		}
@@ -688,7 +739,7 @@ static int make_list(struct device *dev, struct list_head *lh, const char *name)
 		ret = decide_type(action);
 		if (ret < 0)
 			break;
-		ret = decide_subinfo(np, action);
+		ret = decide_subinfo(np->parent, action);
 		if (ret < 0)
 			break;
 
@@ -743,7 +794,7 @@ static int make_text(struct device *dev, struct list_head *lh, const char *name,
 		type = type_list[i * 2];
 		subinfo = type_list[i * 2 + 1];
 
-		if (!get_boot_lcdconnected() && !STRNEQ("delay", type) && !STRNEQ("timer", type)) {
+		if (skip_list(name, type)) {
 			dbg_info("lcdtype(%d) is invalid, so skip to add %s: %2d: %s\n", get_boot_lcdtype(), name, count, type);
 			continue;
 		}
@@ -1094,11 +1145,6 @@ int of_gpio_get_active(const char *gpioname)
 	return ret;
 }
 
-int of_gpio_abnormal(const char *gpioname)
-{
-	return of_gpio_get_active(gpioname);
-}
-
 struct regulator_bulk_data *get_regulator_with_name(const char *name)
 {
 	int ret = 0;
@@ -1203,6 +1249,18 @@ struct platform_device *of_find_dsim_platform_device(void)
 struct platform_device *of_find_decon_platform_device(void)
 {
 	return of_find_device_by_path("decon0");
+}
+
+static int __of_update_property(struct device_node *np, struct property *newprop)
+{
+	struct property *oldprop = NULL;
+	int ret = 0;
+
+	oldprop = of_find_property(np, newprop->name, NULL);
+	if (oldprop)
+		ret = of_remove_property(np, oldprop);
+
+	return of_add_property(np, newprop);
 }
 
 /**
@@ -1324,7 +1382,7 @@ int of_update_phandle_property_list(struct device_node *from, const char *phandl
 		seq_printf(&m, "%s ", node_names[i]);
 	}
 
-	ret = of_update_property(parent, prop_new);
+	ret = __of_update_property(parent, prop_new);
 	if (ret) {
 		dbg_info("of_update_property fail: %d\n", ret);
 		kfree(prop_new->value);
@@ -1413,7 +1471,7 @@ static int __of_update_recommend(struct device_node *np, unsigned int recommend)
 		prop_new->value = "ok";
 		prop_new->length = sizeof("ok");
 
-		ret = of_update_property(np, prop_new);
+		ret = __of_update_property(np, prop_new);
 	} else {
 		struct property *prop = NULL;
 
@@ -1528,6 +1586,14 @@ static int __init panel_lut_ddi_recommend_init(void)
 	return 0;
 }
 
+int panel_clean_board(struct device *dev)
+{
+	if (!get_boot_lcdconnected())
+		run_list(dev, PANEL_PBA_NODE);
+
+	return 0;
+}
+
 static int __init smcdsd_board_init(void)
 {
 	panel_lut_ddi_recommend_init();
@@ -1535,4 +1601,15 @@ static int __init smcdsd_board_init(void)
 	return 0;
 }
 core_initcall(smcdsd_board_init);
+
+static int __init smcdsd_board_late_initcall(void)
+{
+	struct platform_device *pdev = of_find_device_by_path("/panel");
+	struct device *dev = pdev ? &(pdev->dev) : NULL;
+
+	panel_clean_board(dev);
+
+	return 0;
+}
+late_initcall_sync(smcdsd_board_late_initcall);
 

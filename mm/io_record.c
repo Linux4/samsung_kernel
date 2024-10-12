@@ -36,8 +36,8 @@ struct io_info {
 	int nr_pages;
 };
 
-#define NUM_IO_INFO_IN_BUF (128 * 1024) /* # of struct io_info */
-#define RESULT_BUF_SIZE_IN_BYTES (5 * 1024 * 1024) /* 5MB */
+#define NUM_IO_INFO_IN_BUF (64 * 1024) /* # of struct io_info */
+#define RESULT_BUF_SIZE_IN_BYTES (512 * 1024) /* 512 KB */
 #define RESULT_BUF_END_MAGIC (~0) /* -1 */
 
 struct io_info *record_buf; /* array of struct io_info */
@@ -467,7 +467,6 @@ static int __init io_record_init(void)
 	record_buf = vzalloc(sizeof(struct io_info) * NUM_IO_INFO_IN_BUF);
 	if (!record_buf)
 		goto record_buf_fail;
-
 	result_buf = vzalloc(RESULT_BUF_SIZE_IN_BYTES);
 	if (!result_buf)
 		goto result_buf_fail;

@@ -66,6 +66,13 @@
 #define DEFAULT_PAGE_SIZE 0x1000
 #define PAGE_ORDER 12
 
+#define ION_CACHEOPS_IS_WRITE(type)			\
+	((type) == ION_CACHE_CLEAN_BY_RANGE ||		\
+	 (type) == ION_CACHE_CLEAN_BY_RANGE_USE_PA ||	\
+	 (type) == ION_CACHE_CLEAN_ALL ||		\
+	 (type) == ION_CACHE_FLUSH_BY_RANGE ||		\
+	 (type) == ION_CACHE_FLUSH_BY_RANGE_USE_PA ||	\
+	 (type) == ION_CACHE_FLUSH_ALL)
 struct ion_device *g_ion_device;
 EXPORT_SYMBOL(g_ion_device);
 
@@ -160,8 +167,13 @@ static void __ion_cache_mmp_end(enum ION_CACHE_SYNC_TYPE sync_type,
 static int vma_is_ion_node(struct vm_area_struct *vma)
 {
 	struct dma_buf *dmabuf;
+	struct file *file;
 
 	if (unlikely(!vma))
+		return 0;
+
+	file = vma->vm_file;
+	if (!file || !is_dma_buf_file(file))
 		return 0;
 
 	dmabuf = vma->vm_private_data;
@@ -188,12 +200,13 @@ static int ion_check_user_va(unsigned long va, size_t size)
 	if (unlikely(va_end < va_start))
 		return 0;
 
-	down_read(&current->mm->mmap_sem);
 	vma = find_vma(current->mm, va_start);
-	if (vma && va_start >= vma->vm_start &&
-	    va_end <= vma->vm_end)
+	if (!vma || va_start < vma->vm_start ||
+	    va_end > vma->vm_end) {
+		ret = 0;
+	} else {
 		ret = vma_is_ion_node(vma);
-	up_read(&current->mm->mmap_sem);
+	}
 
 	return ret;
 }
@@ -225,10 +238,6 @@ static int __ion_is_user_va(unsigned long va, size_t size)
 		}
 	}
 
-	/* add more check */
-	if (ret)
-		ret = ion_check_user_va(va, size);
-
 	return ret;
 }
 
@@ -237,6 +246,7 @@ static int __cache_sync_by_range(struct ion_client *client,
 				 unsigned long start, size_t size,
 				 int is_kernel_addr)
 {
+	bool lock_vma = false;
 	char ion_name[200];
 	int ret = 0;
 
@@ -252,14 +262,23 @@ static int __cache_sync_by_range(struct ion_client *client,
 
 	/* userspace va check */
 	ret  = __ion_is_user_va(start, size);
+	if (ret) {
+		lock_vma = true;
+		down_read(&current->mm->mmap_sem);
+		ret = ion_check_user_va(start, size);
+	}
+
 	if (!ret) {
+		if (lock_vma) {
+			up_read(&current->mm->mmap_sem);
+			lock_vma = false;
+		}
 		scnprintf(ion_name, 199,
-			  "CRDISPATCH_KEY(%s),(%d) sz/addr %zx/%lx is_kernel_addr:%d",
+			  "CRDISPATCH_KEY(%s),(%d) sz %zx is_kernel_addr:%d",
 			  (*client->dbg_name) ?
 			  client->dbg_name : client->name,
-			  (unsigned int)current->pid, size, start, is_kernel_addr);
+			  (unsigned int)current->pid, size, is_kernel_addr);
 		IONMSG("%s %s\n", __func__, ion_name);
-		//aee_kernel_warning(ion_name, "[ION]: Wrong Address Range");
 		return -EFAULT;
 	}
 
@@ -290,6 +309,10 @@ start_sync:
 			__inval_dcache_area((void *)start, size);
 		break;
 	default:
+		if (lock_vma) {
+			up_read(&current->mm->mmap_sem);
+			lock_vma = false;
+		}
 		IONMSG("%s err type. (%d):clt(%s)cache(%d)\n",
 		       __func__, (unsigned int)current->pid,
 		       client->dbg_name, sync_type);
@@ -297,6 +320,10 @@ start_sync:
 		break;
 	}
 
+	if (lock_vma) {
+		up_read(&current->mm->mmap_sem);
+		lock_vma = false;
+	}
 	__ion_cache_mmp_end(sync_type, size);
 
 	return 0;
@@ -433,6 +460,12 @@ static long ion_sys_cache_sync(struct ion_client *client,
 		return -EINVAL;
 	}
 
+	if (kernel_handle->buffer->size < param->size) {
+		IONMSG("%s error, sync size is larger than buf_sz:%zu\n",
+		       __func__, kernel_handle->buffer->size);
+		goto err;
+	}
+
 	buffer = kernel_handle->buffer;
 	sync_size = param->size;
 
@@ -442,37 +475,41 @@ static long ion_sys_cache_sync(struct ion_client *client,
 	case ION_CACHE_FLUSH_BY_RANGE:
 
 		sync_va = (unsigned long)param->va;
+
 		if (sync_size == 0 || sync_va == 0) {
 			/* whole buffer cache sync
 			 * get sync_va and sync_size here
 			 */
 			sync_size = buffer->size;
-			is_kernel_addr = 1;
-			if (buffer->kmap_cnt != 0) {
-				sync_va = (unsigned long)buffer->vaddr;
-			} else {
+
 				/* Do kernel map and do cache sync
 				 * 32bit project, vmap space is small,
 				 *    4MB as a boundary for mapping.
 				 * 64bit vmap space is huge
 				 */
 #ifdef CONFIG_ARM64
-				sync_va = (unsigned long)
-					  ion_map_kernel(client, kernel_handle);
+			sync_va = (unsigned long)ion_map_kernel(client,
+								kernel_handle);
+			is_kernel_addr = 1;
 				ion_need_unmap_flag = 1;
 #else
 				if (sync_size <= SZ_4M) {
 					sync_va = (unsigned long)
 					ion_map_kernel(client, kernel_handle);
+				is_kernel_addr = 1;
 					ion_need_unmap_flag = 1;
 				} else {
 					ret =
-					ion_sys_cache_sync_buf(client,
-							       sync_type,
+				ion_sys_cache_sync_buf(client, sync_type,
 							       kernel_handle);
 					goto out;
 				}
 #endif
+			if (IS_ERR_OR_NULL(ERR_PTR((long)sync_va))) {
+				IONMSG("%s #%d: map failed\n", __func__,
+				       __LINE__);
+				ret = -ENOMEM;
+				goto err;
 			}
 		}
 		break;
@@ -571,12 +608,28 @@ static long ion_sys_ioctl(struct ion_client *client, unsigned int cmd,
 	ion_phys_addr_t phy_addr;
 
 	ION_FUNC_ENTER;
-	if (from_kernel)
+	if (!arg) {
+		IONMSG("%s:err arg = NULL. %s(%s),%d, k:%d\n",
+		       __func__, client->name, client->dbg_name,
+		       client->pid, from_kernel);
+		ret = -EINVAL;
+		goto err;
+	}
+
+	if (from_kernel) {
 		param = *(struct ion_sys_data *)arg;
-	else
+	} else {
 		ret_copy =
 		    copy_from_user(&param, (void __user *)arg,
 				   sizeof(struct ion_sys_data));
+		if (ret_copy != 0) {
+			IONMSG("%s:err arg copy failed, ret_copy = %lu. %s(%s),%d, k:%d\n",
+			       __func__, ret_copy, client->name, client->dbg_name,
+			       client->pid, from_kernel);
+			ret = -EFAULT;
+			goto err;
+		}
+	}
 
 	switch (param.sys_cmd) {
 	case ION_SYS_CACHE_SYNC:
@@ -653,8 +706,8 @@ static long ion_sys_ioctl(struct ion_client *client, unsigned int cmd,
 	}
 		break;
 	case ION_SYS_SET_CLIENT_NAME:
-		ion_sys_copy_client_name(param.client_name_param.name,
-					 client->dbg_name);
+		ret = ion_sys_copy_client_name(param.client_name_param.name,
+					       client->dbg_name);
 		break;
 	default:
 		IONMSG(
@@ -663,12 +716,22 @@ static long ion_sys_ioctl(struct ion_client *client, unsigned int cmd,
 		ret = -EFAULT;
 		break;
 	}
+
+	if (ret) {
+		IONMSG("[%s]:failed to finish io-cmd(%d). %s(%s),%d, k:%d\n",
+		       __func__, param.sys_cmd,
+		       client->name, client->dbg_name,
+		       client->pid, from_kernel);
+		goto err;
+	}
+
 	if (from_kernel)
 		*(struct ion_sys_data *)arg = param;
 	else
 		ret_copy =
 		    copy_to_user((void __user *)arg, &param,
 				 sizeof(struct ion_sys_data));
+err:
 	ION_FUNC_LEAVE;
 	return ret;
 }
@@ -956,6 +1019,10 @@ static int ion_drv_probe(struct platform_device *pdev)
 		return -EPROBE_DEFER;
 	}
 	pdata = (struct ion_platform_data *)of_device_get_match_data(dev);
+	if (!pdata) {
+		IONMSG("get match data fail\n");
+		return EPROBE_DEFER;
+	}
 #else
 
 	pdata = pdev->dev.platform_data;

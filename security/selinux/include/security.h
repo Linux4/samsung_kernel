@@ -110,6 +110,8 @@ struct selinux_state {
 	bool initialized;
 	bool policycap[__POLICYDB_CAPABILITY_MAX];
 	bool android_netlink_route;
+	bool android_netlink_getneigh;
+
 	struct selinux_avc *avc;
 	struct selinux_ss *ss;
 };
@@ -120,7 +122,7 @@ void selinux_avc_init(struct selinux_avc **avc);
 extern struct selinux_state selinux_state;
 
 #ifdef CONFIG_SECURITY_SELINUX_DEVELOP
-extern int selinux_enforcing;
+extern int selinux_enforcing;							 
 static inline bool enforcing_enabled(struct selinux_state *state)
 {
 	return selinux_enforcing; // SEC_SELINUX_PORTING_COMMON Change to use RKP 
@@ -194,6 +196,13 @@ static inline bool selinux_android_nlroute_getlink(void)
 	return state->android_netlink_route;
 }
 
+static inline bool selinux_android_nlroute_getneigh(void)
+{
+	struct selinux_state *state = &selinux_state;
+
+	return state->android_netlink_getneigh;
+}
+
 int security_mls_enabled(struct selinux_state *state);
 int security_load_policy(struct selinux_state *state,
 			 void *data, size_t len);
@@ -243,7 +252,7 @@ struct extended_perms {
 #else
 #define AVD_FLAGS_PERMISSIVE	0x0001
 #endif
-// ] SEC_SELINUX_PORTING_COMMON
+// ] SEC_SELINUX_PORTING_COMMON					   
 
 void security_compute_av(struct selinux_state *state,
 			 u32 ssid, u32 tsid,

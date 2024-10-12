@@ -40,29 +40,26 @@
 #endif
 #include "tee_client_api.h"
 
-#if defined(CONFIG_TEEGRIS_TEE_SUPPORT)
-#include <tee_client_api.h>
-#endif
-
 #if IS_ENABLED(CONFIG_TEEGRIS_TEE_SUPPORT)
 	#define TYPE_STRUCT
 #else
 	#define TYPE_STRUCT struct
 #endif
 
-/* clang-format off */
 #if defined(CONFIG_TEEGRIS_TEE_SUPPORT)
 #define SECMEM_TL_GP_UUID_STRING NULL
 #define SECMEM_TL_GP_UUID \
-	{ 0x00000000, 0x4D54, 0x4B5F, \
-	{ 0x42, 0x46, 0x53, 0x4D, 0x45, 0x4D, 0x54, 0x41 } }
+	{0x00000000, 0x4D54, 0x4B5F, \
+	 {0x42, 0x46, 0x53, 0x4D, 0x45, 0x4D, 0x54, 0x41 } }
 #else
-#define SECMEM_TL_GP_UUID_STRING "08030000000000000000000000000000"
+/* clang-format off */
 #define SECMEM_TL_GP_UUID \
 	{ 0x08030000, 0x0000, 0x0000, \
 	{ 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 } }
-#endif
 /* clang-format on */
+
+#define SECMEM_TL_GP_UUID_STRING "08030000000000000000000000000000"
+#endif
 
 struct TEE_GP_SESSION_DATA {
 	TYPE_STRUCT TEEC_Context context;
@@ -358,6 +355,9 @@ int tee_mem_reg_add(u64 pa, u32 size, void *tee_data, void *dev_desc)
 			return TMEM_TEE_NOTIFY_MEM_ADD_CFG_TO_MTEE_FAILED;
 		}
 	}
+
+	pr_debug("[%d] TEE append reg mem PASS: PA=0x%lx, size=0x%lx\n",
+		       tee_dev_desc->mtee_chunks_id, pa, size);
 
 	return TMEM_OK;
 }

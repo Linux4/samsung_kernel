@@ -15,8 +15,9 @@
 
 #if defined(CONFIG_TRUSTONIC_TRUSTED_UI) ||\
 	defined(CONFIG_BLOWFISH_TUI_SUPPORT) ||\
-	defined(CONFIG_SAMSUNG_TUI) ||\
-	defined(CONFIG_MTK_SEC_VIDEO_PATH_SUPPORT)
+	defined(CONFIG_TEEGRIS_TUI) ||\
+	defined(CONFIG_MTK_SEC_VIDEO_PATH_SUPPORT) ||\
+	defined(CONFIG_SAMSUNG_TUI)
 #define SSMR_TUI_REGION_ENABLE
 #else
 #undef SSMR_TUI_REGION_ENABLE
@@ -133,10 +134,11 @@ static struct SSMR_Scheme _ssmrscheme[__MAX_NR_SCHEME] = {
 
 static struct SSMR_Feature _ssmr_feats[__MAX_NR_SSMR_FEATURES] = {
 #if defined(CONFIG_MTK_SEC_VIDEO_PATH_SUPPORT) ||\
-	defined(CONFIG_MTK_TEE_GP_SUPPORT) || \
+	defined(CONFIG_MTK_TEE_GP_SUPPORT) ||\
+	defined(CONFIG_MTK_SVP_ON_MTEE_SUPPORT) ||\
 	defined(CONFIG_TEEGRIS_TEE_SUPPORT)
 	[SSMR_FEAT_SVP] = {
-		.dt_prop_name = "svp-size",
+		.dt_prop_name = "svp-region-based-size",
 		.feat_name = "svp",
 		.cmd_online = "svp=on",
 		.cmd_offline = "svp=off",
@@ -155,6 +157,7 @@ static struct SSMR_Feature _ssmr_feats[__MAX_NR_SSMR_FEATURES] = {
 #endif
 #if defined(CONFIG_TRUSTONIC_TRUSTED_UI) ||\
 	defined(CONFIG_BLOWFISH_TUI_SUPPORT) ||\
+	defined(CONFIG_TEEGRIS_TUI) ||\
 	defined(CONFIG_SAMSUNG_TUI)
 	[SSMR_FEAT_TUI] = {
 		.dt_prop_name = "tui-size",
@@ -175,7 +178,7 @@ static struct SSMR_Feature _ssmr_feats[__MAX_NR_SSMR_FEATURES] = {
 #endif
 #ifdef CONFIG_MTK_PROT_MEM_SUPPORT
 	[SSMR_FEAT_PROT_SHAREDMEM] = {
-		.dt_prop_name = "prot-sharedmem-size",
+		.dt_prop_name = "prot-region-based-size",
 		.feat_name = "prot-sharedmem",
 		.cmd_online = "prot_sharedmem=on",
 		.cmd_offline = "prot_sharedmem=off",

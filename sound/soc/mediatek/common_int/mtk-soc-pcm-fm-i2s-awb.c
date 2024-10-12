@@ -109,7 +109,7 @@ static int FM_i2s_RecordVol_Set(struct snd_kcontrol *kcontrol,
 
 	if (GetFmI2sInPathEnable() == true)
 		SetHwDigitalGain(Soc_Aud_Digital_Block_HW_GAIN2,
-				 mfm_i2s_RecordVol);
+						 mfm_i2s_RecordVol);
 
 	return 0;
 }
@@ -160,8 +160,7 @@ static void StartAudioFMI2SAWBHardware(struct snd_pcm_substream *substream)
 	SetHwDigitalGainMode(Soc_Aud_Digital_Block_HW_GAIN2,
 			     substream->runtime->rate, 0x40);
 	SetHwDigitalGainEnable(Soc_Aud_Digital_Block_HW_GAIN2, true);
-	SetHwDigitalGain(Soc_Aud_Digital_Block_HW_GAIN2,
-			 mfm_i2s_RecordVol);
+	SetHwDigitalGain(Soc_Aud_Digital_Block_HW_GAIN2, mfm_i2s_RecordVol);
 #endif
 
 	if (GetFmI2sInPathEnable() == false) {

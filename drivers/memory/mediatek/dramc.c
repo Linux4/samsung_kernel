@@ -66,7 +66,11 @@ static int fmeter_v1_init(struct platform_device *pdev,
 	ret |= of_property_read_u32_array(dramc_node,
 		"fbksel", (unsigned int *)(fmeter_dev_ptr->fbksel), 6);
 	ret |= of_property_read_u32_array(dramc_node,
+		"dqsopen", (unsigned int *)(fmeter_dev_ptr->dqsopen), 6);
+	ret |= of_property_read_u32_array(dramc_node,
 		"dqopen", (unsigned int *)(fmeter_dev_ptr->dqopen), 6);
+	ret |= of_property_read_u32_array(dramc_node,
+		"ckdiv4_ca", (unsigned int *)(fmeter_dev_ptr->ckdiv4_ca), 6);
 
 	return ret;
 }
@@ -116,6 +120,10 @@ __weak int mtk_dramc_binning_test(void)
 {
 	return 0;
 }
+__weak int mtk_dramc_binning_test_sz(unsigned int len)
+{
+    return 0;
+}
 
 static ssize_t binning_test_show(struct device_driver *driver, char *buf)
 {
@@ -134,6 +142,29 @@ static DRIVER_ATTR_RO(mr);
 static DRIVER_ATTR_RO(mr4);
 static DRIVER_ATTR_RO(dram_data_rate);
 static DRIVER_ATTR_RO(binning_test);
+
+static unsigned int dramc_binning_test_size[4] = {0x2000, };
+#define DEFINE_BINNING_TEST_ATTR_RW(n) \
+	static ssize_t binning_test##n##_show(struct device_driver *driver, char *buf) { \
+		int ret = mtk_dramc_binning_test_sz(dramc_binning_test_size[n-1]); \
+		if (!ret) return snprintf(buf, PAGE_SIZE, "unsupport mem test\n"); \
+		else if (ret > 0) return snprintf(buf, PAGE_SIZE, "mem test(0x%x) all pass\n", dramc_binning_test_size[n-1]); \
+		else return snprintf(buf, PAGE_SIZE, "mem test(0x%x) failed %d\n", dramc_binning_test_size[n-1], ret); \
+	} \
+	static ssize_t binning_test##n##_store(struct device_driver *driver, const char *buf, size_t count) { \
+		unsigned int size; \
+		int ret = kstrtouint(buf, 16, &size); \
+		if (!ret) dramc_binning_test_size[n-1] = size; \
+		return count; \
+	 } \
+	static DRIVER_ATTR_RW(binning_test##n);
+#define MAKE_BINNING_TEST_ATTR_RW(n) \
+	ret = driver_create_file(pdev->dev.driver, &driver_attr_binning_test##n); \
+	if (ret) { pr_info("%s: fail to create binning_test#n sysfs\n", __func__); return ret; }
+DEFINE_BINNING_TEST_ATTR_RW(1);
+DEFINE_BINNING_TEST_ATTR_RW(2);
+DEFINE_BINNING_TEST_ATTR_RW(3);
+DEFINE_BINNING_TEST_ATTR_RW(4);
 
 static int dramc_probe(struct platform_device *pdev)
 {
@@ -356,6 +387,11 @@ static int dramc_probe(struct platform_device *pdev)
 		return ret;
 	}
 
+	MAKE_BINNING_TEST_ATTR_RW(1)
+	MAKE_BINNING_TEST_ATTR_RW(2)
+	MAKE_BINNING_TEST_ATTR_RW(3)
+	MAKE_BINNING_TEST_ATTR_RW(4)
+
 	ret = driver_create_file(
 		pdev->dev.driver, &driver_attr_dram_data_rate);
 	if (ret) {
@@ -455,22 +491,32 @@ EXPORT_SYMBOL(mtk_dramc_get_steps_freq);
 static unsigned int decode_freq(unsigned int vco_freq)
 {
 	switch (vco_freq) {
+	case 5460:
+		return 5500;
 	case 4264:
 		return 4266;
 	case 3718:
+	case 3588:
 		return 3733;
 	case 3068:
 		return 3200;
+	case 2652:
+		return 2667;
 	case 2366:
 		return 2400;
 	case 1859:
+	case 1794:
 		return 1866;
 	case 1534:
 		return 1600;
 	case 1144:
+	case 1196:
 		return 1200;
 	case 754:
+	case 799:
 		return 800;
+	case 396:
+		return 400;
 	}
 
 	return vco_freq;
@@ -491,7 +537,9 @@ static unsigned int fmeter_v1(struct dramc_dev_t *dramc_dev_ptr)
 	unsigned int offset;
 	unsigned int vco_freq;
 	unsigned int fbksel;
+	unsigned int dqsopen;
 	unsigned int dqopen;
+	unsigned int ckdiv4_ca_val;
 
 	shu_lv_val = (readl(dramc_dev_ptr->ddrphy_chn_base_nao[0] +
 		fmeter_dev_ptr->shu_lv.offset) &
@@ -545,15 +593,32 @@ static unsigned int fmeter_v1(struct dramc_dev_t *dramc_dev_ptr)
 		fmeter_dev_ptr->fbksel[pll_id_val].mask) >>
 		fmeter_dev_ptr->fbksel[pll_id_val].shift;
 
+	offset = fmeter_dev_ptr->dqsopen[pll_id_val].offset +
+		fmeter_dev_ptr->shu_of * shu_lv_val;
+	dqsopen = (readl(dramc_dev_ptr->ddrphy_chn_base_ao[0] + offset) &
+		fmeter_dev_ptr->dqsopen[pll_id_val].mask) >>
+		fmeter_dev_ptr->dqsopen[pll_id_val].shift;
+
 	offset = fmeter_dev_ptr->dqopen[pll_id_val].offset +
 		fmeter_dev_ptr->shu_of * shu_lv_val;
 	dqopen = (readl(dramc_dev_ptr->ddrphy_chn_base_ao[0] + offset) &
 		fmeter_dev_ptr->dqopen[pll_id_val].mask) >>
 		fmeter_dev_ptr->dqopen[pll_id_val].shift;
 
+	offset = fmeter_dev_ptr->ckdiv4_ca[pll_id_val].offset +
+		fmeter_dev_ptr->shu_of * shu_lv_val;
+	ckdiv4_ca_val = (readl(dramc_dev_ptr->ddrphy_chn_base_ao[0] + offset) &
+		fmeter_dev_ptr->ckdiv4_ca[pll_id_val].mask) >>
+		fmeter_dev_ptr->ckdiv4_ca[pll_id_val].shift;
+
 	vco_freq = ((fmeter_dev_ptr->crystal_freq >> prediv_val) *
 		(sdmpcw_val >> 8)) >> posdiv_val >> ckdiv4_val >>
-		pll_md_val >> cldiv2_val << fbksel >> (dqopen << 1);
+		pll_md_val >> cldiv2_val << fbksel;
+
+	if ((dqsopen == 1 || dqopen == 1) && (ckdiv4_ca_val == 1))
+		vco_freq >>= 2;
+	else if ((dqsopen == 1 || dqopen == 1) && (ckdiv4_ca_val == 0))
+		vco_freq >>= 1;
 
 	return decode_freq(vco_freq);
 }

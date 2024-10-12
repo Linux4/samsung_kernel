@@ -33,10 +33,38 @@
 #define MTK_DRM_ESD_SUPPORT
 #define MTK_FB_MMDVFS_SUPPORT
 #endif
+
 #define MTK_DRM_FENCE_SUPPORT
 #define MTK_DRM_CMDQ_ASYNC
 #define CONFIG_MTK_DISPLAY_CMDQ
 #define MTK_FILL_MIPI_IMPEDANCE
+
+#if (defined(CONFIG_MACH_MT6885) || defined(CONFIG_MACH_MT6873)\
+	|| defined(CONFIG_MACH_MT6893) ||\
+	defined(CONFIG_MACH_MT6853) || \
+	defined(CONFIG_MACH_MT6833) || \
+	defined(CONFIG_MACH_MT6781)) &&\
+	defined(CONFIG_MTK_SEC_VIDEO_PATH_SUPPORT)
+#define MTK_DRM_DELAY_PRESENT_FENCE
+/* Delay present fence would cause config merge */
+#endif
+
+#if defined(CONFIG_MACH_MT6877) || defined(CONFIG_MACH_MT6781)
+/*
+ * MTK_DRM_DELAY_PRESENT_FENCE can not be defined,
+ * but SF present fence must be enabled in platform dts
+ */
+#define MTK_DRM_DELAY_PRESENT_FENCE_SOF
+#endif
+
+#if defined(CONFIG_MACH_MT6893) || defined(CONFIG_MACH_MT6853)\
+	|| defined(CONFIG_MACH_MT6877)
+#define CONFIG_MTK_DYN_SWITCH_BY_CMD
+#endif
+
+#ifdef CONFIG_MTK_IOMMU_V2
+#define CONFIG_MTK_DISPLAY_M4U
+#endif
 
 struct device;
 struct device_node;
@@ -105,6 +133,7 @@ struct mtk_drm_private {
 	enum MTK_DRM_SESSION_MODE session_mode;
 	atomic_t crtc_present[MAX_CRTC];
 	atomic_t crtc_sf_present[MAX_CRTC];
+	atomic_t crtc_rel_present[MAX_CRTC];
 
 	struct device_node *mutex_node;
 	struct device *mutex_dev;
@@ -135,6 +164,7 @@ struct mtk_drm_private {
 	struct drm_property *crtc_property[MAX_CRTC][CRTC_PROP_MAX];
 
 	struct drm_fb_helper fb_helper;
+	struct kref kref_fb_buf;
 	struct drm_gem_object *fbdev_bo;
 	struct list_head lyeblob_head;
 	struct mutex lyeblob_list_mutex;
@@ -177,10 +207,14 @@ struct mtk_drm_private {
 	int vds_path_switch_done;
 	int need_vds_path_switch_back;
 	int vds_path_enable;
-	struct mtk_uevent_dev uevent_data;
+
+	bool need_cwb_path_disconnect;
+	bool cwb_is_preempted;
 
 	/* Due to 2nd display share 1 secure gce client, need store here */
 	struct cmdq_client *ext_sec_client;
+
+	struct mtk_uevent_dev uevent_data;
 };
 
 struct mtk_drm_property {
@@ -243,8 +277,6 @@ extern struct platform_driver mtk_dp_tx_driver;
 extern struct platform_driver mtk_dp_intf_driver;
 #endif
 
-void mtk_atomic_state_get(struct drm_atomic_state *state);
-void mtk_atomic_state_put(struct drm_atomic_state *state);
 void mtk_atomic_state_put_queue(struct drm_atomic_state *state);
 void mtk_drm_fence_update(unsigned int fence_idx, unsigned int index);
 void drm_trigger_repaint(enum DRM_REPAINT_TYPE type,
@@ -266,5 +298,7 @@ int lcm_fps_ctx_init(struct drm_crtc *crtc);
 int lcm_fps_ctx_reset(struct drm_crtc *crtc);
 int lcm_fps_ctx_update(unsigned long long cur_ns,
 		unsigned int crtc_id, unsigned int mode);
+int mtk_mipi_clk_change(struct drm_crtc *crtc, unsigned int data_rate);
+void disp_drm_debug(const char *opt);
 extern int mtk_notifier_call_chain(unsigned long val, void *v);
 #endif /* MTK_DRM_DRV_H */

@@ -186,7 +186,7 @@ bool sec_bat_check_dc_step_charging(struct sec_battery_info *battery)
 	int i, value;
 	int step = -1, step_vol = -1, step_input = -1, step_soc = -1, soc_condition = 0;
 	bool force_change_step = false;
-	union power_supply_propval val;
+	union power_supply_propval val = {0, };
 
 	if (!battery->dc_step_chg_type)
 		return false;
@@ -274,7 +274,7 @@ bool sec_bat_check_dc_step_charging(struct sec_battery_info *battery)
 		step_vol = i;
 
 		if (battery->dc_step_chg_type & STEP_CHARGING_CONDITION_FLOAT_VOLTAGE)
-			value = battery->voltage_now + DIRECT_CHARGING_FLOAT_VOLTAGE_MARGIN;
+			value = battery->voltage_now + battery->pdata->dc_step_chg_cond_v_margin;
 		else
 			value = battery->voltage_avg;
 
@@ -530,6 +530,14 @@ int sec_dc_step_charging_dt(struct sec_battery_info *battery, struct device *dev
 				battery->dc_step_chg_type & ~STEP_CHARGING_CONDITION_FLOAT_VOLTAGE);
 			battery->dc_step_chg_type &= ~STEP_CHARGING_CONDITION_FLOAT_VOLTAGE;
 		} else {
+			ret = of_property_read_u32(np, "battery,dc_step_chg_cond_v_margin",
+					&battery->pdata->dc_step_chg_cond_v_margin);
+			if (ret)
+				battery->pdata->dc_step_chg_cond_v_margin = DIRECT_CHARGING_FLOAT_VOLTAGE_MARGIN;
+
+			pr_err("%s: dc_step_chg_cond_v_margin is %d\n",
+				__func__, battery->pdata->dc_step_chg_cond_v_margin);
+
 			len = len / sizeof(u32);
 
 			if (len != battery->dc_step_chg_step) {

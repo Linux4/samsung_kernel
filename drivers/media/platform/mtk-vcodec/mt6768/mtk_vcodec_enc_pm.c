@@ -192,11 +192,6 @@ void mtk_venc_dvfs_begin(struct mtk_vcodec_ctx *ctx)
 		venc_cur_job->start = get_time_us();
 		target_freq = est_freq(venc_cur_job->handle, &venc_jobs,
 					venc_hists);
-		if (ctx->dev->enc_cnt > 1) {
-			/* Reduce available time / increase freq */
-			pr_info("target_freq %d -> %d\n", target_freq, 457);
-			target_freq = 457;
-		}
 		target_freq_64 = match_freq(target_freq, &venc_freq_steps[0],
 					venc_freq_step_size);
 
@@ -208,7 +203,6 @@ void mtk_venc_dvfs_begin(struct mtk_vcodec_ctx *ctx)
 			if (venc_freq > target_freq_64)
 				venc_freq = target_freq_64;
 
-			pr_info("final freq = %lld\n", target_freq_64);
 			venc_cur_job->mhz = (int)target_freq_64;
 			pm_qos_update_request(&venc_qos_req_f, target_freq_64);
 		}
@@ -237,8 +231,20 @@ void mtk_venc_dvfs_end(struct mtk_vcodec_ctx *ctx)
 			update_hist(venc_cur_job, &venc_hists, 0);
 		} else {
 			/* Set allowed time for slowmotion 4 buffer pack */
-			interval = (long long)(1000 * 4 /
-					(int)ctx->enc_params.operationrate);
+			if (ctx->enc_params.operationrate > 0) {
+				interval = (long long)(1000 * 4 /
+						(int)ctx->enc_params.operationrate);
+			} else {
+				if (ctx->enc_params.framerate_denom == 0)
+					ctx->enc_params.framerate_denom = 1;
+				if (ctx->enc_params.operationrate == 0 &&
+					ctx->enc_params.framerate_num == 0)
+					ctx->enc_params.framerate_num =
+					ctx->enc_params.framerate_denom * 30;
+				interval = (long long)(1000 * 4 /
+						(int)(ctx->enc_params.framerate_num /
+						ctx->enc_params.framerate_denom));
+			}
 			update_hist(venc_cur_job, &venc_hists, interval*1000);
 		}
 		venc_jobs = venc_jobs->next;

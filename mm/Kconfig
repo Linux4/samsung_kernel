@@ -793,6 +793,14 @@ config PROCESS_RECLAIM
 
 	 Any other value is ignored.
 
+config MEMCG_HEIMDALL
+	bool "memcg optimization for heimdall"
+	depends on MEMCG
+	default y
+	help
+	  Enable this will change the memcg-related logics in the way Heimdall
+	  prefers.
+
 config INCREASE_MAXIMUM_SWAPPINESS
 	bool "Allow swappiness to be set up to 200"
 	depends on SWAP
@@ -871,21 +879,29 @@ config PERCPU_STATS
 	  information includes global and per chunk statistics, which can
 	  be used to help understand percpu memory usage.
 
-# IOPP-dirty_buffer-v2.1.4.19
 config LARGE_DIRTY_BUFFER
-       bool "Use large dirty_threshold value by enabling dirty_ratio"
-       default n
-       help
-         This config enables dirty_ratio/dirty_background_ratio,
-         and it means large dirty_threshold value in 64bit architectures.
-         If unsure, say N to use kernel default value
+	bool "Use large dirty_threshold value by enabling dirty_ratio"
+	default n
+	help
+	  This config enables dirty_ratio/dirty_background_ratio,
+	  and it means large dirty_threshold value in 64bit architectures.
+	  If unsure, say N to use kernel default value
 
 config MAX_DIRTY_THRESH_PAGES
-       int "The upper bound of VM dirty_thresh value in number of pages"
-       default 25600
-       help
-         This value is the upper bound of VM dirty-thresh. (0 means no limit.)
-         It is only effective when dirty_ratio is used.
-         (Setting dirty_bytes disables this option.)
+	int "The upper bound of VM dirty_thresh value in number of pages"
+	depends on LARGE_DIRTY_BUFFER
+	default 25600
+	help
+	  This value is the upper bound of VM dirty-thresh. (0 means no limit.)
+	  It is only effective when dirty_ratio is used.
+	  (Setting dirty_bytes disables this option.)
+
+config HIGHATOMIC_PAGEBLOCKS
+	int "limit max number of highatomic pageblocks"
+	default 0
+	help
+	  By default, "1 percent of managed pages + 1 pageblock" is reserved as
+	  highatomic pageblocks.
+	  This value limits max number of highatomic pageblocks.
 
 source "mm/sec_mm/Kconfig"

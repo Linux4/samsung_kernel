@@ -249,7 +249,7 @@ void mbox_setup_pin_table(unsigned int mbox)
 {
 	int i, last_ofs = 0, last_idx = 0, last_slot = 0, last_sz = 0;
 
-	for (i = 0; i < (unsigned int)SCP_TOTAL_SEND_PIN; i++) {
+	for (i = 0; i < SCP_TOTAL_SEND_PIN; i++) {
 		if (mbox == scp_mbox_pin_send[i].mbox) {
 			scp_mbox_pin_send[i].offset = last_ofs + last_slot;
 			scp_mbox_pin_send[i].pin_index = last_idx + last_sz;
@@ -309,7 +309,7 @@ void mt_print_scp_ipi_id(unsigned int mbox)
 	} buf;
 
 	irq_status = mtk_mbox_read_recv_irq(&scp_mboxdev, mbox);
-	for (i = 0; i < (unsigned int)SCP_TOTAL_RECV_PIN; i++) {
+	for (i = 0; i < SCP_TOTAL_RECV_PIN; i++) {
 		if (scp_mbox_pin_recv[i].mbox == mbox) {
 			if (irq_status && 1 << scp_mbox_pin_recv[i].pin_index) {
 				if (scp_mbox_pin_recv[i].chan_id

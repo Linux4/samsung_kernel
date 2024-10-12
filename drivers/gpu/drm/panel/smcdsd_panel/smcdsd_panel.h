@@ -57,26 +57,21 @@ struct mipi_dsi_lcd_common {
 	struct platform_device		*pdev;
 	struct mipi_dsi_lcd_driver	*drv;
 	unsigned int			probe;
-	unsigned int			power;
 	unsigned int			lcdconnected;
 	unsigned int			data_rate[4];
 
 	int (*tx)(void *drvdata, unsigned int id, unsigned long data0, unsigned int data1, bool need_lock);
 	int (*rx)(void *drvdata, unsigned int id, unsigned int offset, u8 cmd, unsigned int len, u8 *buf, bool need_lock);
+	int (*commit_lock)(void *drvdata, bool need_lock);
 
 	struct abd_protect		abd;
 
 	struct device			*dev;
 	struct drm_panel		panel;
 	struct drm_bridge		bridge;
-	struct drm_connector		conn;
+	struct drm_encoder		*encoder;
 
 	struct mipi_dsi_lcd_config	config[LCD_CONFIG_MAX];
-
-	bool prepared;
-	bool enabled;
-
-	unsigned int cmdq;
 
 	int error;
 };
@@ -93,14 +88,19 @@ struct mipi_dsi_lcd_driver {
 	int	(*displayon_late)(struct platform_device *p);
 	int	(*dump)(struct platform_device *p);
 #if defined(CONFIG_SMCDSD_DOZE)
-	int	(*doze_init)(struct platform_device *p, unsigned int on);
+	int	(*doze)(struct platform_device *p, unsigned int on);	/* doze_enable, doze_disable */
+	int	(*doze_area)(struct platform_device *p);
+	int	(*doze_post_disp_on)(struct platform_device *p);
 #endif
-	int	(*lcm_path_lock)(struct platform_device *p, bool need_lock);
+	int	(*path_lock)(struct platform_device *p, bool locking);
+	int	(*set_mode)(struct platform_device *p, struct drm_display_mode *m, int stage);
+	int	(*enable)(struct platform_device *p);
+	int	(*framedone_notify)(struct platform_device *p);
 };
 
 extern struct mipi_dsi_lcd_common *g_lcd_common;
 extern unsigned int lcdtype;
-extern unsigned char rx_offset;
+extern unsigned int rx_offset;
 extern unsigned int islcmconnected;
 
 static inline struct mipi_dsi_lcd_common *get_lcd_common(u32 id)
@@ -112,7 +112,7 @@ static inline struct mipi_dsi_lcd_common *get_lcd_common(u32 id)
 	(((x) && ((x)->drv) && ((x)->drv->op) && ((x)->drv->pdev)) ? ((x)->drv->op((x)->drv->pdev, ##args)) : 0)
 
 #define __XX_ADD_LCD_DRIVER(name)		\
-struct mipi_dsi_lcd_driver *p_##name __attribute__((used, section("__lcd_driver"))) = &name;	\
+struct mipi_dsi_lcd_driver *p_##name __section(__lcd_driver) = &name;	\
 static struct mipi_dsi_lcd_driver __maybe_unused *this_driver = &name	\
 
 extern struct mipi_dsi_lcd_driver *__start___lcd_driver[];
@@ -127,5 +127,9 @@ extern int smcdsd_panel_dsi_command_tx(void *drvdata,
 	unsigned int id, unsigned long data0, unsigned int data1, bool need_lock);
 extern int smcdsd_panel_dsi_command_rx(void *drvdata,
 	unsigned int id, unsigned int offset, u8 cmd, unsigned int len, u8 *buf, bool need_lock);
+extern int smcdsd_dsi_msg_tx(void *drvdata, unsigned long data0, int blocking);
+
+int smcdsd_panel_dsi_clk_change(void *drvdata, unsigned int index);
+extern int mtk_crtc_lock_control(bool en);
 
 #endif

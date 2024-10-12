@@ -16,21 +16,12 @@
 
 static struct scp_reserve_mblock scp_reserve_mblock[] = {
 #ifdef CONFIG_MTK_VOW_SUPPORT
-#ifdef CONFIG_MTK_VOW_2E2K_SUPPORT
 	{
 		.num = VOW_MEM_ID,
 		.start_phys = 0x0,
 		.start_virt = 0x0,
-		.size = 0x49300,  /* 292KB (2 model size)*/
+		.size = 0x4E300,  /* 297KB (2 model size)*/
 	},
-#else
-	{
-		.num = VOW_MEM_ID,
-		.start_phys = 0x0,
-		.start_virt = 0x0,
-		.size = 0x38300,  /* 224KB (1 model size)*/
-	},
-#endif
 #endif
 	{
 		.num = SENS_MEM_ID,
@@ -38,6 +29,38 @@ static struct scp_reserve_mblock scp_reserve_mblock[] = {
 		.start_virt = 0x0,
 		.size = 0x100000,  /* 1 MB */
 	},
+#ifdef CONFIG_MTK_SENSORHUB
+	{
+		.num = SENS_SUPER_MEM_ID,
+		.start_phys = 0x0,
+		.start_virt = 0x0,
+		.size = 0x10000,  /* 64 KB */
+	},
+	{
+		.num = SENS_LIST_MEM_ID,
+		.start_phys = 0x0,
+		.start_virt = 0x0,
+		.size = 0x1000,  /* 4 KB */
+	},
+	{
+		.num = SENS_DEBUG_MEM_ID,
+		.start_phys = 0x0,
+		.start_virt = 0x0,
+		.size = 0x2000,  /* 8 KB */
+	},
+	{
+		.num = SENS_CUSTOM_W_MEM_ID,
+		.start_phys = 0x0,
+		.start_virt = 0x0,
+		.size = 0x100,  /* 256 bytes */
+	},
+	{
+		.num = SENS_CUSTOM_R_MEM_ID,
+		.start_phys = 0x0,
+		.start_virt = 0x0,
+		.size = 0x100,  /* 256 bytes */
+	},
+#endif
 	{
 		.num = SCP_A_LOGGER_MEM_ID,
 		.start_phys = 0x0,
@@ -55,20 +78,26 @@ static struct scp_reserve_mblock scp_reserve_mblock[] = {
 		.size = 0x19000,  /* 100 KB */
 	},
 #endif
-#ifdef CONFIG_MTK_VOW_BARGE_IN_SUPPORT
 	{
 		.num = VOW_BARGEIN_MEM_ID,
 		.start_phys = 0x0,
 		.start_virt = 0x0,
 		.size = 0x4600,  /* 17KB */
 	},
-#endif
 #ifdef SCP_PARAMS_TO_SCP_SUPPORT
 	{
 		.num = SCP_DRV_PARAMS_MEM_ID,
 		.start_phys = 0x0,
 		.start_virt = 0x0,
 		.size = 0x100,  /* 256 bytes */
+	},
+#endif
+#ifdef CONFIG_MTK_ULTRASND_PROXIMITY
+	{
+		.num = ULTRA_MEM_ID,
+		.start_phys = 0,
+		.start_virt = 0,
+		.size = 0x19000,
 	},
 #endif
 };

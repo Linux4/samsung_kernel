@@ -123,6 +123,12 @@ struct acc_dev {
 	/* delayed work for handling ACCESSORY_START */
 	struct delayed_work start_work;
 
+	/* work for handling ACCESSORY GET PROTOCOL */
+	struct work_struct getprotocol_work;
+
+	/* work for handling ACCESSORY SEND STRING */
+	struct work_struct sendstring_work;
+
 	/* worker for registering and unregistering hid devices */
 	struct work_struct hid_work;
 
@@ -226,11 +232,7 @@ static struct usb_request *acc_request_new(struct usb_ep *ep, int buffer_size)
 		return NULL;
 
 	/* now allocate buffers for the requests */
-#if defined(CONFIG_64BIT) && defined(CONFIG_MTK_LM_MODE)
-	req->buf = kmalloc(buffer_size, GFP_KERNEL | GFP_DMA);
-#else
 	req->buf = kmalloc(buffer_size, GFP_KERNEL);
-#endif
 	if (!req->buf) {
 		usb_ep_free_request(ep, req);
 		return NULL;
@@ -586,7 +588,9 @@ static ssize_t acc_read(struct file *fp, char __user *buf,
 {
 	struct acc_dev *dev = fp->private_data;
 	struct usb_request *req;
-	ssize_t r = count, xfer, len;
+	ssize_t r = count;
+	ssize_t data_length;
+	unsigned xfer;
 	int ret = 0;
 
 	pr_debug("acc_read(%zu)\n", count);
@@ -607,10 +611,12 @@ static ssize_t acc_read(struct file *fp, char __user *buf,
 		goto done;
 	}
 
-	len = ALIGN(count, dev->ep_out->maxpacket);
+	data_length = count;
+	data_length += dev->ep_out->maxpacket - 1;
+	data_length -= data_length % dev->ep_out->maxpacket;
 
 	if (dev->rx_done) {
-		/* last req cancelled. try to get it. */
+		// last req cancelled. try to get it.
 		req = dev->rx_req[0];
 		goto copy_data;
 	}
@@ -618,7 +624,7 @@ static ssize_t acc_read(struct file *fp, char __user *buf,
 requeue_req:
 	/* queue a request */
 	req = dev->rx_req[0];
-	req->length = len;
+	req->length = data_length;
 	dev->rx_done = 0;
 	ret = usb_ep_queue(dev->ep_out, req, GFP_KERNEL);
 	if (ret < 0) {
@@ -634,9 +640,8 @@ requeue_req:
 		r = ret;
 		ret = usb_ep_dequeue(dev->ep_out, req);
 		if (ret != 0) {
-			/* cancel failed. There can be a data already received.
-			 * it will be retrieved in the next read.
-			 */
+			// cancel failed. There can be a data already received.
+			// it will be retrieved in the next read.
 			pr_debug("acc_read: cancelling failed %d", ret);
 		}
 		goto done;
@@ -879,6 +884,7 @@ int acc_ctrlrequest(struct usb_composite_dev *cdev,
 			value = 0;
 			cdev->req->complete = acc_complete_setup_noop;
 		} else if (b_request == ACCESSORY_SEND_STRING) {
+			schedule_work(&dev->sendstring_work);
 			dev->string_index = w_index;
 			cdev->gadget->ep0->driver_data = dev;
 			cdev->req->complete = acc_complete_set_string;
@@ -925,20 +931,21 @@ int acc_ctrlrequest(struct usb_composite_dev *cdev,
 		}
 	} else if (b_requestType == (USB_DIR_IN | USB_TYPE_VENDOR)) {
 		if (b_request == ACCESSORY_GET_PROTOCOL) {
+			schedule_work(&dev->getprotocol_work);
 			*((u16 *)cdev->req->buf) = PROTOCOL_VERSION;
 			value = sizeof(u16);
 			cdev->req->complete = acc_complete_setup_noop;
 			/* clear any string left over from a previous session */
-			memset(dev->manufacturer, 0, sizeof(dev->manufacturer));
-			memset(dev->model, 0, sizeof(dev->model));
-			memset(dev->description, 0, sizeof(dev->description));
-			memset(dev->version, 0, sizeof(dev->version));
-			memset(dev->uri, 0, sizeof(dev->uri));
-			memset(dev->serial, 0, sizeof(dev->serial));
-			dev->start_requested = 0;
-			dev->audio_mode = 0;
-			strlcpy(dev->manufacturer, "Android", ACC_STRING_SIZE);
-			strlcpy(dev->model, "Android", ACC_STRING_SIZE);
+			if (dev) {
+				memset(dev->manufacturer, 0, sizeof(dev->manufacturer));
+				memset(dev->model, 0, sizeof(dev->model));
+				memset(dev->description, 0, sizeof(dev->description));
+				memset(dev->version, 0, sizeof(dev->version));
+				memset(dev->uri, 0, sizeof(dev->uri));
+				memset(dev->serial, 0, sizeof(dev->serial));
+				dev->start_requested = 0;
+				dev->audio_mode = 0;
+			}
 		}
 	}
 
@@ -961,6 +968,26 @@ err:
 	return value;
 }
 EXPORT_SYMBOL_GPL(acc_ctrlrequest);
+
+int acc_ctrlrequest_composite(struct usb_composite_dev *cdev,
+			      const struct usb_ctrlrequest *ctrl)
+{
+	u16 w_length = le16_to_cpu(ctrl->wLength);
+
+	if (w_length > USB_COMP_EP0_BUFSIZ) {
+		if (ctrl->bRequestType & USB_DIR_IN) {
+			/* Cast away the const, we are going to overwrite on purpose. */
+			__le16 *temp = (__le16 *)&ctrl->wLength;
+
+			*temp = cpu_to_le16(USB_COMP_EP0_BUFSIZ);
+			w_length = USB_COMP_EP0_BUFSIZ;
+		} else {
+			return -EINVAL;
+		}
+	}
+	return acc_ctrlrequest(cdev, ctrl);
+}
+EXPORT_SYMBOL_GPL(acc_ctrlrequest_composite);
 
 static int
 __acc_function_bind(struct usb_configuration *c,
@@ -1080,6 +1107,20 @@ acc_function_unbind(struct usb_configuration *c, struct usb_function *f)
 		acc_request_free(dev->rx_req[i], dev->ep_out);
 
 	acc_hid_unbind(dev);
+}
+
+static void acc_getprotocol_work(struct work_struct *data)
+{
+	char *envp[2] = { "ACCESSORY=GETPROTOCOL", NULL };
+
+	kobject_uevent_env(&acc_device.this_device->kobj, KOBJ_CHANGE, envp);
+}
+
+static void acc_sendstring_work(struct work_struct *data)
+{
+	char *envp[2] = { "ACCESSORY=SENDSTRING", NULL };
+
+	kobject_uevent_env(&acc_device.this_device->kobj, KOBJ_CHANGE, envp);
 }
 
 static void acc_start_work(struct work_struct *data)
@@ -1287,6 +1328,8 @@ static int acc_setup(void)
 	INIT_LIST_HEAD(&dev->dead_hid_list);
 	INIT_DELAYED_WORK(&dev->start_work, acc_start_work);
 	INIT_WORK(&dev->hid_work, acc_hid_work);
+	INIT_WORK(&dev->getprotocol_work, acc_getprotocol_work);
+	INIT_WORK(&dev->sendstring_work, acc_sendstring_work);
 
 	/* _acc_dev must be set before calling usb_gadget_register_driver */
 	_acc_dev = dev;

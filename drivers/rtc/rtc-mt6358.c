@@ -120,16 +120,19 @@
 #define RTC_PWRON_DOM_MASK      (RTC_AL_DOM_MASK << RTC_PWRON_DOM_SHIFT)
 #define RTC_PWRON_MTH_MASK      (RTC_AL_MTH_MASK << RTC_PWRON_MTH_SHIFT)
 #define RTC_PWRON_YEA_MASK      (RTC_AL_YEA_MASK << RTC_PWRON_YEA_SHIFT)
-
+/* Common */
 #define RTC_BBPU_KEY			0x4300
 #define RTC_BBPU_CBUSY			BIT(6)
 #define RTC_BBPU_RELOAD			BIT(5)
+#define RTC_BBPU_PWREN			BIT(0)
+/* MT6357,MT6358 */
 #define RTC_BBPU_AUTO			BIT(3)
 #define RTC_BBPU_CLR			BIT(1)
-#define RTC_BBPU_PWREN			BIT(0)
+/* MT6359, MT6359p*/
 #define RTC_BBPU_AL_STA			BIT(7)
 #define RTC_BBPU_RESET_AL		BIT(3)
 #define RTC_BBPU_RESET_SPAR		BIT(2)
+
 
 #define RTC_AL_MASK_DOW			BIT(4)
 
@@ -146,6 +149,9 @@
 #define RTC_PDN2_PWRON_ALARM	BIT(4)
 
 #define RTC_SPAR0_BATT_REMOVAL  BIT(15)
+
+#define RTC_POFF_ALM_SET	_IOW('p', 0x15, struct rtc_time) /* Set alarm time  */
+
 
 static u16 rtc_alarm_reg[RTC_OFFSET_COUNT][3] = {
 	{RTC_AL_SEC, RTC_AL_SEC_MASK, 0},
@@ -298,6 +304,7 @@ static int mtk_rtc_read_time(struct rtc_time *tm)
 	u16 data[RTC_OFFSET_COUNT];
 	int ret;
 	u32 sec = 0;
+	unsigned long long timeout = sched_clock() + 500000000;
 
 	do {
 
@@ -315,7 +322,10 @@ static int mtk_rtc_read_time(struct rtc_time *tm)
 		ret = rtc_read(RTC_TC_SEC, &sec);
 		if (ret < 0)
 			goto exit;
-
+		if (sched_clock() > timeout) {
+			pr_notice("%s, time out\n", __func__);
+			break;
+		}
 	} while (sec < tm->tm_sec);
 
 	return ret;
@@ -687,7 +697,7 @@ exit:
 
 static void mtk_rtc_reset_bbpu_alarm_status(void)
 {
-	u32 bbpu;
+	u32 bbpu = RTC_BBPU_KEY | RTC_BBPU_PWREN;
 	int ret;
 
 
@@ -696,7 +706,15 @@ static void mtk_rtc_reset_bbpu_alarm_status(void)
 		return;
 	}
 
-	bbpu = RTC_BBPU_KEY | RTC_BBPU_PWREN | RTC_BBPU_RESET_AL;
+#if defined(CONFIG_MTK_PMIC_CHIP_MT6358) || \
+defined(CONFIG_MTK_PMIC_CHIP_MT6357)
+	bbpu |= RTC_BBPU_CLR;
+#endif
+#if defined(CONFIG_MTK_PMIC_CHIP_MT6359) || \
+defined(CONFIG_MTK_PMIC_CHIP_MT6359P)
+	bbpu |= RTC_BBPU_RESET_AL;
+#endif
+
 	rtc_write(RTC_BBPU, bbpu);
 	ret = rtc_write_trigger();
 	if (ret < 0)
@@ -987,7 +1005,54 @@ exit:
 	return ret;
 }
 
+int mtk_set_power_on(struct device *dev, struct rtc_wkalrm *alm)
+{
+	int err = 0;
+	struct rtc_time tm;
+	time64_t now, scheduled;
+
+	err = rtc_valid_tm(&alm->time);
+	if (err != 0)
+		return err;
+	scheduled = rtc_tm_to_time64(&alm->time);
+
+	err = rtc_ops_read_time(dev, &tm);
+	if (err != 0)
+		return err;
+	now = rtc_tm_to_time64(&tm);
+
+	if (scheduled <= now)
+		alm->enabled = 4;
+	else
+		alm->enabled = 3;
+
+	rtc_ops_set_alarm(dev, alm);
+
+	return err;
+}
+
+static int mtk_rtc_ioctl(struct device *dev, unsigned int cmd, unsigned long arg)
+{
+	void __user *uarg = (void __user *) arg;
+	int err = 0;
+	struct rtc_wkalrm alm;
+
+	switch (cmd) {
+	case RTC_POFF_ALM_SET:
+		if (copy_from_user(&alm.time, uarg, sizeof(alm.time)))
+			return -EFAULT;
+		err = mtk_set_power_on(dev, &alm);
+		break;
+	default:
+		err = -EINVAL;
+		break;
+	}
+
+	return err;
+}
+
 static const struct rtc_class_ops rtc_ops = {
+	.ioctl     = mtk_rtc_ioctl,
 	.read_time = rtc_ops_read_time,
 	.set_time = rtc_ops_set_time,
 	.read_alarm = rtc_ops_read_alarm,
@@ -1000,6 +1065,7 @@ static int poff_status;
 static void rtc_reset_check(struct platform_device *pdev)
 {
 	unsigned long flags;
+	int ret;
 	u32 spar0 = 0;
 	struct mt6358_rtc *rtc = platform_get_drvdata(pdev);
 
@@ -1009,10 +1075,20 @@ static void rtc_reset_check(struct platform_device *pdev)
 		pr_info("%s BATTERY REMOVED\n", __func__);
 
 		spin_lock_irqsave(&rtc->lock, flags);
-		rtc_update_bits(RTC_SPAR0, RTC_SPAR0_BATT_REMOVAL, RTC_SPAR0_BATT_REMOVAL);
-		rtc_write_trigger();
+		ret = rtc_update_bits(RTC_SPAR0, RTC_SPAR0_BATT_REMOVAL, RTC_SPAR0_BATT_REMOVAL);
+		if (ret < 0) {
+			spin_unlock_irqrestore(&rtc->lock, flags);
+			goto exit;
+		}
+		ret = rtc_write_trigger();
+		if (ret < 0) {
+			spin_unlock_irqrestore(&rtc->lock, flags);
+			goto exit;
+		}
 		spin_unlock_irqrestore(&rtc->lock, flags);
 	}
+exit:
+	pr_err("%s error\n", __func__);
 }
 
 static ssize_t rtc_status_show(struct kobject *kobj,
@@ -1031,7 +1107,7 @@ static struct kobj_attribute rtc_status_attr = {
 	},
 	.show = rtc_status_show,
 };
-#endif
+#endif /* CONFIG_SEC_PM */
 
 static void mtk_rtc_set_lp_irq(void)
 {
@@ -1062,6 +1138,9 @@ static int mtk_rtc_pdrv_probe(struct platform_device *pdev)
 	struct mt6358_rtc *rtc;
 	unsigned long flags;
 	int ret;
+#if IS_ENABLED(CONFIG_MTK_RTC)
+	struct platform_device *plt_dev;
+#endif
 
 	rtc = devm_kzalloc(&pdev->dev, sizeof(struct mt6358_rtc), GFP_KERNEL);
 	if (!rtc)
@@ -1097,34 +1176,8 @@ static int mtk_rtc_pdrv_probe(struct platform_device *pdev)
 	mtk_rtc_set_lp_irq();
 	spin_unlock_irqrestore(&rtc->lock, flags);
 
-	ret = request_threaded_irq(rtc->irq, NULL,
-				   mtk_rtc_irq_handler,
-				   IRQF_ONESHOT | IRQF_TRIGGER_HIGH,
-				   "mt6358-rtc", rtc);
-	if (ret) {
-		dev_dbg(&pdev->dev, "Failed to request alarm IRQ: %d: %d\n",
-			rtc->irq, ret);
-		goto out_dispose_irq;
-	}
-
-	device_init_wakeup(&pdev->dev, 1);
-
 	mt6358_rtc_suspend_lock =
 		wakeup_source_register(NULL, "mt6358-rtc suspend wakelock");
-
-	/* register rtc device (/dev/rtc0) */
-	rtc->rtc_dev = rtc_device_register(RTC_NAME,
-					&pdev->dev, &rtc_ops, THIS_MODULE);
-	if (IS_ERR(rtc->rtc_dev)) {
-		dev_dbg(&pdev->dev, "register rtc device failed\n");
-		ret = PTR_ERR(rtc->rtc_dev);
-		goto out_free_irq;
-	}
-
-	if (of_property_read_bool(pdev->dev.of_node, "apply-lpsd-solution")) {
-		apply_lpsd_solution = 1;
-		pr_notice("%s: apply_lpsd_solution\n", __func__);
-	}
 
 #ifdef CONFIG_PM
 	if (register_pm_notifier(&rtc_pm_notifier_func))
@@ -1140,10 +1193,43 @@ static int mtk_rtc_pdrv_probe(struct platform_device *pdev)
 		if (ret)
 			pr_err("%s: failed %d\n", __func__, ret);
 	}
-#endif
+#endif /* CONFIG_SEC_PM */
 
 	INIT_WORK(&rtc->work, mtk_rtc_work_queue);
 
+	ret = request_threaded_irq(rtc->irq, NULL,
+				   mtk_rtc_irq_handler,
+				   IRQF_ONESHOT | IRQF_TRIGGER_HIGH,
+				   "mt6358-rtc", rtc);
+	if (ret) {
+		dev_dbg(&pdev->dev, "Failed to request alarm IRQ: %d: %d\n",
+			rtc->irq, ret);
+		goto out_dispose_irq;
+	}
+
+	device_init_wakeup(&pdev->dev, 1);
+
+	/* register rtc device (/dev/rtc0) */
+	rtc->rtc_dev = rtc_device_register(RTC_NAME,
+					&pdev->dev, &rtc_ops, THIS_MODULE);
+	if (IS_ERR(rtc->rtc_dev)) {
+		dev_dbg(&pdev->dev, "register rtc device failed\n");
+		ret = PTR_ERR(rtc->rtc_dev);
+		goto out_free_irq;
+	}
+
+	if (of_property_read_bool(pdev->dev.of_node, "apply-lpsd-solution")) {
+		apply_lpsd_solution = 1;
+		pr_notice("%s: apply_lpsd_solution\n", __func__);
+	}
+
+#if IS_ENABLED(CONFIG_MTK_RTC)
+	plt_dev = platform_device_register_data(&pdev->dev, "mtk_rtc_dbg",
+						-1, NULL, 0);
+	if (IS_ERR(plt_dev))
+		dev_notice(&pdev->dev,
+			"%s: failed to register mtk_rtc_dbg\n",	__func__);
+#endif
 	return 0;
 out_free_irq:
 	free_irq(rtc->irq, rtc->rtc_dev);

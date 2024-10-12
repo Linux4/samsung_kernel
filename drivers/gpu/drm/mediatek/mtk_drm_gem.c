@@ -26,6 +26,7 @@
 #include "mtk_drm_mmp.h"
 #include "ion_drv.h"
 #include "ion_priv.h"
+#include "ion_sec_heap.h"
 #include <soc/mediatek/smi.h>
 #if defined(CONFIG_MTK_IOMMU_V2)
 #include "mt_iommu.h"
@@ -89,6 +90,7 @@ static struct sg_table *mtk_gem_vmap_pa(struct mtk_drm_gem_obj *mtk_gem,
 	sgt = kzalloc(sizeof(*sgt), GFP_KERNEL);
 	if (!sgt) {
 		DDPPR_ERR("sgt creation failed\n");
+		kfree(pages);
 		return NULL;
 	}
 
@@ -199,12 +201,16 @@ struct mtk_drm_gem_obj *mtk_drm_fb_gem_insert(struct drm_device *dev,
 	sgt = mtk_gem_vmap_pa(mtk_gem, fb_base, 0, dev->dev, &fb_pa);
 
 	mtk_gem->sec = false;
+#ifndef CONFIG_MTK_DISPLAY_M4U
+	mtk_gem->dma_addr = fb_base;
+#else
 	mtk_gem->dma_addr = (dma_addr_t)fb_pa;
+#endif
 	mtk_gem->kvaddr = mtk_gem->cookie;
 	mtk_gem->sg = sgt;
 
-	DDPINFO("%s cookie = %p dma_addr = %pad size = %zu\n", __func__,
-		mtk_gem->cookie, &mtk_gem->dma_addr, size);
+	DDPINFO("%s cookie = %p dma_addr = %pad pa = 0x%lx size = %zu\n", __func__,
+		mtk_gem->cookie, &mtk_gem->dma_addr, (unsigned long)fb_base, size);
 
 	return mtk_gem;
 }
@@ -436,15 +442,20 @@ struct ion_handle *mtk_gem_ion_import_dma_fd(struct ion_client *client,
 		   line);
 	DRM_MMP_EVENT_START(ion_import_fd, (unsigned long)client, line);
 	handle = ion_import_dma_buf_fd(client, fd);
+	if (IS_ERR(handle)) {
+		DDPPR_ERR("%s:%d dma_buf_get fail fd=%d ret=0x%p\n",
+		       __func__, __LINE__, fd, handle);
+		return ERR_CAST(handle);
+	}
 
 	dmabuf = dma_buf_get(fd);
-	DRM_MMP_MARK(dma_get, (unsigned long)handle->buffer,
-			(unsigned long)dmabuf);
 	if (IS_ERR(dmabuf)) {
 		DDPPR_ERR("%s:%d dma_buf_get fail fd=%d ret=0x%p\n",
 		       __func__, __LINE__, fd, dmabuf);
 		return ERR_CAST(dmabuf);
 	}
+	DRM_MMP_MARK(dma_get, (unsigned long)handle->buffer,
+			(unsigned long)dmabuf);
 
 	DRM_MMP_EVENT_END(ion_import_fd, (unsigned long)handle->buffer,
 			(unsigned long)dmabuf);
@@ -488,7 +499,8 @@ void mtk_drm_gem_ion_destroy_client(struct ion_client *client)
 void mtk_drm_gem_ion_free_handle(struct ion_client *client,
 	struct ion_handle *handle, const char *name, int line)
 {
-	DRM_MMP_EVENT_START(ion_import_free,
+	if (handle)
+		DRM_MMP_EVENT_START(ion_import_free,
 			    (unsigned long)handle->buffer, line);
 
 	if (!client) {
@@ -818,6 +830,7 @@ int mtk_drm_sec_hnd_to_gem_hnd(struct drm_device *dev, void *data,
 {
 	struct drm_mtk_sec_gem_hnd *args = data;
 	struct mtk_drm_gem_obj *mtk_gem_obj;
+	int sec_buffer = 0;
 
 	DDPDBG("%s:%d dev:0x%p, data:0x%p, priv:0x%p +\n",
 		  __func__, __LINE__,
@@ -833,15 +846,22 @@ int mtk_drm_sec_hnd_to_gem_hnd(struct drm_device *dev, void *data,
 		return -ENOMEM;
 
 	mtk_gem_obj->sec = true;
-	mtk_gem_obj->dma_addr = args->sec_hnd;
+	ion_fd2sec_type(args->sec_hnd/*ion_fd*/, &sec_buffer,
+			&mtk_gem_obj->sec_id, (ion_phys_addr_t *)&mtk_gem_obj->dma_addr);
+
 	drm_gem_private_object_init(dev, &mtk_gem_obj->base, 0);
 	drm_gem_handle_create(file_priv, &mtk_gem_obj->base, &args->gem_hnd);
 
-	DDPDBG("%s:%d obj:0x%p, sec:%d, addr:0x%llx -\n",
+	DDPDBG("%s:%d obj:0x%p, sec_hnd:%d, sec:%d, addr:0x%llx, sec_id:%d, gem_hnd:%d-\n",
 		  __func__, __LINE__,
 		  mtk_gem_obj,
+		  args->sec_hnd,
 		  mtk_gem_obj->sec,
-		  mtk_gem_obj->dma_addr);
+		  mtk_gem_obj->dma_addr,
+		  mtk_gem_obj->sec_id,
+		  args->gem_hnd);
+
+	drm_gem_object_unreference_unlocked(&mtk_gem_obj->base);
 
 	return 0;
 }

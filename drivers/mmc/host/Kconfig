@@ -955,8 +955,8 @@ config MMC_SDHCI_BRCMSTB
 
 	  If unsure, say Y.
 
-config MMC_MTK_SDIO
-	tristate "MediaTek SDIO Card Interface support"
+config MMC_MTK_LEGACY_SDIO
+	tristate "MediaTek Legacy SDIO Card Interface support"
 	depends on HAS_DMA
 	help
 	  This selects the MediaTek(R) MT6630 SDIO Interface.
@@ -964,7 +964,7 @@ config MMC_MTK_SDIO
 	  This is needed if support for any SDIO devices is required.
 	  If unsure, say N.
 
-config MMC_MTK_COMM_SDIO
+config MMC_MTK_SDIO
 	tristate "MediaTek SDIO driver support"
 	depends on HAS_DMA
 	help
@@ -979,13 +979,5 @@ config MMC_SDHCI_XENON
 	help
 	  This selects Marvell Xenon eMMC/SD/SDIO SDHCI.
 	  If you have a controller with this interface, say Y or M here.
-	  If unsure, say N.
-
-config DEBUG_PATCH_CMDQ_EMMC
-	bool DEBUG_PATCH_CMDQ_EMMC
-	default n
-	help
-	  This is a debug flag. It enables more logs for cmdq write operation.
-	  If you want logs, say Y here.
 	  If unsure, say N.
 source "drivers/mmc/host/mediatek/Kconfig"

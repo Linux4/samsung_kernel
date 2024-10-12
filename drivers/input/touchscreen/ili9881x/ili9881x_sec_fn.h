@@ -38,7 +38,12 @@
 
 #include <linux/vmalloc.h>
 #include <linux/uaccess.h>
+#if IS_ENABLED(CONFIG_SPU_VERIFY)
+#define SUPPORT_FW_SIGNED
+#endif
+#ifdef SUPPORT_FW_SIGNED
 #include <linux/spu-verify.h>
+#endif
 #include "ili9881x.h"
 #define TEST_MODE_MIN_MAX		false
 #define TEST_MODE_ALL_NODE		true

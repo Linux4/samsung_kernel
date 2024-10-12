@@ -89,7 +89,7 @@ of_get_fixed_voltage_config(struct device *dev,
 							   "gpio-open-drain");
 #ifdef CONFIG_SEC_PM
 	config->skip_gpio_request = of_property_read_bool(np, "skip-gpio-request");
-#endif
+#endif /* CONFIG_SEC_PM */
 
 	if (of_find_property(np, "vin-supply", NULL))
 		config->input_supply = "vin";
@@ -179,7 +179,7 @@ static int reg_fixed_voltage_probe(struct platform_device *pdev)
 	cfg.of_node = pdev->dev.of_node;
 #ifdef CONFIG_SEC_PM
 	cfg.skip_gpio_request = config->skip_gpio_request;
-#endif
+#endif /* CONFIG_SEC_PM */
 
 	drvdata->dev = devm_regulator_register(&pdev->dev, &drvdata->desc,
 					       &cfg);

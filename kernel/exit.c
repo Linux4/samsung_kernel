@@ -775,16 +775,15 @@ void __noreturn do_exit(long code)
 	struct task_struct *tsk = current;
 	int group_dead;
 
+#ifdef CONFIG_SECURITY_DEFEX
+	task_defex_zero_creds(current);
+#endif
 	/*
 	 * We can get here from a kernel oops, sometimes with preemption off.
 	 * Start by checking for critical errors.
 	 * Then fix up important state like USER_DS and preemption.
 	 * Then do everything else.
 	 */
-
-#ifdef CONFIG_SECURITY_DEFEX
-	task_defex_zero_creds(current);
-#endif
 
 	WARN_ON(blk_needs_flush_plug(tsk));
 

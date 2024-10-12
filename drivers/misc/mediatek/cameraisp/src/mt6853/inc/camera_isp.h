@@ -22,12 +22,6 @@
  */
 #define TS_BOOT_T
 
-
-/**
- * disable sv top0 or not
- */
-#define DISABLE_SV_TOP0
-
 #ifndef CONFIG_OF
 extern void mt_irq_set_sens(unsigned int irq, unsigned int sens);
 extern void mt_irq_set_polarity(unsigned int irq, unsigned int polarity);
@@ -67,6 +61,7 @@ extern void mt_irq_set_polarity(unsigned int irq, unsigned int polarity);
 
 #define ISP_REG_RANGE           (0x8000)
 #define ISPSV_REG_RANGE         (0x1000)
+#define USERKEY_STR_LEN 32
 
 /* In order with the suquence of device nodes defined in dtsi */
 /* in dtsi rule, one hw module should mapping to one node. */
@@ -156,6 +151,20 @@ enum ISP_IRQ_TYPE_ENUM {
 	ISP_IRQ_TYPE_AMOUNT
 };
 
+enum RAW_IDX {
+	CAM_A = 0,
+	CAM_B,
+	CAM_C,
+	CAM_MAX,
+};
+
+enum EXP_NUM {
+	EXP_NONE  = 0,
+	EXP_ONE   = 1,
+	EXP_TWO   = 2,
+	EXP_THREE = 3
+};
+
 enum ISP_ST_ENUM {
 	SIGNAL_INT = 0, DMA_INT, ISP_IRQ_ST_AMOUNT
 };
@@ -201,7 +210,7 @@ struct ISP_WAIT_IRQ_STRUCT {
 struct ISP_REGISTER_USERKEY_STRUCT {
 	int userKey;
 	/* this size must the same as the icamiopipe api - registerIrq(...) */
-	char userName[32];
+	char userName[USERKEY_STR_LEN];
 };
 
 struct ISP_CLEAR_IRQ_ST {
@@ -425,6 +434,10 @@ struct ISP_DEV_ION_NODE_STRUCT {
 	unsigned int       devNode;
 	enum ISP_WRDMA_ENUM     dmaPort;
 	int                memID;
+	unsigned long long dma_pa;
+	unsigned long long va;
+	unsigned int size;
+	char username[64];
 };
 
 struct ISP_LARB_MMU_STRUCT {
@@ -614,6 +627,12 @@ struct ISP_RAW_INT_STATUS {
 	unsigned int ispInt5Err;
 };
 
+struct ISP_CQ0_NOTE_INFO {
+	unsigned int cq0_data[ISP_IRQ_TYPE_INT_CAMSV_START_ST][3];
+	unsigned int exposureNum;
+	unsigned int cqCnt;
+};
+
 /*******************************************************************************
  * pass1 real time buffer control use cq0c
  ******************************************************************************/
@@ -651,7 +670,7 @@ struct compat_ISP_REF_CNT_CTRL_STRUCT {
  *
  ******************************************************************************/
 enum ISP_CMD_ENUM {
-	ISP_CMD_RESET_BY_HWMODULE,
+	ISP_CMD_RESET_BY_HWMODULE = 0,
 	ISP_CMD_READ_REG,     /* Read register from driver */
 	ISP_CMD_WRITE_REG,    /* Write register to driver */
 	ISP_CMD_WAIT_IRQ,     /* Wait IRQ */
@@ -703,7 +722,12 @@ enum ISP_CMD_ENUM {
 	ISP_CMD_SET_SEC_DAPC_REG,
 	ISP_CMD_GET_CUR_HWP1DONE,
 	ISP_CMD_NOTE_CQTHR0_BASE,
-	ISP_CMD_SET_VIR_CQCNT
+	ISP_CMD_ION_MAP_PA, /* AOSP ION: map physical address from fd */
+	ISP_CMD_ION_UNMAP_PA, /* AOSP ION: unmap physical address from fd */
+	ISP_CMD_ION_UNMAP_PA_BY_MODULE,
+	ISP_CMD_ION_GET_PA,
+	ISP_CMD_SET_VIR_CQCNT,
+	ISP_CMD_POWER_CTRL
 };
 
 enum ISP_HALT_DMA_ENUM {
@@ -791,8 +815,11 @@ enum ISP_HALT_DMA_ENUM {
 #define ISP_NOTE_CQTHR0_BASE                      \
 	_IOWR(ISP_MAGIC, ISP_CMD_NOTE_CQTHR0_BASE, unsigned int*)
 
-#define ISP_SET_VIR_CQCNT \
+#define ISP_SET_VIR_CQCNT                         \
 	_IOWR(ISP_MAGIC, ISP_CMD_SET_VIR_CQCNT, unsigned int*)
+
+#define ISP_POWER_CTRL                            \
+	_IOWR(ISP_MAGIC, ISP_CMD_POWER_CTRL, unsigned int*)
 
 #define ISP_SET_PM_QOS                           \
 	_IOWR(ISP_MAGIC, ISP_CMD_SET_PM_QOS, unsigned int)
@@ -839,6 +866,18 @@ enum ISP_HALT_DMA_ENUM {
 #define ISP_ION_FREE_BY_HWMODULE                 \
 	_IOW(ISP_MAGIC, ISP_CMD_ION_FREE_BY_HWMODULE, unsigned int)
 
+#define ISP_ION_MAP_PA                      \
+	_IOWR(ISP_MAGIC, ISP_CMD_ION_MAP_PA, struct ISP_DEV_ION_NODE_STRUCT)
+
+#define ISP_ION_UNMAP_PA                      \
+	_IOW(ISP_MAGIC, ISP_CMD_ION_UNMAP_PA, struct ISP_DEV_ION_NODE_STRUCT)
+
+#define ISP_ION_UNMAP_PA_BY_HWMODULE             \
+	_IOW(ISP_MAGIC, ISP_CMD_ION_UNMAP_PA_BY_MODULE, struct ISP_DEV_ION_NODE_STRUCT)
+
+#define ISP_ION_GET_PA             \
+	_IOWR(ISP_MAGIC, ISP_CMD_ION_GET_PA, struct ISP_DEV_ION_NODE_STRUCT)
+
 #define ISP_CQ_SW_PATCH                          \
 	_IOW(ISP_MAGIC, ISP_CMD_CQ_SW_PATCH, struct ISP_MULTI_RAW_CONFIG)
 
@@ -854,7 +893,7 @@ enum ISP_HALT_DMA_ENUM {
 #define ISP_SET_SEC_DAPC_REG                     \
 	_IOW(ISP_MAGIC, ISP_CMD_SET_SEC_DAPC_REG, unsigned int)
 
-#define ISP_GET_CUR_HWP1DONE                    \
+#define ISP_GET_CUR_HWP1DONE                     \
 	_IOWR(ISP_MAGIC, ISP_CMD_GET_CUR_HWP1DONE, unsigned char*)
 
 #ifdef CONFIG_COMPAT
@@ -895,6 +934,18 @@ enum ISP_HALT_DMA_ENUM {
 
 #define COMPAT_ISP_VF_LOG                        \
 	_IOW(ISP_MAGIC, ISP_CMD_VF_LOG, compat_uptr_t)
+
+#define COMPAT_ISP_NOTE_CQTHR0_BASE              \
+	_IOWR(ISP_MAGIC, ISP_CMD_NOTE_CQTHR0_BASE, compat_uptr_t)
+
+#define COMPAT_ISP_SET_VIR_CQCNT                 \
+	_IOWR(ISP_MAGIC, ISP_CMD_SET_VIR_CQCNT, compat_uptr_t)
+
+#define COMPAT_ISP_POWER_CTRL                 \
+	_IOWR(ISP_MAGIC, ISP_CMD_POWER_CTRL, compat_uptr_t)
+
+#define COMPAT_ISP_GET_CUR_HWP1DONE             \
+	_IOWR(ISP_MAGIC, ISP_CMD_GET_CUR_HWP1DONE, compat_uptr_t)
 
 #define COMPAT_ISP_DUMP_BUFFER                   \
 	_IOWR(ISP_MAGIC,                         \

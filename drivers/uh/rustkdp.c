@@ -189,6 +189,7 @@ static int kdp_check_path_mismatch(struct vfsmount *vfsmnt)
 		"/com.android.conscrypt",
 		"/com.android.art",
 		"/com.android.adbd",
+		"/com.android.sdkext",
 	};
 
 	if (!vfsmnt->bp_mount) {

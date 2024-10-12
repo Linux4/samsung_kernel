@@ -14,9 +14,7 @@
 #include <linux/suspend.h>
 #include <linux/seq_file.h>
 #include <linux/debugfs.h>
-#ifdef CONFIG_SEC_NAD
 #include <linux/proc_fs.h>
-#endif
 #include <linux/pm_wakeirq.h>
 #include <linux/irq.h>
 #include <linux/interrupt.h>
@@ -280,9 +278,8 @@ void wakeup_source_unregister(struct wakeup_source *ws)
 {
 	if (ws) {
 		wakeup_source_remove(ws);
-		if (ws->dev)
+		if(ws->dev)
 			wakeup_source_sysfs_remove(ws);
-
 		wakeup_source_destroy(ws);
 	}
 }
@@ -1135,6 +1132,10 @@ static int print_wakeup_source_stats(struct seq_file *m,
 }
 
 #ifdef CONFIG_SEC_PM
+/**
+ * print_wakeup_source_active - Print active wakeup sources information.
+ * @ws: Wakeup source object to print the statistics for.
+ */
 static void print_wakeup_source_active(
 					struct wakeup_source *ws)
 {
@@ -1169,6 +1170,9 @@ static void print_wakeup_source_active(
 	spin_unlock_irqrestore(&ws->lock, flags);
 }
 
+/**
+ * wakeup_sources_stats_active - Check active wakeup source
+ */
 int wakeup_sources_stats_active(void)
 {
 	struct wakeup_source *ws;
@@ -1184,7 +1188,7 @@ int wakeup_sources_stats_active(void)
 	return 0;
 }
 EXPORT_SYMBOL_GPL(wakeup_sources_stats_active);
-#endif
+#endif /* CONFIG_SEC_PM*/
 
 /**
  * wakeup_sources_stats_show - Print wakeup sources statistics information.
@@ -1226,9 +1230,7 @@ static int __init wakeup_sources_debugfs_init(void)
 {
 	wakeup_sources_stats_dentry = debugfs_create_file("wakeup_sources",
 			S_IRUGO, NULL, NULL, &wakeup_sources_stats_fops);
-#ifdef CONFIG_SEC_NAD
 	proc_create("wakeup_sources", 0644, NULL, &wakeup_sources_stats_fops);
-#endif
 	return 0;
 }
 

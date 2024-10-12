@@ -132,15 +132,20 @@ config BLK_IO_VOLUME
 	bool "Support for updating block IO volume"
 	default n
 	help
-	  Say Y here if you want to be able to update the block IO volume.
+	  This is for monitoring read/write amount in block layer.
+	  Say Y here if you want to monitoring block IO volume.
+	  This should be enabled for UFS Write Booster.
+	  Currently, it support only for single-queue system, not block-mq.
 
 config BLK_TURBO_WRITE
 	bool "Support turbo write"
 	depends on BLK_IO_VOLUME
 	default n
-	---help---
-	  This feature support for turbo write.
-	  Select this option if this feature is needed on working.
+	help
+	  This is for triggering UFS Write Booster ON/Off in block layer.
+	  Say Y here if you want to use UFS Write Booster.
+	  To enable this config, BLK_IO_VOLUME should be enabled.
+	  Currently, it support only for single-queue system, not block-mq.
 
 config BLK_CMDLINE_PARSER
 	bool "Block device command line partition parser"

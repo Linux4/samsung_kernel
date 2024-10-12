@@ -1,7 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0 */
 
 /* @fs.sec -- d315380a99f81d98b0c3718617b5da5a -- */
-/* @fs.sec -- 0aada64b546ebb65e2ae266910f5b40a -- */
 /* @fs.sec -- fafc95ecfe8e741015d6cc26a6a3af41 -- */
 
 #ifndef _FAT_H
@@ -447,14 +446,6 @@ void fat_cache_destroy(void);
 /* fat/nfs.c */
 extern const struct export_operations fat_export_ops;
 extern const struct export_operations fat_export_ops_nostale;
-
-/* fat/xattr.c */
-#ifdef CONFIG_FAT_VIRTUAL_XATTR
-void setup_fat_xattr_handler(struct super_block *sb);
-extern ssize_t fat_listxattr(struct dentry *dentry, char *list, size_t size);
-#else
-static inline void setup_fat_xattr_handler(struct super_block *sb) {};
-#endif
 
 /* helper for printk */
 typedef unsigned long long	llu;

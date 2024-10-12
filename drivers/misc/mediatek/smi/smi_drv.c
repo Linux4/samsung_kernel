@@ -637,7 +637,11 @@ smi_debug_print(const bool gce, const u32 num, const u32 *pos, const u32 *val)
 				continue;
 
 			if (ret < 0 || len + ret >= LINK_MAX) {
-				snprintf(buf + len, LINK_MAX - len, "%c", '\0');
+				ret = snprintf(buf + len, LINK_MAX - len,
+					"%c", '\0');
+				if (ret < 0)
+					SMIDBG("snprintf return error:%d\n",
+						ret);
 				break;
 			}
 			len += ret;
@@ -816,6 +820,12 @@ static inline void smi_larb_port_set(const struct mtk_smi_dev *smi)
 		i < smi_larb_cmd_gp_en_port[smi->id][1]; i++)
 		writel(readl(smi->base + SMI_LARB_NON_SEC_CON(i)) | 0x2,
 			smi->base + SMI_LARB_NON_SEC_CON(i));
+#if IS_ENABLED(CONFIG_MACH_MT6877)
+	/* Set grouping for larb 1 port 6 because larb 1 port 1 set previously */
+	if (smi->id == 1)
+		writel(readl(smi->base + SMI_LARB_NON_SEC_CON(6)) | 0x2,
+			smi->base + SMI_LARB_NON_SEC_CON(6));
+#endif
 
 	for (i = smi_larb_bw_thrt_en_port[smi->id][0];
 		i < smi_larb_bw_thrt_en_port[smi->id][1]; i++)
@@ -1080,7 +1090,6 @@ static void smi_subsys_after_on(enum subsys_id sys)
 	u32 subsys = smi_subsys_to_larbs[sys];
 	u32 smi_scen = smi_scen_map[smi_drv.scen];
 	s32 i;
-	s32 ret;
 
 	if (!subsys)
 		return;
@@ -1090,14 +1099,9 @@ static void smi_subsys_after_on(enum subsys_id sys)
 	for (i = SMI_DEV_NUM - 1; i >= 0; i--)
 		if (subsys & (1 << i)) {
 			smi_clk_record(i, true, NULL);
-			ret = mtk_smi_clk_enable(smi_dev[i]);
-			if (!ret) {
-				mtk_smi_conf_set(smi_dev[i], smi_scen);
-				smi_larb_port_set(smi_dev[i]);
-			} else {
-				SMIDBG("Clk failed i:%u, smi_scen=%u\n",
-				i, smi_scen);
-			}
+			mtk_smi_clk_enable(smi_dev[i]);
+			mtk_smi_conf_set(smi_dev[i], smi_scen);
+			smi_larb_port_set(smi_dev[i]);
 #if IS_ENABLED(CONFIG_MACH_MT6873) && IS_ENABLED(SMI_ASSERT)
 			if (i == SMI_LARB_NUM)
 				cmdq_pkt_flush_async(smi_cmdq.pkt,
@@ -1383,7 +1387,7 @@ static inline void smi_dram_init(void)
 	smi_dram.node = debugfs_create_file(
 		"smi_mon", 0444, NULL, (void *)0, &smi_dram_file_opers);
 	if (IS_ERR(smi_dram.node))
-		SMIERR("debugfs_create_file failed: %ld\n",
+		pr_info("debugfs_create_file failed: %ld\n",
 			PTR_ERR(smi_dram.node));
 }
 

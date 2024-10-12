@@ -50,7 +50,7 @@ static uint8_t power_info_force_print;
 
 bool apusys_power_check(void)
 {
-#if defined(CONFIG_MACH_MT6885) || defined(CONFIG_MACH_MT6893)
+#if defined(CONFIG_MACH_MT6885)
 	char *pwr_ptr;
 	bool pwr_status = true;
 
@@ -361,13 +361,17 @@ int apu_device_power_suspend(enum DVFS_USER user, int is_suspend)
 
 	mutex_unlock(&power_ctl_mtx);
 
-	/* prepare time stamp format */
-	memset(time_stmp, 0, sizeof(time_stmp));
-	print_time(apu_get_power_info(0), time_stmp);
-	LOG_PM("%s for user:%d, ret:%d, cnt:%d, is_suspend:%d, info_id: %s\n",
-					__func__, user, ret,
-					power_callback_counter, is_suspend,
-					ret ? 0 : time_stmp);
+	// for pwr saving, get pwr info in case pwr ctl fail or enable debug log
+	if (g_pwr_log_level >= APUSYS_PWR_LOG_WARN || ret) {
+		/* prepare time stamp format */
+		memset(time_stmp, 0, sizeof(time_stmp));
+		print_time(apu_get_power_info(0), time_stmp);
+		LOG_PM(
+		"%s for user:%d, ret:%d, cnt:%d, is_suspend:%d, info_id: %s\n",
+				__func__, user, ret,
+				power_callback_counter, is_suspend,
+				ret ? 0 : time_stmp);
+	}
 #else
 	LOG_WRN("%s by user:%d bypass\n", __func__, user);
 #endif // BYPASS_POWER_OFF
@@ -426,9 +430,14 @@ int apu_device_power_on(enum DVFS_USER user)
 
 	if (pwr_dev->is_power_on == 1) {
 		mutex_unlock(&power_ctl_mtx);
+#if !BYPASS_POWER_OFF
 		LOG_ERR("APUPWR_ON_FAIL, not allow user:%d to pwr on twice\n",
 									user);
 		return -ECANCELED;
+#else
+		LOG_WRN("%s by user:%d bypass\n", __func__, user);
+		return 0;
+#endif
 	}
 
 	LOG_DBG("%s for user:%d, cnt:%d\n", __func__,
@@ -460,12 +469,15 @@ int apu_device_power_on(enum DVFS_USER user)
 
 	mutex_unlock(&power_ctl_mtx);
 
-	/* prepare time stamp format */
-	memset(time_stmp, 0, sizeof(time_stmp));
-	print_time(apu_get_power_info(0), time_stmp);
-	LOG_PM("%s for user:%d, ret:%d, cnt:%d, info_id: %s\n",
+	// for pwr saving, get pwr info in case pwr ctl fail or enable debug log
+	if (g_pwr_log_level >= APUSYS_PWR_LOG_WARN || ret) {
+		/* prepare time stamp format */
+		memset(time_stmp, 0, sizeof(time_stmp));
+		print_time(apu_get_power_info(0), time_stmp);
+		LOG_PM("%s for user:%d, ret:%d, cnt:%d, info_id: %s\n",
 				__func__, user, ret, power_callback_counter,
 				ret ? 0 : time_stmp);
+	}
 
 	if (ret) {
 		hal_config_power(PWR_CMD_DUMP_FAIL_STATE, VPU0, NULL);
@@ -793,6 +805,9 @@ static int apu_power_probe(struct platform_device *pdev)
 	#endif
 
 	apusys_power_debugfs_init();
+	#if defined(CONFIG_MACH_MT6877)
+	apusys_power_create_procfs();
+	#endif
 	#ifdef APUPWR_TAG_TP
 	apupwr_init_drv_tags();
 	#endif

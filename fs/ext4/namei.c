@@ -1778,12 +1778,14 @@ static struct dentry *ext4_lookup(struct inode *dir, struct dentry *dentry, unsi
 			EXT4_ERROR_INODE(dir, "bad inode number: %u", ino);
 			return ERR_PTR(-EFSCORRUPTED);
 		}
-		brelse(bh);
 		if (unlikely(ino == dir->i_ino)) {
+			print_bh(dir->i_sb, bh, 0, EXT4_BLOCK_SIZE(dir->i_sb));
+			brelse(bh);
 			EXT4_ERROR_INODE(dir, "'%pd' linked to parent dir",
 					 dentry);
 			return ERR_PTR(-EFSCORRUPTED);
 		}
+		brelse(bh);
 		inode = ext4_iget(dir->i_sb, ino, EXT4_IGET_NORMAL);
 		if (inode == ERR_PTR(-ESTALE)) {
 			EXT4_ERROR_INODE(dir,
@@ -2980,6 +2982,7 @@ bool ext4_empty_dir(struct inode *inode)
 	if (ext4_check_dir_entry(inode, NULL, de, bh, bh->b_data, bh->b_size, 0,
 				 offset) ||
 	    le32_to_cpu(de->inode) == 0 || strcmp("..", de->name)) {
+		print_bh(sb, bh, 0, EXT4_BLOCK_SIZE(sb));
 		ext4_warning_inode(inode, "directory missing '..'");
 		brelse(bh);
 		return true;

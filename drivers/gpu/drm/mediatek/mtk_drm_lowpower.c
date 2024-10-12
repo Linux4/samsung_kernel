@@ -23,8 +23,9 @@
 #include "mtk_drm_ddp.h"
 #include "mtk_drm_ddp_comp.h"
 #include "mtk_drm_mmp.h"
+#include "mtk_drm_trace.h"
 
-#define MAX_ENTER_IDLE_RSZ_RATIO 250
+#define MAX_ENTER_IDLE_RSZ_RATIO 300
 
 static void mtk_drm_idlemgr_enable_crtc(struct drm_crtc *crtc);
 static void mtk_drm_idlemgr_disable_crtc(struct drm_crtc *crtc);
@@ -56,8 +57,14 @@ static void mtk_drm_vdo_mode_enter_idle(struct drm_crtc *crtc)
 	}
 
 	comp = mtk_ddp_comp_request_output(mtk_crtc);
-	if (comp)
+	if (comp) {
 		mtk_ddp_comp_io_cmd(comp, handle, DSI_VFP_IDLE_MODE, NULL);
+		if (mtk_drm_helper_get_opt(priv->helper_opt, MTK_DRM_OPT_LFR)) {
+			int en = 0;
+
+			mtk_ddp_comp_io_cmd(comp, handle, DSI_LFR_SET, &en);
+		}
+	}
 
 	cmdq_pkt_flush(handle);
 	cmdq_pkt_destroy(handle);
@@ -89,8 +96,14 @@ static void mtk_drm_vdo_mode_leave_idle(struct drm_crtc *crtc)
 	}
 
 	comp = mtk_ddp_comp_request_output(mtk_crtc);
-	if (comp)
+	if (comp) {
 		mtk_ddp_comp_io_cmd(comp, handle, DSI_VFP_DEFAULT_MODE, NULL);
+		if (mtk_drm_helper_get_opt(priv->helper_opt, MTK_DRM_OPT_LFR)) {
+			int en = 1;
+
+			mtk_ddp_comp_io_cmd(comp, handle, DSI_LFR_SET, &en);
+		}
+	}
 
 	cmdq_pkt_flush(handle);
 	cmdq_pkt_destroy(handle);
@@ -118,10 +131,16 @@ static void mtk_drm_idlemgr_enter_idle_nolock(struct drm_crtc *crtc)
 	mode = mtk_dsi_is_cmd_mode(output_comp);
 	CRTC_MMP_EVENT_START(index, enter_idle, mode, 0);
 
+	mtk_drm_trace_c("%d|DISP:idle_enter|%d",
+			hwc_pid, 1);
+
 	if (mode)
 		mtk_drm_cmd_mode_enter_idle(crtc);
 	else
 		mtk_drm_vdo_mode_enter_idle(crtc);
+
+	mtk_drm_trace_c("%d|DISP:idle_enter|%d",
+			hwc_pid, 0);
 
 	CRTC_MMP_EVENT_END(index, enter_idle, mode, 0);
 }
@@ -141,10 +160,16 @@ static void mtk_drm_idlemgr_leave_idle_nolock(struct drm_crtc *crtc)
 	mode = mtk_dsi_is_cmd_mode(output_comp);
 	CRTC_MMP_EVENT_START(index, leave_idle, mode, 0);
 
+	mtk_drm_trace_c("%d|DISP:idle_leave|%d",
+			hwc_pid, 1);
+
 	if (mode)
 		mtk_drm_cmd_mode_leave_idle(crtc);
 	else
 		mtk_drm_vdo_mode_leave_idle(crtc);
+
+	mtk_drm_trace_c("%d|DISP:idle_leave|%d",
+			hwc_pid, 0);
 
 	CRTC_MMP_EVENT_END(index, leave_idle, mode, 0);
 }
@@ -158,6 +183,23 @@ bool mtk_drm_is_idle(struct drm_crtc *crtc)
 		return false;
 
 	return idlemgr->idlemgr_ctx->is_idle;
+}
+
+void mtk_drm_idlemgr_kick_async(struct drm_crtc *crtc)
+{
+	struct mtk_drm_crtc *mtk_crtc = NULL;
+	struct mtk_drm_idlemgr *idlemgr;
+
+	if (crtc)
+		mtk_crtc = to_mtk_crtc(crtc);
+
+	if (mtk_crtc && mtk_crtc->idlemgr)
+		idlemgr = mtk_crtc->idlemgr;
+	else
+		return;
+
+	atomic_set(&idlemgr->kick_task_active, 1);
+	wake_up_interruptible(&idlemgr->kick_wq);
 }
 
 void mtk_drm_idlemgr_kick(const char *source, struct drm_crtc *crtc,
@@ -178,6 +220,7 @@ void mtk_drm_idlemgr_kick(const char *source, struct drm_crtc *crtc,
 
 	/* update kick timestamp */
 	idlemgr_ctx->idlemgr_last_kick_time = sched_clock();
+	idlemgr_ctx->idle_vblank_check_internal = 0;
 
 	if (idlemgr_ctx->is_idle) {
 		DDPINFO("[LP] kick idle from [%s]\n", source);
@@ -301,10 +344,30 @@ static bool mtk_planes_is_yuv_fmt(struct drm_crtc *crtc)
 	return false;
 }
 
+static int mtk_drm_async_kick_idlemgr_thread(void *data)
+{
+	struct drm_crtc *crtc = (struct drm_crtc *)data;
+	struct mtk_drm_crtc *mtk_crtc = to_mtk_crtc(crtc);
+	struct mtk_drm_idlemgr *idlemgr = mtk_crtc->idlemgr;
+	int ret = 0;
+
+	while (!kthread_should_stop()) {
+		ret = wait_event_interruptible(
+			idlemgr->kick_wq,
+			atomic_read(&idlemgr->kick_task_active));
+
+		atomic_set(&idlemgr->kick_task_active, 0);
+
+		mtk_drm_idlemgr_kick(__func__, crtc, true);
+	}
+
+	return 0;
+}
+
 static int mtk_drm_idlemgr_monitor_thread(void *data)
 {
 	int ret = 0;
-	long long t_to_check = 0;
+	unsigned long long t_to_check = 0;
 	unsigned long long t_idle;
 	struct drm_crtc *crtc = (struct drm_crtc *)data;
 	struct mtk_drm_crtc *mtk_crtc = to_mtk_crtc(crtc);
@@ -314,24 +377,25 @@ static int mtk_drm_idlemgr_monitor_thread(void *data)
 	struct mtk_crtc_state *mtk_state = NULL;
 	struct drm_vblank_crtc *vblank = NULL;
 	int crtc_id = drm_crtc_index(crtc);
-	static unsigned long long idlemgr_vblank_check_internal;
 
-	msleep(16000);
+	msleep(50000);
 	while (1) {
 		ret = wait_event_interruptible(
 			idlemgr->idlemgr_wq,
 			atomic_read(&idlemgr->idlemgr_task_active));
+		if (ret < 0)
+			DDPMSG("wait %s fail, ret=%d\n", __func__, ret);
 
 		t_idle = local_clock() - idlemgr_ctx->idlemgr_last_kick_time;
-		if (idlemgr_vblank_check_internal)
-			t_to_check = idlemgr_vblank_check_internal *
+		if (idlemgr_ctx->idle_vblank_check_internal)
+			t_to_check = idlemgr_ctx->idle_vblank_check_internal *
 				1000 * 1000 - t_idle;
 		else
 			t_to_check = idlemgr_ctx->idle_check_interval *
 				1000 * 1000 - t_idle;
 		do_div(t_to_check, 1000000);
 
-		t_to_check = min(t_to_check, 1000LL);
+		t_to_check = min(t_to_check, 1000ULL);
 		/* when starting up before the first time kick */
 		if (idlemgr_ctx->idlemgr_last_kick_time == 0)
 			msleep_interruptible(idlemgr_ctx->idle_check_interval);
@@ -343,6 +407,13 @@ static int mtk_drm_idlemgr_monitor_thread(void *data)
 		if (!mtk_crtc->enabled) {
 			DDP_MUTEX_UNLOCK(&mtk_crtc->lock, __func__, __LINE__);
 			mtk_crtc_wait_status(crtc, 1, MAX_SCHEDULE_TIMEOUT);
+			continue;
+		}
+
+		if (mtk_crtc_is_frame_trigger_mode(crtc) &&
+				atomic_read(&priv->crtc_rel_present[crtc_id]) <
+				atomic_read(&priv->crtc_present[crtc_id])) {
+			DDP_MUTEX_UNLOCK(&mtk_crtc->lock, __func__, __LINE__);
 			continue;
 		}
 
@@ -377,9 +448,9 @@ static int mtk_drm_idlemgr_monitor_thread(void *data)
 		}
 
 		t_idle = local_clock() - idlemgr_ctx->idlemgr_last_kick_time;
-		if ((idlemgr_vblank_check_internal &&
-		    t_idle < idlemgr_vblank_check_internal * 1000 * 1000) ||
-		    (!idlemgr_vblank_check_internal &&
+		if ((idlemgr_ctx->idle_vblank_check_internal &&
+		    t_idle < idlemgr_ctx->idle_vblank_check_internal * 1000 * 1000) ||
+		    (!idlemgr_ctx->idle_vblank_check_internal &&
 		    t_idle < idlemgr_ctx->idle_check_interval * 1000 * 1000)) {
 			/* kicked in idle_check_interval msec, it's not idle */
 			DDP_MUTEX_UNLOCK(&mtk_crtc->lock, __func__, __LINE__);
@@ -395,11 +466,16 @@ static int mtk_drm_idlemgr_monitor_thread(void *data)
 			if (!vblank || atomic_read(&vblank->refcount) == 0) {
 				mtk_drm_idlemgr_enter_idle_nolock(crtc);
 				idlemgr_ctx->is_idle = 1;
-				idlemgr_vblank_check_internal = 0;
+				idlemgr_ctx->idle_vblank_check_internal = 0;
+				if (mtk_crtc->esd_ctx) {
+					atomic_set(&mtk_crtc->esd_ctx->target_time, 1);
+					wake_up_interruptible(
+						&mtk_crtc->esd_ctx->check_task_wq);
+				}
 			} else {
 				idlemgr_ctx->idlemgr_last_kick_time =
 					sched_clock();
-				idlemgr_vblank_check_internal = 50;
+				idlemgr_ctx->idle_vblank_check_internal = 17;
 			}
 		}
 
@@ -427,13 +503,13 @@ int mtk_drm_idlemgr_init(struct drm_crtc *crtc, int index)
 
 	if (!idlemgr) {
 		DDPPR_ERR("struct mtk_drm_idlemgr allocate fail\n");
+		kfree(idlemgr_ctx);
 		return -ENOMEM;
-		;
 	}
 
 	if (!idlemgr_ctx) {
-
 		DDPPR_ERR("struct mtk_drm_idlemgr_context allocate fail\n");
+		kfree(idlemgr);
 		return -ENOMEM;
 	}
 
@@ -446,6 +522,7 @@ int mtk_drm_idlemgr_init(struct drm_crtc *crtc, int index)
 	idlemgr_ctx->idlemgr_last_kick_time = ~(0ULL);
 	idlemgr_ctx->cur_lp_cust_mode = 0;
 	idlemgr_ctx->idle_check_interval = 50;
+	idlemgr_ctx->idle_vblank_check_internal = 0;
 
 	snprintf(name, len, "mtk_drm_disp_idlemgr-%d", index);
 	idlemgr->idlemgr_task =
@@ -454,6 +531,14 @@ int mtk_drm_idlemgr_init(struct drm_crtc *crtc, int index)
 	atomic_set(&idlemgr->idlemgr_task_active, 1);
 
 	wake_up_process(idlemgr->idlemgr_task);
+
+	snprintf(name, len, "dis_ki-%d", index);
+	idlemgr->kick_task =
+		kthread_create(mtk_drm_async_kick_idlemgr_thread, crtc, name);
+	init_waitqueue_head(&idlemgr->kick_wq);
+	atomic_set(&idlemgr->kick_task_active, 0);
+
+	wake_up_process(idlemgr->kick_task);
 
 	return 0;
 }

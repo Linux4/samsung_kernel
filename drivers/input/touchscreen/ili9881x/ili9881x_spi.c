@@ -28,8 +28,9 @@ struct touch_bus_info {
 };
 
 #ifdef CONFIG_SAMSUNG_TUI
-static int stui_tsp_enter(void);
-static int stui_tsp_exit(void);
+static int ili_stui_tsp_enter(void);
+static int ili_stui_tsp_exit(void);
+static int ili_stui_tsp_type(void);
 #endif
 
 struct ilitek_ts_data *ilits;
@@ -516,13 +517,22 @@ static int ilitek_spi_probe(struct spi_device *spi)
 {
 	struct touch_bus_info *info;
 	int ret;
-
+#ifdef CONFIG_SAMSUNG_TUI
+	struct sec_ts_plat_data *sec_plat_data;
+#endif
 	input_info(true, &spi->dev, "%s ilitek spi probe\n", __func__);
 
 	if (!spi) {
 		input_err(true,  &spi->dev, "%s spi device is NULL\n", __func__);
 		return -ENODEV;
 	}
+#ifdef CONFIG_SAMSUNG_TUI
+	sec_plat_data = devm_kzalloc(&spi->dev, sizeof(struct sec_ts_plat_data), GFP_KERNEL);
+	if (!sec_plat_data) {
+		input_err(true, &spi->dev, "failed to allocated memory for sec_ts_plat_data\n");
+		return -ENOMEM;
+	}
+#endif
 
 	info = container_of(to_spi_driver(spi->dev.driver), struct touch_bus_info, bus_driver);
 
@@ -613,7 +623,6 @@ static int ilitek_spi_probe(struct spi_device *spi)
 	ilits->gesture_demo_ctrl = DISABLE;
 	ilits->wtd_ctrl = OFF;
 	ilits->report = ENABLE;
-	ilits->netlink = DISABLE;
 	ilits->dnp = DISABLE;
 	ilits->irq_tirgger_type = IRQF_TRIGGER_FALLING;
 	ilits->info_from_hex = ENABLE;
@@ -657,8 +666,14 @@ static int ilitek_spi_probe(struct spi_device *spi)
 
 	ret = info->hwif->plat_probe();
 #ifdef CONFIG_SAMSUNG_TUI
-	if (!ret)
-		ret = stui_set_info(stui_tsp_enter, stui_tsp_exit, STUI_TSP_TYPE_ILITEK);
+	spi->dev.platform_data = sec_plat_data;
+	ptsp = &spi->dev;
+	ilits->plat_data = sec_plat_data;
+
+	ilits->plat_data->stui_tsp_enter = ili_stui_tsp_enter;
+	ilits->plat_data->stui_tsp_exit = ili_stui_tsp_exit;
+	ilits->plat_data->stui_tsp_type = ili_stui_tsp_type;
+	input_err(true, &spi->dev, "secure touch support, irq_flags=0x%X\n", ilits->irq_flags);
 #endif
 	return ret;
 }
@@ -730,9 +745,11 @@ void ili_interface_dev_exit(struct ilitek_ts_data *ts)
 extern int stui_spi_lock(struct spi_master *spi);
 extern int stui_spi_unlock(struct spi_master *spi);
 
-static int stui_tsp_enter(void)
+static int ili_stui_tsp_enter(void)
 {
 	int ret = 0;
+
+	input_info(true, ilits->dev, ">> %s\n", __func__);
 
 	if (!ilits)
 		return -EINVAL;
@@ -745,7 +762,7 @@ static int stui_tsp_enter(void)
 	ili_irq_unregister();
 
 	ret = stui_spi_lock(ilits->spi->master);
-	if (ret) {
+	if (ret < 0) {
 		pr_err("[STUI] stui_spi_lock failed : %d\n", ret);
 		ili_irq_register(ilits->irq_tirgger_type);
 		return -1;
@@ -754,9 +771,11 @@ static int stui_tsp_enter(void)
 	return 0;
 }
 
-static int stui_tsp_exit(void)
+static int ili_stui_tsp_exit(void)
 {
 	int ret = 0;
+
+	input_info(true, ilits->dev, ">> %s\n", __func__);
 
 	if (!ilits)
 		return -EINVAL;
@@ -767,11 +786,18 @@ static int stui_tsp_exit(void)
 	}
 
 	ret = stui_spi_unlock(ilits->spi->master);
-	if (ret)
+	if (ret < 0)
 		pr_err("[STUI] stui_spi_unlock failed : %d\n", ret);
 
 	ili_irq_register(ilits->irq_tirgger_type);
 
 	return ret;
 }
+static int ili_stui_tsp_type(void)
+{
+	input_info(true, ilits->dev, ">> %s\n", __func__);
+
+	return STUI_TSP_TYPE_ILITEK;
+}
+
 #endif

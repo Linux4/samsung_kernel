@@ -23,8 +23,11 @@
 #include "primary_display.h"
 #include "ddp_m4u.h"
 #include "ddp_mmp.h"
+#include <ion.h>
+#include <ion_sec_heap.h>
 
 #define ALIGN_TO(x, n)	(((x) + ((n) - 1)) & ~((n) - 1))
+enum TRUSTED_MEM_REQ_TYPE mem_type;
 static int wdma_is_sec[2];
 
 /*****************************************************************************/
@@ -183,15 +186,37 @@ static int wdma_config_yuv420(enum DISP_MODULE_ENUM module,
 
 		m4u_port = DISP_M4U_PORT_DISP_WDMA0;
 
-		cmdqRecWriteSecure(handle,
-			disp_addr_convert(idx_offst + DISP_REG_WDMA_DST_ADDR1),
-			CMDQ_SAM_H_2_MVA, dstAddress, u_off, u_size, m4u_port);
-		if (has_v)
+		DDPDBG("[SVP]output module: %d,  type:%d, handle as:%d,\n",
+			module, mem_type, DISP_M4U_PORT_DISP_WDMA0);
+
+		if (mem_type != -1) {
+			cmdqRecWriteSecureMetaData(handle,
+				disp_addr_convert(idx_offst + DISP_REG_WDMA_DST_ADDR1),
+				CMDQ_SAM_H_2_MVA, dstAddress, u_off, u_size,
+				m4u_port, mem_type);
+		} else {
 			cmdqRecWriteSecure(handle,
-				disp_addr_convert(idx_offst +
-					DISP_REG_WDMA_DST_ADDR2),
-				CMDQ_SAM_H_2_MVA, dstAddress,
-				v_off, u_size, m4u_port);
+				disp_addr_convert(idx_offst + DISP_REG_WDMA_DST_ADDR1),
+				CMDQ_SAM_H_2_MVA, dstAddress, u_off, u_size,
+				m4u_port);
+		}
+
+		if (has_v) {
+			DDPDBG("[SVP]output module: %d,  type:%d, handle as:%d,\n",
+				module, mem_type, DISP_M4U_PORT_DISP_WDMA0);
+
+			if (mem_type != -1) {
+				cmdqRecWriteSecureMetaData(handle,
+					disp_addr_convert(idx_offst + DISP_REG_WDMA_DST_ADDR2),
+					CMDQ_SAM_H_2_MVA, dstAddress, v_off, u_size,
+					m4u_port, mem_type);
+			} else {
+				cmdqRecWriteSecure(handle,
+					disp_addr_convert(idx_offst + DISP_REG_WDMA_DST_ADDR2),
+					CMDQ_SAM_H_2_MVA, dstAddress, v_off, u_size,
+					m4u_port);
+			}
+		}
 	}
 	DISP_REG_SET_FIELD(handle, DST_W_IN_BYTE_FLD_DST_W_IN_BYTE,
 		idx_offst + DISP_REG_WDMA_DST_UV_PITCH, u_stride);
@@ -264,9 +289,20 @@ static int wdma_config(enum DISP_MODULE_ENUM module, unsigned int srcWidth,
 		 * we need to pass this handle and offset to cmdq driver
 		 * cmdq sec driver will convert handle to correct address
 		 */
-		cmdqRecWriteSecure(handle,
-			disp_addr_convert(idx_offst + DISP_REG_WDMA_DST_ADDR0),
-			CMDQ_SAM_H_2_MVA, dstAddress, 0, size, m4u_port);
+		DDPDBG("[SVP]output module: %d,  type:%d, handle as:%d,\n",
+			module, mem_type, DISP_M4U_PORT_DISP_WDMA0);
+
+		if (mem_type != -1) {
+			cmdqRecWriteSecureMetaData(handle,
+				disp_addr_convert(idx_offst + DISP_REG_WDMA_DST_ADDR0),
+				CMDQ_SAM_H_2_MVA, dstAddress, 0, size,
+				m4u_port, mem_type);
+		} else {
+			cmdqRecWriteSecure(handle,
+				disp_addr_convert(idx_offst + DISP_REG_WDMA_DST_ADDR0),
+				CMDQ_SAM_H_2_MVA, dstAddress, 0, size,
+				m4u_port);
+		}
 	}
 	DISP_REG_SET(handle,
 		idx_offst + DISP_REG_WDMA_DST_W_IN_BYTE, dstPitch);
@@ -302,6 +338,8 @@ void wdma_dump_golden_setting(enum DISP_MODULE_ENUM module)
 
 	DDPDUMP("dump WDMA golden setting\n");
 
+	if (wdma_is_sec[index])
+		return;
 	DDPDUMP(
 		"WDMA_SMI_CON:\n[3:0]:%x [4:4]:%x [7:5]:%x [15:8]:%x [19:16]:%u [23:20]:%u [27:24]:%u\n",
 		DISP_REG_GET_FIELD(SMI_CON_FLD_THRESHOLD,
@@ -430,10 +468,12 @@ void wdma_dump_analysis(enum DISP_MODULE_ENUM module)
 	unsigned int index = wdma_index(module);
 	unsigned int idx_offst = index * DISP_WDMA_INDEX_OFFSET;
 
-	if (wdma_is_sec[index])
-		return;
-
 	DDPDUMP("== DISP WDMA%d ANALYSIS ==\n", index);
+	if (wdma_is_sec[index]) {
+		DDPDUMP("WDMA%d in secure state\n", index);
+		return;
+	}
+
 	DDPDUMP(
 		"wdma%d:en=%d,w=%d,h=%d,clip=(%d,%d,%dx%d),pitch=(W=%d,UV=%d),addr=(0x%x,0x%x,0x%x),fmt=%s\n",
 		index, DISP_REG_GET(DISP_REG_WDMA_EN + idx_offst) & 0x01,
@@ -479,8 +519,10 @@ void wdma_dump_reg(enum DISP_MODULE_ENUM module)
 {
 	unsigned int idx = wdma_index(module);
 
-	if (wdma_is_sec[idx])
+	if (wdma_is_sec[idx]) {
+		DDPDUMP("WDMA%d in secure state\n", idx);
 		return;
+	}
 
 	if (disp_helper_get_option(DISP_OPT_REG_PARSER_RAW_DUMP)) {
 		unsigned long module_base = DISPSYS_WDMA0_BASE +
@@ -680,11 +722,19 @@ wdma_golden_setting(enum DISP_MODULE_ENUM module,
 		res = p_golden_setting->dst_width *
 			p_golden_setting->dst_height;
 	} else {
+#ifdef CONFIG_MTK_DX_HDCP_DDP_SUPPORT
 		res = 1920 * 1080;
 		frame_rate = 60;
+#else
+		res = p_golden_setting->ext_dst_width *
+				p_golden_setting->ext_dst_height;
+		if ((p_golden_setting->ext_dst_width == 3840 &&
+			p_golden_setting->ext_dst_height == 2160))
+			frame_rate = 30;
+#endif
 	}
 
-	DDPMSG("%s, frame_rate=%d\n", __func__, frame_rate);
+	DDPMSG("%s, frame_rate=%u\n", __func__, frame_rate);
 
 	/* DISP_REG_WDMA_SMI_CON */
 	regval = 0;
@@ -1128,12 +1178,20 @@ int wdma_switch_to_nonsec(enum DISP_MODULE_ENUM module, void *handle)
 
 		cmdqRecReset(nonsec_switch_handle);
 
-		/* MT6768 should only enter secure state in external mode */
-		/* External Mode */
-		/* ovl1->wdma1 */
-		//cmdqRecWaitNoClear(nonsec_switch_handle,
-		//	CMDQ_SYNC_DISP_EXT_STREAM_EOF);
-
+		if (wdma_idx == 0) {
+			/* Primary Mode */
+			if (primary_display_is_decouple_mode())
+				cmdqRecWaitNoClear(nonsec_switch_handle,
+					cmdq_event);
+			else
+				cmdqRecWaitNoClear(nonsec_switch_handle,
+					CMDQ_SYNC_DISP_EXT_STREAM_EOF);
+		} else {
+			/* External Mode */
+			/* ovl1->wdma1 */
+			cmdqRecWaitNoClear(nonsec_switch_handle,
+				CMDQ_SYNC_DISP_EXT_STREAM_EOF);
+		}
 
 		cmdqRecSetSecure(nonsec_switch_handle, 1);
 
@@ -1144,24 +1202,35 @@ int wdma_switch_to_nonsec(enum DISP_MODULE_ENUM module, void *handle)
 			(1LL << cmdq_engine));
 		if (handle != NULL) {
 			/* Async Flush method */
-			enum CMDQ_EVENT_ENUM cmdq_event_nonsec_end;
+			DDPERR("[SVP] %s should sync flush\n", __func__);
 
-			cmdq_event_nonsec_end =
-				wdma_idx == 0 ?
-				CMDQ_SYNC_DISP_WDMA0_2NONSEC_END :
-				CMDQ_SYNC_DISP_WDMA1_2NONSEC_END;
-			cmdqRecSetEventToken(nonsec_switch_handle,
-				cmdq_event_nonsec_end);
-			cmdqRecFlushAsync(nonsec_switch_handle);
-			cmdqRecWait(handle, cmdq_event_nonsec_end);
+			ret = cmdqRecFlush(nonsec_switch_handle);
 		} else {
 			/* Sync Flush method */
-			cmdqRecFlush(nonsec_switch_handle);
+			ret = cmdqRecFlush(nonsec_switch_handle);
 		}
 		cmdqRecDestroy(nonsec_switch_handle);
 		DDPSVPMSG("[SVP] switch wdma%d to nonsec\n", wdma_idx);
 		mmprofile_log_ex(ddp_mmp_get_events()->svp_module[module],
 			MMPROFILE_FLAG_END, 0, 0);
+
+		if (ret) {
+			DDPSVPMSG("[SVP] switch nonsec fail, disable sec again\n");
+			cmdqRecCreate(CMDQ_SCENARIO_DISP_PRIMARY_DISABLE_SECURE_PATH,
+				&(nonsec_switch_handle));
+
+			cmdqRecReset(nonsec_switch_handle);
+			cmdqRecSetSecure(nonsec_switch_handle, 1);
+
+			/* in fact, dapc/port_sec will be disabled by cmdq */
+			cmdqRecSecureEnablePortSecurity(nonsec_switch_handle,
+					(1LL << cmdq_engine));
+			cmdqRecSecureEnableDAPC(nonsec_switch_handle,
+					(1LL << cmdq_engine));
+
+			cmdqRecFlush(nonsec_switch_handle);
+			cmdqRecDestroy(nonsec_switch_handle);
+		}
 	}
 	wdma_is_sec[wdma_idx] = 0;
 
@@ -1200,12 +1269,28 @@ static int wdma_config_l(enum DISP_MODULE_ENUM module,
 {
 
 	struct WDMA_CONFIG_STRUCT *config = &pConfig->wdma_config;
+#ifdef CONFIG_MTK_DX_HDCP_DDP_SUPPORT
 	unsigned int is_primary_flag = 0; /*primary or external*/
+#else
+	unsigned int is_primary_flag = 1; /*primary or external*/
+#endif
 	unsigned int bwBpp;
 	unsigned long long wdma_bw;
 
 	if (!pConfig->wdma_dirty)
 		return 0;
+
+	if (config->hnd != NULL) {
+		int sec = -1;
+		int sec_id = -1;
+		ion_phys_addr_t sec_hdl = -1;
+
+		mem_type = ion_hdl2sec_type(config->hnd, &sec, &sec_id, &sec_hdl);
+		DDPERR("[SVP]begin output setting sec id as: %d, type:%d\n",
+			sec_id, mem_type);
+	} else {
+		mem_type = -1;
+	}
 
 	setup_wdma_sec(module, pConfig, handle);
 	if (wdma_check_input_param(config) == 0) {

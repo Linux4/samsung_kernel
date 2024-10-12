@@ -34,16 +34,17 @@ enum CAM_CAL_COMMAND {
 };
 
 struct CAM_CAL_SENSOR_INFO {
-	u32 sensor_id;
-	u32 device_id;
 	enum CAM_CAL_COMMAND command;
-	u32 *info;
+	unsigned int sensor_id;
+	unsigned int device_id;
+	unsigned int *info;
 };
 
+
 struct stCAM_CAL_INFO_STRUCT {
-	u32 u4Offset;
-	u32 u4Length;
-	u32 sensorID;
+	unsigned int u4Offset;
+	unsigned int u4Length;
+	unsigned int sensorID;
 	/*
 	 * MAIN = 0x01,
 	 * SUB  = 0x02,
@@ -51,19 +52,34 @@ struct stCAM_CAL_INFO_STRUCT {
 	 * SUB_2 = 0x08,
 	 * MAIN_3 = 0x10,
 	 */
-	u32 deviceID;
-	u8 *pu1Params;
+	unsigned int deviceID;
+	unsigned char *pu1Params;
 	enum CAM_CAL_COMMAND command;
 };
 
 #ifdef CONFIG_COMPAT
 
+struct COMPAT_CAM_CAL_SENSOR_INFO {
+	enum CAM_CAL_COMMAND command;
+	unsigned int sensor_id;
+	unsigned int device_id;
+	compat_uptr_t info;
+};
+
 struct COMPAT_stCAM_CAL_INFO_STRUCT {
-	u32 u4Offset;
-	u32 u4Length;
-	u32 sensorID;
-	u32 deviceID;
+	unsigned int u4Offset;
+	unsigned int u4Length;
+	unsigned int sensorID;
+	/*
+	 * MAIN = 0x01,
+	 * SUB  = 0x02,
+	 * MAIN_2 = 0x04,
+	 * SUB_2 = 0x08,
+	 * MAIN_3 = 0x10,
+	 */
+	unsigned int deviceID;
 	compat_uptr_t pu1Params;
+	enum CAM_CAL_COMMAND command;
 };
 #endif
 
