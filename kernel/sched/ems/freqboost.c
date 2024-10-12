@@ -282,6 +282,11 @@ int freqboost_can_attach(struct cgroup_taskset *tset)
 		raw_spin_lock(per_cpu_ptr(lock, cpu));
 
 		dst_bg = css->id - 1;
+
+		/* if customer add new group, use the last group */
+		if (dst_bg >= CGROUP_COUNT)
+			dst_bg = CGROUP_COUNT - 1;
+
 		src_bg = cpuctl_task_group_idx(task);
 
 		/*

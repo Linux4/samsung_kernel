@@ -12,10 +12,11 @@
 #include <linux/of_gpio.h>
 #include <video/mipi_display.h>
 #include "../panel.h"
-#include "tft_common.h"
-
 #include "../panel_drv.h"
 #include "../panel_debug.h"
+#include "../maptbl.h"
+#include "../util.h"
+#include "tft_common.h"
 
 static int generate_brt_step_table(struct brightness_table *brt_tbl)
 {
@@ -68,7 +69,7 @@ static int generate_brt_step_table(struct brightness_table *brt_tbl)
 	return ret;
 }
 
-int init_common_table(struct maptbl *tbl)
+int tft_maptbl_init_default(struct maptbl *tbl)
 {
 	if (tbl == NULL) {
 		panel_err("maptbl is null\n");
@@ -83,7 +84,7 @@ int init_common_table(struct maptbl *tbl)
 	return 0;
 }
 
-int init_brt_table(struct maptbl *tbl)
+int tft_maptbl_init_brt(struct maptbl *tbl)
 {
 	struct panel_info *panel_data;
 	struct panel_device *panel;
@@ -124,7 +125,7 @@ int init_brt_table(struct maptbl *tbl)
 	return 0;
 }
 
-int getidx_brt_table(struct maptbl *tbl)
+int tft_maptbl_getidx_brt(struct maptbl *tbl)
 {
 	int row = 0;
 	struct panel_info *panel_data;
@@ -143,7 +144,7 @@ int getidx_brt_table(struct maptbl *tbl)
 	return maptbl_index(tbl, 0, row, 0);
 }
 
-void copy_common_maptbl(struct maptbl *tbl, u8 *dst)
+void tft_maptbl_copy_default(struct maptbl *tbl, u8 *dst)
 {
 	int idx;
 
@@ -161,8 +162,8 @@ void copy_common_maptbl(struct maptbl *tbl, u8 *dst)
 
 	memcpy(dst, &(tbl->arr)[idx], sizeof(u8) * maptbl_get_sizeof_copy(tbl));
 	panel_dbg("copy from %s %d %d\n",
-			tbl->name, idx, maptbl_get_sizeof_copy(tbl));
-	print_data(dst, maptbl_get_sizeof_copy(tbl));
+			maptbl_get_name(tbl), idx, maptbl_get_sizeof_copy(tbl));
+	usdm_dbg_bytes(dst, maptbl_get_sizeof_copy(tbl));
 }
 
 MODULE_DESCRIPTION("Samsung Mobile Panel Driver");

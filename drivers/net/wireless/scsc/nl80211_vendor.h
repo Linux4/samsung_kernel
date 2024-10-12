@@ -1,6 +1,6 @@
 /*****************************************************************************
  *
- * Copyright (c) 2012 - 2022 Samsung Electronics Co., Ltd. All rights reserved
+ * Copyright (c) 2012 - 2023 Samsung Electronics Co., Ltd. All rights reserved
  *
  ****************************************************************************/
 
@@ -113,7 +113,16 @@
 #define SLSI_WIFI_ROAMING_SEARCH_REASON_EMERGENCY             5
 #define SLSI_WIFI_ROAMING_SEARCH_REASON_IDLE                  6
 #define SLSI_WIFI_ROAMING_SEARCH_REASON_WTC                   7
-#define SLSI_WIFI_ROAMING_SEARCH_REASON_BT_COEX               8
+#define SLSI_WIFI_ROAMING_SEARCH_REASON_INACTIVITY_TIMER      8
+#define SLSI_WIFI_ROAMING_SEARCH_REASON_SCAN_TIMER            9
+#define SLSI_WIFI_ROAMING_SEARCH_REASON_BT_COEX               10
+
+enum slsi_roaming_trigger_event_value {
+	SLSI_SOFT_ROAMING_TRIGGER_EVENT_DEFAULT,
+	SLSI_SOFT_ROAMING_TRIGGER_EVENT_INACTIVITY_TIMER,
+	SLSI_SOFT_ROAMING_TRIGGER_EVENT_RESCAN_TIMER,
+	SLSI_SOFT_ROAMING_TRIGGER_EVENT_BACKGROUND_RESCAN_TIMER
+};
 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 3, 0))
 enum slsi_low_latency_attr {

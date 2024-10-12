@@ -22,12 +22,21 @@
 #include "../../sensorhub/shub_device.h"
 #include "../../utility/shub_utility.h"
 
+#if defined(CONFIG_SHUB_KUNIT)
+#include <kunit/mock.h>
+#define __mockable __weak
+#define __visible_for_testing
+#else
+#define __mockable
+#define __visible_for_testing static
+#endif
+
 struct miscdevice scontext_device;
 
 static ssize_t shub_scontext_write(struct file *file, const char __user *buf, size_t count, loff_t *pos)
 {
 	int ret = 0;
-	char *buffer;
+	unsigned char *buffer;
 
 	if (!is_shub_working()) {
 		shub_errf("stop sending library data(is not working)");
@@ -39,13 +48,16 @@ static ssize_t shub_scontext_write(struct file *file, const char __user *buf, si
 		return -EINVAL;
 	}
 
-	buffer = kzalloc(count * sizeof(char), GFP_KERNEL);
+	buffer = kzalloc(count * sizeof(unsigned char), GFP_KERNEL);
 	if (!buffer) {
 		shub_errf("fail to alloc memory");
 		return -ENOMEM;
 	}
-
+#ifndef CONFIG_SHUB_TEST_FOR_ONLY_UML
 	ret = copy_from_user(buffer, buf, count);
+#else
+	memcpy(buffer, buf, count);
+#endif
 	if (unlikely(ret)) {
 		shub_errf("memcpy for kernel buffer err");
 		kfree(buffer);
@@ -66,7 +78,7 @@ static ssize_t shub_scontext_write(struct file *file, const char __user *buf, si
 	return (ret == 0) ? count : ret;
 }
 
-static const struct file_operations shub_scontext_fops = {
+__visible_for_testing const struct file_operations shub_scontext_fops = {
 	.owner = THIS_MODULE,
 	.open = nonseekable_open,
 	.write = shub_scontext_write,

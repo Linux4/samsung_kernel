@@ -45,14 +45,6 @@ config MUIC_S2MF301_RID
 	help
 	  If you say yes here you will get support for the S2MF301 MUIC RID functions.
 
-config S2MF301_TYPEC_WATER
-	bool "Using S2MF301 Type-C Water Detection"
-	depends on MUIC_S2MF301_RID
-	default n
-	help
-	  If you say yes here you will get support for
-	  the S2MF301 Type-C Water functions.
-
 config MUIC_NOT_SUPPORT_QC
 	bool "Not using S2MF301 MUIC QC AFC"
 	depends on MUIC_HV && MUIC_S2MF301

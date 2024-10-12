@@ -15,9 +15,7 @@
 
 #include <linux/types.h>
 #include <linux/kernel.h>
-#ifdef CONFIG_SUPPORT_DDI_FLASH
-#include "../panel_poc.h"
-#endif
+#include "../maptbl.h"
 
 /*
  * OFFSET ==> OFS means N-param - 1
@@ -47,6 +45,7 @@
 
 enum {
 	BRT_MAPTBL,
+	BLIC_BRT_MAPTBL,
 	MAX_MAPTBL,
 };
 
@@ -61,27 +60,9 @@ enum {
 	RES_ID,
 };
 
-static u8 TFT_COMMON_ID[TFT_COMMON_ID_LEN];
-
-static struct rdinfo tft_common_rditbl[] = {
-	[READ_ID_DA] = RDINFO_INIT(id, DSI_PKT_TYPE_RD, TFT_COMMON_ID_DA_REG, TFT_COMMON_ID_DA_OFS, TFT_COMMON_ID_DA_LEN),
-	[READ_ID_DB] = RDINFO_INIT(id, DSI_PKT_TYPE_RD, TFT_COMMON_ID_DB_REG, TFT_COMMON_ID_DB_OFS, TFT_COMMON_ID_DB_LEN),
-	[READ_ID_DC] = RDINFO_INIT(id, DSI_PKT_TYPE_RD, TFT_COMMON_ID_DC_REG, TFT_COMMON_ID_DC_OFS, TFT_COMMON_ID_DC_LEN),
-
-};
-
-static DECLARE_RESUI(id) = {
-	{.rditbl = &tft_common_rditbl[READ_ID_DA], .offset = 0},
-	{.rditbl = &tft_common_rditbl[READ_ID_DB], .offset = 1},
-	{.rditbl = &tft_common_rditbl[READ_ID_DC], .offset = 2},
-};
-
-static struct resinfo tft_common_restbl[] = {
-	[RES_ID] = RESINFO_INIT(id, TFT_COMMON_ID, RESUI(id)),
-};
-
-int init_brt_table(struct maptbl *tbl);
-int getidx_brt_table(struct maptbl *);
-void copy_common_maptbl(struct maptbl *, u8 *);
+int tft_maptbl_init_default(struct maptbl *tbl);
+int tft_maptbl_init_brt(struct maptbl *tbl);
+int tft_maptbl_getidx_brt(struct maptbl *tbl);
+void tft_maptbl_copy_default(struct maptbl *tbl, u8 *dst);
 
 #endif /* __TFT_COMMON_H__ */

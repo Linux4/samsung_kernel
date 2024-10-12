@@ -13,14 +13,12 @@
 #include <linux/of_device.h>
 #include "panel.h"
 
-
 #define PANEL_I2C_MAX (4)
-
 
 struct panel_i2c_dev {
 	struct i2c_client *client;
 	struct i2c_drv_ops *ops;
-	struct mutex lock;
+	struct panel_mutex lock;
 
 	int addr_len;
 	int data_len;
@@ -38,6 +36,5 @@ struct i2c_drv_ops {
 	int (*transfer)(struct i2c_adapter *adap, struct i2c_msg *msgs, int num);
 };
 
-
-int panel_i2c_drv_probe(struct panel_device *panel);
+int panel_i2c_drv_init(struct panel_device *panel);
 #endif /* __PANEL_I2C_H__ */

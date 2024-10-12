@@ -2609,8 +2609,7 @@ static bool dw_mci_clear_pending_cmd_complete(struct dw_mci *host)
 	 * running concurrently so that the del_timer() in the interrupt
 	 * handler couldn't run.
 	 */
-	if (del_timer_sync(&host->cto_timer))
-		dev_err(host->dev, "%s: cto timer is not cleared\n", __func__);
+	WARN_ON(del_timer_sync(&host->cto_timer));
 	clear_bit(EVENT_CMD_COMPLETE, &host->pending_events);
 	dw_mci_debug_req_log(host, host->mrq, STATE_REQ_CMD_COMPLETE_TASKLET, host->state);
 
@@ -2869,9 +2868,8 @@ static void dw_mci_tasklet_func(unsigned long priv)
 				break;
 
 			set_bit(EVENT_XFER_COMPLETE, &host->completed_events);
-			set_bit(EVENT_CMD_COMPLETE, &host->pending_events);
-			dw_mci_debug_req_log(host, host->mrq, STATE_REQ_CMD_COMPLETE_TASKLET, state);
 			set_bit(EVENT_DATA_COMPLETE, &host->pending_events);
+			dw_mci_debug_req_log(host, host->mrq, STATE_REQ_CMD_COMPLETE_TASKLET, state);
 
 			state = STATE_DATA_BUSY;
 			dw_mci_debug_req_log(host, host->mrq, STATE_REQ_DATA_PROCESS, state);
@@ -4560,13 +4558,8 @@ int dw_mci_runtime_resume(struct device *dev)
 	if (host->use_dma && host->dma_ops->init)
 		host->dma_ops->init(host);
 
-	if (host->quirks & DW_MCI_QUIRK_HWACG_CTRL) {
-		if (drv_data && drv_data->hwacg_control)
-			drv_data->hwacg_control(host, HWACG_Q_ACTIVE_EN);
-	} else {
-		if (drv_data && drv_data->hwacg_control)
-			drv_data->hwacg_control(host, HWACG_Q_ACTIVE_DIS);
-	}
+	if (drv_data && drv_data->hwacg_control)
+		drv_data->hwacg_control(host, HWACG_Q_ACTIVE_DIS);
 
 	if (drv_data && drv_data->crypto_sec_cfg) {
 		ret = drv_data->crypto_sec_cfg(host, false);

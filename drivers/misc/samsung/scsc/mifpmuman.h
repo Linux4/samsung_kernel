@@ -12,7 +12,7 @@
 #if !IS_ENABLED(CONFIG_SOC_S5E8825) && !IS_ENABLED(CONFIG_SCSC_PCIE_PAEAN_X86) \
 	&& !IS_ENABLED(CONFIG_SOC_S5E9925) && !IS_ENABLED(CONFIG_SOC_S5E5515) \
 	&& !IS_ENABLED(CONFIG_SOC_S5E9935) && !IS_ENABLED(CONFIG_SOC_S5E8535) \
-	|| IS_ENABLED(CONFIG_SOC_S5E8835)
+	&& !IS_ENABLED(CONFIG_SOC_S5E8835)
 #define FOREACH_PMU_MSG(PMU_MSG)                                               \
 	PMU_MSG(MSG_NULL)                                                      \
 	PMU_MSG(MSG_START_WLAN)                                                \

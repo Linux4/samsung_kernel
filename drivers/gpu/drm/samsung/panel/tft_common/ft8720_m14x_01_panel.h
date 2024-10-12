@@ -16,8 +16,8 @@
 #include "../panel.h"
 #include "../panel_drv.h"
 #include "tft_common.h"
+#include "tft_function.h"
 #include "ft8720_m14x_01_resol.h"
-//#include "tft_common_m14x.h"
 
 #undef __pn_name__
 #define __pn_name__	m14x
@@ -28,19 +28,6 @@
 #define FT8720_NR_STEP (256)
 #define FT8720_HBM_STEP (51)
 #define FT8720_TOTAL_STEP (FT8720_NR_STEP + FT8720_HBM_STEP) /* 0 ~ 306 */
-
-bool is_m14x_fps_90hz(struct panel_device *panel)
-{
-	struct panel_vrr *vrr;
-
-	vrr = get_panel_vrr(panel);
-	if (vrr == NULL)
-		return false;
-
-	if (vrr->fps == 90)
-		return true;
-	return false;
-}
 
 static unsigned int ft8720_m14x_01_brt_tbl[FT8720_TOTAL_STEP] = {
 	BRT(0),
@@ -158,7 +145,10 @@ static u8 ft8720_m14x_01_brt_table[FT8720_TOTAL_STEP][1] = {
 };
 
 static struct maptbl ft8720_m14x_01_maptbl[MAX_MAPTBL] = {
-	[BRT_MAPTBL] = DEFINE_2D_MAPTBL(ft8720_m14x_01_brt_table, init_brt_table, getidx_brt_table, copy_common_maptbl),
+	[BRT_MAPTBL] = DEFINE_2D_MAPTBL(ft8720_m14x_01_brt_table,
+			&TFT_FUNC(TFT_MAPTBL_INIT_BRT),
+			&TFT_FUNC(TFT_MAPTBL_GETIDX_BRT),
+			&TFT_FUNC(TFT_MAPTBL_COPY_DEFAULT)),
 };
 
 static u8 SEQ_FT8720_M14X_01_SLEEP_OUT[] = {
@@ -1666,12 +1656,21 @@ static DEFINE_STATIC_PACKET(ft8720_m14x_01_240, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X
 
 static DEFINE_PANEL_MDELAY(ft8720_m14x_01_wait_20msec, 20); /* 1 frame */
 static DEFINE_PANEL_MDELAY(ft8720_m14x_01_wait_40msec, 40);
-static DEFINE_PANEL_MDELAY(ft8720_m14x_01_wait_60msec, 60); /* 4 frame */
 static DEFINE_PANEL_MDELAY(ft8720_m14x_01_wait_120msec, 120);
-static DEFINE_PANEL_MDELAY(ft8720_m14x_01_wait_1msec, 1);
-static DEFINE_PANEL_MDELAY(ft8720_m14x_01_wait_2msec, 2);
 
-static DEFINE_COND(ft8720_m14x_01_cond_is_fps_90hz, is_m14x_fps_90hz);
+static DEFINE_RULE_BASED_COND(ft8720_m14x_01_cond_is_fps_90hz,
+		PANEL_PROPERTY_PANEL_REFRESH_RATE, EQ, 90);
+
+static u8 FT8720_M14X_00_ID[TFT_COMMON_ID_LEN];
+static DEFINE_RDINFO(ft8720_m14x_00_id1, DSI_PKT_TYPE_RD, TFT_COMMON_ID_DA_REG, TFT_COMMON_ID_DA_OFS, TFT_COMMON_ID_DA_LEN);
+static DEFINE_RDINFO(ft8720_m14x_00_id2, DSI_PKT_TYPE_RD, TFT_COMMON_ID_DA_REG, TFT_COMMON_ID_DB_OFS, TFT_COMMON_ID_DB_LEN);
+static DEFINE_RDINFO(ft8720_m14x_00_id3, DSI_PKT_TYPE_RD, TFT_COMMON_ID_DA_REG, TFT_COMMON_ID_DC_OFS, TFT_COMMON_ID_DC_LEN);
+static DECLARE_RESUI(ft8720_m14x_00_id) = {
+	{ .rditbl = &RDINFO(ft8720_m14x_00_id1), .offset = 0 },
+	{ .rditbl = &RDINFO(ft8720_m14x_00_id2), .offset = 1 },
+	{ .rditbl = &RDINFO(ft8720_m14x_00_id3), .offset = 2 },
+};
+static DEFINE_RESOURCE(ft8720_m14x_00_id, FT8720_M14X_00_ID, RESUI(ft8720_m14x_00_id));
 
 static void *ft8720_m14x_01_init_cmdtbl[] = {
 	&PKTINFO(ft8720_m14x_01_001),
@@ -1923,7 +1922,7 @@ static void *ft8720_m14x_01_init_cmdtbl[] = {
 };
 
 static void *ft8720_m14x_01_res_init_cmdtbl[] = {
-	&tft_common_restbl[RES_ID],
+	&RESINFO(ft8720_m14x_00_id),
 };
 
 static void *ft8720_m14x_01_set_bl_cmdtbl[] = {
@@ -1952,20 +1951,15 @@ static void *ft8720_m14x_01_display_mode_cmdtbl[] = {
 	&CONDINFO_FI(ft8720_m14x_01_cond_is_fps_90hz),
 };
 
-static void *ft8720_m14x_01_dummy_cmdtbl[] = {
-	NULL,
+static struct seqinfo ft8720_m14x_01_seqtbl[] = {
+	SEQINFO_INIT(PANEL_INIT_SEQ, ft8720_m14x_01_init_cmdtbl),
+	SEQINFO_INIT(PANEL_RES_INIT_SEQ, ft8720_m14x_01_res_init_cmdtbl),
+	SEQINFO_INIT(PANEL_SET_BL_SEQ, ft8720_m14x_01_set_bl_cmdtbl),
+	SEQINFO_INIT(PANEL_DISPLAY_MODE_SEQ, ft8720_m14x_01_display_mode_cmdtbl),
+	SEQINFO_INIT(PANEL_DISPLAY_ON_SEQ, ft8720_m14x_01_display_on_cmdtbl),
+	SEQINFO_INIT(PANEL_DISPLAY_OFF_SEQ, ft8720_m14x_01_display_off_cmdtbl),
+	SEQINFO_INIT(PANEL_EXIT_SEQ, ft8720_m14x_01_exit_cmdtbl),
 };
-
-static struct seqinfo ft8720_m14x_01_seqtbl[MAX_PANEL_SEQ] = {
-	[PANEL_INIT_SEQ] = SEQINFO_INIT("init-seq", ft8720_m14x_01_init_cmdtbl),
-	[PANEL_RES_INIT_SEQ] = SEQINFO_INIT("resource-init-seq", ft8720_m14x_01_res_init_cmdtbl),
-	[PANEL_SET_BL_SEQ] = SEQINFO_INIT("set-bl-seq", ft8720_m14x_01_set_bl_cmdtbl),
-	[PANEL_DISPLAY_MODE_SEQ] = SEQINFO_INIT("display-mode-seq", ft8720_m14x_01_display_mode_cmdtbl),
-	[PANEL_DISPLAY_ON_SEQ] = SEQINFO_INIT("display-on-seq", ft8720_m14x_01_display_on_cmdtbl),
-	[PANEL_DISPLAY_OFF_SEQ] = SEQINFO_INIT("display-off-seq", ft8720_m14x_01_display_off_cmdtbl),
-	[PANEL_EXIT_SEQ] = SEQINFO_INIT("exit-seq", ft8720_m14x_01_exit_cmdtbl),
-};
-
 
 /* BLIC SETTING START */
 static u8 FT8720_M14X_01_KTZ8864_I2C_INIT[] = {
@@ -1986,6 +1980,7 @@ static u8 FT8720_M14X_01_KTZ8864_I2C_EXIT_BLEN[] = {
 	0x08, 0x00,
 };
 
+#ifdef DEBUG_I2C_READ
 static u8 FT8720_M14X_01_KTZ8864_I2C_DUMP[] = {
 	0x0C, 0x00,
 	0x0D, 0x00,
@@ -2000,12 +1995,13 @@ static u8 FT8720_M14X_01_KTZ8864_I2C_DUMP[] = {
 	0x10, 0x00,
 	0x08, 0x00,
 };
+#endif
 
 static DEFINE_STATIC_PACKET(ft8720_m14x_01_ktz8864_i2c_init, I2C_PKT_TYPE_WR, FT8720_M14X_01_KTZ8864_I2C_INIT, 0);
 static DEFINE_STATIC_PACKET(ft8720_m14x_01_ktz8864_i2c_exit_blen, I2C_PKT_TYPE_WR, FT8720_M14X_01_KTZ8864_I2C_EXIT_BLEN, 0);
+#ifdef DEBUG_I2C_READ
 static DEFINE_STATIC_PACKET(ft8720_m14x_01_ktz8864_i2c_dump, I2C_PKT_TYPE_RD, FT8720_M14X_01_KTZ8864_I2C_DUMP, 0);
-
-static DEFINE_PANEL_MDELAY(ft8720_m14x_01_blic_wait_delay, 2);
+#endif
 
 static void *ft8720_m14x_01_ktz8864_init_cmdtbl[] = {
 #ifdef DEBUG_I2C_READ
@@ -2024,14 +2020,15 @@ static void *ft8720_m14x_01_ktz8864_exit_cmdtbl[] = {
 	&PKTINFO(ft8720_m14x_01_ktz8864_i2c_exit_blen),
 };
 
-static struct seqinfo ft8720_m14x_01_ktz8864_seq_tbl[MAX_PANEL_BLIC_SEQ] = {
-	[PANEL_BLIC_I2C_ON_SEQ] = SEQINFO_INIT("i2c-init-seq", ft8720_m14x_01_ktz8864_init_cmdtbl),
-	[PANEL_BLIC_I2C_OFF_SEQ] = SEQINFO_INIT("i2c-exit-seq", ft8720_m14x_01_ktz8864_exit_cmdtbl),
+static struct seqinfo ft8720_m14x_01_ktz8864_seq_tbl[] = {
+	SEQINFO_INIT(PANEL_BLIC_I2C_ON_SEQ, ft8720_m14x_01_ktz8864_init_cmdtbl),
+	SEQINFO_INIT(PANEL_BLIC_I2C_OFF_SEQ, ft8720_m14x_01_ktz8864_exit_cmdtbl),
 };
 
 static struct blic_data ft8720_m14x_01_ktz8864_blic_data = {
 	.name = "ktz8864",
 	.seqtbl = ft8720_m14x_01_ktz8864_seq_tbl,
+	.nr_seqtbl = ARRAY_SIZE(ft8720_m14x_01_ktz8864_seq_tbl),
 };
 
 static struct blic_data *ft8720_m14x_01_blic_tbl[] = {
@@ -2052,7 +2049,7 @@ struct common_panel_info ft8720_m14x_01_panel_info = {
 		.support_vrr = true,
 		.init_seq_by_lpdt = true,
 	},
-#if defined(CONFIG_PANEL_DISPLAY_MODE)
+#if defined(CONFIG_USDM_PANEL_DISPLAY_MODE)
 	.common_panel_modes = &ft8720_m14x_01_display_modes,
 #endif
 	.mres = {
@@ -2065,10 +2062,10 @@ struct common_panel_info ft8720_m14x_01_panel_info = {
 	.nr_maptbl = ARRAY_SIZE(ft8720_m14x_01_maptbl),
 	.seqtbl = ft8720_m14x_01_seqtbl,
 	.nr_seqtbl = ARRAY_SIZE(ft8720_m14x_01_seqtbl),
-	.rditbl = tft_common_rditbl,
-	.nr_rditbl = ARRAY_SIZE(tft_common_rditbl),
-	.restbl = tft_common_restbl,
-	.nr_restbl = ARRAY_SIZE(tft_common_restbl),
+	.rditbl = NULL,
+	.nr_rditbl = 0,
+	.restbl = NULL,
+	.nr_restbl = 0,
 	.dumpinfo = NULL,
 	.nr_dumpinfo = 0,
 	.panel_dim_info = {

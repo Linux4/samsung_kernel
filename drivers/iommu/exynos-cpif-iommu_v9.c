@@ -690,6 +690,9 @@ static irqreturn_t exynos_sysmmu_irq(int irq, void *dev_id)
 	u32 info;
 	u32 int_status;
 	int ret;
+#if !IS_ENABLED(CONFIG_DEBUG_SNAPSHOT)
+	const char *port_name = NULL;
+#endif
 
 	dev_info(drvdata->dev, "%s:%d: irq(%d) happened\n",
 					__func__, __LINE__, irq);
@@ -720,10 +723,18 @@ static irqreturn_t exynos_sysmmu_irq(int irq, void *dev_id)
 	atomic_notifier_call_chain(&drvdata->fault_notifiers, addr, &flags);
 
 #if IS_ENABLED(CONFIG_DEBUG_SNAPSHOT)
-	pr_crit("Unrecoverable System MMU fault: AP watchdog reset\n");
+	pr_crit("[CPIF] Unrecoverable System MMU fault: AP watchdog reset\n");
 	dbg_snapshot_expire_watchdog();
 #else
-	panic("Unrecoverable System MMU Fault!!");
+	of_property_read_string(drvdata->dev->of_node,
+					"port-name", &port_name);
+
+	panic("(%s) From [%s], SysMMU %s %s at %#010lx\n",
+		dev_name(drvdata->dev),
+		port_name ? port_name : dev_name(drvdata->dev),
+		(flags & IOMMU_FAULT_WRITE) ? "WRITE" : "READ",
+		sysmmu_fault_name[SYSMMU_FAULT_ID(flags)],
+		addr);
 #endif
 
 	return IRQ_HANDLED;

@@ -127,144 +127,6 @@ static struct i2c_client *get_i2c(struct s2mf301_dev *s2mf301, enum s2mf301_irq_
 
 #define DECLARE_IRQ(idx, _group, _mask) \
 	[(idx)] = { .group = (_group), .mask = (_mask) }
-static const struct s2mf301_irq_data s2mf301x_irqs[] = {
-#if IS_ENABLED(CONFIG_TOP_S2MF301)
-	DECLARE_IRQ(S2MF301X_TOP_DC_IRQ_RAMP_UP_DONE,			DC_INT, 1 << 0),
-	DECLARE_IRQ(S2MF301X_TOP_DC_IRQ_RAMP_UP_FAIL,			DC_INT, 1 << 1),
-	DECLARE_IRQ(S2MF301X_TOP_DC_IRQ_THERMAL_CONTROL,		DC_INT, 1 << 2),
-	DECLARE_IRQ(S2MF301X_TOP_DC_IRQ_CHARGING_STATE_CHAGNE,	DC_INT, 1 << 3),
-	DECLARE_IRQ(S2MF301X_TOP_DC_IRQ_CHARGING_DONE,			DC_INT, 1 << 4),
-
-	DECLARE_IRQ(S2MF301X_TOP_PM_RID_IRQ_RID_56K,			PM_RID_INT, 1 << 0),
-	DECLARE_IRQ(S2MF301X_TOP_PM_RID_IRQ_RID_255K,			PM_RID_INT, 1 << 1),
-	DECLARE_IRQ(S2MF301X_TOP_PM_RID_IRQ_RID_301K,			PM_RID_INT, 1 << 2),
-	DECLARE_IRQ(S2MF301X_TOP_PM_RID_IRQ_RID_523K,			PM_RID_INT, 1 << 3),
-	DECLARE_IRQ(S2MF301X_TOP_PM_RID_IRQ_RID_619KK,			PM_RID_INT, 1 << 4),
-	DECLARE_IRQ(S2MF301X_TOP_PM_RID_IRQ_RID_OTG,			PM_RID_INT, 1 << 5),
-	DECLARE_IRQ(S2MF301X_TOP_PM_RID_IRQ_RID_DETACH,			PM_RID_INT, 1 << 6),
-	DECLARE_IRQ(S2MF301X_TOP_PM_RID_IRQ_RID_ATTACH,			PM_RID_INT, 1 << 7),
-
-	DECLARE_IRQ(S2MF301X_TOP_CC_RID_IRQ_RID_255K,			CC_RID_INT, 1 << 1),
-	DECLARE_IRQ(S2MF301X_TOP_CC_RID_IRQ_RID_301K,			CC_RID_INT, 1 << 2),
-	DECLARE_IRQ(S2MF301X_TOP_CC_RID_IRQ_RID_523K,			CC_RID_INT, 1 << 3),
-	DECLARE_IRQ(S2MF301X_TOP_CC_RID_IRQ_RID_619K,			CC_RID_INT, 1 << 4),
-	DECLARE_IRQ(S2MF301X_TOP_CC_RID_IRQ_RID_OTG,			CC_RID_INT, 1 << 5),
-	DECLARE_IRQ(S2MF301X_TOP_CC_RID_IRQ_RID_DETACH,			CC_RID_INT, 1 << 6),
-	DECLARE_IRQ(S2MF301X_TOP_CC_RID_IRQ_RID_ATTACH,			CC_RID_INT, 1 << 7),
-#endif
-#if IS_ENABLED(CONFIG_FUELGAUGE_S2MF301)
-	DECLARE_IRQ(S2MF301X_FG_IRQ_LOW_SOC,					FG_INT, 1 << 0),
-	DECLARE_IRQ(S2MF301X_FG_IRQ_LOW_VBAT,					FG_INT, 1 << 1),
-	DECLARE_IRQ(S2MF301X_FG_IRQ_HIGH_TEMP,					FG_INT, 1 << 2),
-	DECLARE_IRQ(S2MF301X_FG_IRQ_LOW_TEMP,					FG_INT, 1 << 3),
-#endif
-#if IS_ENABLED(CONFIG_LEDS_S2MF301_FLASH)
-	DECLARE_IRQ(S2MF301X_FLED_IRQ_C2F_Vbyp_ovp_prot,		FLED_INT, 1 << 0),
-	DECLARE_IRQ(S2MF301X_FLED_IRQ_C2F_Vbyp_OK_Warning,		FLED_INT, 1 << 1),
-	DECLARE_IRQ(S2MF301X_FLED_IRQ_TORCH_ON,					FLED_INT, 1 << 2),
-	DECLARE_IRQ(S2MF301X_FLED_IRQ_LED_ON_TA_Detach,			FLED_INT, 1 << 3),
-	DECLARE_IRQ(S2MF301X_FLED_IRQ_CH1_ON,					FLED_INT, 1 << 5),
-	DECLARE_IRQ(S2MF301X_FLED_IRQ_OPEN_CH1,					FLED_INT, 1 << 6),
-	DECLARE_IRQ(S2MF301X_FLED_IRQ_SHORT_CH1,				FLED_INT, 1 << 7),
-#endif
-#if IS_ENABLED(CONFIG_HV_MUIC_S2MF301_AFC)
-	DECLARE_IRQ(S2MF301X_AFC_IRQ_AFC_LOOP,					AFC_INT, 1 << 0),
-	DECLARE_IRQ(S2MF301X_AFC_IRQ_VDNMon,					AFC_INT, 1 << 1),
-	DECLARE_IRQ(S2MF301X_AFC_IRQ_DNRes,						AFC_INT, 1 << 2),
-	DECLARE_IRQ(S2MF301X_AFC_IRQ_MPNack,					AFC_INT, 1 << 3),
-	DECLARE_IRQ(S2MF301X_AFC_IRQ_MRxBufOw,					AFC_INT, 1 << 4),
-	DECLARE_IRQ(S2MF301X_AFC_IRQ_MRxTrf,					AFC_INT, 1 << 5),
-	DECLARE_IRQ(S2MF301X_AFC_IRQ_MRxPerr,					AFC_INT, 1 << 6),
-	DECLARE_IRQ(S2MF301X_AFC_IRQ_MRxRdy,					AFC_INT, 1 << 7),
-#endif
-#if IS_ENABLED(CONFIG_MUIC_S2MF301)
-	DECLARE_IRQ(S2MF301X_MUIC_IRQ_ATTACH,					MUIC_INT, 1 << 0),
-	DECLARE_IRQ(S2MF301X_MUIC_IRQ_DETACH,					MUIC_INT, 1 << 1),
-	DECLARE_IRQ(S2MF301X_MUIC_IRQ_RESERVED,					MUIC_INT, 1 << 2),
-	DECLARE_IRQ(S2MF301X_MUIC_IRQ_USB_OVP,					MUIC_INT, 1 << 3),
-	DECLARE_IRQ(S2MF301X_MUIC_IRQ_VBUS_ON,					MUIC_INT, 1 << 4),
-	DECLARE_IRQ(S2MF301X_MUIC_IRQ_VBUS_OFF,					MUIC_INT, 1 << 5),
-	DECLARE_IRQ(S2MF301X_MUIC_IRQ_USB_Killer,				MUIC_INT, 1 << 6),
-	DECLARE_IRQ(S2MF301X_MUIC_IRQ_GP_OVP,					MUIC_INT, 1 << 7),
-#endif
-#if IS_ENABLED(CONFIG_PM_S2MF301)
-	DECLARE_IRQ(S2MF301X_PM_ADC_REQ_DONE1_VCC2UP,			PM_ADC_REQ_DONE1, 1 << 1),
-	DECLARE_IRQ(S2MF301X_PM_ADC_REQ_DONE1_VCC1UP,			PM_ADC_REQ_DONE1, 1 << 2),
-	DECLARE_IRQ(S2MF301X_PM_ADC_REQ_DONE1_VBATUP,			PM_ADC_REQ_DONE1, 1 << 3),
-	DECLARE_IRQ(S2MF301X_PM_ADC_REQ_DONE1_VSYSUP,			PM_ADC_REQ_DONE1, 1 << 4),
-	DECLARE_IRQ(S2MF301X_PM_ADC_REQ_DONE1_VBYPUP,			PM_ADC_REQ_DONE1, 1 << 5),
-	DECLARE_IRQ(S2MF301X_PM_ADC_REQ_DONE1_VWCINUP,			PM_ADC_REQ_DONE1, 1 << 6),
-	DECLARE_IRQ(S2MF301X_PM_ADC_REQ_DONE1_VCHGINUP,			PM_ADC_REQ_DONE1, 1 << 7),
-
-	DECLARE_IRQ(S2MF301X_PM_ADC_REQ_DONE2_GPADC3UP,			PM_ADC_REQ_DONE2, 1 << 1),
-	DECLARE_IRQ(S2MF301X_PM_ADC_REQ_DONE2_GPADC2UP,			PM_ADC_REQ_DONE2, 1 << 2),
-	DECLARE_IRQ(S2MF301X_PM_ADC_REQ_DONE2_GPADC1UP,			PM_ADC_REQ_DONE2, 1 << 3),
-	DECLARE_IRQ(S2MF301X_PM_ADC_REQ_DONE2_ITXUP,			PM_ADC_REQ_DONE2, 1 << 4),
-	DECLARE_IRQ(S2MF301X_PM_ADC_REQ_DONE2_IOTGUP,			PM_ADC_REQ_DONE2, 1 << 5),
-	DECLARE_IRQ(S2MF301X_PM_ADC_REQ_DONE2_IWCINUP,			PM_ADC_REQ_DONE2, 1 << 6),
-	DECLARE_IRQ(S2MF301X_PM_ADC_REQ_DONE2_ICHGINUP,			PM_ADC_REQ_DONE2, 1 << 7),
-
-	DECLARE_IRQ(S2MF301X_PM_ADC_CHANGE_INT1_VCC2UP,			PM_ADC_CHANGE_INT1, 1 << 1),
-	DECLARE_IRQ(S2MF301X_PM_ADC_CHANGE_INT1_VCC1UP,			PM_ADC_CHANGE_INT1, 1 << 2),
-	DECLARE_IRQ(S2MF301X_PM_ADC_CHANGE_INT1_VBATUP,			PM_ADC_CHANGE_INT1, 1 << 3),
-	DECLARE_IRQ(S2MF301X_PM_ADC_CHANGE_INT1_VSYSUP,			PM_ADC_CHANGE_INT1, 1 << 4),
-	DECLARE_IRQ(S2MF301X_PM_ADC_CHANGE_INT1_VBYPUP,			PM_ADC_CHANGE_INT1, 1 << 5),
-	DECLARE_IRQ(S2MF301X_PM_ADC_CHANGE_INT1_VWCINUP,		PM_ADC_CHANGE_INT1, 1 << 6),
-	DECLARE_IRQ(S2MF301X_PM_ADC_CHANGE_INT1_VCHGINUP,		PM_ADC_CHANGE_INT1, 1 << 7),
-
-	DECLARE_IRQ(S2MF301X_PM_ADC_CHANGE_INT2_GPADC3UP,		PM_ADC_CHANGE_INT2, 1 << 1),
-	DECLARE_IRQ(S2MF301X_PM_ADC_CHANGE_INT2_GPADC2UP,		PM_ADC_CHANGE_INT2, 1 << 2),
-	DECLARE_IRQ(S2MF301X_PM_ADC_CHANGE_INT2_GPADC1UP,		PM_ADC_CHANGE_INT2, 1 << 3),
-	DECLARE_IRQ(S2MF301X_PM_ADC_CHANGE_INT2_ITXUP,			PM_ADC_CHANGE_INT2, 1 << 4),
-	DECLARE_IRQ(S2MF301X_PM_ADC_CHANGE_INT2_IOTGUP,			PM_ADC_CHANGE_INT2, 1 << 5),
-	DECLARE_IRQ(S2MF301X_PM_ADC_CHANGE_INT2_IWCINUP,		PM_ADC_CHANGE_INT2, 1 << 6),
-	DECLARE_IRQ(S2MF301X_PM_ADC_CHANGE_INT2_ICHGINUP,		PM_ADC_CHANGE_INT2, 1 << 7),
-#endif
-#if IS_ENABLED(CONFIG_REGULATOR_S2MF301)
-	DECLARE_IRQ(S2MF301X_HBST_IRQ_OFF,						HBST_INT, 1 << 0);
-	DECLARE_IRQ(S2MF301X_HBST_IRQ_ON,						HBST_INT, 1 << 1);
-	DECLARE_IRQ(S2MF301X_HBST_IRQ_SCP,						HBST_INT, 1 << 2);
-#endif
-#if IS_ENABLED(CONFIG_CHARGER_S2MF301)
-	DECLARE_IRQ(S2MF301X_CHG0_IRQ_CHGIN_UVLOB,				CHG_INT0, 1 << 0),
-	DECLARE_IRQ(S2MF301X_CHG0_IRQ_CHGIN2BATB,				CHG_INT0, 1 << 1),
-	DECLARE_IRQ(S2MF301X_CHG0_IRQ_CHGIN_OVP,				CHG_INT0, 1 << 2),
-	DECLARE_IRQ(S2MF301X_CHG0_IRQ_VBUS_DET,					CHG_INT0, 1 << 3),
-	DECLARE_IRQ(S2MF301X_CHG0_IRQ_BATID,					CHG_INT0, 1 << 4),
-
-	DECLARE_IRQ(S2MF301X_CHG1_IRQ_RECHARGING,				CHG_INT1, 1 << 0),
-	DECLARE_IRQ(S2MF301X_CHG1_IRQ_DONE,						CHG_INT1, 1 << 1),
-	DECLARE_IRQ(S2MF301X_CHG1_IRQ_TOPOFF,					CHG_INT1, 1 << 2),
-	DECLARE_IRQ(S2MF301X_CHG1_IRQ_CV,						CHG_INT1, 1 << 3),
-	DECLARE_IRQ(S2MF301X_CHG1_IRQ_SC,						CHG_INT1, 1 << 4),
-	DECLARE_IRQ(S2MF301X_CHG1_IRQ_LC,						CHG_INT1, 1 << 5),
-	DECLARE_IRQ(S2MF301X_CHG1_IRQ_TRICKLE,					CHG_INT1, 1 << 6),
-	DECLARE_IRQ(S2MF301X_CHG1_IRQ_PRECHG,					CHG_INT1, 1 << 7),
-
-	DECLARE_IRQ(S2MF301X_CHG2_IRQ_IVR,						CHG_INT2, 1 << 0),
-	DECLARE_IRQ(S2MF301X_CHG2_IRQ_ICR,						CHG_INT2, 1 << 1),
-	DECLARE_IRQ(S2MF301X_CHG2_IRQ_VOLTAGE_LOOP,				CHG_INT2, 1 << 2),
-	DECLARE_IRQ(S2MF301X_CHG2_IRQ_SC_CC_LOOP,				CHG_INT2, 1 << 3),
-	DECLARE_IRQ(S2MF301X_CHG2_IRQ_BST_ON,					CHG_INT2, 1 << 4),
-	DECLARE_IRQ(S2MF301X_CHG2_IRQ_OTG_ON_OFF,				CHG_INT2, 1 << 5),
-	DECLARE_IRQ(S2MF301X_CHG2_IRQ_BST_LBAT,					CHG_INT2, 1 << 6),
-	DECLARE_IRQ(S2MF301X_CHG2_IRQ_OTG_TO_BAT,				CHG_INT2, 1 << 7),
-
-	DECLARE_IRQ(S2MF301X_CHG3_IRQ_TOPOFF_TIMER_FAULT,		CHG_INT3, 1 << 0),
-	DECLARE_IRQ(S2MF301X_CHG3_IRQ_COOL_FAST_CHG_TIMER_FAULT,	CHG_INT3, 1 << 1),
-	DECLARE_IRQ(S2MF301X_CHG3_IRQ_PRE_TRICKLE_CHG_TIMER_FAULT,	CHG_INT3, 1 << 2),
-	DECLARE_IRQ(S2MF301X_CHG3_IRQ_BAT_OCP,					CHG_INT3, 1 << 3),
-	DECLARE_IRQ(S2MF301X_CHG3_IRQ_WDT_AP_RESET,				CHG_INT3, 1 << 4),
-	DECLARE_IRQ(S2MF301X_CHG3_IRQ_WDT_SUSPEND,				CHG_INT3, 1 << 5),
-	DECLARE_IRQ(S2MF301X_CHG3_IRQ_VSYS_OVP,					CHG_INT3, 1 << 6),
-	DECLARE_IRQ(S2MF301X_CHG3_IRQ_VSYS_SCP,					CHG_INT3, 1 << 7),
-
-	DECLARE_IRQ(S2MF301X_CHG4_IRQ_QBAT_OFF,					CHG_INT4, 1 << 0),
-	DECLARE_IRQ(S2MF301X_CHG4_IRQ_TFB,						CHG_INT4, 1 << 1),
-	DECLARE_IRQ(S2MF301X_CHG4_IRQ_TSD,						CHG_INT4, 1 << 2),
-#endif
-};
-
 static const struct s2mf301_irq_data s2mf301_irqs[] = {
 #if IS_ENABLED(CONFIG_TOP_S2MF301)
 	DECLARE_IRQ(S2MF301_TOP_DC_IRQ_RAMP_UP_DONE,			DC_INT, 1 << 0),
@@ -279,16 +141,14 @@ static const struct s2mf301_irq_data s2mf301_irqs[] = {
 	DECLARE_IRQ(S2MF301_TOP_PM_RID_IRQ_RID_523K,			PM_RID_INT, 1 << 3),
 	DECLARE_IRQ(S2MF301_TOP_PM_RID_IRQ_RID_619K,			PM_RID_INT, 1 << 4),
 	DECLARE_IRQ(S2MF301_TOP_PM_RID_IRQ_RID_OTG,				PM_RID_INT, 1 << 5),
-	DECLARE_IRQ(S2MF301_TOP_PM_RID_IRQ_RID_DETACH,			PM_RID_INT, 1 << 6),
-	DECLARE_IRQ(S2MF301_TOP_PM_RID_IRQ_RID_ATTACH,			PM_RID_INT, 1 << 7),
+	DECLARE_IRQ(S2MF301_TOP_PM_RID_IRQ_RID_MASK_ALL,		PM_RID_INT, 1 << 7),
 
 	DECLARE_IRQ(S2MF301_TOP_CC_RID_IRQ_RID_255K,			CC_RID_INT, 1 << 1),
 	DECLARE_IRQ(S2MF301_TOP_CC_RID_IRQ_RID_301K,			CC_RID_INT,	1 << 2),
 	DECLARE_IRQ(S2MF301_TOP_CC_RID_IRQ_RID_523K,			CC_RID_INT,	1 << 3),
 	DECLARE_IRQ(S2MF301_TOP_CC_RID_IRQ_RID_619K,			CC_RID_INT,	1 << 4),
 	DECLARE_IRQ(S2MF301_TOP_CC_RID_IRQ_RID_OTG,				CC_RID_INT,	1 << 5),
-	DECLARE_IRQ(S2MF301_TOP_CC_RID_IRQ_RID_DETACH,			CC_RID_INT,	1 << 6),
-	DECLARE_IRQ(S2MF301_TOP_CC_RID_IRQ_RID_ATTACH,			CC_RID_INT,	1 << 7),
+	DECLARE_IRQ(S2MF301_TOP_CC_RID_IRQ_RID_MASK_ALL,		CC_RID_INT,	1 << 7),
 #endif
 #if IS_ENABLED(CONFIG_FUELGAUGE_S2MF301)
 	DECLARE_IRQ(S2MF301_FG_IRQ_LOW_SOC,			FG_INT, 1 << 0),
@@ -356,7 +216,10 @@ static const struct s2mf301_irq_data s2mf301_irqs[] = {
 	DECLARE_IRQ(S2MF301_PM_ADC_CHANGE_INT2_IOTGUP,			PM_ADC_CHANGE_INT2, 1 << 5),
 	DECLARE_IRQ(S2MF301_PM_ADC_CHANGE_INT2_IWCINUP,			PM_ADC_CHANGE_INT2, 1 << 6),
 	DECLARE_IRQ(S2MF301_PM_ADC_CHANGE_INT2_ICHGINUP,			PM_ADC_CHANGE_INT2, 1 << 7),
-	DECLARE_IRQ(S2MF301_PM_ADC_CHANGE_INT4_PMOFF,			PM_ADC_CHANGE_INT4, 1 << 4),
+
+	DECLARE_IRQ(S2MF301_PM_ADC_CHANGE_INT4_ICHGIN_TH,			PM_ADC_CHANGE_INT4, 1 << 2),
+	DECLARE_IRQ(S2MF301_PM_ADC_CHANGE_INT4_PM_RID_ATTACH,			PM_ADC_CHANGE_INT4, 1 << 5),
+	DECLARE_IRQ(S2MF301_PM_ADC_CHANGE_INT4_PM_RID_DETACH,			PM_ADC_CHANGE_INT4, 1 << 4),
 #endif
 #if IS_ENABLED(CONFIG_REGULATOR_S2MF301)
 	DECLARE_IRQ(S2MF301_HBST_IRQ_OFF,			HBST_INT, 1 << 0);
@@ -403,7 +266,6 @@ static const struct s2mf301_irq_data s2mf301_irqs[] = {
 	DECLARE_IRQ(S2MF301_CHG4_IRQ_QBAT_OFF,			CHG_INT4, 1 << 0),
 	DECLARE_IRQ(S2MF301_CHG4_IRQ_TFB,			CHG_INT4, 1 << 1),
 	DECLARE_IRQ(S2MF301_CHG4_IRQ_TSD,			CHG_INT4, 1 << 2),
-
 	DECLARE_IRQ(S2MF301_CHG4_IRQ_VSYS_SCP_TIMER_FAULT,			CHG_INT4, 1 << 3),
 	DECLARE_IRQ(S2MF301_CHG4_IRQ_PVDD_SHORT,			CHG_INT4, 1 << 4),
 	DECLARE_IRQ(S2MF301_CHG4_IRQ_CHGIN_LDO_DOWN,			CHG_INT4, 1 << 5),
@@ -411,9 +273,9 @@ static const struct s2mf301_irq_data s2mf301_irqs[] = {
 	DECLARE_IRQ(S2MF301_CHG4_IRQ_OTG_SCP,			CHG_INT4, 1 << 7),
 
 	DECLARE_IRQ(S2MF301_CHG5_IRQ_BYP_ON,			CHG_INT5, 1 << 0),
-	DECLARE_IRQ(S2MF301_CHG5_IRQ_BYP_CHG_IN2BAT_OK,			CHG_INT5, 1 << 1),
+	DECLARE_IRQ(S2MF301_CHG5_IRQ_SHIP_OR_OFF,			CHG_INT5, 1 << 1),
 	DECLARE_IRQ(S2MF301_CHG5_IRQ_BYP_SCP,			CHG_INT5, 1 << 2),
-	DECLARE_IRQ(S2MF301_CHG5_IRQ_BYP_ON,			CHG_INT5, 1 << 3),
+	DECLARE_IRQ(S2MF301_CHG5_IRQ_BYP_ON_FALL,			CHG_INT5, 1 << 3),
 	DECLARE_IRQ(S2MF301_CHG5_IRQ_HS_ON,			CHG_INT5, 1 << 4),
 	DECLARE_IRQ(S2MF301_CHG5_IRQ_FWD_BYP_VIN_DROP,			CHG_INT5, 1 << 5),
 	DECLARE_IRQ(S2MF301_CHG5_IRQ_FWD_BYP_IN2BAT_OK,			CHG_INT5, 1 << 6),
@@ -448,19 +310,15 @@ static void s2mf301_irq_sync_unlock(struct irq_data *data)
 		goto skip;
 
 	for (i = 0; i < S2MF301_IRQ_GROUP_NR; i++) {
-		if (s2mf301->is_301x && i >= CHG_INT5)
+		if (i >= 0 && i < ARRAY_SIZE(s2mf301_mask_reg))
+			mask_reg = s2mf301_mask_reg[i];
+		i2c = get_i2c(s2mf301, i);
+
+		if (mask_reg == S2MF301_REG_INVALID || IS_ERR_OR_NULL(i2c))
 			continue;
-		else {
-			if (i >= 0 && i < ARRAY_SIZE(s2mf301_mask_reg))
-				mask_reg = s2mf301_mask_reg[i];
-			i2c = get_i2c(s2mf301, i);
 
-			if (mask_reg == S2MF301_REG_INVALID || IS_ERR_OR_NULL(i2c))
-				continue;
-
-			s2mf301->irq_masks_cache[i] = s2mf301->irq_masks_cur[i];
-			s2mf301_write_reg(i2c, s2mf301_mask_reg[i], s2mf301->irq_masks_cur[i]);
-		}
+		s2mf301->irq_masks_cache[i] = s2mf301->irq_masks_cur[i];
+		s2mf301_write_reg(i2c, s2mf301_mask_reg[i], s2mf301->irq_masks_cur[i]);
 	}
 
 	s2mf301->change_irq_mask = false;
@@ -470,10 +328,7 @@ skip:
 
 static const inline struct s2mf301_irq_data *irq_to_s2mf301_irq(struct s2mf301_dev *s2mf301, int irq)
 {
-	if (s2mf301->is_301x)
-		return &s2mf301x_irqs[irq - s2mf301->irq_base];
-	else
-		return &s2mf301_irqs[irq - s2mf301->irq_base];
+	return &s2mf301_irqs[irq - s2mf301->irq_base];
 }
 
 static void s2mf301_irq_mask(struct irq_data *data)
@@ -481,13 +336,8 @@ static void s2mf301_irq_mask(struct irq_data *data)
 	struct s2mf301_dev *s2mf301 = irq_get_chip_data(data->irq);
 	const struct s2mf301_irq_data *irq_data = irq_to_s2mf301_irq(s2mf301, data->irq);
 
-	if (s2mf301->is_301x) {
-		if (irq_data->group >= S2MF301_IRQ_GROUP_NR - 2)
-			return;
-	} else {
-		if (irq_data->group >= S2MF301_IRQ_GROUP_NR)
-			return;
-	}
+	if (irq_data->group >= S2MF301_IRQ_GROUP_NR)
+		return;
 
 	s2mf301->irq_masks_cur[irq_data->group] |= irq_data->mask;
 	s2mf301->change_irq_mask = true;
@@ -498,13 +348,8 @@ static void s2mf301_irq_unmask(struct irq_data *data)
 	struct s2mf301_dev *s2mf301 = irq_get_chip_data(data->irq);
 	const struct s2mf301_irq_data *irq_data = irq_to_s2mf301_irq(s2mf301, data->irq);
 
-	if (s2mf301->is_301x) {
-		if (irq_data->group >= S2MF301_IRQ_GROUP_NR - 2)
-			return;
-	} else {
-		if (irq_data->group >= S2MF301_IRQ_GROUP_NR)
-			return;
-	}
+	if (irq_data->group >= S2MF301_IRQ_GROUP_NR)
+		return;
 
 	s2mf301->irq_masks_cur[irq_data->group] &= ~irq_data->mask;
 	s2mf301->change_irq_mask = true;
@@ -522,6 +367,7 @@ static irqreturn_t s2mf301_irq_thread(int irq, void *data)
 {
 	struct s2mf301_dev *s2mf301 = data;
 	u8 irq_src;
+	u8 irq_src2;
 #if IS_ENABLED(CONFIG_CHARGER_S2MF301) || IS_ENABLED(CONFIG_LEDS_S2MF301_FLASH) || \
 	IS_ENABLED(CONFIG_HV_MUIC_S2MF301_AFC) || IS_ENABLED(CONFIG_MUIC_S2MF301) || \
 	IS_ENABLED(CONFIG_PM_S2MF301) || IS_ENABLED(CONFIG_REGULATOR_S2MF301) || \
@@ -537,6 +383,12 @@ static irqreturn_t s2mf301_irq_thread(int irq, void *data)
 		return IRQ_NONE;
 	}
 	pr_info("%s: Top interrupt(0x%02x)\n", __func__, irq_src);
+	ret = s2mf301_read_reg(s2mf301->i2c, S2MF301_REG_IPINT2, &irq_src2);
+	if (ret) {
+		pr_err("%s:%s Failed to read interrupt source: %d\n", MFD_DEV_NAME_, __func__, ret);
+		return IRQ_NONE;
+	}
+	pr_info("%s: Top interrupt RID(0x%02x)\n", __func__, irq_src2);
 
 #if IS_ENABLED(CONFIG_TOP_S2MF301)
 	if (irq_src & S2MF301_IRQSRC_DC) {
@@ -544,45 +396,53 @@ static irqreturn_t s2mf301_irq_thread(int irq, void *data)
 		pr_info("%s: DC interrupt(0x%02x)\n", __func__, irq_reg[DC_INT]);
 
 	}
-	if (irq_src & S2MF301_IRQSRC_RID || irq_src & S2MF301_IRQSRC_FLED) {
-		s2mf301_read_reg(s2mf301->i2c, S2MF301_REG_IPINT2, &irq_reg[PM_RID_INT]);
-		s2mf301_read_reg(s2mf301->i2c, S2MF301_REG_FLEDINT, &irq_reg[FLED_INT]);
-		s2mf301_read_reg(s2mf301->i2c, S2MF301_TOP_REG_TOP_PM_RID_INT, &irq_reg[PM_RID_INT]);
-		s2mf301_read_reg(s2mf301->i2c, S2MF301_TOP_REG_TOP_TC_RID_INT, &irq_reg[CC_RID_INT]);
-		pr_info("%s: top_rid interrupt(0x%02x, 0x%02x, 0x%02x)\n",
-				__func__, irq_reg[FLED_INT], irq_reg[PM_RID_INT], irq_reg[CC_RID_INT]);
+
+	if (s2mf301->evt0) {
+		if (irq_src & S2MF301_IRQSRC_RID || irq_src & S2MF301_IRQSRC_FLED) {
+			s2mf301_read_reg(s2mf301->i2c, S2MF301_REG_IPINT2, &irq_reg[PM_RID_INT]);
+			s2mf301_read_reg(s2mf301->i2c, S2MF301_REG_FLEDINT, &irq_reg[FLED_INT]);
+			s2mf301_read_reg(s2mf301->i2c, S2MF301_TOP_REG_TOP_PM_RID_INT, &irq_reg[PM_RID_INT]);
+			s2mf301_read_reg(s2mf301->i2c, S2MF301_TOP_REG_TOP_TC_RID_INT, &irq_reg[CC_RID_INT]);
+			pr_info("%s: top_rid interrupt(0x%02x, 0x%02x, 0x%02x)\n",
+					__func__, irq_reg[FLED_INT], irq_reg[PM_RID_INT], irq_reg[CC_RID_INT]);
+		}
+	} else {
+		if (irq_src2 & S2MF301_IRQSRC_CC_RID) {
+			s2mf301_read_reg(s2mf301->i2c, S2MF301_TOP_REG_TOP_TC_RID_INT, &irq_reg[CC_RID_INT]);
+			pr_info("%s: CC RID interrupt(0x%02x)\n", __func__,
+					irq_reg[CC_RID_INT]);
+		}
+		if (irq_src2 & S2MF301_IRQSRC_PM_RID) {
+			s2mf301_read_reg(s2mf301->i2c, S2MF301_TOP_REG_TOP_PM_RID_INT, &irq_reg[PM_RID_INT]);
+			pr_info("%s: PM RID interrupt(0x%02x)\n", __func__,
+					irq_reg[PM_RID_INT]);
+		}
 	}
 #endif
 
 #if IS_ENABLED(CONFIG_CHARGER_S2MF301)
 	if (irq_src & S2MF301_IRQSRC_CHG) {
-		if (s2mf301->is_301x) {
-			ret = s2mf301_bulk_read(s2mf301->chg, S2MF301_CHG_INT0, S2MF301_NUM_IRQ_CHG_REGS - 2,
+		ret = s2mf301_bulk_read(s2mf301->chg, S2MF301_CHG_INT0, S2MF301_NUM_IRQ_CHG_REGS,
 				&irq_reg[CHG_INT0]);
-			if (ret) {
-				pr_err("%s:%s Failed to read charger interrupt: %d\n", MFD_DEV_NAME_, __func__, ret);
-				return IRQ_NONE;
-			}
-			pr_info("%s() CHARGER interrupt(0x%02x, 0x%02x, 0x%02x, 0x%02x, 0x%02x)\n",
-				__func__, irq_reg[CHG_INT0], irq_reg[CHG_INT1],
-				irq_reg[CHG_INT2], irq_reg[CHG_INT3], irq_reg[CHG_INT4]);
-		} else {
-			ret = s2mf301_bulk_read(s2mf301->chg, S2MF301_CHG_INT0, S2MF301_NUM_IRQ_CHG_REGS,
-				&irq_reg[CHG_INT0]);
-			if (ret) {
-				pr_err("%s:%s Failed to read charger interrupt: %d\n", MFD_DEV_NAME_, __func__, ret);
-				return IRQ_NONE;
-			}
-			pr_info("%s() CHARGER interrupt(0x%02x, 0x%02x, 0x%02x, 0x%02x, 0x%02x, 0x%02x, 0x%02x)\n",
-					__func__, irq_reg[CHG_INT0], irq_reg[CHG_INT1], irq_reg[CHG_INT2],
-					irq_reg[CHG_INT3], irq_reg[CHG_INT4], irq_reg[CHG_INT5], irq_reg[CHG_INT6]);
+		if (ret) {
+			pr_err("%s:%s Failed to read charger interrupt: %d\n", MFD_DEV_NAME_, __func__, ret);
+			return IRQ_NONE;
 		}
+		pr_info("%s() CHARGER interrupt(0x%02x, 0x%02x, 0x%02x, 0x%02x, 0x%02x, 0x%02x, 0x%02x)\n",
+				__func__, irq_reg[CHG_INT0], irq_reg[CHG_INT1], irq_reg[CHG_INT2],
+				irq_reg[CHG_INT3], irq_reg[CHG_INT4], irq_reg[CHG_INT5], irq_reg[CHG_INT6]);
 	}
 #endif
 #if IS_ENABLED(CONFIG_FUELGAUGE_S2MF301)
 	if (irq_src & S2MF301_IRQSRC_FG) {
 		s2mf301_read_reg(s2mf301->fg, S2MF301_REG_FG_INT, &irq_reg[FG_INT]);
 		pr_info("%s: S2MF301_IRQSRC_FG(0x%02x)\n", __func__, irq_reg[FG_INT]);
+	}
+#endif
+#if IS_ENABLED(CONFIG_LEDS_S2MF301_FLASH)
+	if (irq_src & S2MF301_IRQSRC_FLED && !s2mf301->evt0) {
+		s2mf301_read_reg(s2mf301->i2c, S2MF301_REG_FLEDINT, &irq_reg[FLED_INT]);
+		pr_info("%s: S2MF301_IRQSRC_FLED(0x%02x)\n", __func__, irq_reg[FLED_INT]);
 	}
 #endif
 #if IS_ENABLED(CONFIG_HV_MUIC_S2MF301_AFC)
@@ -594,9 +454,7 @@ static irqreturn_t s2mf301_irq_thread(int irq, void *data)
 #if IS_ENABLED(CONFIG_MUIC_S2MF301)
 	if (irq_src & S2MF301_IRQSRC_MUIC) {
 		s2mf301_read_reg(s2mf301->muic, S2MF301_REG_MUIC_INT, &irq_reg[MUIC_INT]);
-
-		pr_info("%s: muic interrupt(0x%02x) MUIC_INT(%d), AFC_INT(%d)\n",
-			__func__, irq_reg[MUIC_INT], MUIC_INT, AFC_INT);
+		pr_info("%s: muic interrupt(0x%02x)\n", __func__, irq_reg[MUIC_INT]);
 	}
 #endif
 #if IS_ENABLED(CONFIG_PM_S2MF301)
@@ -610,10 +468,10 @@ static irqreturn_t s2mf301_irq_thread(int irq, void *data)
 		s2mf301_read_reg(s2mf301->pm, S2MF301_REG_PM_ADC_CHANGE_INT3, &irq_reg[PM_ADC_CHANGE_INT3]);
 		s2mf301_read_reg(s2mf301->pm, S2MF301_REG_PM_ADC_CHANGE_INT4, &irq_reg[PM_ADC_CHANGE_INT4]);
 
-		pr_info("%s: powermeter interrupt(0x%02x, 0x%02x, 0x%02x, 0x%02x)\n",
+		pr_info("%s: powermeter interrupt RR(0x%02x, 0x%02x, 0x%02x, 0x%02x)\n",
 			__func__, irq_reg[PM_ADC_REQ_DONE1], irq_reg[PM_ADC_REQ_DONE2], irq_reg[PM_ADC_REQ_DONE3], irq_reg[PM_ADC_REQ_DONE4]);
 
-		pr_info("%s: powermeter interrupt(0x%02x, 0x%02x, 0x%02x, 0x%02x)\n",
+		pr_info("%s: powermeter interrupt CO(0x%02x, 0x%02x, 0x%02x, 0x%02x)\n",
 			__func__, irq_reg[PM_ADC_CHANGE_INT1], irq_reg[PM_ADC_CHANGE_INT1], irq_reg[PM_ADC_CHANGE_INT3], irq_reg[PM_ADC_CHANGE_INT4]);
 	}
 #endif
@@ -628,24 +486,13 @@ static irqreturn_t s2mf301_irq_thread(int irq, void *data)
 	IS_ENABLED(CONFIG_PM_S2MF301) || IS_ENABLED(CONFIG_REGULATOR_S2MF301) || \
 	IS_ENABLED(CONFIG_FUELGAUGE_S2MF301)
 	/* Apply masking */
-	for (i = 0; i < S2MF301_IRQ_GROUP_NR; i++) {
-		if (s2mf301->is_301x && i >= CHG_INT5)
-			continue;
-		else
-			irq_reg[i] &= ~s2mf301->irq_masks_cur[i];
-	}
+	for (i = 0; i < S2MF301_IRQ_GROUP_NR; i++)
+		irq_reg[i] &= ~s2mf301->irq_masks_cur[i];
 
 	/* Report */
-	if (s2mf301->is_301x) {
-		for (i = 0; i < S2MF301X_IRQ_NR; i++) {
-			if (irq_reg[s2mf301x_irqs[i].group] & s2mf301x_irqs[i].mask)
-				handle_nested_irq(s2mf301->irq_base + i);
-		}
-	} else {
-		for (i = 0; i < S2MF301_IRQ_NR; i++) {
-			if (irq_reg[s2mf301_irqs[i].group] & s2mf301_irqs[i].mask)
-				handle_nested_irq(s2mf301->irq_base + i);
-		}
+	for (i = 0; i < S2MF301_IRQ_NR; i++) {
+		if (irq_reg[s2mf301_irqs[i].group] & s2mf301_irqs[i].mask)
+			handle_nested_irq(s2mf301->irq_base + i);
 	}
 #endif
 	return IRQ_HANDLED;
@@ -683,12 +530,8 @@ int s2mf301_irq_init(struct s2mf301_dev *s2mf301)
 
 	/* Mask individual interrupt sources */
 	for (i = 0; i < S2MF301_IRQ_GROUP_NR; i++) {
-		if (s2mf301->is_301x && i >= CHG_INT5)
-			continue;
-		else {
-			s2mf301->irq_masks_cur[i] = 0xFF;
-			s2mf301->irq_masks_cache[i] = 0xFF;
-		}
+		s2mf301->irq_masks_cur[i] = 0xFF;
+		s2mf301->irq_masks_cache[i] = 0xFF;
 
 		i2c = get_i2c(s2mf301, i);
 
@@ -704,30 +547,16 @@ int s2mf301_irq_init(struct s2mf301_dev *s2mf301)
 	}
 
 	/* Register with genirq */
-	if (s2mf301->is_301x) {
-		for (i = 0; i < S2MF301X_IRQ_NR; i++) {
-			cur_irq = i + s2mf301->irq_base;
-			irq_set_chip_data(cur_irq, s2mf301);
-			irq_set_chip_and_handler(cur_irq, &s2mf301_irq_chip, handle_level_irq);
-			irq_set_nested_thread(cur_irq, 1);
+	for (i = 0; i < S2MF301_IRQ_NR; i++) {
+		cur_irq = i + s2mf301->irq_base;
+		irq_set_chip_data(cur_irq, s2mf301);
+		irq_set_chip_and_handler(cur_irq, &s2mf301_irq_chip, handle_level_irq);
+		irq_set_nested_thread(cur_irq, 1);
 #if IS_ENABLED(CONFIG_ARM)
-			set_irq_flags(cur_irq, IRQF_VALID);
+		set_irq_flags(cur_irq, IRQF_VALID);
 #else
-			irq_set_noprobe(cur_irq);
+		irq_set_noprobe(cur_irq);
 #endif
-		}
-	} else {
-		for (i = 0; i < S2MF301_IRQ_NR; i++) {
-			cur_irq = i + s2mf301->irq_base;
-			irq_set_chip_data(cur_irq, s2mf301);
-			irq_set_chip_and_handler(cur_irq, &s2mf301_irq_chip, handle_level_irq);
-			irq_set_nested_thread(cur_irq, 1);
-#if IS_ENABLED(CONFIG_ARM)
-			set_irq_flags(cur_irq, IRQF_VALID);
-#else
-			irq_set_noprobe(cur_irq);
-#endif
-		}
 	}
 
 	/* Unmask S2MF301 interrupt */
@@ -756,6 +585,8 @@ int s2mf301_irq_init(struct s2mf301_dev *s2mf301)
 #if IS_ENABLED(CONFIG_TOP_S2MF301)
 	i2c_data &= ~(S2MF301_IRQSRC_DC);
 	i2c_data &= ~(S2MF301_IRQSRC_RID);
+	s2mf301_write_reg(s2mf301->i2c, S2MF301_TOP_REG_TOP_PM_RID_INT_MASK, (u8)(~(1 << 7)));
+	s2mf301_write_reg(s2mf301->i2c, S2MF301_TOP_REG_TOP_TC_RID_INT_MASK, (u8)(~(1 << 7)));
 #endif
 	s2mf301_write_reg(s2mf301->i2c, S2MF301_REG_IPINT_MASK, i2c_data);
 	pr_info("%s: %s init top-irq mask(0x%02x)\n",

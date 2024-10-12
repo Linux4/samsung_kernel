@@ -320,9 +320,8 @@ int slsi_lbm_netdev_activate(struct slsi_dev *sdev, struct net_device *dev)
 	return 0;
 }
 
-int slsi_lbm_netdev_deactivate(struct slsi_dev *sdev, struct net_device *dev)
+int slsi_lbm_netdev_deactivate(struct slsi_dev *sdev, struct net_device *dev, struct netdev_vif *ndev_vif)
 {
-	struct netdev_vif *ndev_vif = netdev_priv(dev);
 	struct list_head *pos, *n;
 	struct bh_struct *bh;
 	bool perf_in_use = false;
@@ -1021,7 +1020,7 @@ void slsi_lbm_state_change_for_affinity(struct bh_struct *bh, u32 state, int for
 		load_man.cpu_avail[bh->cpu_affinity->curr_cpu] = true;
 		load_man.cpu_avail[target_cpu] = false;
 		push_cpu_affinity_event(bh, state);
-	} else if (bh->cpu_affinity->curr_cpu == target_cpu) {
+	} else if (bh->cpu_affinity->curr_cpu == target_cpu || idx >= NP_TX_0) {
 		/* if target cpu is same as previous state cpu, use target_cpu */
 		bh->cpu_affinity->cpu[state] = target_cpu;
 		push_cpu_affinity_event(bh, state);

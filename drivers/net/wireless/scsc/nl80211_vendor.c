@@ -1,6 +1,6 @@
 /*****************************************************************************
  *
- * Copyright (c) 2014 - 2022 Samsung Electronics Co., Ltd. All rights reserved
+ * Copyright (c) 2014 - 2023 Samsung Electronics Co., Ltd. All rights reserved
  *
  ****************************************************************************/
 #include <linux/version.h>
@@ -28,6 +28,7 @@
 
 #define SLSI_WIFI_TAG_VENDOR_SPECIFIC    0
 #define SLSI_WIFI_TAG_BSSID              1
+#define SLSI_WIFI_TAG_ADDR               2
 #define SLSI_WIFI_TAG_SSID               3
 #define SLSI_WIFI_TAG_STATUS             4
 #define SLSI_WIFI_TAG_IE                          12
@@ -71,6 +72,7 @@
 #define SLSI_WIFI_TAG_VD_MESSAGE_TYPE         0xf02b
 #define SLSI_WIFI_TAG_VD_ESTIMATED_TP         0xf02c
 #define SLSI_WIFI_TAG_VD_EXPIRED_TIMER_VALUE  0xf02d
+#define SLSI_WIFI_TAG_VD_NAN_NDP_ID           0xf02e
 #define SLSI_WIFI_TAG_VD_MASTER_TSF           0xf030
 #define SLSI_WIFI_TAG_VD_SCHEDULE_TYPE        0xf031
 #define SLSI_WIFI_TAG_VD_START_OFFSET         0xf032
@@ -102,6 +104,7 @@
 #define WIFI_TAG_VD_MGMT_FRAME_SUBTYPE        0xf04c
 #define SLSI_WIFI_TAG_VD_IS_ROAMING           0xf04d
 #define SLSI_WIFI_TAG_VD_AID                  0xf04e
+#define SLSI_WIFI_TAG_VD_MEASUREMENT_REQUEST_MODE  0xf04f
 
 #define SLSI_PSID_UNIFI_AC_NO_ACKS 0x0918
 
@@ -255,6 +258,7 @@ static struct netdev_vif *slsi_gscan_get_vif(struct slsi_dev *sdev)
 int slsi_number_digits(int num)
 {
 	int dig = 0;
+
 	while (num) {
 		dig++;
 		num = num / 10;
@@ -286,9 +290,8 @@ char *slsi_print_channel_list(int channel_list[], int channel_count)
 		return string;
 	}
 
-	for (i = 0; i < channel_count && slen < max_size; i++) {
+	for (i = 0; i < channel_count && slen < max_size; i++)
 		slen += snprintf(&string[slen], max_size - slen, "%d ", channel_list[i]);
-	}
 
 	return string;
 }
@@ -2309,7 +2312,7 @@ static void slsi_lls_iface_stat_fill(struct slsi_dev *sdev,
 			iface_stat->ac[i].retries = values[i].u.uintValue;
 			iface_stat->ac[i].rx_mpdu = ndev_vif->rx_packets[i];
 			iface_stat->ac[i].tx_mpdu = ndev_vif->tx_packets[i];
-			ndev_vif->tx_no_ack[i] = values[i+7].u.uintValue;
+			ndev_vif->tx_no_ack[i] = values[i + 7].u.uintValue;
 			iface_stat->ac[i].mpdu_lost = ndev_vif->tx_no_ack[i];
 		}
 	}
@@ -2412,7 +2415,7 @@ static void slsi_lls_radio_stat_fill(struct slsi_dev *sdev, struct net_device *d
 				SLSI_MUTEX_LOCK(ndev_vif->vif_mutex);
 				if (ndev_vif->vif_type == FAPI_VIFTYPE_STATION &&
 				    ndev_vif->sta.vif_status == SLSI_VIF_STATUS_CONNECTED &&
-				    ndev_vif->chan && ndev_vif->chan->hw_value == (chan_start + (k*4)))
+				    ndev_vif->chan && ndev_vif->chan->hw_value == (chan_start + (k * 4)))
 					radio_stat->channels[radio_stat->num_channels + k].on_time =
 								radio_stat->on_time;
 				SLSI_MUTEX_UNLOCK(ndev_vif->vif_mutex);
@@ -3448,8 +3451,8 @@ static int slsi_configure_nd_offload(struct wiphy *wiphy, struct wireless_dev *w
 	ndev_vif = netdev_priv(dev);
 	SLSI_MUTEX_LOCK(ndev_vif->vif_mutex);
 
-	if (!ndev_vif->activated || (ndev_vif->vif_type != FAPI_VIFTYPE_STATION) ||
-	    (ndev_vif->sta.vif_status != SLSI_VIF_STATUS_CONNECTED)) {
+	if (!ndev_vif->activated || ndev_vif->vif_type != FAPI_VIFTYPE_STATION ||
+	    ndev_vif->sta.vif_status != SLSI_VIF_STATUS_CONNECTED) {
 		SLSI_DBG3(sdev, SLSI_GSCAN, "vif error\n");
 		ret = -EPERM;
 		goto exit;
@@ -3597,26 +3600,30 @@ exit:
 	return ret;
 }
 
-char *slsi_get_roam_reason_str(int roam_reason)
+char *slsi_get_roam_reason_str(int roam_reason, u32 reason_code)
 {
 	switch (roam_reason) {
-	case SLSI_WIFI_ROAMING_SEARCH_REASON_RESERVED:
-		return "WIFI_ROAMING_SEARCH_REASON_RESERVED";
-	case SLSI_WIFI_ROAMING_SEARCH_REASON_LOW_RSSI:
+	case 1:
 		return "WIFI_ROAMING_SEARCH_REASON_LOW_RSSI";
-	case SLSI_WIFI_ROAMING_SEARCH_REASON_LINK_LOSS:
+	case 3:
+		if (reason_code == FAPI_REASONCODE_CHANNEL_SWITCH_FAILURE)
+			return "WIFI_ROAMING_SEARCH_REASON_CHANNEL_SWITCH_FAILURE";
 		return "WIFI_ROAMING_SEARCH_REASON_LINK_LOSS";
-	case SLSI_WIFI_ROAMING_SEARCH_REASON_BTM_REQ:
+	case 5:
 		return "WIFI_ROAMING_SEARCH_REASON_BTM_REQ";
-	case SLSI_WIFI_ROAMING_SEARCH_REASON_CU_TRIGGER:
+	case 2:
 		return "WIFI_ROAMING_SEARCH_REASON_CU_TRIGGER";
-	case SLSI_WIFI_ROAMING_SEARCH_REASON_EMERGENCY:
+	case 4:
 		return "WIFI_ROAMING_SEARCH_REASON_EMERGENCY";
-	case SLSI_WIFI_ROAMING_SEARCH_REASON_IDLE:
+	case 6:
 		return "WIFI_ROAMING_SEARCH_REASON_IDLE";
-	case SLSI_WIFI_ROAMING_SEARCH_REASON_WTC:
+	case 7:
 		return "WIFI_ROAMING_SEARCH_REASON_WTC";
-	case SLSI_WIFI_ROAMING_SEARCH_REASON_BT_COEX:
+	case 8:
+		return "WIFI_ROAMING_SEARCH_REASON_INACTIVITY_TIMER";
+	case 9:
+		return "WIFI_ROAMING_SEARCH_REASON_SCAN_TIMER";
+	case 10:
 		return "WIFI_ROAMING_SEARCH_REASON_BT_COEX";
 	default:
 		return "UNKNOWN_REASON";
@@ -3685,11 +3692,11 @@ char *slsi_get_measure_mode(int measure_mode)
 {
 	switch (measure_mode) {
 	case 0:
-		return "Passive Mode";
+		return "passive";
 	case 1:
-		return "Active Mode";
+		return "active";
 	case 2:
-		return "Table Mode";
+		return "beacon_table";
 	default:
 		return "Undefined";
 	}
@@ -3699,13 +3706,13 @@ char *slsi_get_nan_schedule_type_str(int schedule_type)
 {
 	switch (schedule_type) {
 	case 1:
-		return "NAN_FWC";
+		return "NAN_FAW";
 	case 2:
 		return "NAN_NDC";
 	case 3:
 		return "NAN_DW";
 	default:
-		return "Undefind";
+		return "Undefined";
 	}
 }
 
@@ -3729,24 +3736,66 @@ char *slsi_get_nan_ulw_reason_str(int ulw_reason)
 	}
 }
 
+#define SLSI_32BYTES_ARRAY_PATTERN "%d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d " \
+				   "%d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d "
+#define SLSI_32BYTES_ARRAY_LIST(array)		\
+	array[0], array[1], array[2], array[3],	\
+	array[4], array[5], array[6], array[7],	\
+	array[8], array[9], array[10], array[11],	\
+	array[12], array[13], array[14], array[15],	\
+	array[16], array[17], array[18], array[19],	\
+	array[20], array[21], array[22], array[23],	\
+	array[24], array[25], array[26], array[27],	\
+	array[28], array[29], array[30], array[31]
+
+struct parameter_set {
+	u32 master_tsf;
+	u32 channel;
+	u8 width;
+	u8 position;
+	u32 schedule_type;
+	u32 start_offset;
+	u32 slot_duration;
+	u32 slot_bitmap;
+};
+
+void slsi_print_availability_log_ind(struct slsi_dev *sdev,  struct parameter_set *pm_set, const char *event, u64 timestamp)
+{
+	if (pm_set->slot_bitmap) {
+		SLSI_INFO(sdev, "[0x%x] %s, Master_TSF: %x, Freq: %d, Width: %d, Primary channel Position: %d, Schedule Type: %s,"
+				" Start Offset: %d, Slot Duration: %d, Slot Bitmap: "
+				SLSI_BYTE_TO_BINARY_PATTERN" "SLSI_BYTE_TO_BINARY_PATTERN" "
+				SLSI_BYTE_TO_BINARY_PATTERN" "SLSI_BYTE_TO_BINARY_PATTERN"\n",
+			  timestamp, event, pm_set->master_tsf, pm_set->channel, pm_set->width, pm_set->position,
+			  slsi_get_nan_schedule_type_str(pm_set->schedule_type), pm_set->start_offset,
+			  pm_set->slot_duration, SLSI_BYTE_TO_BINARY(pm_set->slot_bitmap),
+			  SLSI_BYTE_TO_BINARY(pm_set->slot_bitmap >> 8), SLSI_BYTE_TO_BINARY(pm_set->slot_bitmap >> 16),
+			  SLSI_BYTE_TO_BINARY(pm_set->slot_bitmap >> 24));
+	} else {
+		SLSI_INFO(sdev, "[0x%x] %s, Master_TSF: %x, Freq: %d, Width: %d, Primary channel Position: %d, Schedule Type: %s\n",
+			  timestamp, event, pm_set->master_tsf, pm_set->channel, pm_set->width, pm_set->position,
+			  slsi_get_nan_schedule_type_str(pm_set->schedule_type));
+	}
+}
+
+#ifdef CONFIG_SCSC_WIFI_NAN_ENABLE
 void slsi_handle_nan_rx_event_log_ind(struct slsi_dev *sdev, struct net_device *dev, struct sk_buff *skb)
 {
 	u16 event_id = 0;
 	u64 timestamp = 0;
 	u8 *tlv_data;
-	int tlv_buffer__len = fapi_get_datalen(skb), i = 0;
-	u16 vendor_len, tag_id, tag_len, vtag_id;
+	int tlv_buffer__len = fapi_get_datalen(skb), i = 0, status_code = -1, tx_send_status = -1, status_stored = 0;
+	u16 vendor_len, tag_id, tag_len, vtag_id, ndp_id;
 	u32 tag_value, vtag_value;
 	bool multi_param = false, param_set_available = false;
-	u32 nan_role = 0, hop_count = 0, master_tsf = 0, channel = 0;
-	u32 schedule_type = 0, start_offset = 0, slot_duration = 0, slot_bitmap = 0;
+	u32 nan_role = 0, hop_count = 0;
 	u32 ulw_reason = 0, ulw_index = 0, ulw_start = 0, ulw_period = 0, ulw_duration = 0, ulw_count = 0;
-	u32 tx_mpdu_total = 0, rx_mpdu_total = 0, slot_avg_rx = 0, slot_avg_tx = 0;
-	u8 nan_cluster_id[6] = {0}, nan_nmi[6] = {0}, width = 0, position = 0;
+	u32 tx_mpdu_total = 0, rx_mpdu_total = 0;
+	u32 slot_avg_rx[32] = { 0}, slot_avg_tx[32] = {0};
+	u8 nan_cluster_id[ETH_ALEN] = {0}, nan_nmi[ETH_ALEN] = {0}, peer_mac_addr[ETH_ALEN] = {0};
 	u32 nan_amr_higher = 0, nan_amr_lower = 0;
-#ifdef CONFIG_SCSC_WIFI_NAN_ENABLE
 	struct netdev_vif *ndev_vif = netdev_priv(dev);
-#endif
+	struct parameter_set pm_set = {0};
 
 	event_id = fapi_get_s16(skb, u.mlme_event_log_ind.event);
 	timestamp = fapi_get_u64(skb, u.mlme_event_log_ind.fw_tsf);
@@ -3756,14 +3805,28 @@ void slsi_handle_nan_rx_event_log_ind(struct slsi_dev *sdev, struct net_device *
 		tag_len = le16_to_cpu(*((__le16 *)&tlv_data[i + 2]));
 		i += 4;
 		if (i + tag_len > tlv_buffer__len) {
-			SLSI_INFO(sdev, "Incorrect fapi bulk data\n");
+			SLSI_INFO(sdev,
+				  "Incorrect fapi bulk data[event:0x%x fw_tsf:0x%x tag{0x%x,%d} i:%d mbulk_len:%d\n",
+				  event_id, timestamp, tag_id, tag_len, i, tlv_buffer__len);
+			SLSI_INFO_HEX(sdev, tlv_data, tlv_buffer__len, "mbulk_data\n");
 			return;
 		}
 		tag_value = slsi_convert_tlv_data_to_value(&tlv_data[i], tag_len);
 		multi_param = false;
 		switch (tag_id) {
 		case SLSI_WIFI_TAG_CHANNEL:
-			channel = tag_value / 2;
+			pm_set.channel = tag_value / 2;
+			break;
+		case SLSI_WIFI_TAG_STATUS:
+			if (!status_stored) {
+				status_code = tag_value;
+				status_stored = 1;
+			} else {
+				tx_send_status = tag_value;
+			}
+			break;
+		case SLSI_WIFI_TAG_ADDR:
+			SLSI_ETHER_COPY(peer_mac_addr, &tlv_data[i]);
 			break;
 		case SLSI_WIFI_TAG_VENDOR_SPECIFIC:
 			vendor_len = tag_len - 2;
@@ -3800,27 +3863,30 @@ void slsi_handle_nan_rx_event_log_ind(struct slsi_dev *sdev, struct net_device *
 				hop_count = vtag_value;
 				break;
 			case SLSI_WIFI_TAG_VD_MASTER_TSF:
-				master_tsf = vtag_value;
+				pm_set.master_tsf = vtag_value;
 				break;
 			case SLSI_WIFI_TAG_VD_CHANNEL_INFO:
 				if (vendor_len < 2) {
-					SLSI_ERR(sdev, "Channel_info should be atleast 2 bytes!\n");
+					SLSI_ERR(sdev, "Channel_info should be at least 2 bytes!\n");
 					break;
 				}
-				width = tlv_data[i + 2];
-				position = tlv_data[i + 3];
+				pm_set.width = tlv_data[i + 2];
+				pm_set.position = tlv_data[i + 3];
 				break;
 			case SLSI_WIFI_TAG_VD_SCHEDULE_TYPE:
-				schedule_type = vtag_value;
+				pm_set.schedule_type = vtag_value;
 				break;
 			case SLSI_WIFI_TAG_VD_START_OFFSET:
-				start_offset = vtag_value;
+				pm_set.start_offset = vtag_value;
 				break;
 			case SLSI_WIFI_TAG_VD_SLOT_DURATION:
-				slot_duration = vtag_value;
+				pm_set.slot_duration = vtag_value;
 				break;
 			case SLSI_WIFI_TAG_VD_BITMAP:
-				slot_bitmap = vtag_value;
+				pm_set.slot_bitmap = vtag_value;
+				break;
+			case SLSI_WIFI_TAG_VD_NAN_NDP_ID:
+				ndp_id = vtag_value;
 				break;
 			case SLSI_WIFI_TAG_VD_ULW_REASON:
 				ulw_reason = vtag_value;
@@ -3847,10 +3913,10 @@ void slsi_handle_nan_rx_event_log_ind(struct slsi_dev *sdev, struct net_device *
 				tx_mpdu_total = vtag_value;
 				break;
 			case SLSI_WIFI_TAG_VD_NAN_RX_AVERAGE:
-				slot_avg_rx = vtag_value;
+				memcpy(slot_avg_rx, &tlv_data[i + 2], vendor_len);
 				break;
 			case SLSI_WIFI_TAG_VD_NAN_TX_AVERAGE:
-				slot_avg_tx = vtag_value;
+				memcpy(slot_avg_tx, &tlv_data[i + 2], vendor_len);
 				break;
 			case SLSI_WIFI_TAG_VD_PARAMETER_SET:
 				multi_param = true;
@@ -3860,20 +3926,30 @@ void slsi_handle_nan_rx_event_log_ind(struct slsi_dev *sdev, struct net_device *
 				}
 				switch (event_id) {
 				case FAPI_EVENT_WIFI_EVENT_NAN_AVAILABILITY_UPDATE:
-					SLSI_INFO(sdev, "WIFI_EVENT_NAN_AVAILABILITY_UPDATE, Master_TSF: %d,"
-							"Freq: %d, Width: %d, Primary channel Position: %d, Schedule Type: %s,"
-							"Start Offset: %d, Slot Duration: %d, Slot Bitmap: %d\n",
-						   master_tsf, channel, width, position,
-						  slsi_get_nan_schedule_type_str(schedule_type), start_offset,
-						  slot_duration, slot_bitmap);
-					param_set_available = false;
+					if (SLSI_ETHER_EQUAL(nan_nmi, ndev_vif->nan.local_nmi)) {
+						slsi_print_availability_log_ind(sdev, &pm_set,
+										"NAN_OWN_AVAILABILITY", timestamp);
+					} else {
+						slsi_print_availability_log_ind(sdev, &pm_set,
+										"NAN_PEER_AVAILABILITY", timestamp);
+					}
+					break;
+				case FAPI_EVENT_WIFI_EVENT_NAN_NDP_CONFIRM_RX:
+					slsi_print_availability_log_ind(sdev, &pm_set, "NDP_CFM_RX", timestamp);
+					break;
+				case FAPI_EVENT_WIFI_EVENT_NAN_NDP_CONFIRM_TX_STATUS:
+					slsi_print_availability_log_ind(sdev, &pm_set, "NDP_CFM_TX", timestamp);
 					break;
 				case FAPI_EVENT_WIFI_EVENT_NAN_TRAFFIC_UPDATE:
-					SLSI_INFO(sdev, "WIFI_EVENT_NAN_TRAFFIC_UPDATE, Rx MPDUs total: %d,"
-							"Tx MPDUs Total: %d, channel: %d, Slot Average Rx:%d,"
-							"Slot Average Tx: %d\n", rx_mpdu_total, tx_mpdu_total, channel,
+					SLSI_INFO(sdev, "[0x%ux] NAN_TRAFFIC_UPDATE, Rx MPDUs total: %d,"
+						  "Tx MPDUs Total: %d, Slot Average Rx:%d,"
+						  "Slot Average Tx: %d\n", timestamp, rx_mpdu_total, tx_mpdu_total,
 						  slot_avg_rx, slot_avg_tx);
-					param_set_available = false;
+#if 0
+					SLSI_INFO(sdev, "[0x%ux] NAN_TRAFFIC_UPDATE, Rx MPDUs total: %d, Tx MPDUs Total: %d, "
+							"Slot Average Rx:" SLSI_32BYTES_ARRAY_PATTERN Slot Average Tx: SLSI_32BYTES_ARRAY_PATTERN "\n",
+							timestamp, rx_mpdu_total, tx_mpdu_total, SLSI_32BYTES_ARRAY_LIST(slot_avg_rx), SLSI_32BYTES_ARRAY_LIST(slot_avg_tx));
+#endif
 					break;
 				}
 				break;
@@ -3887,123 +3963,184 @@ void slsi_handle_nan_rx_event_log_ind(struct slsi_dev *sdev, struct net_device *
 	}
 	switch (event_id) {
 	case FAPI_EVENT_WIFI_EVENT_FW_NAN_ROLE_TYPE:
-		SLSI_INFO(sdev, "WIFI_EVENT_FW_NAN_ROLE_TYPE, Cluster Id:" MACSTR ", NAN Role:%s,"
-				"AMR:0x%08x%08x, NMI:" MACSTR ", Hop Count:%d\n",
+		SLSI_INFO(sdev, "[0x%ux] WIFI_EVENT_FW_NAN_ROLE_TYPE, Cluster Id:" MACSTR ", NAN Role:%s, "
+				"AMR:0x%08x%08x, NMI:" MACSTR ", Hop Count:%d\n", timestamp,
 			  MAC2STR(nan_cluster_id), slsi_get_nan_role_str(nan_role), nan_amr_higher, nan_amr_lower,
 			  MAC2STR(nan_nmi), hop_count);
-#ifdef CONFIG_SCSC_WIFI_NAN_ENABLE
 		ndev_vif->nan.amr_lower = nan_amr_lower;
 		ndev_vif->nan.amr_higher = nan_amr_higher;
 		ndev_vif->nan.hopcount = hop_count;
 		ndev_vif->nan.role = nan_role;
-#endif
 		break;
 	case FAPI_EVENT_WIFI_EVENT_NAN_AVAILABILITY_UPDATE:
-		SLSI_INFO(sdev, "WIFI_EVENT_NAN_AVAILABILITY_UPDATE, Master_TSF: %d, Channel: %d,"
-				"Width: %d, Primary channel Position: %d, Schedule Type: %s, Start Offset: %d,"
-				"Slot Duration: %d, Slot Bitmap: %d\n", master_tsf, channel, width, position,
-			  slsi_get_nan_schedule_type_str(schedule_type), start_offset, slot_duration, slot_bitmap);
+		if (SLSI_ETHER_EQUAL(nan_nmi, ndev_vif->nan.local_nmi)) {
+			slsi_print_availability_log_ind(sdev, &pm_set, "NAN_OWN_AVAILABILITY", timestamp);
+		} else {
+			slsi_print_availability_log_ind(sdev, &pm_set, "NAN_PEER_AVAILABILITY", timestamp);
+		}
 		break;
 	case FAPI_EVENT_WIFI_EVENT_NAN_ULW_UPDATE:
-		SLSI_INFO(sdev, "WIFI_EVENT_NAN_ULW_UPDATE, Master_TSF: %d, ULW_Reason:%s, ULW_Index: %d,"
-				" ULW_start_time:%dms, ULW_Period: %dms, ULW_Duration: %dms, ULW_Count: %d, Channel: %d\n",
-			  master_tsf, slsi_get_nan_ulw_reason_str(ulw_reason), ulw_index, ulw_start,
-			  ulw_period, ulw_duration, ulw_count, channel);
+		SLSI_INFO(sdev, "[0x%ux] NAN_ULW_UPDATE, Master_TSF: %x, ULW_Reason:%s, ULW_Index: %d,"
+				" ULW_start_time:%dms, ULW_Period: %dms, ULW_Duration: %dms, ULW_Count: %d, Freq: %d\n",
+			  timestamp, pm_set.master_tsf, slsi_get_nan_ulw_reason_str(ulw_reason), ulw_index, ulw_start,
+			  ulw_period, ulw_duration, ulw_count, pm_set.channel);
 		break;
 	case FAPI_EVENT_WIFI_EVENT_NAN_TRAFFIC_UPDATE:
-		SLSI_INFO(sdev, "WIFI_EVENT_NAN_TRAFFIC_UPDATE, Rx MPDUs total: %d, Tx MPDUs Total: %d, channel: %d,"
-				"Slot Average Rx:%d, Slot Average Tx: %d\n", rx_mpdu_total, tx_mpdu_total, channel,
+		SLSI_INFO(sdev, "[0x%ux] NAN_TRAFFIC_UPDATE, Rx MPDUs total: %d,"
+			  "Tx MPDUs Total: %d, Slot Average Rx:%d,"
+			  "Slot Average Tx: %d\n", timestamp, rx_mpdu_total, tx_mpdu_total,
 			  slot_avg_rx, slot_avg_tx);
+#if 0
+		SLSI_INFO(sdev, "[0x%ux] NAN_TRAFFIC_UPDATE, Rx MPDUs total: %d, "
+				"Slot Average Rx:" SLSI_32BYTES_ARRAY_PATTERN "\n", timestamp, rx_mpdu_total,
+				SLSI_32BYTES_ARRAY_LIST(slot_avg_rx));
+		SLSI_INFO(sdev, "[0x%ux] NAN_TRAFFIC_UPDATE, Tx MPDUs Total: %d, "
+				"Slot Average Tx: "SLSI_32BYTES_ARRAY_PATTERN "\n", timestamp, tx_mpdu_total,
+				SLSI_32BYTES_ARRAY_LIST(slot_avg_tx));
+#endif
+		break;
+	case FAPI_EVENT_WIFI_EVENT_NAN_NDP_REQUEST_RX:
+		SLSI_INFO(sdev, "[0x%ux] NDP_RX type:NDP_REQ NDP_ID:%d peer_mac_addr=" MACSTR ", status:%d\n", timestamp,
+			  ndp_id, MAC2STR(peer_mac_addr), status_code);
+		break;
+	case FAPI_EVENT_WIFI_EVENT_NAN_NDP_RESPONSE_RX:
+		SLSI_INFO(sdev, "[0x%ux] NDP_RX type:NDP_RSP NDP_ID:%d peer_mac_addr=" MACSTR " status:%d\n", timestamp,
+			  ndp_id, MAC2STR(peer_mac_addr), status_code);
+		break;
+	case FAPI_EVENT_WIFI_EVENT_NAN_NDP_CONFIRM_RX:
+		if (pm_set.slot_bitmap)
+			slsi_print_availability_log_ind(sdev, &pm_set, "NDP_CFM_RX", timestamp);
+		SLSI_INFO(sdev, "[0x%ux] NDP_RX type:NDP_CONFIRM NDP_ID:%d peer_mac_addr=" MACSTR " status:%d\n",
+			timestamp, ndp_id, MAC2STR(peer_mac_addr), status_code);
+		break;
+	case FAPI_EVENT_WIFI_EVENT_NAN_NDP_INSTALL_RX:
+		SLSI_INFO(sdev, "[0x%ux] NDP_RX type:NDP_INSTALL NDP_ID:%d peer_mac_addr=" MACSTR " status:%d\n",
+			  timestamp, ndp_id, MAC2STR(peer_mac_addr), status_code);
+		break;
+	case FAPI_EVENT_WIFI_EVENT_NAN_NDP_REQUEST_TX_STATUS:
+		SLSI_INFO(sdev, "[0x%ux] NDP_TX type:NDP_REQ NDP_ID:%d peer_mac_addr=" MACSTR " status:%d tx_status:%d\n",
+			  timestamp, ndp_id, MAC2STR(peer_mac_addr), status_code, tx_send_status);
+		break;
+	case FAPI_EVENT_WIFI_EVENT_NAN_NDP_RESPONSE_TX_STATUS:
+		SLSI_INFO(sdev, "[0x%ux]NDP_TX type:NDP_RSP NDP_ID:%d peer_mac_addr=" MACSTR " status:%d tx_status:%d\n",
+			  timestamp, ndp_id, MAC2STR(peer_mac_addr), status_code, tx_send_status);
+		break;
+	case FAPI_EVENT_WIFI_EVENT_NAN_NDP_CONFIRM_TX_STATUS:
+		if (pm_set.slot_bitmap)
+			slsi_print_availability_log_ind(sdev, &pm_set, "NDP_CFM_TX", timestamp);
+		SLSI_INFO(sdev, "[0x%ux] NDP_TX type:NDP_CONFIRM NDP_ID:%d peer_mac_addr=" MACSTR " status:%d tx_status:%d\n",
+			  timestamp, ndp_id, MAC2STR(peer_mac_addr), status_code, tx_send_status);
+		break;
+	case FAPI_EVENT_WIFI_EVENT_NAN_NDP_INSTALL_TX_STATUS:
+		SLSI_INFO(sdev, "[0x%ux] NDP_TX type:NDP_INSTALL NDP_ID:%d peer_mac_addr=" MACSTR " status:%d tx_status:%d\n",
+			  timestamp, ndp_id, MAC2STR(peer_mac_addr), status_code, tx_send_status);
 		break;
 	}
 }
+#endif
 
 static void dump_roam_scan_result(struct slsi_dev *sdev, struct net_device *dev,
-				  bool *curr, char *bssid, int freq,
+				  bool *candidate, char *bssid, int freq,
 				  int rssi, short cu,
 				  int score, int tp_score, bool eligible_value)
 {
-	slsi_conn_log2us_roam_scan_result(sdev, dev, *curr, bssid,
+	slsi_conn_log2us_roam_scan_result(sdev, dev, *candidate, bssid,
 					  freq, rssi,
 					  cu, score,
 					  tp_score, eligible_value);
-	if (*curr) {
-		SLSI_INFO(sdev, "WIFI_EVENT_ROAM_SCAN_RESULT, Current AP, BSSID:" MACSTR
-			  ", RSSI:%d, CU:%d, Score:%d.%02d, TP Score:%d\n",
-			  MAC2STR(bssid), rssi, cu, score / 100, score % 100, tp_score);
-		*curr = false;
-	} else {
+	if (*candidate) {
 		SLSI_INFO(sdev, "WIFI_EVENT_ROAM_SCAN_RESULT, Candidate AP, BSSID:" MACSTR
 			  ", RSSI:%d, CU:%d, Score:%d.%02d, TP Score:%d, Eligible:%s\n",
 			  MAC2STR(bssid), rssi, cu, score / 100, score % 100, tp_score,
 			  eligible_value ? "true" : "false");
+	} else {
+		SLSI_INFO(sdev, "WIFI_EVENT_ROAM_SCAN_RESULT, Current AP, BSSID:" MACSTR
+			  ", RSSI:%d, CU:%d, Score:%d.%02d, TP Score:%d\n",
+			  MAC2STR(bssid), rssi, cu, score / 100, score % 100, tp_score);
+		*candidate = true;
 	}
 }
 
-void slsi_rx_event_log_indication(struct slsi_dev *sdev, struct net_device *dev, struct sk_buff *skb)
+struct slsi_rx_evt_vd_info {
+	short chan_utilisation;
+	u32 roam_reason;
+	u32 btm_request_mode;
+	u32 btm_response;
+	u32 eapol_retry_count;
+	u16 eapol_key_type;
+	u32 scan_type;
+	short score_val;
+	short rssi_thresh;
+	u32 operating_class;
+	u32 measure_mode;
+	u32 measure_duration;
+	u32 ap_count;
+	u32 candidate_count;
+	u32 message_type;
+	u32 expired_timer_value;
+	u32 tp_score_val;
+	int mgmt_frame_subtype;
+	int is_roaming;
+	bool eligible_value;
+	u8 full_scan_count;
+	short cu_rssi_thresh;
+	u16 cu_thresh;
+	u32 roaming_type;
+	u32 auth_algo_type;
+	u32 sae_type;
+	u32 sn;
+	int dialog_token;
+	int disassoc_timer;
+	int validity_time;
+	int btm_cand_preference;
+	int btm_cand_count;
+	int btm_validity_interval;
+	int btm_disassoc_timer;
+	int aid;
+	u8 request_mode;
+};
+
+struct slsi_rx_evt_info {
+	short roam_rssi_val;
+	u32 reason_code;
+	u32 eapol_msg_type;
+	u32 tx_status;
+	u32 status_code;
+	bool current_info;
+	bool candidate_info;
+	u8 mac_addr[ETH_ALEN];
+	u32 chan_frequency;
+	int freq_list[MAX_FREQUENCY_COUNT];
+	int channel_list[MAX_CHANNEL_COUNT];
+	int channel_count;
+	char ssid[MAX_SSID_LEN];
+	struct slsi_rx_evt_vd_info vd;
+};
+
+static int slsi_rx_event_log_parse(struct slsi_dev *sdev, struct net_device *dev, u8 *tlv_data, int tlv_buffer__len,
+				   u16 event_id, struct slsi_rx_evt_info *evt_info)
 {
-	u16 event_id = 0;
-	u64 timestamp = 0;
-	u8 *tlv_data;
-	u8 full_scan_count = 0;
-	u32 roam_reason = 0, tp_score_val = 0;
-	u32 btm_request_mode = 0, btm_response = 0, eapol_msg_type = 0;
-	u32 reason_code = 0, eapol_retry_count = 0, status_code = 0, tx_status = 0;
-	u16 vendor_len, tag_id, tag_len, vtag_id, eapol_key_type = 0, cu_thresh = 0;
-	u32 tag_value, vtag_value, chan_frequency = 0, scan_type = 0, roaming_type = 0;
-	short score_val = 0, rssi_thresh = 0, cu_rssi_thresh = 0;
-	u32 operating_class = 0, measure_mode = 0, measure_duration = 0, ap_count = 0, candidate_count = 0;
-	u32 message_type = 0, expired_timer_value = 0;
-	short roam_rssi_val = 0, chan_utilisation = 0;
-	u8 mac_addr[6] = {0};
-	int tlv_buffer__len = fapi_get_datalen(skb), i = 0, channel_val = 0, iter = 0, channel_count = 0, lim = 0;
-	int channel_list[MAX_CHANNEL_COUNT] = {0};
-	char ssid[MAX_SSID_LEN] = {0};
-	char *string = NULL;
-	bool multi_param = false, current_info = true, valid_data = false, eligible_value = false;
-	u32 auth_algo_type = 0, sae_type = 0, sn = 0;
-	int freq_list[MAX_FREQUENCY_COUNT] = {0};
-	struct netdev_vif *ndev_vif = netdev_priv(dev);
-	int dialog_token = 0, disassoc_timer = 0, validity_time = 0, btm_cand_preference = 0, is_roaming = 0;
-	int btm_cand_count = 0, btm_validity_interval = 0, btm_disassoc_timer = 0, mgmt_frame_subtype = 0, aid = 0;
+	int i = 0, iter = 0, lim = 0, channel_val = 0;
+	u16 tag_id = 0, tag_len = 0, vtag_id = 0, vendor_len = 0;
+	u32 tag_value = 0, vtag_value = 0;
+	bool multi_param = false, valid_data = false;
 
-	SLSI_MUTEX_LOCK(sdev->logger_mutex);
-	event_id = fapi_get_s16(skb, u.mlme_event_log_ind.event);
-	timestamp = fapi_get_u64(skb, u.mlme_event_log_ind.fw_tsf);
-	tlv_data = fapi_get_data(skb);
-
-	SLSI_DBG3(sdev, SLSI_GSCAN,
-		  "slsi_rx_event_log_indication, event id = %d, len = %d\n", event_id, tlv_buffer__len);
-
-#if IS_ENABLED(CONFIG_SCSC_WIFILOGGER)
-	SCSC_WLOG_FW_EVENT(WLOG_NORMAL, event_id, timestamp, fapi_get_data(skb), fapi_get_datalen(skb));
-#endif
-	switch (event_id) {
-	case FAPI_EVENT_WIFI_EVENT_FW_NAN_ROLE_TYPE:
-	case FAPI_EVENT_WIFI_EVENT_NAN_AVAILABILITY_UPDATE:
-	case FAPI_EVENT_WIFI_EVENT_NAN_ULW_UPDATE:
-	case FAPI_EVENT_WIFI_EVENT_NAN_TRAFFIC_UPDATE:
-		slsi_handle_nan_rx_event_log_ind(sdev, dev, skb);
-		goto exit;
-	}
 	while (i + 4 < tlv_buffer__len) {
 		tag_id = le16_to_cpu(*((__le16 *)&tlv_data[i]));
 		tag_len = le16_to_cpu(*((__le16 *)&tlv_data[i + 2]));
 		i += 4;
 		if (i + tag_len > tlv_buffer__len) {
 			SLSI_INFO(sdev, "Incorrect fapi bulk data\n");
-			kfree_skb(skb);
-			SLSI_MUTEX_UNLOCK(sdev->logger_mutex);
-			return;
+			return -EINVAL;
 		}
 		tag_value = slsi_convert_tlv_data_to_value(&tlv_data[i], tag_len);
 		multi_param = false;
 		switch (tag_id) {
 		case SLSI_WIFI_TAG_RSSI:
-			roam_rssi_val = (short)tag_value;
+			evt_info->roam_rssi_val = (short)tag_value;
 			break;
 		case SLSI_WIFI_TAG_REASON_CODE:
-			reason_code = tag_value;
+			evt_info->reason_code = tag_value;
 			break;
 		case SLSI_WIFI_TAG_VENDOR_SPECIFIC:
 			vendor_len = tag_len - 2;
@@ -4011,64 +4148,64 @@ void slsi_rx_event_log_indication(struct slsi_dev *sdev, struct net_device *dev,
 			vtag_value = slsi_convert_tlv_data_to_value(&tlv_data[i + 2], vendor_len);
 			switch (vtag_id) {
 			case SLSI_WIFI_TAG_VD_CHANNEL_UTILISATION:
-				chan_utilisation = (short)vtag_value;
+				evt_info->vd.chan_utilisation = (short)vtag_value;
 				break;
 			case SLSI_WIFI_TAG_VD_ROAMING_REASON:
-				roam_reason = vtag_value;
+				evt_info->vd.roam_reason = vtag_value;
 				break;
 			case SLSI_WIFI_TAG_VD_BTM_REQUEST_MODE:
-				btm_request_mode = vtag_value;
+				evt_info->vd.btm_request_mode = vtag_value;
 				break;
 			case SLSI_WIFI_TAG_VD_BTM_RESPONSE_STATUS:
-				btm_response = vtag_value;
+				evt_info->vd.btm_response = vtag_value;
 				break;
 			case SLSI_WIFI_TAG_VD_RETRY_COUNT:
-				eapol_retry_count = vtag_value;
+				evt_info->vd.eapol_retry_count = vtag_value;
 				break;
 			case SLSI_WIFI_TAG_VD_EAPOL_KEY_TYPE:
-				eapol_key_type = vtag_value;
+				evt_info->vd.eapol_key_type = vtag_value;
 				break;
 			case SLSI_WIFI_TAG_VD_SCAN_TYPE:
-				scan_type = vtag_value;
+				evt_info->vd.scan_type = vtag_value;
 				break;
 			case SLSI_WIFI_TAG_VD_SCORE:
-				score_val = (short)vtag_value;
+				evt_info->vd.score_val = (short)vtag_value;
 				break;
 			case SLSI_WIFI_TAG_VD_RSSI_THRESHOLD:
-				rssi_thresh = (short)vtag_value;
+				evt_info->vd.rssi_thresh = (short)vtag_value;
 				break;
 			case SLSI_WIFI_TAG_VD_OPERATING_CLASS:
-				operating_class = vtag_value;
+				evt_info->vd.operating_class = vtag_value;
 				break;
 			case SLSI_WIFI_TAG_VD_MEASUREMENT_MODE:
-				measure_mode = vtag_value;
+				evt_info->vd.measure_mode = vtag_value;
 				break;
 			case SLSI_WIFI_TAG_VD_MEASUREMENT_DURATION:
-				measure_duration = vtag_value;
+				evt_info->vd.measure_duration = vtag_value;
 				break;
 			case SLSI_WIFI_TAG_VD_MIN_AP_COUNT:
-				ap_count = vtag_value;
+				evt_info->vd.ap_count = vtag_value;
 				break;
 			case SLSI_WIFI_TAG_VD_CANDIDATE_LIST_COUNT:
-				candidate_count = vtag_value;
+				evt_info->vd.candidate_count = vtag_value;
 				break;
 			case SLSI_WIFI_TAG_VD_MESSAGE_TYPE:
-				message_type = vtag_value;
+				evt_info->vd.message_type = vtag_value;
 				break;
 			case SLSI_WIFI_TAG_VD_EXPIRED_TIMER_VALUE:
-				expired_timer_value = vtag_value;
+				evt_info->vd.expired_timer_value = vtag_value;
 				break;
 			case SLSI_WIFI_TAG_VD_ESTIMATED_TP:
-				tp_score_val = vtag_value;
+				evt_info->vd.tp_score_val = vtag_value;
 				break;
 			case WIFI_TAG_VD_MGMT_FRAME_SUBTYPE:
-				mgmt_frame_subtype = vtag_value;
+				evt_info->vd.mgmt_frame_subtype = vtag_value;
 				break;
 			case SLSI_WIFI_TAG_VD_IS_ROAMING:
-				is_roaming = vtag_value;
+				evt_info->vd.is_roaming = vtag_value;
 				break;
 			case SLSI_WIFI_TAG_VD_ELIGIBLE:
-				eligible_value = vtag_value;
+				evt_info->vd.eligible_value = vtag_value;
 				break;
 			case SLSI_WIFI_TAG_VD_PARAMETER_SET:
 				multi_param = true;
@@ -4081,111 +4218,115 @@ void slsi_rx_event_log_indication(struct slsi_dev *sdev, struct net_device *dev,
 						valid_data = true;
 						break;
 					}
-					dump_roam_scan_result(sdev, dev, &current_info, mac_addr,
-							      chan_frequency, roam_rssi_val,
-							      chan_utilisation, score_val,
-							      tp_score_val, eligible_value);
-					memset(mac_addr, 0, ETH_ALEN);
-					chan_frequency = 0;
-					roam_rssi_val = 0;
-					chan_utilisation = 0;
-					score_val = 0;
-					tp_score_val = 0;
-					eligible_value = false;
+					dump_roam_scan_result(sdev, dev, &evt_info->current_info, evt_info->mac_addr,
+							      evt_info->chan_frequency, evt_info->roam_rssi_val,
+							      evt_info->vd.chan_utilisation, evt_info->vd.score_val,
+							      evt_info->vd.tp_score_val, evt_info->vd.eligible_value);
+					memset(evt_info->mac_addr, 0, ETH_ALEN);
+					evt_info->chan_frequency = 0;
+					evt_info->roam_rssi_val = 0;
+					evt_info->vd.chan_utilisation = 0;
+					evt_info->vd.score_val = 0;
+					evt_info->vd.tp_score_val = 0;
+					evt_info->vd.eligible_value = false;
 				}
 				break;
 			case SLSI_WIFI_TAG_VD_FULL_SCAN_COUNT:
-				full_scan_count = vtag_value;
+				evt_info->vd.full_scan_count = vtag_value;
 				break;
 			case SLSI_WIFI_TAG_VD_CU_RSSI_THRESHOLD:
-				cu_rssi_thresh = (short)vtag_value;
+				evt_info->vd.cu_rssi_thresh = (short)vtag_value;
 				break;
 			case SLSI_WIFI_TAG_VD_CU_THRESHOLD:
-				cu_thresh = vtag_value;
+				evt_info->vd.cu_thresh = vtag_value;
 				break;
 			case SLSI_WIFI_TAG_VD_ROAMING_TYPE:
-				roaming_type = vtag_value;
+				evt_info->vd.roaming_type = vtag_value;
 				break;
 			case SLSI_WIFI_TAG_VD_AUTH_ALGO:
-				auth_algo_type = vtag_value;
+				evt_info->vd.auth_algo_type = vtag_value;
 				break;
 			case SLSI_WIFI_TAG_VD_SAE_MESSAGE_TYPE:
-				sae_type = vtag_value;
+				evt_info->vd.sae_type = vtag_value;
 				break;
 			case SLSI_WIFI_TAG_VD_SEQUENCE_NUMBER:
-				sn = vtag_value;
+				evt_info->vd.sn = vtag_value;
 				break;
 			case SLSI_WIFI_TAG_VD_DIALOG_TOKEN:
-				dialog_token = vtag_value;
+				evt_info->vd.dialog_token = vtag_value;
 				break;
 			case SLSI_WIFI_TAG_VD_DIASSOCIATION_TIMER:
-				disassoc_timer = vtag_value;
+				evt_info->vd.disassoc_timer = vtag_value;
 				break;
 			case SLSI_WIFI_TAG_VD_VALIDITY_INTERVAL:
-				validity_time = vtag_value;
+				evt_info->vd.validity_time = vtag_value;
 				break;
 			case SLSI_WIFI_TAG_VD_BTM_CANDIDATE_PREFERENCE:
-				btm_cand_preference = vtag_value;
+				evt_info->vd.btm_cand_preference = vtag_value;
 				break;
 			case SLSI_WIFI_TAG_VD_BTM_CANDIDATE_COUNT:
-				btm_cand_count = vtag_value;
+				evt_info->vd.btm_cand_count = vtag_value;
 				break;
 			case SLSI_WIFI_TAG_VD_LOCAL_DURATION:
-				if (btm_disassoc_timer)
-					btm_validity_interval = vtag_value;
+				if (evt_info->vd.btm_disassoc_timer)
+					evt_info->vd.btm_validity_interval = vtag_value;
 				else
-					btm_disassoc_timer = vtag_value;
+					evt_info->vd.btm_disassoc_timer = vtag_value;
 				break;
 			case SLSI_WIFI_TAG_VD_AID:
-				aid = vtag_value;
+				evt_info->vd.aid = vtag_value;
+				break;
+			case SLSI_WIFI_TAG_VD_MEASUREMENT_REQUEST_MODE:
+				evt_info->vd.request_mode = vtag_value;
 				break;
 			}
 			break;
 		case SLSI_WIFI_TAG_EAPOL_MESSAGE_TYPE:
-			eapol_msg_type = tag_value;
+			evt_info->eapol_msg_type = tag_value;
 			break;
 		case SLSI_WIFI_TAG_STATUS:
-			if (status_code)
-				tx_status = tag_value;
+			if (evt_info->status_code)
+				evt_info->tx_status = tag_value;
 			else
-				status_code = tag_value;
+				evt_info->status_code = tag_value;
 			break;
 		case SLSI_WIFI_TAG_BSSID:
-			SLSI_ETHER_COPY(mac_addr, &tlv_data[i]);
+			SLSI_ETHER_COPY(evt_info->mac_addr, &tlv_data[i]);
 			break;
 		case SLSI_WIFI_TAG_CHANNEL:
-			chan_frequency = tag_value;
+			evt_info->chan_frequency = tag_value;
 			break;
 		case SLSI_WIFI_TAG_IE:
 			iter = i;
 			lim = iter + tlv_data[iter + 1] + 2;
 			iter += 7; /* 1byte (id) + 1byte(length) + 3byte (oui) + 2byte */
 			while (iter < lim && lim <= i + tag_len) {
-				if (channel_count >= MAX_CHANNEL_COUNT) {
+				if (evt_info->channel_count >= MAX_CHANNEL_COUNT) {
 					SLSI_ERR(sdev, "ERR: Channel list received >= %d\n", MAX_CHANNEL_COUNT);
 					break;
 				}
 				channel_val = le16_to_cpu(*((__le16 *)&tlv_data[iter]));
-				freq_list[channel_count] = channel_val / 2;
-				channel_list[channel_count] = ieee80211_frequency_to_channel(channel_val / 2);
-				if (channel_list[channel_count] < 1 ||
-				    channel_list[channel_count] > SLSI_6GHZ_LAST_CHAN) {
+				evt_info->freq_list[evt_info->channel_count] = channel_val / 2;
+				evt_info->channel_list[evt_info->channel_count] =
+							ieee80211_frequency_to_channel(channel_val / 2);
+				if (evt_info->channel_list[evt_info->channel_count] < 1 ||
+				    evt_info->channel_list[evt_info->channel_count] > SLSI_6GHZ_LAST_CHAN) {
 					SLSI_ERR(sdev, "ERR: Invalid channel received %d\n",
-						 channel_list[channel_count]);
+						 evt_info->channel_list[evt_info->channel_count]);
 					/* Invalid channel is received. Prints out TLV data for SLSI_WIFI_TAG_IE */
 					SCSC_BIN_TAG_INFO(BINARY, &tlv_data[i], tlv_data[i + 1] + 2);
 					break;
 				}
 				iter += SLSI_SCAN_CHANNEL_DESCRIPTOR_SIZE;
-				channel_count += 1;
+				evt_info->channel_count += 1;
 			}
 			break;
 		case SLSI_WIFI_TAG_SSID:
-			memset(ssid, '\0', sizeof(ssid));
+			memset(evt_info->ssid, '\0', sizeof(evt_info->ssid));
 			if (tag_len > MAX_SSID_LEN)
-				memcpy(ssid, &tlv_data[i], MAX_SSID_LEN);
+				memcpy(evt_info->ssid, &tlv_data[i], MAX_SSID_LEN);
 			else
-				memcpy(ssid, &tlv_data[i], tag_len);
+				memcpy(evt_info->ssid, &tlv_data[i], tag_len);
 			break;
 		}
 		if (multi_param)
@@ -4193,201 +4334,278 @@ void slsi_rx_event_log_indication(struct slsi_dev *sdev, struct net_device *dev,
 		else
 			i += tag_len;
 	}
+	return 0;
+}
+
+static int slsi_get_roam_reason_for_fw_reason(int roam_reason)
+{
+	switch (roam_reason) {
+	case SLSI_WIFI_ROAMING_SEARCH_REASON_LOW_RSSI:
+		return 1;
+	case SLSI_WIFI_ROAMING_SEARCH_REASON_LINK_LOSS:
+		return 3;
+	case SLSI_WIFI_ROAMING_SEARCH_REASON_BTM_REQ:
+		return 5;
+	case SLSI_WIFI_ROAMING_SEARCH_REASON_CU_TRIGGER:
+		return 2;
+	case SLSI_WIFI_ROAMING_SEARCH_REASON_EMERGENCY:
+		return 4;
+	case SLSI_WIFI_ROAMING_SEARCH_REASON_IDLE:
+		return 6;
+	case SLSI_WIFI_ROAMING_SEARCH_REASON_WTC:
+		return 7;
+	case SLSI_WIFI_ROAMING_SEARCH_REASON_BT_COEX:
+		return 10;
+	default:
+		return 0;
+	}
+}
+
+/* if the Expired_Timer_Value is not set to 0,1,2,3, the Roam_Reason is set to UNKNOWN. */
+static int slsi_get_roam_reason_from_expired_tv(int roam_reason, int expired_timer_value)
+{
+	if (expired_timer_value == SLSI_SOFT_ROAMING_TRIGGER_EVENT_DEFAULT)
+		return slsi_get_roam_reason_for_fw_reason(roam_reason);
+	else if (expired_timer_value == SLSI_SOFT_ROAMING_TRIGGER_EVENT_INACTIVITY_TIMER)
+		return SLSI_WIFI_ROAMING_SEARCH_REASON_INACTIVITY_TIMER;
+	else if (expired_timer_value == SLSI_SOFT_ROAMING_TRIGGER_EVENT_RESCAN_TIMER ||
+		 expired_timer_value == SLSI_SOFT_ROAMING_TRIGGER_EVENT_BACKGROUND_RESCAN_TIMER)
+		return SLSI_WIFI_ROAMING_SEARCH_REASON_SCAN_TIMER;
+	else
+		return 0;
+}
+
+static void slsi_rx_event_log_print(struct slsi_dev *sdev, struct net_device *dev, u16 event_id, u64 timestamp,
+				    struct slsi_rx_evt_info *evt_info)
+{
+	struct netdev_vif *ndev_vif = netdev_priv(dev);
+	char *string = NULL;
+	int roam_reason = 0;
+
 	switch (event_id) {
 	case FAPI_EVENT_WIFI_EVENT_FW_EAPOL_FRAME_TRANSMIT_START:
-		if (eapol_key_type == SLSI_WIFI_EAPOL_KEY_TYPE_GTK) {
+		if (evt_info->vd.eapol_key_type == SLSI_WIFI_EAPOL_KEY_TYPE_GTK) {
 			if (ndev_vif->iftype == NL80211_IFTYPE_STATION)
 				sdev->conn_log2us_ctx.is_eapol_gtk = true;
-			SLSI_INFO(sdev, "WIFI_EVENT_FW_EAPOL_FRAME_TRANSMIT_START, Send GTK, G%d\n", eapol_msg_type);
-		} else if (eapol_key_type == SLSI_WIFI_EAPOL_KEY_TYPE_PTK) {
+			SLSI_INFO(sdev, "WIFI_EVENT_FW_EAPOL_FRAME_TRANSMIT_START, Send GTK, G%d\n",
+				  evt_info->eapol_msg_type);
+		} else if (evt_info->vd.eapol_key_type == SLSI_WIFI_EAPOL_KEY_TYPE_PTK) {
 			if (ndev_vif->iftype == NL80211_IFTYPE_STATION) {
 				sdev->conn_log2us_ctx.is_eapol_ptk = true;
-				sdev->conn_log2us_ctx.eapol_ptk_msg_type = eapol_msg_type;
+				sdev->conn_log2us_ctx.eapol_ptk_msg_type = evt_info->eapol_msg_type;
 			}
 			SLSI_INFO(sdev, "WIFI_EVENT_FW_EAPOL_FRAME_TRANSMIT_START, Send 4way-H/S, M%d\n",
-				  eapol_msg_type);
+				  evt_info->eapol_msg_type);
 		}
 		break;
 	case FAPI_EVENT_WIFI_EVENT_FW_EAPOL_FRAME_TRANSMIT_STOP:
 		SLSI_INFO(sdev, "WIFI_EVENT_FW_EAPOL_FRAME_TRANSMIT_STOP,Result Code:%d, Retry Count:%d\n",
-			  status_code, eapol_retry_count);
-		slsi_conn_log2us_eapol_tx(sdev, dev, status_code);
+			  evt_info->status_code, evt_info->vd.eapol_retry_count);
+		slsi_conn_log2us_eapol_tx(sdev, dev, evt_info->status_code);
 		break;
 	case FAPI_EVENT_WIFI_EVENT_FW_EAPOL_FRAME_RECEIVED:
-		if (eapol_key_type == SLSI_WIFI_EAPOL_KEY_TYPE_GTK) {
-			slsi_conn_log2us_eapol_gtk(sdev, dev, eapol_msg_type);
-			SLSI_INFO(sdev, "WIFI_EVENT_FW_EAPOL_FRAME_RECEIVED, Received GTK, G%d\n", eapol_msg_type);
-		} else if (eapol_key_type == SLSI_WIFI_EAPOL_KEY_TYPE_PTK) {
-			slsi_conn_log2us_eapol_ptk(sdev, dev, eapol_msg_type);
-			SLSI_INFO(sdev, "WIFI_EVENT_FW_EAPOL_FRAME_RECEIVED, Received 4way-H/S, M%d\n", eapol_msg_type);
+		if (evt_info->vd.eapol_key_type == SLSI_WIFI_EAPOL_KEY_TYPE_GTK) {
+			slsi_conn_log2us_eapol_gtk(sdev, dev, evt_info->eapol_msg_type);
+			SLSI_INFO(sdev, "WIFI_EVENT_FW_EAPOL_FRAME_RECEIVED, Received GTK, G%d\n",
+				  evt_info->eapol_msg_type);
+		} else if (evt_info->vd.eapol_key_type == SLSI_WIFI_EAPOL_KEY_TYPE_PTK) {
+			slsi_conn_log2us_eapol_ptk(sdev, dev, evt_info->eapol_msg_type);
+			SLSI_INFO(sdev, "WIFI_EVENT_FW_EAPOL_FRAME_RECEIVED, Received 4way-H/S, M%d\n",
+				  evt_info->eapol_msg_type);
 		}
 		break;
 	case FAPI_EVENT_WIFI_EVENT_FW_BTM_FRAME_REQUEST:
 		SLSI_INFO(sdev,
 			  "WIFI_EVENT_FW_BTM_FRAME_REQUEST,Request Mode:%d, duration=%d, validity interval=%d, Candidate List Count:%d\n",
-			  btm_request_mode, btm_disassoc_timer, btm_validity_interval, btm_cand_count);
-		slsi_conn_log2us_btm_req(sdev, dev, dialog_token, btm_request_mode, btm_disassoc_timer,
-					 btm_validity_interval, btm_cand_count);
+			  evt_info->vd.btm_request_mode, evt_info->vd.btm_disassoc_timer,
+			  evt_info->vd.btm_validity_interval, evt_info->vd.btm_cand_count);
+		slsi_conn_log2us_btm_req(sdev, dev,
+					 evt_info->vd.dialog_token, evt_info->vd.btm_request_mode,
+					 evt_info->vd.btm_disassoc_timer, evt_info->vd.btm_validity_interval,
+					 evt_info->vd.btm_cand_count);
 		break;
 	case FAPI_EVENT_WIFI_EVENT_FW_BTM_FRAME_RESPONSE:
-		if (btm_response == 0)
+		if (evt_info->vd.btm_response == 0)
 			SLSI_INFO(sdev, "WIFI_EVENT_FW_BTM_FRAME_RESPONSE,Status code:%d, BSSID:"MACSTR"\n",
-				  btm_response, MAC2STR(mac_addr));
+				  evt_info->vd.btm_response, MAC2STR(evt_info->mac_addr));
 		else
-			SLSI_INFO(sdev, "WIFI_EVENT_FW_BTM_FRAME_RESPONSE,Status code:%d\n", btm_response);
-		slsi_conn_log2us_btm_resp(sdev, dev, dialog_token, btm_response, btm_disassoc_timer,
-					  mac_addr);
+			SLSI_INFO(sdev, "WIFI_EVENT_FW_BTM_FRAME_RESPONSE,Status code:%d\n", evt_info->vd.btm_response);
+		slsi_conn_log2us_btm_resp(sdev, dev, evt_info->vd.dialog_token, evt_info->vd.btm_response,
+					  evt_info->vd.btm_disassoc_timer, evt_info->mac_addr);
 		break;
 	case FAPI_EVENT_WIFI_EVENT_FW_BTM_FRAME_QUERY:
 		SLSI_INFO(sdev, "WIFI_EVENT_FW_BTM_FRAME_QUERY, dialog_token:%d, reason:%d\n",
-			  dialog_token, reason_code);
-		slsi_conn_log2us_btm_query(sdev, dev, dialog_token, reason_code);
+			  evt_info->vd.dialog_token, evt_info->reason_code);
+		slsi_conn_log2us_btm_query(sdev, dev, evt_info->vd.dialog_token, evt_info->reason_code);
 		break;
 	case FAPI_EVENT_WIFI_EVENT_ROAM_SEARCH_STARTED:
-		slsi_conn_log2us_roam_scan_start(sdev, dev, roam_reason, roam_rssi_val, chan_utilisation,
-						 rssi_thresh, timestamp);
+		roam_reason = slsi_get_roam_reason_from_expired_tv(evt_info->vd.roam_reason,
+								   evt_info->vd.expired_timer_value);
+		slsi_conn_log2us_roam_scan_start(sdev, dev, roam_reason, evt_info->roam_rssi_val,
+						 evt_info->vd.chan_utilisation, evt_info->vd.rssi_thresh, timestamp);
 		SLSI_INFO(sdev, "WIFI_EVENT_ROAM_SEARCH_STARTED, Roaming Type : %s, RSSI:%d, Deauth Reason:0x%04x, "
-			  "RSSI Threshold:%d,Channel Utilisation:%d,Roam Reason: %s Expired Timer Value: %d\n",
-			  (roaming_type == 0 ? "Legacy" : "NCHO"), roam_rssi_val, reason_code, rssi_thresh, chan_utilisation,
-			  slsi_get_roam_reason_str(roam_reason), expired_timer_value);
+			  "RSSI Threshold:%d,Channel Utilisation:%d, Roam Reason: %s, Expired Timer Value: %d\n",
+			  (evt_info->vd.roaming_type == 0 ? "Legacy" : "NCHO"), evt_info->roam_rssi_val,
+			  evt_info->reason_code, evt_info->vd.rssi_thresh, evt_info->vd.chan_utilisation,
+			  slsi_get_roam_reason_str(roam_reason, evt_info->reason_code),
+			  evt_info->vd.expired_timer_value);
 		break;
 	case FAPI_EVENT_WIFI_EVENT_FW_AUTH_SENT:
-		if (is_roaming)
-			SLSI_INFO(sdev, "WIFI_EVENT_FW_AUTH_STARTED in Roaming, BSSID:" MACSTR "\n", MAC2STR(mac_addr));
+		if (evt_info->vd.is_roaming)
+			SLSI_INFO(sdev, "WIFI_EVENT_FW_AUTH_STARTED in Roaming, BSSID:" MACSTR "\n",
+				  MAC2STR(evt_info->mac_addr));
 		else
-			SLSI_INFO(sdev, "WIFI_EVENT_FW_AUTH_STARTED, BSSID:" MACSTR "\n", MAC2STR(mac_addr));
-		slsi_conn_log2us_auth_req(sdev, dev, mac_addr, auth_algo_type, sae_type, sn,
-					  status_code, tx_status, is_roaming);
+			SLSI_INFO(sdev, "WIFI_EVENT_FW_AUTH_STARTED, BSSID:" MACSTR "\n", MAC2STR(evt_info->mac_addr));
+		slsi_conn_log2us_auth_req(sdev, dev,
+					  evt_info->mac_addr, evt_info->vd.auth_algo_type, evt_info->vd.sae_type,
+					  evt_info->vd.sn, evt_info->status_code, evt_info->tx_status,
+					  evt_info->vd.is_roaming);
 		break;
 	case FAPI_EVENT_WIFI_EVENT_AUTH_RECEIVED:
-		if (is_roaming)
-			SLSI_INFO(sdev, "WIFI_EVENT_AUTH_COMPLETE in Roaming,Status code:%d\n", status_code);
+		if (evt_info->vd.is_roaming)
+			SLSI_INFO(sdev, "WIFI_EVENT_AUTH_COMPLETE in Roaming,Status code:%d\n", evt_info->status_code);
 		else
-			SLSI_INFO(sdev, "WIFI_EVENT_AUTH_COMPLETE,Status code:%d\n", status_code);
-		slsi_conn_log2us_auth_resp(sdev, dev, mac_addr, auth_algo_type, sae_type, sn, status_code, is_roaming);
+			SLSI_INFO(sdev, "WIFI_EVENT_AUTH_COMPLETE,Status code:%d\n", evt_info->status_code);
+		slsi_conn_log2us_auth_resp(sdev, dev,
+					   evt_info->mac_addr, evt_info->vd.auth_algo_type, evt_info->vd.sae_type,
+					   evt_info->vd.sn, evt_info->status_code, evt_info->vd.is_roaming);
 		break;
 	case FAPI_EVENT_WIFI_EVENT_FW_ASSOC_STARTED:
-		if (mgmt_frame_subtype == SLSI_MGMT_FRAME_SUBTYPE_ASSOC_REQ)
-			SLSI_INFO(sdev, "WIFI_EVENT_FW_ASSOC_STARTED, status code: %d\n", status_code);
-		else if (mgmt_frame_subtype == SLSI_MGMT_FRAME_SUBTYPE_REASSOC_REQ)
-			SLSI_INFO(sdev, "WIFI_EVENT_FW_REASSOC_STARTED, status code: %d\n", status_code);
-		slsi_conn_log2us_assoc_req(sdev, dev, mac_addr, sn, status_code, mgmt_frame_subtype);
+		if (evt_info->vd.mgmt_frame_subtype == SLSI_MGMT_FRAME_SUBTYPE_ASSOC_REQ)
+			SLSI_INFO(sdev, "WIFI_EVENT_FW_ASSOC_STARTED, status code: %d\n", evt_info->status_code);
+		else if (evt_info->vd.mgmt_frame_subtype == SLSI_MGMT_FRAME_SUBTYPE_REASSOC_REQ)
+			SLSI_INFO(sdev, "WIFI_EVENT_FW_REASSOC_STARTED, status code: %d\n", evt_info->status_code);
+		slsi_conn_log2us_assoc_req(sdev, dev, evt_info->mac_addr, evt_info->vd.sn, evt_info->status_code,
+					   evt_info->vd.mgmt_frame_subtype);
 		break;
 	case FAPI_EVENT_WIFI_EVENT_ASSOC_COMPLETE:
-		if (mgmt_frame_subtype == SLSI_MGMT_FRAME_SUBTYPE_ASSOC_RESP)
-			SLSI_INFO(sdev, "WIFI_EVENT_ASSOC_COMPLETE, status code: %d\n", status_code);
-		else if (mgmt_frame_subtype == SLSI_MGMT_FRAME_SUBTYPE_REASSOC_RESP)
-			SLSI_INFO(sdev, "WIFI_EVENT_REASSOC_COMPLETE, status code: %d\n", status_code);
-		slsi_conn_log2us_assoc_resp(sdev, dev, mac_addr, sn, status_code, mgmt_frame_subtype, aid);
+		if (evt_info->vd.mgmt_frame_subtype == SLSI_MGMT_FRAME_SUBTYPE_ASSOC_RESP)
+			SLSI_INFO(sdev, "WIFI_EVENT_ASSOC_COMPLETE, reason code: %d\n", evt_info->reason_code);
+		else if (evt_info->vd.mgmt_frame_subtype == SLSI_MGMT_FRAME_SUBTYPE_REASSOC_RESP)
+			SLSI_INFO(sdev, "WIFI_EVENT_REASSOC_COMPLETE, reason code: %d\n", evt_info->reason_code);
+		slsi_conn_log2us_assoc_resp(sdev, dev, evt_info->mac_addr, evt_info->vd.sn, evt_info->reason_code,
+					    evt_info->vd.mgmt_frame_subtype, evt_info->vd.aid);
 		break;
 	case FAPI_EVENT_WIFI_EVENT_FW_DEAUTHENTICATION_RECEIVED:
-		SLSI_INFO(sdev, "WIFI_EVENT_FW_DEAUTHENTICATION_RECEIVED, status code: %d\n", status_code);
-		slsi_conn_log2us_deauth(sdev, dev, "RX", ndev_vif->sta.bssid, sn, status_code);
+		SLSI_INFO(sdev, "WIFI_EVENT_FW_DEAUTHENTICATION_RECEIVED, reason code: %d\n", evt_info->reason_code);
+		slsi_conn_log2us_deauth(sdev, dev, "RX", ndev_vif->sta.bssid, evt_info->vd.sn, evt_info->reason_code);
 		break;
 	case FAPI_EVENT_WIFI_EVENT_FW_DEAUTHENTICATION_SENT:
-		SLSI_INFO(sdev, "WIFI_EVENT_FW_DEAUTHENTICATION_SENT, status code: %d\n", status_code);
-		slsi_conn_log2us_deauth(sdev, dev, "TX", ndev_vif->sta.bssid, sn, status_code);
+		SLSI_INFO(sdev, "WIFI_EVENT_FW_DEAUTHENTICATION_SENT, reason code: %d\n", evt_info->reason_code);
+		slsi_conn_log2us_deauth(sdev, dev, "TX", ndev_vif->sta.bssid, evt_info->vd.sn, evt_info->reason_code);
 		break;
 	case FAPI_EVENT_WIFI_EVENT_DISASSOCIATION_REQUESTED:
-		SLSI_INFO(sdev, "WIFI_EVENT_DISASSOCIATION_REQUESTED, status code: %d\n", status_code);
-		slsi_conn_log2us_disassoc(sdev, dev, "TX", ndev_vif->sta.bssid, sn, status_code);
+		SLSI_INFO(sdev, "WIFI_EVENT_DISASSOCIATION_REQUESTED, reason code: %d\n", evt_info->reason_code);
+		slsi_conn_log2us_disassoc(sdev, dev, "TX", ndev_vif->sta.bssid, evt_info->vd.sn, evt_info->reason_code);
 		break;
 	case FAPI_EVENT_WIFI_EVENT_FW_DISASSOCIATION_RECEIVED:
-		SLSI_INFO(sdev, "WIFI_EVENT_FW_DISASSOCIATION_RECEIVED, status code: %d\n", status_code);
-		slsi_conn_log2us_disassoc(sdev, dev, "RX", ndev_vif->sta.bssid, sn, status_code);
+		SLSI_INFO(sdev, "WIFI_EVENT_FW_DISASSOCIATION_RECEIVED, reason code: %d\n", evt_info->reason_code);
+		slsi_conn_log2us_disassoc(sdev, dev, "RX", ndev_vif->sta.bssid, evt_info->vd.sn, evt_info->reason_code);
 		break;
 	case FAPI_EVENT_WIFI_EVENT_FW_NR_FRAME_REQUEST:
 		SLSI_INFO(sdev, "WIFI_EVENT_FW_NR_FRAME_REQUEST Send Radio Measurement Frame"
 			  " (Neighbor Report Req) Sent from Mobile\n");
-		slsi_conn_log2us_nr_frame_req(sdev, dev);
+		slsi_conn_log2us_nr_frame_req(sdev, dev, evt_info->vd.dialog_token, evt_info->ssid);
 		break;
 	case WIFI_EVENT_FW_RM_FRAME_RESPONSE:
 		SLSI_INFO(sdev, "WIFI_EVENT_FW_RM_FRAME_RESPONSE Received Radio Measurement "
 			  "Frame (Radio Measurement Rep)\n");
 		break;
 	case FAPI_EVENT_WIFI_EVENT_FW_NR_FRAME_RESPONSE:
-		string = slsi_print_channel_list(channel_list, channel_count);
+		string = slsi_print_channel_list(evt_info->channel_list, evt_info->channel_count);
 		SLSI_INFO(sdev, "WIFI_EVENT_FW_NR_FRAME_RESPONSE, Channel List:%s\n", (!string ? "-1" : string));
-		slsi_conn_log2us_nr_frame_resp(sdev, dev, (!string ? "-1" : string));
+		slsi_conn_log2us_nr_frame_resp(sdev, dev, evt_info->vd.dialog_token, evt_info->channel_count, evt_info->freq_list, evt_info->vd.candidate_count);
 		kfree(string);
 		break;
 	case FAPI_EVENT_WIFI_EVENT_AUTH_TIMEOUT:
-		SLSI_INFO(sdev, "WIFI_EVENT_AUTH_TIMEOUT, BSSID:" MACSTR ", Result:%d\n", MAC2STR(mac_addr), status_code);
+		SLSI_INFO(sdev, "WIFI_EVENT_AUTH_TIMEOUT, BSSID:" MACSTR ", Result:%d\n",
+			  MAC2STR(evt_info->mac_addr), evt_info->status_code);
 		break;
 	case FAPI_EVENT_WIFI_EVENT_ROAM_AUTH_TIMEOUT:
 		SLSI_INFO(sdev, "WIFI_EVENT_ROAM_AUTH_TIMEOUT, BSSID:" MACSTR ", Result:%d\n",
-			  MAC2STR(mac_addr), status_code);
+			  MAC2STR(evt_info->mac_addr), evt_info->status_code);
 		break;
 	case FAPI_EVENT_WIFI_EVENT_FW_CONNECTION_ATTEMPT_ABORTED:
-		SLSI_INFO(sdev, "WIFI_EVENT_FW_CONNECTION_ATTEMPT_ABORTED, BSSID:" MACSTR ", Result:%d\n", MAC2STR(mac_addr), status_code);
+		SLSI_INFO(sdev, "WIFI_EVENT_FW_CONNECTION_ATTEMPT_ABORTED, BSSID:" MACSTR ", Result:%d\n",
+			  MAC2STR(evt_info->mac_addr), evt_info->reason_code);
 		break;
 	case FAPI_EVENT_WIFI_EVENT_ROAM_SCAN_STARTED:
-		string = slsi_print_channel_list(channel_list, channel_count);
+		string = slsi_print_channel_list(evt_info->channel_list, evt_info->channel_count);
 		SLSI_INFO(sdev, "WIFI_EVENT_ROAM_SCAN_STARTED, SSID:%s, Scan Type:%s, Channel List:%s\n",
-			ssid, slsi_get_scan_type(scan_type), (!string ? "-1" : string));
+			evt_info->ssid, slsi_get_scan_type(evt_info->vd.scan_type), (!string ? "-1" : string));
 		kfree(string);
-		slsi_conn_log2us_roam_scan_save(sdev, dev, scan_type,
-						channel_count, freq_list);
+		slsi_conn_log2us_roam_scan_save(sdev, dev, evt_info->vd.scan_type,
+						evt_info->channel_count, evt_info->freq_list);
 		break;
 	case FAPI_EVENT_WIFI_EVENT_ROAM_RSSI_THRESHOLD:
 		SLSI_INFO(sdev, "WIFI_EVENT_ROAM_RSSI_THRESHOLD, Full scan count:%d, RSSI Threshold:%d, "
-				 "CU RSSI Threshold:%d, CU Threshold:%d\n", full_scan_count, rssi_thresh, cu_rssi_thresh, cu_thresh);
+			  "CU RSSI Threshold:%d, CU Threshold:%d\n",
+			  evt_info->vd.full_scan_count, evt_info->vd.rssi_thresh,
+			  evt_info->vd.cu_rssi_thresh, evt_info->vd.cu_thresh);
 		break;
 	case FAPI_EVENT_WIFI_EVENT_ROAM_SCAN_COMPLETE:
-		SLSI_INFO(sdev, "WIFI_EVENT_ROAM_SCAN_COMPLETE, Scan Type:%s\n", slsi_get_scan_type(scan_type));
+		SLSI_INFO(sdev, "WIFI_EVENT_ROAM_SCAN_COMPLETE, Scan Type:%s\n",
+			  slsi_get_scan_type(evt_info->vd.scan_type));
 		slsi_conn_log2us_roam_scan_done(sdev, dev, timestamp);
-		if (is_zero_ether_addr(mac_addr)) {
-			SLSI_INFO(sdev, "WIFI_EVENT_ROAM_SCAN_COMPLETE, [ROAM] RESULT NO_ROAM BSSID:" MACSTR ", \
-				  Status:1\n", MAC2STR(ndev_vif->sta.bssid));
+		if (is_zero_ether_addr(evt_info->mac_addr)) {
+			SLSI_INFO(sdev,
+				  "WIFI_EVENT_ROAM_SCAN_COMPLETE, [ROAM] RESULT NO_ROAM BSSID:" MACSTR ", Status:1\n",
+				  MAC2STR(ndev_vif->sta.bssid));
 			slsi_conn_log2us_roam_result(sdev, dev, ndev_vif->sta.bssid, timestamp, false);
 
 		} else {
 			SLSI_INFO(sdev, "WIFI_EVENT_ROAM_SCAN_COMPLETE, [ROAM] RESULT ROAM  BSSID:" MACSTR ", \
-				  Status:0\n", MAC2STR(mac_addr));
-			slsi_conn_log2us_roam_result(sdev, dev, mac_addr, timestamp, true);
+				  Status:0\n", MAC2STR(evt_info->mac_addr));
+			slsi_conn_log2us_roam_result(sdev, dev, evt_info->mac_addr, timestamp, true);
 		}
 		break;
 	case FAPI_EVENT_WIFI_EVENT_ROAM_SCAN_RESULT:
-		dump_roam_scan_result(sdev, dev, &current_info, mac_addr,
-				      chan_frequency, roam_rssi_val, chan_utilisation,
-				      score_val, tp_score_val, eligible_value);
+		dump_roam_scan_result(sdev, dev, &evt_info->current_info, evt_info->mac_addr,
+				      evt_info->chan_frequency, evt_info->roam_rssi_val, evt_info->vd.chan_utilisation,
+				      evt_info->vd.score_val, evt_info->vd.tp_score_val, evt_info->vd.eligible_value);
 		break;
 	case FAPI_EVENT_WIFI_EVENT_ROAM_SEARCH_STOPPED:
-		SLSI_INFO(sdev, "FAPI_EVENT_WIFI_EVENT_ROAM_SEARCH_STOPPED, Reason:%d\n", reason_code);
+		SLSI_INFO(sdev, "FAPI_EVENT_WIFI_EVENT_ROAM_SEARCH_STOPPED, Reason:%d\n", evt_info->reason_code);
 		break;
 	case FAPI_EVENT_WIFI_EVENT_FW_BEACON_REPORT_REQUEST:
-		string = slsi_print_channel_list(channel_list, channel_count);
-		SLSI_INFO(sdev, "WIFI_EVENT_FW_BEACON_REPORT_REQUEST, Token:%d,Operating Class:%d,channel list:%s,"
-			  "Measurement Duration:%d,Measurement Mode:%s,BSSID:"MACSTR",SSID:%s\n", dialog_token,
-			  operating_class, (!string ? "-1" : string), measure_duration,
-			  slsi_get_measure_mode(measure_mode), MAC2STR(mac_addr), ssid);
-		slsi_conn_log2us_beacon_report_request(sdev, dev, dialog_token, operating_class,
-						       (!string ? "-1" : string),
-						       measure_duration, slsi_get_measure_mode(measure_mode),
-						       mac_addr, ssid);
+		string = slsi_print_channel_list(evt_info->channel_list, evt_info->channel_count);
+		SLSI_INFO(sdev,
+			  "WIFI_EVENT_FW_BEACON_REPORT_REQUEST, Token:%d,Operating Class:%d,channel list:%s,"
+			  "Measurement Duration:%d,Measurement Mode:%s,BSSID:" MACSTR ",SSID:%s\n",
+			  evt_info->vd.dialog_token, evt_info->vd.operating_class, (!string ? "-1" : string),
+			  evt_info->vd.measure_duration, slsi_get_measure_mode(evt_info->vd.measure_mode),
+			  MAC2STR(evt_info->mac_addr), evt_info->ssid);
+		slsi_conn_log2us_beacon_report_request(sdev, dev,
+						       evt_info->vd.dialog_token, evt_info->vd.operating_class,
+						       (!string ? "-1" : string), evt_info->vd.measure_duration,
+						       slsi_get_measure_mode(evt_info->vd.measure_mode), evt_info->vd.request_mode);
 		kfree(string);
 		break;
 	case WIFI_EVENT_FW_BEACON_REPORT_RESPONSE:
-		if (reason_code) {
-			SLSI_INFO(sdev, "WIFI_EVENT_FW_BEACON_REPORT_RESPONSE, Token:%d, Scanned AP Number:%d, "
-				  "Reason:%d\n", dialog_token, ap_count, reason_code);
+		if (evt_info->reason_code) {
+			SLSI_INFO(sdev,
+				  "WIFI_EVENT_FW_BEACON_REPORT_RESPONSE, Token:%d, Scanned AP Number:%d, Reason:%d\n",
+				  evt_info->vd.dialog_token, evt_info->vd.ap_count, evt_info->reason_code);
 		} else {
 			SLSI_INFO(sdev, "WIFI_EVENT_FW_BEACON_REPORT_RESPONSE, Token:%d, Scanned AP Number:%d\n",
-				  dialog_token, ap_count);
+				  evt_info->vd.dialog_token, evt_info->vd.ap_count);
 		}
-		slsi_conn_log2us_beacon_report_response(sdev, dev, dialog_token, ap_count, reason_code);
+		slsi_conn_log2us_beacon_report_response(sdev, dev,
+							evt_info->vd.dialog_token, evt_info->vd.ap_count);
 		break;
 	case FAPI_EVENT_WIFI_EVENT_FW_FTM_RANGE_REQUEST:
 		SLSI_INFO(sdev, "WIFI_EVENT_FW_FTM_RANGE_REQUEST, Min Ap Count:%d, Candidate List Count:%d\n",
-			  ap_count, candidate_count);
+			  evt_info->vd.ap_count, evt_info->vd.candidate_count);
 		break;
 	case FAPI_EVENT_WIFI_EVENT_FW_FRAME_TRANSMIT_FAILURE:
 		SLSI_INFO(sdev, "WIFI_EVENT_FW_FRAME_TRANSMIT_FAILURE, Message Type:%s, Result:%d, Retry Count:%d\n",
-			  slsi_frame_transmit_failure_message_type(message_type), status_code, eapol_retry_count);
+			  slsi_frame_transmit_failure_message_type(evt_info->vd.message_type),
+			  evt_info->status_code,
+			  evt_info->vd.eapol_retry_count);
 		break;
 	case WIFI_EVENT_ASSOCIATING_DEAUTH_RECEIVED:
 		SLSI_INFO(sdev, "WIFI_EVENT_ASSOCIATING_DEAUTH_RECEIVED, BSSID:" MACSTR ", Reason:%d\n",
-			  MAC2STR(mac_addr), reason_code);
+			  MAC2STR(evt_info->mac_addr), evt_info->reason_code);
 		break;
 	case FAPI_EVENT_WIFI_EVENT_BT_COEX_BT_SCO_START:
 		sdev->conn_log2us_ctx.btcoex_sco = 1;
@@ -4409,11 +4627,53 @@ void slsi_rx_event_log_indication(struct slsi_dev *sdev, struct net_device *dev,
 		break;
 	case FAPI_EVENT_WIFI_EVENT_FW_BTM_CANDIDATE:
 		SLSI_INFO(sdev, "WIFI_EVENT_FW_BTM_CANDIDATE, BSSID:" MACSTR ", Preference:%d",
-			  MAC2STR(mac_addr), btm_cand_preference);
-		slsi_conn_log2us_btm_cand(sdev, dev, mac_addr, btm_cand_preference);
+			  MAC2STR(evt_info->mac_addr), evt_info->vd.btm_cand_preference);
+		slsi_conn_log2us_btm_cand(sdev, dev, evt_info->mac_addr, evt_info->vd.btm_cand_preference);
 		break;
 	}
+}
 
+void slsi_rx_event_log_indication(struct slsi_dev *sdev, struct net_device *dev, struct sk_buff *skb)
+{
+	u16 event_id = 0;
+	u64 timestamp = 0;
+	u8 *tlv_data = NULL;
+	int tlv_buffer__len = fapi_get_datalen(skb);
+	struct slsi_rx_evt_info evt_info = {0};
+
+	SLSI_MUTEX_LOCK(sdev->logger_mutex);
+	event_id = fapi_get_s16(skb, u.mlme_event_log_ind.event);
+	timestamp = fapi_get_u64(skb, u.mlme_event_log_ind.fw_tsf);
+	tlv_data = fapi_get_data(skb);
+
+	SLSI_DBG3(sdev, SLSI_GSCAN, "event id = %d, len = %d\n", event_id, tlv_buffer__len);
+
+#if IS_ENABLED(CONFIG_SCSC_WIFILOGGER)
+	SCSC_WLOG_FW_EVENT(WLOG_NORMAL, event_id, timestamp, fapi_get_data(skb), fapi_get_datalen(skb));
+#endif
+	switch (event_id) {
+	case FAPI_EVENT_WIFI_EVENT_FW_NAN_ROLE_TYPE:
+	case FAPI_EVENT_WIFI_EVENT_NAN_AVAILABILITY_UPDATE:
+	case FAPI_EVENT_WIFI_EVENT_NAN_ULW_UPDATE:
+	case FAPI_EVENT_WIFI_EVENT_NAN_TRAFFIC_UPDATE:
+	case FAPI_EVENT_WIFI_EVENT_NAN_NDP_REQUEST_RX:
+	case FAPI_EVENT_WIFI_EVENT_NAN_NDP_RESPONSE_RX:
+	case FAPI_EVENT_WIFI_EVENT_NAN_NDP_CONFIRM_RX:
+	case FAPI_EVENT_WIFI_EVENT_NAN_NDP_INSTALL_RX:
+	case FAPI_EVENT_WIFI_EVENT_NAN_NDP_REQUEST_TX_STATUS:
+	case FAPI_EVENT_WIFI_EVENT_NAN_NDP_RESPONSE_TX_STATUS:
+	case FAPI_EVENT_WIFI_EVENT_NAN_NDP_CONFIRM_TX_STATUS:
+	case FAPI_EVENT_WIFI_EVENT_NAN_NDP_INSTALL_TX_STATUS:
+#ifdef CONFIG_SCSC_WIFI_NAN_ENABLE
+		slsi_handle_nan_rx_event_log_ind(sdev, dev, skb);
+#else
+		SLSI_ERR(sdev, "NAN is not enabled but NAN event:0x%x received\n", event_id);
+#endif
+		goto exit;
+	}
+
+	if (!slsi_rx_event_log_parse(sdev, dev, tlv_data, tlv_buffer__len, event_id, &evt_info))
+		slsi_rx_event_log_print(sdev, dev, event_id, timestamp, &evt_info);
 exit:
 	kfree_skb(skb);
 	SLSI_MUTEX_UNLOCK(sdev->logger_mutex);
@@ -4423,6 +4683,7 @@ exit:
 static void slsi_on_ring_buffer_data(char *ring_name, char *buffer, int buffer_size,
 				     struct scsc_wifi_ring_buffer_status *buffer_status, void *ctx)
 {
+#ifndef SCSC_SEP_VERSION
 	struct sk_buff *skb;
 	int event_id = SLSI_NL80211_LOGGER_RING_EVENT;
 	struct slsi_dev *sdev = ctx;
@@ -4445,6 +4706,7 @@ static void slsi_on_ring_buffer_data(char *ring_name, char *buffer, int buffer_s
 		return;
 	}
 	cfg80211_vendor_event(skb, GFP_KERNEL);
+#endif
 }
 
 static void slsi_on_alert(char *buffer, int buffer_size, int err_code, void *ctx)
@@ -6991,8 +7253,8 @@ static void slsi_nll80211_vendor_init_policy(struct wiphy_vendor_command *slsi_v
 			vcmd->maxattr = 0;
 			break;
 #endif
-       }
-   }
+		}
+	}
 }
 #endif
 

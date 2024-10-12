@@ -1,6 +1,6 @@
 /****************************************************************************
  *
- * Copyright (c) 2014 - 2022 Samsung Electronics Co., Ltd. All rights reserved
+ * Copyright (c) 2014 - 2023 Samsung Electronics Co., Ltd. All rights reserved
  *
  ****************************************************************************/
 
@@ -25,14 +25,14 @@ extern "C" {
 #define FAPI_SAP_TYPE_DEBUG 0x8000
 #define FAPI_SAP_TYPE_TEST  0x9000
 
-#define FAPI_CONTROL_SAP_ENG_VERSION             0x0000
-#define FAPI_DATA_SAP_ENG_VERSION                0x0000
 #define FAPI_DEBUG_SAP_ENG_VERSION               0x0000
-#define FAPI_TEST_SAP_ENG_VERSION                0x0003
+#define FAPI_DATA_SAP_ENG_VERSION                0x0000
+#define FAPI_CONTROL_SAP_ENG_VERSION             0x0000
+#define FAPI_TEST_SAP_ENG_VERSION                0x0013
 #define FAPI_DEBUG_SAP_VERSION                   0x0e00
-#define FAPI_TEST_SAP_VERSION                    0x0f00
 #define FAPI_DATA_SAP_VERSION                    0x0f00
-#define FAPI_CONTROL_SAP_VERSION                 0x0f08
+#define FAPI_TEST_SAP_VERSION                    0x0f00
+#define FAPI_CONTROL_SAP_VERSION                 0x0f0d
 
 #define FAPI_ACLPOLICY_BLACKLIST   0x0000
 #define FAPI_ACLPOLICY_WHITELIST   0x0001
@@ -1180,6 +1180,7 @@ extern "C" {
 #define FAPI_DATARATE_CTR_BEAMFORMED                  0xe008
 #define FAPI_DATARATE_CTR_FROM_AP                     0xe009
 #define FAPI_DATARATE_CTR_INVALID_RSSI                0xe00a
+#define FAPI_DATARATE_CTR_TX_ACK                      0xe00b
 
 #define FAPI_DATAUNITDESCRIPTOR_IEEE802_11_FRAME   0x0000
 #define FAPI_DATAUNITDESCRIPTOR_IEEE802_3_FRAME    0x0001
@@ -1280,6 +1281,14 @@ extern "C" {
 #define FAPI_EVENT_WIFI_EVENT_FW_DISASSOCIATION_RECEIVED              0x004d
 #define FAPI_EVENT_WIFI_EVENT_FW_DEAUTHENTICATION_SENT                0x004e
 #define FAPI_EVENT_WIFI_EVENT_FW_BTM_CANDIDATE                        0x004f
+#define FAPI_EVENT_WIFI_EVENT_NAN_NDP_REQUEST_RX                      0x0050
+#define FAPI_EVENT_WIFI_EVENT_NAN_NDP_RESPONSE_RX                     0x0051
+#define FAPI_EVENT_WIFI_EVENT_NAN_NDP_CONFIRM_RX                      0x0052
+#define FAPI_EVENT_WIFI_EVENT_NAN_NDP_INSTALL_RX                      0x0053
+#define FAPI_EVENT_WIFI_EVENT_NAN_NDP_REQUEST_TX_STATUS               0x0054
+#define FAPI_EVENT_WIFI_EVENT_NAN_NDP_RESPONSE_TX_STATUS              0x0055
+#define FAPI_EVENT_WIFI_EVENT_NAN_NDP_CONFIRM_TX_STATUS               0x0056
+#define FAPI_EVENT_WIFI_EVENT_NAN_NDP_INSTALL_TX_STATUS               0x0057
 #define FAPI_EVENT_WIFI_EVENT_BLACKOUT_START                          0x0064
 #define FAPI_EVENT_WIFI_EVENT_BLACKOUT_STOP                           0x0065
 #define FAPI_EVENT_WIFI_EVENT_NAN_PUBLISH_TERMINATED                  0x0100
@@ -1370,9 +1379,8 @@ extern "C" {
 #define FAPI_OPERATINGCLASSSET_CHINA     0x0006
 
 #define FAPI_OPTION_INLINE    0x0001
-#define FAPI_OPTION_SYSMMU    0x0002
-#define FAPI_OPTION_LINKED    0x0004
 #define FAPI_OPTION_KEYRSC    0x0008
+#define FAPI_OPTION_GROUP     0x0010
 #define FAPI_OPTION_DISCARD   0xff00
 
 #define FAPI_PACKETFILTERMODE_OPT_OUT         0x01
@@ -1392,15 +1400,22 @@ extern "C" {
 #define FAPI_POWERMANAGEMENTMODE_ACTIVE_MODE   0x0000
 #define FAPI_POWERMANAGEMENTMODE_POWER_SAVE    0x0001
 
-#define FAPI_PRIMARYCHANNELPOSITION_P0               0x00
-#define FAPI_PRIMARYCHANNELPOSITION_P1               0x01
-#define FAPI_PRIMARYCHANNELPOSITION_P2               0x02
-#define FAPI_PRIMARYCHANNELPOSITION_P3               0x03
-#define FAPI_PRIMARYCHANNELPOSITION_P4               0x04
-#define FAPI_PRIMARYCHANNELPOSITION_P5               0x05
-#define FAPI_PRIMARYCHANNELPOSITION_P6               0x06
-#define FAPI_PRIMARYCHANNELPOSITION_P7               0x07
-#define FAPI_PRIMARYCHANNELPOSITION_NOT_APPLICABLE   0x08
+#define FAPI_PRIMARYCHANNELPOSITION_P0    0x00
+#define FAPI_PRIMARYCHANNELPOSITION_P1    0x01
+#define FAPI_PRIMARYCHANNELPOSITION_P2    0x02
+#define FAPI_PRIMARYCHANNELPOSITION_P3    0x03
+#define FAPI_PRIMARYCHANNELPOSITION_P4    0x04
+#define FAPI_PRIMARYCHANNELPOSITION_P5    0x05
+#define FAPI_PRIMARYCHANNELPOSITION_P6    0x06
+#define FAPI_PRIMARYCHANNELPOSITION_P7    0x07
+#define FAPI_PRIMARYCHANNELPOSITION_P8    0x08
+#define FAPI_PRIMARYCHANNELPOSITION_P9    0x09
+#define FAPI_PRIMARYCHANNELPOSITION_P10   0x0a
+#define FAPI_PRIMARYCHANNELPOSITION_P11   0x0b
+#define FAPI_PRIMARYCHANNELPOSITION_P12   0x0c
+#define FAPI_PRIMARYCHANNELPOSITION_P13   0x0d
+#define FAPI_PRIMARYCHANNELPOSITION_P14   0x0e
+#define FAPI_PRIMARYCHANNELPOSITION_P15   0x0f
 
 #define FAPI_PRIORITY_QOS_UP0      0x0000
 #define FAPI_PRIORITY_QOS_UP1      0x0001
@@ -1494,6 +1509,7 @@ extern "C" {
 #define FAPI_REASONCODE_CONCURRENT_OPERATION_DIFFERENT_BAND          0xa003
 #define FAPI_REASONCODE_ROAMING_OR_ECSA                              0xa004
 #define FAPI_REASONCODE_BT_COEX                                      0xa005
+#define FAPI_REASONCODE_PS_DISABLE                                   0xa007
 #define FAPI_REASONCODE_WTC_REASON_MOVE_TO_CELLULAR                  0xb000
 #define FAPI_REASONCODE_WTC_REASON_UNSPECIFIED                       0xb001
 #define FAPI_REASONCODE_WTC_REASON_NOT_SUPPORTED                     0xb002
@@ -1553,6 +1569,7 @@ extern "C" {
 #define FAPI_RESULTCODE_TWT_SETUP_TIMEOUT                   0xa002
 #define FAPI_RESULTCODE_TWT_SETUP_INVALID_IE                0xa003
 #define FAPI_RESULTCODE_TWT_SETUP_PARAMS_VALUE_REJECTED     0xa004
+#define FAPI_RESULTCODE_TWT_SETUP_AP_NO_TWT_INFO            0xa005
 
 #define FAPI_ROAMINGSCAN_NONE      0x0000
 #define FAPI_ROAMINGSCAN_PARTIAL   0x0001
@@ -1614,6 +1631,9 @@ extern "C" {
 #define FAPI_RXSTARTFLAGS_VALIDATE               0x0080
 #define FAPI_RXSTARTFLAGS_HIGH_POWER_DETECT      0x0100
 #define FAPI_RXSTARTFLAGS_MEDIUM_POWER           0x0200
+#define FAPI_RXSTARTFLAGS_SMART_SENSITIVITY      0x0400
+#define FAPI_RXSTARTFLAGS_ENABLE_MIFLESS         0x0800
+#define FAPI_RXSTARTFLAGS_PCT_MODE               0x1000
 
 #define FAPI_SCANMODE_LEGACY          0x0000
 #define FAPI_SCANMODE_LOW_LATENCY     0x0001
@@ -1710,14 +1730,14 @@ extern "C" {
 #define FAPI_TXEHTSIGMCS_EHT_SIG_MCS3    0x0002
 #define FAPI_TXEHTSIGMCS_EHT_SIG_MCS15   0x0003
 
-#define FAPI_TXHEMODE_EHT_MU                0x0000
 #define FAPI_TXHEMODE_HE_SU                 0x0000
 #define FAPI_TXHEMODE_HE_ER_SU              0x0001
 #define FAPI_TXHEMODE_HE_ER_SU_10MHZ        0x0002
 #define FAPI_TXHEMODE_HE_MU_TB_STANDALONE   0x0003
 #define FAPI_TXHEMODE_HE_MU_TB              0x0004
-#define FAPI_TXHEMODE_EHT_TB_STANDALONE     0x0010
-#define FAPI_TXHEMODE_EHT_TB                0x0011
+#define FAPI_TXHEMODE_EHT_MU                0x0010
+#define FAPI_TXHEMODE_EHT_TB_STANDALONE     0x0011
+#define FAPI_TXHEMODE_EHT_TB                0x0012
 
 #define FAPI_TXREADFLAGS_NONE             0x0000
 #define FAPI_TXREADFLAGS_FRAME_COUNTING   0x0001
@@ -1749,6 +1769,10 @@ extern "C" {
 #define FAPI_TXSETPARAMSFLAGS2_DYNAMIC_BANDWIDTH   0x0010
 #define FAPI_TXSETPARAMSFLAGS2_DUPLICATE_160       0x0020
 #define FAPI_TXSETPARAMSFLAGS2_DUPLICATE_320       0x0040
+#define FAPI_TXSETPARAMSFLAGS2_FULL_PERFORMANCE    0x0080
+#define FAPI_TXSETPARAMSFLAGS2_SMART_SENSITIVITY   0x0100
+#define FAPI_TXSETPARAMSFLAGS2_ENABLE_MIFLESS      0x0200
+#define FAPI_TXSETPARAMSFLAGS2_PCT_MODE            0x0400
 
 #define FAPI_TYPEOFAIRPOWER_EIRP   0x00
 #define FAPI_TYPEOFAIRPOWER_TPO    0x01
@@ -1772,51 +1796,86 @@ extern "C" {
 #define FAPI_VIFTYPE_OFFCHANNEL   0x0021
 #define FAPI_VIFTYPE_RANGE        0x0022
 
-#define FAPI_CHANNELBANDWIDTH_BANDWIDTH_20MHZ_PRIMARYCHANNELPOSITION_P0                0x0000
-#define FAPI_CHANNELBANDWIDTH_BANDWIDTH_20MHZ_PRIMARYCHANNELPOSITION_P1                0x0001
-#define FAPI_CHANNELBANDWIDTH_BANDWIDTH_20MHZ_PRIMARYCHANNELPOSITION_P2                0x0002
-#define FAPI_CHANNELBANDWIDTH_BANDWIDTH_20MHZ_PRIMARYCHANNELPOSITION_P3                0x0003
-#define FAPI_CHANNELBANDWIDTH_BANDWIDTH_20MHZ_PRIMARYCHANNELPOSITION_P4                0x0004
-#define FAPI_CHANNELBANDWIDTH_BANDWIDTH_20MHZ_PRIMARYCHANNELPOSITION_P5                0x0005
-#define FAPI_CHANNELBANDWIDTH_BANDWIDTH_20MHZ_PRIMARYCHANNELPOSITION_P6                0x0006
-#define FAPI_CHANNELBANDWIDTH_BANDWIDTH_20MHZ_PRIMARYCHANNELPOSITION_P7                0x0007
-#define FAPI_CHANNELBANDWIDTH_BANDWIDTH_20MHZ_PRIMARYCHANNELPOSITION_NOT_APPLICABLE    0x0008
-#define FAPI_CHANNELBANDWIDTH_BANDWIDTH_40MHZ_PRIMARYCHANNELPOSITION_P0                0x0100
-#define FAPI_CHANNELBANDWIDTH_BANDWIDTH_40MHZ_PRIMARYCHANNELPOSITION_P1                0x0101
-#define FAPI_CHANNELBANDWIDTH_BANDWIDTH_40MHZ_PRIMARYCHANNELPOSITION_P2                0x0102
-#define FAPI_CHANNELBANDWIDTH_BANDWIDTH_40MHZ_PRIMARYCHANNELPOSITION_P3                0x0103
-#define FAPI_CHANNELBANDWIDTH_BANDWIDTH_40MHZ_PRIMARYCHANNELPOSITION_P4                0x0104
-#define FAPI_CHANNELBANDWIDTH_BANDWIDTH_40MHZ_PRIMARYCHANNELPOSITION_P5                0x0105
-#define FAPI_CHANNELBANDWIDTH_BANDWIDTH_40MHZ_PRIMARYCHANNELPOSITION_P6                0x0106
-#define FAPI_CHANNELBANDWIDTH_BANDWIDTH_40MHZ_PRIMARYCHANNELPOSITION_P7                0x0107
-#define FAPI_CHANNELBANDWIDTH_BANDWIDTH_40MHZ_PRIMARYCHANNELPOSITION_NOT_APPLICABLE    0x0108
-#define FAPI_CHANNELBANDWIDTH_BANDWIDTH_80MHZ_PRIMARYCHANNELPOSITION_P0                0x0200
-#define FAPI_CHANNELBANDWIDTH_BANDWIDTH_80MHZ_PRIMARYCHANNELPOSITION_P1                0x0201
-#define FAPI_CHANNELBANDWIDTH_BANDWIDTH_80MHZ_PRIMARYCHANNELPOSITION_P2                0x0202
-#define FAPI_CHANNELBANDWIDTH_BANDWIDTH_80MHZ_PRIMARYCHANNELPOSITION_P3                0x0203
-#define FAPI_CHANNELBANDWIDTH_BANDWIDTH_80MHZ_PRIMARYCHANNELPOSITION_P4                0x0204
-#define FAPI_CHANNELBANDWIDTH_BANDWIDTH_80MHZ_PRIMARYCHANNELPOSITION_P5                0x0205
-#define FAPI_CHANNELBANDWIDTH_BANDWIDTH_80MHZ_PRIMARYCHANNELPOSITION_P6                0x0206
-#define FAPI_CHANNELBANDWIDTH_BANDWIDTH_80MHZ_PRIMARYCHANNELPOSITION_P7                0x0207
-#define FAPI_CHANNELBANDWIDTH_BANDWIDTH_80MHZ_PRIMARYCHANNELPOSITION_NOT_APPLICABLE    0x0208
-#define FAPI_CHANNELBANDWIDTH_BANDWIDTH_160MHZ_PRIMARYCHANNELPOSITION_P0               0x0300
-#define FAPI_CHANNELBANDWIDTH_BANDWIDTH_160MHZ_PRIMARYCHANNELPOSITION_P1               0x0301
-#define FAPI_CHANNELBANDWIDTH_BANDWIDTH_160MHZ_PRIMARYCHANNELPOSITION_P2               0x0302
-#define FAPI_CHANNELBANDWIDTH_BANDWIDTH_160MHZ_PRIMARYCHANNELPOSITION_P3               0x0303
-#define FAPI_CHANNELBANDWIDTH_BANDWIDTH_160MHZ_PRIMARYCHANNELPOSITION_P4               0x0304
-#define FAPI_CHANNELBANDWIDTH_BANDWIDTH_160MHZ_PRIMARYCHANNELPOSITION_P5               0x0305
-#define FAPI_CHANNELBANDWIDTH_BANDWIDTH_160MHZ_PRIMARYCHANNELPOSITION_P6               0x0306
-#define FAPI_CHANNELBANDWIDTH_BANDWIDTH_160MHZ_PRIMARYCHANNELPOSITION_P7               0x0307
-#define FAPI_CHANNELBANDWIDTH_BANDWIDTH_160MHZ_PRIMARYCHANNELPOSITION_NOT_APPLICABLE   0x0308
-#define FAPI_CHANNELBANDWIDTH_BANDWIDTH_320MHZ_PRIMARYCHANNELPOSITION_P0               0x0400
-#define FAPI_CHANNELBANDWIDTH_BANDWIDTH_320MHZ_PRIMARYCHANNELPOSITION_P1               0x0401
-#define FAPI_CHANNELBANDWIDTH_BANDWIDTH_320MHZ_PRIMARYCHANNELPOSITION_P2               0x0402
-#define FAPI_CHANNELBANDWIDTH_BANDWIDTH_320MHZ_PRIMARYCHANNELPOSITION_P3               0x0403
-#define FAPI_CHANNELBANDWIDTH_BANDWIDTH_320MHZ_PRIMARYCHANNELPOSITION_P4               0x0404
-#define FAPI_CHANNELBANDWIDTH_BANDWIDTH_320MHZ_PRIMARYCHANNELPOSITION_P5               0x0405
-#define FAPI_CHANNELBANDWIDTH_BANDWIDTH_320MHZ_PRIMARYCHANNELPOSITION_P6               0x0406
-#define FAPI_CHANNELBANDWIDTH_BANDWIDTH_320MHZ_PRIMARYCHANNELPOSITION_P7               0x0407
-#define FAPI_CHANNELBANDWIDTH_BANDWIDTH_320MHZ_PRIMARYCHANNELPOSITION_NOT_APPLICABLE   0x0408
+#define FAPI_CHANNELBANDWIDTH_BANDWIDTH_20MHZ_PRIMARYCHANNELPOSITION_P0     0x0000
+#define FAPI_CHANNELBANDWIDTH_BANDWIDTH_20MHZ_PRIMARYCHANNELPOSITION_P1     0x0001
+#define FAPI_CHANNELBANDWIDTH_BANDWIDTH_20MHZ_PRIMARYCHANNELPOSITION_P2     0x0002
+#define FAPI_CHANNELBANDWIDTH_BANDWIDTH_20MHZ_PRIMARYCHANNELPOSITION_P3     0x0003
+#define FAPI_CHANNELBANDWIDTH_BANDWIDTH_20MHZ_PRIMARYCHANNELPOSITION_P4     0x0004
+#define FAPI_CHANNELBANDWIDTH_BANDWIDTH_20MHZ_PRIMARYCHANNELPOSITION_P5     0x0005
+#define FAPI_CHANNELBANDWIDTH_BANDWIDTH_20MHZ_PRIMARYCHANNELPOSITION_P6     0x0006
+#define FAPI_CHANNELBANDWIDTH_BANDWIDTH_20MHZ_PRIMARYCHANNELPOSITION_P7     0x0007
+#define FAPI_CHANNELBANDWIDTH_BANDWIDTH_20MHZ_PRIMARYCHANNELPOSITION_P8     0x0008
+#define FAPI_CHANNELBANDWIDTH_BANDWIDTH_20MHZ_PRIMARYCHANNELPOSITION_P9     0x0009
+#define FAPI_CHANNELBANDWIDTH_BANDWIDTH_20MHZ_PRIMARYCHANNELPOSITION_P10    0x000a
+#define FAPI_CHANNELBANDWIDTH_BANDWIDTH_20MHZ_PRIMARYCHANNELPOSITION_P11    0x000b
+#define FAPI_CHANNELBANDWIDTH_BANDWIDTH_20MHZ_PRIMARYCHANNELPOSITION_P12    0x000c
+#define FAPI_CHANNELBANDWIDTH_BANDWIDTH_20MHZ_PRIMARYCHANNELPOSITION_P13    0x000d
+#define FAPI_CHANNELBANDWIDTH_BANDWIDTH_20MHZ_PRIMARYCHANNELPOSITION_P14    0x000e
+#define FAPI_CHANNELBANDWIDTH_BANDWIDTH_20MHZ_PRIMARYCHANNELPOSITION_P15    0x000f
+#define FAPI_CHANNELBANDWIDTH_BANDWIDTH_40MHZ_PRIMARYCHANNELPOSITION_P0     0x0100
+#define FAPI_CHANNELBANDWIDTH_BANDWIDTH_40MHZ_PRIMARYCHANNELPOSITION_P1     0x0101
+#define FAPI_CHANNELBANDWIDTH_BANDWIDTH_40MHZ_PRIMARYCHANNELPOSITION_P2     0x0102
+#define FAPI_CHANNELBANDWIDTH_BANDWIDTH_40MHZ_PRIMARYCHANNELPOSITION_P3     0x0103
+#define FAPI_CHANNELBANDWIDTH_BANDWIDTH_40MHZ_PRIMARYCHANNELPOSITION_P4     0x0104
+#define FAPI_CHANNELBANDWIDTH_BANDWIDTH_40MHZ_PRIMARYCHANNELPOSITION_P5     0x0105
+#define FAPI_CHANNELBANDWIDTH_BANDWIDTH_40MHZ_PRIMARYCHANNELPOSITION_P6     0x0106
+#define FAPI_CHANNELBANDWIDTH_BANDWIDTH_40MHZ_PRIMARYCHANNELPOSITION_P7     0x0107
+#define FAPI_CHANNELBANDWIDTH_BANDWIDTH_40MHZ_PRIMARYCHANNELPOSITION_P8     0x0108
+#define FAPI_CHANNELBANDWIDTH_BANDWIDTH_40MHZ_PRIMARYCHANNELPOSITION_P9     0x0109
+#define FAPI_CHANNELBANDWIDTH_BANDWIDTH_40MHZ_PRIMARYCHANNELPOSITION_P10    0x010a
+#define FAPI_CHANNELBANDWIDTH_BANDWIDTH_40MHZ_PRIMARYCHANNELPOSITION_P11    0x010b
+#define FAPI_CHANNELBANDWIDTH_BANDWIDTH_40MHZ_PRIMARYCHANNELPOSITION_P12    0x010c
+#define FAPI_CHANNELBANDWIDTH_BANDWIDTH_40MHZ_PRIMARYCHANNELPOSITION_P13    0x010d
+#define FAPI_CHANNELBANDWIDTH_BANDWIDTH_40MHZ_PRIMARYCHANNELPOSITION_P14    0x010e
+#define FAPI_CHANNELBANDWIDTH_BANDWIDTH_40MHZ_PRIMARYCHANNELPOSITION_P15    0x010f
+#define FAPI_CHANNELBANDWIDTH_BANDWIDTH_80MHZ_PRIMARYCHANNELPOSITION_P0     0x0200
+#define FAPI_CHANNELBANDWIDTH_BANDWIDTH_80MHZ_PRIMARYCHANNELPOSITION_P1     0x0201
+#define FAPI_CHANNELBANDWIDTH_BANDWIDTH_80MHZ_PRIMARYCHANNELPOSITION_P2     0x0202
+#define FAPI_CHANNELBANDWIDTH_BANDWIDTH_80MHZ_PRIMARYCHANNELPOSITION_P3     0x0203
+#define FAPI_CHANNELBANDWIDTH_BANDWIDTH_80MHZ_PRIMARYCHANNELPOSITION_P4     0x0204
+#define FAPI_CHANNELBANDWIDTH_BANDWIDTH_80MHZ_PRIMARYCHANNELPOSITION_P5     0x0205
+#define FAPI_CHANNELBANDWIDTH_BANDWIDTH_80MHZ_PRIMARYCHANNELPOSITION_P6     0x0206
+#define FAPI_CHANNELBANDWIDTH_BANDWIDTH_80MHZ_PRIMARYCHANNELPOSITION_P7     0x0207
+#define FAPI_CHANNELBANDWIDTH_BANDWIDTH_80MHZ_PRIMARYCHANNELPOSITION_P8     0x0208
+#define FAPI_CHANNELBANDWIDTH_BANDWIDTH_80MHZ_PRIMARYCHANNELPOSITION_P9     0x0209
+#define FAPI_CHANNELBANDWIDTH_BANDWIDTH_80MHZ_PRIMARYCHANNELPOSITION_P10    0x020a
+#define FAPI_CHANNELBANDWIDTH_BANDWIDTH_80MHZ_PRIMARYCHANNELPOSITION_P11    0x020b
+#define FAPI_CHANNELBANDWIDTH_BANDWIDTH_80MHZ_PRIMARYCHANNELPOSITION_P12    0x020c
+#define FAPI_CHANNELBANDWIDTH_BANDWIDTH_80MHZ_PRIMARYCHANNELPOSITION_P13    0x020d
+#define FAPI_CHANNELBANDWIDTH_BANDWIDTH_80MHZ_PRIMARYCHANNELPOSITION_P14    0x020e
+#define FAPI_CHANNELBANDWIDTH_BANDWIDTH_80MHZ_PRIMARYCHANNELPOSITION_P15    0x020f
+#define FAPI_CHANNELBANDWIDTH_BANDWIDTH_160MHZ_PRIMARYCHANNELPOSITION_P0    0x0300
+#define FAPI_CHANNELBANDWIDTH_BANDWIDTH_160MHZ_PRIMARYCHANNELPOSITION_P1    0x0301
+#define FAPI_CHANNELBANDWIDTH_BANDWIDTH_160MHZ_PRIMARYCHANNELPOSITION_P2    0x0302
+#define FAPI_CHANNELBANDWIDTH_BANDWIDTH_160MHZ_PRIMARYCHANNELPOSITION_P3    0x0303
+#define FAPI_CHANNELBANDWIDTH_BANDWIDTH_160MHZ_PRIMARYCHANNELPOSITION_P4    0x0304
+#define FAPI_CHANNELBANDWIDTH_BANDWIDTH_160MHZ_PRIMARYCHANNELPOSITION_P5    0x0305
+#define FAPI_CHANNELBANDWIDTH_BANDWIDTH_160MHZ_PRIMARYCHANNELPOSITION_P6    0x0306
+#define FAPI_CHANNELBANDWIDTH_BANDWIDTH_160MHZ_PRIMARYCHANNELPOSITION_P7    0x0307
+#define FAPI_CHANNELBANDWIDTH_BANDWIDTH_160MHZ_PRIMARYCHANNELPOSITION_P8    0x0308
+#define FAPI_CHANNELBANDWIDTH_BANDWIDTH_160MHZ_PRIMARYCHANNELPOSITION_P9    0x0309
+#define FAPI_CHANNELBANDWIDTH_BANDWIDTH_160MHZ_PRIMARYCHANNELPOSITION_P10   0x030a
+#define FAPI_CHANNELBANDWIDTH_BANDWIDTH_160MHZ_PRIMARYCHANNELPOSITION_P11   0x030b
+#define FAPI_CHANNELBANDWIDTH_BANDWIDTH_160MHZ_PRIMARYCHANNELPOSITION_P12   0x030c
+#define FAPI_CHANNELBANDWIDTH_BANDWIDTH_160MHZ_PRIMARYCHANNELPOSITION_P13   0x030d
+#define FAPI_CHANNELBANDWIDTH_BANDWIDTH_160MHZ_PRIMARYCHANNELPOSITION_P14   0x030e
+#define FAPI_CHANNELBANDWIDTH_BANDWIDTH_160MHZ_PRIMARYCHANNELPOSITION_P15   0x030f
+#define FAPI_CHANNELBANDWIDTH_BANDWIDTH_320MHZ_PRIMARYCHANNELPOSITION_P0    0x0400
+#define FAPI_CHANNELBANDWIDTH_BANDWIDTH_320MHZ_PRIMARYCHANNELPOSITION_P1    0x0401
+#define FAPI_CHANNELBANDWIDTH_BANDWIDTH_320MHZ_PRIMARYCHANNELPOSITION_P2    0x0402
+#define FAPI_CHANNELBANDWIDTH_BANDWIDTH_320MHZ_PRIMARYCHANNELPOSITION_P3    0x0403
+#define FAPI_CHANNELBANDWIDTH_BANDWIDTH_320MHZ_PRIMARYCHANNELPOSITION_P4    0x0404
+#define FAPI_CHANNELBANDWIDTH_BANDWIDTH_320MHZ_PRIMARYCHANNELPOSITION_P5    0x0405
+#define FAPI_CHANNELBANDWIDTH_BANDWIDTH_320MHZ_PRIMARYCHANNELPOSITION_P6    0x0406
+#define FAPI_CHANNELBANDWIDTH_BANDWIDTH_320MHZ_PRIMARYCHANNELPOSITION_P7    0x0407
+#define FAPI_CHANNELBANDWIDTH_BANDWIDTH_320MHZ_PRIMARYCHANNELPOSITION_P8    0x0408
+#define FAPI_CHANNELBANDWIDTH_BANDWIDTH_320MHZ_PRIMARYCHANNELPOSITION_P9    0x0409
+#define FAPI_CHANNELBANDWIDTH_BANDWIDTH_320MHZ_PRIMARYCHANNELPOSITION_P10   0x040a
+#define FAPI_CHANNELBANDWIDTH_BANDWIDTH_320MHZ_PRIMARYCHANNELPOSITION_P11   0x040b
+#define FAPI_CHANNELBANDWIDTH_BANDWIDTH_320MHZ_PRIMARYCHANNELPOSITION_P12   0x040c
+#define FAPI_CHANNELBANDWIDTH_BANDWIDTH_320MHZ_PRIMARYCHANNELPOSITION_P13   0x040d
+#define FAPI_CHANNELBANDWIDTH_BANDWIDTH_320MHZ_PRIMARYCHANNELPOSITION_P14   0x040e
+#define FAPI_CHANNELBANDWIDTH_BANDWIDTH_320MHZ_PRIMARYCHANNELPOSITION_P15   0x040f
 
 #define MA_UNITDATA_REQ                       0x1000
 #define MA_SPARE_1_REQ                        0x1002
@@ -1897,7 +1956,7 @@ extern "C" {
 #define MLME_SET_SCAN_MODE_REQ                0x203c
 #define MLME_INSTALL_APF_REQ                  0x203d
 #define MLME_READ_APF_REQ                     0x203e
-#define MLME_SET_NUM_ANTENNAS_REQ             0x203f
+#define MLME_SET_NUM_RX_ANTENNAS_REQ          0x203f
 #define MLME_ARP_DETECT_REQ                   0x2040
 #define MLME_SET_ROAMING_TYPE_REQ             0x2041
 #define MLME_SET_BAND_REQ                     0x2042
@@ -1906,13 +1965,13 @@ extern "C" {
 #define MLME_ROAMING_STATE_REQ                0x2045
 #define MLME_SET_ADPS_STATE_REQ               0x2046
 #define MLME_CONFIGURE_MONITOR_MODE_REQ       0x2047
-#define MLME_SPARE_9_REQ                      0x2048
-#define MLME_SPARE_10_REQ                     0x2049
+#define MLME_CAPABILITY_REQ                   0x2048
+#define MLME_OPERATION_REQ                    0x2049
 #define MLME_SPARE_11_REQ                     0x204a
 #define MLME_NAN_RANGE_REQ                    0x204b
 #define MLME_NAN_RANGE_CANCEL_REQ             0x204c
 #define MLME_DELBA_REQ                        0x204d
-#define MLME_GET_NUM_ANTENNAS_REQ             0x204e
+#define MLME_GET_NUM_RX_ANTENNAS_REQ          0x204e
 #define MLME_START_DETECT_REQ                 0x204f
 #define MLME_SPARE_12_REQ                     0x2050
 #define MLME_SPARE_13_REQ                     0x2051
@@ -1931,9 +1990,13 @@ extern "C" {
 #define MLME_SCHEDULED_PM_GET_STATUS_REQ      0x205e
 #define MLME_DELAYED_WAKEUP_REQ               0x205f
 #define MLME_SCHEDULED_PM_LEAKY_AP_DETECT_REQ 0x2060
-#define MLME_SPARE_SIGNAL_1_REQ               0x2061
-#define MLME_SPARE_SIGNAL_2_REQ               0x2062
-#define MLME_SPARE_SIGNAL_3_REQ               0x2063
+#define MLME_SET_TDLS_STATE_REQ               0x2061
+#define MLME_SET_NUM_TX_ANTENNAS_REQ          0x2062
+#define MLME_SET_ELNA_BYPASS_REQ              0x2063
+#define MLME_SET_MAX_TX_POWER_REQ             0x2064
+#define MLME_SPARE_SIGNAL_1_REQ               0x2065
+#define MLME_SPARE_SIGNAL_2_REQ               0x2066
+#define MLME_SPARE_SIGNAL_3_REQ               0x2067
 #define MLME_GET_CFM                          0x2101
 #define MLME_SET_CFM                          0x2102
 #define MLME_POWERMGT_CFM                     0x2103
@@ -1986,7 +2049,7 @@ extern "C" {
 #define MLME_SET_SCAN_MODE_CFM                0x213c
 #define MLME_INSTALL_APF_CFM                  0x213d
 #define MLME_READ_APF_CFM                     0x213e
-#define MLME_SET_NUM_ANTENNAS_CFM             0x213f
+#define MLME_SET_NUM_RX_ANTENNAS_CFM          0x213f
 #define MLME_ARP_DETECT_CFM                   0x2140
 #define MLME_SET_ROAMING_TYPE_CFM             0x2141
 #define MLME_SET_BAND_CFM                     0x2142
@@ -1995,13 +2058,13 @@ extern "C" {
 #define MLME_ROAMING_STATE_CFM                0x2145
 #define MLME_SET_ADPS_STATE_CFM               0x2146
 #define MLME_CONFIGURE_MONITOR_MODE_CFM       0x2147
-#define MLME_SPARE_9_CFM                      0x2148
-#define MLME_SPARE_10_CFM                     0x2149
+#define MLME_CAPABILITY_CFM                   0x2148
+#define MLME_OPERATION_CFM                    0x2149
 #define MLME_SPARE_11_CFM                     0x214a
 #define MLME_NAN_RANGE_CFM                    0x214b
 #define MLME_NAN_RANGE_CANCEL_CFM             0x214c
 #define MLME_DELBA_CFM                        0x214d
-#define MLME_GET_NUM_ANTENNAS_CFM             0x214e
+#define MLME_GET_NUM_RX_ANTENNAS_CFM          0x214e
 #define MLME_START_DETECT_CFM                 0x214f
 #define MLME_SPARE_12_CFM                     0x2150
 #define MLME_SPARE_13_CFM                     0x2151
@@ -2020,9 +2083,13 @@ extern "C" {
 #define MLME_SCHEDULED_PM_GET_STATUS_CFM      0x215e
 #define MLME_DELAYED_WAKEUP_CFM               0x215f
 #define MLME_SCHEDULED_PM_LEAKY_AP_DETECT_CFM 0x2160
-#define MLME_SPARE_SIGNAL_1_CFM               0x2161
-#define MLME_SPARE_SIGNAL_2_CFM               0x2162
-#define MLME_SPARE_SIGNAL_3_CFM               0x2163
+#define MLME_SET_TDLS_STATE_CFM               0x2161
+#define MLME_SET_NUM_TX_ANTENNAS_CFM          0x2162
+#define MLME_SET_ELNA_BYPASS_CFM              0x2163
+#define MLME_SET_MAX_TX_POWER_CFM             0x2164
+#define MLME_SPARE_SIGNAL_1_CFM               0x2165
+#define MLME_SPARE_SIGNAL_2_CFM               0x2166
+#define MLME_SPARE_SIGNAL_3_CFM               0x2167
 #define MLME_CONNECT_RES                      0x2200
 #define MLME_CONNECTED_RES                    0x2201
 #define MLME_REASSOCIATE_RES                  0x2202
@@ -2144,8 +2211,7 @@ extern "C" {
 #define TEST_START_WLANLITE_REQ               0x9020
 #define TEST_SPARE_2_REQ                      0x9021
 #define TEST_SPARE_3_REQ                      0x9022
-#define PHY_EVENT_LOGGING_REQ                 0x9023
-#define TEST_SPARE_4_REQ                      0x9024
+#define WLANLITE_FREQ_OFFSET_CAL_READ_REQ     0x9024
 #define TEST_SPARE_SIGNAL_1_REQ               0x9025
 #define TEST_SPARE_SIGNAL_2_REQ               0x9026
 #define TEST_SPARE_SIGNAL_3_REQ               0x9027
@@ -2174,8 +2240,7 @@ extern "C" {
 #define TEST_START_WLANLITE_CFM               0x9117
 #define TEST_SPARE_2_CFM                      0x9118
 #define TEST_SPARE_3_CFM                      0x9119
-#define PHY_EVENT_LOGGING_CFM                 0x911a
-#define TEST_SPARE_4_CFM                      0x911b
+#define WLANLITE_FREQ_OFFSET_CAL_READ_CFM     0x911b
 #define TEST_SPARE_SIGNAL_1_CFM               0x911c
 #define TEST_SPARE_SIGNAL_2_CFM               0x911d
 #define TEST_SPARE_SIGNAL_3_CFM               0x911e
@@ -2193,10 +2258,9 @@ extern "C" {
 #define TEST_SPARE_1_IND                      0x9305
 #define TEST_SPARE_2_IND                      0x9306
 #define TEST_SPARE_3_IND                      0x9307
-#define PHY_EVENT_LOGGING_IND                 0x9308
-#define TEST_SPARE_SIGNAL_1_IND               0x9309
-#define TEST_SPARE_SIGNAL_2_IND               0x930a
-#define TEST_SPARE_SIGNAL_3_IND               0x930b
+#define TEST_SPARE_SIGNAL_1_IND               0x9308
+#define TEST_SPARE_SIGNAL_2_IND               0x9309
+#define TEST_SPARE_SIGNAL_3_IND               0x930a
 
 struct fapi_signal_header {
 	__le16 id;
@@ -2907,7 +2971,7 @@ struct fapi_signal {
 			__le32 spare_2;
 			__le32 spare_3;
 			u8     dr[0];
-		} __packed mlme_set_num_antennas_req;
+		} __packed mlme_set_num_rx_antennas_req;
 		struct {
 			__le16 vif;
 			__le16 arp_detect_action;
@@ -2978,14 +3042,14 @@ struct fapi_signal {
 			__le32 spare_2;
 			__le32 spare_3;
 			u8     dr[0];
-		} __packed mlme_spare_9_req;
+		} __packed mlme_capability_req;
 		struct {
 			__le16 vif;
 			__le32 spare_1;
 			__le32 spare_2;
 			__le32 spare_3;
 			u8     dr[0];
-		} __packed mlme_spare_10_req;
+		} __packed mlme_operation_req;
 		struct {
 			__le16 vif;
 			__le32 spare_1;
@@ -3025,7 +3089,7 @@ struct fapi_signal {
 			__le32 spare_2;
 			__le32 spare_3;
 			u8     dr[0];
-		} __packed mlme_get_num_antennas_req;
+		} __packed mlme_get_num_rx_antennas_req;
 		struct {
 			__le16 vif;
 			__le32 spare_1;
@@ -3197,6 +3261,43 @@ struct fapi_signal {
 			__le32 spare_3;
 			u8     dr[0];
 		} __packed mlme_scheduled_pm_leaky_ap_detect_req;
+		struct {
+			__le16 vif;
+			__le16 tdls_enabled;
+			__le32 spare_1;
+			__le32 spare_2;
+			__le32 spare_3;
+			u8     dr[0];
+		} __packed mlme_set_tdls_state_req;
+		struct {
+			__le16 vif;
+			__le16 antenna_selection;
+			__le32 spare_1;
+			__le32 spare_2;
+			__le32 spare_3;
+			u8     dr[0];
+		} __packed mlme_set_num_tx_antennas_req;
+		struct {
+			__le16 vif;
+			__le16 elna_setting;
+			__le32 spare_1;
+			__le32 spare_2;
+			__le32 spare_3;
+			u8     dr[0];
+		} __packed mlme_set_elna_bypass_req;
+		struct {
+			__le16 vif;
+			u8     max_power2g4ant1;
+			u8     max_power5g_ant1;
+			u8     max_power6g_ant1;
+			u8     max_power2g4ant2;
+			u8     max_power5g_ant2;
+			u8     max_power6g_ant2;
+			__le32 spare_1;
+			__le32 spare_2;
+			__le32 spare_3;
+			u8     dr[0];
+		} __packed mlme_set_max_tx_power_req;
 		struct {
 			__le16 vif;
 			__le32 spare_1;
@@ -3698,7 +3799,7 @@ struct fapi_signal {
 			__le32 spare_2;
 			__le32 spare_3;
 			u8     dr[0];
-		} __packed mlme_set_num_antennas_cfm;
+		} __packed mlme_set_num_rx_antennas_cfm;
 		struct {
 			__le16 vif;
 			__le16 result_code;
@@ -3779,7 +3880,7 @@ struct fapi_signal {
 			__le32 spare_2;
 			__le32 spare_3;
 			u8     dr[0];
-		} __packed mlme_spare_9_cfm;
+		} __packed mlme_capability_cfm;
 		struct {
 			__le16 vif;
 			__le16 result_code;
@@ -3788,7 +3889,7 @@ struct fapi_signal {
 			__le32 spare_2;
 			__le32 spare_3;
 			u8     dr[0];
-		} __packed mlme_spare_10_cfm;
+		} __packed mlme_operation_cfm;
 		struct {
 			__le16 vif;
 			__le16 result_code;
@@ -3834,7 +3935,7 @@ struct fapi_signal {
 			__le32 spare_2;
 			__le32 spare_3;
 			u8     dr[0];
-		} __packed mlme_get_num_antennas_cfm;
+		} __packed mlme_get_num_rx_antennas_cfm;
 		struct {
 			__le16 vif;
 			__le16 result_code;
@@ -4005,6 +4106,42 @@ struct fapi_signal {
 			__le32 spare_3;
 			u8     dr[0];
 		} __packed mlme_scheduled_pm_leaky_ap_detect_cfm;
+		struct {
+			__le16 vif;
+			__le16 result_code;
+			__le32 timestamp;
+			__le32 spare_1;
+			__le32 spare_2;
+			__le32 spare_3;
+			u8     dr[0];
+		} __packed mlme_set_tdls_state_cfm;
+		struct {
+			__le16 vif;
+			__le16 result_code;
+			__le32 timestamp;
+			__le32 spare_1;
+			__le32 spare_2;
+			__le32 spare_3;
+			u8     dr[0];
+		} __packed mlme_set_num_tx_antennas_cfm;
+		struct {
+			__le16 vif;
+			__le16 result_code;
+			__le32 timestamp;
+			__le32 spare_1;
+			__le32 spare_2;
+			__le32 spare_3;
+			u8     dr[0];
+		} __packed mlme_set_elna_bypass_cfm;
+		struct {
+			__le16 vif;
+			__le16 result_code;
+			__le32 timestamp;
+			__le32 spare_1;
+			__le32 spare_2;
+			__le32 spare_3;
+			u8     dr[0];
+		} __packed mlme_set_max_tx_power_cfm;
 		struct {
 			__le16 vif;
 			__le16 result_code;
@@ -4842,9 +4979,8 @@ struct fapi_signal {
 			__le32 freq1;
 			__le32 freq2;
 			__le16 phase;
-			u8     channel_width;
-			u8     spare_0;
-			__le16 spare_1;
+			__le16 channel_width;
+			__le16 mac_id;
 			__le32 spare_2;
 			__le32 spare_3;
 			u8     dr[0];
@@ -4864,7 +5000,7 @@ struct fapi_signal {
 			__le32 interval;
 			__le16 flags;
 			__le16 aid;
-			__le16 spare_0;
+			__le16 freq2;
 			__le16 regulatory_domain;
 			__le16 flags2;
 			__le16 he_mode;
@@ -4872,9 +5008,11 @@ struct fapi_signal {
 			__le16 he_ltf;
 			__le16 timeout_radio_remain_on;
 			__le16 mac_id;
-			__le32 spare_1;
+			__le16 eht_sig_mcs;
+			__le16 eht_puncturing;
+			__le16 color;
+			__le16 spare_1;
 			__le32 spare_2;
-			__le32 spare_3;
 			u8     dr[0];
 		} __packed wlanlite_tx_set_params_req;
 		struct {
@@ -4914,9 +5052,10 @@ struct fapi_signal {
 			__le16 regulatory_domain;
 			__le16 type_subtype_filter;
 			__le16 mac_id;
+			__le16 freq2;
+			__le16 color;
 			__le32 spare_1;
 			__le32 spare_2;
-			__le32 spare_3;
 			u8     dr[0];
 		} __packed wlanlite_rx_start_req;
 		struct {
@@ -5105,30 +5244,12 @@ struct fapi_signal {
 			u8     dr[0];
 		} __packed test_spare_3_req;
 		struct {
-			__le32 command_type;
-			__le16 event_mask_word0;
-			__le16 event_mask_word1;
-			__le16 event_mask_word2;
-			__le16 event_mask_word3;
-			__le16 options;
-			__le32 event_count_ctrl_trigger03;
-			__le32 event_count_ctrl_trigger47;
-			__le16 event_match0;
-			__le16 event_match1;
-			__le16 event_match2;
-			__le16 event_match3;
-			__le32 spare_1;
+			__le16 spare_1;
 			__le32 spare_2;
 			__le32 spare_3;
+			__le32 spare_4;
 			u8     dr[0];
-		} __packed phy_event_logging_req;
-		struct {
-			__le16 vif;
-			__le32 spare_1;
-			__le32 spare_2;
-			__le32 spare_3;
-			u8     dr[0];
-		} __packed test_spare_4_req;
+		} __packed wlanlite_freq_offset_cal_read_req;
 		struct {
 			__le16 vif;
 			__le32 spare_1;
@@ -5370,19 +5491,12 @@ struct fapi_signal {
 		} __packed test_spare_3_cfm;
 		struct {
 			__le16 result_code;
-			__le32 spare_1;
+			__le32 freq_offset_cal;
+			__le32 temperature;
+			__le16 spare_1;
 			__le32 spare_2;
-			__le32 spare_3;
 			u8     dr[0];
-		} __packed phy_event_logging_cfm;
-		struct {
-			__le16 vif;
-			__le16 result_code;
-			__le32 spare_1;
-			__le32 spare_2;
-			__le32 spare_3;
-			u8     dr[0];
-		} __packed test_spare_4_cfm;
+		} __packed wlanlite_freq_offset_cal_read_cfm;
 		struct {
 			__le16 vif;
 			__le16 result_code;
@@ -5538,15 +5652,6 @@ struct fapi_signal {
 			__le32 spare_3;
 			u8     dr[0];
 		} __packed test_spare_3_ind;
-		struct {
-			__le32 command_type;
-			__le32 sequence_number;
-			__le32 more_data;
-			__le32 spare_1;
-			__le32 spare_2;
-			__le32 spare_3;
-			u8     dr[0];
-		} __packed phy_event_logging_ind;
 		struct {
 			__le16 vif;
 			__le32 spare_1;
@@ -5704,7 +5809,7 @@ static inline u16 fapi_get_expected_size(struct sk_buff *skb)
 		fapi_sig_size(mlme_set_scan_mode_req),
 		fapi_sig_size(mlme_install_apf_req),
 		fapi_sig_size(mlme_read_apf_req),
-		fapi_sig_size(mlme_set_num_antennas_req),
+		fapi_sig_size(mlme_set_num_rx_antennas_req),
 		fapi_sig_size(mlme_arp_detect_req),
 		fapi_sig_size(mlme_set_roaming_type_req),
 		fapi_sig_size(mlme_set_band_req),
@@ -5713,13 +5818,13 @@ static inline u16 fapi_get_expected_size(struct sk_buff *skb)
 		fapi_sig_size(mlme_roaming_state_req),
 		fapi_sig_size(mlme_set_adps_state_req),
 		fapi_sig_size(mlme_configure_monitor_mode_req),
-		fapi_sig_size(mlme_spare_9_req),
-		fapi_sig_size(mlme_spare_10_req),
+		fapi_sig_size(mlme_capability_req),
+		fapi_sig_size(mlme_operation_req),
 		fapi_sig_size(mlme_spare_11_req),
 		fapi_sig_size(mlme_nan_range_req),
 		fapi_sig_size(mlme_nan_range_cancel_req),
 		fapi_sig_size(mlme_delba_req),
-		fapi_sig_size(mlme_get_num_antennas_req),
+		fapi_sig_size(mlme_get_num_rx_antennas_req),
 		fapi_sig_size(mlme_start_detect_req),
 		fapi_sig_size(mlme_spare_12_req),
 		fapi_sig_size(mlme_spare_13_req),
@@ -5738,6 +5843,10 @@ static inline u16 fapi_get_expected_size(struct sk_buff *skb)
 		fapi_sig_size(mlme_scheduled_pm_get_status_req),
 		fapi_sig_size(mlme_delayed_wakeup_req),
 		fapi_sig_size(mlme_scheduled_pm_leaky_ap_detect_req),
+		fapi_sig_size(mlme_set_tdls_state_req),
+		fapi_sig_size(mlme_set_num_tx_antennas_req),
+		fapi_sig_size(mlme_set_elna_bypass_req),
+		fapi_sig_size(mlme_set_max_tx_power_req),
 		fapi_sig_size(mlme_spare_signal_1_req),
 		fapi_sig_size(mlme_spare_signal_2_req),
 		fapi_sig_size(mlme_spare_signal_3_req),
@@ -5788,8 +5897,8 @@ static inline u16 fapi_get_expected_size(struct sk_buff *skb)
 		fapi_sig_size(test_start_wlanlite_req),
 		fapi_sig_size(test_spare_2_req),
 		fapi_sig_size(test_spare_3_req),
-		fapi_sig_size(phy_event_logging_req),
-		fapi_sig_size(test_spare_4_req),
+		0,
+		fapi_sig_size(wlanlite_freq_offset_cal_read_req),
 		fapi_sig_size(test_spare_signal_1_req),
 		fapi_sig_size(test_spare_signal_2_req),
 		fapi_sig_size(test_spare_signal_3_req),
@@ -5858,7 +5967,7 @@ static inline u16 fapi_get_expected_size(struct sk_buff *skb)
 		fapi_sig_size(mlme_set_scan_mode_cfm),
 		fapi_sig_size(mlme_install_apf_cfm),
 		fapi_sig_size(mlme_read_apf_cfm),
-		fapi_sig_size(mlme_set_num_antennas_cfm),
+		fapi_sig_size(mlme_set_num_rx_antennas_cfm),
 		fapi_sig_size(mlme_arp_detect_cfm),
 		fapi_sig_size(mlme_set_roaming_type_cfm),
 		fapi_sig_size(mlme_set_band_cfm),
@@ -5867,13 +5976,13 @@ static inline u16 fapi_get_expected_size(struct sk_buff *skb)
 		fapi_sig_size(mlme_roaming_state_cfm),
 		fapi_sig_size(mlme_set_adps_state_cfm),
 		fapi_sig_size(mlme_configure_monitor_mode_cfm),
-		fapi_sig_size(mlme_spare_9_cfm),
-		fapi_sig_size(mlme_spare_10_cfm),
+		fapi_sig_size(mlme_capability_cfm),
+		fapi_sig_size(mlme_operation_cfm),
 		fapi_sig_size(mlme_spare_11_cfm),
 		fapi_sig_size(mlme_nan_range_cfm),
 		fapi_sig_size(mlme_nan_range_cancel_cfm),
 		fapi_sig_size(mlme_delba_cfm),
-		fapi_sig_size(mlme_get_num_antennas_cfm),
+		fapi_sig_size(mlme_get_num_rx_antennas_cfm),
 		fapi_sig_size(mlme_start_detect_cfm),
 		fapi_sig_size(mlme_spare_12_cfm),
 		fapi_sig_size(mlme_spare_13_cfm),
@@ -5892,6 +6001,10 @@ static inline u16 fapi_get_expected_size(struct sk_buff *skb)
 		fapi_sig_size(mlme_scheduled_pm_get_status_cfm),
 		fapi_sig_size(mlme_delayed_wakeup_cfm),
 		fapi_sig_size(mlme_scheduled_pm_leaky_ap_detect_cfm),
+		fapi_sig_size(mlme_set_tdls_state_cfm),
+		fapi_sig_size(mlme_set_num_tx_antennas_cfm),
+		fapi_sig_size(mlme_set_elna_bypass_cfm),
+		fapi_sig_size(mlme_set_max_tx_power_cfm),
 		fapi_sig_size(mlme_spare_signal_1_cfm),
 		fapi_sig_size(mlme_spare_signal_2_cfm),
 		fapi_sig_size(mlme_spare_signal_3_cfm),
@@ -5933,8 +6046,8 @@ static inline u16 fapi_get_expected_size(struct sk_buff *skb)
 		fapi_sig_size(test_start_wlanlite_cfm),
 		fapi_sig_size(test_spare_2_cfm),
 		fapi_sig_size(test_spare_3_cfm),
-		fapi_sig_size(phy_event_logging_cfm),
-		fapi_sig_size(test_spare_4_cfm),
+		0,
+		fapi_sig_size(wlanlite_freq_offset_cal_read_cfm),
 		fapi_sig_size(test_spare_signal_1_cfm),
 		fapi_sig_size(test_spare_signal_2_cfm),
 		fapi_sig_size(test_spare_signal_3_cfm),
@@ -6028,7 +6141,6 @@ static inline u16 fapi_get_expected_size(struct sk_buff *skb)
 		fapi_sig_size(test_spare_1_ind),
 		fapi_sig_size(test_spare_2_ind),
 		fapi_sig_size(test_spare_3_ind),
-		fapi_sig_size(phy_event_logging_ind),
 		fapi_sig_size(test_spare_signal_1_ind),
 		fapi_sig_size(test_spare_signal_2_ind),
 		fapi_sig_size(test_spare_signal_3_ind),

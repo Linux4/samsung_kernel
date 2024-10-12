@@ -152,7 +152,7 @@ static int dwc3_exynos_clk_get(struct dwc3_exynos *exynos)
 	clk_ids[clk_count] = NULL;
 
 	exynos->clocks = (struct clk **) devm_kmalloc(exynos->dev,
-			clk_count * sizeof(struct clk *), GFP_KERNEL);
+			(clk_count + 1)  * sizeof(struct clk *), GFP_KERNEL);
 	if (!exynos->clocks) {
 		dev_err(exynos->dev, "%s: couldn't alloc\n", __func__);
 		return -ENOMEM;
@@ -692,6 +692,27 @@ int dwc3_exynos_vbus_event(struct device *dev, bool vbus_active)
 	return 0;
 }
 EXPORT_SYMBOL_GPL(dwc3_exynos_vbus_event);
+
+int dwc3_gadget_speed(struct device *dev)
+{
+	struct dwc3_exynos	*exynos;
+	struct usb_gadget	*gadget;
+
+	exynos = dev_get_drvdata(dev);
+	if (!exynos) {
+		dev_err(dev, "%s: exynos is NULL!!\n", __func__);
+		return 0;
+	}
+
+	gadget = exynos->dwc->gadget;
+	if (!gadget) {
+		dev_err(dev, "%s: gadget is NULL!!\n", __func__);
+		return 0;
+	}
+
+	return gadget->speed;
+}
+EXPORT_SYMBOL(dwc3_gadget_speed);
 
 /**
  * dwc3_exynos_phy_enable - received combo phy control.

@@ -67,7 +67,7 @@ static struct panel_resol nt36672c_m14x_00_default_resol[] = {
 	}
 };
 
-#if defined(CONFIG_PANEL_DISPLAY_MODE)
+#if defined(CONFIG_USDM_PANEL_DISPLAY_MODE)
 static struct common_panel_display_mode nt36672c_m14x_00_display_mode[] = {
 	/* FHD */
 	[NT36672C_M14X_00_DISPLAY_MODE_1080x2408_90HS] = {
@@ -91,5 +91,5 @@ static struct common_panel_display_modes nt36672c_m14x_00_display_modes = {
 	.num_modes = ARRAY_SIZE(nt36672c_m14x_00_display_mode_array),
 	.modes = (struct common_panel_display_mode **)&nt36672c_m14x_00_display_mode_array,
 };
-#endif /* CONFIG_PANEL_DISPLAY_MODE */
+#endif /* CONFIG_USDM_PANEL_DISPLAY_MODE */
 #endif /* __NT36672C_M14X_00_RESOL_H__ */

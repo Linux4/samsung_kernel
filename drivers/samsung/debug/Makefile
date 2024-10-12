@@ -28,3 +28,6 @@ obj-$(CONFIG_SEC_DEBUG_HARDLOCKUP_INFO)		+= sec_debug_hardlockup_info.o
 obj-$(CONFIG_SEC_DEBUG_COREDUMP)		+= sec_debug_coredump.o
 obj-$(CONFIG_SEC_DEBUG_WATCHPOINT)		+= sec_debug_watcher.o
 obj-$(CONFIG_SEC_DEBUG_SCHED_REPORT)		+= sec_debug_sched_report.o
+obj-$(CONFIG_SEC_DEBUG_BSPINFO)		+= sec_debug_bspinfo_built.o
+obj-$(CONFIG_SEC_DEBUG_SOFTIRQ_INFO)		+= sec_debug_softirq_built.o
+obj-$(CONFIG_SEC_DEBUG_CURRENT_TASKS)		+= sec_debug_cur_tasks_built.o

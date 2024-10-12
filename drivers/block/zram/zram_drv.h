@@ -118,7 +118,7 @@ struct zram_stats {
 
 #ifdef CONFIG_ZRAM_LRU_WRITEBACK
 #define ZRAM_WB_THRESHOLD 32
-#define NR_ZWBS 16
+#define NR_ZWBS 64
 #define NR_FALLOC_PAGES 512
 #define FALLOC_ALIGN_MASK (~(NR_FALLOC_PAGES - 1))
 struct zram_wb_header {
@@ -132,9 +132,11 @@ struct zram_wb_work {
 	struct page *dst_page;
 	struct bio *bio;
 	struct bio *bio_chain;
+	struct zram_writeback_buffer *buf;
 	struct zram *zram;
 	unsigned long handle;
 	int nr_pages;
+	bool ppr;
 };
 
 struct zram_wb_entry {
@@ -204,6 +206,8 @@ struct zram {
 	spinlock_t bitmap_lock;
 	unsigned long *blk_bitmap;
 	struct mutex blk_bitmap_lock;
+	unsigned long *read_req_bitmap;
+	struct zram_writeback_buffer *buf;
 #endif
 };
 #endif

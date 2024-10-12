@@ -39,8 +39,6 @@
 #include "../../../../battery/common/sec_charging_common.h"
 #endif
 
-void usbpd_manager_select_pdo_cancel(struct device *dev);
-
 #if IS_ENABLED(CONFIG_BATTERY_SAMSUNG) && IS_ENABLED(CONFIG_USB_TYPEC_MANAGER_NOTIFIER)
 extern void select_pdo(int num);
 void usbpd_manager_select_pdo(int num);
@@ -199,7 +197,7 @@ void usbpd_manager_select_pdo(int num)
 		pd_data->pd_noti.sink_status.selected_pdo_num = num;
 	pr_info(" %s : PDO(%d) is selected to change\n", __func__, pd_data->pd_noti.sink_status.selected_pdo_num);
 
-	schedule_delayed_work(&manager->select_pdo_handler, msecs_to_jiffies(50));
+	usbpd_manager_inform_event(pd_data->pd_noti.pusbpd, MANAGER_NEW_POWER_SRC);
 exit:
 	mutex_unlock(&manager->pdo_mutex);
 }
@@ -274,7 +272,6 @@ int usbpd_manager_select_pps(int num, int ppsVol, int ppsCur)
 	pr_info(" %s : PPS PDO(%d), voltage(%d), current(%d) is selected to change\n",
 		__func__, pd_data->pd_noti.sink_status.selected_pdo_num, ppsVol, ppsCur);
 
-//	schedule_delayed_work(&manager->select_pdo_handler, msecs_to_jiffies(50));
 	usbpd_manager_inform_event(pd_data->pd_noti.pusbpd, MANAGER_NEW_POWER_SRC);
 
 exit:
@@ -413,14 +410,12 @@ int usbpd_manager_pps_enable(int num, int ppsVol, int ppsCur, int enable)
 		__func__, pd_data->pd_noti.sink_status.selected_pdo_num, ppsVol, ppsCur);
 
 	if (enable) {
-//		schedule_delayed_work(&manager->select_pdo_handler, msecs_to_jiffies(0));
 		usbpd_manager_inform_event(pd_data->pd_noti.pusbpd, MANAGER_NEW_POWER_SRC);
 		msleep(150);
 		PDIC_OPS_PARAM_FUNC(pps_enable, pd_data, PPS_ENABLE);
 	} else {
 		PDIC_OPS_PARAM_FUNC(pps_enable, pd_data, PPS_DISABLE);
 		msleep(100);
-//		schedule_delayed_work(&manager->select_pdo_handler, msecs_to_jiffies(0));
 		usbpd_manager_inform_event(pd_data->pd_noti.pusbpd, MANAGER_NEW_POWER_SRC);
 	}
 exit:
@@ -489,7 +484,6 @@ void pdo_ctrl_by_flash(bool mode)
 
 	if (pd_data->pd_noti.sink_status.selected_pdo_num != 0) {
 		pd_data->pd_noti.sink_status.selected_pdo_num = 1;
-		usbpd_manager_select_pdo_cancel(pd_data->dev);
 		usbpd_manager_inform_event(pd_data->pd_noti.pusbpd, MANAGER_GET_SRC_CAP);
 	}
 	mutex_unlock(&manager->pdo_mutex);
@@ -502,22 +496,6 @@ void usbpd_manager_ccopen_req(int is_on)
 	struct usbpd_data *pd_data = g_pd_data;
 
 	PDIC_OPS_PARAM_FUNC(ops_ccopen_req, pd_data, is_on);
-}
-
-void usbpd_manager_select_pdo_handler(struct work_struct *work)
-{
-	pr_info("%s: call select pdo handler\n", __func__);
-#if IS_ENABLED(CONFIG_BATTERY_SAMSUNG) && IS_ENABLED(CONFIG_USB_TYPEC_MANAGER_NOTIFIER)
-	usbpd_manager_inform_event(g_pd_data->pd_noti.pusbpd, MANAGER_NEW_POWER_SRC);
-#endif
-}
-
-void usbpd_manager_select_pdo_cancel(struct device *dev)
-{
-	struct usbpd_data *pd_data = dev_get_drvdata(dev);
-	struct usbpd_manager_data *manager = &pd_data->manager;
-
-	cancel_delayed_work_sync(&manager->select_pdo_handler);
 }
 
 void usbpd_manager_restart_discover_msg(struct usbpd_data *pd_data)
@@ -1027,6 +1005,7 @@ void usbpd_manager_plug_attach(struct device *dev, muic_attached_dev_t new_dev)
 		pdic_event_work(pd_data, PDIC_NOTIFY_DEV_BATT, PDIC_NOTIFY_ID_POWER_STATUS,
 				1, 0, 0);
 	}
+	manager->first_noti_sent = true;
 #else
 	struct usbpd_data *pd_data = dev_get_drvdata(dev);
 	struct usbpd_manager_data *manager = &pd_data->manager;
@@ -1056,6 +1035,7 @@ void usbpd_manager_plug_detach(struct device *dev, bool notify)
 		pdic_event_work(pd_data, PDIC_NOTIFY_DEV_BATT, PDIC_NOTIFY_ID_POWER_STATUS,
 				0, 0, 0);
 	}
+	manager->first_noti_sent = false;
 #endif
 }
 EXPORT_SYMBOL(usbpd_manager_plug_detach);
@@ -1368,6 +1348,18 @@ static int usbpd_manager_check_accessory(struct usbpd_manager_data *manager)
 	return 1;
 }
 
+void usbpd_manager_set_analog_audio(struct usbpd_data *pd_data)
+{
+	struct usbpd_manager_data *manager = &pd_data->manager;
+
+	manager->Vendor_ID = 0;
+	manager->Product_ID = 0;
+	manager->acc_type = PDIC_DOCK_UNSUPPORTED_AUDIO;
+
+	usbpd_manager_check_accessory(manager);
+}
+EXPORT_SYMBOL(usbpd_manager_set_analog_audio);
+
 /* Ok : 0, NAK: -1 */
 int usbpd_manager_get_identity(struct usbpd_data *pd_data)
 {
@@ -1660,16 +1652,28 @@ int usbpd_manager_evaluate_capability(struct usbpd_data *pd_data)
 #endif
 	}
 #if IS_ENABLED(CONFIG_BATTERY_SAMSUNG) && IS_ENABLED(CONFIG_USB_TYPEC_MANAGER_NOTIFIER)
+	/* only 5V for Flash */
 	if (manager->flash_mode == 1) {
 		available_pdo_num = 1;
 		pdic_sink_status->has_apdo = false;
 	}
-	if ((src_cap_changed) ||
-			((available_pdo_num > 0) &&
-			(pdic_sink_status->available_pdo_num != available_pdo_num))) {
-		policy->send_sink_cap = 1;
+
+	/* for First Negotiation, PR_Swap, HardReset -> select 5V PDO */
+	if (pdic_sink_status->selected_pdo_num == 0)
 		pdic_sink_status->selected_pdo_num = 1;
+
+	/* if SrcCap Changed when Rx SrcCap msg,
+	 *  goto Default 5V & EVENT_PD_SINK_CAP
+	 *  (duing PR_Swap, HardReset, just Rx)
+	 */
+	if (manager->first_noti_sent) {
+		if (src_cap_changed || ((available_pdo_num > 0) &&
+				 (pdic_sink_status->available_pdo_num != available_pdo_num))) {
+			policy->send_sink_cap = 1;
+			pdic_sink_status->selected_pdo_num = 1;
+		}
 	}
+
 	pdic_sink_status->available_pdo_num = available_pdo_num;
 	return available_pdo_num;
 #else
@@ -1807,6 +1811,24 @@ static void usbpd_manager_send_new_src_cap(int auth_t, int d2d_t)
 #endif
 }
 
+void usbpd_manager_forced_src_cap(int max_cur)
+{
+	POWER_LIST power_list[2];
+	int size_of_power_list;
+
+	pr_info("%s(%d)\n", __func__, max_cur);
+
+	size_of_power_list = 1;
+	power_list[0].pdo_type = FPDO_TYPE;
+	power_list[0].max_voltage = 5000;
+	power_list[0].max_current = max_cur;
+	power_list[0].comm_capable = 1;
+	power_list[0].suspend = 1;
+#if IS_ENABLED(CONFIG_BATTERY_SAMSUNG) && IS_ENABLED(CONFIG_USB_TYPEC_MANAGER_NOTIFIER)
+	usbpd_manager_set_source_cap(size_of_power_list, power_list);
+#endif
+}
+
 void usbpd_manager_vpdo_auth(int auth, int d2d_type)
 {
 	struct usbpd_data *pd_data = g_pd_data;
@@ -1815,7 +1837,7 @@ void usbpd_manager_vpdo_auth(int auth, int d2d_type)
 
 	if (d2d_type == D2D_NONE)
 		return;
-	
+
 	PDIC_OPS_PARAM_FUNC(get_power_role, pd_data, &power_role);
 
 	pr_info("@D2D: %s: [DEBUG] power_role(%d), manager->auth_type(%d), auth(%d)\n",
@@ -1885,7 +1907,7 @@ void usbpd_manager_short_check(struct usbpd_data *pd_data)
 
 	pr_info("%s, call short check\n", __func__);
 	schedule_delayed_work(&manager->short_check_work, msecs_to_jiffies(0));
-	
+
 	return;
 }
 
@@ -1965,7 +1987,7 @@ void usbpd_manager_vbus_turn_on_ctrl(void *_data, bool enable)
 		pr_err("@D2D: %s: manager_data is null!!\n", __func__);
 		return;
 	}
-	
+
 	auth_type = manager->auth_type;
 	req_pdo_type = manager->req_pdo_type;
 	d2d_type = manager->d2d_type;
@@ -2034,7 +2056,7 @@ void usbpd_manager_vbus_turn_on_ctrl(void *_data, bool enable)
 		pr_info("otg accessory power = %d\n", on);
 
 		if (usbpd_manager_check_boost_enable(enable, auth_type, req_pdo_type, d2d_type)) {
-			for (retry_cnt = 0; retry_cnt < 5; retry_cnt++) {				
+			for (retry_cnt = 0; retry_cnt < 5; retry_cnt++) {
 				pr_info("%s, pmeter_name : %s\n", __func__, pd_data->pmeter_name);
 #if IS_ENABLED(CONFIG_BATTERY_SAMSUNG)
 				psy_do_property(pd_data->pmeter_name, get,
@@ -2137,7 +2159,9 @@ static int usbpd_manager_get_property(struct power_supply *psy,
 		enum power_supply_property psp,
 		union power_supply_propval *val)
 {
+#if IS_ENABLED(CONFIG_S2MU106_TYPEC_WATER)
 	struct usbpd_data *pd_data = power_supply_get_drvdata(psy);
+#endif
 	enum power_supply_lsi_property lsi_psp = (enum power_supply_lsi_property)psp;
 
 	switch ((int)psp) {
@@ -2149,9 +2173,6 @@ static int usbpd_manager_get_property(struct power_supply *psy,
 #if IS_ENABLED(CONFIG_S2MU106_TYPEC_WATER)
 			(*val).intval = PDIC_OPS_FUNC(water_get_power_role, pd_data);
 #endif
-			break;
-		case POWER_SUPPLY_LSI_PROP_GET_CC_STATE:
-			(*val).intval = PDIC_OPS_FUNC(ops_get_fsm_state, pd_data);
 			break;
 		case POWER_SUPPLY_LSI_PROP_WATER_CHECK:
 #if IS_ENABLED(CONFIG_S2MU106_TYPEC_WATER)
@@ -2190,6 +2211,9 @@ static int usbpd_manager_set_property(struct power_supply *psy,
 		switch (lsi_psp) {
 		case POWER_SUPPLY_LSI_PROP_USBPD_RESET:
 			PDIC_OPS_FUNC(set_usbpd_reset, pd_data);
+			break;
+		case POWER_SUPPLY_LSI_PROP_VCHGIN:
+			PDIC_OPS_FUNC(vbus_onoff, pd_data);
 			break;
 		case POWER_SUPPLY_LSI_PROP_USBPD_RPCUR:
 #if IS_ENABLED(CONFIG_S2MU106_TYPEC_WATER)
@@ -2265,7 +2289,6 @@ void usbpd_init_manager_val(struct usbpd_data *pd_data)
 	manager->ps_rdy = 0;
 	reinit_completion(&manager->uvdm_out_wait);
 	reinit_completion(&manager->uvdm_in_wait);
-	usbpd_manager_select_pdo_cancel(pd_data->dev);
 	usbpd_manager_start_discover_msg_cancel(pd_data->dev);
 }
 EXPORT_SYMBOL(usbpd_init_manager_val);
@@ -2297,6 +2320,7 @@ int usbpd_init_manager(struct usbpd_data *pd_data)
 #endif
 	pd_data->pd_noti.sink_status.fp_sec_pd_vpdo_auth = usbpd_manager_vpdo_auth;
 	pd_data->pd_noti.sink_status.fp_sec_pd_manual_ccopen_req = usbpd_manager_ccopen_req;
+	pd_data->pd_noti.sink_status.fp_sec_pd_change_src = usbpd_manager_forced_src_cap;
 #endif
 #endif
 	mutex_init(&manager->vdm_mutex);
@@ -2314,6 +2338,7 @@ int usbpd_init_manager(struct usbpd_data *pd_data)
 	manager->SVID_0 = 0;
 	manager->SVID_1 = 0;
 	manager->Standard_Vendor_ID = 0;
+	manager->first_noti_sent = false;
 
 	manager->flash_mode = 0;
 	manager->prev_available_pdo = 0;
@@ -2324,7 +2349,6 @@ int usbpd_init_manager(struct usbpd_data *pd_data)
 
 	init_source_cap_data(manager);
 	init_sink_cap_data(manager);
-	INIT_DELAYED_WORK(&manager->select_pdo_handler, usbpd_manager_select_pdo_handler);
 	INIT_DELAYED_WORK(&manager->start_discover_msg_handler,
 				usbpd_manager_start_discover_msg_handler);
 	INIT_DELAYED_WORK(&manager->short_check_work, usbpd_manager_short_check_handler);

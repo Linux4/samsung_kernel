@@ -105,7 +105,7 @@
 		cpu@102 {
 			device_type = "cpu";
 			compatible = "arm,cortex-a57";
-			reg = <0x00 0x101>;
+			reg = <0x00 0x102>;
 			enable-method = "psci";
 			next-level-cache = <0x03>;
 			phandle = <0x0a>;
@@ -114,7 +114,7 @@
 		cpu@103 {
 			device_type = "cpu";
 			compatible = "arm,cortex-a57";
-			reg = <0x00 0x101>;
+			reg = <0x00 0x103>;
 			enable-method = "psci";
 			next-level-cache = <0x03>;
 			phandle = <0x0b>;
@@ -199,7 +199,7 @@
 			phandle = <0x4a>;
 		};
 
-		memory@3800000 {
+		memory@3401000 {
 			reg = <0x00 0x3401000 0x00 0x2200000>;
 			no-map;
 			phandle = <0x4b>;
@@ -814,7 +814,7 @@
 			#dma-cells = <0x01>;
 			qcom,ee = <0x00>;
 			qcom,controlled-remotely;
-			num-channels = <0x12>;
+			num-channels = <0x18>;
 			qcom,num-ees = <0x04>;
 			phandle = <0x2d>;
 		};
@@ -949,7 +949,7 @@
 			#dma-cells = <0x01>;
 			qcom,ee = <0x00>;
 			qcom,controlled-remotely;
-			num-channels = <0x12>;
+			num-channels = <0x18>;
 			qcom,num-ees = <0x04>;
 			phandle = <0x36>;
 		};
@@ -1043,7 +1043,7 @@
 			reg = <0xfc4ab000 0x04>;
 		};
 
-		spmi@fc4c0000 {
+		spmi@fc4cf000 {
 			compatible = "qcom,spmi-pmic-arb";
 			reg = <0xfc4cf000 0x1000 0xfc4cb000 0x1000 0xfc4ca000 0x1000>;
 			reg-names = "core\0intr\0cnfg";
@@ -1207,8 +1207,7 @@
 					#size-cells = <0x01>;
 					phandle = <0x95>;
 
-					s2@1700 {
-						reg = <0x1700 0x100>;
+					s2 {
 						regulator-name = "VDD_GFX";
 						regulator-min-microvolt = <0xef420>;
 						regulator-max-microvolt = <0xef420>;
@@ -1660,7 +1659,7 @@
 		cpu7_map = "/cpus/cpu-map/cluster1/core3";
 		tcsr_mutex = "/hwlock";
 		dfps_data_mem = "/reserved-memory/dfps_data_mem@3400000";
-		cont_splash_mem = "/reserved-memory/memory@3800000";
+		cont_splash_mem = "/reserved-memory/memory@3401000";
 		smem_mem = "/reserved-memory/smem_region@6a00000";
 		mpss_mem = "/reserved-memory/memory@7000000";
 		peripheral_region = "/reserved-memory/memory@ca00000";
@@ -1744,18 +1743,18 @@
 		blsp2_i2c5 = "/soc/i2c@f9967000";
 		gcc = "/soc/clock-controller@fc400000";
 		rpm_msg_ram = "/soc/sram@fc428000";
-		spmi_bus = "/soc/spmi@fc4c0000";
-		pm8994_pon = "/soc/spmi@fc4c0000/pmic@0/pon@800";
-		pm8994_resin = "/soc/spmi@fc4c0000/pmic@0/pon@800/resin";
-		pm8994_temp = "/soc/spmi@fc4c0000/pmic@0/temp-alarm@2400";
-		pm8994_vadc = "/soc/spmi@fc4c0000/pmic@0/adc@3100";
-		pm8994_gpios = "/soc/spmi@fc4c0000/pmic@0/gpios@c000";
-		pm8994_mpps = "/soc/spmi@fc4c0000/pmic@0/mpps@a000";
-		pm8994_spmi_regulators = "/soc/spmi@fc4c0000/pmic@1/regulators";
-		pmi8994_gpios = "/soc/spmi@fc4c0000/pmic@2/gpios@c000";
-		pmi8994_spmi_regulators = "/soc/spmi@fc4c0000/pmic@3/regulators";
-		vdd_gfx = "/soc/spmi@fc4c0000/pmic@3/regulators/s2@1700";
-		pmi8994_wled = "/soc/spmi@fc4c0000/pmic@3/wled@d800";
+		spmi_bus = "/soc/spmi@fc4cf000";
+		pm8994_pon = "/soc/spmi@fc4cf000/pmic@0/pon@800";
+		pm8994_resin = "/soc/spmi@fc4cf000/pmic@0/pon@800/resin";
+		pm8994_temp = "/soc/spmi@fc4cf000/pmic@0/temp-alarm@2400";
+		pm8994_vadc = "/soc/spmi@fc4cf000/pmic@0/adc@3100";
+		pm8994_gpios = "/soc/spmi@fc4cf000/pmic@0/gpios@c000";
+		pm8994_mpps = "/soc/spmi@fc4cf000/pmic@0/mpps@a000";
+		pm8994_spmi_regulators = "/soc/spmi@fc4cf000/pmic@1/regulators";
+		pmi8994_gpios = "/soc/spmi@fc4cf000/pmic@2/gpios@c000";
+		pmi8994_spmi_regulators = "/soc/spmi@fc4cf000/pmic@3/regulators";
+		vdd_gfx = "/soc/spmi@fc4cf000/pmic@3/regulators/s2";
+		pmi8994_wled = "/soc/spmi@fc4cf000/pmic@3/wled@d800";
 		tcsr_mutex_regs = "/soc/syscon@fd484000";
 		tlmm = "/soc/pinctrl@fd510000";
 		blsp1_uart2_default = "/soc/pinctrl@fd510000/blsp1-uart2-default";

@@ -62,6 +62,7 @@
 #define GF_GW36T2_CHIP_ID		0x002510 /* FAB : SILTRRA */
 #define GF_GW36T3_CHIP_ID		0x002508 /* FAB : CANSEMI */
 #define GF_GW39B_CHIP_ID		0x02010502
+#define GF_GW39U_CHIP_ID		0x02010505
 #define GF_GW36T1_SHIFT_CHIP_ID	0x004a0f
 #define GF_GW36T2_SHIFT_CHIP_ID	0x004a21
 #define GF_GW36T3_SHIFT_CHIP_ID	0x004a11
@@ -192,6 +193,7 @@ struct gf_device {
 	const char *chipid;
 	struct wakeup_source *wake_lock;
 	const char *btp_vdd;
+	const char *position;
 	struct regulator *regulator_3p3;
 	struct pinctrl *p;
 	struct pinctrl_state *pins_poweron;

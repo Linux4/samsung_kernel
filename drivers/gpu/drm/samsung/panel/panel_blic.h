@@ -22,11 +22,9 @@ enum panel_blic_gpio_list {
 	MAX_PANEL_BLIC_GPIO,
 };
 
-enum panel_blic_seq {
-	PANEL_BLIC_I2C_ON_SEQ,
-	PANEL_BLIC_I2C_OFF_SEQ,
-	MAX_PANEL_BLIC_SEQ,
-};
+#define PANEL_BLIC_I2C_ON_SEQ ("panel_blic_i2c_on_seq")
+#define PANEL_BLIC_I2C_OFF_SEQ ("panel_blic_i2c_off_seq")
+#define PANEL_BLIC_I2C_BRIGHTNESS_SEQ ("panel_blic_i2c_brightness_seq")
 
 struct blic_i2c_seq {
 	u8 *cmd;
@@ -36,6 +34,7 @@ struct blic_i2c_seq {
 struct blic_data {
 	char *name;
 	struct seqinfo *seqtbl;
+	int nr_seqtbl;
 };
 
 struct panel_blic_gpio {
@@ -47,7 +46,7 @@ struct panel_blic_gpio {
 struct panel_blic_dev;
 
 struct panel_blic_ops {
-	int (*do_seq)(struct panel_blic_dev *blic, enum panel_blic_seq index);
+	int (*do_seq)(struct panel_blic_dev *blic, char *seqname);
 	int (*execute_power_ctrl)(struct panel_blic_dev *blic, const char *name);
 };
 
@@ -62,22 +61,24 @@ struct panel_blic_dev {
 
 	u32 i2c_match[3];
 	u32 i2c_reg;
-#ifdef CONFIG_MCD_PANEL_I2C
+#ifdef CONFIG_USDM_BLIC_I2C
 	struct panel_i2c_dev *i2c_dev;
 #endif
 	struct panel_blic_gpio gpios[MAX_PANEL_BLIC_GPIO];
 	struct list_head gpio_list;
-
 	struct panel_blic_ops *ops;
-
 	int id;
-
 	bool enable;
+	struct blic_data *blic_data_tbl;
+	struct list_head seq_list;
 };
 
+int panel_blic_prepare(struct panel_device *panel, struct common_panel_info *info);
+int panel_blic_unprepare(struct panel_device *panel);
 int panel_blic_probe(struct panel_device *panel);
 struct panel_gpio *panel_blic_gpio_list_find_by_name(struct panel_blic_dev *blic_dev, const char *name);
-bool panel_blic_power_control_exists(struct panel_blic_dev *blic, const char *name);
-int panel_blic_power_control_execute(struct panel_blic_dev *blic, const char *name);
+bool panel_blic_power_ctrl_exists(struct panel_blic_dev *blic, const char *name);
+int panel_blic_power_ctrl_execute(struct panel_blic_dev *blic, const char *name);
+int panel_blic_brightness(struct panel_device *panel, bool need_lock);
 
 #endif /* __PANEL_BLIC_H__ */

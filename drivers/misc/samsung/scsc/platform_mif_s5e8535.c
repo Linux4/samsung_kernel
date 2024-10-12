@@ -1,6 +1,6 @@
 /****************************************************************************
  *
- * Copyright (c) 2014 - 2022 Samsung Electronics Co., Ltd. All rights reserved
+ * Copyright (c) 2014 - 2023 Samsung Electronics Co., Ltd. All rights reserved
  *
  ****************************************************************************/
 
@@ -2965,11 +2965,10 @@ void platform_mif_resume(struct scsc_mif_abs *interface)
 
 	SCSC_TAG_INFO_DEV(PLAT_MIF, platform->dev,
 			  "Clear WLBT_ACTIVE_CLR flag\n");
-	/* Clear WLBT_ACTIVE_CLR flag in WLBT_CTRL_NS */
-	ret = regmap_update_bits(platform->pmureg, WLBT_CTRL_NS, WLBT_ACTIVE_CLR, WLBT_ACTIVE_CLR);
+	ret = regmap_write_bits(platform->pmureg, WLBT_CTRL_NS | 0xc000, 8, 8);
 	if (ret < 0) {
 		SCSC_TAG_ERR_DEV(PLAT_MIF, platform->dev,
-			"Failed to Set WLBT_CTRL_NS[WLBT_ACTIVE_CLR]: %d\n", ret);
+				 "Failed to Set WLBT_CTRL_NS[WLBT_ACTIVE_CLR]: %d\n", ret);
 	}
 
 	if (platform->resume_handler)

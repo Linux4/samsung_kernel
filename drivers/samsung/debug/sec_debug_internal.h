@@ -14,8 +14,13 @@
 #include <linux/coredump.h>
 
 /* TODO: SoC dependent offset, get them from LSI code ? */
+#if IS_ENABLED(CONFIG_SOC_S5E5535)
+#define EXYNOS_PMU_INFORM2 0x00b8
+#define EXYNOS_PMU_INFORM3 0x00bc
+#else
 #define EXYNOS_PMU_INFORM2 0x0808
 #define EXYNOS_PMU_INFORM3 0x080C
+#endif
 
 /* AP SFR to send some information from kernel to bootloader */
 #define SEC_DEBUG_MAGIC_INFORM		(EXYNOS_PMU_INFORM2)

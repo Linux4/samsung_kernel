@@ -106,7 +106,7 @@
 		cpu@102 {
 			device_type = "cpu";
 			compatible = "arm,cortex-a57";
-			reg = <0x00 0x101>;
+			reg = <0x00 0x102>;
 			enable-method = "psci";
 			next-level-cache = <0x03>;
 			phandle = <0x0a>;
@@ -115,7 +115,7 @@
 		cpu@103 {
 			device_type = "cpu";
 			compatible = "arm,cortex-a57";
-			reg = <0x00 0x101>;
+			reg = <0x00 0x103>;
 			enable-method = "psci";
 			next-level-cache = <0x03>;
 			phandle = <0x0b>;
@@ -514,7 +514,7 @@
 			#dma-cells = <0x01>;
 			qcom,ee = <0x00>;
 			qcom,controlled-remotely;
-			num-channels = <0x12>;
+			num-channels = <0x18>;
 			qcom,num-ees = <0x04>;
 			phandle = <0x25>;
 		};
@@ -649,7 +649,7 @@
 			#dma-cells = <0x01>;
 			qcom,ee = <0x00>;
 			qcom,controlled-remotely;
-			num-channels = <0x12>;
+			num-channels = <0x18>;
 			qcom,num-ees = <0x04>;
 			phandle = <0x2e>;
 		};
@@ -743,7 +743,7 @@
 			reg = <0xfc4ab000 0x04>;
 		};
 
-		spmi@fc4c0000 {
+		spmi@fc4cf000 {
 			compatible = "qcom,spmi-pmic-arb";
 			reg = <0xfc4cf000 0x1000 0xfc4cb000 0x1000 0xfc4ca000 0x1000>;
 			reg-names = "core\0intr\0cnfg";
@@ -1147,7 +1147,7 @@
 		blsp2_i2c5 = "/soc/i2c@f9967000";
 		gcc = "/soc/clock-controller@fc400000";
 		rpm_msg_ram = "/soc/sram@fc428000";
-		spmi_bus = "/soc/spmi@fc4c0000";
+		spmi_bus = "/soc/spmi@fc4cf000";
 		tcsr_mutex_regs = "/soc/syscon@fd484000";
 		tlmm = "/soc/pinctrl@fd510000";
 		blsp1_uart2_default = "/soc/pinctrl@fd510000/blsp1-uart2-default";

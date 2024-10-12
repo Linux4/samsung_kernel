@@ -33,6 +33,7 @@ struct panel_gpio {
 	unsigned int irq_type;
 	void __iomem *irq_pend_reg;
 	int irq_pend_bit;
+	bool irq_registered;
 	bool irq_enable;
 	struct panel_gpio_funcs *funcs;
 	struct list_head head;

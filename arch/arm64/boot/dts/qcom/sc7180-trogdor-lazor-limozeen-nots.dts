@@ -82,19 +82,13 @@
 			phandle = <0x103>;
 		};
 
-		memory@8b700000 {
-			reg = <0x00 0x8b700000 0x00 0x10000>;
-			no-map;
-			phandle = <0x104>;
-		};
-
 		memory@94600000 {
 			compatible = "qcom,rmtfs-mem";
 			reg = <0x00 0x94600000 0x00 0x800000>;
 			no-map;
 			qcom,client-id = <0x01>;
 			qcom,vmid = <0x0f>;
-			phandle = <0x105>;
+			phandle = <0x104>;
 		};
 
 		memory@86000000 {
@@ -413,61 +407,61 @@
 		opp-300000000 {
 			opp-hz = <0x00 0x11e1a300>;
 			opp-peak-kBps = <0x124f80 0x493e00>;
-			phandle = <0x106>;
+			phandle = <0x105>;
 		};
 
 		opp-576000000 {
 			opp-hz = <0x00 0x22551000>;
 			opp-peak-kBps = <0x124f80 0x493e00>;
-			phandle = <0x107>;
+			phandle = <0x106>;
 		};
 
 		opp-768000000 {
 			opp-hz = <0x00 0x2dc6c000>;
 			opp-peak-kBps = <0x124f80 0x493e00>;
-			phandle = <0x108>;
+			phandle = <0x107>;
 		};
 
 		opp-1017600000 {
 			opp-hz = <0x00 0x3ca75800>;
 			opp-peak-kBps = <0x1b86e0 0x87f000>;
-			phandle = <0x109>;
+			phandle = <0x108>;
 		};
 
 		opp-1248000000 {
 			opp-hz = <0x00 0x4a62f800>;
 			opp-peak-kBps = <0x2162e0 0xc4e000>;
-			phandle = <0x10a>;
+			phandle = <0x109>;
 		};
 
 		opp-1324800000 {
 			opp-hz = <0x00 0x4ef6d800>;
 			opp-peak-kBps = <0x2162e0 0xc4e000>;
-			phandle = <0x10b>;
+			phandle = <0x10a>;
 		};
 
 		opp-1516800000 {
 			opp-hz = <0x00 0x5a688800>;
 			opp-peak-kBps = <0x2ee000 0xe5b000>;
-			phandle = <0x10c>;
+			phandle = <0x10b>;
 		};
 
 		opp-1612800000 {
 			opp-hz = <0x00 0x60216000>;
 			opp-peak-kBps = <0x2ee000 0xe5b000>;
-			phandle = <0x10d>;
+			phandle = <0x10c>;
 		};
 
 		opp-1708800000 {
 			opp-hz = <0x00 0x65da3800>;
 			opp-peak-kBps = <0x2ee000 0xe5b000>;
-			phandle = <0x10e>;
+			phandle = <0x10d>;
 		};
 
 		opp-1804800000 {
 			opp-hz = <0x00 0x6b931000>;
 			opp-peak-kBps = <0x3e12a0 0x1563000>;
-			phandle = <0x10f>;
+			phandle = <0x10e>;
 		};
 	};
 
@@ -479,97 +473,97 @@
 		opp-300000000 {
 			opp-hz = <0x00 0x11e1a300>;
 			opp-peak-kBps = <0x2162e0 0x87f000>;
-			phandle = <0x110>;
+			phandle = <0x10f>;
 		};
 
 		opp-652800000 {
 			opp-hz = <0x00 0x26e8f000>;
 			opp-peak-kBps = <0x2162e0 0x87f000>;
-			phandle = <0x111>;
+			phandle = <0x110>;
 		};
 
 		opp-825600000 {
 			opp-hz = <0x00 0x3135a800>;
 			opp-peak-kBps = <0x2162e0 0x87f000>;
-			phandle = <0x112>;
+			phandle = <0x111>;
 		};
 
 		opp-979200000 {
 			opp-hz = <0x00 0x3a5d6800>;
 			opp-peak-kBps = <0x2162e0 0x87f000>;
-			phandle = <0x113>;
+			phandle = <0x112>;
 		};
 
 		opp-1113600000 {
 			opp-hz = <0x00 0x42603000>;
 			opp-peak-kBps = <0x2162e0 0x87f000>;
-			phandle = <0x114>;
+			phandle = <0x113>;
 		};
 
 		opp-1267200000 {
 			opp-hz = <0x00 0x4b87f000>;
 			opp-peak-kBps = <0x3e12a0 0xc4e000>;
-			phandle = <0x115>;
+			phandle = <0x114>;
 		};
 
 		opp-1555200000 {
 			opp-hz = <0x00 0x5cb27800>;
 			opp-peak-kBps = <0x3e12a0 0xe5b000>;
-			phandle = <0x116>;
+			phandle = <0x115>;
 		};
 
 		opp-1708800000 {
 			opp-hz = <0x00 0x65da3800>;
 			opp-peak-kBps = <0x5ee8e0 0x1275000>;
-			phandle = <0x117>;
+			phandle = <0x116>;
 		};
 
 		opp-1843200000 {
 			opp-hz = <0x00 0x6ddd0000>;
 			opp-peak-kBps = <0x5ee8e0 0x1275000>;
-			phandle = <0x118>;
+			phandle = <0x117>;
 		};
 
 		opp-1900800000 {
 			opp-hz = <0x00 0x714be800>;
 			opp-peak-kBps = <0x5ee8e0 0x1563000>;
-			phandle = <0x119>;
+			phandle = <0x118>;
 		};
 
 		opp-1996800000 {
 			opp-hz = <0x00 0x7704c000>;
 			opp-peak-kBps = <0x5ee8e0 0x1563000>;
-			phandle = <0x11a>;
+			phandle = <0x119>;
 		};
 
 		opp-2112000000 {
 			opp-hz = <0x00 0x7de29000>;
 			opp-peak-kBps = <0x5ee8e0 0x1563000>;
-			phandle = <0x11b>;
+			phandle = <0x11a>;
 		};
 
 		opp-2208000000 {
 			opp-hz = <0x00 0x839b6800>;
 			opp-peak-kBps = <0x6e1b80 0x1563000>;
-			phandle = <0x11c>;
+			phandle = <0x11b>;
 		};
 
 		opp-2323200000 {
 			opp-hz = <0x00 0x8a793800>;
 			opp-peak-kBps = <0x6e1b80 0x1563000>;
-			phandle = <0x11d>;
+			phandle = <0x11c>;
 		};
 
 		opp-2400000000 {
 			opp-hz = <0x00 0x8f0d1800>;
 			opp-peak-kBps = <0x823020 0x1644000>;
-			phandle = <0x11e>;
+			phandle = <0x11d>;
 		};
 
 		opp-2553600000 {
 			opp-hz = <0x00 0x9834d800>;
 			opp-peak-kBps = <0x823020 0x1644000>;
-			phandle = <0x11f>;
+			phandle = <0x11e>;
 		};
 	};
 
@@ -614,14 +608,14 @@
 		master-kernel {
 			qcom,entry-name = "master-kernel";
 			#qcom,smem-state-cells = <0x01>;
-			phandle = <0x120>;
+			phandle = <0x11f>;
 		};
 
 		slave-kernel {
 			qcom,entry-name = "slave-kernel";
 			interrupt-controller;
 			#interrupt-cells = <0x02>;
-			phandle = <0x121>;
+			phandle = <0x120>;
 		};
 	};
 
@@ -636,14 +630,14 @@
 		master-kernel {
 			qcom,entry-name = "master-kernel";
 			#qcom,smem-state-cells = <0x01>;
-			phandle = <0x122>;
+			phandle = <0x121>;
 		};
 
 		slave-kernel {
 			qcom,entry-name = "slave-kernel";
 			interrupt-controller;
 			#interrupt-cells = <0x02>;
-			phandle = <0x123>;
+			phandle = <0x122>;
 		};
 	};
 
@@ -693,7 +687,7 @@
 		ranges = <0x00 0x00 0x00 0x00 0x10 0x00>;
 		dma-ranges = <0x00 0x00 0x00 0x00 0x10 0x00>;
 		compatible = "simple-bus";
-		phandle = <0x124>;
+		phandle = <0x123>;
 
 		clock-controller@100000 {
 			compatible = "qcom,gcc-sc7180";
@@ -714,7 +708,7 @@
 			#address-cells = <0x01>;
 			#size-cells = <0x01>;
 			vcc-supply = <0x25>;
-			phandle = <0x125>;
+			phandle = <0x124>;
 
 			hstx-trim-primary@25b {
 				reg = <0x25b 0x01>;
@@ -755,7 +749,7 @@
 			pinctrl-1 = <0x2c>;
 			vmmc-supply = <0x2d>;
 			vqmmc-supply = <0x2e>;
-			phandle = <0x126>;
+			phandle = <0x125>;
 
 			sdhc1-opp-table {
 				compatible = "operating-points-v2";
@@ -807,7 +801,7 @@
 			ranges;
 			iommus = <0x26 0x43 0x00>;
 			status = "okay";
-			phandle = <0x127>;
+			phandle = <0x126>;
 
 			i2c@880000 {
 				compatible = "qcom,geni-i2c";
@@ -824,7 +818,7 @@
 				power-domains = <0x29 0x00>;
 				required-opps = <0x2f>;
 				status = "disabled";
-				phandle = <0x128>;
+				phandle = <0x127>;
 			};
 
 			spi@880000 {
@@ -843,7 +837,7 @@
 				interconnect-names = "qup-core\0qup-config";
 				status = "okay";
 				cs-gpios = <0x37 0x25 0x01>;
-				phandle = <0x129>;
+				phandle = <0x128>;
 
 				tpm@0 {
 					compatible = "google,cr50";
@@ -853,7 +847,7 @@
 					spi-max-frequency = "\0\f5";
 					interrupt-parent = <0x37>;
 					interrupts = <0x2a 0x01>;
-					phandle = <0x12a>;
+					phandle = <0x129>;
 				};
 			};
 
@@ -870,7 +864,7 @@
 				interconnects = <0x33 0x00 0x00 0x33 0x02 0x00 0x06 0x00 0x00 0x28 0x26 0x00>;
 				interconnect-names = "qup-core\0qup-config";
 				status = "disabled";
-				phandle = <0x12b>;
+				phandle = <0x12a>;
 			};
 
 			i2c@884000 {
@@ -888,7 +882,7 @@
 				power-domains = <0x29 0x00>;
 				required-opps = <0x2f>;
 				status = "disabled";
-				phandle = <0x12c>;
+				phandle = <0x12b>;
 			};
 
 			spi@884000 {
@@ -906,7 +900,7 @@
 				interconnects = <0x33 0x00 0x00 0x33 0x02 0x00 0x06 0x00 0x00 0x28 0x26 0x00>;
 				interconnect-names = "qup-core\0qup-config";
 				status = "disabled";
-				phandle = <0x12d>;
+				phandle = <0x12c>;
 			};
 
 			serial@884000 {
@@ -922,7 +916,7 @@
 				interconnects = <0x33 0x00 0x00 0x33 0x02 0x00 0x06 0x00 0x00 0x28 0x26 0x00>;
 				interconnect-names = "qup-core\0qup-config";
 				status = "disabled";
-				phandle = <0x12e>;
+				phandle = <0x12d>;
 			};
 
 			i2c@888000 {
@@ -941,7 +935,7 @@
 				required-opps = <0x2f>;
 				status = "okay";
 				clock-frequency = <0x61a80>;
-				phandle = <0x12f>;
+				phandle = <0x12e>;
 
 				bridge@2d {
 					compatible = "ti,sn65dsi86";
@@ -993,7 +987,7 @@
 							backlight = <0x45>;
 							hpd-gpios = <0x46 0x02 0x00>;
 							compatible = "innolux,n116bca-ea1\0innolux,n116bge";
-							phandle = <0x130>;
+							phandle = <0x12f>;
 
 							port {
 
@@ -1020,7 +1014,7 @@
 				interconnects = <0x33 0x00 0x00 0x33 0x02 0x00 0x06 0x00 0x00 0x28 0x26 0x00>;
 				interconnect-names = "qup-core\0qup-config";
 				status = "disabled";
-				phandle = <0x131>;
+				phandle = <0x130>;
 			};
 
 			i2c@88c000 {
@@ -1038,7 +1032,7 @@
 				power-domains = <0x29 0x00>;
 				required-opps = <0x2f>;
 				status = "disabled";
-				phandle = <0x132>;
+				phandle = <0x131>;
 			};
 
 			spi@88c000 {
@@ -1056,7 +1050,7 @@
 				interconnects = <0x33 0x00 0x00 0x33 0x02 0x00 0x06 0x00 0x00 0x28 0x26 0x00>;
 				interconnect-names = "qup-core\0qup-config";
 				status = "disabled";
-				phandle = <0x133>;
+				phandle = <0x132>;
 			};
 
 			serial@88c000 {
@@ -1073,7 +1067,7 @@
 				status = "okay";
 				interrupts-extended = <0x01 0x00 0x25c 0x04 0x37 0x29 0x02>;
 				pinctrl-1 = <0x4c>;
-				phandle = <0x134>;
+				phandle = <0x133>;
 
 				bluetooth {
 					compatible = "qcom,wcn3991-bt";
@@ -1082,7 +1076,7 @@
 					vddrf-supply = <0x4f>;
 					vddch0-supply = <0x50>;
 					max-speed = <0x30d400>;
-					phandle = <0x135>;
+					phandle = <0x134>;
 				};
 			};
 
@@ -1102,7 +1096,7 @@
 				required-opps = <0x2f>;
 				status = "okay";
 				clock-frequency = <0x61a80>;
-				phandle = <0x136>;
+				phandle = <0x135>;
 			};
 
 			serial@890000 {
@@ -1118,7 +1112,7 @@
 				interconnects = <0x33 0x00 0x00 0x33 0x02 0x00 0x06 0x00 0x00 0x28 0x26 0x00>;
 				interconnect-names = "qup-core\0qup-config";
 				status = "disabled";
-				phandle = <0x137>;
+				phandle = <0x136>;
 			};
 
 			i2c@894000 {
@@ -1137,7 +1131,7 @@
 				required-opps = <0x2f>;
 				status = "disabled";
 				clock-frequency = <0x61a80>;
-				phandle = <0x138>;
+				phandle = <0x137>;
 
 				proximity@28 {
 					compatible = "semtech,sx9310";
@@ -1157,7 +1151,7 @@
 					semtech,startup-sensor = <0x00>;
 					semtech,proxraw-strength = <0x08>;
 					semtech,avg-pos-strength = <0x40>;
-					phandle = <0x139>;
+					phandle = <0x138>;
 				};
 			};
 
@@ -1176,7 +1170,7 @@
 				interconnects = <0x33 0x00 0x00 0x33 0x02 0x00 0x06 0x00 0x00 0x28 0x26 0x00>;
 				interconnect-names = "qup-core\0qup-config";
 				status = "disabled";
-				phandle = <0x13a>;
+				phandle = <0x139>;
 			};
 
 			serial@894000 {
@@ -1192,7 +1186,7 @@
 				interconnects = <0x33 0x00 0x00 0x33 0x02 0x00 0x06 0x00 0x00 0x28 0x26 0x00>;
 				interconnect-names = "qup-core\0qup-config";
 				status = "disabled";
-				phandle = <0x13b>;
+				phandle = <0x13a>;
 			};
 		};
 
@@ -1206,7 +1200,7 @@
 			ranges;
 			iommus = <0x26 0x4c3 0x00>;
 			status = "okay";
-			phandle = <0x13c>;
+			phandle = <0x13b>;
 
 			i2c@a80000 {
 				compatible = "qcom,geni-i2c";
@@ -1223,7 +1217,7 @@
 				power-domains = <0x29 0x00>;
 				required-opps = <0x2f>;
 				status = "disabled";
-				phandle = <0x13d>;
+				phandle = <0x13c>;
 			};
 
 			spi@a80000 {
@@ -1242,7 +1236,7 @@
 				interconnect-names = "qup-core\0qup-config";
 				status = "okay";
 				cs-gpios = <0x37 0x3e 0x01>;
-				phandle = <0x13e>;
+				phandle = <0x13d>;
 
 				ec@0 {
 					compatible = "google,cros-ec-spi";
@@ -1252,7 +1246,7 @@
 					pinctrl-names = "default";
 					pinctrl-0 = <0x5d>;
 					spi-max-frequency = <0x2dc6c0>;
-					phandle = <0x13f>;
+					phandle = <0x13e>;
 
 					ec-pwm {
 						compatible = "google,cros-ec-pwm";
@@ -1265,14 +1259,14 @@
 						google,remote-bus = <0x00>;
 						#address-cells = <0x01>;
 						#size-cells = <0x00>;
-						phandle = <0x140>;
+						phandle = <0x13f>;
 
 						sbs-battery@b {
 							compatible = "sbs,sbs-battery";
 							reg = <0x0b>;
 							sbs,i2c-retry-count = <0x02>;
 							sbs,poll-retry-count = <0x01>;
-							phandle = <0x141>;
+							phandle = <0x140>;
 						};
 					};
 
@@ -1288,7 +1282,7 @@
 							power-role = "dual";
 							data-role = "host";
 							try-power-role = "source";
-							phandle = <0x142>;
+							phandle = <0x141>;
 						};
 
 						connector@1 {
@@ -1298,7 +1292,7 @@
 							power-role = "dual";
 							data-role = "host";
 							try-power-role = "source";
-							phandle = <0x143>;
+							phandle = <0x142>;
 						};
 					};
 
@@ -1308,7 +1302,7 @@
 						keypad,num-columns = <0x0d>;
 						google,needs-ghost-filter;
 						linux,keymap = <0x2003b 0x302003c 0x202003d 0x102003e 0x304003f 0x2040040 0x1040041 0x2090042 0x1090043 0x40044 0x1007d 0x30030 0x50059 0x60031 0x8000d 0xa0064 0x1010001 0x1030022 0x1060023 0x1080028 0x10b000e 0x10c005c 0x200001d 0x201000f 0x2030014 0x205001b 0x2060015 0x2070056 0x208001a 0x20a007c 0x300007d 0x3010029 0x3030006 0x3060007 0x308000c 0x309008e 0x30b002b 0x30c005e 0x4000061 0x401001e 0x4020020 0x4030021 0x404001f 0x4050025 0x4060024 0x4080027 0x4090026 0x40a002b 0x40b001c 0x501002c 0x502002e 0x503002f 0x504002d 0x5050033 0x5060032 0x507002a 0x5080035 0x5090034 0x50b0039 0x6010002 0x6020004 0x6030005 0x6040003 0x6050009 0x6060008 0x608000b 0x609000a 0x60a0038 0x60b006c 0x60c006a 0x7010010 0x7020012 0x7030013 0x7040011 0x7050017 0x7060016 0x7070036 0x7080019 0x7090018 0x70b0067 0x70c0069>;
-						phandle = <0x144>;
+						phandle = <0x143>;
 					};
 				};
 			};
@@ -1326,7 +1320,7 @@
 				interconnects = <0x33 0x01 0x00 0x33 0x03 0x00 0x06 0x00 0x00 0x28 0x27 0x00>;
 				interconnect-names = "qup-core\0qup-config";
 				status = "disabled";
-				phandle = <0x145>;
+				phandle = <0x144>;
 			};
 
 			i2c@a84000 {
@@ -1345,7 +1339,7 @@
 				required-opps = <0x2f>;
 				status = "okay";
 				clock-frequency = <0x61a80>;
-				phandle = <0x146>;
+				phandle = <0x145>;
 
 				trackpad@15 {
 					compatible = "elan,ekth3000";
@@ -1356,7 +1350,7 @@
 					interrupts = <0x3a 0x02>;
 					vcc-supply = <0x61>;
 					wakeup-source;
-					phandle = <0x147>;
+					phandle = <0x146>;
 				};
 			};
 
@@ -1373,7 +1367,7 @@
 				interconnects = <0x33 0x01 0x00 0x33 0x03 0x00 0x06 0x00 0x00 0x28 0x27 0x00>;
 				interconnect-names = "qup-core\0qup-config";
 				status = "disabled";
-				phandle = <0x148>;
+				phandle = <0x147>;
 			};
 
 			i2c@a88000 {
@@ -1391,7 +1385,7 @@
 				power-domains = <0x29 0x00>;
 				required-opps = <0x2f>;
 				status = "disabled";
-				phandle = <0x149>;
+				phandle = <0x148>;
 			};
 
 			spi@a88000 {
@@ -1409,7 +1403,7 @@
 				interconnects = <0x33 0x01 0x00 0x33 0x03 0x00 0x06 0x00 0x00 0x28 0x27 0x00>;
 				interconnect-names = "qup-core\0qup-config";
 				status = "disabled";
-				phandle = <0x14a>;
+				phandle = <0x149>;
 			};
 
 			serial@a88000 {
@@ -1425,7 +1419,7 @@
 				interconnects = <0x33 0x01 0x00 0x33 0x03 0x00 0x06 0x00 0x00 0x28 0x27 0x00>;
 				interconnect-names = "qup-core\0qup-config";
 				status = "okay";
-				phandle = <0x14b>;
+				phandle = <0x14a>;
 			};
 
 			i2c@a8c000 {
@@ -1444,7 +1438,7 @@
 				required-opps = <0x2f>;
 				status = "okay";
 				clock-frequency = <0x61a80>;
-				phandle = <0x14c>;
+				phandle = <0x14b>;
 
 				codec@1a {
 					compatible = "realtek,rt5682i";
@@ -1477,7 +1471,7 @@
 				interconnects = <0x33 0x01 0x00 0x33 0x03 0x00 0x06 0x00 0x00 0x28 0x27 0x00>;
 				interconnect-names = "qup-core\0qup-config";
 				status = "disabled";
-				phandle = <0x14d>;
+				phandle = <0x14c>;
 			};
 
 			i2c@a90000 {
@@ -1495,7 +1489,7 @@
 				power-domains = <0x29 0x00>;
 				required-opps = <0x2f>;
 				status = "disabled";
-				phandle = <0x14e>;
+				phandle = <0x14d>;
 			};
 
 			spi@a90000 {
@@ -1514,7 +1508,7 @@
 				interconnect-names = "qup-core\0qup-config";
 				status = "disabled";
 				cs-gpios = <0x37 0x59 0x01>;
-				phandle = <0x14f>;
+				phandle = <0x14e>;
 
 				ec@0 {
 					compatible = "google,cros-ec-spi";
@@ -1524,7 +1518,7 @@
 					pinctrl-names = "default";
 					pinctrl-0 = <0x6e>;
 					spi-max-frequency = <0x2dc6c0>;
-					phandle = <0x150>;
+					phandle = <0x14f>;
 				};
 			};
 
@@ -1541,7 +1535,7 @@
 				interconnects = <0x33 0x01 0x00 0x33 0x03 0x00 0x06 0x00 0x00 0x28 0x27 0x00>;
 				interconnect-names = "qup-core\0qup-config";
 				status = "disabled";
-				phandle = <0x151>;
+				phandle = <0x150>;
 			};
 
 			i2c@a94000 {
@@ -1559,7 +1553,7 @@
 				power-domains = <0x29 0x00>;
 				required-opps = <0x2f>;
 				status = "disabled";
-				phandle = <0x152>;
+				phandle = <0x151>;
 			};
 
 			spi@a94000 {
@@ -1577,7 +1571,7 @@
 				interconnects = <0x33 0x01 0x00 0x33 0x03 0x00 0x06 0x00 0x00 0x28 0x27 0x00>;
 				interconnect-names = "qup-core\0qup-config";
 				status = "disabled";
-				phandle = <0x153>;
+				phandle = <0x152>;
 			};
 
 			serial@a94000 {
@@ -1593,7 +1587,7 @@
 				interconnects = <0x33 0x01 0x00 0x33 0x03 0x00 0x06 0x00 0x00 0x28 0x27 0x00>;
 				interconnect-names = "qup-core\0qup-config";
 				status = "disabled";
-				phandle = <0x154>;
+				phandle = <0x153>;
 			};
 		};
 
@@ -1650,7 +1644,7 @@
 			reg = <0x00 0x170e000 0x00 0x6000>;
 			#interconnect-cells = <0x02>;
 			qcom,bcm-voters = <0x73>;
-			phandle = <0x155>;
+			phandle = <0x154>;
 		};
 
 		interconnect@1740000 {
@@ -1666,7 +1660,7 @@
 			reg = <0x00 0x1e00000 0x00 0x1000>;
 			#interconnect-cells = <0x02>;
 			qcom,bcm-voters = <0x73>;
-			phandle = <0x156>;
+			phandle = <0x155>;
 		};
 
 		ipa@1e40000 {
@@ -1685,7 +1679,7 @@
 			qcom,smem-state-names = "ipa-clock-enabled-valid\0ipa-clock-enabled";
 			status = "okay";
 			modem-init;
-			phandle = <0x157>;
+			phandle = <0x156>;
 		};
 
 		syscon@1f40000 {
@@ -1760,7 +1754,7 @@
 			};
 
 			qspi-cs1 {
-				phandle = <0x158>;
+				phandle = <0x157>;
 
 				pinmux {
 					pins = "gpio72";
@@ -1783,7 +1777,7 @@
 			};
 
 			qspi-data12 {
-				phandle = <0x159>;
+				phandle = <0x158>;
 
 				pinmux-data {
 					pins = "gpio66\0gpio67";
@@ -1930,7 +1924,7 @@
 			};
 
 			qup-spi0-default {
-				phandle = <0x15a>;
+				phandle = <0x159>;
 
 				pinmux {
 					pins = "gpio34\0gpio35\0gpio36\0gpio37";
@@ -1968,7 +1962,7 @@
 			};
 
 			qup-spi1-cs-gpio {
-				phandle = <0x15b>;
+				phandle = <0x15a>;
 
 				pinmux {
 					pins = "gpio0\0gpio1\0gpio2";
@@ -1991,7 +1985,7 @@
 			};
 
 			qup-spi3-cs-gpio {
-				phandle = <0x15c>;
+				phandle = <0x15b>;
 
 				pinmux {
 					pins = "gpio38\0gpio39\0gpio40";
@@ -2014,7 +2008,7 @@
 			};
 
 			qup-spi5-cs-gpio {
-				phandle = <0x15d>;
+				phandle = <0x15c>;
 
 				pinmux {
 					pins = "gpio25\0gpio26\0gpio27";
@@ -2028,7 +2022,7 @@
 			};
 
 			qup-spi6-default {
-				phandle = <0x15e>;
+				phandle = <0x15d>;
 
 				pinmux {
 					pins = "gpio59\0gpio60\0gpio61\0gpio62";
@@ -2066,7 +2060,7 @@
 			};
 
 			qup-spi8-cs-gpio {
-				phandle = <0x15f>;
+				phandle = <0x15e>;
 
 				pinmux {
 					pins = "gpio42\0gpio43\0gpio44";
@@ -2080,7 +2074,7 @@
 			};
 
 			qup-spi10-default {
-				phandle = <0x160>;
+				phandle = <0x15f>;
 
 				pinmux {
 					pins = "gpio86\0gpio87\0gpio88\0gpio89";
@@ -2118,7 +2112,7 @@
 			};
 
 			qup-spi11-cs-gpio {
-				phandle = <0x161>;
+				phandle = <0x160>;
 
 				pinmux {
 					pins = "gpio53\0gpio54\0gpio55";
@@ -2506,7 +2500,7 @@
 			};
 
 			pen-irq-l {
-				phandle = <0x162>;
+				phandle = <0x161>;
 
 				pinmux {
 					pins = "gpio21";
@@ -2534,7 +2528,7 @@
 			};
 
 			pen-rst-odl {
-				phandle = <0x163>;
+				phandle = <0x162>;
 
 				pinmux {
 					pins = "gpio18";
@@ -2635,7 +2629,7 @@
 			};
 
 			ts-int-l {
-				phandle = <0x164>;
+				phandle = <0x163>;
 
 				pinmux {
 					pins = "gpio9";
@@ -2649,7 +2643,7 @@
 			};
 
 			ts-reset-l {
-				phandle = <0x165>;
+				phandle = <0x164>;
 
 				pinmux {
 					pins = "gpio8";
@@ -2794,7 +2788,7 @@
 			status = "okay";
 			iommus = <0x26 0x461 0x00 0x26 0x444 0x03>;
 			firmware-name = "qcom/sc7180-trogdor/modem/mba.mbn\0qcom/sc7180-trogdor/modem/qdsp6sw.mbn";
-			phandle = <0x166>;
+			phandle = <0x165>;
 
 			glink-edge {
 				interrupts = <0x00 0x1c1 0x01>;
@@ -3506,7 +3500,7 @@
 			vmmc-supply = <0xaf>;
 			vqmmc-supply = <0xb0>;
 			cd-gpios = <0x37 0x45 0x01>;
-			phandle = <0x167>;
+			phandle = <0x166>;
 
 			sdhc2-opp-table {
 				compatible = "operating-points-v2";
@@ -3563,7 +3557,7 @@
 			status = "okay";
 			pinctrl-names = "default";
 			pinctrl-0 = <0xb2 0xb3 0xb4>;
-			phandle = <0x168>;
+			phandle = <0x167>;
 
 			flash@0 {
 				compatible = "jedec,spi-nor";
@@ -3608,7 +3602,7 @@
 			reset-names = "phy\0common";
 			vdda-phy-supply = <0x41>;
 			vdda-pll-supply = <0xb6>;
-			phandle = <0x169>;
+			phandle = <0x168>;
 
 			usb3-phy@88e9200 {
 				reg = <0x00 0x88e9200 0x00 0x128 0x00 0x88e9400 0x00 0x200 0x00 0x88e9c00 0x00 0x218 0x00 0x88e9600 0x00 0x128 0x00 0x88e9800 0x00 0x200 0x00 0x88e9a00 0x00 0x18>;
@@ -3633,7 +3627,7 @@
 			reg = <0x00 0x9160000 0x00 0x3200>;
 			#interconnect-cells = <0x02>;
 			qcom,bcm-voters = <0x73>;
-			phandle = <0x16a>;
+			phandle = <0x169>;
 		};
 
 		system-cache-controller@9200000 {
@@ -3656,7 +3650,7 @@
 			reg = <0x00 0x9990000 0x00 0x1600>;
 			#interconnect-cells = <0x02>;
 			qcom,bcm-voters = <0x73>;
-			phandle = <0x16b>;
+			phandle = <0x16a>;
 		};
 
 		usb@a6f8800 {
@@ -3677,7 +3671,7 @@
 			resets = <0x24 0x03>;
 			interconnects = <0x5a 0x03 0x00 0x07 0x01 0x00 0x06 0x00 0x00 0x28 0x30 0x00>;
 			interconnect-names = "usb-ddr\0apps-usb";
-			phandle = <0x16c>;
+			phandle = <0x16b>;
 
 			dwc3@a600000 {
 				compatible = "snps,dwc3";
@@ -3690,7 +3684,7 @@
 				phy-names = "usb2-phy\0usb3-phy";
 				maximum-speed = "super-speed";
 				dr_mode = "host";
-				phandle = <0x16d>;
+				phandle = <0x16c>;
 			};
 		};
 
@@ -3707,7 +3701,7 @@
 			memory-region = <0xbc>;
 			interconnects = <0xbd 0x06 0x00 0x07 0x01 0x00 0x06 0x00 0x00 0x28 0x31 0x00>;
 			interconnect-names = "video-mem\0cpu-cfg";
-			phandle = <0x16e>;
+			phandle = <0x16d>;
 
 			video-decoder {
 				compatible = "venus-decoder";
@@ -3768,7 +3762,7 @@
 			reg = <0x00 0xac00000 0x00 0x1000>;
 			#interconnect-cells = <0x02>;
 			qcom,bcm-voters = <0x73>;
-			phandle = <0x16f>;
+			phandle = <0x16e>;
 		};
 
 		clock-controller@ad00000 {
@@ -3780,7 +3774,7 @@
 			#reset-cells = <0x01>;
 			#power-domain-cells = <0x01>;
 			status = "disabled";
-			phandle = <0x170>;
+			phandle = <0x16f>;
 		};
 
 		mdss@ae00000 {
@@ -3817,7 +3811,7 @@
 				interrupt-parent = <0xc2>;
 				interrupts = <0x00>;
 				status = "okay";
-				phandle = <0x171>;
+				phandle = <0x170>;
 
 				ports {
 					#address-cells = <0x01>;
@@ -3886,7 +3880,7 @@
 				#size-cells = <0x00>;
 				status = "okay";
 				vdda-supply = <0x41>;
-				phandle = <0x172>;
+				phandle = <0x171>;
 
 				ports {
 					#address-cells = <0x01>;
@@ -3986,7 +3980,7 @@
 						reg = <0x01>;
 
 						endpoint {
-							phandle = <0x173>;
+							phandle = <0x172>;
 						};
 					};
 				};
@@ -4091,19 +4085,19 @@
 			interrupts-extended = <0x78 0x01 0x04>;
 			qcom,ee = <0x00>;
 			qcom,channel = <0x00>;
-			#address-cells = <0x01>;
-			#size-cells = <0x01>;
+			#address-cells = <0x02>;
+			#size-cells = <0x00>;
 			interrupt-controller;
 			#interrupt-cells = <0x04>;
 			cell-index = <0x00>;
-			phandle = <0x174>;
+			phandle = <0x173>;
 
 			pmic@0 {
 				compatible = "qcom,pm6150\0qcom,spmi-pmic";
 				reg = <0x00 0x00>;
 				#address-cells = <0x01>;
 				#size-cells = <0x00>;
-				phandle = <0x175>;
+				phandle = <0x174>;
 
 				pon@800 {
 					compatible = "qcom,pm8998-pon";
@@ -4111,7 +4105,7 @@
 					mode-bootloader = <0x02>;
 					mode-recovery = <0x01>;
 					status = "disabled";
-					phandle = <0x176>;
+					phandle = <0x175>;
 
 					pwrkey {
 						compatible = "qcom,pm8941-pwrkey";
@@ -4119,7 +4113,7 @@
 						debounce = <0x3d09>;
 						bias-pull-up;
 						linux,code = <0x74>;
-						phandle = <0x177>;
+						phandle = <0x176>;
 					};
 				};
 
@@ -4190,7 +4184,7 @@
 				reg = <0x01 0x00>;
 				#address-cells = <0x01>;
 				#size-cells = <0x00>;
-				phandle = <0x178>;
+				phandle = <0x177>;
 			};
 
 			pmic@4 {
@@ -4198,7 +4192,7 @@
 				reg = <0x04 0x00>;
 				#address-cells = <0x01>;
 				#size-cells = <0x00>;
-				phandle = <0x179>;
+				phandle = <0x178>;
 
 				adc@3100 {
 					compatible = "qcom,spmi-adc5";
@@ -4207,7 +4201,7 @@
 					#address-cells = <0x01>;
 					#size-cells = <0x00>;
 					#io-channel-cells = <0x01>;
-					phandle = <0x17a>;
+					phandle = <0x179>;
 
 					adc-chan@6 {
 						reg = <0x06>;
@@ -4223,7 +4217,7 @@
 					#address-cells = <0x01>;
 					#size-cells = <0x00>;
 					status = "disabled";
-					phandle = <0x17b>;
+					phandle = <0x17a>;
 				};
 
 				gpios@c000 {
@@ -4244,7 +4238,7 @@
 				reg = <0x05 0x00>;
 				#address-cells = <0x01>;
 				#size-cells = <0x00>;
-				phandle = <0x17c>;
+				phandle = <0x17b>;
 			};
 		};
 
@@ -4355,7 +4349,7 @@
 			qcom,tcs-offset = <0xd00>;
 			qcom,drv-id = <0x02>;
 			qcom,tcs-config = <0x02 0x02 0x00 0x03 0x01 0x03 0x03 0x01>;
-			phandle = <0x17d>;
+			phandle = <0x17c>;
 
 			clock-controller {
 				compatible = "qcom,sc7180-rpmh-clk";
@@ -4377,12 +4371,12 @@
 
 					opp1 {
 						opp-level = <0x10>;
-						phandle = <0x17e>;
+						phandle = <0x17d>;
 					};
 
 					opp2 {
 						opp-level = <0x30>;
-						phandle = <0x17f>;
+						phandle = <0x17e>;
 					};
 
 					opp3 {
@@ -4402,7 +4396,7 @@
 
 					opp6 {
 						opp-level = <0xe0>;
-						phandle = <0x180>;
+						phandle = <0x17f>;
 					};
 
 					opp7 {
@@ -4412,12 +4406,12 @@
 
 					opp8 {
 						opp-level = <0x140>;
-						phandle = <0x181>;
+						phandle = <0x180>;
 					};
 
 					opp9 {
 						opp-level = <0x150>;
-						phandle = <0x182>;
+						phandle = <0x181>;
 					};
 
 					opp10 {
@@ -4427,7 +4421,7 @@
 
 					opp11 {
 						opp-level = <0x1a0>;
-						phandle = <0x183>;
+						phandle = <0x182>;
 					};
 				};
 			};
@@ -4444,7 +4438,7 @@
 				smps1 {
 					regulator-min-microvolt = <0x113640>;
 					regulator-max-microvolt = <0x113640>;
-					phandle = <0x184>;
+					phandle = <0x183>;
 				};
 
 				ldo4 {
@@ -4486,7 +4480,7 @@
 					regulator-min-microvolt = <0x1b7740>;
 					regulator-max-microvolt = <0x1b7740>;
 					regulator-initial-mode = <0x03>;
-					phandle = <0x185>;
+					phandle = <0x184>;
 				};
 
 				ldo14 {
@@ -4514,7 +4508,7 @@
 					regulator-min-microvolt = <0x1b7740>;
 					regulator-max-microvolt = <0x1b7740>;
 					regulator-initial-mode = <0x03>;
-					phandle = <0x186>;
+					phandle = <0x185>;
 				};
 
 				ldo19 {
@@ -4532,7 +4526,7 @@
 				smps8 {
 					regulator-min-microvolt = <0x111700>;
 					regulator-max-microvolt = <0x157c00>;
-					phandle = <0x187>;
+					phandle = <0x186>;
 				};
 
 				ldo1 {
@@ -4567,7 +4561,7 @@
 					regulator-min-microvolt = <0x326a40>;
 					regulator-max-microvolt = <0x326a40>;
 					regulator-initial-mode = <0x03>;
-					phandle = <0x188>;
+					phandle = <0x187>;
 				};
 
 				ldo8 {
@@ -4602,7 +4596,7 @@
 					regulator-min-microvolt = <0x2de600>;
 					regulator-max-microvolt = <0x3c6cc0>;
 					regulator-initial-mode = <0x02>;
-					phandle = <0x189>;
+					phandle = <0x188>;
 				};
 			};
 		};
@@ -4641,7 +4635,7 @@
 			vdd-3.3-ch0-supply = <0x50>;
 			vdd-3.3-ch1-supply = <0xd4>;
 			qcom,ath10k-calibration-variant = "GO_LAZOR";
-			phandle = <0x18a>;
+			phandle = <0x189>;
 
 			wifi-firmware {
 				iommus = <0x26 0xc2 0x01>;
@@ -4687,7 +4681,7 @@
 			mi2s@1 {
 				reg = <0x01>;
 				qcom,playback-sd-lines = <0x00>;
-				phandle = <0x18b>;
+				phandle = <0x18a>;
 			};
 
 			hdmi@5 {
@@ -4713,7 +4707,7 @@
 			polling-delay = <0x00>;
 			thermal-sensors = <0xda 0x01>;
 			sustainable-power = <0x41c>;
-			phandle = <0x18c>;
+			phandle = <0x18b>;
 
 			trips {
 
@@ -4735,7 +4729,7 @@
 					temperature = <0x1adb0>;
 					hysteresis = <0x3e8>;
 					type = "critical";
-					phandle = <0x18d>;
+					phandle = <0x18c>;
 				};
 			};
 
@@ -4758,7 +4752,7 @@
 			polling-delay = <0x00>;
 			thermal-sensors = <0xda 0x02>;
 			sustainable-power = <0x41c>;
-			phandle = <0x18e>;
+			phandle = <0x18d>;
 
 			trips {
 
@@ -4780,7 +4774,7 @@
 					temperature = <0x1adb0>;
 					hysteresis = <0x3e8>;
 					type = "critical";
-					phandle = <0x18f>;
+					phandle = <0x18e>;
 				};
 			};
 
@@ -4803,7 +4797,7 @@
 			polling-delay = <0x00>;
 			thermal-sensors = <0xda 0x03>;
 			sustainable-power = <0x41c>;
-			phandle = <0x190>;
+			phandle = <0x18f>;
 
 			trips {
 
@@ -4825,7 +4819,7 @@
 					temperature = <0x1adb0>;
 					hysteresis = <0x3e8>;
 					type = "critical";
-					phandle = <0x191>;
+					phandle = <0x190>;
 				};
 			};
 
@@ -4848,7 +4842,7 @@
 			polling-delay = <0x00>;
 			thermal-sensors = <0xda 0x04>;
 			sustainable-power = <0x41c>;
-			phandle = <0x192>;
+			phandle = <0x191>;
 
 			trips {
 
@@ -4870,7 +4864,7 @@
 					temperature = <0x1adb0>;
 					hysteresis = <0x3e8>;
 					type = "critical";
-					phandle = <0x193>;
+					phandle = <0x192>;
 				};
 			};
 
@@ -4893,7 +4887,7 @@
 			polling-delay = <0x00>;
 			thermal-sensors = <0xda 0x05>;
 			sustainable-power = <0x41c>;
-			phandle = <0x194>;
+			phandle = <0x193>;
 
 			trips {
 
@@ -4915,7 +4909,7 @@
 					temperature = <0x1adb0>;
 					hysteresis = <0x3e8>;
 					type = "critical";
-					phandle = <0x195>;
+					phandle = <0x194>;
 				};
 			};
 
@@ -4938,7 +4932,7 @@
 			polling-delay = <0x00>;
 			thermal-sensors = <0xda 0x06>;
 			sustainable-power = <0x41c>;
-			phandle = <0x196>;
+			phandle = <0x195>;
 
 			trips {
 
@@ -4960,7 +4954,7 @@
 					temperature = <0x1adb0>;
 					hysteresis = <0x3e8>;
 					type = "critical";
-					phandle = <0x197>;
+					phandle = <0x196>;
 				};
 			};
 
@@ -4983,7 +4977,7 @@
 			polling-delay = <0x00>;
 			thermal-sensors = <0xda 0x09>;
 			sustainable-power = <0x591>;
-			phandle = <0x198>;
+			phandle = <0x197>;
 
 			trips {
 
@@ -5005,7 +4999,7 @@
 					temperature = <0x1adb0>;
 					hysteresis = <0x3e8>;
 					type = "critical";
-					phandle = <0x199>;
+					phandle = <0x198>;
 				};
 			};
 
@@ -5028,7 +5022,7 @@
 			polling-delay = <0x00>;
 			thermal-sensors = <0xda 0x0a>;
 			sustainable-power = <0x591>;
-			phandle = <0x19a>;
+			phandle = <0x199>;
 
 			trips {
 
@@ -5050,7 +5044,7 @@
 					temperature = <0x1adb0>;
 					hysteresis = <0x3e8>;
 					type = "critical";
-					phandle = <0x19b>;
+					phandle = <0x19a>;
 				};
 			};
 
@@ -5073,7 +5067,7 @@
 			polling-delay = <0x00>;
 			thermal-sensors = <0xda 0x0b>;
 			sustainable-power = <0x591>;
-			phandle = <0x19c>;
+			phandle = <0x19b>;
 
 			trips {
 
@@ -5095,7 +5089,7 @@
 					temperature = <0x1adb0>;
 					hysteresis = <0x3e8>;
 					type = "critical";
-					phandle = <0x19d>;
+					phandle = <0x19c>;
 				};
 			};
 
@@ -5118,7 +5112,7 @@
 			polling-delay = <0x00>;
 			thermal-sensors = <0xda 0x0c>;
 			sustainable-power = <0x591>;
-			phandle = <0x19e>;
+			phandle = <0x19d>;
 
 			trips {
 
@@ -5140,7 +5134,7 @@
 					temperature = <0x1adb0>;
 					hysteresis = <0x3e8>;
 					type = "critical";
-					phandle = <0x19f>;
+					phandle = <0x19e>;
 				};
 			};
 
@@ -5169,14 +5163,14 @@
 					temperature = <0x15f90>;
 					hysteresis = <0x7d0>;
 					type = "hot";
-					phandle = <0x1a0>;
+					phandle = <0x19f>;
 				};
 
 				aoss0_crit {
 					temperature = <0x1adb0>;
 					hysteresis = <0x7d0>;
 					type = "critical";
-					phandle = <0x1a1>;
+					phandle = <0x1a0>;
 				};
 			};
 		};
@@ -5192,14 +5186,14 @@
 					temperature = <0x15f90>;
 					hysteresis = <0x7d0>;
 					type = "hot";
-					phandle = <0x1a2>;
+					phandle = <0x1a1>;
 				};
 
 				cluster0_crit {
 					temperature = <0x1adb0>;
 					hysteresis = <0x7d0>;
 					type = "critical";
-					phandle = <0x1a3>;
+					phandle = <0x1a2>;
 				};
 			};
 		};
@@ -5215,14 +5209,14 @@
 					temperature = <0x15f90>;
 					hysteresis = <0x7d0>;
 					type = "hot";
-					phandle = <0x1a4>;
+					phandle = <0x1a3>;
 				};
 
 				cluster0_crit {
 					temperature = <0x1adb0>;
 					hysteresis = <0x7d0>;
 					type = "critical";
-					phandle = <0x1a5>;
+					phandle = <0x1a4>;
 				};
 			};
 		};
@@ -5245,7 +5239,7 @@
 					temperature = <0x1adb0>;
 					hysteresis = <0x7d0>;
 					type = "critical";
-					phandle = <0x1a6>;
+					phandle = <0x1a5>;
 				};
 			};
 
@@ -5276,7 +5270,7 @@
 					temperature = <0x1adb0>;
 					hysteresis = <0x7d0>;
 					type = "critical";
-					phandle = <0x1a7>;
+					phandle = <0x1a6>;
 				};
 			};
 
@@ -5300,14 +5294,14 @@
 					temperature = <0x15f90>;
 					hysteresis = <0x7d0>;
 					type = "hot";
-					phandle = <0x1a8>;
+					phandle = <0x1a7>;
 				};
 
 				aoss1_crit {
 					temperature = <0x1adb0>;
 					hysteresis = <0x7d0>;
 					type = "critical";
-					phandle = <0x1a9>;
+					phandle = <0x1a8>;
 				};
 			};
 		};
@@ -5323,14 +5317,14 @@
 					temperature = <0x15f90>;
 					hysteresis = <0x7d0>;
 					type = "hot";
-					phandle = <0x1aa>;
+					phandle = <0x1a9>;
 				};
 
 				cwlan_crit {
 					temperature = <0x1adb0>;
 					hysteresis = <0x7d0>;
 					type = "critical";
-					phandle = <0x1ab>;
+					phandle = <0x1aa>;
 				};
 			};
 		};
@@ -5346,14 +5340,14 @@
 					temperature = <0x15f90>;
 					hysteresis = <0x7d0>;
 					type = "hot";
-					phandle = <0x1ac>;
+					phandle = <0x1ab>;
 				};
 
 				audio_crit {
 					temperature = <0x1adb0>;
 					hysteresis = <0x7d0>;
 					type = "critical";
-					phandle = <0x1ad>;
+					phandle = <0x1ac>;
 				};
 			};
 		};
@@ -5369,14 +5363,14 @@
 					temperature = <0x15f90>;
 					hysteresis = <0x7d0>;
 					type = "hot";
-					phandle = <0x1ae>;
+					phandle = <0x1ad>;
 				};
 
 				ddr_crit {
 					temperature = <0x1adb0>;
 					hysteresis = <0x7d0>;
 					type = "critical";
-					phandle = <0x1af>;
+					phandle = <0x1ae>;
 				};
 			};
 		};
@@ -5392,14 +5386,14 @@
 					temperature = <0x15f90>;
 					hysteresis = <0x7d0>;
 					type = "hot";
-					phandle = <0x1b0>;
+					phandle = <0x1af>;
 				};
 
 				q6_hvx_crit {
 					temperature = <0x1adb0>;
 					hysteresis = <0x7d0>;
 					type = "critical";
-					phandle = <0x1b1>;
+					phandle = <0x1b0>;
 				};
 			};
 		};
@@ -5415,14 +5409,14 @@
 					temperature = <0x15f90>;
 					hysteresis = <0x7d0>;
 					type = "hot";
-					phandle = <0x1b2>;
+					phandle = <0x1b1>;
 				};
 
 				camera_crit {
 					temperature = <0x1adb0>;
 					hysteresis = <0x7d0>;
 					type = "critical";
-					phandle = <0x1b3>;
+					phandle = <0x1b2>;
 				};
 			};
 		};
@@ -5438,14 +5432,14 @@
 					temperature = <0x15f90>;
 					hysteresis = <0x7d0>;
 					type = "hot";
-					phandle = <0x1b4>;
+					phandle = <0x1b3>;
 				};
 
 				mdm_crit {
 					temperature = <0x1adb0>;
 					hysteresis = <0x7d0>;
 					type = "critical";
-					phandle = <0x1b5>;
+					phandle = <0x1b4>;
 				};
 			};
 		};
@@ -5461,14 +5455,14 @@
 					temperature = <0x15f90>;
 					hysteresis = <0x7d0>;
 					type = "hot";
-					phandle = <0x1b6>;
+					phandle = <0x1b5>;
 				};
 
 				mdm_dsp_crit {
 					temperature = <0x1adb0>;
 					hysteresis = <0x7d0>;
 					type = "critical";
-					phandle = <0x1b7>;
+					phandle = <0x1b6>;
 				};
 			};
 		};
@@ -5484,14 +5478,14 @@
 					temperature = <0x15f90>;
 					hysteresis = <0x7d0>;
 					type = "hot";
-					phandle = <0x1b8>;
+					phandle = <0x1b7>;
 				};
 
 				npu_crit {
 					temperature = <0x1adb0>;
 					hysteresis = <0x7d0>;
 					type = "critical";
-					phandle = <0x1b9>;
+					phandle = <0x1b8>;
 				};
 			};
 		};
@@ -5507,14 +5501,14 @@
 					temperature = <0x15f90>;
 					hysteresis = <0x7d0>;
 					type = "hot";
-					phandle = <0x1ba>;
+					phandle = <0x1b9>;
 				};
 
 				video_crit {
 					temperature = <0x1adb0>;
 					hysteresis = <0x7d0>;
 					type = "critical";
-					phandle = <0x1bb>;
+					phandle = <0x1ba>;
 				};
 			};
 		};
@@ -5523,7 +5517,7 @@
 			polling-delay-passive = <0x64>;
 			polling-delay = <0x00>;
 			thermal-sensors = <0xf3>;
-			phandle = <0x1bc>;
+			phandle = <0x1bb>;
 
 			trips {
 
@@ -5531,14 +5525,14 @@
 					temperature = <0x17318>;
 					hysteresis = <0x00>;
 					type = "passive";
-					phandle = <0x1bd>;
+					phandle = <0x1bc>;
 				};
 
 				crit {
 					temperature = <0x1c138>;
 					hysteresis = <0x00>;
 					type = "critical";
-					phandle = <0x1be>;
+					phandle = <0x1bd>;
 				};
 			};
 		};
@@ -5548,7 +5542,7 @@
 			polling-delay = <0x00>;
 			thermal-sensors = <0xf4 0x00>;
 			status = "disabled";
-			phandle = <0x1bf>;
+			phandle = <0x1be>;
 
 			trips {
 
@@ -5580,7 +5574,7 @@
 		regulator-always-on;
 		regulator-boot-on;
 		vin-supply = <0xf5>;
-		phandle = <0x1c0>;
+		phandle = <0x1bf>;
 	};
 
 	pp5000-a-regulator {
@@ -5591,7 +5585,7 @@
 		regulator-min-microvolt = <0x4c4b40>;
 		regulator-max-microvolt = <0x4c4b40>;
 		vin-supply = <0xf5>;
-		phandle = <0x1c1>;
+		phandle = <0x1c0>;
 	};
 
 	pp3300-a-regulator {
@@ -5654,7 +5648,7 @@
 		regulator-always-on;
 		regulator-boot-on;
 		vin-supply = <0x55>;
-		phandle = <0x1c2>;
+		phandle = <0x1c1>;
 	};
 
 	backlight {
@@ -5675,7 +5669,7 @@
 		status = "disabled";
 		pinctrl-names = "default";
 		pinctrl-0 = <0xfb>;
-		phandle = <0x1c3>;
+		phandle = <0x1c2>;
 
 		pen-insert {
 			label = "Pen Insert";
@@ -5684,7 +5678,7 @@
 			linux,input-type = <0x05>;
 			wakeup-event-action = <0x02>;
 			wakeup-source;
-			phandle = <0x1c4>;
+			phandle = <0x1c3>;
 		};
 	};
 
@@ -5705,7 +5699,7 @@
 			label = "cros_ec::kbd_backlight";
 			pwms = <0xf9 0x00>;
 			max-brightness = <0x3ff>;
-			phandle = <0x1c5>;
+			phandle = <0x1c4>;
 		};
 	};
 
@@ -5715,7 +5709,7 @@
 		audio-routing = "Headphone Jack\0HPOL\0Headphone Jack\0HPOR";
 		#address-cells = <0x01>;
 		#size-cells = <0x00>;
-		phandle = <0x1c6>;
+		phandle = <0x1c5>;
 
 		dai-link@0 {
 			link-name = "MultiMedia0";
@@ -5727,7 +5721,7 @@
 
 			codec {
 				sound-dai = <0xfe 0x00>;
-				phandle = <0x1c7>;
+				phandle = <0x1c6>;
 			};
 		};
 
@@ -5741,7 +5735,7 @@
 
 			codec {
 				sound-dai = <0xff>;
-				phandle = <0x1c8>;
+				phandle = <0x1c7>;
 			};
 		};
 
@@ -5766,7 +5760,6 @@
 		aop_cmd_db_mem = "/reserved-memory/memory@80820000";
 		smem_mem = "/reserved-memory/memory@80900000";
 		atf_mem = "/reserved-memory/memory@80b00000";
-		ipa_fw_mem = "/reserved-memory/memory@8b700000";
 		rmtfs_mem = "/reserved-memory/memory@94600000";
 		mpss_mem = "/reserved-memory/memory@86000000";
 		venus_mem = "/reserved-memory/memory@8f600000";

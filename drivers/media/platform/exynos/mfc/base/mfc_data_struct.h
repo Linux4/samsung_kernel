@@ -2329,8 +2329,7 @@ struct mfc_dec {
 	unsigned int *crc;
 	int crc_idx;
 
-	unsigned long consumed;
-	unsigned long remained_size;
+	unsigned int consumed;
 	dma_addr_t y_addr_for_pb;
 
 	int sei_parse;

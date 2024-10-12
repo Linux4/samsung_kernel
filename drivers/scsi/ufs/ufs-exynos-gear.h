@@ -13,6 +13,9 @@
 #ifndef _UFS_EXYNOS_GEAR_H_
 #define _UFS_EXYNOS_GEAR_H_
 
+#if IS_ENABLED(CONFIG_EXYNOS_PM_QOS)
+#include <soc/samsung/exynos_pm_qos.h>
+#endif
 #include <linux/workqueue.h>
 
 enum ufs_perf_state {
@@ -37,6 +40,9 @@ struct ufs_perf_stat_v2 {
 	bool g_scale_en;
 	u8 exynos_stat;
 
+#if IS_ENABLED(CONFIG_EXYNOS_PM_QOS)
+	struct exynos_pm_qos_request	pm_qos_int;
+#endif
 	/* notifier */
 	struct notifier_block reboot_nb;
 

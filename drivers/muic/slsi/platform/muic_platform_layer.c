@@ -669,6 +669,9 @@ void muic_platform_handle_hv_attached_dev(struct muic_share_data *sdata,
 	pr_info("%s sdata->attached_dev: %d, new_dev: %d, afc_disable: %d\n",
 				__func__, sdata->attached_dev, new_dev, afc_disable);
 
+	if (sdata->attached_dev == ATTACHED_DEV_HICCUP_MUIC)
+		goto skip_noti;
+
 	switch (new_dev) {
 	case ATTACHED_DEV_TA_MUIC:
 	case ATTACHED_DEV_AFC_CHARGER_DISABLED_MUIC:

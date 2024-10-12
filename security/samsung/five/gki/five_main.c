@@ -244,7 +244,9 @@ const char *five_d_path(const struct path *path, char **pathbuf, char *namebuf)
 			*pathbuf = NULL;
 			pathname = NULL;
 		}
-		fix_dpath(path, *pathbuf, pathname);
+		else {
+			fix_dpath(path, *pathbuf, pathname);
+		}
 	}
 
 	if (!pathname) {
@@ -349,7 +351,8 @@ static int push_file_event_bunch(struct task_struct *task, struct file *file,
 
 		context->tint = TASK_INTEGRITY(task);
 
-		list_add_tail(&five_file->list, &TASK_INTEGRITY(task)->events.list);
+		list_add_tail(&five_file->list,
+			      &TASK_INTEGRITY(task)->events.list);
 		spin_unlock(&TASK_INTEGRITY(task)->list_lock);
 		INIT_WORK(&context->data_work, work_handler);
 		rc = queue_work(g_five_workqueue, &context->data_work) ? 0 : 1;
@@ -358,11 +361,12 @@ static int push_file_event_bunch(struct task_struct *task, struct file *file,
 
 		INIT_LIST_HEAD(&dead_list);
 		if ((function == BPRM_CHECK) &&
-			(!list_is_singular(&(TASK_INTEGRITY(task)->events.list)))) {
+		    (!list_is_singular(&(TASK_INTEGRITY(task)->events.list)))) {
 			list_cut_tail(&TASK_INTEGRITY(task)->events.list,
 					&dead_list);
 		}
-		list_add_tail(&five_file->list, &TASK_INTEGRITY(task)->events.list);
+		list_add_tail(&five_file->list,
+			      &TASK_INTEGRITY(task)->events.list);
 		spin_unlock(&TASK_INTEGRITY(task)->list_lock);
 		free_files_list(&dead_list);
 		kfree(context);
@@ -994,7 +998,7 @@ int five_fork(struct task_struct *task, struct task_struct *child_task)
 			}
 
 			list_add_tail(&five_file->list,
-					&TASK_INTEGRITY(child_task)->events.list);
+				      &TASK_INTEGRITY(child_task)->events.list);
 		}
 
 		context->tint = TASK_INTEGRITY(child_task);

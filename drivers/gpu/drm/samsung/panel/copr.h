@@ -30,15 +30,11 @@
 #define COPR_V5_CTRL_REG_SIZE (52)
 #define COPR_V6_CTRL_REG_SIZE (75)
 
-enum {
-	COPR_SET_SEQ,
-	/* if necessary, add new seq */
-	COPR_CLR_CNT_ON_SEQ,
-	COPR_CLR_CNT_OFF_SEQ,
-	COPR_SPI_GET_SEQ,
-	COPR_DSI_GET_SEQ,
-	MAX_COPR_SEQ,
-};
+#define COPR_SET_SEQ ("copr_set_seq")
+#define COPR_CLR_CNT_ON_SEQ ("copr_clr_cnt_on_seq")
+#define COPR_CLR_CNT_OFF_SEQ ("copr_clr_cnt_off_seq")
+#define COPR_SPI_GET_SEQ ("copr_spi_get_seq")
+#define COPR_DSI_GET_SEQ ("copr_dsi_get_seq")
 
 enum {
 	COPR_MAPTBL,
@@ -60,6 +56,7 @@ enum COPR_VER {
 	COPR_VER_3,
 	COPR_VER_5,
 	COPR_VER_6,
+	COPR_VER_0_1,			// watch
 	MAX_COPR_VER,
 };
 
@@ -180,6 +177,15 @@ struct copr_reg_v6 {
 	struct copr_roi roi[5];
 };
 
+struct copr_reg_v0_1 {
+	u32 copr_en;
+	u32 copr_pwr;
+	u32 copr_mask;
+	u32 copr_roi_ctrl;
+	u32 copr_gamma_ctrl;
+	struct copr_roi roi[2];
+};
+
 struct copr_reg {
 	union {
 		struct copr_reg_v0 v0;
@@ -188,6 +194,7 @@ struct copr_reg {
 		struct copr_reg_v3 v3;
 		struct copr_reg_v5 v5;
 		struct copr_reg_v6 v6;
+		struct copr_reg_v0_1 v0_1;
 	};
 };
 
@@ -222,16 +229,12 @@ struct copr_wq {
 struct copr_info {
 	struct device *dev;
 	struct class *class;
-	struct mutex lock;
+	struct panel_mutex lock;
 	atomic_t stop;
 	struct copr_wq wq;
 	struct timenval res;
 	struct copr_properties props;
 	struct notifier_block fb_notif;
-	struct maptbl *maptbl;
-	u32 nr_maptbl;
-	struct seqinfo *seqtbl;
-	u32 nr_seqtbl;
 };
 
 struct panel_copr_data {
@@ -246,7 +249,7 @@ struct panel_copr_data {
 	int nr_roi;
 };
 
-#ifdef CONFIG_EXYNOS_DECON_LCD_COPR
+#ifdef CONFIG_USDM_PANEL_COPR
 bool copr_is_enabled(struct copr_info *copr);
 int copr_enable(struct copr_info *copr);
 int copr_disable(struct copr_info *copr);
@@ -257,6 +260,8 @@ int copr_get_value(struct copr_info *copr);
 int copr_get_average_and_clear(struct copr_info *copr);
 int copr_roi_set_value(struct copr_info *copr, struct copr_roi *roi, int size);
 int copr_roi_get_value(struct copr_info *copr, struct copr_roi *roi, int size, u32 *out);
+int copr_prepare(struct panel_device *panel, struct panel_copr_data *copr_data);
+int copr_unprepare(struct panel_device *panel);
 int copr_probe(struct panel_device *panel, struct panel_copr_data *copr_data);
 int copr_remove(struct panel_device *panel);
 int copr_res_update(struct copr_info *copr, int index, int cur_value, struct timespec cur_ts);
@@ -280,6 +285,8 @@ static inline int copr_get_value(struct copr_info *copr) { return 0; }
 static inline int copr_get_average_and_clear(struct copr_info *copr) { return 0; }
 static inline int copr_roi_set_value(struct copr_info *copr, struct copr_roi *roi, int size) { return 0; }
 static inline int copr_roi_get_value(struct copr_info *copr, struct copr_roi *roi, int size, u32 *out) { return 0; }
+static inline int copr_prepare(struct panel_device *panel, struct panel_copr_data *copr_data) { return 0; }
+static inline int copr_unprepare(struct panel_device *panel) { return 0; }
 static inline int copr_probe(struct panel_device *panel, struct panel_copr_data *copr_data) { return 0; }
 static inline int copr_remove(struct panel_device *panel) { return 0; }
 static inline int copr_res_update(struct copr_info *copr, int index, int cur_value, struct timespec cur_ts) { return 0; }

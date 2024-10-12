@@ -30,6 +30,7 @@ enum icpu_debug_status {
 
 #define DEBUG_LOG_SIZE SZ_1M
 #define DEBUG_BUF_LEN 256
+#define ICPU_KERNEL_DUMP_SIZE 3000
 static struct icpu_debug {
 	struct dentry *root_dir;
 	struct dentry *logfile;
@@ -104,7 +105,7 @@ static int __debug_read_overlapped(size_t offset,
 	return 0;
 }
 
-static u32 __print_buf(u32 src_idx, char *buf, size_t st, size_t ed)
+static u32 __print_buf(u32 src_idx, char *buf, size_t st, size_t ed, size_t st_pr)
 {
 	const u32 max_src_idx = DEBUG_BUF_LEN - 1;
 
@@ -120,10 +121,13 @@ static u32 __print_buf(u32 src_idx, char *buf, size_t st, size_t ed)
 				debug.priv_buf[src_idx] = '\0';
 				st--;
 			}
-			if (_log.level == LOGLEVEL_CUSTOM1)
+			if (_log.level == LOGLEVEL_CUSTOM1) {
 				pr_warn("[ICPU-FW] %s", debug.priv_buf);
-			else
+			} else {
 				is_memlog_ddk("[ICPU-FW] %s", debug.priv_buf);
+				if (st_pr < st)
+					pr_warn("[ICPU-FW] %s", debug.priv_buf);
+			}
 			memset(debug.priv_buf, 0, DEBUG_BUF_LEN);
 			src_idx = 0;
 			continue;
@@ -134,11 +138,11 @@ static u32 __print_buf(u32 src_idx, char *buf, size_t st, size_t ed)
 	return src_idx;
 }
 
-static ssize_t __log_dump(loff_t *ppos)
+static ssize_t __log_dump(loff_t *ppos, size_t pr_size)
 {
 	bool overflow_bit;
 	size_t offset;
-	size_t st, ed;
+	size_t st, ed, st_pr;
 	u32 index = 0;
 	char *log_buf = debug.log_base_kva;
 
@@ -159,15 +163,18 @@ static ssize_t __log_dump(loff_t *ppos)
 	if (!overflow_bit) {
 		st = *ppos;
 		ed = offset;
-		index = __print_buf(index, log_buf, st, ed);
+		st_pr = (ed > pr_size) ? ed - pr_size : st;
+		index = __print_buf(index, log_buf, st, ed, st_pr);
 	} else {
 		st = *ppos ? *ppos : offset + 1;
 		ed = debug.log_size;
-		index = __print_buf(index, log_buf, st, ed);
+		st_pr = (offset < pr_size) ? ed - (pr_size - offset) : ed;
+		index = __print_buf(index, log_buf, st, ed, st_pr);
 
 		st = 0;
 		ed = offset;
-		index = __print_buf(index, log_buf, st, ed);
+		st_pr = (offset >= pr_size) ? ed - pr_size : st;
+		index = __print_buf(index, log_buf, st, ed, st_pr);
 	}
 
 	*ppos = ed - 1;
@@ -179,7 +186,7 @@ static ssize_t __printk_fw_log(char __user *user_buf, size_t buf_len, loff_t *pp
 {
 	ssize_t ret;
 
-	ret = __log_dump(ppos);
+	ret = __log_dump(ppos, 0);
 	if (ret) {
 		debug.copy_to_buf(user_buf, "\r", 1);
 		fsleep(WAIT_TIME_US);
@@ -352,7 +359,7 @@ void pablo_icpu_debug_fw_log_dump(void)
 	ICPU_INFO("start firmware log dump");
 
 	_log.level = LOGLEVEL_INFO;
-	__log_dump(&ppos);
+	__log_dump(&ppos, ICPU_KERNEL_DUMP_SIZE);
 	_log.level = level;
 
 	ICPU_INFO("end firmware log dump");

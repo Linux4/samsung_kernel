@@ -123,6 +123,13 @@
 #define SLSI_FW_API_RATE_11AX_GI            (0x3 << SLSI_FW_API_RATE_11AX_GI_POSN)
 #define SLSI_FW_API_GET_11AX_GI(val)        ((val & SLSI_FW_API_RATE_11AX_GI) >> SLSI_FW_API_RATE_11AX_GI_POSN)
 
+#define RADIO_1_ANT_NUM                     0
+#define RADIO_2_ANT_NUM                     1
+#define MASK_BACKOFF_STATE_INIT             0x0000
+#define MASK_BACKOFF_STATE_ANT_1            0x0001
+#define MASK_BACKOFF_STATE_ANT_2            0x0002
+
+#define MAX_TX_PWR_BACKOFF_ARG_CNT          12
 #define HEAD_SAR_BACKOFF_DISABLED           -1
 #define HEAD_SAR_BACKOFF_ENABLED            0
 #define BODY_SAR_BACKOFF_DISABLED           1
@@ -299,7 +306,7 @@ static inline void ethr_ii_to_subframe_msdu(struct sk_buff *skb)
 #define SLSI_NCHO_MAX_FREQUENCY_LIST 20
 #define SLSI_MAX_CHANNEL_LIST 20
 #define SLSI_MAX_FREQUENCY_LIST 20
-#define SLSI_MAX_RX_BA_SESSIONS (8)
+#define SLSI_MAX_RX_BA_SESSIONS (32)
 #define SLSI_STA_ACTION_FRAME_BITMAP (SLSI_ACTION_FRAME_PUBLIC | SLSI_ACTION_FRAME_WMM | SLSI_ACTION_FRAME_WNM |\
 				      SLSI_ACTION_FRAME_QOS | SLSI_ACTION_FRAME_PROTECTED_DUAL |\
 				      SLSI_ACTION_FRAME_RADIO_MEASUREMENT)
@@ -786,6 +793,7 @@ struct slsi_vif_sta {
 	int                     tdls_peer_sta_records;
 	int                     tdls_max_peer;
 	bool                    tdls_enabled;
+	u8                      tdls_dgw_macaddr[ETH_ALEN];
 	struct list_head        tdls_candidate_setup_list;
 	int                     tdls_candidate_setup_count;
 	struct cfg80211_bss     *sta_bss;
@@ -947,6 +955,7 @@ struct slsi_vif_nan {
 	u32 ndp_instance_id_map;
 	u32 next_service_id;
 	u32 next_ndp_instance_id;
+	u16 ndp_active_id_map;
 	struct slsi_nan_ndl_info ndl_list[SLSI_NAN_MAX_NDP_INSTANCES];
 	u8  ndp_ndi[SLSI_NAN_MAX_NDP_INSTANCES][ETH_ALEN];
 	u16 ndp_instance_id2ndl_vif[SLSI_NAN_MAX_NDP_INSTANCES];
@@ -1146,6 +1155,7 @@ struct netdev_vif {
 	struct slsi_spinlock        ba_lock;
 	struct sk_buff_head         ba_complete;
 	atomic_t                    ba_flush;
+	u32                         timeout_in_ms;
 
 	u64                         mgmt_tx_cookie; /* Cookie id for mgmt tx */
 	struct slsi_vif_mgmt_tx     mgmt_tx_data;
@@ -1334,6 +1344,8 @@ struct slsi_dev_config {
 	bool                                    fw_apf_supported;
 	struct                                  slsi_apf_capabilities apf_cap;
 	int                                     supported_roam_band;
+	int                                     last_custom_tx_pwr[MAX_TX_PWR_BACKOFF_ARG_CNT];
+	u16                                     backoffed_ant_config;
 };
 
 #define SLSI_DEVICE_STATE_ATTACHING 0
@@ -1458,7 +1470,9 @@ struct conn_log2us {
 	int full_scan_roam;
 	u8  eapol_ptk_msg_type;
 	u16 host_tag_eap;
+	u16 host_tag_eap_type;
 	int eap_resp_len;
+	int eap_start_len;
 	bool is_eapol_gtk;
 	bool is_eapol_ptk;
 	int eap_str_type;
@@ -1566,12 +1580,14 @@ struct slsi_dev {
 #ifdef CONFIG_SCSC_WLAN_ANDROID
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 4, 0))
 	struct scsc_wake_lock			wlan_wl;
+	struct scsc_wake_lock			wlan_wl_mlme_evt;
 	struct scsc_wake_lock			wlan_wl_mlme;
 	struct scsc_wake_lock			wlan_wl_ma;
 	struct scsc_wake_lock			wlan_wl_roam;
 	struct scsc_wake_lock			wlan_wl_init;
 #else
 	struct wake_lock                        wlan_wl;
+	struct wake_lock			wlan_wl_mlme_evt;
 	struct wake_lock                        wlan_wl_mlme;
 	struct wake_lock                        wlan_wl_ma;
 	struct wake_lock                        wlan_wl_roam;
@@ -1621,6 +1637,7 @@ struct slsi_dev {
 #ifdef CONFIG_SCSC_WLAN_HIP4_PROFILING
 	int                        minor_prof;
 #endif
+	DECLARE_BITMAP(rx_ba_bitmap, CONFIG_SCSC_WLAN_MAX_INTERFACES);
 	struct slsi_ba_session_rx  rx_ba_buffer_pool[SLSI_MAX_RX_BA_SESSIONS];
 	struct slsi_spinlock       rx_ba_buffer_pool_lock;
 	bool			   fail_reported;
@@ -1702,6 +1719,7 @@ struct slsi_dev {
 	u8                         fw_ext_cap_ie[12]; /*extended capability IE length is 12 */
 	u32                        fw_ext_cap_ie_len;
 	struct slsi_spinlock       netdev_lock;
+	int                        scan_mode;
 	int                        home_time;
 	int                        home_away_time;
 	int                        max_channel_time;

@@ -3626,22 +3626,22 @@ int slsi_mlme_get_num_antennas(struct slsi_dev *sdev, struct net_device *dev, in
 		SLSI_NET_ERR(dev, "sta is not in connected state\n");
 		return -EPERM;
 	}
-	SLSI_DBG1_NODEV(SLSI_MLME, "mlme_get_num_antennas_req(vif:%u)\n", ndev_vif->ifnum);
+	SLSI_DBG1_NODEV(SLSI_MLME, "mlme_get_num_rx_antennas_req(vif:%u)\n", ndev_vif->ifnum);
 
-	req = fapi_alloc(mlme_get_num_antennas_req, MLME_GET_NUM_ANTENNAS_REQ, ndev_vif->ifnum, 0);
+	req = fapi_alloc(mlme_get_num_rx_antennas_req, MLME_GET_NUM_RX_ANTENNAS_REQ, ndev_vif->ifnum, 0);
 	if (!req)
-		return -EIO;
+		return -ENOMEM;
 
-	cfm = slsi_mlme_req_cfm(sdev, dev, req, MLME_GET_NUM_ANTENNAS_CFM);
+	cfm = slsi_mlme_req_cfm(sdev, dev, req, MLME_GET_NUM_RX_ANTENNAS_CFM);
 	if (!cfm)
 		return -EIO;
 
-	if (fapi_get_u16(cfm, u.mlme_get_num_antennas_cfm.result_code) != FAPI_RESULTCODE_SUCCESS) {
-		SLSI_NET_ERR(dev, "mlme_get_num_antennas_cfm(result:0x%04x) ERROR\n",
-			     fapi_get_u16(cfm, u.mlme_get_num_antennas_cfm.result_code));
+	if (fapi_get_u16(cfm, u.mlme_get_num_rx_antennas_cfm.result_code) != FAPI_RESULTCODE_SUCCESS) {
+		SLSI_NET_ERR(dev, "mlme_get_num_rx_antennas_cfm(result:0x%04x) ERROR\n",
+			     fapi_get_u16(cfm, u.mlme_get_num_rx_antennas_cfm.result_code));
 		ret = -EINVAL;
 	}
-	*num_antennas = fapi_get_u16(cfm, u.mlme_get_num_antennas_cfm.number_of_antennas);
+	*num_antennas = fapi_get_u16(cfm, u.mlme_get_num_rx_antennas_cfm.number_of_antennas);
 
 	kfree_skb(cfm);
 	return ret;
@@ -3981,7 +3981,7 @@ int slsi_mlme_wifisharing_permitted_channels(struct slsi_dev *sdev, struct net_d
 	SLSI_MUTEX_LOCK(ndev_vif->vif_mutex);
 
 	req = fapi_alloc(mlme_wifisharing_permitted_channels_req, MLME_WIFISHARING_PERMITTED_CHANNELS_REQ,
-			 ndev_vif->ifnum, SLSI_WIFISHARING_PERMITTED_CHANNELS_SIZE);
+			 0, SLSI_WIFISHARING_PERMITTED_CHANNELS_SIZE);
 	if (!req) {
 		r = -ENOMEM;
 		goto exit;
@@ -3989,8 +3989,7 @@ int slsi_mlme_wifisharing_permitted_channels(struct slsi_dev *sdev, struct net_d
 
 	fapi_append_data(req, permitted_channels, SLSI_WIFISHARING_PERMITTED_CHANNELS_SIZE);
 
-	SLSI_NET_DBG2(dev, SLSI_MLME, "(vif:%u)\n", ndev_vif->ifnum);
-	cfm = slsi_mlme_req_cfm(sdev, dev, req, MLME_WIFISHARING_PERMITTED_CHANNELS_CFM);
+	cfm = slsi_mlme_req_cfm(sdev, NULL, req, MLME_WIFISHARING_PERMITTED_CHANNELS_CFM);
 	if (!cfm) {
 		r = -EIO;
 		goto exit;
@@ -5349,22 +5348,21 @@ int slsi_mlme_set_num_antennas(struct net_device *dev, const u16 num_of_antennas
 	}
 	SLSI_NET_INFO(dev, "SetNumAntennas(vif:%u NumAntenna:%u ftype:%d)\n",
 		      ndev_vif->ifnum, num_of_antennas, frame_type);
-
-	req = fapi_alloc(mlme_set_num_antennas_req, MLME_SET_NUM_ANTENNAS_REQ, ndev_vif->ifnum, 0);
+	req = fapi_alloc(mlme_set_num_rx_antennas_req, MLME_SET_NUM_RX_ANTENNAS_REQ, ndev_vif->ifnum, 0);
 	if (!req) {
 		SLSI_NET_ERR(dev, "failed to alloc set num antennas request\n");
 		return -ENOMEM;
 	}
-	fapi_set_u16(req, u.mlme_set_num_antennas_req.vif, ndev_vif->ifnum);
-	fapi_set_u16(req, u.mlme_set_num_antennas_req.number_of_antennas, num_of_antennas);
-	fapi_set_u16(req, u.mlme_set_num_antennas_req.frame_type, frame_type);
-	cfm = slsi_mlme_req_cfm(sdev, dev, req, MLME_SET_NUM_ANTENNAS_CFM);
+	fapi_set_u16(req, u.mlme_set_num_rx_antennas_req.vif, ndev_vif->ifnum);
+	fapi_set_u16(req, u.mlme_set_num_rx_antennas_req.number_of_antennas, num_of_antennas);
+	fapi_set_u16(req, u.mlme_set_num_rx_antennas_req.frame_type, frame_type);
+	cfm = slsi_mlme_req_cfm(sdev, dev, req, MLME_SET_NUM_RX_ANTENNAS_CFM);
 	if (!cfm)
 		return -EIO;
 
-	if (fapi_get_u16(cfm, u.mlme_set_num_antennas_cfm.result_code) != FAPI_RESULTCODE_SUCCESS) {
-		SLSI_NET_ERR(dev, "SetNumAntennasCfm(result:0x%04x) ERROR\n",
-			     fapi_get_u16(cfm, u.mlme_set_num_antennas_cfm.result_code));
+	if (fapi_get_u16(cfm, u.mlme_set_num_rx_antennas_cfm.result_code) != FAPI_RESULTCODE_SUCCESS) {
+		SLSI_NET_ERR(dev, "mlme_set_num_rx_antennas_cfm(result:0x%04x) ERROR\n",
+			     fapi_get_u16(cfm, u.mlme_set_num_rx_antennas_cfm.result_code));
 		ret = -EINVAL;
 	}
 	kfree_skb(cfm);
@@ -5924,6 +5922,57 @@ int slsi_mlme_get_ap_tx_power(struct slsi_dev *sdev, struct net_device *dev, cha
 }
 
 #endif
+
+int slsi_mlme_set_max_tx_power(struct slsi_dev *sdev, struct net_device *dev, int *pwr_limit)
+{
+#ifndef CONFIG_SCSC_WLAN_CUSTOM_TX_POWER
+	SLSI_NET_DBG1(dev, SLSI_MLME, "CONFIG_SCSC_WLAN_CUSTOM_TX_POWER not defined (s5e8835 only)\n");
+	return -EINVAL;
+#else
+	struct sk_buff    *req;
+	struct sk_buff    *cfm;
+	int               r = 0;
+	int disable_pwr_limit[MAX_TX_PWR_BACKOFF_ARG_CNT] = {
+		-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1 };
+
+	req = fapi_alloc(mlme_set_max_tx_power_req, MLME_SET_MAX_TX_POWER_REQ, 0, 0);
+	if (!req)
+		return -ENOMEM;
+
+	if (!pwr_limit)
+		pwr_limit = disable_pwr_limit;
+
+	/* Section 3.3 of MX Appendix 42 requires a mechanism to set a custom power limit.
+	 * This max power limit is comibination of Core0_ANT1_{2G, 5G, 6G}, Core0_ANT2_{2G, 5G, 6G},
+	 * Core1_ANT1_{2.4G, 5G, 6G}, Core1_ANT2_{2.4G, 5G, 6G}.
+	 * We understand Core0/Core1 is for another vendor and we need only be concerned with Core0.
+	 */
+	fapi_set_u8(req, u.mlme_set_max_tx_power_req.max_power2g4ant1, pwr_limit[0] & 0x7f);
+	fapi_set_u8(req, u.mlme_set_max_tx_power_req.max_power5g_ant1, pwr_limit[1] & 0x7f);
+	fapi_set_u8(req, u.mlme_set_max_tx_power_req.max_power6g_ant1, pwr_limit[2] & 0x7f);
+	fapi_set_u8(req, u.mlme_set_max_tx_power_req.max_power2g4ant2, pwr_limit[3] & 0x7f);
+	fapi_set_u8(req, u.mlme_set_max_tx_power_req.max_power5g_ant2, pwr_limit[4] & 0x7f);
+	fapi_set_u8(req, u.mlme_set_max_tx_power_req.max_power6g_ant2, pwr_limit[5] & 0x7f);
+
+	cfm = slsi_mlme_req_cfm(sdev, NULL, req, MLME_SET_MAX_TX_POWER_CFM);
+	if (!cfm)
+		return -EIO;
+
+	if (fapi_get_u16(cfm, u.mlme_set_max_tx_power_cfm.result_code) != FAPI_RESULTCODE_SUCCESS) {
+		SLSI_NET_ERR(dev, "mlme_set_max_tx_power_cfm(result:0x%04x) ERROR\n",
+			     fapi_get_u16(cfm, u.mlme_set_max_tx_power_cfm.result_code));
+		r = -EINVAL;
+	}
+
+	SLSI_NET_INFO(dev, "mlme_set_max_tx_power args:%d %d %d %d %d %d mac_changed %d return %d\n",
+		      pwr_limit[0], pwr_limit[1], pwr_limit[2], pwr_limit[3], pwr_limit[4],
+		      pwr_limit[5], sdev->mac_changed, r);
+
+	kfree_skb(cfm);
+	return r;
+#endif
+}
+
 int slsi_mlme_scheduled_pm_leaky_ap_detect(struct slsi_dev *sdev, struct net_device *dev, struct slsi_sched_pm_leaky_ap *leaky_ap)
 {
 	struct netdev_vif *ndev_vif = netdev_priv(dev);

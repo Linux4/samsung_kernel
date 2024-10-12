@@ -18,7 +18,7 @@
 #include <linux/moduleparam.h>
 #include <linux/platform_device.h>
 
-#define SM5714_FLED_VERSION "XXX.UA1"
+#define SM5714_FLED_VERSION "WG1"
 
 static struct sm5714_fled_data *g_sm5714_fled;
 struct device *camera_flash_dev;
@@ -58,11 +58,13 @@ static void fled_set_mode(struct sm5714_fled_data *fled, u8 mode)
 
 static void fled_set_fled_current(struct sm5714_fled_data *fled, u8 offset)
 {
+	pr_info("sm5714-fled %s, current set = 0x%x ", __func__, offset);
 	sm5714_update_reg(fled->i2c, SM5714_CHG_REG_FLEDCNTL2, (offset << 0), (0xf << 0));
 }
 
 static void fled_set_mled_current(struct sm5714_fled_data *fled, u8 offset)
 {
+	pr_info("sm5714-fled %s, current set = 0x%x ", __func__, offset);
 	sm5714_update_reg(fled->i2c, SM5714_CHG_REG_FLEDCNTL2, (offset << 4), (0x7 << 4));
 }
 
@@ -73,6 +75,25 @@ static int sm5714_fled_check_vbus(struct sm5714_fled_data *fled)
 		muic_request_disable_afc_state();
 		sm5714_request_default_power_src();
 	}
+	return 0;
+}
+
+/* W/A : 2023.06.07.
+ * cable_type(op_status)에는 vbus가 있지만 실제 vbus 가 없을 경우 
+ * op_status 의 vbus 를 disable 하여
+ * flash_boost mode 에서 torch가 켜질 수 있도록 하는 w/a
+ */
+static int sm5714_fled_check_abnormal_vbus_state(struct sm5714_fled_data *fled)
+{
+	int current_op_status = sm5714_charger_oper_get_current_status();
+
+	fled->vbus_voltage = sm5714_muic_get_vbus_voltage();
+
+	if ((current_op_status & 0x20) && (fled->vbus_voltage == 0)) {
+		pr_info("sm5714-fled: %s : current op_status_vbus = 0x%x, but get_vbus is %d, so op_mode changed \n", __func__, (current_op_status & 0x20), fled->vbus_voltage);	
+		fled_set_disable_push_event(SM5714_CHARGER_OP_EVENT_VBUSIN);	
+	}
+
 	return 0;
 }
 
@@ -201,6 +222,7 @@ static int sm5714_fled_torch_on(u8 brightness)
 
 	if (fled->pdata->led.en_mled == false) {
 		if (fled->torch_on_cnt == 0) {
+			sm5714_fled_check_abnormal_vbus_state(fled);
 			fled_set_enable_push_event(SM5714_CHARGER_OP_EVENT_TORCH);
 		}
 		fled->pdata->led.en_mled = true;
@@ -237,6 +259,7 @@ static int sm5714_fled_pre_flash_on(u8 brightness)
 
 	if (fled->pdata->led.en_mled == false) {
 		if (fled->torch_on_cnt == 0) {
+			sm5714_fled_check_abnormal_vbus_state(fled);
 			fled_set_enable_push_event(SM5714_CHARGER_OP_EVENT_TORCH);
 		}
 		fled->pdata->led.en_mled = true;
@@ -368,7 +391,8 @@ int32_t sm5714_fled_mode_ctrl(int state, uint32_t brightness)
 {
 	struct sm5714_fled_data *fled = g_sm5714_fled;
 	int ret = 0;
-	u8 iq_cur = -1;
+	u8 iq_cur = 0;
+	bool use_iq_cur = false;
 
 	pr_info("sm5714-fled: %s: state:%d \n", __func__, state);
 	if (g_sm5714_fled == NULL) {
@@ -376,25 +400,34 @@ int32_t sm5714_fled_mode_ctrl(int state, uint32_t brightness)
 		return -EFAULT;
 	}
 
-	if (brightness >= 0 && (state == SM5714_FLED_MODE_TORCH_FLASH || state == SM5714_FLED_MODE_PRE_FLASH)) {
-		if (brightness < 50)
-			iq_cur = 0x0;
-		else if (brightness > 225)
-			iq_cur = 0x7;
-		else
-			iq_cur = (brightness - 50) / 25;
-	} else if (brightness > 0 && state == SM5714_FLED_MODE_MAIN_FLASH) {
-		if (brightness < 700)
-			iq_cur = 0x0;
-		else if (brightness < 800)
-			iq_cur = 0x1;
-		else if (brightness < 900)
-			iq_cur = 0x2;
-		else
-			iq_cur = 3 + (brightness - 900) / 50;
+	/* if (brightness == 0) use the current values from the dtsi
+	 * else use the current value based on the brightness set by iq when this function is called
+	 */
+
+	if (brightness > 0) {
+		if (state == SM5714_FLED_MODE_TORCH_FLASH || state == SM5714_FLED_MODE_PRE_FLASH) {
+			if (brightness < 50)
+				iq_cur = 0x0;
+			else if (brightness > 225)
+				iq_cur = 0x7;
+			else
+				iq_cur = (brightness - 50) / 25;
+			use_iq_cur = true;
+		} else if (state == SM5714_FLED_MODE_MAIN_FLASH) {
+			if (brightness < 700)
+				iq_cur = 0x0;
+			else if (brightness < 800)
+				iq_cur = 0x1;
+			else if (brightness < 900)
+				iq_cur = 0x2;
+			else
+				iq_cur = 3 + (brightness - 900) / 50;
+			use_iq_cur = true;
+		}
 	}
 
-	pr_info("sm5714-fled: %s: iq_cur=0x%x brightness=%u\n", __func__, iq_cur, brightness);
+	if (use_iq_cur)
+		pr_info("sm5714-fled: %s: iq_cur=0x%x brightness=%u\n", __func__, iq_cur, brightness);
 
 	switch (state) {
 
@@ -412,18 +445,18 @@ int32_t sm5714_fled_mode_ctrl(int state, uint32_t brightness)
 		break;
 
 	case SM5714_FLED_MODE_MAIN_FLASH:
-		if (preflash_done != false)
+		if (preflash_done)
 			pr_info("sm5714-fled: %s: SM5714_FLED_MODE_MAIN_FLASH(%d) skipped as flash/preflash already triggered\n",
 				__func__, state);
 		/* FlashLight Mode Flash */
-		if (iq_cur >= 0)
-			ret = sm5714_fled_flash_on(iq_cur);
-		else
-			ret = sm5714_fled_flash_on(fled->pdata->led.flash_brightness);
+		if (!use_iq_cur)
+			iq_cur = fled->pdata->led.flash_brightness;
+		ret = sm5714_fled_flash_on(iq_cur);
+
 		if (ret < 0)
 			pr_err("sm5714-fled: %s: SM5714_FLED_MODE_MAIN_FLASH(%d) failed\n", __func__, state);
 		else
-			pr_info("sm5714-fled: %s: SM5714_FLED_MODE_MAIN_FLASH(%d) done\n", __func__, state);
+			pr_info("sm5714-fled: %s: SM5714_FLED_MODE_MAIN_FLASH(%d) done; iq_cur = 0x%x\n", __func__, state, iq_cur);
 		break;
 
 	case SM5714_FLED_MODE_TORCH_FLASH: /* TORCH FLASH */
@@ -434,30 +467,28 @@ int32_t sm5714_fled_mode_ctrl(int state, uint32_t brightness)
 
 		sm5714_fled_prepare_flash();
 		/* FlashLight Mode TORCH */
-		if (iq_cur >= 0)
-			ret = sm5714_fled_torch_on(iq_cur);
-		else
-			ret = sm5714_fled_torch_on(fled->pdata->led.torch_brightness);
+		if (!use_iq_cur)
+			iq_cur = fled->pdata->led.torch_brightness;
+		ret = sm5714_fled_torch_on(iq_cur);
+
 		if (ret < 0)
 			pr_err("sm5714-fled: %s: SM5714_FLED_MODE_TORCH_FLASH(%d) failed\n", __func__, state);
 		else
-			pr_info("sm5714-fled: %s: SM5714_FLED_MODE_TORCH_FLASH(%d) done\n", __func__, state);
+			pr_info("sm5714-fled: %s: SM5714_FLED_MODE_TORCH_FLASH(%d) done; iq_cur = 0x%x\n", __func__, state, iq_cur);
 		break;
 
 	case SM5714_FLED_MODE_PRE_FLASH: /* TORCH FLASH */
 		preflash_done = true;
 		sm5714_fled_prepare_flash();
 		/* FlashLight Mode TORCH */
-		if (iq_cur >= 0) {
-			ret = sm5714_fled_pre_flash_on(iq_cur);
-		}
-		else {
-			ret = sm5714_fled_pre_flash_on(fled->pdata->led.preflash_brightness);
-		}
+		if (!use_iq_cur)
+			iq_cur = fled->pdata->led.preflash_brightness;
+		ret = sm5714_fled_pre_flash_on(iq_cur);
+
 		if (ret < 0)
 			pr_err("sm5714-fled: %s: SM5714_FLED_MODE_PRE_FLASH(%d) failed\n", __func__, state);
 		else
-			pr_info("sm5714-fled: %s: SM5714_FLED_MODE_PRE_FLASH(%d) done\n", __func__, state);
+			pr_info("sm5714-fled: %s: SM5714_FLED_MODE_PRE_FLASH(%d) done; iq_cur = 0x%x\n", __func__, state, iq_cur);
 		break;
 
 	case SM5714_FLED_MODE_PREPARE_FLASH:
@@ -594,6 +625,7 @@ static ssize_t sm5714_rear_flash_store(struct device *dev, struct device_attribu
 			sm5714_fled_check_vbus(fled);
 			muic_check_fled_state(1, FLED_MODE_TORCH);
 			sm5714_usbpd_check_fled_state(1, FLED_MODE_TORCH);
+			sm5714_fled_check_abnormal_vbus_state(fled);
 			fled_set_enable_push_event(SM5714_CHARGER_OP_EVENT_TORCH);
 		}
 		sm5714_fled_control(FLED_MODE_TORCH);

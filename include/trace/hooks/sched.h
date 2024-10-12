@@ -13,6 +13,7 @@
 /* needed for KMI stability */
 #include <../kernel/cgroup/cgroup-internal.h>
 #endif
+
 DECLARE_RESTRICTED_HOOK(android_rvh_select_task_rq_fair,
 	TP_PROTO(struct task_struct *p, int prev_cpu, int sd_flag, int wake_flags, int *new_cpu),
 	TP_ARGS(p, prev_cpu, sd_flag, wake_flags, new_cpu), 1);
@@ -58,6 +59,10 @@ DECLARE_RESTRICTED_HOOK(android_rvh_prepare_prio_fork,
 DECLARE_RESTRICTED_HOOK(android_rvh_finish_prio_fork,
 	TP_PROTO(struct task_struct *p),
 	TP_ARGS(p), 1);
+
+DECLARE_RESTRICTED_HOOK(android_rvh_rtmutex_force_update,
+	TP_PROTO(struct task_struct *p, struct task_struct *pi_task, int *update),
+	TP_ARGS(p, pi_task, update), 1);
 
 DECLARE_RESTRICTED_HOOK(android_rvh_rtmutex_prepare_setprio,
 	TP_PROTO(struct task_struct *p, struct task_struct *pi_task),
@@ -423,30 +428,13 @@ DECLARE_HOOK(android_vh_sched_setaffinity_early,
 	TP_PROTO(struct task_struct *p, const struct cpumask *new_mask, int *retval),
 	TP_ARGS(p, new_mask, retval));
 
-DECLARE_RESTRICTED_HOOK(android_rvh_attach_entity_load_avg,
-	TP_PROTO(struct cfs_rq *cfs_rq, struct sched_entity *se),
-	TP_ARGS(cfs_rq, se), 1);
-
-DECLARE_RESTRICTED_HOOK(android_rvh_detach_entity_load_avg,
-	TP_PROTO(struct cfs_rq *cfs_rq, struct sched_entity *se),
-	TP_ARGS(cfs_rq, se), 1);
-
-DECLARE_RESTRICTED_HOOK(android_rvh_update_load_avg,
-	TP_PROTO(u64 now, struct cfs_rq *cfs_rq, struct sched_entity *se),
-	TP_ARGS(now, cfs_rq, se), 1);
-
-DECLARE_RESTRICTED_HOOK(android_rvh_remove_entity_load_avg,
-	TP_PROTO(struct cfs_rq *cfs_rq, struct sched_entity *se),
-	TP_ARGS(cfs_rq, se), 1);
-
-DECLARE_RESTRICTED_HOOK(android_rvh_update_blocked_fair,
-	TP_PROTO(struct rq *rq),
-	TP_ARGS(rq), 1);
-
 DECLARE_RESTRICTED_HOOK(android_rvh_update_rt_rq_load_avg,
 	TP_PROTO(u64 now, struct rq *rq, struct task_struct *tsk, int running),
 	TP_ARGS(now, rq, tsk, running), 1);
 
+DECLARE_HOOK(android_vh_mmput,
+	TP_PROTO(struct mm_struct *mm),
+	TP_ARGS(mm));
 /* macro versions of hooks are no longer required */
 
 #endif /* _TRACE_HOOK_SCHED_H */

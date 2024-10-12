@@ -898,7 +898,7 @@ static int dsim_reg_wait_idle_status(u32 id, u32 is_vm)
 	ret = readl_poll_timeout_atomic(
 			dsim_regs_desc(id)->regs + DSIM_LINK_STATUS0, val,
 			!DSIM_LINK_STATUS0_VIDEO_MODE_STATUS_GET(val), 10,
-			16000);
+			33000);
 	if (ret) {
 		cal_log_err(id, "dsim%d wait timeout idle status\n", id);
 		return ret;
@@ -1738,17 +1738,13 @@ static int dsim_reg_set_clocks(u32 id, struct dsim_clks *clks,
 	u32 pll_lock_cnt;
 	int ret = 0;
 	u32 hsmode = 0;
-	struct stdphy_pms *dphy_pms = NULL;
-	u32 vod = UINT_MAX;
 #ifdef DPDN_INV_SWAP
 	u32 inv_data[4] = {0, };
 #endif
-	if (config) {
-		dphy_pms = &config->dphy_pms;
-		vod = config->drive_strength;
-	}
 
 	if (en) {
+		struct stdphy_pms *dphy_pms = &config->dphy_pms;
+
 		/*
 		 * Do not need to set clocks related with PLL,
 		 * if DPHY_PLL is already stabled because of LCD_ON_UBOOT.
@@ -1763,12 +1759,10 @@ static int dsim_reg_set_clocks(u32 id, struct dsim_clks *clks,
 		 * PMS value has to be optained by PMS calculation tool
 		 * released to customer
 		 */
-		if (dphy_pms) {
-			pll.p = dphy_pms->p;
-			pll.m = dphy_pms->m;
-			pll.s = dphy_pms->s;
-			pll.k = dphy_pms->k;
-		}
+		pll.p = dphy_pms->p;
+		pll.m = dphy_pms->m;
+		pll.s = dphy_pms->s;
+		pll.k = dphy_pms->k;
 
 		/* get word clock */
 		/* clks ->hs_clk is from DT */
@@ -1793,7 +1787,7 @@ static int dsim_reg_set_clocks(u32 id, struct dsim_clks *clks,
 
 		/* set BIAS ctrl : default value */
 		dsim_reg_set_bias_con(id, DSIM_PHY_BIAS_CON_VAL, get_phy_type());
-		dsim_reg_set_hs_vod(id, vod);
+		dsim_reg_set_hs_vod(id, config->drive_strength);
 
 		/* set PLL ctrl : default value */
 		dsim_reg_set_pll_con(id, DSIM_PHY_PLL_CON_VAL, get_phy_type());
@@ -1811,7 +1805,7 @@ static int dsim_reg_set_clocks(u32 id, struct dsim_clks *clks,
 			dsim_reg_set_cphy_timing_values(id, &ct, hsmode);
 		}
 		/* check dither sequence */
-		if (dphy_pms && dphy_pms->dither_en) {
+		if (dphy_pms->dither_en) {
 			dsim_reg_set_dphy_param_dither(id, dphy_pms);
 			dsim_reg_set_dphy_dither_en(id, 1);
 		}
@@ -1865,13 +1859,7 @@ static int dsim_reg_set_clocks(u32 id, struct dsim_clks *clks,
 		ret = dsim_reg_enable_pll(id, 1);
 	} else {
 		/* check disable PHY timing */
-		/* TBD */
 		dsim_reg_set_esc_clk_prescaler(id, 0, 0xff);
-
-		/* check dither sequence */
-		if (dphy_pms && dphy_pms->dither_en)
-			dsim_reg_set_dphy_dither_en(id, 0);
-
 		dsim_reg_enable_pll(id, 0);
 	}
 

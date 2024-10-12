@@ -458,9 +458,11 @@ bool ufs_perf_init(void **data, struct ufs_hba *hba)
 	perf->val_pm_qos_cluster2 = 0;
 
 	perf->exynos_gear_scale = 0;
+	perf->exynos_cap_gear_scale = 0;
 	if (of_find_property(np, "samsung,ufs-gear-scale", NULL)) {
 		dev_info(dev, "%s: enable ufs-gear-scale\n", __func__);
 		perf->exynos_gear_scale = 1;
+		perf->exynos_cap_gear_scale = 1;
 	}
 
 #if IS_ENABLED(CONFIG_EXYNOS_PM_QOS) || IS_ENABLED(CONFIG_EXYNOS_PM_QOS_MODULE)
@@ -505,6 +507,8 @@ void ufs_perf_exit(void *data)
 	struct ufs_perf *perf = (struct ufs_perf *)data;
 
 	ufs_perf_exit_v1(perf);
+	if (perf->exynos_gear_scale)
+		ufs_gear_scale_exit(perf);
 
 	__sysfs_exit(perf);
 

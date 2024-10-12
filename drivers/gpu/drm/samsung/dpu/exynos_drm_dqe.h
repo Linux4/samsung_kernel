@@ -76,12 +76,17 @@ struct dqe_colormode_crc {
 	u16 value;
 };
 
+#define MAX_DQE_COLORMODE_CTX 3 // 3 ctx buffer per frame
+
 struct dqe_colormode_cfg {
 	u8 seq_num;
 	int64_t dqe_fd;
 	struct dma_buf	*dma_buf;
 	void *vaddr;
 	struct dqe_colormode_crc *crc;
+	char *ctx[MAX_DQE_COLORMODE_CTX];
+	int ctx_size;
+	atomic_t ctx_no;
 };
 
 enum dqe_state {

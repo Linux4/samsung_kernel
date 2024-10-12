@@ -1699,29 +1699,37 @@ void decon_reg_set_pll_sleep(u32 id, u32 en)
  *  a delay corresponding to the pll lock time is required
  *  to ensure exit from pll sleep.
  */
+void decon_set_pll_post_delay(u32 id)
+{
+	struct dsim_device *dsim = get_dsim_drvdata(0);
+	struct stdphy_pms *pms;
+	u32 delay_val = 0;
+
+	if (id != 0)
+		return;
+
+	/* when pll is asleep, need to wake it up before stopping
+	 * DELAY is added to avoid system halt at MIF_L10 level
+	 * PLL_SLEEP_MASK_OUTIF is non-shadow
+	 * add DELAY(pll_lock time) to ensure PLL_SLEEP exit in software-wise
+	 * - delay time(based on OSC) : 1/52Mhz * 500cycles = 9.6usec
+	 */
+
+	pms = &dsim->config.dphy_pms;
+	delay_val = pms->p * 96 / 10;
+	usleep_range(delay_val, delay_val + 1);
+}
+
 void decon_reg_set_pll_wakeup(u32 id, u32 en)
 {
 	u32 val, mask;
-	struct decon_device *decon = get_decon_drvdata(id);
-	struct dsim_device *dsim = decon_get_dsim(decon);
-	struct stdphy_pms *pms;
-	u32 delay_val = 0;
 
 	val = en ? ~0 : 0;
 	mask = (id == 0) ? PLL_SLEEP_MASK_OUTIF0 : PLL_SLEEP_MASK_OUTIF1;
 	decon_write_mask(id, PLL_SLEEP_CON, val, mask);
 
-	if (en && dsim) {
-		/* when pll is asleep, need to wake it up before stopping
-		 * DELAY is added to avoid system halt at MIF_L10 level
-		 * PLL_SLEEP_MASK_OUTIF is non-shadow
-		 * add DELAY(pll_lock time) to ensure PLL_SLEEP exit in software-wise
-		 * - delay time(based on OSC) : 1/52Mhz * 500cycles = 9.6usec
-		 */
-		pms = &dsim->config.dphy_pms;
-		delay_val = pms->p * 96 / 10;
-		usleep_range(delay_val, delay_val + 1);
-	}
+	if (en)
+		decon_set_pll_post_delay(id);
 }
 
 static void decon_reg_set_dither(u32 id, struct decon_config *config, bool en)

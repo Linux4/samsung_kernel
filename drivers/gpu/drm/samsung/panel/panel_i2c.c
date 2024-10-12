@@ -90,7 +90,7 @@ __visible_for_testing int panel_i2c_tx(struct panel_i2c_dev *i2c_dev, u8 *arr, u
 	msg[0].addr = i2c_dev->client->addr;
 	msg[0].len = tx_len;
 
-	mutex_lock(&i2c_dev->lock);
+	panel_mutex_lock(&i2c_dev->lock);
 
 	tx_cnt = arr_len / tx_len;
 
@@ -114,7 +114,7 @@ __visible_for_testing int panel_i2c_tx(struct panel_i2c_dev *i2c_dev, u8 *arr, u
 	}
 
 tx_ret:
-	mutex_unlock(&i2c_dev->lock);
+	panel_mutex_unlock(&i2c_dev->lock);
 
 	return ret;
 }
@@ -178,7 +178,7 @@ __visible_for_testing int panel_i2c_rx(struct panel_i2c_dev *i2c_dev, u8 *arr, u
 	msg[0].len = i2c_dev->addr_len;
 	msg[1].len = i2c_dev->data_len;
 
-	mutex_lock(&i2c_dev->lock);
+	panel_mutex_lock(&i2c_dev->lock);
 
 	rx_cnt = arr_len / tx_len;
 
@@ -218,7 +218,7 @@ __visible_for_testing int panel_i2c_rx(struct panel_i2c_dev *i2c_dev, u8 *arr, u
 #endif
 	}
 rx_ret:
-	mutex_unlock(&i2c_dev->lock);
+	panel_mutex_unlock(&i2c_dev->lock);
 
 	return ret;
 }
@@ -269,7 +269,7 @@ __visible_for_testing int panel_i2c_probe(struct i2c_client *client,
 	panel_i2c_dev->id = panel->nr_i2c_dev;
 
 	memcpy(&panel->i2c_dev[panel->nr_i2c_dev], panel_i2c_dev, sizeof(struct panel_i2c_dev));
-	mutex_init(&panel->i2c_dev[panel->nr_i2c_dev].lock);
+	panel_mutex_init(panel, &panel->i2c_dev[panel->nr_i2c_dev].lock);
 	panel->nr_i2c_dev++;
 
 	kfree(panel_i2c_dev);
@@ -312,7 +312,7 @@ static struct i2c_driver panel_i2c_driver = {
 	.remove		= panel_i2c_remove,
 };
 
-int panel_i2c_drv_probe(struct panel_device *panel)
+int panel_i2c_drv_init(struct panel_device *panel)
 {
 	int ret = 0;
 

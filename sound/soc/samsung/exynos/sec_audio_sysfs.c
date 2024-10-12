@@ -501,7 +501,9 @@ void send_adsp_silent_reset_ev(void)
 {
 	if (adsp_silent_reset_count < ADSP_SRCNT_MAX)
 		adsp_silent_reset_count++;
-	pr_info("%s: count %d\n", __func__, (adsp_silent_reset_count + adsp_silent_reset_count_sum));
+	if (adsp_silent_reset_count_sum < ADSP_SRCNT_SUM_MAX)
+		adsp_silent_reset_count_sum++;
+	pr_info("%s: count %d\n", __func__, adsp_silent_reset_count_sum);
 }
 EXPORT_SYMBOL_GPL(send_adsp_silent_reset_ev);
 
@@ -510,19 +512,30 @@ static ssize_t srcnt_show(struct device *dev,
 {
 	int report = adsp_silent_reset_count;
 
-	if (adsp_silent_reset_count_sum < ADSP_SRCNT_SUM_MAX)
-		adsp_silent_reset_count_sum += adsp_silent_reset_count;
 	adsp_silent_reset_count = 0;
 
 	dev_info(dev, "%s: %d\n", __func__, report);
 
-	return snprintf(buf, 4, "%d\n", report);
+	return snprintf(buf, 8, "%d\n", report);
 }
 
 static DEVICE_ATTR_RO(srcnt);
 
+static ssize_t srcnt_keep_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	int report = adsp_silent_reset_count_sum;
+
+	dev_info(dev, "%s: %d\n", __func__, report);
+
+	return snprintf(buf, 8, "%d\n", report);
+}
+
+static DEVICE_ATTR_RO(srcnt_keep);
+
 static struct attribute *sec_audio_adsp_attr[] = {
 	&dev_attr_srcnt.attr,
+	&dev_attr_srcnt_keep.attr,
 	NULL,
 };
 
@@ -552,7 +565,7 @@ static int sec_audio_sysfs_probe(struct platform_device *pdev)
 	}
 
 	of_property_read_u32(np, "audio,num-amp", &audio_data->num_amp);
-	if (audio_data->num_amp > 0) {
+	if (audio_data->num_amp >= 0) {
 		for (i = audio_data->num_amp; i < AMP_ID_MAX; i++) {
 			sysfs_remove_group(&audio_data->amp_dev->kobj,
 				&sec_audio_amp_big_data_attr_group[i]);

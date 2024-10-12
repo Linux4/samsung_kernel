@@ -192,8 +192,8 @@
 			reg = <0x00 0x00>;
 			enable-method = "psci";
 			cpu-idle-states = <0x02 0x03 0x04>;
-			capacity-dmips-mhz = <0x25f>;
-			dynamic-power-coefficient = <0x64>;
+			capacity-dmips-mhz = <0x263>;
+			dynamic-power-coefficient = <0x9a>;
 			qcom,freq-domain = <0x05 0x00>;
 			operating-points-v2 = <0x06>;
 			interconnects = <0x07 0x00 0x03 0x08 0x0e 0x03 0x09 0x00 0x09 0x01>;
@@ -219,8 +219,8 @@
 			reg = <0x00 0x100>;
 			enable-method = "psci";
 			cpu-idle-states = <0x02 0x03 0x04>;
-			capacity-dmips-mhz = <0x25f>;
-			dynamic-power-coefficient = <0x64>;
+			capacity-dmips-mhz = <0x263>;
+			dynamic-power-coefficient = <0x9a>;
 			qcom,freq-domain = <0x05 0x00>;
 			operating-points-v2 = <0x06>;
 			interconnects = <0x07 0x00 0x03 0x08 0x0e 0x03 0x09 0x00 0x09 0x01>;
@@ -241,8 +241,8 @@
 			reg = <0x00 0x200>;
 			enable-method = "psci";
 			cpu-idle-states = <0x02 0x03 0x04>;
-			capacity-dmips-mhz = <0x25f>;
-			dynamic-power-coefficient = <0x64>;
+			capacity-dmips-mhz = <0x263>;
+			dynamic-power-coefficient = <0x9a>;
 			qcom,freq-domain = <0x05 0x00>;
 			operating-points-v2 = <0x06>;
 			interconnects = <0x07 0x00 0x03 0x08 0x0e 0x03 0x09 0x00 0x09 0x01>;
@@ -263,8 +263,8 @@
 			reg = <0x00 0x300>;
 			enable-method = "psci";
 			cpu-idle-states = <0x02 0x03 0x04>;
-			capacity-dmips-mhz = <0x25f>;
-			dynamic-power-coefficient = <0x64>;
+			capacity-dmips-mhz = <0x263>;
+			dynamic-power-coefficient = <0x9a>;
 			qcom,freq-domain = <0x05 0x00>;
 			operating-points-v2 = <0x06>;
 			interconnects = <0x07 0x00 0x03 0x08 0x0e 0x03 0x09 0x00 0x09 0x01>;
@@ -286,7 +286,7 @@
 			enable-method = "psci";
 			capacity-dmips-mhz = <0x400>;
 			cpu-idle-states = <0x0f 0x10 0x04>;
-			dynamic-power-coefficient = <0x18c>;
+			dynamic-power-coefficient = <0x1ba>;
 			qcom,freq-domain = <0x05 0x01>;
 			operating-points-v2 = <0x11>;
 			interconnects = <0x07 0x00 0x03 0x08 0x0e 0x03 0x09 0x00 0x09 0x01>;
@@ -308,7 +308,7 @@
 			enable-method = "psci";
 			capacity-dmips-mhz = <0x400>;
 			cpu-idle-states = <0x0f 0x10 0x04>;
-			dynamic-power-coefficient = <0x18c>;
+			dynamic-power-coefficient = <0x1ba>;
 			qcom,freq-domain = <0x05 0x01>;
 			operating-points-v2 = <0x11>;
 			interconnects = <0x07 0x00 0x03 0x08 0x0e 0x03 0x09 0x00 0x09 0x01>;
@@ -330,7 +330,7 @@
 			enable-method = "psci";
 			capacity-dmips-mhz = <0x400>;
 			cpu-idle-states = <0x0f 0x10 0x04>;
-			dynamic-power-coefficient = <0x18c>;
+			dynamic-power-coefficient = <0x1ba>;
 			qcom,freq-domain = <0x05 0x01>;
 			operating-points-v2 = <0x11>;
 			interconnects = <0x07 0x00 0x03 0x08 0x0e 0x03 0x09 0x00 0x09 0x01>;
@@ -352,7 +352,7 @@
 			enable-method = "psci";
 			capacity-dmips-mhz = <0x400>;
 			cpu-idle-states = <0x0f 0x10 0x04>;
-			dynamic-power-coefficient = <0x18c>;
+			dynamic-power-coefficient = <0x1ba>;
 			qcom,freq-domain = <0x05 0x01>;
 			operating-points-v2 = <0x11>;
 			interconnects = <0x07 0x00 0x03 0x08 0x0e 0x03 0x09 0x00 0x09 0x01>;
@@ -2026,7 +2026,7 @@
 			num-lanes = <0x01>;
 			#address-cells = <0x03>;
 			#size-cells = <0x02>;
-			ranges = <0x1000000 0x00 0x60200000 0x00 0x60200000 0x00 0x100000 0x2000000 0x00 0x60300000 0x00 0x60300000 0x00 0xd00000>;
+			ranges = <0x1000000 0x00 0x00 0x00 0x60200000 0x00 0x100000 0x2000000 0x00 0x60300000 0x00 0x60300000 0x00 0xd00000>;
 			interrupts = <0x00 0x8d 0x04>;
 			interrupt-names = "msi";
 			#interrupt-cells = <0x01>;
@@ -2060,7 +2060,7 @@
 			status = "disabled";
 			phandle = <0x169>;
 
-			lanes@1c06200 {
+			phy@1c06200 {
 				reg = <0x00 0x1c06200 0x00 0x128 0x00 0x1c06400 0x00 0x1fc 0x00 0x1c06800 0x00 0x218 0x00 0x1c06600 0x00 0x70>;
 				clocks = <0x2d 0x2e>;
 				clock-names = "pipe0";
@@ -2081,7 +2081,7 @@
 			num-lanes = <0x01>;
 			#address-cells = <0x03>;
 			#size-cells = <0x02>;
-			ranges = <0x1000000 0x00 0x40200000 0x00 0x40200000 0x00 0x100000 0x2000000 0x00 0x40300000 0x00 0x40300000 0x00 0x1fd00000>;
+			ranges = <0x1000000 0x00 0x00 0x00 0x40200000 0x00 0x100000 0x2000000 0x00 0x40300000 0x00 0x40300000 0x00 0x1fd00000>;
 			interrupts = <0x00 0x133 0x01>;
 			interrupt-names = "msi";
 			#interrupt-cells = <0x01>;
@@ -2117,7 +2117,7 @@
 			status = "disabled";
 			phandle = <0x16b>;
 
-			lanes@1c06200 {
+			phy@1c06200 {
 				reg = <0x00 0x1c0a800 0x00 0x800 0x00 0x1c0a800 0x00 0x800 0x00 0x1c0b800 0x00 0x400>;
 				clocks = <0x2d 0x36>;
 				clock-names = "pipe0";
@@ -2222,7 +2222,7 @@
 			vdda-pll-supply = <0x6d>;
 			phandle = <0x16d>;
 
-			lanes@1d87400 {
+			phy@1d87400 {
 				reg = <0x00 0x1d87400 0x00 0x108 0x00 0x1d87600 0x00 0x1e0 0x00 0x1d87c00 0x00 0x1dc 0x00 0x1d87800 0x00 0x108 0x00 0x1d87a00 0x00 0x1e0>;
 				#phy-cells = <0x00>;
 				phandle = <0x68>;
@@ -3763,7 +3763,7 @@
 			vdda-pll-supply = <0x6c>;
 			phandle = <0x186>;
 
-			lanes@88e9200 {
+			phy@88e9200 {
 				reg = <0x00 0x88e9200 0x00 0x128 0x00 0x88e9400 0x00 0x200 0x00 0x88e9c00 0x00 0x218 0x00 0x88e9600 0x00 0x128 0x00 0x88e9800 0x00 0x200 0x00 0x88e9a00 0x00 0x100>;
 				#clock-cells = <0x00>;
 				#phy-cells = <0x00>;
@@ -3789,7 +3789,7 @@
 			vdda-pll-supply = <0x6c>;
 			phandle = <0x187>;
 
-			lane@88eb200 {
+			phy@88eb200 {
 				reg = <0x00 0x88eb200 0x00 0x128 0x00 0x88eb400 0x00 0x1fc 0x00 0x88eb800 0x00 0x218 0x00 0x88eb600 0x00 0x70>;
 				#clock-cells = <0x00>;
 				#phy-cells = <0x00>;
@@ -3938,7 +3938,7 @@
 			phandle = <0xaf>;
 		};
 
-		camss@a00000 {
+		camss@acb3000 {
 			compatible = "qcom,sdm845-camss";
 			reg = <0x00 0xacb3000 0x00 0x1000 0x00 0xacba000 0x00 0x1000 0x00 0xacc8000 0x00 0x1000 0x00 0xac65000 0x00 0x1000 0x00 0xac66000 0x00 0x1000 0x00 0xac67000 0x00 0x1000 0x00 0xac68000 0x00 0x1000 0x00 0xacaf000 0x00 0x4000 0x00 0xacb6000 0x00 0x4000 0x00 0xacc4000 0x00 0x4000>;
 			reg-names = "csid0\0csid1\0csid2\0csiphy0\0csiphy1\0csiphy2\0csiphy3\0vfe0\0vfe1\0vfe_lite";
@@ -4035,7 +4035,7 @@
 			reg = <0x00 0xae00000 0x00 0x1000>;
 			reg-names = "mdss";
 			power-domains = <0xb9 0x00>;
-			clocks = <0x2d 0x13 0xb9 0x0c>;
+			clocks = <0xb9 0x00 0xb9 0x0c>;
 			clock-names = "iface\0core";
 			assigned-clocks = <0xb9 0x0c>;
 			assigned-clock-rates = <0x11e1a300>;
@@ -5771,10 +5771,10 @@
 		uart15 = "/soc@0/geniqup@ac0000/serial@a9c000";
 		pcie0 = "/soc@0/pci@1c00000";
 		pcie0_phy = "/soc@0/phy@1c06000";
-		pcie0_lane = "/soc@0/phy@1c06000/lanes@1c06200";
+		pcie0_lane = "/soc@0/phy@1c06000/phy@1c06200";
 		pcie1 = "/soc@0/pci@1c08000";
 		pcie1_phy = "/soc@0/phy@1c0a000";
-		pcie1_lane = "/soc@0/phy@1c0a000/lanes@1c06200";
+		pcie1_lane = "/soc@0/phy@1c0a000/phy@1c06200";
 		mem_noc = "/soc@0/interconnect@1380000";
 		dc_noc = "/soc@0/interconnect@14e0000";
 		config_noc = "/soc@0/interconnect@1500000";
@@ -5784,7 +5784,7 @@
 		mmss_noc = "/soc@0/interconnect@1740000";
 		ufs_mem_hc = "/soc@0/ufshc@1d84000";
 		ufs_mem_phy = "/soc@0/phy@1d87000";
-		ufs_mem_phy_lanes = "/soc@0/phy@1d87000/lanes@1d87400";
+		ufs_mem_phy_lanes = "/soc@0/phy@1d87000/phy@1d87400";
 		cryptobam = "/soc@0/dma@1dc4000";
 		crypto = "/soc@0/crypto@1dfa000";
 		ipa = "/soc@0/ipa@1e40000";
@@ -5908,9 +5908,9 @@
 		usb_1_hsphy = "/soc@0/phy@88e2000";
 		usb_2_hsphy = "/soc@0/phy@88e3000";
 		usb_1_qmpphy = "/soc@0/phy@88e9000";
-		usb_1_ssphy = "/soc@0/phy@88e9000/lanes@88e9200";
+		usb_1_ssphy = "/soc@0/phy@88e9000/phy@88e9200";
 		usb_2_qmpphy = "/soc@0/phy@88eb000";
-		usb_2_ssphy = "/soc@0/phy@88eb000/lane@88eb200";
+		usb_2_ssphy = "/soc@0/phy@88eb000/phy@88eb200";
 		usb_1 = "/soc@0/usb@a6f8800";
 		usb_1_dwc3 = "/soc@0/usb@a6f8800/dwc3@a600000";
 		usb_2 = "/soc@0/usb@a8f8800";
@@ -5918,7 +5918,7 @@
 		venus = "/soc@0/video-codec@aa00000";
 		venus_opp_table = "/soc@0/video-codec@aa00000/venus-opp-table";
 		videocc = "/soc@0/clock-controller@ab00000";
-		camss = "/soc@0/camss@a00000";
+		camss = "/soc@0/camss@acb3000";
 		cci = "/soc@0/cci@ac4a000";
 		cci_i2c0 = "/soc@0/cci@ac4a000/i2c-bus@0";
 		cci_i2c1 = "/soc@0/cci@ac4a000/i2c-bus@1";

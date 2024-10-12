@@ -24,11 +24,11 @@
 #include <linux/of_reserved_mem.h>
 #include <linux/sched/clock.h>
 #include <linux/panic_notifier.h>
-#include <linux/sec_debug.h>
 #include <soc/samsung/exynos/exynos-itmon.h>
 #include <soc/samsung/exynos/debug-snapshot.h>
 #include <soc/samsung/exynos/debug-snapshot-log.h>
 #include "exynos-itmon-local-v2.h"
+#include "debug-snapshot-local.h"
 #include <linux/sec_debug.h>
 
 static struct itmon_policy err_policy[] = {
@@ -70,8 +70,28 @@ const static char *itmon_errcode[] = {
 	"Protocol Checker Error",
 	"Protocol Checker Error",
 	"Protocol Checker Error",
-	"Protocol Checker Error",
+	"Unsupported transaction error",
 	"Timeout error - freeze mode",
+};
+
+/* Error Code Description */
+const static char *itmon_errcode_short[] = {
+	"SLVERR",
+	"DECERR",
+	"UNSUPPORTED",
+	"PWRDOWNACCESS",
+	"INTENDED",
+	"UNSUPPORTED",
+	"TIMEOUT",
+	"UNSUPPORTED",
+	"PRTCHKERR",
+	"PRTCHKERR",
+	"PRTCHKERR",
+	"PRTCHKERR",
+	"PRTCHKERR",
+	"PRTCHKERR",
+	"UNSUPPORTED",
+	"TIMEOUT_FREEZE",
 };
 
 const static char *itmon_node_string[] = {
@@ -93,6 +113,8 @@ const static unsigned int itmon_invalid_addr[] = {
 	0x03000000,
 	0x04000000,
 };
+
+static struct itmon_history *p_itmon_history;
 
 static struct itmon_dev *g_itmon;
 
@@ -889,6 +911,34 @@ static void itmon_reflect_policy(struct itmon_dev *itmon,
 	}
 }
 
+static void itmon_set_history_magic(void)
+{
+	if (p_itmon_history)
+		__raw_writel(HISTORY_MAGIC, &p_itmon_history->magic);
+}
+
+void itmon_print_history(void)
+{
+	int idx;
+
+	pr_info("Too many ITMONs\n");
+	if (p_itmon_history) {
+		for (idx = p_itmon_history->idx + 1; idx < p_itmon_history->nr_entry; idx++) {
+			if (strlen(p_itmon_history->data[idx]) == 0)
+				break;
+			pr_info("%s/", p_itmon_history->data[idx]);
+		}
+		for (idx = 0; idx < p_itmon_history->idx - 1; idx++) {
+			if (strlen(p_itmon_history->data[idx]) == 0)
+				break;
+			pr_info("%s/", p_itmon_history->data[idx]);
+		}
+		if (strlen(p_itmon_history->data[idx]) != 0)
+			pr_cont("%s\n", p_itmon_history->data[idx]);
+	}
+}
+EXPORT_SYMBOL(itmon_print_history);
+
 static void itmon_post_handler(struct itmon_dev *itmon, bool err)
 {
 	struct itmon_platdata *pdata = itmon->pdata;
@@ -897,7 +947,12 @@ static void itmon_post_handler(struct itmon_dev *itmon, bool err)
 	unsigned long cur_time = local_clock();
 	unsigned long delta;
 
-	delta = pdata->last_time == 0 ? 0 : cur_time - pdata->last_time;
+	if (!pdata->errcnt_window_start_time) {
+		delta = 0;
+		pdata->errcnt_window_start_time = cur_time;
+	} else {
+		delta = cur_time - pdata->errcnt_window_start_time;
+	}
 
 	dev_err(itmon->dev, "Before ITMON: [%5lu.%06lu], delta: %lu, last_errcnt: %d\n",
 		(unsigned long)ts, rem_nsec / 1000, delta, pdata->last_errcnt);
@@ -905,13 +960,18 @@ static void itmon_post_handler(struct itmon_dev *itmon, bool err)
 	if (err)
 		itmon_do_dpm_policy(itmon, true);
 
-	/* delta < 1s */
-	if (delta > 0 && delta < 1000000000UL) {
+	/* delta < 1.2s */
+	if (delta > 0 && delta < 1200000000UL) {
 		pdata->last_errcnt++;
-		if (pdata->last_errcnt > ERR_THRESHOLD)
+
+		/* Errors less than 1 second are tolerated no matter how many times they occur */
+		if (delta >= 1000000000UL && pdata->last_errcnt > ERR_THRESHOLD) {
+			itmon_print_history();
 			dbg_snapshot_do_dpm_policy(GO_S2D_ID);
+		}
 	} else {
 		pdata->last_errcnt = 0;
+		pdata->errcnt_window_start_time = cur_time;
 	}
 
 	pdata->last_time = cur_time;
@@ -1101,6 +1161,9 @@ static void itmon_report_traceinfo(struct itmon_dev *itmon,
 				   struct itmon_traceinfo *info,
 				   unsigned int trans_type)
 {
+	u64 ts_nsec = local_clock();
+	unsigned long rmem_nsec = do_div(ts_nsec, 1000000000);
+
 #if IS_ENABLED(CONFIG_SEC_DEBUG_EXTRA_INFO)
 	char temp_buf[SZ_128];
 #endif
@@ -1154,13 +1217,17 @@ static void itmon_report_traceinfo(struct itmon_dev *itmon,
 		info->axprot & BIT(1) ? "Non-secure" : "Secure",
 		itmon_pathtype[info->path_type]);
 
-	dbg_snapshot_set_str_offset(OFFSET_DSS_CUSTOM, SZ_128, "%s %s/ %s/ 0x%zx %s/ %s/ %s",
-		info->src, info->master ? info->master : "",
-		info->dest ? info->dest : NO_NAME,
-		info->target_addr,
-		info->baaw_prot == true ? "(BAAW Remapped address)" : "",
-		trans_type == TRANS_TYPE_READ ? "READ" : "WRITE",
-		itmon_errcode[info->err_code]);
+	if (p_itmon_history) {
+		snprintf(p_itmon_history->data[p_itmon_history->idx], sizeof(p_itmon_history->data[0]),
+				"%lu.%03lu,%s%s,%s,0x%llx,%s",
+				(unsigned long)ts_nsec, rmem_nsec / 1000000,
+				info->src, info->master ? info->master : "",
+				info->dest ? info->dest : NO_NAME,
+				info->target_addr,
+				itmon_errcode_short[info->err_code]);
+
+		p_itmon_history->idx = (p_itmon_history->idx + 1) % p_itmon_history->nr_entry;
+	}
 }
 
 static void itmon_report_pathinfo(struct itmon_dev *itmon,
@@ -1219,7 +1286,7 @@ static int itmon_parse_cpuinfo(struct itmon_dev *itmon,
 			}
 			if (pdata->cpu_parsing) {
 				snprintf(info->buf, sizeof(info->buf) - 1,
-					"CPU%d %s %s", core_num, el2 == 1 ? "EL2" : "",
+					"CPU%d_%s_%s", core_num, el2 == 1 ? "EL2" : "",
 					strong == 1 ? "Strong" : "");
 			} else {
 				snprintf(info->buf, sizeof(info->buf) - 1, "CPU");
@@ -1650,6 +1717,9 @@ static int itmon_load_keepdata(struct itmon_dev *itmon)
 
 	page_size = rmem->size / PAGE_SIZE;
 	pages = kzalloc(sizeof(struct page *) * page_size, GFP_KERNEL);
+	if (!pages)
+		return -ENOMEM;
+
 	page = phys_to_page(rmem->base);
 
 	for (i = 0; i < page_size; i++)
@@ -1704,6 +1774,56 @@ static int itmon_load_keepdata(struct itmon_dev *itmon)
 			pr_err("name %s type %x id %x err_id %d\n", temp[j].name, temp[j].type, temp[j].id, temp[j].err_id);
 		}
 	}
+
+	return 0;
+}
+
+static int itmon_history_rmem_setup(struct itmon_dev *itmon)
+{
+	struct reserved_mem *rmem;
+	struct device_node *rmem_np;
+	struct device *dev = itmon->dev;
+	pgprot_t prot = __pgprot(PROT_NORMAL_NC);
+	int page_size, i;
+	struct page *page, **pages;
+	unsigned long flags = VM_NO_GUARD | VM_MAP;
+	void *vaddr;
+
+	rmem_np = of_parse_phandle(dev->of_node, "memory-region", 1);
+	if (!rmem_np) {
+		dev_err(dev, "failed to acquire itmon history phandle\n");
+		return -ENOMEM;
+	}
+
+	rmem = of_reserved_mem_lookup(rmem_np);
+	if (!rmem) {
+		dev_err(dev, "failed to acquire memory region\n");
+		return -ENOMEM;
+	}
+
+	page_size = (rmem->size - 1) / PAGE_SIZE + 1;
+	pages = kzalloc(sizeof(struct page *) * page_size, GFP_KERNEL);
+	if (!pages)
+		return -ENOMEM;
+
+	page = phys_to_page(rmem->base);
+
+	for (i = 0; i < page_size; i++)
+		pages[i] = page++;
+
+	vaddr = vmap(pages, page_size, flags, prot);
+	kfree(pages);
+	if (!vaddr) {
+		dev_err(dev, "paddr:%llx page_size:%x failed to vmap\n",
+				rmem->base, page_size);
+		return -ENOMEM;
+	}
+
+	memset((void *)vaddr, 0, rmem->size);
+	p_itmon_history = (struct itmon_history *)vaddr;
+	p_itmon_history->idx = 0;
+	p_itmon_history->nr_entry = rmem->size / ITMON_HISTROY_STRING_SIZE;
+	itmon_set_history_magic();
 
 	return 0;
 }
@@ -1810,6 +1930,9 @@ static int itmon_probe(struct platform_device *pdev)
 	if (itmon_load_keepdata(itmon) < 0)
 		return -ENOMEM;
 
+	if (itmon_history_rmem_setup(itmon) < 0)
+		dev_err(&pdev->dev, "Failed to setup history rmem\n");
+
 	itmon->pdata->policy = err_policy;
 
 	itmon_parse_dt(itmon);
@@ -1876,6 +1999,7 @@ static int itmon_probe(struct platform_device *pdev)
 	itmon_init(itmon, true);
 
 	pdata->last_time = 0;
+	pdata->errcnt_window_start_time = 0;
 	pdata->last_errcnt = 0;
 
 	g_itmon = itmon;

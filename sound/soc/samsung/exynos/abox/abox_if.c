@@ -655,6 +655,7 @@ static int abox_uaif_mute_stream(struct snd_soc_dai *dai, int mute, int stream)
 	struct abox_if_data *data = snd_soc_dai_get_drvdata(dai);
 	struct snd_soc_component *cmpnt = data->cmpnt;
 	unsigned long mask, shift;
+	int vol_factor = 0x800000; 	/*default value*/
 
 	abox_info(dev, "%s[%c](%d)\n", __func__,
 			(stream == SNDRV_PCM_STREAM_CAPTURE) ? 'C' : 'P', mute);
@@ -668,8 +669,16 @@ static int abox_uaif_mute_stream(struct snd_soc_dai *dai, int mute, int stream)
 	}
 
 	/* Delay to flush FIFO in UAIF */
-	if (mute)
+	if (mute) {
 		usleep_range(600, 1000);
+		vol_factor = 0;
+	}
+
+	if (stream == SNDRV_PCM_STREAM_PLAYBACK) {
+		snd_soc_component_update_bits(cmpnt, UAIF_REG_SPK_VOL_FACTOR,
+						ABOX_VOL_FACTOR_SPK_MASK, vol_factor << ABOX_VOL_FACTOR_SPK_L);
+		usleep_range(50, 100);
+	}
 
 	return snd_soc_component_update_bits(cmpnt, UAIF_REG_CTRL0,
 				mask, !mute << shift);

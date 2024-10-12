@@ -16,6 +16,7 @@
 #include <linux/bitmap.h>
 #include <linux/irqdomain.h>
 #include <linux/sysfs.h>
+#include <trace/events/irq.h>
 
 #include "internals.h"
 
@@ -288,22 +289,25 @@ static void irq_sysfs_add(int irq, struct irq_desc *desc)
 	if (irq_kobj_base) {
 		/*
 		 * Continue even in case of failure as this is nothing
-		 * crucial.
+		 * crucial and failures in the late irq_sysfs_init()
+		 * cannot be rolled back.
 		 */
 		if (kobject_add(&desc->kobj, irq_kobj_base, "%d", irq))
 			pr_warn("Failed to add kobject for irq %d\n", irq);
+		else
+			desc->istate |= IRQS_SYSFS;
 	}
 }
 
 static void irq_sysfs_del(struct irq_desc *desc)
 {
 	/*
-	 * If irq_sysfs_init() has not yet been invoked (early boot), then
-	 * irq_kobj_base is NULL and the descriptor was never added.
-	 * kobject_del() complains about a object with no parent, so make
-	 * it conditional.
+	 * Only invoke kobject_del() when kobject_add() was successfully
+	 * invoked for the descriptor. This covers both early boot, where
+	 * sysfs is not initialized yet, and the case of a failed
+	 * kobject_add() invocation.
 	 */
-	if (irq_kobj_base)
+	if (desc->istate & IRQS_SYSFS)
 		kobject_del(&desc->kobj);
 }
 
@@ -635,6 +639,8 @@ void irq_init_desc(unsigned int irq)
 int handle_irq_desc(struct irq_desc *desc)
 {
 	struct irq_data *data;
+	struct irqaction *action;
+	unsigned int irq;
 
 	if (!desc)
 		return -EINVAL;
@@ -643,7 +649,15 @@ int handle_irq_desc(struct irq_desc *desc)
 	if (WARN_ON_ONCE(!in_irq() && handle_enforce_irqctx(data)))
 		return -EPERM;
 
-	generic_handle_irq_desc(desc);
+	action = desc->action;
+	if (!irq_desc_is_chained(desc)) {
+		generic_handle_irq_desc(desc);
+	} else {
+		irq = irq_desc_get_irq(desc);
+		trace_irq_handler_entry(irq, action);
+		generic_handle_irq_desc(desc);
+		trace_irq_handler_exit(irq, action, 1);
+	}
 	return 0;
 }
 EXPORT_SYMBOL_GPL(handle_irq_desc);

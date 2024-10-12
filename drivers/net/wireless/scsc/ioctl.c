@@ -156,6 +156,7 @@
 #define CMD_SETJOINPREFER "SETJOINPREFER"
 #define CMD_SETSINGLEANT "SETSINGLEANT"
 #define CMD_SET_TX_POWER_CALLING "SET_TX_POWER_CALLING"
+#define CMD_SET_CUSTOM_TX_POWER_CALLING "SET_CUSTOM_TX_POWER_CALLING"
 #define CMD_GET_CU "GET_CU"
 
 #define CMD_DRIVERDEBUGDUMP "DEBUG_DUMP"
@@ -2997,10 +2998,10 @@ static ssize_t slsi_set_low_latency_params(struct net_device *dev, int latency_p
 	int ret = 0;
 
 	if ((sdev->latency_param_mask & LATENCY_ALL_SET_MASK) == LATENCY_ALL_SET_MASK) {
-		SLSI_INFO(sdev, "Home Away Time = %d, Home time = %d, Max Channel Time = %d Passive Time = %d\n",
-			  sdev->home_away_time, sdev->home_time, sdev->max_channel_time,
-			  sdev->max_channel_passive_time);
-		ret = slsi_mlme_set_scan_mode_req(sdev, dev, FAPI_SCANMODE_LOW_LATENCY, sdev->max_channel_time,
+		SLSI_INFO(sdev, "Scan Mode = %d, Home Away Time = %d, Home time = %d, Max Channel Time = %d Passive Time = %d\n",
+			  sdev->scan_mode, sdev->home_away_time, sdev->home_time,
+			  sdev->max_channel_time, sdev->max_channel_passive_time);
+		ret = slsi_mlme_set_scan_mode_req(sdev, dev, sdev->scan_mode, sdev->max_channel_time,
 						  sdev->home_away_time, sdev->home_time, sdev->max_channel_passive_time);
 		sdev->latency_param_mask = 0;
 	} else if (latency_param == 0) {
@@ -3447,13 +3448,6 @@ static int slsi_roam_add_scan_frequencies(struct net_device *dev, char *command,
 
 	if (!sdev->device_config.ncho_mode) {
 		SLSI_INFO(sdev, "Command not allowed, NCHO is disabled\n");
-		SLSI_MUTEX_UNLOCK(sdev->device_config_mutex);
-		kfree(ioctl_args);
-		return -EINVAL;
-	}
-
-	if (sdev->device_config.roam_scan_mode) {
-		SLSI_ERR(sdev, "ROAM Scan Control must be 0, roam mode = %d\n", sdev->device_config.roam_scan_mode);
 		SLSI_MUTEX_UNLOCK(sdev->device_config_mutex);
 		kfree(ioctl_args);
 		return -EINVAL;
@@ -4686,10 +4680,11 @@ int slsi_set_tx_power_calling(struct net_device *dev, char *command, int buf_len
 	struct slsi_dev      *sdev = ndev_vif->sdev;
 	struct slsi_ioctl_args *ioctl_args = NULL;
 	int                  mode = 0;
+	int                  ant = -1;
 	int                  error = 0;
 	u16                  host_state;
 
-	ioctl_args = slsi_get_private_command_args(command, buf_len, 1);
+	ioctl_args = slsi_get_private_command_args(command, buf_len, 2);
 	error = slsi_verify_ioctl_args(sdev, ioctl_args);
 	if (error)
 		return error;
@@ -4698,6 +4693,13 @@ int slsi_set_tx_power_calling(struct net_device *dev, char *command, int buf_len
 		SLSI_ERR(sdev, "Invalid string: '%s'\n", ioctl_args->args[0]);
 		kfree(ioctl_args);
 		return -EINVAL;
+	}
+	if (ioctl_args->arg_count > 1) {
+		if (strtoint(ioctl_args->args[1], &ant)) {
+			SLSI_ERR(sdev, "Invalid string: '%s'\n", ioctl_args->args[1]);
+			kfree(ioctl_args);
+			return -EINVAL;
+		}
 	}
 
 	SLSI_MUTEX_LOCK(sdev->device_config_mutex);
@@ -4711,9 +4713,18 @@ int slsi_set_tx_power_calling(struct net_device *dev, char *command, int buf_len
 		host_state |= SLSI_HOSTSTATE_HEAD_SAR_ACTIVE;
 		break;
 	case BODY_SAR_BACKOFF_DISABLED:
-		host_state &= ~SLSI_HOSTSTATE_GRIP_SAR_ACTIVE;
+		if (ant == RADIO_1_ANT_NUM)
+			sdev->device_config.backoffed_ant_config &= MASK_BACKOFF_STATE_ANT_2;
+		else if (ant == RADIO_2_ANT_NUM)
+			sdev->device_config.backoffed_ant_config &= MASK_BACKOFF_STATE_ANT_1;
+		if (sdev->device_config.backoffed_ant_config == MASK_BACKOFF_STATE_INIT)
+			host_state &= ~SLSI_HOSTSTATE_GRIP_SAR_ACTIVE;
 		break;
 	case BODY_SAR_BACKOFF_ENABLED:
+		if (ant == RADIO_1_ANT_NUM)
+			sdev->device_config.backoffed_ant_config |= MASK_BACKOFF_STATE_ANT_1;
+		else if (ant == RADIO_2_ANT_NUM)
+			sdev->device_config.backoffed_ant_config |= MASK_BACKOFF_STATE_ANT_2;
 		host_state |= SLSI_HOSTSTATE_GRIP_SAR_ACTIVE;
 		break;
 	case NR_MMWAVE_SAR_BACKOFF_DISABLED:
@@ -4755,6 +4766,51 @@ int slsi_set_tx_power_calling(struct net_device *dev, char *command, int buf_len
 	SLSI_MUTEX_UNLOCK(sdev->device_config_mutex);
 	kfree(ioctl_args);
 	return error;
+}
+
+int slsi_set_custom_tx_power_calling(struct net_device *dev, char *command, int buf_len)
+{
+	struct netdev_vif       *ndev_vif = netdev_priv(dev);
+	struct slsi_dev         *sdev = ndev_vif->sdev;
+	struct slsi_ioctl_args  *ioctl_args = NULL;
+	int                     txpwr_limit[MAX_TX_PWR_BACKOFF_ARG_CNT];
+	int                     result = 0, i;
+
+	ioctl_args = slsi_get_private_command_args(command, buf_len, MAX_TX_PWR_BACKOFF_ARG_CNT);
+	result = slsi_verify_ioctl_args(sdev, ioctl_args);
+	if (result)
+		return result;
+
+	if (ioctl_args->arg_count != MAX_TX_PWR_BACKOFF_ARG_CNT) {
+		SLSI_ERR(sdev, "Invalid argument count = %d (should be 12)\n", ioctl_args->arg_count);
+		result = -EINVAL;
+		goto exit;
+	}
+
+	SLSI_MUTEX_LOCK(sdev->device_config_mutex);
+
+	for (i = 0; i < MAX_TX_PWR_BACKOFF_ARG_CNT; i++) {
+		if (!slsi_str_to_int(ioctl_args->args[i], &txpwr_limit[i])) {
+			SLSI_ERR(sdev, "Invalid custom tx power limit: '%s'\n", ioctl_args->args[0]);
+			result = -EINVAL;
+			goto exit_with_unlock;
+		}
+		if (txpwr_limit[i] < -1 || txpwr_limit[i] > 126) {
+			SLSI_ERR(sdev, "Out of max TX power boundary  (-1 to 126): %d\n", txpwr_limit[i]);
+			result = -EINVAL;
+			goto exit_with_unlock;
+		}
+		sdev->device_config.last_custom_tx_pwr[i] = txpwr_limit[i];
+	}
+
+	result = slsi_mlme_set_max_tx_power(sdev, dev, txpwr_limit);
+
+exit_with_unlock:
+	SLSI_MUTEX_UNLOCK(sdev->device_config_mutex);
+
+exit:
+	kfree(ioctl_args);
+	return result;
 }
 
 int slsi_set_tx_power_sub6_band(struct net_device *dev, char *command, int buf_len)
@@ -7407,7 +7463,7 @@ static int slsi_set_ap_tx_power(struct net_device *dev, char *command, int buf_l
 		SLSI_ERR(sdev, "Invalid AP TX power: '%s'\n", ioctl_args->args[0]);
 		goto exit;
 	}
-	if (tx_power < AP_RPS_PHASE_MIN || tx_power > AP_RPS_PHASE_MAX) {
+	if (tx_power < AP_TX_POWER_MIN || tx_power > AP_TX_POWER_MAX) {
 		SLSI_ERR(sdev, "Out of AP TX power boundary  (0~31dBm): %d\n", tx_power);
 		goto exit;
 	}
@@ -7744,6 +7800,7 @@ static const struct slsi_ioctl_fn slsi_ioctl_fn_table[] = {
 	{ CMD_P2PLOSTART,                   slsi_p2p_lo_start },
 	{ CMD_P2PLOSTOP,                    slsi_p2p_lo_stop },
 	{ CMD_SET_TX_POWER_CALLING,         slsi_set_tx_power_calling },
+	{ CMD_SET_CUSTOM_TX_POWER_CALLING,  slsi_set_custom_tx_power_calling },
 	{ CMD_SET_TX_POWER_SUB6_BAND,       slsi_set_tx_power_sub6_band },
 	{ CMD_POWER_MEASUREMENT_START,      slsi_start_power_measurement_detection },
 	{ CMD_GETREGULATORY,                slsi_get_regulatory },

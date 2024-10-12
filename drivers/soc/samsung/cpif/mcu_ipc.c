@@ -540,7 +540,7 @@ static int cp_mbox_probe(struct platform_device *pdev)
 		/* Request IRQ */
 		irq = platform_get_irq(pdev, irq_data->idx);
 		err = devm_request_irq(&pdev->dev, irq, cp_mbox_irq_handler,
-					IRQF_ONESHOT, irq_data->name, irq_data);
+					0, irq_data->name, irq_data);
 		if (err) {
 			mif_err("devm_request_irq() error:%d\n", err);
 			goto fail;

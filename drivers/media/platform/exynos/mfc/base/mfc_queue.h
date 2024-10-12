@@ -112,7 +112,7 @@ struct mfc_buf *mfc_get_buf_no_used(struct mfc_ctx *ctx, struct mfc_buf_queue *q
 struct mfc_buf *mfc_get_del_buf(struct mfc_ctx *ctx, struct mfc_buf_queue *queue,
 		enum mfc_queue_used_type used);
 struct mfc_buf *mfc_get_del_if_consumed(struct mfc_ctx *ctx, struct mfc_buf_queue *queue,
-		unsigned long consumed, unsigned int min_bytes, int err, int *deleted);
+		unsigned int consumed, unsigned int min_bytes, int err, int *deleted);
 struct mfc_buf *mfc_get_move_buf(struct mfc_ctx *ctx,
 		struct mfc_buf_queue *to_queue, struct mfc_buf_queue *from_queue,
 		enum mfc_queue_used_type used, enum mfc_queue_top_type top);

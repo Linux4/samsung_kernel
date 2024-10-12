@@ -282,6 +282,10 @@ static int exynos_usb_audio_hcd(struct usb_device *udev)
 			pr_err(" abox iommu mapping for erst is failed\n");
 			goto err;
 		}
+		if (g_hwinfo->need_first_probe) {
+			usb_audio.is_first_probe = 1;
+			g_hwinfo->need_first_probe = false;
+		}
 	} else {
 		/*ERST mapping*/
 		ret = usb_audio_iommu_map(USB_AUDIO_ERST, hwinfo->erst_addr,
@@ -405,6 +409,8 @@ static int exynos_usb_audio_conn(struct usb_device *udev, int is_conn)
 	if (is_conn == 0) {
 		if (usb_audio.is_audio) {
 			usb_audio.is_audio = 0;
+			usb_audio.user_scenario = AUDIO_MODE_NORMAL;
+			phy_set_mode_ext(usb_audio.phy, PHY_MODE_CALL_EXIT, AUDIO_MODE_NORMAL);
 			usb_audio.usb_audio_state = USB_AUDIO_REMOVING;
 			ret = usb_msg_to_uram(&udev->dev);
 			if (ret) {

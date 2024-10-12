@@ -644,15 +644,11 @@ static void __mfc_set_enc_params_h264(struct mfc_core *core,
 	mb = WIDTH_MB((ctx)->crop_width) * HEIGHT_MB((ctx)->crop_height);
 	/* Level 6.0 case */
 	if (IS_LV60_MB(mb)) {
-		if (p_264->level < 60) {
-			mfc_ctx_info("Set Level 6.0 for MB %d\n", mb);
-			p_264->level = 60;
-		}
+		if (p_264->level < 60)
+			mfc_ctx_info("This resolution(mb: %d) recommends level6.0\n", mb);
 		/* In case of profile is baseline or constrained baseline */
-		if (p_264->profile == 0x0 || p_264->profile == 0x3) {
-			mfc_ctx_info("Set High profile for MB %d\n", mb);
-			p_264->profile = 0x2;
-		}
+		if (p_264->profile == 0x0 || p_264->profile == 0x3)
+			mfc_ctx_info("This resolution(mb: %d) recommends high profile\n", mb);
 		if (!dev->pdata->support_8K_cavlc && (p_264->entropy_mode != 0x1)) {
 			mfc_ctx_info("Set Entropy mode CABAC\n");
 			p_264->entropy_mode = 1;
@@ -661,15 +657,11 @@ static void __mfc_set_enc_params_h264(struct mfc_core *core,
 
 	/* Level 5.1 case */
 	if (IS_LV51_MB(mb)) {
-		if (p_264->level < 51) {
-			mfc_ctx_info("Set Level 5.1 for MB %d\n", mb);
-			p_264->level = 51;
-		}
+		if (p_264->level < 51)
+			mfc_ctx_info("This resolution(mb: %d) recommends level5.1\n", mb);
 		/* In case of profile is baseline or constrained baseline */
-		if (p_264->profile == 0x0 || p_264->profile == 0x3) {
-			mfc_ctx_info("Set High profile for MB %d\n", mb);
-			p_264->profile = 0x2;
-		}
+		if (p_264->profile == 0x0 || p_264->profile == 0x3)
+			mfc_ctx_info("This resolution(mb: %d) recommends high profile\n", mb);
 	}
 
 	/* profile & level */
@@ -705,11 +697,6 @@ static void __mfc_set_enc_params_h264(struct mfc_core *core,
 	mfc_clear_set_bits(reg, 0x1, 13, p_264->_8x8_transform);
 	/* 'CONSTRAINED_INTRA_PRED_ENABLE' is disable */
 	mfc_clear_bits(reg, 0x1, 14);
-	/*
-	 * CONSTRAINT_SET0_FLAG: all constraints specified in
-	 * Baseline Profile
-	 */
-	mfc_set_bits(reg, 0x1, 26, 0x1);
 	/* sps pps control */
 	mfc_clear_set_bits(reg, 0x1, 29, p_264->prepend_sps_pps_to_idr);
 	/* enable sps pps control in OTF scenario */
@@ -1272,16 +1259,12 @@ static void __mfc_set_enc_params_hevc(struct mfc_core *core,
 
 	mb = WIDTH_MB((ctx)->crop_width) * HEIGHT_MB((ctx)->crop_height);
 	/* Level 6.0 case */
-	if (IS_LV60_MB(mb) && p_hevc->level < 60) {
-		mfc_ctx_info("Set Level 6.0 for MB %d\n", mb);
-		p_hevc->level = 60;
-	}
+	if (IS_LV60_MB(mb) && p_hevc->level < 60)
+		mfc_ctx_info("This resolution(mb: %d) recommends level6.0\n", mb);
 
 	/* Level 5.1 case */
-	if (IS_LV51_MB(mb) && p_hevc->level < 51) {
-		mfc_ctx_info("Set Level 5.1 for MB %d\n", mb);
-		p_hevc->level = 51;
-	}
+	if (IS_LV51_MB(mb) && p_hevc->level < 51)
+		mfc_ctx_info("This resolution(mb: %d) recommends level5.1\n", mb);
 
 	/* tier_flag & level & profile */
 	reg = 0;

@@ -70,7 +70,7 @@ enum duty_cycle {
  * struct samsung_pwm_channel - private data of PWM channel
  * @period_ns:	current period in nanoseconds programmed to the hardware
  * @duty_ns:	current duty time in nanoseconds programmed to the hardware
- * @tin_ns:	time of one timer tick in nanoseconds with current timer rate
+ * @tin_ps:	time of one timer tick in picoseconds with current timer rate
  */
 struct samsung_pwm_channel {
 	struct clk		*clk_div;
@@ -78,7 +78,7 @@ struct samsung_pwm_channel {
 
 	u32 			period_ns;
 	u32 			duty_ns;
-	u32 			tin_ns;
+	u32 			tin_ps;
 	unsigned char	running;
 	enum duty_cycle	duty_cycle;
 };
@@ -416,7 +416,7 @@ static int __pwm_samsung_config(struct pwm_chip *chip, struct pwm_device *pwm,
 	struct samsung_pwm_chip *our_chip = to_samsung_pwm_chip(chip);
 	unsigned int tcon_chan = to_tcon_channel(pwm->hwpwm);
 	struct samsung_pwm_channel *chan = pwm_get_chip_data(pwm);
-	u32 tin_ns = chan->tin_ns, tcnt, tcmp, tcon;
+	u32 tin_ps = chan->tin_ps, tcnt, tcmp, tcon;
 	enum duty_cycle duty_cycle;
 	unsigned long flags;
 	unsigned int ret = 0;
@@ -457,12 +457,12 @@ static int __pwm_samsung_config(struct pwm_chip *chip, struct pwm_device *pwm,
 		if(!tin_rate)
 			return -EINVAL;
 
-		tin_ns = (unsigned int)(NSEC_PER_SEC / tin_rate);
+		tin_ps = (unsigned int)(NSEC_PER_SEC * 1000 / tin_rate);
 	}
 
 	/* Note that counters count down. */
-	tcnt = DIV_ROUND_CLOSEST(period_ns, tin_ns);
-	tcmp = DIV_ROUND_CLOSEST(duty_ns, tin_ns);
+	tcnt = DIV_ROUND_CLOSEST(period_ns * 1000, tin_ps);
+	tcmp = DIV_ROUND_CLOSEST(duty_ns * 1000, tin_ps);
 
 	/* Period is too short. */
 	if (tcnt <= 1)
@@ -490,7 +490,7 @@ static int __pwm_samsung_config(struct pwm_chip *chip, struct pwm_device *pwm,
 	--tcmp;
 
 	dev_dbg(our_chip->chip.dev,
-				"tin_ns=%u, tcmp=%u/%u\n", tin_ns, tcmp, tcnt);
+				"tin_ps=%u, tcmp=%u/%u\n", tin_ps, tcmp, tcnt);
 
 	/* Update PWM registers. */
 	spin_lock_irqsave(&samsung_pwm_lock, flags);
@@ -516,7 +516,7 @@ static int __pwm_samsung_config(struct pwm_chip *chip, struct pwm_device *pwm,
 	}
 
 	chan->period_ns = period_ns;
-	chan->tin_ns = tin_ns;
+	chan->tin_ps = tin_ps;
 	chan->duty_ns = duty_ns;
 	chan->duty_cycle = duty_cycle;
 

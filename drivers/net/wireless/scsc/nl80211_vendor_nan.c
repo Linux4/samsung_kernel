@@ -1,6 +1,6 @@
 /*****************************************************************************
  *
- * Copyright (c) 2014 - 2022 Samsung Electronics Co., Ltd. All rights reserved
+ * Copyright (c) 2014 - 2023 Samsung Electronics Co., Ltd. All rights reserved
  *
  ****************************************************************************/
 
@@ -8,11 +8,11 @@
 #include "debug.h"
 #include "mgt.h"
 #include "mlme.h"
+#include "ba.h"
 #ifdef CONFIG_SCSC_WLAN_TX_API
 #include "tx_api.h"
 #endif
 #include <scsc/scsc_warn.h>
-
 
 struct net_device *slsi_nan_get_netdev(struct slsi_dev *sdev)
 {
@@ -33,6 +33,17 @@ char *slsi_nan_convert_byte_to_string(int length, u8 *byte_string)
 		slen += snprintf(&info_string[slen], 61 - slen, "%02x ", byte_string[i]);
 	info_string[slen] = '\0';
 	return info_string;
+}
+
+unsigned int slsi_count_setbits_u16(u16 n)
+{
+	unsigned int count = 0;
+
+	while (n) {
+		count += n & 1;
+		n >>= 1;
+	}
+	return count;
 }
 
 void slsi_nan_dump_vif_data(struct slsi_dev *sdev, struct netdev_vif *ndev_vif)
@@ -66,6 +77,60 @@ void slsi_nan_dump_vif_data(struct slsi_dev *sdev, struct netdev_vif *ndev_vif)
 		SLSI_INFO(sdev, "Disc_Info peer_addr: " MACSTR ", session_id: %d, match_id: %d", MAC2STR(disc_info->peer_addr),
 			  disc_info->session_id, disc_info->match_id);
 		disc_info = disc_info->next;
+	}
+}
+
+static void slsi_nan_dump_ndp_peer_info(struct slsi_dev *sdev, struct net_device *nan_mgmt_dev,
+					struct net_device *data_dev)
+{
+	struct netdev_vif *ndev_vif = netdev_priv(data_dev);
+	int i;
+	struct slsi_peer *peer;
+	u32 ndp_instance_id;
+
+	for (i = 0; i < SLSI_NAN_MAX_NDP_INSTANCES + 1; i++) {
+		peer = ndev_vif->peer_sta_record[i];
+		if (peer && peer->valid) {
+			ndp_instance_id = slsi_nan_get_ndp_from_ndl_local_ndi(nan_mgmt_dev, peer->ndl_vif, data_dev->dev_addr);
+			SLSI_INFO(sdev, "PeerIdx:%d, ndpInstId:%d, ndl_vif:%d, peer ndpCount:%d\n",
+				  i, ndp_instance_id, peer->ndl_vif, peer->ndp_count);
+		}
+	}
+}
+
+static void slsi_nan_dump_ndp_data(struct slsi_dev *sdev, struct net_device *nan_mgmt_dev)
+{
+	struct netdev_vif *ndev_vif = netdev_priv(nan_mgmt_dev);
+	struct net_device *data_dev;
+	struct slsi_nan_ndl_info *ndl_list = ndev_vif->nan.ndl_list;
+	int totalndpcount = 0;
+	int i;
+
+	totalndpcount = slsi_count_setbits_u16(ndev_vif->nan.ndp_active_id_map);
+	SLSI_INFO(sdev, "NDP MAP:0x%08x NDP Count %d\n", ndev_vif->nan.ndp_instance_id_map, totalndpcount);
+	SLSI_INFO(sdev, "ndl_list:[%pM,%d][%pM,%d][%pM,%d][%pM,%d][%pM,%d][%pM,%d][%pM,%d][%pM,%d]\n",
+		  ndl_list[0].peer_nmi, ndl_list[0].ndp_count,
+		  ndl_list[1].peer_nmi, ndl_list[1].ndp_count,
+		  ndl_list[2].peer_nmi, ndl_list[2].ndp_count,
+		  ndl_list[3].peer_nmi, ndl_list[3].ndp_count,
+		  ndl_list[4].peer_nmi, ndl_list[4].ndp_count,
+		  ndl_list[5].peer_nmi, ndl_list[5].ndp_count,
+		  ndl_list[6].peer_nmi, ndl_list[6].ndp_count,
+		  ndl_list[7].peer_nmi, ndl_list[7].ndp_count);
+	SLSI_INFO(sdev, "ndp_ndi table: [%pM][%pM][%pM][%pM][%pM][%pM][%pM][%pM]\n",
+		  ndev_vif->nan.ndp_ndi[0], ndev_vif->nan.ndp_ndi[1], ndev_vif->nan.ndp_ndi[2],
+		  ndev_vif->nan.ndp_ndi[3], ndev_vif->nan.ndp_ndi[4], ndev_vif->nan.ndp_ndi[5],
+		  ndev_vif->nan.ndp_ndi[6], ndev_vif->nan.ndp_ndi[7]);
+	SLSI_INFO(sdev, "ndp_instance_id2ndl_vif: [%d, %d, %d, %d, %d, %d, %d, %d]\n",
+		  ndev_vif->nan.ndp_instance_id2ndl_vif[0], ndev_vif->nan.ndp_instance_id2ndl_vif[1],
+		  ndev_vif->nan.ndp_instance_id2ndl_vif[2], ndev_vif->nan.ndp_instance_id2ndl_vif[3],
+		  ndev_vif->nan.ndp_instance_id2ndl_vif[4], ndev_vif->nan.ndp_instance_id2ndl_vif[5],
+		  ndev_vif->nan.ndp_instance_id2ndl_vif[6], ndev_vif->nan.ndp_instance_id2ndl_vif[7]);
+	for (i = SLSI_NAN_DATA_IFINDEX_START; i < CONFIG_SCSC_WLAN_MAX_INTERFACES + 1; i++) {
+		data_dev = slsi_get_netdev_locked(sdev, i);
+		if (!data_dev)
+			continue;
+		slsi_nan_dump_ndp_peer_info(sdev, nan_mgmt_dev, data_dev);
 	}
 }
 
@@ -841,6 +906,7 @@ int slsi_nan_disable(struct wiphy *wiphy, struct wireless_dev *wdev, const void 
 				data_ndev_vif = netdev_priv(data_dev);
 				SLSI_MUTEX_LOCK(data_ndev_vif->vif_mutex);
 				slsi_vif_cleanup(sdev, data_dev, true, 0);
+				data_ndev_vif->nan.ndp_count = 0;
 				SLSI_MUTEX_UNLOCK(data_ndev_vif->vif_mutex);
 			}
 		}
@@ -1933,7 +1999,7 @@ exit:
 	return 0;
 }
 
-void slsi_vendor_nan_event_create_delete(struct slsi_dev *sdev, int hal_event, int transaction_id,int reply_status)
+void slsi_vendor_nan_event_create_delete(struct slsi_dev *sdev, int hal_event, int transaction_id, int reply_status)
 {
 
 	struct sk_buff *nl_skb = NULL;
@@ -1964,7 +2030,7 @@ int slsi_nan_data_iface_create(struct wiphy *wiphy, struct wireless_dev *wdev, c
 	struct net_device *dev = slsi_nan_get_netdev(sdev);
 	const struct nlattr *iter;
 	u16 transaction_id = 0;
-	struct slsi_nan_data_interface_create_info *intfdata =NULL;
+	struct slsi_nan_data_interface_create_info *intfdata = NULL;
 
 	slsi_nan_pre_check(sdev, dev, &ret, &reply_status);
 	if (ret != WIFI_HAL_SUCCESS)
@@ -2100,7 +2166,7 @@ int slsi_nan_data_iface_delete(struct wiphy *wiphy, struct wireless_dev *wdev, c
 	u32 reply_status = SLSI_HAL_NAN_STATUS_SUCCESS;
 	const struct nlattr *iter;
 	u16 transaction_id = 0;
-	struct slsi_nan_data_interface_delete_info *intfdata =NULL;
+	struct slsi_nan_data_interface_delete_info *intfdata = NULL;
 
 	slsi_nan_pre_check(sdev, dev, &ret, &reply_status);
 	if (ret != WIFI_HAL_SUCCESS)
@@ -2131,7 +2197,7 @@ int slsi_nan_data_iface_delete(struct wiphy *wiphy, struct wireless_dev *wdev, c
 
 	SLSI_MUTEX_LOCK(sdev->netdev_add_remove_mutex);
 	memcpy(intfdata->ifname, iface_name, strlen(iface_name));
-	SLSI_ERR(sdev, "NAN  delete intf if_name:%s \n", iface_name);
+	SLSI_ERR(sdev, "NAN  delete intf if_name:%s\n", iface_name);
 	intfdata->transaction_id = transaction_id;
 	list_add(&intfdata->list, &sdev->nan_data_interface_delete_data);
 	schedule_work(&sdev->nan_data_interface_delete_work);
@@ -2323,10 +2389,8 @@ void slsi_nan_data_interface_delete_wq(struct work_struct *work)
 	SLSI_MUTEX_UNLOCK(sdev->netdev_add_remove_mutex);
 	mutex_unlock(&sdev->wiphy->mtx);
 	rtnl_unlock();
-	return;
 }
 #endif
-
 
 int slsi_nan_ndp_initiate_get_nl_params(struct slsi_dev *sdev, struct slsi_hal_nan_data_path_initiator_req *hal_req,
 					const void *data, int len)
@@ -3253,6 +3317,7 @@ void slsi_nan_ndp_setup_ind(struct slsi_dev *sdev, struct net_device *dev, struc
 	unsigned long ndp_setup_time = 0;
 	char *info_string = NULL;
 	u16 flow_id = 0;
+	u16 ndl_vif_id = 0, ndl_id = 0;
 
 	SLSI_DBG3(sdev, SLSI_GSCAN, "\n");
 	SLSI_MUTEX_LOCK(sdev->netdev_add_remove_mutex);
@@ -3283,8 +3348,9 @@ void slsi_nan_ndp_setup_ind(struct slsi_dev *sdev, struct net_device *dev, struc
 	if (ndp_setup_response != NAN_DP_REQUEST_ACCEPT) {
 		struct net_device *data_dev;
 		struct netdev_vif *ndev_data_vif;
+
 		data_dev = slsi_get_netdev_by_mac_addr_locked(sdev, ndev_vif->nan.ndp_ndi[ndp_instance_id - 1],
-                                                              SLSI_NAN_DATA_IFINDEX_START);
+							      SLSI_NAN_DATA_IFINDEX_START);
 		if (data_dev) {
 			ndev_data_vif = netdev_priv(data_dev);
 			SLSI_MUTEX_LOCK(ndev_data_vif->vif_mutex);
@@ -3348,7 +3414,7 @@ void slsi_nan_ndp_setup_ind(struct slsi_dev *sdev, struct net_device *dev, struc
 			SLSI_ERR(sdev, "Invalid ndp_instance_id:%d\n", ndp_instance_id);
 			goto exit;
 		}
-
+		ndev_vif->nan.ndp_active_id_map |=  BIT(ndp_instance_id);
 		data_dev = slsi_get_netdev_by_mac_addr_locked(sdev, ndev_vif->nan.ndp_ndi[ndp_instance_id - 1],
 							      SLSI_NAN_DATA_IFINDEX_START);
 
@@ -3374,22 +3440,29 @@ void slsi_nan_ndp_setup_ind(struct slsi_dev *sdev, struct net_device *dev, struc
 #ifdef CONFIG_SCSC_WLAN_LOAD_BALANCE_MANAGER
 		slsi_lbm_netdev_activate(sdev, data_dev);
 #endif
+		slsi_rx_ba_update_timer(sdev, data_dev, SLSI_RX_BA_EVENT_VIF_CONNECTED);
 		ndev_data_vif->activated = true;
 		peer = slsi_get_peer_from_mac(sdev, data_dev, peer_ndi);
 		if (peer) {
 			peer->ndp_count++;
 		} else {
-			peer = slsi_peer_add(sdev, data_dev, peer_ndi, ndp_instance_id);
+			ndl_vif_id = ndev_vif->nan.ndp_instance_id2ndl_vif[ndp_instance_id - 1];
+			/* ndl_vif_id is subtracted with SLSI_NET_INDEX_NAN instead of SLSI_NAN_DATA_IFINDEX_START as we have to
+			 *pass aid to peer add. aid will be subtracted by 1 to slsi_peer_add to derive the queueset
+			 */
+			ndl_id = ndl_vif_id - SLSI_NET_INDEX_NAN;
+			peer = slsi_peer_add(sdev, data_dev, peer_ndi, ndl_id);
 			if (peer) {
 				peer->connected_state = SLSI_STA_CONN_STATE_CONNECTED;
 				slsi_ps_port_control(sdev, data_dev, peer, SLSI_STA_CONN_STATE_CONNECTED);
-				peer->ndl_vif = ndev_vif->nan.ndp_instance_id2ndl_vif[ndp_instance_id - 1];
+				peer->ndl_vif = ndl_vif_id;
 				peer->qos_enabled = true;
 			} else {
 				SLSI_ERR(sdev, "no peer for ndp_instance_id:%d ndi[%d]\n", ndp_instance_id, ndev_vif->nan.ndp_ndi[ndp_instance_id - 1]);
 			}
 		}
-		peer->flow_id = flow_id;
+		if (peer)
+			peer->flow_id = flow_id;
 		if (ndev_data_vif->ifnum >= SLSI_NAN_DATA_IFINDEX_START) {
 			dev->flags |= IFF_NOARP;
 			netif_carrier_on(data_dev);
@@ -3405,6 +3478,7 @@ void slsi_nan_ndp_setup_ind(struct slsi_dev *sdev, struct net_device *dev, struc
 	}
 	cfg80211_vendor_event(nl_skb, GFP_KERNEL);
 exit:
+	slsi_nan_dump_ndp_data(sdev, dev);
 	SLSI_MUTEX_UNLOCK(ndev_vif->vif_mutex);
 	SLSI_MUTEX_UNLOCK(sdev->netdev_add_remove_mutex);
 	kfree_skb(skb);
@@ -3516,23 +3590,30 @@ void slsi_nan_del_peer(struct slsi_dev *sdev, struct net_device *dev, u8 *local_
 	struct net_device *data_dev;
 	struct netdev_vif *ndev_data_vif;
 	struct slsi_peer *peer = NULL;
+	u16 ndl_vif_id = 0, ndl_id = 0;
 
 	WLBT_WARN_ON(!SLSI_MUTEX_IS_LOCKED(ndev_vif->vif_mutex));
 
-	if (!local_ndi)
+	if (!local_ndi) {
+		SLSI_ERR(sdev, "Invalid local NDI in del peer\n");
 		return;
+	}
 
 	data_dev = slsi_get_netdev_by_mac_addr_locked(sdev, local_ndi, SLSI_NAN_DATA_IFINDEX_START);
-	if (!data_dev)
+	if (!data_dev) {
+		SLSI_ERR(sdev, "Invalid Data Dev\n");
 		return;
+	}
 
 	if (ndp_instance_id == 0 || ndp_instance_id > SLSI_NAN_MAX_NDP_INSTANCES)
 		return;
 
 	ndev_data_vif = netdev_priv(data_dev);
 	SLSI_MUTEX_LOCK(ndev_data_vif->vif_mutex);
-	peer = ndev_data_vif->peer_sta_record[ndp_instance_id - 1];
-	if (peer) {
+	ndl_vif_id = ndev_vif->nan.ndp_instance_id2ndl_vif[ndp_instance_id - 1];
+	ndl_id = ndl_vif_id - SLSI_NAN_DATA_IFINDEX_START;
+	peer = ndev_data_vif->peer_sta_record[ndl_id];
+	if (peer->valid) {
 		peer->ndp_count--;
 		if (peer->ndp_count == 0) {
 			slsi_ps_port_control(sdev, data_dev, peer, SLSI_STA_CONN_STATE_DISCONNECTED);
@@ -3541,7 +3622,8 @@ void slsi_nan_del_peer(struct slsi_dev *sdev, struct net_device *dev, u8 *local_
 			slsi_spinlock_unlock(&ndev_data_vif->peer_lock);
 		}
 	} else {
-		SLSI_ERR(sdev, "no peer for ndp_instance_id:%d ndi[" MACSTR "]\n", ndp_instance_id, MAC2STR(ndev_vif->nan.ndp_ndi[ndp_instance_id - 1]));
+		SLSI_ERR(sdev, "no peer for ndp_instance_id:%d ndi[" MACSTR "]\n", ndp_instance_id,
+			 MAC2STR(ndev_vif->nan.ndp_ndi[ndp_instance_id - 1]));
 	}
 	SLSI_MUTEX_UNLOCK(ndev_data_vif->vif_mutex);
 }
@@ -3563,23 +3645,17 @@ void slsi_nan_ndp_termination_handler(struct slsi_dev *sdev, struct net_device *
 			ndev_data_vif->nan.ndp_count--;
 		SLSI_MUTEX_UNLOCK(ndev_data_vif->vif_mutex);
 	}
-
-	slsi_nan_ndp_del_entry(sdev, dev, ndp_instance_id, false);
+	ndev_vif->nan.ndp_active_id_map &= ~BIT(ndp_instance_id);
 	slsi_nan_del_peer(sdev, dev, ndi, ndp_instance_id);
+	slsi_nan_ndp_del_entry(sdev, dev, ndp_instance_id, false);
 
 	if (data_dev) {
-#ifdef CONFIG_SCSC_WLAN_TX_API
 		SLSI_MUTEX_LOCK(ndev_data_vif->vif_mutex);
-		if (!ndev_data_vif->activated)
-			slsi_vif_deactivated_post(sdev, data_dev, ndev_data_vif);
+		if (!ndev_data_vif->activated) {
+			slsi_release_dp_resources(sdev, data_dev, ndev_data_vif);
+			slsi_rx_ba_update_timer(sdev, data_dev, SLSI_RX_BA_EVENT_VIF_TERMINATED);
+		}
 		SLSI_MUTEX_UNLOCK(ndev_data_vif->vif_mutex);
-#endif
-#ifdef CONFIG_SCSC_WLAN_LOAD_BALANCE_MANAGER
-		SLSI_MUTEX_LOCK(ndev_data_vif->vif_mutex);
-		if (!ndev_data_vif->activated)
-			slsi_lbm_netdev_deactivate(sdev, data_dev);
-		SLSI_MUTEX_UNLOCK(ndev_data_vif->vif_mutex);
-#endif
 	}
 
 #if (KERNEL_VERSION(4, 1, 0) <= LINUX_VERSION_CODE)
@@ -3600,6 +3676,7 @@ void slsi_nan_ndp_termination_handler(struct slsi_dev *sdev, struct net_device *
 		return;
 	}
 	SLSI_INFO(sdev, "ndp_instance_id:%d\n", ndp_instance_id);
+	slsi_nan_dump_ndp_data(sdev, dev);
 #ifdef CONFIG_SCSC_WLAN_DEBUG
 	SLSI_INFO(sdev, "Event: %s(%d)\n",
 		  slsi_print_event_name(SLSI_NAN_EVENT_NDP_END), SLSI_NAN_EVENT_NDP_END);

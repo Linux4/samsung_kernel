@@ -214,8 +214,6 @@ static int hpa_secure_unprotect(struct buffer_prot_info *protdesc, struct device
 	unsigned long ret;
 	int unique_id = SECURE_BUFID_TO_UID(protdesc->dma_addr);
 
-	ida_free(&hpa_unique_id, unique_id);
-
 	dma_unmap_single(dev, phys_to_dma(dev, virt_to_phys(protdesc)),
 			 sizeof(*protdesc), DMA_TO_DEVICE);
 
@@ -226,6 +224,7 @@ static int hpa_secure_unprotect(struct buffer_prot_info *protdesc, struct device
 		       size, protdesc->chunk_count, protdesc->flags);
 		return -EACCES;
 	}
+	ida_free(&hpa_unique_id, unique_id);
 
 	return 0;
 }

@@ -45,17 +45,37 @@ static int slsi_send_conn_log_event(struct slsi_dev *sdev)
 	struct buff_list *curr;
 	struct nlattr *nla = NULL;
 	u32 *count_p;
+	struct net_device *dev;
+	struct netdev_vif *ndev_vif;
 
 	while (!(__ratelimit(&sdev->conn_log2us_ctx.rs)))
 		msleep(50);
 
-	skb = cfg80211_vendor_event_alloc(sdev->wiphy, NULL, NLMSG_DEFAULT_SIZE,
+	dev = slsi_get_netdev(sdev, SLSI_NET_INDEX_WLAN);
+	if (!dev) {
+		SLSI_WARN_NODEV("net_dev is NULL\n");
+		return -EINVAL;
+	}
+
+	ndev_vif = netdev_priv(dev);
+	SLSI_MUTEX_LOCK(ndev_vif->vif_mutex);
+
+	if (ndev_vif->iftype != NL80211_IFTYPE_STATION) {
+		SLSI_MUTEX_UNLOCK(ndev_vif->vif_mutex);
+		return -1;
+	}
+
+	skb = cfg80211_vendor_event_alloc(sdev->wiphy, &ndev_vif->wdev, NLMSG_DEFAULT_SIZE,
 					  SLSI_NL80211_VENDOR_CONNECTIVITY_LOG_EVENT,
 					  GFP_KERNEL);
+
 	if (!skb) {
 		SLSI_ERR_NODEV("Failed to allocate SKB for vendor conn_log_event event\n");
+		SLSI_MUTEX_UNLOCK(ndev_vif->vif_mutex);
 		return -ENOMEM;
 	}
+
+	SLSI_MUTEX_UNLOCK(ndev_vif->vif_mutex);
 
 	nla = nla_reserve(skb, SLSI_WLAN_VENDOR_ATTR_CONN_LOG_BUFF_COUNT, sizeof(buf_count));
 	if (!nla) {
@@ -266,30 +286,6 @@ u8 *get_eap_type_from_val(int val, u8 *str)
 	}
 }
 
-static int slsi_get_roam_reason_for_fw_reason(int roam_reason)
-{
-	switch (roam_reason) {
-	case SLSI_WIFI_ROAMING_SEARCH_REASON_LOW_RSSI:
-		return 1;
-	case SLSI_WIFI_ROAMING_SEARCH_REASON_LINK_LOSS:
-		return 3;
-	case SLSI_WIFI_ROAMING_SEARCH_REASON_BTM_REQ:
-		return 5;
-	case SLSI_WIFI_ROAMING_SEARCH_REASON_CU_TRIGGER:
-		return 2;
-	case SLSI_WIFI_ROAMING_SEARCH_REASON_EMERGENCY:
-		return 4;
-	case SLSI_WIFI_ROAMING_SEARCH_REASON_IDLE:
-		return 6;
-	case SLSI_WIFI_ROAMING_SEARCH_REASON_WTC:
-		return 7;
-	case SLSI_WIFI_ROAMING_SEARCH_REASON_BT_COEX:
-		return 8;
-	default:
-		return 0;
-	}
-}
-
 void slsi_eapol_eap_handle_tx_status(struct slsi_dev *sdev, struct netdev_vif *ndev_vif,
 				     u16 host_tag, u16 tx_status)
 {
@@ -304,8 +300,13 @@ void slsi_eapol_eap_handle_tx_status(struct slsi_dev *sdev, struct netdev_vif *n
 		tx_status_str = "TX_FAIL";
 
 	if (host_tag == sdev->conn_log2us_ctx.host_tag_eap) {
-		slsi_conn_log2us_eap_tx(sdev, ndev_vif, sdev->conn_log2us_ctx.eap_resp_len,
-					sdev->conn_log2us_ctx.eap_str_type, tx_status_str);
+		if (sdev->conn_log2us_ctx.host_tag_eap_type == SLSI_IEEE8021X_TYPE_EAP_PACKET)
+			slsi_conn_log2us_eap_tx(sdev, ndev_vif, sdev->conn_log2us_ctx.eap_resp_len,
+						sdev->conn_log2us_ctx.eap_str_type, tx_status_str);
+		else if (sdev->conn_log2us_ctx.host_tag_eap_type == SLSI_IEEE8021X_TYPE_EAP_START)
+			slsi_conn_log2us_eap_tx(sdev, ndev_vif, sdev->conn_log2us_ctx.eap_start_len,
+						sdev->conn_log2us_ctx.eap_str_type, tx_status_str);
+
 		sdev->conn_log2us_ctx.host_tag_eap = 0;
 	}
 }
@@ -405,21 +406,25 @@ void slsi_conn_log2us_connecting(struct slsi_dev *sdev, struct net_device *dev, 
 		/* element_id(1) + length(1) + version(2) + Group Data Cipher Suite(4)+ */
 		/* Pairwise Cipher Suite Count(2) + Pairwise Cipher Suite List(count * 4) */
 		if ((sme->ie_len - (rsn - sme->ie)) >= 10)
-			rsn_pos = 7 + 2 + (rsn[8] * 4);
+			rsn_pos = 8 + 2 + (rsn[8] * 4);
+
 		/* AKM Suite Count(2) + AKM Suite List(count * 4) */
 		if ((sme->ie_len - (rsn - sme->ie)) >= rsn[1] + 2) {
 			rsn_pos = rsn_pos + 2 + (rsn[rsn_pos] * 4);
 			rsn_len = rsn[1];
 		}
+
 		/* check for pmf which are RSN caps MFPR and MFPC */
-		if ((rsn_pos + 2) <= rsn_len)
-			pmf = pmf | (rsn[rsn_pos] << 7) | (rsn[rsn_pos] << 6);
+		if ((rsn_pos + 2) <= (rsn_len + 2))
+			pmf = rsn[rsn_pos] & 0xc0;
 
 		if (pmf) {
 			rsn_pos = rsn_pos + 2; /* RSN caps(2) */
-			rsn_pos = 2 + (rsn[rsn_pos] * 16); /* PMKID Count(2) + PMKID List(count * 16) */
-			if ((rsn_pos + 4) <= rsn_len)
-				memcpy(&group_mgmt, (rsn + rsn_pos), 4); /* last 4 octets are group_mgmt field. */
+			rsn_pos = rsn_pos + 2 + (rsn[rsn_pos] * 16); /* PMKID Count(2) + PMKID List(count * 16) */
+			if ((rsn_pos + 4) <= (rsn_len + 2)) { /* last 4 octets are group_mgmt field. */
+				group_mgmt = ((u32) rsn[rsn_pos] << 24) | ((u32) rsn[rsn_pos + 1] << 16) |
+					((u32) rsn[rsn_pos + 2] << 8) | ((u32) rsn[rsn_pos + 3]);
+			}
 		}
 	}
 
@@ -677,7 +682,6 @@ void slsi_conn_log2us_roam_scan_start(struct slsi_dev *sdev, struct net_device *
 	log_buffer = new_node->str;
 
 	get_kernel_timestamp(time);
-	reason = slsi_get_roam_reason_for_fw_reason(reason);
 
 	pos += scnprintf(log_buffer + pos, buf_size - pos, "[%d.%d] [ROAM] SCAN_START reason=%d ",
 			 time[0], time[1], reason);
@@ -759,8 +763,7 @@ void slsi_conn_log2us_eap_with_len(struct slsi_dev *sdev, struct net_device *dev
 }
 
 void slsi_conn_log2us_eap_tx(struct slsi_dev *sdev, struct netdev_vif *ndev_vif,
-			     int eap_length, int eap_type,
-			     char *tx_status_str)
+			     int eap_length, int eap_type, char *tx_status_str)
 {
 	int  pos         = 0;
 	char *log_buffer = NULL;
@@ -778,12 +781,15 @@ void slsi_conn_log2us_eap_tx(struct slsi_dev *sdev, struct netdev_vif *ndev_vif,
 	log_buffer = new_node->str;
 
 	get_kernel_timestamp(time);
-	get_eap_type_from_val(eap_type, eap_type_str);
-
-	pos += scnprintf(log_buffer + pos, buf_size - pos, "[%d.%d] [EAP] RESP type=%s len=%d",
-			 time[0], time[1], eap_type_str, eap_length);
-	pos += scnprintf(log_buffer + pos, buf_size - pos, " tx_status=%s", tx_status_str);
-
+	if (sdev->conn_log2us_ctx.host_tag_eap_type == SLSI_IEEE8021X_TYPE_EAP_PACKET) {
+		get_eap_type_from_val(eap_type, eap_type_str);
+		pos += scnprintf(log_buffer + pos, buf_size - pos, "[%d.%d] [EAP] RESP type=%s len=%d",
+						 time[0], time[1], eap_type_str, eap_length);
+		pos += scnprintf(log_buffer + pos, buf_size - pos, " tx_status=%s", tx_status_str);
+	} else if (sdev->conn_log2us_ctx.host_tag_eap_type == SLSI_IEEE8021X_TYPE_EAP_START) {
+		pos += scnprintf(log_buffer + pos, buf_size - pos, "[%d.%d] [EAP] START", time[0], time[1]);
+		pos += scnprintf(log_buffer + pos, buf_size - pos, " tx_status=%s", tx_status_str);
+	}
 	new_node->len = pos + 1;
 	enqueue_log_buffer(new_node, &sdev->conn_log2us_ctx);
 	queue_work(sdev->conn_log2us_ctx.log2us_workq, &sdev->conn_log2us_ctx.log2us_work);
@@ -1168,7 +1174,7 @@ void slsi_conn_log2us_roam_scan_done(struct slsi_dev *sdev, struct net_device *d
 }
 
 void slsi_conn_log2us_roam_scan_result(struct slsi_dev *sdev, struct net_device *dev,
-				       bool curr, char *bssid, int freq,
+				       bool candidate, char *bssid, int freq,
 				       int rssi, short cu,
 				       int score, int tp_score, bool eligible)
 {
@@ -1189,17 +1195,17 @@ void slsi_conn_log2us_roam_scan_result(struct slsi_dev *sdev, struct net_device 
 	log_buffer = new_node->str;
 
 	get_kernel_timestamp(time);
-	if (curr) {
-		pos += scnprintf(log_buffer + pos, buf_size - pos, "[%d.%d] [ROAM] SCORE_CUR_AP bssid="
-				 MACSTR_NOMASK " freq=%d rssi=%d cu=%d score=%d.%02d", time[0], time[1],
-				 MAC2STR_LOG(bssid), freq / 2, rssi, cu, score / 100, score % 100);
-	} else {
+	if (candidate) {
 		pos += scnprintf(log_buffer + pos, buf_size - pos, "[%d.%d] [ROAM] SCORE_CANDI[%d] bssid="
 				 MACSTR_NOMASK " freq=%d rssi=%d cu=%d score=%d.%02d tp=%dkbps [eligible=%s]",
 				 time[0], time[1], sdev->conn_log2us_ctx.cand_number,
 				 MAC2STR_LOG(bssid), freq / 2, rssi, cu, score / 100, score % 100,
 				 tp_score, eligible ? "true" : "false");
 		sdev->conn_log2us_ctx.cand_number++;
+	} else {
+		pos += scnprintf(log_buffer + pos, buf_size - pos, "[%d.%d] [ROAM] SCORE_CUR_AP bssid="
+				 MACSTR_NOMASK " freq=%d rssi=%d cu=%d score=%d.%02d", time[0], time[1],
+				 MAC2STR_LOG(bssid), freq / 2, rssi, cu, score / 100, score % 100);
 	}
 	new_node->len = pos + 1;
 	enqueue_log_buffer_for_roam_cand(new_node, &sdev->conn_log2us_ctx);
@@ -1316,7 +1322,8 @@ void slsi_conn_log2us_btm_cand(struct slsi_dev *sdev, struct net_device *dev,
 	queue_work(sdev->conn_log2us_ctx.log2us_workq, &sdev->conn_log2us_ctx.log2us_work);
 }
 
-void slsi_conn_log2us_nr_frame_req(struct slsi_dev *sdev, struct net_device *dev)
+void slsi_conn_log2us_nr_frame_req(struct slsi_dev *sdev, struct net_device *dev,
+				   int dialog_token, char *ssid)
 {
 	int pos = 0;
 	char *log_buffer = NULL;
@@ -1334,15 +1341,21 @@ void slsi_conn_log2us_nr_frame_req(struct slsi_dev *sdev, struct net_device *dev
 	log_buffer = new_node->str;
 
 	get_kernel_timestamp(time);
-	pos += scnprintf(log_buffer + pos, buf_size - pos, "[%d.%d] [NEIGHBOR_REPORT] REQ Sent from mobile",
-			 time[0], time[1]);
+	if(ssid)
+		pos += scnprintf(log_buffer + pos, buf_size - pos, "[%d.%d] [NBR_RPT] REQ token=%d ssid=\"%s\"",
+			 time[0], time[1], dialog_token, ssid);
+	else
+		pos += scnprintf(log_buffer + pos, buf_size - pos, "[%d.%d] [NBR_RPT] REQ token=%d ssid=\"\"",
+			 time[0], time[1], dialog_token);
 
 	new_node->len = pos + 1;
 	enqueue_log_buffer(new_node, &sdev->conn_log2us_ctx);
 	queue_work(sdev->conn_log2us_ctx.log2us_workq, &sdev->conn_log2us_ctx.log2us_work);
 }
 
-void slsi_conn_log2us_nr_frame_resp(struct slsi_dev *sdev, struct net_device *dev, char *string)
+void slsi_conn_log2us_nr_frame_resp(struct slsi_dev *sdev, struct net_device *dev,
+				    int dialog_token,  int freq_count, int *freq_list,
+				    int report_number)
 {
 	int pos = 0;
 	char *log_buffer = NULL;
@@ -1350,6 +1363,7 @@ void slsi_conn_log2us_nr_frame_resp(struct slsi_dev *sdev, struct net_device *de
 	u32 time[2] = { 0 };
 	struct buff_list *new_node = NULL;
 	struct netdev_vif   *ndev_vif = netdev_priv(dev);
+	int i = 0;
 
 	if (ndev_vif->iftype != NL80211_IFTYPE_STATION)
 		return;
@@ -1360,8 +1374,11 @@ void slsi_conn_log2us_nr_frame_resp(struct slsi_dev *sdev, struct net_device *de
 	log_buffer = new_node->str;
 
 	get_kernel_timestamp(time);
-	pos += scnprintf(log_buffer + pos, buf_size - pos, "[%d.%d] [NEIGHBOR_REPORT] RESP Channel list=%s",
-			 time[0], time[1], string);
+	pos += scnprintf(log_buffer + pos, buf_size - pos, "[%d.%d] [NBR_RPT] RESP token=%d freq[%d]=",
+			 time[0], time[1], dialog_token, freq_count);
+	for (i = 0; i < freq_count; i++)
+		pos += scnprintf(log_buffer + pos, buf_size - pos, "%d ", *(freq_list + i));
+	pos += scnprintf(log_buffer + pos, buf_size - pos, "report_number=%d ", report_number);
 
 	new_node->len = pos + 1;
 	enqueue_log_buffer(new_node, &sdev->conn_log2us_ctx);
@@ -1370,8 +1387,7 @@ void slsi_conn_log2us_nr_frame_resp(struct slsi_dev *sdev, struct net_device *de
 
 void slsi_conn_log2us_beacon_report_request(struct slsi_dev *sdev, struct net_device *dev,
 					    int dialog_token, int operating_class, char *string,
-					    int measure_duration, char *measure_mode,
-					    char *mac_addr, char *ssid)
+					    int measure_duration, char *measure_mode, u8 request_mode)
 {
 	int pos = 0;
 	char *log_buffer = NULL;
@@ -1389,17 +1405,18 @@ void slsi_conn_log2us_beacon_report_request(struct slsi_dev *sdev, struct net_de
 	log_buffer = new_node->str;
 
 	get_kernel_timestamp(time);
-	pos += scnprintf(log_buffer + pos, buf_size - pos, "[%d.%d][BEACON_REPORT] REQ Token=%d Operating Class=%d "
-			 "channel list=%s Measurement Duration=%d Measurement Mode=%s BSSID="MACSTR_NOMASK" SSID=%s",
-			 time[0], time[1], dialog_token, operating_class, string, measure_duration, measure_mode,
-			 MAC2STR_LOG(mac_addr), ssid);
+	pos += scnprintf(log_buffer + pos, buf_size - pos, "[%d.%d][BCN_RPT] REQ token=%d mode=%s "
+			 "operating_class=%d channel=%s duration=%d request_mode=0x0%x",
+			 time[0], time[1], dialog_token, measure_mode, operating_class, string,
+			 measure_duration, request_mode);
+
 	new_node->len = pos + 1;
 	enqueue_log_buffer(new_node, &sdev->conn_log2us_ctx);
 	queue_work(sdev->conn_log2us_ctx.log2us_workq, &sdev->conn_log2us_ctx.log2us_work);
 }
 
-void slsi_conn_log2us_beacon_report_response(struct slsi_dev *sdev, struct net_device *dev, int dialog_token,
-					     int ap_count, int reason_code)
+void slsi_conn_log2us_beacon_report_response(struct slsi_dev *sdev, struct net_device *dev,
+					     int dialog_token, int report_number)
 {
 	int pos = 0;
 	char *log_buffer = NULL;
@@ -1417,10 +1434,8 @@ void slsi_conn_log2us_beacon_report_response(struct slsi_dev *sdev, struct net_d
 	log_buffer = new_node->str;
 
 	get_kernel_timestamp(time);
-	pos += scnprintf(log_buffer + pos, buf_size - pos, "[%d.%d][BEACON_REPORT] RESP Token=%d"
-			 " Scanned AP Number=%d", time[0], time[1], dialog_token, ap_count);
-	if (reason_code)
-		pos += scnprintf(log_buffer + pos, buf_size - pos, " Reason=%d", reason_code);
+	pos += scnprintf(log_buffer + pos, buf_size - pos, "[%d.%d][BCN_RPT] RESP token=%d"
+			 " report_number=%d", time[0], time[1], dialog_token, report_number);
 
 	new_node->len = pos + 1;
 	enqueue_log_buffer(new_node, &sdev->conn_log2us_ctx);
@@ -1559,7 +1574,7 @@ void slsi_conn_log2us_roam_scan_done(struct slsi_dev *sdev, struct net_device *d
 }
 
 void slsi_conn_log2us_roam_scan_result(struct slsi_dev *sdev, struct net_device *dev,
-				       bool curr, char *bssid, int freq,
+				       bool candidate, char *bssid, int freq,
 				       int rssi, short cu,
 				       int score, int tp_score, bool eligible)
 {
@@ -1599,8 +1614,7 @@ void slsi_conn_log2us_eapol_gtk_tx(struct slsi_dev *sdev, u32 status_code)
 }
 
 void slsi_conn_log2us_eap_tx(struct slsi_dev *sdev, struct netdev_vif *ndev_vif,
-			     int eap_length, int eap_type,
-			     char *tx_status_str)
+			     int eap_length, int eap_type, char *tx_status_str)
 {
 }
 
@@ -1619,23 +1633,21 @@ void slsi_conn_log2us_roam_scan_save(struct slsi_dev *sdev, struct net_device *d
 {
 }
 
-void slsi_conn_log2us_nr_frame_req(struct slsi_dev *sdev, struct net_device *dev)
+void slsi_conn_log2us_nr_frame_req(struct slsi_dev *sdev, struct net_device *dev, int dialog_token, char *ssid)
 {
 }
 
-void slsi_conn_log2us_nr_frame_resp(struct slsi_dev *sdev, struct net_device *dev, char *string)
+void slsi_conn_log2us_nr_frame_resp(struct slsi_dev *sdev, struct net_device *dev, int dialog_token,  int freq_count, int *freq_list, int report_number)
 {
 }
 
 void slsi_conn_log2us_beacon_report_request(struct slsi_dev *sdev, struct net_device *dev,
 					    int dialog_token, int operating_class, char *string,
-					    int measure_duration, char *measure_mode,
-					    char *mac_addr, char *ssid)
+					    int measure_duration, char *measure_mode, u8 request_mode)
 {
 }
 
-void slsi_conn_log2us_beacon_report_response(struct slsi_dev *sdev, struct net_device *dev, int dialog_token,
-					     int ap_count, int reason_code)
+void slsi_conn_log2us_beacon_report_response(struct slsi_dev *sdev, struct net_device *dev, int dialog_token, int report_number)
 {
 }
 

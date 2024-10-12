@@ -323,24 +323,10 @@ config SEC_DEBUG_WATCHPOINT
 	help
 	  This option enables programatic watchpoint debugging function"
 
-config SEC_DEBUG_OBJECTS_FREE
-	bool "Enable debug objects when freeing activate objects"
-	depends on DEBUG_OBJECTS_FREE
-	default n
-	help
-	  This option enalbles to debug when freeing activate objects.
-
-config SEC_DEBUG_OBJECTS_FIXUP
-	bool "Enable debug objects fixup"
-	depends on DEBUG_OBJECTS_FREE
-	default n
-	help
-	  This option enalbles to debug abnormal state transition of debug_object.
-
 config SEC_DEBUG_OBJECTS_ADDITIONAL_INFO
 	bool "Add caller information"
 	depends on DEBUG_OBJECTS_FREE
-	default n
+	default y
 	help
 	  Add caller' information to debug_obj structure.
 
@@ -351,3 +337,24 @@ config SEC_DEBUG_SCHED_REPORT
 	help
 	  This option enables sched report for debugging.
 	  Select the option to show sched information when stall issue is detected.
+
+config SEC_DEBUG_BSPINFO
+	bool "Enable bsp information print for debugging"
+	depends on SEC_DEBUG
+	default n
+	help
+	  This option helps developer to check overall bsp information on the user space side
+
+config SEC_DEBUG_SOFTIRQ_INFO
+	bool "Enable SOFTIRQ_INFO for debugging"
+	depends on SEC_DEBUG
+	default n
+	help
+	  This option enables to gather softirq & tasklet debugging information for BSP.
+
+config SEC_DEBUG_CURRENT_TASKS
+	bool "Enable CPU current task status debugging feature"
+	depends on SEC_DEBUG && SEC_DEBUG_BSPINFO
+	default n
+	help
+	  This option enables to display each core's current task status through a proc node

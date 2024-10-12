@@ -17,6 +17,8 @@
  *
  */
 
+#define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
+
 #include <linux/seq_file.h>
 #include <linux/fs.h>
 #include <linux/proc_fs.h>
@@ -27,32 +29,61 @@
 #include <linux/sched/clock.h>
 #include <linux/sec_class.h>
 #include <linux/slab.h>
-#include "sec_bootstat.h"
+#include <linux/thermal.h>
+
+#define MAX_THERMAL_ZONES 10
+#define THERMAL_DNAME_LENGTH 5
+
+#define MAX_LENGTH_OF_BOOTING_LOG 90
+#define MAX_LENGTH_OF_SYSTEMSERVER_LOG 90
+
+#define MAX_EVENTS_EBS 100
+#define DELAY_TIME_EBS 10000
+
+int __read_mostly boot_time_bl1;
+module_param(boot_time_bl1, int, 0440);
+
+int __read_mostly boot_time_bl2;
+module_param(boot_time_bl2, int, 0440);
+
+int __read_mostly boot_time_bl3;
+module_param(boot_time_bl3, int, 0440);
 
 extern void register_hook_bootstat(void (*func)(const char *buf));
 extern void sec_bootstat_get_cpuinfo(int *freq, int *online);
-extern void sec_bootstat_get_thermal(int *temp);
 extern u64 exynos_get_mct_start(void);
-
-static u32 mct_start;
 
 /* timestamps at /proc/boot_stat
  * freq[3] : cluster0 / cluster1 / cluster2
- * temp[6] : cluster0 / cluster1 / cluster2 / g3d / isp / npu
  */
 
-#if IS_BUILTIN(CONFIG_SEC_BOOTSTAT)
-static struct boot_event sec_boot_initcall[] = {
-	{"pure",},
-	{"core",},
-	{"postcore",},
-	{"arch",},
-	{"subsys",},
-	{"fs",},
-	{"device",},
-	{"late",},
+struct boot_event {
+	const char *string;
+	bool bootcomplete;
+	unsigned int time;
+	int freq[3];
+	int online;
+	int temp[MAX_THERMAL_ZONES];
+	int order;
 };
-#endif
+
+struct tz_info {
+	char name[THERMAL_NAME_LENGTH];
+	char display_name[THERMAL_DNAME_LENGTH];
+};
+
+struct enhanced_boot_time {
+	struct list_head next;
+	char buf[MAX_LENGTH_OF_BOOTING_LOG];
+	unsigned int time;
+	int freq[3];
+	int online;
+};
+
+struct systemserver_init_time_entry {
+	struct list_head next;
+	char buf[MAX_LENGTH_OF_SYSTEMSERVER_LOG];
+};
 
 static struct boot_event boot_events[] = {
 	{"!@Boot: start init process",},
@@ -91,51 +122,35 @@ static struct boot_event boot_events[] = {
 #endif /* CONFIG_SEC_FACTORY */
 };
 
-#define MAX_LENGTH_OF_BOOTING_LOG 90
-#define DELAY_TIME_EBS 10000
-#define MAX_EVENTS_EBS 100
-
-struct enhanced_boot_time {
-	struct list_head next;
-	char buf[MAX_LENGTH_OF_BOOTING_LOG];
-	unsigned int time;
-	int freq[3];
-	int online;
-};
-
-#define MAX_LENGTH_OF_SYSTEMSERVER_LOG 90
-struct systemserver_init_time_entry {
-	struct list_head next;
-	char buf[MAX_LENGTH_OF_SYSTEMSERVER_LOG];
-};
+static u32 mct_start;
 
 static bool bootcompleted;
 static bool ebs_finished;
 unsigned long long boot_complete_time;
 static int events_ebs;
 
-#if IS_BUILTIN(CONFIG_SEC_BOOTSTAT)
-LIST_HEAD(device_init_time_list);
-#endif
 LIST_HEAD(systemserver_init_time_list);
 LIST_HEAD(enhanced_boot_time_list);
 
-#if IS_BUILTIN(CONFIG_SEC_BOOTSTAT)
-void sec_bootstat_add_initcall(const char *s)
-{
-	size_t i = 0;
-	unsigned long long t = 0;
+static int num_thermal_zones;
+static struct tz_info thermal_zones[MAX_THERMAL_ZONES];
 
-	for (i = 0; i < ARRAY_SIZE(sec_boot_initcall); i++) {
-		if (!strcmp(s, sec_boot_initcall[i].string)) {
-			t = local_clock();
-			do_div(t, 1000000);
-			sec_boot_initcall[i].time = (unsigned int)t;
-			break;
+static void sec_bootstat_get_thermal(int *temp)
+{
+	int i, ret;
+	struct thermal_zone_device *tzd;
+
+	for (i = 0; i < num_thermal_zones; i++) {
+		tzd = thermal_zone_get_zone_by_name(thermal_zones[i].name);
+		if (IS_ERR(tzd)) {
+			pr_err("can't find thermal zone %s\n", thermal_zones[i].name);
+			continue;
 		}
+		ret = thermal_zone_get_temp(tzd, &temp[i]);
+		if (ret)
+			pr_err("failed to get temperature for %s (%d)\n", tzd->type, ret);
 	}
 }
-#endif
 
 static DEFINE_RAW_SPINLOCK(ebs_list_lock);
 void sec_enhanced_boot_stat_record(const char *buf)
@@ -221,12 +236,15 @@ void sec_bootstat_add(const char *c)
 
 void print_format(struct boot_event *data, struct seq_file *m, int index, int delta)
 {
-	seq_printf(m, "%-50s %6u %6u %6d %4d %4d %4d L%d%d%d%d M%d%d%d B%d %2d %2d %2d %2d %2d %2d\n",
-		data[index].string, data[index].time + mct_start,
-		data[index].time, delta,
+	int i;
+
+	seq_printf(m, "%-50s %6u %6u %6d  %4d %4d  L%d%d%d%d M%d%d%d%d  ",
+		data[index].string,
+		data[index].time + mct_start,
+		data[index].time,
+		delta,
 		data[index].freq[0] / 1000,
 		data[index].freq[1] / 1000,
-		data[index].freq[2] / 1000,
 		data[index].online & 1,
 		(data[index].online >> 1) & 1,
 		(data[index].online >> 2) & 1,
@@ -234,41 +252,32 @@ void print_format(struct boot_event *data, struct seq_file *m, int index, int de
 		(data[index].online >> 4) & 1,
 		(data[index].online >> 5) & 1,
 		(data[index].online >> 6) & 1,
-		(data[index].online >> 7) & 1,
-		data[index].temp[0],
-		data[index].temp[1],
-		data[index].temp[2],
-		data[index].temp[3],
-		data[index].temp[4],
-		data[index].temp[5]
-		);
+		(data[index].online >> 7) & 1);
+
+	// temperature of thermal zones
+	for (i = 0; i < num_thermal_zones; i++)
+		seq_printf(m, "[%4d]", data[index].temp[i] / 1000);
+	seq_puts(m, "\n");
 }
 
 static int sec_boot_stat_proc_show(struct seq_file *m, void *v)
 {
 	size_t i = 0;
 	unsigned int last_time = 0;
-#if IS_BUILTIN(CONFIG_SEC_BOOTSTAT)
-	struct device_init_time_entry *entry;
-#endif
 	struct systemserver_init_time_entry *systemserver_entry;
 
-	seq_puts(m, "boot event                                           time  ktime  delta f_c0 f_c1 f_c2  online_mask   B  M  L  G  I  N\n");
-	seq_puts(m, "----------------------------------------------------------------------------------------------------------------------\n");
+	seq_puts(m, "boot event                                           time  ktime  delta  f_c0 f_c1  online_mask  ");
+	for (i = 0; i < num_thermal_zones; i++)
+		seq_printf(m, "[%4s]", thermal_zones[i].display_name);
+	seq_puts(m, "\n");
+	seq_puts(m, "--------------------------------------------------------------------------------------------------------------\n");
 	seq_puts(m, "BOOTLOADER - KERNEL\n");
-	seq_puts(m, "----------------------------------------------------------------------------------------------------------------------\n");
+	seq_puts(m, "--------------------------------------------------------------------------------------------------------------\n");
 	seq_printf(m, "MCT is initialized in bl2                          %6u %6u %6u\n", 0, 0, 0);
 	seq_printf(m, "start kernel timer                                 %6u %6u %6u\n", mct_start, 0, mct_start);
-
-#if IS_BUILTIN(CONFIG_SEC_BOOTSTAT)
-	for (i = 0; i < ARRAY_SIZE(sec_boot_initcall); i++) {
-		print_format(sec_boot_initcall, m, i, sec_boot_initcall[i].time - last_time);
-		last_time = sec_boot_initcall[i].time;
-	}
-#endif
-	seq_puts(m, "----------------------------------------------------------------------------------------------------------------------\n");
+	seq_puts(m, "--------------------------------------------------------------------------------------------------------------\n");
 	seq_puts(m, "FRAMEWORK\n");
-	seq_puts(m, "----------------------------------------------------------------------------------------------------------------------\n");
+	seq_puts(m, "--------------------------------------------------------------------------------------------------------------\n");
 	i = 0;
 	do {
 		if (boot_events[i].time != 0) {
@@ -282,17 +291,7 @@ static int sec_boot_stat_proc_show(struct seq_file *m, void *v)
 			break;
 	} while (i > 0 && i < ARRAY_SIZE(boot_events));
 
-#if IS_BUILTIN(CONFIG_SEC_BOOTSTAT)
-	seq_puts(m, "----------------------------------------------------------------------------------------------------------------------\n");
-	seq_printf(m, "device init time over %d ms\n\n",
-			DEVICE_INIT_TIME_100MS / 1000);
-
-	list_for_each_entry (entry, &device_init_time_list, next)
-		seq_printf(m, "%-20s : %lld usces\n",
-				entry->buf, entry->duration);
-#endif
-
-	seq_puts(m, "----------------------------------------------------------------------------------------------------------------------\n");
+	seq_puts(m, "--------------------------------------------------------------------------------------------------------------\n");
 	seq_puts(m, "SystemServer services that took long time\n\n");
 	list_for_each_entry (systemserver_entry, &systemserver_init_time_list, next)
 		seq_printf(m, "%s\n", systemserver_entry->buf);
@@ -300,49 +299,36 @@ static int sec_boot_stat_proc_show(struct seq_file *m, void *v)
 	return 0;
 }
 
-int __read_mostly boot_time_bl1;
-int __read_mostly boot_time_bl2;
-int __read_mostly boot_time_bl3;
-
-module_param(boot_time_bl1, int, 0440);
-module_param(boot_time_bl2, int, 0440);
-module_param(boot_time_bl3, int, 0440);
-
 static int sec_enhanced_boot_stat_proc_show(struct seq_file *m, void *v)
 {
-#if IS_BUILTIN(CONFIG_SEC_BOOTSTAT)
-	size_t i = 0;
-#endif
 	unsigned int last_time = 0;
 	struct enhanced_boot_time *entry;
 
-	seq_printf(m, "%-90s %6s %6s %6s %4s %4s %4s\n", "Boot Events", "time", "ktime", "delta", "f_c0", "f_c1", "f_c2");
-	seq_puts(m, "------------------------------------------------------------------------------------------------------------------------------\n");
+	seq_printf(m, "%-90s %6s %6s %6s %4s %4s\n", "Boot Events", "time", "ktime", "delta", "f_c0", "f_c1");
+	seq_puts(m, "-------------------------------------------------------------------------------------------------------------------------\n");
 	seq_puts(m, "BOOTLOADER - KERNEL\n");
-	seq_puts(m, "------------------------------------------------------------------------------------------------------------------------------\n");
-	seq_printf(m, "%-90s %6u %6u %6u %4d %4d %4d\n", "!@Boot_EBS_B: MCT_is_initialized", 0, 0, 0, 0, 0, 0);
-	seq_printf(m, "%-90s %6u %6u %6u %4d %4d %4d\n", "!@Boot_EBS_B: boot_time_bl1", boot_time_bl1, 0, boot_time_bl1, 0, 0, 0);
-	seq_printf(m, "%-90s %6u %6u %6u %4d %4d %4d\n", "!@Boot_EBS_B: boot_time_bl2", boot_time_bl2, 0, boot_time_bl2 - boot_time_bl1, 0, 0, 0);
-	seq_printf(m, "%-90s %6u %6u %6u %4d %4d %4d\n", "!@Boot_EBS_B: boot_time_bl3", boot_time_bl3, 0, boot_time_bl3 - boot_time_bl2, 0, 0, 0);
-	seq_printf(m, "%-90s %6u %6u %6u %4d %4d %4d\n", "!@Boot_EBS_B: start_kernel_timer", mct_start, 0, mct_start - boot_time_bl3, 0, 0, 0);
-
-#if IS_BUILTIN(CONFIG_SEC_BOOTSTAT)
-	for (i = 0; i < ARRAY_SIZE(boot_initcall); i++) {
-		seq_printf(m, "%-90s %6u %6u %6u %4d %4d\n", boot_initcall[i].string, boot_initcall[i].time + mct_start, boot_initcall[i].time,
-				boot_initcall[i].time - last_time, boot_initcall[i].freq[0] / 1000, boot_initcall[i].freq[1] / 1000);
-		last_time = boot_initcall[i].time;
-	}
-#endif
-	seq_puts(m, "------------------------------------------------------------------------------------------------------------------------------\n");
+	seq_puts(m, "-------------------------------------------------------------------------------------------------------------------------\n");
+	seq_printf(m, "%-90s %6u %6u %6u %4d %4d\n", "!@Boot_EBS_B: MCT_is_initialized", 0, 0,
+			0, 0, 0);
+	seq_printf(m, "%-90s %6u %6u %6u %4d %4d\n", "!@Boot_EBS_B: boot_time_bl1", boot_time_bl1, 0,
+			boot_time_bl1, 0, 0);
+	seq_printf(m, "%-90s %6u %6u %6u %4d %4d\n", "!@Boot_EBS_B: boot_time_bl2", boot_time_bl2, 0,
+			boot_time_bl2 - boot_time_bl1, 0, 0);
+	seq_printf(m, "%-90s %6u %6u %6u %4d %4d\n", "!@Boot_EBS_B: boot_time_bl3", boot_time_bl3, 0,
+			boot_time_bl3 - boot_time_bl2, 0, 0);
+	seq_printf(m, "%-90s %6u %6u %6u %4d %4d\n", "!@Boot_EBS_B: start_kernel_timer", mct_start, 0,
+			mct_start - boot_time_bl3, 0, 0);
+	seq_puts(m, "-------------------------------------------------------------------------------------------------------------------------\n");
 	seq_puts(m, "FRAMEWORK\n");
-	seq_puts(m, "------------------------------------------------------------------------------------------------------------------------------\n");
+	seq_puts(m, "-------------------------------------------------------------------------------------------------------------------------\n");
 	list_for_each_entry_reverse (entry, &enhanced_boot_time_list, next) {
 		if (entry->buf[0] == '!') {
-			seq_printf(m, "%-90s %6u %6u %6u %4d %4d %4d\n", entry->buf, entry->time + mct_start, entry->time, entry->time - last_time,
-			entry->freq[0] / 1000, entry->freq[1] / 1000, entry->freq[2] / 1000);
+			seq_printf(m, "%-90s %6u %6u %6u %4d %4d\n", entry->buf, entry->time + mct_start, entry->time,
+					entry->time - last_time, entry->freq[0] / 1000, entry->freq[1] / 1000);
 			last_time = entry->time;
 		} else {
-			seq_printf(m, "%-90s %6u %6u %11d %4d %4d\n", entry->buf, entry->time + mct_start, entry->time, entry->freq[0] / 1000, entry->freq[1] / 1000, entry->freq[2] / 1000);
+			seq_printf(m, "%-90s %6u %6u %11d %4d\n", entry->buf, entry->time + mct_start, entry->time,
+					entry->freq[0] / 1000, entry->freq[1] / 1000);
 		}
 	}
 	return 0;
@@ -401,6 +387,44 @@ static ssize_t store_boot_stat(struct device *dev, struct device_attribute *attr
 
 static DEVICE_ATTR(boot_stat, 0220, NULL, store_boot_stat);
 
+static int get_thermal_zones(void)
+{
+	int ret = 0;
+	int i;
+	struct device_node *np, *tz;
+	const char *dname;
+
+	np = of_find_node_by_path("/sec-bootstat/thermal-zones");
+	if (!np) {
+		pr_err("No thermal zones description\n");
+		return 0;
+	}
+
+	for_each_available_child_of_node(np, tz) {
+		strscpy(thermal_zones[ret].name, tz->name, THERMAL_NAME_LENGTH);
+
+		if (of_property_read_string(tz, "display-name", &dname) < 0) {
+			pr_err("invalid or no display-name for thermal zone: %s\n", tz->name);
+			strscpy(thermal_zones[ret].display_name, tz->name, THERMAL_DNAME_LENGTH);
+		} else {
+			strscpy(thermal_zones[ret].display_name, dname, THERMAL_DNAME_LENGTH);
+		}
+
+		++ret;
+		if (ret == MAX_THERMAL_ZONES) {
+			pr_info("reached maximum thermal zones\n");
+			break;
+		}
+	}
+	of_node_put(np);
+
+	pr_info("num_thermal_zones = %d\n", ret);
+	for (i = 0; i < ret; i++)
+		pr_info("thermal zone %d: %s\n", i, thermal_zones[i].name);
+
+	return ret;
+}
+
 static int __init_or_module sec_bootstat_init(void)
 {
 	struct proc_dir_entry *entry;
@@ -408,6 +432,10 @@ static int __init_or_module sec_bootstat_init(void)
 	struct device *dev;
 
 	mct_start = (u32)(exynos_get_mct_start() & 0xFFFFFFFF);
+
+	num_thermal_zones = get_thermal_zones();
+	if (!num_thermal_zones)
+		pr_err("no thermal zone found\n");
 
 	// proc
 	entry = proc_create("boot_stat", S_IRUGO, NULL, &sec_boot_stat_proc_fops);

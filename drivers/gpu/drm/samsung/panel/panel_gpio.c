@@ -205,7 +205,9 @@ static int panel_gpio_devm_request_irq(struct panel_gpio *gpio,
 	if (ret < 0)
 		return ret;
 
+	gpio->irq_registered = true;
 	gpio->irq_enable = true;
+
 	return ret;
 }
 

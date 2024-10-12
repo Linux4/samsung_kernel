@@ -80,6 +80,11 @@ static int fts_spi_transfer(u8 *tx_buf, u8 *rx_buf, u32 len)
 		.len    = len,
 	};
 
+	if (fts_data->power_status == POWER_OFF_STATUS) {
+		FTS_ERROR("POWER_STATUS : OFF!");
+		return -EIO;
+	}
+
 #if IS_ENABLED(CONFIG_INPUT_SEC_SECURE_TOUCH)
 	if (atomic_read(&fts_data->secure_enabled) == SECURE_TOUCH_ENABLE) {
 		FTS_INFO("%s: secure touch is enabled\n", __func__);

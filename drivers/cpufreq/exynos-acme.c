@@ -199,8 +199,10 @@ static int scale_fastpath(struct exynos_cpufreq_domain *domain,
 	int ret = 0;
 
 	/* target is same as current, skip scaling */
-	if (domain->old == target_freq)
+	if (domain->last == target_freq)
 		return -EINVAL;
+
+	domain->last = target_freq;
 
 	debug_pre_scale(domain, target_freq);
 
@@ -1081,7 +1083,7 @@ static struct notifier_block exynos_cpufreq_fast_switch_nb = {
 #endif
 
 static int exynos_cpufreq_pm_notifier(struct notifier_block *notifier,
-				       unsigned long pm_event, void *v)
+		unsigned long pm_event, void *v)
 {
 	struct exynos_cpufreq_domain *domain;
 	struct cpufreq_policy *policy;
@@ -1091,9 +1093,13 @@ static int exynos_cpufreq_pm_notifier(struct notifier_block *notifier,
 	case PM_SUSPEND_PREPARE:
 		list_for_each_entry_reverse(domain, &domains, list) {
 			cpumask_and(&active_cpus, cpu_active_mask, &domain->cpus);
+			if (cpumask_empty(&active_cpus))
+				continue;
+
 			policy = cpufreq_cpu_get(cpumask_any(&active_cpus));
 			if (!policy)
 				continue;
+
 			if (__exynos_cpufreq_suspend(policy, domain)) {
 				cpufreq_cpu_put(policy);
 				return NOTIFY_BAD;
@@ -1104,9 +1110,13 @@ static int exynos_cpufreq_pm_notifier(struct notifier_block *notifier,
 	case PM_POST_SUSPEND:
 		list_for_each_entry(domain, &domains, list) {
 			cpumask_and(&active_cpus, cpu_active_mask, &domain->cpus);
+			if (cpumask_empty(&active_cpus))
+				continue;
+
 			policy = cpufreq_cpu_get(cpumask_any(&active_cpus));
 			if (!policy)
 				continue;
+
 			if (__exynos_cpufreq_resume(policy, domain)) {
 				cpufreq_cpu_put(policy);
 				return NOTIFY_BAD;

@@ -154,8 +154,8 @@ extern int sc_log_level;
 
 /* for performance */
 #define SC_CID_FRAMERATE		(V4L2_CID_EXYNOS_BASE + 110)
-#define SC_CID_MAX_PERF			(V4L2_CID_EXYNOS_BASE + 111)
 #define SC_FRAMERATE_MAX		(2000)
+#define SC_FRAMERATE_DEFAULT		(30)
 
 /* for denoising filter */
 #define SC_CID_DNOISE_FT		(V4L2_CID_EXYNOS_BASE + 150)
@@ -511,6 +511,8 @@ struct sc_dev {
 	int				dvfs_class;
 	int				min_bus_int_table_cnt;
 	struct sc_min_bus_int_table	*min_bus_int_table;
+	spinlock_t			ctxlist_qos_lock;
+	struct list_head		ctxlist_qos;
 
 	u64				fence_context;
 	atomic_t			fence_timeline;
@@ -605,6 +607,9 @@ struct sc_ctx {
 	int				pm_qos_lv;
 	int				mif_freq_req;
 	int				framerate;
+	ktime_t				ts_to_complete;
+	struct list_head		node_qos;
+
 	struct sc_tws			*tws;
 
 	int				pid;

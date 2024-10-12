@@ -65,20 +65,18 @@ static void pdic_event_notifier(struct work_struct *data)
 
 	switch (event_work->dest) {
 	case PDIC_NOTIFY_DEV_USB:
-		pr_info("usb:%s, dest=%s, id=%s, attach=%s, drp=%s, event_work=%p\n", __func__,
+		pr_info("usb:%s, dest=%s, id=%s, attach=%s, drp=%s\n", __func__,
 				pdic_event_dest_string(event_work->dest),
 				pdic_event_id_string(event_work->id),
 				event_work->attach ? "Attached" : "Detached",
-				pdic_usbstatus_string(event_work->event),
-				event_work);
+				pdic_usbstatus_string(event_work->event));
 		break;
 	default:
-		pr_info("usb:%s, dest=%s, id=%s, attach=%d, event=%d, event_work=%p\n", __func__,
+		pr_info("usb:%s, dest=%s, id=%s, attach=%d, event=%d\n", __func__,
 			pdic_event_dest_string(event_work->dest),
 			pdic_event_id_string(event_work->id),
 			event_work->attach,
-			event_work->event,
-			event_work);
+			event_work->event);
 		break;
 	}
 
@@ -110,7 +108,7 @@ void pdic_event_work(void *data, int dest, int id, int attach, int event, int su
 		pr_info("usb: %s,event_work is null", __func__);
 		return;
 	}
-	pr_info("usb: %s,event_work(%p)\n", __func__, event_work);
+	pr_info("usb: %s,event_work\n", __func__);
 	INIT_WORK(&event_work->pdic_work, pdic_event_notifier);
 
 	event_work->dest = dest;
@@ -175,7 +173,7 @@ void pdic_event_work(void *data, int dest, int id, int attach, int event, int su
 #endif
 
 	if (queue_work(pd_data->pdic_wq, &event_work->pdic_work) == 0) {
-		pr_info("usb: %s, event_work(%p) is dropped\n", __func__, event_work);
+		pr_info("usb: %s, event_work is dropped\n", __func__);
 		kfree(event_work);
 	}
 }

@@ -541,6 +541,8 @@ void mif_save_file(struct file *fp, const char *buff, size_t size);
 void mif_close_file(struct file *fp);
 
 void mif_stop_logging(void);
+void mif_stop_ap_ppmu_logging(void);
+
 void set_wakeup_packet_log(bool enable);
 
 /* MIF buffer management */

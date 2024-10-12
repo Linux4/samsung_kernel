@@ -47,8 +47,9 @@ static int __init early_init_dt_alloc_reserved_memory_arch(phys_addr_t size,
 		err = memblock_mark_nomap(base, size);
 		if (err)
 			memblock_free(base, size);
-		kmemleak_ignore_phys(base);
 	}
+
+	kmemleak_ignore_phys(base);
 
 	return err;
 }
@@ -76,6 +77,22 @@ void __init fdt_reserved_mem_save_node(unsigned long node, const char *uname,
 }
 
 #ifdef CONFIG_RBIN
+static phys_addr_t __init get_rbin_dt_size(const char *name, unsigned long node)
+{
+	int len;
+	const __be32 *prop;
+	phys_addr_t size;
+	prop = of_get_flat_dt_prop(node, name, &len);
+	if (!prop)
+		return 0;
+	if (len != dt_root_size_cells * sizeof(__be32)) {
+		pr_err("invalid reserved_size property in 'rbin' node.\n");
+		return 0;
+	}
+	size = dt_mem_next_cell(dt_root_size_cells, &prop);
+	return size;
+}
+
 static bool __init under_6GB_device(void)
 {
 	return memblock_end_of_DRAM() <= 0x900000000 ? true : false;
@@ -107,8 +124,11 @@ static int __init __reserved_mem_alloc_size(unsigned long node,
 	}
 	size = dt_mem_next_cell(dt_root_size_cells, &prop);
 #ifdef CONFIG_RBIN
-	if (!strncmp(uname, "rbin", 4) && under_6GB_device())
-		return -EINVAL;
+	if (!strncmp(uname, "rbin", 4)) {
+		if (!under_6GB_device()) {
+			size = get_rbin_dt_size("rbin_size", node);
+		}
+	}
 #endif
 	prop = of_get_flat_dt_prop(node, "alignment", &len);
 	if (prop) {
@@ -297,12 +317,20 @@ void __init fdt_init_reserved_mem(void)
 				else
 					memblock_free(rmem->base, rmem->size);
 			} else {
+				phys_addr_t end = rmem->base + rmem->size - 1;
+
 #ifdef CONFIG_RBIN
 				if (!strcmp(rmem->name, "rbin")) {
 					rbin_total = rmem->size >> PAGE_SHIFT;
 					reusable = true;
 				}
 #endif
+				pr_info("%pa..%pa (%lu KiB) %s %s %s\n",
+					&rmem->base, &end, (unsigned long)(rmem->size / SZ_1K),
+					nomap ? "nomap" : "map",
+					reusable ? "reusable" : "non-reusable",
+					rmem->name ? rmem->name : "unknown");
+
 				memblock_memsize_record(rmem->name, rmem->base,
 							rmem->size, nomap,
 							reusable);

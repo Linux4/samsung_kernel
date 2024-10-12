@@ -1034,6 +1034,7 @@
 					regulator-max-microvolt = <0xd8cc0>;
 					regulator-initial-mode = <0x03>;
 					regulator-allow-set-load;
+					regulator-allowed-modes = <0x01 0x03>;
 					phandle = <0x31>;
 				};
 
@@ -1043,6 +1044,7 @@
 					regulator-max-microvolt = <0x126ec0>;
 					regulator-initial-mode = <0x03>;
 					regulator-allow-set-load;
+					regulator-allowed-modes = <0x01 0x03>;
 					phandle = <0x32>;
 				};
 
@@ -1052,6 +1054,7 @@
 					regulator-max-microvolt = <0x263540>;
 					regulator-initial-mode = <0x03>;
 					regulator-allow-set-load;
+					regulator-allowed-modes = <0x01 0x03>;
 					phandle = <0x2e>;
 				};
 
@@ -1061,6 +1064,7 @@
 					regulator-max-microvolt = <0x124f80>;
 					regulator-initial-mode = <0x03>;
 					regulator-allow-set-load;
+					regulator-allowed-modes = <0x01 0x03>;
 					phandle = <0x2f>;
 				};
 			};
@@ -1179,7 +1183,7 @@
 
 		phy@1d87000 {
 			compatible = "qcom,sm8350-qmp-ufs-phy";
-			reg = <0x00 0x1d87000 0x00 0xe10>;
+			reg = <0x00 0x1d87000 0x00 0x1c4>;
 			#address-cells = <0x02>;
 			#size-cells = <0x02>;
 			#clock-cells = <0x01>;
@@ -1195,8 +1199,8 @@
 			vdda-pll-max-microamp = <0x4a38>;
 			phandle = <0x9c>;
 
-			lanes@1d87400 {
-				reg = <0x00 0x1d87400 0x00 0x108 0x00 0x1d87600 0x00 0x1e0 0x00 0x1d87c00 0x00 0x1dc 0x00 0x1d87800 0x00 0x108 0x00 0x1d87a00 0x00 0x1e0>;
+			phy@1d87400 {
+				reg = <0x00 0x1d87400 0x00 0x188 0x00 0x1d87600 0x00 0x200 0x00 0x1d87c00 0x00 0x200 0x00 0x1d87800 0x00 0x188 0x00 0x1d87a00 0x00 0x200>;
 				#phy-cells = <0x00>;
 				#clock-cells = <0x00>;
 				phandle = <0x2d>;
@@ -2391,7 +2395,7 @@
 		cpufreq_hw = "/soc@0/cpufreq@18591000";
 		ufs_mem_hc = "/soc@0/ufshc@1d84000";
 		ufs_mem_phy = "/soc@0/phy@1d87000";
-		ufs_mem_phy_lanes = "/soc@0/phy@1d87000/lanes@1d87400";
+		ufs_mem_phy_lanes = "/soc@0/phy@1d87000/phy@1d87400";
 		slpi = "/soc@0/remoteproc@5c00000";
 		cdsp = "/soc@0/remoteproc@98900000";
 		usb_1_hsphy = "/soc@0/phy@88e3000";

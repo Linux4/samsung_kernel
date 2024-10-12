@@ -6,7 +6,7 @@
 #include "panel.h"
 
 /*
- * CMDINFO LIST - Panel_drv cmdinfo primitives
+ * PNOBJ LIST - Panel_drv pnobj primitives
  *
  * @ struct rdinfo
  * @ struct resinfo
@@ -23,7 +23,7 @@
  */
 
 /*
- * CMDINFO CHAINING INFO - Cmdinfo can contain or refer the other cmdinfo.
+ * PNOBJ CHAINING INFO - pnobj can contain or refer the other pnobj.
  *
  * @ struct keyinfo
  *	->struct pktinfo
@@ -47,7 +47,7 @@
  *
  * @ buf or data
  *	Optional (But *length of them is Essential)
- * @ member cmdinfo
+ * @ member pnobj
  *	Optional
  *
  *
@@ -55,7 +55,7 @@
  *
  * @ buf or data
  *	Destroy together.
- * @ member cmdinfo
+ * @ member pnobj
  *	Do nothing.
  *
  *
@@ -68,21 +68,17 @@
  *	Should be copied on new allocated 'buf or data' of dst.
  *	If dst has 'data or buf' already, Let them release first and allocate new one.
  *
- * @ member cmdinfo
- *	Just copy addr of cmdinfo.
+ * @ member pnobj
+ *	Just copy addr of pnobj.
  *
  *
  * RULE - ALLOC / FREE / SET / CLEAR
  *
  * @ alloc
- *	If cmdinfo has 'buf or data' already, give up and return err.
+ *	If pnobj has 'buf or data' already, give up and return err.
  * @ free
- *	If cmdinfo has 'buf or data',  free it.
+ *	If pnobj has 'buf or data',  free it.
  */
-
-/* define */
-typedef int (*dump_cb_t)(struct dumpinfo *);
-
 
 /* rdinfo */
 int panel_lib_rdinfo_alloc_buffer(struct rdinfo *m);
@@ -102,10 +98,5 @@ void panel_lib_resinfo_free_buffer(struct resinfo *m);
 struct resinfo *panel_lib_resinfo_create(char *name, u8 *init_data, u32 dlen, struct res_update_info *resui, u32 nr_resui);
 void panel_lib_resinfo_destroy(struct resinfo *m);
 int panel_lib_resinfo_copy(struct resinfo *dst, struct resinfo *src);
-
-/* dumpinfo */
-struct dumpinfo *panel_lib_dumpinfo_create(char *name, struct resinfo *res, dump_cb_t callback);
-void panel_lib_dumpinfo_destroy(struct dumpinfo *m);
-int panel_lib_dumpinfo_copy(struct dumpinfo *dst, struct dumpinfo *src);
 
 #endif /* __PANEL_LIB_H__ */

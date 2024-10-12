@@ -9,6 +9,7 @@
 #include <linux/sched.h>
 #include <linux/rwsem.h>
 #include <linux/rtmutex.h>
+#include <linux/interrupt.h>
 #include <linux/sec_debug.h>
 #include <soc/samsung/exynos/debug-snapshot.h>
 
@@ -135,6 +136,34 @@ static void secdbg_print_rwsem_info(struct task_struct *task, struct sec_debug_w
 	pr_cont("\n");
 }
 
+static void secdbg_print_syncirq_info(struct task_struct *task, struct sec_debug_wait *winfo, bool raw)
+{
+	struct irq_desc *desc = (struct irq_desc *)winfo->data;
+	struct task_struct *irq_thread;
+	const char *name;
+
+	if (desc->action && desc->action->name)
+		name = desc->action->name;
+	else
+		name = "???";
+
+	if (desc->action && desc->action->thread)
+		irq_thread = desc->action->thread;
+	else
+		irq_thread = NULL;
+
+	pr_info("SyncIRQ: irq-%u %s", desc->irq_data.irq, name);
+	if (irq_thread) {
+		if (raw)
+			pr_cont(": thread[0x%px %s :%d]", irq_thread,
+					irq_thread->comm, irq_thread->pid);
+		else
+			pr_cont(": thread[%s :%d]",
+					irq_thread->comm, irq_thread->pid);
+	}
+	pr_cont("\n");
+}
+
 static void secdbg_dtsk_print_info(struct task_struct *task, bool raw)
 {
 	struct sec_debug_wait winfo;
@@ -154,6 +183,9 @@ static void secdbg_dtsk_print_info(struct task_struct *task, bool raw)
 		break;
 	case DTYPE_RWSEM:
 		secdbg_print_rwsem_info(task, &winfo, raw);
+		break;
+	case DTYPE_SYNCIRQ:
+		secdbg_print_syncirq_info(task, &winfo, raw);
 		break;
 	default:
 		/* unknown type */

@@ -27,6 +27,7 @@ enum panel_power_ctrl_action_type {
 	PANEL_POWER_CTRL_ACTION_REGULATOR_SSD_CURRENT = PCTRL_REGULATOR_SSD_CURRENT,
 	PANEL_POWER_CTRL_ACTION_GPIO_ENABLE = PCTRL_GPIO_ENABLE,
 	PANEL_POWER_CTRL_ACTION_GPIO_DISABLE = PCTRL_GPIO_DISABLE,
+	PANEL_POWER_CTRL_ACTION_REGULATOR_FORCE_DISABLE = PCTRL_REGULATOR_FORCE_DISABLE,
 	MAX_PANEL_POWER_CTRL_ACTION,
 };
 
@@ -51,7 +52,39 @@ struct panel_power_ctrl_funcs {
 	int (*execute)(struct panel_power_ctrl *pctrl);
 };
 
+struct pwrctrl {
+	struct pnobj base;
+	char *key;
+};
+
+#define PWRCTRL_INIT(_name_, _key_) { \
+	.base = __PNOBJ_INITIALIZER(_name_, CMD_TYPE_PCTRL) \
+	, .key = (_key_) }
+
+#define DEFINE_PCTRL(_name_, _key_) \
+	struct pwrctrl PN_CONCAT(pwrctrl_, _name_) = \
+	PWRCTRL_INIT(_name_, _key_)
+
+#define PWRCTRL(_name_) PN_CONCAT(pwrctrl_, _name_)
+
+static inline char *get_pwrctrl_name(struct pwrctrl *pwrctrl)
+{
+	return get_pnobj_name(&pwrctrl->base);
+}
+
+static inline char *get_pwrctrl_key(struct pwrctrl *pwrctrl)
+{
+	return pwrctrl->key;
+}
+
 int of_get_panel_power_ctrl(struct panel_device *panel, struct device_node *seq_np,
 	const char *prop_name, struct panel_power_ctrl *pctrl);
 int panel_power_ctrl_helper_execute(struct panel_power_ctrl *pctrl);
+bool panel_power_ctrl_exists(struct panel_device *panel,
+	const char *dev_name, const char *name);
+int panel_power_ctrl_execute(struct panel_device *panel,
+	const char *dev_name, const char *name);
+struct pwrctrl *create_pwrctrl(char *name, char *key);
+struct pwrctrl *duplicate_pwrctrl(struct pwrctrl *pwrctrl);
+void destroy_pwrctrl(struct pwrctrl *pwrctrl);
 #endif

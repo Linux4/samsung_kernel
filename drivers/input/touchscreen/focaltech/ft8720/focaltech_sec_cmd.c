@@ -2606,7 +2606,6 @@ void fts_run_rawdata_all(void *device_data)
 	get_gap_data(sec);
 
 	enter_work_mode();
-	get_nonflash_ram_test(sec);
 	fts_enter_test_environment(0);
 
 	sec->cmd_all_factory_state = SEC_CMD_STATUS_OK;

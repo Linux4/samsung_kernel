@@ -68,6 +68,9 @@
 #define tDRPtry (75) /* 75~150ms */
 #define tTryCCDebounce (15) /* 10~20ms */
 
+/* Custom Timer */
+#define tStartAmsMargin (100)
+
 enum s2m_pdic_power_role {
 	PDIC_SINK,
 	PDIC_SOURCE
@@ -614,7 +617,7 @@ typedef struct usbpd_phy_ops {
 	int    (*pps_enable)(void *, int);
 	int    (*get_pps_enable)(void *, int *);
 #endif
-#if IS_ENABLED(CONFIG_S2MU106_TYPEC_WATER)
+#if IS_ENABLED(CONFIG_S2MU106_TYPEC_WATER) || IS_ENABLED(CONFIG_S2MF301_TYPEC_WATER)
 	int		(*water_get_power_role)(void *);
 	int		(*ops_water_check)(void *);
 	int		(*ops_dry_check)(void *);
@@ -627,6 +630,7 @@ typedef struct usbpd_phy_ops {
 	void	(*energy_now)(void *, int);
 	void	(*authentic)(void *);
 	void	(*set_usbpd_reset)(void *);
+	void	(*vbus_onoff)(void *);
 	int		(*ops_get_fsm_state)(void *);
 	int		(*get_detach_valid)(void *);
 	void	(*rprd_mode_change)(void *, u8);
@@ -665,6 +669,7 @@ struct policy_data {
 	int				selected_pdo_num;
 	int				requested_pdo_type;
 	int				requested_pdo_num;
+	int			got_ufp_vdm;
 };
 
 struct protocol_data {
@@ -763,6 +768,7 @@ struct usbpd_manager_data {
 	int req_pdo_type;
 	bool psrdy_sent;
 	int is_ccopen;
+	bool first_noti_sent;
 };
 
 struct usbpd_data {
@@ -868,6 +874,7 @@ extern void usbpd_manager_turn_off_power_supply(struct usbpd_data *);
 extern void usbpd_manager_turn_off_power_sink(struct usbpd_data *);
 extern void usbpd_manager_turn_off_vconn(struct usbpd_data *);
 extern bool usbpd_manager_data_role_swap(struct usbpd_data *);
+extern void usbpd_manager_set_analog_audio(struct usbpd_data *);
 extern int usbpd_manager_get_identity(struct usbpd_data *);
 extern int usbpd_manager_get_svids(struct usbpd_data *);
 extern int usbpd_manager_get_modes(struct usbpd_data *);

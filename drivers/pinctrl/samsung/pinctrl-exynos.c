@@ -393,6 +393,10 @@ err_domains:
 	return ret;
 }
 
+static char cmgp_use_eint[4] = "";
+static u32 cmgp_eint_offset[2];
+static DEFINE_SPINLOCK(eint_wake_lock);
+
 static DECLARE_BITMAP(exynos_eint_wake_mask_array_ul,
 			EXYNOS_EINT_WKUP_MASK_NUM * 32) = {
 			 [0 ... BITS_TO_LONGS(EXYNOS_EINT_WKUP_MASK_NUM * 32) - 1] = ~0UL };
@@ -410,6 +414,7 @@ static int exynos_wkup_irq_set_wake(struct irq_data *irqd, unsigned int on)
 {
 	struct samsung_pin_bank *bank = irq_data_get_irq_chip_data(irqd);
 	struct samsung_pinctrl_drv_data *d = bank->drvdata;
+	unsigned long flags;
 	u32 bit = 0;
 	int i;
 
@@ -417,6 +422,7 @@ static int exynos_wkup_irq_set_wake(struct irq_data *irqd, unsigned int on)
 	pr_info("%s: bit = %d, bank->eint_num = %d, irqd->hwirq = %d",
 			__func__, bit, bank->eint_num, irqd->hwirq);
 
+	spin_lock_irqsave(&eint_wake_lock, flags);
 	if (!on)
 		exynos_eint_wake_mask_array_ul[BIT_WORD(bit)] |= BIT_MASK(bit);
 	else
@@ -425,6 +431,7 @@ static int exynos_wkup_irq_set_wake(struct irq_data *irqd, unsigned int on)
 	bitmap_to_arr32(exynos_eint_wake_mask_array,
 			exynos_eint_wake_mask_array_ul,
 			EXYNOS_EINT_WKUP_MASK_NUM * 32);
+	spin_unlock_irqrestore(&eint_wake_lock, flags);
 
 	dev_info(d->dev, "wake %s for irq %d\n", on ? "enabled" : "disabled",
 		 irqd->irq);
@@ -444,6 +451,30 @@ static int exynos_cmgp_wkup_irq_set_wake(struct irq_data *irqd, unsigned int on)
 	struct samsung_pinctrl_drv_data *d = bank->drvdata;
 	unsigned long bit = 1UL << bank->sysreg_cmgp_bit;
 	int i = 0;
+
+	if (!strncmp(bank->name, cmgp_use_eint, sizeof(cmgp_use_eint) - 1)) {
+		u32 offset = (bank->eint_offset - cmgp_eint_offset[0]) / 4;
+		unsigned long exbit = cmgp_eint_offset[1] + offset;
+		unsigned long flags;
+
+		spin_lock_irqsave(&eint_wake_lock, flags);
+		if (!on)
+			exynos_eint_wake_mask_array_ul[BIT_WORD(exbit)] |= BIT_MASK(exbit);
+		else
+			exynos_eint_wake_mask_array_ul[BIT_WORD(exbit)] &= ~BIT_MASK(exbit);
+
+		bitmap_to_arr32(exynos_eint_wake_mask_array,
+				exynos_eint_wake_mask_array_ul,
+				EXYNOS_EINT_WKUP_MASK_NUM * 32);
+		spin_unlock_irqrestore(&eint_wake_lock, flags);
+
+		dev_info(d->dev, "%s: [%s] offset[%d - %ld] overlay eint_wake_mask\n",
+			 __func__, cmgp_use_eint, offset, exbit);
+
+		for (i = 0; i < EXYNOS_EINT_WKUP_MASK_NUM; i++)
+			dev_info(d->dev, "exynos_eint_wake_mask value index %d = (0x%X)\n",
+			i, exynos_eint_wake_mask_array[i]);
+	}
 
 	regmap_update_bits(d->sysreg_cmgp, bank->sysreg_cmgp_offs, bit, bit);
 
@@ -674,6 +705,7 @@ int exynos_eint_wkup_init(struct samsung_pinctrl_drv_data *d)
 	unsigned int muxed_banks = 0;
 	unsigned int i;
 	int idx, irq;
+	const char *str;
 
 	for_each_child_of_node(dev->of_node, np) {
 		const struct of_device_id *match;
@@ -785,6 +817,23 @@ int exynos_eint_wkup_init(struct samsung_pinctrl_drv_data *d)
 	if (IS_ERR(d->sysreg_cmgp)) {
 		dev_info(dev, "sysreg_cmgp is not registered\n");
 		d->sysreg_cmgp = 0;
+	}
+
+	/*
+	 * eint-mask-offset[0] is eint_offset to detect pin.
+	 * eint-mask-offset[1] is BITMAP offset of eint_wake_mask_array.
+	 */
+	if (!of_property_read_u32_array(dev->of_node, "eint-mask-offset", cmgp_eint_offset, 2)) {
+		dev_info(dev, "cmgp_eint_offset [%d], [%d]\n",
+			 cmgp_eint_offset[0], cmgp_eint_offset[1]);
+	}
+
+	/* use-eint-wake-mask is cmgp gpio group name to use eint-wakeup-mask */
+	str = of_get_property(dev->of_node, "use-eint-wake-mask", NULL);
+	if (str) {
+		strncpy(cmgp_use_eint, str, sizeof(cmgp_use_eint));
+		cmgp_use_eint[sizeof(cmgp_use_eint) - 1] = '\0';
+		dev_info(dev, "cmgp_use_eint [%s]\n", cmgp_use_eint);
 	}
 
 	if (!muxed_banks) {

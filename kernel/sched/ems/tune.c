@@ -211,6 +211,7 @@ static char *task_cgroup_name[] = {
 	"system-background",
 	"nnapi-hal",
 	"camera-daemon",
+	"midground",
 };
 
 static inline void
@@ -1139,7 +1140,7 @@ static ssize_t aio_tuner_store(struct device *dev,
 	_arg = arg0;
 	ptr = strsep(&_arg, ",");
 	i = 0;
-	while (ptr != NULL) {
+	while (ptr != NULL && (i < NUM_OF_KEY)) {
 		ret = kstrtol(ptr, 10, &val);
 		if (ret)
 			return ret;
@@ -1331,6 +1332,7 @@ static char *task_cgroup_simple_name[] = {
 	"syb",
 	"n-h",
 	"c-d",
+	"mg",
 };
 
 static const char *get_sched_class_str(int class)

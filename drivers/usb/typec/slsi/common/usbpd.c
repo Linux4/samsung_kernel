@@ -457,7 +457,7 @@ void usbpd_set_ops(struct device *dev, usbpd_phy_ops_type *ops)
 	pd_data->phy_ops.authentic			= ops->authentic;
 	pd_data->phy_ops.energy_now			= ops->energy_now;
 	pd_data->phy_ops.set_usbpd_reset		= ops->set_usbpd_reset;
-	pd_data->phy_ops.ops_get_fsm_state		= ops->ops_get_fsm_state;
+	pd_data->phy_ops.vbus_onoff			= ops->vbus_onoff;
 	pd_data->phy_ops.set_is_otg_vboost		= ops->set_is_otg_vboost;
 	pd_data->phy_ops.get_detach_valid		= ops->get_detach_valid;
 	pd_data->phy_ops.rprd_mode_change		= ops->rprd_mode_change;
@@ -728,6 +728,7 @@ void usbpd_rx_soft_reset(struct usbpd_data *pd_data)
 	usbpd_reinit(pd_data->dev);
 	usbpd_policy_reset(pd_data, SOFTRESET_RECEIVED);
 }
+EXPORT_SYMBOL(usbpd_rx_soft_reset);
 
 void usbpd_reinit(struct device *dev)
 {
@@ -851,7 +852,7 @@ ssize_t usbpd_sysfs_set_prop(struct _pdic_data_t *ppdic_data,
 {
 	struct usbpd_data *pd_data = ppdic_data->drv_data;
 	struct usbpd_manager_data *manager;
-	int retval = -ENODEV, cmd;
+	int retval = size, cmd;
 #if IS_ENABLED(CONFIG_S2MU106_TYPEC_WATER)
 	int val1, val2;
 #endif
@@ -871,23 +872,20 @@ ssize_t usbpd_sysfs_set_prop(struct _pdic_data_t *ppdic_data,
 	case PDIC_SYSFS_PROP_SET_WATER_THRESHOLD:
 #if IS_ENABLED(CONFIG_S2MU106_TYPEC_WATER)
 		sscanf(buf, "%d %d", &val1, &val2);
-		pr_info("%s, buf : %s\n", __func__, buf);
+		pr_info("%s, PROP_SET_WATER_THRESHOLD buf : %s\n", __func__, buf);
 		pr_info("%s, #%d is set to %d\n", __func__, val1, val2);
 		PDIC_OPS_PARAM2_FUNC(ops_set_water_threshold, pd_data, val1, val2);
-		retval = 0;
 #endif
 		break;
 	case PDIC_SYSFS_PROP_CTRL_OPTION:
 		sscanf(buf, "%d", &cmd);
-		pr_info("usb: %s mode=%d\n", __func__, cmd);
+		pr_info("usb: %s PROP_CTRL_OPTION mode=%d\n", __func__, cmd);
 		PDIC_OPS_PARAM_FUNC(ops_control_option_command, pd_data, cmd);
-		retval = 0;
 		break;
 	case PDIC_SYSFS_PROP_LPM_MODE:
 		sscanf(buf, "%d", &cmd);
-		pr_info("usb: %s mode=%d\n", __func__, cmd);
+		pr_info("usb: %s PROP_LPM_MODE mode=%d\n", __func__, cmd);
 		PDIC_OPS_PARAM_FUNC(ops_sysfs_lpm_mode, pd_data, cmd);
-		retval = size;
 		break;
 	default:
 		pr_info("prop read not supported prop (%d)", prop);

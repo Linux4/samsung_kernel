@@ -51,6 +51,7 @@ struct rt5691_platform_data {
 	unsigned int sar_pb_vth2;
 	unsigned int sar_pb_vth3;
 	unsigned int jd_resistor;
+	unsigned int button_clk;
 
 	unsigned int i2c_op_count;
 };

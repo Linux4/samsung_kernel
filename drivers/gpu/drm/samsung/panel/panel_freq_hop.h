@@ -9,7 +9,9 @@
 #ifndef __PANEL_FREQ_HOP_H__
 #define __PANEL_FREQ_HOP_H__
 
+#include <linux/list.h>
 #include <dt-bindings/display/rf-band-id.h>
+#include "dev_ril_header.h"
 
 struct __packed ril_noti_info {
 	u8 rat;

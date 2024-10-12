@@ -164,7 +164,7 @@
 	};
 
 	hwlock {
-		compatible = "qcom,sfpb-mutex";
+		compatible = "qcom,tcsr-mutex";
 		syscon = <0x0a 0x00 0x80>;
 		#hwlock-cells = <0x01>;
 		phandle = <0x14>;
@@ -191,8 +191,8 @@
 			phandle = <0x45>;
 		};
 
-		memory@3800000 {
-			reg = <0x00 0x3800000 0x00 0x2400000>;
+		memory@3401000 {
+			reg = <0x00 0x3401000 0x00 0x2200000>;
 			no-map;
 			phandle = <0x46>;
 		};
@@ -203,42 +203,72 @@
 			phandle = <0x12>;
 		};
 
-		memory@7000000 {
-			reg = <0x00 0x7000000 0x00 0x5a00000>;
+		memory@c6700000 {
+			reg = <0x00 0xc6700000 0x00 0x100000>;
 			no-map;
 			phandle = <0x47>;
 		};
 
-		memory@ca00000 {
-			reg = <0x00 0x7400000 0x00 0x1c00000>;
+		hole@6400000 {
+			reg = <0x00 0x6400000 0x00 0x600000>;
 			no-map;
 			phandle = <0x48>;
 		};
 
-		memory@c6400000 {
-			compatible = "qcom,rmtfs-mem";
-			reg = <0x00 0xc6400000 0x00 0x180000>;
+		hole2@6c00000 {
+			reg = <0x00 0x6c00000 0x00 0x2400000>;
 			no-map;
-			qcom,client-id = <0x01>;
 			phandle = <0x49>;
 		};
 
-		memory@c6700000 {
-			reg = <0x00 0xc6700000 0x00 0x100000>;
+		mpss@9000000 {
+			reg = <0x00 0x9000000 0x00 0x5a00000>;
 			no-map;
 			phandle = <0x4a>;
 		};
 
-		memory@c7000000 {
-			reg = <0x00 0xc7000000 0x00 0x800000>;
+		tzapp@ea00000 {
+			reg = <0x00 0xea00000 0x00 0x1900000>;
 			no-map;
 			phandle = <0x4b>;
 		};
 
-		memory@c9400000 {
-			reg = <0x00 0xc9400000 0x00 0x3f00000>;
+		mdm-rfsa@ca0b0000 {
+			reg = <0x00 0xca0b0000 0x00 0x10000>;
 			no-map;
 			phandle = <0x4c>;
+		};
+
+		rmtfs@ca100000 {
+			compatible = "qcom,rmtfs-mem";
+			reg = <0x00 0xca100000 0x00 0x180000>;
+			no-map;
+			qcom,client-id = <0x01>;
+			phandle = <0x4d>;
+		};
+
+		audio@cb400000 {
+			reg = <0x00 0xcb000000 0x00 0x400000>;
+			no-mem;
+			phandle = <0x4e>;
+		};
+
+		qseecom@cb400000 {
+			reg = <0x00 0xcb400000 0x00 0x1c00000>;
+			no-mem;
+			phandle = <0x4f>;
+		};
+
+		adsp-rfsa@cd000000 {
+			reg = <0x00 0xcd000000 0x00 0x10000>;
+			no-map;
+			phandle = <0x50>;
+		};
+
+		sensor-rfsa@cd010000 {
+			reg = <0x00 0xcd010000 0x00 0x10000>;
+			no-map;
+			phandle = <0x51>;
 		};
 
 		ramoops@dfc00000 {
@@ -248,18 +278,6 @@
 			record-size = <0x10000>;
 			ftrace-size = <0x10000>;
 			pmsg-size = <0x20000>;
-		};
-
-		modem_region@9000000 {
-			reg = <0x00 0x9000000 0x00 0x5a00000>;
-			no-map;
-			phandle = <0x4d>;
-		};
-
-		modem_region@ea00000 {
-			reg = <0x00 0xea00000 0x00 0x1900000>;
-			no-map;
-			phandle = <0x4e>;
 		};
 	};
 
@@ -276,19 +294,19 @@
 			rpm-requests {
 				compatible = "qcom,rpm-msm8994";
 				qcom,smd-channels = "rpm_requests";
-				phandle = <0x4f>;
+				phandle = <0x52>;
 
 				rpmcc {
 					compatible = "qcom,rpmcc-msm8992";
 					#clock-cells = <0x01>;
-					phandle = <0x50>;
+					phandle = <0x53>;
 				};
 
 				power-controller {
 					compatible = "qcom,msm8994-rpmpd";
 					#power-domain-cells = <0x01>;
 					operating-points-v2 = <0x0c>;
-					phandle = <0x51>;
+					phandle = <0x54>;
 
 					opp-table {
 						compatible = "operating-points-v2";
@@ -296,32 +314,32 @@
 
 						opp1 {
 							opp-level = <0x01>;
-							phandle = <0x52>;
+							phandle = <0x55>;
 						};
 
 						opp2 {
 							opp-level = <0x02>;
-							phandle = <0x53>;
+							phandle = <0x56>;
 						};
 
 						opp3 {
 							opp-level = <0x03>;
-							phandle = <0x54>;
+							phandle = <0x57>;
 						};
 
 						opp4 {
 							opp-level = <0x04>;
-							phandle = <0x55>;
+							phandle = <0x58>;
 						};
 
 						opp5 {
 							opp-level = <0x05>;
-							phandle = <0x56>;
+							phandle = <0x59>;
 						};
 
 						opp6 {
 							opp-level = <0x06>;
-							phandle = <0x57>;
+							phandle = <0x5a>;
 						};
 					};
 				};
@@ -341,7 +359,7 @@
 					vdd_l17_29-supply = <0x10>;
 					vdd_l20_21-supply = <0x10>;
 					vdd_l25-supply = <0x0f>;
-					vdd_lvs1_2 = <0x11>;
+					vdd_lvs1_2-supply = <0x11>;
 
 					s3 {
 						regulator-min-microvolt = <0x13d620>;
@@ -373,104 +391,104 @@
 					l1 {
 						regulator-min-microvolt = <0xf4240>;
 						regulator-max-microvolt = <0xf4240>;
-						phandle = <0x58>;
+						phandle = <0x5b>;
 					};
 
 					l2 {
 						regulator-min-microvolt = <0x1312d0>;
 						regulator-max-microvolt = <0x1312d0>;
-						phandle = <0x59>;
+						phandle = <0x5c>;
 					};
 
 					l3 {
 						regulator-min-microvolt = <0x124f80>;
 						regulator-max-microvolt = <0x124f80>;
-						phandle = <0x5a>;
+						phandle = <0x5d>;
 					};
 
 					l4 {
 						regulator-min-microvolt = <0x12b128>;
 						regulator-max-microvolt = <0x12b128>;
-						phandle = <0x5b>;
+						phandle = <0x5e>;
 					};
 
 					l6 {
 						regulator-min-microvolt = <0x1b7740>;
 						regulator-max-microvolt = <0x1b7740>;
-						phandle = <0x5c>;
+						phandle = <0x5f>;
 					};
 
 					l8 {
 						regulator-min-microvolt = <0x1b7740>;
 						regulator-max-microvolt = <0x1b7740>;
-						phandle = <0x5d>;
+						phandle = <0x60>;
 					};
 
 					l9 {
 						regulator-min-microvolt = <0x1b7740>;
 						regulator-max-microvolt = <0x1b7740>;
-						phandle = <0x5e>;
+						phandle = <0x61>;
 					};
 
 					l10 {
 						regulator-min-microvolt = <0x1b7740>;
 						regulator-max-microvolt = <0x1b7740>;
-						phandle = <0x5f>;
+						phandle = <0x62>;
 					};
 
 					l11 {
 						regulator-min-microvolt = <0x124f80>;
 						regulator-max-microvolt = <0x124f80>;
-						phandle = <0x60>;
+						phandle = <0x63>;
 					};
 
 					l12 {
 						regulator-min-microvolt = <0x1b7740>;
 						regulator-max-microvolt = <0x1b7740>;
-						phandle = <0x61>;
+						phandle = <0x64>;
 					};
 
 					l13 {
 						regulator-min-microvolt = <0x1b7740>;
 						regulator-max-microvolt = <0x2d0370>;
-						phandle = <0x62>;
+						phandle = <0x65>;
 					};
 
 					l14 {
 						regulator-min-microvolt = <0x1b7740>;
 						regulator-max-microvolt = <0x1b7740>;
-						phandle = <0x63>;
+						phandle = <0x66>;
 					};
 
 					l15 {
 						regulator-min-microvolt = <0x1b7740>;
 						regulator-max-microvolt = <0x1b7740>;
-						phandle = <0x64>;
+						phandle = <0x67>;
 					};
 
 					l16 {
 						regulator-min-microvolt = <0x2932e0>;
 						regulator-max-microvolt = <0x2932e0>;
-						phandle = <0x65>;
+						phandle = <0x68>;
 					};
 
 					l17 {
 						regulator-min-microvolt = <0x2932e0>;
 						regulator-max-microvolt = <0x2932e0>;
-						phandle = <0x66>;
+						phandle = <0x69>;
 					};
 
 					l18 {
 						regulator-min-microvolt = <0x2b7cd0>;
 						regulator-max-microvolt = <0x2b7cd0>;
 						regulator-always-on;
-						phandle = <0x67>;
+						phandle = <0x6a>;
 					};
 
 					l19 {
 						regulator-min-microvolt = <0x2ab980>;
 						regulator-max-microvolt = <0x2ab980>;
-						phandle = <0x68>;
+						phandle = <0x6b>;
 					};
 
 					l20 {
@@ -487,81 +505,81 @@
 						regulator-min-microvolt = <0x2d0370>;
 						regulator-max-microvolt = <0x2d0370>;
 						regulator-always-on;
-						phandle = <0x69>;
+						phandle = <0x6c>;
 					};
 
 					l22 {
 						regulator-min-microvolt = <0x2dc6c0>;
 						regulator-max-microvolt = <0x2dc6c0>;
-						phandle = <0x6a>;
+						phandle = <0x6d>;
 					};
 
 					l23 {
 						regulator-min-microvolt = <0x2ab980>;
 						regulator-max-microvolt = <0x2ab980>;
-						phandle = <0x6b>;
+						phandle = <0x6e>;
 					};
 
 					l24 {
 						regulator-min-microvolt = <0x2eebb8>;
 						regulator-max-microvolt = <0x3010b0>;
-						phandle = <0x6c>;
+						phandle = <0x6f>;
 					};
 
 					l25 {
 						regulator-min-microvolt = <0xf4240>;
 						regulator-max-microvolt = <0xf4240>;
-						phandle = <0x6d>;
+						phandle = <0x70>;
 					};
 
 					l26 {
 						regulator-min-microvolt = <0xf116c>;
 						regulator-max-microvolt = <0xf116c>;
-						phandle = <0x6e>;
+						phandle = <0x71>;
 					};
 
 					l27 {
 						regulator-min-microvolt = <0x100590>;
 						regulator-max-microvolt = <0x100590>;
-						phandle = <0x6f>;
+						phandle = <0x72>;
 					};
 
 					l28 {
 						regulator-min-microvolt = <0xf4240>;
 						regulator-max-microvolt = <0xf4240>;
-						phandle = <0x70>;
+						phandle = <0x73>;
 					};
 
 					l29 {
 						regulator-min-microvolt = <0x2ab980>;
 						regulator-max-microvolt = <0x2ab980>;
-						phandle = <0x71>;
+						phandle = <0x74>;
 					};
 
 					l30 {
 						regulator-min-microvolt = <0x1b7740>;
 						regulator-max-microvolt = <0x1b7740>;
-						phandle = <0x72>;
+						phandle = <0x75>;
 					};
 
 					l31 {
 						regulator-min-microvolt = <0x1343a4>;
 						regulator-max-microvolt = <0x1343a4>;
-						phandle = <0x73>;
+						phandle = <0x76>;
 					};
 
 					l32 {
 						regulator-min-microvolt = <0x1b7740>;
 						regulator-max-microvolt = <0x1b7740>;
-						phandle = <0x74>;
+						phandle = <0x77>;
 					};
 
 					lvs1 {
-						phandle = <0x75>;
+						phandle = <0x78>;
 					};
 
 					lvs2 {
-						phandle = <0x76>;
+						phandle = <0x79>;
 					};
 				};
 
@@ -569,18 +587,18 @@
 					compatible = "qcom,rpm-pmi8994-regulators";
 					vdd_s1-supply = <0x10>;
 					vdd_bst_byp-supply = <0x10>;
-					phandle = <0x77>;
+					phandle = <0x7a>;
 
 					s1 {
 						regulator-min-microvolt = <0xfa3e8>;
 						regulator-max-microvolt = <0xfa3e8>;
-						phandle = <0x78>;
+						phandle = <0x7b>;
 					};
 
 					boost-bypass {
 						regulator-min-microvolt = <0x3010b0>;
 						regulator-max-microvolt = <0x36ee80>;
-						phandle = <0x79>;
+						phandle = <0x7c>;
 					};
 				};
 			};
@@ -605,14 +623,14 @@
 		master-kernel {
 			qcom,entry-name = "master-kernel";
 			#qcom,smem-state-cells = <0x01>;
-			phandle = <0x7a>;
+			phandle = <0x7d>;
 		};
 
 		slave-kernel {
 			qcom,entry-name = "slave-kernel";
 			interrupt-controller;
 			#interrupt-cells = <0x02>;
-			phandle = <0x7b>;
+			phandle = <0x7e>;
 		};
 	};
 
@@ -628,14 +646,14 @@
 		master-kernel {
 			qcom,entry-name = "master-kernel";
 			#qcom,smem-state-cells = <0x01>;
-			phandle = <0x7c>;
+			phandle = <0x7f>;
 		};
 
 		slave-kernel {
 			qcom,entry-name = "slave-kernel";
 			interrupt-controller;
 			#interrupt-cells = <0x02>;
-			phandle = <0x7d>;
+			phandle = <0x80>;
 		};
 	};
 
@@ -644,7 +662,7 @@
 		#size-cells = <0x01>;
 		ranges = <0x00 0x00 0x00 0xffffffff>;
 		compatible = "simple-bus";
-		phandle = <0x7e>;
+		phandle = <0x81>;
 
 		interrupt-controller@f9000000 {
 			compatible = "qcom,msm-qgic2";
@@ -729,7 +747,7 @@
 			assigned-clock-rates = <0x124f800 0x7270e00>;
 			power-domains = <0x15 0x03>;
 			qcom,select-utmi-as-pipe-clk;
-			phandle = <0x7f>;
+			phandle = <0x82>;
 
 			usb@f9200000 {
 				compatible = "snps,dwc3";
@@ -759,7 +777,7 @@
 			mmc-hs400-1_8v;
 			vmmc-supply = <0x1f>;
 			vqmmc-supply = <0x11>;
-			phandle = <0x80>;
+			phandle = <0x83>;
 		};
 
 		sdhci@f98a4900 {
@@ -776,7 +794,7 @@
 			cd-gpios = <0x26 0x64 0x00>;
 			bus-width = <0x04>;
 			status = "disabled";
-			phandle = <0x81>;
+			phandle = <0x84>;
 		};
 
 		dma-controller@f9904000 {
@@ -788,7 +806,7 @@
 			#dma-cells = <0x01>;
 			qcom,ee = <0x00>;
 			qcom,controlled-remotely;
-			num-channels = <0x12>;
+			num-channels = <0x18>;
 			qcom,num-ees = <0x04>;
 			phandle = <0x29>;
 		};
@@ -803,7 +821,7 @@
 			pinctrl-0 = <0x27>;
 			pinctrl-1 = <0x28>;
 			status = "disabled";
-			phandle = <0x82>;
+			phandle = <0x85>;
 		};
 
 		i2c@f9923000 {
@@ -821,7 +839,7 @@
 			#address-cells = <0x01>;
 			#size-cells = <0x00>;
 			status = "disabled";
-			phandle = <0x83>;
+			phandle = <0x86>;
 		};
 
 		spi@f9923000 {
@@ -839,7 +857,7 @@
 			#address-cells = <0x01>;
 			#size-cells = <0x00>;
 			status = "disabled";
-			phandle = <0x84>;
+			phandle = <0x87>;
 		};
 
 		i2c@f9924000 {
@@ -857,7 +875,7 @@
 			#address-cells = <0x01>;
 			#size-cells = <0x00>;
 			status = "okay";
-			phandle = <0x85>;
+			phandle = <0x88>;
 		};
 
 		i2c@f9926000 {
@@ -875,7 +893,7 @@
 			#address-cells = <0x01>;
 			#size-cells = <0x00>;
 			status = "disabled";
-			phandle = <0x86>;
+			phandle = <0x89>;
 		};
 
 		i2c@f9927000 {
@@ -893,7 +911,7 @@
 			#address-cells = <0x01>;
 			#size-cells = <0x00>;
 			status = "okay";
-			phandle = <0x87>;
+			phandle = <0x8a>;
 		};
 
 		i2c@f9928000 {
@@ -911,7 +929,7 @@
 			#address-cells = <0x01>;
 			#size-cells = <0x00>;
 			status = "okay";
-			phandle = <0x88>;
+			phandle = <0x8b>;
 		};
 
 		dma-controller@f9944000 {
@@ -923,7 +941,7 @@
 			#dma-cells = <0x01>;
 			qcom,ee = <0x00>;
 			qcom,controlled-remotely;
-			num-channels = <0x12>;
+			num-channels = <0x18>;
 			qcom,num-ees = <0x04>;
 			phandle = <0x32>;
 		};
@@ -940,7 +958,7 @@
 			pinctrl-0 = <0x37>;
 			pinctrl-1 = <0x38>;
 			status = "okay";
-			phandle = <0x89>;
+			phandle = <0x8c>;
 		};
 
 		i2c@f9963000 {
@@ -958,7 +976,7 @@
 			#address-cells = <0x01>;
 			#size-cells = <0x00>;
 			status = "okay";
-			phandle = <0x8a>;
+			phandle = <0x8d>;
 		};
 
 		spi@f9966000 {
@@ -976,7 +994,7 @@
 			#address-cells = <0x01>;
 			#size-cells = <0x00>;
 			status = "disabled";
-			phandle = <0x8b>;
+			phandle = <0x8e>;
 		};
 
 		i2c@f9967000 {
@@ -994,7 +1012,7 @@
 			#address-cells = <0x01>;
 			#size-cells = <0x00>;
 			status = "okay";
-			phandle = <0x8c>;
+			phandle = <0x8f>;
 		};
 
 		clock-controller@fc400000 {
@@ -1017,7 +1035,7 @@
 			reg = <0xfc4ab000 0x04>;
 		};
 
-		spmi@fc4c0000 {
+		spmi@fc4cf000 {
 			compatible = "qcom,spmi-pmic-arb";
 			reg = <0xfc4cf000 0x1000 0xfc4cb000 0x1000 0xfc4ca000 0x1000>;
 			reg-names = "core\0intr\0cnfg";
@@ -1029,7 +1047,7 @@
 			#size-cells = <0x00>;
 			interrupt-controller;
 			#interrupt-cells = <0x04>;
-			phandle = <0x8d>;
+			phandle = <0x90>;
 
 			pmic@0 {
 				compatible = "qcom,pm8994\0qcom,spmi-pmic";
@@ -1049,7 +1067,7 @@
 					reg = <0x800>;
 					mode-bootloader = <0x02>;
 					mode-recovery = <0x01>;
-					phandle = <0x8e>;
+					phandle = <0x91>;
 
 					pwrkey {
 						compatible = "qcom,pm8941-pwrkey";
@@ -1065,7 +1083,7 @@
 						debounce = <0x3d09>;
 						bias-pull-up;
 						status = "disabled";
-						phandle = <0x8f>;
+						phandle = <0x92>;
 					};
 				};
 
@@ -1135,7 +1153,7 @@
 					gpio-controller;
 					#gpio-cells = <0x02>;
 					interrupts = <0x00 0xa0 0x00 0x00 0x00 0xa1 0x00 0x00 0x00 0xa2 0x00 0x00 0x00 0xa3 0x00 0x00 0x00 0xa4 0x00 0x00 0x00 0xa5 0x00 0x00 0x00 0xa6 0x00 0x00 0x00 0xa7 0x00 0x00>;
-					phandle = <0x90>;
+					phandle = <0x93>;
 				};
 			};
 
@@ -1147,7 +1165,23 @@
 
 				regulators {
 					compatible = "qcom,pm8994-regulators";
-					phandle = <0x91>;
+					phandle = <0x94>;
+
+					s8 {
+						regulator-min-microvolt = <0xa6040>;
+						regulator-max-microvolt = <0x120160>;
+						regulator-always-on;
+						regulator-boot-on;
+						phandle = <0x95>;
+					};
+
+					s11 {
+						regulator-min-microvolt = <0xaae60>;
+						regulator-max-microvolt = <0x12b128>;
+						regulator-always-on;
+						regulator-boot-on;
+						phandle = <0x96>;
+					};
 				};
 			};
 
@@ -1179,7 +1213,7 @@
 					compatible = "qcom,pmi8994-regulators";
 					#address-cells = <0x01>;
 					#size-cells = <0x01>;
-					phandle = <0x92>;
+					phandle = <0x97>;
 				};
 
 				wled@d800 {
@@ -1192,7 +1226,7 @@
 					qcom,cabc;
 					qcom,external-pfet;
 					status = "disabled";
-					phandle = <0x93>;
+					phandle = <0x98>;
 				};
 			};
 		};
@@ -1510,7 +1544,7 @@
 	timer {
 		compatible = "arm,armv8-timer";
 		interrupts = <0x01 0x02 0xf08 0x01 0x03 0xf08 0x01 0x04 0xf08 0x01 0x01 0xf08>;
-		phandle = <0x94>;
+		phandle = <0x99>;
 	};
 
 	vph-pwr-regulator {
@@ -1535,14 +1569,14 @@
 					temperature = <0x17318>;
 					hysteresis = <0x7d0>;
 					type = "passive";
-					phandle = <0x95>;
+					phandle = <0x9a>;
 				};
 
 				pm8994-crit {
 					temperature = <0x1e848>;
 					hysteresis = <0x7d0>;
 					type = "critical";
-					phandle = <0x96>;
+					phandle = <0x9b>;
 				};
 			};
 		};
@@ -1579,16 +1613,19 @@
 		CPU5 = "/cpus/cpu@101";
 		tcsr_mutex = "/hwlock";
 		dfps_data_mem = "/reserved-memory/dfps_data_mem@3400000";
-		cont_splash_mem = "/reserved-memory/memory@3800000";
+		cont_splash_mem = "/reserved-memory/memory@3401000";
 		smem_mem = "/reserved-memory/smem_region@6a00000";
-		mpss_mem = "/reserved-memory/memory@7000000";
-		peripheral_region = "/reserved-memory/memory@ca00000";
-		rmtfs_mem = "/reserved-memory/memory@c6400000";
 		mba_mem = "/reserved-memory/memory@c6700000";
-		audio_mem = "/reserved-memory/memory@c7000000";
-		adsp_mem = "/reserved-memory/memory@c9400000";
-		modem_region = "/reserved-memory/modem_region@9000000";
-		tzapp = "/reserved-memory/modem_region@ea00000";
+		memory_hole = "/reserved-memory/hole@6400000";
+		memory_hole2 = "/reserved-memory/hole2@6c00000";
+		mpss_mem = "/reserved-memory/mpss@9000000";
+		tzapp = "/reserved-memory/tzapp@ea00000";
+		mdm_rfsa_mem = "/reserved-memory/mdm-rfsa@ca0b0000";
+		rmtfs_mem = "/reserved-memory/rmtfs@ca100000";
+		audio_mem = "/reserved-memory/audio@cb400000";
+		qseecom_mem = "/reserved-memory/qseecom@cb400000";
+		adsp_rfsa_mem = "/reserved-memory/adsp-rfsa@cd000000";
+		sensor_rfsa_mem = "/reserved-memory/sensor-rfsa@cd010000";
 		rpm_requests = "/smd/rpm/rpm-requests";
 		rpmcc = "/smd/rpm/rpm-requests/rpmcc";
 		rpmpd = "/smd/rpm/rpm-requests/power-controller";
@@ -1663,17 +1700,19 @@
 		blsp2_i2c5 = "/soc/i2c@f9967000";
 		gcc = "/soc/clock-controller@fc400000";
 		rpm_msg_ram = "/soc/sram@fc428000";
-		spmi_bus = "/soc/spmi@fc4c0000";
-		pm8994_pon = "/soc/spmi@fc4c0000/pmic@0/pon@800";
-		pm8994_resin = "/soc/spmi@fc4c0000/pmic@0/pon@800/resin";
-		pm8994_temp = "/soc/spmi@fc4c0000/pmic@0/temp-alarm@2400";
-		pm8994_vadc = "/soc/spmi@fc4c0000/pmic@0/adc@3100";
-		pm8994_gpios = "/soc/spmi@fc4c0000/pmic@0/gpios@c000";
-		pm8994_mpps = "/soc/spmi@fc4c0000/pmic@0/mpps@a000";
-		pm8994_spmi_regulators = "/soc/spmi@fc4c0000/pmic@1/regulators";
-		pmi8994_gpios = "/soc/spmi@fc4c0000/pmic@2/gpios@c000";
-		pmi8994_spmi_regulators = "/soc/spmi@fc4c0000/pmic@3/regulators";
-		pmi8994_wled = "/soc/spmi@fc4c0000/pmic@3/wled@d800";
+		spmi_bus = "/soc/spmi@fc4cf000";
+		pm8994_pon = "/soc/spmi@fc4cf000/pmic@0/pon@800";
+		pm8994_resin = "/soc/spmi@fc4cf000/pmic@0/pon@800/resin";
+		pm8994_temp = "/soc/spmi@fc4cf000/pmic@0/temp-alarm@2400";
+		pm8994_vadc = "/soc/spmi@fc4cf000/pmic@0/adc@3100";
+		pm8994_gpios = "/soc/spmi@fc4cf000/pmic@0/gpios@c000";
+		pm8994_mpps = "/soc/spmi@fc4cf000/pmic@0/mpps@a000";
+		pm8994_spmi_regulators = "/soc/spmi@fc4cf000/pmic@1/regulators";
+		VDD_APC0 = "/soc/spmi@fc4cf000/pmic@1/regulators/s8";
+		VDD_APC1 = "/soc/spmi@fc4cf000/pmic@1/regulators/s11";
+		pmi8994_gpios = "/soc/spmi@fc4cf000/pmic@2/gpios@c000";
+		pmi8994_spmi_regulators = "/soc/spmi@fc4cf000/pmic@3/regulators";
+		pmi8994_wled = "/soc/spmi@fc4cf000/pmic@3/wled@d800";
 		tcsr_mutex_regs = "/soc/syscon@fd484000";
 		tlmm = "/soc/pinctrl@fd510000";
 		blsp1_uart2_default = "/soc/pinctrl@fd510000/blsp1-uart2-default";

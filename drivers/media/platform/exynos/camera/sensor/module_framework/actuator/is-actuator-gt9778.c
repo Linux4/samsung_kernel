@@ -22,6 +22,10 @@
 #include "is-core.h"
 #include "is-helper-ixc.h"
 
+#ifdef CONFIG_CAMERA_VENDER_MCD_V2
+#include "is-sec-define.h"
+#endif
+
 #include "../../../interface/is-interface-library.h"
 
 #define ACTUATOR_NAME		"GT9778"
@@ -225,7 +229,12 @@ int sensor_gt9778_actuator_init(struct v4l2_subdev *subdev, u32 val)
 	struct is_actuator *actuator;
 	struct is_caldata_sac_gt9778 *cal_data = NULL;
 	struct i2c_client *client = NULL;
+
+#ifdef CONFIG_CAMERA_VENDER_MCD_V2
+	char *rom_cal_buf = NULL;
+#else
 	struct is_minfo *minfo = is_get_is_minfo();
+#endif
 	//struct is_lib_support *lib = is_get_lib_support(); /*TODO Fix build error */
 	
 	long cal_addr;
@@ -258,7 +267,15 @@ int sensor_gt9778_actuator_init(struct v4l2_subdev *subdev, u32 val)
 	}
 
 	/* EEPROM AF calData address */
+#ifdef CONFIG_CAMERA_VENDER_MCD_V2
+	ret = is_sec_get_cal_buf(&rom_cal_buf, SENSOR_POSITION_REAR);
+	if (ret < 0)
+		goto p_err;
+
+	cal_addr = ((long) rom_cal_buf) + GT9778_CAL_SAC_ADDR;
+#else
 	cal_addr = minfo->kvaddr_cal[SENSOR_POSITION_REAR] + GT9778_CAL_SAC_ADDR;
+#endif
 	cal_data = (struct is_caldata_sac_gt9778 *)(cal_addr);
 
 	/* Read into EEPROM data or default setting */

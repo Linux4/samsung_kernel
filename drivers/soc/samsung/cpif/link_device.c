@@ -311,6 +311,7 @@ static void link_trigger_cp_crash(struct mem_link_device *mld, u32 crash_type,
 	iowrite32(0, mld->legacy_link_dev.mem_access);
 
 	mif_stop_logging();
+	mif_stop_ap_ppmu_logging();
 
 	memset(ld->crash_reason.string, 0, CP_CRASH_INFO_SIZE);
 
@@ -782,6 +783,7 @@ static void cmd_crash_exit_handler(struct mem_link_device *mld)
 	unsigned long flags;
 
 	mif_stop_logging();
+	mif_stop_ap_ppmu_logging();
 
 	spin_lock_irqsave(&mld->state_lock, flags);
 	mld->state = LINK_STATE_CP_CRASH;
@@ -1886,48 +1888,6 @@ static int legacy_ipc_rx_func(struct mem_link_device *mld, struct legacy_ipc_dev
 	return rcvd;
 }
 
-#if IS_ENABLED(CONFIG_MCU_IPC)
-static ktime_t rx_int_enable_time;
-static ktime_t rx_int_disable_time;
-#endif
-
-static int shmem_enable_rx_int(struct link_device *ld)
-{
-#if IS_ENABLED(CONFIG_MCU_IPC)
-	struct mem_link_device *mld = to_mem_link_device(ld);
-
-	if (ld->interrupt_types == INTERRUPT_MAILBOX) {
-		mld->rx_int_enable = 1;
-		if (rx_int_disable_time) {
-			rx_int_enable_time = ktime_get();
-			mld->rx_int_disabled_time += ktime_to_us(ktime_sub(rx_int_enable_time,
-						rx_int_disable_time));
-			rx_int_enable_time = 0;
-			rx_int_disable_time = 0;
-		}
-		return cp_mbox_enable_handler(CP_MBOX_IRQ_IDX_0, mld->irq_cp2ap_msg);
-	}
-#endif
-
-	return 0;
-}
-
-static int shmem_disable_rx_int(struct link_device *ld)
-{
-#if IS_ENABLED(CONFIG_MCU_IPC)
-	struct mem_link_device *mld = to_mem_link_device(ld);
-
-	if (ld->interrupt_types == INTERRUPT_MAILBOX) {
-		mld->rx_int_enable = 0;
-		rx_int_disable_time = ktime_get();
-
-		return cp_mbox_disable_handler(CP_MBOX_IRQ_IDX_0, mld->irq_cp2ap_msg);
-	}
-#endif
-
-	return 0;
-}
-
 static int bootdump_rx_func(struct mem_link_device *mld)
 {
 	int ret = 0;
@@ -2421,44 +2381,33 @@ static int mld_rx_int_poll(struct napi_struct *napi, int budget)
 	struct sbd_link_device *sl = &mld->sbd_link_dev;
 	int total_ps_rcvd = 0;
 	int ps_rcvd = 0;
-	int ret = 1;
+	int ret = 0;
 	int total_budget = budget;
 	u32 qlen = 0;
 
-#if IS_ENABLED(CONFIG_MCU_IPC)
-	if (ld->interrupt_types == INTERRUPT_MAILBOX)
-		ret = cp_mbox_check_handler(CP_MBOX_IRQ_IDX_0, mld->irq_cp2ap_msg);
-#endif
-	if (IS_ERR_VALUE((unsigned long)ret)) {
-		mif_err_limited("mbox check irq fails: err: %d\n", ret);
+	mld->rx_poll_count++;
+
+	if (shmem_enqueue_snapshot(mld))
+		goto dummy_poll_complete;
+
+	qlen = mld->msb_rxq.qlen;
+
+	if (unlikely(!cp_online(mc))) { /* for boot and dump sequences */
+		queue_delayed_work(ld->rx_wq, &mld->bootdump_rx_dwork, 0);
 		goto dummy_poll_complete;
 	}
 
-	mld->rx_poll_count++;
+	while (qlen-- > 0) {
+		struct mst_buff *msb;
+		u16 intr;
 
-	if (ret) { /* if an irq is raised, take care of commands */
-		if (shmem_enqueue_snapshot(mld))
-			goto dummy_poll_complete;
-
-		qlen = mld->msb_rxq.qlen;
-
-		if (unlikely(!cp_online(mc))) { /* for boot and dump sequences */
-			queue_delayed_work(ld->rx_wq, &mld->bootdump_rx_dwork, 0);
-			goto dummy_poll_complete;
-		}
-
-		while (qlen-- > 0) {
-			struct mst_buff *msb;
-			u16 intr;
-
-			msb = msb_dequeue(&mld->msb_rxq);
-			if (!msb)
-				break;
-			intr = msb->snapshot.int2ap;
-			if (cmd_valid(intr))
-				mld->cmd_handler(mld, int2cmd(intr));
-			msb_free(msb);
-		}
+		msb = msb_dequeue(&mld->msb_rxq);
+		if (!msb)
+			break;
+		intr = msb->snapshot.int2ap;
+		if (cmd_valid(intr))
+			mld->cmd_handler(mld, int2cmd(intr));
+		msb_free(msb);
 	}
 
 	if (sbd_active(&mld->sbd_link_dev)) {
@@ -2513,7 +2462,6 @@ static int mld_rx_int_poll(struct napi_struct *napi, int budget)
 
 	if (total_ps_rcvd < total_budget) {
 		napi_complete_done(napi, total_ps_rcvd);
-		ld->enable_rx_int(ld);
 		return total_ps_rcvd;
 	}
 
@@ -2522,7 +2470,6 @@ keep_poll:
 
 dummy_poll_complete:
 	napi_complete(napi);
-	ld->enable_rx_int(ld);
 
 	return 0;
 }
@@ -2918,12 +2865,8 @@ irqreturn_t shmem_irq_handler(int irq, void *data)
 	/* journal last irq time */
 	mld->irq_jiffies = jiffies;
 	mld->rx_int_count++;
-	if (napi_schedule_prep(&mld->mld_napi)) {
-		struct link_device *ld = &mld->link_dev;
-
-		ld->disable_rx_int(ld);
+	if (napi_schedule_prep(&mld->mld_napi))
 		__napi_schedule(&mld->mld_napi);
-	}
 
 	return IRQ_HANDLED;
 }
@@ -3682,6 +3625,7 @@ static enum hrtimer_restart sbd_print(struct hrtimer *timer)
 	struct io_device *iod;
 	char buf[BUFF_SIZE] = { 0, };
 	int len = 0;
+	unsigned long flags;
 
 #if IS_ENABLED(CONFIG_CP_PKTPROC)
 	pktproc_print(mld);
@@ -3705,14 +3649,14 @@ static enum hrtimer_restart sbd_print(struct hrtimer *timer)
 				c_rwpointer[2] >> 16, c_rwpointer[3] >> 16);
 			memcpy(p_rwpointer, c_rwpointer, sizeof(u32)*4);
 
-			spin_lock(&rb[TX]->iod->msd->active_list_lock);
+			spin_lock_irqsave(&rb[TX]->iod->msd->active_list_lock, flags);
 			list_for_each_entry(iod, &rb[TX]->iod->msd->activated_ndev_list,
 					    node_ndev) {
 				len += snprintf(buf + len, BUFF_SIZE - len, "%s: %lu/%lu ",
 						iod->name, iod->ndev->stats.tx_packets,
 						iod->ndev->stats.rx_packets);
 			}
-			spin_unlock(&rb[TX]->iod->msd->active_list_lock);
+			spin_unlock_irqrestore(&rb[TX]->iod->msd->active_list_lock, flags);
 
 			mif_err("%s\n", buf);
 		}
@@ -3878,9 +3822,6 @@ static int set_ld_attr(struct platform_device *pdev,
 	if (err)
 		goto error;
 
-	ld->enable_rx_int = shmem_enable_rx_int;
-	ld->disable_rx_int = shmem_disable_rx_int;
-
 	ld->start_timers = shmem_start_timers;
 	ld->stop_timers = shmem_stop_timers;
 
@@ -3937,11 +3878,9 @@ static int init_shmem_maps(u32 link_type, struct modem_data *modem,
 		 * Initialize SHMEM maps for VSS (physical map -> logical map)
 		 */
 		mld->vss_base = cp_shmem_get_region(cp_num, SHMEM_VSS);
-		if (!mld->vss_base) {
+		if (!mld->vss_base)
 			mif_err("Failed to vmap vss_region\n");
-			err = -ENOMEM;
-			goto error;
-		}
+
 		mif_info("vss_base=%pK\n", mld->vss_base);
 
 		/*

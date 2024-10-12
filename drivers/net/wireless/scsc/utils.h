@@ -59,6 +59,8 @@ static inline struct slsi_skb_cb *slsi_skb_cb_init(struct sk_buff *skb)
 #define fapi_get_u16(mp_skb, mp_name) le16_to_cpu(((struct fapi_signal *)(mp_skb)->data)->mp_name)
 #define fapi_get_u32(mp_skb, mp_name) le32_to_cpu(((struct fapi_signal *)(mp_skb)->data)->mp_name)
 #define fapi_get_u64(mp_skb, mp_name) le64_to_cpu(((struct fapi_signal *)(mp_skb)->data)->mp_name)
+#define fapi_set_u8(mp_skb, mp_name, mp_value) \
+	(((struct fapi_signal *)(mp_skb)->data)->mp_name = mp_value & 0xffu)
 #define fapi_set_u16(mp_skb, mp_name, mp_value) (((struct fapi_signal *)(mp_skb)->data)->mp_name = cpu_to_le16(mp_value))
 #define fapi_set_u32(mp_skb, mp_name, mp_value) (((struct fapi_signal *)(mp_skb)->data)->mp_name = cpu_to_le32(mp_value))
 #define fapi_get_s16(mp_skb, mp_name) ((s16)le16_to_cpu(((struct fapi_signal *)(mp_skb)->data)->mp_name))
@@ -82,6 +84,17 @@ static inline struct slsi_skb_cb *slsi_skb_cb_init(struct sk_buff *skb)
 /* Helper to get the struct ieee80211_mgmt from the data */
 #define fapi_get_mgmt(mp_skb) ((struct ieee80211_mgmt *)fapi_get_data(mp_skb))
 #define fapi_get_mgmtlen(mp_skb) fapi_get_datalen(mp_skb)
+
+#define SLSI_BYTE_TO_BINARY_PATTERN "%c%c%c%c%c%c%c%c"
+#define SLSI_BYTE_TO_BINARY(byte)  \
+  (byte & 0x01 ? '1' : '0'), \
+  (byte & 0x02 ? '1' : '0'), \
+  (byte & 0x04 ? '1' : '0'), \
+  (byte & 0x08 ? '1' : '0'), \
+  (byte & 0x10 ? '1' : '0'), \
+  (byte & 0x20 ? '1' : '0'), \
+  (byte & 0x40 ? '1' : '0'), \
+  (byte & 0x80 ? '1' : '0')
 
 static inline struct sk_buff *fapi_alloc_f(size_t sig_size, size_t data_size, u16 id, u16 vif, const char *file, int line)
 {
