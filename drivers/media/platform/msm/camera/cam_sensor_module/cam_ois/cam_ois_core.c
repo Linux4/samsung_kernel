@@ -155,12 +155,12 @@ int32_t cam_ois_construct_default_power_setting(
 	power_info->power_setting[2].seq_val = CAM_V_CUSTOM2;
 	power_info->power_setting[2].config_val = 1;
 	power_info->power_setting[2].delay = 1;
-	
+
 	power_info->power_setting[3].seq_type = SENSOR_CUSTOM_REG3;
 	power_info->power_setting[3].seq_val = CAM_V_CUSTOM3;
 	power_info->power_setting[3].config_val = 1;
 	power_info->power_setting[3].delay = 1;
-	
+
 	power_info->power_setting[4].seq_type = SENSOR_MCLK;
 	power_info->power_setting[4].seq_val = 0;
 	power_info->power_setting[4].config_val = 19200000;
@@ -197,11 +197,11 @@ int32_t cam_ois_construct_default_power_setting(
 	power_info->power_down_setting[4].seq_val = CAM_V_CUSTOM1;
 	power_info->power_down_setting[4].config_val = 0;
 	power_info->power_down_setting[4].delay = 1;
-	
+
 	power_info->power_down_setting[5].seq_type = SENSOR_VIO;
 	power_info->power_down_setting[5].seq_val = CAM_VIO;
 	power_info->power_down_setting[5].config_val = 0;
-	
+
 #endif
 
 	return rc;
@@ -435,6 +435,14 @@ int cam_ois_power_down(struct cam_ois_ctrl_t *o_ctrl)
 #if defined(CONFIG_SAMSUNG_OIS_MCU_STM32) || defined(CONFIG_SAMSUNG_OIS_RUMBA_S4)
 	if (!o_ctrl->is_power_up)
 		return 0;
+
+	rc = cam_ois_i2c_write(o_ctrl, 0x0000, 0x00, CAMERA_SENSOR_I2C_TYPE_WORD, CAMERA_SENSOR_I2C_TYPE_BYTE); //servo off
+	CAM_DBG(CAM_OIS, "SERVO OFF: Command");
+	if (rc < 0)
+		CAM_ERR(CAM_OIS, "SERVO OFF: I2C write fail");
+
+	msleep(10);
+
 	o_ctrl->is_power_up = false;
 	o_ctrl->is_servo_on = false;
 	o_ctrl->is_config = false;

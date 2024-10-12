@@ -823,6 +823,7 @@ endif
 
 ifdef CONFIG_RKP_CFP
 CFP_CC		?= $(srctree)/toolchain/llvm-arm-toolchain-ship/10.0/bin/clang
+CC		= $(srctree)/scripts/gcc-wrapper.py $(CFP_CC)
 endif
 
 ifdef CONFIG_RKP_CFP_JOPP
