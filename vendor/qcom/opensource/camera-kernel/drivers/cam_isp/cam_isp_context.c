@@ -4263,8 +4263,6 @@ static int __cam_isp_ctx_handle_secondary_events(
 			"Sensor sync [vc mismatch] frame dropped ctx: %u on link: 0x%x last_applied_req: %llu last_recovered_req: %llu out_of_sync_cnt: %u, kicking in internal recovery....",
 			ctx->ctx_id, ctx->link_hdl, ctx_isp->last_applied_req_id,
 			ctx_isp->recovery_req_id, ctx_isp->out_of_sync_cnt);;
-
-		__cam_isp_ctx_print_event_record(ctx_isp);
 		break;
 	default:
 		break;

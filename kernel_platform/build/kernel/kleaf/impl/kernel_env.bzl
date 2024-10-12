@@ -200,6 +200,21 @@ def _kernel_env_impl(ctx):
            if [[ "$(realpath ${{ROOT_DIR}}/${{KERNEL_DIR}})" != "${{ROOT_DIR}}/${{KERNEL_DIR}}" ]]; then
              export KCPPFLAGS="$KCPPFLAGS -ffile-prefix-map=$(realpath ${{ROOT_DIR}}/${{KERNEL_DIR}})/="
            fi
+
+         # HACK: For android13-5.10, the kernel image uses the realpath to stdarg.h
+         # under prebuilts. For sandbox builds, this means the real workspace root appears in the
+         # final artifact, affecting reproducibility and emitting absolute paths to ABI dump XML file.
+         # Determine the real workspace root by using ${{ROOT_DIR}}/${{KERNEL_DIR}}/Makefile as an
+         # anchor. If Makefile does not exist, we are not executing Kbuild, so it is fine that
+         # KCPPFLAGS are not set properly.
+         # See b/287304304 for details.
+           if [[ -L ${{ROOT_DIR}}/${{KERNEL_DIR}}/Makefile ]]; then
+             real_makefile=$(realpath ${{ROOT_DIR}}/${{KERNEL_DIR}}/Makefile)
+             real_kernel_dir=${{real_makefile%/Makefile}}
+             real_root_dir=${{real_kernel_dir%/${{KERNEL_DIR}}}}
+             export KCPPFLAGS="$KCPPFLAGS -ffile-prefix-map=${{real_kernel_dir}}/= -ffile-prefix-map=${{real_root_dir}}/="
+             unset real_makefile real_kernel_dir real_root_dir
+           fi
            """.format(
         hermetic_tools_additional_setup = ctx.attr._hermetic_tools[HermeticToolsInfo].additional_setup,
         env = out_file.path,

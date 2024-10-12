@@ -626,18 +626,19 @@ void make_suspend_current_event(void)
 
 	pr_info("[USB] %s\n", __func__);
 
-	if (!g_ss_monitor) {
+	if (!g_ss_monitor | !g_ss_monitor->ss_monitor) {
 		pr_info("[USB] %s, g_ss_monitor is NULL\n", __func__);
 		return;
 	}
 
-	if (g_ss_monitor->ss_monitor && g_ss_monitor->ss_monitor->is_bind) {
-		f = g_ss_monitor->ss_monitor->function;
-		if (f.config->cdev && f.config->cdev->suspended) {
-			pr_info("[USB] %s, cdev->suspended!\n", __func__);
+	f = g_ss_monitor->ss_monitor->function;
+	if (f.config->cdev && f.config->cdev->suspended) {
+		pr_info("[USB] %s, cdev->suspended!\n", __func__);
+		if (g_ss_monitor->ss_monitor && g_ss_monitor->ss_monitor->is_bind) {
 			g_ss_monitor->ss_monitor->vbus_current = USB_CURRENT_SUSPENDED;
 			schedule_work(&g_ss_monitor->ss_monitor->set_vbus_current_work);
-		}
+		} else
+			pr_info("[USB] %s, skip set_vbus_current_work\n", __func__);
 	}
 }
 EXPORT_SYMBOL(make_suspend_current_event);

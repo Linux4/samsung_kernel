@@ -2781,6 +2781,14 @@ static int adev_open(const hw_module_t *module, const char *name __unused,
         AHAL_ERR("error, GetInstance failed");
     }
 
+#ifdef SEC_AUDIO_BOOT_ON_ERR
+    if (property_get_bool("vendor.audio.use.primary.default", false)) {
+        AHAL_ERR("fail to open audio device, sndcard is not active");
+        ret = -EINVAL;
+        goto exit;
+    }
+#endif
+
     adevice->adev_init_mutex.lock();
     if (adevice->adev_init_ref_count != 0) {
         *device = adevice->GetAudioDeviceCommon();

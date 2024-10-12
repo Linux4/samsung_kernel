@@ -363,25 +363,18 @@
 				<GIC_SPI 79 IRQ_TYPE_LEVEL_HIGH>,
 				<GIC_SPI 640 IRQ_TYPE_LEVEL_HIGH>;
 
-		interconnects = <&pcie_anoc MASTER_PCIE_0 &mc_virt SLAVE_EBI1>;
+		interconnects = <&pcie_anoc MASTER_PCIE_0 &mc_virt SLAVE_EBI1>,
+			<&pcie_anoc MASTER_PCIE_1 &mc_virt SLAVE_EBI1>;
 
 		pcie_0_tbu: pcie_0_tbu@152f9000 {
 			compatible = "qcom,qsmmuv500-tbu";
 			reg = <0x152F9000 0x1000>,
 				<0x152F2200 0x8>;
 			reg-names = "base", "status-reg";
-			qcom,stream-id-range = <0x0 0x400>;
+			qcom,stream-id-range = <0x0 0x440>;
 			qcom,iova-width = <36>;
 		};
 
-		pcie_1_tbu: pcie_1_tbu@152fb000 {
-			compatible = "qcom,qsmmuv500-tbu";
-			reg = <0x152FB000 0x1000>,
-				<0x152F3200 0x8>;
-			reg-names = "base", "status-reg";
-			qcom,stream-id-range = <0x400 0x400>;
-			qcom,iova-width = <36>;
-		};
 	};
 
 	kgsl_smmu: kgsl-smmu@3da0000 {
@@ -492,30 +485,30 @@
 
 		usecase3_apps_dma {
 			compatible = "qcom,iommu-debug-usecase";
-			iommus = <&apps_smmu 0x581 0>;
+			iommus = <&apps_smmu 0x580 0>;
 			dma-coherent;
 		};
 
 		usecase0_pcie {
 			compatible = "qcom,iommu-debug-usecase";
-			iommus = <&pcie_smmu 0x440 0x0>;
+			iommus = <&pcie_smmu 0x40 0x0>;
 		};
 
 		usecase1_pcie_fastmap {
 			compatible = "qcom,iommu-debug-usecase";
-			iommus = <&pcie_smmu 0x440 0x0>;
+			iommus = <&pcie_smmu 0x40 0x0>;
 			qcom,iommu-dma = "fastmap";
 		};
 
 		usecase2_pcie_atomic {
 			compatible = "qcom,iommu-debug-usecase";
-			iommus = <&pcie_smmu 0x440 0x0>;
+			iommus = <&pcie_smmu 0x40 0x0>;
 			qcom,iommu-dma = "atomic";
 		};
 
 		usecase3_pcie_dma {
 			compatible = "qcom,iommu-debug-usecase";
-			iommus = <&pcie_smmu 0x440 0x0>;
+			iommus = <&pcie_smmu 0x40 0x0>;
 			dma-coherent;
 		};
 

@@ -30,6 +30,8 @@ Required properties:
 			 present on kona chipsets.
 			"qcom,ufs-phy-qmp-v4-crow" for ufs phy
                          present on crow chipsets.
+			"qcom,ufs-phy-qmp-v3-660" for ufs phy
+			 present on trinket chipsets.
 - reg               : should contain PHY register address space (mandatory),
 - reg-names         : indicates various resources passed to driver (via reg proptery) by name.
                       Required "reg-names" is "phy_mem".

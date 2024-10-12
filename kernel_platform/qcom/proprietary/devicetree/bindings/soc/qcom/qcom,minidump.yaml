@@ -14,12 +14,19 @@ properties:
     enum:
       - qcom,minidump
       - qcom,minidump-rm
+      - qcom,virt-minidump
 
 required:
   - compatible
+  - reg          MMIO minidump must contain register address and length
 
 examples:
   - |
     qcom,minidump {
         compatible = "qcom,minidump";
+    };
+
+    virt_minidump@1cb00000 {
+        compatible = "qcom,virt-minidump";
+        reg = <0x1cb00000 0x1000>;
     };

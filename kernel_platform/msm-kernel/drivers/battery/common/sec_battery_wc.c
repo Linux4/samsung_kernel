@@ -420,7 +420,7 @@ int sec_bat_choose_cable_type(struct sec_battery_info *battery)
 					psy_do_property(battery->pdata->wireless_charger_name, set,
 						POWER_SUPPLY_EXT_PROP_INPUT_VOLTAGE_REGULATION, value);
 				}
-				if (is_wireless_fake_type(prev_ct)) {
+				if (is_wireless_all_type(prev_ct)) {
 					msleep(200);
 					sec_vote(battery->fcc_vote, VOTER_WL_TO_W, true, 300);
 					msleep(200);
@@ -466,6 +466,10 @@ void sec_bat_get_wireless_current(struct sec_battery_info *battery)
 			psy_do_property(battery->pdata->wireless_charger_name, set,
 					POWER_SUPPLY_EXT_PROP_WIRELESS_RX_CONTROL, value);
 		}
+	} else if (is_nv_wireless_type(battery->cable_type) && battery->sleep_mode) {
+		value.intval = WIRELESS_PAD_LED_DIMMING;
+		psy_do_property(battery->pdata->wireless_charger_name, set,
+				POWER_SUPPLY_EXT_PROP_WIRELESS_RX_CONTROL, value);
 	}
 
 	/* WPC_TEMP_MODE */
