@@ -24,8 +24,9 @@ struct qc_logger {
 	struct qc_logger_drvdata *drvdata;
 };
 
-extern int __qc_logger_sub_module_probe(struct qc_logger *logger, struct dev_builder *builder, ssize_t n);
-extern void __qc_logger_sub_module_remove(struct qc_logger *logger, struct dev_builder *builder, ssize_t n);
+extern u64 notrace __qc_logger_cpu_clock(int cpu);
+extern int __qc_logger_sub_module_probe(struct qc_logger *logger, const struct dev_builder *builder, ssize_t n);
+extern void __qc_logger_sub_module_remove(struct qc_logger *logger, const struct dev_builder *builder, ssize_t n);
 
 extern struct qc_logger __qc_logger_sched_log;
 extern struct qc_logger __qc_logger_irq_log;

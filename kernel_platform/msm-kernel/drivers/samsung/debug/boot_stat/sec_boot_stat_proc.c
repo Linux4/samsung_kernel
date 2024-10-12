@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0
 /*
- * COPYRIGHT(C) 2014-2021 Samsung Electronics Co., Ltd. All Right Reserved.
+ * COPYRIGHT(C) 2014-2022 Samsung Electronics Co., Ltd. All Right Reserved.
  */
 
 #define pr_fmt(fmt)     KBUILD_MODNAME ":%s() " fmt, __func__
@@ -33,7 +33,7 @@ struct boot_prefix {
 		.head = __head, \
 	}
 
-static struct boot_prefix boot_prefixes[] = {
+static struct boot_prefix boot_prefixes[] __ro_after_init = {
 	BOOT_PREFIX(EVT_PLATFORM, "!@Boot: "),
 	BOOT_PREFIX(EVT_RIL, "!@Boot_SVC : "),
 	BOOT_PREFIX(EVT_DEBUG, "!@Boot_DEBUG: "),

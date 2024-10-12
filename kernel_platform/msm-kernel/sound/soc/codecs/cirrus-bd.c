@@ -108,6 +108,31 @@ void cirrus_bd_store_values(const char *mfd_suffix)
 }
 EXPORT_SYMBOL_GPL(cirrus_bd_store_values);
 
+
+void cirrus_bd_amp_err(const char *mfd_suffix)
+{
+	struct cirrus_amp *amp = cirrus_get_amp_from_suffix(mfd_suffix);
+
+	if (!amp)
+		return;
+
+	if (amp->error_callback)
+		amp->error_callback(mfd_suffix);
+}
+EXPORT_SYMBOL_GPL(cirrus_bd_amp_err);
+
+void cirrus_bd_bst_short(const char *mfd_suffix)
+{
+	struct cirrus_amp *amp = cirrus_get_amp_from_suffix(mfd_suffix);
+
+	if (!amp)
+		return;
+
+	if (amp->error_callback)
+		amp->error_callback(mfd_suffix);
+}
+EXPORT_SYMBOL_GPL(cirrus_bd_bst_short);
+
 /***** SYSFS Interfaces *****/
 
 static ssize_t cirrus_bd_version_show(struct device *dev,

@@ -115,6 +115,12 @@ config SUPPORT_PROX_CALIBRATION
 	  request prox cal to adsp_factory.
 	  receive cal value from adsp_factory.
 
+config SUPPORT_CONTROL_PROX_LED_GPIO
+	bool "control prox led gpio for SSC"
+	depends on ADSP_FACTORY
+	help
+	  Support to control prox led gpio.
+
 config SUPPORT_PROX_POWER_ON_CAL
 	bool "Sensors support proximity sensor power on cal"
     depends on ADSP_FACTORY
@@ -266,3 +272,15 @@ config FLIP_COVER_DETECTOR_NOTIFIER
 	default y
 	help
 	  Support notifier for flip cover attach/detach events
+
+config SSC_WAKEUP_DEBUG
+	bool "debug to ap wakeup due to SSC"
+	depends on SENSORS_SSC
+	help
+	  debug to ap wakeup due to SSC event frequently
+
+config SLPI_LOADING_FAILURE_DEBUG
+	bool "debug to slpi loading fail"
+	depends on SENSORS_SSC
+	help
+	  debug to to slpi loading fail

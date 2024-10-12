@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2019-2020 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -70,6 +71,17 @@ QDF_STATUS
 target_if_vdev_mgr_register_tx_ops(struct wlan_lmac_if_tx_ops *tx_ops);
 
 /**
+ * target_if_vdev_mgr_send_fd_tmpl() - sends fils discovery template
+ * to wmi layer.
+ * @vdev: pointer to wlan objmgr vdev.
+ * @param: pointer to fils discovery template parameter
+ *
+ * Return: QDF_STATUS_SUCCESS on success, QDF_STATUS_E_** on error
+ */
+QDF_STATUS target_if_vdev_mgr_send_fd_tmpl(struct wlan_objmgr_vdev *vdev,
+					   struct fils_discovery_tmpl_params *param);
+
+/**
  * target_if_vdev_mgr_assert_mgmt() - vdev assert mgmt api
  * @PSOC: pointer to objmgr psoc
  * @vdev_id: vdev id
@@ -106,4 +118,17 @@ QDF_STATUS target_if_vdev_mgr_rsp_timer_stop(
 				struct vdev_response_timer *vdev_rsp,
 				enum wlan_vdev_mgr_tgt_if_rsp_bit clear_bit);
 
+/**
+ * target_if_vdev_mgr_rsp_timer_start() - API to start response timer for
+ * vdev manager operations
+ * @psoc: pointer to psoc object
+ * @vdev_rsp: vdev response timer
+ * @set_bit: enum of wlan_vdev_mgr_tgt_if_rsp_bit
+ *
+ * Return: QDF_STATUS_SUCCESS on success, QDF_STATUS_E_** on error
+ */
+QDF_STATUS
+target_if_vdev_mgr_rsp_timer_start(struct wlan_objmgr_psoc *psoc,
+				   struct vdev_response_timer *vdev_rsp,
+				   enum wlan_vdev_mgr_tgt_if_rsp_bit set_bit);
 #endif /* __TARGET_IF_VDEV_MGR_TX_OPS_H__ */

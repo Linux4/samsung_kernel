@@ -42,8 +42,12 @@
 
 #include "cma.h"
 
+extern void lru_cache_disable(void);
+extern void lru_cache_enable(void);
+
 struct cma cma_areas[MAX_CMA_AREAS];
 unsigned cma_area_count;
+static DEFINE_MUTEX(cma_mutex);
 
 phys_addr_t cma_get_base(const struct cma *cma)
 {
@@ -466,6 +470,7 @@ struct page *cma_alloc(struct cma *cma, size_t count, unsigned int align,
 	if (bitmap_count > bitmap_maxno)
 		goto out;
 
+	lru_cache_disable();
 	for (;;) {
 		struct acr_info info = {0};
 
@@ -507,7 +512,9 @@ struct page *cma_alloc(struct cma *cma, size_t count, unsigned int align,
 		mutex_unlock(&cma->lock);
 
 		pfn = cma->base_pfn + (bitmap_no << cma->order_per_bit);
+		mutex_lock(&cma_mutex);
 		ret = alloc_contig_range(pfn, pfn + count, MIGRATE_CMA, gfp_mask, &info);
+		mutex_unlock(&cma_mutex);
 		cma_info.nr_migrated += info.nr_migrated;
 		cma_info.nr_reclaimed += info.nr_reclaimed;
 		cma_info.nr_mapped += info.nr_mapped;
@@ -545,6 +552,7 @@ struct page *cma_alloc(struct cma *cma, size_t count, unsigned int align,
 		}
 	}
 
+	lru_cache_enable();
 	trace_cma_alloc_finish(cma->name, pfn, page, count, align);
 	trace_cma_alloc_info(cma->name, page, count, align, &cma_info);
 

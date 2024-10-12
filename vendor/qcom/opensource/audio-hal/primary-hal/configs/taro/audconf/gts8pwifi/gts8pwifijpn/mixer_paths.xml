@@ -298,6 +298,9 @@
     <ctl name="TX_DEC6 Volume" value="84" />
     <ctl name="TX_DEC7 Volume" value="84" />
 
+    <ctl name="VA_DEC0 Volume" value="102" />
+    <ctl name="VA_DEC1 Volume" value="102" />
+
     <!-- Headphone class-H mode -->
     <ctl name="RX_HPH_PWR_MODE" value="ULP" />
 
@@ -1948,10 +1951,10 @@
     </path>
 
     <path name="amp-mute">
-        <ctl name="FL AMP Mute" value="Muted" />
-        <ctl name="FR AMP Mute" value="Muted" />
-        <ctl name="RL AMP Mute" value="Muted" />
-        <ctl name="RR AMP Mute" value="Muted" />
+        <ctl name="FL AMP Mute" value="1" />
+        <ctl name="FR AMP Mute" value="1" />
+        <ctl name="RL AMP Mute" value="1" />
+        <ctl name="RR AMP Mute" value="1" />
     </path>
 
     <!-- These are actual sound device specific mixer settings -->
@@ -3002,26 +3005,26 @@
     <!-- TX part -->
     <path name="voip-comm-handset-mic">
         <path name="multi-mic" />
-        <ctl name="TX_DEC0 Volume" value="94" />
-        <ctl name="TX_DEC1 Volume" value="94" />
-        <ctl name="TX_DEC2 Volume" value="94" />
+        <ctl name="TX_DEC0 Volume" value="84" />
+        <ctl name="TX_DEC1 Volume" value="84" />
+        <ctl name="TX_DEC2 Volume" value="84" />
     </path>
 
     <path name="voip-comm-speaker-mic">
         <path name="multi-mic" />
-        <ctl name="TX_DEC0 Volume" value="88" />
-        <ctl name="TX_DEC1 Volume" value="88" />
-        <ctl name="TX_DEC2 Volume" value="88" />
+        <ctl name="TX_DEC0 Volume" value="84" />
+        <ctl name="TX_DEC1 Volume" value="84" />
+        <ctl name="TX_DEC2 Volume" value="84" />
     </path>
 
     <path name="voip-comm-dex-speaker-mic">
         <path name="sub-mic" />
-        <ctl name="TX_DEC1 Volume" value="94" />
+        <ctl name="TX_DEC1 Volume" value="84" />
     </path>
 
     <path name="voip-comm-headphone-mic">
         <path name="main-mic" />
-        <ctl name="TX_DEC0 Volume" value="94" />
+        <ctl name="TX_DEC0 Volume" value="84" />
     </path>
 
     <path name="voip-comm-headset-mic">
@@ -3030,7 +3033,7 @@
 
     <path name="voip-comm-usb-headphone-mic">
         <path name="main-mic" />
-        <ctl name="TX_DEC0 Volume" value="94" />
+        <ctl name="TX_DEC0 Volume" value="84" />
     </path>
 
     <path name="voip-comm-usb-headset-mic">
@@ -3038,16 +3041,16 @@
 
     <path name="voip-comm-tv-speaker-mic">
         <path name="multi-mic" />
-        <ctl name="TX_DEC0 Volume" value="88" />
-        <ctl name="TX_DEC1 Volume" value="88" />
-        <ctl name="TX_DEC2 Volume" value="88" />
+        <ctl name="TX_DEC0 Volume" value="84" />
+        <ctl name="TX_DEC1 Volume" value="84" />
+        <ctl name="TX_DEC2 Volume" value="84" />
     </path>
 
     <path name="voip-gaming-speaker-mic">
         <path name="multi-mic" />
-        <ctl name="TX_DEC0 Volume" value="88" />
-        <ctl name="TX_DEC1 Volume" value="88" />
-        <ctl name="TX_DEC2 Volume" value="88" />
+        <ctl name="TX_DEC0 Volume" value="84" />
+        <ctl name="TX_DEC1 Volume" value="84" />
+        <ctl name="TX_DEC2 Volume" value="84" />
     </path>
     <!-- end of VoIP Scenario -->
 

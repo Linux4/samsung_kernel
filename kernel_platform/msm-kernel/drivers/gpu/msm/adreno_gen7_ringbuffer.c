@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include "adreno.h"
@@ -64,7 +65,7 @@ static int gen7_rb_context_switch(struct adreno_device *adreno_dev,
 		adreno_drawctxt_get_pagetable(drawctxt);
 	struct kgsl_device *device = KGSL_DEVICE(adreno_dev);
 	int count = 0;
-	u32 cmds[46];
+	u32 cmds[55];
 
 	/* Sync both threads */
 	cmds[count++] = cp_type7_packet(CP_THREAD_CONTROL, 1);
@@ -82,10 +83,28 @@ static int gen7_rb_context_switch(struct adreno_device *adreno_dev,
 	cmds[count++] = cp_type7_packet(CP_THREAD_CONTROL, 1);
 	cmds[count++] = CP_SYNC_THREADS | CP_SET_THREAD_BR;
 
-	if (adreno_drawctxt_get_pagetable(rb->drawctxt_active) != pagetable)
+	if (adreno_drawctxt_get_pagetable(rb->drawctxt_active) != pagetable) {
+
+		/* Clear performance counters during context switches */
+		if (!adreno_dev->perfcounter) {
+			cmds[count++] = cp_type4_packet(GEN7_RBBM_PERFCTR_SRAM_INIT_CMD, 1);
+			cmds[count++] = 0x1;
+		}
+
 		count += gen7_rb_pagetable_switch(adreno_dev, rb,
 			drawctxt, pagetable, &cmds[count]);
-	else {
+
+		/* Wait for performance counter clear to finish */
+		if (!adreno_dev->perfcounter) {
+			cmds[count++] = cp_type7_packet(CP_WAIT_REG_MEM, 6);
+			cmds[count++] = 0x3;
+			cmds[count++] = GEN7_RBBM_PERFCTR_SRAM_INIT_STATUS;
+			cmds[count++] = 0x0;
+			cmds[count++] = 0x1;
+			cmds[count++] = 0x1;
+			cmds[count++] = 0x0;
+		}
+	} else {
 		struct kgsl_iommu *iommu = KGSL_IOMMU(device);
 
 		u32 offset = GEN7_SMMU_BASE + (iommu->cb0_offset >> 2) + 0x0d;
@@ -218,7 +237,7 @@ int gen7_ringbuffer_init(struct adreno_device *adreno_dev)
 	return 0;
 }
 
-#define GEN7_SUBMIT_MAX 100
+#define GEN7_SUBMIT_MAX 104
 
 int gen7_ringbuffer_addcmds(struct adreno_device *adreno_dev,
 		struct adreno_ringbuffer *rb, struct adreno_context *drawctxt,
@@ -253,7 +272,7 @@ int gen7_ringbuffer_addcmds(struct adreno_device *adreno_dev,
 	cmds[index++] = cp_type7_packet(CP_NOP, 1);
 	cmds[index++] = drawctxt ? CMD_IDENTIFIER : CMD_INTERNAL_IDENTIFIER;
 
-	/* This is 21 dwords when drawctxt is not NULL */
+	/* This is 25 dwords when drawctxt is not NULL and perfcounter needs to be zapped*/
 	index += gen7_preemption_pre_ibsubmit(adreno_dev, rb, drawctxt,
 		&cmds[index]);
 
@@ -411,15 +430,30 @@ static u32 gen7_get_alwayson_counter(u32 *cmds, u64 gpuaddr)
 	return 4;
 }
 
+static u32 gen7_get_alwayson_context(u32 *cmds, u64 gpuaddr)
+{
+	cmds[0] = cp_type7_packet(CP_REG_TO_MEM, 3);
+	cmds[1] = GEN7_CP_ALWAYS_ON_CONTEXT_LO | (1 << 30) | (2 << 18);
+	cmds[2] = lower_32_bits(gpuaddr);
+	cmds[3] = upper_32_bits(gpuaddr);
+
+	return 4;
+}
+
 #define PROFILE_IB_DWORDS 4
 #define PROFILE_IB_SLOTS (PAGE_SIZE / (PROFILE_IB_DWORDS << 2))
 
 static u64 gen7_get_user_profiling_ib(struct adreno_ringbuffer *rb,
 		struct kgsl_drawobj_cmd *cmdobj, u32 target_offset, u32 *cmds)
 {
-	u32 offset = rb->profile_index * (PROFILE_IB_DWORDS << 2);
-	u32 *ib = rb->profile_desc->hostptr + offset;
-	u32 dwords = gen7_get_alwayson_counter(ib,
+	u32 offset, *ib, dwords;
+
+	if (IS_ERR(rb->profile_desc))
+		return 0;
+
+	offset = rb->profile_index * (PROFILE_IB_DWORDS << 2);
+	ib = rb->profile_desc->hostptr + offset;
+	dwords = gen7_get_alwayson_counter(ib,
 		cmdobj->profiling_buffer_gpuaddr + target_offset);
 
 	cmds[0] = cp_type7_packet(CP_INDIRECT_BUFFER_PFE, 3);
@@ -437,6 +471,7 @@ static int gen7_drawctxt_switch(struct adreno_device *adreno_dev,
 		struct adreno_context *drawctxt)
 {
 	struct kgsl_device *device = KGSL_DEVICE(adreno_dev);
+	int ret;
 
 	if (rb->drawctxt_active == drawctxt)
 		return 0;
@@ -447,9 +482,13 @@ static int gen7_drawctxt_switch(struct adreno_device *adreno_dev,
 	if (!_kgsl_context_get(&drawctxt->base))
 		return -ENOENT;
 
-	trace_adreno_drawctxt_switch(rb, drawctxt);
+	ret = gen7_rb_context_switch(adreno_dev, rb, drawctxt);
+	if (ret) {
+		kgsl_context_put(&drawctxt->base);
+		return ret;
+	}
 
-	gen7_rb_context_switch(adreno_dev, rb, drawctxt);
+	trace_adreno_drawctxt_switch(rb, drawctxt);
 
 	/* Release the current drawctxt as soon as the new one is switched */
 	adreno_put_drawctxt_on_timestamp(device, rb->drawctxt_active,
@@ -471,7 +510,13 @@ static int gen7_drawctxt_switch(struct adreno_device *adreno_dev,
 			ADRENO_DRAWOBJ_PROFILE_OFFSET((cmdobj)->profile_index, \
 				field))
 
-#define GEN7_COMMAND_DWORDS 52
+#define GEN7_KERNEL_PROFILE_CONTEXT(dev, cmdobj, cmds, field) \
+	gen7_get_alwayson_context((cmds), \
+		(dev)->profile_buffer->gpuaddr + \
+			ADRENO_DRAWOBJ_PROFILE_OFFSET((cmdobj)->profile_index, \
+				field))
+
+#define GEN7_COMMAND_DWORDS 60
 
 int gen7_ringbuffer_submitcmd(struct adreno_device *adreno_dev,
 		struct kgsl_drawobj_cmd *cmdobj, u32 flags,
@@ -492,7 +537,7 @@ int gen7_ringbuffer_submitcmd(struct adreno_device *adreno_dev,
 			numibs++;
 	}
 
-	cmds = kmalloc((GEN7_COMMAND_DWORDS + (numibs * 5)) << 2, GFP_KERNEL);
+	cmds = kvmalloc((GEN7_COMMAND_DWORDS + (numibs * 5)) << 2, GFP_KERNEL);
 	if (!cmds) {
 		ret = -ENOMEM;
 		goto done;
@@ -501,10 +546,13 @@ int gen7_ringbuffer_submitcmd(struct adreno_device *adreno_dev,
 	cmds[index++] = cp_type7_packet(CP_NOP, 1);
 	cmds[index++] = START_IB_IDENTIFIER;
 
-	/* Kernel profiling: 4 dwords */
-	if (IS_KERNEL_PROFILE(flags))
+	/* Kernel profiling: 8 dwords */
+	if (IS_KERNEL_PROFILE(flags)) {
 		index += GEN7_KERNEL_PROFILE(adreno_dev, cmdobj, &cmds[index],
 			started);
+		index += GEN7_KERNEL_PROFILE_CONTEXT(adreno_dev, cmdobj, &cmds[index],
+			ctx_start);
+	}
 
 	/* User profiling: 4 dwords */
 	if (IS_USER_PROFILE(flags))
@@ -552,10 +600,13 @@ int gen7_ringbuffer_submitcmd(struct adreno_device *adreno_dev,
 	cmds[index++] = cp_type7_packet(CP_EVENT_WRITE, 1);
 	cmds[index++] = 25;
 
-	/* 4 dwords */
-	if (IS_KERNEL_PROFILE(flags))
+	/* 8 dwords */
+	if (IS_KERNEL_PROFILE(flags)) {
 		index += GEN7_KERNEL_PROFILE(adreno_dev, cmdobj, &cmds[index],
 			retired);
+		index += GEN7_KERNEL_PROFILE_CONTEXT(adreno_dev, cmdobj, &cmds[index],
+			ctx_end);
+	}
 
 	/* 4 dwords */
 	if (IS_USER_PROFILE(flags))
@@ -591,6 +642,6 @@ done:
 	trace_kgsl_issueibcmds(device, drawctxt->base.id, numibs,
 		drawobj->timestamp, drawobj->flags, ret, drawctxt->type);
 
-	kfree(cmds);
+	kvfree(cmds);
 	return ret;
 }

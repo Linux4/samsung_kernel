@@ -40,14 +40,16 @@
 #define DET_CONN_GPIO_IRQ_DISABLED 2
 #define DET_CONN_DEBOUNCE_TIME_MS 300
 
+#define SEC_CONN_PRINT(format, ...) \
+	pr_info("[sec_abc_detect_conn] " format, ##__VA_ARGS__)
+
 struct sec_det_conn_p_data {
 	const char *name[DET_CONN_MAX_NUM_GPIOS];
 	int irq_gpio[DET_CONN_MAX_NUM_GPIOS];
 	int irq_number[DET_CONN_MAX_NUM_GPIOS];
 	unsigned int irq_type[DET_CONN_MAX_NUM_GPIOS];
 	struct sec_det_conn_info *pinfo;
-	int gpio_cnt;
-	int gpio_pm_cnt;
+	int gpio_last_cnt;
 	int gpio_total_cnt;
 };
 
@@ -58,9 +60,15 @@ struct sec_det_conn_info {
 };
 
 static char sec_detect_available_pins_string[15 * 10] = {0,};
+extern struct sec_det_conn_info *gpinfo;
+
+void create_current_connection_state_sysnode_files(struct sec_det_conn_info *pinfo);
+void create_connector_disconnected_count_sysnode_file(struct sec_det_conn_info *pinfo);
+void increase_connector_disconnected_count(int index, struct sec_det_conn_info *pinfo);
 
 #if IS_ENABLED(CONFIG_SEC_ABC_HUB)
 #define ABCEVENT_CONN_MAX_DEV_STRING 120
 void sec_abc_send_event(char *str);
+int sec_abc_get_enabled(void);
 #endif
 #endif

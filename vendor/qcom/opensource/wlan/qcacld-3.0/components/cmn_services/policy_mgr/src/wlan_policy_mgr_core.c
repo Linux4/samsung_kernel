@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2012-2021 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -34,8 +35,14 @@
 #include "wlan_mlme_ucfg_api.h"
 #include "wlan_cm_api.h"
 #include "wlan_reg_ucfg_api.h"
+#ifdef WLAN_FEATURE_11BE_MLO
+#include "wlan_mlo_mgr_cmn.h"
+#include "wlan_mlo_mgr_public_structs.h"
+#endif
+#include "wlan_cm_ucfg_api.h"
 
 #define POLICY_MGR_MAX_CON_STRING_LEN   100
+#define LOWER_END_FREQ_5GHZ 4900
 
 static const uint16_t sap_mand_5g_freq_list[] = {5745, 5765, 5785, 5805};
 
@@ -729,6 +736,7 @@ void policy_mgr_store_and_del_conn_info_by_vdev_id(
 		policy_mgr_err("Invalid parameters");
 		return;
 	}
+
 	*num_cxn_del = 0;
 	pm_ctx = policy_mgr_get_context(psoc);
 	if (!pm_ctx) {
@@ -756,6 +764,8 @@ void policy_mgr_store_and_del_conn_info_by_vdev_id(
 			psoc,
 			pm_conc_connection_list[conn_index].vdev_id);
 	}
+
+	policy_mgr_debug("vdev id %d, num_cxn_del %d", vdev_id, *num_cxn_del);
 	qdf_mutex_release(&pm_ctx->qdf_conc_list_lock);
 }
 
@@ -825,6 +835,7 @@ void policy_mgr_restore_deleted_conn_info(struct wlan_objmgr_psoc *psoc,
 {
 	uint32_t conn_index;
 	struct policy_mgr_psoc_priv_obj *pm_ctx;
+	int i;
 
 	if (MAX_NUMBER_OF_CONC_CONNECTIONS < num_cxn_del || 0 == num_cxn_del) {
 		policy_mgr_err("Failed to restore %d/%d deleted information",
@@ -839,29 +850,32 @@ void policy_mgr_restore_deleted_conn_info(struct wlan_objmgr_psoc *psoc,
 
 	qdf_mutex_acquire(&pm_ctx->qdf_conc_list_lock);
 	conn_index = policy_mgr_get_connection_count(psoc);
-	if (MAX_NUMBER_OF_CONC_CONNECTIONS <= conn_index) {
+	if (MAX_NUMBER_OF_CONC_CONNECTIONS - num_cxn_del <= conn_index) {
 		qdf_mutex_release(&pm_ctx->qdf_conc_list_lock);
-		policy_mgr_err("Failed to restore the deleted information %d/%d",
-			conn_index, MAX_NUMBER_OF_CONC_CONNECTIONS);
+		policy_mgr_err("Failed to restore the deleted information %d/%d/%d",
+			       conn_index, num_cxn_del,
+			       MAX_NUMBER_OF_CONC_CONNECTIONS);
 		return;
 	}
 
 	qdf_mem_copy(&pm_conc_connection_list[conn_index], info,
-			num_cxn_del * sizeof(*info));
+		     num_cxn_del * sizeof(*info));
 	pm_ctx->no_of_active_sessions[info->mode] += num_cxn_del;
+	for (i = 0; i < num_cxn_del; i++)
+		policy_mgr_debug("Restored the deleleted conn info, vdev:%d, index:%d",
+				 info[i].vdev_id, conn_index++);
 	qdf_mutex_release(&pm_ctx->qdf_conc_list_lock);
-
-	policy_mgr_debug("Restored the deleleted conn info, vdev:%d, index:%d",
-		info->vdev_id, conn_index);
 }
 
 static bool
 policy_mgr_is_freq_range_5_6ghz(qdf_freq_t start_freq, qdf_freq_t end_freq)
 {
-	if ((wlan_reg_is_5ghz_ch_freq(start_freq) ||
-	     wlan_reg_is_6ghz_chan_freq(start_freq)) &&
-	    (wlan_reg_is_5ghz_ch_freq(end_freq) ||
-	     wlan_reg_is_6ghz_chan_freq(end_freq)))
+	/*
+	 * As Fw is sending the whole hardware range which include 4.9Ghz as
+	 * well. Use LOWER_END_FREQ_5GHZ to differentiate 2.4Ghz and 5Ghz
+	 */
+	if (start_freq >= LOWER_END_FREQ_5GHZ &&
+	    end_freq >= LOWER_END_FREQ_5GHZ)
 		return true;
 
 	return false;
@@ -870,33 +884,45 @@ policy_mgr_is_freq_range_5_6ghz(qdf_freq_t start_freq, qdf_freq_t end_freq)
 static bool
 policy_mgr_is_freq_range_2ghz(qdf_freq_t start_freq, qdf_freq_t end_freq)
 {
-	if (wlan_reg_is_24ghz_ch_freq(start_freq) &&
-	    wlan_reg_is_24ghz_ch_freq(end_freq))
+	/*
+	 * As Fw is sending the whole hardware range which include 4.9Ghz as
+	 * well. Use LOWER_END_FREQ_5GHZ to differentiate 2.4Ghz and 5Ghz
+	 */
+	if (start_freq < LOWER_END_FREQ_5GHZ && end_freq < LOWER_END_FREQ_5GHZ)
 		return true;
 
 	return false;
 }
 
 static void
-policy_mgr_fill_curr_mac_2ghz_freq(uint32_t pdev_id,
+policy_mgr_fill_curr_mac_2ghz_freq(uint32_t mac_id,
 				   struct policy_mgr_pdev_mac_freq_map *freq,
 				   struct policy_mgr_psoc_priv_obj *pm_ctx)
 {
-	pm_ctx->hw_mode.cur_mac_freq_range[pdev_id].low_2ghz_freq =
-							freq->start_freq;
-	pm_ctx->hw_mode.cur_mac_freq_range[pdev_id].high_2ghz_freq =
-							freq->end_freq;
+	pm_ctx->hw_mode.cur_mac_freq_range[mac_id].low_2ghz_freq =
+					QDF_MAX(freq->start_freq,
+						wlan_reg_min_24ghz_chan_freq());
+	pm_ctx->hw_mode.cur_mac_freq_range[mac_id].high_2ghz_freq =
+					QDF_MIN(freq->end_freq,
+						wlan_reg_max_24ghz_chan_freq());
 }
 
 static void
-policy_mgr_fill_curr_mac_5ghz_freq(uint32_t pdev_id,
+policy_mgr_fill_curr_mac_5ghz_freq(uint32_t mac_id,
 				   struct policy_mgr_pdev_mac_freq_map *freq,
 				   struct policy_mgr_psoc_priv_obj *pm_ctx)
 {
-	pm_ctx->hw_mode.cur_mac_freq_range[pdev_id].low_5ghz_freq =
-							freq->start_freq;
-	pm_ctx->hw_mode.cur_mac_freq_range[pdev_id].high_5ghz_freq =
-							freq->end_freq;
+	qdf_freq_t max_5g_freq;
+
+	max_5g_freq = wlan_reg_max_6ghz_chan_freq() ?
+			wlan_reg_max_6ghz_chan_freq() :
+			wlan_reg_max_5ghz_chan_freq();
+
+	pm_ctx->hw_mode.cur_mac_freq_range[mac_id].low_5ghz_freq =
+					QDF_MAX(freq->start_freq,
+						wlan_reg_min_5ghz_chan_freq());
+	pm_ctx->hw_mode.cur_mac_freq_range[mac_id].high_5ghz_freq =
+					QDF_MIN(freq->end_freq, max_5g_freq);
 }
 
 void
@@ -927,42 +953,47 @@ policy_mgr_fill_legacy_freq_range(struct policy_mgr_psoc_priv_obj *pm_ctx,
 	policy_mgr_fill_curr_mac_freq_by_hwmode(pm_ctx, mode);
 }
 
-static void
+static QDF_STATUS
 policy_mgr_fill_curr_freq_by_pdev_freq(int32_t num_mac_freq,
 				struct policy_mgr_pdev_mac_freq_map *freq,
 				struct policy_mgr_psoc_priv_obj *pm_ctx,
 				struct policy_mgr_hw_mode_params hw_mode)
 {
-	uint32_t pdev_id, i;
+	uint32_t mac_id, i;
 
 	/* memzero before filling it */
 	qdf_mem_zero(pm_ctx->hw_mode.cur_mac_freq_range,
 		     sizeof(pm_ctx->hw_mode.cur_mac_freq_range));
 	for (i = 0; i < num_mac_freq; i++) {
-		pdev_id = freq[i].pdev_id;
+		mac_id = freq[i].mac_id;
 
-		if (pdev_id >= MAX_MAC) {
-			policy_mgr_debug("Invalid pdev id %d", pdev_id);
-			return;
+		if (mac_id >= MAX_MAC) {
+			policy_mgr_debug("Invalid pdev id %d", mac_id);
+			return QDF_STATUS_E_INVAL;
 		}
 
-		policy_mgr_debug("pdev_id %d start freq %d end_freq %d",
-				 pdev_id, freq[i].start_freq,
+		policy_mgr_debug("mac_id %d start freq %d end_freq %d",
+				 mac_id, freq[i].start_freq,
 				 freq[i].end_freq);
 
 		if (policy_mgr_is_freq_range_2ghz(freq[i].start_freq,
-						  freq[i].end_freq))
-			policy_mgr_fill_curr_mac_2ghz_freq(pdev_id,
+						  freq[i].end_freq)) {
+			policy_mgr_fill_curr_mac_2ghz_freq(mac_id,
 							   &freq[i],
 							   pm_ctx);
-		else if (policy_mgr_is_freq_range_5_6ghz(freq[i].start_freq,
-							 freq[i].end_freq))
-			policy_mgr_fill_curr_mac_5ghz_freq(pdev_id,
-							   &freq[i],
+		} else if (policy_mgr_is_freq_range_5_6ghz(freq[i].start_freq,
+							 freq[i].end_freq)) {
+			policy_mgr_fill_curr_mac_5ghz_freq(mac_id, &freq[i],
 							   pm_ctx);
-		else
-			policy_mgr_fill_legacy_freq_range(pm_ctx, hw_mode);
+		} else  {
+			policy_mgr_err("Invalid different band freq range: mac_id %d start freq %d end_freq %d",
+				       mac_id, freq[i].start_freq,
+				       freq[i].end_freq);
+			return QDF_STATUS_E_INVAL;
+		}
 	}
+
+	return QDF_STATUS_SUCCESS;
 }
 
 static void
@@ -971,10 +1002,14 @@ policy_mgr_update_curr_mac_freq(uint32_t num_mac_freq,
 				struct policy_mgr_psoc_priv_obj *pm_ctx,
 				struct policy_mgr_hw_mode_params hw_mode)
 {
+	QDF_STATUS status;
+
 	if (num_mac_freq && freq) {
-		policy_mgr_fill_curr_freq_by_pdev_freq(num_mac_freq, freq,
-						       pm_ctx, hw_mode);
-		return;
+		status = policy_mgr_fill_curr_freq_by_pdev_freq(num_mac_freq,
+								freq, pm_ctx,
+								hw_mode);
+		if (QDF_IS_STATUS_SUCCESS(status))
+			return;
 	}
 
 	policy_mgr_fill_legacy_freq_range(pm_ctx, hw_mode);
@@ -1314,8 +1349,10 @@ policy_mgr_dump_dual_mac_concurrency(struct policy_mgr_psoc_priv_obj *pm_ctx,
 	char buf[4] = {0};
 
 	qdf_mutex_acquire(&pm_ctx->qdf_conc_list_lock);
-	if (pm_conc_connection_list[0].mac ==
-		pm_conc_connection_list[1].mac) {
+	if (policy_mgr_are_2_freq_on_same_mac(pm_ctx->psoc,
+					      pm_conc_connection_list[0].freq,
+					      pm_conc_connection_list[1].freq)
+					     ) {
 		if (pm_conc_connection_list[0].freq ==
 			pm_conc_connection_list[1].freq)
 			strlcat(cc_mode,
@@ -1327,7 +1364,11 @@ policy_mgr_dump_dual_mac_concurrency(struct policy_mgr_psoc_priv_obj *pm_ctx,
 				length);
 		mac = pm_conc_connection_list[0].mac;
 	}
-	if (pm_conc_connection_list[0].mac == pm_conc_connection_list[2].mac) {
+
+	if (policy_mgr_are_2_freq_on_same_mac(pm_ctx->psoc,
+					      pm_conc_connection_list[0].freq,
+					      pm_conc_connection_list[2].freq)
+					     ) {
 		if (pm_conc_connection_list[0].freq ==
 			pm_conc_connection_list[2].freq)
 			strlcat(cc_mode,
@@ -1339,7 +1380,11 @@ policy_mgr_dump_dual_mac_concurrency(struct policy_mgr_psoc_priv_obj *pm_ctx,
 				length);
 		mac = pm_conc_connection_list[0].mac;
 	}
-	if (pm_conc_connection_list[1].mac == pm_conc_connection_list[2].mac) {
+
+	if (policy_mgr_are_2_freq_on_same_mac(pm_ctx->psoc,
+					      pm_conc_connection_list[1].freq,
+					      pm_conc_connection_list[2].freq)
+					     ) {
 		if (pm_conc_connection_list[1].freq ==
 			pm_conc_connection_list[2].freq)
 			strlcat(cc_mode,
@@ -1459,15 +1504,13 @@ void policy_mgr_dump_current_concurrency(struct wlan_objmgr_psoc *psoc)
 		    pm_conc_connection_list[0].freq ==
 		    pm_conc_connection_list[2].freq){
 			qdf_mutex_release(&pm_ctx->qdf_conc_list_lock);
-				strlcat(cc_mode, " SCC",
-						sizeof(cc_mode));
-		} else if ((pm_conc_connection_list[0].mac ==
-				pm_conc_connection_list[1].mac)
-				&& (pm_conc_connection_list[0].mac ==
-					pm_conc_connection_list[2].mac)) {
+			strlcat(cc_mode, " SCC", sizeof(cc_mode));
+		} else if (policy_mgr_are_3_freq_on_same_mac(psoc,
+				pm_conc_connection_list[0].freq,
+				pm_conc_connection_list[1].freq,
+				pm_conc_connection_list[2].freq)) {
 			qdf_mutex_release(&pm_ctx->qdf_conc_list_lock);
-					strlcat(cc_mode, " MCC on single MAC",
-						sizeof(cc_mode));
+			strlcat(cc_mode, " MCC on single MAC", sizeof(cc_mode));
 		} else {
 			qdf_mutex_release(&pm_ctx->qdf_conc_list_lock);
 			if (policy_mgr_is_current_hwmode_dbs(psoc))
@@ -1543,35 +1586,13 @@ void policy_mgr_set_pcl_for_existing_combo(struct wlan_objmgr_psoc *psoc,
 					   uint8_t vdev_id)
 {
 	QDF_STATUS status = QDF_STATUS_E_FAILURE;
-	struct policy_mgr_conc_connection_info
-			info[MAX_NUMBER_OF_CONC_CONNECTIONS] = { {0} };
-	enum QDF_OPMODE pcl_mode;
-	uint8_t num_cxn_del = 0;
-	struct policy_mgr_psoc_priv_obj *pm_ctx;
 	struct policy_mgr_pcl_list pcl;
 
-	pm_ctx = policy_mgr_get_context(psoc);
-	if (!pm_ctx) {
-		policy_mgr_err("Invalid Context");
-		return;
-	}
-
-	pcl_mode = policy_mgr_get_qdf_mode_from_pm(mode);
-	if (pcl_mode == QDF_MAX_NO_OF_MODE)
-		return;
-	qdf_mutex_acquire(&pm_ctx->qdf_conc_list_lock);
-	if (policy_mgr_mode_specific_connection_count(psoc, mode, NULL) > 0) {
-		/* Check, store and temp delete the mode's parameter */
-		policy_mgr_store_and_del_conn_info(psoc, mode, false,
-						info, &num_cxn_del);
-		/* Set the PCL to the FW since connection got updated */
-		status = policy_mgr_pdev_get_pcl(psoc, pcl_mode, &pcl);
-		policy_mgr_debug("Set PCL to FW for mode:%d", mode);
-		/* Restore the connection info */
-		policy_mgr_restore_deleted_conn_info(psoc, info, num_cxn_del);
-	}
-	qdf_mutex_release(&pm_ctx->qdf_conc_list_lock);
-
+	status = policy_mgr_get_pcl_for_vdev_id(psoc, mode, pcl.pcl_list,
+						&pcl.pcl_len,
+						pcl.weight_list,
+						QDF_ARRAY_SIZE(pcl.weight_list),
+						vdev_id);
 	/* Send PCL only if policy_mgr_pdev_get_pcl returned success */
 	if (QDF_IS_STATUS_SUCCESS(status)) {
 		status = policy_mgr_set_pcl(psoc, &pcl, vdev_id, false);
@@ -1586,6 +1607,7 @@ void policy_mgr_set_pcl_for_connected_vdev(struct wlan_objmgr_psoc *psoc,
 	struct policy_mgr_pcl_list msg = { {0} };
 	struct wlan_objmgr_vdev *vdev;
 	uint8_t roam_enabled_vdev_id;
+	bool sta_concurrency_is_dbs, dual_sta_roam_enabled;
 
 	vdev = wlan_objmgr_get_vdev_by_id_from_psoc(psoc, vdev_id,
 						    WLAN_POLICY_MGR_ID);
@@ -1603,13 +1625,20 @@ void policy_mgr_set_pcl_for_connected_vdev(struct wlan_objmgr_psoc *psoc,
 	/*
 	 * Get the vdev id of the STA on which roaming is already
 	 * initialized and set the vdev PCL for that STA vdev if dual
-	 * STA roaming feature is enabled.
+	 * STA roaming feature is enabled and concurrency is STA + STA.
 	 */
 	roam_enabled_vdev_id = policy_mgr_get_roam_enabled_sta_session_id(psoc,
 								       vdev_id);
+	if (roam_enabled_vdev_id == WLAN_UMAC_VDEV_ID_MAX)
+		return;
 
-	if (wlan_mlme_get_dual_sta_roaming_enabled(psoc) &&
-	    roam_enabled_vdev_id != WLAN_UMAC_VDEV_ID_MAX) {
+	sta_concurrency_is_dbs = policy_mgr_concurrent_sta_doing_dbs(psoc);
+	dual_sta_roam_enabled = wlan_mlme_get_dual_sta_roaming_enabled(psoc);
+	policy_mgr_debug("dual_sta_roam:%d, is_dbs:%d, clear_pcl:%d",
+			 dual_sta_roam_enabled, sta_concurrency_is_dbs,
+			 clear_pcl);
+
+	if (dual_sta_roam_enabled) {
 		if (clear_pcl) {
 			/*
 			 * Here the PCL level should be at vdev level already
@@ -1622,7 +1651,7 @@ void policy_mgr_set_pcl_for_connected_vdev(struct wlan_objmgr_psoc *psoc,
 			wlan_cm_roam_activate_pcl_per_vdev(psoc,
 							   roam_enabled_vdev_id,
 							   false);
-		} else {
+		} else if (sta_concurrency_is_dbs) {
 			wlan_cm_roam_activate_pcl_per_vdev(psoc,
 							   roam_enabled_vdev_id,
 							   true);
@@ -1631,6 +1660,79 @@ void policy_mgr_set_pcl_for_connected_vdev(struct wlan_objmgr_psoc *psoc,
 						      roam_enabled_vdev_id);
 	}
 }
+
+#ifdef WLAN_FEATURE_11BE_MLO
+uint32_t
+policy_mgr_get_connected_vdev_band_mask(struct wlan_objmgr_vdev *vdev)
+{
+	struct wlan_channel *chan;
+	uint32_t band_mask = 0;
+	struct wlan_objmgr_vdev *ml_vdev_list[WLAN_UMAC_MLO_MAX_VDEVS] = {0};
+	uint16_t ml_vdev_cnt = 0;
+	struct wlan_objmgr_vdev *t_vdev;
+	int i;
+
+	if (!vdev) {
+		policy_mgr_err("vdev is NULL");
+		return band_mask;
+	}
+
+	if (wlan_vdev_mlme_is_link_sta_vdev(vdev)) {
+		policy_mgr_debug("skip mlo link sta");
+		return band_mask;
+	}
+
+	if (wlan_vdev_mlme_get_opmode(vdev) != QDF_STA_MODE ||
+	    !wlan_vdev_mlme_is_mlo_vdev(vdev)) {
+		chan = wlan_vdev_get_active_channel(vdev);
+		if (!chan) {
+			policy_mgr_err("no active channel");
+			return band_mask;
+		}
+
+		band_mask |= BIT(wlan_reg_freq_to_band(chan->ch_freq));
+		return band_mask;
+	}
+
+	mlo_get_ml_vdev_list(vdev, &ml_vdev_cnt, ml_vdev_list);
+	for (i = 0; i < ml_vdev_cnt; i++) {
+		t_vdev = ml_vdev_list[i];
+		if (!ucfg_cm_is_vdev_connected(t_vdev))
+			goto next;
+
+		chan = wlan_vdev_get_active_channel(t_vdev);
+		if (!chan)
+			goto next;
+
+		band_mask |= BIT(wlan_reg_freq_to_band(chan->ch_freq));
+next:
+		mlo_release_vdev_ref(t_vdev);
+	}
+
+	return band_mask;
+}
+#else
+uint32_t
+policy_mgr_get_connected_vdev_band_mask(struct wlan_objmgr_vdev *vdev)
+{
+	struct wlan_channel *chan;
+	uint32_t band_mask = 0;
+
+	if (!vdev) {
+		policy_mgr_err("vdev is NULL");
+		return band_mask;
+	}
+
+	chan = wlan_vdev_get_active_channel(vdev);
+	if (!chan) {
+		policy_mgr_err("no active channel");
+		return band_mask;
+	}
+
+	band_mask |= BIT(wlan_reg_freq_to_band(chan->ch_freq));
+	return band_mask;
+}
+#endif
 
 /**
  * policy_mgr_get_connected_roaming_vdev_band_mask() - get connected vdev
@@ -1644,11 +1746,9 @@ static uint32_t
 policy_mgr_get_connected_roaming_vdev_band_mask(struct wlan_objmgr_psoc *psoc,
 						uint8_t vdev_id)
 {
-	uint32_t band_mask;
+	uint32_t band_mask = 0, roam_band_mask, band_mask_for_vdev;
 	struct wlan_objmgr_vdev *vdev;
-	bool dual_sta_roam_active;
-	struct wlan_channel *chan;
-	uint32_t roam_band_mask;
+	bool dual_sta_roam_active, is_pcl_per_vdev;
 
 	vdev = wlan_objmgr_get_vdev_by_id_from_psoc(psoc, vdev_id,
 						    WLAN_POLICY_MGR_ID);
@@ -1657,15 +1757,20 @@ policy_mgr_get_connected_roaming_vdev_band_mask(struct wlan_objmgr_psoc *psoc,
 		return 0;
 	}
 
-	chan = wlan_vdev_get_active_channel(vdev);
+	band_mask_for_vdev = policy_mgr_get_connected_vdev_band_mask(vdev);
 
-	ucfg_reg_get_band(wlan_vdev_get_pdev(vdev), &band_mask);
-	roam_band_mask = wlan_cm_get_roam_band_value(psoc, vdev);
+	is_pcl_per_vdev = wlan_cm_roam_is_pcl_per_vdev_active(psoc, vdev_id);
+	dual_sta_roam_active = wlan_mlme_get_dual_sta_roaming_enabled(psoc);
 
-	wlan_objmgr_vdev_release_ref(vdev, WLAN_POLICY_MGR_ID);
-	if (!chan) {
-		policy_mgr_err("no active channel");
-		return 0;
+	policy_mgr_debug("connected STA vdev_id:%d, pcl_per_vdev:%d, dual_sta_roam_active:%d",
+			 vdev_id, is_pcl_per_vdev,
+			 dual_sta_roam_active);
+
+	if (dual_sta_roam_active && is_pcl_per_vdev) {
+		policy_mgr_debug("connected vdev band mask:%d",
+				 band_mask_for_vdev);
+		wlan_objmgr_vdev_release_ref(vdev, WLAN_POLICY_MGR_ID);
+		return band_mask_for_vdev;
 	}
 
 	/*
@@ -1673,24 +1778,26 @@ policy_mgr_get_connected_roaming_vdev_band_mask(struct wlan_objmgr_psoc *psoc,
 	 * take this as priority instead of drv cmd "SETROAMINTRABAND" or
 	 * active connection band.
 	 */
-	if (roam_band_mask != band_mask)
+	ucfg_reg_get_band(wlan_vdev_get_pdev(vdev), &band_mask);
+	roam_band_mask = wlan_cm_get_roam_band_value(psoc, vdev);
+	wlan_objmgr_vdev_release_ref(vdev, WLAN_POLICY_MGR_ID);
+
+	if (roam_band_mask != band_mask) {
+		policy_mgr_debug("roam_band_mask:%d", roam_band_mask);
 		return roam_band_mask;
+	}
 
 	/*
 	 * If PCL command is PDEV level, only one sta is active.
 	 * So fill the band mask if intra band roaming is enabled
 	 */
-	if (!wlan_cm_roam_is_pcl_per_vdev_active(psoc, vdev_id)) {
-		if (ucfg_mlme_is_roam_intra_band(psoc))
-			band_mask = BIT(wlan_reg_freq_to_band(chan->ch_freq));
-
-		return band_mask;
+	if ((!is_pcl_per_vdev) && ucfg_mlme_is_roam_intra_band(psoc)) {
+		policy_mgr_debug("connected STA band mask:%d",
+				 band_mask_for_vdev);
+		return band_mask_for_vdev;
 	}
 
-	dual_sta_roam_active = wlan_mlme_get_dual_sta_roaming_enabled(psoc);
-	if (dual_sta_roam_active)
-		band_mask = BIT(wlan_reg_freq_to_band(chan->ch_freq));
-
+	policy_mgr_debug("band_mask:%d", band_mask);
 	return band_mask;
 }
 
@@ -1720,9 +1827,6 @@ QDF_STATUS policy_mgr_set_pcl(struct wlan_objmgr_psoc *psoc,
 
 	req_msg->band_mask =
 		policy_mgr_get_connected_roaming_vdev_band_mask(psoc, vdev_id);
-	policy_mgr_debug("RSO_CFG: vdev:%d Connected STA band_mask:%d",
-			 vdev_id, req_msg->band_mask);
-
 	for (i = 0; i < msg->pcl_len; i++) {
 		req_msg->chan_weights.pcl_list[i] =  msg->pcl_list[i];
 		req_msg->chan_weights.weight_list[i] =  msg->weight_list[i];
@@ -1949,7 +2053,7 @@ enum hw_mode_bandwidth policy_mgr_get_bw(enum phy_ch_width chan_width)
 	case CH_WIDTH_10MHZ:
 		bw = HW_MODE_10_MHZ;
 		break;
-#ifdef WLAN_FEATURE_11BE
+#if defined(WLAN_FEATURE_11BE)
 	case CH_WIDTH_320MHZ:
 		bw = HW_MODE_320_MHZ;
 		break;
@@ -1988,7 +2092,7 @@ enum phy_ch_width policy_mgr_get_ch_width(enum hw_mode_bandwidth bw)
 	case HW_MODE_10_MHZ:
 		ch_width = CH_WIDTH_10MHZ;
 		break;
-#ifdef WLAN_FEATURE_11BE
+#if defined(WLAN_FEATURE_11BE)
 	case HW_MODE_320_MHZ:
 		ch_width = CH_WIDTH_320MHZ;
 		break;
@@ -3155,7 +3259,9 @@ bool policy_mgr_disallow_mcc(struct wlan_objmgr_psoc *psoc,
 			}
 		} else if (WLAN_REG_IS_5GHZ_CH_FREQ
 			(pm_conc_connection_list[index].freq)) {
-			if (pm_conc_connection_list[index].freq != ch_freq) {
+			if (pm_conc_connection_list[index].freq != ch_freq &&
+			    !policy_mgr_are_sbs_chan(psoc, ch_freq,
+					pm_conc_connection_list[index].freq)) {
 				match = true;
 				break;
 			}
@@ -3168,37 +3274,90 @@ bool policy_mgr_disallow_mcc(struct wlan_objmgr_psoc *psoc,
 }
 
 /**
- * policy_mgr_is_3rd_conn_on_same_band() - Check whether 3rd connection is on
- * same band or not
+ * policy_mgr_allow_same_mac_diff_freq() - Check whether diff freq are allowed
+ * on same mac
+ *
+ * @psoc: Pointer to Psoc
  * @ch_freq: channel frequency
  *
- * Check the existing two connection are in same band or not. If it is in
- * same band then check the 3rd connection is also in same band or not
+ * Check whether diff freq are allowed on same mac
  *
  * Return: True/False
  */
-static bool policy_mgr_is_3rd_conn_on_same_band(uint32_t ch_freq)
+static
+bool policy_mgr_allow_same_mac_diff_freq(struct wlan_objmgr_psoc *psoc,
+					 qdf_freq_t ch_freq)
 {
-	bool ret = false;
+	bool allow = true;
 
-	if (((WLAN_REG_IS_24GHZ_CH_FREQ(ch_freq)) &&
-	    (WLAN_REG_IS_24GHZ_CH_FREQ
-	    (pm_conc_connection_list[0].freq)) &&
-	    (WLAN_REG_IS_24GHZ_CH_FREQ
-	    (pm_conc_connection_list[1].freq))) ||
-	    (((WLAN_REG_IS_5GHZ_CH_FREQ(ch_freq)) ||
-	    (WLAN_REG_IS_6GHZ_CHAN_FREQ(ch_freq))) &&
-	    ((WLAN_REG_IS_5GHZ_CH_FREQ
-	    (pm_conc_connection_list[0].freq)) ||
-	    (WLAN_REG_IS_6GHZ_CHAN_FREQ
-	    (pm_conc_connection_list[0].freq))) &&
-	    ((WLAN_REG_IS_5GHZ_CH_FREQ
-	    (pm_conc_connection_list[1].freq)) ||
-	    (WLAN_REG_IS_6GHZ_CHAN_FREQ
-	    (pm_conc_connection_list[1].freq))))) {
-		ret = true;
+	if ((pm_conc_connection_list[0].mode == PM_NAN_DISC_MODE &&
+	     pm_conc_connection_list[1].mode == PM_NDI_MODE) ||
+	    (pm_conc_connection_list[0].mode == PM_NDI_MODE &&
+	     pm_conc_connection_list[1].mode == PM_NAN_DISC_MODE)) {
+		/*
+		 * NAN + NDI are managed in Firmware by dividing
+		 * up slots. Connection on NDI is re-negotiable
+		 * and therefore a 3rd connection with the
+		 * same MAC is possible.
+		 */
+	} else if (!policy_mgr_is_hw_dbs_capable(psoc) &&
+		    policy_mgr_is_interband_mcc_supported(psoc)) {
+		if (ch_freq !=  pm_conc_connection_list[0].freq &&
+		    ch_freq !=  pm_conc_connection_list[1].freq) {
+			policy_mgr_rl_debug("don't allow 3rd home channel on same MAC");
+			allow = false;
+		}
+	} else if (policy_mgr_are_3_freq_on_same_mac(psoc, ch_freq,
+					pm_conc_connection_list[0].freq,
+					pm_conc_connection_list[1].freq)) {
+			policy_mgr_rl_debug("don't allow 3rd home channel on same MAC");
+			allow = false;
 	}
-	return ret;
+
+	return allow;
+}
+
+/**
+ * policy_mgr_allow_same_mac_same_freq() - check whether given frequency is
+ * allowed for same mac
+ *
+ * @psoc: Pointer to Psoc
+ * @ch_freq: channel frequency
+ * @mode: Concurrency Mode
+ *
+ * check whether given frequency is allowed for same mac
+ *
+ * Return: True/False
+ */
+static
+bool policy_mgr_allow_same_mac_same_freq(struct wlan_objmgr_psoc *psoc,
+					 qdf_freq_t ch_freq,
+					 enum policy_mgr_con_mode mode)
+{
+	bool allow = true;
+
+	if (!policy_mgr_is_hw_dbs_capable(psoc) &&
+	    policy_mgr_is_interband_mcc_supported(psoc)) {
+		policy_mgr_rl_debug("allow 2 intf SCC + new intf ch %d for legacy hw",
+				    ch_freq);
+	} else if ((pm_conc_connection_list[0].mode == PM_NAN_DISC_MODE &&
+		    pm_conc_connection_list[1].mode == PM_NDI_MODE) ||
+		    (pm_conc_connection_list[0].mode == PM_NDI_MODE &&
+		    pm_conc_connection_list[1].mode == PM_NAN_DISC_MODE)) {
+		/*
+		 * NAN + NDI are managed in Firmware by dividing
+		 * up slots. Connection on NDI is re-negotiable
+		 * and therefore a 3rd connection with the
+		 * same MAC is possible.
+		 */
+	} else if (policy_mgr_are_2_freq_on_same_mac(psoc, ch_freq,
+					pm_conc_connection_list[0].freq) &&
+		   !policy_mgr_is_3rd_conn_on_same_band_allowed(psoc, mode)) {
+			policy_mgr_rl_debug("don't allow 3rd home channel on same MAC – for sta+multi-AP");
+			allow = false;
+	}
+
+	return allow;
 }
 
 /**
@@ -3221,101 +3380,45 @@ bool policy_mgr_allow_new_home_channel(
 {
 	bool status = true;
 	struct policy_mgr_psoc_priv_obj *pm_ctx;
-	uint32_t mcc_to_scc_switch;
+	bool on_same_mac = false, force_switch_without_dis = false;
 
 	pm_ctx = policy_mgr_get_context(psoc);
 	if (!pm_ctx) {
 		policy_mgr_err("Invalid Context");
 		return false;
 	}
-	mcc_to_scc_switch =
-		policy_mgr_get_mcc_to_scc_switch_mode(psoc);
+
+	force_switch_without_dis =
+		policy_mgr_get_mcc_to_scc_switch_mode(psoc) ==
+		QDF_MCC_TO_SCC_SWITCH_FORCE_PREFERRED_WITHOUT_DISCONNECTION;
 
 	qdf_mutex_acquire(&pm_ctx->qdf_conc_list_lock);
 	if (num_connections == 2) {
 	/* No SCC or MCC combination is allowed with / on DFS channel */
-		if ((mcc_to_scc_switch ==
-		QDF_MCC_TO_SCC_SWITCH_FORCE_PREFERRED_WITHOUT_DISCONNECTION) &&
-		is_dfs_ch &&
-		((pm_conc_connection_list[0].ch_flagext &
-		  (IEEE80211_CHAN_DFS | IEEE80211_CHAN_DFS_CFREQ2)) ||
-		 (pm_conc_connection_list[1].ch_flagext &
-		  (IEEE80211_CHAN_DFS | IEEE80211_CHAN_DFS_CFREQ2)))) {
+		on_same_mac = policy_mgr_are_2_freq_on_same_mac(psoc,
+				pm_conc_connection_list[0].freq,
+				pm_conc_connection_list[1].freq);
+		if (force_switch_without_dis && is_dfs_ch &&
+		    ((pm_conc_connection_list[0].ch_flagext &
+		      (IEEE80211_CHAN_DFS | IEEE80211_CHAN_DFS_CFREQ2)) ||
+		     (pm_conc_connection_list[1].ch_flagext &
+		      (IEEE80211_CHAN_DFS | IEEE80211_CHAN_DFS_CFREQ2)))) {
 			policy_mgr_rl_debug("Existing DFS connection, new 3-port DFS connection is not allowed");
 			status = false;
-
 		} else if (((pm_conc_connection_list[0].freq !=
-				pm_conc_connection_list[1].freq)
-		|| (mcc_to_scc_switch ==
-		QDF_MCC_TO_SCC_SWITCH_FORCE_PREFERRED_WITHOUT_DISCONNECTION)
-		) && (pm_conc_connection_list[0].mac ==
-			pm_conc_connection_list[1].mac)) {
-			if ((pm_conc_connection_list[0].mode ==
-							PM_NAN_DISC_MODE &&
-				    pm_conc_connection_list[1].mode ==
-								PM_NDI_MODE) ||
-				   (pm_conc_connection_list[0].mode ==
-								PM_NDI_MODE &&
-				    pm_conc_connection_list[1].mode ==
-							    PM_NAN_DISC_MODE)) {
-				/*
-				 * NAN + NDI are managed in Firmware by dividing
-				 * up slots. Connection on NDI is re-negotiable
-				 * and therefore a 3rd connection with the
-				 * same MAC is possible.
-				 */
-				status = true;
-			} else if (!policy_mgr_is_hw_dbs_capable(psoc) &&
-				   policy_mgr_is_interband_mcc_supported(psoc)) {
-				if (ch_freq !=
-				    pm_conc_connection_list[0].freq &&
-				    ch_freq !=
-				    pm_conc_connection_list[1].freq) {
-					policy_mgr_rl_debug("don't allow 3rd home channel on same MAC");
-					status = false;
-				}
-			} else if (policy_mgr_is_3rd_conn_on_same_band(
-				   ch_freq)) {
-				policy_mgr_rl_debug("don't allow 3rd home channel on same MAC");
-				status = false;
-			}
-		} else if (pm_conc_connection_list[0].mac ==
-			   pm_conc_connection_list[1].mac) {
-			/* Existing two connections are SCC */
-			if (!policy_mgr_is_hw_dbs_capable(psoc) &&
-			    policy_mgr_is_interband_mcc_supported(psoc)) {
-				/* keep legacy chip "allow" as it is */
-				policy_mgr_rl_debug("allow 2 intf SCC + new intf ch %d for legacy hw",
-						    ch_freq);
-			} else if ((pm_conc_connection_list[0].mode ==
-							    PM_NAN_DISC_MODE &&
-				    pm_conc_connection_list[1].mode ==
-								PM_NDI_MODE) ||
-				   (pm_conc_connection_list[0].mode ==
-								PM_NDI_MODE &&
-				    pm_conc_connection_list[1].mode ==
-							    PM_NAN_DISC_MODE)) {
-				/*
-				 * NAN + NDI are managed in Firmware by dividing
-				 * up slots. Connection on NDI is re-negotiable
-				 * and therefore a 3rd connection with the
-				 * same MAC is possible.
-				 */
-			} else if (policy_mgr_is_3rd_conn_on_same_band(
-				   ch_freq) &&
-				   !(policy_mgr_is_3rd_conn_on_same_band_allowed(
-				   psoc, mode))) {
-				policy_mgr_rl_debug("don't allow 3rd home channel on same MAC - sta existing");
-				status = false;
-			}
+			     pm_conc_connection_list[1].freq) ||
+			    force_switch_without_dis) && on_same_mac) {
+			status = policy_mgr_allow_same_mac_diff_freq(psoc,
+								     ch_freq);
+		} else if (on_same_mac) {
+			status = policy_mgr_allow_same_mac_same_freq(psoc,
+								     ch_freq,
+								     mode);
 		}
-	} else if ((num_connections == 1) &&
-		   (mcc_to_scc_switch ==
-		QDF_MCC_TO_SCC_SWITCH_FORCE_PREFERRED_WITHOUT_DISCONNECTION) &&
-		is_dfs_ch &&
-		(pm_conc_connection_list[0].ch_flagext &
-		 (IEEE80211_CHAN_DFS | IEEE80211_CHAN_DFS_CFREQ2))) {
-
+	} else if (num_connections == 1 && force_switch_without_dis &&
+		   is_dfs_ch &&
+		   (pm_conc_connection_list[0].ch_flagext &
+		    (IEEE80211_CHAN_DFS | IEEE80211_CHAN_DFS_CFREQ2))) {
 		policy_mgr_rl_debug("Existing DFS connection, new 2-port DFS connection is not allowed");
 		status = false;
 	} else if ((num_connections == 1) &&
@@ -3326,8 +3429,9 @@ bool policy_mgr_allow_new_home_channel(
 		 */
 		if ((pm_conc_connection_list[0].mode != PM_NAN_DISC_MODE) &&
 		    (mode != PM_NAN_DISC_MODE))
-			status = wlan_reg_is_same_band_freqs(ch_freq,
-				      pm_conc_connection_list[0].freq);
+			status = policy_mgr_are_2_freq_on_same_mac(psoc,
+								   ch_freq,
+					pm_conc_connection_list[0].freq);
 	}
 	qdf_mutex_release(&pm_ctx->qdf_conc_list_lock);
 
@@ -3353,7 +3457,9 @@ bool policy_mgr_is_5g_channel_allowed(struct wlan_objmgr_psoc *psoc,
 		if ((pm_conc_connection_list[list[index]].ch_flagext &
 		     (IEEE80211_CHAN_DFS | IEEE80211_CHAN_DFS_CFREQ2)) &&
 		    WLAN_REG_IS_5GHZ_CH_FREQ(ch_freq) &&
-		    (ch_freq != pm_conc_connection_list[list[index]].freq)) {
+		    (ch_freq != pm_conc_connection_list[list[index]].freq &&
+		     !policy_mgr_are_sbs_chan(psoc, ch_freq,
+				pm_conc_connection_list[list[index]].freq))) {
 			qdf_mutex_release(&pm_ctx->qdf_conc_list_lock);
 			policy_mgr_rl_debug("don't allow MCC if SAP/GO on DFS channel");
 			return false;
@@ -3363,6 +3469,407 @@ bool policy_mgr_is_5g_channel_allowed(struct wlan_objmgr_psoc *psoc,
 	qdf_mutex_release(&pm_ctx->qdf_conc_list_lock);
 
 	return true;
+}
+
+static qdf_freq_t
+policy_mgr_get_iface_5g_freq(struct wlan_objmgr_psoc *psoc,
+			     bool allow_6ghz)
+{
+	qdf_freq_t if_freq = 0;
+	struct policy_mgr_psoc_priv_obj *pm_ctx;
+	uint32_t conn_index;
+
+	pm_ctx = policy_mgr_get_context(psoc);
+	if (!pm_ctx) {
+		policy_mgr_err("Invalid Context");
+		return 0;
+	}
+
+	qdf_mutex_acquire(&pm_ctx->qdf_conc_list_lock);
+	for (conn_index = 0; conn_index < MAX_NUMBER_OF_CONC_CONNECTIONS;
+		conn_index++) {
+		if (pm_conc_connection_list[conn_index].in_use &&
+		    (WLAN_REG_IS_5GHZ_CH_FREQ(
+				pm_conc_connection_list[conn_index].freq) ||
+		     (allow_6ghz && WLAN_REG_IS_6GHZ_CHAN_FREQ(
+				pm_conc_connection_list[conn_index].freq)))) {
+			if_freq = pm_conc_connection_list[conn_index].freq;
+			break;
+		}
+	}
+	qdf_mutex_release(&pm_ctx->qdf_conc_list_lock);
+
+	return if_freq;
+}
+
+static qdf_freq_t
+policy_mgr_get_iface_2g_freq(struct wlan_objmgr_psoc *psoc)
+{
+	qdf_freq_t if_freq = 0;
+	struct policy_mgr_psoc_priv_obj *pm_ctx;
+	uint32_t conn_index;
+
+	pm_ctx = policy_mgr_get_context(psoc);
+	if (!pm_ctx) {
+		policy_mgr_err("Invalid Context");
+		return 0;
+	}
+
+	qdf_mutex_acquire(&pm_ctx->qdf_conc_list_lock);
+	for (conn_index = 0; conn_index < MAX_NUMBER_OF_CONC_CONNECTIONS;
+		conn_index++) {
+		if (pm_conc_connection_list[conn_index].in_use &&
+		    (WLAN_REG_IS_24GHZ_CH_FREQ(
+				pm_conc_connection_list[conn_index].freq))) {
+			if_freq = pm_conc_connection_list[conn_index].freq;
+			break;
+		}
+	}
+	qdf_mutex_release(&pm_ctx->qdf_conc_list_lock);
+
+	return if_freq;
+}
+
+static qdf_freq_t
+policy_mgr_get_same_band_iface_frq(struct wlan_objmgr_psoc *psoc,
+				   qdf_freq_t ch_freq, bool allow_6ghz)
+{
+	return (WLAN_REG_IS_24GHZ_CH_FREQ(ch_freq) ?
+		policy_mgr_get_iface_2g_freq(psoc) :
+		policy_mgr_get_iface_5g_freq(psoc, allow_6ghz));
+}
+
+static void
+policy_mgr_check_force_scc_two_connection(struct wlan_objmgr_psoc *psoc,
+					  qdf_freq_t *intf_ch_freq,
+					  qdf_freq_t sap_ch_freq,
+					  uint8_t cc_mode,
+					  bool same_band_present,
+					  uint32_t acs_band,
+					  bool allow_6ghz)
+{
+	bool sbs_mlo_present = false;
+
+	/*
+	 * 1st:    2nd:           3rd(SAP):      Action:
+	 * -------------------------------------------------
+	 * 2Ghz    2Ghz(SMM/DBS)  5Ghz           Start on 5Ghz
+	 * 2Ghz    5Ghz(DBS)      5Ghz           Force SCC to 5Ghz
+	 * 2Ghz    5Ghz(DBS)      2Ghz           Force SCC to 5Ghz
+	 * 5Ghz    5Ghz(SBS)      2Ghz           If acs is ALL band force SCC
+	 *                                       else start on 2.4Ghz
+	 * 5Ghz    5Ghz(SBS)      5Ghz           Force SCC to one of 5Ghz
+	 * 5Ghz    5Ghz(SMM)      2Ghz           Start on 2.4Ghz
+	 * 5Ghz    5Ghz(SMM)      5Ghz           Allow SAP on sap_ch_freq if all
+	 *                                       3, 5Ghz freq does't end up
+	 *                                       on same mac, ie 2 of them lead
+	 *                                       to SBS. Else force SCC on
+	 *                                       one of the freq (3 home channel
+	 *                                       will not be allowed)
+	 * 2Ghz    2Ghz(SMM/DBS)  2Ghz           force SCC on one of the freq
+	 *                                       (3 home channel
+	 *                                       will not be allowed)
+	 */
+
+	/* Check if STA or SAP SBS MLO is present */
+	if (policy_mgr_is_hw_sbs_capable(psoc) &&
+	    (policy_mgr_is_mlo_in_mode_sbs(psoc, PM_STA_MODE,
+					   NULL, NULL) ||
+	     policy_mgr_is_mlo_in_mode_sbs(psoc, PM_SAP_MODE,
+					   NULL, NULL)))
+		sbs_mlo_present = true;
+
+	/*
+	 * Check for SBS mlo present as if 1 link is inactive the
+	 * HW mode will be SMM and not SBS.
+	 */
+	if (policy_mgr_is_current_hwmode_sbs(psoc) || sbs_mlo_present) {
+		/*
+		 * 1st:    2nd:        3rd(SAP):   Action:
+		 * -------------------------------------------------
+		 * 5Ghz    5Ghz(SBS)   2Ghz        If acs is ALL band force SCC
+		 *                                 else start on 2.4Ghz
+		 * 5Ghz    5Ghz(SBS)   5Ghz        Force SCC to one of 5Ghz
+		 */
+		if (acs_band == QCA_ACS_MODE_IEEE80211ANY ||
+		    !WLAN_REG_IS_24GHZ_CH_FREQ(sap_ch_freq))
+			*intf_ch_freq =
+				policy_mgr_get_iface_5g_freq(psoc, allow_6ghz);
+		else
+			*intf_ch_freq =
+				policy_mgr_get_same_band_iface_frq(psoc,
+								   sap_ch_freq,
+								   allow_6ghz);
+		return;
+	}
+	if (policy_mgr_is_current_hwmode_dbs(psoc)) {
+		/*
+		 * 1st:    2nd:           3rd(SAP):      Action:
+		 * -------------------------------------------------
+		 * 2Ghz    2Ghz(DBS)      5Ghz           Start on 5Ghz
+		 * 2Ghz    5Ghz(DBS)      5Ghz           Force SCC to 5Ghz
+		 * 2Ghz    5Ghz(DBS)      2Ghz           Force SCC to 5Ghz
+		 * 2Ghz    2Ghz(DBS)      2Ghz           force SCC on one of
+		 *                                       the freq (3 home
+		 *                                       channel will not be
+		 *                                       allowed)
+		 */
+		/*
+		 * For DBS allow the 6Ghz as we may only have 1 5Ghz freq.
+		 * policy_mgr_valid_sap_conc_channel_check->
+		 * policy_mgr_check_6ghz_sap_conc will take care of switching to
+		 * other channel if 6Ghz is not allowed
+		 */
+		*intf_ch_freq =
+			policy_mgr_get_same_band_iface_frq(psoc, sap_ch_freq,
+							   true);
+		return;
+	}
+
+	if (!same_band_present) {
+		/*
+		 * 1st:    2nd:           3rd(SAP):      Action:
+		 * -------------------------------------------------
+		 * 2Ghz    2Ghz(SMM)      5Ghz           Start on 5Ghz(DBS)
+		 * 5Ghz    5Ghz(SMM)      2Ghz           Start on 2.4Ghz(DBS)
+		 */
+		if (policy_mgr_is_hw_dbs_capable(psoc))
+			*intf_ch_freq = 0;
+		return;
+	}
+
+	if (!policy_mgr_are_3_freq_on_same_mac(psoc, sap_ch_freq,
+					pm_conc_connection_list[0].freq,
+					pm_conc_connection_list[1].freq)) {
+		/*
+		 * 1st:    2nd:           3rd(SAP):     Action:
+		 * -------------------------------------------------
+		 * 5Ghz    5Ghz(SMM)      5Ghz          Allow SAP on sap_ch_freq
+		 *                                      if all 3, 5Ghz freq
+		 *                                      does't end up, on same
+		 *                                      mac, ie 2 of them lead
+		 *                                      to SBS, ie at least one
+		 *                                      of them is high 5Ghz and
+		 *                                      one low 5Ghz.
+		 */
+		*intf_ch_freq = 0;
+		return;
+	}
+
+	/*
+	 * 1st:    2nd:           3rd(SAP):     Action:
+	 * -------------------------------------------------
+	 * 5Ghz    5Ghz(SMM)      5Ghz          force SCC on one of the freq
+	 *                                      (3 home channel will not be
+	 *                                      allowed)
+	 * 2Ghz    2Ghz(SMM)      2Ghz          force SCC on one of the freq
+	 *                                      (3 home channel will not be
+	 *                                      allowed)
+	 */
+	policy_mgr_debug("%d Can lead to 3 home channel on same MAC",
+			 sap_ch_freq);
+}
+
+static void
+policy_mgr_check_force_scc_one_connection(struct wlan_objmgr_psoc *psoc,
+					  qdf_freq_t *intf_ch_freq,
+					  qdf_freq_t sap_ch_freq,
+					  bool same_band_present,
+					  uint8_t cc_mode)
+{
+	/*
+	 * 1st:    2nd(SAP):      Action:
+	 * ------------------------------------
+	 * 2Ghz     2Ghz          Force SCC on 2Ghz
+	 * 5Ghz     5Ghz          Force SCC on 5Ghz for non SBS, for SBS freq
+	 *                        allow sap freq
+	 * 2Ghz     5Ghz          Start on 5Ghz (DBS)
+	 * 5Ghz     2Ghz          Start on 2.4Ghz(DBS)
+	 */
+
+	if (same_band_present) {
+		/*
+		 * 1st:    2nd(SAP):      Action:
+		 * ------------------------------------
+		 * 2Ghz     2Ghz          Force SCC on 2Ghz
+		 * 5Ghz     5Ghz          Force SCC on 5Ghz for non SBS,
+		 *                        for SBS freq allow sap freq
+		 */
+		if (policy_mgr_are_sbs_chan(psoc, sap_ch_freq, *intf_ch_freq)) {
+			policy_mgr_debug("Do not overwrite as sap_ch_freq %d intf_ch_freq %d are SBS freq",
+					 sap_ch_freq, *intf_ch_freq);
+			*intf_ch_freq = 0;
+		}
+		return;
+	}
+	if (policy_mgr_is_hw_dbs_capable(psoc) ||
+	    cc_mode ==  QDF_MCC_TO_SCC_WITH_PREFERRED_BAND) {
+		/*
+		 * 1st:    2nd(SAP):      Action:
+		 * ------------------------------------
+		 * 2Ghz     5Ghz          Start on 5Ghz (DBS)
+		 * 5Ghz     2Ghz          Start on 2.4Ghz(DBS)
+		 */
+		/* Different bands can do DBS so dont overwrite */
+		*intf_ch_freq = 0;
+	}
+}
+
+void policy_mgr_check_scc_sbs_channel(struct wlan_objmgr_psoc *psoc,
+				      qdf_freq_t *intf_ch_freq,
+				      qdf_freq_t sap_ch_freq,
+				      uint8_t vdev_id, uint8_t cc_mode)
+{
+	uint32_t num_connections, acs_band = QCA_ACS_MODE_IEEE80211ANY;
+	struct policy_mgr_psoc_priv_obj *pm_ctx;
+	QDF_STATUS status;
+	struct policy_mgr_conc_connection_info
+			info[MAX_NUMBER_OF_CONC_CONNECTIONS] = { {0} };
+	uint8_t num_cxn_del = 0;
+	bool same_band_present = false;
+	bool sbs_mlo_present = false;
+	bool allow_6ghz = true;
+	uint8_t sta_count;
+
+	pm_ctx = policy_mgr_get_context(psoc);
+	if (!pm_ctx) {
+		policy_mgr_err("Invalid Context");
+		return;
+	}
+
+	/* Always do force SCC on non-DBS platforms */
+	if (!policy_mgr_is_hw_dbs_capable(psoc) &&
+	    cc_mode !=  QDF_MCC_TO_SCC_WITH_PREFERRED_BAND)
+		return;
+
+	sta_count = policy_mgr_mode_specific_connection_count(psoc, PM_STA_MODE,
+							      NULL);
+	/*
+	 * If same band interface is present, as
+	 * csr_check_concurrent_channel_overlap try to find same band vdev
+	 * if available
+	 */
+	if ((WLAN_REG_IS_24GHZ_CH_FREQ(sap_ch_freq) &&
+	     WLAN_REG_IS_24GHZ_CH_FREQ(*intf_ch_freq)) ||
+	    (!WLAN_REG_IS_24GHZ_CH_FREQ(*intf_ch_freq) &&
+	     !WLAN_REG_IS_24GHZ_CH_FREQ(sap_ch_freq)))
+		same_band_present = true;
+
+	/* Check if STA or SAP SBS MLO is present */
+	if (policy_mgr_is_hw_sbs_capable(psoc) &&
+	    (policy_mgr_is_mlo_in_mode_sbs(psoc, PM_STA_MODE,
+					   NULL, NULL) ||
+	     policy_mgr_is_mlo_in_mode_sbs(psoc, PM_SAP_MODE,
+					   NULL, NULL)))
+		sbs_mlo_present = true;
+
+	/*
+	 * Different band, this also mean that there is no other interface on
+	 * on same band as csr_check_concurrent_channel_overlap
+	 * try to find same band vdev if available.
+	 * this mean for DBS HW we can use the other available band and thus
+	 * set *intf_ch_freq = 0, to bring sap on sap_ch_freq.
+	 */
+	if (!same_band_present) {
+		if (policy_mgr_is_current_hwmode_sbs(psoc) || sbs_mlo_present)
+			goto sbs_check;
+		/*
+		 * #1 port:
+		 * 1st:    2nd(SAP):      Action:
+		 * ------------------------------------
+		 * 2Ghz     5Ghz          Start on 5Ghz(DBS)
+		 * 5Ghz     2Ghz          Start on 2.4Ghz(DBS)
+		 *
+		 * #2 port:
+		 * 1st:    2nd:           3rd(SAP):      Action:
+		 * -------------------------------------------------
+		 * 2Ghz    2Ghz(SMM/DBS)  5Ghz           Start on 5Ghz(DBS)
+		 * 5Ghz    5Ghz(SMM)      2Ghz           Start on 2.4Ghz(DBS)
+		 *
+		 * #3 port:
+		 * 1st:    2nd:    3rd:    4th(SAP)      Action:
+		 * -------------------------------------------------
+		 * 2Ghz    2Ghz    2Ghz   5Ghz           Start on 5Ghz(DBS)
+		 * 5Ghz    5Ghz    5Ghz   2Ghz           Start on 2.4Ghz(DBS)
+		 */
+		if (policy_mgr_is_hw_dbs_capable(psoc) ||
+		    cc_mode ==  QDF_MCC_TO_SCC_WITH_PREFERRED_BAND) {
+			*intf_ch_freq = 0;
+			return;
+		}
+	} else if (sta_count &&
+		   policy_mgr_is_hw_dbs_capable(psoc) &&
+		   cc_mode == QDF_MCC_TO_SCC_SWITCH_WITH_FAVORITE_CHANNEL) {
+		/* Same band with Fav channel if STA is present */
+		status = policy_mgr_get_sap_mandatory_channel(psoc,
+							      sap_ch_freq,
+							      intf_ch_freq);
+
+		if (QDF_IS_STATUS_SUCCESS(status))
+			return;
+
+		policy_mgr_debug("no mandatory channels (%d, %d)", sap_ch_freq,
+				 *intf_ch_freq);
+	}
+
+sbs_check:
+
+	/* Get allow 6Gz before interface entry is temporary deleted */
+	if (sap_ch_freq && !WLAN_REG_IS_6GHZ_CHAN_FREQ(sap_ch_freq) &&
+	    !policy_mgr_get_ap_6ghz_capable(psoc, vdev_id, NULL))
+		allow_6ghz = false;
+
+	if (pm_ctx->hdd_cbacks.wlan_get_sap_acs_band) {
+		status = pm_ctx->hdd_cbacks.wlan_get_sap_acs_band(psoc,
+								  vdev_id,
+								  &acs_band);
+		if (QDF_IS_STATUS_SUCCESS(status))
+			policy_mgr_debug("acs_band: %d", acs_band);
+	}
+
+	qdf_mutex_acquire(&pm_ctx->qdf_conc_list_lock);
+	/*
+	 * For SAP restart case SAP entry might be present in table,
+	 * so delete it temporary
+	 */
+	policy_mgr_store_and_del_conn_info_by_vdev_id(psoc, vdev_id, info,
+						      &num_cxn_del);
+
+	/*
+	 * If at least one interface is in same band OR HW mode is SBS OR
+	 * SBS MLO is present, try set SBS/DBS/SCC.
+	 */
+	num_connections = policy_mgr_get_connection_count(psoc);
+	policy_mgr_dump_sbs_freq_range(pm_ctx);
+	switch (num_connections) {
+	case 0:
+		/* use sap channel */
+		*intf_ch_freq = 0;
+		break;
+	case 1:
+		policy_mgr_check_force_scc_one_connection(psoc, intf_ch_freq,
+							  sap_ch_freq,
+							  same_band_present,
+							  cc_mode);
+		break;
+	case 2:
+		policy_mgr_check_force_scc_two_connection(psoc, intf_ch_freq,
+							  sap_ch_freq,
+							  cc_mode,
+							  same_band_present,
+							  acs_band,
+							  allow_6ghz);
+		break;
+	default:
+		policy_mgr_debug("invalid num_connections: %d",
+				 num_connections);
+		break;
+	}
+	/* Restore the connection entry */
+	if (num_cxn_del > 0)
+		policy_mgr_restore_deleted_conn_info(psoc, info, num_cxn_del);
+
+	qdf_mutex_release(&pm_ctx->qdf_conc_list_lock);
 }
 
 /**
@@ -3883,10 +4390,10 @@ void policy_mgr_add_sap_mandatory_chan(struct wlan_objmgr_psoc *psoc,
 			return;
 	}
 	if (pm_ctx->sap_mandatory_channels_len >= NUM_CHANNELS) {
-		policy_mgr_err("mand list overflow (%hu)", ch_freq);
+		policy_mgr_err("mand list overflow (%u)", ch_freq);
 		return;
 	}
-	policy_mgr_debug("Ch freq: %hu", ch_freq);
+	policy_mgr_debug("Ch freq: %u", ch_freq);
 	pm_ctx->sap_mandatory_channels[pm_ctx->sap_mandatory_channels_len++]
 		= ch_freq;
 }
@@ -3950,7 +4457,7 @@ void  policy_mgr_add_sap_mandatory_6ghz_chan(struct wlan_objmgr_psoc *psoc)
 			if (status != QDF_STATUS_SUCCESS || !tx_power)
 				continue;
 
-			policy_mgr_debug("Add chan %hu to mandatory list",
+			policy_mgr_debug("Add chan %u to mandatory list",
 					 ch_freq_list[i]);
 			pm_ctx->sap_mandatory_channels[
 				pm_ctx->sap_mandatory_channels_len++] =
@@ -3999,7 +4506,7 @@ policy_mgr_init_sap_mandatory_chan_by_band(struct wlan_objmgr_psoc *psoc,
 	pm_ctx->sap_mandatory_channels_len = 0;
 	for (i = 0; (i < len) && (i < NUM_CHANNELS); i++) {
 		if (WLAN_REG_IS_24GHZ_CH_FREQ(ch_freq_list[i])) {
-			policy_mgr_debug("Add chan %hu to mandatory list",
+			policy_mgr_debug("Add chan %u to mandatory list",
 					ch_freq_list[i]);
 			pm_ctx->sap_mandatory_channels[
 				pm_ctx->sap_mandatory_channels_len++] =
@@ -4018,7 +4525,7 @@ void  policy_mgr_init_sap_mandatory_chan(struct wlan_objmgr_psoc *psoc,
 					 uint32_t org_ch_freq)
 {
 	if (WLAN_REG_IS_5GHZ_CH_FREQ(org_ch_freq)) {
-		policy_mgr_debug("channel %hu, sap mandatory chan list enabled",
+		policy_mgr_debug("channel %u, sap mandatory chan list enabled",
 				 org_ch_freq);
 		policy_mgr_init_sap_mandatory_chan_by_band(
 			psoc, BIT(REG_BAND_2G) | BIT(REG_BAND_5G));

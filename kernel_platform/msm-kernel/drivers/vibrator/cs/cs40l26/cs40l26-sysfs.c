@@ -27,14 +27,15 @@ static ssize_t dsp_state_show(struct device *dev,
 	pm_runtime_get_sync(cs40l26->dev);
 
 	ret = cs40l26_dsp_state_get(cs40l26, &dsp_state);
-	if (ret)
-		return ret;
 
 	pm_runtime_mark_last_busy(cs40l26->dev);
 	pm_runtime_put_autosuspend(cs40l26->dev);
 
-	return snprintf(buf, PAGE_SIZE, "%u\n",
-			(unsigned int) (dsp_state & 0xFF));
+	if (ret)
+		return ret;
+	else
+		return snprintf(buf, PAGE_SIZE, "%u\n",
+				(unsigned int) (dsp_state & 0xFF));
 }
 static DEVICE_ATTR_RO(dsp_state);
 
@@ -45,19 +46,20 @@ static ssize_t halo_heartbeat_show(struct device *dev,
 	u32 reg, halo_heartbeat;
 	int ret;
 
-	pm_runtime_get_sync(cs40l26->dev);
-
 	ret = cl_dsp_get_reg(cs40l26->dsp, "HALO_HEARTBEAT",
 			CL_DSP_XM_UNPACKED_TYPE, cs40l26->fw.id, &reg);
 	if (ret)
 		return ret;
 
+	pm_runtime_get_sync(cs40l26->dev);
+
 	ret = regmap_read(cs40l26->regmap, reg, &halo_heartbeat);
-	if (ret)
-		return ret;
 
 	pm_runtime_mark_last_busy(cs40l26->dev);
 	pm_runtime_put_autosuspend(cs40l26->dev);
+
+	if (ret)
+		return ret;
 
 	return snprintf(buf, PAGE_SIZE, "%d\n", halo_heartbeat);
 }
@@ -159,6 +161,12 @@ static ssize_t power_on_seq_show(struct device *dev,
 	struct cs40l26_pseq_op *pseq_op;
 
 	mutex_lock(&cs40l26->lock);
+
+	if (list_empty(&cs40l26->pseq_op_head)) {
+		dev_err(cs40l26->dev, "Power on sequence is empty\n");
+		mutex_unlock(&cs40l26->lock);
+		return -EINVAL;
+	}
 
 	list_for_each_entry_reverse(pseq_op, op_head, list) {
 		dev_info(cs40l26->dev, "%d: Address: 0x%08X, Size: %d words\n",

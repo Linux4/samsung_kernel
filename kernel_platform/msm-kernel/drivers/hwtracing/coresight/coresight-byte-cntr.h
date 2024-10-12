@@ -15,7 +15,6 @@ struct byte_cntr {
 	struct class		*driver_class;
 	bool			enable;
 	bool			read_active;
-	bool			return_epipe;
 	uint32_t		byte_cntr_value;
 	uint32_t		block_size;
 	int			byte_cntr_irq;
@@ -34,9 +33,9 @@ struct byte_cntr {
 	const char		*class_name;
 	int			irqctrl_offset;
 	unsigned long	offset;
-	unsigned long           total_read_size;
-	unsigned long		total_irq;
-	loff_t			position;
+	uint64_t		total_size;
+	uint64_t		total_irq;
+
 };
 
 extern void tmc_etr_byte_cntr_start(struct byte_cntr *byte_cntr_data);

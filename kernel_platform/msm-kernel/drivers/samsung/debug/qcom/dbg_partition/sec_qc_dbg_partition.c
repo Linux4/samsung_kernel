@@ -1,20 +1,21 @@
 // SPDX-License-Identifier: GPL-2.0
 /*
- * COPYRIGHT(C) 2006-2021 Samsung Electronics Co., Ltd. All Right Reserved.
+ * COPYRIGHT(C) 2016-2022 Samsung Electronics Co., Ltd. All Right Reserved.
  */
 
 #define pr_fmt(fmt)     KBUILD_MODNAME ":%s() " fmt, __func__
 
 #include <linux/blkdev.h>
 #include <linux/debugfs.h>
+#include <linux/fs.h>
 #include <linux/kernel.h>
+#include <linux/mm.h>
 #include <linux/module.h>
 #include <linux/mount.h>
 #include <linux/mutex.h>
 #include <linux/of.h>
 #include <linux/platform_device.h>
 #include <linux/uio.h>
-#include <linux/vmalloc.h>
 
 #include <linux/samsung/builder_pattern.h>
 #include <linux/samsung/debug/qcom/sec_qc_summary.h>
@@ -123,7 +124,7 @@ static bool __qc_dbg_part_is_valid_index(size_t index)
 		return false;
 
 	size = qc_dbg_part_info[index].size;
-	if (!size)
+	if (!size || size >= DEBUG_PART_SIZE_FROM_DT)
 		return false;
 
 	return true;
@@ -132,7 +133,7 @@ static bool __qc_dbg_part_is_valid_index(size_t index)
 ssize_t sec_qc_dbg_part_get_size(size_t index)
 {
 	if (!__qc_dbg_part_is_probed())
-		return -ENODEV;
+		return -EBUSY;
 
 	if (!__qc_dbg_part_is_valid_index(index))
 		return -EINVAL;
@@ -141,7 +142,7 @@ ssize_t sec_qc_dbg_part_get_size(size_t index)
 }
 EXPORT_SYMBOL(sec_qc_dbg_part_get_size);
 
-/* NOTE: see fs/pstore/plk.c */
+/* NOTE: see fs/pstore/blk.c */
 static ssize_t __qc_dbg_part_blk_read(struct qc_dbg_part_drvdata *drvdata,
 		void *buf, size_t bytes, loff_t pos)
 {
@@ -204,7 +205,7 @@ bool sec_qc_dbg_part_read(size_t index, void *value)
 }
 EXPORT_SYMBOL(sec_qc_dbg_part_read);
 
-/* NOTE: see fs/pstore/plk.c */
+/* NOTE: see fs/pstore/blk.c */
 static ssize_t __qc_dbg_part_blk_write(struct qc_dbg_part_drvdata *drvdata,
 		const void *buf, size_t bytes, loff_t pos )
 {
@@ -341,7 +342,7 @@ static int __qc_dbg_part_parse_dt_bdev_path(struct builder *bd,
 			&drvdata->bdev_path);
 }
 
-static struct dt_builder __qc_dbg_part_dt_builder[] = {
+static const struct dt_builder __qc_dbg_part_dt_builder[] = {
 	DT_BUILDER(__qc_dbg_part_parse_dt_bdev_path),
 	DT_BUILDER(__qc_dbg_part_parse_dt_part_table),
 };
@@ -456,7 +457,7 @@ static void __qc_dbg_part_remove_prolog(struct builder *bd)
 }
 
 static int __qc_dbg_part_probe(struct platform_device *pdev,
-		struct dev_builder *builder, ssize_t n)
+		const struct dev_builder *builder, ssize_t n)
 {
 	struct device *dev = &pdev->dev;
 	struct qc_dbg_part_drvdata *drvdata;
@@ -471,7 +472,7 @@ static int __qc_dbg_part_probe(struct platform_device *pdev,
 }
 
 static int __qc_dbg_part_remove(struct platform_device *pdev,
-		struct dev_builder *builder, ssize_t n)
+		const struct dev_builder *builder, ssize_t n)
 {
 	struct qc_dbg_part_drvdata *drvdata = platform_get_drvdata(pdev);
 
@@ -481,6 +482,22 @@ static int __qc_dbg_part_remove(struct platform_device *pdev,
 }
 
 #if IS_ENABLED(CONFIG_DEBUG_FS)
+static void __qc_dbg_part_dbgfs_show_bdev(struct seq_file *m)
+{
+	struct qc_dbg_part_drvdata *drvdata = m->private;
+	struct block_device *bdev = drvdata->bdev;
+	struct hd_struct *bd_part = bdev->bd_part;
+	char buf[BDEVNAME_SIZE];
+
+	bdevname(bdev, buf);
+
+	seq_puts(m, "* Block Device :\n");
+	seq_printf(m, "  - bdevname : %s\n", buf);
+	seq_printf(m, "  - uuid     : %s\n", bd_part->info->uuid);
+	seq_printf(m, "  - volname  : %s\n", bd_part->info->volname);
+	seq_puts(m, "\n");
+}
+
 static void __qc_dbg_part_dbgfs_show_each(struct seq_file *m, size_t index)
 {
 	struct qc_dbg_part_info *info = &qc_dbg_part_info[index];
@@ -493,7 +510,7 @@ static void __qc_dbg_part_dbgfs_show_each(struct seq_file *m, size_t index)
 	seq_printf(m, "  - offset : %zu\n", (size_t)info->offset);
 	seq_printf(m, "  - size   : %zu\n", info->size);
 
-	buf = vmalloc(info->size);
+	buf = kvmalloc(info->size, GFP_KERNEL);
 	if (!sec_qc_dbg_part_read(index, buf)) {
 		seq_puts(m, "  - failed to read debug partition!\n");
 		goto warn_read_fail;
@@ -504,12 +521,14 @@ static void __qc_dbg_part_dbgfs_show_each(struct seq_file *m, size_t index)
 
 warn_read_fail:
 	seq_puts(m, "\n");
-	vfree(buf);
+	kvfree(buf);
 }
 
 static int sec_qc_dbg_part_dbgfs_show_all(struct seq_file *m, void *unsed)
 {
 	size_t i;
+
+	__qc_dbg_part_dbgfs_show_bdev(m);
 
 	for (i = 0; i < ARRAY_SIZE(qc_dbg_part_info); i++)
 		__qc_dbg_part_dbgfs_show_each(m, i);
@@ -536,7 +555,7 @@ static int __qc_dbg_part_debugfs_create(struct builder *bd)
 			container_of(bd, struct qc_dbg_part_drvdata, bd);
 
 	drvdata->dbgfs = debugfs_create_file("sec_qc_dbg_part", 0440,
-			NULL, NULL, &sec_qc_dbg_part_dgbfs_fops);
+			NULL, drvdata, &sec_qc_dbg_part_dgbfs_fops);
 
 	return 0;
 }
@@ -553,7 +572,7 @@ static int __qc_dbg_part_debugfs_create(struct builder *bd) { return 0; }
 static void __qc_dbg_part_debugfs_remove(struct builder *bd) {}
 #endif
 
-static struct dev_builder __qc_dbg_part_dev_builder[] = {
+static const struct dev_builder __qc_dbg_part_dev_builder[] = {
 	DEVICE_BUILDER(__qc_dbg_part_parse_dt, NULL),
 	DEVICE_BUILDER(__qc_dbg_part_probe_prolog, __qc_dbg_part_remove_epilog),
 	DEVICE_BUILDER(__qc_dbg_part_init_reset_header, NULL),

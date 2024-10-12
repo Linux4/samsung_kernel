@@ -47,10 +47,7 @@ alloc:
 		return -ENOMEM;
 	}
 
-	list_for_each_entry(entry, &ipa3_ctx->hdr_tbl[loc].head_hdr_entry_list,
-			link) {
-		if (entry->is_hdr_proc_ctx)
-			continue;
+	list_for_each_entry(entry, &ipa3_ctx->hdr_tbl[loc].head_hdr_entry_list, link) {
 		IPADBG_LOW("hdr of len %d ofst=%d\n", entry->hdr_len,
 				entry->offset_entry->offset);
 		ipahal_cp_hdr_to_hw_buff(mem->base, entry->offset_entry->offset,
@@ -101,14 +98,12 @@ static int ipa3_hdr_proc_ctx_to_hw_format(struct ipa_mem_buffer *mem,
 
 		/* Check the pointer and header length to avoid dangerous overflow in HW */
 		if (unlikely(!entry->hdr || !entry->hdr->offset_entry ||
-					 entry->hdr->hdr_len > ipa_hdr_bin_sz[IPA_HDR_BIN_MAX - 1]))
+			entry->hdr->hdr_len > ipa_hdr_bin_sz[IPA_HDR_BIN_MAX - 1]))
 			return -EINVAL;
 
 		ret = ipahal_cp_proc_ctx_to_hw_buff(entry->type, mem->base,
 				entry->offset_entry->offset,
 				entry->hdr->hdr_len,
-				entry->hdr->is_hdr_proc_ctx,
-				entry->hdr->phys_base,
 				(entry->hdr->is_lcl) ? hdr_lcl_addr : hdr_sys_addr,
 				entry->hdr->offset_entry,
 				&entry->l2tp_params,
@@ -441,8 +436,7 @@ static int __ipa_add_hdr_proc_ctx(struct ipa_hdr_proc_ctx_add *proc_ctx,
 		WARN_ON_RATELIMIT_IPA(1);
 		return -EINVAL;
 	}
-	IPADBG("Associated header is name=%s is_hdr_proc_ctx=%d\n",
-		hdr_entry->name, hdr_entry->is_hdr_proc_ctx);
+	IPADBG("Associated header is name=%s\n", hdr_entry->name);
 
 	entry = kmem_cache_zalloc(ipa3_ctx->hdr_proc_ctx_cache, GFP_KERNEL);
 	if (!entry) {
@@ -549,12 +543,13 @@ bad_len:
 static int __ipa_add_hdr(struct ipa_hdr_add *hdr, bool user,
 	struct ipa3_hdr_entry **entry_out)
 {
-	struct ipa3_hdr_entry *entry;
+	struct ipa3_hdr_entry *entry, *entry_t, *next;
 	struct ipa_hdr_offset_entry *offset = NULL;
 	u32 bin;
 	struct ipa3_hdr_tbl *htbl;
 	int id;
 	int mem_size;
+	enum hdr_tbl_storage hdr_tbl_loc;
 
 	if (hdr->hdr_len > IPA_HDR_MAX_SIZE) {
 		IPAERR_RL("bad param\n");
@@ -581,10 +576,29 @@ static int __ipa_add_hdr(struct ipa_hdr_add *hdr, bool user,
 	entry->eth2_ofst = hdr->eth2_ofst;
 	entry->cookie = IPA_HDR_COOKIE;
 	entry->ipacm_installed = user;
-	entry->is_hdr_proc_ctx = false;
 	entry->is_lcl = ((IPA_MEM_PART(apps_hdr_size_ddr) &&
 			 (entry->is_partial || (hdr->status == IPA_HDR_TO_DDR_PATTERN))) ||
 			 !IPA_MEM_PART(apps_hdr_size)) ? false : true;
+
+	/* check to see if adding header entry with duplicate name */
+	for (hdr_tbl_loc = HDR_TBL_LCL; hdr_tbl_loc < HDR_TBLS_TOTAL; hdr_tbl_loc++) {
+		list_for_each_entry_safe(entry_t, next,
+			&ipa3_ctx->hdr_tbl[hdr_tbl_loc].head_hdr_entry_list, link) {
+
+			/* return if adding the same name */
+			if (!strcmp(entry_t->name, entry->name) && (user == true)) {
+				IPAERR("IPACM Trying to add hdr %s len=%d, duplicate entry, return old one\n",
+					entry->name, entry->hdr_len);
+
+				/* return the original entry */
+				if (entry_out)
+					*entry_out = entry_t;
+
+				kmem_cache_free(ipa3_ctx->hdr_cache, entry);
+				return 0;
+			}
+		}
+	}
 
 	if (hdr->hdr_len <= ipa_hdr_bin_sz[IPA_HDR_BIN0])
 		bin = IPA_HDR_BIN0;
@@ -609,16 +623,34 @@ static int __ipa_add_hdr(struct ipa_hdr_add *hdr, bool user,
 	mem_size = entry->is_lcl ? IPA_MEM_PART(apps_hdr_size) : IPA_MEM_PART(apps_hdr_size_ddr);
 
 	if (list_empty(&htbl->head_free_offset_list[bin])) {
-		/* if header does not fit to table, place it in DDR */
-		if (htbl->end + ipa_hdr_bin_sz[bin] > mem_size) {
+		/*
+		 * In case of a local header entry,
+		 * first iteration will check against SRAM partition space,
+		 * and the second iteration will check against DDR partition space.
+		 * In case of a system header entry, the loop will iterate only once,
+		 * and check against DDR partition space.
+		 */
+		while (htbl->end + ipa_hdr_bin_sz[bin] > mem_size) {
 			if (entry->is_lcl) {
+				/* if header does not fit to SRAM table, place it in DDR */
 				htbl = &ipa3_ctx->hdr_tbl[HDR_TBL_SYS];
 				mem_size = IPA_MEM_PART(apps_hdr_size_ddr);
 				entry->is_lcl = false;
 			} else {
-				IPAERR("No space in DDR header buffer! Requested: %d Left: %d\n",
-				       ipa_hdr_bin_sz[bin], mem_size - htbl->end);
-				goto bad_hdr_len;
+				/* check if DDR free list */
+				if (list_empty(&htbl->head_free_offset_list[bin])) {
+					IPAERR("No space in DDR header buffer! Requested: %d Left: %d name %s, end %d\n",
+						ipa_hdr_bin_sz[bin], mem_size - htbl->end, entry->name, htbl->end);
+					goto bad_hdr_len;
+				} else {
+					/* get the first free slot */
+					offset = list_first_entry(&htbl->head_free_offset_list[bin],
+						struct ipa_hdr_offset_entry, link);
+					list_move(&offset->link, &htbl->head_offset_list[bin]);
+					entry->offset_entry = offset;
+					offset->ipacm_installed = user;
+					goto free_list;
+				}
 			}
 		}
 		offset = kmem_cache_zalloc(ipa3_ctx->hdr_offset_cache,
@@ -647,6 +679,8 @@ static int __ipa_add_hdr(struct ipa_hdr_add *hdr, bool user,
 		entry->offset_entry = offset;
 		offset->ipacm_installed = user;
 	}
+
+free_list:
 
 	list_add(&entry->link, &htbl->head_hdr_entry_list);
 	htbl->hdr_cnt++;
@@ -778,13 +812,8 @@ int __ipa3_del_hdr(u32 hdr_hdl, bool by_user)
 
 	htbl = entry->is_lcl ? &ipa3_ctx->hdr_tbl[HDR_TBL_LCL] : &ipa3_ctx->hdr_tbl[HDR_TBL_SYS];
 
-	if (entry->is_hdr_proc_ctx)
-		IPADBG("del hdr of len=%d hdr_cnt=%d phys_base=%pa\n",
-			entry->hdr_len, htbl->hdr_cnt, &entry->phys_base);
-	else
-		IPADBG("del hdr of len=%d hdr_cnt=%d ofst=%d\n",
-			entry->hdr_len, htbl->hdr_cnt,
-			entry->offset_entry->offset);
+	IPADBG("del hdr of len=%d hdr_cnt=%d ofst=%d\n", entry->hdr_len, htbl->hdr_cnt,
+		entry->offset_entry->offset);
 
 	if (by_user && entry->user_deleted) {
 		IPAERR_RL("proc_ctx already deleted by user\n");
@@ -809,17 +838,12 @@ int __ipa3_del_hdr(u32 hdr_hdl, bool by_user)
 		return 0;
 	}
 
-	if (entry->is_hdr_proc_ctx || entry->proc_ctx) {
-		dma_unmap_single(ipa3_ctx->pdev,
-			entry->phys_base,
-			entry->hdr_len,
-			DMA_TO_DEVICE);
+	if (entry->proc_ctx)
 		__ipa3_del_hdr_proc_ctx(entry->proc_ctx->id, false, false);
-	} else {
+	else
 		/* move the offset entry to appropriate free list */
 		list_move(&entry->offset_entry->link,
 			&htbl->head_free_offset_list[entry->offset_entry->bin]);
-	}
 	list_del(&entry->link);
 	htbl->hdr_cnt--;
 	entry->cookie = 0;
@@ -1257,12 +1281,6 @@ int ipa3_reset_hdr(bool user_only)
 				IPADBG("Trying to remove hdr %s offset=%u\n",
 					entry->name, entry->offset_entry->offset);
 				if (!entry->offset_entry->offset) {
-					if (entry->is_hdr_proc_ctx) {
-						IPAERR("default header is proc ctx\n");
-						mutex_unlock(&ipa3_ctx->lock);
-						WARN_ON_RATELIMIT_IPA(1);
-						return -EFAULT;
-					}
 					IPADBG("skip default header\n");
 					continue;
 				}
@@ -1270,24 +1288,23 @@ int ipa3_reset_hdr(bool user_only)
 
 			if (ipa3_id_find(entry->id) == NULL) {
 				mutex_unlock(&ipa3_ctx->lock);
+				IPAERR_RL("Invalid header ID\n");
 				WARN_ON_RATELIMIT_IPA(1);
 				return -EFAULT;
 			}
 
 			if (!user_only || entry->ipacm_installed) {
-				if (entry->is_hdr_proc_ctx) {
-					dma_unmap_single(ipa3_ctx->pdev,
-						entry->phys_base,
-						entry->hdr_len,
-						DMA_TO_DEVICE);
+				if (entry->proc_ctx) {
+					entry->proc_ctx->hdr = NULL;
 					entry->proc_ctx = NULL;
-				} else {
-					/* move the offset entry to free list */
-					entry->offset_entry->ipacm_installed = false;
-					list_move(&entry->offset_entry->link,
-					&ipa3_ctx->hdr_tbl[hdr_tbl_loc].head_free_offset_list[
-						entry->offset_entry->bin]);
 				}
+				/* move the offset entry to free list */
+				entry->offset_entry->ipacm_installed = false;
+				list_move(&entry->offset_entry->link,
+				&ipa3_ctx->hdr_tbl[hdr_tbl_loc].head_free_offset_list[
+					entry->offset_entry->bin]);
+
+				/* delete the hdr entry from headers list */
 				list_del(&entry->link);
 				ipa3_ctx->hdr_tbl[hdr_tbl_loc].hdr_cnt--;
 				entry->ref_cnt = 0;
@@ -1338,6 +1355,7 @@ int ipa3_reset_hdr(bool user_only)
 
 		if (ipa3_id_find(ctx_entry->id) == NULL) {
 			mutex_unlock(&ipa3_ctx->lock);
+			IPAERR_RL("Invalid proc header ID\n");
 			WARN_ON_RATELIMIT_IPA(1);
 			return -EFAULT;
 		}

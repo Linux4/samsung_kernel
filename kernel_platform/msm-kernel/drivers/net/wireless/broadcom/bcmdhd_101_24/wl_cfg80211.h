@@ -1,7 +1,7 @@
 /*
  * Linux cfg80211 driver
  *
- * Copyright (C) 2021, Broadcom.
+ * Copyright (C) 2022, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -2144,6 +2144,12 @@ struct bcm_cfg80211 {
 	bool sroamed;
 #endif /* CONFIG_SILTENT_ROAM */
 	uint32 roam_allowed_band;	/* roam allow band in order to purne roam candidate */
+	uint32 ap_bw_limit;
+	uint32 ap_bw_chspec;
+#if defined(AP_LESS_BCAST)
+	uint32 ap_less_bcast; /* enabled/disabled less broadcast */
+	char ap_less_bcast_name[IFNAMSIZ + 1];
+#endif /* AP_LESS_BCAST */
 };
 
 /* Max auth timeout allowed in case of EAP is 70sec, additional 5 sec for

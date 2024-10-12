@@ -9,7 +9,6 @@ pdic_notifier_module-$(CONFIG_PDIC_POLICY) += pdic_policy.o
 ifeq ($(CONFIG_SEC_KUNIT), y)
 obj-$(CONFIG_PDIC_MISC_TEST)    += pdic_misc.o
 obj-$(CONFIG_PDIC_SYSFS_TEST)    += pdic_sysfs.o
-obj-$(CONFIG_SEC_KUNIT) += kunit_test/
 GCOV_PROFILE_pdic_misc.o := $(CONFIG_SEC_KUNIT)
 GCOV_PROFILE_pdic_sysfs.o := $(CONFIG_SEC_KUNIT)
 endif

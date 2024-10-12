@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0
 /*
- * COPYRIGHT(C) 2021 Samsung Electronics Co., Ltd. All Right Reserved.
+ * COPYRIGHT(C) 2021-2022 Samsung Electronics Co., Ltd. All Right Reserved.
  */
 
 #define pr_fmt(fmt)     KBUILD_MODNAME ":%s() " fmt, __func__
@@ -101,7 +101,7 @@ static int __reloc_gpio_parse_dt_gpio_label(struct builder *bd,
 	return 0;
 }
 
-static struct dt_builder __reloc_gpio_dt_builder[] = {
+static const struct dt_builder __reloc_gpio_dt_builder[] = {
 	DT_BUILDER(__reloc_gpio_parse_dt_reloc_base),
 	DT_BUILDER(__reloc_gpio_parse_dt_gpio_label),
 };
@@ -166,10 +166,12 @@ static bool __reloc_gpio_is_valid_gpio_num(struct reloc_gpio_chip *chip,
 static bool __reloc_gpio_is_matched(struct gpio_chip *gc,
 		struct reloc_gpio_chip *chip, int gpio_num)
 {
-	/* memcmp is preferred rather than strncmp to include a NULL
-	 * termination.
-	 */
-	if (memcmp(gc->label, chip->label, chip->label_len + 1))
+	size_t len = strnlen(gc->label, chip->label_len + 1);
+
+	if (len != chip->label_len)
+		return false;
+
+	if (strncmp(gc->label, chip->label, chip->label_len))
 		return false;
 
 	return __reloc_gpio_is_valid_gpio_num(chip, gc->ngpio, gpio_num);
@@ -261,8 +263,7 @@ static ssize_t check_requested_gpio_store(struct device *sec_class_dev,
 	return count;
 }
 
-static DEVICE_ATTR(check_requested_gpio, 0664,
-		check_requested_gpio_show, check_requested_gpio_store);
+static DEVICE_ATTR_RW(check_requested_gpio);
 
 static struct attribute *sec_reloc_gpio_attrs[] = {
 	&dev_attr_check_requested_gpio.attr,
@@ -308,7 +309,7 @@ static int __reloc_gpio_epilog(struct builder *bd)
 }
 
 static int __reloc_gpio_probe(struct platform_device *pdev,
-		struct dev_builder *builder, ssize_t n)
+		const struct dev_builder *builder, ssize_t n)
 {
 	struct device *dev = &pdev->dev;
 	struct reloc_gpio_drvdata *drvdata;
@@ -323,7 +324,7 @@ static int __reloc_gpio_probe(struct platform_device *pdev,
 }
 
 static int __reloc_gpio_remove(struct platform_device *pdev,
-		struct dev_builder *builder, ssize_t n)
+		const struct dev_builder *builder, ssize_t n)
 {
 	struct reloc_gpio_drvdata *drvdata = platform_get_drvdata(pdev);
 
@@ -332,7 +333,7 @@ static int __reloc_gpio_remove(struct platform_device *pdev,
 	return 0;
 }
 
-static struct dev_builder __reloc_gpio_dev_builder[] = {
+static const struct dev_builder __reloc_gpio_dev_builder[] = {
 	DEVICE_BUILDER(__reloc_gpio_parse_dt, NULL),
 	DEVICE_BUILDER(__reloc_gpio_probe_prolog, NULL),
 	DEVICE_BUILDER(__reloc_gpio_sec_class_create,

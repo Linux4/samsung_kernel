@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2014-2021 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -23,6 +24,7 @@
 #include <cdp_txrx_cmn_struct.h>
 #include <cdp_txrx_peer_ops.h>
 #include <cds_sched.h>
+#include "dp_rx.h"
 
 /* Timeout in ms to wait for a DP rx thread */
 #ifdef HAL_CONFIG_SLUB_DEBUG_ON
@@ -62,6 +64,39 @@ static inline void dp_rx_tm_walk_skb_list(qdf_nbuf_t nbuf_list)
 { }
 #endif /* DP_RX_TM_DEBUG */
 
+#ifdef DP_RX_REFILL_CPU_PERF_AFFINE_MASK
+/**
+ * dp_rx_refill_thread_set_affinity - Affine Rx refill threads
+ * @refill_thread: Contains over all rx refill thread info
+ *
+ * Return: None
+ */
+static void
+dp_rx_refill_thread_set_affinity(struct dp_rx_refill_thread *refill_thread)
+{
+	unsigned int cpus;
+	char new_mask_str[10];
+	qdf_cpu_mask new_mask;
+
+	qdf_cpumask_clear(&new_mask);
+	qdf_for_each_online_cpu(cpus) {
+		if (qdf_topology_physical_package_id(cpus) ==
+		    CPU_CLUSTER_TYPE_PERF) {
+			qdf_cpumask_set_cpu(cpus, &new_mask);
+		}
+	}
+
+	qdf_thread_set_cpus_allowed_mask(refill_thread->task, &new_mask);
+
+	cpumap_print_to_pagebuf(false, new_mask_str, &new_mask);
+	dp_debug("Refill Thread CPU mask  %s", new_mask_str);
+}
+#else
+static void
+dp_rx_refill_thread_set_affinity(struct dp_rx_refill_thread *refill_thread)
+{
+}
+#endif
 /**
  * dp_rx_tm_get_soc_handle() - get soc handle from struct dp_rx_tm_handle_cmn
  * @rx_tm_handle_cmn - rx thread manager cmn handle
@@ -402,14 +437,17 @@ static qdf_nbuf_t dp_rx_tm_thread_dequeue(struct dp_rx_thread *rx_thread)
  *
  * Returns: should yield or not
  */
-static inline bool dp_rx_thread_should_yield(uint32_t iter)
+static inline bool dp_rx_thread_should_yield(struct dp_rx_thread *rx_thread,
+					     uint32_t iter)
 {
-	if (iter >= DP_RX_THREAD_YIELD_PKT_CNT)
+	if (iter >= DP_RX_THREAD_YIELD_PKT_CNT ||
+	    qdf_test_bit(RX_VDEV_DEL_EVENT, &rx_thread->event_flag))
 		return true;
 	return false;
 }
 #else
-static inline bool dp_rx_thread_should_yield(uint32_t iter)
+static inline bool dp_rx_thread_should_yield(struct dp_rx_thread *rx_thread,
+					     uint32_t iter)
 {
 	return false;
 }
@@ -469,7 +507,8 @@ static int dp_rx_thread_process_nbufq(struct dp_rx_thread *rx_thread)
 			rx_thread->stats.nbuf_sent_to_stack +=
 							num_list_elements;
 		}
-		if (unlikely(dp_rx_thread_should_yield(iterates))) {
+		if (qdf_unlikely(dp_rx_thread_should_yield(rx_thread,
+							   iterates))) {
 			rx_thread->stats.rx_nbufq_loop_yield++;
 			break;
 		}
@@ -564,6 +603,8 @@ static int dp_rx_thread_sub_loop(struct dp_rx_thread *rx_thread, bool *shutdown)
 						  &rx_thread->event_flag)) {
 			rx_thread->stats.gro_flushes_by_vdev_del++;
 			qdf_event_set(&rx_thread->vdev_del_event);
+			if (qdf_nbuf_queue_head_qlen(&rx_thread->nbuf_queue))
+				continue;
 		}
 
 		if (qdf_atomic_test_and_clear_bit(RX_SUSPEND_EVENT,
@@ -865,6 +906,8 @@ QDF_STATUS dp_rx_refill_thread_init(struct dp_rx_refill_thread *refill_thread)
 		return QDF_STATUS_E_FAILURE;
 	}
 
+	dp_rx_refill_thread_set_affinity(refill_thread);
+
 	refill_thread->state = DP_RX_REFILL_THREAD_RUNNING;
 	return QDF_STATUS_SUCCESS;
 }
@@ -1060,21 +1103,34 @@ QDF_STATUS dp_rx_thread_flush_by_vdev_id(struct dp_rx_thread *rx_thread,
 	qdf_nbuf_t nbuf_list, tmp_nbuf_list;
 	uint32_t num_list_elements = 0;
 	QDF_STATUS qdf_status = QDF_STATUS_SUCCESS;
+	uint64_t lock_time, unlock_time;
+	qdf_nbuf_t nbuf_list_head = NULL, nbuf_list_next;
 
 	qdf_nbuf_queue_head_lock(&rx_thread->nbuf_queue);
+	lock_time = qdf_get_log_timestamp();
 	QDF_NBUF_QUEUE_WALK_SAFE(&rx_thread->nbuf_queue, nbuf_list,
 				 tmp_nbuf_list) {
 		if (QDF_NBUF_CB_RX_VDEV_ID(nbuf_list) == vdev_id) {
 			qdf_nbuf_unlink_no_lock(nbuf_list,
 						&rx_thread->nbuf_queue);
-			dp_rx_thread_adjust_nbuf_list(nbuf_list);
-			num_list_elements =
-				QDF_NBUF_CB_RX_NUM_ELEMENTS_IN_LIST(nbuf_list);
-			rx_thread->stats.rx_flushed += num_list_elements;
-			qdf_nbuf_list_free(nbuf_list);
+			DP_RX_HEAD_APPEND(nbuf_list_head, nbuf_list);
 		}
 	}
 	qdf_nbuf_queue_head_unlock(&rx_thread->nbuf_queue);
+	unlock_time = qdf_get_log_timestamp();
+	dp_info("Lock held time: %llu us",
+			qdf_log_timestamp_to_usecs(unlock_time - lock_time));
+
+	while (nbuf_list_head) {
+		nbuf_list_next = qdf_nbuf_queue_next(nbuf_list_head);
+		qdf_nbuf_set_next(nbuf_list_head, NULL);
+		dp_rx_thread_adjust_nbuf_list(nbuf_list_head);
+		num_list_elements =
+			QDF_NBUF_CB_RX_NUM_ELEMENTS_IN_LIST(nbuf_list_head);
+		rx_thread->stats.rx_flushed += num_list_elements;
+		qdf_nbuf_list_free(nbuf_list_head);
+		nbuf_list_head = nbuf_list_next;
+	}
 
 	qdf_event_reset(&rx_thread->vdev_del_event);
 	qdf_set_bit(RX_VDEV_DEL_EVENT, &rx_thread->event_flag);

@@ -31,6 +31,12 @@ int __qc_smem_clk_osm_probe(struct builder *bd)
 		cpuclk_log[i].max_cnt = MAX_CLK_LOG_CNT;
 
 	apps_stat = __qc_smem_id_vendor1_get_apps_stat(drvdata);
+	if (IS_ERR_OR_NULL(apps_stat)) {
+		dev_warn(dev, "apps_stat is not available for vendor1 v%u\n",
+				drvdata->vendor1_ver);
+		return 0;
+	}
+
 	apps_stat->clk = (void *)virt_to_phys(cpuclk_log);
 	dev_info(dev, "vendor1->apps_stat.clk = %p\n", apps_stat->clk);
 

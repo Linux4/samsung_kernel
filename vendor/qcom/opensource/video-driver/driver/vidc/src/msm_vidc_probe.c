@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2020-2022, The Linux Foundation. All rights reserved.
  */
 
 #include <linux/workqueue.h>
@@ -82,7 +82,33 @@ exit:
 	return rc;
 }
 
+static ssize_t sku_version_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct msm_vidc_core *core;
+
+	/*
+	 * Default sku version: 0
+	 * driver possibly not probed yet or not the main device.
+	 */
+	if (!dev || !dev->driver ||
+		!of_device_is_compatible(dev->of_node, "qcom,msm-vidc"))
+		return 0;
+
+	core = dev_get_drvdata(dev);
+	if (!core || !core->platform) {
+		d_vpr_e("%s: invalid core\n", __func__);
+		return 0;
+	}
+
+	return scnprintf(buf, PAGE_SIZE, "%d",
+			core->platform->data.sku_version);
+}
+
+static DEVICE_ATTR_RO(sku_version);
+
 static struct attribute *msm_vidc_core_attrs[] = {
+	&dev_attr_sku_version.attr,
 	NULL
 };
 
@@ -170,6 +196,28 @@ static int msm_vidc_register_video_device(struct msm_vidc_core *core,
 	return 0;
 }
 
+static int msm_vidc_check_mmrm_support(struct msm_vidc_core *core)
+{
+	int rc = 0;
+
+	if (!core || !core->capabilities) {
+		d_vpr_e("%s: invalid params\n", __func__);
+		return -EINVAL;
+	}
+
+	if (!core->capabilities[MMRM].value)
+		goto exit;
+
+	if (!mmrm_client_check_scaling_supported(MMRM_CLIENT_CLOCK, 0)) {
+		d_vpr_e("%s: MMRM not supported\n", __func__);
+		core->capabilities[MMRM].value = 0;
+	}
+
+exit:
+	d_vpr_h("%s: %d\n", __func__, core->capabilities[MMRM].value);
+	return rc;
+}
+
 static int msm_vidc_deinitialize_core(struct msm_vidc_core *core)
 {
 	int rc = 0;
@@ -243,6 +291,7 @@ static int msm_vidc_initialize_core(struct msm_vidc_core *core)
 	}
 
 	mutex_init(&core->lock);
+	init_completion(&core->init_done);
 	INIT_LIST_HEAD(&core->instances);
 	INIT_LIST_HEAD(&core->dangling_instances);
 
@@ -393,6 +442,12 @@ static int msm_vidc_probe_video_device(struct platform_device *pdev)
 		goto enc_reg_failed;
 	}
 
+	rc = msm_vidc_check_mmrm_support(core);
+	if (rc) {
+		d_vpr_e("Failed to check MMRM scaling support\n");
+		rc = 0; /* Ignore error */
+	}
+
 	core->debugfs_root = msm_vidc_debugfs_init_core(core);
 	if (!core->debugfs_root)
 		d_vpr_h("Failed to init debugfs core\n");
@@ -475,7 +530,6 @@ static int msm_vidc_pm_suspend(struct device *dev)
 	int rc = 0;
 	struct msm_vidc_core *core;
 
-	d_vpr_h("%s\n", __func__);
 	/*
 	 * Bail out if
 	 * - driver possibly not probed yet
@@ -492,18 +546,40 @@ static int msm_vidc_pm_suspend(struct device *dev)
 		return -EINVAL;
 	}
 
+	d_vpr_h("%s\n", __func__);
 	rc = msm_vidc_suspend(core);
 	if (rc == -ENOTSUPP)
 		rc = 0;
 	else if (rc)
 		d_vpr_e("Failed to suspend: %d\n", rc);
+	else
+		core->pm_suspended  = true;
 
 	return rc;
 }
 
 static int msm_vidc_pm_resume(struct device *dev)
 {
+	struct msm_vidc_core *core;
+
+	/*
+	 * Bail out if
+	 * - driver possibly not probed yet
+	 * - not the main device. We don't support power management on
+	 *   subdevices (e.g. context banks)
+	 */
+	if (!dev || !dev->driver ||
+		!of_device_is_compatible(dev->of_node, "qcom,msm-vidc"))
+		return 0;
+
+	core = dev_get_drvdata(dev);
+	if (!core) {
+		d_vpr_e("%s: invalid core\n", __func__);
+		return -EINVAL;
+	}
+
 	d_vpr_h("%s\n", __func__);
+	core->pm_suspended  = false;
 	return 0;
 }
 

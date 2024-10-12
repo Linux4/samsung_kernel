@@ -47,10 +47,19 @@
 #define PCIE20_PARF_CLKREQ_OVERRIDE	0x2B0
 #define PCIE20_PARF_CLKREQ_IN_OVERRIDE_STS	BIT(5)
 #define PCIE20_PARF_CLKREQ_OE_OVERRIDE_STS	BIT(4)
-#define PCIE20_PARF_CLKREQ_IN_OVERRIDE_VAL	BIT(3)
+#define PCIE20_PARF_CLKREQ_IN_OVERRIDE_VAL_MASK	BIT(3)
+#define PCIE20_PARF_CLKREQ_IN_OVERRIDE_VAL_ASSERT	0
+#define PCIE20_PARF_CLKREQ_IN_OVERRIDE_VAL_DEASSERT	1
 #define PCIE20_PARF_CLKREQ_OE_OVERRIDE_VAL	BIT(2)
-#define PCIE20_PARF_CLKREQ_IN_OVERRIDE_ENABLE	BIT(1)
+#define PCIE20_PARF_CLKREQ_IN_OVERRIDE_ENABLE_MASK	BIT(1)
+#define PCIE20_PARF_CLKREQ_IN_OVERRIDE_ENABLE_DIS	0
+#define PCIE20_PARF_CLKREQ_IN_OVERRIDE_ENABLE_EN	1
 #define PCIE20_PARF_CLKREQ_OE_OVERRIDE_ENABLE	BIT(0)
+
+#define PCIE20_PARF_DEBUG_CNT_IN_L0S (0xc10)
+#define PCIE20_PARF_DEBUG_CNT_IN_L1 (0xc0c)
+#define PCIE20_PARF_DEBUG_CNT_IN_L1SUB_L1 (0xc84)
+#define PCIE20_PARF_DEBUG_CNT_IN_L1SUB_L2 (0xc88)
 
 #define PCIE20_PARF_SLV_ADDR_MSB_CTRL  0x2C0
 #define PCIE20_PARF_DBI_BASE_ADDR      0x350
@@ -105,8 +114,8 @@
 #define PCIE20_CAP_LINKCTRLSTATUS      0x80
 #define PCIE20_DEVICE_CONTROL2_STATUS2 0x98
 #define PCIE20_LINK_CONTROL2_LINK_STATUS2 0xA0
-#define PCIE20_L1SUB_CAPABILITY        0x154
-#define PCIE20_L1SUB_CONTROL1          0x158
+#define PCIE20_L1SUB_CAPABILITY        0x234
+#define PCIE20_L1SUB_CONTROL1          0x238
 #define PCIE20_BUS_DISCONNECT_STATUS   0x68c
 #define PCIE20_ACK_F_ASPM_CTRL_REG     0x70C
 #define PCIE20_MASK_ACK_N_FTS          0xff00
@@ -147,6 +156,7 @@
 #define PCIE20_BHI_VERSION_LOWER	0x200
 #define PCIE20_BHI_VERSION_UPPER	0x204
 #define PCIE20_BHI_INTVEC		0x220
+#define PCIE20_MISCOFF			0x124
 
 #define PCIE20_AUX_CLK_FREQ_REG        0xB40
 #define PCIE20_GEN3_RELATED_OFF		0x890
@@ -322,6 +332,8 @@ struct ep_pcie_phy_info_t {
 struct ep_pcie_dev_t {
 	struct platform_device       *pdev;
 	struct regulator             *gdsc;
+	/* Optional phy GDSC present only in few targets */
+	struct regulator             *gdsc_phy;
 	struct ep_pcie_vreg_info_t   vreg[EP_PCIE_MAX_VREG];
 	struct ep_pcie_gpio_info_t   gpio[EP_PCIE_MAX_GPIO];
 	struct ep_pcie_clk_info_t    clk[EP_PCIE_MAX_CLK];
@@ -355,6 +367,7 @@ struct ep_pcie_dev_t {
 	bool			     m2_autonomous;
 	bool			     mhi_soc_reset_en;
 	bool			     aoss_rst_clear;
+	bool			     avoid_reboot_in_d3hot;
 	u32                          dbi_base_reg;
 	u32                          slv_space_reg;
 	u32                          phy_status_reg;
@@ -388,6 +401,7 @@ struct ep_pcie_dev_t {
 	ulong                        wake_counter;
 	ulong                        msi_counter;
 	ulong                        global_irq_counter;
+	ulong                        perst_ast_in_enum_counter;
 
 	bool                         dump_conf;
 	bool                         config_mmio_init;
@@ -407,7 +421,7 @@ struct ep_pcie_dev_t {
 	bool			     conf_ipa_msi_iatu;
 
 	struct ep_pcie_register_event *event_reg;
-	struct work_struct	     handle_perst_work;
+	struct work_struct           handle_enumeration_work;
 	struct work_struct           handle_bme_work;
 	struct work_struct           handle_d3cold_work;
 
@@ -455,6 +469,7 @@ extern int ep_pcie_get_debug_mask(void);
 extern void ep_pcie_phy_init(struct ep_pcie_dev_t *dev);
 extern bool ep_pcie_phy_is_ready(struct ep_pcie_dev_t *dev);
 extern void ep_pcie_reg_dump(struct ep_pcie_dev_t *dev, u32 sel, bool linkdown);
+extern void ep_pcie_clk_dump(struct ep_pcie_dev_t *dev);
 extern void ep_pcie_debugfs_init(struct ep_pcie_dev_t *ep_dev);
 extern void ep_pcie_debugfs_exit(void);
 

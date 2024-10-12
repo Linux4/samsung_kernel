@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0
 /*
- * COPYRIGHT(C) 2019-2020 Samsung Electronics Co., Ltd. All Right Reserved.
+ * COPYRIGHT(C) 2019-2022 Samsung Electronics Co., Ltd. All Right Reserved.
  */
 
 #define pr_fmt(fmt)     KBUILD_MODNAME ":%s() " fmt, __func__
@@ -13,6 +13,7 @@
 #include <linux/module.h>
 #include <linux/notifier.h>
 #include <linux/of.h>
+#include <linux/of_platform.h>
 #include <linux/platform_device.h>
 #include <linux/pm_wakeup.h>
 #include <linux/slab.h>
@@ -20,6 +21,7 @@
 #include <linux/version.h>
 
 #include <linux/samsung/builder_pattern.h>
+#include <linux/samsung/of_early_populate.h>
 #include <linux/samsung/bsp/sec_key_notifier.h>
 #include <linux/samsung/debug/sec_debug.h>
 #include <linux/samsung/debug/sec_crashkey_long.h>
@@ -55,16 +57,17 @@ static __always_inline bool __crashkey_long_is_probed(void)
 	return !!crashkey_long;
 }
 
-static inline int __crashkey_long_add_preparing_panic(struct notifier_block *nb)
+static inline int __crashkey_long_add_preparing_panic(
+		struct crashkey_long_drvdata *drvdata, struct notifier_block *nb)
 {
 	struct crashkey_long_notify *notify;
 	int err;
 
-	notify = &crashkey_long->notify;
+	notify = &drvdata->notify;
 
 	err = atomic_notifier_chain_register(&notify->list, nb);
 	if (err) {
-		struct device *dev = crashkey_long->bd.dev;
+		struct device *dev = drvdata->bd.dev;
 
 		dev_warn(dev, "failed to add a notifier!\n");
 		dev_warn(dev, "Caller is %pS\n", __builtin_return_address(0));
@@ -76,22 +79,23 @@ static inline int __crashkey_long_add_preparing_panic(struct notifier_block *nb)
 int sec_crashkey_long_add_preparing_panic(struct notifier_block *nb)
 {
 	if (!__crashkey_long_is_probed())
-		return 0;
+		return -EBUSY;
 
-	return __crashkey_long_add_preparing_panic(nb);
+	return __crashkey_long_add_preparing_panic(crashkey_long, nb);
 }
 EXPORT_SYMBOL(sec_crashkey_long_add_preparing_panic);
 
-static inline int __crashkey_long_del_preparing_panic(struct notifier_block *nb)
+static inline int __crashkey_long_del_preparing_panic(
+		struct crashkey_long_drvdata *drvdata, struct notifier_block *nb)
 {
 	struct crashkey_long_notify *notify;
 	int err;
 
-	notify = &crashkey_long->notify;
+	notify = &drvdata->notify;
 
 	err = atomic_notifier_chain_unregister(&notify->list, nb);
 	if (err) {
-		struct device *dev = crashkey_long->bd.dev;
+		struct device *dev = drvdata->bd.dev;
 
 		dev_warn(dev, "failed to remove a notifier for!\n");
 		dev_warn(dev, "Caller is %pS\n", __builtin_return_address(0));
@@ -103,9 +107,9 @@ static inline int __crashkey_long_del_preparing_panic(struct notifier_block *nb)
 int sec_crashkey_long_del_preparing_panic(struct notifier_block *nb)
 {
 	if (!__crashkey_long_is_probed())
-		return 0;
+		return -EPROBE_DEFER;
 
-	return __crashkey_long_del_preparing_panic(nb);
+	return __crashkey_long_del_preparing_panic(crashkey_long, nb);
 }
 EXPORT_SYMBOL(sec_crashkey_long_del_preparing_panic);
 
@@ -132,10 +136,11 @@ already_connected:
 
 	return ret;
 }
+
 int sec_crashkey_long_connect_to_input_evnet(void)
 {
 	if (!__crashkey_long_is_probed())
-		return 0;
+		return -EBUSY;
 
 	return __crashkey_long_connect_to_input_evnet();
 }
@@ -173,7 +178,7 @@ already_disconnected:
 int sec_crashkey_long_disconnect_from_input_event(void)
 {
 	if (!__crashkey_long_is_probed())
-		return 0;
+		return -EBUSY;
 
 	return __crashkey_long_disconnect_from_input_event();
 }
@@ -267,14 +272,6 @@ static int sec_crashkey_long_notifier_call(struct notifier_block *this,
 	return NOTIFY_OK;
 }
 
-#if IS_ENABLED(CONFIG_KUNIT) && IS_ENABLED(CONFIG_UML)
-int kunit_crashkey_long_mock_key_notifier_call(unsigned long type,
-		struct sec_key_notifier_param *data)
-{
-	return sec_crashkey_long_notifier_call(&crashkey_long->nb, type, data);
-}
-#endif
-
 static int __crashkey_long_parse_dt_panic_msg(struct builder *bd,
 		struct device_node *np)
 {
@@ -338,7 +335,7 @@ static int __crashkey_long_parse_dt_used_key(struct builder *bd,
 	return 0;
 }
 
-static struct dt_builder __crashkey_long_dt_builder[] = {
+static const struct dt_builder __crashkey_long_dt_builder[] = {
 	DT_BUILDER(__crashkey_long_parse_dt_panic_msg),
 	DT_BUILDER(__crashkey_long_parse_dt_expire_msec),
 	DT_BUILDER(__crashkey_long_parse_dt_used_key),
@@ -415,7 +412,7 @@ static int __crashkey_long_set_panic_on_expired(struct builder *bd)
 	notify->panic.notifier_call = __crashkey_long_panic_on_expired;
 	notify->panic.priority = INT_MIN;
 
-	err = sec_crashkey_long_add_preparing_panic(&notify->panic);
+	err = __crashkey_long_add_preparing_panic(drvdata, &notify->panic);
 	if (err)
 		return err;
 
@@ -428,7 +425,7 @@ static void __crashkey_long_unset_panic_on_expired(struct builder *bd)
 			container_of(bd, struct crashkey_long_drvdata, bd);
 	struct crashkey_long_notify *notify = &drvdata->notify;
 
-	sec_crashkey_long_del_preparing_panic(&notify->panic);
+	__crashkey_long_del_preparing_panic(drvdata, &notify->panic);
 }
 
 static int __crashkey_long_install_keyboard_notifier(struct builder *bd)
@@ -478,7 +475,7 @@ static void __crashkey_long_remove_prolog(struct builder *bd)
 }
 
 static int __crashkey_long_probe(struct platform_device *pdev,
-		struct dev_builder *builder, ssize_t n)
+		const struct dev_builder *builder, ssize_t n)
 {
 	struct device *dev = &pdev->dev;
 	struct crashkey_long_drvdata *drvdata;
@@ -493,7 +490,7 @@ static int __crashkey_long_probe(struct platform_device *pdev,
 }
 
 static int __crashkey_long_remove(struct platform_device *pdev,
-		struct dev_builder *builder, ssize_t n)
+		const struct dev_builder *builder, ssize_t n)
 {
 	struct crashkey_long_drvdata *drvdata = platform_get_drvdata(pdev);
 
@@ -502,79 +499,7 @@ static int __crashkey_long_remove(struct platform_device *pdev,
 	return 0;
 }
 
-#if IS_ENABLED(CONFIG_KUNIT) && IS_ENABLED(CONFIG_UML)
-static int __crashkey_long_mock_parse_dt_expire_msec(struct builder *bd)
-{
-	struct crashkey_long_drvdata *drvdata =
-			container_of(bd, struct crashkey_long_drvdata, bd);
-	struct crashkey_long_notify *notify = &drvdata->notify;
-
-	/* FIXME: expire msec is fixed to 1000ms (1s) */
-	notify->expire_msec = 1000;
-
-	return 0;
-}
-
-static const unsigned int *__crashkey_long_mock_used_key;
-static size_t __crashkey_long_mock_nr_used_key;
-
-/* TODO: This function must be called before calling
- * 'kunit_crashkey_long_mock_probe' function in unit test.
- */
-void kunit_crashkey_long_mock_set_used_key(const unsigned int *used_key,
-		const size_t nr_used_key)
-{
-	__crashkey_long_mock_used_key = used_key;
-	__crashkey_long_mock_nr_used_key = nr_used_key;
-}
-
-static int __crashkey_long_mock_parse_dt_used_key(struct builder *bd)
-{
-	struct crashkey_long_drvdata *drvdata =
-			container_of(bd, struct crashkey_long_drvdata, bd);
-	struct crashkey_long_keylog *keylog = &drvdata->keylog;
-
-	keylog->used_key = __crashkey_long_mock_used_key;
-	keylog->nr_used_key = __crashkey_long_mock_nr_used_key;
-
-	return 0;
-}
-
-static int __crashkey_long_mock_install_keyboard_notifier(struct builder *bd)
-{
-	struct crashkey_long_drvdata *drvdata =
-			container_of(bd, struct crashkey_long_drvdata, bd);
-
-	drvdata->nb_connected = true;
-
-	return 0;
-}
-
-static struct dev_builder __crashkey_long_mock_dev_builder[] = {
-	DEVICE_BUILDER(__crashkey_long_mock_parse_dt_expire_msec, NULL),
-	DEVICE_BUILDER(__crashkey_long_mock_parse_dt_used_key, NULL),
-	DEVICE_BUILDER(__crashkey_long_probe_prolog, NULL),
-	DEVICE_BUILDER(__crashkey_long_alloc_bitmap_received,
-		       __crashkey_long_free_bitmap_received),
-	DEVICE_BUILDER(__crashkey_long_mock_install_keyboard_notifier, NULL),
-	DEVICE_BUILDER(__crashkey_long_probe_epilog,
-		       __crashkey_long_remove_prolog),
-};
-
-int kunit_crashkey_long_mock_probe(struct platform_device *pdev)
-{
-	return __crashkey_long_probe(pdev, __crashkey_long_mock_dev_builder,
-			ARRAY_SIZE(__crashkey_long_mock_dev_builder));
-}
-
-int kunit_crashkey_long_mock_remove(struct platform_device *pdev)
-{
-	return __crashkey_long_remove(pdev, __crashkey_long_mock_dev_builder,
-			ARRAY_SIZE(__crashkey_long_mock_dev_builder));
-}
-#endif
-
-static struct dev_builder __crashkey_long_dev_builder[] = {
+static const struct dev_builder __crashkey_long_dev_builder[] = {
 	DEVICE_BUILDER(__crashkey_long_parse_dt, NULL),
 	DEVICE_BUILDER(__crashkey_long_probe_prolog, NULL),
 	DEVICE_BUILDER(__crashkey_long_alloc_bitmap_received,
@@ -616,9 +541,19 @@ static struct platform_driver sec_crashkey_long_driver = {
 
 static int __init sec_crashkey_long_init(void)
 {
-	return platform_driver_register(&sec_crashkey_long_driver);
+	int err;
+
+	err = platform_driver_register(&sec_crashkey_long_driver);
+	if (err)
+		return err;
+
+	err = __of_platform_early_populate_init(sec_crashkeylong_match_table);
+	if (err)
+		return err;
+
+	return 0;
 }
-core_initcall_sync(sec_crashkey_long_init);
+core_initcall(sec_crashkey_long_init);
 
 static void __exit sec_crashkey_long_exit(void)
 {

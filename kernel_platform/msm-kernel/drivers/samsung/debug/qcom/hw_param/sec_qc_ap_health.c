@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0
 /*
- * COPYRIGHT(C) 2014-2021 Samsung Electronics Co., Ltd. All Right Reserved.
+ * COPYRIGHT(C) 2014-2022 Samsung Electronics Co., Ltd. All Right Reserved.
  */
 
 #define pr_fmt(fmt)     KBUILD_MODNAME ":%s() " fmt, __func__
@@ -185,4 +185,4 @@ static ssize_t ap_health_show(struct device *dev, struct device_attribute *attr,
 	return info_size;
 }
 
-DEVICE_ATTR(ap_health, 0660, ap_health_show, ap_health_store);
+DEVICE_ATTR_RW(ap_health);

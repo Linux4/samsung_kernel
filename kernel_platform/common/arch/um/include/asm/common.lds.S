@@ -52,8 +52,8 @@
 	CON_INITCALL
   }
 
-  .test_modules : {
-	KUNIT_TEST_MODULES
+  .kunit_test_suites : {
+	KUNIT_TABLE()
   }
 
   .exitcall : {

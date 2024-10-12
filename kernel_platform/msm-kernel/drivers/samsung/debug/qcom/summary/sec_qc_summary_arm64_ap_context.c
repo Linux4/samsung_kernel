@@ -1,9 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0
 /*
- * COPYRIGHT(C) 2020 Samsung Electronics Co., Ltd. All Right Reserved.
+ * COPYRIGHT(C) 2020-2022 Samsung Electronics Co., Ltd. All Right Reserved.
  */
-
-/* FIXME: This is a backward compatibility layer only for testing. */
 
 #include <linux/device.h>
 #include <linux/kernel.h>
@@ -193,7 +191,7 @@ int notrace __qc_summary_arm64_ap_context_init(struct builder *bd)
 	const struct sec_dbg_region_client *client;
 	int err;
 
-	client = sec_dbg_region_find(SEC_ARM64_VH_SHOW_REGS_MAGIC);
+	client = sec_dbg_region_find(SEC_ARM64_VH_IPI_STOP_MAGIC);
 	if (IS_ERR(client)) {
 		err = -EPROBE_DEFER;
 		goto err_find_ref_data;

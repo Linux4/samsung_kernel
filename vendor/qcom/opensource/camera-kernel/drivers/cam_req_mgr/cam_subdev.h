@@ -28,6 +28,18 @@ enum cam_subdev_close_seq_priority {
 };
 
 /**
+ * struct cam_subdev_msg_payload - describes a subdev message payload
+ *
+ * @hw_idx 		   : Hw index of the recipent module
+ * @priv_data		   : Private data
+ *
+ */
+struct cam_subdev_msg_payload {
+	 uint8_t								hw_idx;
+	 void								   *priv_data;
+};
+
+/**
  * struct cam_subdev - describes a camera sub-device
  *
  * @pdev:                  Pointer to the platform device
@@ -65,7 +77,7 @@ struct cam_subdev {
 	void                                  (*msg_cb)(
 					struct v4l2_subdev *sd,
 					enum cam_subdev_message_type_t msg_type,
-					uint32_t data);
+					struct cam_subdev_msg_payload *data);
 	struct list_head                       list;
 	enum cam_subdev_close_seq_priority     close_seq_prior;
 };
@@ -82,7 +94,7 @@ struct cam_subdev {
  */
 void cam_subdev_notify_message(u32 subdev_type,
 		enum cam_subdev_message_type_t message_type,
-		uint32_t data);
+		struct cam_subdev_msg_payload *data);
 
 /**
  * cam_subdev_probe()

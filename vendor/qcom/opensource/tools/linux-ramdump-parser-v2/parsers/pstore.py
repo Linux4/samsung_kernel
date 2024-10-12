@@ -17,6 +17,9 @@ import datetime
 import re
 import collections
 
+#PERSISTENT_RAM_SIG /* DBGC */
+PERSISTENT_RAM_SIG_SIZE = 4
+
 @register_parser('--pstore', 'Extract event logs from pstore')
 class PStore(RamParser):
 
@@ -84,13 +87,21 @@ class PStore(RamParser):
         self.sort_event_data(formatted_event_data, pstore_out)
 
     def calculate_console_size(self, base_addr):
+        size = self.ramdump.read_u64(base_addr +
+                            self.ramdump.field_offset('struct ramoops_context', 'console_size'))
+        if size == 0:
+            return None, size
+
         console_zone_addr = self.ramdump.read_u64(base_addr +
                             self.ramdump.field_offset('struct ramoops_context', 'cprz'))
         start_addr = self.ramdump.read_u64(console_zone_addr +
                      self.ramdump.field_offset('struct persistent_ram_zone', 'paddr'))
-        console_size = self.ramdump.read_u64(console_zone_addr +
+        console_buf = self.ramdump.read_u64(console_zone_addr +
+                      self.ramdump.field_offset('struct persistent_ram_zone', 'buffer'))
+        console_size = self.ramdump.read_u32(console_buf +
                        self.ramdump.field_offset('struct persistent_ram_zone', 'size'))
-        return start_addr, console_size
+        header = self.ramdump.sizeof('((struct persistent_ram_zone *)0x0)->paddr')
+        return start_addr + PERSISTENT_RAM_SIG_SIZE, console_size + header
 
     def extract_console_logs(self, base_addr):
         '''
@@ -192,14 +203,32 @@ class PStore(RamParser):
         pmsg_out.close()
 
     def extract_pmsg_logs_fd(self, base_addr):
+        size = self.ramdump.read_u64(base_addr +
+                            self.ramdump.field_offset('struct ramoops_context', 'pmsg_size'))
+        if size == 0:
+            return
+
         pmsg_zone_addr = self.ramdump.read_u64(base_addr +
                     self.ramdump.field_offset('struct ramoops_context', 'mprz'))
         start_addr = self.ramdump.read_u64(pmsg_zone_addr +
                     self.ramdump.field_offset('struct persistent_ram_zone', 'paddr'))
         pmsg_size = self.ramdump.read_u64(pmsg_zone_addr +
                     self.ramdump.field_offset('struct persistent_ram_zone', 'size'))
-        pmsg = self.ramdump.read_physical(start_addr, pmsg_size)
-        self.extract_pmsg_logs(pmsg, pmsg_size)
+
+        zone_buffer_addr = self.ramdump.read_u64(pmsg_zone_addr +
+                    self.ramdump.field_offset('struct persistent_ram_zone', 'buffer'))
+
+        buffer_start = self.ramdump.read_u32(zone_buffer_addr +
+                    self.ramdump.field_offset('struct persistent_ram_buffer', 'start'))
+        buffer_size = self.ramdump.read_u32(zone_buffer_addr +
+                    self.ramdump.field_offset('struct persistent_ram_buffer', 'size'))
+        pmsg = b""
+        if buffer_start < buffer_size:
+            pmsg = self.ramdump.read_physical(start_addr+buffer_start, buffer_size-buffer_start)
+            pmsg = pmsg + self.ramdump.read_physical(start_addr, buffer_start)
+        else:
+            pmsg = self.ramdump.read_physical(start_addr, buffer_size)
+        self.extract_pmsg_logs(pmsg, buffer_size)
 
     def parse(self):
         if not self.ramdump.minidump:

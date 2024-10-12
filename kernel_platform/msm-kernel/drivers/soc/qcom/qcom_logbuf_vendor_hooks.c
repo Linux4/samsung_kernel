@@ -92,7 +92,7 @@ static size_t record_print_text(struct printk_info *pinfo, char *r_text, size_t 
 		 * Truncate the text if there is not enough space to add the
 		 * prefix and a trailing newline and a terminator.
 		 */
-		if ((len + prefix_len + line_len + 1 + 1) > buf_size)
+		if ((len + prefix_len + text_len + 1 + 1) > buf_size)
 			break;
 
 		to_be_moved_size = min((remained_size - prefix_len), text_len);
@@ -217,12 +217,14 @@ static void copy_boot_log(void *unused, struct printk_ringbuffer *prb,
 	unsigned long begin, end;
 	enum desc_state state;
 	size_t rem_buf_sz;
+	struct printk_info pinfo;
 
 	tailid = descring.tail_id;
 	headid = descring.head_id;
 
 	if (!copy_early_boot_log) {
-		if (!r->info->text_len)
+		pinfo = __READ_ONCE(*r->info);
+		if (!pinfo.text_len)
 			return;
 
 		/*
@@ -230,15 +232,15 @@ static void copy_boot_log(void *unused, struct printk_ringbuffer *prb,
 		 * for record meta data size + newline + terminator
 		 * if not, let's reject the record.
 		 */
-		if ((off + r->info->text_len + PREFIX_MAX + 1 + 1) > boot_log_buf_size)
+		if ((off + pinfo.text_len + PREFIX_MAX + 1 + 1) > boot_log_buf_size)
 			return;
 
 		rem_buf_sz = boot_log_buf_size - off;
 		if (!rem_buf_sz)
 			return;
 
-		memcpy(&boot_log_buf[off], &r->text_buf[0], r->info->text_len);
-		off += record_print_text(r->info, &boot_log_buf[off], rem_buf_sz);
+		memcpy(&boot_log_buf[off], &r->text_buf[0], pinfo.text_len);
+		off += record_print_text(&pinfo, &boot_log_buf[off], rem_buf_sz);
 		return;
 	}
 
@@ -268,7 +270,8 @@ static void copy_boot_log(void *unused, struct printk_ringbuffer *prb,
 				begin = 0;
 
 			text_start = begin + sizeof(unsigned long);
-			textlen = p_infos[ind].text_len;
+			pinfo = __READ_ONCE(p_infos[ind]);
+			textlen = pinfo.text_len;
 			if (end - text_start < textlen)
 				textlen = end - text_start;
 
@@ -284,7 +287,7 @@ static void copy_boot_log(void *unused, struct printk_ringbuffer *prb,
 
 			memcpy(&boot_log_buf[off], &textdata_ring.data[text_start],
 					textlen);
-			off += record_print_text(&p_infos[ind],
+			off += record_print_text(&pinfo,
 					&boot_log_buf[off], rem_buf_sz);
 		}
 
@@ -299,21 +302,8 @@ static int boot_log_init(void)
 {
 	void *start;
 	int ret = 0;
-	unsigned int size;
+	unsigned int size = BOOT_LOG_SIZE;
 	struct md_region md_entry;
-	uint32_t log_buf_len;
-
-	log_buf_len = log_buf_len_get();
-	if (!log_buf_len) {
-		pr_err("log_buf_len is zero\n");
-		ret = -EINVAL;
-		goto out;
-	}
-
-	if (log_buf_len >= BOOT_LOG_SIZE)
-		size = log_buf_len;
-	else
-		size = BOOT_LOG_SIZE;
 
 	start = kzalloc(size, GFP_KERNEL);
 	if (!start) {

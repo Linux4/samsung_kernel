@@ -47,7 +47,7 @@
     </path>
 
     <path name="listenback-usb-headphones-gain">
-        <ctl name="Headset Playback Volume" value="107 107" />
+        <ctl name="Headset Playback Volume" value="109 109" />
     </path>
     <!-- end of Play Scenario -->
 
@@ -57,7 +57,7 @@
     </path>
 
     <path name="listenback-usb-headset-mic-gain">
-        <ctl name="Headset Capture Volume" value="107" />
+        <ctl name="Headset Capture Volume" value="112" />
     </path>
     <!-- end of Recording Scenario -->
 

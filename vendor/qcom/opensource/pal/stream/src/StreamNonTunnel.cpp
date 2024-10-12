@@ -464,6 +464,11 @@ int32_t  StreamNonTunnel::setParameters(uint32_t param_id, void *payload)
     }
 
     mStreamMutex.lock();
+    if (currentState == STREAM_IDLE) {
+        PAL_ERR(LOG_TAG, "Invalid stream state: IDLE for param ID: %d", param_id);
+        mStreamMutex.unlock();
+        return -EINVAL;
+    }
     if ((rm->cardState == CARD_STATUS_OFFLINE) || ssrInNTMode == true) {
          PAL_ERR(LOG_TAG, "Sound card offline currentState %d",
                 currentState);

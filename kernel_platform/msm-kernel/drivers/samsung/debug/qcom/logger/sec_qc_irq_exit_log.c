@@ -1,13 +1,12 @@
 // SPDX-License-Identifier: GPL-2.0
 /*
- * COPYRIGHT(C) 2020 Samsung Electronics Co., Ltd. All Right Reserved.
+ * COPYRIGHT(C) 2020-2022 Samsung Electronics Co., Ltd. All Right Reserved.
  */
 
 #define pr_fmt(fmt)     KBUILD_MODNAME ":%s() " fmt, __func__
 
 #include <linux/init.h>
 #include <linux/kernel.h>
-#include <linux/sched/clock.h>
 
 #include <linux/samsung/builder_pattern.h>
 #include <linux/samsung/debug/sec_debug_region.h>
@@ -17,26 +16,18 @@
 
 static struct sec_qc_irq_exit_log_data *irq_exit_log_data __read_mostly;
 
-static __always_inline bool __irq_exit_log_is_probed(void)
-{
-	return !!irq_exit_log_data;
-}
-
 static __always_inline void __irq_exit_log(unsigned int irq, u64 start_time)
 {
 	struct sec_qc_irq_exit_buf *irq_exit_buf;
 	int cpu = smp_processor_id();
 	unsigned int i;
 
-	if (!__irq_exit_log_is_probed())
-		return;
-
 	i = ++(irq_exit_log_data[cpu].idx) & (SEC_QC_IRQ_EXIT_LOG_MAX - 1);
 	irq_exit_buf = &irq_exit_log_data[cpu].buf[i];
 
 	irq_exit_buf->irq = irq;
 	irq_exit_buf->time = start_time;
-	irq_exit_buf->end_time = cpu_clock(cpu);
+	irq_exit_buf->end_time = __qc_logger_cpu_clock(cpu);
 	irq_exit_buf->elapsed_time = irq_exit_buf->end_time - start_time;
 	irq_exit_buf->pid = current->pid;
 }
@@ -45,9 +36,15 @@ static int __irq_exit_log_set_irq_exit_log_data(struct builder *bd)
 {
 	struct qc_logger *logger = container_of(bd, struct qc_logger, bd);
 	struct sec_dbg_region_client *client = logger->drvdata->client;
+	int cpu;
 
 	irq_exit_log_data = (void *)client->virt;
-	irq_exit_log_data->idx = -1;
+	if (IS_ERR_OR_NULL(irq_exit_log_data))
+		return -EFAULT;
+
+	for_each_possible_cpu(cpu) {
+		irq_exit_log_data[cpu].idx = -1;
+	}
 
 	return 0;
 }
@@ -62,7 +59,7 @@ static size_t sec_qc_irq_exit_log_get_data_size(struct qc_logger *logger)
 	return sizeof(struct sec_qc_irq_exit_log_data) * num_possible_cpus();
 }
 
-static struct dev_builder __irq_exit_log_dev_builder[] = {
+static const struct dev_builder __irq_exit_log_dev_builder[] = {
 	DEVICE_BUILDER(__irq_exit_log_set_irq_exit_log_data,
 		       __irq_exit_log_unset_irq_exit_log_data),
 };

@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2012-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 #ifndef __KGSL_IOMMU_H
 #define __KGSL_IOMMU_H
@@ -30,7 +31,10 @@
 	(test_bit(KGSL_MMU_64BIT, &(__mmu)->features) ? \
 		KGSL_IOMMU_GLOBAL_MEM_BASE64 : KGSL_IOMMU_GLOBAL_MEM_BASE32)
 
-#define KGSL_IOMMU_SVM_BASE32		0x300000
+#define KGSL_IOMMU_SVM_BASE32(__mmu)	\
+	(ADRENO_DEVICE(KGSL_MMU_DEVICE(__mmu))->uche_gmem_base + \
+		ADRENO_DEVICE(KGSL_MMU_DEVICE(__mmu))->gpucore->gmem_size)
+
 #define KGSL_IOMMU_SVM_END32		(0xC0000000 - SZ_16M)
 
 /*
@@ -98,6 +102,9 @@
 
 /* FSR fields */
 #define KGSL_IOMMU_FSR_SS_SHIFT		30
+
+/* ASID field in TTBR register */
+#define KGSL_IOMMU_ASID_START_BIT	48
 
 /* offset at which a nop command is placed in setstate */
 #define KGSL_IOMMU_SETSTATE_NOP_OFFSET	1024
@@ -167,15 +174,16 @@ struct kgsl_iommu {
 
 /*
  * struct kgsl_iommu_pt - Iommu pagetable structure private to kgsl driver
- * @domain: Pointer to the iommu domain that contains the iommu pagetable
+ * @base: Container of the base kgsl pagetable
  * @ttbr0: register value to set when using this pagetable
+ * @ pgtbl_ops: Pagetable operations for mapping/unmapping buffers
+ * @info: Pagetable info used to allocate pagetable operations
  */
 struct kgsl_iommu_pt {
 	struct kgsl_pagetable base;
 	u64 ttbr0;
-
 	struct io_pgtable_ops *pgtbl_ops;
-	struct io_pgtable_cfg cfg;
+	struct qcom_io_pgtable_info info;
 };
 
 #endif

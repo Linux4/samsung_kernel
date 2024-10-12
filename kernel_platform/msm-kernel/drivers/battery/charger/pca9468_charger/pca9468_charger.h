@@ -288,6 +288,7 @@ static int adc_gain[16] = { 0, 1, 2, 3, 4, 5, 6, 7, -8, -7, -6, -5, -4, -3, -2, 
 #define PCA9468_PPS_PERIODIC_T	10000	// 10000ms
 #endif
 #define PCA9468_CVMODE_CHECK2_T	1000	// 1000ms
+#define PCA9468_INIT_WAKEUP_T	10000	// 10000ms
 
 /* Battery Threshold */
 #if IS_ENABLED(CONFIG_BATTERY_SAMSUNG)

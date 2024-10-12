@@ -1,7 +1,7 @@
 /*
  * Bigdata logging and report. None EWP and Hang event.
  *
- * Copyright (C) 2021, Broadcom.
+ * Copyright (C) 2022, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -217,9 +217,8 @@ wg_parse_ap_stadata(struct net_device *dev, struct ether_addr *sta_mac,
 	}
 
 	sta = (wlcfg_sta_info_t *)ioctl_buf;
+	bzero(ap_sta_data, sizeof(wl_ap_sta_data_t));
 	ap_sta_data->mac = *sta_mac;
-	ap_sta_data->rssi = 0;
-	ap_sta_data->mimo = 0;
 	ap_sta_data->chanspec = sta->chanspec;
 
 	WL_AP_BIGDATA_LOG(("sta_info ver %d\n", sta->ver));
@@ -235,9 +234,12 @@ wg_parse_ap_stadata(struct net_device *dev, struct ether_addr *sta_mac,
 	ap_sta_data->chanspec = sta->chanspec;
 
 	ap_sta_data->channel = wf_chspec_ctlchan(ap_sta_data->chanspec);
-	ap_sta_data->rate =
-		(sta->rateset.rates[sta->rateset.count - 1] & DOT11_RATE_MASK) / 2;
-
+	if (sta->rateset.count > 0) {
+		ap_sta_data->rate =
+			(sta->rateset.rates[sta->rateset.count - 1] & DOT11_RATE_MASK) / 2;
+	} else {
+		WL_ERR(("get sta rateset failed due to invalid count\n"));
+	}
 	ap_sta_data->mode_80211 = BIGDATA_DOT11_11BGN_BIT;
 
 	if (sta->vht_flags) {

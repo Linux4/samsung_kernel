@@ -107,6 +107,7 @@
 
 #define WRAPPER_DEBUG_BRIDGE_LPI_CONTROL_IRIS2	(WRAPPER_BASE_OFFS_IRIS2 + 0x54)
 #define WRAPPER_DEBUG_BRIDGE_LPI_STATUS_IRIS2	(WRAPPER_BASE_OFFS_IRIS2 + 0x58)
+#define WRAPPER_CORE_POWER_STATUS		(WRAPPER_BASE_OFFS_IRIS2 + 0x80)
 #define WRAPPER_CORE_CLOCK_CONFIG_IRIS2		(WRAPPER_BASE_OFFS_IRIS2 + 0x88)
 
 /*
@@ -296,7 +297,7 @@ static int __disable_regulator_iris2(struct msm_vidc_core *core,
 		rc = __acquire_regulator(core, rinfo);
 		if (rc) {
 			d_vpr_e("%s: failed to acquire %s, rc = %d\n",
-				rinfo->name, rc);
+				__func__, rinfo->name, rc);
 			/* Bring attention to this issue */
 			WARN_ON(true);
 			return rc;
@@ -306,7 +307,7 @@ static int __disable_regulator_iris2(struct msm_vidc_core *core,
 		rc = regulator_disable(rinfo->regulator);
 		if (rc) {
 			d_vpr_e("%s: failed to disable %s, rc = %d\n",
-				rinfo->name, rc);
+				__func__, rinfo->name, rc);
 			return rc;
 		}
 		d_vpr_h("%s: disabled regulator %s\n", __func__, rinfo->name);
@@ -443,13 +444,29 @@ static int __setup_ucregion_memory_map_iris2(struct msm_vidc_core *vidc_core)
 	return 0;
 }
 
+static bool is_iris2_hw_power_collapsed(struct msm_vidc_core *core)
+{
+	int rc = 0;
+	u32 value = 0, pwr_status = 0;
+
+	rc = __read_register(core, WRAPPER_CORE_POWER_STATUS, &value);
+	if (rc)
+		return false;
+
+	// if (1), CORE_SS(0) power is on and if (0), CORE_ss(0) power is off
+	pwr_status = value & BIT(1);
+
+	return pwr_status ? false : true;
+
+}
+
 static int __power_off_iris2_hardware(struct msm_vidc_core *core)
 {
 	int rc = 0, i;
 	u32 value = 0;
 
-	if (core->hw_power_control) {
-		d_vpr_h("%s: hardware power control enabled\n", __func__);
+	if (core->hw_power_control && is_iris2_hw_power_collapsed(core)) {
+		d_vpr_h("%s: hardware power control enabled and power collapsed\n", __func__);
 		goto disable_power;
 	}
 
@@ -615,6 +632,14 @@ static int __power_off_iris2(struct msm_vidc_core *core)
 
 	if (!core->power_enabled)
 		return 0;
+
+	/**
+	 * Reset video_cc_mvs0_clk_src value to resolve MMRM high video
+	 * clock projection issue.
+	 */
+	rc = __set_clocks(core, 0);
+	if (rc)
+		d_vpr_e("%s: resetting clocks failed\n", __func__);
 
 	if (__power_off_iris2_hardware(core))
 		d_vpr_e("%s: failed to power off hardware\n", __func__);
@@ -1051,12 +1076,8 @@ int msm_vidc_decide_work_route_iris2(struct msm_vidc_inst* inst)
 				CODED_FRAMES_INTERLACE)
 			work_route = MSM_VIDC_PIPE_1;
 	} else if (is_encode_session(inst)) {
-		u32 slice_mode, width, height;
-		struct v4l2_format* f;
+		u32 slice_mode;
 
-		f = &inst->fmts[INPUT_PORT];
-		height = f->fmt.pix_mp.height;
-		width = f->fmt.pix_mp.width;
 		slice_mode = inst->capabilities->cap[SLICE_MODE].value;
 
 		/*TODO Pipe=1 for legacy CBR*/

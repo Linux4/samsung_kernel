@@ -12,7 +12,7 @@
 static void cam_sensor_subdev_handle_message(
 		struct v4l2_subdev *sd,
 		enum cam_subdev_message_type_t message_type,
-		uint32_t data)
+		struct cam_subdev_msg_payload *msg)
 {
 	struct cam_sensor_ctrl_t *s_ctrl = v4l2_get_subdevdata(sd);
 	bool is_full_recovery = false;
@@ -25,7 +25,7 @@ static void cam_sensor_subdev_handle_message(
 
 	switch (message_type) {
 	case CAM_SUBDEV_MESSAGE_IRQ_ERR:
-		is_full_recovery = data;
+		is_full_recovery = msg->priv_data;
 		CAM_INFO(CAM_SENSOR, "sensor index:%s is_full_recovery: %d",
 				s_ctrl->sensor_name, is_full_recovery);
 		/* custom code to avoid sensor retention,
@@ -80,9 +80,14 @@ static long cam_sensor_subdev_ioctl(struct v4l2_subdev *sd,
 	switch (cmd) {
 	case VIDIOC_CAM_CONTROL:
 		rc = cam_sensor_driver_cmd(s_ctrl, arg);
-		if (rc)
-			CAM_ERR(CAM_SENSOR,
-				"Failed in Driver cmd: %d", rc);
+		if (rc) {
+		        if (rc == -EBADR)
+				CAM_INFO(CAM_SENSOR,
+					"Failed in Driver cmd: %d, it has been flushed", rc);
+			else if (rc != -ENODEV)
+				CAM_ERR(CAM_SENSOR,
+					"Returned value for Driver cmd: %d", rc);
+                }
 		break;
 	case CAM_SD_SHUTDOWN:
 		if (!cam_req_mgr_is_shutdown()) {

@@ -1,7 +1,7 @@
 /*
  * Linux DHD Bus Module for PCIE
  *
- * Copyright (C) 2021, Broadcom.
+ * Copyright (C) 2022, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -118,6 +118,7 @@ typedef struct dhdpcie_info
 	unsigned int	total_wake_count;
 	int		pkt_wake;
 	int		wake_irq;
+	int		pkt_wake_dump;
 #endif /* DHD_WAKE_STATUS */
 #ifdef USE_SMMU_ARCH_MSM
 	void *smmu_cxt;
@@ -1212,6 +1213,19 @@ int bcmpcie_get_wake(struct dhd_bus *bus)
 
 	DHD_PKT_WAKE_LOCK(&pch->pkt_wake_lock, flags);
 	ret = pch->pkt_wake;
+	DHD_PKT_WAKE_UNLOCK(&pch->pkt_wake_lock, flags);
+	return ret;
+}
+
+int bcmpcie_set_get_wake_pkt_dump(struct dhd_bus *bus, int wake_pkt_dump)
+{
+	dhdpcie_info_t *pch = pci_get_drvdata(bus->dev);
+	unsigned long flags;
+	int ret;
+
+	DHD_PKT_WAKE_LOCK(&pch->pkt_wake_lock, flags);
+	ret = pch->pkt_wake_dump;
+	pch->pkt_wake_dump = wake_pkt_dump;
 	DHD_PKT_WAKE_UNLOCK(&pch->pkt_wake_lock, flags);
 	return ret;
 }

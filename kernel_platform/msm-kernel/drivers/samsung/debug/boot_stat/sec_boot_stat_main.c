@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0
 /*
- * COPYRIGHT(C) 2014-2021 Samsung Electronics Co., Ltd. All Right Reserved.
+ * COPYRIGHT(C) 2014-2022 Samsung Electronics Co., Ltd. All Right Reserved.
  */
 
 #define pr_fmt(fmt)     KBUILD_MODNAME ":%s() " fmt, __func__
@@ -63,13 +63,13 @@ int sec_boot_stat_register_soc_ops(struct sec_boot_stat_soc_operations *soc_ops)
 	int ret = 0;
 
 	if (!__boot_stat_is_probed())
-		return -ENODEV;
+		return -EBUSY;
 
 	mutex_lock(&sec_boot_stat->soc_ops_lock);
 
 	if (sec_boot_stat->soc_ops) {
 		pr_warn("soc specific operations already registered\n");
-		ret = -EBUSY;
+		ret = -ENOENT;
 		goto __arleady_registered;
 	}
 
@@ -86,7 +86,7 @@ int sec_boot_stat_unregister_soc_ops(struct sec_boot_stat_soc_operations *soc_op
 	int ret = 0;
 
 	if (!__boot_stat_is_probed())
-		return -ENODEV;
+		return -EBUSY;
 
 	mutex_lock(&sec_boot_stat->soc_ops_lock);
 
@@ -224,7 +224,7 @@ static int __boot_stat_probe_epilog(struct builder *bd)
 }
 
 static  int __boot_stat_probe(struct platform_device *pdev,
-		struct dev_builder *builder, ssize_t n)
+		const struct dev_builder *builder, ssize_t n)
 {
 	struct device *dev = &pdev->dev;
 	struct boot_stat_drvdata *drvdata;
@@ -240,7 +240,7 @@ static  int __boot_stat_probe(struct platform_device *pdev,
 }
 
 static int __boot_stat_remove(struct platform_device *pdev,
-		struct dev_builder *builder, ssize_t n)
+		const struct dev_builder *builder, ssize_t n)
 {
 	struct boot_stat_drvdata *drvdata = platform_get_drvdata(pdev);
 
@@ -249,7 +249,7 @@ static int __boot_stat_remove(struct platform_device *pdev,
 	return 0;
 }
 
-static struct dev_builder __boot_stat_dev_builder[] = {
+static const struct dev_builder __boot_stat_dev_builder[] = {
 	DEVICE_BUILDER(__boot_stat_probe_prolog, __boot_stat_remove_epilog),
 	DEVICE_BUILDER(__boot_stat_sec_class_create,
 		       __boot_stat_sec_class_remove),

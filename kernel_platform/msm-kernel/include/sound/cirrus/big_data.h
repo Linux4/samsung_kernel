@@ -24,6 +24,9 @@
 #define CIRRUS_BD_NUM_ATTRS_BASE	1
 #define CIRRUS_BD_NUM_ATTRS_AMP		7
 
+void cirrus_bd_amp_err(const char *mfd_suffix);
+void cirrus_bd_bst_short(const char *mfd_suffix);
+
 void cirrus_bd_store_values(const char *mfd_suffix);
 int cirrus_bd_init(void);
 void cirrus_bd_exit(void);

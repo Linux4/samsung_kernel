@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0
 /*
- * COPYRIGHT(C) 2017-2020 Samsung Electronics Co., Ltd. All Right Reserved.
+ * COPYRIGHT(C) 2017-2022 Samsung Electronics Co., Ltd. All Right Reserved.
  */
 
 #define pr_fmt(fmt)     KBUILD_MODNAME ":%s() " fmt, __func__
@@ -21,6 +21,8 @@
 
 #include "sec_debug.h"
 
+struct sec_debug_drvdata *sec_debug;
+
 static unsigned int sec_dbg_level __ro_after_init;
 module_param_named(debug_level, sec_dbg_level, uint, 0440);
 
@@ -38,9 +40,6 @@ EXPORT_SYMBOL(sec_debug_level);
 
 bool sec_debug_is_enabled(void)
 {
-	if (IS_ENABLED(CONFIG_UML))
-		return true;
-
 	switch (sec_dbg_level) {
 	case SEC_DEBUG_LEVEL_LOW:
 #if IS_ENABLED(CONFIG_SEC_FACTORY)
@@ -72,7 +71,7 @@ static int __debug_parse_dt_panic_notifier_priority(struct builder *bd,
 	return 0;
 }
 
-static struct dt_builder __debug_dt_builder[] = {
+static const struct dt_builder __debug_dt_builder[] = {
 	DT_BUILDER(__debug_parse_dt_panic_notifier_priority),
 };
 
@@ -117,8 +116,15 @@ static int __debug_probe_epilog(struct builder *bd)
 	struct device *dev = bd->dev;
 
 	dev_set_drvdata(dev, drvdata);
+	sec_debug = drvdata;
 
 	return 0;
+}
+
+static void __debug_remove_epilog(struct builder *bd)
+{
+	/* FIXME: This is not a graceful exit. */
+	sec_debug = NULL;
 }
 
 static int __debug_probe(struct platform_device *pdev,
@@ -146,15 +152,19 @@ static int __debug_remove(struct platform_device *pdev,
 	return 0;
 }
 
-static struct dev_builder __debug_dev_builder[] = {
+static const struct dev_builder __debug_dev_builder[] = {
 	DEVICE_BUILDER(__debug_parse_dt, NULL),
 	DEVICE_BUILDER(sec_user_fault_init, sec_user_fault_exit),
 	DEVICE_BUILDER(sec_ap_serial_sysfs_init, sec_ap_serial_sysfs_exit),
-	DEVICE_BUILDER(sec_force_err_init, sec_force_err_exit),
 	DEVICE_BUILDER(sec_debug_node_init_dump_sink, NULL),
 	DEVICE_BUILDER(__debug_register_panic_notifier,
 		       __debug_unregister_panic_notifier),
-	DEVICE_BUILDER(__debug_probe_epilog, NULL),
+#if IS_ENABLED(CONFIG_SEC_FORCE_ERR)
+	DEVICE_BUILDER(sec_force_err_probe_prolog, sec_force_err_remove_epilog),
+	DEVICE_BUILDER(sec_force_err_build_htbl, NULL),
+	DEVICE_BUILDER(sec_force_err_debugfs_create, sec_force_err_debugfs_remove),
+#endif
+	DEVICE_BUILDER(__debug_probe_epilog, __debug_remove_epilog),
 };
 
 static int sec_debug_probe(struct platform_device *pdev)

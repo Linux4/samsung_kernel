@@ -7,14 +7,33 @@
  */
 
 #include <kunit/test.h>
+#include <kunit/string-stream.h>
 #include <linux/kernel.h>
 #include <linux/kref.h>
 #include <linux/sched/debug.h>
 #include <linux/sched.h>
 
 #include "debugfs.h"
-#include "string-stream.h"
 #include "try-catch-impl.h"
+
+void kunit_set_failure(struct kunit *test)
+{
+	WRITE_ONCE(test->success, false);
+}
+EXPORT_SYMBOL_GPL(kunit_set_failure);
+
+struct test_global_context {
+	struct list_head initcalls;
+};
+
+static struct test_global_context test_global_context = {
+	.initcalls = LIST_HEAD_INIT(test_global_context.initcalls),
+};
+
+void test_install_initcall(struct test_initcall *initcall)
+{
+	list_add_tail(&initcall->node, &test_global_context.initcalls);
+}
 
 /*
  * Append formatted message to log, size of which is limited to
@@ -211,8 +230,15 @@ EXPORT_SYMBOL_GPL(kunit_do_assertion);
 
 void kunit_init_test(struct kunit *test, const char *name, char *log)
 {
+#if !IS_ENABLED(CONFIG_UML)
+	struct global_mock *g_mock = &test->test_global_mock;
+
+	g_mock->is_initialized = false;
+#endif
+
 	spin_lock_init(&test->lock);
 	INIT_LIST_HEAD(&test->resources);
+	INIT_LIST_HEAD(&test->post_conditions);
 	test->name = name;
 	test->log = log;
 	if (test->log)
@@ -228,6 +254,18 @@ static void kunit_run_case_internal(struct kunit *test,
 				    struct kunit_suite *suite,
 				    struct kunit_case *test_case)
 {
+	struct test_initcall *initcall;
+	int ret;
+
+	list_for_each_entry(initcall, &test_global_context.initcalls, node) {
+		ret = initcall->init(initcall, test);
+		if (ret) {
+			kunit_err(test, "failed to initialize: %d", ret);
+			kunit_set_failure(test);
+			return;
+		}
+	}
+
 	if (suite->init) {
 		int ret;
 
@@ -244,6 +282,15 @@ static void kunit_run_case_internal(struct kunit *test,
 
 static void kunit_case_internal_cleanup(struct kunit *test)
 {
+	struct test_initcall *initcall;
+
+	list_for_each_entry(initcall, &test_global_context.initcalls, node) {
+#if IS_ENABLED(CONFIG_UML)
+		initcall->exit(initcall);
+#else
+		initcall->exit(initcall, test);
+#endif /* CONFIG_UML */
+	}
 	kunit_cleanup(test);
 }
 
@@ -254,6 +301,16 @@ static void kunit_case_internal_cleanup(struct kunit *test)
 static void kunit_run_case_cleanup(struct kunit *test,
 				   struct kunit_suite *suite)
 {
+	struct kunit_post_condition *condition, *condition_safe;
+
+	list_for_each_entry_safe(condition,
+				 condition_safe,
+				 &test->post_conditions,
+				 node) {
+		condition->validate(condition);
+		list_del(&condition->node);
+	}
+
 	if (suite->exit)
 		suite->exit(test);
 

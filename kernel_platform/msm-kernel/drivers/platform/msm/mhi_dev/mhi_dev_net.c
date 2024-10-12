@@ -83,6 +83,9 @@ struct mhi_dev_net_client {
 	bool eth_iface;
 	struct mhi_dev_client *out_handle;
 	struct mhi_dev_client *in_handle;
+	/* TX and RX Reqs  */
+	u32 tx_reqs;
+	u32 rx_reqs;
 	/*process pendig packets */
 	struct workqueue_struct *pending_pckt_wq;
 	struct work_struct       xmit_work;
@@ -239,14 +242,13 @@ static void mhi_dev_net_read_completion_cb(void *req)
 	struct sk_buff *skb = mreq->context;
 	unsigned long   flags;
 
-	skb->len = mreq->transfer_len;
+	skb_put(skb, mreq->transfer_len);
 
 	if (net_handle->eth_iface)
 		skb->protocol = eth_type_trans(skb, net_handle->dev);
 	else
 		skb->protocol = mhi_dev_net_eth_type_trans(skb);
 
-	skb_put(skb, mreq->transfer_len);
 	net_handle->dev->stats.rx_packets++;
 	skb->dev = net_handle->dev;
 	netif_rx(skb);
@@ -280,7 +282,7 @@ static ssize_t mhi_dev_net_client_read(struct mhi_dev_net_client *mhi_handle)
 				struct mhi_req, list);
 		list_del_init(&req->list);
 		spin_unlock_irqrestore(&mhi_handle->rd_lock, flags);
-		skb = alloc_skb(MHI_NET_DEFAULT_MTU, GFP_ATOMIC);
+		skb = alloc_skb(MHI_NET_DEFAULT_MTU, GFP_KERNEL);
 		if (skb == NULL) {
 			pr_err("%s(): skb alloc failed\n", __func__);
 			spin_lock_irqsave(&mhi_handle->rd_lock, flags);
@@ -296,6 +298,7 @@ static ssize_t mhi_dev_net_client_read(struct mhi_dev_net_client *mhi_handle)
 		req->len = MHI_NET_DEFAULT_MTU;
 		req->context = skb;
 		req->mode = DMA_ASYNC;
+		req->snd_cmpl = 0;
 		bytes_avail = mhi_net_ctxt.dev_ops->read_channel(req);
 
 		if (bytes_avail < 0) {
@@ -340,7 +343,7 @@ static int mhi_dev_net_alloc_write_reqs(struct mhi_dev_net_client *client)
 	int nreq = 0, rc = 0;
 	struct mhi_req *wreq;
 
-	while (nreq < MHI_MAX_TX_REQ) {
+	while (nreq < client->tx_reqs) {
 		wreq = kzalloc(sizeof(struct mhi_req), GFP_ATOMIC);
 		if (!wreq)
 			return -ENOMEM;
@@ -359,7 +362,7 @@ static int mhi_dev_net_alloc_read_reqs(struct mhi_dev_net_client *client)
 	int nreq = 0, rc = 0;
 	struct mhi_req *mreq;
 
-	while (nreq < MHI_MAX_RX_REQ) {
+	while (nreq < client->rx_reqs) {
 		mreq = kzalloc(sizeof(struct mhi_req), GFP_ATOMIC);
 		if (!mreq)
 			return -ENOMEM;
@@ -450,6 +453,8 @@ static void mhi_dev_net_ether_setup(struct net_device *dev)
 {
 	dev->netdev_ops = &mhi_dev_net_ops_ip;
 	ether_setup(dev);
+	dev->min_mtu = ETH_MIN_MTU;
+	dev->max_mtu = ETH_MAX_MTU;
 	mhi_dev_net_log(MHI_INFO,
 			"mhi_dev_net Ethernet setup\n");
 }
@@ -698,7 +703,8 @@ static void mhi_dev_net_state_cb(struct mhi_dev_client_cb_data *cb_data)
 int mhi_dev_net_interface_init(struct mhi_dev_ops *dev_ops)
 {
 	int ret_val = 0, index = 0;
-	bool out_channel_started = false;
+	uint32_t info_out_ch = 0;
+	uint32_t reqs = 0;
 	struct mhi_dev_net_client *mhi_net_client = NULL;
 
 	if (mhi_net_ctxt.client_handle) {
@@ -721,11 +727,22 @@ int mhi_dev_net_interface_init(struct mhi_dev_ops *dev_ops)
 	}
 	mhi_net_ctxt.client_handle = mhi_net_client;
 
-	if (mhi_net_ctxt.pdev)
+	if (mhi_net_ctxt.pdev) {
 		mhi_net_ctxt.client_handle->eth_iface =
 			of_property_read_bool
 			((&mhi_net_ctxt.pdev->dev)->of_node,
 				"qcom,mhi-ethernet-interface");
+		ret_val = of_property_read_u32
+				((&mhi_net_ctxt.pdev->dev)->of_node,
+				 "qcom,tx_rx_reqs", &reqs);
+		if (ret_val < 0) {
+			mhi_net_client->tx_reqs = MHI_MAX_TX_REQ;
+			mhi_net_client->rx_reqs = MHI_MAX_RX_REQ;
+		} else {
+			mhi_net_client->tx_reqs = reqs;
+			mhi_net_client->rx_reqs = reqs;
+		}
+	}
 
 	/*Process pending packet work queue*/
 	mhi_net_client->pending_pckt_wq =
@@ -753,10 +770,7 @@ int mhi_dev_net_interface_init(struct mhi_dev_ops *dev_ops)
 	}
 	ret_val = dev_ops->register_state_cb(mhi_dev_net_state_cb,
 				mhi_net_client, MHI_CLIENT_IP_SW_4_OUT);
-	/* -EEXIST indicates success and channel is already open */
-	if (ret_val == -EEXIST)
-		out_channel_started = true;
-	else if (ret_val < 0)
+	if (ret_val < 0 && ret_val != -EEXIST)
 		goto register_state_cb_fail;
 
 	ret_val = dev_ops->register_state_cb(mhi_dev_net_state_cb,
@@ -773,13 +787,16 @@ int mhi_dev_net_interface_init(struct mhi_dev_ops *dev_ops)
 		 * with mhi_dev_net_open_chan_create_netif().
 		 */
 		ret_val = 0;
-		if (out_channel_started) {
-			ret_val = mhi_dev_net_open_chan_create_netif
-							(mhi_net_client);
-			if (ret_val < 0) {
-				mhi_dev_net_log(MHI_ERROR,
-					"Failed to open channels\n");
-				goto channel_open_fail;
+		if (!mhi_net_ctxt.dev_ops->ctrl_state_info(mhi_net_client->out_chan,
+					&info_out_ch)) {
+			if (info_out_ch == MHI_STATE_CONNECTED) {
+				ret_val = mhi_dev_net_open_chan_create_netif
+					(mhi_net_client);
+				if (ret_val < 0) {
+					mhi_dev_net_log(MHI_ERROR,
+							"Failed to open channels\n");
+					goto channel_open_fail;
+				}
 			}
 		}
 	} else if (ret_val < 0) {
@@ -801,7 +818,7 @@ channel_init_fail:
 }
 EXPORT_SYMBOL(mhi_dev_net_interface_init);
 
-void __exit mhi_dev_net_exit(void)
+void mhi_dev_net_exit(void)
 {
 	mhi_dev_net_log(MHI_INFO,
 			"MHI Network Interface Module exited\n");

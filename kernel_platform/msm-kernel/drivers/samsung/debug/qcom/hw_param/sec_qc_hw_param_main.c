@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0
 /*
- * COPYRIGHT(C) 2014-2021 Samsung Electronics Co., Ltd. All Right Reserved.
+ * COPYRIGHT(C) 2014-2022 Samsung Electronics Co., Ltd. All Right Reserved.
  */
 
 #define pr_fmt(fmt)     KBUILD_MODNAME ":%s() " fmt, __func__
@@ -88,8 +88,10 @@ static int __hw_param_test_ap_health(struct builder *bd)
 			container_of(bd, struct qc_hw_param_drvdata, bd);
 	ap_health_t *health = sec_qc_ap_health_data_read();
 
-	if (IS_ERR_OR_NULL(health))
+	if (PTR_ERR(health) == -EBUSY)
 		return -EPROBE_DEFER;
+	else if (IS_ERR_OR_NULL(health))
+		return -ENODEV;
 
 	drvdata->ap_health = health;
 
@@ -108,7 +110,7 @@ static int __hw_param_parse_dt_use_ddr_eye_info(struct builder *bd,
 	return 0;
 }
 
-static struct dt_builder __hw_param_dt_builder[] = {
+static const struct dt_builder __hw_param_dt_builder[] = {
 	DT_BUILDER(__hw_param_parse_dt_use_ddr_eye_info),
 };
 
@@ -268,7 +270,7 @@ static void __hw_param_remove_prolog(struct builder *bd)
 	qc_hw_param = NULL;
 }
 
-static struct dev_builder __hw_param_dev_builder[] = {
+static const struct dev_builder __hw_param_dev_builder[] = {
 	DEVICE_BUILDER(__hw_param_test_ap_health, NULL),
 	/* TODO: deferrable concrete builders should be before here. */
 	DEVICE_BUILDER(__hw_param_parse_dt, NULL),
@@ -285,7 +287,7 @@ static struct dev_builder __hw_param_dev_builder[] = {
 };
 
 static int __hw_param_probe(struct platform_device *pdev,
-		struct dev_builder *builder, ssize_t n)
+		const struct dev_builder *builder, ssize_t n)
 {
 	struct device *dev = &pdev->dev;
 	struct qc_hw_param_drvdata *drvdata;
@@ -300,7 +302,7 @@ static int __hw_param_probe(struct platform_device *pdev,
 }
 
 static int __hw_param_remove(struct platform_device *pdev,
-		struct dev_builder *builder, ssize_t n)
+		const struct dev_builder *builder, ssize_t n)
 {
 	struct qc_hw_param_drvdata *drvdata = platform_get_drvdata(pdev);
 

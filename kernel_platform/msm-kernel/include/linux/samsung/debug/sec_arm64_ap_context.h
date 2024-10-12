@@ -1,7 +1,6 @@
 #ifndef __SEC_ARM64_AP_CONTEXT_H__
 #define __SEC_ARM64_AP_CONTEXT_H__
 
-#include <dt-bindings/samsung/debug/sec_arm64_vh_show_regs.h>
 #include <dt-bindings/samsung/debug/sec_arm64_vh_ipi_stop.h>
 
 enum {

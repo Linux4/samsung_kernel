@@ -138,9 +138,15 @@ typedef struct _manager_data_t
 	struct workqueue_struct *manager_muic_noti_wq;
 	struct manager_dwork usb_enum_check;
 	struct manager_dwork usb_event_by_vbus;
+#if IS_ENABLED(CONFIG_MUIC_SM5504_POGO)
+	struct manager_dwork usb_event_by_pogo;
+#endif
 
 	struct mutex mo_lock;
 	int vbus_state;
+#if IS_ENABLED(CONFIG_MUIC_SM5504_POGO)
+	int is_muic_pogo;
+#endif
 	int classified_cable_type;
 
 	int pdic_attach_state;
@@ -166,14 +172,25 @@ typedef struct _manager_data_t
 	struct manager_dp dp;
 	struct notifier_block manager_external_notifier_nb; 
 	struct typec_manager_gadget_ops *gadget_ops;
-	bool is_pr_swap_for_tablet_source;
-	bool is_enter_mode_status;
 }manager_data_t;
 
 struct typec_manager_gadget_ops {
 	void		*driver_data;
 	int		(*get_cmply_link_state)(void *dev);
 };
+
+typedef union {
+	struct {
+		uint64_t src:4;
+		uint64_t dest:4;
+		uint64_t id:8;
+		uint64_t sub1:16;
+		uint64_t sub2:16;
+		uint64_t sub3:16;
+	};
+	uint64_t noti_event;
+
+} MANAGER_NOTI_TYPEDEF_REF;
 
 #define PDIC_BATTERY	(1<<0)
 #define PDIC_USB	(1<<1)
@@ -222,8 +239,4 @@ void manager_notifier_usbdp_support(void);
 void set_usb_enumeration_state(int state);
 void set_usb_enable_state(void);
 void probe_typec_manager_gadget_ops (struct typec_manager_gadget_ops *ops);
-void manager_set_tablet_source(bool set_flag);
-bool manager_get_tablet_source(void);
-void manager_set_entermode(bool set_flag);
-bool manager_get_entermode(void);
 #endif /* __USB_TYPEC_MANAGER_NOTIFIER_H__ */

@@ -40,6 +40,9 @@
 #include <mutex>
 #include <exception>
 #include <errno.h>
+#ifdef LINUX_ENABLED
+#include <condition_variable>
+#endif
 #include "PalCommon.h"
 
 typedef enum {
@@ -106,6 +109,8 @@ typedef enum {
 #define CHANNEL_INFO 42
 #define CHARGE_CONCURRENCY_ON_TAG 43
 #define CHARGE_CONCURRENCY_OFF_TAG 44
+#define DEVICEPP_MUTE 45
+#define DEVICEPP_UNMUTE 46
 
 /* This sleep is added to give time to kernel and
  * spf to recover from SSR so that audio-hal will
@@ -121,6 +126,11 @@ typedef enum {
  */
 #define VOLUME_RAMP_PERIOD (100*1000)
 
+/*
+ * The sleep is required for mute to ramp down.
+ */
+#define MUTE_RAMP_PERIOD (30*1000)
+
 class Device;
 class ResourceManager;
 class Session;
@@ -133,7 +143,6 @@ protected:
     std::vector <struct pal_device> mPalDevice;
     Session* session;
     struct pal_stream_attributes* mStreamAttr;
-    struct pal_volume_data* mVolumeData = NULL;
     int mGainLevel;
     std::mutex mStreamMutex;
     static std::mutex mBaseStreamMutex; //TBD change this. as having a single static mutex for all instances of Stream is incorrect. Replace
@@ -153,14 +162,16 @@ protected:
     uint32_t mInstanceID = 0;
     static std::condition_variable pauseCV;
     static std::mutex pauseMutex;
-    int connectToDefaultDevice(Stream* streamHandle, uint32_t dir);
+    bool mutexLockedbyRm = false;
 public:
     virtual ~Stream() {};
+    struct pal_volume_data* mVolumeData = NULL;
     pal_stream_callback streamCb;
     uint64_t cookie;
     bool isPaused = false;
     bool a2dpMuted = false;
     bool a2dpPaused = false;
+    bool force_nlpi_vote = false;
     std::vector<pal_device_id_t> suspendedDevIds;
     virtual int32_t open() = 0;
     virtual int32_t close() = 0;
@@ -204,7 +215,10 @@ public:
     uint32_t getLatency();
     int32_t getAssociatedDevices(std::vector <std::shared_ptr<Device>> &adevices);
     int32_t getAssociatedPalDevices(std::vector <struct pal_device> &palDevices);
-    int32_t UpdatePalDevice(struct pal_device *dattr,  pal_device_id_t Dev_id);
+    void clearOutPalDevices();
+    void addPalDevice(struct pal_device *dattr) { mPalDevice.push_back(*dattr); }
+    int32_t updatePalDevice(struct pal_device *dattr, pal_device_id_t dev_id);
+    int32_t getSoundCardId();
     int32_t getAssociatedSession(Session** session);
     int32_t setBufInfo(pal_buffer_config *in_buffer_config,
                        pal_buffer_config *out_buffer_config);
@@ -240,6 +254,7 @@ public:
     int32_t rwACDBParameters(void *payload, uint32_t sampleRate,
                                 bool isParamWrite);
     bool isActive() { return currentState == STREAM_STARTED; }
+    bool isAlive() { return currentState != STREAM_IDLE; }
     bool isA2dpMuted() { return a2dpMuted; }
     /* Detection stream related APIs */
     virtual int32_t Resume() { return 0; }
@@ -253,8 +268,15 @@ public:
                                                            uint32_t event_size);
     static void handleStreamException(struct pal_stream_attributes *attributes,
                                       pal_stream_callback cb, uint64_t cookie);
-    void lockStreamMutex() { mStreamMutex.lock();};
-    void unlockStreamMutex() { mStreamMutex.unlock();};
+    void lockStreamMutex() {
+        mStreamMutex.lock();
+        mutexLockedbyRm = true;
+    };
+    void unlockStreamMutex() {
+        mutexLockedbyRm = false;
+        mStreamMutex.unlock();
+    };
+    bool isMutexLockedbyRm() { return mutexLockedbyRm; }
 };
 
 class StreamNonTunnel : public Stream

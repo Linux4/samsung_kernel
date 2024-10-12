@@ -1,7 +1,11 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
+
+#define pr_fmt(fmt) "%s:[%s][%d]: " fmt, KBUILD_MODNAME, __func__, __LINE__
+
 #include <linux/debugfs.h>
 #include <linux/errno.h>
 #include <linux/delay.h>
@@ -20,12 +24,18 @@
 #include <soc/qcom/qseecomi.h>
 #include <linux/qtee_shmbridge.h>
 #include <linux/proc_fs.h>
+#if IS_ENABLED(CONFIG_MSM_TMECOM_QMP)
+#include <linux/tmelog.h>
+#endif
 
 /* QSEE_LOG_BUF_SIZE = 32K */
 #define QSEE_LOG_BUF_SIZE 0x8000
 
 /* enlarged qsee log buf size is 128K by default */
 #define QSEE_LOG_BUF_SIZE_V2 0x20000
+
+/* Tme log buffer size 20K */
+#define TME_LOG_BUF_SIZE 0x5000
 
 /* TZ Diagnostic Area legacy version number */
 #define TZBSP_DIAG_MAJOR_VERSION_LEGACY	2
@@ -337,6 +347,14 @@ struct hypdbg_log_pos_t {
 	uint16_t offset;
 };
 
+struct rmdbg_log_hdr_t {
+	uint32_t write_idx;
+	uint32_t size;
+};
+struct rmdbg_log_pos_t {
+	uint32_t read_idx;
+	uint32_t size;
+};
 struct hypdbg_boot_info_t {
 	uint32_t warm_entry_cnt;
 	uint32_t warm_exit_cnt;
@@ -366,6 +384,11 @@ struct hypdbg_t {
 	uint8_t log_buf_p[];
 };
 
+struct tme_log_pos {
+	uint32_t offset;
+	size_t size;
+};
+
 /*
  * Enumeration order for VMID's
  */
@@ -379,6 +402,8 @@ enum tzdbg_stats_type {
 	TZDBG_QSEE_LOG,
 	TZDBG_HYP_GENERAL,
 	TZDBG_HYP_LOG,
+	TZDBG_RM_LOG,
+	TZDBG_TME_LOG,
 	TZDBG_STATS_MAX
 };
 
@@ -392,12 +417,17 @@ struct tzdbg_stat {
 struct tzdbg {
 	void __iomem *virt_iobase;
 	void __iomem *hyp_virt_iobase;
+	void __iomem *rmlog_virt_iobase;
+	void __iomem *tmelog_virt_iobase;
 	struct tzdbg_t *diag_buf;
 	struct hypdbg_t *hyp_diag_buf;
+	uint8_t *rm_diag_buf;
+	uint8_t *tme_buf;
 	char *disp_buf;
 	int debug_tz[TZDBG_STATS_MAX];
 	struct tzdbg_stat stat[TZDBG_STATS_MAX];
 	uint32_t hyp_debug_rw_buf_size;
+	uint32_t rmlog_rw_buf_size;
 	bool is_hyplog_enabled;
 	uint32_t tz_version;
 	bool is_encrypted_log_enabled;
@@ -444,6 +474,8 @@ static struct tzdbg tzdbg = {
 	.stat[TZDBG_QSEE_LOG].name = "qsee_log",
 	.stat[TZDBG_HYP_GENERAL].name = "hyp_general",
 	.stat[TZDBG_HYP_LOG].name = "hyp_log",
+	.stat[TZDBG_RM_LOG].name = "rm_log",
+	.stat[TZDBG_TME_LOG].name = "tme_log",
 };
 
 static struct tzdbg_log_t *g_qsee_log;
@@ -453,6 +485,7 @@ static uint32_t debug_rw_buf_size;
 static uint32_t display_buf_size;
 static uint32_t qseelog_buf_size;
 static phys_addr_t disp_buf_paddr;
+static uint32_t tmecrashdump_address_offset;
 
 static uint64_t qseelog_shmbridge_handle;
 static struct encrypted_log_info enc_qseelog_info;
@@ -922,6 +955,22 @@ static int __disp_hyp_log_stats(uint8_t *log,
 	tzdbg.stat[buf_idx].data = tzdbg.disp_buf;
 	return len;
 }
+static int __disp_rm_log_stats(uint8_t *log_ptr, uint32_t max_len)
+{
+	uint32_t i = 0;
+	/*
+	 *  Transfer data from rm dialog buff to display buffer in user space
+	 */
+	while ((i < max_len) && (i < display_buf_size)) {
+		tzdbg.disp_buf[i] = log_ptr[i];
+		i++;
+	}
+	if (i != max_len)
+		pr_err("Dropping RM log message, max_len:%d display_buf_size:%d\n",
+			i, display_buf_size);
+	tzdbg.stat[TZDBG_RM_LOG].data = tzdbg.disp_buf;
+	return i;
+}
 
 static int print_text(char *intro_message,
 			unsigned char *text_addr,
@@ -1045,6 +1094,55 @@ static int _disp_hyp_log_stats(size_t count)
 			log_len, count, TZDBG_HYP_LOG);
 }
 
+static int _disp_rm_log_stats(size_t count)
+{
+	static struct rmdbg_log_pos_t log_start = { 0 };
+	struct rmdbg_log_hdr_t *p_log_hdr = NULL;
+	uint8_t *log_ptr = NULL;
+	uint32_t log_len = 0;
+	static bool wrap_around = { false };
+
+	/* Return 0 to close the display file,if there is nothing else to do */
+	if ((log_start.size == 0x0) && wrap_around) {
+		wrap_around = false;
+		return 0;
+	}
+	/* Copy RM log data to tzdbg diag buffer for the first time */
+	/* Initialize the tracking data structure */
+	if (tzdbg.rmlog_rw_buf_size != 0) {
+		if (!wrap_around) {
+			memcpy_fromio((void *)tzdbg.rm_diag_buf,
+					tzdbg.rmlog_virt_iobase,
+					tzdbg.rmlog_rw_buf_size);
+			/* get RM header info first */
+			p_log_hdr = (struct rmdbg_log_hdr_t *)tzdbg.rm_diag_buf;
+			/* Update RM log buffer index tracker and its size */
+			log_start.read_idx = 0x0;
+			log_start.size = p_log_hdr->size;
+		}
+		/* Update RM log buffer starting ptr */
+		log_ptr =
+			(uint8_t *) ((unsigned char *)tzdbg.rm_diag_buf +
+				 sizeof(struct rmdbg_log_hdr_t));
+	} else {
+	/* Return 0 to close the display file,if there is nothing else to do */
+		pr_err("There is no RM log to read, size is %d!\n",
+			tzdbg.rmlog_rw_buf_size);
+		return 0;
+	}
+	log_len = log_start.size;
+	log_ptr += log_start.read_idx;
+	/* Check if we exceed the max length provided by user space */
+	log_len = (count > log_len) ? log_len : count;
+	/* Update tracking data structure */
+	log_start.size -= log_len;
+	log_start.read_idx += log_len;
+
+	if (log_start.size)
+		wrap_around =  true;
+	return __disp_rm_log_stats(log_ptr, log_len);
+}
+
 static int _disp_qsee_log_stats(size_t count)
 {
 	static struct tzdbg_log_pos_t log_start = {0};
@@ -1096,6 +1194,65 @@ static int _disp_hyp_general_stats(size_t count)
 	return len;
 }
 
+#if IS_ENABLED(CONFIG_MSM_TMECOM_QMP)
+static int _disp_tme_log_stats(size_t count)
+{
+	static struct tme_log_pos log_start = { 0 };
+	static bool wrap_around = { false };
+	uint32_t buf_size;
+	uint8_t *log_ptr = NULL;
+	uint32_t log_len = 0;
+	int ret = 0;
+
+	/* Return 0 to close file in case some error in initialising step. */
+	if (!tzdbg.tmelog_virt_iobase || !tmecrashdump_address_offset)
+		return 0;
+
+	/* Return 0 to close the display file */
+	if ((log_start.size == 0x0) && wrap_around) {
+		wrap_around = false;
+		return 0;
+	}
+
+	/* Copy TME log data to tzdbg diag buffer for the first time */
+	if (!wrap_around) {
+		if (tmelog_process_request(tmecrashdump_address_offset,
+								   TME_LOG_BUF_SIZE, &buf_size)) {
+			pr_err("Read tme log failed, ret=%d, buf_size: %#x\n", ret, buf_size);
+			return 0;
+		}
+		log_start.offset = 0x0;
+		log_start.size = buf_size;
+	}
+
+	log_ptr = tzdbg.tmelog_virt_iobase;
+	log_len = log_start.size;
+	log_ptr += log_start.offset;
+
+	/* Check if we exceed the max length provided by user space */
+	log_len = min(min((uint32_t)count, log_len), display_buf_size);
+
+	log_start.size -= log_len;
+	log_start.offset += log_len;
+	pr_debug("log_len: %d, log_start.offset: %#x, log_start.size: %#x\n",
+			log_len, log_start.offset, log_start.size);
+
+	if (log_start.size)
+		wrap_around =  true;
+
+	/* Copy TME log data to display buffer */
+	memcpy_fromio(tzdbg.disp_buf, log_ptr, log_len);
+
+	tzdbg.stat[TZDBG_TME_LOG].data = tzdbg.disp_buf;
+	return log_len;
+}
+#else
+static int _disp_tme_log_stats(size_t count)
+{
+	return 0;
+}
+#endif
+
 static ssize_t tzdbg_fs_read_unencrypted(int tz_id, char __user *buf,
 	size_t count, loff_t *offp)
 {
@@ -1146,6 +1303,14 @@ static ssize_t tzdbg_fs_read_unencrypted(int tz_id, char __user *buf,
 		break;
 	case TZDBG_HYP_LOG:
 		len = _disp_hyp_log_stats(count);
+		*offp = 0;
+		break;
+	case TZDBG_RM_LOG:
+		len = _disp_rm_log_stats(count);
+		*offp = 0;
+		break;
+	case TZDBG_TME_LOG:
+		len = _disp_tme_log_stats(count);
 		*offp = 0;
 		break;
 	default:
@@ -1213,7 +1378,8 @@ static ssize_t tzdbg_fs_read(struct file *file, char __user *buf,
 	}
 
 	if (!tzdbg.is_encrypted_log_enabled ||
-		(tz_id == TZDBG_HYP_GENERAL || tz_id == TZDBG_HYP_LOG))
+	    (tz_id == TZDBG_HYP_GENERAL || tz_id == TZDBG_HYP_LOG)
+	    || tz_id == TZDBG_RM_LOG || tz_id == TZDBG_TME_LOG)
 		return tzdbg_fs_read_unencrypted(tz_id, buf, count, offp);
 	else
 		return tzdbg_fs_read_encrypted(tz_id, buf, count, offp);
@@ -1235,6 +1401,31 @@ struct proc_ops tzdbg_fops = {
 	.proc_open    = tzdbg_procfs_open,
 	.proc_release = tzdbg_procfs_release,
 };
+
+static int tzdbg_init_tme_log(struct platform_device *pdev, void __iomem *virt_iobase)
+{
+	/*
+	 * Tme logs are dumped in tme log ddr region but that region is not
+	 * accessible to hlos. Instead, collect logs at tme crashdump ddr
+	 * region with tmecom interface and then display logs reading from
+	 * crashdump region.
+	 */
+	if (of_property_read_u32((&pdev->dev)->of_node, "tmecrashdump-address-offset",
+				&tmecrashdump_address_offset)) {
+		pr_err("Tme Crashdump address offset need to be defined!\n");
+		return -EINVAL;
+	}
+
+	tzdbg.tmelog_virt_iobase =
+		devm_ioremap(&pdev->dev, tmecrashdump_address_offset, TME_LOG_BUF_SIZE);
+	if (!tzdbg.tmelog_virt_iobase) {
+		pr_err("ERROR: Could not ioremap: start=%#x, len=%u\n",
+				tmecrashdump_address_offset, TME_LOG_BUF_SIZE);
+		return -ENXIO;
+	}
+
+	return 0;
+}
 
 /*
  * Allocates log buffer from ION, registers the buffer at TZ
@@ -1412,6 +1603,7 @@ err:
 static void tzdbg_fs_exit(struct platform_device *pdev)
 {
 	struct proc_dir_entry *dent_dir;
+
 	dent_dir = platform_get_drvdata(pdev);
 	if (dent_dir)
 		remove_proc_entry(TZDBG_DIR_NAME, NULL);
@@ -1460,6 +1652,55 @@ static int __update_hypdbg_base(struct platform_device *pdev,
 	return 0;
 }
 
+static int __update_rmlog_base(struct platform_device *pdev,
+			       void __iomem *virt_iobase)
+{
+	uint32_t rmlog_address;
+	uint32_t rmlog_size;
+	uint32_t *ptr = NULL;
+
+	/* if we don't get the node just ignore it */
+	if (of_property_read_u32((&pdev->dev)->of_node, "rmlog-address",
+							&rmlog_address)) {
+		dev_err(&pdev->dev, "RM log address is not defined\n");
+		tzdbg.rmlog_rw_buf_size = 0;
+		return 0;
+	}
+	/* if we don't get the node just ignore it */
+	if (of_property_read_u32((&pdev->dev)->of_node, "rmlog-size",
+							&rmlog_size)) {
+		dev_err(&pdev->dev, "RM log size is not defined\n");
+		tzdbg.rmlog_rw_buf_size = 0;
+		return 0;
+	}
+
+	tzdbg.rmlog_rw_buf_size = rmlog_size;
+
+	/* Check if there is RM log to read */
+	if (!tzdbg.rmlog_rw_buf_size) {
+		tzdbg.rmlog_virt_iobase = NULL;
+		tzdbg.rm_diag_buf = NULL;
+		dev_err(&pdev->dev, "RM log size is %d\n",
+			tzdbg.rmlog_rw_buf_size);
+		return 0;
+	}
+
+	tzdbg.rmlog_virt_iobase = devm_ioremap(&pdev->dev,
+					rmlog_address,
+					rmlog_size);
+	if (!tzdbg.rmlog_virt_iobase) {
+		dev_err(&pdev->dev, "ERROR could not ioremap: start=%pr, len=%u\n",
+			rmlog_address, tzdbg.rmlog_rw_buf_size);
+		return -ENXIO;
+	}
+
+	ptr = kzalloc(tzdbg.rmlog_rw_buf_size, GFP_KERNEL);
+	if (!ptr)
+		return -ENOMEM;
+
+	tzdbg.rm_diag_buf = (uint8_t *)ptr;
+	return 0;
+}
 static int tzdbg_get_tz_version(void)
 {
 	u64 version;
@@ -1570,6 +1811,13 @@ static int tz_log_probe(struct platform_device *pdev)
 					__func__, ret);
 				return -EINVAL;
 			}
+			ret = __update_rmlog_base(pdev, virt_iobase);
+			if (ret) {
+				dev_err(&pdev->dev,
+					"%s: fail to get rmlog_base ret %d\n",
+					__func__, ret);
+				return -EINVAL;
+			}
 		} else {
 			dev_info(&pdev->dev, "Hyp log service not support\n");
 		}
@@ -1611,6 +1859,11 @@ static int tz_log_probe(struct platform_device *pdev)
 				(&pdev->dev)->of_node, "qcom,full-encrypted-tz-logs-enabled");
 		}
 	}
+
+	/* Init for tme log */
+	ret = tzdbg_init_tme_log(pdev, virt_iobase);
+	if (ret < 0)
+		pr_warn("Tme log initialization failed!\n");
 
 	/* register unencrypted qsee log buffer */
 	ret = tzdbg_register_qsee_log_buf(pdev);

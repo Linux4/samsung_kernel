@@ -1,6 +1,8 @@
 /*
  * Platform data for the NXP PCA9481 battery charger driver.
  *
+ * Copyright (C) 2021-2022 NXP Semiconductor.
+ *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
  * published by the Free Software Foundation.
@@ -418,6 +420,7 @@ enum {
 #define PPS_PERIODIC_T	10000	// PPS periodic request message timer - 10000ms
 #define UVLO_CHECK_T	1000	// UVLO check timer - 1000ms
 #define BYPASS_WAIT_T	200		// Bypass mode waiting time - 200ms
+#define INIT_WAKEUP_T	10000	// Initial wakeup timeout - 10000ms
 
 /* Battery minimum voltage Threshold for direct charging */
 #define DC_VBAT_MIN				3100000	// 3100000uV
@@ -648,7 +651,6 @@ enum {
  * @timer_period: timer period for timer_work
  * @pps_work: pps work for PPS periodic time
  * @pd: phandle for qualcomm PMI usbpd-phy
- * @tcpm_psy: power supply instance for TYPEC PD IC
  * @mains_online: is AC/DC input connected
  * @charging_state: direct charging state
  * @ret_state: return direct charging state after DC_STATE_ADJUST_TAVOL is done

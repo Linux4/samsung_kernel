@@ -47,7 +47,7 @@ static ssize_t __ddr_info_report_header(char *buf,
 			uint32_t lv0:16;
 		};
 	} dsf;
-	
+
 	dsf.raw = sec_qc_smem_lpddr_get_DSF_version();
 
 	__qc_hw_param_scnprintf(buf, sz_buf, info_size, "\"DDRV\":\"%s\",",

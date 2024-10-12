@@ -126,6 +126,7 @@ struct cirrus_amp {
 	bool v_val_separate;
 	int (*amp_reinit)(struct snd_soc_component *component);
 	void (*i2c_callback)(const char *suffix);
+	void (*error_callback)(const char *suffix);
 };
 
 struct cirrus_amp_group {
@@ -151,6 +152,7 @@ struct cirrus_amp_group {
 };
 
 void cirrus_amp_register_i2c_error_callback(const char *suffix, void *func);
+void cirrus_amp_register_error_callback(const char *suffix, void *func);
 
 struct cirrus_amp *cirrus_get_amp_from_suffix(const char *suffix);
 int cirrus_amp_add(const char *mfd_suffix, struct cirrus_amp_config cfg);

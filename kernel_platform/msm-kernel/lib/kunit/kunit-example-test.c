@@ -7,6 +7,7 @@
  */
 
 #include <kunit/test.h>
+#include <kunit/mock.h>
 
 /*
  * This is the most fundamental element of KUnit, the test case. A test case
@@ -29,6 +30,92 @@ static void example_simple_test(struct kunit *test)
 	KUNIT_EXPECT_EQ(test, 1 + 1, 2);
 }
 
+struct example_ops;
+
+struct example {
+	struct example_ops *ops;
+};
+
+/*
+ * A lot of times, we embed "ops structs", which acts an abstraction over
+ * hardware, a file system implementation, or some other subsystem that you
+ * want to reason about in a generic way.
+ */
+struct example_ops {
+	int (*foo)(struct example *example, int num);
+};
+
+static int example_bar(struct example *example, int num)
+{
+	return example->ops->foo(example, num);
+}
+
+/*
+ * KUnit allows such a class to be "mocked out" with the following:
+ */
+
+/*
+ * This macro creates a mock subclass of the specified class.
+ */
+DECLARE_STRUCT_CLASS_MOCK_PREREQS(example);
+
+/*
+ * This macro creates a mock implementation of the specified method of the
+ * specified class.
+ */
+DEFINE_STRUCT_CLASS_MOCK(METHOD(foo), CLASS(example),
+			 RETURNS(int),
+			 PARAMS(struct example *, int));
+
+/*
+ * This tells KUnit how to initialize the parts of the mock that come from the
+ * parent. In this example, all we have to do is populate the member functions
+ * of the parent class with the mock versions we defined.
+ */
+static int example_init(struct kunit *test, struct MOCK(example) *mock_example)
+{
+	/* This is how you get a pointer to the parent class of a mock. */
+	struct example *example = mock_get_trgt(mock_example);
+
+	/*
+	 * Here we create an ops struct containing our mock method instead.
+	 */
+	example->ops = kunit_kzalloc(test, sizeof(*example->ops), GFP_KERNEL);
+	example->ops->foo = foo;
+
+	return 0;
+}
+
+/*
+ * This registers our parent init function above, allowing KUnit to create a
+ * constructor for the mock.
+ */
+DEFINE_STRUCT_CLASS_MOCK_INIT(example, example_init);
+
+/*
+ * This is a test case where we use our mock.
+ */
+static void example_mock_test(struct kunit *test)
+{
+	struct MOCK(example) *mock_example = test->priv;
+	struct example *example = mock_get_trgt(mock_example);
+	struct mock_expectation *handle;
+
+	/*
+	 * Here we make an expectation that our mock method will be called with
+	 * a parameter equal to 5 passed in.
+	 */
+	handle = KUNIT_EXPECT_CALL(foo(mock_get_ctrl(mock_example),
+				       kunit_int_eq(test, 5)));
+	/*
+	 * We specify that when our mock is called in this way, we want it to
+	 * return 2.
+	 */
+	handle->action = kunit_int_return(test, 2);
+
+	KUNIT_EXPECT_EQ(test, 2, example_bar(example, 5));
+}
+
 /*
  * This is run once before each test case, see the comment on
  * example_test_suite for more information.
@@ -36,6 +123,16 @@ static void example_simple_test(struct kunit *test)
 static int example_test_init(struct kunit *test)
 {
 	kunit_info(test, "initializing\n");
+
+	/*
+	 * Here we construct the mock and store it in test's `priv` field; this
+	 * field is for KUnit users. You can put whatever you want here, but
+	 * most often it is a place that the init function can put stuff to be
+	 * used by test cases.
+	 */
+	test->priv = CONSTRUCT_MOCK(example, test);
+	if (!test->priv)
+		return -EINVAL;
 
 	return 0;
 }
@@ -52,6 +149,7 @@ static struct kunit_case example_test_cases[] = {
 	 * test suite.
 	 */
 	KUNIT_CASE(example_simple_test),
+	KUNIT_CASE(example_mock_test),
 	{}
 };
 

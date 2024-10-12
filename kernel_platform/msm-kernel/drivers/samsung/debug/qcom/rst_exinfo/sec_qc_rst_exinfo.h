@@ -17,7 +17,7 @@ struct rst_exinfo_drvdata {
 	struct notifier_block nb_die;
 };
 
-static struct rst_exinfo_drvdata *qc_rst_exinfo;
+extern struct rst_exinfo_drvdata *qc_rst_exinfo;
 
 static __always_inline bool __qc_rst_exinfo_is_probed(void)
 {

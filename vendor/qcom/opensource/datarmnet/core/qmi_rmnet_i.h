@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2021 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -17,7 +17,6 @@
 #include <linux/netdevice.h>
 #include <linux/skbuff.h>
 #include <linux/timer.h>
-#include <linux/pm_wakeup.h>
 #include <uapi/linux/rtnetlink.h>
 #include <linux/soc/qcom/qmi.h>
 
@@ -32,6 +31,7 @@
 #define INVALID_MQ 0xFF
 
 #define DFC_MODE_SA 4
+#define PS_MAX_BEARERS 32
 
 #define CONFIG_QTI_QMI_RMNET 1
 #define CONFIG_QTI_QMI_DFC  1
@@ -61,6 +61,7 @@ struct rmnet_ch_switch {
 	u8 switch_to_ch;
 	u8 retry_left;
 	u8 status_code;
+	bool auto_switched;
 	enum rmnet_ch_switch_state state;
 	__be32 switch_txid;
 	u32 flags;
@@ -114,6 +115,7 @@ struct svc_info {
 struct mq_map {
 	struct rmnet_bearer_map *bearer;
 	bool is_ll_ch;
+	bool drop_on_remove;
 };
 
 struct qos_info {
@@ -141,8 +143,6 @@ struct qmi_info {
 	bool dl_msg_active;
 	bool ps_ignore_grant;
 	int ps_ext;
-	bool wakelock_active;
-	struct wakeup_source *ws;
 };
 
 enum data_ep_type_enum_v01 {
@@ -268,7 +268,8 @@ static int rmnet_ll_switch(struct net_device *dev,
 int
 wda_qmi_client_init(void *port, struct svc_info *psvc, struct qmi_info *qmi);
 void wda_qmi_client_exit(void *wda_data);
-int wda_set_powersave_mode(void *wda_data, u8 enable);
+int wda_set_powersave_mode(void *wda_data, u8 enable, u8 num_bearers,
+			   u8 *bearer_id);
 void qmi_rmnet_flush_ps_wq(void);
 void wda_qmi_client_release(void *wda_data);
 int dfc_qmap_set_powersave(u8 enable, u8 num_bearers, u8 *bearer_id);
@@ -283,7 +284,8 @@ static inline void wda_qmi_client_exit(void *wda_data)
 {
 }
 
-static inline int wda_set_powersave_mode(void *wda_data, u8 enable)
+static inline int wda_set_powersave_mode(void *wda_data, u8 enable,
+					 u8 num_bearers, u8 *bearer_id)
 {
 	return -EINVAL;
 }

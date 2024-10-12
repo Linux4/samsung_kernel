@@ -4,6 +4,7 @@
 
 menuconfig KUNIT
 	tristate "KUnit - Enable support for unit tests"
+	select HAS_IOMEM
 	help
 	  Enables support for kernel unit tests (KUnit), a lightweight unit
 	  testing and mocking framework for the Linux kernel. These tests are
@@ -58,4 +59,19 @@ config KUNIT_ALL_TESTS
 
 	  If unsure, say N.
 
+config KUNIT_MANAGER
+	tristate "Manager for KUnit"
+	depends on KUNIT
+	depends on !UML
+	default m
+	help
+	  Enables KUnit Manager. KUnit Manager is a sysfs node for triggering
+	  on-device testing in Samsung kernel.
+
 endif # KUNIT
+
+config SEC_KUNIT
+	bool "Enable support for unit tests (KUnit)"
+	select HAS_IOMEM
+	help
+	  Deprecated: CONFIG_SEC_KUNIT does not be used anymore. Please use CONFIG_KUNIT

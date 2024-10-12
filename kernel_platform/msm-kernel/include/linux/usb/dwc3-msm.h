@@ -69,7 +69,8 @@ enum dwc3_notify_event {
 	DWC3_CONTROLLER_CONNDONE_EVENT,
 	DWC3_CONTROLLER_NOTIFY_OTG_EVENT,
 	DWC3_CONTROLLER_NOTIFY_DISABLE_UPDXFER,
-	DWC3_CONTROLLER_PULLUP,
+	DWC3_CONTROLLER_PULLUP_ENTER,
+	DWC3_CONTROLLER_PULLUP_EXIT,
 
 	/* USB GSI event buffer related notification */
 	DWC3_GSI_EVT_BUF_ALLOC,
@@ -140,6 +141,7 @@ struct gsi_channel_info {
 };
 
 struct dwc3;
+extern void *dwc_trace_ipc_log_ctxt;
 
 #if IS_ENABLED(CONFIG_USB_DWC3_MSM)
 void dwc3_msm_notify_event(struct dwc3 *dwc,
@@ -157,8 +159,6 @@ int msm_ep_update_ops(struct usb_ep *ep);
 int msm_ep_clear_ops(struct usb_ep *ep);
 int msm_ep_set_mode(struct usb_ep *ep, enum usb_hw_ep_mode mode);
 int dwc3_core_stop_hw_active_transfers(struct dwc3 *dwc);
-int dwc3_msm_kretprobe_init(void);
-void dwc3_msm_kretprobe_exit(void);
 #else
 void dwc3_msm_notify_event(struct dwc3 *dwc,
 		enum dwc3_notify_event event, unsigned int value)
@@ -191,6 +191,12 @@ int msm_ep_set_mode(struct usb_ep *ep, enum usb_hw_ep_mode mode)
 { return -ENODEV; }
 inline int dwc3_core_stop_hw_active_transfers(struct dwc3 *dwc)
 { return 0; }
+#endif
+
+#ifdef CONFIG_ARM64
+int dwc3_msm_kretprobe_init(void);
+void dwc3_msm_kretprobe_exit(void);
+#else
 int dwc3_msm_kretprobe_init(void)
 { return 0; }
 void dwc3_msm_kretprobe_exit(void)

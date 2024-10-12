@@ -45,6 +45,7 @@ enum {
 #define COVER_DETACH 0 // OPEN
 #define COVER_ATTACH 1 // CLOSE
 #define COVER_ATTACH_NFC_ACTIVE 2 // CLOSE
+#define COVER_ATTACH_RECOVER 3
 
 static bool fcd_available;
 static int fcd_dual_cal_matrix;
@@ -428,7 +429,7 @@ static ssize_t nfc_cover_status_show(struct device *dev,
 {
 	if (nfc_cover_status == COVER_ATTACH || nfc_cover_status == COVER_ATTACH_NFC_ACTIVE) {
 		snprintf(sysfs_cover_status, 10, "CLOSE");
-	} else if (nfc_cover_status == COVER_DETACH)  {
+	} else if (nfc_cover_status == COVER_DETACH || nfc_cover_status == COVER_ATTACH_RECOVER)  {
 		snprintf(sysfs_cover_status, 10, "OPEN");
 	}
 
@@ -572,7 +573,17 @@ static struct device_attribute *flip_cover_detector_attrs[] = {
 	NULL,
 };
 
-static bool check_fcd_dual_cal_matrix_support(struct device_node *np)
+void check_device_default_thd(struct device_node *np)
+{
+    int ret = of_property_read_u32(np, "fcd,attach_thd", &threshold_update);
+    if (ret < 0) {
+		pr_info("[FACTORY] %s: attach_thd not found, ret=%d\n", __func__, ret);
+        threshold_update = THRESHOLD;
+    }
+    pr_info("[FACTORY] %s: %d\n", __func__, threshold_update);
+}
+
+void check_fcd_dual_cal_matrix_support(struct device_node *np)
 {
 	int ret = of_property_read_u32(np, "fcd,dual_cal_matrix", &fcd_dual_cal_matrix);
 	if (ret < 0) {
@@ -581,8 +592,6 @@ static bool check_fcd_dual_cal_matrix_support(struct device_node *np)
 	}
 
 	pr_info("[FACTORY] %s: %d\n", __func__, fcd_dual_cal_matrix);
-
-	return fcd_available;
 }
 
 static bool check_flip_cover_detector_availability(void)
@@ -597,6 +606,7 @@ static bool check_flip_cover_detector_availability(void)
 		fcd_available = true;
 
 		check_fcd_dual_cal_matrix_support(np);
+        check_device_default_thd(np);
 	}
 
 	return fcd_available;

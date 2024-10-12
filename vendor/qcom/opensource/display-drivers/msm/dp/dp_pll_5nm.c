@@ -129,6 +129,69 @@
 #define DP_5NM_PHY_READY	BIT(1)
 #define DP_5NM_TSYNC_DONE	BIT(0)
 
+static int dp_vco_clk_set_div(struct dp_pll *pll, unsigned int div)
+{
+	u32 val = 0;
+
+	if (!pll) {
+		DP_ERR("invalid input parameters\n");
+		return -EINVAL;
+	}
+
+	if (is_gdsc_disabled(pll))
+		return -EINVAL;
+
+	val = dp_pll_read(dp_phy, DP_PHY_VCO_DIV);
+	val &= ~0x03;
+
+	switch (div) {
+	case 2:
+		val |= 1;
+		break;
+	case 4:
+		val |= 2;
+		break;
+	case 6:
+	/* When div = 6, val is 0, so do nothing here */
+		;
+		break;
+	case 8:
+		val |= 3;
+		break;
+	default:
+		DP_DEBUG("unsupported div value %d\n", div);
+		return -EINVAL;
+	}
+
+	dp_pll_write(dp_phy, DP_PHY_VCO_DIV, val);
+	/* Make sure the PHY registers writes are done */
+	wmb();
+
+	DP_DEBUG("val=%d div=%x\n", val, div);
+	return 0;
+}
+
+static int set_vco_div(struct dp_pll *pll, unsigned long rate)
+{
+	int div;
+	int rc = 0;
+
+	if (rate == DP_VCO_HSCLK_RATE_8100MHZDIV1000)
+		div = 6;
+	else if (rate == DP_VCO_HSCLK_RATE_5400MHZDIV1000)
+		div = 4;
+	else
+		div = 2;
+
+	rc = dp_vco_clk_set_div(pll, div);
+	if (rc < 0) {
+		DP_DEBUG("set vco div failed\n");
+		return rc;
+	}
+
+	return 0;
+}
+
 static int dp_vco_pll_init_db_5nm(struct dp_pll_db *pdb,
 		unsigned long rate)
 {
@@ -336,7 +399,7 @@ static int dp_config_vco_rate_5nm(struct dp_pll *pll,
 	/* Make sure the PHY register writes are done */
 	wmb();
 
-	return rc;
+	return set_vco_div(pll, rate);
 }
 
 enum dp_5nm_pll_status {
@@ -475,48 +538,6 @@ static void dp_pll_disable_5nm(struct dp_pll *pll)
 	wmb();
 }
 
-static int dp_vco_clk_set_div(struct dp_pll *pll, unsigned int div)
-{
-	u32 val = 0;
-
-	if (!pll) {
-		DP_ERR("invalid input parameters\n");
-		return -EINVAL;
-	}
-
-	if (is_gdsc_disabled(pll))
-		return -EINVAL;
-
-	val = dp_pll_read(dp_phy, DP_PHY_VCO_DIV);
-	val &= ~0x03;
-
-	switch (div) {
-	case 2:
-		val |= 1;
-		break;
-	case 4:
-		val |= 2;
-		break;
-	case 6:
-	/* When div = 6, val is 0, so do nothing here */
-		;
-		break;
-	case 8:
-		val |= 3;
-		break;
-	default:
-		DP_DEBUG("unsupported div value %d\n", div);
-		return -EINVAL;
-	}
-
-	dp_pll_write(dp_phy, DP_PHY_VCO_DIV, val);
-	/* Make sure the PHY registers writes are done */
-	wmb();
-
-	DP_DEBUG("val=%d div=%x\n", val, div);
-	return 0;
-}
-
 static int dp_vco_set_rate_5nm(struct dp_pll *pll, unsigned long rate)
 {
 	int rc = 0;
@@ -563,27 +584,6 @@ static int dp_regulator_enable_5nm(struct dp_parser *parser,
 	return rc;
 }
 
-static int set_vco_div(struct dp_pll *pll)
-{
-	int div;
-	int rc = 0;
-
-	if (pll->vco_rate == DP_VCO_HSCLK_RATE_8100MHZDIV1000)
-		div = 6;
-	else if (pll->vco_rate == DP_VCO_HSCLK_RATE_5400MHZDIV1000)
-		div = 4;
-	else
-		div = 2;
-
-	rc = dp_vco_clk_set_div(pll, div);
-	if (rc < 0) {
-		DP_DEBUG("set vco div failed\n");
-		return rc;
-	}
-
-	return 0;
-}
-
 static int dp_pll_configure(struct dp_pll *pll, unsigned long rate)
 {
 	int rc = 0;
@@ -612,9 +612,6 @@ static int dp_pll_configure(struct dp_pll *pll, unsigned long rate)
 
 	pll->vco_rate = rate;
 	DP_DEBUG("pll rate %lu set success\n", rate);
-
-	rc = set_vco_div(pll);
-	
 	return rc;
 }
 
@@ -780,18 +777,12 @@ static long dp_pll_link_clk_round(struct clk_hw *hw, unsigned long rate,
 
 static unsigned long dp_pll_vco_div_clk_get_rate(struct dp_pll *pll)
 {
-	unsigned long rate;
-	
 	if (pll->vco_rate == DP_VCO_HSCLK_RATE_8100MHZDIV1000)
-		rate = (pll->vco_rate / 6);
+		return (pll->vco_rate / 6);
 	else if (pll->vco_rate == DP_VCO_HSCLK_RATE_5400MHZDIV1000)
-		rate = (pll->vco_rate / 4);
+		return (pll->vco_rate / 4);
 	else
-		rate = (pll->vco_rate / 2);
-
-	DP_DEBUG("vco_div rate: %lld\n", rate);
-
-	return rate;
+		return (pll->vco_rate / 2);
 }
 
 static unsigned long dp_pll_vco_div_clk_recalc_rate(struct clk_hw *hw,

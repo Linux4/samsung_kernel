@@ -20,10 +20,6 @@ LOCAL_CFLAGS        += -DPAL_SP_TEMP_PATH=\"/data/vendor/audio/audio.cal\"
 LOCAL_CFLAGS        += -DACD_SM_FILEPATH=\"/vendor/etc/models/acd/\"
 LOCAL_CPPFLAGS      += -fexceptions -frtti
 
-ifeq ($(TARGET_BOARD_PLATFORM), taro)
-LOCAL_CFLAGS   += -DWAIPIO_CHIPSET
-endif
-
 LOCAL_C_INCLUDES := \
     $(LOCAL_PATH)/stream/inc \
     $(LOCAL_PATH)/device/inc \
@@ -106,7 +102,8 @@ LOCAL_SRC_FILES := \
     utils/src/SoundTriggerPlatformInfo.cpp \
     utils/src/ACDPlatformInfo.cpp \
     utils/src/PalRingBuffer.cpp \
-    utils/src/SoundTriggerUtils.cpp
+    utils/src/SoundTriggerUtils.cpp \
+    utils/src/SignalHandler.cpp
 
 LOCAL_HEADER_LIBRARIES := \
     libspf-headers \

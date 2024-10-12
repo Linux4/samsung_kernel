@@ -28,19 +28,15 @@
 #include "ssg-cgroup.h"
 
 #if IS_ENABLED(CONFIG_BLK_SEC_STATS)
-extern void blk_sec_stats_account_rq_insert(struct request *rq);
-extern void blk_sec_stats_account_rq_dispatch(struct request *rq);
-extern void blk_sec_stats_account_rq_finish(struct request *rq);
 extern void blk_sec_stats_account_init(struct request_queue *q);
 extern void blk_sec_stats_account_exit(struct elevator_queue *eq);
-extern void blk_sec_stats_depth_updated(struct blk_mq_hw_ctx *hctx);
+extern void blk_sec_stats_account_io_done(
+		struct request *rq, unsigned int data_size,
+		pid_t tgid, const char *tg_name, u64 tg_start_time);
 #else
-#define blk_sec_stats_account_rq_insert(rq)	do {} while(0)
-#define blk_sec_stats_account_rq_dispatch(rq)	do {} while(0)
-#define blk_sec_stats_account_rq_finish(rq)	do {} while(0)
 #define blk_sec_stats_account_init(q)	do {} while(0)
 #define blk_sec_stats_account_exit(eq)	do {} while(0)
-#define blk_sec_stats_depth_updated(hctx)	do {} while(0)
+#define blk_sec_stats_account_io_done(rq, size, tgid, name, time) do {} while(0)
 #endif
 
 #define MAX_ASYNC_WRITE_RQS	8
@@ -54,8 +50,12 @@ static const int max_async_write_ratio = 25;	/* maximum service ratio for async 
 
 struct ssg_request_info {
 	pid_t tgid;
+	char tg_name[TASK_COMM_LEN];
+	u64 tg_start_time;
 
 	struct blkcg_gq *blkg;
+
+	unsigned int data_size;
 };
 
 struct ssg_data {
@@ -142,6 +142,9 @@ static inline struct ssg_request_info *ssg_rq_info(struct ssg_data *ssg,
 	if (unlikely(!ssg->rq_info))
 		return NULL;
 
+	if (unlikely(!rq))
+		return NULL;
+
 	if (unlikely(rq->internal_tag < 0))
 		return NULL;
 
@@ -149,6 +152,23 @@ static inline struct ssg_request_info *ssg_rq_info(struct ssg_data *ssg,
 		return NULL;
 
 	return &ssg->rq_info[rq->internal_tag];
+}
+
+static inline void set_thread_group_info(struct ssg_request_info *rqi)
+{
+	struct task_struct *gleader = current->group_leader;
+
+	rqi->tgid = task_tgid_nr(gleader);
+	strncpy(rqi->tg_name, gleader->comm, TASK_COMM_LEN - 1);
+	rqi->tg_name[TASK_COMM_LEN - 1] = '\0';
+	rqi->tg_start_time = gleader->start_time;
+}
+
+static inline void clear_thread_group_info(struct ssg_request_info *rqi)
+{
+	rqi->tgid = 0;
+	rqi->tg_name[0] = '\0';
+	rqi->tg_start_time = 0;
 }
 
 /*
@@ -411,15 +431,28 @@ static struct request *ssg_dispatch_request(struct blk_mq_hw_ctx *hctx)
 {
 	struct ssg_data *ssg = hctx->queue->elevator->elevator_data;
 	struct request *rq;
+	struct ssg_request_info *rqi;
 
 	spin_lock(&ssg->lock);
 	rq = __ssg_dispatch_request(ssg);
 	spin_unlock(&ssg->lock);
 
-	if (rq)
-		blk_sec_stats_account_rq_dispatch(rq);
+	rqi = ssg_rq_info(ssg, rq);
+	if (likely(rqi))
+		rqi->data_size = blk_rq_bytes(rq);
 
 	return rq;
+}
+
+static void ssg_completed_request(struct request *rq, u64 now)
+{
+	struct ssg_data *ssg = rq->q->elevator->elevator_data;
+	struct ssg_request_info *rqi;
+
+	rqi = ssg_rq_info(ssg, rq);
+	if (likely(rqi))
+		blk_sec_stats_account_io_done(rq, rqi->data_size,
+				rqi->tgid, rqi->tg_name, rqi->tg_start_time);
 }
 
 static void ssg_set_shallow_depth(struct ssg_data *ssg, struct blk_mq_tags *tags)
@@ -458,7 +491,6 @@ static void ssg_depth_updated(struct blk_mq_hw_ctx *hctx)
 			ssg->async_write_shallow_depth);
 
 	ssg_blkcg_depth_updated(hctx);
-	blk_sec_stats_depth_updated(hctx);
 }
 
 static inline bool ssg_op_is_async_write(unsigned int op)
@@ -674,8 +706,6 @@ static void ssg_insert_request(struct blk_mq_hw_ctx *hctx, struct request *rq,
 		rq->fifo_time = jiffies + ssg->fifo_expire[data_dir];
 		list_add_tail(&rq->queuelist, &ssg->fifo_list[data_dir]);
 	}
-
-	blk_sec_stats_account_rq_insert(rq);
 }
 
 static void ssg_insert_requests(struct blk_mq_hw_ctx *hctx,
@@ -702,17 +732,17 @@ static void ssg_insert_requests(struct blk_mq_hw_ctx *hctx,
 static void ssg_prepare_request(struct request *rq)
 {
 	struct ssg_data *ssg = rq->q->elevator->elevator_data;
-	struct ssg_request_info *rq_info;
+	struct ssg_request_info *rqi;
 
 	atomic_inc(&ssg->allocated_rqs);
 
-	rq_info = ssg_rq_info(ssg, rq);
-	if (likely(rq_info)) {
-		rq_info->tgid = task_tgid_nr(current->group_leader);
+	rqi = ssg_rq_info(ssg, rq);
+	if (likely(rqi)) {
+		set_thread_group_info(rqi);
 
 		rcu_read_lock();
-		rq_info->blkg = blkg_lookup(css_to_blkcg(blkcg_css()), rq->q);
-		ssg_blkcg_inc_rq(rq_info->blkg);
+		rqi->blkg = blkg_lookup(css_to_blkcg(blkcg_css()), rq->q);
+		ssg_blkcg_inc_rq(rqi->blkg);
 		rcu_read_unlock();
 	}
 
@@ -738,7 +768,7 @@ static void ssg_finish_request(struct request *rq)
 {
 	struct request_queue *q = rq->q;
 	struct ssg_data *ssg = q->elevator->elevator_data;
-	struct ssg_request_info *rq_info;
+	struct ssg_request_info *rqi;
 
 	if (blk_queue_is_zoned(q)) {
 		unsigned long flags;
@@ -755,17 +785,15 @@ static void ssg_finish_request(struct request *rq)
 
 	atomic_dec(&ssg->allocated_rqs);
 
-	rq_info = ssg_rq_info(ssg, rq);
-	if (likely(rq_info)) {
-		rq_info->tgid = 0;
-		ssg_blkcg_dec_rq(rq_info->blkg);
-		rq_info->blkg = NULL;
+	rqi = ssg_rq_info(ssg, rq);
+	if (likely(rqi)) {
+		clear_thread_group_info(rqi);
+		ssg_blkcg_dec_rq(rqi->blkg);
+		rqi->blkg = NULL;
 	}
 
 	if (ssg_op_is_async_write(rq->cmd_flags))
 		atomic_dec(&ssg->async_write_rqs);
-
-	blk_sec_stats_account_rq_finish(rq);
 }
 
 static bool ssg_has_work(struct blk_mq_hw_ctx *hctx)
@@ -960,6 +988,7 @@ static struct elevator_type ssg_iosched = {
 	.ops = {
 		.insert_requests = ssg_insert_requests,
 		.dispatch_request = ssg_dispatch_request,
+		.completed_request = ssg_completed_request,
 		.prepare_request = ssg_prepare_request,
 		.finish_request = ssg_finish_request,
 		.next_request = elv_rb_latter_request,

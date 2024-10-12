@@ -1,4 +1,5 @@
 /*
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
  * Copyright (C) 2013 Red Hat
  * Author: Rob Clark <robdclark@gmail.com>
@@ -21,6 +22,9 @@
 
 #if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG) && IS_ENABLED(CONFIG_UML)
 #include "samsung/kunit_test/ss_kunit_test_garbage_macro.h"
+#endif
+#if IS_ENABLED(CONFIG_DRM_MSM_DP_KUNIT) && IS_ENABLED(CONFIG_UML)
+#include "dp/kunit_test/dp_kunit_macro.h"
 #endif
 
 #include <linux/kernel.h>
@@ -178,7 +182,6 @@ enum msm_mdp_crtc_property {
 	CRTC_PROP_ROT_CLK,
 	CRTC_PROP_ROI_V1,
 	CRTC_PROP_SECURITY_LEVEL,
-	CRTC_PROP_IDLE_TIMEOUT,
 	CRTC_PROP_DEST_SCALER,
 	CRTC_PROP_CAPTURE_OUTPUT,
 
@@ -220,6 +223,8 @@ enum msm_mdp_conn_property {
 	CONNECTOR_PROP_SV_BL_SCALE,
 	CONNECTOR_PROP_SUPPORTED_COLORSPACES,
 	CONNECTOR_PROP_DYN_BIT_CLK,
+	CONNECTOR_PROP_DIMMING_CTRL,
+	CONNECTOR_PROP_DIMMING_MIN_BL,
 
 	/* enum/bitmask properties */
 	CONNECTOR_PROP_TOPOLOGY_NAME,
@@ -1077,6 +1082,8 @@ void __msm_fence_worker(struct work_struct *work);
 struct drm_atomic_state *msm_atomic_state_alloc(struct drm_device *dev);
 void msm_atomic_state_clear(struct drm_atomic_state *state);
 void msm_atomic_state_free(struct drm_atomic_state *state);
+
+void msm_atomic_flush_display_threads(struct msm_drm_private *priv);
 
 int msm_gem_init_vma(struct msm_gem_address_space *aspace,
 		struct msm_gem_vma *vma, int npages);

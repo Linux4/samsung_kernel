@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
+ * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
  * Copyright (c) 2021, The Linux Foundation. All rights reserved.
  */
 
@@ -26,6 +27,7 @@
 #define NAME_LEN	32
 
 #define SPEC_FENCE_FLAG_FENCE_ARRAY 0x10 /* user flags for debug */
+#define SPEC_FENCE_FLAG_ARRAY_BIND 0x11
 #define FENCE_MIN	1
 #define FENCE_MAX	32
 
@@ -198,6 +200,11 @@ static int spec_sync_create_array(struct fence_create_data *f)
 
 	fence_array = dma_fence_array_create(f->num_fences, NULL,
 				dma_fence_context_alloc(1), 0, signal_any);
+	if (!fence_array) {
+		pr_err("dma fence_array allocation failure\n");
+		ret = -ENOMEM;
+		goto error_args;
+	}
 
 	/* Set the enable signal such that signalling is not done during wait*/
 	set_bit(DMA_FENCE_FLAG_ENABLE_SIGNAL_BIT, &fence_array->base.flags);
@@ -227,6 +234,7 @@ static int spec_sync_create_array(struct fence_create_data *f)
 	return fd;
 
 err:
+	fence_array->num_fences = 0;
 	dma_fence_put(&fence_array->base);
 error_args:
 	put_unused_fd(fd);
@@ -320,6 +328,7 @@ static int spec_sync_bind_array(struct fence_bind_data *sync_bind_info)
 			i, user_fds[i], fence_array->fences[i]->error);
 	}
 
+	set_bit(SPEC_FENCE_FLAG_ARRAY_BIND, &fence->flags);
 	clear_bit(DMA_FENCE_FLAG_ENABLE_SIGNAL_BIT, &fence->flags);
 	spin_unlock(fence->lock);
 

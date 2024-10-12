@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0
 /*
- * COPYRIGHT(C) 2006-2021 Samsung Electronics Co., Ltd. All Right Reserved.
+ * COPYRIGHT(C) 2006-2022 Samsung Electronics Co., Ltd. All Right Reserved.
  */
 
 #define pr_fmt(fmt)     KBUILD_MODNAME ":%s() " fmt, __func__
@@ -16,11 +16,14 @@
 #include <linux/platform_device.h>
 #include <linux/sched/clock.h>
 
+#include <linux/samsung/sec_of.h>
 #include <linux/samsung/debug/sec_crashkey.h>
 #include <linux/samsung/debug/sec_log_buf.h>
 #include <linux/samsung/debug/qcom/sec_qc_dbg_partition.h>
 
 #include "sec_qc_rst_exinfo.h"
+
+struct rst_exinfo_drvdata *qc_rst_exinfo;
 
 static int __rst_exinfo_parse_dt_memory_region(struct builder *bd,
 		struct device_node *np)
@@ -47,37 +50,67 @@ static int __rst_exinfo_parse_dt_memory_region(struct builder *bd,
 	return 0;
 }
 
-static int __rst_exinfo_parse_dt_lease_region(struct builder *bd,
+static bool __rst_exinfo_is_in_reserved_mem_bound(
+		const struct reserved_mem *rmem,
+		phys_addr_t base, phys_addr_t size)
+{
+	phys_addr_t rmem_base = rmem->base;
+	phys_addr_t rmem_end = rmem_base + rmem->size - 1;
+	phys_addr_t end = base + size - 1;
+
+	if ((base >= rmem_base) && (end <= rmem_end))
+		return true;
+
+	return false;
+}
+
+static int __rst_exinfo_use_partial_reserved_mem(
+	struct rst_exinfo_drvdata *drvdata, struct device_node *np)
+{
+	struct reserved_mem *rmem = drvdata->rmem;
+	phys_addr_t base;
+	phys_addr_t size;
+	int err;
+
+	err = sec_of_parse_reg_prop(np, &base, &size);
+	if (err)
+		return err;
+
+	if (!__rst_exinfo_is_in_reserved_mem_bound(rmem, base, size))
+		return -ERANGE;
+
+	drvdata->paddr = base;
+	drvdata->size = size;
+
+	return 0;
+}
+
+static int __rst_exinfo_use_entire_reserved_mem(
+	struct rst_exinfo_drvdata *drvdata)
+{
+	struct reserved_mem *rmem = drvdata->rmem;
+
+	drvdata->paddr = rmem->base;
+	drvdata->size = rmem->size;
+
+	return 0;
+}
+
+static int __rst_exinfo_parse_dt_partial_reserved_mem(struct builder *bd,
 		struct device_node *np)
 {
 	struct rst_exinfo_drvdata *drvdata =
 			container_of(bd, struct rst_exinfo_drvdata, bd);
-	struct reserved_mem *rmem = drvdata->rmem;
-	phys_addr_t paddr = rmem->base;
-	size_t size = rmem->size;
-	u32 region_offset;
-	u32 region_size;
 	int err;
 
-	if (!of_property_read_bool(np, "sec,use-lease_region"))
-		goto use_by_default;
+	if (of_property_read_bool(np, "sec,use-partial_reserved_mem"))
+		err = __rst_exinfo_use_partial_reserved_mem(drvdata, np);
+	else
+		err = __rst_exinfo_use_entire_reserved_mem(drvdata);
 
-	err = of_property_read_u32_index(np, "sec,lease_region",
-			0, &region_offset);
 	if (err)
-		return -EINVAL;
+		return -EFAULT;
 
-	err = of_property_read_u32_index(np, "sec,lease_region",
-			1, &region_size);
-	if (err)
-		return -EINVAL;
-
-	paddr += (phys_addr_t)region_offset;
-	size = (size_t)region_size;
-
-use_by_default:
-	drvdata->paddr = paddr;
-	drvdata->size = size;
 	return 0;
 }
 
@@ -143,9 +176,9 @@ static int __rst_exinfo_dt_panic_notifier_priority(struct builder *bd,
 	return 0;
 }
 
-static struct dt_builder __rst_exinfo_dt_builder[] = {
+static const struct dt_builder __rst_exinfo_dt_builder[] = {
 	DT_BUILDER(__rst_exinfo_parse_dt_memory_region),
-	DT_BUILDER(__rst_exinfo_parse_dt_lease_region),
+	DT_BUILDER(__rst_exinfo_parse_dt_partial_reserved_mem),
 	DT_BUILDER(__rst_exinfo_dt_die_notifier_priority),
 	DT_BUILDER(__rst_exinfo_dt_panic_notifier_priority),
 	DT_BUILDER(__rst_exinfo_parse_dt_test_no_map),
@@ -318,7 +351,7 @@ static void __rst_exinfo_remove_prolog(struct builder *bd)
 	qc_rst_exinfo = NULL;
 }
 
-static struct dev_builder __rst_exinfo_dev_builder[] = {
+static const struct dev_builder __rst_exinfo_dev_builder[] = {
 	DEVICE_BUILDER(__rst_exinfo_parse_dt, NULL),
 	DEVICE_BUILDER(__rst_exinfo_init_panic_extra_info, NULL),
 	DEVICE_BUILDER(__rst_exinfo_register_die_notifier,
@@ -329,11 +362,12 @@ static struct dev_builder __rst_exinfo_dev_builder[] = {
 	DEVICE_BUILDER(__qc_rst_exinfo_register_rvh_do_mem_abort, NULL),
 	DEVICE_BUILDER(__qc_rst_exinfo_register_rvh_do_sp_pc_abort, NULL),
 	DEVICE_BUILDER(__qc_rst_exinfo_register_rvh_report_bug, NULL),
+	DEVICE_BUILDER(__qc_rst_exinfo_register_rvh_die_kernel_fault, NULL),
 	DEVICE_BUILDER(__rst_exinfo_probe_epilog, __rst_exinfo_remove_prolog),
 };
 
 static int __rst_exinfo_probe(struct platform_device *pdev,
-		struct dev_builder *builder, ssize_t n)
+		const struct dev_builder *builder, ssize_t n)
 {
 	struct device *dev = &pdev->dev;
 	struct rst_exinfo_drvdata *drvdata;
@@ -348,7 +382,7 @@ static int __rst_exinfo_probe(struct platform_device *pdev,
 }
 
 static int __rst_exinfo_remove(struct platform_device *pdev,
-		struct dev_builder *builder, ssize_t n)
+		const struct dev_builder *builder, ssize_t n)
 {
 	struct rst_exinfo_drvdata *drvdata = platform_get_drvdata(pdev);
 

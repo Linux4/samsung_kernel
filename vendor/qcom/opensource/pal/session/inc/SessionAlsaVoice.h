@@ -46,11 +46,9 @@ private:
     PayloadBuilder* builder;
     struct pcm *pcmRx;
     struct pcm *pcmTx;
-    struct pcm *pcmEcTx;
     size_t in_buf_size, in_buf_count, out_buf_size, out_buf_count;
     std::vector<int> pcmDevRxIds;
     std::vector<int> pcmDevTxIds;
-    std::vector<int> pcmDevEcTxIds;
     std::shared_ptr<Device> dev = nullptr;
     std::vector <std::pair<int, int>> gkv;
     std::vector <std::pair<int, int>> ckv;
@@ -58,6 +56,7 @@ private:
     std::thread threadHandler;
     uint32_t vsid = 0x11C0500; /*defualt*/
     float default_volume = 0.4;
+    int max_vol_index = -1;
     uint32_t ttyMode = PAL_TTY_OFF;
     bool volume_boost = vol_boost_disable;
     bool slow_talk = false;

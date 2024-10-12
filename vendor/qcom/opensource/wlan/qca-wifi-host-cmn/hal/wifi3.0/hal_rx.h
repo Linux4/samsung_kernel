@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2016-2021 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -950,6 +951,22 @@ hal_rx_mpdu_start_sw_peer_id_get(hal_soc_handle_t hal_soc_hdl,
 	return hal_soc->ops->hal_rx_mpdu_start_sw_peer_id_get(buf);
 }
 
+/**
+ * hal_rx_mpdu_peer_meta_data_get() - Retrieve PEER_META_DATA
+ * @hal_soc_hdl: hal soc handle
+ * @buf: pointer to rx pkt TLV.
+ *
+ * Return: peer meta data
+ */
+static inline uint32_t
+hal_rx_mpdu_peer_meta_data_get(hal_soc_handle_t hal_soc_hdl,
+			       uint8_t *buf)
+{
+	struct hal_soc *hal_soc = (struct hal_soc *)hal_soc_hdl;
+
+	return hal_soc->ops->hal_rx_mpdu_peer_meta_data_get(buf);
+}
+
 /*
  * hal_rx_mpdu_get_tods(): API to get the tods info
  * from rx_mpdu_start
@@ -1133,6 +1150,21 @@ hal_rx_msdu_end_last_msdu_get(hal_soc_handle_t hal_soc_hdl,
 	struct hal_soc *hal_soc = (struct hal_soc *)hal_soc_hdl;
 
 	return hal_soc->ops->hal_rx_msdu_end_last_msdu_get(buf);
+}
+
+/**
+ * hal_rx_msdu_cce_match_get: API to get CCE match
+ * from rx_msdu_end TLV
+ * @buf: pointer to the start of RX PKT TLV headers
+ * Return: cce_meta_data
+ */
+static inline bool
+hal_rx_msdu_cce_match_get(hal_soc_handle_t hal_soc_hdl,
+			  uint8_t *buf)
+{
+	struct hal_soc *hal_soc = (struct hal_soc *)hal_soc_hdl;
+
+	return hal_soc->ops->hal_rx_msdu_cce_match_get(buf);
 }
 
 /**
@@ -2555,6 +2587,39 @@ hal_rx_tlv_get_pn_num(hal_soc_handle_t hal_soc_hdl,
 	hal_soc->ops->hal_rx_tlv_get_pn_num(buf, pn_num);
 }
 
+static inline uint8_t *
+hal_get_reo_ent_desc_qdesc_addr(hal_soc_handle_t hal_soc_hdl, uint8_t *desc)
+{
+	struct hal_soc *hal_soc = (struct hal_soc *)hal_soc_hdl;
+
+	if (hal_soc->ops->hal_get_reo_ent_desc_qdesc_addr)
+		return hal_soc->ops->hal_get_reo_ent_desc_qdesc_addr(desc);
+
+	return NULL;
+}
+
+static inline uint8_t *
+hal_rx_get_qdesc_addr(hal_soc_handle_t hal_soc_hdl, uint8_t *dst_ring_desc,
+		      uint8_t *buf)
+{
+	struct hal_soc *hal_soc = (struct hal_soc *)hal_soc_hdl;
+
+	if (hal_soc->ops->hal_rx_get_qdesc_addr)
+		return hal_soc->ops->hal_rx_get_qdesc_addr(dst_ring_desc, buf);
+
+	return NULL;
+}
+
+static inline void
+hal_set_reo_ent_desc_reo_dest_ind(hal_soc_handle_t hal_soc_hdl,
+				  uint8_t *desc, uint32_t dst_ind)
+{
+	struct hal_soc *hal_soc = (struct hal_soc *)hal_soc_hdl;
+
+	if (hal_soc->ops->hal_set_reo_ent_desc_reo_dest_ind)
+		hal_soc->ops->hal_set_reo_ent_desc_reo_dest_ind(desc, dst_ind);
+}
+
 static inline uint32_t
 hal_rx_tlv_get_is_decrypted(hal_soc_handle_t hal_soc_hdl, uint8_t *buf)
 {
@@ -2799,5 +2864,15 @@ hal_rx_mpdu_info_ampdu_flag_get(hal_soc_handle_t hal_soc_hdl, uint8_t *buf)
 
 	return hal_soc->ops->hal_rx_mpdu_info_ampdu_flag_get(buf);
 }
+
+#ifdef WLAN_FEATURE_MARK_FIRST_WAKEUP_PACKET
+static inline uint8_t
+hal_get_first_wow_wakeup_packet(hal_soc_handle_t hal_soc_hdl, uint8_t *buf)
+{
+	struct hal_soc *hal_soc = (struct hal_soc *)hal_soc_hdl;
+
+	return hal_soc->ops->hal_get_first_wow_wakeup_packet(buf);
+}
+#endif
 
 #endif /* _HAL_RX_H */

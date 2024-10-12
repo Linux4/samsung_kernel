@@ -32,5 +32,3 @@ source "lib/Kconfig.debug"
 source "Documentation/Kconfig"
 
 source "kernel/sched/walt/Kconfig"
-
-source "test/Kconfig"

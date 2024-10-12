@@ -16,8 +16,8 @@
 
 #include "ufs-sec-feature.h"
 
-void ufs_sysfs_add_sec_nodes(struct ufs_hba *hba);
-void ufs_sysfs_remove_sec_nodes(struct ufs_hba *hba);
+void ufs_sec_add_sysfs_nodes(struct ufs_hba *hba);
+void ufs_sec_remove_sysfs_nodes(struct ufs_hba *hba);
 
 extern struct ufs_vendor_dev_info ufs_vdi;
 extern struct ufs_sec_err_info ufs_err_info;

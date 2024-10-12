@@ -23,23 +23,23 @@
 /* Function to be tested: DSMS_LOG_INFO                                      */
 /* ------------------------------------------------------------------------- */
 
-static void security_dsms_debug_success_test(struct test *test)
+static void security_dsms_debug_success_test(struct kunit *test)
 {
 	DSMS_LOG_INFO("DSMS Debug unit test %x\n", 0xdeadbeef);
-	SUCCEED(test);
+	KUNIT_SUCCEED(test);
 }
 
 /* ------------------------------------------------------------------------- */
 /* Module definition                                                         */
 /* ------------------------------------------------------------------------- */
 
-static struct test_case security_dsms_debug_test_cases[] = {
-	TEST_CASE(security_dsms_debug_success_test),
+static struct kunit_case security_dsms_debug_test_cases[] = {
+	KUNIT_CASE(security_dsms_debug_success_test),
 	{},
 };
 
-static struct test_module security_dsms_debug_test_module = {
+static struct kunit_suite security_dsms_debug_test_module = {
 	.name = "security-dsms-debug-test",
 	.test_cases = security_dsms_debug_test_cases,
 };
-module_test(security_dsms_debug_test_module);
+kunit_test_suites(&security_dsms_debug_test_module);

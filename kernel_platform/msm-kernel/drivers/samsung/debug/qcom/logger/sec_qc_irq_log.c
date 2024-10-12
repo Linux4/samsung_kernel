@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0
 /*
- * COPYRIGHT(C) 2020 Samsung Electronics Co., Ltd. All Right Reserved.
+ * COPYRIGHT(C) 2020-2022 Samsung Electronics Co., Ltd. All Right Reserved.
  */
 
 #define pr_fmt(fmt)     KBUILD_MODNAME ":%s() " fmt, __func__
@@ -8,11 +8,8 @@
 #include <linux/init.h>
 #include <linux/interrupt.h>
 #include <linux/kernel.h>
-#include <linux/sched/clock.h>
-#include <linux/workqueue.h>
 
 #include <trace/events/irq.h>
-#include <trace/events/workqueue.h>
 
 #include <linux/samsung/builder_pattern.h>
 #include <linux/samsung/debug/qcom/sec_qc_irq_log.h>
@@ -22,11 +19,6 @@
 
 static struct sec_qc_irq_log_data *irq_log_data __read_mostly;
 
-static __always_inline bool __irq_log_is_probed(void)
-{
-	return !!irq_log_data;
-}
-
 static __always_inline void __irq_log(unsigned int irq, void *fn,
 		const char *name, unsigned int en)
 {
@@ -34,13 +26,10 @@ static __always_inline void __irq_log(unsigned int irq, void *fn,
 	int cpu = smp_processor_id();
 	unsigned int i;
 
-	if (!__irq_log_is_probed())
-		return;
-
 	i = ++(irq_log_data[cpu].idx) & (SEC_QC_IRQ_LOG_MAX - 1);
 	irq_buf = &irq_log_data[cpu].buf[i];
 
-	irq_buf->time = cpu_clock(cpu);
+	irq_buf->time = __qc_logger_cpu_clock(cpu);
 	irq_buf->irq = irq;
 	irq_buf->fn = fn;
 	irq_buf->name = name;
@@ -55,9 +44,15 @@ static int __irq_log_set_irq_log_data(struct builder *bd)
 {
 	struct qc_logger *logger = container_of(bd, struct qc_logger, bd);
 	struct sec_dbg_region_client *client = logger->drvdata->client;
+	int cpu;
 
 	irq_log_data = (void *)client->virt;
-	irq_log_data->idx = -1;
+	if (IS_ERR_OR_NULL(irq_log_data))
+		return -EFAULT;
+
+	for_each_possible_cpu(cpu) {
+		irq_log_data[cpu].idx = -1;
+	}
 
 	return 0;
 }
@@ -66,14 +61,6 @@ static void __irq_log_unset_irq_log_data(struct builder *bd)
 {
 	irq_log_data = NULL;
 }
-
-#if IS_ENABLED(CONFIG_KUNIT) && IS_ENABLED(CONFIG_UML)
-void notrace sec_debug_irq_sched_log(unsigned int irq, void *fn,
-		char *name, unsigned int en)
-{
-	__irq_log(irq, fn, name, en);
-}
-#endif
 
 static void sec_qc_trace_irq_handler_entry(void *unused,
 		int irq, struct irqaction *action)
@@ -108,26 +95,6 @@ static int __irq_log_register_trace_irq_handler_exit(struct builder *bd)
 static void __irq_log_unregister_trace_irq_handler_exit(struct builder *bd)
 {
 	unregister_trace_irq_handler_exit(sec_qc_trace_irq_handler_exit, NULL);
-}
-
-static void sec_qc_trace_workqueue_execute_start(void *unsed,
-		struct work_struct *work)
-{
-	__irq_log(-1, work->func, "workqueue", SOFTIRQ_ENTRY);
-}
-
-static int __irq_log_register_trace_workqueue_execute_start(
-		struct builder *bd)
-{
-	return register_trace_workqueue_execute_start(
-			sec_qc_trace_workqueue_execute_start, NULL);
-}
-
-static void __irq_log_unregister_trace_workqueue_execute_start(
-		struct builder *bd)
-{
-	unregister_trace_workqueue_execute_start(
-			sec_qc_trace_workqueue_execute_start, NULL);
 }
 
 #if 0
@@ -208,18 +175,16 @@ static size_t sec_qc_irq_log_get_data_size(struct qc_logger *logger)
 	return sizeof(struct sec_qc_irq_log_data) * num_possible_cpus();
 }
 
-static struct dev_builder __irq_log_dev_builder[] = {
+static const struct dev_builder __irq_log_dev_builder[] = {
 	DEVICE_BUILDER(__irq_log_set_irq_log_data,
 		       __irq_log_unset_irq_log_data),
 };
 
-static struct dev_builder __irq_log_dev_builder_trace[] = {
+static const struct dev_builder __irq_log_dev_builder_trace[] = {
 	DEVICE_BUILDER(__irq_log_register_trace_irq_handler_entry,
 		       __irq_log_unregister_trace_irq_handler_entry),
 	DEVICE_BUILDER(__irq_log_register_trace_irq_handler_exit,
 		       __irq_log_unregister_trace_irq_handler_exit),
-	DEVICE_BUILDER(__irq_log_register_trace_workqueue_execute_start,
-		       __irq_log_unregister_trace_workqueue_execute_start),
 #if 0
 	DEVICE_BUILDER(__irq_log_register_trace_softirq_entry,
 		       __irq_log_unregister_trace_softirq_entry),
@@ -240,9 +205,6 @@ static int sec_qc_irq_log_probe(struct qc_logger *logger)
 	if (err)
 		return err;
 
-	if (IS_ENABLED(CONFIG_KUNIT) && IS_ENABLED(CONFIG_UML))
-		return 0;
-
 	return __qc_logger_sub_module_probe(logger,
 			__irq_log_dev_builder_trace,
 			ARRAY_SIZE(__irq_log_dev_builder_trace));
@@ -253,9 +215,6 @@ static void sec_qc_irq_log_remove(struct qc_logger *logger)
 	__qc_logger_sub_module_remove(logger,
 			__irq_log_dev_builder,
 			ARRAY_SIZE(__irq_log_dev_builder));
-
-	if (IS_ENABLED(CONFIG_KUNIT) && IS_ENABLED(CONFIG_UML))
-		return;
 
 	__qc_logger_sub_module_remove(logger,
 			__irq_log_dev_builder_trace,

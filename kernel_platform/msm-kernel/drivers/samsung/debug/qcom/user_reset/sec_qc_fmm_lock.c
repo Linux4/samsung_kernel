@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0
 /*
- * COPYRIGHT(C) 2006-2021 Samsung Electronics Co., Ltd. All Right Reserved.
+ * COPYRIGHT(C) 2016-2022 Samsung Electronics Co., Ltd. All Right Reserved.
  */
 
 #define pr_fmt(fmt)     KBUILD_MODNAME ":%s() " fmt, __func__
@@ -13,7 +13,7 @@
 
 #include "sec_qc_user_reset.h"
 
-static ssize_t fmm_lock_show(struct device *dev,
+static ssize_t FMM_lock_show(struct device *dev,
                 struct device_attribute *attr, char *buf)
 {
         int lock;
@@ -26,7 +26,7 @@ static ssize_t fmm_lock_show(struct device *dev,
         return scnprintf(buf, sizeof(str),"FMM lock : [%s]\n", status);
 }
 
-static ssize_t fmm_lock_store(struct device *dev,
+static ssize_t FMM_lock_store(struct device *dev,
                 struct device_attribute *attr, const char *buf, size_t count)
 {
         int lock;
@@ -43,7 +43,7 @@ static ssize_t fmm_lock_store(struct device *dev,
         return count;
 }
 
-static DEVICE_ATTR(FMM_lock, 0660, fmm_lock_show, fmm_lock_store);
+static DEVICE_ATTR_RW(FMM_lock);
 
 int __qc_fmm_lock_init(struct builder *bd)
 {

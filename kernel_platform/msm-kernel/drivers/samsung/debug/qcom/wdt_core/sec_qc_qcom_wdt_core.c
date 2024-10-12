@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0
 /*
- * COPYRIGHT(C) 2020 Samsung Electronics Co., Ltd. All Right Reserved.
+ * COPYRIGHT(C) 2020-2022 Samsung Electronics Co., Ltd. All Right Reserved.
  */
 
 #define pr_fmt(fmt)     KBUILD_MODNAME ":%s() " fmt, __func__
@@ -50,7 +50,7 @@ static int __qc_wdt_core_parse_dt_qcom_wdt_core_dev_name(struct builder *bd,
 	found = bus_find_device_by_name(&platform_bus_type, NULL,
 			qcom_wdt_core_dev_name);
 	if (!found)
-		return -ENODEV;
+		return -EPROBE_DEFER;
 
 	drvdata->wdog_dd = dev_get_drvdata(found);
 
@@ -75,7 +75,7 @@ static int __qc_wdt_core_parse_dt_panic_notifier_priority(struct builder *bd,
 	return 0;
 }
 
-static struct dt_builder __qc_wdt_core_dt_builder[] = {
+static const struct dt_builder __qc_wdt_core_dt_builder[] = {
 	DT_BUILDER(__qc_wdt_core_parse_dt_qcom_wdt_core_dev_name),
 	DT_BUILDER(__qc_wdt_core_parse_dt_panic_notifier_priority),
 };
@@ -132,7 +132,7 @@ static void __qc_wdt_core_unregister_panic_handler(struct builder *bd)
 			&drvdata->nb_panic);
 }
 
-static int sec_qc_wdt_core_bark_notifier_call(struct notifier_block *this,
+static int __qc_wdt_core_bark_notifier_call(struct notifier_block *this,
 		unsigned long l, void *d)
 {
 	struct qc_wdt_core_drvdata *drvdata = container_of(this,
@@ -146,10 +146,20 @@ static int sec_qc_wdt_core_bark_notifier_call(struct notifier_block *this,
 	sched_show_task(wdog_dd->watchdog_task);
 	if (IS_BUILTIN(CONFIG_SEC_QC_QCOM_WDT_CORE))
 		smp_send_stop();
-	else
-		panic("watchdog_bark");
 
 	return NOTIFY_OK;
+}
+
+static int sec_qc_wdt_core_bark_notifier_call(struct notifier_block *this,
+		unsigned long l, void *d)
+{
+	static atomic_t cnt = ATOMIC_INIT(1);
+
+	/* NOTE: to ensure one-shot */
+	if (atomic_dec_if_positive(&cnt) < 0)
+		return NOTIFY_DONE;
+
+	return __qc_wdt_core_bark_notifier_call(this, l, d);
 }
 
 static int __qc_wdt_core_register_bark_handler(struct builder *bd)
@@ -188,11 +198,16 @@ static int __qc_wdt_core_add_force_err_dp(struct builder *bd)
 	struct qc_wdt_core_drvdata *drvdata =
 			container_of(bd, struct qc_wdt_core_drvdata, bd);
 	struct force_err_handle *force_err = &drvdata->force_err_dp;
+	int err;
 
 	force_err->val = "DP";
 	force_err->func = __qc_wdt_force_watchdog_bark;
 
-	return sec_force_err_add_custom_handle(force_err);
+	err = sec_force_err_add_custom_handle(force_err);
+	if (err < 0)
+		dev_warn(bd->dev, "DP - force err is disabled. ignored.\n");
+
+	return 0;
 }
 
 static void __qc_wdt_core_del_force_err_dp(struct builder *bd)
@@ -214,11 +229,16 @@ static int __qc_wdt_core_add_force_err_wp(struct builder *bd)
 	struct qc_wdt_core_drvdata *drvdata =
 			container_of(bd, struct qc_wdt_core_drvdata, bd);
 	struct force_err_handle *force_err = &drvdata->force_err_wp;
+	int err;
 
 	force_err->val = "WP";
 	force_err->func = __qc_wdt_force_watchdog_bite;
 
-	return sec_force_err_add_custom_handle(force_err);
+	err = sec_force_err_add_custom_handle(force_err);
+	if (err < 0)
+		dev_warn(bd->dev, "WP - force err is disabled. ignored.\n");
+
+	return 0;
 }
 
 static void __qc_wdt_core_del_force_err_wp(struct builder *bd)
@@ -255,7 +275,7 @@ static int __qc_wdt_core_remove(struct platform_device *pdev,
 	return 0;
 }
 
-static struct dev_builder __qc_wdt_core_dev_builder[] = {
+static const struct dev_builder __qc_wdt_core_dev_builder[] = {
 	DEVICE_BUILDER(__qc_wdt_core_parse_dt, NULL),
 	DEVICE_BUILDER(__qc_wdt_core_register_panic_handler,
 		       __qc_wdt_core_unregister_panic_handler),

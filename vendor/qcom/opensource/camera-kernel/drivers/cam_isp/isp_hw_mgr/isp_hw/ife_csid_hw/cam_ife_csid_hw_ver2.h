@@ -582,6 +582,7 @@ struct cam_ife_csid_ver2_hw {
 	atomic_t                               discard_frame_per_path;
 	bool                                   internal_halt;
 	bool                                   sof_freeze_phy_notify;
+	bool                                   secure_mode;
 };
 
 /*

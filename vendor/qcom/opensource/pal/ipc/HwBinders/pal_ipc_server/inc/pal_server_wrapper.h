@@ -90,7 +90,7 @@ class SrvrClbk : public ::android::RefBase {
     }
     ~SrvrClbk()
     {
-      ALOGE("%s:%d",__func__,__LINE__);
+      ALOGV("%s:%d",__func__,__LINE__);
     }
 };
 

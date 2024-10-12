@@ -6,6 +6,7 @@
  *  Copyright (C) 2021 Junho Kim <junho89.kim@samsung.com>
  *  Copyright (C) 2021 Changheun Lee <nanich.lee@samsung.com>
  *  Copyright (C) 2021 Seunghwan Hyun <seunghwan.hyun@samsung.com>
+ *  Copyright (C) 2021 Tran Xuan Nam <nam.tx2@samsung.com>
  */
 
 #include <linux/types.h>
@@ -23,27 +24,13 @@
 #include "blk-mq.h"
 #include "blk-mq-tag.h"
 
-#define PROC_NAME_LEN		16
 #define MAX_PIO_NODE_NUM	10000
 #define SORT_PIO_NODE_NUM	100
-
-struct request_info {
-	pid_t tgid;
-	char tg_name[PROC_NAME_LEN];
-	u64 tg_start_time;
-
-	struct request *rq;
-	unsigned int data_size;
-};
 
 struct disk_info {
 	/* fields related with target device itself */
 	struct gendisk *gd;
 	struct request_queue *queue;
-
-	/* fields related with IO accoutning */
-	struct request_info *rq_infos;
-	int nr_rq_info;
 };
 
 struct accumulated_stats {
@@ -55,15 +42,18 @@ struct accumulated_stats {
 
 struct pio_node {
 	struct list_head list;
+
 	pid_t tgid;
-	char name[PROC_NAME_LEN];
+	char name[TASK_COMM_LEN];
 	u64 start_time;
+
 	unsigned long long bytes[REQ_OP_DISCARD + 1];
 };
 
 static unsigned long long transferred_bytes;
 
 static struct disk_info internal_disk;
+static unsigned int internal_min_size_mb = 10 * 1024; /* 10GB */
 
 static struct accumulated_stats old, new;
 
@@ -84,31 +74,71 @@ static struct pio_node others = {
 	.bytes = {0, 0, 0, 0},
 };
 
+#define SECTORS2MB(x) ((x) / 2 / 1024)
+
+#define SCSI_DISK0_MAJOR 8
+#define MMC_BLOCK_MAJOR 179
+#define MAJOR8_DEV_NUM 16      /* maximum number of minor devices in scsi disk0 */
+#define SCSI_MINORS 16         /* first minor number of scsi disk0 */
+#define MMC_TARGET_DEV 16      /* number of mmc devices set of target (maximum 256) */
+#define MMC_MINORS 8           /* first minor number of mmc disk */
+
+static bool is_internal_bdev(struct block_device *dev)
+{
+	int size_mb;
+
+	if (bdev_is_partition(dev))
+		return false;
+
+	if (dev->bd_disk->flags & GENHD_FL_REMOVABLE)
+		return false;
+
+	size_mb = SECTORS2MB(get_capacity(dev->bd_disk));
+	if (size_mb >= internal_min_size_mb)
+		return true;
+
+	return false;
+}
+
+
 static struct gendisk *get_internal_disk(void)
 {
-	struct gendisk *gd = NULL;
 	struct block_device *bdev;
+	struct gendisk *gd = NULL;
 	int idx;
-	/* In some project which is powered by MediaTek AP, the internal
-	 * storage device is "sdc / MKDEV(8, 32)". So we have to try (8, 32)
-	 * before trying (179, 0).
-	 */
-	dev_t devno[] = {
-		MKDEV(8, 0),
-		MKDEV(8, 32),
-		MKDEV(179, 0),
-		MKDEV(0, 0)
-	};
+	dev_t devno = MKDEV(0, 0);
 
-	for (idx = 0; devno[idx] != MKDEV(0, 0); idx++) {
-		bdev = blkdev_get_by_dev(devno[idx], FMODE_READ, NULL);
-		if (!IS_ERR(bdev)) {
+	for (idx = 0; idx < MAJOR8_DEV_NUM; idx++) {
+		devno = MKDEV(SCSI_DISK0_MAJOR, SCSI_MINORS * idx);
+		bdev = blkdev_get_by_dev(devno, FMODE_READ, NULL);
+		if (IS_ERR(bdev))
+			continue;
+
+		if (bdev->bd_disk && is_internal_bdev(bdev))
 			gd = bdev->bd_disk;
-			break;
-		}
+
+		blkdev_put(bdev, FMODE_READ);
+
+		if (gd)
+			return gd;
 	}
 
-	return gd;
+	for (idx = 0; idx < MMC_TARGET_DEV; idx++) {
+		devno = MKDEV(MMC_BLOCK_MAJOR, MMC_MINORS * idx);
+		bdev = blkdev_get_by_dev(devno, FMODE_READ, NULL);
+		if (IS_ERR(bdev))
+			continue;
+
+		if (bdev->bd_disk && is_internal_bdev(bdev))
+			gd = bdev->bd_disk;
+
+		blkdev_put(bdev, FMODE_READ);
+
+		if (gd)
+			return gd;
+	}
+
+	return NULL;
 }
 
 static inline int init_internal_disk_info(void)
@@ -139,71 +169,6 @@ static inline bool has_valid_disk_info(void)
 	return !!internal_disk.queue;
 }
 
-static struct request_info *__alloc_request_infos(unsigned int nr_rq_info)
-{
-	struct request_info *rq_infos;
-	size_t size;
-
-	size = sizeof(struct request_info) * nr_rq_info;
-	rq_infos = kmalloc(size, GFP_KERNEL);
-	if (!rq_infos)
-		return NULL;
-
-	memset(rq_infos, 0x0, size);
-
-	return rq_infos;
-}
-
-static int alloc_request_infos(struct disk_info *disk, unsigned int nr)
-{
-	if (disk->rq_infos)
-		return 0;
-
-	if (!disk->queue)
-		return -EINVAL;
-
-	disk->rq_infos = __alloc_request_infos(nr);
-	if (!disk->rq_infos) {
-		disk->nr_rq_info = 0;
-		pr_err("%s: rq_infos allocation is failed\n", __func__);
-		return -ENOMEM;
-	}
-
-	disk->nr_rq_info = nr;
-
-	return 0;
-}
-
-static inline void free_request_infos(struct disk_info *disk)
-{
-	struct request_info *tmp;
-
-	tmp = disk->rq_infos;
-	disk->nr_rq_info = 0;
-	disk->rq_infos = NULL;
-	kfree(tmp);
-}
-
-/*
- * 3 cases are possible for the value of (nr_rq_info, rq_infos)
- * --------------------
- * - nr_rq_info > 0 && rq_infos != null : valid
- * - nr_rq_info == 0 && rq_infos == null: not initialized or freed already
- * - nr_rq_info == 0 && rq_infos != null: disabled. will be freed later
- */
-static inline void disable_request_infos(struct disk_info *disk)
-{
-	/* Let disk->rq_infos untouched.  It will be freed in
-	 * blk_sec_stats_account_exit or blk_sec_stats_depth_updated.
-	 */
-	disk->nr_rq_info = 0;
-}
-
-static inline bool has_valid_request_infos(void)
-{
-	return (internal_disk.nr_rq_info > 0);
-}
-
 void blk_sec_stats_account_init(struct request_queue *q)
 {
 	int ret;
@@ -216,73 +181,13 @@ void blk_sec_stats_account_init(struct request_queue *q)
 			return;
 		}
 	}
-
-	if (internal_disk.queue != q)
-		return;
-
-	/* Initializing internal_disk data could be divided into 2 parts.
-	 *   1. setting up gendisk info (internal_disk.gd).
-	 *   2. allocating request_info array (internal_disk.rq_infos).
-	 * Part 1 could be run concurrently, but part 2 have to be serialized.
-	 * To that end, we run part 2 only when "internal_disk.gd->queue != q",
-	 * which means it's in the middle of initializing ssg scheduler of
-	 * internal storage device.
-	 * So, it is guaranteed that following code couldn't run concurrently.
-	 */
-	ret = alloc_request_infos(&internal_disk, q->nr_requests);
-	if (ret)
-		pr_err("%s: request-accounting is disabled.", __func__);
 }
 EXPORT_SYMBOL(blk_sec_stats_account_init);
 
 void blk_sec_stats_account_exit(struct elevator_queue *eq)
 {
-	if (!has_valid_disk_info())
-		return;
-
-	if (internal_disk.queue->elevator != eq)
-		return;
-
-	/* it is called while queue is empty and freezed. just free rq_infos */
-	free_request_infos(&internal_disk);
 }
 EXPORT_SYMBOL(blk_sec_stats_account_exit);
-
-void blk_sec_stats_depth_updated(struct blk_mq_hw_ctx *hctx)
-{
-	unsigned int nr;
-	int ret;
-
-	if (!has_valid_disk_info())
-		return;
-
-	if (internal_disk.queue != hctx->queue)
-		return;
-
-	/* this function is called with following callstack.
-	 *    queue_requests_store
-	 *      > blk_mq_update_nr_requests
-	 *        > blk_mq_freeze_queue
-	 *        > blk_mq_quiesce_queue
-	 *        ...
-	 *        > ssg_depth_updated
-	 *          > blk_sec_stats_depth_updated
-	 *
-	 * since the queue is freezed now, we don't need to care about
-	 * any on-ging IO requests. The queue is empty and any process
-	 * trying to sumbit IO requests will be waiting inside of
-	 * bio_queue_enter > wait_event function.
-	 * Just clear rq_infos to NULL, and allocate it again.
-	 */
-	free_request_infos(&internal_disk);
-
-	nr = hctx->sched_tags->bitmap_tags->sb.depth;
-	ret = alloc_request_infos(&internal_disk, nr);
-	if (ret)
-		pr_err("%s: request-accounting is disabled.", __func__);
-}
-EXPORT_SYMBOL(blk_sec_stats_depth_updated);
-
 
 #define UNSIGNED_DIFF(n, o) (((n) >= (o)) ? ((n) - (o)) : ((n) + (0 - (o))))
 #define SECTORS2KB(x) ((x) / 2)
@@ -341,15 +246,17 @@ static ssize_t diskios_show(struct kobject *kobj, struct kobj_attribute *attr, c
 	return ret;
 }
 
-static void add_pio_node(struct request_info *rq_info)
+static void add_pio_node(struct request *rq, unsigned int data_size,
+		pid_t tgid, const char *tg_name, u64 tg_start_time)
 {
 	struct pio_node *pio = NULL;
+	unsigned long flags;
 
 	if (pio_cnt >= MAX_PIO_NODE_NUM) {
 add_others:
-		spin_lock_bh(&others_pio_lock);
-		others.bytes[req_op(rq_info->rq)] += rq_info->data_size;
-		spin_unlock_bh(&others_pio_lock);
+		spin_lock_irqsave(&others_pio_lock, flags);
+		others.bytes[req_op(rq)] += data_size;
+		spin_unlock_irqrestore(&others_pio_lock, flags);
 		return;
 	}
 
@@ -359,51 +266,52 @@ add_others:
 
 	INIT_LIST_HEAD(&pio->list);
 
-	pio->tgid = rq_info->tgid;
-	strncpy(pio->name, rq_info->tg_name, PROC_NAME_LEN - 1);
-	pio->name[PROC_NAME_LEN - 1] = '\0';
-	pio->start_time = rq_info->tg_start_time;
+	pio->tgid = tgid;
+	strncpy(pio->name, tg_name, TASK_COMM_LEN - 1);
+	pio->name[TASK_COMM_LEN - 1] = '\0';
+	pio->start_time = tg_start_time;
 
 	pio->bytes[REQ_OP_READ] = 0;
 	pio->bytes[REQ_OP_WRITE] = 0;
 	pio->bytes[REQ_OP_FLUSH] = 0;
 	pio->bytes[REQ_OP_DISCARD] = 0;
-	pio->bytes[req_op(rq_info->rq)] = rq_info->data_size;
 
-	spin_lock_bh(&pio_list_lock);
+	pio->bytes[req_op(rq)] = data_size;
+
+	spin_lock_irqsave(&pio_list_lock, flags);
 	list_add(&pio->list, &pio_list);
-	spin_unlock_bh(&pio_list_lock);
+	spin_unlock_irqrestore(&pio_list_lock, flags);
 
 	pio_cnt++;
 }
 
 static void free_pio_node(struct list_head *remove_list)
 {
-	struct list_head *ptr, *ptrn;
-	struct pio_node *node;
+	struct pio_node *pio;
+	struct pio_node *pion;
+	unsigned long flags;
 
-	list_for_each_safe(ptr, ptrn, remove_list) {
-		node = list_entry(ptr, struct pio_node, list);
-		list_del(&node->list);
-		kmem_cache_free(pio_cache, node);
+	list_for_each_entry_safe(pio, pion, remove_list, list) {
+		list_del(&pio->list);
+		kmem_cache_free(pio_cache, pio);
 	}
 
-	spin_lock_bh(&others_pio_lock);
+	spin_lock_irqsave(&others_pio_lock, flags);
 	others.bytes[REQ_OP_READ] = 0;
 	others.bytes[REQ_OP_WRITE] = 0;
 	others.bytes[REQ_OP_FLUSH] = 0;
 	others.bytes[REQ_OP_DISCARD] = 0;
-	spin_unlock_bh(&others_pio_lock);
+	spin_unlock_irqrestore(&others_pio_lock, flags);
 
 	pio_cnt = 0;
 }
 
-static void update_process_IO(struct request_info *rq_info)
+static void update_pio_node(struct request *rq, unsigned int data_size,
+		pid_t tgid, const char *tg_name, u64 tg_start_time)
 {
-	struct request *rq = rq_info->rq;
-	struct pio_node *node;
-	struct list_head *ptr;
+	struct pio_node *pio;
 	unsigned long size = 0;
+	unsigned long flags;
 	LIST_HEAD(remove_list);
 
 	if (pio_enabled == 0)
@@ -413,22 +321,24 @@ static void update_process_IO(struct request_info *rq_info)
 	if (req_op(rq) > REQ_OP_DISCARD)
 		return;
 
-	size = (req_op(rq) == REQ_OP_FLUSH) ? 1 : rq_info->data_size;
+	size = (req_op(rq) == REQ_OP_FLUSH) ? 1 : data_size;
 
-	spin_lock_bh(&pio_list_lock);
-	list_for_each(ptr, &pio_list) {
-		node = list_entry(ptr, struct pio_node, list);
-		if (node->tgid == rq_info->tgid) {
-			if (node->start_time != rq_info->tg_start_time)
-				continue;
-			node->bytes[req_op(rq)] += size;
-			spin_unlock_bh(&pio_list_lock);
-			return;
-		}
+	spin_lock_irqsave(&pio_list_lock, flags);
+	list_for_each_entry(pio, &pio_list, list) {
+		if (pio->tgid != tgid)
+			continue;
+		if (pio->start_time != tg_start_time)
+			continue;
+
+		strncpy(pio->name, tg_name, TASK_COMM_LEN - 1);
+		pio->name[TASK_COMM_LEN - 1] = '\0';
+		pio->bytes[req_op(rq)] += size;
+		spin_unlock_irqrestore(&pio_list_lock, flags);
+		return;
 	}
-	spin_unlock_bh(&pio_list_lock);
+	spin_unlock_irqrestore(&pio_list_lock, flags);
 
-	add_pio_node(rq_info);
+	add_pio_node(rq, data_size, tgid, tg_name, tg_start_time);
 }
 
 static inline bool may_account_rq(struct request *rq)
@@ -436,143 +346,86 @@ static inline bool may_account_rq(struct request *rq)
 	if (unlikely(!has_valid_disk_info()))
 		return false;
 
-	if (unlikely(!has_valid_request_infos()))
-		return false;
-
 	if (internal_disk.queue != rq->q)
 		return false;
-
-	if (unlikely(rq->internal_tag < 0)) {
-		pr_warn_ratelimited("%s: rq->internal_tag < 0!", __func__);
-		return false;
-	}
-	if (unlikely(rq->internal_tag >= internal_disk.nr_rq_info)) {
-		pr_err("%s: rq->internal_tag[%d] > nr_rq_info[%d]!",
-		       __func__, rq->internal_tag, internal_disk.nr_rq_info);
-
-		disable_request_infos(&internal_disk);
-		pr_err("%s: request-accounting is disabled.", __func__);
-
-		return false;
-	}
 
 	return true;
 }
 
-void blk_sec_stats_account_rq_insert(struct request *rq)
+void blk_sec_stats_account_io_done(struct request *rq, unsigned int data_size,
+		pid_t tgid, const char *tg_name, u64 tg_start_time)
 {
-	struct request_info *rq_info;
-	struct task_struct *gleader = current->group_leader;
-
 	if (unlikely(!may_account_rq(rq)))
 		return;
 
-	rq_info = &(internal_disk.rq_infos[rq->internal_tag]);
-
-	rq_info->rq = rq;
-	rq_info->tgid = task_tgid_nr(gleader);
-	strncpy(rq_info->tg_name, gleader->comm, PROC_NAME_LEN - 1);
-	rq_info->tg_name[PROC_NAME_LEN - 1] = '\0';
-	rq_info->tg_start_time = gleader->start_time;
+	transferred_bytes += data_size;
+	update_pio_node(rq, data_size, tgid, tg_name, tg_start_time);
 }
-EXPORT_SYMBOL(blk_sec_stats_account_rq_insert);
-
-void blk_sec_stats_account_rq_dispatch(struct request *rq)
-{
-	struct request_info *rq_info;
-
-	if (unlikely(!may_account_rq(rq)))
-		return;
-
-	rq_info = &(internal_disk.rq_infos[rq->internal_tag]);
-
-	if (likely(rq_info->rq == rq))
-		rq_info->data_size = blk_rq_bytes(rq);
-}
-EXPORT_SYMBOL(blk_sec_stats_account_rq_dispatch);
-
-void blk_sec_stats_account_rq_finish(struct request *rq)
-{
-	struct request_info *rq_info;
-
-	if (unlikely(!may_account_rq(rq)))
-		return;
-
-	rq_info = &(internal_disk.rq_infos[rq->internal_tag]);
-
-	if (likely(rq_info->rq == rq)) {
-		transferred_bytes += rq_info->data_size;
-		update_process_IO(rq_info);
-	}
-}
-EXPORT_SYMBOL(blk_sec_stats_account_rq_finish);
+EXPORT_SYMBOL(blk_sec_stats_account_io_done);
 
 #define GET_PIO_PRIO(pio) \
 	((pio)->bytes[REQ_OP_READ] + (pio)->bytes[REQ_OP_WRITE]*2)
 
 static void sort_pios(struct list_head *remove_list)
 {
-	struct list_head *tmp;
-	struct pio_node *max_node = NULL;
-	struct pio_node *node;
+	struct pio_node *max_pio = NULL;
+	struct pio_node *pio;
 	unsigned long long max = 0;
 	LIST_HEAD(sorted_list);
 	int i;
 
 	for (i = 0; i < SORT_PIO_NODE_NUM; i++) {
-		list_for_each(tmp, remove_list) {
-			node = list_entry(tmp, struct pio_node, list);
-			if (GET_PIO_PRIO(node) > max) {
-				max = GET_PIO_PRIO(node);
-				max_node = node;
+		list_for_each_entry(pio, remove_list, list) {
+			if (GET_PIO_PRIO(pio) > max) {
+				max = GET_PIO_PRIO(pio);
+				max_pio = pio;
 			}
 		}
-		if (max_node != NULL)
-			list_move_tail(&max_node->list, &sorted_list);
+		if (max_pio != NULL)
+			list_move_tail(&max_pio->list, &sorted_list);
 
 		max = 0;
-		max_node = NULL;
+		max_pio = NULL;
 	}
 	list_splice_init(&sorted_list, remove_list);
 }
 
 static ssize_t pio_show(struct kobject *kobj, struct kobj_attribute *attr, char *buf)
 {
-	struct list_head *ptr;
-	struct pio_node *node;
+	struct pio_node *pio;
 	int len = 0;
+	unsigned long flags;
 	LIST_HEAD(remove_list);
 
-	spin_lock_bh(&pio_list_lock);
+	spin_lock_irqsave(&pio_list_lock, flags);
 	list_replace_init(&pio_list, &remove_list);
-	spin_unlock_bh(&pio_list_lock);
+	spin_unlock_irqrestore(&pio_list_lock, flags);
 
 	if (pio_cnt > SORT_PIO_NODE_NUM)
 		sort_pios(&remove_list);
 
-	list_for_each(ptr, &remove_list) {
-		node = list_entry(ptr, struct pio_node, list);
+	list_for_each_entry(pio, &remove_list, list) {
 		if (PAGE_SIZE - len > 80) {
 			/* pid read(KB) write(KB) comm printed */
 			len += scnprintf(buf + len, PAGE_SIZE - len, "%d %llu %llu %s\n",
-					node->tgid, node->bytes[REQ_OP_READ] / 1024,
-					node->bytes[REQ_OP_WRITE] / 1024,  node->name);
+					pio->tgid, pio->bytes[REQ_OP_READ] / 1024,
+					pio->bytes[REQ_OP_WRITE] / 1024,  pio->name);
 		} else {
-			spin_lock_bh(&others_pio_lock);
-			others.bytes[REQ_OP_READ] += node->bytes[REQ_OP_READ];
-			others.bytes[REQ_OP_WRITE] += node->bytes[REQ_OP_WRITE];
-			others.bytes[REQ_OP_FLUSH] += node->bytes[REQ_OP_FLUSH];
-			others.bytes[REQ_OP_DISCARD] += node->bytes[REQ_OP_DISCARD];
-			spin_unlock_bh(&others_pio_lock);
+			spin_lock_irqsave(&others_pio_lock, flags);
+			others.bytes[REQ_OP_READ] += pio->bytes[REQ_OP_READ];
+			others.bytes[REQ_OP_WRITE] += pio->bytes[REQ_OP_WRITE];
+			others.bytes[REQ_OP_FLUSH] += pio->bytes[REQ_OP_FLUSH];
+			others.bytes[REQ_OP_DISCARD] += pio->bytes[REQ_OP_DISCARD];
+			spin_unlock_irqrestore(&others_pio_lock, flags);
 		}
 	}
-	spin_lock_bh(&others_pio_lock);
+	spin_lock_irqsave(&others_pio_lock, flags);
 
 	if (others.bytes[REQ_OP_READ] + others.bytes[REQ_OP_WRITE])
 		len += scnprintf(buf + len, PAGE_SIZE - len, "%d %llu %llu %s\n",
 				others.tgid, others.bytes[REQ_OP_READ] / 1024,
 				others.bytes[REQ_OP_WRITE] / 1024,  others.name);
-	spin_unlock_bh(&others_pio_lock);
+	spin_unlock_irqrestore(&others_pio_lock, flags);
 
 	free_pio_node(&remove_list);
 
@@ -585,14 +438,19 @@ static ssize_t pio_enabled_store(struct kobject *kobj, struct kobj_attribute *at
 		const char *buf, size_t count)
 {
 	int enable = 0;
+	int ret;
+	unsigned long flags;
 	LIST_HEAD(remove_list);
 
-	kstrtoint(buf, 10, &enable);
+	ret = kstrtoint(buf, 10, &enable);
+	if (ret)
+		return ret;
+
 	pio_enabled = (enable >= 1) ? 1 : 0;
 
-	spin_lock_bh(&pio_list_lock);
+	spin_lock_irqsave(&pio_list_lock, flags);
 	list_replace_init(&pio_list, &remove_list);
-	spin_unlock_bh(&pio_list_lock);
+	spin_unlock_irqrestore(&pio_list_lock, flags);
 	free_pio_node(&remove_list);
 
 	pio_timeout = jiffies + msecs_to_jiffies(pio_duration_ms);
@@ -612,7 +470,11 @@ static ssize_t pio_enabled_show(struct kobject *kobj, struct kobj_attribute *att
 static ssize_t pio_duration_ms_store(struct kobject *kobj, struct kobj_attribute *attr,
 		const char *buf, size_t count)
 {
-	kstrtoint(buf, 10, &pio_duration_ms);
+	int ret;
+
+	ret = kstrtoint(buf, 10, &pio_duration_ms);
+	if (ret)
+		return ret;
 
 	if (pio_duration_ms > 10000)
 		pio_duration_ms = 10000;
@@ -686,7 +548,6 @@ static int __init blk_sec_stats_init(void)
 
 static void __exit blk_sec_stats_exit(void)
 {
-	free_request_infos(&internal_disk);
 	clear_internal_disk_info();
 	kmem_cache_destroy(pio_cache);
 	kobject_put(blk_sec_stats_kobj);

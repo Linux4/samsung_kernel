@@ -2,7 +2,7 @@
  * Broadcom Dongle Host Driver (DHD), Linux-specific network interface.
  * Basically selected code segments from usb-cdc.c and usb-rndis.c
  *
- * Copyright (C) 2021, Broadcom.
+ * Copyright (C) 2022, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -986,13 +986,13 @@ int dhd_send_twt_info_suspend(dhd_pub_t *dhdp, bool suspend)
 	ret = bcm_pack_xtlv_entry(&pbuf, &param_len, WL_TWT_CMD_INFO,
 			sizeof(ti), (uint8 *)&ti, BCM_XTLV_OPTION_ALIGN32);
 	if (ret != BCME_OK) {
-		DHD_ERROR(("%s : parameter packing error \n", __FUNCTION__));
+		DHD_ERROR_MEM(("%s : parameter packing error \n", __FUNCTION__));
 		return ret;
 	}
 
 	ret = dhd_iovar(dhdp, 0, "twt", buf, sizeof(buf) - param_len, NULL, 0, TRUE);
 	if (ret) {
-		DHD_ERROR(("%s : TWT info failed ret : %d\n", __FUNCTION__, ret));
+		DHD_ERROR_MEM(("%s : TWT info failed ret : %d\n", __FUNCTION__, ret));
 	}
 	return ret;
 
@@ -5011,7 +5011,7 @@ dhd_add_monitor_if(dhd_info_t *dhd)
 	if (FW_SUPPORTED((&dhd->pub), monitor)) {
 #ifdef DHD_PCIE_RUNTIMEPM
 		/* Disable RuntimePM in monitor mode */
-		DHD_DISABLE_RUNTIME_PM(&dhd->pub);
+		DHD_STOP_RPM_TIMER(&dhd->pub);
 		DHD_ERROR(("%s : disable runtime PM in monitor mode\n", __FUNCTION__));
 #endif /* DHD_PCIE_RUNTIME_PM */
 		scan_suppress = TRUE;
@@ -5057,7 +5057,7 @@ dhd_del_monitor_if(dhd_info_t *dhd)
 	if (FW_SUPPORTED((&dhd->pub), monitor)) {
 #ifdef DHD_PCIE_RUNTIMEPM
 		/* Enable RuntimePM */
-		DHD_ENABLE_RUNTIME_PM(&dhd->pub);
+		DHD_START_RPM_TIMER(&dhd->pub);
 		DHD_ERROR(("%s : enabled runtime PM\n", __FUNCTION__));
 #endif /* DHD_PCIE_RUNTIME_PM */
 		scan_suppress = FALSE;
@@ -13151,6 +13151,10 @@ dhd_clear(dhd_pub_t *dhdp)
 static void
 dhd_module_cleanup(void)
 {
+#if defined(ENABLE_NOT_LOAD_DHD_MODULE)
+	DHD_ERROR(("%s ##### Do not clean-up due to secondary build\n", __FUNCTION__));
+	return;
+#endif /* ENABLE_NOT_LOAD_DHD_MODULE */
 	DHD_TRACE(("%s: Enter\n", __FUNCTION__));
 
 	dhd_bus_unregister();
@@ -13163,6 +13167,10 @@ dhd_module_cleanup(void)
 static void __exit
 dhd_module_exit(void)
 {
+#if defined(ENABLE_NOT_LOAD_DHD_MODULE)
+	DHD_ERROR(("%s ##### Do not unload driver due to secondary build\n", __FUNCTION__));
+	return;
+#endif /* ENABLE_NOT_LOAD_DHD_MODULE */
 	atomic_set(&exit_in_progress, 1);
 	dhd_module_cleanup();
 	unregister_reboot_notifier(&dhd_reboot_notifier);
@@ -13239,6 +13247,10 @@ dhd_module_init(void)
 {
 	int err;
 
+#if defined(ENABLE_NOT_LOAD_DHD_MODULE)
+	DHD_ERROR(("%s ##### Do not load driver due to secondary build\n", __FUNCTION__));
+	return 0;
+#endif /* ENABLE_NOT_LOAD_DHD_MODULE */
 	err = _dhd_module_init();
 #ifdef DHD_SUPPORT_HDM
 	if (hdm_wifi_support && err && !dhd_download_fw_on_driverload) {
@@ -16709,6 +16721,13 @@ dhd_os_check_wakelock_all(dhd_pub_t *pub)
 		DHD_ERROR(("%s wakelock c-%d wl-%d wd-%d rx-%d "
 			"ctl-%d intr-%d scan-%d evt-%d, pm-%d, txfl-%d nan-%d\n",
 			__FUNCTION__, c, l1, l2, l3, l4, l5, l6, l7, l8, l9, l10));
+#ifdef RPM_FAST_TRIGGER
+		if (pub->rpm_fast_trigger && l4) {
+			DHD_ERROR(("%s : reset rpm_fast_trigger becasue of wl_ctrlwake activated\n",
+					__FUNCTION__));
+			pub->rpm_fast_trigger = FALSE;
+		}
+#endif /* RPM_FAST_TRIGGER */
 		return 1;
 	}
 #elif defined(BCMSDIO)

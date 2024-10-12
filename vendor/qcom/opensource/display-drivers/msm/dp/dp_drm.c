@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <drm/drm_atomic_helper.h>
@@ -430,6 +431,11 @@ int dp_connector_get_mode_info(struct drm_connector *connector,
 		DP_ERR("error getting mixer count. rc:%d\n", rc);
 		return rc;
 	}
+	/* reset dp connector lm_mask for every connection event and
+	 * this will get re-populated in resource manager based on
+	 * resolution and topology of dp display.
+	 */
+	sde_conn->lm_mask = 0;
 
 	topology->num_enc = no_enc;
 	topology->num_intf = single_intf;
@@ -605,6 +611,19 @@ int dp_connector_get_modes(struct drm_connector *connector,
 	kfree(dp_mode);
 
 	return rc;
+}
+
+int dp_connnector_set_info_blob(struct drm_connector *connector,
+		void *info, void *display, struct msm_mode_info *mode_info)
+{
+	struct dp_display *dp_display = display;
+	const char *display_type = NULL;
+
+	dp_display->get_display_type(dp_display, &display_type);
+	sde_kms_info_add_keystr(info,
+		"display type", display_type);
+
+	return 0;
 }
 
 int dp_drm_bridge_init(void *data, struct drm_encoder *encoder,

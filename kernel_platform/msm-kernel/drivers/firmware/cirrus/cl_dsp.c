@@ -323,9 +323,11 @@ static void cl_dsp_coeff_handle_info_text(struct cl_dsp *dsp, const u8 *data,
 		return;
 
 	memcpy(info_str, data, len);
-
+#ifdef CONFIG_CS40L26_SAMSUNG_FEATURE
+	dev_info(dsp->dev, "WMDR Info: %s\n", info_str);
+#else
 	dev_dbg(dsp->dev, "WMDR Info: %s\n", info_str);
-
+#endif
 	kfree(info_str);
 }
 

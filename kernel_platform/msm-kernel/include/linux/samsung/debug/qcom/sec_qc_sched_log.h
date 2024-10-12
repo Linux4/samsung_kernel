@@ -7,7 +7,10 @@
 
 struct sec_qc_sched_buf {
 	u64 time;
-	char comm[TASK_COMM_LEN];
+	union {
+		char comm[TASK_COMM_LEN];
+		u64 addr;
+	};
 	pid_t pid;
 	struct task_struct *task;
 	char prev_comm[TASK_COMM_LEN];

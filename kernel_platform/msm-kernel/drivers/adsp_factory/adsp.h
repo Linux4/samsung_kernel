@@ -111,8 +111,6 @@ struct adsp_data {
 	int32_t light_cal1;
 	int32_t light_cal2;
 	int32_t copr_w;
-#endif
-#if IS_ENABLED(CONFIG_SUPPORT_DUAL_OPTIC)
 	int32_t sub_light_cal_result;
 	int32_t sub_light_cal1;
 	int32_t sub_light_cal2;

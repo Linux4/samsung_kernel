@@ -1,6 +1,6 @@
 /******************************************************************************
  * Copyright (C) 2015, The Linux Foundation. All rights reserved.
- * Copyright (C) 2013-2021 NXP
+ * Copyright (C) 2013-2022 NXP
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -40,11 +40,15 @@
 #include <linux/delay.h>
 #include <linux/uaccess.h>
 #include <linux/gpio.h>
+#ifdef CONFIG_COMPAT
+#include <linux/compat.h>
+#endif
 #ifdef CONFIG_MAKE_NODE_USING_PLATFORM_DEVICE
 #include <linux/platform_device.h>
 #endif
 
 #include "common_ese.h"
+#include "p73.h"
 
 #ifdef FEATURE_CORE_RESET_NTF_CHECK
 struct nfc_core_reset_type {
@@ -171,6 +175,7 @@ void i2c_disable_clk_irq(struct nfc_dev *dev)
 			disable_irq_nosync(nfc_gpio->clk_req_irq);
 			nfc_gpio->clk_req_irq_enabled = false;
 		}
+		dev->clk_req_wakelock = false;
 	}
 }
 
@@ -184,7 +189,6 @@ void i2c_enable_clk_irq(struct nfc_dev *dev)
 			enable_irq(nfc_gpio->clk_req_irq);
 			nfc_gpio->clk_req_irq_enabled = true;
 		}
-		dev->clk_req_wakelock = true;
 	}
 }
 #endif
@@ -192,10 +196,15 @@ void i2c_enable_clk_irq(struct nfc_dev *dev)
 static irqreturn_t i2c_irq_handler(int irq, void *dev_id)
 {
 	struct nfc_dev *nfc_dev = dev_id;
+
+#if IS_ENABLED(CONFIG_SAMSUNG_NFC)
+	wake_lock_timeout(&nfc_dev->nfc_wake_lock, 2*HZ);
+#else
 	struct i2c_dev *i2c_dev = &nfc_dev->i2c_dev;
 
 	if (device_may_wakeup(&i2c_dev->client->dev))
 		pm_wakeup_event(&i2c_dev->client->dev, WAKEUP_SRC_TIMEOUT);
+#endif
 
 	i2c_disable_irq(nfc_dev);
 	wake_up(&nfc_dev->read_wq);
@@ -240,14 +249,67 @@ static irqreturn_t nfc_clk_req_irq_handler(int irq, void *dev_id)
 			}
 		}
 	} else {
-		NFC_LOG_REC("clk_req irq, wakelock %d\n", nfc_dev->clk_req_wakelock);
-
+		NFC_LOG_REC("clk_req w:%d\n", nfc_dev->clk_req_wakelock);
 		if (nfc_dev->clk_req_wakelock) {
 			nfc_dev->clk_req_wakelock = false;
 			wake_lock_timeout(&nfc_dev->nfc_clk_wake_lock, 2*HZ);
 		}
 	}
 	return IRQ_HANDLED;
+}
+
+#define PRINT_NFC_BUF 0
+#if PRINT_NFC_BUF
+static void print_hex_buf(const char *tag, const char *data, int len)
+{
+	pr_info("%s len: %d\n", tag, len);
+	print_hex_dump(KERN_DEBUG, tag, DUMP_PREFIX_OFFSET, 16, 8,
+		data, len, false);
+}
+#else
+static void print_hex_buf(const char *tag, const char *data, int len)
+{
+	do {} while (0);
+}
+#endif/*PRINT_NFC_BUF*/
+
+static void secnfc_check_screen_on_rsp(struct nfc_dev *nfc_dev,
+		const char *buf, size_t count)
+{
+	if (nfc_dev->screen_on_cmd && nfc_dev->screen_cfg) {
+		nfc_dev->screen_on_cmd = false;
+		nfc_dev->screen_cfg = false;
+		NFC_LOG_INFO("scrn_on\n");
+	}
+}
+
+static void secnfc_check_screen_off_rsp(struct nfc_dev *nfc_dev,
+		const char *buf, size_t count)
+{
+	if (!nfc_dev->screen_off_cmd || !nfc_dev->screen_cfg) {
+		nfc_dev->screen_off_rsp_count = 0;
+		return;
+	}
+
+	if (!nfc_dev->screen_off_rsp_count && count == 3/*header*/) {
+		nfc_dev->screen_off_rsp_count++;
+		return;
+	}
+
+	if (nfc_dev->screen_off_rsp_count == 1/*payload*/) {
+		if (!buf[0]) {//00 or 0000
+			if (wake_lock_active(&nfc_dev->nfc_wake_lock))
+				wake_unlock(&nfc_dev->nfc_wake_lock);
+			NFC_LOG_INFO("scrn_off\n");
+
+			nfc_dev->screen_cfg = false;
+			nfc_dev->screen_off_cmd = false;
+		}
+		nfc_dev->screen_off_rsp_count = 0;
+		return;
+	}
+
+	nfc_dev->screen_off_rsp_count = 0;
 }
 #endif
 
@@ -257,7 +319,7 @@ int i2c_read(struct nfc_dev *nfc_dev, char *buf, size_t count, int timeout)
 	struct i2c_dev *i2c_dev = &nfc_dev->i2c_dev;
 	struct platform_gpio *nfc_gpio = &nfc_dev->configs.gpio;
 
-	NFC_LOG_DBG("%s: reading %zu bytes.\n", __func__, count);
+	NFC_LOG_REC("rd: %zu\n", count);
 
 	if (timeout > NCI_CMD_RSP_TIMEOUT_MS)
 		timeout = NCI_CMD_RSP_TIMEOUT_MS;
@@ -268,10 +330,7 @@ int i2c_read(struct nfc_dev *nfc_dev, char *buf, size_t count, int timeout)
 	if (!gpio_get_value(nfc_gpio->irq)) {
 		while (1) {
 			ret = 0;
-			if (!i2c_dev->irq_enabled) {
-				i2c_dev->irq_enabled = true;
-				enable_irq(i2c_dev->client->irq);
-			}
+			i2c_enable_irq(nfc_dev);
 			if (!gpio_get_value(nfc_gpio->irq)) {
 				if (timeout) {
 					ret = wait_event_interruptible_timeout(
@@ -327,7 +386,9 @@ int i2c_read(struct nfc_dev *nfc_dev, char *buf, size_t count, int timeout)
 		goto err;
 	}
 #if IS_ENABLED(CONFIG_SAMSUNG_NFC)
-	NFC_LOG_REC("rd: %d\n", ret);
+	print_hex_buf("nfc_rd: ", buf, count);
+	secnfc_check_screen_on_rsp(nfc_dev, buf, ret);
+	secnfc_check_screen_off_rsp(nfc_dev, buf, ret);
 #ifdef FEATURE_CORE_RESET_NTF_CHECK
 	nfc_check_is_core_reset_ntf(buf, ret);
 #endif
@@ -360,6 +421,81 @@ err:
 	return ret;
 }
 
+#if IS_ENABLED(CONFIG_SAMSUNG_NFC)
+#define SCREEN_ONOFF_CMD_SZ	4
+#define SCREEN_SET_CFG_SZ	7
+
+static bool secnfc_check_screen_on_cmd(struct nfc_dev *nfc_dev,
+		const char *buf, size_t count)
+{
+	if (count != SCREEN_ONOFF_CMD_SZ)
+		return false;
+
+	if (buf[0] == 0x20 && buf[1] == 0x09 && buf[2] == 0x01 && buf[3] == 0x2)
+		return true;
+
+	return false;
+}
+
+static bool secnfc_check_screen_off_cmd(struct nfc_dev *nfc_dev,
+		const char *buf, size_t count)
+{
+	if (count != SCREEN_ONOFF_CMD_SZ)
+		return false;
+
+	if (buf[0] == 0x20 && buf[1] == 0x09 && buf[2] == 0x01 &&
+			(buf[3] == 0x1 || buf[3] == 0x3))
+		return true;
+
+	return false;
+}
+
+static bool secnfc_check_screen_cfg(struct nfc_dev *nfc_dev,
+		const char *buf, size_t count)
+{
+	if (count != SCREEN_SET_CFG_SZ)
+		return false;
+
+	if (buf[0] == 0x20 && buf[1] == 0x02 && buf[2] == 0x04 &&
+			buf[3] == 0x01 && buf[4] == 0x02 &&
+			buf[5] == 0x01 && buf[6] == 0x00)
+		return true;
+
+	return false;
+}
+
+static void secnfc_configure_clk_irq_based_on_screen_onoff(struct nfc_dev *nfc_dev, bool is_screen_on)
+{
+	struct platform_configs *nfc_configs = &nfc_dev->configs;
+
+	if (!nfc_configs->disable_clk_irq_during_wakeup)
+		return;
+
+	if (is_screen_on)
+		i2c_disable_clk_irq(nfc_dev);
+	else
+		i2c_enable_clk_irq(nfc_dev);
+}
+
+static void secnfc_check_screen_onoff(struct nfc_dev *nfc_dev,
+		const char *buf, size_t count)
+{
+	if (secnfc_check_screen_cfg(nfc_dev, buf, count)) {
+		nfc_dev->screen_cfg = true;
+	} else if (secnfc_check_screen_on_cmd(nfc_dev, buf, count)) {
+		nfc_dev->screen_on_cmd = true;
+		secnfc_configure_clk_irq_based_on_screen_onoff(nfc_dev, true);
+	} else if (secnfc_check_screen_off_cmd(nfc_dev, buf, count)) {
+		nfc_dev->screen_off_cmd = true;
+		secnfc_configure_clk_irq_based_on_screen_onoff(nfc_dev, false);
+	} else {
+		nfc_dev->screen_on_cmd = false;
+		nfc_dev->screen_off_cmd = false;
+		nfc_dev->screen_cfg = false;
+	}
+}
+#endif
+
 int i2c_write(struct nfc_dev *nfc_dev, const char *buf, size_t count,
 		int max_retry_cnt)
 {
@@ -371,6 +507,10 @@ int i2c_write(struct nfc_dev *nfc_dev, const char *buf, size_t count,
 		count = MAX_DL_BUFFER_SIZE;
 
 	NFC_LOG_REC("wr: %zu\n", count);
+#if IS_ENABLED(CONFIG_SAMSUNG_NFC)
+	print_hex_buf("nfc_wr: ", buf, count);
+	secnfc_check_screen_onoff(nfc_dev, buf, count);
+#endif
 	/*
 	 * Wait for any pending read for max 15ms before write
 	 * This is to avoid any packet corruption during read, when
@@ -379,8 +519,8 @@ int i2c_write(struct nfc_dev *nfc_dev, const char *buf, size_t count,
 	for (retry_cnt = 1; retry_cnt <= MAX_WRITE_IRQ_COUNT; retry_cnt++) {
 		if (gpio_get_value(nfc_gpio->irq)) {
 			NFC_LOG_ERR("%s: irq high during write, wait\n", __func__);
-			usleep_range(NFC_WRITE_IRQ_WAIT_TIME_US,
-				NFC_WRITE_IRQ_WAIT_TIME_US + 100);
+			usleep_range(WRITE_RETRY_WAIT_TIME_US,
+				     WRITE_RETRY_WAIT_TIME_US + 100);
 		} else {
 			break;
 		}
@@ -412,6 +552,16 @@ ssize_t nfc_i2c_dev_read(struct file *filp, char __user *buf, size_t count,
 	int ret;
 	struct nfc_dev *nfc_dev = (struct nfc_dev *)filp->private_data;
 
+	if (!nfc_dev) {
+		NFC_LOG_ERR("%s: device doesn't exist anymore\n", __func__);
+		return -ENODEV;
+	}
+#if IS_ENABLED(CONFIG_SAMSUNG_NFC)
+	if (count > MAX_NCI_BUFFER_SIZE) {
+		//NFC_LOG_ERR("%s: too big count %u\n", __func__, count);
+		return -EINVAL;
+	}
+#endif
 	mutex_lock(&nfc_dev->read_mutex);
 	if (filp->f_flags & O_NONBLOCK) {
 		ret = i2c_master_recv(nfc_dev->i2c_dev.client, nfc_dev->read_kbuf, count);
@@ -438,6 +588,11 @@ ssize_t nfc_i2c_dev_write(struct file *filp, const char __user *buf,
 	if (count > MAX_DL_BUFFER_SIZE)
 		count = MAX_DL_BUFFER_SIZE;
 
+	if (!nfc_dev) {
+		NFC_LOG_ERR("%s: device doesn't exist anymore\n", __func__);
+		return -ENODEV;
+	}
+
 	mutex_lock(&nfc_dev->write_mutex);
 	if (copy_from_user(nfc_dev->write_kbuf, buf, count)) {
 		NFC_LOG_ERR("%s: failed to copy from user space\n", __func__);
@@ -458,6 +613,9 @@ static const struct file_operations nfc_i2c_dev_fops = {
 	.flush = nfc_dev_flush,
 	.release = nfc_dev_close,
 	.unlocked_ioctl = nfc_dev_ioctl,
+#ifdef CONFIG_COMPAT
+	.compat_ioctl = nfc_dev_compat_ioctl,
+#endif
 };
 
 int nfc_i2c_dev_probe(struct i2c_client *client, const struct i2c_device_id *id)
@@ -465,12 +623,10 @@ int nfc_i2c_dev_probe(struct i2c_client *client, const struct i2c_device_id *id)
 	int ret = 0;
 	struct nfc_dev *nfc_dev = NULL;
 	struct i2c_dev *i2c_dev = NULL;
-	struct platform_configs nfc_configs;
-	struct platform_gpio *nfc_gpio = &nfc_configs.gpio;
+	struct platform_configs *nfc_configs = NULL;
+	struct platform_gpio *nfc_gpio = NULL;
 
 #ifdef CONFIG_SEC_NFC_LOGGER
-	nfc_logger_init();
-	nfc_logger_set_max_count(-1);
 #ifdef CONFIG_SEC_NFC_LOGGER_ADD_ACPM_LOG
 	nfc_logger_acpm_log_init(0x0);
 #endif
@@ -478,22 +634,24 @@ int nfc_i2c_dev_probe(struct i2c_client *client, const struct i2c_device_id *id)
 #endif
 
 	NFC_LOG_INFO("%s: enter\n", __func__);
+	nfc_dev = kzalloc(sizeof(struct nfc_dev), GFP_KERNEL);
+	if (nfc_dev == NULL) {
+		ret = -ENOMEM;
+		goto err;
+	}
+	nfc_configs = &nfc_dev->configs;
+	nfc_gpio = &nfc_configs->gpio;
 	/* retrieve details of gpios from dt */
-	ret = nfc_parse_dt(&client->dev, &nfc_configs, PLATFORM_IF_I2C);
+	ret = nfc_parse_dt(&client->dev, nfc_configs, PLATFORM_IF_I2C);
 	if (ret) {
 		NFC_LOG_ERR("%s: failed to parse dt\n", __func__);
-		goto err;
+		goto err_free_nfc_dev;
 	}
 
 	if (!i2c_check_functionality(client->adapter, I2C_FUNC_I2C)) {
 		NFC_LOG_ERR("%s: need I2C_FUNC_I2C\n", __func__);
 		ret = -ENODEV;
-		goto err;
-	}
-	nfc_dev = kzalloc(sizeof(struct nfc_dev), GFP_KERNEL);
-	if (nfc_dev == NULL) {
-		ret = -ENOMEM;
-		goto err;
+		goto err_free_nfc_dev;
 	}
 	nfc_dev->read_kbuf = kzalloc(MAX_NCI_BUFFER_SIZE, GFP_DMA | GFP_KERNEL);
 	if (!nfc_dev->read_kbuf) {
@@ -518,7 +676,7 @@ int nfc_i2c_dev_probe(struct i2c_client *client, const struct i2c_device_id *id)
 	nfc_dev->nfc_disable_clk_intr = i2c_disable_clk_irq;
 #endif
 #ifdef CONFIG_MAKE_NODE_USING_PLATFORM_DEVICE
-	if (!nfc_configs.late_pvdd_en) {
+	if (!nfc_configs->late_pvdd_en) {
 		ret = configure_gpio(nfc_gpio->ven, GPIO_OUTPUT);
 		if (ret) {
 			NFC_LOG_ERR("%s: unable to request nfc reset gpio [%d]\n", __func__,
@@ -541,16 +699,13 @@ int nfc_i2c_dev_probe(struct i2c_client *client, const struct i2c_device_id *id)
 		goto err_free_gpio;
 	}
 	client->irq = ret;
-	ret = configure_gpio(nfc_gpio->dwl_req, GPIO_OUTPUT);
-	if (ret) {
-		NFC_LOG_ERR("%s: unable to request nfc firm downl gpio [%d]\n",
-			__func__, nfc_gpio->dwl_req);
+	if (gpio_is_valid(nfc_gpio->dwl_req)) {
+		ret = configure_gpio(nfc_gpio->dwl_req, GPIO_OUTPUT);
+		if (ret) {
+			NFC_LOG_ERR("%s: unable to request nfc firm downl gpio [%d]\n",
+				__func__, nfc_gpio->dwl_req);
+		}
 	}
-
-	/* copy the retrieved gpio details from DT */
-	memcpy(&nfc_dev->configs, &nfc_configs,
-		sizeof(struct platform_configs));
-
 	/* init mutex and queues */
 	init_waitqueue_head(&nfc_dev->read_wq);
 	mutex_init(&nfc_dev->read_mutex);
@@ -558,6 +713,11 @@ int nfc_i2c_dev_probe(struct i2c_client *client, const struct i2c_device_id *id)
 	mutex_init(&nfc_dev->dev_ref_mutex);
 	spin_lock_init(&i2c_dev->irq_enabled_lock);
 	common_ese_init(nfc_dev);
+
+#if IS_ENABLED(CONFIG_SAMSUNG_NFC)
+	wake_lock_init(&nfc_dev->nfc_wake_lock, WAKE_LOCK_SUSPEND, "nfc_wake_lock");
+#endif
+
 #ifndef CONFIG_MAKE_NODE_USING_PLATFORM_DEVICE
 	ret = nfc_misc_register(nfc_dev, &nfc_i2c_dev_fops, DEV_COUNT,
 				NFC_CHAR_DEV_NAME, CLASS_NAME);
@@ -576,12 +736,12 @@ int nfc_i2c_dev_probe(struct i2c_client *client, const struct i2c_device_id *id)
 		goto err_nfc_misc_unregister;
 	}
 #if IS_ENABLED(CONFIG_SAMSUNG_NFC)
-	if (nfc_configs.clk_req_wake || nfc_configs.clk_req_all_trigger) {
+	if (nfc_configs->clk_req_wake || nfc_configs->clk_req_all_trigger) {
 		unsigned long irq_flag = IRQF_TRIGGER_RISING | IRQF_ONESHOT;
 
 		wake_lock_init(&nfc_dev->nfc_clk_wake_lock, WAKE_LOCK_SUSPEND, "nfc_clk_wake_lock");
 
-		if (nfc_configs.clk_req_all_trigger)
+		if (nfc_configs->clk_req_all_trigger)
 			irq_flag |= IRQF_TRIGGER_FALLING;
 
 		ret = configure_gpio(nfc_gpio->clk_req, GPIO_IRQ);
@@ -603,7 +763,7 @@ int nfc_i2c_dev_probe(struct i2c_client *client, const struct i2c_device_id *id)
 		}
 	}
 
-	if (!nfc_configs.late_pvdd_en)
+	if (!nfc_configs->late_pvdd_en)
 		nfc_power_control(nfc_dev);
 #else
 	gpio_set_ven(nfc_dev, 1);
@@ -612,16 +772,18 @@ int nfc_i2c_dev_probe(struct i2c_client *client, const struct i2c_device_id *id)
 #endif
 	i2c_disable_irq(nfc_dev);
 
-	device_init_wakeup(&client->dev, true);
 	i2c_set_clientdata(client, nfc_dev);
 	i2c_dev->irq_wake_up = false;
 
 #if IS_ENABLED(CONFIG_SAMSUNG_NFC)
 #ifdef CONFIG_CLK_ACPM_INIT
-	if (nfc_configs.change_clkreq_for_acpm) {
+	if (nfc_configs->change_clkreq_for_acpm) {
 		NFC_LOG_INFO("acpm_init_nfc_clk_req clk_req : %d\n", nfc_gpio->clk_req);
 		acpm_init_eint_nfc_clk_req(nfc_gpio->clk_req);
 	}
+#endif
+#if IS_ENABLED(CONFIG_NFC_SN2XX_ESE_SUPPORT)
+	store_nfc_i2c_device(&client->dev);
 #endif
 	nfc_probe_done(nfc_dev);
 #endif
@@ -649,7 +811,11 @@ err:
 	return ret;
 }
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0)
 int nfc_i2c_dev_remove(struct i2c_client *client)
+#else
+void nfc_i2c_dev_remove(struct i2c_client *client)
+#endif
 {
 	int ret = 0;
 	struct nfc_dev *nfc_dev = NULL;
@@ -659,13 +825,14 @@ int nfc_i2c_dev_remove(struct i2c_client *client)
 	if (!nfc_dev) {
 		NFC_LOG_ERR("%s: device doesn't exist anymore\n", __func__);
 		ret = -ENODEV;
-		return ret;
+		goto end;
 	}
 	if (nfc_dev->dev_ref_count > 0) {
 		NFC_LOG_ERR("%s: device already in use\n", __func__);
-		return -EBUSY;
+		ret = -EBUSY;
+		goto end;
 	}
-	device_init_wakeup(&client->dev, false);
+
 	free_irq(client->irq, nfc_dev);
 #ifdef CONFIG_MAKE_NODE_USING_PLATFORM_DEVICE
 	nfc_misc_unregister(NULL, DEV_COUNT);
@@ -675,36 +842,54 @@ int nfc_i2c_dev_remove(struct i2c_client *client)
 #ifdef CONFIG_SEC_NFC_LOGGER
 	nfc_logger_deinit();
 #endif
+	wake_lock_destroy(&nfc_dev->nfc_wake_lock);
+
 	mutex_destroy(&nfc_dev->read_mutex);
 	mutex_destroy(&nfc_dev->write_mutex);
 	gpio_free_all(nfc_dev);
 	kfree(nfc_dev->read_kbuf);
 	kfree(nfc_dev->write_kbuf);
 	kfree(nfc_dev);
+end:
+	NFC_LOG_INFO("%s: ret :%d\n", __func__, ret);
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0)
 	return ret;
+#endif
 }
 
 int nfc_i2c_dev_suspend(struct device *device)
 {
 	struct i2c_client *client = to_i2c_client(device);
 	struct nfc_dev *nfc_dev = i2c_get_clientdata(client);
-	struct i2c_dev *i2c_dev = &nfc_dev->i2c_dev;
+	struct i2c_dev *i2c_dev = NULL;
 #if IS_ENABLED(CONFIG_SAMSUNG_NFC)
 	struct platform_configs *nfc_configs = &nfc_dev->configs;
 	struct platform_gpio *nfc_gpio = &nfc_dev->configs.gpio;
 #endif
-	NFC_LOG_INFO("suspend\n");
+	NFC_LOG_INFO_WITH_DATE("suspend\n");
+	if (!nfc_dev) {
+		NFC_LOG_ERR("%s: device doesn't exist anymore\n", __func__);
+		return -ENODEV;
+	}
+	i2c_dev = &nfc_dev->i2c_dev;
 
+
+#if IS_ENABLED(CONFIG_SAMSUNG_NFC)
+	if (i2c_dev->irq_enabled && !i2c_dev->irq_wake_up) {
+		if (!enable_irq_wake(client->irq))
+			i2c_dev->irq_wake_up = true;
+	}
+	if (nfc_configs->clk_req_wake || nfc_configs->clk_req_all_trigger) {
+		enable_irq_wake(nfc_gpio->clk_req_irq);
+		nfc_dev->clk_req_wakelock = true;
+	}
+#else
 	if (device_may_wakeup(&client->dev) && i2c_dev->irq_enabled) {
 		if (!enable_irq_wake(client->irq))
 			i2c_dev->irq_wake_up = true;
-#if IS_ENABLED(CONFIG_SAMSUNG_NFC)
-		if (nfc_configs->clk_req_wake || nfc_configs->clk_req_all_trigger) {
-			enable_irq_wake(nfc_gpio->clk_req_irq);
-			nfc_dev->clk_req_wakelock = true;
-		}
-#endif
 	}
+#endif
+	NFC_LOG_DBG("%s: irq_wake_up = %d\n", __func__, i2c_dev->irq_wake_up);
 	return 0;
 }
 
@@ -712,23 +897,66 @@ int nfc_i2c_dev_resume(struct device *device)
 {
 	struct i2c_client *client = to_i2c_client(device);
 	struct nfc_dev *nfc_dev = i2c_get_clientdata(client);
-	struct i2c_dev *i2c_dev = &nfc_dev->i2c_dev;
+	struct i2c_dev *i2c_dev = NULL;
 #if IS_ENABLED(CONFIG_SAMSUNG_NFC)
 	struct platform_configs *nfc_configs = &nfc_dev->configs;
 	struct platform_gpio *nfc_gpio = &nfc_dev->configs.gpio;
 #endif
-	NFC_LOG_INFO("resume\n");
+	NFC_LOG_INFO_WITH_DATE("resume\n");
+	if (!nfc_dev) {
+		NFC_LOG_ERR("%s: device doesn't exist anymore\n", __func__);
+		return -ENODEV;
+	}
+	i2c_dev = &nfc_dev->i2c_dev;
 
+#if IS_ENABLED(CONFIG_SAMSUNG_NFC)
+	if (i2c_dev->irq_wake_up) {
+		if (!disable_irq_wake(client->irq))
+			i2c_dev->irq_wake_up = false;
+	}
+	if (nfc_configs->clk_req_wake || nfc_configs->clk_req_all_trigger)
+		disable_irq_wake(nfc_gpio->clk_req_irq);
+#else
 	if (device_may_wakeup(&client->dev) && i2c_dev->irq_wake_up) {
 		if (!disable_irq_wake(client->irq))
 			i2c_dev->irq_wake_up = false;
-#if IS_ENABLED(CONFIG_SAMSUNG_NFC)
-		if (nfc_configs->clk_req_wake || nfc_configs->clk_req_all_trigger)
-			disable_irq_wake(nfc_gpio->clk_req_irq);
-#endif
 	}
+#endif
+	NFC_LOG_DBG("%s: irq_wake_up = %d\n", __func__, i2c_dev->irq_wake_up);
 	return 0;
 }
+
+#if IS_ENABLED(CONFIG_SAMSUNG_NFC)
+static void nfc_shutdown(struct i2c_client *client)
+{
+	struct nfc_dev *nfc_dev = i2c_get_clientdata(client);
+
+	if (nfc_dev) {
+		struct platform_gpio *nfc_gpio = &nfc_dev->configs.gpio;
+		struct platform_configs *nfc_configs = &nfc_dev->configs;
+
+		/*
+		 * In case of S.LSI, NFC card mode doesn't work in LPM.
+		 * so, it's skipped on S.LSI models using sn110. it need to be checked
+		 */
+		if (nfc_configs->ap_vendor != AP_VENDOR_SLSI) {
+			if (nfc_configs->ap_vendor == AP_VENDOR_MTK) {
+				/*use internal pull-up case*/
+				struct pinctrl *pinctrl = NULL;
+
+				pinctrl = devm_pinctrl_get_select(&client->dev, "i2c_off");
+				if (IS_ERR_OR_NULL(pinctrl))
+					NFC_LOG_ERR("Failed to pinctrl i2c_off\n");
+				else
+					devm_pinctrl_put(pinctrl);
+				NFC_LOG_ERR("i2c off pinctrl called\n");
+			};
+
+			gpio_direction_output(nfc_gpio->ven, 0);
+		}
+	}
+}
+#endif
 
 #ifdef CONFIG_MAKE_NODE_USING_PLATFORM_DEVICE
 static int nfc_platform_probe(struct platform_device *pdev)
@@ -787,6 +1015,9 @@ static struct i2c_driver nfc_i2c_dev_driver = {
 	.id_table = nfc_i2c_dev_id,
 	.probe = nfc_i2c_dev_probe,
 	.remove = nfc_i2c_dev_remove,
+#if IS_ENABLED(CONFIG_SAMSUNG_NFC)
+	.shutdown = nfc_shutdown,
+#endif
 	.driver = {
 		.name = NFC_I2C_DRV_STR,
 		.pm = &nfc_i2c_dev_pm_ops,
@@ -804,6 +1035,10 @@ static int __init nfc_i2c_dev_init(void)
 {
 	int ret = 0;
 
+#ifdef CONFIG_SEC_NFC_LOGGER
+	nfc_logger_init();
+	nfc_logger_set_max_count(-1);
+#endif
 	NFC_LOG_INFO("%s: Loading NXP NFC I2C driver\n", __func__);
 #if IS_ENABLED(CONFIG_SAMSUNG_NFC)
 	if (nfc_get_lpcharge() == LPM_TRUE)
@@ -841,11 +1076,15 @@ static void __exit nfc_i2c_dev_exit(void)
 }
 
 module_exit(nfc_i2c_dev_exit);
-#else
+#else /* not IS_MODULE(CONFIG_SAMSUNG_NFC) */
 static int __init nfc_i2c_dev_init(void)
 {
 	int ret = 0;
 
+#ifdef CONFIG_SEC_NFC_LOGGER
+	nfc_logger_init();
+	nfc_logger_set_max_count(-1);
+#endif
 	NFC_LOG_INFO("%s: Loading NXP NFC I2C driver\n", __func__);
 #if IS_ENABLED(CONFIG_SAMSUNG_NFC)
 	if (nfc_get_lpcharge() == LPM_TRUE)
@@ -858,9 +1097,7 @@ static int __init nfc_i2c_dev_init(void)
 	ret = i2c_add_driver(&nfc_i2c_dev_driver);
 	if (ret != 0)
 		NFC_LOG_ERR("%s: NFC I2C add driver error ret %d\n", __func__, ret);
-#if IS_ENABLED(CONFIG_NFC_SN2XX_ESE_SUPPORT)
-	ret = p61_dev_init();
-#endif
+
 	return ret;
 }
 
@@ -874,9 +1111,7 @@ static void __exit nfc_i2c_dev_exit(void)
 	if (nfc_get_lpcharge() == LPM_TRUE)
 		return;
 #endif
-#if IS_ENABLED(CONFIG_NFC_SN2XX_ESE_SUPPORT)
-	p61_dev_exit();
-#endif
+
 	i2c_del_driver(&nfc_i2c_dev_driver);
 #ifdef CONFIG_MAKE_NODE_USING_PLATFORM_DEVICE
 	platform_driver_unregister(&nfc_platform_driver);
@@ -884,7 +1119,7 @@ static void __exit nfc_i2c_dev_exit(void)
 }
 
 module_exit(nfc_i2c_dev_exit);
-#endif
+#endif /* IS_MODULE(CONFIG_SAMSUNG_NFC) */
 
 MODULE_DESCRIPTION("NXP NFC I2C driver");
 MODULE_LICENSE("GPL");

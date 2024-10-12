@@ -55,8 +55,55 @@ static int samsung_panel_on_pre(struct samsung_display_driver_data *vdd)
 	return true;
 }
 
+/* mtp original data R type */
+static u8 HS120_R_TYPE_BUF[GAMMA_SET_MAX][GAMMA_R_SIZE];
+static u8 HS60_R_TYPE_BUF[GAMMA_SET_MAX][GAMMA_R_SIZE];
+
+/* mtp original data V type */
+static int HS120_V_TYPE_BUF[GAMMA_SET_MAX][GAMMA_V_SIZE];
+static int HS60_V_TYPE_BUF[GAMMA_SET_MAX][GAMMA_V_SIZE];
+
+/* additinal SET9 for p73 ~ p95 (SET10) */
+static int VARIATY_HS120_V_TYPE_BUF[GAMMA_V_SIZE];
+static int VARIATY_HS60_V_TYPE_BUF[GAMMA_V_SIZE];
+
+/* compensated data R type*/
+static u8 HS96_R_TYPE_COMP[GAMMA_OFFSET_SIZE][GAMMA_R_SIZE];
+static u8 HS60_R_TYPE_COMP[GAMMA_OFFSET_SIZE][GAMMA_R_SIZE];
+static u8 HS48_R_TYPE_COMP[GAMMA_OFFSET_SIZE][GAMMA_R_SIZE];
+
+static u8 VARIATY_HS96_R_TYPE_COMP[VARIATY_GAMMA_OFFSET_SIZE][GAMMA_R_SIZE];
+static u8 VARIATY_HS60_R_TYPE_COMP[VARIATY_GAMMA_OFFSET_SIZE][GAMMA_R_SIZE];
+static u8 VARIATY_HS48_R_TYPE_COMP[VARIATY_GAMMA_OFFSET_SIZE][GAMMA_R_SIZE];
+
+/* compensated data V type*/
+static int HS96_V_TYPE_COMP[GAMMA_OFFSET_SIZE][GAMMA_V_SIZE];
+static int HS60_V_TYPE_COMP[GAMMA_OFFSET_SIZE][GAMMA_V_SIZE];
+static int HS48_V_TYPE_COMP[GAMMA_OFFSET_SIZE][GAMMA_V_SIZE];
+
+static int VARIATY_HS96_V_TYPE_COMP[VARIATY_GAMMA_OFFSET_SIZE][GAMMA_V_SIZE];
+static int VARIATY_HS60_V_TYPE_COMP[VARIATY_GAMMA_OFFSET_SIZE][GAMMA_V_SIZE];
+static int VARIATY_HS48_V_TYPE_COMP[VARIATY_GAMMA_OFFSET_SIZE][GAMMA_V_SIZE];
+
 static int samsung_panel_on_post(struct samsung_display_driver_data *vdd)
 {
+	struct dsi_panel_cmd_set *pcmds;
+	int idx;
+
+	/* write analog offset for G9,G10,G11 during on time. */
+	/* analog offset is always same for all levels in each G region. */
+	/* SET0,1,2 : 0861(G9) + 08A2(G10) + 08E3(G11) -> 65+65+65+1 byte */
+	pcmds = ss_get_cmds(vdd, TX_VRR_GM2_GAMMA_COMP3);
+	if (!SS_IS_CMDS_NULL(pcmds)) {
+		idx = ss_get_cmd_idx(pcmds, 0x00, 0x6C);
+		memcpy(&pcmds->cmds[idx].ss_txbuf[1], HS60_R_TYPE_COMP[74], GAMMA_R_SIZE);
+		memcpy(&pcmds->cmds[idx].ss_txbuf[1 + GAMMA_R_SIZE], HS60_R_TYPE_COMP[255], GAMMA_R_SIZE);
+		memcpy(&pcmds->cmds[idx].ss_txbuf[1 + GAMMA_R_SIZE + GAMMA_R_SIZE], HS60_R_TYPE_COMP[612], GAMMA_R_SIZE);
+		ss_send_cmd(vdd, TX_VRR_GM2_GAMMA_COMP3);
+		LCD_INFO(vdd, "write 60HS gamma offset (73~612lv) \n");
+		vdd->br_info.last_tx_time = ktime_get();
+	}
+
 	/*
 	 * self mask is enabled from bootloader.
 	 * so skip self mask setting during splash booting.
@@ -255,7 +302,7 @@ static struct dsi_panel_cmd_set *ss_vrr(struct samsung_display_driver_data *vdd,
 	/* send vrr cmd in 1vsync when the image is not being transmitted */
 	/* wait TE + pass image update (9ms), then send cmd */
 	if (vdd->vrr.running_vrr) {
-		if (cur_rr == 30) {			
+		if (cur_rr == 30) {
 			ss_wait_for_te_gpio(vdd, 1, 0, false);
 			usleep_range(9000, 9000);
 			LCD_ERR(vdd, "DELAY 9ms!!\n");
@@ -540,7 +587,7 @@ static struct dsi_panel_cmd_set * ss_brightness_gamma(struct samsung_display_dri
 
 	if (cur_md_base == VRR_120HS || cur_md_base == VRR_60NS) {
 		dim_off = false;
-		smooth_frame = 6;
+		smooth_frame = 15;
 	} else {
 		dim_off = true;
 		smooth_frame = 0;
@@ -1370,9 +1417,11 @@ static int ss_self_display_data_init(struct samsung_display_driver_data *vdd)
 	vdd->self_disp.operation[FLAG_SELF_MASK].img_checksum = SELF_MASK_IMG_CHECKSUM;
 	make_self_dispaly_img_cmds_FAC(vdd, TX_SELF_MASK_IMAGE, FLAG_SELF_MASK);
 
-	vdd->self_disp.operation[FLAG_SELF_MASK_CRC].img_buf = self_mask_img_fhd_crc_data;
-	vdd->self_disp.operation[FLAG_SELF_MASK_CRC].img_size = ARRAY_SIZE(self_mask_img_fhd_crc_data);
-	make_mass_self_display_img_cmds_FAC(vdd, TX_SELF_MASK_IMAGE_CRC, FLAG_SELF_MASK_CRC);
+	if (vdd->is_factory_mode) {
+		vdd->self_disp.operation[FLAG_SELF_MASK_CRC].img_buf = self_mask_img_fhd_crc_data;
+		vdd->self_disp.operation[FLAG_SELF_MASK_CRC].img_size = ARRAY_SIZE(self_mask_img_fhd_crc_data);
+		make_mass_self_display_img_cmds_FAC(vdd, TX_SELF_MASK_IMAGE_CRC, FLAG_SELF_MASK_CRC);
+	}
 
 	LCD_INFO(vdd, "--\n");
 	return 1;
@@ -1399,17 +1448,19 @@ static int ss_mafpc_data_init(struct samsung_display_driver_data *vdd)
 		return -EINVAL;
 	}
 
-	/* CRC Check For Factory Mode */
-	vdd->mafpc.crc_img_buf = mafpc_img_data_crc_check;
-	vdd->mafpc.crc_img_size = ARRAY_SIZE(mafpc_img_data_crc_check);
+	if (vdd->is_factory_mode) {
+		/* CRC Check For Factory Mode */
+		vdd->mafpc.crc_img_buf = mafpc_img_data_crc_check;
+		vdd->mafpc.crc_img_size = ARRAY_SIZE(mafpc_img_data_crc_check);
 
-	if (vdd->mafpc.make_img_mass_cmds)
-		vdd->mafpc.make_img_mass_cmds(vdd, vdd->mafpc.crc_img_buf, vdd->mafpc.crc_img_size, TX_MAFPC_CRC_CHECK_IMAGE); /* CRC Check Image Data */
-	else if (vdd->mafpc.make_img_cmds)
-		vdd->mafpc.make_img_cmds(vdd, vdd->mafpc.crc_img_buf, vdd->mafpc.crc_img_size, TX_MAFPC_CRC_CHECK_IMAGE); /* CRC Check Image Data */
-	else {
-		LCD_ERR(vdd, "Can not make mafpc image commands\n");
-		return -EINVAL;
+		if (vdd->mafpc.make_img_mass_cmds)
+			vdd->mafpc.make_img_mass_cmds(vdd, vdd->mafpc.crc_img_buf, vdd->mafpc.crc_img_size, TX_MAFPC_CRC_CHECK_IMAGE); /* CRC Check Image Data */
+		else if (vdd->mafpc.make_img_cmds)
+			vdd->mafpc.make_img_cmds(vdd, vdd->mafpc.crc_img_buf, vdd->mafpc.crc_img_size, TX_MAFPC_CRC_CHECK_IMAGE); /* CRC Check Image Data */
+		else {
+			LCD_ERR(vdd, "Can not make mafpc image commands\n");
+			return -EINVAL;
+		}
 	}
 
 	return true;
@@ -1658,36 +1709,6 @@ static void ss_read_flash(struct samsung_display_driver_data *vdd, u32 raddr, u3
 
 	return;
 }
-
-/* mtp original data R type */
-static u8 HS120_R_TYPE_BUF[GAMMA_SET_MAX][GAMMA_R_SIZE];
-static u8 HS60_R_TYPE_BUF[GAMMA_SET_MAX][GAMMA_R_SIZE];
-
-/* mtp original data V type */
-static int HS120_V_TYPE_BUF[GAMMA_SET_MAX][GAMMA_V_SIZE];
-static int HS60_V_TYPE_BUF[GAMMA_SET_MAX][GAMMA_V_SIZE];
-
-/* additinal SET9 for p73 ~ p95 (SET10) */
-static int VARIATY_HS120_V_TYPE_BUF[GAMMA_V_SIZE];
-static int VARIATY_HS60_V_TYPE_BUF[GAMMA_V_SIZE];
-
-/* compensated data R type*/
-static u8 HS96_R_TYPE_COMP[GAMMA_OFFSET_SIZE][GAMMA_R_SIZE];
-static u8 HS60_R_TYPE_COMP[GAMMA_OFFSET_SIZE][GAMMA_R_SIZE];
-static u8 HS48_R_TYPE_COMP[GAMMA_OFFSET_SIZE][GAMMA_R_SIZE];
-
-static u8 VARIATY_HS96_R_TYPE_COMP[VARIATY_GAMMA_OFFSET_SIZE][GAMMA_R_SIZE];
-static u8 VARIATY_HS60_R_TYPE_COMP[VARIATY_GAMMA_OFFSET_SIZE][GAMMA_R_SIZE];
-static u8 VARIATY_HS48_R_TYPE_COMP[VARIATY_GAMMA_OFFSET_SIZE][GAMMA_R_SIZE];
-
-/* compensated data V type*/
-static int HS96_V_TYPE_COMP[GAMMA_OFFSET_SIZE][GAMMA_V_SIZE];
-static int HS60_V_TYPE_COMP[GAMMA_OFFSET_SIZE][GAMMA_V_SIZE];
-static int HS48_V_TYPE_COMP[GAMMA_OFFSET_SIZE][GAMMA_V_SIZE];
-
-static int VARIATY_HS96_V_TYPE_COMP[VARIATY_GAMMA_OFFSET_SIZE][GAMMA_V_SIZE];
-static int VARIATY_HS60_V_TYPE_COMP[VARIATY_GAMMA_OFFSET_SIZE][GAMMA_V_SIZE];
-static int VARIATY_HS48_V_TYPE_COMP[VARIATY_GAMMA_OFFSET_SIZE][GAMMA_V_SIZE];
 
 static void ss_print_gamma_comp(struct samsung_display_driver_data *vdd)
 {
@@ -2290,6 +2311,8 @@ static struct dsi_panel_cmd_set *ss_brightness_gm2_gamma_comp(struct samsung_dis
 	set = GAMMA_SET_REGION_TABLE[level];
 	dset = set + 1;
 
+	return NULL;
+
 	if (set == GAMMA_SET_11) {
 		pcmds = ss_get_cmds(vdd, TX_VRR_GM2_GAMMA_COMP); // 65 + 3 bytes
 		seto = 0; // set offset
@@ -2303,7 +2326,6 @@ static struct dsi_panel_cmd_set *ss_brightness_gm2_gamma_comp(struct samsung_dis
 		dummy_size = 2;
 		dummy_offset = 1 + GAMMA_R_SIZE + GAMMA_R_SIZE;
 	}
-
 
 	if (SS_IS_CMDS_NULL(pcmds)) {
 		LCD_ERR(vdd, "No cmds for TX_VRR_GM2_GAMMA_COMP.. \n");

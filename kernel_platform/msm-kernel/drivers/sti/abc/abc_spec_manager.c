@@ -19,6 +19,12 @@
 #if IS_ENABLED(CONFIG_SEC_KUNIT)
 #include <linux/sti/abc_kunit.h>
 #endif
+struct list_head abc_spec_list;
+EXPORT_SYMBOL_KUNIT(abc_spec_list);
+
+struct abc_event_group_struct abc_event_group_list[] = {
+	{ABC_GROUP_CAMERA_MIPI_ERROR_ALL, "camera", "mipi_error_all"},
+};
 
 #if IS_ENABLED(CONFIG_OF)
 int abc_parse_dt(struct device *dev)
@@ -32,13 +38,14 @@ int abc_parse_dt(struct device *dev)
 	np = dev->of_node;
 	pdata->nItem = of_get_child_count(np);
 	if (!pdata->nItem) {
-		dev_err(dev, "There are no items\n");
+		dev_err(dev, "There are no items");
 		return -ENODEV;
 	}
 
 	/* spec_type_1 */
 	type1_np = of_find_node_by_name(np, "abc_spec_type1");
 	rc = of_property_count_strings(type1_np, ERROR_KEY);
+	INIT_LIST_HEAD(&abc_spec_list);
 
 	for (idx = 0; idx < rc; idx++) {
 		spec_type1 = devm_kzalloc(dev, sizeof(struct spec_data_type1), GFP_KERNEL);
@@ -47,278 +54,450 @@ int abc_parse_dt(struct device *dev)
 			return -ENOMEM;
 
 		if (abc_parse_dt_type1(dev, type1_np, idx, spec_type1)) {
-			ABC_PRINT("%s : failed parse dt spec_type1 idx : %d\n", __func__, idx);
+			ABC_PRINT("failed parse dt spec_type1 idx : %d", idx);
 			continue;
 		}
-		list_add_tail(&spec_type1->node, &pdata->abc_spec_list);
+		list_add_tail(&spec_type1->node, &abc_spec_list);
 	}
 	return 0;
 }
 #endif
 
-void sec_abc_make_key_data(struct abc_key_data *key_data, char *str)
+int sec_abc_get_normal_token_value(char *dst, char *src, char *token)
+{
+	int token_len = strlen(token);
+
+	if (strncmp(src, token, token_len) || !*(src + token_len)) {
+		ABC_DEBUG("Invalid input : src-%s, token-%s", src, token);
+		return -EINVAL;
+	}
+
+	strlcpy(dst, src + token_len, ABC_EVENT_STR_MAX);
+	return 0;
+}
+EXPORT_SYMBOL_KUNIT(sec_abc_get_normal_token_value);
+
+int sec_abc_get_event_module(char *dst, char *src)
+{
+	return sec_abc_get_normal_token_value(dst, src, "MODULE=");
+}
+EXPORT_SYMBOL_KUNIT(sec_abc_get_event_module);
+
+int sec_abc_get_ext_log(char *dst, char *src)
+{
+	return sec_abc_get_normal_token_value(dst, src, "EXT_LOG=");
+}
+EXPORT_SYMBOL_KUNIT(sec_abc_get_ext_log);
+
+int sec_abc_get_event_name(char *dst, char *src)
+{
+	int ret_info = 0, ret_warn = 0;
+
+	ret_info = sec_abc_get_normal_token_value(dst, src, "INFO=");
+	ret_warn = sec_abc_get_normal_token_value(dst, src, "WARN=");
+
+	return (ret_info & ret_warn) ? -EINVAL : 0;
+}
+EXPORT_SYMBOL_KUNIT(sec_abc_get_event_name);
+
+int sec_abc_get_event_type(char *dst, char *src)
+{
+	if (strncmp(src, "WARN", 4) && strncmp(src, "INFO", 4)) {
+		ABC_PRINT("Invalid input : %s", src);
+		return -EINVAL;
+	}
+
+	strlcpy(dst, src, 5);
+	return 0;
+}
+EXPORT_SYMBOL_KUNIT(sec_abc_get_event_type);
+
+int sec_abc_get_count(int *dst, char *src)
+{
+	if (strncmp(src, "COUNT=", 6) || !*(src + 6)) {
+		ABC_PRINT("Invalid input : %s", src);
+		return -EINVAL;
+	}
+
+	if (!strncmp(src + 6, "DEFAULT", 7)) {
+		*dst = ABC_DEFAULT_COUNT;
+		return 0;
+	}
+
+	if (kstrtoint(src + 6, 0, dst) || *dst <= 0 || *dst > ABC_EVENT_BUFFER_MAX) {
+		ABC_PRINT("Invalid input : %s", src);
+		return -EINVAL;
+	}
+
+	return 0;
+}
+EXPORT_SYMBOL_KUNIT(sec_abc_get_count);
+
+unsigned int sec_abc_get_ktime_ms(void)
+{
+	u64 ktime;
+
+	/* Calculate current kernel time */
+	ktime = local_clock();
+	do_div(ktime, NSEC_PER_MSEC);
+
+	return (unsigned int)ktime;
+}
+EXPORT_SYMBOL_KUNIT(sec_abc_get_ktime_ms);
+
+int sec_abc_make_key_data(struct abc_key_data *key_data, char *str)
 {
 	char *event_strings[ABC_UEVENT_MAX] = {0,};
 	char temp[ABC_BUFFER_MAX];
 	char *c, *p;
-	int idx = 0;
+	int idx = 0, i;
 
-	ABC_PRINT("%s : start : %s", __func__, str);
+	ABC_DEBUG("start : %s", str);
 
 	strlcpy(temp, str, ABC_BUFFER_MAX);
 	p = temp;
 
-	while ((c = strsep(&p, "@")) != NULL) {
+	while ((c = strsep(&p, "@")) != NULL && idx < ABC_UEVENT_MAX) {
 		event_strings[idx] = c;
 		idx++;
 	}
 
-	strlcpy(key_data->event_module, event_strings[0] + 7, ABC_EVENT_STR_MAX);
-	strlcpy(key_data->event_name, event_strings[1] + 5, ABC_EVENT_STR_MAX);
+	if (idx >= ABC_UEVENT_MAX)
+		return -EINVAL;
 
-	p = strsep(&event_strings[1], "=");
-	strlcpy(key_data->event_type, p, ABC_TYPE_STR_MAX);
+	if (sec_abc_get_event_module(key_data->event_module, event_strings[0]))
+		return -EINVAL;
 
-	ABC_PRINT("%s : Module(%s) Level(%s) Event(%s)", __func__,
-			  key_data->event_module, key_data->event_type, key_data->event_name);
+	if (sec_abc_get_event_name(key_data->event_name, event_strings[1]))
+		return -EINVAL;
+
+	if (sec_abc_get_event_type(key_data->event_type, event_strings[1]))
+		return -EINVAL;
+
+	for (i = 2; i < idx; i++) {
+		if (!strncmp(event_strings[i], "EXT_LOG=", 8)) {
+			if (sec_abc_get_ext_log(key_data->ext_log, event_strings[i]))
+				return -EINVAL;
+		} else
+			return -EINVAL;
+	}
+
+	key_data->cur_time = sec_abc_get_ktime_ms();
+
+	ABC_DEBUG("Module(%s) Level(%s) Event(%s) EXT_LOG(%s) cur_time(%d)",
+			  key_data->event_module,
+			  key_data->event_type,
+			  key_data->event_name,
+			  key_data->ext_log,
+			  key_data->cur_time);
+	return 0;
 }
+EXPORT_SYMBOL_KUNIT(sec_abc_make_key_data);
 
-struct abc_common_spec_data *sec_abc_get_matched_common_spec(struct abc_key_data *key_data)
+struct abc_common_spec_data *sec_abc_get_matched_common_spec(char *module_name, char *error_name)
 {
-	return sec_abc_get_matched_common_spec_type1(key_data);
+	return sec_abc_get_matched_common_spec_type1(module_name, error_name);
 }
+EXPORT_SYMBOL_KUNIT(sec_abc_get_matched_common_spec);
 
-int sec_abc_get_buffer_size_from_th_cnt(int th_max)
+int sec_abc_get_buffer_size_from_threshold_cnt(int threshold_cnt)
 {
 	int i, min_buffer_size = 16;
 
-	for (i = 1; i < th_max; i *= 2)
+	for (i = 1; i < threshold_cnt; i *= 2)
 		;
 
 	return min_buffer_size > i ? min_buffer_size : i;
 }
+EXPORT_SYMBOL_KUNIT(sec_abc_get_buffer_size_from_threshold_cnt);
 
-bool sec_abc_is_enabled_error(struct abc_key_data *key_data)
+void sec_abc_enqueue_event_data(struct abc_key_data *key_data)
 {
-	struct abc_common_spec_data *common_spec;
+	struct abc_common_spec_data *common_spec = NULL;
 
-	common_spec = sec_abc_get_matched_common_spec(key_data);
-
-	if (!common_spec)
-		return true;
-
-	return (common_spec->enabled == 1) ? true : false;
-}
-
-void sec_abc_enqueue_event_data(struct abc_key_data *key_data, unsigned int cur_time)
-{
-	struct abc_common_spec_data *common_spec = sec_abc_get_matched_common_spec(key_data);
+	common_spec = sec_abc_get_matched_common_spec(key_data->event_module, key_data->event_name);
 
 	if (!common_spec || !strcmp(key_data->event_type, "INFO")) {
-		ABC_PRINT("%s : There is no matched buffer.\n", __func__);
-#if IS_ENABLED(CONFIG_SEC_KUNIT)
-		abc_common_test_get_log_str("There is no matched buffer.\n");
-#endif
+		ABC_PRINT_KUNIT("There is no matched buffer");
 	} else {
-		ABC_PRINT("%s : There is a matched buffer. Enqueue data : %s.\n", __func__, common_spec->error_name);
-		sec_abc_enqueue_event_data_type1(common_spec, cur_time);
-#if IS_ENABLED(CONFIG_SEC_KUNIT)
-		abc_common_test_get_log_str("There is a matched buffer. Enqueue data.\n");
-#endif
+		ABC_DEBUG_KUNIT("There is a matched buffer. Enqueue data");
+		sec_abc_enqueue_event_data_type1(common_spec, key_data->cur_time);
 	}
 
 }
-
-void sec_abc_dequeue_event_data(struct abc_key_data *key_data)
-{
-	struct abc_common_spec_data *common_spec = sec_abc_get_matched_common_spec(key_data);
-
-	if (!common_spec || !strcmp(key_data->event_type, "INFO")) {
-		ABC_PRINT("%s : There is no matched buffer.\n", __func__);
-#if IS_ENABLED(CONFIG_SEC_KUNIT)
-		abc_common_test_get_log_str("There is no matched buffer.\n");
-#endif
-	} else {
-		ABC_PRINT("%s : There is a matched buffer. Dequeue data : %s.\n", __func__, common_spec->error_name);
-		sec_abc_dequeue_event_data_type1(common_spec);
-#if IS_ENABLED(CONFIG_SEC_KUNIT)
-		abc_common_test_get_log_str("There is a matched buffer. Dequeue data.\n");
-#endif
-	}
-}
+EXPORT_SYMBOL_KUNIT(sec_abc_enqueue_event_data);
 
 void sec_abc_reset_event_buffer(struct abc_key_data *key_data)
 {
-	struct abc_common_spec_data *common_spec = sec_abc_get_matched_common_spec(key_data);
+	struct abc_common_spec_data *common_spec;
 	struct spec_data_type1 *spec_type1;
 
+	common_spec = sec_abc_get_matched_common_spec(key_data->event_module, key_data->event_name);
+
 	if (!common_spec || !strcmp(key_data->event_type, "INFO")) {
-		ABC_PRINT("%s : There is no matched buffer.\n", __func__);
-#if IS_ENABLED(CONFIG_SEC_KUNIT)
-		abc_common_test_get_log_str("There is no matched buffer.\n");
-#endif
+		ABC_PRINT_KUNIT("There is no matched buffer");
 	} else {
-		ABC_PRINT("%s : There is a matched buffer. Reset buffer : %s.\n", __func__, common_spec->error_name);
-#if IS_ENABLED(CONFIG_SEC_KUNIT)
-		abc_common_test_get_log_str("There is a matched buffer. Reset buffer.\n");
-#endif
+		ABC_PRINT_KUNIT("There is a matched buffer. Reset buffer");
 		spec_type1 = container_of(common_spec, struct spec_data_type1, common_spec);
 		sec_abc_reset_buffer_type1(spec_type1);
 	}
 }
+EXPORT_SYMBOL_KUNIT(sec_abc_reset_event_buffer);
 
-bool sec_abc_reached_spec_pre(struct abc_key_data *key_data, struct abc_pre_event *pre_event)
+bool sec_abc_reached_spec(struct abc_key_data *key_data)
 {
 	struct abc_common_spec_data *common_spec;
 
 	if (!strcmp(key_data->event_type, "INFO")) {
-		ABC_PRINT("%s : INFO doesn't have spec.\n", __func__);
+		ABC_PRINT("INFO doesn't have spec");
 		return false;
 	}
 
-	if (!sec_abc_is_enabled_error(key_data)) {
-		ABC_PRINT("%s : %s isn't enabled.\n", __func__, pre_event->abc_str);
-		return false;
-	}
-
-	common_spec = sec_abc_get_matched_common_spec(key_data);
+	common_spec = sec_abc_get_matched_common_spec(key_data->event_module, key_data->event_name);
 	if (!common_spec)
 		return true;
 
-	return sec_abc_reached_spec_type1_pre(common_spec, pre_event);
+	return sec_abc_reached_spec_type1(common_spec, key_data->cur_time);
 }
+EXPORT_SYMBOL_KUNIT(sec_abc_reached_spec);
 
-bool sec_abc_reached_spec(struct abc_key_data *key_data, unsigned int cur_time)
+int sec_abc_parse_spec_cmd(char *str, struct abc_spec_cmd *abc_spec)
 {
-	struct abc_common_spec_data *common_spec;
+	int idx = 0;
+	char temp[ABC_BUFFER_MAX];
+	char *c, *p;
+	char *sys_input_strings[3] = { 0, };
 
-	if (!strcmp(key_data->event_type, "INFO")) {
-		ABC_PRINT("%s : INFO doesn't have spec.\n", __func__);
-		return false;
+	strlcpy(temp, str, ABC_BUFFER_MAX);
+	p = temp;
+
+	while ((c = strsep(&p, "@")) != NULL && idx < ABC_SPEC_CMD_STR_MAX) {
+		sys_input_strings[idx] = c;
+		idx++;
 	}
 
-	common_spec = sec_abc_get_matched_common_spec(key_data);
-	if (!common_spec)
-		return true;
-
-	return sec_abc_reached_spec_type1(common_spec, cur_time);
-}
-
-int sec_abc_apply_changed_spec(char *str, int mode)
-{
-	struct abc_common_spec_data *common_spec;
-	struct abc_key_data key_data;
-	struct spec_data_type1 *spec_type1;
-
-	sec_abc_make_key_data(&key_data, str);
-	common_spec = sec_abc_get_matched_common_spec(&key_data);
-
-	if (!common_spec || common_spec->spec_cnt < mode + 1) {
-		ABC_PRINT("%s : Invalid change cmd. Check the Input", __func__);
-#if IS_ENABLED(CONFIG_SEC_KUNIT)
-		abc_common_test_get_log_str("Invalid change cmd. Check the Input");
-#endif
+	if (idx != ABC_SPEC_CMD_STR_MAX)
 		return -EINVAL;
-	}
 
-	spec_type1 = container_of(common_spec, struct spec_data_type1, common_spec);
+	if (sec_abc_get_event_module(abc_spec->module, sys_input_strings[0]))
+		return -EINVAL;
 
-	common_spec->current_spec = mode;
-	common_spec->enabled = spec_type1->th_cnt[common_spec->current_spec] == SPEC_DISABLED ? 0 : 1;
-	spec_type1->buffer.size = spec_type1->th_cnt[common_spec->current_spec] + 1;
+	if (sec_abc_get_event_name(abc_spec->name, sys_input_strings[1]))
+		return -EINVAL;
 
-	sec_abc_reset_event_buffer(&key_data);
-
-	ABC_PRINT("%s : MODULE(%s) ERROR(%s) MODE(%d) Enabled(%d)",
-			  __func__, common_spec->module_name,
-			  common_spec->error_name,
-			  common_spec->current_spec,
-			  common_spec->enabled);
+	strlcpy(abc_spec->spec, sys_input_strings[2], ABC_EVENT_STR_MAX);
 
 	return 0;
 }
+EXPORT_SYMBOL_KUNIT(sec_abc_parse_spec_cmd);
+
+int sec_abc_apply_changed_spec(char *module_name, char *error_name, char *spec)
+{
+	struct abc_common_spec_data *common_spec;
+	struct spec_data_type1 *spec_type1;
+	int idx = 0, count = 0;
+
+	ABC_PRINT("start : %s %s %s", module_name, error_name, spec);
+	idx = sec_abc_get_idx_of_registered_event(module_name, error_name);
+
+	if (idx < 0)
+		return -EINVAL;
+
+	if (!strcmp(spec, "OFF")) {
+		abc_event_list[idx].enabled = false;
+		return 0;
+	}
+
+	if (sec_abc_get_count(&count, spec))
+		return -EINVAL;
+
+	if (abc_event_list[idx].singular_spec) {
+		if (count == ABC_DEFAULT_COUNT) {
+			abc_event_list[idx].enabled = true;
+			return 0;
+		} else
+			return -EINVAL;
+	}
+
+	common_spec = sec_abc_get_matched_common_spec(module_name, error_name);
+
+	if (!common_spec)
+		return -EINVAL;
+
+	abc_event_list[idx].enabled = false;
+	spec_type1 = container_of(common_spec, struct spec_data_type1, common_spec);
+
+	if (count == ABC_DEFAULT_COUNT)
+		count = spec_type1->default_count;
+
+	spec_type1->threshold_cnt = count;
+	spec_type1->buffer.size = count + 1;
+
+	if (abc_alloc_memory_to_buffer_type1(spec_type1, spec_type1->buffer.size))
+		return -ENOMEM;
+
+	sec_abc_reset_buffer_type1(spec_type1);
+	abc_event_list[idx].enabled = true;
+
+	ABC_PRINT("MODULE(%s) ERROR(%s) COUNT(%d) TIME(%d) Enabled(%d)",
+			  common_spec->module_name,
+			  common_spec->error_name,
+			  spec_type1->threshold_cnt,
+			  spec_type1->threshold_time,
+			  abc_event_list[idx].enabled);
+	return 0;
+}
+EXPORT_SYMBOL_KUNIT(sec_abc_apply_changed_spec);
+
+enum abc_event_group sec_abc_get_group(char *module, char *name)
+{
+	int idx = 0;
+
+	for (idx = 0; idx < ARRAY_SIZE(abc_event_group_list); idx++) {
+		if (strcmp(module, abc_event_group_list[idx].module) == 0 &&
+			strcmp(name, abc_event_group_list[idx].name) == 0) {
+			return  abc_event_group_list[idx].group;
+		}
+	}
+
+	return ABC_GROUP_NONE;
+}
+EXPORT_SYMBOL_KUNIT(sec_abc_get_group);
+
+int sec_abc_apply_changed_group_spec(enum abc_event_group group, char *spec)
+{
+	int idx = 0;
+
+	ABC_PRINT("start : %d %s", group, spec);
+
+	for (idx = 0; idx < REGISTERED_ABC_EVENT_TOTAL; idx++) {
+		if (group == abc_event_list[idx].group) {
+			if (sec_abc_apply_changed_spec(abc_event_list[idx].module_name,
+				abc_event_list[idx].error_name, spec)) {
+				return -EINVAL;
+			}
+		}
+	}
+
+	return 0;
+}
+EXPORT_SYMBOL_KUNIT(sec_abc_apply_changed_group_spec);
 
 void sec_abc_change_spec(const char *str)
 {
-	char *cmd_strings[ABC_CMD_MAX];
+	char *cmd_string, *p;
 	char temp[ABC_BUFFER_MAX * 5];
-	char *c, *p, *p2;
-	int idx = 0, mode = -1, len, str_len;
+	int cnt = 0;
+	enum abc_event_group group;
+	struct abc_spec_cmd abc_spec;
 
-	ABC_PRINT("%s : start : %s", __func__, str);
+	ABC_PRINT("start : %s", str);
 
-	strlcpy(temp, str, ABC_BUFFER_MAX * 5);
-
-	str_len = strlen(str);
-
-	if (!str_len) {
-		ABC_PRINT("%s : Empty string!", __func__);
+	if (!strncmp(str, "reset", 5)) {
+		sec_abc_reset_all_spec();
+		ABC_PRINT("end : %s", str);
 		return;
 	}
 
-	len = str_len < ABC_BUFFER_MAX * 5 ? str_len : ABC_BUFFER_MAX * 5;
-
-	if (temp[len - 1] == '\n')
-		temp[len - 1] = 0;
-
+	strlcpy(temp, str, ABC_BUFFER_MAX * 5);
 	p = temp;
 
-	while ((c = strsep(&p, ",")) != NULL && idx < ABC_CMD_MAX) {
+	while ((cmd_string = strsep(&p, ",\n")) != NULL && cnt < REGISTERED_ABC_EVENT_TOTAL) {
 
-		cmd_strings[idx] = c;
-
-		if (sec_abc_is_valid_abc_string(cmd_strings[idx])) {
-
-			p2 = strstr(cmd_strings[idx], "MODE=");
-
-			if (!p2 || !*(p2 + 5) || kstrtoint(p2 + 5, 0, &mode))
-				continue;
-
-			if (!sec_abc_apply_changed_spec(cmd_strings[idx], mode))
-				idx++;
-
+		cnt++;
+		if (!cmd_string[0])
+			continue;
+		if (sec_abc_parse_spec_cmd(cmd_string, &abc_spec)) {
+			ABC_PRINT_KUNIT("Invalid change cmd. Check the Input");
+			break;
+		}
+		group = sec_abc_get_group(abc_spec.module, abc_spec.name);
+		if (group == ABC_GROUP_NONE) {
+			if (sec_abc_apply_changed_spec(abc_spec.module, abc_spec.name, abc_spec.spec)) {
+				ABC_PRINT_KUNIT("Invalid change cmd. Check the Input");
+				break;
+			}
 		} else {
-#if IS_ENABLED(CONFIG_SEC_KUNIT)
-			abc_common_test_get_log_str("Invalid change cmd. Check the Input");
-#endif
-			ABC_PRINT("%s : Invalid change cmd. Check the Input", __func__);
-
+			if (sec_abc_apply_changed_group_spec(group, abc_spec.spec)) {
+				ABC_PRINT_KUNIT("Invalid change cmd. Check the Input");
+				break;
+			}
 		}
 	}
-	ABC_PRINT("%s : end : %s", __func__, str);
 }
+
+void sec_abc_reset_all_buffer(void)
+{
+	struct spec_data_type1 *spec_type1;
+
+	list_for_each_entry(spec_type1, &abc_spec_list, node) {
+		sec_abc_reset_buffer_type1(spec_type1);
+	}
+}
+EXPORT_SYMBOL_KUNIT(sec_abc_reset_all_buffer);
+
+void sec_abc_reset_all_spec(void)
+{
+	struct spec_data_type1 *spec_type1;
+
+	list_for_each_entry(spec_type1, &abc_spec_list, node) {
+		spec_type1->threshold_cnt = spec_type1->default_count;
+		spec_type1->buffer.size = spec_type1->threshold_cnt + 1;
+		abc_event_list[spec_type1->common_spec.idx].enabled = spec_type1->default_enabled;
+		sec_abc_reset_buffer_type1(spec_type1);
+	}
+}
+EXPORT_SYMBOL_KUNIT(sec_abc_reset_all_spec);
 
 int sec_abc_read_spec(char *buf)
 {
-	struct abc_info *pinfo = dev_get_drvdata(sec_abc);
 	struct spec_data_type1 *spec_type1;
-	int len = 0, i, spec_cnt;
+	int len = 0, idx;
 
 	len += scnprintf(buf + len, PAGE_SIZE - len, "spec type1\n");
 
-	list_for_each_entry(spec_type1, &pinfo->pdata->abc_spec_list, node) {
+	list_for_each_entry(spec_type1, &abc_spec_list, node) {
 
 		len += scnprintf(buf + len, PAGE_SIZE - len, "MODULE=%s ",
 						 spec_type1->common_spec.module_name);
 		len += scnprintf(buf + len, PAGE_SIZE - len, "WARN=%s ",
 						 spec_type1->common_spec.error_name);
-		len += scnprintf(buf + len, PAGE_SIZE - len, "CURRENT_SPEC=%d ",
-						 spec_type1->common_spec.current_spec);
-
-		spec_cnt = spec_type1->common_spec.spec_cnt;
-		for (i = 0; i < spec_cnt; i++) {
-			len += scnprintf(buf + len, PAGE_SIZE - len, "(SPEC%d ", i);
-			len += scnprintf(buf + len, PAGE_SIZE - len, "THRESHOLD_TIME=%d ",
-			spec_type1->th_time[i] == SPEC_DISABLED ? 0 : spec_type1->th_time[i]);
-			len += scnprintf(buf + len, PAGE_SIZE - len, "THRESHOLD_CNT=%d)",
-			spec_type1->th_cnt[i] == SPEC_DISABLED ? 0 : spec_type1->th_cnt[i]);
-		}
+		len += scnprintf(buf + len, PAGE_SIZE - len, "THRESHOLD_CNT=%d ",
+						 spec_type1->threshold_cnt);
+		len += scnprintf(buf + len, PAGE_SIZE - len, "THRESHOLD_TIME=%d ",
+						 spec_type1->threshold_time);
+		idx = spec_type1->common_spec.idx;
+		len += scnprintf(buf + len, PAGE_SIZE - len, "ENABLE=%s",
+						 ((abc_event_list[idx].enabled) ? "ON" : "OFF"));
 		len += scnprintf(buf + len, PAGE_SIZE - len, "\n");
 	}
 
-	ABC_PRINT("%s : %d", __func__, len);
+	for (idx = 0; idx < ARRAY_SIZE(abc_event_group_list); idx++) {
+		len += scnprintf(buf + len, PAGE_SIZE - len, "MODULE=%s ",
+						 abc_event_group_list[idx].module);
+		len += scnprintf(buf + len, PAGE_SIZE - len, "WARN=%s ",
+						 abc_event_group_list[idx].name);
+		len += scnprintf(buf + len, PAGE_SIZE - len, "THRESHOLD_CNT=group ");
+		len += scnprintf(buf + len, PAGE_SIZE - len, "THRESHOLD_TIME=group ");
+		len += scnprintf(buf + len, PAGE_SIZE - len, "ENABLE=group");
+		len += scnprintf(buf + len, PAGE_SIZE - len, "\n");
+	}
+
+	ABC_PRINT("%d", len);
 	return len;
 }
+
+void sec_abc_free_spec_buffer(void)
+{
+	struct spec_data_type1 *spec_buf;
+
+	list_for_each_entry(spec_buf, &abc_spec_list, node) {
+		kfree(spec_buf->buffer.abc_element);
+		spec_buf->buffer.abc_element = NULL;
+		spec_buf->buffer.buffer_max = 0;
+	}
+}
+EXPORT_SYMBOL_KUNIT(sec_abc_free_spec_buffer);
 
 MODULE_DESCRIPTION("Samsung ABC Driver's spec manager");
 MODULE_AUTHOR("Samsung Electronics");

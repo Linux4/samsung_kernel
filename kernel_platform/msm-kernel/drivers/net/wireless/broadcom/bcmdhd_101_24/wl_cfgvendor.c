@@ -1,7 +1,7 @@
 /*
  * Linux cfg80211 Vendor Extension Code
  *
- * Copyright (C) 2021, Broadcom.
+ * Copyright (C) 2022, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -13262,8 +13262,8 @@ wl_cfgvendor_custom_advlog_scan_cmpl(void *plog, uint32 armcycle)
 			"rssi=%d cu=%d score=%d.%02d tp=%dkbps\n",
 			i, MAC2STRDBG_FULL((uint8 *)&log->scan_list[i].addr), freq,
 			log->scan_list[i].rssi,
-			log->cur_info.cu_avail ?
-			(log->cur_info.cu * 100 / WL_MAX_CHANNEL_USAGE) : WL_CU_NOT_AVAIL,
+			log->scan_list[i].cu_avail ?
+			(log->scan_list[i].cu * 100 / WL_MAX_CHANNEL_USAGE) : WL_CU_NOT_AVAIL,
 			log->scan_list[i].score / 100, log->scan_list[i].score % 100,
 			log->scan_list[i].estm_tput != ROAM_LOG_INVALID_TPUT?
 			log->scan_list[i].estm_tput:0));

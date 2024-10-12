@@ -467,7 +467,7 @@ std::shared_ptr<Device> StreamSensorPCMData::GetPalDevice(pal_device_id_t dev_id
 {
     std::shared_ptr<CaptureProfile> cap_prof = nullptr;
     std::shared_ptr<Device> device = nullptr;
-    struct pal_device dev;
+    struct pal_device dev = {};
 
     PAL_DBG(LOG_TAG, "Enter");
     if (use_rm_profile) {

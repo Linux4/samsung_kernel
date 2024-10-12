@@ -20,4 +20,4 @@ config ARGOS_VOTING_DDR
 	bool "argos voting ddr clock"
 	help
 	  This option enable ddr voting part in sec_argos module.
-	
+

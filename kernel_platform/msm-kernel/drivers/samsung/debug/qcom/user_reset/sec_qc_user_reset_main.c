@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0
 /*
- * COPYRIGHT(C) 2006-2021 Samsung Electronics Co., Ltd. All Right Reserved.
+ * COPYRIGHT(C) 2006-2022 Samsung Electronics Co., Ltd. All Right Reserved.
  */
 
 #define pr_fmt(fmt)     KBUILD_MODNAME ":%s() " fmt, __func__
@@ -83,7 +83,7 @@ static void __user_reset_remove_prolog(struct builder *bd)
 	qc_user_reset = NULL;
 }
 
-static struct dev_builder __user_reset_dev_builder[] = {
+static const struct dev_builder __user_reset_dev_builder[] = {
 	DEVICE_BUILDER(__user_reset_test_dbg_partition, NULL),
 	/* TODO: deferrable concrete builders should be before here. */
 	DEVICE_BUILDER(__qc_ap_health_init, __qc_ap_health_exit),
@@ -106,7 +106,7 @@ static struct dev_builder __user_reset_dev_builder[] = {
 };
 
 static int __user_reset_probe(struct platform_device *pdev,
-		struct dev_builder *builder, ssize_t n)
+		const struct dev_builder *builder, ssize_t n)
 {
 	struct device *dev = &pdev->dev;
 	struct qc_user_reset_drvdata *drvdata;
@@ -121,7 +121,7 @@ static int __user_reset_probe(struct platform_device *pdev,
 }
 
 static int __user_reset_remove(struct platform_device *pdev,
-		struct dev_builder *builder, ssize_t n)
+		const struct dev_builder *builder, ssize_t n)
 {
 	struct qc_user_reset_drvdata *drvdata = platform_get_drvdata(pdev);
 

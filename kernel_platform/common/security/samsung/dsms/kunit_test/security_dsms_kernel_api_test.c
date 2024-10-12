@@ -44,9 +44,9 @@ static noinline int security_dsms_test_send_message(const char *feature_code,
  * message was created and processed successfully.
  * Expected: Function should return 0.
  */
-static void security_dsms_send_message_success_test(struct test *test)
+static void security_dsms_send_message_success_test(struct kunit *test)
 {
-	EXPECT_EQ(test, 0, security_dsms_test_send_message("KATS", "kunit test", 0));
+	KUNIT_EXPECT_EQ(test, 0, security_dsms_test_send_message("KATS", "kunit test", 0));
 }
 
 /*
@@ -55,9 +55,9 @@ static void security_dsms_send_message_success_test(struct test *test)
  * allowlist verification.
  * Expected: Function should return 0.
  */
-static void security_dsms_send_message_allowlist_block_test(struct test *test)
+static void security_dsms_send_message_allowlist_block_test(struct kunit *test)
 {
-	EXPECT_EQ(test, DSMS_DENY, dsms_send_message("KATB", "kunit test", 0));
+	KUNIT_EXPECT_EQ(test, DSMS_DENY, dsms_send_message("KATB", "kunit test", 0));
 }
 
 /*
@@ -66,9 +66,9 @@ static void security_dsms_send_message_allowlist_block_test(struct test *test)
  * Expected: Function should return -EINVAL for invalid value error.
  */
 static void security_dsms_send_message_null_feature_code_test(
-				struct test *test)
+				struct kunit *test)
 {
-	EXPECT_EQ(test, -EINVAL, security_dsms_test_send_message(NULL, "kunit test", 0));
+	KUNIT_EXPECT_EQ(test, -EINVAL, security_dsms_test_send_message(NULL, "kunit test", 0));
 }
 
 /*
@@ -77,13 +77,13 @@ static void security_dsms_send_message_null_feature_code_test(
  * message counter to max value per round.
  * Expected: Function should return DSMS_DENY.
  */
-static void security_dsms_send_message_rate_limit_deny_test(struct test *test)
+static void security_dsms_send_message_rate_limit_deny_test(struct kunit *test)
 {
 	int old_count;
 
 	old_count = dsms_message_count;
 	dsms_message_count = dsms_get_max_messages_per_round();
-	EXPECT_EQ(test, DSMS_DENY, security_dsms_test_send_message("KATR", "kunit test", 0));
+	KUNIT_EXPECT_EQ(test, DSMS_DENY, security_dsms_test_send_message("KATR", "kunit test", 0));
 	dsms_message_count = old_count;
 }
 
@@ -98,16 +98,16 @@ static void security_dsms_send_message_rate_limit_deny_test(struct test *test)
 /* Module definition                                                         */
 /* ------------------------------------------------------------------------- */
 
-static struct test_case security_dsms_kernel_api_test_cases[] = {
-	TEST_CASE(security_dsms_send_message_success_test),
-	TEST_CASE(security_dsms_send_message_allowlist_block_test),
-	TEST_CASE(security_dsms_send_message_null_feature_code_test),
-	TEST_CASE(security_dsms_send_message_rate_limit_deny_test),
+static struct kunit_case security_dsms_kernel_api_test_cases[] = {
+	KUNIT_CASE(security_dsms_send_message_success_test),
+	KUNIT_CASE(security_dsms_send_message_allowlist_block_test),
+	KUNIT_CASE(security_dsms_send_message_null_feature_code_test),
+	KUNIT_CASE(security_dsms_send_message_rate_limit_deny_test),
 	{},
 };
 
-static struct test_module security_dsms_kernel_api_module = {
+static struct kunit_suite security_dsms_kernel_api_module = {
 	.name = "security-dsms-kernel-api",
 	.test_cases = security_dsms_kernel_api_test_cases,
 };
-module_test(security_dsms_kernel_api_module);
+kunit_test_suites(&security_dsms_kernel_api_module);

@@ -59,27 +59,11 @@ typedef enum PerfLevelTag{
 // ###############################################################################
 #pragma pack(push, 1)
 
-typedef union{
-
-	struct {
-		uint16 param1;
-		char logbuffer[PERFLOG_BUFF_STR_MAX_SIZE_FOR_EVTI + 1];
-	} EvtPacket;
-
-	struct {
-		uint16 param1;
-		uint16 param2;
-		char logbuffer[PERFLOG_BUFF_STR_MAX_SIZE_FOR_EVTII + 1];
-	} EvtIIPacket;
-
-	struct {
-		int param1;
-		int param2;
-		char logbuffer[PERFLOG_BUFF_STR_MAX_SIZE_FOR_EVTIII + 1];
-	} EvtIntIntPacket;
-
+struct Payload {
+	int param1;
+	int param2;
 	char logbuffer[PERFLOG_BUFF_STR_MAX_SIZE + 1];
-} Payload;  
+};  
 
 struct LogPacket {
 #if defined(KPERFMON_KERNEL)
@@ -91,7 +75,7 @@ struct LogPacket {
         uint16 logid;
         uint16 pid;
         uint16 tid;
-	Payload payload;
+	struct Payload payload;
 };
 
 struct _Timestamp {
@@ -124,7 +108,10 @@ union _uPLogPacket {
 #pragma pack(pop) 
 
 // Start API
+int perflog_sending_log_via_socket(uint16 type, uint16 logid, int param1, int param2, char const *str);
+
 int perflog_write(char const * fmt, ...);
+
 int perflog_write_log(uint16 type, uint16 logid, char const * fmt, ...);
 
 int perflog_write_evt(uint16 maintype, uint16 logid, uint16 param1, char const * fmt, ...);

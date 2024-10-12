@@ -162,8 +162,8 @@ void make_mass_self_display_img_cmds_FAC(struct samsung_display_driver_data *vdd
 		return;
 	}
 
-	payload_len = data_size + (data_size + MASS_CMD_ALIGN - 1)/MASS_CMD_ALIGN;
-	cmd_cnt = (payload_len + MAX_PAYLOAD_SIZE_MASS - 1) / MAX_PAYLOAD_SIZE_MASS;
+	payload_len = data_size + (data_size + MASS_CMD_ALIGN - 2) / (MASS_CMD_ALIGN - 1);
+	cmd_cnt = (payload_len + payload_len - 1) / payload_len;
 
 	LCD_INFO(vdd, "[%s] total data size [%d], total cmd len[%d], cmd count [%d]\n",
 			ss_get_cmd_name(cmd), data_size, payload_len, cmd_cnt);
@@ -196,7 +196,7 @@ void make_mass_self_display_img_cmds_FAC(struct samsung_display_driver_data *vdd
 		/* Memory Alloc for each cmds */
 		if (tcmds[c_cnt].ss_txbuf == NULL) {
 			/* HEADER TYPE 0x4C or 0x5C */
-			tcmds[c_cnt].ss_txbuf = vzalloc(MAX_PAYLOAD_SIZE_MASS);
+			tcmds[c_cnt].ss_txbuf = vzalloc(payload_len);
 			if (tcmds[c_cnt].ss_txbuf == NULL) {
 				LCD_ERR(vdd, "fail to vzalloc for self_mask cmds ss_txbuf \n");
 				return;
@@ -204,7 +204,7 @@ void make_mass_self_display_img_cmds_FAC(struct samsung_display_driver_data *vdd
 		}
 
 		/* Copy from Data Buffer to each cmd Buffer */
-		for (p_len = 0; p_len < MAX_PAYLOAD_SIZE_MASS && data_idx < data_size ; p_len++) {
+		for (p_len = 0; p_len < payload_len && data_idx < data_size ; p_len++) {
 			if (p_len % MASS_CMD_ALIGN)
 				tcmds[c_cnt].ss_txbuf[p_len] = data[data_idx++];
 			else

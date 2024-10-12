@@ -11,7 +11,6 @@ else
 ifeq ($(CONFIG_SEC_KUNIT), y)
 obj-$(CONFIG_INPUT_SEC_INPUT) += sec_common.o
 sec_common-$(CONFIG_INPUT_SEC_INPUT) += sec_common_fn.o sec_cmd.o
-sec_common-$(CONFIG_INPUT_SEC_INPUT) += kunit_test/sec_common_fn_test.o kunit_test/sec_cmd_test.o
 else
 obj-$(CONFIG_INPUT_SEC_INPUT) += sec_common_fn.o sec_cmd.o
 endif

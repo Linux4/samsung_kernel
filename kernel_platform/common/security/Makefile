@@ -13,6 +13,7 @@ subdir-$(CONFIG_SECURITY_LOADPIN)	+= loadpin
 subdir-$(CONFIG_SECURITY_SAFESETID)    += safesetid
 subdir-$(CONFIG_SECURITY_LOCKDOWN_LSM)	+= lockdown
 subdir-$(CONFIG_SECURITY_DEFEX)		+= samsung/defex_lsm
+subdir-$(CONFIG_SECURITY_DSMS)		+= samsung/dsms
 subdir-$(CONFIG_BPF_LSM)		+= bpf
 
 # always enable default capabilities
@@ -32,6 +33,7 @@ obj-$(CONFIG_SECURITY_LOADPIN)		+= loadpin/
 obj-$(CONFIG_SECURITY_SAFESETID)       += safesetid/
 obj-$(CONFIG_SECURITY_LOCKDOWN_LSM)	+= lockdown/
 obj-$(CONFIG_SECURITY_DEFEX)		+= samsung/defex_lsm/built-in.a
+obj-$(CONFIG_SECURITY_DSMS)		+= samsung/dsms/
 obj-$(CONFIG_CGROUPS)			+= device_cgroup.o
 obj-$(CONFIG_BPF_LSM)			+= bpf/
 
@@ -52,3 +54,7 @@ subdir-$(CONFIG_PROCA)			+= samsung/proca
 obj-$(CONFIG_PROCA)			+= samsung/proca/
 subdir-$(CONFIG_GAF)			+= samsung/proca/gaf
 obj-$(CONFIG_GAF)			+= samsung/proca/gaf/
+
+# MZ
+subdir-$(CONFIG_MEMORY_ZEROISATION)			+= samsung/mz
+obj-$(CONFIG_MEMORY_ZEROISATION)			+= samsung/mz/

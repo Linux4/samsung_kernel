@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2017-2021 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -114,6 +115,15 @@ typedef uint32_t wlan_scan_id;
 #define ELEM_ID_EXTN_POS 2
 #define ELEM_ID_LIST_LEN_POS 3
 #define ELEM_ID_LIST_POS 4
+
+/* Active dwell time in low span scan mode(NL80211_SCAN_FLAG_LOW_SPAN)
+ * in msec
+ */
+#define LOW_SPAN_ACTIVE_DWELL_TIME 40
+/* passive dwell time in low span scan mode (NL80211_SCAN_FLAG_LOW_SPAN)
+ * in msec
+ */
+#define LOW_SPAN_PASSIVE_DWELL_TIME 110
 
 /* forward declaration */
 struct wlan_objmgr_vdev;
@@ -1111,7 +1121,8 @@ struct scan_req_params {
 		struct {
 			uint32_t scan_policy_high_accuracy:1,
 				 scan_policy_low_span:1,
-				 scan_policy_low_power:1;
+				 scan_policy_low_power:1,
+				 scan_policy_colocated_6ghz:1;
 		};
 		uint32_t scan_policy_type;
 	};
@@ -1372,18 +1383,16 @@ enum ssid_bc_type {
  * @ssid: ssid
  * @authentication: authentication type
  * @encryption: encryption type
- * @bcastNetwType: broadcast nw type
- * @ucChannelCount: uc channel count
- * @aChannels: pno channel
- * @rssiThreshold: rssi threshold
+ * @bc_new_type: broadcast nw type
+ * @pno_chan_list: pno channel list info
+ * @rssi_thresh: rssi threshold
  */
 struct pno_nw_type {
 	struct wlan_ssid ssid;
 	uint32_t authentication;
 	uint32_t encryption;
 	uint32_t bc_new_type;
-	uint8_t channel_cnt;
-	uint32_t channels[SCAN_PNO_MAX_NETW_CHANNELS_EX];
+	struct chan_list pno_chan_list;
 	int32_t rssi_thresh;
 };
 
@@ -1417,6 +1426,7 @@ struct nlo_mawc_params {
 
 /**
  * struct pno_scan_req_params - PNO Scan request structure
+ * @vdev: vdev object
  * @networks_cnt: Number of networks
  * @do_passive_scan: Flag to request passive scan to fw
  * @vdev_id: vdev id
@@ -1447,8 +1457,10 @@ struct nlo_mawc_params {
  *	  slow_scan_period=1800, scan_backoff_multiplier=2 }
  *	Result: 120s x2, 240s x2, 480s x2, 960s x2, 1800s xN
  * @mawc_params: Configuration parameters for NLO MAWC.
+ * @scan_policy_colocated_6ghz: colocated_6ghz flag is set in pno scan req
  */
 struct pno_scan_req_params {
+	struct wlan_objmgr_vdev *vdev;
 	uint32_t networks_cnt;
 	bool     do_passive_scan;
 	uint32_t vdev_id;
@@ -1471,6 +1483,7 @@ struct pno_scan_req_params {
 	int8_t relative_rssi;
 	struct cpno_band_rssi_pref band_rssi_pref;
 	struct nlo_mawc_params mawc_params;
+	bool scan_policy_colocated_6ghz;
 };
 
 /**

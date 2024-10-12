@@ -33,7 +33,7 @@ static ssize_t __extrt_info_report_tz_diag_info(const struct tzdbg_t *tz_diag_in
 		char *buf, const ssize_t sz_buf, ssize_t info_size)
 {
 	size_t i;
-	struct tzdbg_log_v9_2_t *log_v9_2 = NULL; 
+	struct tzdbg_log_v9_2_t *log_v9_2 = NULL;
 
 	if (tz_diag_info->version > TZBSP_DIAG_VERSION_V9_2) {
 		struct tzbsp_encr_info_t *encr_info = (struct tzbsp_encr_info_t *)((void *)tz_diag_info
@@ -85,7 +85,7 @@ static ssize_t __extrt_info_report_tz_diag_info(const struct tzdbg_t *tz_diag_in
 		if (tz_diag_info->version == TZBSP_DIAG_VERSION_V9_2) {
 			log_v9_2 = (struct tzdbg_log_v9_2_t *)((void *)tz_diag_info
 				+ tz_diag_info->ring_off - sizeof(struct tzdbg_log_pos_v9_2_t));
-	
+
 			__qc_hw_param_scnprintf(buf, sz_buf, info_size, "%08X%08X",
 				log_v9_2->log_pos.wrap, log_v9_2->log_pos.offset);
 
@@ -161,7 +161,7 @@ err_size_over:
 err_invalid_maic:
 err_failed_to_read:
 	kfree(tz_diag_info);
-err_enomem:	
+err_enomem:
 	__qc_hw_param_clean_format(buf, &info_size, sz_buf);
 err_get_size:
 err_invalid_reset_reason:

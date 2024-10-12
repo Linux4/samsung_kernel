@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: GPL-2.0
 /*
- * COPYRIGHT(C) 2011-2021 Samsung Electronics Co., Ltd. All Right Reserved.
+ * COPYRIGHT(C) 2011-2022 Samsung Electronics Co., Ltd. All Right Reserved.
  */
 
 #define pr_fmt(fmt)     KBUILD_MODNAME ":%s() " fmt, __func__
 
 #include <linux/blkdev.h>
 #include <linux/debugfs.h>
+#include <linux/fs.h>
 #include <linux/kernel.h>
 #include <linux/module.h>
 #include <linux/mount.h>
@@ -59,7 +60,7 @@ static __always_inline bool __qc_param_is_probed(void)
 
 struct qc_param_info;
 
-typedef bool (*qc_param_verify_input_t)(struct qc_param_info *info,
+typedef bool (*qc_param_verify_input_t)(const struct qc_param_info *info,
 		const void *value);
 
 struct qc_param_info {
@@ -69,7 +70,7 @@ struct qc_param_info {
 	qc_param_verify_input_t verify_input;
 };
 
-static bool __qc_param_verify_debuglevel(struct qc_param_info *info,
+static bool __qc_param_verify_debuglevel(const struct qc_param_info *info,
 		const void *value)
 {
 	const unsigned int debuglevel = *(const unsigned int *)value;
@@ -89,7 +90,7 @@ static bool __qc_param_verify_debuglevel(struct qc_param_info *info,
 	return ret;
 }
 
-static bool __qc_param_verify_sapa(struct qc_param_info *info,
+static bool __qc_param_verify_sapa(const struct qc_param_info *info,
 		const void *value)
 {
 	const unsigned int sapa = *(const unsigned int *)value;
@@ -100,7 +101,7 @@ static bool __qc_param_verify_sapa(struct qc_param_info *info,
 	return false;
 }
 
-static bool __qc_param_verify_afc_disable(struct qc_param_info *info,
+static bool __qc_param_verify_afc_disable(const struct qc_param_info *info,
 		const void *value)
 {
 	const char mode = *(const char *)value;
@@ -111,7 +112,7 @@ static bool __qc_param_verify_afc_disable(struct qc_param_info *info,
 	return false;
 }
 
-static bool __qc_param_verify_pd_disable(struct qc_param_info *info,
+static bool __qc_param_verify_pd_disable(const struct qc_param_info *info,
 		const void *value)
 {
 	const char mode = *(const char *)value;
@@ -122,7 +123,7 @@ static bool __qc_param_verify_pd_disable(struct qc_param_info *info,
 	return false;
 }
 
-static bool __qc_param_verify_cp_reserved_mem(struct qc_param_info *info,
+static bool __qc_param_verify_cp_reserved_mem(const struct qc_param_info *info,
 		const void *value)
 {
 	const unsigned int cp_reserved_mem = *(const unsigned int *)value;
@@ -142,7 +143,7 @@ static bool __qc_param_verify_cp_reserved_mem(struct qc_param_info *info,
 	return ret;
 }
 
-static bool __qc_param_verify_FMM_lock(struct qc_param_info *info,
+static bool __qc_param_verify_FMM_lock(const struct qc_param_info *info,
 		const void *value)
 {
 	const unsigned int fmm_lock_magic = *(const unsigned int *)value;
@@ -153,7 +154,7 @@ static bool __qc_param_verify_FMM_lock(struct qc_param_info *info,
 	return false;
 }
 
-static bool __qc_param_verify_fiemap_update(struct qc_param_info *info,
+static bool __qc_param_verify_fiemap_update(const struct qc_param_info *info,
 		const void *value)
 {
 	const unsigned int edtbo_fiemap_magic = *(const unsigned int *)value;
@@ -164,7 +165,7 @@ static bool __qc_param_verify_fiemap_update(struct qc_param_info *info,
 	return false;
 }
 
-static struct qc_param_info qc_param_info[] = {
+static const struct qc_param_info qc_param_info[] = {
 	QC_PARAM_INFO(param_index_debuglevel, debuglevel, __qc_param_verify_debuglevel),
 	QC_PARAM_INFO(param_index_uartsel, uartsel, NULL),
 	QC_PARAM_INFO(param_index_product_device, product_device, NULL),
@@ -191,7 +192,7 @@ static struct qc_param_info qc_param_info[] = {
 	QC_PARAM_INFO(param_index_pd_hv_disable, pd_disable, __qc_param_verify_pd_disable),
 };
 
-/* NOTE: see fs/pstore/plk.c */
+/* NOTE: see fs/pstore/blk.c */
 static ssize_t __qc_param_blk_read(struct qc_param_drvdata *drvdata,
 		char *buf, size_t bytes, loff_t pos)
 {
@@ -226,7 +227,7 @@ static inline bool __qc_param_is_param_data(loff_t pos)
 ssize_t sec_qc_param_read_raw(void *buf, size_t len, loff_t pos)
 {
 	if (!__qc_param_is_probed())
-		return -ENODEV;
+		return -EBUSY;
 
 	if (__qc_param_is_param_data(pos))
 		return -ENXIO;
@@ -253,7 +254,7 @@ static bool __qc_param_read(struct qc_param_drvdata *drvdata,
 		size_t index, void *value)
 {
 	struct device *dev = drvdata->bd.dev;
-	struct qc_param_info *info;
+	const struct qc_param_info *info;
 	loff_t offset;
 	ssize_t read;
 
@@ -287,7 +288,7 @@ static bool sec_qc_param_read(size_t index, void *value)
 	return __qc_param_read(qc_param, index, value);
 }
 
-/* NOTE: see fs/pstore/plk.c */
+/* NOTE: see fs/pstore/blk.c */
 static ssize_t __qc_param_blk_write(struct qc_param_drvdata *drvdata,
 		const void *buf, size_t bytes, loff_t pos )
 {
@@ -330,7 +331,7 @@ static ssize_t __qc_param_blk_write(struct qc_param_drvdata *drvdata,
 ssize_t sec_qc_param_write_raw(const void *buf, size_t len, loff_t pos)
 {
 	if (!__qc_param_is_probed())
-		return -ENODEV;
+		return -EBUSY;
 
 	if (__qc_param_is_param_data(pos))
 		return -ENXIO;
@@ -345,7 +346,7 @@ static bool __qc_param_write(struct qc_param_drvdata *drvdata,
 	struct device *dev = drvdata->bd.dev;
 	loff_t offset;
 	ssize_t written;
-	struct qc_param_info *info;
+	const struct qc_param_info *info;
 
 	info = &qc_param_info[index];
 	offset = info->offset + drvdata->offset;
@@ -413,7 +414,7 @@ static int __qc_param_parse_dt_negative_offset(struct builder *bd,
 	return 0;
 }
 
-static struct dt_builder __qc_param_dt_builder[] = {
+static const struct dt_builder __qc_param_dt_builder[] = {
 	DT_BUILDER(__qc_param_parse_dt_bdev_path),
 	DT_BUILDER(__qc_param_parse_dt_negative_offset),
 };
@@ -517,11 +518,16 @@ static int __qc_param_register_operations(struct builder *bd)
 	struct qc_param_drvdata *drvdata =
 			container_of(bd, struct qc_param_drvdata, bd);
 	struct sec_param_operations *ops = &drvdata->ops;
+	int err;
 
 	ops->read = sec_qc_param_read;
 	ops->write = sec_qc_param_write;
 
-	return sec_param_register_operations(ops);
+	err = sec_param_register_operations(ops);
+	if (err == -EBUSY)
+		return -EPROBE_DEFER;
+
+	return err;
 }
 
 static void __qc_param_unregister_operations(struct builder *bd)
@@ -687,7 +693,7 @@ static void __qc_param_remove_prolog(struct builder *bd)
 }
 
 static int __qc_param_probe(struct platform_device *pdev,
-		struct dev_builder *builder, ssize_t n)
+		const struct dev_builder *builder, ssize_t n)
 {
 	struct device *dev = &pdev->dev;
 	struct qc_param_drvdata *drvdata;
@@ -702,7 +708,7 @@ static int __qc_param_probe(struct platform_device *pdev,
 }
 
 static int __qc_param_remove(struct platform_device *pdev,
-		struct dev_builder *builder, ssize_t n)
+		const struct dev_builder *builder, ssize_t n)
 {
 	struct qc_param_drvdata *drvdata = platform_get_drvdata(pdev);
 
@@ -712,9 +718,25 @@ static int __qc_param_remove(struct platform_device *pdev,
 }
 
 #if IS_ENABLED(CONFIG_DEBUG_FS)
+static void __qc_param_dbgfs_show_bdev(struct seq_file *m)
+{
+	struct qc_param_drvdata *drvdata = m->private;
+	struct block_device *bdev = drvdata->bdev;
+	struct hd_struct *bd_part = bdev->bd_part;
+	char buf[BDEVNAME_SIZE];
+
+	bdevname(bdev, buf);
+
+	seq_puts(m, "* Block Device :\n");
+	seq_printf(m, "  - bdevname : %s\n", buf);
+	seq_printf(m, "  - uuid     : %s\n", bd_part->info->uuid);
+	seq_printf(m, "  - volname  : %s\n", bd_part->info->volname);
+	seq_puts(m, "\n");
+}
+
 static void __qc_param_dbgfs_show_each(struct seq_file *m, size_t index)
 {
-	struct qc_param_info *info = &qc_param_info[index];
+	const struct qc_param_info *info = &qc_param_info[index];
 	uint8_t *buf;
 
 	if (!info->size)
@@ -742,6 +764,8 @@ static int sec_qc_param_dbgfs_show_all(struct seq_file *m, void *unsed)
 {
 	size_t i;
 
+	__qc_param_dbgfs_show_bdev(m);
+
 	for (i = 0; i < ARRAY_SIZE(qc_param_info); i++)
 		__qc_param_dbgfs_show_each(m, i);
 
@@ -767,7 +791,7 @@ static int __qc_param_debugfs_create(struct builder *bd)
 			container_of(bd, struct qc_param_drvdata, bd);
 
 	drvdata->dbgfs = debugfs_create_file("sec_qc_param", 0440,
-			NULL, NULL, &sec_qc_param_dgbfs_fops);
+			NULL, drvdata, &sec_qc_param_dgbfs_fops);
 
 	return 0;
 }
@@ -784,7 +808,7 @@ static int __qc_param_debugfs_create(struct builder *bd) { return 0; }
 static void __qc_param_debugfs_remove(struct builder *bd) {}
 #endif
 
-static struct dev_builder __qc_param_dev_builder[] = {
+static const struct dev_builder __qc_param_dev_builder[] = {
 	DEVICE_BUILDER(__qc_param_parse_dt, NULL),
 	DEVICE_BUILDER(__qc_param_sec_class_create,
 		       __qc_param_sec_class_remove),

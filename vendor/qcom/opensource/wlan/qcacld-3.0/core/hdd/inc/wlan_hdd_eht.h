@@ -30,7 +30,7 @@ struct wma_tgt_cfg;
 struct hdd_beacon_data;
 struct sap_config;
 
-#ifdef WLAN_FEATURE_11BE
+#if defined(WLAN_FEATURE_11BE) && defined(CFG80211_11BE_BASIC)
 /**
  * hdd_update_tgt_eht_cap() - Update EHT related capabilities
  * @hdd_ctx: HDD context
@@ -142,6 +142,11 @@ static inline void hdd_sysfs_11be_rate_create(struct hdd_adapter *adapter)
 }
 
 static inline void hdd_sysfs_11be_rate_destroy(struct hdd_adapter *adapter)
+{
+}
+
+static inline void wlan_hdd_get_mlo_link_id(struct hdd_beacon_data *beacon,
+					    uint8_t *link_id, uint8_t *num_link)
 {
 }
 #endif

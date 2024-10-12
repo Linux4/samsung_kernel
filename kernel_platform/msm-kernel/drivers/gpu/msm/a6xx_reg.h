@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
- * Copyright (c) 2017-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _A6XX_REG_H
@@ -113,6 +114,8 @@
 #define A6XX_CP_IB2_REM_SIZE             0x92D
 #define A6XX_CP_ALWAYS_ON_COUNTER_LO     0x980
 #define A6XX_CP_ALWAYS_ON_COUNTER_HI     0x981
+#define A6XX_CP_ALWAYS_ON_CONTEXT_LO     0x982
+#define A6XX_CP_ALWAYS_ON_CONTEXT_HI     0x983
 #define A6XX_CP_AHB_CNTL                 0x98D
 #define A6XX_CP_APERTURE_CNTL_HOST       0xA00
 #define A6XX_CP_APERTURE_CNTL_CD         0xA03
@@ -406,6 +409,8 @@
 #define A6XX_RBBM_PERFCTR_RBBM_SEL_2             0x509
 #define A6XX_RBBM_PERFCTR_RBBM_SEL_3             0x50A
 #define A6XX_RBBM_PERFCTR_GPU_BUSY_MASKED        0x50B
+#define A6XX_RBBM_PERFCTR_SRAM_INIT_CMD          0x50e
+#define A6XX_RBBM_PERFCTR_SRAM_INIT_STATUS       0x50f
 
 #define A6XX_RBBM_ISDB_CNT                       0x533
 #define A6XX_RBBM_NC_MODE_CNTL                   0X534
@@ -837,6 +842,7 @@
 #define GBIF_AXI1_WRITE_DATA_TOTAL_BEATS   47
 
 /* GBIF registers */
+#define A6XX_GBIF_CX_CONFIG               0x3c00
 #define A6XX_GBIF_SCACHE_CNTL0            0x3c01
 #define A6XX_GBIF_SCACHE_CNTL1            0x3c02
 #define A6XX_GBIF_QSB_SIDE0               0x3c03
@@ -1106,6 +1112,11 @@
 #define A6XX_GPU_CC_GX_DOMAIN_MISC3            0x24563
 #define A6XX_GPU_CC_CX_GDSCR                   0x2441B
 
+/* GPUCC offsets are different for A662 */
+#define A662_GPU_CC_GX_GDSCR                   0x26417
+#define A662_GPU_CC_GX_DOMAIN_MISC3            0x26541
+#define A662_GPU_CC_CX_GDSCR                   0x26442
+
 /* GPU CPR registers */
 #define A6XX_GPU_CPR_FSM_CTL			0x26801
 
@@ -1128,6 +1139,12 @@
 #define A6XX_RSCC_TCS1_DRV0_STATUS                      0x003EE
 #define A6XX_RSCC_TCS2_DRV0_STATUS                      0x00496
 #define A6XX_RSCC_TCS3_DRV0_STATUS                      0x0053E
+#define A6XX_RSCC_TCS4_DRV0_STATUS                      0x005E6
+#define A6XX_RSCC_TCS5_DRV0_STATUS                      0x0068E
+#define A6XX_RSCC_TCS6_DRV0_STATUS                      0x00736
+#define A6XX_RSCC_TCS7_DRV0_STATUS                      0x007DE
+#define A6XX_RSCC_TCS8_DRV0_STATUS                      0x00886
+#define A6XX_RSCC_TCS9_DRV0_STATUS                      0x0092E
 
 /* GPU PDC sequencer registers in AOSS.RPMh domain */
 #define PDC_GPU_ENABLE_PDC			0x1140
@@ -1192,6 +1209,10 @@
 #define A6XX_GPUHTW_LLC_SCID_SHIFT		25
 #define A6XX_GPUHTW_LLC_SCID_MASK \
 	(((1 << A6XX_GPU_LLC_SCID_NUM_BITS) - 1) << A6XX_GPUHTW_LLC_SCID_SHIFT)
+
+#define A6XX_GPUMV_LLC_SCID_SHIFT		15
+#define A6XX_GPUMV_LLC_SCID_MASK \
+		(((1 << A6XX_GPU_LLC_SCID_NUM_BITS) - 1) << A6XX_GPUMV_LLC_SCID_SHIFT)
 
 #endif /* _A6XX_REG_H */
 

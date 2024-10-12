@@ -827,6 +827,17 @@
 #define CS40L26_TUNING_FILES_MAX	4
 #endif
 
+#ifdef CONFIG_CS40L26_SAMSUNG_FEATURE
+#define CS40L26_WT_FILE_F0_NAME			"cs40l26-f0.bin"
+#define CS40L26_WT_FILE_F0_NAME_LEN		15
+#define CS40L26_WT_FILE_F0_PREFIX		"cs40l26-f0-wt"
+#define CS40L26_WT_FILE_F0_PREFIX_LEN		14
+#define CS40L26_WT_FILE_F0_CONCAT_NAME_LEN	19
+#define CS40L26_SVC_TUNING_FILE_F0_PREFIX	"cs40l26-f0-svc"
+#define CS40L26_SVC_TUNING_FILE_F0_PREFIX_LEN	15
+#define CS40L26_SVC_TUNING_FILE_F0_NAME		"cs40l26-f0-svc.bin"
+#define CS40L26_SVC_TUNING_FILE_F0_NAME_LEN	19
+#endif
 #define CS40L26_WT_FILE_NAME			"cs40l26.bin"
 #define CS40L26_WT_FILE_NAME_LEN		12
 #define CS40L26_WT_FILE_PREFIX			"cs40l26-wt"
@@ -1215,6 +1226,9 @@
 /* defined by Samsung */
 #define CS40L26_SAMSUNG_DEFAULT_HIGH_TEMP INT_MAX
 #define CS40L26_SAMSUNG_DEFAULT_HIGH_TEMP_PERCENT 100
+#define CS40L26_SAMSUNG_F0_MIN 0x258000
+#define CS40L26_SAMSUNG_F0_MAX 0x2A0000
+#define CS40L26_SAMSUNG_F0_OFFSET 0x4000
 #endif
 
 /* enums */
@@ -1389,6 +1403,8 @@ struct cs40l26_platform_data {
 #ifdef CONFIG_CS40L26_SAMSUNG_FEATURE
 	int high_temp_ref;
 	u32 high_temp_percent;
+	bool is_f0_tracking;
+	int f0_offset;
 #endif
 };
 
@@ -1453,6 +1469,7 @@ struct cs40l26_private {
 	unsigned int irq_gpio;
 	struct sec_vib_inputff_drvdata sec_vib_ddata;
 	u8 busy_state;
+	bool use_sep_index;
 #endif
 };
 

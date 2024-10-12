@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0
 /*
- * COPYRIGHT(C) 2011-2021 Samsung Electronics Co., Ltd. All Right Reserved.
+ * COPYRIGHT(C) 2011-2022 Samsung Electronics Co., Ltd. All Right Reserved.
  */
 
 #define pr_fmt(fmt)     KBUILD_MODNAME ":%s() " fmt, __func__
@@ -67,6 +67,9 @@ EXPORT_SYMBOL(sec_param_set);
 
 int sec_param_register_operations(struct sec_param_operations *ops)
 {
+	if (!__param_is_probed())
+		return -EBUSY;
+
 	if (sec_param->ops) {
 		dev_warn(sec_param->bd.dev, "ops is already set (%p)\n",
 				sec_param->ops);
@@ -109,12 +112,12 @@ static void __param_remove_prolog(struct builder *bd)
 	sec_param = NULL;
 }
 
-static struct dev_builder __param_dev_builder[] = {
+static const struct dev_builder __param_dev_builder[] = {
 	DEVICE_BUILDER(__param_probe_epilog, __param_remove_prolog),
 };
 
 static int __param_probe(struct platform_device *pdev,
-		struct dev_builder *builder, ssize_t n)
+		const struct dev_builder *builder, ssize_t n)
 {
 	struct device *dev = &pdev->dev;
 	struct sec_param_drvdata *drvdata;
@@ -129,7 +132,7 @@ static int __param_probe(struct platform_device *pdev,
 }
 
 static int __param_remove(struct platform_device *pdev,
-		struct dev_builder *builder, ssize_t n)
+		const struct dev_builder *builder, ssize_t n)
 {
 	struct sec_param_drvdata *drvdata = platform_get_drvdata(pdev);
 
@@ -138,38 +141,10 @@ static int __param_remove(struct platform_device *pdev,
 	return 0;
 }
 
-static void __param_populate_child(struct platform_device *pdev)
-{
-	struct device *dev = &pdev->dev;
-	struct device_node *parent;
-	struct device_node *child;
-
-	parent = pdev->dev.of_node;
-
-	for_each_available_child_of_node(parent, child) {
-		struct platform_device *cpdev;
-
-		cpdev = of_platform_device_create(child, NULL, &pdev->dev);
-		if (!cpdev) {
-			dev_warn(dev, "failed to create %s\n!", child->name);
-			of_node_put(child);
-		}
-	}
-}
-
 static int sec_param_probe(struct platform_device *pdev)
 {
-	int err;
-
-	err = __param_probe(pdev, __param_dev_builder,
+	return __param_probe(pdev, __param_dev_builder,
 			ARRAY_SIZE(__param_dev_builder));
-	if (err)
-		goto err_probe;
-
-	__param_populate_child(pdev);
-
-err_probe:
-	return err;
 }
 
 static int sec_param_remove(struct platform_device *pdev)

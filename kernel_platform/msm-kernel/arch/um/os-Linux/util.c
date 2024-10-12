@@ -146,7 +146,7 @@ void os_dump_core(void)
 	while ((pid = waitpid(-1, NULL, WNOHANG | __WALL)) > 0)
 		os_kill_ptraced_process(pid, 0);
 
-	uml_abort();
+	exit(0);
 }
 
 void um_early_printk(const char *s, unsigned int n)

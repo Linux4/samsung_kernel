@@ -20,6 +20,7 @@
 #include "msm_gem.h"
 #include "msm_mmu.h"
 #include "msm_kms.h"
+#include "sde_dbg.h"
 
 #include <drm/drm_drv.h>
 
@@ -190,6 +191,7 @@ struct drm_gem_object *msm_gem_prime_import(struct drm_device *dev,
 	}
 
 	obj->import_attach = attach;
+	SDE_EVT32(obj, obj->import_attach,  dma_buf);
 
 	return obj;
 

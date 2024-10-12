@@ -1,3 +1,0 @@
-These directories will be added to $PATH during the build in order to provide
-some common tools normally found in the system $PATH. They're all symlinks into
-the prebuilts found elsewhere in this repository.

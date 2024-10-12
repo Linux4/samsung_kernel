@@ -1,17 +1,17 @@
 // SPDX-License-Identifier: GPL-2.0
 /*
- * COPYRIGHT(C) 2021 Samsung Electronics Co., Ltd. All Right Reserved.
+ * COPYRIGHT(C) 2021-2022 Samsung Electronics Co., Ltd. All Right Reserved.
  */
 
 #define pr_fmt(fmt)     KBUILD_MODNAME ":%s() " fmt, __func__
 
 #include <linux/init.h>
 #include <linux/kernel.h>
+#include <linux/mm.h>
 #include <linux/module.h>
 #include <linux/notifier.h>
 #include <linux/reboot.h>
 #include <linux/rtc.h>
-#include <linux/vmalloc.h>
 
 #include <linux/samsung/bsp/sec_param.h>
 #include <linux/samsung/debug/sec_log_buf.h>
@@ -58,7 +58,7 @@ static inline void __qc_reboot_recovery(struct qc_debug_drvdata *drvdata,
 
 static inline void ____qc_reboot_param(const char *cmd)
 {
-	char __param_cmd[256] = { '\0', };
+	char __param_cmd[256];
 	char *param_cmd = __param_cmd;
 	const char *param_str, *index_str, *data_str;
 	const char *delim = "_";
@@ -68,8 +68,7 @@ static inline void ____qc_reboot_param(const char *cmd)
 	if (strncmp(cmd, "param", strlen("param")))
 		return;
 
-	strncpy(__param_cmd, cmd, sizeof(__param_cmd));
-	__param_cmd[sizeof(__param_cmd) - 1] = '\0';
+	strlcpy(__param_cmd, cmd, sizeof(__param_cmd));
 
 	param_str = strsep(&param_cmd, delim);
 	if (!param_str) {
@@ -256,7 +255,7 @@ static inline void ____qc_reboot_store_onoff_history(
 	onoff_history_t *onoff_history;
 	bool valid;
 
-	onoff_history = vmalloc(sizeof(onoff_history_t));
+	onoff_history = kvmalloc(sizeof(onoff_history_t), GFP_KERNEL);
 	if (!onoff_history)
 		return;
 
@@ -284,7 +283,7 @@ static inline void ____qc_reboot_store_onoff_history(
 
 err_invalid_onoff_history:
 err_read_dbg_partition:
-	vfree(onoff_history);
+	kvfree(onoff_history);
 }
 
 static inline void __qc_reboot_store_onoff_history(

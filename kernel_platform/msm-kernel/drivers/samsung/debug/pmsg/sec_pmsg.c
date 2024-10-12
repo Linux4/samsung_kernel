@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * COPYRIGHT(C) 2016-2021 Samsung Electronics Co., Ltd. All Right Reserved.
+ * COPYRIGHT(C) 2016-2022 Samsung Electronics Co., Ltd. All Right Reserved.
  */
 
 #define pr_fmt(fmt)     KBUILD_MODNAME ":%s() " fmt, __func__
 
 #include <linux/kernel.h>
+#include <linux/memblock.h>
 #include <linux/module.h>
 #include <linux/mutex.h>
 #include <linux/of.h>
@@ -19,6 +20,7 @@
 #include <linux/uaccess.h>
 
 #include <linux/samsung/builder_pattern.h>
+#include <linux/samsung/sec_of.h>
 #include <linux/samsung/debug/sec_boot_stat.h>
 #include <linux/samsung/debug/sec_debug.h>
 
@@ -65,6 +67,7 @@ struct pmsg_drvdata {
 	struct reserved_mem *rmem;
 	phys_addr_t paddr;
 	size_t size;
+	bool nomap;
 	struct pstore_info *pstore;
 	struct pmsg_logger *logger;
 	struct pmsg_buffer __percpu *buf;
@@ -86,6 +89,10 @@ static void notrace ____pmsg_memcpy_toio(void *dst, const void *src, size_t cnt)
 static void notrace ____pmsg_memcpy(void *dst, const void *src, size_t cnt)
 {
 	memcpy(dst, src, cnt);
+}
+
+static void notrace ____pmsg_memcpy_dummy(void *dst, const void *src, size_t cnt)
+{
 }
 
 static inline void __pmsg_logger(const char *buf, size_t size)
@@ -180,17 +187,14 @@ static inline void ____logger_level_text(struct pmsg_logger *logger,
 {
 	char *eatnl = &buffer[count - SS_LOGGER_STRING_PAD];
 
-	buffer[count - 1] = '\0';
-
 	if (count == SS_LOGGER_SKIP_COUNT && *eatnl != '\0')
 		return;
 
 	if (count > 1 && *(uint16_t*)buffer == *(uint16_t *)"!@") {
 		/* To prevent potential buffer overrun
-		 * put a null at the end of the buffer if required
+		 * put a null at the end of the buffer.
 		 */
-		if (buffer[count - 1] != '\0')
-			buffer[count - 1] = '\0';
+		buffer[count - 1] = '\0';
 
 		/* FIXME: print without a module and a function name */
 		printk(KERN_INFO "%s\n", buffer);
@@ -368,40 +372,67 @@ static int __pmsg_parse_dt_memory_region(struct builder *bd,
 	return 0;
 }
 
-static int __pmsg_parse_dt_lease_region(struct builder *bd,
+static bool __pmsg_is_in_reserved_mem_bound(
+		const struct reserved_mem *rmem,
+		phys_addr_t base, phys_addr_t size)
+{
+	phys_addr_t rmem_base = rmem->base;
+	phys_addr_t rmem_end = rmem_base + rmem->size - 1;
+	phys_addr_t end = base + size - 1;
+
+	if ((base >= rmem_base) && (end <= rmem_end))
+		return true;
+
+	return false;
+}
+
+static int __pmsg_use_partial_reserved_mem(
+	struct pmsg_drvdata *drvdata, struct device_node *np)
+{
+	struct reserved_mem *rmem = drvdata->rmem;
+	phys_addr_t base;
+	phys_addr_t size;
+	int err;
+
+	err = sec_of_parse_reg_prop(np, &base, &size);
+	if (err)
+		return err;
+
+	if (!__pmsg_is_in_reserved_mem_bound(rmem, base, size))
+		return -ERANGE;
+
+	drvdata->paddr = base;
+	drvdata->size = size;
+
+	return 0;
+}
+
+static int __pmsg_use_entire_reserved_mem(
+	struct pmsg_drvdata *drvdata)
+{
+	struct reserved_mem *rmem = drvdata->rmem;
+
+	drvdata->paddr = rmem->base;
+	drvdata->size = rmem->size;
+
+	return 0;
+}
+
+static int __pmsg_parse_dt_splitted_reserved_mem(struct builder *bd,
 		struct device_node *np)
 {
 	struct pmsg_drvdata *drvdata =
 			container_of(bd, struct pmsg_drvdata, bd);
-	struct reserved_mem *rmem = drvdata->rmem;
-	phys_addr_t paddr = rmem->base;
-	size_t size = rmem->size;
-	u32 region_offset;
-	u32 region_size;
 	int err;
 
-	if (!of_property_read_bool(np, "sec,use-lease_region"))
-		goto use_by_default;
+	if (of_property_read_bool(np, "sec,use-partial_reserved_mem"))
+		err = __pmsg_use_partial_reserved_mem(drvdata, np);
+	else
+		err = __pmsg_use_entire_reserved_mem(drvdata);
 
-	err = of_property_read_u32_index(np, "sec,lease_region",
-			0, &region_offset);
 	if (err)
-		return -EINVAL;
-
-	err = of_property_read_u32_index(np, "sec,lease_region",
-			1, &region_size);
-	if (err)
-		return -EINVAL;
-
-	paddr += (phys_addr_t)region_offset;
-	size = (size_t)region_size;
-
-use_by_default:
-	if (!size || (size != roundup_pow_of_two(size)))
 		return -EFAULT;
 
-	drvdata->paddr = paddr;
-	drvdata->size = size;
 	return 0;
 }
 
@@ -419,17 +450,87 @@ static int __pmsg_parse_dt_test_no_map(struct builder *bd,
 	if (!of_property_read_bool(mem_np, "no-map")) {
 		pmsg_buf = phys_to_virt(drvdata->paddr);
 		__pmsg_memcpy_toio = ____pmsg_memcpy;
+		drvdata->nomap = false;
 	} else {
 		__pmsg_memcpy_toio = ____pmsg_memcpy_toio;
+		drvdata->nomap = true;
 	}
 
 	return 0;
 }
 
-static struct dt_builder __pmsg_dt_builder[] = {
+#if IS_BUILTIN(CONFIG_SEC_PMSG)
+static __always_inline unsigned long __free_reserved_area(void *start, void *end, int poison, const char *s)
+{
+	return free_reserved_area(start, end, poison, s);
+}
+#else
+/* FIXME: this is a copy of 'free_reserved_area' of 'page_alloc.c' */
+static unsigned long __free_reserved_area(void *start, void *end, int poison, const char *s)
+{
+	void *pos;
+	unsigned long pages = 0;
+
+	start = (void *)PAGE_ALIGN((unsigned long)start);
+	end = (void *)((unsigned long)end & PAGE_MASK);
+	for (pos = start; pos < end; pos += PAGE_SIZE, pages++) {
+		struct page *page = virt_to_page(pos);
+		void *direct_map_addr;
+
+		direct_map_addr = page_address(page);
+
+		direct_map_addr = kasan_reset_tag(direct_map_addr);
+		if ((unsigned int)poison <= 0xFF)
+			memset(direct_map_addr, poison, PAGE_SIZE);
+
+		free_reserved_page(page);
+	}
+
+	if (pages && s)
+		pr_info("Freeing %s memory: %ldK\n",
+			s, pages << (PAGE_SHIFT - 10));
+
+	return pages;
+}
+#endif
+
+static void __pmsg_free_reserved_area(struct pmsg_drvdata *drvdata)
+{
+	struct device *dev = drvdata->bd.dev;
+	uint8_t *start;
+
+	if (drvdata->nomap) {
+		dev_warn(dev, "reserved_mem has 'no-map' and can't be freed\n");
+		return;
+	}
+
+	start = (uint8_t *)phys_to_virt(drvdata->paddr);
+
+	__free_reserved_area(start, start + drvdata->size, -1, "sec_pmsg");
+}
+
+static int __pmsg_parse_dt_check_debug_level(struct builder *bd,
+		struct device_node *np)
+{
+	struct pmsg_drvdata *drvdata =
+			container_of(bd, struct pmsg_drvdata, bd);
+	unsigned int sec_dbg_level = sec_debug_level();
+	int err;
+
+	err = sec_of_test_debug_level(np, "sec,debug_level", sec_dbg_level);
+	if (err == -EINVAL) {
+		__pmsg_free_reserved_area(drvdata);
+		__pmsg_memcpy_toio = ____pmsg_memcpy_dummy;
+	}
+
+	return 0;
+}
+
+static const struct dt_builder __pmsg_dt_builder[] = {
 	DT_BUILDER(__pmsg_parse_dt_memory_region),
-	DT_BUILDER(__pmsg_parse_dt_lease_region),
+	DT_BUILDER(__pmsg_parse_dt_splitted_reserved_mem),
 	DT_BUILDER(__pmsg_parse_dt_test_no_map),
+	DT_BUILDER(__pmsg_parse_dt_check_debug_level),
 };
 
 static int __pmsg_parse_dt(struct builder *bd)
@@ -534,7 +635,7 @@ static void __pmsg_remove_prolog(struct builder *bd)
 }
 
 static int __pmsg_probe(struct platform_device *pdev,
-		struct dev_builder *builder, ssize_t n)
+		const struct dev_builder *builder, ssize_t n)
 {
 	struct device *dev = &pdev->dev;
 	struct pmsg_drvdata *drvdata;
@@ -549,7 +650,7 @@ static int __pmsg_probe(struct platform_device *pdev,
 }
 
 static int __pmsg_remove(struct platform_device *pdev,
-		struct dev_builder *builder, ssize_t n)
+		const struct dev_builder *builder, ssize_t n)
 {
 	struct pmsg_drvdata *drvdata = platform_get_drvdata(pdev);
 
@@ -558,7 +659,7 @@ static int __pmsg_remove(struct platform_device *pdev,
 	return 0;
 }
 
-static struct dev_builder __pmsg_dev_builder[] = {
+static const struct dev_builder __pmsg_dev_builder[] = {
 	DEVICE_BUILDER(__pmsg_parse_dt, NULL),
 	DEVICE_BUILDER(__pmsg_prepare_logger, NULL),
 	DEVICE_BUILDER(__pmsg_prepare_buffer, NULL),

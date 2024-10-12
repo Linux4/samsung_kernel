@@ -337,7 +337,9 @@ int stm_ts_read_from_sponge(struct stm_ts_data *ts, u8 *data, int length)
 	t2->len = 3 + 1 + length; /* (dummy:D1(1) + offset(2) + length*/
 	t2->tx_buf = tbuf2;
 	t2->rx_buf = rbuf2;
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 15, 0))
 	t2->delay_usecs = 10;
+#endif
 	spi_message_add_tail(t2, m2);
 
 	if (ts->plat_data->gpio_spi_cs > 0)
@@ -577,8 +579,7 @@ int stm_ts_write_to_sponge(struct stm_ts_data *ts, u8 *data, int length)
 	return ret;
 }
 
-
-int stm_ts_spi_write(struct stm_ts_data *ts, u8 *reg, int tlen, u8 *data, int len)
+int stm_ts_no_lock_spi_write(struct stm_ts_data *ts, u8 *reg, int tlen, u8 *data, int len)
 {
 	struct spi_message *m;
 	struct spi_transfer *t;
@@ -586,35 +587,6 @@ int stm_ts_spi_write(struct stm_ts_data *ts, u8 *reg, int tlen, u8 *data, int le
 	int ret = -ENOMEM;
 	int wlen;
 
-	if (ts->plat_data->power_state == SEC_INPUT_STATE_POWER_OFF) {
-		input_err(true, &ts->client->dev, "%s: Sensor stopped\n", __func__);
-		return -EIO;
-	}
-
-	if (!ts->plat_data->resume_done.done) {
-		ret = wait_for_completion_interruptible_timeout(&ts->plat_data->resume_done, msecs_to_jiffies(500));
-		if (ret <= 0) {
-			input_err(true, &ts->client->dev, "%s: LPM: pm resume is not handled:%d\n", __func__, ret);
-			return -EIO;
-		}
-	}
-
-#if IS_ENABLED(CONFIG_SAMSUNG_TUI)
-	if (STUI_MODE_TOUCH_SEC & stui_get_mode())
-		return -EBUSY;
-#endif
-#if IS_ENABLED(CONFIG_INPUT_SEC_SECURE_TOUCH)
-	if (atomic_read(&ts->secure_enabled) == SECURE_TOUCH_ENABLE) {
-		input_err(true, &ts->client->dev, "%s: TUI is enabled\n", __func__);
-		return -EBUSY;
-	}
-#if IS_ENABLED(CONFIG_GH_RM_DRV)
-	if (atomic_read(&ts->trusted_touch_enabled) != 0) {
-		input_err(true, &ts->client->dev, "%s: TVM is enabled\n", __func__);
-		return -EBUSY;
-	}
-#endif
-#endif
 	m = kzalloc(sizeof(struct spi_message), GFP_KERNEL);
 	if (!m)
 		return -ENOMEM;
@@ -631,8 +603,6 @@ int stm_ts_spi_write(struct stm_ts_data *ts, u8 *reg, int tlen, u8 *data, int le
 		kfree(t);
 		return -ENOMEM;
 	}
-
-	mutex_lock(&ts->read_write_mutex);
 
 	switch (reg[0]) {
 	case STM_TS_CMD_SCAN_MODE:
@@ -670,8 +640,6 @@ int stm_ts_spi_write(struct stm_ts_data *ts, u8 *reg, int tlen, u8 *data, int le
 	if (ts->plat_data->gpio_spi_cs > 0)
 		gpio_direction_output(ts->plat_data->gpio_spi_cs, 1);
 
-	mutex_unlock(&ts->read_write_mutex);
-
 	if (ts->debug_flag & SEC_TS_DEBUG_PRINT_WRITE_CMD) {
 		int i;
 
@@ -685,6 +653,46 @@ int stm_ts_spi_write(struct stm_ts_data *ts, u8 *reg, int tlen, u8 *data, int le
 	kfree(tbuf);
 	kfree(m);
 	kfree(t);
+
+	return ret;
+}
+
+int stm_ts_spi_write(struct stm_ts_data *ts, u8 *reg, int tlen, u8 *data, int len)
+{
+	int ret = -ENOMEM;
+
+	if (ts->plat_data->power_state == SEC_INPUT_STATE_POWER_OFF) {
+		input_err(true, &ts->client->dev, "%s: Sensor stopped\n", __func__);
+		return -EIO;
+	}
+
+	if (!ts->plat_data->resume_done.done) {
+		ret = wait_for_completion_interruptible_timeout(&ts->plat_data->resume_done, msecs_to_jiffies(500));
+		if (ret <= 0) {
+			input_err(true, &ts->client->dev, "%s: LPM: pm resume is not handled:%d\n", __func__, ret);
+			return -EIO;
+		}
+	}
+
+#if IS_ENABLED(CONFIG_SAMSUNG_TUI)
+	if (STUI_MODE_TOUCH_SEC & stui_get_mode())
+		return -EBUSY;
+#endif
+#if IS_ENABLED(CONFIG_INPUT_SEC_SECURE_TOUCH)
+	if (atomic_read(&ts->secure_enabled) == SECURE_TOUCH_ENABLE) {
+		input_err(true, &ts->client->dev, "%s: TUI is enabled\n", __func__);
+		return -EBUSY;
+	}
+#if IS_ENABLED(CONFIG_GH_RM_DRV)
+	if (atomic_read(&ts->trusted_touch_enabled) != 0) {
+		input_err(true, &ts->client->dev, "%s: TVM is enabled\n", __func__);
+		return -EBUSY;
+	}
+#endif
+#endif
+	mutex_lock(&ts->read_write_mutex);
+	ret = stm_ts_no_lock_spi_write(ts, reg, tlen, data, len);
+	mutex_unlock(&ts->read_write_mutex);
 
 	return ret;
 }
@@ -757,6 +765,8 @@ int stm_ts_spi_read(struct stm_ts_data *ts, u8 *reg, int tlen, u8 *buf, int rlen
 		return -ENOMEM;
 	}
 
+	mutex_lock(&ts->read_write_mutex);
+
 	switch (reg[0]) {
 	case 0x87:
 	case STM_TS_CMD_FRM_BUFF_R:
@@ -784,6 +794,7 @@ int stm_ts_spi_read(struct stm_ts_data *ts, u8 *reg, int tlen, u8 *buf, int rlen
 			kfree(t);
 			kfree(tbuf);
 			kfree(rbuf);
+			mutex_unlock(&ts->read_write_mutex);
 			return -EINVAL;
 		}
 
@@ -808,6 +819,7 @@ int stm_ts_spi_read(struct stm_ts_data *ts, u8 *reg, int tlen, u8 *buf, int rlen
 			kfree(t);
 			kfree(tbuf);
 			kfree(rbuf);
+			mutex_unlock(&ts->read_write_mutex);
 			return -EINVAL;
 		}
 
@@ -816,17 +828,16 @@ int stm_ts_spi_read(struct stm_ts_data *ts, u8 *reg, int tlen, u8 *buf, int rlen
 	}
 
 	if (wmsg)
-		stm_ts_spi_write(ts, reg, 1, NULL, 0);
-
-	mutex_lock(&ts->read_write_mutex);
+		stm_ts_no_lock_spi_write(ts, reg, 1, NULL, 0);
 
 	spi_message_init(m);
 
 	t->len = rlen + 1 + buf_len;
 	t->tx_buf = tbuf;
 	t->rx_buf = rbuf;
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 15, 0))
 	t->delay_usecs = 10;
-
+#endif
 	spi_message_add_tail(t, m);
 
 	if (ts->plat_data->gpio_spi_cs > 0)
@@ -920,9 +931,7 @@ int stm_ts_spi_probe(struct spi_device *client)
 	ts->plat_data->stui_tsp_type = stm_stui_tsp_type;
 #endif
 	ret = stm_ts_probe(ts);
-#if !IS_ENABLED(CONFIG_SAMSUNG_PRODUCT_SHIP)
-	stm_ts_tool_proc_init(ts);
-#endif
+
 	return ret;
 
 error_allocate_tdata:
@@ -931,14 +940,23 @@ error_allocate_mem:
 	return ret;
 }
 
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0))
+void stm_ts_spi_remove(struct spi_device *client)
+#else
 int stm_ts_spi_remove(struct spi_device *client)
+#endif
+
 {
 	struct stm_ts_data *ts = spi_get_drvdata(client);
 	int ret = 0;
 
 	ret = stm_ts_remove(ts);
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0))
+	return;
+#else
+	return ret;
+#endif
 
-	return 0;
 }
 
 void stm_ts_spi_shutdown(struct spi_device *client)

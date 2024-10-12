@@ -106,6 +106,9 @@ int __mockable ss_sde_vm_owns_hw(struct samsung_display_driver_data *vdd)
 	if (!sde_kms)
 		return -ENODEV;
 
+	if (!display->hw_ownership)
+		return 0;
+
 	return sde_vm_owns_hw(sde_kms);
 }
 
@@ -153,11 +156,23 @@ int __mockable ss_gpio_to_irq(unsigned gpio)
 	return gpio_to_irq(gpio);
 }
 
+void __weak sde_encoder_early_wakeup(struct drm_encoder *drm_enc)
+{
+}
+
 int __mockable ss_wrapper_dsi_panel_tx_cmd_set(struct dsi_panel *panel, int type)
 {
 	int rc = 0;
 	struct dsi_display *display = container_of(panel->host, struct dsi_display, host);
 	struct samsung_display_driver_data *vdd = display->panel->panel_private;
+	struct drm_encoder *drm_enc = GET_DRM_ENCODER(vdd);
+
+	if (!vdd->not_support_single_tx) {
+		if (drm_enc)
+			sde_encoder_early_wakeup(drm_enc);
+		else
+			LCD_ERR(vdd, "drm_enc is NULL\n");
+	}
 
 	rc = dsi_display_clk_ctrl(display->dsi_clk_handle,
 				DSI_ALL_CLKS, DSI_CLK_ON);
@@ -419,7 +434,8 @@ static int ss_cmd_val_count(char *input)
 }
 
 
-u8 ss_cmd_get_type(enum SS_CMD_CTRL cmd_ctrl, int cnt_val)
+u8 ss_cmd_get_type(struct samsung_display_driver_data *vdd,
+			enum SS_CMD_CTRL cmd_ctrl, int cnt_val)
 {
 	u8 type;
 
@@ -427,9 +443,13 @@ u8 ss_cmd_get_type(enum SS_CMD_CTRL cmd_ctrl, int cnt_val)
 		type = MIPI_DSI_DCS_READ; /* 06h */
 	} else if (cmd_ctrl == CMD_CTRL_WRITE) {
 		if (cnt_val == 1)
-			type = MIPI_DSI_DCS_SHORT_WRITE; /* 05h */
+			type = vdd->ss_cmd_dsc_short_write_param ?
+				MIPI_DSI_DCS_SHORT_WRITE_PARAM : /* 15h */
+				MIPI_DSI_DCS_SHORT_WRITE; /* default 05h */
 		else
-			type = MIPI_DSI_GENERIC_LONG_WRITE; /* 29h */
+			type = vdd->ss_cmd_dsc_long_write ?
+				MIPI_DSI_DCS_LONG_WRITE : /* 39h */
+				MIPI_DSI_GENERIC_LONG_WRITE; /* default 29h */
 		/* type = MIPI_DSI_DCS_LONG_WRITE; // 39h
 		 * some ddi or some condition requires to set 39h type..
 		 * TODO: find that condition and use it..
@@ -543,9 +563,9 @@ static int ss_create_cmd_packets(struct samsung_display_driver_data *vdd,
 				i++;
 			}
 
-			cmds[cmd_idx].type = ss_cmd_get_type(CMD_CTRL_WRITE, cnt_val);
+			cmds[cmd_idx].type = ss_cmd_get_type(vdd, CMD_CTRL_WRITE, cnt_val);
 			/* TODO: get some hint to set last_command */
-			cmds[cmd_idx].last_command = 0;
+			cmds[cmd_idx].last_command = vdd->ss_cmd_always_last_command_set ? true : false;
 			/* will be updated with following DELAY command */
 			cmds[cmd_idx].post_wait_ms = 0;
 			cmds[cmd_idx].tx_len = cnt_val;
@@ -556,8 +576,8 @@ static int ss_create_cmd_packets(struct samsung_display_driver_data *vdd,
 
 			++cmd_idx;
 		} else if (!strncasecmp(data_line, CMDSTR_READ, strlen(CMDSTR_READ))) {
-			u8 rx_addr;
-			u8 rx_len;
+			u32 rx_addr;
+			u32 rx_len;
 
 			data_line += strlen(CMDSTR_READ);
 			cnt_val = ss_cmd_val_count(data_line);
@@ -576,8 +596,14 @@ static int ss_create_cmd_packets(struct samsung_display_driver_data *vdd,
 			LCD_INFO_IF(vdd, "READ: addr: %02X, len: %02X, line: [%s]\n",
 					rx_addr, rx_len, data_line);
 
-			cmds[cmd_idx].type = ss_cmd_get_type(CMD_CTRL_READ, cnt_val);
-			cmds[cmd_idx].last_command = 1;
+			if (rx_addr > 0xFF || rx_len > 0xFF) {
+				LCD_ERR(vdd, "invalid RX length: rx_addr: %X, rx_len: %X\n", rx_addr, rx_len);
+				rc = -EINVAL;
+				goto error_free_payloads;
+			}
+
+			cmds[cmd_idx].type = ss_cmd_get_type(vdd, CMD_CTRL_READ, cnt_val);
+			cmds[cmd_idx].last_command = true;
 			cmds[cmd_idx].post_wait_ms = 0; /* will be updated with later DELAY command */
 
 			cmds[cmd_idx].tx_len = 1;
@@ -586,8 +612,8 @@ static int ss_create_cmd_packets(struct samsung_display_driver_data *vdd,
 				rc = -ENOMEM;
 				goto error_free_payloads;
 			}
-			cmds[cmd_idx].txbuf[0] = rx_addr;
-			cmds[cmd_idx].rx_len = rx_len;
+			cmds[cmd_idx].txbuf[0] = (u8)rx_addr;
+			cmds[cmd_idx].rx_len = (u8)rx_len;
 			cmds[cmd_idx].rx_offset = 0;
 
 			/* rxbuf will be allocated in ss_pack_rx_gpara() and ss_pack_rx_no_gpara() */
@@ -862,7 +888,7 @@ __visible_for_testing int ss_bridge_qc_cmd_update(
 		} else {
 			qc_cmd->msg.type = ss_cmd->type;
 
-			qc_cmd->last_command = 0;
+			qc_cmd->last_command = ss_cmd->last_command;
 			qc_cmd->msg.channel = 0;
 			qc_cmd->msg.flags = 0;
 			qc_cmd->msg.ctrl = 0;

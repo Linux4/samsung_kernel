@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0
 /*
- * COPYRIGHT(C) 2006-2021 Samsung Electronics Co., Ltd. All Right Reserved.
+ * COPYRIGHT(C) 2016-2022 Samsung Electronics Co., Ltd. All Right Reserved.
  */
 
 #define pr_fmt(fmt)     KBUILD_MODNAME ":%s() " fmt, __func__
@@ -11,7 +11,6 @@
 #include <linux/proc_fs.h>
 #include <linux/slab.h>
 #include <linux/uaccess.h>
-#include <linux/vmalloc.h>
 
 #include <linux/samsung/debug/qcom/sec_qc_dbg_partition.h>
 
@@ -78,7 +77,7 @@ static int __reset_tzlog_prepare_buf(
 		goto err_get_size;
 	}
 
-	buf = vmalloc(size);
+	buf = kvmalloc(size, GFP_KERNEL);
 	if (!buf) {
 		ret = -ENOMEM;
 		goto err_nomem;
@@ -94,7 +93,7 @@ static int __reset_tzlog_prepare_buf(
 	return 0;
 
 failed_to_read:
-	vfree(buf);
+	kvfree(buf);
 err_nomem:
 err_get_size:
 	return ret;
@@ -102,7 +101,7 @@ err_get_size:
 
 static void __reset_tzlog_release_buf(struct qc_user_reset_proc *reset_tzlog)
 {
-	vfree(reset_tzlog->buf);
+	kvfree(reset_tzlog->buf);
 	reset_tzlog->buf = NULL;
 }
 
@@ -113,8 +112,8 @@ static int sec_qc_reset_tzlog_proc_open(struct inode *inode, struct file *file)
 
 	mutex_lock(&reset_tzlog->lock);
 
-	if (reset_tzlog->ref) {
-		reset_tzlog->ref++;
+	if (reset_tzlog->ref_cnt) {
+		reset_tzlog->ref_cnt++;
 		goto already_cached;
 	}
 
@@ -130,7 +129,7 @@ static int sec_qc_reset_tzlog_proc_open(struct inode *inode, struct file *file)
 		goto err_buf;
 	}
 
-	reset_tzlog->ref++;
+	reset_tzlog->ref_cnt++;
 
 	mutex_unlock(&reset_tzlog->lock);
 
@@ -149,6 +148,9 @@ static ssize_t sec_qc_reset_tzlog_proc_read(struct file *file,
 {
 	struct qc_user_reset_proc *reset_tzlog = PDE_DATA(file_inode(file));
 	loff_t pos = *ppos;
+
+	if (pos < 0 || pos > reset_tzlog->len)
+		return 0;
 
 	nbytes = min_t(size_t, nbytes, reset_tzlog->len - pos);
 	if (copy_to_user(buf, &reset_tzlog->buf[pos], nbytes))
@@ -174,8 +176,8 @@ static int sec_qc_reset_tzlog_proc_release(struct inode *inode,
 
 	mutex_lock(&reset_tzlog->lock);
 
-	reset_tzlog->ref--;
-	if (reset_tzlog->ref)
+	reset_tzlog->ref_cnt--;
+	if (reset_tzlog->ref_cnt)
 		goto still_used;
 
 	reset_tzlog->len = 0;

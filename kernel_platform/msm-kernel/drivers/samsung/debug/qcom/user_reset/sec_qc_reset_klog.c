@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0
 /*
- * COPYRIGHT(C) 2006-2021 Samsung Electronics Co., Ltd. All Right Reserved.
+ * COPYRIGHT(C) 2016-2022 Samsung Electronics Co., Ltd. All Right Reserved.
  */
 
 #define pr_fmt(fmt)     KBUILD_MODNAME ":%s() " fmt, __func__
@@ -83,9 +83,16 @@ static int __reset_klog_prepare_buf(struct qc_user_reset_proc *reset_klog)
 	char *buf_raw;
 	char *buf;
 	int ret = 0;
+	ssize_t size;
 
-	buf_raw = vmalloc(SEC_DEBUG_RESET_KLOG_SIZE);
-	buf = vmalloc(SEC_DEBUG_RESET_KLOG_SIZE);
+	size = sec_qc_dbg_part_get_size(debug_index_reset_klog);
+	if (size <= 0) {
+		ret = -EINVAL;
+		goto err_get_size;
+	}
+
+	buf_raw = kvmalloc(size, GFP_KERNEL);
+	buf = kvmalloc(size, GFP_KERNEL);
 	if (!buf_raw || !buf) {
 		ret = -ENOMEM;
 		goto err_nomem;
@@ -99,21 +106,22 @@ static int __reset_klog_prepare_buf(struct qc_user_reset_proc *reset_klog)
 	reset_klog->len = __reset_klog_copy(reset_header, buf, buf_raw);
 	reset_klog->buf = buf;
 
-	vfree(buf_raw);
+	kvfree(buf_raw);
 
 	return 0;
 
 failed_to_read:
 err_nomem:
-	vfree(buf_raw);
-	vfree(buf);
+	kvfree(buf_raw);
+	kvfree(buf);
+err_get_size:
 	return ret;
 }
 
 static void __reset_klog_release_buf(
 		struct qc_user_reset_proc *reset_klog)
 {
-	vfree(reset_klog->buf);
+	kvfree(reset_klog->buf);
 	reset_klog->buf = NULL;
 }
 
@@ -124,8 +132,8 @@ static int sec_qc_reset_klog_proc_open(struct inode *inode, struct file *file)
 
 	mutex_lock(&reset_klog->lock);
 
-	if (reset_klog->ref) {
-		reset_klog->ref++;
+	if (reset_klog->ref_cnt) {
+		reset_klog->ref_cnt++;
 		goto already_cached;
 	}
 
@@ -141,7 +149,7 @@ static int sec_qc_reset_klog_proc_open(struct inode *inode, struct file *file)
 		goto err_buf;
 	}
 
-	reset_klog->ref++;
+	reset_klog->ref_cnt++;
 
 	mutex_unlock(&reset_klog->lock);
 
@@ -160,6 +168,9 @@ static ssize_t sec_qc_reset_klog_proc_read(struct file *file,
 {
 	struct qc_user_reset_proc *reset_klog = PDE_DATA(file_inode(file));
 	loff_t pos = *ppos;
+
+	if (pos < 0 || pos > reset_klog->len)
+		return 0;
 
 	nbytes = min_t(size_t, nbytes, reset_klog->len - pos);
 	if (copy_to_user(buf, &reset_klog->buf[pos], nbytes))
@@ -185,8 +196,8 @@ static int sec_qc_reset_klog_proc_release(struct inode *inode,
 
 	mutex_lock(&reset_klog->lock);
 
-	reset_klog->ref--;
-	if (reset_klog->ref)
+	reset_klog->ref_cnt--;
+	if (reset_klog->ref_cnt)
 		goto still_used;
 
 	reset_klog->len = 0;

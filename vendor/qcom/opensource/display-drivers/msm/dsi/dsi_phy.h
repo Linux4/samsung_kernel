@@ -421,6 +421,9 @@ void dsi_phy_pll_parse_dfps_data(struct msm_dsi_phy *phy);
 
 #if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
 void dsi_phy_store_str(struct msm_dsi_phy *phy, u32 *val);
+u32 dsi_phy_show_str(struct msm_dsi_phy *phy);
+void dsi_phy_store_vreg(struct msm_dsi_phy *phy, u32 *val);
+u32 dsi_phy_show_vreg(struct msm_dsi_phy *phy);
 void dsi_phy_store_emphasis(struct msm_dsi_phy *phy, u32 *val);
 #endif
 

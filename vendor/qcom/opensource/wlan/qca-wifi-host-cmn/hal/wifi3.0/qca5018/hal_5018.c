@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2016-2021 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -1754,6 +1755,8 @@ static void hal_hw_txrx_ops_attach_qca5018(struct hal_soc *hal_soc)
 					hal_rx_get_mpdu_mac_ad4_valid_5018;
 	hal_soc->ops->hal_rx_mpdu_start_sw_peer_id_get =
 		hal_rx_mpdu_start_sw_peer_id_get_5018;
+	hal_soc->ops->hal_rx_mpdu_peer_meta_data_get =
+		hal_rx_mpdu_peer_meta_data_get_li;
 	hal_soc->ops->hal_rx_mpdu_get_to_ds = hal_rx_mpdu_get_to_ds_5018;
 	hal_soc->ops->hal_rx_mpdu_get_fr_ds = hal_rx_mpdu_get_fr_ds_5018;
 	hal_soc->ops->hal_rx_get_mpdu_frame_control_valid =
@@ -1793,6 +1796,8 @@ static void hal_hw_txrx_ops_attach_qca5018(struct hal_soc *hal_soc)
 					hal_rx_msdu_flow_idx_timeout_5018;
 	hal_soc->ops->hal_rx_msdu_fse_metadata_get =
 					hal_rx_msdu_fse_metadata_get_5018;
+	hal_soc->ops->hal_rx_msdu_cce_match_get =
+					hal_rx_msdu_cce_match_get_li;
 	hal_soc->ops->hal_rx_msdu_cce_metadata_get =
 					hal_rx_msdu_cce_metadata_get_5018;
 	hal_soc->ops->hal_rx_msdu_get_flow_params =
@@ -1825,6 +1830,7 @@ static void hal_hw_txrx_ops_attach_qca5018(struct hal_soc *hal_soc)
 	hal_soc->ops->hal_compute_reo_remap_ix2_ix3 = hal_compute_reo_remap_ix2_ix3_5018;
 	hal_soc->ops->hal_setup_link_idle_list =
 				hal_setup_link_idle_list_generic_li;
+	hal_soc->ops->hal_compute_reo_remap_ix0 = NULL;
 };
 
 struct hal_hw_srng_config hw_srng_table_5018[] = {

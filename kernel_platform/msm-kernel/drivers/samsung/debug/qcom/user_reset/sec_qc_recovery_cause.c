@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0
 /*
- * COPYRIGHT(C) 2006-2021 Samsung Electronics Co., Ltd. All Right Reserved.
+ * COPYRIGHT(C) 2016-2022 Samsung Electronics Co., Ltd. All Right Reserved.
  */
 
 #define pr_fmt(fmt)     KBUILD_MODNAME ":%s() " fmt, __func__
@@ -62,8 +62,7 @@ static ssize_t recovery_cause_store(struct device *dev,
 	return count;
 }
 
-static DEVICE_ATTR(recovery_cause, 0660,
-		recovery_cause_show, recovery_cause_store);
+static DEVICE_ATTR_RW(recovery_cause);
 
 int __qc_recovery_cause_init(struct builder *bd)
 {

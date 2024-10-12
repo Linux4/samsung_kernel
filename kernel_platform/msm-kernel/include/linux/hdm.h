@@ -22,16 +22,17 @@
 
 #define HDM_CMD_LEN ((size_t)8)
 
-#define HDM_P_BITMASK		0xFFFF
-#define HDM_C_BITMASK		0xF0000
-#define HDM_HYP_CALL		0x40000
-#define HDM_HYP_INIT		0x50000
-#define HDM_HYP_CLEAR		0x60000
-#define HDM_HYP_CALLP		0x80000
-#define HDM_CMD_MAX		0xFFFFF
+#define HDM_P_BITMASK       0xFFFF
+#define HDM_C_BITMASK       0xF0000
+#define HDM_HYP_CALL        0x40000
+#define HDM_HYP_INIT        0x50000
+#define HDM_HYP_CLEAR       0x60000
+#define HDM_HYP_CALLP       0x80000
+#define HDM_CMD_MAX         0xFFFFF
 
 
-#define HDM_WIFI_SUPPORT_BIT	0x08
+#define HDM_WIFI_SUPPORT_BIT    0x08
+#define HDM_CP_SUPPORT_BIT      0x100
 
 enum {
 	HDM_ALLOW = 0,

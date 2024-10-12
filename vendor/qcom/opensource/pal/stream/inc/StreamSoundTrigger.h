@@ -180,6 +180,9 @@ class StreamSoundTrigger : public Stream {
     st_module_type_t GetModelType() { return model_type_; }
     bool GetLPIEnabled() { return use_lpi_; }
     uint32_t GetInstanceId();
+    bool IsStreamInBuffering() {
+       return capture_requested_ && (GetCurrentStateId() == ST_STATE_BUFFERING);
+    }
  private:
     class EngineCfg {
      public:

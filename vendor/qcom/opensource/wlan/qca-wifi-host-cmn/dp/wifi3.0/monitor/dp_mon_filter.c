@@ -36,7 +36,7 @@ dp_mon_ht2_rx_ring_cfg(struct dp_soc *soc,
 	 * Overwrite the max_mac_rings for the status rings.
 	 */
 	if (srng_type == DP_MON_FILTER_SRNG_TYPE_RXDMA_MONITOR_STATUS)
-		dp_is_hw_dbs_enable(soc, &max_mac_rings);
+		dp_update_num_mac_rings_for_dbs(soc, &max_mac_rings);
 
 	dp_mon_filter_info("%pK: srng type %d Max_mac_rings %d ",
 			   soc, srng_type, max_mac_rings);
@@ -90,6 +90,9 @@ dp_mon_ht2_rx_ring_cfg(struct dp_soc *soc,
 		default:
 			return QDF_STATUS_E_FAILURE;
 		}
+
+		if (!hal_ring_hdl)
+			continue;
 
 		status = htt_h2t_rx_ring_cfg(soc->htt_handle, mac_for_pdev,
 					     hal_ring_hdl, hal_ring_type,
@@ -254,6 +257,26 @@ void dp_mon_filter_reset_rx_pktlog_cbf(struct dp_pdev *pdev)
 	if (mon_ops && mon_ops->mon_filter_reset_rx_pkt_log_cbf)
 		mon_ops->mon_filter_reset_rx_pkt_log_cbf(pdev);
 }
+
+#ifdef QCA_WIFI_QCN9224
+void dp_mon_filter_setup_pktlog_hybrid(struct dp_pdev *pdev)
+{
+	struct dp_mon_ops *mon_ops = NULL;
+
+	mon_ops = dp_mon_ops_get(pdev->soc);
+	if (mon_ops && mon_ops->mon_filter_setup_pktlog_hybrid)
+		mon_ops->mon_filter_setup_pktlog_hybrid(pdev);
+}
+
+void dp_mon_filter_reset_pktlog_hybrid(struct dp_pdev *pdev)
+{
+	struct dp_mon_ops *mon_ops = NULL;
+
+	mon_ops = dp_mon_ops_get(pdev->soc);
+	if (mon_ops && mon_ops->mon_filter_reset_pktlog_hybrid)
+		mon_ops->mon_filter_reset_pktlog_hybrid(pdev);
+}
+#endif
 #endif /* WDI_EVENT_ENABLE */
 
 QDF_STATUS dp_mon_filter_update(struct dp_pdev *pdev)

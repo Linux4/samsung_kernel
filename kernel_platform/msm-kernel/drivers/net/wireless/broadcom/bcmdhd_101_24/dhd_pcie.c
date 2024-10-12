@@ -1,7 +1,7 @@
 /*
  * DHD Bus Module for PCIE
  *
- * Copyright (C) 2021, Broadcom.
+ * Copyright (C) 2022, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -11742,10 +11742,14 @@ dhdpci_bus_read_frames(dhd_bus_t *bus)
 		 * If wake is due to Rx packets,
 		 * pktwake info will be printed and cleared from dhd_rx_frame()
 		 */
-		if (rxcpl_items == 0) {
-			DHD_ERROR(("#### dhdpcie_host_wake: ctrlcpl:%d txcpl:%d evtlog:%d ####\n",
-				ctrlcpl_items, txcpl_items, evtlog_items));
-			dhd_bus_set_get_bus_wake(bus->dhd, 0);
+		DHD_ERROR(("#### dhdpcie_host_wake: rxcpl:%d ctrlcpl:%d txcpl:%d evtlog:%d ####\n",
+			rxcpl_items, ctrlcpl_items, txcpl_items, evtlog_items));
+
+		dhd_bus_set_get_bus_wake(bus->dhd, 0);
+
+		if (rxcpl_items > 0) {
+			/* Request packet dump for first Rx packet */
+			dhd_bus_set_get_bus_wake_pkt_dump(bus->dhd, 1);
 		}
 	}
 #endif /* DHD_WAKE_STATUS */
@@ -15316,6 +15320,12 @@ int
 dhd_bus_set_get_bus_wake(dhd_pub_t *dhd, int set)
 {
 	return bcmpcie_set_get_wake(dhd->bus, set);
+}
+
+int
+dhd_bus_set_get_bus_wake_pkt_dump(dhd_pub_t *dhd, int wake_pkt_dump)
+{
+	return bcmpcie_set_get_wake_pkt_dump(dhd->bus, wake_pkt_dump);
 }
 #endif /* DHD_WAKE_STATUS */
 

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2020-2022, The Linux Foundation. All rights reserved.
  */
 
 #include <linux/iommu.h>
@@ -42,6 +42,13 @@ extern struct msm_vidc_core *g_core;
 #define SSR_ADDR_ID 0xFFFFFFFF00000000
 #define SSR_ADDR_SHIFT 32
 
+#define STABILITY_TYPE 0x0000000F
+#define STABILITY_TYPE_SHIFT 0
+#define STABILITY_SUB_CLIENT_ID 0x000000F0
+#define STABILITY_SUB_CLIENT_ID_SHIFT 4
+#define STABILITY_PAYLOAD_ID 0xFFFFFFFF00000000
+#define STABILITY_PAYLOAD_SHIFT 32
+
 struct msm_vidc_cap_name {
 	enum msm_vidc_inst_capability_type cap;
 	char *name;
@@ -82,6 +89,7 @@ static const struct msm_vidc_cap_name cap_name_arr[] = {
 	{SLICE_INTERFACE,                "SLICE_INTERFACE"            },
 	{HEADER_MODE,                    "HEADER_MODE"                },
 	{PREPEND_SPSPPS_TO_IDR,          "PREPEND_SPSPPS_TO_IDR"      },
+	{VUI_TIMING_INFO,                "VUI_TIMING_INFO"            },
 	{META_SEQ_HDR_NAL,               "META_SEQ_HDR_NAL"           },
 	{WITHOUT_STARTCODE,              "WITHOUT_STARTCODE"          },
 	{NAL_LENGTH_FIELD,               "NAL_LENGTH_FIELD"           },
@@ -1639,6 +1647,68 @@ bool msm_vidc_allow_last_flag(struct msm_vidc_inst *inst)
 	return false;
 }
 
+static int msm_vidc_flush_pending_last_flag(struct msm_vidc_inst *inst)
+{
+	int rc = 0;
+	struct response_work *resp_work, *dummy = NULL;
+
+	if (!inst) {
+		d_vpr_e("%s: invalid params\n", __func__);
+		return -EINVAL;
+	}
+
+	if (list_empty(&inst->response_works))
+		return 0;
+
+	/* flush pending last flag buffers if any */
+	list_for_each_entry_safe(resp_work, dummy,
+				&inst->response_works, list) {
+		if (resp_work->type == RESP_WORK_LAST_FLAG) {
+			i_vpr_h(inst, "%s: flush pending last flag buffer\n",
+				__func__);
+			rc = handle_session_response_work(inst, resp_work);
+			if (rc) {
+				msm_vidc_change_inst_state(inst,
+						MSM_VIDC_ERROR, __func__);
+				return rc;
+			}
+			list_del(&resp_work->list);
+			kfree(resp_work->data);
+			kfree(resp_work);
+		}
+	}
+
+	return 0;
+}
+
+static int msm_vidc_discard_pending_opsc(struct msm_vidc_inst *inst)
+{
+	struct response_work *resp_work, *dummy = NULL;
+
+	if (!inst) {
+		d_vpr_e("%s: invalid params\n", __func__);
+		return -EINVAL;
+	}
+
+	if (list_empty(&inst->response_works))
+		return 0;
+
+	/* discard pending port settings change if any */
+	list_for_each_entry_safe(resp_work, dummy,
+				&inst->response_works, list) {
+		if (resp_work->type == RESP_WORK_OUTPUT_PSC) {
+			i_vpr_e(inst,
+				"%s: discard pending output psc\n", __func__);
+			inst->psc_or_last_flag_discarded = true;
+			list_del(&resp_work->list);
+			kfree(resp_work->data);
+			kfree(resp_work);
+		}
+	}
+
+	return 0;
+}
+
 static int msm_vidc_discard_pending_ipsc(struct msm_vidc_inst *inst)
 {
 	struct response_work *resp_work, *dummy = NULL;
@@ -1655,12 +1725,13 @@ static int msm_vidc_discard_pending_ipsc(struct msm_vidc_inst *inst)
 	list_for_each_entry_safe(resp_work, dummy,
 			&inst->response_works, list) {
 		if (resp_work->type == RESP_WORK_INPUT_PSC) {
-			i_vpr_h(inst,
+			i_vpr_e(inst,
 				"%s: discard pending input psc\n", __func__);
 
 			/* override the psc properties again if ipsc discarded */
 			inst->ipsc_properties_set = false;
-
+			inst->psc_or_last_flag_discarded = true;
+			
 			list_del(&resp_work->list);
 			kfree(resp_work->data);
 			kfree(resp_work);
@@ -1960,8 +2031,8 @@ int msm_vidc_get_mbs_per_frame(struct msm_vidc_inst *inst)
 
 	if (is_decode_session(inst)) {
 		inp_f = &inst->fmts[INPUT_PORT];
-		width = inp_f->fmt.pix_mp.width;
-		height = inp_f->fmt.pix_mp.height;
+		width = max(inp_f->fmt.pix_mp.width, inst->crop.width);
+		height = max(inp_f->fmt.pix_mp.height, inst->crop.height);
 	} else if (is_encode_session(inst)) {
 		width = inst->crop.width;
 		height = inst->crop.height;
@@ -2266,7 +2337,7 @@ int msm_vidc_flush_ts(struct msm_vidc_inst *inst)
 	}
 
 	list_for_each_entry_safe(ts, temp, &inst->timestamps.list, sort.list) {
-		i_vpr_l(inst, "%s: flushing ts: val %lld, rank %%lld\n",
+		i_vpr_l(inst, "%s: flushing ts: val %llu, rank %llu\n",
 			__func__, ts->sort.val, ts->rank);
 		list_del(&ts->sort.list);
 		msm_memory_free(inst, ts);
@@ -2741,7 +2812,7 @@ void msm_vidc_allow_dcvs(struct msm_vidc_inst *inst)
 	struct msm_vidc_core *core;
 	u32 fps;
 
-	if (!inst || !inst->core) {
+	if (!inst || !inst->core || !inst->capabilities) {
 		d_vpr_e("%s: Invalid args: %pK\n", __func__, inst);
 		return;
 	}
@@ -2796,7 +2867,8 @@ void msm_vidc_allow_dcvs(struct msm_vidc_inst *inst)
 	}
 
 	fps =  msm_vidc_get_fps(inst);
-	if (is_decode_session(inst) && fps >= MAXIMUM_FPS) {
+	if (is_decode_session(inst) &&
+			fps >= inst->capabilities->cap[FRAME_RATE].max) {
 		allow = false;
 		i_vpr_h(inst, "%s: unsupported fps %d\n", __func__, fps);
 		goto exit;
@@ -3011,11 +3083,11 @@ int schedule_stats_work(struct msm_vidc_inst *inst)
 	}
 
 	/**
-	* Hfi session is already closed and inst also going to be
-	* closed soon. So skip scheduling new stats_work to avoid
-	* use-after-free issues with close sequence.
-	*/
-		if (!inst->packet) {
+	 * Hfi session is already closed and inst also going to be
+	 * closed soon. So skip scheduling new stats_work to avoid
+	 * use-after-free issues with close sequence.
+	 */
+	if (!inst->packet) {
 		i_vpr_e(inst, "skip scheduling stats_work\n");
 		return 0;
 	}
@@ -3974,6 +4046,17 @@ int msm_vidc_session_streamoff(struct msm_vidc_inst *inst,
 	if(rc)
 		goto error;
 
+	/* discard pending input port settings change if any */
+	if (port == INPUT_PORT)
+		msm_vidc_discard_pending_ipsc(inst);
+
+	if (port == OUTPUT_PORT) {
+		/* discard pending opsc if any*/
+		msm_vidc_discard_pending_opsc(inst);
+		/* flush out pending last flag buffers if any */
+		msm_vidc_flush_pending_last_flag(inst);
+	}
+
 	/* no more queued buffers after streamoff */
 	count = msm_vidc_num_buffers(inst, buffer_type, MSM_VIDC_ATTR_QUEUED);
 	if (!count) {
@@ -3986,9 +4069,6 @@ int msm_vidc_session_streamoff(struct msm_vidc_inst *inst,
 		rc = -EINVAL;
 		goto error;
 	}
-
-	/* discard pending port settings change if any */
-	msm_vidc_discard_pending_ipsc(inst);
 
 	/* flush deferred buffers */
 	msm_vidc_flush_buffers(inst, buffer_type);
@@ -4409,9 +4489,9 @@ int msm_vidc_core_init(struct msm_vidc_core *core)
 		goto unlock;
 
 	msm_vidc_change_core_state(core, MSM_VIDC_CORE_INIT_WAIT, __func__);
-	init_completion(&core->init_done);
 	core->smmu_fault_handled = false;
 	core->ssr.trigger = false;
+	core->pm_suspended = false;
 
 	rc = venus_hfi_core_init(core);
 	if (rc) {
@@ -4680,6 +4760,7 @@ void msm_vidc_ssr_handler(struct work_struct *work)
 
 	core_lock(core, __func__);
 	if (core->state == MSM_VIDC_CORE_INIT) {
+		d_vpr_e("%s: ssr type %d\n", __func__, ssr->ssr_type);
 		/*
 		 * In current implementation, user-initiated SSR triggers
 		 * a fatal error from hardware. However, there is no way
@@ -4699,8 +4780,75 @@ void msm_vidc_ssr_handler(struct work_struct *work)
 	core_unlock(core, __func__);
 }
 
-void msm_vidc_pm_work_handler(struct work_struct *work)
+int msm_vidc_trigger_stability(struct msm_vidc_core *core,
+		u64 trigger_stability_val)
 {
+	struct msm_vidc_inst *inst = NULL;
+	struct msm_vidc_stability stability;
+
+	if (!core) {
+		d_vpr_e("%s: invalid params\n", __func__);
+		return -EINVAL;
+	}
+
+	/*
+	 * <payload><sub_client_id><stability_type>
+	 * stability_type: 0-3 bits
+	 * sub_client_id: 4-7 bits
+	 * reserved: 8-31 bits
+	 * payload: 32-63 bits
+	 */
+	memset(&stability, 0, sizeof(struct msm_vidc_stability));
+	stability.stability_type = (trigger_stability_val &
+			(unsigned long)STABILITY_TYPE) >> STABILITY_TYPE_SHIFT;
+	stability.sub_client_id = (trigger_stability_val &
+			(unsigned long)STABILITY_SUB_CLIENT_ID) >> STABILITY_SUB_CLIENT_ID_SHIFT;
+	stability.value = (trigger_stability_val &
+			(unsigned long)STABILITY_PAYLOAD_ID) >> STABILITY_PAYLOAD_SHIFT;
+
+	core_lock(core, __func__);
+	list_for_each_entry(inst, &core->instances, list) {
+		memcpy(&inst->stability, &stability, sizeof(struct msm_vidc_stability));
+		schedule_work(&inst->stability_work);
+	}
+	core_unlock(core, __func__);
+
+	return 0;
+}
+
+void msm_vidc_stability_handler(struct work_struct *work)
+{
+	int rc;
+	struct msm_vidc_inst *inst;
+	struct msm_vidc_stability *stability;
+
+	inst = container_of(work, struct msm_vidc_inst, stability_work);
+	inst = get_inst_ref(g_core, inst);
+	if (!inst) {
+		d_vpr_e("%s: invalid params\n", __func__);
+		return;
+	}
+
+	inst_lock(inst, __func__);
+	stability = &inst->stability;
+	rc = venus_hfi_trigger_stability(inst, stability->stability_type,
+		stability->sub_client_id, stability->value);
+	if (rc)
+		i_vpr_e(inst, "%s: trigger_stability failed\n", __func__);
+	inst_unlock(inst, __func__);
+
+	put_inst(inst);
+}
+
+int cancel_stability_work_sync(struct msm_vidc_inst *inst)
+{
+	if (!inst) {
+		d_vpr_e("%s: Invalid arguments\n", __func__);
+		return -EINVAL;
+	}
+	cancel_work_sync(&inst->stability_work);
+
+	return 0;
 }
 
 void msm_vidc_fw_unload_handler(struct work_struct *work)
@@ -4741,18 +4889,25 @@ void msm_vidc_batch_handler(struct work_struct *work)
 {
 	struct msm_vidc_inst *inst;
 	enum msm_vidc_allow allow;
+	struct msm_vidc_core *core;
 	int rc = 0;
 
 	inst = container_of(work, struct msm_vidc_inst, decode_batch.work.work);
 	inst = get_inst_ref(g_core, inst);
-	if (!inst) {
+	if (!inst || !inst->core) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return;
 	}
 
+	core = inst->core;
 	inst_lock(inst, __func__);
 	if (is_session_error(inst)) {
 		i_vpr_e(inst, "%s: failled. Session error\n", __func__);
+		goto exit;
+	}
+
+	if (core->pm_suspended) {
+		i_vpr_h(inst, "%s: device in pm suspend state\n", __func__);
 		goto exit;
 	}
 
@@ -4927,6 +5082,22 @@ void msm_vidc_destroy_buffers(struct msm_vidc_inst *inst)
 		}
 	}
 
+	/* read_only and release list does not take dma ref_count using dma_buf_get().
+	   dma_buf ptr will be obselete when its ref_count reaches zero. Hence print
+	   the dma_buf info before releasing the ref count.
+	*/
+	list_for_each_entry_safe(buf, dummy, &inst->buffers.read_only.list, list) {
+		print_vidc_buffer(VIDC_ERR, "err ", "destroying ro buffer", inst, buf);
+		list_del(&buf->list);
+		msm_memory_free(inst, buf);
+	}
+
+	list_for_each_entry_safe(buf, dummy, &inst->buffers.release.list, list) {
+		print_vidc_buffer(VIDC_ERR, "err ", "destroying release buffer", inst, buf);
+		list_del(&buf->list);
+		msm_memory_free(inst, buf);
+	}
+
 	for (i = 0; i < ARRAY_SIZE(ext_buf_types); i++) {
 		buffers = msm_vidc_get_buffers(inst, ext_buf_types[i], __func__);
 		if (!buffers)
@@ -4939,18 +5110,6 @@ void msm_vidc_destroy_buffers(struct msm_vidc_inst *inst)
 			msm_vidc_put_driver_buf(inst, buf);
 		}
 		msm_vidc_unmap_buffers(inst, ext_buf_types[i]);
-	}
-
-	list_for_each_entry_safe(buf, dummy, &inst->buffers.read_only.list, list) {
-		print_vidc_buffer(VIDC_ERR, "err ", "destroying ro buffer", inst, buf);
-		list_del(&buf->list);
-		msm_memory_free(inst, buf);
-	}
-
-	list_for_each_entry_safe(buf, dummy, &inst->buffers.release.list, list) {
-		print_vidc_buffer(VIDC_ERR, "err ", "destroying release buffer", inst, buf);
-		list_del(&buf->list);
-		msm_memory_free(inst, buf);
 	}
 
 	list_for_each_entry_safe(ts, dummy_ts, &inst->timestamps.list, sort.list) {
@@ -5383,6 +5542,9 @@ int msm_vidc_check_core_mbps(struct msm_vidc_inst *inst)
 		i_vpr_e(inst, "%s: Hardware overloaded. needed %u, max %u", __func__,
 			mbps, core->capabilities[MAX_MBPS].value);
 		return rc;
+	} else {
+		i_vpr_h(inst, "%s: HW load needed %u is within max %u", __func__,
+			mbps, core->capabilities[MAX_MBPS].value);
 	}
 
 	return 0;
@@ -5654,8 +5816,7 @@ static int msm_vidc_check_resolution_supported(struct msm_vidc_inst *inst)
 static int msm_vidc_check_max_sessions(struct msm_vidc_inst *inst)
 {
 	u32 width = 0, height = 0;
-	u32 num_720p_sessions = 0, num_1080p_sessions = 0;
-	u32 num_4k_sessions = 0, num_8k_sessions = 0;
+	u32 num_1080p_sessions = 0, num_4k_sessions = 0, num_8k_sessions = 0;
 	struct msm_vidc_inst *i;
 	struct msm_vidc_core *core;
 
@@ -5702,16 +5863,11 @@ static int msm_vidc_check_max_sessions(struct msm_vidc_inst *inst)
 			num_8k_sessions += 1;
 			num_4k_sessions += 2;
 			num_1080p_sessions += 4;
-			num_720p_sessions += 8;
 		} else if (res_is_greater_than(width, height, 1920 + (1920 >> 1), 1088 + (1088 >> 1))) {
 			num_4k_sessions += 1;
 			num_1080p_sessions += 2;
-			num_720p_sessions += 4;
 		} else if (res_is_greater_than(width, height, 1280 + (1280 >> 1), 736 + (736 >> 1))) {
 			num_1080p_sessions += 1;
-			num_720p_sessions += 2;
-		} else {
-			num_720p_sessions += 1;
 		}
 	}
 	core_unlock(core, __func__);
@@ -5734,13 +5890,6 @@ static int msm_vidc_check_max_sessions(struct msm_vidc_inst *inst)
 		i_vpr_e(inst, "%s: total 1080p sessions %d, exceeded max limit %d\n",
 			__func__, num_1080p_sessions,
 			core->capabilities[MAX_NUM_1080P_SESSIONS].value);
-		return -ENOMEM;
-	}
-
-	if (num_720p_sessions > core->capabilities[MAX_NUM_720P_SESSIONS].value) {
-		i_vpr_e(inst, "%s: total sessions(<=720p) %d, exceeded max limit %d\n",
-			__func__, num_720p_sessions,
-			core->capabilities[MAX_NUM_720P_SESSIONS].value);
 		return -ENOMEM;
 	}
 

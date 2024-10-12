@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0
 /*
- * COPYRIGHT(C) 2006-2020 Samsung Electronics Co., Ltd. All Right Reserved.
+ * COPYRIGHT(C) 2016-2022 Samsung Electronics Co., Ltd. All Right Reserved.
  */
 
 #define pr_fmt(fmt)     KBUILD_MODNAME ":%s() " fmt, __func__
@@ -40,10 +40,10 @@ struct qcom_soc_id_drvdata {
 	struct jtag_id jtag_id_data;
 };
 
-static ssize_t msm_feature_id_show(struct device *dev,
+static ssize_t msm_feature_id_show(struct device *sec_class_dev,
 		struct device_attribute *attr, char *buf)
 {
-	struct qcom_soc_id_drvdata *drvdata = dev_get_drvdata(dev);
+	struct qcom_soc_id_drvdata *drvdata = dev_get_drvdata(sec_class_dev);
 	union qfprom_jtag *qfprom_jtag_data = &drvdata->qfprom_jtag_data;
 
 	pr_debug("FEATURE_ID : 0x%08x\n", qfprom_jtag_data->feature_id);
@@ -53,10 +53,10 @@ static ssize_t msm_feature_id_show(struct device *dev,
 
 static DEVICE_ATTR_RO(msm_feature_id);
 
-static ssize_t msm_jtag_id_show(struct device *dev,
+static ssize_t msm_jtag_id_show(struct device *sec_class_dev,
 		struct device_attribute *attr, char *buf)
 {
-	struct qcom_soc_id_drvdata *drvdata = dev_get_drvdata(dev);
+	struct qcom_soc_id_drvdata *drvdata = dev_get_drvdata(sec_class_dev);
 	struct jtag_id *jtag_id_data = &drvdata->jtag_id_data;
 
 	pr_debug("JTAG_ID_REG : 0x%08x\n", jtag_id_data->raw);
@@ -109,10 +109,10 @@ static int __qc_soc_id_sysfs_create(struct builder *bd)
 {
 	struct qcom_soc_id_drvdata *drvdata =
 			container_of(bd, struct qcom_soc_id_drvdata, bd);
-	struct device *dev = drvdata->sec_misc_dev;
+	struct device *sec_misc_dev = drvdata->sec_misc_dev;
 	int err;
 
-	err = sysfs_create_group(&dev->kobj, &sec_qc_soc_id_attr_group);
+	err = sysfs_create_group(&sec_misc_dev->kobj, &sec_qc_soc_id_attr_group);
 	if (err)
 		return err;
 
@@ -123,9 +123,9 @@ static void __qc_soc_id_sysfs_remove(struct builder *bd)
 {
 	struct qcom_soc_id_drvdata *drvdata =
 			container_of(bd, struct qcom_soc_id_drvdata, bd);
-	struct device *dev = drvdata->sec_misc_dev;
+	struct device *sec_misc_dev = drvdata->sec_misc_dev;
 
-	sysfs_remove_group(&dev->kobj, &sec_qc_soc_id_attr_group);
+	sysfs_remove_group(&sec_misc_dev->kobj, &sec_qc_soc_id_attr_group);
 }
 
 static int __qc_soc_id_parse_dt_qfprom_jtag(struct builder *bd,
@@ -176,7 +176,7 @@ static int __qc_soc_id_parse_dt_jtag_id(struct builder *bd,
 	return 0;
 }
 
-static struct dt_builder __qc_soc_id_dt_builder[] = {
+static const struct dt_builder __qc_soc_id_dt_builder[] = {
 	DT_BUILDER(__qc_soc_id_parse_dt_qfprom_jtag),
 	DT_BUILDER(__qc_soc_id_parse_dt_jtag_id),
 };
@@ -228,7 +228,7 @@ static int __qc_soc_id_read_jtag_id(struct builder *bd)
 }
 
 static int __qc_soc_id_probe(struct platform_device *pdev,
-		struct dev_builder *builder, ssize_t n)
+		const struct dev_builder *builder, ssize_t n)
 {
 	struct device *dev = &pdev->dev;
 	struct qcom_soc_id_drvdata *drvdata;
@@ -243,7 +243,7 @@ static int __qc_soc_id_probe(struct platform_device *pdev,
 }
 
 static int __qc_soc_id_remove(struct platform_device *pdev,
-		struct dev_builder *builder, ssize_t n)
+		const struct dev_builder *builder, ssize_t n)
 {
 	struct qcom_soc_id_drvdata *drvdata = platform_get_drvdata(pdev);
 
@@ -252,7 +252,7 @@ static int __qc_soc_id_remove(struct platform_device *pdev,
 	return 0;
 }
 
-static struct dev_builder __qc_soc_id_dev_builder[] = {
+static const struct dev_builder __qc_soc_id_dev_builder[] = {
 	DEVICE_BUILDER(__qc_soc_id_parse_dt, NULL),
 	DEVICE_BUILDER(__qc_soc_id_read_qfprom_jtag, NULL),
 	DEVICE_BUILDER(__qc_soc_id_read_jtag_id, NULL),

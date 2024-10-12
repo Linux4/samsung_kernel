@@ -50,6 +50,8 @@
 #define TX_ID_CHECK_CNT		3
 #define MISALIGN_TX_TRY_CNT	3
 
+#define WL_TO_W 99
+
 #if IS_ENABLED(CONFIG_USB_FACTORY_MODE)
 #define FOREACH_BOOT_MODE(GEN_BOOT_MODE) \
 	GEN_BOOT_MODE(NO_MODE) \
@@ -77,6 +79,12 @@ enum battery_thermal_zone {
 	BAT_THERMAL_WARM,
 	BAT_THERMAL_OVERHEAT,
 	BAT_THERMAL_OVERHEATLIMIT,
+};
+
+enum sb_wireless_mode {
+	SB_WRL_NONE = 0,
+	SB_WRL_RX_MODE = 1,
+	SB_WRL_TX_MODE = 2,
 };
 
 enum rx_device_type {
@@ -137,6 +145,8 @@ enum sec_battery_capacity_mode {
 	SEC_BATTERY_CAPACITY_QH,
 	/* vfsoc */
 	SEC_BATTERY_CAPACITY_VFSOC,
+	/* rcomp0 */
+	SEC_BATTERY_CAPACITY_RC0,
 };
 
 enum sec_wireless_info_mode {
@@ -233,12 +243,12 @@ enum sec_battery_charge_mode {
 	SEC_BAT_CHG_MODE_CHARGING_OFF,
 	SEC_BAT_CHG_MODE_PASS_THROUGH,
 	SEC_BAT_CHG_MODE_CHARGING, /* buck, chg on */
-//	SEC_BAT_CHG_MODE_BUCK_ON,
 	SEC_BAT_CHG_MODE_OTG_ON,
 	SEC_BAT_CHG_MODE_OTG_OFF,
 	SEC_BAT_CHG_MODE_UNO_ON,
 	SEC_BAT_CHG_MODE_UNO_OFF,
 	SEC_BAT_CHG_MODE_UNO_ONLY,
+	SEC_BAT_CHG_MODE_NOT_SET,
 	SEC_BAT_CHG_MODE_MAX,
 };
 
@@ -277,6 +287,17 @@ enum sec_battery_direct_charging_source_ctrl {
 	SEC_SEND_UVDM = 0x2,
 	SEC_STORE_MODE = 0x4,
 };
+
+enum sec_battery_slate_mode {
+	SEC_SLATE_OFF = 0,
+	SEC_SLATE_MODE,
+	SEC_SMART_SWITCH_SLATE,
+	SEC_SMART_SWITCH_SRC,
+};
+
+extern const char *sb_rx_type_str(int type);
+extern const char *sb_vout_ctr_mode_str(int vout_mode);
+extern const char *sb_rx_vout_str(int vout);
 
 /* tx_event */
 #define BATT_TX_EVENT_WIRELESS_TX_STATUS		0x00000001
@@ -356,6 +377,12 @@ enum tx_switch_mode_state {
 	TX_SWITCH_CHG_ONLY,
 	TX_SWITCH_UNO_ONLY,
 	TX_SWITCH_GEAR_PPS, /* temporary mode */
+};
+
+enum d2d_auth_type {
+	D2D_AUTH_NONE = 0,
+	D2D_AUTH_SRC,
+	D2D_AUTH_SNK,
 };
 
 enum d2d_mode {
@@ -558,6 +585,11 @@ typedef struct {
 
 #define is_pd_fpdo_wire_type(cable_type) ( \
 	cable_type == SEC_BATTERY_CABLE_PDIC)
+
+#define is_hv_pdo_wire_type(cable_type, hv_pdo) ( \
+	(cable_type == SEC_BATTERY_CABLE_PDIC || \
+	cable_type == SEC_BATTERY_CABLE_PDIC_APDO) && \
+	hv_pdo)
 
 #define is_pogo_wire_type(cable_type) ( \
 	cable_type == SEC_BATTERY_CABLE_POGO || \

@@ -279,9 +279,9 @@ fi
 if [ -n "${ANDROID_PRODUCT_OUT}" ] && [ -n "${ANDROID_BUILD_TOP}" ]; then
   ANDROID_TO_KP=$(rel_path ${ROOT_DIR} ${ANDROID_BUILD_TOP})
   KP_TO_ANDROID=$(rel_path ${ANDROID_BUILD_TOP} ${ROOT_DIR})
-  # FIXME support SS Kbuild (Kbuild use "sm8450" instead of "kernel_platform"
+  # FIXME support SS Kbuild (Kbuild use "sm8450" & "sm8475" instead of "kernel_platform"
   # if [[ "${ANDROID_TO_KP}" != "kernel_platform" ]] ; then
-  if [ "${ANDROID_TO_KP}" != "kernel_platform" ] && [ "${ANDROID_TO_KP}" != "sm8450" ] ; then
+  if [ "${ANDROID_TO_KP}" != "kernel_platform" ] && [ "${ANDROID_TO_KP}" != "sm8450" ] && [ "${ANDROID_TO_KP}" != "sm8475" ] ; then
     echo "!! Kernel platform source is currently only supported to be in ${ANDROID_BUILD_TOP}/kernel_platform"
     echo "!! Move kernel platform source or try creating a symlink."
     exit 1

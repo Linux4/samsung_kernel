@@ -17,6 +17,7 @@
 #include <soc/qcom/watchdog.h>
 
 #include "sec_qc_summary.h"
+#include "sec_qc_summary_external.h"
 #include "sec_qc_summary_var_mon.h"
 
 void __summary_add_var_to_info_mon(
@@ -307,8 +308,12 @@ int __qc_summary_var_mon_init_last_ns(struct builder *bd)
 	atomic64_t *last_ns;
 	struct device *dev = bd->dev;
 
+#if IS_BUILTIN(CONFIG_SEC_QC_SUMMARY)
+	last_ns = &sec_qc_summary_last_ns;
+#else
 	last_ns = (atomic64_t *)__qc_summary_kallsyms_lookup_name(drvdata,
 			"sec_qc_summary_last_ns");
+#endif
 	if (!last_ns) {
 		dev_warn(drvdata->bd.dev,
 				"This kernel is maybe GKI. Use a dummy value...\n");

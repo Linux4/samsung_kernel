@@ -30,7 +30,7 @@ struct qc_ap_info {
 };
 
 struct qc_hw_param_drvdata {
-	struct builder bd; 
+	struct builder bd;
 	ap_health_t *ap_health;
 	struct device *sec_hw_param_dev;
 	struct qc_ap_info ap_info;

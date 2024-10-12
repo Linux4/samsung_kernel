@@ -152,6 +152,7 @@ static void kunit_resource_test_alloc_resource(struct kunit *test)
 					   ctx);
 
 	KUNIT_ASSERT_NOT_ERR_OR_NULL(test, res);
+
 	KUNIT_EXPECT_PTR_EQ(test,
 			    &ctx->is_resource_initialized,
 			    (bool *)res->data);
@@ -334,6 +335,7 @@ static void kunit_resource_test_named(struct kunit *test)
 			kunit_add_named_resource(test, NULL, NULL, &res1,
 						 "resource_1", &ctx),
 			0);
+
 	KUNIT_EXPECT_PTR_EQ(test, res1.data, (void *)&ctx);
 
 	KUNIT_EXPECT_EQ(test,

@@ -244,7 +244,10 @@ int sb_tx_monitor_aov(int vout, bool phm)
 		if (!phm) {
 			vout = aov->start_vout + AOV_VOUT_STEP;
 			sec_vote(battery->iv_vote, VOTER_WC_TX, true, vout);
-			sec_vote(battery->input_vote, VOTER_WC_TX, false, 0);
+			if (battery->pdata->icl_by_tx_gear)
+				sec_vote(battery->input_vote, VOTER_WC_TX, true, battery->pdata->icl_by_tx_gear);
+			else
+				sec_vote(battery->input_vote, VOTER_WC_TX, false, 0);
 			sec_bat_wireless_vout_cntl(battery, vout);
 			sec_bat_run_wpc_tx_work(battery, aov->delay);
 

@@ -2,7 +2,7 @@
  * Broadcom Dongle Host Driver (DHD),
  * Linux-specific network interface for receive(rx) path
  *
- * Copyright (C) 2021, Broadcom.
+ * Copyright (C) 2022, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -401,7 +401,11 @@ dhd_rx_frame(dhd_pub_t *dhdp, int ifidx, void *pktbuf, int numpkt, uint8 chan)
 
 #ifdef DHD_WAKE_STATUS
 		/* Get pkt_wake and clear it */
+#if defined(BCMPCIE)
+		pkt_wake = dhd_bus_set_get_bus_wake_pkt_dump(dhdp, 0);
+#else /* SDIO */
 		pkt_wake = dhd_bus_set_get_bus_wake(dhdp, 0);
+#endif /* BCMPCIE */
 		wcp = dhd_bus_get_wakecount(dhdp);
 		if (wcp == NULL) {
 			/* If wakeinfo count buffer is null do not  update wake count values */

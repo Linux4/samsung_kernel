@@ -1,7 +1,7 @@
 /*
  * Linux cfg80211 driver
  *
- * Copyright (C) 2021, Broadcom.
+ * Copyright (C) 2022, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -12155,7 +12155,7 @@ int wl_get_bss_info(struct bcm_cfg80211 *cfg, struct net_device *dev, const u8 *
 		if ((interworking_ie = bcm_parse_tlvs(ie, ie_len,
 				DOT11_MNG_INTERWORKING_ID)) != NULL) {
 			if ((tlv_ie = bcm_parse_tlvs(ie, ie_len, DOT11_MNG_VS_ID)) != NULL) {
-				remained_len = ie_len;
+				remained_len = ie_len - ((u8*)tlv_ie - ie);
 
 				while (tlv_ie) {
 					if (count > MAX_VNDR_IE_NUMBER)
@@ -13264,6 +13264,38 @@ wl_cfgvendor_advlog_disassoc_tx(struct bcm_cfg80211 *cfg, struct net_device *nde
 	as.reason = reason;
 	wl_cfgvendor_advlog_connect_event(&as, FALSE, rssi);
 }
+
+static s32
+wl_cfgvendor_advlog_get_target_rssi(struct bcm_cfg80211 *cfg, struct net_device *ndev,
+	int *rssi)
+{
+	s32 err = BCME_OK;
+	wl_bss_info_t *bi;
+	char *buf = NULL;
+
+	buf = (char *)MALLOCZ(cfg->osh, WL_EXTRA_BUF_MAX);
+	if (!buf) {
+		WL_ERR(("buffer alloc failed.\n"));
+		return BCME_NOMEM;
+	}
+
+	*(u32 *)buf = htod32(WL_EXTRA_BUF_MAX);
+	err = wldev_iovar_getbuf(ndev, "target_bss_info", NULL, 0,
+			buf, WL_EXTRA_BUF_MAX, NULL);
+	if (unlikely(err)) {
+		WL_ERR(("Could not get bss info %d\n", err));
+		err = BCME_ERROR;
+		goto exit;
+	}
+
+	bi = (wl_bss_info_t *)(buf + sizeof(uint32));
+	*rssi = bi->RSSI;
+
+exit:
+	MFREE(cfg->osh, buf, WL_EXTRA_BUF_MAX);
+	return err;
+}
+
 #endif /* WL_CFGVENDOR_CUST_ADVLOG */
 
 static s32
@@ -13273,6 +13305,13 @@ wl_handle_assoc_events(struct bcm_cfg80211 *cfg,
 {
 	s32 err = BCME_OK;
 	wl_assoc_status_t as;
+	s32 advlog_err = BCME_OK;
+	int target_rssi = WLC_RSSI_INVALID;
+	bool query_rssi = TRUE;
+
+	BCM_REFERENCE(advlog_err);
+	BCM_REFERENCE(target_rssi);
+	BCM_REFERENCE(query_rssi);
 
 	if (!wdev || !e) {
 		WL_ERR(("wrong input\n"));
@@ -13297,7 +13336,19 @@ wl_handle_assoc_events(struct bcm_cfg80211 *cfg,
 		cfg->eidx.in_progress, MAC2STRDBG((const u8*)(&e->addr))));
 
 #ifdef WL_CFGVENDOR_CUST_ADVLOG
-	wl_cfgvendor_advlog_connect_event(&as, TRUE, WLC_RSSI_INVALID);
+	if (as.event_type == WLC_E_AUTH || as.event_type == WLC_E_ASSOC) {
+		/* In AUTH/ASSOC REQ, FW doesn't have rssi in moving average windows
+		 * so, WLC_GET_RSSI(IOVAR) result will return zero
+		 * Try to get rssi from target_bss when state is not ASSOCIATED
+		 * If it failed, allow to get rssi from WLC_GET_RSSI
+		 */
+		advlog_err = wl_cfgvendor_advlog_get_target_rssi(cfg, wdev->netdev,
+				&target_rssi);
+		if (advlog_err == BCME_OK) {
+			query_rssi = FALSE;
+		}
+	}
+	wl_cfgvendor_advlog_connect_event(&as, query_rssi, target_rssi);
 #endif /* WL_CFGVENDOR_CUST_ADVLOG */
 
 	/* Handle FW events */
@@ -24438,7 +24489,7 @@ wl_cfgvendor_custom_advlog_conn(struct bcm_cfg80211 *cfg, struct net_device *dev
 			"freq_hint=%d ", sme->channel_hint->center_freq);
 	}
 	buf_pos += snprintf(&advlog[buf_pos], SUPP_LOG_LEN - buf_pos,
-		"pairwise=0x%x qroup=0x%x akm=0x%x auth_type=%d ",
+		"pairwise=0x%x group=0x%x akm=0x%x auth_type=%d ",
 		sec->cipher_pairwise, sec->cipher_group, sec->wpa_auth, sec->auth_type);
 	if (sec->fw_mfp == WL_MFP_REQUIRED) {
 		buf_pos += snprintf(&advlog[buf_pos], SUPP_LOG_LEN - buf_pos,

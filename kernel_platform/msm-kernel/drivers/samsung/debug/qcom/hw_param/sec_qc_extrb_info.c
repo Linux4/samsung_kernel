@@ -200,7 +200,7 @@ static ssize_t extrb_info_show(struct device *dev,
 
 err_failed_to_read:
 	kfree(rst_exinfo);
-err_enomem:	
+err_enomem:
 	__qc_hw_param_clean_format(buf, &info_size, sz_buf);
 err_invalid_reset_reason:
 	return info_size;

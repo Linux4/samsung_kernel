@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2018-2021 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -951,6 +952,21 @@ ucfg_mlme_set_fast_roam_in_concurrency_enabled(struct wlan_objmgr_psoc *psoc,
 	return QDF_STATUS_SUCCESS;
 }
 
+#ifdef MULTI_CLIENT_LL_SUPPORT
+bool ucfg_mlme_get_wlm_multi_client_ll_caps(struct wlan_objmgr_psoc *psoc)
+{
+	return wlan_mlme_get_wlm_multi_client_ll_caps(psoc);
+}
+
+QDF_STATUS
+ucfg_mlme_cfg_get_multi_client_ll_ini_support(struct wlan_objmgr_psoc *psoc,
+					      bool *multi_client_ll_support)
+{
+	return mlme_get_cfg_multi_client_ll_ini_support(psoc,
+						multi_client_ll_support);
+}
+#endif
+
 #ifdef FEATURE_WLAN_ESE
 QDF_STATUS
 ucfg_mlme_is_ese_enabled(struct wlan_objmgr_psoc *psoc, bool *val)
@@ -1631,16 +1647,7 @@ QDF_STATUS
 ucfg_mlme_get_channel_bonding_5ghz(struct wlan_objmgr_psoc *psoc,
 				   uint32_t *value)
 {
-	struct wlan_mlme_psoc_ext_obj *mlme_obj;
-
-	mlme_obj = mlme_get_psoc_ext_obj(psoc);
-	if (!mlme_obj) {
-		*value = cfg_default(CFG_CHANNEL_BONDING_MODE_5GHZ);
-		return QDF_STATUS_E_INVAL;
-	}
-	*value = mlme_obj->cfg.feature_flags.channel_bonding_mode_5ghz;
-
-	return QDF_STATUS_SUCCESS;
+	return wlan_mlme_get_channel_bonding_5ghz(psoc, value);
 }
 
 QDF_STATUS
@@ -1689,4 +1696,60 @@ bool ucfg_mlme_validate_scan_period(uint32_t roam_scan_period)
 	}
 
 	return is_valid;
+}
+
+#ifdef FEATURE_WLAN_CH_AVOID_EXT
+bool ucfg_mlme_get_coex_unsafe_chan_nb_user_prefer(
+		struct wlan_objmgr_psoc *psoc)
+{
+	struct wlan_mlme_psoc_ext_obj *mlme_obj;
+
+	mlme_obj = mlme_get_psoc_ext_obj(psoc);
+	if (!mlme_obj) {
+		mlme_legacy_err("Failed to get MLME Obj");
+		return cfg_default(CFG_COEX_UNSAFE_CHAN_NB_USER_PREFER);
+	}
+	return mlme_obj->cfg.reg.coex_unsafe_chan_nb_user_prefer;
+}
+
+bool ucfg_mlme_get_coex_unsafe_chan_reg_disable(
+		struct wlan_objmgr_psoc *psoc)
+{
+	struct wlan_mlme_psoc_ext_obj *mlme_obj;
+
+	mlme_obj = mlme_get_psoc_ext_obj(psoc);
+	if (!mlme_obj) {
+		mlme_legacy_err("Failed to get MLME Obj");
+		return cfg_default(CFG_COEX_UNSAFE_CHAN_REG_DISABLE);
+	}
+	return mlme_obj->cfg.reg.coex_unsafe_chan_reg_disable;
+}
+#endif
+
+enum wlan_phymode
+ucfg_mlme_get_vdev_phy_mode(struct wlan_objmgr_psoc *psoc, uint8_t vdev_id)
+{
+	struct wlan_objmgr_vdev *vdev;
+	struct vdev_mlme_obj *mlme_obj;
+	enum wlan_phymode phymode;
+
+	vdev = wlan_objmgr_get_vdev_by_id_from_psoc(psoc, vdev_id,
+						    WLAN_MLME_OBJMGR_ID);
+	if (!vdev) {
+		mlme_err("get vdev failed for vdev_id: %d", vdev_id);
+		return WLAN_PHYMODE_AUTO;
+	}
+
+	mlme_obj = wlan_vdev_mlme_get_cmpt_obj(vdev);
+	if (!mlme_obj) {
+		mlme_err("failed to get mlme_obj vdev_id: %d", vdev_id);
+		phymode = WLAN_PHYMODE_AUTO;
+		goto done;
+	}
+	phymode = mlme_obj->mgmt.generic.phy_mode;
+
+done:
+	wlan_objmgr_vdev_release_ref(vdev, WLAN_MLME_OBJMGR_ID);
+
+	return phymode;
 }

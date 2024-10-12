@@ -40,7 +40,7 @@ Copyright (C) 2021, Samsung Electronics. All rights reserved.
 #define MDNIE_STEP2_INDEX 2
 #define MDNIE_STEP3_INDEX 3
 
-#define MDNIE_TRANS_DIMMING_DATA_INDEX	17
+#define MDNIE_TRANS_DIMMING_DATA_INDEX	18
 
 static char level_1_key_on[] = {
 	0xF0,

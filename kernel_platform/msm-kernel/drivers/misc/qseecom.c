@@ -338,6 +338,7 @@ struct qseecom_control {
 	struct task_struct *unload_app_kthread_task;
 	wait_queue_head_t unload_app_kthread_wq;
 	atomic_t unload_app_kthread_state;
+	bool no_user_contig_mem_support;
 };
 
 struct qseecom_unload_app_pending_list {
@@ -475,6 +476,10 @@ static int __qseecom_scm_call2_locked(uint32_t smc_id, struct qseecom_scm_desc *
 {
 	int ret = 0;
 	int retry_count = 0;
+
+	if (desc == NULL) {
+		return -EINVAL;
+	}
 
 	do {
 		ret = qcom_scm_qseecom_call(smc_id, desc, false);
@@ -2302,7 +2307,7 @@ static int __qseecom_process_reentrancy_blocked_on_listener(
 	/* find app_id & img_name from list */
 	if (!ptr_app) {
 		if (data->client.from_smcinvoke || data->client.from_loadapp) {
-			pr_err("This request is from %s\n",
+			pr_debug("This request is from %s\n",
 				(data->client.from_smcinvoke ? "smcinvoke" : "load_app"));
 			ptr_app = &dummy_app_entry;
 			ptr_app->app_id = data->client.app_id;
@@ -2382,12 +2387,9 @@ static int __qseecom_process_reentrancy_blocked_on_listener(
 					&ireq, sizeof(ireq),
 					&continue_resp, sizeof(continue_resp));
 
-		if (ret) {
-			pr_err("never expected falling to legacy method\n");
-		}
-
 		if (ret && qseecom.smcinvoke_support) {
 			/* retry with legacy cmd */
+			pr_warn("falling back to legacy method\n");
 			qseecom.smcinvoke_support = false;
 			ireq.app_or_session_id = data->client.app_id;
 			ret = qseecom_scm_call(SCM_SVC_TZSCHEDULER, 1,
@@ -3105,8 +3107,12 @@ static int qseecom_unload_app(struct qseecom_dev_handle *data,
 		return -EINVAL;
 	}
 
-	pr_err("unload app %d(%s), app_crash flag %d\n", data->client.app_id,
+	pr_debug("unload app %d(%s), app_crash flag %d\n", data->client.app_id,
 			data->client.app_name, app_crash);
+    if (!memcmp(data->client.app_name, "dsms", strlen("dsms"))) {
+           pr_debug("Do not unload dsms app from tz\n");
+           goto unload_exit;
+    }
 
 	if (!memcmp(data->client.app_name, "keymaste", strlen("keymaste"))) {
 		pr_debug("Do not unload keymaster app from tz\n");
@@ -3164,12 +3170,10 @@ static int qseecom_unload_app(struct qseecom_dev_handle *data,
 			 * If unload failed due to EBUSY, don't free mem
 			 * just restore app ref_cnt and return -EBUSY
 			 */
-			pr_err("unload ta %d(%s) EBUSY\n",
+			pr_warn("unload ta %d(%s) EBUSY\n",
 				data->client.app_id, data->client.app_name);
 			ptr_app->ref_cnt++;
 			return ret;
-		} else {
-			pr_err("__qseecom_unload_app %d succeeded\n", data->client.app_id);
 		}
 		spin_lock_irqsave(&qseecom.registered_app_list_lock, flags);
 		list_del(&ptr_app->list);
@@ -3196,6 +3200,28 @@ static int qseecom_prepare_unload_app(struct qseecom_dev_handle *data)
 	pr_debug("prepare to unload app(%d)(%s), pending %d\n",
 		data->client.app_id, data->client.app_name,
 		data->client.unload_pending);
+
+	/* For keymaster we are not going to unload so no need to add it in
+	 * unload app pending list as soon as we identify release ion buffer
+	 * and return .
+	 */
+	if (!memcmp(data->client.app_name, "keymaste", strlen("keymaste"))) {
+		if (data->client.dmabuf) {
+			/* Each client will get same KM TA loaded handle but will
+			 * allocate separate shared buffer during loading of TA,
+			 * as client can't unload KM TA so we will only free out
+			 * shared buffer and return early to avoid any ion buffer leak.
+			 */
+			qseecom_vaddr_unmap(data->client.sb_virt, data->client.sgt,
+				data->client.attach, data->client.dmabuf);
+			MAKE_NULL(data->client.sgt,
+				data->client.attach, data->client.dmabuf);
+		}
+		__qseecom_free_tzbuf(&data->sglistinfo_shm);
+		data->released = true;
+		return 0;
+	}
+
 	if (data->client.unload_pending)
 		return 0;
 	entry = kzalloc(sizeof(*entry), GFP_KERNEL);
@@ -3205,7 +3231,7 @@ static int qseecom_prepare_unload_app(struct qseecom_dev_handle *data)
 	list_add_tail(&entry->list,
 		&qseecom.unload_app_pending_list_head);
 	data->client.unload_pending = true;
-	pr_err("unload ta %d pending\n", data->client.app_id);
+	pr_debug("unload ta %d pending\n", data->client.app_id);
 	return 0;
 }
 
@@ -3246,7 +3272,7 @@ static void __qseecom_processing_pending_unload_app(void)
 		entry = list_entry(pos,
 			struct qseecom_unload_app_pending_list, list);
 		if (entry && entry->data) {
-			pr_err("process pending unload app %d (%s)\n",
+			pr_debug("process pending unload app %d (%s)\n",
 				entry->data->client.app_id,
 				entry->data->client.app_name);
 			mutex_unlock(&unload_app_pending_list_lock);
@@ -3255,8 +3281,6 @@ static void __qseecom_processing_pending_unload_app(void)
 			if (ret)
 				pr_err("unload app %d pending failed %d\n",
 					entry->data->client.app_id, ret);
-			else
-				pr_err("unload app %d has succeeded\n", entry->data->client.app_id);
 			mutex_unlock(&app_access_lock);
 			mutex_lock(&unload_app_pending_list_lock);
 			__qseecom_free_tzbuf(&entry->data->sglistinfo_shm);
@@ -3275,7 +3299,7 @@ static int __qseecom_unload_app_kthread_func(void *data)
 			qseecom.unload_app_kthread_wq,
 			atomic_read(&qseecom.unload_app_kthread_state)
 				== UNLOAD_APP_KT_WAKEUP);
-		pr_err("kthread to unload app is called, state %d\n",
+		pr_debug("kthread to unload app is called, state %d\n",
 			atomic_read(&qseecom.unload_app_kthread_state));
 		__qseecom_processing_pending_unload_app();
 		atomic_set(&qseecom.unload_app_kthread_state,
@@ -5231,7 +5255,6 @@ int qseecom_shutdown_app(struct qseecom_handle **handle)
 	else
 		ret = qseecom_unload_app(data, false);
 
-	pr_err("After qseecom_unload_app, ret : %d\n", ret);
 	mutex_unlock(&app_access_lock);
 	if (ret == 0) {
 		if (data->client.sb_virt)
@@ -6487,7 +6510,7 @@ static int qseecom_create_key(struct qseecom_dev_handle *data,
 	struct qseecom_create_key_req create_key_req;
 	struct qseecom_key_generate_ireq generate_key_ireq;
 	struct qseecom_key_select_ireq set_key_ireq;
-	uint32_t entries = 0;
+	int32_t entries = 0;
 
 	ret = copy_from_user(&create_key_req, argp, sizeof(create_key_req));
 	if (ret) {
@@ -6632,7 +6655,7 @@ static int qseecom_wipe_key(struct qseecom_dev_handle *data,
 	struct qseecom_wipe_key_req wipe_key_req;
 	struct qseecom_key_delete_ireq delete_key_ireq;
 	struct qseecom_key_select_ireq clear_key_ireq;
-	uint32_t entries = 0;
+	int32_t entries = 0;
 
 	ret = copy_from_user(&wipe_key_req, argp, sizeof(wipe_key_req));
 	if (ret) {
@@ -7864,7 +7887,6 @@ long qseecom_ioctl(struct file *file,
 		mutex_lock(&app_access_lock);
 		atomic_inc(&data->ioctl_count);
 		ret = qseecom_unload_app(data, false);
-		pr_err("qseecom_unload_app, ret :%d\n", ret);
 		atomic_dec(&data->ioctl_count);
 		mutex_unlock(&app_access_lock);
 		if (ret)
@@ -8373,7 +8395,7 @@ static int qseecom_release(struct inode *inode, struct file *file)
 
 	__qseecom_release_disable_clk(data);
 	if (!data->released) {
-		pr_err("data: released=false, type=%d, mode=%d, data=0x%pK\n",
+		pr_debug("data: released=false, type=%d, mode=%d, data=0x%pK\n",
 			data->type, data->mode, data);
 		switch (data->type) {
 		case QSEECOM_LISTENER_SERVICE:
@@ -8387,7 +8409,7 @@ static int qseecom_release(struct inode *inode, struct file *file)
 			__wakeup_unregister_listener_kthread();
 			break;
 		case QSEECOM_CLIENT_APP:
-			pr_err("release app %d (%s)\n",
+			pr_debug("release app %d (%s)\n",
 				data->client.app_id, data->client.app_name);
 			if (data->client.app_id) {
 				free_private_data = false;
@@ -9577,12 +9599,17 @@ static int qseecom_register_shmbridge(struct platform_device *pdev)
 		return ret;
 	}
 
-	ret = qseecom_register_heap_shmbridge(pdev, "user_contig_mem",
+	/* no-user-contig-mem is present in dtsi if user_contig_region is not needed*/
+	qseecom.no_user_contig_mem_support = of_property_read_bool((&pdev->dev)->of_node,
+						"qcom,no-user-contig-mem-support");
+	if (!qseecom.no_user_contig_mem_support) {
+		ret = qseecom_register_heap_shmbridge(pdev, "user_contig_mem",
 					&qseecom.user_contig_bridge_handle);
-	if (ret) {
-		qtee_shmbridge_deregister(qseecom.qseecom_bridge_handle);
-		qtee_shmbridge_deregister(qseecom.ta_bridge_handle);
-		return ret;
+		if (ret) {
+			qtee_shmbridge_deregister(qseecom.qseecom_bridge_handle);
+			qtee_shmbridge_deregister(qseecom.ta_bridge_handle);
+			return ret;
+		}
 	}
 
 	return 0;
@@ -9590,7 +9617,8 @@ static int qseecom_register_shmbridge(struct platform_device *pdev)
 
 static void qseecom_deregister_shmbridge(void)
 {
-	qtee_shmbridge_deregister(qseecom.user_contig_bridge_handle);
+	if (!qseecom.no_user_contig_mem_support)
+		qtee_shmbridge_deregister(qseecom.user_contig_bridge_handle);
 	qtee_shmbridge_deregister(qseecom.qseecom_bridge_handle);
 	qtee_shmbridge_deregister(qseecom.ta_bridge_handle);
 }

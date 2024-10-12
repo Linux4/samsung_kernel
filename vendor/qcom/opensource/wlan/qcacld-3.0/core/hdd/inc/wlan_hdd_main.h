@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2012-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -1219,6 +1219,37 @@ struct rcpi_info {
 
 struct hdd_context;
 
+#ifdef MULTI_CLIENT_LL_SUPPORT
+/* Max host clients which can request the FW arbiter with the latency level */
+#define WLM_MAX_HOST_CLIENT 5
+
+/**
+ * struct wlm_multi_client_info_table - To store multi client id information
+ * @client_id: host id for a client
+ * @port_id: client id coming from upper layer
+ * @in_use: set true for a client when host receives vendor cmd for that client
+ */
+struct wlm_multi_client_info_table {
+	uint32_t client_id;
+	uint32_t port_id;
+	bool in_use;
+};
+#endif
+
+#ifdef WLAN_FEATURE_DYNAMIC_RX_AGGREGATION
+/**
+ * enum qdisc_filter_status - QDISC filter status
+ * @QDISC_FILTER_RTNL_LOCK_FAIL: rtnl lock acquire failed
+ * @QDISC_FILTER_PRIO_MATCH: qdisc filter with priority match
+ * @QDISC_FILTER_PRIO_MISMATCH: no filter match with configured priority
+ */
+enum qdisc_filter_status {
+	QDISC_FILTER_RTNL_LOCK_FAIL,
+	QDISC_FILTER_PRIO_MATCH,
+	QDISC_FILTER_PRIO_MISMATCH,
+};
+#endif
+
 /**
  * struct hdd_adapter - hdd vdev/net_device context
  * @vdev: object manager vdev context
@@ -1226,10 +1257,18 @@ struct hdd_context;
  * @vdev_id: Unique identifier assigned to the vdev
  * @event_flags: a bitmap of hdd_adapter_flags
  * @mic_work: mic work information
+ * @enable_dynamic_tsf_sync: Enable/Disable TSF sync through NL interface
+ * @dynamic_tsf_sync_interval: TSF sync interval configure through NL interface
  * @gpio_tsf_sync_work: work to sync send TSF CAP WMI command
  * @cache_sta_count: number of currently cached stations
  * @acs_complete_event: acs complete event
- * @latency_level: 0 - normal, 1 - moderate, 2 - low, 3 - ultralow
+ * @latency_level: 0 - normal, 1 - xr, 2 - low, 3 - ultralow
+ * @multi_client_ll_support: to check multi client ll support in driver
+ * @client_info: To store multi client id information
+ * @multi_ll_response_cookie: cookie for multi client ll command
+ * @multi_ll_req_in_progress: to check multi client ll request in progress
+ * @multi_ll_resp_expected: to decide whether host will wait for multi client
+ * event or not
  * @last_disconnect_reason: Last disconnected internal reason code
  *                          as per enum qca_disconnect_reason_codes
  * @connect_req_status: Last disconnected internal status code
@@ -1247,6 +1286,7 @@ struct hdd_context;
  *			progress, and any operation using rtnl lock inside
  *			the driver can be avoided/skipped.
  * @mon_adapter: hdd_adapter of monitor mode.
+ * @set_mac_addr_req_ctx: Set MAC address command request context
  */
 struct hdd_adapter {
 	/* Magic cookie for adapter sanity verification.  Note that this
@@ -1392,6 +1432,8 @@ struct hdd_adapter {
 	/* spin lock for read/write timestamps */
 	qdf_spinlock_t host_target_sync_lock;
 	qdf_mc_timer_t host_target_sync_timer;
+	bool enable_dynamic_tsf_sync;
+	uint32_t dynamic_tsf_sync_interval;
 	uint64_t cur_host_time;
 	uint64_t last_host_time;
 	uint64_t last_target_time;
@@ -1459,6 +1501,7 @@ struct hdd_adapter {
 
 #ifdef WLAN_FEATURE_LINK_LAYER_STATS
 	bool is_link_layer_stats_set;
+	uint8_t ll_stats_failure_count;
 #endif
 	uint8_t link_status;
 	uint8_t upgrade_udp_qos_threshold;
@@ -1474,6 +1517,7 @@ struct hdd_adapter {
 
 	/* BITMAP indicating pause reason */
 	uint32_t pause_map;
+	uint32_t subqueue_pause_map;
 	spinlock_t pause_map_lock;
 	qdf_time_t start_time;
 	qdf_time_t last_time;
@@ -1512,6 +1556,13 @@ struct hdd_adapter {
 	uint32_t mon_chan_freq;
 	uint32_t mon_bandwidth;
 	uint16_t latency_level;
+#ifdef MULTI_CLIENT_LL_SUPPORT
+	bool multi_client_ll_support;
+	struct wlm_multi_client_info_table client_info[WLM_MAX_HOST_CLIENT];
+	void *multi_ll_response_cookie;
+	bool multi_ll_req_in_progress;
+	bool multi_ll_resp_expected;
+#endif
 #ifdef FEATURE_MONITOR_MODE_SUPPORT
 	bool monitor_mode_vdev_up_in_progress;
 #endif
@@ -1548,7 +1599,7 @@ struct hdd_adapter {
 	void *cookie;
 	bool response_expected;
 #endif
-	uint8_t gro_disallowed[DP_MAX_RX_THREADS];
+	qdf_atomic_t gro_disallowed;
 	uint8_t gro_flushed[DP_MAX_RX_THREADS];
 	bool handle_feature_update;
 	/* Indicate if TSO and checksum offload features are enabled or not */
@@ -1568,8 +1619,11 @@ struct hdd_adapter {
 #ifdef WLAN_FEATURE_PKT_CAPTURE
 	struct hdd_adapter *mon_adapter;
 #endif
-#ifdef WLAN_FEATURE_11BE_MLO
+#if defined(WLAN_FEATURE_11BE_MLO) && defined(CFG80211_11BE_BASIC)
 	struct hdd_mlo_adapter_info mlo_adapter_info;
+#endif
+#ifdef WLAN_FEATURE_DYNAMIC_MAC_ADDR_UPDATE
+	void *set_mac_addr_req_ctx;
 #endif
 };
 
@@ -1579,6 +1633,22 @@ struct hdd_adapter {
 #define WLAN_HDD_GET_HOSTAP_STATE_PTR(adapter) \
 				(&(adapter)->session.ap.hostapd_state)
 #define WLAN_HDD_GET_SAP_CTX_PTR(adapter) ((adapter)->session.ap.sap_context)
+
+/**
+ * hdd_is_sta_authenticated() - check if given adapter's STA
+ *				session authenticated
+ * @adapter: adapter pointer
+ *
+ * Return: STA session is_authenticated flag value
+ */
+static inline
+uint8_t hdd_is_sta_authenticated(struct hdd_adapter *adapter)
+{
+	struct hdd_station_ctx *sta_ctx =
+			WLAN_HDD_GET_STATION_CTX_PTR(adapter);
+
+	return sta_ctx->conn_info.is_authenticated;
+}
 
 #ifdef WLAN_FEATURE_NAN
 #define WLAN_HDD_IS_NDP_ENABLED(hdd_ctx) ((hdd_ctx)->nan_datapath_enabled)
@@ -1925,6 +1995,8 @@ struct hdd_rtpm_tput_policy_context {
  * @country_change_work: work for updating vdev when country changes
  * @rx_aggregation: rx aggregation enable or disable state
  * @gro_force_flush: gro force flushed indication flag
+ * @tc_based_dyn_gro: TC based dynamic GRO enable/disable flag
+ * @tc_ingress_prio: TC ingress priority
  * @current_pcie_gen_speed: current pcie gen speed
  * @pm_qos_req: pm_qos request for all cpu cores
  * @qos_cpu_mask: voted cpu core mask
@@ -1933,10 +2005,6 @@ struct hdd_rtpm_tput_policy_context {
  * @is_therm_cmd_supp: get temperature command enable or disable
  * @disconnect_for_sta_mon_conc: disconnect if sta monitor intf concurrency
  * @bbm_ctx: bus bandwidth manager context
- * @is_dual_mac_cfg_updated: indicate whether dual mac cfg has been updated
- * @twt_en_dis_work: work to send twt enable/disable cmd on MCC/SCC concurrency
- * @dump_in_progress: Stores value of dump in progress
- * @hdd_dual_sta_policy: Concurrent STA policy configuration
  */
 struct hdd_context {
 	struct wlan_objmgr_psoc *psoc;
@@ -1981,6 +2049,7 @@ struct hdd_context {
 	bool is_ol_rx_thread_suspended;
 #endif
 
+	bool hdd_wlan_suspend_in_progress;
 	bool hdd_wlan_suspended;
 	bool suspended;
 	/* flag to start pktlog after SSR/PDR if previously enabled */
@@ -2053,6 +2122,9 @@ struct hdd_context {
 	uint16_t unsafe_channel_count;
 	uint16_t unsafe_channel_list[NUM_CHANNELS];
 #endif /* FEATURE_WLAN_CH_AVOID */
+#ifdef FEATURE_WLAN_CH_AVOID_EXT
+	uint32_t restriction_mask;
+#endif
 
 	uint8_t max_intf_count;
 #ifdef WLAN_FEATURE_LPSS
@@ -2242,7 +2314,7 @@ struct hdd_context {
 	struct sar_limit_cmd_params *sar_cmd_params;
 #ifdef SAR_SAFETY_FEATURE
 	qdf_mc_timer_t sar_safety_timer;
-	qdf_mc_timer_t sar_safety_unsolicited_timer;
+	struct qdf_delayed_work sar_safety_unsolicited_work;
 	qdf_event_t sar_safety_req_resp_event;
 	qdf_atomic_t sar_safety_req_resp_event_in_progress;
 #endif
@@ -2271,6 +2343,8 @@ struct hdd_context {
 	struct {
 		qdf_atomic_t rx_aggregation;
 		uint8_t gro_force_flush[DP_MAX_RX_THREADS];
+		bool tc_based_dyn_gro;
+		uint32_t tc_ingress_prio;
 	} dp_agg_param;
 	int current_pcie_gen_speed;
 	qdf_workqueue_t *adapter_ops_wq;
@@ -2286,23 +2360,28 @@ struct hdd_context {
 #ifdef FEATURE_BUS_BANDWIDTH_MGR
 	struct bbm_context *bbm_ctx;
 #endif
-	bool is_dual_mac_cfg_updated;
-	bool is_regulatory_update_in_progress;
-	qdf_event_t regulatory_update_event;
-	qdf_mutex_t regulatory_status_lock;
-	bool is_fw_dbg_log_levels_configured;
+    bool is_regulatory_update_in_progress;
+    qdf_event_t regulatory_update_event;
+    qdf_mutex_t regulatory_status_lock;
+    bool is_fw_dbg_log_levels_configured;
 #ifdef WLAN_SUPPORT_TWT
-	qdf_work_t twt_en_dis_work;
+    qdf_work_t twt_en_dis_work;
 #endif
-	bool is_wifi3_0_target;
-	bool dump_in_progress;
-	uint64_t bw_vote_time;
-	struct hdd_dual_sta_policy dual_sta_policy;
-#ifdef WLAN_FEATURE_11BE_MLO
-	struct hdd_mld_mac_info mld_mac_info;
+    bool is_wifi3_0_target;
+    bool dump_in_progress;
+    uint64_t bw_vote_time;
+    struct hdd_dual_sta_policy dual_sta_policy;
+#if defined(WLAN_FEATURE_11BE_MLO) && defined(CFG80211_11BE_BASIC)
+    struct hdd_mld_mac_info mld_mac_info;
 #endif
 #ifdef THERMAL_STATS_SUPPORT
-	bool is_therm_stats_in_progress;
+    bool is_therm_stats_in_progress;
+#endif
+#ifdef WLAN_FEATURE_DYNAMIC_MAC_ADDR_UPDATE
+    bool is_vdev_macaddr_dynamic_update_supported;
+#endif
+#ifdef CONFIG_WLAN_FREQ_LIST
+    uint8_t power_type;
 #endif
 };
 
@@ -2547,7 +2626,7 @@ QDF_STATUS hdd_add_adapter_front(struct hdd_context *hdd_ctx,
 				 struct hdd_adapter *adapter);
 
 /**
- * typedef hdd_adapter_iterate_cb() – Iteration callback function
+ * typedef hdd_adapter_iterate_cb() ??Iteration callback function
  * @adapter: current adapter of interest
  * @context: user context supplied to the iterator
  *
@@ -2562,7 +2641,7 @@ typedef QDF_STATUS (*hdd_adapter_iterate_cb)(struct hdd_adapter *adapter,
 					     void *context);
 
 /**
- * hdd_adapter_iterate() – Safely iterate over all adapters
+ * hdd_adapter_iterate() ??Safely iterate over all adapters
  * @cb: callback function to invoke for each adapter
  * @context: user-supplied context to pass to @cb
  *
@@ -3413,6 +3492,18 @@ static inline bool hdd_scan_random_mac_addr_supported(void)
 }
 #endif
 
+#ifdef WLAN_FEATURE_DYNAMIC_MAC_ADDR_UPDATE
+static inline bool hdd_dynamic_mac_addr_supported(struct hdd_context *hdd_ctx)
+{
+	return hdd_ctx->is_vdev_macaddr_dynamic_update_supported;
+}
+#else
+static inline bool hdd_dynamic_mac_addr_supported(struct hdd_context *hdd_ctx)
+{
+	return false;
+}
+#endif
+
 /**
  * hdd_start_vendor_acs(): Start vendor ACS procedure
  * @adapter: pointer to SAP adapter struct
@@ -3924,6 +4015,20 @@ int hdd_start_ap_adapter(struct hdd_adapter *adapter);
 int hdd_configure_cds(struct hdd_context *hdd_ctx);
 int hdd_set_fw_params(struct hdd_adapter *adapter);
 
+#ifdef MULTI_CLIENT_LL_SUPPORT
+/**
+ * wlan_hdd_deinit_multi_client_info_table() - to deinit multi client info table
+ * @adapter: hdd vdev/net_device context
+ *
+ * Return: none
+ */
+void wlan_hdd_deinit_multi_client_info_table(struct hdd_adapter *adapter);
+#else
+static inline void
+wlan_hdd_deinit_multi_client_info_table(struct hdd_adapter *adapter)
+{}
+#endif
+
 /**
  * hdd_wlan_start_modules() - Single driver state machine for starting modules
  * @hdd_ctx: HDD context
@@ -4023,6 +4128,8 @@ int hdd_clone_local_unsafe_chan(struct hdd_context *hdd_ctx,
  * @hdd_ctx: hdd context pointer
  * @local_unsafe_list: unsafe chan list to be compared with hdd_ctx's list
  * @local_unsafe_list_count: channel number in local_unsafe_list
+ * @restriction_mask: restriction mask is to differentiate current channel
+ * list different from previous channel list
  *
  * The function checked the input channel is same as current unsafe chan
  * list in hdd_ctx.
@@ -4030,11 +4137,28 @@ int hdd_clone_local_unsafe_chan(struct hdd_context *hdd_ctx,
  * Return: true if input channel list is same as the list in hdd_ctx
  */
 bool hdd_local_unsafe_channel_updated(struct hdd_context *hdd_ctx,
-	uint16_t *local_unsafe_list, uint16_t local_unsafe_list_count);
+	uint16_t *local_unsafe_list, uint16_t local_unsafe_list_count,
+	uint32_t restriction_mask);
 
 int hdd_enable_disable_ca_event(struct hdd_context *hddctx,
 				uint8_t set_value);
 void wlan_hdd_undo_acs(struct hdd_adapter *adapter);
+
+/**
+ * wlan_hdd_set_restriction_mask() - set restriction mask for hdd context
+ * @hdd_ctx: hdd context pointer
+ *
+ * Return: None
+ */
+void wlan_hdd_set_restriction_mask(struct hdd_context *hdd_ctx);
+
+/**
+ * wlan_hdd_get_restriction_mask() - get restriction mask from hdd context
+ * @hdd_ctx: hdd context pointer
+ *
+ * Return: restriction_mask
+ */
+uint32_t wlan_hdd_get_restriction_mask(struct hdd_context *hdd_ctx);
 
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 7, 0))
 static inline int
@@ -4877,7 +5001,7 @@ static inline bool hdd_is_mac_addr_same(uint8_t *addr1, uint8_t *addr2)
 	return !qdf_mem_cmp(addr1, addr2, QDF_MAC_ADDR_SIZE);
 }
 
-#ifdef DP_FEATURE_11BE_MLO
+#ifdef WLAN_FEATURE_11BE_MLO
 static inline bool hdd_nbuf_dst_addr_is_mld_addr(struct hdd_adapter *adapter,
 						 struct sk_buff *nbuf)
 {
@@ -5132,4 +5256,91 @@ static inline void hdd_dp_ssr_unprotect(void)
 {
 	qdf_atomic_dec(&dp_protect_entry_count);
 }
+
+#ifdef WLAN_FEATURE_DYNAMIC_MAC_ADDR_UPDATE
+/**
+ * hdd_dynamic_mac_address_set(): API to set MAC address, when interface
+ *                                is up.
+ * @hdd_context: Pointer to HDD context
+ * @adapter: Pointer to hdd_adapter
+ * @mac_addr: MAC address to set
+ *
+ * This API is used to update the current VDEV MAC address.
+ *
+ * Return: 0 for success. non zero valure for failure.
+ */
+int hdd_dynamic_mac_address_set(struct hdd_context *hdd_ctx,
+				struct hdd_adapter *adapter,
+				struct qdf_mac_addr mac_addr);
+
+/**
+ * hdd_is_dynamic_set_mac_addr_allowed() - API to check dynamic MAC address
+ *				           update is allowed or not
+ * @adapter: Pointer to the adapter structure
+ *
+ * Return: true or false
+ */
+bool hdd_is_dynamic_set_mac_addr_allowed(struct hdd_adapter *adapter);
+
+#if defined(WLAN_FEATURE_11BE_MLO) && defined(CFG80211_11BE_BASIC)
+/**
+ * hdd_update_vdev_mac_address() - Update VDEV MAC address dynamically
+ * @hdd_ctx: Pointer to HDD context
+ * @adapter: Pointer to HDD adapter
+ * @mac_addr: MAC address to be updated
+ *
+ * API to update VDEV MAC address during interface is in UP state.
+ *
+ * Return: 0 for Success. Error code for failure
+ */
+int hdd_update_vdev_mac_address(struct hdd_context *hdd_ctx,
+				struct hdd_adapter *adapter,
+				struct qdf_mac_addr mac_addr);
+#else
+static inline int hdd_update_vdev_mac_address(struct hdd_context *hdd_ctx,
+					      struct hdd_adapter *adapter,
+					      struct qdf_mac_addr mac_addr)
+{
+	return hdd_dynamic_mac_address_set(hdd_ctx, adapter, mac_addr);
+}
+#endif /* WLAN_FEATURE_11BE_MLO */
+#else
+static inline int hdd_update_vdev_mac_address(struct hdd_context *hdd_ctx,
+					      struct hdd_adapter *adapter,
+					      struct qdf_mac_addr mac_addr)
+{
+	return 0;
+}
+
+static inline int hdd_dynamic_mac_address_set(struct hdd_context *hdd_ctx,
+					      struct hdd_adapter *adapter,
+					      struct qdf_mac_addr mac_addr)
+{
+	return 0;
+}
+
+static inline bool
+hdd_is_dynamic_set_mac_addr_allowed(struct hdd_adapter *adapter)
+{
+	return false;
+}
+
+#endif /* WLAN_FEATURE_DYNAMIC_MAC_ADDR_UPDATE */
+
+#ifdef FEATURE_WLAN_FULL_POWER_DOWN_SUPPORT
+/**
+ * hdd_set_suspend_mode: set the suspend_mode state to pld based on the
+ *                       configuration option from INI file
+ * @hdd_ctx: HDD context
+ *
+ * Return: 0 for success
+ *         Non zero failure code for errors
+ */
+int hdd_set_suspend_mode(struct hdd_context *hdd_ctx);
+#else
+static inline int hdd_set_suspend_mode(struct hdd_context *hdd_ctx)
+{
+	return 0;
+}
+#endif
 #endif /* end #if !defined(WLAN_HDD_MAIN_H) */

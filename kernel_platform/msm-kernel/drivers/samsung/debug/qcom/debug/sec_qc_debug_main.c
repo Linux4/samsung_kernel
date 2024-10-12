@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0
 /*
- * COPYRIGHT(C) 2021 Samsung Electronics Co., Ltd. All Right Reserved.
+ * COPYRIGHT(C) 2021-2022 Samsung Electronics Co., Ltd. All Right Reserved.
  */
 
 #define pr_fmt(fmt)     KBUILD_MODNAME ":%s() " fmt, __func__
@@ -28,6 +28,18 @@ static int __qc_debug_parse_dt_reboot_notifier_priority(struct builder *bd,
 		return -EINVAL;
 
 	drvdata->reboot_nb.priority = (int)priority;
+
+	return 0;
+}
+
+static int __qc_debug_parse_dt_use_cp_dump_encrypt(struct builder *bd,
+		struct device_node *np)
+{
+	struct qc_debug_drvdata *drvdata =
+			container_of(bd, struct qc_debug_drvdata, bd);
+
+	drvdata->use_cp_dump_encrypt =
+			of_property_read_bool(np, "sec,use-cp_dump_encrypt");
 
 	return 0;
 }
@@ -68,8 +80,9 @@ static int __qc_debug_parse_dt_use_store_onoff_history(struct builder *bd,
 	return 0;
 }
 
-static struct dt_builder __qc_debug_dt_builder[] = {
+static const struct dt_builder __qc_debug_dt_builder[] = {
 	DT_BUILDER(__qc_debug_parse_dt_reboot_notifier_priority),
+	DT_BUILDER(__qc_debug_parse_dt_use_cp_dump_encrypt),
 	DT_BUILDER(__qc_debug_parse_dt_use_store_last_kmsg),
 	DT_BUILDER(__qc_debug_parse_dt_use_store_lpm_kmsg),
 	DT_BUILDER(__qc_debug_parse_dt_use_store_onoff_history)
@@ -81,16 +94,29 @@ static int __qc_debug_parse_dt(struct builder *bd)
 			ARRAY_SIZE(__qc_debug_dt_builder));
 }
 
-static struct dev_builder __qc_debug_dev_builder[] = {
+static int __qc_debug_probe_epilog(struct builder *bd)
+{
+	struct qc_debug_drvdata *drvdata =
+			container_of(bd, struct qc_debug_drvdata, bd);
+	struct device *dev = bd->dev;
+
+	dev_set_drvdata(dev, drvdata);
+
+	return 0;
+}
+
+static const struct dev_builder __qc_debug_dev_builder[] = {
 	DEVICE_BUILDER(__qc_debug_parse_dt, NULL),
+	DEVICE_BUILDER(sec_qc_cp_dump_encrypt_init, NULL),
 	DEVICE_BUILDER(sec_qc_debug_lpm_log_init, NULL),
 	DEVICE_BUILDER(sec_qc_debug_reboot_init, sec_qc_debug_reboot_exit),
 	DEVICE_BUILDER(sec_qc_force_err_init, sec_qc_force_err_exit),
 	DEVICE_BUILDER(sec_qc_boot_stat_init, sec_qc_boot_stat_exit),
+	DEVICE_BUILDER(__qc_debug_probe_epilog, NULL),
 };
 
 static int __qc_debug_probe(struct platform_device *pdev,
-		struct dev_builder *builder, ssize_t n)
+		const struct dev_builder *builder, ssize_t n)
 {
 	struct device *dev = &pdev->dev;
 	struct qc_debug_drvdata *drvdata;
@@ -105,7 +131,7 @@ static int __qc_debug_probe(struct platform_device *pdev,
 }
 
 static int __qc_debug_remove(struct platform_device *pdev,
-		struct dev_builder *builder, ssize_t n)
+		const struct dev_builder *builder, ssize_t n)
 {
 	struct qc_debug_drvdata *drvdata = platform_get_drvdata(pdev);
 

@@ -8,6 +8,7 @@
 #include <linux/highmem.h>
 #include <linux/mem-buf-exporter.h>
 #include "mem-buf-dev.h"
+#include "mem-buf-ids.h"
 
 struct mem_buf_vmperm {
 	u32 flags;
@@ -125,6 +126,7 @@ static struct mem_buf_vmperm *mem_buf_vmperm_alloc_flags(
 	mutex_unlock(&vmperm->lock);
 	vmperm->sgt = sgt;
 	vmperm->flags = flags;
+	vmperm->memparcel_hdl = MEM_BUF_MEMPARCEL_INVALID;
 
 	return vmperm;
 
@@ -193,6 +195,7 @@ static int __mem_buf_vmperm_reclaim(struct mem_buf_vmperm *vmperm)
 
 	mem_buf_vmperm_update_state(vmperm, new_vmids, new_perms, 1);
 	vmperm->flags &= ~MEM_BUF_WRAPPER_FLAG_LENDSHARE;
+	vmperm->memparcel_hdl = MEM_BUF_MEMPARCEL_INVALID;
 	return 0;
 }
 
@@ -260,6 +263,14 @@ struct mem_buf_vmperm *to_mem_buf_vmperm(struct dma_buf *dmabuf)
 	return ops->lookup(dmabuf);
 }
 EXPORT_SYMBOL(to_mem_buf_vmperm);
+
+static bool mem_buf_uncached(struct dma_buf *dmabuf)
+{
+	struct mem_buf_dma_buf_ops *ops;
+
+	ops = container_of(dmabuf->ops, struct mem_buf_dma_buf_ops, dma_ops);
+	return ops->uncached(dmabuf);
+}
 
 int mem_buf_dma_buf_set_destructor(struct dma_buf *buf,
 				   mem_buf_dma_buf_destructor dtor,
@@ -385,7 +396,7 @@ bool mem_buf_vmperm_can_vmap(struct mem_buf_vmperm *vmperm)
 EXPORT_SYMBOL(mem_buf_vmperm_can_vmap);
 
 static int validate_lend_vmids(struct mem_buf_lend_kernel_arg *arg,
-				bool is_lend)
+				int op)
 {
 	int i;
 	bool found = false;
@@ -397,29 +408,55 @@ static int validate_lend_vmids(struct mem_buf_lend_kernel_arg *arg,
 		}
 	}
 
-	if (found && is_lend) {
+	if (found && op == GH_RM_TRANS_TYPE_LEND) {
 		pr_err_ratelimited("Lend cannot target the current VM\n");
 		return -EINVAL;
-	} else if (!found && !is_lend) {
+	} else if (!found && op == GH_RM_TRANS_TYPE_SHARE) {
 		pr_err_ratelimited("Share must target the current VM\n");
 		return -EINVAL;
 	}
 	return 0;
 }
 
+/*
+ * Allow sharing buffers which are not mapped by either mmap, vmap, or dma.
+ * Also allow sharing mapped buffers if the new S2 permissions are at least
+ * as permissive as the old S2 permissions. Currently differences in
+ * executable permission are ignored, under the assumption the memory will
+ * not be used for this purpose.
+ */
+static bool validate_lend_mapcount(struct mem_buf_vmperm *vmperm,
+				   struct mem_buf_lend_kernel_arg *arg)
+{
+	int i;
+	int perms = PERM_READ | PERM_WRITE;
+
+	if (!vmperm->mapcount)
+		return true;
+
+	for (i = 0; i < arg->nr_acl_entries; i++) {
+		if (arg->vmids[i] == current_vmid &&
+		    (arg->perms[i] & perms) == perms)
+			return true;
+	}
+
+	pr_err_ratelimited("%s: dma-buf is pinned, dumping permissions!\n", __func__);
+	for (i = 0; i < arg->nr_acl_entries; i++)
+		pr_err_ratelimited("%s: VMID=%d PERM=%d\n", __func__,
+				    arg->vmids[i], arg->perms[i]);
+	return false;
+}
+
 static int mem_buf_lend_internal(struct dma_buf *dmabuf,
 			struct mem_buf_lend_kernel_arg *arg,
-			bool is_lend)
+			int op)
 {
 	struct mem_buf_vmperm *vmperm;
 	struct sg_table *sgt;
 	int ret;
-	int api;
 
-	if (!(mem_buf_capability & MEM_BUF_CAP_SUPPLIER))
-		return -EOPNOTSUPP;
-
-	if (!arg->nr_acl_entries || !arg->vmids || !arg->perms)
+	if (!arg->nr_acl_entries || !arg->vmids || !arg->perms ||
+	    mem_buf_check_vmids(arg->vmids, arg->nr_acl_entries))
 		return -EINVAL;
 
 	vmperm = to_mem_buf_vmperm(dmabuf);
@@ -430,11 +467,7 @@ static int mem_buf_lend_internal(struct dma_buf *dmabuf,
 	}
 	sgt = vmperm->sgt;
 
-	api = mem_buf_vm_get_backend_api(arg->vmids, arg->nr_acl_entries);
-	if (api < 0)
-		return -EINVAL;
-
-	ret = validate_lend_vmids(arg, is_lend);
+	ret = validate_lend_vmids(arg, op);
 	if (ret)
 		return ret;
 
@@ -457,8 +490,7 @@ static int mem_buf_lend_internal(struct dma_buf *dmabuf,
 		return -EINVAL;
 	}
 
-	if (vmperm->mapcount) {
-		pr_err_ratelimited("dma-buf is pinned!\n");
+	if (!validate_lend_mapcount(vmperm, arg)) {
 		mutex_unlock(&vmperm->lock);
 		return -EINVAL;
 	}
@@ -468,14 +500,16 @@ static int mem_buf_lend_internal(struct dma_buf *dmabuf,
 	 * whether they require cache maintenance prior to caling this function
 	 * for backwards compatibility with ion we will always do CMO.
 	 */
-	dma_map_sgtable(mem_buf_dev, vmperm->sgt, DMA_TO_DEVICE, 0);
-	dma_unmap_sgtable(mem_buf_dev, vmperm->sgt, DMA_TO_DEVICE, 0);
+	if (!mem_buf_uncached(dmabuf)) {
+		dma_map_sgtable(mem_buf_dev, vmperm->sgt, DMA_TO_DEVICE, 0);
+		dma_unmap_sgtable(mem_buf_dev, vmperm->sgt, DMA_TO_DEVICE, 0);
+	}
 
 	ret = mem_buf_vmperm_resize(vmperm, arg->nr_acl_entries);
 	if (ret)
 		goto err_resize;
 
-	ret = mem_buf_assign_mem(is_lend, vmperm->sgt, arg);
+	ret = mem_buf_assign_mem(op, vmperm->sgt, arg);
 	if (ret) {
 		if (ret == -EADDRNOTAVAIL)
 			mem_buf_vmperm_set_err(vmperm);
@@ -503,7 +537,7 @@ err_resize:
 int mem_buf_lend(struct dma_buf *dmabuf,
 			struct mem_buf_lend_kernel_arg *arg)
 {
-	return mem_buf_lend_internal(dmabuf, arg, true);
+	return mem_buf_lend_internal(dmabuf, arg, GH_RM_TRANS_TYPE_LEND);
 }
 EXPORT_SYMBOL(mem_buf_lend);
 
@@ -523,7 +557,7 @@ int mem_buf_share(struct dma_buf *dmabuf,
 	}
 
 	if (found)
-		return mem_buf_lend_internal(dmabuf, arg, false);
+		return mem_buf_lend_internal(dmabuf, arg, GH_RM_TRANS_TYPE_SHARE);
 
 	vmids = kmalloc_array(len + 1, sizeof(*vmids), GFP_KERNEL);
 	if (!vmids)
@@ -548,7 +582,7 @@ int mem_buf_share(struct dma_buf *dmabuf,
 	arg->perms = perms;
 	arg->nr_acl_entries += 1;
 
-	ret = mem_buf_lend_internal(dmabuf, arg, false);
+	ret = mem_buf_lend_internal(dmabuf, arg, GH_RM_TRANS_TYPE_SHARE);
 	/* Swap back */
 	arg->vmids = orig_vmids;
 	arg->perms = orig_perms;
@@ -587,12 +621,6 @@ int mem_buf_reclaim(struct dma_buf *dmabuf)
 
 	if (vmperm->flags & MEM_BUF_WRAPPER_FLAG_ACCEPT) {
 		pr_err_ratelimited("dma-buf not owned by current vm!\n");
-		mutex_unlock(&vmperm->lock);
-		return -EINVAL;
-	}
-
-	if (vmperm->mapcount) {
-		pr_err_ratelimited("dma-buf is pinned!\n");
 		mutex_unlock(&vmperm->lock);
 		return -EINVAL;
 	}

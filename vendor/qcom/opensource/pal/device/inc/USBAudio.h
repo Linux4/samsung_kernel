@@ -1,5 +1,6 @@
 /*
- * Copyright (c) 2019-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -34,11 +35,14 @@
 #include "ResourceManager.h"
 #include "PalAudioRoute.h"
 #include "SessionAlsaUtils.h"
+#include <tinyalsa/asoundlib.h>
+#include <vector>
+#include <map>
+#include <system/audio.h>
+
 #ifdef SEC_AUDIO_COMMON
 #include "SecPalDefs.h"
 #endif
-
-#include <vector>
 
 #define USB_BUFF_SIZE           2048
 #define CHANNEL_NUMBER_STR      "Channels: "
@@ -53,8 +57,10 @@
 #define MAX_HIFI_CHANNEL_COUNT 8
 #define MIN_CHANNEL_COUNT 1
 #define DEFAULT_CHANNEL_COUNT 2
-#define  MAX_SAMPLE_RATE_SIZE 14
+#define MAX_SAMPLE_RATE_SIZE 15
 #define DEFAULT_SERVICE_INTERVAL_US    0
+#define USB_IN_JACK_SUFFIX "Input Jack"
+#define USB_OUT_JACK_SUFFIX "Output Jack"
 
 #ifdef SEC_AUDIO_USB_GAIN_CONTROL
 #define MAX_PATH_LEN   128
@@ -76,11 +82,11 @@ class USBDeviceConfig {
 protected:
     unsigned int bit_width_;
     unsigned int channels_;
-    unsigned int rate_size_;
-    unsigned int rates_[MAX_SAMPLE_RATE_SIZE];
+    std::vector <unsigned int> rates_;
     unsigned long service_interval_us_;
     usb_usecase_type_t type_;
     unsigned int supported_sample_rates_mask_[2];
+    bool jack_status_ = true;
 public:
     void setBitWidth(unsigned int bit_width);
     unsigned int getBitWidth();
@@ -92,19 +98,26 @@ public:
     unsigned long getInterval();
     unsigned int getDefaultRate();
     int getSampleRates(int type, char *rates_str);
-    int getBestRate(int requested_rate, unsigned int *best_rate);
-    int getBestChInfo(struct pal_channel_info *requested_ch_info,
-                        struct pal_channel_info *best);
+    bool isRateSupported(int requested_rate);
+    int getBestRate(int requested_rate, int candidate_rate, unsigned int *best_rate);
+    int updateBestChInfo(struct pal_channel_info *requested_ch_info,
+                         struct pal_channel_info *best);
     int getServiceInterval(const char *interval_str_start);
     static const unsigned int supported_sample_rates_[MAX_SAMPLE_RATE_SIZE];
     int isCustomRateSupported(int requested_rate, unsigned int *best_rate);
+    void setJackStatus(bool jack_status);
+    bool getJackStatus();
+    unsigned int getSRMask(usb_usecase_type_t type) {return supported_sample_rates_mask_[type];} ;
 };
 
 class USBCardConfig {
 protected:
-     struct pal_usb_device_address address_;
+    struct pal_usb_device_address address_;
     int endian_;
+    std::multimap<uint32_t, std::shared_ptr<USBDeviceConfig>> format_list_map;
     std::vector <std::shared_ptr<USBDeviceConfig>> usb_device_config_list_;
+    unsigned int usb_supported_sample_rates_mask_[2];
+    void usb_info_dump(char* read_buf, int type);
 public:
     USBCardConfig(struct pal_usb_device_address address);
     bool isConfigCached(struct pal_usb_device_address addr);
@@ -113,25 +126,31 @@ public:
     int getMaxBitWidth(bool is_playback);
     int getMaxChannels(bool is_playback);
     unsigned int getFormatByBitWidth(int bitwidth);
+    unsigned int readSupportedFormat(bool is_playback, uint32_t *format);
+    unsigned int readSupportedSampleRate(bool is_playback, uint32_t *sample_rate);
+    unsigned int readSupportedChannelMask(bool is_playback, uint32_t *channel);
     unsigned int readDefaultFormat(bool is_playback);
     unsigned int readDefaultSampleRate(bool is_playback);
     unsigned int readDefaultChannelMask(bool is_playback);
-    int readSupportedConfig(dynamic_media_config_t *config, bool is_playback);
+    int readSupportedConfig(dynamic_media_config_t *config, bool is_playback, int usb_card);
 #ifdef SEC_AUDIO_SUPPORT_UHQ
     int readBestConfig(struct pal_media_config *config,
                                     struct pal_stream_attributes *sattr,
                                     bool is_playback, struct pal_device_info *devinfo,
-                                    pal_uhqa_state uhqa_state);
+                                    pal_uhqa_state state);
 #else
     int readBestConfig(struct pal_media_config *config,
                                     struct pal_stream_attributes *sattr,
-                                    bool is_playback, struct pal_device_info *devinfo);
+                                    bool is_playback, struct pal_device_info *devinfo,
+                                    bool uhqa);
 #endif
     unsigned int getMax(unsigned int a, unsigned int b);
     unsigned int getMin(unsigned int a, unsigned int b);
     static const unsigned int out_chn_mask_[MAX_SUPPORTED_CHANNEL_MASKS];
     static const unsigned int in_chn_mask_[MAX_SUPPORTED_CHANNEL_MASKS];
     bool isCaptureProfileSupported();
+    bool readDefaultJackStatus(bool is_playback);
+    bool getJackConnectionStatus (int usb_card, const char* suffix);
 #ifdef SEC_AUDIO_USB_GAIN_CONTROL
     struct audio_route *getUSBAudioRoute();
     void USBAudioGainLoadXml(struct pal_usb_device_address addr);

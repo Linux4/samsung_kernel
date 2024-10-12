@@ -29,7 +29,15 @@
 #ifndef _CHARGER_LISTENER_H_
 #define _CHARGER_LISTENER_H_
 
+#include <sys/epoll.h>
+#ifdef ANDROID
 #include <bits/epoll_event.h>
+#else
+#include <fcntl.h>
+#include <cstring>
+#include <functional>
+#endif
+
 #define MAX_EVENTS 3
 
 typedef enum {

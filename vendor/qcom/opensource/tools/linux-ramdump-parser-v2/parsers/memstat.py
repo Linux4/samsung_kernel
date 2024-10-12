@@ -1,4 +1,5 @@
 # Copyright (c) 2016-2021 The Linux Foundation. All rights reserved.
+# Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License version 2 and
@@ -309,6 +310,9 @@ class MemStats(RamParser):
                     fin.close()
                     ion_mem = int(fin_list[0].split(" ")[-1].replace("MB", ""))
                     out_mem_stat.write("\n{0:30}: {1:8} MB".format("Total DMA memory", ion_mem))
+                else:
+                    out_mem_stat.write("\n{0:30}: Please parse ionbuffer first, use --print-ionbuffer.".format(
+                            "Total DMA memory"))
             except:
                 ion_mem = "Please refer total_dma_heap.txt"
                 out_mem_stat.write('\nTotal ion memory: Please refer total_dma_heap.txt')

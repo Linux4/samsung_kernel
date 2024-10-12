@@ -92,7 +92,7 @@ static ddr_train_t *__lpddr_get_ddr_train(struct qc_smem_drvdata *drvdata)
 	struct device *dev = drvdata->bd.dev;
 	void *vendor1 = drvdata->vendor1;
 	ddr_train_t *ddr_training;
-	
+
 	if (IS_ERR_OR_NULL(vendor1)) {
 		dev_warn(dev, "SMEM_ID_VENDOR1 get entry error\n");
 		return ERR_PTR(-ENODEV);

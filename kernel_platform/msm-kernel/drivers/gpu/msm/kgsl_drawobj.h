@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef __KGSL_DRAWOBJ_H
@@ -85,7 +86,14 @@ struct kgsl_drawobj_cmd {
 	uint64_t submit_ticks;
 	/* @numibs: Number of ibs in this cmdobj */
 	u32 numibs;
+	/* @requeue_cnt: Number of times cmdobj was requeued before submission to dq succeeded */
+	u32 requeue_cnt;
 };
+
+/* This sync object cannot be sent to hardware */
+#define KGSL_SYNCOBJ_SW BIT(0)
+/* This sync object can be sent to hardware */
+#define KGSL_SYNCOBJ_HW BIT(1)
 
 /**
  * struct kgsl_drawobj_sync - KGSL sync object
@@ -105,6 +113,10 @@ struct kgsl_drawobj_sync {
 	unsigned long pending;
 	struct timer_list timer;
 	unsigned long timeout_jiffies;
+	/** @flags: sync object internal flags */
+	u32 flags;
+	/** @num_hw_fence: number of hw fences in this syncobj */
+	u32 num_hw_fence;
 };
 
 #define KGSL_BINDOBJ_STATE_START 0
@@ -193,8 +205,8 @@ struct kgsl_drawobj_sync_event {
 	struct dma_fence *fence;
 	/** @cb: Callback struct for KGSL_CMD_SYNCPOINT_TYPE_TIMELINE */
 	struct dma_fence_cb cb;
-	/** @work : irq worker for KGSL_CMD_SYNCPOINT_TYPE_TIMELINE */
-	struct irq_work work;
+	/** @work : work_struct for KGSL_CMD_SYNCPOINT_TYPE_TIMELINE */
+	struct work_struct work;
 };
 
 #define KGSL_DRAWOBJ_FLAGS \
@@ -214,6 +226,9 @@ struct kgsl_drawobj_sync_event {
  * @CMDOBJ_PROFILE - store the start / retire ticks for
  * @CMDOBJ_FAULT - Mark the command object as faulted
  * the command obj in the profiling buffer
+ * @CMDOBJ_RECURRING_START: To track recurring command object at GMU
+ * @CMDOBJ_RECURRING_STOP: To untrack recurring command object from GMU
+ * @CMDOBJ_MARKER_EXPIRED: Whether this MARKER object is retired or not
  */
 enum kgsl_drawobj_cmd_priv {
 	CMDOBJ_SKIP = 0,
@@ -221,6 +236,9 @@ enum kgsl_drawobj_cmd_priv {
 	CMDOBJ_WFI,
 	CMDOBJ_PROFILE,
 	CMDOBJ_FAULT,
+	CMDOBJ_RECURRING_START,
+	CMDOBJ_RECURRING_STOP,
+	CMDOBJ_MARKER_EXPIRED,
 };
 
 struct kgsl_ibdesc;

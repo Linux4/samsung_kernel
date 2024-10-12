@@ -1715,7 +1715,9 @@ void IPACM_Wan::event_callback(ipa_cm_event_id event, void *param)
 				if( (data->iptype == IPA_IP_v4)
 					    || ((data->iptype==IPA_IP_v6) && (num_dft_rt_v6!=MAX_DEFAULT_v6_ROUTE_RULES))
 					    || ((data->iptype==IPA_IP_v6) && is_global_ipv6_addr(data->ipv6_addr)
-					    && (m_is_sta_mode == Q6_WAN) && sec_num_dft_rt_v6 != MAX_DEFAULT_SEC_v6_ROUTE_RULES) )
+							&& (data->ipv6_addr[0] || data->ipv6_addr[1]) && (ipv6_prefix[0] || ipv6_prefix[1])
+							&& !((ipv6_prefix[0] == data->ipv6_addr[0]) && (ipv6_prefix[1] == data->ipv6_addr[1]))
+							&& (m_is_sta_mode == Q6_WAN) && sec_num_dft_rt_v6 != MAX_DEFAULT_SEC_v6_ROUTE_RULES) )
 				{
 					if (m_is_sta_mode == Q6_MHI_WAN)
 					{

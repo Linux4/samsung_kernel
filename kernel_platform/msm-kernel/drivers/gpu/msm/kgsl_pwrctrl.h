@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2010-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 #ifndef __KGSL_PWRCTRL_H
 #define __KGSL_PWRCTRL_H
@@ -11,7 +12,7 @@
 /*****************************************************************************
  * power flags
  ****************************************************************************/
-#define KGSL_MAX_CLKS 18
+#define KGSL_MAX_CLKS 19
 
 #define KGSL_MAX_PWRLEVELS 16
 
@@ -67,6 +68,8 @@ struct kgsl_pwrlevel {
 	unsigned int bus_min;
 	unsigned int bus_max;
 	unsigned int acd_level;
+	/** @cx_level: CX vote */
+	u32 cx_level;
 	/** @voltage_level: Voltage level used by the GMU to vote RPMh */
 	u32 voltage_level;
 };
@@ -84,6 +87,7 @@ struct kgsl_pwrlevel {
  * @default_pwrlevel - device wake up power level
  * @max_pwrlevel - maximum allowable powerlevel per the user
  * @min_pwrlevel - minimum allowable powerlevel per the user
+ * @min_render_pwrlevel - minimum allowable powerlevel for rendering
  * @num_pwrlevels - number of available power levels
  * @throttle_mask - LM throttle mask
  * @interval_timeout - timeout to be idle before a power event
@@ -114,6 +118,12 @@ struct kgsl_pwrctrl {
 	struct regulator *gx_gdsc_parent;
 	/** @gx_gdsc_parent_min_corner: Minimum supply voltage for GX parent */
 	u32 gx_gdsc_parent_min_corner;
+	/** @cx_gdsc_nb: Notifier block for cx gdsc regulator */
+	struct notifier_block cx_gdsc_nb;
+	/** @cx_gdsc_gate: Completion to signal cx gdsc collapse status */
+	struct completion cx_gdsc_gate;
+	/** @cx_gdsc_wait: Whether to wait for cx gdsc to turn off */
+	bool cx_gdsc_wait;
 	int isense_clk_indx;
 	int isense_clk_on_level;
 	unsigned long power_flags;
@@ -124,9 +134,9 @@ struct kgsl_pwrctrl {
 	unsigned int thermal_pwrlevel;
 	unsigned int thermal_pwrlevel_floor;
 	unsigned int default_pwrlevel;
-	unsigned int wakeup_maxpwrlevel;
 	unsigned int max_pwrlevel;
 	unsigned int min_pwrlevel;
+	unsigned int min_render_pwrlevel;
 	unsigned int num_pwrlevels;
 	unsigned int throttle_mask;
 	u32 interval_timeout;
@@ -165,6 +175,12 @@ struct kgsl_pwrctrl {
 	ktime_t last_stat_updated;
 	/** @nb_max: Notifier block for DEV_PM_QOS_MAX_FREQUENCY */
 	struct notifier_block nb_max;
+	/** @cur_dcvs_buslevel: Current bus level decided by bus DCVS */
+	u32 cur_dcvs_buslevel;
+	/** @rt_bus_hint: IB level hint for real time clients i.e. RB-0 */
+	u32 rt_bus_hint;
+	/** @rt_bus_hint_active: Boolean flag to indicate if RT bus hint is active */
+	bool rt_bus_hint_active;
 };
 
 int kgsl_pwrctrl_init(struct kgsl_device *device);
@@ -227,6 +243,13 @@ int kgsl_pwrctrl_set_default_gpu_pwrlevel(struct kgsl_device *device);
 void kgsl_pwrctrl_request_state(struct kgsl_device *device, u32 state);
 
 /**
+ *kgsl_pwrctrl_set_state - Set a specific power state
+ *@device: Pointer to the kgsl device
+ *@state : Power state requested
+ */
+void kgsl_pwrctrl_set_state(struct kgsl_device* device, u32 state);
+
+/**
  * kgsl_pwrctrl_axi - Propagate bus votes during slumber entry and exit
  * @device: Pointer to the kgsl device
  * @state: Whether we are going to slumber or coming out of slumber
@@ -263,4 +286,22 @@ void kgsl_pwrctrl_irq(struct kgsl_device *device, bool state);
  * Clear the l3 vote when going into slumber
  */
 void kgsl_pwrctrl_clear_l3_vote(struct kgsl_device *device);
+
+/**
+ * kgsl_pwrctrl_enable_cx_gdsc - Enable cx gdsc
+ * @device: Pointer to the kgsl device
+ * @regulator: Pointer to the CX domain regulator
+ *
+ * Return: 0 on success or negative error on failure
+ */
+int kgsl_pwrctrl_enable_cx_gdsc(struct kgsl_device *device,
+	struct regulator *regulator);
+
+/**
+ * kgsl_pwrctrl_disable_cx_gdsc - Disable cx gdsc
+ * @device: Pointer to the kgsl device
+ * @regulator: Pointer to the CX domain regulator
+ */
+void kgsl_pwrctrl_disable_cx_gdsc(struct kgsl_device *device,
+	struct regulator *regulator);
 #endif /* __KGSL_PWRCTRL_H */

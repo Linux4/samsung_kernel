@@ -33,6 +33,8 @@ const char * const mhi_log_level_str[MHI_MSG_LVL_MAX] = {
 				     !mhi_log_level_str[level]) ? \
 				     "Mask all" : mhi_log_level_str[level])
 
+#define MHI_DTR_CHANNEL 19
+
 struct mhi_bus mhi_bus;
 
 void mhi_misc_init(void)
@@ -73,7 +75,7 @@ static void mhi_time_async_cb(struct mhi_device *mhi_dev, u32 sequence,
 	struct mhi_controller *mhi_cntrl = mhi_dev->mhi_cntrl;
 	struct device *dev = &mhi_dev->dev;
 
-	MHI_LOG("Time response: seq:%llx local: %llu remote: %llu (ticks)\n",
+	MHI_LOG("Time response: seq:%x local: %llu remote: %llu (ticks)\n",
 		sequence, local_time, remote_time);
 }
 
@@ -91,13 +93,13 @@ static ssize_t time_async_show(struct device *dev,
 
 	ret = mhi_get_remote_time(mhi_dev, seq, &mhi_time_async_cb);
 	if (ret) {
-		MHI_ERR("Failed to request time, seq:%llx, ret:%d\n", seq, ret);
+		MHI_ERR("Failed to request time, seq:%x, ret:%d\n", seq, ret);
 		return scnprintf(buf, PAGE_SIZE,
 				 "Request failed or feature unsupported\n");
 	}
 
 	return scnprintf(buf, PAGE_SIZE,
-			 "Requested time asynchronously with seq:%llx\n", seq);
+			 "Requested time asynchronously with seq:%x\n", seq);
 }
 static DEVICE_ATTR_RO(time_async);
 
@@ -292,6 +294,9 @@ int mhi_misc_register_controller(struct mhi_controller *mhi_cntrl)
 
 	mhi_priv->log_buf = ipc_log_context_create(MHI_IPC_LOG_PAGES,
 						   mhi_dev->name, 0);
+	if (!mhi_priv->log_buf)
+		MHI_ERR("%s:Failed to create MHI IPC logs\n", __func__);
+
 	mhi_priv->log_lvl = MHI_MISC_DEBUG_LEVEL;
 	mhi_priv->mhi_cntrl = mhi_cntrl;
 
@@ -447,6 +452,7 @@ int mhi_report_error(struct mhi_controller *mhi_cntrl)
 	struct mhi_private *mhi_priv;
 	struct mhi_sfr_info *sfr_info;
 	enum mhi_pm_state cur_state;
+	unsigned long flags;
 
 	if (!mhi_cntrl)
 		return -EINVAL;
@@ -455,7 +461,7 @@ int mhi_report_error(struct mhi_controller *mhi_cntrl)
 	mhi_priv = dev_get_drvdata(dev);
 	sfr_info = mhi_priv->sfr_info;
 
-	write_lock_irq(&mhi_cntrl->pm_lock);
+	write_lock_irqsave(&mhi_cntrl->pm_lock, flags);
 
 	cur_state = mhi_tryset_pm_state(mhi_cntrl, MHI_PM_SYS_ERR_DETECT);
 	if (cur_state != MHI_PM_SYS_ERR_DETECT) {
@@ -463,18 +469,20 @@ int mhi_report_error(struct mhi_controller *mhi_cntrl)
 			"Failed to move to state: %s from: %s\n",
 			to_mhi_pm_state_str(MHI_PM_SYS_ERR_DETECT),
 			to_mhi_pm_state_str(mhi_cntrl->pm_state));
+
+		write_unlock_irqrestore(&mhi_cntrl->pm_lock, flags);
 		return -EPERM;
 	}
 
 	/* force inactive/error state */
 	mhi_cntrl->dev_state = MHI_STATE_SYS_ERR;
 	wake_up_all(&mhi_cntrl->state_event);
-	write_unlock_irq(&mhi_cntrl->pm_lock);
+	write_unlock_irqrestore(&mhi_cntrl->pm_lock, flags);
 
 	/* copy subsystem failure reason string if supported */
 	if (sfr_info && sfr_info->buf_addr) {
 		memcpy(sfr_info->str, sfr_info->buf_addr, sfr_info->len);
-		MHI_ERR("mhi: %s sfr: %s\n", dev_name(dev), sfr_info->buf_addr);
+		MHI_ERR("mhi: %s sfr: %s\n", dev_name(dev), sfr_info->str);
 	}
 
 	/* Notify fatal error to all client drivers to halt processing */
@@ -901,8 +909,18 @@ bool mhi_scan_rddm_cookie(struct mhi_controller *mhi_cntrl, u32 cookie)
 	struct device *dev = &mhi_cntrl->mhi_dev->dev;
 	int ret;
 	u32 val;
-
-	if (!mhi_cntrl->rddm_image || !cookie)
+	int i;
+	bool result = false;
+	struct {
+		char *name;
+		u32 offset;
+	} error_reg[] = {
+		{ "ERROR_DBG1", BHI_ERRDBG1 },
+		{ "ERROR_DBG2", BHI_ERRDBG2 },
+		{ "ERROR_DBG3", BHI_ERRDBG3 },
+		{ NULL },
+		};
+	if (!mhi_cntrl->rddm_image || !cookie || !mhi_cntrl->bhi)
 		return false;
 
 	MHI_VERB("Checking BHI debug register for 0x%x\n", cookie);
@@ -910,15 +928,23 @@ bool mhi_scan_rddm_cookie(struct mhi_controller *mhi_cntrl, u32 cookie)
 	if (!MHI_REG_ACCESS_VALID(mhi_cntrl->pm_state))
 		return false;
 
-	ret = mhi_read_reg(mhi_cntrl, mhi_cntrl->bhi, BHI_ERRDBG2, &val);
-	if (ret)
-		return false;
+	/* look for an RDDM cookie match in any of the error debug registers */
+	for (i = 0; error_reg[i].name; i++) {
 
-	MHI_VERB("BHI_ERRDBG2 value:0x%x\n", val);
-	if (val == cookie)
-		return true;
+		ret = mhi_read_reg(mhi_cntrl, mhi_cntrl->bhi, error_reg[i].offset, &val);
 
-	return false;
+		if (ret)
+			break;
+
+		MHI_VERB("reg: %s value:0x%x\n", error_reg[i].name, val);
+
+		if (!(val ^ cookie)) {
+			MHI_VERB("RDDM Cookie found in %s\n", error_reg[i].name);
+			return true;
+		}
+	}
+	MHI_VERB("RDDM Cookie not found\n");
+	return result;
 }
 EXPORT_SYMBOL(mhi_scan_rddm_cookie);
 
@@ -1050,6 +1076,9 @@ static int mhi_get_capability_offset(struct mhi_controller *mhi_cntrl,
 	if (ret)
 		return ret;
 	do {
+		if (*offset >= MHI_REG_SIZE)
+			return -ENXIO;
+
 		ret = mhi_read_reg_field(mhi_cntrl, mhi_cntrl->regs, *offset,
 					 CAP_CAPID_MASK, CAP_CAPID_SHIFT,
 					 &cur_cap);
@@ -1066,8 +1095,6 @@ static int mhi_get_capability_offset(struct mhi_controller *mhi_cntrl,
 			return ret;
 
 		*offset = next_offset;
-		if (*offset >= MHI_REG_SIZE)
-			return -ENXIO;
 	} while (next_offset);
 
 	return -ENXIO;
@@ -1259,6 +1286,13 @@ int mhi_process_misc_tsync_ev_ring(struct mhi_controller *mhi_cntrl,
 	int ret = 0;
 
 	spin_lock_bh(&mhi_event->lock);
+	if (!is_valid_ring_ptr(ev_ring, er_ctxt->rp)) {
+		MHI_ERR("Event ring rp points outside of the event ring or unalign rp %llx\n",
+				er_ctxt->rp);
+		spin_unlock_bh(&mhi_event->lock);
+		return 0;
+	}
+
 	dev_rp = mhi_to_virtual(ev_ring, er_ctxt->rp);
 	if (ev_ring->rp == dev_rp) {
 		spin_unlock_bh(&mhi_event->lock);
@@ -1287,7 +1321,7 @@ int mhi_process_misc_tsync_ev_ring(struct mhi_controller *mhi_cntrl,
 	sequence = MHI_TRE_GET_EV_SEQ(dev_rp);
 	remote_time = MHI_TRE_GET_EV_TIME(dev_rp);
 
-	MHI_VERB("Received TSYNC event with seq: 0x%llx time: 0x%llx\n",
+	MHI_VERB("Received TSYNC event with seq: 0x%x time: 0x%llx\n",
 		 sequence, remote_time);
 
 	read_lock_bh(&mhi_cntrl->pm_lock);
@@ -1299,7 +1333,7 @@ int mhi_process_misc_tsync_ev_ring(struct mhi_controller *mhi_cntrl,
 	mutex_lock(&mhi_tsync->mutex);
 
 	if (WARN_ON(mhi_tsync->int_sequence != sequence)) {
-		MHI_ERR("Unexpected response: 0x%llx Expected: 0x%llx\n",
+		MHI_ERR("Unexpected response: 0x%x Expected: 0x%x\n",
 			sequence, mhi_tsync->int_sequence);
 
 		mhi_cntrl->runtime_put(mhi_cntrl);
@@ -1364,7 +1398,26 @@ int mhi_process_misc_bw_ev_ring(struct mhi_controller *mhi_cntrl,
 		goto exit_bw_scale_process;
 
 	spin_lock_bh(&mhi_event->lock);
+	if (!is_valid_ring_ptr(ev_ring, er_ctxt->rp)) {
+		MHI_ERR("Event ring rp points outside of the event ring or unalign rp %llx\n",
+				er_ctxt->rp);
+		spin_unlock_bh(&mhi_event->lock);
+		return 0;
+	}
+
 	dev_rp = mhi_to_virtual(ev_ring, er_ctxt->rp);
+
+	/**
+	 * Check the ev ring local pointer is same as ctxt pointer
+	 * if both are same do not process ev ring.
+	 */
+	if (ev_ring->rp == dev_rp) {
+		MHI_VERB("Ignore received BW event:0x%llx ev_ring RP:0x%llx\n",
+			 dev_rp->ptr,
+			 (u64)mhi_to_physical(ev_ring, ev_ring->rp));
+		spin_unlock_bh(&mhi_event->lock);
+		return 0;
+	}
 
 	/* if rp points to base, we need to wrap it around */
 	if (dev_rp == ev_ring->base)
@@ -1560,6 +1613,7 @@ void mhi_misc_mission_mode(struct mhi_controller *mhi_cntrl)
 	struct device *dev = &mhi_cntrl->mhi_dev->dev;
 	struct mhi_private *mhi_priv = dev_get_drvdata(dev);
 	struct mhi_sfr_info *sfr_info = mhi_priv->sfr_info;
+	struct mhi_device *dtr_dev;
 	u64 local, remote;
 	int ret = -EIO;
 
@@ -1567,6 +1621,11 @@ void mhi_misc_mission_mode(struct mhi_controller *mhi_cntrl)
 	ret = mhi_get_remote_time_sync(mhi_cntrl->mhi_dev, &local, &remote);
 	if (!ret)
 		MHI_LOG("Timesync: local: %llx, remote: %llx\n", local, remote);
+
+	/* IP_CTRL DTR channel ID */
+	dtr_dev = mhi_get_device_for_channel(mhi_cntrl, MHI_DTR_CHANNEL);
+	if (dtr_dev)
+		mhi_notify(dtr_dev, MHI_CB_DTR_START_CHANNELS);
 
 	/* initialize SFR */
 	if (!sfr_info)
@@ -1699,7 +1758,10 @@ int mhi_get_remote_time_sync(struct mhi_device *mhi_dev,
 	preempt_disable();
 	local_irq_disable();
 
-	*t_host = mhi_tsync->time_get(mhi_cntrl);
+	ret = mhi_read_reg(mhi_cntrl, mhi_tsync->time_reg,
+			   TIMESYNC_TIME_HIGH_OFFSET, &tdev_hi);
+	if (ret)
+		MHI_ERR("Time HIGH register read error\n");
 
 	ret = mhi_read_reg(mhi_cntrl, mhi_tsync->time_reg,
 			   TIMESYNC_TIME_LOW_OFFSET, &tdev_lo);
@@ -1712,6 +1774,7 @@ int mhi_get_remote_time_sync(struct mhi_device *mhi_dev,
 		MHI_ERR("Time HIGH register read error\n");
 
 	*t_dev = (u64) tdev_hi << 32 | tdev_lo;
+	*t_host = mhi_tsync->time_get(mhi_cntrl);
 
 	local_irq_enable();
 	preempt_enable();
@@ -1805,7 +1868,7 @@ int mhi_get_remote_time(struct mhi_device *mhi_dev,
 
 	mhi_tsync->lpm_enable(mhi_cntrl);
 
-	MHI_VERB("time DB request with seq:0x%llx\n", mhi_tsync->int_sequence);
+	MHI_VERB("time DB request with seq:0x%x\n", mhi_tsync->int_sequence);
 
 	mhi_tsync->db_pending = true;
 	init_completion(&mhi_tsync->completion);

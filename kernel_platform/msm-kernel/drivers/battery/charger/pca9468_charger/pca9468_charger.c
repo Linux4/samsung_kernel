@@ -993,12 +993,8 @@ static int pca9468_stop_charging(struct pca9468_charger *pca9468)
 	int ret = 0;
 
 	/* Check the current state */
-#if IS_ENABLED(CONFIG_BATTERY_SAMSUNG)
 	if ((pca9468->charging_state != DC_STATE_NO_CHARGING) ||
 		(pca9468->timer_id != TIMER_ID_NONE)) {
-#else
-	if (pca9468->charging_state != DC_STATE_NO_CHARGING) {
-#endif
 		// Stop Direct charging
 		cancel_delayed_work(&pca9468->timer_work);
 		cancel_delayed_work(&pca9468->pps_work);
@@ -4944,6 +4940,8 @@ static int pca9468_chg_set_property(struct power_supply *psy,
 				}
 #endif
 				// Start Direct Charging
+				/* Set initial wake up timeout - 10s */
+				pm_wakeup_ws_event(pca9468->monitor_ws, PCA9468_INIT_WAKEUP_T, false);
 				/* Start 1sec timer for battery check */
 				mutex_lock(&pca9468->lock);
 				pca9468->timer_id = TIMER_VBATMIN_CHECK;
@@ -5723,4 +5721,4 @@ module_i2c_driver(pca9468_charger_driver);
 MODULE_AUTHOR("Clark Kim <clark.kim@nxp.com>");
 MODULE_DESCRIPTION("PCA9468 charger driver");
 MODULE_LICENSE("GPL");
-MODULE_VERSION("3.4.18S");
+MODULE_VERSION("3.4.19S");

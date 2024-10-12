@@ -148,6 +148,11 @@ enum usb_current_state {
 	NOTIFY_USB_CONFIGURED,
 };
 
+enum usb_request_action_type {
+	USB_REQUEST_NOTHING,
+	USB_REQUEST_DUMPSTATE,
+};
+
 struct otg_notify {
 	int vbus_detect_gpio;
 	int redriver_en_gpio;
@@ -160,6 +165,7 @@ struct otg_notify {
 	int disable_control;
 	int device_check_sec;
 	int pre_peri_delay_us;
+	int booting_delay_sync_usb;
 	int (*pre_gpio)(int gpio, int use);
 	int (*post_gpio)(int gpio, int use);
 	int (*vbus_drive)(bool enable);
@@ -208,6 +214,7 @@ extern bool is_snkdfp_usb_device_connected(struct otg_notify *n);
 extern int get_con_dev_max_speed(struct otg_notify *n);
 extern void set_con_dev_max_speed
 		(struct otg_notify *n, int speed);
+extern void set_request_action(struct otg_notify *n,unsigned request_action);
 extern int is_known_usbaudio(struct usb_device *dev);
 extern void set_usb_audio_cardnum(int card_num, int bundle, int attach);
 extern void send_usb_audio_uevent(struct usb_device *dev,
@@ -229,6 +236,7 @@ extern void set_notify_data(struct otg_notify *n, void *data);
 extern struct otg_notify *get_otg_notify(void);
 extern int set_otg_notify(struct otg_notify *n);
 extern void put_otg_notify(struct otg_notify *n);
+extern void enable_usb_notify(void);
 #else
 static inline const char *event_string(enum otg_notify_events event)
 			{return NULL; }
@@ -262,6 +270,8 @@ static inline int get_con_dev_max_speed(struct otg_notify *n)
 			{return 0; }
 static inline void set_con_dev_max_speed
 		(struct otg_notify *n, int speed) {}
+static inline  void set_request_action
+		(struct otg_notify *n,unsigned request_action) {}
 static inline int is_known_usbaudio(struct usb_device *dev) {return 0; }
 static inline void set_usb_audio_cardnum(int card_num,
 		int bundle, int attach) {}
@@ -284,5 +294,6 @@ static inline void set_notify_data(struct otg_notify *n, void *data) {}
 static inline struct otg_notify *get_otg_notify(void) {return NULL; }
 static inline int set_otg_notify(struct otg_notify *n) {return 0; }
 static inline void put_otg_notify(struct otg_notify *n) {}
+extern inline void enable_usb_notify(void) {}
 #endif
 #endif /* __LINUX_USB_NOTIFY_H__ */

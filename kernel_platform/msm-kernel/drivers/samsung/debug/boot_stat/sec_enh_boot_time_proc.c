@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0
 /*
- * COPYRIGHT(C) 2014-2021 Samsung Electronics Co., Ltd. All Right Reserved.
+ * COPYRIGHT(C) 2014-2022 Samsung Electronics Co., Ltd. All Right Reserved.
  */
 
 #define pr_fmt(fmt)     KBUILD_MODNAME ":%s() " fmt, __func__
@@ -38,11 +38,16 @@ static __always_inline struct enh_boot_time_entry *__enh_boot_time_find_entry_lo
 		const char *message)
 {
 	struct enh_boot_time_entry *h;
-	size_t len = strlen(message) + 1;
+	size_t msg_len = strlen(message);
 	u32 key = __ehb_boot_time_hash(message);
 
 	hash_for_each_possible(enh_boot_time->boot_time_htbl, h, hlist, key) {
-		if (!memcmp(h->buf, message, len))
+		size_t len = strnlen(h->buf, msg_len + 1);
+
+		if (len != msg_len)
+			continue;
+
+		if (!strncmp(h->buf, message, msg_len))
 			return h;
 	}
 
@@ -62,9 +67,7 @@ static __always_inline void __enh_boot_time_record_locked(
 	if (unlikely(!entry))
 		return;
 
-	strncpy(entry->buf, message, sizeof(entry->buf));
-	entry->buf[sizeof(entry->buf) - 1] = '\0';
-
+	strlcpy(entry->buf, message, sizeof(entry->buf));
 	entry_in_hash = __enh_boot_time_find_entry_locked(enh_boot_time,
 			entry->buf);
 	if (!IS_ERR(entry_in_hash)) {

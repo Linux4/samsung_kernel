@@ -9,80 +9,8 @@
 #ifndef _KUNIT_TEST_H
 #define _KUNIT_TEST_H
 
-#if defined(CONFIG_SEC_KUNIT)
-// NOTE: This is a version of kunit/alpha/master, it's not mainline kernel version
-// SEC-KUNIT use the kunit/alpha/master version.
-// TRANSITIONAL ONLY.
-// Provide some macros to make it easier to transition some code relying on the
-// older non-upstream kunit version.
-
-#include <test/test.h>
-
-#define KUNIT_SUCCEED SUCCEED
-#define KUNIT_FAIL FAIL
-
-#define KUNIT_EXPECT EXPECT
-#define KUNIT_EXPECT_TRUE EXPECT_TRUE
-#define KUNIT_EXPECT_FALSE EXPECT_FALSE
-#define KUNIT_EXPECT_NOT_NULL EXPECT_NOT_NULL
-#define KUNIT_EXPECT_NULL EXPECT_NULL
-#define KUNIT_EXPECT_SUCCESS EXPECT_SUCCESS
-#define KUNIT_EXPECT_ERROR EXPECT_ERROR
-#define KUNIT_EXPECT_BINARY EXPECT_BINARY
-#define KUNIT_EXPECT_EQ EXPECT_EQ
-#define KUNIT_EXPECT_NE EXPECT_NE
-#define KUNIT_EXPECT_LT EXPECT_LT
-#define KUNIT_EXPECT_LE EXPECT_LE
-#define KUNIT_EXPECT_GT EXPECT_GT
-#define KUNIT_EXPECT_GE EXPECT_GE
-#define KUNIT_EXPECT_STREQ EXPECT_STREQ
-#define KUNIT_EXPECT_NOT_ERR_OR_NULL EXPECT_NOT_ERR_OR_NULL
-
-#define KUNIT_ASSERT ASSERT
-#define KUNIT_ASSERT_TRUE ASSERT_TRUE
-#define KUNIT_ASSERT_FALSE ASSERT_FALSE
-#define KUNIT_ASSERT_NOT_NULL ASSERT_NOT_NULL
-#define KUNIT_ASSERT_NULL ASSERT_NULL
-#define KUNIT_ASSERT_SUCCESS ASSERT_SUCCESS
-#define KUNIT_ASSERT_ERROR ASSERT_ERROR
-#define KUNIT_ASSERT_BINARY ASSERT_BINARY
-#define KUNIT_ASSERT_EQ ASSERT_EQ
-#define KUNIT_ASSERT_NE ASSERT_NE
-#define KUNIT_ASSERT_LT ASSERT_LT
-#define KUNIT_ASSERT_LE ASSERT_LE
-#define KUNIT_ASSERT_GT ASSERT_GT
-#define KUNIT_ASSERT_GE ASSERT_GE
-#define KUNIT_ASSERT_STREQ ASSERT_STREQ
-#define KUNIT_ASSERT_NOT_ERR_OR_NULL ASSERT_NOT_ERR_OR_NULL
-#define KUNIT_ASSERT_SIGSEGV ASSERT_SIGSEGV
-
-#define KUNIT_CASE TEST_CASE
-#define kunit_test_suite module_test
-
-// NOTE: in upstream, this can handle multiple suites. We can't here.
-#define ___concat(a,b) a##b
-#define __concat(a,b) ___concat(a,b)
-#define kunit_test_suites(suite_ptr) \
-		static struct KUNIT_SUITE_T *__concat(__test_module_,__COUNTER__) __used \
-		__aligned(8) __attribute__((__section__(".test_modules"))) = \
-			suite_ptr
-
-#define kunit_info test_info
-#define kunit_warn test_warn
-#define kunit_err test_err
-#define kunit_printk test_printk
-
-// Note: the following functions don't quite have a 1:1 equivalent.
-// * test_alloc_resource
-// * test_free_resource
-#define kunit_kmalloc test_kmalloc
-#define kunit_kzalloc test_kzalloc
-#define kunit_cleanup test_cleanup
-#define kunit_kfree(test, ptr) kfree(ptr)
-
-#elif defined(CONFIG_KUNIT)
-
 #include <kunit/assert.h>
+#include <kunit/kunit-stream.h>
 #include <kunit/try-catch.h>
 #include <linux/kernel.h>
 #include <linux/module.h>
@@ -263,6 +191,36 @@ struct kunit_suite {
 	char *log;
 };
 
+struct kunit_post_condition {
+	struct list_head node;
+	void (*validate)(struct kunit_post_condition *condition);
+};
+
+enum mock_type {
+	MOCK_TYPE_NICE,
+	MOCK_TYPE_NAGGY,
+	MOCK_TYPE_STRICT
+};
+
+struct mock {
+	struct kunit_post_condition parent;
+	struct kunit *test;
+	struct list_head methods;
+	enum mock_type type;
+	/* TODO(brendanhiggins@google.com): add locking to do_expect. */
+	const void *(*do_expect)(struct mock *mock,
+			const char *method_name,
+			const void *method_ptr,
+			const char * const *param_types,
+			const void **params,
+			int len);
+};
+
+struct global_mock {
+	struct mock ctrl;
+	bool is_initialized;
+};
+
 /**
  * struct kunit - represents a running instance of a test.
  *
@@ -296,12 +254,12 @@ struct kunit {
 	 * protect it with some type of lock.
 	 */
 	struct list_head resources; /* Protected by lock. */
-};
+	struct list_head post_conditions;
 
-static inline void kunit_set_failure(struct kunit *test)
-{
-	WRITE_ONCE(test->success, false);
-}
+#if !IS_ENABLED(CONFIG_UML)
+	struct global_mock test_global_mock;
+#endif
+};
 
 void kunit_init_test(struct kunit *test, const char *name, char *log);
 
@@ -805,6 +763,8 @@ void kunit_do_assertion(struct kunit *test,
  * correctly and the printed out value usually makes sense without
  * interpretation, but can always be interpreted to figure out the actual
  * value.
+ *
+ * TO DO: remove casting (long long) at __left, __right
  */
 #define KUNIT_BASE_BINARY_ASSERTION(test,				       \
 				    assert_class,			       \
@@ -827,9 +787,9 @@ do {									       \
 					  assert_type,			       \
 					  #op,				       \
 					  #left,			       \
-					  __left,			       \
+					  __left,		       \
 					  #right,			       \
-					  __right),			       \
+					  __right),		       \
 			fmt,						       \
 			##__VA_ARGS__);					       \
 } while (0)
@@ -1815,5 +1775,8 @@ do {									       \
 						fmt,			       \
 						##__VA_ARGS__)
 
-#endif /* CONFIG_SEC_KUNIT CONFIG_KUNIT */
+/*
+ * separate wrapper macro and functions to support 4.19 Kunit
+ */
+#include <kunit/test_wrapper.h>
 #endif /* _KUNIT_TEST_H */

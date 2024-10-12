@@ -14,6 +14,7 @@
 #include <linux/xarray.h>
 #include <linux/list.h>
 #include <linux/slab.h>
+#include <linux/nospec.h>
 #include <linux/uaccess.h>
 #include <linux/syscalls.h>
 #include <linux/dma-heap.h>
@@ -22,6 +23,7 @@
 #include <linux/jiffies.h>
 #include <linux/sched/cputime.h>
 #include <linux/vmstat.h>
+#include <trace/hooks/mm.h>
 
 #define DEVNAME "dma_heap"
 
@@ -246,6 +248,7 @@ static long dma_heap_ioctl(struct file *file, unsigned int ucmd,
 	if (nr >= ARRAY_SIZE(dma_heap_ioctl_cmds))
 		return -EINVAL;
 
+	nr = array_index_nospec(nr, ARRAY_SIZE(dma_heap_ioctl_cmds));
 	/* Get the kernel ioctl cmd that matches */
 	kcmd = dma_heap_ioctl_cmds[nr];
 
@@ -369,7 +372,7 @@ EXPORT_SYMBOL_GPL(dma_heap_get_name);
 
 struct dma_heap *dma_heap_add(const struct dma_heap_export_info *exp_info)
 {
-	struct dma_heap *heap, *err_ret;
+	struct dma_heap *heap, *h, *err_ret;
 	unsigned int minor;
 	int ret;
 
@@ -380,15 +383,6 @@ struct dma_heap *dma_heap_add(const struct dma_heap_export_info *exp_info)
 
 	if (!exp_info->ops || !exp_info->ops->allocate) {
 		pr_err("dma_heap: Cannot add heap with invalid ops struct\n");
-		return ERR_PTR(-EINVAL);
-	}
-
-	/* check the name is unique */
-	heap = dma_heap_find(exp_info->name);
-	if (heap) {
-		pr_err("dma_heap: Already registered heap named %s\n",
-		       exp_info->name);
-		dma_heap_put(heap);
 		return ERR_PTR(-EINVAL);
 	}
 
@@ -435,13 +429,27 @@ struct dma_heap *dma_heap_add(const struct dma_heap_export_info *exp_info)
 	/* Make sure it doesn't disappear on us */
 	heap->heap_dev = get_device(heap->heap_dev);
 
-	/* Add heap to the list */
 	mutex_lock(&heap_list_lock);
+	/* check the name is unique */
+	list_for_each_entry(h, &heap_list, list) {
+		if (!strcmp(h->name, exp_info->name)) {
+			mutex_unlock(&heap_list_lock);
+			pr_err("dma_heap: Already registered heap named %s\n",
+			       exp_info->name);
+			err_ret = ERR_PTR(-EINVAL);
+			put_device(heap->heap_dev);
+			goto err3;
+		}
+	}
+
+	/* Add heap to the list */
 	list_add(&heap->list, &heap_list);
 	mutex_unlock(&heap_list_lock);
 
 	return heap;
 
+err3:
+	device_destroy(dma_heap_class, heap->heap_devt);
 err2:
 	cdev_del(&heap->heap_cdev);
 err1:
@@ -507,6 +515,43 @@ static void dma_heap_sysfs_teardown(void)
 	kobject_put(dma_heap_kobject);
 }
 
+static long try_get_dma_heap_pool_size_kb(void)
+{
+	struct dma_heap *heap;
+	u64 total_pool_size = 0;
+
+	if (!mutex_trylock(&heap_list_lock))
+		return -1;
+
+	list_for_each_entry(heap, &heap_list, list) {
+		if (heap->ops->get_pool_size)
+			total_pool_size += heap->ops->get_pool_size(heap);
+	}
+	mutex_unlock(&heap_list_lock);
+
+	return (long)(total_pool_size / 1024);
+}
+
+static void dma_heap_pool_show_mem(void *data, unsigned int filter, nodemask_t *nodemask)
+{
+	long size_kb = try_get_dma_heap_pool_size_kb();
+
+	if (size_kb < 0)
+		return;
+
+	pr_info("%s: %ld kB\n", "dma_heap_pool", size_kb);
+}
+
+static void dma_heap_pool_meminfo(void *data, struct seq_file *m)
+{
+	long size_kb = try_get_dma_heap_pool_size_kb();
+
+	if (size_kb < 0)
+		return;
+
+	show_val_meminfo(m, "dma_heap_pool", size_kb);
+}
+
 static int dma_heap_init(void)
 {
 	int ret;
@@ -525,6 +570,9 @@ static int dma_heap_init(void)
 		goto err_class;
 	}
 	dma_heap_class->devnode = dma_heap_devnode;
+
+	register_trace_android_vh_show_mem(dma_heap_pool_show_mem, NULL);
+	register_trace_android_vh_meminfo_proc_show(dma_heap_pool_meminfo, NULL);
 
 	return 0;
 

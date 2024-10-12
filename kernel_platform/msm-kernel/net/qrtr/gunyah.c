@@ -149,6 +149,9 @@ static void gunyah_rx_peak(struct gunyah_pipe *pipe, void *data,
 	if (tail >= pipe->length)
 		tail -= pipe->length;
 
+	if (WARN_ON_ONCE(tail > pipe->length))
+		return;
+
 	len = min_t(size_t, count, pipe->length - tail);
 	if (len)
 		memcpy_fromio(data, pipe->fifo + tail, len);
@@ -189,6 +192,9 @@ static size_t gunyah_tx_avail(struct gunyah_pipe *pipe)
 	else
 		avail -= FIFO_FULL_RESERVE;
 
+	if (WARN_ON_ONCE(avail > pipe->length))
+		avail = 0;
+
 	return avail;
 }
 
@@ -199,6 +205,8 @@ static void gunyah_tx_write(struct gunyah_pipe *pipe, const void *data,
 	u32 head;
 
 	head = le32_to_cpu(*pipe->head);
+	if (WARN_ON_ONCE(head > pipe->length))
+		return;
 
 	len = min_t(size_t, count, pipe->length - head);
 	if (len)
@@ -212,6 +220,60 @@ static void gunyah_tx_write(struct gunyah_pipe *pipe, const void *data,
 		head -= pipe->length;
 
 	/* Ensure ordering of fifo and head update */
+	smp_wmb();
+
+	*pipe->head = cpu_to_le32(head);
+}
+
+static size_t gunyah_sg_copy_toio(struct scatterlist *sg, unsigned int nents,
+				  void *buf, size_t buflen, off_t skip)
+{
+	unsigned int sg_flags = SG_MITER_ATOMIC | SG_MITER_FROM_SG;
+	struct sg_mapping_iter miter;
+	unsigned int offset = 0;
+
+	sg_miter_start(&miter, sg, nents, sg_flags);
+
+	if (!sg_miter_skip(&miter, skip))
+		return 0;
+
+	while ((offset < buflen) && sg_miter_next(&miter)) {
+		unsigned int len;
+
+		len = min(miter.length, buflen - offset);
+		memcpy_toio(buf + offset, miter.addr, len);
+		offset += len;
+	}
+
+	sg_miter_stop(&miter);
+
+	return offset;
+}
+
+static void gunyah_sg_write(struct gunyah_pipe *pipe, struct scatterlist *sg,
+			    int offset, size_t count)
+{
+	size_t len;
+	u32 head;
+	int rc = 0;
+
+	head = le32_to_cpu(*pipe->head);
+
+	len = min_t(size_t, count, pipe->length - head);
+	if (len) {
+		rc = gunyah_sg_copy_toio(sg, sg_nents(sg), pipe->fifo + head,
+					 len, offset);
+		offset += rc;
+	}
+
+	if (len != count)
+		rc = gunyah_sg_copy_toio(sg, sg_nents(sg), pipe->fifo,
+					 count - len, offset);
+
+	head += count;
+	if (head >= pipe->length)
+		head -= pipe->length;
+
 	smp_wmb();
 
 	*pipe->head = cpu_to_le32(head);
@@ -247,16 +309,9 @@ static int qrtr_gunyah_send(struct qrtr_endpoint *ep, struct sk_buff *skb)
 	int chunk_size;
 	int left_size;
 	int offset;
-
 	int rc;
 
 	qdev = container_of(ep, struct qrtr_gunyah_dev, ep);
-
-	rc = skb_linearize(skb);
-	if (rc) {
-		kfree_skb(skb);
-		return rc;
-	}
 
 	left_size = skb->len;
 	offset = 0;
@@ -271,7 +326,22 @@ static int qrtr_gunyah_send(struct qrtr_endpoint *ep, struct sk_buff *skb)
 		else
 			chunk_size = left_size;
 
-		gunyah_tx_write(&qdev->tx_pipe, skb->data + offset, chunk_size);
+		if (skb_is_nonlinear(skb)) {
+			struct scatterlist sg[MAX_SKB_FRAGS + 1];
+
+			sg_init_table(sg, skb_shinfo(skb)->nr_frags + 1);
+			rc = skb_to_sgvec(skb, sg, 0, skb->len);
+			if (rc < 0) {
+				pr_err("failed skb_to_sgvec rc:%d\n", rc);
+				break;
+			}
+			gunyah_sg_write(&qdev->tx_pipe, sg, offset,
+					chunk_size);
+		} else {
+			gunyah_tx_write(&qdev->tx_pipe, skb->data + offset,
+					chunk_size);
+		}
+
 		offset += chunk_size;
 		left_size -= chunk_size;
 
@@ -393,17 +463,8 @@ static int qrtr_gunyah_share_mem(struct qrtr_gunyah_dev *qdev, gh_vmid_t self,
 	sgl->sgl_entries[0].ipa_base = qdev->res.start;
 	sgl->sgl_entries[0].size = resource_size(&qdev->res);
 
-	/* gh_rm_mem_qcom_lookup_sgl is no longer supported and is replaced with
-	 * gh_rm_mem_share. To ease this transition, fall back to the later on error.
-	 */
-	ret = gh_rm_mem_qcom_lookup_sgl(GH_RM_MEM_TYPE_NORMAL,
-					qdev->label,
-					acl, sgl, NULL,
-					&qdev->memparcel);
-	if (ret) {
-		ret = gh_rm_mem_share(GH_RM_MEM_TYPE_NORMAL, 0, qdev->label,
-				      acl, sgl, NULL, &qdev->memparcel);
-	}
+	ret = gh_rm_mem_share(GH_RM_MEM_TYPE_NORMAL, 0, qdev->label,
+			      acl, sgl, NULL, &qdev->memparcel);
 	if (ret) {
 		pr_err("%s: gh_rm_mem_share failed addr=%x size=%u err=%d\n",
 		       __func__, qdev->res.start, qdev->size, ret);
@@ -461,7 +522,8 @@ static int qrtr_gunyah_rm_cb(struct notifier_block *nb, unsigned long cmd,
 
 	if (vm_status_payload->vm_status == GH_RM_VM_STATUS_READY) {
 		qrtr_gunyah_fifo_init(qdev);
-		if (qrtr_endpoint_register(&qdev->ep, QRTR_EP_NET_ID_AUTO, false)) {
+		if (qrtr_endpoint_register(&qdev->ep, QRTR_EP_NET_ID_AUTO,
+					   false, NULL)) {
 			pr_err("%s: endpoint register failed\n", __func__);
 			return NOTIFY_DONE;
 		}
@@ -653,6 +715,14 @@ static int qrtr_gunyah_probe(struct platform_device *pdev)
 	}
 	INIT_WORK(&qdev->work, qrtr_gunyah_retry_work);
 
+	qdev->ep.xmit = qrtr_gunyah_send;
+	if (!qdev->master) {
+		ret = qrtr_endpoint_register(&qdev->ep, QRTR_EP_NET_ID_AUTO,
+					     false, NULL);
+		if (ret)
+			goto register_fail;
+	}
+
 	qdev->rx_dbl = gh_dbl_rx_register(dbl_label, qrtr_gunyah_cb, qdev);
 	if (IS_ERR_OR_NULL(qdev->rx_dbl)) {
 		ret = PTR_ERR(qdev->rx_dbl);
@@ -660,21 +730,14 @@ static int qrtr_gunyah_probe(struct platform_device *pdev)
 		goto fail_rx_dbl;
 	}
 
-	qdev->ep.xmit = qrtr_gunyah_send;
-	if (!qdev->master) {
-		ret = qrtr_endpoint_register(&qdev->ep, QRTR_EP_NET_ID_AUTO, false);
-		if (ret)
-			goto register_fail;
-
-		if (gunyah_rx_avail(&qdev->rx_pipe))
-			qrtr_gunyah_read(qdev);
-	}
+	if (!qdev->master && gunyah_rx_avail(&qdev->rx_pipe))
+		qrtr_gunyah_read(qdev);
 
 	return 0;
 
-register_fail:
-	gh_dbl_rx_unregister(qdev->rx_dbl);
 fail_rx_dbl:
+	qrtr_endpoint_unregister(&qdev->ep);
+register_fail:
 	cancel_work_sync(&qdev->work);
 	gh_dbl_tx_unregister(qdev->tx_dbl);
 

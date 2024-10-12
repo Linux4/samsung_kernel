@@ -2,7 +2,7 @@
  * Broadcom Dongle Host Driver (DHD), Linux-specific network interface
  * Basically selected code segments from usb-cdc.c and usb-rndis.c
  *
- * Copyright (C) 2021, Broadcom.
+ * Copyright (C) 2022, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -251,6 +251,12 @@ int dhd_cpu_startup_callback(unsigned int cpu)
 {
 	dhd_info_t *dhd = g_dhd_pub->info;
 
+	if (!dhd || !(dhd->dhd_state & DHD_ATTACH_STATE_LB_ATTACH_DONE)) {
+		DHD_ERROR(("%s(): LB data is not initialized yet.\n",
+			__FUNCTION__));
+		return 0;
+	}
+
 	DHD_INFO(("%s(): \r\n cpu:%d", __FUNCTION__, cpu));
 	DHD_LB_STATS_INCR(dhd->cpu_online_cnt[cpu]);
 	cpumask_set_cpu(cpu, dhd->cpumask_curr_avail);
@@ -262,6 +268,12 @@ int dhd_cpu_startup_callback(unsigned int cpu)
 int dhd_cpu_teardown_callback(unsigned int cpu)
 {
 	dhd_info_t *dhd = g_dhd_pub->info;
+
+	if (!dhd || !(dhd->dhd_state & DHD_ATTACH_STATE_LB_ATTACH_DONE)) {
+		DHD_ERROR(("%s(): LB data is not initialized yet.\n",
+			__FUNCTION__));
+		return 0;
+	}
 
 	DHD_INFO(("%s(): \r\n cpu:%d", __FUNCTION__, cpu));
 	DHD_LB_STATS_INCR(dhd->cpu_offline_cnt[cpu]);

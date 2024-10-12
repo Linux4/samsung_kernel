@@ -445,17 +445,45 @@ static ssize_t sd_data_store(struct device *dev, struct device_attribute *attr,
 static DEVICE_ATTR(sd_data, 0664, sd_data_show, sd_data_store);
 /* for sd_data_dev : end */
 
-static void mmc_sec_device_create_file(struct device *dev,
-		const struct device_attribute *dev_attr)
-{
-	if (device_create_file(dev, dev_attr) < 0)
-		pr_err("%s : Failed to create device file(%s)!\n",
-				__func__, dev_attr->attr.name);
-}
+static struct attribute *sd_card_attributes[] = {
+	&dev_attr_status.attr,
+	&dev_attr_cd_cnt.attr,
+	&dev_attr_max_mode.attr,
+	&dev_attr_current_mode.attr,
+	&dev_attr_current_phase.attr,
+	&dev_attr_sdcard_summary.attr,
+	&dev_attr_err_count.attr,
+	NULL
+};
+
+static struct attribute_group sd_card_attribute_group = {
+	.attrs = sd_card_attributes,
+};
+
+static struct attribute *sd_info_attributes[] = {
+	&dev_attr_sd_count.attr,
+	&dev_attr_data.attr,
+	&dev_attr_fc.attr,
+	NULL
+};
+
+static struct attribute_group sd_info_attribute_group = {
+	.attrs = sd_info_attributes,
+};
+
+static struct attribute *sd_data_attributes[] = {
+	&dev_attr_sd_data.attr,
+	NULL
+};
+
+static struct attribute_group sd_data_attribute_group = {
+	.attrs = sd_data_attributes,
+};
 
 void mmc_sec_init_sysfs(struct mmc_host *mmc)
 {
 	struct sdhci_host *host = mmc_priv(mmc);
+	int ret = 0;
 
 	if (sd_card_dev == NULL && !strcmp(host->hw_name, "8804000.sdhci")) {
 		pr_debug("%s : Change sysfs Card Detect\n", __func__);
@@ -466,13 +494,11 @@ void mmc_sec_init_sysfs(struct mmc_host *mmc)
 			goto failed_sdcard;
 		}
 
-		mmc_sec_device_create_file(sd_card_dev, &dev_attr_status);
-		mmc_sec_device_create_file(sd_card_dev, &dev_attr_cd_cnt);
-		mmc_sec_device_create_file(sd_card_dev, &dev_attr_max_mode);
-		mmc_sec_device_create_file(sd_card_dev, &dev_attr_current_mode);
-		mmc_sec_device_create_file(sd_card_dev, &dev_attr_current_phase);
-		mmc_sec_device_create_file(sd_card_dev, &dev_attr_sdcard_summary);
-		mmc_sec_device_create_file(sd_card_dev, &dev_attr_err_count);
+		ret = sysfs_create_group(&sd_card_dev->kobj,
+				&sd_card_attribute_group);
+		if (ret)
+			dev_err(mmc_dev(mmc), "%s: Failed to create sd_card sysfs group (err = %d)\n",
+					__func__, ret);
 	}
 failed_sdcard:
 
@@ -483,9 +509,11 @@ failed_sdcard:
 			goto failed_sdinfo;
 		}
 
-		mmc_sec_device_create_file(sd_info_dev, &dev_attr_sd_count);
-		mmc_sec_device_create_file(sd_info_dev, &dev_attr_data);
-		mmc_sec_device_create_file(sd_info_dev, &dev_attr_fc);
+		ret = sysfs_create_group(&sd_info_dev->kobj,
+				&sd_info_attribute_group);
+		if (ret)
+			dev_err(mmc_dev(mmc), "%s: Failed to create sd_info sysfs group (err = %d)\n",
+					__func__, ret);
 	}
 failed_sdinfo:
 
@@ -496,6 +524,10 @@ failed_sdinfo:
 			return;
 		}
 
-		mmc_sec_device_create_file(sd_data_dev, &dev_attr_sd_data);
+		ret = sysfs_create_group(&sd_data_dev->kobj,
+				&sd_data_attribute_group);
+		if (ret)
+			dev_err(mmc_dev(mmc), "%s: Failed to create sd_data sysfs group (err = %d)\n",
+					__func__, ret);
 	}
 }

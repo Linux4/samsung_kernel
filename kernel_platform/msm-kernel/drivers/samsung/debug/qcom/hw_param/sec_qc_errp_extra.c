@@ -130,7 +130,7 @@ early_exit_on_watchdog:
 early_exit_on_smpl:
 err_failed_to_read:
 	kfree(rst_exinfo);
-err_enomem:	
+err_enomem:
 	seq_puts(m, buf);
 err_invalid_reset_reason:
 	return 0;
