@@ -1289,8 +1289,10 @@ int do_send_sig_info(int sig, struct siginfo *info, struct task_struct *p,
 	 * System will send SIGIO to the app that locked the file when other apps access the file.
 	 * Report SIGIO to prevent other apps from getting stuck
 	 */
-	if ((sig == SIGKILL || sig == SIGTERM || sig == SIGABRT || sig == SIGQUIT || sig == SIGIO))
-		sig_report(p);
+	 if ((sig == SIGKILL || sig == SIGTERM || sig == SIGABRT || sig == SIGQUIT || sig == SIGIO)) {
+ 		// Report pid if process is killed/stopped.
+ 		sig_report(p, sig != SIGIO);
+ 	}
 #endif
 
 	if (lock_task_sighand(p, &flags)) {

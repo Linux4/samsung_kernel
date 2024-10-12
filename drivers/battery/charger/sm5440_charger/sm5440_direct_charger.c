@@ -606,11 +606,7 @@ static void pd_pre_cc_work(struct work_struct *work)
 		return;
 	}
 
-	if (_pd_pre_cc_check_limitation(sm_dc, adc_ibus, adc_vbus)) {
-		ret = send_power_source_msg(sm_dc);
-		if (ret < 0)
-			return;
-	}
+	_pd_pre_cc_check_limitation(sm_dc, adc_ibus, adc_vbus);
 
 	if (adc_ibus > sm_dc->wq.ci_gl - (PPS_C_STEP * 80 / 100)) {
 		sm_dc->wq.cc_limit = 0;

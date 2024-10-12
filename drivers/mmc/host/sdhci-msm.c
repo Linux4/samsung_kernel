@@ -6042,7 +6042,6 @@ static int sdhci_msm_probe(struct platform_device *pdev)
 #if !defined(CONFIG_HDM)
 	msm_host->mmc->caps2 |= MMC_CAP2_DETECT_ON_ERR;
 #endif
-
 	msm_host->mmc->pm_caps |= MMC_PM_KEEP_POWER | MMC_PM_WAKE_SDIO_IRQ;
 #if defined(CONFIG_SEC_HYBRID_TRAY)
 	msm_host->mmc->caps2 |= MMC_CAP2_NO_PRESCAN_POWERUP;

@@ -10,6 +10,7 @@
 #include "sde_edid_parser.h"
 #ifdef CONFIG_SEC_DISPLAYPORT
 #include "dp/secdp.h"
+#include <linux/sec_displayport.h>
 #endif
 
 #define DBC_START_OFFSET 4
@@ -422,7 +423,7 @@ struct drm_connector *connector, struct sde_edid_ctrl *edid_ctrl)
 	SDE_EDID_DEBUG("%s -\n", __func__);
 }
 
-#if defined(CONFIG_SEC_DISPLAYPORT) && IS_ENABLED(CONFIG_SWITCH)
+#if defined(CONFIG_SECDP_SWITCH)
 struct sde_edid_ctrl *g_edid_ctrl;
 
 int secdp_get_audio_ch(void)
@@ -1326,7 +1327,7 @@ void sde_get_edid(struct drm_connector *connector,
 		}
 	}
 
-#if IS_ENABLED(CONFIG_SWITCH)
+#if defined(CONFIG_SECDP_SWITCH)
 	g_edid_ctrl = edid_ctrl;
 #endif
 #endif/*CONFIG_SEC_DISPLAYPORT*/

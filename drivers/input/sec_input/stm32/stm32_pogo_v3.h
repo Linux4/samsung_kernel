@@ -584,5 +584,6 @@ struct kbd_max77816_info {
 
 int kbd_max77816_init(void);
 int kbd_max77816_control(struct stm32_dev *data, int voltage_val);
+int kbd_max77816_control_init(struct stm32_dev *data);
 bool stm32_chk_booster_models(struct stm32_dev *stm32);
 #endif

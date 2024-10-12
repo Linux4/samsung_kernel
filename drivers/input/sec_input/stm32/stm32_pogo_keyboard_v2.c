@@ -120,13 +120,11 @@ static void stm32_pogo_kpd_event(struct stm32_keypad_dev *stm32, u16 *key_values
 		input_info(true, &stm32->pdev->dev, "%s '%s'\n", __func__,
 				keydata.press != STM32_KPC_DATA_PRESS ? "R" : "P");
 #endif
-		if (key_values[i] < STM32_KEY_MAX) {
-			if (keydata.press != STM32_KPC_DATA_PRESS) {
-				stm32->key_state[key_values[i]] = 0;
-			} else {
-				stm32->key_state[key_values[i]] = 1;
-			}
-				
+		if (keydata.key_value < STM32_KEY_MAX) {
+			if (keydata.press != STM32_KPC_DATA_PRESS)
+				stm32->key_state[keydata.key_value] = 0;
+			else
+				stm32->key_state[keydata.key_value] = 1;
 		}
 		input_report_key(stm32->input_dev, keydata.key_value, keydata.press);
 		input_sync(stm32->input_dev);
@@ -171,7 +169,7 @@ void stm32_toggle_led(struct stm32_keypad_dev *device_data)
 	} else {
 		stm32_caps_led_value = 0x1;
 	}
-	input_err(true, &device_data->pdev->dev, "%s  led_value:%d\n", __func__, stm32_caps_led_value);
+	pr_info("%s %s  led_value:%d\n", SECLOG, __func__, stm32_caps_led_value);
 }
 
 static int stm32_caps_event(struct input_dev *dev,
@@ -184,8 +182,8 @@ static int stm32_caps_event(struct input_dev *dev,
 		stm32_toggle_led(device_data);
 		return 0;
 	default:
-		input_err(true, &device_data->pdev->dev, "%s(): Got unknown type %d, code %d, value %d\n",
-			__func__, type, code, value);
+		pr_err("%s %s(): Got unknown type %d, code %d, value %d\n",
+				SECLOG, __func__, type, code, value);
 	}
 
 	return -1;

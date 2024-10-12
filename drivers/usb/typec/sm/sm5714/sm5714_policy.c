@@ -690,22 +690,15 @@ static policy_state sm5714_usbpd_policy_snk_evaluate_capability(
 		struct sm5714_policy_data *policy)
 {
 	struct sm5714_usbpd_data *pd_data = policy_to_usbpd(policy);
-	int sink_request_obj_num = 0;
 #if IS_ENABLED(CONFIG_BATTERY_SAMSUNG)
+	struct sm5714_phydrv_data *pdic_data = pd_data->phy_driver_data;
 	union power_supply_propval val;
 	struct power_supply *psy;
 #endif
+	int sink_request_obj_num = 0;
 
 	dev_info(pd_data->dev, "%s\n", __func__);
-#if IS_ENABLED(CONFIG_BATTERY_SAMSUNG)
-	psy = power_supply_get_by_name("battery");
-	if (psy) {
-		val.intval = 1;
-		psy_do_property("battery", set, POWER_SUPPLY_EXT_PROP_SRCCAP, val);
-	} else {
-		pr_err("%s: Fail to get psy battery\n", __func__);
-	}
-#endif
+
 	pd_data->counter.hard_reset_counter = 0;
 	sm5714_cc_state_hold_on_off(pd_data, 0); /* CC State Hold Off */
 
@@ -719,9 +712,22 @@ static policy_state sm5714_usbpd_policy_snk_evaluate_capability(
 	sink_request_obj_num =
 			sm5714_usbpd_evaluate_capability(pd_data);
 
-	if (sink_request_obj_num > 0)
+	if (sink_request_obj_num > 0) {
+#if IS_ENABLED(CONFIG_BATTERY_SAMSUNG)
+		psy = power_supply_get_by_name("battery");
+		if (pdic_data->pd_support)
+		policy->source_cap_received = 1;
+		if (psy) {
+			if (!pdic_data->pd_support) {
+				val.intval = 1;
+				psy_do_property("battery", set, POWER_SUPPLY_EXT_PROP_SRCCAP, val);
+			}
+		} else {
+			pr_err("%s: Fail to get psy battery\n", __func__);
+		}
+#endif
 		return PE_SNK_Select_Capability;
-	else
+	} else
 		return PE_SNK_Hard_Reset;
 }
 
@@ -768,15 +774,30 @@ static policy_state sm5714_usbpd_policy_snk_transition_sink(
 		struct sm5714_policy_data *policy)
 {
 	struct sm5714_usbpd_data *pd_data = policy_to_usbpd(policy);
-#if defined(CONFIG_SM5714_SUPPORT_SBU)
+#if defined(CONFIG_SM5714_SUPPORT_SBU) || IS_ENABLED(CONFIG_BATTERY_SAMSUNG)
 	struct sm5714_phydrv_data *pdic_data = pd_data->phy_driver_data;
+#endif
+#if IS_ENABLED(CONFIG_BATTERY_SAMSUNG)
+	union power_supply_propval val;
+	struct power_supply *psy;
 #endif
 
 	dev_info(pd_data->dev, "%s\n", __func__);
 	/* ST_PE_SNK_TRANSITION */
 	if (policy->last_state != policy->state) {
 		unsigned int msg;
-
+#if IS_ENABLED(CONFIG_BATTERY_SAMSUNG)
+		psy = power_supply_get_by_name("battery");
+		if (psy) {
+			if (pdic_data->pd_support && policy->source_cap_received) {
+				policy->source_cap_received = 0;
+				val.intval = 0;
+				psy_do_property("battery", set, POWER_SUPPLY_EXT_PROP_SRCCAP, val);
+			}
+		} else {
+			pr_err("%s: Fail to get psy battery\n", __func__);
+		}
+#endif
 #if defined(CONFIG_SM5714_SUPPORT_SBU)
 		if (!pdic_data->pd_support)
 			sm5714_short_state_check(pdic_data);
@@ -1408,7 +1429,7 @@ static policy_state sm5714_usbpd_policy_prs_src_snk_transition_to_off(
 	/* ST_PE_PR_SWAP_SRC_OFF */
 	if (policy->plug_valid) {
 		msleep(25);
-		sm5714_cc_state_hold_on_off(pd_data, 2); /* CC State Freeze On */		
+		sm5714_cc_state_hold_on_off(pd_data, 2); /* CC State Freeze On */
 		sm5714_usbpd_turn_off_power_supply(pd_data);
 		msleep(350);
 		sm5714_cc_state_hold_on_off(pd_data, 1); /* CC State Hold On */
@@ -3932,6 +3953,7 @@ void sm5714_usbpd_init_policy(struct sm5714_usbpd_data *pd_data)
 	policy->modal_operation = 0;
 	policy->origin_message = 0x0;
 	policy->sink_cap_received = 0;
+	policy->source_cap_received = 0;
 	policy->send_sink_cap = 0;
 	policy->skip_ufp_svid_ack = 0;
 	pd_data->pd_noti.sink_status.current_pdo_num = 0;

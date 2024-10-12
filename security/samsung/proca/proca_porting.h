@@ -195,8 +195,9 @@ static inline struct file *get_task_exe_file(struct task_struct *task)
 }
 #endif
 
-#if defined(CONFIG_ANDROID) && (LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 0) || \
-				LINUX_VERSION_CODE >= KERNEL_VERSION(5, 15, 0))
+#if (defined(CONFIG_ANDROID) && (LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 0) || \
+				LINUX_VERSION_CODE >= KERNEL_VERSION(5, 15, 0))) || \
+				LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0)
 /*
  * __vfs_getxattr was changed in Android Kernel v5.4
  * https://android.googlesource.com/kernel/common/+/3484eba91d6b529cc606486a2db79513f3db6c67
