@@ -166,8 +166,15 @@ enum {
 	VINDPM_5V	= 4200000,
 	VINDPM_9V	= 8200000,
 };
-
-
+//+P240305-05569  guhan01.wt 20240318,one ui 6.1 charging protection
+enum {
+	NORMAL_100,
+	HIGHSOC_80,
+	SLEEP_80,
+	OPTION_80,
+	DOWN_80,
+};
+//-P240305-05569  guhan01.wt 20240318,one ui 6.1 charging protection
 struct afc_dev {
 	int afc_switch_gpio;
 	int afc_data_gpio;
@@ -239,6 +246,10 @@ struct wtchg_info {
 	u8 slate_mode;
 	struct notifier_block pm_notifier;
 	u32 batt_full_capacity;
+//+P240305-05569  guhan01.wt 20240318,one ui 6.1 charging protection
+	int batt_soc_rechg;
+	int batt_mode;
+//-P240305-05569  guhan01.wt 20240318,one ui 6.1 charging protection
 	bool otg_enabled;
 	bool batsys_created;
 	bool usbsys_created;

@@ -29,6 +29,9 @@ obj-$(CONFIG_SECURITY_LOADPIN)		+= loadpin/
 obj-$(CONFIG_CGROUP_DEVICE)		+= device_cgroup.o
 obj-$(CONFIG_SECURITY_DEFEX)		+= samsung/defex_lsm/built-in.a
 
+# DSMS
+obj-$(CONFIG_SECURITY_DSMS)		+= samsung/dsms/
+
 # Object integrity file lists
 subdir-$(CONFIG_INTEGRITY)		+= integrity
 obj-$(CONFIG_INTEGRITY)			+= integrity/

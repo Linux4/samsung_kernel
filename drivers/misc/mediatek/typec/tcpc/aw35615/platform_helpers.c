@@ -1330,6 +1330,9 @@ void handle_core_event(AW_U32 event, AW_U8 portId, void *usr_ctx, void *app_ctx)
 		AW_LOG("aw35615 :PD_STATE_CHANGED=0x%x, PE_ST=%d\n",
 				event, chip->port.PolicyState);
 
+		if (chip->port.PolicyState == peSinkSendHardReset)
+					tcpci_notify_pd_state(chip->tcpc, PD_CONNECT_HARD_RESET);
+
 		if (chip->port.PolicyState == peSinkReady &&
 			chip->port.PolicyHasContract == AW_TRUE) {
 			if (!chip->port.pd_state) {

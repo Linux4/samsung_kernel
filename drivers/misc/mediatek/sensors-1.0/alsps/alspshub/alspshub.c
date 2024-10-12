@@ -83,8 +83,8 @@ enum {
 	N28_GC7272_DSI_VDO_HDP_XIANXIAN_HKC,
 	N28_TD4160_DSI_VDO_HDP_BOE_BOE,
 //+S96818AA1, liuling3.wt,ADD, 2023/09/01, add n28 lcd Type
-    N28_ICNL9916C_DSI_VDO_HDP_XINXIAN_HKC,
-    N28_ICNL9916C_DSI_VDO_HDP_DSBJ_MDT,
+        N28_ICNL9916C_DSI_VDO_HDP_XINXIAN_HKC,
+        N28_ICNL9916C_DSI_VDO_HDP_DSBJ_MDT,
 //-S96818AA1, liuling3.wt,ADD, 2023/09/01, add n28 lcd Type
 	LCD_MAX_TYPES
 };
@@ -101,8 +101,8 @@ static const struct LCDInfo lcdInfo[LCD_MAX_TYPES] = {
 	{.lcdName = "n28_gc7272_dsi_vdo_hdp_xianxian_hkc", .lcdType = N28_GC7272_DSI_VDO_HDP_XIANXIAN_HKC},
 	{.lcdName = "n28_td4160_dsi_vdo_hdp_boe_boe", .lcdType = N28_TD4160_DSI_VDO_HDP_BOE_BOE},
 //+S96818AA1, liuling3.wt,ADD, 2023/09/01, add n28 lcd Type
-    {.lcdName = "n28_icnl9916c_dsi_vdo_hdp_xinxian_hkc", .lcdType = N28_ICNL9916C_DSI_VDO_HDP_XINXIAN_HKC},
-    {.lcdName = "n28_icnl9916c_dsi_vdo_hdp_dsbj_mdt", .lcdType = N28_ICNL9916C_DSI_VDO_HDP_DSBJ_MDT},
+        {.lcdName = "n28_icnl9916c_dsi_vdo_hdp_xinxian_hkc", .lcdType = N28_ICNL9916C_DSI_VDO_HDP_XINXIAN_HKC},
+        {.lcdName = "n28_icnl9916c_dsi_vdo_hdp_dsbj_mdt", .lcdType = N28_ICNL9916C_DSI_VDO_HDP_DSBJ_MDT},
 //-S96818AA1, liuling3.wt,ADD, 2023/09/01, add n28 lcd Type
 };
 

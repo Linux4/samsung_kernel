@@ -37,6 +37,8 @@ typedef enum{
         hi5021q_XGC,
         hi5021q_QGC,
         hi5021q_PGC,
+	SXTC_ITEM,
+	PDXTC_ITEM,
 	XTC_DATA,
 	SENSOR_XTC_DATA,
 	PDXTC_DATA,

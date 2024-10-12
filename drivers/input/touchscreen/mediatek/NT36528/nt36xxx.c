@@ -86,6 +86,8 @@ extern void nvt_mp_proc_deinit(void);
 
 struct nvt_ts_data *ts;
 bool gesture_flag = 0;	//S96818AA1-1936,daijun1.wt,modify,2023/05/06,nt36528 tp add gesture wake-up func
+int touch_bootmode;
+EXPORT_SYMBOL(touch_bootmode);
 
 #if BOOT_UPDATE_FIRMWARE
 static struct workqueue_struct *nvt_fwu_wq;
@@ -1542,6 +1544,7 @@ static void nvt_ts_print_coord(struct nvt_ts_data *ts)
 //			ts->all_finger_count++;
 
 #if !defined(CONFIG_SAMSUNG_PRODUCT_SHIP)
+	/* +S96818AA2-checklist ,zhangshaoxiong1.wt,modify,2023/10/20,close the TP coordinate log
 			input_info(true, &ts->client->dev,
 				"[P] tId:%d.%d x:%d y:%d p:%d mj:%d major:%d minor:%d loc:%s tc:%d type:%X\n",
 				i, (ts->input_dev->mt->trkid - 1) & TRKID_MAX,
@@ -1549,6 +1552,7 @@ static void nvt_ts_print_coord(struct nvt_ts_data *ts)
 				ts->coords[i].palm, ts->coords[i].metal_jig,
 				ts->coords[i].w_major, ts->coords[i].w_minor,
 				location, ts->touch_count, ts->coords[i].status);
+		-S96818AA2-checklist ,zhangshaoxiong1.wt,modify,2023/10/20,close the TP coordinate log */
 #else
 			input_info(true, &ts->client->dev,
 				"[P] tId:%d.%d p:%d mj:%d major:%d minor:%d loc:%s tc:%d type:%X\n",
@@ -1571,11 +1575,13 @@ static void nvt_ts_print_coord(struct nvt_ts_data *ts)
 //				ts->print_info_cnt_release = 0;
 
 #if !defined(CONFIG_SAMSUNG_PRODUCT_SHIP)
+	/* +S96818AA2-checklist ,zhangshaoxiong1.wt,modify,2023/10/20,close the TP coordinate log
 			input_info(true, &ts->client->dev, "[R] tId:%d loc:%s dd:%d,%d mc:%d tc:%d lx:%d ly:%d\n",
 				i, location, ts->coords[i].p_x - ts->coords[i].x,
 				ts->coords[i].p_y - ts->coords[i].y,
 				ts->coords[i].move_count, ts->touch_count,
 				ts->coords[i].x, ts->coords[i].y);
+		-S96818AA2-checklist ,zhangshaoxiong1.wt,modify,2023/10/20,close the TP coordinate log */
 #else
 			input_info(true, &ts->client->dev, "[R] tId:%d loc:%s dd:%d,%d mc:%d tc:%d\n",
 				i, location, ts->coords[i].p_x - ts->coords[i].x,
@@ -2156,18 +2162,18 @@ static int32_t nvt_ts_probe(struct spi_device *client)
 /* +S96818AA1-1936,daijun1.wt,modify,2023/07/31,Modify TP nt36528 blocking shutdown issue */
 	int32_t ret = 0;
 	int32_t index = 0;
-	int boot_mode;
+
 	struct nvt_ts_platdata *platdata;
 
 	input_info(true, &client->dev, "%s : start\n", __func__);
 
-	boot_mode = battery_get_boot_mode();
-	if (boot_mode == 8)
+	touch_bootmode = battery_get_boot_mode();
+	if (touch_bootmode == 8)
 	{
-	printk("%s : start mode =%d\n", __func__,boot_mode);
+	printk("%s : start mode =%d\n", __func__,touch_bootmode);
 		return -1;
 	}
-	printk("%s : start mode =%d\n", __func__,boot_mode);
+	printk("%s : start mode =%d\n", __func__,touch_bootmode);
 /* -S96818AA1-1936,daijun1.wt,modify,2023/07/31,Modify TP nt36528 blocking shutdown issue */
 	ts = kmalloc(sizeof(struct nvt_ts_data), GFP_KERNEL);
 	if (ts == NULL) {

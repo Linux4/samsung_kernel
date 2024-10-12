@@ -438,6 +438,40 @@ static void mtk_charger_parse_dt(struct mtk_charger *info,
 	else {
 		chr_err("can't find ap_temp_lcmoff_below_t0_cc\n");
 	}
+//+P240111-05098   guhan01.wt 2024031820,Modify the maximum current limit for bright screen charging
+#if defined (CONFIG_N26_CHARGER_PRIVATE)
+	if (of_property_read_u32(np, "ap_temp_lcmon_above_t4", &val) >= 0)
+		info->data.ap_temp_lcmon_above_t4 = val;
+	else {
+		chr_err("can't find ap_temp_lcmon_above_t4\n");
+	}
+	if (of_property_read_u32(np, "ap_temp_lcmon_t3_to_t4", &val) >= 0)
+		info->data.ap_temp_lcmon_t3_to_t4 = val;
+	else {
+		chr_err("can't find ap_temp_lcmon_t3_to_t4\n");
+	}
+	if (of_property_read_u32(np, "ap_temp_lcmon_t2_to_t3", &val) >= 0)
+		info->data.ap_temp_lcmon_t2_to_t3 = val;
+	else {
+		chr_err("can't find ap_temp_lcmon_t2_to_t3\n");
+	}
+	if (of_property_read_u32(np, "ap_temp_lcmon_t1_to_t2", &val) >= 0)
+		info->data.ap_temp_lcmon_t1_to_t2 = val;
+	else {
+		chr_err("can't find ap_temp_lcmon_t1_to_t2\n");
+	}
+	if (of_property_read_u32(np, "ap_temp_lcmon_t0_to_t1", &val) >= 0)
+		info->data.ap_temp_lcmon_t0_to_t1 = val;
+	else {
+		chr_err("can't find ap_temp_lcmon_t0_to_t1\n");
+	}
+	if (of_property_read_u32(np, "ap_temp_lcmon_below_t0", &val) >= 0)
+		info->data.ap_temp_lcmon_below_t0 = val;
+	else {
+		chr_err("can't find ap_temp_lcmon_below_t0\n");
+	}
+#else
+//-P240111-05098   guhan01.wt 2024031820,Modify the maximum current limit for bright screen charging
 	if (of_property_read_u32(np, "ap_temp_lcmon_above_t0_cc", &val) >= 0)
 		info->data.ap_temp_lcmon_above_t0_cc = val;
 	else {
@@ -448,6 +482,7 @@ static void mtk_charger_parse_dt(struct mtk_charger *info,
 	else {
 		chr_err("can't find ap_temp_lcmon_below_t0_cc\n");
 	}
+#endif
 	if (of_property_read_u32(np, "ap_lcmoff_t2_thres", &val) >= 0)
 		info->data.ap_lcmoff_t2_thres = val;
 	else {
@@ -478,6 +513,61 @@ static void mtk_charger_parse_dt(struct mtk_charger *info,
 	else {
 		chr_err("can't find ap_lcmoff_t0_thres_plus_x_degree\n");
 	}
+//+P240111-05098   guhan01.wt 2024031820,Modify the maximum current limit for bright screen charging
+#if defined (CONFIG_N26_CHARGER_PRIVATE)
+	if (of_property_read_u32(np, "ap_temp_lcmon_t4", &val) >= 0)
+		info->data.ap_temp_lcmon_t4 = val;
+	else {
+		chr_err("can't find ap_temp_lcmon_t4\n");
+	}
+	if (of_property_read_u32(np, "ap_temp_lcmon_t3", &val) >= 0)
+		info->data.ap_temp_lcmon_t3 = val;
+	else {
+		chr_err("can't find ap_temp_lcmon_t3\n");
+	}
+	if (of_property_read_u32(np, "ap_temp_lcmon_t2", &val) >= 0)
+		info->data.ap_temp_lcmon_t2 = val;
+	else {
+		chr_err("can't find ap_temp_lcmon_t2\n");
+	}
+	if (of_property_read_u32(np, "ap_temp_lcmon_t1", &val) >= 0)
+		info->data.ap_temp_lcmon_t1 = val;
+	else {
+		chr_err("can't find ap_temp_lcmon_t1\n");
+	}
+	if (of_property_read_u32(np, "ap_temp_lcmon_t0", &val) >= 0)
+		info->data.ap_temp_lcmon_t0 = val;
+	else {
+		chr_err("can't find ap_temp_lcmon_t0\n");
+	}
+
+	if (of_property_read_u32(np, "ap_temp_lcmon_t4_anti_shake", &val) >= 0)
+		info->data.ap_temp_lcmon_t4_anti_shake = val;
+	else {
+		chr_err("can't find ap_temp_lcmon_t4_anti_shake\n");
+	}
+	if (of_property_read_u32(np, "ap_temp_lcmon_t3_anti_shake", &val) >= 0)
+		info->data.ap_temp_lcmon_t3_anti_shake = val;
+	else {
+		chr_err("can't find ap_temp_lcmon_t3_anti_shake\n");
+	}
+	if (of_property_read_u32(np, "ap_temp_lcmon_t2_anti_shake", &val) >= 0)
+		info->data.ap_temp_lcmon_t2_anti_shake = val;
+	else {
+		chr_err("can't find ap_temp_lcmon_t2_anti_shake\n");
+	}
+	if (of_property_read_u32(np, "ap_temp_lcmon_t1_anti_shake", &val) >= 0)
+		info->data.ap_temp_lcmon_t1_anti_shake = val;
+	else {
+		chr_err("can't find ap_temp_lcmon_t1_anti_shake\n");
+	}
+	if (of_property_read_u32(np, "ap_temp_lcmon_t0_anti_shake", &val) >= 0)
+		info->data.ap_temp_lcmon_t0_anti_shake = val;
+	else {
+		chr_err("can't find ap_temp_lcmon_t0_anti_shake\n");
+	}
+#else
+//-P240111-05098   guhan01.wt 2024031820,Modify the maximum current limit for bright screen charging
 	if (of_property_read_u32(np, "ap_lcmon_t0_thres", &val) >= 0)
 		info->data.ap_lcmon_t0_thres = val;
 	else {
@@ -488,7 +578,7 @@ static void mtk_charger_parse_dt(struct mtk_charger *info,
 	else {
 		chr_err("can't find ap_lcmon_t0_thres_plus_x_degree\n");
 	}
-	
+#endif
 #ifdef CONFIG_MTK_DISABLE_TEMP_PROTECT
 	info->data.battery_cv = 4100000;
 	info->enable_sw_jeita = false;
@@ -1009,6 +1099,100 @@ void do_sw_jeita_state_machine(struct mtk_charger *info)
 /*-S96616AA3-534 lijiawei,wt.battery cycle function and otg control function*/
 		chr_err("[SW_JEITA] sm = %d, jeita_cc = %d, cv = %d, \n",sw_jeita->sm,jeita_cc,sw_jeita->cv);
 		if(info->wtchg_info->lcm_on){
+//+P240111-05098   guhan01.wt 2024031820,Modify the maximum current limit for bright screen charging
+#if defined (CONFIG_N26_CHARGER_PRIVATE)
+			static int ap_lcm_on_state = 0;
+			if(ap_temp >= info->data.ap_temp_lcmon_t4){
+				ap_lcm_on_state = AP_ABOVE_T4;
+				chr_err("[AP_THERMAL] AP Over Temperature(%d) !!\n",
+					info->data.ap_temp_lcmon_t4);
+			} else {
+				if(ap_temp >= info->data.ap_temp_lcmon_t3){
+					if(ap_lcm_on_state == AP_ABOVE_T4 && ap_temp >= info->data.ap_temp_lcmon_t4_anti_shake){
+						chr_err("[AP_THERMAL] anti_shake AP Temperature between %d and %d !!\n",
+							info->data.ap_temp_lcmon_t3,
+							info->data.ap_temp_lcmon_t4_anti_shake);
+					} else {
+						ap_lcm_on_state = TEMP_T3_TO_T4;
+						chr_err("[AP_THERMAL] AP Temperature between %d and %d !!\n",
+							info->data.ap_temp_lcmon_t3,
+							info->data.ap_temp_lcmon_t4);
+					}
+				} else {
+					if(ap_temp >= info->data.ap_temp_lcmon_t2){
+						if(ap_lcm_on_state == TEMP_T3_TO_T4 && ap_temp >= info->data.ap_temp_lcmon_t3_anti_shake){
+							chr_err("[AP_THERMAL] anti_shake AP Temperature between %d and %d !!\n",
+								info->data.ap_temp_lcmon_t2,
+								info->data.ap_temp_lcmon_t3_anti_shake);
+						} else {
+							ap_lcm_on_state = AP_T2_TO_T3;
+							chr_err("[AP_THERMAL] AP Temperature between %d and %d !!\n",
+								info->data.ap_temp_lcmon_t2,
+								info->data.ap_temp_lcmon_t3);
+						}
+					} else {
+						if(ap_temp >= info->data.ap_temp_lcmon_t1){
+							if(ap_lcm_on_state == AP_T2_TO_T3 && ap_temp >= info->data.ap_temp_lcmon_t2_anti_shake){
+								chr_err("[AP_THERMAL] anti_shake AP Temperature between %d and %d !!\n",
+									info->data.ap_temp_lcmon_t1,
+									info->data.ap_temp_lcmon_t2_anti_shake);
+							} else {
+								ap_lcm_on_state = AP_T1_TO_T2;
+								chr_err("[AP_THERMAL] AP Temperature between %d and %d !!\n",
+									info->data.ap_temp_lcmon_t1,
+									info->data.ap_temp_lcmon_t2);
+							}
+						} else {
+							if(ap_temp >= info->data.ap_temp_lcmon_t0){
+								if(ap_lcm_on_state == AP_T1_TO_T2 && ap_temp >= info->data.ap_temp_lcmon_t1_anti_shake){
+									chr_err("[AP_THERMAL] anti_shake AP Temperature between %d and %d !!\n",
+										info->data.ap_temp_lcmon_t0,
+										info->data.ap_temp_lcmon_t1_anti_shake);
+								} else {
+									ap_lcm_on_state = AP_T0_TO_T1;
+									chr_err("[AP_THERMAL] AP Temperature between %d and %d !!\n",
+										info->data.ap_temp_lcmon_t0,
+										info->data.ap_temp_lcmon_t1);
+								}
+							} else {
+								if(ap_lcm_on_state == AP_T0_TO_T1 && ap_temp >= info->data.ap_temp_lcmon_t0_anti_shake){
+									chr_err("[AP_THERMAL] anti_shake AP Below Temperature(%d) !!\n",
+										info->data.ap_temp_lcmon_t0_anti_shake);
+								} else {
+									ap_lcm_on_state = AP_BELOW_T0;
+									chr_err("[AP_THERMAL]  AP Below Temperature(%d) !!\n",
+										info->data.ap_temp_lcmon_t0);
+								}
+							}
+						}
+					}
+				}
+			}
+			switch(ap_lcm_on_state)
+			{
+				case AP_ABOVE_T4:
+					ap_cc = info->data.ap_temp_lcmon_above_t4;
+					break;
+				case TEMP_T3_TO_T4:
+					ap_cc = info->data.ap_temp_lcmon_t3_to_t4;
+					break;
+				case AP_T2_TO_T3:
+					ap_cc = info->data.ap_temp_lcmon_t2_to_t3;
+					break;
+				case AP_T1_TO_T2:
+					ap_cc = info->data.ap_temp_lcmon_t1_to_t2;
+					break;
+				case AP_T0_TO_T1:
+					ap_cc = info->data.ap_temp_lcmon_t0_to_t1;
+					break;
+				case AP_BELOW_T0:
+					ap_cc = info->data.ap_temp_lcmon_below_t0;
+					break;
+				default:
+				ap_cc = info->data.ap_temp_lcmon_t2_to_t3;
+			}
+			chr_err("[AP_THERMAL] lcm on! ap_temp = %d, ap_cc = %d\n",ap_temp, ap_cc);
+#else
 			if(ap_temp > info->data.ap_lcmon_t0_thres){
 				ap_limit = true;
 			}else{
@@ -1020,16 +1204,22 @@ void do_sw_jeita_state_machine(struct mtk_charger *info)
 				ap_cc = info->data.ap_temp_lcmon_above_t0_cc;
 			else
 				ap_cc = info->data.ap_temp_lcmon_below_t0_cc;
-			
+
 			chr_err("[AP_THERMAL] lcm on! ap_temp = %d, ap_cc = %d\n",ap_temp, ap_cc);
+#endif
+//-P240111-05098   guhan01.wt 2024031820,Modify the maximum current limit for bright screen charging
 		}else{
 			static int ap_state = 0;
 			if (ap_temp > info->data.ap_lcmoff_t2_thres) {//>48
 				chr_err("[AP_THERMAL] AP Over Temperature(%d) !!\n",info->data.ap_lcmoff_t2_thres);
-				ap_state = AP_ABOVE_T2;
+//+P240111-05098   guhan01.wt 2024031820,Modify the maximum current limit for bright screen charging
+				ap_state = TEMP_T2_TO_T3;
+//-P240111-05098   guhan01.wt 2024031820,Modify the maximum current limit for bright screen charging
 				ap_cc = info->data.ap_temp_lcmoff_above_t2_cc;
 			} else if (ap_temp > info->data.ap_lcmoff_t1_thres) {//>45
-				if ((ap_state == AP_ABOVE_T2)
+//+P240111-05098   guhan01.wt 2024031820,Modify the maximum current limit for bright screen charging
+				if ((ap_state == TEMP_T2_TO_T3)
+//-P240111-05098   guhan01.wt 2024031820,Modify the maximum current limit for bright screen charging
 				    && (ap_temp >= info->data.ap_lcmoff_t2_thres_plus_x_degree)) {//>=48
 					chr_err("[AP_THERMAL] AP Temperature between %d and %d,not change!!\n",
 						info->data.ap_lcmoff_t2_thres_plus_x_degree,
@@ -2414,6 +2604,11 @@ static void batt_slate_mode_control(struct mtk_charger *info)
 	}
 }
 #endif
+//+P240305-05569  guhan01.wt 20240318,one ui 6.1 charging protection
+#if defined (CONFIG_N26_CHARGER_PRIVATE)
+int g_chg_done  = 0;
+#endif
+//-P240305-05569  guhan01.wt 20240318,one ui 6.1 charging protection
 static int charger_routine_thread(void *arg)
 {
 	struct mtk_charger *info = arg;
@@ -2454,6 +2649,11 @@ struct power_supply *bat_psy = power_supply_get_by_name("mtk_charger_type");
 		charger_dev_get_charging_current(info->chg1_dev,&chg_cur);
 		charger_dev_get_input_current(info->chg1_dev,&input_cur);
 		charger_dev_is_charging_done(info->chg1_dev, &chg_done);
+//+P240305-05569  guhan01.wt 20240318,one ui 6.1 charging protection
+#if defined (CONFIG_N26_CHARGER_PRIVATE)
+		g_chg_done = chg_done;
+#endif
+//-P240305-05569  guhan01.wt 20240318,one ui 6.1 charging protection
 		chr_err("Vbat=%d vbus:%d ibus:%d I=%d T=%d uisoc:%d type:%s>%s pd:%d chgset:%d %d chg_done:%d\n",
 			get_battery_voltage(info),
 			get_vbus(info),

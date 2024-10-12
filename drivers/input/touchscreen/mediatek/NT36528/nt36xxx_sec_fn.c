@@ -2371,12 +2371,13 @@ out:
 }
 
 extern int g_lcm_name;
+extern int touch_bootmode;
 void nvt_set_headphone_mode(int mode)
 {
 	u8 buf[4];
 	int ret;
 	printk("nvt_set_headphone_mode %d enter\n",mode);
-	if(g_lcm_name != 18){
+	if((g_lcm_name != 18) || ((touch_bootmode == 8))){
 		return;
 	}
 

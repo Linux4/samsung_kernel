@@ -563,7 +563,7 @@ static int aw_dev_pid_9b_pwr_on(struct aw_device *aw_dev, struct aw_data_contain
 		return ret;
 
 	/* close the mute */
-	aw87xxx_dev_mute_ctrl(aw_dev, false);
+	ret = aw87xxx_dev_mute_ctrl(aw_dev, false);
 	if (ret < 0)
 		return ret;
 
@@ -652,7 +652,7 @@ static int aw_dev_pid_18_pwr_on(struct aw_device *aw_dev, struct aw_data_contain
 		return ret;
 
 	/* close the mute */
-	aw87xxx_dev_mute_ctrl(aw_dev, false);
+	ret = aw87xxx_dev_mute_ctrl(aw_dev, false);
 	if (ret < 0)
 		return ret;
 

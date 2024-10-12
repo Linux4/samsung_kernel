@@ -929,6 +929,8 @@ int aw87xxx_awrw_write(struct aw87xxx *aw87xxx,
 			"0x%x", &temp_data);
 		if (ret != 1) {
 			AW_DEV_LOGE(aw87xxx->dev, "sscanf failed,ret=%d", ret);
+			vfree(data_buf);
+			data_buf = NULL;
 			return ret;
 		}
 		reg_data[i] = temp_data;

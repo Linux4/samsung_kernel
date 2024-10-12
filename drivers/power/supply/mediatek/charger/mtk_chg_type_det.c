@@ -185,7 +185,9 @@ struct mt_charger {
 	bool chg_online; /* Has charger in or not */
 	enum charger_type chg_type;
 };
-
+//+P240517-06810,guhan01.wt,When shutting down and charging, the device restarts repeatedly
+#define PD_CONNECT_HARD_RESET 9
+//-P240517-06810,guhan01.wt,When shutting down and charging, the device restarts repeatedly
 static int mt_charger_online(struct mt_charger *mtk_chg)
 {
 	int ret = 0;
@@ -193,6 +195,10 @@ static int mt_charger_online(struct mt_charger *mtk_chg)
 	struct device_node *boot_node = NULL;
 	struct tag_bootmode *tag = NULL;
 	int boot_mode = 11;//UNKNOWN_BOOT
+//+P240517-06810,guhan01.wt,When shutting down and charging, the device restarts repeatedly
+	int state = 0;
+	int vbus_value = 0;
+//-P240517-06810,guhan01.wt,When shutting down and charging, the device restarts repeatedly
 #ifdef CONFIG_KPOC_GET_SOURCE_CAP_TRY
 	struct chg_type_info *cti = mtk_chg->cti;
 #endif
@@ -223,7 +229,16 @@ static int mt_charger_online(struct mt_charger *mtk_chg)
 			struct charger_manager *pinfo = cti->chg_consumer->cm;
 			if (pinfo->pd_reset) {
 				pr_notice("%s: stay charging for pd_reset\n", __func__);
-				return ret;
+//+P240517-06810,guhan01.wt,When shutting down and charging, the device restarts repeatedly
+				msleep(200);
+				vbus_value = battery_get_vbus();
+				if(vbus_value > 4000)
+				{
+					pr_err("mt_charger_online vbus_value=%d",vbus_value);
+					return ret;
+				}
+				vbus_value = 0;
+//-P240517-06810,guhan01.wt,When shutting down and charging, the device restarts repeatedly
 			}
 #endif
 /*-P230715-01490,zhouxiaopeng2.wt,MODIFY,20230729,PD cannot charge when shutdown*/
@@ -231,20 +246,28 @@ static int mt_charger_online(struct mt_charger *mtk_chg)
 #ifdef CONFIG_KPOC_GET_SOURCE_CAP_TRY
 			if(cti->tcpc == NULL)
 				pr_err("%s: cti->tcpc is null\n", __func__);
-			else
+			else {
+//+P240517-06810,guhan01.wt,When shutting down and charging, the device restarts repeatedly
 				pr_info("%s error_recovery_once = %d\n", __func__,
 					cti->tcpc->pd_port.error_recovery_once);
+				state = cti->tcpc->pd_port.pd_connect_state;
+				pr_err("cti->tcpc->pd_port.pd_connect_state =  %d\n",state);
+//-P240517-06810,guhan01.wt,When shutting down and charging, the device restarts repeatedly
+			}
 			if (cti->tcpc == NULL || (cti->tcpc != NULL && cti->tcpc->pd_port.error_recovery_once != 1)) {
 #endif /*CONFIG_KPOC_GET_SOURCE_CAP_TRY*/
 				pr_notice("%s: system_state=%d\n", __func__,
 					system_state);
-				if (system_state != SYSTEM_POWER_OFF) {
+//+P240517-06810,guhan01.wt,When shutting down and charging, the device restarts repeatedly
+				if (system_state != SYSTEM_POWER_OFF && state != PD_CONNECT_HARD_RESET) {
 #if defined(CONFIG_WT_PROJECT_S96902AA1) || defined(CONFIG_WT_PROJECT_S96901AA1) || defined(CONFIG_WT_PROJECT_S96901WA1)
 					mt_leds_brightness_set("lcd-backlight", 0);
 #endif
 					msleep(200);
 					kernel_power_off();
 				}
+				vbus_value = 0;
+//-P240517-06810,guhan01.wt,When shutting down and charging, the device restarts repeatedly
 #ifdef CONFIG_KPOC_GET_SOURCE_CAP_TRY
 			}
 #endif
@@ -574,6 +597,9 @@ skip:
 	mutex_unlock(&cti->chgdet_lock);
 }
 extern kpd_pwk_event(int pressed);
+#ifdef CONFIG_N28_CHARGER_PRIVATE
+bool SRC_TO_SNK = false;
+#endif
 static int pd_tcp_notifier_call(struct notifier_block *pnb,
 				unsigned long event, void *data)
 {
@@ -585,7 +611,10 @@ static int pd_tcp_notifier_call(struct notifier_block *pnb,
 	struct power_supply *usb_psy = power_supply_get_by_name("usb");
 	struct mt_charger *mtk_chg_ac;
 	struct mt_charger *mtk_chg_usb;
-
+//+P240517-06810,guhan01.wt,When shutting down and charging, the device restarts repeatedly
+	int state;
+	int vbus_value = 0;
+//-P240517-06810,guhan01.wt,When shutting down and charging, the device restarts repeatedly
 	if (IS_ERR_OR_NULL(usb_psy)) {
 		chr_err("%s, fail to get usb_psy\n", __func__);
 		return NOTIFY_BAD;
@@ -639,13 +668,32 @@ static int pd_tcp_notifier_call(struct notifier_block *pnb,
 				if(cti->tcpc == NULL)
 					pr_err("%s: cti->tcpc is null\n", __func__);
 				else
+//+P240517-06810,guhan01.wt,When shutting down and charging, the device restarts repeatedly
+				{
 					pr_info("%s error_recovery_once = %d\n", __func__,
 						cti->tcpc->pd_port.error_recovery_once);
-				if (cti->tcpc == NULL || (cti->tcpc != NULL && cti->tcpc->pd_port.error_recovery_once == 1)) {
-					pr_info("%s KPOC error recovery once\n",
-					__func__);
+					state = cti->tcpc->pd_port.pd_connect_state;
+					pr_err("cti->tcpc->pd_port.pd_connect_state =  %d\n",state);
+				}
+				vbus_value = battery_get_vbus();
+				if (cti->tcpc == NULL
+				|| (cti->tcpc != NULL && cti->tcpc->pd_port.error_recovery_once == 1)
+				|| state == PD_CONNECT_HARD_RESET
+				|| vbus_value > 4000) {
+					pr_info("%s KPOC error recovery once vbus_value=%d\n",
+					__func__,vbus_value);
+					vbus_value = 0;
 					plug_in_out_handler(cti, false, false);
-					break;
+					msleep(200);
+					vbus_value = battery_get_vbus();
+					pr_info("%s twice KPOC error recovery once vbus_value=%d\n",
+					__func__,vbus_value);
+					if(vbus_value > 4000)
+					{
+						vbus_value = 0;
+						break;
+					}
+//-P240517-06810,guhan01.wt,When shutting down and charging, the device restarts repeatedly
 				}
 #endif /*CONFIG_KPOC_GET_SOURCE_CAP_TRY*/
 				vbus = battery_get_vbus();
@@ -663,6 +711,9 @@ static int pd_tcp_notifier_call(struct notifier_block *pnb,
 		} else if (noti->typec_state.old_state == TYPEC_ATTACHED_SRC &&
 			noti->typec_state.new_state == TYPEC_ATTACHED_SNK) {
 			pr_info("%s Source_to_Sink\n", __func__);
+#ifdef CONFIG_N28_CHARGER_PRIVATE
+			SRC_TO_SNK = true;
+#endif
 			plug_in_out_handler(cti, true, true);
 		}  else if (noti->typec_state.old_state == TYPEC_ATTACHED_SNK &&
 			noti->typec_state.new_state == TYPEC_ATTACHED_SRC) {

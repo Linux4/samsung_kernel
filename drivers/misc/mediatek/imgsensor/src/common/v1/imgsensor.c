@@ -230,7 +230,8 @@ imgsensor_sensor_open(struct IMGSENSOR_SENSOR *psensor)
 			psensor_inst->state = IMGSENSOR_STATE_OPEN;
 //+S96818AA1-1936,chenming01.wt,ADD,2023/08/02, camera switch distinguishes the flash PWM frequency
 #ifdef CONFIG_MTK_S96818_CAMERA
-			camera_switch = 1;
+			if(psensor_inst->sensor_idx == IMGSENSOR_SENSOR_IDX_MAIN)
+			    camera_switch = 1;
 #endif
 //-S96818AA1-1936,chenming01.wt,ADD,2023/08/02, camera switch distinguishes the flash PWM frequency
 #ifdef CONFIG_MTK_CCU
@@ -575,7 +576,9 @@ static inline int imgsensor_check_is_alive(struct IMGSENSOR_SENSOR *psensor)
 		pr_info(" Sensor found ID = 0x%x\n", sensorID);
 		err = ERROR_NONE;
 		//+S96818AA1-1936 liudijin.wt, add, 2023/05/03, distinguish depth camera params for dualcam
-		if((N28HI5021QREARTRULY_SENSOR_ID == sensorID) || (N28HI5021QREARDC_SENSOR_ID == sensorID)){
+		if((N28HI5021QREARTRULY_SENSOR_ID == sensorID) || (N28HI5021QREARDC_SENSOR_ID == sensorID)
+			||(N28GC50E0REARGKW_SENSOR_ID == sensorID) ||(N28S5KJN1REARTRULY_SENSOR_ID == sensorID)
+			||(N28S5KJN1REARDC_SENSOR_ID == sensorID)) {
 			main_sensor_id = sensorID;
 			pr_info("the deveice main_sensor_id:0x%x",main_sensor_id);
 		}
@@ -589,6 +592,12 @@ static inline int imgsensor_check_is_alive(struct IMGSENSOR_SENSOR *psensor)
 				hardwareinfo_set_prop(HARDWARE_BACK_CAM_MOUDULE_ID, "TRULY");
 			if(!strcmp(psensor_inst->psensor_name, "n28hi5021qreardc_mipi_raw"))
 				hardwareinfo_set_prop(HARDWARE_BACK_CAM_MOUDULE_ID, "DMEGC");
+			if(!strcmp(psensor_inst->psensor_name, "n28gc50e0reargkw_mipi_raw"))
+				hardwareinfo_set_prop(HARDWARE_BACK_CAM_MOUDULE_ID, "TXD");
+			if(!strcmp(psensor_inst->psensor_name, "n28s5kjn1reartruly_mipi_raw"))
+				hardwareinfo_set_prop(HARDWARE_BACK_CAM_MOUDULE_ID, "TRULY");
+			if(!strcmp(psensor_inst->psensor_name, "n28s5kjn1reardc_mipi_raw"))
+				hardwareinfo_set_prop(HARDWARE_BACK_CAM_MOUDULE_ID, "DC");
 
 		}else if(psensor_inst->sensor_idx == IMGSENSOR_SENSOR_IDX_SUB){
 			hardwareinfo_set_prop(HARDWARE_FRONT_CAM, psensor_inst->psensor_name);
@@ -615,6 +624,18 @@ static inline int imgsensor_check_is_alive(struct IMGSENSOR_SENSOR *psensor)
 			if(!strcmp(psensor_inst->psensor_name, "n28c2519depcxt2_mipi_mono"))
 				hardwareinfo_set_prop(HARDWARE_BACK_SUBCAM_MOUDULE_ID, "CXT");
 			if(!strcmp(psensor_inst->psensor_name, "n28gc2375hdeplh2_mipi_raw"))
+				hardwareinfo_set_prop(HARDWARE_BACK_SUBCAM_MOUDULE_ID, "LH");
+			if(!strcmp(psensor_inst->psensor_name, "n28c2519depcxt3_mipi_mono"))
+				hardwareinfo_set_prop(HARDWARE_BACK_SUBCAM_MOUDULE_ID, "CXT");
+			if(!strcmp(psensor_inst->psensor_name, "n28gc2375hdeplh3_mipi_raw"))
+				hardwareinfo_set_prop(HARDWARE_BACK_SUBCAM_MOUDULE_ID, "LH");
+			if(!strcmp(psensor_inst->psensor_name, "n28c2519depcxt4_mipi_mono"))
+				hardwareinfo_set_prop(HARDWARE_BACK_SUBCAM_MOUDULE_ID, "CXT");
+			if(!strcmp(psensor_inst->psensor_name, "n28c2519depcxt5_mipi_mono"))
+				hardwareinfo_set_prop(HARDWARE_BACK_SUBCAM_MOUDULE_ID, "CXT");
+			if(!strcmp(psensor_inst->psensor_name, "n28gc2375hdeplh4_mipi_raw"))
+				hardwareinfo_set_prop(HARDWARE_BACK_SUBCAM_MOUDULE_ID, "LH");
+			if(!strcmp(psensor_inst->psensor_name, "n28gc2375hdeplh5_mipi_raw"))
 				hardwareinfo_set_prop(HARDWARE_BACK_SUBCAM_MOUDULE_ID, "LH");
 		}
 		//-S96818AA1-1936,wuwenhao2.wt,ADD,2023/04/18, add camera module info for factory apk

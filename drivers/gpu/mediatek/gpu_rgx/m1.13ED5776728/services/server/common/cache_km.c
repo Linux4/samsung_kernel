@@ -1275,6 +1275,14 @@ static PVRSRV_ERROR CacheOpPMRExec (PMR *psPMR,
 		IMG_DEVMEM_SIZE_T uiLPhysicalSize;
 
 		/* Need to validate parameters before proceeding */
+		/* Check for size + offset overflow */
+		PVR_LOG_RETURN_IF_FALSE(((uiOffset + uiSize) >= uiSize),
+		                        "Overflow detected on offset + size parameters",
+		                        PVRSRV_ERROR_INVALID_PARAMS);
+		/* Since size + offset is later aligned to page size check for overflow with alignment */
+		PVR_LOG_RETURN_IF_FALSE((((uiOffset + uiSize) + gsCwq.uiPageSize - 1) >= (uiOffset + uiSize)),
+		                        "Overflow detected on offset + size parameters with applied alignment",
+		                        PVRSRV_ERROR_INVALID_PARAMS);
 		eError = PMR_PhysicalSize(psPMR, &uiLPhysicalSize);
 		PVR_LOG_RETURN_IF_ERROR(eError, "uiLPhysicalSize");
 
@@ -1960,6 +1968,15 @@ static PVRSRV_ERROR CacheOpBatchExecRangeBased(PVRSRV_DEVICE_NODE *psDevNode,
 		PVR_LOG_GOTO_IF_ERROR(eError, "PMR_LogicalSize", e0);
 		eError = PVRSRV_ERROR_DEVICEMEM_OUT_OF_RANGE;
 		PVR_LOG_GOTO_IF_FALSE(((puiOffset[ui32Idx]+puiSize[ui32Idx]) <= uiLogicalSize), CACHEOP_DEVMEM_OOR_ERROR_STRING, e0);
+		eError = PVRSRV_ERROR_INVALID_PARAMS;
+		/* Check for size + offset overflow */
+		PVR_LOG_GOTO_IF_FALSE(((puiOffset[ui32Idx] + puiSize[ui32Idx]) >= puiSize[ui32Idx]),
+		                        "Overflow detected on offset + size parameters",
+		                        e0);
+		/* Since size + offset is later aligned to page size check for overflow with alignment */
+		PVR_LOG_GOTO_IF_FALSE((((puiOffset[ui32Idx] + puiSize[ui32Idx]) + gsCwq.uiPageSize - 1) >= (puiOffset[ui32Idx] + puiSize[ui32Idx])),
+		                        "Overflow detected on offset + size parameters with applied alignment",
+		                        e0);
 		eError = PVRSRV_OK;
 
 		/* For safety, take reference here in user context */

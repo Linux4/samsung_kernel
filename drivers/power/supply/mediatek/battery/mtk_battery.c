@@ -117,6 +117,16 @@ bool factory_shipmode = false;
 //Bug774038,churui1.wt,add batt_full_capacity node
 int batt_full_capacity = 100;
 
+//+P240131-05273 liwei19.wt 20240306,one ui 6.1 charging protection
+#if defined (CONFIG_W2_CHARGER_PRIVATE) || defined (CONFIG_N28_CHARGER_PRIVATE)
+extern int batt_mode;
+#endif
+
+#if defined (CONFIG_W2_CHARGER_PRIVATE) || defined (CONFIG_N28_CHARGER_PRIVATE)
+int batt_soc_rechg = 0;
+#endif
+//-P240131-05273 liwei19.wt 20240306,one ui 6.1 charging protection
+
 //Bug805518,churui1.wt, turn off charging limit during the battery test on ATO version
 int ato_soc = 0;
 
@@ -146,7 +156,11 @@ static enum power_supply_property battery_props[] = {
 	POWER_SUPPLY_PROP_TEMP,
 	POWER_SUPPLY_PROP_CAPACITY_LEVEL,
 //Extb P220831-02821 churui1.wt DEL,Requesting removal of time to full node
-//	POWER_SUPPLY_PROP_TIME_TO_FULL_NOW,
+//+P240131-05273 liwei19.wt 20240306,one ui 6.1 charging protection
+#if defined (CONFIG_W2_CHARGER_PRIVATE) || defined (CONFIG_N28_CHARGER_PRIVATE)
+	POWER_SUPPLY_PROP_TIME_TO_FULL_NOW,
+#endif
+//-P240131-05273 liwei19.wt 20240306,one ui 6.1 charging protection
 	POWER_SUPPLY_PROP_CHARGE_FULL_DESIGN,
 	POWER_SUPPLY_PROP_VOLTAGE,
 	POWER_SUPPLY_PROP_ONLINE,
@@ -163,6 +177,11 @@ static enum power_supply_property battery_props[] = {
 	POWER_SUPPLY_PROP_BATTERY_CYCLE,
 	POWER_SUPPLY_PROP_BATT_FULL_CAPACITY, //Bug774038,churui1.wt,add batt_full_capacity node
 	POWER_SUPPLY_PROP_BATT_TEMP,
+//+P240131-05273 liwei19.wt 20240306,one ui 6.1 charging protection
+#if defined (CONFIG_W2_CHARGER_PRIVATE) || defined (CONFIG_N28_CHARGER_PRIVATE)
+	POWER_SUPPLY_PROP_BATT_SOC_RECHG,
+#endif
+//-P240131-05273 liwei19.wt 20240306,one ui 6.1 charging protection
 #ifdef CONFIG_N28_CHARGER_PRIVATE
 	POWER_SUPPLY_PROP_DIRECT_CHARGING_STATUS,
 	POWER_SUPPLY_PROP_CHARGING_TYPE,
@@ -533,6 +552,147 @@ int battery_get_input_current_limit(void)
 	return val;
 }
 
+//+P240131-05273 liwei19.wt 20240306,one ui 6.1 charging protection
+#if defined (CONFIG_W2_CHARGER_PRIVATE) && !defined (CONFIG_N28_CHARGER_PRIVATE)
+#define DESIGNED_CAPACITY 4900 //mAh
+//+P240221-05860  guhan01.wt 20240318,one ui 6.1 charging protection
+#elif  defined (CONFIG_N28_CHARGER_PRIVATE)
+#define DESIGNED_CAPACITY 5000 //mAh
+#endif
+#if defined (CONFIG_W2_CHARGER_PRIVATE) || defined (CONFIG_N28_CHARGER_PRIVATE)
+//-P240221-05860  guhan01.wt 20240318,one ui 6.1 charging protection
+#define CHARGE_FULL_SOC 100
+#define CHARGE_80_SOC 80
+#define DEADSOC_COEFFICIENT1 98
+#define DEADSOC_COEFFICIENT2 97
+#define DEADSOC_COEFFICIENT3 91
+#define DEADSOC_COEFFICIENT4 90
+#define DEADSOC_COEFFICIENT5 88
+
+#define CHARGE_STATE_CHANGE_SOC1 84
+#define CHARGE_STATE_CHANGE_SOC2 90
+#define CHARGE_STATE_CHANGE_SOC3 95
+
+#define CHARGE_3A_CC_CURRENT_THRESHOLD 2000
+#define CHARGE_2A_CC_CURRENT_THRESHOLD 1600
+#define CHARGE_1A_CC_CURRENT_THRESHOLD 900
+
+#define CHARGE_CC_CURRENT_THRESHOLD 1700
+
+#define MAGIC_CHARGE_3A_CC_CURRENT1 2200
+#define MAGIC_CHARGE_3A_CC_CURRENT2 2600
+#define MAGIC_CHARGE_3A_CC_CURRENT3 2000
+
+#define MAGIC_CHARGE_2A_CC_CURRENT1 1800
+#define MAGIC_CHARGE_2A_CC_CURRENT2 1600
+#define MAGIC_CHARGE_2A_CC_CURRENT3 1700
+
+
+#define MAGIC_CHARGE_1A_CC_CURRENT1 1100
+#define MAGIC_CHARGE_1A_CC_CURRENT2 900
+
+
+#define MAGIC_CHARGE_CC_USB_CURRENT 380
+
+
+#define MAGIC_CHARGE_END_CV_CURRENT 600
+
+
+static int get_time_to_charge_full(struct battery_data *data)
+{
+	int magic_current;
+	int time_to_charge_full = 0xff;
+	int deadsoc_coefficient;
+	int capacity = data->BAT_CAPACITY;
+	int fgcurrent = 0;
+	bool b_ischarging;
+	int remain_ui = CHARGE_FULL_SOC - capacity;
+	int remain_mah = 0;
+	int chr_type;
+
+	b_ischarging = gauge_get_current(&fgcurrent);
+	if (!b_ischarging) {
+		fgcurrent = 0 - fgcurrent;
+	}
+
+	fgcurrent = fgcurrent /10;
+
+	if (gm.bat_cycle < 299) {
+		deadsoc_coefficient = DEADSOC_COEFFICIENT1;
+	} else if (gm.bat_cycle < 399) {
+		deadsoc_coefficient = DEADSOC_COEFFICIENT2;
+	} else if (gm.bat_cycle < 699) {
+		deadsoc_coefficient = DEADSOC_COEFFICIENT3;
+	} else if (gm.bat_cycle < 999) {
+		deadsoc_coefficient = DEADSOC_COEFFICIENT4;
+	} else {
+		deadsoc_coefficient = DEADSOC_COEFFICIENT5;
+	}
+
+	pr_err("%s: capacity=%d, fgcurrent=%d,bat_cycle=%d,status=%d\n",
+		__func__, capacity, fgcurrent, gm.bat_cycle, data->BAT_STATUS);
+
+	if (POWER_SUPPLY_STATUS_FULL == data->BAT_STATUS) {
+		time_to_charge_full = 0;
+		return time_to_charge_full;
+	} else if ((POWER_SUPPLY_STATUS_DISCHARGING == data->BAT_STATUS)
+			|| (POWER_SUPPLY_STATUS_NOT_CHARGING == data->BAT_STATUS)) {
+		time_to_charge_full = -1;
+		return time_to_charge_full; //no chargering
+	}
+
+	if(fgcurrent <= 10){
+		time_to_charge_full = -1;
+		return time_to_charge_full; //no chargering
+	}
+
+	if(batt_mode != 0) {
+		if (capacity >= CHARGE_80_SOC) {
+			time_to_charge_full = 0;
+			return time_to_charge_full;
+		}
+		remain_ui = CHARGE_80_SOC - capacity;
+	}
+
+	chr_type = mt_get_charger_type();
+
+	remain_mah = DESIGNED_CAPACITY * deadsoc_coefficient * remain_ui / 100 / 100;
+	if (fgcurrent > CHARGE_3A_CC_CURRENT_THRESHOLD) {
+		if (capacity < CHARGE_STATE_CHANGE_SOC1) {
+			magic_current = MAGIC_CHARGE_3A_CC_CURRENT1;
+		} else {
+			magic_current = MAGIC_CHARGE_3A_CC_CURRENT3;
+		}
+	} else if (fgcurrent > CHARGE_2A_CC_CURRENT_THRESHOLD) {
+		if (capacity < CHARGE_STATE_CHANGE_SOC2) {
+			magic_current = MAGIC_CHARGE_2A_CC_CURRENT1;
+		} else {
+			magic_current = MAGIC_CHARGE_2A_CC_CURRENT2;
+		}
+	} else if (fgcurrent > CHARGE_1A_CC_CURRENT_THRESHOLD) {
+		if (capacity < CHARGE_STATE_CHANGE_SOC3) {
+			magic_current = MAGIC_CHARGE_1A_CC_CURRENT1;
+		} else {
+			magic_current = MAGIC_CHARGE_1A_CC_CURRENT2;
+		}
+	} else if ((fgcurrent <= CHARGE_1A_CC_CURRENT_THRESHOLD) && (fgcurrent > 10)) {
+		if (STANDARD_HOST == chr_type) {
+			magic_current = MAGIC_CHARGE_CC_USB_CURRENT;
+		} else {
+			magic_current = MAGIC_CHARGE_END_CV_CURRENT;
+		}
+	} else {
+		magic_current = MAGIC_CHARGE_CC_USB_CURRENT;
+	}
+
+	pr_err("%s:magic_current=%d,chr_type=%d\n", __func__, magic_current, chr_type);
+	time_to_charge_full = remain_mah * 3600 / magic_current; //second
+
+	return time_to_charge_full;
+}
+#endif
+//-P240131-05273 liwei19.wt 20240306,one ui 6.1 charging protection
+
 #define SEC_BAT_CURRENT_EVENT_NONE   0x00000
 #define SEC_BAT_CURRENT_EVENT_AFC   0x00001  // fast charging
 #define SEC_BAT_CURRENT_EVENT_CHARGE_DISABLE  0x00002
@@ -633,6 +793,14 @@ static int battery_get_property(struct power_supply *psy,
 			(ret == POWER_SUPPLY_CAPACITY_LEVEL_UNKNOWN))
 			val->intval = 0;
 		else {
+			//+P240131-05273 liwei19.wt 20240306,one ui 6.1 charging protection
+#if defined (CONFIG_W2_CHARGER_PRIVATE) || defined (CONFIG_N28_CHARGER_PRIVATE)
+			int time_to_full = 0;
+			time_to_full = get_time_to_charge_full(data);
+
+			pr_err("time_to_full: %d\n", time_to_full);
+			val->intval = time_to_full;
+#else
 			int q_max_now = fg_table_cust_data.fg_profile[
 						gm.battery_id].q_max;
 			int remain_ui = 100 - data->BAT_CAPACITY;
@@ -649,6 +817,8 @@ static int battery_get_property(struct power_supply *psy,
 				fgcurrent, q_max_now);
 
 			val->intval = abs(time_to_full);
+#endif
+			//-P240131-05273 liwei19.wt 20240306,one ui 6.1 charging protection
 		}
 		ret = 0;
 		break;
@@ -771,37 +941,11 @@ static int battery_get_property(struct power_supply *psy,
 		break;
 #ifdef CONFIG_N28_CHARGER_PRIVATE
 	case POWER_SUPPLY_PROP_DIRECT_CHARGING_STATUS:
-		if (batt_hv_disable) {
-			val->intval = 0;
-		} else {
-			chr_type = mt_get_charger_type();
-			if (((chr_type == STANDARD_CHARGER) ||(chr_type == NONSTANDARD_CHARGER ) ) &&
-				(!IS_ERR_OR_NULL(cm)))
-			{
-				#ifdef CONFIG_AFC_CHARGER
-				if (mtk_is_pep_series_connect(cm) || mtk_pdc_check_charger(cm) || afc_get_is_connect(cm)) {
-					val->intval = 0;
-					if (adapter_is_support_pd_pps())
-						val->intval = 1;
-				}
-				else
-					val->intval = 0;
-				#else
-				if (mtk_is_pep_series_connect(cm) || mtk_pdc_check_charger(cm)) {
-					val->intval = 0;
-					if (adapter_is_support_pd_pps())
-						val->intval = 1;
-				}
-				else
-					val->intval = 0;
-				#endif
-			}
-			else
-			{
-				val->intval = 0;
-			}
-		}
-		break;
+	if(POWER_SUPPLY_STATUS_CHARGING == data->BAT_STATUS && adapter_is_support_pd_pps())
+		val->intval = true;
+	else
+		val->intval = false;
+	break;
 #endif
 	case POWER_SUPPLY_PROP_BATT_SLATE_MODE:
 			val->intval = batt_slate_mode; //Bug773947,churui1.wt,set mode 2 for batt_slate_mode node
@@ -813,7 +957,7 @@ static int battery_get_property(struct power_supply *psy,
 		b_ischarging = gauge_get_current(&fgcurrent);
 		if (b_ischarging == false)
 			fgcurrent = 0 - fgcurrent;
-		if (1000 > fgcurrent/10)
+		if ((1000 > fgcurrent/10) || (batt_hv_disable == true))
 			val->strval = "Slow";
 		else
 			val->strval = "Fast";
@@ -875,9 +1019,33 @@ static int battery_get_property(struct power_supply *psy,
 		break;
 //+Bug774038,churui1.wt,add batt_full_capacity node
 	case POWER_SUPPLY_PROP_BATT_FULL_CAPACITY:
+//+P240131-05273 liwei19.wt 20240306,one ui 6.1 charging protection
+#if defined (CONFIG_W2_CHARGER_PRIVATE) || defined (CONFIG_N28_CHARGER_PRIVATE)
+		if(batt_mode == HIGHSOC_80)
+			val->strval = "80 HIGHSOC";
+		else if(batt_mode == SLEEP_80)
+			val->strval = "80 SLEEP";
+		else if(batt_mode == OPTION_80)
+			val->strval = "80 OPTION";
+//+P240221-05860  guhan01.wt 20240318,one ui 6.1 charging protection
+		else if(batt_mode == DOWN_80)
+			val->strval = "80";
+//-P240221-05860  guhan01.wt 20240318,one ui 6.1 charging protection
+		else
+			val->strval = "100";
+#else
 		val->intval = batt_full_capacity;
+#endif
+//-P240131-05273 liwei19.wt 20240306,one ui 6.1 charging protection
 		break;
 //-Bug774038,churui1.wt,add batt_full_capacity node
+//+P240131-05273 liwei19.wt 20240306,one ui 6.1 charging protection
+#if defined (CONFIG_W2_CHARGER_PRIVATE) || defined (CONFIG_N28_CHARGER_PRIVATE)
+	case POWER_SUPPLY_PROP_BATT_SOC_RECHG:
+		val->intval = batt_soc_rechg;
+		break;
+#endif
+//-P240131-05273 liwei19.wt 20240306,one ui 6.1 charging protection
 	case POWER_SUPPLY_PROP_BATTERY_CYCLE:
 		val->intval = gm.bat_cycle;
 		break;
@@ -895,6 +1063,38 @@ static int battery_get_property(struct power_supply *psy,
 	return ret;
 }
 
+#if defined (CONFIG_N28_CHARGER_PRIVATE)
+extern void aw_retry_source_cap(int cur);
+extern void pd_dpm_send_source_caps_0a(bool val);
+extern int is_aw35615;
+void iphone_limit_api(bool val)
+{
+
+	if(val){
+		if(is_aw35615)
+			aw_retry_source_cap(0);
+		else
+			pd_dpm_send_source_caps_0a(true);
+	}
+	else{
+		if(is_aw35615)
+			aw_retry_source_cap(500);
+		else
+			pd_dpm_send_source_caps_0a(false);
+	}
+}
+#elif defined (CONFIG_W2_CHARGER_PRIVATE)
+extern void pd_dpm_send_source_caps_0a(bool val);
+void iphone_limit_api(bool val)
+{
+
+	if(val)
+		pd_dpm_send_source_caps_0a(true);
+	else
+		pd_dpm_send_source_caps_0a(false);
+}
+#endif
+
 int store_mode_current = -1;
 #define STORE_MODE_CHRCURRENT 500000;
 static int battery_set_property(struct power_supply *psy,
@@ -910,6 +1110,12 @@ static int battery_set_property(struct power_supply *psy,
 	case POWER_SUPPLY_PROP_BATT_SLATE_MODE:
 		set_batt_slate_mode(&pval);
 		batt_slate_mode = val->intval; //Bug773947,churui1.wt,set mode 2 for batt_slate_mode node
+#if defined (CONFIG_W2_CHARGER_PRIVATE) || defined (CONFIG_N28_CHARGER_PRIVATE)
+		if(batt_slate_mode == 3)
+			iphone_limit_api(true);
+		else if(batt_slate_mode == 0)
+			iphone_limit_api(false);
+#endif
 		break;
 	case POWER_SUPPLY_PROP_BATT_CURRENT_EVENT:
 		usb_low_current = val->intval;
@@ -938,13 +1144,29 @@ static int battery_set_property(struct power_supply *psy,
 		break;
 //+Bug774038,churui1.wt,add batt_full_capacity node
 	case POWER_SUPPLY_PROP_BATT_FULL_CAPACITY:
+//+P240131-05273 liwei19.wt 20240306,one ui 6.1 charging protection
+#if defined (CONFIG_W2_CHARGER_PRIVATE) || defined (CONFIG_N28_CHARGER_PRIVATE)
+		if(batt_mode != 0)
+			batt_full_capacity = 80;
+		else
+			batt_full_capacity = 100;
+#else
 		batt_full_capacity = val->intval;
+#endif
+//-P240131-05273 liwei19.wt 20240306,one ui 6.1 charging protection
 		wt_batt_full_capacity_check(cm);
 		if (!IS_ERR_OR_NULL(bat_psy)) {
 			power_supply_changed(bat_psy);
 		}
 		break;
 //-Bug774038,churui1.wt,add batt_full_capacity node
+//+P240131-05273 liwei19.wt 20240306,one ui 6.1 charging protection
+#if defined (CONFIG_W2_CHARGER_PRIVATE) || defined (CONFIG_N28_CHARGER_PRIVATE)
+	case POWER_SUPPLY_PROP_BATT_SOC_RECHG:
+		batt_soc_rechg = val->intval;
+		break;
+#endif
+//-P240131-05273 liwei19.wt 20240306,one ui 6.1 charging protection
 	case POWER_SUPPLY_PROP_CYCLE_COUNT:
 		gm.bat_cycle = val->intval;
 		break;
@@ -977,6 +1199,11 @@ static int battery_props_is_writeable(struct power_supply *psy,
 	case POWER_SUPPLY_PROP_HV_DISABLE:
 	case POWER_SUPPLY_PROP_BATT_FULL_CAPACITY: //Bug774038,churui1.wt,add batt_full_capacity node
 	case POWER_SUPPLY_PROP_CYCLE_COUNT:
+//+P240131-05273 liwei19.wt 20240306,one ui 6.1 charging protection
+#if defined (CONFIG_W2_CHARGER_PRIVATE) || defined (CONFIG_N28_CHARGER_PRIVATE)
+	case POWER_SUPPLY_PROP_BATT_SOC_RECHG:
+#endif
+//-P240131-05273 liwei19.wt 20240306,one ui 6.1 charging protection
 		return 1;
 	default:
 		break;
@@ -1902,6 +2129,33 @@ static ssize_t store_UI_SOC(
 static DEVICE_ATTR(UI_SOC, 0664, show_UI_SOC,
 		   store_UI_SOC);
 
+
+
+#ifdef CONFIG_N28_CHARGER_PRIVATE
+int temp_cycle = -1;
+static ssize_t show_set_battery_cycle(
+	struct device *dev, struct device_attribute *attr,
+					       char *buf)
+{
+	return sprintf(buf, "%d\n", temp_cycle);
+}
+
+static ssize_t store_set_battery_cycle(
+	struct device *dev, struct device_attribute *attr,
+						const char *buf, size_t size)
+{
+	signed int temp;
+
+	if (kstrtoint(buf, 10, &temp) == 0) {
+		temp_cycle = temp;
+	}
+
+	return size;
+}
+
+static DEVICE_ATTR(set_battery_cycle, 0664, show_set_battery_cycle,
+		   store_set_battery_cycle);
+#endif
 
 /* ============================================================ */
 /* Internal function */
@@ -5222,6 +5476,9 @@ static int __init battery_probe(struct platform_device *dev)
 #if !defined(CONFIG_MTK_DISABLE_GAUGE)
 		ret = device_create_file(&battery_main.psy->dev, &dev_attr_stop_charge);
 		ret = device_create_file(&battery_main.psy->dev, &dev_attr_start_charge);
+#ifdef CONFIG_N28_CHARGER_PRIVATE
+		ret = device_create_file(&battery_main.psy->dev, &dev_attr_set_battery_cycle);
+#endif
 #endif
 		ret = device_create_file(&battery_main.psy->dev, &dev_attr_shipmode);
 		ret = device_create_file(&battery_main.psy->dev, &dev_attr_ato_soc_user_control);

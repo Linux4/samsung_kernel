@@ -266,6 +266,7 @@ enum power_supply_property {
 	POWER_SUPPLY_PROP_PD_FLAG,
 	POWER_SUPPLY_PROP_BATT_FULL_CAPACITY,
 	POWER_SUPPLY_PROP_BATT_TEMP,
+	POWER_SUPPLY_PROP_BATT_SOC_RECHG, /* P240131-05273 liwei19.wt 20240306,one ui 6.1 charging protection */
 #endif
 #if defined (CONFIG_N28_CHARGER_PRIVATE)
 	POWER_SUPPLY_PROP_DIRECT_CHARGING_STATUS,
@@ -575,7 +576,17 @@ enum power_supply_typec_power_role {
 enum power_supply_notifier_events {
 	PSY_EVENT_PROP_CHANGED,
 };
-
+//+P240221-05860  guhan01.wt 20240318,one ui 6.1 charging protection
+#if defined (CONFIG_W2_CHARGER_PRIVATE) || defined (CONFIG_N28_CHARGER_PRIVATE)
+enum {
+	NORMAL_100,
+	HIGHSOC_80,
+	SLEEP_80,
+	OPTION_80,
+	DOWN_80,
+};
+#endif
+//-P240221-05860  guhan01.wt 20240318,one ui 6.1 charging protection
 union power_supply_propval {
 	int intval;
 	const char *strval;

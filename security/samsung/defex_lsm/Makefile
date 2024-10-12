@@ -13,6 +13,7 @@ USER_BUILD=false
 
 # Additional debug
 LOG_BUFFER_ENABLE=false
+SHOW_RULES_ENABLE=false
 
 ifeq (,$(TARGET_BUILD_VARIANT))
     ifeq ($(CONFIG_SECURITY_DEFEX_USER),y)
@@ -75,11 +76,16 @@ ifeq ($(CONFIG_DEFEX_KERNEL_ONLY), y)
         ifeq ($(LOG_BUFFER_ENABLE), true)
             DEFEX_DEFINES += -DDEFEX_LOG_BUFFER_ENABLE
         endif
+	ifeq ($(SHOW_RULES_ENABLE), true)
+	    defex-y += debug/defex_rules_show.o
+	    DEFEX_DEFINES += -DDEFEX_SHOW_RULES_ENABLE
+	endif
     endif
 endif
 
 ifeq ($(SEC_FACTORY_BUILD), true)
     DEFEX_DEFINES += -DDEFEX_FACTORY_ENABLE
+    DEFEX_DEFINES += -DDEFEX_PERMISSIVE_LP
 endif
 
 ifeq ($(PED_ENABLE), true)
@@ -157,6 +163,10 @@ else
     DEFEX_DEFINES += -DDEFEX_DEBUG_ENABLE
     ifeq ($(LOG_BUFFER_ENABLE), true)
         DEFEX_DEFINES += -DDEFEX_LOG_BUFFER_ENABLE
+    endif
+    ifeq ($(SHOW_RULES_ENABLE), true)
+	defex-y += debug/defex_rules_show.o
+	DEFEX_DEFINES += -DDEFEX_SHOW_RULES_ENABLE
     endif
 endif
 

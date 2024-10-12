@@ -31,7 +31,7 @@
 		pd-data {
 			pd,vid = <0x29cf>;
 			pd,pid = <0x6360>;
-#if defined(CONFIG_WT_PROJECT_S96902AA1) //usb if
+#if defined(CONFIG_WT_PROJECT_S96902AA1) || defined(CONFIG_WT_PROJECT_S96901AA1) //usb if
 			pd,source-cap-ext = /bits/ 8 <0xcf 0x29 0x60 0x63
 						      0x00 0x00 0x00 0x00
 						      0x00 0x00 0x00 0x00
@@ -53,7 +53,7 @@
 			pd,charging_policy= <0x31>;
 
 			pd,source-pdo-size = <1>;
-#if defined(CONFIG_WT_PROJECT_S96902AA1) //usb if
+#if defined(CONFIG_WT_PROJECT_S96902AA1) || defined(CONFIG_WT_PROJECT_S96901AA1)  //usb if
 			//pd,source-pdo-data = <0x00019032>; /* 500 mA */
 			pd,source-pdo-data = <0x00019096>; /* 5V, 1500 mA */
 			pd,sink-pdo-size = <2>;
@@ -77,7 +77,7 @@
 			 */
 
 			pd,id-vdo-size = <6>;
-#if defined(CONFIG_WT_PROJECT_S96902AA1)
+#if defined(CONFIG_WT_PROJECT_S96902AA1) || defined(CONFIG_WT_PROJECT_S96901AA1)
 			pd,id-vdo-data = <0xd14029cf 0x0 0x63600000
 					  0x41800000 0x0 0x21800000>;
 #else
@@ -104,7 +104,7 @@
 			//local_vconn_supply;
 
 			// attemp_discover_cable_dfp;
-#if defined(CONFIG_WT_PROJECT_S96902AA1)
+#if defined(CONFIG_WT_PROJECT_S96902AA1) || defined(CONFIG_WT_PROJECT_S96901AA1)
 			// attemp_enter_dp_mode;
 			// attemp_discover_cable;
 			// attemp_discover_id;

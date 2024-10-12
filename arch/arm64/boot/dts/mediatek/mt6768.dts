@@ -2631,6 +2631,7 @@ defined(CONFIG_MTK_CAM_SECURITY_SUPPORT)
 		phys = <&u2port0 PHY_TYPE_USB2>;
 		dr_mode = "otg";
 		usb-role-switch;
+		usb_phy_reset_switch = <1>;
 	};
 
 	u2phy0: usb-phy@11210000 {

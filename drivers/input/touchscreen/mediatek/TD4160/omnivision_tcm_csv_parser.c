@@ -4,6 +4,7 @@
 #include <linux/delay.h>
 #include <linux/slab.h>
 #include <asm/uaccess.h>
+#include <linux/vmalloc.h>
 
 #include "omnivision_tcm_testing.h"
 
@@ -137,9 +138,9 @@ int ovt_tcm_parse_csvfile(char *file_path, char *target_name, int32_t  *data, in
 		goto exit_free;
 	}
 
-	buf = (char *)kzalloc(stat.size + 1, GFP_KERNEL);
+	buf = (char *)vzalloc(stat.size + 1);
 	if(NULL == buf) {
-		printk("ovt tcm csv parser:  %s: kzalloc %lld bytes failed.\n", __func__, stat.size);
+		printk("ovt tcm csv parser:  %s: vzalloc %lld bytes failed.\n", __func__, stat.size);
 		ret = -ESRCH;
 		goto exit_free;
 	}
@@ -180,11 +181,11 @@ int ovt_tcm_parse_csvfile(char *file_path, char *target_name, int32_t  *data, in
 	}
 	ret = 0;
 exit_free:
-	printk("ovt tcm csv parser: %s exit free\n", __func__);
+	printk("ovt tcm csv parser: %s exit 11free\n", __func__);
 	set_fs(org_fs);
 	if(buf) {
-		printk("ovt tcm csv parser: kfree buf\n");
-		kfree(buf);
+		printk("ovt tcm csv parser:vfree buf\n");
+		vfree(buf);
 		buf = NULL;
 	}
 

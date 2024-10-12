@@ -954,6 +954,14 @@ static ssize_t flash_name_show(struct device *dev, struct device_attribute *attr
 	    else if (strncmp(card->cid.prod_name, "3V6CBB", strlen("3V6CBB")) == 0)
 		emcp_name = "KM3V6001CB_B708";
 //-bug S96818AA1-5244, wangchunhua2.wt, add, 2023.5.26, add emmc flash life_time, end
+//+bug S96818AA1-10165 ,reziya.saimaiti.wt,add,2024.3.6,add emmc Flash name,start
+            else if (strncmp(card->cid.prod_name, "DL6DAB", strlen("DL6DAB")) == 0)
+		emcp_name = "KMDL6001DA_B425";
+//+bug S96818AA1-10165 ,reziya.saimaiti.wt,add,2024.3.6,add emmc Flash name,end
+//+bug S96818AA1-10164 ,reziya.saimaiti.wt,add,2024.3.6,add emmc Flash name,start
+            else if (strncmp(card->cid.prod_name, "DL6CAB", strlen("DL6CAB")) == 0)
+		emcp_name = "KMDL6000CA_B425";
+//+bug S96818AA1-10164 ,reziya.saimaiti.wt,add,2024.3.6,add emmc Flash name,end
 	    else
                 emcp_name = NULL;
             break;

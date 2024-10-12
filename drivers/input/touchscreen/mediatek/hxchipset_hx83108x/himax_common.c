@@ -1239,7 +1239,11 @@ static int i_get_FW(void)
 
 	ret = request_firmware(&hxfw, g_fw_boot_upgrade_name, private_ts->dev);
 	I("%s: request file %s finished\n", __func__, g_fw_boot_upgrade_name);
+#if defined(CONFIG_WT_PROJECT_S96616AA1)
+	if (1) {
+#else
 	if (ret < 0) {
+#endif
 #if defined(HX_FIRMWARE_HEADER)
 		if (get_fw_index(HX_FWTYPE_NORMAL) >= 0) {
 			g_embedded_fw.data = gHimax_firmware_list[

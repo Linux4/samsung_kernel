@@ -319,14 +319,14 @@
 	 * eint deb(debounce0, debounce1, debounce2, debounce3), inv_debounce
 	 */
 	headset-mode-setting = <0x500 0x500 1 0x1f0
-				0x800 0x800 0x20 0x44
+				0x1000 0x1000 0xc80 0x44
 				0x4 0x1
 				0x5 0x3 0x3 0x5 0xe>;
 	accdet-plugout-debounce = <1>;
 	/*1:ACC mode, 2:low cost without in bias, 6:low cost with in bias*/
 	accdet-mic-mode = <2>;
 	/*min_3pole--max_3pole--min_4pole--max_4pole--vol_bias*/
-	headset-vol-threshold = <0 590 591 2000 2600>;
+	headset-vol-threshold = <0 350 351 1580 1700>;
 	/*0--MD_MAX--UP_MAX--DW_MAX*/
 	headset-three-key-threshold = <0 80 220 400>;
 	headset-three-key-threshold-CDD = <0 121 192 600>;

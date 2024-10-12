@@ -946,7 +946,7 @@ static bool is_bdev_avail(struct zram *zram)
 	u64 min_free_blocks;
 	int ret;
 
-	if (!zram->bdev->bd_disk)
+	if (!zram->bdev || !zram->bdev->bd_disk)
 		return false;
 
 	lo = zram->bdev->bd_disk->private_data;

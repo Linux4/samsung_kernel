@@ -121,11 +121,15 @@ struct upm6910 {
 	int irq;
 	u32 intr_gpio;
 
+#ifdef WT_COMPILE_FACTORY_VERSION
+	int probe_flag;
+#endif
 	struct mutex i2c_rw_lock;
 
 	bool charge_enabled;	/* Register bit status */
 	bool power_good;
 	bool vbus_gd;
+	bool otg_flag;
 
 	struct upm6910_platform_data *platform_data;
 	struct charger_device *chg_dev;
@@ -379,8 +383,23 @@ int upm6910_set_chargevolt(struct upm6910 *upm, int volt)
 
 	if (volt < REG04_VREG_BASE)
 		volt = REG04_VREG_BASE;
-
-	val = (volt - REG04_VREG_BASE) / REG04_VREG_LSB;
+	
+	if(is_upm6910){
+		if(volt == 4350)
+			val = 16;
+		else if(volt == 4330)
+			val = 15;
+		else if(volt == 4310)
+			val = 14;
+		else if(volt == 4280)
+			val = 13;
+		else if(volt == 4240)
+			val = 12;
+		else
+			val = (volt - REG04_VREG_BASE) / REG04_VREG_LSB;
+	}else{
+		val = (volt - REG04_VREG_BASE) / REG04_VREG_LSB;
+	}
 	return upm6910_update_bits(upm, UPM6910_REG_04, REG04_VREG_MASK,
 				   val << REG04_VREG_SHIFT);
 }
@@ -1083,7 +1102,9 @@ static int upm6910_get_charger_type(struct upm6910 *upm)
 		break;
 	case REG08_VBUS_TYPE_UNKNOWN:
     	upm->psy_usb_type = POWER_SUPPLY_USB_TYPE_UNKNOWN;
-		upm->chg_type = STANDARD_HOST;
+//+P240223-04343,guhan01.wt 20240327,When the charging type is unrecognized, it is defined as non-standard charging
+		upm->chg_type = NONSTANDARD_CHARGER;
+//-P240223-04343,guhan01.wt 20240327,When the charging type is unrecognized, it is defined as non-standard charging
 		upm->psy_desc.type = POWER_SUPPLY_TYPE_USB;
 		break;
 	case REG08_VBUS_TYPE_NON_STD:
@@ -1164,6 +1185,11 @@ static irqreturn_t upm6910_irq_handler(int irq, void *data)
 
     struct upm6910 *upm = (struct upm6910 *)data;
 
+#ifdef WT_COMPILE_FACTORY_VERSION
+	if(upm->probe_flag == 0)
+		return IRQ_HANDLED;
+#endif
+
 	ret = upm6910_read_byte(upm, UPM6910_REG_0A, &reg_val);
 	if (ret)
 		return IRQ_HANDLED;
@@ -1186,15 +1212,6 @@ static irqreturn_t upm6910_irq_handler(int irq, void *data)
 		upm6720_adc_en(1);
 		pr_notice("adapter/usb inserted\n");
 	} else if (prev_vbus_gd && !upm->vbus_gd) {
-/* +S96818AA1-9167, zhouxiaopeng2.wt, MODIFY, 20230802, charging current limit is abnormal */
-		msleep(100);
-		vbus = battery_get_vbus();
-		pr_notice("adapter/usb stay for vbus %d\n", vbus);
-		if (vbus > 2500) {
-			upm->vbus_gd = true;
-			return IRQ_HANDLED;
-		}
-/* +S96818AA1-9167, zhouxiaopeng2.wt, MODIFY, 20230802, charging current limit is abnormal */
 	    upm->chg_type = CHARGER_UNKNOWN;
 		schedule_delayed_work(&upm->psy_dwork, 0);
 		Charger_Detect_Release();
@@ -1306,6 +1323,9 @@ static void upm6910_inform_prob_dwork_handler(struct work_struct *work)
 	//msleep(700);
 	upm6910_force_dpdm(upm);
 	msleep(300);
+#ifdef WT_COMPILE_FACTORY_VERSION
+	upm->probe_flag = 1;
+#endif
 	upm6910_irq_handler(upm->irq, (void *) upm);
 }
 
@@ -1581,10 +1601,14 @@ static int upm6910_set_otg(struct charger_device *chg_dev, bool en)
 		upm6720_set_otg_txmode(1);
 		sp2130_set_otg_txmode(1);
 		ret = upm6910_enable_otg(upm);
+		upm->otg_flag = 1;
 	} else {
 		ret = upm6910_disable_otg(upm);
-		upm6720_set_otg_txmode(0);
-		sp2130_set_otg_txmode(0);
+		if (upm->otg_flag) {
+				upm6720_set_otg_txmode(0);
+				sp2130_set_otg_txmode(0);
+				upm->otg_flag = 0;
+		}
 	}
 
 /* +S96818AA1-5256, zhouxiaopeng2.wt, MODIFY, 20230609, add register print information for OTG */
@@ -1662,9 +1686,9 @@ static int upm6910_set_boost_ilmt(struct charger_device *chg_dev, u32 curr)
 	return ret;
 }
 
-static int32_t upm6910_enable_chg_type_det(struct charger_device *chg_dev, bool en)
+static int upm6910_enable_chg_type_det(struct charger_device *chg_dev, bool en)
 {
-	int ret = true;
+	int ret = -1;
 	struct upm6910 *upm = NULL;
 	u8 reg_val = 0;
 	int vbus_stat = 0;
@@ -1682,13 +1706,13 @@ static int32_t upm6910_enable_chg_type_det(struct charger_device *chg_dev, bool 
 
 	ret = upm6910_read_byte(upm, UPM6910_REG_08, &reg_val);
 	if (ret)
-		return ret;
+		return -1;
 
 	vbus_stat = (reg_val & REG08_VBUS_STAT_MASK);
 	vbus_stat >>= REG08_VBUS_STAT_SHIFT;
-	if(vbus_stat != REG08_VBUS_TYPE_SDP) {
+	if(vbus_stat != REG08_VBUS_TYPE_SDP && vbus_stat != REG08_VBUS_TYPE_CDP) {
 		pr_err("vbus_stat = %d\n",vbus_stat);
-		return true;
+		return -1;
 	}
 
 	pr_err("en = %d\n",en);
@@ -1699,6 +1723,7 @@ static int32_t upm6910_enable_chg_type_det(struct charger_device *chg_dev, bool 
 	}
 	return ret;
 }
+
 
 /* +S96818AA1-2200, churui1.wt, ADD, 20230523, support shipmode function */
 static int upm6910_set_shipmode(struct charger_device *chg_dev, bool en)
@@ -1803,9 +1828,6 @@ static int  upm6910_charger_get_property(struct power_supply *psy,
 		ret = upm6910_get_input_current_limit(upm);
 		val->intval = (ret < 0) ? 0 : (ret * 1000);
 		break;
-	case POWER_SUPPLY_PROP_CHARGING_ENABLED:
-		ret = upm6910_charging(upm->chg_dev, val->intval);
-		break;
 	default:
 		ret = -ENODATA;
 		break;
@@ -1829,6 +1851,9 @@ static int  upm6910_charger_set_property(struct power_supply *psy,
    switch(psp) {
 	case POWER_SUPPLY_PROP_INPUT_CURRENT_LIMIT:
 		ret = upm6910_set_input_current_limit(upm, val->intval / 1000);
+		break;
+	case POWER_SUPPLY_PROP_CHARGING_ENABLED:
+		ret = upm6910_charging(upm->chg_dev, val->intval);
 		break;
 	default:
 		ret = -ENODATA;
@@ -1878,7 +1903,9 @@ static int upm6910_charger_probe(struct i2c_client *client,
 	client->addr = 0x6B;
 	upm->dev = &client->dev;
 	upm->client = client;
-
+#ifdef WT_COMPILE_FACTORY_VERSION
+	upm->probe_flag=0;
+#endif
 	i2c_set_clientdata(client, upm);
 
 	mutex_init(&upm->i2c_rw_lock);
@@ -1966,6 +1993,8 @@ pr_err("part_no=0x%X,match->data=0x%X,SGM41513D=0x%X,UPM6910D=0x%X\n",upm->part_
 
 	mod_delayed_work(system_wq, &upm->prob_dwork,
 					msecs_to_jiffies(2*1000));
+
+	upm->otg_flag = 0;
 
 	pr_err("upm6910 probe successfully, Part Num:%d, Revision:%d\n!",
 	       upm->part_no, upm->revision);

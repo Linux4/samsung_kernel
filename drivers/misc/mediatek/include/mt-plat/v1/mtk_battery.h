@@ -74,5 +74,8 @@ unsigned int battery_get_fg_init_done(void);
 #if defined (CONFIG_W2_CHARGER_PRIVATE)
 extern int wt_set_batt_cycle_fv(bool update);
 #endif
+#ifdef CONFIG_N28_CHARGER_PRIVATE
+extern int wt_get_cv_by_cycle(void);
+#endif
 
 #endif /* End of _FUEL_GAUGE_GM_30_H */

@@ -7,6 +7,7 @@
 #include <linux/cpu.h>
 #include <linux/kthread.h>
 #include <uapi/linux/sched/types.h>
+#include <asm/ptrace.h>
 
 #include "inc/tcpci.h"
 #include "inc/tcpci_typec.h"
@@ -758,6 +759,7 @@ static void typec_cc_open_entry(struct tcpc_device *tcpc, uint8_t state)
 
 static inline void typec_error_recovery_entry(struct tcpc_device *tcpc)
 {
+	dump_stack();
 	typec_cc_open_entry(tcpc, typec_errorrecovery);
 	tcpc_reset_typec_debounce_timer(tcpc);
 	tcpc_enable_timer(tcpc, TYPEC_TIMER_ERROR_RECOVERY);

@@ -89,9 +89,9 @@ RT_REG_DECL(TCPC_V10_REG_TYPEC_REV, 2, RT_VOLATILE, {});
 RT_REG_DECL(TCPC_V10_REG_PD_REV, 2, RT_VOLATILE, {});
 RT_REG_DECL(TCPC_V10_REG_PDIF_REV, 2, RT_VOLATILE, {});
 RT_REG_DECL(TCPC_V10_REG_ALERT, 2, RT_VOLATILE, {});
-RT_REG_DECL(TCPC_V10_REG_ALERT_MASK, 2, RT_VOLATILE, {});
-RT_REG_DECL(TCPC_V10_REG_POWER_STATUS_MASK, 1, RT_VOLATILE, {});
-RT_REG_DECL(TCPC_V10_REG_FAULT_STATUS_MASK, 1, RT_VOLATILE, {});
+RT_REG_DECL(TCPC_V10_REG_ALERT_MASK, 2, RT_NORMAL, {});
+RT_REG_DECL(TCPC_V10_REG_POWER_STATUS_MASK, 1, RT_NORMAL, {});
+RT_REG_DECL(TCPC_V10_REG_FAULT_STATUS_MASK, 1, RT_NORMAL, {});
 RT_REG_DECL(TCPC_V10_REG_TCPC_CTRL, 1, RT_VOLATILE, {});
 RT_REG_DECL(TCPC_V10_REG_ROLE_CTRL, 1, RT_VOLATILE, {});
 RT_REG_DECL(TCPC_V10_REG_FAULT_CTRL, 1, RT_VOLATILE, {});
@@ -120,7 +120,7 @@ RT_REG_DECL(RT1711H_REG_BMCIO_RXDZSEL, 1, RT_VOLATILE, {});
 RT_REG_DECL(RT1711H_REG_VCONN_CLIMITEN, 1, RT_VOLATILE, {});
 RT_REG_DECL(RT1711H_REG_RT_STATUS, 1, RT_VOLATILE, {});
 RT_REG_DECL(RT1711H_REG_RT_INT, 1, RT_VOLATILE, {});
-RT_REG_DECL(RT1711H_REG_RT_MASK, 1, RT_VOLATILE, {});
+RT_REG_DECL(RT1711H_REG_RT_MASK, 1, RT_NORMAL, {});
 RT_REG_DECL(RT1711H_REG_IDLE_CTRL, 1, RT_VOLATILE, {});
 RT_REG_DECL(RT1711H_REG_INTRST_CTRL, 1, RT_VOLATILE, {});
 RT_REG_DECL(RT1711H_REG_WATCHDOG_CTRL, 1, RT_VOLATILE, {});
@@ -192,6 +192,11 @@ static const rt_register_map_t rt1711_chip_regmap[] = {
 #define RT1711_CHIP_REGMAP_SIZE ARRAY_SIZE(rt1711_chip_regmap)
 
 #endif /* CONFIG_RT_REGMAP */
+
+static inline bool chip_is_cps8851(struct rt1711_chip *chip)
+{
+	return chip->pid == CPS_8851_PID && chip->vid == CPS_8851_VID;
+}
 
 static int rt1711_read_device(void *client, u32 reg, int len, void *dst)
 {
@@ -796,7 +801,7 @@ static int rt1711_tcpc_init(struct tcpc_device *tcpc, bool sw_reset)
 			TCPC_V10_REG_FAULT_CTRL_DIS_VCONN_OV);
 	} else if (chip->vid== SC2150A_VID) {
 		rt1711_i2c_write8(tcpc, TCPC_V10_REG_COMMAND,TCPM_CMD_ENABLE_VBUS_DETECT);
-	} else if ((chip->vid == CPS_8851_VID) && (chip->pid == CPS_8851_PID)) {
+	} else if (chip_is_cps8851(chip)) {
 		rt1711_i2c_write8(tcpc, CPS8851_REG_CP_OTSD_MASK,
 			CPS8851_REG_M_OTSD_STATE);
 	}
@@ -865,7 +870,7 @@ int rt1711_fault_status_clear(struct tcpc_device *tcpc, uint8_t status)
 	if (status & TCPC_V10_REG_FAULT_STATUS_VCONN_OV)
 		ret = rt1711_fault_status_vconn_ov(tcpc);
 
-	if ((chip->vid == CPS_8851_VID) && (chip->pid == CPS_8851_PID)) {
+	if (chip_is_cps8851(chip)) {
 		if (status & (TCPC_V10_REG_FAULT_STATUS_VCONN_OC |
 			TCPC_V10_REG_FAULT_STATUS_VCONN_OV))
 			tcpci_set_vconn(tcpc, 0);
@@ -923,7 +928,7 @@ int rt1711_get_alert_status(struct tcpc_device *tcpc, uint32_t *alert)
 	*alert |= v2 << 16;
 #endif
 
-	if ((chip->vid == CPS_8851_VID) && (chip->pid == CPS_8851_PID)) {
+	if (chip_is_cps8851(chip)) {
 		ret = rt1711_i2c_read8(tcpc, CPS8851_REG_CP_OTSD);
 		if(ret < 0)
 			return ret;
@@ -1406,6 +1411,21 @@ struct tcpc_transmit_packet {
 };
 #pragma pack(pop)
 
+static int cps8851_init_mask(struct tcpc_device *tcpc)
+{
+	struct rt1711_chip *chip = tcpc_get_dev_data(tcpc);
+
+	if (!chip_is_cps8851(chip))
+		return 0;
+
+	rt1711_init_alert_mask(tcpc);
+	rt1711_init_power_status_mask(tcpc);
+	rt1711_init_fault_mask(tcpc);
+	rt1711_init_rt_mask(tcpc);
+
+	return 0;
+}
+
 static int rt1711_transmit(struct tcpc_device *tcpc,
 	enum tcpm_transmit_type type, uint16_t header, const uint32_t *data)
 {
@@ -1434,6 +1454,10 @@ static int rt1711_transmit(struct tcpc_device *tcpc,
 	rv = rt1711_i2c_write8(tcpc, TCPC_V10_REG_TRANSMIT,
 			TCPC_V10_REG_TRANSMIT_SET(
 			tcpc->pd_retry_count, type));
+
+	if (type == TCPC_TX_HARD_RESET)
+		cps8851_init_mask(tcpc);
+
 	return rv;
 }
 
@@ -1454,6 +1478,7 @@ static int rt1711_set_bist_test_mode(struct tcpc_device *tcpc, bool en)
 
 static struct tcpc_ops rt1711_tcpc_ops = {
 	.init = rt1711_tcpc_init,
+	.init_alert_mask = cps8851_init_mask,
 	.alert_status_clear = rt1711_alert_status_clear,
 	.fault_status_clear = rt1711_fault_status_clear,
 	.get_chip_id= rt1711_get_chip_id,

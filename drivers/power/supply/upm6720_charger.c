@@ -462,12 +462,12 @@ int upm6720_set_otg_txmode(bool enable)
 		upm6720_update_bits(otg_upm, UPM6720_REG_0F,UPM6720_DIS_ACDRV_BOTH_MASK, val2 <<= UPM6720_DIS_ACDRV_BOTH_SHIFT);
 		ret = upm6720_update_bits(otg_upm, UPM6720_REG_0F,UPM6720_ACDRV1_STAT_MASK, val3 <<= UPM6720_ACDRV1_STAT_SHIFT);
 	} else {
-		val1 = UPM6720_EN_OTG_DISABLE;
-		val2 = UPM6720_AC2_PD_ENABLE;
-		val3 = UPM6720_ACDRV1_STAT_OFF;
-		upm6720_update_bits(otg_upm, UPM6720_REG_0F,UPM6720_AC2_PD_EN_MASK, val2 <<= UPM6720_AC2_PD_EN_SHIFT);
-		upm6720_update_bits(otg_upm, UPM6720_REG_0F,UPM6720_ACDRV1_STAT_MASK, val3 <<= UPM6720_ACDRV1_STAT_SHIFT);
-		ret = upm6720_update_bits(otg_upm, UPM6720_REG_0F,UPM6720_EN_OTG_MASK, val1 <<= UPM6720_EN_OTG_SHIFT);
+		val1 = UPM6720_VBUS_PD_ENABLE;
+		val2 = UPM6720_ACDRV1_STAT_OFF;
+		val3 = UPM6720_EN_OTG_DISABLE;
+		upm6720_update_bits(otg_upm, UPM6720_REG_06,UPM6720_VBUS_PD_EN_MASK, val1 <<= UPM6720_VBUS_PD_EN_SHIFT);
+		upm6720_update_bits(otg_upm, UPM6720_REG_0F,UPM6720_ACDRV1_STAT_MASK, val2 <<= UPM6720_ACDRV1_STAT_SHIFT);
+		ret = upm6720_update_bits(otg_upm, UPM6720_REG_0F,UPM6720_EN_OTG_MASK, val3 <<= UPM6720_EN_OTG_SHIFT);
 	}
 	printk("upm6720_set_otg_txmode = %d\n", enable);
 	return ret;

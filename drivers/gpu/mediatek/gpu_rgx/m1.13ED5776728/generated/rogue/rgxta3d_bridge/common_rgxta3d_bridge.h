@@ -71,7 +71,9 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #define PVRSRV_BRIDGE_RGXTA3D_RGXRENDERCONTEXTSTALLED			PVRSRV_BRIDGE_RGXTA3D_CMD_FIRST+12
 #define PVRSRV_BRIDGE_RGXTA3D_RGXKICKTA3D2			PVRSRV_BRIDGE_RGXTA3D_CMD_FIRST+13
 #define PVRSRV_BRIDGE_RGXTA3D_RGXSETRENDERCONTEXTPROPERTY			PVRSRV_BRIDGE_RGXTA3D_CMD_FIRST+14
-#define PVRSRV_BRIDGE_RGXTA3D_CMD_LAST			(PVRSRV_BRIDGE_RGXTA3D_CMD_FIRST+14)
+#define PVRSRV_BRIDGE_RGXTA3D_RGXCREATEZSBUFFER2			PVRSRV_BRIDGE_RGXTA3D_CMD_FIRST+15
+#define PVRSRV_BRIDGE_RGXTA3D_RGXCREATEFREELIST2			PVRSRV_BRIDGE_RGXTA3D_CMD_FIRST+16
+#define PVRSRV_BRIDGE_RGXTA3D_CMD_LAST			(PVRSRV_BRIDGE_RGXTA3D_CMD_FIRST+16)
 
 /*******************************************
             RGXCreateHWRTDataSet
@@ -421,5 +423,48 @@ typedef struct PVRSRV_BRIDGE_OUT_RGXSETRENDERCONTEXTPROPERTY_TAG
 	IMG_UINT64 ui64Output;
 	PVRSRV_ERROR eError;
 } __attribute__ ((packed)) PVRSRV_BRIDGE_OUT_RGXSETRENDERCONTEXTPROPERTY;
+
+/*******************************************
+            RGXCreateZSBuffer2
+ *******************************************/
+
+/* Bridge in structure for RGXCreateZSBuffer2 */
+typedef struct PVRSRV_BRIDGE_IN_RGXCREATEZSBUFFER2_TAG
+{
+	IMG_HANDLE hReservation;
+	IMG_HANDLE hPMR;
+	PVRSRV_MEMALLOCFLAGS_T uiMapFlags;
+} __attribute__ ((packed)) PVRSRV_BRIDGE_IN_RGXCREATEZSBUFFER2;
+
+/* Bridge out structure for RGXCreateZSBuffer2 */
+typedef struct PVRSRV_BRIDGE_OUT_RGXCREATEZSBUFFER2_TAG
+{
+	IMG_HANDLE hsZSBufferKM;
+	PVRSRV_ERROR eError;
+} __attribute__ ((packed)) PVRSRV_BRIDGE_OUT_RGXCREATEZSBUFFER2;
+
+/*******************************************
+            RGXCreateFreeList2
+ *******************************************/
+
+/* Bridge in structure for RGXCreateFreeList2 */
+typedef struct PVRSRV_BRIDGE_IN_RGXCREATEFREELIST2_TAG
+{
+	IMG_HANDLE hMemCtxPrivData;
+	IMG_UINT32 ui32MaxFLPages;
+	IMG_UINT32 ui32InitFLPages;
+	IMG_UINT32 ui32GrowFLPages;
+	IMG_UINT32 ui32GrowParamThreshold;
+	IMG_HANDLE hsGlobalFreeList;
+	IMG_BOOL bbFreeListCheck;
+	IMG_HANDLE hFreeListReservation;
+} __attribute__ ((packed)) PVRSRV_BRIDGE_IN_RGXCREATEFREELIST2;
+
+/* Bridge out structure for RGXCreateFreeList2 */
+typedef struct PVRSRV_BRIDGE_OUT_RGXCREATEFREELIST2_TAG
+{
+	IMG_HANDLE hCleanupCookie;
+	PVRSRV_ERROR eError;
+} __attribute__ ((packed)) PVRSRV_BRIDGE_OUT_RGXCREATEFREELIST2;
 
 #endif /* COMMON_RGXTA3D_BRIDGE_H */

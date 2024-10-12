@@ -321,3 +321,30 @@ config MTK_LENS_N28HI5021QDC_DW9800WAF_SUPPORT
 	  This config is used to enable the corresponding
 	  lens driver for the camera sensor module
 	  Set as y if the driver is used in this project
+
+config MTK_LENS_N28GC50E0GKW_GT9778AF_SUPPORT
+	tristate "N28GC50E0GKW_GT9778AF Lens Driver"
+		depends on MTK_LENS
+	help
+	  N28GC50E0GKW_GT9778AF Lens Driver
+	  This config is used to enable the corresponding
+	  lens driver for the camera sensor module
+	  Set as y if the driver is used in this project
+
+config MTK_LENS_N28S5KJN1TRULY_GT9778AF_SUPPORT
+	tristate "N28S5KJN1TRULY_GT9778AF Lens Driver"
+		depends on MTK_LENS
+	help
+	  N28S5KJN1TRULY_GT9778AF Lens Driver
+	  This config is used to enable the corresponding
+	  lens driver for the camera sensor module
+	  Set as y if the driver is used in this project
+
+config MTK_LENS_N28S5KJN1DC_GT9778AF_SUPPORT
+	tristate "N28S5KJN1DC_GT9778AF Lens Driver"
+		depends on MTK_LENS
+	help
+	  N28S5KJN1DC_GT9778AF Lens Driver
+	  This config is used to enable the corresponding
+	  lens driver for the camera sensor module
+	  Set as y if the driver is used in this project

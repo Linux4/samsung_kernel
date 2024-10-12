@@ -2800,11 +2800,11 @@ static int hi846_sensor_otp_info(void)
     write_cmos_sensor_8(0x0f02, 0x00); // pll disable
     write_cmos_sensor_8(0x071a, 0x01); // CP TRIM_H
     write_cmos_sensor_8(0x071b, 0x09); // IPGM TRIM_H
-    write_cmos_sensor_8(0x0d04, 0x01); // Fsync(OTP busy) Output Enable
+    write_cmos_sensor_8(0x0d04, 0x00); // Fsync(OTP busy) Output Enable
     write_cmos_sensor_8(0x0d00, 0x07); // Fsync(OTP busy) Output Drivability
     write_cmos_sensor_8(0x003e, 0x10); // OTP R/W mode
-    write_cmos_sensor_8(0x070f, 0x05); // OTP data rewrite
     write_cmos_sensor_8(0x0a00, 0x01); // stand by off
+    mdelay(1);
 
 	/* 3. read eeprom data */
 	//minfo && awb &&lsc group

@@ -40,7 +40,7 @@ static int add_timestamp_string(char *buf, int bufsize)
 {
 	u64 ts;
 	unsigned long rem_nsec;
-	unsigned int len = 0;
+	int len = 0;
 
 	ts = local_clock();
 	rem_nsec = do_div(ts, 1000000000);

@@ -56,7 +56,28 @@
 #define TEMP_T0_THRES  0
 #define TEMP_T0_THRES_PLUS_X_DEGREE  0
 #define TEMP_NEG_10_THRES 0
+//+P240111-05098   guhan01.wt 2024031820,Modify the maximum current limit for bright screen charging
+#if defined(CONFIG_WT_PROJECT_S96902AA1) || defined(CONFIG_WT_PROJECT_S96901AA1) || defined(CONFIG_WT_PROJECT_S96901WA1)
+#define AP_TEMP_LCMON_ABOVE_T4 300000
+#define AP_TEMP_LCMON_T3_TO_T4 600000
+#define AP_TEMP_LCMON_T2_TO_T3 1000000
+#define AP_TEMP_LCMON_T1_TO_T2 2000000
+#define AP_TEMP_LCMON_T0_TO_T1 2500000
+#define AP_TEMP_LCMON_BELOW_T0 3000000
 
+#define AP_TEMP_LCMON_T4 45
+#define AP_TEMP_LCMON_T3 43
+#define AP_TEMP_LCMON_T2 42
+#define AP_TEMP_LCMON_T1 41
+#define AP_TEMP_LCMON_T0 39
+
+#define AP_TEMP_LCMON_T4_ANTI_SHAKE 43
+#define AP_TEMP_LCMON_T3_ANTI_SHAKE 41
+#define AP_TEMP_LCMON_T2_ANTI_SHAKE 40
+#define AP_TEMP_LCMON_T1_ANTI_SHAKE 39
+#define AP_TEMP_LCMON_T0_ANTI_SHAKE 37
+#endif
+//-P240111-05098   guhan01.wt 2024031820,Modify the maximum current limit for bright screen charging
 /* +churui1.wt, ADD, 20230603, cp charging current limit for AP overheat */
 #ifdef CONFIG_N28_CHARGER_PRIVATE
 #define JEITA_TEMP_T3_TO_T4_CP_CC 4000000
@@ -89,7 +110,14 @@
 #define AP_TEMP_BELOW_T0_CP_CC	5500000
 #define AP_TEMP_HIGH_LCMON_CP_CC 500000
 #define AP_TEMP_LOW_LCMON_CP_CC 800000
-
+//+P240111-05098   guhan01.wt 2024031820,Modify the maximum current limit for bright screen charging
+#define AP_TEMP_LCMON_ABOVE_T4 300000
+#define AP_TEMP_LCMON_T3_TO_T4 600000
+#define AP_TEMP_LCMON_T2_TO_T3 1000000
+#define AP_TEMP_LCMON_T1_TO_T2 2000000
+#define AP_TEMP_LCMON_T0_TO_T1 2500000
+#define AP_TEMP_LCMON_BELOW_T0 3000000
+//-P240111-05098   guhan01.wt 2024031820,Modify the maximum current limit for bright screen charging
 #define AP_TEMP_T4_CP_THRES  48
 #define AP_TEMP_T4_CP_THRES_MINUS_X_DEGREE 47
 #define AP_TEMP_T3_CP_THRES  45
@@ -102,6 +130,20 @@
 #define AP_TEMP_T0_CP_THRES_MINUS_X_DEGREE 34
 #define AP_TEMP_CP_THRES_LCMON 44
 #define AP_TEMP_CP_THRES_MINUS_X_DEGREE_LCMON 43
+
+//+P240111-05098   guhan01.wt 2024031820,Modify the maximum current limit for bright screen charging
+#define AP_TEMP_LCMON_T4 45
+#define AP_TEMP_LCMON_T3 43
+#define AP_TEMP_LCMON_T2 42
+#define AP_TEMP_LCMON_T1 41
+#define AP_TEMP_LCMON_T0 39
+
+#define AP_TEMP_LCMON_T4_ANTI_SHAKE 43
+#define AP_TEMP_LCMON_T3_ANTI_SHAKE 41
+#define AP_TEMP_LCMON_T2_ANTI_SHAKE 40
+#define AP_TEMP_LCMON_T1_ANTI_SHAKE 39
+#define AP_TEMP_LCMON_T0_ANTI_SHAKE 37
+//-P240111-05098   guhan01.wt 2024031820,Modify the maximum current limit for bright screen charging
 #else
 //T0 38 T1 40 t2 45 t3 48
 //+Bug774000,gudi.wt,ADD,20191126,charge current limit for AP overheat

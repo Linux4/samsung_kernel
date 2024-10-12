@@ -1330,13 +1330,14 @@ static void fg_custom_part_ntc_table(const struct device_node *np,
 #endif
 }
 
-#if defined (CONFIG_W2_CHARGER_PRIVATE)
+#if defined (CONFIG_W2_CHARGER_PRIVATE) || defined (CONFIG_N28_CHARGER_PRIVATE)
 int wt_set_batt_cycle_fv(bool update)
 {
-	int i, cycle = 0;
+	int i = 0; 
+	static int cycle = 0;
 	static int cycle_fv = 0;
 
-	if (!update)
+	if (!update && cycle == gm.bat_cycle)
 		return cycle_fv;
 
 	if (gm.bat_cycle >= 0 && gm.bat_cycle < 999999) {
@@ -1357,6 +1358,46 @@ int wt_set_batt_cycle_fv(bool update)
 EXPORT_SYMBOL_GPL(wt_set_batt_cycle_fv);
 #endif
 
+#if defined (CONFIG_N28_CHARGER_PRIVATE)
+extern int temp_cycle;
+extern bool is_upm6910;
+int wt_get_cv_by_cycle(void)
+{
+	static int cycle = 0;
+	int cycle_fv = 0;
+	if(temp_cycle != -1)
+		cycle = temp_cycle;
+	else
+		cycle = gm.bat_cycle;
+	if(is_upm6910){
+		if(cycle > 999)
+			cycle_fv = 4240000;
+		else if (cycle > 699)
+			cycle_fv = 4280000;
+		else if (cycle > 399)
+			cycle_fv = 4310000;
+		else if (cycle > 299)
+			cycle_fv = 4330000;
+		else
+			cycle_fv = 4350000;
+	}else{
+		if(cycle > 999)
+			cycle_fv = 4240000;
+		else if (cycle > 699)
+			cycle_fv = 4272000;
+		else if (cycle > 399)
+			cycle_fv = 4304000;
+		else if (cycle > 299)
+			cycle_fv = 4352000;
+		else
+			cycle_fv = 4368000;
+	}
+	printk("N28 charger ic is %s,cycle = %d,cv = %d",is_upm6910 ? "UPM6910":"SGM41513",cycle,cycle_fv);
+	return cycle_fv;
+}
+EXPORT_SYMBOL_GPL(wt_get_cv_by_cycle);
+#endif
+
 void fg_custom_init_from_dts(struct platform_device *dev)
 {
 	struct device_node *np = dev->dev.of_node;
@@ -1365,7 +1406,7 @@ void fg_custom_init_from_dts(struct platform_device *dev)
 	int r_pseudo100_raw = 0, r_pseudo100_col = 0;
 	char node_name[128];
 
-#if defined (CONFIG_W2_CHARGER_PRIVATE)
+#if defined (CONFIG_W2_CHARGER_PRIVATE) || defined (CONFIG_N28_CHARGER_PRIVATE)
 	int cycle_fv, byte_len;
 
 	if (of_find_property(np, "wt,batt-cycle-ranges", &byte_len)) {
@@ -1825,7 +1866,7 @@ void fg_custom_init_from_dts(struct platform_device *dev)
 			i*TOTAL_BATTERY_NUMBER+gm.battery_id,
 			&(fg_table_cust_data.fg_profile[i].pseudo1),
 			UNIT_TRANS_100);
-#if defined (CONFIG_W2_CHARGER_PRIVATE)
+#if defined (CONFIG_W2_CHARGER_PRIVATE) || defined (CONFIG_N28_CHARGER_PRIVATE)
 		if (cycle_fv != 0) {
 			sprintf(node_name, "g_FG_PSEUDO100_cv%d", cycle_fv / 1000);
 			fg_read_dts_val_by_idx(np, node_name,
@@ -3079,6 +3120,13 @@ void fg_daemon_send_data(
 			}
 
 			ptr = (char *)&gm.fg_data;
+			if ((prcv->idx + prcv->size) >
+				sizeof(struct fgd_cmd_param_t_custom)) {
+				bm_err("size is different %d size %d idx %d\n",
+					(int)sizeof(struct fgd_cmd_param_t_custom),
+					prcv->size, prcv->idx);
+				return;
+			}
 			memcpy(&ptr[prcv->idx],
 				prcv->input,
 				prcv->size);
@@ -3118,7 +3166,6 @@ void fg_daemon_get_data(
 		prcv->total_size,
 		prcv->size,
 		prcv->idx);
-
 		pret->type = prcv->type;
 		pret->total_size = prcv->total_size;
 		pret->size = prcv->size;
@@ -3129,16 +3176,12 @@ void fg_daemon_get_data(
 	case FUEL_GAUGE_TABLE_CUSTOM_DATA:
 		{
 			char *ptr;
-
-			if (sizeof(struct fuel_gauge_table_custom_data)
-				!= prcv->total_size) {
-				bm_err("size is different %d %d\n",
-				(int)sizeof(
-				struct fuel_gauge_table_custom_data),
-				prcv->total_size);
-			}
-
 			ptr = (char *)&fg_table_cust_data;
+			if ((prcv->idx + prcv->size) > sizeof(struct fgd_cmd_param_t_custom)) {
+				bm_err("size is different size %d idx %d  struct size %d",
+					pret->size, pret->idx, (int)sizeof(struct fgd_cmd_param_t_custom));
+				return;
+			}
 			memcpy(pret->input, &ptr[prcv->idx], pret->size);
 			bm_debug(
 				"FG_DATA_TYPE_TABLE type:%d size:%d %d idx:%d\n",
@@ -3721,7 +3764,10 @@ void bmd_ctrl_cmd_from_user(void *nl_data, struct fgd_nl_msg_t *ret_msg)
 			bm_err("[fr] data len:%d custom data length = %d\n",
 				(int)sizeof(fg_cust_data),
 				ret_msg->fgd_data_len);
-
+			if (ret_msg->fgd_ret_data_len > (int)sizeof(fg_cust_data)) {
+				bm_err("[fr] The size of data receive is not applicable to copy");
+				break;
+			}
 			memcpy(ret_msg->fgd_data,
 				&fg_cust_data, sizeof(fg_cust_data));
 			ret_msg->fgd_data_len += sizeof(fg_cust_data);
@@ -3818,7 +3864,10 @@ void bmd_ctrl_cmd_from_user(void *nl_data, struct fgd_nl_msg_t *ret_msg)
 		int fg_coulomb = 0;
 
 		fg_coulomb = gauge_get_coulomb();
-
+		if (((int)sizeof(msg->fgd_data[0])) == 0) {
+			bm_err("[fr] FG_DAEMON_CMD_SET_FG_BAT_INT1_GAP msg data is not filled");
+			break;
+		}
 		memcpy(&gm.fg_bat_int1_gap,
 			&msg->fgd_data[0], sizeof(gm.fg_bat_int1_gap));
 
@@ -4659,14 +4708,21 @@ void bmd_ctrl_cmd_from_user(void *nl_data, struct fgd_nl_msg_t *ret_msg)
 
 	case FG_DAEMON_CMD_DUMP_LOG:
 	{
+		int len;
 		gm.proc_subcmd = msg->fgd_subcmd;
 		gm.proc_subcmd_para1 = msg->fgd_subcmd_para1;
+		len = (int)strlen(&msg->fgd_data[0]);
+		bm_err("[fr] FG_DAEMON_CMD_DUMP_LOG %d", len);
 		memset(gm.proc_log, 0, 4096);
-		strncpy(gm.proc_log, &msg->fgd_data[0],
-			strlen(&msg->fgd_data[0]));
-		bm_err("[fr] FG_DAEMON_CMD_DUMP_LOG %d %d %d\n",
-			msg->fgd_subcmd, msg->fgd_subcmd_para1,
-			(int)strlen(&msg->fgd_data[0]));
+		if (len < 4096) {
+			strncpy(gm.proc_log, &msg->fgd_data[0],
+				len);
+			bm_err("[fr] FG_DAEMON_CMD_DUMP_LOG %d %d %d\n",
+				msg->fgd_subcmd, msg->fgd_subcmd_para1,
+				len);
+		} else {
+			bm_err("[fr] FG_DAEMON_CMD_DUMP_LOG size of dump is more than limit");
+		}
 	}
 	break;
 

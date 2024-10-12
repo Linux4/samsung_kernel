@@ -151,7 +151,7 @@
 /* Adpat type for PA_TXHSADAPTTYPE attribute */
 #define PA_REFRESH_ADAPT       0x00
 #define PA_INITIAL_ADAPT       0x01
-#define PA_NO_ADAPT            0x0
+#define PA_NO_ADAPT            0x03
 
 #define PA_TACTIVATE_TIME_UNIT_US	10
 #define PA_HIBERN8_TIME_UNIT_US		100

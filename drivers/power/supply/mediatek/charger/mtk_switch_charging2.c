@@ -75,8 +75,22 @@ extern struct usbpd_pm *__pdpm;
 #endif
 /* -churui1.wt, ADD, 20230602, CP charging control */
 
+//+P240131-05273 liwei19.wt 20240306,one ui 6.1 charging protection
+#if defined (CONFIG_W2_CHARGER_PRIVATE) || defined (CONFIG_N28_CHARGER_PRIVATE)
+extern int batt_mode;
+extern int batt_soc_rechg;
+extern int batt_full_capacity;
+#endif
+//-P240131-05273 liwei19.wt 20240306,one ui 6.1 charging protection
+
 bool g_chg_done = false;
 bool first_enter_pdc = false;
+
+#ifdef CONFIG_AFC_CHARGER
+#if defined(CONFIG_W2_CHARGER_PRIVATE)
+static bool wt_limit_afc_ibus = false;
+#endif
+#endif
 
 struct tag_bootmode {
 	u32 size;
@@ -103,7 +117,10 @@ static void _disable_all_charging(struct charger_manager *info)
 		afc_set_is_enable(info, false);
 		if (afc_get_is_connect(info))
 			afc_leave(info);
-}
+	}
+#if defined(CONFIG_W2_CHARGER_PRIVATE)
+	wt_limit_afc_ibus = false;
+#endif
 #endif
 
 	if (mtk_pe20_get_is_enable(info)) {
@@ -266,32 +283,39 @@ static void swchg_select_charging_current_limit(struct charger_manager *info)
 	} else if (info->chr_type == STANDARD_HOST) {
 		if (IS_ENABLED(CONFIG_USBIF_COMPLIANCE)) {
 #if defined(CONFIG_WT_PROJECT_S96902AA1) //usb if
-			if (info->usb_state == USB_SUSPEND) {
-				charger_dev_enable_powerpath(info->chg1_dev,false);
-				pdata->input_current_limit =
-					info->data.usb_charger_current_suspend;
-				chr_err("powerpatch flase input_current_limit =%d,info->usb_state = %d\n",pdata->input_current_limit,info->usb_state);
-			} else if (info->usb_state == USB_UNCONFIGURED) {
-				charger_dev_enable_powerpath(info->chg1_dev,true);
-				pdata->input_current_limit =
-				info->data.usb_charger_current_unconfigured;
-				chr_err("powerpatch en input_current_limit =%d,info->usb_state = %d\n",pdata->input_current_limit,info->usb_state);
-			} else if (info->usb_state == USB_CONFIGURED) {
-				charger_dev_enable_powerpath(info->chg1_dev,true);
-				pdata->input_current_limit =
-				info->data.usb_charger_current_configured;
-				chr_err("powerpatch en input_current_limit =%d,info->usb_state = %d\n",pdata->input_current_limit,info->usb_state);
-			} else {
-				charger_dev_enable_powerpath(info->chg1_dev,true);
-				pdata->input_current_limit =
-				info->data.usb_charger_current_unconfigured;
-				chr_err("powerpatch en input_current_limit =%d,info->usb_state = %d\n",pdata->input_current_limit,info->usb_state);
+if(!(boot_mode == KERNEL_POWER_OFF_CHARGING_BOOT || boot_mode == LOW_POWER_OFF_CHARGING_BOOT)){
+				if (info->usb_state == USB_SUSPEND) {
+					charger_dev_enable_powerpath(info->chg1_dev,false);
+					pdata->input_current_limit =
+						info->data.usb_charger_current_suspend;
+					chr_err("powerpatch flase input_current_limit =%d,info->usb_state = %d\n",pdata->input_current_limit,info->usb_state);
+				} else if (info->usb_state == USB_UNCONFIGURED) {
+					charger_dev_enable_powerpath(info->chg1_dev,true);
+					pdata->input_current_limit =
+					info->data.usb_charger_current_unconfigured;
+					chr_err("powerpatch en input_current_limit =%d,info->usb_state = %d\n",pdata->input_current_limit,info->usb_state);
+				} else if (info->usb_state == USB_CONFIGURED) {
+					charger_dev_enable_powerpath(info->chg1_dev,true);
+					pdata->input_current_limit =
+					info->data.usb_charger_current_configured;
+					chr_err("powerpatch en input_current_limit =%d,info->usb_state = %d\n",pdata->input_current_limit,info->usb_state);
+				} else {
+					charger_dev_enable_powerpath(info->chg1_dev,true);
+					pdata->input_current_limit =
+					info->data.usb_charger_current_unconfigured;
+					chr_err("powerpatch en input_current_limit =%d,info->usb_state = %d\n",pdata->input_current_limit,info->usb_state);
+				}
+				pdata->charging_current_limit =
+						pdata->input_current_limit;
 			}
-			pdata->charging_current_limit =
-					pdata->input_current_limit;
+			else{
+				pdata->input_current_limit = 500000;
+				pdata->charging_current_limit = 500000;
+			}
 		} else {
 			//charger_dev_enable_hz(info->chg1_dev, 0);
 			charger_dev_enable_powerpath(info->chg1_dev,true);
+
 			pdata->input_current_limit =
 					info->data.usb_charger_current;
 			/* it can be larger */
@@ -344,6 +368,14 @@ static void swchg_select_charging_current_limit(struct charger_manager *info)
 		mtk_pe_set_charging_current(info,
 					&pdata->charging_current_limit,
 					&pdata->input_current_limit);
+#if defined(CONFIG_W2_CHARGER_PRIVATE)
+		if (mtk_pdc_check_charger(info) == false) {
+			if ((info->is_camera_on) && (!info->enable_hv_charging)) {
+				pdata->input_current_limit = 1200000;
+			}
+		}
+		pr_err("%s: afc input_current_limit=%d\n", __func__, pdata->input_current_limit);
+#endif
 	} else if (info->chr_type == CHARGING_HOST) {
 		pdata->input_current_limit =
 				info->data.charging_host_charger_current;
@@ -594,6 +626,11 @@ static int mtk_switch_charging_plug_in(struct charger_manager *info)
 	struct switch_charging_alg_data *swchgalg = info->algorithm_data;
 
 	swchgalg->state = CHR_CC;
+//+P240329 guhan01.wt 20240412,one ui 6.1 charging protection not recharge
+#if defined (CONFIG_W2_CHARGER_PRIVATE) || defined (CONFIG_N28_CHARGER_PRIVATE)
+	g_chg_done = false;
+#endif
+//-P240329 guhan01.wt 20240412,one ui 6.1 charging protection not recharge
 	info->polling_interval = CHARGING_INTERVAL;
 	swchgalg->disable_charging = false;
 	get_monotonic_boottime(&swchgalg->charging_begin_time);
@@ -610,6 +647,9 @@ static int mtk_switch_charging_plug_out(struct charger_manager *info)
 	if (info->cable_out_cnt == 0) {
 #ifdef CONFIG_AFC_CHARGER
 		afc_plugout_reset(info);
+#if defined(CONFIG_W2_CHARGER_PRIVATE)
+		wt_limit_afc_ibus = false;
+#endif
 #endif
 	mtk_pe20_set_is_cable_out_occur(info, true);
 	mtk_pe_set_is_cable_out_occur(info, true);
@@ -624,6 +664,12 @@ static int mtk_switch_charging_plug_out(struct charger_manager *info)
 	info->leave_pe5 = false;
 	info->leave_pe4 = false;
 	info->leave_pdc = false;
+
+//+P240329 guhan01.wt 20240412,one ui 6.1 charging protection not recharge
+#if defined (CONFIG_W2_CHARGER_PRIVATE) || defined (CONFIG_N28_CHARGER_PRIVATE)
+	g_chg_done = false;
+#endif
+//-P240329 guhan01.wt 20240412,one ui 6.1 charging protection not recharge
 	}
 
 	return 0;
@@ -1088,34 +1134,53 @@ static int mtk_switch_chr_cc(struct charger_manager *info)
 			chr_err("enable_hv_charging=%d, ap_temp=%d, battery_temp=%d \n",
 				info->enable_hv_charging, ap_temp, info->battery_temp);
 			if (info->enable_hv_charging == true && //set hv_disable
+				ap_temp <= AP_TEMP_T3_CP_THRES && //AP temp higher than 45??
+				info->battery_temp > TEMP_T1_THRES_PLUS_X_DEGREE) { //batt temp lower than 5??
+				g_cp_charging.cp_chg_status &= ~CP_EXIT;
+			} else {
+				g_cp_charging.cp_chg_status |= CP_EXIT;
+//+P240111-05098   guhan01.wt 2024031820,Modify the maximum current limit for bright screen charging
+				chr_err("lcd off off temp higher than 45 exit CP charging \n");
+			}
+		} else {
+			if (info->enable_hv_charging == true && //set hv_disable
 				ap_temp <= AP_TEMP_T3_CP_THRES && //AP temp higher than 45℃
 				info->battery_temp > TEMP_T1_THRES_PLUS_X_DEGREE) { //batt temp lower than 5℃
 				g_cp_charging.cp_chg_status &= ~CP_EXIT;
 			} else {
 				g_cp_charging.cp_chg_status |= CP_EXIT;
+				g_cp_charging.cp_chg_status |= CP_REENTER;
+				chr_err("lcd id on Turn off fast charging\n");
 			}
-		} else { //no CP charging when lcd is on
-			g_cp_charging.cp_chg_status |= CP_EXIT;
+			//no CP charging when lcd is on
+			//g_cp_charging.cp_chg_status |= CP_EXIT;
+			//g_cp_charging.cp_chg_status |= CP_REENTER;
+			//chr_err("Lcm on -> Lcm off re-enter cp\n");
 		}
+//-P240111-05098   guhan01.wt 2024031820,Modify the maximum current limit for bright screen charging
 #else
 		g_cp_charging.cp_chg_status &= ~CP_EXIT; //don't exit cp on ATO version
 #endif
+//+P240111-05098   guhan01.wt 2024031820,Modify the maximum current limit for bright screen charging
+		chr_err("CP_REENTER=%d,CP_DONE=%d,CP_EXIT=%d\n",
+		g_cp_charging.cp_chg_status & CP_EXIT,
+		g_cp_charging.cp_chg_status & CP_DONE,
+		g_cp_charging.cp_chg_status & CP_REENTER);
+//-P240111-05098   guhan01.wt 2024031820,Modify the maximum current limit for bright screen charging
 		if (!(g_cp_charging.cp_chg_status & CP_EXIT) &&
 			!(g_cp_charging.cp_chg_status & CP_DONE)) {
-
 			if (g_cp_charging.cp_chg_status & CP_REENTER) {
 				g_cp_charging.cp_chg_status &= ~CP_REENTER;
+				cancel_work_sync(&__pdpm->usb_psy_change_work);
 				schedule_work(&__pdpm->usb_psy_change_work);
 				chr_err("CP Reenter!\n");
 			}
-
 			charger_dev_enable(info->chg1_dev, false);
 			chr_err("CP charging!\n");
 			return 0;
 		} else { //when cp done, keep cp exit
 			g_cp_charging.cp_chg_status |= CP_EXIT;
 		}
-
 		info->leave_pdc = 1; //doesn't enter PDC when CP not charged
 	}
 #endif
@@ -1204,7 +1269,11 @@ static int mtk_switch_chr_err(struct charger_manager *info)
 static int mtk_switch_chr_full(struct charger_manager *info)
 {
 	struct switch_charging_alg_data *swchgalg = info->algorithm_data;
-
+//+P240131-05273 liwei19.wt 20240306,one ui 6.1 charging protection
+#if defined (CONFIG_W2_CHARGER_PRIVATE) || defined (CONFIG_N28_CHARGER_PRIVATE)
+	int uisoc = 0;
+#endif
+//-P240131-05273 liwei19.wt 20240306,one ui 6.1 charging protection
 	swchgalg->total_charging_time = 0;
 
 	/* turn off LED */
@@ -1213,9 +1282,30 @@ static int mtk_switch_chr_full(struct charger_manager *info)
 	 * If CV is set to lower value by JEITA,
 	 * Reset CV to normal value if temperture is in normal zone
 	 */
+#ifdef CONFIG_AFC_CHARGER
+#if defined(CONFIG_W2_CHARGER_PRIVATE)
+	if (wt_limit_afc_ibus) {
+		info->chg1_data.input_current_limit = 1200000;
+		charger_dev_set_input_current(info->chg1_dev,
+		info->chg1_data.input_current_limit);
+	}
+#endif
+#endif
 	swchg_select_cv(info);
 	info->polling_interval = CHARGING_FULL_INTERVAL;
+//+P240329 guhan01.wt 20240412,one ui 6.1 charging protection not recharge
 	charger_dev_is_charging_done(info->chg1_dev, &g_chg_done);
+#if defined (CONFIG_W2_CHARGER_PRIVATE) || defined (CONFIG_N28_CHARGER_PRIVATE)
+	if ((batt_soc_rechg == 1) && (batt_mode == 0) && (batt_full_capacity == 100)) {
+		uisoc = battery_get_uisoc();
+		if(uisoc > 95) {
+			chr_err("It's basic mode. Soc is greater than 95%, then it does not rechg!\n");
+			return 0;
+		}
+	}
+#endif
+//-P240329 guhan01.wt 20240412,one ui 6.1 charging protection not recharge
+
 	if (!g_chg_done) {
 		swchgalg->state = CHR_CC;
 		charger_dev_do_event(info->chg1_dev, EVENT_RECHARGE, 0);
@@ -1259,8 +1349,22 @@ static int mtk_switch_charging_run(struct charger_manager *info)
 	    mtk_is_TA_support_pd_pps(info) == false) {
 #ifdef CONFIG_AFC_CHARGER
 		chr_err("afc check before2\n");
-		if (info->chr_type == STANDARD_CHARGER)
+		if (info->chr_type == STANDARD_CHARGER) {
+#if defined(CONFIG_W2_CHARGER_PRIVATE)
+			if ((!info->enable_hv_charging) && (info->is_camera_on)) {// && !wt_limit_afc_ibus) {
+				pr_err("%s: set ibus for afc\n", __func__);
+				info->chg1_data.input_current_limit = 500000;
+				charger_dev_set_input_current(info->chg1_dev,
+				info->chg1_data.input_current_limit);
+				wt_limit_afc_ibus = true;
+				msleep(30);
+			} else if (!info->is_camera_on) {
+				wt_limit_afc_ibus = false;
+				pr_err("%s: do not limit ibus for afc\n", __func__);
+			}
+#endif
 			afc_check_charger(info);
+		}
 		if (afc_get_is_connect(info) == false)
 		    mtk_pe20_check_charger(info);
 #else

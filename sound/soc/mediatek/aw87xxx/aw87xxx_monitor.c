@@ -793,7 +793,7 @@ static ssize_t aw_attr_set_vbat(struct device *dev,
 	if (ret < 0)
 		return ret;
 	AW_DEV_LOGI(aw87xxx->dev, "set capacity = %d", capacity);
-	if (capacity >= AW_VBAT_CAPACITY_MIN &&
+	if ((int)capacity >= AW_VBAT_CAPACITY_MIN &&
 			capacity <= AW_VBAT_CAPACITY_MAX){
 		monitor->custom_capacity = capacity;
 	} else {

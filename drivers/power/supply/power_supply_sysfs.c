@@ -18,6 +18,7 @@
 #include <linux/stat.h>
 
 #include "power_supply.h"
+#include <linux/power/charger-manager.h>
 
 /*
  * This is because the name "current" breaks the device attr macro.
@@ -118,6 +119,15 @@ static const char * const power_supply_typec_src_rp_text[] = {
 static const char * const power_supply_otg_text[] = {
 	"OFF", "ON"
 };
+
+//+P240131-05273 liwei19.wt 20240306,one ui 6.1 charging protection
+#if defined (CONFIG_W2_CHARGER_PRIVATE) || defined (CONFIG_N28_CHARGER_PRIVATE)
+int batt_mode = NORMAL_100;
+extern int batt_full_capacity;
+extern struct charger_manager *pcm;
+extern void wt_batt_full_capacity_check(struct charger_manager *info);
+#endif
+//-P240131-05273 liwei19.wt 20240306,one ui 6.1 charging protection
 
 static ssize_t power_supply_show_usb_type(struct device *dev,
 					  enum power_supply_usb_type *usb_types,
@@ -313,6 +323,13 @@ static ssize_t power_supply_show_property(struct device *dev,
 		ret = sprintf(buf, "%s\n", value.strval);
 		break;
 #endif
+//+P240131-05273 liwei19.wt 20240306,one ui 6.1 charging protection
+#if defined (CONFIG_W2_CHARGER_PRIVATE) || defined (CONFIG_N28_CHARGER_PRIVATE)
+	case POWER_SUPPLY_PROP_BATT_FULL_CAPACITY:
+		ret = sprintf(buf, "%s\n", value.strval);
+		break;
+#endif
+//-P240131-05273 liwei19.wt 20240306,one ui 6.1 charging protection
 	default:
 		ret = sprintf(buf, "%d\n", value.intval);
 	}
@@ -331,6 +348,11 @@ static ssize_t power_supply_store_property(struct device *dev,
 #if !defined (CONFIG_N23_CHARGER_PRIVATE)	
 	int x = 0;
 #endif
+//+P240131-05273 liwei19.wt 20240306,one ui 6.1 charging protection
+#if defined (CONFIG_W2_CHARGER_PRIVATE) || defined (CONFIG_N28_CHARGER_PRIVATE)
+	struct power_supply *bat_psy = power_supply_get_by_name("battery");
+#endif
+//-P240131-05273 liwei19.wt 20240306,one ui 6.1 charging protection
 	switch (psp) {
 	case POWER_SUPPLY_PROP_STATUS:
 		ret = sysfs_match_string(power_supply_status_text, buf);
@@ -353,7 +375,40 @@ static ssize_t power_supply_store_property(struct device *dev,
 	default:
 		ret = -EINVAL;
 	}
+//+P240131-05273 liwei19.wt 20240306,one ui 6.1 charging protection
+#if defined (CONFIG_W2_CHARGER_PRIVATE) || defined (CONFIG_N28_CHARGER_PRIVATE)
+	if(psp == POWER_SUPPLY_PROP_BATT_FULL_CAPACITY){
+		pr_err("BATT_FULL_CAPACITY buf = %s\n",buf);
 
+		if(strncmp(buf,"80 HIGHSOC",5) == 0){
+			batt_mode = HIGHSOC_80;
+		}
+		else if(strncmp(buf,"80 SLEEP",5) == 0){
+			batt_mode = SLEEP_80;
+		}
+		else if(strncmp(buf,"80 OPTION",5) == 0){
+			batt_mode = OPTION_80;
+		}
+//+P240221-05860  guhan01.wt 20240318,one ui 6.1 charging protection
+		else if(strncmp(buf,"80",2) == 0){
+			batt_mode = DOWN_80;
+		}
+//-P240221-05860  guhan01.wt 20240318,one ui 6.1 charging protection
+		else{
+			batt_mode = NORMAL_100;
+		}
+		pr_err("batt_mode = %d\n",batt_mode);
+		if(batt_mode != 0)
+			batt_full_capacity = 80;
+		else
+			batt_full_capacity = 100;
+			wt_batt_full_capacity_check(pcm);
+		if (!IS_ERR_OR_NULL(bat_psy)) {
+			power_supply_changed(bat_psy);
+		}
+	}
+#endif
+//-P240131-05273 liwei19.wt 20240306,one ui 6.1 charging protection
 	/*
 	 * If no match was found, then check to see if it is an integer.
 	 * Integer values are valid for enums in addition to the text value.
@@ -496,6 +551,8 @@ static struct device_attribute power_supply_attrs[] = {
 //Bug774038,churui1.wt,add batt_full_capacity node
 	POWER_SUPPLY_ATTR(batt_full_capacity),
 	POWER_SUPPLY_ATTR(batt_temp),
+	/* P240131-05273 liwei19.wt 20240306,one ui 6.1 charging protection */
+	POWER_SUPPLY_ATTR(batt_soc_rechg),
 #endif
 #if defined CONFIG_N28_CHARGER_PRIVATE
 	POWER_SUPPLY_ATTR(direct_charging_status),

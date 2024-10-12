@@ -1821,7 +1821,9 @@ static inline void headset_plug_out(void)
 static void dis_micbias_timerhandler(struct timer_list *t)
 {
 	int ret = 0;
-
+#if defined(CONFIG_WT_PROJECT_S96902AA1)||defined(CONFIG_WT_PROJECT_S96902AA2)||defined(CONFIG_WT_PROJECT_S96901AA1)||defined(CONFIG_WT_PROJECT_S96901WA1)
+	return;
+#endif
 	ret = queue_work(dis_micbias_workqueue, &dis_micbias_work);
 	if (!ret)
 		pr_info("accdet %s, queue work return:%d!\n", __func__, ret);
@@ -2003,7 +2005,11 @@ static unsigned int check_pole_type(void)
 		pr_notice("[accdet] pole check:%d mv, AB=%d\n",
 			vol, TYPE_AB_00);
 		return TYPE_AB_00;
-	}
+	} else if(vol > (cust_vol_set.vol_max_4pole)) {
+        	pr_notice("[accdet] pole check:%d mv, AB=%d\n",
+            		vol, TYPE_AB_11);
+        	return TYPE_AB_11;
+    	}
 	/* illegal state */
 	pr_notice("[accdet] pole check:%d mv, AB=%d\n", vol, TYPE_AB_10);
 	return TYPE_AB_10;
@@ -2105,9 +2111,10 @@ cur_AB = pmic_read(PMIC_ACCDET_MEM_IN_ADDR) >> ACCDET_STATE_MEM_IN_OFFSET;
 		} else if (cur_AB == ACCDET_STATE_AB_11) {
 			pr_info("accdet Don't send plug out in MIC_BIAS\n");
 			mutex_lock(&accdet_eint_irq_sync_mutex);
-			if (eint_accdet_sync_flag)
+			if (eint_accdet_sync_flag){
 				accdet_status = PLUG_OUT;
-			else
+				cable_type = NO_DEVICE;
+			} else
 				pr_info("accdet headset has been plug-out\n");
 			mutex_unlock(&accdet_eint_irq_sync_mutex);
 		} else {
@@ -2150,9 +2157,10 @@ cur_AB = pmic_read(PMIC_ACCDET_MEM_IN_ADDR) >> ACCDET_STATE_MEM_IN_OFFSET;
 		} else if (cur_AB == ACCDET_STATE_AB_11) {
 			pr_info("accdet Don't send plugout in HOOK_SWITCH\n");
 			mutex_lock(&accdet_eint_irq_sync_mutex);
-			if (eint_accdet_sync_flag)
+			if (eint_accdet_sync_flag){
 				accdet_status = PLUG_OUT;
-			else
+				cable_type = NO_DEVICE;
+			} else
 				pr_info("accdet headset has been plug-out\n");
 			mutex_unlock(&accdet_eint_irq_sync_mutex);
 		} else {
@@ -2185,7 +2193,11 @@ static void accdet_work_callback(void)
 
 	mutex_lock(&accdet_eint_irq_sync_mutex);
 	if (eint_accdet_sync_flag) {
-		if ((pre_cable_type != cable_type) ||
+		if ((pre_cable_type != cable_type) && (cable_type == NO_DEVICE)) {
+			pr_info("%s() Headset has been plugout.set state here\n",__func__);
+			cable_type = pre_cable_type;
+			headset_plug_out();
+		} else if ((pre_cable_type != cable_type) ||
 			(cable_type == HEADSET_MIC))
 			send_accdet_status_event(cable_type, 1);
 	} else

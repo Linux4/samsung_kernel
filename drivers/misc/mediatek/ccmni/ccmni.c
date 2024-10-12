@@ -1116,8 +1116,7 @@ static int ccmni_init(int md_id, struct ccmni_ccci_ops *ccci_info)
 
 
 	if ((ctlb->ccci_ops->md_ability & MODEM_CAP_CCMNI_IRAT) != 0) {
-		if (ctlb->ccci_ops->irat_md_id < 0 ||
-				ctlb->ccci_ops->irat_md_id >= MAX_MD_NUM) {
+		if (ctlb->ccci_ops->irat_md_id >= MAX_MD_NUM) {
 			CCMNI_PR_DBG(md_id,
 				"md%d IRAT fail: invalid irat md(%d)\n",
 				md_id, ctlb->ccci_ops->irat_md_id);

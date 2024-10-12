@@ -15,6 +15,10 @@
 
 #include "himax_ic_core.h"
 
+#if defined(HX_FIRMWARE_HEADER)
+extern struct firmware g_embedded_fw;
+#endif
+
 struct himax_core_command_operation *g_core_cmd_op;
 struct ic_operation *pic_op;
 EXPORT_SYMBOL(pic_op);
@@ -3531,6 +3535,10 @@ int hx_0f_op_file_dirly(char *file_name)
 	reqret = request_firmware(&fw, file_name, private_ts->dev);
 	if (reqret < 0) {
 #if defined(HX_FIRMWARE_HEADER)
+		if (!g_embedded_fw.data) {
+			E("%s: g_embedded_fw is NULL\n");
+			goto END;
+		}
 		fw = &g_embedded_fw;
 		I("%s: Not find FW in userspace, use embedded FW(size:%zu)\n",
 			__func__, g_embedded_fw.size);

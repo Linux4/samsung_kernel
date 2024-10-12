@@ -405,7 +405,8 @@ static void sensor_init(void)
 	printk("rongyi");
 	LOG_INF(">> %s()\n", __func__);
 	/*V02P08_20210628*/
-write_cmos_sensor(0x0103,0x01);
+write_cmos_sensor(0x0103,0x01);  //This reset mode lasts for 150ns,set 10ms here
+mdelay(10);
 write_cmos_sensor(0x36e9,0x80);
 write_cmos_sensor(0x37f9,0x80);
 write_cmos_sensor(0x36e9,0x24);
@@ -919,6 +920,7 @@ static int sc800csa_sensor_otp_info(){
 		LOG_INF("sc800csa read lsc info  failed!!!\n");
 		continue;
 	       }
+		break;  //If read OTP correctly once, exit the loop
 	}
 	if(ret == SC800CSA_ST_RET_FAIL)
 	{

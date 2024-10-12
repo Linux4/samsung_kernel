@@ -321,6 +321,14 @@ static void set_shutter(kal_uint16 shutter)
 * GLOBALS AFFECTED
 *
 *************************************************************************/
+// +BUGP231202-01894 ,lijiazhen2.wt,MODIFY,20231220, Fixed c8496 video mode HD switch FHD flicker.
+static kal_uint32 reg0_bak = 0xff;
+static kal_uint32 reg1_bak = 0xff;
+static kal_uint32 reg2_bak = 0xff;
+static kal_uint32 reg3_bak = 0xff;
+static kal_uint32 save_flag = 0xff;
+// -BUGP231202-01894 ,lijiazhen2.wt,MODIFY,20231220, Fixed c8496 video mode HD switch FHD flicker.
+
 #define AGAIN_NUM    65
     static    kal_uint16    again_table[AGAIN_NUM] =
     {
@@ -392,10 +400,17 @@ static kal_uint16 set_gain(kal_uint16 gain)
     }
 
     tmp0 = again_register_table_0[Again_base]; //0x3293
-    tmp1 = again_register_table_1[Again_base]; //0x32a9     
+    tmp1 = again_register_table_1[Again_base]; //0x32a9
 	tmp2 = again_register_table_2[Again_base]; //0x3286
 	tmp3 = again_register_table_3[Again_base]; //0x32ac
-
+// +BUGP231202-01894 ,lijiazhen2.wt,MODIFY,20231220, Fixed c8496 video mode HD switch FHD flicker.
+#if 1	//bakup first Again value
+	reg0_bak = tmp0;
+	reg1_bak = tmp1;
+	reg2_bak = tmp2;
+	reg3_bak = tmp3;
+#endif
+// -BUGP231202-01894 ,lijiazhen2.wt,MODIFY,20231220, Fixed c8496 video mode HD switch FHD flicker.
     write_cmos_sensor(0xe00c,0x32);
     write_cmos_sensor(0xe00d,0x93);
 	write_cmos_sensor(0xe00e,tmp0);
@@ -511,6 +526,7 @@ static void sensor_init(void)
 	write_cmos_sensor(0x32ad,0x00);
 	write_cmos_sensor(0x3904,0x02);
 	write_cmos_sensor(0x3122,0x40); //first 2 frame blc on
+	save_flag = 0xa5;
 }
 
 static void preview_setting(kal_uint16 currefps)
@@ -1407,6 +1423,31 @@ static kal_uint32 streaming_control(kal_bool enable)
 {
     if (enable) {
         write_cmos_sensor(0x0100, 0X01); // stream on
+// +BUGP231202-01894 ,lijiazhen2.wt,MODIFY,20231220, Fixed c8496 video mode HD switch FHD flicker.
+#if 1	//20221219
+	if(save_flag == 0xa5)
+	{
+		save_flag = 0;
+		write_cmos_sensor(0xe00c,0x32);
+		write_cmos_sensor(0xe00d,0x93);
+		write_cmos_sensor(0xe00e,reg0_bak);
+
+		write_cmos_sensor(0xe00f,0x32);
+		write_cmos_sensor(0xe010,0xa9);
+		write_cmos_sensor(0xe011,reg1_bak);
+
+		write_cmos_sensor(0xe012,0x32);
+		write_cmos_sensor(0xe013,0x86);
+		write_cmos_sensor(0xe014,reg2_bak);
+
+		write_cmos_sensor(0xe015,0x32);
+		write_cmos_sensor(0xe016,0xac);
+		write_cmos_sensor(0xe017,reg3_bak);
+
+		write_cmos_sensor(0x340f,0x11);
+	}
+#endif
+// -BUGP231202-01894 ,lijiazhen2.wt,MODIFY,20231220, Fixed c8496 video mode HD switch FHD flicker.
     } else {
         write_cmos_sensor(0x0100, 0X00); // stream off
     }

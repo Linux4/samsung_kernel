@@ -1,0 +1,1 @@
+obj-y +=n28gc2375hdeplh5_mipi_raw_Sensor.o

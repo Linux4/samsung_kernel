@@ -358,7 +358,7 @@ static void txdsharp_panel_init(struct txdsharp *ctx)
 	txdsharp_dcs_write_seq_static(ctx,0x1C,0x02);
 	txdsharp_dcs_write_seq_static(ctx,0x00,0x00);
 	txdsharp_dcs_write_seq_static(ctx,0xFF,0xFF,0xFF,0xFF);
-	txdsharp_dcs_write_seq_static(ctx,0x51,0x7F,0x0F);
+	txdsharp_dcs_write_seq_static(ctx,0x51,0x00,0x00);
 	txdsharp_dcs_write_seq_static(ctx,0x53,0x2C);
 	txdsharp_dcs_write_seq_static(ctx,0x55,0x00);
 	txdsharp_dcs_write_seq_static(ctx,0x35,0x00);
@@ -572,6 +572,9 @@ static struct mtk_panel_params ext_params = {
 	.lcm_esd_check_table[0] = {
 		.cmd = 0x0A, .count = 1, .para_list[0] = 0x9C,
 	},
+	.lcm_esd_check_table[1] = {
+		.cmd = 0x0E, .count = 1, .para_list[0] = 0x80,
+	},
 	.is_cphy = 1,
     .dyn_fps = {
         .switch_en = 1,
@@ -592,6 +595,9 @@ static struct mtk_panel_params ext_params_90hz = {
 	.esd_check_enable = 1,
 	.lcm_esd_check_table[0] = {
 		.cmd = 0x0A, .count = 1, .para_list[0] = 0x9C,
+	},
+	.lcm_esd_check_table[1] = {
+		.cmd = 0x0E, .count = 1, .para_list[0] = 0x80,
 	},
 	.is_cphy = 1,
     .dyn_fps = {

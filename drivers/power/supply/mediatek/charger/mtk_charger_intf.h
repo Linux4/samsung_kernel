@@ -235,7 +235,28 @@ struct charger_custom_data {
 	int ap_temp_thres_lcmon;
 	int ap_temp_thres_minus_x_degree_lcmon;
 //-Bug774000,gudi.wt,ADD,20191126,charge current limit for AP overheat
+//+P240111-05098   guhan01.wt 2024031820,Modify the maximum current limit for bright screen charging
+#if defined(CONFIG_WT_PROJECT_S96902AA1) || defined(CONFIG_WT_PROJECT_S96901AA1) || defined(CONFIG_WT_PROJECT_S96901WA1)
+	int ap_temp_lcmon_above_t4;
+	int ap_temp_lcmon_t3_to_t4;
+	int ap_temp_lcmon_t2_to_t3;
+	int ap_temp_lcmon_t1_to_t2;
+	int ap_temp_lcmon_t0_to_t1;
+	int ap_temp_lcmon_below_t0;
 
+	int ap_temp_lcmon_t4;
+	int ap_temp_lcmon_t3;
+	int ap_temp_lcmon_t2;
+	int ap_temp_lcmon_t1;
+	int ap_temp_lcmon_t0;
+
+	int ap_temp_lcmon_t4_anti_shake;
+	int ap_temp_lcmon_t3_anti_shake;
+	int ap_temp_lcmon_t2_anti_shake;
+	int ap_temp_lcmon_t1_anti_shake;
+	int ap_temp_lcmon_t0_anti_shake;
+#endif
+//-P240111-05098   guhan01.wt 2024031820,Modify the maximum current limit for bright screen charging
 /* +churui1.wt, ADD, 20230603, cp charging current limit for AP overheat */
 #ifdef CONFIG_N28_CHARGER_PRIVATE
 	int ap_temp_above_t4_cp_cc;
@@ -246,7 +267,14 @@ struct charger_custom_data {
 	int ap_temp_below_t0_cp_cc;
 	int ap_temp_high_lcmon_cp_cc;
 	int ap_temp_low_lcmon_cp_cc;
-
+//+P240111-05098   guhan01.wt 2024031820,Modify the maximum current limit for bright screen charging
+	int ap_temp_lcmon_above_t4;
+	int ap_temp_lcmon_t3_to_t4;
+	int ap_temp_lcmon_t2_to_t3;
+	int ap_temp_lcmon_t1_to_t2;
+	int ap_temp_lcmon_t0_to_t1;
+	int ap_temp_lcmon_below_t0;
+//-P240111-05098   guhan01.wt 2024031820,Modify the maximum current limit for bright screen charging
 	int ap_temp_t4_cp_thres;
 	int ap_temp_t4_cp_thres_minus_x_degree;
 	int ap_temp_t3_cp_thres;
@@ -259,6 +287,20 @@ struct charger_custom_data {
 	int ap_temp_t0_cp_thres_minus_x_degree;
 	int ap_temp_cp_thres_lcmon;
 	int ap_temp_cp_thres_minus_x_degree_lcmon;
+
+//+P240111-05098   guhan01.wt 2024031820,Modify the maximum current limit for bright screen charging
+	int ap_temp_lcmon_t4;
+	int ap_temp_lcmon_t3;
+	int ap_temp_lcmon_t2;
+	int ap_temp_lcmon_t1;
+	int ap_temp_lcmon_t0;
+
+	int ap_temp_lcmon_t4_anti_shake;
+	int ap_temp_lcmon_t3_anti_shake;
+	int ap_temp_lcmon_t2_anti_shake;
+	int ap_temp_lcmon_t1_anti_shake;
+	int ap_temp_lcmon_t0_anti_shake;
+//-P240111-05098   guhan01.wt 2024031820,Modify the maximum current limit for bright screen charging
 #endif
 /* -churui1.wt, ADD, 20230603, cp charging current limit for AP overheat */
 
@@ -449,7 +491,7 @@ struct charger_manager {
 	bool enable_afc;
 	struct afc_dev afc;
 #endif
-
+	bool is_camera_on;
 	/* pe */
 	bool enable_pe_plus;
 	struct mtk_pe pe;

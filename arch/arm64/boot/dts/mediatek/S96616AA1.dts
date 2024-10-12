@@ -537,8 +537,8 @@ wt,batt-cycle-ranges = <
 		100 100 100 100
 		100 100 100 100
 		100 100 100 100
-		100 100 100 100
-		100 100 100 100
+		90 90 90 100
+		90 90 90 100
 		100 100 100 100
 		100 100 100 100
 		100 100 100 100
@@ -635,20 +635,39 @@ wt,batt-cycle-ranges = <
 	ap_temp_lcmoff_t1_to_t2_cc = <1400000>;
 	ap_temp_lcmoff_t0_to_t1_cc = <2000000>;
 	ap_temp_lcmoff_below_t0_cc = <2800000>;
-	
-	ap_temp_lcmon_above_t0_cc = <500000>;
-	ap_temp_lcmon_below_t0_cc = <800000>;
-	
+//+P240111-05098   guhan01.wt 2024031820,Modify the maximum current limit for bright screen charging
+//	ap_temp_lcmon_above_t0_cc = <500000>;
+//	ap_temp_lcmon_below_t0_cc = <800000>;
+
+	ap_temp_lcmon_above_t4 = <300000>;
+	ap_temp_lcmon_t3_to_t4 = <600000>;
+	ap_temp_lcmon_t2_to_t3 = <1000000>;
+	ap_temp_lcmon_t1_to_t2 = <2000000>;
+	ap_temp_lcmon_t0_to_t1 = <2500000>;
+	ap_temp_lcmon_below_t0 = <3000000>;
+//-P240111-05098   guhan01.wt 2024031820,Modify the maximum current limit for bright screen charging
 	ap_lcmoff_t2_thres = <48>;
 	ap_lcmoff_t2_thres_plus_x_degree = <48>;
 	ap_lcmoff_t1_thres = <45>;
 	ap_lcmoff_t1_thres_plus_x_degree = <45>;
 	ap_lcmoff_t0_thres = <40>;
 	ap_lcmoff_t0_thres_plus_x_degree = <39>;
-	
-	ap_lcmon_t0_thres = <44>;
-	ap_lcmon_t0_thres_plus_x_degree = <42>;
-	
+//+P240111-05098   guhan01.wt 2024031820,Modify the maximum current limit for bright screen charging
+//	ap_lcmon_t0_thres = <44>;
+//	ap_lcmon_t0_thres_plus_x_degree = <42>;
+
+	ap_temp_lcmon_t4 = <45>;
+	ap_temp_lcmon_t3 = <43>;
+	ap_temp_lcmon_t2 = <42>;
+	ap_temp_lcmon_t1 = <41>;
+	ap_temp_lcmon_t0 = <39>;
+
+	ap_temp_lcmon_t4_anti_shake = <43>;
+	ap_temp_lcmon_t3_anti_shake = <41>;
+	ap_temp_lcmon_t2_anti_shake = <40>;
+	ap_temp_lcmon_t1_anti_shake = <39>;
+	ap_temp_lcmon_t0_anti_shake = <37>;
+//-P240111-05098   guhan01.wt 2024031820,Modify the maximum current limit for bright screen charging
 	min_charge_temp = <0>;
 	min_charge_temp_plus_x_degree = <6>;
 	max_charge_temp = <55>;

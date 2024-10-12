@@ -136,7 +136,7 @@ static enum IMGSENSOR_RETURN imgsensor_hw_power_sequence(
 		//+S96818AA1-1936,wuwenhao2.wt,ADD,2023/05/09, sc800cs leaks electricity
 		#ifdef CONFIG_MTK_S96818_CAMERA
 		if(sc800cs_is_alive==1
-			&& (!strcmp(pcurr_idx, "n28hi5021qreartruly_mipi_raw") || !strcmp(pcurr_idx, "n28hi5021qreardc_mipi_raw"))
+			&& (IMGSENSOR_SENSOR_IDX_MAIN == sensor_idx)
 			&& ppwr_info->pin == IMGSENSOR_HW_PIN_AVDD
 			&& ppwr_info->pin_state_on == IMGSENSOR_HW_PIN_STATE_LEVEL_2800){
 				pr_info("in avdd befor,let sub sc800cs rst high");
@@ -162,7 +162,7 @@ static enum IMGSENSOR_RETURN imgsensor_hw_power_sequence(
 		//+S96818AA1-1936,wuwenhao2.wt,ADD,2023/05/09, sc800cs leaks electricity
 		#ifdef CONFIG_MTK_S96818_CAMERA
 		if(sc800cs_is_alive==1
-			&& (!strcmp(pcurr_idx, "n28hi5021qreartruly_mipi_raw") || !strcmp(pcurr_idx, "n28hi5021qreardc_mipi_raw"))
+			&& (IMGSENSOR_SENSOR_IDX_MAIN == sensor_idx)
 			&& ppwr_info->pin == IMGSENSOR_HW_PIN_AVDD
 			&& ppwr_info->pin_state_on == IMGSENSOR_HW_PIN_STATE_LEVEL_2800){
 				pr_info("in avdd after,let sub sc800cs rst low");

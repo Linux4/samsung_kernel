@@ -4224,12 +4224,13 @@ static void ovt_update_charger(struct work_struct *work)
 }
 //+S96818AA1-1936,daijun1.wt,add,2023/07/20,n28-tp td4160 add ear_phone mode
 extern int g_lcm_name;
+extern int touch_bootmode;
 void ovt_set_headphone_mode(int mode)
 {
 	int retval;
 	struct ovt_tcm_hcd *tcm_hcd = g_tcm_hcd;
 
-	if(g_lcm_name != 19 && g_lcm_name != 21){
+	if((g_lcm_name != 19 && g_lcm_name != 21) || (touch_bootmode == 8)){
 		return;
 	}
 
@@ -4265,19 +4266,18 @@ static int ovt_tcm_probe(struct platform_device *pdev)
 {
 	int retval;
 	int idx;
-	int boot_mode;
 	struct ovt_tcm_hcd *tcm_hcd;
 	const struct ovt_tcm_board_data *bdata;
 	const struct ovt_tcm_hw_interface *hw_if;
 
 	msleep(200);
-	boot_mode = battery_get_boot_mode();
-	if (boot_mode == 8)
+	touch_bootmode = battery_get_boot_mode();
+	if (touch_bootmode == 8)
 	{
-	printk("%s : start mode =%d\n", __func__,boot_mode);
+	printk("%s : start mode =%d\n", __func__,touch_bootmode);
 		return -1;
 	}
-	printk("%s : start mode =%d\n", __func__,boot_mode);
+	printk("%s : start mode =%d\n", __func__,touch_bootmode);
 /* -S96818AA1-1936,daijun1.wt,modify,2023/07/31,Modify TP td4160 blocking shutdown issue */
 	hw_if = pdev->dev.platform_data;
 	if (!hw_if) {

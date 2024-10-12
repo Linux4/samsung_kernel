@@ -176,6 +176,34 @@ int pd_dpm_send_source_caps(struct pd_port *pd_port)
 		src_cap1->nr, src_cap1->pdos);
 }
 
+#if defined (CONFIG_W2_CHARGER_PRIVATE) || defined (CONFIG_N28_CHARGER_PRIVATE) || defined (CONFIG_N26_CHARGER_PRIVATE)
+void pd_dpm_send_source_caps_0a(bool val)
+{
+	static struct tcpc_device *tcpc;
+	struct pd_port *pd_port;
+	uint32_t curr;
+
+	tcpc = tcpc_dev_get_by_name("type_c_port0");
+	if(!tcpc){
+		printk("pd_dpm_send_source_caps_0a fail\n");
+		return;
+	}
+	printk("pd_dpm_send_source_caps_0a success\n");
+	pd_port = &tcpc->pd_port;
+	if(pd_port->pe_state_curr == PE_SRC_READY){
+		if(val)
+			curr = 0x00019000;
+		else
+			curr = 0x00019032;
+		pd_send_sop_data_msg(&tcpc->pd_port, PD_DATA_SOURCE_CAP,1,&curr);
+	}
+	else{
+		printk("pd is not ready\n");
+	}
+	return;
+}
+#endif
+
 void pd_dpm_inform_cable_id(struct pd_port *pd_port, bool src_startup)
 {
 #ifdef CONFIG_USB_PD_REV30

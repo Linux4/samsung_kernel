@@ -1197,7 +1197,7 @@ musb_g_ep0_queue(struct usb_ep *e, struct usb_request *r, gfp_t gfp_flags)
 #ifndef CONFIG_WT_PROJECT_S96616AA1
 	if (!musb->is_active) {
 		DBG(0, "ep0 request queued when usb not active\n");
-#if defined (CONFIG_WT_PROJECT_S96818AA1) || defined (CONFIG_WT_PROJECT_S96818BA1)
+#if defined (CONFIG_WT_PROJECT_S96818AA1) || defined (CONFIG_WT_PROJECT_S96818BA1) || defined (CONFIG_WT_PROJECT_S96901AA1) || defined (CONFIG_WT_PROJECT_S96902AA1)
 		//status = -EINVAL;
 		//goto cleanup;
 #else

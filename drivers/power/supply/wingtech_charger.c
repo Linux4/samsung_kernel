@@ -231,6 +231,16 @@ void charger_set_en_hiz(struct wtchg_info *info,bool en)
 		info->is_hiz = en;
 }
 
+int charger_set_vrechg(struct wtchg_info *info,bool en)
+{
+	unsigned int ret = 0;
+	printc("## set vrechg = %d\n",en);
+	ret = charger_field_write(info, B_VRECHG, en);
+	if (ret < 0)
+		printc("set vrechg failed !!!!!\n");
+	return ret;
+}
+
 void charger_get_en_hiz(struct wtchg_info *info,bool *en)
 {
 	*en = !!charger_field_read(info, B_EN_HIZ);
@@ -759,6 +769,9 @@ static int charger_plug_out(struct charger_device *chg_dev)
 	if(info->slate_mode == 2){
 		info->slate_mode = 0;
 		info->wt_discharging_state &= ~WT_CHARGE_SLATE_MODE_DISCHG;
+	}
+	if(info->batt_full_capacity != 100){
+		info->wt_discharging_state &= ~WT_CHARGE_FULL_CAP_DISCHG;
 	}
 	plug_flag = false;
 	if(!IS_ERR_OR_NULL(mtchg_info)) {
@@ -1321,7 +1334,9 @@ static int charger_init_device(struct wtchg_info *info)
 	ret = charger_get_chip_state(info, &state);
 	if (ret < 0)
 		printc("get chip state failed!\n");
-
+	ret = charger_set_vrechg(info,1);
+	if (ret < 0)
+		printc("set vreg failed!\n");
 	return 0;
 }
 
@@ -1934,8 +1949,11 @@ static void disable_charging_check(struct wtchg_info *info)
 
 	if (charging != info->can_charging){
 		printc("charging changed: %s\n",charging?"restore charging!!":"force discharging!!");
-		if(!charging)
+		if(!charging && info->batt_mode != 0)
+		{
 			charger_dev_set_input_current(info->chg_dev,0);
+			pr_err("[charger_dev_set_input_current]info->batt_mode=%d\n",info->batt_mode);
+		}
 		_mtk_enable_charging(mtchg_info, charging);
 	}else if(!charging && (1 == charger_field_read(info, B_CHG_CFG))){
 		printc("chg_stat abnormal,force disable charge!! \n");
@@ -1945,24 +1963,57 @@ static void disable_charging_check(struct wtchg_info *info)
 	info->can_charging = charging;
 	mtchg_info->disable_charger = !charging;
 }
+//+P240305-05569  guhan01.wt 20240318,one ui 6.1 charging protection
+extern int g_chg_done;
+//-P240305-05569  guhan01.wt 20240318,one ui 6.1 charging protection
 void wt_batt_full_capacity_check(struct wtchg_info *info)
 {	
 	int uisoc = 0;
 	struct mtk_charger *mtchg_info = (struct mtk_charger *)info->mtk_charger;
 	if(!IS_ERR_OR_NULL(mtchg_info))
 		uisoc = get_uisoc(mtchg_info);
+//+P240305-05569  guhan01.wt 20240318,one ui 6.1 charging protection
 	if(info->batt_full_capacity != 100){
 		if(uisoc >= info->batt_full_capacity && !(info->wt_discharging_state & WT_CHARGE_FULL_CAP_DISCHG)){
+			if(info->batt_mode == HIGHSOC_80){
+				charger_set_en_hiz(info,1);
+				pr_err("HIGHSOC_80 set hiz hizmode =1");
+			}
+			else
+			{
+				charger_set_en_hiz(info,0);
+				pr_err("NOT HIGHSOC_80 not set hiz hizmode =0");
+			}
 			info->wt_discharging_state |= WT_CHARGE_FULL_CAP_DISCHG;
-		}else if(uisoc <= (info->batt_full_capacity-2) && (info->wt_discharging_state & WT_CHARGE_FULL_CAP_DISCHG)){
+		}else if(uisoc <= (info->batt_full_capacity-3) && (info->wt_discharging_state & WT_CHARGE_FULL_CAP_DISCHG)){
+			if(info->batt_mode == HIGHSOC_80){
+				charger_set_en_hiz(info,0);
+				pr_err("HIGHSOC_80 exit hiz hizmode =0");
+			}
+			else
+			{
+				charger_set_en_hiz(info,0);
+				pr_err("NOT HIGHSOC_80 not set hiz hizmode =0");
+			}
 			info->wt_discharging_state &= ~WT_CHARGE_FULL_CAP_DISCHG;
 		}
 	}else{
-		if(info->wt_discharging_state & WT_CHARGE_FULL_CAP_DISCHG){
+		if((info->wt_discharging_state & WT_CHARGE_FULL_CAP_DISCHG) && (info->batt_mode == 0)){
 			info->wt_discharging_state &= ~WT_CHARGE_FULL_CAP_DISCHG;
 			chr_err("FULL_CAP relieve 100%!! \n");
 		}
 	}
+	if ((info->batt_soc_rechg == 1) && (info->batt_mode == 0) && info->batt_full_capacity == 100){/*对于BASIC的回充控制*/
+		if(g_chg_done && uisoc <= 95){
+			_mtk_enable_charging(mtchg_info, 1);
+			charger_set_en_hiz(info,1);
+			mdelay(200);
+			_mtk_enable_charging(mtchg_info, 0);
+			charger_set_en_hiz(info,0);
+		}
+	}
+//-P240305-05569  guhan01.wt 20240318,one ui 6.1 charging protection
+	chr_err("batt_soc_rechg = %d,batt_mode = %d,g_chg_done = %d,uisoc = %d,wt_discharging_state = %d\n",info->batt_soc_rechg,info->batt_mode,g_chg_done,uisoc,info->wt_discharging_state);
 }
 static void wt_charger_start_timer(struct wtchg_info *info);
 static void wtchg_monitor_work_handler(struct wtchg_info *info)
@@ -2032,6 +2083,7 @@ static ssize_t batt_slate_mode_show(struct device *dev,
 	return sprintf(buf, "%d\n",info->slate_mode);
 }
 
+extern void pd_dpm_send_source_caps_0a(bool val);
 static ssize_t batt_slate_mode_store(struct device *dev,
 				   struct device_attribute *attr,
 				   const char *buf, size_t size)
@@ -2047,6 +2099,9 @@ static ssize_t batt_slate_mode_store(struct device *dev,
 		info->wt_discharging_state |= WT_CHARGE_SLATE_MODE_DISCHG;
 	} else if (val == 0) {
 		info->wt_discharging_state &= ~WT_CHARGE_SLATE_MODE_DISCHG;
+		pd_dpm_send_source_caps_0a(false);
+	}else if (val == 3){
+		pd_dpm_send_source_caps_0a(true);
 	}
 	
 	disable_charging_check(info);
@@ -2339,29 +2394,73 @@ static ssize_t batt_full_capacity_show(struct device *dev,
 				  struct device_attribute *attr, char *buf)
 {
 	struct wtchg_info *info = wt_get_wtchg_info();
-	return sprintf(buf, "%d\n",info->batt_full_capacity);
+//+P240305-05569  guhan01.wt 20240318,one ui 6.1 charging protection
+	if(info->batt_mode == HIGHSOC_80)
+		return sprintf(buf, "%s\n","80 HIGHSOC");
+	else if(info->batt_mode == SLEEP_80)
+		return sprintf(buf, "%s\n","80 SLEEP");
+	else if(info->batt_mode == OPTION_80)
+		return sprintf(buf, "%s\n","80 OPTION");
+	else if(info->batt_mode == DOWN_80)
+		return sprintf(buf, "%s\n","80");
+	else
+		return sprintf(buf, "%s\n","100");
+//-P240305-05569  guhan01.wt 20240318,one ui 6.1 charging protection
 }
-
+//+P240305-05569  guhan01.wt 20240318,one ui 6.1 charging protection
 static ssize_t batt_full_capacity_store(struct device *dev,
 				   struct device_attribute *attr,
 				   const char *buf, size_t size)
 {
 	struct wtchg_info *info = wt_get_wtchg_info();	
+
+	if(strncmp(buf,"80 HIGHSOC",5) == 0){
+		info->batt_mode = HIGHSOC_80;
+	}
+	else if(strncmp(buf,"80 SLEEP",5) == 0){
+		info->batt_mode = SLEEP_80;
+	}
+	else if(strncmp(buf,"80 OPTION",5) == 0){
+		info->batt_mode = OPTION_80;
+	}
+	else if(strncmp(buf,"80",2) == 0){
+		info->batt_mode = DOWN_80;
+	}
+	else{
+		info->batt_mode = NORMAL_100;
+	}
+	pr_err("batt_mode = %d\n",info->batt_mode);
+	if(info->batt_mode != 0)
+		info->batt_full_capacity = 80;
+	else
+		info->batt_full_capacity = 100;
+
+	wt_batt_full_capacity_check(info);
+	disable_charging_check(info);
+	return size;
+}
+
+static ssize_t batt_soc_rechg_show(struct device *dev,
+				  struct device_attribute *attr, char *buf)
+{
+	struct wtchg_info *info = wt_get_wtchg_info();
+	return sprintf(buf, "%d\n",info->batt_soc_rechg);
+}
+
+static ssize_t batt_soc_rechg_store(struct device *dev,
+				   struct device_attribute *attr,
+				   const char *buf, size_t size)
+{
+	struct wtchg_info *info = wt_get_wtchg_info();
 	int val,ret;
 	ret = kstrtoint(buf, 10, &val);
 	if(ret < 0)
 		return size;
-	
-	if(val > 100 || val < 0 ){
-		printc("soc set is out of range!\n");
-		return size;
-	}
-	
-	info->batt_full_capacity = val;
-	wt_batt_full_capacity_check(info);
-	disable_charging_check(info);	
+
+	info->batt_soc_rechg = val;
 	return size;
 }
+//-P240305-05569  guhan01.wt 20240318,one ui 6.1 charging protection
 #if 0
 extern int check_cap_level(int uisoc);
 static ssize_t time_to_full_now_show(struct device *dev,
@@ -2471,6 +2570,9 @@ static DEVICE_ATTR_RW(store_mode);
 static DEVICE_ATTR_RW(dischg_limit);
 static DEVICE_ATTR_RO(batt_misc_event);
 static DEVICE_ATTR_RW(batt_full_capacity);
+//+P240305-05569  guhan01.wt 20240318,one ui 6.1 charging protection
+static DEVICE_ATTR_RW(batt_soc_rechg);
+//-P240305-05569  guhan01.wt 20240318,one ui 6.1 charging protection
 //static DEVICE_ATTR_RO(time_to_full_now);
 static DEVICE_ATTR_RO(shipmode);
 static DEVICE_ATTR_RO(voltage);
@@ -2527,6 +2629,9 @@ static void wtchg_lateinit_work_handler(struct work_struct *data)
 			device_create_file(&info->bat_psy->dev,&dev_attr_dischg_limit);
 			device_create_file(&info->bat_psy->dev,&dev_attr_batt_misc_event);
 			device_create_file(&info->bat_psy->dev,&dev_attr_batt_full_capacity);
+//+P240305-05569  guhan01.wt 20240318,one ui 6.1 charging protection
+			device_create_file(&info->bat_psy->dev,&dev_attr_batt_soc_rechg);
+//-P240305-05569  guhan01.wt 20240318,one ui 6.1 charging protection
 			//device_create_file(&info->bat_psy->dev,&dev_attr_time_to_full_now);
 			device_create_file(&info->bat_psy->dev,&dev_attr_shipmode);
 			device_create_file(&info->bat_psy->dev,&dev_attr_voltage);
@@ -2873,6 +2978,10 @@ static int wt_charger_probe(struct i2c_client *client,
 		info->is_ato_versions = false;
 #endif
 	info->batt_full_capacity = 100;
+//+P240305-05569  guhan01.wt 20240318,one ui 6.1 charging protection
+	info->batt_soc_rechg = 0;
+	info->batt_mode = NORMAL_100;
+//-P240305-05569  guhan01.wt 20240318,one ui 6.1 charging protection
 	INIT_DELAYED_WORK(&info->afc_5v_to_9v_work, afc_5v_to_9v_work_handler);
 	INIT_DELAYED_WORK(&info->afc_9v_to_5v_work, afc_9v_to_5v_work_handler);
 	INIT_DELAYED_WORK(&info->wtchg_lateinit_work, wtchg_lateinit_work_handler);

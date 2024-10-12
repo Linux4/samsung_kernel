@@ -56,28 +56,26 @@
 		novatek,fw_name_mp = "novatek_ts_truly_mp.bin", "tsp_novatek/NT36528_Truly_06745_HDp_SEC_A05_PID725D_V81_20230414_MP.bin";
 		//novatek,support_ear_detect_mode;
 		novatek,enable_settings_aot;
-
 /* +S96818AA1-1936,daijun1.wt,add,2023/08/17,incl9916_hkc tp bringup */
 		chipone,rst-gpio = <&pio 23 0x00>;
 		chipone,irq-gpio = <&pio 00 0x00>;
 		chipone,x-res = <719>;
 		chipone,y-res = <1599>;
 
-			/* Charger detect */
-			chipone,touch-charger-detect-enable;
-			chipone,touch-charger-detect-type = "poll"; /* notify, poll */
-			chipone,touch-charger-detect-psy-name = "charger";
-			chipone,touch-charger-detect-psp = "POWER_SUPPLY_PROP_ONLINE";
-			chipone,touch-charger-detect-psp-poll-interval = <1000>;
+		/* Charger detect */
+		chipone,touch-charger-detect-enable;
+		chipone,touch-charger-detect-type = "poll"; /* notify, poll */
+		chipone,touch-charger-detect-psy-name = "charger";
+		chipone,touch-charger-detect-psp = "POWER_SUPPLY_PROP_ONLINE";
+		chipone,touch-charger-detect-psp-poll-interval = <1000>;
 /* +S96818AA1-1936,daijun1.wt,modify,2023/08/24,icnl9916 add glove_mode and earjack_detect */
-				       
 		/* Earjack detect */
-			chipone,touch-earjack-detect-enable;
-			/* MTK:  /sys/bus/platform/drivers/Accdet_Driver/state,
-			Sprd: /sys/kernel/headset/state
-			QCOM: None, and disable it */
-			chipone,touch-earjack-state-filepath = "/sys/bus/platform/drivers/Accdet_Driver/states";
-			chipone,touch-earjack-poll-interval = <1000>;
+		chipone,touch-earjack-detect-enable;
+		/* MTK:  /sys/bus/platform/drivers/Accdet_Driver/state,
+		Sprd: /sys/kernel/headset/state
+		QCOM: None, and disable it */
+		chipone,touch-earjack-state-filepath = "/sys/bus/platform/drivers/Accdet_Driver/states";
+		chipone,touch-earjack-poll-interval = <1000>;
 /* -S96818AA1-1936,daijun1.wt,modify,2023/08/24,icnl9916 add glove_mode and earjack_detect */
 		/* For tp selftest */
 		chipone,test-reset-pin;
@@ -118,7 +116,6 @@
 /* -S96818AA1-1936,daijun1.wt,add,2023/08/17,incl9916_hkc tp bringup */
 		/* MP */
 		novatek,mp-support-dt;
-			
 		novatek-mp-criteria-725D@0 {
 			#address-cells = <1>;
 			#size-cells = <0>;

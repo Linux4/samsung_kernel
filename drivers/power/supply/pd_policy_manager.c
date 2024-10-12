@@ -771,6 +771,29 @@ static void usbpd_pm_move_state(struct usbpd_pm *pdpm, enum pm_state state)
 	pdpm->state = state;
 }
 
+static void usbpd_pm_update_vbus_err_status(struct usbpd_pm *pdpm)
+{
+	int ret;
+	union power_supply_propval val = {0,};
+	pr_err("usbpd_pm_update_vbus_err_status:start\n");
+	usbpd_check_cp_psy(pdpm);
+	if (!pdpm->cp_psy)
+	{
+		pr_err("usbpd_pm_update_vbus_err_status:(!pdpm->cp_psy)return");
+		return;
+	}
+	ret = power_supply_get_property(pdpm->cp_psy,
+			POWER_SUPPLY_PROP_UPM_VBUS_STATUS, &val);
+	if (!ret)
+	{
+		pdpm->cp.vbus_err_low = (val.intval >> 2) & 0x01;
+		pdpm->cp.vbus_err_high = (val.intval >> 3) & 0x01;
+		pr_err("usbpd_pm_update_vbus_err_status:%02x, vbus_err_low=%d, vbus_err_high=%d\n",
+				val.intval, pdpm->cp.vbus_err_low,
+				pdpm->cp.vbus_err_high);
+	}
+}
+
 static int usbpd_pm_sm(struct usbpd_pm *pdpm)
 {
 	int ret;
@@ -873,6 +896,14 @@ static int usbpd_pm_sm(struct usbpd_pm *pdpm)
 		break;
 
 	case PD_PM_STATE_FC2_ENTRY_3:
+		usbpd_pm_update_vbus_err_status(pdpm);
+		if(pdpm->cp.vbus_err_low||pdpm->cp.vbus_err_high)
+		{
+			tune_vbus_retry++;
+			pr_err("PD_PM_STATE_FC2_ENTRY_3:vbus error-then change\n");
+			usbpd_pm_move_state(pdpm, PD_PM_STATE_FC2_ENTRY_2);
+			break;
+		}
 		usbpd_pm_check_cp_enabled(pdpm);
 		if (!pdpm->cp.charge_enabled) {
 			usbpd_pm_enable_cp(pdpm, true);
@@ -900,6 +931,14 @@ static int usbpd_pm_sm(struct usbpd_pm *pdpm)
 		break;
 
 	case PD_PM_STATE_FC2_TUNE:
+		usbpd_pm_update_vbus_err_status(pdpm);
+		if(pdpm->cp.vbus_err_low||pdpm->cp.vbus_err_high)
+		{
+			tune_vbus_retry++;
+			pr_err("PD_PM_STATE_FC2_ENTRY_3:vbus error-then change\n");
+			usbpd_pm_move_state(pdpm, PD_PM_STATE_FC2_ENTRY_2);
+			break;
+		}
 		ret = usbpd_pm_fc2_charge_algo(pdpm);
 		if (ret == PM_ALGO_RET_TAPER_DONE) {
 			pr_notice("Move to switch charging:%d\n", ret);

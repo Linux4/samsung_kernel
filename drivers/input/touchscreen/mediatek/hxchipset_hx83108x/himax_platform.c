@@ -680,7 +680,7 @@ static int himax_common_probe_spi(struct spi_device *spi)
 	ret = sec_cmd_init(&private_ts->sec, hx_commands, ARRAY_SIZE(hx_commands), SEC_CLASS_DEVT_TSP);
 	if (ret < 0) {
 		E("%s: Failed to sec_cmd_init\n", __func__);
-		return -ENODEV;
+//		return -ENODEV;
 	}
 #if 0
 	ret = sysfs_create_group(&private_ts->sec.fac_dev->kobj, &hx_cmd_attr_group);
@@ -698,7 +698,7 @@ static int himax_common_probe_spi(struct spi_device *spi)
 	ret = power_supply_reg_notifier(&himax_charger_notifier);
 	if (ret) {
 		printk("fail to register notifer\n");
-		return ret;
+//		return ret;
 	}
 
 	return ret;

@@ -141,7 +141,6 @@
 /* +S96818AA1-1936,daijun1.wt,modify,2023/08/23,Change firmware download path */
 //#define CONFIG_UPDATE_FIRMWARE_BY_BIN_FILE
 /* -S96818AA1-1936,daijun1.wt,modify,2023/08/23,Change firmware download path */
-
 /*
  * Note.
  * This compile option is used for MTK platform only

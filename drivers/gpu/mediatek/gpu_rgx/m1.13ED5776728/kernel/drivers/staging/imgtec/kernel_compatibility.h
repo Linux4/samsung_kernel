@@ -462,4 +462,15 @@ __pvr_access_ok_compat(int type, const void __user * addr, unsigned long size)
 
 #endif /* defined(CONFIG_L4) */
 
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0)) || \
+        ((LINUX_VERSION_CODE < KERNEL_VERSION(6, 3, 0)) && !defined(ANDROID))
+static inline void pvr_vm_flags_clear(struct vm_area_struct *vma,
+				vm_flags_t flags)
+{
+	vma->vm_flags &= ~flags;
+}
+#else
+#define pvr_vm_flags_clear vm_flags_clear
+#endif /* (LINUX_VERSION_CODE < KERNEL_VERSION(6, 3, 0)) */
+
 #endif /* __KERNEL_COMPATIBILITY_H__ */

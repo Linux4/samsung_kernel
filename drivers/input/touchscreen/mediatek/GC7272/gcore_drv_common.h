@@ -90,7 +90,7 @@ extern u8 gcore_hostdownload_cfg;
 #define GTP_REPORT(fmt, arg...)				\
 	do {									\
 		if (CONFIG_ENABLE_REPORT_LOG)						\
-			pr_err("<GTP-REP>[%s:%d]"fmt"\n", __func__, __LINE__, ##arg);\
+			pr_debug("<GTP-REP>[%s:%d]"fmt"\n", __func__, __LINE__, ##arg);\
 	} while (0)
 
 #define GTP_DRIVER_NAME               "gcore"

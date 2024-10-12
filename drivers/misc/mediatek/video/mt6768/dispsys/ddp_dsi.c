@@ -1451,7 +1451,6 @@ enum DSI_STATUS DSI_TXRX_Control(enum DISP_MODULE_ENUM module,
 	bool dis_eotp_en = FALSE;
 	bool hstx_cklp_en = dsi_params->cont_clock ? FALSE : TRUE;
 	int max_return_size = 0;
-
 	//+S96818AA1-1936,liyuhong1.wt,add,2023/09/26,n28-lcd restrict MT6832 from returning to LP11
 	if (bdg_is_bdg_connected() == 1)
 		hstx_cklp_en = false;

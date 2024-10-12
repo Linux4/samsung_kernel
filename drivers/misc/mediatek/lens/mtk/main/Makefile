@@ -84,3 +84,6 @@ mainaf-y  += common/txd_s5kjn1_gt9778af/txd_s5kjn1_gt9778af.o
 mainaf-y  += common/delta_hi5021q_gt9778af/delta_hi5021q_gt9778af.o
 mainaf-y  += common/n28trulyhi5021q_aw8601waf/n28trulyhi5021q_aw8601waf.o
 mainaf-y  += common/n28hi5021qdc_dw9800waf/n28hi5021qdc_dw9800waf.o
+mainaf-y  += common/n28gc50e0gkw_gt9778af/n28gc50e0gkw_gt9778af.o
+mainaf-y  += common/n28s5kjn1truly_gt9778af/n28s5kjn1truly_gt9778af.o
+mainaf-y  += common/n28s5kjn1dc_gt9778af/n28s5kjn1dc_gt9778af.o

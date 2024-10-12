@@ -6827,7 +6827,7 @@ void mtk_crtc_vblank_irq(struct drm_crtc *crtc)
  *		hwc_pid, 0);
  *	mtk_drm_trace_c("%s", tag_name);
  */
-	mtk_drm_trace_c("%d|DISP-HW_Vsync|%lld",
+	mtk_drm_trace_c("%d|DISP-HW_Vsync|%d",
 		hwc_pid, 0);
 }
 

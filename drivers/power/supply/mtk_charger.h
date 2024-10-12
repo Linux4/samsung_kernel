@@ -147,7 +147,28 @@ struct battery_thermal_protection_data {
 #define JEITA_TEMP_T1_TO_T2_FAST_CC	2400000
 #define JEITA_TEMP_T0_TO_T1_FAST_CC	400000
 #define JEITA_TEMP_BELOW_T0_FAST_CC	0
+//+P240111-05098   guhan01.wt 2024031820,Modify the maximum current limit for bright screen charging
+#if defined (CONFIG_N26_CHARGER_PRIVATE)
+#define AP_TEMP_LCMON_ABOVE_T4 300000
+#define AP_TEMP_LCMON_T3_TO_T4 600000
+#define AP_TEMP_LCMON_T2_TO_T3 1000000
+#define AP_TEMP_LCMON_T1_TO_T2 2000000
+#define AP_TEMP_LCMON_T0_TO_T1 2500000
+#define AP_TEMP_LCMON_BELOW_T0 3000000
 
+#define AP_TEMP_LCMON_T4 45
+#define AP_TEMP_LCMON_T3 43
+#define AP_TEMP_LCMON_T2 42
+#define AP_TEMP_LCMON_T1 41
+#define AP_TEMP_LCMON_T0 39
+
+#define AP_TEMP_LCMON_T4_ANTI_SHAKE 43
+#define AP_TEMP_LCMON_T3_ANTI_SHAKE 41
+#define AP_TEMP_LCMON_T2_ANTI_SHAKE 40
+#define AP_TEMP_LCMON_T1_ANTI_SHAKE 39
+#define AP_TEMP_LCMON_T0_ANTI_SHAKE 37
+#endif
+//-P240111-05098   guhan01.wt 2024031820,Modify the maximum current limit for bright screen charging
 #if defined (CONFIG_N23_CHARGER_PRIVATE)
 #define AP_TEMP_ABOVE_T2_CC	500000
 #define AP_TEMP_T1_TO_T2_CC	2000000
@@ -217,7 +238,11 @@ enum sw_ap_state_enum {
 	AP_BELOW_T0 = 0,
 	AP_T0_TO_T1,
 	AP_T1_TO_T2,
-	AP_ABOVE_T2
+//+P240111-05098   guhan01.wt 2024031820,Modify the maximum current limit for bright screen charging
+	AP_T2_TO_T3,
+	AP_T3_TO_T4,
+	AP_ABOVE_T4
+//-P240111-05098   guhan01.wt 2024031820,Modify the maximum current limit for bright screen charging
 };
 
 struct sw_jeita_data {
@@ -274,16 +299,43 @@ struct charger_custom_data {
 	int ap_temp_lcmoff_t1_to_t2_cc;
 	int ap_temp_lcmoff_t0_to_t1_cc;
 	int ap_temp_lcmoff_below_t0_cc;
+//+P240111-05098   guhan01.wt 2024031820,Modify the maximum current limit for bright screen charging
+#if defined (CONFIG_N26_CHARGER_PRIVATE)
+	int ap_temp_lcmon_above_t4;
+	int ap_temp_lcmon_t3_to_t4;
+	int ap_temp_lcmon_t2_to_t3;
+	int ap_temp_lcmon_t1_to_t2;
+	int ap_temp_lcmon_t0_to_t1;
+	int ap_temp_lcmon_below_t0;
+#else
 	int ap_temp_lcmon_above_t0_cc;
 	int ap_temp_lcmon_below_t0_cc;
+#endif
+//-P240111-05098   guhan01.wt 2024031820,Modify the maximum current limit for bright screen charging
 	int ap_lcmoff_t2_thres;
 	int ap_lcmoff_t2_thres_plus_x_degree;
 	int ap_lcmoff_t1_thres;
 	int ap_lcmoff_t1_thres_plus_x_degree;
 	int ap_lcmoff_t0_thres;
 	int ap_lcmoff_t0_thres_plus_x_degree;
+//+P240111-05098   guhan01.wt 2024031820,Modify the maximum current limit for bright screen charging
+#if defined (CONFIG_N26_CHARGER_PRIVATE)
+	int ap_temp_lcmon_t4;
+	int ap_temp_lcmon_t3;
+	int ap_temp_lcmon_t2;
+	int ap_temp_lcmon_t1;
+	int ap_temp_lcmon_t0;
+
+	int ap_temp_lcmon_t4_anti_shake;
+	int ap_temp_lcmon_t3_anti_shake;
+	int ap_temp_lcmon_t2_anti_shake;
+	int ap_temp_lcmon_t1_anti_shake;
+	int ap_temp_lcmon_t0_anti_shake;
+#else
 	int ap_lcmon_t0_thres;
 	int ap_lcmon_t0_thres_plus_x_degree;
+#endif
+//-P240111-05098   guhan01.wt 2024031820,Modify the maximum current limit for bright screen charging
 #if defined (CONFIG_N23_CHARGER_PRIVATE) || defined (CONFIG_N21_CHARGER_PRIVATE)
 	int ap_temp_above_t2_cc;
 	int ap_temp_t1_to_t2_cc;
