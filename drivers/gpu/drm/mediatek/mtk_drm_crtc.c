@@ -2527,7 +2527,7 @@ static void mtk_crtc_update_ddp_state(struct drm_crtc *crtc,
 	int crtc_mask = 0x1 << index;
 	unsigned int prop_lye_idx;
 	unsigned int pan_disp_frame_weight = 4;
-#if defined(CONFIG_MT_ENG_BUILD)
+#if !defined(CONFIG_MT_ENG_BUILD) && !defined(CONFIG_MT_USERDEBUG_BUILD)
 	struct drm_device *dev = crtc->dev;
 #endif
 
@@ -2575,27 +2575,26 @@ static void mtk_crtc_update_ddp_state(struct drm_crtc *crtc,
 			mtk_crtc_get_plane_comp_state(crtc, cmdq_handle);
 			mtk_crtc_atmoic_ddp_config(crtc, lyeblob_ids,
 						   cmdq_handle);
+#if !defined(CONFIG_SMCDSD_PANEL)
 #ifndef CONFIG_MTK_DISP_NO_LK
 			if (lyeblob_ids->lye_idx == 2 && !already_free) {
-#if defined(CONFIG_SMCDSD_PANEL)
-#if !defined(CONFIG_MT_ENG_BUILD)
-				struct drm_device *dev = crtc->dev;
-#endif
-				if (fb_reserved_free) {
-					mtk_drm_fb_gem_release(dev);
-					try_free_fb_buf(dev);
-				}
-				already_free = true;
-#else
-#if defined(CONFIG_MT_ENG_BUILD)
+#if !defined(CONFIG_MT_ENG_BUILD) && !defined(CONFIG_MT_USERDEBUG_BUILD)
 				/*free fb buf in second query valid*/
 				mtk_drm_fb_gem_release(dev);
 				try_free_fb_buf(dev);
 #endif
 				already_free = true;
-#endif	/* CONFIG_SMCDSD_PANEL */
 #endif
 			}
+#else
+			if (lyeblob_ids->lye_idx == 2 && !already_free) {
+				if (fb_reserved_free) {
+					mtk_drm_fb_gem_release(dev);
+					try_free_fb_buf(dev);
+				}
+				already_free = true;
+			}
+#endif
 			break;
 		} else if (lyeblob_ids->lye_idx < prop_lye_idx) {
 			DDPINFO("free:(0x%x,0x%x), cnt:%d\n",
@@ -7194,6 +7193,7 @@ static int dc_main_path_commit_thread(void *data)
 	return 0;
 }
 
+/* This pf release thread only is aiming for frame trigger mode's CRTC */
 static int mtk_drm_pf_release_thread(void *data)
 {
 	int ret;
@@ -7222,6 +7222,7 @@ static int mtk_drm_pf_release_thread(void *data)
 		cmdq_buf = &(mtk_crtc->gce_obj.buf);
 		fence_idx = *(unsigned int *)(cmdq_buf->va_base +
 				DISP_SLOT_PRESENT_FENCE(crtc_idx));
+		atomic_set(&private->crtc_rel_present[crtc_idx], fence_idx);
 
 		mtk_release_present_fence(private->session_id[crtc_idx],
 					  fence_idx, 0);
@@ -7642,6 +7643,10 @@ int mtk_drm_crtc_getfence_ioctl(struct drm_device *dev, void *data,
 		ret = -EFAULT;
 		return ret;
 	}
+
+	/* async kick idle */
+	mtk_drm_idlemgr_kick_async(crtc);
+
 	/* create fence */
 	fence.fence = MTK_INVALID_FENCE_FD;
 	fence.value = ++fence_idx;

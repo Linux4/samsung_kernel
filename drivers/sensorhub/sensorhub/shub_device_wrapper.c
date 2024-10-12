@@ -34,6 +34,7 @@ static struct of_device_id shub_match_table[] = {
 	{
 		.compatible = "shub"
 	},
+	{},
 };
 
 static struct platform_driver shub_driver = {

@@ -129,6 +129,60 @@ static int dsp_captureul1_default_get(struct snd_kcontrol *kcontrol,
 	return 0;
 }
 
+static int dsp_ulproc_default_set(struct snd_kcontrol *kcontrol,
+					 struct snd_ctl_elem_value *ucontrol)
+{
+	int val = ucontrol->value.integer.value[0];
+
+	set_task_attr(AUDIO_TASK_UL_PROCESS_ID, ADSP_TASK_ATTR_DEFAULT, val);
+	return 0;
+}
+
+static int dsp_ulproc_default_get(struct snd_kcontrol *kcontrol,
+					   struct snd_ctl_elem_value *ucontrol)
+{
+	ucontrol->value.integer.value[0] =
+		get_task_attr(AUDIO_TASK_UL_PROCESS_ID,
+			      ADSP_TASK_ATTR_DEFAULT);
+	return 0;
+}
+
+static int dsp_echoref_default_set(struct snd_kcontrol *kcontrol,
+					 struct snd_ctl_elem_value *ucontrol)
+{
+	int val = ucontrol->value.integer.value[0];
+
+	set_task_attr(AUDIO_TASK_ECHO_REF_ID, ADSP_TASK_ATTR_DEFAULT, val);
+	return 0;
+}
+
+static int dsp_echoref_default_get(struct snd_kcontrol *kcontrol,
+					   struct snd_ctl_elem_value *ucontrol)
+{
+	ucontrol->value.integer.value[0] =
+		get_task_attr(AUDIO_TASK_ECHO_REF_ID,
+			      ADSP_TASK_ATTR_DEFAULT);
+	return 0;
+}
+
+static int dsp_echorefdl_default_set(struct snd_kcontrol *kcontrol,
+					 struct snd_ctl_elem_value *ucontrol)
+{
+	int val = ucontrol->value.integer.value[0];
+
+	set_task_attr(AUDIO_TASK_ECHO_REF_DL_ID, ADSP_TASK_ATTR_DEFAULT, val);
+	return 0;
+}
+
+static int dsp_echorefdl_default_get(struct snd_kcontrol *kcontrol,
+					   struct snd_ctl_elem_value *ucontrol)
+{
+	ucontrol->value.integer.value[0] =
+		get_task_attr(AUDIO_TASK_ECHO_REF_DL_ID,
+			      ADSP_TASK_ATTR_DEFAULT);
+	return 0;
+}
+
 static int dsp_offload_default_set(struct snd_kcontrol *kcontrol,
 					 struct snd_ctl_elem_value *ucontrol)
 {
@@ -384,6 +438,59 @@ static int dsp_captureul1_runtime_get(struct snd_kcontrol *kcontrol,
 	return 0;
 }
 
+static int dsp_ulproc_runtime_set(struct snd_kcontrol *kcontrol,
+					 struct snd_ctl_elem_value *ucontrol)
+{
+	int val = ucontrol->value.integer.value[0];
+
+	set_task_attr(AUDIO_TASK_UL_PROCESS_ID, ADSP_TASK_ATTR_RUMTIME, val);
+	return 0;
+}
+
+static int dsp_ulproc_runtime_get(struct snd_kcontrol *kcontrol,
+					   struct snd_ctl_elem_value *ucontrol)
+{
+	ucontrol->value.integer.value[0] =
+		get_task_attr(AUDIO_TASK_UL_PROCESS_ID,
+			      ADSP_TASK_ATTR_RUMTIME);
+	return 0;
+}
+
+static int dsp_echoref_runtime_set(struct snd_kcontrol *kcontrol,
+					 struct snd_ctl_elem_value *ucontrol)
+{
+	int val = ucontrol->value.integer.value[0];
+
+	set_task_attr(AUDIO_TASK_ECHO_REF_ID, ADSP_TASK_ATTR_RUMTIME, val);
+	return 0;
+}
+
+static int dsp_echoref_runtime_get(struct snd_kcontrol *kcontrol,
+					   struct snd_ctl_elem_value *ucontrol)
+{
+	ucontrol->value.integer.value[0] =
+		get_task_attr(AUDIO_TASK_ECHO_REF_ID,
+			      ADSP_TASK_ATTR_RUMTIME);
+	return 0;
+}
+
+static int dsp_echorefdl_runtime_set(struct snd_kcontrol *kcontrol,
+					 struct snd_ctl_elem_value *ucontrol)
+{
+	int val = ucontrol->value.integer.value[0];
+
+	set_task_attr(AUDIO_TASK_ECHO_REF_DL_ID, ADSP_TASK_ATTR_RUMTIME, val);
+	return 0;
+}
+
+static int dsp_echorefdl_runtime_get(struct snd_kcontrol *kcontrol,
+					   struct snd_ctl_elem_value *ucontrol)
+{
+	ucontrol->value.integer.value[0] =
+		get_task_attr(AUDIO_TASK_ECHO_REF_DL_ID,
+			      ADSP_TASK_ATTR_RUMTIME);
+	return 0;
+}
 
 static int dsp_offload_runtime_set(struct snd_kcontrol *kcontrol,
 					 struct snd_ctl_elem_value *ucontrol)
@@ -696,6 +803,12 @@ static const struct snd_kcontrol_new dsp_platform_kcontrols[] = {
 	SOC_SINGLE_EXT("dsp_captureraw_default_en", SND_SOC_NOPM, 0, 0x1, 0,
 		       dsp_capture_raw_default_get,
 		       dsp_capture_raw_default_set),
+	SOC_SINGLE_EXT("dsp_ulproc_default_en", SND_SOC_NOPM, 0, 0x1, 0,
+		       dsp_ulproc_default_get, dsp_ulproc_default_set),
+	SOC_SINGLE_EXT("dsp_echoref_default_en", SND_SOC_NOPM, 0, 0x1, 0,
+		       dsp_echoref_default_get, dsp_echoref_default_set),
+	SOC_SINGLE_EXT("dsp_echodl_default_en", SND_SOC_NOPM, 0, 0x1, 0,
+		       dsp_echorefdl_default_get, dsp_echorefdl_default_set),
 	SOC_SINGLE_EXT("dsp_fm_default_en", SND_SOC_NOPM, 0, 0x1, 0,
 		       dsp_fm_default_get, dsp_fm_default_set),
 	SOC_SINGLE_EXT("dsp_primary_runtime_en", SND_SOC_NOPM, 0, 0x1, 0,
@@ -724,6 +837,12 @@ static const struct snd_kcontrol_new dsp_platform_kcontrols[] = {
 	SOC_SINGLE_EXT("dsp_captureraw_runtime_en", SND_SOC_NOPM, 0, 0x1, 0,
 		       dsp_capture_raw_runtime_get,
 		       dsp_capture_raw_runtime_set),
+	SOC_SINGLE_EXT("dsp_ulproc_runtime_en", SND_SOC_NOPM, 0, 0x1, 0,
+		       dsp_ulproc_runtime_get, dsp_ulproc_runtime_set),
+	SOC_SINGLE_EXT("dsp_echoref_runtime_en", SND_SOC_NOPM, 0, 0x1, 0,
+		       dsp_echoref_runtime_get, dsp_echoref_runtime_set),
+	SOC_SINGLE_EXT("dsp_echodl_runtime_en", SND_SOC_NOPM, 0, 0x1, 0,
+		       dsp_echorefdl_runtime_get, dsp_echorefdl_runtime_set),
 	SOC_SINGLE_EXT("dsp_fm_runtime_en", SND_SOC_NOPM, 0, 0x1, 0,
 		       dsp_fm_runtime_get, dsp_fm_runtime_set),
 	SOC_SINGLE_EXT("audio_dsp_wakelock", SND_SOC_NOPM, 0, 0x1, 0,

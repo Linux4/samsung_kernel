@@ -184,7 +184,7 @@ static ssize_t accel_reactive_alert_store(struct device *dev, struct device_attr
 
 		data->is_accel_alert = 0;
 
-		ret = shub_send_command_wait(CMD_GETVALUE, SENSOR_TYPE_ACCELEROMETER, SENSOR_FACTORY, 3000, NULL, 0,
+		ret = shub_send_command_wait(CMD_GETVALUE, SENSOR_TYPE_ACCELEROMETER, ACCELOMETER_REACTIVE_ALERT, 3000, NULL, 0,
 					     &buffer, &buffer_length, true);
 
 		if (ret < 0) {

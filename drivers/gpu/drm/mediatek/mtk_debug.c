@@ -1926,13 +1926,16 @@ static void process_dbg_opt(const char *opt)
 		/*ex: echo helper:DISP_OPT_BYPASS_OVL,0 > /d/mtkfb */
 		char option[100] = "";
 		char *tmp;
-		int value, i;
+		int value, i, limited;
 		enum MTK_DRM_HELPER_OPT helper_opt;
 		struct mtk_drm_private *priv = drm_dev->dev_private;
 		int ret;
 
 		tmp = (char *)(opt + 7);
+		limited = strlen(tmp);
 		for (i = 0; i < 100; i++) {
+			if (i >= limited)
+				return;
 			if (tmp[i] != ',' && tmp[i] != ' ')
 				option[i] = tmp[i];
 			else
@@ -2629,6 +2632,40 @@ out:
 
 	return simple_read_from_buffer(ubuf, count, ppos, debug_buffer, n);
 }
+
+#if defined(CONFIG_SMCDSD_PANEL)
+int mtkfb_debug_show(struct seq_file *m, void *unused)
+{
+	int debug_bufmax;
+	static int n;
+
+	if (!is_buffer_init)
+		goto out;
+
+	if (!debug_buffer) {
+		debug_buffer = vmalloc(sizeof(char) * DEBUG_BUFFER_SIZE);
+		if (!debug_buffer)
+			return -ENOMEM;
+
+		memset(debug_buffer, 0, sizeof(char) * DEBUG_BUFFER_SIZE);
+	}
+
+	debug_bufmax = DEBUG_BUFFER_SIZE - 1;
+	n = debug_get_info(debug_buffer, debug_bufmax);
+
+out:
+	if (n < 0)
+		return -EINVAL;
+
+	//return simple_read_from_buffer(ubuf, count, ppos, debug_buffer, n);
+	seq_puts(m, "------ DISPLAY DEBUG INFO (/proc/mtkfb) ------\n");
+	if (debug_buffer)
+		seq_puts(m, debug_buffer);
+
+	return 0;
+}
+EXPORT_SYMBOL(mtkfb_debug_show);
+#endif
 
 static ssize_t debug_write(struct file *file, const char __user *ubuf,
 			   size_t count, loff_t *ppos)

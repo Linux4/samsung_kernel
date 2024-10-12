@@ -828,6 +828,11 @@ static void set_tc_trigger_hw_protect(int temperature, int temperature2, int tc_
 
 	offset = tscpu_g_tc[tc_num].tc_offset;
 
+	/* set temp offset to 0x3FF to avoid interrupt false triggered */
+	mt_reg_sync_writel(
+			readl(offset + TEMPPROTCTL) | 0x3FF,
+				offset + TEMPPROTCTL);
+
 	/* temperature2=80000;  test only */
 	tscpu_dprintk("set_tc_trigger_hw_protect t1=%d t2=%d\n", temperature, temperature2);
 
@@ -845,6 +850,11 @@ static void set_tc_trigger_hw_protect(int temperature, int temperature2, int tc_
 	mt_reg_sync_writel(raw_high, offset + TEMPPROTTC);	/* set hot to HOT wakeup event */
 
 	mt_reg_sync_writel(temp | 0x80000000, offset + TEMPMONINT);	/* enable trigger Hot SPM interrupt */
+
+	/* clear temp offset */
+	mt_reg_sync_writel(
+			readl(offset + TEMPPROTCTL) & ~0xFFF,
+				offset + TEMPPROTCTL);
 }
 
 static int read_tc_raw_and_temp(u32 *tempmsr_name, enum thermal_sensor ts_name)

@@ -37,9 +37,9 @@
 		sx9360,againfreq_reg = <0x11>; /* 0x25 - freq : 200 kHz, again : +/-2.25 pF */
 		sx9360,refgainrawfilt_reg = <0x22>; /* reference phase gain: x8, rawfilt : 1-1/4 */
 		sx9360,gainrawfilt_reg = <0x0A>; /* rawfilter : 1-1/4, gain : x1 */
-		sx9360,regproxctrl3_reg = <0x0A>; /* 0x44 - avgposfilt: 1/64, avgnegfilt: 1/2 */
-		sx9360,hyst_reg = <0x15>; /* hysteresis : +/-6 %, debouncer : 2 samples */
-		sx9360,proxthresh_reg = <0x14>; /* 0x46 - threshhold : 200 */
+		sx9360,regproxctrl3_reg = <0x0E>; /* 0x44 - avgposfilt: 1/1024, avgnegfilt: 1/2 */
+		sx9360,hyst_reg = <0x35>; /* hysteresis : +/-25 %, debouncer : 2 samples */
+		sx9360,proxthresh_reg = <0x10>; /* 0x46 - threshhold : 128 */
 		sx9360,hallic_detect = <0>;
 		sx9360,hallic_cert_detect = <0>;
 	};
@@ -82,8 +82,8 @@
 					sx9360,againfreq_reg = <0x15>; /* 0x25 - freq : 125 kHz, again : +/-2.25 pF */
 					sx9360,refgainrawfilt_reg = <0x22>; /* same as gainrawfilt_reg */
 					sx9360,gainrawfilt_reg = <0x12>; /* 0x41 - rawfilter : 1-1/4, gain : x1 */
-					sx9360,hyst_reg = <0x15>; /* hysteresis : +/-6 %, debouncer : 2 samples */
-					sx9360,proxthresh_reg = <0x1F>; /* 0X46 - threshhold : 612 */
+					sx9360,hyst_reg = <0x35>; /* hysteresis : +/-25 %, debouncer : 2 samples */
+					sx9360,proxthresh_reg = <0x12>; /* 0X46 - threshhold : 162 */
 					sx9360_sub,hallic_detect = <0>;
 					sx9360_sub,hallic_cert_detect = <0>;
 				};

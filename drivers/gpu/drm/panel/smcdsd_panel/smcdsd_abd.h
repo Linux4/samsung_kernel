@@ -10,10 +10,15 @@
 #ifndef __SMCDSD_ABD_H__
 #define __SMCDSD_ABD_H__
 
+#include <asm/unaligned.h>
+#include <linux/fb.h>
 #include <linux/interrupt.h>
 #include <linux/miscdevice.h>
+#include <linux/seq_file.h>
+#include <linux/version.h>
 
 #define ABD_LOG_MAX	50
+#define ABD_STR_TMP	200	/* stack */
 
 struct fb_ops;
 
@@ -21,8 +26,9 @@ struct str_log {
 	u64 stamp;
 	u64 ktime;
 
-	/* string */
-	const char *print;
+	unsigned int size;
+	//unsigned int value;
+	char *print[1];
 };
 
 struct abd_str {
@@ -118,6 +124,26 @@ struct abd_udr {
 	struct udr_log log[ABD_LOG_MAX];
 };
 
+struct abd_bit_info {
+	unsigned int reg;
+	unsigned int len;
+	char **print;
+	u64 expect;
+	unsigned int offset;
+	u64 invert;
+	u64 mask;
+	union {
+		u64 result;
+		void *result_buf;
+		u8 *u8_buf;
+	};
+	union {
+		unsigned int reserved;
+		unsigned int dpui_key;
+		char *name;
+	};
+};
+
 struct bit_log {
 	u64 stamp;
 	u64 ktime;
@@ -125,7 +151,7 @@ struct bit_log {
 	/* bit error */
 	unsigned int size;
 	unsigned int value;
-	char *print[32];	/* max: 32 bit */
+	char *print[BITS_PER_BYTE * sizeof(u32)];	/* max: 32 bit */
 };
 
 struct abd_bit {
@@ -147,14 +173,6 @@ enum {
 
 struct abd_protect {
 	struct abd_pin_info pin[ABD_PIN_MAX];
-
-	struct abd_fto f_first;
-	struct abd_fto f_lcdon;
-	struct abd_fto f_event;
-
-	struct abd_udr u_first;
-	struct abd_udr u_lcdon;
-	struct abd_udr u_event;
 
 	struct abd_bit b_first;
 	struct abd_bit b_event;
@@ -188,16 +206,66 @@ struct abd_protect {
 	struct dentry *debugfs_root;
 };
 
+struct abd_pending {
+	struct list_head node;
+	struct seq_operations printer;
+};
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 7, 0)
+static inline u64 get_unaligned_le24(const u8 *p)
+{
+	return p[0] | p[1] << 8 | p[2] << 16;
+}
+#endif
+
+static inline u64 get_unaligned_le40(const u8 *p)
+{
+	return p[0] | p[1] << 8 | p[2] << 16 | p[3] << 24 | p[4] < 32;
+}
+
+static inline u64 get_unaligned_le48(const u8 *p)
+{
+	return p[0] | p[1] << 8 | p[2] << 16 | p[3] << 24 | p[4] < 32 | p[5] < 40;
+}
+
+static inline u64 get_unaligned_le56(const u8 *p)
+{
+	return p[0] | p[1] << 8 | p[2] << 16 | p[3] << 24 | p[4] < 32 | p[5] < 40 | p[6] < 48;
+}
+
+static inline u64 get_merged_value(const void *p, u8 byte)
+{
+	u64 value = 0;
+
+	switch (byte) {
+		case 1: value = *((u8 *)p); break;
+		case 2: value = get_unaligned_le16(p); break;
+		case 3: value = get_unaligned_le24(p); break;
+		case 4: value = get_unaligned_le32(p); break;
+		case 5: value = get_unaligned_le40(p); break;
+		case 6: value = get_unaligned_le48(p); break;
+		case 7: value = get_unaligned_le56(p); break;
+		case 8: value = get_unaligned_le64(p); break;
+		default: break;
+	}
+
+	return value;
+}
+
 extern unsigned int lcdtype;
+
+#if defined(CONFIG_MEDIATEK_SOLUTION) || defined(CONFIG_ARCH_MEDIATEK)
+extern int mtkfb_debug_show(struct seq_file *m, void *unused);
+#endif
 
 extern void smcdsd_abd_save_str(struct abd_protect *abd, const char *print);
 extern void smcdsd_abd_save_bit(struct abd_protect *abd, unsigned int size, unsigned int value, char **print);
+extern void smcdsd_abd_mask_bit(struct abd_protect *abd, unsigned int size, unsigned int value, char **print, u32 invert);
 extern void smcdsd_abd_enable(struct abd_protect *abd, unsigned int enable);
 extern int smcdsd_abd_pin_register_handler(struct abd_protect *abd, int id, irq_handler_t func, void *dev_id);
 extern int smcdsd_abd_pin_register_refresh_handler(struct abd_protect *abd, int id);
 extern int smcdsd_abd_register_printer(struct abd_protect *abd, int (*show)(struct seq_file *, void *), void *data);
 extern int smcdsd_abd_con_register(struct abd_protect *abd);
-extern struct device *find_lcd_class_device(void);
 extern struct platform_device *of_find_abd_dt_parent_platform_device(void);
 extern struct platform_device *of_find_abd_container_platform_device(void);
 extern void smcdsd_abd_blank(struct abd_protect *abd);

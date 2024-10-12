@@ -76,4 +76,12 @@ struct MemoryDump {
 	char dram[MDUMP_DRAM_SIZE];
 };
 
+struct shub_dump {
+	int reason;
+	int size;
+	char *dump;
+	char *mini_dump;
+};
+extern int shub_dump_notifier_register(struct notifier_block *nb);
+
 #endif

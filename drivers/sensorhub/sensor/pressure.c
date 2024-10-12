@@ -28,12 +28,17 @@
 #define CALIBRATION_FILE_PATH "/efs/FactoryApp/baro_delta"
 #define SW_OFFSET_FILE_PATH "/efs/FactoryApp/baro_sw_offset"
 
-typedef struct pressure_chipset_funcs *(get_pressure_function_pointer)(char *);
-get_pressure_function_pointer *get_pressure_funcs_ary[] = {
+get_init_chipset_funcs_ptr get_pressure_funcs_ary[] = {
 	get_pressure_bmp580_function_pointer,
 	get_pressure_lps22hh_function_pointer,
+	get_pressure_lps22df_function_pointer,
 };
 
+static get_init_chipset_funcs_ptr *get_pressure_init_chipset_funcs(int *len)
+{
+	*len = ARRAY_SIZE(get_pressure_funcs_ary);
+	return get_pressure_funcs_ary;
+}
 
 static unsigned int parse_int(const char *s, unsigned int base, int *p)
 {
@@ -129,35 +134,6 @@ static void parse_dt_pressure(struct device *dev)
 	}
 }
 
-int init_pressure_chipset(void)
-{
-	uint64_t i;
-	struct shub_sensor *sensor = get_sensor(SENSOR_TYPE_PRESSURE);
-	struct pressure_data *data = (struct pressure_data *)(sensor->data);
-	struct pressure_chipset_funcs *funcs;
-
-	shub_infof("");
-
-	for (i = 0; i < ARRAY_SIZE(get_pressure_funcs_ary); i++) {
-		funcs = get_pressure_funcs_ary[i](sensor->spec.name);
-		if (funcs) {
-			data->chipset_funcs = funcs;
-			if (data->chipset_funcs->init)
-				data->chipset_funcs->init();
-			break;
-		}
-	}
-
-	if (!data->chipset_funcs) {
-		shub_errf("cannot find magnetometer sensor chipset");
-		return -EINVAL;
-	}
-
-	parse_dt_pressure(get_shub_device());
-
-	return 0;
-}
-
 int sync_pressure_status(void)
 {
 	shub_infof();
@@ -173,8 +149,6 @@ static void report_pressure_event(void)
 	struct pressure_event *sensor_value = (struct pressure_event *)(event->value);
 	struct pressure_data *data = sensor->data;
 
-	shub_infof("%d %d %d", sensor_value->pressure, data->sw_offset,  data->convert_coef);
-
 	sensor_value->pressure -= data->sw_offset * data->convert_coef / 100;
 #endif
 }
@@ -182,13 +156,13 @@ static void report_pressure_event(void)
 void print_pressure_debug(void)
 {
 	struct shub_sensor *sensor = get_sensor(SENSOR_TYPE_PRESSURE);
-	struct sensor_event *event = &(sensor->event_buffer);
+	struct sensor_event *event = &(sensor->last_event_buffer);
 	struct pressure_event *sensor_value = (struct pressure_event *)(event->value);
 	struct pressure_data *data = sensor->data;
 
-	shub_info("%s(%u) : %d, %d, %d, %d (%lld) (%ums, %dms)", sensor->name, SENSOR_TYPE_PRESSURE,
+	shub_info("%s(%u) : %d, %d, %d, %d, %d (%lld) (%ums, %dms)", sensor->name, SENSOR_TYPE_PRESSURE,
 		  sensor_value->pressure, sensor_value->temperature, sensor_value->pressure_cal, data->sw_offset,
-		  event->timestamp, sensor->sampling_period, sensor->max_report_latency);
+		  data->convert_coef, event->timestamp, sensor->sampling_period, sensor->max_report_latency);
 }
 
 static int open_pressure_files(void)
@@ -219,52 +193,34 @@ static int disable_pressure_sensor(void)
 	return 0;
 }
 
+static struct sensor_funcs pressure_sensor_funcs = {
+	.enable = enable_pressure_sensor,
+	.disable = disable_pressure_sensor,
+	.print_debug = print_pressure_debug,
+	.open_calibration_file = open_pressure_files,
+	.report_event = report_pressure_event,
+	.parse_dt = parse_dt_pressure,
+	.get_init_chipset_funcs = get_pressure_init_chipset_funcs,
+};
+
+static struct pressure_data pressure_data;
+
 int init_pressure(bool en)
 {
+	int ret = 0;
 	struct shub_sensor *sensor = get_sensor(SENSOR_TYPE_PRESSURE);
 
 	if (!sensor)
 		return 0;
 
 	if (en) {
-		strcpy(sensor->name, "pressure_sensor");
+		ret = init_default_func(sensor, "pressure_sensor", 6, 14, sizeof(struct pressure_event));
 		sensor->report_mode_continuous = true;
-		sensor->receive_event_size = 6;
-		sensor->report_event_size = 14;
-		sensor->event_buffer.value = kzalloc(sizeof(struct pressure_event), GFP_KERNEL);
-		if (!sensor->event_buffer.value)
-			goto err_no_mem;
-
-		sensor->funcs = kzalloc(sizeof(struct sensor_funcs), GFP_KERNEL);
-		if (!sensor->funcs)
-			goto err_no_mem;
-
-		sensor->data = kzalloc(sizeof(struct pressure_data), GFP_KERNEL);
-		if (!sensor->data)
-			goto err_no_mem;
-
-		sensor->funcs->enable = enable_pressure_sensor;
-		sensor->funcs->disable = disable_pressure_sensor;
-		sensor->funcs->print_debug = print_pressure_debug;
-		sensor->funcs->init_chipset = init_pressure_chipset;
-		sensor->funcs->open_calibration_file = open_pressure_files;
-		sensor->funcs->report_event = report_pressure_event;
-
+		sensor->data = (void *)&pressure_data;
+		sensor->funcs = &pressure_sensor_funcs;
 	} else {
-		kfree(sensor->funcs);
-		sensor->funcs = NULL;
-
-		kfree(sensor->event_buffer.value);
-		sensor->event_buffer.value = NULL;
+		destroy_default_func(sensor);
 	}
-	return 0;
 
-err_no_mem:
-	kfree(sensor->event_buffer.value);
-	sensor->event_buffer.value = NULL;
-
-	kfree(sensor->funcs);
-	sensor->funcs = NULL;
-
-	return -ENOMEM;
+	return ret;
 }

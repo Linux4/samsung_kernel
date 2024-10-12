@@ -757,10 +757,12 @@ static int battery_set_property(struct power_supply *psy,
 			data->f_mode = val->intval;
 			pr_info("%s: mtk-fg-battery: FG f_mode: %s\n", __func__,
 					BOOT_MODE_STRING[data->f_mode]);
+#if defined(CONFIG_SEC_FACTORY)
 			if (data->f_mode == OB_MODE) {
 				set_g_low_battery_stop(1);
 				disable_fg();
 			}
+#endif
 			break;
 		default:
 			return -EINVAL;

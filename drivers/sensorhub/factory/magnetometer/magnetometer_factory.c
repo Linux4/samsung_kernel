@@ -183,9 +183,9 @@ static ssize_t raw_data_store(struct device *dev, struct device_attribute *attr,
 		} while (--retries);
 
 		if (retries > 0)
-			shub_infof("success, %d\n", __func__, retries);
+			shub_infof("success, %d\n", retries);
 		else
-			shub_errf("wait timeout, %d\n", __func__, retries);
+			shub_errf("wait timeout, %d\n", retries);
 
 	} else {
 		disable_sensor(SENSOR_TYPE_GEOMAGNETIC_POWER, NULL, 0);
@@ -281,7 +281,7 @@ void initialize_magnetometer_sysfs(void)
 			ret = add_sensor_device_attr(mag_sysfs_device, chipset_attrs);
 			chipset_index = i;
 			if (ret < 0) {
-				shub_errf("fail to add sysfs chipset device attr(%d)", i);
+				shub_errf("fail to add sysfs chipset device attr(%d)", (int)i);
 				return;
 			}
 			break;

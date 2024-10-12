@@ -20,8 +20,15 @@
 #include "shub_vendor_type.h"
 
 #include <linux/rtc.h>
+#include <linux/slab.h>
 
 #define SENSOR_NAME_MAX 40
+
+#define kfree_and_clear(buffer) \
+	do { \
+        kfree(buffer);  \
+        buffer = NULL;  \
+	} while (0)
 
 struct sensor_event {
 	u64 received_timestamp;
@@ -49,6 +56,15 @@ struct sensor_spec_t {
 	float power;
 } __attribute__((__packed__));
 
+
+struct sensor_chipset_init_funcs {
+	int (*init)(void);
+	void (*parse_dt)(struct device *dev);
+	void *(*get_chipset_funcs)(void);
+};
+
+typedef struct sensor_chipset_init_funcs *(*get_init_chipset_funcs_ptr)(char *name);
+
 struct sensor_funcs {
 	int (*sync_status)(void); /* this is called when sensorhub ready to work or reset */
 	int (*enable)(void);
@@ -61,9 +77,12 @@ struct sensor_funcs {
 	int (*set_position)(int);
 	int (*get_position)(void);
 	int (*init_chipset)(void);
+	void (*parse_dt)(struct device *dev);
+	int (*init_variable)(void);
 	int (*open_calibration_file)(void);
 	/* if receive_event_size is 0, you can check parsing error in this func */
 	int (*get_sensor_value)(char *, int *, struct sensor_event *, int);
+	get_init_chipset_funcs_ptr *(*get_init_chipset_funcs)(int *);
 };
 
 struct shub_sensor {
@@ -90,11 +109,16 @@ struct shub_sensor {
 	struct rtc_time disable_time;
 
 	struct sensor_event event_buffer;
+	struct sensor_event last_event_buffer;
 
 	void *data;
 	struct sensor_funcs *funcs;
+	void *chipset_funcs;
 };
 
 typedef int (*init_sensor)(bool en);
 
+int init_shub_sensor(struct shub_sensor *sensor);
+int init_default_func(struct shub_sensor *sensor, const char *name, int receive_size, int report_size, int buffer_size);
+void destroy_default_func(struct shub_sensor *sensor);
 #endif /* __SHUB_SENSOR_H_ */

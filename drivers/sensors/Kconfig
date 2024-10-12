@@ -135,6 +135,13 @@ config SENSORS_ISG5320A_A32_LTE
 	help
 	  Say Y here if you use a feature named SENSOR_ISG5320A_A32_LTE in isg5320a_reg.h for grip.
 
+config SENSORS_ISG5320A_A32_KOR_LTE
+	depends on I2C
+	tristate "ISG5320A grip register kor model featuere"
+	default n
+	help
+	  Say Y here if you use a feature named SENSOR_ISG5320A_A32_KOR_LTE in isg5320a_reg.h for grip.
+
 config SENSORS_ISG5320A_A22_LTE
 	depends on I2C
 	tristate "ISG5320A grip register model featuere"
