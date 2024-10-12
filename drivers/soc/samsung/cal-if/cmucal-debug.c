@@ -498,10 +498,12 @@ vclk_write_set_freq(struct file *filp, const char __user *ubuf,
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////
+#define BASE_MOVE		(0x100)
+#if 0
 #define CLKDIVSTEP_STAT		(0x83c)
 #define CLK_CON_MUX_MUX_CLK	(0x1000)
 #define STRMUX			(0x870)
-#define BASE_MOVE		(0x100)
+
 
 static ssize_t
 cpucl0_stepup_run_read(struct file *filp, char __user *ubuf,
@@ -586,6 +588,7 @@ dsu_stepup_run_read(struct file *filp, char __user *ubuf,
 
 	return simple_read_from_buffer(ubuf, cnt, ppos, buf, r);
 }
+#endif
 
 static const struct file_operations clk_info_fops = {
 	.open		= vclk_clk_info_open,
@@ -616,6 +619,7 @@ static const struct file_operations set_freq_fops = {
 	.llseek		= seq_lseek,
 };
 
+#if 0
 static const struct file_operations cpucl0_stepup_run_fops = {
 	.open		= simple_open,
 	.read		= cpucl0_stepup_run_read,
@@ -639,6 +643,7 @@ static const struct file_operations dsu_stepup_run_fops = {
 	.read		= dsu_stepup_run_read,
 	.llseek		= seq_lseek,
 };
+#endif
 
 /* caller must hold prepare_lock */
 static int vclk_debug_create_one(struct vclk *vclk, struct dentry *pdentry)
@@ -844,6 +849,7 @@ int vclk_debug_init(void)
 	if (!d)
 		return -ENOMEM;
 
+#if 0
 	d = debugfs_create_file("cpucl0_stepup_run", 0400, rootdir, NULL,
 					&cpucl0_stepup_run_fops);
 	if (!d)
@@ -864,6 +870,7 @@ int vclk_debug_init(void)
 	if (!d)
 		return -ENOMEM;
 
+#endif
 	return 0;
 }
 EXPORT_SYMBOL_GPL(vclk_debug_init);

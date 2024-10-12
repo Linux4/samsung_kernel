@@ -337,7 +337,7 @@ void initialize_accel_factorytest(struct ssp_data *data)
 #ifdef CONFIG_SENSORS_LSM6DSO
     push_back(&accel_manager, "LSM6DSO", get_accel_lsm6dso());
 #endif
-	sensors_register(data->acc_device, data, acc_attrs,
+	sensors_register(&data->acc_device, data, acc_attrs,
 		"accelerometer_sensor");
 }
 

@@ -747,19 +747,22 @@ enum aa_capture_intent {
 	AA_CAPTURE_INTENT_STILL_CAPTURE_AI_ZOOM_NEON_AEB                        = 172,
 	AA_CAPTURE_INTENT_STILL_CAPTURE_AI_ZOOM_SR_NEON                         = 173,
 	AA_CAPTURE_INTENT_STILL_CAPTURE_AI_ZOOM_SR_BRIGHT_MOON                  = 174,
+	AA_CAPTURE_INTENT_STILL_CAPTURE_HIGHRES_EXPOSURE_DYNAMIC_SHOT           = 175,
+	AA_CAPTURE_INTENT_STILL_CAPTURE_HIGHRES_EXPERT_RAW_DYNAMIC_SHOT         = 176,
+
 	AA_CAPTURE_INTENT_VIDEO_RECORD_CHANGE_FPS                               = 500,
 
 	AA_CAPTURE_INTENT_STILL_CAPTURE_SPORT_MOTIONLEVEL0 = 90000,
 	AA_CAPTURE_INTENT_STILL_CAPTURE_SPORT_MOTIONLEVEL1 = 90001,
 	AA_CAPTURE_INTENT_STILL_CAPTURE_SPORT_MOTIONLEVEL2 = 90002,
 	AA_CAPTURE_INTENT_STILL_CAPTURE_SUPER_MOON,
-	AA_CAPTURE_INTENT_STILL_CAPTURE_HIGHRES_EXPOSURE_DYNAMIC_SHOT,
 };
 
 enum aa_captureExtraInfo_mask {
 	AA_CAPTURE_EXTRA_INFO_REMOSAIC_PROCESSED_BAYER = 1 << 0,   /* bit 0       */
 	AA_CAPTURE_EXTRA_INFO_CROPPED_REMOSAIC_SEAMLESS = 1 << 1,   /* bit 1       */
 	AA_CAPTURE_EXTRA_INFO_PREVIEW_CROPPED_REMOSAIC_SEAMLESS = 1 << 2,   /* bit 2       */
+	AA_CAPTURE_EXTRA_INFO_SUB_CAM_CAPTURE = 1 << 3,            /* bit 3       */
 	AA_CAPTURE_EXTRA_INFO_CROPPED_REMOSAIC_ZOOM = 0xFF << 24,  /* bit 24 ~ 31 */
 };
 
@@ -867,6 +870,7 @@ enum aa_scene_mode {
 	AA_SCENE_MODE_EXECUTOR_TOOL    = 147,
 	AA_SCENE_MODE_LIGHT_TRAIL      = 148,
 	AA_SCENE_MODE_ASTRO            = 149,
+	AA_SCENE_MODE_SW_ND_FILTER     = 150,
 };
 
 enum aa_effect_mode {
@@ -1226,6 +1230,11 @@ enum aa_night_indicator {
 	AA_NIGHT_INDICATOR_OFF,
 };
 
+enum aa_adaptive_pixel_mode {
+	AA_ADAPTIVE_PIXEL_MODE_ON = 0,
+	AA_ADAPTIVE_PIXEL_MODE_OFF,
+};
+
 struct camera2_video_output_size {
 	uint16_t			width;
 	uint16_t			height;
@@ -1311,7 +1320,8 @@ struct camera2_aa_ctl {
 	// static info for remosaic preview crop zoom ratio (0:invalid)
 	uint32_t			vendor_remosaicCropZoomRatio;
 	enum aa_transient_action	vendor_transientAction;
-	uint32_t			vendor_reserved[25];
+	enum aa_adaptive_pixel_mode	vendor_adaptivePixelMode;
+	uint32_t			vendor_reserved[24];
 };
 
 struct aa_apexInfo {
@@ -2177,6 +2187,11 @@ struct camera2_segmentationInfo_uctl {
 	uint16_t	object_roi[RECT_IDX_MAX]; /* Left, Top, Right, Bottom */
 };
 
+enum camera_scene_optimizer_modes {
+	CAMERA_SCENE_OPTIMIZER_MODE_OFF     = 0,
+	CAMERA_SCENE_OPTIMIZER_MODE_ON      = 1,
+};
+
 /** \brief
   User-defined control area.
   \remarks
@@ -2238,7 +2253,8 @@ struct camera2_uctl {
 	enum camera_flip_mode sensorFlip;
 	enum camera_external_lens_mask externalLensType;
 	uint32_t			textDetectionInfo;
-	uint32_t			reserved[46];
+	enum camera_scene_optimizer_modes sceneOptimizerMode;
+	uint32_t			reserved[45];
 };
 
 struct camera2_udm {

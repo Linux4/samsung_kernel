@@ -1217,7 +1217,7 @@ static struct file_operations const ssp_data_injection_fops = {
 
 static void initialize_mcu_factorytest(struct ssp_data *data)
 {
-	sensors_register_dcopy(&data->mcu_device, data, mcu_attrs, "ssp_sensor");
+	sensors_register(&data->mcu_device, data, mcu_attrs, "ssp_sensor");
 }
 
 static void remove_mcu_factorytest(struct ssp_data *data)

@@ -722,6 +722,8 @@ static inline int panel_self_move_pattern_update(struct panel_device *panel)
 #endif
 #endif
 
+int panel_find_max_brightness_from_cpi(struct common_panel_info *info);
+
 inline char *get_panel_state_names(enum panel_active_state);
 struct panel_device *panel_device_create(void);
 void panel_device_destroy(struct panel_device *panel);

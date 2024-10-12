@@ -1327,6 +1327,11 @@ static ssize_t store_llc_region_alloc(struct device *dev,
 		return -EINVAL;
 	}
 
+	if (region_index >= LLC_REGION_MAX) {
+		SCI_ERR("%s: Invalid region_index\n", __func__);
+		return -EINVAL;
+	}
+
 	data->llc_region_prio[region_index] = way;
 	ret = exynos_sci_llc_region_alloc(data, SCI_IPC_SET, &region_index, (bool)on, way);
 	if (ret) {

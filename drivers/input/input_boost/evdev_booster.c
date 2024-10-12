@@ -74,7 +74,7 @@ static void sec_input_boost_events(struct input_handle *handle,
 	spin_lock(&ib_idx_lock);
 	cur_ib_idx = ib_work_cnt++;
 	if (ib_work_cnt >= MAX_IB_COUNT) {
-		pr_info("[Input Booster] Ib_Work_Cnt(%d), Event_Cnt(%d)", ib_work_cnt, count);
+		pr_info("[Input Booster] Ib_Work_Cnt(%d), Event_Cnt(%d)\n", ib_work_cnt, count);
 		ib_work_cnt = 0;
 	}
 
@@ -408,7 +408,7 @@ void input_booster(struct ib_event_data *ib_ev_data)
 		__func__, ib_ev_data->evt_cnt, ib_init_succeed);
 
 	if (!ib_init_succeed || ib_ev_data->evt_cnt == 0) {
-		pr_err(ITAG"ev_cnt(%d) dev is Null OR dt_infor hasn't mem alloc", ib_ev_data->evt_cnt);
+		pr_err(ITAG"ev_cnt(%d) dev is Null OR dt_infor hasn't mem alloc\n", ib_ev_data->evt_cnt);
 		return;
 	}
 
@@ -463,12 +463,12 @@ static int __init ev_boost_init(void)
 	evbst_dev->release = NULL;
 	err = device_register(evbst_dev);
 	if (err)
-		pr_err(ITAG" evdev device register failed");
+		pr_err(ITAG" evdev device register failed\n");
 
 #if defined(CONFIG_SEC_INPUT_BOOSTER_HANDLER)
 	err = init_input_handler();
 	if (err) 
-		pr_err(ITAG" input handler fail");
+		pr_err(ITAG" input handler fail\n");
 #endif
 
 	return 0;

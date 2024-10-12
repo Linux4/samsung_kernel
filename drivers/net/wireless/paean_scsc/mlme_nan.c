@@ -342,6 +342,7 @@ static int slsi_mlme_nan_append_ipv6_link_tlv(struct sk_buff *req, const u8 *loc
 	interface_identifier[3] = 0xFF;
 	interface_identifier[4] = 0xFE;
 	memcpy(&interface_identifier[5], &local_ndi[3], 3);
+	interface_identifier[0] ^= 0x02;
 
 	p = fapi_append_data_u16(req, SLSI_NAN_TLV_WFA_IPV6_LOCAL_LINK);
 	p = fapi_append_data_u16(req, 0x0008);

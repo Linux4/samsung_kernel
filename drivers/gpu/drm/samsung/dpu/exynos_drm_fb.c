@@ -620,6 +620,8 @@ static void set_repeater_buffer(struct drm_atomic_state *old_state)
 static void
 exynos_atomic_framestart_post_processing(struct drm_atomic_state *old_state)
 {
+	struct drm_connector *conn;
+	struct drm_connector_state *new_conn_state;
 	struct drm_crtc *crtc;
 	struct drm_crtc_state *new_crtc_state;
 	struct exynos_drm_crtc_state *new_exynos_crtc_state;
@@ -639,6 +641,20 @@ exynos_atomic_framestart_post_processing(struct drm_atomic_state *old_state)
 		mutex_lock(&priv->lock);
 		priv->available_win_mask |= new_exynos_crtc_state->freed_win_mask;
 		mutex_unlock(&priv->lock);
+	}
+
+	for_each_new_connector_in_state(old_state, conn, new_conn_state, i) {
+		struct exynos_drm_connector_state *exynos_conn_state =
+			to_exynos_connector_state(new_conn_state);
+
+		if (conn->connector_type != DRM_MODE_CONNECTOR_DSI)
+			continue;
+
+		if (!new_conn_state->crtc || !exynos_conn_state->seamless_modeset)
+			continue;
+
+		new_crtc_state = new_conn_state->crtc->state;
+		exynos_conn_state->adjusted_fps = drm_mode_vrefresh(&new_crtc_state->mode);
 	}
 }
 

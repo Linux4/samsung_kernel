@@ -670,11 +670,6 @@ static void __mfc_set_enc_params_h264(struct mfc_core *core,
 	mfc_clear_set_bits(reg, 0x1, 13, p_264->_8x8_transform);
 	/* 'CONSTRAINED_INTRA_PRED_ENABLE' is disable */
 	mfc_clear_bits(reg, 0x1, 14);
-	/*
-	 * CONSTRAINT_SET0_FLAG: all constraints specified in
-	 * Baseline Profile
-	 */
-	mfc_set_bits(reg, 0x1, 26, 0x1);
 	/* sps pps control */
 	mfc_clear_set_bits(reg, 0x1, 29, p_264->prepend_sps_pps_to_idr);
 	/* enable sps pps control in OTF scenario */

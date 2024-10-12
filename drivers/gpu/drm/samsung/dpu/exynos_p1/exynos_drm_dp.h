@@ -387,6 +387,9 @@ enum dp_get_sst_id_type {
 #define DPCD_ADD_PAYLOAD_TABLE_UPDATE_STATUS 0x002C0
 #define VC_PAYLOAD_ID_TABLE_UPDATE (1 << 0)
 
+#define DPCD_DEVID_STR 0x503
+#define DPCD_DEVID_STR_SIZE 6
+
 #define DPCD_BRANCH_HW_REVISION	0x509
 #define DPCD_BRANCH_SW_REVISION_MAJOR	0x50A
 #define DPCD_BRANCH_SW_REVISION_MINOR	0x50B
@@ -572,6 +575,7 @@ struct secdp_sink_dev {
 	u32 prod_id;		/* product id from PDIC */
 	char monitor_name[MON_NAME_LEN]; /* max 14 bytes, from EDID */
 	u8 sw_ver[2];		/* sw revision */
+	char devid_str[DPCD_DEVID_STR_SIZE + 1];
 };
 
 #ifdef FEATURE_ADD_VSYNC_NODE

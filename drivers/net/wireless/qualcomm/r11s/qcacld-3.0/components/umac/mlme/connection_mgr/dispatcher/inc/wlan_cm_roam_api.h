@@ -1147,15 +1147,31 @@ bool wlan_cm_is_roam_sync_in_progress(struct wlan_objmgr_psoc *psoc,
 				      uint8_t vdev_id);
 
 /**
- * wlan_cm_set_roam_offload_ssid() - Set the roam offload candidate ssid
- *
+ * wlan_cm_get_set_roam_offload_bssid() - Get/Set the roam offload
+ * bssid of the sae roam offload params
  * @vdev: pointer to vdev
- * @ssid_ie: ssid ie of the candidate
+ * @bssid: bssid
+ * @set: true - set; false - get
  *
  * Return: None
  */
 void
-wlan_cm_set_roam_offload_ssid(struct wlan_objmgr_vdev *vdev, uint8_t *ssid_ie);
+wlan_cm_get_set_roam_offload_bssid(struct wlan_objmgr_vdev *vdev,
+				   struct qdf_mac_addr *bssid,
+				   bool set);
+
+/**
+ * wlan_cm_set_roam_offload_ssid() - Set the roam offload candidate ssid
+ *
+ * @vdev: pointer to vdev
+ * @ssid: ssid of candidate
+ * @len: length of ssid
+ *
+ * Return: None
+ */
+void
+wlan_cm_set_roam_offload_ssid(struct wlan_objmgr_vdev *vdev,
+			      uint8_t *ssid, uint8_t len);
 
 /**
  * wlan_cm_get_roam_offload_ssid() - Get the roam offload candidate ssid
@@ -1241,6 +1257,65 @@ wlan_cm_roam_set_full_scan_6ghz_on_disc(struct wlan_objmgr_psoc *psoc,
  */
 uint8_t wlan_cm_roam_get_full_scan_6ghz_on_disc(struct wlan_objmgr_psoc *psoc);
 
+#ifdef WLAN_FEATURE_ROAM_INFO_STATS
+/**
+ * mlme_cm_alloc_roam_stats_info() - alloc roam stats info buffer
+ * @vdev_mlme: MLME-private vdev context
+ *
+ * Return: None
+ */
+void mlme_cm_alloc_roam_stats_info(struct vdev_mlme_obj *vdev_mlme);
+
+/**
+ * mlme_cm_free_roam_stats_info() - free roam stats info buffer in
+ * struct mlme_legacy_priv
+ * @ext_hdl: mlme_legacy_priv pointer
+ *
+ * Return: None
+ */
+void mlme_cm_free_roam_stats_info(mlme_vdev_ext_t *ext_hdl);
+
+/**
+ * wlan_cm_roam_stats_info_get() - get vdev roam stats info
+ *
+ * @vdev: pointer to vdev
+ * @roam_info: pointer to buffer to copy roam stats info
+ * @roam_num: pointer to valid roam stats num
+ *
+ * Return: QDF_STATUS
+ */
+
+QDF_STATUS
+wlan_cm_roam_stats_info_get(struct wlan_objmgr_vdev *vdev,
+			    struct enhance_roam_info **roam_info,
+			    uint32_t  *roam_num);
+#else
+static inline
+void mlme_cm_alloc_roam_stats_info(struct vdev_mlme_obj *vdev_mlme)
+{
+}
+
+static inline
+void mlme_cm_free_roam_stats_info(mlme_vdev_ext_t *ext_hdl)
+{
+}
+#endif
+
+/**
+ * wlan_cm_set_offload_ssid() - Set the roam offload ssid in mlme priv
+ *
+ * @pdev: pointer to pdev
+ * @vdev_id: vdev id
+ * @ap_bssid: roam candidate bssid
+ *
+ * Get the scan entry corresponding to the bssid and save the ssid
+ * in the mlme priv of the STA vdev
+ *
+ * Return: QDF_STATUS
+ */
+QDF_STATUS
+wlan_cm_set_offload_ssid(struct wlan_objmgr_pdev *pdev, uint8_t vdev_id,
+			 struct qdf_mac_addr *ap_bssid);
 #else
 static inline
 void wlan_cm_roam_activate_pcl_per_vdev(struct wlan_objmgr_psoc *psoc,
@@ -1431,7 +1506,15 @@ wlan_cm_is_roam_sync_in_progress(struct wlan_objmgr_psoc *psoc,
 }
 
 static inline void
-wlan_cm_set_roam_offload_ssid(struct wlan_objmgr_vdev *vdev, uint8_t *ssid_ie)
+wlan_cm_get_set_roam_offload_bssid(struct wlan_objmgr_vdev *vdev,
+				   struct qdf_mac_addr *bssid,
+				   bool set)
+{
+}
+
+static inline void
+wlan_cm_set_roam_offload_ssid(struct wlan_objmgr_vdev *vdev,
+			      uint8_t *ssid, uint8_t len)
 {
 }
 
@@ -1457,6 +1540,23 @@ static inline uint8_t
 wlan_cm_roam_get_full_scan_6ghz_on_disc(struct wlan_objmgr_psoc *psoc)
 {
 	return 0;
+}
+
+static inline
+void mlme_cm_alloc_roam_stats_info(struct vdev_mlme_obj *vdev_mlme)
+{
+}
+
+static inline
+void mlme_cm_free_roam_stats_info(mlme_vdev_ext_t *ext_hdl)
+{
+}
+
+static inline QDF_STATUS
+wlan_cm_set_offload_ssid(struct wlan_objmgr_pdev *pdev, uint8_t vdev_id,
+			 struct qdf_mac_addr *ap_bssid)
+{
+	return QDF_STATUS_SUCCESS;
 }
 
 #endif /* WLAN_FEATURE_ROAM_OFFLOAD */

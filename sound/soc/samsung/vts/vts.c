@@ -770,19 +770,8 @@ static int set_voicerecognize_mode(struct device *dev, int vcrecognize_mode)
 		 __func__, data->exec_mode,
 		 vtsvcrecog_mode_text[vcrecognize_mode]);
 
-	if (!vcrecognize_start &&
-			pm_runtime_active(dev)) {
+	if (!vcrecognize_start && pm_runtime_active(dev))
 		pm_runtime_put_sync(dev);
-		if (data->mic_ready == 0x0 && pm_runtime_active(dev)) {
-			vts_dev_info(dev, "%s: VTS is off. Power off vts cpu\n",
-					__func__);
-			pm_runtime_get_sync(dev);
-			vts_cpu_enable(dev, false);
-			vts_cpu_power(dev, false);
-			data->running = false;
-			pm_runtime_put_sync(dev);
-		}
-	}
 
 	return  0;
 

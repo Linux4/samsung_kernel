@@ -115,11 +115,11 @@ int ske_generate_sessionkey(uint32_t lk_type, uint8_t *enc_skey, int share_skey)
 	return 0;
 }
 
-int ske_generate_riv(uint8_t *out)
+int ske_generate_riv(uint8_t *out, uint8_t *type)
 {
 	int ret;
 
-	ret = teei_generate_riv(out, HDCP_RTX_BYTE_LEN);
+	ret = teei_generate_riv(out, HDCP_RTX_BYTE_LEN, type);
 	if (ret) {
 		hdcp_err("teei_generate_riv() is failed with %x\n", ret);
 		return ERR_GENERATE_NON_SECKEY;
@@ -652,7 +652,7 @@ static int cap_ske_send_eks(uint8_t *m, size_t *m_len, struct hdcp_tx_ctx *tx_ct
 
 	/* Generate riv */
 	if (!tx_ctx->share_skey) {
-		ret = ske_generate_riv(tx_ctx->riv);
+		ret = ske_generate_riv(tx_ctx->riv, &tx_ctx->type);
 		if (ret)
 			return ERR_GENERATE_RIV;
 	}

@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2011-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -2131,6 +2131,7 @@ lim_send_assoc_req_mgmt_frame(struct mac_context *mac_ctx,
 	uint8_t mscs_ext_ie_len = 0;
 	bool bss_mfp_capable;
 	int8_t peer_rssi = 0;
+	struct cm_roam_values_copy mdie_cfg = {0};
 
 	if (!pe_session) {
 		pe_err("pe_session is NULL");
@@ -2391,7 +2392,17 @@ lim_send_assoc_req_mgmt_frame(struct mac_context *mac_ctx,
 			(unsigned int) bssdescr->mdie[2]);
 		populate_mdie(mac_ctx, &frm->MobilityDomain,
 			pe_session->lim_join_req->bssDescription.mdie);
+		if (bssdescr->mdiePresent) {
+			mdie_cfg.bool_value = true;
+			mdie_cfg.uint_value =
+				(bssdescr->mdie[1] << 8) | (bssdescr->mdie[0]);
+		} else {
+			mdie_cfg.bool_value = false;
+			mdie_cfg.uint_value = 0;
+		}
 
+		wlan_cm_roam_cfg_set_value(mac_ctx->psoc, vdev_id,
+					   MOBILITY_DOMAIN, &mdie_cfg);
 		/*
 		 * IEEE80211-ai [13.2.4 FT initial mobility domain association
 		 * over FILS in an RSN]

@@ -960,6 +960,35 @@ void exynos_pcie_rc_print_msi_register(int ch_num)
 }
 EXPORT_SYMBOL(exynos_pcie_rc_print_msi_register);
 
+void exynos_pcie_rc_print_pmu_register(struct exynos_pcie *exynos_pcie)
+{
+	struct dw_pcie *pci = exynos_pcie->pci;
+	struct device *dev = pci->dev;
+	u32 val1, val2, val3, val4, val5;
+	u32 val6, val7, val8, val9, val10, val11;
+
+	regmap_read(exynos_pcie->pmureg, exynos_pcie->pmu_offset, &val1); //0x71C
+	regmap_read(exynos_pcie->pmureg, 0x3A20, &val2);
+	regmap_read(exynos_pcie->pmureg, exynos_pcie->pmu_offset1, &val3); //0xAB0
+	regmap_read(exynos_pcie->pmureg, exynos_pcie->pmu_offset2, &val4); //0x3B20
+	regmap_read(exynos_pcie->pmureg, 0x3E10, &val5);
+	val6 = exynos_ia_read(exynos_pcie, 0x0);
+	val7 = exynos_phyudbg_read(exynos_pcie, 0xC800);
+	val8 = exynos_phyudbg_read(exynos_pcie, 0xC808);
+	val9 = exynos_phy_pcs_read(exynos_pcie, 0x14C);
+	val10 = exynos_phy_pcs_read(exynos_pcie, 0x150);
+	val11 = exynos_phy_pcs_read(exynos_pcie, 0x188);
+
+	dev_info(dev, "[%s] PMU(+0x71C): 0x%x, PMU(+0x3A20): 0x%x, PMU(+0xAB0): 0x%x\n",
+			__func__, val1, val2, val3);
+	dev_info(dev, "[%s] PMU(+0x3B20): 0x%x, PMU(+0x3E10): 0x%x, I/A: 0x%x\n",
+			__func__, val4, val5, val6);
+	dev_info(dev, "[%s] UDBG(+0xC800): 0x%x, UDBG(+0xC808): 0x%x\n",
+			__func__, val7, val8);
+	dev_info(dev, "[%s] PCS(+0x14C): 0x%x, PCS(+0x150): 0x%x, PCS(+0x188): 0x%x\n",
+			__func__, val9, val10, val11);
+}
+
 void exynos_pcie_rc_print_link_history(struct pcie_port *pp)
 {
 	struct dw_pcie *pci = to_dw_pcie_from_pp(pp);
@@ -3254,7 +3283,6 @@ static int exynos_pcie_rc_establish_link(struct pcie_port *pp)
 	u32 val, busdev;
 	int count = 0, try_cnt = 0;
 	u32 speed_recovery_cnt = 0;
-	u32 val1, val2, val3;
 
 retry:
 	/* avoid checking rx elecidle when access DBI */
@@ -3263,13 +3291,10 @@ retry:
 				exynos_pcie->phy_pcs_base, IGNORE_ELECIDLE,
 				exynos_pcie->ch_num);
 
+	if (exynos_pcie->ch_num == 0)
+		exynos_pcie_rc_print_pmu_register(exynos_pcie);
+
 	exynos_pcie_rc_assert_phy_reset(pp);
-
-	regmap_read(exynos_pcie->pmureg, exynos_pcie->pmu_offset, &val1);
-	regmap_read(exynos_pcie->pmureg, 0x3A20, &val2);
-	regmap_read(exynos_pcie->pmureg, exynos_pcie->pmu_offset1, &val3);
-	dev_info(dev, "[%s] 2) PMU+0x71C: 0x%x, PMU+0x3A20: 0x%x, PMU+0xAB0: %x\n", __func__, val1, val2, val3);
-
 
 	/* Q-ch disable */
 	exynos_elbi_write(exynos_pcie, 0x0, 0x3A8);
@@ -3290,11 +3315,6 @@ retry:
 				exynos_pcie->pmu_offset1,
 				PCIE_PHY_CONTROL_MASK1, (0x1 << 5));
 	}
-
-	regmap_read(exynos_pcie->pmureg, exynos_pcie->pmu_offset, &val1);
-	regmap_read(exynos_pcie->pmureg, 0x3A20, &val2);
-	regmap_read(exynos_pcie->pmureg, exynos_pcie->pmu_offset1, &val3);
-	dev_info(dev, "[%s] 3) PMU+0x71C: 0x%x, PMU+0x3A20: 0x%x, PMU+0xAB0: %x\n", __func__, val1, val2, val3);
 
 	if (exynos_pcie->ep_device_type == EP_QC_WIFI)
 		usleep_range(10000, 12000);
@@ -3693,7 +3713,6 @@ int exynos_pcie_rc_poweron(int ch_num)
 	struct device *dev;
 	int ret;
 	struct irq_desc *exynos_pcie_desc;
-	u32 val1, val2, val3;
 	//unsigned long flags;
 
 	if (exynos_pcie->probe_done != 1) {
@@ -3760,10 +3779,8 @@ int exynos_pcie_rc_poweron(int ch_num)
 				   exynos_pcie->pmu_offset,
 				   PCIE_PHY_CONTROL_MASK, 1);
 
-		regmap_read(exynos_pcie->pmureg, exynos_pcie->pmu_offset, &val1);
-		regmap_read(exynos_pcie->pmureg, 0x3A20, &val2);
-		regmap_read(exynos_pcie->pmureg, exynos_pcie->pmu_offset1, &val3);
-		dev_info(dev, "[%s] 1) PMU+0x71C: 0x%x, PMU+0x3A20: 0x%x, PMU+0xAB0: %x\n", __func__, val1, val2, val3);
+		if (exynos_pcie->ch_num == 0)
+			exynos_pcie_rc_print_pmu_register(exynos_pcie);
 
 		/* phy all power down clear */
 		if (exynos_pcie->phy_ops.phy_all_pwrdn_clear != NULL) {
@@ -3987,6 +4004,9 @@ void exynos_pcie_rc_poweroff(int ch_num)
 		val |= SOFT_PWR_RESET;
 		exynos_elbi_write(exynos_pcie, val, PCIE_SOFT_RESET);
 		spin_unlock(&exynos_pcie->reg_lock);
+
+		if (exynos_pcie->ch_num == 0)
+			exynos_pcie_rc_print_pmu_register(exynos_pcie);
 
 		/* phy all power down */
 		if (exynos_pcie->phy_ops.phy_all_pwrdn != NULL) {
@@ -5091,7 +5111,6 @@ int exynos_pcie_rc_itmon_notifier(struct notifier_block *nb,
 	struct device *dev = exynos_pcie->pci->dev;
 	struct itmon_notifier *itmon_info = nb_data;
 	unsigned int val;
-	u32 val1, val2, val3;
 
 	if (IS_ERR_OR_NULL(itmon_info))
 		return NOTIFY_DONE;
@@ -5108,10 +5127,11 @@ int exynos_pcie_rc_itmon_notifier(struct notifier_block *nb,
 	} else if (exynos_pcie->ip_ver == 0x992500) {
 		if ((itmon_info->port && !strcmp(itmon_info->port, "HSI1_P")) ||
 				(itmon_info->dest && !strcmp(itmon_info->dest, "HSI1_P"))) {
-			regmap_read(exynos_pcie->pmureg, exynos_pcie->pmu_offset, &val1);
-			regmap_read(exynos_pcie->pmureg, 0x3A20, &val2);
-			regmap_read(exynos_pcie->pmureg, exynos_pcie->pmu_offset1, &val3);
-			dev_info(dev, "[%s] PMU+0x71C: 0x%x, PMU+0x3A20: 0x%x, PMU+0xAB0: %x\n", __func__, val1, val2, val3);
+			if (exynos_pcie->ch_num == 0) {
+				if ((exynos_pcie->state == STATE_LINK_UP_TRY) ||
+						(exynos_pcie->state == STATE_LINK_UP))
+					exynos_pcie_rc_print_pmu_register(exynos_pcie);
+			}
 		}
 
 	} else {

@@ -339,11 +339,14 @@ void dsp_graph_remove_kernel(struct npu_device *device, struct npu_session *sess
 	if (session->kernel_loaded) {
 		__dsp_kernel_unload(kmgr, session->dl_libs, session->kernel_count);
 		kfree(session->dl_libs);
+		session->dl_libs = NULL;
 	} else {
 		kfree(session->dl_libs);
+		session->dl_libs = NULL;
 	}
 	if (session->kernel_name) {
 		kfree(session->kernel_name);
+		session->kernel_name = NULL;
 	}
 
 	list_for_each_entry_safe(kernel, t, &session->kernel_list, graph_list) {

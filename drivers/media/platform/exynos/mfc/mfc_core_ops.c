@@ -893,6 +893,14 @@ void mfc_core_instance_dpb_flush(struct mfc_core *core, struct mfc_ctx *ctx)
 		}
 
 		if (mfc_wait_for_done_core_ctx(core_ctx, MFC_REG_R2H_CMD_DPB_FLUSH_RET)) {
+			if ((core->state == MFCCORE_ERROR) ||
+			    (core_ctx->state == MFCINST_ERROR)) {
+				mfc_err("error occured during DPB_FLUSH\n");
+				mfc_clear_bit(ctx->num, &core->work_bits);
+				mfc_core_release_hwlock_ctx(core_ctx);
+				return;
+			}
+
 			mfc_err("time out during DPB flush\n");
 			core->logging_data->cause |= (1 << MFC_CAUSE_FAIL_DPB_FLUSH);
 			call_dop(core, dump_and_stop_always, core);

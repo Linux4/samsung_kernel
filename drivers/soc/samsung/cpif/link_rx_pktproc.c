@@ -1093,7 +1093,7 @@ static unsigned int pktproc_perftest_gen_rx_packet_sktbuf_mode(
 	u32 header_len = perftest_data[perf->mode].header_len;
 	u32 rear_ptr;
 	unsigned int space, loop_count;
-	u8 *src;
+	u8 *src = NULL;
 	u32 *seq;
 	u16 *dst_port;
 	u16 *dst_addr;
@@ -1114,10 +1114,16 @@ static unsigned int pktproc_perftest_gen_rx_packet_sktbuf_mode(
 		/* set data */
 #if IS_ENABLED(CONFIG_LINK_DEVICE_PCIE_IOMMU)
 		src = q->ioc.pf_buf[rear_ptr] + q->ppa->skb_padding_size;
+#elif IS_ENABLED(CONFIG_EXYNOS_CPIF_IOMMU)
+
 #else
 		src = desc[rear_ptr].cp_data_paddr -
 				q->cp_buff_pbase + q->q_buff_vbase;
 #endif
+		if (!src) {
+			mif_err_limited("src is null\n");
+			return -EINVAL;
+		}
 		memset(src, 0x0, desc[rear_ptr].length);
 		memcpy(src, perftest_data[perf->mode].header, header_len);
 		seq = (u32 *)(src + header_len);

@@ -48,7 +48,7 @@ static void print_tbl(int *tbl, int sz)
 static void print_tbl(int *tbl, int sz) {}
 #endif
 
-static int max_brt_tbl(struct brightness_table *brt_tbl)
+int max_brt_tbl(struct brightness_table *brt_tbl)
 {
 	if (unlikely(!brt_tbl || !brt_tbl->brt || !brt_tbl->sz_brt)) {
 		panel_err("invalid parameter\n");

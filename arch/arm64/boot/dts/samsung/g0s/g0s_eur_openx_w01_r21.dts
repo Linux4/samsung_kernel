@@ -2437,6 +2437,7 @@
 				s2dos05,wakeup;
 				pinctrl-names = "default";
 				pinctrl-0 = <0x4c>;
+				sec_disp_pmic_name = "disp_pmic";
 				s2dos05,s2dos05_int = <0xffffffff 0x06 0x00>;
 				adc_mode = <0x00>;
 				adc_sync_mode = <0x02>;

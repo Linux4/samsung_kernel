@@ -284,7 +284,7 @@ static void p61_spi_release_work(struct work_struct *work)
  * \retval 0 if ok.
  *
  */
-static int ese_dev_release(struct inode *inode, struct file *filp)
+static int p61_dev_release(struct inode *inode, struct file *filp)
 {
 	struct p61_dev *p61_dev = NULL;
 
@@ -324,6 +324,7 @@ static int p61_xfer(struct p61_dev *p61_dev,
 	int status = 0;
 	struct spi_message m;
 	struct spi_transfer t;
+	static u32 read_try_cnt;
 	/*For SDM845 & linux4.9: need to change spi buffer
 	 * from stack to dynamic memory
 	 */
@@ -364,10 +365,24 @@ static int p61_xfer(struct p61_dev *p61_dev,
 		}
 	}
 
-	if (tr->tx_buffer != NULL)
-		NFC_LOG_REC("p61_wr: %d\n", tr->len);
-	if (tr->rx_buffer != NULL)
-		NFC_LOG_REC("p61_rd: %d\n", tr->len);
+	if (tr->tx_buffer != NULL) {
+		if (read_try_cnt)
+			NFC_LOG_REC("p61w%d try%u\n", tr->len, read_try_cnt);
+		else
+			NFC_LOG_REC("p61w%d\n", tr->len);
+	}
+	if (tr->rx_buffer != NULL) {
+		if (tr->len == 2 && ((p61_dev->r_buf[0] == 0x0 && p61_dev->r_buf[2] == 0x0) ||
+				(p61_dev->r_buf[0] == 0xff && p61_dev->r_buf[2] == 0xff))) {
+			read_try_cnt++;
+		} else {
+			if (read_try_cnt)
+				NFC_LOG_REC("p61r%d try%u\n", tr->len, read_try_cnt);
+			else
+				NFC_LOG_REC("p61r%d\n", tr->len);
+			read_try_cnt = 0;
+		}
+	}
 
 xfer_exit:
 	return status;
@@ -671,7 +686,7 @@ static long p61_dev_ioctl(struct file *filp, unsigned int cmd,
 		}
 		break;
 	case ESE_SET_TRUSTED_ACCESS:
-		NFC_LOG_INFO("Enter %s: TRUSTED access enabled=%d\n", __func__, arg);
+		NFC_LOG_INFO("Enter %s: TRUSTED access enabled=%lu\n", __func__, arg);
 #if !IS_ENABLED(CONFIG_SAMSUNG_NFC)
 		if(arg == 1) {
 			NFC_LOG_INFO("ESE_SET_TRUSTED_ACCESS: enter Enabling\n");
@@ -803,7 +818,7 @@ static long p61_dev_compat_ioctl(struct file *filp, unsigned int cmd,
 		break;
 
 	case ESE_SET_TRUSTED_ACCESS:
-		NFC_LOG_INFO("Enter %s: TRUSTED access enabled=%d\n", __func__, arg);
+		NFC_LOG_INFO("Enter %s: TRUSTED access enabled=%lu\n", __func__, arg);
 #if !IS_ENABLED(CONFIG_SAMSUNG_NFC)
 		if (arg == 1) {
 			NFC_LOG_INFO("ESE_SET_TRUSTED_ACCESS: enter Enabling\n");
@@ -1202,7 +1217,7 @@ static const struct file_operations p61_dev_fops = {
 	.read = p61_dev_read,
 	.write = p61_dev_write,
 	.open = p61_dev_open,
-	.release = ese_dev_release,
+	.release = p61_dev_release,
 	.unlocked_ioctl = p61_dev_ioctl,
 #ifdef CONFIG_COMPAT
 	.compat_ioctl = p61_dev_compat_ioctl,
@@ -1500,6 +1515,8 @@ static int p61_probe(struct spi_device *spi)
 			goto err_exit0;
 		}
 	}
+	/* gpio cold reset doesn't work. so, set gpio coldreset to false to use i2c cold reset */
+	platform_data->gpio_coldreset = false;
 
 	spi->bits_per_word = 8;
 	spi->mode = SPI_MODE_0;
@@ -1552,8 +1569,7 @@ static int p61_probe(struct spi_device *spi)
 #if IS_ENABLED(CONFIG_SAMSUNG_NFC)
 	p61_dev->nfc_node = of_parse_phandle(np, "nxp,nfcc", 0);
 	if (!p61_dev->nfc_node) {
-		NFC_LOG_ERR("%s: nxp,nfcc invalid or missing in device tree (%d)\n",
-			__func__, p61_dev->nfc_node);
+		NFC_LOG_ERR("%s: nxp,nfcc invalid or missing in device tree\n", __func__);
 		goto err_exit0;
 	}
 #else

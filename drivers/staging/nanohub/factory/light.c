@@ -481,7 +481,7 @@ void initialize_light_factorytest(struct ssp_data *data)
     push_back(&light_manager, "STK33915", get_light_stk33915());
 #endif
 
-	sensors_register(data->light_device, data, light_attrs, "light_sensor");
+	sensors_register(&data->light_device, data, light_attrs, "light_sensor");
 }
 
 void remove_light_factorytest(struct ssp_data *data)

@@ -90,6 +90,7 @@ struct dp_lc_send_l_prime {
 struct dp_ske_send_eks {
 	uint8_t edkey_ks[HDCP_AKE_MKEY_BYTE_LEN];
 	uint8_t riv[HDCP_RTX_BYTE_LEN];
+	uint8_t type;
 };
 
 struct dp_rp_send_rcvid_list {
@@ -523,13 +524,7 @@ static int do_send_ske_send_eks(struct hdcp_link_data *lk)
 	int ret;
 	struct hdcp_msg_info msg_info;
 	struct dp_ske_send_eks *m_ske;
-	/* todo:
-	 * Currently, SST mode only use 0x00 as type value
-	 * MST mode, HDCP driver get type value from DP driver
-	 */
-#if defined(CONFIG_HDCP2_2_ERRATA_SUPPORT)
-	uint8_t type = 0x00;
-#endif
+
        /* check abort state firstly,
         * if session is abored by Rx, Tx stops Authentication process
         */
@@ -572,8 +567,9 @@ static int do_send_ske_send_eks(struct hdcp_link_data *lk)
 	 * type info is send only for receiver
 	 */
 	if (!lk->rx_ctx.repeater) {
+		hdcp_info("Set Type (0x%02x)\n", m_ske->type);
 		ret = hdcp_dplink_send(HDCP22_MSG_TYPE_W,
-				&type,
+				&m_ske->type,
 				sizeof(uint8_t));
 		if (ret) {
 			hdcp_err("HDCP : SKE_send_eks type send fail: %x\n", ret);

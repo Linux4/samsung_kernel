@@ -952,9 +952,7 @@ void report_mcu_ready(struct ssp_data *data);
 int print_mcu_debug(char *pchRcvDataFrame, int *pDataIdx, int iRcvDataFrameLength);
 
 void reset_mcu(struct ssp_data *data);
-int sensors_register(struct device *dev, void *drvdata,
-	struct device_attribute *attributes[], char *name);
-int sensors_register_dcopy(struct device **pdev, void *drvdata,
+int sensors_register(struct device **pdev, void *drvdata,
 	struct device_attribute *attributes[], char *name);
 void sensors_unregister(struct device *dev,
 	struct device_attribute *attributes[]);

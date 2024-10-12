@@ -1728,7 +1728,7 @@ int cnss_pci_link_down(struct device *dev)
 		cnss_pr_dbg("PCI link down recovery is already in progress\n");
 		return -EBUSY;
 	}
-
+	
 #ifdef CONFIG_SOC_S5E9925
 	if ((pci_priv->pci_link_state == PCI_LINK_DOWN) &&
 #else

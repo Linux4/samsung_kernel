@@ -13,6 +13,7 @@
 #include <linux/fb.h>
 #include <linux/module.h>
 #include <linux/list_sort.h>
+#include <linux/bitmap.h>
 #include "exynos_drm_dp.h"
 #ifdef CONFIG_SEC_DISPLAYPORT_SELFTEST
 #include "../dp_ext_func/dp_self_test.h"
@@ -490,8 +491,9 @@ bool dp_mode_filter(struct dp_device *dp, struct drm_display_mode *mode, int fla
 {
 	int refresh = drm_mode_vrefresh(mode);
 
-	/* YCbCr420 */
-	if (drm_mode_is_420_only(&dp->connector.display_info, mode))
+	/* YCbCr420 but not preferred */
+	if (!(mode->type & DRM_MODE_TYPE_PREFERRED) &&
+			drm_mode_is_420_only(&dp->connector.display_info, mode))
 		return false;
 
 	/* interlace */
@@ -578,6 +580,15 @@ void dp_mode_filter_out(struct dp_device *dp, int mode_num)
 		drm_mode_copy(&dp->cur_mode, &dp->best_mode);
 
 	list_for_each_entry_safe(mode, t, &connector->probed_modes, head) {
+		if (mode->type & DRM_MODE_TYPE_PREFERRED &&
+				drm_mode_is_420_only(&connector->display_info, mode)) {
+			u8 vic = drm_match_cea_mode(mode);
+
+			/* HACK: prevent preferred from becomming ycbcr420 */
+			bitmap_clear(connector->display_info.hdmi.y420_vdb_modes, vic, 1);
+			dp_info(dp, "unset ycbcr420 for prefer %s@%d vic %d\n",
+				mode->name, drm_mode_vrefresh(mode), vic);
+		}
 		if (drm_mode_match(&dp->cur_mode, mode, DRM_MODE_MATCH_TIMINGS))
 			break;
 		mode->status |= MODE_BAD;

@@ -1237,7 +1237,11 @@ u32 get_remosaic_zoom_ratio(struct is_sensor_interface *itf, u32 *zoom_ratio)
 	cis_data = sensor_peri->cis.cis_data;
 	WARN_ON(!cis_data);
 
-	*zoom_ratio = cis_data->pre_remosaic_zoom_ratio;
+	if (cis_data->sen_vsync_count == cis_data->pre_remosaic_zoom_ratio_vsync) {
+		*zoom_ratio = cis_data->pre_remosaic_zoom_ratio_backup;
+	}else {
+		*zoom_ratio = cis_data->pre_remosaic_zoom_ratio;
+	}
 
 	dbg_sensor(1, "[%d][%s] zoom_ratio(%d)\n", sensor_peri->cis.id, __func__, *zoom_ratio);
 

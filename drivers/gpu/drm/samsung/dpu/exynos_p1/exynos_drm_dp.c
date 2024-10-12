@@ -497,6 +497,30 @@ static int dp_check_pixel_clock_for_hdr(struct dp_device *dp,
 }
 #endif
 
+static bool dp_devid_is_ps176(struct dp_device *dp)
+{
+	if (dp->sink_info.devid_str[0] == '1' &&
+			dp->sink_info.devid_str[1] == '7' &&
+			dp->sink_info.devid_str[2] == '6')
+		return true;
+
+	return false;
+}
+
+static bool dp_mode_is_optimizable(struct drm_display_mode *mode, u64 max_pclk)
+{
+	int fps = drm_mode_vrefresh(mode);
+	int resolution = mode->hdisplay * mode->vdisplay;
+	
+	if (fps > 110 && resolution >= (1920 * 1080) && max_pclk > 250000000U)
+		return false;
+
+	if (fps > 75 && resolution >= (2560 * 1440)  && max_pclk > 300000000U)
+		return false;
+
+	return true;
+}
+
 static int dp_get_min_link_rate(struct dp_device *dp,
 		u8 rx_link_rate, u8 lane_cnt, enum bit_depth bpc)
 {
@@ -524,6 +548,13 @@ static int dp_get_min_link_rate(struct dp_device *dp,
 		min_link_rate = LINK_RATE_5_4Gbps;
 	else
 		min_link_rate = link_rate[i] > rx_link_rate ? rx_link_rate : link_rate[i];
+
+	/* check if mode does not allow optimization. */
+	if (dp_devid_is_ps176(dp) && min_link_rate == LINK_RATE_2_7Gbps &&
+			!dp_mode_is_optimizable(&dp->best_mode, max_pclk)) {
+		dp_info(dp, "no optimize link rate\n");
+		return rx_link_rate;
+	}
 
 	dp_info(dp, "set link late: 0x%x, lane cnt:%d\n", min_link_rate, lane_cnt);
 
@@ -1068,6 +1099,7 @@ static int dp_read_branch_revision(struct dp_device *dp)
 {
 	int ret = 0;
 	u8 val[4] = {0, };
+	char devid[DPCD_DEVID_STR_SIZE + 1] = {0, };
 
 	ret = dp_reg_dpcd_read_burst(&dp->cal_res, DPCD_BRANCH_HW_REVISION, 3, val);
 	if (!ret) {
@@ -1079,6 +1111,12 @@ static int dp_read_branch_revision(struct dp_device *dp)
 		secdp_bigdata_save_item(BD_ADAPTER_HWID, val[0]);
 		secdp_bigdata_save_item(BD_ADAPTER_FWVER, (val[1] << 8) | val[2]);
 #endif
+	}
+
+	ret = dp_reg_dpcd_read_burst(&dp->cal_res, DPCD_DEVID_STR, DPCD_DEVID_STR_SIZE, devid);
+	if (!ret) {
+		memcpy(dp->sink_info.devid_str, devid, DPCD_DEVID_STR_SIZE);
+		dp_info(dp, "devid : %s\n", devid);
 	}
 
 	return ret;

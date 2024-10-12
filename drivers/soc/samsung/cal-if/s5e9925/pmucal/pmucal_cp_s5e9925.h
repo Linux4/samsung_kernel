@@ -1,4 +1,4 @@
-/* individual sequence descriptor for CP control - init, reset, release, cp_active_clear, cp_reset_req_clear */
+﻿/* individual sequence descriptor for CP control - init, reset, release, cp_active_clear, cp_reset_req_clear */
 struct pmucal_seq cp_init[] = {
 	PMUCAL_SEQ_DESC(PMUCAL_WRITE, "CP_CTRL_S", 0x15860000, 0x3914, (0x1 << 3), (0x1 << 3), 0, 0, 0xffffffff, 0),
 	PMUCAL_SEQ_DESC(PMUCAL_WRITE, "CP_CONFIGURATION", 0x15860000, 0x3900, (0x1 << 0), (0x1 << 0), 0, 0, 0xffffffff, 0),
@@ -24,6 +24,14 @@ struct pmucal_seq cp_reset_assert[] = {
 };
 
 struct pmucal_seq cp_reset_release[] = {
+#if IS_ENABLED(CONFIG_PROJECT_NAME_R11)
+	PMUCAL_SEQ_DESC(PMUCAL_SET_BIT_ATOMIC, "V_PWREN", 0x15860000, 0x3ef0, (0xffffffff << 0), (0xe << 0), 0, 0, 0xffffffff, 0),
+	PMUCAL_SEQ_DESC(PMUCAL_DELAY, "delay", 0, 0, 0, 0x3e8, 0, 0, 0, 0),
+	PMUCAL_SEQ_DESC(PMUCAL_SET_BIT_ATOMIC, "V_PWREN", 0x15860000, 0x3ef0, (0xffffffff << 0), (0xf << 0), 0, 0, 0xffffffff, 0),
+	PMUCAL_SEQ_DESC(PMUCAL_DELAY, "delay", 0, 0, 0, 0x3e8, 0, 0, 0, 0),
+	PMUCAL_SEQ_DESC(PMUCAL_SET_BIT_ATOMIC, "V_PWREN", 0x15860000, 0x3ef0, (0xffffffff << 0), (0x10 << 0), 0, 0, 0xffffffff, 0),
+	PMUCAL_SEQ_DESC(PMUCAL_DELAY, "delay", 0, 0, 0, 0x3e8, 0, 0, 0, 0),
+#endif
 	PMUCAL_SEQ_DESC(PMUCAL_WRITE, "CP_CONFIGURATION", 0x15860000, 0x3900, (0x1 << 0), (0x1 << 0), 0, 0, 0xffffffff, 0),
 	PMUCAL_SEQ_DESC(PMUCAL_WAIT, "CP_STATUS", 0x15860000, 0x3904, (0x1 << 0), (0x1 << 0), 0, 0, 0xffffffff, 0),
 	PMUCAL_SEQ_DESC(PMUCAL_WRITE, "CP_INT_EN", 0x15860000, 0x3934, (0x1 << 3), (0x1 << 3), 0, 0, 0xffffffff, 0),

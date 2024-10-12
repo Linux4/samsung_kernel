@@ -214,13 +214,13 @@ void initialize_pressure_factorytest(struct ssp_data *data)
 {
 #if defined(LPS25H_REV)
 	if (data->ap_rev >= LPS25H_REV)
-		sensors_register(data->prs_device, data, pressure_attrs_lps25h,
+		sensors_register(&data->prs_device, data, pressure_attrs_lps25h,
 			"barometer_sensor");
 	else
-		sensors_register(data->prs_device, data, pressure_attrs,
+		sensors_register(&data->prs_device, data, pressure_attrs,
 			"barometer_sensor");
 #else
-	sensors_register(data->prs_device, data, pressure_attrs,
+	sensors_register(&data->prs_device, data, pressure_attrs,
 		"barometer_sensor");
 #endif
 }

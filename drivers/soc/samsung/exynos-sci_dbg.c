@@ -704,6 +704,11 @@ static ssize_t smc_mif_spare_cfg_ctl_store(struct device *dev,
 	if (ret != 2)
 		return -EINVAL;
 
+	if (i >= 4) {
+		SCI_DBG_ERR("%s: Invalid MIF index\n", __func__);
+		return -EINVAL;
+	}
+
 	__raw_writel(reg, data->dump_addr.smc_mif_base[i] + SMC_SPARE_CFG_CTL);
 
 	return count;

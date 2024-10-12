@@ -133,7 +133,7 @@ static struct device_attribute *gesture_attrs[] = {
 
 void initialize_gesture_factorytest(struct ssp_data *data)
 {
-	sensors_register(data->ges_device, data,
+	sensors_register(&data->ges_device, data,
 		gesture_attrs, "gesture_sensor");
 }
 

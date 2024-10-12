@@ -1039,10 +1039,6 @@ static void exynos_panel_bridge_mode_set(struct drm_bridge *bridge,
 
 			funcs->mode_set(ctx, pmode, exynos_state->seamless_modeset);
 		}
-
-		if (SEAMLESS_MODESET_VREF & exynos_state->seamless_modeset &&
-				ctx->enabled)
-			exynos_state->adjusted_fps = drm_mode_vrefresh(&pmode->mode);
 	}
 
 	panel_info(ctx, "change the panel(%s) display mode (%s -> %s)\n",

@@ -3387,7 +3387,7 @@ static void cs40l26_upload_worker(struct work_struct *work)
 			struct cs40l26_private, upload_work);
 	struct device *cdev = cs40l26->dev;
 	u8 *refactored_data = NULL;
-	int ret = 0, refactored_size, len;
+	int ret = 0, refactored_size, len, max_index_tmp;
 	u32 trigger_index, min_index, max_index, nwaves;
 	struct ff_effect *effect;
 	u16 index, bank;
@@ -3488,8 +3488,15 @@ static void cs40l26_upload_worker(struct work_struct *work)
 				goto out_free;
 			} else {
 				min_index = CS40L26_RAM_INDEX_START;
-				max_index = min_index + nwaves - 1 -
-						cs40l26->num_owt_effects;
+
+				max_index_tmp = min_index + nwaves - cs40l26->num_owt_effects - 1;
+				if (max_index_tmp < 0) {
+					dev_err(cdev, "Invalid RAM index %d\n", max_index_tmp);
+					ret = -EINVAL;
+					goto out_free;
+				}
+
+				max_index = (u32) max_index_tmp;
 			}
 			break;
 		case CS40L26_ROM_BANK_ID:

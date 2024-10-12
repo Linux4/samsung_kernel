@@ -83,8 +83,10 @@ bool t2lm_is_valid_t2lm_link_map(struct wlan_objmgr_vdev *vdev,
 		    WLAN_T2LM_INVALID_DIRECTION)
 			continue;
 
-		if (t2lm->t2lm_info[dir].default_link_mapping) {
+		if (t2lm->t2lm_info[dir].default_link_mapping &&
+		    t2lm->t2lm_info[dir].direction == WLAN_T2LM_BIDI_DIRECTION) {
 			is_valid_link_mask = true;
+			*valid_dir = dir;
 			continue;
 		}
 

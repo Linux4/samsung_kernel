@@ -195,6 +195,7 @@ typedef struct {
 	uint32_t id;
 	uint32_t len;
 	uint8_t riv[HDCP_RIV_BYTE_LEN];
+	uint8_t type;
 } hci_genriv_t;
 
 typedef struct {
@@ -309,7 +310,7 @@ int teei_get_pairing_info(uint8_t *ekh_mkey, size_t ekh_mkey_len,
 int teei_gen_rn(uint8_t *out, size_t len);
 int teei_gen_lc_hmac(uint32_t lk_type, uint8_t *lsb128_hmac);
 int teei_compare_lc_hmac(uint8_t *rx_hmac, size_t rx_hmac_len);
-int teei_generate_riv(uint8_t *out, size_t len);
+int teei_generate_riv(uint8_t *out, size_t len, uint8_t *type);
 int teei_generate_skey(uint32_t lk_type,
 		uint8_t *eskey, size_t eskey_len,
 		int share_skey);

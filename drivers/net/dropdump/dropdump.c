@@ -448,7 +448,16 @@ struct sk_buff *drd_queue_skb(struct sk_buff *skb, int mode, unsigned int reason
 
 	if (mode) {
 		clen = min(0x80u, len);
-		tstamp_bck = skb->tstamp;
+
+		/* set timestamp for dummy packet */
+		if (skb->tstamp >> 48 < 5000) {
+			/* packet has kernel timestamp, not utc
+			   using a zero-value for updating to utc at tpacket_rcv() */
+			tstamp_bck = 0;
+		} else {
+			/* using utc of original packet */
+			tstamp_bck = skb->tstamp;
+		}
 	} else {
 		clen = len;
 	}
@@ -515,46 +524,50 @@ out_unlock:
 
 int skb_validate(struct sk_buff *skb)
 {
-	int err = -1;
-
 	if (virt_addr_valid(skb) && virt_addr_valid(skb->dev)) {
 		struct iphdr *ip4hdr = (struct iphdr *)skb_network_header(skb);
 
+		if (skb->protocol != htons(ETH_P_IPV6)
+		    && skb->protocol != htons(ETH_P_IP))
+			return -1;
+
 		switch (skb->dev->name[0]) {
 			case 'r' : // rmnet*
-			case 'w' : // wlan
+			//case 'w' : // wlan
 			case 'v' : // v4-rmnet*
 			case 'l' : // lo
-			case 's' : // swlan
+			//case 's' : // swlan /* swlan logging makes rcu lock starvation */
 			case 't' : // tun
 			case 'b' : // bt*
 				break;
 			default :
-				drd_dbg("invlide dev: %s\n", skb->dev->name);
-				return -8;
+				drd_dbg("invalid dev: %s\n", skb->dev->name);
+				return -2;
 		}
 
-		if (skb->protocol != htons(ETH_P_IPV6)
-		    && skb->protocol != htons(ETH_P_IP))
-			err = -2;
-		else if (unlikely((ip4hdr->version != 4 && ip4hdr->version != 6)
+		if (unlikely((ip4hdr->version != 4 && ip4hdr->version != 6)
 				|| ip4hdr->id == 0x6b6b))
-			err = -3;
-		else if (unlikely(!skb->len))
-			err = -4;
-		else if (unlikely(skb->len > skb->tail))
-			err = -5;
-		else if (unlikely(skb->data <= skb->head))
-			err = -6;
-		else if (unlikely(skb->tail > skb->end))
-			err = -7;
-		else if (unlikely(skb->pkt_type == PACKET_LOOPBACK))
-			err = -8;
-		else
-			err = 0;
+			return -3;
+
+		if (unlikely(!skb->len))
+			return -4;
+
+		if (unlikely(skb->len > skb->tail))
+			return -5;
+
+		if (unlikely(skb->data <= skb->head))
+			return -6;
+
+		if (unlikely(skb->tail > skb->end))
+			return -7;
+
+		if (unlikely(skb->pkt_type == PACKET_LOOPBACK))
+			return -8;
+
+		return 0;
 	}
 
-	return err;
+	return -255;
 }
 
 void drd_kfree_skb(struct sk_buff *skb, unsigned int reason)
