@@ -11644,6 +11644,7 @@
 				check_fw_project_id;
 				support_dex_mode;
 				enable_settings_aot;
+				enable_sysinput_enabled;
 				novatek,scanoff_when_cover_closed;
 				phandle = <0x1a1>;
 
