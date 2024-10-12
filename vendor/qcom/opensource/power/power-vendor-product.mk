@@ -18,6 +18,8 @@ PRODUCT_COPY_FILES += vendor/qcom/opensource/power/config/holi/powerhint.xml:$(T
 else ifeq ($(TARGET_BOARD_PLATFORM),taro)
 ifneq ($(filter r0q%, $(TARGET_PRODUCT)),)
 PRODUCT_COPY_FILES += vendor/qcom/opensource/power/config/taro/powerhint_r0q.xml:$(TARGET_COPY_OUT_VENDOR)/etc/powerhint.xml
+else ifneq ($(filter r11q%, $(TARGET_PRODUCT)),)
+PRODUCT_COPY_FILES += vendor/qcom/opensource/power/config/taro/powerhint_r11q.xml:$(TARGET_COPY_OUT_VENDOR)/etc/powerhint.xml
 else ifneq ($(filter g0q%, $(TARGET_PRODUCT)),)
 PRODUCT_COPY_FILES += vendor/qcom/opensource/power/config/taro/powerhint_g0q.xml:$(TARGET_COPY_OUT_VENDOR)/etc/powerhint.xml
 else ifneq ($(filter b0q%, $(TARGET_PRODUCT)),)

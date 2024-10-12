@@ -52,6 +52,7 @@
 #include "sec_battery_misc.h"
 #endif
 #include "sec_adc.h"
+#include "sb_full_soc.h"
 
 extern const char *sb_get_ct_str(int cable_type);
 extern const char *sb_get_cm_str(int chg_mode);
@@ -1160,6 +1161,8 @@ struct sec_battery_info {
 	struct sec_vote * chgen_vote;
 	struct sec_vote * topoff_vote;
 	struct sec_vote *iv_vote;
+
+	struct sb_full_soc *fs;
 
 	/* 25w ta alert */
 	bool ta_alert_wa;

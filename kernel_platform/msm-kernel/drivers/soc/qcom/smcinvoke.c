@@ -330,7 +330,7 @@ static int prepare_send_scm_msg(const uint8_t *in_buf, phys_addr_t in_paddr,
 		struct smcinvoke_cmd_req *req,
 		union smcinvoke_arg *args_buf,
 		bool *tz_acked, uint32_t context_type,
-		struct qtee_shm *in_shm, struct qtee_shm *out_shm);
+		struct qtee_shm *in_shm, struct qtee_shm *out_shm, bool retry);
 
 static void process_piggyback_data(void *buf, size_t buf_size);
 
@@ -502,7 +502,7 @@ static int smcinvoke_release_tz_object(struct qtee_shm *in_shm, struct qtee_shm 
 	ret = prepare_send_scm_msg(in_buf, in_shm->paddr,
 			SMCINVOKE_TZ_MIN_BUF_SIZE, out_buf, out_shm->paddr,
 			SMCINVOKE_TZ_MIN_BUF_SIZE, &req, NULL,
-			&release_handles, context_type, in_shm, out_shm);
+			&release_handles, context_type, in_shm, out_shm, false);
 	process_piggyback_data(out_buf, SMCINVOKE_TZ_MIN_BUF_SIZE);
 	if (ret) {
 		pr_err("Failed to release object(0x%x), ret:%d\n",
@@ -1645,6 +1645,52 @@ static bool is_inbound_req(int val)
 		val == QSEOS_RESULT_BLOCKED_ON_LISTENER);
 }
 
+static void process_piggyback_cb_data(uint8_t *outbuf, size_t buf_len)
+{
+	struct smcinvoke_tzcb_req *msg = NULL;
+	uint32_t max_offset = 0;
+	uint32_t buffer_size_max_offset = 0;
+	void *piggyback_buf = NULL;
+	size_t piggyback_buf_size;
+	size_t piggyback_offset = 0;
+	int i = 0;
+
+	if (outbuf == NULL) {
+		pr_err("%s: outbuf is NULL\n", __func__);
+		return;
+	}
+	msg = (void *) outbuf;
+	if ((buf_len < msg->args[0].b.offset) ||
+		(buf_len - msg->args[0].b.offset < msg->args[0].b.size)) {
+		pr_err("%s: invalid scenario\n", __func__);
+		return;
+	}
+	FOR_ARGS(i, msg->hdr.counts, BI)
+	{
+		if (msg->args[i].b.offset > max_offset) {
+			max_offset = msg->args[i].b.offset;
+			buffer_size_max_offset = msg->args[i].b.size;
+		}
+	}
+	FOR_ARGS(i, msg->hdr.counts, BO)
+	{
+		if (msg->args[i].b.offset > max_offset) {
+			max_offset = msg->args[i].b.offset;
+			buffer_size_max_offset = msg->args[i].b.size;
+		}
+	}
+	//Take out the offset after BI and BO objects end
+	if (max_offset)
+		piggyback_offset = max_offset + buffer_size_max_offset;
+	else
+		piggyback_offset = TZCB_BUF_OFFSET(msg);
+	piggyback_offset = size_align(piggyback_offset, SMCINVOKE_ARGS_ALIGN_SIZE);
+	// Jump to piggy back data offset
+	piggyback_buf = (uint8_t *)msg + piggyback_offset;
+	piggyback_buf_size = g_max_cb_buf_size - piggyback_offset;
+	process_piggyback_data(piggyback_buf, piggyback_buf_size);
+}
+
 static int prepare_send_scm_msg(const uint8_t *in_buf, phys_addr_t in_paddr,
 		size_t in_buf_len,
 		uint8_t *out_buf, phys_addr_t out_paddr,
@@ -1652,7 +1698,8 @@ static int prepare_send_scm_msg(const uint8_t *in_buf, phys_addr_t in_paddr,
 		struct smcinvoke_cmd_req *req,
 		union smcinvoke_arg *args_buf,
 		bool *tz_acked, uint32_t context_type,
-		struct qtee_shm *in_shm, struct qtee_shm *out_shm)
+		struct qtee_shm *in_shm, struct qtee_shm *out_shm,
+		bool retry)
 {
 	int ret = 0, cmd, retry_count = 0;
 	u64 response_type;
@@ -1690,7 +1737,7 @@ static int prepare_send_scm_msg(const uint8_t *in_buf, phys_addr_t in_paddr,
 				mutex_lock(&g_smcinvoke_lock);
 			}
 
-		} while ((ret == -EBUSY) &&
+		} while (retry && (ret == -EBUSY) &&
 				(retry_count++ < SMCINVOKE_SCM_EBUSY_MAX_RETRY));
 
 		if (!ret && !is_inbound_req(response_type)) {
@@ -1737,6 +1784,7 @@ static int prepare_send_scm_msg(const uint8_t *in_buf, phys_addr_t in_paddr,
 
 		if (response_type == SMCINVOKE_RESULT_INBOUND_REQ_NEEDED) {
 			trace_status(__func__, "looks like inbnd req reqd");
+			process_piggyback_cb_data(out_buf, out_buf_len);
 			process_tzcb_req(out_buf, out_buf_len, arr_filp);
 			cmd = SMCINVOKE_CB_RSP_CMD;
 		}
@@ -2397,7 +2445,7 @@ static long process_invoke_req(struct file *filp, unsigned int cmd,
 	ret = prepare_send_scm_msg(in_msg, in_shm.paddr, inmsg_size,
 			out_msg, out_shm.paddr, outmsg_size,
 			&req, args_buf, &tz_acked, context_type,
-			&in_shm, &out_shm);
+			&in_shm, &out_shm, true);
 
 	/*
 	 * If scm_call is success, TZ owns responsibility to release

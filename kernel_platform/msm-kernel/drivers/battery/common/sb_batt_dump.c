@@ -71,7 +71,7 @@ static ssize_t show_attrs(struct device *dev,
 #endif
 
 		snprintf(temp_buf + strlen(temp_buf), size,
-			"%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%s,%s,%s,%s,%s,%d,%s,%d,%d,%lu,0x%x,0x%x,0x%x,%d,",
+			"%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%s,%s,%s,%s,%s,%d,%s,%d,%d,%lu,0x%x,0x%x,0x%x,%d,%d,",
 			battery->voltage_now, battery->current_now,
 			battery->current_max, battery->charging_current,
 			battery->capacity,
@@ -92,8 +92,9 @@ static ssize_t show_attrs(struct device *dev,
 			battery->current_event,
 			battery->misc_event,
 			battery->tx_event,
+			0, /* battery->wc_rx_phm_mode */
 			0 /*battery->srccap_transit*/
-			);
+		);
 		size = sizeof(temp_buf) - strlen(temp_buf);
 
 	{

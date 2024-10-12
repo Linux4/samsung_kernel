@@ -2428,6 +2428,9 @@ int StreamOutPrimary::RouteStream(const std::set<audio_devices_t>& new_devices, 
     bool sb_volume_on = false;
     uint32_t sb_volume_mode = PARAM_VOLUME_NONE;
 #endif
+#ifdef SEC_AUDIO_HDMI  // { SUPPORT_VOIP_VIA_SMART_MONITOR
+    std::set<audio_devices_t> previousDevices = mAndroidOutDevices;
+#endif // }SUPPORT_VOIP_VIA_SMART_MONITOR
 
     stream_mutex_.lock();
     if (!mInitialized) {
@@ -2603,6 +2606,11 @@ int StreamOutPrimary::RouteStream(const std::set<audio_devices_t>& new_devices, 
                     sizeof(mPalOutDevice->custom_config.custom_key));
         }
 
+#ifdef SEC_AUDIO_HDMI // { SUPPORT_VOIP_VIA_SMART_MONITOR
+        // update tx path with custom key if tx path is routed earlier than rx path.
+        sec_stream_out_->RerouteForVoipSmartMonitor(this, previousDevices);
+#endif // } SUPPORT_VOIP_VIA_SMART_MONITOR
+
         if (pal_stream_handle_) {
 #ifdef SEC_AUDIO_SUPPORT_AFE_LISTENBACK
             if (mPalOutDevice->id != adevice->sec_device_->listenback_device ||
@@ -2629,10 +2637,17 @@ int StreamOutPrimary::RouteStream(const std::set<audio_devices_t>& new_devices, 
                 if (adevice->voice_ && isOutDevicesChanged &&
                         (this->GetUseCase() == USECASE_AUDIO_PLAYBACK_VOIP)) {
                     stream_mutex_.unlock();
-                    adevice->voice_->sec_voice_->SetVideoCallEffect();
+                    adevice->voice_->sec_voice_->SetVoipMicModeEffect();
                     stream_mutex_.lock();
                 }
 #endif // } CONFIG_EFFECTS_VIDEOCALL
+#ifdef SEC_AUDIO_CALL_TRANSLATION
+                if (this->GetUseCase() == USECASE_AUDIO_PLAYBACK_VOIP &&
+                        (AudioExtn::get_device_types(mAndroidOutDevices) != AudioExtn::get_device_types(previousDevices)) &&
+                        adevice->voice_->sec_voice_->call_translation) {
+                    adevice->voice_->sec_voice_->SetVoiceRxEffectForTranslation();
+                }
+#endif
             } else {
                 AHAL_ERR("failed to set device. Error %d" ,ret);
             }
@@ -3798,13 +3813,18 @@ ssize_t StreamOutPrimary::configurePalOutputStream() {
 #ifdef SEC_AUDIO_CALL_VOIP // { CONFIG_EFFECTS_VIDEOCALL
         if (adevice->voice_ && (streamAttributes_.type == PAL_STREAM_VOIP_RX)) {
             stream_mutex_.unlock();
-            adevice->voice_->sec_voice_->SetVideoCallEffect();
+            adevice->voice_->sec_voice_->SetVoipMicModeEffect();
             stream_mutex_.lock();
         }
 #endif // } CONFIG_EFFECTS_VIDEOCALL
 
 #ifdef SEC_AUDIO_COMMON
 #ifdef SEC_AUDIO_CALL_VOIP
+#ifdef SEC_AUDIO_HDMI // { SUPPORT_VOIP_VIA_SMART_MONITOR
+        // when creating voip_rx stream, update tx path by custom key if voip_tx path is active.
+        sec_stream_out_->RerouteForVoipSmartMonitor(this);
+#endif // } SUPPORT_VOIP_VIA_SMART_MONITOR
+
         if (adevice->voice_ && adevice->voice_->sec_voice_->cng_enable &&
             streamAttributes_.type == PAL_STREAM_VOIP_RX &&
             adevice->voice_->mode_ == AUDIO_MODE_IN_COMMUNICATION) {
@@ -4918,6 +4938,14 @@ int StreamInPrimary::RouteStream(const std::set<audio_devices_t>& new_devices, b
                 adevice->sec_device_->SetListenbackMode(true);
             }
 #endif
+#ifdef SEC_AUDIO_CALL_TRANSLATION
+            if (this->GetUseCase() == USECASE_AUDIO_RECORD_VOIP &&
+                    adevice->voice_->sec_voice_->call_translation) {
+                stream_mutex_.unlock();
+                adevice->voice_->sec_voice_->SetVoWifiTxEffectForTranslation();
+                stream_mutex_.lock();
+            }
+#endif
         }
     }
 
@@ -5449,7 +5477,7 @@ ssize_t StreamInPrimary::read(const void *buffer, size_t bytes) {
 #ifdef SEC_AUDIO_CALL_VOIP // { CONFIG_EFFECTS_VIDEOCALL
         if (adevice->voice_ && (streamAttributes_.type == PAL_STREAM_VOIP_TX)) {
             stream_mutex_.unlock();
-            adevice->voice_->sec_voice_->SetVideoCallEffect();
+            adevice->voice_->sec_voice_->SetVoipMicModeEffect();
             stream_mutex_.lock();
         }
 #endif // } CONFIG_EFFECTS_VIDEOCALL
@@ -5524,6 +5552,23 @@ ssize_t StreamInPrimary::read(const void *buffer, size_t bytes) {
         SEC_LEVEL_RUN(this->GetHandle(), SEC_LEVEL_IN_LAST, palBuffer.buffer, palBuffer.size);
     }
 #endif
+#endif
+
+#ifdef SEC_AUDIO_CAMCORDER
+    if ((palBuffer.buffer && palBuffer.size > 0) && (source_ == AUDIO_SOURCE_CAMCORDER) &&
+        (audio_channel_count_from_in_mask(config_.channel_mask) == 2) &&
+        AudioExtn::audio_devices_cmp(mAndroidInDevices, AUDIO_DEVICE_IN_2MIC) &&
+        adevice->sec_device_->tx_data_inversion) {
+        int32_t *iBuffer = (int32_t *)palBuffer.buffer;
+        int32_t left, right;
+        size_t i = 0;
+        for (i = (palBuffer.size >> 2); i > 0; i--) {
+            left = (*iBuffer & 0x0000FFFF);
+            right  = (((*iBuffer)>>16)& 0x0000FFFF);
+            *iBuffer = (left<<16|right);
+            iBuffer++;
+        }
+    }
 #endif
 
     // mute pcm data if sva client is reading lab data
@@ -5970,8 +6015,8 @@ int StreamInPrimary::ForceRouteStream(const std::set<audio_devices_t>& new_devic
     return ret;
 }
 
-#ifdef SEC_AUDIO_SUPPORT_VOIP_MICMODE_DEFAULT
-int StreamOutPrimary::SetVideoCallEffectKvParams(int mode)
+#ifdef SEC_AUDIO_CALL_VOIP
+int StreamOutPrimary::SetVoipMicModeEffectKvParams(int mode)
 {
     int ret = 0;
     if (!pal_stream_handle_) {
@@ -5982,7 +6027,7 @@ int StreamOutPrimary::SetVideoCallEffectKvParams(int mode)
     stream_mutex_.lock();
     std::shared_ptr<AudioDevice> adevice = AudioDevice::GetInstance();
     uint32_t voip_sample_rate = streamAttributes_.in_media_config.sample_rate;
-    AHAL_DBG("voip_mic_mode %d voip_sample_rate %d (pal_stream_handle_ %p)",
+    AHAL_DBG("out : voip_mic_mode %d voip_sample_rate %d (pal_stream_handle_ %p)",
         mode, voip_sample_rate, pal_stream_handle_);
 
     auto it = getVoipSampleRate.find(voip_sample_rate);
@@ -6000,7 +6045,7 @@ int StreamOutPrimary::SetVideoCallEffectKvParams(int mode)
     return ret;
 }
 
-int StreamInPrimary::SetVideoCallEffectKvParams(int mode)
+int StreamInPrimary::SetVoipMicModeEffectKvParams(int mode)
 {
     int ret = 0;
     if (!pal_stream_handle_) {
@@ -6011,7 +6056,7 @@ int StreamInPrimary::SetVideoCallEffectKvParams(int mode)
     stream_mutex_.lock();
     std::shared_ptr<AudioDevice> adevice = AudioDevice::GetInstance();
     uint32_t voip_sample_rate = streamAttributes_.in_media_config.sample_rate;
-    AHAL_DBG("enter : voip_mic_mode %d voip_sample_rate %d (pal_stream_handle_ %p)",
+    AHAL_DBG("in : voip_mic_mode %d voip_sample_rate %d (pal_stream_handle_ %p)",
         mode, voip_sample_rate, pal_stream_handle_);
 
     auto it = getVoipSampleRate.find(voip_sample_rate);
@@ -6054,7 +6099,7 @@ int StreamInPrimary::SetVideoCallEffectParams(int mode)
         goto exit;
     }
 
-    AHAL_INFO("set SetVideoCallEffect as %d ", mode);
+    AHAL_INFO("set SetVoipMicModeEffect as %d ", mode);
 
     custom_payload->paramId = PARAM_ID_ENHANCED_VT_CALL_DYNAMIC_PARAM;
     custom_payload->data[0] = mode;

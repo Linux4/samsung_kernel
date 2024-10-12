@@ -35,6 +35,7 @@
 
 #define CH_MONO                         1
 #define CH_STEREO                       2
+#define SAMPLING_RATE_16K               16000 // SS_BT_HFP - H_127 : RVP
 #define SAMPLING_RATE_32K               32000
 #define SAMPLING_RATE_44K               44100
 #define SAMPLING_RATE_48K               48000

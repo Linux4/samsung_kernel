@@ -1772,7 +1772,15 @@ int32_t Stream::switchDevice(Stream* streamHandle, uint32_t numDev, struct pal_d
 done:
     mStreamMutex.lock();
     if (a2dpMuted && !isNewDeviceA2dp) {
+#ifdef SEC_AUDIO_MULTI_DEVICE_SOUND
+        if (leakageProtectionEnabled) {
+            PAL_INFO(LOG_TAG, "leakage protection enabled skip unmute");
+        } else {
+            mute_l(false);
+        }
+#else
         mute_l(false);
+#endif
         a2dpMuted = false;
         suspendedDevIds.clear();
     }
@@ -1914,4 +1922,27 @@ void Stream::handleStreamException(struct pal_stream_attributes *attributes,
 
     }
 }
+
+#ifdef SEC_AUDIO_MULTI_DEVICE_SOUND
+void Stream::setLeakageProtectionEnabled(bool enabled)
+{
+    if (!mStreamAttr) {
+        PAL_ERR(LOG_TAG, "invalid mStreamAttr");
+        return;
+    }
+    if (mStreamAttr->type != PAL_STREAM_DEEP_BUFFER) {
+        PAL_ERR(LOG_TAG, "invalid stream type");
+        return;
+    }
+    if (leakageProtectionEnabled != enabled) {
+        leakageProtectionEnabled = enabled;
+        PAL_INFO(LOG_TAG, "leakage protection enabled: %s", leakageProtectionEnabled ? "true" : "false");
+        if (!leakageProtectionEnabled) {
+            if (!a2dpMuted) {
+                mute(false);
+            }
+        }
+    }
+}
+#endif
 

@@ -1029,6 +1029,7 @@ struct tsl2510_device_data {
 	void *deviceCtx;
 
 	struct device *dev;
+	struct device *sensor_dev;
 	struct input_dev *als_input_dev;
 	struct mutex i2clock;
 	struct mutex activelock;
@@ -1109,7 +1110,7 @@ struct fifo_chip {
 #if IS_ENABLED(CONFIG_ARCH_EXYNOS)
 extern int sensors_create_symlink(struct input_dev *inputdev);
 extern void sensors_remove_symlink(struct input_dev *inputdev);
-extern int sensors_register(struct device *dev, void *drvdata,
+extern int sensors_register(struct device **dev, void *drvdata,
 struct device_attribute *attributes[], char *name);
 #else
 extern int sensors_create_symlink(struct kobject *target, const char *name);

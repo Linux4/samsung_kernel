@@ -554,6 +554,11 @@ std::map<std::string, uint32_t> ResourceManager::btFmtTable = {
     MAKE_STRING_FROM_ENUM(CODEC_TYPE_CELT),
     MAKE_STRING_FROM_ENUM(CODEC_TYPE_APTX_AD),
     MAKE_STRING_FROM_ENUM(CODEC_TYPE_APTX_AD_SPEECH),
+// SS_BT_HFP - H_127 : RVP
+#ifdef SEC_AUDIO_BLUETOOTH
+    MAKE_STRING_FROM_ENUM(CODEC_TYPE_RVP),
+#endif
+// SS_BT_HFP - H_127 end
     MAKE_STRING_FROM_ENUM(CODEC_TYPE_LC3),
 #ifdef SEC_PRODUCT_FEATURE_BLUETOOTH_SUPPORT_A2DP_OFFLOAD
     MAKE_STRING_FROM_ENUM(CODEC_TYPE_PCM),
@@ -9081,6 +9086,31 @@ int ResourceManager::setParameter(uint32_t param_id, void *param_payload,
             } else {
                 PAL_ERR(LOG_TAG, "Incorrect size : expected (%zu), received(%zu)",
                         sizeof(pal_param_fmradio_usb_gain_t), payload_size);
+                status = -EINVAL;
+                goto exit;
+            }
+        }
+        break;
+#endif
+#ifdef SEC_AUDIO_MULTI_DEVICE_SOUND
+        case PAL_PARAM_ID_LEAKAGE_PROTECTION_ENABLED:
+        {
+            pal_param_leakage_protection_t* pal_param_leakage_protection = (pal_param_leakage_protection_t*) param_payload;
+
+            if (payload_size == sizeof(pal_param_leakage_protection_t)) {
+                struct pal_stream_attributes sAttr;
+                mActiveStreamMutex.lock();
+                for (auto& str : mActiveStreams) {
+                    str->getStreamAttributes(&sAttr);
+                    if ((sAttr.direction == PAL_AUDIO_OUTPUT) &&
+                        (sAttr.type == PAL_STREAM_DEEP_BUFFER)) {
+                        str->setLeakageProtectionEnabled(pal_param_leakage_protection->enable);
+                    }
+                }
+                mActiveStreamMutex.unlock();
+            } else {
+                PAL_ERR(LOG_TAG, "Incorrect size : expected (%zu), received(%zu)",
+                        sizeof(pal_param_leakage_protection_t), payload_size);
                 status = -EINVAL;
                 goto exit;
             }
