@@ -201,8 +201,8 @@ static int is_ischain_mcs_cfg(struct is_subdev *leader,
 	} else {
 		input->otf_cmd = OTF_INPUT_COMMAND_DISABLE;
 		input->dma_cmd = DMA_INPUT_COMMAND_ENABLE;
-		input->width = leader->input.canv.w;
-		input->height = leader->input.canv.h;
+		input->width = incrop->w;
+		input->height = incrop->h;
 		input->dma_crop_offset_x = leader->input.canv.x + incrop_cfg.x;
 		input->dma_crop_offset_y = leader->input.canv.y + incrop_cfg.y;
 		input->dma_crop_width = incrop_cfg.w;

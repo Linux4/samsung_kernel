@@ -67,9 +67,7 @@ struct max1726x_platform_data {
 
 	u32 vbat_open_adc;
 
-#if defined(CONFIG_BATTERY_AGE_FORECAST)
 	unsigned int full_condition_soc;
-#endif
 };
 
 enum max1726x_register {

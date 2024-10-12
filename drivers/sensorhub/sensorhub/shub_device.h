@@ -23,12 +23,18 @@
 #include <linux/workqueue.h>
 #include <linux/rtc.h>
 
+#define HUB_RESET_REQ_NO_EVENT		0x1a
+#define HUB_RESET_REQ_TASK_FAILURE	0x1b
+#define MINI_DUMP_LENGTH		512
+#define MODEL_NAME_MAX 10
+
 enum {
 	RESET_TYPE_HUB_CRASHED = 0,
 	RESET_TYPE_KERNEL_SYSFS,
 	RESET_TYPE_KERNEL_NO_EVENT,
 	RESET_TYPE_KERNEL_COM_FAIL,
 	RESET_TYPE_HUB_NO_EVENT,
+	RESET_TYPE_HUB_REQ_TASK_FAILURE,
 	RESET_TYPE_MAX,
 };
 
@@ -77,9 +83,22 @@ struct shub_data_t {
 	struct regulator *sensor_vdd_regulator;
 
 	int sensor_ldo_en;
+	char mini_dump[MINI_DUMP_LENGTH];
+	char model_name[MODEL_NAME_MAX];
 };
 
-struct device *get_shub_device(void); // ssp_sensor sysfs 위한 device pdev랑 다름
+#if IS_ENABLED(CONFIG_SENSORS_GRIP_FAILURE_DEBUG)
+enum grip_ic_num {
+	MAIN_GRIP = 0,
+	SUB_GRIP,
+	SUB2_GRIP,
+	WIFI_GRIP,
+	GRIP_MAX_CNT
+};
+static u32 grip_error[GRIP_MAX_CNT] = {0,};
+#endif
+
+struct device *get_shub_device(void);
 struct shub_data_t *get_shub_data(void);
 
 void reset_mcu(int reason);

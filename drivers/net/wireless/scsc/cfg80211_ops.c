@@ -3233,12 +3233,17 @@ int slsi_mgmt_tx(struct wiphy *wiphy, struct wireless_dev *wdev,
 	}
 
 	SLSI_MUTEX_LOCK(ndev_vif->vif_mutex);
-
+	SLSI_NET_INFO(dev, "fc:%d, len:%d\n", mgmt->frame_control, len);
 	if (!(ieee80211_is_auth(mgmt->frame_control))) {
 		SLSI_NET_DBG2(dev, SLSI_CFG80211, "Mgmt Frame Tx: iface_num = %d, channel = %d, wait = %d, noAck = %d,"
 			      "offchannel = %d, mgmt->frame_control = %d, vif_type = %d\n", ndev_vif->ifnum, chan->hw_value,
 			      wait, dont_wait_for_ack, offchan, mgmt->frame_control, ndev_vif->vif_type);
 	} else {
+		if (!ndev_vif->activated) {
+			SLSI_NET_ERR(dev, "Drop Auth Frame: VIF not activated\n");
+			r = -EINVAL;
+			goto exit;
+		}
 		SLSI_INFO(sdev, "Send Auth Frame\n");
 	}
 
@@ -3360,7 +3365,7 @@ int slsi_synchronised_response(struct wiphy *wiphy, struct net_device *dev,
 
 	SLSI_MUTEX_LOCK(ndev_vif->vif_mutex);
 #if !(defined(SCSC_SEP_VERSION) && SCSC_SEP_VERSION < 11)
-	if (ndev_vif->sta.wpa3_sae_reconnection && !SLSI_ETHER_EQUAL(params->bssid, ndev_vif->sta.bssid)) {
+	if (ndev_vif->sta.wpa3_sae_reconnection && SLSI_ETHER_EQUAL(params->bssid, ndev_vif->sta.bssid)) {
 		SLSI_NET_ERR(dev, "Droping synchronised_resp for bssid:%pM\n", params->bssid);
 		SLSI_MUTEX_UNLOCK(ndev_vif->vif_mutex);
 		ndev_vif->sta.wpa3_sae_reconnection = false;

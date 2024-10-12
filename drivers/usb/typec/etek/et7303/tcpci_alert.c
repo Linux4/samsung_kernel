@@ -515,10 +515,6 @@ static inline int tcpci_report_usb_port_detached(struct tcpc_device *tcpc)
 	pd_put_cc_detached_event(tcpc);
 #endif /* CONFIG_USB_POWER_DELIVERY */
 
-#if IS_ENABLED(CONFIG_PDIC_POLICY)
-	pdic_policy_send_msg(tcpc->pp_data, MSG_CCOFF, 0, 0);
-#endif /* CONFIG_PDIC_POLICY */
-
 #if IS_ENABLED(CONFIG_PDIC_NOTIFIER)
 	sec_dfp_accessory_detach_handler(&tcpc->pd_port);
 #endif /* CONFIG_PDIC_NOTIFIER */

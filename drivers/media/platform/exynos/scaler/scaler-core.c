@@ -1619,6 +1619,107 @@ static int sc_v4l2_s_crop(struct file *file, void *fh,
 
 	return 0;
 }
+static uint32_t sc_bpp_to_v4l2format_for_ppc[][2] = {
+	{ 12, V4L2_PIX_FMT_NV12M },
+	{ 16, V4L2_PIX_FMT_NV16 },
+	{ 24, V4L2_PIX_FMT_NV12M_P010 },
+	{ 32, V4L2_PIX_FMT_RGB32 },
+	{ 100, V4L2_PIX_FMT_NV12M_SBWC_8B },
+};
+
+#define MAX_ARG_PPC_IOCTL	10
+struct sc_ioctl_ppc_arg {
+	struct {
+		uint32_t v4l2fmt;
+		uint32_t ppc;
+		uint32_t ppc_rot;
+	} elem[MAX_ARG_PPC_IOCTL];
+};
+
+#define SC_CMD_G_PPC	_IOWR('V', BASE_VIDIOC_PRIVATE + 1, struct sc_ioctl_ppc_arg)
+
+static long sc_v4l2_default(struct file *file, void *fh, bool valid_prio,
+			    unsigned int cmd, void *arg)
+{
+	struct sc_ctx *ctx = fh_to_sc_ctx(fh);
+	struct sc_dev *sc = ctx->sc_dev;
+	struct sc_ioctl_ppc_arg *ppc_arg = arg;
+	int i, j;
+	switch (cmd) {
+	case SC_CMD_G_PPC:
+		if (sc->ppc_table_cnt > MAX_ARG_PPC_IOCTL) {
+			dev_err(sc->dev,
+				"%s: elements of ppc_table is too many (num : %d)\n",
+				__func__, sc->ppc_table_cnt);
+			return -ENOMEM;
+		}
+
+		for (i = 0; i < sc->ppc_table_cnt; i++) {
+			for (j = 0; j < ARRAY_SIZE(sc_bpp_to_v4l2format_for_ppc); j++) {
+				if (sc_bpp_to_v4l2format_for_ppc[j][0] == sc->ppc_table[i].bpp) {
+					ppc_arg->elem[i].v4l2fmt = sc_bpp_to_v4l2format_for_ppc[j][1];
+					ppc_arg->elem[i].ppc = sc->ppc_table[i].ppc[0];
+					ppc_arg->elem[i].ppc_rot = sc->ppc_table[i].ppc[1];
+
+					break;
+				}
+			}
+		}
+		break;
+	default:
+		dev_err(sc->dev, "%s : invalid command %u\n", __func__, cmd);
+		return -EINVAL;
+	}
+
+	return 0;
+}
+
+static  struct sc_ioctl_ppc_arg ppc_arg_compat;
+
+static long sc_v4l2_compat_ioctl32(struct file *file,
+                     unsigned int cmd, unsigned long user_arg)
+{
+        void  *fh = file->private_data;
+        void *arg = compat_ptr(user_arg);
+        struct sc_ctx *ctx = fh_to_sc_ctx(fh);
+        struct sc_dev *sc = ctx->sc_dev;
+        struct sc_ioctl_ppc_arg  __user *  argp_res = (struct sc_ioctl_ppc_arg  __user *)arg;
+        int i, j;
+
+        switch (cmd) {
+        case SC_CMD_G_PPC:
+                if (sc->ppc_table_cnt > MAX_ARG_PPC_IOCTL) {
+                        dev_err(sc->dev,
+                                "%s: elements of ppc_table is too many (num : %d)\n",
+                                __func__, sc->ppc_table_cnt);
+                        return -ENOMEM;
+                }
+
+                for (i = 0; i < sc->ppc_table_cnt; i++) {
+                        for (j = 0; j < ARRAY_SIZE(sc_bpp_to_v4l2format_for_ppc); j++) {
+                                if (sc_bpp_to_v4l2format_for_ppc[j][0] == sc->ppc_table[i].bpp) {
+                                        ppc_arg_compat.elem[i].v4l2fmt = sc_bpp_to_v4l2format_for_ppc[j][1];
+                                        ppc_arg_compat.elem[i].ppc = sc->ppc_table[i].ppc[0];
+                                        ppc_arg_compat.elem[i].ppc_rot = sc->ppc_table[i].ppc[1];
+
+                                        break;
+                                }
+                        }
+                 }
+                 if (copy_to_user(argp_res, &ppc_arg_compat,
+                                        sizeof(struct sc_ioctl_ppc_arg))) {
+                        return -EFAULT;
+                }
+
+                break;
+        default:
+                dev_err(sc->dev, "%s : invalid command %u\n", __func__, cmd);
+                return -EINVAL;
+        }
+
+        return 0;
+
+}
 
 static const struct v4l2_ioctl_ops sc_v4l2_ioctl_ops = {
 	.vidioc_querycap		= sc_v4l2_querycap,
@@ -1646,7 +1747,8 @@ static const struct v4l2_ioctl_ops sc_v4l2_ioctl_ops = {
 
 	.vidioc_g_crop			= sc_v4l2_g_crop,
 	.vidioc_s_crop			= sc_v4l2_s_crop,
-	.vidioc_cropcap			= sc_v4l2_cropcap
+	.vidioc_cropcap			= sc_v4l2_cropcap,
+        .vidioc_default			= sc_v4l2_default
 };
 
 static int sc_ctx_stop_req(struct sc_ctx *ctx)
@@ -2986,7 +3088,8 @@ static const struct v4l2_file_operations sc_v4l2_fops = {
 	.release	= sc_release,
 	.poll		= sc_poll,
 	.unlocked_ioctl	= video_ioctl2,
-	.mmap		= sc_mmap,
+        .compat_ioctl32 = sc_v4l2_compat_ioctl32,
+        .mmap		= sc_mmap,
 };
 
 static void sc_job_finish(struct sc_dev *sc, struct sc_ctx *ctx)

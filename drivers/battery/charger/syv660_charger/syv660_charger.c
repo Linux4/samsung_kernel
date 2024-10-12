@@ -888,15 +888,6 @@ static int sy6970_power_supply_set_property(struct power_supply *psy,
 			pr_info("%s: need to implement\n", __func__);
 #endif
 			break;
-		case POWER_SUPPLY_EXT_PROP_AUTO_SHIPMODE_CONTROL:
-			if (val->intval) {
-				pr_info("%s: auto ship mode is enabled\n", __func__);
-				pr_info("%s: need to implement\n", __func__);
-			} else {
-				pr_info("%s: auto ship mode is disabled\n", __func__);
-				pr_info("%s: need to implement\n", __func__);
-			}
-			break;
 		case POWER_SUPPLY_EXT_PROP_FGSRC_SWITCHING:
 			break;
 #if defined(CONFIG_UPDATE_BATTERY_DATA)

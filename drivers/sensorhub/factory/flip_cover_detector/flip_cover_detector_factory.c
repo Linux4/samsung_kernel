@@ -16,6 +16,7 @@
 #include "../../utility/shub_utility.h"
 #include "../../comm/shub_comm.h"
 #include "../../sensor/flip_cover_detector.h"
+#include "../../sensor/magnetometer.h"
 #include "../../sensorhub/shub_device.h"
 #include "../../sensormanager/shub_sensor.h"
 #include "../../sensormanager/shub_sensor_manager.h"
@@ -335,7 +336,7 @@ static ssize_t axis_threshold_setting_store(struct device *dev,
 {
 	struct flip_cover_detector_data *data = get_sensor(SENSOR_TYPE_FLIP_COVER_DETECTOR)->data;
 	int ret;
-	int8_t axis;
+	int axis;
 	int threshold;
 	int8_t shub_data[5] = {0};
 
@@ -366,14 +367,44 @@ static ssize_t axis_threshold_setting_store(struct device *dev,
 	return size;
 }
 
+static ssize_t cal_matrix_num_show(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	int ret = 0;
+	u8 cal_matrix_num;
+	char *buffer = NULL;
+	int buffer_length = 0;
+
+	ret = shub_send_command_wait(CMD_GETVALUE, SENSOR_TYPE_FLIP_COVER_DETECTOR, FCD_SUBCMD_CAL_MATRIX_NUM,
+				     1000, NULL, 0, &buffer, &buffer_length, false);
+	if (ret < 0) {
+		shub_errf("shub_send_command_wait Fail %d", ret);
+		return ret;
+	}
+	if (buffer_length != 1) {
+		shub_errf("buffer length error %d", buffer_length);
+		kfree(buffer);
+		return -EINVAL;
+	}
+
+	cal_matrix_num = buffer[0];
+	shub_infof("%d\n", cal_matrix_num);
+
+	ret = snprintf(buf, PAGE_SIZE, "%d\n", cal_matrix_num);
+	kfree(buffer);
+
+	return ret;
+}
+
 static DEVICE_ATTR(nfc_cover_status, 0664, nfc_cover_status_show, nfc_cover_status_store);
 static DEVICE_ATTR(factory_cover_status, 0664, factory_cover_status_show, factory_cover_status_store);
 static DEVICE_ATTR(axis_threshold_setting, 0664, axis_threshold_setting_show, axis_threshold_setting_store);
+static DEVICE_ATTR_RO(cal_matrix_num);
 
 static struct device_attribute *fcd_attrs[] = {
 	&dev_attr_nfc_cover_status,
 	&dev_attr_factory_cover_status,
 	&dev_attr_axis_threshold_setting,
+	&dev_attr_cal_matrix_num,
 	NULL,
 };
 

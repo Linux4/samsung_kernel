@@ -17,10 +17,28 @@
 #define __SHUB_PANEL_H_
 
 #define UID_FILE_PATH "/efs/FactoryApp/ubid"
+#define SDC			0
+#define BOE			1
+#define CSOT		2
+#define DTC			3
+#define Tianma		4
+#define Skyworth	5
+#define OTHER		6
+#define SDC_STR			"SDC"
+#define BOE_STR			"BOE"
+#define CSOT_STR		"CSO"
+#define DTC_STR			"DTC"
+#define Tianma_STR		"TMC"
+#define Skyworth_STR	"SKW"
 
 void init_shub_panel(void);
 void remove_shub_panel(void);
+void sync_panel_state(void);
+
+void init_shub_panel_callback(void);
+void remove_shub_panel_callback(void);
 
 bool is_lcd_changed(void);
 int save_panel_lcd_type(void);
+int get_panel_lcd_type(void);
 #endif

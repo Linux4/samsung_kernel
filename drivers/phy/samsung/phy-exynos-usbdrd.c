@@ -167,7 +167,7 @@ exynos_usbdrd_hs_phy_tune_store(struct device *dev,
 	if (!tune_name)
 		return -ENOMEM;
 
-	if (sscanf(buf, "%s %x", tune_name, &tune_val) != 2)
+	if (sscanf(buf, "%29s %x", tune_name, &tune_val) != 2)
 		goto exit;
 
 	tune_node = of_parse_phandle(dev->of_node, "hs_tune_param", 0);
@@ -245,7 +245,7 @@ exynos_usbdrd_phy_tune_store(struct device *dev,
 	if (!tune_name)
 		return -ENOMEM;
 
-	if (sscanf(buf, "%s %x", tune_name, &tune_val) != 2)
+	if (sscanf(buf, "%29s %x", tune_name, &tune_val) != 2)
 		goto exit;
 
 	tune_node = of_parse_phandle(dev->of_node, "ss_tune_param", 0);
