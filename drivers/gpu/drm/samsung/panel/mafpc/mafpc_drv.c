@@ -45,8 +45,8 @@ static ssize_t abc_fops_write(struct file *file, const char __user *buf,
 	scale_sz = mafpc->scale_len;
 
 	if ((!mafpc->comp_img_buf) || (!mafpc->scale_buf)) {
-		panel_err("invalid buffer");
-		goto exit_write;
+		panel_warn("buffer is not prepared\n");
+		return -EAGAIN;
 	}
 
 	if (count == (MAFPC_HEADER_SIZE + ctrl_sz + img_sz)) {
@@ -56,24 +56,24 @@ static ssize_t abc_fops_write(struct file *file, const char __user *buf,
 		scale_factor = true;
 	} else {
 		panel_err("invalid count: %ld\n", count);
-		goto exit_write;
+		return -EINVAL;
 	}
 
 	if (copy_from_user(&header, buf, MAFPC_HEADER_SIZE)) {
 		panel_err("failed to get user's header\n");
-		goto exit_write;
+		return -EFAULT;
 	}
 	cp_offset = MAFPC_HEADER_SIZE;
 
 	panel_info("header : %c\n", header);
 	if (header != MAFPC_HEADER) {
 		panel_err("wrong header : %c\n", header);
-		goto exit_write;
+		return -ENODATA;
 	}
 
 	if (copy_from_user(mafpc->ctrl_cmd, buf + cp_offset, mafpc->ctrl_cmd_len)) {
 		panel_err("failed to get user's header\n");
-		goto exit_write;
+		return -EFAULT;
 	}
 	cp_offset += mafpc->ctrl_cmd_len;
 
@@ -82,21 +82,21 @@ static ssize_t abc_fops_write(struct file *file, const char __user *buf,
 
 	if (copy_from_user(mafpc->comp_img_buf, buf + cp_offset, mafpc->comp_img_len)) {
 		panel_err("failed to get comp img\n");
-		goto exit_write;
+		return -EFAULT;
 	}
 	cp_offset += mafpc->comp_img_len;
 
 	if (scale_factor) {
 		if (copy_from_user(mafpc->scale_buf, buf + cp_offset, mafpc->scale_len)) {
 			panel_err("failed to get comp img\n");
-			goto exit_write;
+			return -EFAULT;
 		}
 		print_hex_dump(KERN_ERR, "", DUMP_PREFIX_ADDRESS, 32, 4,
 			mafpc->scale_buf, mafpc->scale_len, false);
 	}
 	mafpc->written |= MAFPC_UPDATED_FROM_SVC;
+	panel_info("mafpc image write %ld done!\n", count);
 
-exit_write:
 	return count;
 }
 
@@ -210,8 +210,6 @@ static long abc_fops_ioctl(struct file *file, unsigned int cmd, unsigned long ar
 
 static int abc_fops_release(struct inode *inode, struct file *file)
 {
-	panel_info("was called\n");
-
 	return 0;
 }
 
