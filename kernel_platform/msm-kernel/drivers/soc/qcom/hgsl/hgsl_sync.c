@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/types.h>
@@ -188,7 +188,7 @@ static const char *hgsl_hsync_get_timeline_name(struct dma_fence *base)
 			container_of(base, struct hgsl_hsync_fence, fence);
 	struct hgsl_hsync_timeline *timeline = fence->timeline;
 
-	return timeline->name;
+	return (timeline == NULL) ? "null" : timeline->name;
 }
 
 static bool hgsl_hsync_enable_signaling(struct dma_fence *base)
@@ -325,14 +325,16 @@ int hgsl_isync_timeline_create(struct hgsl_priv *priv,
 	idr_preload(GFP_KERNEL);
 	spin_lock(&hgsl->isync_timeline_lock);
 	idr = idr_alloc(&hgsl->isync_timeline_idr, timeline, 1, 0, GFP_NOWAIT);
-	spin_unlock(&hgsl->isync_timeline_lock);
-	idr_preload_end();
-
 	if (idr > 0) {
 		timeline->id = idr;
 		*timeline_id = idr;
 		ret = 0;
-	} else
+	}
+	spin_unlock(&hgsl->isync_timeline_lock);
+	idr_preload_end();
+
+	/* allocate IDR failed */
+	if (ret != 0)
 		kfree(timeline);
 
 	return ret;

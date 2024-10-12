@@ -2,6 +2,7 @@
 #include <linux/err.h>
 #include <linux/regulator/pmic_class.h>
 #include <linux/module.h>
+#include <linux/version.h>
 
 /* CAUTION : Do not be declared as external pmic_class  */
 static struct class *pmic_class;
@@ -41,7 +42,11 @@ EXPORT_SYMBOL(pmic_device_destroy);
 
 static int __init pmic_class_create(void)
 {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 6, 0)
+	pmic_class = class_create("pmic");
+#else
 	pmic_class = class_create(THIS_MODULE, "pmic");
+#endif
 
 	if (IS_ERR(pmic_class)) {
 		pr_err("Failed to create class(pmic) %ld\n", PTR_ERR(pmic_class));

@@ -39,6 +39,17 @@ enum qcom_scm_arg_types {
 
 #define QCOM_SCM_ARGS(...) QCOM_SCM_ARGS_IMPL(__VA_ARGS__, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
 
+/*SMMU Paravirt driver*/
+#define SMMU_PARAVIRT_OP_ATTACH         0
+#define SMMU_PARAVIRT_OP_DETACH         1
+#define SMMU_PARAVIRT_OP_INVAL_ASID     2
+#define SMMU_PARAVIRT_OP_INVAL_VA       3
+#define SMMU_PARAVIRT_OP_ALL_S1_BYPASS  4
+#define SMMU_PARAVIRT_OP_CFGI_CD_ALL    5
+#define SMMU_PARAVIRT_OP_TLBI_NH_ALL    6
+
+#define ARM_SMMU_PARAVIRT_CMD            0x6
+#define ARM_SMMU_PARAVIRT_DESCARG        0x22200a
 
 /**
  * struct qcom_scm_desc
@@ -192,8 +203,15 @@ extern int scm_legacy_call(struct device *dev, const struct qcom_scm_desc *desc,
 #define QCOM_SCM_QDSS_INVOKE			0x01
 
 #define QCOM_SCM_SVC_CAMERA			0x18
+#define QCOM_SCM_CAMERA_TZ_STATUS		0x01
+#define QCOM_SCM_CAMERA_REG_READ		0x02
+#define QCOM_SCM_CAMERA_REG_WRITE		0x03
+#define QCOM_SCM_CAMERA_REG_WRITE_BULK		0x04
+#define QCOM_SCM_CAMERA_RESET_HW_BLOCK		0x05
 #define QCOM_SCM_CAMERA_PROTECT_ALL		0x06
 #define QCOM_SCM_CAMERA_PROTECT_PHY_LANES	0x07
+#define QCOM_SCM_CAMERA_TOPOLOGY                0x08
+#define QCOM_SCM_CAMERA_STREAM_NOTIF            0x09
 
 #define QCOM_SCM_SVC_WAITQ			0x24
 #define QCOM_SCM_WAITQ_ACK			0x01

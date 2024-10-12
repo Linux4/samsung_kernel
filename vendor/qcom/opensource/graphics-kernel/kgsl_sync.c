@@ -232,10 +232,11 @@ int kgsl_add_fence_event(struct kgsl_device *device,
 		ret = -EFAULT;
 		goto out;
 	}
-	fd_install(priv.fence_fd, kfence->sync_file->file);
 
 	if (!retired)
 		device->ftbl->create_hw_fence(device, kfence);
+
+	fd_install(priv.fence_fd, kfence->sync_file->file);
 
 out:
 	kgsl_context_put(context);

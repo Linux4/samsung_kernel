@@ -11,6 +11,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+"""
+Defines a kernel build target.
+"""
 
 load("@bazel_skylib//lib:paths.bzl", "paths")
 load("@bazel_skylib//rules:common_settings.bzl", "BuildSettingInfo")
@@ -61,6 +64,7 @@ def kernel_build(
         name,
         build_config,
         outs,
+        keep_module_symvers = None,
         srcs = None,
         module_outs = None,
         implicit_outs = None,
@@ -100,6 +104,10 @@ def kernel_build(
         name: The final kernel target name, e.g. `"kernel_aarch64"`.
         build_config: Label of the build.config file, e.g. `"build.config.gki.aarch64"`.
         kconfig_ext: Label of an external Kconfig.ext file sourced by the GKI kernel.
+        keep_module_symvers: If set to True, a copy of the default output `Module.symvers` is kept.
+          * To avoid collisions in mixed build distribution packages, the file is renamed
+            as `$(name)_Module.symvers`.
+          * Default is False.
         srcs: The kernel sources (a `glob()`). If unspecified or `None`, it is the following:
           ```
           glob(
@@ -257,10 +265,10 @@ def kernel_build(
 
           Labels are created for each item in `module_implicit_outs` as in `outs`.
 
-        kmi_symbol_list: A label referring to the main KMI symbol list file. See `additional_kmi_symbol_list`.
+        kmi_symbol_list: A label referring to the main KMI symbol list file. See `additional_kmi_symbol_lists`.
 
           This is the Bazel equivalent of `ADDTIONAL_KMI_SYMBOL_LISTS`.
-        additional_kmi_symbol_list: A list of labels referring to additional KMI symbol list files.
+        additional_kmi_symbol_lists: A list of labels referring to additional KMI symbol list files.
 
           This is the Bazel equivalent of `ADDTIONAL_KMI_SYMBOL_LISTS`.
 
@@ -323,7 +331,8 @@ def kernel_build(
           If the value is `"false"`; or the value is `"auto"` and
           `--kbuild_symtypes` is not specified, then `KBUILD_SYMTYPES=`.
         toolchain_version: The toolchain version to depend on.
-        kwargs: Additional attributes to the internal rule, e.g.
+        dtstree: Device tree support.
+        **kwargs: Additional attributes to the internal rule, e.g.
           [`visibility`](https://docs.bazel.build/versions/main/visibility.html).
           See complete list
           [here](https://docs.bazel.build/versions/main/be/common-definitions.html#common-attributes).
@@ -349,7 +358,7 @@ def kernel_build(
         )
 
     internal_kwargs = dict(kwargs)
-    internal_kwargs.pop("visibility", default = None)
+    internal_kwargs.pop("visibility", None)
 
     kwargs_with_manual = dict(kwargs)
     kwargs_with_manual["tags"] = ["manual"]
@@ -414,6 +423,7 @@ def kernel_build(
     _kernel_build(
         name = name,
         config = config_target_name,
+        keep_module_symvers = keep_module_symvers,
         srcs = srcs,
         outs = kernel_utils.transform_kernel_build_outs(name, "outs", outs),
         module_outs = kernel_utils.transform_kernel_build_outs(name, "module_outs", module_outs),
@@ -697,6 +707,20 @@ def _kernel_build_impl(ctx):
             symtypes_dir = symtypes_dir.path,
         )
 
+    copy_module_symvers_cmd = ""
+    module_symvers_copy = None
+    if ctx.attr.keep_module_symvers:
+        module_symvers_copy = ctx.actions.declare_file("{}/{}_Module.symvers".format(
+            ctx.label.name,
+            ctx.label.name,
+        ))
+        command_outputs.append(module_symvers_copy)
+        copy_module_symvers_cmd = """
+           cp -f ${{OUT_DIR}}/Module.symvers {module_symvers_copy}
+        """.format(
+            module_symvers_copy = module_symvers_copy.path,
+        )
+
     command += """
          # Actual kernel build
            {interceptor_command_prefix} make -C ${{KERNEL_DIR}} ${{TOOL_ARGS}} O=${{OUT_DIR}} ${{MAKE_GOALS}}
@@ -725,6 +749,8 @@ def _kernel_build_impl(ctx):
            {grab_intree_modules_cmd}
          # Grab unstripped in-tree modules
            {grab_unstripped_intree_modules_cmd}
+         # Make a copy of Module.symvers
+           {copy_module_symvers_cmd}
          # Check if there are remaining *.ko files
            remaining_ko_files=$({check_declared_output_list} \\
                 --declared $(cat {all_module_names_file} {base_kernel_all_module_names_file_path}) \\
@@ -758,6 +784,7 @@ def _kernel_build_impl(ctx):
         out_dir_kernel_headers_tar = out_dir_kernel_headers_tar.path,
         interceptor_command_prefix = interceptor_command_prefix,
         label = ctx.label,
+        copy_module_symvers_cmd = copy_module_symvers_cmd,
     )
 
     debug.print_scripts(ctx, command)
@@ -851,6 +878,8 @@ def _kernel_build_impl(ctx):
     default_info_files.append(all_module_names_file)
     if kmi_strict_mode_out:
         default_info_files.append(kmi_strict_mode_out)
+    if ctx.attr.keep_module_symvers:
+        default_info_files.append(module_symvers_copy)
     default_info = DefaultInfo(
         files = depset(default_info_files),
         # For kernel_build_test
@@ -879,6 +908,9 @@ _kernel_build = rule(
             providers = [KernelEnvInfo, KernelEnvAttrInfo],
             aspects = [kernel_toolchain_aspect],
             doc = "the kernel_config target",
+        ),
+        "keep_module_symvers": attr.bool(
+            doc = "If true, a copy of `Module.symvers` is kept, with the name `{name}_Module.symvers`",
         ),
         "srcs": attr.label_list(mandatory = True, doc = "kernel sources", allow_files = True),
         "outs": attr.string_list(),
@@ -930,6 +962,7 @@ _kernel_build = rule(
     },
 )
 
+#buildifier: disable=return-value
 def _kernel_build_check_toolchain(ctx):
     """
     Check toolchain_version is the same as base_kernel.
@@ -941,6 +974,7 @@ def _kernel_build_check_toolchain(ctx):
     base_toolchain_file = utils.getoptattr(base_kernel[KernelToolchainInfo], "toolchain_version_file")
 
     if base_toolchain == None and base_toolchain_file == None:
+        # buildifier: disable=print
         print(("\nWARNING: {this_label}: No check is performed between the toolchain " +
                "version of the base build ({base_kernel}) and the toolchain version of " +
                "{this_name} ({this_toolchain}), because the toolchain version of {base_kernel} " +

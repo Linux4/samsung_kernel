@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2012-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -488,7 +488,8 @@ static bool sap_chan_sel_init(mac_handle_t mac_handle,
 			}
 		}
 
-		if (!policy_mgr_is_sap_freq_allowed(mac->psoc, *pChans)) {
+		if (!policy_mgr_is_sap_freq_allowed(mac->psoc,
+			wlan_vdev_mlme_get_opmode(sap_ctx->vdev), *pChans)) {
 			if (sap_acs_is_puncture_applicable(sap_ctx->acs_cfg)) {
 				sap_info("freq %d is not allowed, can be punctured",
 					 *pChans);

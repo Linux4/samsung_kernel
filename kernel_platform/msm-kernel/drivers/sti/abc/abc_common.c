@@ -56,6 +56,7 @@ EXPORT_SYMBOL_KUNIT(abc_hub_kunit_test_uevent_str);
 struct registered_abc_event_struct abc_event_list[] = {
 	{"audio", "spk_amp", "it", true, true, 0, ABC_GROUP_NONE},
 	{"audio", "spk_amp_short", "it", true, true, 0, ABC_GROUP_NONE},
+	{"battery", "dc_batt_ov", "it", true, true, 0, ABC_GROUP_NONE},
 	{"battery", "dc_i2c_fail", "it", true, true, 0, ABC_GROUP_NONE},
 	{"battery", "over_voltage", "it", true, true, 0, ABC_GROUP_NONE},
 	{"battery", "pd_input_ocp", "it", true, true, 0, ABC_GROUP_NONE},
@@ -111,17 +112,21 @@ struct registered_abc_event_struct abc_event_list[] = {
 	{"display", "panel_main_no_te", "", true, true, 0, ABC_GROUP_NONE},
 	{"display", "panel_sub_no_te", "", true, true, 0, ABC_GROUP_NONE},
 	{"gpu", "gpu_fault", "", true, false, 0, ABC_GROUP_NONE},
-	{"gpu", "gpu_job_timeout", "", true, true, 0, ABC_GROUP_NONE},
+	{"gpu", "gpu_job_timeout", "", true, false, 0, ABC_GROUP_NONE},
 	{"gpu_qc", "gpu_fault", "", true, false, 0, ABC_GROUP_NONE},
 	{"gpu_qc", "gpu_page_fault", "", true, false, 0, ABC_GROUP_NONE},
 	{"mm", "venus_data_corrupt", "", true, true, 0, ABC_GROUP_NONE},
+	{"mm", "venus_fw_load_fail", "", true, true, 0, ABC_GROUP_NONE},
 	{"mm", "venus_hung", "", true, false, 0, ABC_GROUP_NONE},
+	{"mm", "vidc_sys_err_type2", "", true, true, 0, ABC_GROUP_NONE},
+	{"mm", "vidc_sys_err_type3", "", true, true, 0, ABC_GROUP_NONE},
 	{"muic", "afc_hv_fail", "", true, true, 0, ABC_GROUP_NONE},
 	{"muic", "cable_short", "", true, true, 0, ABC_GROUP_NONE},
 	{"muic", "qc_hv_fail", "", true, true, 0, ABC_GROUP_NONE},
 	{"npu", "npu_fw_warning", "", true, true, 0, ABC_GROUP_NONE},
 	{"pdic", "i2c_fail", "it", true, true, 0, ABC_GROUP_NONE},
 	{"pdic", "water_det", "", true, true, 0, ABC_GROUP_NONE},
+	{"pdic", "ccic_stuck", "it", true, true, 0, ABC_GROUP_NONE},
 	{"pmic", "s2dos05_bulk_read", "it", true, true, 0, ABC_GROUP_NONE},
 	{"pmic", "s2dos05_bulk_write", "it", true, true, 0, ABC_GROUP_NONE},
 	{"pmic", "s2dos05_read_reg", "it", true, true, 0, ABC_GROUP_NONE},
@@ -610,10 +615,42 @@ EXPORT_SYMBOL_KUNIT(features_show);
 
 static DEVICE_ATTR_RW(features);
 
+__visible_for_testing
+ssize_t list_store(struct device *dev,
+				   struct device_attribute *attr,
+				   const char *buf,
+				   size_t count)
+{
+	return count;
+}
+EXPORT_SYMBOL_KUNIT(list_store);
+
+__visible_for_testing
+ssize_t list_show(struct device *dev,
+				  struct device_attribute *attr,
+				  char *buf)
+{
+	int count = 0;
+	int i;
+
+	for (i = 0; i < REGISTERED_ABC_EVENT_TOTAL; i++)
+	{
+		count += scnprintf(buf + count, PAGE_SIZE - count, "%s,%s\n",
+			abc_event_list[i].module_name, abc_event_list[i].error_name);
+	}
+	ABC_PRINT("%d", count);
+
+	return count;
+}
+EXPORT_SYMBOL_KUNIT(list_show);
+
+static DEVICE_ATTR_RW(list);
+
 static struct attribute *sec_abc_attr[] = {
 	&dev_attr_enabled.attr,
 	&dev_attr_spec.attr,
 	&dev_attr_features.attr,
+	&dev_attr_list.attr,
 	NULL,
 };
 

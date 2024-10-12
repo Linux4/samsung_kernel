@@ -1671,28 +1671,6 @@ static int ss_update_osc(struct samsung_display_driver_data *vdd, int idx)
 	return 0;
 }
 
-static int ss_set_osc(struct samsung_display_driver_data *vdd, int idx)
-{
-	if (!vdd->dyn_mipi_clk.is_support) {
-		LCD_INFO(vdd, "Dynamic MIPI Clock does not support\n");
-		return -ENODEV;
-	}
-
-	if (!vdd->dyn_mipi_clk.osc_support) {
-		LCD_INFO(vdd, "Dynamic OSC Clock does not support\n");
-		return -ENODEV;
-	}
-
-	ss_update_osc(vdd, idx);
-
-	/* OSC Cmd will be sent next panel OFF->ON in ss_panel_on_post() function */
-	/*ss_send_cmd(vdd, TX_OSC);*/
-
-	LCD_INFO(vdd, "OSC IDX : %d\n", idx);
-
-	return 0;
-}
-
 static void ss_read_flash(struct samsung_display_driver_data *vdd, u32 raddr, u32 rsize, u8 *rbuf)
 {
 	char showbuf[256];
@@ -2626,7 +2604,6 @@ void S6E3FAC_AMB655AY01_FHD_init(struct samsung_display_driver_data *vdd)
 
 	/* OSC */
 	vdd->panel_func.update_osc = ss_update_osc;
-	vdd->panel_func.set_osc = ss_set_osc;
 
 	/* VRR */
 	ss_vrr_init(&vdd->vrr);

@@ -1574,7 +1574,8 @@ bool policy_mgr_is_safe_channel(struct wlan_objmgr_psoc *psoc,
 	for (j = 0; j < pm_ctx->unsafe_channel_count; j++) {
 		if ((ch_freq == pm_ctx->unsafe_channel_list[j]) &&
 		    (qdf_test_bit(QDF_SAP_MODE, &restriction_mask) ||
-		     !wlan_mlme_get_coex_unsafe_chan_nb_user_prefer(psoc))) {
+		     !wlan_mlme_get_coex_unsafe_chan_nb_user_prefer_for_sap(
+								     psoc))) {
 			is_safe = false;
 			policy_mgr_warn("Freq %d is not safe, restriction mask %lu", ch_freq, restriction_mask);
 			break;
@@ -1613,9 +1614,16 @@ bool policy_mgr_is_safe_channel(struct wlan_objmgr_psoc *psoc,
 #endif
 
 bool policy_mgr_is_sap_freq_allowed(struct wlan_objmgr_psoc *psoc,
+				    enum QDF_OPMODE opmode,
 				    uint32_t sap_freq)
 {
-	if (policy_mgr_is_safe_channel(psoc, sap_freq))
+	/*
+	 * Ignore safe channel validation when the mode is P2P_GO and user
+	 * configures the corresponding bit in ini coex_unsafe_chan_nb_user_prefer.
+	 */
+	if ((opmode == QDF_P2P_GO_MODE &&
+	     wlan_mlme_get_coex_unsafe_chan_nb_user_prefer_for_p2p_go(psoc)) ||
+	    policy_mgr_is_safe_channel(psoc, sap_freq))
 		return true;
 
 	/*
@@ -2768,14 +2776,14 @@ void policy_mgr_check_concurrent_intf_and_restart_sap(
 	}
 
 	/*
+	 * This is to check the cases where STA got disconnected or
+	 * sta is present on some valid channel where SAP evaluation/restart
+	 * might be needed.
 	 * force SCC with STA+STA+SAP will need some additional logic
 	 */
 	cc_count = policy_mgr_get_mode_specific_conn_info(
 				psoc, &op_ch_freq_list[cc_count],
 				&vdev_id[cc_count], PM_STA_MODE);
-	if (!cc_count) {
-		policy_mgr_debug("Could not get STA operating channel&vdevid");
-	}
 
 	sta_check = !cc_count ||
 		    policy_mgr_valid_sta_channel_check(psoc, op_ch_freq_list[0]);
@@ -2784,16 +2792,30 @@ void policy_mgr_check_concurrent_intf_and_restart_sap(
 	cc_count = policy_mgr_get_mode_specific_conn_info(
 				psoc, &op_ch_freq_list[cc_count],
 				&vdev_id[cc_count], PM_P2P_CLIENT_MODE);
-	if (!cc_count)
-		policy_mgr_debug("Could not get GC operating channel&vdevid");
 
 	gc_check = !!cc_count;
-	policy_mgr_debug("gc_check: %d", gc_check);
 
 	mcc_to_scc_switch =
 		policy_mgr_get_mcc_to_scc_switch_mode(psoc);
-	policy_mgr_debug("MCC to SCC switch: %d chan: %d",
-			 mcc_to_scc_switch, op_ch_freq_list[0]);
+	policy_mgr_debug("MCC to SCC switch: %d chan: %d sta_check: %d, gc_check: %d",
+			 mcc_to_scc_switch, op_ch_freq_list[0],
+			 sta_check, gc_check);
+
+	cc_count = 0;
+	cc_count = policy_mgr_get_mode_specific_conn_info(
+				psoc, &op_ch_freq_list[cc_count],
+				&vdev_id[cc_count], PM_SAP_MODE);
+
+	/* SAP + SAP case needs additional handling */
+	if (cc_count == 1 && !is_acs_mode &&
+	    target_psoc_get_sap_coex_fixed_chan_cap(
+			wlan_psoc_get_tgt_if_handle(psoc)) &&
+	    !policy_mgr_is_safe_channel(psoc, op_ch_freq_list[0])) {
+		policy_mgr_debug("Avoid channel switch as it's allowed to operate on unsafe channel: %d",
+				 op_ch_freq_list[0]);
+		return;
+	}
+
 sap_restart:
 	/*
 	 * If sta_sap_scc_on_dfs_chan is true then standalone SAP is not

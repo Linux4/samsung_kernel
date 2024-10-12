@@ -353,6 +353,7 @@ camera-$(CONFIG_SEC_KUNIT) += \
 	drivers/cam_sensor_module/cam_sensor_utils/kunit_test/cam_clock_data_recovery_test.o \
 	drivers/cam_sensor_module/cam_sensor_utils/kunit_test/cam_sensor_mipi_test.o \
 	drivers/cam_sensor_module/cam_sensor_utils/kunit_test/cam_sysfs_hw_bigdata_test.o \
+	drivers/cam_sensor_module/cam_sensor_utils/kunit_test/cam_sensor_util_unit_test.o \
 	drivers/kunit_test/camera_kunit_main.o
 
 GCOV_PROFILE_cam_hw_bigdata.o := $(CONFIG_SEC_KUNIT)

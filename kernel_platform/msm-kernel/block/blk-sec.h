@@ -10,6 +10,7 @@ enum {
 };
 
 #if IS_ENABLED(CONFIG_BLK_SEC_COMMON)
+extern struct device *blk_sec_dev;
 extern struct workqueue_struct *blk_sec_common_wq;
 
 extern struct gendisk *blk_sec_internal_disk(void);

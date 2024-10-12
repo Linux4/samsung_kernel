@@ -28,6 +28,23 @@ struct blk_sec_wb {
 
 static struct blk_sec_wb wb;
 
+static void notify_wb_change(bool enabled)
+{
+#define BUF_SIZE 16
+	char buf[BUF_SIZE];
+	char *envp[] = { "NAME=BLK_SEC_WB", buf, NULL, };
+	int ret;
+
+	if (unlikely(IS_ERR(blk_sec_dev)))
+		return;
+
+	memset(buf, 0, BUF_SIZE);
+	snprintf(buf, BUF_SIZE, "ENABLED=%d", enabled);
+	ret = kobject_uevent_env(&blk_sec_dev->kobj, KOBJ_CHANGE, envp);
+	if (ret)
+		pr_err("%s: couldn't send uevent (%d)", __func__, ret);
+}
+
 /*
  * don't call this function in interrupt context,
  * it will be sleep when ufs_sec_wb_ctrl() is called
@@ -56,6 +73,7 @@ static int wb_ctrl(bool enable)
 		wb.state = WB_ON;
 	else
 		wb.state = WB_OFF;
+	notify_wb_change(enable);
 
 out:
 	mutex_unlock(&wb.lock);
@@ -132,10 +150,11 @@ static ssize_t enable_ms_show(struct kobject *kobj,
 		struct kobj_attribute *attr, char *buf)
 {
 	unsigned long expire_jiffies = wb.user_wb_off_timer.expires;
+	unsigned long current_jiffies = jiffies;
 
 	return scnprintf(buf, PAGE_SIZE, "%u\n",
-			timer_pending(&wb.user_wb_off_timer) ?
-			jiffies_to_msecs(expire_jiffies - jiffies) : 0);
+			time_after(expire_jiffies, current_jiffies) ?
+			jiffies_to_msecs(expire_jiffies - current_jiffies) : 0);
 }
 
 static ssize_t enable_ms_store(struct kobject *kobj,
@@ -148,6 +167,9 @@ static ssize_t enable_ms_store(struct kobject *kobj,
 	ret = kstrtoint(buf, 10, &wb_on_duration);
 	if (ret)
 		return ret;
+
+	if (wb_on_duration <= 0)
+		return count;
 
 	if (wb_on_duration < 100)
 		wb_on_duration = 100;

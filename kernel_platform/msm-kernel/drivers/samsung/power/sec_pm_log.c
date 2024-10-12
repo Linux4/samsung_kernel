@@ -28,10 +28,6 @@ static struct proc_dir_entry *procfs_pm_dir;
 #define MAX_STR_LEN		256
 static bool proc_init_done __read_mostly;
 
-/* monitoring log */
-static struct delayed_work power_log_work;
-static DEFINE_MUTEX(power_log_lock);
-
 /* proc log implementation */
 #define SEC_PM_LOG(name)						\
 static char name##_log_buf[PM_LOG_BUF_SIZE];				\
@@ -107,22 +103,6 @@ static const struct proc_ops proc_ss_##name##_log_ops = {	\
 SEC_PM_LOG(power);
 SEC_PM_LOG(thermal);
 
-
-/* monitoring log implementation */
-#define POLLING_DELAY	(HZ * 5)
-static void __ref power_log_print(struct work_struct *work)
-{
-	char power_log[MAX_STR_LEN];
-
-	mutex_lock(&power_log_lock);
-	pm_get_active_wakeup_sources(power_log, MAX_STR_LEN);
-	mutex_unlock(&power_log_lock);
-
-	ss_power_print("pmon: %s\n", power_log);
-
-	schedule_delayed_work(&power_log_work, POLLING_DELAY);
-}
-
 void sec_pm_proc_log_init(void)
 {
 	struct proc_dir_entry *entry;
@@ -178,10 +158,8 @@ static int sec_pm_log_notify(struct notifier_block *nb,
 		ss_power_print("soc: suspend(%d-%02d-%02d %02d:%02d:%02d.%03lu)\n",
 			tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday,
 			tm.tm_hour, tm.tm_min, tm.tm_sec, ts.tv_nsec);
-		cancel_delayed_work(&power_log_work);
 		break;
 	case PM_POST_SUSPEND:
-		schedule_delayed_work(&power_log_work, 0);
 		ss_power_print("soc: resume(%d-%02d-%02d %02d:%02d:%02d.%03lu)\n",
 			tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday,
 			tm.tm_hour, tm.tm_min, tm.tm_sec, ts.tv_nsec);
@@ -205,11 +183,6 @@ static int __init sec_pm_log_init(void)
 
 	/* proc log */
 	sec_pm_proc_log_init();
-
-	/* monitoring log */
-	INIT_DELAYED_WORK(&power_log_work, power_log_print);
-	schedule_delayed_work(&power_log_work, 0);
-	pr_info("%s: monitor init done\n", __func__);
 
 	/* pm notifier */
 	ret = register_pm_notifier(&sec_pm_log_nb);

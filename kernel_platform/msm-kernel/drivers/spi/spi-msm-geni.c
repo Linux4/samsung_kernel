@@ -222,7 +222,7 @@ struct spi_geni_master {
 	bool cmd_done;
 	bool set_miso_sampling;
 	u32 miso_sampling_ctrl_val;
-	bool gpi_reset; /* GPI channel reset*/
+	bool le_gpi_reset_done;
 	bool disable_dma;
 	bool slave_setup;
 	bool slave_state;
@@ -230,6 +230,8 @@ struct spi_geni_master {
 	bool master_cross_connect;
 	bool is_deep_sleep; /* For deep sleep restore the config similar to the probe. */
 	u32 xfer_timeout_offset;
+	bool is_dma_err;
+	bool is_dma_not_done;
 };
 
 /**
@@ -309,6 +311,8 @@ void geni_spi_se_dump_dbg_regs(struct geni_se *se, void __iomem *base,
 
 static void spi_slv_setup(struct spi_geni_master *mas);
 static void spi_master_setup(struct spi_geni_master *mas);
+static void geni_spi_dma_unprepare(struct spi_master *spi,
+				      struct spi_transfer *xfer);
 
 static ssize_t spi_slave_state_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
@@ -363,6 +367,26 @@ static void spi_slv_setup(struct spi_geni_master *mas)
 	/* ensure data is written to hardware register */
 	wmb();
 	dev_info(mas->dev, "spi slave setup done\n");
+}
+
+static void geni_spi_dma_err(struct spi_geni_master *mas, u32 dma_status, bool type)
+{
+	GENI_SE_DBG(mas->ipc, false, mas->dev,
+			"%s: %s status:0x%x\n",
+			__func__, (type ? "DMA-RX" : "DMA-TX"), dma_status);
+
+	/* here checking tx status bits for tx and rx, because bits common
+	 * for tx and rx
+	 */
+	if (dma_status & TX_SBE)
+		GENI_SE_DBG(mas->ipc, false, mas->dev,
+				"%s: AHB master bus error during DMA transaction\n", __func__);
+	if (dma_status & TX_GENI_CANCEL_IRQ)
+		GENI_SE_DBG(mas->ipc, false, mas->dev,
+				"%s: GENI Cancel Interrupt Status\n", __func__);
+	if (dma_status & TX_GENI_CMD_FAILURE)
+		GENI_SE_DBG(mas->ipc, false, mas->dev,
+				"%s: GENI cmd failure\n", __func__);
 }
 
 static int spi_slv_abort(struct spi_master *spi)
@@ -619,8 +643,8 @@ static struct msm_gpi_tre *setup_config0_tre(struct spi_transfer *xfer,
 	c0_tre->dword[2] = MSM_GPI_SPI_CONFIG0_TRE_DWORD2(idx, div);
 	c0_tre->dword[3] = MSM_GPI_SPI_CONFIG0_TRE_DWORD3(0, 0, 0, 0, 1);
 	SPI_LOG_DBG(mas->ipc, false, mas->dev,
-		"%s: flags 0x%x word %d pack %d idx %d div %d\n",
-		__func__, flags, word_len, pack, idx, div);
+		"%s: flags 0x%x word %d pack %d freq %d idx %d div %d\n",
+		__func__, flags, word_len, pack, mas->cur_speed_hz, idx, div);
 	SPI_LOG_DBG(mas->ipc, false, mas->dev,
 		"%s: cs_clk_delay %d inter_words_delay %d\n", __func__,
 				 cs_clk_delay, inter_words_delay);
@@ -693,8 +717,14 @@ static void spi_gsi_ch_cb(struct dma_chan *ch, struct msm_gpi_cb const *cb,
 				void *ptr)
 {
 	struct spi_master *spi = ptr;
-	struct spi_geni_master *mas = spi_master_get_devdata(spi);
+	struct spi_geni_master *mas;
 
+	if (!ptr || !cb) {
+		pr_err("%s: Invalid ev_cb buffer\n", __func__);
+		return;
+	}
+
+	mas = spi_master_get_devdata(spi);
 	switch (cb->cb_event) {
 	case MSM_GPI_QUP_NOTIFY:
 	case MSM_GPI_QUP_MAX_EVENT:
@@ -730,10 +760,20 @@ static void spi_gsi_rx_callback(void *cb)
 {
 	struct msm_gpi_dma_async_tx_cb_param *cb_param =
 			(struct msm_gpi_dma_async_tx_cb_param *)cb;
-	struct gsi_desc_cb *desc_cb = (struct gsi_desc_cb *)cb_param->userdata;
-	struct spi_master *spi = desc_cb->spi;
-	struct spi_transfer *xfer = desc_cb->xfer;
-	struct spi_geni_master *mas = spi_master_get_devdata(spi);
+	struct gsi_desc_cb *desc_cb;
+	struct spi_master *spi;
+	struct spi_transfer *xfer;
+	struct spi_geni_master *mas;
+
+	if (!(cb_param && cb_param->userdata)) {
+		pr_err("%s: Invalid rx_cb buffer\n", __func__);
+		return;
+	}
+
+	desc_cb = (struct gsi_desc_cb *)cb_param->userdata;
+	spi = desc_cb->spi;
+	xfer = desc_cb->xfer;
+	mas = spi_master_get_devdata(spi);
 
 	if (xfer->rx_buf) {
 		if (cb_param->status == MSM_GPI_TCE_UNEXP_ERR) {
@@ -756,10 +796,20 @@ static void spi_gsi_rx_callback(void *cb)
 static void spi_gsi_tx_callback(void *cb)
 {
 	struct msm_gpi_dma_async_tx_cb_param *cb_param = cb;
-	struct gsi_desc_cb *desc_cb = (struct gsi_desc_cb *)cb_param->userdata;
-	struct spi_master *spi = desc_cb->spi;
-	struct spi_transfer *xfer = desc_cb->xfer;
-	struct spi_geni_master *mas = spi_master_get_devdata(spi);
+	struct gsi_desc_cb *desc_cb;
+	struct spi_master *spi;
+	struct spi_transfer *xfer;
+	struct spi_geni_master *mas;
+
+	if (!(cb_param && cb_param->userdata)) {
+		pr_err("%s: Invalid tx_cb buffer\n", __func__);
+		return;
+	}
+
+	desc_cb = (struct gsi_desc_cb *)cb_param->userdata;
+	spi = desc_cb->spi;
+	xfer = desc_cb->xfer;
+	mas = spi_master_get_devdata(spi);
 
 	/*
 	 * Case when lock/unlock support is required:
@@ -868,14 +918,16 @@ static void spi_geni_unlock_bus(struct spi_master *spi)
 	struct scatterlist *xfer_tx_sg = mas->gsi_lock_unlock->tx_sg;
 	unsigned long flags = DMA_PREP_INTERRUPT | DMA_CTRL_ACK;
 
+	/* if gpi reset happened for levm, no need to do unlock */
+	if (mas->is_le_vm && mas->le_gpi_reset_done) {
+		SPI_LOG_DBG(mas->ipc, false, mas->dev,
+			    "%s:gpi reset happened for levm, no need to do unlock\n", __func__);
+		return;
+	}
+
 	reinit_completion(&mas->tx_cb);
 
 	SPI_LOG_DBG(mas->ipc, false, mas->dev, "%s %d\n", __func__, ret);
-
-	if (mas->gpi_reset) {
-		SPI_LOG_DBG(mas->ipc, false, mas->dev, "GPI Reset required\n");
-		goto err_spi_geni_unlock_bus;
-	}
 
 	unlock_t = setup_unlock_tre(mas);
 	sg_init_table(xfer_tx_sg, 1);
@@ -918,10 +970,8 @@ static void spi_geni_unlock_bus(struct spi_master *spi)
 	}
 
 err_spi_geni_unlock_bus:
-	if (mas->gpi_reset || ret) {
+	if (ret)
 		dmaengine_terminate_all(mas->tx);
-		mas->gpi_reset = false;
-	}
 }
 
 static int setup_gsi_xfer(struct spi_transfer *xfer,
@@ -946,6 +996,18 @@ static int setup_gsi_xfer(struct spi_transfer *xfer,
 	struct spi_geni_qcom_ctrl_data *delay_params = NULL;
 	u32 cs_clk_delay = 0;
 	u32 inter_words_delay = 0;
+
+	if (mas->is_le_vm && mas->le_gpi_reset_done) {
+		SPI_LOG_DBG(mas->ipc, false, mas->dev,
+			    "%s doing gsi lock, due to levm gsi reset\n", __func__);
+		ret = spi_geni_lock_bus(spi);
+		if (ret) {
+			SPI_LOG_DBG(mas->ipc, true, mas->dev,
+				    "%s lock bus failed: %d\n", __func__, ret);
+			return ret;
+		}
+		mas->le_gpi_reset_done = false;
+	}
 
 	if (spi_slv->controller_data) {
 		delay_params =
@@ -1316,9 +1378,9 @@ static int spi_geni_mas_setup(struct spi_master *spi)
 {
 	struct spi_geni_master *mas = spi_master_get_devdata(spi);
 	int proto = geni_se_read_proto(&mas->spi_rsc);
-	unsigned int major;
-	unsigned int minor;
-	int hw_ver;
+	unsigned int major = 0;
+	unsigned int minor = 0;
+	u32 hw_ver = 0;
 	int ret = 0;
 
 	if (spi->slave) {
@@ -1344,7 +1406,6 @@ static int spi_geni_mas_setup(struct spi_master *spi)
 	}
 
 	mas->oversampling = 1;
-
 	mas->gsi_mode =
 		(geni_read_reg(mas->base, GENI_IF_DISABLE_RO) &
 					FIFO_IF_DISABLE);
@@ -1443,10 +1504,10 @@ setup_ipc:
 
 	if (!mas->is_deep_sleep) {
 		hw_ver = geni_se_get_qup_hw_version(&mas->spi_rsc);
-		if (hw_ver)
+		if (!hw_ver) {
 			dev_err(mas->dev, "%s:Err getting HW version %d\n",
 							__func__, hw_ver);
-		else {
+		} else {
 			major = GENI_SE_VERSION_MAJOR(hw_ver);
 			minor = GENI_SE_VERSION_MINOR(hw_ver);
 
@@ -1614,6 +1675,8 @@ static int setup_fifo_xfer(struct spi_transfer *xfer,
 		m_clk_cfg |= ((div << CLK_DIV_SHFT) | SER_CLK_EN);
 		geni_write_reg(clk_sel, mas->base, SE_GENI_CLK_SEL);
 		geni_write_reg(m_clk_cfg, mas->base, GENI_SER_M_CLK_CFG);
+		SPI_LOG_DBG(mas->ipc, false, mas->dev,
+			    "%s: freq %d idx %d div %d\n", __func__, xfer->speed_hz, idx, div);
 	}
 
 	mas->tx_rem_bytes = 0;
@@ -1662,9 +1725,8 @@ static int setup_fifo_xfer(struct spi_transfer *xfer,
 	 * mode for transfers or select the mode dynamically based on
 	 * size of data.
 	 */
-	if (spi->slave)
-		mas->cur_xfer_mode = GENI_SE_DMA;
-	if (mas->disable_dma || trans_len <= fifo_size)
+	mas->cur_xfer_mode = GENI_SE_DMA;
+	if (!spi->slave && (mas->disable_dma || trans_len <= fifo_size))
 		mas->cur_xfer_mode = GENI_SE_FIFO;
 	geni_se_select_mode(&mas->spi_rsc, mas->cur_xfer_mode);
 
@@ -1672,9 +1734,9 @@ static int setup_fifo_xfer(struct spi_transfer *xfer,
 		geni_write_reg(spi_tx_cfg, mas->base, SE_SPI_TRANS_CFG);
 	geni_se_setup_m_cmd(&mas->spi_rsc, m_cmd, m_param);
 	SPI_LOG_DBG(mas->ipc, false, mas->dev,
-	"%s: trans_len %d xferlen%d tx_cfg 0x%x cmd 0x%x cs%d mode%d\n",
-		__func__, trans_len, xfer->len, spi_tx_cfg, m_cmd,
-			xfer->cs_change, mas->cur_xfer_mode);
+		"%s: trans_len %d xferlen%d tx_cfg 0x%x cmd 0x%x cs%d mode%d freq %d\n",
+		__func__, trans_len, xfer->len, spi_tx_cfg, m_cmd, xfer->cs_change,
+		mas->cur_xfer_mode, xfer->speed_hz);
 	if ((m_cmd & SPI_RX_ONLY) && (mas->cur_xfer_mode == GENI_SE_DMA)) {
 		ret =  geni_se_rx_dma_prep(&mas->spi_rsc,
 				xfer->rx_buf, xfer->len, &xfer->rx_dma);
@@ -1749,35 +1811,9 @@ static void handle_fifo_timeout(struct spi_master *spi,
 				"Failed to cancel/abort m_cmd\n");
 	}
 dma_unprep:
-	if (mas->cur_xfer_mode == GENI_SE_DMA) {
-		if (xfer->tx_buf && xfer->tx_dma) {
-			reinit_completion(&mas->xfer_done);
-			writel_relaxed(1, mas->base +
-				SE_DMA_TX_FSM_RST);
-			timeout =
-			wait_for_completion_timeout(&mas->xfer_done, HZ);
-			if (!timeout)
-				dev_err(mas->dev,
-					"DMA TX RESET failed\n");
-			geni_se_tx_dma_unprep(&mas->spi_rsc,
-					xfer->tx_dma, xfer->len);
-		}
-		if (xfer->rx_buf && xfer->rx_dma) {
-			reinit_completion(&mas->xfer_done);
-			writel_relaxed(1, mas->base +
-				SE_DMA_RX_FSM_RST);
-			timeout =
-			wait_for_completion_timeout(&mas->xfer_done, HZ);
-			if (!timeout)
-				dev_err(mas->dev,
-					"DMA RX RESET failed\n");
-			geni_se_rx_dma_unprep(&mas->spi_rsc,
-				xfer->rx_dma, xfer->len);
-		}
-	}
+	geni_spi_dma_unprepare(spi, xfer);
 	if (spi->slave && !mas->dis_autosuspend)
 		pm_runtime_put_sync_suspend(mas->dev);
-
 }
 
 static int spi_geni_transfer_one(struct spi_master *spi,
@@ -1843,13 +1879,27 @@ static int spi_geni_transfer_one(struct spi_master *spi,
 			mas->slave_state = false;
 
 		if (!timeout) {
-			SPI_LOG_ERR(mas->ipc, true, mas->dev,
-				"Xfer[len %d tx %pK rx %pK n %d] timed out.\n",
+			u32 dma_tx_status = geni_read_reg(mas->base, SE_DMA_TX_IRQ_STAT);
+			u32 dma_rx_status = geni_read_reg(mas->base, SE_DMA_RX_IRQ_STAT);
+
+			if (((dma_tx_status & TX_DMA_DONE) != TX_DMA_DONE) &&
+			    ((dma_rx_status & RX_DMA_DONE) != RX_DMA_DONE))
+				mas->is_dma_not_done = true;
+
+			GENI_SE_ERR(mas->ipc, true, mas->dev,
+					"Xfer[len %d tx %pK rx %pK n %d] timed out.\n",
 						xfer->len, xfer->tx_buf,
 						xfer->rx_buf,
 						xfer->bits_per_word);
 			mas->cur_xfer = NULL;
 			ret = -ETIMEDOUT;
+			goto err_fifo_geni_transfer_one;
+		}
+
+		if (mas->is_dma_err) {
+			mas->is_dma_err = false;
+			mas->cur_xfer = NULL;
+			/* handle_fifo_timeout will do dma_unprep */
 			goto err_fifo_geni_transfer_one;
 		}
 
@@ -1913,17 +1963,9 @@ static int spi_geni_transfer_one(struct spi_master *spi,
 	return ret;
 err_gsi_geni_transfer_one:
 	geni_spi_se_dump_dbg_regs(&mas->spi_rsc, mas->base, mas->ipc);
-	if (!mas->is_le_vm) {
-		dmaengine_terminate_all(mas->tx);
-	} else {
-		/* Stop channel in case of error in LE-VM */
-		ret = dmaengine_pause(mas->tx);
-		if (ret) {
-			mas->gpi_reset = true;
-			SPI_LOG_ERR(mas->ipc, true, mas->dev,
-				"Channel cancel failed\n");
-		}
-	}
+	dmaengine_terminate_all(mas->tx);
+	if (mas->is_le_vm)
+		mas->le_gpi_reset_done = true;
 	return ret;
 err_fifo_geni_transfer_one:
 	handle_fifo_timeout(spi, xfer);
@@ -2031,6 +2073,123 @@ static void geni_spi_handle_rx(struct spi_geni_master *mas)
 	mas->rx_rem_bytes -= rx_bytes;
 }
 
+static void geni_spi_dma_unprepare(struct spi_master *spi,
+				    struct spi_transfer *xfer)
+{
+	unsigned long timeout;
+	struct spi_geni_master *mas = spi_master_get_devdata(spi);
+
+	if (mas->cur_xfer_mode == GENI_SE_DMA) {
+		if (xfer->tx_buf && xfer->tx_dma) {
+			reinit_completion(&mas->xfer_done);
+			writel_relaxed(1, mas->base + SE_DMA_TX_FSM_RST);
+			timeout =
+			wait_for_completion_timeout(&mas->xfer_done, HZ);
+			if (!timeout)
+				SPI_LOG_ERR(mas->ipc, true, mas->dev,
+				"%s: DMA TX RESET failed\n",
+				__func__);
+		}
+
+		if (xfer->rx_buf && xfer->rx_dma) {
+			reinit_completion(&mas->xfer_done);
+			writel_relaxed(1, mas->base + SE_DMA_RX_FSM_RST);
+			timeout =
+			wait_for_completion_timeout(&mas->xfer_done, HZ);
+			if (!timeout)
+				SPI_LOG_ERR(mas->ipc, true, mas->dev,
+					"%s: DMA RX RESET failed\n",
+					__func__);
+		}
+
+		if (spi->slave && mas->is_dma_not_done) {
+			GENI_SE_DBG(mas->ipc, false, mas->dev,
+				     "%s: doing abort for spi slave\n", __func__);
+			reinit_completion(&mas->xfer_done);
+			geni_se_abort_m_cmd(&mas->spi_rsc);
+			mas->is_dma_not_done = false;
+			/* Ensure cmd abort is written */
+			mb();
+			timeout = wait_for_completion_timeout(&mas->xfer_done, HZ);
+			if (!timeout)
+				SPI_LOG_ERR(mas->ipc, true, mas->dev,
+					"%s: Failed to cancel/abort m_cmd\n",
+					__func__);
+		}
+
+		if (xfer->tx_buf && xfer->tx_dma)
+			geni_se_tx_dma_unprep(&mas->spi_rsc,
+						xfer->tx_dma, xfer->len);
+		if (xfer->rx_buf && xfer->rx_dma)
+			geni_se_rx_dma_unprep(&mas->spi_rsc,
+						xfer->rx_dma, xfer->len);
+	}
+}
+
+static void handle_dma_xfer(u32 dma_tx_status, u32 dma_rx_status, struct spi_geni_master *data)
+{
+	struct spi_geni_master *mas = data;
+
+	if (dma_tx_status) {
+		geni_write_reg(dma_tx_status, mas->base, SE_DMA_TX_IRQ_CLR);
+		if (dma_tx_status & DMA_TX_ERROR_STATUS) {
+			geni_spi_dma_err(mas, dma_tx_status, 0);
+			mas->is_dma_err = true;
+			mas->cmd_done = true;
+			goto exit;
+		} else if (dma_tx_status & TX_RESET_DONE) {
+			mas->cmd_done = true;
+			GENI_SE_DBG(mas->ipc, false, mas->dev,
+				     "%s: Tx Reset done. DMA_TX_IRQ_STAT:0x%x\n",
+				__func__, dma_tx_status);
+			goto exit;
+		} else if (dma_tx_status & TX_DMA_DONE) {
+			GENI_SE_DBG(mas->ipc, false, mas->dev,
+				    "%s: TX DMA done.\n", __func__);
+			mas->tx_rem_bytes = 0;
+		}
+	}
+
+	if (dma_rx_status) {
+		u32 dma_rx_len = geni_read_reg(mas->base, SE_DMA_RX_LEN);
+		u32 dma_rx_len_in =  geni_read_reg(mas->base, SE_DMA_RX_LEN_IN);
+
+		geni_write_reg(dma_rx_status, mas->base, SE_DMA_RX_IRQ_CLR);
+		if (dma_rx_status & DMA_RX_ERROR_STATUS) {
+			geni_spi_dma_err(mas, dma_rx_status, 1);
+			mas->is_dma_err = true;
+			mas->cmd_done = true;
+			goto exit;
+		} else if (dma_rx_status & RX_RESET_DONE) {
+			mas->cmd_done = true;
+			GENI_SE_DBG(mas->ipc, false, mas->dev,
+				     "%s: Rx Reset done. DMA_RX_IRQ_STAT:0x%x\n",
+				__func__, dma_rx_status);
+			goto exit;
+		} else if (dma_rx_status & RX_DMA_DONE) {
+			mas->cmd_done = true;
+			GENI_SE_DBG(mas->ipc, false, mas->dev,
+				     "%s: RX DMA done.\n", __func__);
+			if (dma_rx_len != dma_rx_len_in) {
+				mas->rx_rem_bytes = dma_rx_len - dma_rx_len_in;
+				mas->is_dma_err = true;
+				GENI_SE_DBG(mas->ipc, false, mas->dev,
+					     "%s:Data Mismatch, rx_rem:%d, tx_irq_sts:0x%x rx_irq_sts:0x%x\n",
+					     __func__, mas->rx_rem_bytes,
+					     dma_tx_status, dma_rx_status);
+				geni_spi_se_dump_dbg_regs(&mas->spi_rsc, mas->base, mas->ipc);
+			} else {
+				mas->rx_rem_bytes = 0;
+			}
+		}
+	}
+
+	if (!mas->tx_rem_bytes && !mas->rx_rem_bytes)
+		mas->cmd_done = true;
+exit:
+	return;
+}
+
 static irqreturn_t geni_spi_irq(int irq, void *data)
 {
 	struct spi_geni_master *mas = data;
@@ -2080,21 +2239,14 @@ static irqreturn_t geni_spi_irq(int irq, void *data)
 							SE_DMA_TX_IRQ_STAT);
 		u32 dma_rx_status = geni_read_reg(mas->base,
 							SE_DMA_RX_IRQ_STAT);
+		handle_dma_xfer(dma_tx_status, dma_rx_status, mas);
 
-		if (dma_tx_status)
-			geni_write_reg(dma_tx_status, mas->base,
-						SE_DMA_TX_IRQ_CLR);
-		if (dma_rx_status)
-			geni_write_reg(dma_rx_status, mas->base,
-						SE_DMA_RX_IRQ_CLR);
-		if (dma_tx_status & TX_DMA_DONE)
-			mas->tx_rem_bytes = 0;
-		if (dma_rx_status & RX_DMA_DONE)
-			mas->rx_rem_bytes = 0;
-		if (!mas->tx_rem_bytes && !mas->rx_rem_bytes)
-			mas->cmd_done = true;
 		if ((m_irq & M_CMD_CANCEL_EN) || (m_irq & M_CMD_ABORT_EN))
 			mas->cmd_done = true;
+
+		GENI_SE_DBG(mas->ipc, false, mas->dev,
+			    "dma_txirq:0x%x dma_rxirq:0x%x cmd_done=%d\n",
+			    dma_tx_status, dma_rx_status, mas->cmd_done);
 	}
 exit_geni_spi_irq:
 	geni_write_reg(m_irq, mas->base, SE_GENI_M_IRQ_CLEAR);
@@ -2353,7 +2505,7 @@ static int spi_geni_probe(struct platform_device *pdev)
 	}
 	geni_mas->spi_rsc.base = geni_mas->base;
 
-	spi->mode_bits = (SPI_CPOL | SPI_CPHA | SPI_LOOP | SPI_CS_HIGH);
+	spi->mode_bits = (SPI_CPOL | SPI_CPHA | SPI_LOOP | SPI_CS_HIGH | SPI_LSB_FIRST);
 	spi->bits_per_word_mask = SPI_BPW_RANGE_MASK(4, 32);
 	spi->num_chipselect = SPI_NUM_CHIPSELECT;
 	spi->prepare_transfer_hardware = spi_geni_prepare_transfer_hardware;
@@ -2368,7 +2520,8 @@ static int spi_geni_probe(struct platform_device *pdev)
 	init_completion(&geni_mas->tx_cb);
 	init_completion(&geni_mas->rx_cb);
 	pm_runtime_set_suspended(&pdev->dev);
-	if (!geni_mas->dis_autosuspend) {
+	/* for levm skip auto suspend timer */
+	if (!geni_mas->is_le_vm && !geni_mas->dis_autosuspend) {
 		pm_runtime_set_autosuspend_delay(&pdev->dev,
 					SPI_AUTO_SUSPEND_DELAY);
 		pm_runtime_use_autosuspend(&pdev->dev);

@@ -73,6 +73,13 @@
     <path name="bargein-aec-usb-headset-mic-gain">
         <ctl name="Headset Capture Volume" value="62" />
     </path>
+
+    <path name="interpreter-listen-usb-headset-mic-gain">
+    </path>
+
+    <path name="interpreter-conv-usb-headset-mic-gain">
+        <ctl name="Headset Capture Volume" value="120" />
+    </path>
     <!-- end of recognition Scenario -->
 
     <!-- call Scenario -->

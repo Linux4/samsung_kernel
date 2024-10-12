@@ -1189,7 +1189,8 @@ validation_done:
 	     !target_psoc_get_sap_coex_fixed_chan_cap(
 			wlan_psoc_get_tgt_if_handle(mac_ctx->psoc))) &&
 	    !policy_mgr_is_sap_freq_allowed(mac_ctx->psoc,
-					    sap_context->chan_freq)) {
+			wlan_vdev_mlme_get_opmode(sap_context->vdev),
+			sap_context->chan_freq)) {
 		sap_warn("Abort SAP start due to unsafe channel");
 		return QDF_STATUS_E_ABORTED;
 	}
@@ -3643,7 +3644,9 @@ static void sap_fsm_handle_check_safe_channel(struct mac_context *mac_ctx,
 	if (((!sap_ctx->acs_cfg || !sap_ctx->acs_cfg->acs_mode) &&
 	     target_psoc_get_sap_coex_fixed_chan_cap(
 				wlan_psoc_get_tgt_if_handle(mac_ctx->psoc))) ||
-	    policy_mgr_is_sap_freq_allowed(mac_ctx->psoc, sap_ctx->chan_freq))
+	    policy_mgr_is_sap_freq_allowed(mac_ctx->psoc,
+				wlan_vdev_mlme_get_opmode(sap_ctx->vdev),
+				sap_ctx->chan_freq))
 		return;
 
 	/*

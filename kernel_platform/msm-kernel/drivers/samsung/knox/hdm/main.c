@@ -41,6 +41,8 @@
 
 int hdm_log_level = HDM_LOG_LEVEL;
 
+static u64 supported_subsystem = 0;
+
 static char *status = "NONE";
 module_param(status, charp, 0444);
 MODULE_PARM_DESC(status, "HDM status");
@@ -165,7 +167,46 @@ static ssize_t store_hdm_policy(struct device *dev,
 error:
 	return count;
 }
+
+static ssize_t show_hdm_subsystem(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	u32 hdm_version = 0;
+
+	hdm_info("%s\n", __func__);
+	
+	if ( supported_subsystem == 0) {
+		uh_call(UH_APP_HDM, HDM_GET_SUPPORTED_SUBSYSTEM, (u64)&supported_subsystem, 0, 0, 0);
+		hdm_info("supported_subsystem = %06x\n", supported_subsystem);
+	}
+
+	hdm_version = (supported_subsystem >> 12) & 0xFFF;
+	hdm_info("hdm_version = %03x\n", hdm_version);
+	
+
+	return snprintf(buf, 6, "0x%03x\n", hdm_version);
+}
+
+static ssize_t show_pad_subsystem(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	u32 pad_version = 0;
+
+	hdm_info("%s\n", __func__);
+	
+	if ( supported_subsystem == 0) {
+		uh_call(UH_APP_HDM, HDM_GET_SUPPORTED_SUBSYSTEM, (u64)&supported_subsystem, 0, 0, 0);
+		hdm_info("supported_subsystem = %06x\n", supported_subsystem);
+	}
+
+	pad_version = supported_subsystem & 0xFFF;
+	hdm_info("pad_version = %03x\n", pad_version);
+
+	return snprintf(buf, 6, "0x%03x\n", pad_version);
+}
 static DEVICE_ATTR(hdm_policy, 0220, NULL, store_hdm_policy);
+static DEVICE_ATTR(hdm_subsystem, 0444, show_hdm_subsystem, NULL);
+static DEVICE_ATTR(pad_subsystem, 0444, show_pad_subsystem, NULL);
 
 #if defined(CONFIG_ARCH_QCOM)
 static uint64_t qseelog_shmbridge_handle;
@@ -243,6 +284,16 @@ static int __init hdm_test_init(void)
 	}
 
 	if (device_create_file(dev, &dev_attr_hdm_policy) < 0) {
+		hdm_err("%s Failed to create device file\n", __func__);
+		return 0;
+	}
+
+	if (device_create_file(dev, &dev_attr_hdm_subsystem) < 0) {
+		hdm_err("%s Failed to create device file\n", __func__);
+		return 0;
+	}
+
+	if (device_create_file(dev, &dev_attr_pad_subsystem) < 0) {
 		hdm_err("%s Failed to create device file\n", __func__);
 		return 0;
 	}

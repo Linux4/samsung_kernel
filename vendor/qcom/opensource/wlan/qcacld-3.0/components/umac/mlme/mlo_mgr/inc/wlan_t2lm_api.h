@@ -63,6 +63,7 @@ enum wlan_t2lm_evt {
  * @peer: pointer to peer
  * @event: T2LM event
  * @event_data: T2LM event data pointer
+ * @frame_len: Received T2LM Frame length
  * @dialog_token: Dialog token
  *
  * This api will be called from lim  layers, to process T2LM event
@@ -73,6 +74,7 @@ QDF_STATUS t2lm_deliver_event(struct wlan_objmgr_vdev *vdev,
 			      struct wlan_objmgr_peer *peer,
 			      enum wlan_t2lm_evt event,
 			      void *event_data,
+			      uint32_t frame_len,
 			      uint8_t *dialog_token);
 
 /**
@@ -80,6 +82,7 @@ QDF_STATUS t2lm_deliver_event(struct wlan_objmgr_vdev *vdev,
  * @vdev: vdev pointer
  * @peer: pointer to peer
  * @event_data: T2LM event data pointer
+ * @frame_len: Received Frame length
  * @token: Dialog token
  *
  * This api will be called from lim  layers, after T2LM action frame
@@ -89,7 +92,8 @@ QDF_STATUS t2lm_deliver_event(struct wlan_objmgr_vdev *vdev,
  */
 QDF_STATUS t2lm_handle_rx_req(struct wlan_objmgr_vdev *vdev,
 			      struct wlan_objmgr_peer *peer,
-			      void *event_data, uint8_t *token);
+			      void *event_data, uint32_t frame_len,
+			      uint8_t *token);
 
 /**
  * t2lm_handle_tx_resp - Handler for populating T2LM action frame
@@ -121,6 +125,7 @@ QDF_STATUS t2lm_handle_tx_req(struct wlan_objmgr_vdev *vdev,
  * t2lm_handle_rx_resp - Handler for parsing T2LM action frame
  * @vdev: vdev pointer
  * @event_data: T2LM event data pointer
+ * @frame_len: Frame length
  * @token: Dialog token
  *
  * This api will be called to parsing T2LM response action frame.
@@ -128,8 +133,7 @@ QDF_STATUS t2lm_handle_tx_req(struct wlan_objmgr_vdev *vdev,
  * Return: qdf_status
  */
 QDF_STATUS t2lm_handle_rx_resp(struct wlan_objmgr_vdev *vdev,
-			       void *event_data, uint8_t *token);
-
+			       void *event_data, uint32_t frame_len, uint8_t *token);
 /**
  * t2lm_handle_rx_teardown - Handler for parsing T2LM action frame
  * @vdev: vdev pointer
@@ -176,6 +180,7 @@ wlan_t2lm_validate_candidate(struct cnx_mgr *cm_ctx,
  * @peer: pointer to peer
  * @event: T2LM event
  * @event_data: T2LM event data
+ * @frame_len: received T2LM frame len
  * @dialog_token: Dialog token
  *
  * Return: QDF_STATUS
@@ -184,6 +189,7 @@ QDF_STATUS wlan_t2lm_deliver_event(struct wlan_objmgr_vdev *vdev,
 				   struct wlan_objmgr_peer *peer,
 				   enum wlan_t2lm_evt event,
 				   void *event_data,
+				   uint32_t frame_len,
 				   uint8_t *dialog_token);
 
 /**
@@ -199,7 +205,7 @@ wlan_t2lm_clear_peer_negotiation(struct wlan_objmgr_peer *peer);
 static inline QDF_STATUS
 t2lm_handle_rx_req(struct wlan_objmgr_vdev *vdev,
 		   struct wlan_objmgr_peer *peer,
-		   void *event_data, uint8_t *token)
+		   void *event_data, uint32_t frame_len, uint8_t *token)
 {
 	return QDF_STATUS_E_NOSUPPORT;
 }
@@ -220,7 +226,7 @@ t2lm_handle_tx_req(struct wlan_objmgr_vdev *vdev,
 
 static inline QDF_STATUS
 t2lm_handle_rx_resp(struct wlan_objmgr_vdev *vdev,
-		    void *event_data, uint8_t *token)
+		    void *event_data, uint32_t frame_len, uint8_t *token)
 {
 	return QDF_STATUS_E_NOSUPPORT;
 }
@@ -256,6 +262,7 @@ QDF_STATUS wlan_t2lm_deliver_event(struct wlan_objmgr_vdev *vdev,
 				   struct wlan_objmgr_peer *peer,
 				   enum wlan_t2lm_evt event,
 				   void *event_data,
+				   uint32_t frame_len,
 				   uint8_t *dialog_token)
 {
 	return QDF_STATUS_E_NOSUPPORT;

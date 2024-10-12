@@ -51,7 +51,12 @@ struct sec_vib_inputff_ops {
 	int (*get_i2c_test)(struct input_dev *dev);
 	int (*get_i2s_test)(struct input_dev *dev);
 	int (*fw_load)(struct input_dev *dev, unsigned int fw_id);
+	int (*get_ls_temp)(struct input_dev *dev, u32 *val);
+	int (*set_ls_temp)(struct input_dev *dev, u32 val);
 	int (*set_trigger_cal)(struct input_dev *dev, u32 val);
+	int (*get_ls_calib_res)(struct input_dev *dev, char *buf);
+	int (*set_ls_calib_res)(struct input_dev *dev, char *buf);
+	int (*get_ls_calib_res_name)(struct input_dev *dev, char *buf);
 	u32 (*get_f0_measured)(struct input_dev *dev);
 	int (*get_f0_offset)(struct input_dev *dev);
 	int (*set_f0_offset)(struct input_dev *dev, u32 val);
@@ -62,6 +67,8 @@ struct sec_vib_inputff_ops {
 	int (*get_le_est)(struct input_dev *dev, u32 *le);
 	int (*set_use_sep_index)(struct input_dev *dev, bool use_sep_index);
 	int (*get_lra_resistance)(struct input_dev *dev);
+	const char * (*get_owt_lib_compat_version)(struct input_dev *dev);
+	const char * (*get_ap_chipset)(struct input_dev *dev);
 };
 
 struct sec_vib_inputff_fwdata {
@@ -131,6 +138,7 @@ struct sec_vib_inputff_drvdata {
 	int support_fw;
 	int trigger_calibration;
 	struct sec_vib_inputff_fwdata fw;
+	bool is_ls_calibration;
 	bool is_f0_tracking;
 	struct sec_vib_inputff_pdata *pdata;
 
@@ -141,6 +149,11 @@ struct sec_vib_inputff_drvdata {
 	u16 effect_gain;
 	struct sec_vib_inputff_compose_effects effects[MAX_COMPOSE_EFFECT];
 	struct sec_vib_inputff_compose compose;
+
+	struct work_struct cal_work;
+	struct workqueue_struct *cal_workqueue;
+
+	bool fw_init_attempted;
 };
 
 /* firmware load status. if fail, return err number */

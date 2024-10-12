@@ -186,8 +186,7 @@ static int of_s2mpb02_dt(struct device *dev,
 }
 #endif /* CONFIG_OF */
 
-static int s2mpb02_i2c_probe(struct i2c_client *i2c,
-				const struct i2c_device_id *dev_id)
+static int __s2mpb02_i2c_probe(struct i2c_client *i2c)
 {
 	struct s2mpb02_dev *s2mpb02;
 	struct s2mpb02_platform_data *pdata = i2c->dev.platform_data;
@@ -329,6 +328,19 @@ static struct of_device_id s2mpb02_i2c_dt_ids[] = {
 };
 MODULE_DEVICE_TABLE(of, s2mpb02_i2c_dt_ids);
 #endif /* CONFIG_OF */
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 6, 0)
+static int s2mpb02_i2c_probe(struct i2c_client *i2c)
+{
+	return __s2mpb02_i2c_probe(i2c);
+}
+#else
+static int s2mpb02_i2c_probe(struct i2c_client *i2c,
+				const struct i2c_device_id *dev_id)
+{
+	return __s2mpb02_i2c_probe(i2c);
+}
+#endif
 
 #if IS_ENABLED(CONFIG_PM)
 static int s2mpb02_suspend(struct device *dev)

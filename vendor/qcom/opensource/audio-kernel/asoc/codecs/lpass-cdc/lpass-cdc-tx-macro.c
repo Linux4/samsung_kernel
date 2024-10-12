@@ -17,6 +17,9 @@
 #include "lpass-cdc.h"
 #include "lpass-cdc-registers.h"
 #include "lpass-cdc-clk-rsc.h"
+#if IS_ENABLED(CONFIG_SND_SOC_SAMSUNG_AUDIO)
+#include <sound/samsung/snd_debug_proc.h>
+#endif
 
 #define AUTO_SUSPEND_DELAY  50 /* delay in msec */
 #define LPASS_CDC_TX_MACRO_MAX_OFFSET 0x1000
@@ -263,14 +266,14 @@ static int lpass_cdc_tx_macro_mclk_enable(
 				bool mclk_enable)
 {
 	struct regmap *regmap = dev_get_regmap(tx_priv->dev->parent, NULL);
-	int ret = 0;
+	int ret = 0, rc = 0;
 
 	if (regmap == NULL) {
 		dev_err_ratelimited(tx_priv->dev, "%s: regmap is NULL\n", __func__);
 		return -EINVAL;
 	}
 
-	dev_dbg(tx_priv->dev, "%s: mclk_enable = %u,clk_users= %d\n",
+	dev_info(tx_priv->dev, "%s: mclk_enable = %u,clk_users= %d\n",
 		__func__, mclk_enable, tx_priv->tx_mclk_users);
 
 	mutex_lock(&tx_priv->mclk_lock);
@@ -288,16 +291,34 @@ static int lpass_cdc_tx_macro_mclk_enable(
 		lpass_cdc_clk_rsc_fs_gen_request(tx_priv->dev,
 					true);
 		regcache_mark_dirty(regmap);
-		regcache_sync_region(regmap,
+
+		ret = regcache_sync_region(regmap,
 				TX_START_OFFSET,
 				TX_MAX_OFFSET);
+		if (ret < 0) {
+			dev_err_ratelimited(tx_priv->dev,
+				"%s: regcache_sync_region failed\n",
+				__func__);
+#if IS_ENABLED(CONFIG_SND_SOC_SAMSUNG_AUDIO)
+			sdp_info_print("%s: regcache_sync_region failed\n",
+				__func__);
+#endif
+			lpass_cdc_clk_rsc_fs_gen_request(tx_priv->dev,
+					false);
+			lpass_cdc_clk_rsc_request_clock(tx_priv->dev,
+						TX_CORE_CLK,
+						TX_CORE_CLK,
+						false);
+			goto exit;
+		}
 		if (tx_priv->tx_mclk_users == 0) {
-			regmap_update_bits(regmap,
+			rc = (rc | regmap_update_bits(regmap,
 				LPASS_CDC_TX_CLK_RST_CTRL_MCLK_CONTROL,
-				0x01, 0x01);
-			regmap_update_bits(regmap,
+				0x01, 0x01));
+
+			rc = (rc | regmap_update_bits(regmap,
 				LPASS_CDC_TX_CLK_RST_CTRL_FS_CNT_CONTROL,
-				0x01, 0x01);
+				0x01, 0x01));
 		}
 		tx_priv->tx_mclk_users++;
 	} else {
@@ -309,17 +330,26 @@ static int lpass_cdc_tx_macro_mclk_enable(
 		}
 		tx_priv->tx_mclk_users--;
 		if (tx_priv->tx_mclk_users == 0) {
-			regmap_update_bits(regmap,
+			rc = (rc | regmap_update_bits(regmap,
 				LPASS_CDC_TX_CLK_RST_CTRL_FS_CNT_CONTROL,
-				0x01, 0x00);
-			regmap_update_bits(regmap,
+				0x01, 0x00));
+			rc = (rc | regmap_update_bits(regmap,
 				LPASS_CDC_TX_CLK_RST_CTRL_MCLK_CONTROL,
-				0x01, 0x00);
+				0x01, 0x00));
 		}
+		
+		if (rc < 0) {
+			dev_err_ratelimited(tx_priv->dev, "%s: register writes failed\n",
+				__func__);
+#if IS_ENABLED(CONFIG_SND_SOC_SAMSUNG_AUDIO)
+			sdp_info_print("%s: register writes failed\n",
+				__func__);
+#endif
+		}			
 
 		lpass_cdc_clk_rsc_fs_gen_request(tx_priv->dev,
 				false);
-		lpass_cdc_clk_rsc_request_clock(tx_priv->dev,
+		ret = lpass_cdc_clk_rsc_request_clock(tx_priv->dev,
 				 TX_CORE_CLK,
 				 TX_CORE_CLK,
 				 false);
@@ -449,6 +479,7 @@ static void lpass_cdc_tx_macro_tx_hpf_corner_freq_callback(struct work_struct *w
 	u16 dec_cfg_reg = 0, hpf_gate_reg = 0;
 	u8 hpf_cut_off_freq = 0;
 	u16 adc_reg = 0, adc_n = 0;
+	int ret = 0;
 
 	hpf_delayed_work = to_delayed_work(work);
 	hpf_work = container_of(hpf_delayed_work, struct hpf_work, dwork);
@@ -461,7 +492,7 @@ static void lpass_cdc_tx_macro_tx_hpf_corner_freq_callback(struct work_struct *w
 	hpf_gate_reg = LPASS_CDC_TX0_TX_PATH_SEC2 +
 			LPASS_CDC_TX_MACRO_TX_PATH_OFFSET * hpf_work->decimator;
 
-	dev_dbg(component->dev, "%s: decimator %u hpf_cut_of_freq 0x%x\n",
+	dev_info(component->dev, "%s: decimator %u hpf_cut_of_freq 0x%x\n",
 		__func__, hpf_work->decimator, hpf_cut_off_freq);
 
 	if (is_amic_enabled(component, hpf_work->decimator)) {
@@ -502,15 +533,23 @@ static void lpass_cdc_tx_macro_tx_hpf_corner_freq_callback(struct work_struct *w
 		snd_soc_component_update_bits(component, hpf_gate_reg,
 						0x03, 0x01);
 	} else {
-		snd_soc_component_update_bits(component,
+		ret = (ret | snd_soc_component_update_bits(component,
 				dec_cfg_reg, TX_HPF_CUT_OFF_FREQ_MASK,
-				hpf_cut_off_freq << 5);
-		snd_soc_component_update_bits(component, hpf_gate_reg,
-						0x02, 0x02);
+				hpf_cut_off_freq << 5));
+		ret = (ret | snd_soc_component_update_bits(component, hpf_gate_reg,
+						0x02, 0x02));
 		/* Minimum 1 clk cycle delay is required as per HW spec */
 		usleep_range(1000, 1010);
-		snd_soc_component_update_bits(component, hpf_gate_reg,
-						0x02, 0x00);
+		ret = (ret | snd_soc_component_update_bits(component, hpf_gate_reg,
+						0x02, 0x00));
+	}
+	if (ret < 0) {
+		pr_err_ratelimited("%s: snd_soc_component_update_bits %d\n",
+			__func__, ret);
+#if IS_ENABLED(CONFIG_SND_SOC_SAMSUNG_AUDIO)
+		sdp_info_print("%s: snd_soc_component_update_bits %d\n",
+			__func__, ret);
+#endif
 	}
 	lpass_cdc_tx_macro_wake_enable(tx_priv, 0);
 }
@@ -523,6 +562,7 @@ static void lpass_cdc_tx_macro_mute_update_callback(struct work_struct *work)
 	struct delayed_work *delayed_work = NULL;
 	u16 tx_vol_ctl_reg = 0;
 	u8 decimator = 0;
+	int ret = 0;
 
 	delayed_work = to_delayed_work(work);
 	tx_mute_dwork = container_of(delayed_work, struct tx_mute_work, dwork);
@@ -533,9 +573,17 @@ static void lpass_cdc_tx_macro_mute_update_callback(struct work_struct *work)
 	tx_vol_ctl_reg =
 		LPASS_CDC_TX0_TX_PATH_CTL +
 			LPASS_CDC_TX_MACRO_TX_PATH_OFFSET * decimator;
-	snd_soc_component_update_bits(component, tx_vol_ctl_reg, 0x10, 0x00);
-	dev_dbg(tx_priv->dev, "%s: decimator %u unmute\n",
-		__func__, decimator);
+	ret = snd_soc_component_update_bits(component, tx_vol_ctl_reg, 0x10, 0x00);
+
+	if (ret < 0) {
+		dev_err(tx_priv->dev, "%s: decimator %u unmute %d update bits status \n",
+			__func__, decimator, ret);
+#if IS_ENABLED(CONFIG_SND_SOC_SAMSUNG_AUDIO)
+		sdp_info_print("%s: decimator %u unmute %d update bits status \n",
+			__func__, decimator, ret);
+#endif
+
+	}
 	lpass_cdc_tx_macro_wake_enable(tx_priv, 0);
 }
 
@@ -552,6 +600,7 @@ static int lpass_cdc_tx_macro_put_dec_enum(struct snd_kcontrol *kcontrol,
 	u16 dmic_clk_reg = 0;
 	struct device *tx_dev = NULL;
 	struct lpass_cdc_tx_macro_priv *tx_priv = NULL;
+	int ret = 0;
 
 	if (!lpass_cdc_tx_macro_get_data(component, &tx_dev, &tx_priv, __func__))
 		return -EINVAL;
@@ -560,7 +609,7 @@ static int lpass_cdc_tx_macro_put_dec_enum(struct snd_kcontrol *kcontrol,
 	if (val > e->items - 1)
 		return -EINVAL;
 
-	dev_dbg(component->dev, "%s: wname: %s, val: 0x%x\n", __func__,
+	dev_info(component->dev, "%s: wname: %s, val: 0x%x\n", __func__,
 		widget->name, val);
 
 	switch (e->reg) {
@@ -596,31 +645,38 @@ static int lpass_cdc_tx_macro_put_dec_enum(struct snd_kcontrol *kcontrol,
 	if (strnstr(widget->name, "SMIC", strlen(widget->name))) {
 		if (val != 0) {
 			if (!tx_priv->swr_dmic_enable) {
-				snd_soc_component_update_bits(component,
+				ret = (ret | snd_soc_component_update_bits(component,
 							mic_sel_reg,
-							1 << 7, 0x0 << 7);
+							1 << 7, 0x0 << 7));
 			} else {
-				snd_soc_component_update_bits(component,
+				ret = (ret | snd_soc_component_update_bits(component,
 							mic_sel_reg,
-							1 << 7, 0x1 << 7);
-				snd_soc_component_update_bits(component,
+							1 << 7, 0x1 << 7));
+				ret = (ret | snd_soc_component_update_bits(component,
 					LPASS_CDC_VA_TOP_CSR_DMIC_CFG,
-					0x80, 0x00);
+					0x80, 0x00));
 				dmic_clk_reg =
 					LPASS_CDC_TX_TOP_CSR_SWR_MIC0_CTL +
 						((val - 5)/2) * 4;
-				snd_soc_component_update_bits(component,
+				ret = (ret | snd_soc_component_update_bits(component,
 					dmic_clk_reg,
-					0x0E, tx_priv->dmic_clk_div << 0x1);
+					0x0E, tx_priv->dmic_clk_div << 0x1));
 			}
 		}
 	} else {
 		/* DMIC selected */
 		if (val != 0)
-			snd_soc_component_update_bits(component, mic_sel_reg,
-							1 << 7, 1 << 7);
+			ret = (ret | snd_soc_component_update_bits(component, mic_sel_reg,
+							1 << 7, 1 << 7));
 	}
-
+	if (ret < 0) {
+		dev_err(tx_priv->dev, "%s: %d update bits status \n",
+			__func__,  ret);
+#if IS_ENABLED(CONFIG_SND_SOC_SAMSUNG_AUDIO)
+		sdp_info_print("%s: %d update bits status \n",
+			__func__,  ret);
+#endif
+	}
 	return snd_soc_dapm_put_enum_double(kcontrol, ucontrol);
 }
 
@@ -899,6 +955,7 @@ static int lpass_cdc_tx_macro_put_bcs_ch_sel(struct snd_kcontrol *kcontrol,
 	struct lpass_cdc_tx_macro_priv *tx_priv = NULL;
 	struct device *tx_dev = NULL;
 	int value;
+	int ret = 0;
 
 	if (!lpass_cdc_tx_macro_get_data(component, &tx_dev, &tx_priv, __func__))
 		return -EINVAL;
@@ -908,8 +965,11 @@ static int lpass_cdc_tx_macro_put_bcs_ch_sel(struct snd_kcontrol *kcontrol,
 		return -EINVAL;
 
 	value = ucontrol->value.integer.value[0];
-	snd_soc_component_update_bits(component,
+	ret = snd_soc_component_update_bits(component,
 			LPASS_CDC_VA_TOP_CSR_SWR_CTRL, 0x0F, value);
+	if (ret < 0)
+		dev_err(tx_priv->dev, "%s: %d update bits status \n",
+			__func__, ret);
 
 	return 0;
 }
@@ -920,6 +980,7 @@ static int lpass_cdc_tx_macro_enable_dmic(struct snd_soc_dapm_widget *w,
 	struct snd_soc_component *component =
 				snd_soc_dapm_to_component(w->dapm);
 	unsigned int dmic = 0;
+	int ret = 0;
 
 	dmic = (snd_soc_component_read(component, adc_mux0_cfg) >> 4) - 1;
 
@@ -928,14 +989,23 @@ static int lpass_cdc_tx_macro_enable_dmic(struct snd_soc_dapm_widget *w,
 
 	switch (event) {
 	case SND_SOC_DAPM_PRE_PMU:
-		lpass_cdc_dmic_clk_enable(component, dmic, DMIC_TX, true);
+		ret = lpass_cdc_dmic_clk_enable(component, dmic, DMIC_TX, true);
 		break;
 	case SND_SOC_DAPM_POST_PMD:
-		lpass_cdc_dmic_clk_enable(component, dmic, DMIC_TX, false);
+		ret = lpass_cdc_dmic_clk_enable(component, dmic, DMIC_TX, false);
 		break;
 	}
 
-	return 0;
+	if (ret < 0) {
+		dev_err(component->dev, "%s: event %d DMIC%d enable status %d\n",
+			__func__, event,  dmic, ret);
+#if IS_ENABLED(CONFIG_SND_SOC_SAMSUNG_AUDIO)
+		sdp_info_print("%s: event %d DMIC%d enable status %d\n",
+			__func__, event,  dmic, ret);
+#endif
+	}
+
+	return ret;
 }
 
 static int lpass_cdc_tx_macro_enable_dec(struct snd_soc_dapm_widget *w,
@@ -956,13 +1026,14 @@ static int lpass_cdc_tx_macro_enable_dec(struct snd_soc_dapm_widget *w,
 	int unmute_delay = LPASS_CDC_TX_MACRO_DMIC_UNMUTE_DELAY_MS;
 	struct device *tx_dev = NULL;
 	struct lpass_cdc_tx_macro_priv *tx_priv = NULL;
+	int ret = 0;
 
 	if (!lpass_cdc_tx_macro_get_data(component, &tx_dev, &tx_priv, __func__))
 		return -EINVAL;
 
 	decimator = w->shift;
 
-	dev_dbg(component->dev, "%s(): widget = %s decimator = %u\n", __func__,
+	dev_info(component->dev, "%s(): widget = %s decimator = %u\n", __func__,
 			w->name, decimator);
 
 	tx_vol_ctl_reg = LPASS_CDC_TX0_TX_PATH_CTL +
@@ -984,23 +1055,35 @@ static int lpass_cdc_tx_macro_enable_dec(struct snd_soc_dapm_widget *w,
 				     tx_fs_reg) & 0x0F);
 
 	if(!is_amic_enabled(component, decimator))
-		lpass_cdc_tx_macro_enable_dmic(w, kcontrol, event, adc_mux0_reg);
-
+		ret = lpass_cdc_tx_macro_enable_dmic(w, kcontrol, event, adc_mux0_reg);
+	
+	if (ret < 0) {
+		dev_err(tx_priv->dev, "%s: %d update bits status \n",
+			__func__, ret);
+#if IS_ENABLED(CONFIG_SND_SOC_SAMSUNG_AUDIO)
+		sdp_info_print("%s: %d update bits status \n",
+			__func__, ret);
+#endif
+		return ret;
+	} else {
+		ret = 0;
+	}
+	
 	switch (event) {
 	case SND_SOC_DAPM_PRE_PMU:
-		snd_soc_component_update_bits(component,
+		ret = (ret | snd_soc_component_update_bits(component,
 			dec_cfg_reg, 0x06, tx_priv->dec_mode[decimator] <<
-			LPASS_CDC_TX_MACRO_ADC_MODE_CFG0_SHIFT);
+			LPASS_CDC_TX_MACRO_ADC_MODE_CFG0_SHIFT));
 		/* Enable TX PGA Mute */
-		snd_soc_component_update_bits(component,
-			tx_vol_ctl_reg, 0x10, 0x10);
+		ret = (ret | snd_soc_component_update_bits(component,
+			tx_vol_ctl_reg, 0x10, 0x10));
 		break;
 	case SND_SOC_DAPM_POST_PMU:
-		snd_soc_component_update_bits(component,
-			tx_vol_ctl_reg, 0x20, 0x20);
+		ret = (ret | snd_soc_component_update_bits(component,
+			tx_vol_ctl_reg, 0x20, 0x20));
 		if (!is_amic_enabled(component, decimator)) {
-			snd_soc_component_update_bits(component,
-				hpf_gate_reg, 0x01, 0x00);
+			ret = (ret | snd_soc_component_update_bits(component,
+				hpf_gate_reg, 0x01, 0x00));
 			/*
 		 	 * Minimum 1 clk cycle delay is required as per HW spec
 		 	 */
@@ -1014,9 +1097,9 @@ static int lpass_cdc_tx_macro_enable_dec(struct snd_soc_dapm_widget *w,
 						hpf_cut_off_freq;
 
 		if (hpf_cut_off_freq != CF_MIN_3DB_150HZ)
-			snd_soc_component_update_bits(component, dec_cfg_reg,
+			ret = (ret | snd_soc_component_update_bits(component, dec_cfg_reg,
 						TX_HPF_CUT_OFF_FREQ_MASK,
-						CF_MIN_3DB_150HZ << 5);
+						CF_MIN_3DB_150HZ << 5));
 
 		if (is_amic_enabled(component, decimator)) {
 			hpf_delay = LPASS_CDC_TX_MACRO_AMIC_HPF_DELAY_MS;
@@ -1035,13 +1118,13 @@ static int lpass_cdc_tx_macro_enable_dec(struct snd_soc_dapm_widget *w,
 			queue_delayed_work(system_freezable_wq,
 				&tx_priv->tx_hpf_work[decimator].dwork,
 				msecs_to_jiffies(hpf_delay));
-			snd_soc_component_update_bits(component,
-					hpf_gate_reg, 0x03, 0x02);
+			ret = (ret | snd_soc_component_update_bits(component,
+					hpf_gate_reg, 0x03, 0x02));
 			if (!is_amic_enabled(component, decimator))
-				snd_soc_component_update_bits(component,
-					hpf_gate_reg, 0x03, 0x00);
-			snd_soc_component_update_bits(component,
-					hpf_gate_reg, 0x03, 0x01);
+				ret = (ret | snd_soc_component_update_bits(component,
+					hpf_gate_reg, 0x03, 0x00));
+			ret = (ret | snd_soc_component_update_bits(component,
+					hpf_gate_reg, 0x03, 0x01));
 			/*
 			 * 6ms delay is required as per HW spec
 			 */
@@ -1052,48 +1135,48 @@ static int lpass_cdc_tx_macro_enable_dec(struct snd_soc_dapm_widget *w,
 			      snd_soc_component_read(component,
 					tx_gain_ctl_reg));
 		if (tx_priv->bcs_enable) {
-			snd_soc_component_update_bits(component,
+			ret = (ret | snd_soc_component_update_bits(component,
 				LPASS_CDC_VA_TOP_CSR_SWR_CTRL, 0x0F,
-				tx_priv->bcs_ch);
+				tx_priv->bcs_ch));
 
-			snd_soc_component_update_bits(component, dec_cfg_reg,
-					0x01, 0x01);
+			ret = (ret | snd_soc_component_update_bits(component, dec_cfg_reg,
+					0x01, 0x01));
 			tx_priv->bcs_clk_en = true;
 			if (tx_priv->hs_slow_insert_complete)
-				snd_soc_component_update_bits(component,
+				ret = (ret | snd_soc_component_update_bits(component,
 					LPASS_CDC_TX0_TX_PATH_SEC7, 0x40,
-					0x40);
+					0x40));
 		}
 		break;
 	case SND_SOC_DAPM_PRE_PMD:
 		hpf_cut_off_freq =
 			tx_priv->tx_hpf_work[decimator].hpf_cut_off_freq;
-		snd_soc_component_update_bits(component,
-				tx_vol_ctl_reg, 0x10, 0x10);
+		ret = (ret | snd_soc_component_update_bits(component,
+				tx_vol_ctl_reg, 0x10, 0x10));
 		if (cancel_delayed_work_sync(
 		    &tx_priv->tx_hpf_work[decimator].dwork)) {
 			if (hpf_cut_off_freq != CF_MIN_3DB_150HZ) {
-				snd_soc_component_update_bits(
+				ret = (ret | snd_soc_component_update_bits(
 						component, dec_cfg_reg,
 						TX_HPF_CUT_OFF_FREQ_MASK,
-						hpf_cut_off_freq << 5);
+						hpf_cut_off_freq << 5));
 				if (is_amic_enabled(component, decimator))
-					snd_soc_component_update_bits(component,
+					ret = (ret | snd_soc_component_update_bits(component,
 							hpf_gate_reg,
-							0x03, 0x02);
+							0x03, 0x02));
 				else
-					snd_soc_component_update_bits(component,
+					ret = (ret | snd_soc_component_update_bits(component,
 							hpf_gate_reg,
-							0x03, 0x03);
+							0x03, 0x03));
 
 				/*
 				 * Minimum 1 clk cycle delay is required
 				 * as per HW spec
 				 */
 				usleep_range(1000, 1010);
-				snd_soc_component_update_bits(component,
+				ret = (ret | snd_soc_component_update_bits(component,
 						hpf_gate_reg,
-						0x03, 0x01);
+						0x03, 0x01));
 			}
 		}
 		lpass_cdc_tx_macro_wake_enable(tx_priv, 0);
@@ -1103,34 +1186,44 @@ static int lpass_cdc_tx_macro_enable_dec(struct snd_soc_dapm_widget *w,
 
 		if (snd_soc_component_read(component, adc_mux_reg)
 						& SWR_MIC)
-			snd_soc_component_update_bits(component,
+			ret = (ret | snd_soc_component_update_bits(component,
 				LPASS_CDC_TX_TOP_CSR_SWR_CTRL,
-				0x01, 0x00);
+				0x01, 0x00));
 		break;
 	case SND_SOC_DAPM_POST_PMD:
-		snd_soc_component_update_bits(component, tx_vol_ctl_reg,
-						0x20, 0x00);
-		snd_soc_component_update_bits(component, tx_vol_ctl_reg,
-						0x40, 0x40);
-		snd_soc_component_update_bits(component, tx_vol_ctl_reg,
-						0x40, 0x00);
-		snd_soc_component_update_bits(component,
-			dec_cfg_reg, 0x06, 0x00);
-		snd_soc_component_update_bits(component, tx_vol_ctl_reg,
-						0x10, 0x00);
+		ret = (ret | snd_soc_component_update_bits(component, tx_vol_ctl_reg,
+						0x20, 0x00));
+		ret = (ret | snd_soc_component_update_bits(component, tx_vol_ctl_reg,
+						0x40, 0x40));
+		ret = (ret | snd_soc_component_update_bits(component, tx_vol_ctl_reg,
+						0x40, 0x00));
+		ret = (ret | snd_soc_component_update_bits(component,
+			dec_cfg_reg, 0x06, 0x00));
+		ret = (ret | snd_soc_component_update_bits(component, tx_vol_ctl_reg,
+						0x10, 0x00));
 		if (tx_priv->bcs_enable) {
-			snd_soc_component_update_bits(component, dec_cfg_reg,
-					0x01, 0x00);
-			snd_soc_component_update_bits(component,
-				LPASS_CDC_TX0_TX_PATH_SEC7, 0x40, 0x00);
+			ret = (ret | snd_soc_component_update_bits(component, dec_cfg_reg,
+					0x01, 0x00));
+			ret = (ret | snd_soc_component_update_bits(component,
+				LPASS_CDC_TX0_TX_PATH_SEC7, 0x40, 0x00));
 			tx_priv->bcs_clk_en = false;
-			snd_soc_component_update_bits(component,
+			ret = (ret | snd_soc_component_update_bits(component,
 					LPASS_CDC_VA_TOP_CSR_SWR_CTRL, 0x0F,
-					0x00);
+					0x00));
 		}
 		break;
 	}
-	return 0;
+	if (ret < 0) {
+		dev_err(tx_priv->dev, "%s: %d update bits status \n",
+			__func__, ret);
+#if IS_ENABLED(CONFIG_SND_SOC_SAMSUNG_AUDIO)
+		sdp_info_print("%s: %d update bits status \n",
+			__func__, ret);
+#endif
+	} else {
+		ret = 0;
+	}
+	return ret;
 }
 
 static int lpass_cdc_tx_macro_enable_micbias(struct snd_soc_dapm_widget *w,
@@ -1172,11 +1265,12 @@ static int lpass_cdc_tx_macro_hw_params(struct snd_pcm_substream *substream,
 	u16 tx_fs_reg = 0;
 	struct device *tx_dev = NULL;
 	struct lpass_cdc_tx_macro_priv *tx_priv = NULL;
+	int ret = 0;
 
 	if (!lpass_cdc_tx_macro_get_data(component, &tx_dev, &tx_priv, __func__))
 		return -EINVAL;
 
-	pr_debug("%s: dai_name = %s DAI-ID %x rate %d num_ch %d\n", __func__,
+	pr_info("%s: dai_name = %s DAI-ID %x rate %d num_ch %d\n", __func__,
 		 dai->name, dai->id, params_rate(params),
 		 params_channels(params));
 
@@ -1215,8 +1309,16 @@ static int lpass_cdc_tx_macro_hw_params(struct snd_pcm_substream *substream,
 				    LPASS_CDC_TX_MACRO_TX_PATH_OFFSET * decimator;
 			dev_dbg(component->dev, "%s: set DEC%u rate to %u\n",
 				__func__, decimator, sample_rate);
-			snd_soc_component_update_bits(component, tx_fs_reg,
+			ret = snd_soc_component_update_bits(component, tx_fs_reg,
 						0x0F, tx_fs_rate);
+			if (ret < 0) {
+				dev_err(tx_priv->dev, "%s: %d update bits status \n",
+					__func__, ret);
+#if IS_ENABLED(CONFIG_SND_SOC_SAMSUNG_AUDIO)
+				sdp_info_print("%s: %d update bits status \n",
+					__func__, ret);
+#endif
+			}
 		} else {
 			dev_err_ratelimited(component->dev,
 				"%s: ERROR: Invalid decimator: %d\n",
@@ -2066,10 +2168,18 @@ static int lpass_cdc_tx_macro_init(struct snd_soc_component *component)
 	tx_priv->component = component;
 
 	for (i = 0; i < ARRAY_SIZE(lpass_cdc_tx_macro_reg_init); i++)
-		snd_soc_component_update_bits(component,
+		ret = (ret | snd_soc_component_update_bits(component,
 				lpass_cdc_tx_macro_reg_init[i].reg,
 				lpass_cdc_tx_macro_reg_init[i].mask,
-				lpass_cdc_tx_macro_reg_init[i].val);
+				lpass_cdc_tx_macro_reg_init[i].val));
+	if (ret < 0) {
+		dev_err(tx_priv->dev, "%s: %d update bits status \n",
+			__func__, ret);
+#if IS_ENABLED(CONFIG_SND_SOC_SAMSUNG_AUDIO)
+		sdp_info_print("%s: %d update bits status \n",
+			__func__, ret);
+#endif
+	}
 
 	return 0;
 }

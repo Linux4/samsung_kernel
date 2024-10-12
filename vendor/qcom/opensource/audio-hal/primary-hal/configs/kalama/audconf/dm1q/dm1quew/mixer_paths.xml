@@ -838,6 +838,37 @@
     <path name="bargein-aec-usb-headset-mic">
     </path>
 
+    <path name="interpreter-listen-speaker-mic">
+        <path name="multi-mic" />
+        <ctl name="TX_DEC0 Volume" value="100" />
+        <ctl name="TX_DEC1 Volume" value="100" />
+        <ctl name="TX_DEC2 Volume" value="100" />
+    </path>
+
+    <path name="interpreter-listen-usb-headset-mic">
+        <path name="multi-mic" />
+        <ctl name="TX_DEC0 Volume" value="100" />
+        <ctl name="TX_DEC1 Volume" value="100" />
+        <ctl name="TX_DEC2 Volume" value="100" />
+    </path>
+
+    <path name="interpreter-listen-bt-mic">
+        <path name="multi-mic" />
+        <ctl name="TX_DEC0 Volume" value="100" />
+        <ctl name="TX_DEC1 Volume" value="100" />
+        <ctl name="TX_DEC2 Volume" value="100" />
+    </path>
+
+    <path name="interpreter-conv-speaker-mic">
+        <path name="multi-mic" />
+        <ctl name="TX_DEC0 Volume" value="100" />
+        <ctl name="TX_DEC1 Volume" value="100" />
+        <ctl name="TX_DEC2 Volume" value="100" />
+    </path>
+
+    <path name="interpreter-conv-usb-headset-mic">
+    </path>
+
     <path name="headset-aas-mic">
         <path name="sub-mic" />
         <ctl name="TX_DEC1 Volume" value="109" />

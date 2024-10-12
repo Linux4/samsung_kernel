@@ -1500,9 +1500,48 @@ static void dp_ctrl_stream_off(struct dp_ctrl *dp_ctrl, struct dp_panel *panel)
 }
 
 #ifdef SECDP_OPTIMAL_LINK_RATE
+#define RES_1920X1080	2073600
+#define RES_2560X1440	3686400
+static bool ps176_high_refresh_rate_check(struct dp_panel *dp_panel)
+{
+	struct dp_panel_info *max_timing;
+	int max_resolution;
+	bool ret = false;
+
+	DP_ENTER("\n");
+
+	if (!secdp_adapter_check_parade())
+		goto end;
+
+	if (!secdp_adapter_check_ps176())
+		goto end;
+
+	max_timing = &dp_panel->max_timing_info;
+	max_resolution = max_timing->h_active * max_timing->v_active;
+
+	if (max_resolution >= RES_1920X1080 &&
+			max_timing->refresh_rate > 110 &&
+			max_timing->pixel_clk_khz > 250000) {
+		ret = true;
+	} else if (max_resolution >= RES_2560X1440 &&
+			max_timing->refresh_rate > 75 &&
+			max_timing->pixel_clk_khz > 300000) {
+		ret = true;
+	}
+
+	DP_INFO("[ps176] max %ux%u@%uhz, pclk %uKhz, %d\n",
+		max_timing->h_active, max_timing->v_active,
+		max_timing->refresh_rate, max_timing->pixel_clk_khz, ret);
+end:
+	DP_LEAVE("%d\n", ret);
+	return ret;
+}
+
 static u32 secdp_dp_gen_link_clk(struct dp_panel *dp_panel)
 {
 	u32 calc_link_rate, min_link_rate;
+
+	DP_ENTER("\n");
 
 #ifndef SECDP_MAX_HBR2
 	calc_link_rate = 810000;
@@ -1510,7 +1549,7 @@ static u32 secdp_dp_gen_link_clk(struct dp_panel *dp_panel)
 	calc_link_rate = 540000;
 #endif
 
-	if (!dp_panel)
+	if (!dp_panel || ps176_high_refresh_rate_check(dp_panel))
 		goto end;
 
 	min_link_rate = dp_panel->get_min_req_link_rate(dp_panel);
@@ -1533,6 +1572,7 @@ static u32 secdp_dp_gen_link_clk(struct dp_panel *dp_panel)
 	DP_INFO("min_link_rate <%u>, calc_link_rate <%u>\n",
 		min_link_rate, calc_link_rate);
 end:
+	DP_LEAVE("\n");
 	return calc_link_rate;
 }
 #endif

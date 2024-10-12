@@ -6,7 +6,7 @@
  *
  * Author: Will Deacon <will.deacon@arm.com>
  *
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _ARM_SMMU_H
@@ -26,6 +26,24 @@
 #include <linux/types.h>
 #include <linux/qcom-iommu-util.h>
 #include <linux/qcom-io-pgtable.h>
+
+#ifdef CONFIG_MSM_TZ_SMMU
+bool arm_smmu_skip_write(void __iomem *addr);
+extern void *get_smmu_from_addr(struct iommu_device *iommu, void __iomem *addr);
+extern void *arm_smmu_get_by_addr(void __iomem *addr);
+/* Donot write to smmu global space with CONFIG_MSM_TZ_SMMU */
+#undef writel_relaxed
+#undef writeq_relaxed
+#define writel_relaxed(v, c)	do {					\
+	if (!arm_smmu_skip_write(c))					\
+		((void)__raw_writel((u32)cpu_to_le32(v), (c)));	\
+	} while (0)
+
+#define writeq_relaxed(v, c) do {                              \
+	if (!arm_smmu_skip_write(c))                            \
+		((void)__raw_writeq((u64)cpu_to_le64(v), (c))); \
+	} while (0)
+#endif
 
 /* Configuration registers */
 #define ARM_SMMU_GR0_sCR0		0x0
@@ -107,7 +125,8 @@
 #define ARM_SMMU_SMR_VALID		BIT(31)
 #define ARM_SMMU_SMR_MASK		GENMASK(31, 16)
 #define ARM_SMMU_SMR_ID			GENMASK(15, 0)
-
+#define SID_MASK			0x7FFF
+#define SMR_MASK_MASK			0x7FFF
 #define ARM_SMMU_GR0_S2CR(n)		(0xc00 + ((n) << 2))
 #define ARM_SMMU_S2CR_PRIVCFG		GENMASK(25, 24)
 enum arm_smmu_s2cr_privcfg {
@@ -358,6 +377,7 @@ struct arm_smmu_device {
 	struct device			*dev;
 
 	void __iomem			*base;
+	unsigned long                   size;
 	unsigned int			numpage;
 	unsigned int			pgshift;
 
@@ -382,6 +402,7 @@ struct arm_smmu_device {
 #define ARM_SMMU_OPT_DISABLE_ATOS	(1 << 4)
 #define ARM_SMMU_OPT_CONTEXT_FAULT_RETRY	(1 << 5)
 #define ARM_SMMU_OPT_MULTI_MATCH_HANDOFF_SMR	(1 << 6)
+#define ARM_SMMU_OPT_STATIC_CB		(1 << 7)
 	u32				options;
 	enum arm_smmu_arch_version	version;
 	enum arm_smmu_implementation	model;
@@ -390,6 +411,7 @@ struct arm_smmu_device {
 	u32				num_context_banks;
 	u32				num_s2_context_banks;
 	DECLARE_BITMAP(context_map, ARM_SMMU_MAX_CBS);
+	DECLARE_BITMAP(secure_context_map, ARM_SMMU_MAX_CBS);
 	struct arm_smmu_cb		*cbs;
 	atomic_t			irptndx;
 
@@ -426,6 +448,7 @@ struct arm_smmu_device {
 	phys_addr_t                     phys_addr;
 
 	unsigned long			sync_timed_out;
+	enum tz_smmu_device_id		sec_id;
 };
 
 enum arm_smmu_context_fmt {
@@ -504,6 +527,7 @@ struct arm_smmu_domain {
 	struct arm_smmu_fault_model	fault_model;
 	struct arm_smmu_mapping_cfg	mapping_cfg;
 	bool				delayed_s1_trans_enable;
+	bool				slave_side_secure;
 	u32				secure_vmid;
 
 	/*

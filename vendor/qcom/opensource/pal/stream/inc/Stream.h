@@ -149,6 +149,9 @@ typedef enum {
 #define ORIENTATION_TAG 47
 #define HANDSET_PROT_ENABLE 48
 #define MUX_DEMUX_CHANNELS 49
+#ifdef SEC_AUDIO_INTERPRETER_MODE
+#define INTERPRETER_MODE_TAG 52
+#endif
 
 /* This sleep is added to give time to kernel and
  * spf to recover from SSR so that audio-hal will
@@ -205,6 +208,9 @@ protected:
     bool mDutyCycleEnable = false;
     sem_t mInUse;
     int connectToDefaultDevice(Stream* streamHandle, uint32_t dir);
+#ifdef SEC_AUDIO_INTERPRETER_MODE
+    int mInterpreterMode = 0;
+#endif
 public:
     virtual ~Stream() {};
     struct pal_volume_data* mVolumeData = NULL;
@@ -331,6 +337,10 @@ public:
     /* GetPalDevice only applies to Sound Trigger streams */
     std::shared_ptr<Device> GetPalDevice(Stream *streamHandle, pal_device_id_t dev_id);
     void setCachedState(stream_state_t state);
+#ifdef SEC_AUDIO_INTERPRETER_MODE
+    void setInterpreterMode(int interpreter_mode) { mInterpreterMode = interpreter_mode; };
+    int getInterpreterMode() { return mInterpreterMode; }
+#endif
 };
 
 class StreamNonTunnel : public Stream

@@ -1095,15 +1095,15 @@ static void checkUsbDeviceAutoSuspend(const std::string& devicePath) {
 
 static bool checkUsbInterfaceAutoSuspend(const std::string& devicePath,
                                          const std::string &intf) {
-    std::string bInterfaceClass;
+    std::string bInterfaceClass = "";
     int interfaceClass, ret = -1, retry = 3;
 
     do {
-        readFile(devicePath + "/" + intf + "/bInterfaceClass",
+        ret = readFile(devicePath + "/" + intf + "/bInterfaceClass",
             &bInterfaceClass);
-    } while ((--retry > 0) && (bInterfaceClass.length() == 0));
+    } while ((--retry > 0) && ((bInterfaceClass.length() == 0) || (ret != 0)));
 
-    if (bInterfaceClass.length() == 0) {
+    if ((bInterfaceClass.length() == 0) || (ret != 0)) {
         return false;
     }
     interfaceClass = std::stoi(bInterfaceClass, 0, 16);

@@ -741,7 +741,11 @@ static int qbt2000_dev_register(struct qbt2000_drvdata *drvdata)
 		goto err_cdev_add;
 	}
 
+#if (KERNEL_VERSION(6, 3, 0) <= LINUX_VERSION_CODE)
+	drvdata->qbt2000_class = class_create(QBT2000_DEV);
+#else
 	drvdata->qbt2000_class = class_create(THIS_MODULE, QBT2000_DEV);
+#endif
 	if (IS_ERR(drvdata->qbt2000_class)) {
 		rc = PTR_ERR(drvdata->qbt2000_class);
 		pr_err("class_create failed %d\n", rc);
@@ -787,7 +791,7 @@ static void qbt2000_gpio_report_event(struct qbt2000_drvdata *drvdata)
 	int state;
 	struct fw_event_desc fw_event;
 
-	state = (__gpio_get_value(drvdata->fd_gpio.gpio) ? FINGER_DOWN_GPIO_STATE : FINGER_LEAVE_GPIO_STATE)
+	state = (gpio_get_value(drvdata->fd_gpio.gpio) ? FINGER_DOWN_GPIO_STATE : FINGER_LEAVE_GPIO_STATE)
 		^ drvdata->fd_gpio.active_low;
 
 	if (state == drvdata->fd_gpio.last_gpio_state) {

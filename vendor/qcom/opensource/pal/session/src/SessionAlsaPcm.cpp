@@ -1325,6 +1325,19 @@ set_mixer:
                     }
                 }
             }
+
+#ifdef SEC_AUDIO_INTERPRETER_MODE
+            if (sAttr.type == PAL_STREAM_DEEP_BUFFER) {
+               if (strstr(dAttr.custom_config.custom_key, "interpreter_")) {
+                   s->setInterpreterMode(rm->interpreter_mode);
+                   PAL_DBG(LOG_TAG,"Interpreter set mode %d", s->getInterpreterMode());
+                   if (setConfig(s, MODULE, INTERPRETER_MODE_TAG)) {
+                       PAL_DBG(LOG_TAG, "Interpreter mode setting failed");
+                   }
+                }
+            }
+#endif
+
             if (ResourceManager::isLpiLoggingEnabled()) {
                 struct audio_route *audioRoute;
 
