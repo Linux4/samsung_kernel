@@ -321,6 +321,12 @@ static int ss_monitor_setup(struct usb_function *f,
 			if (ctrl->bRequest == 0xA3) {
 				pr_info("usb: [%s] RECEIVE PC GUID / line[%d]\n",
 							__func__, __LINE__);
+				if (w_length > MAX_GUID_SIZE) {
+					pr_info("usb: [%s] Invalid GUID size / line[%d]\n",
+								__func__, __LINE__);
+					goto unknown;
+				}
+
 				value = w_length;
 				req->complete = mtp_complete_get_guid;
 				req->zero = 0;
