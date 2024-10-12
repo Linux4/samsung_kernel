@@ -47,9 +47,9 @@
 
 #if defined(CONFIG_LITHIUM)
 #if defined(QCA_WIFI_QCA6390) //Hastings
-#define QWLAN_VERSIONSTR               "5.2.023.4U-HS220817A"
+#define QWLAN_VERSIONSTR               "5.2.023.4U-HS230328A"
 #elif defined(QCA_WIFI_QCA6490) // Hastings Prime
-#define QWLAN_VERSIONSTR               "5.2.023.4U-HP211123A"
+#define QWLAN_VERSIONSTR               "5.2.023.4U-HP230221A"
 #else
 #define QWLAN_VERSIONSTR               "5.2.023.4U-QCOM"
 #endif
