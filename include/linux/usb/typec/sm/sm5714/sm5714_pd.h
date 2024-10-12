@@ -1004,7 +1004,12 @@ struct sm5714_usbpd_data {
 	int			thermal_state;
 	int			auth_type;
 	int			d2d_type;
+#ifndef CONFIG_DISABLE_LOCKSCREEN_USB_RESTRICTION	
+	bool		altmode_enable;
+#endif
+#if IS_ENABLED(CONFIG_BATTERY_SAMSUNG)
 	struct pdic_notifier_struct pd_noti;
+#endif
 };
 
 static inline struct sm5714_usbpd_data *protocol_rx_to_usbpd(
@@ -1104,4 +1109,7 @@ extern int dwc3_restart_usb_host_mode_hs(void);
 void sm5714_usbpd_change_source_cap(int enable, int max_cur, int init);
 void sm5714_usbpd_turn_on_reverse_booster(struct sm5714_usbpd_data *pd_data);
 void sm5714_usbpd_turn_off_reverse_booster(struct sm5714_usbpd_data *pd_data);
+#ifndef CONFIG_DISABLE_LOCKSCREEN_USB_RESTRICTION
+void sm5714_set_enable_alternate_mode(int mode);
+#endif
 #endif

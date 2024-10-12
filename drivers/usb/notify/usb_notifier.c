@@ -141,9 +141,9 @@ static struct device_node *exynos_udc_parse_dt(void)
 	if (np)
 		goto find;
 
-	np = of_find_compatible_node(NULL, NULL, "samsung,usb-notifier");
+	np = of_find_compatible_node(NULL, NULL, "samsung,origin-usb-notifier");
 	if (!np) {
-		pr_err("%s: failed to get the usb-notifier device node\n",
+		pr_err("%s: failed to get the origin-usb-notifier device node\n",
 			__func__);
 		goto err;
 	}
@@ -391,8 +391,10 @@ static int ccic_usb_handle_notification(struct notifier_block *nb,
 	case USB_STATUS_NOTIFY_ATTACH_UFP:
 		pr_info("%s: Turn On Device(UFP)\n", __func__);
 		send_otg_notify(o_notify, NOTIFY_EVENT_VBUS, 1);
+#ifdef CONFIG_DISABLE_LOCKSCREEN_USB_RESTRICTION
 		if (is_blocked(o_notify, NOTIFY_BLOCK_TYPE_CLIENT))
 			return -EPERM;
+#endif
 		break;
 	case USB_STATUS_NOTIFY_DETACH:
 		if (pdata->is_host) {
@@ -880,7 +882,7 @@ static int usb_notifier_remove(struct platform_device *pdev)
 
 #ifdef CONFIG_OF
 static const struct of_device_id usb_notifier_dt_ids[] = {
-	{ .compatible = "samsung,usb-notifier",
+	{ .compatible = "samsung,origin-usb-notifier",
 	},
 	{ },
 };

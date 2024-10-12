@@ -38,6 +38,7 @@
 #include <linux/sched/signal.h>
 #include <asm/uaccess.h>
 #include <asm/stacktrace.h>
+#include <linux/uidgid.h>
 
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0)
@@ -597,13 +598,16 @@ static int __init kperfmon_init(void)
 		return -ENOMEM;
 	}
 
-	entry = proc_create(PROC_NAME, 0664, NULL, &kperfmon_fops);
+	entry = proc_create(PROC_NAME, 0660, NULL, &kperfmon_fops);
 
 	if (!entry) {
 		pr_info("%s() - Error creating entry in proc failed!!!\n", __func__);
 		DestroyBuffer(&buffer);
 		return -EBUSY;
 	}
+
+	/* Set file user (owner) to shell user UID (2000), to allow file access to both root group and shell as well */
+	proc_set_user(entry, KUIDT_INIT(2000), KGIDT_INIT(0));
 
 	/*dbg_level_is_low = (sec_debug_level() == ANDROID_DEBUG_LEVEL_LOW);*/
 

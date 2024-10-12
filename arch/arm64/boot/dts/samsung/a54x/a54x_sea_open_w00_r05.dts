@@ -966,6 +966,28 @@
 				phandle = <0x6e>;
 			};
 
+			sec-bootstat {
+
+				thermal-zones {
+
+					BIG {
+						display-name = "BIG";
+					};
+
+					LITTLE {
+						display-name = "LIT";
+					};
+
+					G3D {
+						display-name = "G3D";
+					};
+
+					ISP {
+						display-name = "ISP";
+					};
+				};
+			};
+
 			secgpio_dvs {
 				compatible = "samsung,s5e8835-secgpio-dvs";
 				status = "okay";
@@ -4115,6 +4137,7 @@
 				support_vbus_notifier;
 				synaptics,support_immediate_cmd;
 				synaptics,do_set_up_report;
+				synaptics,edgehandler_direction_max = <0x05>;
 				phandle = <0xa2>;
 			};
 		};
