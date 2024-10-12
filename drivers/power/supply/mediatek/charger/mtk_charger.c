@@ -1604,7 +1604,7 @@ void mtk_charger_int_handler(void)
 		mutex_unlock(&pinfo->cable_out_lock);
 		charger_manager_notifier(pinfo, CHARGER_NOTIFY_STOP_CHARGING);
 	} else{
-		if((batt_full_capacity != 100)&&(battery_get_uisoc() > batt_full_capacity))
+		if((batt_full_capacity != 100)&&(battery_get_uisoc() >= batt_full_capacity))
 			charger_manager_notifier(pinfo, CHARGER_NOTIFY_STOP_CHARGING);
 		else
 			charger_manager_notifier(pinfo, CHARGER_NOTIFY_START_CHARGING);

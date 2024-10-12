@@ -97,7 +97,6 @@ struct usb_notify {
 	struct typec_info typec_status;
 	struct usb_gadget_info gadget_status;
 	struct mutex state_lock;
-	struct mutex event_mutex_lock;
 	spinlock_t event_spin_lock;
 	int is_device;
 	int cond_max_speed;
@@ -438,27 +437,18 @@ static bool check_block_event(struct otg_notify *n, unsigned long event)
 static void notify_event_lock_init(struct usb_notify *u_noti)
 {
 	spin_lock_init(&u_noti->event_spin_lock);
-	mutex_init(&u_noti->event_mutex_lock);
 }
 
 static void notify_event_lock(struct usb_notify *u_noti, int type)
 {
-	if (type & NOTIFY_EVENT_EXTRA)
-		mutex_lock(&u_noti->event_mutex_lock);
-	else if (type & NOTIFY_EVENT_STATE)
+	if (type & NOTIFY_EVENT_STATE)
 		spin_lock(&u_noti->event_spin_lock);
-	else
-		;
 }
 
 static void notify_event_unlock(struct usb_notify *u_noti, int type)
 {
-	if (type & NOTIFY_EVENT_EXTRA)
-		mutex_unlock(&u_noti->event_mutex_lock);
-	else if (type & NOTIFY_EVENT_STATE)
+	if (type & NOTIFY_EVENT_STATE)
 		spin_unlock(&u_noti->event_spin_lock);
-	else
-		;
 }
 
 static void enable_ovc(struct usb_notify *u_noti, int enable)
@@ -2787,8 +2777,10 @@ void enable_usb_notify(void)
 	}
 
 	o_notify->booting_delay_sync_usb = 0;
-	if (!u_notify->o_notify->booting_delay_sec)
+	if (!delayed_work_pending(&u_notify->b_delay.booting_work))
 		schedule_delayed_work(&u_notify->b_delay.booting_work, 0);
+	else
+		pr_err("%s wait booting_delay\n", __func__);
 }
 EXPORT_SYMBOL(enable_usb_notify);
 

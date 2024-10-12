@@ -54,7 +54,7 @@
 #define KEY_GESTURE_V                           KEY_V
 #define KEY_GESTURE_C                           KEY_C
 #define KEY_GESTURE_Z                           KEY_Z
-#define GESTURE_DOUBLE_TAP		    	KEY_HOMEPAGE
+#define GESTURE_DOUBLE_TAP		    	KEY_WAKEUP
 
 #define GESTURE_LEFT                            0x20
 #define GESTURE_RIGHT                           0x21

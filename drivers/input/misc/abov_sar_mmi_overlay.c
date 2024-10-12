@@ -67,6 +67,7 @@ static u8 checksum_l_bin;
 #define LOG_ERR(fmt, args...)   pr_err(LOG_TAG "[ERR]" "<%s><%d>"fmt, __func__, __LINE__, ##args)
 
 static int force_far = 0;
+static int user_test = 0;
 static int mEnabled;
 static int programming_done;
 pabovXX_t abov_sar_ptr;
@@ -2079,6 +2080,41 @@ static ssize_t power_enable_store(struct class *class,
 	return count;
 }
 static CLASS_ATTR_RW(power_enable);
+static ssize_t user_test_show(struct class *class,
+		struct class_attribute *attr,
+		char *buf)
+{
+	return snprintf(buf, 8, "%d\n", user_test);
+}
+
+static ssize_t user_test_store(struct class *class,
+		struct class_attribute *attr,
+		const char *buf, size_t count)
+{
+    int ret = -1;
+	pabovXX_t this = abov_sar_ptr;
+	if (!count)
+		return -EINVAL;
+
+    ret = kstrtoint(buf, 10, &user_test);
+    if (0 != ret) {
+        LOG_ERR("kstrtoint failed\n");
+    }
+
+    printk("ABOV:user_test:%d", user_test);
+    if(user_test){
+	    this->abov_first_boot = false;
+        printk("ABOV: this->abov_first_boot = %d;", this->abov_first_boot);
+	    printk("ABOV:user_test mode, exit force near mode!!!");
+
+        printk("ABOV ch user_test mode cali ... \n");
+        write_register(this, ABOV_RECALI_REG, 0x01);
+        msleep(500);
+    }
+
+	return count;
+}
+static CLASS_ATTR_RW(user_test);
 
 static void capsense_update_work(struct work_struct *work)
 {
@@ -2425,6 +2461,12 @@ static int abov_probe(struct i2c_client *client, const struct i2c_device_id *id)
 		ret = class_create_file(&capsense_class, &class_attr_power_enable);
 		if (ret < 0) {
 			LOG_ERR("Create power_enable file failed (%d)\n", ret);
+			goto err_class_creat;
+		}
+
+		ret = class_create_file(&capsense_class, &class_attr_user_test);
+		if (ret < 0) {
+			LOG_ERR("Create user_test file failed (%d)\n", ret);
 			goto err_class_creat;
 		}
 

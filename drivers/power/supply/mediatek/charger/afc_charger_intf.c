@@ -699,27 +699,6 @@ int afc_check_charger(struct charger_manager *pinfo)
 	//EXTB P200225-00205,zhaosidong.wt,ADD,20200227, report fast charging state in time.
 	struct power_supply *psy = power_supply_get_by_name("battery");
 
-#if !defined(CONFIG_WT_PROJECT_S96801AA3)
-	u32 retry_cnt_max = 20;
-	
-	printk("%s: Start, is_afc = %d, type = %d\n", __func__,g_is_afc_charger,mt_get_charger_type());
-	msleep(1000);
-	if(afc_get_vbus() < 6500000){
-		while(!g_is_afc_charger && mt_get_charger_type() != CHARGER_UNKNOWN && retry_cnt_max > 0 && !cancel_afc(pinfo)){
-			printk("is_afc_charger=%d\n",g_is_afc_charger);
-			ret = __afc_set_ta_vchr(pinfo, SET_5V);
-			if(ret == 0){
-				printk("afc test is ok\n");
-				g_is_afc_charger = true;
-				break;
-			}
-			afc_reset(afc_device);
-			msleep(38);
-			retry_cnt_max--;
-			printk("retry cnt = %d\n",retry_cnt_max);
-		}
-	}
-#endif
 	if (!pinfo->enable_hv_charging) {
 		pr_err("%s: hv charging is disabled\n", __func__);
 		if (afc_device->is_connect) {

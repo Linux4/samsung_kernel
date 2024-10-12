@@ -1705,6 +1705,10 @@ static int mt6360_enable_otg(struct charger_device *chg_dev, bool en)
 	struct mt6360_pmu_chg_info *mpci = charger_get_data(chg_dev);
 	int ret = 0;
 
+	if (en){
+		mt6360_enable_hz(chg_dev,false);
+	}
+
 	dev_dbg(mpci->dev, "%s: en = %d\n", __func__, en);
 	ret = mt6360_enable_otg_wdt(mpci, en ? true : false);
 	if (ret < 0) {

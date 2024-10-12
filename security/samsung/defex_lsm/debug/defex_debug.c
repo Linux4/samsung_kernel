@@ -10,14 +10,163 @@
 #include <linux/init.h>
 #include <linux/kernel.h>
 #include <linux/kobject.h>
+#ifdef DEFEX_LOG_BUFFER_ENABLE
+#include <linux/list.h>
+#include <linux/rculist.h>
+#endif /* DEFEX_LOG_BUFFER_ENABLE */
 #include <linux/sched.h>
 #include <linux/slab.h>
+#ifdef DEFEX_LOG_BUFFER_ENABLE
+#include <linux/spinlock.h>
+#endif /* DEFEX_LOG_BUFFER_ENABLE */
 #include <linux/string.h>
 #include <linux/sysfs.h>
 #include "include/defex_debug.h"
 #include "include/defex_internal.h"
 
 static int last_cmd;
+
+#ifdef DEFEX_LOG_BUFFER_ENABLE
+unsigned char *log_buf;
+DEFINE_SPINLOCK(log_buf_lock);
+static unsigned int log_buf_in_index, log_buf_out_index;
+static unsigned long log_buf_size, log_buf_mask;
+
+static int log_buf_init(void)
+{
+	log_buf_size = LOG_BUF_SIZE;
+	do {
+		log_buf = vmalloc(log_buf_size);
+		if (log_buf)
+			break;
+		pr_crit("[DEFEX] Log buffer allocation failed %ld bytes.\n", log_buf_size);
+		log_buf_size >>= 1;
+	} while (log_buf_size > PAGE_SIZE);
+	if (!log_buf)
+		return -1;
+
+	pr_info("[DEFEX] Log buffer size set to %ld bytes.\n", log_buf_size);
+
+	log_buf_in_index = 0;
+	log_buf_out_index = 0;
+	log_buf_mask = log_buf_size - 1;
+
+	log_buffer_msg("[DEFEX] Logging started...");
+	return 0;
+}
+
+static int log_buffer_put(const char *msg, int msg_len)
+{
+	char c;
+	int avail, ret = -1;
+
+	if (!log_buf_size) {
+		pr_info("[DEFEX] %s", msg);
+		return ret;
+	}
+
+	spin_lock(&log_buf_lock);
+	avail = log_buf_size - ((log_buf_in_index - log_buf_out_index) & log_buf_mask);
+	if (avail > msg_len) {
+		do {
+			c = *msg++;
+			log_buf[log_buf_in_index++] = c;
+			log_buf_in_index &= log_buf_mask;
+		} while (--msg_len);
+		if (c != '\n') {
+			log_buf[log_buf_in_index++] = '\n';
+			log_buf_in_index &= log_buf_mask;
+		}
+		ret = 0;
+	}
+	spin_unlock(&log_buf_lock);
+	return ret;
+}
+
+static int log_buffer_get(char *str, int buff_size)
+{
+	char value;
+	int index = 0;
+	unsigned int log_buf_out_local;
+
+	if (log_buf_in_index == log_buf_out_index || buff_size < 2)
+		return 0;
+
+	spin_lock(&log_buf_lock);
+	log_buf_out_local = log_buf_out_index;
+	do {
+		value = log_buf[log_buf_out_local++];
+		str[index++] = value;
+		log_buf_out_local &= log_buf_mask;
+		if (value == '\n') {
+			str[index] = 0;
+			log_buf_out_index = log_buf_out_local;
+			spin_unlock(&log_buf_lock);
+			return index;
+		}
+	} while (--buff_size > 1 && (log_buf_in_index != log_buf_out_local));
+	spin_unlock(&log_buf_lock);
+	return 0;
+}
+
+int log_buffer_msg(const char *format, ...)
+{
+	char msg[MAX_LEN];
+	int msg_len;
+	va_list aptr;
+	ktime_t cur_time;
+
+	cur_time = ktime_get_boottime();
+	msg_len = snprintf(msg, MAX_LEN, "[% 4lld.%04lld] ", cur_time/1000000000, (cur_time%1000000000)/100000);
+
+	va_start(aptr, format);
+	msg_len += vsnprintf(msg + msg_len, MAX_LEN - msg_len, format, aptr);
+	va_end(aptr);
+	return log_buffer_put(msg, msg_len);
+}
+
+int log_buffer_printf(const char *format, ...)
+{
+	char msg[MAX_LEN];
+	int msg_len;
+	va_list aptr;
+
+	va_start(aptr, format);
+	msg_len = vsnprintf(msg, MAX_LEN, format, aptr);
+	va_end(aptr);
+	return log_buffer_put(msg, msg_len);
+}
+#else
+int log_buffer_msg(const char *format, ...)
+{
+	char msg[MAX_LEN];
+	int msg_len;
+	va_list aptr;
+	ktime_t cur_time;
+
+	cur_time = ktime_get_boottime();
+	msg_len = snprintf(msg, MAX_LEN, "[% 4lld.%04lld] ", cur_time/1000000000, (cur_time%1000000000)/100000);
+
+	va_start(aptr, format);
+	msg_len += vsnprintf(msg + msg_len, MAX_LEN - msg_len, format, aptr);
+	va_end(aptr);
+	pr_info("[DEFEX] %s", msg);
+	return 0;
+}
+
+int log_buffer_printf(const char *format, ...)
+{
+	char msg[MAX_LEN];
+	int msg_len;
+	va_list aptr;
+
+	va_start(aptr, format);
+	msg_len = vsnprintf(msg, MAX_LEN, format, aptr);
+	va_end(aptr);
+	pr_info("[DEFEX] %s", msg);
+	return 0;
+}
+#endif /* DEFEX_LOG_BUFFER_ENABLE */
 
 void blob(const char *buffer, const size_t bufLen, const int lineSize)
 {
@@ -138,7 +287,8 @@ __visible_for_testing ssize_t debug_store(struct kobject *kobj, struct kobj_attr
 		"pe_status=",
 		"im_status=",
 		"sp_status=",
-		"int_status="
+		"int_status=",
+		"get_log"
 	};
 
 	if (!buf || !p)
@@ -163,13 +313,17 @@ __visible_for_testing ssize_t debug_store(struct kobject *kobj, struct kobj_attr
 		privesc_status_store(buf + l);
 		break;
 	case DBG_SET_IM_STATUS:
+#ifdef DEFEX_IMMUTABLE_ENABLE
 		immutable_status_store(buf + l);
+#endif /* DEFEX_IMMUTABLE_ENABLE */
 		break;
 	case DBG_SET_SP_STATUS:
 		safeplace_status_store(buf + l);
 		break;
 	case DBG_SET_INT_STATUS:
 		integrity_status_store(buf + l);
+		break;
+	case DBG_GET_LOG:
 		break;
 	default:
 		break;
@@ -183,6 +337,9 @@ __visible_for_testing ssize_t debug_show(struct kobject *kobj, struct kobj_attri
 {
 	struct task_struct *p = current;
 	int res = 0;
+#ifdef DEFEX_LOG_BUFFER_ENABLE
+	int buff_size, msg_len;
+#endif /* DEFEX_LOG_BUFFER_ENABLE */
 
 	if (!p)
 		return 0;
@@ -196,6 +353,23 @@ __visible_for_testing ssize_t debug_show(struct kobject *kobj, struct kobj_attri
 			uid_get_value(p->cred->euid),
 			uid_get_value(p->cred->egid));
 		break;
+	case DBG_GET_LOG:
+#ifdef DEFEX_LOG_BUFFER_ENABLE
+		buff_size = PAGE_SIZE;
+		do {
+			msg_len = log_buffer_get(&buf[res], buff_size);
+			res += msg_len;
+			buff_size -= msg_len;
+		} while (msg_len && buff_size >= MAX_LEN);
+		if (!msg_len)
+			res += snprintf(&buf[res], buff_size, "=== EOF ===\n");
+		else
+			res += snprintf(&buf[res], buff_size, "=== %lu bytes left ===\n",
+				(unsigned long)(log_buf_in_index - log_buf_out_index) & LOG_BUF_MASK);
+#else
+		res = snprintf(buf, MAX_LEN + 1, "Log buffer disabled...\n");
+#endif /* DEFEX_LOG_BUFFER_ENABLE */
+		break;
 	}
 
 	return res;
@@ -206,6 +380,13 @@ __visible_for_testing struct kobj_attribute debug_attribute = __ATTR(debug, 0660
 int defex_create_debug(struct kset *defex_kset)
 {
 	int retval;
+
+#ifdef DEFEX_LOG_BUFFER_ENABLE
+	retval = log_buf_init();
+	if (retval)
+		pr_crit("[DEFEX] Log buffer init failed.\n");
+#endif /* DEFEX_LOG_BUFFER_ENABLE */
+	last_cmd = DBG_GET_LOG;
 
 	retval = sysfs_create_file(&defex_kset->kobj, &debug_attribute.attr);
 	if (retval)

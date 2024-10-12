@@ -53,7 +53,6 @@
 #include <linux/string.h>
 #include <linux/ctype.h>
 
-#include <linux/netlink.h>
 #include <linux/skbuff.h>
 #include <linux/socket.h>
 #include <net/sock.h>
@@ -662,7 +661,7 @@ struct report_info_block {
 #define GESTURE_O					0x69
 #define GESTURE_S					0x6A
 #define GESTURE_Z					0x6B
-#define GESTURE_DOUBLE_TAP				KEY_HOMEPAGE
+#define GESTURE_DOUBLE_TAP				KEY_WAKEUP
 #define KEY_BLACK_UI_GESTURE				0x1c7
 #define KEY_GESTURE_POWER				KEY_POWER
 #define KEY_GESTURE_UP					KEY_UP
@@ -926,7 +925,6 @@ struct ilitek_ts_data {
 	bool wq_bat_ctrl;
 	bool esd_func_ctrl;
 
-	bool netlink;
 	bool report;
 	bool gesture;
 	bool spay_gesture;
@@ -1214,7 +1212,6 @@ extern int ili_irq_register(int type);
 extern void ili_node_init(void);
 extern void ili_dump_data(void *data, int type, int len, int row_len, const char *name);
 extern u8 ili_calc_packet_checksum(u8 *packet, int len);
-extern void ili_netlink_reply_msg(void *raw, int size);
 extern int ili_katoi(char *str);
 extern int ili_str2hex(char *str);
 

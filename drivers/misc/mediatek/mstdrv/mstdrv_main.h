@@ -16,7 +16,7 @@
 #ifndef MST_DRV_H
 #define MST_DRV_H
 
-#include "mstdrv_transmit_nonsecure.h"
+#include "../../drivers/misc/tzdev/4.2.0/include/tzdev/tee_client_api.h"
 
 /* defines */
 #define MST_DRV_DEV			"mst_drv"
@@ -40,5 +40,23 @@ void mst_printk(int level, const char *fmt, ...);
 
 struct workqueue_struct *cluster_freq_ctrl_wq;
 struct delayed_work dwork;
+
+/* for TEEgris */
+/* enum definitions */
+enum cmd_drv_client
+{
+	/* ta cmd */
+	CMD_OPEN,
+	CMD_CLOSE,
+	CMD_IOCTL,
+	CMD_TRACK1,
+	CMD_TRACK2,
+	CMD_MAX
+};
+
+/* ta uuid definition */
+static TEEC_UUID uuid_ta = {
+	0,0,0,{0,0,0x6d,0x73,0x74,0x5f,0x54,0x41}
+};
 
 #endif /* MST_DRV_H */

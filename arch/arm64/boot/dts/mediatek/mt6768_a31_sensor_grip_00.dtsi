@@ -1,0 +1,89 @@
+/*
+ * SAMSUNG board device tree source
+ *
+ * Copyright (c) 2019 Samsung Electronics Co., Ltd.
+ *		http://www.samsung.com
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+&i2c0 {
+	status = "okay";
+	clock-frequency = <400000>;
+	#address-cells = <1>;
+	#size-cells = <0>;
+
+	sx9360-i2c@28 {
+		compatible = "sx9360";
+		reg = <0x28>;
+		status = "okay";
+
+		pinctrl-names = "default";
+		pinctrl-0 = <&grip_int>;
+		interrupt-parent = <&pio>;
+		interrupts = <19 0>;
+		sx9360,nirq-gpio = <&pio 19 0>;
+
+		sx9360,vdd_en = <&expander_gpios0 0 1>;
+		sx9360,refresolution_reg = <0x0f>; /* same as resolution_reg */
+		sx9360,refagainfreq_reg = <0x36>; /* same as againfreq_reg */
+		sx9360,resolution_reg = <0x0f>; /* resolution : 1024 */
+		sx9360,againfreq_reg = <0x18>; /* freq : 62.5 kHz, again : +/-2.25 pF */
+		sx9360,refgainrawfilt_reg = <0x22>; /* same as gainrawfilt_reg */
+		sx9360,gainrawfilt_reg = <0x22>; /* rawfilter : 1-1/4, gain : x8 */
+		sx9360,hyst_reg = <0x15>; /* hysteresis : +/-6 %, debouncer : 2 samples */
+		sx9360,proxthresh_reg = <0x2a>; /* threshhold : 882 */
+		sx9360,hallic_detect = <1>;
+		sx9360,hallic_cert_detect = <1>;
+	};
+};
+
+&i2c5 {
+	status = "okay";
+	clock-frequency = <400000>;
+	#address-cells = <1>;
+	#size-cells = <0>;
+
+	sx9360_sub-i2c@28 {
+		compatible = "sx9360_sub";
+		reg = <0x28>;
+		status = "okay";
+		pinctrl-names = "default";
+		pinctrl-0 = <&grip_sub_int>;
+		interrupt-parent = <&pio>;
+		interrupts = <17 0>;
+		sx9360_sub,nirq-gpio = <&pio 17 0>;
+
+		sx9360_sub,vdd_en = <&expander_gpios0 0 1>;
+		sx9360,refresolution_reg = <0x0f>; /* same as resolution_reg */
+		sx9360,refagainfreq_reg = <0x36>; /* same as againfreq_reg */
+		sx9360,resolution_reg = <0x0f>; /* resolution : 1024 */
+		sx9360,againfreq_reg = <0x58>; /* freq : 62.5 kHz, again : +/-7.5 pF */
+		sx9360,refgainrawfilt_reg = <0x22>; /* same as gainrawfilt_reg */
+		sx9360,gainrawfilt_reg = <0x1A>; /* rawfilter : 1-1/4, gain : x4 */
+		sx9360,hyst_reg = <0x15>; /* hysteresis : +/-6 %, debouncer : 2 samples */
+		sx9360,proxthresh_reg = <0x23>; /* threshhold : 612 */
+		sx9360_sub,hallic_detect = <1>;
+		sx9360_sub,hallic_cert_detect = <1>;
+	};
+};
+
+&pio {
+	grip_int: grip-int {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO19__FUNC_GPIO19>;
+			slew-rate = <0>;
+			bias-disable;
+		};
+	};
+
+	grip_sub_int: grip-sub-int {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO17__FUNC_GPIO17>;
+			slew-rate = <0>;
+			bias-disable;
+		};
+	};
+};

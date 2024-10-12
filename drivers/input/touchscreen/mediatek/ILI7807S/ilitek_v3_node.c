@@ -46,9 +46,6 @@
 #define ILITEK_IOCTL_TP_DRV_VER			_IOWR(ILITEK_IOCTL_MAGIC, 13, u8*)
 #define ILITEK_IOCTL_TP_CHIP_ID			_IOWR(ILITEK_IOCTL_MAGIC, 14, u32*)
 
-#define ILITEK_IOCTL_TP_NETLINK_CTRL		_IOWR(ILITEK_IOCTL_MAGIC, 15, int*)
-#define ILITEK_IOCTL_TP_NETLINK_STATUS		_IOWR(ILITEK_IOCTL_MAGIC, 16, int*)
-
 #define ILITEK_IOCTL_TP_MODE_CTRL		_IOWR(ILITEK_IOCTL_MAGIC, 17, u8*)
 #define ILITEK_IOCTL_TP_MODE_STATUS		_IOWR(ILITEK_IOCTL_MAGIC, 18, int*)
 #define ILITEK_IOCTL_ICE_MODE_SWITCH		_IOWR(ILITEK_IOCTL_MAGIC, 19, int)
@@ -85,9 +82,6 @@
 #define ILITEK_COMPAT_IOCTL_TP_CORE_VER			_IOWR(ILITEK_IOCTL_MAGIC, 12, compat_uptr_t)
 #define ILITEK_COMPAT_IOCTL_TP_DRV_VER			_IOWR(ILITEK_IOCTL_MAGIC, 13, compat_uptr_t)
 #define ILITEK_COMPAT_IOCTL_TP_CHIP_ID			_IOWR(ILITEK_IOCTL_MAGIC, 14, compat_uptr_t)
-
-#define ILITEK_COMPAT_IOCTL_TP_NETLINK_CTRL		_IOWR(ILITEK_IOCTL_MAGIC, 15, compat_uptr_t)
-#define ILITEK_COMPAT_IOCTL_TP_NETLINK_STATUS		_IOWR(ILITEK_IOCTL_MAGIC, 16, compat_uptr_t)
 
 #define ILITEK_COMPAT_IOCTL_TP_MODE_CTRL		_IOWR(ILITEK_IOCTL_MAGIC, 17, compat_uptr_t)
 #define ILITEK_COMPAT_IOCTL_TP_MODE_STATUS		_IOWR(ILITEK_IOCTL_MAGIC, 18, compat_uptr_t)
@@ -1705,9 +1699,6 @@ static ssize_t ilitek_node_ioctl_write(struct file *filp, const char *buff, size
 	} else if (strncmp(cmd, "gestureinfo", strlen(cmd)) == 0) {
 		ilits->gesture_mode = DATA_FORMAT_GESTURE_INFO;
 		ILI_INFO("gesture mode = %d\n", ilits->gesture_mode);
-	} else if (strncmp(cmd, "netlink", strlen(cmd)) == 0) {
-		ilits->netlink = !ilits->netlink;
-		ILI_INFO("netlink flag= %d\n", ilits->netlink);
 	} else if (strncmp(cmd, "switchtestmode", strlen(cmd)) == 0) {
 		ili_switch_tp_mode(P5_X_FW_TEST_MODE);
 	} else if (strncmp(cmd, "switchdebugmode", strlen(cmd)) == 0) {
@@ -1994,14 +1985,6 @@ static long ilitek_node_compat_ioctl(struct file *filp, unsigned int cmd, unsign
 		ILI_DBG("compat_ioctl: convert chip id\n");
 		ret = filp->f_op->unlocked_ioctl(filp, ILITEK_IOCTL_TP_CHIP_ID, (unsigned long)compat_ptr(arg));
 		return ret;
-	case ILITEK_COMPAT_IOCTL_TP_NETLINK_CTRL:
-		ILI_DBG("compat_ioctl: convert netlink ctrl\n");
-		ret = filp->f_op->unlocked_ioctl(filp, ILITEK_IOCTL_TP_NETLINK_CTRL, (unsigned long)compat_ptr(arg));
-		return ret;
-	case ILITEK_COMPAT_IOCTL_TP_NETLINK_STATUS:
-		ILI_DBG("compat_ioctl: convert netlink status\n");
-		ret = filp->f_op->unlocked_ioctl(filp, ILITEK_IOCTL_TP_NETLINK_STATUS, (unsigned long)compat_ptr(arg));
-		return ret;
 	case ILITEK_COMPAT_IOCTL_TP_MODE_CTRL:
 		ILI_DBG("compat_ioctl: convert tp mode ctrl\n");
 		ret = filp->f_op->unlocked_ioctl(filp, ILITEK_IOCTL_TP_MODE_CTRL, (unsigned long)compat_ptr(arg));
@@ -2262,28 +2245,6 @@ static long ilitek_node_ioctl(struct file *filp, unsigned int cmd, unsigned long
 		id_to_user[2] = ilits->chip->ana_id;
 
 		if (copy_to_user((u32 *) arg, id_to_user, sizeof(u32) * 3)) {
-			ILI_ERR("Failed to copy driver ver to user space\n");
-			ret = -ENOTTY;
-		}
-		break;
-	case ILITEK_IOCTL_TP_NETLINK_CTRL:
-		if (copy_from_user(szBuf, (u8 *) arg, 1)) {
-			ILI_ERR("Failed to copy data from user space\n");
-			ret = -ENOTTY;
-			break;
-		}
-		ILI_DBG("ioctl: netlink ctrl = %d\n", szBuf[0]);
-		if (szBuf[0]) {
-			ilits->netlink = ENABLE;
-			ILI_DBG("ioctl: Netlink is enabled\n");
-		} else {
-			ilits->netlink = DISABLE;
-			ILI_DBG("ioctl: Netlink is disabled\n");
-		}
-		break;
-	case ILITEK_IOCTL_TP_NETLINK_STATUS:
-		ILI_DBG("ioctl: get netlink stat = %d\n", ilits->netlink);
-		if (copy_to_user((int *)arg, &ilits->netlink, sizeof(int))) {
 			ILI_ERR("Failed to copy driver ver to user space\n");
 			ret = -ENOTTY;
 		}
@@ -2606,91 +2567,6 @@ proc_node iliproc[] = {
 	{"sram_test", NULL, &proc_sram_test_fops, false},
 };
 
-#define NETLINK_USER 21
-static struct sock *netlink_skb;
-static struct nlmsghdr *netlink_head;
-static struct sk_buff *skb_out;
-static int netlink_pid;
-
-void ili_netlink_reply_msg(void *raw, int size)
-{
-	int ret;
-	int msg_size = size;
-	u8 *data = (u8 *) raw;
-
-	ILI_INFO("The size of data being sent to user = %d\n", msg_size);
-	ILI_INFO("pid = %d\n", netlink_pid);
-	ILI_INFO("Netlink is enable = %d\n", ilits->netlink);
-
-	if (ilits->netlink) {
-		skb_out = nlmsg_new(msg_size, 0);
-
-		if (!skb_out) {
-			ILI_ERR("Failed to allocate new skb\n");
-			return;
-		}
-
-		netlink_head = nlmsg_put(skb_out, 0, 0, NLMSG_DONE, msg_size, 0);
-		NETLINK_CB(skb_out).dst_group = 0;	/* not in mcast group */
-
-		/* strncpy(NLMSG_DATA(netlink_head), data, msg_size); */
-		ipio_memcpy(nlmsg_data(netlink_head), data, msg_size, size);
-
-		ret = nlmsg_unicast(netlink_skb, skb_out, netlink_pid);
-		if (ret < 0)
-			ILI_ERR("Failed to send data back to user\n");
-	}
-}
-
-static void netlink_recv_msg(struct sk_buff *skb)
-{
-	netlink_pid = 0;
-
-	ILI_INFO("Netlink = %d\n", ilits->netlink);
-
-	netlink_head = (struct nlmsghdr *)skb->data;
-
-	ILI_INFO("Received a request from client: %s, %d\n",
-		(char *)NLMSG_DATA(netlink_head), (int)strlen((char *)NLMSG_DATA(netlink_head)));
-
-	/* pid of sending process */
-	netlink_pid = netlink_head->nlmsg_pid;
-
-	ILI_INFO("the pid of sending process = %d\n", netlink_pid);
-
-	/* TODO: may do something if there's not receiving msg from user. */
-	if (netlink_pid != 0) {
-		ILI_ERR("The channel of Netlink has been established successfully !\n");
-		ilits->netlink = ENABLE;
-	} else {
-		ILI_ERR("Failed to establish the channel between kernel and user space\n");
-		ilits->netlink = DISABLE;
-	}
-}
-
-static int netlink_init(void)
-{
-	int ret = 0;
-
-#if KERNEL_VERSION(3, 4, 0) > LINUX_VERSION_CODE
-	netlink_skb = netlink_kernel_create(&init_net, NETLINK_USER, netlink_recv_msg, NULL, THIS_MODULE);
-#else
-	struct netlink_kernel_cfg cfg = {
-		.input = netlink_recv_msg,
-	};
-
-	netlink_skb = netlink_kernel_create(&init_net, NETLINK_USER, &cfg);
-#endif
-
-	ILI_INFO("Initialise Netlink and create its socket\n");
-
-	if (!netlink_skb) {
-		ILI_ERR("Failed to create nelink socket\n");
-		ret = -EFAULT;
-	}
-	return ret;
-}
-
 void ili_node_init(void)
 {
 	int i = 0, ret = 0;
@@ -2709,5 +2585,4 @@ void ili_node_init(void)
 			ILI_INFO("Succeed to create %s under /proc\n", iliproc[i].name);
 		}
 	}
-	netlink_init();
 }
