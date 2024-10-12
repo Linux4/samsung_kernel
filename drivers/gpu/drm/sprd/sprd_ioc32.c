@@ -8,6 +8,9 @@
 #include "sprd_drm_gsp.h"
 
 #define DRM_IOCTL32_DEF(n, f)[DRM_##n] = {.fn = f, .name = #n}
+#define BLOB_PROP_MAX_SIZE 		(1024 * 1024 * 4)
+#define BLOB_PROP_CREATE_CMD 	0xBD
+#define IOCTL_W_FLAG 			(BIT(30))
 
 struct drm_gsp_cfg_user32 {
 	bool async;
@@ -66,6 +69,44 @@ long sprd_compat_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 	struct drm_file *file_priv = filp->private_data;
 	drm_ioctl_compat_t *fn = NULL;
 	int ret;
+	unsigned int arg_size;
+	struct drm_mode_create_blob *out_resp;
+	char *kdata = NULL;
+	u32 length;
+
+	if ((cmd & IOCTL_W_FLAG) && (nr == BLOB_PROP_CREATE_CMD)) {
+		arg_size = _IOC_SIZE(cmd);
+		if (!arg_size) {
+			DRM_ERROR("invalid arg size");
+			return -EFAULT;
+		}
+
+		if (arg_size > BLOB_PROP_MAX_SIZE) {
+			DRM_ERROR("reject to create prop over max size");
+			return -EFAULT;
+		}
+		kdata = kzalloc((arg_size + 1), GFP_KERNEL);
+		if (!kdata) {
+			DRM_ERROR("get arg data from user space failed");
+			return -EFAULT;
+		}
+
+		ret = copy_from_user(kdata, (void __user *)arg, arg_size);
+		if (ret) {
+			DRM_ERROR("get arg data from user space failed");
+			kfree(kdata);
+			return ret;
+		}
+
+		out_resp = (struct drm_mode_create_blob *)kdata;
+		length = out_resp->length;
+		if (length > BLOB_PROP_MAX_SIZE) {
+			DRM_ERROR("reject to create prop over max size");
+			kfree(kdata);
+			return -EFAULT;
+		}
+		kfree(kdata);
+	}
 
 	if (nr < DRM_COMMAND_BASE)
 		return drm_compat_ioctl(filp, cmd, arg);

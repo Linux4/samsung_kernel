@@ -487,6 +487,10 @@
 */
 /* HS03 code for SR-SL6215-01-755 by bianxiaoqiang at 2021/10/26 end */
 
+	protected_reserved: protected-mem@effae000 {
+		reg = <0x0 0xeffae000 0x0 0x00002000>;
+	};
+
 	vdsp_reserved: vdsp-mem@f09ae000 {
 		reg = <0x0 0xf09ae000 0x0 0x03700000>;
 	};
@@ -641,6 +645,13 @@
 		label = "carveout_vdsp";
 		type = <2>;
 		memory-region = <&vdsp_reserved>;
+	};
+
+	heap@6 {
+		reg = <6>;
+		label = "ion_protected_heap";
+		type = <2>;
+		memory-region = <&protected_reserved>;
 	};
 };
 

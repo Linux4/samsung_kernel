@@ -889,6 +889,9 @@ struct charger_manager {
 	u64 charging_end_time;
 	u32 charging_status;
 	int battery_status;
+	/* TabA8_U code for P231127-08057 by liufurong at 20231205 start */
+	int batt_slate_mode;
+	/* TabA8_U code for P231127-08057 by liufurong at 20231205 end */
 	/* HS03 code for SR-SL6215-01-238 by qiaodan at 20210802 start */
 	bool input_suspend;
 	bool power_path_enabled;

@@ -63,6 +63,10 @@ struct sprd_dp {
 	bool sink_has_audio;
 	bool hpd_status;
 	struct notifier_block dp_nb;
+	/* edid releated information for reporting display device HW info to framework */
+	struct edid edid_info;
+	struct drm_property *edid_prop;
+	struct drm_property_blob *edid_blob;
 };
 
 extern struct list_head dp_glb_head;

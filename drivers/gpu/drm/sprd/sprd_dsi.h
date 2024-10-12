@@ -216,6 +216,10 @@ struct sprd_dsi {
 	struct dsi_context ctx;
 	struct sprd_dsi *dsi_master;
 	struct sprd_dsi *dsi_slave;
+	/* edid releated information for reporting display device HW info to framework */
+	struct edid edid_info;
+	struct drm_property *edid_prop;
+	struct drm_property_blob *edid_blob;
 };
 
 extern struct list_head dsi_core_head;

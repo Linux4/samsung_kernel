@@ -1569,7 +1569,6 @@ int gsp_r8p0_core_trigger(struct gsp_core *c)
 		mutex_unlock(&dpu_gsp_lock);
 		return GSP_K_CLK_CHK_ERR;
 	}
-
 	if (cfg->misc.secure_en == 1) {
 		if (c->secure_init == false) {
 			ret = trusty_fast_call32(NULL, SMC_FC_GSP_FW_SET_SECURITY, FW_ATTR_SECURE, 0, 0);

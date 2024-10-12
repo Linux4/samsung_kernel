@@ -31,7 +31,7 @@
 #include <linux/semaphore.h>
 #include <linux/slab.h>
 #include <linux/sprd_iommu.h>
-#include <linux/sprd_ion.h>
+#include <linux/dma-mapping.h>
 #include <linux/uaccess.h>
 #include <linux/version.h>
 #include <linux/wait.h>
@@ -721,6 +721,9 @@ static int vsp_probe(struct platform_device *pdev)
 	vsp_hw_dev.clk_vsp_ahb_mmu_eb = NULL;
 	vsp_hw_dev.vsp_fp = NULL;
 	vsp_hw_dev.light_sleep_en = false;
+	mutex_init(&vsp_hw_dev.map_lock);
+	INIT_LIST_HEAD(&vsp_hw_dev.map_list);
+
 
 	ret = vsp_get_mm_clk(&vsp_hw_dev);
 	if (ret) {
@@ -736,6 +739,13 @@ static int vsp_probe(struct platform_device *pdev)
 		dev_err(dev, "cannot register miscdev on minor=%d (%d)\n",
 		       VSP_MINOR, ret);
 		return ret;
+	}
+
+	if (dma_set_mask_and_coherent(dev, DMA_BIT_MASK(64))) {
+		if (dma_set_mask_and_coherent(dev, DMA_BIT_MASK(32)))
+			dev_err(dev, "vsp: failed to set dma mask!\n");
+	} else {
+		dev_info(dev, "vsp: set dma mask as 64bit\n");
 	}
 
 	/* register isr */

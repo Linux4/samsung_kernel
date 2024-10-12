@@ -834,6 +834,7 @@ static int sprd_crtc_create_properties(struct drm_crtc *crtc)
 	struct drm_device *drm = dpu->crtc.dev;
 	struct drm_property *prop;
 	struct drm_property_blob *blob;
+	struct drm_mode_config *config;
 	size_t blob_size;
 
 	blob_size = strlen(dpu->ctx.version) + 1;
@@ -864,6 +865,9 @@ static int sprd_crtc_create_properties(struct drm_crtc *crtc)
 		return -ENOMEM;
 	}
 	drm_object_attach_property(&crtc->base, prop, dpu->ctx.corner_size);
+
+	config = &crtc->dev->mode_config;
+	drm_object_attach_property(&crtc->base, config->ctm_property, 0);
 
 	return 0;
 }

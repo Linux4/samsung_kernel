@@ -1356,7 +1356,7 @@ static int sx933x_probe(struct i2c_client *client, const struct i2c_device_id *i
             __set_bit(KEY_SAR2_FAR, capsense_right_mid->keybit);
             __set_bit(KEY_SAR2_CLOSE, capsense_right_mid->keybit);
             #else
-             __set_bit(EV_REL, capsense_right_mid->evbit);
+            __set_bit(EV_REL, capsense_right_mid->evbit);
             __set_bit(REL_MISC, capsense_right_mid->relbit);
             #endif
 

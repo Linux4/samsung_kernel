@@ -1411,7 +1411,7 @@ static int __init himax_common_init(void)
 		I("Himax driver has been loaded! ignoring....\n");
 		return 0;
 	}
-	/* Tab A8 code for AX6300TDEV-594 by suyurui at 20230630 start */
+	/* Tab A8 code for AX6300U-7 by tangzhen at 20230726 start */
 	if (saved_command_line && (strstr(saved_command_line, "androidboot.mode=normal") ||
 		strstr(saved_command_line, "androidboot.mode=autotest") ||
 		strstr(saved_command_line, "androidboot.mode=alarm"))) {
@@ -1421,7 +1421,7 @@ static int __init himax_common_init(void)
 		E("it is not normal mode\n");
 		return -ENODEV;
 	}
-	/* Tab A8 code for AX6300TDEV-594 by suyurui at 20230630 end */
+	/* Tab A8 code for AX6300U-7 by tangzhen at 20230726 end */
 
 	return 0;
 }

@@ -251,6 +251,7 @@ static int sprd_dp_connector_get_modes(struct drm_connector *connector)
 		drm_connector_update_edid_property(&dp->connector, edid);
 		num_modes += drm_add_edid_modes(&dp->connector, edid);
 		drm_edid_to_eld(connector, edid);
+		memcpy(&dp->edid_info, edid, sizeof(*edid));
 		kfree(edid);
 	} else
 		DRM_ERROR("%s() no edid\n", __func__);
@@ -415,6 +416,27 @@ static void sprd_dp_connector_destroy(struct drm_connector *connector)
 	drm_connector_cleanup(connector);
 }
 
+static int sprd_dp_atomic_get_property(struct drm_connector *connector,
+					const struct drm_connector_state *state,
+					struct drm_property *property,
+					uint64_t *val)
+{
+	struct sprd_dp *dp = connector_to_dp(connector);
+
+	DRM_DEBUG("%s()\n", __func__);
+
+	if (property == dp->edid_prop) {
+		memcpy(dp->edid_blob->data, &dp->edid_info, sizeof(struct edid));
+		*val = dp->edid_blob->base.id;
+		DRM_INFO("%s() val = %d\n", __func__, dp->edid_blob->base.id);
+	} else {
+		DRM_ERROR("property %s is invalid\n", property->name);
+		return -EINVAL;
+	}
+
+	return 0;
+}
+
 static const struct drm_connector_funcs sprd_dp_atomic_connector_funcs = {
 	.fill_modes = drm_helper_probe_single_connector_modes,
 	.detect = sprd_dp_connector_detect,
@@ -422,12 +444,14 @@ static const struct drm_connector_funcs sprd_dp_atomic_connector_funcs = {
 	.reset = drm_atomic_helper_connector_reset,
 	.atomic_duplicate_state = drm_atomic_helper_connector_duplicate_state,
 	.atomic_destroy_state = drm_atomic_helper_connector_destroy_state,
+	.atomic_get_property = sprd_dp_atomic_get_property,
 };
 
 static int sprd_dp_connector_init(struct drm_device *drm, struct sprd_dp *dp)
 {
 	struct drm_encoder *encoder = &dp->encoder;
 	struct drm_connector *connector = &dp->connector;
+	struct drm_property *prop;
 	int ret;
 
 	connector->polled = DRM_CONNECTOR_POLL_HPD;
@@ -443,6 +467,23 @@ static int sprd_dp_connector_init(struct drm_device *drm, struct sprd_dp *dp)
 	drm_object_attach_property(
 			&connector->base,
 			drm->mode_config.hdr_output_metadata_property, 0);
+
+	dp->edid_blob = drm_property_create_blob(drm, (sizeof(struct edid) + 1), &dp->edid_info);
+	if (IS_ERR(dp->edid_blob)) {
+		DRM_ERROR("drm_property_create_blob edid blob failed\n");
+		return PTR_ERR(dp->edid_blob);
+	}
+
+	prop = drm_property_create(drm, DRM_MODE_PROP_BLOB, "EDID INFO", 0);
+	if (!prop) {
+		DRM_ERROR("drm_property_create dpu version failed\n");
+		return -ENOMEM;
+	}
+
+	drm_object_attach_property(&connector->base, prop, dp->edid_blob->base.id);
+	dp->edid_prop = prop;
+
+	DRM_INFO("dp->edid_blob->base.id:%d\n", dp->edid_blob->base.id);
 
 	drm_connector_helper_add(connector,
 				 &sprd_dp_connector_helper_funcs);
@@ -529,6 +570,24 @@ static int sprd_dp_device_create(struct sprd_dp *dp,
 	return 0;
 }
 
+static unsigned char kEdid1[128] = {
+	0x00, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x00, 0x1c, 0xec, 0x01, 0x00,
+	0x01, 0x00, 0x00, 0x00, 0x1b, 0x10, 0x01, 0x03, 0x80, 0x50, 0x2d, 0x78,
+	0x0a, 0x0d, 0xc9, 0xa0, 0x57, 0x47, 0x98, 0x27, 0x12, 0x48, 0x4c, 0x00,
+	0x00, 0x00, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
+	0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x02, 0x3a, 0x80, 0x18, 0x71, 0x38,
+	0x2d, 0x40, 0x58, 0x2c, 0x54, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0xfc, 0x00, 0x45, 0x4d, 0x55, 0x5f, 0x64, 0x69, 0x73,
+	0x70, 0x6c, 0x61, 0x79, 0x5f, 0x31, 0x00, 0x3b
+};
+
+static void sprd_edid_set_default_prop(struct edid *edid_info)
+{
+	memcpy(edid_info, kEdid1, sizeof(struct edid));
+}
 static int sprd_dp_context_init(struct sprd_dp *dp, struct device_node *np)
 {
 	struct dp_context *ctx = &dp->ctx;
@@ -547,6 +606,7 @@ static int sprd_dp_context_init(struct sprd_dp *dp, struct device_node *np)
 		return -ENODEV;
 	}
 
+	sprd_edid_set_default_prop(&dp->edid_info);
 	return 0;
 }
 

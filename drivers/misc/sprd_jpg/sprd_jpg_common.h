@@ -19,11 +19,11 @@
 #include <linux/semaphore.h>
 #include <linux/slab.h>
 #include <linux/sprd_iommu.h>
-#include <linux/sprd_ion.h>
 #include <linux/uaccess.h>
 #include <linux/version.h>
 #include <linux/wait.h>
 #include <uapi/video/sprd_mmsys_pw_domain.h>
+#include <linux/mutex.h>
 
 #define JPG_MINOR MISC_DYNAMIC_MINOR
 #define JPG_TIMEOUT_MS 1000
@@ -90,6 +90,9 @@ struct jpg_dev_t {
 	unsigned int jpg_reset_mask;
 	int max_freq_level;
 	bool jpg_qos_exist_flag;
+
+	struct mutex map_lock;
+	struct list_head map_list;
 };
 
 struct clock_name_map_t {

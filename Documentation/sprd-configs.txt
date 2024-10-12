@@ -12902,6 +12902,15 @@ CONFIG_SHMEM
 	[must] busybo_console
 	[missing plat description] none
 	[function] Use full shmem filesystem.
+CONFIG_SHOW_UREGS_WITH_PHYSICAL
+        [arch] arm64
+        [plat] qogirl6,qogirn6pro,sharkl3,sharkl5,sharkl5Pro
+        [missing plat] none
+        [field]
+        [subsys]
+        [must]
+        [missing plat description] none
+        [function]
 CONFIG_SIGNALFD
 	[arch] all
 	[plat] all

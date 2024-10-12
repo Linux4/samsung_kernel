@@ -282,18 +282,18 @@ struct threed_lut {
 };
 
 struct cm_cfg {
-	short coef00;
-	short coef01;
-	short coef02;
-	short coef03;
-	short coef10;
-	short coef11;
-	short coef12;
-	short coef13;
-	short coef20;
-	short coef21;
-	short coef22;
-	short coef23;
+	u16 coef00;
+	u16 coef01;
+	u16 coef02;
+	u16 coef03;
+	u16 coef10;
+	u16 coef11;
+	u16 coef12;
+	u16 coef13;
+	u16 coef20;
+	u16 coef21;
+	u16 coef22;
+	u16 coef23;
 };
 
 struct ltm_cfg {
@@ -1421,6 +1421,36 @@ static void dpu_scaling(struct dpu_context *ctx,
 	}
 }
 
+static void dpu_cm_set(struct dpu_context *ctx)
+{
+	struct sprd_dpu *dpu = container_of(ctx, struct sprd_dpu, ctx);
+	struct dpu_reg *reg = (struct dpu_reg *)ctx->base;
+	struct drm_color_ctm *ctm;
+	bool ret;
+	int16_t ctm_final[12] = {0};
+
+	if (!dpu->crtc.state->ctm)
+		return;
+
+	ctm = (struct drm_color_ctm *)dpu->crtc.state->ctm->data;
+	ret = parse_ctm(ctm_final, ctm);
+	if (ret)
+		return;
+
+	pr_info("ctm changed!\n");
+
+	memcpy(&cm_copy, ctm_final, sizeof(struct cm_cfg));
+
+	reg->cm_coef01_00 = (cm_copy.coef01 << 16) | cm_copy.coef00;
+	reg->cm_coef03_02 = (cm_copy.coef03 << 16) | cm_copy.coef02;
+	reg->cm_coef11_10 = (cm_copy.coef11 << 16) | cm_copy.coef10;
+	reg->cm_coef13_12 = (cm_copy.coef13 << 16) | cm_copy.coef12;
+	reg->cm_coef21_20 = (cm_copy.coef21 << 16) | cm_copy.coef20;
+	reg->cm_coef23_22 = (cm_copy.coef23 << 16) | cm_copy.coef22;
+	reg->dpu_enhance_cfg |= BIT(3);
+	enhance_en = reg->dpu_enhance_cfg;
+}
+
 static void dpu_flip(struct dpu_context *ctx,
 		     struct sprd_dpu_layer layers[], u8 count)
 {
@@ -1456,6 +1486,9 @@ static void dpu_flip(struct dpu_context *ctx,
 		}
 		dpu_layer(ctx, &layers[i]);
 	}
+
+	/* set color matrix transformation*/
+	dpu_cm_set(ctx);
 
 	/* update trigger and wait */
 	if (ctx->if_type == SPRD_DISPC_IF_DPI) {

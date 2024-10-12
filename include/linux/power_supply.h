@@ -105,6 +105,14 @@ enum {
 	POWER_SUPPLY_SCOPE_SYSTEM,
 	POWER_SUPPLY_SCOPE_DEVICE,
 };
+/* TabA8_U code for P231127-08057 by liufurong at 20231205 start */
+enum sec_battery_slate_mode {
+	SEC_SLATE_OFF = 0,
+	SEC_SLATE_MODE,
+	SEC_SMART_SWITCH_SLATE,
+	SEC_SMART_SWITCH_SRC,
+};
+/* TabA8_U code for P231127-08057 by liufurong at 20231205 end */
 
 enum power_supply_property {
 	/* Properties of type `int' */

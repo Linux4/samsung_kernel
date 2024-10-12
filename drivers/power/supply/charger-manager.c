@@ -3686,7 +3686,6 @@ static int try_power_path_enable_by_psy(struct charger_manager *cm, bool enable)
 				desc->psy_charger_stat[i]);
 			continue;
 		}
-
 		val.intval = enable;
 		err = power_supply_set_property(psy, POWER_SUPPLY_PROP_POWER_PATH_ENABLED, &val);
 		power_supply_put(psy);
@@ -5723,6 +5722,10 @@ static int charger_get_property(struct power_supply *psy,
 	/* HS03 code for SR-SL6215-01-553 by qiaodan at 20210813 start */
 	#ifndef HQ_FACTORY_BUILD
 		case POWER_SUPPLY_PROP_BATT_SLATE_MODE:
+			/* TabA8_U code for P231127-08057 by liufurong at 20231205 start */
+			val->intval =  cm->batt_slate_mode;
+			break;
+			/* TabA8_U code for P231127-08057 by liufurong at 20231205 end */
 	#endif
 	/* HS03 code for SR-SL6215-01-553 by qiaodan at 20210813 end*/
 	/* HS03 code for SR-SL6215-01-238 by qiaodan at 20210802 start */
@@ -6097,6 +6100,32 @@ charger_set_property(struct power_supply *psy,
 	/* HS03 code for SR-SL6215-01-553 by qiaodan at 20210813 start */
 	#ifndef HQ_FACTORY_BUILD
 		case POWER_SUPPLY_PROP_BATT_SLATE_MODE:
+			/* TabA8_U code for P231127-08057 by liufurong at 20231205 start */
+			if (val->intval == SEC_SLATE_OFF || val->intval == SEC_SLATE_MODE) {
+				if (val->intval) {
+					cm->input_suspend = true;
+					cm->power_path_enabled = false;
+				} else {
+					cm->input_suspend = false;
+					cm->power_path_enabled = true;
+				}
+				if (cm->input_suspend) {
+					try_charger_enable(cm,false);
+					dev_info(cm->dev, "input_suspend = 1,disable charge\n");
+				}
+				else {
+					try_charger_enable(cm,true);
+					dev_info(cm->dev, "input_suspend = 0,enable charge\n");
+				}
+			} else if (val->intval == SEC_SMART_SWITCH_SLATE) {
+				dev_info(cm->dev, "dont suppot this slate mode %d\n", val->intval);
+			} else if (val->intval == SEC_SMART_SWITCH_SRC) {
+				dev_info(cm->dev, "dont suppot this slate mode %d\n", val->intval);
+			}
+			cm->batt_slate_mode = val->intval;
+			dev_info(cm->dev, "set slate mode %d\n", val->intval);
+			break;
+			/* TabA8_U code for P231127-08057 by liufurong at 20231205 end */
 	#endif
 	/* HS03 code for SR-SL6215-01-553 by qiaodan at 20210813 end */
 	/* HS03 code for SR-SL6215-01-238 by qiaodan at 20210802 start */
@@ -6910,11 +6939,15 @@ void hq_update_charing_count(struct charger_manager *cm)
 	}
 
 	curr = ktime_to_ms(ktime_get());
+	/* Tab A8 code for AX6300U-28 by zhangzhihao at 20230914 start */
+	//remove the function of 72 hours battery protection
 	if (cm->charging_count_start) {
-		cm->charging_dur_time = curr - cm->charging_count_start;
+		//cm->charging_dur_time = curr - cm->charging_count_start;
+		cm->charging_dur_time = 0;
 	} else {
 		cm->charging_dur_time = 0;
 	}
+	/* Tab A8 code for AX6300U-28 by zhangzhihao at 20230914 end */
 
 	pr_info("%s: charge_during_time = %d\n", __func__, cm->charging_dur_time);
 	return;
@@ -6957,20 +6990,19 @@ void hq_update_charge_state(struct charger_manager *cm)
 				cm->batt_protect_flag = ENABLE_BATT_PROTECT_DISCHARGE;
 				pr_info("charging_time = %d over 72h! capacity = %d, charging disable!\n",
                                 cm->charging_dur_time, cap);
-			} else if (cap == HIGHT_CPPICITY) {
-				cm->batt_protect_flag = ENABLE_BATT_PROTECT_HOLD;
-				pr_info("charging_time = %d over 72h! capacity = %d, charging hold!\n",
-									cm->charging_dur_time, cap);
-			} else if (cap < LOW_CPPICITY) {
-				cm->batt_protect_flag = DISABLE_BATT_PROTECT;
-				pr_info("charging_time = %d over 72h! capacity = %d, charging resume!\n",
+		} else if (cap == HIGHT_CPPICITY) {
+			cm->batt_protect_flag = ENABLE_BATT_PROTECT_HOLD;
+			pr_info("charging_time = %d over 72h! capacity = %d, charging hold!\n",
+                                cm->charging_dur_time, cap);
+		} else if (cap < LOW_CPPICITY) {
+			cm->batt_protect_flag = ENABLE_BATT_PROTECT_CHARGE;
+			pr_info("charging_time = %d over 72h! capacity = %d, charging resume!\n",
                                 cm->charging_dur_time, cap);
 		} else {
 			pr_info("charging_time = %d over 72h! capacity = %d\n",
                                 cm->charging_dur_time, cap);
 		}
 	}
-
 	return;
 }
 /* Tab A8 code for P230719-01290 by shixuanxuan at 20230724 end */

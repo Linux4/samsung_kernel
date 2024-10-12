@@ -39,6 +39,8 @@ int dump_bmp32(const char *p, u32 width, u32 height,
 		bool bgra, const char *filename);
 int load_dtb_to_mem(const char *name, void **blob);
 
+bool parse_ctm(int16_t ctm_final[12], struct drm_color_ctm *ctm);
+
 void *disp_ops_attach(const char *str, struct list_head *head);
 int disp_ops_register(struct ops_entry *entry, struct list_head *head);
 

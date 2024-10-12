@@ -2916,6 +2916,8 @@ static void marlin_shutdown(struct platform_device *pdev)
 		wcn_avdd12_bound_xtl(false);
 		wcn_wifipa_bound_xtl(false);
 		wifipa_enable(0);
+		marlin_analog_power_enable(false);
+		marlin_chip_en(false, false);
 	}
 	pr_info("%s end\n", __func__);
 }
