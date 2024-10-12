@@ -1,7 +1,7 @@
 /*
  * DHD Linux header file - contains private structure definition of the Linux specific layer
  *
- * Copyright (C) 2021, Broadcom.
+ * Copyright (C) 2022, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -398,6 +398,15 @@ typedef struct dhd_info {
 	pkt_pool_t rx_pkt_pool;
 	tsk_ctl_t rx_pktpool_thread;
 #endif /* RX_PKT_POOL */
+#ifdef DHD_PERIODIC_CNTRS
+	timer_list_compat_t dhd_periodic_cntrs_timer;
+	bool dhd_periodic_cntrs_tmr_valid;
+	tsk_ctl_t thr_periodic_cntrs_ctl;
+#endif /* DHD_PERIODIC_CNTRS */
+#ifdef DHD_FILE_DUMP_EVENT
+	osl_atomic_t dump_status;
+	struct work_struct dhd_dump_proc_work;
+#endif /* DHD_FILE_DUMP_EVENT */
 } dhd_info_t;
 
 /** priv_link is the link between netdev and the dhdif and dhd_info structs. */

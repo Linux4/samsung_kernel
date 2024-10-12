@@ -1,7 +1,7 @@
 /*
  * DHD Bus Module for PCIE
  *
- * Copyright (C) 2021, Broadcom.
+ * Copyright (C) 2022, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -3691,15 +3691,20 @@ dhdpcie_get_mem_dump(dhd_bus_t *bus)
 #ifdef BOARD_HIKEY
 	unsigned long flags_bus;
 #endif /* BOARD_HIKEY */
+#ifdef DHD_FILE_DUMP_EVENT
+	dhd_dongledump_status_t dump_status;
+#endif /* DHD_FILE_DUMP_EVENT */
 
 	if (!bus) {
 		DHD_ERROR(("%s: bus is NULL\n", __FUNCTION__));
-		return BCME_ERROR;
+		ret = BCME_ERROR;
+		goto exit;
 	}
 
 	if (!bus->dhd) {
 		DHD_ERROR(("%s: dhd is NULL\n", __FUNCTION__));
-		return BCME_ERROR;
+		ret = BCME_ERROR;
+		goto exit;
 	}
 
 	size = bus->ramsize; /* Full mem size */
@@ -3710,8 +3715,16 @@ dhdpcie_get_mem_dump(dhd_bus_t *bus)
 	if (!p_buf) {
 		DHD_ERROR(("%s: Out of memory (%d bytes)\n",
 			__FUNCTION__, size));
-		return BCME_ERROR;
+		ret = BCME_ERROR;
+		goto exit;
 	}
+
+#ifdef DHD_FILE_DUMP_EVENT
+	dump_status = dhd_get_dump_status(bus->dhd);
+	if (dump_status != DUMP_IN_PROGRESS) {
+		dhd_set_dump_status(bus->dhd, DUMP_IN_PROGRESS);
+	}
+#endif /* DHD_FILE_DUMP_EVENT */
 
 	/* Read mem content */
 	DHD_TRACE_HW4(("Dump dongle memory\n"));
@@ -3741,6 +3754,14 @@ dhdpcie_get_mem_dump(dhd_bus_t *bus)
 		start += read_size;
 		databuf += read_size;
 	}
+
+exit:
+#ifdef DHD_FILE_DUMP_EVENT
+	if (ret != BCME_OK) {
+		dhd_set_dump_status(bus->dhd, DUMP_FAILURE);
+	}
+#endif /* DHD_FILE_DUMP_EVENT */
+
 	return ret;
 }
 
@@ -5391,6 +5412,10 @@ dhd_bus_perform_flr(dhd_bus_t *bus, bool force_fail)
 
 	CAN_SLEEP() ? OSL_SLEEP(DHD_FUNCTION_LEVEL_RESET_DELAY) :
 		OSL_DELAY(DHD_FUNCTION_LEVEL_RESET_DELAY * USEC_PER_MSEC);
+
+#ifdef USE_ISB_IN_FLR
+	OSL_ISB();
+#endif /* USE_ISB_IN_FLR */
 
 	if (force_fail) {
 		DHD_ERROR(("Set PCIE_SSRESET_DISABLE_BIT(%d) of PCIE_CFG_SUBSYSTEM_CONTROL(0x%x)\n",
@@ -14421,7 +14446,7 @@ dhd_bus_force_bt_quiesce_enabled(struct dhd_bus *bus)
 uint8
 dhd_d11_slices_num_get(dhd_pub_t *dhdp)
 {
-	return si_scan_core_present(dhdp->bus->sih) ?
+	return (dhdp->bus->sih && si_scan_core_present(dhdp->bus->sih)) ?
 		MAX_NUM_D11_CORES_WITH_SCAN : MAX_NUM_D11CORES;
 }
 

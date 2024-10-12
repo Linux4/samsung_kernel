@@ -561,15 +561,15 @@ static ssize_t light_debug_info_show(struct device *dev,
 
 	pr_info("[FACTORY] %s: %d,%d,%d,%d,%d,%d\n", __func__,
 		data->msg_buf[light_idx][0], data->msg_buf[light_idx][1],
-		data->msg_buf[light_idx][2], data->msg_buf[light_idx][3],
-		data->msg_buf[light_idx][4] >> 16, data->msg_buf[light_idx][4] & 0xffff);
+		data->msg_buf[light_idx][2] >> 8, data->msg_buf[light_idx][2] & 0xff,
+		data->msg_buf[light_idx][3], data->msg_buf[light_idx][4]);
 
 	mutex_unlock(&data->light_factory_mutex);
 
 	return snprintf(buf, PAGE_SIZE, "%d,%d,%d,%d,%d,%d\n",
 		data->msg_buf[light_idx][0], data->msg_buf[light_idx][1],
-		data->msg_buf[light_idx][2], data->msg_buf[light_idx][3],
-		data->msg_buf[light_idx][4] >> 16, data->msg_buf[light_idx][4] & 0xffff);
+		data->msg_buf[light_idx][2] >> 8, data->msg_buf[light_idx][2] & 0xff,
+		data->msg_buf[light_idx][3], data->msg_buf[light_idx][4]);
 }
 
 static DEVICE_ATTR(read_copr, 0664, light_read_copr_show, light_read_copr_store);

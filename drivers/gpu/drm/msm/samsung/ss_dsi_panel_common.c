@@ -3130,10 +3130,19 @@ static void ss_panel_parse_dt_bright_tables(struct device_node *np,
 				"samsung,candela_map_table_rev", panel_rev,
 				ss_parse_candella_mapping_table);
 
-		parse_dt_data(np, &dtsi_data->candela_map_table[AOD][panel_rev],
-				sizeof(struct candela_map_table),
-				"samsung,aod_candela_map_table_rev", panel_rev,
-				ss_parse_candella_mapping_table);
+		if (dtsi_data->is_jpn) {
+			LCD_INFO("parse jpn AOD brightness table\n");
+
+			parse_dt_data(np, &dtsi_data->candela_map_table[AOD][panel_rev],
+					sizeof(struct candela_map_table),
+					"samsung,aod_candela_map_table_jpn_rev", panel_rev,
+					ss_parse_candella_mapping_table);
+		} else {
+			parse_dt_data(np, &dtsi_data->candela_map_table[AOD][panel_rev],
+					sizeof(struct candela_map_table),
+					"samsung,aod_candela_map_table_rev", panel_rev,
+					ss_parse_candella_mapping_table);
+		}
 
 		parse_dt_data(np, &dtsi_data->candela_map_table[HBM][panel_rev],
 				sizeof(struct candela_map_table),

@@ -55,6 +55,14 @@ static uint32_t blob_type_hw_cmd_map[CAM_ISP_GENERIC_BLOB_TYPE_MAX] = {
 
 static struct cam_ife_hw_mgr g_ife_hw_mgr;
 
+struct cam_ife_hw_mgr_port_info {
+	struct cam_buf_io_cfg io_cfg;
+	unsigned int src_buf_size;
+	unsigned int iova_addr;
+	unsigned int end_addr;
+	char buf[300];
+}saved_portinfo;
+
 static int cam_ife_notify_safe_lut_scm(bool safe_trigger)
 {
 	uint32_t camera_hw_version, rc = 0;
@@ -2059,7 +2067,7 @@ static int cam_ife_mgr_config_hw(void *hw_mgr_priv,
 		if (cfg->init_packet) {
 			rc = wait_for_completion_timeout(
 				&ctx->config_done_complete,
-				msecs_to_jiffies(30));
+				msecs_to_jiffies(60));
 			if (rc <= 0) {
 				CAM_ERR(CAM_ISP,
 					"config done completion timeout for req_id=%llu rc=%d ctx_index %d",
@@ -3417,6 +3425,7 @@ static void cam_ife_mgr_print_io_bufs(struct cam_packet *packet,
 	int        j;
 	int        rc = 0;
 	int32_t    mmu_hdl;
+	uint32_t save_info = 0;
 
 	struct cam_buf_io_cfg  *io_cfg = NULL;
 
@@ -3438,8 +3447,12 @@ static void cam_ife_mgr_print_io_bufs(struct cam_packet *packet,
 					io_cfg[i].resource_type,
 					io_cfg[i].mem_handle[j],
 					pf_buf_info);
-				if (mem_found)
+				if (mem_found) {
 					*mem_found = true;
+					save_info++;
+					memcpy(&saved_portinfo.io_cfg, io_cfg,
+						sizeof(struct cam_buf_io_cfg));
+				}
 			}
 
 			CAM_ERR(CAM_ISP, "port: 0x%x f: %u format: %d dir %d",
@@ -3476,6 +3489,23 @@ static void cam_ife_mgr_print_io_bufs(struct cam_packet *packet,
 				(unsigned int)src_buf_size,
 				io_cfg[i].offsets[j],
 				io_cfg[i].mem_handle[j]);
+				
+			if (save_info == 1) {
+				sprintf(saved_portinfo.buf,"pln %d w %d h %d s %u size 0x%x addr 0x%x end_addr 0x%x offset %x memh %x",
+					j, io_cfg[i].planes[j].width,
+					io_cfg[i].planes[j].height,
+					io_cfg[i].planes[j].plane_stride,
+					(unsigned int)src_buf_size,
+					(unsigned int)iova_addr,
+					(unsigned int)iova_addr +
+					(unsigned int)src_buf_size,
+					io_cfg[i].offsets[j],
+					io_cfg[i].mem_handle[j]);
+				saved_portinfo.src_buf_size = (unsigned int)src_buf_size;
+				saved_portinfo.iova_addr = (unsigned int)iova_addr;
+				saved_portinfo.end_addr = saved_portinfo.src_buf_size +
+						saved_portinfo.iova_addr;
+			}
 		}
 	}
 }

@@ -1499,6 +1499,12 @@ static void samsung_panel_init(struct samsung_display_driver_data *vdd)
 
 	/* POC */
 	vdd->poc_driver.check_read_case = check_read_case;
+
+#if defined(CONFIG_MACH_WINNERLTE_JPN_KDI) || defined(CONFIG_MACH_WINNERLTE_JPN_DCM)
+	vdd->dtsi_data.is_jpn = true;
+#else
+	vdd->dtsi_data.is_jpn = false;
+#endif
 }
 
 static int __init samsung_panel_initialize(void)

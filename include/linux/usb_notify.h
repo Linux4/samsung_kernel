@@ -114,6 +114,10 @@ enum otg_notify_data_role {
 	HNOTIFY_DFP,
 };
 
+enum usb_err_type {
+	USB_ERR_ABNORMAL_RESET,
+};
+
 struct otg_notify {
 	int vbus_detect_gpio;
 	int redriver_en_gpio;
@@ -172,6 +176,7 @@ extern struct otg_notify *get_otg_notify(void);
 extern int set_otg_notify(struct otg_notify *n);
 extern void put_otg_notify(struct otg_notify *n);
 extern bool is_blocked(struct otg_notify *n, int type);
+extern void send_usb_err_uevent(int err_type, int mode);
 extern int usb_check_whitelist_for_mdm(struct usb_device *dev);
 #if defined(CONFIG_USB_HW_PARAM)
 extern unsigned long long *get_hw_param(struct otg_notify *n,
@@ -207,6 +212,7 @@ static inline struct otg_notify *get_otg_notify(void) {return NULL; }
 static inline int set_otg_notify(struct otg_notify *n) {return 0; }
 static inline void put_otg_notify(struct otg_notify *n) {}
 static inline bool is_blocked(struct otg_notify *n, int type) {return false; }
+static inline void send_usb_err_uevent(int err_type, int mode) {}
 static inline int usb_check_whitelist_for_mdm(struct usb_device *dev)
 			{return 0; }
 #if defined(CONFIG_USB_HW_PARAM)

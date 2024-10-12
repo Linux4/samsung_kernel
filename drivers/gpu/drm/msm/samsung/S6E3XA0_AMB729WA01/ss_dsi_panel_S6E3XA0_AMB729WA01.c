@@ -1686,6 +1686,13 @@ static void samsung_panel_init(struct samsung_display_driver_data *vdd)
 	vdd->self_disp.factory_support = true;
 	vdd->self_disp.init = self_display_init_XA0;
 	vdd->self_disp.data_init = ss_self_display_data_init;
+
+
+#if defined(CONFIG_MACH_WINNERLTE_JPN_KDI) || defined(CONFIG_MACH_WINNERLTE_JPN_DCM)
+	vdd->dtsi_data.is_jpn = true;
+#else
+	vdd->dtsi_data.is_jpn = false;
+#endif
 }
 
 static int __init samsung_panel_initialize(void)

@@ -32,6 +32,12 @@ static const char isp_dev_name[] = "isp";
 #define INC_STATE_MONITOR_HEAD(head) \
 	(atomic64_add_return(1, head) % \
 	CAM_ISP_CTX_STATE_MONITOR_MAX_ENTRIES)
+	
+struct cam_ctx_saved_pf_info {
+	struct cam_ctx_request req;
+	unsigned long iova;
+	uint32_t buf_info;
+}saved_pf_info;
 
 static int cam_isp_context_dump_active_request(void *data, unsigned long iova,
 	uint32_t buf_info);
@@ -3421,9 +3427,13 @@ static int cam_isp_context_dump_active_request(void *data, unsigned long iova,
 		if (rc)
 			CAM_ERR(CAM_ISP, "Failed to dump pf info");
 
-		if (mem_found)
-			CAM_ERR(CAM_ISP, "Found page fault in req %lld %d",
-				req->request_id, rc);
+		if (mem_found) {
+ 			CAM_ERR(CAM_ISP, "Found page fault in req %lld %d",
+ 				req->request_id, rc);
+			memcpy(&saved_pf_info.req, req, sizeof(struct cam_ctx_request));
+			saved_pf_info.iova = iova;
+			saved_pf_info.buf_info = buf_info;
+		}
 	}
 
 	CAM_INFO(CAM_ISP, "Iterating over wait_list of isp ctx %d state %d",

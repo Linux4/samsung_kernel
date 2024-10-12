@@ -1023,6 +1023,11 @@ static QDF_STATUS target_if_dbr_replenish_ring(struct wlan_objmgr_pdev *pdev,
 		return QDF_STATUS_E_FAILURE;
 	}
 
+	if (cookie >= mod_param->dbr_ring_cfg->num_ptr) {
+		direct_buf_rx_err("invalid cookie %d", cookie);
+		return QDF_STATUS_E_INVAL;
+	}
+
 	dbr_psoc_obj = wlan_objmgr_psoc_get_comp_private_obj(psoc,
 				WLAN_TARGET_IF_COMP_DIRECT_BUF_RX);
 
@@ -1504,6 +1509,11 @@ static void *target_if_dbr_vaddr_lookup(
 
 	dbr_buf_pool = mod_param->dbr_buf_pool;
 
+	if (cookie >= mod_param->dbr_ring_cfg->num_ptr) {
+		direct_buf_rx_err("invalid cookie %d", cookie);
+		return NULL;
+	}
+
 	if (dbr_buf_pool[cookie].paddr == paddr) {
 		return dbr_buf_pool[cookie].vaddr +
 				dbr_buf_pool[cookie].offset;
@@ -1835,6 +1845,12 @@ static int target_if_direct_buf_rx_rsp_event_handler(ol_scn_t scn,
 	dbr_buf_pool = mod_param->dbr_buf_pool;
 	dbr_rsp.dbr_entries = qdf_mem_malloc(dbr_rsp.num_buf_release_entry *
 					sizeof(struct direct_buf_rx_entry));
+
+	if (!dbr_rsp.dbr_entries) {
+		direct_buf_rx_err("invalid dbr_entries");
+		wlan_objmgr_pdev_release_ref(pdev, dbr_mod_id);
+		return QDF_STATUS_E_FAILURE;
+	}
 
 	if (dbr_rsp.num_meta_data_entry > dbr_rsp.num_buf_release_entry) {
 		direct_buf_rx_err("More than expected number of metadata");

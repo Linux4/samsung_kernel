@@ -747,6 +747,7 @@ struct sec_ts_data {
 	struct completion secure_powerdown;
 	struct completion secure_interrupt;
 	struct sec_touch_driver *ss_drv;
+	struct mutex st_lock;
 #if defined(CONFIG_TRUSTONIC_TRUSTED_UI_QC)
 	struct completion st_irq_received;
 #endif

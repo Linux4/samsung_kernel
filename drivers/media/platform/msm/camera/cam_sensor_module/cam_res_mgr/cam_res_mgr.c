@@ -604,13 +604,65 @@ void cam_res_mgr_gpio_free_arry(struct device *dev,
 	}
 }
 EXPORT_SYMBOL(cam_res_mgr_gpio_free_arry);
-
+#if defined(CONFIG_SEC_A82XQ_PROJECT)
 int cam_res_mgr_gpio_set_value(unsigned int gpio, int value)
 {
 	int rc = 0;
 	bool found = false;
 	struct cam_gpio_res *gpio_res = NULL;
 
+	CAM_INFO(CAM_RES, "E");
+
+	mutex_lock(&cam_res->gpio_res_lock);
+	if (cam_res && cam_res->shared_gpio_enabled) {
+		list_for_each_entry(gpio_res, &cam_res->gpio_res_list, list) {
+			if (gpio == gpio_res->gpio) {
+				found = true;
+				break;
+			}
+		}
+	}
+
+	/*
+	 * Set the value directly if can't find the gpio from
+	 * gpio_res_list, otherwise, need add ref count support
+	 **/
+	if (!found) {
+		CAM_INFO(CAM_RES, "GPIO NOT FOUND");
+		gpio_set_value_cansleep(gpio, value);
+	} else {
+		if (value) {
+			gpio_res->power_on_count++;
+			CAM_INFO(CAM_RES, "power_on_count: %d",
+				gpio_res->power_on_count);
+			if (gpio_res->power_on_count < 2) {
+				gpio_set_value_cansleep(gpio, value);
+				CAM_INFO(CAM_RES,
+					"Shared GPIO(%d) : HIGH", gpio);
+			}
+		} else {
+			gpio_res->power_on_count--;
+			CAM_INFO(CAM_RES, "power_on_count: %d",
+				gpio_res->power_on_count);
+			if (gpio_res->power_on_count < 1) {
+				gpio_set_value_cansleep(gpio, value);
+				CAM_INFO(CAM_RES,
+					"Shared GPIO(%d) : LOW", gpio);
+			}
+		}
+	}
+
+	CAM_INFO(CAM_RES, "rc: %d", rc);
+	CAM_INFO(CAM_RES, "X");
+	mutex_unlock(&cam_res->gpio_res_lock);
+	return rc;
+}
+#else 
+int cam_res_mgr_gpio_set_value(unsigned int gpio, int value)
+{
+	int rc = 0;
+	bool found = false;
+	struct cam_gpio_res *gpio_res = NULL;
 	CAM_INFO(CAM_RES, "E");
 	if (cam_res && cam_res->shared_gpio_enabled) {
 		mutex_lock(&cam_res->gpio_res_lock);
@@ -656,6 +708,7 @@ int cam_res_mgr_gpio_set_value(unsigned int gpio, int value)
 	CAM_INFO(CAM_RES, "X");
 	return rc;
 }
+#endif
 EXPORT_SYMBOL(cam_res_mgr_gpio_set_value);
 
 void cam_res_mgr_shared_clk_config(bool value)

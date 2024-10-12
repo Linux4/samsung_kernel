@@ -1,5 +1,5 @@
 #
-# Copyright (C) 2021, Broadcom.
+# Copyright (C) 2022, Broadcom.
 #
 #      Unless you and Broadcom execute a separate written software license
 # agreement governing use of this software, this software is licensed to you
@@ -67,6 +67,9 @@ endif
 	DHDCFLAGS += -DCUSTOM_MAX_KSO_ATTEMPTS=64
 	# Enable atomic pktget by default
 	DHDCFLAGS += -DDHD_USE_ATOMIC_PKTGET
+	# Enable Firmware Coredump
+	DHDCFLAGS += -DDHD_FW_COREDUMP
+	DHDCFLAGS += -DDHD_DUMP_FILE_WRITE_FROM_KERNEL
 endif
 
 #####################
@@ -132,6 +135,9 @@ endif
 	DHDCFLAGS += -DDHD_FLOW_RING_STATUS_TRACE
 	# Enable internal Rx packet pool
 	DHDCFLAGS += -DRX_PKT_POOL
+ifeq ($(filter y,$(CONFIG_ARCH_LAHAINA) $(CONFIG_ARCH_WAIPIO)),y)
+	DHDCFLAGS += -DUSE_ISB_IN_FLR
+endif
 endif
 
 
@@ -213,7 +219,7 @@ DHDCFLAGS += -DDEBUG_SETROAMMODE
 # Enable Roam time thresh
 DHDCFLAGS += -DCUSTOM_ROAM_TIME_THRESH_IN_SUSPEND=6000
 DHDCFLAGS += -DENABLE_MAX_DTIM_IN_SUSPEND
-DHDCFLAGS += -DMAX_DTIM_ALLOWED_INTERVAL=925
+DHDCFLAGS += -DMAX_DTIM_ALLOWED_INTERVAL=517
 DHDCFLAGS += -DCUSTOM_SUSPEND_BCN_LI_DTIM=1
 DHDCFLAGS += -DDISABLE_DTIM_IN_SUSPEND
 
@@ -234,7 +240,9 @@ DHDCFLAGS += -DNUM_SCB_MAX_PROBE=3
 #DHDCFLAGS += -DDHD_USE_ATOMIC_PKTGET
 DHDCFLAGS += -DTDLS_MSG_ONLY_WFD
 DHDCFLAGS += -DCUSTOM_KEEP_ALIVE_SETTING=30000
+# Excess PM awake
 DHDCFLAGS += -DCUSTOM_EVENT_PM_WAKE=30
+DHDCFLAGS += -DCUSTOM_EVENT_PM_PERCENT=70
 DHDCFLAGS += -DENABLE_TDLS_AUTO_MODE
 DHDCFLAGS += -DP2P_SKIP_DFS
 DHDCFLAGS += -DKEEP_WIFION_OPTION
@@ -264,9 +272,7 @@ DHDCFLAGS += -DCUSTOM_PNO_EVENT_LOCK_xTIME=10
 # For IPV6 Neighbor Discovery Offload Support
 DHDCFLAGS += -DIPV6_NDO_SUPPORT
 
-# Early suspend
-DHDCFLAGS += -DDHD_USE_EARLYSUSPEND
-
+DHDCFLAGS += -DDHD_USE_PM_SLEEP
 # WiFi turn off delay
 DHDCFLAGS += -DWIFI_TURNOFF_DELAY=10
 
@@ -362,6 +368,8 @@ endif
 ifeq ($(CONFIG_WLAN_ANQP_RMAC_BACKPORTED),y)
 	DHDCFLAGS += -DWL_SUPPORT_BACKPORTED_ANQP_RMAC
 endif
+# CONTROL_LOGTRACE=1 to print as EL
+DHDCFLAGS += -DCUSTOM_CONTROL_LOGTRACE=1
 
 ##############################
 # Android Platform Definition
@@ -509,6 +517,8 @@ endif
 
 # NAN-Ranging BW private command
   DHDCFLAGS += -DSUPPORT_NAN_RANGING_TEST_BW
+# NAN customer discovery cache nubmer
+  DHDCFLAGS += -DCUSTOM_NAN_MAX_CACHE_DISC_RESULT=160
 
 ifeq ($(CONFIG_ARCH_QCOM),y)
 # Due to GKI config, Exynos has ARCH_QCOM & ARCH_EXYNOS, MSM has ARCH_QCOM only, Temporary solution
@@ -604,8 +614,6 @@ endif
 # LOGTRACE_EVENT
   DHDCFLAGS += -DSHOW_LOGTRACE
   DHDCFLAGS += -DLOGTRACE_FROM_FILE
-# CONTROL_LOGTRACE=1 to print as EL
-  DHDCFLAGS += -DCUSTOM_CONTROL_LOGTRACE=1
 # Higher rate beacon transmission at softAP
   DHDCFLAGS += -DSUPPORT_AP_HIGHER_BEACONRATE
 # Enhanced radio power save with NOA at softAP
@@ -629,6 +637,8 @@ endif
   DHDCFLAGS += -DGEN_SOFTAP_INFO_FILE
 # Enable PCIe CTO Prevention and recovery
   DHDCFLAGS += -DBCMPCIE_CTO_PREVENTION
+# Enable irq level trigger
+  DHDCFLAGS += -DIRQ_HIGHLEVEL_TRIGGER
 ifeq ($(filter y,$(CONFIG_ARCH_MSM8998) $(CONFIG_ARCH_SDM845) \
 			$(CONFIG_ARCH_SM8150)),y)
 # Use SMMU for IOMEM
@@ -701,6 +711,8 @@ endif
 
 # Basic types and constants relating to 802.11ax
   DHDCFLAGS += -DWL11AX
+# Advertise HE capabilities
+  DHDCFLAGS += -DWL_CAP_HE
 # For Samsung factory mode only
 ifeq ($(CONFIG_SEC_FACTORY),y)
 # Detect NON DMA M2M corruption
@@ -768,6 +780,8 @@ ifneq ($(filter y m,$(CONFIG_BCM4375)),)
  DHDCFLAGS += -DEWP_EDL
 # Customer ant select and set PM
  DHDCFLAGS += -DCUSTOM_SET_ANTNPM
+# Customer SoftAP MIMO/SISO mode select
+ DHDCFLAGS += -DCUSTOM_SOFTAP_SET_ANT
 # Customer ocl disabe
  DHDCFLAGS += -DCUSTOM_SET_OCLOFF
 # SAE..if kernel < 4.17 ..back port support required
@@ -791,9 +805,11 @@ ifeq ($(BUS_IFACE_PCIE),y)
   DHDCFLAGS += -DCUSTOM_TCPACK_DELAY_TIME=10
   DHDCFLAGS += -DDHDTCPACK_SUPPRESS
 endif
-
+ DHDCFLAGS += -DFLOW_RING_PREALLOC
 # NAN-Ranging BW private command
  DHDCFLAGS += -DSUPPORT_NAN_RANGING_TEST_BW
+# NAN customer discovery cache nubmer
+  DHDCFLAGS += -DCUSTOM_NAN_MAX_CACHE_DISC_RESULT=40
 
 ifeq ($(CONFIG_ARCH_QCOM),y)
 # Due to GKI config, Exynos has ARCH_QCOM & ARCH_EXYNOS, MSM has ARCH_QCOM only, Temporary solution
@@ -882,8 +898,6 @@ endif
 # LOGTRACE_EVENT
   DHDCFLAGS += -DSHOW_LOGTRACE
   DHDCFLAGS += -DLOGTRACE_FROM_FILE
-# CONTROL_LOGTRACE=1 to print as EL
-  DHDCFLAGS += -DCUSTOM_CONTROL_LOGTRACE=1
 # Higher rate beacon transmission at softAP
   DHDCFLAGS += -DSUPPORT_AP_HIGHER_BEACONRATE
 # Enhanced radio power save with NOA at softAP
@@ -907,6 +921,8 @@ endif
   DHDCFLAGS += -DGEN_SOFTAP_INFO_FILE
 # Enable PCIe CTO Prevention and recovery
   DHDCFLAGS += -DBCMPCIE_CTO_PREVENTION
+# Enable irq level trigger
+  DHDCFLAGS += -DIRQ_HIGHLEVEL_TRIGGER
 ifeq ($(filter y,$(CONFIG_ARCH_MSM8998) $(CONFIG_ARCH_SDM845) \
 		$(CONFIG_ARCH_SM8150)),y)
 # Use SMMU for IOMEM
@@ -982,6 +998,8 @@ endif
 
 # Basic types and constants relating to 802.11ax
   DHDCFLAGS += -DWL11AX
+# Advertise HE capabilities
+  DHDCFLAGS += -DWL_CAP_HE
 # Support Know HDM feature
   DHDCFLAGS += -DDHD_SUPPORT_HDM
 # For Samsung factory mode only
@@ -1695,8 +1713,6 @@ ifeq ($(CONFIG_BCM43013),y)
   DHDCFLAGS += -DUSE_LATE_INITCALL_SYNC
   DRIVER_TYPE = y
 endif
- DHDCFLAGS += -DDHD_FW_COREDUMP
- DHDCFLAGS += -DDHD_DUMP_FILE_WRITE_FROM_KERNEL
  DHDCFLAGS += -DDHD_LOG_DUMP
  DHDCFLAGS += -DDHD_LOG_PRINT_RATE_LIMIT
 # HANG simulation
@@ -1734,7 +1750,6 @@ endif
 ifeq ($(CONFIG_WLAN_MERLOT),y)
  DHDCFLAGS += -USUPPORT_P2P_GO_PS
  DHDCFLAGS += -UP2P_LISTEN_OFFLOADING
- DHDCFLAGS += -DUSE_INITIAL_2G_SCAN
  DHDCFLAGS += -DENABLE_WAKEUP_PKT_DUMP
  DHDCFLAGS += -DWL_CFGVENDOR_SEND_HANG_EVENT
  DHDCFLAGS += -DNOT_SUPPORT_EXT_TRAP_INFO
@@ -1744,7 +1759,11 @@ ifeq ($(CONFIG_WLAN_MERLOT),y)
  DHDCFLAGS += -DP2P_IF_STATE_EVENT_CTRL
 # Update Tx/Rx rate info
  DHDCFLAGS += -DWL_RATE_INFO
+ifeq ($(CONFIG_BCMDHD_PREALLOC_MEMDUMP),y)
+ DHDCFLAGS += -DDHD_USE_STATIC_MEMDUMP
 endif
+endif
+ DHDCFLAGS += -UWL_6G_BAND
   # Remove common feature for 43013
   DHDCFLAGS :=$(filter-out -DROAM_AP_ENV_DETECTION,$(DHDCFLAGS))
   DHDCFLAGS :=$(filter-out -DDISABLE_11H_SOFTAP,$(DHDCFLAGS))

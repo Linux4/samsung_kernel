@@ -348,6 +348,8 @@ static void dp_aux_reconfig(struct dp_aux *dp_aux)
 
 	aux->catalog->update_aux_cfg(aux->catalog,
 			aux->cfg, PHY_AUX_CFG1);
+	aux->catalog->update_aux_cfg(aux->catalog,
+			aux->cfg, PHY_AUX_CFG2);
 	aux->catalog->reset(aux->catalog);
 }
 
@@ -659,15 +661,24 @@ static ssize_t dp_aux_transfer(struct drm_dp_aux *drm_aux,
 	ret = dp_aux_cmd_fifo_tx(aux, msg);
 	if ((ret < 0) && !atomic_read(&aux->aborted)) {
 #ifdef CONFIG_SEC_DISPLAYPORT
-		if (!secdp_get_cable_status()) {
-			pr_info("cable is out\n");
+		if (!secdp_get_cable_status() || !secdp_get_hpd_status()) {
+			pr_info("hpd_low or cable_lost\n");
+			/*
+			 * don't need to repeat aux.
+			 * exit loop in drm_dp_dpcd_access()
+			 */
+			msg->reply = DP_AUX_NATIVE_REPLY_ACK;
+			ret = msg->size;
 			goto unlock_exit;
 		}
 #endif
 		aux->retry_cnt++;
-		if (!(aux->retry_cnt % retry_count))
+		if (!(aux->retry_cnt % retry_count)) {
 			aux->catalog->update_aux_cfg(aux->catalog,
 				aux->cfg, PHY_AUX_CFG1);
+			aux->catalog->update_aux_cfg(aux->catalog,
+				aux->cfg, PHY_AUX_CFG2);
+		}
 		aux->catalog->reset(aux->catalog);
 		goto unlock_exit;
 	} else if (ret < 0) {

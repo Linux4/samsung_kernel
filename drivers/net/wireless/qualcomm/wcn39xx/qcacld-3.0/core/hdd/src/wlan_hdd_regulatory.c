@@ -212,7 +212,7 @@ static void reg_program_config_vars(struct hdd_context *hdd_ctx,
 	uint32_t scan_11d_interval = 0;
 	bool indoor_chan_enabled = false;
 	uint32_t restart_beaconing = 0;
-	bool enable_srd_chan = false;
+	uint8_t enable_srd_chan;
 	QDF_STATUS status;
 	bool country_priority = 0;
 	bool value = false;
@@ -231,6 +231,9 @@ static void reg_program_config_vars(struct hdd_context *hdd_ctx,
 	if (!QDF_IS_STATUS_SUCCESS(status))
 		hdd_err("Invalid 11d_enable flag");
 	config_vars->enable_11d_support = value;
+
+	ucfg_mlme_get_nol_across_regdmn(hdd_ctx->psoc, &value);
+	config_vars->retain_nol_across_regdmn_update = value;
 
 	ucfg_mlme_get_scan_11d_interval(hdd_ctx->psoc, &scan_11d_interval);
 	config_vars->scan_11d_interval = scan_11d_interval;
@@ -255,8 +258,8 @@ static void reg_program_config_vars(struct hdd_context *hdd_ctx,
 						    &restart_beaconing);
 	config_vars->restart_beaconing = restart_beaconing;
 
-	ucfg_mlme_get_etsi13_srd_chan_in_master_mode(hdd_ctx->psoc,
-						     &enable_srd_chan);
+	ucfg_mlme_get_etsi_srd_chan_in_master_mode(hdd_ctx->psoc,
+						   &enable_srd_chan);
 	config_vars->enable_srd_chan_in_master_mode = enable_srd_chan;
 
 	ucfg_mlme_get_11d_in_world_mode(hdd_ctx->psoc,

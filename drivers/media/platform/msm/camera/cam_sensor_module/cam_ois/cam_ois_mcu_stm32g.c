@@ -1423,13 +1423,31 @@ int cam_ois_init(struct cam_ois_ctrl_t *o_ctrl)
 
 	CAM_INFO(CAM_OIS, "E");
 
+#if defined(CONFIG_SEC_A82XQ_PROJECT)//temp fix for ANR issue
+	o_ctrl->is_init_done = FALSE;
+	usleep_range(14000, 14050);
+#endif
+
 	retries = 20;
 	do {
 		rc = cam_ois_i2c_read(o_ctrl, 0x0001, &status,
 			CAMERA_SENSOR_I2C_TYPE_WORD, CAMERA_SENSOR_I2C_TYPE_BYTE);
+#if defined(CONFIG_SEC_A82XQ_PROJECT)//temp fix for ANR issue
+		if (rc < 0) {
+			CAM_ERR(CAM_OIS, "failed due to i2c fail %d", rc);
+			return 0;
+		}
+#endif
 		if ((status == 0x01) ||
 			(status == 0x13))
+#if defined(CONFIG_SEC_A82XQ_PROJECT)//temp fix for ANR issue
+			{
+				o_ctrl->is_init_done = TRUE;
+				break;
+			}
+#else
 			break;
+#endif
 		if (--retries < 0) {
 			if (rc < 0) {
 				CAM_ERR(CAM_OIS, "failed due to i2c fail %d", rc);
@@ -1974,6 +1992,11 @@ int cam_ois_shift_calibration(struct cam_ois_ctrl_t *o_ctrl, uint16_t af_positio
 		CAM_WARN(CAM_OIS, "ois serve is not on yet");
 		return 0;
 	}
+
+#if defined(CONFIG_SEC_A82XQ_PROJECT)
+	if (!o_ctrl->is_init_done)
+		return 0;
+#endif
 
 	if (af_position >= NUM_AF_POSITION) {
 		CAM_ERR(CAM_OIS, "af position error %u", af_position);
@@ -3124,7 +3147,7 @@ pwr_dwn:
 	cam_ois_power_down(o_ctrl);
 
 	if (is_need_retry)
-	{       
+	{
 		CAM_DBG(CAM_OIS, "Re-try for FW update");
 		goto FW_UPDATE_RETRY;
 	}
@@ -3174,7 +3197,10 @@ int cam_ois_set_ois_mode(struct cam_ois_ctrl_t *o_ctrl, uint16_t mode)
 	if (!o_ctrl)
 		return 0;
 
-#if !defined(CONFIG_SEC_A82XQ_PROJECT)
+#if defined(CONFIG_SEC_A82XQ_PROJECT)
+	if (!o_ctrl->is_init_done)
+		return 0;
+#else
 	if (mode == o_ctrl->ois_mode)
 		return 0;
 #endif

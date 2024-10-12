@@ -26,217 +26,420 @@
 #include <linux/sec_debug.h>
 #include <linux/sec_param.h>
 #include <linux/types.h>
-#include <linux/sec_quest.h>
 #include <linux/workqueue.h>
 #include <linux/jiffies.h>
 #include <linux/reboot.h>
 #include <linux/delay.h>
 #include <linux/mutex.h>
 #include <linux/notifier.h>
+#include <linux/uaccess.h>
+#include <linux/sec_quest.h>
+#include <linux/sec_quest_param.h>
+#include <linux/sec_quest_qdaf.h>
 
+// TEMPORARY DEFINITION!!!
+// Please disable it later!!!
+//#if defined(CONFIG_ARCH_LAHAINA)
+//#define CONFIG_SEC_QUEST_ALWAYS_RETURN_PASS_FOR_ACAT
+//#endif
 
-extern unsigned int lpcharge;
-
-static struct kobj_uevent_env quest_uevent;
-static int erase_pass;
-static int quest_step = -1;	/* flag for quest test mode */
-struct mutex uefi_parse_lock; 
-struct mutex hlos_parse_lock; 
-struct mutex common_lock;
-struct mutex qdaf_call_lock;
-
-
-static void print_param_quest_data(struct param_quest_t param_quest_data)
-{
-#if defined(CONFIG_SEC_QUEST_UEFI)
-	QUEST_PRINT(
-		"%s : magic %x, hlos cnt %d, uefi cnt %d, ddr cnt %d, smd_test_result 0x%2X, quest_uefi_result 0x%2X, ddr result 0x%2X, ddr_test_mode 0x%3X, quest_step %d\n",
-		__func__, param_quest_data.magic,
-		param_quest_data.quest_hlos_remain_count,
-		param_quest_data.quest_uefi_remain_count,
-		param_quest_data.ddrtest_remain_count,		
-		param_quest_data.smd_test_result,
-		param_quest_data.quest_uefi_result,
-		param_quest_data.ddrtest_result,
-		param_quest_data.ddrtest_mode,
-		param_quest_data.quest_step);   
-#else
-	QUEST_PRINT(
-		"%s : magic %x, hlos cnt %d, ddr cnt %d, smd_test_result 0x%2X, ddr result 0x%2X, ddr_test_mode 0x%3X, quest_step %d\n",
-		__func__, param_quest_data.magic,
-		param_quest_data.quest_hlos_remain_count,
-		param_quest_data.ddrtest_remain_count,		
-		param_quest_data.smd_test_result,
-		param_quest_data.ddrtest_result,
-		param_quest_data.ddrtest_mode,
-		param_quest_data.quest_step);   
+// Please disable it later!!!
+#if defined(CONFIG_ARCH_LAHAINA)
+#define CONFIG_SEC_QUEST_NOT_TRIGGER_SMDDL_QDAF
+#define CONFIG_SEC_QUEST_NOT_TRIGGER_MAIN_QDAF
 #endif
+
+#ifdef CONFIG_SEC_QUEST_BPS_CLASSIFIER
+#include <linux/sec_quest_bps_classifier.h>
+
+extern struct bps_info bps_envs;
+#endif
+
+// param data
+extern struct param_quest_t param_quest_data;
+extern struct param_quest_ddr_result_t param_quest_ddr_result_data;
+extern unsigned int param_api_gpio_test;
+extern char param_api_gpio_test_result[256];
+
+// sysfs
+struct device *sec_nad;
+#if defined(CONFIG_SEC_FACTORY)
+struct device *sec_nad_balancer;
+static struct kobj_uevent_env quest_uevent;
+#endif
+
+// etc
+extern unsigned int lpcharge;
+struct mutex sysfs_common_lock;
+
+#if defined(CONFIG_SEC_FACTORY)
+static int erased;
+static int step_to_smd_quest_hlos;
+#if defined(CONFIG_SEC_QUEST_AUTO_TRIGGER_KWORKER)
+struct delayed_work trigger_quest_work;
+#define WAIT_TIME_BEFORE_TRIGGER_MSECS 60000
+#endif
+static int call_main_qdaf_after_finighing_main_quest = 0;	// 0:NOT_RUN 1:SHOULD_RUN
+static int boot_count;
+static int testmode_enabled = 0;
+static int testmode_quefi_enabled = 1;
+static int testmode_suefi_enabled = 1;
+static int testmode_ddrscan_enabled = 1;
+#endif
+
+
+/* Please sync with enum quest_enum_item in sec_qeust.h */
+char *STR_ITEM[ITEM_ITEMSCOUNT] = {
+	"",
+	"HLOS",
+#if defined(CONFIG_SEC_QUEST_HLOS_DUMMY_SMD)
+	"HLOSDUMMY",
+#elif defined(CONFIG_SEC_QUEST_HLOS_NATURESCENE_SMD)
+	"HLOSNATURESCENE",
+#endif
+	"FUSION",
+	"QUEFI",
+	"SUEFI_LIGHT",
+	"SUEFI_HEAVY",
+	"DDR_SCAN_LOADER",
+	"DDR_SCAN_RAMDUMP_ENCACHE",
+	"DDR_SCAN_RAMDUMP_DISCACHE",
+	"DDR_SCAN_UEFI",
+	"SMDDL_QDAF",
+	"DDRTRAINING",
+};
+
+
+/* Please sync with enum quest_enum_smd_subitem in sec_qeust.h */
+char *STR_SUBITEM[SUBITEM_ITEMSCOUNT] = {
+	"",
+	"DDR_SCAN",
+#if defined(CONFIG_SEC_QUEST_EDL)
+	"SUEFI_GROUP1",
+	"SUEFI_GROUP2",
+	"SUEFI_GROUP3",
+	"SUEFI_GROUP4",
+	"SUEFI_GROUP5",
+	"SUEFI_GROUP6",
+	"SUEFI_GROUP7",
+	"SUEFI_GROUP8",
+	"SUEFI_GROUP9",
+	"QUEFI_GROUP1",
+	"QUEFI_GROUP2",
+	"QUEFI_GROUP3",
+	"QUEFI_GROUP4",
+	"QUEFI_GROUP5",
+	"QUEFI_GROUP6",
+	"QUEFI_GROUP7",
+	"QUEFI_GROUP8",
+	"QUEFI_GROUP9",		
+#else
+	"QUEFI",
+	"SUEFI_CRYPTO",
+	"SUEFI_COMPLEX",
+#endif	
+#if defined(CONFIG_SEC_QUEST_HLOS_DUMMY_SMD)
+	"HLOS_DUMMY",
+#elif defined(CONFIG_SEC_QUEST_HLOS_NATURESCENE_SMD)
+	"HLOS_NATURESCENE",
+	"HLOS_AOSSTHERMALDIFF",
+#else
+	"HLOS_CRYPTO",
+	"HLOS_ICACHE",
+	"HLOS_CCOHERENCY",
+	"HLOS_QMESADDR",
+	"HLOS_QMESACACHE",
+	"HLOS_SUSPEND",
+	"HLOS_VDDMIN",
+	"HLOS_THERMAL",
+	"HLOS_UFS",
+	"FUSION_A75G",
+	"FUSION_Q65G",
+#endif
+#if defined(CONFIG_SEC_QUEST_HLOS_DUMMY_SMD)
+	"SMDDL_QDAF"
+#endif
+};
+
+
+#if defined(CONFIG_SEC_FACTORY)
+
+
+#if defined(CONFIG_SEC_QUEST_BPS_CLASSIFIER)
+static void sec_quest_bps_print_info(struct bps_info *bfo, char *info)
+{
+	QUEST_PRINT(
+		"\n=====================================================\n"
+		" BPS info : %s\n"
+		"=====================================================\n"
+		" magic[0] = 0x%x\n"
+		" magic[1] = 0x%x\n"
+		"=====================================================\n"
+		" sp : %d\n"
+		" wp : %d\n"
+		" dp : %d\n"
+		" kp : %d\n"
+		" mp : %d\n"
+		" tp : %d\n"
+		" cp : %d\n"
+		"=====================================================\n"
+		" pc_lr_cnt = %d\n"
+		" pc_lr_last_idx = %d\n"
+		" tzerr_cnt = %d\n"
+		" klg_cnt = %d\n"
+		" dn_cnt = %d\n"
+		" build_id = %s\n"
+		"=====================================================\n",
+		info, bfo->magic[0], bfo->magic[1], bfo->up_cnt.sp,
+		bfo->up_cnt.wp, bfo->up_cnt.dp, bfo->up_cnt.kp,
+		bfo->up_cnt.mp, bfo->up_cnt.tp, bfo->up_cnt.cp,
+		bfo->pc_lr_cnt, bfo->pc_lr_last_idx,
+		bfo->tzerr_cnt, bfo->klg_cnt, bfo->dn_cnt,
+		bfo->build_id);
 }
 
-
-// get the result of ddr_scan at smd, cal or main
-static int get_ddr_scan_result(int which_quest)
+static void sec_quest_bps_param_read(void)
 {
-	struct param_quest_t param_quest_data;
-	int ddr_result = DDRTEST_INCOMPLETED;
-
-	if (!sec_get_param(param_index_quest, &param_quest_data)) {
-		QUEST_PRINT("%s : fail - get param!! param_quest_data\n", __func__);
-		return ddr_result;
-	}	
-	
-	ddr_result = GET_DDR_TEST_RESULT(which_quest, param_quest_data.ddrtest_result);
-	QUEST_PRINT("%s : (step=%d) (ddr_result=%d)\n", __func__, which_quest, ddr_result);
-
-	return ddr_result;
-}
-
-
-// update bitmap_item_result
-static void set_ddr_scan_result_for_smd()
-{
-	struct param_quest_t param_quest_data;
-	int ddr_result = DDRTEST_INCOMPLETED;
-	
-	if (!sec_get_param(param_index_quest, &param_quest_data)) {
-		QUEST_PRINT("%s : fail - get param!! param_quest_data\n", __func__);
+	/* return if bps data already loaded */
+	if (sec_quest_bps_env_initialized == true)
 		return;
-	}
 
-	ddr_result = get_ddr_scan_result(SMD_QUEST);
+	quest_load_param_quest_bps_data();
 
-	if (ddr_result == DDRTEST_PASS) {
-		param_quest_data.bitmap_item_result |=
-		    TEST_ITEM_RESULT(SMD_QUEST, DDR_SCAN, QUEST_ITEM_TEST_PASS);
-	} else if ( ddr_result == DDRTEST_FAIL ) {
-		param_quest_data.bitmap_item_result |=
-		    TEST_ITEM_RESULT(SMD_QUEST, DDR_SCAN, QUEST_ITEM_TEST_FAIL);
-	} 
+	/* print bps status */
+	sec_quest_bps_print_info(&bps_envs, "kernel");
 
-	if (!sec_set_param(param_index_quest,&param_quest_data)) {
-		QUEST_PRINT("%s : fail - set param!! param_quest_data\n",__func__);
-	}
+	/* set bps data successfully loaded */
+	sec_quest_bps_env_initialized = true;
 }
+#endif
 
-
-// check test_result.csv
-static int get_quest_hlos_result(int which_quest)
+//////////////////////////////////////////////////
+/////// panic notifier functions /////////////////
+//////////////////////////////////////////////////
+static int quest_debug_panic_handler(struct notifier_block *nb,
+		unsigned long l, void *buf)
 {
-	int fd = 0;
-	int hlos_result = TOTALTEST_UNKNOWN;
-	char buf[512] = { '\0', };
-	mm_segment_t old_fs = get_fs();
+	QUEST_PRINT("%s : print param_quest_data\n", __func__);
+	quest_print_param_quest_data();
 
-	mutex_lock(&hlos_parse_lock);
+	return NOTIFY_DONE;
+}
 
-	set_fs(KERNEL_DS);
+static struct notifier_block quest_panic_block = {
+	.notifier_call = quest_debug_panic_handler,
 
-	switch (which_quest) {
-	case SMD_QUEST:
-		fd = sys_open(SMD_QUEST_RESULT, O_RDONLY, 0);
-		break;		
-	case CAL_QUEST:
-		fd = sys_open(CAL_QUEST_RESULT, O_RDONLY, 0);
-		break;
-	case MAIN_QUEST:
-		fd = sys_open(MAIN_QUEST_RESULT, O_RDONLY, 0);
-		break;
-	default:
-		break;
-	}
+};
 
-	if (fd >= 0) {
-		int found = 0;
+//////////////////////////////////////////////////
 
-		printk(KERN_DEBUG);
 
-		while (sys_read(fd, buf, 512)) {
-			char *ptr;
-			char *div = "\n";
-			char *tok = NULL;
+//////////////////////////////////////////////////
+/////// helper functions /////////////////////////////
+//////////////////////////////////////////////////
+static int call_user_prg( char **argv, int wait )
+{
+	int ret_userapp;
+	char *envp[5] = {
+		"HOME=/",
+		"PATH=/system/bin/quest:/system/bin:/system/xbin",
+		"ANDROID_DATA=/data",
+		"ANDROID_ROOT=/system",
+		NULL };
 
-			ptr = buf;
-			while ((tok = strsep(&ptr, div)) != NULL) {
-
-				if ((strstr(tok, "FAIL"))) {
-					QUEST_PRINT("%s : (step=%d) The result is FAIL\n",__func__, which_quest);
-					hlos_result = TOTALTEST_FAIL;
-					found = 1;
-					break;
-				}
-
-				if ((strstr(tok, "AllTestDone"))) {
-					QUEST_PRINT("%s : (step=%d) The result is PASS\n",__func__, which_quest);
-					hlos_result = TOTALTEST_PASS;
-					found = 1;
-					break;
-				}
-			}
-
-			if (found)
-				break;
-		}
-
-		if (!found) {
-			QUEST_PRINT("%s : (step=%d) no result string\n",__func__, which_quest);
-			hlos_result = TOTALTEST_NO_RESULT_STRING;
-		}
-
-		sys_close(fd);
+	ret_userapp = call_usermodehelper(argv[0], argv, envp, wait);
+	if (!ret_userapp) {
+		QUEST_PRINT("%s is executed. ret_userapp = %d\n", argv[0], ret_userapp);
+		return 0;
 	} else {
-		QUEST_PRINT("%s : (step=%d) The result file is not existed (fd=%d)\n",__func__, which_quest, fd);
-		hlos_result = TOTALTEST_NO_RESULT_FILE;
+		QUEST_PRINT("%s is NOT executed. ret_userapp = %d\n", argv[0], ret_userapp);
+		return ret_userapp;
+	}
+}
+
+static int do_quest()
+{
+	char *argv[6] = { NULL, NULL, NULL, NULL, NULL, NULL };
+	int ret;
+
+	char log_path[50] = { '\0', };
+
+	QUEST_PRINT("%s : curr_step=%d\n", __func__, param_quest_data.curr_step);
+
+	switch (param_quest_data.curr_step) {
+
+		case STEP_SMDDL:
+			argv[0] = QUESTHLOS_PROG_SMD;
+			snprintf(log_path, 50, "logPath:%s", SMD_QUEST_LOGPATH);
+			argv[1] = log_path;
+#if defined(CONFIG_SEC_DDR_SKP)
+			argv[2] = "Reboot";
+#endif
+			break;
+		case STEP_CAL1:
+#if defined(CONFIG_SEC_QUEST_CAL_HLOS_SUPPORT_FUSION)
+			argv[0] = QUESTHLOS_PROG_MAIN_CAL;
+			snprintf(log_path, 50, "logPath:%s", CAL_QUEST_LOGPATH);
+			argv[1] = log_path;
+			argv[2] = "Reboot";
+			QUEST_PRINT("reboot option enabled \n");
+			argv[3] = "hlosTestDisabled:1";
+			QUEST_PRINT("hlosTestDisabled option enabled \n");
+			argv[4] = "fusionTestEnabled:1";
+			QUEST_PRINT("fusionTestEnabled option enabled \n");
+			argv[5] = "qdafTestEnabled:1";
+			QUEST_PRINT("qdafTestEnabled option enabled \n");
+			break;
+#endif
+		case STEP_CALX:
+			argv[0] = QUESTHLOS_PROG_MAIN_CAL;
+			snprintf(log_path, 50, "logPath:%s", CAL_QUEST_LOGPATH);
+			argv[1] = log_path;
+			argv[2] = "Reboot";
+			QUEST_PRINT("reboot option enabled \n");
+			break;
+		case STEP_TESTMODE:
+			argv[0] = QUESTHLOS_PROG_MAIN_CAL;
+			snprintf(log_path, 50, "logPath:%s", CAL_QUEST_LOGPATH);
+			argv[1] = log_path;
+			argv[2] = "Reboot";
+			QUEST_PRINT("reboot option enabled \n");
+			argv[3] = "testmodeTestEnabled:1";
+			QUEST_PRINT("testmodeTestEnabled option enabled \n");
+			break;
+		case STEP_MAIN:
+			argv[0] = QUESTHLOS_PROG_MAIN_CAL;
+			snprintf(log_path, 50, "logPath:%s", MAIN_QUEST_LOGPATH);
+			argv[1] = log_path;
+			argv[2] = "Reboot";
+			QUEST_PRINT("reboot option enabled \n");
+			argv[3] = "1800";
+#if defined(CONFIG_SEC_QUEST_MAIN_HLOS_SUPPORT_FUSION)
+			argv[4] = "fusionTestEnabled:1";
+			QUEST_PRINT("fusionTestEnabled option enabled \n");
+#endif
+			break;
+		default:
+			QUEST_PRINT("invalid step\n");
+			return -1;
 	}
 
-	set_fs(old_fs);
+	ret = call_user_prg(argv, UMH_WAIT_EXEC);
 
-	mutex_unlock(&hlos_parse_lock);
+	return ret;
+}
 
-	return hlos_result;
+static void move_questresult_to_sub_dir(int quest_step)
+{
+	char *argv[4] = { NULL, NULL, NULL, NULL };
+
+	argv[0] = MOVE_QUESTRESULT_PRG;
+	switch (quest_step)
+	{
+		case STEP_SMDDL:
+			argv[1] = SMD_QUEST_LOGPATH;
+			break;
+		case STEP_CAL1:
+		case STEP_CALX:
+		case STEP_TESTMODE:
+			argv[1] = CAL_QUEST_LOGPATH;
+			break;
+		case STEP_MAIN:
+			argv[1] = MAIN_QUEST_LOGPATH;
+			break;
+	}
+	QUEST_PRINT("%s : will move questresult files to %s\n", __func__, argv[1]);
+
+	call_user_prg(argv, UMH_WAIT_PROC);
+}
+
+static int call_quest_debugging_sh(char* action, int wait)
+{
+	char *argv[4] = { NULL, NULL, NULL, NULL };
+	char step_str[10];
+
+	QUEST_PRINT("%s : will call %s with action (%s)\n", __func__, QUEST_DEBUGGING_PRG, action);
+
+	argv[0] = QUEST_DEBUGGING_PRG;
+	argv[1] = action;
+	snprintf(step_str, 10, "step:%d", param_quest_data.curr_step);
+	argv[2] = step_str;
+	return call_user_prg(argv, wait);
+}
+
+static enum quest_enum_item_result check_item_result( uint64_t item_result, uint32_t max_cnt )
+{
+	enum quest_enum_item_result result;
+	int iCnt;
+
+	if( item_result == 0 )
+		return ITEM_RESULT_NONE;
+
+	// check fail first
+	for( iCnt=1; iCnt<max_cnt; iCnt++ )
+	{
+		result = QUEST_GET_ITEM_SUBITEM_RESULT(item_result, iCnt);
+		if( result == ITEM_RESULT_FAIL )
+			return ITEM_RESULT_FAIL;
+	}
+
+	// check incompleted
+	for( iCnt=1; iCnt<max_cnt; iCnt++ )
+	{
+		result = QUEST_GET_ITEM_SUBITEM_RESULT(item_result, iCnt);
+		if( result == ITEM_RESULT_INCOMPLETED )
+			return ITEM_RESULT_INCOMPLETED;
+	}
+
+	return ITEM_RESULT_PASS;
+}
+
+static int check_if_incompleted_item_result_exist( uint64_t item_result, uint32_t max_cnt )
+{
+	enum quest_enum_item_result result;
+	int iCnt;
+
+	if( item_result == 0 )
+		return 0;
+
+	for( iCnt=1; iCnt<max_cnt; iCnt++ )
+	{
+		result = QUEST_GET_ITEM_SUBITEM_RESULT(item_result, iCnt);
+		if( result == ITEM_RESULT_INCOMPLETED )
+			return 1;
+	}
+
+	return 0;
 }
 
 
-// check bitmap_item_result
-static int get_smd_item_result(struct param_quest_t param_quest_data, char *buf, int piece)
+// check smd_subitem_result and return result string
+static int get_smd_subitem_result_string(char *buf, int piece)
 {
 	int iCnt, failed_cnt=0;
-	unsigned int smd_quest_result;
 
-	if( param_quest_data.bitmap_item_result == 0 ) {
-		QUEST_PRINT("%s : param_quest_data.bitmap_item_result = 0\n", __func__);
-		goto err_out;
-	}	
-
-	smd_quest_result = param_quest_data.bitmap_item_result;
-
-	QUEST_PRINT("%s : param_quest_data.bitmap_item_result=%u,", __func__,
-		smd_quest_result);
-
-	if (piece == ITEM_CNT) {
-		for (iCnt = 0; iCnt < ITEM_CNT; iCnt++) {
-			switch (smd_quest_result & 0x3) {
-			case 1:
+	if (piece == SUBITEM_ITEMSCOUNT) {
+		for (iCnt = SUBITEM_NONE+1; iCnt < SUBITEM_ITEMSCOUNT; iCnt++) {
+			switch (QUEST_GET_ITEM_SUBITEM_RESULT(param_quest_data.smd_subitem_result, iCnt)) {
+			case ITEM_RESULT_FAIL:
 				strcat(buf, "[F]");
 				failed_cnt++;
 				break;
-			case 2:
+			case ITEM_RESULT_PASS:
 				strcat(buf, "[P]");
 				break;
 			default:
 				strcat(buf, "[X]");
 				break;
 			}
-
-			smd_quest_result >>= 2;
 		}
 	} else {
-		smd_quest_result >>= 2 * piece;
-		switch (smd_quest_result & 0x3) {
-		case 1:
+		switch (QUEST_GET_ITEM_SUBITEM_RESULT(param_quest_data.smd_subitem_result, piece)) {
+		case ITEM_RESULT_FAIL:
 			strlcpy(buf, "FAIL", sizeof(buf));
 			failed_cnt++;
 			break;
-		case 2:
+		case ITEM_RESULT_PASS:
 			strlcpy(buf, "PASS", sizeof(buf));
 			break;
 		default:
@@ -246,486 +449,516 @@ static int get_smd_item_result(struct param_quest_t param_quest_data, char *buf,
 	}
 
 	return failed_cnt;
-err_out:
-	return -1;
 }
 
-
-static void do_quest()
+#if defined(CONFIG_SEC_QUEST_HLOS_DUMMY_SMD)
+static void check_and_update_qdaf_result()
 {
-	char *argv[4] = { NULL, NULL, NULL, NULL };
-	char *envp[5] = { 
-		"HOME=/", 
-		"PATH=/system/bin/quest:/system/bin:/system/xbin", 
-		"ANDROID_DATA=/data", 
-		"ANDROID_ROOT=/system", 
-		NULL };
-	int ret_userapp;
-	char log_path[50] = { '\0', };
+	int qdaf_failed_cnt;
 
-	switch (quest_step) {
-		case SMD_QUEST:
-			argv[0] = SMD_QUEST_PROG;
-			snprintf(log_path, 50, "logPath:%s\0", SMD_QUEST_LOGPATH); 
-			argv[1] = log_path;
-			QUEST_PRINT("SMD_QUEST, quest_step : %d", quest_step);
-			break;
-		case CAL_QUEST:
-			argv[0] = CAL_QUEST_PROG;
-			snprintf(log_path, 50, "logPath:%s\0", CAL_QUEST_LOGPATH); 
-			argv[1] = log_path;
-			argv[2] = "Reboot";
-			QUEST_PRINT("CAL_QUEST_HLOS, quest_step : %d", quest_step);
-			QUEST_PRINT("reboot option enabled \n");
-			break;		
-		case MAIN_QUEST:
-			argv[0] = MAIN_QUEST_PROG;
-			snprintf(log_path, 50, "logPath:%s\0", MAIN_QUEST_LOGPATH); 
-			argv[1] = log_path;
-			argv[2] = "Reboot";		
-			QUEST_PRINT("MAIN_QUEST, quest_step : %d\n", quest_step);
-			QUEST_PRINT("reboot option enabled \n");
-			break;
-		default:
-			QUEST_PRINT("Invalid quest value, quest_step : %d\n", quest_step);
-			return;
+	// get result of ITEM_SMDDLQDAF
+	qdaf_failed_cnt = get_qdaf_failed_cnt();
+	if( qdaf_failed_cnt > 0 ) {
+		QUEST_PRINT("%s : ITEM_SMDDLQDAF was failed (failed_cnt=%d)\n", __func__, qdaf_failed_cnt);
+		QUEST_SET_ITEM_SUBITEM_RESULT(param_quest_data.smd_item_result, ITEM_SMDDLQDAF, ITEM_RESULT_FAIL);
+		QUEST_SET_ITEM_SUBITEM_RESULT(param_quest_data.smd_subitem_result, SUBITEM_SMDDLQDAF, ITEM_RESULT_FAIL);
+	}else {
+		QUEST_PRINT("%s : ITEM_SMDDLQDAF was succeeded\n", __func__ );
+		QUEST_SET_ITEM_SUBITEM_RESULT(param_quest_data.smd_item_result, ITEM_SMDDLQDAF, ITEM_RESULT_PASS);
+		QUEST_SET_ITEM_SUBITEM_RESULT(param_quest_data.smd_subitem_result, SUBITEM_SMDDLQDAF, ITEM_RESULT_PASS);
 	}
-
-	ret_userapp = call_usermodehelper(argv[0], argv, envp, UMH_WAIT_EXEC);
-
-	if (!ret_userapp) {
-		QUEST_PRINT("%s is executed. ret_userapp = %d\n", argv[0],
-			  ret_userapp);
-
-		if (erase_pass) erase_pass = 0;
-	} else {
-		QUEST_PRINT("%s is NOT executed. ret_userapp = %d\n", argv[0],
-			  ret_userapp);
-		quest_step = -1;
-	}
+	quest_sync_param_quest_data();
 }
-
-
-static void remove_specific_logs(char* remove_log_path)
-{
-	char *argv[4] = { NULL, NULL, NULL, NULL };
-	char *envp[5] = { 
-		"HOME=/", 
-		"PATH=/system/bin/quest:/system/bin:/system/xbin", 
-		"ANDROID_DATA=/data", 
-		"ANDROID_ROOT=/system", 
-		NULL };
-	int ret_userapp;
-
-	QUEST_PRINT("%s : will delete log files at \n", __func__, remove_log_path);
-	
-	argv[0] = ERASE_QUEST_PRG;
-	argv[1] = remove_log_path;
-	ret_userapp = call_usermodehelper(argv[0], argv, envp, UMH_WAIT_PROC);
-	if (!ret_userapp) {
-		QUEST_PRINT("%s is executed. ret_userapp = %d\n", argv[0], ret_userapp);
-	} else {
-		QUEST_PRINT("%s is NOT executed. ret_userapp = %d\n", argv[0], ret_userapp);
-	}
-}
-
-
-static void make_debugging_logs(char* options)
-{
-	char *argv[4] = { NULL, NULL, NULL, NULL };
-	char *envp[5] = { 
-		"HOME=/", 
-		"PATH=/system/bin/quest:/system/bin:/system/xbin", 
-		"ANDROID_DATA=/data", 
-		"ANDROID_ROOT=/system", 
-		NULL };
-	int ret_userapp;
-
-	QUEST_PRINT("%s : will make debugging logs with options %s\n", __func__, options);
-	
-	argv[0] = QUEST_DEBUGGING_PRG;
-	argv[1] = options;
-	ret_userapp = call_usermodehelper(argv[0], argv, envp, UMH_WAIT_PROC);
-	if (!ret_userapp) {
-		QUEST_PRINT("%s is executed. ret_userapp = %d\n", argv[0], ret_userapp);
-	} else {
-		QUEST_PRINT("%s is NOT executed. ret_userapp = %d\n", argv[0], ret_userapp);
-	}
-}
-
-
-static void print_reset_info()
-{
-	char options[50] = { '\0', };
-
-	// refer to qpnp_pon_reason (index=boot_reason-1)
-	QUEST_PRINT("%s : boot_reason was %d\n", __func__, boot_reason);
-
-	// reset history
-	snprintf(options, 50, "action:resethist\0"); 
-	make_debugging_logs(options);
-}
-
-
-#if defined(CONFIG_SEC_QUEST_UEFI)
-
-static void arrange_quest_logs(char* log_path)
-{
-	char *argv[4] = { NULL, NULL, NULL, NULL };
-	char *envp[5] = { 
-		"HOME=/", 
-		"PATH=/system/bin/quest:/system/bin:/system/xbin", 
-		"ANDROID_DATA=/data", 
-		"ANDROID_ROOT=/system", 
-		NULL };
-	int ret_userapp;
-
-	QUEST_PRINT("%s : will arrange quest log files at (%s) before test\n", 
-		__func__, log_path);
-	
-	argv[0] = ARRANGE_QUEST_LOGS_PRG;
-	argv[1] = log_path;
-	ret_userapp = call_usermodehelper(argv[0], argv, envp, UMH_WAIT_PROC);
-	if (!ret_userapp) {
-		QUEST_PRINT("%s is executed. ret_userapp = %d\n", argv[0], ret_userapp);
-	} else {
-		QUEST_PRINT("%s is NOT executed. ret_userapp = %d\n", argv[0], ret_userapp);
-	}
-}
-
-
-static void move_questresult_to_sub_dir(int quest_step)
-{
-	char *argv[4] = { NULL, NULL, NULL, NULL };
-	char *envp[5] = { 
-		"HOME=/", 
-		"PATH=/system/bin/quest:/system/bin:/system/xbin", 
-		"ANDROID_DATA=/data", 
-		"ANDROID_ROOT=/system", 
-		NULL };
-	int ret_userapp;
-
-	argv[0] = MOVE_QUESTRESULT_PRG;
-	switch (quest_step) {
-		//case SMD_QUEST: {
-		//	argv[1] = SMD_QUEST_LOGPATH;
-		//} break;
-		case CAL_QUEST: {
-			argv[1] = CAL_QUEST_LOGPATH;
-		} break;
-		case MAIN_QUEST: {
-			argv[1] = MAIN_QUEST_LOGPATH;
-		} break;
-	}		
-	QUEST_PRINT("%s : will move questresult.txt to %s\n", __func__, argv[1]);	
-
-	ret_userapp = call_usermodehelper(argv[0], argv, envp, UMH_WAIT_PROC);
-	if (!ret_userapp) {
-		QUEST_PRINT("%s is executed. ret_userapp = %d\n", argv[0], ret_userapp);
-	} else {
-		QUEST_PRINT("%s is NOT executed. ret_userapp = %d\n", argv[0], ret_userapp);
-	}	
-}
-
-
-static int get_quest_uefi_result(char* uefi_log_path, int will_print)
-{
-	int i, fd = 0;
-	int uefi_result = TOTALTEST_UNKNOWN;
-	char buf[512] = { '\0', };
-	mm_segment_t old_fs = get_fs();
-	int test_done = 0;
-	int check_strings = sizeof(parsing_info)/sizeof(parsing_info[0]);
-	char questresult_file[50] = { '\0', };
-
-	mutex_lock(&uefi_parse_lock);
-	
-	set_fs(KERNEL_DS);
-
-	snprintf(questresult_file, 50, "%s/%s\0", uefi_log_path, "questresult.txt"); 
-	QUEST_PRINT("%s : will parse %s\n",__func__, questresult_file);
-	
-	fd = sys_open(questresult_file, O_RDONLY, 0);
-	
-	if (fd < 0) {
-		QUEST_PRINT("%s : The result file of quest_uefi is not existed (fd=%d)\n", __func__, fd);
-		uefi_result = TOTALTEST_NO_RESULT_FILE;
-		goto err_out;
-	}
-
-	for(i=0; i<check_strings; i++) {
-		parsing_info[i].result = 0;
-	}
-
-	while (sys_read(fd, buf, 512)) {
-		char *ptr;
-		char *div = "\n";
-		char *tok = NULL;
-		
-		ptr = buf;
-		while ((tok = strsep(&ptr, div)) != NULL) {
-
-			if( will_print )
-				QUEST_PRINT("%s : *** %s\n", __func__, tok);
-			
-			for(i=0; i<check_strings; i++) {
-				
-				if( !parsing_info[i].result && strstr(tok, parsing_info[i].item_name) ) {
-					
-					//QUEST_PRINT("%s : debug : tok=%s\n", __func__, tok);
-						
-					if( strstr(tok, PASS_STR) ) {
-						//QUEST_PRINT("%s : %s result => %s\n", 
-						//	__func__, parsing_info[i].item_name, PASS_STR);
-						parsing_info[i].result = QUEST_ITEM_TEST_PASS;
-					} else if( strstr(tok, FAIL_STR) ) {
-						//QUEST_PRINT("%s : %s result => %s\n", 
-						//	__func__, parsing_info[i].item_name, FAIL_STR);
-						parsing_info[i].result = QUEST_ITEM_TEST_FAIL;
-					} else if( i == check_strings-1 ) {	// for checking test done
-						//QUEST_PRINT("%s : test done\n", __func__);
-						test_done = 1;
-					}			
-					
-					break;
-				}	
-				
-			}
-			if( test_done ) break;
-		}				
-	}
-
-	if( !test_done ) {
-		QUEST_PRINT("%s : There is no \"QUEST Test Done!\"\n", __func__);
-		uefi_result = TOTALTEST_NO_RESULT_STRING;
-	} else {
-		for(i=0; i<check_strings; i++) {
-			if( parsing_info[i].result == QUEST_ITEM_TEST_FAIL ) {
-				QUEST_PRINT("%s : FAIL (%s : %d)\n", __func__, 
-					parsing_info[i].item_name, parsing_info[i].result);
-				uefi_result = TOTALTEST_FAIL;
-				break;
-			}
-		}
-		if( i==check_strings ) {
-			QUEST_PRINT("%s : PASS\n", __func__);
-			uefi_result = TOTALTEST_PASS;			
-		}
-	}
-
-	sys_close(fd);
-
-err_out:
-	set_fs(old_fs);	
-	mutex_unlock(&uefi_parse_lock);
-	return uefi_result;
-}
-
 #endif
 
-
-static int call_qdaf_from_quest_driver(int cmd, int wait_val)
+static void run_qdaf_in_background(enum quest_qdaf_action_t action)
 {
-	int ret_userapp;
-	char *argv[4] = { NULL, NULL, NULL, NULL };
-	char qdaf_cmd[BUFF_SZ];
-	char *envp[5] = { 
-		"HOME=/", 
-		"PATH=/system/bin/quest:/system/bin:/system/xbin", 
-		"ANDROID_DATA=/data", 
-		"ANDROID_ROOT=/system", 
-		NULL };		
+#if defined(CONFIG_SEC_QUEST_HLOS_DUMMY_SMD)
+	if( param_quest_data.curr_step == STEP_SMDDL &&
+		((action == QUEST_QDAF_ACTION_CONTROL_START_WITH_PANIC) ||
+		(action == QUEST_QDAF_ACTION_CONTROL_START_WITHOUT_PANIC)) ) {
+		QUEST_SET_ITEM_SUBITEM_RESULT(param_quest_data.smd_item_result, ITEM_SMDDLQDAF, ITEM_RESULT_INCOMPLETED);
+		QUEST_SET_ITEM_SUBITEM_RESULT(param_quest_data.smd_subitem_result, SUBITEM_SMDDLQDAF, ITEM_RESULT_INCOMPLETED);
+		quest_sync_param_quest_data();
+	}
+#endif
+	call_qdaf_from_quest_driver(action, UMH_WAIT_EXEC);
+}
 
-	mutex_lock(&qdaf_call_lock);
+//////////////////////////////////////////////////
 
-	argv[0] = QDAF_PROG;
-	snprintf(qdaf_cmd, BUFF_SZ, "%d", cmd);
-	argv[1] = qdaf_cmd;
-	
-	qdaf_cur_cmd_mode = cmd;
 
-	ret_userapp = call_usermodehelper(argv[0], argv, envp, wait_val);
-	QUEST_PRINT("%s : is called (%d,%d) and returned (%d)\n",
-		__func__, cmd, wait_val, ret_userapp);
 
-	mutex_unlock(&qdaf_call_lock);	
-	
-	return ret_userapp;
+//////////////////////////////////////////////////
+/////// initializer functions //////////////////////////
+//////////////////////////////////////////////////
+static void make_debugging_files()
+{
+#if defined(CONFIG_ARM) || defined(CONFIG_ARM64)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5,4,0)
+	// refer to qpnp_pon_reason (index=boot_reason-1)
+	QUEST_PRINT("%s : boot_reason was %d\n", __func__, boot_reason);
+#endif
+#endif
+
+	// updatebootcount
+	// do not call this with UMH_WAIT_PROC. it can cause race condition with init thread
+	call_quest_debugging_sh("action:updatebootcount", UMH_WAIT_EXEC);
+	msleep(1000);
+
+	boot_count = call_quest_debugging_sh("action:getbootcount", UMH_WAIT_PROC);
+	boot_count = (boot_count>=0)? (boot_count>>8) : 0;
+	QUEST_PRINT("%s : boot_count = %d\n", __func__, boot_count);
+
+	// ls
+	call_quest_debugging_sh("action:ls", UMH_WAIT_PROC);
+
+	// resethist
+	call_quest_debugging_sh("action:resethist", UMH_WAIT_PROC);
+
+	// lastkmsg
+	call_quest_debugging_sh("action:lastkmsg", UMH_WAIT_PROC);
+}
+
+// TODO
+static void check_abnormal_param()
+{
+	// The abnormal param have been checked by quest_check_abnormal_param_quest_data() at quest_setup.c of XBL
+	// If we want to check it at kernel, please use this function
+	return;
 }
 
 
+
+
+// initialize step for smd, cal and main
+// move uefi log to output_log_path
+static void setup_scenario()
+{
+	switch (param_quest_data.curr_step) {
+	case STEP_SMDDL: {
+		enum quest_enum_item_result qdaf_item_result, hlos_item_result, total_result;
+		uint64_t smd_item_result_without_qdaf;
+		int exist_incompleted=0;
+
+		// smd scenario
+		QUEST_PRINT("%s : (step=%d) smd scenario\n", __func__, STEP_SMDDL);
+
+		// move boot questresult files to SMD directory
+		move_questresult_to_sub_dir(STEP_SMDDL);
+
+		// check current result for determining next action
+		qdaf_item_result = QUEST_GET_ITEM_SUBITEM_RESULT(param_quest_data.smd_item_result, ITEM_SMDDLQDAF);
+		hlos_item_result = QUEST_GET_ITEM_SUBITEM_RESULT(param_quest_data.smd_item_result, QUESTHLOS_HLOS_ITEM_SMD);
+		smd_item_result_without_qdaf = param_quest_data.smd_item_result;
+		QUEST_SET_ITEM_SUBITEM_RESULT(smd_item_result_without_qdaf, ITEM_SMDDLQDAF, ITEM_RESULT_PASS);
+		exist_incompleted = check_if_incompleted_item_result_exist(smd_item_result_without_qdaf, ITEM_ITEMSCOUNT);
+		total_result = check_item_result(smd_item_result_without_qdaf, ITEM_ITEMSCOUNT);
+
+		if ( hlos_item_result == ITEM_RESULT_INCOMPLETED ) {
+			// first boot -> run boot items -> android boot -> quest_hlos
+			//	 -> enter to upload mode (or smpl) without starting ITEM_SMDDLQDAF -> JIG POWER OFF -> boot ?
+			// let's  initialize step
+			QUEST_PRINT("%s : (step=%d) reboot while running quest_hlos\n", __func__, STEP_SMDDL);
+			QUEST_PRINT("%s : Let's check lastkmsg\n", __func__);
+
+			QUEST_UPDATE_SMDDL_INFO(param_quest_data.smd_subitem_result);
+			quest_initialize_curr_step();
+		}else if ( total_result == ITEM_RESULT_FAIL ) {
+			QUEST_PRINT("%s : (step=%d) total_result == ITEM_RESULT_FAIL, so initialize step\n", __func__, STEP_SMDDL);
+			QUEST_UPDATE_SMDDL_INFO(param_quest_data.smd_subitem_result);
+			quest_initialize_curr_step();
+		}
+#if defined(CONFIG_SEC_QUEST_HLOS_DUMMY_SMD)
+		else if( qdaf_item_result == ITEM_RESULT_INCOMPLETED ) {
+			// first boot -> run boot items -> android boot
+			//   -> run quest_hlos -> ITEM_SMDDLQDAF -> JIG POWER OFF -> boot ?
+			// let's write the result of SMDDL QDAF and initialize step
+			QUEST_PRINT("%s : (step=%d) maybe booting after executing ITEM_SMDDLQDAF\n",
+				__func__, STEP_SMDDL);
+
+			check_and_update_qdaf_result();
+			QUEST_UPDATE_SMDDL_INFO(param_quest_data.smd_subitem_result); // due to boot after abnormal reset
+			quest_initialize_curr_step();
+		}
+		else if( exist_incompleted == 1 )
+		{
+			// first boot -> run boot items -> incompleted -> android boot
+			// let's ignore running hlos and just run smddl qdaf
+			//  (do not update smd_subitem for QUESTHLOS_HLOS_ITEM_SMD)
+			QUEST_PRINT("%s : (step=%d) incompleted at boot items, so ignore running hlos and just run smddl qdaf\n", __func__, STEP_SMDDL);
+
+			QUEST_SET_ITEM_SUBITEM_RESULT(param_quest_data.smd_item_result, QUESTHLOS_HLOS_ITEM_SMD, ITEM_RESULT_INCOMPLETED);
+			quest_sync_param_quest_data();
+
+			// trigger SMDDL QDAF in background only if SMDDL line
+			if( boot_count == 1 ) {
+#if defined(CONFIG_SEC_QUEST_NOT_TRIGGER_SMDDL_QDAF)
+				QUEST_PRINT("%s : SMDDL line, but skip to run SMDDL QDAF\n", __func__);
+				check_and_update_qdaf_result();
+				QUEST_UPDATE_SMDDL_INFO(param_quest_data.smd_subitem_result); // due to boot after abnormal reset
+				quest_initialize_curr_step();
+#else
+				QUEST_PRINT("%s : SMDDL line, so run SMDDL QDAF\n", __func__);
+				run_qdaf_in_background(QUEST_QDAF_ACTION_CONTROL_START_WITHOUT_PANIC);
+#endif
+			}
+			else {
+				QUEST_PRINT("%s : ERASE seq, so do not run SMDDL QDAF and finish step\n", __func__);
+				check_and_update_qdaf_result();
+				QUEST_UPDATE_SMDDL_INFO(param_quest_data.smd_subitem_result); // due to boot after abnormal reset
+				quest_initialize_curr_step();
+			}
+		}
+#endif
+		break;
+	}
+	case STEP_TESTMODE:
+	{
+		int idx, ddr_err_total = param_quest_ddr_result_data.ddr_err_addr_total;
+
+		if( 0 != ddr_err_total )
+		{
+			QUEST_PRINT("%s : ddr_err_addr_total=%d\n", __func__, ddr_err_total);
+
+			if (ddr_err_total > MAX_DDR_ERR_ADDR_CNT)
+				ddr_err_total = MAX_DDR_ERR_ADDR_CNT;
+
+			for( idx=0; idx<ddr_err_total; idx++ )
+			{
+				QUEST_PRINT( "ddr err addr : 0x%llx \n",param_quest_ddr_result_data.ddr_err_addr[idx] );
+				param_quest_ddr_result_data.ddr_err_addr[idx] = 0;
+			}
+			param_quest_ddr_result_data.ddr_err_addr_total = 0;
+			quest_sync_param_quest_ddr_result_data();
+
+			// triger panic
+			QUEST_PRINT("%s : trigger panic\n", __func__);
+			panic("ddrscan failed");
+		}
+	}
+	case STEP_CAL1:
+	case STEP_CALX:
+
+		// cal scenario
+		QUEST_PRINT("%s : (step=%d) cal scenario\n", __func__, param_quest_data.curr_step);
+
+		// move boot questresult files to CAL directory
+		move_questresult_to_sub_dir(param_quest_data.curr_step);
+
+		if( param_quest_data.hlos_remained_count==0 ) {
+			QUEST_PRINT("%s : scenario ends\n", __func__);
+
+			// initialize step
+			quest_initialize_curr_step();
+		}
+
+		break;
+	case STEP_MAIN:
+
+		// click MAIN button -> quest_hlos -> ... -> ITEM_QUESTQUEFI * X
+		// -> ITEM_QUESTSUEFI -> ITEM_DDRSCANRAMDUMPENCACHE -> boot ?
+		QUEST_PRINT("%s : (step=%d) maybe booting completing main scenario\n", __func__, STEP_MAIN);
+
+		// move boot questresult files to MAIN directory
+		move_questresult_to_sub_dir(STEP_MAIN);
+
+		// initialize step
+		quest_initialize_curr_step();
+
+#if !defined(CONFIG_SEC_QUEST_NOT_TRIGGER_MAIN_QDAF)
+		// will run run_qdaf_in_background() later
+		call_main_qdaf_after_finighing_main_quest = 1;
+#endif
+
+		break;
+	default: {
+		int qdaf_failed_cnt;
+
+		QUEST_PRINT("%s : (step=%d) default actions \n", __func__, param_quest_data.curr_step);
+
+		// default action #1
+		//    : get qdaf result to check if qdaf was executed before boot and it was failed
+		qdaf_failed_cnt = get_qdaf_failed_cnt();
+		QUEST_PRINT("%s : qdaf failed_cnt = %d\n", __func__, qdaf_failed_cnt);
+
+		// default action #2
+		// ...
+
+		}
+	}
+
+}
+
+
+static int initialized = 0;
+static void __initialize()
+{
+	if( likely(initialized) ) return;
+	initialized = 1;
+
+	QUEST_PRINT("%s +++\n", __func__);
+
+	// load param data
+	quest_load_param_quest_data();
+	quest_load_param_quest_ddr_result_data();
+	quest_load_param_api_gpio_test();
+	quest_load_param_api_gpio_test_result();
+
+	// print param_quest_data
+	quest_print_param_quest_data();
+
+#if defined(CONFIG_SEC_QUEST_BPS_CLASSIFIER)
+	// update nad bps param here!
+	sec_quest_bps_param_read();
+#endif
+
+	// make debugging files
+	make_debugging_files();
+
+	// check abnormal param
+	check_abnormal_param();
+
+	// setup scenario
+	setup_scenario();
+
+	QUEST_PRINT("%s ---\n", __func__);
+}
+
+static void quest_sysfs_enter(__const char *__function)
+{
+	mutex_lock(&sysfs_common_lock);
+	__initialize();
+	QUEST_PRINT("%s +++\n", __function);
+}
+
+static void quest_sysfs_exit(__const char *__function)
+{
+	QUEST_PRINT("%s ---\n", __function);
+	mutex_unlock(&sysfs_common_lock);
+}
+
+#define QUEST_SYSFS_ENTER()	quest_sysfs_enter(__func__)
+#define QUEST_SYSFS_EXIT()	quest_sysfs_exit(__func__)
+//////////////////////////////////////////////////
+
+
+
+
+//////////////////////////////////////////////////
+/////// NAD_END //////////////////////////////////
+//////////////////////////////////////////////////
+static ssize_t store_quest_end(struct device *dev,
+			     struct device_attribute *attr,
+			     const char *buf, size_t count)
+{
+	char result[20] = { '\0' };
+	int failed = 0;
+#if defined(CONFIG_SEC_QUEST_HLOS_NATURESCENE_SMD)
+	enum quest_enum_item_result hlos_result = ITEM_RESULT_NONE;
+#endif
+
+	QUEST_SYSFS_ENTER();
+
+	// print result
+	sscanf(buf, "%s", result);
+	failed = strcmp(result, "quest_pass")?1:0;
+
+	// process end
+	switch(param_quest_data.curr_step) {
+	case STEP_SMDDL:
+
+		// update item result
+		if( failed ) {
+			QUEST_PRINT("%s : SMD quest_hlos was failed (%s)\n", __func__, result);
+			QUEST_SET_ITEM_SUBITEM_RESULT(param_quest_data.smd_item_result, QUESTHLOS_HLOS_ITEM_SMD, ITEM_RESULT_FAIL);
+		}else {
+			QUEST_PRINT("%s : SMD quest_hlos was succeeded\n", __func__ );
+			QUEST_SET_ITEM_SUBITEM_RESULT(param_quest_data.smd_item_result, QUESTHLOS_HLOS_ITEM_SMD, ITEM_RESULT_PASS);
+#if defined(CONFIG_SEC_QUEST_HLOS_NATURESCENE_SMD)
+			hlos_result = QUEST_GET_ITEM_SUBITEM_RESULT(param_quest_data.smd_subitem_result, SUBITEM_QUESTHLOSNATURESCENE);
+			if( hlos_result == ITEM_RESULT_INCOMPLETED ) {
+				QUEST_PRINT("%s : SUBITEM_QUESTHLOSNATURESCENE was incompleted, so update SMD quest_hlos as incompleted  \n", __func__ );
+				QUEST_SET_ITEM_SUBITEM_RESULT(param_quest_data.smd_item_result, QUESTHLOS_HLOS_ITEM_SMD, ITEM_RESULT_INCOMPLETED);
+			}
+#endif
+		}
+		quest_sync_param_quest_data();
+
+#if defined(CONFIG_SEC_DDR_SKP)
+		param_quest_data.curr_step = STEP_CALX;
+		quest_sync_param_quest_data();
+#endif
+
+#if defined(CONFIG_SEC_QUEST_HLOS_DUMMY_SMD)
+		// trigger SMDDL QDAF in background only if SMDDL line
+		if( boot_count == 1 ) {
+#if defined(CONFIG_SEC_QUEST_NOT_TRIGGER_SMDDL_QDAF)
+			QUEST_PRINT("%s : SMDDL line, but skip to run SMDDL QDAF\n", __func__);
+			check_and_update_qdaf_result();
+			QUEST_UPDATE_SMDDL_INFO(param_quest_data.smd_subitem_result);
+			quest_initialize_curr_step();
+#else
+			QUEST_PRINT("%s : SMDDL line, so run SMDDL QDAF\n", __func__);
+			run_qdaf_in_background(QUEST_QDAF_ACTION_CONTROL_START_WITHOUT_PANIC);
+#endif
+		}
+		else {
+			QUEST_PRINT("%s : ERASE seq, so do not run SMDDL QDAF and finish step\n", __func__);
+			check_and_update_qdaf_result();
+			QUEST_UPDATE_SMDDL_INFO(param_quest_data.smd_subitem_result);
+			quest_initialize_curr_step();
+		}
+#else
+		QUEST_UPDATE_SMDDL_INFO(param_quest_data.smd_subitem_result);
+		quest_initialize_curr_step();
+#endif
+
+		// send "NAD_TEST=DONE" to factory app
+		kobject_uevent_env(&dev->kobj, KOBJ_CHANGE, quest_uevent.envp);
+#if defined(CONFIG_SEC_DDR_SKP)
+		if( failed ) {
+			// triger panic
+			QUEST_PRINT("%s : trigger panic\n", __func__);
+			panic("%s", result);
+		}
+#endif
+		break;
+	case STEP_CAL1:
+	case STEP_CALX:
+	case STEP_TESTMODE:
+
+		if( failed ) {
+			// set result as FAIL
+			QUEST_PRINT("%s : CAL quest_hlos was failed (%s)\n", __func__, result);
+			QUEST_SET_ITEM_SUBITEM_RESULT(param_quest_data.cal_item_result, QUESTHLOS_HLOS_ITEM_MAIN_CAL, ITEM_RESULT_FAIL);
+			quest_sync_param_quest_data();
+
+			if( param_quest_data.curr_step==STEP_TESTMODE ) {
+				QUEST_PRINT("%s : ************* DO NOT INITIALIZE STEP AND COUNT for continuoly repeating *************\n", __func__);
+
+				// triger panic
+				QUEST_PRINT("%s : trigger panic\n", __func__);
+				panic("%s", result);
+			}
+
+			// initialize remained count
+			// initialize step
+			QUEST_PRINT("%s : initialize param and step\n", __func__ );
+			param_quest_data.hlos_remained_count = 0;
+			param_quest_data.ddrscan_remained_count = 0;
+#if defined(CONFIG_SEC_QUEST_UEFI)
+			param_quest_data.quefi_remained_count = 0;
+#endif
+#if defined(CONFIG_SEC_QUEST_UEFI_ENHANCEMENT)
+			param_quest_data.suefi_remained_count = 0;
+#endif
+			quest_initialize_curr_step();
+
+			// triger panic
+			QUEST_PRINT("%s : trigger panic\n", __func__);
+			panic("%s", result);
+
+		}else {
+			// set result as PASS
+			QUEST_PRINT("%s : CAL quest_hlos was succeeded\n", __func__ );
+			QUEST_SET_ITEM_SUBITEM_RESULT(param_quest_data.cal_item_result, QUESTHLOS_HLOS_ITEM_MAIN_CAL, ITEM_RESULT_PASS);
+			quest_sync_param_quest_data();
+
+			// send "NAD_TEST=DONE" to factory app
+			kobject_uevent_env(&dev->kobj, KOBJ_CHANGE, quest_uevent.envp);
+		}
+
+		break;
+	case STEP_MAIN:
+
+		if( failed ) {
+			// set result as FAIL
+			QUEST_PRINT("%s : MAIN quest_hlos was failed (%s)\n", __func__, result);
+			QUEST_SET_ITEM_SUBITEM_RESULT(param_quest_data.main_item_result, QUESTHLOS_HLOS_ITEM_MAIN_CAL, ITEM_RESULT_FAIL);
+			quest_sync_param_quest_data();
+
+			// triger panic
+			QUEST_PRINT("%s : trigger panic\n", __func__);
+			panic("%s", result);
+
+		}else {
+			// set result as PASS
+			QUEST_PRINT("%s : MAIN quest_hlos was succeeded\n", __func__);
+			QUEST_SET_ITEM_SUBITEM_RESULT(param_quest_data.main_item_result, QUESTHLOS_HLOS_ITEM_MAIN_CAL, ITEM_RESULT_PASS);
+			quest_sync_param_quest_data();
+
+			// send "NAD_TEST=DONE" to factory app
+			kobject_uevent_env(&dev->kobj, KOBJ_CHANGE, quest_uevent.envp);
+		}
+
+		break;
+	}
+
+	QUEST_SYSFS_EXIT();
+	return count;
+}
+static DEVICE_ATTR(nad_end, S_IWUSR, NULL, store_quest_end);
+//////////////////////////////////////////////////
+
+
+
+//////////////////////////////////////////////////
+/////// NAD_ACAT /////////////////////////////////
+//////////////////////////////////////////////////
 static ssize_t show_quest_acat(struct device *dev,
 			     struct device_attribute *attr, char *buf)
 {
-	struct param_quest_t param_quest_data;
-#if defined(CONFIG_SEC_QUEST_UEFI)			
-	int uefi_result = TOTALTEST_UNKNOWN;
-	int hlos_result = TOTALTEST_UNKNOWN;
-	mm_segment_t old_fs = get_fs();
-	int fd = 0;	
-	int can_trigger_panic = 0;	
-#endif	
-	int total_result = TOTALTEST_UNKNOWN;
-	
-	char options[50] = { '\0', };
-	
+	enum quest_enum_item_result total_result = ITEM_RESULT_NONE;
+	ssize_t count = 0;
 
-	mutex_lock(&common_lock);
+	QUEST_SYSFS_ENTER();
 
-	QUEST_PRINT("%s : at boot time, second/fourth call from factory app (read sec_nad/nad_acat)\n", __func__);
+	// check smd_item_result
+	total_result = check_item_result(param_quest_data.cal_item_result, ITEM_ITEMSCOUNT);
+	QUEST_PRINT("%s : cal_item_result(%llu) total_result(%d)\n",
+					__func__, param_quest_data.cal_item_result, total_result);
 
-	// 0. print param informations
-	if (!sec_get_param(param_index_quest, &param_quest_data)) {
-		QUEST_PRINT("%s : fail - get param!! param_quest_data\n", __func__);
-		goto err_out;
-	}
-	print_param_quest_data(param_quest_data);
+#if defined(CONFIG_SEC_QUEST_ALWAYS_RETURN_PASS_FOR_ACAT)
+	QUEST_PRINT("%s : CONFIG_SEC_QUEST_ALWAYS_RETURN_PASS_FOR_ACAT enabled, so return pass\n", __func__);
+	total_result = ITEM_RESULT_PASS;
+#endif
 
-
-// 1. parsing the result of quest_uefi
-#if defined(CONFIG_SEC_QUEST_UEFI)	
-
-	// to parse hlos result
-	hlos_result = get_quest_hlos_result(CAL_QUEST);
-
-	// to arrange files
+	if( param_quest_data.curr_step == STEP_TESTMODE && total_result == ITEM_RESULT_FAIL )
 	{
-		static arranged = 0;
-		if( (!arranged) && (hlos_result!=TOTALTEST_FAIL)
-			&& (param_quest_data.quest_step == CAL_QUEST)
-			&& (param_quest_data.quest_hlos_remain_count>0) ) {
-			QUEST_PRINT("%s : will arrange CAL directory for next executing", __func__);
-			arranged = 1;			
-			arrange_quest_logs(CAL_QUEST_LOGPATH);
-		}
-
-		if ( param_quest_data.quest_step == CAL_QUEST )
-		{
-			set_fs(KERNEL_DS);
-			if ( (fd = sys_open(UEFI_QUESTRESULT_FILE, O_RDONLY, 0))>=0 ) {
-				QUEST_PRINT("%s : the questresult.txt exists", __func__);
-				can_trigger_panic = 1;
-			}else
-				QUEST_PRINT("%s : no questresult.txt", __func__);
-			move_questresult_to_sub_dir(CAL_QUEST);	// to move UefiLog always let's consider case of no questresult also
-			set_fs(old_fs);
-		}
+		QUEST_PRINT("%s : in the case of STEP_TESTMODEC, force to return ITEM_RESULT_PASS to continue repeating\n", __func__);
+		total_result = ITEM_RESULT_PASS;		
 	}
 
-	// to parse uefi result
-	uefi_result = get_quest_uefi_result(CAL_QUEST_LOGPATH, 1);
-
-	// to integrate results
-	// In case of cal quest, we can run only quest_uefi or both quest_uefi and quest_hlos.
-	// At factory line, we run only quest_uefi using cal 1time button,
-	// so let's consider the result of quest_uefi only except for the case of quest_hlos failure.
-	if( uefi_result==TOTALTEST_FAIL || hlos_result==TOTALTEST_FAIL ) 
-		total_result = TOTALTEST_FAIL;
-	else  
-		total_result = uefi_result;
-	QUEST_PRINT("%s : uefi_result(%d) / hlos_result(%d) / total_result(%d)\n",
-		__func__, uefi_result, hlos_result, total_result );
- 	
-#else
-	total_result = get_quest_hlos_result(CAL_QUEST); // get quest_hlos result
-#endif
-
-
-	// 2.1. update param
-	if( param_quest_data.quest_step == CAL_QUEST ) {
-
-#if defined(CONFIG_SEC_QUEST_UEFI)			
-		param_quest_data.quest_uefi_result
-			= SET_UEFI_RESULT(CAL_QUEST, param_quest_data.quest_uefi_result, uefi_result);
-
-		if( param_quest_data.quest_hlos_remain_count==0 && 
-			param_quest_data.quest_uefi_remain_count==0 ) {
-
-			QUEST_PRINT("%s : cal step finished\n", __func__);
-			param_quest_data.quest_step = -1;
-		}
-#else
-		if( param_quest_data.quest_hlos_remain_count==0 ) {
-			QUEST_PRINT("%s : cal step finished\n", __func__);
-			param_quest_data.quest_step = -1;
-		}		
-#endif		
-		
-		if (!sec_set_param(param_index_quest, &param_quest_data)) {
-			QUEST_PRINT("%s : fail - set param!! param_quest_data\n", __func__);
-			goto err_out;
-		}	
-	}
-	
-
-	// 3. result processing
 	switch (total_result) {
-		case TOTALTEST_PASS: {
-			QUEST_PRINT("ACAT QUEST Passed\n");
-			mutex_unlock(&common_lock);
-			return snprintf(buf, BUFF_SZ, "OK_ACAT_NONE\n");
+		case ITEM_RESULT_PASS: {
+			QUEST_PRINT("ACAT QUEST PASS\n");
+			count = snprintf(buf, BUFF_SZ, "OK_ACAT_NONE\n");
+		} break;
+		case ITEM_RESULT_FAIL: {
+			QUEST_PRINT("ACAT QUEST FAIL\n");
+			count = snprintf(buf, BUFF_SZ, "NG_ACAT_ASV\n");
 		} break;
 
-		case TOTALTEST_FAIL: {
-#if defined(CONFIG_SEC_QUEST_UEFI)			
-			// in case of CAL, the device can enter to ramdump mode using nad_end as soon as hlos failed
-			// so, let's consider only the case of uefi failure
-			if( uefi_result==TOTALTEST_FAIL && can_trigger_panic ) {
-
-				QUEST_PRINT("%s : quest_uefi result was failed, so trigger panic\n", __func__ );
-				QUEST_PRINT("%s : current step is CAL and panic will occur, so initialize quest_step=-1\n",__func__);
-
-				// if failed, let's do not run quest_uefi any more.
-				param_quest_data.quest_uefi_remain_count = 0;
-				param_quest_data.quest_hlos_remain_count = 0;
-				param_quest_data.quest_step = -1;
-				if (!sec_set_param(param_index_quest, &param_quest_data)) {
-					QUEST_PRINT("%s : fail - set param!! param_quest_data\n", __func__);
-					goto err_out;
-				}		
-
-				// trigger panic
-				mutex_unlock(&common_lock);				
-				panic("quest_uefi failed");				
-			}
-			QUEST_PRINT("%s : uefi_result(%d), current quest_step(%d), so will not trigger panic\n", 
-				__func__, uefi_result, param_quest_data.quest_step );			
-#else
-			param_quest_data.quest_step = -1;
-			if (!sec_set_param(param_index_quest, &param_quest_data)) {
-				QUEST_PRINT("%s : fail - set param!! param_quest_data\n", __func__);
-				goto err_out;
-			}			
-#endif
-
-			QUEST_PRINT("ACAT QUEST fail\n");
-			mutex_unlock(&common_lock);
-			return snprintf(buf, BUFF_SZ, "NG_ACAT_ASV\n"); 
+		case ITEM_RESULT_INCOMPLETED: {
+			QUEST_PRINT("ACAT QUEST INCOMPLETED\n");
+			count = snprintf(buf, BUFF_SZ, "OK\n");
 		} break;
 
-		default: {
-			if( param_quest_data.quest_step == CAL_QUEST ) {
-				QUEST_PRINT("%s : total_result = %d, so let's make lastkmsg\n", __func__, total_result );
-				snprintf(options, 50, "action:lastkmsg output_log_path:%s\0", CAL_QUEST_LOGPATH); 
-				make_debugging_logs(options);
-			}
+		case ITEM_RESULT_NONE: {
+			QUEST_PRINT("ACAT QUEST NOT_TESTED\n");
+			count = snprintf(buf, BUFF_SZ, "OK\n");
+		} break;
+	}
 
-			QUEST_PRINT("ACAT QUEST No Run\n");
-			mutex_unlock(&common_lock);
-			return snprintf(buf, BUFF_SZ, "OK\n");
-		}
-	}		
-
-err_out:
-	mutex_unlock(&common_lock);
-	return snprintf(buf, BUFF_SZ, "UNKNOWN\n");	
+	QUEST_SYSFS_EXIT();
+	return count;
 }
 
 static ssize_t store_quest_acat(struct device *dev,
 			      struct device_attribute *attr,
 			      const char *buf, size_t count)
 {
-	struct param_quest_t param_quest_data;
 	int ret = -1;
 	int idx = 0;
 	int quest_loop_count, dram_loop_count;
@@ -733,658 +966,796 @@ static ssize_t store_quest_acat(struct device *dev,
 	char quest_cmd[QUEST_CMD_LIST][QUEST_BUFF_SIZE];
 	char *quest_ptr, *string;
 
-	mutex_lock(&common_lock);
+	QUEST_SYSFS_ENTER();
 
-	if( erase_pass ) {
-		QUEST_PRINT("%s : store_quest_erase was called. so let's ignore this call\n", __func__);
-		mutex_unlock(&common_lock);
-		return count;
+	// check exceptional cases
+	if( unlikely( erased || strncmp(buf, "nad_acat", 8) ) ) {
+		QUEST_PRINT("%s : exceptional cases (erased=%d, buf=%s\n",
+			__func__, erased, buf);
+		goto out;
 	}
 
-	if (!sec_get_param(param_index_quest, &param_quest_data)) {
-		QUEST_PRINT("%s : fail - get param!! param_quest_data\n", __func__);
-		goto err_out;
-	}
-	print_param_quest_data(param_quest_data);
-
-#if !defined(CONFIG_SEC_SKP)
-	// check if smd quest_hlos should start
-	if (param_quest_data.magic != QUEST_SMD_MAGIC) {	
-		// <======================== 1st boot at right after SMD D/L done
-		QUEST_PRINT("1st boot at SMD\n");
-		param_quest_data.magic = QUEST_SMD_MAGIC;
-		param_quest_data.smd_test_result = 0;
-		param_quest_data.bitmap_item_result = 0;		
-		param_quest_data.quest_hlos_remain_count = 0;
-		param_quest_data.ddrtest_remain_count = 0;
-		param_quest_data.quest_step = SMD_QUEST;
-		if (!sec_set_param(param_index_quest,&param_quest_data)) {
-			QUEST_PRINT("%s : fail - set param!! param_quest_data\n",__func__);
-			goto err_out;
-		}
-		
-		quest_step = SMD_QUEST;
-		mutex_unlock(&common_lock);
-		do_quest();
-
-		// check smd ddr test and update bitmap_item_result here!!!
-		set_ddr_scan_result_for_smd();
-		
-		return count;
-	}	
-#endif
-
-	QUEST_PRINT("%s: buf(%s) count(%d)\n", __func__, buf, (int)count);
-	if ((int)count < QUEST_BUFF_SIZE) {
-		mutex_unlock(&common_lock);
-		return -EINVAL;
-	}
-
-	/* Copy buf to quest temp */
+	// parse argument
 	strlcpy(temp, buf, QUEST_BUFF_SIZE * 3);
 	string = temp;
-
 	while (idx < QUEST_CMD_LIST) {
 		quest_ptr = strsep(&string, ",");
 		strlcpy(quest_cmd[idx++], quest_ptr, QUEST_BUFF_SIZE);
-	}	
+	}
 
-	if (!strncmp(buf, "nad_acat", 8)) {
+	// get quest_loop_count and dram_loop_count
+	ret = sscanf(quest_cmd[1], "%d\n", &quest_loop_count);
+	if (ret != 1) return -EINVAL;
+	ret = sscanf(quest_cmd[2], "%d\n", &dram_loop_count);
+	if (ret != 1) return -EINVAL;
+	QUEST_PRINT("%s : nad_acat%d,%d\n",
+		__func__, quest_loop_count, dram_loop_count);
 
-		// get quest_loop_count and dram_loop_count
-		ret = sscanf(quest_cmd[1], "%d\n", &quest_loop_count);
-		if (ret != 1) return -EINVAL;
-		ret = sscanf(quest_cmd[2], "%d\n", &dram_loop_count);
-		if (ret != 1) return -EINVAL;
-		QUEST_PRINT("%s : nad_acat%d,%d\n", 
-			__func__, quest_loop_count, dram_loop_count);
+	// nad_acat,0,0
+	// trigger SMD quest_hlos or CAL with remained_count
+	if( (quest_loop_count==0) && (dram_loop_count==0) ) {
 
-		if (!quest_loop_count && !dram_loop_count) {	
-			// both counts are 0, means 
-			// 1. testing refers to current remain_count
+		// S   M   D
+		// check if smd quest_hlos should start
+		if( unlikely(step_to_smd_quest_hlos && (param_quest_data.curr_step==STEP_SMDDL)) ) {
+			QUEST_PRINT("%s : cur_step==STEP_SMDDL and will triger quest_hlos\n", __func__);
 
-			// stop retrying when failure occur during retry test at ACAT/15test
-#if defined(CONFIG_SEC_QUEST_UEFI)			
-			if ( get_quest_hlos_result(CAL_QUEST)== TOTALTEST_FAIL 
-					|| get_quest_uefi_result(CAL_QUEST_LOGPATH, 0)==TOTALTEST_FAIL )
-#else
-			if ( get_quest_hlos_result(CAL_QUEST)==TOTALTEST_FAIL )
-#endif					
-			{
-				QUEST_PRINT("%s : we did not initialize params when quest_hlos failed\n", __func__);
-				QUEST_PRINT("%s : current step is CAL and panic occurred, so force to initialize params\n",__func__);				
+			// update item result
+			QUEST_SET_ITEM_SUBITEM_RESULT(param_quest_data.smd_item_result, QUESTHLOS_HLOS_ITEM_SMD, ITEM_RESULT_INCOMPLETED);
+			quest_sync_param_quest_data();
 
-				param_quest_data.quest_hlos_remain_count = 0;
-#if defined(CONFIG_SEC_QUEST_UEFI)					
-				param_quest_data.quest_uefi_remain_count = 0;
-#endif
-				param_quest_data.ddrtest_remain_count = 0;
-				param_quest_data.quest_step = -1;
-				if (!sec_set_param(param_index_quest,&param_quest_data)) {
-					QUEST_PRINT("%s : fail - set param!! param_quest_data\n",__func__);
-					goto err_out;
-				}
-			}
-
-			// QUEST count still remain
-#if defined(CONFIG_SEC_QUEST_UEFI)			
-			if( (param_quest_data.quest_hlos_remain_count > 0) &&
-				(param_quest_data.quest_hlos_remain_count > param_quest_data.quest_uefi_remain_count))
-#else
-			if( (param_quest_data.quest_hlos_remain_count > 0) )
-#endif
-			{
-				QUEST_PRINT("%s : quest_hlos_remain_count = %d, ddrtest_remain_count = %d\n",
-					__func__, param_quest_data.quest_hlos_remain_count, 
-					param_quest_data.ddrtest_remain_count);
-
-				// ongoing quest_step (can skip)
-				param_quest_data.quest_step = CAL_QUEST;
-				if( param_quest_data.quest_hlos_remain_count >= 1 )		
-					param_quest_data.quest_hlos_remain_count--;
-				
-				if (!sec_set_param(param_index_quest, &param_quest_data)) {
-					QUEST_PRINT("%s : fail - set param!! param_quest_data\n",__func__);
-					goto err_out;
-				}
-
-				quest_step = CAL_QUEST;
-				mutex_unlock(&common_lock);
-				do_quest();
-			}
+			// trigger quest_hlos
+			do_quest();
+			goto out;
 		}
-		else {	
-			// not (0,0) means 
-			// 1. new test count came, 
-			// 2. so overwrite the remain_count, 
-			// 3. and not reboot by itsself, 
-			// 4. reboot cmd will come from outside like factory PGM
 
-			/*--- set quest_uefi and quest_hlos remain count ---*/
+		// check exceptional cases
+		if( unlikely( (param_quest_data.curr_step!=STEP_TESTMODE &&
+						param_quest_data.curr_step!=STEP_CALX && param_quest_data.curr_step!=STEP_CAL1) ||
+						(param_quest_data.hlos_remained_count <= 0) ) ) {
+			QUEST_PRINT("%s : exceptional cases (step=%d, hlos_cnt=%d)\n",
+				__func__, param_quest_data.curr_step, param_quest_data.hlos_remained_count);
+			goto out;
+		}
+
+		// C   A   L
+		// update remained_count and item result
+		QUEST_PRINT("%s : will triger quest_hlos\n", __func__);
+		param_quest_data.hlos_remained_count--;
+		QUEST_SET_ITEM_SUBITEM_RESULT(param_quest_data.cal_item_result, QUESTHLOS_HLOS_ITEM_MAIN_CAL, ITEM_RESULT_INCOMPLETED);
+		quest_sync_param_quest_data();
+
+		// trigger quest_hlos
+		do_quest();
+
+	}else {
+
+		QUEST_PRINT("%s : update step, item_result and remained_count\n", __func__);
+
+		if( testmode_enabled ) {
+				QUEST_PRINT("%s : testmode_enabled, so set step as STEP_TESTMODE\n", __func__);
+				param_quest_data.curr_step = STEP_TESTMODE;
+				param_quest_data.cal_item_result = (uint64_t)0;
+				param_quest_data.hlos_remained_count = quest_loop_count;
+				param_quest_data.quefi_remained_count = 0;
+				param_quest_data.suefi_remained_count = 0;
+				param_quest_data.ddrscan_remained_count = 0;
+
+				QUEST_PRINT("%s : testmode_enabled, so set count as feature and property value\n", __func__);
 #if defined(CONFIG_SEC_QUEST_UEFI)
-			param_quest_data.quest_uefi_remain_count = quest_loop_count;
-
-			// run quest_hlos if quest_loop_count>1
-			if( quest_loop_count > 1 )
-				param_quest_data.quest_hlos_remain_count = quest_loop_count;
-#else
-			param_quest_data.quest_hlos_remain_count = quest_loop_count;
+				if( testmode_quefi_enabled )
+					param_quest_data.quefi_remained_count = quest_loop_count;
 #endif
-
-			param_quest_data.quest_step = CAL_QUEST;
-
-			/*--- set ddrtest_mode ---*/
-			if( (param_quest_data.ddrtest_remain_count = dram_loop_count) > 0 )
-				param_quest_data.ddrtest_mode = UPLOAD_CAUSE_QUEST_DDR_TEST_CAL;
-
-			/*--- set additional things for skp scenario ---*/		
-#if defined(CONFIG_SEC_SKP)
-			param_quest_data.quest_uefi_remain_count = quest_loop_count+5;
-			param_quest_data.quest_hlos_remain_count = 1;
-			param_quest_data.magic = QUEST_SMD_MAGIC;
-			param_quest_data.quest_step = SKP_QUEST;
+#if defined(CONFIG_SEC_QUEST_UEFI_ENHANCEMENT)
+				if( testmode_suefi_enabled )
+					param_quest_data.suefi_remained_count = quest_loop_count;
 #endif
+				if( testmode_ddrscan_enabled )
+					param_quest_data.ddrscan_remained_count = quest_loop_count;
 
-			if (!sec_set_param(param_index_quest, &param_quest_data)) {
-				QUEST_PRINT("%s : fail - set param!! param_quest_data\n",__func__);
-				goto err_out;
-			}
-			
-			// remove cal logs before new cal test
-			remove_specific_logs("cal");
-
-			QUEST_PRINT("%s : new cmd : quest_hlos_remain_count = %d, ddrtest_remain_count = %d\n",
-				__func__, 
-				param_quest_data.quest_hlos_remain_count, 
-				param_quest_data.ddrtest_remain_count);
 		}
-	}else
-		QUEST_PRINT("%s : wrong arguments\n", __func__);
+		else {
+			if( (quest_loop_count==1) && (dram_loop_count==0) ) {
+				// nad_acat,1,0 (trigger CAL 1time)
+				param_quest_data.curr_step = STEP_CAL1;
+				param_quest_data.cal_item_result = (uint64_t)0;
+				param_quest_data.ddrscan_remained_count = 0;
+				param_quest_data.hlos_remained_count = quest_loop_count;
+				param_quest_data.quefi_remained_count = 0;
+				param_quest_data.suefi_remained_count = 0;
+			}else {
+				// nad_acat,x,y (trigger CAL Xtime and DDR_SCAN Ytime)
+				param_quest_data.curr_step = STEP_CALX;
+				param_quest_data.cal_item_result = (uint64_t)0;
+				param_quest_data.ddrscan_remained_count = dram_loop_count;
+				param_quest_data.hlos_remained_count = quest_loop_count;
 
-err_out:
-	mutex_unlock(&common_lock);
+				// if quest_loop_count==1, run hlos only
+				// if quest_loop_count==0, set quefi,suefi count to 0 also
+#if defined(CONFIG_SEC_QUEST_UEFI)
+				if( quest_loop_count != 1 )
+					param_quest_data.quefi_remained_count = quest_loop_count;
+#else
+				param_quest_data.quefi_remained_count = 0;
+#endif
+#if defined(CONFIG_SEC_QUEST_UEFI_ENHANCEMENT)
+				if( quest_loop_count != 1 )
+					param_quest_data.suefi_remained_count = quest_loop_count;
+#else
+				param_quest_data.suefi_remained_count = 0;
+#endif
+			}
+		}
+		quest_sync_param_quest_data();
+
+		QUEST_PRINT("%s : not trigger quest_hlos and not reboot\n", __func__);
+	}
+
+out:
+	QUEST_SYSFS_EXIT();
 	return count;
+
 }
-
 static DEVICE_ATTR(nad_acat, S_IRUGO | S_IWUSR, show_quest_acat, store_quest_acat);
+//////////////////////////////////////////////////
 
-#if defined(CONFIG_SEC_SKP)
-static void param_quest_init()
+
+
+//////////////////////////////////////////////////
+/////// NAD_STAT /////////////////////////////////
+//////////////////////////////////////////////////
+char str_bps[CPR_BPS_SZ_BYTE] = { '\0' };
+
+#if defined(CONFIG_SEC_QUEST_BPS_CLASSIFIER)
+static void make_bps_stat_string(char *bps_str)
 {
-	struct param_quest_t param_quest_data;
-	
-    if (!sec_get_param(param_index_quest, &param_quest_data)) {
-		QUEST_PRINT("%s : fail - get param!! param_quest_data\n", __func__);
-	}
-	print_param_quest_data(param_quest_data);
-
-	QUEST_PRINT("%s : param_quest_init\n",__func__);
-
-	param_quest_data.magic = 0;	
-	param_quest_data.quest_hlos_remain_count = 0;
-	param_quest_data.quest_uefi_remain_count = 0;
-	param_quest_data.quest_step = -1;
-
-	if (!sec_set_param(param_index_quest,&param_quest_data)) {
-		QUEST_PRINT("%s : fail - set param!! param_quest_data\n",__func__);
-	}
+	snprintf(bps_str, CPR_BPS_SZ_BYTE, "%d_%d_%d_%d_%d_%d_%d_%d_%d_%d_%d_%d",
+			bps_envs.up_cnt.sp, bps_envs.up_cnt.wp, bps_envs.up_cnt.dp,
+			bps_envs.up_cnt.kp, bps_envs.up_cnt.mp, bps_envs.up_cnt.tp,
+			bps_envs.up_cnt.cp, bps_envs.pc_lr_cnt, bps_envs.pc_lr_last_idx,
+			bps_envs.tzerr_cnt, bps_envs.klg_cnt, bps_envs.dn_cnt);
 }
 #endif
+static void make_additional_stat_string(char *additional_str)
+{
+#if defined(CONFIG_SEC_QUEST_BPS_CLASSIFIER)
+	/* if bps data successfully initialized and if magic needs to be checked */
+	if (sec_quest_bps_env_initialized &&
+		bps_envs.magic[1] == QUEST_BPS_CLASSIFIER_MAGIC2) {
+		make_bps_stat_string(str_bps);
+	}else
+		snprintf(str_bps, CPR_BPS_SZ_BYTE, "-");
+#else
+	snprintf(str_bps, CPR_BPS_SZ_BYTE, "-");
+#endif
 
-// parsing result of quest_smd
+	snprintf(additional_str, MAX_LEN_STR,
+		"FQUITH(%d),FQUETH(%d)," \
+		"FSUITH(%d),FSUETH(%d)," \
+		"FSSIR(%llX)," \
+		"FDET(%d)," \
+		"FQUET(%d)," \
+		"FSUET(%d)," \
+		"FQUPT(%d)," \
+		"FBR(%.2s)," \
+		"FHST(%d),FHET(%d)," \
+		"FHITH(%d),FHMTH(%d)," \
+		"FNSR(%d)," \
+		"FMATD(%d)," \
+		"SSIR(%llX)," \
+		"DET(%d)," \
+		"QUET(%d)," \
+		"SUET(%d)," \
+		"QUPT(%d)," \
+		"SCT(%d)," \
+		"SCTH(%d)," \
+		"BR(%.2s)," \
+		"HST(%d),HET(%d)," \
+		"HITH(%d),HMTH(%d)," \
+		"NSR(%d)," \
+		"MATD(%d)," \
+		"BPS(%s)," \
+		"CHIP(%llX),"\
+		"CPER(%d)",		
+		param_quest_data.smd_quefi_init_thermal_first, param_quest_data.smd_quefi_end_thermal_first,
+		param_quest_data.smd_suefi_init_thermal_first, param_quest_data.smd_suefi_end_thermal_first,
+		param_quest_data.smd_subitem_result_first,
+		param_quest_data.smd_ddrscan_elapsed_time_first,
+		param_quest_data.smd_quefi_elapsed_time_first,
+		param_quest_data.smd_suefi_elapsed_time_first,
+		param_quest_data.smd_quefi_total_pause_time_first,
+		param_quest_data.smd_boot_reason_first,
+		param_quest_data.smd_hlos_start_time_first, param_quest_data.smd_hlos_elapsed_time_first,
+		param_quest_data.smd_hlos_init_thermal_first, param_quest_data.smd_hlos_max_thermal_first,
+		param_quest_data.smd_ns_repeats_first,
+		param_quest_data.smd_max_aoss_thermal_diff_first,
+		param_quest_data.smd_subitem_result,
+		param_quest_data.smd_ddrscan_elapsed_time,
+		param_quest_data.smd_quefi_elapsed_time,
+		param_quest_data.smd_suefi_elapsed_time,
+		param_quest_data.smd_quefi_total_pause_time,
+		param_quest_data.smd_ft_self_cooling_time,
+		param_quest_data.smd_ft_thermal_after_self_cooling,
+		param_quest_data.smd_boot_reason,
+		param_quest_data.smd_hlos_start_time,param_quest_data.smd_hlos_elapsed_time,
+		param_quest_data.smd_hlos_init_thermal, param_quest_data.smd_hlos_max_thermal,
+		param_quest_data.smd_ns_repeats,
+		param_quest_data.smd_max_aoss_thermal_diff,
+		str_bps,
+		(param_quest_data.ap_serial)? ((param_quest_data.real_smd_register_value)? 
+			param_quest_data.ap_serial^(0xfff00000 | param_quest_data.real_smd_register_value):0):0,
+		param_quest_data.smd_cper);
+
+	QUEST_PRINT("%s : additional_str : %s\n", __func__, additional_str);
+}
+
 static ssize_t show_quest_stat(struct device *dev,
 			     struct device_attribute *attr, char *buf)
 {
-	struct param_quest_t param_quest_data;
-	int hlos_result = TOTALTEST_UNKNOWN;
-	int ddr_result = DDRTEST_INCOMPLETED;
-	int first_check = 0;
-	char options[50] = { '\0', };
-	char strResult[BUFF_SZ-14] = { '\0', };
-	char tempstrResult[BUFF_SZ-14] = { '\0', };
-	int failed_cnt = 0;
+#if defined(CONFIG_SEC_QUEST_HLOS_DUMMY_SMD)
+	enum quest_enum_item_result qdaf_result = ITEM_RESULT_NONE;
+	uint64_t smd_item_result_without_qdaf;
+	int exist_incompleted=0;
 
-	// 0.0.update nad_result for qdaf
-	// this will call store_smd_quest_result and try to acquire common_lock
-	// so let's call this before acquiring common_lock.
-	/*------------ for QDAF ------------*/	
-	call_qdaf_from_quest_driver(QUEST_QDAF_ACTION_RESULT_TO_NAD_RESULT, UMH_WAIT_PROC);
-	/*--------------------------------*/	
+#endif
+	enum quest_enum_item_result total_result = ITEM_RESULT_NONE;
+	enum quest_enum_item_result hlos_result = ITEM_RESULT_NONE;
+	ssize_t count = 0;
+	char additional_str[MAX_LEN_STR] = { '\0' };
 
-	mutex_lock(&common_lock);
+	QUEST_SYSFS_ENTER();
 
-	QUEST_PRINT("%s : at boot time, third call from factory app (read sec_nad/nad_stat)\n", __func__);
-
-	print_reset_info();	
-
-	// 0. print param informations
-	if (!sec_get_param(param_index_quest, &param_quest_data)) {
-		QUEST_PRINT("%s : fail - get param!! param_quest_data\n", __func__);
-		goto err_out;
-	}
-	print_param_quest_data(param_quest_data);
-	if( param_quest_data.smd_test_result == TOTALTEST_UNKNOWN )
-		first_check = 1;		
-
-#if defined(CONFIG_SEC_SKP)
+#if defined(CONFIG_SEC_QUEST_HLOS_DUMMY_SMD)
+	qdaf_result = QUEST_GET_ITEM_SUBITEM_RESULT(param_quest_data.smd_item_result, ITEM_SMDDLQDAF);
+	if( qdaf_result==ITEM_RESULT_PASS || qdaf_result==ITEM_RESULT_FAIL )
 	{
-		int uefi_result = TOTALTEST_UNKNOWN;
-		static int checked = 0;		
+		QUEST_PRINT("%s : ITEM_SMDDLQDAF was completed, so include its result into total_result\n", __func__);
+		total_result = check_item_result(param_quest_data.smd_item_result, ITEM_ITEMSCOUNT);
+		exist_incompleted = check_if_incompleted_item_result_exist(param_quest_data.smd_item_result, ITEM_ITEMSCOUNT);
+	}else
+	{
+		// check smd_item_result
+		// There is a possiblity that this function is called before checking qdaf result
+		// So, let's ignore the result of qdaf
+		QUEST_PRINT("%s : ITEM_SMDDLQDAF was not completed, so ignore its result from total_result\n", __func__);
+		smd_item_result_without_qdaf = param_quest_data.smd_item_result;
+		QUEST_SET_ITEM_SUBITEM_RESULT(smd_item_result_without_qdaf, ITEM_SMDDLQDAF, ITEM_RESULT_PASS);
+		total_result = check_item_result(smd_item_result_without_qdaf, ITEM_ITEMSCOUNT);
+		exist_incompleted = check_if_incompleted_item_result_exist(smd_item_result_without_qdaf, ITEM_ITEMSCOUNT);
+	}
+	QUEST_PRINT("%s : smd_item_result(%llu) total_result(%d)\n",
+				__func__, param_quest_data.smd_item_result, total_result);
 
-		if( checked++ > 0 ) {
-			QUEST_PRINT("%s : already checked for skp, so just return\n", __func__ );
-			mutex_unlock(&common_lock);			
-			return snprintf(buf, BUFF_SZ, "OK_2.0\n");
-		}		
-		
-		QUEST_PRINT("%s : if questresult logs exist, let's move them to cal directory\n", __func__);
-		move_questresult_to_sub_dir(CAL_QUEST);
-		uefi_result = get_quest_uefi_result(CAL_QUEST_LOGPATH, 1);
-		param_quest_data.quest_uefi_result = 
-					SET_UEFI_RESULT(CAL_QUEST, param_quest_data.quest_uefi_result, uefi_result);
-		if (!sec_set_param(param_index_quest, &param_quest_data)) {
-				QUEST_PRINT("%s : fail - set param!! param_quest_data\n",__func__);
-				goto err_out;
-		}
-		
-		if ( uefi_result == TOTALTEST_NO_RESULT_FILE ) {
-			param_quest_init();
-			QUEST_PRINT("%s : maybe first boot, so dont' run quest_uefi\n", __func__ );
-			mutex_unlock(&common_lock);
-			return snprintf(buf, BUFF_SZ, "OK_2.0\n");
-		}else if ( (uefi_result == TOTALTEST_FAIL) ||
-					(uefi_result == TOTALTEST_NO_RESULT_STRING) ) {
-			if( param_quest_data.quest_step == SKP_QUEST ) {
-				QUEST_PRINT("%s : quest_uefi result was abnormal, so trigger panic\n", __func__ );
-				param_quest_init();					
-				mutex_unlock(&common_lock);
-				panic("quest_uefi failed");
-			}else {
-				QUEST_PRINT("%s : already entered to ramdump mode and initialized param, so return\n", __func__);
-				mutex_unlock(&common_lock);
-				return snprintf(buf, BUFF_SZ, "OK_2.0\n");
-			}		
-		}else {
-		
-			QUEST_PRINT("%s : uefi_remain_count remained(%d)\n", 
-					__func__, param_quest_data.quest_uefi_remain_count );
-		
-			if ( param_quest_data.quest_uefi_remain_count > 0 ) {
-				
-				QUEST_PRINT("%s : quest_uefi will be started\n", __func__);
+	if( (total_result == ITEM_RESULT_FAIL && exist_incompleted) || (param_quest_data.curr_step!=STEP_SMDDL) )
+	{
+		QUEST_PRINT("%s : in this case, the curr_step is none due to incompleted subitem\n", __func__);
+		QUEST_PRINT("%s : let's skip hlos subitem as the policy with incompletion\n", __func__);
+	}
+	// If the total_result is ITEM_RESULT_INCOMPLETED before running HLOS,
+	//   it means the DDRSCAN, QUEFI or SUEFI was not completed.
+	//   So we do not have to run HLOS and set the smd result as REWORK.
+	// Otherwise, the followings are needed.
+	else if( total_result != ITEM_RESULT_INCOMPLETED ) {
 
-				param_quest_data.quest_uefi_result = 
-					SET_UEFI_RESULT(CAL_QUEST, param_quest_data.quest_uefi_result, 0x0);
-				param_quest_data.magic = QUEST_SMD_MAGIC;
-				if (!sec_set_param(param_index_quest, &param_quest_data)) {
-					QUEST_PRINT("%s : fail - set param!! param_quest_data\n",__func__); 
-					goto err_out;		
-				}
-				mutex_unlock(&common_lock);
-				kernel_restart(NULL);			
-				// not reached
-			}else {
-				param_quest_data.quest_step = -1;
-				if (!sec_set_param(param_index_quest, &param_quest_data)) {
-					QUEST_PRINT("%s : fail - set param!! param_quest_data\n",__func__); 
-					goto err_out;		
-				}
-				QUEST_PRINT("%s : quest_uefi done, so will run quest_hlos\n", __func__ );
-				mutex_unlock(&common_lock);
-				return snprintf(buf, BUFF_SZ, "OK_2.0\n");
-			}
+		// This function check NOT_TESTED and TESTING using only the result of quest_hlos
+		//  regardless of its existence at STEP_SMDDL
+		// If it is NON_TESTED, we will trigger quest_hlos or dummy sh later
+		hlos_result = QUEST_GET_ITEM_SUBITEM_RESULT(param_quest_data.smd_item_result, QUESTHLOS_HLOS_ITEM_SMD);
+		QUEST_PRINT("%s : the result of quest_hlos at smd_item_result (%d)\n",
+						__func__, hlos_result);
+		if( hlos_result == ITEM_RESULT_NONE ) {
+			QUEST_PRINT("%s : set step_to_smd_quest_hlos=1\n", __func__);
+			step_to_smd_quest_hlos = 1;
+			QUEST_PRINT("SMD QUEST NOT_TESTED\n");
+			count = snprintf(buf, MAX_LEN_STR, "NOT_TESTED\n");
+			goto out;
+		}else if( (hlos_result==ITEM_RESULT_INCOMPLETED) &&
+					(param_quest_data.curr_step==STEP_SMDDL) ) {
+			QUEST_PRINT("SMD QUEST TESTING\n");
+			count = snprintf(buf, MAX_LEN_STR, "TESTING\n");
+			goto out;
 		}
 	}
+#else
+	if( param_quest_data.curr_step==STEP_SMDDL ) {
+
+		hlos_result = QUEST_GET_ITEM_SUBITEM_RESULT(param_quest_data.smd_item_result, QUESTHLOS_HLOS_ITEM_SMD);
+		QUEST_PRINT("%s : hlos_result(%d) total_result(%d)\n",
+				__func__, hlos_result, total_result);
+
+		if( hlos_result == ITEM_RESULT_NONE ) {
+			QUEST_PRINT("%s : set step_to_smd_quest_hlos=1\n", __func__);
+			step_to_smd_quest_hlos = 1;
+			QUEST_PRINT("SMD QUEST NOT_TESTED\n");
+			count = snprintf(buf, MAX_LEN_STR, "NOT_TESTED\n");
+			goto out;
+		}else if( hlos_result==ITEM_RESULT_INCOMPLETED ) {
+			QUEST_PRINT("SMD QUEST TESTING\n");
+			count = snprintf(buf, MAX_LEN_STR, "TESTING\n");
+			goto out;
+		}
+	}
+
+	total_result = check_item_result(param_quest_data.smd_item_result, ITEM_ITEMSCOUNT);
 #endif
 
-	// 1. if smd magic is not written, NOT_TESTED
-	if (param_quest_data.magic != QUEST_SMD_MAGIC) {
-		QUEST_PRINT("SMD QUEST NOT_TESTED\n");
-		mutex_unlock(&common_lock);
-		return snprintf(buf, BUFF_SZ, "NOT_TESTED\n");
-	}
+	make_additional_stat_string(additional_str);
 
-
-	// 2.1. parsing the result of quest_hlos
-	hlos_result = get_quest_hlos_result(SMD_QUEST);
-
-	// 2.2. get smd result from nad_result and combine the result of quest_hlos and qdaf
-	failed_cnt = get_smd_item_result(param_quest_data, tempstrResult, QDAF);
-	if( failed_cnt==-1 ) {
-		QUEST_PRINT("%s : wrong param_quest_data state\n", __func__);
-		//mutex_unlock(&common_lock);
-		//panic("abnormal param_quest_data state");
-	}else if( failed_cnt > 0 ) {
-		// case1) smd quest_hlos -> upload -> reboot
-		//		=> hlos_result=no_result_string, qdaf not executed so failed_cnt will not >0
-		// case2) smd_quest_hlos -> PASS/FAIL -> qdaf failed
-		//		=> hlos_result=PASS/FAIL, qdaf failed so we have to update smd test result as FAIL
-		QUEST_PRINT("%s : qdaf failed, so let's update smd total test result as FAIL\n",__func__);
-		hlos_result = TOTALTEST_FAIL;
-	}
-
-	// 2.3. if smd ddr scan was not completed
-	ddr_result = get_ddr_scan_result(SMD_QUEST);
-
-	// 2.4. in case of SMD, let's save result to param
-	param_quest_data.smd_test_result = hlos_result;
-	if (!sec_set_param(param_index_quest, &param_quest_data)) {
-		QUEST_PRINT("%s : fail - set param!! param_quest_data\n",__func__);
-		goto err_out;
-	}	
-	
-	// update strResult using ITEM_CNT
-	get_smd_item_result(param_quest_data, strResult, ITEM_CNT);	
-
-	mutex_unlock(&common_lock);		
-
-	
-	// 3. result processing	
-	switch (hlos_result) {
-		case TOTALTEST_PASS: {
-			if( ddr_result == DDRTEST_INCOMPLETED ) {
-				QUEST_PRINT("%s : SMD QUEST PASS but DDR SCAN INCOMPLETED\n", __func__);
-				return snprintf(buf, BUFF_SZ, "RE_WORK\n");
-			}
-			
-			// there is "AllTestDone" at SMD/test_result.csv
+	switch (total_result) {
+		case ITEM_RESULT_PASS: {
 			QUEST_PRINT("%s : SMD QUEST PASS\n", __func__);
-			return snprintf(buf, BUFF_SZ, "OK_2.0\n");
+			count = snprintf(buf, MAX_LEN_STR, "OK_3.1,%s\n", additional_str);
 		} break;
-		case TOTALTEST_FAIL: {
-			// there is "FAIL" at SMD/test_result.csv			
+		case ITEM_RESULT_FAIL: {
+			char strResult[BUFF_SZ-14] = { '\0', };
+			get_smd_subitem_result_string(strResult, SUBITEM_ITEMSCOUNT);
 			QUEST_PRINT("%s : SMD QUEST FAIL\n", __func__);
-			return snprintf(buf, BUFF_SZ, "NG_2.0_FAIL_%s\n", strResult);
+			count = snprintf(buf, MAX_LEN_STR, "NG_3.1_FAIL_%s,%s\n", strResult, additional_str);
 		} break;
 
-		case TOTALTEST_NO_RESULT_FILE: {
-			if (quest_step == SMD_QUEST) {
-				// will be executed soon
-				QUEST_PRINT("SMD QUEST TESTING\n");
-				return snprintf(buf, BUFF_SZ, "TESTING\n");
-			} else {
-				// not exeuted by unknown reasons
-				// ex1) magic exists but /data/log/quest was removed
-				// ex2) fail to execute quest.sh
-				// ex3) fail to make test_result.csv
-				// ex4) etc...
-				QUEST_PRINT("SMD QUEST NO_RESULT_FILE && not started\n");
-
-				// we want to know lastkmsg
-				if( first_check ) {
-					snprintf(options, 50, "action:lastkmsg output_log_path:%s\0", SMD_QUEST_LOGPATH); 
-					make_debugging_logs(options);
-				}
-				
-				return snprintf(buf, BUFF_SZ, "RE_WORK\n");
-			}
+		case ITEM_RESULT_INCOMPLETED: {
+			QUEST_PRINT("%s : SMD QUEST INCOMPLETED\n", __func__);
+			count = snprintf(buf, MAX_LEN_STR, "RE_WORK,%s\n", additional_str);
 		} break;
 
-		case TOTALTEST_NO_RESULT_STRING: {
-			// sm8150 does not execute quest at hlos
-			if (quest_step == SMD_QUEST) {
-				// will be completed
-				QUEST_PRINT("SMD QUEST TESTING\n");
-				return snprintf(buf, BUFF_SZ, "TESTING\n");
-			} else {
-				// need to rework
-				QUEST_PRINT("SMD QUEST NO_RESULT_STRING && not started\n");
-
-				// we want to know lastkmsg
-				if( first_check ) {
-					snprintf(options, 50, "action:lastkmsg output_log_path:%s\0", SMD_QUEST_LOGPATH); 
-					make_debugging_logs(options);
-				}
-				
-				return snprintf(buf, BUFF_SZ, "RE_WORK\n");
-			}
+		case ITEM_RESULT_NONE: {
+			QUEST_PRINT("%s : SMD QUEST NOT_TESTED\n", __func__);
+			count = snprintf(buf, MAX_LEN_STR, "NOT_TESTED\n");
 		} break;
 	}
 
-
-	// (skip) 4. continue scenario and return current progress to factory app
-
-
-err_out:
-	mutex_unlock(&common_lock);
-	QUEST_PRINT("SMD QUEST UNKNOWN\n");
-	return snprintf(buf, BUFF_SZ, "RE_WORK\n");	
+out:
+	QUEST_SYSFS_EXIT();
+	return count;
 }
 
 static DEVICE_ATTR(nad_stat, S_IRUGO, show_quest_stat, NULL);
+//////////////////////////////////////////////////
 
-static ssize_t show_ddrtest_remain_count(struct device *dev,
-					 struct device_attribute *attr,
-					 char *buf)
+
+
+//////////////////////////////////////////////////
+/////// NAD_RESULT ///////////////////////////////
+//////////////////////////////////////////////////
+static ssize_t show_quest_smd_subitem_result(struct device *dev,
+			       struct device_attribute *attr, char *buf)
 {
-	struct param_quest_t param_quest_data;
-	
-	if (!sec_get_param(param_index_quest, &param_quest_data)) {
-		QUEST_PRINT("%s : fail - get param!! param_quest_data\n", __func__);
-		goto err_out;
-	}
+	ssize_t info_size = 0;
+	int iCnt;
 
-	return snprintf(buf, BUFF_SZ, "%d\n",
-		 param_quest_data.ddrtest_remain_count);
-err_out:
-	return snprintf(buf, BUFF_SZ, "PARAM ERROR\n");
+	QUEST_SYSFS_ENTER();
+
+	for (iCnt = SUBITEM_NONE+1; iCnt < SUBITEM_ITEMSCOUNT; iCnt++) {
+		char strResult[QUEST_BUFF_SIZE] = { '\0', };
+		get_smd_subitem_result_string(strResult, iCnt);
+		info_size +=
+		    snprintf((char *)(buf + info_size), MAX_LEN_STR - info_size,
+			     "\"%s\":\"%s\",", STR_SUBITEM[iCnt], strResult);
+	}
+	info_size += snprintf((char *)(buf + info_size), MAX_LEN_STR - info_size,"\n");
+
+	QUEST_PRINT("%s : smd_subitem_result(%llu)=%s\n", __func__, param_quest_data.smd_subitem_result, buf);
+
+	QUEST_SYSFS_EXIT();
+	return info_size;
 }
 
-static DEVICE_ATTR(nad_ddrtest_remain_count, S_IRUGO, show_ddrtest_remain_count,
-		   NULL);
-
-static ssize_t show_quest_hlos_remain_count(struct device *dev,
-				     struct device_attribute *attr, char *buf)
+static ssize_t store_quest_smd_subitem_result(struct device *dev,
+				struct device_attribute *attr,
+				const char *buf, size_t count)
 {
-	struct param_quest_t param_quest_data;
-	
-	if (!sec_get_param(param_index_quest, &param_quest_data)) {
-		QUEST_PRINT("%s : fail - get param!! param_quest_data\n", __func__);
-		goto err_out;
+	enum quest_enum_item_result _result = ITEM_RESULT_NONE;
+	enum quest_enum_smd_subitem item = SUBITEM_NONE;
+	char test_name[QUEST_BUFF_SIZE * 2] = { '\0', };
+	char result_string[QUEST_BUFF_SIZE] = { '\0', };
+	char temp[QUEST_BUFF_SIZE * 3] = { '\0', };
+	char quest_test[2][QUEST_BUFF_SIZE * 2];	// 2: "test_name", "result"
+	char *quest_ptr, *string;
+
+	QUEST_SYSFS_ENTER();
+
+	// parse argument
+	strlcpy(temp, buf, QUEST_BUFF_SIZE * 3);
+	string = temp;
+	quest_ptr = strsep(&string, ",");
+	strlcpy(quest_test[0], quest_ptr, QUEST_BUFF_SIZE * 2);
+	quest_ptr = strsep(&string, ",");
+	strlcpy(quest_test[1], quest_ptr, QUEST_BUFF_SIZE * 2);
+	sscanf(quest_test[0], "%s", test_name);
+	sscanf(quest_test[1], "%s", result_string);
+	QUEST_PRINT("%s : test_name(%s), test result(%s)\n", __func__, test_name, result_string);
+
+	// match enum quest_enum_item_result
+	if (TEST_PASS(result_string)) _result = ITEM_RESULT_PASS;
+	else if (TEST_FAIL(result_string)) _result = ITEM_RESULT_FAIL;
+	else if (TEST_NA(result_string)) _result = ITEM_RESULT_INCOMPLETED;
+	else _result = ITEM_RESULT_NONE;
+
+	// match enum quest_enum_smd_subitem
+#if defined(CONFIG_SEC_QUEST_HLOS_DUMMY_SMD)
+	if (TEST_QDAF(test_name)) item = SUBITEM_SMDDLQDAF;
+	else if (TEST_DUMMY(test_name)) item = SUBITEM_QUESTHLOSDUMMY;
+#elif defined(CONFIG_SEC_QUEST_HLOS_NATURESCENE_SMD)
+	if (TEST_NATURESCENE(test_name)) item = SUBITEM_QUESTHLOSNATURESCENE;
+	else if (TEST_AOSSTHERMALDIFF(test_name)) item = SUBITEM_QUESTHLOSAOSSTHERMALDIFF;
+#else
+	if (TEST_CRYPTO(test_name)) item = SUBITEM_QUESTHLOSCRYPTO;
+	else if (TEST_ICACHE(test_name)) item = SUBITEM_QUESTHLOSICACHE;
+	else if (TEST_CCOHERENCY(test_name)) item = SUBITEM_QUESTHLOSCCOHERENCY;
+	else if (TEST_QMESADDR(test_name)) item = SUBITEM_QUESTHLOSQMESADDR;
+	else if (TEST_QMESACACHE(test_name)) item = SUBITEM_QUESTHLOSQMESACACHE;
+	else if (TEST_SUSPEND(test_name)) item = SUBITEM_QUESTHLOSSUSPEND;
+	else if (TEST_VDDMIN(test_name)) item = SUBITEM_QUESTHLOSVDDMIN;
+	else if (TEST_THERMAL(test_name)) item = SUBITEM_QUESTHLOSTHERMAL;
+	else if (TEST_UFS(test_name)) item = SUBITEM_QUESTHLOSUFS;
+	else if (TEST_A75G(test_name)) item = SUBITEM_QUESTFUSIONA75G;
+	else if (TEST_Q65G(test_name)) item = SUBITEM_QUESTFUSIONQ65G;
+#endif
+
+	// check exceptional cases
+	if( unlikely( (item==SUBITEM_NONE) || (param_quest_data.curr_step!=STEP_SMDDL) ) ) {
+		QUEST_PRINT("%s : exceptional cases (item=%d, step=%d)\n",
+			__func__, item, param_quest_data.curr_step );
+		goto out;
 	}
 
-	return snprintf(buf, BUFF_SZ, "%d\n", param_quest_data.quest_hlos_remain_count);
-err_out:
-	return snprintf(buf, BUFF_SZ, "PARAM ERROR\n");
+	// update param
+	QUEST_SET_ITEM_SUBITEM_RESULT(param_quest_data.smd_subitem_result, item, _result);
+	quest_sync_param_quest_data();
+
+out:
+	QUEST_SYSFS_EXIT();
+	return count;
 }
+static DEVICE_ATTR(nad_result, S_IRUGO | S_IWUSR,
+	show_quest_smd_subitem_result, store_quest_smd_subitem_result);
+//////////////////////////////////////////////////
 
-static DEVICE_ATTR(nad_qmvs_remain_count, S_IRUGO, show_quest_hlos_remain_count, NULL);
 
+
+//////////////////////////////////////////////////
+/////// NAD_ERASE ////////////////////////////////
+//////////////////////////////////////////////////
 static ssize_t store_quest_erase(struct device *dev,
 			       struct device_attribute *attr,
 			       const char *buf, size_t count)
 {
-	struct param_quest_t param_quest_data;
-	
-	if (!strncmp(buf, "erase", 5)) {
-		char *argv[4] = { NULL, NULL, NULL, NULL };
-		char *envp[3] = { NULL, NULL, NULL };
-		int ret_userapp;
-		int api_gpio_test = 0;
-		char api_gpio_test_result[256] = { 0, };
+	char *argv[4] = { NULL, NULL, NULL, NULL };
+	int init_param_api_gpio_test = 0;
+	char init_param_api_gpio_test_result[256] = { 0, };
 
-		mutex_lock(&common_lock);
+	QUEST_SYSFS_ENTER();
 
-		argv[0] = ERASE_QUEST_PRG;
-		argv[1] = "all";
-
-		envp[0] = "HOME=/";
-		envp[1] =
-		    "PATH=/system/bin/quest/:/system/bin:/system/xbin";
-		ret_userapp =
-		    call_usermodehelper(argv[0], argv, envp, UMH_WAIT_EXEC);
-
-		if (!ret_userapp) {
-			QUEST_PRINT
-			    ("remove_files.sh is executed. ret_userapp = %d\n",
-			     ret_userapp);
-			erase_pass = 1;
-		} else {
-			QUEST_PRINT
-			    ("remove_files.sh is NOT executed. ret_userapp = %d\n",
-			     ret_userapp);
-			erase_pass = 0;
-		}
-
-		if (!sec_get_param(param_index_quest, &param_quest_data)) {
-			QUEST_PRINT("%s : fail - get param!! param_quest_data\n",
-			       __func__);
-			goto err_out;
-		}
-
-		param_quest_data.magic = 0x0;
-#if defined(CONFIG_SEC_QUEST_UEFI)		
-		param_quest_data.quest_uefi_remain_count = 0x0;
-		param_quest_data.quest_uefi_result = 0x0;
-#endif
-		param_quest_data.quest_hlos_remain_count = 0x0;
-		param_quest_data.ddrtest_remain_count = 0x0;
-		param_quest_data.ddrtest_result = 0x0;
-		param_quest_data.ddrtest_mode = 0x0;
-		param_quest_data.bitmap_item_result = 0x0;
-		param_quest_data.smd_test_result = 0x0;	
-		param_quest_data.quest_step = -1;
-
-		// flushing to param partition
-		if (!sec_set_param(param_index_quest, &param_quest_data)) {
-			QUEST_PRINT("%s : fail - set param!! param_quest_data\n",
-			       __func__);
-			goto err_out;
-		}
-
-		QUEST_PRINT("clearing MAGIC code done = %d\n",
-			  param_quest_data.magic);
-		QUEST_PRINT("quest_hlos_remain_count = %d\n",
-			  param_quest_data.quest_hlos_remain_count);
-		QUEST_PRINT("ddrtest_remain_count = %d\n",
-			  param_quest_data.ddrtest_remain_count);
-		QUEST_PRINT("ddrtest_result = 0x%8X\n",
-			  param_quest_data.ddrtest_result);
-		QUEST_PRINT("clearing smd ddr test MAGIC code done = %d\n",
-			  param_quest_data.magic);
-
-		// clearing API test result
-		if (!sec_set_param(param_index_api_gpio_test, &api_gpio_test)) {
-			QUEST_PRINT("%s : fail - set param!! param_quest_data\n",
-			       __func__);
-			goto err_out;
-		}
-
-		if (!sec_set_param
-		    (param_index_api_gpio_test_result, api_gpio_test_result)) {
-			QUEST_PRINT("%s : fail - set param!! param_quest_data\n",
-			       __func__);
-			goto err_out;
-		}
-		mutex_unlock(&common_lock);
-		return count;
-	} else {
-		mutex_unlock(&common_lock);
-		return count;
+	// check exceptional cases
+	if( unlikely( erased || strncmp(buf, "erase", 5) ) ) {
+		QUEST_PRINT("%s : exceptional cases (erased=%d, buf=%s\n",
+			__func__, erased, buf);
+		goto out;
 	}
-err_out:
-	mutex_unlock(&common_lock);
+
+	// set erased = 1 to prevent do_quest()
+	erased = 1;
+
+	// call remove_files.sh
+	argv[0] = ERASE_QUEST_PRG;
+	argv[1] = "all";
+	call_user_prg(argv, UMH_WAIT_EXEC);
+
+	// clearing param_quest_data
+	quest_clear_param_quest_data();
+
+	if( strncmp(buf, "eraseall", 8)==0 ) {
+		QUEST_PRINT("%s : clear also first_xxx just for debugging purpose\n", __func__);
+		param_quest_data.smd_subitem_result_first = 0;
+		param_quest_data.smd_quefi_init_thermal_first = 0;
+		param_quest_data.smd_quefi_end_thermal_first = 0;
+		param_quest_data.smd_suefi_init_thermal_first = 0;
+		param_quest_data.smd_suefi_end_thermal_first = 0;
+		param_quest_data.smd_ddrscan_elapsed_time_first = 0;
+		param_quest_data.smd_quefi_elapsed_time_first = 0;
+		param_quest_data.smd_suefi_elapsed_time_first = 0;
+		param_quest_data.smd_quefi_total_pause_time_first = 0;
+		param_quest_data.smd_boot_reason_first[0] = '\0';
+		param_quest_data.smd_hlos_start_time_first = 0;
+		param_quest_data.smd_hlos_elapsed_time_first = 0;
+		param_quest_data.smd_hlos_init_thermal_first = 0;
+		param_quest_data.smd_hlos_max_thermal_first = 0;
+		param_quest_data.smd_ns_repeats_first = 0;
+		param_quest_data.smd_max_aoss_thermal_diff_first = 0;
+		param_quest_data.real_smd_register_value = 0;
+		param_quest_data.ap_serial = 0;
+		param_quest_data.num_smd_try = 0;
+		param_quest_data.smd_cper = 0;
+		quest_sync_param_quest_data();
+	}
+
+	// clearing API test result
+	param_api_gpio_test = init_param_api_gpio_test;
+	strlcpy(param_api_gpio_test_result, init_param_api_gpio_test_result, 256);
+	quest_sync_param_api_gpio_test();
+	quest_sync_param_api_gpio_test_result();
+
+out:
+	QUEST_SYSFS_EXIT();
 	return count;
 }
 
 static ssize_t show_quest_erase(struct device *dev,
 			      struct device_attribute *attr, char *buf)
 {
-	if (erase_pass)
+	if (erased)
 		return snprintf(buf, BUFF_SZ, "OK\n");
 	else
 		return snprintf(buf, BUFF_SZ, "NG\n");
 }
-
 static DEVICE_ATTR(nad_erase, S_IRUGO | S_IWUSR, show_quest_erase, store_quest_erase);
+//////////////////////////////////////////////////
 
+
+
+//////////////////////////////////////////////////
+/////// BALANCER /////////////////////////////////
+//////////////////////////////////////////////////
+static ssize_t store_quest_main(struct device *dev,
+			      struct device_attribute *attr,
+			      const char *buf, size_t count)
+{
+	QUEST_SYSFS_ENTER();
+
+	// check exceptional cases
+	if( unlikely( erased || (param_quest_data.curr_step == STEP_MAIN) || strncmp(buf, "start", 5) ) ) {
+		QUEST_PRINT("%s : exceptional cases (erased=%d, curr_step=%d, buf=%s\n",
+			__func__, erased, param_quest_data.curr_step, buf);
+		goto out;
+	}
+
+	// update param
+	QUEST_PRINT("%s : start STEP_MAIN\n", __func__);
+	param_quest_data.curr_step = STEP_MAIN;
+	param_quest_data.main_item_result = 0;
+#if defined(CONFIG_SEC_A73XQ_PROJECT)
+	param_quest_data.hlos_remained_count = 3;
+#else
+	param_quest_data.hlos_remained_count = 1;
+#endif
+#if defined(CONFIG_SEC_QUEST_UEFI)
+#if defined(CONFIG_SEC_A73XQ_PROJECT)
+	param_quest_data.quefi_remained_count = 3*MAIN_QUEST_QUEFI_REPEATS;
+#else
+	param_quest_data.quefi_remained_count = MAIN_QUEST_QUEFI_REPEATS;
+#endif
+#endif
+#if defined(CONFIG_SEC_QUEST_UEFI_ENHANCEMENT)
+#if defined(CONFIG_SEC_A73XQ_PROJECT)
+	param_quest_data.suefi_remained_count = 3;
+#else
+	param_quest_data.suefi_remained_count = 1;
+#endif
+#endif
+#if defined(CONFIG_SEC_A73XQ_PROJECT)
+	param_quest_data.ddrscan_remained_count = 3;
+#else
+	param_quest_data.ddrscan_remained_count = 1;
+#endif
+
+	param_quest_data.hlos_remained_count--;
+	QUEST_SET_ITEM_SUBITEM_RESULT(param_quest_data.main_item_result, QUESTHLOS_HLOS_ITEM_MAIN_CAL, ITEM_RESULT_INCOMPLETED);
+
+	quest_sync_param_quest_data();
+
+	// trigger quest_hlos first
+	do_quest();
+
+out:
+	QUEST_SYSFS_EXIT();
+	return count;
+}
+
+static ssize_t show_quest_main(struct device *dev,
+			     struct device_attribute *attr, char *buf)
+{
+	int count;
+	enum quest_enum_item_result total_result = ITEM_RESULT_NONE;
+
+	QUEST_SYSFS_ENTER();
+
+	if( call_main_qdaf_after_finighing_main_quest == 1 ) {
+
+		QUEST_PRINT("%s : call MAIN QDAF\n", __func__);
+		// trigger MAIN QDAF in background
+		run_qdaf_in_background(QUEST_QDAF_ACTION_CONTROL_START_WITH_PANIC);
+	}
+
+	total_result = check_item_result(param_quest_data.main_item_result, ITEM_ITEMSCOUNT);
+	QUEST_PRINT("%s : main_item_result(%llu) total_result(%d)\n",
+					__func__, param_quest_data.main_item_result, total_result);
+	switch (total_result) {
+		case ITEM_RESULT_PASS: {
+			QUEST_PRINT("MAIN QUEST PASS\n");
+			count = snprintf(buf, BUFF_SZ, "OK_2.0\n");
+		} break;
+
+		case ITEM_RESULT_FAIL: {
+			QUEST_PRINT("MAIN QUEST FAIL\n");
+			count = snprintf(buf, BUFF_SZ, "NG_2.0_FAIL\n");
+		} break;
+
+		case ITEM_RESULT_INCOMPLETED: {
+			QUEST_PRINT("MAIN QUEST INCOMPLETED\n");
+			count = snprintf(buf, BUFF_SZ, "OK\n");
+		} break;
+
+		case ITEM_RESULT_NONE: {
+			QUEST_PRINT("MAIN QUEST NOT_TESTED\n");
+			count = snprintf(buf, BUFF_SZ, "OK\n");
+		} break;
+	}
+
+	QUEST_SYSFS_EXIT();
+	return count;
+}
+static DEVICE_ATTR(balancer, S_IRUGO | S_IWUSR, show_quest_main, store_quest_main);
+//////////////////////////////////////////////////
+
+
+
+//////////////////////////////////////////////////
+/////// MAIN_NAD_TIMEOUT /////////////////////////
+//////////////////////////////////////////////////
+static ssize_t show_main_quest_timeout(struct device *dev,
+				     struct device_attribute *attr, char *buf)
+{
+	QUEST_SYSFS_ENTER();
+	QUEST_SYSFS_EXIT();
+	return snprintf(buf, BUFF_SZ, "%d\n", STEP_MAIN_HLOS_TIMEOUT);
+}
+static DEVICE_ATTR(timeout, 0444, show_main_quest_timeout, NULL);
+//////////////////////////////////////////////////
+
+
+
+//////////////////////////////////////////////////
+/////// MAIN_NAD_RUN /////////////////////////////
+//////////////////////////////////////////////////
+static ssize_t store_main_quest_run(struct device *dev,
+			      struct device_attribute *attr,
+			      const char *buf, size_t count)
+{
+	QUEST_SYSFS_ENTER();
+	QUEST_SYSFS_EXIT();
+	return count;
+}
+
+static ssize_t show_main_quest_run(struct device *dev,
+				     struct device_attribute *attr, char *buf)
+{
+	QUEST_SYSFS_ENTER();
+	QUEST_SYSFS_EXIT();
+	return snprintf(buf, BUFF_SZ, "END\n");
+}
+static DEVICE_ATTR(run, S_IRUGO | S_IWUSR, show_main_quest_run, store_main_quest_run);
+//////////////////////////////////////////////////
+
+
+
+//////////////////////////////////////////////////
+/////// NAD_QMVS_REMAIN_COUNT ///////////////////
+//////////////////////////////////////////////////
+static ssize_t show_quest_hlos_remain_count(struct device *dev,
+				     struct device_attribute *attr, char *buf)
+{
+	ssize_t count = 0;
+
+	QUEST_SYSFS_ENTER();
+	count = snprintf(buf, BUFF_SZ, "%d\n", param_quest_data.hlos_remained_count);
+	QUEST_SYSFS_EXIT();
+
+	return count;
+}
+static DEVICE_ATTR(nad_qmvs_remain_count, S_IRUGO, show_quest_hlos_remain_count, NULL);
+//////////////////////////////////////////////////
+
+
+
+//////////////////////////////////////////////////
+/////// NAD_DDRTEST_REMAIN_COUNT ////////////////
+//////////////////////////////////////////////////
+static ssize_t show_ddrtest_remain_count(struct device *dev,
+					 struct device_attribute *attr,
+					 char *buf)
+{
+	ssize_t count = 0;
+
+	QUEST_SYSFS_ENTER();
+	count = snprintf(buf, BUFF_SZ, "%d\n", param_quest_data.ddrscan_remained_count);
+	QUEST_SYSFS_EXIT();
+
+	return count;
+}
+static DEVICE_ATTR(nad_ddrtest_remain_count, S_IRUGO, show_ddrtest_remain_count, NULL);
+//////////////////////////////////////////////////
+
+
+
+//////////////////////////////////////////////////
+/////// NAD_DRAM /////////////////////////////////
+//////////////////////////////////////////////////
 static ssize_t show_quest_dram(struct device *dev,
 			     struct device_attribute *attr, char *buf)
 {
-	struct param_quest_t param_quest_data;
-	int ddr_result = DDRTEST_INCOMPLETED;
+	ssize_t count = 0;
+	enum quest_enum_item_result ddrscan_result = ITEM_RESULT_NONE;
 
-	if (!sec_get_param(param_index_quest, &param_quest_data)) {
-		QUEST_PRINT("%s : fail - get param!! param_quest_data\n", __func__);
-		goto err_out;
-	}
+	QUEST_SYSFS_ENTER();
 
 	// The factory app needs only the ddrtest result of ACAT now.
 	// If the ddrtest result of SMD and MAIN are also needed,
 	// implement an additional sysfs node or a modification of app.
-	ddr_result = get_ddr_scan_result(CAL_QUEST);
+	ddrscan_result = QUEST_GET_ITEM_SUBITEM_RESULT(param_quest_data.cal_item_result, ITEM_DDRSCANRAMDUMPDISCACHE);
 
-	if (ddr_result == DDRTEST_PASS)
-		return snprintf(buf, BUFF_SZ, "OK_DRAM\n");
-	else if (ddr_result == DDRTEST_FAIL)
-		return snprintf(buf, BUFF_SZ, "NG_DRAM_DATA\n");
+#if defined(CONFIG_SEC_QUEST_ALWAYS_RETURN_PASS_FOR_ACAT)
+	QUEST_PRINT("%s : CONFIG_SEC_QUEST_ALWAYS_RETURN_PASS_FOR_ACAT enabled, so return pass\n", __func__);
+	ddrscan_result = ITEM_RESULT_PASS;
+#endif
+
+	if (ddrscan_result == ITEM_RESULT_PASS)
+		count = snprintf(buf, BUFF_SZ, "OK_DRAM\n");
+	else if (ddrscan_result == ITEM_RESULT_FAIL)
+		count = snprintf(buf, BUFF_SZ, "NG_DRAM_DATA\n");
 	else
-		return snprintf(buf, BUFF_SZ, "NO_DRAMTEST\n");
-err_out:
-	return snprintf(buf, BUFF_SZ, "READ ERROR\n");
-}
+		count = snprintf(buf, BUFF_SZ, "NO_DRAMTEST\n");
 
+	QUEST_SYSFS_EXIT();
+	return count;
+}
 static DEVICE_ATTR(nad_dram, S_IRUGO, show_quest_dram, NULL);
+//////////////////////////////////////////////////
 
-static ssize_t show_quest_dram_debug(struct device *dev,
-				   struct device_attribute *attr, char *buf)
-{
-	struct param_quest_t param_quest_data;
 
-	if (!sec_get_param(param_index_quest, &param_quest_data)) {
-		QUEST_PRINT("%s : fail - get param!! param_quest_data\n", __func__);
-		goto err_out;
-	}
 
-	return snprintf(buf, BUFF_SZ, "0x%x\n", param_quest_data.ddrtest_result);
-err_out:
-	return snprintf(buf, BUFF_SZ, "READ ERROR\n");
-}
-
-static DEVICE_ATTR(nad_dram_debug, S_IRUGO, show_quest_dram_debug, NULL);
-
+//////////////////////////////////////////////////
+/////// NAD_DRAM_ERR_ADDR ///////////////////////
+//////////////////////////////////////////////////
 static ssize_t show_quest_dram_err_addr(struct device *dev,
 				      struct device_attribute *attr, char *buf)
 {
-	int ret = 0;
+	ssize_t count = 0;
 	int i = 0;
-	struct param_quest_ddr_result_t param_quest_ddr_result_data;
 
-	if (!sec_get_param
-	    (param_index_quest_ddr_result, &param_quest_ddr_result_data)) {
-		QUEST_PRINT("%s : fail - get param!! param_quest_ddr_result_data\n",
-		       __func__);
-		goto err_out;
-	}
+	QUEST_SYSFS_ENTER();
 
-	ret =
-	    snprintf(buf, BUFF_SZ, "Total : %d\n\n",
-		    param_quest_ddr_result_data.ddr_err_addr_total);
+    count = snprintf(buf, BUFF_SZ, "Total : %d\n\n",
+				param_quest_ddr_result_data.ddr_err_addr_total);
 	for (i = 0; i < param_quest_ddr_result_data.ddr_err_addr_total; i++) {
-		ret +=
-		    snprintf(buf + ret - 1, BUFF_SZ, "[%d] 0x%llx\n", i,
-			    param_quest_ddr_result_data.ddr_err_addr[i]);
+		count += snprintf(buf + count - 1, BUFF_SZ, "[%d] 0x%llx\n", i,
+			    	param_quest_ddr_result_data.ddr_err_addr[i]);
 	}
 
-	return ret;
-err_out:
-	return snprintf(buf, BUFF_SZ, "READ ERROR\n");
+	QUEST_SYSFS_EXIT();
+	return count;
 }
-
 static DEVICE_ATTR(nad_dram_err_addr, S_IRUGO, show_quest_dram_err_addr, NULL);
+//////////////////////////////////////////////////
 
+
+
+//////////////////////////////////////////////////
+/////// NAD_SUPPORT //////////////////////////////
+//////////////////////////////////////////////////
 static ssize_t show_quest_support(struct device *dev,
 				struct device_attribute *attr, char *buf)
 {
-#if defined(CONFIG_ARCH_MSM8998) || defined(CONFIG_ARCH_MSM8996) || defined(CONFIG_ARCH_SDM845) || defined(CONFIG_ARCH_SM8150)
+	// if you do not want to support quest, please set it with disabling CONFIG_SEC_QUEST
 	return snprintf(buf, BUFF_SZ, "SUPPORT\n");
-#else
-	return snprintf(buf, BUFF_SZ, "NOT_SUPPORT\n");
-#endif
 }
-
 static DEVICE_ATTR(nad_support, S_IRUGO, show_quest_support, NULL);
+//////////////////////////////////////////////////
 
+
+
+//////////////////////////////////////////////////
+/////// NAD_LOGS /////////////////////////////////
+//////////////////////////////////////////////////
 static ssize_t store_quest_logs(struct device *dev,
 			      struct device_attribute *attr,
 			      const char *buf, size_t count)
@@ -1392,18 +1763,27 @@ static ssize_t store_quest_logs(struct device *dev,
 	int fd = 0, idx = 0;
 	char path[100] = { '\0' };
 	char temp[1]={'\0'}, tempbuf[BUFF_SZ]={'\0',};
-
 	mm_segment_t old_fs = get_fs();
 
+	//The program which was triggered with UMH_WAIT_PROC can need this function,
+	//and this function does not access param, so skip enter/exit functions
+	//QUEST_SYSFS_ENTER();
+
+	QUEST_PRINT("%s : file = %s\n", __func__, buf);
+
 	set_fs(KERNEL_DS);
-
-	QUEST_PRINT("%s\n", buf);
-
 	sscanf(buf, "%s", path);
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4,17,0)
 	fd = sys_open(path, O_RDONLY, 0);
-
+#else
+	fd = ksys_open(path, O_RDONLY, 0);
+#endif
 	if (fd >= 0) {
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4,17,0)
 		while (sys_read(fd, temp, 1) == 1) {
+#else
+		while (ksys_read(fd, temp, 1) == 1) {
+#endif
 			tempbuf[idx++] = temp[0];
 			if( temp[0]=='\n' ) {
 				tempbuf[idx] = '\0';
@@ -1411,640 +1791,69 @@ static ssize_t store_quest_logs(struct device *dev,
 				idx = 0;
 			}
 		}
-
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4,17,0)
 		sys_close(fd);
+#else
+		ksys_close(fd);
+#endif
 	} else {
-		QUEST_PRINT("The File is not existed. %s\n", __func__);
+		QUEST_PRINT("%s : file does not exist\n", __func__);
 	}
-
 	set_fs(old_fs);
+
+	//QUEST_SYSFS_EXIT();
 	return count;
 }
-
 static DEVICE_ATTR(nad_logs, 0200, NULL, store_quest_logs);
+//////////////////////////////////////////////////
 
-static ssize_t store_quest_end(struct device *dev,
-			     struct device_attribute *attr,
-			     const char *buf, size_t count)
+
+
+//////////////////////////////////////////////////
+/////// NAD_API //////////////////////////////////
+//////////////////////////////////////////////////
+static ssize_t show_quest_api(struct device *dev,
+			    struct device_attribute *attr, char *buf)
 {
-	char result[20] = { '\0' };
+	ssize_t count = 0;
 
-	QUEST_PRINT("result : (step=%d) %s\n", quest_step, buf);
+	QUEST_SYSFS_ENTER();
 
-	sscanf(buf, "%s", result);
+	if (param_api_gpio_test) {
+		count = snprintf(buf, BUFF_SZ, "%s", param_api_gpio_test_result);
+	} else
+		count = snprintf(buf, BUFF_SZ, "NONE\n");
 
-	if (!strcmp(result, "quest_pass")) {
-		kobject_uevent_env(&dev->kobj, KOBJ_CHANGE, quest_uevent.envp);
-		if( quest_step==SMD_QUEST )
-			QUEST_PRINT("%s : let's update smd_test_result when show_quest_stat is called\n", __func__);
-		QUEST_PRINT
-		    ("QUEST result : %s, quest_pass, Send to Process App for Quest test end : %s\n",
-		     result, __func__);
-	} else {
-
-		// if store_quest_acat() is not called, we cannot initialize param, so let's do it here
-		if( quest_step == CAL_QUEST ) {
-			struct param_quest_t param_quest_data;
-			
-			QUEST_PRINT("%s : CAL quest_hlos was failed, so initialize param and then trigger panic\n", __func__ );
-
-			if (!sec_get_param(param_index_quest, &param_quest_data)) 
-				QUEST_PRINT("%s : fail - get param!! param_quest_data\n", __func__);
-
-#if defined (CONFIG_SEC_QUEST_UEFI)
-			param_quest_data.quest_uefi_remain_count = 0;
-#endif			
-			param_quest_data.quest_hlos_remain_count = 0;
-			param_quest_data.quest_step = -1;
-			if (!sec_set_param(param_index_quest, &param_quest_data))
-				QUEST_PRINT("%s : fail - set param!! param_quest_data\n", __func__);
-		}
-
-		if (quest_step == MAIN_QUEST || quest_step == CAL_QUEST) {
-			QUEST_PRINT
-			    ("QUEST result : %s, Device enter the upload mode because it is SHORT_QUEST : %s\n",
-			     result, __func__);
-			panic(result);
-		} else {
-			kobject_uevent_env(&dev->kobj, KOBJ_CHANGE,
-					   quest_uevent.envp);
-			QUEST_PRINT
-			    ("QUEST result : %s, Send to Process App for Quest test end : %s\n",
-			     result, __func__);
-		}
-	}
-
-	/*------------ for QDAF ------------*/
-	if( quest_step==SMD_QUEST )
-		call_qdaf_from_quest_driver(QUEST_QDAF_ACTION_CONTROL_START_WITHOUT_PANIC, UMH_WAIT_EXEC);
-	/*---------------------------------*/
-
+	QUEST_SYSFS_EXIT();
 	return count;
 }
 
-static DEVICE_ATTR(nad_end, S_IWUSR, NULL, store_quest_end);
+static DEVICE_ATTR(nad_api, 0444, show_quest_api, NULL);
+//////////////////////////////////////////////////
 
-/* Please sync with TEST_ITEM in sec_qeust.h */
-char *STR_TEST_ITEM[ITEM_CNT + 1] = {
-	"UFS",
-	"QMESACACHE",
-	"QMESADDR",
-	"VDDMIN",
-	"SUSPEND",
-	"CCOHERENCY",
-	"ICACHE",
-	"CRYPTO",
-	"DDRSCAN",
-	"SENSOR",
-	"SENSORPROBE",
-	"GFX",
-	"A75G",
-	"Q65G",	
-	"THERMAL",
-	"QDAF",
-	//
-	"FULL"
-};
 
-static ssize_t show_smd_quest_result(struct device *dev,
-			       struct device_attribute *attr, char *buf)
-{
-	ssize_t info_size = 0;
-	int iCnt;
-	struct param_quest_t param_quest_data;
 
-	mutex_lock(&common_lock);
-
-	if (!sec_get_param(param_index_quest, &param_quest_data)) {
-		QUEST_PRINT("%s : fail - get param!! param_quest_data\n", __func__);
-		goto err_out;
-	}
-	print_param_quest_data(param_quest_data);	
-
-	for (iCnt = 0; iCnt < ITEM_CNT; iCnt++) {
-		char strResult[QUEST_BUFF_SIZE] = { '\0', };
-
-		if (get_smd_item_result(param_quest_data, strResult, iCnt)==-1)
-			goto err_out;
-
-		info_size +=
-		    snprintf((char *)(buf + info_size), MAX_LEN_STR - info_size,
-			     "\"%s\":\"%s\",", STR_TEST_ITEM[iCnt], strResult);
-	}
-	info_size += snprintf((char *)(buf + info_size), MAX_LEN_STR - info_size,"\n");
-
-	QUEST_PRINT("%s, result=%s\n", __func__, buf);
-
-	mutex_unlock(&common_lock);
-
-	return info_size;
-err_out:
-	mutex_unlock(&common_lock);
-	return snprintf(buf, BUFF_SZ, "UNKNOWN\n");
-}
-
-static ssize_t store_smd_quest_result(struct device *dev,
-				struct device_attribute *attr,
-				const char *buf, size_t count)
-{
-	struct param_quest_t param_quest_data;
-	int _result = -1;
-	char test_name[QUEST_BUFF_SIZE * 2] = { '\0', };
-	char temp[QUEST_BUFF_SIZE * 3] = { '\0', };
-	char quest_test[2][QUEST_BUFF_SIZE * 2];	// 2: "test_name", "result"
-	char result_string[QUEST_BUFF_SIZE] = { '\0', };
-	char *quest_ptr, *string;
-	int item = -1;
-
-	mutex_lock(&common_lock);
-
-#if 0	// this function can be called, so comment out the below for qdaf
-	if (quest_step != SMD_QUEST) {
-		QUEST_PRINT("store quest_result only at smd_quest\n");
-		mutex_unlock(&common_lock);
-		return -EIO;
-	}
-#endif
-
-	QUEST_PRINT("buf : %s count : %d\n", buf, (int)count);
-
-	if (QUEST_BUFF_SIZE * 3 < (int)count || (int)count < 4) {
-		QUEST_PRINT("result cmd size too long : QUEST_BUFF_SIZE<%d\n",
-			  (int)count);
-		mutex_unlock(&common_lock);
-		return -EINVAL;
-	}
-
-	/* Copy buf to quest temp */
-	strlcpy(temp, buf, QUEST_BUFF_SIZE * 3);
-	string = temp;
-
-	quest_ptr = strsep(&string, ",");
-	strlcpy(quest_test[0], quest_ptr, QUEST_BUFF_SIZE * 2);
-	quest_ptr = strsep(&string, ",");
-	strlcpy(quest_test[1], quest_ptr, QUEST_BUFF_SIZE * 2);
-
-	sscanf(quest_test[0], "%s", test_name);
-	sscanf(quest_test[1], "%s", result_string);
-
-	QUEST_PRINT("test_name : %s, test result=%s\n", test_name, result_string);
-
-	if (TEST_PASS(result_string))
-		_result = QUEST_ITEM_TEST_PASS;
-	else if (TEST_FAIL(result_string))
-		_result = QUEST_ITEM_TEST_FAIL;
-	else
-		_result = QUEST_ITEM_TEST_INCOMPLETED;
-
-	if (TEST_CRYPTO(test_name))
-		item = CRYPTO;
-	else if (TEST_ICACHE(test_name))
-		item = ICACHE;
-	else if (TEST_CCOHERENCY(test_name))
-		item = CCOHERENCY;
-	else if (TEST_SUSPEND(test_name))
-		item = SUSPEND;
-	else if (TEST_VDDMIN(test_name))
-		item = VDDMIN;
-	else if (TEST_QMESADDR(test_name))
-		item = QMESADDR;
-	else if (TEST_QMESACACHE(test_name))
-		item = QMESACACHE;
-	else if (TEST_UFS(test_name))
-		item = UFS;
-	else if (TEST_SENSOR(test_name))
-		item = SENSOR;
-	else if (TEST_SENSORPROBE(test_name))
-		item = SENSORPROBE;
-	else if (TEST_GFX(test_name))
-		item = GFX;
-	else if (TEST_A75G(test_name))
-		item = A75G;
-	else if (TEST_Q65G(test_name))
-		item = Q65G;
-	else if (TEST_THERMAL(test_name))
-		item = THERMAL;
-	else if (TEST_QDAF(test_name))
-		item = QDAF;	
-	else
-		item = NOT_ASSIGN;
-
-	if (item == NOT_ASSIGN) {
-		QUEST_PRINT("%s : fail - get test item in QUEST!! \n", __func__);
-		mutex_unlock(&common_lock);
-		return count;
-	}
-
-	if (!sec_get_param(param_index_quest, &param_quest_data)) {
-		QUEST_PRINT("%s : fail - get param!! param_quest_data\n", __func__);
-		mutex_unlock(&common_lock);
-		return -EINVAL;
-	}
-
-#if 0 // this function can be called, so comment out the below for qdaf
-	param_quest_data.bitmap_item_result |=
-	    TEST_ITEM_RESULT(quest_step, item, _result);
-#else
-	param_quest_data.bitmap_item_result |=
-		TEST_ITEM_RESULT(SMD_QUEST, item, _result);
-#endif 
-
-	QUEST_PRINT("%s : bitmap_item_result=%u, quest_step=%d, item=%d, _result=%d\n",
-		  __func__, param_quest_data.bitmap_item_result, quest_step, item, _result);
-
-	if (!sec_set_param(param_index_quest, &param_quest_data)) {
-		QUEST_PRINT("%s : fail - set param!! param_quest_data\n", __func__);
-		mutex_unlock(&common_lock);
-		return -EINVAL;
-	}
-
-	mutex_unlock(&common_lock);
-	return count;
-}
-
-
-static DEVICE_ATTR(nad_result, S_IRUGO | S_IWUSR, show_smd_quest_result, store_smd_quest_result);
-
-
-
-static ssize_t store_quest_main(struct device *dev,
-			      struct device_attribute *attr,
-			      const char *buf, size_t count)
-{
-	struct param_quest_t param_quest_data;
-	int idx = 0;
-	int ret = -1;
-	char temp[QUEST_BUFF_SIZE * 3];
-	char quest_cmd[QUEST_MAIN_CMD_LIST][QUEST_BUFF_SIZE];
-	char *quest_ptr, *string;
-	int running_time;
-
-	mutex_lock(&common_lock);
-
-	/* Copy buf to quest temp */
-	strlcpy(temp, buf, QUEST_BUFF_SIZE * 3);
-	string = temp;
-
-	while (idx < QUEST_MAIN_CMD_LIST) {
-		quest_ptr = strsep(&string, ",");
-		strlcpy(quest_cmd[idx++], quest_ptr, QUEST_BUFF_SIZE);
-	}
-
-	if (quest_step == MAIN_QUEST) {
-		QUEST_PRINT("duplicated!\n");
-		mutex_unlock(&common_lock);
-		return count;
-	}
-
-	if (!strncmp(buf, "start", 5)) {
-		ret = sscanf(quest_cmd[1], "%d\n", &running_time);
-		if (ret != 1) {
-			mutex_unlock(&common_lock);
-			return -EINVAL;
-		}
-
-		if (!sec_get_param(param_index_quest, &param_quest_data)) {
-			QUEST_PRINT("%s : fail - get param!! param_quest_data\n", __func__);
-			mutex_unlock(&common_lock);
-			return -1;
-		}
-
-		param_quest_data.ddrtest_mode = UPLOAD_CAUSE_QUEST_DDR_TEST_MAIN;
-		param_quest_data.ddrtest_remain_count = 1;
-		param_quest_data.quest_hlos_remain_count = 0;
-#if defined(CONFIG_SEC_QUEST_UEFI)
-		// the concept of main quest is
-		// hlos long -> repeat 5 times (uefi -> boot to idle -> parsing -> reboot ) -> ddr -> main quest done
-		// we will decrease hlos count when parsing the result of quest_uefi forcely
-		param_quest_data.quest_hlos_remain_count = 5;
-		param_quest_data.quest_uefi_remain_count = 5;
-
-		// (skip) 1. let's remove previous questresult
-		// let's backup previous uefi log into backup dir using quest_main.sh becuase hlos run first
-		//arrange_quest_logs(MAIN_QUEST_LOGPATH);
-
-		// 2. initialize quest_uefi_result
-		param_quest_data.quest_uefi_result
-			= SET_UEFI_RESULT(MAIN_QUEST, param_quest_data.quest_uefi_result, 0x0);
-	
-#endif
-		// 3. set quest_step
-		param_quest_data.quest_step = MAIN_QUEST;
-
-		if (!sec_set_param(param_index_quest, &param_quest_data)) {
-			QUEST_PRINT("%s : fail - set param!! param_quest_data\n", __func__);
-			mutex_unlock(&common_lock);
-			return -1;
-		}
-
-		quest_step = MAIN_QUEST;
-		mutex_unlock(&common_lock);
-		do_quest();
-	}
-
-	mutex_unlock(&common_lock);
-	return count;
-}
-
-static ssize_t show_quest_main(struct device *dev,
-			     struct device_attribute *attr, char *buf)
-{
-	struct param_quest_t param_quest_data;
-#if defined(CONFIG_SEC_QUEST_UEFI)	
-	int uefi_result = TOTALTEST_UNKNOWN;
-	int hlos_result = TOTALTEST_UNKNOWN;
-#endif
-	int total_result = TOTALTEST_UNKNOWN;
-	
-
-	QUEST_PRINT("%s : called\n", __func__);
-
-	if (!sec_get_param(param_index_quest, &param_quest_data)) {
-		QUEST_PRINT("%s : fail - get param!! param_quest_data\n", __func__);
-		goto err_out;
-	}
-	print_param_quest_data(param_quest_data);
-
-#if defined(CONFIG_SEC_QUEST_UEFI)
-	// uefi logs were moved into sub dir at show_main_quest_run
-	// so just call get_quest_uefi_result
-	uefi_result = get_quest_uefi_result(MAIN_QUEST_LOGPATH, 1);
-	hlos_result = get_quest_hlos_result(MAIN_QUEST);
-
-#if defined(CONFIG_SEC_QUEST_UEFI_ENHENCEMENT)
-	// 2.1. The uefi_enhancement will make EnhanceStart.txt if it was started. 
-	// If it is failed the EnhanceStart.txt is remained,
-	// and if it is passed the EnhanceStart.txt is deleted.
-	// So, let's determin pass/fail with checking existence of EnhanceStart.txt
-	{
-		int fd = 0;
-		mm_segment_t old_fs = get_fs();
-		set_fs(KERNEL_DS);
-		if ( (fd = sys_open(UEFI_ENHANCEMENT_START_FILE, O_RDONLY, 0))<0 ) {
-			QUEST_PRINT("%s : the EnhanceStart.txt does not exist (PASS)", __func__);
-		}else {
-			QUEST_PRINT("%s : no EnhanceStart.txt (FAIL)", __func__);
-			uefi_result = TOTALTEST_FAIL;
-		}
-		set_fs(old_fs);
-	}
-#endif	
-
-	// In case of main quest, we ran both quest_uefi and quest_hlos.
-	// So, we have to check all result of them.
-	if( uefi_result==TOTALTEST_PASS && hlos_result==TOTALTEST_PASS )
-		total_result = TOTALTEST_PASS;
-	else if( uefi_result==TOTALTEST_FAIL || hlos_result==TOTALTEST_FAIL ) 
-		total_result = TOTALTEST_FAIL;
-	else  
-		total_result = TOTALTEST_UNKNOWN;
-	QUEST_PRINT("%s : uefi_result(%d) / hlos_result(%d) / total_result(%d)\n",
-		__func__, uefi_result, hlos_result, total_result );	
-#else
-	total_result = get_quest_hlos_result(MAIN_QUEST); // get quest_hlos result
-#endif
-
-	switch (total_result) {
-		case TOTALTEST_PASS: {
-			QUEST_PRINT("MAIN QUEST Passed\n");
-			return snprintf(buf, BUFF_SZ, "OK_2.0\n");
-		} break;
-
-		case TOTALTEST_FAIL: {
-			QUEST_PRINT("MAIN QUEST fail\n");
-			return snprintf(buf, BUFF_SZ, "NG_2.0_FAIL\n");
-		} break;
-
-		default: {
-			QUEST_PRINT("MAIN QUEST No Run\n");
-			return snprintf(buf, BUFF_SZ, "OK\n");
-		}
-	}
-
-err_out:
-	return snprintf(buf, BUFF_SZ, "MAIN QUEST UNKNOWN\n");
-}
-
-static DEVICE_ATTR(balancer, S_IRUGO | S_IWUSR, show_quest_main, store_quest_main);
-
-static ssize_t show_main_quest_timeout(struct device *dev,
-				     struct device_attribute *attr, char *buf)
-{
-	return snprintf(buf, BUFF_SZ, "%d\n", MAIN_QUEST_TIMEOUT);
-}
-static DEVICE_ATTR(timeout, 0444, show_main_quest_timeout, NULL);
-
-
-static ssize_t store_main_quest_run(struct device *dev,
-			      struct device_attribute *attr,
-			      const char *buf, size_t count)
-{
-#if defined(CONFIG_SEC_QUEST_UEFI)
-	struct param_quest_t param_quest_data;
-	int uefi_remain_count =0;
-	int ddrtest_remain_count = 0;
-
-	mutex_lock(&common_lock);
-
-	QUEST_PRINT("%s is called\n", __func__);
-	
-	if (!sec_get_param(param_index_quest, &param_quest_data)) {
-		QUEST_PRINT("%s : fail - get param!! param_quest_data\n", __func__);
-		mutex_unlock(&common_lock);
-		return -EINVAL;
-	}
-	uefi_remain_count = param_quest_data.quest_uefi_remain_count;
-	ddrtest_remain_count = param_quest_data.ddrtest_remain_count;
-
-	// if the count of quest_uefi remains, let's trigger quest_uefi
-	if( uefi_remain_count > 0 || ddrtest_remain_count > 0 ) {
-		QUEST_PRINT("%s : uefi_remain_count remained(%d)\n", 
-				__func__, uefi_remain_count );
-
-#if defined(CONFIG_SEC_QUEST_UEFI_ENHENCEMENT)
-		// in case of beyondx which have UEFI ENHANCEMENT, the quest_uefi will run only 4 times
-		if( uefi_remain_count > 1 ) {
-#else
-		if( uefi_remain_count > 0 ) {
-#endif
-			QUEST_PRINT("%s : will trigger quest_uefi\n", __func__);
-
-			// 1. let's remove previous questresult
-			arrange_quest_logs(MAIN_QUEST_LOGPATH);
-
-			// 2. initialize quest_uefi_result
-			param_quest_data.quest_uefi_result
-				= SET_UEFI_RESULT(MAIN_QUEST, param_quest_data.quest_uefi_result, 0x0);
-		}
-		
-		// 3. we do not repeat quest_hlos, so let's decrease hlos count forcely
-		if( param_quest_data.quest_hlos_remain_count >= 1 )		
-			param_quest_data.quest_hlos_remain_count--;
-	
-		if (!sec_set_param(param_index_quest, &param_quest_data)) {
-			QUEST_PRINT("%s : fail - set param!! param_quest_data\n", __func__);
-			mutex_unlock(&common_lock);
-			return -EINVAL;
-		}
-
-		// 3.1.backup more dumps
-		// let's check only dump gotten when hlos quest runs
-		if( uefi_remain_count == 4 ) {
-			char options[50] = { '\0', };
-			QUEST_PRINT("backup more dumps before reboot\n");	
-			snprintf(options, 50, "action:backupmoredumps\0"); 
-			make_debugging_logs(options);			
-		}
-
-		// 4. reboot device	
-		msleep(3000);	// to guarantee saving FLOG
-		mutex_unlock(&common_lock);
-		kernel_restart(NULL);			
-	}else {
-		mutex_unlock(&common_lock);
-		panic("abnormal uefi_remain_count");
-	}
-
-	mutex_unlock(&common_lock);
-#endif
-	return count; 
-}
-
-
-// parsing the result of quest_uefi and return the status of main quest scenario
-static ssize_t show_main_quest_run(struct device *dev,
-				     struct device_attribute *attr, char *buf)
-{
-#if defined(CONFIG_SEC_QUEST_UEFI)	 
-	struct param_quest_t param_quest_data;
-	int uefi_remain_count = 0;
-	int ddrtest_remain_count = 0;
-	int uefi_result = TOTALTEST_UNKNOWN;
-	char options[50] = { '\0', };
-
-	mutex_lock(&common_lock);
-
-	QUEST_PRINT("%s : at boot time, always first call from factory app (read sec_nad_balancer/run)\n", __func__);
-
-	print_reset_info();
-
-	// 0. print param informations
-	if (!sec_get_param(param_index_quest, &param_quest_data)) {
-		QUEST_PRINT("%s : fail - get param!! param_quest_data\n", __func__);
-		goto err_out;
-	}
-	print_param_quest_data(param_quest_data);
-	uefi_remain_count = param_quest_data.quest_uefi_remain_count;
-	ddrtest_remain_count = param_quest_data.ddrtest_remain_count;
-
-
-	// 0.1. if now is not main quest, return
-	if( param_quest_data.quest_step != MAIN_QUEST ) {
-		QUEST_PRINT("%s : now step is not main quest, so will be returned\n", __func__);
-		mutex_unlock(&common_lock);
-		return snprintf(buf, BUFF_SZ, "END\n");
-	}else
-		QUEST_PRINT("%s : now step is main quest\n", __func__);
-
-
-	// 1. move questresult logs to sub directory
-	QUEST_PRINT("%s : if questresult logs exist, let's move them to main directory\n", __func__);
-	move_questresult_to_sub_dir(MAIN_QUEST);
-
-
-	// 2. parsing the result of quest_uefi
-	uefi_result = get_quest_uefi_result(MAIN_QUEST_LOGPATH, 1);
-	QUEST_PRINT("%s : update param_quest_data.quest_uefi_result \n", __func__);
-	param_quest_data.quest_uefi_result
-		= SET_UEFI_RESULT(MAIN_QUEST, param_quest_data.quest_uefi_result, uefi_result);
-	if (!sec_set_param(param_index_quest, &param_quest_data)) {
-		QUEST_PRINT("%s : fail - set param!! param_quest_data\n", __func__);
-		goto err_out;
-	}	
-
-
-	// 3. result processing
-	switch( uefi_result ) {
-		case TOTALTEST_NO_RESULT_FILE :
-		case TOTALTEST_NO_RESULT_STRING : {
-			QUEST_PRINT("%s : uefi_result = %d, so let's make lastkmsg\n", __func__, uefi_result );
-			snprintf(options, 50, "action:lastkmsg output_log_path:%s\0", MAIN_QUEST_LOGPATH); 
-			make_debugging_logs(options);			
-			break;
-		}
-		case TOTALTEST_FAIL : {
-			if( !(uefi_remain_count==0 && ddrtest_remain_count==0) ) {
-				QUEST_PRINT("%s : quest_uefi result was failed, so trigger panic\n", __func__ );
-
-				// if failed, let's do not run quest_uefi any more.
-				param_quest_data.quest_uefi_remain_count = 0;
-				param_quest_data.quest_hlos_remain_count = 0;
-				if (!sec_set_param(param_index_quest, &param_quest_data)) {
-					QUEST_PRINT("%s : fail - set param!! param_quest_data\n", __func__);
-					goto err_out;
-				}		
-
-				// trigger panic
-				mutex_unlock(&common_lock);
-				panic("quest_uefi failed");
-			}
-		}
-	}	
-
-
-	// 4. continue scenario and return current progress to factory app
-	if( uefi_remain_count > 0 || ddrtest_remain_count > 0 ) {
-
-		// if quest_uefi count remains, let's return NOT_END
-		QUEST_PRINT("%s : NOT_END (uefi=%d, ddrtest=%d)\n", __func__,
-			uefi_remain_count, ddrtest_remain_count);
-		mutex_unlock(&common_lock);
-		return snprintf(buf, BUFF_SZ, "NOT_END\n");
-		
-	} else if ( uefi_remain_count == 0 && ddrtest_remain_count == 0) {
-
-		// initialize quest_step
-		param_quest_data.quest_step = -1;
-		if (!sec_set_param(param_index_quest, &param_quest_data)) {
-			QUEST_PRINT("%s : fail - set param!! param_quest_data\n", __func__);
-			goto err_out;
-		}		
-		mutex_unlock(&common_lock);
-		return snprintf(buf, BUFF_SZ, "END\n"); 
-	}
-
-	mutex_unlock(&common_lock);
-
-err_out:
-	return snprintf(buf, BUFF_SZ, "UNKNOWN\n");
-	
-#else 
-	return snprintf(buf, BUFF_SZ, "END\n");
-#endif
-}
-static DEVICE_ATTR(run, S_IRUGO | S_IWUSR, show_main_quest_run, store_main_quest_run);
-
-
+//////////////////////////////////////////////////
+/////// NAD_INFO //////////////////////////////////
+//////////////////////////////////////////////////
 static ssize_t store_quest_info(struct device *dev,
 			      struct device_attribute *attr,
 			      const char *buf, size_t count)
 {
-	struct param_quest_t param_quest_data;
 	char info_name[QUEST_BUFF_SIZE * 2] = { '\0', };
 	char temp[QUEST_BUFF_SIZE * 3] = { '\0', };
 	char quest_test[2][QUEST_BUFF_SIZE * 2];	// 2: "info_name", "result"
 	int resultValue;
 	char *quest_ptr, *string;
 
-	mutex_lock(&common_lock);
+	QUEST_SYSFS_ENTER();
 
 	QUEST_PRINT("buf : %s count : %d\n", buf, (int)count);
-
 	if (QUEST_BUFF_SIZE * 3 < (int)count || (int)count < 4) {
 		QUEST_PRINT("result cmd size too long : QUEST_BUFF_SIZE<%d\n",
 			  (int)count);
-		mutex_unlock(&common_lock);
-		return -EINVAL;
+		count = -EINVAL;
+		goto out;
 	}
 
 	/* Copy buf to quest temp */
@@ -2059,12 +1868,6 @@ static ssize_t store_quest_info(struct device *dev,
 	sscanf(quest_test[0], "%s", info_name);
 	sscanf(quest_test[1], "%d", &resultValue);
 
-	if (!sec_get_param(param_index_quest, &param_quest_data)) {
-		QUEST_PRINT("%s : fail - get param!! param_quest_data\n", __func__);
-		mutex_unlock(&common_lock);
-		return -EINVAL;
-	}
-
 	if (!strcmp("thermal", info_name))
 		param_quest_data.thermal = resultValue;
 	else if (!strcmp("clock", info_name))
@@ -2072,31 +1875,24 @@ static ssize_t store_quest_info(struct device *dev,
 
 	QUEST_PRINT("info_name : %s, result=%d\n", info_name, resultValue);
 
-	if (!sec_set_param(param_index_quest, &param_quest_data)) {
-		QUEST_PRINT("%s : fail - set param!! param_quest_data\n", __func__);
-		mutex_unlock(&common_lock);
-		return -EINVAL;
-	}
-	
-	mutex_unlock(&common_lock);
+	quest_sync_param_quest_data();
+
+out:
+	QUEST_SYSFS_EXIT();
 	return count;
 }
 
 static ssize_t show_quest_info(struct device *dev,
 			     struct device_attribute *attr, char *buf)
 {
-	struct param_quest_t param_quest_data;
 	ssize_t info_size = 0;
 
-	if (!sec_get_param(param_index_quest, &param_quest_data)) {
-		QUEST_PRINT("%s : fail - get param!! param_quest_data\n", __func__);
-		goto err_out;
-	}
+	QUEST_SYSFS_ENTER();
 
 	info_size +=
 	    snprintf((char *)(buf + info_size), MAX_LEN_STR - info_size,
 		     "\"REMAIN_CNT\":\"%d\",",
-		     param_quest_data.quest_hlos_remain_count);
+		     param_quest_data.hlos_remained_count);
 	info_size +=
 	    snprintf((char *)(buf + info_size), MAX_LEN_STR - info_size,
 		     "\"THERMAL\":\"%d\",", param_quest_data.thermal);
@@ -2104,416 +1900,354 @@ static ssize_t show_quest_info(struct device *dev,
 	    snprintf((char *)(buf + info_size), MAX_LEN_STR - info_size,
 		     "\"CLOCK\":\"%d\",", param_quest_data.tested_clock);
 
+	QUEST_SYSFS_EXIT();
 	return info_size;
-err_out:
-	return snprintf(buf, BUFF_SZ, "PARAM ERROR\n");
 }
 
 static DEVICE_ATTR(nad_info, S_IRUGO | S_IWUSR, show_quest_info, store_quest_info);
+//////////////////////////////////////////////////
 
-static ssize_t show_quest_api(struct device *dev,
-			    struct device_attribute *attr, char *buf)
-{
-	unsigned int api_gpio_test;
-	char api_gpio_test_result[256];
 
-	if (!sec_get_param(param_index_api_gpio_test, &api_gpio_test)) {
-		QUEST_PRINT("%s : fail - get param!! param_quest_data\n", __func__);
-		goto err_out;
-	}
 
-	if (api_gpio_test) {
-		if (!sec_get_param
-		    (param_index_api_gpio_test_result, api_gpio_test_result)) {
-			QUEST_PRINT("%s : fail - get param!! param_quest_data\n",
-			       __func__);
-			goto err_out;
-		}
-		return snprintf(buf, BUFF_SZ, "%s", api_gpio_test_result);
-	} else
-		return snprintf(buf, BUFF_SZ, "NONE\n");
 
-err_out:
-	return snprintf(buf, BUFF_SZ, "READ ERROR\n");
-}
-
-static DEVICE_ATTR(nad_api, 0444, show_quest_api, NULL);
-
+//////////////////////////////////////////////////
+/////// NAD_VERSION //////////////////////////////
+//////////////////////////////////////////////////
 static ssize_t show_quest_version(struct device *dev,
 				     struct device_attribute *attr, char *buf)
 {
-	#if 0
-		//QUEST_2.0.1_SS_SLT_06142018_NS_GCM - INITPORT
-		return snprintf(buf, BUFF_SZ, "SM8150.0204.01.INITPORT\n");	
-	
-		//QUEST_1.0_SS_07172018_SM8150_preR2_sdcard
-		return snprintf(buf, BUFF_SZ, "SM8150.0101.01.INITPORT\n");
-
-		//QUEST_1.0_SS_08312018_SDM855_gcm_flashval_temp
-		return snprintf(buf, BUFF_SZ, "SM8150.0102.01.PRERELEASE\n");
-	
-		//QUEST_1.0_SS_10052018_SDM855_gcm_flashval_temp -  - SLPI Enable
-		return snprintf(buf, BUFF_SZ, "SM8150.0102.01.PRERELEASE.SLPIe\n");
-	#else	
-		//QUEST_1.0.1_SS_10030018_SDM855_naturescene_path
-		return snprintf(buf, BUFF_SZ, "SM8150.0103.01.1030RELEASE\n");	
-	#endif	
+	QUEST_SYSFS_ENTER();
+	QUEST_SYSFS_EXIT();
+#if 0
+	//
+#else
+	//QUEST_1.0.1_SS_10030018_SDM855_naturescene_path
+	return snprintf(buf, BUFF_SZ, "SM8150.0103.01.1030RELEASE\n");
+#endif
 }
 static DEVICE_ATTR(nad_version, 0444, show_quest_version, NULL);
+//////////////////////////////////////////////////
 
 
-
-static ssize_t show_quest_qdaf_control(struct device *dev,
-				     struct device_attribute *attr, char *buf)
+#if defined(CONFIG_SEC_QUEST_AUTO_TRIGGER_KWORKER) || defined(CONFIG_SEC_QUEST_AUTO_TRIGGER_INIT_WRITE)
+//////////////////////////////////////////////////
+// if you can auto_trigger, please run the belows first
+// adb shell "setprop persist.quest.auto_repeat 1"
+// adb shell "setprop debug.quest.auto_repeat.enabled 1"
+//////////////////////////////////////////////////
+static void quest_auto_trigger(char* test_name)
 {
-	if( qdaf_cur_cmd_mode==QUEST_QDAF_ACTION_CONTROL_START_WITHOUT_PANIC ||
-		qdaf_cur_cmd_mode==QUEST_QDAF_ACTION_CONTROL_START_WITH_PANIC )
-		return snprintf(buf, BUFF_SZ, "RUNNING\n");
+	char *argv[4] = { QUESTHLOS_PROG_MAIN_CAL, "logPath:/data/log/quest", "Reboot", NULL };
+	//char *envp[3] = { "HOME=/", "TERM=linux", NULL, };
+	char *envp[5] = {
+		"HOME=/",
+		"PATH=/system/bin/quest:/system/bin:/system/xbin",
+		"ANDROID_DATA=/data",
+		"ANDROID_ROOT=/system",
+		NULL };
+	int ret;
 
-	return snprintf(buf, BUFF_SZ, "READY\n");
+	initialized = 1;	// skip initialization routine
+
+	QUEST_PRINT("%s : will trigger quest\n",__func__);
+	QUEST_PRINT("%s : test_name (%s)\n", __func__, test_name);
+
+	// set CALX scenario with remained_count
+	if( strncmp(test_name, "HLOSUEFI", 8)==0 ||
+		strncmp(test_name, "UEFIHLOS", 8)==0 )
+	{
+		QUEST_PRINT("%s : set CALX\n", __func__);
+		param_quest_data.curr_step = STEP_CALX;
+		param_quest_data.hlos_remained_count = 1;
+		param_quest_data.quefi_remained_count = 1;
+		param_quest_data.suefi_remained_count = 1;
+		param_quest_data.ddrscan_remained_count = 0;
+		quest_sync_param_quest_data();
+
+	}else if( strncmp(test_name, "HLOSONLY", 8)==0 )
+	{
+		QUEST_PRINT("%s : set CALX\n", __func__);
+		param_quest_data.curr_step = STEP_CALX;
+		param_quest_data.hlos_remained_count = 1;
+		param_quest_data.quefi_remained_count = 0;
+		param_quest_data.suefi_remained_count = 0;
+		param_quest_data.ddrscan_remained_count = 0;
+		quest_sync_param_quest_data();
+
+	}else if( strncmp(test_name, "UEFIONLY", 8)==0 )
+	{
+		QUEST_PRINT("%s : set CALX\n", __func__);
+		param_quest_data.curr_step = STEP_CALX;
+		param_quest_data.hlos_remained_count = 0;
+		param_quest_data.quefi_remained_count = 1;
+		param_quest_data.suefi_remained_count = 1;
+		param_quest_data.ddrscan_remained_count = 0;
+		quest_sync_param_quest_data();
+
+	}else if( strncmp(test_name, "KILLNOW", 7)==0 )
+	{
+		QUEST_PRINT("%s : will kill quets.sh now\n", __func__);
+
+		argv[0] = QUEST_DEBUGGING_PRG;
+		argv[1] = "action:killnow";
+		ret = call_usermodehelper(argv[0], argv, envp, UMH_WAIT_PROC);
+		QUEST_PRINT("%s : call_usermodehelper(ret=%d)\n", __func__, ret);
+
+	}else if( strncmp(test_name, "SYSREBOOT", 9)==0 )
+	{
+		QUEST_PRINT("%s : will reboot system now\n", __func__);
+
+		argv[0] = QUEST_DEBUGGING_PRG;
+		argv[1] = "action:sysreboot";
+		ret = call_usermodehelper(argv[0], argv, envp, UMH_WAIT_PROC);
+		QUEST_PRINT("%s : call_usermodehelper(ret=%d)\n", __func__, ret);
+
+	}else
+	{
+		QUEST_PRINT("%s : wrong test_name\n", __func__);
+		return;
+	}
+
+	// trigger hlos or reboot
+	if( param_quest_data.hlos_remained_count > 0 )
+	{
+		QUEST_PRINT("%s : run hlos\n", __func__);
+		param_quest_data.hlos_remained_count--;
+		quest_sync_param_quest_data();
+
+		// quest.sh will call reboot
+		ret = call_usermodehelper(argv[0], argv, envp, UMH_WAIT_EXEC);
+		QUEST_PRINT("%s : call_usermodehelper(ret=%d)\n", __func__, ret);
+	}else
+	{
+		msleep(3000);
+		kernel_restart(NULL);
+		QUEST_PRINT("%s : reboot and run uefi\n", __func__);
+	}
+
 }
-static ssize_t store_quest_qdaf_control(struct device *dev,
+#endif
+
+
+#if defined(CONFIG_SEC_QUEST_AUTO_TRIGGER_INIT_WRITE)
+//////////////////////////////////////////////////
+/////// NAD_AUTO_TRIGGER ////////////////////////
+//////////////////////////////////////////////////
+static ssize_t store_quest_auto_trigger(struct device *dev,
 			      struct device_attribute *attr,
 			      const char *buf, size_t count)
 {
-	int idx = 0, cmd_mode=0, wait_val=0;
+	char test_name[QUEST_BUFF_SIZE * 3] = { '\0', };
+
+	strlcpy(test_name, buf, QUEST_BUFF_SIZE * 3);
+
+	quest_auto_trigger(test_name);
+	return count;
+}
+static DEVICE_ATTR(nad_auto_trigger, S_IWUSR, NULL, store_quest_auto_trigger);
+//////////////////////////////////////////////////
+#endif
+
+
+#if defined(CONFIG_SEC_QUEST_AUTO_TRIGGER_KWORKER)
+//////////////////////////////////////////////////
+/////// NAD_AUTO_TRIGGER /////////////////////////
+//////////////////////////////////////////////////
+static void delayed_quest_work_func(struct work_struct *work)
+{
+	quest_auto_trigger("HLOSUEFI");
+}
+//////////////////////////////////////////////////
+#endif
+
+
+//////////////////////////////////////////////////
+/////// NAD_TESTMODE /////////////////////////////
+//////////////////////////////////////////////////
+static ssize_t store_quest_testmode(struct device *dev,
+			      struct device_attribute *attr,
+			      const char *buf, size_t count)
+{
+	int idx = 0, flag = 0;
 	char temp[QUEST_BUFF_SIZE * 3];
 	char quest_cmd[QUEST_CMD_LIST][QUEST_BUFF_SIZE];
 	char *quest_ptr, *string;
-	int ret_userapp;
-	char *argv[4] = { NULL, NULL, NULL, NULL };
-	char *envp[5] = { 
-		"HOME=/", 
-		"PATH=/system/bin/quest:/system/bin:/system/xbin", 
-		"ANDROID_DATA=/data", 
-		"ANDROID_ROOT=/system", 
-		NULL };
 
-	QUEST_PRINT("%s : is called\n",__func__);
+	QUEST_SYSFS_ENTER();
 
-	if ((int)count < QUEST_BUFF_SIZE) {
-		QUEST_PRINT("%s : return error (count=%d)\n", __func__, (int)count);
-		return -EINVAL;;
-	}
-
-	if (strncmp(buf, "nad_qdaf_control", 16)) {
-		QUEST_PRINT("%s : return error (buf=%s)\n", __func__, buf);
-		return -EINVAL;;
-	}
-
+	// parse argument
 	strlcpy(temp, buf, QUEST_BUFF_SIZE * 3);
 	string = temp;
 	while (idx < QUEST_CMD_LIST) {
 		quest_ptr = strsep(&string, ",");
 		strlcpy(quest_cmd[idx++], quest_ptr, QUEST_BUFF_SIZE);
 	}
-	sscanf(quest_cmd[1], "%d", &cmd_mode);
 
-	// let's just return if receiving the same command as before one
-	if ( qdaf_cur_cmd_mode==cmd_mode ) {
-		if( cmd_mode==QUEST_QDAF_ACTION_CONTROL_START_WITHOUT_PANIC ||
-			cmd_mode==QUEST_QDAF_ACTION_CONTROL_START_WITH_PANIC) {
-			QUEST_PRINT("%s : return because qdaf.sh already has been running.\n", __func__);
-		}else if( cmd_mode==QUEST_QDAF_ACTION_CONTROL_STOP || 
-				cmd_mode==QUEST_QDAF_ACTION_CONTROL_STOP_WATING) {
-			QUEST_PRINT("%s : return because qdaf.sh has not been running yet.\n", __func__);
-		}
-		return count;
-	}
+	QUEST_PRINT("%s : %s(%s)\n", __func__, quest_cmd[0], quest_cmd[1]);
 
-	// if receiving control command from AtNadCheck when quest is running, let's return NG
-	// if receiving control command from quest.sh, invoke qdaf.sh to stop qdaf with UMH_WAIT_PROC
-	if( quest_step!=-1 &&
-		(cmd_mode==QUEST_QDAF_ACTION_CONTROL_START_WITHOUT_PANIC ||
-		cmd_mode==QUEST_QDAF_ACTION_CONTROL_START_WITH_PANIC ||
-		cmd_mode==QUEST_QDAF_ACTION_CONTROL_STOP) ) {
-		QUEST_PRINT("%s : return because quest is running.\n", __func__);
-		return count;
+	sscanf(quest_cmd[1], "%d", &flag);
+
+	if( strncmp(quest_cmd[0], "testmode", 8)==0 ) testmode_enabled = flag;
+	else if( strncmp(quest_cmd[0], "quefi", 5)==0 ) {
+		testmode_quefi_enabled = flag;
+		// if flag is updated after setting repeating count, we should set count also here
+		if( flag )
+			param_quest_data.quefi_remained_count = param_quest_data.hlos_remained_count;
+		else
+			param_quest_data.quefi_remained_count = 0;
 	}
-		
-	argv[0] = QDAF_PROG;
-	argv[1] = quest_cmd[1];
-	switch (cmd_mode) {
-	case QUEST_QDAF_ACTION_CONTROL_START_WITHOUT_PANIC :
-		QUEST_PRINT("%s : qdaf will be started (without panic)\n",__func__);
-		wait_val = UMH_WAIT_EXEC;
-		break;		
-	case QUEST_QDAF_ACTION_CONTROL_START_WITH_PANIC:
-		QUEST_PRINT("%s : qdaf will be started (with panic)\n",__func__);
-		wait_val = UMH_WAIT_EXEC;		
-		break;
-	case QUEST_QDAF_ACTION_CONTROL_STOP :
-		QUEST_PRINT("%s : qdaf will be stopped\n",__func__);
-		wait_val = UMH_WAIT_EXEC;		
-		break;
-	case QUEST_QDAF_ACTION_CONTROL_STOP_WATING :
-		QUEST_PRINT("%s : qdaf will be stopped (waiting)\n",__func__);
-		// should wait for completion to gurantee not working of qdaf
-		wait_val = UMH_WAIT_PROC;
-		break;
-	default :
-		QUEST_PRINT("%s : return because invalid cmd mode(%d)\n", __func__, cmd_mode);
-		return count;
+	else if( strncmp(quest_cmd[0], "suefi", 5)==0 ) {
+		testmode_suefi_enabled = flag;
+		// if flag is updated after setting repeating count, we should set count also here
+		if( flag )
+			param_quest_data.suefi_remained_count = param_quest_data.hlos_remained_count;
+		else
+			param_quest_data.suefi_remained_count = 0;
 	}
-	
-	ret_userapp = call_usermodehelper(argv[0], argv, envp, wait_val);
-	if (!ret_userapp) {
-		qdaf_cur_cmd_mode = cmd_mode;
-		QUEST_PRINT("%s : succeded to trigger qdaf.sh\n", __func__);
-		QUEST_PRINT("%s : qdaf_cur_cmd_mode=%s\n", __func__, quest_cmd[1]);	
-	}else {
-		qdaf_cur_cmd_mode = QUEST_QDAF_ACTION_EMPTY;
-		// evaulate return value after ret_userapp>>8
-		QUEST_PRINT("%s : failed to trigger qdaf.sh. error=%d\n", __func__, ret_userapp);
+	else if( strncmp(quest_cmd[0], "ddrscan", 7)==0 ) {
+		testmode_ddrscan_enabled = flag;
+		// if flag is updated after setting repeating count, we should set count also here
+		if( flag )
+			param_quest_data.ddrscan_remained_count = param_quest_data.hlos_remained_count;
+		else
+			param_quest_data.ddrscan_remained_count = 0;
 	}
+	quest_sync_param_quest_data();
+
+	QUEST_SYSFS_EXIT();
+
 	return count;
 }
-static DEVICE_ATTR(nad_qdaf_control, S_IRUGO | S_IWUSR, show_quest_qdaf_control, store_quest_qdaf_control);
+static DEVICE_ATTR(nad_testmode, S_IWUSR, NULL, store_quest_testmode);
+//////////////////////////////////////////////////
 
-/*
-static int qdaf_check_prev_result(void)
+
+
+//////////////////////////////////////////////////
+/////// NAD_INIT_STEP ////////////////////////////
+//////////////////////////////////////////////////
+static ssize_t store_quest_init_step(struct device *dev,
+			     struct device_attribute *attr,
+			     const char *buf, size_t count)
 {
-	int fd = 0;
-	int ret;
-	char buf[512] = { '\0', };
-	mm_segment_t old_fs = get_fs();
+	QUEST_SYSFS_ENTER();
 
-	set_fs(KERNEL_DS);
-
-	fd = sys_open(QDAF_QMESA_LOG, O_RDONLY, 0);
-	if (fd >= 0) {
-		int found = 0;
-
-		printk(KERN_DEBUG);
-
-		while (sys_read(fd, buf, 512)) {
-			char *ptr;
-			char *div = "\n";
-			char *tok = NULL;
-
-			ptr = buf;
-			while ((tok = strsep(&ptr, div)) != NULL) {
-				if ((strstr(tok, "failure"))) {
-					ret = QUEST_QDAF_TEST_RESULT_NG;
-					found = 1;
-					break;
-				}
-			}
-
-			if (found) break;
-		}
-
-		if (!found) ret = QUEST_QDAF_TEST_RESULT_OK;
-		sys_close(fd);
-	} else {
-		QUEST_PRINT("%s : result file is not existed\n", __func__);
-		ret = QUEST_QDAF_TEST_RESULT_NONE;
+	// check exceptional cases
+	if( unlikely( strncmp(buf, "init_step", 9) ) ) {
+		QUEST_PRINT("%s : exceptional cases (buf=%s)\n", __func__, buf);
+		goto out;
 	}
 
-	set_fs(old_fs);
-	return ret;	
-}
+	QUEST_PRINT("%s : call quest_initialize_curr_step\n", __func__);
+	quest_initialize_curr_step();
 
-static ssize_t show_quest_qdaf_prev_result(struct device *dev,
-				     struct device_attribute *attr, char *buf)
+out:
+	QUEST_SYSFS_EXIT();
+	return count;
+}
+static DEVICE_ATTR(nad_init_step, S_IRUGO | S_IWUSR, NULL, store_quest_init_step);
+//////////////////////////////////////////////////
+
+
+
+
+//////////////////////////////////////////////////
+/////// NAD_NATURESCENE_INFO /////////////////////
+//////////////////////////////////////////////////
+static ssize_t store_quest_smd_info(struct device *dev,
+			      struct device_attribute *attr,
+			      const char *buf, size_t count)
 {
-	int qdaf_result = qdaf_check_prev_result();
-	switch (qdaf_result) {
-	case QUEST_QDAF_TEST_RESULT_OK:
-		QUEST_PRINT("%s : previous test result : pass\n", __func__);
-		return snprintf(buf, BUFF_SZ, "OK\n");
-		break;
-	case QUEST_QDAF_TEST_RESULT_NG:
-		QUEST_PRINT("%s : previous test result : fail\n", __func__);
-		return snprintf(buf, BUFF_SZ, "NG\n");
-		break;
-	default:
-		QUEST_PRINT("%s : previous test result : unknown\n", __func__);
-		return snprintf(buf, BUFF_SZ, "NONE\n");
+	int idx = 0;
+	char temp[QUEST_CMD_LIST * QUEST_CMD_SIZE];
+	char quest_cmd[QUEST_CMD_LIST][QUEST_CMD_SIZE];
+	char *quest_ptr, *string;
+
+	QUEST_SYSFS_ENTER();
+
+	if( param_quest_data.curr_step != STEP_SMDDL ) {
+		QUEST_PRINT("%s : The smd info should be updated only at SMDDL\n", __func__);
+		goto out;
 	}
-	
-	return snprintf(buf, BUFF_SZ, "NONE\n");
 
-}
-*/
+	// parse argument
+	strlcpy(temp, buf, QUEST_CMD_SIZE);
+	string = temp;
+	while (idx < QUEST_CMD_LIST) {
+		quest_ptr = strsep(&string, ",");
+		strlcpy(quest_cmd[idx++], quest_ptr, QUEST_CMD_SIZE);
+	}
 
-static ssize_t show_quest_qdaf_result(struct device *dev,
-				     struct device_attribute *attr, char *buf)
-{
-	int ret_userapp, wait_val=0, failed_cnt=0;
-	char act[QUEST_BUFF_SIZE]={0,};
-	char *argv[4] = { NULL, NULL, NULL, NULL };
-	char *envp[5] = { 
-		"HOME=/", 
-		"PATH=/system/bin/quest:/system/bin:/system/xbin", 
-		"ANDROID_DATA=/data", 
-		"ANDROID_ROOT=/system", 
-		NULL };
+	QUEST_PRINT("%s : %s(%s)\n", __func__, quest_cmd[0], quest_cmd[1]);
 
-	QUEST_PRINT("%s : is called\n",__func__);
+	if( strncmp(quest_cmd[0], "smd_boot_reason", 15)==0 ) {
+		strncpy(param_quest_data.smd_boot_reason, quest_cmd[1], 2);
+		QUEST_UPDATE_SMDDL_INFO_WITH_STRING(param_quest_data.smd_boot_reason_first, quest_cmd[1], 2);
+	}
 
-	print_reset_info();
+	if( strncmp(quest_cmd[0], "smd_hlos_start_time", 19)==0 ) {
+		sscanf(quest_cmd[1], "%d", &param_quest_data.smd_hlos_start_time);
+		QUEST_UPDATE_SMDDL_INFO(param_quest_data.smd_hlos_start_time);
+	}
 
-	snprintf(act, 1, "%d", QUEST_QDAF_ACTION_RESULT_GET);
+	if( strncmp(quest_cmd[0], "smd_hlos_elapsed_time", 21)==0 ) {
+		sscanf(quest_cmd[1], "%d", &param_quest_data.smd_hlos_elapsed_time);
+		QUEST_UPDATE_SMDDL_INFO(param_quest_data.smd_hlos_elapsed_time);
+	}
 
-	argv[0] = QDAF_PROG;
-	// TODO : conversion int->string
-	argv[1] = "6";	//QUEST_QDAF_ACTION_RESULT_GET 
-	wait_val = UMH_WAIT_PROC;
-	ret_userapp = call_usermodehelper(argv[0], argv, envp, wait_val);
-	if (!ret_userapp) {
-		QUEST_PRINT("%s : succeded to trigger qdaf.sh and failed_cnt=0\n", __func__);
-		return snprintf(buf, BUFF_SZ, "OK\n");
-	}else if (ret_userapp > 0 ) {
-		// evaulate return value after ret_userapp>>8
-		// qdaf.sh exit with failed_cnt if persist.qdaf.failed_cnt>0, so let's use return value from call_usermodehelper
-		failed_cnt = ret_userapp>>8;
-		QUEST_PRINT("%s : succeded to trigger qdaf.sh and return_value=%d(failed_cnt=%d)\n", 
-			__func__, ret_userapp, failed_cnt);		
-		return snprintf(buf, BUFF_SZ, "NG,%d\n", failed_cnt);		
-	}else {
-		// evaulate return value after ret_userapp>>8
-		QUEST_PRINT("%s : failed to trigger qdaf.sh. error=%d\n", __func__, ret_userapp);
-		return snprintf(buf, BUFF_SZ, "NONE\n");
+	if( strncmp(quest_cmd[0], "smd_hlos_init_thermal", 21)==0 ) {
+		sscanf(quest_cmd[1], "%d", &param_quest_data.smd_hlos_init_thermal);
+		QUEST_UPDATE_SMDDL_INFO(param_quest_data.smd_hlos_init_thermal);
+	}
+
+	if( strncmp(quest_cmd[0], "smd_hlos_max_thermal", 20)==0 ) {
+		sscanf(quest_cmd[1], "%d", &param_quest_data.smd_hlos_max_thermal);
+		QUEST_UPDATE_SMDDL_INFO(param_quest_data.smd_hlos_max_thermal);
+	}
+
+	if( strncmp(quest_cmd[0], "smd_ns_repeats", 14)==0 ) {
+		sscanf(quest_cmd[1], "%d", &param_quest_data.smd_ns_repeats);
+		QUEST_UPDATE_SMDDL_INFO(param_quest_data.smd_ns_repeats);
+	}
+
+	if( strncmp(quest_cmd[0], "smd_max_aoss_thermal_diff", 25)==0 ) {
+		sscanf(quest_cmd[1], "%d", &param_quest_data.smd_max_aoss_thermal_diff);
+		QUEST_UPDATE_SMDDL_INFO(param_quest_data.smd_max_aoss_thermal_diff);
 	}	
 
-	return snprintf(buf, BUFF_SZ, "NONE\n");
-}
+	quest_sync_param_quest_data();
 
-static ssize_t store_quest_qdaf_result(struct device *dev,
-			      struct device_attribute *attr,
-			      const char *buf, size_t count)
-{
-	int idx = 0, cmd_mode=0, wait_val=0;
-	int ret_userapp;
-	char temp[QUEST_BUFF_SIZE * 3];
-	char quest_cmd[QUEST_CMD_LIST][QUEST_BUFF_SIZE];
-	char *quest_ptr, *string;
-	char *argv[4] = { NULL, NULL, NULL, NULL };
-	char *envp[5] = { 
-		"HOME=/", 
-		"PATH=/system/bin/quest:/system/bin:/system/xbin", 
-		"ANDROID_DATA=/data", 
-		"ANDROID_ROOT=/system", 
-		NULL };	
-
-	QUEST_PRINT("%s : is called\n",__func__);
-
-	if ((int)count < QUEST_BUFF_SIZE) {
-		QUEST_PRINT("%s : return error (count=%d)\n", __func__, (int)count);
-		return -EINVAL;;
-	}
-
-	if (strncmp(buf, "nad_qdaf_result", 15)) {
-		QUEST_PRINT("%s : return error (buf=%s)\n", __func__, buf);
-		return -EINVAL;;
-	}
-
-	strlcpy(temp, buf, QUEST_BUFF_SIZE * 3);
-	string = temp;
-	while (idx < QUEST_CMD_LIST) {
-		quest_ptr = strsep(&string, ",");
-		strlcpy(quest_cmd[idx++], quest_ptr, QUEST_BUFF_SIZE);
-	}
-	sscanf(quest_cmd[1], "%d", &cmd_mode);	
-	
-	argv[0] = QDAF_PROG;
-	argv[1] = quest_cmd[1];
-	switch (cmd_mode) {
-	case QUEST_QDAF_ACTION_RESULT_ERASE :
-		QUEST_PRINT("%s : qdaf will erase failed count\n",__func__);
-		wait_val = UMH_WAIT_PROC;
-		break;
-	default :
-		QUEST_PRINT("%s : return because invalid cmd mode(%d)\n", __func__, cmd_mode);
-		return count;
-	}
-	
-	ret_userapp = call_usermodehelper(argv[0], argv, envp, wait_val);
-	if (!ret_userapp)
-		QUEST_PRINT("%s : succeded to trigger qdaf.sh\n", __func__);
-	else {
-		// evaulate return value after ret_userapp>>8
-		QUEST_PRINT("%s : failed to trigger qdaf.sh. error=%d\n", __func__, ret_userapp);
-	}
+out:
+	QUEST_SYSFS_EXIT();
 	return count;
 }
 
-static DEVICE_ATTR(nad_qdaf_result, S_IRUGO | S_IWUSR, show_quest_qdaf_result, store_quest_qdaf_result);
+static DEVICE_ATTR(nad_smd_info, S_IWUSR, NULL, store_quest_smd_info);
+//////////////////////////////////////////////////
 
-static void qdaf_save_logs(void)
+
+#endif	// #if defined(CONFIG_SEC_FACTORY)
+
+
+static ssize_t show_quest_fv_flashed(struct device *dev,
+				     struct device_attribute *attr, char *buf)
 {
-	int fd, idx=0;
-	char temp[1]={'\0'}, buf[BUFF_SZ]={'\0',};
+	//QUEST_SYSFS_ENTER();
+	//QUEST_SYSFS_EXIT();
+	mutex_lock(&sysfs_common_lock);
+	quest_load_param_quest_data();
+	mutex_unlock(&sysfs_common_lock);
 
-	mm_segment_t old_fs = get_fs();
-	set_fs(KERNEL_DS);
-
-	fd = sys_open(QDAF_QMESA_LOG, O_RDONLY, 0);
-	if (fd >= 0) {
-		while (sys_read(fd, temp, 1) == 1) {
-			buf[idx++] = temp[0];
-			if( temp[0]=='\n' ) {
-				buf[idx] = '\0';
-				QUEST_PRINT("%s", buf);
-				idx = 0;
-			}
-		}
-		sys_close(fd);
-	}
-	set_fs(old_fs);
+	return snprintf(buf, BUFF_SZ, "%d\n", param_quest_data.quest_fv_flashed);
 }
 
-static ssize_t store_quest_qdaf_debug(struct device *dev,
-			      struct device_attribute *attr,
-			      const char *buf, size_t count)
-{
-	int idx = 0, cmd_mode=0;
-	char temp[QUEST_BUFF_SIZE * 3];
-	char quest_cmd[QUEST_CMD_LIST][QUEST_BUFF_SIZE];
-	char *quest_ptr, *string;
+static DEVICE_ATTR(quest_fv_flashed, 0444, show_quest_fv_flashed, NULL);
 
-	QUEST_PRINT("%s : is called\n",__func__);
-
-	if ((int)count < QUEST_BUFF_SIZE) {
-		QUEST_PRINT("%s : return error (count=%d)\n", __func__, (int)count);
-		return -EINVAL;;
-	}
-
-	if (strncmp(buf, "nad_qdaf_debug", 14)) {
-		QUEST_PRINT("%s : return error (buf=%s)\n", __func__, buf);
-		return -EINVAL;;
-	}
-
-	strlcpy(temp, buf, QUEST_BUFF_SIZE * 3);
-	string = temp;
-	while (idx < QUEST_CMD_LIST) {
-		quest_ptr = strsep(&string, ",");
-		strlcpy(quest_cmd[idx++], quest_ptr, QUEST_BUFF_SIZE);
-	}
-	sscanf(quest_cmd[1], "%d", &cmd_mode);
-
-	switch (cmd_mode) {
-	case QUEST_QDAF_ACTION_DEBUG_SAVE_LOGS :
-		QUEST_PRINT("%s : qdaf will save log into kmsg\n",__func__);
-		qdaf_save_logs();
-		return count;
-	case QUEST_QDAF_ACTION_DEBUG_TRIGGER_PANIC :
-		QUEST_PRINT("%s : will trigger panic\n",__func__);
-		panic("qdaf_fail");
-		return count;
-	}
-
-	return count;
-}
-static DEVICE_ATTR(nad_qdaf_debug, S_IWUSR, NULL, store_quest_qdaf_debug);
 
 
 static int __init sec_quest_init(void)
 {
 	int ret = 0;
-	struct device *sec_nad;
-	struct device *sec_nad_balancer;
 
 	QUEST_PRINT("%s\n", __func__);
 
@@ -2521,18 +2255,40 @@ static int __init sec_quest_init(void)
 	if (lpcharge)
 		return ret;
 
-	mutex_init(&uefi_parse_lock);
-	mutex_init(&hlos_parse_lock);	
-	mutex_init(&common_lock);
-	mutex_init(&qdaf_call_lock);
+	// init mutex
+	mutex_init(&sysfs_common_lock);
 
+	// sec_nad, sec_nad_balancer device
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4,19,0)
 	sec_nad = sec_device_create(0, NULL, "sec_nad");
-
+#else
+	sec_nad = sec_device_create(NULL, "sec_nad");
+#endif
 	if (IS_ERR(sec_nad)) {
 		QUEST_PRINT("%s Failed to create device(sec_nad)!\n", __func__);
 		return PTR_ERR(sec_nad);
 	}
 
+	ret = device_create_file(sec_nad, &dev_attr_quest_fv_flashed);
+	if (ret) {
+		QUEST_PRINT("%s: Failed to create device file\n", __func__);
+		goto err_create_nad_sysfs;
+	}	
+
+#if defined(CONFIG_SEC_FACTORY)	
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4,19,0)
+	sec_nad_balancer = sec_device_create(0, NULL, "sec_nad_balancer");
+#else
+	sec_nad_balancer = sec_device_create(NULL, "sec_nad_balancer");
+#endif
+	if (IS_ERR(sec_nad_balancer)) {
+		QUEST_PRINT("%s Failed to create device(sec_nad)!\n", __func__);
+		return PTR_ERR(sec_nad_balancer);
+	}
+
+
+	// sysfs nodes at /sys/class/sec/sec_nad
 	ret = device_create_file(sec_nad, &dev_attr_nad_stat);
 	if (ret) {
 		QUEST_PRINT("%s: Failed to create device file\n", __func__);
@@ -2587,12 +2343,6 @@ static int __init sec_quest_init(void)
 		goto err_create_nad_sysfs;
 	}
 
-	ret = device_create_file(sec_nad, &dev_attr_nad_dram_debug);
-	if (ret) {
-		QUEST_PRINT("%s: Failed to create device file\n", __func__);
-		goto err_create_nad_sysfs;
-	}
-
 	ret = device_create_file(sec_nad, &dev_attr_nad_dram_err_addr);
 	if (ret) {
 		QUEST_PRINT("%s: Failed to create device file\n", __func__);
@@ -2623,37 +2373,33 @@ static int __init sec_quest_init(void)
 		goto err_create_nad_sysfs;
 	}
 
-	ret = device_create_file(sec_nad, &dev_attr_nad_qdaf_control);
+	ret = device_create_file(sec_nad, &dev_attr_nad_testmode);
 	if (ret) {
 		QUEST_PRINT("%s: Failed to create device file\n", __func__);
 		goto err_create_nad_sysfs;
 	}
 
-	ret = device_create_file(sec_nad, &dev_attr_nad_qdaf_debug);
+	ret = device_create_file(sec_nad, &dev_attr_nad_smd_info);
 	if (ret) {
 		QUEST_PRINT("%s: Failed to create device file\n", __func__);
 		goto err_create_nad_sysfs;
 	}
 
-	ret = device_create_file(sec_nad, &dev_attr_nad_qdaf_result);
+	ret = device_create_file(sec_nad, &dev_attr_nad_init_step);
 	if (ret) {
 		QUEST_PRINT("%s: Failed to create device file\n", __func__);
 		goto err_create_nad_sysfs;
-	}	
+	}
 
-	if (add_uevent_var(&quest_uevent, "NAD_TEST=%s", "DONE")) {
-		QUEST_PRINT("%s : uevent NAD_TEST_AND_PASS is failed to add\n",
-		       __func__);
+#if defined(CONFIG_SEC_QUEST_AUTO_TRIGGER_INIT_WRITE)
+	ret = device_create_file(sec_nad, &dev_attr_nad_auto_trigger);
+	if (ret) {
+		QUEST_PRINT("%s: Failed to create device file\n", __func__);
 		goto err_create_nad_sysfs;
 	}
+#endif
 
-	sec_nad_balancer = sec_device_create(0, NULL, "sec_nad_balancer");
-
-	if (IS_ERR(sec_nad)) {
-		QUEST_PRINT("%s Failed to create device(sec_nad)!\n", __func__);
-		return PTR_ERR(sec_nad);
-	}
-
+	// sysfs nodes at /sys/class/sec/sec_nad_balancer
 	ret = device_create_file(sec_nad_balancer, &dev_attr_balancer);
 	if (ret) {
 		QUEST_PRINT("%s: Failed to create device file\n", __func__);
@@ -2671,6 +2417,22 @@ static int __init sec_quest_init(void)
 		QUEST_PRINT("%s: Failed to create device file\n", __func__);
 		goto err_create_nad_sysfs;
 	}
+
+
+	// uevent for factory app
+	if (add_uevent_var(&quest_uevent, "NAD_TEST=%s", "DONE")) {
+		QUEST_PRINT("%s : uevent NAD_TEST_AND_PASS is failed to add\n",
+		       __func__);
+		goto err_create_nad_sysfs;
+	}
+
+#if defined(CONFIG_SEC_QUEST_AUTO_TRIGGER_KWORKER)
+	INIT_DELAYED_WORK(&trigger_quest_work, delayed_quest_work_func);
+	schedule_delayed_work(&trigger_quest_work, msecs_to_jiffies(WAIT_TIME_BEFORE_TRIGGER_MSECS));
+#endif
+
+	atomic_notifier_chain_register(&panic_notifier_list, &quest_panic_block);
+#endif
 
 	return 0;
 err_create_nad_sysfs:

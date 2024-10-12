@@ -2357,6 +2357,32 @@ static inline bool BAND_5G_PRESENT(uint8_t band_mask)
 	return !!(band_mask & (BIT(REG_BAND_5G)));
 }
 
+bool reg_is_freq_indoor(struct wlan_objmgr_pdev *pdev, qdf_freq_t freq)
+{
+	struct regulatory_channel *cur_chan_list;
+	struct wlan_regulatory_pdev_priv_obj *pdev_priv_obj;
+	enum channel_enum chan_enum;
+
+	pdev_priv_obj = reg_get_pdev_obj(pdev);
+
+	if (!IS_VALID_PDEV_REG_OBJ(pdev_priv_obj)) {
+		reg_err("reg pdev priv obj is NULL");
+		return false;
+	}
+
+	chan_enum = reg_get_chan_enum_for_freq(freq);
+
+	if (chan_enum == INVALID_CHANNEL) {
+		reg_err_rl("Invalid chan enum %d", chan_enum);
+		return false;
+	}
+
+	cur_chan_list = pdev_priv_obj->cur_chan_list;
+
+	return (cur_chan_list[chan_enum].chan_flags &
+		REGULATORY_CHAN_INDOOR_ONLY);
+}
+
 #ifdef CONFIG_BAND_6GHZ
 bool reg_is_6ghz_chan_freq(uint16_t freq)
 {
@@ -3410,13 +3436,46 @@ bool reg_is_dfs_for_freq(struct wlan_objmgr_pdev *pdev, qdf_freq_t freq)
 	return chan_flags & REGULATORY_CHAN_RADAR;
 }
 
+#ifdef CONFIG_REG_CLIENT
+/**
+ * reg_get_psoc_mas_chan_list () - Get psoc master channel list
+ * @pdev: pointer to pdev object
+ * @psoc: pointer to psoc object
+ *
+ * Return: psoc master chanel list
+ */
+static struct regulatory_channel *reg_get_psoc_mas_chan_list(
+						struct wlan_objmgr_pdev *pdev,
+						struct wlan_objmgr_psoc *psoc)
+{
+	struct wlan_regulatory_psoc_priv_obj *soc_reg;
+	uint8_t pdev_id;
+
+	soc_reg = reg_get_psoc_obj(psoc);
+	if (!soc_reg) {
+		reg_err("reg psoc private obj is NULL");
+		return NULL;
+	}
+	pdev_id = wlan_objmgr_pdev_get_pdev_id(pdev);
+
+	return soc_reg->mas_chan_params[pdev_id].mas_chan_list;
+}
+#else
+static inline struct regulatory_channel *reg_get_psoc_mas_chan_list(
+						struct wlan_objmgr_pdev *pdev,
+						struct wlan_objmgr_psoc *psoc)
+{
+	return NULL;
+}
+#endif
+
 void reg_update_nol_ch_for_freq(struct wlan_objmgr_pdev *pdev,
 				uint16_t *chan_freq_list,
 				uint8_t num_chan,
 				bool nol_chan)
 {
 	enum channel_enum chan_enum;
-	struct regulatory_channel *mas_chan_list;
+	struct regulatory_channel *mas_chan_list, *psoc_mas_chan_list;
 	struct wlan_regulatory_pdev_priv_obj *pdev_priv_obj;
 	struct wlan_objmgr_psoc *psoc;
 	uint16_t i;
@@ -3434,6 +3493,8 @@ void reg_update_nol_ch_for_freq(struct wlan_objmgr_pdev *pdev,
 		return;
 	}
 
+	psoc_mas_chan_list = reg_get_psoc_mas_chan_list(pdev, psoc);
+
 	mas_chan_list = pdev_priv_obj->mas_chan_list;
 	for (i = 0; i < num_chan; i++) {
 		chan_enum = reg_get_chan_enum_for_freq(chan_freq_list[i]);
@@ -3443,6 +3504,8 @@ void reg_update_nol_ch_for_freq(struct wlan_objmgr_pdev *pdev,
 			continue;
 		}
 		mas_chan_list[chan_enum].nol_chan = nol_chan;
+		if (psoc_mas_chan_list)
+			psoc_mas_chan_list[chan_enum].nol_chan = nol_chan;
 	}
 
 	reg_compute_pdev_current_chan_list(pdev_priv_obj);

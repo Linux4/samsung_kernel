@@ -3335,7 +3335,7 @@ static int proc_integrity_reset_cause(struct seq_file *m,
 				struct pid_namespace *ns,
 				struct pid *pid, struct task_struct *task)
 {
-	if (task->integrity->reset_cause)
+	if (task->integrity->reset_cause != CAUSE_UNSET)
 		seq_printf(m, "%s\n", tint_reset_cause_to_string(
 			task->integrity->reset_cause));
 	else
@@ -3633,7 +3633,7 @@ static const struct pid_entry tgid_base_stuff[] = {
 	REG("mountinfo",  S_IRUGO, proc_mountinfo_operations),
 	REG("mountstats", S_IRUSR, proc_mountstats_operations),
 #ifdef CONFIG_PROCESS_RECLAIM
-	REG("reclaim", 0200, proc_reclaim_operations),
+	REG("reclaim", 0222, proc_reclaim_operations),
 #endif
 #ifdef CONFIG_PROC_PAGE_MONITOR
 	REG("clear_refs", S_IWUSR, proc_clear_refs_operations),

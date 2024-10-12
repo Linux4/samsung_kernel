@@ -109,6 +109,9 @@ enum boot_events_type {
 	RIL_COMPLETE_CONNECTION,
 	RIL_CS_REG,
 	RIL_GPRS_ATTACH,
+#ifdef CONFIG_SEC_FACTORY
+	FACTORY_BOOT_COMPLETE,
+#endif /* CONFIG_SEC_FACTORY */
 	NUM_BOOT_EVENTS,
 };
 
@@ -210,6 +213,10 @@ static struct boot_event boot_events[] = {
 			"CS Registered", 0, 0},
 	{RIL_GPRS_ATTACH, EVT_RIL,
 			"GPRS Attached", 0, 0},
+#ifdef CONFIG_SEC_FACTORY
+	{FACTORY_BOOT_COMPLETE, EVT_PLATFORM,
+			"Factory Process [Boot Completed]", 0, 0},
+#endif /* CONFIG_SEC_FACTORY */
 	{0, EVT_INVALID, NULL, 0, 0},
 };
 
@@ -257,6 +264,7 @@ LIST_HEAD(device_init_time_list);
 LIST_HEAD(systemserver_init_time_list);
 
 LIST_HEAD(enhanced_boot_time_list);
+static DEFINE_SPINLOCK(enhanced_boot_time_list_lock);
 
 static int __init boot_recovery(char *str)
 {
@@ -414,7 +422,9 @@ void sec_enhanced_boot_stat_record(const char *buf)
 	t = local_clock();
 	do_div(t, 1000000ULL);
 	entry->ktime = (unsigned int)t;
+	spin_lock(&enhanced_boot_time_list_lock);
 	list_add(&entry->next, &enhanced_boot_time_list);
+	spin_unlock(&enhanced_boot_time_list_lock);
 	events_ebs++;
 }
 
