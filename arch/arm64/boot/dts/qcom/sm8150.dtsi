@@ -2974,32 +2974,6 @@
 		#mbox-cells = <1>;
 	};
 
-	qmp_npu0: qcom,qmp-npu-low@9818000 {
-		compatible = "qcom,qmp-mbox";
-		reg = <0x9818000 0x8000>, <0x9901008 0x4>;
-		reg-names = "msgram", "irq-reg-base";
-		qcom,irq-mask = <0x12>;
-		interrupts = <GIC_SPI 369 IRQ_TYPE_EDGE_RISING>;
-
-		label = "npu_qmp_low";
-		priority = <0>;
-		mbox-desc-offset = <0x0>;
-		#mbox-cells = <1>;
-	};
-
-	qmp_npu1: qcom,qmp-npu-high@9818000 {
-		compatible = "qcom,qmp-mbox";
-		reg = <0x9818000 0x8000>, <0x9901008 0x4>;
-		reg-names = "msgram", "irq-reg-base";
-		qcom,irq-mask = <0x14>;
-		interrupts = <GIC_SPI 370 IRQ_TYPE_EDGE_RISING>;
-
-		label = "npu_qmp_high";
-		priority = <1>;
-		mbox-desc-offset = <0x2000>;
-		#mbox-cells = <1>;
-	};
-
 	qcom,smp2p_sleepstate {
 		compatible = "qcom,smp2p-sleepstate";
 		qcom,smem-states = <&sleepstate_smp2p_out 0>;
