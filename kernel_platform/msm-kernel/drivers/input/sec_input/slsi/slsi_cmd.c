@@ -220,6 +220,13 @@ static ssize_t get_lp_dump(struct device *dev, struct device_attribute *attr, ch
 			sec_spg_dat[1] = 0;
 		}
 
+		if (dump_cnt * ts->sponge_dump_format > SEC_TS_MAX_SPONGE_DUMP_BUFFER) {
+			input_err(true, &ts->client->dev, "%s: wrong sponge sponge_dump_format size:%d dump_cnt:%d\n",
+				__func__, ts->sponge_dump_format, dump_cnt);
+			snprintf(buf, SEC_CMD_BUF_SIZE, "NG,wrong sponge_dump_format");
+			goto out;
+		}
+
 		ret = ts->slsi_ts_read_sponge(ts, sec_spg_dat, dump_cnt * ts->sponge_dump_format);
 		if (ret < 0) {
 			input_err(true, &ts->client->dev, "%s: Failed to read sponge\n", __func__);

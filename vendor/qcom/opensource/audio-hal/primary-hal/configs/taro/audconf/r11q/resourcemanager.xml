@@ -179,7 +179,15 @@
                     <channels>1</channels>
                     <snd_device_name>call-headphone-mic</snd_device_name>
                 </custom-config>
+                <custom-config key="translation_headphone_mic">
+                    <channels>1</channels>
+                    <snd_device_name>call-headphone-mic</snd_device_name>
+                </custom-config>
                 <custom-config key="usb_headphone_mic">
+                    <channels>1</channels>
+                    <snd_device_name>call-usb-headphone-mic</snd_device_name>
+                </custom-config>
+                <custom-config key="translation_usb_headphone_mic">
                     <channels>1</channels>
                     <snd_device_name>call-usb-headphone-mic</snd_device_name>
                 </custom-config>
@@ -376,6 +384,10 @@
                     <snd_device_name>video-call-speaker-mic</snd_device_name>
                 </custom-config>
                 <custom-config key="dex">
+                    <channels>1</channels>
+                    <snd_device_name>call-dex-speaker-mic</snd_device_name>
+                </custom-config>
+                <custom-config key="translation_dex">
                     <channels>1</channels>
                     <snd_device_name>call-dex-speaker-mic</snd_device_name>
                 </custom-config>

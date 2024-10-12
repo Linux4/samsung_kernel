@@ -1583,7 +1583,7 @@ int wma_extscan_hotlist_match_event_handler(void *handle,
 		return -ENOMEM;
 
 	dest_ap = &dest_hotlist->ap[0];
-	dest_hotlist->numOfAps = event->total_entries;
+	dest_hotlist->numOfAps = numap;
 	dest_hotlist->requestId = event->config_request_id;
 
 	if (event->first_entry_index +
@@ -1771,6 +1771,7 @@ static int wma_group_num_bss_to_scan_id(const u_int8_t *cmd_param_info,
 			param_buf->num_bssid_list);
 		return -EINVAL;
 	}
+
 	t_scan_id_grp = &t_cached_result->result[0];
 	wma_debug("num_scan_ids:%d",
 			t_cached_result->num_scan_ids);

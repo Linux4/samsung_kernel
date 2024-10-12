@@ -2928,6 +2928,16 @@
 						cooling-device = <0xffffffff 0x0f 0xffffffff>;
 					};
 
+					pm8450_cpu5_freq {
+						trip = <0x29>;
+						cooling-device = <0xffffffff 0x0f 0xffffffff>;
+					};
+
+					pm8450_cpu6_freq {
+						trip = <0x29>;
+						cooling-device = <0xffffffff 0x0f 0xffffffff>;
+					};
+
 					pm8450_cpu7_freq {
 						trip = <0x29>;
 						cooling-device = <0xffffffff 0x0f 0xffffffff>;
@@ -2950,6 +2960,16 @@
 					};
 
 					pm8350_cpu4_freq {
+						trip = <0x2a>;
+						cooling-device = <0xffffffff 0x0f 0xffffffff>;
+					};
+
+					pm8350_cpu5_freq {
+						trip = <0x2a>;
+						cooling-device = <0xffffffff 0x0f 0xffffffff>;
+					};
+
+					pm8350_cpu6_freq {
 						trip = <0x2a>;
 						cooling-device = <0xffffffff 0x0f 0xffffffff>;
 					};
@@ -2992,6 +3012,16 @@
 				cooling-maps {
 
 					cpu4_freq_cdev {
+						trip = <0x2c>;
+						cooling-device = <0xffffffff 0x0f 0xffffffff>;
+					};
+
+					cpu5_freq_cdev {
+						trip = <0x2c>;
+						cooling-device = <0xffffffff 0x0f 0xffffffff>;
+					};
+
+					cpu6_freq_cdev {
 						trip = <0x2c>;
 						cooling-device = <0xffffffff 0x0f 0xffffffff>;
 					};
@@ -10361,6 +10391,7 @@
 					s2dos05,wakeup;
 					pinctrl-names = "default";
 					pinctrl-0 = <0x60>;
+					sec_disp_pmic_name = "disp_pmic";
 					s2dos05,s2dos05_int = <0xffffffff 0x3e 0x00>;
 					adc_mode = <0x00>;
 					adc_sync_mode = <0x02>;
@@ -19375,6 +19406,8 @@
 		msm_gpu = "/fragment@15/__overlay__/pm8350b-bcl-lvl0/cooling-maps/vbat_gpu0:cooling-device:0\0/fragment@15/__overlay__/pm8350b-bcl-lvl1/cooling-maps/vbat_gpu1:cooling-device:0\0/fragment@15/__overlay__/pm8350b-bcl-lvl2/cooling-maps/vbat_gpu2:cooling-device:0\0/fragment@15/__overlay__/pm8350c-bcl-lvl0/cooling-maps/vph_gpu0:cooling-device:0\0/fragment@15/__overlay__/pm8350c-bcl-lvl1/cooling-maps/vph_gpu1:cooling-device:0\0/fragment@15/__overlay__/pm8350c-bcl-lvl2/cooling-maps/vph_gpu2:cooling-device:0\0/fragment@15/__overlay__/pm8350_tz/cooling-maps/pm8350_gpu:cooling-device:0\0/fragment@15/__overlay__/xo-therm/cooling-maps/gpu_cdev:cooling-device:0";
 		cpu_6_7_pause = "/fragment@15/__overlay__/pm8350b-bcl-lvl1/cooling-maps/vbat_cpu_6_7:cooling-device:0\0/fragment@15/__overlay__/pm8350c-bcl-lvl1/cooling-maps/vph_cpu_6_7:cooling-device:0";
 		CPU4 = "/fragment@15/__overlay__/pm8450_tz/cooling-maps/pm8450_cpu4_freq:cooling-device:0\0/fragment@15/__overlay__/pm8350_tz/cooling-maps/pm8350_cpu4_freq:cooling-device:0\0/fragment@15/__overlay__/xo-therm/cooling-maps/cpu4_freq_cdev:cooling-device:0";
+		CPU5 = "/fragment@15/__overlay__/pm8450_tz/cooling-maps/pm8450_cpu5_freq:cooling-device:0\0/fragment@15/__overlay__/pm8350_tz/cooling-maps/pm8350_cpu5_freq:cooling-device:0\0/fragment@15/__overlay__/xo-therm/cooling-maps/cpu5_freq_cdev:cooling-device:0";
+		CPU6 = "/fragment@15/__overlay__/pm8450_tz/cooling-maps/pm8450_cpu6_freq:cooling-device:0\0/fragment@15/__overlay__/pm8350_tz/cooling-maps/pm8350_cpu6_freq:cooling-device:0\0/fragment@15/__overlay__/xo-therm/cooling-maps/cpu6_freq_cdev:cooling-device:0";
 		CPU7 = "/fragment@15/__overlay__/pm8450_tz/cooling-maps/pm8450_cpu7_freq:cooling-device:0\0/fragment@15/__overlay__/pm8350_tz/cooling-maps/pm8350_cpu7_freq:cooling-device:0\0/fragment@15/__overlay__/xo-therm/cooling-maps/cpu7_freq_cdev:cooling-device:0";
 		APC1_pause = "/fragment@15/__overlay__/pm8450_tz/cooling-maps/pm8450_apc1:cooling-device:0\0/fragment@15/__overlay__/pm8350_tz/cooling-maps/pm8350_apc1:cooling-device:0\0/fragment@15/__overlay__/xo-therm/cooling-maps/apc1_cdev:cooling-device:0";
 		cpu5_hotplug = "/fragment@15/__overlay__/xo-therm/cooling-maps/cpu5_hot_cdev:cooling-device:0";
@@ -19971,6 +20004,14 @@
 							trip = <0x00>;
 						};
 
+						pm8450_cpu5_freq {
+							trip = <0x00>;
+						};
+
+						pm8450_cpu6_freq {
+							trip = <0x00>;
+						};
+
 						pm8450_cpu7_freq {
 							trip = <0x00>;
 						};
@@ -19990,6 +20031,14 @@
 						};
 
 						pm8350_cpu4_freq {
+							trip = <0x00>;
+						};
+
+						pm8350_cpu5_freq {
+							trip = <0x00>;
+						};
+
+						pm8350_cpu6_freq {
 							trip = <0x00>;
 						};
 
@@ -20026,6 +20075,14 @@
 					cooling-maps {
 
 						cpu4_freq_cdev {
+							trip = <0x00>;
+						};
+
+						cpu5_freq_cdev {
+							trip = <0x00>;
+						};
+
+						cpu6_freq_cdev {
 							trip = <0x00>;
 						};
 

@@ -662,7 +662,7 @@ static int cam_flash_torch(
 
 #if defined(CONFIG_FLASH_CURRENT_JAPAN)
 	CAM_INFO(CAM_FLASH, "CAM Torch Flash ON, %d mA", 50);
-	rc =  aw36518_fled_mode_ctrl(AW36518_FLED_MODE_TORCH_FLASH, 225);
+	rc =  aw36518_fled_mode_ctrl(AW36518_FLED_MODE_TORCH_FLASH, 50);
 #else
 	CAM_INFO(CAM_FLASH, "CAM Torch Flash ON, %d mA", flash_data->led_current_ma[0]);
 	if (flash_data->led_current_ma[0] == 140) {

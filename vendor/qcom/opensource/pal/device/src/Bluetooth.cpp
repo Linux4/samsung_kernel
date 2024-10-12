@@ -252,6 +252,14 @@ void Bluetooth::updateDeviceAttributes()
         deviceAttr.config.sample_rate = SAMPLINGRATE_96K;
         deviceAttr.config.aud_fmt_id = PAL_AUDIO_FMT_DEFAULT_COMPRESSED;
         break;
+// SS_BT_HFP - H_127 : RVP
+#ifdef SEC_AUDIO_BLUETOOTH
+    case CODEC_TYPE_RVP:
+        deviceAttr.config.sample_rate = SAMPLINGRATE_96K;
+        deviceAttr.config.aud_fmt_id = PAL_AUDIO_FMT_DEFAULT_COMPRESSED;
+        break;
+#endif
+// SS_BT_HFP - H_127 end
     case CODEC_TYPE_LC3:
         deviceAttr.config.sample_rate = SAMPLINGRATE_96K;
         deviceAttr.config.aud_fmt_id = PAL_AUDIO_FMT_DEFAULT_COMPRESSED;
@@ -267,6 +275,11 @@ bool Bluetooth::isPlaceholderEncoder()
         case CODEC_TYPE_LDAC:
         case CODEC_TYPE_APTX_AD:
         case CODEC_TYPE_APTX_AD_SPEECH:
+// SS_BT_HFP - H_127 : RVP
+#ifdef SEC_AUDIO_BLUETOOTH
+        case CODEC_TYPE_RVP:
+#endif
+// SS_BT_HFP - H_127 end
         case CODEC_TYPE_LC3:
 #ifdef SEC_PRODUCT_FEATURE_BLUETOOTH_SUPPORT_A2DP_OFFLOAD
         case CODEC_TYPE_SBC:
@@ -491,6 +504,14 @@ int Bluetooth::configureA2dpEncoderDecoder()
         PAL_DBG(LOG_TAG, "Skip the rest of static configurations coming from ACDB");
         goto done;
     }
+// SS_BT_HFP - H_127 : RVP
+#ifdef SEC_AUDIO_BLUETOOTH
+    if (codecFormat == CODEC_TYPE_RVP) {
+        PAL_DBG(LOG_TAG, "RVP, Skip the rest of static configurations coming from ACDB");
+        goto done;
+    }
+#endif
+// SS_BT_HFP - H_127 end
 
     if (codecFormat == CODEC_TYPE_APTX_DUAL_MONO ||
         codecFormat == CODEC_TYPE_APTX_AD) {
@@ -923,7 +944,12 @@ void Bluetooth::startAbr()
     if ((codecFormat == CODEC_TYPE_APTX_AD_SPEECH)
             || (codecFormat == CODEC_TYPE_LC3)) {
         fbDevice.config.sample_rate = SAMPLINGRATE_96K;
-    } else {
+// SS_BT_HFP - H_127 : RVP
+    } else if (codecFormat == CODEC_TYPE_RVP) {
+        fbDevice.config.sample_rate = SAMPLINGRATE_96K;
+    }
+// SS_BT_HFP - H_127 end
+    else {
         fbDevice.config.sample_rate = SAMPLINGRATE_8K;
     }
 
@@ -1018,7 +1044,8 @@ void Bluetooth::startAbr()
         goto free_fe;
     }
 
-    if (codecFormat == CODEC_TYPE_APTX_AD_SPEECH) {
+    if (codecFormat == CODEC_TYPE_APTX_AD_SPEECH
+            || codecFormat == CODEC_TYPE_RVP) { // SS_BT_HFP - H_127 : RVP
         builder = new PayloadBuilder();
 
         fbDev = std::dynamic_pointer_cast<BtSco>(BtSco::getInstance(&fbDevice, rm));
@@ -1366,6 +1393,17 @@ start_pcm:
                 fbDev->deviceCount, fbDev->deviceStartStopCount, fbDev->deviceAttr.id);
 
     }
+
+// SS_BT_HFP - H_127 : RVP
+    if (codecFormat == CODEC_TYPE_RVP) {
+        fbDev->isConfigured = true;
+        fbDev->deviceStartStopCount++;
+        fbDev->deviceCount++;
+        PAL_DBG(LOG_TAG, " codec RVP deviceCount %d deviceStartStopCount %d for device id %d",
+                fbDev->deviceCount, fbDev->deviceStartStopCount, fbDev->deviceAttr.id);
+    }
+// SS_BT_HFP - H_127 end
+
     if ((codecFormat == CODEC_TYPE_LC3) && (fbDev != NULL) &&
         (fbDevice.id == PAL_DEVICE_IN_BLUETOOTH_SCO_HEADSET ||
          fbDevice.id == PAL_DEVICE_OUT_BLUETOOTH_SCO ||
@@ -1458,12 +1496,29 @@ void Bluetooth::stopAbr()
         if ((fbDev->deviceStartStopCount > 0) &&
             (--fbDev->deviceStartStopCount == 0)) {
             fbDev->isConfigured = false;
+            fbDev->isAbrEnabled = false;
         }
         if (fbDev->deviceCount > 0)
             fbDev->deviceCount--;
         PAL_DBG(LOG_TAG, " deviceCount %d deviceStartStopCount %d for device id %d",
                 fbDev->deviceCount, fbDev->deviceStartStopCount, fbDev->deviceAttr.id);
     }
+
+// SS_BT_HFP - H_127 : RVP
+    if ((codecFormat == CODEC_TYPE_RVP) && fbDev) {
+        if ((fbDev->deviceStartStopCount > 0) &&
+                (--fbDev->deviceStartStopCount == 0)) {
+            fbDev->isConfigured = false;
+            fbDev->isAbrEnabled = false;
+        }
+        if (fbDev->deviceCount > 0) {
+            fbDev->deviceCount--;
+        }
+        PAL_DBG(LOG_TAG, " codec RVP deviceCount %d deviceStartStopCount %d for device id %d",
+                fbDev->deviceCount, fbDev->deviceStartStopCount, fbDev->deviceAttr.id);
+    }
+// SS_BT_HFP - H_127 end
+
     if ((codecFormat == CODEC_TYPE_LC3) &&
         (deviceAttr.id == PAL_DEVICE_OUT_BLUETOOTH_SCO ||
          deviceAttr.id == PAL_DEVICE_IN_BLUETOOTH_SCO_HEADSET ||
@@ -1472,6 +1527,7 @@ void Bluetooth::stopAbr()
         if ((fbDev->deviceStartStopCount > 0) &&
             (--fbDev->deviceStartStopCount == 0)) {
             fbDev->isConfigured = false;
+            fbDev->isAbrEnabled = false;
         }
         if (fbDev->deviceCount > 0)
             fbDev->deviceCount--;
@@ -3051,6 +3107,12 @@ bool BtSco::isScoOn = false;
 bool BtSco::isWbSpeechEnabled = false;
 int  BtSco::swbSpeechMode = SPEECH_MODE_INVALID;
 bool BtSco::isSwbLc3Enabled = false;
+// SS_BT_HFP - H_127 : RVP
+#ifdef SEC_AUDIO_BLUETOOTH
+int BtSco::rvpMode = PAL_BT_SCO_CODEC_TYPE_NONE;
+#endif
+// SS_BT_HFP - H_127 end
+
 audio_lc3_codec_cfg_t BtSco::lc3CodecInfo = {};
 bool BtSco::isNrecEnabled = false;
 
@@ -3077,6 +3139,13 @@ bool BtSco::isDeviceReady()
 
 void BtSco::updateSampleRate(uint32_t *sampleRate)
 {
+// SS_BT_HFP - H_127 : RVP
+#ifdef SEC_AUDIO_BLUETOOTH
+    if (rvpMode == PAL_BT_SCO_CODEC_TYPE_RVP) {
+        *sampleRate = SAMPLINGRATE_96K;
+    } else
+#endif
+// SS_BT_HFP - H_127 end
     if (isWbSpeechEnabled)
         *sampleRate = SAMPLINGRATE_16K;
     else if (swbSpeechMode != SPEECH_MODE_INVALID)
@@ -3092,6 +3161,14 @@ int32_t BtSco::setDeviceParameter(uint32_t param_id, void *param)
     pal_param_btsco_t* param_bt_sco = (pal_param_btsco_t *)param;
 
     switch (param_id) {
+// SS_BT_HFP - H_127 : RVP
+#ifdef SEC_AUDIO_BLUETOOTH
+    case PAL_PARAM_ID_BT_SCO_CODEC_TYPE:
+        rvpMode = param_bt_sco->bt_sco_codec_type;
+        PAL_DBG(LOG_TAG, "rvpMode = %d", rvpMode);
+        break;
+#endif
+// SS_BT_HFP - H_127 end
     case PAL_PARAM_ID_BT_SCO:
         isScoOn = param_bt_sco->bt_sco_on;
         break;
@@ -3261,6 +3338,25 @@ int BtSco::startSwb()
     return ret;
 }
 
+// SS_BT_HFP - H_127 : RVP
+#ifdef SEC_AUDIO_BLUETOOTH
+int BtSco::startRvp()
+{
+    int ret = 0;
+
+    if (!isConfigured) {
+        ret = configureA2dpEncoderDecoder();
+    } else {
+        if (codecFormat == CODEC_TYPE_RVP) {
+            isAbrEnabled = true;
+        }
+    }
+
+    return ret;
+}
+#endif
+// SS_BT_HFP - H_127 end
+
 int BtSco::start()
 {
     int status = 0;
@@ -3279,6 +3375,16 @@ int BtSco::start()
         codecFormat = CODEC_TYPE_LC3;
         codecInfo = (void *)&lc3CodecInfo;
     }
+// SS_BT_HFP - H_127 : RVP
+#ifdef SEC_AUDIO_BLUETOOTH
+    else if (rvpMode != PAL_BT_SCO_CODEC_TYPE_NONE) {
+        codecFormat = CODEC_TYPE_RVP;
+        codecInfo = (void *)&rvpMode;
+    } else {
+        codecFormat = CODEC_TYPE_INVALID;
+    }
+#endif
+// SS_BT_HFP - H_127 end
 
     updateDeviceMetadata();
     if ((codecFormat == CODEC_TYPE_APTX_AD_SPEECH) ||
@@ -3286,7 +3392,18 @@ int BtSco::start()
         status = startSwb();
         if (status)
             goto exit;
-    } else {
+    } 
+// SS_BT_HFP - H_127 : RVP
+#ifdef SEC_AUDIO_BLUETOOTH
+    else if (codecFormat == CODEC_TYPE_RVP) {
+        status = startRvp();
+        if (status) {
+            goto exit;
+        }
+    }
+#endif
+// SS_BT_HFP - H_127 end
+    else {
         // For SCO NB and WB that don't have encoder and decoder in place,
         // just override codec configurations with device attributions.
         codecConfig.bit_width = deviceAttr.config.bit_width;

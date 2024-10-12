@@ -332,6 +332,8 @@ skip_call_handle_vblank_virt:
 			ss_print_vsync(vdd);
 		else
 			vdd->vrr.check_vsync = 0;
+
+		vdd->panel_hbm_exit_frame_wait = false;
 	}
 #endif
 

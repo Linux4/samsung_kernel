@@ -5308,7 +5308,6 @@ void wma_add_sta(tp_wma_handle wma, tpAddStaParams add_sta)
 {
 	uint8_t oper_mode = BSS_OPERATIONAL_MODE_STA;
 	void *htc_handle;
-	QDF_STATUS status = QDF_STATUS_SUCCESS;
 
 	htc_handle = lmac_get_htc_hdl(wma->psoc);
 	if (!htc_handle) {
@@ -5333,7 +5332,7 @@ void wma_add_sta(tp_wma_handle wma, tpAddStaParams add_sta)
 		wma_add_sta_req_ap_mode(wma, add_sta);
 		break;
 	case BSS_OPERATIONAL_MODE_NDI:
-		status = wma_add_sta_ndi_mode(wma, add_sta);
+		wma_add_sta_ndi_mode(wma, add_sta);
 		break;
 	}
 
@@ -5374,8 +5373,7 @@ void wma_add_sta(tp_wma_handle wma, tpAddStaParams add_sta)
 	}
 
 	/* handle wow for nan with 1 or more peer in same way */
-	if (BSS_OPERATIONAL_MODE_NDI == oper_mode &&
-	    QDF_IS_STATUS_SUCCESS(status)) {
+	if (BSS_OPERATIONAL_MODE_NDI == oper_mode) {
 		wma_debug("disable runtime pm and vote for link up");
 		htc_vote_link_up(htc_handle, HTC_LINK_VOTE_NDP_USER_ID);
 		wma_ndp_prevent_runtime_pm(wma);
@@ -5391,7 +5389,6 @@ void wma_delete_sta(tp_wma_handle wma, tpDeleteStaParams del_sta)
 	uint8_t vdev_id = del_sta->smesessionId;
 	bool rsp_requested = del_sta->respReqd;
 	void *htc_handle;
-	QDF_STATUS status = QDF_STATUS_SUCCESS;
 
 	htc_handle = lmac_get_htc_hdl(wma->psoc);
 	if (!htc_handle) {
@@ -5432,7 +5429,7 @@ void wma_delete_sta(tp_wma_handle wma, tpDeleteStaParams del_sta)
 			qdf_mem_free(del_sta);
 		break;
 	case BSS_OPERATIONAL_MODE_NDI:
-		status = wma_delete_sta_req_ndi_mode(wma, del_sta);
+		wma_delete_sta_req_ndi_mode(wma, del_sta);
 		break;
 	default:
 		wma_err("Incorrect oper mode %d", oper_mode);
@@ -5475,8 +5472,7 @@ void wma_delete_sta(tp_wma_handle wma, tpDeleteStaParams del_sta)
 		return;
 	}
 
-	if (BSS_OPERATIONAL_MODE_NDI == oper_mode &&
-	    QDF_IS_STATUS_SUCCESS(status)) {
+	if (BSS_OPERATIONAL_MODE_NDI == oper_mode) {
 		wma_debug("allow runtime pm and vote for link down");
 		htc_vote_link_down(htc_handle, HTC_LINK_VOTE_NDP_USER_ID);
 		wma_ndp_allow_runtime_pm(wma);

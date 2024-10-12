@@ -946,6 +946,9 @@ typedef enum {
 #ifdef SEC_AUDIO_BLUETOOTH
     PAL_PARAM_ID_BT_SCO_CODEC_TYPE = 2005,
 #endif
+#ifdef SEC_AUDIO_MULTI_DEVICE_SOUND
+    PAL_PARAM_ID_LEAKAGE_PROTECTION_ENABLED = 2006,
+#endif
 } pal_param_id_type_t;
 
 /** HDMI/DP */

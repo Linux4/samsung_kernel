@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2012-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/kernel.h>
@@ -54,10 +54,9 @@ static int exit_usb_ep_set_maxpacket_limit(struct kretprobe_instance *ri,
 		ep->maxpacket_limit = 1024;
 		ep->maxpacket = 1024;
 	}
- 
- 	return 0;
- }
 
+	return 0;
+}
 
 static int entry_dwc3_gadget_run_stop(struct kretprobe_instance *ri,
 				   struct pt_regs *regs)
@@ -244,6 +243,7 @@ static int entry___dwc3_gadget_start(struct kretprobe_instance *ri,
 	return 0;
 }
 
+#ifdef CONFIG_USB_DWC3_MSM_DEBUG
 static int entry_trace_dwc3_ctrl_req(struct kretprobe_instance *ri,
 				   struct pt_regs *regs)
 {
@@ -318,6 +318,7 @@ static int entry_trace_dwc3_event(struct kretprobe_instance *ri,
 
 	return 0;
 }
+#endif
 
 static int entry_dwc3_gadget_vbus_draw(struct kretprobe_instance *ri,
 				   struct pt_regs *regs)
@@ -367,6 +368,7 @@ static struct kretprobe dwc3_msm_probes[] = {
 	ENTRY_EXIT(dwc3_gadget_conndone_interrupt),
 	ENTRY_EXIT(dwc3_gadget_pullup),
 	ENTRY(__dwc3_gadget_start),
+#ifdef CONFIG_USB_DWC3_MSM_DEBUG
 	ENTRY(trace_dwc3_ctrl_req),
 	ENTRY(trace_dwc3_ep_queue),
 	ENTRY(trace_dwc3_ep_dequeue),
@@ -374,6 +376,7 @@ static struct kretprobe dwc3_msm_probes[] = {
 	ENTRY(trace_dwc3_gadget_ep_cmd),
 	ENTRY(trace_dwc3_prepare_trb),
 	ENTRY(trace_dwc3_event),
+#endif
 	ENTRY_EXIT(usb_ep_set_maxpacket_limit),
 	ENTRY(dwc3_gadget_vbus_draw),
 };

@@ -430,7 +430,7 @@ int32_t aw36518_fled_mode_ctrl(int state, uint32_t brightness)
 		break;
 
 	case AW36518_FLED_MODE_TORCH_FLASH: /* TORCH FLASH */
-		aw36518_set_torch_cur(pdata->video_torch_cur);
+		aw36518_set_torch_cur(iq_cur);
 		aw36518_enable_torch(true);
 		pr_info("aw36518-fled: %s: AW36518_FLED_MODE_TORCH_FLASH(%d) done\n",
 			__func__, state);

@@ -46,6 +46,7 @@
 #include <linux/reboot.h>
 #include <linux/sec_displayport.h>
 #include <linux/sched/clock.h>
+#include <linux/bitmap.h>
 #include "secdp.h"
 #include "secdp_sysfs.h"
 #if defined(CONFIG_SEC_DISPLAYPORT_BIGDATA)
@@ -627,8 +628,9 @@ end:
 	adapter->dex_type = dex_type;
 }
 
-static bool secdp_adapter_check_parade(struct dp_display_private *dp)
+bool secdp_adapter_check_parade(void)
 {
+	struct dp_display_private *dp = g_secdp_priv;
 	struct secdp_adapter *adapter = &dp->sec.adapter;
 
 	if (adapter->ieee_oui[0] == 0x00 &&
@@ -639,8 +641,9 @@ static bool secdp_adapter_check_parade(struct dp_display_private *dp)
 	return false;
 }
 
-static bool secdp_adapter_check_ps176(struct dp_display_private *dp)
+bool secdp_adapter_check_ps176(void)
 {
+	struct dp_display_private *dp = g_secdp_priv;
 	struct secdp_adapter *adapter = &dp->sec.adapter;
 
 	if (adapter->devid_str[0] == '1' &&
@@ -655,10 +658,10 @@ static bool secdp_adapter_check_ps176_legacy(struct dp_display_private *dp)
 {
 	struct secdp_adapter *adapter = &dp->sec.adapter;
 
-	if (!secdp_adapter_check_parade(dp))
+	if (!secdp_adapter_check_parade())
 		return false;
 
-	if (!secdp_adapter_check_ps176(dp))
+	if (!secdp_adapter_check_ps176())
 		return false;
 
 	if (adapter->fw_ver[1] != 0x07)
@@ -5612,6 +5615,31 @@ end:
 	return ret;
 }
 
+#if defined(REMOVE_YUV420_AT_PREFER)
+__visible_for_testing bool secdp_prefer_remove_yuv420(struct dp_display_private *dp,
+				struct drm_display_mode *mode)
+{
+	struct drm_connector *connector = dp->dp_display.base_connector;
+	u8 vic;
+	bool result = false;
+
+	if (!secdp_check_prefer_resolution(dp, mode))
+		goto exit;
+
+	if (!drm_mode_is_420_only(&connector->display_info, mode))
+		goto exit;
+
+	vic = drm_match_cea_mode(mode);
+
+	/* HACK: prevent preferred from becomming ycbcr420 */
+	bitmap_clear(connector->display_info.hdmi.y420_vdb_modes, vic, 1);
+	DP_INFO("unset ycbcr420 of vic %d\n", vic);
+	result = true;
+exit:
+	return result;
+}
+#endif
+
 __visible_for_testing bool secdp_check_resolution(struct dp_display_private *dp,
 				struct drm_display_mode *mode,
 				bool supported)
@@ -5646,6 +5674,10 @@ __visible_for_testing bool secdp_check_resolution(struct dp_display_private *dp,
 		DP_INFO_M("prefer timing found! %dx%d@%dhz, %s\n",
 			prefer->hdisp, prefer->vdisp, prefer->refresh,
 			secdp_aspect_ratio_to_string(prefer->ratio));
+
+#if defined(REMOVE_YUV420_AT_PREFER)
+		secdp_prefer_remove_yuv420(dp, mode);
+#endif
 
 		if (!prefer_support) {
 			DP_INFO("remove prefer!\n");

@@ -71,7 +71,8 @@ void nfc_parse_dt_for_platform_device(struct device *dev)
 		if (IS_ERR(nfc_configs->nfc_pvdd))
 			NFC_LOG_ERR("get nfc_pvdd error\n");
 		else
-			NFC_LOG_INFO("LDO nfc_pvdd: %pK\n", nfc_configs->nfc_pvdd);
+			NFC_LOG_INFO("LDO nfc_pvdd: %pK, vol:%d\n",
+				nfc_configs->nfc_pvdd, regulator_get_voltage(nfc_configs->nfc_pvdd));
 	}
 }
 #endif
@@ -173,7 +174,8 @@ int nfc_parse_dt(struct device *dev, struct platform_configs *nfc_configs,
 		else
 			return -ENODEV;
 	} else {
-		NFC_LOG_INFO("LDO nfc_pvdd: %pK\n", nfc_configs->nfc_pvdd);
+		NFC_LOG_INFO("LDO nfc_pvdd: %pK, vol:%d\n",
+				nfc_configs->nfc_pvdd, regulator_get_voltage(nfc_configs->nfc_pvdd));
 	}
 
 	if (of_find_property(np, "clocks", NULL)) {
@@ -193,6 +195,8 @@ int nfc_parse_dt(struct device *dev, struct platform_configs *nfc_configs,
 }
 
 #if IS_ENABLED(CONFIG_SAMSUNG_NFC)
+static int nfc_ocp_notifier(struct notifier_block *nb, unsigned long event, void *data);
+
 int nfc_regulator_onoff(struct nfc_dev *nfc_dev, int onoff)
 {
 	int rc = 0;
@@ -217,6 +221,12 @@ int nfc_regulator_onoff(struct nfc_dev *nfc_dev, int onoff)
 		NFC_LOG_ERR("error at regulator!\n");
 		rc = -ENODEV;
 		goto done;
+	}
+
+	if (nfc_configs->ap_vendor == AP_VENDOR_QCT && !nfc_configs->ldo_ocp_nb.notifier_call) {
+		nfc_configs->ldo_ocp_nb.notifier_call = nfc_ocp_notifier;
+		devm_regulator_register_notifier(nfc_configs->nfc_pvdd, &nfc_configs->ldo_ocp_nb);
+		NFC_LOG_INFO("%s register nfc ocp notifier\n", __func__);
 	}
 
 	NFC_LOG_INFO("onoff = %d, g_is_nfc_pvdd_enabled = %d\n", onoff, g_is_nfc_pvdd_enabled);
@@ -376,6 +386,14 @@ void nfc_power_control(struct nfc_dev *nfc_dev)
 	gpio_set_ven(nfc_dev, 1);
 	gpio_set_ven(nfc_dev, 0);
 	gpio_set_ven(nfc_dev, 1);
+}
+
+static int nfc_ocp_notifier(struct notifier_block *nb, unsigned long event, void *data)
+{
+	if (event == REGULATOR_EVENT_OVER_CURRENT)
+		NFC_LOG_ERR("NFC power OCP\n");
+
+	return NOTIFY_OK;
 }
 
 static ssize_t nfc_support_show(struct class *class,

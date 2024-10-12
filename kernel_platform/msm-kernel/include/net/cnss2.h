@@ -102,12 +102,12 @@ enum cnss_bus_event_type {
 };
 
 enum cnss_wfc_mode {
-    CNSS_WFC_MODE_OFF,
-    CNSS_WFC_MODE_ON,
+	CNSS_WFC_MODE_OFF,
+	CNSS_WFC_MODE_ON,
 };
 
 struct cnss_wfc_cfg {
-    enum cnss_wfc_mode mode;
+	enum cnss_wfc_mode mode;
 };
 
 struct cnss_hang_event {
@@ -147,9 +147,9 @@ struct cnss_wlan_driver {
 	const struct pci_device_id *id_table;
 	u32 chip_version;
 	enum cnss_driver_mode (*get_driver_mode)(void);
-    int (*set_therm_cdev_state)(struct pci_dev *pci_dev,
-                                unsigned long thermal_state,
-                                int tcdev_id);
+	int (*set_therm_cdev_state)(struct pci_dev *pci_dev,
+				    unsigned long thermal_state,
+				    int tcdev_id);
 };
 
 struct cnss_ce_tgt_pipe_cfg {
@@ -318,10 +318,13 @@ extern void cnss_disable_ssr(void);
 extern bool cnss_get_fw_cap(struct device *dev, enum cnss_fw_caps fw_cap);
 extern int cnss_set_wfc_mode(struct device *dev, struct cnss_wfc_cfg cfg);
 extern int cnss_thermal_cdev_register(struct device *dev,
-                     unsigned long max_state,
-                     int tcdev_id);
+				      unsigned long max_state,
+				      int tcdev_id);
 extern void cnss_thermal_cdev_unregister(struct device *dev, int tcdev_id);
 extern int cnss_get_curr_therm_cdev_state(struct device *dev,
-                     unsigned long *thermal_state,
-                     int tcdev_id);
+					  unsigned long *thermal_state,
+					  int tcdev_id);
+extern int cnss_update_time_sync_period(struct device *dev,
+					 uint32_t time_sync_period);
+extern int cnss_reset_time_sync_period(struct device *dev);
 #endif /* _NET_CNSS2_H */

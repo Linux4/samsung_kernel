@@ -4914,11 +4914,7 @@ int tsl2510_probe(struct i2c_client *client, const struct i2c_device_id *id)
 		goto err_sysfs_create_group;
 	}
 
-#if IS_ENABLED(CONFIG_ARCH_EXYNOS)
-	err = sensors_register(data->dev, data, tsl2510_sensor_attrs, MODULE_NAME_ALS);
-#else
-	err = sensors_register(&data->dev, data, tsl2510_sensor_attrs, MODULE_NAME_ALS);
-#endif
+	err = sensors_register(&data->sensor_dev, data, tsl2510_sensor_attrs, MODULE_NAME_ALS);
 	if (err) {
 		ALS_err("%s - cound not register als_sensor(%d).\n", __func__, err);
 		goto als_sensor_register_failed;
@@ -4971,7 +4967,7 @@ int tsl2510_probe(struct i2c_client *client, const struct i2c_device_id *id)
 dev_set_drvdata_failed:
 	free_irq(data->dev_irq, data);
 err_setup_irq:
-	sensors_unregister(data->dev, tsl2510_sensor_attrs);
+	sensors_unregister(data->sensor_dev, tsl2510_sensor_attrs);
 als_sensor_register_failed:
 	sysfs_remove_group(&data->als_input_dev->dev.kobj,
 			&als_attribute_group);
@@ -5059,7 +5055,7 @@ int tsl2510_remove(struct i2c_client *client)
 		data->regulator_vdd_1p8 = NULL;
 	}
 
-	sensors_unregister(data->dev, tsl2510_sensor_attrs);
+	sensors_unregister(data->sensor_dev, tsl2510_sensor_attrs);
 	sysfs_remove_group(&data->als_input_dev->dev.kobj, &als_attribute_group);
 #if IS_ENABLED(CONFIG_ARCH_EXYNOS)
 	sensors_remove_symlink(data->als_input_dev);

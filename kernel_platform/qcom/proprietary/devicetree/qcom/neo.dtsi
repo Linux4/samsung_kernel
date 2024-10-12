@@ -317,7 +317,7 @@
 		alloc-ranges = <0x0 0x00000000 0x0 0xffffffff>;
 		no-map;
 		alignment = <0x0 0x400000>;
-		size = <0x0 0xC00000>;
+		size = <0x0 0x1000000>;
 	};
 
 	lsr_righteye_mem_heap: lsr_righteye_region {
@@ -325,7 +325,7 @@
 		alloc-ranges = <0x0 0x00000000 0x0 0xffffffff>;
 		no-map;
 		alignment = <0x0 0x400000>;
-		size = <0x0 0xC00000>;
+		size = <0x0 0x1000000>;
 	};
 
 	lsr_depth_mem_heap: lsr_depth_region {
@@ -1056,6 +1056,7 @@
 
 		qcom,devfreq,freq-table = <50000000 200000000>;
 		qcom,scaling-lower-bus-speed-mode = "DDR52";
+		qcom,need_special_up_threshold;
 
 		qcom,dll_lock_bist_fail_wa;
 		cap-mmc-hw-reset;

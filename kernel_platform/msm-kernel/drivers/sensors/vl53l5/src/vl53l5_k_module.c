@@ -107,7 +107,7 @@
 #include <linux/of_platform.h>
 
 #ifdef CONFIG_SENSORS_VL53L5_SLSI
-extern int sensors_register(struct device *dev, void *drvdata,
+extern int sensors_register(struct device **dev, void *drvdata,
 	struct device_attribute *attributes[], char *name);
 #endif
 
@@ -2038,14 +2038,8 @@ int vl53l5_k_spi_probe(struct spi_device *spi)
 	}
 
 	if (init_global_module == false) {
-#ifdef CONFIG_SENSORS_VL53L5_QCOM
 		status = sensors_register(&p_module->factory_device,
 			p_module, sensor_attrs, MODULE_NAME);
-#endif
-#ifdef CONFIG_SENSORS_VL53L5_SLSI
-		status = sensors_register(p_module->factory_device,
-			p_module, sensor_attrs, MODULE_NAME);
-#endif
 
 		if (status) {
 			vl53l5_k_log_error("%s - could not register sensor(%d).\n",
@@ -2587,14 +2581,9 @@ static int __init vl53l5_k_init(void)
 		goto done;
 	}
 	if (global_p_module != NULL) {
-#ifdef CONFIG_SENSORS_VL53L5_QCOM
 		status = sensors_register(&global_p_module->factory_device,
 			global_p_module, sensor_attrs, MODULE_NAME);
-#endif
-#ifdef CONFIG_SENSORS_VL53L5_SLSI
-		status = sensors_register(global_p_module->factory_device,
-			global_p_module, sensor_attrs, MODULE_NAME);
-#endif
+
 		if (status)
 			vl53l5_k_log_error("could not register sensor-%d\n", status);
 	}
