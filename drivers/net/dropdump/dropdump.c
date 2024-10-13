@@ -533,7 +533,7 @@ int skb_validate(struct sk_buff *skb)
 
 		switch (skb->dev->name[0]) {
 			case 'r' : // rmnet*
-			case 'w' : // wlan
+			//case 'w' : // wlan
 			case 'v' : // v4-rmnet*
 			case 'l' : // lo
 			//case 's' : // swlan /* swlan logging makes rcu lock starvation */

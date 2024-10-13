@@ -80,6 +80,8 @@ struct s2dos05_platform_data {
 	 * 3: 1.9A
 	 */
 	int		ocl_elvss;
+
+	unsigned int	enable_fd_delay_ms;
 #endif /* CONFIG_SEC_PM */
 };
 

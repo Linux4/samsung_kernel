@@ -15,7 +15,7 @@ config KPERFMON
 
 config KPERFMON_BUILD
 	tristate "Building tyoe of performance log"
-	default m
+	default y
 	help
 		Samsung performance log(OLOG).
 		This is to set a build type for module or build-in.
