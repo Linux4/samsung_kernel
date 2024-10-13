@@ -1,37 +1,14 @@
-dts-dirs += altera
-dts-dirs += amd
-dts-dirs += apm
-dts-dirs += arm
-dts-dirs += broadcom
-dts-dirs += cavium
-dts-dirs += exynos
-dts-dirs += freescale
-dts-dirs += hisilicon
-dts-dirs += marvell
-dts-dirs += mediatek
-dts-dirs += qcom
-dts-dirs += rockchip
-dts-dirs += sprd
-dts-dirs += xilinx
-
-subdir-y	:= $(dts-dirs)
-
-dtstree		:= $(srctree)/$(src)
-
-dtb-$(CONFIG_OF_ALL_DTBS) := $(patsubst $(dtstree)/%.dts,%.dtb, $(foreach d,$(dts-dirs), $(wildcard $(dtstree)/$(d)/*.dts)))
-
-always		:= $(dtb-y) $(dtbo-y)
+# SPDX-License-Identifier: GPL-2.0
+dtb-y += exynos/dtbo/exynos7885.dtb
+dtbo-y += exynos/dtbo/exynos7884B-a20_cis_ser_00.dtbo
+dtbo-y += exynos/dtbo/exynos7884B-a20_cis_ser_01.dtbo
+dtbo-y += exynos/dtbo/exynos7884B-a20_can_single_03.dtbo
+dtbo-y += exynos/dtbo/exynos7884B-a20_can_single_05.dtbo
 
 targets += dtbs
-
-DTB_NAMES := $(subst $\",,$(CONFIG_BUILD_ARM64_APPENDED_DTB_IMAGE_NAMES))
-ifneq ($(DTB_NAMES),)
-DTB_LIST := $(addsuffix .dtb,$(DTB_NAMES))
-else
-DTB_LIST := $(dtb-y) $(dtbo-y)
-endif
-targets += $(DTB_LIST)
+DTB_LIST  := $(dtb-y) $(dtbo-y)
+always    := $(DTB_LIST)
 
 dtbs: $(addprefix $(obj)/, $(DTB_LIST))
 
-clean-files := dts/*.dtb *.dtb*
+clean-files := *.dtb*
