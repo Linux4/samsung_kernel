@@ -30,6 +30,7 @@
 #define DISP_CHIST_POST_PARAM_INDEX 9
 
 #define DISP_CHIST_CHANNEL_COUNT 7
+#define CHIST_NUM 2
 #define DISP_CHIST_MAX_RGB 0x0321
 
 #define DISP_CHIST_DUAL_PIPE_OVERLAP 0
@@ -338,11 +339,13 @@ int mtk_drm_ioctl_get_chist(struct drm_device *dev, void *data,
 		return -EFAULT;
 	}
 
-	DDPINFO("%s chist id:%d, get count:%d\n", __func__,
+	DDPINFO("%s, chist id:%d, get count:%d\n", __func__,
 		hist->device_id, hist->get_channel_count);
 
-	if (hist->get_channel_count == 0) {
-		DDPPR_ERR("%s get channel count is 0\n", __func__);
+	if (hist->get_channel_count == 0 ||
+			hist->get_channel_count > DISP_CHIST_CHANNEL_COUNT) {
+		DDPPR_ERR("%s, invalid get channel count is %u\n",
+				__func__, hist->get_channel_count);
 		return -EFAULT;
 	}
 
@@ -558,7 +561,7 @@ static int mtk_chist_user_cmd(struct mtk_ddp_comp *comp,
 	struct drm_mtk_chist_config *config = data;
 	unsigned long flags;
 	int i = 0;
-	int index = index_of_chist(comp->id);
+	unsigned int index = index_of_chist(comp->id);
 	int bypass = 1;
 
 	if (config->config_channel_count == 0)
@@ -572,7 +575,7 @@ static int mtk_chist_user_cmd(struct mtk_ddp_comp *comp,
 				sizeof(config->chist_config[i]));
 		channel_id = channel_config.channel_id;
 
-		if (channel_id > DISP_CHIST_CHANNEL_COUNT)
+		if (index >= CHIST_NUM || channel_id >= DISP_CHIST_CHANNEL_COUNT)
 			continue;
 
 		spin_lock_irqsave(&g_chist_global_lock, flags);

@@ -19,8 +19,11 @@
 #include <linux/types.h>
 #include <linux/device.h>
 
+#ifdef CONFIG_SHUB_TEST_FOR_ONLY_UML
+#define ACCEL_CALIBRATION_FILE_PATH "accelerometer_calibration.txt"
+#else
 #define ACCEL_CALIBRATION_FILE_PATH "/efs/FactoryApp/calibration_data"
-
+#endif
 struct accel_event {
 	s16 x;
 	s16 y;
@@ -46,6 +49,7 @@ struct accelerometer_data {
 	int position;
 	struct calibration_data cal_data;
 	bool is_accel_alert;
+	int range;
 };
 
 struct sensor_chipset_init_funcs *get_accelometer_lsm6dsl_function_pointer(char *name);

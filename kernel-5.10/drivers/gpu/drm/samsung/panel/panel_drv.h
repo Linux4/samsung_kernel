@@ -289,6 +289,9 @@ struct panel_drv_funcs {
 	int (*req_set_clock)(struct panel_device *, void *);
 	int (*get_ddi_props)(struct panel_device *, void *);
 	int (*get_rcd_info)(struct panel_device *, void *);
+	int (*first_frame)(struct panel_device *);
+	int (*set_brightness)(struct panel_device *, unsigned int brightness_level);
+	int (*set_uevent_recovery_state)(struct panel_device *, void *);
 };
 
 int panel_drv_attach_adapter_ioctl(struct panel_device *panel, void *arg);
@@ -350,6 +353,11 @@ enum panel_bypass {
 	PANEL_BYPASS_ON = 1,
 };
 
+enum panel_uevent_recovery_state {
+	PANEL_UEVENT_RECOVERY_IDLE = 0,
+	PANEL_UEVENT_RECOVERY_RUNNING = 1,
+};
+
 enum {
 	PANEL_PCD_BYPASS_OFF = 0,
 	PANEL_PCD_BYPASS_ON = 1,
@@ -400,6 +408,7 @@ enum {
 	PANEL_WORK_CHECK_CONDITION,
 	PANEL_WORK_UPDATE,
 	PANEL_WORK_EVASION_DISP_DET,
+	PANEL_WORK_LATE_PROBE,
 	PANEL_WORK_MAX,
 };
 
@@ -435,6 +444,7 @@ struct panel_state {
 	int lpm_brightness;
 	int pcd_bypass;
 	int fsync_event_on;
+	enum panel_uevent_recovery_state uevent_recovery;
 };
 
 struct copr_spi_gpios {
@@ -690,6 +700,7 @@ struct panel_device {
 	ktime_t ktime_panel_on;
 	ktime_t ktime_panel_off;
 	ktime_t ktime_panel_disp_on;
+	ktime_t ktime_first_frame;
 
 	struct dim_flash_result flash_checksum_result;
 
@@ -749,6 +760,7 @@ int panel_decoder_test(struct panel_device *panel, u8 *buf, int len);
 #if defined(CONFIG_USDM_PANEL_VCOM_TRIM_TEST)
 int panel_vcom_trim_test(struct panel_device *panel, u8 *buf, int len);
 #endif
+int panel_check_mipi_read_test(struct panel_device *panel, char *buf);
 int panel_ddi_init(struct panel_device *panel);
 
 #ifdef CONFIG_USDM_PANEL_DIM_FLASH
@@ -861,6 +873,7 @@ int panel_get_octa_id(struct panel_device *panel, char *buf);
 int panel_get_cell_id(struct panel_device *panel, char *buf);
 int panel_get_manufacture_code(struct panel_device *panel, char *buf);
 int panel_get_manufacture_date(struct panel_device *panel, char *buf);
+int panel_get_temperature_range(struct panel_device *panel, char *buf);
 
 bool panel_disconnected(struct panel_device *panel);
 #ifdef CONFIG_USDM_DDI_CMDLOG
@@ -905,6 +918,7 @@ int panel_get_rcd_info(struct panel_device *panel, void *arg);
 #else
 static inline int panel_get_rcd_info(struct panel_device *panel, void *arg) { return -ENODEV; }
 #endif
+int panel_set_brightness(struct panel_device *panel, unsigned int level);
 
 struct list_head *panel_get_object_list(struct panel_device *panel,
 		unsigned int type);

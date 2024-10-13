@@ -77,6 +77,7 @@ static int parse_sdp_osc_freq(struct device_node *np,
 	return 0;
 }
 
+#ifdef DEBUG_SDP_ADAPTIVE_MIPI
 static int snprintf_mipi_rating_elem(char *buf, size_t size,
 		struct adaptive_mipi_v2_table_element *elem)
 {
@@ -127,6 +128,7 @@ static void dump_osc_sel_elem_table(char *table_name,
 		pr_info("%3d: %s\n", i, buf);
 	}
 }
+#endif
 
 __visible_for_testing int u32_array_to_mipi_rating_elem(
 		struct adaptive_mipi_v2_table_element *elem,
@@ -261,10 +263,12 @@ static int parse_sdp_adaptive_mipi_dt(struct device_node *np,
 				&sdp_adap_mipi->mipi_table[i],
 				&sdp_adap_mipi->mipi_table_size[i]);
 
+#ifdef DEBUG_SDP_ADAPTIVE_MIPI
 		dump_mipi_rating_elem_table(
 				dt_mipi_rating_table_names[i],
 				sdp_adap_mipi->mipi_table[i],
 				sdp_adap_mipi->mipi_table_size[i]);
+#endif
 	}
 
 	if (!of_find_property(np, DT_NAME_OSC_FREQ_LISTS, NULL))
@@ -282,10 +286,12 @@ static int parse_sdp_adaptive_mipi_dt(struct device_node *np,
 			&sdp_adap_mipi->osc_table,
 			&sdp_adap_mipi->osc_table_size);
 
+#ifdef DEBUG_SDP_ADAPTIVE_MIPI
 	dump_osc_sel_elem_table(
 			DT_NAME_OSC_FREQ_SEL,
 			sdp_adap_mipi->osc_table,
 			sdp_adap_mipi->osc_table_size);
+#endif
 
 	return 0;
 }
@@ -325,7 +331,6 @@ int adaptive_mipi_v2_info_initialize(
 	memcpy(sdp_adap_mipi->osc_clocks_khz, adap_mipi->freq_info.osc_lists,
 			sizeof(sdp_adap_mipi->osc_clocks_khz));
 	sdp_adap_mipi->osc_clocks_size = adap_mipi->freq_info.osc_cnt;
-	sdp_adap_mipi->cur_mipi_clock_index = 0;
 
 	for (i = 0; i < MAX_BANDWIDTH_IDX; i++) {
 		if (list_empty(&adap_mipi->rf_info_head[i]))

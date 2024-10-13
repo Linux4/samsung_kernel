@@ -313,6 +313,14 @@
 		};
 	};
 
+	// Internal pull up(0x5:2k, 0x7:1k)
+	camera_i2c2_pullup_2k: camera_i2c2_pull_up_2k {
+		pins_bus {
+			pinmux = <PINMUX_GPIO135__FUNC_SDA2>, <PINMUX_GPIO134__FUNC_SCL2>;
+			bias-pull-up = <MTK_PULL_SET_RSEL_101>;
+		};
+	};
+
 /****************  default  ***************/
 	camera_pins_default: camdefault {
 	};
@@ -407,7 +415,7 @@
 		use_dualcam_set_cal;
 		use_module_check;
 		//skip_cal_loading;         /* for test without cal loading */
-		//check_final_cam_module;   /* use after DVR */
+		check_final_cam_module;   /* use after DVR */
 		max_supported_camera = <4>;
 		supported_cameraId = <0 1 50 54>; /* REAR, FRONT, REAR2, REAR3 */
 
@@ -510,6 +518,9 @@
 	clock-frequency = <400000>;
 	mediatek,use-open-drain;
 
+	pinctrl-names = "default";
+	pinctrl-0 = <&camera_i2c2_pullup_2k>;
+
 	camera_main_two_mtk:camera_main_two@6C{
 		compatible = "mediatek,camera_main_two";
 		reg = <0x36>;
@@ -536,7 +547,7 @@
 	status = "okay";
 	#address-cells = <1>;
 	#size-cells = <0>;
-	clock-frequency = <400000>;
+	clock-frequency = <1000000>;
 	mediatek,use-open-drain;
 	camera_sub_mtk:camera_sub@72 {
 		compatible = "mediatek,camera_sub";

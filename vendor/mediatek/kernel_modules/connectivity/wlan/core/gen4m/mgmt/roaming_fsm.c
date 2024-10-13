@@ -966,17 +966,19 @@ void roamingFsmLogScanStart(IN struct ADAPTER *prAdapter,
 {
 	struct ROAMING_INFO *prRoamInfo;
 	uint32_t u4CannelUtilization = 0;
+	uint8_t ucIsValidCu = FALSE;
 	char aucLog[256] = {0};
 
 	prRoamInfo = aisGetRoamingInfo(prAdapter, ucBssIndex);
-	u4CannelUtilization = prBssDesc ?
-		(prBssDesc->ucChnlUtilization * 100 / 255) : 0;
+	ucIsValidCu = (prBssDesc && prBssDesc->fgExistBssLoadIE);
+	if (ucIsValidCu)
+		u4CannelUtilization = prBssDesc->ucChnlUtilization * 100 / 255;
 
 	kalSprintf(aucLog,
 		"[ROAM] SCAN_START reason=%d rssi=%d cu=%d full_scan=%d rssi_thres=%d",
 		apucRoamingReasonToLog[prRoamInfo->eReason],
 		RCPI_TO_dBm(prRoamInfo->ucRcpi),
-		prBssDesc->fgExistBssLoadIE ? u4CannelUtilization : -1,
+		ucIsValidCu ? u4CannelUtilization : -1,
 		fgIsFullScn, RCPI_TO_dBm(prRoamInfo->ucThreshold));
 
 	kalReportWifiLog(prAdapter, ucBssIndex, aucLog);

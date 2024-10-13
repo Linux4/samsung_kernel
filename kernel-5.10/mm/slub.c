@@ -310,10 +310,12 @@ static inline void set_freepointer(struct kmem_cache *s, void *object, void *fp)
 
 	freeptr_addr = (unsigned long)kasan_reset_tag((void *)freeptr_addr);
 #ifdef CONFIG_KDP
-	if (kdp_enable && is_kdp_kmem_cache(s))
-		uh_call(UH_APP_KDP, SET_FREEPTR, (u64)object, (u64)s->offset, (u64)fp,
-				(u64)freelist_ptr(s, fp, freeptr_addr));
-	else
+	if (kdp_enable && is_kdp_kmem_cache(s)) {
+		u64 new_freelist_ptr = (u64)freelist_ptr(s, fp, freeptr_addr);
+		if (new_freelist_ptr != *(u64 *)freeptr_addr)
+			uh_call(UH_APP_KDP, SET_FREEPTR, (u64)object,
+				(u64)s->offset, (u64)fp, new_freelist_ptr);
+	} else
 #endif
 	*(void **)freeptr_addr = freelist_ptr(s, fp, freeptr_addr);
 }

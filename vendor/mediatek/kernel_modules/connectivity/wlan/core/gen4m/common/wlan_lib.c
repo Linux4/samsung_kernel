@@ -7596,6 +7596,32 @@ void wlanInitFeatureOption(IN struct ADAPTER *prAdapter)
 	prWifiVar->ucGbandProbe256QAM = (uint8_t) wlanCfgGetUint32(
 					prAdapter, "Probe256QAM",
 					FEATURE_ENABLED);
+
+	prWifiVar->ucCustomer1Oui = (uint8_t) wlanCfgGetUint32(
+			prAdapter, "Customer1Oui", FEATURE_ENABLED);
+	prWifiVar->ucCus1Oui[0] = (uint8_t) wlanCfgGetUint32(
+					prAdapter, "Cus1Oui0", 0x00);
+	prWifiVar->ucCus1Oui[1] = (uint8_t) wlanCfgGetUint32(
+					prAdapter, "Cus1Oui1", 0x16);
+	prWifiVar->ucCus1Oui[2] = (uint8_t) wlanCfgGetUint32(
+					prAdapter, "Cus1Oui2", 0x32);
+	prWifiVar->ucCusOuiLen[0] = (uint8_t) wlanCfgGetUint32(
+					prAdapter, "Cus1OuiLen", 5);
+	prWifiVar->ucCusOuiType[0] = (uint8_t) wlanCfgGetUint32(
+					prAdapter, "Cus1OuiType", 0x80);
+
+	prWifiVar->ucCustomer2Oui = (uint8_t) wlanCfgGetUint32(
+			prAdapter, "Customer2Oui", FEATURE_ENABLED);
+	prWifiVar->ucCus2Oui[0] = (uint8_t) wlanCfgGetUint32(
+					prAdapter, "Cus2Oui0", 0x00);
+	prWifiVar->ucCus2Oui[1] = (uint8_t) wlanCfgGetUint32(
+					prAdapter, "Cus2Oui1", 0x00);
+	prWifiVar->ucCus2Oui[2] = (uint8_t) wlanCfgGetUint32(
+					prAdapter, "Cus2Oui2", 0x0F);
+	prWifiVar->ucCusOuiLen[1] = (uint8_t) wlanCfgGetUint32(
+					prAdapter, "Cus2OuiLen", 4);
+	prWifiVar->ucCusOuiType[1] = (uint8_t) wlanCfgGetUint32(
+					prAdapter, "Cus2OuiType", 0xfe);
 #endif
 #if CFG_SUPPORT_VHT_IE_IN_2G
 	prWifiVar->ucVhtIeIn2g = (uint8_t) wlanCfgGetUint32(

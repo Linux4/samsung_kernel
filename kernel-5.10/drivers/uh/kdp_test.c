@@ -9,9 +9,6 @@
 
 #include <linux/kdp.h>
 
-/* Never enable this flag*/
-//#define CONFIG_KDP_SEC_TEST
-
 struct task_security_struct {
 	u32 osid;               /* SID prior to last execve */
 	u32 sid;                /* current SID */
@@ -200,119 +197,6 @@ static int test_case_ns_ro(void)
 	return test_case_kdp_ro(CMD_ID_NS);
 }
 
-#ifdef CONFIG_KDP_SEC_TEST
-enum {
-	CMD_ID_COMMIT_CRED,
-	CMD_ID_OVERRIDE_CRED,
-	CMD_ID_REVERT_CRED,
-};
-
-enum {
-	CMD_ID_SEC_WRITE_CRED,
-	CMD_ID_SEC_WRITE_SP,
-	CMD_ID_SEC_DIRECT_PE,
-	CMD_ID_SEC_INDIRECT_PE_COMMIT,
-	CMD_ID_SEC_INDIRECT_PE_OVERRIDE,
-	CMD_ID_SEC_INDIRECT_PE_REVERT,
-};
-
-#define PROCFS_MAX_SIZE	64
-void write_ro(u64 *p)
-{
-	memcpy(p, "c", 1);
-}
-static void sec_test_cred(void)
-{
-	write_ro((u64 *)current_cred());
-}
-static void sec_test_sp(void)
-{
-	write_ro((u64 *)current_cred()->security);
-}
-
-struct cred *get_root_cred(void)
-{
-	struct cred *cred;
-
-	cred = prepare_creds();
-	cred->uid.val  = 0;
-	cred->gid.val  = 0;
-	cred->euid.val = 0;
-	cred->egid.val = 0;
-
-	return cred;
-}
-
-static void sec_test_cred_direct_pe(void)
-{
-	struct cred *rcred;
-
-	rcred = get_root_cred();
-	current->cred = rcred;
-}
-
-static void sec_test_cred_indirect_pe(int cmd_id)
-{
-	struct cred *rcred;
-
-	rcred = get_root_cred();
-	pr_info("RKP_SEC_TEST #%d# BEFORE current cred uid = %llx euid = %llx gid = %llx egid = %llx Root Cred%llx\n",
-			cmd_id, current->cred->uid.val, current->cred->euid.val, current->cred->gid.val,
-			current->cred->egid.val, (u64)rcred);
-
-	switch (cmd_id) {
-	case CMD_ID_COMMIT_CRED:
-		commit_creds(rcred);
-		break;
-	case CMD_ID_OVERRIDE_CRED:
-		override_creds(rcred);
-		break;
-	case CMD_ID_REVERT_CRED:
-		revert_creds(rcred);
-	break;
-	}
-
-	pr_info("RKP_SEC_TEST#%d# AFTER current cred uid = %llx euid = %llx gid = %llx egid = %llx  Root Cred %llx\n",
-			cmd_id, current->cred->uid.val, current->cred->euid.val, current->cred->gid.val,
-			current->cred->egid.val, (u64)rcred);
-}
-
-ssize_t kdp_test_write(struct file *filep, const char __user *buffer, size_t len, loff_t *offset)
-{
-	char procfs_buffer[PROCFS_MAX_SIZE];
-	int buff_size;
-	int tcase;
-
-	buff_size = (len > PROCFS_MAX_SIZE)?PROCFS_MAX_SIZE:len;
-
-	if (copy_from_user(procfs_buffer, buffer, buff_size))
-		return -EFAULT;
-
-	sscanf(procfs_buffer, "%d", &tcase);
-	switch (tcase) {
-	case CMD_ID_SEC_WRITE_CRED:
-		sec_test_cred();
-		break;
-	case CMD_ID_SEC_WRITE_SP:
-		sec_test_sp();
-		break;
-	case CMD_ID_SEC_DIRECT_PE:
-		sec_test_cred_direct_pe();
-		break;
-	case CMD_ID_SEC_INDIRECT_PE_COMMIT:
-		sec_test_cred_indirect_pe(CMD_ID_COMMIT_CRED);
-		break;
-	case CMD_ID_SEC_INDIRECT_PE_OVERRIDE:
-		sec_test_cred_indirect_pe(CMD_ID_OVERRIDE_CRED);
-		break;
-	case CMD_ID_SEC_INDIRECT_PE_REVERT:
-		sec_test_cred_indirect_pe(CMD_ID_REVERT_CRED);
-		break;
-	}
-	return len;
-}
-#endif /* CONFIG_KDP_SEC_TEST*/
-
 ssize_t kdp_test_read(struct file *filep, char __user *buffer, size_t count, loff_t *ppos)
 {
 	int ret = 0, temp_ret = 0, i = 0;
@@ -356,20 +240,13 @@ ssize_t kdp_test_read(struct file *filep, char __user *buffer, size_t count, lof
 
 static const struct proc_ops kdp_proc_ops = {
 	.proc_read		= kdp_test_read,
-#ifdef CONFIG_KDP_SEC_TEST
-	.proc_write		= kdp_test_write,
-#endif
 };
 
 static int __init kdp_test_init(void)
 {
 	u64 va;
 
-#ifndef CONFIG_KDP_SEC_TEST
 	if (proc_create("kdp_test", 0444, NULL, &kdp_proc_ops) == NULL) {
-#else
-	if (proc_create("kdp_test", 0777, NULL, &kdp_proc_ops) == NULL) {
-#endif
 		pr_err("KDP_TEST: Error creating proc entry");
 		return -1;
 	}

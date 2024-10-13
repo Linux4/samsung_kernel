@@ -1469,8 +1469,9 @@ struct ACTION_FRAME_SIZE_MAP {
 		TRUE : FALSE)
 
 #define RXM_IS_FROM_DS_TO_DS(_u2FrameCtrl) \
-	(RXM_IS_TO_DS(_u2FrameCtrl) && RXM_IS_FROM_DS(_u2FrameCtrl))
-
+	(((_u2FrameCtrl & MASK_TO_DS_FROM_DS) == MASK_TO_DS_FROM_DS) ?\
+		TRUE : FALSE)
+			
 /*******************************************************************************
  *                   F U N C T I O N   D E C L A R A T I O N S
  *******************************************************************************
@@ -1578,5 +1579,7 @@ uint8_t nicRxGetRcpiValueFromRxv(
 
 int32_t nicRxGetLastRxRssi(struct ADAPTER *prAdapter, IN char *pcCommand,
 			IN int i4TotalLen, IN uint8_t ucWlanIdx);
+
+uint8_t nicIsActionFrameValid(IN struct SW_RFB *prSwRfb);
 
 #endif /* _NIC_RX_H */

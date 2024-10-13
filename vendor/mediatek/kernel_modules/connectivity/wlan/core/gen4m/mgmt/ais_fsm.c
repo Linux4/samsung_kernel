@@ -1479,7 +1479,7 @@ void aisFsmNotifyManageChannelList(
 	struct CONNECTION_SETTINGS *conn;
 	uint8_t i = 0;
 	uint8_t essChnlNum = 0;
-	uint8_t size = 0;
+	uint32_t size = 0;
 
 	wiphy = prAdapter->prGlueInfo->prDevHandler->ieee80211_ptr->wiphy;
 	wdev = wlanGetNetDev(prAdapter->prGlueInfo, ucBssIndex)->ieee80211_ptr;
@@ -4448,7 +4448,7 @@ void aisUpdateBssInfoForJOIN(IN struct ADAPTER *prAdapter,
 	struct BSS_DESC *prBssDesc;
 	uint16_t u2IELength;
 	uint8_t *pucIE;
-	struct PARAM_SSID rSsid;
+	struct PARAM_SSID rSsid = {0};
 	uint8_t ucBssIndex = 0;
 
 	DEBUGFUNC("aisUpdateBssInfoForJOIN()");
@@ -5785,7 +5785,7 @@ void aisBssBeaconTimeout_impl(IN struct ADAPTER *prAdapter,
 		prAisBtoInfo->ucDisconnectReason = ucDisconnectReason;
 
 		if (roam && join) {
-			struct PARAM_SSID rSsid;
+			struct PARAM_SSID rSsid = {0};
 
 			DBGLOG(AIS, EVENT,
 				"Postpone aisBssBeaconTimeout, roam=%d, join=%d",
@@ -6124,7 +6124,7 @@ void aisFsmRoamingDisconnectPrevAP(IN struct ADAPTER *prAdapter,
 	 * send Deauth if needed.
 	 */
 	if (prAisBssInfo->eConnectionState == MEDIA_STATE_CONNECTED) {
-		struct PARAM_SSID rSsid;
+		struct PARAM_SSID rSsid = {0};
 		struct BSS_DESC *prBssDesc = NULL;
 
 		COPY_SSID(rSsid.aucSsid, rSsid.u4SsidLen, prAisBssInfo->aucSSID,
@@ -6730,6 +6730,8 @@ void aisFsmRunEventNchoActionFrameTx(IN struct ADAPTER *prAdapter,
 
 	do {
 		prMgmtTxMsg = (struct MSG_MGMT_TX_REQUEST *)prMsgHdr;
+		if (prMgmtTxMsg == NULL)
+			break;
 
 		ucBssIndex = prMgmtTxMsg->ucBssIdx;
 
@@ -8063,7 +8065,7 @@ void aisRetrieveTarget(IN struct ADAPTER *prAdapter,
 				IN uint8_t ucBssIndex) {
 	struct AIS_FSM_INFO *prAisFsmInfo;
 	struct BSS_INFO *prAisBssInfo;
-	struct PARAM_SSID rSsid;
+	struct PARAM_SSID rSsid = {0};
 
 	prAisFsmInfo = aisGetAisFsmInfo(prAdapter, ucBssIndex);
 	prAisBssInfo = aisGetAisBssInfo(prAdapter, ucBssIndex);

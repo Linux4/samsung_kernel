@@ -39,6 +39,11 @@
 #define I2C_BUFFER_LEN (TRANSFER_UNIT)
 #endif
 
+#define XTC_BURST_WRITE_MODE (1)
+#if XTC_BURST_WRITE_MODE
+#define I2C_BURST_BUFFER_LEN 1400
+#endif
+
 static int sNightHyperlapseSpeed;
 
 #ifndef HI5022Q_DISABLE_ADAPTIVE_MIPI
@@ -427,6 +432,34 @@ static int write_cmos_sensor_8(kal_uint16 addr, kal_uint8 para)
 
 	return ret;
 }
+
+#if XTC_BURST_WRITE_MODE
+static int burst_table_write_cmos_sensor(kal_uint16 *para, kal_uint32 len)
+{
+	char puSendCmd[I2C_BURST_BUFFER_LEN];
+	kal_uint32 tosend = 0, IDX = 0;
+	kal_uint16 addr = 0, data = 0;
+
+	while (len > IDX) {
+		addr = para[IDX];
+		if (tosend == 0) {
+			puSendCmd[tosend++] = (char)(addr >> 8);
+			puSendCmd[tosend++] = (char)(addr & 0xFF);
+		}
+
+		data = para[IDX + 1];
+		puSendCmd[tosend++] = (char)(data >> 8);
+		puSendCmd[tosend++] = (char)(data & 0xFF);
+		IDX += 2;
+
+		if ((len == IDX) || ((len > IDX) && (para[IDX] != (addr + 2))) || tosend >= (I2C_BURST_BUFFER_LEN - TRANSFER_UNIT)) {
+			iBurstWriteReg_multi(puSendCmd, tosend, imgsensor.i2c_write_id, tosend, imgsensor_info.i2c_speed);
+			tosend = 0;
+		}
+	}
+	return 0;
+}
+#endif
 
 static int table_write_cmos_sensor(kal_uint16 *para, kal_uint32 len)
 {
@@ -942,7 +975,11 @@ static void write_sensor_hw_xgc(void)
 		write_data[2 * i + 1] = ((rom_cal_buf[2 * i] << 8) | rom_cal_buf[2 * i + 1]);
 		LOG_DBG("write data[%d]: %#06x", 2 * i + 1, write_data[2 * i + 1]);
 	}
+#if XTC_BURST_WRITE_MODE
+	burst_table_write_cmos_sensor(write_data, data_size / 2);
+#else
 	table_write_cmos_sensor(write_data, data_size / 2);
+#endif
 	LOG_INF("Gb done writing %d bytes", data_size / 2);
 
 	// XGC(Gb line) SRAM memory access disable
@@ -961,7 +998,11 @@ static void write_sensor_hw_xgc(void)
 		write_data[2 * i + 1] = ((rom_cal_buf[2 * i] << 8) | rom_cal_buf[2 * i + 1]);
 		LOG_DBG("write data[%d]: %#06x", 2 * i + 1, write_data[2 * i + 1]);
 	}
+#if XTC_BURST_WRITE_MODE
+	burst_table_write_cmos_sensor(write_data, data_size / 2);
+#else
 	table_write_cmos_sensor(write_data, data_size / 2);
+#endif
 	LOG_INF("Gr done writing %d bytes", data_size / 2);
 
 	// XGC(Gr line) SRAM memory access disable
@@ -1053,7 +1094,11 @@ static void write_sensor_hw_qbgc(void)
 		write_data[2 * i + 1] = ((rom_cal_buf[2 * i] << 8) | rom_cal_buf[2 * i + 1]);
 		LOG_DBG("write data[%d]: %#06x", 2 * i + 1, write_data[2 * i + 1]);
 	}
+#if XTC_BURST_WRITE_MODE
+	burst_table_write_cmos_sensor(write_data, data_size);
+#else
 	table_write_cmos_sensor(write_data, data_size);
+#endif
 	LOG_INF("done writing %d bytes", data_size);
 
 	// QBGC SRAM memory access disable

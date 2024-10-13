@@ -207,7 +207,7 @@
 /*i2c regmap init setting */
 #define REG_MAX         0x2A
 #define HL7132_I2C_NAME "hl7132"
-#define HL7132_MODULE_VERSION "17.3.08042023"
+#define HL7132_MODULE_VERSION "17.6.11302023"
 
 #define CONFIG_HALO_PASS_THROUGH
 /* #define CONFIG_FG_READING_FOR_CVMODE */

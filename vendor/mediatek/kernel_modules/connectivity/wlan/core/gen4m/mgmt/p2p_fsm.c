@@ -486,8 +486,8 @@ void p2pFsmRunEventTxCancelWait(IN struct ADAPTER *prAdapter,
 
 }				/* p2pFsmRunEventTxCancelWait */
 
-void p2pFsmRunEventCsaDoneTimeOut(struct ADAPTER *prAdapter,
-		uintptr_t ulParamPtr)
+void p2pFsmRunEventCsaDoneTimeOut(IN struct ADAPTER *prAdapter,
+		IN uintptr_t ulParamPtr)
 {
 	DBGLOG(P2P, TRACE,
 		"CSA block scan timeout\n");

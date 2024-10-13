@@ -450,6 +450,7 @@ struct golden_setting_context {
 	unsigned int dst_height;
 	// add for rdma default goden setting
 	unsigned int vrefresh;
+	bool disable_rdma_underflow;
 };
 
 struct mtk_ddp_config {

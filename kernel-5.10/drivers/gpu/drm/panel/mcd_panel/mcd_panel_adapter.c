@@ -57,6 +57,15 @@ static int mcd_drm_parse_dt(void *_ctx, struct device_node *np)
 	ret = of_property_read_u32(np, "MTK,multi_drop", &ctx->spec.multi_drop);
 	dev_info(ctx->dev, "%s: multi_drop: %d\n", __func__, ctx->spec.multi_drop);
 
+	ret = of_property_read_u32(np, "MTK,phy_timcon-hs_trail", &ctx->spec.phy_timcon.hs_trail);
+	dev_info(ctx->dev, "%s: phy_timcon-hs_trail: %d\n", __func__, ctx->spec.phy_timcon.hs_trail);
+
+	ret = of_property_read_u32(np, "MTK,phy_timcon-lpx", &ctx->spec.phy_timcon.lpx);
+	dev_info(ctx->dev, "%s: phy_timcon-lpx: %d\n", __func__, ctx->spec.phy_timcon.lpx);
+
+	ret = of_property_read_u32(np, "MTK,disable_rdma_underflow", &ctx->spec.disable_rdma_underflow);
+	dev_info(ctx->dev, "%s: disable_rdma_underflow: %d\n", __func__, ctx->spec.disable_rdma_underflow);
+
 	return 0;
 }
 

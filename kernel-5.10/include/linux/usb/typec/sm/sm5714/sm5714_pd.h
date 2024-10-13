@@ -979,6 +979,7 @@ struct sm5714_usbpd_manager_data {
 #endif
 	bool support_vpdo;
 	bool support_15w_vpdo;
+	int short_cable_current;
 };
 
 struct sm5714_usbpd_data {

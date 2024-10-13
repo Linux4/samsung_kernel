@@ -13,6 +13,8 @@ include $(MTK_LPM_MODULES_FOLDER)/debug/$(MTK_LPM_CPC_VERSION)/Makefile
 
 LPM_MODULE_DEBUG_COMMON += $(${BUILD_LPM_DBG_CPC_NAME}_objs:%.o=../$(MTK_LPM_CPC_VERSION)/%.o)
 
+ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/include/
+ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/cmdq/mailbox/
 
 ccflags-y += -I$(MTK_LPM_MODULES_FOLDER)/include/
 ccflags-y += -I$(MTK_LPM_MODULES_FOLDER)/debug/$(MTK_LPM_CPC_VERSION)

@@ -484,14 +484,8 @@ static ssize_t clk_buf_pmif_store(struct kobject *kobj,
 		xo_cmd.cmd = CLKBUF_CMD_INIT;
 
 	ret = clkbuf_dcxo_notify(i, &xo_cmd);
-	if (ret) {
+	if (ret)
 		pr_notice("clkbuf pmif cmd failed: %d\n", ret);
-		goto PMIF_STORE_DONE;
-	}
-	goto PMIF_STORE_DONE;
-
-	pr_notice("unknown command: %s, target: %u\n", cmd, target);
-	ret = count;
 
 PMIF_STORE_DONE:
 	return count;
@@ -682,7 +676,6 @@ static ssize_t clk_buf_bblpm_show(struct kobject *kobj,
 				clkbuf_dcxo_get_xo_name(i),
 				xo_stat);
 	}
-	len -= 2;
 	len += snprintf(buf + len, PAGE_SIZE - len, "\n");
 
 	ret = clkbuf_dcxo_get_hwbblpm_sel(&hwbblpm_sel);
@@ -699,10 +692,7 @@ static ssize_t clk_buf_bblpm_show(struct kobject *kobj,
 	}
 
 	bblpm_cond = clk_buf_bblpm_enter_cond();
-	if (bblpm_cond >= 0) {
-		len += snprintf(buf + len, PAGE_SIZE - len, "bblpm enter cond: 0x%x\n",
-			bblpm_cond);
-	}
+	len += snprintf(buf + len, PAGE_SIZE - len, "bblpm enter cond: 0x%x\n", bblpm_cond);
 
 	len += snprintf(buf + len, PAGE_SIZE - len,
 			"available input: HW, SW, SW_ON, SW_OFF");

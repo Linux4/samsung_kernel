@@ -38,7 +38,7 @@ struct panel_irc_info;
 #define MAX_PANEL_BL_NAME_SIZE (32)
 
 #ifdef CONFIG_USDM_PANEL_BACKLIGHT_PAC_3_0
-#define BRT_SCALE	(100)
+#define BRT_SCALE	(10)
 #define PANEL_BACKLIGHT_PAC_STEPS	(512)
 #else
 #define PANEL_BACKLIGHT_PAC_STEPS	(256)
@@ -184,6 +184,7 @@ struct panel_bl_properties {
 	int mask_layer_br_hook;
 #endif
 	atomic_t brightness_set_count;
+	atomic_t brightness_non_zero_set_count;
 	bool saved;
 };
 
@@ -278,5 +279,5 @@ int search_tbl(int *tbl, int sz, enum SEARCH_TYPE type, int value);
 int panel_bl_get_brightness_set_count(struct panel_bl_device *panel_bl);
 void panel_bl_update_acl_state(struct panel_bl_device *panel_bl);
 int panel_update_subdev_brightness(struct panel_device *panel, u32 subdev_id, u32 brightness);
-
+void panel_bl_clear_brightness_non_zero_set_count(struct panel_bl_device *panel_bl);
 #endif /* __PANEL_BL_H__ */

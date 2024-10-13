@@ -164,6 +164,10 @@ struct APPEND_VAR_IE_ENTRY txBcnIETable[] = {
 #if CFG_SUPPORT_MTK_SYNERGY
 	, {(ELEM_HDR_LEN + ELEM_MIN_LEN_MTK_OUI), NULL,
 	   rlmGenerateMTKOuiIE}	/* 221 */
+    , {0, rlmCalculateCustomer1OuiIELen,
+	   rlmGenerateCustomer1OuiIE}
+	, {0, rlmCalculateCustomer2OuiIELen,
+	   rlmGenerateCustomer2OuiIE}
 #endif
 #if (CFG_SUPPORT_DFS_MASTER == 1)
 	, {(ELEM_HDR_LEN + ELEM_MIN_LEN_CSA), NULL,
@@ -223,6 +227,10 @@ struct APPEND_VAR_IE_ENTRY txProbRspIETable[] = {
 #if CFG_SUPPORT_MTK_SYNERGY
 	, {(ELEM_HDR_LEN + ELEM_MIN_LEN_MTK_OUI), NULL,
 	   rlmGenerateMTKOuiIE}	/* 221 */
+    ,{0, rlmCalculateCustomer1OuiIELen,
+	   rlmGenerateCustomer1OuiIE}
+	, {0, rlmCalculateCustomer2OuiIELen,
+	   rlmGenerateCustomer2OuiIE}
 #endif
 	, {(ELEM_HDR_LEN + ELEM_MAX_LEN_RSN), NULL,
 	   rsnGenerateRSNXIE}   /* 244 */

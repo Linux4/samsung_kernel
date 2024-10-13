@@ -109,7 +109,7 @@ const char *get_vrr_lfd_client_name(int index);
 int find_vrr_lfd_client_name(const char *name);
 const char *get_vrr_lfd_scope_name(int index);
 int find_vrr_lfd_scope_name(const char *name);
-int update_vrr_lfd(struct panel_device *panel, struct vrr_lfd_info *vrr_lfd_info);
+int update_vrr_lfd(struct panel_device *panel);
 struct panel_vrr *get_panel_vrr(struct panel_device *panel);
 int get_panel_refresh_rate(struct panel_device *panel);
 int get_panel_refresh_mode(struct panel_device *panel);

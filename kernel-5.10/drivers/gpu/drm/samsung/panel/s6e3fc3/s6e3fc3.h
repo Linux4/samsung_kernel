@@ -569,7 +569,7 @@ static struct dumpinfo s6e3fc3_dmptbl[] = {
 #ifdef CONFIG_USDM_DDI_CMDLOG
 	[DUMP_CMDLOG] = DUMPINFO_INIT_V2(cmdlog, &s6e3fc3_restbl[RES_CMDLOG], &OLED_FUNC(OLED_DUMP_SHOW_CMDLOG), cmdlog_expects),
 #endif
-	[DUMP_SELF_MASK_CRC] = DUMPINFO_INIT_V2(self_mask_checksum, &s6e3fc3_restbl[RES_SELF_MASK_CRC], &OLED_FUNC(OLED_DUMP_SHOW_EXPECTS), self_mask_crc_expects),
+	[DUMP_SELF_MASK_CRC] = DUMPINFO_INIT_V2(self_mask_crc, &s6e3fc3_restbl[RES_SELF_MASK_CRC], &OLED_FUNC(OLED_DUMP_SHOW_EXPECTS), self_mask_crc_expects),
 	//[DUMP_SELF_MASK_CHECKSUM] = DUMPINFO_INIT_V2(self_mask_checksum, &s6e3fc3_restbl[RES_SELF_MASK_CHECKSUM], &OLED_FUNC(OLED_DUMP_SHOW_SELF_MASK_CHECKSUM), self_mask_checksum_expects),
 	[DUMP_PCD] = DUMPINFO_INIT_V2(pcd, &s6e3fc3_restbl[RES_PCD], &OLED_FUNC(OLED_DUMP_SHOW_EXPECTS), pcd_expects),
 #if IS_ENABLED(CONFIG_SAMSUNG_PRODUCT_SHIP)

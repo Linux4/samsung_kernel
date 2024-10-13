@@ -2287,6 +2287,8 @@ int mtk_p2p_cfg80211_stop_ap(struct wiphy *wiphy, struct net_device *dev)
 		i4Rslt = 0;
 	} while (FALSE);
 
+	if (!prGlueInfo)
+		return -EINVAL;
 	/* Restore SET_INDOOR_CHANNEL to default when disable hostapd */
 	prGlueInfo->rRegInfo.eRegChannelListMap = REG_CH_MAP_COUNTRY_CODE;
 	country[0] = (prGlueInfo->prAdapter->rWifiVar.u2CountryCode

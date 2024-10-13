@@ -58,7 +58,7 @@ static ssize_t nfc_cover_status_show(struct device *dev,
 {
 	struct flip_cover_detector_data *data = get_sensor(SENSOR_TYPE_FLIP_COVER_DETECTOR)->data;
 
-	if (data->nfc_cover_status == COVER_ATTACH || data->nfc_cover_status == COVER_ATTACH_NFC_ACTIVE) {
+	if (data->nfc_cover_status == COVER_ATTACH || data->nfc_cover_status == COVER_ATTACH_NFC_ACTIVE || data->nfc_cover_status == COVER_ATTACH_NFC_TAG_PRESENT) {
 		snprintf(sysfs_cover_status, 10, "CLOSE");
 	} else if (data->nfc_cover_status == COVER_DETACH){
 		snprintf(sysfs_cover_status, 10, "OPEN");
@@ -80,7 +80,7 @@ static ssize_t nfc_cover_status_store(struct device *dev,
 	if (ret < 0)
 		return ret;
 
-	if (status < 0 || status > 2) {
+	if (!(status == 0 || status == 1 || status == 2 || status == 7)) {
 		shub_errf("invalid status %d", status);
 		return -EINVAL;
 	}

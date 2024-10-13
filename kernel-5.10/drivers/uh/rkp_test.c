@@ -25,45 +25,8 @@
 #define RKP_BUF_SIZE	8192
 #define RKP_LINE_MAX	80
 
-/* FIMC */
-#define CDH_SIZE		SZ_128K		/* CDH : Camera Debug Helper */
-#define IS_RCHECKER_SIZE_RO	(SZ_4M + SZ_1M)
-#define IS_RCHECKER_SIZE_RW	(SZ_256K)
-#define RCHECKER_SIZE	(IS_RCHECKER_SIZE_RO + IS_RCHECKER_SIZE_RW)
-
-#ifdef CONFIG_KASAN_GENERIC
-#define VMALLOC_OFS 	0
-#elif defined(CONFIG_KASAN_SW_TAGS)
-#define VMALLOC_OFS	0x0800000000ULL		/* KASAN: 32GB */
-#else
-#define VMALLOC_OFS	0x1000000000ULL
-#endif
-
-#define __LIB_START		(VMALLOC_START + VMALLOC_OFS + 0xF2000000 - CDH_SIZE)
-#define LIB_START		(__LIB_START)
-
-#define VRA_LIB_ADDR	(LIB_START + CDH_SIZE)
-#define VRA_LIB_SIZE	(SZ_512K + SZ_256K)
-
-#define DDK_LIB_ADDR	(LIB_START + VRA_LIB_SIZE + CDH_SIZE)
-#define DDK_LIB_SIZE	((SZ_2M + SZ_1M + SZ_256K) + SZ_1M + RCHECKER_SIZE)
-
-#define RTA_LIB_ADDR	(LIB_START + VRA_LIB_SIZE + DDK_LIB_SIZE + CDH_SIZE)
-#define RTA_LIB_SIZE	(SZ_2M + SZ_2M)
-
-#define VRA_CODE_SIZE	SZ_512K
-#define VRA_DATA_SIZE	SZ_256K
-
-#define DDK_CODE_SIZE	(SZ_2M + SZ_1M + SZ_256K + IS_RCHECKER_SIZE_RO)
-#define DDK_DATA_SIZE	SZ_1M
-
-#define RTA_CODE_SIZE	SZ_2M
-#define RTA_DATA_SIZE	SZ_2M
-
-#define LIB_END			(RTA_LIB_ADDR + RTA_CODE_SIZE + RTA_DATA_SIZE)
-
 static char rkp_test_buf[RKP_BUF_SIZE];
-static unsigned long rkp_test_len = 0;
+static unsigned long rkp_test_len;
 static unsigned long prot_user_l2 = 1;
 
 static DEFINE_RAW_SPINLOCK(par_lock);
@@ -235,7 +198,7 @@ static int test_case_kernel_l3pgt_ro(void)
 }
 
 // return true if addr mapped, otherwise return false
-static bool page_pxn_set(unsigned long addr, u64 *xn, u64 *x)
+static bool page_pxn_set(unsigned long addr, u64 *xn, u64 *x, u64 *v_x)
 {
 	pgd_t *pgd;
 	pud_t *pud;
@@ -283,8 +246,12 @@ static bool page_pxn_set(unsigned long addr, u64 *xn, u64 *x)
 	if ((pte_val(*pte) & L3_PAGE_PXN) > 0)
 		*xn += 1;
 	else {
-		if (addr >= VRA_LIB_ADDR + VRA_CODE_SIZE && addr < VRA_LIB_ADDR + VRA_CODE_SIZE + VRA_DATA_SIZE) {
-			//buf_print("pgd: %lx, pud: %lx, pmd: %lx, pte: %lx\n", (unsigned long)pgd, (unsigned long)pud, (unsigned long)pmd, (unsigned long)pte);
+		if (addr >= (u64)__end_rodata) {
+			u64 res = 0;
+
+			uh_call(UH_APP_RKP, RKP_TEST_TEXT_VALID, addr, (u64)&res, 0, 0);
+			if (res)
+				*v_x += 1;
 		}
 		*x += 1;
 	}
@@ -427,27 +394,17 @@ static int test_case_kernel_range_rwx(void)
 	int ret = 0;
 	u64 ro = 0, rw = 0;
 	u64 xn = 0, x = 0;
+	u64 v_x = 0;
 	int i;
 	u64 j;
 	bool mapped = false;
 	u64 va_temp;
 
 	struct mem_range test_ranges[] = {
-		{(u64)VMALLOC_START, ((u64)_text) - ((u64)VMALLOC_START), "VMALLOC -  STEXT", false, true},
+		{(u64)VMALLOC_START, ((u64)_text) - ((u64)VMALLOC_START), "VMALLOC - STEXT", false, true},
 		{((u64)_text), ((u64)_etext) - ((u64)_text), "STEXT - ETEXT", true, false},
-		{((u64)_etext), ((u64) __end_rodata) - ((u64)_etext), "ETEXT - ERODATA", true, true},
-#ifdef CONFIG_USE_DIRECT_IS_CONTROL
-		{((u64) __end_rodata), VRA_LIB_ADDR-((u64) __end_rodata), "ERODATA - S_FIMC", false, true},
-		{VRA_LIB_ADDR, VRA_CODE_SIZE, "VRA CODE", true, false},
-		{VRA_LIB_ADDR + VRA_CODE_SIZE, VRA_DATA_SIZE, "VRA DATA", false, true},
-		{DDK_LIB_ADDR, DDK_CODE_SIZE, "DDK CODE", true, false},
-		{DDK_LIB_ADDR + DDK_CODE_SIZE, DDK_DATA_SIZE, "DDK_DATA", false, true},
-		{RTA_LIB_ADDR, RTA_CODE_SIZE, "RTA CODE", true, false},
-		{RTA_LIB_ADDR + RTA_CODE_SIZE, RTA_DATA_SIZE, "RTA DATA", false, true},
-		{LIB_END, MEM_END - LIB_END, "E_FIMC - MEM END", false, true},
-#else
-		{((u64) __end_rodata), MEM_END-((u64) __end_rodata), "ERODATA -MEM_END", false, true},
-#endif
+		{((u64)_etext), ((u64)__end_rodata) - ((u64)_etext), "ETEXT - ERODATA", true, true},
+		{((u64)__end_rodata), MEM_END - ((u64)__end_rodata), "ERODATA - MEM_END", false, true},
 	};
 	int len = sizeof(test_ranges)/sizeof(struct mem_range);
 
@@ -456,7 +413,7 @@ static int test_case_kernel_range_rwx(void)
 	for (i = 0; i < len; i++) {
 		for (j = 0; j < test_ranges[i].size/PAGE_SIZE; j++) {
 			va_temp = test_ranges[i].start_va + j*PAGE_SIZE;
-			mapped = page_pxn_set(va_temp, &xn, &x);
+			mapped = page_pxn_set(va_temp, &xn, &x, &v_x);
 			if (!mapped)
 				continue;
 			// only for mapped pages
@@ -476,18 +433,19 @@ static int test_case_kernel_range_rwx(void)
 			ret++;
 		}
 
-		if (test_ranges[i].no_x && (x != 0)) {
-			buf_print("RKP_TEST FAILED, NO X PAGE ALLOWED, x=%llu\n", x);
+		if (test_ranges[i].no_x && (x != 0) && x != v_x) {
+			buf_print("RKP_TEST FAILED, NO X PAGE ALLOWED, x=%llu, v_x=%llu\n", x, v_x);
 			ret++;
 		}
 
-		if ((rw != 0) && (x != 0)) {
-			buf_print("RKP_TEST FAILED, NO RWX PAGE ALLOWED, rw=%llu, x=%llu\n", rw, x);
+		if ((rw != 0) && (x != 0) && x != v_x) {
+			buf_print("RKP_TEST FAILED, NO RWX PAGE ALLOWED, rw=%llu, x=%llu v_x=%llu\n", rw, x, v_x);
 			ret++;
 		}
 
 		ro = 0; rw = 0;
 		xn = 0; x = 0;
+		v_x = 0;
 	}
 
 	return ret;
@@ -505,7 +463,7 @@ ssize_t	rkp_test_read(struct file *filep, char __user *buffer, size_t count, lof
 	};
 	int tc_num = sizeof(tc_funcs)/sizeof(struct test_case);
 
-	static bool done = false;
+	static bool done;
 
 	if (done)
 		return 0;

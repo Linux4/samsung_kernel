@@ -1482,13 +1482,13 @@ static void rrmHandleBeaconReqSubelem(
 			data->apChannelsLen += len;
 
 			if (data->apChannelsLen) {
-				for (i = 0; (end - pos > 3) &&
+				for (i = 0 ; (end - pos > 3) &&
 					i < data->apChannelsLen; i++) {
 					pos += kalSnprintf(pos, end - pos,
 						" %d", data->apChannels[i]);
 				}
 				*pos = '\0';
-				DBGLOG(RRM, INFO, "AP chnls %s", buf);
+				DBGLOG(RRM, INFO, "AP chnls  %s", buf);
 			}
 			break;
 		}

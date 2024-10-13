@@ -29,7 +29,7 @@
  *                              C O N S T A N T S
  *******************************************************************************
  */
-#define FS_VERSION						3
+#define FS_VERSION						4
 #define FS_VERSION_SIZE					2
 
 #define FS_SOLUTION_PROVIDER_SIZE		3

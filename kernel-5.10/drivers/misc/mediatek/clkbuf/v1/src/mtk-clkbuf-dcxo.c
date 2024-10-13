@@ -34,6 +34,7 @@
 #define DCXO_SPMI_RW			"mediatek,dcxo-spmi-rw"
 #define DCXO_PMRC_EN_SUPPORT		"mediatek,pmrc-en-support"
 #define CLKBUF_PMRC_EN_ADDR		"mediatek,pmrc-en-addr"
+#define XOID_NOT_FOUND			"UNSUPPORT_XOID"
 
 /* for old project init for dct tool at kernel */
 #define CLKBUF_DCT_XO_QUANTITY		"mediatek,clkbuf-quantity"
@@ -140,7 +141,7 @@ const char *clkbuf_dcxo_get_xo_name(u8 idx)
 
 	ret = clkbuf_xo_sanity_check(idx);
 	if (ret)
-		return NULL;
+		return XOID_NOT_FOUND;
 
 	return dcxo->xo_bufs[idx].xo_name;
 }
@@ -1344,7 +1345,7 @@ static int clkbuf_dcxo_dts_init_xo_by_name_prop(struct device_node *node,
 		int idx)
 {
 	struct device_node *ctl_node;
-	char xo_en_prop[20] = {0};
+	char xo_en_prop[XO_NAME_LEN + 21] = {0};
 	char buf[XO_NAME_LEN] = {0};
 	char *pp = NULL;
 	char *p = NULL;
@@ -1369,8 +1370,8 @@ static int clkbuf_dcxo_dts_init_xo_by_name_prop(struct device_node *node,
 		*pp = tolower(*pp);
 		pp++;
 	}
-	strncpy(xo_en_prop, CLKBUF_XO_PROP, XO_NAME_LEN + 10);
-	strncat(xo_en_prop, p, XO_NAME_LEN + 10);
+	strncpy(xo_en_prop, CLKBUF_XO_PROP, 20);
+	strncat(xo_en_prop, p, XO_NAME_LEN);
 	ret = of_property_read_u32(ctl_node, xo_en_prop, &tmp);
 	if (ret)
 		return ret;

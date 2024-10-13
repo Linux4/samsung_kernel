@@ -122,7 +122,7 @@ void panel_property_destroy(struct panel_property *property)
 	if (!property)
 		return;
 
-	panel_info("%s\n", get_panel_property_name(property));
+	panel_dbg("%s\n", get_panel_property_name(property));
 	panel_property_enum_free(property);
 	pnobj_deinit(&property->base);
 	kfree(property);
@@ -539,7 +539,7 @@ int panel_add_range_property(struct panel_device *panel,
 
 	list_add_tail(get_pnobj_list(&property->base), &panel->prop_list);
 
-	panel_info("added: %s init_value: %d.\n",
+	panel_dbg("added: %s init_value: %d.\n",
 			get_panel_property_name(property), property->value);
 
 	return 0;
@@ -566,7 +566,7 @@ int panel_add_enum_property(struct panel_device *panel,
 
 	list_add_tail(get_pnobj_list(&property->base), &panel->prop_list);
 
-	panel_info("added: %s init_enum: %d.\n",
+	panel_dbg("added: %s init_enum: %d.\n",
 			get_panel_property_name(property), property->value);
 
 	return 0;

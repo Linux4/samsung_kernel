@@ -43,7 +43,7 @@ typedef u8 mdnie_t;
 #define IS_HMD_MODE(_mdnie_)			(((_mdnie_)->props.hmd > HMD_MDNIE_OFF) && ((_mdnie_)->props.hmd < HMD_MDNIE_MAX))
 #define IS_NIGHT_MODE(_mdnie_)			(((_mdnie_)->props.night >= NIGHT_MODE_ON) && ((_mdnie_)->props.night < NIGHT_MODE_MAX))
 #define IS_COLOR_LENS_MODE(_mdnie_)		(((_mdnie_)->props.color_lens >= COLOR_LENS_ON) && ((_mdnie_)->props.color_lens < COLOR_LENS_MAX))
-#define IS_HBM_CE_MODE(_mdnie_)			((_mdnie_)->props.hbm_ce_level > 0)
+#define IS_HBM_CE_MODE(_mdnie_)			(((_mdnie_)->props.extra_dim_level == 0) && ((_mdnie_)->props.hbm_ce_level > 0))
 #define IS_SCENARIO_MODE(_mdnie_)		(((_mdnie_)->props.scenario >= UI_MODE && (_mdnie_)->props.scenario <= VIDEO_NORMAL_MODE) || \
 		((_mdnie_)->props.scenario >= CAMERA_MODE && (_mdnie_)->props.scenario < SCENARIO_MAX))
 #define IS_LDU_MODE(_mdnie_)			(((_mdnie_)->props.ldu > LDU_MODE_OFF) && ((_mdnie_)->props.ldu < MAX_LDU_MODE))
@@ -54,7 +54,7 @@ typedef u8 mdnie_t;
 #define GET_MSB_8BIT(x)		((x >> 8) & (BIT(8) - 1))
 #define GET_LSB_8BIT(x)		((x >> 0) & (BIT(8) - 1))
 
-#define MIN_WRGB_OFS	(-40)
+#define MIN_WRGB_OFS	(-250)
 #define MAX_WRGB_OFS	(0)
 #define IS_VALID_WRGB_OFS(_ofs_)	(((int)(_ofs_) <= MAX_WRGB_OFS) && ((int)(_ofs_) >= (MIN_WRGB_OFS)))
 
@@ -199,6 +199,15 @@ enum COLOR_LENS {
 	COLOR_LENS_MAX
 };
 
+#define MDNIE_ANTI_GLARE_PROPERTY ("mdnie_anti_glare")
+
+enum ANTI_GLARE {
+	ANTI_GLARE_OFF,
+	ANTI_GLARE_ON,
+	ANTI_GLARE_MAX
+};
+
+
 #define MDNIE_COLOR_LENS_PROPERTY ("mdnie_color_lens")
 
 enum COLOR_LENS_COLOR {
@@ -296,7 +305,11 @@ enum TRANS_MODE {
 	MAX_TRANS_MODE,
 };
 
+#define MDNIE_EXTRA_DIM_LEVEL_PROPERTY ("mdnie_extra_dim_level")
+
 #define MDNIE_TRANS_MODE_PROPERTY ("mdnie_trans_mode")
+
+#define MDNIE_VIVIDNESS_LEVEL_PROPERTY ("mdnie_vividness_level")
 
 #define MDNIE_ENABLE_PROPERTY ("mdnie_enable")
 
@@ -375,6 +388,9 @@ struct cal_coef {
 };
 
 #define MAX_HBM_CE_LEVEL (64)
+#define MAX_ANTI_GLARE_LEVEL (6)
+#define MAX_EXTRA_DIM_LEVEL (100)
+#define MAX_VIVIDNESS_LEVEL (3)
 
 struct mdnie_tune {
 	struct seqinfo *seqtbl;
@@ -392,6 +408,8 @@ struct mdnie_tune {
 	u32 num_color_lens_color;
 	u32 num_color_lens_level;
 	u32 hbm_ce_lux[MAX_HBM_CE_LEVEL];
+	u32 anti_glare_lux[MAX_ANTI_GLARE_LEVEL];
+	u32 anti_glare_ratio[MAX_ANTI_GLARE_LEVEL];
 	u32 scr_white_len;
 	u32 scr_cr_ofs;
 	u32 night_mode_ofs;
@@ -410,6 +428,7 @@ struct mdnie_properties {
 	enum BYPASS bypass;
 	enum HMD_MODE hmd;
 	enum NIGHT_MODE night;
+	enum ANTI_GLARE anti_glare;
 	enum COLOR_LENS color_lens;
 	enum COLOR_LENS_COLOR color_lens_color;
 	enum COLOR_LENS_LEVEL color_lens_level;
@@ -421,6 +440,9 @@ struct mdnie_properties {
 	enum TRANS_MODE trans_mode;
 	u32 night_level;
 	u32 hbm_ce_level;
+	u32 anti_glare_level;
+	u32 extra_dim_level;
+	u32 vividness_level;
 
 	/* for color adjustment */
 	u8 scr[MAX_MDNIE_SCR_LEN];
@@ -456,6 +478,8 @@ struct mdnie_properties {
 
 	s32 *hbm_ce_lux;
 	u32 num_hbm_ce_lux;
+	s32 anti_glare_lux[MAX_ANTI_GLARE_LEVEL];
+	s32 anti_glare_ratio[MAX_ANTI_GLARE_LEVEL];
 	u32 scr_white_len;
 	u32 scr_cr_ofs;
 	u32 night_mode_ofs;
@@ -530,6 +554,7 @@ extern int mdnie_set_cur_wrgb(struct mdnie_info *mdnie,
 		unsigned char r, unsigned char g, unsigned char b);
 extern int mdnie_cur_wrgb_to_byte_array(struct mdnie_info *mdnie,
 		unsigned char *dst, unsigned int stride);
+extern int mdnie_get_anti_glare_ratio(struct mdnie_info *mdnie);
 extern int panel_mdnie_update(struct panel_device *panel);
 extern int mdnie_update_wrgb(struct mdnie_info *mdnie,
 		unsigned char r, unsigned char g, unsigned char b);

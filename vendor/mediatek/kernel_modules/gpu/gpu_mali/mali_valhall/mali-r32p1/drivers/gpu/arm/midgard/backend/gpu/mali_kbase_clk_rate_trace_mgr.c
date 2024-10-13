@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
 /*
  *
- * (C) COPYRIGHT 2020-2021 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2020-2023 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -240,7 +240,8 @@ void kbase_clk_rate_trace_manager_gpu_active(struct kbase_device *kbdev)
 	if (!clk_rtm->clk_rate_trace_ops)
 		return;
 
-	spin_lock_irqsave(&clk_rtm->lock, flags);
+	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
+	spin_lock(&clk_rtm->lock);
 
 	for (i = 0; i < BASE_MAX_NR_CLOCKS_REGULATORS; i++) {
 		struct kbase_clk_data *clk_data = clk_rtm->clks[i];
@@ -256,7 +257,8 @@ void kbase_clk_rate_trace_manager_gpu_active(struct kbase_device *kbdev)
 	}
 
 	clk_rtm->gpu_idle = false;
-	spin_unlock_irqrestore(&clk_rtm->lock, flags);
+	spin_unlock(&clk_rtm->lock);
+	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
 }
 
 void kbase_clk_rate_trace_manager_gpu_idle(struct kbase_device *kbdev)

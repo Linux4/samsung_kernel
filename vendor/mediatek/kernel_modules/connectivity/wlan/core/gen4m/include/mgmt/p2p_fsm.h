@@ -89,7 +89,7 @@ void p2pFsmRunEventMgmtFrameTx(IN struct ADAPTER *prAdapter,
 void p2pFsmRunEventTxCancelWait(IN struct ADAPTER *prAdapter,
 		IN struct MSG_HDR *prMsgHdr);
 
-void p2pFsmRunEventCsaDoneTimeOut(struct ADAPTER *prAdapter,
-		uintptr_t ulParamPtr);
+void p2pFsmRunEventCsaDoneTimeOut(IN struct ADAPTER *prAdapter,
+		IN uintptr_t ulParamPtr);
 
 #endif /* _P2P_FSM_H */

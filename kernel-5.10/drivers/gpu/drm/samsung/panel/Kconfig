@@ -212,7 +212,7 @@ config USDM_PANEL_BIG_LOCK
 
 config USDM_PANEL_RCD
 	bool "Support mcd panel rcd"
-	depends on USDM_PANEL
+	depends on USDM_PANEL && !USDM_FACTORY
 	default n
 
 config USDM_PANEL_ID_READ_REG_04
@@ -278,6 +278,11 @@ config USDM_USE_CUSTOM_SOFTDEP
 
 config USDM_PANEL_UEVENT_RECOVERY
 	bool "Support uevent recovery"
+	depends on USDM_PANEL
+	default n
+
+config USDM_PANEL_LATE_PROBE
+	bool "Support Late Probe"
 	depends on USDM_PANEL
 	default n
 

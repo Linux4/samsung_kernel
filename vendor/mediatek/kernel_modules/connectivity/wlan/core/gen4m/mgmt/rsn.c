@@ -2737,37 +2737,20 @@ uint8_t rsnCheckSaQueryTimeout(
 		prBssSpecInfo->pucSaQueryTransId = NULL;
 		prBssSpecInfo->u4SaQueryCount = 0;
 		cnmTimerStopTimer(prAdapter, &prBssSpecInfo->rSaQueryTimer);
-#if 1
-		if (prAisBssInfo == NULL) {
-			DBGLOG(RSN, ERROR, "prAisBssInfo is NULL");
-		} else if (prAisBssInfo->eConnectionState ==
-		    MEDIA_STATE_CONNECTED) {
-			struct MSG_AIS_ABORT *prAisAbortMsg;
 
-			prAisAbortMsg =
-				(struct MSG_AIS_ABORT *) cnmMemAlloc(prAdapter,
-						RAM_TYPE_MSG,
-						sizeof(struct MSG_AIS_ABORT));
-			if (!prAisAbortMsg)
-				return 0;
-			prAisAbortMsg->rMsgHdr.eMsgId = MID_SAA_AIS_FSM_ABORT;
-			prAisAbortMsg->ucReasonOfDisconnect =
-			    DISCONNECT_REASON_CODE_DISASSOCIATED;
-			prAisAbortMsg->fgDelayIndication = FALSE;
-			prAisAbortMsg->ucBssIndex = ucBssIdx;
-			mboxSendMsg(prAdapter, MBOX_ID_0,
-				    (struct MSG_HDR *) prAisAbortMsg,
-				    MSG_SEND_METHOD_BUF);
-		}
-#else
-		/* Re-connect */
-		kalIndicateStatusAndComplete(prAdapter->prGlueInfo,
-					WLAN_STATUS_MEDIA_DISCONNECT, NULL, 0);
-#endif
-		return 1;
+		if (prAisBssInfo == NULL)
+			DBGLOG(RSN, ERROR, "prAisBssInfo is NULL");
+		else if (prAisBssInfo->eConnectionState ==
+					MEDIA_STATE_CONNECTED)
+			saaSendDisconnectMsgHandler(prAdapter,
+					prAisBssInfo->prStaRecOfAP,
+					prAisBssInfo,
+					FRM_DEAUTH);
+
+		return TRUE;
 	}
 
-	return 0;
+	return FALSE;
 }
 
 /*----------------------------------------------------------------------------*/

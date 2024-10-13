@@ -7063,7 +7063,7 @@ wlanoidQuerySwCtrlRead(IN struct ADAPTER *prAdapter,
 	uint16_t u2Id, u2SubId;
 	uint32_t u4Data;
 
-	struct CMD_SW_DBG_CTRL rCmdSwCtrl;
+	struct CMD_SW_DBG_CTRL rCmdSwCtrl = {0};
 
 	DEBUGFUNC("wlanoidQuerySwCtrlRead");
 	DBGLOG(INIT, LOUD, "\n");
@@ -7395,6 +7395,7 @@ wlanoidSetSwCtrlWrite(IN struct ADAPTER *prAdapter,
 			struct CMD_TX_AMPDU rTxAmpdu;
 			uint32_t rStatus;
 
+			kalMemSet(&rTxAmpdu, 0, sizeof(struct CMD_TX_AMPDU));
 			rTxAmpdu.fgEnable = !!u4Data;
 
 			rStatus = wlanSendSetQueryCmd(
@@ -7582,6 +7583,7 @@ wlanoidSetSwCtrlWrite(IN struct ADAPTER *prAdapter,
 
 	case 0x9000:
 	default: {
+		kalMemSet(&rCmdSwCtrl, 0, sizeof(struct CMD_SW_DBG_CTRL));
 		rCmdSwCtrl.u4Id = prSwCtrlInfo->u4Id;
 		rCmdSwCtrl.u4Data = prSwCtrlInfo->u4Data;
 		rWlanStatus = wlanSendSetQueryCmd(prAdapter,
@@ -9938,7 +9940,7 @@ wlanoidRftestSetTestMode(IN struct ADAPTER *prAdapter,
 			 IN void *pvSetBuffer, IN uint32_t u4SetBufferLen,
 			 OUT uint32_t *pu4SetInfoLen) {
 	uint32_t rStatus;
-	struct CMD_TEST_CTRL rCmdTestCtrl;
+	struct CMD_TEST_CTRL rCmdTestCtrl = {0};
 
 	DEBUGFUNC("wlanoidRftestSetTestMode");
 
@@ -9998,7 +10000,7 @@ wlanoidRftestSetTestIcapMode(IN struct ADAPTER *prAdapter,
 			     IN void *pvSetBuffer, IN uint32_t u4SetBufferLen,
 			     OUT uint32_t *pu4SetInfoLen) {
 	uint32_t rStatus;
-	struct CMD_TEST_CTRL rCmdTestCtrl;
+	struct CMD_TEST_CTRL rCmdTestCtrl = {0};
 	struct ICAP_INFO_T *prIcapInfo = NULL;
 
 	DEBUGFUNC("wlanoidRftestSetTestIcapMode");
@@ -10064,7 +10066,7 @@ wlanoidRftestSetAbortTestMode(IN struct ADAPTER *prAdapter,
 			      IN void *pvSetBuffer, IN uint32_t u4SetBufferLen,
 			      OUT uint32_t *pu4SetInfoLen) {
 	uint32_t rStatus;
-	struct CMD_TEST_CTRL rCmdTestCtrl;
+	struct CMD_TEST_CTRL rCmdTestCtrl = {0};
 
 	DEBUGFUNC("wlanoidRftestSetAbortTestMode");
 
@@ -10607,7 +10609,7 @@ rftestQueryATInfo(IN struct ADAPTER *prAdapter,
 uint32_t rftestSetFrequency(IN struct ADAPTER *prAdapter,
 			    IN uint32_t u4FreqInKHz,
 			    IN uint32_t *pu4SetInfoLen) {
-	struct CMD_TEST_CTRL rCmdTestCtrl;
+	struct CMD_TEST_CTRL rCmdTestCtrl = {0};
 
 	ASSERT(prAdapter);
 
@@ -13832,7 +13834,7 @@ wlanoidSetMonitor(IN struct ADAPTER *prAdapter,
 		  IN void *pvSetBuffer, IN uint32_t u4SetBufferLen,
 		  OUT uint32_t *pu4SetInfoLen) {
 	struct PARAM_CUSTOM_MONITOR_SET_STRUCT *prMonitorSetInfo;
-	struct CMD_MONITOR_SET_INFO rCmdMonitorSetInfo;
+	struct CMD_MONITOR_SET_INFO rCmdMonitorSetInfo = {'\0'};
 	uint32_t rWlanStatus = WLAN_STATUS_SUCCESS;
 
 	DEBUGFUNC("wlanoidSetMonitor");
@@ -14473,14 +14475,15 @@ uint32_t
 wlanoidSetNchoHeader(struct CMD_HEADER *prCmdHeader,
 		     struct CMD_FORMAT_V1 *pr_cmd_v1,
 		     char *pStr, uint32_t u4Len) {
+
+	if (!prCmdHeader || !pStr || u4Len == 0)
+		return WLAN_STATUS_FAILURE;
+
 	prCmdHeader->cmdVersion = CMD_VER_1_EXT;
 	prCmdHeader->cmdType = CMD_TYPE_QUERY;
 	prCmdHeader->itemNum = 1;
 	prCmdHeader->cmdBufferLen = sizeof(struct CMD_FORMAT_V1);
 	kalMemSet(prCmdHeader->buffer, 0, MAX_CMD_BUFFER_LENGTH);
-
-	if (!prCmdHeader || !pStr || u4Len == 0)
-		return WLAN_STATUS_FAILURE;
 
 	pr_cmd_v1->itemStringLength = u4Len;
 	kalMemCopy(pr_cmd_v1->itemString, pStr, u4Len);
@@ -15981,8 +15984,8 @@ wlanoidSetRoamTrigger(IN struct ADAPTER *prAdapter,
 		return WLAN_STATUS_INVALID_LENGTH;
 
 	pi4Param = (int32_t *) pvSetBuffer;
-	if (dBm_TO_RCPI(*pi4Param) < RCPI_LOW_BOUND ||
-	    dBm_TO_RCPI(*pi4Param) > RCPI_HIGH_BOUND) {
+	if (dBm_TO_RCPI(*pi4Param) <= RCPI_LOW_BOUND ||
+	    dBm_TO_RCPI(*pi4Param) >= RCPI_HIGH_BOUND) {
 		DBGLOG(INIT, ERROR, "roam trigger invalid %d\n",
 		       *pi4Param);
 		return WLAN_STATUS_INVALID_DATA;
@@ -16068,7 +16071,7 @@ uint32_t
 wlanoidDisableTdlsPs(IN struct ADAPTER *prAdapter,
 		     IN void *pvSetBuffer, IN uint32_t u4SetBufferLen,
 		     OUT uint32_t *pu4SetInfoLen) {
-	struct CMD_TDLS_PS_T rTdlsPs;
+	struct CMD_TDLS_PS_T rTdlsPs = {'\0'};
 
 	if (!prAdapter || !pvSetBuffer)
 		return WLAN_STATUS_INVALID_DATA;
@@ -16916,6 +16919,7 @@ uint32_t wlanoidPktProcessIT(struct ADAPTER *prAdapter, void *pvBuffer,
 	struct AIS_SPECIFIC_BSS_INFO *aiss = NULL;
 	struct LINK *ess = NULL;
 	uint8_t *pos = NULL;
+	int32_t i4Ret = 0;
 
 	ucBssIndex = GET_IOCTL_BSSIDX(prAdapter);
 	ais = aisGetAisBssInfo(prAdapter, ucBssIndex);
@@ -16967,10 +16971,20 @@ uint32_t wlanoidPktProcessIT(struct ADAPTER *prAdapter, void *pvBuffer,
 		rxframe->u2DisassocTimer = 600;
 		rxframe->ucValidityInterval = 255;
 
-		if (i4Argc > 1)
-			kalkStrtou8(apcArgv[1], 0, &rxframe->ucRequestMode);
-		if (i4Argc > 2)
-			kalkStrtou16(apcArgv[2], 0, &rxframe->u2DisassocTimer);
+		if (i4Argc > 1) {
+			i4Ret = kalkStrtou8(
+				apcArgv[1], 0, &rxframe->ucRequestMode);
+			DBGLOG(OID, TRACE,
+				"parse ucRequestMode error i4Ret=%d\n",
+				i4Ret);
+		}
+		if (i4Argc > 2) {
+			i4Ret = kalkStrtou16(
+				apcArgv[2], 0, &rxframe->u2DisassocTimer);
+			DBGLOG(OID, TRACE,
+				"parse u2DisassocTimer error i4Ret=%d\n",
+				i4Ret);
+		}
 
 		pos = aucPacket + sizeof(struct ACTION_BTM_REQ_FRAME);
 
@@ -16990,10 +17004,20 @@ uint32_t wlanoidPktProcessIT(struct ADAPTER *prAdapter, void *pvBuffer,
 			uint8_t len = sizeof(struct IE_NEIGHBOR_REPORT) -
 				ELEM_HDR_LEN + 3;
 
-			if (i4Argc > 3)
-				kalkStrtou8(apcArgv[3], 0, &targetPref);
-			if (i4Argc > 4)
-				kalkStrtou8(apcArgv[4], 0, &diff);
+			if (i4Argc > 3) {
+				i4Ret = kalkStrtou8(
+					apcArgv[3], 0, &targetPref);
+				DBGLOG(OID, TRACE,
+					"parse targetPref error i4Ret=%d\n",
+					i4Ret);
+			}
+			if (i4Argc > 4) {
+				i4Ret = kalkStrtou8(
+					apcArgv[4], 0, &diff);
+				DBGLOG(OID, TRACE,
+					"parse diff error i4Ret=%d\n",
+					i4Ret);
+			}
 
 			neig = (struct IE_NEIGHBOR_REPORT *) pos;
 			pos += sizeof(struct IE_NEIGHBOR_REPORT);
@@ -17058,8 +17082,17 @@ uint32_t wlanoidPktProcessIT(struct ADAPTER *prAdapter, void *pvBuffer,
 		}
 
 		dumpMemory8(rSwRfb.pvHeader, rSwRfb.u2PacketLen);
-
-		wnmWNMAction(prAdapter, &rSwRfb);
+#if CFG_SUPPORT_802_11V_BSS_TRANSITION_MGT
+#if CFG_SUPPORT_802_11V_BTM_OFFLOAD
+		/* btm offload */
+		wnmRecvBTMRequest(prAdapter, &rSwRfb);
+#else
+		DBGLOG(OID, INFO,
+		       "WNM: action frame %d, try to send to supplicant\n",
+		       rxframe->ucAction);
+		aisFuncValidateRxActionFrame(prAdapter, &rSwRfb);
+#endif
+#endif
 		return WLAN_STATUS_SUCCESS;
 	} else if (!kalStrniCmp(pucSavedPtr, "BT-IT", 5)) {
 		DBGLOG(OID, INFO, "Simulate beacon timeout!!!\n");

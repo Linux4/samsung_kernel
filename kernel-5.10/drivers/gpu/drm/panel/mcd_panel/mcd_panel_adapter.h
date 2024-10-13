@@ -105,6 +105,9 @@ struct mtk_ddi_spec {
 	u32 data_rate;
 	u32 size_mm[2];
 	u32 multi_drop;
+	u32 disable_rdma_underflow;
+
+	struct mtk_dsi_phy_timcon phy_timcon;
 };
 
 struct mtk_panel_desc {

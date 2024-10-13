@@ -44,10 +44,20 @@ struct reset_info_t {
 	int reason;
 };
 
+enum {
+	SF_BASE = 0,
+	SF_DDI_SUPPORT = 1,
+	SF_ACCEL_16G = 2,
+	SF_DEBUG_V2 = 3,
+	SF_PROBE_V2 = 4,
+	SF_MAX,
+};
+
 struct shub_system_info {
 	uint32_t fw_version;
-	uint64_t scan[3];
-	uint32_t support_ddi;
+	uint64_t scan_sensor_probe[2];
+	uint64_t scan_scontext_probe[2];
+	uint32_t system_feature;
 	uint32_t reserved_1;
 	uint32_t reserved_2;
 } __attribute__((__packed__));
@@ -70,6 +80,8 @@ struct shub_data_t {
 
 	u8 pm_status;
 	u8 lcd_status;
+	u8 intent_screen_state;
+	u8 display_screen_state;
 
 	struct workqueue_struct *shub_wq;
 
@@ -83,6 +95,7 @@ struct shub_data_t {
 	struct regulator *sensor_vdd_regulator;
 
 	int sensor_ldo_en;
+	int prox_ldo_en;
 	char mini_dump[MINI_DUMP_LENGTH];
 	char model_name[MODEL_NAME_MAX];
 };
@@ -108,6 +121,7 @@ int get_reset_count(void);
 struct reset_info_t get_reset_info(void);
 
 bool is_shub_working(void);
+int shub_send_status_with_buffer(u8, char *, int);
 int shub_send_status(u8);
 int queue_refresh_task(void);
 
@@ -121,6 +135,7 @@ void shub_complete(struct device *dev);
 void shub_queue_work(struct work_struct *work);
 
 struct shub_system_info *get_shub_system_info(void);
+bool is_support_system_feature(int feature);
 
 int enable_sensor_vdd(void);
 int disable_sensor_vdd(void);

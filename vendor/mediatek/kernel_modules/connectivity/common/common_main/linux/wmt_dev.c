@@ -1167,6 +1167,7 @@ LONG WMT_unlocked_ioctl(struct file *filp, UINT32 cmd, ULONG arg)
 		}
 
 		pAtchNum = (UINT32)arg;
+
 		osal_unlock_unsleepable_lock(&g_patch_num_spinlock);
 
 		if (pPatchInfo == NULL)

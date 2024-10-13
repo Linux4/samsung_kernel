@@ -18,8 +18,8 @@
 #include "s6e3fc3_a24_self_mask_img.h"
 #include "s6e3fc3_a24_self_mask_img_factory.h"
 
-#define S6E3FC3_A24_SELF_MASK_VALID_CHECKSUM_1 (0x7C)
-#define S6E3FC3_A24_SELF_MASK_VALID_CHECKSUM_2 (0x38)
+#define S6E3FC3_A24SELF_MASK_VALID_CRC_1 (0x7C)
+#define S6E3FC3_A24SELF_MASK_VALID_CRC_2 (0x38)
 
 static u8 S6E3FC3_A24_AOD_KEY1_ENABLE[] = { 0xF0, 0x5A, 0x5A };
 static u8 S6E3FC3_A24_AOD_KEY1_DISABLE[] = { 0xF0, 0xA5, 0xA5 };
@@ -179,7 +179,7 @@ static char S6E3FC3_A24_AOD_SELF_MASK_RESTORE[] = {
 };
 static DEFINE_STATIC_PACKET(s6e3fc3_a24_aod_self_mask_restore, DSI_PKT_TYPE_WR, S6E3FC3_A24_AOD_SELF_MASK_RESTORE, 0);
 
-static void *s6e3fc3_a24_aod_self_mask_checksum_cmdtbl[] = {
+static void *s6e3fc3_a24_aod_self_mask_crc_cmdtbl[] = {
 	&KEYINFO(s6e3fc3_a24_aod_l1_key_enable),
 	&KEYINFO(s6e3fc3_a24_aod_l2_key_enable),
 	&KEYINFO(s6e3fc3_a24_aod_l3_key_enable),
@@ -219,12 +219,12 @@ static struct seqinfo s6e3fc3_a24_aod_seqtbl[] = {
 	SEQINFO_INIT(SELF_MASK_IMG_SEQ, s6e3fc3_a24_aod_self_mask_img_cmdtbl),
 	SEQINFO_INIT(SELF_MASK_ENA_SEQ, s6e3fc3_a24_aod_self_mask_ena_cmdtbl),
 	SEQINFO_INIT(SELF_MASK_DIS_SEQ, s6e3fc3_a24_aod_self_mask_dis_cmdtbl),
-	SEQINFO_INIT(SELF_MASK_CHECKSUM_SEQ, s6e3fc3_a24_aod_self_mask_checksum_cmdtbl),
+	SEQINFO_INIT(SELF_MASK_CRC_SEQ, s6e3fc3_a24_aod_self_mask_crc_cmdtbl),
 };
 
-static u8 s6e3fc3_a24_self_mask_checksum[] = {
-	S6E3FC3_A24_SELF_MASK_VALID_CHECKSUM_1,
-	S6E3FC3_A24_SELF_MASK_VALID_CHECKSUM_2,
+static u8 s6e3fc3_a24_self_mask_crc[] = {
+	S6E3FC3_A24SELF_MASK_VALID_CRC_1,
+	S6E3FC3_A24SELF_MASK_VALID_CRC_2,
 };
 
 static struct aod_tune s6e3fc3_a24_aod = {
@@ -234,7 +234,7 @@ static struct aod_tune s6e3fc3_a24_aod = {
 	.nr_maptbl = ARRAY_SIZE(s6e3fc3_a24_aod_maptbl),
 	.maptbl = s6e3fc3_a24_aod_maptbl,
 	.self_mask_en = true,
-	.self_mask_checksum = s6e3fc3_a24_self_mask_checksum,
-	.self_mask_checksum_len = ARRAY_SIZE(s6e3fc3_a24_self_mask_checksum),
+	.self_mask_crc = s6e3fc3_a24_self_mask_crc,
+	.self_mask_crc_len = ARRAY_SIZE(s6e3fc3_a24_self_mask_crc),
 };
 #endif

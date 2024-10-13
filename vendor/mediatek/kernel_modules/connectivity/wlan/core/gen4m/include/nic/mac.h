@@ -3646,6 +3646,13 @@ struct IE_ASSURANCE_BEACON_REPORT {
 } __KAL_ATTRIB_PACKED__;
 #endif
 
+struct IE_CUSTOMER_OUI {
+	uint8_t ucId;
+	uint8_t ucLength;
+	uint8_t aucOui[3];
+	uint8_t ucOuiType;
+} __KAL_ATTRIB_PACKED__;
+
 struct SUB_IE_BSS_TERM_DURATION {
 	uint8_t ucSubId;
 	uint8_t ucLength;
@@ -4065,6 +4072,7 @@ struct RSNX_INFO_ELEM {
 #define QUIET_IE(fp)            ((struct IE_QUIET *) fp)
 
 #define MTK_OUI_IE(fp)          ((struct IE_MTK_OUI *) fp)
+#define CUSTOMER_OUI_IE(fp)          ((struct IE_CUSTOMER_OUI *) fp)
 
 #define CSA_IE(fp)              ((struct IE_CHANNEL_SWITCH *) fp)
 #define SEC_OFFSET_IE(fp)	((struct IE_SECONDARY_OFFSET *) fp)

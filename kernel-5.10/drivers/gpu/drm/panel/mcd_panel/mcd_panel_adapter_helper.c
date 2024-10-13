@@ -81,7 +81,7 @@ static int mtk_panel_mode_snprintf(const struct mtk_panel_mode *mode, char *buf,
 	if (!mode || !buf || !size)
 		return 0;
 
-	return snprintf(buf, size, "Exynos Panel Modeline (DRM)" DRM_MODE_FMT " (MTK_EXT)" MTK_MODE_FMT "\n",
+	return snprintf(buf, size, "Mtk Panel Modeline (DRM)" DRM_MODE_FMT " (MTK_EXT)" MTK_MODE_FMT "\n",
 			DRM_MODE_ARG(&mode->mode), MTK_MODE_ARG(&mode->mtk_ext));
 }
 
@@ -133,14 +133,14 @@ void mtk_panel_desc_destroy(struct mtk_panel *ctx, struct mtk_panel_desc *desc)
 EXPORT_SYMBOL(mtk_panel_desc_destroy);
 
 /**
- * exynos_drm_mode_set_name - set the name on a mode
+ * mtk_drm_mode_set_name - set the name on a mode
  * @mode: name will be set in this mode
- * @refresh_mode : extension of exynos_drm_mode for mcd-panel (e.g. ns, hs, phs)
+ * @refresh_mode : extension of mtk_drm_mode for mcd-panel (e.g. ns, hs, phs)
  *
- * Set the name of @mode to a exynos drm format which is
+ * Set the name of @mode to a mtk drm format which is
  * <hdisplay>x<vdisplay>@<vrefresh><refreshmode>.
  */
-void exynos_drm_mode_set_name(struct drm_display_mode *mode, int refresh_mode)
+void mtk_drm_mode_set_name(struct drm_display_mode *mode, int refresh_mode)
 {
 	drm_mode_set_name(mode);
 
@@ -178,7 +178,7 @@ int drm_display_mode_from_panel_display_mode(struct panel_display_mode *pdm, str
 
 	ddm->type = DRM_MODE_TYPE_DRIVER;
 
-	exynos_drm_mode_set_name(ddm, pdm->refresh_mode);
+	mtk_drm_mode_set_name(ddm, pdm->refresh_mode);
 
 	return 0;
 }
@@ -305,7 +305,7 @@ static inline int get_dsc_slice_num(struct mtk_panel_dsc_params *dsc_params)
 	return dsc_params->pic_width / dsc_params->slice_width;
 }
 
-static int exynos_display_mode_get_dsc_setting_from_pps_table(struct panel_display_mode *pdm, struct mtk_panel_params *ext,
+static int mtk_display_mode_get_dsc_setting_from_pps_table(struct panel_display_mode *pdm, struct mtk_panel_params *ext,
 				struct mtk_panel *ctx)
 {
 	int ret = 0;
@@ -340,7 +340,7 @@ static int exynos_display_mode_get_dsc_setting_from_pps_table(struct panel_displ
 	return ret;
 }
 
-int  exynos_display_mode_get_disp_qos_fps(struct panel_display_mode *pdm)
+int mtk_display_mode_get_disp_qos_fps(struct panel_display_mode *pdm)
 {
 	int disp_qos_fps = 0;
 	unsigned int htotal = 0;
@@ -378,7 +378,7 @@ int  exynos_display_mode_get_disp_qos_fps(struct panel_display_mode *pdm)
 	return disp_qos_fps;
 }
 
-int exynos_display_mode_from_panel_display_mode(struct panel_display_mode *pdm, struct mtk_panel_params *ext, struct mtk_panel *ctx)
+int mtk_display_mode_from_panel_display_mode(struct panel_display_mode *pdm, struct mtk_panel_params *ext, struct mtk_panel *ctx)
 {
 	struct device_node *np;
 
@@ -403,14 +403,29 @@ int exynos_display_mode_from_panel_display_mode(struct panel_display_mode *pdm, 
 
 	ext->dyn_fps.switch_en = 1;
 
+	if (ctx->spec.phy_timcon.hs_trail) {
+		ext->phy_timcon.hs_trail = ctx->spec.phy_timcon.hs_trail;
+		dev_info(ctx->dev, "%s: ext->phy_timcon.hs_trail: %d\n", __func__, ext->phy_timcon.hs_trail);
+	}
+
+	if (ctx->spec.phy_timcon.lpx) {
+		ext->phy_timcon.lpx = ctx->spec.phy_timcon.lpx;
+		dev_info(ctx->dev, "%s: ext->phy_timcon.lpx: %d\n", __func__, ext->phy_timcon.lpx);
+	}
+
+	if (ctx->spec.disable_rdma_underflow) {
+		ext->disable_rdma_underflow = ctx->spec.disable_rdma_underflow ? true : false;
+		dev_info(ctx->dev, "%s: ext->disable_rdma_underflow: %d\n", __func__, ext->disable_rdma_underflow);
+	}
+
 	if (pdm->disp_qos_fps > 0)
 		ext->dyn_fps.vact_timing_fps = pdm->disp_qos_fps;
 	else
-		ext->dyn_fps.vact_timing_fps = exynos_display_mode_get_disp_qos_fps(pdm);
+		ext->dyn_fps.vact_timing_fps = mtk_display_mode_get_disp_qos_fps(pdm);
 
 	dev_info(ctx->dev, "%s: ext->dyn_fps.vact_timing_fps : %d\n", __func__, ext->dyn_fps.vact_timing_fps);
 
-	exynos_display_mode_get_dsc_setting_from_pps_table(pdm, ext, ctx);
+	mtk_display_mode_get_dsc_setting_from_pps_table(pdm, ext, ctx);
 
 	return 0;
 }
@@ -422,7 +437,7 @@ int mtk_panel_mode_from_panel_display_mode(struct panel_display_mode *pdm, struc
 		return -EINVAL;
 
 	drm_display_mode_from_panel_display_mode(pdm, &epm->mode);
-	exynos_display_mode_from_panel_display_mode(pdm, &epm->mtk_ext, ctx);
+	mtk_display_mode_from_panel_display_mode(pdm, &epm->mtk_ext, ctx);
 
 	return 0;
 }
@@ -495,7 +510,7 @@ mtk_panel_desc_create_from_panel_display_modes(struct mtk_panel *ctx,
 	}
 
 	for (i = 0; i < num_unique_modes; i++) {
-		memcpy(&modes[temp_num_modes++], &unique_modes[i], sizeof(struct mtk_panel_params));
+		memcpy(&modes[temp_num_modes++], &unique_modes[i], sizeof(struct mtk_panel_mode));
 	}
 
 	/*

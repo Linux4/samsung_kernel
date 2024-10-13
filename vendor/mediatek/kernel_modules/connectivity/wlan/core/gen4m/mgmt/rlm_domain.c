@@ -5610,7 +5610,7 @@ struct TX_PWR_CTRL_ELEMENT *txPwrCtrlStringToStruct(char *pcContent,
 		       pcContOld);
 		return NULL;
 	}
-	if ((op != 1) || (value < 0)) {
+	if (op != 1) {
 		DBGLOG(RLM, ERROR,
 		       "parse scenario sub index error: op=%u, val=%d\n",
 		       op, value);

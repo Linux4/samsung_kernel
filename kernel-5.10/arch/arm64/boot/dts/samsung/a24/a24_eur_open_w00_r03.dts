@@ -59,15 +59,32 @@
 	};
 };
 #endif
+#if 0
+&${gpio_prox_ldo_en_parent} {
+	shub_prox_ldo_en: shub-prox-ldo-en {
+		samsung,pins = SEC_GPIO(${gpio_prox_ldo_en});
+		samsung,pin-function = <1>;
+		samsung,pin-pud = <0>;
+		samsung,pin-con-pdn = <3>;
+		samsung,pin-pud-pdn = <0>;
+	};
+};
+#endif
+
 / {
 	fragment@model {
 		target-path = "/";
 		__overlay__ {
 			shub {
-#if 0
-    			pinctrl-names = "default";
+				pinctrl-names = "default";
+#if 0 && 0
+				pinctrl-0 = <&shub_sensor_ldo_en &shub_prox_ldo_en>;
+#elif 0
 				pinctrl-0 = <&shub_sensor_ldo_en>;
+#elif 0
+				pinctrl-0 = <&shub_prox_ldo_en>;
 #endif
+
 #if 0
 				sensor-vdd-regulator = "VDD_SENSOR_1P8";
 #endif
@@ -82,6 +99,9 @@
 
 #if 0
 				sensor-ldo-en = <SEC_GPIO_REF(${gpio_sensor_ldo_en}) 0>;
+#endif
+#if 0
+				prox-ldo-en = <SEC_GPIO_REF(${gpio_prox_ldo_en}) 0>;
 #endif
 			};
 		};
@@ -2417,6 +2437,12 @@
 						type = <REGULATOR_TYPE_SSD>;
 					};
 #endif
+#if 0
+					dpmic_elvdd_elvss: dpmic-elvdd-elvss {
+						regulator = <&${dpmic_elvdd_elvss_reg}>;
+						type = <REGULATOR_TYPE_PWR>;
+					};
+#endif
 				};
 			};
 		};
@@ -3141,12 +3167,12 @@
 
 		battery,full_condition_type = <(SEC_BATTERY_FULL_CONDITION_NOTIMEFULL | SEC_BATTERY_FULL_CONDITION_VCELL)>;
 		battery,full_condition_soc = <93>;
-		battery,full_condition_vcell = <4250>;
+		/* battery,full_condition_vcell = FV - 50mV set when variable is parsed */
 
 		battery,recharge_check_count = <1>;
 		battery,recharge_condition_type = <SEC_BATTERY_RECHARGE_CONDITION_VCELL>;
 		battery,recharge_condition_soc = <98>;
-		battery,recharge_condition_vcell = <4280>;
+		/* battery,recharge_condition_vcell = FV - 70mV set when variable is parsed */
 
 		battery,charging_reset_time = <0>;
 
@@ -3158,7 +3184,7 @@
 		battery,pre_wc_afc_input_current = <500>;
 
 		battery,swelling_high_rechg_voltage = <4000>;
-		battery,swelling_low_rechg_voltage = <4000>;
+		/*battery,swelling_low_rechg_voltage = FV - 150mA set when variable is parsed */
 
 		battery,siop_icl = <1200>;
 		battery,siop_fcc = <1800>;
@@ -3194,13 +3220,11 @@
 		battery,wireless_otg_input_current = <900>;
 
 		/* Calculate Based on Offsets from float voltage, full_condition_vcell and recharge_condition_vcell */
-		/* if you want to use age_data_by_offset concept add battery,age_data_by_offset; */
+		/* if you want to use age_data_by_common_offset concept add battery,age_data_by_common_offset; */
 
 		battery,age_data_cycle = <0 300 400 700 1000>;
 		battery,age_data_full_condition_soc = <93 92 91 90 89>;
-		battery,age_data_chg_float_voltage_offset = <0 20 40 60 110>;
-		battery,age_data_full_condition_vcell_offset = <0 20 40 60 110>;
-		battery,age_data_recharge_condition_vcell_offset = <0 20 40 60 110>;
+		battery,age_data_common_offset = <0 20 40 110>;
 		/* battery,age_data_max_charging_current_offset = <0 100 200 300 400>; */
 
 		/* cycle, chg_float_voltage, recharge_condition_vcell, full_condition_vcell, full_condition_soc, step charging condition */

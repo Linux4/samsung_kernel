@@ -1991,6 +1991,7 @@ read_err:
 	return ret;
 }
 #endif
+EXPORT_SYMBOL(read_panel_id);
 
 __visible_for_testing struct rdinfo *find_panel_rdinfo(struct panel_device *panel, char *name)
 {

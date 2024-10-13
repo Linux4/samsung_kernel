@@ -410,6 +410,11 @@ void rlmReqGenerateExtCapIE(struct ADAPTER *prAdapter,
 #endif
 
 	prStaRec = cnmGetStaRecByIndex(prAdapter, prMsduInfo->ucStaRecIndex);
+	if (!prStaRec)
+		return;
+
+	DBGLOG(RLM, INFO, "bssInfo[0x%x], staRec[0x%x]\n",
+		prBssInfo->ucPhyTypeSet, prStaRec->ucPhyTypeSet);
 
 	if (!prStaRec || (prStaRec->ucPhyTypeSet & PHY_TYPE_SET_802_11N)
 #if (CFG_SUPPORT_802_11AX == 1)
@@ -680,6 +685,91 @@ void rlmGenerateMTKOuiIE(struct ADAPTER *prAdapter,
 	prMsduInfo->u2FrameLength += IE_SIZE(pucBuffer);
 	pucBuffer += IE_SIZE(pucBuffer);
 } /* rlmGenerateMTKOuiIE */
+
+void rlmGenerateCustomer1OuiIE(struct ADAPTER *prAdapter,
+			 struct MSDU_INFO *prMsduInfo)
+{
+	struct BSS_INFO *prBssInfo;
+	uint8_t *pucBuffer;
+//	uint8_t aucCustomerOui[] = VENDOR_OUI_CUSTOMER1;
+
+	ASSERT(prAdapter);
+	ASSERT(prMsduInfo);
+
+	if (prAdapter->rWifiVar.ucCustomer1Oui == FEATURE_DISABLED)
+		return;
+
+	prBssInfo = prAdapter->aprBssInfo[prMsduInfo->ucBssIndex];
+	if (!prBssInfo)
+		return;
+
+	pucBuffer = (uint8_t *)((unsigned long)prMsduInfo->prPacket +
+				(unsigned long)prMsduInfo->u2FrameLength);
+
+	CUSTOMER_OUI_IE(pucBuffer)->ucId = ELEM_ID_VENDOR;
+	CUSTOMER_OUI_IE(pucBuffer)->ucLength = prAdapter->rWifiVar.ucCusOuiLen[0];
+	CUSTOMER_OUI_IE(pucBuffer)->aucOui[0] = prAdapter->rWifiVar.ucCus1Oui[0];
+	CUSTOMER_OUI_IE(pucBuffer)->aucOui[1] = prAdapter->rWifiVar.ucCus1Oui[1];
+	CUSTOMER_OUI_IE(pucBuffer)->aucOui[2] = prAdapter->rWifiVar.ucCus1Oui[2];
+	CUSTOMER_OUI_IE(pucBuffer)->ucOuiType = prAdapter->rWifiVar.ucCusOuiType[0];
+
+	prMsduInfo->u2FrameLength += IE_SIZE(pucBuffer);
+	pucBuffer += IE_SIZE(pucBuffer);
+}
+
+void rlmGenerateCustomer2OuiIE(struct ADAPTER *prAdapter,
+			 struct MSDU_INFO *prMsduInfo)
+{
+	struct BSS_INFO *prBssInfo;
+	uint8_t *pucBuffer;
+//	uint8_t aucCustomerOui[] = VENDOR_OUI_CUSTOMER2;
+
+	ASSERT(prAdapter);
+	ASSERT(prMsduInfo);
+
+	if (prAdapter->rWifiVar.ucCustomer2Oui == FEATURE_DISABLED)
+		return;
+
+	prBssInfo = prAdapter->aprBssInfo[prMsduInfo->ucBssIndex];
+	if (!prBssInfo)
+		return;
+
+	pucBuffer = (uint8_t *)((unsigned long)prMsduInfo->prPacket +
+				(unsigned long)prMsduInfo->u2FrameLength);
+
+	CUSTOMER_OUI_IE(pucBuffer)->ucId = ELEM_ID_VENDOR;
+	CUSTOMER_OUI_IE(pucBuffer)->ucLength = prAdapter->rWifiVar.ucCusOuiLen[1];
+	CUSTOMER_OUI_IE(pucBuffer)->aucOui[0] = prAdapter->rWifiVar.ucCus2Oui[0];
+	CUSTOMER_OUI_IE(pucBuffer)->aucOui[1] = prAdapter->rWifiVar.ucCus2Oui[1];
+	CUSTOMER_OUI_IE(pucBuffer)->aucOui[2] = prAdapter->rWifiVar.ucCus2Oui[2];
+	CUSTOMER_OUI_IE(pucBuffer)->ucOuiType = prAdapter->rWifiVar.ucCusOuiType[1];
+
+	prMsduInfo->u2FrameLength += IE_SIZE(pucBuffer);
+	pucBuffer += IE_SIZE(pucBuffer);
+}
+
+uint32_t rlmCalculateCustomer1OuiIELen(
+	struct ADAPTER *prAdapter,
+	uint8_t ucBssIndex,
+	struct STA_RECORD *prStaRec)
+{
+	uint8_t len = 0;
+
+	len += (prAdapter->rWifiVar.ucCusOuiLen[0]);
+	return len;
+}
+
+uint32_t rlmCalculateCustomer2OuiIELen(
+	struct ADAPTER *prAdapter,
+	uint8_t ucBssIndex,
+	struct STA_RECORD *prStaRec)
+{
+	uint8_t len = 0;
+
+	len += (prAdapter->rWifiVar.ucCusOuiLen[1]);
+	return len;
+}
+
 
 /*----------------------------------------------------------------------------*/
 /*!
@@ -3485,7 +3575,7 @@ static void rlmRecAssocRespIeInfoForClient(struct ADAPTER *prAdapter,
 	u_int8_t fgIsHasEhtCap = FALSE;
 #endif
 	struct BSS_DESC *prBssDesc;
-	struct PARAM_SSID rSsid;
+	struct PARAM_SSID rSsid = {0};
 
 	ASSERT(prAdapter);
 	ASSERT(prBssInfo);

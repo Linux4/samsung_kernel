@@ -133,36 +133,26 @@ struct pininfo {
 /* command type */
 enum {
 	CMD_TYPE_NONE,
-	/* property */
 	CMD_TYPE_PROP,
-	/* function */
 	CMD_TYPE_FUNC,
+	CMD_TYPE_MAP,
 	/* delay */
 	CMD_TYPE_DELAY,
 	CMD_TYPE_TIMER_DELAY,
 	CMD_TYPE_TIMER_DELAY_BEGIN,
-	/* tx packet*/
-	CMD_TYPE_TX_PACKET,
-	/* rx packet*/
-	CMD_TYPE_RX_PACKET,
-	/* resource */
-	CMD_TYPE_RES,
-	/* sequence */
-	CMD_TYPE_SEQ,
-	/* key */
-	CMD_TYPE_KEY,
-	/* maptable */
-	CMD_TYPE_MAP,
-	/* dump */
-	CMD_TYPE_DMP,
 	/* condition */
 	CMD_TYPE_COND_IF,
 	CMD_TYPE_COND_EL,
 	CMD_TYPE_COND_FI,
-	/* power control */
 	CMD_TYPE_PCTRL,
-	/* property */
+	CMD_TYPE_RX_PACKET,
+	/* dependant command type */
 	CMD_TYPE_CFG,
+	CMD_TYPE_TX_PACKET,
+	CMD_TYPE_KEY,
+	CMD_TYPE_RES,
+	CMD_TYPE_DMP,
+	CMD_TYPE_SEQ,
 	MAX_CMD_TYPE,
 };
 
@@ -171,9 +161,6 @@ enum {
 #define IS_CMD_TYPE_KEY(_type_) ((_type_) == CMD_TYPE_KEY)
 #define IS_CMD_TYPE_RES(_type_) ((_type_) == CMD_TYPE_RES)
 #define IS_CMD_TYPE_SEQ(_type_) ((_type_) == CMD_TYPE_SEQ)
-
-#define IS_CMD_TYPE_TX_MEM_PKT(_type_) \
-	(DSI_PKT_TYPE_WR_SR <= (_type_) && (_type_) <= DSI_PKT_TYPE_WR_MEM)
 
 #define IS_CMD_TYPE_TX_PKT(_type_) \
 	((_type_) == CMD_TYPE_TX_PACKET)
@@ -383,6 +370,8 @@ struct freq_hop_param {
 #if defined(CONFIG_USDM_PANEL_VCOM_TRIM_TEST)
 #define PANEL_VCOM_TRIM_TEST_SEQ ("panel_vcom_trim_test_seq")
 #endif
+#define PANEL_AGING_ON_SEQ ("panel_aging_on_seq")
+#define PANEL_AGING_OFF_SEQ ("panel_aging_off_seq")
 
 /* structure of sequence table */
 struct brt_map {
@@ -521,6 +510,8 @@ struct ddi_ops {
 	int (*get_octa_id)(struct panel_device *panel, void *data);
 	int (*get_manufacture_code)(struct panel_device *panel, void *data);
 	int (*get_manufacture_date)(struct panel_device *panel, void *data);
+	int (*get_temperature_range)(struct panel_device *panel, void *data);
+	int (*check_mipi_read)(struct panel_device *panel, void *data);
 };
 
 struct rcd_region {
@@ -624,6 +615,7 @@ struct common_panel_info {
 #endif
 	struct panel_prop_list *prop_lists[MAX_USDM_DRV_LEVEL];
 	unsigned int num_prop_lists[MAX_USDM_DRV_LEVEL];
+	const char *ezop_json;
 };
 
 enum {
@@ -657,16 +649,6 @@ enum {
 enum {
 	NIGHT_DIM_OFF,
 	NIGHT_DIM_ON,
-};
-
-enum {
-	ACL_OPR_OFF,
-	ACL_OPR_03P,
-	ACL_OPR_06P,
-	ACL_OPR_08P,
-	ACL_OPR_12P,
-	ACL_OPR_15P,
-	ACL_OPR_MAX
 };
 
 enum {
@@ -870,6 +852,7 @@ struct panel_properties {
 	u32 vrr_origin_idx;
 	bool vrr_updated;
 	struct vrr_lfd_info vrr_lfd_info;
+	struct vrr_lfd_info prev_vrr_lfd_info;
 	u32 dia_mode;
 	u32 ub_con_cnt;
 	u32 conn_det_enable;
@@ -882,8 +865,11 @@ struct panel_properties {
 #ifdef CONFIG_USDM_FACTORY_VGLHIGHDOT_TEST
 	u32 vglhighdot;
 #endif
+	u32 panel_aging;
 	u32 dsi_freq;
 	u32 osc_freq;
+	u32 board_rev;
+	bool is_valid_mtp;
 };
 
 struct panel_info {
@@ -911,6 +897,7 @@ struct panel_info {
 	struct panel_rcd_data *rcd_data;
 #endif
 	const char *dqe_suffix;
+	const char *ezop_json;
 };
 
 struct attr_show_args {
@@ -1053,6 +1040,7 @@ static inline int search_table(void *tbl, int itemsize, u32 sz_tbl, void *value)
 const char *cmd_type_to_string(u32 type);
 int string_to_cmd_type(const char *str);
 int register_common_panel(struct common_panel_info *info);
+int panel_vote_up_to_probe(struct panel_device *panel);
 int deregister_common_panel(struct common_panel_info *info);
 struct panel_dt_lut *find_panel_lut(struct panel_device *panel, u32 panel_id);
 struct maptbl *find_panel_maptbl_by_substr(struct panel_device *panel, char *substr);

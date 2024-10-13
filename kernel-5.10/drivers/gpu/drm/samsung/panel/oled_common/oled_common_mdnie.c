@@ -185,6 +185,34 @@ void oled_maptbl_copy_scr_cr(struct maptbl *tbl, u8 *dst)
 	memcpy(dst, mdnie->props.scr, mdnie->props.sz_scr);
 }
 
+void oled_maptbl_copy_scr_white_anti_glare(struct maptbl *tbl, u8 *dst)
+{
+	struct panel_device *panel;
+	struct mdnie_info *mdnie;
+	int ratio;
+	u8 r, g, b;
+
+	if (!tbl || !tbl->pdata || !dst)
+		return;
+
+	panel = tbl->pdata;
+	mdnie = &panel->mdnie;
+
+	ratio = mdnie_get_anti_glare_ratio(mdnie);
+
+	r = (u8)((int)dst[RED * mdnie->props.scr_white_len] * ratio / 100);
+	g = (u8)((int)dst[GREEN * mdnie->props.scr_white_len] * ratio / 100);
+	b = (u8)((int)dst[BLUE * mdnie->props.scr_white_len] * ratio / 100);
+	mdnie_set_cur_wrgb(mdnie, r, g, b);
+
+	panel_dbg("r:%d g:%d b:%d (ratio:%d/100)\n",
+			r, g, b, ratio);
+
+	mdnie_update_wrgb(mdnie, r, g, b);
+	mdnie_cur_wrgb_to_byte_array(mdnie, dst,
+			mdnie->props.scr_white_len);
+}
+
 #ifdef CONFIG_USDM_MDNIE_AFC
 void oled_maptbl_copy_afc(struct maptbl *tbl, u8 *dst)
 {

@@ -1182,6 +1182,7 @@ int mtk_ddic_dsi_send_cmd(struct mtk_ddic_dsi_msg *cmd_msg,
 #if defined (CUSTOMER_USE_SIMPLE_API)
 	if (blocking == SET_LCM_BLOCKING_NOWAIT) {
 		cmdq_pkt_flush_async(cmdq_handle, NULL, NULL);
+		mtk_drm_idlemgr_kick(__func__, crtc, 0);
 		if (need_lock) {
 			DDP_MUTEX_UNLOCK(&mtk_crtc->lock, __func__, __LINE__);
 			mutex_unlock(&private->commit.lock);
@@ -2328,13 +2329,16 @@ static void process_dbg_opt(const char *opt)
 		/*ex: echo helper:DISP_OPT_BYPASS_OVL,0 > /d/mtkfb */
 		char option[100] = "";
 		char *tmp;
-		int value, i;
+		int value, i, limited;
 		enum MTK_DRM_HELPER_OPT helper_opt;
 		struct mtk_drm_private *priv = drm_dev->dev_private;
 		int ret;
 
 		tmp = (char *)(opt + 7);
-		for (i = 0; i < 100; i++) {
+		limited = strlen(tmp);
+		for (i = 0; i < 99; i++) {    /* option[99] should be '\0' to aviod oob */
+			if (i >= limited)
+				return;
 			if (tmp[i] != ',' && tmp[i] != ' ')
 				option[i] = tmp[i];
 			else

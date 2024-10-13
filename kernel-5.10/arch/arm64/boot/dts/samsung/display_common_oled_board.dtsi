@@ -267,6 +267,12 @@
 						type = <REGULATOR_TYPE_SSD>;
 					};
 #endif
+#if 0
+					dpmic_elvdd_elvss: dpmic-elvdd-elvss {
+						regulator = <&${dpmic_elvdd_elvss_reg}>;
+						type = <REGULATOR_TYPE_PWR>;
+					};
+#endif
 				};
 			};
 		};

@@ -3376,10 +3376,8 @@ struct SW_RFB *qmHandleRxPackets(IN struct ADAPTER *prAdapter,
 		if (prCurrSwRfb->fgDataFrame && prCurrSwRfb->prStaRec &&
 			qmAmsduAttackDetection(prAdapter, prCurrSwRfb)) {
 			prCurrSwRfb->eDst = RX_PKT_DESTINATION_NULL;
-			QUEUE_INSERT_TAIL(prReturnedQue,
-				(struct QUE_ENTRY *) prCurrSwRfb);
-			DBGLOG(QM, INFO, "drop AMSDU attack packet\n");
-			continue;
+			DBGLOG(QM, INFO, "drop AMSDU attack packet SN:%d\n",
+					prCurrSwRfb->u2SSN);
 		}
 
 		if (prCurrSwRfb->fgDataFrame && prCurrSwRfb->prStaRec &&
@@ -3674,6 +3672,9 @@ u_int8_t qmAmsduAttackDetection(IN struct ADAPTER *prAdapter,
 		pucPaylod = prSwRfb->pvHeader + prSwRfb->u2HeaderLen;
 	}
 
+	/* record SSN */
+	prSwRfb->u2SSN = u2SSN;
+	
 	/* 802.11 header RA */
 	ucBssIndex = prSwRfb->prStaRec->ucBssIndex;
 	prBssInfo = GET_BSS_INFO_BY_INDEX(prAdapter, ucBssIndex);

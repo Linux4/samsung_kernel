@@ -513,7 +513,7 @@ static void sx938x_enter_unknown_mode(struct sx938x_p *data, int type)
 		data->first_working = false;
 		if (data->is_unknown_mode == UNKNOWN_OFF) {
 			data->is_unknown_mode = UNKNOWN_ON;
-			if (!data->skip_data) {
+			if (atomic_read(&data->enable) == ON) {
 				input_report_rel(data->input, REL_X, UNKNOWN_ON);
 				input_sync(data->input);
 			}
@@ -2049,11 +2049,7 @@ static int sx938x_probe(struct i2c_client *client, const struct i2c_device_id *i
 	}
 	disable_irq(data->irq);
 
-#if IS_ENABLED(CONFIG_SENSORS_CORE_AP)
 	ret = sensors_register(&data->factory_device, data, sensor_attrs, (char *)module_name[data->ic_num]);
-#else
-	ret = sensors_register(data->factory_device, data, sensor_attrs, (char *)module_name[data->ic_num]);
-#endif
 	if (ret) {
 		GRIP_ERR("could not regi sensor %d\n", ret);
 		goto exit_register_failed;

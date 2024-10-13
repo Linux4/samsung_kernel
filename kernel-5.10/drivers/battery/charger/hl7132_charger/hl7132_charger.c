@@ -1744,75 +1744,61 @@ static int hl7132_adjust_ta_current(struct hl7132_charger *chg)
 		chg->timer_period = 1000;
 		mutex_unlock(&chg->lock);
 	} else {
-		if (chg->iin_cc > chg->pdata->iin_cfg) {
-			/* New IIN is higher than iin_cfg */
-			chg->pdata->iin_cfg = chg->iin_cc;
-			/* set IIN_CFG to new IIN */
-			ret = hl7132_set_input_current(chg, chg->iin_cc);
-			if (ret < 0)
-				goto Err;
-			/* Clear req_new_iin */
-			mutex_lock(&chg->lock);
-			chg->req_new_iin = false;
-			mutex_unlock(&chg->lock);
-			/* Read ADC-VBAT */
-			ret = hl7132_read_adc(chg);
-			if (ret < 0)
-				goto Err;
-			vbat = chg->adc_vbat;
-			/* set IIN_CC to MIN(iin, ta_max_cur) */
-			chg->iin_cc = MIN(chg->pdata->iin_cfg, chg->ta_max_cur);
-			chg->pdata->iin_cfg = chg->iin_cc;
+		chg->pdata->iin_cfg = chg->iin_cc;
+		/* set IIN_CFG to new IIN */
+		ret = hl7132_set_input_current(chg, chg->iin_cc);
+		if (ret < 0)
+			goto Err;
+		/* Clear req_new_iin */
+		mutex_lock(&chg->lock);
+		chg->req_new_iin = false;
+		mutex_unlock(&chg->lock);
+		/* Read ADC-VBAT */
+		ret = hl7132_read_adc(chg);
+		if (ret < 0)
+			goto Err;
+		vbat = chg->adc_vbat;
+		/* set IIN_CC to MIN(iin, ta_max_cur) */
+		chg->iin_cc = MIN(chg->pdata->iin_cfg, chg->ta_max_cur);
+		chg->pdata->iin_cfg = chg->iin_cc;
 
-			/* Calculate new TA max current/voltage, it will be using in the dc charging */
-			val = chg->iin_cc / PD_MSG_TA_CUR_STEP;
-			chg->iin_cc = val * PD_MSG_TA_CUR_STEP;
+		/* Calculate new TA max current/voltage, it will be using in the dc charging */
+		val = chg->iin_cc / PD_MSG_TA_CUR_STEP;
+		chg->iin_cc = val * PD_MSG_TA_CUR_STEP;
 
-			val = chg->ta_max_pwr/(chg->iin_cc/1000);
-			val = val*1000/PD_MSG_TA_VOL_STEP;
-			val = val*PD_MSG_TA_VOL_STEP;
-			chg->ta_max_vol = MIN(val, HL7132_TA_MAX_VOL);
-			/* Set TA_CV to MAX[(2*VBAT_ADC + 300mV), 7.5V] */
-			chg->ta_vol = max(HL7132_TA_MIN_VOL_PRESET, ((2 * vbat) + HL7132_TA_VOL_PRE_OFFSET));
-			val = chg->ta_vol / PD_MSG_TA_VOL_STEP;
-			chg->ta_vol = val * PD_MSG_TA_VOL_STEP;
-			chg->ta_vol = MIN(chg->ta_vol, chg->ta_max_vol);
+		val = chg->ta_max_pwr/(chg->iin_cc/1000);
+		val = val*1000/PD_MSG_TA_VOL_STEP;
+		val = val*PD_MSG_TA_VOL_STEP;
+		chg->ta_max_vol = MIN(val, HL7132_TA_MAX_VOL);
+		/* Set TA_CV to MAX[(2*VBAT_ADC + 300mV), 7.5V] */
+		chg->ta_vol = max(HL7132_TA_MIN_VOL_PRESET, ((2 * vbat) + HL7132_TA_VOL_PRE_OFFSET));
+		val = chg->ta_vol / PD_MSG_TA_VOL_STEP;
+		chg->ta_vol = val * PD_MSG_TA_VOL_STEP;
+		chg->ta_vol = MIN(chg->ta_vol, chg->ta_max_vol);
 
-			chg->ta_cur = chg->iin_cc;
-			chg->iin_cc = chg->pdata->iin_cfg;
+		chg->ta_cur = chg->iin_cc;
+		chg->iin_cc = chg->pdata->iin_cfg;
 
-			LOG_DBG(chg, "ta_max_vol=%d, ta_max_cur=%d, ta_max_pwr=%d, iin_cc=%d\n",
-					chg->ta_max_vol, chg->ta_max_cur, chg->ta_max_pwr, chg->iin_cc);
-			/* clear the flag for adjsut mode */
-			chg->prev_iin = 0;
-			chg->prev_inc = INC_NONE;
+		LOG_DBG(chg, "ta_max_vol=%d, ta_max_cur=%d, ta_max_pwr=%d, iin_cc=%d\n",
+				chg->ta_max_vol, chg->ta_max_cur, chg->ta_max_pwr, chg->iin_cc);
+		/* clear the flag for adjsut mode */
+		chg->prev_iin = 0;
+		chg->prev_inc = INC_NONE;
 
-			/* W/A sometimes vbat-reg occurred with low vbat-adc in step1, disable vbat-reg only in adjust cc  */
-			ret = hl7132_update_reg(chg, REG_CTRL11_1, BIT_VBAT_REG_DIS, BIT_VBAT_REG_DIS);
-			if (ret < 0)
-				goto Err;
-			ret = hl7132_read_reg(chg, REG_CTRL11_1, &update);
-			LOG_DBG(chg, "reg[0x11] r_val[0x%x]\n", update);
-			/*end W/A */
+		/* W/A sometimes vbat-reg occurred with low vbat-adc in step1, disable vbat-reg only in adjust cc  */
+		ret = hl7132_update_reg(chg, REG_CTRL11_1, BIT_VBAT_REG_DIS, BIT_VBAT_REG_DIS);
+		if (ret < 0)
+			goto Err;
+		ret = hl7132_read_reg(chg, REG_CTRL11_1, &update);
+		LOG_DBG(chg, "reg[0x11] r_val[0x%x]\n", update);
+		/*end W/A */
 
-			/* due to new ta-vol/ta-cur, should go to adjust cc, and pd msg  */
-			hl7132_set_charging_state(chg, DC_STATE_ADJUST_CC);
-			mutex_lock(&chg->lock);
-			chg->timer_id = TIMER_PDMSG_SEND;
-			chg->timer_period = 0;
-			mutex_unlock(&chg->lock);
-		} else {
-			LOG_DBG(chg, "iin_cc < iin_cfg\n");
-			val = chg->iin_cc / PD_MSG_TA_CUR_STEP;
-			chg->iin_cc = val * PD_MSG_TA_CUR_STEP;
-			chg->ta_cur = chg->iin_cc;
-
-			/* pd msg */
-			mutex_lock(&chg->lock);
-			chg->timer_id = TIMER_PDMSG_SEND;
-			chg->timer_period = 0;
-			mutex_unlock(&chg->lock);
-		}
+		/* due to new ta-vol/ta-cur, should go to adjust cc, and pd msg  */
+		hl7132_set_charging_state(chg, DC_STATE_ADJUST_CC);
+		mutex_lock(&chg->lock);
+		chg->timer_id = TIMER_PDMSG_SEND;
+		chg->timer_period = 0;
+		mutex_unlock(&chg->lock);
 	}
 	schedule_delayed_work(&chg->timer_work, msecs_to_jiffies(chg->timer_period));
 Err:
@@ -3058,6 +3044,7 @@ static int hl7132_ccmode_regulation_process(struct hl7132_charger *chg)
 				//send pd msg
 				if (new_ta_vol != chg->ta_vol) {
 					chg->ta_vol = new_ta_vol;
+					chg->ta_cur = new_ta_cur;
 					mutex_lock(&chg->lock);
 					chg->timer_id = TIMER_PDMSG_SEND;
 					chg->timer_period = 0;
@@ -3637,6 +3624,14 @@ static int hl7132_psy_set_property(struct power_supply *psy, enum power_supply_p
 			/* charger is enabled, need to stop charging!! */
 			if (!val->intval) {
 				chg->online = false;
+
+				chg->pdata->iin_cfg = HL7132_IIN_CFG_DFT;
+				chg->new_iin = chg->pdata->iin_cfg;
+				chg->pdata->vbat_reg = chg->pdata->vbat_reg_max;
+				chg->new_vbat_reg = chg->pdata->vbat_reg;
+				LOG_DBG(chg, "iin_cfg : [%d], vbat_reg : [%d]\n",
+					chg->pdata->iin_cfg, chg->pdata->vbat_reg);
+				
 				ret = hl7132_stop_charging(chg);
 #if IS_ENABLED(CONFIG_BATTERY_SAMSUNG)
 				chg->health_status = POWER_SUPPLY_HEALTH_GOOD;

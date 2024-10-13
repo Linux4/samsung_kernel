@@ -107,6 +107,10 @@ struct APPEND_VAR_IE_ENTRY txProbeRspIETable[] = {
 #if CFG_SUPPORT_MTK_SYNERGY
 	, {(ELEM_HDR_LEN + ELEM_MIN_LEN_MTK_OUI), NULL,
 			rlmGenerateMTKOuiIE}	/* 221 */
+	, {0, rlmCalculateCustomer1OuiIELen,
+	   rlmGenerateCustomer1OuiIE}
+	, {0, rlmCalculateCustomer2OuiIELen,
+	   rlmGenerateCustomer2OuiIE}
 #endif
 	, {(ELEM_HDR_LEN + ELEM_MAX_LEN_WPA), NULL,
 			rsnGenerateWPAIE}	/* 221 */
@@ -2522,6 +2526,7 @@ void p2pFuncParseH2E(IN struct BSS_INFO *prP2pBssInfo)
 		prP2pBssInfo->fgEnableH2E = FALSE;
 
 		for (i = 0;
+			i < RATE_NUM_SW &&
 			i < prP2pBssInfo->ucAllSupportedRatesLen;
 			i++) {
 			DBGLOG(P2P, LOUD,
@@ -7998,7 +8003,7 @@ p2pFunDetermineChnlSwitchPolicy(IN struct ADAPTER *prAdapter,
 	 * 1. Cross band
 	 * 2. BW > 20MHz
 	*/
-	if (prNewChannelInfo->eBand == BAND_5G ||
+	if (
 #if (CFG_SUPPORT_WIFI_6G == 1)
 		prNewChannelInfo->eBand == BAND_6G ||
 #endif

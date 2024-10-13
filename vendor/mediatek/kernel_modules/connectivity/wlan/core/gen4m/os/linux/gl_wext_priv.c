@@ -4930,7 +4930,7 @@ static int priv_driver_get_sta_info(IN struct net_device *prNetDev,
 	int32_t i4BytesWritten = 0;
 	int32_t i4Argc = 0;
 	int8_t *apcArgv[WLAN_CFG_ARGV_MAX] = {0};
-	uint8_t aucMacAddr[MAC_ADDR_LEN];
+	uint8_t aucMacAddr[MAC_ADDR_LEN] = {0};
 	uint8_t ucWlanIndex = 0;
 	uint8_t *pucMacAddr = NULL;
 	struct PARAM_HW_WLAN_INFO *prHwWlanInfo;
@@ -6300,7 +6300,7 @@ static int32_t priv_driver_get_txpower_info(IN struct net_device *prNetDev,
 	DBGLOG(REQ, INFO, "string = %s\n", this_char);
 
 	u4ParamNum = sscanf(this_char, "%d:%d", &ucParam, &ucBandIdx);
-	if (u4ParamNum < 0)
+	if (u4ParamNum != 2)
 		return -1;
 	DBGLOG(REQ, INFO, "ParamNum=%d,Param=%d,Band=%d\n",
 		u4ParamNum, ucParam, ucBandIdx);
@@ -6379,7 +6379,7 @@ static int32_t priv_driver_txpower_man_set(IN struct net_device *prNetDev,
 	u4ParamNum = sscanf(this_char, "%d:%d:%d:%d", &ucPhyMode, &ucTxRate,
 		&ucBw, &iTargetPwr);
 
-	if (u4ParamNum < 0) {
+	if (u4ParamNum != 4) {
 		DBGLOG(REQ, WARN, "sscanf input fail\n");
 		return -1;
 	}
@@ -10603,7 +10603,7 @@ int priv_driver_set_ap_bw(IN struct net_device *prNetDev,
 		}
 		ucBw = (uint8_t) u4Parse;
 
-		if ((ucBw >= MAX_BW_20MHZ) && (ucBw < MAX_BW_UNKNOWN)) {
+		if (ucBw < MAX_BW_UNKNOWN) {
 			prGlueInfo->prAdapter->rWifiVar.ucAp5gBandwidth = ucBw;
 
 			DBGLOG(REQ, STATE,
@@ -14905,6 +14905,8 @@ static int priv_driver_run_hqa(
 		return -1;
 
 	datalen = NTOHS(local_hqa.hqa_frame_comm.hqa_frame_eth->length);
+	if (datalen > SERV_IOCTLBUFF)
+		datalen = SERV_IOCTLBUFF;
 	dataptr = kalMemAlloc(datalen, VIR_MEM_TYPE);
 	if (dataptr == NULL)
 		return -1;

@@ -567,6 +567,22 @@ int sm5714_afc_ta_attach(struct sm5714_muic_data *muic_data)
 				MUIC_DEV_NAME, __func__);
 		return ret;
 	}
+
+	/* read VBUS VALID */
+	ret = sm5714_i2c_read_byte(i2c, SM5714_MUIC_REG_VBUS);
+	if (ret < 0) {
+		pr_err("[%s:%s] err read VBUS\n", MUIC_DEV_NAME, __func__);
+		return 0;
+	}
+	pr_info("[%s:%s] VBUS[0x%02x]\n", MUIC_DEV_NAME, __func__, ret);
+
+	vbvolt = (ret & 0x04) >> 2;
+	if (!vbvolt) {
+		pr_info("[%s:%s] VBUS NOT VALID [0x%02x] just return\n",
+				MUIC_DEV_NAME, __func__, ret);
+		return 0;
+	}
+
 #if IS_ENABLED(CONFIG_MUIC_LO_TA_LOW_CURRENT)
 	if (muic_data->attached_dev == ATTACHED_DEV_LO_TA_MUIC) {
 		pr_info("[%s:%s] Cable is LO_TA, return\n",
@@ -589,21 +605,6 @@ int sm5714_afc_ta_attach(struct sm5714_muic_data *muic_data)
 #else
 		sm5714_afc_notifier_attach(muic_data, SM5714_MUIC_QC20, 5);
 #endif
-		return 0;
-	}
-
-	/* read VBUS VALID */
-	ret = sm5714_i2c_read_byte(i2c, SM5714_MUIC_REG_VBUS);
-	if (ret < 0) {
-		pr_err("[%s:%s] err read VBUS\n", MUIC_DEV_NAME, __func__);
-		return 0;
-	}
-	pr_info("[%s:%s] VBUS[0x%02x]\n", MUIC_DEV_NAME, __func__, ret);
-
-	vbvolt = (ret&0x04)>>2;
-	if (!vbvolt) {
-		pr_info("[%s:%s] VBUS NOT VALID [0x%02x] just return\n",
-				MUIC_DEV_NAME, __func__, ret);
 		return 0;
 	}
 

@@ -151,6 +151,7 @@ static ssize_t macaddr_store(
 {
 	int32_t i4Ret = 0;
 	uint8_t aucMacAddrTemp[] = "FF:FF:FF:FF:FF:FF";
+
 	kalMemCopy(&aucMacAddrTemp, buf, sizeof(aucMacAddrTemp));
 	i4Ret = sscanf((uint8_t *)&aucMacAddrTemp, "%18s",
 		(uint8_t *)&aucMacAddrOverride);
@@ -439,8 +440,7 @@ void sysCreateWifiVer(void)
 
 	char aucDriverVersionStr[] = STR(NIC_DRIVER_MAJOR_VERSION) "_"
 		STR(NIC_DRIVER_MINOR_VERSION) "_"
-		STR(NIC_DRIVER_SERIAL_VERSION) "-"
-		DRIVER_BUILD_DATE;
+		STR(NIC_DRIVER_SERIAL_VERSION);
 	uint16_t u2NvramVer = 0;
 	uint8_t ucOffset = 0;
 
@@ -682,7 +682,7 @@ struct FS_SW_ILD_T sw_feature_set_table[] = {
 	{FS_SW_TWT_ID, FS_SW_TWT_LEN,
 		{0} },
 	{FS_SW_OPTI_ID, FS_SW_OPTI_LEN,
-		{FS_SW_OPTI_SUPPORT|FS_SW_OPTI_B2} },
+		{0} },
 	{FS_SW_SCHE_PM_ID, FS_SW_SCHE_PM_LEN,
 		{0} },
 	{FS_SW_D_WAKEUP_ID, FS_SW_D_WAKEUP_LEN,

@@ -20,6 +20,7 @@
 
 #define SRCLKEN_RC_ENABLE_PROP_NAME		"mediatek,enable"
 #define SRCLKEN_RC_SUBSYS_PROP_NAME		"mediatek,subsys-ctl"
+#define SUBSYSID_NOT_FOUND              "UNSUPPORTED_SUBSYSID"
 
 #define SRCLKEN_RC_SUBSYS_CTL_LEN		20
 
@@ -42,7 +43,7 @@ bool is_srclken_rc_init_done(void)
 const char *srclken_rc_get_subsys_name(u8 idx)
 {
 	if (idx > rc_hw.subsys_num)
-		return NULL;
+		return SUBSYSID_NOT_FOUND;
 
 	return rc_hw.subsys[idx].name;
 }

@@ -1557,7 +1557,7 @@ int kbase_gpu_mmap(struct kbase_context *kctx, struct kbase_va_region *reg, u64 
 						kctx->as_nr,
 						group_id);
 				if (err)
-					goto bad_insert;
+					goto bad_aliased_insert;
 
 				/* Note: mapping count is tracked at alias
 				 * creation time
@@ -1571,7 +1571,7 @@ int kbase_gpu_mmap(struct kbase_context *kctx, struct kbase_va_region *reg, u64 
 					group_id);
 
 				if (err)
-					goto bad_insert;
+					goto bad_aliased_insert;
 			}
 		}
 	} else {
@@ -1615,11 +1615,14 @@ int kbase_gpu_mmap(struct kbase_context *kctx, struct kbase_va_region *reg, u64 
 
 	return err;
 
-bad_insert:
-	kbase_mmu_teardown_pages(kctx->kbdev, &kctx->mmu,
-				 reg->start_pfn, reg->nr_pages,
+bad_aliased_insert:
+	while (i-- > 0) {
+		u64 const stride = alloc->imported.alias.stride;
+		kbase_mmu_teardown_pages(kctx->kbdev, &kctx->mmu, reg->start_pfn + (i * stride),
+				 alloc->imported.alias.aliased[i].length,
 				 kctx->as_nr);
-
+	}
+bad_insert:
 	kbase_remove_va_region(kctx->kbdev, reg);
 
 	return err;
@@ -3821,9 +3824,6 @@ static int kbase_jit_grow(struct kbase_context *kctx,
 	if (reg->gpu_alloc->nents >= info->commit_pages)
 		goto done;
 
-	/* Grow the backing */
-	old_size = reg->gpu_alloc->nents;
-
 	/* Allocate some more pages */
 	delta = info->commit_pages - reg->gpu_alloc->nents;
 	pages_required = delta;
@@ -3869,6 +3869,18 @@ static int kbase_jit_grow(struct kbase_context *kctx,
 		spin_lock(&kctx->mem_partials_lock);
 		kbase_mem_pool_lock(pool);
 	}
+
+	if (reg->gpu_alloc->nents > info->commit_pages) {
+		kbase_mem_pool_unlock(pool);
+		spin_unlock(&kctx->mem_partials_lock);
+		dev_warn(
+			kctx->kbdev->dev,
+			"JIT alloc grown beyond the required number of initially required pages, this grow no longer needed.");
+		goto done;
+	}
+
+	old_size = reg->gpu_alloc->nents;
+	delta = info->commit_pages - old_size;
 
 	gpu_pages = kbase_alloc_phy_pages_helper_locked(reg->gpu_alloc, pool,
 			delta, &prealloc_sas[0]);

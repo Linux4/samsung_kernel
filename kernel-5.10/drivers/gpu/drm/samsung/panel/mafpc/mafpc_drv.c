@@ -98,8 +98,6 @@ __visible_for_testing ssize_t write_comp_image(struct mafpc_device *mafpc, const
 		panel_err("failed to get ctrl_cmd\n");
 		return -EFAULT;
 	}
-	print_hex_dump(KERN_ERR, "CTRL_CMD", DUMP_PREFIX_ADDRESS, 32, 4,
-			mafpc->ctrl_cmd, ABC_CTRL_CMD_SIZE(mafpc), false);
 
 	/* COMP_IMG */
 	if (copy_from_user(mafpc->comp_img_buf, buf + ABC_COMP_IMG_OFFSET(mafpc),
@@ -107,8 +105,6 @@ __visible_for_testing ssize_t write_comp_image(struct mafpc_device *mafpc, const
 		panel_err("failed to get comp_img\n");
 		return -EFAULT;
 	}
-	print_hex_dump(KERN_ERR, "COMP_IMG", DUMP_PREFIX_ADDRESS, 32, 4,
-			mafpc->comp_img_buf, ABC_COMP_IMG_SIZE(mafpc), false);
 
 	/* SCALE_FACTOR */
 	if (count == ABC_DATA_SIZE(mafpc)) {
@@ -117,8 +113,7 @@ __visible_for_testing ssize_t write_comp_image(struct mafpc_device *mafpc, const
 			panel_err("failed to get scale_factor\n");
 			return -EFAULT;
 		}
-		print_hex_dump(KERN_ERR, "SCALE_FACTOR", DUMP_PREFIX_ADDRESS, 32, 4,
-			mafpc->scale_buf, ABC_SCALE_FACTOR_SIZE(mafpc), false);
+
 	}
 	mafpc_set_written_flag(mafpc, MAFPC_UPDATED_FROM_SVC);
 

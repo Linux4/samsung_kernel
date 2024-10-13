@@ -359,6 +359,16 @@ void rlmRspGenerateErpIE(struct ADAPTER *prAdapter,
 void rlmGenerateMTKOuiIE(struct ADAPTER *prAdapter,
 			 struct MSDU_INFO *prMsduInfo);
 
+void rlmGenerateCustomer1OuiIE(struct ADAPTER *prAdapter,
+			 struct MSDU_INFO *prMsduInfo);
+void rlmGenerateCustomer2OuiIE(struct ADAPTER *prAdapter,
+			 struct MSDU_INFO *prMsduInfo);
+
+uint32_t rlmCalculateCustomer1OuiIELen(struct ADAPTER *prAdapter,
+	uint8_t ucBssIndex, struct STA_RECORD *prStaRec);
+uint32_t rlmCalculateCustomer2OuiIELen(struct ADAPTER *prAdapter,
+	uint8_t ucBssIndex, struct STA_RECORD *prStaRec);
+
 u_int8_t rlmParseCheckMTKOuiIE(IN struct ADAPTER *prAdapter,
 			       IN uint8_t *pucBuf, IN uint32_t *pu4Cap);
 

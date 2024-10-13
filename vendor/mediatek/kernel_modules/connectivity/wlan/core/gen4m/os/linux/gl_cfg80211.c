@@ -6081,7 +6081,7 @@ int testmode_set_ax_blacklist(IN struct wiphy *wiphy, IN char *pcCommand,
 	int32_t i4BytesWritten = -1;
 	uint8_t ucType = 0;
 	uint8_t i = 0;
-	uint8_t aucMacAddr[MAC_ADDR_LEN];
+	uint8_t aucMacAddr[MAC_ADDR_LEN] = { 0 };
 	uint8_t index = 0;
 	int32_t i4Ret = 0;
 

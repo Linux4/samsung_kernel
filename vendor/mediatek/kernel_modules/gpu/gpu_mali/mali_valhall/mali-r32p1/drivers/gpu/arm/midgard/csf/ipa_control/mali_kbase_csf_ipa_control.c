@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
 /*
  *
- * (C) COPYRIGHT 2020-2021 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2020-2023 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -290,7 +290,6 @@ kbase_ipa_control_rate_change_notify(struct kbase_clk_rate_listener *listener,
 {
 	if ((clk_index == KBASE_CLOCK_DOMAIN_TOP) && (clk_rate_hz != 0)) {
 		size_t i;
-		unsigned long flags;
 		struct kbase_ipa_control_listener_data *listener_data =
 			container_of(listener,
 				     struct kbase_ipa_control_listener_data,
@@ -298,8 +297,7 @@ kbase_ipa_control_rate_change_notify(struct kbase_clk_rate_listener *listener,
 		struct kbase_device *kbdev = listener_data->kbdev;
 		struct kbase_ipa_control *ipa_ctrl = &kbdev->csf.ipa_control;
 
-		spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
-
+		lockdep_assert_held(&kbdev->hwaccess_lock);
 		if (!kbdev->pm.backend.gpu_ready) {
 			dev_vdbg(kbdev->dev,
 				"%s: backup clk rate:%u change while gpu power off", __func__,
@@ -310,7 +308,6 @@ kbase_ipa_control_rate_change_notify(struct kbase_clk_rate_listener *listener,
 			ipa_ctrl->cur_gpu_rate = clk_rate_hz;
 			spin_unlock(&ipa_ctrl->lock);
 #endif
-			spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
 			return;
 		}
 
@@ -339,10 +336,7 @@ kbase_ipa_control_rate_change_notify(struct kbase_clk_rate_listener *listener,
 			kbase_reg_write(kbdev, IPA_CONTROL_REG(TIMER),
 					timer_value(ipa_ctrl->cur_gpu_rate));
 		}
-
 		spin_unlock(&ipa_ctrl->lock);
-
-		spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
 	}
 }
 
@@ -356,9 +350,12 @@ int kbase_ipa_control_rate_change_notify_ex(struct kbase_device *kbdev,
 	struct kbase_ipa_control *ipa_ctrl = &kbdev->csf.ipa_control;
 	struct kbase_ipa_control_listener_data *listener_data =
 		ipa_ctrl->rtm_listener_data;
+	unsigned long flags;
 
+	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
 	kbase_ipa_control_rate_change_notify(&listener_data->listener,
 					     clk_index, clk_rate_hz * 1000);
+	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
 
 	return 0;
 }
@@ -371,6 +368,7 @@ void kbase_ipa_control_init(struct kbase_device *kbdev)
 	struct kbase_clk_rate_trace_manager *clk_rtm = &kbdev->pm.clk_rtm;
 	struct kbase_ipa_control_listener_data *listener_data;
 	size_t i, j;
+	unsigned long flags;
 
 	for (i = 0; i < KBASE_IPA_CORE_TYPE_NUM; i++) {
 		for (j = 0; j < KBASE_IPA_CONTROL_NUM_BLOCK_COUNTERS; j++) {
@@ -389,20 +387,21 @@ void kbase_ipa_control_init(struct kbase_device *kbdev)
 	listener_data = kmalloc(sizeof(struct kbase_ipa_control_listener_data),
 				GFP_KERNEL);
 	if (listener_data) {
+		spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
 		listener_data->listener.notify =
 			kbase_ipa_control_rate_change_notify;
+		spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
 		listener_data->kbdev = kbdev;
 		ipa_ctrl->rtm_listener_data = listener_data;
 	}
-
-	spin_lock(&clk_rtm->lock);
+	spin_lock_irqsave(&clk_rtm->lock, flags);
 	if (clk_rtm->clks[KBASE_CLOCK_DOMAIN_TOP])
 		ipa_ctrl->cur_gpu_rate =
 			clk_rtm->clks[KBASE_CLOCK_DOMAIN_TOP]->clock_val;
 	if (listener_data)
 		kbase_clk_rate_trace_manager_subscribe_no_lock(
 			clk_rtm, &listener_data->listener);
-	spin_unlock(&clk_rtm->lock);
+	spin_unlock_irqrestore(&clk_rtm->lock, flags);
 
 #if IS_ENABLED(CONFIG_MALI_MIDGARD_DVFS) && \
 	IS_ENABLED(CONFIG_MALI_MTK_DVFS_POLICY)
@@ -991,9 +990,12 @@ void kbase_ipa_control_rate_change_notify_test(struct kbase_device *kbdev,
 	struct kbase_ipa_control *ipa_ctrl = &kbdev->csf.ipa_control;
 	struct kbase_ipa_control_listener_data *listener_data =
 		ipa_ctrl->rtm_listener_data;
+	unsigned long flags;
 
+	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
 	kbase_ipa_control_rate_change_notify(&listener_data->listener,
 					     clk_index, clk_rate_hz);
+	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
 }
 KBASE_EXPORT_TEST_API(kbase_ipa_control_rate_change_notify_test);
 #endif

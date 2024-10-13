@@ -610,8 +610,7 @@ void print_big_data(void)
 	for (i = 0; i < size; i++) {
 		struct shub_sensor *sensor = get_sensor(sensor_wakeup_list[i].uid);
 		if (sensor)
-			shub_info("%s: %s wakeup_cnt %d",
-				__func__, sensor->name, sensor_wakeup_list[i].wakeup_count);
+			shub_infof("%s wakeup_cnt %d", sensor->name, sensor_wakeup_list[i].wakeup_count);
 	}
 }
 
@@ -643,8 +642,7 @@ int parsing_big_data(char *dataframe, int *index, int frame_len)
 				for (j = 0; j < size; j++) {
 					if (sensor_wakeup_list[j].uid == uid) {
 						sensor_wakeup_list[j].wakeup_count += wakeup_count;
-						shub_info("%s: %s(%d) increase by %d",
-							__func__, sensor->name, uid, wakeup_count);
+						shub_infof("%s(%d) increase by %d", sensor->name, uid, wakeup_count);
 						break;
 					}
 				}
@@ -653,15 +651,14 @@ int parsing_big_data(char *dataframe, int *index, int frame_len)
 					sensor_wakeup_list[j].uid = uid;
 					sensor_wakeup_list[j].wakeup_count += wakeup_count;
 					sensor_wakeup_list_size++;
-					shub_info("%s: %s(%d) initialize to %d",
-						__func__, sensor->name, uid, wakeup_count);
+					shub_infof("%s(%d) initialize to %d", sensor->name, uid, wakeup_count);
 				}
 
 				if (wakeup_count > 0)
-					shub_info("%s: %s wakeup_cnt %d",
-						__func__, sensor->name, sensor_wakeup_list[j].wakeup_count);
+					shub_infof("%s wakeup_cnt %d",
+						sensor->name, sensor_wakeup_list[j].wakeup_count);
 			} else {
-				shub_err("%s: invalid uid (%d)", __func__, uid);
+				shub_errf("invalid uid (%d)", uid);
 			}
 		}
 		break;
@@ -701,50 +698,64 @@ unsigned int get_bigdata_wakeup_reason(char *buf)
 		index = 1;
 
 	memcpy(buf, f + index, length - index);
-	shub_err("%s: %s(%d)", __func__, f + index, length - index);
+	shub_errf("%s(%d)", f + index, length - index);
 	return length - index;
 }
 
-uint64_t get_sensors_legacy_probe_state(void)
+int get_sensors_legacy_probe_state(uint64_t *buf)
 {
-	return sensor_manager->sensor_probe_state[0];
+	int size = sizeof(sensor_manager->sensor_probe_state);
+
+	memcpy(buf, sensor_manager->sensor_probe_state, size);
+	return size;
 }
 
-uint64_t get_sensors_legacy_enable_state(void)
+int get_sensors_legacy_enable_state(uint64_t *buf)
 {
+	uint64_t en_state[2] = {0, };
+	int size = sizeof(en_state);
 	int type;
-	uint64_t en_state = 0;
+	int32_t index = 0;
+	int32_t interval = sizeof(en_state[0]) * BITS_PER_BYTE;
 
 	for (type = 0; type < SENSOR_TYPE_LEGACY_MAX; type++) {
-		if (get_sensor_enabled(type))
-			en_state |= (1ULL << type);
+		if (get_sensor_enabled(type)) {
+			index = type < interval ? 0 : 1;
+			en_state[index] |= (1ULL << type % interval);
+		}
 	}
+	memcpy(buf, en_state, size);
 
-	return en_state;
+	return size;
 }
 
 int get_sensors_scontext_probe_state(uint64_t *buf)
 {
-	int size = sizeof(sensor_manager->sensor_probe_state) - sizeof(sensor_manager->sensor_probe_state[0]);
+	int size = sizeof(sensor_manager->scontext_probe_state);
 
-	memcpy(buf, &sensor_manager->sensor_probe_state[1], size);
+	memcpy(buf, sensor_manager->scontext_probe_state, size);
 	return size;
 }
 
 bool get_sensor_probe_state(int type)
 {
+	int interval, index;
+
 	if (type == SENSOR_TYPE_SCONTEXT || type == SENSOR_TYPE_SENSORHUB || type == SENSOR_TYPE_HUB_DEBUGGER)
 		return true;
 
-	if (type < SENSOR_TYPE_LEGACY_MAX)
-		return (sensor_manager->sensor_probe_state[0]) & (1ULL << type);
+	if (type < SENSOR_TYPE_LEGACY_MAX) {
+		interval = sizeof(sensor_manager->sensor_probe_state[0]) * BITS_PER_BYTE;
+		index = type < interval ? 0 : 1;
+		return (sensor_manager->sensor_probe_state[index]) & (1ULL << (type % interval));
+	}
 
 	if (type > SENSOR_TYPE_SS_BASE && type < SENSOR_TYPE_SS_MAX) {
 		int32_t ss_type = type - SENSOR_TYPE_SS_BASE;
-		int32_t interval = sizeof(sensor_manager->sensor_probe_state[1]) * BITS_PER_BYTE;
-		int32_t index = ss_type < interval ? 1 : 2;
+		interval = sizeof(sensor_manager->scontext_probe_state[0]) * BITS_PER_BYTE;
+		index = ss_type < interval ? 0 : 1;
 
-		return (sensor_manager->sensor_probe_state[index]) & (1ULL << (ss_type % interval));
+		return (sensor_manager->scontext_probe_state[index]) & (1ULL << (ss_type % interval));
 	}
 
 	return false;
@@ -852,18 +863,25 @@ static void set_sensor_probe_state(void)
 {
 	struct shub_system_info *system_info = get_shub_system_info();
 
-	memcpy(sensor_manager->sensor_probe_state, system_info->scan, sizeof(sensor_manager->sensor_probe_state));
+	memcpy(sensor_manager->sensor_probe_state, system_info->scan_sensor_probe,
+	       sizeof(sensor_manager->sensor_probe_state));
+	memcpy(sensor_manager->scontext_probe_state, &system_info->scan_scontext_probe,
+	       sizeof(sensor_manager->scontext_probe_state));
 
-	shub_info("probe state 0x%llx, 0x%llx, 0x%llx", sensor_manager->sensor_probe_state[0],
-		  sensor_manager->sensor_probe_state[1], sensor_manager->sensor_probe_state[2]);
+	shub_info("sensor probe state : 0x%llx, 0x%llx, scontext probe state : 0x%llx, 0x%llx",
+		  sensor_manager->sensor_probe_state[0], sensor_manager->sensor_probe_state[1],
+		  sensor_manager->scontext_probe_state[0], sensor_manager->scontext_probe_state[1]);
 }
 
 static inline int get_probed_legacy_count(void)
 {
 	int type = 0, count = 0;
+	int32_t interval = sizeof(sensor_manager->sensor_probe_state[0]) * BITS_PER_BYTE;
+	int32_t index = 0;
 
 	for (type = 0; type < SENSOR_TYPE_LEGACY_MAX; type++) {
-		if ((sensor_manager->sensor_probe_state[0]) & (1ULL << type))
+		index = type < interval ? 0 : 1;
+		if ((sensor_manager->sensor_probe_state[index]) & (1ULL << type % interval))
 			count++;
 	}
 	return count;

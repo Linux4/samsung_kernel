@@ -109,9 +109,8 @@ void __init kdp_cred_init(void)
 {
 	slab_flags_t flags = SLAB_HWCACHE_ALIGN|SLAB_PANIC|SLAB_ACCOUNT;
 
-	if (!kdp_enable) {
+	if (!kdp_enable)
 		return;
-	}
 
 	cred_jar_ro = kmem_cache_create("cred_jar_ro",
 					sizeof(struct cred_kdp),
@@ -225,15 +224,18 @@ int is_kdp_protect_addr(unsigned long addr)
 }
 
 /* We use another function to free protected creds. */
+extern void security_cred_free_hook(struct cred *cred);
 void put_rocred_rcu(struct rcu_head *rcu)
 {
 	struct cred *cred = container_of(rcu, struct ro_rcu_head, rcu)->bp_cred;
 
 	if (atomic_read(((struct cred_kdp *)cred)->use_cnt) != 0)
-			panic("RO_CRED: put_rocred_rcu() sees %p with usage %d\n",
-					cred, atomic_read(((struct cred_kdp *)cred)->use_cnt));
+		panic("RO_CRED: __func__ sees %p with usage %d\n",
+				cred, atomic_read(((struct cred_kdp *)cred)->use_cnt));
 
-	security_cred_free(cred);
+	security_cred_free_hook(cred);
+	kdp_free_security((unsigned long)cred->security);
+	
 	key_put(cred->session_keyring);
 	key_put(cred->process_keyring);
 	key_put(cred->thread_keyring);
@@ -274,11 +276,11 @@ struct cred *prepare_ro_creds(struct cred *old, int kdp_cmd, u64 p)
 	void *rcu_ptr = NULL;
 	void *tsec = NULL;
 
-	new_ro = kmem_cache_alloc(cred_jar_ro, GFP_KERNEL);
+	new_ro = kmem_cache_alloc(cred_jar_ro, GFP_KERNEL | __GFP_NOFAIL);
 	if (!new_ro)
 		panic("[%d] : kmem_cache_alloc() failed", kdp_cmd);
 
-	use_cnt_ptr = kmem_cache_alloc(usecnt_jar, GFP_KERNEL);
+	use_cnt_ptr = kmem_cache_alloc(usecnt_jar, GFP_KERNEL | __GFP_NOFAIL);
 	if (!use_cnt_ptr)
 		panic("[%d] : Unable to allocate usage pointer\n", kdp_cmd);
 
@@ -290,7 +292,7 @@ struct cred *prepare_ro_creds(struct cred *old, int kdp_cmd, u64 p)
 	rcu_ptr = &((struct cred_kdp_init *)use_cnt_ptr)->ro_rcu_head_init;
 	((struct ro_rcu_head *)rcu_ptr)->bp_cred = (void *)new_ro;
 
-	tsec = kmem_cache_alloc(tsec_jar, GFP_KERNEL);
+	tsec = kmem_cache_alloc(tsec_jar, GFP_KERNEL | __GFP_NOFAIL);
 	if (!tsec)
 		panic("[%d] : Unable to allocate security pointer\n", kdp_cmd);
 
@@ -387,9 +389,13 @@ void kdp_free_security(unsigned long tsec)
 
 void kdp_assign_pgd(struct task_struct *p)
 {
+	struct cred_kdp *p_cred = (struct cred_kdp *)p->cred;
 	u64 pgd = (u64)(p->mm ? p->mm->pgd : swapper_pg_dir);
 
-	uh_call(UH_APP_KDP, SET_CRED_PGD, (u64)p->cred, (u64)pgd, 0, 0);
+	if (p_cred->bp_pgd == (void *)pgd)
+		return;
+
+	uh_call(UH_APP_KDP, SET_CRED_PGD, (u64)p_cred, (u64)pgd, 0, 0);
 }
 
 struct task_security_struct init_sec __kdp_ro;
@@ -397,11 +403,11 @@ static inline unsigned int cmp_sec_integrity(const struct cred *cred, struct mm_
 {
 	if (cred == &init_cred) {
 		if (init_cred_kdp.bp_task != current)
-			printk(KERN_ERR "[KDP] init_cred_kdp.bp_task: 0x%lx, current: 0x%lx\n",
+			pr_err("[KDP] init_cred_kdp.bp_task: 0x%lx, current: 0x%lx\n",
 							init_cred_kdp.bp_task, current);
 
-		if (mm && (init_cred_kdp.bp_pgd != swapper_pg_dir) && (init_cred_kdp.bp_pgd != mm->pgd ))
-			printk(KERN_ERR "[KDP] mm: 0x%lx, init_cred_kdp.bp_pgd: 0x%lx, swapper_pg_dir: %p, mm->pgd: 0x%lx\n",
+		if (mm && (init_cred_kdp.bp_pgd != swapper_pg_dir) && (init_cred_kdp.bp_pgd != mm->pgd))
+			pr_err("[KDP] mm: 0x%lx, init_cred_kdp.bp_pgd: 0x%lx, swapper_pg_dir: %p, mm->pgd: 0x%lx\n",
 							mm, init_cred_kdp.bp_pgd, swapper_pg_dir, mm->pgd);
 
 		return ((init_cred_kdp.bp_task != current) ||
@@ -410,12 +416,12 @@ static inline unsigned int cmp_sec_integrity(const struct cred *cred, struct mm_
 				(init_cred_kdp.bp_pgd != mm->pgd)));
 	} else {
 		if (((struct cred_kdp *)cred)->bp_task != current)
-			printk(KERN_ERR "[KDP] cred->bp_task: 0x%lx, current: 0x%lx\n",
+			pr_err("[KDP] cred->bp_task: 0x%lx, current: 0x%lx\n",
 						((struct cred_kdp *)cred)->bp_task, current);
 
 		if (mm && (((struct cred_kdp *)cred)->bp_pgd != swapper_pg_dir) &&
 			(((struct cred_kdp *)cred)->bp_pgd != mm->pgd))
-			printk(KERN_ERR "[KDP] mm: 0x%lx, cred->bp_pgd: 0x%lx, swapper_pg_dir: %p, mm->pgd: 0x%lx\n",
+			pr_err("[KDP] mm: 0x%lx, cred->bp_pgd: 0x%lx, swapper_pg_dir: %p, mm->pgd: 0x%lx\n",
 							mm, ((struct cred_kdp *)cred)->bp_pgd, swapper_pg_dir, mm->pgd);
 
 		return ((((struct cred_kdp *)cred)->bp_task != current) ||
@@ -443,7 +449,7 @@ static inline bool is_kdp_invalid_cred_sp(u64 cred, u64 sec_ptr)
 		!is_kdp_protect_addr(cred + cred_size) ||
 		!is_kdp_protect_addr(sec_ptr) ||
 		!is_kdp_protect_addr(sec_ptr + tsec_size)) {
-		printk(KERN_ERR, "[KDP] cred: %d, cred + sizeof(cred): %d, sp: %d, sp + sizeof(tsec): %d",
+		pr_err("[KDP] cred: %d, cred + sizeof(cred): %d, sp: %d, sp + sizeof(tsec): %d",
 				is_kdp_protect_addr(cred),
 				is_kdp_protect_addr(cred + cred_size),
 				is_kdp_protect_addr(sec_ptr),
@@ -452,7 +458,7 @@ static inline bool is_kdp_invalid_cred_sp(u64 cred, u64 sec_ptr)
 	}
 
 	if ((u64)tsec->bp_cred != cred) {
-		printk(KERN_ERR, "[KDP] %s: tesc->bp_cred: %lx, cred: %lx\n",
+		pr_err("[KDP] %s: tesc->bp_cred: %lx, cred: %lx\n",
 				__func__, (u64)tsec->bp_cred, cred);
 		return true;
 	}
@@ -502,7 +508,7 @@ static unsigned int cmp_ns_integrity(void)
 
 	root = (struct kdp_mount *)current->nsproxy->mnt_ns->root;
 	if (root != (struct kdp_mount *)((struct kdp_vfsmount *)root->mnt)->bp_mount) {
-		printk(KERN_ERR "[KDP] NameSpace Mismatch %lx != %lx\n nsp: 0x%lx, mnt_ns: 0x%lx\n",
+		pr_err("[KDP] NameSpace Mismatch %lx != %lx\n nsp: 0x%lx, mnt_ns: 0x%lx\n",
 				root, ((struct kdp_vfsmount *)root->mnt)->bp_mount, nsp, nsp->mnt_ns);
 		return 1;
 	}
@@ -567,6 +573,9 @@ inline void kdp_set_mnt_root_sb(struct vfsmount *mnt, struct dentry *mnt_root, s
 
 inline void kdp_assign_mnt_flags(struct vfsmount *mnt, int flags)
 {
+	if (mnt->mnt_flags == flags)
+	        return;
+
 	uh_call(UH_APP_KDP, SET_NS_FLAGS, (u64)mnt, (u64)flags, 0, 0);
 }
 

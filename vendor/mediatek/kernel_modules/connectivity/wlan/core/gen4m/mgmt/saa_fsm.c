@@ -418,7 +418,7 @@ saaFsmSendEventJoinComplete(IN struct ADAPTER *prAdapter,
 	/* Store limitation about 40Mhz bandwidth capability during
 	 * association.
 	 */
-	if (prStaRec->ucBssIndex < prAdapter->ucHwBssIdNum) {
+	if (prStaRec->ucBssIndex < MAX_BSS_INDEX) {
 		prBssInfo = GET_BSS_INFO_BY_INDEX(prAdapter,
 						  prStaRec->ucBssIndex);
 

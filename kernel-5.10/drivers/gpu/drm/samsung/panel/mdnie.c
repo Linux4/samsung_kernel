@@ -175,6 +175,11 @@ static struct panel_prop_enum_item mdnie_night_mode_enum_items[NIGHT_MODE_MAX] =
 	__PANEL_PROPERTY_ENUM_ITEM_INITIALIZER(NIGHT_MODE_ON),
 };
 
+static struct panel_prop_enum_item mdnie_anti_glare_enum_items[ANTI_GLARE_MAX] = {
+	__PANEL_PROPERTY_ENUM_ITEM_INITIALIZER(ANTI_GLARE_OFF),
+	__PANEL_PROPERTY_ENUM_ITEM_INITIALIZER(ANTI_GLARE_ON),
+};
+
 static struct panel_prop_enum_item mdnie_color_lens_enum_items[COLOR_LENS_MAX] = {
 	__PANEL_PROPERTY_ENUM_ITEM_INITIALIZER(COLOR_LENS_OFF),
 	__PANEL_PROPERTY_ENUM_ITEM_INITIALIZER(COLOR_LENS_ON),
@@ -273,6 +278,8 @@ static struct panel_prop_list mdnie_property_array[] = {
 			HBM_CE_MODE_OFF, mdnie_hbm_ce_enum_items),
 	__PANEL_PROPERTY_ENUM_INITIALIZER(MDNIE_NIGHT_MODE_PROPERTY,
 			NIGHT_MODE_OFF, mdnie_night_mode_enum_items),
+	__PANEL_PROPERTY_ENUM_INITIALIZER(MDNIE_ANTI_GLARE_PROPERTY,
+			ANTI_GLARE_OFF, mdnie_anti_glare_enum_items),
 	__PANEL_PROPERTY_ENUM_INITIALIZER(MDNIE_COLOR_LENS_PROPERTY,
 			COLOR_LENS_OFF, mdnie_color_lens_enum_items),
 	__PANEL_PROPERTY_ENUM_INITIALIZER(MDNIE_COLOR_LENS_COLOR_PROPERTY,
@@ -298,6 +305,10 @@ static struct panel_prop_list mdnie_property_array[] = {
 			NIGHT_LEVEL_6500K, 0, 305),
 	__PANEL_PROPERTY_RANGE_INITIALIZER(MDNIE_HBM_CE_LEVEL_PROPERTY,
 			0, 0, MAX_HBM_CE_LEVEL),
+	__PANEL_PROPERTY_RANGE_INITIALIZER(MDNIE_EXTRA_DIM_LEVEL_PROPERTY,
+			0, 0, MAX_EXTRA_DIM_LEVEL),
+	__PANEL_PROPERTY_RANGE_INITIALIZER(MDNIE_VIVIDNESS_LEVEL_PROPERTY,
+			0, 0, MAX_VIVIDNESS_LEVEL),
 };
 
 __visible_for_testing int mdnie_set_property_value(struct mdnie_info *mdnie,
@@ -343,6 +354,8 @@ __visible_for_testing int mdnie_set_property(struct mdnie_info *mdnie,
 		propname = MDNIE_NIGHT_MODE_PROPERTY;
 	else if (property == &mdnie->props.night_level)
 		propname = MDNIE_NIGHT_LEVEL_PROPERTY;
+	else if (property == &mdnie->props.anti_glare)
+		propname = MDNIE_ANTI_GLARE_PROPERTY;
 	else if (property == &mdnie->props.color_lens)
 		propname = MDNIE_COLOR_LENS_PROPERTY;
 	else if (property == &mdnie->props.color_lens_color)
@@ -359,6 +372,10 @@ __visible_for_testing int mdnie_set_property(struct mdnie_info *mdnie,
 		propname = MDNIE_SCR_WHITE_MODE_PROPERTY;
 	else if (property == &mdnie->props.trans_mode)
 		propname = MDNIE_TRANS_MODE_PROPERTY;
+	else if (property == &mdnie->props.extra_dim_level)
+		propname = MDNIE_EXTRA_DIM_LEVEL_PROPERTY;
+	else if (property == &mdnie->props.vividness_level)
+		propname = MDNIE_VIVIDNESS_LEVEL_PROPERTY;
 
 	if (!propname) {
 		panel_err("unknown property\n");
@@ -860,6 +877,21 @@ int mdnie_cur_wrgb_to_byte_array(struct mdnie_info *mdnie,
 }
 EXPORT_SYMBOL(mdnie_cur_wrgb_to_byte_array);
 
+#define MDNIE_DEFAULT_ANTI_GLARE_RATIO (100)
+
+int mdnie_get_anti_glare_ratio(struct mdnie_info *mdnie)
+{
+	if (!mdnie->props.anti_glare)
+		return MDNIE_DEFAULT_ANTI_GLARE_RATIO;
+
+	if (mdnie->props.anti_glare_level >=
+			ARRAY_SIZE(mdnie->props.anti_glare_ratio))
+		return MDNIE_DEFAULT_ANTI_GLARE_RATIO;
+
+	return mdnie->props.anti_glare_ratio[mdnie->props.anti_glare_level];
+}
+EXPORT_SYMBOL(mdnie_get_anti_glare_ratio);
+
 int mdnie_update_wrgb(struct mdnie_info *mdnie,
 		unsigned char r, unsigned char g, unsigned char b)
 {
@@ -881,7 +913,7 @@ int mdnie_update_wrgb(struct mdnie_info *mdnie,
 		mdnie_set_def_wrgb(mdnie, r, g, b);
 		for_each_color(i) {
 			value = (int)mdnie->props.def_wrgb[i] +
-				(int)((mdnie->props.scenario_mode == AUTO) ?
+				(int)(((mdnie->props.scenario_mode == AUTO) || (mdnie->props.scenario_mode == DYNAMIC)) ?
 						mdnie->props.def_wrgb_ofs[i] : 0);
 			dst[i] = min(max(value, 0), 255);
 		}
@@ -1161,6 +1193,7 @@ static ssize_t lux_store(struct device *dev,
 	struct mdnie_info *mdnie = dev_get_drvdata(dev);
 	int i, ret, value;
 	unsigned int hbm_ce_level;
+	unsigned int anti_glare_level;
 	bool update = false;
 
 	ret = kstrtoint(buf, 0, &value);
@@ -1183,11 +1216,32 @@ static ssize_t lux_store(struct device *dev,
 	mdnie_set_property_value(mdnie, MDNIE_HBM_CE_PROPERTY,
 			(hbm_ce_level > 0) ? HBM_CE_MODE_ON : HBM_CE_MODE_OFF);
 	mdnie_set_property(mdnie, &mdnie->props.hbm_ce_level, hbm_ce_level);
+
+	if (value < 0) {
+		anti_glare_level = 0;
+	} else {
+		for (i = 0; i < MAX_ANTI_GLARE_LEVEL; i++) {
+			if (!mdnie->props.anti_glare_lux[i])
+				break;
+
+			if (value >= mdnie->props.anti_glare_lux[i])
+				break;
+		}
+		anti_glare_level = i;
+	}
+
+	if (mdnie->props.anti_glare_level != anti_glare_level) {
+		mdnie->props.anti_glare_level = anti_glare_level;
+		update = true;
+	}
+
 	panel_mutex_unlock(&mdnie->lock);
 
 	if (update) {
-		panel_info("hbm_ce:%d (lux:%d)\n",
-				mdnie->props.hbm_ce_level, value);
+		panel_info("hbm_ce:%d anti_glare:%d (lux:%d)\n",
+				mdnie->props.hbm_ce_level,
+				mdnie->props.anti_glare_level,
+				value);
 		mdnie_update(mdnie);
 	}
 
@@ -1392,6 +1446,99 @@ static ssize_t night_mode_store(struct device *dev,
 	panel_mutex_lock(&mdnie->lock);
 	mdnie_set_property(mdnie, &mdnie->props.night, !!enable);
 	mdnie_set_property(mdnie, &mdnie->props.night_level, level);
+	panel_mutex_unlock(&mdnie->lock);
+	mdnie_update(mdnie);
+
+	return count;
+}
+
+static ssize_t vividness_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct mdnie_info *mdnie = dev_get_drvdata(dev);
+
+	return snprintf(buf, PAGE_SIZE, "%d\n", mdnie->props.vividness_level);
+}
+
+static ssize_t vividness_store(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t count)
+{
+	struct mdnie_info *mdnie = dev_get_drvdata(dev);
+	int level, ret;
+
+	ret = sscanf(buf, "%d", &level);
+	if (ret != 1)
+		return -EINVAL;
+
+	if (level < 0 || level >= MAX_VIVIDNESS_LEVEL)
+		return -EINVAL;
+
+	panel_info("vividness_level %d\n", level);
+
+	panel_mutex_lock(&mdnie->lock);
+	mdnie_set_property(mdnie, &mdnie->props.vividness_level, level);
+	panel_mutex_unlock(&mdnie->lock);
+	mdnie_update(mdnie);
+
+	return count;
+}
+
+static ssize_t anti_glare_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct mdnie_info *mdnie = dev_get_drvdata(dev);
+
+	return snprintf(buf, PAGE_SIZE, "%d\n", mdnie->props.anti_glare);
+}
+
+static ssize_t anti_glare_store(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t count)
+{
+	struct mdnie_info *mdnie = dev_get_drvdata(dev);
+	int enable, ret;
+
+	ret = sscanf(buf, "%d", &enable);
+	if (ret != 1)
+		return -EINVAL;
+
+	if (enable < ANTI_GLARE_OFF || enable >= ANTI_GLARE_MAX)
+		return -EINVAL;
+
+	panel_info("anti_glare %s\n", enable ? "on" : "off");
+
+	panel_mutex_lock(&mdnie->lock);
+	mdnie_set_property(mdnie, &mdnie->props.anti_glare, enable);
+	panel_mutex_unlock(&mdnie->lock);
+	mdnie_update(mdnie);
+
+	return count;
+}
+
+static ssize_t extra_dim_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct mdnie_info *mdnie = dev_get_drvdata(dev);
+
+	return snprintf(buf, PAGE_SIZE, "%d\n", mdnie->props.extra_dim_level);
+}
+
+static ssize_t extra_dim_store(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t count)
+{
+	struct mdnie_info *mdnie = dev_get_drvdata(dev);
+	int level, ret;
+
+	ret = sscanf(buf, "%d", &level);
+	if (ret != 1)
+		return -EINVAL;
+
+	if (level < 0 || level > MAX_EXTRA_DIM_LEVEL)
+		return -EINVAL;
+
+	panel_info("extra_dim level %d\n", level);
+
+	panel_mutex_lock(&mdnie->lock);
+	mdnie_set_property(mdnie, &mdnie->props.extra_dim_level, level);
 	panel_mutex_unlock(&mdnie->lock);
 	mdnie_update(mdnie);
 
@@ -1660,6 +1807,9 @@ struct panel_device_attr mdnie_dev_attrs[] = {
 	__MDNIE_ATTR_RW(sensorRGB, 0664, PA_DEFAULT),
 	__MDNIE_ATTR_RW(whiteRGB, 0664, PA_DEFAULT),
 	__MDNIE_ATTR_RW(night_mode, 0664, PA_DEFAULT),
+	__MDNIE_ATTR_RW(vividness, 0664, PA_DEFAULT),
+	__MDNIE_ATTR_RW(anti_glare, 0664, PA_DEFAULT),
+	__MDNIE_ATTR_RW(extra_dim, 0664, PA_DEFAULT),
 	__MDNIE_ATTR_RW(color_lens, 0664, PA_DEFAULT),
 	__MDNIE_ATTR_RW(hdr, 0664, PA_DEFAULT),
 	__MDNIE_ATTR_RW(light_notification, 0664, PA_DEFAULT),
@@ -1865,6 +2015,10 @@ __visible_for_testing int mdnie_init_property(struct mdnie_info *mdnie, struct m
 	mdnie->props.cal_boundary_center = mdnie_tune->cal_boundary_center;
 	mdnie->props.hbm_ce_lux = kmemdup(mdnie_tune->hbm_ce_lux,
 			sizeof(mdnie_tune->hbm_ce_lux), GFP_KERNEL);
+	memcpy(mdnie->props.anti_glare_lux, mdnie_tune->anti_glare_lux,
+			sizeof(mdnie_tune->anti_glare_lux));
+	memcpy(mdnie->props.anti_glare_ratio, mdnie_tune->anti_glare_ratio,
+			sizeof(mdnie_tune->anti_glare_ratio));
 	mdnie->props.scr_white_len = mdnie_tune->scr_white_len;
 	mdnie->props.scr_cr_ofs = mdnie_tune->scr_cr_ofs;
 	mdnie->props.night_mode_ofs = mdnie_tune->night_mode_ofs;

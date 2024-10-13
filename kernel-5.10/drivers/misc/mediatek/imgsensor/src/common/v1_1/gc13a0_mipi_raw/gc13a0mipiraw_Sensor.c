@@ -45,6 +45,8 @@ static DEFINE_SPINLOCK(imgsensor_drv_lock);
 #define I2C_BUFFER_LEN (TRANSFER_UNIT)
 #endif
 
+//#define ENABLE_STREAM_ON_CHECKING_WITH_FRAMECOUNT
+
 static kal_bool enable_adaptive_mipi;
 static int adaptive_mipi_index;
 
@@ -130,10 +132,10 @@ static struct imgsensor_info_struct imgsensor_info = {
 		.framelength = 1616,
 		.startx = 0,
 		.starty = 0,
-		.grabwindow_width = 1028,
-		.grabwindow_height = 772,
+		.grabwindow_width = 2064,
+		.grabwindow_height = 1512,
 		.mipi_data_lp2hs_settle_dc = 85,
-		.mipi_pixel_rate = 226720000,
+		.mipi_pixel_rate = 241280000,
 		.max_framerate = 600,
 	},
 	.custom2 = {
@@ -271,8 +273,8 @@ static struct SENSOR_WINSIZE_INFO_STRUCT imgsensor_winsize_info[] = {
 	    0,    0, 4128, 3096,    0,    0, 4128, 3096}, /* high speed video -NOT USED */
 	{4208, 3120,   40,   12, 4128, 3096, 4128, 3096,
 	    0,    0, 4128, 3096,    0,    0, 4128, 3096}, /* slim video -NOT USED */
-	{4208, 3120,   48,   16, 4112, 3088, 1028,  772,
-	    0,    0, 1028,  772,    0,    0, 1028,  772}, /* custom1 */
+	{4208, 3120,   40,   48, 4128, 3024, 2064, 1512,
+	    0,    0, 2064, 1512,    0,    0, 2064, 1512}, /* custom1 */
 	{4208, 3120,  248,  282, 3712, 2556, 3712, 2556,
 	    0,    0, 3712, 2556,    0,    0, 3712, 2556}, /* custom2 */
 	{4208, 3120,  248,  282, 3712, 2556, 3712, 2556,
@@ -1133,6 +1135,37 @@ static int wait_stream_changes(kal_uint32 addr, kal_uint32 val)
 	return 0;
 }
 
+#ifdef ENABLE_STREAM_ON_CHECKING_WITH_FRAMECOUNT
+static int wait_stream_on()
+{
+	unsigned int check_delay = 2;
+	kal_uint16 frame_counter = 0;
+	kal_uint16 temp_frame_counter = 0;
+	unsigned int i = 0;
+	int timeout_cnt = 200;
+
+	frame_counter = (read_cmos_sensor_8(0x0146) << 8) | read_cmos_sensor_8(0x0147);
+	LOG_INF("wait_stream_on start frame_counter %d", frame_counter);
+	mDELAY(3);
+
+	for (i = 0; i < timeout_cnt; i++) {
+		temp_frame_counter = (read_cmos_sensor_8(0x0146) << 8) | read_cmos_sensor_8(0x0147);
+		LOG_DBG("wait_stream_on start temp_frame_counter %d", temp_frame_counter);
+		if (temp_frame_counter != frame_counter)
+			break;
+
+		mDELAY(check_delay);
+	}
+
+	if (i >= timeout_cnt)
+		LOG_ERR("stream on timeout: %d ms", timeout_cnt * check_delay + 3);
+	else
+		LOG_INF("[wait_stream_on Enable], wait_time = %d ms\n", i * check_delay + 3);
+
+	return 0;
+}
+#endif
+
 static kal_uint32 streaming_control(kal_bool enable)
 {
 	LOG_INF("streaming_enable(0= Sw Standby,1= streaming): %d\n", enable);
@@ -1141,7 +1174,11 @@ static kal_uint32 streaming_control(kal_bool enable)
 			set_mipi_mode(adaptive_mipi_index);
 
 		write_cmos_sensor_8(0x0100, 0X01);
+#ifdef ENABLE_STREAM_ON_CHECKING_WITH_FRAMECOUNT
+		wait_stream_on();
+#else
 		wait_stream_changes(0x0180, 0x40);
+#endif
 	} else {
 		write_cmos_sensor_8(0x0100, 0x00);
 		wait_stream_changes(0x0180, 0x00);

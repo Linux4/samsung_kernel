@@ -14,6 +14,9 @@
 #include <linux/wakeup_reason.h>
 #include <linux/syscore_ops.h>
 #include <linux/ctype.h>
+#include <linux/mailbox/mtk-cmdq-mailbox-ext.h>
+#include <linux/soc/mediatek/mtk-cmdq-ext.h>
+#include <linux/suspend.h>
 
 #include <lpm.h>
 
@@ -177,7 +180,7 @@ static int lpm_log_timer_func(unsigned long long dur, void *priv)
 			(struct lpm_logger_timer *)priv;
 	struct lpm_logger_fired_info *info = &lpm_logger_fired;
 	static unsigned int mcusys_cnt_prev, mcusys_cnt_cur;
-
+	char wakeup_sources[MAX_SUSPEND_ABORT_LEN];
 	if (timer->fired != info->fired) {
 		if (issuer.log_type >= LOG_SUCCEESS &&
 				info->mcusys_cnt_chk == 1) {
@@ -199,6 +202,12 @@ static int lpm_log_timer_func(unsigned long long dur, void *priv)
 			info->state_name[info->fired_index] :
 			"LPM");
 	}
+
+	pm_get_active_wakeup_sources(wakeup_sources, MAX_SUSPEND_ABORT_LEN);
+	pr_info("[name:spm&] %s\n", wakeup_sources);
+	if (strlen(wakeup_sources) >= 36 && !strncmp(wakeup_sources + 24, "cmdq_pm_lock", 12))
+		cmdq_dump_usage();
+
 	timer->fired = info->fired;
 	return 0;
 }

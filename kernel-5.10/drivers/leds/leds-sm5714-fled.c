@@ -338,13 +338,13 @@ static int sm5714_fled_close_flash(void)
 		pr_err("sm5714-fled: %s: not probe fled yet\n", __func__);
 		return -ENXIO;
 	}
+	mutex_lock(&fled->fled_mutex);
 
 	if (fled->pdata->led.pre_fled == false) {
 		pr_info("sm5714-fled: %s: already closed\n", __func__);
+		mutex_unlock(&fled->fled_mutex);
 		return 0;
 	}
-
-	mutex_lock(&fled->fled_mutex);
 
 	fled_set_mode(fled, FLED_MODE_OFF);
 	fled->flash_prepare_cnt--;

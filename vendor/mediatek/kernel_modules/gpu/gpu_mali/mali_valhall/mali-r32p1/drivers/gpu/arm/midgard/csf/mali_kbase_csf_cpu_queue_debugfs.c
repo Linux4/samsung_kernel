@@ -131,8 +131,11 @@ int kbase_csf_cpu_queue_dump(struct kbase_context *kctx,
 	size_t alloc_size = buf_size;
 	char *dump_buffer;
 
-	if (!buffer || !alloc_size)
+	if (!buffer || !buf_size)
 		goto done;
+
+	if (alloc_size > KBASE_MEM_ALLOC_MAX_SIZE)
+		return -EINVAL;
 
 	alloc_size = (alloc_size + PAGE_SIZE) & ~(PAGE_SIZE - 1);
 	dump_buffer = kzalloc(alloc_size, GFP_KERNEL);

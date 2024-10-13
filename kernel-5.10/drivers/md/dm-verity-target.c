@@ -569,7 +569,7 @@ static int verity_verify_io(struct dm_verity_io *io)
 			}
 #else
 			if (verity_handle_err(v, DM_VERITY_BLOCK_TYPE_DATA,
-					   cur_block))
+					      cur_block))
 				return -EIO;
 #endif
 		}
@@ -1210,11 +1210,13 @@ static int verity_ctr(struct dm_target *ti, unsigned argc, char **argv)
 	get_b_info(v->data_dev->name);
 #endif
 
+#ifdef CONFIG_DM_ANDROID_VERITY_AT_MOST_ONCE_DEFAULT_ENABLED
 	if (!v->validated_blocks) {
 		r = verity_alloc_most_once(v);
 		if (r)
 			goto bad;
 	}
+#endif
 
 	/* Root hash signature is  a optional parameter*/
 	r = verity_verify_root_hash(root_hash_digest_to_validate,

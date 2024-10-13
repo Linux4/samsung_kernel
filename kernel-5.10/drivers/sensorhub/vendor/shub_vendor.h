@@ -18,8 +18,10 @@
 
 #ifdef CONFIG_SHUB_LSI
 #include "shub_lsi.h"
-#else
+#elif defined(CONFIG_SHUB_MTK)
 #include "shub_mtk.h"
+#else
+#include "shub_dummy.h"
 #endif
 
 int sensorhub_comms_write(u8 *buf, int length);

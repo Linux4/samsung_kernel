@@ -7,6 +7,7 @@
  * published by the Free Software Foundation.
  */
 #include <linux/module.h>
+#include <linux/list_sort.h>
 #include "panel.h"
 #include "panel_debug.h"
 #include "maptbl.h"
@@ -67,21 +68,17 @@ static int json_ref_to_pnobj(char *ref, struct pnobj *pnobj)
 	return 0;
 }
 
-
-int jsonr_ref_pnobj_object(json_reader_t *r, struct pnobj **pnobj)
+int jsonr_ref_pnobj(json_reader_t *r, struct pnobj *pnobj)
 {
 	jsmntok_t *obj_tok;
 	int err;
 	char name[SZ_128];
 	char *ref = name;
-	struct pnobj t_pnobj, *found;
 
 	JEXPECT_OBJECT(r, current_token(r));
 	obj_tok = current_token(r); inc_token(r);
-	if (!obj_tok->size) {
-		*pnobj = NULL;
+	if (!obj_tok->size)
 		return 0;
-	}
 
 	err = jsonr_ref_field(r, ref);
 	if (err < 0) {
@@ -89,10 +86,31 @@ int jsonr_ref_pnobj_object(json_reader_t *r, struct pnobj **pnobj)
 		return err;
 	}
 
-	err = json_ref_to_pnobj(ref, &t_pnobj);
+	err = json_ref_to_pnobj(ref, pnobj);
 	if (err < 0) {
 		panel_err("failed to ref to pnobj(%s)\n", ref);
 		return err;
+	}
+
+	return 0;
+
+out_free:
+	return err;
+}
+
+int jsonr_ref_pnobj_object(json_reader_t *r, struct pnobj **pnobj)
+{
+	int err;
+	struct pnobj t_pnobj, *found;
+
+	memset(&t_pnobj, 0, sizeof(t_pnobj));
+	err = jsonr_ref_pnobj(r, &t_pnobj);
+	if (err < 0)
+		goto out_free;
+
+	if (!get_pnobj_name(&t_pnobj)) {
+		*pnobj = NULL;
+		return 0;
 	}
 
 	found = pnobj_find_by_pnobj(get_jsonr_pnobj_list(r), &t_pnobj);
@@ -100,9 +118,11 @@ int jsonr_ref_pnobj_object(json_reader_t *r, struct pnobj **pnobj)
 		panel_err("pnobj(%s:%s) not found\n",
 				get_pnobj_name(&t_pnobj),
 				cmd_type_to_string(get_pnobj_cmd_type(&t_pnobj)));
+		free_pnobj_name(&t_pnobj);
 		return -EINVAL;
 	}
 
+	free_pnobj_name(&t_pnobj);
 	*pnobj = found;
 
 	return 0;
@@ -1425,11 +1445,11 @@ out_free:
 	return err;
 }
 
-int jsonr_sequence(json_reader_t *r, struct seqinfo *seq)
+static int jsonr_sequence_prepare(json_reader_t *r, struct seqinfo *seq)
 {
 	jsmntok_t *it_tok;
 	char buf[SZ_128];
-	struct pnobj *pnobj;
+	struct pnobj *pnobj = NULL;
 	void **cmdtbl = NULL;
 	int i, err;
 
@@ -1437,48 +1457,112 @@ int jsonr_sequence(json_reader_t *r, struct seqinfo *seq)
 		panel_err("invalid arg\n");
 		return -EINVAL;
 	}
+	seq->size = 0;
+	seq->cmdtbl = NULL;
 
 	/* entry */
 	err = jsonr_string(r, buf);
 	if (err < 0) {
 		panel_err("failed to parse string\n");
-		goto out_free;
+		return err;
 	}
 
 	/* parsing base */
 	err = jsonr_pnobj_object(r, &seq->base);
 	if (err < 0) {
 		panel_err("failed to parse pnobj\n");
-		goto out_free;
+		return err;
 	}
 
-	/* parsing resource update info */
+	/* parsing sequence command table */
 	JEXPECT_STREQ(r, current_token(r), "cmdtbl"); inc_token(r);
 	JEXPECT_ARRAY(r, current_token(r));
 	it_tok = current_token(r); inc_token(r);
-	if (it_tok->size > 0) {
-		cmdtbl = kzalloc(sizeof(*cmdtbl) * it_tok->size, GFP_KERNEL);
-		for (i = 0; i < it_tok->size; i++) {
-			err = jsonr_ref_pnobj_object(r, &pnobj);
-			if (err < 0)
-				goto out_free;
+	if (it_tok->size == 0)
+		return 0;
 
-			if (!pnobj)
-				break;
-
-			cmdtbl[i] = pnobj;
+	cmdtbl = kzalloc(sizeof(*cmdtbl) * it_tok->size, GFP_KERNEL);
+	for (i = 0; i < it_tok->size; i++) {
+		pnobj = kzalloc(sizeof(*pnobj), GFP_KERNEL);
+		if (!pnobj) {
+			err = -ENOMEM;
+			goto out_free;
 		}
-		seq->size = it_tok->size;
+
+		err = jsonr_ref_pnobj(r, pnobj);
+		if (err < 0) {
+			kfree(pnobj);
+			goto out_free;
+		}
+
+		if (!get_pnobj_name(pnobj)) {
+			kfree(pnobj);
+			break;
+		}
+
+		cmdtbl[i] = pnobj;
+		seq->size++;
 	}
 	seq->cmdtbl = cmdtbl;
 
 	return 0;
 
 out_free:
-	free_pnobj_name(&seq->base);
+	for (i = 0; i < seq->size; i++)
+		kfree(cmdtbl[i]);
 	kfree(cmdtbl);
+	free_pnobj_name(&seq->base);
 
 	return err;
+}
+
+static int jsonr_sequence_bind(json_reader_t *r, struct seqinfo *seq)
+{
+	int i, ret = 0;
+	struct pnobj *pnobj, *found;
+
+	for (i = 0; i < seq->size; i++) {
+		pnobj = seq->cmdtbl[i];
+		if (!get_pnobj_name(pnobj)) {
+			panel_err("null pnobj in seq(%s)\n",
+					get_sequence_name(seq));
+			break;
+		}
+
+		found = pnobj_find_by_pnobj(get_jsonr_pnobj_list(r), pnobj);
+		if (!found) {
+			panel_err("pnobj(%s:%s) not found\n",
+					get_pnobj_name(pnobj),
+					cmd_type_to_string(get_pnobj_cmd_type(pnobj)));
+			ret = -EINVAL;
+		}
+		seq->cmdtbl[i] = found;
+		free_pnobj_name(pnobj);
+		kfree(pnobj);
+	}
+
+	return ret;
+}
+
+int jsonr_sequence(json_reader_t *r, struct seqinfo *seq)
+{
+	int ret;
+
+	ret = jsonr_sequence_prepare(r, seq);
+	if (ret < 0) {
+		panel_err("failed to parse sequence(%s)\n",
+				get_sequence_name(seq));
+		return ret;
+	}
+
+	ret = jsonr_sequence_bind(r, seq);
+	if (ret < 0) {
+		panel_err("failed to bind sequence(%s)\n",
+				get_sequence_name(seq));
+		return ret;
+	}
+
+	return 0;
 }
 
 int jsonr_function(json_reader_t *r, struct pnobj_func *func)
@@ -1516,7 +1600,7 @@ int jsonr_function(json_reader_t *r, struct pnobj_func *func)
 		goto out_free;
 	}
 
-	memcpy(func, found, sizeof(*func));
+	deepcopy_pnobj_function(func, found);
 
 	return 0;
 
@@ -1525,12 +1609,99 @@ out_free:
 	return err;
 }
 
+struct pnobj *jsonr_element(json_reader_t *r, int pnobj_cmd_type)
+{
+	int err = 0;
+	struct pnobj *pnobj = NULL;
+
+	if (pnobj_cmd_type == CMD_TYPE_MAP) {
+		struct maptbl *elem = kzalloc(sizeof(*elem), GFP_KERNEL);
+
+		pnobj = &elem->base;
+		err = jsonr_maptbl(r, elem);
+	} else if (pnobj_cmd_type == CMD_TYPE_RES) {
+		struct resinfo *elem = kzalloc(sizeof(*elem), GFP_KERNEL);
+
+		pnobj = &elem->base;
+		err = jsonr_resource(r, elem);
+	} else if (pnobj_cmd_type == CMD_TYPE_DMP) {
+		struct dumpinfo *elem = kzalloc(sizeof(*elem), GFP_KERNEL);
+
+		pnobj = &elem->base;
+		err = jsonr_dumpinfo(r, elem);
+	} else if (pnobj_cmd_type == CMD_TYPE_PCTRL) {
+		struct pwrctrl *elem = kzalloc(sizeof(*elem), GFP_KERNEL);
+
+		pnobj = &elem->base;
+		err = jsonr_power_ctrl(r, elem);
+	} else if (pnobj_cmd_type == CMD_TYPE_CFG) {
+		struct pnobj_config *elem = kzalloc(sizeof(*elem), GFP_KERNEL);
+
+		pnobj = &elem->base;
+		err = jsonr_config(r, elem);
+	} else if (IS_CMD_TYPE_SEQ(pnobj_cmd_type)) {
+		struct seqinfo *elem = kzalloc(sizeof(*elem), GFP_KERNEL);
+
+		pnobj = &elem->base;
+		err = jsonr_sequence_prepare(r, elem);
+	} else if (IS_CMD_TYPE_RX_PKT(pnobj_cmd_type)) {
+		struct rdinfo *elem = kzalloc(sizeof(*elem), GFP_KERNEL);
+
+		pnobj = &elem->base;
+		err = jsonr_rx_packet(r, elem);
+	} else if (IS_CMD_TYPE_KEY(pnobj_cmd_type)) {
+		struct keyinfo *elem = kzalloc(sizeof(*elem), GFP_KERNEL);
+
+		pnobj = &elem->base;
+		err = jsonr_keyinfo(r, elem);
+	} else if (IS_CMD_TYPE_TX_PKT(pnobj_cmd_type)) {
+		struct pktinfo *elem = kzalloc(sizeof(*elem), GFP_KERNEL);
+
+		pnobj = &elem->base;
+		err = jsonr_tx_packet(r, elem);
+	} else if (IS_CMD_TYPE_DELAY(pnobj_cmd_type) ||
+			(pnobj_cmd_type == CMD_TYPE_TIMER_DELAY)) {
+		struct delayinfo *elem = kzalloc(sizeof(*elem), GFP_KERNEL);
+
+		pnobj = &elem->base;
+		err = jsonr_delayinfo(r, elem);
+	} else if (pnobj_cmd_type == CMD_TYPE_TIMER_DELAY_BEGIN) {
+		struct timer_delay_begin_info *elem = kzalloc(sizeof(*elem), GFP_KERNEL);
+
+		pnobj = &elem->base;
+		err = jsonr_timer_delay_begin_info(r, elem);
+	} else if (IS_CMD_TYPE_COND(pnobj_cmd_type)) {
+		struct condinfo *elem = kzalloc(sizeof(*elem), GFP_KERNEL);
+
+		pnobj = &elem->base;
+		err = jsonr_condition(r, elem);
+	} else if (pnobj_cmd_type == CMD_TYPE_FUNC) {
+		struct pnobj_func *elem = kzalloc(sizeof(*elem), GFP_KERNEL);
+
+		pnobj = &elem->base;
+		err = jsonr_function(r, elem);
+	} else if (IS_CMD_TYPE_PROP(pnobj_cmd_type)) {
+		struct panel_property *elem = kzalloc(sizeof(*elem), GFP_KERNEL);
+
+		pnobj = &elem->base;
+		err = jsonr_property(r, elem);
+	}
+
+	if (err < 0) {
+		panel_err("failed to parse %s element\n",
+				cmd_type_to_string(pnobj_cmd_type));
+		return NULL;
+	}
+
+	return pnobj;
+}
+
 int jsonr_all(json_reader_t *r)
 {
-	jsmntok_t *top, *tok;
-	char buf[SZ_128];
+	jsmntok_t *top, *tok, *temp_tok;
+	char buf[SZ_128], str[SZ_32+1];
 	int i, j, err, pnobj_cmd_type;
-	struct pnobj *pos, *next;
+	struct pnobj *pos, *next, *pnobj;
 
 	JEXPECT_OBJECT(r, current_token(r));
 	top = current_token(r); inc_token(r);
@@ -1543,7 +1714,9 @@ int jsonr_all(json_reader_t *r)
 
 		pnobj_cmd_type = string_to_cmd_type(buf);
 		if (pnobj_cmd_type < 0) {
-			panel_err("invalid type(%s:%d)\n", buf, pnobj_cmd_type);
+			snprintf(str, SZ_32, "%.*s", SZ_32, buf);
+			str[SZ_32] = '\0';
+			panel_err("failed to parse type(%s)\n", str);
 			err = -EINVAL;
 			goto out_free;
 		}
@@ -1551,153 +1724,43 @@ int jsonr_all(json_reader_t *r)
 		JEXPECT_OBJECT(r, current_token(r));
 		tok = current_token(r); inc_token(r);
 		for (j = 0; j < tok->size / 2; j++) {
-			panel_dbg("%.*s\n",
-					SZ_16, get_jsonr_buf(r) + current_token(r)->start);
-
-			if (pnobj_cmd_type == CMD_TYPE_MAP) {
-				struct maptbl *m = kzalloc(sizeof(*m), GFP_KERNEL);
-
-				err = jsonr_maptbl(r, m);
-				if (err < 0) {
-					panel_err("failed to parse\n");
-					goto out_free;
-				}
-
-				list_add_tail(get_pnobj_list(&m->base), get_jsonr_pnobj_list(r));
-			} else if (pnobj_cmd_type == CMD_TYPE_RES) {
-				struct resinfo *res = kzalloc(sizeof(*res), GFP_KERNEL);
-
-				err = jsonr_resource(r, res);
-				if (err < 0) {
-					panel_err("failed to parse\n");
-					goto out_free;
-				}
-
-				list_add_tail(get_pnobj_list(&res->base), get_jsonr_pnobj_list(r));
-			} else if (pnobj_cmd_type == CMD_TYPE_DMP) {
-				struct dumpinfo *dump = kzalloc(sizeof(*dump), GFP_KERNEL);
-
-				err = jsonr_dumpinfo(r, dump);
-				if (err < 0) {
-					panel_err("failed to parse\n");
-					goto out_free;
-				}
-
-				list_add_tail(get_pnobj_list(&dump->base), get_jsonr_pnobj_list(r));
-			} else if (pnobj_cmd_type == CMD_TYPE_PCTRL) {
-				struct pwrctrl *pwrctrl = kzalloc(sizeof(*pwrctrl), GFP_KERNEL);
-
-				err = jsonr_power_ctrl(r, pwrctrl);
-				if (err < 0) {
-					panel_err("failed to parse\n");
-					goto out_free;
-				}
-
-				list_add_tail(get_pnobj_list(&pwrctrl->base), get_jsonr_pnobj_list(r));
-			} else if (pnobj_cmd_type == CMD_TYPE_CFG) {
-				struct pnobj_config *config = kzalloc(sizeof(*config), GFP_KERNEL);
-
-				err = jsonr_config(r, config);
-				if (err < 0) {
-					panel_err("failed to parse\n");
-					goto out_free;
-				}
-
-				list_add_tail(get_pnobj_list(&config->base), get_jsonr_pnobj_list(r));
-			} else if (pnobj_cmd_type == CMD_TYPE_SEQ) {
-				struct seqinfo *seq = kzalloc(sizeof(*seq), GFP_KERNEL);
-
-				err = jsonr_sequence(r, seq);
-				if (err < 0) {
-					panel_err("failed to parse\n");
-					goto out_free;
-				}
-
-				list_add_tail(get_pnobj_list(&seq->base), get_jsonr_pnobj_list(r));
-			} else if (IS_CMD_TYPE_RX_PKT(pnobj_cmd_type)) {
-				struct rdinfo *rdi = kzalloc(sizeof(*rdi), GFP_KERNEL);
-
-				err = jsonr_rx_packet(r, rdi);
-				if (err < 0) {
-					panel_err("failed to parse\n");
-					goto out_free;
-				}
-
-				list_add_tail(get_pnobj_list(&rdi->base), get_jsonr_pnobj_list(r));
-			} else if (IS_CMD_TYPE_KEY(pnobj_cmd_type)) {
-				struct keyinfo *key = kzalloc(sizeof(*key), GFP_KERNEL);
-
-				err = jsonr_keyinfo(r, key);
-				if (err < 0) {
-					panel_err("failed to parse\n");
-					goto out_free;
-				}
-
-				list_add_tail(get_pnobj_list(&key->base), get_jsonr_pnobj_list(r));
-			} else if (IS_CMD_TYPE_TX_PKT(pnobj_cmd_type)) {
-				struct pktinfo *pkt = kzalloc(sizeof(*pkt), GFP_KERNEL);
-
-				err = jsonr_tx_packet(r, pkt);
-				if (err < 0) {
-					panel_err("failed to parse\n");
-					goto out_free;
-				}
-
-				list_add_tail(get_pnobj_list(&pkt->base), get_jsonr_pnobj_list(r));
-			} else if (IS_CMD_TYPE_DELAY(pnobj_cmd_type) ||
-					(pnobj_cmd_type == CMD_TYPE_TIMER_DELAY)) {
-				struct delayinfo *delay = kzalloc(sizeof(*delay), GFP_KERNEL);
-
-				err = jsonr_delayinfo(r, delay);
-				if (err < 0) {
-					panel_err("failed to parse\n");
-					goto out_free;
-				}
-
-				list_add_tail(get_pnobj_list(&delay->base), get_jsonr_pnobj_list(r));
-			} else if (pnobj_cmd_type == CMD_TYPE_TIMER_DELAY_BEGIN) {
-				struct timer_delay_begin_info *tdbi = kzalloc(sizeof(*tdbi), GFP_KERNEL);
-
-				err = jsonr_timer_delay_begin_info(r, tdbi);
-				if (err < 0) {
-					panel_err("failed to parse\n");
-					goto out_free;
-				}
-
-				list_add_tail(get_pnobj_list(&tdbi->base), get_jsonr_pnobj_list(r));
-			} else if (IS_CMD_TYPE_COND(pnobj_cmd_type)) {
-				struct condinfo *cond = kzalloc(sizeof(*cond), GFP_KERNEL);
-
-				err = jsonr_condition(r, cond);
-				if (err < 0) {
-					panel_err("failed to parse\n");
-					goto out_free;
-				}
-
-				list_add_tail(get_pnobj_list(&cond->base), get_jsonr_pnobj_list(r));
+			temp_tok = current_token(r);
+			pnobj = jsonr_element(r, pnobj_cmd_type);
+			if (!pnobj) {
+				snprintf(str, SZ_32, "%.*s", SZ_32, get_jsonr_buf(r) + temp_tok->start);
+				panel_err("failed to parse %s:%s\n",
+						cmd_type_to_string(pnobj_cmd_type), str);
+				err = -EINVAL;
+				goto out_free;
 			}
-			else if (pnobj_cmd_type == CMD_TYPE_FUNC) {
-				struct pnobj_func pnobj_func;
 
-				memset(&pnobj_func, 0, sizeof(pnobj_func));
-				err = jsonr_function(r, &pnobj_func);
-				if (err < 0) {
-					panel_err("failed to parse\n");
-					goto out_free;
-				}
-
-				pnobj_function_list_add(&pnobj_func, get_jsonr_pnobj_list(r));
-			} else if (IS_CMD_TYPE_PROP(pnobj_cmd_type)) {
-				struct panel_property *property = kzalloc(sizeof(*property), GFP_KERNEL);
-
-				err = jsonr_property(r, property);
-				if (err < 0) {
-					panel_err("failed to parse\n");
-					goto out_free;
-				}
-
-				list_add_tail(get_pnobj_list(&property->base), get_jsonr_pnobj_list(r));
+			if (pnobj_cmd_type == CMD_TYPE_FUNC &&
+					pnobj_find_by_name(get_jsonr_pnobj_list(r),
+						get_pnobj_name(pnobj))) {
+				panel_dbg("function(%s) already exist\n",
+						get_pnobj_name(pnobj));
+				continue;
 			}
+
+			list_add_tail(get_pnobj_list(pnobj), get_jsonr_pnobj_list(r));
+
+			panel_dbg("%.*s\n", SZ_32, get_jsonr_buf(r) + temp_tok->start);
+		}
+	}
+
+	/* replace allocated pnobj to pnobj pointer */
+	list_for_each_entry(pos, get_jsonr_pnobj_list(r), list) {
+		struct seqinfo *seq;
+
+		if (!IS_CMD_TYPE_SEQ(get_pnobj_cmd_type(pos)))
+			continue;
+
+		seq = pnobj_container_of(pos, struct seqinfo);
+		err = jsonr_sequence_bind(r, seq);
+		if (err < 0) {
+			panel_err("failed to bind sequence(%s)\n",
+					get_sequence_name(seq));
+			goto out_free;
 		}
 	}
 
@@ -2272,6 +2335,52 @@ int jsonw_function(json_writer_t *w, struct pnobj_func *func)
 	return 0;
 }
 
+int jsonw_element(json_writer_t *w, struct pnobj *pnobj)
+{
+	u32 pnobj_cmd_type;
+
+	if (!pnobj)
+		return -EINVAL;
+
+	pnobj_cmd_type = get_pnobj_cmd_type(pnobj);
+
+	if (pnobj_cmd_type == CMD_TYPE_MAP)
+		jsonw_maptbl(w, (struct maptbl *)pnobj);
+	else if (pnobj_cmd_type == CMD_TYPE_RES)
+		jsonw_resource(w, (struct resinfo *)pnobj);
+	else if (pnobj_cmd_type == CMD_TYPE_DMP)
+		jsonw_dumpinfo(w, (struct dumpinfo *)pnobj);
+	else if (pnobj_cmd_type == CMD_TYPE_PCTRL)
+		jsonw_power_ctrl(w, (struct pwrctrl *)pnobj);
+	else if (pnobj_cmd_type == CMD_TYPE_CFG)
+		jsonw_config(w, (struct pnobj_config *)pnobj);
+	else if (pnobj_cmd_type == CMD_TYPE_SEQ)
+		jsonw_sequence(w, (struct seqinfo *)pnobj);
+	else if (IS_CMD_TYPE_RX_PKT(pnobj_cmd_type))
+		jsonw_rx_packet(w, (struct rdinfo *)pnobj);
+	else if (IS_CMD_TYPE_KEY(pnobj_cmd_type))
+		jsonw_keyinfo(w, (struct keyinfo *)pnobj);
+	else if (IS_CMD_TYPE_TX_PKT(pnobj_cmd_type))
+		jsonw_tx_packet(w, (struct pktinfo *)pnobj);
+	else if (IS_CMD_TYPE_DELAY(pnobj_cmd_type) ||
+			(pnobj_cmd_type == CMD_TYPE_TIMER_DELAY))
+		jsonw_delayinfo(w, (struct delayinfo *)pnobj);
+	else if (pnobj_cmd_type == CMD_TYPE_TIMER_DELAY_BEGIN)
+		jsonw_timer_delay_begin_info(w, (struct timer_delay_begin_info *)pnobj);
+	else if (IS_CMD_TYPE_COND(pnobj_cmd_type))
+		jsonw_condition(w, (struct condinfo *)pnobj);
+	else if (pnobj_cmd_type == CMD_TYPE_FUNC)
+		jsonw_function(w, (struct pnobj_func *)pnobj);
+	else if (IS_CMD_TYPE_PROP(pnobj_cmd_type))
+		jsonw_property(w, (struct panel_property *)pnobj);
+	else {
+		panel_warn("invalid panel object type(%d)\n", pnobj_cmd_type);
+		return -EINVAL;
+	}
+
+	return 0;
+}
+
 int jsonw_pnobj_list(json_writer_t *w, u32 pnobj_cmd_type, struct list_head *pnobj_list)
 {
 	struct pnobj *pnobj;
@@ -2283,42 +2392,40 @@ int jsonw_pnobj_list(json_writer_t *w, u32 pnobj_cmd_type, struct list_head *pno
 			if (pnobj_cmd_type != get_pnobj_cmd_type(pnobj))
 				continue;
 
-			if (pnobj_cmd_type == CMD_TYPE_MAP)
-				jsonw_maptbl(w, (struct maptbl *)pnobj);
-			else if (pnobj_cmd_type == CMD_TYPE_RES)
-				jsonw_resource(w, (struct resinfo *)pnobj);
-			else if (pnobj_cmd_type == CMD_TYPE_DMP)
-				jsonw_dumpinfo(w, (struct dumpinfo *)pnobj);
-			else if (pnobj_cmd_type == CMD_TYPE_PCTRL)
-				jsonw_power_ctrl(w, (struct pwrctrl *)pnobj);
-			else if (pnobj_cmd_type == CMD_TYPE_CFG)
-				jsonw_config(w, (struct pnobj_config *)pnobj);
-			else if (pnobj_cmd_type == CMD_TYPE_SEQ)
-				jsonw_sequence(w, (struct seqinfo *)pnobj);
-			else if (IS_CMD_TYPE_RX_PKT(pnobj_cmd_type))
-				jsonw_rx_packet(w, (struct rdinfo *)pnobj);
-			else if (IS_CMD_TYPE_KEY(pnobj_cmd_type))
-				jsonw_keyinfo(w, (struct keyinfo *)pnobj);
-			else if (IS_CMD_TYPE_TX_PKT(pnobj_cmd_type))
-				jsonw_tx_packet(w, (struct pktinfo *)pnobj);
-			else if (IS_CMD_TYPE_DELAY(pnobj_cmd_type) ||
-					(pnobj_cmd_type == CMD_TYPE_TIMER_DELAY))
-				jsonw_delayinfo(w, (struct delayinfo *)pnobj);
-			else if (pnobj_cmd_type == CMD_TYPE_TIMER_DELAY_BEGIN)
-				jsonw_timer_delay_begin_info(w, (struct timer_delay_begin_info *)pnobj);
-			else if (IS_CMD_TYPE_COND(pnobj_cmd_type))
-				jsonw_condition(w, (struct condinfo *)pnobj);
-			else if (pnobj_cmd_type == CMD_TYPE_FUNC)
-				jsonw_function(w, (struct pnobj_func *)pnobj);
-			else if (IS_CMD_TYPE_PROP(pnobj_cmd_type))
-				jsonw_property(w, (struct panel_property *)pnobj);
-			else {
-				panel_warn("invalid panel object type(%d)\n", pnobj_cmd_type);
-				continue;
-			}
+			jsonw_element(w, pnobj);
 		}
 	}
 	jsonw_end_object(w);
+
+	return 0;
+}
+
+int jsonw_sorted_pnobj_list(json_writer_t *w, u32 pnobj_cmd_type, struct list_head *pnobj_list)
+{
+	struct pnobj_refs *refs;
+	struct pnobj_ref *ref;
+	struct pnobj *pnobj;
+
+	/* make sorted pnobj_refs list */
+	refs = pnobj_list_to_pnobj_refs(pnobj_list);
+	if (!refs)
+		return -EINVAL;
+
+	list_sort(NULL, &refs->list, pnobj_ref_compare);
+
+	jsonw_name(w, pnobj_cmd_type_to_json_path(pnobj_cmd_type));
+	jsonw_start_object(w);
+	{
+		list_for_each_entry(ref, &refs->list, list) {
+			pnobj = ref->pnobj;
+			if (pnobj_cmd_type != get_pnobj_cmd_type(pnobj))
+				continue;
+
+			jsonw_element(w, pnobj);
+		}
+	}
+	jsonw_end_object(w);
+	remove_pnobj_refs(refs);
 
 	return 0;
 }

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 /* sma1305.c -- sma1305 ALSA SoC Audio driver
  *
- * r022, 2022.11.03	- initial version  sma1305
+ * r025, 2024.01.16	- initial version  sma1305
  *
  * Copyright 2020 Iron Device Corporation
  *
@@ -2942,14 +2942,14 @@ static int sma1305_spk_rcv_conf(struct snd_soc_component *component)
 		regmap_write(sma1305->regmap, SMA1305_8F_ANALOG_TEST, 0x02);
 		/* FLT_VDD_GAIN : 3.2V */
 		regmap_write(sma1305->regmap, SMA1305_92_FDPEC_CTRL1, 0xC0);
-		/* Switching Off Slew : 4.8ns, Switching Slew : 2.6ns,
+		/* Switching Off Slew : 2.6ns, Switching Slew : 2.6ns,
 		 * Ramp Compensation : 7.0A/us
 		 */
-		regmap_write(sma1305->regmap, SMA1305_94_BOOST_CTRL9, 0x64);
+		regmap_write(sma1305->regmap, SMA1305_94_BOOST_CTRL9, 0xA4);
 		/* High P-gain, OCL : 5.1A */
 		regmap_write(sma1305->regmap, SMA1305_95_BOOST_CTRL10, 0x74);
-		/* Driver On Deadtime : 4.8ns, Driver Off Deadtime : 5.8ns */
-		regmap_write(sma1305->regmap, SMA1305_96_BOOST_CTRL11, 0xDA);
+		/* Driver On Deadtime : 9.0ns, Driver Off Deadtime : 7.3ns */
+		regmap_write(sma1305->regmap, SMA1305_96_BOOST_CTRL11, 0x57);
 		/* Min V : 5'b00100 (0.70V) */
 		regmap_write(sma1305->regmap, SMA1305_A8_BOOST_CTRL1, 0x04);
 		/* HEAD_ROOM : 5'b00111 (1.230V) */
@@ -4401,7 +4401,7 @@ int sma1305_i2c_probe(struct i2c_client *client,
 	unsigned int device_info;
 	int retry_cnt = SMA1305_I2C_RETRY_COUNT;
 
-	dev_info(&client->dev, "%s is here. Driver version REV023\n", __func__);
+	dev_info(&client->dev, "%s is here. Driver version REV025\n", __func__);
 
 	sma1305 = devm_kzalloc(&client->dev, sizeof(struct sma1305_priv),
 							GFP_KERNEL);

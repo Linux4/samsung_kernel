@@ -1638,18 +1638,25 @@ void security_cred_free(struct cred *cred)
 
 	call_void_hook(cred_free, cred);
 
-#ifdef CONFIG_KDP_CRED
-	if (is_kdp_protect_addr((unsigned long)cred)) {
-		kdp_free_security((unsigned long)cred->security);
-		uh_call(UH_APP_KDP, SELINUX_CRED_FREE, (u64) &cred->security, 0, 0, 0);
-	} else {
-#endif
 	kfree(cred->security);
 	cred->security = NULL;
-#ifdef CONFIG_KDP_CRED
-	}
-#endif
 }
+
+#ifdef CONFIG_KDP_CRED
+void security_cred_free_hook(struct cred *cred)
+{
+	/*
+	 * There is a failure case in prepare_creds() that
+	 * may result in a call here with ->security being NULL.
+	 */
+	if (unlikely(cred == NULL || cred->security == NULL))
+		return;
+
+	BUG_ON(!is_kdp_protect_addr((unsigned long)cred));
+
+	call_void_hook(cred_free, cred);
+}
+#endif
 
 int security_prepare_creds(struct cred *new, const struct cred *old, gfp_t gfp)
 {

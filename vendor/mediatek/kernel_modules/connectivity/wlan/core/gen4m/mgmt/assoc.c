@@ -602,6 +602,9 @@ uint32_t assocSendReAssocReqFrame(IN struct ADAPTER *prAdapter,
 	/* 4 <1> Allocate a PKT_INFO_T for Authentication Frame */
 	fgIsReAssoc = prStaRec->fgIsReAssoc;
 
+	if (prStaRec->ucBssIndex >= MAX_BSS_INDEX)
+		return WLAN_STATUS_INVALID_DATA;
+
 	/* Init with MGMT Header Length + Length of Fixed Fields
 	 *   + Common IE Length
 	 */
@@ -1116,6 +1119,11 @@ assocCheckRxReAssocRspFrameStatus(IN struct ADAPTER *prAdapter,
 		return WLAN_STATUS_INVALID_PACKET;
 	}
 
+	if (prStaRec->ucBssIndex >= MAX_BSS_INDEX) {
+		DBGLOG(NIC, ERROR, "ucBssIndex out of range!\n");
+		return WLAN_STATUS_FAILURE;
+	}
+
 	/* 4 <1> locate the (Re)Association Resp Frame. */
 	prAssocRspFrame = (struct WLAN_ASSOC_RSP_FRAME *)prSwRfb->pvHeader;
 
@@ -1613,7 +1621,10 @@ uint32_t assocProcessRxAssocReqFrame(IN struct ADAPTER *prAdapter,
 	}
 
 	prBssInfo = GET_BSS_INFO_BY_INDEX(prAdapter, prStaRec->ucBssIndex);
-
+	if (!prBssInfo) {
+		DBGLOG(SAA, ERROR, "prBssInfo is null\n");
+		return WLAN_STATUS_INVALID_DATA;
+	}
 	/* Check if this Disassoc Frame is coming from Target BSSID */
 	if (UNEQUAL_MAC_ADDR(prAssocReqFrame->aucBSSID, prBssInfo->aucBSSID))
 		return WLAN_STATUS_FAILURE;	/* Just Ignore this MMPDU */
@@ -1678,8 +1689,7 @@ uint32_t assocProcessRxAssocReqFrame(IN struct ADAPTER *prAdapter,
 			break;
 #if CFG_TC10_FEATURE
 		case ELEM_ID_SUP_OPERATING_CLASS:
-			if (IE_LEN(pucIE) >= 2 &&
-				IE_LEN(pucIE) <= 256) {
+			if (IE_LEN(pucIE) >= 2) {
 				uint8_t ucIdx;
 				uint8_t ucIs2gSupport = 0;
 				uint8_t ucIs5gSupport = 0;

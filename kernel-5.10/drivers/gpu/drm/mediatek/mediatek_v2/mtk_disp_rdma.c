@@ -367,7 +367,7 @@ static irqreturn_t mtk_disp_rdma_irq_handler(int irq, void *dev_id)
 //		mtk_drm_refresh_tag_end(&priv->ddp_comp);
 		IF_DEBUG_IRQ_TS(find_work,
 			priv->ddp_comp.ts_works[work_id].irq_time, i)
-		if (!mtk_drm_is_idle(&(rdma->mtk_crtc->base)))
+		if (mtk_crtc && !mtk_drm_is_idle(&(rdma->mtk_crtc->base)))
 			mtk_drm_default_tag(&priv->ddp_comp, "DISP_FRAME", TRACE_OFF);
 	}
 
@@ -721,6 +721,9 @@ void mtk_rdma_cal_golden_setting(struct mtk_ddp_comp *comp,
 		gs[GS_RDMA_FIFO_SIZE] = fifo_size;
 		if (!rdma->data->disable_underflow)
 			gs[GS_RDMA_FIFO_UNDERFLOW_EN] = 1;
+
+		if (gsc->disable_rdma_underflow)
+			gs[GS_RDMA_FIFO_UNDERFLOW_EN] = 0;
 	}
 
 	/* DISP_RDMA_MEM_GMC_SETTING_2 */

@@ -125,12 +125,12 @@
 
 		battery,full_condition_type = <(SEC_BATTERY_FULL_CONDITION_NOTIMEFULL | SEC_BATTERY_FULL_CONDITION_VCELL)>;
 		battery,full_condition_soc = <93>;
-		battery,full_condition_vcell = <4250>;
+		/* battery,full_condition_vcell = FV - 50mV set when variable is parsed */
 
 		battery,recharge_check_count = <1>;
 		battery,recharge_condition_type = <SEC_BATTERY_RECHARGE_CONDITION_VCELL>;
 		battery,recharge_condition_soc = <98>;
-		battery,recharge_condition_vcell = <4280>;
+		/* battery,recharge_condition_vcell = FV - 70mV set when variable is parsed */
 
 		battery,charging_reset_time = <0>;
 
@@ -142,7 +142,7 @@
 		battery,pre_wc_afc_input_current = <500>;
 
 		battery,swelling_high_rechg_voltage = <4000>;
-		battery,swelling_low_rechg_voltage = <4000>;
+		/*battery,swelling_low_rechg_voltage = FV - 150mA set when variable is parsed */
 
 		battery,siop_icl = <1200>;
 		battery,siop_fcc = <1800>;
@@ -178,13 +178,11 @@
 		battery,wireless_otg_input_current = <900>;
 
 		/* Calculate Based on Offsets from float voltage, full_condition_vcell and recharge_condition_vcell */
-		/* if you want to use age_data_by_offset concept add battery,age_data_by_offset; */
+		/* if you want to use age_data_by_common_offset concept add battery,age_data_by_common_offset; */
 
 		battery,age_data_cycle = <0 300 400 700 1000>;
 		battery,age_data_full_condition_soc = <93 92 91 90 89>;
-		battery,age_data_chg_float_voltage_offset = <0 20 40 60 110>;
-		battery,age_data_full_condition_vcell_offset = <0 20 40 60 110>;
-		battery,age_data_recharge_condition_vcell_offset = <0 20 40 60 110>;
+		battery,age_data_common_offset = <0 20 40 110>;
 		/* battery,age_data_max_charging_current_offset = <0 100 200 300 400>; */
 
 		/* cycle, chg_float_voltage, recharge_condition_vcell, full_condition_vcell, full_condition_soc, step charging condition */

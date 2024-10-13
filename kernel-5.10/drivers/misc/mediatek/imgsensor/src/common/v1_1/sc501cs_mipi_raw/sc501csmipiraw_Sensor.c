@@ -232,7 +232,7 @@ static struct imgsensor_info_struct imgsensor_info = {
 	.custom5_delay_frame = 2,		/*enter custom5 delay frame num*/
 	.frame_time_delay_frame = 2,	/*enter custom1 delay frame num*/
 
-	.isp_driving_current = ISP_DRIVING_6MA,/*mclk driving current*/
+	.isp_driving_current = ISP_DRIVING_4MA,/*mclk driving current*/
 	.sensor_interface_type = SENSOR_INTERFACE_TYPE_MIPI,	/*sensor_interface_type*/
 	.mipi_sensor_type = MIPI_OPHY_NCSI2,/*0,MIPI_OPHY_NCSI2;  1,MIPI_OPHY_CSI2*/
 	.mipi_settle_delay_mode = MIPI_SETTLEDELAY_AUTO,
@@ -497,8 +497,8 @@ static void set_shutter_frame_length(kal_uint16 shutter, kal_uint16 frame_length
 	write_cmos_sensor_8(0x3E01, (cal_shutter >> 4) & 0xFF); // middle
 	write_cmos_sensor_8(0x3E02, (cal_shutter << 4) & 0xF0); //low
 
-	LOG_INF("Exit! shutter = %d, framelength = %d\n", shutter, imgsensor.frame_length);
-	LOG_INF("Exit! cal_shutter = %d, ", cal_shutter);
+	LOG_DBG("Exit! shutter = %d, framelength = %d\n", shutter, imgsensor.frame_length);
+	LOG_DBG("Exit! cal_shutter = %d, ", cal_shutter);
 }
 
 /*************************************************************************
@@ -574,7 +574,7 @@ static kal_uint16 set_gain(kal_uint16 gain)
 	write_cmos_sensor_8(0x3e06, total_dgain);
 	write_cmos_sensor_8(0x3e07, dig_fine_gain);
 
-	LOG_INF("Input Gain: %d,total_again=%d, Digital fine gain: %d", gain, total_again, dig_fine_gain);
+	LOG_DBG("Input Gain: %d,total_again=%d, Digital fine gain: %d", gain, total_again, dig_fine_gain);
 
 	return gain;
 }

@@ -479,6 +479,7 @@ int panel_debug_ezop_jsonw_all(struct panel_device *panel, struct seq_file *s)
 {
 	json_writer_t *w;
 	char *p;
+	int i;
 
 	json_buffer = kvmalloc(SZ_16M, GFP_KERNEL);
 	if (!json_buffer) {
@@ -494,21 +495,9 @@ int panel_debug_ezop_jsonw_all(struct panel_device *panel, struct seq_file *s)
 
 	jsonw_pretty(w, true);
 	jsonw_start_object(w);
-	jsonw_property_list(w, &panel->prop_list);
-	jsonw_function_list(w, &panel->func_list);
-	jsonw_maptbl_list(w, &panel->maptbl_list);
-	jsonw_delay_list(w, &panel->dly_list);
-	jsonw_condition_list(w, &panel->cond_list);
-	jsonw_power_ctrl_list(w, &panel->pwrctrl_list);
-	jsonw_config_list(w, &panel->cfg_list);
-	jsonw_rx_packet_list(w, &panel->rdi_list);
-	jsonw_tx_packet_list(w, &panel->pkt_list);
-	jsonw_key_list(w, &panel->key_list);
-	jsonw_resource_list(w, &panel->res_list);
-	jsonw_dumpinfo_list(w, &panel->dump_list);
-	jsonw_sequence_list(w, &panel->seq_list);
+	for (i = CMD_TYPE_PROP; i < MAX_CMD_TYPE; i++)
+		jsonw_sorted_pnobj_list(w, i, panel_get_object_list(panel, i));
 	jsonw_end_object(w);
-
 	pr_info("dump json done\n");
 
 	while ((p = strsep(&json_buffer, "\n")) != NULL) {
@@ -545,11 +534,23 @@ static int panel_debug_ezop_load_json(struct panel_device *panel,
 
 	INIT_LIST_HEAD(&new_pnobj_list);
 
-	ret = panel_firmware_load(panel, json_filename, &new_pnobj_list);
-	if (ret != 0) {
-		panel_info("firmware not exist\n");
-		return 0;
+	if (!strncmp(json_filename, PANEL_BUILT_IN_FW_NAME,
+				strlen(PANEL_BUILT_IN_FW_NAME) + 1)) {
+		if (!panel->panel_data.ezop_json) {
+			panel_err("no such firmware(%s)\n", PANEL_BUILT_IN_FW_NAME);
+			return 0;
+		}
+		ret = panel_firmware_load(panel,
+				NULL, panel->panel_data.ezop_json, &new_pnobj_list);
+	} else {
+		ret = panel_firmware_load(panel,
+				json_filename, NULL, &new_pnobj_list);
+		if (ret == -ENOENT)
+			panel_err("no such firmware(%s)\n", json_filename);
 	}
+
+	if (ret < 0)
+		return 0;
 
 	return panel_reprobe_with_pnobj_list(panel, &new_pnobj_list);
 }
@@ -794,7 +795,7 @@ panel_create_debugfs_dir(struct panel_device *panel,
 	INIT_LIST_HEAD(&debugfs->dirs);
 	if (dir)
 		list_add_tail(&debugfs->list, &dir->dirs);
-	panel_info("dir:%s\n", name);
+	panel_dbg("dir:%s\n", name);
 
 	return debugfs;
 }
@@ -827,7 +828,7 @@ panel_create_debugfs_file(struct panel_device *panel,
 	}
 	INIT_LIST_HEAD(&debugfs->dirs);
 	list_add_tail(&debugfs->list, &dir->dirs);
-	panel_info("file:%s\n", name);
+	panel_dbg("file:%s\n", name);
 
 	return debugfs;
 }

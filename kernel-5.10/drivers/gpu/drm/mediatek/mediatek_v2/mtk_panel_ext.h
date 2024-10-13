@@ -434,6 +434,8 @@ struct mtk_panel_params {
 
 	struct mtk_panel_cm_params cm_params;
 	struct mtk_panel_spr_params spr_params;
+
+	bool disable_rdma_underflow;
 };
 
 struct mtk_panel_ext {
