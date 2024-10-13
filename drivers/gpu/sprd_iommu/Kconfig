@@ -1,0 +1,10 @@
+config SPRD_IOMMU
+	bool "SPRD IOMMU Module"
+	help
+	  Chose this option to enable the SPRD IOMMU.
+
+config SPRD_IOMMU_DEBUG
+	bool "SPRD IOMMU DEBUG Utility"
+	depends on SPRD_IOMMU
+	help
+	  Choose this option to enable SPRD IOMMU debug utility.

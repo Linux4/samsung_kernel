@@ -1,0 +1,49 @@
+#
+# GENERIC PANEL
+#
+
+config GEN_PANEL_TFT
+	bool "GENERIC TFT-LCD support"
+	default n
+	help
+		MIPI Generic TFT-LCD support
+
+config GEN_PANEL_OCTA
+	bool "GENERIC AMOLED support"
+	default n
+	help
+		MIPI Generic AMOLED support
+
+config GEN_PANEL_BACKLIGHT
+	bool "generic panel backlight support"
+	default n
+	help
+		generic panel backlight support.
+		It is controlled by command of LDI.
+
+config GEN_PANEL_MDNIE
+	bool "mDNIe-LITE support"
+	default n
+	help
+		mDNIe-LITE support
+
+config GEN_PANEL_TUNING
+	bool "generic panel tuning support"
+	default n
+	help
+		generic panel tuning in runtime support
+
+config GEN_PANEL_SMART_MTP
+	bool "generic panel smart mtp support"
+	depends on GEN_PANEL_OCTA
+	default n
+	help
+		generic panel smart mtp support
+
+
+config GEN_PANEL_S6E88A0X02
+	bool "MIPI samsung display panel s6e88a0x02 support"
+	depends on GEN_PANEL_SMART_MTP
+	default n
+	help
+		MIPI panel s6e88a0x02 support

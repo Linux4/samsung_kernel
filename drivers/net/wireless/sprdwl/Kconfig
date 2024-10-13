@@ -1,0 +1,39 @@
+config SPRDWL
+	tristate "SPRD Wireless Network Support"
+	depends on CFG80211 && SIPC
+	---help---
+	  Say Y to enable built-in wireless MAC controller in the
+	  Spreadtrum SC88xx based System-on-Chip devices.
+
+config SPRDWL_FW_ZEROCOPY
+	depends on SPRDWL
+	bool "Enable WLAN zerocopy"
+	default n
+	help
+	  Say Y to enable WLAN zerocopy.
+
+config SPRDWL_WIFI_DIRECT
+	depends on SPRDWL && PM
+	bool "Wi-Fi Direct"
+	help
+	  Say Y to enable Wi-Fi Direct.
+
+if SPRDWL
+choice
+	prompt "SPRD WLAN sleep policy"
+	default SPRDWL_PM_IRRELEVANT
+
+config SPRDWL_PM_IRRELEVANT
+	depends on SPRDWL && PM
+	bool "Irrelevant sleep policy"
+	help
+	  The WLAN power management is took care by firmware.
+
+config SPRDWL_PM_POWERSAVE
+	depends on SPRDWL && PM
+	bool "Traditional sleep policy"
+	help
+	  The WLAN power management is took care by system.
+
+endchoice
+endif

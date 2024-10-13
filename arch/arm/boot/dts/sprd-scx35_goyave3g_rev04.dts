@@ -1,0 +1,584 @@
+/*
+ * Copyright (C) 2013 Spreadtrum Communication Incorporated
+ *		http://www.spreadtrum.com/
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+/dts-v1/;
+
+/* memory reserved for SMEM */
+/memreserve/ 0x87800000 0x240000; /* 2MK+256K */
+
+/* memory reserved for CPW modem */
+/memreserve/ 0x88000000 0x1c00000; /* 28M */
+
+/* memory reserved for fb */
+/memreserve/ 0x9EEF4000 0x708000; /* 7.4Mb */
+
+/* memory reserved for ION */
+/memreserve/ 0x9F5FC000 0x504000; /* 5MK */
+
+/include/ "sprd-scx35.dtsi"
+/include/ "sprd-scx35_sc7730.dtsi"
+#include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/video/gen-panel.h>
+
+/ {
+	model = "Spreadtrum SP7730G board";
+        sprd,sc-id = <8830 4 0x20000>;
+	chosen {
+		bootargs = "init=/init root=/dev/ram0 rw";
+		linux,initrd-start = <0x85500000>;
+		linux,initrd-end   = <0x855a3212>;
+	};
+
+	aliases {
+		i2c_gpio6 = &i2c_gpio6;
+		i2c_gpio7 = &i2c_gpio7;
+		/*i2c_gpio8 = &i2c_gpio8;*/
+	};
+
+	pmu {
+		compatible = "arm,cortex-a7-pmu";
+		interrupts = <0 92 0x400>,
+		<0 93 0x400>,
+		<0 94 0x400>,
+		<0 95 0x400>;
+	};
+
+	memory {
+		device_type = "memory";
+		reg = <0x80000000 0x40000000>;
+	};
+
+	/* Samsung uses the name rment for eth
+	 * FIXME: This change's location has to be finalized.
+	 */
+	seth0-cpw {
+		compatible = "sprd,seth";
+		sprd,name = "rmnet0";
+		sprd,dst = <2>;
+		sprd,channel = <7>;
+		sprd,blknum = <128>;
+	};
+
+	seth1-cpw {
+		compatible = "sprd,seth";
+		sprd,name = "rmnet1";
+		sprd,dst = <2>;
+		sprd,channel = <8>;
+		sprd,blknum = <64>;
+	};
+
+	seth2-cpw {
+		compatible = "sprd,seth";
+		sprd,name = "rmnet2";
+		sprd,dst = <2>;
+		sprd,channel = <9>;
+		sprd,blknum = <64>;
+	};
+
+	gpio_keys {
+		compatible = "gpio-keys";
+		home {
+			label = "Home Key";
+			linux,code = <102>;
+			gpio = <&d_gpio_gpio 113 1>;
+			debounce-interval = <2>;
+			gpio-key,wakeup;
+		};
+	};
+
+	sprd_simdet {
+		compatible = "sprd,sim_detect";
+		sprd,name = "simdet";
+		gpios = <&d_gpio_gpio 162 0>;
+		irq_trigger_level_detect = <1>;
+		delay_time = <100>;
+	};
+
+	bcm-bt-rfkill {
+		compatible = "bcm,bcm-bt-rfkill";
+		gpios = <&d_gpio_gpio 231 0  /* power */
+				&d_gpio_gpio 233 0>;  /* reset */
+	};
+
+	bcm-bt-lpm {
+		compatible = "bcm,bcm-bt-lpm";
+		gpios = <&d_gpio_gpio 232 0  /* bt_wake */
+                        &d_gpio_gpio 235 0>;  /* bt_host_wake */
+	};
+
+	gps {
+		compatible = "broadcom,bcm47520";
+		gps-pwr-en = <&d_gpio_gpio 168 0>; /*GPS_PWON*/
+		gps-regulator = "vddcamd";
+	};
+
+	i2c_gpio6: i2c_gpio@1 {
+			compatible = "i2c-gpio";
+			#address-cells = <1>;
+			#size-cells = <0>;
+			gpios = <&d_gpio_gpio 159 0 /* sda */
+				&d_gpio_gpio 160 0 >; /* scl */
+			i2c-gpio,delay-us = <10>;    /* ~100 kHz */
+			i2c-gpio,timeout-ms = <0>;
+			status = "okay";
+
+			smb328-i2c@34 {
+				compatible = "QC,smb328";
+				reg = <0x34>;
+				chgirq-gpio = <&d_gpio_gpio 161 0>;
+				chgen-gpio = <&d_gpio_gpio 215 0>;
+				chg-float-voltage = <4340>;
+			};
+	};
+
+	i2c_gpio7: i2c_gpio@2 {
+		compatible = "i2c-gpio";
+		#address-cells = <1>;
+		#size-cells = <0>;
+		gpios = <&d_gpio_gpio 150 0 /* sda */
+                        &d_gpio_gpio 151 0 >; /* scl */
+		i2c-gpio,delay-us = <10>;    /* ~100 kHz */
+		i2c-gpio,timeout-ms = <0>;
+
+		sm5504@14 {
+			compatible = "SiliconMitus,sm5504";
+			reg = <0x14>;
+			interrupt-parent = <&d_gpio_gpio>;
+			sm5504,irq-gpio = <&d_gpio_gpio 149 0>;
+		};
+	};
+
+	sec_thermistor {
+		compatible = "sec,thermistor";
+	};
+
+	sec-fuelgauge {
+		compatible = "samsung,sec-fuelgauge";
+		capacity-max = <1000>;
+		capacity-max-margin = <1000>;
+		capacity-min = <10>;
+		fg-irq-attr = <0>;
+		fuel-alert-soc = <1000>;
+		temp_adc_channel = <0>;
+		chg_bat_safety_vol = <4600>;
+		gpios = <&a_eic_gpio 0 0>;/* chg int */
+		soft_vbat_uvlo = <3050>;
+		vmode = <0>; /* 1=Voltage mode, 0=mixed mode */
+		alm_soc = <5>; /* SOC alm level %*/
+		alm_vbat = <3500>; /* Vbat alm level mV*/
+		rint = <220>; /*battery internal impedance*/
+		cnom = <3600>; /* nominal capacity in mAh */
+		rsense_real = <206>; /* sense resistor 0.1mOhm from real environment*/
+		rsense_spec = <200>; /* sense resistor 0.1mOhm from specification*/
+		relax_current = <50>; /* current for relaxation in mA (< C/20) */
+		ocv_table = <4343 100
+					4285 95
+					4231 90
+					4179 85
+					4128 80
+					4080 75
+					4035 70
+					3983 65
+					3949 60
+					3896 55
+					3861 50
+					3836 45
+					3816 40
+					3798 35
+					3785 30
+					3773 25
+					3757 20
+					3734 15
+					3694 10
+					3688 5
+					3400 0>;
+		sprd_fgu: sprd_fgu{
+			compatible  = "sprd,sprd_fgu";
+			interrupt-parent = <&adi>;
+			interrupts = <4 0x0>;
+		};
+	};
+
+	sec-battery {
+		compatible = "samsung,sec-battery";
+		battery,vendor = "SDI SDI";
+		battery,charger_name = "sec-charger";
+		battery,fuelgauge_name = "sec-fuelgauge";
+		battery,technology = <2>; /* POWER_SUPPLY_TECHNOLOGY_LION */
+
+		battery,chip_vendor = "SPRD";
+		battery,temp_adc_type = <1>; /* SEC_BATTERY_ADC_TYPE_AP */
+
+		battery,polling_time = <10 30 30 30 3600>;
+
+		battery,adc_check_count = <5>;
+
+		battery,cable_check_type = <5>; /* SEC_BATTERY_CABLE_CHECK_PSY */
+		battery,cable_source_type = <3>; /* SEC_BATTERY_CABLE_SOURCE_EXTERNAL */
+		battery,event_waiting_time = <600>;
+		battery,polling_type = <1>; /* SEC_BATTERY_MONITOR_ALARM */
+		battery,monitor_initial_count = <3>;
+
+		battery,battery_check_type = <0>; /* SEC_BATTERY_CHECK_NONE */
+		battery,check_count = <0>;
+		battery,check_adc_max = <1440>;
+		battery,check_adc_min = <0>;
+
+		battery,ovp_uvlo_check_type = <3>; /* SEC_BATTERY_OVP_UVLO_CHGPOLLING */
+
+		battery,thermal_source = <2>; /* SEC_BATTERY_THERMAL_SOURCE_ADC */
+
+		battery,temp_table_adc = <653 881 1173 1321 1529 1932 2362 2755 3050 3200 3360 3537>;
+		battery,temp_table_data = <700 600 500 450 400 300 200 100 0 (-50) (-100) (-200)>;
+
+		battery,temp_check_type = <2>; /* SEC_BATTERY_TEMP_CHECK_TEMP */
+		battery,temp_check_count = <1>;
+		battery,temp_high_threshold_event = <530>;
+		battery,temp_high_recovery_event = <450>;
+		battery,temp_low_threshold_event = <(-50)>;
+		battery,temp_low_recovery_event = <0>;
+		battery,temp_high_threshold_normal = <530>;
+		battery,temp_high_recovery_normal = <450>;
+		battery,temp_low_threshold_normal = <(-50)>;
+		battery,temp_low_recovery_normal = <0>;
+		battery,temp_high_threshold_lpm = <530>;
+		battery,temp_high_recovery_lpm = <450>;
+		battery,temp_low_threshold_lpm = <(-50)>;
+		battery,temp_low_recovery_lpm = <0>;
+		battery,full_check_type = <7>; /* SEC_BATTERY_FULLCHARGED_CHGPSY */
+		battery,full_check_type_2nd = <3>; /* SEC_BATTERY_FULLCHARGED_TIME */
+		battery,full_check_count = <1>;
+		battery,chg_gpio_full_check = <0>;
+		battery,chg_polarity_full_check = <1>;
+
+		battery,full_condition_type = <13>;
+		battery,full_condition_soc = <95>;
+		battery,full_condition_vcell = <4250>;
+
+		battery,recharge_check_count = <1>;
+		battery,recharge_condition_type = <4>; /* SEC_BATTERY_RECHARGE_CONDITION_VCELL */
+		battery,recharge_condition_soc = <98>;
+		battery,recharge_condition_vcell = <4300>;
+
+		battery,charging_total_time = <21600>;
+		battery,recharging_total_time = <5400>;
+		battery,charging_reset_time = <0>;
+
+		/* Charger */
+		charger,vbus_ctrl_gpio = <&d_gpio_gpio 64 0x00>;
+		battery,input_current_limit = <1000 550 550 1000 550 1000 1000 550 550 1000 650 1000 1000 550 1000 300 1000 1000 300 1000 1000 550 550>;
+		battery,fast_charging_current = <1550 0 500 1550 500 1550 1550 500 0 1550 1550 1550 1550 (-1) 1550 300 1550 1550 300 1550 1550 0 0>;
+		battery,full_check_current_1st = <200 0 200 200 200 200 200 200 0 200 200 200 200 0 200 200 200 200 200 200 200 0 0>;
+		battery,full_check_current_2nd = <2400 0 2400 2400 2400 2400 2400 2400 0 2400 2400 2400 2400 0 2400 2400 2400 2400 2400 2400 2400 0 0>;
+	};
+
+	 isdbt_data {
+		 compatible = "isdbt_pdata";
+		 isdbt_spi_mosi = <&d_gpio_gpio 68 0>;
+		 isdbt_spi_miso = <&d_gpio_gpio 69 0>;
+		 isdbt_spi_cs = <&d_gpio_gpio 67 0>;
+		 isdbt_spi_clk = <&d_gpio_gpio 70 0>;
+		 isdbt_pwr_en = <&d_gpio_gpio 81 0>;
+		 isdbt_irq = <&d_gpio_gpio 165 0>;
+	};
+
+	backlight: gen-panel-backlight {
+		compatible = "gen-panel-backlight";
+		gen-panel-backlight-name = "panel";
+		gen-panel-backlight-brt-range = <
+			0	0	/* OFF */
+			5	40	/* MIN */
+			5	40	/* DIM */
+			162	992	/* DEF */
+			255	2040	/* MAX */
+		>;
+	};
+
+	panel {
+		compatible = "sprd,sprdfb-i2c-panel";
+		pinctrl-names = "default";
+		gen-panel = <&gen_panel>;
+		gen-panel-backlight = <&backlight>;
+		panel-ext-pin {
+			/*
+			 * Three properties are required
+			 * to control pwr pin
+			 * @node : panel-ext-pin node
+			 * @on : <0> - off / <1> - on
+			 *	 <2> - lock current pin state for delay time
+			 * @usec : delay time of usec
+			 */
+			panel-ext-pin-on = <
+				&lcd_3v3	EXT_PIN_ON	0
+				&bridge_en	EXT_PIN_ON	1000
+				&lvds_1v8	EXT_PIN_ON	0
+				&lvds_3v3	EXT_PIN_ON	20
+				&bridge_rst	EXT_PIN_OFF	20
+				&bridge_rst	EXT_PIN_ON	20
+				&blic_en	EXT_PIN_ON	0
+			>;
+			panel-ext-pin-off = <
+				&blic_en	EXT_PIN_OFF	0
+				&bridge_rst	EXT_PIN_OFF	20
+				&lvds_3v3	EXT_PIN_OFF	20
+				&lvds_1v8	EXT_PIN_OFF	0
+				&bridge_en	EXT_PIN_OFF	0
+				&lcd_3v3	EXT_PIN_OFF	0
+				&lcd_3v3	EXT_PIN_LOCK	500000
+			>;
+			/*
+			 * There are four properties to define pwr pin
+			 * pin-name : pin name
+			 * pin-type : <0> - GPIO, <1> - PMIC Regulator
+			 * pin-gpio : If the type is GPIO, assign a gpio.
+			 * pin-supply : If the type is PMIC Regulator, assign a regulator.
+			 */
+			bridge_en: panel-ext-pin-0 {
+				pin-name = "bridge_en";
+				pin-type = <EXT_PIN_GPIO>;
+				pin-gpio = <&d_gpio_gpio 233 GPIO_ACTIVE_HIGH>;
+			};
+			bridge_rst: panel-ext-pin-1 {
+				pin-name = "bridge_rst";
+				pin-type = <EXT_PIN_GPIO>;
+				pin-gpio = <&d_gpio_gpio 234 GPIO_ACTIVE_LOW>;
+			};
+			blic_en: panel-ext-pin-2 {
+				pin-name = "blic_en";
+				pin-type = <EXT_PIN_GPIO>;
+				pin-gpio = <&d_gpio_gpio 214 GPIO_ACTIVE_HIGH>;
+			};
+			lvds_1v8: panel-ext-pin-3 {
+				pin-name = "lvds_1v8";
+				pin-type = <EXT_PIN_REGULATOR>;
+				pin-supply = <&vddsim1>;
+			};
+			lvds_3v3: panel-ext-pin-4 {
+				pin-name = "lvds_3v3";
+				pin-type = <EXT_PIN_REGULATOR>;
+				pin-supply = <&vddwifipa>;
+			};
+			lcd_3v3: panel-ext-pin-5 {
+				pin-name = "lcd_3v3";
+				pin-type = <EXT_PIN_GPIO>;
+				pin-gpio = <&d_gpio_gpio 152 GPIO_ACTIVE_HIGH>;
+			};
+		};
+		gen_panel: gen-panel {};
+	};
+
+	bcmdhd-wlan {
+		 nv_path = "/system/etc/wifi/nvram_net_DCXO.txt";
+		 nv_mfg_path = "/system/etc/wifi/nvram_mfg_DCXO.txt";
+	};
+};
+
+/include/ "sprd-dsi-panel-vx5b3d-WSVGA_video.dtsi"
+
+&i2c0 {
+	sensor_main@0x3c {
+		compatible = "sprd,sensor_main";
+		reg = <0x3c>;
+	};
+	sensor_sub@0x21 {
+		compatible = "sprd,sensor_sub";
+		reg = <0x21>;
+	};
+};
+
+&i2c1 { /* TSP */
+	mms_ts@48 {
+		compatible = "melfas,mms_ts";
+		reg = <0x48>;
+		gpios = <&d_gpio_gpio 82 0>;
+		mms_ts,max_x = /bits/ 16 <1024>;
+		mms_ts,max_y = /bits/ 16 <600>;
+	};
+};
+&i2c2 {
+	status = "okay";
+	k2hh@1D {
+		compatible = "stm,k2hh";
+		reg = <0x1D>;
+		interrupt-parent = <&d_gpio_gpio>;
+		interrupts = <164 0>;
+		stm,irq_gpio = <&d_gpio_gpio 164 0x00>;
+		stm,axis_map_x = <1>;
+		stm,axis_map_y = <0>;
+		stm,axis_map_z = <2>;
+		stm,negate_x = <0>;
+		stm,negate_y = <1>;
+		stm,negate_z = <1>;
+		stm,poll_interval = <100>;
+		stm,min_interval = <2>;
+	};
+
+	sx9500-i2c@28 {
+		compatible = "sx9500-i2c";
+		reg = <0x28>;
+		sx9500-i2c,vdd-supply = <&vddemmccore>;
+		sx9500-i2c,nirq-gpio = <&d_gpio_gpio 167 0x0>;
+	};
+};
+
+&i2c3 {
+	bridge@64 {
+		compatible = "sprd_panel,i2c";
+		reg = <0x64>;
+	};
+};
+
+&fb0 {
+	sprd,fb_use_reservemem;
+	sprd,fb_mem = <0x9EEF4000 0x708000>;
+};
+
+&l_sprd_sensor {
+	gpios = <&d_gpio_gpio 186 0           /*main reset*/
+			&d_gpio_gpio 188 0    /*main power down*/
+			&d_gpio_gpio 238 0    /*sub reset*/
+			&d_gpio_gpio 187 0>;  /*sub power down*/
+};
+
+&sdhci0 {
+	vdd-vmmc = "vddsdcore";
+	//vdd-vqmmc = "vddsdio";
+	//sd-supply = <&vddsdio>;
+};
+
+&l_ion {
+	sprd,ion-heap@1 {
+		sprd,ion-heap-mem = <0x0 0x0>;
+	};
+
+	sprd,ion-heap@2 {
+		sprd,ion-heap-mem = <0x0 0x0>;
+	};
+
+	sprd,ion-heap@3 {
+		sprd,ion-heap-mem = <0x9f600000 0x500000>;
+	};
+};
+
+&adi {
+	headset_detect {
+		compatible = "sprd,headset-detect";
+		gpio_switch = <0>;
+		gpio_detect = <237>;
+		gpio_button = <239>;
+		irq_trigger_level_detect = <0>;
+		irq_trigger_level_button = <0>;
+		adc_threshold_3pole_detect = <1700>;
+		adc_threshold_4pole_detect = <2700>;
+		irq_threshold_buttont = <1>;
+		voltage_headmicbias = <3000000>;
+		nbuttons = <3>;
+		headset_buttons_media {
+			adc_min = <0>;
+			adc_max = <190>;
+			code = <226>;
+			type = <0>;
+		};
+
+		headset_buttons_up {
+			adc_min = <191>;
+			adc_max = <347>;
+			code = <115>;
+			type = <0>;
+		};
+
+		headset_buttons_down {
+			adc_min = <348>;
+			adc_max =<760>;
+			code = <114>;
+			type = <0>;
+		};
+	};
+
+	headset_sprd_sc2723 {
+		compatible = "sprd,headset_sprd_sc2723";
+		gpio_switch = <0>;
+		gpio_detect = <237>;
+		gpio_button = <239>;
+		irq_trigger_level_detect = <0>;
+		irq_trigger_level_button = <0>;
+		adc_threshold_3pole_detect = <1074>;
+		adc_threshold_4pole_detect = <3100>;
+		irq_threshold_buttont = <1>;
+		voltage_headmicbias = <3000000>;
+		nbuttons = <3>;
+		headset_buttons_media {
+			adc_min = <0>;
+			adc_max = <200>;
+			code = <226>;
+			type = <0>;
+		};
+
+		headset_buttons_up {
+			adc_min = <201>;
+			adc_max = <390>;
+			code = <115>;
+			type = <0>;
+		};
+
+		headset_buttons_down {
+			adc_min = <391>;
+			adc_max =<860>;
+			code = <114>;
+			type = <0>;
+		};
+	};
+};
+
+/* sipc initializer */
+&sipc {
+	reg = <0x87800000 0x240000>; /* <SMEM SIZE>*/
+	ranges = <0x8000000 0x88000000 0x1c00000>,
+			<0x07800000 0x87800000 0x180000>,
+			<0x9bff000 0x89bff000 0x1000>;
+	sipc_cpw {
+		reg = <0x8000000 0x1c00000> , /* <CP_start_addr size> */
+		<0x07800000 0x180000>, /* <SMEM_phy_addr total_size> */
+		<0x9bff000 0x1000>; /* smsg ring buffer <base size> */
+	};
+};
+
+&scproc_cpw {
+	sprd,iram-data = <0xe59f0000 0xe12fff10 0x88300000>; /* 3rd param equals modem_addr*/
+	reg = <0x88000000 0x1c00000>, /* <CP_start_addr total_size> = <+128M 28M> */
+		<0xf53d4000 0x0c>, /* <iram1_base size> */
+		<0xf5230000 0x10000>; /* <pmu_base size> */
+	ranges = <0x300000 0x88300000 0x00800000>,
+			<0x20000 0x88020000 0x00220000>;
+	modem {
+		reg = <0x300000 0x00800000>; /* <modem_addr size> */
+	};
+	dsp {
+		reg = <0x20000 0x00220000>; /* <dsp_addr size>*/
+	};
+};
+
+&usb {
+	ngpios = <2>;
+	gpios = <&a_eic_gpio 0 0>,<&d_gpio_gpio 72 0>;
+	tune_value = <0x44073135>;
+	tune_value_host = <0x44073133>;
+};
+
+&usb_noti {
+	booster-name = "smb328_booster";
+};
+
+&spi0 {
+	isdbt@0 {
+	 compatible = "isdbt_spi_comp";
+	 reg = <0>;
+	 spi-max-frequency = <19200000>;
+	};
+};
+

@@ -1,0 +1,5 @@
+header-y += ion_sprd.h
+header-y += sprd_vsp.h
+header-y += sprd_jpg.h
+header-y += gsp_types_shark.h
+header-y += sprd_fb.h

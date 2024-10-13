@@ -1,0 +1,340 @@
+/ {
+
+	regulators {
+		compatible = "sprd,sc2723-regulator";
+		#address-cells = <1>;
+		#size-cells = <1>;
+
+		dummy {
+		};
+
+		vddcore: vddcore {
+			regulator-name = "vddcore";
+			reg = <0x40038810 0x200 0x40038a00 0x3ff 0x400388c0 0x1>; /* pd reg && vol trm reg && otp_sel_reg */
+			regulator-cal-channel = <0x40038888 0x4000 0xd>;
+			regulator-default-microvolt = <900000>;
+			regulator-step-microvolt = <3125>;
+			regulator-min-microvolt = <600000>;
+			regulator-max-microvolt = <3125000>;
+			regulator-microvolt-offset = <0>;
+			default-on;
+			dcdc;
+		};
+
+		vddarm: vddarm {
+			regulator-name = "vddarm";
+			reg = <0x40038810 0x400 0x40038a04 0x3ff 0x400388c0 0x4>; /* pd reg && vol trm reg && otp_sel_reg */
+			regulator-cal-channel = <0x40038888 0x2000 0xd>;
+			regulator-default-microvolt = <900000>;
+			regulator-step-microvolt = <3125>;
+			regulator-min-microvolt = <600000>;
+			regulator-max-microvolt = <3125000>;
+			regulator-microvolt-offset = <0>;
+			default-on;
+			dcdc;
+		};
+
+		vddmem: vddmem {
+			regulator-name = "vddmem";
+			reg = <0x40038810 0x800 0x40038a08 0x3ff 0x400388c0 0x8>; /* pd reg && vol trm reg && otp_sel_reg */
+			regulator-cal-channel = <0x40038888 0x6000 0xd>;
+			regulator-default-microvolt = <1200000>;
+			regulator-step-microvolt = <3125>;
+			regulator-min-microvolt = <600000>;
+			regulator-max-microvolt = <3125000>;
+			regulator-microvolt-offset = <0>;
+			/* default-on; */
+			dcdc;
+		};
+
+		vddgen: vddgen {
+			regulator-name = "vddgen";
+			reg = <0x40038810 0x1000 0x40038a0c 0x3ff 0x400388c0 0x10>; /* pd reg && vol trm reg && otp_sel_reg */
+			regulator-cal-channel = <0x40038888 0x8000 0xd>;
+			regulator-default-microvolt = <2400000>;
+			regulator-step-microvolt = <3125>;
+			regulator-min-microvolt = <600000>;
+			regulator-max-microvolt = <3125000>;
+			regulator-microvolt-offset = <0>;
+			default-on;
+			dcdc;
+		};
+
+		vddrf: vddrf {
+			regulator-name = "vddrf";
+			reg = <0x40038810 0x2000 0x40038a1c 0x3ff 0x400388c0 0x20>; /* pd reg && vol trm reg && otp_sel_reg */
+			regulator-cal-channel = <0x40038888 0xa000 0xd>;
+			regulator-default-microvolt = <1500000>;
+			regulator-step-microvolt = <3125>;
+			regulator-min-microvolt = <600000>;
+			regulator-max-microvolt = <3125000>;
+			regulator-microvolt-offset = <0>;
+			default-on;
+			dcdc;
+		};
+
+		vddwpa: vddwpa {
+			regulator-name = "vddwpa";
+			reg = <0x40038814 0x4000 0x40038a10 0x7 0 0>; /* pd reg && vol trm reg && otp_sel_reg */
+			regulator-cal-channel = <0x40038888 0xe000 0xd>;
+			regulator-step-microvolt = <3125>;
+			regulator-min-microvolt = <3125000>;
+			regulator-max-microvolt = <3400000>;
+			regulator-microvolt-offset = <0>;
+			dcdc;
+		};
+
+		vddcon: vddcon {
+			regulator-name = "vddcon";
+			reg = <0x40038814 0x2000 0x40038a18 0x3ff 0 0>; /* pd reg && vol trm reg && otp_sel_reg */
+			regulator-cal-channel = <0x40038888 0xc000 0xd>;
+			regulator-default-microvolt = <1600000>;
+			regulator-step-microvolt = <3125>;
+			regulator-min-microvolt = <600000>;
+			regulator-max-microvolt = <3125000>;
+			regulator-microvolt-offset = <0>;
+			dcdc;
+		};
+
+		vddrf0: vddrf0 {
+			regulator-name = "vddrf0";
+			reg = <0x40038810 0x100 0x40038818 0xff00 0x400388c0 0x800>; /* pd reg && vol trm reg && otp_sel_reg */
+			regulator-cal-channel = <0x40038844 0x4 0x15>;
+			regulator-default-microvolt = <1800000>;
+			regulator-step-microvolt = <6250>;
+			regulator-min-microvolt = <1150000>;
+			regulator-max-microvolt = <2750000>;
+			regulator-microvolt-offset = <0>;
+			default-on;
+		};
+
+		vddemmccore: vddemmccore {
+			regulator-name = "vddemmccore";
+			reg = <0x40038810 0x80 0x40038834 0xff00 0x400388c0 0x80>; /* pd reg && vol trm reg && otp_sel_reg */
+			regulator-cal-channel = <0x40038844 0x60 0x17>;
+			regulator-default-microvolt = <3000000>;
+			regulator-step-microvolt = <10000>;
+			regulator-min-microvolt = <1200000>;
+			regulator-max-microvolt = <3760000>;
+			regulator-microvolt-offset = <0>;
+			default-on;
+		};
+
+		vddgen1: vddgen1 {
+			regulator-name = "vddgen1";
+			reg = <0x40038810 0x40 0x40038824 0x7f00 0x400388c0 0x1000>; /* pd reg && vol trm reg && otp_sel_reg */
+			regulator-cal-channel = <0x40038844 0x5 0x15>;
+			regulator-default-microvolt = <1800000>;
+			regulator-step-microvolt = <6250>;
+			regulator-min-microvolt = <1150000>;
+			regulator-max-microvolt = <1950000>;
+			regulator-microvolt-offset = <0>;
+			default-on;
+		};
+
+		vddgen0: vddgen0 {
+			regulator-name = "vddgen0";
+			reg = <0x40038810 0x10 0x40038820 0x7f 0x400388c0 0x2000>; /* pd reg && vol trm reg && otp_sel_reg */
+			regulator-cal-channel = <0x40038844 0x6 0x15>;
+			regulator-default-microvolt = <1800000>;
+			regulator-step-microvolt = <6250>;
+			regulator-min-microvolt = <1150000>;
+			regulator-max-microvolt = <1950000>;
+			regulator-microvolt-offset = <0>;
+			default-on;
+		};
+
+		vdddcxo: vdddcxo {
+			regulator-name = "vdddcxo";
+			reg = <0x40038810 0x20 0x40038838 0xff00 0x400388c0 0x100>; /* pd reg && vol trm reg && otp_sel_reg */
+			regulator-cal-channel = <0x40038844 0x80 0x17>;
+			regulator-default-microvolt = <1800000>;
+			regulator-step-microvolt = <10000>;
+			regulator-min-microvolt = <1200000>;
+			regulator-max-microvolt = <3760000>;
+			regulator-microvolt-offset = <0>;
+			default-on;
+		};
+
+		vdd25: vdd25 {
+			regulator-name = "vdd25";
+			reg = <0x40038810 0x8 0x40038840 0xff 0x400388c0 0x40>; /* pd reg && vol trm reg && otp_sel_reg */
+			regulator-cal-channel = <0x40038844 0x100 0x16>;
+			regulator-default-microvolt = <2800000>;
+			regulator-step-microvolt = <10000>;
+			regulator-min-microvolt = <1200000>;
+			regulator-max-microvolt = <3760000>;
+			regulator-microvolt-offset = <0>;
+			/* default-on; */
+		};
+
+		vdd28: vdd28 {
+			regulator-name = "vdd28";
+			reg = <0x40038810 0x4 0x40038824 0xff 0x400388c0 0x200>; /* pd reg && vol trm reg && otp_sel_reg */
+			regulator-cal-channel = <0x40038844 0xc0 0x17>;
+			regulator-default-microvolt = <2800000>;
+			regulator-step-microvolt = <10000>;
+			regulator-min-microvolt = <1200000>;
+			regulator-max-microvolt = <3760000>;
+			regulator-microvolt-offset = <0>;
+			default-on;
+		};
+
+		vdd18: vdd18 {
+			regulator-name = "vdd18";
+			reg = <0x40038810 0x2 0x4003883c 0x7f00 0x400388c0 0x400>; /* pd reg && vol trm reg && otp_sel_reg */
+			regulator-cal-channel = <0x40038844 0x1 0x15>;
+			regulator-default-microvolt = <1800000>;
+			regulator-step-microvolt = <6250>;
+			regulator-min-microvolt = <1150000>;
+			regulator-max-microvolt = <1950000>;
+			regulator-microvolt-offset = <0>;
+			default-on;
+		};
+
+		vddwifipa: vddwifipa {
+			regulator-name = "vddwifipa";
+			reg = <0x40038814 0x800 0x40038818 0xff 0 0>; /* pd reg && vol trm reg && otp_sel_reg */
+			regulator-cal-channel = <0x40038844 0x20 0x17>;
+			regulator-default-microvolt = <1800000>;
+			regulator-step-microvolt = <10000>;
+			regulator-min-microvolt = <1200000>;
+			regulator-max-microvolt = <3760000>;
+			regulator-microvolt-offset = <0>;
+		};
+
+		vddsdcore: vddsdcore {
+			regulator-name = "vddsdcore";
+			reg = <0x40038814 0x400 0x40038830 0xff00 0 0>; /* pd reg && vol trm reg && otp_sel_reg */
+			regulator-cal-channel = <0x40038844 0xa0 0x17>;
+			regulator-default-microvolt = <3000000>;
+			regulator-step-microvolt = <10000>;
+			regulator-min-microvolt = <1200000>;
+			regulator-max-microvolt = <3760000>;
+			regulator-microvolt-offset = <0>;
+		};
+
+		vddsdio: vddsdio {
+			regulator-name = "vddsdio";
+			reg = <0x40038814 0x1 0x40038828 0xff 0 0>; /* pd reg && vol trm reg && otp_sel_reg */
+			regulator-cal-channel = <0x40038844 0x8 0x1d>;
+			regulator-default-microvolt = <3000000>;
+			regulator-step-microvolt = <10000>;
+			regulator-min-microvolt = <1200000>;
+			regulator-max-microvolt = <3760000>;
+			regulator-microvolt-offset = <0>;
+			default-on;
+		};
+
+		vddsim0: vddsim0 {
+			regulator-name = "vddsim0";
+			reg = <0x40038814 0x2 0x40038828 0xff00 0 0>; /* pd reg && vol trm reg && otp_sel_reg */
+			regulator-cal-channel = <0x40038844 0x500 0x16>;
+			regulator-default-microvolt = <1800000>;
+			regulator-step-microvolt = <10000>;
+			regulator-min-microvolt = <1200000>;
+			regulator-max-microvolt = <3760000>;
+			regulator-microvolt-offset = <0>;
+		};
+
+		vddsim1: vddsim1 {
+			regulator-name = "vddsim1";
+			reg = <0x40038814 0x4 0x4003882c 0xff 0 0>; /* pd reg && vol trm reg && otp_sel_reg */
+			regulator-cal-channel = <0x40038844 0x400 0x16>;
+			regulator-default-microvolt = <1800000>;
+			regulator-step-microvolt = <10000>;
+			regulator-min-microvolt = <1200000>;
+			regulator-max-microvolt = <3760000>;
+			regulator-microvolt-offset = <0>;
+		};
+
+		vddsim2: vddsim2 {
+			regulator-name = "vddsim2";
+			reg = <0x40038814 0x8 0x4003882c 0xff00 0 0>; /* pd reg && vol trm reg && otp_sel_reg */
+			regulator-cal-channel = <0x40038844 0x300 0x16>;
+			regulator-default-microvolt = <1800000>;
+			regulator-step-microvolt = <10000>;
+			regulator-min-microvolt = <1200000>;
+			regulator-max-microvolt = <3760000>;
+			regulator-microvolt-offset = <0>;
+		};
+
+		vddcama: vddcama {
+			regulator-name = "vddcama";
+			reg = <0x40038814 0x10 0x40038830 0xff 0 0>; /* pd reg && vol trm reg && otp_sel_reg */
+			regulator-cal-channel = <0x40038844 0x200 0x16>;
+			regulator-default-microvolt = <2800000>;
+			regulator-step-microvolt = <10000>;
+			regulator-min-microvolt = <1200000>;
+			regulator-max-microvolt = <3760000>;
+			regulator-microvolt-offset = <0>;
+		};
+
+		vddcamd: vddcamd {
+			regulator-name = "vddcamd";
+			reg = <0x40038814 0x20 0x4003881c 0x7f 0 0>; /* pd reg && vol trm reg && otp_sel_reg */
+			regulator-cal-channel = <0x40038844 0x2 0x15>;
+			regulator-default-microvolt = <1800000>;
+			regulator-step-microvolt = <6250>;
+			regulator-min-microvolt = <1150000>;
+			regulator-max-microvolt = <1950000>;
+			regulator-microvolt-offset = <0>;
+		};
+
+		vddcamio: vddcamio {
+			regulator-name = "vddcamio";
+			reg = <0x40038814 0x40 0x4003881c 0x7f00 0 0>; /* pd reg && vol trm reg && otp_sel_reg */
+			regulator-cal-channel = <0x40038844 0x3 0x15>;
+			regulator-default-microvolt = <1800000>;
+			regulator-step-microvolt = <6250>;
+			regulator-min-microvolt = <1150000>;
+			regulator-max-microvolt = <1950000>;
+			regulator-microvolt-offset = <0>;
+		};
+
+		vddcammot: vddcammot {
+			regulator-name = "vddcammot";
+			reg = <0x40038814 0x80 0x40038834 0xff 0 0>; /* pd reg && vol trm reg && otp_sel_reg */
+			regulator-cal-channel = <0x40038844 0x40 0x17>;
+			regulator-default-microvolt = <2800000>;
+			regulator-step-microvolt = <10000>;
+			regulator-min-microvolt = <1200000>;
+			regulator-max-microvolt = <3760000>;
+			regulator-microvolt-offset = <0>;
+		};
+
+		vddusb: vddusb {
+			regulator-name = "vddusb";
+			reg = <0x40038814 0x100 0x4003883c 0xff 0 0>; /* pd reg && vol trm reg && otp_sel_reg */
+			regulator-cal-channel = <0x40038844 0x10 0x1d>;
+			regulator-default-microvolt = <3300000>;
+			regulator-step-microvolt = <10000>;
+			regulator-min-microvolt = <1200000>;
+			regulator-max-microvolt = <3760000>;
+			regulator-microvolt-offset = <0>;
+		};
+
+		vddkpled: vddkpled {
+			regulator-name = "vddkpled";
+			reg = <0x400388f4 0x100 0x400388f4 0xff 0 0>; /* pd reg && vol trm reg && otp_sel_reg */
+			regulator-cal-channel = <0x400388f8 0x3000 0x18>;
+			regulator-default-microvolt = <3300000>;
+			regulator-step-microvolt = <10000>;
+			regulator-min-microvolt = <1200000>;
+			regulator-max-microvolt = <3760000>;
+			regulator-microvolt-offset = <0>;
+		};
+
+		vddvibr: vddvibr {
+			regulator-name = "vddvibr";
+			reg = <0x400388f8 0x100 0x400388f8 0xff 0 0>; /* pd reg && vol trm reg && otp_sel_reg */
+			regulator-cal-channel = <0x400388f8 0x2000 0x18>;
+			regulator-default-microvolt = <3000000>;
+			regulator-step-microvolt = <10000>;
+			regulator-min-microvolt = <1200000>;
+			regulator-max-microvolt = <3760000>;
+			regulator-microvolt-offset = <0>;
+		};
+	};
+
+};

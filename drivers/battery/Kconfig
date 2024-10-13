@@ -1,0 +1,402 @@
+
+config BATTERY_SAMSUNG
+	tristate "samsung battery driver"
+	help
+	 Say Y to include support for samsung battery driver
+	 This battery driver integrated all battery-related functions
+	 To see battery-related functions,
+	 refer to sec_charging_common.h
+
+config SAMSUNG_LPM_MODE
+	bool "Off charging mode support in sec battery driver"
+	default n
+	help
+	 Say Y to include support for sec off charging support
+	 This value defiend at bootloader.
+	 Before enable this feature,
+	 implement power off charging in the bootloader.
+
+config SAMSUNG_BATTERY_ENG_TEST
+	bool "enable ENG mode for battery test"
+	default n
+	help
+	  Say Y to include support for battery test
+	  enable this feature only ENG mode
+	  this featuren must disabled user binary
+	  stability test etc..
+
+config STBC_SAMSUNG
+       tristate "sec stbc driver"
+       default n
+       help
+	 Say Y to include support
+	 for fuelgauge driver with mfd.
+	 This driver source code implemented
+	 fuelgauge driver with mfd.
+
+# Fuel Gauge
+
+config FUELGAUGE_MFD
+	tristate "use mfd driver for fuelgauge driver"
+	default n
+	depends on BATTERY_SAMSUNG
+	help
+	 Say Y to include support
+	 for fuelgauge driver with mfd.
+	 This driver source code implemented
+	 fuelgauge driver with mfd.
+
+config FUELGAUGE_DUMMY
+	tristate "dummy fuel gauge driver"
+	default n
+	depends on BATTERY_SAMSUNG
+	help
+	 Say Y to include support
+	 for dummy fuel gauge driver.
+	 This driver source code implemented
+	 skeleton source code for fuel gauge functions.
+
+config FUELGAUGE_ADC
+	tristate "ADC fuel gauge driver"
+	default n
+	depends on BATTERY_SAMSUNG
+	help
+	 Say Y to include support
+	 for ADC gauge driver.
+	 This driver source code can be used for
+	 fuel-gauge that is made of ADC.
+
+config FUELGAUGE_MAX17042
+	tristate "MAX17042 fuel gauge driver"
+	default n
+	depends on BATTERY_SAMSUNG
+	help
+	 Say Y to include support
+	 for MAXIM MAX17042 fuel gauge driver.
+	 This fuel-gauge can be used in voltage-tracking mode
+	 or coulomb-counting mode.
+
+config FUELGAUGE_MAX17042_VOLTAGE_TRACKING
+	tristate "use MAX17042 fuel gauge only as voltage tracking"
+	default n
+	depends on FUELGAUGE_MAX17042
+	help
+	 Say Y to use MAX17042 fuel gauge
+	 only as voltage tracking.
+	 This mode is for target that consumes low current
+	 like smart-phone.
+
+config FUELGAUGE_MAX17042_COULOMB_COUNTING
+	tristate "use MAX17042 fuel gauge as coulomb counting (including voltage tracking)"
+	default n
+	depends on FUELGAUGE_MAX17042
+	help
+	 Say Y to use MAX17042 fuel gauge
+	 as coulomb counting (including voltage tracking).
+	 This mode is for target that consumes high current
+	 like tablet.
+
+config FUELGAUGE_MAX17048
+	tristate "MAX17048 fuel gauge driver"
+	default n
+	depends on BATTERY_SAMSUNG
+	help
+	 Say Y to include support
+	 for MAXIM MAX17048 fuel gauge driver.
+	 This fuel-gauge can be used
+	 only in voltage-tracking mode.
+
+config FUELGAUGE_MAX17050
+	tristate "MAX17050 fuel gauge driver"
+	default n
+	depends on BATTERY_SAMSUNG
+	help
+	 Say Y to include support
+	 for MAXIM MAX17047 or MAX17050 fuel gauge driver.
+	 This fuel-gauge can be used in voltage-tracking mode
+	 or coulomb-counting mode.
+
+config FUELGAUGE_MAX17050_VOLTAGE_TRACKING
+	tristate "use MAX17050 fuel gauge only as voltage tracking"
+	default n
+	depends on FUELGAUGE_MAX17050
+	help
+	 Say Y to use MAX17050 fuel gauge
+	 only as voltage tracking.
+	 This mode is for target that consumes low current
+	 like smart-phone.
+
+config FUELGAUGE_MAX17050_COULOMB_COUNTING
+	tristate "use MAX17050 fuel gauge as coulomb counting (including voltage tracking)"
+	default n
+	depends on FUELGAUGE_MAX17050
+	help
+	 Say Y to use MAX17050 fuel gauge
+	 as coulomb counting (including voltage tracking).
+	 This mode is for target that consumes high current
+	 like tablet.
+
+config FUELGAUGE_STC3115
+	tristate "STC3115 fuel gauge driver"
+	default n
+	depends on BATTERY_SAMSUNG
+	help
+	 Say Y to include support
+	 for STC3115 fuel gauge driver.
+
+config FUELGAUGE_STC3117
+	tristate "STC3117 fuel gauge driver"
+	default n
+	depends on BATTERY_SAMSUNG
+	help
+	 Say Y to include support
+	 for STC3117 fuel gauge driver.
+
+config FUELGAUGE_PM8917
+	tristate "PM8917 fuel gauge driver"
+	default n
+	depends on BATTERY_SAMSUNG
+	help
+	 Say Y to include support
+	 for PM8917 fuel gauge driver.
+	 This driver source code implemented
+	 all functions for PM8917 fuel gauge.
+
+config FUELGAUGE_STC3115
+	tristate "STC3115 fuel gauge driver"
+	default n
+	depends on BATTERY_SAMSUNG
+	help
+	 Say Y to include support
+	 for STC3115 fuel gauge driver.
+	 This driver source code implemented
+	 all functions for STC3115 fuel gauge.
+
+config FUELGAUGE_SPRD2713
+	tristate "SPRD2713 fuel gauge driver"
+	default n
+	depends on BATTERY_SAMSUNG
+	help
+	 Say Y to include support
+	 for SPRD2713 fuel gauge driver.
+	 This driver source code implemented
+	 all functions for SPRD2713 fuel gauge.
+
+# Charger
+
+config CHARGER_MFD
+	tristate "use mfd driver for charger driver"
+	default n
+	depends on BATTERY_SAMSUNG
+	help
+	 Say Y to include support
+	 for charger driver with mfd.
+	 This driver source code implemented
+	 charger driver with mfd.
+
+config CHARGER_SPRD2713
+	tristate "sprd2713 charger driver"
+	default n
+	depends on BATTERY_SAMSUNG
+	help
+	 Say Y to include support
+	 for Summit sprd2713 charger driver.
+	 This driver source code implemented
+	 all functions for sprd2713 charger.
+
+config CHARGER_DUMMY
+	tristate "dummy charger driver"
+	default n
+	depends on BATTERY_SAMSUNG
+	help
+	 Say Y to include support
+	 for dummy charger driver.
+	 This driver source code implemented
+	 skeleton source code for charger functions.
+
+config CHARGER_MAX8903
+	tristate "MAX8903 charger driver"
+	default n
+	depends on BATTERY_SAMSUNG
+	help
+	 Say Y to include support
+	 for MAXIM MAX8903 charger driver.
+	 This driver source code implemented
+	 all functions for MAX8903 charger.
+
+config CHARGER_SMB328
+	tristate "SMB328 charger driver"
+	default n
+	depends on BATTERY_SAMSUNG
+	help
+	 Say Y to include support
+	 for Summit SMB328 charger driver.
+	 This driver source code implemented
+	 all functions for SMB328 charger.
+
+config CHARGER_SMB347
+	tristate "SMB347 charger driver"
+	default n
+	depends on BATTERY_SAMSUNG
+	help
+	 Say Y to include support
+	 for Summit SMB347 charger driver.
+	 This driver source code implemented
+	 all functions for SMB347 charger.
+
+config CHARGER_SMB358
+        tristate "SMB358 charger driver"
+	default n
+	depends on BATTERY_SAMSUNG
+        help
+         Say Y to include support
+         for SMB358 charger driver.
+         This driver source code implemented
+         all functions for SMB358 charger.
+
+config CHARGER_BQ24157
+	tristate "BQ24157 charger driver"
+	default n
+	depends on BATTERY_SAMSUNG
+	help
+	 Say Y to include support
+	 for TI BQ24157 charger driver.
+	 This driver source code implemented
+	 all functions for BQ24157 charger.
+
+config CHARGER_BQ24190
+	tristate "BQ24190 charger driver"
+	default n
+	depends on BATTERY_SAMSUNG
+	help
+	 Say Y to include support
+	 for TI BQ24190 charger driver.
+	 This driver source code implemented
+	 all functions for BQ24190 charger.
+
+config CHARGER_BQ24191
+	tristate "BQ24191 charger driver"
+	default n
+	depends on BATTERY_SAMSUNG
+	help
+	 Say Y to include support
+	 for TI BQ24191 charger driver.
+	 This driver source code implemented
+	 all functions for BQ24191 charger.
+
+config CHARGER_BQ24260
+	tristate "BQ24260 charger driver"
+	default n
+	depends on BATTERY_SAMSUNG
+	help
+	 Say Y to include support
+	 for TI BQ24260 charger driver.
+	 This driver source code implemented
+	 all functions for BQ24260 charger.
+
+config CHARGER_NCP1851
+	tristate "NCP1851 charger driver"
+	default n
+	depends on BATTERY_SAMSUNG
+	help
+	 Say Y to include support
+	 for NCP1851 charger driver.
+	 This driver source code implemented
+	 all functions for NCP1851 charger.
+
+config CHARGER_TSU8111
+	tristate "TSU8111 charger driver"
+	default n
+	depends on BATTERY_SAMSUNG
+	help
+	 Say Y to include support
+	 for TSU8111 charger driver.
+	 This driver source code implemented
+	 all functions for TSU8111 charger.
+
+config CHARGER_PM8917
+	tristate "PM8917 charger driver"
+	default n
+	depends on BATTERY_SAMSUNG
+	help
+	 Say Y to include support
+	 for PM8917 charger driver.
+	 This driver source code implemented
+	 all functions for PM8917 charger.
+
+config CHARGER_MAX14577
+	tristate "MAX14577 charger driver"
+	default n
+	depends on BATTERY_SAMSUNG
+	depends on CHARGER_MFD
+	help
+	 Say Y to include support
+	 for MAX14577 charger driver.
+	 This driver source code implemented
+	 all functions for MAX14577 charger.
+
+config CHARGER_SM5701
+	tristate "SM5701 charger driver"
+	depends on MFD_SM5701 && I2C
+	default n
+	help
+	 Say Y to include support
+	 for SiliconMitus SM5701 charger driver..
+
+config CHARGER_SM5414
+	tristate "SM5414 charger driver"
+	default n
+	help
+	 Say Y to include support
+	 for SM5414 charger driver.
+	 This driver source code implemented
+	 all functions for SMB5414 charger.
+
+# IF PMIC
+
+config CHARGER_MAX77693
+	tristate "MAX77693 battery charger support"
+	depends on MFD_MAX77693 && I2C
+	help
+	  Say Y here to enable support for the MAX77693 charger
+	  MAX77693 incluse muic, pmic, haptic, led,
+	  flash driver.
+	  You have to define MFD_MAX77693
+
+config CHARGER_MAX77803
+	tristate "MAX77803 battery charger support"
+	depends on MFD_MAX77693 && I2C
+	help
+	  Say Y here to enable support for the MAX77803 charger
+	  MAX77803 incluse muic, pmic, haptic, led,
+	  flash driver.
+	  You have to define MFD_MAX77693
+
+config CHARGER_MAX77XXX
+	tristate "MAX77693 or MAX77803 battery charger support"
+	depends on MFD_MAX77693 && I2C
+	help
+	  Say Y here to enable support for the MAX77803 charger
+	  MAX77803 incluse muic, pmic, haptic, led,
+	  flash driver.
+	  You have to define MFD_MAX77693
+
+config FUELGAUGE_SPRD4SAMSUNG27X3
+	tristate "SPRD27X3 fuel gauge driver"
+	default n
+	depends on BATTERY_SAMSUNG
+	help
+	 Say Y to include support
+	 for SPRD27X3 fuel gauge driver.
+	 This driver source code implemented
+	 all functions for SPRD27X3 fuel gauge.
+
+config CHARGER_SPRD4SAMSUNG27X3
+	tristate "sprd27X3 charger driver"
+	default n
+	depends on BATTERY_SAMSUNG
+	help
+	 Say Y to include support
+	 for Summit sprd27X3 charger driver.
+	 This driver source code implemented
+	 all functions for sprd27X3 charger.
