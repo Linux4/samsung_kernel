@@ -1,0 +1,288 @@
+// SPDX-License-Identifier: (GPL-2.0 OR MIT)
+/*
+ * Copyright (C) 2020 MediaTek Inc.
+ */
+&connfem {
+	epa_elna_mtk {
+		parts = <&qm42639 &qm45639>,	/* [0] Qorvo eFEM SKU1 RxL */
+			<&qm42639 &qm45639>,	/* [1] Qorvo eFEM SKU2-1, EVB RxL */
+			<&qm42639 &qm45639>,	/* [2] Qorvo eFEM SKU5 RxL */
+			<&qm42639 &qm45639>,	/* [3] Undefined, use SKU1 configuration */
+			<&qm42639 &qm45639>,	/* [4] Disable A band, Qorvo eFEM SKU1 RxL */
+			<&qm42639 &qm45639>,	/* [5] Disable A band, Qorvo eFEM SKU2-1, RxL */
+			<&qm42639 &qm45639>,	/* [6] Disable A band, Qorvo eFEM SKU5 RxL */
+			<&qm42639 &qm45639>,	/* [7] Disable A band, Undefined, use SKU1 RxL */
+			<&qm42195 &qm45197>,	/* [8] Qorvo eFEM SKU1 RxL */
+			<&qm42195 &qm45197>,	/* [9] Qorvo eFEM SKU2-1, EVB RxL */
+			<&qm42195 &qm45197>,	/* [10] Qorvo eFEM SKU5 RxL */
+			<&qm42195 &qm45197>,	/* [11] Undefined, use SKU1 configuration */
+			<&qm42195 &qm45197>,	/* [12] Disable A band, Qorvo eFEM SKU1 RxL */
+			<&qm42195 &qm45197>,	/* [13] Disable A band, Qorvo eFEM SKU2-1, RxL */
+			<&qm42195 &qm45197>,	/* [14] Disable A band, Qorvo eFEM SKU5 RxL */
+			<&qm42195 &qm45197>;	/* [15] Disable A band, Undefined, use SKU1 RxL */
+
+		hwid {
+			gpio = <&pio 43 0x0>,
+				<&pio 38 0x0>,
+				<&mt6373_pio 6 0x0>,
+				<&mt6373_pio 7 0x0>;
+		};
+
+		common {
+			flags-0 {
+				rx-mode = [35];
+				fe-ant-cnt = [81];
+				fe-main-bt-share-lp2g = [80];
+				fe-conn-spdt = [83];
+				fe-reserved = [80];
+			};
+			flags-1 {
+				rx-mode = [35];
+				fe-ant-cnt = [82];
+				fe-main-bt-share-lp2g = [80];
+				fe-conn-spdt = [83];
+				fe-reserved = [86];
+			};
+			flags-2 {
+				/* SKU5 is not include final SPDT data */
+				rx-mode = [35];
+				fe-ant-cnt = [82];
+				fe-main-bt-share-lp2g = [80];
+				fe-conn-spdt = [83];
+				fe-reserved = [80];
+			};
+			flags-3 {
+				/* Undefined, use SKU1 configuration */
+				rx-mode = [35];
+				fe-ant-cnt = [81];
+				fe-main-bt-share-lp2g = [80];
+				fe-conn-spdt = [83];
+				fe-reserved = [80];
+			};
+			flags-4 {
+				rx-mode = [35];
+				fe-ant-cnt = [81];
+				fe-main-bt-share-lp2g = [80];
+				fe-conn-spdt = [83];
+				fe-reserved = [80];
+			};
+			flags-5 {
+				rx-mode = [35];
+				fe-ant-cnt = [82];
+				fe-main-bt-share-lp2g = [80];
+				fe-conn-spdt = [83];
+				fe-reserved = [86];
+			};
+			flags-6 {
+				/* SKU5 is not include final SPDT data */
+				rx-mode = [35];
+				fe-ant-cnt = [82];
+				fe-main-bt-share-lp2g = [80];
+				fe-conn-spdt = [83];
+				fe-reserved = [80];
+			};
+			flags-7 {
+				/* Undefined, use flags-4 configuration */
+				rx-mode = [35];
+				fe-ant-cnt = [81];
+				fe-main-bt-share-lp2g = [80];
+				fe-conn-spdt = [83];
+				fe-reserved = [80];
+			};
+			flags-8 {
+				rx-mode = [00];
+				fe-ant-cnt = [81];
+				fe-main-bt-share-lp2g = [80];
+				fe-conn-spdt = [83];
+				fe-reserved = [80];
+			};
+			flags-9 {
+				rx-mode = [00];
+				fe-ant-cnt = [82];
+				fe-main-bt-share-lp2g = [80];
+				fe-conn-spdt = [83];
+				fe-reserved = [86];
+			};
+			flags-10 {
+				/* SKU5 is not include final SPDT data */
+				rx-mode = [00];
+				fe-ant-cnt = [82];
+				fe-main-bt-share-lp2g = [80];
+				fe-conn-spdt = [83];
+				fe-reserved = [80];
+			};
+			flags-11 {
+				/* Undefined, use SKU1 configuration */
+				rx-mode = [00];
+				fe-ant-cnt = [81];
+				fe-main-bt-share-lp2g = [80];
+				fe-conn-spdt = [83];
+				fe-reserved = [80];
+			};
+			flags-12 {
+				rx-mode = [00];
+				fe-ant-cnt = [81];
+				fe-main-bt-share-lp2g = [80];
+				fe-conn-spdt = [83];
+				fe-reserved = [80];
+			};
+			flags-13 {
+				rx-mode = [00];
+				fe-ant-cnt = [82];
+				fe-main-bt-share-lp2g = [80];
+				fe-conn-spdt = [83];
+				fe-reserved = [86];
+			};
+			flags-14 {
+				/* SKU5 is not include final SPDT data */
+				rx-mode = [00];
+				fe-ant-cnt = [82];
+				fe-main-bt-share-lp2g = [80];
+				fe-conn-spdt = [83];
+				fe-reserved = [80];
+			};
+			flags-15 {
+				/* Undefined, use flags-4 configuration */
+				rx-mode = [00];
+				fe-ant-cnt = [81];
+				fe-main-bt-share-lp2g = [80];
+				fe-conn-spdt = [83];
+				fe-reserved = [80];
+			};
+		};
+
+		wifi {
+			flags-0 {
+				epa-option = [AA];
+				/* open-loop; */
+			};
+			flags-1 {
+				epa-option = [AA];
+				/* open-loop; */
+			};
+			flags-2 {
+				epa-option = [AA];
+				/* open-loop; */
+			};
+			flags-3 {
+				epa-option = [AA];
+				/* Undefined, open-loop; */
+			};
+			flags-4 {
+				epa-option = [AA];
+				/* open-loop; */
+				only-2g;
+			};
+			flags-5 {
+				epa-option = [AA];
+				/* open-loop; */
+				only-2g;
+			};
+			flags-6 {
+				epa-option = [AA];
+				/* open-loop; */
+				only-2g;
+			};
+			flags-7 {
+				epa-option = [AA];
+				/* Undefiend, open-loop; */
+				only-2g;
+			};
+			flags-8 {
+				/* open-loop; */
+			};
+			flags-9 {
+				/* open-loop; */
+			};
+			flags-10 {
+				/* open-loop; */
+			};
+			flags-11 {
+				/* Undefined, open-loop; */
+			};
+			flags-12 {
+				/* open-loop; */
+				only-2g;
+			};
+			flags-13 {
+				/* open-loop; */
+				only-2g;
+			};
+			flags-14 {
+				/* open-loop; */
+				only-2g;
+			};
+			flags-15 {
+				/* Undefiend, open-loop; */
+				only-2g;
+			};
+		};
+
+		bt {
+			flags-0 {
+				/* choose one of: epa_elna / epa / elna / bypass */
+				epa_elna;
+			};
+			flags-1 {
+				/* choose one of: epa_elna / epa / elna / bypass */
+				epa_elna;
+			};
+			flags-2 {
+				/* choose one of: epa_elna / epa / elna / bypass */
+				epa_elna;
+			};
+			flags-3 {
+				/* Undefined, use SKU1 configuration */
+				epa_elna;
+			};
+			flags-4 {
+				/* choose one of: epa_elna / epa / elna / bypass */
+				epa_elna;
+			};
+			flags-5 {
+				/* choose one of: epa_elna / epa / elna / bypass */
+				epa_elna;
+			};
+			flags-6 {
+				/* choose one of: epa_elna / epa / elna / bypass */
+				epa_elna;
+			};
+			flags-7 {
+				/* Undefined, use flags-4 configuration */
+				epa_elna;
+			};
+			flags-8 {
+				/* choose one of: epa_elna / epa / elna / bypass */
+				epa_elna;
+			};
+			flags-9 {
+				/* choose one of: epa_elna / epa / elna / bypass */
+				epa_elna;
+			};
+			flags-10 {
+				/* choose one of: epa_elna / epa / elna / bypass */
+				epa_elna;
+			};
+			flags-11 {
+				/* Undefined, use SKU1 configuration */
+				epa_elna;
+			};
+			flags-12 {
+				/* choose one of: epa_elna / epa / elna / bypass */
+				epa_elna;
+			};
+			flags-13 {
+				/* choose one of: epa_elna / epa / elna / bypass */
+				epa_elna;
+			};
+			flags-14 {
+				/* choose one of: epa_elna / epa / elna / bypass */
+				epa_elna;
+			};
+			flags-15 {
+				/* Undefined, use flags-4 configuration */
+				epa_elna;
+			};
+		};
+	};
+};

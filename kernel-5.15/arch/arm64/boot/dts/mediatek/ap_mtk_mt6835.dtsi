@@ -1,0 +1,6 @@
+#include <dt-bindings/clock/mt6835-clk.h>
+
+#define infracfg_ao_clk pericfg_ao_clk
+/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/ap/mtk/mt6835/ap_mtk_mt6835.m15x_mea.06.dtsi */
+#include "../../mediatek/k6835v1_64_titan_angora_23u/Board_00.dts"
+#include "../../mediatek/k6835v1_64_titan_angora_23u/gpio06_m15x_mea.dtsi"

@@ -1,0 +1,262 @@
+#if 0 && 0
+&mt6377_vsram_md {
+    regulator-min-microvolt = <0>;
+    regulator-max-microvolt = <0>;
+    
+     
+};
+#endif
+
+#if 0 && 0
+&mt6377_vsram_proc1 {
+    regulator-min-microvolt = <0>;
+    regulator-max-microvolt = <0>;
+    
+     
+};
+#endif
+
+#if 0 && 0
+&mt6377_vsram_proc2 {
+    regulator-min-microvolt = <0>;
+    regulator-max-microvolt = <0>;
+    
+     
+};
+#endif
+
+#if 0 && 0
+&mt6377_vsram_others {
+    regulator-min-microvolt = <0>;
+    regulator-max-microvolt = <0>;
+    
+     
+};
+#endif
+
+#if 0 && 0
+&mt6377_va12 {
+    regulator-min-microvolt = <0>;
+    regulator-max-microvolt = <0>;
+    
+     
+};
+#endif
+
+#if 1800000 && 1800000
+&mt6377_vaud18 {
+    regulator-min-microvolt = <1800000>;
+    regulator-max-microvolt = <1800000>;
+    regulator-boot-on;
+    
+};
+#endif
+
+#if 0 && 0
+&mt6377_vaud28 {
+    regulator-min-microvolt = <0>;
+    regulator-max-microvolt = <0>;
+    
+     
+};
+#endif
+
+#if 0 && 0
+&mt6377_vaux18 {
+    regulator-min-microvolt = <0>;
+    regulator-max-microvolt = <0>;
+    
+     
+};
+#endif
+
+#if 2700000 && 2900000
+&mt6377_vbif28 {
+    regulator-min-microvolt = <2700000>;
+    regulator-max-microvolt = <2900000>;
+    
+    /delete-property/ regulator-always-on;
+};
+#endif
+
+#if 0 && 0
+&mt6377_vcn33_1 {
+    regulator-min-microvolt = <0>;
+    regulator-max-microvolt = <0>;
+    
+     
+};
+#endif
+
+#if 0 && 0
+&mt6377_vcn33_2 {
+    regulator-min-microvolt = <0>;
+    regulator-max-microvolt = <0>;
+    
+     
+};
+#endif
+
+#if 0 && 0
+&mt6377_vcn18 {
+    regulator-min-microvolt = <0>;
+    regulator-max-microvolt = <0>;
+    
+     
+};
+#endif
+
+#if 0 && 0
+&mt6377_vm18 {
+    regulator-min-microvolt = <0>;
+    regulator-max-microvolt = <0>;
+    
+     
+};
+#endif
+
+#if 0 && 0
+&mt6377_vefuse {
+    regulator-min-microvolt = <0>;
+    regulator-max-microvolt = <0>;
+    
+     
+};
+#endif
+
+#if 0 && 0
+&mt6377_vemc {
+    regulator-min-microvolt = <0>;
+    regulator-max-microvolt = <0>;
+    
+     
+};
+#endif
+
+#if 0 && 0
+&mt6377_vufs {
+    regulator-min-microvolt = <0>;
+    regulator-max-microvolt = <0>;
+    
+     
+};
+#endif
+
+#if 1800000 && 1800000
+&mt6377_vio18 {
+    regulator-min-microvolt = <1800000>;
+    regulator-max-microvolt = <1800000>;
+    regulator-always-on;regulator-boot-on;
+     
+};
+#endif
+
+#if 0 && 0
+&mt6377_vrf18 {
+    regulator-min-microvolt = <0>;
+    regulator-max-microvolt = <0>;
+    
+     
+};
+#endif
+
+#if 0 && 0
+&mt6377_vrf12 {
+    regulator-min-microvolt = <0>;
+    regulator-max-microvolt = <0>;
+    
+     
+};
+#endif
+
+#if 0 && 0
+&mt6377_vrf09 {
+    regulator-min-microvolt = <0>;
+    regulator-max-microvolt = <0>;
+    
+     
+};
+#endif
+
+
+#if 0 && 0
+&mt6377_vrfva12 {
+    regulator-min-microvolt = <0>;
+    regulator-max-microvolt = <0>;
+    
+     
+};
+#endif
+
+#if 0 && 0
+&mt6377_vrfio18 {
+    regulator-min-microvolt = <0>;
+    regulator-max-microvolt = <0>;
+    
+     
+};
+#endif
+
+#if 0 && 0
+&mt6377_vmch {
+    regulator-min-microvolt = <0>;
+    regulator-max-microvolt = <0>;
+    
+     
+};
+#endif
+
+#if 0 && 0
+&mt6377_vmc {
+    regulator-min-microvolt = <0>;
+    regulator-max-microvolt = <0>;
+    
+     
+};
+#endif
+
+
+#if 0 && 0
+&mt6377_vusb {
+    regulator-min-microvolt = <0>;
+    regulator-max-microvolt = <0>;
+    
+     
+};
+#endif
+
+#if 2800000 && 2800000
+&mt6377_vibr {
+    regulator-min-microvolt = <2800000>;
+    regulator-max-microvolt = <2800000>;
+    
+     
+};
+#endif
+
+#if 3000000 && 3000000
+&mt6377_vio28 {
+    regulator-min-microvolt = <3000000>;
+    regulator-max-microvolt = <3000000>;
+    regulator-boot-on;
+    /delete-property/ regulator-always-on;
+};
+#endif
+
+#if 3000000 && 3000000
+&mt6377_vtp {
+    regulator-min-microvolt = <3000000>;
+    regulator-max-microvolt = <3000000>;
+    
+     
+};
+#endif
+
+#if 0 && 0
+&mt6377_vfp {
+    regulator-min-microvolt = <0>;
+    regulator-max-microvolt = <0>;
+    
+     
+};
+#endif

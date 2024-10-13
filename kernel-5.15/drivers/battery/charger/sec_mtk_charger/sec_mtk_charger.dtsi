@@ -1,0 +1,36 @@
+#if 0
+&${pogo_int_gpio_parent} {
+	pogo_int_default: pogo_int_default {
+		GPIO_CONFIG_PUD(${pogo_int_gpio}, FUNC_INPUT_WAKEUP, PULL_NONE);
+	};
+};
+#endif
+
+&smd {
+	sec_mtk_charger: sec-mtk-charger {
+#if 0
+		pinctrl-names = "default";
+		pinctrl-0 = <&pogo_int_default>;
+		charger,pogo_int = <SEC_GPIO_REF(${pogo_int_gpio}) 0>; /* POGO_INT */
+#endif
+		compatible = "samsung,sec-mtk-charger";
+		charger,vbus_min_charger_voltage = <4400000>;
+		charger,vbus_normal_mivr_voltage = <4400000>;
+		charger,gpio_chgenb = <&pio 184 0x0>;
+		charger,max_icl = <3225>;
+		charger,ib_fcc = <100>;
+	};
+
+	battery {
+		battery,otg_name = "mtk-otg";
+	};
+};
+
+/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/battery/suwon/charger/sec_mtk_charger/sec_mtk_charger.m15x.dtsi */
+
+&smd {
+	sec_mtk_charger: sec-mtk-charger {
+		charger,gpio_chgenb = <&pio 184 0x0>;
+		charger,chgenb_en = <1>;
+	};
+};

@@ -1,0 +1,10 @@
+# Galaxy presubmit whitelist
+# This symbol should be merged to abi_gki_aarch64_galaxy
+# Plase add module name, like as "# required by sound/soc/codecs/snd-soc-wm-adsp.ko"
+[abi_symbol_list]
+fwnode_typec_mux_get
+typec_mux_put
+typec_partner_set_pd_revision
+typec_partner_set_svdm_version
+# required by drivers/usb/notify/usb_notify_layer.ko
+usb_set_configuration

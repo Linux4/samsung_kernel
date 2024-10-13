@@ -1,0 +1,2 @@
+ccflags-$(CONFIG_TZDEV) += -I$(srctree)/drivers/tee/tzdev/500/include
+ccflags-$(CONFIG_TZDEV) += -I$(srctree)/drivers/tee/tzdev/500/include/tzdev
