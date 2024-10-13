@@ -131,3 +131,10 @@ config CAMERA_HYPERLAPSE_300X
     default n
     help
     Enables support for Camera HYPERLAPSE 300x
+	
+config CAMERA_CDR_TEST
+    tristate "Camera CDR Test support"
+    default n
+    help
+    Enables support for Camera CDR Test
+

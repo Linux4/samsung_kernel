@@ -20,6 +20,10 @@
 static struct cam_req_mgr_core_device *g_crm_core_dev;
 static struct cam_req_mgr_core_link g_links[MAXIMUM_LINKS_PER_SESSION];
 
+#if defined(CONFIG_CAMERA_CDR_TEST)
+extern int cdr_value_exist;
+#endif
+
 void cam_req_mgr_core_link_reset(struct cam_req_mgr_core_link *link)
 {
 	uint32_t pd = 0;
@@ -4260,6 +4264,10 @@ int cam_req_mgr_link_control(struct cam_req_mgr_link_control *control)
 			}
 #else
 			/* Start SOF watchdog timer */
+#if defined(CONFIG_CAMERA_CDR_TEST)
+			if (cdr_value_exist)
+				init_timeout = 1800;
+#endif
 			rc = crm_timer_init(&link->watchdog,
 				(init_timeout + CAM_REQ_MGR_WATCHDOG_TIMEOUT),
 				link, &__cam_req_mgr_sof_freeze);

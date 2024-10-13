@@ -16,10 +16,19 @@
 
 #include "slot-gpio.h"
 
+#ifdef CONFIG_MMC_SUPPORT_STLOG
+#include <linux/fslog.h>
+#else
+#define ST_LOG(fmt, ...)
+#endif
+
 struct mmc_gpio {
 	struct gpio_desc *ro_gpio;
 	struct gpio_desc *cd_gpio;
 	bool override_cd_active_level;
+#if IS_ENABLED(CONFIG_SEC_STORAGE_MMC)
+	bool status;
+#endif
 	irqreturn_t (*cd_gpio_isr)(int irq, void *dev_id);
 	char *ro_label;
 	char *cd_label;
@@ -31,14 +40,52 @@ static irqreturn_t mmc_gpio_cd_irqt(int irq, void *dev_id)
 	/* Schedule a card detection after a debounce timeout */
 	struct mmc_host *host = dev_id;
 	struct mmc_gpio *ctx = host->slot.handler_priv;
+#if IS_ENABLED(CONFIG_SEC_STORAGE_MMC)
+	int present;
+	bool status;
+
+	present = host->ops->get_cd(host);
+	pr_debug("%s: cd gpio irq, gpio state %d (CARD_%s)\n",
+		mmc_hostname(host), present, present ? "INSERT":"REMOVAL");
+	status = mmc_gpio_get_cd(host) ? true : false;
+#endif
 
 #if defined(CONFIG_SDC_QTI)
 	/* New card is not corrupted */
 	host->corrupted_card = false;
 #endif
 
+#if IS_ENABLED(CONFIG_SEC_STORAGE_MMC)
+	if (status ^ ctx->status) {
+		pr_err("%s: slot status change detected (%d -> %d), GPIO_ACTIVE_%s\n",
+				mmc_hostname(host), ctx->status, status,
+				(host->caps2 & MMC_CAP2_CD_ACTIVE_HIGH) ?
+				"HIGH" : "LOW");
+		ST_LOG("%s: slot status change detected (%d -> %d), GPIO_ACTIVE_%s\n",
+				mmc_hostname(host), ctx->status, status,
+				(host->caps2 & MMC_CAP2_CD_ACTIVE_HIGH) ?
+				"HIGH" : "LOW");
+
+		ctx->status = status;
+		if (host->card_detect_cnt < 0x7FFFFFFF)
+			host->card_detect_cnt++;
+		if (status == 0)
+			host->failed_init = false;
+#endif
 	host->trigger_card_event = true;
+
+#if IS_ENABLED(CONFIG_SEC_STORAGE_MMC) && IS_ENABLED(CONFIG_SEC_FACTORY)
+	if (status)
+		mmc_detect_change(host, msecs_to_jiffies(ctx->cd_debounce_delay_ms));
+	else
+		mmc_detect_change(host, 0);
+#else
 	mmc_detect_change(host, msecs_to_jiffies(ctx->cd_debounce_delay_ms));
+#endif
+
+#if IS_ENABLED(CONFIG_SEC_STORAGE_MMC)
+	}
+#endif
 
 	return IRQ_HANDLED;
 }
@@ -113,6 +160,16 @@ void mmc_gpiod_request_cd_irq(struct mmc_host *host)
 	 */
 	if (!(host->caps & MMC_CAP_NEEDS_POLL))
 		irq = gpiod_to_irq(ctx->cd_gpio);
+
+#if IS_ENABLED(CONFIG_SEC_STORAGE_MMC)
+	ret = mmc_gpio_get_cd(host);
+	if (ret < 0) {
+		pr_err("%s: getting card detection gpio is failed.\n",
+				mmc_hostname(host));
+		return;
+	}
+	ctx->status = ret ? true : false;
+#endif
 
 	if (irq >= 0) {
 		if (!ctx->cd_gpio_isr)

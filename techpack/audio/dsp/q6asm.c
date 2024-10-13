@@ -2442,6 +2442,15 @@ static int32_t q6asm_callback(struct apr_client_data *data, void *priv)
 
 		config_debug_fs_read_cb();
 
+		if (data->payload_size != (READDONE_IDX_SEQ_ID + 1) * sizeof(uint32_t)) {
+			pr_err("%s:  payload size of %d is less than expected %d.\n",
+					__func__, data->payload_size,
+					((READDONE_IDX_SEQ_ID + 1) * sizeof(uint32_t)));
+			spin_unlock_irqrestore(
+				&(session[session_id].session_lock),
+				flags);
+			return -EINVAL;
+		}
 		dev_vdbg(ac->dev, "%s: ReadDone: status=%d buff_add=0x%x act_size=%d offset=%d\n",
 				__func__, payload[READDONE_IDX_STATUS],
 				payload[READDONE_IDX_BUFADD_LSW],

@@ -31,6 +31,13 @@
 #include "../core/core.h"
 #endif
 
+#if IS_ENABLED(CONFIG_SEC_STORAGE_MMC)
+#include <linux/sec_class.h>
+#include <linux/mmc/slot-gpio.h>
+#include "../core/card.h"
+#include "mmc-sec-feature.h"
+#endif
+
 #define CORE_MCI_VERSION		0x50
 #define CORE_VERSION_MAJOR_SHIFT	28
 #define CORE_VERSION_MAJOR_MASK		(0xf << CORE_VERSION_MAJOR_SHIFT)
@@ -137,7 +144,7 @@
 
 #define INVALID_TUNING_PHASE	-1
 #define sdhci_is_valid_gpio_wakeup_int(_h) ((_h)->sdiowakeup_irq >= 0)
-#define SDHCI_MSM_MIN_CLOCK	400000
+#define SDHCI_MSM_MIN_CLOCK	300000
 #define CORE_FREQ_100MHZ	(100 * 1000 * 1000)
 #define TCXO_FREQ		19200000
 
@@ -3498,6 +3505,7 @@ static const struct sdhci_msm_variant_info sdm845_sdhci_var = {
 static const struct of_device_id sdhci_msm_dt_match[] = {
 	{.compatible = "qcom,sdhci-msm-v4", .data = &sdhci_msm_mci_var},
 	{.compatible = "qcom,sdhci-msm-v5", .data = &sdhci_msm_v5_var},
+	{.compatible = "qcom,sdm670-sdhci", .data = &sdm845_sdhci_var},
 	{.compatible = "qcom,sdm845-sdhci", .data = &sdm845_sdhci_var},
 	{},
 };
@@ -3555,6 +3563,58 @@ out:
 	return;
 }
 
+#if IS_ENABLED(CONFIG_SEC_STORAGE_MMC)
+void sdhci_msm_sec_request_done(struct sdhci_host *host,
+		struct mmc_request *mrq)
+{
+	struct mmc_host *mmc = host->mmc;
+
+	mmc_sd_sec_check_req_err(mmc, mrq);
+
+	/* call mmc_request_done() to finish processing an MMC request */
+	mmc_request_done(mmc, mrq);
+}
+
+static inline void sd_sec_calc_error_count(struct mmc_sd_sec_err_info *err_log,
+		unsigned long long *crc_cnt, unsigned long long *tmo_cnt)
+{
+	int i = 0;
+
+	/* Only sbc(0,1)/cmd(2,3)/data(4,5) is checked. */
+	for (i = 0; i < 6; i++) {
+		if (err_log[i].err_type == -EILSEQ && *crc_cnt < U64_MAX)
+			*crc_cnt += err_log[i].count;
+		if (err_log[i].err_type == -ETIMEDOUT && *tmo_cnt < U64_MAX)
+			*tmo_cnt += err_log[i].count;
+	}
+}
+
+void sdhci_msm_sec_card_event(struct sdhci_host *host)
+{
+	struct mmc_host *mmc = host->mmc;
+	struct mmc_sd_sec_err_info *err_log;
+	struct mmc_sd_sec_status_err_info *status_err;
+	u64 crc_cnt = 0;
+	u64 tmo_cnt = 0;
+
+	if (!mmc_gpio_get_cd(mmc)) {
+		err_log = &sdi.err_info[0];
+		status_err = &sdi.status_err;
+
+		sd_sec_calc_error_count(err_log, &crc_cnt, &tmo_cnt);
+
+		ST_LOG("%s: \"GE\":\"%d\",\"CC\":\"%d\"," \
+				"\"ECC\":\"%d\",\"WP\":\"%d\",\"OOR\":\"%d\"," \
+				"\"CRC\":\"%lld\",\"TMO\":\"%lld\"\n",
+				mmc_hostname(mmc),
+				status_err->ge_cnt, status_err->cc_cnt,
+				status_err->ecc_cnt, status_err->wp_cnt,
+				status_err->oor_cnt, crc_cnt, tmo_cnt);
+	}
+	mmc_sd_sec_clear_err_count();
+}
+#endif
+
 static const struct sdhci_ops sdhci_msm_ops = {
 	.reset = sdhci_msm_reset,
 	.set_clock = sdhci_msm_set_clock,
@@ -3576,6 +3636,10 @@ static const struct sdhci_ops sdhci_msm_ops = {
 #endif
 	.hw_reset = sdhci_msm_hw_reset,
 	.set_timeout = sdhci_msm_set_timeout,
+#if IS_ENABLED(CONFIG_SEC_STORAGE_MMC)
+	.request_done = sdhci_msm_sec_request_done,
+	.card_event = sdhci_msm_sec_card_event,
+#endif
 };
 
 static const struct sdhci_pltfm_data sdhci_msm_pdata = {
@@ -4133,6 +4197,557 @@ static int sdhci_msm_setup_ice_clk(struct sdhci_msm_host *msm_host,
 	return ret;
 }
 
+#if IS_ENABLED(CONFIG_SEC_STORAGE_MMC)
+/* SYSFS about SD Card Detection */
+static struct device *sd_card_dev;
+
+static ssize_t t_flash_detect_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct sdhci_msm_host *msm_host = dev_get_drvdata(dev);
+
+	if (!mmc_gpio_get_cd(msm_host->mmc)) {
+		pr_debug("SD slot tray Removed.\n");
+		return sprintf(buf, "Notray\n");
+	}
+	if (msm_host->mmc->card) {
+		pr_debug("External sd: card inserted.\n");
+		return sprintf(buf, "Insert\n");
+	}
+
+	pr_debug("External sd: card removed.\n");
+	return sprintf(buf, "Remove\n");
+}
+
+static ssize_t sd_detect_cnt_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct sdhci_msm_host *msm_host = dev_get_drvdata(dev);
+
+	dev_info(dev, "%s : CD count is = %u\n",
+			__func__, msm_host->mmc->card_detect_cnt);
+	return sprintf(buf, "%u\n", msm_host->mmc->card_detect_cnt);
+}
+
+static ssize_t sd_detect_maxmode_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct sdhci_msm_host *msm_host = dev_get_drvdata(dev);
+	struct mmc_host *host = msm_host->mmc;
+	const char *uhs_bus_speed_mode = "";
+
+	if (host->caps & MMC_CAP_UHS_SDR104)
+		uhs_bus_speed_mode = "SDR104";
+	else if (host->caps & MMC_CAP_UHS_DDR50)
+		uhs_bus_speed_mode = "DDR50";
+	else if (host->caps & MMC_CAP_UHS_SDR50)
+		uhs_bus_speed_mode = "SDR50";
+	else if (host->caps & MMC_CAP_UHS_SDR25)
+		uhs_bus_speed_mode = "SDR25";
+	else if (host->caps & MMC_CAP_UHS_SDR12)
+		uhs_bus_speed_mode = "SDR12";
+	else
+		uhs_bus_speed_mode = "HS";
+
+	dev_info(dev, "%s: Max supported Host Speed Mode = %s\n",
+			__func__, uhs_bus_speed_mode);
+	return sprintf(buf, "%s\n", uhs_bus_speed_mode);
+}
+
+static ssize_t sd_detect_curmode_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct sdhci_msm_host *msm_host = dev_get_drvdata(dev);
+	struct mmc_host *host = msm_host->mmc;
+	const char *uhs_bus_speed_mode = "";
+	static const char *const uhs_speed[] = {
+		[UHS_SDR12_BUS_SPEED]	= "SDR12",
+		[UHS_SDR25_BUS_SPEED]	= "SDR25",
+		[UHS_SDR50_BUS_SPEED]	= "SDR50",
+		[UHS_SDR104_BUS_SPEED]	= "SDR104",
+		[UHS_DDR50_BUS_SPEED]	= "DDR50",
+	};
+
+	if (host && host->card) {
+		if (mmc_card_uhs(host->card))
+			uhs_bus_speed_mode =
+				uhs_speed[host->card->sd_bus_speed];
+		else
+			uhs_bus_speed_mode = "HS";
+	} else {
+		uhs_bus_speed_mode = "No Card";
+	}
+
+	dev_info(dev, "%s: Current SD Card Speed = %s\n",
+			__func__, uhs_bus_speed_mode);
+	return sprintf(buf, "%s\n", uhs_bus_speed_mode);
+}
+
+static ssize_t sd_detect_curphase_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct sdhci_msm_host *msm_host = dev_get_drvdata(dev);
+	struct mmc_host *host = msm_host->mmc;
+
+	if (host && host->card)
+		if (host->card->sd_bus_speed == UHS_SDR104_BUS_SPEED)
+			return sprintf(buf, "%d\n", (int)msm_host->saved_tuning_phase);
+
+	return sprintf(buf, "%d\n", -1);
+}
+
+static ssize_t sd_error_count_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct sdhci_msm_host *msm_host = dev_get_drvdata(dev);
+	struct mmc_host *host = msm_host->mmc;
+	struct mmc_card *card = host->card;
+	struct mmc_sd_sec_err_info *err_log;
+	struct mmc_sd_sec_status_err_info *status_err;
+	u64 crc_cnt = 0;
+	u64 tmo_cnt = 0;
+	int len = 0;
+	int i;
+
+	if (!card) {
+		len = snprintf(buf, PAGE_SIZE, "No card\n");
+		goto out;
+	}
+
+	err_log = &sdi.err_info[0];
+	status_err = &sdi.status_err;
+
+	len += snprintf(buf, PAGE_SIZE,
+			"type : err    status: first_issue_time:  last_issue_time:      count\n");
+
+	for (i = 0; i < MAX_LOG_INDEX; i++) {
+		len += snprintf(buf + len, PAGE_SIZE - len,
+				"%5s:%4d 0x%08x %16llu, %16llu, %10d\n",
+				err_log[i].type, err_log[i].err_type,
+				err_log[i].status,
+				err_log[i].first_issue_time,
+				err_log[i].last_issue_time,
+				err_log[i].count);
+	}
+
+	sd_sec_calc_error_count(err_log, &crc_cnt, &tmo_cnt);
+
+	len += snprintf(buf + len, PAGE_SIZE - len,
+			"GE:%d,CC:%d,ECC:%d,WP:%d,OOR:%d,CRC:%lld,TMO:%lld\n",
+			status_err->ge_cnt, status_err->cc_cnt,
+			status_err->ecc_cnt, status_err->wp_cnt,
+			status_err->oor_cnt, crc_cnt, tmo_cnt);
+out:
+	return len;
+}
+
+static ssize_t sdcard_summary_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct sdhci_msm_host *msm_host = dev_get_drvdata(dev);
+	struct mmc_host *host = msm_host->mmc;
+	struct mmc_card *card;
+	struct mmc_sd_sec_status_err_info *status_err = &sdi.status_err;
+	const char *uhs_bus_speed_mode = "";
+	static const char *const uhs_speeds[] = {
+		[UHS_SDR12_BUS_SPEED]	= "SDR12",
+		[UHS_SDR25_BUS_SPEED]	= "SDR25",
+		[UHS_SDR50_BUS_SPEED]	= "SDR50",
+		[UHS_SDR104_BUS_SPEED]	= "SDR104",
+		[UHS_DDR50_BUS_SPEED]	= "DDR50",
+	};
+	static const char *const unit[] = {"KB", "MB", "GB", "TB"};
+	unsigned int size, serial;
+	int digit = 1;
+	char ret_size[6];
+
+	/* SUMMARY : No SD Card Case */
+	if (!host || !host->card)
+		return sprintf(buf, "\"MANID\":\"NoCard\",\"SERIAL\":\"NoCard\""\
+				",\"SIZE\":\"NoCard\",\"SPEEDMODE\":\"NoCard\"" \
+				",\"NOTI\":\"NoCard\"\n");
+
+	card = host->card;
+
+	/* SERIAL */
+	serial = card->cid.serial & (0x0000FFFF);
+
+	/*SIZE*/
+	if (card->csd.read_blkbits == 9)		/* 1 Sector = 512 Bytes */
+		size = (card->csd.capacity) >> 1;
+	else if (card->csd.read_blkbits == 11)		/* 1 Sector = 2048 Bytes */
+		size = (card->csd.capacity) << 1;
+	else						/* 1 Sector = 1024 Bytes */
+		size = card->csd.capacity;
+
+	if (size >= 380000000 && size <= 410000000) {	/* QUIRK 400GB SD Card */
+		sprintf(ret_size, "400GB");
+	} else if (size >= 190000000 && size <= 210000000) {	/* QUIRK 200GB SD Card */
+		sprintf(ret_size, "200GB");
+	} else {
+		while ((size >> 1) > 0) {
+			size = size >> 1;
+			digit++;
+		}
+		sprintf(ret_size, "%d%s", 1 << (digit%10), unit[digit/10]);
+	}
+
+	/* SPEEDMODE */
+	if (mmc_card_uhs(card))
+		uhs_bus_speed_mode = uhs_speeds[card->sd_bus_speed];
+	else if (mmc_card_hs(card))
+		uhs_bus_speed_mode = "HS";
+	else
+		uhs_bus_speed_mode = "DS";
+
+	/* SUMMARY */
+	dev_info(dev, "MANID : 0x%02X, SERIAL : %04X, SIZE : %s, SPEEDMODE : %s\n",
+			card->cid.manfid, serial, ret_size, uhs_bus_speed_mode);
+	return sprintf(buf, "\"MANID\":\"0x%02X\",\"SERIAL\":\"%04X\""	\
+			",\"SIZE\":\"%s\",\"SPEEDMODE\":\"%s\",\"NOTI\":\"%d\"\n",
+			card->cid.manfid, serial, ret_size, uhs_bus_speed_mode,
+			status_err->noti_cnt);
+}
+
+static struct device *sd_info_dev;
+static ssize_t sd_count_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct sdhci_msm_host *msm_host = dev_get_drvdata(dev);
+	struct mmc_host *host = msm_host->mmc;
+	struct mmc_card *card = host->card;
+	struct mmc_sd_sec_err_info *err_log;
+	u64 total_cnt = 0;
+	int len = 0;
+	int i = 0;
+
+	if (!card) {
+		len = snprintf(buf, PAGE_SIZE, "no card\n");
+		goto out;
+	}
+
+	err_log = &sdi.err_info[0];
+
+	//Only sbc(0,1)/cmd(2,3)/data(4,5) is checked.
+	for (i = 0; i < 6; i++) {
+		if (total_cnt < U64_MAX)
+			total_cnt += err_log[i].count;
+	}
+	len = snprintf(buf, PAGE_SIZE, "%lld\n", total_cnt);
+
+out:
+	return len;
+}
+
+static ssize_t sd_cid_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct sdhci_msm_host *msm_host = dev_get_drvdata(dev);
+	struct mmc_host *host = msm_host->mmc;
+	struct mmc_card *card = host->card;
+	int len = 0;
+
+	if (!card) {
+		len = snprintf(buf, PAGE_SIZE, "no card\n");
+		goto out;
+	}
+
+	len = snprintf(buf, PAGE_SIZE,
+			"%08x%08x%08x%08x\n",
+			card->raw_cid[0], card->raw_cid[1],
+			card->raw_cid[2], card->raw_cid[3]);
+out:
+	return len;
+}
+
+static inline bool is_bad_condition(struct mmc_sd_sec_status_err_info *status_err,
+		u64 crc_cnt, u64 tmo_cnt)
+{
+	return (status_err->ge_cnt > 100 || status_err->ecc_cnt > 0 ||
+			status_err->wp_cnt > 0 || status_err->oor_cnt > 10 ||
+			crc_cnt > 100 || tmo_cnt > 100);
+}
+
+/*
+ * fc : fault card
+ * The specific app reads fc node to distinguish between BAD and GOOD card.
+ */
+static ssize_t sd_health_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct sdhci_msm_host *msm_host = dev_get_drvdata(dev);
+	struct mmc_host *host = msm_host->mmc;
+	struct mmc_card *card = host->card;
+	struct mmc_sd_sec_err_info *err_log = &sdi.err_info[0];
+	struct mmc_sd_sec_status_err_info *status_err = &sdi.status_err;
+	u64 crc_cnt = 0;
+	u64 tmo_cnt = 0;
+	int len = 0;
+
+	if (!card) {
+		//There should be no spaces in 'No Card'(Vold Team).
+		len = snprintf(buf, PAGE_SIZE, "NOCARD\n");
+		goto out;
+	}
+
+	sd_sec_calc_error_count(err_log, &crc_cnt, &tmo_cnt);
+
+	if (is_bad_condition(status_err, crc_cnt, tmo_cnt))
+		len = snprintf(buf, PAGE_SIZE, "BAD\n");
+	else
+		len = snprintf(buf, PAGE_SIZE, "GOOD\n");
+
+out:
+	return len;
+}
+
+static ssize_t sd_reason_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct sdhci_msm_host *msm_host = dev_get_drvdata(dev);
+	struct mmc_host *host = msm_host->mmc;
+	struct mmc_card *card = host->card;
+	char *reason = NULL;
+
+	if (card)
+		reason = mmc_card_readonly(card) ? "PERMWP" : "NORMAL";
+	else
+		reason = host->failed_init ? "INITFAIL" : "NOCARD";
+
+	return snprintf(buf, PAGE_SIZE, "%s\n", reason);
+}
+
+#define MMC_SD_SEC_CALC_STATUS_ERR(member) ({	\
+		cur_status_err->member = status_err->member - saved_status_err->member; })
+
+static inline void mmc_sd_sec_get_curr_err_info(struct mmc_sd_sec_device_info *cdi,
+		struct mmc_card *card, unsigned long long *crc_cnt,
+		unsigned long long *tmo_cnt, struct mmc_sd_sec_status_err_info *cur_status_err)
+{
+	struct mmc_sd_sec_err_info *err_log = &cdi->err_info[0];
+	struct mmc_sd_sec_err_info *saved_err_log = &cdi->saved_err_info[0];
+	struct mmc_sd_sec_status_err_info *status_err = &cdi->status_err;
+	struct mmc_sd_sec_status_err_info *saved_status_err = &cdi->saved_status_err;
+	int i = 0;
+
+	//Only sbc(0,1)/cmd(2,3)/data(4,5) is checked.
+	for (i = 0; i < 6; i++) {
+		if (err_log[i].err_type == -EILSEQ && *crc_cnt < U64_MAX)
+			*crc_cnt += (err_log[i].count - saved_err_log[i].count);
+		if (err_log[i].err_type == -ETIMEDOUT && *tmo_cnt < U64_MAX)
+			*tmo_cnt += (err_log[i].count - saved_err_log[i].count);
+	}
+
+	MMC_SD_SEC_CALC_STATUS_ERR(ge_cnt);
+	MMC_SD_SEC_CALC_STATUS_ERR(cc_cnt);
+	MMC_SD_SEC_CALC_STATUS_ERR(ecc_cnt);
+	MMC_SD_SEC_CALC_STATUS_ERR(wp_cnt);
+	MMC_SD_SEC_CALC_STATUS_ERR(oor_cnt);
+	MMC_SD_SEC_CALC_STATUS_ERR(noti_cnt);
+}
+
+#define MMC_SD_SEC_SAVE_STATUS_ERR(member) ({		\
+		saved_status_err->member = status_err->member;	})
+
+static inline void mmc_sd_sec_save_err_info(struct mmc_sd_sec_device_info *cdi)
+{
+	struct mmc_sd_sec_err_info *err_log = &cdi->err_info[0];
+	struct mmc_sd_sec_err_info *saved_err_log = &cdi->saved_err_info[0];
+	struct mmc_sd_sec_status_err_info *status_err = &cdi->status_err;
+	struct mmc_sd_sec_status_err_info *saved_status_err = &cdi->saved_status_err;
+	int i = 0;
+
+	// save current error count
+	for (i = 0; i < MAX_LOG_INDEX; i++)
+		saved_err_log[i].count = err_log[i].count;
+
+	MMC_SD_SEC_SAVE_STATUS_ERR(ge_cnt);
+	MMC_SD_SEC_SAVE_STATUS_ERR(cc_cnt);
+	MMC_SD_SEC_SAVE_STATUS_ERR(ecc_cnt);
+	MMC_SD_SEC_SAVE_STATUS_ERR(wp_cnt);
+	MMC_SD_SEC_SAVE_STATUS_ERR(oor_cnt);
+	MMC_SD_SEC_SAVE_STATUS_ERR(noti_cnt);
+}
+
+static struct device *sd_data_dev;
+static ssize_t sd_data_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct sdhci_msm_host *msm_host = dev_get_drvdata(dev);
+	struct mmc_host *host = msm_host->mmc;
+	struct mmc_card *card = host->card;
+	struct mmc_sd_sec_status_err_info status_err;
+	u64 crc_cnt = 0;
+	u64 tmo_cnt = 0;
+	int len = 0;
+
+	if (!card) {
+		len = snprintf(buf, PAGE_SIZE,
+				"\"GE\":\"0\",\"CC\":\"0\",\"ECC\":\"0\",\"WP\":\"0\"," \
+				"\"OOR\":\"0\",\"CRC\":\"0\",\"TMO\":\"0\"\n");
+		goto out;
+	}
+
+	memset(&status_err, 0, sizeof(struct mmc_sd_sec_status_err_info));
+
+	mmc_sd_sec_get_curr_err_info(&sdi, card,
+			&crc_cnt, &tmo_cnt, &status_err);
+
+	len = snprintf(buf, PAGE_SIZE,
+		"\"GE\":\"%d\",\"CC\":\"%d\",\"ECC\":\"%d\",\"WP\":\"%d\"," \
+		"\"OOR\":\"%d\",\"CRC\":\"%lld\",\"TMO\":\"%lld\"\n",
+		status_err.ge_cnt,
+		status_err.cc_cnt,
+		status_err.ecc_cnt,
+		status_err.wp_cnt,
+		status_err.oor_cnt,
+		crc_cnt, tmo_cnt);
+out:
+	return len;
+}
+
+static ssize_t sd_data_store(struct device *dev, struct device_attribute *attr,
+		const char *buf, size_t count)
+{
+	struct sdhci_msm_host *msm_host = dev_get_drvdata(dev);
+	struct mmc_host *host = msm_host->mmc;
+	struct mmc_card *card = host->card;
+
+	if (!card)
+		return -ENODEV;
+
+	if ((buf[0] != 'C' && buf[0] != 'c') || (count != 1))
+		return -EINVAL;
+
+	mmc_sd_sec_save_err_info(&sdi);
+
+	return count;
+}
+
+static DEVICE_ATTR(status, 0444, t_flash_detect_show, NULL);
+static DEVICE_ATTR(cd_cnt, 0444, sd_detect_cnt_show, NULL);
+static DEVICE_ATTR(max_mode, 0444, sd_detect_maxmode_show, NULL);
+static DEVICE_ATTR(current_mode, 0444, sd_detect_curmode_show, NULL);
+static DEVICE_ATTR(current_phase, 0444, sd_detect_curphase_show, NULL);
+static DEVICE_ATTR(err_count, 0444, sd_error_count_show, NULL);
+static DEVICE_ATTR(sdcard_summary, 0444, sdcard_summary_show, NULL);
+
+static DEVICE_ATTR(sd_count, 0444, sd_count_show, NULL);
+static DEVICE_ATTR(data, 0444, sd_cid_show, NULL);
+static DEVICE_ATTR(fc, 0444, sd_health_show, NULL);
+static DEVICE_ATTR(reason, 0444, sd_reason_show, NULL);
+
+static DEVICE_ATTR(sd_data, 0664, sd_data_show, sd_data_store);
+
+/* Callback function for SD Card IO Error */
+static int sdcard_uevent(struct mmc_card *card)
+{
+	pr_info("%s: Send Notification about SD Card IO Error\n",
+			mmc_hostname(card->host));
+
+	return kobject_uevent(&sd_card_dev->kobj, KOBJ_CHANGE);
+}
+
+static int sdhci_sec_sdcard_uevent(struct device *dev,
+		struct kobj_uevent_env *env)
+{
+	struct sdhci_msm_host *msm_host = dev_get_drvdata(dev);
+	struct mmc_host *host = msm_host->mmc;
+	struct mmc_card *card = host->card;
+	struct mmc_sd_sec_status_err_info *status_err = &sdi.status_err;
+	bool card_exist = false;
+
+	add_uevent_var(env, "DEVNAME=%s", dev->kobj.name);
+
+	if (card)
+		card_exist = true;
+
+	return add_uevent_var(env, "IOERROR=%s", card_exist ? (
+			((status_err->ge_cnt && !(status_err->ge_cnt % 1000)) ||
+			 (status_err->ecc_cnt && !(status_err->ecc_cnt % 1000)) ||
+			 (status_err->wp_cnt && !(status_err->wp_cnt % 100)) ||
+			 (status_err->oor_cnt && !(status_err->oor_cnt % 100)))
+			? "YES" : "NO") : "NoCard");
+}
+
+static struct device_type sdcard_type = {
+	.uevent = sdhci_sec_sdcard_uevent,
+};
+
+static struct attribute *sd_card_attributes[] = {
+	&dev_attr_status.attr,
+	&dev_attr_cd_cnt.attr,
+	&dev_attr_max_mode.attr,
+	&dev_attr_current_mode.attr,
+	&dev_attr_current_phase.attr,
+	&dev_attr_err_count.attr,
+	&dev_attr_sdcard_summary.attr,
+	NULL
+};
+
+static struct attribute_group sd_card_attribute_group = {
+	.attrs = sd_card_attributes,
+};
+
+static struct attribute *sd_info_attributes[] = {
+	&dev_attr_sd_count.attr,
+	&dev_attr_data.attr,
+	&dev_attr_fc.attr,
+	&dev_attr_reason.attr,
+	NULL
+};
+
+static struct attribute_group sd_info_attribute_group = {
+	.attrs = sd_info_attributes,
+};
+
+static struct attribute *sd_data_attributes[] = {
+	&dev_attr_sd_data.attr,
+	NULL
+};
+
+static struct attribute_group sd_data_attribute_group = {
+	.attrs = sd_data_attributes,
+};
+
+static void sdhci_sec_create_sysfs_group(struct sdhci_msm_host *msm_host,
+		struct device **dev, const struct attribute_group *dev_attr_group,
+		const char *str)
+{
+	*dev = sec_device_create(NULL, str);
+	if (IS_ERR(*dev)) {
+		pr_err("%s: Failed to create device!\n", __func__);
+		return;
+	}
+
+	if (sysfs_create_group(&(*dev)->kobj, dev_attr_group))
+		pr_err("%s: Failed to create %s sysfs group\n", __func__, str);
+	else
+		dev_set_drvdata(*dev, msm_host);
+}
+
+static void sdhci_sec_init_sysfs(struct sdhci_host *host,
+		struct sdhci_msm_host *msm_host)
+{
+	if (sd_card_dev == NULL && !strcmp(host->hw_name, "8804000.sdhci"))
+		sdhci_sec_create_sysfs_group(msm_host, &sd_card_dev,
+				&sd_card_attribute_group, "sdcard");
+
+	if (sd_info_dev == NULL && !strcmp(host->hw_name, "8804000.sdhci"))
+		sdhci_sec_create_sysfs_group(msm_host, &sd_info_dev,
+				&sd_info_attribute_group, "sdinfo");
+
+	if (sd_data_dev == NULL && !strcmp(host->hw_name, "8804000.sdhci"))
+		sdhci_sec_create_sysfs_group(msm_host, &sd_data_dev,
+				&sd_data_attribute_group, "sddata");
+
+	if (!IS_ERR(sd_card_dev)) {
+		sd_card_dev->type = &sdcard_type;
+		msm_host->mmc->sdcard_uevent = sdcard_uevent;
+	}
+}
+#endif //CONFIG_SEC_STORAGE_MMC
+
 #if defined(CONFIG_SDC_QTI)
 static ssize_t err_state_show(struct device *dev,
 			struct device_attribute *attr, char *buf)
@@ -4265,8 +4880,8 @@ static int sdhci_msm_init_sysfs(struct platform_device *pdev)
 
 static void sdhci_msm_set_caps(struct sdhci_msm_host *msm_host)
 {
-	msm_host->mmc->caps |= MMC_CAP_AGGRESSIVE_PM;
 	msm_host->mmc->caps |= MMC_CAP_WAIT_WHILE_BUSY | MMC_CAP_NEED_RSP_BUSY;
+	msm_host->mmc->caps2 |= MMC_CAP2_NO_PRESCAN_POWERUP;
 }
 
 static int sdhci_msm_probe(struct platform_device *pdev)
@@ -4545,7 +5160,6 @@ static int sdhci_msm_probe(struct platform_device *pdev)
 
 #if defined(CONFIG_SDC_QTI)
 	host->timeout_clk_div = 4;
-	msm_host->mmc->caps2 |= MMC_CAP2_CLK_SCALE;
 #endif
 	sdhci_msm_setup_pm(pdev, msm_host);
 
@@ -4598,6 +5212,12 @@ static int sdhci_msm_probe(struct platform_device *pdev)
 #if defined(CONFIG_SDC_QTI)
 	sdhci_msm_init_sysfs(pdev);
 #endif
+
+#if IS_ENABLED(CONFIG_SEC_STORAGE_MMC)
+	sdhci_sec_init_sysfs(host, msm_host);
+	sd_sec_set_features(msm_host->mmc);
+#endif
+
 	/*
 	 * Set platfm_init_done only after sdhci_add_host().
 	 * So that we don't turn off vqmmc while we reset sdhc as

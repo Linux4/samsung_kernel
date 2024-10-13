@@ -415,6 +415,8 @@ char ss_cmd_set_prop_map[SS_CMD_PROP_SIZE][SS_CMD_PROP_STR_LEN] = {
 	"samsung,timing_switch_pre_revA",
 	"samsung,timing_switch_post_revA",
 
+	"samsung,ddi_vcom_mark_pre_cmds_revA",
+
 	"TX_CMD_END not parsed from DTSI",
 
 	/* RX */
@@ -470,6 +472,8 @@ char ss_cmd_set_prop_map[SS_CMD_PROP_SIZE][SS_CMD_PROP_STR_LEN] = {
 	"samsung,vaint_mtp_rx_cmds_revA",
 	"samsung,ddi_fw_id_rx_cmds_revA",
 	"samsung,alpm_rx_cmds_revA",
+
+	"samsung,ddi_vcom_mark_rx_cmds_revA",
 	"RX_CMD_END not parsed from DTSI",
 };
 
@@ -4873,6 +4877,7 @@ static int ss_dsi_panel_parse_cmd_sets(struct samsung_display_driver_data *vdd)
 				return rc;
 			}
 		} else {
+			//TODO LOG HERE
 			rc = __ss_dsi_panel_parse_cmd_sets(qc_set, i, utils, ss_cmd_set_prop_map);
 			if (rc && rc != -ENOTSUPP)
 				pr_err("failed to parse set %d, rc=%d\n", i, rc);
@@ -5443,8 +5448,8 @@ static void ss_panel_parse_dt(struct samsung_display_driver_data *vdd)
 
 
 	/*
-		AOT support : tddi video panel
-		To keep high status panel power & reset
+	 *	AOT support : tddi video panel
+	 *	To keep high status panel power & reset
 	*/
 	vdd->aot_enable = of_property_read_bool(np, "samsung,aot_enable");
 	LCD_INFO(vdd, "aot_enable : %s\n",
@@ -5456,6 +5461,10 @@ static void ss_panel_parse_dt(struct samsung_display_driver_data *vdd)
 	vdd->aot_reset_regulator_late = of_property_read_bool(np, "samsung,aot_reset_regulator_late");
 	LCD_INFO(vdd, "aot_reset_regulator_late : %s\n",
 		vdd->aot_reset_regulator_late ? "aot_reset_regulator LATE enabled" : "Not aot_reset_regulator LATE");
+
+	vdd->aot_reset_early_off = of_property_read_bool(np, "samsung,aot_reset_early_off");
+	LCD_INFO(vdd, "aot_reset_early_off : %s\n",
+		vdd->aot_reset_early_off ? "enabled" : "disabled");
 
 	/* TDDI, touch notify esd when no esd gpio from ddi */
 	vdd->esd_touch_notify = of_property_read_bool(np, "samsung,esd_touch_notify");
@@ -8013,8 +8022,9 @@ void ss_panel_init(struct dsi_panel *panel)
 	if (vdd->vrr.lfd.support_lfd) {
 		vdd->vrr.lfd.nb_lfd_touch.priority = 3;
 		vdd->vrr.lfd.nb_lfd_touch.notifier_call = ss_lfd_touch_notify_cb;
+#if !defined(CONFIG_PANEL_BUILTIN_BACKLIGHT) //TODO replace with !defined(CONFIG_QGKI)
 		sec_input_register_notify(&vdd->vrr.lfd.nb_lfd_touch, ss_lfd_touch_notify_cb, 3);
-
+#endif
 		vdd->vrr.lfd.lfd_touch_wq = create_singlethread_workqueue("lfd_touch_wq");
 		if (!vdd->vrr.lfd.lfd_touch_wq) {
 			LCD_ERR(vdd, "failed to create touch_lfd workqueue..\n");
@@ -8026,7 +8036,9 @@ void ss_panel_init(struct dsi_panel *panel)
 	if (vdd->esd_touch_notify) {
 		vdd->nb_esd_touch.priority = 3;
 		vdd->nb_esd_touch.notifier_call = ss_esd_touch_notifier_cb;
+#if !defined(CONFIG_PANEL_BUILTIN_BACKLIGHT) //TODO replace with !defined(CONFIG_QGKI)
 		sec_input_register_notify(&vdd->nb_esd_touch, ss_esd_touch_notifier_cb, 3);
+#endif
 	}
 #endif
 
@@ -8226,6 +8238,10 @@ int samsung_panel_initialize(char *panel_string, unsigned int ndx)
 #if IS_ENABLED(CONFIG_PANEL_GTACT4PRO_HX8279_TV101WUM_WUXGA)
 	else if (!strncmp(panel_string, "GTACT4PRO_HX8279_TV101WUM", strlen(panel_string)))
 		vdd->panel_func.samsung_panel_init = GTACT4PRO_HX8279_TV101WUM_WUXGA_init;
+#endif
+#if IS_ENABLED(CONFIG_PANEL_M44X_ILI7807S_BS066FBM_FHD)
+	else if (!strncmp(panel_string, "M44X_ILI7807S_BS066FBM", strlen(panel_string)))
+		vdd->panel_func.samsung_panel_init = M44X_ILI7807S_BS066FBM_FHD_init;
 #endif
 
 	else {

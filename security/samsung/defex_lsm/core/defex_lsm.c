@@ -17,6 +17,7 @@
 #include <linux/version.h>
 #include "include/defex_caches.h"
 #include "include/defex_catch_list.h"
+#include "include/defex_debug.h"
 #include "include/defex_internal.h"
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 6, 0)
@@ -70,7 +71,7 @@ __visible_for_testing int __init verifiedboot_state_setup(char *str)
 
 	if (str && !strncmp(str, unlocked, sizeof(unlocked))) {
 		boot_state_unlocked = true;
-		pr_crit("Device is unlocked and DEFEX will be disabled.");
+		defex_log_crit("Device is unlocked and DEFEX will be disabled");
 	}
 	return 0;
 }
@@ -78,7 +79,7 @@ __visible_for_testing int __init verifiedboot_state_setup(char *str)
 __visible_for_testing int __init warrantybit_setup(char *str)
 {
 	if (get_option(&str, &warranty_bit))
-		pr_alert("[DEFEX] Warranty bit setup");
+		defex_log_crit("Warranty bit setup");
 	return 0;
 }
 
@@ -90,7 +91,7 @@ __visible_for_testing int __init bootstate_recovery_setup(char *str)
 {
 	if (str && *str == '2') {
 		boot_state_recovery = true;
-		pr_alert("[DEFEX] Recovery mode setup");
+		defex_log_crit("Recovery mode setup");
 	}
 	return 0;
 }
@@ -133,7 +134,7 @@ __visible_for_testing int __init defex_lsm_init(void)
 #ifdef DEFEX_DEBUG_ENABLE
 	ret = defex_init_sysfs();
 	if (ret) {
-		pr_crit("DEFEX_LSM defex_init_sysfs() failed!");
+		defex_log_crit("LSM defex_init_sysfs() failed!");
 		return ret;
 	}
 #endif /* DEFEX_DEBUG_ENABLE */
@@ -142,9 +143,9 @@ __visible_for_testing int __init defex_lsm_init(void)
 	defex_bootconfig_setup();
 #endif /* LINUX_VERSION_CODE */
 
-	printk(KERN_INFO "DEFEX_LSM started");
+	defex_log_info("LSM started");
 #ifdef DEFEX_LP_ENABLE
-	printk(KERN_INFO "[DEFEX] ADB LP Enabled");
+	defex_log_info("ADB LP Enabled");
 #endif /* DEFEX_LP_ENABLE */
 	defex_init_done = 1;
 	return 0;

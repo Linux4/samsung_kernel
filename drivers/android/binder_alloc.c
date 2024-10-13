@@ -220,7 +220,7 @@ static int binder_update_page_range(struct binder_alloc *alloc, int allocate,
 		mm = alloc->vma_vm_mm;
 
 	if (mm) {
-		down_read(&mm->mmap_sem);
+		down_write(&mm->mmap_sem);
 		vma = alloc->vma;
 	}
 
@@ -279,7 +279,7 @@ static int binder_update_page_range(struct binder_alloc *alloc, int allocate,
 		/* vm_insert_page does not seem to increment the refcount */
 	}
 	if (mm) {
-		up_read(&mm->mmap_sem);
+		up_write(&mm->mmap_sem);
 		mmput(mm);
 	}
 	return 0;
@@ -312,7 +312,7 @@ err_page_ptr_cleared:
 	}
 err_no_vma:
 	if (mm) {
-		up_read(&mm->mmap_sem);
+		up_write(&mm->mmap_sem);
 		mmput(mm);
 	}
 	return vma ? -ENOMEM : -ESRCH;
@@ -407,10 +407,6 @@ static struct binder_buffer *binder_alloc_new_buf_locked(
 	size_t size, data_offsets_size;
 	int ret;
 
-#ifdef CONFIG_SAMSUNG_FREECESS
-	struct task_struct *p = NULL;
-#endif
-
 	if (!binder_alloc_get_vma(alloc)) {
 		binder_alloc_debug(BINDER_DEBUG_USER_ERROR,
 				   "%d: binder_alloc_buf, no vma\n",
@@ -437,13 +433,14 @@ static struct binder_buffer *binder_alloc_new_buf_locked(
 
 #ifdef CONFIG_SAMSUNG_FREECESS
 	if (is_async && (alloc->free_async_space < 3*(size + sizeof(struct binder_buffer))
-		|| (alloc->free_async_space < ((alloc->buffer_size/2)*9/10)))) {
+		|| (alloc->free_async_space < alloc->buffer_size/4))) {
+		struct task_struct *p;
+
 		rcu_read_lock();
 		p = find_task_by_vpid(alloc->pid);
 		rcu_read_unlock();
-		if (p != NULL && thread_group_is_frozen(p)) {
+		if (p && (thread_group_is_frozen(p) || p->jobctl & JOBCTL_TRAP_FREEZE))
 			binder_report(p, -1, "free_buffer_full", is_async);
-		}
 	}
 #endif
 

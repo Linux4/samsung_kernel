@@ -98,6 +98,22 @@ static int sec_voice_spk_mode_put(struct snd_kcontrol *kcontrol,
 	return sec_voice_set_spk_mode(enable);
 }
 
+static int sec_voice_bt_rvc_vol_get(struct snd_kcontrol *kcontrol,
+			struct snd_ctl_elem_value *ucontrol)
+{
+	return 0;
+}
+
+static int sec_voice_bt_rvc_vol_put(struct snd_kcontrol *kcontrol,
+			struct snd_ctl_elem_value *ucontrol)
+{
+	int volume = ucontrol->value.integer.value[0];
+
+	pr_debug("%s: volume=%d\n", __func__, volume);
+
+	return sec_voice_set_bt_rvc_vol(volume);
+}
+
 static int sec_voice_loopback_put(struct snd_kcontrol *kcontrol,
 				 struct snd_ctl_elem_value *ucontrol)
 {
@@ -244,6 +260,9 @@ static const struct snd_kcontrol_new samsung_voice_solution_mixer_controls[] = {
 	SOC_SINGLE_EXT("Speaker Sensor Mode", SND_SOC_NOPM, 0, 1, 0,
 		sec_voice_spk_mode_get,
 		sec_voice_spk_mode_put),
+	SOC_SINGLE_EXT("BT SCO Rx Volume", SND_SOC_NOPM, 0, 1, 0,
+		sec_voice_bt_rvc_vol_get,
+		sec_voice_bt_rvc_vol_put),
 	SOC_SINGLE_EXT("Loopback Enable", SND_SOC_NOPM, 0, LOOPBACK_MAX, 0,
 		sec_voice_loopback_get,
 		sec_voice_loopback_put),

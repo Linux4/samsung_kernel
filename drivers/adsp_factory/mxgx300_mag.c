@@ -197,7 +197,7 @@ static ssize_t mag_dhr_sensor_info_show(struct device *dev,
 	if (cnt >= TIMEOUT_CNT) {
 		pr_err("[FACTORY] %s: Timeout!!!\n", __func__);
 	} else {
-		pr_info("[FACTORY] %s - [00h-03h] %02x,%02x,%02x,%02x [10h-16h,18h] %02x,%02x,%02x,%02x,%02x,%02x,%02x,%02x [30h-32h] %02x,%02x,%02x\n",
+		pr_info("[FACTORY] %s - [00h-08h] %02x,%02x,%02x,%02x,%02x,%02x,%02x,%02x,%02x [10h-12h] %02x,%02x,%02x [50h-52h] %02x,%02x,%02x\n",
 			__func__,
 			data->msg_buf[MSG_MAG][0], data->msg_buf[MSG_MAG][1],
 			data->msg_buf[MSG_MAG][2], data->msg_buf[MSG_MAG][3],
