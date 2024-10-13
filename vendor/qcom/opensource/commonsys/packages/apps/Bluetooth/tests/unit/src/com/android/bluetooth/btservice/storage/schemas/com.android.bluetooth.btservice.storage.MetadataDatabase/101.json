@@ -1,0 +1,225 @@
+{
+  "formatVersion": 1,
+  "database": {
+    "version": 101,
+    "identityHash": "628b9033f73db692c575e18a6aea63c3",
+    "entities": [
+      {
+        "tableName": "metadata",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`address` TEXT NOT NULL, `migrated` INTEGER NOT NULL, `a2dpSupportsOptionalCodecs` INTEGER NOT NULL, `a2dpOptionalCodecsEnabled` INTEGER NOT NULL, `a2dp_priority` INTEGER, `a2dp_sink_priority` INTEGER, `hfp_priority` INTEGER, `hfp_client_priority` INTEGER, `hid_host_priority` INTEGER, `pan_priority` INTEGER, `pbap_priority` INTEGER, `pbap_client_priority` INTEGER, `map_priority` INTEGER, `sap_priority` INTEGER, `hearing_aid_priority` INTEGER, `map_client_priority` INTEGER, `manufacturer_name` TEXT, `model_name` TEXT, `software_version` TEXT, `hardware_version` TEXT, `companion_app` TEXT, `main_icon` TEXT, `is_unthethered_headset` TEXT, `unthethered_left_icon` TEXT, `unthethered_right_icon` TEXT, `unthethered_case_icon` TEXT, `unthethered_left_battery` TEXT, `unthethered_right_battery` TEXT, `unthethered_case_battery` TEXT, `unthethered_left_charging` TEXT, `unthethered_right_charging` TEXT, `unthethered_case_charging` TEXT, `enhanced_settings_ui_uri` TEXT, PRIMARY KEY(`address`))",
+        "fields": [
+          {
+            "fieldPath": "address",
+            "columnName": "address",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "migrated",
+            "columnName": "migrated",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "a2dpSupportsOptionalCodecs",
+            "columnName": "a2dpSupportsOptionalCodecs",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "a2dpOptionalCodecsEnabled",
+            "columnName": "a2dpOptionalCodecsEnabled",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "profilePriorities.a2dp_priority",
+            "columnName": "a2dp_priority",
+            "affinity": "INTEGER",
+            "notNull": false
+          },
+          {
+            "fieldPath": "profilePriorities.a2dp_sink_priority",
+            "columnName": "a2dp_sink_priority",
+            "affinity": "INTEGER",
+            "notNull": false
+          },
+          {
+            "fieldPath": "profilePriorities.hfp_priority",
+            "columnName": "hfp_priority",
+            "affinity": "INTEGER",
+            "notNull": false
+          },
+          {
+            "fieldPath": "profilePriorities.hfp_client_priority",
+            "columnName": "hfp_client_priority",
+            "affinity": "INTEGER",
+            "notNull": false
+          },
+          {
+            "fieldPath": "profilePriorities.hid_host_priority",
+            "columnName": "hid_host_priority",
+            "affinity": "INTEGER",
+            "notNull": false
+          },
+          {
+            "fieldPath": "profilePriorities.pan_priority",
+            "columnName": "pan_priority",
+            "affinity": "INTEGER",
+            "notNull": false
+          },
+          {
+            "fieldPath": "profilePriorities.pbap_priority",
+            "columnName": "pbap_priority",
+            "affinity": "INTEGER",
+            "notNull": false
+          },
+          {
+            "fieldPath": "profilePriorities.pbap_client_priority",
+            "columnName": "pbap_client_priority",
+            "affinity": "INTEGER",
+            "notNull": false
+          },
+          {
+            "fieldPath": "profilePriorities.map_priority",
+            "columnName": "map_priority",
+            "affinity": "INTEGER",
+            "notNull": false
+          },
+          {
+            "fieldPath": "profilePriorities.sap_priority",
+            "columnName": "sap_priority",
+            "affinity": "INTEGER",
+            "notNull": false
+          },
+          {
+            "fieldPath": "profilePriorities.hearing_aid_priority",
+            "columnName": "hearing_aid_priority",
+            "affinity": "INTEGER",
+            "notNull": false
+          },
+          {
+            "fieldPath": "profilePriorities.map_client_priority",
+            "columnName": "map_client_priority",
+            "affinity": "INTEGER",
+            "notNull": false
+          },
+          {
+            "fieldPath": "publicMetadata.manufacturer_name",
+            "columnName": "manufacturer_name",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "publicMetadata.model_name",
+            "columnName": "model_name",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "publicMetadata.software_version",
+            "columnName": "software_version",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "publicMetadata.hardware_version",
+            "columnName": "hardware_version",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "publicMetadata.companion_app",
+            "columnName": "companion_app",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "publicMetadata.main_icon",
+            "columnName": "main_icon",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "publicMetadata.is_unthethered_headset",
+            "columnName": "is_unthethered_headset",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "publicMetadata.unthethered_left_icon",
+            "columnName": "unthethered_left_icon",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "publicMetadata.unthethered_right_icon",
+            "columnName": "unthethered_right_icon",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "publicMetadata.unthethered_case_icon",
+            "columnName": "unthethered_case_icon",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "publicMetadata.unthethered_left_battery",
+            "columnName": "unthethered_left_battery",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "publicMetadata.unthethered_right_battery",
+            "columnName": "unthethered_right_battery",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "publicMetadata.unthethered_case_battery",
+            "columnName": "unthethered_case_battery",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "publicMetadata.unthethered_left_charging",
+            "columnName": "unthethered_left_charging",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "publicMetadata.unthethered_right_charging",
+            "columnName": "unthethered_right_charging",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "publicMetadata.unthethered_case_charging",
+            "columnName": "unthethered_case_charging",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "publicMetadata.enhanced_settings_ui_uri",
+            "columnName": "enhanced_settings_ui_uri",
+            "affinity": "TEXT",
+            "notNull": false
+          }
+        ],
+        "primaryKey": {
+          "columnNames": [
+            "address"
+          ],
+          "autoGenerate": false
+        },
+        "indices": [],
+        "foreignKeys": []
+      }
+    ],
+    "setupQueries": [
+      "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, \"628b9033f73db692c575e18a6aea63c3\")"
+    ]
+  }
+}

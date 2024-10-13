@@ -1,0 +1,13 @@
+&soc {
+	tlmm: pinctrl@400000 {
+		compatible = "qcom,trinket-pinctrl";
+		reg = <0x400000 0xc00000>;
+		interrupts = <GIC_SPI 227 IRQ_TYPE_LEVEL_HIGH>;
+		gpio-controller;
+		#gpio-cells = <2>;
+		interrupt-controller;
+		#interrupt-cells = <2>;
+		wakeup-parent = <&mpm>;
+		qcom,gpios-reserved = <0 1 2 3 30 31 32 33>;
+	};
+};

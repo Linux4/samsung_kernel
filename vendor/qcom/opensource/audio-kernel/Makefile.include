@@ -1,0 +1,36 @@
+
+# Swap configs for samsung board
+$(info "Targe project name is $(PROJECT_NAME)")
+
+ifeq ($(PROJECT_NAME), $(filter $(PROJECT_NAME),dm1q dm2q dm3q))
+    $(info "overwrite kalama as kalama_diamond config")
+    $(shell rm -fr $(AUDIO_ROOT)/config/kalamaauto.conf)
+    $(shell cp $(AUDIO_ROOT)/config/kalama_diamond.conf $(AUDIO_ROOT)/config/kalamaauto.conf)
+    $(shell rm -fr $(AUDIO_ROOT)/config/kalamaautoconf.h)
+    $(shell cp $(AUDIO_ROOT)/config/kalamaautoconf_diamond.h $(AUDIO_ROOT)/config/kalamaautoconf.h)
+endif
+
+ifeq ($(PROJECT_NAME), $(filter $(PROJECT_NAME),q5q v5q))
+    $(info "overwrite kalama as kalama_q5 config")
+    $(shell rm -fr $(AUDIO_ROOT)/config/kalamaauto.conf)
+    $(shell cp $(AUDIO_ROOT)/config/kalama_q5.conf $(AUDIO_ROOT)/config/kalamaauto.conf)
+    $(shell rm -fr $(AUDIO_ROOT)/config/kalamaautoconf.h)
+    $(shell cp $(AUDIO_ROOT)/config/kalamaautoconf_q5.h $(AUDIO_ROOT)/config/kalamaautoconf.h)
+endif
+
+ifeq ($(PROJECT_NAME), $(filter $(PROJECT_NAME),b5q e5q))
+    $(info "overwrite kalama as kalama_b5 config")
+    $(shell rm -fr $(AUDIO_ROOT)/config/kalamaauto.conf)
+    $(shell cp $(AUDIO_ROOT)/config/kalama_b5.conf $(AUDIO_ROOT)/config/kalamaauto.conf)
+    $(shell rm -fr $(AUDIO_ROOT)/config/kalamaautoconf.h)
+    $(shell cp $(AUDIO_ROOT)/config/kalamaautoconf_b5.h $(AUDIO_ROOT)/config/kalamaautoconf.h)
+endif
+
+ifeq ($(PROJECT_NAME), $(filter $(PROJECT_NAME),gts9 gts9p gts9u gts9wifi gts9pwifi gts9uwifi))
+    $(info "overwrite kalama as kalama_gts9 config")
+    $(shell rm -fr $(AUDIO_ROOT)/config/kalamaauto.conf)
+    $(shell cp $(AUDIO_ROOT)/config/kalama_gts9.conf $(AUDIO_ROOT)/config/kalamaauto.conf)
+    $(shell rm -fr $(AUDIO_ROOT)/config/kalamaautoconf.h)
+    $(shell cp $(AUDIO_ROOT)/config/kalamaautoconf_gts9.h $(AUDIO_ROOT)/config/kalamaautoconf.h)
+endif
+
