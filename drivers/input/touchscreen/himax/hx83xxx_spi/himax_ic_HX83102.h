@@ -55,7 +55,16 @@
 #define HX83102J_FLASH_SZIE 261120
 #define hx83102j_addr_ic_ver_name	0x10007050
 
-#define hx83102j_fw_addr_gesture_history 0x10008000
+#define hx83102j_dsram_addr 0x10000000
+#define hx83102j_isram_addr 0x20000000
+#define hx83102j_dsram_size 73728
+#define hx83102j_isram_size 163840
+
+#define hx83102j_addr_osr_ctrl		0x100071c4
+
+#define HX83102J_ADDR_EN_HW_CRC 0x80010000
+#define HX83102J_DATA_EN_HW_CRC 0x0000ECCE
+#define hx83102j_fw_addr_gesture_history 0x10006E00  
 #if defined(HX_AUTO_UPDATE_FW) || defined(HX_ZERO_FLASH)
 #ifdef HX_EN_DYNAMIC_NAME
 #define hx83102_ic_b9_en        0x300B9000

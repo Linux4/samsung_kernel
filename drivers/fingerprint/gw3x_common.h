@@ -192,6 +192,7 @@ struct gf_device {
 	const char *chipid;
 	struct wakeup_source *wake_lock;
 	const char *btp_vdd;
+	const char *position;
 	struct regulator *regulator_3p3;
 	struct pinctrl *p;
 	struct pinctrl_state *pins_poweron;

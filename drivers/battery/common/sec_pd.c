@@ -25,8 +25,9 @@ EXPORT_SYMBOL(g_psink_status);
 static SEC_PD_SINK_STATUS *g_psink_status;
 #endif
 
-#if defined(CONFIG_ARCH_MTK_PROJECT)
+#if defined(CONFIG_ARCH_MTK_PROJECT) || IS_ENABLED(CONFIG_SEC_MTK_CHARGER)
 struct pdic_notifier_struct pd_noti;
+EXPORT_SYMBOL(pd_noti);
 #endif
 
 const char* sec_pd_pdo_type_str(int pdo_type)
@@ -127,6 +128,24 @@ int sec_pd_is_apdo(unsigned int pdo)
 	return ((g_psink_status->power_list[pdo].pdo_type == APDO_TYPE) ? true : false);
 }
 EXPORT_SYMBOL(sec_pd_is_apdo);
+
+int sec_pd_detach_with_cc(int state)
+{
+	if (!g_psink_status) {
+		pr_err("%s: g_psink_status is NULL\n", __func__);
+		return -1;
+	}
+
+	if (!g_psink_status->fp_sec_pd_detach_with_cc) {
+		pr_err("%s: not exist\n", __func__);
+		return -1;
+	}
+
+	g_psink_status->fp_sec_pd_detach_with_cc(state);
+
+	return 0;
+}
+EXPORT_SYMBOL(sec_pd_detach_with_cc);
 
 static int sec_pd_check_pdo(unsigned int pdo, unsigned int min_volt, unsigned int max_volt, unsigned int max_curr)
 {
@@ -281,6 +300,24 @@ int sec_pd_vpdo_auth(int auth, int d2d_type)
 }
 EXPORT_SYMBOL(sec_pd_vpdo_auth);
 
+int sec_pd_change_src(int max_cur)
+{
+	if (!g_psink_status) {
+		pr_err("%s: g_psink_status is NULL\n", __func__);
+		return -1;
+	}
+
+	if (!g_psink_status->fp_sec_pd_change_src) {
+		pr_err("%s: not exist\n", __func__);
+		return -1;
+	}
+
+	g_psink_status->fp_sec_pd_change_src(max_cur);
+
+	return 0;
+}
+EXPORT_SYMBOL(sec_pd_change_src);
+
 int sec_pd_get_apdo_max_power(unsigned int *pdo_pos, unsigned int *taMaxVol, unsigned int *taMaxCur, unsigned int *taMaxPwr)
 {
 	int i;
@@ -382,6 +419,22 @@ void sec_pd_manual_ccopen_req(int is_on)
 	g_psink_status->fp_sec_pd_manual_ccopen_req(is_on);
 }
 EXPORT_SYMBOL(sec_pd_manual_ccopen_req);
+
+void sec_pd_manual_jig_ctrl(bool mode)
+{
+	if (!g_psink_status) {
+		pr_err("%s: g_psink_status is NULL\n", __func__);
+		return;
+	}
+
+	if (!g_psink_status->fp_sec_pd_manual_jig_ctrl) {
+		pr_err("%s: not exist\n", __func__);
+		return;
+	}
+
+	g_psink_status->fp_sec_pd_manual_jig_ctrl(mode);
+}
+EXPORT_SYMBOL(sec_pd_manual_jig_ctrl);
 
 static int __init sec_pd_init(void)
 {

@@ -71,13 +71,14 @@ static ssize_t show_attrs(struct device *dev,
 #endif
 
 		snprintf(temp_buf + strlen(temp_buf), size,
-			"%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%s,%s,%s,%s,%s,%d,%s,%d,%d,%lu,0x%x,0x%x,0x%x,",
+			"%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%s,%s,%s,%s,%s,%d,%s,%d,%d,%lu,0x%x,0x%x,0x%x,%d,",
 			battery->voltage_now, battery->current_now,
 			battery->current_max, battery->charging_current,
 			battery->capacity,
 			battery->temperature, battery->usb_temp,
 			battery->chg_temp, battery->wpc_temp,
 			battery->blkt_temp, battery->lrp,
+			battery->dchg_temp, battery->sub_bat_temp,
 			sb_get_bst_str(battery->status),
 			dc_state.strval,
 			sb_get_cm_str(battery->charging_mode),
@@ -90,7 +91,8 @@ static ssize_t show_attrs(struct device *dev,
 			(battery->expired_time / 1000),
 			battery->current_event,
 			battery->misc_event,
-			battery->tx_event);
+			battery->tx_event,
+			battery->srccap_transit);
 		size = sizeof(temp_buf) - strlen(temp_buf);
 
 	{
@@ -103,26 +105,33 @@ static ssize_t show_attrs(struct device *dev,
 		size = sizeof(temp_buf) - strlen(temp_buf);
 	}
 
-#if IS_ENABLED(CONFIG_DUAL_BATTERY)
 		snprintf(temp_buf+strlen(temp_buf), size,
 			"%d,%d,%d,%d,",
 			battery->voltage_pack_main, battery->voltage_pack_sub,
 			battery->current_now_main, battery->current_now_sub);
 		size = sizeof(temp_buf) - strlen(temp_buf);
-#endif
 
-#if defined(CONFIG_BATTERY_AGE_FORECAST)
 		snprintf(temp_buf+strlen(temp_buf), size, "%d,", battery->batt_cycle);
 		size = sizeof(temp_buf) - strlen(temp_buf);
-#endif
 
+		psy_do_property(battery->pdata->fuelgauge_name, get,
+			POWER_SUPPLY_EXT_PROP_BATT_DUMP, value);
+		snprintf(temp_buf+strlen(temp_buf), size, "%s,", value.strval);
+		size = sizeof(temp_buf) - strlen(temp_buf);
+
+		/* Wireless charging related log added at the end of the string */
+		value.intval = SB_WRL_NONE;
 #if IS_ENABLED(CONFIG_WIRELESS_CHARGING)
-		if (battery->wc_tx_enable)
+		if (battery->wc_tx_enable) {
 			value.intval = SB_WRL_TX_MODE;
-		else if (is_wireless_fake_type(battery->cable_type))
+			snprintf(temp_buf+strlen(temp_buf), size, "%d,", SB_WRL_TX_MODE);
+		} else if (is_wireless_fake_type(battery->cable_type)) {
 			value.intval = SB_WRL_RX_MODE;
-		else
+			snprintf(temp_buf+strlen(temp_buf), size, "%d,", SB_WRL_RX_MODE);
+		} else
 			goto skip_wc;
+
+		size = sizeof(temp_buf) - strlen(temp_buf);
 		psy_do_property(battery->pdata->wireless_charger_name, get,
 			POWER_SUPPLY_EXT_PROP_BATT_DUMP, value);
 
@@ -130,10 +139,10 @@ static ssize_t show_attrs(struct device *dev,
 		size = sizeof(temp_buf) - strlen(temp_buf);
 skip_wc:
 #endif
-		psy_do_property(battery->pdata->fuelgauge_name, get,
-			POWER_SUPPLY_EXT_PROP_BATT_DUMP, value);
-		snprintf(temp_buf+strlen(temp_buf), size, "%s,", value.strval);
-		size = sizeof(temp_buf) - strlen(temp_buf);
+		if (value.intval == SB_WRL_NONE) {
+			snprintf(temp_buf+strlen(temp_buf), size, "%d,", 0);
+			size = sizeof(temp_buf) - strlen(temp_buf);
+		}
 
 		count += scnprintf(buf + count, PAGE_SIZE - count, "%s\n", temp_buf);
 	}

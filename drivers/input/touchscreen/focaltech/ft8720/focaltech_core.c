@@ -2333,17 +2333,17 @@ int fts_vbus_notification(struct notifier_block *nb,
 	switch (vbus_type) {
 	case STATUS_VBUS_HIGH:
 		FTS_INFO("attach");
-		ts_data->ta_stsatus = true;
+		ts_data->ta_status = true;
 		break;
 	case STATUS_VBUS_LOW:
 		FTS_INFO("detach");
-		ts_data->ta_stsatus = false;
+		ts_data->ta_status = false;
 		break;
 	default:
 		break;
 	}
 
-	fts_charger_attached(ts_data, ts_data->ta_stsatus);
+	fts_charger_attached(ts_data, ts_data->ta_status);
 	return 0;
 }
 #endif
@@ -2573,13 +2573,14 @@ static int fts_ts_remove_entry(struct fts_ts_data *ts_data)
 	FTS_FUNC_ENTER();
 
 	disable_irq(ts_data->irq);
-	cancel_delayed_work_sync(&ts_data->print_info_work);
-	cancel_delayed_work_sync(&ts_data->read_info_work);
 
 #if IS_ENABLED(CONFIG_VBUS_NOTIFIER)
 	if (ts_data->pdata->enable_vbus_notifier)
 		vbus_notifier_unregister(&ts_data->vbus_nb);
 #endif
+
+	cancel_delayed_work_sync(&ts_data->print_info_work);
+	cancel_delayed_work_sync(&ts_data->read_info_work);
 
 #if FTS_POINT_REPORT_CHECK_EN
 	fts_point_report_check_exit(ts_data);

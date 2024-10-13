@@ -51,6 +51,7 @@
 static const bool check_memfd_file = true;
 
 static struct file *memfd_file __ro_after_init;
+static bool is_five_initialized __ro_after_init;
 
 static struct workqueue_struct *g_five_workqueue;
 
@@ -608,7 +609,7 @@ int five_file_mmap(struct file *file, unsigned long prot)
 	struct task_struct *task = current;
 	struct task_integrity *tint = TASK_INTEGRITY(task);
 
-	if (five_check_params(task, file))
+	if (unlikely(!is_five_initialized) || five_check_params(task, file))
 		return 0;
 
 	if (check_memfd_file && is_memfd_file(file))
@@ -648,7 +649,7 @@ int __five_bprm_check(struct linux_binprm *bprm, int depth)
 	struct task_struct *task = current;
 	struct task_integrity *old_tint = TASK_INTEGRITY(task);
 
-	if (unlikely(task->ptrace))
+	if (unlikely(!is_five_initialized) || unlikely(task->ptrace))
 		return rc;
 
 	if (depth > 0) {
@@ -760,6 +761,9 @@ int __init init_five(void)
 	five_dsms_init("1", 0);
 
 	error = five_init_dmverity();
+
+	if (!error)
+		is_five_initialized = true;
 
 	return error;
 }

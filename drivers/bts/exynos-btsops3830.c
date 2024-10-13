@@ -28,9 +28,49 @@ static void init_smcqbusy(void __iomem *base)
 {
 }
 
+static int set_drexbts_pf_token_con(void __iomem *base, struct bts_stat *stat)
+{
+	if (!base || !stat)
+		return -EINVAL;
+
+	__raw_writel(stat->pf_token_con, base + PF_TOKEN_CON);
+
+	return 0;
+}
+
+static int get_drexbts_pf_token_con(void __iomem *base, struct bts_stat *stat)
+{
+	if (!base || !stat)
+		return -EINVAL;
+
+	stat->pf_token_con = __raw_readl(base + PF_TOKEN_CON);
+
+	return 0;
+}
+
+static int set_drexbts_pf_token_th(void __iomem *base, struct bts_stat *stat)
+{
+	if (!base || !stat)
+		return -EINVAL;
+
+	__raw_writel(stat->pf_token_th, base + PF_TOKEN_TH);
+
+	return 0;
+}
+
+static int get_drexbts_pf_token_th(void __iomem *base, struct bts_stat *stat)
+{
+	if (!base || !stat)
+		return -EINVAL;
+
+	stat->pf_token_th = __raw_readl(base + PF_TOKEN_TH);
+
+	return 0;
+}
+
 static int set_drexbts(void __iomem *base, struct bts_stat *stat)
 {
-	int i;
+	int i, ret;
 
 	if (!base || !stat)
 		return -ENODATA;
@@ -58,6 +98,16 @@ static int set_drexbts(void __iomem *base, struct bts_stat *stat)
 		for (i = 0; i < PF_TIMER_NR; i++)
 			__raw_writel(stat->pf_qos_timer[i],
 					base + PF_QOS_TIMER_0 + (4 * i));
+		ret = set_drexbts_pf_token_con(base, stat);
+		if (ret) {
+			pr_err("set_drexbts_pf_token_con failed! ret=%d\n", ret);
+			return ret;
+		}
+		ret = set_drexbts_pf_token_th(base, stat);
+		if (ret) {
+			pr_err("set_drexbts_pf_token_th failed! ret=%d\n", ret);
+			return ret;
+		}
 	}
 
 	return 0;
@@ -875,6 +925,10 @@ int register_btsops(struct bts_info *info)
 		info->ops->set_allow_mo_for_region = set_drexbts_allow_mo_for_region;
 		info->ops->get_pf_qos_timer = get_drexbts_pf_qos_timer;
 		info->ops->set_pf_qos_timer = set_drexbts_pf_qos_timer;
+		info->ops->get_pf_token_con = get_drexbts_pf_token_con;
+		info->ops->set_pf_token_con = set_drexbts_pf_token_con;
+		info->ops->get_pf_token_th = get_drexbts_pf_token_th;
+		info->ops->set_pf_token_th = set_drexbts_pf_token_th;
 		info->ops->get_qmax_threshold = NULL;
 		info->ops->set_qmax_threshold = NULL;
 		break;

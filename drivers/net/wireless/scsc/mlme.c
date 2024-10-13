@@ -3644,6 +3644,8 @@ int slsi_mlme_send_frame_mgmt(struct slsi_dev *sdev, struct net_device *dev, con
 	}
 
 	SLSI_NET_DBG2(dev, SLSI_MLME, "mlme_send_frame_req(vif:%d, message_type:%d,host_tag:%d)\n", ndev_vif->ifnum, msg_type, host_tag);
+	SLSI_NET_DBG2(dev, SLSI_MLME, "mlme_send_frame_req(vif:%d, message_type:%d,host_tag:%d, frame_len:%d)\n",
+		      ndev_vif->ifnum, msg_type, host_tag, frame_len);
 	slsi_debug_frame(sdev, dev, req, "TX");
 	cfm = slsi_mlme_req_cfm(sdev, dev, req, MLME_SEND_FRAME_CFM);
 	if (!cfm)
@@ -3738,7 +3740,7 @@ int slsi_mlme_set_packet_filter(struct slsi_dev *sdev, struct net_device *dev,
 	struct sk_buff    *cfm;
 	int               r = 0, i = 0, j = 0;
 	u8                *p;
-	u8                index = 0;
+	int               index = 0;
 
 	if (WARN_ON(!ndev_vif->activated))
 		return -EINVAL;

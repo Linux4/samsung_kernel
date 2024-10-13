@@ -402,6 +402,13 @@ static ssize_t himax_spi_sync(struct himax_ts_data *ts, struct spi_message *mess
 		return -EIO;
 	}
 
+#if IS_ENABLED(CONFIG_SAMSUNG_TUI)
+	if (STUI_MODE_TOUCH_SEC & stui_get_mode()) {
+		E("%s: now secure touch mode\n", __func__);
+		return -EBUSY;
+	}
+#endif
+
 	if (ts->cs_gpio > 0)
 		gpio_direction_output(ts->cs_gpio, 0);
 
@@ -436,6 +443,13 @@ static int himax_spi_read(uint8_t *command, uint8_t command_len, uint8_t *data, 
 		E("%s: now IC status is OFF\n", __func__);
 		return -EIO;
 	}
+
+#if IS_ENABLED(CONFIG_SAMSUNG_TUI)
+	if (STUI_MODE_TOUCH_SEC & stui_get_mode()) {
+		E("%s: now secure touch mode\n", __func__);
+		return -EBUSY;
+	}
+#endif
 
 	rbuff = kzalloc(sizeof(uint8_t) * length, GFP_KERNEL);
 	if (!rbuff)
@@ -513,6 +527,13 @@ static int himax_spi_write(uint8_t *buf, uint32_t length)
 		E("%s: now IC status is OFF\n", __func__);
 		return -EIO;
 	}
+
+#if IS_ENABLED(CONFIG_SAMSUNG_TUI)
+	if (STUI_MODE_TOUCH_SEC & stui_get_mode()) {
+		E("%s: now secure touch mode\n", __func__);
+		return -EBUSY;
+	}
+#endif
 
 	return himax_spi_sync(private_ts, &m);
 
@@ -597,18 +618,27 @@ void himax_int_enable(int enable)
 		return;
 
 	mutex_lock(&ts->irq_lock);
-	I("%s: Entering! irqnum = %d\n", __func__, irqnum);
-	if (enable == 1 && atomic_read(&ts->irq_state) == 0) {
+	if (enable == INT_ENABLE && atomic_read(&ts->irq_state) == 0) {
 		atomic_set(&ts->irq_state, 1);
 		enable_irq(irqnum);
 		private_ts->irq_enabled = 1;
-	} else if (enable == 0 && atomic_read(&ts->irq_state) == 1) {
+	} else if (enable == INT_DISABLE_NOSYNC && atomic_read(&ts->irq_state) == 1) {
 		atomic_set(&ts->irq_state, 0);
 		disable_irq_nosync(irqnum);
 		private_ts->irq_enabled = 0;
+	} else if (enable == INT_DISABLE_SYNC && atomic_read(&ts->irq_state) == 1) {
+		atomic_set(&ts->irq_state, 0);
+		disable_irq(irqnum);
+		private_ts->irq_enabled = 0;
+	} else {
+		I("%s: faulty enable vluae, irqnum = %d enable:%d, irq_state:%d irq_enable:%d\n",
+		__func__, irqnum, enable, atomic_read(&ts->irq_state), private_ts->irq_enabled);
+		mutex_unlock(&ts->irq_lock);
+		return;
 	}
 
-	I("%s, %d\n", __func__, enable);
+	I("%s: irqnum = %d enable:%d, irq_state:%d irq_enable:%d\n",
+		__func__, irqnum, enable, atomic_read(&ts->irq_state), private_ts->irq_enabled);
 	mutex_unlock(&ts->irq_lock);
 }
 EXPORT_SYMBOL(himax_int_enable);
@@ -1306,10 +1336,67 @@ static int himax_input_notify_call(struct notifier_block *n, unsigned long data,
 }
 #endif
 
+#if IS_ENABLED(CONFIG_SAMSUNG_TUI)
+struct himax_ts_data *stui_ts;
+extern int stui_spi_lock(struct spi_master *spi);
+extern int stui_spi_unlock(struct spi_master *spi);
+
+static int himax_stui_tsp_enter(void)
+{
+	int ret = 0;
+	struct spi_device *spi = stui_ts->spi;
+
+	input_info(true, &spi->dev, ">> %s\n", __func__);
+
+	himax_int_enable(INT_DISABLE_NOSYNC);
+
+	ret = stui_spi_lock(spi->master);
+	if (ret < 0) {
+		pr_err("[STUI] stui_spi_lock failed : %d\n", ret);
+		himax_int_enable(INT_ENABLE);
+		return -1;
+	}
+
+	return 0;
+}
+
+static int himax_stui_tsp_exit(void)
+{
+	int ret = 0;
+	struct spi_device *spi = stui_ts->spi;
+
+	input_info(true, &spi->dev, ">> %s\n", __func__);
+
+	ret = stui_spi_unlock(spi->master);
+	if (ret < 0) {
+		pr_err("[STUI] stui_spi_unlock failed : %d\n", ret);
+	}
+
+	himax_int_enable(INT_ENABLE);
+
+	return ret;
+}
+
+static int himax_stui_tsp_type(void)
+{
+	return STUI_TSP_TYPE_HIMAX;
+}
+#endif
+
 int himax_chip_common_probe(struct spi_device *spi)
 {
 	struct himax_ts_data *ts;
 	int ret = 0;
+
+#if !IS_ENABLED(CONFIG_SEC_FACTORY)
+	static int deferred_flag;
+
+	if (!deferred_flag) {
+		deferred_flag = 1;
+		input_info(true, &spi->dev, "deferred_flag boot %s\n", __func__);
+		return -EPROBE_DEFER;
+	}
+#endif
 
 	input_info(true, &spi->dev, "%s:Enter\n", __func__);
 
@@ -1375,6 +1462,12 @@ int himax_chip_common_probe(struct spi_device *spi)
 
 #if SEC_LPWG_DUMP
 	himax_lpwg_dump_buf_init();
+#endif
+
+#if IS_ENABLED(CONFIG_SAMSUNG_TUI)
+	stui_ts = ts;
+	stui_tsp_init(himax_stui_tsp_enter, himax_stui_tsp_exit, himax_stui_tsp_type);
+	input_info(true, stui_ts->dev, "secure touch support\n");
 #endif
 
 	return 0;

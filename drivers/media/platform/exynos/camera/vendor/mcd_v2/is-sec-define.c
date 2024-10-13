@@ -3236,7 +3236,7 @@ int is_sec_readcal_jdm_checksum_and_dump(char * buf, int position)
 	/* Checksum check */
 	for (i = 0; i < ap2ap_standard_cal_data->rom_num_of_segments; i++) {
 		seg_dump_addr[i] = curr_addr;
-		curr_addr += ap2ap_standard_cal_data->rom_seg_len[i];
+		curr_addr += ap2ap_standard_cal_data->rom_seg_size[i];
 	}
 
 	for (i = 0; i < ap2ap_standard_cal_data->rom_num_of_segments; i++) {
@@ -3251,7 +3251,7 @@ int is_sec_readcal_jdm_checksum_and_dump(char * buf, int position)
 			ret = -EINVAL;
 			goto exit;
 		}
-		else{
+		else {
 			info("Checksum success for segment %d", i + 1);
 		}
 	}
@@ -4047,11 +4047,11 @@ int is_i2c_read_otp_hi556(struct i2c_client *client, char *buf, int group, const
 
 	/* read from the rom values to the buffer */
 	for (segment = 0; segment < ap2ap_standard_cal_data->rom_num_of_segments; segment++) {
-		is_sensor_write8(client, HI556_OTP_ACCESS_ADDR_HIGH, ((ap2ap_standard_cal_data->rom_group_start_addr[segment][group]) >> 8));
-		is_sensor_write8(client, HI556_OTP_ACCESS_ADDR_LOW, ap2ap_standard_cal_data->rom_group_start_addr[segment][group] & 0xFF);
+		is_sensor_write8(client, HI556_OTP_ACCESS_ADDR_HIGH, ((ap2ap_standard_cal_data->rom_bank_start_addr[segment][group]) >> 8));
+		is_sensor_write8(client, HI556_OTP_ACCESS_ADDR_LOW, ap2ap_standard_cal_data->rom_bank_start_addr[segment][group] & 0xFF);
 		is_sensor_write8(client, HI556_OTP_MODE_ADDR, 0x01);
 
-		for (offset = 0; offset < ap2ap_standard_cal_data->rom_seg_len[segment]; offset++) {
+		for (offset = 0; offset < ap2ap_standard_cal_data->rom_seg_size[segment]; offset++) {
 			ret = is_sensor_read8(client, HI556_OTP_READ_ADDR, &buf[addr_buf++]);
 			if (unlikely(ret)) {
 				err("failed to is_sensor_read8 (%d)\n", ret);
@@ -4176,15 +4176,127 @@ exit:
 #endif //SENSOR_OTP_HI556
 
 #if defined(SENSOR_OTP_SC501)
-int is_i2c_read_otp_sc501(struct i2c_client *client, char *buf, const struct is_vender_rom_addr *rom_addr)
+/*
+ * Summarize the exceptions
+ * 1. Find which bank is used by reading first group address
+ * 2. Pages are divided in 2 parts. When it switchs to the other page, page setting should be required
+ * 3. Bank1's LSC size has 12 bytes more than bank2's because there is unused area in the middle of LSC area
+ */
+int is_setup_area1_sc501(struct i2c_client *client) {
+	int ret = 0;
+	u8 status = SC501_STATUS_LOAD_ONGOING;
+	int retries = SC501_RETRIES_COUNT;
+
+	info("Otprom valid area is changed to 0x0x8000 ~ 0x87FF");
+
+	/* Write threshold value */
+	ret = is_sensor_write8(client, 0x36B0, 0x4C);
+	ret |= is_sensor_write8(client, 0x36B1, 0xD8);
+	ret |= is_sensor_write8(client, 0x36B2, 0x01);
+	if (unlikely(ret)) {
+		err("Failed to write threshold value (%d)\n", ret);
+		ret = -EINVAL;
+		goto exit;
+	}
+
+	/* Write read start address */
+	is_sensor_write8(client, 0x4408, 0x00);
+	is_sensor_write8(client, 0x4409, 0x00);
+
+	/* Write read end address */
+	is_sensor_write8(client, 0x440A, 0x07);
+	is_sensor_write8(client, 0x440B, 0xFF);
+
+	/* ld_setting */
+	is_sensor_write8(client, 0x4401, 0x1F);
+
+	/* Manual load enable */
+	is_sensor_write8(client, 0x4400, 0x11);
+
+	/* Read completed check */
+	status = SC501_STATUS_LOAD_ONGOING;
+	while (status) {
+		ret = is_sensor_read8(client, 0x4420, &status);
+		if (unlikely(ret)) {
+			err("Failed to read completed check (%d)\n", ret);
+			ret = -EINVAL;
+			break;
+		}
+
+		status &= 0x1;
+		msleep(1);
+		if (retries-- < 0) {
+			err("Failed to update otp load status");
+			ret = -EINVAL;
+			break;
+		}
+	}
+exit:
+	return ret;
+}
+
+int is_setup_area2_sc501(struct i2c_client *client) {
+	int ret = 0;
+	u8 status = SC501_STATUS_LOAD_ONGOING;
+	int retries = SC501_RETRIES_COUNT;
+
+	info("Otprom valid area is changed to 0x8800 ~ 0x8FFF");
+
+	/* Write threshold value */
+	ret = is_sensor_write8(client, 0x36B0, 0x4C);
+	ret |= is_sensor_write8(client, 0x36B1, 0xD8);
+	ret |= is_sensor_write8(client, 0x36B2, 0x01);
+	if (unlikely(ret)) {
+		err("Failed to write threshold value (%d)\n", ret);
+		ret = -EINVAL;
+		goto exit;
+	}
+
+	/* Write read start address */
+	is_sensor_write8(client, 0x4408, 0x08);
+	is_sensor_write8(client, 0x4409, 0x00);
+
+	/* Write read end address */
+	is_sensor_write8(client, 0x440A, 0x0F);
+	is_sensor_write8(client, 0x440B, 0xFF);
+
+	/* ld_setting */
+	is_sensor_write8(client, 0x4401, 0x1E);
+
+	/* Manual load enable */
+	is_sensor_write8(client, 0x4400, 0x11);
+
+	/* Read completed check */
+	status = SC501_STATUS_LOAD_ONGOING;
+	while (status) {
+		ret = is_sensor_read8(client, 0x4420, &status);
+		if (unlikely(ret)) {
+			err("Failed to read completed check (%d)\n", ret);
+			ret = -EINVAL;
+			break;
+		}
+
+		status &= 0x1;
+		msleep(1);
+		if (retries-- < 0) {
+			err("Failed to update otp load status");
+			ret = -EINVAL;
+			break;
+		}
+	}
+exit:
+	return ret;
+}
+
+int is_i2c_read_otp_sc501(struct i2c_client *client, int position, char *buf, const struct is_vender_rom_addr *rom_addr)
 {
 	int ret = 0;
+	struct is_core *core = dev_get_drvdata(is_dev);
+	struct is_vender_specific *specific = core->vender.private_data;
 	struct rom_ap2ap_standard_cal_data *ap2ap_standard_cal_data;
-	int segment, group, offset;
+	int segment, bank, i;
 	u16 addr_buf = 0x0, addr_otp = 0x0;
-	u8 status = 1, value = 0;
-	int cnt = 0;
-	bool use_area2 = false;		/* area1 : 0x8000 ~ 0x87FF, area2 : 0x8800 ~ 0x8FFF */
+	u8 value = 0;
 
 	if (rom_addr->extend_cal_addr) {
 		ap2ap_standard_cal_data = (struct rom_ap2ap_standard_cal_data *)is_sec_search_rom_extend_data(
@@ -4196,165 +4308,70 @@ int is_i2c_read_otp_sc501(struct i2c_client *client, char *buf, const struct is_
 		}
 	}
 
-	// 1-1 Write threshold value
-	ret = is_sensor_write8(client, 0x36B0, 0x4C);
-	ret |= is_sensor_write8(client, 0x36B1, 0xD8);
-	ret |= is_sensor_write8(client, 0x36B2, 0x01);
-	if (unlikely(ret)) {
-		err("failed to write threshold value (%d)\n", ret);
-		ret = -EINVAL;
-		goto exit;
-	}
-
-	/* 1-2 Write read start address */
-	is_sensor_write8(client, 0x4408, 0x00);
-	is_sensor_write8(client, 0x4409, 0x00);
-
-	/* 1-3 Write read end address */
-	is_sensor_write8(client, 0x440A, 0x07);
-	is_sensor_write8(client, 0x440B, 0xFF);
-
-	/* 1-4 ld_setting */
-	is_sensor_write8(client, 0x4401, 0x1F);
-
-	/* 1-5 Manual load enable */
-	is_sensor_write8(client, 0x4400, 0x11);
-
-	/* 1-6 Read completed check */
-	status = 1;
-	cnt = 0;
-	while (status) {
-		ret = is_sensor_read8(client, 0x4420, &status);
-		if (unlikely(ret)) {
-			err("failed to read completed check (%d)\n", ret);
-			ret = -EINVAL;
-			goto exit;
-		}
-
-		status &= 0x1;
-		msleep(1);
-		dbg_sensor(1, "1st read completed check is still ongoing (cnt:%d)", cnt++);
-	}
-
-	/* 1-7 Check value by reading */
+	/* Find the bank */
 	addr_buf = 0x0;
 	segment = 0;
-	for (group = 0; group < ap2ap_standard_cal_data->rom_num_of_groups; group++) {
-		if (ap2ap_standard_cal_data->rom_group_start_addr[segment][group] >= 0x8800 && use_area2 == false) {
-			info("otprom valid area is changed to 0x8800 ~ 0x8FFF");
-			/* 2-1. write threshold value */
-			is_sensor_write8(client, 0x36B0, 0x4C);
-			is_sensor_write8(client, 0x36B1, 0xD8);
-			is_sensor_write8(client, 0x36B2, 0x01);
-			
-			/* 2-2. Write read start address */
-			is_sensor_write8(client, 0x4408, 0x08);
-			is_sensor_write8(client, 0x4409, 0x00);
-			
-			/* 2-3. Write read end address */
-			is_sensor_write8(client, 0x440A, 0x0F);
-			is_sensor_write8(client, 0x440B, 0xFF);
-			
-			/* 2-4. ld_setting */
-			is_sensor_write8(client, 0x4401, 0x1E);
-			
-			/* 2-5. manual load enable */
-			is_sensor_write8(client, 0x4400, 0x11);
-			
-			/* 2-6. Read completed check */
-			status = 1;
-			cnt = 0;
-			while (status) {
-				ret = is_sensor_read8(client, 0x4420, &status);
-				if (unlikely(ret)) {
-					err("failed to read completed check (%d)\n", ret);
-					ret = -EINVAL;
-					goto exit;
-				}
-			
-				status &= 0x1;
-				msleep(1);
-				dbg_sensor(1, "2nd read completed check is still ongoing (cnt:%d)", cnt++);
+	for (bank = SC501_FRONT_GROUP1; bank < ap2ap_standard_cal_data->rom_num_of_banks; bank++) {
+		if (ap2ap_standard_cal_data->rom_bank_start_addr[segment][bank] < SC501_AREA2_START_ADDR) {
+			if (is_setup_area1_sc501(client) < 0) {
+				err("Failed to setup area1 (%d)\n", ret);
+				ret = -EINVAL;
+				goto exit;
 			}
-			use_area2 = true;
-		};
+		} else {
+			if (is_setup_area2_sc501(client) < 0) {
+				err("Failed to setup area1 (%d)\n", ret);
+				ret = -EINVAL;
+				goto exit;
+			}
+		}
 
-		ret = is_sensor_read8(client, ap2ap_standard_cal_data->rom_group_start_addr[segment][group], &value);
+		ret = is_sensor_read8(client, ap2ap_standard_cal_data->rom_bank_start_addr[segment][bank], &value);
 		if (unlikely(ret)) {
-			err("failed to is_sensor_read8 (%d)\n", ret);
+			err("Failed to is_sensor_read8 (%d)\n", ret);
 			ret = -EINVAL;
 			goto exit;
 		}
 
-		if (value == 0x55)
+		if (value == SC501_FLAG_BANK_VALID) {
+			specific->rom_bank[position] = bank;
 			break;
+		}
 	}
 
-	for (segment = 0; segment < ap2ap_standard_cal_data->rom_num_of_segments; segment++) {
-		addr_otp = ap2ap_standard_cal_data->rom_group_start_addr[segment][group];
-		info("Segment : %d, Group : %d (addr_otp : 0x%04X, addr_buf : 0x%04X, seg_size : %d)",
-				segment, group, addr_otp, addr_buf, ap2ap_standard_cal_data->rom_seg_len[segment]);	
+	for (segment = SC501_FRONT_SEGMENT_MODULE; segment < ap2ap_standard_cal_data->rom_num_of_segments; segment++) {
+		addr_otp = ap2ap_standard_cal_data->rom_bank_start_addr[segment][bank];
 
-		for (offset = 0; offset < ap2ap_standard_cal_data->rom_seg_len[segment]; offset++) {
-			if ((addr_otp + offset) == 0x8800) {
-				info("otprom valid area is changed to 0x8800 ~ 0x8FFF");
-				/* 2-1. write threshold value */
-				is_sensor_write8(client, 0x36B0, 0x4C);
-				is_sensor_write8(client, 0x36B1, 0xD8);
-				is_sensor_write8(client, 0x36B2, 0x01);
-				
-				/* 2-2. Write read start address */
-				is_sensor_write8(client, 0x4408, 0x08);
-				is_sensor_write8(client, 0x4409, 0x00);
-				
-				/* 2-3. Write read end address */
-				is_sensor_write8(client, 0x440A, 0x0F);
-				is_sensor_write8(client, 0x440B, 0xFF);
-				
-				/* 2-4. ld_setting */
-				is_sensor_write8(client, 0x4401, 0x1E);
-				
-				/* 2-5. manual load enable */
-				is_sensor_write8(client, 0x4400, 0x11);
-				
-				/* 2-6. Read completed check */
-				status = 1;
-				cnt = 0;
-				while (status) {
-					ret = is_sensor_read8(client, 0x4420, &status);
-					if (unlikely(ret)) {
-						err("failed to read completed check (%d)\n", ret);
-						ret = -EINVAL;
-						goto exit;
-					}
+		if (bank == SC501_FRONT_GROUP2 && segment == SC501_FRONT_SEGMENT_LSC) {
+			ap2ap_standard_cal_data->rom_seg_size[segment] = SC501_FRONT_BANK2_LSC_LEN;
+			ap2ap_standard_cal_data->rom_seg_checksum_len[segment] = SC501_FRONT_BANK2_LSC_LEN - 1;
+		}
+		info("Bank : %d, Segment : %d (addr_otp : 0x%04X, addr_buf : 0x%04X, seg_size : %d)",
+				bank, segment, addr_otp, addr_buf, ap2ap_standard_cal_data->rom_seg_size[segment]); 
 
-					status &= 0x1;
-					msleep(1);
-					dbg_sensor(1, "2nd read completed check is still ongoing (cnt:%d)", cnt++);
-				}
-
-				ret = is_sensor_read8(client, addr_otp + offset, &buf[addr_buf++]);
-				if (unlikely(ret)) {
-					err("failed to is_sensor_read8 (%d)\n", ret);
-					ret = -EINVAL;
-					goto exit;
-				}
-			} else {
-				ret = is_sensor_read8(client, addr_otp + offset, &buf[addr_buf++]);
-				if (unlikely(ret)) {
-					err("failed to is_sensor_read8 (%d)\n", ret);
+		for (i = 0; i < ap2ap_standard_cal_data->rom_seg_size[segment]; i++) {
+			if (addr_otp == SC501_AREA2_START_ADDR) {
+				if (is_setup_area2_sc501(client) < 0) {
+					err("Failed to setup area1 (%d)\n", ret);
 					ret = -EINVAL;
 					goto exit;
 				}
 			}
+			ret = is_sensor_read8(client, addr_otp, &buf[addr_buf++]);
+			if (unlikely(ret)) {
+				err("Failed to is_sensor_read8 (%d)\n", ret);
+				ret = -EINVAL;
+				goto exit;
+			}
+			addr_otp++;
 		}
 	}
 
-	addr_otp = ap2ap_standard_cal_data->rom_total_checksum_addr[group];
+	addr_otp = ap2ap_standard_cal_data->rom_total_checksum_addr[bank];
 
 	ret = is_sensor_read8(client, addr_otp, &buf[addr_buf++]);
 	if (unlikely(ret)) {
-		err("failed to is_sensor_read8 (%d)\n", ret);
+		err("Failed to is_sensor_read8 (%d)\n", ret);
 		goto exit;
 	}
 
@@ -4366,6 +4383,7 @@ int is_sec_readcal_otprom_sc501(struct device *dev, int position)
 {
 	int ret = 0;
 	int retry = IS_CAL_RETRY_CNT;
+
 	char *buf = NULL;
 	struct is_core *core = dev_get_drvdata(is_dev);
 	struct is_vender_specific *specific = core->vender.private_data;
@@ -4387,14 +4405,12 @@ int is_sec_readcal_otprom_sc501(struct device *dev, int position)
 
 crc_retry:
 	info("%s I2C read cal data", __func__);
-	is_i2c_read_otp_sc501(client, buf, rom_addr);
+	is_i2c_read_otp_sc501(client, position, buf, rom_addr);
 
 	ret = is_sec_readcal_jdm_checksum_and_dump(buf, position);
 	if (unlikely(ret)) {
-		if (retry >= 0) {
-			retry--;
+		if (retry-- > 0)
 			goto crc_retry;
-		}
 	}
 
 	/* OTP read finishing */ 

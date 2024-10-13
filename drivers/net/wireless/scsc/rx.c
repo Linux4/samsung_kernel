@@ -1717,7 +1717,7 @@ void slsi_rx_channel_switched_ind(struct slsi_dev *sdev, struct net_device *dev,
 	int width;
 	int primary_chan_pos;
 	u16 temp_chan_info;
-	struct cfg80211_chan_def chandef;
+	struct cfg80211_chan_def chandef = {};
 	u16 cf1 = 0;
 	struct netdev_vif *ndev_vif = netdev_priv(dev);
 
@@ -1754,6 +1754,11 @@ void slsi_rx_channel_switched_ind(struct slsi_dev *sdev, struct net_device *dev,
 		width =  NL80211_CHAN_WIDTH_160;
 
 	chandef.chan = ieee80211_get_channel(sdev->wiphy, freq);
+	if (!chandef.chan) {
+		SLSI_NET_WARN(dev, "invalid freq received (cf1=%d, temp_chan_info=%d, freq=%d)\n",
+			      (int)cf1, (int)temp_chan_info, (int)freq);
+		goto exit;
+	}
 	chandef.width = width;
 	chandef.center_freq1 = cf1;
 	chandef.center_freq2 = 0;
@@ -1761,7 +1766,11 @@ void slsi_rx_channel_switched_ind(struct slsi_dev *sdev, struct net_device *dev,
 	ndev_vif->ap.channel_freq = freq; /* updated for GETSTAINFO */
 	ndev_vif->chan = chandef.chan;
 	ndev_vif->chandef_saved = chandef;
+	SLSI_NET_INFO(dev, "width:%dMHz, center_freq1:%dMHz, primary:%dMHz\n",
+		      (int)chandef.width, (int)chandef.center_freq1, freq);
 	cfg80211_ch_switch_notify(dev, &chandef);
+
+exit:
 	SLSI_MUTEX_UNLOCK(ndev_vif->vif_mutex);
 	kfree_skb(skb);
 }

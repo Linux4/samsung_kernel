@@ -235,11 +235,13 @@ int fts_ex_mode_recovery(struct fts_ts_data *ts_data)
 		fts_write_reg(FTS_REG_COVER_MODE_EN, ts_data->cover_mode);
 	}
 
-	if (ts_data->charger_mode) {
+#if IS_ENABLED(CONFIG_VBUS_NOTIFIER)
+	if (ts_data->ta_status) {
 		FTS_INFO("enable charger mode");
-		fts_write_reg(FTS_REG_CHARGER_MODE_EN, ts_data->charger_mode);
+		fts_write_reg(FTS_REG_CHARGER_MODE_EN, ENABLE);
+		ts_data->charger_mode = ENABLE;
 	}
-
+#endif
 	if (ts_data->proximity_mode) {
 		fts_write_reg(FTS_REG_PROXIMITY_MODE, ts_data->proximity_mode);
 	}

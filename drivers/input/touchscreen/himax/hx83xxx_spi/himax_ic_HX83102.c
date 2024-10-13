@@ -771,6 +771,57 @@ static bool hx83102e_sense_off(bool check_en)
 	return false;
 }
 
+#if defined(HX_ZERO_FLASH)
+static void hx83102j_reload_to_active(void)
+{
+	uint8_t addr[DATA_LEN_4] = {0};
+	uint8_t data[DATA_LEN_4] = {0};
+	uint8_t retry_cnt = 0;
+
+	addr[3] = 0x90;
+	addr[2] = 0x00;
+	addr[1] = 0x00;
+	addr[0] = 0x48;
+
+	do {
+		data[3] = 0x00;
+		data[2] = 0x00;
+		data[1] = 0x00;
+		data[0] = 0xEC;
+		g_core_fp.fp_register_write(addr, DATA_LEN_4, data, 0);
+		usleep_range(1000, 1100);
+		g_core_fp.fp_register_read(addr, DATA_LEN_4, data, 0);
+		I("%s: data[1]=%d, data[0]=%d, retry_cnt=%d\n", __func__, data[1], data[0], retry_cnt);
+		retry_cnt++;
+	} while ((data[1] != 0x01 || data[0] != 0xEC) && retry_cnt < HIMAX_REG_RETRY_TIMES);
+}
+
+static void hx83102j_hw_crc(bool enable)
+{
+	uint8_t addr[DATA_LEN_4] = {0};
+	uint8_t data[4] = {0};
+	uint8_t read_data[4] = {0};
+	uint8_t retry_cnt = 0;
+	I("%s:Entering!\n", __func__);
+	himax_in_parse_assign_cmd(HX83102J_ADDR_EN_HW_CRC, addr, DATA_LEN_4);
+
+	if (enable)
+		himax_in_parse_assign_cmd(HX83102J_DATA_EN_HW_CRC, data, DATA_LEN_4);
+
+	do {
+		g_core_fp.fp_register_write(addr, DATA_LEN_4, data, 0);
+		usleep_range(1000, 1100);
+		g_core_fp.fp_register_read(addr, DATA_LEN_4, read_data, 0);
+		I("%s:HW CRC data[1]=%d, data[0]=%d, retry_cnt=%d\n", __func__,
+				data[1], data[0], retry_cnt);
+		retry_cnt++;
+	} while ((read_data[1] != data[1]
+		|| read_data[0] != data[0])
+		&& retry_cnt < HIMAX_REG_RETRY_TIMES);
+	I("%s:Leave!\n", __func__);
+}
+#endif
+
 static void hx83102j_sense_on(uint8_t FlashMode)
 {
 	uint8_t tmp_data[DATA_LEN_4] = {0};
@@ -794,6 +845,12 @@ static void hx83102j_sense_on(uint8_t FlashMode)
 		if (himax_bus_write(pic_op->adr_i2c_psw_ub[0], tmp_data, 1, HIMAX_I2C_RETRY_TIMES) < 0)
 			KI("[ERR]%s: bus access fail!\n", __func__);
 	}
+#if defined(HX_ZERO_FLASH)
+	usleep_range(5000, 5001);
+	if (g_core_fp.fp_0f_hw_crc != NULL)
+		g_core_fp.fp_0f_hw_crc(1);
+	hx83102j_reload_to_active();
+#endif
 }
 
 static bool hx83102j_sense_off(bool check_en)
@@ -1290,7 +1347,7 @@ static int hx83102d_0f_overlay(int ovl_type, int mode)
 
 		g_core_fp.fp_sense_on(0x00);
 
-		himax_int_enable(1);
+		himax_int_enable(INT_ENABLE);
 	}
 
 	return 0;
@@ -1588,6 +1645,7 @@ static void himax_hx83102j_reg_re_init(void)
 	himax_in_parse_assign_cmd(hx83102j_ic_adr_tcon_rst, pic_op->addr_tcon_on_rst, sizeof(pic_op->addr_tcon_on_rst));
 	himax_in_parse_assign_cmd(hx83102j_addr_ic_ver_name, pfw_op->addr_ver_ic_name, sizeof(pfw_op->addr_ver_ic_name));
 	himax_in_parse_assign_cmd(hx83102j_fw_addr_gesture_history, pfw_op->addr_gesture_history, sizeof(pfw_op->addr_gesture_history));
+	himax_in_parse_assign_cmd(hx83102j_addr_osr_ctrl, pfw_op->addr_osr_ctrl, sizeof(pfw_op->addr_osr_ctrl));
 }
 
 static void himax_hx83102j_func_re_init(void)
@@ -1598,6 +1656,9 @@ static void himax_hx83102j_func_re_init(void)
 	g_core_fp.fp_sense_on = hx83102j_sense_on;
 	g_core_fp.fp_sense_off = hx83102j_sense_off;
 	g_core_fp.fp_read_event_stack = hx83102j_read_event_stack;
+#if defined(HX_ZERO_FLASH)
+	g_core_fp.fp_0f_hw_crc = hx83102j_hw_crc;
+#endif
 }
 
 static bool hx83102_chip_detect(void)
@@ -1675,6 +1736,10 @@ static bool hx83102_chip_detect(void)
 				ic_data->flash_size = HX83102J_FLASH_SZIE;
 				himax_hx83102j_reg_re_init();
 				himax_hx83102j_func_re_init();
+				ic_data->dsram_size = hx83102j_dsram_size;
+				ic_data->isram_size = hx83102j_isram_size;
+				ic_data->dsram_addr = hx83102j_dsram_addr;
+				ic_data->isram_addr = hx83102j_isram_addr;
 			} else {/* 0x2e */
 				himax_hx83102e_reg_re_init();
 				himax_hx83102e_func_re_init();

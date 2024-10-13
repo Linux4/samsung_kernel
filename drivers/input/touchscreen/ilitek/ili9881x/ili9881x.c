@@ -713,7 +713,7 @@ int ili_fw_upgrade_handler(void *data)
 		ilits->fw_update_stat = FW_UPDATE_PASS;
 	}
 
-	if (!ilits->boot) {
+	if ((!ilits->boot) && (ilits->fw_update_stat == FW_UPDATE_PASS)) {
 		ilits->boot = true;
 		input_info(true, ilits->dev, "%s Registre touch to input subsystem\n", __func__);
 		ili_input_register();
@@ -1076,6 +1076,13 @@ int ili_reset_ctrl(int mode)
 
 static void ili_read_info_work(struct work_struct *work)
 {
+	if (atomic_read(&ilits->fw_stat) != END) {
+		input_err(true, ilits->dev, "%s: fw update didn't finish yet.\n", __func__);
+		return;
+	} else {
+		input_info(true, ilits->dev, "%s: fw update finished.\n", __func__);
+	}
+
 #if IS_ENABLED(CONFIG_SEC_FACTORY)
 	input_err(true, ilits->dev, "%s: factory bin : skip ili_read_info_onboot call\n", __func__);
 #else
