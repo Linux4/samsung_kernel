@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2002,2007-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 #ifndef __KGSL_MMU_H
 #define __KGSL_MMU_H
@@ -18,6 +18,10 @@
 
 #define MMU_DEFAULT_TTBR0(_d) \
 	(kgsl_mmu_pagetable_get_ttbr0((_d)->mmu.defaultpagetable))
+
+/* Mask ASID fields to match 48bit ptbase address*/
+#define MMU_SW_PT_BASE(_ttbr0) \
+	(_ttbr0 & (BIT_ULL(KGSL_IOMMU_ASID_START_BIT) - 1))
 
 #define KGSL_MMU_DEVICE(_mmu) \
 	container_of((_mmu), struct kgsl_device, mmu)
@@ -98,7 +102,7 @@ struct kgsl_mmu;
 struct kgsl_mmu_ops {
 	void (*mmu_close)(struct kgsl_mmu *mmu);
 	int (*mmu_start)(struct kgsl_mmu *mmu);
-	uint64_t (*mmu_get_current_ttbr0)(struct kgsl_mmu *mmu);
+	uint64_t (*mmu_get_current_ttbr0)(struct kgsl_mmu *mmu, struct kgsl_context *context);
 	void (*mmu_pagefault_resume)(struct kgsl_mmu *mmu, bool terminate);
 	void (*mmu_clear_fsr)(struct kgsl_mmu *mmu);
 	void (*mmu_enable_clk)(struct kgsl_mmu *mmu);
@@ -127,7 +131,8 @@ struct kgsl_mmu_pt_ops {
 			struct kgsl_memdesc *memdesc, u64 offset, u64 length);
 	void (*mmu_destroy_pagetable)(struct kgsl_pagetable *pt);
 	u64 (*get_ttbr0)(struct kgsl_pagetable *pt);
-	int (*get_context_bank)(struct kgsl_pagetable *pt);
+	int (*get_context_bank)(struct kgsl_pagetable *pt, struct kgsl_context *context);
+	int (*get_asid)(struct kgsl_pagetable *pt, struct kgsl_context *context);
 	int (*get_gpuaddr)(struct kgsl_pagetable *pt,
 				struct kgsl_memdesc *memdesc);
 	void (*put_gpuaddr)(struct kgsl_memdesc *memdesc);
@@ -164,6 +169,8 @@ enum kgsl_mmu_feature {
 	KGSL_MMU_IOPGTABLE,
 	/** @KGSL_MMU_SUPPORT_VBO: Non-secure VBOs are supported */
 	KGSL_MMU_SUPPORT_VBO,
+	/** @KGSL_MMU_PAGEFAULT_TERMINATE: Set to make pagefaults fatal */
+	KGSL_MMU_PAGEFAULT_TERMINATE,
 };
 
 #include "kgsl_iommu.h"
@@ -196,7 +203,9 @@ struct kgsl_mmu {
 
 #define KGSL_IOMMU(d) (&((d)->mmu.iommu))
 
-int kgsl_mmu_probe(struct kgsl_device *device);
+int __init kgsl_mmu_init(void);
+void kgsl_mmu_exit(void);
+
 int kgsl_mmu_start(struct kgsl_device *device);
 
 void kgsl_print_global_pt_entries(struct seq_file *s);
@@ -225,8 +234,6 @@ int kgsl_mmu_get_region(struct kgsl_pagetable *pagetable,
 int kgsl_mmu_find_region(struct kgsl_pagetable *pagetable,
 		uint64_t region_start, uint64_t region_end,
 		uint64_t *gpuaddr, uint64_t size, unsigned int align);
-
-void kgsl_mmu_close(struct kgsl_device *device);
 
 uint64_t kgsl_mmu_find_svm_region(struct kgsl_pagetable *pagetable,
 		uint64_t start, uint64_t end, uint64_t size,
@@ -288,10 +295,10 @@ static inline void kgsl_mmu_put_gpuaddr(struct kgsl_pagetable *pagetable,
 		pagetable->pt_ops->put_gpuaddr(memdesc);
 }
 
-static inline u64 kgsl_mmu_get_current_ttbr0(struct kgsl_mmu *mmu)
+static inline u64 kgsl_mmu_get_current_ttbr0(struct kgsl_mmu *mmu, struct kgsl_context *context)
 {
 	if (MMU_OP_VALID(mmu, mmu_get_current_ttbr0))
-		return mmu->mmu_ops->mmu_get_current_ttbr0(mmu);
+		return mmu->mmu_ops->mmu_get_current_ttbr0(mmu, context);
 
 	return 0;
 }
@@ -381,13 +388,28 @@ void kgsl_mmu_map_global(struct kgsl_device *device,
 /**
  * kgsl_mmu_pagetable_get_context_bank - Return the context bank number
  * @pagetable: A handle to a given pagetable
+ * @context : LPAC or User context
  *
  * This function will find the context number of the given pagetable
 
  * Return: The context bank number the pagetable is attached to or
  * negative error on failure.
  */
-int kgsl_mmu_pagetable_get_context_bank(struct kgsl_pagetable *pagetable);
+int kgsl_mmu_pagetable_get_context_bank(struct kgsl_pagetable *pagetable,
+			struct kgsl_context *context);
+
+/**
+ * kgsl_mmu_pagetable_get_asid - Return the ASID number
+ * @pagetable: A handle to a given pagetable
+ * @context: LPAC or GC context
+ *
+ * This function will find the ASID number of the given pagetable
+
+ * Return: The ASID number the pagetable is attached to or
+ * negative error on failure.
+ */
+int kgsl_mmu_pagetable_get_asid(struct kgsl_pagetable *pagetable,
+		struct kgsl_context *context);
 
 void kgsl_mmu_pagetable_init(struct kgsl_mmu *mmu,
 		struct kgsl_pagetable *pagetable, u32 name);
@@ -395,9 +417,9 @@ void kgsl_mmu_pagetable_init(struct kgsl_mmu *mmu,
 void kgsl_mmu_pagetable_add(struct kgsl_mmu *mmu, struct kgsl_pagetable *pagetable);
 
 #if IS_ENABLED(CONFIG_ARM_SMMU)
-int kgsl_iommu_probe(struct kgsl_device *device);
+int kgsl_iommu_bind(struct kgsl_device *device, struct platform_device *pdev);
 #else
-static inline int kgsl_iommu_probe(struct kgsl_device *device)
+static inline int kgsl_iommu_bind(struct kgsl_device *device, struct platform_device *pdev)
 {
 	return -ENODEV;
 }

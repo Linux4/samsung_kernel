@@ -18,6 +18,7 @@ Required properties :
 		"qcom,neo-rpmh-clk"
 		"qcom,parrot-rpmh-clk"
 		"qcom,anorak-rpmh-clk"
+		"qcom,ravelin-rpmh-clk"
 
 - #clock-cells : must contain 1
 

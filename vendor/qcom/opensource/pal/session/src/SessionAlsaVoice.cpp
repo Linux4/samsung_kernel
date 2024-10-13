@@ -1167,11 +1167,12 @@ int SessionAlsaVoice::setParameters(Stream *s, int tagId, uint32_t param_id __un
         case TAG_DV_RX_NO_KEY:
         case TAG_ECHOREF_NO_KEY:
         case TAG_VOICE_DEVICE_INFO_NO_KEY:
+        case TAG_VOICE_STREAM_TX_TRANS_MUTE_NO_KEY:
         {
             int dir = RX_HOSTLESS;
             int call_device = pcmDevRxIds.at(0);
 
-            if (tagId == TAG_ECHOREF_NO_KEY) {
+            if (tagId == TAG_ECHOREF_NO_KEY || tagId == TAG_VOICE_STREAM_TX_TRANS_MUTE_NO_KEY) {
                 dir = TX_HOSTLESS;
                 call_device = pcmDevTxIds.at(0);
             }

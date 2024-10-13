@@ -32,6 +32,13 @@
 			qcom,init-voltage-level =
 				<RPMH_REGULATOR_LEVEL_RETENTION>;
 		};
+
+		cx_cdev: regulator-cdev {
+			compatible = "qcom,rpmh-reg-cdev";
+			mboxes = <&qmp_aop 0>;
+			qcom,reg-resource-name = "cx";
+			#cooling-cells = <2>;
+		};
 	};
 
 	rpmh-regulator-gfxlvl {
@@ -316,7 +323,6 @@
 			regulator-min-microvolt = <348000>;
 			regulator-max-microvolt = <888000>;
 			qcom,init-voltage = <348000>;
-			qcom,init-mode = <RPMH_REGULATOR_MODE_HPM>;
 		};
 	};
 
@@ -541,9 +547,14 @@
 		pm6450_l24: regulator-pm6450-l24 {
 			regulator-name = "pm6450_l24";
 			qcom,set = <RPMH_REGULATOR_SET_ALL>;
-			regulator-min-microvolt = <2400000>;
-			regulator-max-microvolt = <3544000>;
 			qcom,init-mode = <RPMH_REGULATOR_MODE_HPM>;
+			/*
+			 * Remove min/max voltages for this regulator as initial
+			 * voltage of  L24B is set to be 2.4v/2.96v during PON
+			 * depending upon the UFS mode. UFS is the only client
+			 * on this and this regulator will only be voted
+			 * for enabling/disabling conditions.
+			 */
 		};
 	};
 
@@ -701,7 +712,6 @@
 			regulator-min-microvolt = <1620000>;
 			regulator-max-microvolt = <1980000>;
 			qcom,init-voltage = <1620000>;
-			qcom,init-mode = <RPMH_REGULATOR_MODE_HPM>;
 		};
 	};
 
@@ -739,7 +749,6 @@
 			regulator-min-microvolt = <1504000>;
 			regulator-max-microvolt = <3544000>;
 			qcom,init-voltage = <1504000>;
-			qcom,init-mode = <RPMH_REGULATOR_MODE_HPM>;
 		};
 	};
 
@@ -834,7 +843,10 @@
 			regulator-min-microvolt = <3000000>;
 			regulator-max-microvolt = <3400000>;
 			qcom,init-voltage = <3000000>;
-			qcom,init-mode = <RPMH_REGULATOR_MODE_HPM>;
+			/*
+			 * Removed init-mode as it needs to be
+			 * set from client votes alone.
+			 */
 		};
 	};
 
@@ -853,7 +865,6 @@
 			regulator-min-microvolt = <3000000>;
 			regulator-max-microvolt = <3400000>;
 			qcom,init-voltage = <3000000>;
-			qcom,init-mode = <RPMH_REGULATOR_MODE_HPM>;
 		};
 	};
 

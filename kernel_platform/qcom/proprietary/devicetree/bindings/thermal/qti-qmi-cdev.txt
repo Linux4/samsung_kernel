@@ -91,7 +91,12 @@ Subsystem properties:
 			"mmw1_dsc" -> DSC based MMW cooling device1,
 			"mmw2_dsc" -> DSC based MMW cooling device2,
 			"mmw3_dsc" -> DSC based MMW cooling device3,
-			"mmw_ific_dsc" -> DSC based MMW IFIC cooling device.
+			"mmw_ific_dsc" -> DSC based MMW IFIC cooling device,
+			"modem_lte_sub1_dsc" -> lte dsc cooling device for sub1,
+			"modem_nr_sub1_dsc" -> nr dsc cooling device for sub1,
+			"modem_nr_scg_sub1_dsc" -> nr scg cooling device for sub1,
+			"pa_nr_sdr0_sub1_dsc" -> pa nr sdr0 device for sub1,
+			"pa_nr_sdr1_sub1_dsc" -> pa nr sdr1 device for sub1.
 
 	-#cooling-cells:
 		Usage: required

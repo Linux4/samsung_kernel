@@ -12,6 +12,7 @@ int fixup_exception(struct pt_regs *regs)
 	unsigned long addr;
 
 	addr = instruction_pointer(regs);
+
 	/* Search the BPF tables first, these are formatted differently */
 	fixup = search_bpf_extables(addr);
 	if (fixup)

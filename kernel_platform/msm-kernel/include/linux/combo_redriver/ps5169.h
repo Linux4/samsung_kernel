@@ -33,6 +33,10 @@ struct ps5169_data {
 	int redriver_en;
 	int con_sel;
 	int ready;
+	int reg50_val;
+	int reg51_val;
+	int reg54_val;
+	int reg5D_val;
 };
 
 extern int ps5169_config(int config, int is_DFP);

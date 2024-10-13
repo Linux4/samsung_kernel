@@ -11726,15 +11726,20 @@ int LocApiV02 :: setSecGnssParams()
     LOC_LOGE("fail to setAGLONASSProtocol");
   }
 
-
   if (setLPPConfigSync((GnssConfigLppProfileMask)sec_gps_conf.LPP_PROFILE) < 0) {
     LOC_LOGE("fail to setLPPConfig");
   }
+
   if (setLPPeProtocolCpSync((GnssConfigLppeControlPlaneMask)sec_gps_conf.LPPE_CP_TECHNOLOGY) < 0) {
     LOC_LOGE("fail to setLPPeProtocolCp");
   }
+
   if (setLPPeProtocolUpSync((GnssConfigLppeUserPlaneMask)sec_gps_conf.LPPE_UP_TECHNOLOGY) < 0) {
     LOC_LOGE("fail to setLPPeProtocolUp");
+  }
+
+  if (sec_gps_conf.WEEK_NUMBER > 0) {
+    configMinGpsWeek((uint16_t)sec_gps_conf.WEEK_NUMBER, NULL);
   }
 
   if (sec_gps_conf.SPIRENT == 0 || sec_gps_conf.SPIRENT == 1) {
@@ -11931,7 +11936,10 @@ void LocApiV02 :: setSecGnssConfiguration (const char* sec_ext_config, int32_t l
     if (sec_gps_conf_tmp.PRINT_NAVMSG != sec_gps_conf.PRINT_NAVMSG){
       setPrintNavmsgConfig();
     }
-
+    if (sec_gps_conf.CARRIER_STATE_CHANGED >= 0 && sim_slotId == sec_gps_conf.CARRIER_STATE_CHANGED) {
+        requestSetSecGnssParams();
+        sec_gps_conf.CARRIER_STATE_CHANGED = -1;
+    }
   }
 }
 

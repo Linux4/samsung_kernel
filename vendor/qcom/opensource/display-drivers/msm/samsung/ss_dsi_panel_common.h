@@ -1508,6 +1508,8 @@ void A23XQ_SW89112_TCFJ6606_FHD_init(struct samsung_display_driver_data *vdd);
 void A23XQ_TD4375_TL066FVMC03_FHD_init(struct samsung_display_driver_data *vdd);
 void Q4_S6E3XA2_AMF756BQ01_QXGA_init(struct samsung_display_driver_data *vdd);
 void Q4_S6E3FAC_AMB619BR01_HD_init(struct samsung_display_driver_data *vdd);
+void R11_S6E3FC5_AMS642DF01_FHD_init(struct samsung_display_driver_data *vdd);
+void R11_S6E3FC3_AMS642DF03_FHD_init(struct samsung_display_driver_data *vdd);
 void PBA_BOOTING_FHD_init(struct samsung_display_driver_data *vdd);
 void PBA_BOOTING_FHD_DSI1_init(struct samsung_display_driver_data *vdd);
 
@@ -2245,9 +2247,11 @@ struct samsung_display_driver_data {
 	bool support_optical_fingerprint;
 	bool finger_mask_updated;
 	int finger_mask;
+	bool panel_hbm_exit_frame_wait; // To prevent Normal Brightness between HBM & Vsync */
 	int panel_hbm_entry_delay; //hbm entry delay/ unit = vsync
 	int panel_hbm_entry_after_te; /* delay after TE noticed */
 	int panel_hbm_exit_delay; /* hbm exit delay frame */
+	int panel_hbm_delay_after_tx; /* hbm delay after CMD tx */
 	struct lcd_device *lcd_dev;
 
 	struct display_status display_status_dsi;
@@ -2488,11 +2492,12 @@ struct samsung_display_driver_data {
 	/*
 	 * CCD fail value
 	 */
-	int ccd_pass_val;
+	int ccd_pass_val[2];
 	int ccd_fail_val;
+	bool support_ccd_crc_R11;
 
 	/* DSC CRC PASS value */
-	int dsc_crc_pass_val[2];
+	int dsc_crc_pass_val[8];
 
 	int samsung_splash_enabled;
 	int cmd_set_on_splash_enabled;

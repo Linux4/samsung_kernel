@@ -47,4 +47,13 @@ config PERF_RESERVE
 	  This feature creates "/proc/perf_reserve" node used to wrtie
 	  specific task priority by user side. Tasks have higher priroty
 	  than that node have to be moved to little cpus.
+
+config RQ_STAT_SHOW
+	bool "Enable rq_stat node to check each Cluster's number of task"
+	default n
+	help
+	  This feature creats "/proc/rq_stat" node.
+	  It's read only node.
+	  shows number of task in each Cluster's rq.
+	  first is little cluster and last one is gold/gold+ cluster
 endmenu

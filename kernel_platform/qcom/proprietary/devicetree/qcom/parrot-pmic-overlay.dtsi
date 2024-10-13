@@ -2,6 +2,8 @@
 #include <dt-bindings/pinctrl/qcom,pmic-gpio.h>
 #include <dt-bindings/iio/qcom,spmi-adc7-pm6450.h>
 
+#define PMR735A_SID	6
+
 #include "pmk8350.dtsi"
 #include "pm6450.dtsi"
 #include "pm6150l.dtsi"
@@ -113,6 +115,13 @@
 	adc_scaling: scaling@bf {
 		reg = <0xbf 0x1>;
 		bits = <0 2>;
+	};
+};
+
+&pmk8350_sdam_1 {
+	ufs_dev: ufs_dev@94 {
+		reg = <0x94 0x1>;
+		bits = <0 0>;
 	};
 };
 
@@ -256,6 +265,7 @@
 
 &flash_led {
 	status = "ok";
+	qcom,use-qti-battery-interface;
 };
 
 &pmr735a_spmi {
@@ -348,7 +358,7 @@
 	sys-therm-4 {
 		polling-delay-passive = <0>;
 		polling-delay = <0>;
-		thermal-sensors = <&pmk8350_adc_tm ADC5_AMUX_THM1_100K_PU>;
+		thermal-sensors = <&pm6150l_adc_tm ADC5_AMUX_THM1_100K_PU>;
 		trips {
 			active-config0 {
 				temperature = <125000>;
@@ -367,7 +377,7 @@
 	sys-therm-5 {
 		polling-delay-passive = <0>;
 		polling-delay = <0>;
-		thermal-sensors = <&pmk8350_adc_tm ADC5_AMUX_THM3_100K_PU>;
+		thermal-sensors = <&pm6150l_adc_tm ADC5_AMUX_THM3_100K_PU>;
 		trips {
 			active-config0 {
 				temperature = <125000>;
@@ -558,7 +568,7 @@
 			L4J: pm8010j_l4: regulator@4300 {
 				reg = <0x4300>;
 				regulator-name = "pm8010j_l4";
-				regulator-min-microvolt = <1792000>;
+				regulator-min-microvolt = <1664000>;
 				regulator-max-microvolt = <1888000>;
 				qcom,min-dropout-voltage = <152000>;
 				qcom,hpm-min-load = <0>;

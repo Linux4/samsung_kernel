@@ -713,6 +713,8 @@ static void acm_unbind(struct usb_configuration *c, struct usb_function *f)
 	struct f_acm		*acm = func_to_acm(f);
 
 	acm_string_defs[0].id = 0;
+	/* Ensure port is disconnected before unbinding */
+	gserial_disconnect(&acm->port);
 	usb_free_all_descriptors(f);
 	if (acm->notify_req)
 		gs_free_req(acm->notify, acm->notify_req);

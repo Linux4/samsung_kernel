@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2012-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/notifier.h>
@@ -10,6 +11,7 @@
 
 #include "adreno_cp_parser.h"
 #include "kgsl_device.h"
+#include "kgsl_eventlog.h"
 #include "kgsl_sharedmem.h"
 #include "kgsl_snapshot.h"
 #include "kgsl_util.h"
@@ -585,7 +587,10 @@ static void kgsl_device_snapshot_atomic(struct kgsl_device *device)
 	 * GMU state based on current GPU power state.
 	 */
 	if (device->ftbl->snapshot)
-		device->ftbl->snapshot(device, snapshot, NULL);
+		device->ftbl->snapshot(device, snapshot, NULL, NULL);
+
+	kgsl_snapshot_add_section(device, KGSL_SNAPSHOT_SECTION_EVENTLOG,
+		snapshot, kgsl_snapshot_eventlog_buffer, NULL);
 
 	/*
 	 * The timestamp is the seconds since boot so it is easier to match to
@@ -612,7 +617,8 @@ static void kgsl_device_snapshot_atomic(struct kgsl_device *device)
  * and store it in the device snapshot memory.
  */
 void kgsl_device_snapshot(struct kgsl_device *device,
-		struct kgsl_context *context, bool gmu_fault)
+		struct kgsl_context *context,  struct kgsl_context *context_lpac,
+		bool gmu_fault)
 {
 	struct kgsl_snapshot *snapshot;
 	struct timespec64 boot;
@@ -675,7 +681,10 @@ void kgsl_device_snapshot(struct kgsl_device *device,
 	snapshot->first_read = true;
 	snapshot->sysfs_read = 0;
 
-	device->ftbl->snapshot(device, snapshot, context);
+	device->ftbl->snapshot(device, snapshot, context, context_lpac);
+
+	kgsl_snapshot_add_section(device, KGSL_SNAPSHOT_SECTION_EVENTLOG,
+		snapshot, kgsl_snapshot_eventlog_buffer, NULL);
 
 	/*
 	 * The timestamp is the seconds since boot so it is easier to match to
@@ -705,10 +714,13 @@ void kgsl_device_snapshot(struct kgsl_device *device,
 	/*
 	 * Queue a work item that will save the IB data in snapshot into
 	 * static memory to prevent loss of data due to overwriting of
-	 * memory.
-	 *
+	 * memory. If force panic is enabled, there is no need to move
+	 * ahead and IB data can be dumped inline.
 	 */
-	kgsl_schedule_work(&snapshot->work);
+	if (device->force_panic)
+		kgsl_snapshot_save_frozen_objs(&snapshot->work);
+	else
+		kgsl_schedule_work(&snapshot->work);
 }
 
 /* An attribute for showing snapshot details */
@@ -1130,6 +1142,9 @@ void kgsl_device_snapshot_close(struct kgsl_device *device)
 
 	kgsl_remove_from_minidump("GPU_SNAPSHOT", (u64) device->snapshot_memory.ptr,
 			snapshot_phy_addr(device), device->snapshot_memory.size);
+
+	atomic_notifier_chain_unregister(&panic_notifier_list,
+					 &device->panic_nb);
 
 	sysfs_remove_bin_file(&device->snapshot_kobj, &snapshot_attr);
 	sysfs_remove_files(&device->snapshot_kobj, snapshot_attrs);

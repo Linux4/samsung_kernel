@@ -108,11 +108,11 @@
 /* Target specific definitions
  */
 
-typedef struct
+struct stm32_erase_param_type
 {
     u32 page;
     u32 count;
-} stm32_erase_param_type;
+};
 
 #define STM32_BOOT_I2C_STARTUP_DELAY          (50) /* msecs */
 
@@ -191,6 +191,7 @@ typedef struct
 
 
 #define STM32_DEV_FW_UPDATE_PACKET_SIZE		(256)
+#define STM32_KEYBOARD_FW_SIZE			(100 * 1024) /* 100 KB */
 
 /* keyboard bus vote */
 enum stm32_bus_vote {
@@ -201,19 +202,19 @@ enum stm32_bus_vote {
 
 /* Memory map specific */
 
-typedef struct
+struct stm32_page_type
 {
 	u32 size;
 	u32 count;
-} stm32_page_type;
+};
 
-typedef struct
+struct stm32_map_type
 {
 	u32 flashbase;  /* flash memory starting address */
 	u32 sysboot;    /* system memory starting address */
 	u32 optionbyte; /* option byte starting address */
-	stm32_page_type *pages;
-} stm32_map_type;
+	struct stm32_page_type *pages;
+};
 
 /* ERROR definitions -------------------------------------------------------- */
 
@@ -381,6 +382,7 @@ struct stm32_dev {
 	int					debug_flag;
 	bool					hall_flag;
 	struct completion			i2c_done;
+	bool					pogo_enable;
 	bool					firm_state;
 #if IS_ENABLED(CONFIG_QCOM_BUS_SCALING)
 	u32					stm32_bus_perf_client;
@@ -393,6 +395,9 @@ struct stm32_dev {
 	struct icc_path 			*stm32_icc_data;
 	int					voting_flag;
 #endif
+	u8 *sec_pogo_keyboard_fw;
+	size_t sec_pogo_keyboard_size;
+
 };
 
 struct stm32_devicetree_data {

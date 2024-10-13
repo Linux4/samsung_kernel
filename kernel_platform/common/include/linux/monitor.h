@@ -3,10 +3,6 @@
 #ifndef KMONITOR_H
 #define KMONITOR_H
 
-#include <linux/utsname.h>
-#include <linux/freezer.h>
-#include <linux/compiler.h>
-
 int binder_monitor(int from_pid,int from_tid,unsigned int code,int target_pid);
 
 #define binder_monitor_attr(_name) \

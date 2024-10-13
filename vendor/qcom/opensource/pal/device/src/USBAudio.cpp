@@ -861,16 +861,9 @@ unsigned int USBCardConfig::readSupportedChannelMask(bool is_playback, uint32_t 
         channels = MAX_HIFI_CHANNEL_COUNT;
 
     if (is_playback) {
-        // start from 2 channels as framework currently doesn't support mono.
-        if (channels >= 2) {
-            channel[num_masks++] = audio_channel_out_mask_from_count(2);
-        }
-        for (channel_count = 2;
-                channel_count <= channels && num_masks < MAX_SUPPORTED_CHANNEL_MASKS;
-                ++channel_count) {
-            channel[num_masks++] =
-                    audio_channel_mask_for_index_assignment_from_count(channel_count);
-        }
+
+        channel[num_masks++] = channels <= 2 ? audio_channel_out_mask_from_count(channels) : audio_channel_mask_for_index_assignment_from_count(channels);
+
     } else {
         // For capture we report all supported channel masks from 1 channel up.
         channel_count = MIN_CHANNEL_COUNT;

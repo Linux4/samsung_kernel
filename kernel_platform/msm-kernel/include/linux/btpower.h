@@ -73,6 +73,8 @@ struct btpower_platform_data {
 	struct mbox_client mbox_client_data;
 	struct mbox_chan *mbox_chan;
 	const char *vreg_ipa;
+	struct bt_power_vreg_data *vreg_ipa_info;
+	const char *tsens;
 #ifdef CONFIG_MSM_BT_OOBS
 	struct file *reffilp_obs;
 	struct task_struct *reftask_obs;

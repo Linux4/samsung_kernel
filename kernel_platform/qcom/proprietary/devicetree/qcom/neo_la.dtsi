@@ -1,6 +1,4 @@
 #include "neo.dtsi"
-#include <dt-bindings/gpio/gpio.h>
-#include <dt-bindings/clock/qcom,rpmh.h>
 
 / {
 	model = "Qualcomm Technologies, Inc. NEO-LA";
@@ -8,7 +6,7 @@
 };
 
 &chosen {
-	bootargs = "console=ttyMSM0,115200n8 loglevel=6 log_buf_len=256K kernel.panic_on_rcu_stall=1 loop.max_part=7 pcie_ports=compat service_locator.enable=1 msm_rtb.filter=0x237 allow_mismatched_32bit_el0 kasan=off rcupdate.rcu_expedited=1 rcu_nocbs=0-7 pstore.compress=none kpti=off swiotlb=noforce cgroup.memory=nokmem,nosocket allow_file_spec_access cpufreq.default_governor=performance";
+	bootargs = "console=ttyMSM0,115200n8 loglevel=6 log_buf_len=256K kernel.panic_on_rcu_stall=1 loop.max_part=7 pcie_ports=compat service_locator.enable=1 msm_rtb.filter=0x237 allow_mismatched_32bit_el0 kasan=off rcupdate.rcu_expedited=1 rcu_nocbs=0-7 pstore.compress=none kpti=off swiotlb=noforce cgroup.memory=nokmem,nosocket allow_file_spec_access cpufreq.default_governor=performance disable_dma32=on ftrace_dump_on_oops";
 
 	stdout-path = "/soc/qcom,qup_uart@994000:115200n8";
 };
@@ -68,183 +66,6 @@
 	};
 };
 
-&tlmm {
-	pm8010i_active: pm8010i_active {
-		mux {
-			pins = "gpio101";
-			function = "gpio";
-		};
-
-		config {
-			pins = "gpio101";
-			bias-pull-up;
-			output-high;
-			drive-strength = <2>;
-		};
-	};
-};
-
-/*
- * Each QUP device that's a parent to PMIC must be listed as a critical device
- * to GCC
- */
-&gcc {
-	qcom,critical-devices = <&qupv3_se8_i2c>;
-};
-
-&qupv3_se8_i2c {
-	#address-cells = <1>;
-	#size-cells = <0>;
-	status = "ok";
-
-	pm8010i@8 {
-		compatible = "qcom,i2c-pmic";
-		reg = <0x8>;
-		#address-cells = <1>;
-		#size-cells = <0>;
-
-		pinctrl-names = "default";
-		pinctrl-0 = <&pm8010i_active>;
-
-		pm8010-chip@900 {
-			compatible = "qcom,pm8008-chip";
-			reg = <0x900>;
-
-			PM8010I_EN: qcom,pm8008-chip-en {
-				regulator-name = "pm8010i-chip-en";
-			};
-		};
-
-		qcom,revid@100 {
-			compatible = "qcom,qpnp-revid";
-			reg = <0x100>;
-		};
-	};
-
-	pm8010i@9 {
-		compatible = "qcom,i2c-pmic";
-		reg = <0x9>;
-		#address-cells = <1>;
-		#size-cells = <0>;
-
-		qcom,pm8010i-regulator {
-			compatible = "qcom,pm8010-regulator";
-			#address-cells = <1>;
-			#size-cells = <0>;
-
-			pm8008_en-supply = <&PM8010I_EN>;
-
-			L1I: pm8010i_l1: regulator@4000 {
-				reg = <0x4000>;
-				regulator-name = "pm8010i_l1";
-				regulator-min-microvolt = <1140000>;
-				regulator-max-microvolt = <1220000>;
-				qcom,min-dropout-voltage = <80000>;
-				qcom,hpm-min-load = <30000>;
-			};
-
-			L2I: pm8010i_l2: regulator@4100 {
-				reg = <0x4100>;
-				regulator-name = "pm8010i_l2";
-				regulator-min-microvolt = <528000>;
-				regulator-max-microvolt = <1260000>;
-				qcom,min-dropout-voltage = <40000>;
-				qcom,hpm-min-load = <30000>;
-			};
-
-			L3I: pm8010i_l3: regulator@4200 {
-				reg = <0x4200>;
-				regulator-name = "pm8010i_l3";
-				regulator-min-microvolt = <2600000>;
-				regulator-max-microvolt = <3000000>;
-				qcom,min-dropout-voltage = <152000>;
-				qcom,hpm-min-load = <0>;
-			};
-
-			L4I: pm8010i_l4: regulator@4300 {
-				reg = <0x4300>;
-				regulator-name = "pm8010i_l4";
-				regulator-min-microvolt = <2600000>;
-				regulator-max-microvolt = <3000000>;
-				qcom,min-dropout-voltage = <152000>;
-				qcom,hpm-min-load = <0>;
-			};
-
-			L5I: pm8010i_l5: regulator@4400 {
-				reg = <0x4400>;
-				regulator-name = "pm8010i_l5";
-				regulator-min-microvolt = <1504000>;
-				regulator-max-microvolt = <1978000>;
-				qcom,min-dropout-voltage = <72000>;
-				qcom,hpm-min-load = <0>;
-			};
-
-			L6I: pm8010i_l6: regulator@4500 {
-				reg = <0x4500>;
-				regulator-name = "pm8010i_l6";
-				regulator-min-microvolt = <2700000>;
-				regulator-max-microvolt = <3000000>;
-				qcom,min-dropout-voltage = <152000>;
-				qcom,hpm-min-load = <0>;
-			};
-
-			L7I: pm8010i_l7: regulator@4600 {
-				reg = <0x4600>;
-				regulator-name = "pm8010i_l7";
-				regulator-min-microvolt = <2700000>;
-				regulator-max-microvolt = <3000000>;
-				qcom,min-dropout-voltage = <112000>;
-				qcom,hpm-min-load = <0>;
-			};
-		};
-	};
-};
-
-&tcsrcc {
-	/delete-property/ protected-clocks;
-};
-
-&gcc {
-	clocks = <&rpmhcc RPMH_CXO_CLK>, <&sleep_clk>,
-		<&pcie_0_pipe_clk>, <&pcie_1_pipe_clk>,
-		<&usb3_phy_wrapper_gcc_usb30_pipe_clk>;
-	clock-names = "bi_tcxo", "sleep_clk",
-		"pcie_0_pipe_clk", "pcie_1_pipe_clk",
-		"usb3_phy_wrapper_gcc_usb30_pipe_clk";
-	/delete-property/ protected-clocks;
-};
-
-&gcc_pcie_0_gdsc {
-	parent-supply = <&VDD_CX_LEVEL>;
-	status = "ok";
-	/delete-property/ qcom,support-hw-trigger;
-};
-
-&gcc_pcie_0_phy_gdsc {
-	parent-supply = <&VDD_CX_LEVEL>;
-	status = "ok";
-};
-
-&gcc_pcie_1_gdsc {
-	parent-supply = <&VDD_CX_LEVEL>;
-	status = "ok";
-};
-
-&gcc_pcie_1_phy_gdsc {
-	parent-supply = <&VDD_CX_LEVEL>;
-	status = "ok";
-};
-
-&wpss_pas {
-	status = "disabled";
-	/delete-property/ memory-region;
-};
-
-&icnss2 {
-	status = "disabled";
-	/delete-property/ qcom,wlan-msa-fixed-region;
-};
-
 &reserved_memory {
 	cnss_wlan_mem: cnss_wlan_region {
 		compatible = "shared-dma-pool";
@@ -253,6 +74,38 @@
 		alignment = <0x0 0x400000>;
 		size = <0x0 0x2000000>;
 	};
+};
+
+&lsr_lefteye_dma_buf {
+	status = "disabled";
+};
+
+&lsr_righteye_dma_buf {
+	status = "disabled";
+};
+
+&lsr_depth_dma_buf {
+	status = "disabled";
+};
+
+&lsr_misc_dma_buf {
+	status = "disabled";
+};
+
+&lsr_lefteye_mem_heap {
+	status = "disabled";
+};
+
+&lsr_righteye_mem_heap {
+	status = "disabled";
+};
+
+&lsr_depth_mem_heap {
+	status = "disabled";
+};
+
+&lsr_misc_mem_heap {
+	status = "disabled";
 };
 
 &pcie0 {
@@ -287,19 +140,6 @@
 			bias-pull-down;
 		};
 	};
-
-	cnss_dev_sol_default: cnss_dev_sol_default {
-		mux {
-			pins = "gpio112";
-			function = "gpio";
-		};
-
-		config {
-			pins = "gpio112";
-			drive-strength = <4>;
-			bias-pull-down;
-		};
-	};
 };
 
 &soc {
@@ -308,12 +148,9 @@
 		reg = <0xb0000000 0x10000>;
 		reg-names = "smmu_iova_ipa";
 		wlan-en-gpio = <&tlmm 45 0>;
-		wlan-dev-sol-gpio = <&tlmm 112 0>;
-		pinctrl-names = "wlan_en_active", "wlan_en_sleep",
-				"sol_default";
+		pinctrl-names = "wlan_en_active", "wlan_en_sleep";
 		pinctrl-0 = <&cnss_wlan_en_active>;
 		pinctrl-1 = <&cnss_wlan_en_sleep>;
-		pinctrl-2 = <&cnss_dev_sol_default>;
 		qcom,wlan;
 		qcom,wlan-rc-num = <0>;
 		qcom,wlan-ramdump-dynamic = <0x780000>;
@@ -323,9 +160,9 @@
 		mboxes = <&qmp_aop 0>;
 
 		vdd-wlan-io-supply = <&L15A>;
-		qcom,vdd-wlan-io-config = <1800000 2000000 0 0 0>;
+		qcom,vdd-wlan-io-config = <1800000 2000000 0 0 1>;
 		vdd-wlan-supply = <&S2A>;
-		qcom,vdd-wlan-config = <1000000 1004000 0 0 0>;
+		qcom,vdd-wlan-config = <1000000 1004000 0 0 1>;
 		vdd-wlan-aon-supply = <&S4A>;
 		qcom,vdd-wlan-aon-config = <980000 1170000 0 0 1>;
 		vdd-wlan-dig-supply = <&S5A>;
@@ -377,22 +214,46 @@
 		/* ddr: 547.2 MHz */
 		<7500 1094362>;
 
+		qcom,pmu_vreg_map =
+			"VDD095_MX_PMU", "s4a",
+			"VDD095_PMU", "s2a",
+			"VDD_PMU_AON_I", "s4a",
+			"VDD095_PMU_BT", "s4a",
+			"VDD09_PMU_RFA_I", "s4a",
+			"VDD19_PMU_PCIE_I", "s5a",
+			"VDD19_PMU_RFA_I", "s5a";
+
+		qcom,vreg_pdc_map =
+			"s4a", "rf", "s5a", "rf", "l15a", "rf", "s2a", "bb";
+
+		qcom,pdc_init_table =
+			" {class: wlan_pdc, ss: rf, res: s4a.v, upval: 1012}",
+			" {class: wlan_pdc, ss: rf, res: s4a.v, dwnval: 615}",
+			" {class: wlan_pdc, ss: rf, res: s5a.v, upval: 1900}",
+			" {class: wlan_pdc, ss: rf, res: s5a.v, dwnval: 1825}",
+			" {class: wlan_pdc, ss: bb, res: s2a.v, upval: 830}",
+			" {class: wlan_pdc, ss: bb, res: s2a.v, dwnval: 410}",
+			" {class: wlan_pdc, ss: bb, res: pdc, enable: 1}";
+
+		cnss_cdev_apss: qcom,cnss_cdev1 {
+			#cooling-cells = <2>;
+		};
 	};
 
 	bluetooth: bt_wcn6x5x {
 		compatible = "qcom,kiwi";
+		pinctrl-names = "default";
+		pinctrl-0 = <&bt_en_sleep>;
 		qcom,bt-vdd18-aon-supply  = <&L15A>; /* BT VDD1.8 AON */
 		qcom,bt-vdd-dig-supply    = <&S4A>; /* BT LDO*/
 		qcom,bt-vdd-aon-supply    = <&S4A>; /* BT AON LDO*/
 		qcom,bt-vdd-rfaOp8_supply = <&S4A>; /* BT RFAOp8 CMN LDO*/
-		qcom,bt-vdd-rfa1-supply   = <>;   /* BT RFA1.2 LDO. always ON */
 		qcom,bt-vdd-rfa2-supply   = <&S5A>; /* BT RFA1.8 LDO */
 
 		qcom,bt-vdd18-aon-config  = <1800000 1800000 0 1>;
-		qcom,bt-vdd-aon-config    = <950000 950000 0 1>;
-		qcom,bt-vdd-dig-config    = <950000 950000 0 1>;
-		qcom,bt-vdd-rfaOp8-config = <950000 950000 0 1>;
-		qcom,bt-vdd-rfa1-config   = <1350000 1350000 0 1>;
+		qcom,bt-vdd-aon-config    = <950000 1170000 0 1>;
+		qcom,bt-vdd-dig-config    = <950000 1170000 0 1>;
+		qcom,bt-vdd-rfaOp8-config = <950000 1170000 0 1>;
 		qcom,bt-vdd-rfa2-config   = <1900000 1900000 0 1>;
 	};
 };
@@ -461,22 +322,22 @@
 };
 
 &mc_virt {
-	compatible = "qcom,neo_la-mc_virt";
 	qcom,bcm-voter-names = "hlos";
 	qcom,bcm-voters = <&apps_bcm_voter>;
 };
 
 &mmss_noc {
-	compatible = "qcom,neo_la-mmss_noc";
 	qcom,bcm-voter-names = "hlos";
 	qcom,bcm-voters = <&apps_bcm_voter>;
 };
 
 &gem_noc {
-	compatible = "qcom,neo_la-gem_noc";
 	qcom,bcm-voter-names = "hlos";
 	qcom,bcm-voters = <&apps_bcm_voter>;
 };
+
+
+#include "neo_la-reserved-memory.dtsi"
 
 &kgsl_smmu {
 	status = "disabled";
@@ -493,6 +354,18 @@
 &debugcc {
 	/delete-property/ qcom,gpucc;
 	/delete-property/ qcom,dispcc;
+	clock-names = "xo_clk_src",
+			"gcc",
+			"videocc",
+			"camcc";
+	clocks = <&rpmhcc RPMH_CXO_CLK>,
+		<&gcc 0>,
+		<&videocc 0>,
+		<&camcc 0>;
+};
+
+&slim_msm {
+	status = "ok";
 };
 
 &gpu_cc_cx_gdsc {
@@ -508,5 +381,41 @@
 };
 
 &disp_cc_mdss_core_int2_gdsc {
+	status = "disabled";
+};
+
+&msm_gpu {
+	status = "disabled";
+};
+
+&kgsl_msm_iommu {
+	status = "disabled";
+};
+
+&gmu {
+	status = "disabled";
+};
+
+&mdp_0_tbu {
+	status = "disabled";
+};
+
+&mdp_1_tbu {
+	status = "disabled";
+};
+
+&lsr_0_tbu {
+	status = "disabled";
+};
+
+&lsr_1_tbu {
+	status = "disabled";
+};
+
+&wpss_etm {
+	status = "disabled";
+};
+
+&qcom_cedev {
 	status = "disabled";
 };

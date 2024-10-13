@@ -369,6 +369,10 @@ arm mmu-500 implementation.
 
 - compatible    : Should be one of:
                         "qcom,qsmmuv500-tbu"
+		"qcom,qtb500" can be used in conjunction with
+		"qcom,qsmmuv500-tbu", as the QTB500 is an implementation
+		of a TBU with different features/enhancements than a regular
+		TBU.
 
 - reg           : Base address and size.
 
@@ -382,7 +386,7 @@ arm mmu-500 implementation.
 
 Example:
 smmu {
-	compatible = "qcom,qsmmu-v500";
+	compatible = "qcom,qsmmu-v500", "qcom,qtb500";
 	tbu@0x1000 {
 		compatible = "qcom,qsmmuv500-tbu";
 		regs = <0x1000 0x1000>,

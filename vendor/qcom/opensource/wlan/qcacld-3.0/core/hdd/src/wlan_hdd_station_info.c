@@ -366,6 +366,12 @@ static int hdd_convert_dot11mode(uint32_t dot11mode)
 	case eCSR_CFG_DOT11_MODE_11AC:
 		ret_val = QCA_WLAN_802_11_MODE_11AC;
 		break;
+	case eCSR_CFG_DOT11_MODE_11AX:
+		ret_val = QCA_WLAN_802_11_MODE_11AX;
+		break;
+	case eCSR_CFG_DOT11_MODE_11BE:
+		ret_val = QCA_WLAN_802_11_MODE_11BE;
+		break;
 	case eCSR_CFG_DOT11_MODE_AUTO:
 	case eCSR_CFG_DOT11_MODE_ABG:
 	default:

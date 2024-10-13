@@ -57,6 +57,12 @@ PROPERTIES
 		    include/dt-bindings/input/linux-event-codes.h
 		    When property is omitted KEY_POWER is assumed.
 
+- qcom,log-kpd-event:
+	Usage: optional
+	Value type: <empty>
+	Definition: Boolean property to enable logging of KPDPWR status
+		    during driver INIT and during runtime when key is pressed.
+
 EXAMPLES
 
 	pwrkey@800 {

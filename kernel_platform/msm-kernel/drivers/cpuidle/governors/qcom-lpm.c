@@ -3,6 +3,7 @@
  * Copyright (C) 2006-2007 Adam Belay <abelay@novell.com>
  * Copyright (C) 2009 Intel Corporation
  * Copyright (c) 2012-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/cpu.h>
@@ -28,6 +29,11 @@
 #include "qcom-lpm.h"
 #define CREATE_TRACE_POINTS
 #include "trace-qcom-lpm.h"
+
+#define LPM_PRED_RESET				0
+#define LPM_PRED_RESIDENCY_PATTERN		1
+#define LPM_PRED_PREMATURE_EXITS		2
+#define LPM_PRED_IPI_PATTERN			3
 
 #define LPM_SELECT_STATE_DISABLED		0
 #define LPM_SELECT_STATE_QOS_UNMET		1
@@ -265,8 +271,10 @@ static void cpu_predict(struct lpm_cpu *cpu_gov, u64 duration_ns)
 	 * that mode.
 	 */
 	cpu_gov->predicted = find_deviation(cpu_gov, lpm_history->resi, duration_ns);
-	if (cpu_gov->predicted)
+	if (cpu_gov->predicted) {
+		cpu_gov->pred_type = LPM_PRED_RESIDENCY_PATTERN;
 		return;
+	}
 
 	/*
 	 * Find the number of premature exits for each of the mode,
@@ -290,8 +298,9 @@ static void cpu_predict(struct lpm_cpu *cpu_gov, u64 duration_ns)
 		if (count >= PRED_PREMATURE_CNT) {
 			do_div(avg_residency, count);
 			cpu_gov->predicted = avg_residency;
-			cpu_gov->next_pred_time = ktime_to_ns(cpu_gov->now)
+			cpu_gov->next_pred_time = ktime_to_us(cpu_gov->now)
 								+ cpu_gov->predicted;
+			cpu_gov->pred_type = LPM_PRED_PREMATURE_EXITS;
 			break;
 		}
 	}
@@ -301,6 +310,8 @@ static void cpu_predict(struct lpm_cpu *cpu_gov, u64 duration_ns)
 
 	cpu_gov->predicted = find_deviation(cpu_gov, ipi_history->interval,
 					    duration_ns);
+	if (cpu_gov->predicted)
+		cpu_gov->pred_type = LPM_PRED_IPI_PATTERN;
 }
 
 /**
@@ -317,7 +328,7 @@ void clear_cpu_predict_history(void)
 		return;
 
 	for_each_possible_cpu(cpu) {
-		cpu_gov = this_cpu_ptr(&lpm_cpu_data);
+		cpu_gov = per_cpu_ptr(&lpm_cpu_data, cpu);
 		lpm_history = &cpu_gov->lpm_history;
 		for (i = 0; i < MAXSAMPLES; i++) {
 			lpm_history->resi[i]  = 0;
@@ -325,6 +336,7 @@ void clear_cpu_predict_history(void)
 			lpm_history->samples_idx = 0;
 			lpm_history->nsamp = 0;
 			cpu_gov->next_pred_time = 0;
+			cpu_gov->pred_type = LPM_PRED_RESET;
 		}
 	}
 }
@@ -342,7 +354,8 @@ static void update_cpu_history(struct lpm_cpu *cpu_gov)
 	u64 measured_us = ktime_to_us(cpu_gov->dev->last_residency_ns);
 	struct cpuidle_state *target;
 
-	if (prediction_disabled || idx < 0 || idx > cpu_gov->drv->state_count - 1)
+	if (sleep_disabled || prediction_disabled || idx < 0 ||
+	    idx > cpu_gov->drv->state_count - 1)
 		return;
 
 	target = &cpu_gov->drv->states[idx];
@@ -363,6 +376,7 @@ static void update_cpu_history(struct lpm_cpu *cpu_gov)
 		lpm_history->resi[lpm_history->samples_idx] = measured_us;
 
 	lpm_history->mode[lpm_history->samples_idx] = idx;
+	cpu_gov->pred_type = LPM_PRED_RESET;
 
 	trace_gov_pred_hist(idx, lpm_history->resi[lpm_history->samples_idx],
 			    tmr);
@@ -449,12 +463,20 @@ static int lpm_online_cpu(unsigned int cpu)
 static void ipi_raise(void *ignore, const struct cpumask *mask, const char *unused)
 {
 	int cpu;
+	struct lpm_cpu *cpu_gov;
+	unsigned long flags;
 
 	if (suspend_in_progress)
 		return;
 
 	for_each_cpu(cpu, mask) {
-		per_cpu(lpm_cpu_data, cpu).ipi_pending = true;
+		cpu_gov = &(per_cpu(lpm_cpu_data, cpu));
+		if (!cpu_gov->enable)
+			return;
+
+		spin_lock_irqsave(&cpu_gov->lock, flags);
+		cpu_gov->ipi_pending = true;
+		spin_unlock_irqrestore(&cpu_gov->lock, flags);
 		update_ipi_history(cpu);
 	}
 }
@@ -462,12 +484,20 @@ static void ipi_raise(void *ignore, const struct cpumask *mask, const char *unus
 static void ipi_entry(void *ignore, const char *unused)
 {
 	int cpu;
+	struct lpm_cpu *cpu_gov;
+	unsigned long flags;
 
 	if (suspend_in_progress)
 		return;
 
 	cpu = raw_smp_processor_id();
-	per_cpu(lpm_cpu_data, cpu).ipi_pending = false;
+	cpu_gov = &(per_cpu(lpm_cpu_data, cpu));
+	if (!cpu_gov->enable)
+		return;
+
+	spin_lock_irqsave(&cpu_gov->lock, flags);
+	cpu_gov->ipi_pending = false;
+	spin_unlock_irqrestore(&cpu_gov->lock, flags);
 }
 
 /**
@@ -510,7 +540,7 @@ static int start_prediction_timer(struct lpm_cpu *cpu_gov, int duration_us)
 	if (cpu_gov->next_wakeup > cpu_gov->next_pred_time)
 		cpu_gov->next_wakeup = cpu_gov->next_pred_time;
 
-	s = &cpu_gov->drv->states[cpu_gov->last_idx];
+	s = &cpu_gov->drv->states[0];
 	max_residency  = s[cpu_gov->last_idx + 1].target_residency - 1;
 	htime = cpu_gov->predicted + PRED_TIMER_ADD;
 
@@ -521,6 +551,14 @@ static int start_prediction_timer(struct lpm_cpu *cpu_gov, int duration_us)
 		histtimer_start(htime);
 
 	return htime;
+}
+
+void unregister_cluster_governor_ops(struct cluster_governor *ops)
+{
+	if (ops != cluster_gov_ops)
+		return;
+
+	cluster_gov_ops = NULL;
 }
 
 void register_cluster_governor_ops(struct cluster_governor *ops)
@@ -565,7 +603,7 @@ static int lpm_select(struct cpuidle_driver *drv, struct cpuidle_device *dev,
 	for (i = drv->state_count - 1; i > 0; i--) {
 		struct cpuidle_state *s = &drv->states[i];
 
-		if (i && dev->states_usage[i].disable) {
+		if (dev->states_usage[i].disable) {
 			reason |= UPDATE_REASON(i, LPM_SELECT_STATE_DISABLED);
 			continue;
 		}
@@ -613,7 +651,7 @@ done:
 	}
 
 	trace_lpm_gov_select(i, latency_req, duration_ns, reason);
-	trace_gov_pred_select(cpu_gov->predicted, cpu_gov->predicted, htime);
+	trace_gov_pred_select(cpu_gov->pred_type, cpu_gov->predicted, htime);
 
 	return i;
 }
@@ -638,13 +676,22 @@ static void lpm_idle_enter(void *unused, int *state, struct cpuidle_device *dev)
 {
 	struct lpm_cpu *cpu_gov = this_cpu_ptr(&lpm_cpu_data);
 	u64 reason = 0;
+	unsigned long flags;
+
+	if (*state == 0)
+		return;
+
+	if (!cpu_gov->enable)
+		return;
 
 	/* Restrict to WFI state if there is an IPI pending on current CPU */
+	spin_lock_irqsave(&cpu_gov->lock, flags);
 	if (cpu_gov->ipi_pending) {
 		reason = UPDATE_REASON(*state, LPM_SELECT_STATE_IPI_PENDING);
 		*state = 0;
 		trace_lpm_gov_select(*state, 0xdeaffeed, 0xdeaffeed, reason);
 	}
+	spin_unlock_irqrestore(&cpu_gov->lock, flags);
 }
 
 /**
@@ -676,6 +723,7 @@ static int lpm_enable_device(struct cpuidle_driver *drv,
 	struct hrtimer *cpu_biastimer = &cpu_gov->biastimer;
 	int ret;
 
+	spin_lock_init(&cpu_gov->lock);
 	hrtimer_init(cpu_histtimer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
 	hrtimer_init(cpu_biastimer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
 	if (!traces_registered) {

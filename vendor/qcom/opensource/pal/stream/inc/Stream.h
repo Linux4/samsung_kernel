@@ -163,6 +163,9 @@ protected:
     static std::condition_variable pauseCV;
     static std::mutex pauseMutex;
     bool mutexLockedbyRm = false;
+#ifdef SEC_AUDIO_MULTI_DEVICE_SOUND
+    bool leakageProtectionEnabled = false;
+#endif
 public:
     virtual ~Stream() {};
     struct pal_volume_data* mVolumeData = NULL;
@@ -279,6 +282,9 @@ public:
         mStreamMutex.unlock();
     };
     bool isMutexLockedbyRm() { return mutexLockedbyRm; }
+#ifdef SEC_AUDIO_MULTI_DEVICE_SOUND
+    void setLeakageProtectionEnabled(bool enabled);
+#endif
 };
 
 class StreamNonTunnel : public Stream

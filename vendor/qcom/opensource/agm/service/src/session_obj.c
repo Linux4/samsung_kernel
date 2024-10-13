@@ -2285,10 +2285,8 @@ int session_obj_read(struct session_obj *sess_obj, void *buff, size_t *count)
         AGM_LOGE("Cannot issue read in state:%d\n",
                            sess_obj->state);
         ret = -EINVAL;
-        pthread_mutex_unlock(&sess_obj->lock);
         goto done;
     }
-    pthread_mutex_unlock(&sess_obj->lock);
 
     buffer.timestamp = 0x0;
     buffer.flags = 0;
@@ -2301,6 +2299,7 @@ int session_obj_read(struct session_obj *sess_obj, void *buff, size_t *count)
     }
 
 done:
+    pthread_mutex_unlock(&sess_obj->lock);
     return ret;
 }
 
@@ -2314,10 +2313,8 @@ int session_obj_write(struct session_obj *sess_obj, void *buff, size_t *count)
         AGM_LOGE("Cannot issue write in state:%d\n",
                             sess_obj->state);
         ret = -EINVAL;
-        pthread_mutex_unlock(&sess_obj->lock);
         goto done;
     }
-    pthread_mutex_unlock(&sess_obj->lock);
 
     buffer.timestamp = 0x0;
     buffer.flags = 0;
@@ -2330,6 +2327,7 @@ int session_obj_write(struct session_obj *sess_obj, void *buff, size_t *count)
     }
 
 done:
+    pthread_mutex_unlock(&sess_obj->lock);
     return ret;
 }
 
@@ -2575,16 +2573,15 @@ int session_obj_write_with_metadata(struct session_obj *sess_obj,
         AGM_LOGE("Cannot issue write in state:%d\n",
                             sess_obj->state);
         ret = -EINVAL;
-        pthread_mutex_unlock(&sess_obj->lock);
         goto done;
     }
-    pthread_mutex_unlock(&sess_obj->lock);
     ret = graph_write(sess_obj->graph, buffer, consumed_size);
     if (ret) {
         AGM_LOGE("Error:%d writing to graph\n", ret);
     }
 
 done:
+    pthread_mutex_unlock(&sess_obj->lock);
     return ret;
 }
 
@@ -2598,10 +2595,8 @@ int session_obj_read_with_metadata(struct session_obj *sess_obj,
         AGM_LOGE("Cannot issue read in state:%d\n",
                            sess_obj->state);
         ret = -EINVAL;
-        pthread_mutex_unlock(&sess_obj->lock);
         goto done;
     }
-    pthread_mutex_unlock(&sess_obj->lock);
 
     size_t read_size;
     ret = graph_read(sess_obj->graph, buffer, &read_size);
@@ -2612,6 +2607,7 @@ int session_obj_read_with_metadata(struct session_obj *sess_obj,
     *captured_size = (uint32_t)read_size;
 
 done:
+    pthread_mutex_unlock(&sess_obj->lock);
     return ret;
 }
 

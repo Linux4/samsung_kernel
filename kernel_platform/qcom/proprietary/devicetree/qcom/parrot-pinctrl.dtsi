@@ -10,6 +10,21 @@
 		wakeup-parent = <&pdc>;
 		qcom,gpios-reserved = <0 1 2 3 38>;
 
+
+		bt_en_sleep: bt_en_sleep {
+				mux {
+						pins = "gpio35";
+						function = "gpio";
+				};
+
+				config {
+						pins = "gpio35";
+						drive-strength = <2>;
+						output-low;
+						bias-pull-down;
+				};
+		};
+
 		pri_aux_pcm_clk {
 			pri_aux_pcm_clk_sleep: pri_aux_pcm_clk_sleep {
 				mux {
@@ -536,7 +551,7 @@
 			config {
 				pins = "gpio14";
 				drive-strength = <2>;
-				bias-disable;
+				bias-pull-down;
 			};
 		};
 
@@ -626,47 +641,6 @@
 
 			config {
 				pins = "gpio17";
-				drive-strength = <2>;
-				bias-disable;
-			};
-		};
-	};
-
-	qupv3_se0_i3c_pins: qupv3_se0_i3c_pins {
-		qupv3_se0_i3c_sda_active: qupv3_se0_i3c_sda_active {
-			mux {
-				pins = "gpio28";
-				function = "ibi_i3c_qup0_se0_sda";
-			};
-
-			config {
-				pins = "gpio28";
-				drive-strength = <16>;
-				bias-pull-up;
-			};
-		};
-
-		qupv3_se0_i3c_scl_active: qupv3_se0_i3c_scl_active {
-			mux {
-				pins = "gpio29";
-				function = "ibi_i3c_qup0_se0_scl";
-			};
-
-			config {
-				pins = "gpio29";
-				drive-strength = <16>;
-				bias-pull-up;
-			};
-		};
-
-		qupv3_se0_i3c_sleep: qupv3_se0_i3c_sleep {
-			mux {
-				pins = "gpio28", "gpio29";
-				function = "gpio";
-			};
-
-			config {
-				pins = "gpio28", "gpio29";
 				drive-strength = <2>;
 				bias-disable;
 			};
@@ -777,7 +751,7 @@
 			config {
 				pins = "gpio28", "gpio29",
 					"gpio30", "gpio31";
-				drive-strength = <0>;
+				drive-strength = <2>;
 				bias-disable;
 			};
 		};
@@ -887,7 +861,7 @@
 			config {
 				pins = "gpio0", "gpio1",
 					"gpio2", "gpio3";
-				drive-strength = <0>;
+				drive-strength = <2>;
 				bias-disable;
 			};
 		};
@@ -997,7 +971,7 @@
 			config {
 				pins = "gpio24", "gpio25",
 					"gpio34", "gpio35";
-				drive-strength = <0>;
+				drive-strength = <2>;
 				bias-disable;
 			};
 		};
@@ -1107,7 +1081,7 @@
 			config {
 				pins = "gpio26", "gpio27",
 					"gpio34", "gpio35";
-				drive-strength = <0>;
+				drive-strength = <2>;
 				bias-disable;
 			};
 		};
@@ -1217,7 +1191,7 @@
 			config {
 				pins = "gpio32", "gpio33",
 					"gpio34", "gpio35";
-				drive-strength = <0>;
+				drive-strength = <2>;
 				bias-disable;
 			};
 		};
@@ -1386,7 +1360,7 @@
 			config {
 				pins = "gpio4", "gpio5",
 					"gpio6", "gpio7";
-				drive-strength = <0>;
+				drive-strength = <2>;
 				bias-disable;
 			};
 		};
@@ -1496,7 +1470,7 @@
 			config {
 				pins = "gpio8", "gpio9",
 					"gpio6", "gpio7";
-				drive-strength = <0>;
+				drive-strength = <2>;
 				bias-disable;
 			};
 		};
@@ -1606,7 +1580,7 @@
 			config {
 				pins = "gpio18", "gpio19",
 					"gpio20", "gpio21";
-				drive-strength = <0>;
+				drive-strength = <2>;
 				bias-disable;
 			};
 		};
@@ -1683,7 +1657,7 @@
 		qupv3_se9_spi_clk_active: qupv3_se9_spi_clk_active {
 			mux {
 				pins = "gpio12";
-				function = "qup1_se2_l2";
+				function = "qup1_se3_l2";
 			};
 
 			config {
@@ -1696,7 +1670,7 @@
 		qupv3_se9_spi_cs_active: qupv3_se9_spi_cs_active {
 			mux {
 				pins = "gpio13";
-				function = "qup1_se2_l3";
+				function = "qup1_se3_l3";
 			};
 
 			config {
@@ -1716,7 +1690,7 @@
 			config {
 				pins = "gpio10", "gpio11",
 					"gpio12", "gpio13";
-				drive-strength = <0>;
+				drive-strength = <2>;
 				bias-disable;
 			};
 		};
@@ -1886,6 +1860,19 @@
 			};
 		};
 
+		trigout_a: trigout_a {
+			mux {
+				pins = "gpio26";
+				function = "qdss_cti";
+			};
+
+			config {
+				pins = "gpio26";
+				drive-strength = <2>;
+				bias-disable;
+			};
+		};
+
 		sdc2_on: sdc2_on {
 			clk {
 				pins = "sdc2_clk";
@@ -1937,19 +1924,19 @@
 				drive-strength = <2>;
 			};
 		};
-	};
 
-	usb_phy_ps: usb_phy_ps {
-		usb3phy_portselect_default: usb3phy_portselect_default {
-			mux {
-				pins = "gpio100";
-				function = "usb0_phy_ps";
-			};
+		usb_phy_ps: usb_phy_ps {
+			usb3phy_portselect_default: usb3phy_portselect_default {
+				mux {
+					pins = "gpio100";
+					function = "usb0_phy_ps";
+				};
 
-			config {
-				pins = "gpio100";
-				bias-disable;
-				drive-strength = <2>;
+				config {
+					pins = "gpio100";
+					bias-disable;
+					drive-strength = <2>;
+				};
 			};
 		};
 	};

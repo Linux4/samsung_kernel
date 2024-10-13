@@ -3,6 +3,7 @@
  * QTI Secure Execution Environment Communicator (QSEECOM) driver
  *
  * Copyright (c) 2012-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #define pr_fmt(fmt) "QSEECOM: %s: " fmt, __func__
@@ -338,6 +339,7 @@ struct qseecom_control {
 	struct task_struct *unload_app_kthread_task;
 	wait_queue_head_t unload_app_kthread_wq;
 	atomic_t unload_app_kthread_state;
+	bool no_user_contig_mem_support;
 };
 
 struct qseecom_unload_app_pending_list {
@@ -378,7 +380,7 @@ struct qseecom_client_handle {
 
 struct qseecom_listener_handle {
 	u32               id;
-	bool              unregister_pending;
+	bool              register_pending;
 	bool              release_called;
 };
 
@@ -475,6 +477,10 @@ static int __qseecom_scm_call2_locked(uint32_t smc_id, struct qseecom_scm_desc *
 {
 	int ret = 0;
 	int retry_count = 0;
+
+	if (desc == NULL) {
+		return -EINVAL;
+	}
 
 	do {
 		ret = qcom_scm_qseecom_call(smc_id, desc, false);
@@ -1502,6 +1508,11 @@ static int qseecom_register_listener(struct qseecom_dev_handle *data,
 	struct qseecom_registered_listener_list *new_entry;
 	struct qseecom_registered_listener_list *ptr_svc;
 
+	if (data->listener.register_pending) {
+		pr_err("Already a listner registration is in process on this FD\n");
+		return -EINVAL;
+	}
+
 	ret = copy_from_user(&rcvd_lstnr, argp, sizeof(rcvd_lstnr));
 	if (ret) {
 		pr_err("copy_from_user failed\n");
@@ -1510,6 +1521,13 @@ static int qseecom_register_listener(struct qseecom_dev_handle *data,
 	if (!access_ok((void __user *)rcvd_lstnr.virt_sb_base,
 			rcvd_lstnr.sb_size))
 		return -EFAULT;
+
+	ptr_svc = __qseecom_find_svc(data->listener.id);
+	if (ptr_svc) {
+		pr_err("Already a listener registered on this data: lid=%d\n",
+			data->listener.id);
+		return -EINVAL;
+	}
 
 	ptr_svc = __qseecom_find_svc(rcvd_lstnr.listener_id);
 	if (ptr_svc) {
@@ -1554,13 +1572,16 @@ static int qseecom_register_listener(struct qseecom_dev_handle *data,
 	new_entry->svc.listener_id = rcvd_lstnr.listener_id;
 	new_entry->sb_length = rcvd_lstnr.sb_size;
 	new_entry->user_virt_sb_base = rcvd_lstnr.virt_sb_base;
+	data->listener.register_pending = true;
 	if (__qseecom_set_sb_memory(new_entry, data, &rcvd_lstnr)) {
 		pr_err("qseecom_set_sb_memory failed for listener %d, size %d\n",
 				rcvd_lstnr.listener_id, rcvd_lstnr.sb_size);
 		__qseecom_free_tzbuf(&new_entry->sglistinfo_shm);
 		kfree_sensitive(new_entry);
+		data->listener.register_pending = false;
 		return -ENOMEM;
 	}
+	data->listener.register_pending = false;
 
 	init_waitqueue_head(&new_entry->rcv_req_wq);
 	init_waitqueue_head(&new_entry->listener_block_app_wq);
@@ -3191,6 +3212,28 @@ static int qseecom_prepare_unload_app(struct qseecom_dev_handle *data)
 	pr_debug("prepare to unload app(%d)(%s), pending %d\n",
 		data->client.app_id, data->client.app_name,
 		data->client.unload_pending);
+
+	/* For keymaster we are not going to unload so no need to add it in
+	 * unload app pending list as soon as we identify release ion buffer
+	 * and return .
+	 */
+	if (!memcmp(data->client.app_name, "keymaste", strlen("keymaste"))) {
+		if (data->client.dmabuf) {
+			/* Each client will get same KM TA loaded handle but will
+			 * allocate separate shared buffer during loading of TA,
+			 * as client can't unload KM TA so we will only free out
+			 * shared buffer and return early to avoid any ion buffer leak.
+			 */
+			qseecom_vaddr_unmap(data->client.sb_virt, data->client.sgt,
+				data->client.attach, data->client.dmabuf);
+			MAKE_NULL(data->client.sgt,
+				data->client.attach, data->client.dmabuf);
+		}
+		__qseecom_free_tzbuf(&data->sglistinfo_shm);
+		data->released = true;
+		return 0;
+	}
+
 	if (data->client.unload_pending)
 		return 0;
 	entry = kzalloc(sizeof(*entry), GFP_KERNEL);
@@ -6479,7 +6522,7 @@ static int qseecom_create_key(struct qseecom_dev_handle *data,
 	struct qseecom_create_key_req create_key_req;
 	struct qseecom_key_generate_ireq generate_key_ireq;
 	struct qseecom_key_select_ireq set_key_ireq;
-	uint32_t entries = 0;
+	int32_t entries = 0;
 
 	ret = copy_from_user(&create_key_req, argp, sizeof(create_key_req));
 	if (ret) {
@@ -6624,7 +6667,7 @@ static int qseecom_wipe_key(struct qseecom_dev_handle *data,
 	struct qseecom_wipe_key_req wipe_key_req;
 	struct qseecom_key_delete_ireq delete_key_ireq;
 	struct qseecom_key_select_ireq clear_key_ireq;
-	uint32_t entries = 0;
+	int32_t entries = 0;
 
 	ret = copy_from_user(&wipe_key_req, argp, sizeof(wipe_key_req));
 	if (ret) {
@@ -9568,12 +9611,17 @@ static int qseecom_register_shmbridge(struct platform_device *pdev)
 		return ret;
 	}
 
-	ret = qseecom_register_heap_shmbridge(pdev, "user_contig_mem",
+	/* no-user-contig-mem is present in dtsi if user_contig_region is not needed*/
+	qseecom.no_user_contig_mem_support = of_property_read_bool((&pdev->dev)->of_node,
+						"qcom,no-user-contig-mem-support");
+	if (!qseecom.no_user_contig_mem_support) {
+		ret = qseecom_register_heap_shmbridge(pdev, "user_contig_mem",
 					&qseecom.user_contig_bridge_handle);
-	if (ret) {
-		qtee_shmbridge_deregister(qseecom.qseecom_bridge_handle);
-		qtee_shmbridge_deregister(qseecom.ta_bridge_handle);
-		return ret;
+		if (ret) {
+			qtee_shmbridge_deregister(qseecom.qseecom_bridge_handle);
+			qtee_shmbridge_deregister(qseecom.ta_bridge_handle);
+			return ret;
+		}
 	}
 
 	return 0;
@@ -9581,7 +9629,8 @@ static int qseecom_register_shmbridge(struct platform_device *pdev)
 
 static void qseecom_deregister_shmbridge(void)
 {
-	qtee_shmbridge_deregister(qseecom.user_contig_bridge_handle);
+	if (!qseecom.no_user_contig_mem_support)
+		qtee_shmbridge_deregister(qseecom.user_contig_bridge_handle);
 	qtee_shmbridge_deregister(qseecom.qseecom_bridge_handle);
 	qtee_shmbridge_deregister(qseecom.ta_bridge_handle);
 }

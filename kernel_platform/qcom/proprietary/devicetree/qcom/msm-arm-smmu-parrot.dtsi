@@ -71,6 +71,7 @@
 				<0x3de6200 0x8>;
 			reg-names = "base", "status-reg";
 			qcom,stream-id-range = <0x0 0x400>;
+			qcom,iova-width = <49>;
 		};
 
 		gfx_1_tbu: gfx_1_tbu@3ded000 {
@@ -79,6 +80,7 @@
 				<0x3de6208 0x8>;
 			reg-names = "base", "status-reg";
 			qcom,stream-id-range = <0x400 0x400>;
+			qcom,iova-width = <49>;
 		};
 	};
 
@@ -92,10 +94,12 @@
 		qcom,use-3-lvl-tables;
 		qcom,num-context-banks-override = <0x4e>;
 		qcom,num-smr-override = <0x78>;
+		qcom,handoff-smrs = <0x800 0x402>;
 		#global-interrupts = <1>;
 		#size-cells = <1>;
 		#address-cells = <1>;
 		ranges;
+		dma-coherent;
 
 		interrupts =	<GIC_SPI 65 IRQ_TYPE_LEVEL_HIGH>,
 				<GIC_SPI 96 IRQ_TYPE_LEVEL_HIGH>,
@@ -196,16 +200,18 @@
 				<GIC_SPI 693 IRQ_TYPE_LEVEL_HIGH>;
 
 		qcom,actlr =
-			/* Display and camera clients, +0 PF */
-			<0x800 0x3ff 0x1>,
-			<0xc00 0x3ff 0x1>,
+			/* Camera clients, +0 PF */
+			<0x8A0 0x4A0 0x1>,
+			<0xcA0 0x4A0 0x1>,
 			<0x2000 0xE0 0x1>,
 			<0x2100 0x60 0x1>,
-			/* For video clients, +3 PF */
-			<0x2180 0x27 0x103>,
+			/* For Display clients, +3 PF */
+			<0x800 0x407 0x103>,
+			<0xc00 0x407 0x103>,
+			/* For video clients, +0 PF */
+			<0x2180 0x27 0x1>,
 			/* NSP clients, +15PF */
-			<0x1000 0x3ff 0x303>,
-			<0x1400 0x3ff 0x303>;
+			<0x1000 0x7ff 0x303>;
 
 		interconnects = <&gem_noc MASTER_APPSS_PROC
 				&cnoc3 SLAVE_TCU>;

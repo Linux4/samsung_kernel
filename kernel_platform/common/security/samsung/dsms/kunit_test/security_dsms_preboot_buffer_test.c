@@ -45,7 +45,7 @@ static void security_dsms_create_message_success_test(struct kunit *test)
 	struct dsms_message *message;
 
 	message = create_message("KATC", "kunit test", 0);
-	KUNIT_EXPECT_PTR_NE(test, message, NULL);
+	KUNIT_EXPECT_PTR_NE(test, message, (struct dsms_message *)NULL);
 	if (message != NULL) {
 		KUNIT_EXPECT_STREQ(test, message->feature_code, "KATC");
 		KUNIT_EXPECT_STREQ(test, message->detail, "kunit test");
@@ -66,7 +66,7 @@ static void security_dsms_create_message_memory_error_test(struct kunit *test)
 	security_dsms_test_request_kmalloc_fail_at(1);
 	message = create_message("KATM", "kunit test", 0);
 	security_dsms_test_cancel_kmalloc_fail_requests();
-	KUNIT_EXPECT_PTR_EQ(test, message, NULL);
+	KUNIT_EXPECT_PTR_EQ(test, message, (struct dsms_message *)NULL);
 	if (message != NULL)
 		destroy_message(message);
 }
@@ -84,7 +84,7 @@ static void security_dsms_create_message_feature_code_memory_error_test(
 	security_dsms_test_request_kmalloc_fail_at(2);
 	message = create_message("KATF", "kunit test", 0);
 	security_dsms_test_cancel_kmalloc_fail_requests();
-	KUNIT_EXPECT_PTR_EQ(test, message, NULL);
+	KUNIT_EXPECT_PTR_EQ(test, message, (struct dsms_message *)NULL);
 	if (message != NULL)
 		destroy_message(message);
 }
@@ -102,7 +102,7 @@ static void security_dsms_create_message_detail_memory_error_test(
 	security_dsms_test_request_kmalloc_fail_at(3);
 	message = create_message("KATD", "kunit test", 0);
 	security_dsms_test_cancel_kmalloc_fail_requests();
-	KUNIT_EXPECT_PTR_EQ(test, message, NULL);
+	KUNIT_EXPECT_PTR_EQ(test, message, (struct dsms_message *)NULL);
 	if (message != NULL)
 		destroy_message(message);
 }
@@ -122,10 +122,10 @@ static void security_dsms_create_node_success_test(struct kunit *test)
 	struct dsms_message_node *node;
 
 	message = create_message("KATC", "kunit test", 0);
-	KUNIT_EXPECT_PTR_NE(test, message, NULL);
+	KUNIT_EXPECT_PTR_NE(test, message, (struct dsms_message *)NULL);
 	if (message != NULL) {
 		node = create_node(message);
-		KUNIT_EXPECT_PTR_NE(test, node, NULL);
+		KUNIT_EXPECT_PTR_NE(test, node, (struct dsms_message_node *)NULL);
 		if (node != NULL) {
 			KUNIT_EXPECT_PTR_EQ(test, node->message, message);
 			KUNIT_EXPECT_STREQ(test, node->message->feature_code, "KATC");
@@ -148,12 +148,12 @@ static void security_dsms_create_node_fail_test(struct kunit *test)
 	struct dsms_message_node *node;
 
 	message = create_message("KATC", "kunit test", 0);
-	KUNIT_EXPECT_PTR_NE(test, message, NULL);
+	KUNIT_EXPECT_PTR_NE(test, message, (struct dsms_message *)NULL);
 	if (message != NULL) {
 		security_dsms_test_request_kmalloc_fail_at(1);
 		node = create_node(message);
 		security_dsms_test_cancel_kmalloc_fail_requests();
-		KUNIT_EXPECT_PTR_EQ(test, node, NULL);
+		KUNIT_EXPECT_PTR_EQ(test, node, (struct dsms_message_node *)NULL);
 		if (node != NULL)
 			destroy_node(node);
 		destroy_message(message);

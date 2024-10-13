@@ -24,6 +24,7 @@ struct qc_summary_ap_context {
 
 struct qc_summary_drvdata {
 	struct builder bd;
+	size_t smem_offset;
 	struct sec_qc_summary *summary;
 	struct notifier_block nb_die;
 	struct notifier_block nb_panic;

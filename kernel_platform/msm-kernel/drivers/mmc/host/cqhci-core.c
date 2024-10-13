@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /* Copyright (c) 2015, 2021 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/delay.h>
@@ -20,6 +21,9 @@
 #include "cqhci.h"
 #include "cqhci-crypto.h"
 #include "cqhci-crypto-qti.h"
+#if IS_ENABLED(CONFIG_MMC_SDHCI_MSM_SCALING)
+#include "sdhci-msm-scaling.h"
+#endif
 
 #define DCMD_SLOT 31
 #define NUM_SLOTS 32
@@ -271,6 +275,8 @@ static void __cqhci_enable(struct cqhci_host *cq_host)
 		     CQHCI_TDLBAU);
 
 	cqhci_writel(cq_host, cq_host->rca, CQHCI_SSC2);
+
+	cqhci_writel(cq_host, SEND_QSR_INTERVAL, CQHCI_SSC1);
 
 	cqhci_set_irqs(cq_host, 0);
 
@@ -573,6 +579,10 @@ static void cqhci_post_req(struct mmc_host *host, struct mmc_request *mrq)
 {
 	struct mmc_data *data = mrq->data;
 
+#if IS_ENABLED(CONFIG_MMC_SDHCI_MSM_SCALING)
+	sdhci_msm_mmc_cqe_clk_scaling_stop_busy(host, mrq);
+#endif
+
 	if (data) {
 		dma_unmap_sg(mmc_dev(host), data->sg, data->sg_len,
 			     (data->flags & MMC_DATA_READ) ?
@@ -596,6 +606,10 @@ static int cqhci_request(struct mmc_host *mmc, struct mmc_request *mrq)
 		pr_err("%s: cqhci: not enabled\n", mmc_hostname(mmc));
 		return -EINVAL;
 	}
+
+#if IS_ENABLED(CONFIG_MMC_SDHCI_MSM_SCALING)
+	sdhci_msm_mmc_cqe_clk_scaling_start_busy(mmc, mrq);
+#endif
 
 	/* First request after resume has to re-enable */
 	if (!cq_host->activated)

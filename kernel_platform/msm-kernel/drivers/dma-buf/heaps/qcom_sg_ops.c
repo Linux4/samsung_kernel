@@ -19,6 +19,7 @@
 #include <linux/dma-buf.h>
 #include <linux/dma-mapping.h>
 #include <linux/dma-heap.h>
+#include <linux/dma-map-ops.h>
 #include <linux/err.h>
 #include <linux/highmem.h>
 #include <linux/mm.h>
@@ -248,6 +249,9 @@ static int sgl_sync_range(struct device *dev, struct scatterlist *sgl,
 			break;
 
 		if (i > 0) {
+			if (!get_dma_ops(dev))
+				return 0;
+
 			pr_warn_ratelimited("Partial cmo only supported with 1 segment\n"
 				"is dma_set_max_seg_size being set on dev:%s\n",
 				dev_name(dev));
@@ -519,9 +523,17 @@ static struct mem_buf_vmperm *qcom_sg_lookup_vmperm(struct dma_buf *dmabuf)
 	return buffer->vmperm;
 }
 
+static bool qcom_sg_uncached(struct dma_buf *dmabuf)
+{
+	struct qcom_sg_buffer *buffer = dmabuf->priv;
+
+	return buffer->uncached;
+}
+
 struct mem_buf_dma_buf_ops qcom_sg_buf_ops = {
 	.attach = qcom_sg_attach,
 	.lookup = qcom_sg_lookup_vmperm,
+	.uncached = qcom_sg_uncached,
 	.dma_ops = {
 		.attach = NULL, /* Will be set by mem_buf_dma_buf_export */
 		.detach = qcom_sg_detach,
