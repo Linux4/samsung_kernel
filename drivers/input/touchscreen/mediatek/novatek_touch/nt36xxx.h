@@ -32,7 +32,9 @@
 #endif
 
 #include "nt36xxx_mem_map.h"
-
+/*Tab A7 lite_U code for SR-AX3565U-01-4  by zhengkunbang at 20230807 start*/
+#include "hal_kpd.h"
+/*Tab A7 lite_U code for SR-AX3565U-01-4  by zhengkunbang at 20230807 end*/
 #ifdef CONFIG_MTK_SPI
 /* Please copy mt_spi.h file under mtk spi driver folder */
 #include "mt_spi.h"
@@ -328,6 +330,9 @@ struct nvt_ts_data {
 	/*TabA7 Lite code for OT8-5211 by gaozhengwei at 20211021 end*/
 	struct completion pm_completion;
 	bool pm_suspend;
+	/*Tab A7 lite_U code for SR-AX3565AU-21  by zhengkunbang at 20230810 start*/
+	bool tp_is_enabled;
+	/*Tab A7 lite_U code for SR-AX3565AU-21  by zhengkunbang at 20230810 end*/
 };
 
 #if NVT_TOUCH_PROC

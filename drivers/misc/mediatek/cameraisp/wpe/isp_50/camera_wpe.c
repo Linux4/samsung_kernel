@@ -3219,7 +3219,9 @@ static signed int WPE_WriteRegToHw
 
 		if (((ISP_WPE_BASE + pReg[i].Addr) <
 			(ISP_WPE_BASE + WPE_REG_RANGE))
-			&& ((pReg[i].Addr & 0x3) == 0)) {
+			&& ((ISP_WPE_BASE + pReg[i].Addr) >=
+			ISP_WPE_BASE)
+			&&((pReg[i].Addr & 0x3) == 0)) {
 			WPE_WR32(ISP_WPE_BASE + pReg[i].Addr, pReg[i].Val);
 		} else {
 			LOG_ERR("wrong address(0x%lx)\n",

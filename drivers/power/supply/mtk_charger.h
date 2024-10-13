@@ -659,6 +659,9 @@ struct mtk_charger {
 /*TabA7 Lite code for OT8-384 fix confliction between input_suspend and sw_ovp by wenyaqi at 20201224 start*/
 	bool input_suspend;
 	/*TabA7 Lite code for OT8-384 fix confliction between input_suspend and sw_ovp by wenyaqi at 20201224 end*/
+	/* HS04_U/HS14_U/TabA7 Lite U for P231128-06029 by liufurong at 20231204 start */
+	int batt_slate_mode;
+	/* HS04_U/HS14_U/TabA7 Lite U for P231128-06029 by liufurong at 20231204 end */
 	/*TabA7 Lite code for OT8-592 update battery/status when input_suspend or sw_ovp by wenyaqi at 20201231 start*/
 	bool ovp_disable;
 	/*TabA7 Lite code for OT8-592 update battery/status when input_suspend or sw_ovp by wenyaqi at 20201231 end*/

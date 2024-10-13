@@ -210,7 +210,9 @@ void hq_update_charing_count(struct mtk_charger *info)
 			info->base_time = info->current_time;
 			info->interval_time = 0;
 		} else {
-			info->interval_time = info->current_time-info->base_time;
+                        /*Tab A7 lite_U/HS04_U code for AX6739A-2748 by lihao at 202300913 start*/
+			info->interval_time = 0;
+                        /*Tab A7 lite_U/HS04_U code for AX6739A-2748 by lihao at 202300913 end*/
 		}
 	}
 /* HS03s Lite code for HQ00001 Modify battery protect function by shixuanxuan at 2021/05/10 end */
@@ -3549,6 +3551,10 @@ static int psy_charger_get_property(struct power_supply *psy,
 	/*HS03s for SR-AL5625-01-276 by wenyaqi at 20210426 start*/
 	#ifndef HQ_FACTORY_BUILD	//ss version
 	case POWER_SUPPLY_PROP_BATT_SLATE_MODE:
+	/* HS04_U/HS14_U/TabA7 Lite U for P231128-06029 by liufurong at 20231204 start */
+		val->intval =  info->batt_slate_mode;
+		break;
+	/* HS04_U/HS14_U/TabA7 Lite U for P231128-06029 by liufurong at 20231204 end */
 	#endif
 	/*HS03s for SR-AL5625-01-276 by wenyaqi at 20210426 end*/
 	/* HS03s code for SR-AL5625-01-35 by wenyaqi at 20210420 start */
@@ -3691,6 +3697,20 @@ int psy_charger_set_property(struct power_supply *psy,
 	/*HS03s for SR-AL5625-01-276 by wenyaqi at 20210426 start*/
 	#ifndef HQ_FACTORY_BUILD	//ss version
 	case POWER_SUPPLY_PROP_BATT_SLATE_MODE:
+	/* HS04_U/HS14_U/TabA7 Lite U for P231128-06029 by liufurong at 20231204 start */
+		if (val->intval == SEC_SLATE_OFF) {
+			info->input_suspend = false;
+		} else if (val->intval == SEC_SLATE_MODE) {
+			info->input_suspend = true;
+		} else if (val->intval == SEC_SMART_SWITCH_SLATE) {
+			chr_err("%s:  dont suppot this slate mode %d\n", __func__, val->intval);
+		} else if (val->intval == SEC_SMART_SWITCH_SRC) {
+			chr_err("%s:  dont suppot this slate mode %d\n", __func__, val->intval);
+		}
+		info->batt_slate_mode = val->intval;
+		chr_err("%s:  set slate mode %d\n", __func__, val->intval);
+		break;
+	/* HS04_U/HS14_U/TabA7 Lite U for P231128-06029 by liufurong at 20231204 end */
 	#endif
 	/*HS03s for SR-AL5625-01-276 by wenyaqi at 20210426 end*/
 	/* HS03s code for SR-AL5625-01-35 by wenyaqi at 20210420 start */
@@ -4055,6 +4075,28 @@ int psy_charger_set_property(struct power_supply *psy,
 	/*TabA7 Lite  code for SR-AX3565-01-108 by gaoxugang at 20201124 start*/
 	#if !defined(HQ_FACTORY_BUILD)
 	case POWER_SUPPLY_PROP_BATT_SLATE_MODE:
+	/* HS04_U/HS14_U/TabA7 Lite U for P231128-06029 by liufurong at 20231204 start */
+		if (val->intval == SEC_SLATE_OFF) {
+			info->input_suspend = false;
+			charger_dev_enable(info->chg1_dev, true);
+			charger_dev_do_event(info->chg1_dev,EVENT_RECHARGE, 0);
+			charger_dev_enable_powerpath(info->chg1_dev, true);
+			printk("ltk-1\n");
+		} else if (val->intval == SEC_SLATE_MODE) {
+			info->input_suspend = true;
+			charger_dev_enable(info->chg1_dev, false);
+			charger_dev_do_event(info->chg1_dev,EVENT_DISCHARGE, 0);
+			charger_dev_enable_powerpath(info->chg1_dev, false);
+			printk("ltk-0\n");
+		} else if (val->intval == SEC_SMART_SWITCH_SLATE) {
+			chr_err("%s:  dont suppot this slate mode %d\n", __func__, val->intval);
+		} else if (val->intval == SEC_SMART_SWITCH_SRC) {
+			chr_err("%s:  dont suppot this slate mode %d\n", __func__, val->intval);
+		}
+		info->batt_slate_mode = val->intval;
+		chr_err("%s:  set slate mode %d\n", __func__, val->intval);
+		break;
+	/* HS04_U/HS14_U/TabA7 Lite U for P231128-06029 by liufurong at 20231204 end */
 	#endif
 	/*TabA7 Lite  code for SR-AX3565-01-108 by gaoxugang at 20201124 end*/
 	/*TabA7 Lite code for OT8-384 fix confliction between input_suspend and sw_ovp by wenyaqi at 20201224 start*/

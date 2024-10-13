@@ -26,7 +26,9 @@
 #include <linux/kthread.h>
 /* #include <linux/rtpm_prio.h> */
 #include "tpd.h"
-
+/*Tab A7 lite_U code for SR-AX3565U-01-4  by zhengkunbang at 20230807 start*/
+#include "hal_kpd.h"
+/*Tab A7 lite_U code for SR-AX3565U-01-4  by zhengkunbang at 20230807 end*/
 #define CONFIG_OF_TOUCH
 #include <linux/of.h>
 #include <linux/of_address.h>

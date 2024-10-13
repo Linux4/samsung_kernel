@@ -310,6 +310,14 @@ int get_dsp_task_id_from_str(const char *task_name)
 		ret = AUDIO_TASK_BLEDL_ID;
 	else if (strstr(task_name, "bleul"))
 		ret = AUDIO_TASK_BLEUL_ID;
+	else if (strstr(task_name, "usbdl"))
+		ret = AUDIO_TASK_USBDL_ID;
+	else if (strstr(task_name, "usbul"))
+		ret = AUDIO_TASK_USBUL_ID;
+	else if (strstr(task_name, "mddl"))
+		ret = AUDIO_TASK_MDDL_ID;
+	else if (strstr(task_name, "mdul"))
+		ret = AUDIO_TASK_MDUL_ID;
 	else
 		pr_info("%s(), %s has no task id, ret %d",
 			__func__, task_name, ret);

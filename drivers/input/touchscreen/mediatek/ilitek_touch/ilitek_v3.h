@@ -81,6 +81,9 @@
 /*TabA7 Lite code for OT8-336 by gaozhengwei at 20210108 start*/
 #include <linux/input/sec_cmd.h>
 /*TabA7 Lite code for OT8-336 by gaozhengwei at 20210108 end*/
+/*Tab A7 lite_U code for SR-AX3565U-01-4  by zhengkunbang at 20230807 start*/
+#include "hal_kpd.h"
+/*Tab A7 lite_U code for SR-AX3565U-01-4  by zhengkunbang at 20230807 end*/
 
 #ifdef CONFIG_OF
 #include <linux/of_address.h>

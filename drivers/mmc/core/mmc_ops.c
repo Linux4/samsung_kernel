@@ -22,6 +22,8 @@
 #include "card.h"
 #include "host.h"
 #include "mmc_ops.h"
+#include "queue.h"
+#include "block.h"
 
 #define MMC_OPS_TIMEOUT_MS	(10 * 60 * 1000) /* 10 minute timeout */
 #define CMD_TIMEOUT         (HZ/10 * 5)	/* 100ms x5 */
@@ -68,8 +70,10 @@ int __mmc_send_status(struct mmc_card *card, u32 *status, unsigned int retries)
 	cmd.flags = MMC_RSP_SPI_R2 | MMC_RSP_R1 | MMC_CMD_AC;
 
 	err = mmc_wait_for_cmd(card->host, &cmd, retries);
-	if (err)
+	if (err) {
+		mmc_error_count_log(card, MMC_CMD_OFFSET, err, 0);
 		return err;
+	}
 
 	/* NOTE: callers are required to understand the difference
 	 * between "native" and SPI format status words!

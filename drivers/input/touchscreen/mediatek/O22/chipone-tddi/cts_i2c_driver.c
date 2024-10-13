@@ -1151,12 +1151,13 @@ static struct spi_driver cts_spi_driver = {
 
 static int cts_detect_panel(void)
 {
-    /*hs14 code for AL6528ADEU-723 by hehaoran5 at 20221021 start*/
-    if (tp_get_boot_mode() != NORMAL_BOOT) {
+    /*HS14_U code for SR-AL6528E-01-39  by zhengkunbang at 20230726 start*/
+    int boot_mode = tp_get_boot_mode();
+    if ((boot_mode != NORMAL_BOOT) && (boot_mode != ALARM_BOOT)) {
         cts_err("tp init fail because boot_mode = %d\n",tp_get_boot_mode());
         return -EINVAL;
     }
-    /*hs14 code for AL6528ADEU-723 by hehaoran5 at 20221021 end*/
+    /*HS14_U code for SR-AL6528E-01-39  by zhengkunbang at 20230726 end*/
     if (saved_command_line == NULL) {
         return -EFAULT;
     }

@@ -25,6 +25,38 @@ struct timer_list Long_press_timer;
 atomic_t vol_up_long_press_flag = ATOMIC_INIT(0);
 atomic_t pow_key_long_press_flag = ATOMIC_INIT(0);
 #endif
+/*Tab A7 lite_U code for SR-AX3565U-01-4  by zhengkunbang at 20230807 start*/
+#ifndef CONFIG_HQ_PROJECT_O22
+struct tag_bootmode {
+	u32 size;
+	u32 tag;
+	u32 bootmode;
+	u32 boottype;
+};
+
+enum boot_mode_t tp_get_boot_mode(void) {
+	struct device_node *np_chosen = NULL;
+	struct tag_bootmode *tag = NULL;
+	enum boot_mode_t boot_mode = UNKNOWN_BOOT;
+
+	np_chosen = of_find_node_by_path("/chosen");
+	if (!np_chosen) {
+		np_chosen = of_find_node_by_path("/chosen@0");
+	}
+
+	tag = (struct tag_bootmode *)of_get_property(np_chosen, "atag,boot", NULL);
+	if (!tag) {
+		pr_err("%s: fail to get atag,boot\n", __func__);
+	} else {
+		pr_info("%s: boot_mode: %d\n", __func__, tag->bootmode);
+		boot_mode = tag->bootmode;
+	}
+
+	return boot_mode;
+}
+EXPORT_SYMBOL(tp_get_boot_mode);
+#endif
+/*Tab A7 lite_U code for SR-AX3565U-01-4  by zhengkunbang at 20230807 end*/
 
 static void enable_kpd(int enable)
 {

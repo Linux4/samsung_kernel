@@ -42,6 +42,16 @@ enum {
 	POWER_SUPPLY_STATUS_CMD_DISCHARGING,
 };
 
+/*P231128-06029 */
+/* HS04_U/HS14_U/TabA7 Lite U for P231128-06029 by liufurong at 20231204 start */
+enum sec_battery_slate_mode {
+	SEC_SLATE_OFF = 0,
+	SEC_SLATE_MODE,
+	SEC_SMART_SWITCH_SLATE,
+	SEC_SMART_SWITCH_SRC,
+};
+/* HS04_U/HS14_U/TabA7 Lite U for P231128-06029 by liufurong at 20231204 end */
+
 /*HS03s for SR-AL5625-01-278 by wenyaqi at 20210427 start*/
 #ifndef HQ_FACTORY_BUILD	//ss version
 enum {
@@ -344,10 +354,6 @@ enum power_supply_property {
 	POWER_SUPPLY_PROP_BATTERY_CYCLE,
 	POWER_SUPPLY_PROP_BATT_CURRENT_UA_NOW,
 	/* hs14 code for SR-AL6528A-01-338 | SR-AL6528A-01-337 by chengyuanhang at 2022/10/08 end */
-	/* hs14 code for SR-AL6528A-01-324 by chengyuanhang at 2022/10/10 start */
-	POWER_SUPPLY_PROP_BATT_PROTECT_FLAG,
-	POWER_SUPPLY_PROP_EN_BATT_PROTECT,
-	/* hs14 code for SR-AL6528A-01-324 by chengyuanhang at 2022/10/10 end */
 	/* hs14 code for SR-AL6528A-01-346 by zhouyuhang at 2022/10/11 start*/
 	POWER_SUPPLY_PROP_BATT_CURRENT_EVENT,
 	/* hs14 code for SR-AL6528A-01-346 by zhouyuhang at 2022/10/11 end*/
@@ -361,6 +367,10 @@ enum power_supply_property {
 	/* hs14 code for SR-AL6528A-01-244 by shanxinkai at 2022/11/04 start */
 	POWER_SUPPLY_PROP_STORE_MODE,
 	/* hs14 code for SR-AL6528A-01-244 by shanxinkai at 2022/11/04 end */
+	/* hs14 code for AL6528A-1055 by qiaodan at 2023/01/18 start */
+	POWER_SUPPLY_PROP_BATT_TEMP,
+	POWER_SUPPLY_PROP_BATT_DISCHARGE_LEVEL,
+	/* hs14 code for AL6528A-1055 by qiaodan at 2023/01/18 end */
 #endif
 /* hs14 code for SR-AL6528A-01-244 by shanxinkai at 2022/11/04 start */
 #ifdef HQ_FACTORY_BUILD
@@ -603,6 +613,11 @@ enum power_supply_property {
 	POWER_SUPPLY_PROP_CHG_INFO,
 	POWER_SUPPLY_PROP_TCPC_INFO,
 	/* hs14 code for SR-AL6528A-01-258 by shanxinkai at 2022/09/13 end */
+	/* hs14 code for AL6528A-1055 by qiaodan at 2023/01/18 start */
+#ifndef HQ_FACTORY_BUILD
+	POWER_SUPPLY_PROP_BATT_TYPE,
+#endif
+	/* hs14 code for AL6528A-1055 by qiaodan at 2023/01/18 end */
 #else
 	// no add new power_supply
 #endif

@@ -250,13 +250,16 @@
 
 #define   MSK_REGSTAT1_STEADYSTATALL       0x02
 
-
+/*hs14 code for AL6528A-1091 by Wentao at 2023/2/17 start*/
 #define   SX933X_STAT0_PROXSTAT_PH5_FLAG      0x20000000
 #define   SX933X_STAT0_PROXSTAT_PH4_FLAG      0x10000000
 #define   SX933X_STAT0_PROXSTAT_PH3_FLAG      0x08000000
 #define   SX933X_STAT0_PROXSTAT_PH2_FLAG      0x04000000
 #define   SX933X_STAT0_PROXSTAT_PH1_FLAG      0x02000000
 #define   SX933X_STAT0_PROXSTAT_PH0_FLAG      0x01000000
+#define   SX933X_STAT_V0_FLAG                 0x00000100
+#define   SX933X_STAT_V2_FLAG                 0x00000400
+/*hs14 code for AL6528A-1091 by Wentao at 2023/2/17 end*/
 
 /*      Chip ID     */
 #define SX933X_WHOAMI_VALUE                   0x00003817

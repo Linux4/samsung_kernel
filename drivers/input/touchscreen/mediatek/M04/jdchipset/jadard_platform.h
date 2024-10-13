@@ -4,7 +4,9 @@
 #include "jadard_common.h"
 #include <linux/spi/spi.h>
 #include <linux/platform_data/spi-mt65xx.h>
-
+/*HS04_U code for SR-AL6398U-01-3  by zhengkunbang at 20230807 start*/
+#include "hal_kpd.h"
+/*HS04_U code for SR-AL6398U-01-3  by zhengkunbang at 20230807 end*/
 #if defined(CONFIG_JD_DB)
 #include <linux/regulator/consumer.h>
 #endif
