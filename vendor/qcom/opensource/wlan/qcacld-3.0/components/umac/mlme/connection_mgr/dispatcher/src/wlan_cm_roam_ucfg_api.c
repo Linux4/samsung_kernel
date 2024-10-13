@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -100,7 +101,8 @@ ucfg_user_space_enable_disable_rso(struct wlan_objmgr_pdev *pdev,
 	state = (is_fast_roam_enabled) ?
 		WLAN_ROAM_RSO_ENABLED : WLAN_ROAM_RSO_STOPPED;
 	status = cm_roam_state_change(pdev, vdev_id, state,
-				      REASON_SUPPLICANT_DISABLED_ROAMING);
+				      REASON_SUPPLICANT_DISABLED_ROAMING,
+				      NULL, false);
 
 	return status;
 }
@@ -483,5 +485,14 @@ void ucfg_cm_reset_key(struct wlan_objmgr_pdev *pdev, uint8_t vdev_id)
 {
 	wlan_cm_set_psk_pmk(pdev, vdev_id, NULL, 0);
 	ucfg_cm_reset_esecckm_info(pdev, vdev_id);
+}
+
+QDF_STATUS
+ucfg_cm_roam_send_rt_stats_config(struct wlan_objmgr_pdev *pdev,
+				  uint8_t vdev_id, uint8_t param_value)
+{
+	struct wlan_objmgr_psoc *psoc = wlan_pdev_get_psoc(pdev);
+
+	return cm_roam_send_rt_stats_config(psoc, vdev_id, param_value);
 }
 #endif /* WLAN_FEATURE_ROAM_OFFLOAD */

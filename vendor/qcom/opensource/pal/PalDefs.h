@@ -385,8 +385,16 @@ typedef enum {
     PAL_DEVICE_OUT_HEARING_AID = 18,
     PAL_DEVICE_OUT_HAPTICS_DEVICE = 19,
     PAL_DEVICE_OUT_ULTRASOUND = 20,
+#ifdef SEC_AUDIO_BLE_OFFLOAD
+    PAL_DEVICE_OUT_BLUETOOTH_BLE = 21,
+    PAL_DEVICE_OUT_BLUETOOTH_BLE_BROADCAST = 22,
+#endif
     // Add new OUT devices here, increment MAX and MIN below when you do so
+#ifdef SEC_AUDIO_BLE_OFFLOAD
+    PAL_DEVICE_OUT_MAX = 23,
+#else
     PAL_DEVICE_OUT_MAX = 21,
+#endif
     //INPUT DEVICES
     PAL_DEVICE_IN_MIN = PAL_DEVICE_OUT_MAX,
     PAL_DEVICE_IN_HANDSET_MIC = PAL_DEVICE_IN_MIN +1,
@@ -409,8 +417,16 @@ typedef enum {
     PAL_DEVICE_IN_TELEPHONY_RX = PAL_DEVICE_IN_MIN + 18,
     PAL_DEVICE_IN_ULTRASOUND_MIC = PAL_DEVICE_IN_MIN +19,
     PAL_DEVICE_IN_EXT_EC_REF = PAL_DEVICE_IN_MIN + 20,
+#ifdef SEC_AUDIO_BLE_OFFLOAD
+    PAL_DEVICE_IN_BLUETOOTH_BLE = PAL_DEVICE_IN_MIN + 21,
+    PAL_DEVICE_IN_HAPTICS_VI_FEEDBACK = PAL_DEVICE_IN_MIN + 22, // temporary fix build err (refer 8550)
+#endif
     // Add new IN devices here, increment MAX and MIN below when you do so
+#ifdef SEC_AUDIO_BLE_OFFLOAD
+    PAL_DEVICE_IN_MAX = PAL_DEVICE_IN_MIN + 23,
+#else
     PAL_DEVICE_IN_MAX = PAL_DEVICE_IN_MIN + 21,
+#endif
 } pal_device_id_t;
 
 typedef enum {
@@ -448,6 +464,10 @@ static const std::map<std::string, pal_device_id_t> deviceIdLUT {
     {std::string{ "PAL_DEVICE_OUT_LINE" },                 PAL_DEVICE_OUT_LINE},
     {std::string{ "PAL_DEVICE_OUT_BLUETOOTH_SCO" },        PAL_DEVICE_OUT_BLUETOOTH_SCO},
     {std::string{ "PAL_DEVICE_OUT_BLUETOOTH_A2DP" },       PAL_DEVICE_OUT_BLUETOOTH_A2DP},
+#ifdef SEC_AUDIO_BLE_OFFLOAD
+    {std::string{ "PAL_DEVICE_OUT_BLUETOOTH_BLE" },        PAL_DEVICE_OUT_BLUETOOTH_BLE},
+    {std::string{ "PAL_DEVICE_OUT_BLUETOOTH_BLE_BROADCAST" }, PAL_DEVICE_OUT_BLUETOOTH_BLE_BROADCAST},
+#endif
     {std::string{ "PAL_DEVICE_OUT_AUX_DIGITAL" },          PAL_DEVICE_OUT_AUX_DIGITAL},
     {std::string{ "PAL_DEVICE_OUT_HDMI" },                 PAL_DEVICE_OUT_HDMI},
     {std::string{ "PAL_DEVICE_OUT_USB_DEVICE" },           PAL_DEVICE_OUT_USB_DEVICE},
@@ -476,6 +496,9 @@ static const std::map<std::string, pal_device_id_t> deviceIdLUT {
     {std::string{ "PAL_DEVICE_IN_PROXY" },                 PAL_DEVICE_IN_PROXY},
     {std::string{ "PAL_DEVICE_IN_HANDSET_VA_MIC" },        PAL_DEVICE_IN_HANDSET_VA_MIC},
     {std::string{ "PAL_DEVICE_IN_BLUETOOTH_A2DP" },        PAL_DEVICE_IN_BLUETOOTH_A2DP},
+#ifdef SEC_AUDIO_BLE_OFFLOAD
+    {std::string{ "PAL_DEVICE_IN_BLUETOOTH_BLE" },         PAL_DEVICE_IN_BLUETOOTH_BLE},
+#endif
     {std::string{ "PAL_DEVICE_IN_HEADSET_VA_MIC" },        PAL_DEVICE_IN_HEADSET_VA_MIC},
     {std::string{ "PAL_DEVICE_IN_VI_FEEDBACK" },           PAL_DEVICE_IN_VI_FEEDBACK},
     {std::string{ "PAL_DEVICE_IN_TELEPHONY_RX" },          PAL_DEVICE_IN_TELEPHONY_RX},
@@ -494,6 +517,10 @@ static const std::map<uint32_t, std::string> deviceNameLUT {
     {PAL_DEVICE_OUT_LINE,                 std::string{"PAL_DEVICE_OUT_LINE"}},
     {PAL_DEVICE_OUT_BLUETOOTH_SCO,        std::string{"PAL_DEVICE_OUT_BLUETOOTH_SCO"}},
     {PAL_DEVICE_OUT_BLUETOOTH_A2DP,       std::string{"PAL_DEVICE_OUT_BLUETOOTH_A2DP"}},
+#ifdef SEC_AUDIO_BLE_OFFLOAD
+    {PAL_DEVICE_OUT_BLUETOOTH_BLE,        std::string{"PAL_DEVICE_OUT_BLUETOOTH_BLE"}},
+    {PAL_DEVICE_OUT_BLUETOOTH_BLE_BROADCAST, std::string{"PAL_DEVICE_OUT_BLUETOOTH_BLE_BROADCAST"}},
+#endif
     {PAL_DEVICE_OUT_AUX_DIGITAL,          std::string{"PAL_DEVICE_OUT_AUX_DIGITAL"}},
     {PAL_DEVICE_OUT_HDMI,                 std::string{"PAL_DEVICE_OUT_HDMI"}},
     {PAL_DEVICE_OUT_USB_DEVICE,           std::string{"PAL_DEVICE_OUT_USB_DEVICE"}},
@@ -522,6 +549,9 @@ static const std::map<uint32_t, std::string> deviceNameLUT {
     {PAL_DEVICE_IN_PROXY,                 std::string{"PAL_DEVICE_IN_PROXY"}},
     {PAL_DEVICE_IN_HANDSET_VA_MIC,        std::string{"PAL_DEVICE_IN_HANDSET_VA_MIC"}},
     {PAL_DEVICE_IN_BLUETOOTH_A2DP,        std::string{"PAL_DEVICE_IN_BLUETOOTH_A2DP"}},
+#ifdef SEC_AUDIO_BLE_OFFLOAD
+    {PAL_DEVICE_IN_BLUETOOTH_BLE,         std::string{"PAL_DEVICE_IN_BLUETOOTH_BLE"}},
+#endif
     {PAL_DEVICE_IN_HEADSET_VA_MIC,        std::string{"PAL_DEVICE_IN_HEADSET_VA_MIC"}},
     {PAL_DEVICE_IN_VI_FEEDBACK,           std::string{"PAL_DEVICE_IN_VI_FEEDBACK"}},
     {PAL_DEVICE_IN_TELEPHONY_RX,          std::string{"PAL_DEVICE_IN_TELEPHONY_RX"}},
@@ -672,11 +702,15 @@ struct pal_media_config {
 };
 
 /** Android Media configuraiton  */
+/* dynamic media config for plugin devices, +1 so that the last entry is always 0 */
+#define MAX_SUPPORTED_CHANNEL_MASKS (2 * 8)
+#define MAX_SUPPORTED_FORMATS 15
+#define MAX_SUPPORTED_SAMPLE_RATES 7
 typedef struct dynamic_media_config {
-    uint32_t sample_rate;                /**< sample rate */
-    uint32_t format;                     /**< format */
-    uint32_t mask;                       /**< channel mask */
-    bool jack_status;                    /**< input/output jack status*/
+    uint32_t sample_rate[MAX_SUPPORTED_SAMPLE_RATES+1];   /**< sample rate */
+    uint32_t format[MAX_SUPPORTED_FORMATS+1];             /**< format */
+    uint32_t mask[MAX_SUPPORTED_CHANNEL_MASKS + 1];       /**< channel mask */
+    bool jack_status;
 } dynamic_media_config_t;
 
 /**  Available stream flags of an audio session*/
@@ -882,6 +916,10 @@ typedef enum {
     PAL_PARAM_ID_VOLUME_USING_SET_PARAM = 55,
     PAL_PARAM_ID_UHQA_FLAG = 56,
     PAL_PARAM_ID_STREAM_ATTRIBUTES = 57,
+#ifdef SEC_AUDIO_BLE_OFFLOAD
+    PAL_PARAM_ID_SET_SOURCE_METADATA = 60,
+    PAL_PARAM_ID_SET_SINK_METADATA = 61,
+#endif
 #ifdef SEC_AUDIO_LOOPBACK_TEST
     PAL_PARAM_ID_LOOPBACK_MODE = 1001,
 #endif
@@ -894,6 +932,9 @@ typedef enum {
 #ifdef SEC_AUDIO_FMRADIO
     PAL_PARAM_ID_FMRADIO_USB_GAIN = 1004,
 #endif
+#ifdef SEC_AUDIO_SUPPORT_HAPTIC_PLAYBACK
+    PAL_PARAM_ID_HAPTIC_SOURCE = 1005,
+#endif
 #ifdef SEC_AUDIO_SPEAKER_AMP_RCV_BOOST_MODE
     PAL_PARAM_ID_CALL_2G_TDMA = 1006,
 #endif
@@ -901,6 +942,15 @@ typedef enum {
     PAL_PARAM_ID_BT_A2DP_DYN_BITRATE = 2001,
     PAL_PARAM_ID_BT_A2DP_SBM_CONFIG = 2002,
     PAL_PARAM_ID_BT_A2DP_DELAY_REPORT = 2003,
+#endif
+#ifdef SEC_AUDIO_BLE_OFFLOAD // SEC
+    PAL_PARAM_ID_BT_A2DP_SUSPENDED_FOR_BLE = 2004,
+#endif
+#ifdef SEC_AUDIO_BLUETOOTH
+    PAL_PARAM_ID_BT_SCO_CODEC_TYPE = 2005,
+#endif
+#ifdef SEC_AUDIO_MULTI_DEVICE_SOUND
+    PAL_PARAM_ID_LEAKAGE_PROTECTION_ENABLED = 2006,
 #endif
 } pal_param_id_type_t;
 
@@ -1084,6 +1134,14 @@ typedef struct btsco_lc3_cfg {
     char     vendor[PAL_LC3_MAX_STRING_LEN];
 } btsco_lc3_cfg_t;
 
+
+#ifdef SEC_AUDIO_BLUETOOTH
+typedef enum {
+    PAL_BT_SCO_CODEC_TYPE_NONE,
+    PAL_BT_SCO_CODEC_TYPE_RVP,
+} pal_bt_sco_codec_t;
+#endif
+
 typedef struct pal_param_btsco {
     bool   bt_sco_on;
     bool   bt_wb_speech_enabled;
@@ -1091,6 +1149,9 @@ typedef struct pal_param_btsco {
     int    bt_swb_speech_mode;
     bool   bt_lc3_speech_enabled;
     btsco_lc3_cfg_t lc3_cfg;
+#ifdef SEC_AUDIO_BLUETOOTH
+    pal_bt_sco_codec_t bt_sco_codec_type;
+#endif	
 } pal_param_btsco_t;
 
 /* Payload For ID: PAL_PARAM_ID_BT_A2DP*
@@ -1105,6 +1166,13 @@ typedef struct pal_param_bta2dp {
     bool     is_lc3_mono_mode_on;
     bool     is_force_switch;
     uint32_t latency;
+#ifdef SEC_AUDIO_BLE_OFFLOAD
+    pal_device_id_t   dev_id;
+#endif
+#ifdef SEC_AUDIO_BLE_OFFLOAD // SEC
+    bool     a2dp_suspended_for_ble;
+    uint32_t bt_mix_latency;
+#endif
 } pal_param_bta2dp_t;
 
 typedef struct pal_param_upd_event_detection {

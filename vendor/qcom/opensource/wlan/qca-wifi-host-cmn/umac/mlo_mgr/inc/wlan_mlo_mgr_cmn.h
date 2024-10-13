@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2021 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -143,6 +144,16 @@ QDF_STATUS mlo_reg_mlme_ext_cb(struct mlo_mgr_context *ctx,
 QDF_STATUS mlo_unreg_mlme_ext_cb(struct mlo_mgr_context *ctx);
 
 /**
+ * mlo_mlme_clone_sta_security() - Clone Security params in partner vdevs
+ * @vdev: Object manager vdev
+ * @req: wlan_cm_connect_req data object to be passed to callback
+ *
+ * Return: QDF_STATUS
+ */
+QDF_STATUS mlo_mlme_clone_sta_security(struct wlan_objmgr_vdev *vdev,
+				       struct wlan_cm_connect_req *req);
+
+/**
  * mlo_mlme_validate_conn_req() - Validate connect request
  * @vdev: Object manager vdev
  * @ext_data: Data object to be passed to callback
@@ -209,6 +220,24 @@ void mlo_mlme_peer_delete(struct wlan_objmgr_peer *peer);
 void mlo_mlme_peer_assoc_resp(struct wlan_objmgr_peer *peer);
 
 /**
+ * mlo_mlme_get_link_assoc_req() - API to get link assoc req buffer
+ * @peer: Object manager peer
+ * @link_ix: link id of vdev
+ *
+ * Return: assoc req buffer
+ */
+qdf_nbuf_t mlo_mlme_get_link_assoc_req(struct wlan_objmgr_peer *peer,
+				       uint8_t link_ix);
+
+/**
+ * mlo_mlme_peer_deauth() - Initiate deauth on link peer
+ * @peer: Object manager peer
+ *
+ * Return: void
+ */
+void mlo_mlme_peer_deauth(struct wlan_objmgr_peer *peer);
+
+/**
  * mlo_get_link_vdev_ix() - Get index of link VDEV in MLD
  * @ml_dev: ML device context
  * @vdev: VDEV object
@@ -231,6 +260,16 @@ uint8_t mlo_get_link_vdev_ix(struct wlan_mlo_dev_context *mldev,
 void mlo_get_ml_vdev_list(struct wlan_objmgr_vdev *vdev,
 			  uint16_t *vdev_count,
 			  struct wlan_objmgr_vdev **wlan_vdev_list);
+
+/**
+ * mlo_mlme_handle_sta_csa_param() - process saved mlo sta csa param
+ * @vdev: vdev pointer
+ * @csa_param: saved csa_param
+ *
+ * Return: None
+ */
+void mlo_mlme_handle_sta_csa_param(struct wlan_objmgr_vdev *vdev,
+				   struct csa_offload_params *csa_param);
 
 #define INVALID_HW_LINK_ID 0xFFFF
 #ifdef WLAN_MLO_MULTI_CHIP
@@ -268,6 +307,7 @@ struct hw_link_id_iterator {
 struct wlan_objmgr_pdev *
 wlan_mlo_get_pdev_by_hw_link_id(uint16_t hw_link_id,
 				wlan_objmgr_ref_dbgid refdbgid);
+
 #else
 static inline struct wlan_objmgr_pdev *
 wlan_mlo_get_pdev_by_hw_link_id(uint16_t hw_link_id,
@@ -283,4 +323,24 @@ uint16_t wlan_mlo_get_pdev_hw_link_id(struct wlan_objmgr_pdev *pdev)
 }
 #endif/*WLAN_MLO_MULTI_CHIP*/
 
+#ifdef WLAN_FEATURE_11BE_MLO
+/**
+ * mlo_process_link_set_active_resp() - handler for mlo link set active response
+ * @psoc: psoc pointer
+ * @event: pointer to mlo link set active response
+ *
+ * Return: QDF_STATUS
+ */
+QDF_STATUS
+mlo_process_link_set_active_resp(struct wlan_objmgr_psoc *psoc,
+				 struct mlo_link_set_active_resp *event);
+
+/**
+ * mlo_ser_set_link_req() - add mlo link set active cmd to serialization
+ * @req: mlo link set active request
+ *
+ * Return: QDF_STATUS
+ */
+QDF_STATUS mlo_ser_set_link_req(struct mlo_link_set_active_req *req);
+#endif
 #endif

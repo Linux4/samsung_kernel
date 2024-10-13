@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2019-2020 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -32,6 +33,9 @@
 #include <wlan_vdev_mlme_main.h>
 #include <wmi_unified_vdev_api.h>
 #include <target_if_psoc_wake_lock.h>
+#ifdef WLAN_FEATURE_ROAM_OFFLOAD
+#include <target_if_cm_roam_offload.h>
+#endif
 
 static inline
 void target_if_vdev_mgr_handle_recovery(struct wlan_objmgr_psoc *psoc,
@@ -47,6 +51,22 @@ void target_if_vdev_mgr_handle_recovery(struct wlan_objmgr_psoc *psoc,
 		mlme_nofl_debug("PSOC_%d VDEV_%d: Panic not allowed",
 				wlan_psoc_get_id(psoc), vdev_id);
 }
+
+#ifdef WLAN_FEATURE_ROAM_OFFLOAD
+static inline QDF_STATUS
+target_if_send_rso_stop_failure_rsp(struct wlan_objmgr_psoc *psoc,
+				    uint8_t vdev_id)
+{
+	return target_if_cm_send_rso_stop_failure_rsp(psoc, vdev_id);
+}
+#else
+static inline QDF_STATUS
+target_if_send_rso_stop_failure_rsp(struct wlan_objmgr_psoc *psoc,
+				    uint8_t vdev_id)
+{
+	return QDF_STATUS_E_NOSUPPORT;
+}
+#endif
 
 void target_if_vdev_mgr_rsp_timer_cb(void *arg)
 {
@@ -82,9 +102,10 @@ void target_if_vdev_mgr_rsp_timer_cb(void *arg)
 	    !qdf_atomic_test_bit(RESTART_RESPONSE_BIT, &vdev_rsp->rsp_status) &&
 	    !qdf_atomic_test_bit(STOP_RESPONSE_BIT, &vdev_rsp->rsp_status) &&
 	    !qdf_atomic_test_bit(DELETE_RESPONSE_BIT, &vdev_rsp->rsp_status) &&
-	    !qdf_atomic_test_bit(
-			PEER_DELETE_ALL_RESPONSE_BIT,
-			&vdev_rsp->rsp_status)) {
+	    !qdf_atomic_test_bit(PEER_DELETE_ALL_RESPONSE_BIT,
+				 &vdev_rsp->rsp_status) &&
+	    !qdf_atomic_test_bit(RSO_STOP_RESPONSE_BIT,
+				 &vdev_rsp->rsp_status)) {
 		mlme_debug("No response bit is set, ignoring actions :%d",
 			   vdev_rsp->vdev_id);
 		return;
@@ -150,6 +171,14 @@ void target_if_vdev_mgr_rsp_timer_cb(void *arg)
 						   recovery_reason, rsp_pos);
 		rx_ops->vdev_mgr_peer_delete_all_response(psoc,
 							  &peer_del_all_rsp);
+	} else if (qdf_atomic_test_bit(RSO_STOP_RESPONSE_BIT,
+				       &vdev_rsp->rsp_status)) {
+		rsp_pos = RSO_STOP_RESPONSE_BIT;
+		recovery_reason = QDF_RSO_STOP_RSP_TIMEOUT;
+		target_if_vdev_mgr_rsp_timer_stop(psoc, vdev_rsp, rsp_pos);
+		target_if_vdev_mgr_handle_recovery(psoc, vdev_id,
+						   recovery_reason, rsp_pos);
+		target_if_send_rso_stop_failure_rsp(psoc, vdev_id);
 	} else {
 		mlme_err("PSOC_%d VDEV_%d: Unknown error",
 			 wlan_psoc_get_id(psoc), vdev_id);
@@ -774,6 +803,7 @@ static int target_if_pdev_csa_status_event_handler(
 	struct target_psoc_info *tgt_hdl;
 	int i;
 	QDF_STATUS status;
+	struct wlan_lmac_if_mlme_rx_ops *rx_ops = NULL;
 
 	if (!scn || !data) {
 		mlme_err("Invalid input");
@@ -783,6 +813,12 @@ static int target_if_pdev_csa_status_event_handler(
 	psoc = target_if_get_psoc_from_scn_hdl(scn);
 	if (!psoc) {
 		mlme_err("PSOC is NULL");
+		return -EINVAL;
+	}
+
+	rx_ops = target_if_vdev_mgr_get_rx_ops(psoc);
+	if (!rx_ops || !rx_ops->vdev_mgr_set_max_channel_switch_time) {
+		mlme_err("No Rx Ops");
 		return -EINVAL;
 	}
 
@@ -806,6 +842,10 @@ static int target_if_pdev_csa_status_event_handler(
 		return -EINVAL;
 	}
 
+	if (csa_status.current_switch_count == 1)
+		rx_ops->vdev_mgr_set_max_channel_switch_time
+			(psoc, csa_status.vdev_ids, csa_status.num_vdevs);
+
 	if (wlan_psoc_nif_fw_ext_cap_get(psoc, WLAN_SOC_CEXT_CSA_TX_OFFLOAD)) {
 		for (i = 0; i < csa_status.num_vdevs; i++) {
 			if (!csa_status.current_switch_count)
@@ -816,6 +856,170 @@ static int target_if_pdev_csa_status_event_handler(
 
 	return target_if_csa_switch_count_status(psoc, tgt_hdl, csa_status);
 }
+
+#ifdef WLAN_FEATURE_DYNAMIC_MAC_ADDR_UPDATE
+/**
+ * target_if_update_macaddr_conf_evt_handler() - Set MAC address confirmation
+ *                                               event handler
+ * @scn: Pointer to scn structure
+ * @event_buff: event data
+ * @len: length
+ *
+ * Response handler for set MAC address request command.
+ *
+ * Return: 0 for success or error code
+ */
+static int target_if_update_macaddr_conf_evt_handler(ol_scn_t scn,
+						     uint8_t *event_buff,
+						     uint32_t len)
+{
+	struct wlan_objmgr_psoc *psoc;
+	struct wmi_unified *wmi_handle;
+	uint8_t vdev_id, resp_status;
+	QDF_STATUS status;
+	struct wlan_lmac_if_mlme_rx_ops *rx_ops;
+
+	if (!event_buff) {
+		mlme_err("Received NULL event ptr from FW");
+		return -EINVAL;
+	}
+
+	psoc = target_if_get_psoc_from_scn_hdl(scn);
+	if (!psoc) {
+		mlme_err("PSOC is NULL");
+		return -EINVAL;
+	}
+
+	wmi_handle = get_wmi_unified_hdl_from_psoc(psoc);
+	if (!wmi_handle) {
+		mlme_err("wmi_handle is null");
+		return -EINVAL;
+	}
+
+	status = wmi_extract_update_mac_address_event(wmi_handle, event_buff,
+						      &vdev_id, &resp_status);
+	if (QDF_IS_STATUS_ERROR(status)) {
+		mlme_err("Failed to extract update MAC address event");
+		return -EINVAL;
+	}
+
+	rx_ops = target_if_vdev_mgr_get_rx_ops(psoc);
+	if (!rx_ops || !rx_ops->vdev_mgr_set_mac_addr_response) {
+		mlme_err("No Rx Ops");
+		return -EINVAL;
+	}
+
+	rx_ops->vdev_mgr_set_mac_addr_response(vdev_id, resp_status);
+
+	return 0;
+}
+
+static inline void
+target_if_register_set_mac_addr_evt_cbk(struct wmi_unified *wmi_handle)
+{
+	wmi_unified_register_event_handler(
+		   wmi_handle, wmi_vdev_update_mac_addr_conf_eventid,
+		   target_if_update_macaddr_conf_evt_handler, VDEV_RSP_RX_CTX);
+}
+
+static inline void
+target_if_unregister_set_mac_addr_evt_cbk(struct wmi_unified *wmi_handle)
+{
+	wmi_unified_unregister_event_handler(
+			wmi_handle, wmi_vdev_update_mac_addr_conf_eventid);
+}
+#else
+static inline void
+target_if_register_set_mac_addr_evt_cbk(struct wmi_unified *wmi_handle)
+{
+}
+
+static inline void
+target_if_unregister_set_mac_addr_evt_cbk(struct wmi_unified *wmi_handle)
+{
+}
+#endif
+
+#ifdef WLAN_FEATURE_11BE_MLO
+/**
+ * target_if_quiet_offload_event_handler() - Quiet IE offload mlo
+ *                                           station event handler
+ * @scn: Pointer to scn structure
+ * @event_buff: event data
+ * @len: length
+ *
+ * Return: 0 for success or error code
+ */
+static int target_if_quiet_offload_event_handler(ol_scn_t scn,
+						 uint8_t *event_buff,
+						 uint32_t len)
+{
+	struct wlan_objmgr_psoc *psoc;
+	struct wmi_unified *wmi_handle;
+	QDF_STATUS status;
+	struct wlan_lmac_if_mlme_rx_ops *rx_ops;
+	struct vdev_sta_quiet_event sta_quiet_event = {0};
+
+	if (!event_buff) {
+		mlme_err("Received NULL event ptr from FW");
+		return -EINVAL;
+	}
+
+	psoc = target_if_get_psoc_from_scn_hdl(scn);
+	if (!psoc) {
+		mlme_err("PSOC is NULL");
+		return -EINVAL;
+	}
+
+	wmi_handle = get_wmi_unified_hdl_from_psoc(psoc);
+	if (!wmi_handle) {
+		mlme_err("wmi_handle is null");
+		return -EINVAL;
+	}
+
+	status = wmi_extract_quiet_offload_event(wmi_handle, event_buff,
+						 &sta_quiet_event);
+	if (QDF_IS_STATUS_ERROR(status)) {
+		mlme_err("Failed to extract quiet IE offload event");
+		return -EINVAL;
+	}
+
+	rx_ops = target_if_vdev_mgr_get_rx_ops(psoc);
+	if (!rx_ops || !rx_ops->vdev_mgr_quiet_offload) {
+		mlme_err("No Rx Ops");
+		return -EINVAL;
+	}
+
+	rx_ops->vdev_mgr_quiet_offload(psoc, &sta_quiet_event);
+
+	return 0;
+}
+
+static inline void
+target_if_register_quiet_offload_event(struct wmi_unified *wmi_handle)
+{
+	wmi_unified_register_event_handler(
+		   wmi_handle, wmi_vdev_quiet_offload_eventid,
+		   target_if_quiet_offload_event_handler, VDEV_RSP_RX_CTX);
+}
+
+static inline void
+target_if_unregister_quiet_offload_event(struct wmi_unified *wmi_handle)
+{
+	wmi_unified_unregister_event_handler(
+			wmi_handle, wmi_vdev_quiet_offload_eventid);
+}
+#else
+static inline void
+target_if_register_quiet_offload_event(struct wmi_unified *wmi_handle)
+{
+}
+
+static inline void
+target_if_unregister_quiet_offload_event(struct wmi_unified *wmi_handle)
+{
+}
+#endif
 
 QDF_STATUS target_if_vdev_mgr_wmi_event_register(
 				struct wlan_objmgr_psoc *psoc)
@@ -884,6 +1088,10 @@ QDF_STATUS target_if_vdev_mgr_wmi_event_register(
 			mlme_err("failed to register for csa event handler");
 	}
 
+	target_if_register_set_mac_addr_evt_cbk(wmi_handle);
+
+	target_if_register_quiet_offload_event(wmi_handle);
+
 	return retval;
 }
 
@@ -902,6 +1110,10 @@ QDF_STATUS target_if_vdev_mgr_wmi_event_unregister(
 		mlme_err("wmi_handle is null");
 		return QDF_STATUS_E_INVAL;
 	}
+
+	target_if_unregister_quiet_offload_event(wmi_handle);
+
+	target_if_unregister_set_mac_addr_evt_cbk(wmi_handle);
 
 	wmi_unified_unregister_event_handler(
 			wmi_handle,

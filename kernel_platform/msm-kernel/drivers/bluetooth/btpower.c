@@ -23,7 +23,13 @@
 #include <linux/uaccess.h>
 #include <linux/btpower.h>
 #include <linux/of_device.h>
+#include <linux/thermal.h>
 #include <soc/qcom/cmd-db.h>
+#ifdef CONFIG_ARCH_NEO
+#if IS_ENABLED(CONFIG_ICNSS2)
+#include <soc/qcom/icnss2.h>
+#endif
+#endif
 
 #if defined CONFIG_BT_SLIM_QCA6390 || \
 	defined CONFIG_BT_SLIM_QCA6490 || \
@@ -39,6 +45,10 @@
 #define BTPOWER_MBOX_MSG_MAX_LEN 64
 #define BTPOWER_MBOX_TIMEOUT_MS 1000
 #define XO_CLK_RETRY_COUNT_MAX 5
+#define BT_EN_MAX_DELAY 500
+#define BT_EN_DEFAULT_DELAY 100
+#define TEMP_THRESHOLD 5000
+
 /**
  * enum btpower_vreg_param: Voltage regulator TCS param
  * @BTPOWER_VREG_VOLTAGE: Provides voltage level to be configured in TCS
@@ -229,6 +239,30 @@ static int pwr_state;
 static struct class *bt_class;
 static int bt_major;
 static int soc_id;
+
+static int btpower_get_temperature(struct btpower_platform_data *pdata,
+				   int *temp)
+{
+	struct thermal_zone_device *thermal_dev;
+	int ret;
+
+	/* Temperature sensor is not provided in dts */
+	if (!pdata->tsens)
+		return -ENODEV;
+
+	thermal_dev = thermal_zone_get_zone_by_name(pdata->tsens);
+	if (IS_ERR(thermal_dev)) {
+		pr_err("Fail to get thermal zone. ret: %d\n",
+			PTR_ERR(thermal_dev));
+		return PTR_ERR(thermal_dev);
+	}
+
+	ret = thermal_zone_get_temp(thermal_dev, temp);
+	if (ret)
+		pr_err("Fail to get temperature. ret: %d\n", ret);
+
+	return ret;
+}
 
 #ifdef CONFIG_MSM_BT_OOBS
 static void btpower_uart_transport_locked(struct btpower_platform_data *drvdata,
@@ -527,6 +561,7 @@ static int bt_configure_gpios(int on)
 		}
 		bt_power_src_status[BT_RESET_GPIO] =
 			gpio_get_value(bt_reset_gpio);
+
 		msleep(50);
 		pr_info("BTON:Turn Bt OFF post asserting BT_EN to low\n");
 		pr_info("bt-reset-gpio(%d) value(%d)\n", bt_reset_gpio,
@@ -558,6 +593,8 @@ static int bt_configure_gpios(int on)
 			btpower_set_xo_clk_gpio_state(false);
 		}
 		if ((wl_reset_gpio >= 0) && (gpio_get_value(wl_reset_gpio) == 0)) {
+			int temp;
+			int bt_en_delay = BT_EN_DEFAULT_DELAY;
 			if (gpio_get_value(bt_reset_gpio)) {
 				pr_info("BTON: WLAN OFF and BT ON are too close\n");
 				pr_info("reset BT_EN, enable it after delay\n");
@@ -570,9 +607,16 @@ static int bt_configure_gpios(int on)
 				bt_power_src_status[BT_RESET_GPIO] =
 					gpio_get_value(bt_reset_gpio);
 			}
-			pr_info("BTON: WLAN OFF waiting for 100ms delay\n");
+			/* BT_EN delay will decided based on the current temperature */
+			if (!btpower_get_temperature(bt_power_pdata, &temp)) {
+				if (temp < TEMP_THRESHOLD)
+					bt_en_delay = BT_EN_MAX_DELAY;
+				pr_info("%s: current temperature:%d and bt_en delay %d\n",
+				__func__, temp, bt_en_delay);
+			}
+			pr_info("BTON: WLAN OFF waiting for %d ms delay\n", bt_en_delay);
 			pr_info("for AON output to fully discharge\n");
-			msleep(100);
+			msleep(bt_en_delay);
 			pr_info("BTON: WLAN OFF Asserting BT_EN to high\n");
 			btpower_set_xo_clk_gpio_state(true);
 			rc = gpio_direction_output(bt_reset_gpio, 1);
@@ -661,9 +705,15 @@ static int bluetooth_power(int on)
 {
 	int rc = 0;
 
-	pr_debug("%s: on: %d\n", __func__, on);
+	pr_err("%s: on: %d\n", __func__, on);
 
 	if (on == 1) {
+#ifdef CONFIG_ARCH_NEO
+#if IS_ENABLED(CONFIG_ICNSS2)
+		icnss_power_trigger_pinctrl(NULL, ICNSS_PINCTRL_OWNER_BT,
+					    ICNSS_PINCTRL_SEQ_ON);
+#endif
+#endif
 		rc = bt_power_vreg_set(BT_POWER_ENABLE);
 		if (rc < 0) {
 			pr_err("%s: bt_power regulators config failed\n",
@@ -706,6 +756,12 @@ gpio_fail:
 			bt_clk_disable(bt_power_pdata->bt_chip_clk);
 clk_fail:
 regulator_fail:
+#ifdef CONFIG_ARCH_NEO
+#if IS_ENABLED(CONFIG_ICNSS2)
+		icnss_power_trigger_pinctrl(NULL, ICNSS_PINCTRL_OWNER_BT,
+					    ICNSS_PINCTRL_SEQ_OFF);
+#endif
+#endif
 		bt_power_vreg_set(BT_POWER_DISABLE);
 	} else if (on == 2) {
 		/* Retention mode */
@@ -1036,6 +1092,15 @@ static int bt_power_populate_dt_pinfo(struct platform_device *pdev)
 			pr_warn("%s: bthostwake_gpio not provided in device tree\n",
 				__func__);
 #endif
+		rc = of_property_read_string(pdev->dev.of_node,
+					      "tsens",
+					      &bt_power_pdata->tsens);
+		if (rc)
+			pr_warn("%s: temperature sensor is not provided in dts\n",
+				__func__);
+		else
+			pr_info("%s: temperature sensor is provided in dts\n",
+				__func__);
 	}
 
 	bt_power_pdata->bt_power_setup = bluetooth_power;
@@ -1391,6 +1456,7 @@ int btpower_aop_mbox_init(struct btpower_platform_data *pdata)
 {
 	struct mbox_client *mbox = &pdata->mbox_client_data;
 	struct mbox_chan *chan;
+	struct bt_power_vreg_data *vreg_ipa_info;
 	int ret = 0;
 
 	mbox->dev = &pdata->pdev->dev;
@@ -1411,9 +1477,34 @@ int btpower_aop_mbox_init(struct btpower_platform_data *pdata)
 				      &pdata->vreg_ipa);
 	if (ret)
 		pr_info("%s: vreg for iPA not configured\n", __func__);
-	else
+	else {
 		pr_info("%s: Mbox channel initialized\n", __func__);
+		vreg_ipa_info = devm_kzalloc(&pdata->pdev->dev,
+					sizeof(*vreg_ipa_info),
+					GFP_KERNEL);
+		if (!vreg_ipa_info)
+			return -ENOMEM;
 
+		vreg_ipa_info->name = devm_kzalloc(&pdata->pdev->dev,
+						20,
+						GFP_KERNEL);
+		if (!vreg_ipa_info->name)
+			return -ENOMEM;
+
+		strlcpy((char *)vreg_ipa_info->name, "qcom,vreg_ipa", MAX_PROP_SIZE);
+		vreg_ipa_info->min_vol = 0;
+		vreg_ipa_info->max_vol = 0;
+		vreg_ipa_info->load_curr = 0;
+		ret = bt_dt_parse_vreg_info(&pdata->pdev->dev, vreg_ipa_info);
+		if (!ret && vreg_ipa_info->reg) {
+			pr_info("%s: obtained IPA reg handler\n", __func__);
+			pdata->vreg_ipa_info = vreg_ipa_info;
+		} else {
+			pr_warn("%s: failed to obtain IPA reg handler\n",
+				__func__);
+		}
+		return ret;
+	}
 	return 0;
 }
 
@@ -1426,6 +1517,7 @@ static int btpower_aop_set_vreg_param(struct btpower_platform_data *pdata,
 	char mbox_msg[BTPOWER_MBOX_MSG_MAX_LEN];
 	static const char * const vreg_param_str[] = {"v", "m", "e"};
 	static const char *const tcs_seq_str[] = {"upval", "dwnval", "enable"};
+	struct bt_power_vreg_data *vreg_ipa_info = pdata->vreg_ipa_info;
 	int ret = 0;
 
 	if (param > BTPOWER_VREG_ENABLE || seq > BTPOWER_TCS_ALL_SEQ || !vreg_name)
@@ -1444,6 +1536,16 @@ static int btpower_aop_set_vreg_param(struct btpower_platform_data *pdata,
 		pr_err("%s:Failed to send AOP mbox msg(%s), err(%d)\n",
 					__func__, mbox_msg, ret);
 
+	if (!vreg_ipa_info) {
+		pr_warn("%s: IPA regulator entry is missing in dts\n", __func__);
+		return -EINVAL;
+	}
+
+	if (vreg_ipa_info->reg) {
+		ret = bt_vreg_enable(vreg_ipa_info);
+		if (ret < 0)
+			pr_err("%s: Failed to enable IPA vreg\n", __func__);
+	}
 	return ret;
 }
 
@@ -1480,6 +1582,12 @@ static void __exit btpower_exit(void)
 
 MODULE_LICENSE("GPL v2");
 MODULE_DESCRIPTION("MSM Bluetooth power control driver");
+
+#ifdef CONFIG_ARCH_NEO
+#if IS_ENABLED(CONFIG_ICNSS2)
+MODULE_SOFTDEP("pre: icnss2");
+#endif
+#endif
 
 module_init(btpower_init);
 module_exit(btpower_exit);

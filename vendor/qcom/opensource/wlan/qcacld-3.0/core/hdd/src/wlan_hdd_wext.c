@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2011-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -4761,7 +4761,7 @@ static int hdd_we_set_modulated_dtim(struct hdd_adapter *adapter, int value)
 	if (!hdd_ctx->psoc)
 		return -EINVAL;
 
-	if ((value < cfg_max(CFG_PMO_ENABLE_MODULATED_DTIM)) ||
+	if ((value < cfg_min(CFG_PMO_ENABLE_MODULATED_DTIM)) ||
 	    (value > cfg_max(CFG_PMO_ENABLE_MODULATED_DTIM))) {
 		hdd_err("Invalid value %d", value);
 		return -EINVAL;
@@ -5091,6 +5091,7 @@ static int __iw_setnone_get_threeint(struct net_device *dev,
 	uint32_t *value = (int *)extra;
 	struct hdd_adapter *adapter = WLAN_HDD_GET_PRIV_PTR(dev);
 	struct hdd_context *hdd_ctx = WLAN_HDD_GET_CTX(adapter);
+	struct hdd_tsf_op_response tsf_op_resp;
 
 	hdd_enter_dev(dev);
 	ret = wlan_hdd_validate_context(hdd_ctx);
@@ -5104,7 +5105,12 @@ static int __iw_setnone_get_threeint(struct net_device *dev,
 	hdd_debug("param = %d", value[0]);
 	switch (value[0]) {
 	case WE_GET_TSF:
-		ret = hdd_indicate_tsf(adapter, value, 3);
+		ret = hdd_indicate_tsf(adapter, &tsf_op_resp);
+		if (!ret) {
+			value[0] = tsf_op_resp.status;
+			value[1] = tsf_op_resp.time & 0xffffffff;
+			value[2] = (tsf_op_resp.time >> 32) & 0xffffffff;
+		}
 		break;
 	default:
 		hdd_err("Invalid IOCTL get_value command %d", value[0]);
@@ -5814,7 +5820,7 @@ static int hdd_set_fwtest(int argc, int cmd, int value)
 	struct set_fwtest_params *fw_test;
 
 	/* check for max number of arguments */
-	if (argc > (WMA_MAX_NUM_ARGS) ||
+	if (argc > WMI_UNIT_TEST_MAX_NUM_ARGS ||
 	    argc != HDD_FWTEST_PARAMS) {
 		hdd_err("Too Many args %d", argc);
 		return -EINVAL;
@@ -6778,10 +6784,11 @@ static int iw_get_policy_manager_ut_ops(struct hdd_context *hdd_ctx,
 	{
 		hdd_debug("<iwpriv wlan0 pm_dbs> is called");
 		if (apps_args[0] == 0)
-			wma_set_dbs_capability_ut(0);
+			policy_mgr_set_dbs_cap_ut(hdd_ctx->psoc, 0);
 		else
-			wma_set_dbs_capability_ut(1);
+			policy_mgr_set_dbs_cap_ut(hdd_ctx->psoc, 1);
 
+		wma_enable_dbs_service_ut();
 		if (apps_args[1] >= PM_THROUGHPUT &&
 			apps_args[1] <= PM_LATENCY) {
 			hdd_debug("setting system pref to [%d]\n",
@@ -6850,7 +6857,9 @@ static int iw_get_policy_manager_ut_ops(struct hdd_context *hdd_ctx,
 				hdd_ctx->psoc, apps_args[0],
 				wlan_reg_legacy_chan_to_freq(hdd_ctx->pdev,
 							     apps_args[1]),
-							     apps_args[2]);
+				apps_args[2],
+				policy_mgr_get_conc_ext_flags(adapter->vdev,
+							      false));
 		hdd_debug("allow %d {0 = don't allow, 1 = allow}", allow);
 	}
 	break;
@@ -7177,8 +7186,9 @@ static int __iw_set_var_ints_getnone(struct net_device *dev,
 			conn_info++;
 		}
 
-		pr_info("|\t|current state dbs - %-10d|\n",
-			policy_mgr_is_current_hwmode_dbs(hdd_ctx->psoc));
+		pr_info("|\t|current state dbs - %-10d, sbs - %-10d|\n",
+			policy_mgr_is_current_hwmode_dbs(hdd_ctx->psoc),
+			policy_mgr_is_current_hwmode_sbs(hdd_ctx->psoc));
 	}
 	break;
 
@@ -7192,8 +7202,8 @@ static int __iw_set_var_ints_getnone(struct net_device *dev,
 			hdd_err_rl("Invalid MODULE ID %d", apps_args[0]);
 			return -EINVAL;
 		}
-		if ((apps_args[1] > (WMA_MAX_NUM_ARGS)) ||
-		    (apps_args[1] < 0)) {
+		if (apps_args[1] > WMI_UNIT_TEST_MAX_NUM_ARGS ||
+		    apps_args[1] < 0) {
 			hdd_err_rl("Too Many/Few args %d", apps_args[1]);
 			return -EINVAL;
 		}
@@ -7420,7 +7430,8 @@ static int __iw_set_var_ints_getnone(struct net_device *dev,
 		therm_cfg_params.levelconf[0].dcoffpercent = apps_args[2];
 		therm_cfg_params.levelconf[0].priority = apps_args[3];
 		therm_cfg_params.levelconf[0].tmplwm = apps_args[6];
-		hdd_thermal_fill_clientid_priority(THERMAL_MONITOR_APPS,
+		hdd_thermal_fill_clientid_priority(hdd_ctx,
+						   THERMAL_MONITOR_APPS,
 						   thermal_temp.priority_apps,
 						   thermal_temp.priority_wpps,
 						   &therm_cfg_params);
@@ -8443,8 +8454,17 @@ static int iw_get_statistics(struct net_device *dev,
 	if (errno)
 		return errno;
 
+	errno = wlan_hdd_qmi_get_sync_resume();
+	if (errno) {
+		hdd_err("qmi sync resume failed: %d", errno);
+		goto end;
+	}
+
 	errno = __iw_get_statistics(dev, info, wrqu, extra);
 
+	wlan_hdd_qmi_put_suspend();
+
+end:
 	osif_vdev_sync_op_stop(vdev_sync);
 
 	return errno;
@@ -8662,10 +8682,10 @@ static int __iw_set_pno(struct net_device *dev,
 		ptr += req.networks_list[i].ssid.length;
 
 		params = sscanf(ptr, " %u %u %hhu %n",
-				  &(req.networks_list[i].authentication),
-				  &(req.networks_list[i].encryption),
-				  &(req.networks_list[i].channel_cnt),
-				  &offset);
+				&(req.networks_list[i].authentication),
+				&(req.networks_list[i].encryption),
+				&(req.networks_list[i].pno_chan_list.num_chan),
+				&offset);
 
 		if (3 != params) {
 			hdd_err("Incorrect cmd %s", ptr);
@@ -8679,20 +8699,21 @@ static int __iw_set_pno(struct net_device *dev,
 			  req.networks_list[i].ssid.ssid,
 			  req.networks_list[i].authentication,
 			  req.networks_list[i].encryption,
-			  req.networks_list[i].channel_cnt, offset);
+			  req.networks_list[i].pno_chan_list.num_chan, offset);
 
 		/* Advance to channel list */
 		ptr += offset;
 
 		if (SCAN_PNO_MAX_NETW_CHANNELS_EX <
-		    req.networks_list[i].channel_cnt) {
+		    req.networks_list[i].pno_chan_list.num_chan) {
 			hdd_err("Incorrect number of channels");
 			ret = -EINVAL;
 			goto exit;
 		}
 
-		if (0 != req.networks_list[i].channel_cnt) {
-			for (j = 0; j < req.networks_list[i].channel_cnt;
+		if (0 != req.networks_list[i].pno_chan_list.num_chan) {
+			for (j = 0;
+			     j < req.networks_list[i].pno_chan_list.num_chan;
 			     j++) {
 				if (1 != sscanf(ptr, " %hhu %n", &value,
 				   &offset)) {
@@ -8706,7 +8727,7 @@ static int __iw_set_pno(struct net_device *dev,
 					ret = -EINVAL;
 					goto exit;
 				}
-				req.networks_list[i].channels[j] =
+				req.networks_list[i].pno_chan_list.chan[j].freq =
 					cds_chan_to_freq(value);
 				/* Advance to next channel number */
 				ptr += offset;

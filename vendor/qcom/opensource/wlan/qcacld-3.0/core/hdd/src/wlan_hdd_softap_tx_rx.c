@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2012-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -49,6 +49,7 @@
 #include "wlan_hdd_sta_info.h"
 #include "ol_defines.h"
 #include <wlan_hdd_sar_limits.h>
+#include "wlan_hdd_tsf.h"
 
 /* Preprocessor definitions and constants */
 #undef QCA_HDD_SAP_DUMP_SK_BUFF
@@ -207,41 +208,6 @@ static inline struct sk_buff *hdd_skb_orphan(struct hdd_adapter *adapter,
 		skb = skb_unshare(skb, GFP_ATOMIC);
 
 	return skb;
-}
-
-#else
-/**
- * hdd_skb_orphan() - skb_unshare a cloned packed else skb_orphan
- * @adapter: pointer to HDD adapter
- * @skb: pointer to skb data packet
- *
- * Return: pointer to skb structure
- */
-static inline struct sk_buff *hdd_skb_orphan(struct hdd_adapter *adapter,
-		struct sk_buff *skb) {
-
-	struct sk_buff *nskb;
-#if (LINUX_VERSION_CODE > KERNEL_VERSION(3, 19, 0))
-	struct hdd_context *hdd_ctx = WLAN_HDD_GET_CTX(adapter);
-#endif
-	int cpu;
-
-	hdd_skb_fill_gso_size(adapter->dev, skb);
-
-	nskb = skb_unshare(skb, GFP_ATOMIC);
-#if (LINUX_VERSION_CODE > KERNEL_VERSION(3, 19, 0))
-	if (unlikely(hdd_ctx->config->tx_orphan_enable) && (nskb == skb)) {
-		/*
-		 * For UDP packets we want to orphan the packet to allow the app
-		 * to send more packets. The flow would ultimately be controlled
-		 * by the limited number of tx descriptors for the vdev.
-		 */
-		cpu = qdf_get_smp_processor_id();
-		++adapter->hdd_stats.tx_rx_stats.per_cpu[cpu].tx_orphaned;
-		skb_orphan(skb);
-	}
-#endif
-	return nskb;
 }
 #endif /* QCA_LL_LEGACY_TX_FLOW_CONTROL */
 
@@ -647,7 +613,8 @@ QDF_STATUS hdd_softap_validate_driver_state(struct hdd_adapter *adapter)
 		return QDF_STATUS_E_ABORTED;
 	}
 
-	if (qdf_unlikely(adapter->hdd_ctx->hdd_wlan_suspended)) {
+	if (qdf_unlikely(adapter->hdd_ctx->hdd_wlan_suspended ||
+			 adapter->hdd_ctx->hdd_wlan_suspend_in_progress)) {
 		hdd_err_rl("Device is system suspended, drop pkt");
 		return QDF_STATUS_E_ABORTED;
 	}
@@ -726,6 +693,9 @@ static void __hdd_softap_hard_start_xmit(struct sk_buff *skb,
 		goto drop_pkt;
 
 	wlan_hdd_classify_pkt(skb);
+
+	hdd_pkt_add_timestamp(adapter, QDF_PKT_TX_DRIVER_ENTRY,
+			      qdf_get_log_timestamp(), skb);
 
 	if (QDF_IS_STATUS_ERROR(hdd_softap_validate_peer_state(adapter, skb)))
 		goto drop_pkt;
@@ -1196,6 +1166,9 @@ QDF_STATUS hdd_softap_rx_packet_cbk(void *adapter_context, qdf_nbuf_t rx_buf)
 			continue;
 		}
 
+		hdd_pkt_add_timestamp(adapter, QDF_PKT_RX_DRIVER_EXIT,
+				      qdf_get_log_timestamp(), skb);
+
 		hdd_event_eapol_log(skb, QDF_RX);
 		qdf_dp_trace_log_pkt(adapter->vdev_id,
 				     skb, QDF_RX, QDF_TRACE_DEFAULT_PDEV_ID);
@@ -1206,6 +1179,9 @@ QDF_STATUS hdd_softap_rx_packet_cbk(void *adapter_context, qdf_nbuf_t rx_buf)
 			sizeof(qdf_nbuf_data(skb)), QDF_RX));
 		DPTRACE(qdf_dp_trace_data_pkt(skb, QDF_TRACE_DEFAULT_PDEV_ID,
 				QDF_DP_TRACE_RX_PACKET_RECORD, 0, QDF_RX));
+
+		if (hdd_rx_pkt_tracepoints_enabled())
+			qdf_trace_dp_packet(skb, QDF_RX, NULL, 0);
 
 		skb->protocol = eth_type_trans(skb, skb->dev);
 
@@ -1329,6 +1305,7 @@ QDF_STATUS hdd_softap_register_sta(struct hdd_adapter *adapter,
 	struct hdd_station_info *sta_info;
 	bool wmm_enabled = false;
 	enum qca_wlan_802_11_mode dot11mode = QCA_WLAN_802_11_MODE_INVALID;
+	enum phy_ch_width ch_width;
 
 	if (event) {
 		wmm_enabled = event->wmmEnabled;
@@ -1378,12 +1355,16 @@ QDF_STATUS hdd_softap_register_sta(struct hdd_adapter *adapter,
 		txrx_ops.rx.rx_flush = NULL;
 	}
 
+	txrx_ops.get_tsf_time = hdd_get_tsf_time;
 	cdp_vdev_register(soc,
 			  adapter->vdev_id,
 			  (ol_osif_vdev_handle)adapter,
 			  &txrx_ops);
 	adapter->tx_fn = txrx_ops.tx.tx;
 
+	ch_width = ucfg_mlme_get_peer_ch_width(adapter->hdd_ctx->psoc,
+					       txrx_desc.peer_addr.bytes);
+	txrx_desc.bw = hdd_convert_ch_width_to_cdp_peer_bw(ch_width);
 	qdf_status = cdp_peer_register(soc, OL_TXRX_PDEV_ID, &txrx_desc);
 	if (!QDF_IS_STATUS_SUCCESS(qdf_status)) {
 		hdd_debug("cdp_peer_register() failed to register.  Status = %d [0x%08X]",

@@ -309,30 +309,24 @@ int SessionAlsaPcm::setConfig(Stream * s, configType type, uint32_t tag1,
             }
             status = SessionAlsaUtils::getTagMetadata(tagsent, tkv, tagConfig);
             if (0 != status) {
-#ifdef SEC_AUDIO_EARLYDROP_PATCH
                 if (tagConfig)
                     free(tagConfig);
-#endif
                 goto exit;
             }
             tagCntrlName << stream << pcmDevIds.at(0) << " " << setParamTagControl;
             ctl = mixer_get_ctl_by_name(mixer, tagCntrlName.str().data());
             if (!ctl) {
                 PAL_ERR(LOG_TAG, "Invalid mixer control: %s\n", tagCntrlName.str().data());
-#ifdef SEC_AUDIO_EARLYDROP_PATCH
                 if (tagConfig)
                     free(tagConfig);
-#endif
                 return -ENOENT;
             }
 
             tkv_size = tkv.size() * sizeof(struct agm_key_value);
             status = mixer_ctl_set_array(ctl, tagConfig, sizeof(struct agm_tag_config) + tkv_size);
             if (status != 0) {
-#ifdef SEC_AUDIO_EARLYDROP_PATCH
                 if (tagConfig)
                     free(tagConfig);
-#endif
                 PAL_ERR(LOG_TAG, "failed to set the tag calibration %d", status);
                 goto exit;
             }
@@ -460,9 +454,15 @@ int SessionAlsaPcm::setConfig(Stream * s, configType type, int tag)
     const char *setParamTagControl = "setParamTag";
     const char *stream = "PCM";
     const char *setCalibrationControl = "setCalibration";
+#ifdef SEC_AUDIO_BLE_OFFLOAD
+    const char *setBEControl = "control";
+#endif
     struct mixer_ctl *ctl;
     std::ostringstream tagCntrlName;
     std::ostringstream calCntrlName;
+#ifdef SEC_AUDIO_BLE_OFFLOAD
+    std::ostringstream beCntrlName;
+#endif
     pal_stream_attributes sAttr;
     int tag_config_size = 0;
     int cal_config_size = 0;
@@ -472,7 +472,36 @@ int SessionAlsaPcm::setConfig(Stream * s, configType type, int tag)
         PAL_ERR(LOG_TAG, "stream get attributes failed");
         return status;
     }
-    PAL_DBG(LOG_TAG, "Enter tag: %d", tag);
+
+#ifdef SEC_AUDIO_BLE_OFFLOAD
+    if (sAttr.type != PAL_STREAM_VOICE_CALL_RECORD &&
+        sAttr.type != PAL_STREAM_VOICE_CALL_MUSIC  &&
+        sAttr.type != PAL_STREAM_CONTEXT_PROXY) {
+        if ((sAttr.direction == PAL_AUDIO_OUTPUT && rxAifBackEnds.empty()) ||
+            (sAttr.direction == PAL_AUDIO_INPUT && txAifBackEnds.empty())) {
+            PAL_ERR(LOG_TAG, "No backend connected to this stream\n");
+            return -EINVAL;
+        }
+
+        if (PAL_STREAM_LOOPBACK == sAttr.type) {
+            if (pcmDevRxIds.size() > 0)
+                beCntrlName << stream << pcmDevRxIds.at(0) << " " << setBEControl;
+        } else {
+            if (pcmDevIds.size() > 0)
+                beCntrlName << stream << pcmDevIds.at(0) << " " << setBEControl;
+        }
+
+        ctl = mixer_get_ctl_by_name(mixer, beCntrlName.str().data());
+        if (!ctl) {
+            PAL_ERR(LOG_TAG, "Invalid mixer control: %s\n", beCntrlName.str().data());
+            return -ENOENT;
+        }
+        mixer_ctl_set_enum_by_string(ctl, (sAttr.direction == PAL_AUDIO_INPUT) ?
+                                     txAifBackEnds[0].second.data() : rxAifBackEnds[0].second.data());
+    }
+#endif
+
+    PAL_DBG(LOG_TAG, "Enter tag: 0x%x", tag);
     switch (type) {
         case MODULE:
             tkv.clear();
@@ -606,7 +635,14 @@ exit:
     if (calConfig)
         free(calConfig);
 
-    PAL_DBG(LOG_TAG, "exit status: %d ", status);
+#ifdef SEC_AUDIO_ADD_FOR_DEBUG
+    if (status != 0) {
+        PAL_ERR(LOG_TAG, "exit status: %d (failed)", status);
+    } else
+#endif
+    {
+        PAL_DBG(LOG_TAG, "exit status: %d ", status);
+    }
     return status;
 }
 
@@ -981,6 +1017,12 @@ int SessionAlsaPcm::start(Stream * s)
                     streamData.bitWidth = sAttr.in_media_config.bit_width;
                 streamData.sampleRate = sAttr.in_media_config.sample_rate;
                 streamData.numChannel = sAttr.in_media_config.ch_info.channels;
+#ifdef SEC_AUDIO_CALL_RECORD
+                if ((sAttr.type == PAL_STREAM_VOICE_CALL_RECORD) && (sAttr.in_media_config.ch_info.channels == 2)) {
+                    // To ensure the channel mapping rules in call recording (L-Rx/R-Tx).
+                    streamData.rotation_type = PAL_SPEAKER_ROTATION_RL;
+                } else
+#endif
                 streamData.rotation_type = PAL_SPEAKER_ROTATION_LR;
                 streamData.ch_info = nullptr;
                 builder->payloadMFCConfig(&payload, &payloadSize, miid, &streamData);
@@ -1326,6 +1368,11 @@ pcm_start:
             if (setConfig(s, CALIBRATION, TAG_STREAM_VOLUME) != 0) {
                 PAL_ERR(LOG_TAG,"Setting volume failed");
             }
+#ifdef SEC_AUDIO_ADD_FOR_DEBUG
+            else {
+                PAL_INFO(LOG_TAG,"Setting volume success");
+            }
+#endif
         }
     }
 
@@ -1873,15 +1920,8 @@ int SessionAlsaPcm::write(Stream *s, int tag, struct pal_buffer *buf, int * size
         data = buf->buffer;
         data = static_cast<char *>(data) + offset;
         sizeWritten = out_buf_size;  //initialize 0
-        if (pcm && (mState == SESSION_FLUSHED)) {
-            status = pcm_start(pcm);
-            if (status) {
-                status = errno;
-                PAL_ERR(LOG_TAG, "pcm_start failed %d", status);
-                goto exit;
-            }
-            mState = SESSION_STARTED;
-        } else if (!pcm) {
+
+        if (!pcm) {
             PAL_ERR(LOG_TAG, "pcm is NULL");
             status = -EINVAL;
             goto exit;
@@ -1912,15 +1952,8 @@ int SessionAlsaPcm::write(Stream *s, int tag, struct pal_buffer *buf, int * size
     offset = bytesWritten + buf->offset;
     sizeWritten = bytesRemaining;
     data = buf->buffer;
-    if (pcm && (mState == SESSION_FLUSHED)) {
-        status = pcm_start(pcm);
-        if (status) {
-            status = errno;
-            PAL_ERR(LOG_TAG, "pcm_start failed %d", status);
-            goto exit;
-        }
-        mState = SESSION_STARTED;
-    } else if (!pcm) {
+
+    if (!pcm) {
         PAL_ERR(LOG_TAG, "pcm is NULL");
         status = -EINVAL;
         goto exit;
@@ -2288,12 +2321,8 @@ int SessionAlsaPcm::setParameters(Stream *streamHandle, int tagId, uint32_t para
                 status = SessionAlsaUtils::setMixerParameter(mixer, device,
                                                paramData, paramSize);
                 PAL_INFO(LOG_TAG, "mixer set volume config status=%d\n", status);
-#ifdef SEC_AUDIO_EARLYDROP_PATCH
                 delete [] paramData;
                 paramSize = 0;
-#else
-                freeCustomPayload(&paramData, &paramSize);
-#endif
             }
             return 0;
 
@@ -2349,9 +2378,7 @@ int SessionAlsaPcm::register_asps_event(uint32_t reg)
     event_cfg->event_id = EVENT_ID_ASPS_CLOSE_ALL;
     SessionAlsaUtils::registerMixerEvent(mixer, pcmDevIds.at(0),
             (void *)event_cfg, payload_size);
-#ifdef SEC_AUDIO_EARLYDROP_PATCH
     free(event_cfg);
-#endif
     return status;
 }
 
@@ -2675,23 +2702,16 @@ int SessionAlsaPcm::drain(pal_drain_type_t type __unused)
 int SessionAlsaPcm::flush()
 {
     int status = 0;
+    PAL_VERBOSE(LOG_TAG, "Enter flush");
 
-    if (!pcm) {
-        PAL_ERR(LOG_TAG, "Pcm is invalid");
+    if (pcmDevIds.size() > 0) {
+        status = SessionAlsaUtils::flush(rm, pcmDevIds.at(0));
+    } else {
+        PAL_ERR(LOG_TAG, "DevIds size is invalid");
         return -EINVAL;
     }
-    PAL_VERBOSE(LOG_TAG, "Enter flush\n");
-    if (pcm && isActive()) {
-        status = pcm_stop(pcm);
 
-        if (!status)
-            mState = SESSION_FLUSHED;
-        else
-            status = errno;
-    }
-
-    PAL_VERBOSE(LOG_TAG, "status %d\n", status);
-
+    PAL_VERBOSE(LOG_TAG, "Exit status: %d", status);
     return status;
 }
 

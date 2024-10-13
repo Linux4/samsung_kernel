@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2018-2021 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -175,19 +176,23 @@ QDF_STATUS hdd_send_twt_responder_enable_cmd(struct hdd_context *hdd_ctx);
  * hdd_send_twt_requestor_disable_cmd() - Send TWT requestor disable command
  * to target
  * @hdd_ctx: HDD Context
+ * @reason: Disable reason code
  *
  * Return: QDF_STATUS
  */
-QDF_STATUS hdd_send_twt_requestor_disable_cmd(struct hdd_context *hdd_ctx);
+QDF_STATUS hdd_send_twt_requestor_disable_cmd(struct hdd_context *hdd_ctx,
+					      uint32_t reason);
 
 /**
  * hdd_send_twt_responder_disable_cmd() - Send TWT responder disable command
  * to target
  * @hdd_ctx: HDD Context
+ * @reason: Disable reason code
  *
  * Return: QDF_STATUS
  */
-QDF_STATUS hdd_send_twt_responder_disable_cmd(struct hdd_context *hdd_ctx);
+QDF_STATUS hdd_send_twt_responder_disable_cmd(struct hdd_context *hdd_ctx,
+					      uint32_t reason);
 
 /**
  * wlan_hdd_twt_init() - Initialize TWT
@@ -261,14 +266,28 @@ void hdd_send_twt_role_disable_cmd(struct hdd_context *hdd_ctx,
 void hdd_send_twt_del_all_sessions_to_userspace(struct hdd_adapter *adapter);
 
 /**
- * hdd_twt_concurrency_update_on_scc_mcc() - Send TWT disable command to fw if
- * SCC/MCC exists in two vdevs
- * @hdd_ctx: hdd context pointer
+ * hdd_twt_concurrency_update_on_scc() - Send TWT disable command to fw if
+ * SCC exists in two vdevs
+ * @pdev: pdev pointer
+ * @object: object pointer
+ * @arg: argument pointer
  *
  * Return: None
  */
-void hdd_twt_concurrency_update_on_scc_mcc(struct wlan_objmgr_pdev *pdev,
-					   void *object, void *arg);
+void hdd_twt_concurrency_update_on_scc(struct wlan_objmgr_pdev *pdev,
+				       void *object, void *arg);
+
+/**
+ * hdd_twt_concurrency_update_on_mcc() - Send TWT disable command to fw if
+ * MCC exists in two vdevs
+ * @pdev: pdev pointer
+ * @object: object pointer
+ * @arg: argument pointer
+ *
+ * Return: None
+ */
+void hdd_twt_concurrency_update_on_mcc(struct wlan_objmgr_pdev *pdev,
+				       void *object, void *arg);
 
 /**
  * hdd_twt_concurrency_update_on_dbs() - Send TWT enable command to fw if DBS
@@ -331,6 +350,23 @@ void hdd_twt_del_dialog_in_ps_disable(struct hdd_context *hdd_ctx,
 			      QCA_WLAN_VENDOR_ATTR_CONFIG_TWT_MAX)       \
 },
 
+/**
+ * hdd_get_twt_requestor() - Get TWT requestor config
+ * @psoc: global psoc object
+ * @val: output variable to store the value
+ *
+ * Return: QDF_STATUS
+ */
+QDF_STATUS hdd_get_twt_requestor(struct wlan_objmgr_psoc *psoc, bool *val);
+
+/**
+ * hdd_get_twt_responder() - Get TWT responder config
+ * @psoc: global psoc object
+ * @val: output variable to store the value
+ *
+ * Return: QDF_STATUS
+ */
+QDF_STATUS hdd_get_twt_responder(struct wlan_objmgr_psoc *psoc, bool *val);
 #else
 static inline void hdd_update_tgt_twt_cap(struct hdd_context *hdd_ctx,
 					  struct wma_tgt_cfg *cfg)
@@ -350,13 +386,15 @@ QDF_STATUS hdd_send_twt_responder_enable_cmd(struct hdd_context *hdd_ctx)
 }
 
 static inline
-QDF_STATUS hdd_send_twt_requestor_disable_cmd(struct hdd_context *hdd_ctx)
+QDF_STATUS hdd_send_twt_requestor_disable_cmd(struct hdd_context *hdd_ctx,
+					      uint32_t reason)
 {
 	return QDF_STATUS_E_NOSUPPORT;
 }
 
 static inline
-QDF_STATUS hdd_send_twt_responder_disable_cmd(struct hdd_context *hdd_ctx)
+QDF_STATUS hdd_send_twt_responder_disable_cmd(struct hdd_context *hdd_ctx,
+					      uint32_t reason)
 {
 	return QDF_STATUS_E_NOSUPPORT;
 }
@@ -395,8 +433,14 @@ void hdd_send_twt_del_all_sessions_to_userspace(struct hdd_adapter *adapter)
 }
 
 static inline
-void hdd_twt_concurrency_update_on_scc_mcc(struct wlan_objmgr_pdev *pdev,
-					   void *object, void *arg)
+void hdd_twt_concurrency_update_on_scc(struct wlan_objmgr_pdev *pdev,
+				       void *object, void *arg)
+{
+}
+
+static inline
+void hdd_twt_concurrency_update_on_mcc(struct wlan_objmgr_pdev *pdev,
+				       void *object, void *arg)
 {
 }
 
@@ -424,6 +468,20 @@ void hdd_twt_del_dialog_in_ps_disable(struct hdd_context *hdd_ctx,
 				      struct qdf_mac_addr *mac_addr,
 				      uint8_t vdev_id)
 {
+}
+
+static inline
+QDF_STATUS hdd_get_twt_requestor(struct wlan_objmgr_psoc *psoc, bool *val)
+{
+	*val = false;
+	return QDF_STATUS_E_NOSUPPORT;
+}
+
+static inline
+QDF_STATUS hdd_get_twt_responder(struct wlan_objmgr_psoc *psoc, bool *val)
+{
+	*val = false;
+	return QDF_STATUS_E_NOSUPPORT;
 }
 
 #define FEATURE_VENDOR_SUBCMD_WIFI_CONFIG_TWT

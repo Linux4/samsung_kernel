@@ -98,7 +98,7 @@ static irqreturn_t i2c_irq_handler(int irq, void *dev_id)
 
 int i2c_read(struct nfc_dev *nfc_dev, char *buf, size_t count, int timeout)
 {
-	int ret;
+	int ret = 0;
 	struct i2c_dev *i2c_dev = &nfc_dev->i2c_dev;
 	struct platform_gpio *nfc_gpio = &nfc_dev->configs.gpio;
 	uint16_t i = 0;
@@ -228,12 +228,13 @@ ssize_t nfc_i2c_dev_read(struct file *filp, char __user *buf,
 	int ret = 0;
 	struct nfc_dev *nfc_dev = (struct nfc_dev *)filp->private_data;
 
-	if (filp->f_flags & O_NONBLOCK) {
-		pr_err(":f_flag has O_NONBLOCK. EAGAIN\n");
-		return -EAGAIN;
-	}
 	mutex_lock(&nfc_dev->read_mutex);
-	ret = i2c_read(nfc_dev, nfc_dev->read_kbuf, count, 0);
+	if (filp->f_flags & O_NONBLOCK) {
+		ret = i2c_master_recv(nfc_dev->i2c_dev.client, nfc_dev->read_kbuf, count);
+		pr_debug("%s: NONBLOCK read ret = %d\n", __func__, ret);
+	} else {
+		ret = i2c_read(nfc_dev, nfc_dev->read_kbuf, count, 0);
+	}
 	if (ret > 0) {
 		if (copy_to_user(buf, nfc_dev->read_kbuf, ret)) {
 			pr_warn("%s : failed to copy to user space\n", __func__);

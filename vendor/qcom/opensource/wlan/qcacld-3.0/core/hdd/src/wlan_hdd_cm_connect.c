@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2012-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -48,6 +49,8 @@
 #include <wlan_mlme_twt_ucfg_api.h>
 #include "wlan_roam_debug.h"
 #include <wlan_hdd_regulatory.h>
+#include <wlan_twt_ucfg_ext_api.h>
+#include <osif_twt_internal.h>
 
 bool hdd_cm_is_vdev_associated(struct hdd_adapter *adapter)
 {
@@ -304,11 +307,11 @@ void hdd_cm_netif_queue_enable(struct hdd_adapter *adapter)
 					     adapter->vdev_id);
 		qdf_queue_work(0, hdd_ctx->adapter_ops_wq,
 			       &adapter->netdev_features_update_work);
-	} else {
-		wlan_hdd_netif_queue_control(adapter,
-					     WLAN_WAKE_ALL_NETIF_QUEUE,
-					     WLAN_CONTROL_PATH);
 	}
+
+	wlan_hdd_netif_queue_control(adapter,
+				     WLAN_WAKE_ALL_NETIF_QUEUE,
+				     WLAN_CONTROL_PATH);
 }
 
 void hdd_cm_clear_pmf_stats(struct hdd_adapter *adapter)
@@ -888,6 +891,29 @@ static bool hdd_cm_is_roam_auth_required(struct hdd_station_ctx *sta_ctx,
 }
 #endif
 
+#if defined(WLAN_FEATURE_11BE_MLO) && defined(CFG80211_11BE_BASIC)
+static
+struct hdd_adapter *hdd_get_assoc_link_adapter(struct hdd_adapter *ml_adapter)
+{
+	int i;
+
+	for (i = 0; i < WLAN_MAX_MLD; i++) {
+		if (hdd_adapter_is_associated_with_ml_adapter(
+		    ml_adapter->mlo_adapter_info.link_adapter[i])) {
+			return ml_adapter->mlo_adapter_info.link_adapter[i];
+		}
+	}
+	return NULL;
+}
+
+#else
+static
+struct hdd_adapter *hdd_get_assoc_link_adapter(struct hdd_adapter *ml_adapter)
+{
+	return NULL;
+}
+#endif
+
 static void
 hdd_cm_connect_success_pre_user_update(struct wlan_objmgr_vdev *vdev,
 				       struct wlan_cm_connect_resp *rsp)
@@ -906,6 +932,7 @@ hdd_cm_connect_success_pre_user_update(struct wlan_objmgr_vdev *vdev,
 	ol_txrx_soc_handle soc = cds_get_context(QDF_MODULE_ID_SOC);
 	uint32_t phymode;
 	uint32_t time_buffer_size;
+	struct hdd_adapter *assoc_link_adapter;
 
 	hdd_ctx = cds_get_context(QDF_MODULE_ID_HDD);
 	if (!hdd_ctx) {
@@ -935,6 +962,13 @@ hdd_cm_connect_success_pre_user_update(struct wlan_objmgr_vdev *vdev,
 	hdd_cm_rec_connect_info(adapter, rsp);
 
 	hdd_cm_save_connect_info(adapter, rsp);
+	if (adapter->device_mode == QDF_STA_MODE &&
+	    hdd_adapter_is_ml_adapter(adapter)) {
+		/* Save connection info in assoc link adapter as well */
+		assoc_link_adapter = hdd_get_assoc_link_adapter(adapter);
+		if (assoc_link_adapter)
+			hdd_cm_save_connect_info(assoc_link_adapter, rsp);
+	}
 	phymode = wlan_reg_get_max_phymode(hdd_ctx->pdev, REG_PHYMODE_MAX,
 					   rsp->freq);
 	sta_ctx->reg_phymode = csr_convert_from_reg_phy_mode(phymode);
@@ -1133,6 +1167,9 @@ hdd_cm_connect_success_post_user_update(struct wlan_objmgr_vdev *vdev,
 		ucfg_mlme_init_twt_context(hdd_ctx->psoc,
 					   &rsp->bssid,
 					   TWT_ALL_SESSIONS_DIALOG_ID);
+		ucfg_twt_init_context(hdd_ctx->psoc,
+				      &rsp->bssid,
+				      TWT_ALL_SESSIONS_DIALOG_ID);
 	}
 	hdd_periodic_sta_stats_start(adapter);
 	wlan_twt_concurrency_update(hdd_ctx);
@@ -1269,12 +1306,10 @@ static void hdd_update_hlp_info(struct net_device *dev,
 	struct hdd_adapter *adapter = WLAN_HDD_GET_PRIV_PTR(dev);
 
 	if (!rsp || !rsp->connect_ies.fils_ie) {
-		hdd_err("Connect resp/fils ie is NULL");
 		return;
 	}
 
 	if (!rsp->connect_ies.fils_ie->hlp_data_len) {
-		hdd_debug("FILS HLP Data NULL, len 0");
 		return;
 	}
 

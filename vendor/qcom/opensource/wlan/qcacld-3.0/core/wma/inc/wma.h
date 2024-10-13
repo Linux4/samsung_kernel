@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2013-2021 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -175,6 +176,9 @@
 #define WMA_PEER_CREATE_RESPONSE 0x08
 #define WMA_PEER_CREATE_RESPONSE_TIMEOUT SIR_PEER_CREATE_RESPONSE_TIMEOUT
 
+/* send connect respone after bss peer is deleted */
+#define WMA_DELETE_STA_CONNECT_RSP 0x09
+
 /* FW response timeout values in milli seconds */
 #define WMA_VDEV_PLCY_MGR_TIMEOUT        SIR_VDEV_PLCY_MGR_TIMEOUT
 #define WMA_VDEV_HW_MODE_REQUEST_TIMEOUT WMA_VDEV_PLCY_MGR_TIMEOUT
@@ -186,7 +190,6 @@
 #define WMA_VDEV_SET_KEY_WAKELOCK_TIMEOUT	WAKELOCK_DURATION_RECOMMENDED
 
 #define WMA_TX_Q_RECHECK_TIMER_WAIT      2      /* 2 ms */
-#define WMA_MAX_NUM_ARGS 8
 
 #define WMA_SMPS_PARAM_VALUE_S 29
 
@@ -810,8 +813,6 @@ struct wma_wlm_stats_data {
  *   set this and wait will timeout, and code will poll the pending tx
  *   descriptors number to be zero.
  * @umac_ota_ack_cb: Ack Complete Callback registered by umac
- * @is_mgmt_data_valid: Is management frame data valid
- * @mgmt_data: Management frame related data
  * @umac_data_ota_ack_cb: ack complete callback
  * @last_umac_data_ota_timestamp: timestamp when OTA of last umac data
  *   was done
@@ -855,8 +856,6 @@ struct wma_wlm_stats_data {
  * @hw_bd_info: hardware board info
  * @miracast_value: miracast value
  * @log_completion_timer: log completion timer
- * @num_dbs_hw_modes: Number of HW modes supported by the FW
- * @hw_mode: DBS HW mode list
  * @old_hw_mode_index: Previous configured HW mode index
  * @new_hw_mode_index: Current configured HW mode index
  * @peer_authorized_cb: peer authorized hdd callback
@@ -905,6 +904,7 @@ struct wma_wlm_stats_data {
  * @wma_fw_time_sync_timer: timer used for firmware time sync
  * * @fw_therm_throt_support: FW Supports thermal throttling?
  * @eht_cap: 802.11be capabilities
+ * @set_hw_mode_resp_status: Set HW mode response status
  *
  * This structure is the global wma context.  It contains global wma
  * module parameters and handles of other modules.
@@ -936,8 +936,6 @@ typedef struct {
 	qdf_event_t tx_frm_download_comp_event;
 	qdf_event_t tx_queue_empty_event;
 	wma_tx_ota_comp_callback umac_data_ota_ack_cb;
-	bool is_mgmt_data_valid;
-	struct mgmt_frame_data mgmt_data;
 	unsigned long last_umac_data_ota_timestamp;
 	qdf_nbuf_t last_umac_data_nbuf;
 	wma_tgt_cfg_cb tgt_cfg_update_cb;
@@ -981,8 +979,6 @@ typedef struct {
 	uint32_t hw_bd_info[HW_BD_INFO_SIZE];
 	uint32_t miracast_value;
 	qdf_mc_timer_t log_completion_timer;
-	uint32_t num_dbs_hw_modes;
-	struct dbs_hw_mode_info hw_mode;
 	uint32_t old_hw_mode_index;
 	uint32_t new_hw_mode_index;
 	wma_peer_authorized_fp peer_authorized_cb;
@@ -995,6 +991,7 @@ typedef struct {
 						    uint8_t vdev_id,
 						    struct qdf_mac_addr bssid);
 	QDF_STATUS (*pe_roam_synch_cb)(struct mac_context *mac,
+		uint8_t vdev_id,
 		struct roam_offload_synch_ind *roam_synch_data,
 		uint16_t ie_len,
 		enum sir_roam_op_code reason);
@@ -1041,6 +1038,7 @@ typedef struct {
 	qdf_atomic_t go_num_clients_connected;
 	qdf_wake_lock_t sap_d3_wow_wake_lock;
 	qdf_wake_lock_t go_d3_wow_wake_lock;
+	enum set_hw_mode_status set_hw_mode_resp_status;
 } t_wma_handle, *tp_wma_handle;
 
 /**
@@ -2327,7 +2325,7 @@ int wma_dp_send_delba_ind(uint8_t vdev_id,
  * is_roam_inprogress() - Is vdev in progress
  * @vdev_id: vdev of interest
  *
- * Return: true if roaming, false otherwise
+ * Return: true if roaming started,  false during roam sync and otherwise
  */
 bool wma_is_roam_in_progress(uint32_t vdev_id);
 
@@ -2515,6 +2513,24 @@ QDF_STATUS wma_vdev_pre_start(uint8_t vdev_id, bool restart);
 void wma_remove_bss_peer_on_failure(tp_wma_handle wma, uint8_t vdev_id);
 
 /**
+ * wma_remove_bss_peer_before_join() - remove the bss peers in case of
+ * failure before join (vdev start) for sta mode
+ * @wma: wma handle.
+ * @vdev_id: vdev id
+ * @cm_join_req: join cm context
+ *
+ * This API deletes the BSS peer if any failure before "join" (vdev start).
+ * And indicate connection failure to CM after bss peer delete event comes
+ * from FW.
+ *
+ * Return: QDF_STATUS_SUCCESS if success, QDF_STATUS_E_PENDING if peer delete
+ *  event will be indicated later from target.
+ */
+QDF_STATUS wma_remove_bss_peer_before_join(
+		tp_wma_handle wma, uint8_t vdev_id,
+		void *cm_join_req);
+
+/**
  * wma_send_add_bss_resp() - send add bss failure
  * @wma: wma handle.
  * @vdev_id: vdev id
@@ -2566,5 +2582,16 @@ QDF_STATUS wma_send_ani_level_request(tp_wma_handle wma_handle,
  * Return: QDF status
  */
 QDF_STATUS wma_vdev_detach(struct del_vdev_params *pdel_vdev_req_param);
+
+#ifdef WLAN_FEATURE_DYNAMIC_MAC_ADDR_UPDATE
+/**
+ * wma_p2p_self_peer_remove() - Send P2P self peer delete command to FW
+ * @vdev: Object manager vdev
+ *
+ * Return: success if peer delete command sent to firmware, else failure.
+ */
+
+QDF_STATUS wma_p2p_self_peer_remove(struct wlan_objmgr_vdev *vdev);
+#endif
 #endif
 

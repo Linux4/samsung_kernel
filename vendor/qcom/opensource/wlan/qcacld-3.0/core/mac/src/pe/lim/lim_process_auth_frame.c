@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2011-2021 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -288,6 +289,14 @@ static void lim_process_auth_open_system_algo(struct mac_context *mac_ctx,
 	auth_node->seq_num = ((mac_hdr->seqControl.seqNumHi << 4) |
 				(mac_hdr->seqControl.seqNumLo));
 	auth_node->timestamp = qdf_mc_timer_get_system_ticks();
+
+	/* Check for MLO IE in Auth request in case of MLO connection */
+	if (wlan_vdev_mlme_is_mlo_ap(pe_session->vdev) &&
+	    rx_auth_frm_body->is_mlo_ie_present) {
+		auth_node->is_mlo_ie_present = true;
+		pe_debug("MLO IE is present in auth req");
+	}
+
 	lim_add_pre_auth_node(mac_ctx, auth_node);
 	/*
 	 * Send Authenticaton frame with Success
@@ -432,7 +441,7 @@ static void lim_process_sae_auth_frame(struct mac_context *mac_ctx,
 		       pe_session->limMlmState);
 
 	if (LIM_IS_AP_ROLE(pe_session)) {
-		struct tLimPreAuthNode *sta_pre_auth_ctx;
+		struct tLimPreAuthNode *pre_auth_node;
 
 		rx_flags = RXMGMT_FLAG_EXTERNAL_AUTH;
 		/* Add preauth node when the first SAE authentication frame
@@ -442,12 +451,16 @@ static void lim_process_sae_auth_frame(struct mac_context *mac_ctx,
 		 * SAE protocol optimizations.
 		 */
 		/* Extract pre-auth context for the STA, if any. */
-		sta_pre_auth_ctx = lim_search_pre_auth_list(mac_ctx,
-							    mac_hdr->sa);
-		if (!sta_pre_auth_ctx ||
-		    (sta_pre_auth_ctx->mlmState != eLIM_MLM_WT_SAE_AUTH_STATE &&
-		     sta_pre_auth_ctx->mlmState !=
-		     eLIM_MLM_AUTHENTICATED_STATE)) {
+		pre_auth_node = lim_search_pre_auth_list(mac_ctx, mac_hdr->sa);
+		if (!pre_auth_node ||
+		    (pre_auth_node->mlmState != eLIM_MLM_WT_SAE_AUTH_STATE)) {
+			if (pre_auth_node) {
+				pe_debug("Delete existing preauth node for SAE peer in state: %u "
+					 QDF_MAC_ADDR_FMT,
+					 pre_auth_node->mlmState,
+					 QDF_MAC_ADDR_REF(mac_hdr->sa));
+				lim_delete_pre_auth_node(mac_ctx, mac_hdr->sa);
+			}
 			lim_external_auth_add_pre_auth_node(mac_ctx, mac_hdr,
 						eLIM_MLM_WT_SAE_AUTH_STATE);
 		}
@@ -476,7 +489,7 @@ static void lim_process_sae_auth_frame(struct mac_context *mac_ctx,
 		wlan_connectivity_mgmt_event(
 			(struct wlan_frame_hdr *)mac_hdr, pe_session->vdev_id,
 			sae_status_code, 0,
-			WMA_GET_RX_RSSI_NORMALIZED(rx_pkt_info), auth_algo,
+			WMA_GET_RX_RSSI_NORMALIZED(rx_pkt_info), auth_algo, 0,
 			sae_auth_seq, sae_auth_seq, WLAN_AUTH_RESP);
 	}
 
@@ -1607,6 +1620,17 @@ lim_process_auth_frame(struct mac_context *mac_ctx, uint8_t *rx_pkt_info,
 		goto free;
 	}
 
+	if (LIM_IS_STA_ROLE(pe_session) &&
+	    wlan_vdev_mlme_is_mlo_vdev(pe_session->vdev)) {
+		if (!rx_auth_frm_body->is_mlo_ie_present) {
+			pe_debug("MLO IE not present in auth frame from peer");
+			lim_send_deauth_mgmt_frame(
+				mac_ctx, REASON_UNSPEC_FAILURE,
+				pe_session->bssId, pe_session, false);
+			goto free;
+		}
+	}
+
 	/*
 	 * IOT Workaround: with invalid WEP key, some APs reply
 	 * AuthFrame 4 with invalid seqNumber. This AuthFrame
@@ -1633,7 +1657,7 @@ lim_process_auth_frame(struct mac_context *mac_ctx, uint8_t *rx_pkt_info,
 				     0, WMA_GET_RX_RSSI_NORMALIZED(rx_pkt_info),
 				     auth_alg, 0,
 				     rx_auth_frm_body->authTransactionSeqNumber,
-				     WLAN_AUTH_RESP);
+				     0, WLAN_AUTH_RESP);
 	switch (rx_auth_frm_body->authTransactionSeqNumber) {
 	case SIR_MAC_AUTH_FRAME_1:
 		lim_process_auth_frame_type1(mac_ctx,
@@ -1727,7 +1751,7 @@ bool lim_process_sae_preauth_frame(struct mac_context *mac, uint8_t *rx_pkt)
 				     vdev_id, sae_status_code,
 				     0, WMA_GET_RX_RSSI_NORMALIZED(rx_pkt),
 				     auth_alg, sae_auth_seq,
-				     sae_auth_seq, WLAN_AUTH_RESP);
+				     sae_auth_seq, 0, WLAN_AUTH_RESP);
 
 	lim_send_sme_mgmt_frame_ind(mac, dot11_hdr->fc.subType,
 				    (uint8_t *)dot11_hdr,

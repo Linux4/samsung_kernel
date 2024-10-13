@@ -54,7 +54,10 @@ std::shared_ptr<Device> HapticsDev::getInstance(struct pal_device *device,
 HapticsDev::HapticsDev(struct pal_device *device, std::shared_ptr<ResourceManager> Rm) :
 Device(device, Rm)
 {
-
+#ifdef SEC_AUDIO_SUPPORT_HAPTIC_PLAYBACK
+    rm = Rm;
+    hapticSource = HAPTIC_SOURCE_ACH;
+#endif
 }
 
 HapticsDev::~HapticsDev()
@@ -106,3 +109,59 @@ int32_t HapticsDev::isBitWidthSupported(uint32_t bitWidth)
     }
     return rc;
 }
+
+#ifdef SEC_AUDIO_SUPPORT_HAPTIC_PLAYBACK
+int HapticsDev::start()
+{
+    // in Device::open(), mixer control "Haptics Source" is set to ach by the path "haptics-dev"
+    // so if haptic source is a2h, set mixer control to a2h again.
+    if (hapticSource == HAPTIC_SOURCE_A2H) {
+        setHapticSource(hapticSource);
+    }
+    return Device::start();
+}
+
+int32_t HapticsDev::setParameter(uint32_t param_id, void *param)
+{
+    pal_param_haptic_source_t* param_haptic_source = (pal_param_haptic_source_t *)param;
+    hapticSource = param_haptic_source->haptic_source;
+
+    std::shared_ptr<Device> dev = nullptr;
+    std::vector<Stream*> activestreams;
+    dev = Device::getInstance(&deviceAttr, rm);
+    int status = rm->getActiveStream_l(activestreams, dev);
+    if ((0 != status) || (activestreams.size() == 0)) {
+        PAL_VERBOSE(LOG_TAG, "no active stream available");
+    } else {
+        // if haptic device is active, set mixer control to switch haptic source
+        setHapticSource(hapticSource);
+    }
+    return 0;
+}
+
+void HapticsDev::setHapticSource(haptic_source_t source)
+{
+    int ret = 0;
+    struct mixer *mixer = NULL;
+    struct mixer_ctl *ctl = NULL;
+    char mixer_ctl_name[MIXER_PATH_MAX_LENGTH] = "Haptics Source";
+
+    ret = rm->getHwAudioMixer(&mixer);
+    if (ret) {
+        PAL_ERR(LOG_TAG," mixer error");
+        goto exit;
+    }
+
+    ctl = mixer_get_ctl_by_name(mixer, mixer_ctl_name);
+    if (!ctl) {
+        PAL_ERR(LOG_TAG, "Could not get ctl for mixer cmd - %s", mixer_ctl_name);
+        goto exit;
+    }
+
+    PAL_DBG(LOG_TAG, "Setting mixer control: Haptics Source, value: %d", (int)source);
+    mixer_ctl_set_value(ctl, 0, (int)source);
+
+exit:
+    return;
+}
+#endif

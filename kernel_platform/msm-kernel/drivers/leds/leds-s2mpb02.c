@@ -511,9 +511,13 @@ ssize_t s2mpb02_store(const char *buf)
 	int i = 0, ret = 0;
 	int onoff = -1;
 	sysfs_flash_op = 0;
+	pr_info("<%s> Entry \n", __func__);
 
 	if (buf == NULL || kstrtouint(buf, 10, &onoff))
+	{
+		pr_err("<%s> buf is NULL \n", __func__);
 		return -1;
+	}
 
 	if (global_led_datas == NULL) {
 		pr_err("<%s> global_led_datas is NULL\n", __func__);
@@ -620,6 +624,7 @@ ssize_t s2mpb02_store(const char *buf)
 	if (onoff)
 		sysfs_flash_op = 1;
 
+	pr_info("<%s> Exit \n", __func__);
 	return 0;
 }
 EXPORT_SYMBOL(s2mpb02_store);

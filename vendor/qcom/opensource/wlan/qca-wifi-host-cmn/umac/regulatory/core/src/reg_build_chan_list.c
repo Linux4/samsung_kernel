@@ -42,6 +42,18 @@
 #define MAX_PWR_FCC_CHAN_13 2
 #define CHAN_144_CENT_FREQ 5720
 
+static inline bool
+reg_nol_and_history_not_set(struct regulatory_channel *chan)
+{
+	return ((!chan->nol_chan) && (!chan->nol_history));
+}
+
+bool reg_is_chan_disabled_and_not_nol(struct regulatory_channel *chan)
+{
+	return (!reg_is_state_allowed(chan->state) &&
+		(chan->chan_flags & REGULATORY_CHAN_DISABLED) &&
+		reg_nol_and_history_not_set(chan));
+}
 #ifdef CONFIG_BAND_6GHZ
 static void reg_fill_psd_info(enum channel_enum chan_enum,
 			      struct cur_reg_rule *reg_rule,
@@ -325,8 +337,10 @@ static void reg_modify_chan_list_for_indoor_channels(
 
 	if (!pdev_priv_obj->indoor_chan_enabled) {
 		for (chan_enum = 0; chan_enum < NUM_CHANNELS; chan_enum++) {
-			if (REGULATORY_CHAN_INDOOR_ONLY &
-			    chan_list[chan_enum].chan_flags) {
+			if (!(REGULATORY_CHAN_DISABLED &
+			      chan_list[chan_enum].chan_flags) &&
+			    (REGULATORY_CHAN_INDOOR_ONLY &
+			     chan_list[chan_enum].chan_flags)) {
 				chan_list[chan_enum].state =
 					CHANNEL_STATE_DFS;
 				chan_list[chan_enum].chan_flags |=
@@ -338,8 +352,10 @@ static void reg_modify_chan_list_for_indoor_channels(
 	if (pdev_priv_obj->force_ssc_disable_indoor_channel &&
 	    pdev_priv_obj->sap_state) {
 		for (chan_enum = 0; chan_enum < NUM_CHANNELS; chan_enum++) {
-			if (REGULATORY_CHAN_INDOOR_ONLY &
-			    chan_list[chan_enum].chan_flags) {
+			if (!(REGULATORY_CHAN_DISABLED &
+			      chan_list[chan_enum].chan_flags) &&
+			    (REGULATORY_CHAN_INDOOR_ONLY &
+			    chan_list[chan_enum].chan_flags)) {
 				chan_list[chan_enum].state =
 					CHANNEL_STATE_DISABLE;
 				chan_list[chan_enum].chan_flags |=
@@ -1467,7 +1483,9 @@ reg_modify_5g_maxbw(struct regulatory_channel *chan,
 		    struct ch_avoid_freq_type *avoid_freq)
 {
 	int i;
-	qdf_freq_t start, end, cur;
+	qdf_freq_t start = 0;
+	qdf_freq_t end = 0;
+	qdf_freq_t cur;
 	bool found = false;
 
 	for (i = 0; i < MAX_5G_CHAN_NUM; i++) {
@@ -1572,6 +1590,11 @@ reg_modify_chan_list_for_avoid_chan_ext(struct wlan_regulatory_pdev_priv_obj
 	psoc = wlan_pdev_get_psoc(pdev_priv_obj->pdev_ptr);
 	if (!psoc)
 		return;
+
+	if (!reg_check_coex_unsafe_chan_reg_disable(psoc)) {
+		reg_debug("Don't disable reg channels for Coex unsafe channels");
+		return;
+	}
 
 	psoc_priv_obj = reg_get_psoc_obj(psoc);
 	if (!psoc_priv_obj)
@@ -2571,22 +2594,6 @@ QDF_STATUS reg_process_master_chan_list_ext(
 	return QDF_STATUS_SUCCESS;
 }
 
-#ifdef CONFIG_REG_CLIENT
-const char *reg_get_power_string(enum reg_6g_ap_type power_type)
-{
-	switch (power_type) {
-	case REG_INDOOR_AP:
-		return "LP";
-	case REG_STANDARD_POWER_AP:
-		return "SP";
-	case REG_VERY_LOW_POWER_AP:
-		return "VLP";
-	default:
-		return "INVALID";
-	}
-}
-#endif
-
 QDF_STATUS reg_get_6g_ap_master_chan_list(struct wlan_objmgr_pdev *pdev,
 					  enum reg_6g_ap_type ap_pwr_type,
 					  struct regulatory_channel *chan_list)
@@ -3208,6 +3215,21 @@ reg_process_afc_event(struct afc_regulatory_info *afc_info)
 	}
 }
 #endif /* CONFIG_AFC_SUPPORT */
+#ifdef CONFIG_REG_CLIENT
+const char *reg_get_power_string(enum reg_6g_ap_type power_type)
+{
+	switch (power_type) {
+	case REG_INDOOR_AP:
+		return "LP";
+	case REG_STANDARD_POWER_AP:
+		return "SP";
+	case REG_VERY_LOW_POWER_AP:
+		return "VLP";
+	default:
+		return "INVALID";
+	}
+}
+#endif
 #endif /* CONFIG_BAND_6GHZ */
 
 QDF_STATUS reg_process_master_chan_list(

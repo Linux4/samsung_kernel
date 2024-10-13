@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2016-2021 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2021 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -108,8 +109,9 @@ enum netif_action_type {
 	WLAN_NETIF_VI_QUEUE_ON = 14,
 	WLAN_NETIF_VI_QUEUE_OFF = 15,
 	WLAN_NETIF_BE_BK_QUEUE_OFF = 16,
-	WLAN_WAKE_NON_PRIORITY_QUEUE = 17,
-	WLAN_STOP_NON_PRIORITY_QUEUE = 18,
+	WLAN_NETIF_BE_BK_QUEUE_ON = 17,
+	WLAN_WAKE_NON_PRIORITY_QUEUE = 18,
+	WLAN_STOP_NON_PRIORITY_QUEUE = 19,
 	WLAN_NETIF_ACTION_TYPE_MAX,
 };
 
@@ -132,6 +134,10 @@ enum netif_reason_type {
 	WLAN_PEER_UNAUTHORISED,
 	WLAN_THERMAL_MITIGATION,
 	WLAN_DATA_FLOW_CONTROL_PRIORITY,
+	WLAN_DATA_FLOW_CTRL_BE_BK,
+	WLAN_DATA_FLOW_CTRL_VI,
+	WLAN_DATA_FLOW_CTRL_VO,
+	WLAN_DATA_FLOW_CTRL_PRI,
 	WLAN_REASON_TYPE_MAX,
 };
 
@@ -236,15 +242,43 @@ enum peer_debug_id_type {
 };
 
 /**
+ * enum cdp_peer_bw - Bandwidth types
+ * @CDP_20_MHZ: 20MHz BW
+ * @CDP_40_MHZ: 40MHz BW
+ * @CDP_80_MHZ: 80MHz BW
+ * @CDP_160_MHZ: 160MHz BW
+ * @CDP_80P80_MHZ: 80+80MHz BW
+ * @CDP_5_MHZ: 5MHz BW
+ * @CDP_10_MHZ: 10MHz BW
+ * @CDP_320_MHZ: 320MHz BW
+ * @CDP_BW_INVALID: Invalid BW
+ * @CDP_BW_MAX: Max BW id
+ */
+enum cdp_peer_bw {
+	CDP_20_MHZ,
+	CDP_40_MHZ,
+	CDP_80_MHZ,
+	CDP_160_MHZ,
+	CDP_80P80_MHZ,
+	CDP_5_MHZ,
+	CDP_10_MHZ,
+	CDP_320_MHZ,
+	CDP_BW_INVALID,
+	CDP_BW_MAX
+};
+
+/**
  * struct ol_txrx_desc_type - txrx descriptor type
  * @is_qos_enabled: is station qos enabled
  * @is_wapi_supported: is station wapi supported
  * @peer_addr: peer mac address
+ * @bw: bandwidth of peer connection
  */
 struct ol_txrx_desc_type {
 	uint8_t is_qos_enabled;
 	uint8_t is_wapi_supported;
 	struct qdf_mac_addr peer_addr;
+	enum cdp_peer_bw bw;
 };
 
 /**

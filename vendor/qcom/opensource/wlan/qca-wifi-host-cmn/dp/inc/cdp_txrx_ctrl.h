@@ -283,6 +283,33 @@ cdp_peer_authorize(ol_txrx_soc_handle soc, uint8_t vdev_id, uint8_t *peer_mac,
 			(soc, vdev_id, peer_mac, authorize);
 }
 
+/**
+ * cdp_peer_get_authorize Get per authorize status
+ *
+ * @soc - pointer to the soc
+ * @vdev_id - id of the pointer to vdev
+ * @peer_mac - mac address of the node's object
+ *
+ * Return: true is peer is authorized, false otherwise
+ */
+static inline bool
+cdp_peer_get_authorize(ol_txrx_soc_handle soc, uint8_t vdev_id,
+		       uint8_t *peer_mac)
+{
+	if (!soc || !soc->ops) {
+		dp_cdp_debug("Invalid Instance:");
+		QDF_BUG(0);
+		return false;
+	}
+
+	if (!soc->ops->ctrl_ops ||
+	    !soc->ops->ctrl_ops->txrx_peer_get_authorize)
+		return false;
+
+	return soc->ops->ctrl_ops->txrx_peer_get_authorize
+			(soc, vdev_id, peer_mac);
+}
+
 static inline void cdp_tx_flush_buffers
 (ol_txrx_soc_handle soc, uint8_t vdev_id)
 {
@@ -375,6 +402,41 @@ cdp_txrx_get_psoc_param(ol_txrx_soc_handle soc,
 		return QDF_STATUS_E_FAILURE;
 
 	return soc->ops->ctrl_ops->txrx_get_psoc_param(soc, type, val);
+}
+
+static inline
+QDF_STATUS cdp_vdev_alloc_vdev_stats_id(ol_txrx_soc_handle soc,
+					uint8_t *vdev_stats_id)
+{
+	if (!soc || !soc->ops) {
+		dp_cdp_debug("Invalid Instance:");
+		QDF_BUG(0);
+		return QDF_STATUS_E_FAILURE;
+	}
+
+	if (!soc->ops->host_stats_ops ||
+	    !soc->ops->host_stats_ops->txrx_alloc_vdev_stats_id)
+		return QDF_STATUS_E_FAILURE;
+
+	return soc->ops->host_stats_ops->txrx_alloc_vdev_stats_id
+			(soc, vdev_stats_id);
+}
+
+static inline
+void cdp_vdev_reset_vdev_stats_id(ol_txrx_soc_handle soc,
+				  uint8_t vdev_stats_id)
+{
+	if (!soc || !soc->ops) {
+		dp_cdp_debug("Invalid Instance:");
+		QDF_BUG(0);
+		return;
+	}
+
+	if (!soc->ops->host_stats_ops ||
+	    !soc->ops->host_stats_ops->txrx_reset_vdev_stats_id)
+		return;
+
+	soc->ops->host_stats_ops->txrx_reset_vdev_stats_id(soc, vdev_stats_id);
 }
 
 #ifdef VDEV_PEER_PROTOCOL_COUNT

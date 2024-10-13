@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2016-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -27,6 +27,7 @@
 #endif
 #include "dp_internal.h"
 #include "hal_tx.h"
+#include <qdf_tracepoint.h>
 
 #define DP_INVALID_VDEV_ID 0xFF
 
@@ -178,6 +179,7 @@ struct dp_tx_queue {
  * @exception_fw: Duplicate frame to be sent to firmware
  * @ppdu_cookie: 16-bit ppdu_cookie that has to be replayed back in completions
  * @ix_tx_sniffer: Indicates if the packet has to be sniffed
+ * @skip_hp_update : Skip HP update for TSO segments and update in last segment
  *
  * This structure holds the complete MSDU information needed to program the
  * Hardware TCL and MSDU extension descriptors for different frame types
@@ -196,6 +198,9 @@ struct dp_tx_msdu_info_s {
 	} u;
 	uint32_t meta_data[DP_TX_MSDU_INFO_META_DATA_DWORDS];
 	uint16_t ppdu_cookie;
+#ifdef WLAN_DP_FEATURE_SW_LATENCY_MGR
+	uint8_t skip_hp_update;
+#endif
 };
 
 #ifndef QCA_HOST_MODE_WIFI_DISABLED
@@ -231,6 +236,28 @@ QDF_STATUS dp_tx_tso_cmn_desc_pool_alloc(struct dp_soc *soc,
 QDF_STATUS dp_tx_tso_cmn_desc_pool_init(struct dp_soc *soc,
 					uint8_t num_pool,
 					uint16_t num_desc);
+void dp_tx_comp_free_buf(struct dp_soc *soc, struct dp_tx_desc_s *desc);
+void dp_tx_desc_release(struct dp_tx_desc_s *tx_desc, uint8_t desc_pool_id);
+void dp_tx_compute_delay(struct dp_vdev *vdev, struct dp_tx_desc_s *tx_desc,
+			 uint8_t tid, uint8_t ring_id);
+void dp_tx_comp_process_tx_status(struct dp_soc *soc,
+				  struct dp_tx_desc_s *tx_desc,
+				  struct hal_tx_completion_status *ts,
+				  struct dp_peer *peer, uint8_t ring_id);
+void dp_tx_comp_process_desc(struct dp_soc *soc,
+			     struct dp_tx_desc_s *desc,
+			     struct hal_tx_completion_status *ts,
+			     struct dp_peer *peer);
+void dp_tx_reinject_handler(struct dp_soc *soc,
+			    struct dp_vdev *vdev,
+			    struct dp_tx_desc_s *tx_desc,
+			    uint8_t *status);
+void dp_tx_inspect_handler(struct dp_soc *soc,
+			   struct dp_vdev *vdev,
+			   struct dp_tx_desc_s *tx_desc,
+			   uint8_t *status);
+void dp_tx_update_peer_basic_stats(struct dp_peer *peer, uint32_t length,
+				   uint8_t tx_status, bool update);
 
 #ifndef QCA_HOST_MODE_WIFI_DISABLED
 /**
@@ -679,18 +706,22 @@ dp_send_completion_to_pkt_capture(struct dp_soc *soc,
 /**
  * dp_tx_update_stats() - Update soc level tx stats
  * @soc: DP soc handle
- * @nbuf: packet being transmitted
+ * @tx_desc: TX descriptor reference
+ * @ring_id: TCL ring id
  *
  * Returns: none
  */
 void dp_tx_update_stats(struct dp_soc *soc,
-			qdf_nbuf_t nbuf);
+			struct dp_tx_desc_s *tx_desc,
+			uint8_t ring_id);
 
 /**
  * dp_tx_attempt_coalescing() - Check and attempt TCL register write coalescing
  * @soc: Datapath soc handle
  * @tx_desc: tx packet descriptor
  * @tid: TID for pkt transmission
+ * @msdu_info: MSDU info of tx packet
+ * @ring_id: TCL ring id
  *
  * Returns: 1, if coalescing is to be done
  *	    0, if coalescing is not to be done
@@ -698,7 +729,9 @@ void dp_tx_update_stats(struct dp_soc *soc,
 int
 dp_tx_attempt_coalescing(struct dp_soc *soc, struct dp_vdev *vdev,
 			 struct dp_tx_desc_s *tx_desc,
-			 uint8_t tid);
+			 uint8_t tid,
+			 struct dp_tx_msdu_info_s *msdu_info,
+			 uint8_t ring_id);
 
 /**
  * dp_tx_ring_access_end() - HAL ring access end for data transmission
@@ -715,12 +748,15 @@ dp_tx_ring_access_end(struct dp_soc *soc, hal_ring_handle_t hal_ring_hdl,
 /**
  * dp_tx_update_stats() - Update soc level tx stats
  * @soc: DP soc handle
- * @nbuf: packet being transmitted
+ * @tx_desc: TX descriptor reference
+ * @ring_id: TCL ring id
  *
  * Returns: none
  */
 static inline void dp_tx_update_stats(struct dp_soc *soc,
-				      qdf_nbuf_t nbuf) { }
+				      struct dp_tx_desc_s *tx_desc,
+				      uint8_t ring_id){ }
+
 static inline void
 dp_tx_ring_access_end(struct dp_soc *soc, hal_ring_handle_t hal_ring_hdl,
 		      int coalesce)
@@ -731,7 +767,9 @@ dp_tx_ring_access_end(struct dp_soc *soc, hal_ring_handle_t hal_ring_hdl,
 static inline int
 dp_tx_attempt_coalescing(struct dp_soc *soc, struct dp_vdev *vdev,
 			 struct dp_tx_desc_s *tx_desc,
-			 uint8_t tid)
+			 uint8_t tid,
+			 struct dp_tx_msdu_info_s *msdu_info,
+			 uint8_t ring_id)
 {
 	return 0;
 }
@@ -760,6 +798,12 @@ dp_tx_ring_access_end_wrapper(struct dp_soc *soc,
 			      hal_ring_handle_t hal_ring_hdl,
 			      int coalesce);
 #else
+#ifdef DP_POWER_SAVE
+void
+dp_tx_ring_access_end_wrapper(struct dp_soc *soc,
+			      hal_ring_handle_t hal_ring_hdl,
+			      int coalesce);
+#else
 static inline void
 dp_tx_ring_access_end_wrapper(struct dp_soc *soc,
 			      hal_ring_handle_t hal_ring_hdl,
@@ -767,6 +811,12 @@ dp_tx_ring_access_end_wrapper(struct dp_soc *soc,
 {
 	dp_tx_ring_access_end(soc, hal_ring_hdl, coalesce);
 }
+
+static inline void
+dp_set_rtpm_tput_policy_requirement(struct cdp_soc_t *soc_hdl,
+				    bool is_high_tput)
+{ }
+#endif
 
 static inline void
 dp_set_rtpm_tput_policy_requirement(struct cdp_soc_t *soc_hdl,
@@ -841,4 +891,89 @@ QDF_STATUS dp_get_uplink_delay(struct cdp_soc_t *soc_hdl, uint8_t vdev_id,
 			       uint32_t *val);
 #endif /* WLAN_FEATURE_TSF_UPLINK_TSF */
 
+/**
+ * dp_tx_pkt_tracepoints_enabled() - Get the state of tx pkt tracepoint
+ *
+ * Return: True if any tx pkt tracepoint is enabled else false
+ */
+static inline
+bool dp_tx_pkt_tracepoints_enabled(void)
+{
+	return (qdf_trace_dp_tx_comp_tcp_pkt_enabled() ||
+		qdf_trace_dp_tx_comp_udp_pkt_enabled() ||
+		qdf_trace_dp_tx_comp_pkt_enabled());
+}
+
+#ifdef DP_TX_TRACKING
+/**
+ * dp_tx_desc_set_timestamp() - set timestamp in tx descriptor
+ * @tx_desc - tx descriptor
+ *
+ * Return: None
+ */
+static inline
+void dp_tx_desc_set_timestamp(struct dp_tx_desc_s *tx_desc)
+{
+	tx_desc->timestamp = qdf_system_ticks();
+}
+
+/**
+ * dp_tx_desc_check_corruption() - Verify magic pattern in tx descriptor
+ * @tx_desc: tx descriptor
+ *
+ * Check for corruption in tx descriptor, if magic pattern is not matching
+ * trigger self recovery
+ *
+ * Return: none
+ */
+void dp_tx_desc_check_corruption(struct dp_tx_desc_s *tx_desc);
+#else
+static inline
+void dp_tx_desc_set_timestamp(struct dp_tx_desc_s *tx_desc)
+{
+}
+
+static inline
+void dp_tx_desc_check_corruption(struct dp_tx_desc_s *tx_desc)
+{
+}
+#endif
+
+#ifdef HW_TX_DELAY_STATS_ENABLE
+/**
+ * dp_tx_desc_set_ktimestamp() - set kernel timestamp in tx descriptor
+ * @vdev: DP vdev handle
+ * @tx_desc: tx descriptor
+ *
+ * Return: true when descriptor is timestamped, false otherwise
+ */
+static inline
+bool dp_tx_desc_set_ktimestamp(struct dp_vdev *vdev,
+			       struct dp_tx_desc_s *tx_desc)
+{
+	if (qdf_unlikely(vdev->pdev->delay_stats_flag) ||
+	    qdf_unlikely(vdev->pdev->soc->wlan_cfg_ctx->pext_stats_enabled) ||
+	    qdf_unlikely(dp_tx_pkt_tracepoints_enabled()) ||
+	    qdf_unlikely(vdev->pdev->soc->rdkstats_enabled) ||
+	    qdf_unlikely(dp_is_vdev_tx_delay_stats_enabled(vdev))) {
+		tx_desc->timestamp = qdf_ktime_to_ms(qdf_ktime_real_get());
+		return true;
+	}
+	return false;
+}
+#else
+static inline
+bool dp_tx_desc_set_ktimestamp(struct dp_vdev *vdev,
+			       struct dp_tx_desc_s *tx_desc)
+{
+	if (qdf_unlikely(vdev->pdev->delay_stats_flag) ||
+	    qdf_unlikely(vdev->pdev->soc->wlan_cfg_ctx->pext_stats_enabled) ||
+	    qdf_unlikely(dp_tx_pkt_tracepoints_enabled()) ||
+	    qdf_unlikely(vdev->pdev->soc->rdkstats_enabled)) {
+		tx_desc->timestamp = qdf_ktime_to_ms(qdf_ktime_real_get());
+		return true;
+	}
+	return false;
+}
+#endif
 #endif

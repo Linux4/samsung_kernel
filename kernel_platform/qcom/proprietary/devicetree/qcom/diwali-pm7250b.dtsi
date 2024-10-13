@@ -106,7 +106,7 @@
 	pm7250b-ibat-lvl0 {
 		trips {
 			ibat-lvl0 {
-				temperature = <9000>;
+				temperature = <6000>;
 			};
 		};
 	};
@@ -114,7 +114,7 @@
 	pm7250b-ibat-lvl1 {
 		trips {
 			ibat-lvl1 {
-				temperature = <10000>;
+				temperature = <7500>;
 			};
 		};
 	};
@@ -196,7 +196,7 @@
 
 			vbat_gpu2 {
 				trip = <&b_bcl_lvl2>;
-				cooling-device = <&msm_gpu 3 THERMAL_NO_LIMIT>;
+				cooling-device = <&msm_gpu 2 THERMAL_NO_LIMIT>;
 			};
 		};
 	};

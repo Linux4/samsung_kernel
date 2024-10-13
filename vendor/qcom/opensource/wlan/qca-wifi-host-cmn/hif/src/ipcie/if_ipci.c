@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2013-2021 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -115,21 +116,14 @@ static int hif_ce_msi_map_ce_to_irq(struct hif_softc *scn, int ce_id)
 int hif_ipci_bus_configure(struct hif_softc *hif_sc)
 {
 	int status = 0;
-	struct HIF_CE_state *hif_state = HIF_GET_CE_STATE(hif_sc);
 	uint8_t wake_ce_id;
 
 	hif_ce_prepare_config(hif_sc);
 
-	/* initialize sleep state adjust variables */
-	hif_state->sleep_timer_init = true;
-	hif_state->keep_awake_count = 0;
-	hif_state->fake_sleep = false;
-	hif_state->sleep_ticks = 0;
-
 	status = hif_wlan_enable(hif_sc);
 	if (status) {
 		hif_err("hif_wlan_enable error = %d", status);
-		goto timer_free;
+		return status;
 	}
 
 	A_TARGET_ACCESS_LIKELY(hif_sc);
@@ -161,11 +155,6 @@ unconfig_ce:
 disable_wlan:
 	A_TARGET_ACCESS_UNLIKELY(hif_sc);
 	hif_wlan_disable(hif_sc);
-
-timer_free:
-	qdf_timer_stop(&hif_state->sleep_timer);
-	qdf_timer_free(&hif_state->sleep_timer);
-	hif_state->sleep_timer_init = false;
 
 	hif_err("Failed, status = %d", status);
 	return status;
@@ -577,6 +566,71 @@ const char *hif_ipci_get_irq_name(int irq_no)
 	return "pci-dummy";
 }
 
+#ifdef FEATURE_IRQ_AFFINITY
+static
+void hif_ipci_irq_set_affinity_hint(struct hif_exec_context *hif_ext_group,
+				    bool perf)
+{
+	int i, ret;
+	unsigned int cpus;
+	bool mask_set = false;
+	int cpu_cluster = perf ? CPU_CLUSTER_TYPE_PERF :
+						CPU_CLUSTER_TYPE_LITTLE;
+
+	for (i = 0; i < hif_ext_group->numirq; i++)
+		qdf_cpumask_clear(&hif_ext_group->new_cpu_mask[i]);
+
+	for (i = 0; i < hif_ext_group->numirq; i++) {
+		qdf_for_each_online_cpu(cpus) {
+			if (qdf_topology_physical_package_id(cpus) ==
+			    cpu_cluster) {
+				qdf_cpumask_set_cpu(cpus,
+						    &hif_ext_group->
+						    new_cpu_mask[i]);
+				mask_set = true;
+			}
+		}
+	}
+	for (i = 0; i < hif_ext_group->numirq; i++) {
+		if (mask_set) {
+			qdf_dev_modify_irq_status(hif_ext_group->os_irq[i],
+						  IRQ_NO_BALANCING, 0);
+			ret = qdf_dev_set_irq_affinity(hif_ext_group->os_irq[i],
+						       (struct qdf_cpu_mask *)
+						       &hif_ext_group->
+						       new_cpu_mask[i]);
+			qdf_dev_modify_irq_status(hif_ext_group->os_irq[i],
+						  0, IRQ_NO_BALANCING);
+			if (ret)
+				qdf_debug("Set affinity %*pbl fails for IRQ %d ",
+					  qdf_cpumask_pr_args(&hif_ext_group->
+							      new_cpu_mask[i]),
+					  hif_ext_group->os_irq[i]);
+		} else {
+			qdf_err("Offline CPU: Set affinity fails for IRQ: %d",
+				hif_ext_group->os_irq[i]);
+		}
+	}
+}
+
+void hif_ipci_set_grp_intr_affinity(struct hif_softc *scn,
+				    uint32_t grp_intr_bitmask, bool perf)
+{
+	int i;
+	struct HIF_CE_state *hif_state = HIF_GET_CE_STATE(scn);
+	struct hif_exec_context *hif_ext_group;
+
+	for (i = 0; i < hif_state->hif_num_extgroup; i++) {
+		if (!(grp_intr_bitmask & BIT(i)))
+			continue;
+
+		hif_ext_group = hif_state->hif_ext_group[i];
+		hif_ipci_irq_set_affinity_hint(hif_ext_group, perf);
+		qdf_atomic_set(&hif_ext_group->force_napi_complete, -1);
+	}
+}
+#endif
+
 #ifdef HIF_CPU_PERF_AFFINE_MASK
 static void hif_ipci_ce_irq_set_affinity_hint(struct hif_softc *scn)
 {
@@ -940,6 +994,14 @@ int hif_prevent_link_low_power_states(struct hif_opaque_softc *hif)
 
 	if (pld_is_pci_ep_awake(scn->qdf_dev->dev) == -ENOTSUPP)
 		return 0;
+
+	if ((qdf_atomic_read(&scn->dp_ep_vote_access) ==
+	     HIF_EP_VOTE_ACCESS_DISABLE) &&
+	    (qdf_atomic_read(&scn->ep_vote_access) ==
+	    HIF_EP_VOTE_ACCESS_DISABLE)) {
+		hif_info_high("EP access disabled in flight skip vote");
+		return 0;
+	}
 
 	start_time = curr_time = qdf_system_ticks_to_msecs(qdf_system_ticks());
 	while (pld_is_pci_ep_awake(scn->qdf_dev->dev) &&

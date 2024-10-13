@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2016-2021 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -1994,7 +1995,8 @@ QDF_STATUS wlan_objmgr_psoc_peer_attach(struct wlan_objmgr_psoc *psoc,
 	wlan_psoc_obj_lock(psoc);
 	objmgr = &psoc->soc_objmgr;
 	/* Max temporary peer limit is reached, return failure */
-	if (peer->peer_mlme.peer_type == WLAN_PEER_STA_TEMP) {
+	if (peer->peer_mlme.peer_type == WLAN_PEER_STA_TEMP ||
+	    peer->peer_mlme.peer_type == WLAN_PEER_MLO_TEMP) {
 		if (objmgr->temp_peer_count >= WLAN_MAX_PSOC_TEMP_PEERS) {
 			wlan_psoc_obj_unlock(psoc);
 			return QDF_STATUS_E_FAILURE;
@@ -2019,7 +2021,8 @@ QDF_STATUS wlan_objmgr_psoc_peer_attach(struct wlan_objmgr_psoc *psoc,
 							peer);
 	qdf_spin_unlock_bh(&peer_list->peer_list_lock);
 	/* Increment peer count */
-	if (peer->peer_mlme.peer_type == WLAN_PEER_STA_TEMP)
+	if (peer->peer_mlme.peer_type == WLAN_PEER_STA_TEMP ||
+	    peer->peer_mlme.peer_type == WLAN_PEER_MLO_TEMP)
 		objmgr->temp_peer_count++;
 	else
 		objmgr->wlan_peer_count++;
@@ -2060,7 +2063,8 @@ QDF_STATUS wlan_objmgr_psoc_peer_detach(struct wlan_objmgr_psoc *psoc,
 	}
 	qdf_spin_unlock_bh(&peer_list->peer_list_lock);
 	/* Decrement peer count */
-	if (peer->peer_mlme.peer_type == WLAN_PEER_STA_TEMP)
+	if (peer->peer_mlme.peer_type == WLAN_PEER_STA_TEMP ||
+	    peer->peer_mlme.peer_type == WLAN_PEER_MLO_TEMP)
 		objmgr->temp_peer_count--;
 	else
 		objmgr->wlan_peer_count--;
@@ -2872,9 +2876,9 @@ uint32_t wlan_objmgr_psoc_check_for_pdev_leaks(struct wlan_objmgr_psoc *psoc)
 		ref_id_dbg = pdev->pdev_objmgr.ref_id_dbg;
 		wlan_objmgr_for_each_refs(ref_id_dbg, ref_id, refs) {
 			leaks++;
-			obj_mgr_alert("%7u   %4u   %s",
+			obj_mgr_alert("%7u   %4u   %s(%d)",
 				      pdev_id, refs,
-				      string_from_dbgid(ref_id));
+				      string_from_dbgid(ref_id), ref_id);
 		}
 		wlan_pdev_obj_unlock(pdev);
 	}
@@ -2917,8 +2921,9 @@ uint32_t wlan_objmgr_psoc_check_for_vdev_leaks(struct wlan_objmgr_psoc *psoc)
 		ref_id_dbg = vdev->vdev_objmgr.ref_id_dbg;
 		wlan_objmgr_for_each_refs(ref_id_dbg, ref_id, refs) {
 			leaks++;
-			obj_mgr_alert("%7u   %4u   %s",
-				      vdev_id, refs, string_from_dbgid(ref_id));
+			obj_mgr_alert("%7u   %4u   %s(%d)",
+				      vdev_id, refs, string_from_dbgid(ref_id),
+				      ref_id);
 		}
 		wlan_vdev_obj_unlock(vdev);
 	}
@@ -2938,11 +2943,11 @@ wlan_objmgr_print_peer_ref_leaks(struct wlan_objmgr_peer *peer, int vdev_id)
 
 	ref_id_dbg = peer->peer_objmgr.ref_id_dbg;
 	wlan_objmgr_for_each_refs(ref_id_dbg, ref_id, refs) {
-		obj_mgr_alert(QDF_MAC_ADDR_FMT " %7u   %4u   %s",
+		obj_mgr_alert(QDF_MAC_ADDR_FMT " %7u   %4u   %s(%d)",
 			      QDF_MAC_ADDR_REF(peer->macaddr),
 			      vdev_id,
 			      refs,
-			      string_from_dbgid(ref_id));
+			      string_from_dbgid(ref_id), ref_id);
 	}
 }
 #else

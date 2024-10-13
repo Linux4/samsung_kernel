@@ -362,6 +362,7 @@ static const struct dev_builder __rst_exinfo_dev_builder[] = {
 	DEVICE_BUILDER(__qc_rst_exinfo_register_rvh_do_mem_abort, NULL),
 	DEVICE_BUILDER(__qc_rst_exinfo_register_rvh_do_sp_pc_abort, NULL),
 	DEVICE_BUILDER(__qc_rst_exinfo_register_rvh_report_bug, NULL),
+	DEVICE_BUILDER(__qc_rst_exinfo_register_rvh_die_kernel_fault, NULL),
 	DEVICE_BUILDER(__rst_exinfo_probe_epilog, __rst_exinfo_remove_prolog),
 };
 

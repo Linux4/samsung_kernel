@@ -13,6 +13,7 @@
 #include <linux/poll.h>
 #include <linux/remoteproc/qcom_rproc.h>
 #include <linux/slab.h>
+#include <trace/events/rproc_qcom.h>
 
 #define MODULE_NAME "qsee_ipc_irq_bridge"
 #define DEVICE_NAME MODULE_NAME
@@ -124,7 +125,6 @@ static int qiib_driver_data_init(void)
  */
 static void qiib_driver_data_deinit(void)
 {
-	qiib_cleanup();
 	if (!qiib_info->log_ctx)
 		ipc_log_context_destroy(qiib_info->log_ctx);
 	kfree(qiib_info);
@@ -149,17 +149,23 @@ static int qiib_restart_notifier_cb(struct notifier_block *this,
 	struct qiib_dev *devp = container_of(this, struct qiib_dev, nb);
 
 	if (code == QCOM_SSR_BEFORE_SHUTDOWN) {
+		trace_rproc_qcom_event(devp->ssr_name,
+				"QCOM_SSR_BEFORE_POWERUP", "qiib_restart_notifier-enter");
 		QIIB_DBG("%s: %s: subsystem restart for %s\n", __func__,
 				"QCOM_SSR_BEFORE_SHUTDOWN",
 				devp->ssr_name);
 		devp->in_reset = true;
 		wake_up_interruptible(&devp->poll_wait_queue);
 	} else if (code == QCOM_SSR_AFTER_POWERUP) {
+		trace_rproc_qcom_event(devp->ssr_name,
+				"QCOM_SSR_AFTER_SHUTDOWN", "qiib_restart_notifier-enter");
 		QIIB_DBG("%s: %s: subsystem restart for %s\n", __func__,
 				"QCOM_SSR_AFTER_POWERUP",
 				devp->ssr_name);
 		devp->in_reset = false;
 	}
+
+	trace_rproc_qcom_event(devp->ssr_name, "qiib_restart_notifier", "exit");
 	return NOTIFY_DONE;
 }
 
@@ -432,8 +438,10 @@ static void qiib_cleanup(void)
 	}
 	mutex_unlock(&qiib_info->list_lock);
 
-	if (!IS_ERR_OR_NULL(qiib_info->classp))
+	if (!IS_ERR_OR_NULL(qiib_info->classp)) {
 		class_destroy(qiib_info->classp);
+		qiib_info->classp = NULL;
+	}
 
 	unregister_chrdev_region(MAJOR(qiib_info->dev_num), qiib_info->nports);
 }

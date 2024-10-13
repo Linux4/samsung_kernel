@@ -645,6 +645,7 @@ static void max77705_ccstat_irq_handler(void *data, int irq)
 	case cc_No_Connection:
 			msg_maxim("ccstat : cc_No_Connection");
 			usbc_data->pd_data->cc_status = CC_NO_CONN;
+			wake_up_interruptible(&usbc_data->device_add_wait_q);
 			usbc_data->is_samsung_accessory_enter_mode = 0;
 			usbc_data->pn_flag = false;
 			usbc_data->pd_support = false;

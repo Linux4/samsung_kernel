@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2021 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -77,6 +78,9 @@ wlan_cm_roam_send_set_vdev_pcl(struct wlan_objmgr_psoc *psoc,
 	if (QDF_IS_STATUS_ERROR(status))
 		return QDF_STATUS_E_FAILURE;
 
+	mlme_debug("RSO_CFG: band_capability:%d band_mask:%d for vdev[%d]",
+		   band_capability, pcl_req->band_mask, pcl_req->vdev_id);
+
 	vdev = wlan_objmgr_get_vdev_by_id_from_psoc(psoc, pcl_req->vdev_id,
 						    WLAN_MLME_SB_ID);
 	if (!vdev) {
@@ -111,7 +115,7 @@ wlan_cm_roam_send_set_vdev_pcl(struct wlan_objmgr_psoc *psoc,
 
 	status = policy_mgr_get_valid_chan_weights(
 			psoc, (struct policy_mgr_pcl_chan_weights *)weights,
-			PM_STA_MODE);
+			PM_STA_MODE, vdev);
 
 	qdf_mem_free(freq_list);
 
@@ -140,7 +144,8 @@ wlan_cm_roam_send_set_vdev_pcl(struct wlan_objmgr_psoc *psoc,
 		goto end;
 	}
 
-	mlme_debug("RSO_CFG: vdev[%d] Dump Vdev PCL weights", pcl_req->vdev_id);
+	mlme_debug("RSO_CFG: Dump Vdev PCL weights for vdev[%d]",
+		   pcl_req->vdev_id);
 	policy_mgr_dump_channel_list(weights->saved_num_chan,
 				     weights->saved_chan_list,
 				     weights->weighed_valid_list);
@@ -151,6 +156,37 @@ wlan_cm_roam_send_set_vdev_pcl(struct wlan_objmgr_psoc *psoc,
 
 end:
 	wlan_objmgr_vdev_release_ref(vdev, WLAN_MLME_SB_ID);
+
+	return status;
+}
+
+QDF_STATUS wlan_cm_tgt_send_roam_rt_stats_config(struct wlan_objmgr_psoc *psoc,
+						 struct roam_disable_cfg *req)
+{
+	QDF_STATUS status;
+	struct wlan_cm_roam_tx_ops *roam_tx_ops;
+	struct wlan_objmgr_vdev *vdev;
+
+	vdev = wlan_objmgr_get_vdev_by_id_from_psoc(psoc, req->vdev_id,
+						    WLAN_MLME_NB_ID);
+	if (!vdev)
+		return QDF_STATUS_E_INVAL;
+
+	roam_tx_ops = wlan_cm_roam_get_tx_ops_from_vdev(vdev);
+	if (!roam_tx_ops || !roam_tx_ops->send_roam_rt_stats_config) {
+		mlme_err("vdev %d send_roam_rt_stats_config is NULL",
+			 req->vdev_id);
+		wlan_objmgr_vdev_release_ref(vdev, WLAN_MLME_NB_ID);
+		return QDF_STATUS_E_INVAL;
+	}
+
+	status = roam_tx_ops->send_roam_rt_stats_config(vdev,
+							req->vdev_id, req->cfg);
+	if (QDF_IS_STATUS_ERROR(status))
+		mlme_debug("vdev %d fail to send roam rt stats config",
+			   req->vdev_id);
+
+	wlan_objmgr_vdev_release_ref(vdev, WLAN_MLME_NB_ID);
 
 	return status;
 }

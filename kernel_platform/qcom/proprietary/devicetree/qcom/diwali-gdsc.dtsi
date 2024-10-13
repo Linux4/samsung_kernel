@@ -79,9 +79,56 @@
 		status = "disabled";
 	};
 
+	/* DISP_CC_0 GDSCs */
+	disp0_cc_mdss_core_gdsc: qcom,disp0-gdsc@af09000 {
+		compatible = "qcom,gdsc";
+		reg = <0xaf09000 0x4>;
+		regulator-name = "disp0_cc_mdss_core_gdsc";
+		proxy-supply = <&disp0_cc_mdss_core_gdsc>;
+		qcom,proxy-consumer-enable;
+		qcom,retain-regs;
+		qcom,support-hw-trigger;
+		status = "disabled";
+	};
+
+	disp0_cc_mdss_core_int2_gdsc: qcom,disp0-gdsc@af0b000 {
+		compatible = "qcom,gdsc";
+		reg = <0xaf0b000 0x4>;
+		regulator-name = "disp0_cc_mdss_core_int2_gdsc";
+		qcom,retain-regs;
+		qcom,support-hw-trigger;
+		status = "disabled";
+	};
+
+	/* DISP_CC_1 GDSCs */
+	disp1_cc_mdss_core_gdsc: qcom,disp1-gdsc@15709000 {
+		compatible = "qcom,gdsc";
+		reg = <0x15709000 0x4>;
+		regulator-name = "disp1_cc_mdss_core_gdsc";
+		proxy-supply = <&disp1_cc_mdss_core_gdsc>;
+		qcom,proxy-consumer-enable;
+		qcom,retain-regs;
+		qcom,support-hw-trigger;
+		status = "disabled";
+	};
+
+	disp1_cc_mdss_core_int2_gdsc: qcom,disp1-gdsc@1570b000 {
+		compatible = "qcom,gdsc";
+		reg = <0x1570b000 0x4>;
+		regulator-name = "disp1_cc_mdss_core_int2_gdsc";
+		qcom,retain-regs;
+		qcom,support-hw-trigger;
+		status = "disabled";
+	};
+
 	gcc_apcs_gdsc_vote_ctrl: syscon@162128 {
 		compatible = "syscon";
 		reg = <0x162128 0x4>;
+	};
+
+	gcc_apcs_gdsc_sleep_ctrl: syscon@162204 {
+		compatible = "syscon";
+		reg = <0x162204 0x4>;
 	};
 
 	/* GCC GDSCs */
@@ -146,7 +193,7 @@
 		status = "disabled";
 	};
 
-	gcc_pcie_2_gdsc: qcom,gdsc@19d004 {
+	gcc_pcie_2_gdsc: qcom,pcie2-gdsc@19d004 {
 		compatible = "qcom,gdsc";
 		reg = <0x19d004 0x4>;
 		regulator-name = "gcc_pcie_2_gdsc";
@@ -162,6 +209,23 @@
 		reg = <0x160018 0x4>;
 		regulator-name = "gcc_usb3_phy_gdsc";
 		qcom,retain-regs;
+		status = "disabled";
+	};
+
+	gcc_venus_gdsc: qcom,gdsc@1b6020 {
+		compatible = "qcom,gdsc";
+		reg = <0x1b6020 0x4>;
+		regulator-name = "gcc_venus_gdsc";
+		qcom,retain-regs;
+		status = "disabled";
+	};
+
+	gcc_vcodec0_gdsc: qcom,gdsc@1b6044 {
+		compatible = "qcom,gdsc";
+		reg = <0x1b6044 0x4>;
+		regulator-name = "gcc_vcodec0_gdsc";
+		qcom,retain-regs;
+		qcom,support-hw-trigger;
 		status = "disabled";
 	};
 

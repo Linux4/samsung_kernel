@@ -64,7 +64,7 @@ enum mon_type {
 	NUM_MON_TYPES
 };
 
-#define SAMPLING_VOTER	(num_possible_cpus())
+#define SAMPLING_VOTER	max(num_possible_cpus(), 8U)
 #define NUM_FP_VOTERS	(SAMPLING_VOTER + 1)
 
 enum memlat_type {
@@ -529,6 +529,8 @@ static ssize_t store_spm_thres(struct kobject *kobj,
 	mon->spm_thres = spm_thres;
 	if (mon->spm_thres < MAX_SPM_THRES)
 		mon->enable_spm_voting = 1;
+	else
+		mon->enable_spm_voting = 0;
 	mon->disable_spm_value = mon->spm_thres -
 				mult_frac(mon->spm_thres, mon->spm_drop_pct, 100);
 	return count;
@@ -549,25 +551,35 @@ static ssize_t store_spm_freq_map(struct kobject *kobj,
 	sptr = str;
 	for (i = 0; i < MAX_SPM_FREQ_MAP; i++) {
 		token = strsep(&sptr, ":");
-		if (!token)
-			return -EINVAL;
+		if (!token) {
+			ret =  -EINVAL;
+			goto out;
+		}
 		ret = kstrtouint(token, 10, &val);
-		if (ret < 0)
-			return -EINVAL;
+		if (ret < 0) {
+			ret =  -EINVAL;
+			goto out;
+		}
 		val = max(val, 0U);
 		val = min(val, U32_MAX);
 		mon->spm_freq_map[i].cpufreq_mhz = val;
 		token = strsep(&sptr, " ");
-		if (!token)
-			return -EINVAL;
+		if (!token) {
+			ret =  -EINVAL;
+			goto out;
+		}
 		ret = kstrtouint(token, 10, &val);
-		if (ret < 0)
-			return -EINVAL;
+		if (ret < 0) {
+			ret =  -EINVAL;
+			goto out;
+		}
 		val = max(val, mon->min_freq);
 		val = min(val, mon->mon_max_freq);
 		mon->spm_freq_map[i].memfreq_khz = val;
 	}
 	ret = count;
+out:
+	kfree(str);
 	return ret;
 }
 
@@ -835,6 +847,8 @@ static void calculate_sampling_stats(void)
 			if (delta->grp_ctrs[grp][MISS_IDX])
 				stats->spm[grp] /=
 					delta->grp_ctrs[grp][MISS_IDX];
+			else
+				stats->spm[grp] = 0;
 			if (!memlat_grp->grp_ev_ids[WB_IDX]
 					|| !memlat_grp->grp_ev_ids[ACC_IDX])
 				stats->wb_pct[grp] = 0;
@@ -893,11 +907,11 @@ static inline void apply_adaptive_freq(struct memlat_group *memlat_grp,
 static void calculate_mon_sampling_freq(struct memlat_mon *mon)
 {
 	struct cpu_stats *stats;
-	int cpu, max_cpu = 0;
+	int cpu, max_cpu = cpumask_first(&mon->cpus);
 	u32 max_memfreq, max_cpufreq = 0, max_max_spm_cpufreq = 0, max_spm_cpufreq = 0;
 	u32 max_cpufreq_scaled = 0, ipm_diff, base_vote = 0;
 	u32 hw = mon->memlat_grp->hw_type;
-	u32 max_spm = 0, avg_spm = 0, max_l2miss_ratio = 0;
+	u32 max_spm = 0, avg_spm = 0, min_l2miss_ratio = U32_MAX;
 	u64  max_miss = 0;
 	u32 miss_delta, miss_delta_pct;
 	u32 i, j, vote_idx, spm_max_vote_khz;
@@ -909,7 +923,8 @@ static void calculate_mon_sampling_freq(struct memlat_mon *mon)
 	for_each_cpu(cpu, &mon->cpus) {
 		stats = per_cpu(sampling_stats, cpu);
 		/* these are max of any CPU (for SPM algo) */
-		max_l2miss_ratio = max(stats->l2miss_ratio[hw], max_l2miss_ratio);
+		if (stats->l2miss_ratio[hw])
+			min_l2miss_ratio = min(stats->l2miss_ratio[hw], min_l2miss_ratio);
 		max_miss = max(stats->delta.grp_ctrs[hw][MISS_IDX], max_miss);
 		max_spm_cpufreq = max(max_spm_cpufreq, stats->freq_mhz);
 		if (mon->is_compute || (stats->wb_pct[hw] >= mon->wb_pct_thres
@@ -920,13 +935,12 @@ static void calculate_mon_sampling_freq(struct memlat_mon *mon)
 			ipm_diff = mon->ipm_ceil - stats->ipm[hw];
 			max_cpufreq_scaled = stats->freq_mhz;
 
-			if (mon->enable_spm_voting)
+			if (mon->enable_spm_voting && stats->freq_mhz >= SPM_CPU_FREQ_IGN)
 				max_spm = max(stats->spm[hw], max_spm);
 
 			if (mon->freq_scale_pct && stats->freq_mhz &&
 			    (stats->freq_mhz < mon->freq_scale_limit_mhz) &&
-			    (stats->fe_stall_pct >= mon->fe_stall_floor ||
-			     stats->be_stall_pct >= mon->be_stall_floor)) {
+			    (stats->be_stall_pct >= mon->be_stall_floor)) {
 				max_cpufreq_scaled += (stats->freq_mhz * ipm_diff *
 					mon->freq_scale_pct) / (mon->ipm_ceil * 100);
 				max_cpufreq_scaled = min(mon->freq_scale_limit_mhz,
@@ -949,7 +963,7 @@ static void calculate_mon_sampling_freq(struct memlat_mon *mon)
 				mon->sampled_max_cpu_freq[i]);
 		}
 		avg_spm = avg_spm / mon->spm_window_size;
-		if (avg_spm >= mon->spm_thres && ((max_l2miss_ratio && max_l2miss_ratio
+		if (avg_spm >= mon->spm_thres && ((min_l2miss_ratio
 			< L2MISS_RATIO_THRES) || max_spm_cpufreq >= SPM_FREQ_THRES))
 			mon->spm_vote_inc_steps++;
 		else if (avg_spm < mon->disable_spm_value && mon->spm_vote_inc_steps >= 1)
@@ -1010,7 +1024,7 @@ static void calculate_mon_sampling_freq(struct memlat_mon *mon)
 			trace_memlat_spm_update(dev_name(mon->dev),
 				max_spm_cpufreq, max_max_spm_cpufreq, base_vote,
 				max_memfreq, mon->spm_vote_inc_steps,
-				spm_max_vote_khz, avg_spm, max_l2miss_ratio);
+				spm_max_vote_khz, avg_spm, min_l2miss_ratio);
 	}
 
 	mon->cur_freq = max_memfreq;
@@ -1086,8 +1100,6 @@ static void memlat_update_work(struct work_struct *work)
 	struct dcvs_freq new_freq;
 	u32 max_freqs[MAX_MEMLAT_GRPS] = { 0 };
 
-	calculate_sampling_stats();
-
 	/* aggregate mons to calculate max freq per memlat_group */
 	for (grp = 0; grp < MAX_MEMLAT_GRPS; grp++) {
 		memlat_grp = memlat_data->groups[grp];
@@ -1128,6 +1140,7 @@ static void memlat_update_work(struct work_struct *work)
 
 static enum hrtimer_restart memlat_hrtimer_handler(struct hrtimer *timer)
 {
+	calculate_sampling_stats();
 	queue_work(memlat_data->memlat_wq, &memlat_data->work);
 
 	return HRTIMER_NORESTART;
@@ -1535,8 +1548,8 @@ int cpucp_memlat_init(struct scmi_device *sdev)
 		return -EINVAL;
 
 	ops = sdev->handle->devm_get_protocol(sdev, SCMI_PROTOCOL_MEMLAT, &ph);
-	if (!ops)
-		return -ENODEV;
+	if (IS_ERR(ops))
+		return PTR_ERR(ops);
 
 	mutex_lock(&memlat_lock);
 	memlat_data->ph = ph;
@@ -1648,10 +1661,13 @@ static int memlat_dev_probe(struct platform_device *pdev)
 			ret = qcom_pmu_event_supported(event_id, cpu);
 			if (!ret)
 				continue;
-			if (ret != -EPROBE_DEFER)
+			if (ret != -EPROBE_DEFER) {
 				dev_err(dev, "ev=%lu not found on cpu%d: %d\n",
 						event_id, cpu, ret);
-			return ret;
+				if (event_id == INST_EV || event_id == CYC_EV)
+					return ret;
+			} else
+				return ret;
 		}
 	}
 
@@ -1847,7 +1863,8 @@ static int memlat_mon_probe(struct platform_device *pdev)
 	if (get_mask_and_mpidr_from_pdev(pdev, &mon->cpus, &mon->cpus_mpidr)) {
 		dev_err(dev, "Mon missing cpulist\n");
 		ret = -ENODEV;
-		goto unlock_out;
+		memlat_grp->num_mons--;
+		goto unlock_out_init;
 	}
 
 	num_cpus = cpumask_weight(&mon->cpus);
@@ -1924,6 +1941,7 @@ static int memlat_mon_probe(struct platform_device *pdev)
 	}
 
 	mon->index = memlat_grp->num_inited_mons++;
+unlock_out_init:
 	if (memlat_grps_and_mons_inited())
 		memlat_data->inited = true;
 
@@ -2008,11 +2026,6 @@ module_init(qcom_memlat_init);
 #else
 arch_initcall(qcom_memlat_init);
 #endif
-static __exit void qcom_memlat_exit(void)
-{
-	platform_driver_unregister(&qcom_memlat_driver);
-}
-module_exit(qcom_memlat_exit);
 
 MODULE_DESCRIPTION("QCOM MEMLAT Driver");
 MODULE_LICENSE("GPL v2");

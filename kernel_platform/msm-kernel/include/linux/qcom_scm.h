@@ -166,6 +166,8 @@ extern int qcom_scm_get_feat_version_cp(u64 *version);
 extern bool qcom_scm_kgsl_set_smmu_aperture_available(void);
 extern int qcom_scm_kgsl_set_smmu_aperture(
 				unsigned int num_context_bank);
+extern int qcom_scm_kgsl_set_smmu_lpac_aperture(
+				unsigned int num_context_bank);
 extern int qcom_scm_enable_shm_bridge(void);
 extern int qcom_scm_delete_shm_bridge(u64 handle);
 extern int qcom_scm_create_shm_bridge(u64 pfn_and_ns_perm_flags,
@@ -254,6 +256,11 @@ extern int qcom_scm_invoke_smc_legacy(phys_addr_t in_buf, size_t in_buf_size,
 extern int qcom_scm_invoke_callback_response(phys_addr_t out_buf,
 		size_t out_buf_size, int32_t *result, u64 *response_type,
 		unsigned int *data);
+
+extern int qcom_scm_lmh_dcvsh(u32 payload_fn, u32 payload_reg, u32 payload_val,
+			      u64 limit_node, u32 node_id, u64 version);
+extern int qcom_scm_lmh_profile_change(u32 profile_id);
+extern bool qcom_scm_lmh_dcvsh_available(void);
 #else
 
 #include <linux/errno.h>
@@ -463,5 +470,14 @@ static inline int qcom_scm_invoke_smc_legacy(phys_addr_t in_buf, size_t in_buf_s
 static inline int qcom_scm_invoke_callback_response(phys_addr_t out_buf,
 		size_t out_buf_size, int32_t *result, u64 *request_type,
 		unsigned int *data)	{ return -ENODEV; }
+
+static inline int qcom_scm_lmh_dcvsh(u32 payload_fn, u32 payload_reg, u32 payload_val,
+			      u64 limit_node, u32 node_id, u64 version);
+		{ return -ENODEV; }
+static inline int qcom_scm_lmh_profile_change(u32 profile_id);
+		{ return -ENODEV; }
+static inline bool qcom_scm_lmh_dcvsh_available(void);
+		{ return -ENODEV; }
+
 #endif
 #endif

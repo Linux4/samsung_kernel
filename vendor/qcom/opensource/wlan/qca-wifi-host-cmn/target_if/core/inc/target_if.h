@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2017-2021 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2021 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -187,6 +188,7 @@ struct target_version_info {
  * @mem_chunks: allocated memory blocks for FW
  * @scan_radio_caps: scan radio capabilities
  * @device_mode: Global Device mode
+ * @sbs_lower_band_end_freq: sbs lower band end frequency
  */
 struct tgt_info {
 	struct host_fw_ver version;
@@ -220,6 +222,7 @@ struct tgt_info {
 	bool is_pdevid_to_phyid_map;
 	struct wlan_psoc_host_scan_radio_caps *scan_radio_caps;
 	uint32_t device_mode;
+	uint32_t sbs_lower_band_end_freq;
 };
 
 /**
@@ -2666,6 +2669,25 @@ void target_if_set_reg_cc_ext_supp(struct target_psoc_info *tgt_hdl,
 				   struct wlan_objmgr_psoc *psoc);
 
 /**
+ * target_psoc_set_sbs_lower_band_end() - Set lower band end sbs frequency
+ *
+ * @psoc_info: Pointer to struct target_psoc_info.
+ * @val: sbs lower band end cap value
+ *
+ * Return: None
+ *
+ */
+static inline
+void target_psoc_set_sbs_lower_band_end(struct target_psoc_info *psoc_info,
+				    uint32_t val)
+{
+	if (!psoc_info)
+		return;
+
+	psoc_info->info.sbs_lower_band_end_freq = val;
+}
+
+/**
  * target_psoc_set_twt_ack_cap() - Set twt ack capability
  *
  * @psoc_info: Pointer to struct target_psoc_info.
@@ -2743,6 +2765,27 @@ uint16_t  target_if_pdev_get_hw_link_id
  */
 void target_pdev_set_hw_link_id
 		(struct wlan_objmgr_pdev *pdev, uint16_t hw_link_id);
+
+/**
+ * target_if_mlo_setup_req - API to trigger MLO setup sequence
+ * @pdev: Array of pointers to pdev object that are part of ML group
+ * @num_pdevs: Number of pdevs in above array
+ * @grp_id: ML Group ID
+ *
+ * Return: QDF_STATUS codes
+ */
+QDF_STATUS target_if_mlo_setup_req(struct wlan_objmgr_pdev **pdev,
+				   uint8_t num_pdevs, uint8_t grp_id);
+
+/**
+ * target_if_mlo_ready - API to send MLO ready
+ * @pdev: Array of pointers to pdev object that are part of ML group
+ * @num_pdevs: Number of pdevs in above array
+ *
+ * Return: QDF_STATUS codes
+ */
+QDF_STATUS target_if_mlo_ready(struct wlan_objmgr_pdev **pdev,
+			       uint8_t num_pdevs);
 #endif /*WLAN_FEATURE_11BE_MLO && WLAN_MLO_MULTI_CHIP*/
 
 #endif

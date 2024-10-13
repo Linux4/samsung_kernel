@@ -217,65 +217,6 @@ static int __qc_logger_remove(struct platform_device *pdev,
 	return 0;
 }
 
-#if IS_ENABLED(CONFIG_KUNIT) && IS_ENABLED(CONFIG_UML)
-static const struct qc_logger_drvdata *__qc_logger_mock_drvdata;
-
-/* TODO: This function must be called before calling
- * 'kunit_qc_logger_mock_probe' function in unit test.
- */
-int kunit_qc_logger_set_mock_drvdata(
-		const struct qc_logger_drvdata *mock_drvdata)
-{
-	__qc_logger_mock_drvdata = mock_drvdata;
-
-	return 0;
-}
-
-static int __qc_logger_mock_parse_dt_name(struct builder *bd)
-{
-	struct qc_logger_drvdata *drvdata =
-			container_of(bd, struct qc_logger_drvdata, bd);
-
-	drvdata->name = __qc_logger_mock_drvdata->name;
-
-	return 0;
-}
-
-static int __qc_logger_mock_parse_dt_unique_id(struct builder *bd)
-{
-	struct qc_logger_drvdata *drvdata =
-			container_of(bd, struct qc_logger_drvdata, bd);
-
-	drvdata->unique_id = __qc_logger_mock_drvdata->unique_id;
-
-	return 0;
-}
-
-static const struct dev_builder __qc_logger_mock_dev_builder[] = {
-	DEVICE_BUILDER(__qc_logger_mock_parse_dt_name, NULL),
-	DEVICE_BUILDER(__qc_logger_mock_parse_dt_unique_id, NULL),
-	DEVICE_BUILDER(__qc_logger_pick_concrete_logger,
-		       __qc_logger_unpick_concrete_logger),
-	DEVICE_BUILDER(__qc_logger_alloc_client,
-		       __qc_logger_free_client),
-	DEVICE_BUILDER(__qc_logger_call_concrete_logger_probe,
-		       __qc_logger_call_concrete_logger_remove),
-	DEVICE_BUILDER(__qc_logger_probe_epilog, NULL),
-};
-
-int kunit_qc_logger_mock_probe(struct platform_device *pdev)
-{
-	return __qc_logger_probe(pdev, __qc_logger_mock_dev_builder,
-			ARRAY_SIZE(__qc_logger_mock_dev_builder));
-}
-
-int kunit_qc_logger_mock_remove(struct platform_device *pdev)
-{
-	return __qc_logger_remove(pdev, __qc_logger_mock_dev_builder,
-			ARRAY_SIZE(__qc_logger_mock_dev_builder));
-}
-#endif
-
 static const struct dev_builder __qc_logger_dev_builder[] = {
 	DEVICE_BUILDER(__qc_logger_parse_dt, NULL),
 	DEVICE_BUILDER(__qc_logger_pick_concrete_logger,

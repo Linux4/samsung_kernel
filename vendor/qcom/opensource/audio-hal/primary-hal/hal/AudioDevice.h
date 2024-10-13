@@ -151,6 +151,10 @@ public:
     int SetGEFParam(void *data, int length);
     int GetGEFParam(void *data, int *length);
     std::shared_ptr<StreamOutPrimary> OutGetStream(audio_io_handle_t handle);
+#ifdef SEC_AUDIO_BLE_OFFLOAD
+    std::vector<std::shared_ptr<StreamOutPrimary>> OutGetBLEStreamOutputs();
+    std::vector<std::shared_ptr<StreamInPrimary>> InGetBLEStreamInputs();
+#endif
     std::shared_ptr<StreamOutPrimary> OutGetStream(audio_stream_t* audio_stream);
     std::shared_ptr<StreamInPrimary> CreateStreamIn(
             audio_io_handle_t handle,
@@ -188,8 +192,13 @@ public:
     int GetPalDeviceIds(
             const std::set<audio_devices_t>& hal_device_id,
             pal_device_id_t* pal_device_id);
+#ifdef SEC_AUDIO_EARLYDROP_PATCH
+    int usb_card_id_ = -1;
+    int usb_dev_num_ = -1;
+#else
     int usb_card_id_;
     int usb_dev_num_;
+#endif
     int dp_controller;
     int dp_stream;
     int num_va_sessions_ = 0;
@@ -250,6 +259,7 @@ public:
     std::shared_ptr<StreamInPrimary> GetActiveInStreamByUseCase(int UseCase);
     std::shared_ptr<StreamInPrimary> GetActiveInStreamByInputSource(audio_source_t input_source);
     std::shared_ptr<StreamOutPrimary> OutGetStream(pal_stream_type_t pal_stream_type);
+    std::shared_ptr<StreamOutPrimary> OutGetStreamByUsecase(int usecase);
 #endif
 #ifdef SEC_AUDIO_HIDL
     audio_hw_device_t* GetAudioDeviceInstance();
@@ -275,7 +285,11 @@ protected:
     std::mutex out_list_mutex;
     std::mutex in_list_mutex;
     std::mutex patch_map_mutex;
+#ifdef SEC_AUDIO_EARLYDROP_PATCH
+    static btsco_lc3_cfg_t btsco_lc3_cfg;
+#else
     btsco_lc3_cfg_t btsco_lc3_cfg;
+#endif
     bool bt_lc3_speech_enabled;
     void *offload_effects_lib_;
 #ifdef SEC_AUDIO_OFFLOAD
@@ -290,7 +304,7 @@ protected:
     void *visualizer_lib_;
     std::map<audio_devices_t, pal_device_id_t> android_device_map_;
     std::map<audio_patch_handle_t, AudioPatch*> patch_map_;
-    int add_input_headset_if_usb_out_headset(int *device_count,  pal_device_id_t** pal_device_ids);
+    int add_input_headset_if_usb_out_headset(int *device_count,  pal_device_id_t** pal_device_ids, bool conn_state);
 };
 
 static inline uint32_t lcm(uint32_t num1, uint32_t num2)

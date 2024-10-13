@@ -13,6 +13,8 @@
  *	- Non-secure access to the SMMU
  *	- Context fault reporting
  *	- Extended Stream ID (16 bit)
+ *
+ * Copyright (c) 2022, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #define pr_fmt(fmt) "arm-smmu: " fmt
@@ -1887,8 +1889,12 @@ static void arm_smmu_write_smr(struct arm_smmu_device *smmu, int idx)
 	u32 reg = FIELD_PREP(ARM_SMMU_SMR_ID, smr->id) |
 		  FIELD_PREP(ARM_SMMU_SMR_MASK, smr->mask);
 
-	if (!(smmu->features & ARM_SMMU_FEAT_EXIDS) && smr->valid)
+	if (!(smmu->features & ARM_SMMU_FEAT_EXIDS) && smr->valid) {
 		reg |= ARM_SMMU_SMR_VALID;
+		smr->state = SMR_PROGRAMMED;
+	} else {
+		smr->state = SMR_INVALID;
+	}
 	arm_smmu_gr0_write(smmu, ARM_SMMU_GR0_SMR(idx), reg);
 }
 
@@ -2051,6 +2057,7 @@ static int arm_smmu_master_alloc_smes(struct device *dev)
 			smrs[idx].id = sid;
 			smrs[idx].mask = mask;
 			smrs[idx].valid = true;
+			smrs[idx].state = SMR_ALLOCATED;
 		}
 		smmu->s2crs[idx].count++;
 		cfg->smendx[i] = (s16)idx;
@@ -2401,7 +2408,7 @@ static int arm_smmu_attach_dev(struct iommu_domain *domain, struct device *dev)
 	 * to 5-10sec worth of reprogramming the context bank, while
 	 * the system appears to be locked up to the user.
 	 */
-	pm_runtime_set_autosuspend_delay(smmu->dev, 20);
+	pm_runtime_set_autosuspend_delay(smmu->dev, 5);
 	pm_runtime_use_autosuspend(smmu->dev);
 
 out_power_off:
@@ -3246,14 +3253,21 @@ static int __arm_smmu_sid_switch(struct device *dev, void *data)
 		return 0;
 
 	smmu = cfg->smmu;
+
+	arm_smmu_rpm_get(smmu);
 	for_each_cfg_sme(cfg, fwspec, i, idx) {
 		if (dir == SID_RELEASE) {
 			arm_smmu_gr0_write(smmu, ARM_SMMU_GR0_SMR(idx), 0);
 			arm_smmu_gr0_write(smmu, ARM_SMMU_GR0_S2CR(idx), 0);
+			/* Update smr structure to inline with actual operation */
+			smmu->smrs[idx].state = SMR_ALLOCATED;
 		} else {
 			arm_smmu_write_sme(smmu, idx);
 		}
 	}
+	 /* Add barrier to ensure that the SMR register writes is completed. */
+	wmb();
+	arm_smmu_rpm_put(smmu);
 	return 0;
 }
 
@@ -3279,10 +3293,26 @@ static int arm_smmu_sid_switch(struct device *dev,
 	return ret;
 }
 
+static int arm_smmu_get_asid_nr(struct iommu_domain *domain)
+{
+	struct arm_smmu_domain *smmu_domain = to_smmu_domain(domain);
+	int ret;
+
+	mutex_lock(&smmu_domain->init_mutex);
+	if (!smmu_domain->smmu)
+		ret = -EINVAL;
+	else
+		ret = smmu_domain->cfg.asid;
+	mutex_unlock(&smmu_domain->init_mutex);
+	return ret;
+}
+
 static struct qcom_iommu_ops arm_smmu_ops = {
 	.iova_to_phys_hard = arm_smmu_iova_to_phys_hard,
 	.sid_switch		= arm_smmu_sid_switch,
 	.get_fault_ids		= arm_smmu_get_fault_ids,
+	.get_asid_nr		= arm_smmu_get_asid_nr,
+
 	.iommu_ops = {
 		.capable		= arm_smmu_capable,
 		.domain_alloc		= arm_smmu_domain_alloc,
@@ -3435,6 +3465,7 @@ static int arm_smmu_handoff_cbs(struct arm_smmu_device *smmu)
 
 			smrs.id = FIELD_GET(ARM_SMMU_SMR_ID, smr);
 			smrs.mask = FIELD_GET(ARM_SMMU_SMR_MASK, smr);
+			smrs.state = SMR_PROGRAMMED;
 
 		} else {
 			smrs.valid = FIELD_GET(ARM_SMMU_SMR_VALID, smr);
@@ -3448,6 +3479,7 @@ static int arm_smmu_handoff_cbs(struct arm_smmu_device *smmu)
 			 */
 			smrs.mask = FIELD_GET(ARM_SMMU_SMR_MASK,
 					      smr & ~ARM_SMMU_SMR_VALID);
+			smrs.state = SMR_PROGRAMMED;
 		}
 
 		for (index = 0; index < num_handoff_smrs; index++) {
@@ -3975,11 +4007,10 @@ static int arm_smmu_device_probe(struct platform_device *pdev)
 	if (err)
 		return err;
 
-	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
-	ioaddr = res->start;
-	smmu->base = devm_ioremap_resource(dev, res);
+	smmu->base = devm_platform_get_and_ioremap_resource(pdev, 0, &res);
 	if (IS_ERR(smmu->base))
 		return PTR_ERR(smmu->base);
+	ioaddr = res->start;
 	/*
 	 * The resource size should effectively match the value of SMMU_TOP;
 	 * stash that temporarily until we know PAGESIZE to validate it with.
@@ -4218,68 +4249,32 @@ static int __maybe_unused arm_smmu_pm_suspend(struct device *dev)
 	return arm_smmu_runtime_suspend(dev);
 }
 
+static int arm_smmu_pm_prepare(struct device *dev)
+{
+	if (!of_device_is_compatible(dev->of_node, "qcom,adreno-smmu"))
+		return 0;
+
+	/*
+	 * In case of GFX smmu, race between rpm_suspend and system suspend could
+	 * cause a deadlock where cx vote is never put down causing timeout. So,
+	 * abort system suspend here if dev->power.usage_count is 1 as this indicates
+	 * rpm_suspend is in progress and prepare is the one incrementing this counter.
+	 * Now rpm_suspend can continue and put down cx vote. System suspend will resume
+	 * later and complete.
+	 */
+	if (pm_runtime_suspended(dev))
+		return 0;
+
+	return (atomic_read(&dev->power.usage_count) == 1) ? -EINPROGRESS : 0;
+}
+
 static const struct dev_pm_ops arm_smmu_pm_ops = {
+	.prepare = arm_smmu_pm_prepare,
 	SET_SYSTEM_SLEEP_PM_OPS(arm_smmu_pm_suspend, arm_smmu_pm_resume)
 	SET_RUNTIME_PM_OPS(arm_smmu_runtime_suspend,
 			   arm_smmu_runtime_resume, NULL)
 };
 
-static const struct of_device_id qsmmuv500_tbu_of_match[] = {
-	{.compatible = "qcom,qsmmuv500-tbu"},
-	{}
-};
-
-static int qsmmuv500_tbu_probe(struct platform_device *pdev)
-{
-	struct resource *res;
-	struct device *dev = &pdev->dev;
-	struct qsmmuv500_tbu_device *tbu;
-	const __be32 *cell;
-	int len;
-
-	tbu = devm_kzalloc(dev, sizeof(*tbu), GFP_KERNEL);
-	if (!tbu)
-		return -ENOMEM;
-
-	INIT_LIST_HEAD(&tbu->list);
-	tbu->dev = dev;
-	spin_lock_init(&tbu->halt_lock);
-
-	res = platform_get_resource_byname(pdev, IORESOURCE_MEM, "base");
-	tbu->base = devm_ioremap_resource(dev, res);
-	if (IS_ERR(tbu->base))
-		return PTR_ERR(tbu->base);
-
-	cell = of_get_property(dev->of_node, "qcom,stream-id-range", &len);
-	if (!cell || len < 8)
-		return -EINVAL;
-
-	tbu->sid_start = of_read_number(cell, 1);
-	tbu->num_sids = of_read_number(cell + 1, 1);
-
-	/* Return -EINVAL only if property not present */
-	tbu->has_micro_idle = of_property_read_bool(dev->of_node, "qcom,micro-idle");
-
-	tbu->pwr = arm_smmu_init_power_resources(dev);
-	if (IS_ERR(tbu->pwr))
-		return PTR_ERR(tbu->pwr);
-
-	if (tbu->has_micro_idle) {
-		tbu->pwr->resume = arm_smmu_micro_idle_wake;
-		tbu->pwr->suspend = arm_smmu_micro_idle_allow;
-	}
-
-	dev_set_drvdata(dev, tbu);
-	return 0;
-}
-
-static struct platform_driver qsmmuv500_tbu_driver = {
-	.driver	= {
-		.name		= "qsmmuv500-tbu",
-		.of_match_table	= of_match_ptr(qsmmuv500_tbu_of_match),
-	},
-	.probe	= qsmmuv500_tbu_probe,
-};
 
 static struct platform_driver arm_smmu_driver = {
 	.driver	= {

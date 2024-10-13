@@ -36,14 +36,17 @@ extern void usb_deauthorize_interface(struct usb_interface *);
 extern void usb_authorize_interface(struct usb_interface *);
 extern void usb_detect_quirks(struct usb_device *udev);
 extern void usb_detect_interface_quirks(struct usb_device *udev);
+#ifdef CONFIG_USB_INTERFACE_LPM_LIST
+extern int usb_detect_interface_lpm(struct usb_device *udev);
+#endif
 extern void usb_release_quirk_list(void);
 extern bool usb_endpoint_is_ignored(struct usb_device *udev,
 		struct usb_host_interface *intf,
 		struct usb_endpoint_descriptor *epd);
 extern int usb_remove_device(struct usb_device *udev);
 
-extern int usb_get_device_descriptor(struct usb_device *dev,
-		unsigned int size);
+extern struct usb_device_descriptor *usb_get_device_descriptor(
+		struct usb_device *udev);
 extern int usb_set_isoch_delay(struct usb_device *dev);
 extern int usb_get_bos_descriptor(struct usb_device *dev);
 extern void usb_release_bos_descriptor(struct usb_device *dev);

@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2016-2021 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -132,6 +133,23 @@ static inline int pld_pcie_wlan_pm_control(struct device *dev, bool vote)
 }
 #else
 static inline int pld_pcie_wlan_pm_control(struct device *dev, bool vote)
+{
+	return 0;
+}
+#endif
+
+#ifdef FEATURE_WLAN_FULL_POWER_DOWN_SUPPORT
+/**
+ * pld_pcie_set_suspend_mode() - Set current WLAN suspend mode
+ *
+ * This function is to set current wlan suspend mode for CNSS2
+ *
+ * Return: 0 for success
+ *         Non zero failure code for errors
+ */
+int pld_pcie_set_suspend_mode(enum pld_suspend_mode mode);
+#else
+static inline int pld_pcie_set_suspend_mode(enum pld_suspend_mode mode)
 {
 	return 0;
 }
@@ -330,6 +348,11 @@ static inline void pld_pcie_unlock_reg_window(struct device *dev,
 {
 }
 
+static inline int pld_pcie_get_pci_slot(struct device *dev)
+{
+	return 0;
+}
+
 static inline int pld_pcie_power_on(struct device *dev)
 {
 	return 0;
@@ -511,7 +534,7 @@ static inline void pld_pcie_link_down(struct device *dev)
 }
 
 #if ((LINUX_VERSION_CODE >= KERNEL_VERSION(4, 19, 0)) && \
-		(LINUX_VERSION_CODE < KERNEL_VERSION(4, 20, 0)))
+		(LINUX_VERSION_CODE < KERNEL_VERSION(5, 11, 0)))
 static inline int pld_pcie_get_reg_dump(struct device *dev, uint8_t *buf,
 					uint32_t len)
 {
@@ -627,6 +650,18 @@ static inline void pld_pcie_unlock_reg_window(struct device *dev,
 {
 	cnss_pci_unlock_reg_window(dev, flags);
 }
+
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0))
+static inline int pld_pcie_get_pci_slot(struct device *dev)
+{
+	return cnss_get_pci_slot(dev);
+}
+#else
+static inline int pld_pcie_get_pci_slot(struct device *dev)
+{
+	return 0;
+}
+#endif
 
 static inline int pld_pcie_power_on(struct device *dev)
 {

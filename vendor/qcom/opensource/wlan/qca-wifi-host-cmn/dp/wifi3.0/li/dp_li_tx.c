@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2016-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -25,6 +25,11 @@
 #include <dp_htt.h>
 #include <hal_li_api.h>
 #include <hal_li_tx.h>
+#include "dp_peer.h"
+#ifdef FEATURE_WDS
+#include "dp_txrx_wds.h"
+#endif
+#include "dp_li.h"
 
 extern uint8_t sec_type_map[MAX_CDP_SEC_TYPE];
 
@@ -56,6 +61,194 @@ void dp_tx_comp_get_params_from_hal_desc_li(struct dp_soc *soc,
 	(*r_tx_desc)->peer_id = hal_tx_comp_get_peer_id(tx_comp_hal_desc);
 }
 
+static inline
+void dp_tx_process_mec_notify_li(struct dp_soc *soc, uint8_t *status)
+{
+	struct dp_vdev *vdev;
+	uint8_t vdev_id;
+	uint32_t *htt_desc = (uint32_t *)status;
+
+	/*
+	 * Get vdev id from HTT status word in case of MEC
+	 * notification
+	 */
+	vdev_id = HTT_TX_WBM_COMPLETION_V2_VDEV_ID_GET(htt_desc[3]);
+	if (qdf_unlikely(vdev_id >= MAX_VDEV_CNT))
+		return;
+
+	vdev = dp_vdev_get_ref_by_id(soc, vdev_id,
+				     DP_MOD_ID_HTT_COMP);
+	if (!vdev)
+		return;
+	dp_tx_mec_handler(vdev, status);
+	dp_vdev_unref_delete(soc, vdev, DP_MOD_ID_HTT_COMP);
+}
+
+void dp_tx_process_htt_completion_li(struct dp_soc *soc,
+				     struct dp_tx_desc_s *tx_desc,
+				     uint8_t *status,
+				     uint8_t ring_id)
+{
+	uint8_t tx_status;
+	struct dp_pdev *pdev;
+	struct dp_vdev *vdev = NULL;
+	struct hal_tx_completion_status ts = {0};
+	uint32_t *htt_desc = (uint32_t *)status;
+	struct dp_peer *peer;
+	struct cdp_tid_tx_stats *tid_stats = NULL;
+	struct htt_soc *htt_handle;
+	uint8_t vdev_id;
+
+	tx_status = HTT_TX_WBM_COMPLETION_V2_TX_STATUS_GET(htt_desc[0]);
+	htt_handle = (struct htt_soc *)soc->htt_handle;
+	htt_wbm_event_record(htt_handle->htt_logger_handle, tx_status, status);
+
+	/*
+	 * There can be scenario where WBM consuming descriptor enqueued
+	 * from TQM2WBM first and TQM completion can happen before MEC
+	 * notification comes from FW2WBM. Avoid access any field of tx
+	 * descriptor in case of MEC notify.
+	 */
+	if (tx_status == HTT_TX_FW2WBM_TX_STATUS_MEC_NOTIFY)
+		return dp_tx_process_mec_notify_li(soc, status);
+
+	/*
+	 * If the descriptor is already freed in vdev_detach,
+	 * continue to next descriptor
+	 */
+	if (qdf_unlikely(!tx_desc->flags)) {
+		dp_tx_comp_info_rl("Descriptor freed in vdev_detach %d",
+				   tx_desc->id);
+		return;
+	}
+
+	if (qdf_unlikely(tx_desc->vdev_id == DP_INVALID_VDEV_ID)) {
+		dp_tx_comp_info_rl("Invalid vdev_id %d", tx_desc->id);
+		tx_desc->flags |= DP_TX_DESC_FLAG_TX_COMP_ERR;
+		goto release_tx_desc;
+	}
+
+	pdev = tx_desc->pdev;
+
+	if (qdf_unlikely(tx_desc->pdev->is_pdev_down)) {
+		dp_tx_comp_info_rl("pdev in down state %d", tx_desc->id);
+		tx_desc->flags |= DP_TX_DESC_FLAG_TX_COMP_ERR;
+		goto release_tx_desc;
+	}
+
+	qdf_assert(tx_desc->pdev);
+
+	vdev_id = tx_desc->vdev_id;
+	vdev = dp_vdev_get_ref_by_id(soc, vdev_id,
+				     DP_MOD_ID_HTT_COMP);
+
+	if (qdf_unlikely(!vdev)) {
+		dp_tx_comp_info_rl("Unable to get vdev ref  %d", tx_desc->id);
+		tx_desc->flags |= DP_TX_DESC_FLAG_TX_COMP_ERR;
+		goto release_tx_desc;
+	}
+
+	switch (tx_status) {
+	case HTT_TX_FW2WBM_TX_STATUS_OK:
+	case HTT_TX_FW2WBM_TX_STATUS_DROP:
+	case HTT_TX_FW2WBM_TX_STATUS_TTL:
+	{
+		uint8_t tid;
+
+		if (HTT_TX_WBM_COMPLETION_V2_VALID_GET(htt_desc[2])) {
+			ts.peer_id =
+				HTT_TX_WBM_COMPLETION_V2_SW_PEER_ID_GET(
+						htt_desc[2]);
+			ts.tid =
+				HTT_TX_WBM_COMPLETION_V2_TID_NUM_GET(
+						htt_desc[2]);
+		} else {
+			ts.peer_id = HTT_INVALID_PEER;
+			ts.tid = HTT_INVALID_TID;
+		}
+		ts.release_src = HAL_TX_COMP_RELEASE_SOURCE_FW;
+		ts.ppdu_id =
+			HTT_TX_WBM_COMPLETION_V2_SCH_CMD_ID_GET(
+					htt_desc[1]);
+		ts.ack_frame_rssi =
+			HTT_TX_WBM_COMPLETION_V2_ACK_FRAME_RSSI_GET(
+					htt_desc[1]);
+
+		ts.tsf = htt_desc[3];
+		ts.first_msdu = 1;
+		ts.last_msdu = 1;
+		switch (tx_status) {
+		case HTT_TX_FW2WBM_TX_STATUS_OK:
+			ts.status = HAL_TX_TQM_RR_FRAME_ACKED;
+			break;
+		case HTT_TX_FW2WBM_TX_STATUS_DROP:
+			ts.status = HAL_TX_TQM_RR_REM_CMD_REM;
+			break;
+		case HTT_TX_FW2WBM_TX_STATUS_TTL:
+			ts.status = HAL_TX_TQM_RR_REM_CMD_TX;
+			break;
+		}
+		tid = ts.tid;
+		if (qdf_unlikely(tid >= CDP_MAX_DATA_TIDS))
+			tid = CDP_MAX_DATA_TIDS - 1;
+
+		tid_stats = &pdev->stats.tid_stats.tid_tx_stats[ring_id][tid];
+
+		if (qdf_unlikely(pdev->delay_stats_flag) ||
+		    qdf_unlikely(dp_is_vdev_tx_delay_stats_enabled(vdev)))
+			dp_tx_compute_delay(vdev, tx_desc, tid, ring_id);
+		if (tx_status < CDP_MAX_TX_HTT_STATUS)
+			tid_stats->htt_status_cnt[tx_status]++;
+
+		peer = dp_peer_get_ref_by_id(soc, ts.peer_id,
+					     DP_MOD_ID_HTT_COMP);
+		if (qdf_likely(peer)) {
+			DP_STATS_INC_PKT(peer, tx.comp_pkt, 1,
+					 qdf_nbuf_len(tx_desc->nbuf));
+			DP_STATS_INCC(peer, tx.tx_failed, 1,
+				      tx_status != HTT_TX_FW2WBM_TX_STATUS_OK);
+		}
+
+		dp_tx_comp_process_tx_status(soc, tx_desc, &ts, peer, ring_id);
+		dp_tx_comp_process_desc(soc, tx_desc, &ts, peer);
+		dp_tx_desc_release(tx_desc, tx_desc->pool_id);
+
+		if (qdf_likely(peer))
+			dp_peer_unref_delete(peer, DP_MOD_ID_HTT_COMP);
+
+		break;
+	}
+	case HTT_TX_FW2WBM_TX_STATUS_REINJECT:
+	{
+		dp_tx_reinject_handler(soc, vdev, tx_desc, status);
+		break;
+	}
+	case HTT_TX_FW2WBM_TX_STATUS_INSPECT:
+	{
+		dp_tx_inspect_handler(soc, vdev, tx_desc, status);
+		break;
+	}
+	case HTT_TX_FW2WBM_TX_STATUS_VDEVID_MISMATCH:
+	{
+		DP_STATS_INC(vdev, tx_i.dropped.fail_per_pkt_vdev_id_check, 1);
+		goto release_tx_desc;
+	}
+	default:
+		dp_tx_comp_err("Invalid HTT tx_status %d\n",
+			       tx_status);
+		goto release_tx_desc;
+	}
+
+	dp_vdev_unref_delete(soc, vdev, DP_MOD_ID_HTT_COMP);
+	return;
+
+release_tx_desc:
+	dp_tx_comp_free_buf(soc, tx_desc);
+	dp_tx_desc_release(tx_desc, tx_desc->pool_id);
+	if (vdev)
+		dp_vdev_unref_delete(soc, vdev, DP_MOD_ID_HTT_COMP);
+}
+
 #ifdef QCA_OL_TX_MULTIQ_SUPPORT
 /*
  * dp_tx_get_rbm_id()- Get the RBM ID for data transmission completion.
@@ -64,13 +257,20 @@ void dp_tx_comp_get_params_from_hal_desc_li(struct dp_soc *soc,
  *
  * Return - HAL ring handle
  */
+#ifdef IPA_OFFLOAD
+static inline uint8_t dp_tx_get_rbm_id_li(struct dp_soc *soc,
+					  uint8_t ring_id)
+{
+	return (ring_id + soc->wbm_sw0_bm_id);
+}
+#else
 static inline uint8_t dp_tx_get_rbm_id_li(struct dp_soc *soc,
 					  uint8_t ring_id)
 {
 	return (ring_id ? soc->wbm_sw0_bm_id + (ring_id - 1) :
 			  HAL_WBM_SW2_BM_ID(soc->wbm_sw0_bm_id));
 }
-
+#endif
 #else
 
 #ifdef TX_MULTI_TCL
@@ -194,10 +394,9 @@ dp_tx_hw_enqueue_li(struct dp_soc *soc, struct dp_vdev *vdev,
 		hal_tx_desc_set_to_fw(hal_tx_desc_cached, 1);
 
 	/* verify checksum offload configuration*/
-	if (vdev->csum_enabled &&
-	    ((qdf_nbuf_get_tx_cksum(tx_desc->nbuf) ==
-	      QDF_NBUF_TX_CKSUM_TCP_UDP) ||
-	      qdf_nbuf_is_tso(tx_desc->nbuf)))  {
+	if ((qdf_nbuf_get_tx_cksum(tx_desc->nbuf) ==
+				   QDF_NBUF_TX_CKSUM_TCP_UDP) ||
+	      qdf_nbuf_is_tso(tx_desc->nbuf))  {
 		hal_tx_desc_set_l3_checksum_en(hal_tx_desc_cached, 1);
 		hal_tx_desc_set_l4_checksum_en(hal_tx_desc_cached, 1);
 	}
@@ -208,9 +407,8 @@ dp_tx_hw_enqueue_li(struct dp_soc *soc, struct dp_vdev *vdev,
 	if (tx_desc->flags & DP_TX_DESC_FLAG_MESH)
 		hal_tx_desc_set_mesh_en(soc->hal_soc, hal_tx_desc_cached, 1);
 
-	if (qdf_unlikely(vdev->pdev->delay_stats_flag) ||
-	    qdf_unlikely(wlan_cfg_is_peer_ext_stats_enabled(soc->wlan_cfg_ctx)))
-		tx_desc->timestamp = qdf_ktime_to_ms(qdf_ktime_real_get());
+	if (!dp_tx_desc_set_ktimestamp(vdev, tx_desc))
+		dp_tx_desc_set_timestamp(tx_desc);
 
 	dp_verbose_debug("length:%d , type = %d, dma_addr %llx, offset %d desc id %u",
 			 tx_desc->length,
@@ -244,10 +442,11 @@ dp_tx_hw_enqueue_li(struct dp_soc *soc, struct dp_vdev *vdev,
 	tx_desc->flags |= DP_TX_DESC_FLAG_QUEUED_TX;
 	dp_vdev_peer_stats_update_protocol_cnt_tx(vdev, tx_desc->nbuf);
 	hal_tx_desc_sync(hal_tx_desc_cached, hal_tx_desc);
-	coalesce = dp_tx_attempt_coalescing(soc, vdev, tx_desc, tid);
+	coalesce = dp_tx_attempt_coalescing(soc, vdev, tx_desc, tid,
+					    msdu_info, ring_id);
 	DP_STATS_INC_PKT(vdev, tx_i.processed, 1, tx_desc->length);
 	DP_STATS_INC(soc, tx.tcl_enq[ring_id], 1);
-	dp_tx_update_stats(soc, tx_desc->nbuf);
+	dp_tx_update_stats(soc, tx_desc, ring_id);
 	status = QDF_STATUS_SUCCESS;
 
 	dp_tx_hw_desc_update_evt((uint8_t *)hal_tx_desc_cached,
@@ -255,6 +454,8 @@ dp_tx_hw_enqueue_li(struct dp_soc *soc, struct dp_vdev *vdev,
 
 ring_access_fail:
 	dp_tx_ring_access_end_wrapper(soc, hal_ring_hdl, coalesce);
+	dp_pkt_add_timestamp(vdev, QDF_PKT_TX_DRIVER_EXIT,
+			     qdf_get_log_timestamp(), tx_desc->nbuf);
 
 	return status;
 }
@@ -281,6 +482,7 @@ QDF_STATUS dp_tx_desc_pool_init_li(struct dp_soc *soc,
 
 		tx_desc->id = id;
 		tx_desc->pool_id = pool_id;
+		dp_tx_desc_set_magic(tx_desc, DP_TX_MAGIC_PATTERN_FREE);
 		tx_desc = tx_desc->next;
 		count++;
 	}

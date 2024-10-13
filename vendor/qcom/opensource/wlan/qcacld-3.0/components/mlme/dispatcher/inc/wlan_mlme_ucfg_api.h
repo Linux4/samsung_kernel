@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2018-2021 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -240,6 +241,42 @@ QDF_STATUS ucfg_mlme_get_band_capability(struct wlan_objmgr_psoc *psoc,
 {
 	return wlan_mlme_get_band_capability(psoc, band_capability);
 }
+
+#ifdef MULTI_CLIENT_LL_SUPPORT
+/**
+ * ucfg_mlme_get_wlm_multi_client_ll_caps() - Get multi client latency level
+ * capability of FW
+ * @psoc: pointer to psoc object
+ *
+ * Return: true if multi client feature supported
+ */
+bool ucfg_mlme_get_wlm_multi_client_ll_caps(struct wlan_objmgr_psoc *psoc);
+
+/**
+ * ucfg_mlme_cfg_get_multi_client_ll_ini_support() - Get multi client latency
+ * level ini support value
+ * @psoc: pointer to psoc object
+ * @multi_client_ll_support: parameter that needs to be filled
+ *
+ * Return: QDF Status
+ */
+QDF_STATUS
+ucfg_mlme_cfg_get_multi_client_ll_ini_support(struct wlan_objmgr_psoc *psoc,
+					      bool *multi_client_ll_support);
+#else
+static inline
+bool ucfg_mlme_get_wlm_multi_client_ll_caps(struct wlan_objmgr_psoc *psoc)
+{
+	return false;
+}
+
+static inline QDF_STATUS
+ucfg_mlme_cfg_get_multi_client_ll_ini_support(struct wlan_objmgr_psoc *psoc,
+					      bool *multi_client_ll_support)
+{
+	return QDF_STATUS_E_FAILURE;
+}
+#endif
 
 /**
  * ucfg_mlme_set_band_capability() - Set the Band capability config
@@ -2760,8 +2797,25 @@ ucfg_mlme_set_rf_test_mode_enabled(struct wlan_objmgr_psoc *psoc, bool value)
 }
 
 /**
+ * ucfg_mlme_is_standard_6ghz_conn_policy_enabled() - Get 6ghz standard
+ *                                                    connection policy flag
+ * @psoc: pointer to psoc object
+ * @value: pointer to hold the value of flag
+ *
+ * Inline UCFG API to be used by HDD/OSIF callers
+ *
+ * Return: QDF Status
+ */
+static inline QDF_STATUS
+ucfg_mlme_is_standard_6ghz_conn_policy_enabled(struct wlan_objmgr_psoc *psoc,
+					       bool *value)
+{
+	return wlan_mlme_is_standard_6ghz_conn_policy_enabled(psoc, value);
+}
+
+/**
  * ucfg_mlme_get_opr_rate() - Get operational rate set
- * @psoc: pointer to vdev object
+ * @vdev: pointer to vdev object
  * @buf: buffer to get rates set
  * @len: length of the buffer
  *
@@ -4378,4 +4432,95 @@ ucfg_mlme_cfg_get_ht_smps(struct wlan_objmgr_psoc *psoc,
 {
 	return wlan_mlme_cfg_get_ht_smps(psoc, value);
 }
+
+#ifdef FEATURE_WLAN_CH_AVOID_EXT
+/**
+ * ucfg_mlme_get_coex_unsafe_chan_nb_user_prefer() - get coex unsafe nb
+ * support
+ * @psoc:   pointer to psoc object
+ * @value:  pointer to the value which will be filled for the caller
+ *
+ * Return: coex_unsafe_chan_nb_user_prefer
+ */
+bool ucfg_mlme_get_coex_unsafe_chan_nb_user_prefer(
+		struct wlan_objmgr_psoc *psoc);
+
+/**
+ * ucfg_mlme_get_coex_unsafe_chan_reg_disable() - get reg disable cap for
+ * coex unsafe channels support
+ * @psoc:   pointer to psoc object
+ * @value:  pointer to the value which will be filled for the caller
+ *
+ * Return: coex_unsafe_chan_reg_disable
+ */
+bool ucfg_mlme_get_coex_unsafe_chan_reg_disable(
+		struct wlan_objmgr_psoc *psoc);
+#else
+static inline
+bool ucfg_mlme_get_coex_unsafe_chan_nb_user_prefer(
+		struct wlan_objmgr_psoc *psoc)
+{
+	return false;
+}
+
+static inline
+bool ucfg_mlme_get_coex_unsafe_chan_reg_disable(
+		struct wlan_objmgr_psoc *psoc)
+{
+	return false;
+}
+#endif
+
+/**
+ * ucfg_set_ratemask_params() - Set ratemask config
+ * @vdev:   pointer to vdev object
+ * @num_ratemask: number of ratemask params
+ * @rate_params: ratemask params
+ *
+ * Return: QDF_STATUS
+ */
+
+static inline QDF_STATUS
+ucfg_set_ratemask_params(struct wlan_objmgr_vdev *vdev,
+			 uint8_t num_ratemask,
+			 struct config_ratemask_params *rate_params)
+{
+	return wlan_mlme_update_ratemask_params(vdev, num_ratemask,
+						rate_params);
+}
+
+/**
+ * ucfg_mlme_get_ch_width_from_phymode() - Convert phymode to ch_width
+ * @phy_mode: phy mode
+ *
+ * Return: enum phy_ch_width
+ */
+static inline enum phy_ch_width
+ucfg_mlme_get_ch_width_from_phymode(enum wlan_phymode phy_mode)
+{
+	return wlan_mlme_get_ch_width_from_phymode(phy_mode);
+}
+
+/**
+ * ucfg_mlme_get_peer_ch_width() - get ch_width of the given peer
+ * @psoc: pointer to psoc object
+ * @mac: peer mac
+ *
+ * Return: enum phy_ch_width
+ */
+static inline enum phy_ch_width
+ucfg_mlme_get_peer_ch_width(struct wlan_objmgr_psoc *psoc, uint8_t *mac)
+{
+	return wlan_mlme_get_peer_ch_width(psoc, mac);
+}
+
+/**
+ * ucfg_mlme_get_vdev_phy_mode() - Get phymode of a vdev
+ * @psoc: pointer to psoc object
+ * @vdev_id: vdev id
+ *
+ * Return: enum wlan_phymode
+ */
+enum wlan_phymode
+ucfg_mlme_get_vdev_phy_mode(struct wlan_objmgr_psoc *psoc, uint8_t vdev_id);
 #endif /* _WLAN_MLME_UCFG_API_H_ */

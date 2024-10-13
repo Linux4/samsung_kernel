@@ -19,9 +19,14 @@
 #include <linux/err.h>
 #include <crypto/hash.h>
 #include <crypto/hash_info.h>
-#include <crypto/sha.h>
 #include <linux/version.h>
 #include <linux/file.h>
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 11, 0)
+#include <crypto/sha1.h>
+#include <crypto/sha2.h>
+#else
+#include <crypto/sha.h>
+#endif
 
 #include "proca_log.h"
 #include "proca_certificate.h"

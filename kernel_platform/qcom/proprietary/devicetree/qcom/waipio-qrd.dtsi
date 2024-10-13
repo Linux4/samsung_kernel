@@ -296,28 +296,67 @@
 				hysteresis = <3000>;
 				type = "passive";
 			};
+		};
 
-			qtm_config2: qtm-config2 {
-				temperature = <75000>;
+		cooling-maps {
+			mmw2_cdev0 {
+				trip = <&qtm_config0>;
+				cooling-device = <&mmw1_dsc 1 1>;
+			};
+
+			mmw2_cdev1 {
+				trip = <&qtm_config1>;
+				cooling-device = <&mmw1_dsc 3 3>;
+			};
+		};
+	};
+
+	skin-msm-therm {
+		trips {
+			skin_config0: skin-config0 {
+				temperature = <49800>;
+				hysteresis = <1000>;
+				type = "passive";
+			};
+
+			skin_config1: skin-config1 {
+				temperature = <50800>;
+				hysteresis = <0500>;
+				type = "passive";
+			};
+
+			skin_config2: skin-config2 {
+				temperature = <65000>;
+				hysteresis = <2000>;
+				type = "passive";
+			};
+
+			skin_config3: skin-config3 {
+				temperature = <85000>;
 				hysteresis = <2000>;
 				type = "passive";
 			};
 		};
 
 		cooling-maps {
-			mmw2_cdev0 {
-				trip = <&qtm_config0>;
-				cooling-device = <&mmw2_dsc 1 1>;
+			nr_scg_cdev0 {
+				trip = <&skin_config0>;
+				cooling-device = <&modem_nr_scg_dsc 2 2>;
 			};
 
-			mmw2_cdev1 {
-				trip = <&qtm_config1>;
-				cooling-device = <&mmw2_dsc 3 3>;
+			nr_scg_cdev1 {
+				trip = <&skin_config1>;
+				cooling-device = <&modem_nr_scg_dsc 3 3>;
 			};
 
-			mmw2_cdev2 {
-				trip = <&qtm_config2>;
-				cooling-device = <&mmw2_dsc 4 4>;
+			nr_scg_cdev2 {
+				trip = <&skin_config2>;
+				cooling-device = <&modem_nr_scg_dsc 10 10>;
+			};
+
+			nr_cdev3 {
+				trip = <&skin_config3>;
+				cooling-device = <&modem_nr_dsc 255 255>;
 			};
 		};
 	};

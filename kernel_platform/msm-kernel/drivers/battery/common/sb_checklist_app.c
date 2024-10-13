@@ -137,24 +137,28 @@ void store_dc_step_charging_menu(struct sec_battery_info *battery, int tc,
 					char val[MAX_STEP_CHG_STEP + 2][MAX_STEP_CHG_STEP + 2])
 {
 	int res, i;
+	unsigned int dc_step_chg_type = 0;
+
+	for (i = 0; i < battery->dc_step_chg_step; i++)
+		dc_step_chg_type |= battery->dc_step_chg_type[i];
 
 	if (tc == DCHG_STEP_CHG_COND_VOL) {
-		if (battery->dc_step_chg_type & STEP_CHARGING_CONDITION_VOLTAGE) {
+		if (dc_step_chg_type & STEP_CHARGING_CONDITION_VOLTAGE) {
 			for (i = 0; i < battery->dc_step_chg_step; i++) {
 				res = char_to_int(val[i + 2]);
 				battery->pdata->dc_step_chg_cond_vol[battery->pdata->age_step][i] = res;
 			}
 		}
 	} else if (tc == DCHG_STEP_CHG_COND_SOC) {
-		if (battery->dc_step_chg_type & STEP_CHARGING_CONDITION_SOC ||
-			battery->dc_step_chg_type & STEP_CHARGING_CONDITION_SOC_INIT_ONLY) {
+		if (dc_step_chg_type & STEP_CHARGING_CONDITION_SOC ||
+			dc_step_chg_type & STEP_CHARGING_CONDITION_SOC_INIT_ONLY) {
 			for (i = 0; i < battery->dc_step_chg_step; i++) {
 				res = char_to_int(val[i + 2]);
 				battery->pdata->dc_step_chg_cond_soc[battery->pdata->age_step][i] = res;
 			}
 		}
 	} else if (tc == DCHG_STEP_CHG_VAL_VFLOAT) {
-		if (battery->dc_step_chg_type & STEP_CHARGING_CONDITION_FLOAT_VOLTAGE) {
+		if (dc_step_chg_type & STEP_CHARGING_CONDITION_FLOAT_VOLTAGE) {
 			for (i = 0; i < battery->dc_step_chg_step; i++) {
 				res = char_to_int(val[i + 2]);
 				battery->pdata->dc_step_chg_val_vfloat[battery->pdata->age_step][i] = res;
@@ -165,7 +169,7 @@ void store_dc_step_charging_menu(struct sec_battery_info *battery, int tc,
 			res = char_to_int(val[i + 2]);
 			battery->pdata->dc_step_chg_val_iout[battery->pdata->age_step][i] = res;
 		}
-		if (battery->dc_step_chg_type & STEP_CHARGING_CONDITION_INPUT_CURRENT) {
+		if (dc_step_chg_type & STEP_CHARGING_CONDITION_INPUT_CURRENT) {
 			for (i = 0; i < (battery->dc_step_chg_step - 1); i++) {
 				battery->pdata->dc_step_chg_cond_iin[i] =
 					battery->pdata->dc_step_chg_val_iout[battery->pdata->age_step][i+1] / 2;
@@ -230,6 +234,7 @@ int show_battery_checklist_app_values(struct sec_battery_info *battery, char *bu
 #if defined(CONFIG_STEP_CHARGING)
 	int j = 0;
 	bool check;
+	unsigned int dc_step_chg_type = 0;
 #endif
 
 	np = of_find_node_by_name(NULL, "battery");
@@ -304,7 +309,10 @@ int show_battery_checklist_app_values(struct sec_battery_info *battery, char *bu
 			buf, &p_size, &i, battery->pdata->mix_high_temp_recovery);
 
 #if defined(CONFIG_STEP_CHARGING)
-		if (battery->dc_step_chg_type & STEP_CHARGING_CONDITION_VOLTAGE) {
+		for (j = 0; j < battery->dc_step_chg_step; j++)
+			dc_step_chg_type |= battery->dc_step_chg_type[j];
+
+		if (dc_step_chg_type & STEP_CHARGING_CONDITION_VOLTAGE) {
 			check = of_property_read_bool(np, "battery,dc_step_chg_cond_vol");
 			if (check) {
 				for (j = 0; j < battery->dc_step_chg_step; j++)
@@ -319,8 +327,8 @@ int show_battery_checklist_app_values(struct sec_battery_info *battery, char *bu
 			}
 		}
 
-		if (battery->dc_step_chg_type & STEP_CHARGING_CONDITION_SOC ||
-			battery->dc_step_chg_type & STEP_CHARGING_CONDITION_SOC_INIT_ONLY) {
+		if (dc_step_chg_type & STEP_CHARGING_CONDITION_SOC ||
+			dc_step_chg_type & STEP_CHARGING_CONDITION_SOC_INIT_ONLY) {
 			check = of_property_read_bool(np, "battery,dc_step_chg_cond_soc");
 			if (check) {
 				for (j = 0; j < battery->dc_step_chg_step; j++)
@@ -335,7 +343,7 @@ int show_battery_checklist_app_values(struct sec_battery_info *battery, char *bu
 			}
 		}
 
-		if (battery->dc_step_chg_type & STEP_CHARGING_CONDITION_FLOAT_VOLTAGE) {
+		if (dc_step_chg_type & STEP_CHARGING_CONDITION_FLOAT_VOLTAGE) {
 			check = of_property_read_bool(np, "battery,dc_step_chg_val_vfloat");
 			if (check) {
 				for (j = 0; j < battery->dc_step_chg_step; j++)

@@ -49,6 +49,7 @@
 #ifdef WLAN_FEATURE_TSF_UPLINK_DELAY
 #include <cdp_txrx_ctrl.h>
 #endif
+#include "wlan_hdd_stats.h"
 
 /*
  * define short names for the global vendor params
@@ -364,6 +365,12 @@ static int hdd_convert_dot11mode(uint32_t dot11mode)
 		break;
 	case eCSR_CFG_DOT11_MODE_11AC:
 		ret_val = QCA_WLAN_802_11_MODE_11AC;
+		break;
+	case eCSR_CFG_DOT11_MODE_11AX:
+		ret_val = QCA_WLAN_802_11_MODE_11AX;
+		break;
+	case eCSR_CFG_DOT11_MODE_11BE:
+		ret_val = QCA_WLAN_802_11_MODE_11BE;
 		break;
 	case eCSR_CFG_DOT11_MODE_AUTO:
 	case eCSR_CFG_DOT11_MODE_ABG:
@@ -2443,8 +2450,17 @@ int32_t hdd_cfg80211_get_sta_info_cmd(struct wiphy *wiphy,
 	if (errno)
 		return errno;
 
+	errno = wlan_hdd_qmi_get_sync_resume();
+	if (errno) {
+		hdd_err("qmi sync resume failed: %d", errno);
+		goto end;
+	}
+
 	errno = __hdd_cfg80211_get_sta_info_cmd(wiphy, wdev, data, data_len);
 
+	wlan_hdd_qmi_put_suspend();
+
+end:
 	osif_vdev_sync_op_stop(vdev_sync);
 
 	return errno;

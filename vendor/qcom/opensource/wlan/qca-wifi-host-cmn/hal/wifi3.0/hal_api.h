@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2016-2021 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -36,7 +37,7 @@
 
 /* calculate the register address offset from bar0 of shadow register x */
 #if defined(QCA_WIFI_QCA6390) || defined(QCA_WIFI_QCA6490) || \
-    defined(QCA_WIFI_WCN7850)
+    defined(QCA_WIFI_KIWI)
 #define SHADOW_REGISTER_START_ADDRESS_OFFSET 0x000008FC
 #define SHADOW_REGISTER_END_ADDRESS_OFFSET \
 	((SHADOW_REGISTER_START_ADDRESS_OFFSET) + (4 * (MAX_SHADOW_REGISTERS)))
@@ -128,20 +129,7 @@ static inline void hal_reg_write_result_check(struct hal_soc *hal_soc,
 	}
 }
 
-#if !defined(QCA_WIFI_QCA6390) && !defined(QCA_WIFI_QCA6490) && \
-    !defined(QCA_WIFI_WCN7850)
-static inline void hal_lock_reg_access(struct hal_soc *soc,
-				       unsigned long *flags)
-{
-	qdf_spin_lock_irqsave(&soc->register_access_lock);
-}
-
-static inline void hal_unlock_reg_access(struct hal_soc *soc,
-					 unsigned long *flags)
-{
-	qdf_spin_unlock_irqrestore(&soc->register_access_lock);
-}
-#else
+#ifdef WINDOW_REG_PLD_LOCK_ENABLE
 static inline void hal_lock_reg_access(struct hal_soc *soc,
 				       unsigned long *flags)
 {
@@ -152,6 +140,18 @@ static inline void hal_unlock_reg_access(struct hal_soc *soc,
 					 unsigned long *flags)
 {
 	pld_unlock_reg_window(soc->qdf_dev->dev, flags);
+}
+#else
+static inline void hal_lock_reg_access(struct hal_soc *soc,
+				       unsigned long *flags)
+{
+	qdf_spin_lock_irqsave(&soc->register_access_lock);
+}
+
+static inline void hal_unlock_reg_access(struct hal_soc *soc,
+					 unsigned long *flags)
+{
+	qdf_spin_unlock_irqrestore(&soc->register_access_lock);
 }
 #endif
 
@@ -234,7 +234,7 @@ static inline void hal_tx_init_cmd_credit_ring(hal_soc_handle_t hal_soc_hdl,
  *                            that window would be a bug
  */
 #if !defined(QCA_WIFI_QCA6390) && !defined(QCA_WIFI_QCA6490) && \
-    !defined(QCA_WIFI_QCA6750) && !defined(QCA_WIFI_WCN7850)
+    !defined(QCA_WIFI_QCA6750) && !defined(QCA_WIFI_KIWI)
 static inline void hal_write32_mb(struct hal_soc *hal_soc, uint32_t offset,
 				  uint32_t value)
 {
@@ -466,7 +466,7 @@ static inline void hal_srng_write_address_32_mb(struct hal_soc *hal_soc,
 #endif
 
 #if !defined(QCA_WIFI_QCA6390) && !defined(QCA_WIFI_QCA6490) && \
-    !defined(QCA_WIFI_QCA6750) && !defined(QCA_WIFI_WCN7850)
+    !defined(QCA_WIFI_QCA6750) && !defined(QCA_WIFI_KIWI)
 /**
  * hal_read32_mb() - Access registers to read configuration
  * @hal_soc: hal soc handle
@@ -863,7 +863,7 @@ extern void hal_detach(void *hal_soc);
 #define HAL_SRNG_MSI_INTR				0x00020000
 #define HAL_SRNG_CACHED_DESC		0x00040000
 
-#if defined(QCA_WIFI_QCA6490)  || defined(QCA_WIFI_WCN7850)
+#if defined(QCA_WIFI_QCA6490)  || defined(QCA_WIFI_KIWI)
 #define HAL_SRNG_PREFETCH_TIMER 1
 #else
 #define HAL_SRNG_PREFETCH_TIMER 0
@@ -1489,6 +1489,25 @@ void *hal_srng_dst_get_next_cached(void *hal_soc,
 	return (void *)desc;
 }
 
+/**
+ * hal_srng_dst_dec_tp - decrement the TP of the Dst ring by one entry
+ * @hal_soc: Opaque HAL SOC handle
+ * @hal_ring_hdl: Destination ring pointer
+ *
+ * reset the tail pointer in the destination ring by one entry
+ *
+ */
+static inline
+void hal_srng_dst_dec_tp(void *hal_soc, hal_ring_handle_t hal_ring_hdl)
+{
+	struct hal_srng *srng = (struct hal_srng *)hal_ring_hdl;
+
+	if (qdf_unlikely(!srng->u.dst_ring.tp))
+		srng->u.dst_ring.tp = (srng->ring_size - srng->entry_size);
+	else
+		srng->u.dst_ring.tp -= srng->entry_size;
+}
+
 static inline int hal_srng_lock(hal_ring_handle_t hal_ring_hdl)
 {
 	struct hal_srng *srng = (struct hal_srng *)hal_ring_hdl;
@@ -1642,10 +1661,9 @@ uint32_t hal_srng_dst_num_valid(void *hal_soc,
  * hal_srng_dst_inv_cached_descs - API to invalidate descriptors in batch mode
  * @hal_soc: Opaque HAL SOC handle
  * @hal_ring_hdl: Destination ring pointer
- * @entry_count: Number of descriptors to be invalidated
+ * @entry_count: call invalidate API if valid entries available
  *
- * Invalidates a set of cached descriptors starting from tail to
- * provided count worth
+ * Invalidates a set of cached descriptors starting from TP to cached_HP
  *
  * Return - None
  */
@@ -1654,9 +1672,8 @@ static inline void hal_srng_dst_inv_cached_descs(void *hal_soc,
 						 uint32_t entry_count)
 {
 	struct hal_srng *srng = (struct hal_srng *)hal_ring_hdl;
-	uint32_t hp = srng->u.dst_ring.cached_hp;
-	uint32_t tp = srng->u.dst_ring.tp;
-	uint32_t sync_p = 0;
+	uint32_t *first_desc;
+	uint32_t *last_desc;
 
 	/*
 	 * If SRNG does not have cached descriptors this
@@ -1665,38 +1682,23 @@ static inline void hal_srng_dst_inv_cached_descs(void *hal_soc,
 	if (!(srng->flags & HAL_SRNG_CACHED_DESC))
 		return;
 
-	if (qdf_unlikely(entry_count == 0))
+	if (!entry_count)
 		return;
 
-	sync_p = (entry_count - 1) * srng->entry_size;
+	first_desc = &srng->ring_base_vaddr[srng->u.dst_ring.tp];
+	last_desc = &srng->ring_base_vaddr[srng->u.dst_ring.cached_hp];
 
-	if (hp > tp) {
-		qdf_nbuf_dma_inv_range(&srng->ring_base_vaddr[tp],
-				       &srng->ring_base_vaddr[tp + sync_p]
-				       + (srng->entry_size * sizeof(uint32_t)));
-	} else {
-		/*
-		 * We have wrapped around
-		 */
-		uint32_t wrap_cnt = ((srng->ring_size - tp) / srng->entry_size);
+	if (last_desc > (uint32_t *)first_desc)
+		/* invalidate from tp to cached_hp */
+		qdf_nbuf_dma_inv_range((void *)first_desc, (void *)(last_desc));
+	else {
+		/* invalidate from tp to end of the ring */
+		qdf_nbuf_dma_inv_range((void *)first_desc,
+				       (void *)srng->ring_vaddr_end);
 
-		if (entry_count <= wrap_cnt) {
-			qdf_nbuf_dma_inv_range(&srng->ring_base_vaddr[tp],
-					       &srng->ring_base_vaddr[tp + sync_p] +
-					       (srng->entry_size * sizeof(uint32_t)));
-			return;
-		}
-
-		entry_count -= wrap_cnt;
-		sync_p = (entry_count - 1) * srng->entry_size;
-
-		qdf_nbuf_dma_inv_range(&srng->ring_base_vaddr[tp],
-				       &srng->ring_base_vaddr[srng->ring_size - srng->entry_size] +
-				       (srng->entry_size * sizeof(uint32_t)));
-
-		qdf_nbuf_dma_inv_range(&srng->ring_base_vaddr[0],
-				       &srng->ring_base_vaddr[sync_p]
-				       + (srng->entry_size * sizeof(uint32_t)));
+		/* invalidate from start of ring to cached_hp */
+		qdf_nbuf_dma_inv_range((void *)srng->ring_base_vaddr,
+				       (void *)last_desc);
 	}
 }
 
@@ -2548,6 +2550,15 @@ void hal_compute_reo_remap_ix2_ix3(hal_soc_handle_t hal_soc_hdl,
 					num_rings, remap1, remap2);
 }
 
+static inline
+void hal_compute_reo_remap_ix0(hal_soc_handle_t hal_soc_hdl, uint32_t *remap0)
+{
+	struct hal_soc *hal_soc = (struct hal_soc *)hal_soc_hdl;
+
+	if (hal_soc->ops->hal_compute_reo_remap_ix0)
+		hal_soc->ops->hal_compute_reo_remap_ix0(remap0);
+}
+
 /**
  * hal_setup_link_idle_list - Setup scattered idle list using the
  * buffer list provided
@@ -2966,5 +2977,74 @@ hal_dmac_cmn_src_rxbuf_ring_get(hal_soc_handle_t hal_soc_hdl)
 	struct hal_soc *hal_soc = (struct hal_soc *)hal_soc_hdl;
 
 	return hal_soc->dmac_cmn_src_rxbuf_ring;
+}
+
+/**
+ * hal_srng_dst_prefetch() - function to prefetch 4 destination ring descs
+ * @hal_soc_hdl: HAL SOC handle
+ * @hal_ring_hdl: Destination ring pointer
+ * @num_valid: valid entries in the ring
+ *
+ * return: last prefetched destination ring descriptor
+ */
+static inline
+void *hal_srng_dst_prefetch(hal_soc_handle_t hal_soc_hdl,
+			    hal_ring_handle_t hal_ring_hdl,
+			    uint16_t num_valid)
+{
+	struct hal_srng *srng = (struct hal_srng *)hal_ring_hdl;
+	uint8_t *desc;
+	uint32_t cnt;
+	/*
+	 * prefetching 4 HW descriptors will ensure atleast by the time
+	 * 5th HW descriptor is being processed it is guranteed that the
+	 * 5th HW descriptor, its SW Desc, its nbuf and its nbuf's data
+	 * are in cache line. basically ensuring all the 4 (HW, SW, nbuf
+	 * & nbuf->data) are prefetched.
+	 */
+	uint32_t max_prefetch = 4;
+
+	if (srng->u.dst_ring.tp == srng->u.dst_ring.cached_hp)
+		return NULL;
+
+	desc = (uint8_t *)&srng->ring_base_vaddr[srng->u.dst_ring.tp];
+
+	if (num_valid < max_prefetch)
+		max_prefetch = num_valid;
+
+	for (cnt = 0; cnt < max_prefetch; cnt++) {
+		desc += srng->entry_size * sizeof(uint32_t);
+		if (desc  == ((uint8_t *)srng->ring_vaddr_end))
+			desc = (uint8_t *)&srng->ring_base_vaddr[0];
+
+		qdf_prefetch(desc);
+	}
+	return (void *)desc;
+}
+
+/**
+ * hal_srng_dst_prefetch_next_cached_desc() - function to prefetch next desc
+ * @hal_soc_hdl: HAL SOC handle
+ * @hal_ring_hdl: Destination ring pointer
+ * @last_prefetched_hw_desc: last prefetched HW descriptor
+ *
+ * return: next prefetched destination descriptor
+ */
+static inline
+void *hal_srng_dst_prefetch_next_cached_desc(hal_soc_handle_t hal_soc_hdl,
+					     hal_ring_handle_t hal_ring_hdl,
+					     uint8_t *last_prefetched_hw_desc)
+{
+	struct hal_srng *srng = (struct hal_srng *)hal_ring_hdl;
+
+	if (srng->u.dst_ring.tp == srng->u.dst_ring.cached_hp)
+		return NULL;
+
+	last_prefetched_hw_desc += srng->entry_size * sizeof(uint32_t);
+	if (last_prefetched_hw_desc == ((uint8_t *)srng->ring_vaddr_end))
+		last_prefetched_hw_desc = (uint8_t *)&srng->ring_base_vaddr[0];
+
+	qdf_prefetch(last_prefetched_hw_desc);
+	return (void *)last_prefetched_hw_desc;
 }
 #endif /* _HAL_APIH_ */

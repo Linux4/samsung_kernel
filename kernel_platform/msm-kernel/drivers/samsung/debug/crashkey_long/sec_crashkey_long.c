@@ -272,14 +272,6 @@ static int sec_crashkey_long_notifier_call(struct notifier_block *this,
 	return NOTIFY_OK;
 }
 
-#if IS_ENABLED(CONFIG_KUNIT) && IS_ENABLED(CONFIG_UML)
-int kunit_crashkey_long_mock_key_notifier_call(unsigned long type,
-		struct sec_key_notifier_param *data)
-{
-	return sec_crashkey_long_notifier_call(&crashkey_long->nb, type, data);
-}
-#endif
-
 static int __crashkey_long_parse_dt_panic_msg(struct builder *bd,
 		struct device_node *np)
 {
@@ -506,78 +498,6 @@ static int __crashkey_long_remove(struct platform_device *pdev,
 
 	return 0;
 }
-
-#if IS_ENABLED(CONFIG_KUNIT) && IS_ENABLED(CONFIG_UML)
-static int __crashkey_long_mock_parse_dt_expire_msec(struct builder *bd)
-{
-	struct crashkey_long_drvdata *drvdata =
-			container_of(bd, struct crashkey_long_drvdata, bd);
-	struct crashkey_long_notify *notify = &drvdata->notify;
-
-	/* FIXME: expire msec is fixed to 1000ms (1s) */
-	notify->expire_msec = 1000;
-
-	return 0;
-}
-
-static const unsigned int *__crashkey_long_mock_used_key;
-static size_t __crashkey_long_mock_nr_used_key;
-
-/* TODO: This function must be called before calling
- * 'kunit_crashkey_long_mock_probe' function in unit test.
- */
-void kunit_crashkey_long_mock_set_used_key(const unsigned int *used_key,
-		const size_t nr_used_key)
-{
-	__crashkey_long_mock_used_key = used_key;
-	__crashkey_long_mock_nr_used_key = nr_used_key;
-}
-
-static int __crashkey_long_mock_parse_dt_used_key(struct builder *bd)
-{
-	struct crashkey_long_drvdata *drvdata =
-			container_of(bd, struct crashkey_long_drvdata, bd);
-	struct crashkey_long_keylog *keylog = &drvdata->keylog;
-
-	keylog->used_key = __crashkey_long_mock_used_key;
-	keylog->nr_used_key = __crashkey_long_mock_nr_used_key;
-
-	return 0;
-}
-
-static int __crashkey_long_mock_install_keyboard_notifier(struct builder *bd)
-{
-	struct crashkey_long_drvdata *drvdata =
-			container_of(bd, struct crashkey_long_drvdata, bd);
-
-	drvdata->nb_connected = true;
-
-	return 0;
-}
-
-static const struct dev_builder __crashkey_long_mock_dev_builder[] = {
-	DEVICE_BUILDER(__crashkey_long_mock_parse_dt_expire_msec, NULL),
-	DEVICE_BUILDER(__crashkey_long_mock_parse_dt_used_key, NULL),
-	DEVICE_BUILDER(__crashkey_long_probe_prolog, NULL),
-	DEVICE_BUILDER(__crashkey_long_alloc_bitmap_received,
-		       __crashkey_long_free_bitmap_received),
-	DEVICE_BUILDER(__crashkey_long_mock_install_keyboard_notifier, NULL),
-	DEVICE_BUILDER(__crashkey_long_probe_epilog,
-		       __crashkey_long_remove_prolog),
-};
-
-int kunit_crashkey_long_mock_probe(struct platform_device *pdev)
-{
-	return __crashkey_long_probe(pdev, __crashkey_long_mock_dev_builder,
-			ARRAY_SIZE(__crashkey_long_mock_dev_builder));
-}
-
-int kunit_crashkey_long_mock_remove(struct platform_device *pdev)
-{
-	return __crashkey_long_remove(pdev, __crashkey_long_mock_dev_builder,
-			ARRAY_SIZE(__crashkey_long_mock_dev_builder));
-}
-#endif
 
 static const struct dev_builder __crashkey_long_dev_builder[] = {
 	DEVICE_BUILDER(__crashkey_long_parse_dt, NULL),

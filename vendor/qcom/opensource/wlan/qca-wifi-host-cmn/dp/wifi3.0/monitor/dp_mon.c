@@ -1,10 +1,11 @@
 /*
  * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
-
+ * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
  * copyright notice and this permission notice appear in all copies.
-
+ *
  * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
  * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
  * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
@@ -774,7 +775,7 @@ int dp_set_pktlog_wifi3(struct dp_pdev *pdev, uint32_t event,
 	if (!mon_ops)
 		return 0;
 
-	dp_is_hw_dbs_enable(soc, &max_mac_rings);
+	dp_update_num_mac_rings_for_dbs(soc, &max_mac_rings);
 
 	QDF_TRACE(QDF_MODULE_ID_TXRX, QDF_TRACE_LEVEL_DEBUG,
 		  FL("Max_mac_rings %d "),
@@ -890,6 +891,36 @@ int dp_set_pktlog_wifi3(struct dp_pdev *pdev, uint32_t event,
 			}
 			break;
 
+#ifdef QCA_WIFI_QCN9224
+		case WDI_EVENT_HYBRID_TX:
+			if (mon_pdev->mvdev) {
+				/* Nothing needs to be done if monitor mode is
+				 * enabled
+				 */
+				mon_pdev->pktlog_hybrid_mode = true;
+				return 0;
+			}
+
+			if (!mon_pdev->pktlog_hybrid_mode) {
+				mon_pdev->pktlog_hybrid_mode = true;
+				dp_mon_filter_setup_pktlog_hybrid(pdev);
+				if (dp_mon_filter_update(pdev) !=
+				    QDF_STATUS_SUCCESS) {
+					dp_cdp_err("Set hybrid filters failed");
+					dp_mon_filter_reset_pktlog_hybrid(pdev);
+					mon_pdev->rx_pktlog_mode =
+						DP_RX_PKTLOG_DISABLED;
+					return 0;
+				}
+
+				if (mon_soc->reap_timer_init &&
+				    !dp_mon_is_enable_reap_timer_non_pkt(pdev))
+					qdf_timer_mod(&mon_soc->mon_reap_timer,
+						      DP_INTR_POLL_TIMER_MS);
+			}
+			break;
+#endif
+
 		default:
 			/* Nothing needs to be done for other pktlog types */
 			break;
@@ -961,6 +992,12 @@ int dp_set_pktlog_wifi3(struct dp_pdev *pdev, uint32_t event,
 		case WDI_EVENT_RX_CBF:
 			mon_pdev->rx_pktlog_cbf = false;
 			break;
+
+#ifdef QCA_WIFI_QCN9224
+		case WDI_EVENT_HYBRID_TX:
+			mon_pdev->pktlog_hybrid_mode = false;
+			break;
+#endif
 
 		default:
 			/* Nothing needs to be done for other pktlog types */
@@ -1336,7 +1373,7 @@ static void dp_cfr_filter(struct cdp_soc_t *soc_hdl,
 	soc = pdev->soc;
 	pdev->cfr_rcc_mode = false;
 	max_mac_rings = wlan_cfg_get_num_mac_rings(pdev->wlan_cfg_ctx);
-	dp_is_hw_dbs_enable(soc, &max_mac_rings);
+	dp_update_num_mac_rings_for_dbs(soc, &max_mac_rings);
 
 	dp_mon_debug("Max_mac_rings %d", max_mac_rings);
 	dp_mon_info("enable : %d, mode: 0x%x", enable, filter_val->mode);
@@ -1365,7 +1402,9 @@ static void dp_cfr_filter(struct cdp_soc_t *soc_hdl,
 		htt_tlv_filter.mo_data_filter = filter_val->mo_data;
 	}
 
-	for (mac_id = 0; mac_id < max_mac_rings; mac_id++) {
+	for (mac_id = 0;
+	     mac_id  < soc->wlan_cfg_ctx->num_rxdma_status_rings_per_pdev;
+	     mac_id++) {
 		int mac_for_pdev =
 			dp_get_mac_id_for_pdev(mac_id,
 					       pdev->pdev_id);
@@ -1984,21 +2023,6 @@ bool dp_pdev_get_filter_non_data(struct cdp_pdev *pdev_handle)
 	return false;
 }
 
-QDF_STATUS dp_mon_htt_srng_setup(struct dp_soc *soc,
-				 struct dp_pdev *pdev,
-				 int mac_id,
-				 int mac_for_pdev)
-{
-	struct dp_mon_ops *mon_ops;
-
-	mon_ops = dp_mon_ops_get(soc);
-	if (mon_ops  && mon_ops->mon_pdev_htt_srng_setup)
-		return mon_ops->mon_pdev_htt_srng_setup(soc, pdev,
-							mac_id, mac_for_pdev);
-
-	return QDF_STATUS_E_FAILURE;
-}
-
 QDF_STATUS dp_mon_soc_cfg_init(struct dp_soc *soc)
 {
 	int target_type;
@@ -2012,7 +2036,7 @@ QDF_STATUS dp_mon_soc_cfg_init(struct dp_soc *soc)
 	case TARGET_TYPE_QCA6390:
 	case TARGET_TYPE_QCA6490:
 	case TARGET_TYPE_QCA6750:
-	case TARGET_TYPE_WCN7850:
+	case TARGET_TYPE_KIWI:
 		/* do nothing */
 		break;
 	case TARGET_TYPE_QCA8074:
@@ -2057,6 +2081,29 @@ QDF_STATUS dp_mon_soc_cfg_init(struct dp_soc *soc)
 		    mon_soc->hw_nac_monitor_support);
 
 	return QDF_STATUS_SUCCESS;
+}
+
+/**
+ * dp_mon_pdev_per_target_config() - Target specific monitor pdev configuration
+ * @pdev: PDEV handle [Should be valid]
+ *
+ * Return: None
+ */
+static void dp_mon_pdev_per_target_config(struct dp_pdev *pdev)
+{
+	struct dp_soc *soc = pdev->soc;
+	struct dp_mon_pdev *mon_pdev = pdev->monitor_pdev;
+	int target_type;
+
+	target_type = hal_get_target_type(soc->hal_soc);
+	switch (target_type) {
+	case TARGET_TYPE_KIWI:
+		mon_pdev->is_tlv_hdr_64_bit = true;
+		break;
+	default:
+		mon_pdev->is_tlv_hdr_64_bit = false;
+		break;
+	}
 }
 
 QDF_STATUS dp_mon_pdev_attach(struct dp_pdev *pdev)
@@ -2107,6 +2154,7 @@ QDF_STATUS dp_mon_pdev_attach(struct dp_pdev *pdev)
 	}
 
 	pdev->monitor_pdev = mon_pdev;
+	dp_mon_pdev_per_target_config(pdev);
 
 	return QDF_STATUS_SUCCESS;
 fail3:
@@ -2222,13 +2270,25 @@ QDF_STATUS dp_mon_pdev_init(struct dp_pdev *pdev)
 		mon_ops->rx_mon_desc_pool_init(pdev);
 
 	/* allocate buffers and replenish the monitor RxDMA ring */
-	if (mon_ops->rx_mon_buffers_alloc)
-		mon_ops->rx_mon_buffers_alloc(pdev);
+	if (mon_ops->rx_mon_buffers_alloc) {
+		if (mon_ops->rx_mon_buffers_alloc(pdev)) {
+			dp_mon_err("%pK: rx mon buffers alloc failed", pdev);
+			goto fail2;
+		}
+	}
 
 	dp_tx_ppdu_stats_attach(pdev);
 	mon_pdev->is_dp_mon_pdev_initialized = true;
 
 	return QDF_STATUS_SUCCESS;
+
+fail2:
+	if (mon_ops->rx_mon_desc_pool_deinit)
+		mon_ops->rx_mon_desc_pool_deinit(pdev);
+
+	if (mon_ops->mon_rings_deinit)
+		mon_ops->mon_rings_deinit(pdev);
+
 fail1:
 	dp_htt_ppdu_stats_detach(pdev);
 fail0:
@@ -2349,6 +2409,21 @@ QDF_STATUS dp_mon_peer_detach(struct dp_peer *peer)
 	return QDF_STATUS_SUCCESS;
 }
 
+#ifndef DISABLE_MON_CONFIG
+void dp_mon_register_intr_ops(struct dp_soc *soc)
+{
+	struct dp_mon_ops *mon_ops = NULL;
+
+	mon_ops = dp_mon_ops_get(soc);
+	if (!mon_ops) {
+		dp_mon_err("Monitor ops is NULL");
+		return;
+	}
+	if (mon_ops->mon_register_intr_ops)
+		mon_ops->mon_register_intr_ops(soc);
+}
+#endif
+
 void dp_mon_ops_register(struct dp_soc *soc)
 {
 	struct dp_mon_soc *mon_soc = soc->monitor_soc;
@@ -2360,7 +2435,7 @@ void dp_mon_ops_register(struct dp_soc *soc)
 	case TARGET_TYPE_QCA6390:
 	case TARGET_TYPE_QCA6490:
 	case TARGET_TYPE_QCA6750:
-	case TARGET_TYPE_WCN7850:
+	case TARGET_TYPE_KIWI:
 	case TARGET_TYPE_QCA8074:
 	case TARGET_TYPE_QCA8074V2:
 	case TARGET_TYPE_QCA6018:
@@ -2398,7 +2473,7 @@ void dp_mon_cdp_ops_register(struct dp_soc *soc)
 	case TARGET_TYPE_QCA6390:
 	case TARGET_TYPE_QCA6490:
 	case TARGET_TYPE_QCA6750:
-	case TARGET_TYPE_WCN7850:
+	case TARGET_TYPE_KIWI:
 	case TARGET_TYPE_QCA8074:
 	case TARGET_TYPE_QCA8074V2:
 	case TARGET_TYPE_QCA6018:
@@ -2521,8 +2596,10 @@ QDF_STATUS dp_mon_soc_attach(struct dp_soc *soc)
 	/* register monitor ops */
 	soc->monitor_soc = mon_soc;
 	dp_mon_ops_register(soc);
+	dp_mon_register_intr_ops(soc);
 
 	dp_mon_cdp_ops_register(soc);
+	dp_mon_register_feature_ops(soc);
 	return QDF_STATUS_SUCCESS;
 }
 

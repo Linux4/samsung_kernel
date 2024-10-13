@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2016-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -451,9 +451,28 @@ bool wlan_is_nan_allowed_on_freq(struct wlan_objmgr_pdev *pdev, uint32_t freq)
 	if (wlan_reg_is_freq_indoor(pdev, freq))
 		wlan_mlme_get_indoor_support_for_nan(wlan_pdev_get_psoc(pdev),
 						     &nan_allowed);
-	/* Check for dfs only if channel is not indoor */
-	else if (wlan_reg_is_dfs_for_freq(pdev, freq))
+	/*
+	 * Check for dfs only if channel is not indoor,
+	 * Check for passive channels as well
+	 */
+	else if (wlan_reg_is_dfs_for_freq(pdev, freq) ||
+		 wlan_reg_is_passive_for_freq(pdev, freq))
 		nan_allowed = false;
 
 	return nan_allowed;
 }
+
+#ifdef WLAN_FEATURE_11BE_MLO
+bool wlan_is_mlo_sta_nan_ndi_allowed(struct wlan_objmgr_psoc *psoc)
+{
+	struct nan_psoc_priv_obj *psoc_nan_obj;
+
+	psoc_nan_obj = nan_get_psoc_priv_obj(psoc);
+	if (!psoc_nan_obj) {
+		nan_err("psoc_nan_obj is null");
+		return false;
+	}
+
+	return psoc_nan_obj->nan_caps.mlo_sta_nan_ndi_allowed;
+}
+#endif

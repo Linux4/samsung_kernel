@@ -386,13 +386,6 @@ struct max77705_dev {
 	int fw_size;
 #endif
 
-#ifdef CONFIG_HIBERNATION
-	/* For hibernation */
-	u8 reg_pmic_dump[MAX77705_PMIC_REG_END];
-	u8 reg_muic_dump[MAX77705_USBC_REG_END];
-	u8 reg_led_dump[MAX77705_LED_REG_END];
-#endif
-
 	/* pmic VER/REV register */
 	u8 pmic_rev;	/* pmic Rev */
 	u8 pmic_ver;	/* pmic version */

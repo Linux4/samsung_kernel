@@ -1654,7 +1654,7 @@
 		reg = <0x10cc7000 0x1000>;
 		reg-names = "tpda-base";
 
-		qcom,cmb-elem-size = <0 32>,
+		qcom,cmb-elem-size = <0 64>,
 				     <1 64>,
 				     <2 32>;
 		qcom,dsb-elem-size = <1 32>;
@@ -2223,7 +2223,7 @@
 							 <13 64>,
 							 <14 64>,
 							 <16 32>,
-							 <19 32>,
+							 <19 64>,
 							 <22 32>,
 							 <23 32>,
 							 <24 64>,
@@ -3583,6 +3583,42 @@
 		tgu-timer-counters = <8>;
 
 		coresight-name = "coresight-tgu-ipcb";
+
+		clocks = <&aoss_qmp>;
+		clock-names = "apb_pclk";
+	};
+
+	spmi_tgu0: tgu@10b0f000 {
+		compatible = "arm,primecell";
+		arm,primecell-periphid = <0x000bb999>;
+
+		reg = <0x10b0f000 0x1000>;
+		reg-names = "tgu-base";
+
+		tgu-steps = <3>;
+		tgu-conditions = <4>;
+		tgu-regs = <9>;
+		tgu-timer-counters = <8>;
+
+		coresight-name = "coresight-tgu-spmi0";
+
+		clocks = <&aoss_qmp>;
+		clock-names = "apb_pclk";
+	};
+
+	spmi_tgu1: tgu@10b10000 {
+		compatible = "arm,primecell";
+		arm,primecell-periphid = <0x000bb999>;
+
+		reg = <0x10b10000 0x1000>;
+		reg-names = "tgu-base";
+
+		tgu-steps = <3>;
+		tgu-conditions = <4>;
+		tgu-regs = <9>;
+		tgu-timer-counters = <8>;
+
+		coresight-name = "coresight-tgu-spmi1";
 
 		clocks = <&aoss_qmp>;
 		clock-names = "apb_pclk";

@@ -32,6 +32,10 @@
 
 #include "Device.h"
 
+#ifdef SEC_AUDIO_SUPPORT_HAPTIC_PLAYBACK
+#include "SecPalDefs.h"
+#endif
+
 class HapticsDev : public Device
 {
 protected:
@@ -45,6 +49,14 @@ public:
     static int32_t isBitWidthSupported(uint32_t bitWidth);
     static std::shared_ptr<Device> getObject();
     virtual ~HapticsDev();
+
+#ifdef SEC_AUDIO_SUPPORT_HAPTIC_PLAYBACK
+    int start();
+    int32_t setParameter(uint32_t param_id, void *param) override;
+private:
+    void setHapticSource(haptic_source_t source);
+    haptic_source_t hapticSource;
+#endif
 };
 
 

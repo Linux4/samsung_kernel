@@ -24,6 +24,10 @@ Required properties:
 			 present on SM7450 chipset.
 			"qcom,ufs-phy-qmp-v4-cape" for V4 ufs phy
 			 present on SM7450 chipset.
+			"qcom,ufs-phy-qmp-v4-parrot" for V4 ufs phy
+			 present on SM6450 chipset.
+			"qcom,ufs-phy-qmp-v4-anarok" for V4 ufs phy
+			present on SXR2230P chipset.
 - reg               : should contain PHY register address space (mandatory),
 - reg-names         : indicates various resources passed to driver (via reg proptery) by name.
                       Required "reg-names" is "phy_mem".
@@ -43,6 +47,8 @@ Optional properties:
 - vddp-ref-clk-supply   : phandle to UFS device ref_clk pad power supply
 - vddp-ref-clk-max-microamp : specifies max. load that can be drawn from this supply
 - resets : specifies the PHY reset in the UFS controller
+- qcom,prime-mask : the cpu mask of prime core.
+- qcom,silver-mask: the cpu mask of silver core.
 
 Example:
 

@@ -16,6 +16,7 @@
 #include <linux/delay.h>
 #include "qcom_common.h"
 #include "qcom_q6v5.h"
+#include <trace/events/rproc_qcom.h>
 #if IS_ENABLED(CONFIG_SEC_SENSORS_SSC)
 #include <linux/adsp/ssc_ssr_reason.h>
 #endif
@@ -103,6 +104,7 @@ static void qcom_q6v5_crash_handler_work(struct work_struct *work)
 static irqreturn_t q6v5_wdog_interrupt(int irq, void *data)
 {
 	struct qcom_q6v5 *q6v5 = data;
+	struct qcom_rproc_ssr *ssr;
 	size_t len;
 	char *msg;
 #if IS_ENABLED(CONFIG_SEC_SENSORS_SSC)
@@ -129,11 +131,15 @@ static irqreturn_t q6v5_wdog_interrupt(int irq, void *data)
 		dev_err(q6v5->dev, "watchdog without message\n");
 
 	q6v5->running = false;
+	trace_rproc_qcom_event(dev_name(q6v5->dev), "q6v5_wdog", msg);
 	if (q6v5->rproc->recovery_disabled) {
 		schedule_work(&q6v5->crash_handler);
 	} else {
-		if (q6v5->ssr_subdev)
+		if (q6v5->ssr_subdev) {
 			qcom_notify_early_ssr_clients(q6v5->ssr_subdev);
+			ssr = container_of(q6v5->ssr_subdev, struct qcom_rproc_ssr, subdev);
+			ssr->is_notified = true;
+		}
 
 		rproc_report_crash(q6v5->rproc, RPROC_WATCHDOG);
 	}
@@ -144,6 +150,7 @@ static irqreturn_t q6v5_wdog_interrupt(int irq, void *data)
 static irqreturn_t q6v5_fatal_interrupt(int irq, void *data)
 {
 	struct qcom_q6v5 *q6v5 = data;
+	struct qcom_rproc_ssr *ssr;
 	size_t len;
 	char *msg;
 #if IS_ENABLED(CONFIG_SEC_SENSORS_SSC)
@@ -168,11 +175,24 @@ static irqreturn_t q6v5_fatal_interrupt(int irq, void *data)
 		dev_err(q6v5->dev, "fatal error without message\n");
 
 	q6v5->running = false;
+	trace_rproc_qcom_event(dev_name(q6v5->dev), "q6v5_fatal", msg);
 	if (q6v5->rproc->recovery_disabled) {
 		schedule_work(&q6v5->crash_handler);
 	} else {
-		if (q6v5->ssr_subdev)
+		int silent_ssr_in_progress;
+		spin_lock(&q6v5->silent_ssr_lock);
+		silent_ssr_in_progress = atomic_read(&q6v5->ssr_in_prog);
+		spin_unlock(&q6v5->silent_ssr_lock);
+
+		if (silent_ssr_in_progress) {
+			pr_err("[%s] silent ssr is ongoing. Return\n");
+			return IRQ_HANDLED;
+		}
+		if (q6v5->ssr_subdev) {
 			qcom_notify_early_ssr_clients(q6v5->ssr_subdev);
+			ssr = container_of(q6v5->ssr_subdev, struct qcom_rproc_ssr, subdev);
+			ssr->is_notified = true;
+		}
 
 		rproc_report_crash(q6v5->rproc, RPROC_FATAL_ERROR);
 	}
@@ -380,6 +400,7 @@ int qcom_q6v5_init(struct qcom_q6v5 *q6v5, struct platform_device *pdev,
 
 	INIT_WORK(&q6v5->crash_handler, qcom_q6v5_crash_handler_work);
 
+	spin_lock_init(&q6v5->silent_ssr_lock);
 	return 0;
 }
 EXPORT_SYMBOL_GPL(qcom_q6v5_init);

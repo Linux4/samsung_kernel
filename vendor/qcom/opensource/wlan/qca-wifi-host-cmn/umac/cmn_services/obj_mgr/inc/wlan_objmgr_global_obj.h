@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2016-2019, 2021 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2021 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -538,6 +539,24 @@ QDF_STATUS wlan_objmgr_iterate_psoc_list(
 		wlan_objmgr_psoc_handler handler,
 		void *arg, wlan_objmgr_ref_dbgid dbg_id);
 
+/**
+ * wlan_objmgr_get_psoc_by_id() - find psoc by psoc id
+ *
+ * @psoc_id: Id of PSOC to be retrieved
+ * @dbg_id: id of the caller
+ *
+ * API to find psoc object pointer by psoc id
+ *
+ * This API increments the ref count of the psoc object internally, the
+ * caller has to invoke the wlan_objmgr_psoc_release_ref() to decrement
+ * ref count
+ *
+ * Return: psoc pointer
+ *         NULL on FAILURE
+ */
+struct wlan_objmgr_psoc
+*wlan_objmgr_get_psoc_by_id(uint8_t psoc_id, wlan_objmgr_ref_dbgid dbg_id);
+
 #ifdef WLAN_FEATURE_11BE_MLO
 /**
  * wlan_objmgr_get_mlo_ctx() - Get MLO context from global umac object
@@ -556,6 +575,21 @@ struct mlo_mgr_context *wlan_objmgr_get_mlo_ctx(void);
  * Return: None
  */
 void wlan_objmgr_set_mlo_ctx(struct mlo_mgr_context *ctx);
+
+/**
+ * wlan_objmgr_set_dp_mlo_ctx() - set dp handle in mlo context
+ * @dp_handle: Data path module handle
+ *
+ * Return: void
+ */
+void wlan_objmgr_set_dp_mlo_ctx(void *dp_handle);
+
+/**
+ * wlan_objmgr_get_dp_mlo_ctx() - get dp handle from mlo_context
+ *
+ * Return: dp handle
+ */
+void *wlan_objmgr_get_dp_mlo_ctx(void);
 #else
 static inline struct mlo_mgr_context *wlan_objmgr_get_mlo_ctx(void)
 {
@@ -564,6 +598,15 @@ static inline struct mlo_mgr_context *wlan_objmgr_get_mlo_ctx(void)
 
 static inline void wlan_objmgr_set_mlo_ctx(struct mlo_mgr_context *ctx)
 {}
+
+static inline void *wlan_objmgr_get_dp_mlo_ctx(void)
+{
+	return NULL;
+}
+
+static inline void wlan_objmgr_set_dp_mlo_ctx(void *dp_handle)
+{
+}
 #endif /* WLAN_FEATURE_11BE_MLO */
 
 #endif /* _WLAN_OBJMGR_GLOBAL_OBJ_H_*/

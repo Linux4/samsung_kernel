@@ -115,6 +115,7 @@
 
 	clock_debugcc: clock-controller@0 {
 		compatible = "qcom,waipio-debugcc";
+		status = "okay";
 		qcom,gcc = <&clock_gcc>;
 		qcom,videocc = <&clock_videocc>;
 		qcom,dispcc = <&clock_dispcc>;

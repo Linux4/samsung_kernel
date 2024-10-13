@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #define pr_fmt(fmt) "icnss2_qmi: " fmt
@@ -43,7 +43,6 @@
 #define BIN_BDF_FILE_NAME		"bdwlan.bin"
 #define BIN_BDF_FILE_NAME_PREFIX	"bdwlan."
 #define REGDB_FILE_NAME			"regdb.bin"
-#define DUMMY_BDF_FILE_NAME		"bdwlan.dmy"
 
 #define QDSS_TRACE_CONFIG_FILE "qdss_trace_config.cfg"
 
@@ -54,6 +53,9 @@
 #define DMS_MAC_NOT_PROVISIONED		16
 #define BDWLAN_SIZE			6
 #define UMC_CHIP_ID                    0x4320
+#define MAX_SHADOW_REG_RESERVED		2
+#define MAX_NUM_SHADOW_REG_V3		(QMI_WLFW_MAX_NUM_SHADOW_REG_V3_USAGE_V01 - \
+					MAX_SHADOW_REG_RESERVED)
 
 #ifdef CONFIG_ICNSS2_DEBUG
 bool ignore_fw_timeout;
@@ -545,7 +547,8 @@ int wlfw_ind_register_send_sync_msg(struct icnss_priv *priv)
 			req->rejuvenate_enable_valid = 1;
 			req->rejuvenate_enable = 1;
 		}
-	} else if (priv->device_id == WCN6750_DEVICE_ID) {
+	} else if (priv->device_id == WCN6750_DEVICE_ID ||
+		   priv->device_id == WCN6450_DEVICE_ID) {
 		req->fw_init_done_enable_valid = 1;
 		req->fw_init_done_enable = 1;
 		req->cal_done_enable_valid = 1;
@@ -1049,11 +1052,6 @@ static int icnss_get_bdf_file_name(struct icnss_priv *priv,
 	case ICNSS_BDF_REGDB:
 		snprintf(filename_tmp, filename_len, REGDB_FILE_NAME);
 		break;
-	case ICNSS_BDF_DUMMY:
-		icnss_pr_dbg("CNSS_BDF_DUMMY is set, sending dummy BDF\n");
-		snprintf(filename_tmp, filename_len, DUMMY_BDF_FILE_NAME);
-		ret = ICNSS_MAX_FILE_NAME;
-		break;
 	default:
 		icnss_pr_err("Invalid BDF type: %d\n",
 			     priv->ctrl_params.bdf_type);
@@ -1061,7 +1059,7 @@ static int icnss_get_bdf_file_name(struct icnss_priv *priv,
 		break;
 	}
 
-	if (ret >= 0)
+	if (!ret)
 		icnss_add_fw_prefix_name(priv, filename, filename_tmp);
 
 	return ret;
@@ -1076,8 +1074,6 @@ static char *icnss_bdf_type_to_str(enum icnss_bdf_type bdf_type)
 		return "BDF";
 	case ICNSS_BDF_REGDB:
 		return "REGDB";
-	case ICNSS_BDF_DUMMY:
-		return "BDF";
 	default:
 		return "UNKNOWN";
 	}
@@ -1109,13 +1105,8 @@ int icnss_wlfw_bdf_dnld_send_sync(struct icnss_priv *priv, u32 bdf_type)
 
 	ret = icnss_get_bdf_file_name(priv, bdf_type,
 				      filename, sizeof(filename));
-	if (ret > 0) {
-		temp = DUMMY_BDF_FILE_NAME;
-		remaining = ICNSS_MAX_FILE_NAME;
-		goto bypass_bdf;
-	} else if (ret < 0) {
+	if (ret)
 		goto err_req_fw;
-	}
 
 	ret = request_firmware(&fw_entry, filename, &priv->pdev->dev);
 	if (ret) {
@@ -1127,7 +1118,6 @@ int icnss_wlfw_bdf_dnld_send_sync(struct icnss_priv *priv, u32 bdf_type)
 	temp = fw_entry->data;
 	remaining = fw_entry->size;
 
-bypass_bdf:
 	icnss_pr_dbg("Downloading %s: %s, size: %u\n",
 		     icnss_bdf_type_to_str(bdf_type), filename, remaining);
 
@@ -1192,16 +1182,14 @@ bypass_bdf:
 		req->seg_id++;
 	}
 
-	if (bdf_type != ICNSS_BDF_DUMMY)
-		release_firmware(fw_entry);
+	release_firmware(fw_entry);
 
 	kfree(req);
 	kfree(resp);
 	return 0;
 
 err_send:
-	if (bdf_type != ICNSS_BDF_DUMMY)
-		release_firmware(fw_entry);
+	release_firmware(fw_entry);
 err_req_fw:
 	if (bdf_type != ICNSS_BDF_REGDB)
 		ICNSS_QMI_ASSERT();
@@ -1285,7 +1273,8 @@ int icnss_wlfw_qdss_data_send_sync(struct icnss_priv *priv, char *file_name,
 		     resp->total_size == total_size) &&
 		    (resp->seg_id_valid == 1 && resp->seg_id == req->seg_id) &&
 		    (resp->data_valid == 1 &&
-		     resp->data_len <= QMI_WLFW_MAX_DATA_SIZE_V01)) {
+		     resp->data_len <= QMI_WLFW_MAX_DATA_SIZE_V01) &&
+		    resp->data_len <= remaining) {
 			memcpy(p_qdss_trace_data_temp,
 			       resp->data, resp->data_len);
 		} else {
@@ -2172,7 +2161,7 @@ int wlfw_qdss_trace_mem_info_send_sync(struct icnss_priv *priv)
 
 	req->mem_seg_len = priv->qdss_mem_seg_len;
 
-	if (priv->qdss_mem_seg_len > QMI_WLFW_MAX_NUM_MEM_SEG) {
+	if (priv->qdss_mem_seg_len >  QMI_WLFW_MAX_NUM_MEM_SEG_V01) {
 		icnss_pr_err("Invalid seg len %u\n",
 			     priv->qdss_mem_seg_len);
 		ret = -EINVAL;
@@ -2571,7 +2560,7 @@ static void wlfw_qdss_trace_req_mem_ind_cb(struct qmi_handle *qmi,
 
 	priv->qdss_mem_seg_len = ind_msg->mem_seg_len;
 
-	if (priv->qdss_mem_seg_len > QMI_WLFW_MAX_NUM_MEM_SEG) {
+	if (priv->qdss_mem_seg_len > QMI_WLFW_MAX_NUM_MEM_SEG_V01) {
 		icnss_pr_err("Invalid seg len %u\n",
 			     priv->qdss_mem_seg_len);
 		return;
@@ -2943,7 +2932,7 @@ static void wlfw_del_server(struct qmi_handle *qmi,
 	struct icnss_priv *priv = container_of(qmi, struct icnss_priv, qmi);
 
 	if (priv && test_bit(ICNSS_DEL_SERVER, &priv->state)) {
-		icnss_pr_info("WLFW server delete in progress, Ignore server delete:  0x%lx\n",
+		icnss_pr_info("WLFW server delete / icnss remove in progress, Ignore server delete:  0x%lx\n",
 			      priv->state);
 		return;
 	}
@@ -2975,7 +2964,8 @@ int icnss_register_fw_service(struct icnss_priv *priv)
 	if (ret < 0)
 		return ret;
 
-	if (priv->device_id == WCN6750_DEVICE_ID)
+	if (priv->device_id == WCN6750_DEVICE_ID ||
+	    priv->device_id == WCN6450_DEVICE_ID)
 		ret = qmi_add_lookup(&priv->qmi, WLFW_SERVICE_ID_V01,
 				     WLFW_SERVICE_VERS_V01,
 				     WLFW_SERVICE_WCN_INS_ID_V01);
@@ -2988,6 +2978,7 @@ int icnss_register_fw_service(struct icnss_priv *priv)
 
 void icnss_unregister_fw_service(struct icnss_priv *priv)
 {
+	set_bit(ICNSS_DEL_SERVER, &priv->state);
 	qmi_handle_release(&priv->qmi);
 }
 
@@ -3065,6 +3056,17 @@ int icnss_send_wlan_enable_to_fw(struct icnss_priv *priv,
 
 		memcpy(req.shadow_reg, config->shadow_reg_cfg,
 		       sizeof(struct wlfw_msi_cfg_s_v01) * req.shadow_reg_len);
+	} else if (priv->device_id == WCN6450_DEVICE_ID) {
+		req.shadow_reg_v3_valid = 1;
+		if (config->num_shadow_reg_v3_cfg >
+			MAX_NUM_SHADOW_REG_V3)
+			req.shadow_reg_v3_len = MAX_NUM_SHADOW_REG_V3;
+		else
+			req.shadow_reg_v3_len = config->num_shadow_reg_v3_cfg;
+
+		memcpy(req.shadow_reg_v3, config->shadow_reg_v3_cfg,
+		       sizeof(struct wlfw_shadow_reg_v3_cfg_s_v01)
+		       * req.shadow_reg_v3_len);
 	}
 
 	ret = wlfw_wlan_cfg_send_sync_msg(priv, &req);

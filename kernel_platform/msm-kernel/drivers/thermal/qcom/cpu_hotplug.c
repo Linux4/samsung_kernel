@@ -9,6 +9,9 @@
 #include <linux/slab.h>
 #include <linux/cpu.h>
 #include <linux/device.h>
+#if IS_ENABLED(CONFIG_SEC_PM_LOG)
+#include <linux/sec_pm_log.h>
+#endif
 
 #define CPU_HOTPLUG_LEVEL 1
 
@@ -19,6 +22,7 @@ struct cpu_hot_cdev {
 	bool cpu_cur_state;
 	struct thermal_cooling_device *cdev;
 	struct device_node *np;
+	char cdev_name[THERMAL_NAME_LENGTH];
 	struct work_struct reg_work;
 	struct work_struct exec_work;
 };
@@ -152,7 +156,7 @@ static void cpu_hot_execute_cdev(struct work_struct *work)
 		if (ret < 0)
 			pr_err("CPU:%d offline error:%d\n", cpu, ret);
 		else {
-#if IS_ENABLED(CONFIG_SEC_THERMAL_LOG)
+#if IS_ENABLED(CONFIG_SEC_PM_LOG)
 			ss_thermal_print("offline cpu%d\n", cpu);
 #endif
 			cpu_hot_cdev->cpu_cur_state = false;
@@ -166,7 +170,7 @@ static void cpu_hot_execute_cdev(struct work_struct *work)
 		if (ret)
 			pr_err("CPU:%d online error:%d\n", cpu, ret);
 		else {
-#if IS_ENABLED(CONFIG_SEC_THERMAL_LOG)
+#if IS_ENABLED(CONFIG_SEC_PM_LOG)
 			ss_thermal_print("online cpu%d\n", cpu);
 #endif
 			cpu_hot_cdev->cpu_cur_state = true;
@@ -180,25 +184,21 @@ static void cpu_hot_register_cdev(struct work_struct *work)
 {
 	struct cpu_hot_cdev *cpu_hot_cdev =
 			container_of(work, struct cpu_hot_cdev, reg_work);
-	char cdev_name[THERMAL_NAME_LENGTH] = "";
 	int ret = 0;
-
-	snprintf(cdev_name, THERMAL_NAME_LENGTH, "cpu-hotplug%d",
-			cpu_hot_cdev->cpu_id);
 
 	cpu_hot_cdev->cdev = thermal_of_cooling_device_register(
 					cpu_hot_cdev->np,
-					cdev_name,
+					cpu_hot_cdev->cdev_name,
 					cpu_hot_cdev,
 					&cpu_hot_cooling_ops);
 	if (IS_ERR(cpu_hot_cdev->cdev)) {
 		ret = PTR_ERR(cpu_hot_cdev->cdev);
 		pr_err("Cooling register failed for %s, ret:%d\n",
-			cdev_name, ret);
+			cpu_hot_cdev->cdev_name, ret);
 		cpu_hot_cdev->cdev = NULL;
 		return;
 	}
-	pr_debug("Cooling device [%s] registered.\n", cdev_name);
+	pr_debug("Cooling device [%s] registered.\n", cpu_hot_cdev->cdev_name);
 }
 
 static int cpu_hot_probe(struct platform_device *pdev)
@@ -208,6 +208,7 @@ static int cpu_hot_probe(struct platform_device *pdev)
 	struct device *cpu_dev;
 	struct cpu_hot_cdev *cpu_hot_cdev = NULL;
 	struct device_node *np = pdev->dev.of_node;
+	const char *alias;
 
 	INIT_LIST_HEAD(&cpu_hot_cdev_list);
 	for_each_available_child_of_node(np, subsys_np) {
@@ -235,6 +236,14 @@ static int cpu_hot_probe(struct platform_device *pdev)
 			dev_err(&pdev->dev, "Invalid CPU phandle\n");
 			continue;
 		}
+		ret = of_property_read_string(subsys_np,
+				"qcom,cdev-alias", &alias);
+		if (ret)
+			snprintf(cpu_hot_cdev->cdev_name, THERMAL_NAME_LENGTH, "cpu-hotplug%d",
+					cpu_hot_cdev->cpu_id);
+		else
+			strscpy(cpu_hot_cdev->cdev_name, alias,
+					THERMAL_NAME_LENGTH);
 		INIT_WORK(&cpu_hot_cdev->reg_work,
 				cpu_hot_register_cdev);
 		INIT_WORK(&cpu_hot_cdev->exec_work,

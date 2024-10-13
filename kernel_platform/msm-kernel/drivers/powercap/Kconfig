@@ -18,10 +18,12 @@ if POWERCAP
 # Client driver configurations go here.
 config INTEL_RAPL_CORE
 	tristate
+	depends on PCI
+	select IOSF_MBI
 
 config INTEL_RAPL
 	tristate "Intel RAPL Support via MSR Interface"
-	depends on X86 && IOSF_MBI
+	depends on X86 && PCI
 	select INTEL_RAPL_CORE
 	help
 	  This enables support for the Intel Running Average Power Limit (RAPL)
@@ -43,6 +45,17 @@ config IDLE_INJECT
 	  CPUs for power capping. Idle period can be injected
 	  synchronously on a set of specified CPUs or alternatively
 	  on a per CPU basis.
+
+config QCOM_EPM
+	tristate "Qualcomm Technologies, Inc. EPM Hardware driver"
+	depends on SPMI && NVMEM_SPMI_SDAM
+	default n
+	help
+	  This enables Qualcomm Technologies, Inc. epm hardware
+	  device driver. It provides to measure different pmic
+	  regulators or bucks power consumption data in different
+	  modes. It exposes these data to userspace clients via
+	  powercap sysfs interface.
 
 config DTPM
 	bool "Power capping for Dynamic Thermal Power Management (EXPERIMENTAL)"

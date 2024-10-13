@@ -808,7 +808,7 @@ void ss_event_frame_update_post(struct samsung_display_driver_data *vdd)
 		frame_count = 1;
 
 		/* set self_mask_udc before display on */
-		if (vdd->self_disp.self_mask_udc_on)
+		if (vdd->self_disp.self_mask_udc_on && !ss_is_panel_lpm(vdd))
 			vdd->self_disp.self_mask_udc_on(vdd, vdd->self_disp.udc_mask_enable);
 		else
 			LCD_DEBUG(vdd, "Self Mask UDC Function is NULL\n");
@@ -1008,8 +1008,15 @@ void ss_wait_for_te_gpio(struct samsung_display_driver_data *vdd, int num_of_te,
 			ss_wait_for_te_gpio_low(vdd, disp_te_gpio, preemption);
 	}
 
-	if (delay_after_te)
-		udelay(delay_after_te);
+	if (delay_after_te) {
+		if (delay_after_te < 5000) {
+			udelay(delay_after_te);
+		} else {
+			mdelay(delay_after_te / 1000);
+			udelay(delay_after_te % 1000);
+		}
+		LCD_INFO(vdd, "%d us delay after te is done\n", delay_after_te);
+	}
 
 	if (preemption)
 		preempt_enable();
@@ -1330,6 +1337,38 @@ done:
 		max_div = min_div;
 	}
 
+	/* VRR 96HS, 48HS (base_rr = 96): Allowed LFD frequencies.
+	 * - min_div_lowest: 1hz (div=96)
+	 * - min_div_def: 1hz (div=96), 12hz (div=8) or 10.67hz (div=9), depends on panels.
+	 * - 48hz(div=2)
+	 * - max_div_def : 96hz(div=1) for VRR 96HS. 48hz(div=2) for VRR 48HS
+	 */
+	if (base_rr == 96) {
+		if (max_div > min_div_def && max_div < min_div_lowest) {
+			/* min_div_def(div=8, 12hz) < div < min_div_loewst(div=96, 1hz) */
+			/* min_div_def(div=96, 1hz) < div < min_div_loewst(div=96, 1hz) */
+			LCD_INFO(vdd, "limit LFD max div: %d -> %d\n", max_div, min_div_def);
+			max_div = min_div_def; /* 12hz */
+		} else if (max_div > 2 && max_div < min_div_def) {
+			/* 2(48hz) < div < min_div_def(div=8, 12hz) */
+			/* 2(48hz) < div < min_div_def(div=96, 1hz) */
+			LCD_INFO(vdd, "limit LFD max div: %d -> 2\n", max_div);
+			max_div = 2; /* 48hz */
+		}
+
+		if (min_div > min_div_def && min_div < min_div_lowest) {
+			/* min_div_def(div=8, 12hz) < div < min_div_loewst(div=96, 1hz) */
+			/* min_div_def(div=96, 1hz) < div < min_div_loewst(div=96, 1hz) */
+			LCD_INFO(vdd, "limit LFD min div: %d -> %d\n", max_div, min_div_def);
+			min_div = min_div_def; /* 12hz */
+		} else if (min_div > 2 && min_div < min_div_def) {
+			/* 2(48hz) < div < min_div_def(div=8, 12hz) */
+			/* 2(48hz) < div < min_div_def(div=96, 1hz) */
+			LCD_INFO(vdd, "limit LFD min div: %d -> 2\n", min_div);
+			min_div = 2; /* 48hz */
+		}
+	}
+
 set_out_div:
 	*out_min_div = min_div;
 	*out_max_div = max_div;
@@ -1349,59 +1388,6 @@ set_out_div:
 }
 
 #if IS_ENABLED(CONFIG_INPUT_SEC_NOTIFIER)
-static void ss_lfd_touch_work(struct work_struct *work)
-{
-	struct lfd_info *lfd = container_of(work, struct lfd_info, lfd_touch_work);
-	struct vrr_info *vrr = container_of(lfd, struct vrr_info, lfd);
-	struct samsung_display_driver_data *vdd = container_of(vrr,
-				struct samsung_display_driver_data, vrr);
-
-	ss_brightness_dcs(vdd, USE_CURRENT_BL_LEVEL, BACKLIGHT_NORMAL);
-}
-static int ss_lfd_touch_notify_cb(struct notifier_block *nb,
-				unsigned long val, void *v)
-{
-	struct lfd_info *lfd;
-	struct samsung_display_driver_data *vdd;
-	struct lfd_mngr *mngr;
-	enum sec_input_notify_t event = (enum sec_input_notify_t)val;
-	struct sec_input_notify_data *tsp_ndx = v;
-
-
-	if (event != NOTIFIER_LCD_VRR_LFD_LOCK_REQUEST &&
-		event != NOTIFIER_LCD_VRR_LFD_LOCK_RELEASE)
-		goto done;
-
-	vdd = ss_get_vdd(tsp_ndx->dual_policy);
-	if (!vdd->vrr.lfd.support_lfd) {
-		LCD_DEBUG(vdd, "not support lfd\n");
-		goto done;
-	}
-
-	lfd = &vdd->vrr.lfd;
-	mngr = &lfd->lfd_mngr[LFD_CLIENT_INPUT];
-
-	if (event == NOTIFIER_LCD_VRR_LFD_LOCK_REQUEST) {
-		mngr->scalability[LFD_SCOPE_NORMAL] = LFD_FUNC_SCALABILITY2; /* div=2*/
-		LCD_INFO(vdd, "touch: control LFD\n");
-		if (ss_is_panel_on(vdd))
-			queue_work(lfd->lfd_touch_wq, &lfd->lfd_touch_work);
-		else
-			LCD_INFO(vdd, "panel is not normal on(%d), delay applying\n",
-					vdd->panel_state);
-	} else if (event == NOTIFIER_LCD_VRR_LFD_LOCK_RELEASE) {
-		mngr->scalability[LFD_SCOPE_NORMAL] = LFD_FUNC_SCALABILITY0;
-		LCD_INFO(vdd, "touch LFD release LFD\n");
-		if (ss_is_panel_on(vdd))
-			queue_work(lfd->lfd_touch_wq, &lfd->lfd_touch_work);
-		else
-			LCD_INFO(vdd, "panel is not normal on(%d), delay applying\n",
-					vdd->panel_state);
-	}
-done:
-	return NOTIFY_DONE;
-}
-
 static int ss_esd_touch_notifier_cb(struct notifier_block *nb,
 				unsigned long val, void *v)
 {
@@ -3213,8 +3199,14 @@ int ss_panel_on_pre(struct samsung_display_driver_data *vdd)
 	}
 
 	/* UDC */
-	if (vdd->panel_func.read_udc_data && !vdd->udc.read_done)
+	if (vdd->panel_func.read_udc_data && !vdd->udc.read_done) {
 		vdd->panel_func.read_udc_data(vdd);
+#if IS_ENABLED(CONFIG_SEC_FACTORY)
+		/* Read UDC Gamma is for factory only */
+		if (vdd->panel_func.read_udc_gamma_data)
+			vdd->panel_func.read_udc_gamma_data(vdd);
+#endif
+	}
 
 skip_read:
 
@@ -3535,6 +3527,8 @@ end:
 *
 **************************************************************/
 
+static unsigned long false_esd_jiffies;
+
 /*
  * esd_irq_enable() - Enable or disable esd irq.
  *
@@ -3542,8 +3536,6 @@ end:
  * @nosync	: flag for disable irq with nosync
  * @data	: point ot struct ss_panel_info
  */
-#define IRQS_PENDING	0x00000200
-#define istate core_internal_state__do_not_mess_with_it
 static int esd_irq_enable(bool enable, bool nosync, void *data, u32 esd_mask)
 {
 	/* The irq will enabled when do the request_threaded_irq() */
@@ -3553,8 +3545,8 @@ static int esd_irq_enable(bool enable, bool nosync, void *data, u32 esd_mask)
 	int irq[MAX_ESD_GPIO] = {0,};
 	struct samsung_display_driver_data *vdd =
 		(struct samsung_display_driver_data *)data;
-	struct irq_desc *desc = NULL;
 	struct esd_recovery *esd;
+
 	u8 i = 0;
 	int ret = 0;
 
@@ -3603,29 +3595,21 @@ static int esd_irq_enable(bool enable, bool nosync, void *data, u32 esd_mask)
 	}
 
 	for (i = 0; i < esd->num_of_gpio; i++) {
-		gpio = esd->esd_gpio[i];
-		desc = irq_to_desc(irq[i]);
 		if (enable) {
-			/* clear esd irq triggered while it was disabled. */
-			if (desc->irq_data.chip->irq_ack)
-				desc->irq_data.chip->irq_ack(&desc->irq_data);
+			/* record time to prevent false positive esd interrupt
+			 * skip esd interrupt for 100ms after enable esd interrupt.
+			 */
+			false_esd_jiffies = jiffies + __msecs_to_jiffies(100);
 
-			if (desc->istate & IRQS_PENDING) {
-				LCD_DEBUG(vdd, "clear esd irq pending status\n");
-				desc->istate &= ~IRQS_PENDING;
-			}
-		}
-
-		if (enable) {
-			is_enabled[vdd->ndx] = true;
 			enable_irq(irq[i]);
 		} else {
 			if (nosync)
 				disable_irq_nosync(irq[i]);
 			else
 				disable_irq(irq[i]);
-			is_enabled[vdd->ndx] = false;
 		}
+
+		is_enabled[vdd->ndx] = enable;
 	}
 
 config_wakeup_source:
@@ -3671,12 +3655,17 @@ __visible_for_testing irqreturn_t esd_irq_handler(int irq, void *handle)
 		(struct samsung_display_driver_data *) handle;
 	struct sde_connector *conn;
 	struct esd_recovery *esd = NULL;
+	unsigned long now = jiffies;
 	int i;
 
 	if (!vdd->esd_recovery.is_enabled_esd_recovery) {
 		LCD_ERR(vdd, "esd recovery is not enabled yet");
 		goto end;
 	}
+
+	LCD_INFO(vdd, "now: %ld, threshold: %ld\n", now, false_esd_jiffies);
+	if (time_before(now, false_esd_jiffies))
+		goto end;
 
 	conn = GET_SDE_CONNECTOR(vdd);
 	if (!conn) {
@@ -3689,6 +3678,8 @@ __visible_for_testing irqreturn_t esd_irq_handler(int irq, void *handle)
 			LCD_INFO(vdd, "ub_con_det.gpio = %d\n", ss_gpio_get_value(vdd, vdd->ub_con_det.gpio));
 		}
 	}
+
+	esd = &vdd->esd_recovery;
 
 	LCD_INFO(vdd, "++\n");
 
@@ -3703,8 +3694,6 @@ __visible_for_testing irqreturn_t esd_irq_handler(int irq, void *handle)
 	inc_dpui_u32_field(DPUI_KEY_QCT_RCV_CNT, 1);
 
 	if (vdd->is_factory_mode) {
-		esd = &vdd->esd_recovery;
-
 		for (i = 0; i < esd->num_of_gpio; i++) {
 			if ((esd->esd_gpio[i] == vdd->ub_con_det.gpio) &&
 				(ss_gpio_to_irq(esd->esd_gpio[i]) == irq)) {
@@ -3884,7 +3873,7 @@ void ss_panel_recovery(struct samsung_display_driver_data *vdd)
 		return;
 	}
 	LCD_INFO(vdd, "Panel Recovery, Trial Count = %d\n", vdd->panel_recovery_cnt++);
-	SS_XLOG(vdd->panel_recovery_cnt);
+	SS_XLOG(vdd->ndx, vdd->panel_recovery_cnt);
 	inc_dpui_u32_field(DPUI_KEY_QCT_RCV_CNT, 1);
 
 	esd_irq_enable(false, true, (void *)vdd, ESD_MASK_DEFAULT);
@@ -4773,6 +4762,7 @@ static void ss_test_mode_parse_dt(struct samsung_display_driver_data *vdd)
 	u32 tmp[2];
 	int rc;
 	int len;
+	int i;
 	const __be32 *data;
 
 	/* lego-opcode doesn't import test_mode_XXX.dtsi */
@@ -4805,8 +4795,13 @@ static void ss_test_mode_parse_dt(struct samsung_display_driver_data *vdd)
 	LCD_INFO(vdd, "vdd->gct.is_support = %d\n", vdd->gct.is_support);
 
 	/* ccd success,fail value */
-	rc = of_property_read_u32(np, "samsung,ccd_pass_val", tmp);
-	vdd->ccd_pass_val = (!rc ? tmp[0] : 0);
+	data = of_get_property(np, "samsung,ccd_pass_val", &len);
+	if (data) { /* X items & 4 bytes = 4xX bytes */
+		for (i = 0; len > 0; i++) {
+			vdd->ccd_pass_val[i] = be32_to_cpup(&data[i]);
+			len -= 4;
+		}
+	}
 	rc = of_property_read_u32(np, "samsung,ccd_fail_val", tmp);
 	vdd->ccd_fail_val = (!rc ? tmp[0] : 0);
 
@@ -4814,13 +4809,11 @@ static void ss_test_mode_parse_dt(struct samsung_display_driver_data *vdd)
 
 	/* DSC CRC pass value */
 	data = of_get_property(np, "samsung,dsc_crc_pass_val", &len);
-	if (data && len == 8) { /* two items & 4 bytes = 8 bytes */
-		vdd->dsc_crc_pass_val[0] = be32_to_cpup(&data[0]);
-		vdd->dsc_crc_pass_val[1] = be32_to_cpup(&data[1]);
-
-		LCD_INFO(vdd, "dsc crc valid_chksum: %02X %02X\n",
-				vdd->dsc_crc_pass_val[0],
-				vdd->dsc_crc_pass_val[1]);
+	if (data) { /* X items & 4 bytes = 4xX bytes */
+		for (i = 0; len > 0; i++) {
+			vdd->dsc_crc_pass_val[i] = be32_to_cpup(&data[i]);
+			len -= 4;
+		}
 	}
 
 	return;
@@ -4985,6 +4978,9 @@ static void ss_panel_parse_dt(struct samsung_display_driver_data *vdd)
 	vdd->panel_lpm.is_support = of_property_read_bool(np, "samsung,support_lpm");
 	LCD_INFO(vdd, "alpm enable %s\n", vdd->panel_lpm.is_support? "enabled" : "disabled");
 
+	vdd->support_ccd_crc_R11 = of_property_read_bool(np, "samsung,support_ccd_crc_R11");
+	LCD_INFO(vdd, "support_ccd_crc_R11 %s\n", vdd->support_ccd_crc_R11 ? "enabled" : "disabled");
+
 	vdd->skip_read_on_pre = of_property_read_bool(np, "samsung,skip_read_on_pre");
 	LCD_INFO(vdd, "Skip read on pre %s\n", vdd->skip_read_on_pre ? "enabled" : "disabled");
 
@@ -5140,6 +5136,13 @@ static void ss_panel_parse_dt(struct samsung_display_driver_data *vdd)
 		if (rc) {
 			vdd->poc_driver.write_addr_idx[0] = -1;
 			LCD_INFO(vdd, "fail to get poc_write_addr_idx\n");
+		}
+
+		rc = of_property_read_u32_array(np, "samsung,poc_write_size_idx",
+				vdd->poc_driver.write_size_idx, 2);
+		if (rc) {
+			vdd->poc_driver.write_size_idx[0] = -1;
+			LCD_INFO(vdd, "fail to get poc_write_size_idx\n");
 		}
 
 		LCD_INFO(vdd, "[POC][WRITE] delay_us(%d) data_size(%d) loo_cnt(%d) addr idx (%d %d %d)\n",
@@ -5608,7 +5611,7 @@ static void ss_panel_parse_dt(struct samsung_display_driver_data *vdd)
 	ss_self_disp_parse_dt(vdd);
 	ss_test_mode_parse_dt(vdd);
 
-	/* UDC */
+	/* UDC transmittance flash read */
 	rc = of_property_read_u32(np, "samsung,udc_start_addr", tmp);
 	vdd->udc.start_addr = (!rc ? tmp[0] : 0);
 	rc = of_property_read_u32(np, "samsung,udc_data_size", tmp);
@@ -5616,9 +5619,27 @@ static void ss_panel_parse_dt(struct samsung_display_driver_data *vdd)
 	if (vdd->udc.size) {
 		vdd->udc.data = kzalloc(vdd->udc.size, GFP_KERNEL);
 		if (!vdd->udc.data)
-			LCD_INFO(vdd, "[UDC] fail to alloc udc data buf..\n");
+			LCD_INFO(vdd, "[UDC transmittance] fail to alloc udc transmittance data buf..\n");
 		else
-			LCD_INFO(vdd, "[UDC] start_addr : %X, data_size : %d\n", vdd->udc.start_addr, vdd->udc.size);
+			LCD_INFO(vdd, "[UDC transmittance] start_addr : %X, data_size : %d\n", vdd->udc.start_addr, vdd->udc.size);
+	}
+
+	/* UDC gamma flash read */
+	rc = of_property_read_u32(np, "samsung,udc_gamma_start_addr", tmp);
+	vdd->udc.gamma_start_addr = (!rc ? tmp[0] : 0);
+	rc = of_property_read_u32(np, "samsung,udc_gamma_size", tmp);
+	vdd->udc.gamma_size = (!rc ? tmp[0] : 0);
+
+	rc = of_property_read_u32(np, "samsung,udc_gamma_backup_addr", tmp);
+	vdd->udc.gamma_backup_addr = (!rc ? tmp[0] : 0);
+
+	if (vdd->udc.gamma_size) {
+		vdd->udc.gamma_data_backup = kzalloc(vdd->udc.gamma_size, GFP_KERNEL);
+		vdd->udc.gamma_data = kzalloc(vdd->udc.gamma_size, GFP_KERNEL);
+		if (!vdd->udc.gamma_data_backup || !vdd->udc.gamma_data)
+			LCD_INFO(vdd, "[UDC gamma] fail to alloc udc gamma data buf..\n");
+
+		LCD_INFO(vdd, "[UDC gamma] start_addr : %X, data_size : %d\n", vdd->udc.gamma_start_addr, vdd->udc.gamma_size);
 	}
 
 	/* use recovery when flash loading is failed */
@@ -6769,9 +6790,12 @@ skip_bl_update:
 	/* SAMSUNG_FINGERPRINT */
 	/* hbm needs vdd->panel_hbm_entry_delay TE to be updated, where as normal needs no */
 		if (backlight_origin == BACKLIGHT_FINGERMASK_ON) {
-			if (panel->panel_mode == DSI_OP_CMD_MODE)
-				ss_wait_for_te_gpio(vdd, vdd->panel_hbm_entry_delay, 200, true);
-			else /* Video mode*/
+			if (panel->panel_mode == DSI_OP_CMD_MODE) {
+				if (vdd->panel_hbm_delay_after_tx)
+					ss_wait_for_te_gpio(vdd, vdd->panel_hbm_entry_delay, vdd->panel_hbm_delay_after_tx, true);
+				else
+					ss_wait_for_te_gpio(vdd, vdd->panel_hbm_entry_delay, 200, true);
+			} else /* Video mode*/
 				ss_wait_for_vsync(vdd, vdd->panel_hbm_entry_delay, 0);
 		}
 		if ((backlight_origin >= BACKLIGHT_FINGERMASK_ON) && (vdd->finger_mask_updated)) {
@@ -6780,10 +6804,15 @@ skip_bl_update:
 			vdd->finger_mask_updated = 0;
 		}
 		if (backlight_origin == BACKLIGHT_FINGERMASK_OFF) {
-			if (panel->panel_mode == DSI_OP_CMD_MODE)
-				ss_wait_for_te_gpio(vdd, vdd->panel_hbm_exit_delay, 200, true);
-			else
+			if (panel->panel_mode == DSI_OP_CMD_MODE) {
+				if (vdd->panel_hbm_delay_after_tx)
+					ss_wait_for_te_gpio(vdd, vdd->panel_hbm_exit_delay, vdd->panel_hbm_delay_after_tx, true);
+				else
+					ss_wait_for_te_gpio(vdd, vdd->panel_hbm_exit_delay, 200, true);
+			} else
 				ss_wait_for_vsync(vdd, vdd->panel_hbm_exit_delay, 0);
+
+			vdd->panel_hbm_exit_frame_wait = true;
 		}
 	}
 	mutex_unlock(&vdd->bl_lock);
@@ -7041,7 +7070,7 @@ __visible_for_testing void ss_vrr_event_work(struct work_struct *work)
 
 	ss_panel_notifier_call_chain(PANEL_EVENT_VRR_CHANGED, &dms_data);
 
-	LCD_INFO(vdd, "fps=%d, lfd_min=%dhz(%d), lfd_max=%dhz(%d), base_rr=%dhz \n",
+	LCD_DEBUG(vdd, "fps=%d, lfd_min=%dhz(%d), lfd_max=%dhz(%d), base_rr=%dhz \n",
 			dms_data.fps,
 			dms_data.lfd_min_freq, vrr->lfd.min_div,
 			dms_data.lfd_max_freq, vrr->lfd.max_div,
@@ -7075,7 +7104,7 @@ __visible_for_testing void ss_lfd_event_work(struct work_struct *work)
 
 	ss_panel_notifier_call_chain(PANEL_EVENT_LFD_CHANGED, &dms_data);
 
-	LCD_INFO(vdd, "fps=%d, lfd_min=%d, lfd_max=%d ++\n", dms_data.fps,
+	LCD_DEBUG(vdd, "fps=%d, lfd_min=%d, lfd_max=%d ++\n", dms_data.fps,
 			dms_data.lfd_min_freq, dms_data.lfd_max_freq);
 	return;
 }
@@ -7406,12 +7435,12 @@ __visible_for_testing int ss_panel_vrr_switch(struct vrr_info *vrr)
 				(adjusted_rr == 48 || adjusted_rr == 96)) {
 			/* 60/120hz mode -> 48/96hz mode: apply compensated gamma */
 			vrr->gm2_gamma = VRR_GM2_GAMMA_COMPENSATE;
-			LCD_INFO(vdd, "compensate gamma\n");
+			LCD_DEBUG(vdd, "compensate gamma\n");
 		} else if ((cur_rr == 48 || cur_rr == 96) &&
 				(adjusted_rr != 48 && adjusted_rr != 96)) {
 			/* 48/96hz mode -> 60/120hz mode: restore original gamma MTP */
 			vrr->gm2_gamma = VRR_GM2_GAMMA_RESTORE_ORG;
-			LCD_INFO(vdd, "restore org gamma\n");
+			LCD_DEBUG(vdd, "restore org gamma\n");
 		}
 	}
 
@@ -7424,9 +7453,9 @@ __visible_for_testing int ss_panel_vrr_switch(struct vrr_info *vrr)
 		ret = -EPERM;
 		SS_XLOG(0xbad, vdd->panel_state);
 
-		vrr->cur_refresh_rate = adjusted_rr;
-		vrr->cur_sot_hs_mode = adjusted_hs;
-		vrr->cur_phs_mode = adjusted_phs;
+		vrr->prev_refresh_rate = vrr->cur_refresh_rate = adjusted_rr;
+		vrr->prev_sot_hs_mode = vrr->cur_sot_hs_mode = adjusted_hs;
+		vrr->prev_phs_mode = vrr->cur_phs_mode = adjusted_phs;
 
 		goto brr_done;
 	}
@@ -8119,19 +8148,6 @@ void ss_panel_init(struct dsi_panel *panel)
 	/* register notifier and init workQ.
 	 * TODO: move hall_ic_notifier_display and dyn_mipi_clk notifier here.
 	 */
-	if (vdd->vrr.lfd.support_lfd) {
-		vdd->vrr.lfd.nb_lfd_touch.priority = 3;
-		vdd->vrr.lfd.nb_lfd_touch.notifier_call = ss_lfd_touch_notify_cb;
-		sec_input_register_notify(&vdd->vrr.lfd.nb_lfd_touch, ss_lfd_touch_notify_cb, 3);
-
-		vdd->vrr.lfd.lfd_touch_wq = create_singlethread_workqueue("lfd_touch_wq");
-		if (!vdd->vrr.lfd.lfd_touch_wq) {
-			LCD_ERR(vdd, "failed to create touch_lfd workqueue..\n");
-			return;
-		}
-		INIT_WORK(&vdd->vrr.lfd.lfd_touch_work, ss_lfd_touch_work);
-	}
-
 	if (vdd->esd_touch_notify) {
 		vdd->nb_esd_touch.priority = 3;
 		vdd->nb_esd_touch.notifier_call = ss_esd_touch_notifier_cb;
@@ -8300,7 +8316,14 @@ int samsung_panel_initialize(char *panel_string, unsigned int ndx)
 	else if (!strncmp(panel_string, "Q4_S6E3FAC_AMB619BR01", strlen(panel_string)))
 		vdd->panel_func.samsung_panel_init = Q4_S6E3FAC_AMB619BR01_HD_init;
 #endif
-
+#if IS_ENABLED(CONFIG_PANEL_R11_S6E3FC5_AMS642DF01_FHD)
+	else if (!strncmp(panel_string, "R11_S6E3FC5_AMS642DF01", strlen(panel_string)))
+		vdd->panel_func.samsung_panel_init = R11_S6E3FC5_AMS642DF01_FHD_init;
+#endif
+#if IS_ENABLED(CONFIG_PANEL_R11_S6E3FC3_AMS642DF03_FHD)
+	else if (!strncmp(panel_string, "R11_S6E3FC3_AMS642DF03", strlen(panel_string)))
+		vdd->panel_func.samsung_panel_init = R11_S6E3FC3_AMS642DF03_FHD_init;
+#endif
 	else {
 		LCD_ERR(vdd, "[%s] not found\n", panel_string);
 		return -1;

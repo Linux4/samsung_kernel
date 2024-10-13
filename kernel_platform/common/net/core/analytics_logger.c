@@ -62,8 +62,9 @@ struct usr_io {
 };
 static struct usr_io usr_stat;
 
-static struct hrtimer netio_timer;
 static __u64 netio_utc_interval;
+static struct workqueue_struct *netio_print_wq;
+static struct delayed_work netio_print_dwork;
 
 struct netdev_name {
 	char name[IFNAMSIZ];
@@ -134,9 +135,7 @@ static int netio_ptype_rcv(struct sk_buff *skb, struct net_device *dev,
 {
 	/* start timer for first tick */
 	if (atomic64_inc_return(&netio_tick) == 1) {
-		hrtimer_start(&netio_timer,
-			      ktime_add(ktime_get(), ktime_set(1, 0)),
-			      HRTIMER_MODE_ABS);
+		queue_delayed_work(netio_print_wq, &netio_print_dwork, HZ);
 	}
 	/* hack for each net device recognition */
 	dev->flags |= IFF_NETIO;
@@ -194,13 +193,11 @@ static int netio_ndev_event_cb(struct notifier_block *nb,
 				/* lockless handing, cancel timer prevents
 				 * accessing the changing list
 				 */
-				hrtimer_cancel(&netio_timer);
+				cancel_delayed_work(&netio_print_dwork);
 				//remove from the list
 				list_del(&ndev_i->list);
 				kfree(ndev_i);
-				hrtimer_start(&netio_timer,
-					ktime_add(ktime_get(), ktime_set(1, 0)),
-					 HRTIMER_MODE_ABS);
+				queue_delayed_work(netio_print_wq, &netio_print_dwork, HZ);
 				return NOTIFY_DONE;
 			}
 		}
@@ -224,11 +221,9 @@ static int netio_ndev_event_cb(struct notifier_block *nb,
 			/* lockless handing, cancel timer prevents
 			 * accessing the changing list
 			 */
-			hrtimer_cancel(&netio_timer);
+			cancel_delayed_work(&netio_print_dwork);
 			list_add_tail(&ndev_i->list, &updev_list);
-			hrtimer_start(&netio_timer,
-			      ktime_add(ktime_get(), ktime_set(1, 0)),
-			      HRTIMER_MODE_ABS);
+			queue_delayed_work(netio_print_wq, &netio_print_dwork, HZ);
 		}
 	}
 
@@ -411,20 +406,16 @@ static void netio_printout(void)
 #endif
 }
 
-static enum hrtimer_restart netio_timer_handler(struct hrtimer *hrtimer)
+static void netio_print_work(struct work_struct *ws)
 {
 	if (atomic64_read(&netio_tick) > 0) {
-		hrtimer_start(&netio_timer,
-			      ktime_add(ktime_get(), ktime_set(1, 0)),
-			      HRTIMER_MODE_ABS);
+		queue_delayed_work(netio_print_wq, &netio_print_dwork, HZ);
 		atomic64_set(&netio_tick, 0);
 	} else {
 		netio_utc_interval = 0;
 	}
 
 	netio_printout();
-
-	return HRTIMER_NORESTART;
 }
 
 /***********************************************/
@@ -452,8 +443,8 @@ static int __init alts_logger_init(void)
 		kfree(log_buf);
 	}
 
-	hrtimer_init(&netio_timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
-	netio_timer.function = netio_timer_handler;
+	netio_print_wq = alloc_workqueue("netio_print_work", WQ_HIGHPRI | WQ_CPU_INTENSIVE, 1);
+	INIT_DELAYED_WORK(&netio_print_dwork, netio_print_work);
 
 	dev_add_pack(&netio_hook);
 

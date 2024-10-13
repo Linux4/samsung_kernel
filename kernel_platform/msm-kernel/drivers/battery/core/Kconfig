@@ -55,7 +55,7 @@ config SB_VOTE
 	  refer to sb_voter.h
 
 config SB_PQUEUE_TEST
-	bool "KUnit test for sb_pqueue_test"
+	tristate "KUnit test for sb_pqueue_test"
 	depends on SEC_KUNIT
 	help
     	  Say Y here to enable
@@ -64,7 +64,7 @@ config SB_PQUEUE_TEST
           for sb_pqueue_test
 
 config SB_NOTIFY_TEST
-	bool "KUnit test for sb_notify_test"
+	tristate "KUnit test for sb_notify_test"
 	depends on SEC_KUNIT
 	help
     	  Say Y here to enable
@@ -73,7 +73,7 @@ config SB_NOTIFY_TEST
           for sb_notify_test
 
 config SB_SYSFS_TEST
-	bool "KUnit test for sb_sysfs_test"
+	tristate "KUnit test for sb_sysfs_test"
 	depends on SEC_KUNIT
 	help
     	  Say Y here to enable
@@ -82,7 +82,7 @@ config SB_SYSFS_TEST
           for sb_sysfs_test
 
 config SB_VOTE_TEST
-	bool "KUnit test for sb_vote_test"
+	tristate "KUnit test for sb_vote_test"
 	depends on SEC_KUNIT
 	help
     	  Say Y here to enable

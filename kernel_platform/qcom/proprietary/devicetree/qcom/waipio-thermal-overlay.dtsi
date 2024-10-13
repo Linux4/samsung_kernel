@@ -1,25 +1,6 @@
 #include <dt-bindings/thermal/thermal_qti.h>
 
 &thermal_zones {
-	socd {
-		cooling-maps {
-			socd_apc1 {
-				trip = <&socd_trip>;
-				cooling-device = <&APC1_pause 1 1>;
-			};
-
-			socd_cdsp1 {
-				trip = <&socd_trip>;
-				cooling-device = <&cdsp_sw 4 4>;
-			};
-
-			socd_gpu0 {
-				trip = <&socd_trip>;
-				cooling-device = <&msm_gpu 4 4>;
-			};
-		};
-	};
-
 	pm8350b-bcl-lvl0 {
 		cooling-maps {
 			vbat_lte0 {
@@ -191,6 +172,16 @@
 				cooling-device = <&CPU4 15 THERMAL_NO_LIMIT>;
 			};
 
+			pm8450_cpu5_freq {
+				trip = <&pm8450_trip0>;
+				cooling-device = <&CPU5 15 THERMAL_NO_LIMIT>;
+			};
+
+			pm8450_cpu6_freq {
+				trip = <&pm8450_trip0>;
+				cooling-device = <&CPU6 15 THERMAL_NO_LIMIT>;
+			};
+
 			pm8450_cpu7_freq {
 				trip = <&pm8450_trip0>;
 				cooling-device = <&CPU7 15 THERMAL_NO_LIMIT>;
@@ -213,6 +204,16 @@
 			pm8350_cpu4_freq {
 				trip = <&pm8350_trip0>;
 				cooling-device = <&CPU4 15 THERMAL_NO_LIMIT>;
+			};
+
+			pm8350_cpu5_freq {
+				trip = <&pm8350_trip0>;
+				cooling-device = <&CPU5 15 THERMAL_NO_LIMIT>;
+			};
+
+			pm8350_cpu6_freq {
+				trip = <&pm8350_trip0>;
+				cooling-device = <&CPU6 15 THERMAL_NO_LIMIT>;
 			};
 
 			pm8350_cpu7_freq {
@@ -251,6 +252,16 @@
 			cpu4_freq_cdev {
 				trip = <&xo_config0>;
 				cooling-device = <&CPU4 15 THERMAL_NO_LIMIT>;
+			};
+
+			cpu5_freq_cdev {
+				trip = <&xo_config0>;
+				cooling-device = <&CPU5 15 THERMAL_NO_LIMIT>;
+			};
+
+			cpu6_freq_cdev {
+				trip = <&xo_config0>;
+				cooling-device = <&CPU6 15 THERMAL_NO_LIMIT>;
 			};
 
 			cpu7_freq_cdev {

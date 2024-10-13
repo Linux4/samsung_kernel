@@ -100,7 +100,7 @@ int cpu_speedup_enable(struct boosting_config *boosting)
 {
 	int retval = 0;
 
-	pr_debug("%s\n", __func__);
+	pr_info("%s\n", __func__);
 /* Module build & TEEGris */
 #if defined(CONFIG_SENSORS_FINGERPRINT_MODULE)
 #if IS_ENABLED(CONFIG_EXYNOS_PM_QOS) || IS_ENABLED(CONFIG_EXYNOS_PM_QOS_MODULE)
@@ -117,7 +117,7 @@ int cpu_speedup_enable(struct boosting_config *boosting)
 		pr_err("booster start failed. (%d)\n", retval);
 
 #else
-	pr_debug("FP_CPU_SPEEDUP does not supported\n");
+	pr_info("FP_CPU_SPEEDUP does not supported\n");
 #endif
 
 	return retval;
@@ -127,7 +127,7 @@ int cpu_speedup_disable(struct boosting_config *boosting)
 {
 	int retval = 0;
 
-	pr_debug("%s\n", __func__);
+	pr_info("%s\n", __func__);
 /* Module build & TEEGris */
 #if defined(CONFIG_SENSORS_FINGERPRINT_MODULE)
 #if IS_ENABLED(CONFIG_EXYNOS_PM_QOS) || IS_ENABLED(CONFIG_EXYNOS_PM_QOS_MODULE)
@@ -143,7 +143,7 @@ int cpu_speedup_disable(struct boosting_config *boosting)
 		pr_err("booster stop failed. (%d)\n", retval);
 
 #else
-	pr_debug("FP_CPU_SPEEDUP does not supported\n");
+	pr_info("FP_CPU_SPEEDUP does not supported\n");
 #endif
 
 	return retval;

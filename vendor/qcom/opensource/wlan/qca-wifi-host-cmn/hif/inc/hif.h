@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2013-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -78,7 +78,7 @@ typedef void *hif_handle_t;
 #define HIF_TYPE_QCA6750 23
 #define HIF_TYPE_QCA5018 24
 #define HIF_TYPE_QCN6122 25
-#define HIF_TYPE_WCN7850 26
+#define HIF_TYPE_KIWI 26
 #define HIF_TYPE_QCN9224 27
 #define HIF_TYPE_QCA9574 28
 
@@ -526,6 +526,14 @@ static inline void hif_event_history_deinit(struct hif_opaque_softc *hif_ctx,
 {
 }
 #endif /* WLAN_FEATURE_DP_EVENT_HISTORY */
+
+void hif_display_ctrl_traffic_pipes_state(struct hif_opaque_softc *hif_ctx);
+
+#if defined(HIF_CONFIG_SLUB_DEBUG_ON) || defined(HIF_CE_DEBUG_DATA_BUF)
+void hif_display_latest_desc_hist(struct hif_opaque_softc *hif_ctx);
+#else
+static inline void hif_display_latest_desc_hist(struct hif_opaque_softc *hif_ctx) {}
+#endif
 
 /**
  * enum HIF_DEVICE_POWER_CHANGE_TYPE: Device Power change type
@@ -1064,6 +1072,8 @@ hif_pm_wake_irq_type hif_pm_get_wake_irq_type(struct hif_opaque_softc *hif_ctx);
  * @RTPM_ID_DRIVER_UNLOAD: operation in driver unload
  * @RTPM_ID_CE_INTR_HANDLER: operation from ce interrupt handler
  * @RTPM_ID_WAKE_INTR_HANDLER: operation from wake interrupt handler
+ * @RTPM_ID_SOC_IDLE_SHUTDOWN: operation in soc idle shutdown
+ * @RTPM_ID_HIF_FORCE_WAKE: operation in hif force wake
  */
 /* New value added to the enum must also be reflected in function
  *  rtpm_string_from_dbgid()
@@ -1085,6 +1095,8 @@ typedef enum {
 	RTPM_ID_DRIVER_UNLOAD,
 	RTPM_ID_CE_INTR_HANDLER,
 	RTPM_ID_WAKE_INTR_HANDLER,
+	RTPM_ID_SOC_IDLE_SHUTDOWN,
+	RTPM_ID_HIF_FORCE_WAKE,
 
 	RTPM_ID_MAX,
 } wlan_rtpm_dbgid;
@@ -1115,6 +1127,7 @@ static inline char *rtpm_string_from_dbgid(wlan_rtpm_dbgid id)
 					"RTPM_ID_DRIVER_UNLOAD",
 					"RTPM_ID_CE_INTR_HANDLER",
 					"RTPM_ID_WAKE_INTR_HANDLER",
+					"RTPM_ID_SOC_IDLE_SHUTDOWN",
 					"RTPM_ID_MAX"};
 
 	return (char *)strings[id];
@@ -2092,6 +2105,7 @@ static inline int hif_system_pm_state_check(struct hif_opaque_softc *hif)
 }
 #endif
 
+#ifdef FEATURE_IRQ_AFFINITY
 /**
  * hif_set_grp_intr_affinity() - API to set affinity for grp
  *  intrs set in the bitmap
@@ -2104,4 +2118,11 @@ static inline int hif_system_pm_state_check(struct hif_opaque_softc *hif)
  */
 void hif_set_grp_intr_affinity(struct hif_opaque_softc *scn,
 			       uint32_t grp_intr_bitmask, bool perf);
+#else
+static inline
+void hif_set_grp_intr_affinity(struct hif_opaque_softc *scn,
+			       uint32_t grp_intr_bitmask, bool perf)
+{
+}
+#endif
 #endif /* _HIF_H_ */

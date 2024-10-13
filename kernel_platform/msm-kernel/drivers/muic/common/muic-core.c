@@ -491,6 +491,36 @@ int muic_afc_request_cause_clear(void)
 }
 EXPORT_SYMBOL_GPL(muic_afc_request_cause_clear);
 
+int muic_afc_get_request_cause(void)
+{
+	struct muic_platform_data *pdata = &muic_pdata;
+	int ret = -ENOENT;
+
+	if (pdata == NULL) {
+		return ret;
+	}
+
+	ret = pdata->afc_request_cause;
+
+	return ret;
+}
+EXPORT_SYMBOL_GPL(muic_afc_get_request_cause);
+
+bool muic_is_enable_afc_request(void)
+{
+	struct muic_platform_data *pdata = &muic_pdata;
+	bool ret = false;
+
+	if (pdata == NULL) {
+		return ret;
+	}
+
+	ret = pdata->afc_request_cause == 0;
+
+	return ret;
+}
+EXPORT_SYMBOL_GPL(muic_is_enable_afc_request);
+
 static int muic_afc_request_voltage_check(int cause, int vol)
 {
 	int ret = 0;
@@ -579,6 +609,9 @@ EXPORT_SYMBOL(muic_hv_charger_disable);
 int muic_hv_charger_init(void)
 {
 	struct muic_platform_data *pdata = &muic_pdata;
+
+	if (pdata)
+		set_bit(CHARGER_PROBE_DONE, &pdata->driver_probe_flag);
 
 	if (pdata && pdata->muic_hv_charger_init_cb)
 		return pdata->muic_hv_charger_init_cb();

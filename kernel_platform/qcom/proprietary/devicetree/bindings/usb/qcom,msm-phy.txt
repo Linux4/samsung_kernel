@@ -64,8 +64,8 @@ Required properties:
  - qcom,vdd-voltage-level: This property must be a list of three integer
    values (no, min, max) where each value represents either a voltage in
    microvolts or a value corresponding to voltage corner
- - qcom,qmp-phy-init-seq: QMP PHY initialization sequence with reg offset, its
-   value, delay after register write.
+ - qcom,qmp-phy-init-seq: QMP PHY initialization sequence with reg offset and
+   its value.
  - qcom,qmp-phy-reg-offset: Provides important phy register offsets in an order
    defined in the phy driver.
    Provide below mentioned register offsets in order for non USB DP combo PHY:
@@ -123,6 +123,7 @@ Optional properties:
  - extcon : phandle to external connector devices which provide type-C based
             "USB-HOST" cable events. This phandle is used for notifying number
             of lanes used in case of USB+DP concurrent mode to driver.
+ - qcom,qmp-phy-override-seq : QMP PHY override sequence with reg offset, value pair.
 
 Example:
 	ssphy0: ssphy@f9b38000 {
@@ -149,6 +150,11 @@ Example:
 			<&clock_gcc GCC_USB3PHY_PHY_BCR>;
 		reset-names = "phy_reset",
 				"phy_phy_reset";
+		qcom,qmp-phy-override-seq =
+			/* reg val */
+			<0x1f90 0x11
+			 0x1f94 0x46
+			 0x2c78 0x27>;
 
 	};
 

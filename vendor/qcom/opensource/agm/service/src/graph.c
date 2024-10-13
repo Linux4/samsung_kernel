@@ -289,7 +289,7 @@ static int get_acdb_path(void)
 		{"OLM", "ODM"};
 
     /* Populate acdbfiles from the carrier path */
-    property_get("ro.csc.omcnw_code", carrier, "");
+    property_get("ro.csc.sales_code", carrier, "");
 
     ret = snprintf(acdb_path, ACDB_PATH_MAX_LENGTH,
 		"%s%s", AUDCONF_PATH, carrier);
@@ -2081,5 +2081,10 @@ static void print_graph_alias(const struct agm_meta_data_gsl *meta_data_kv)
         AGM_LOGD("gsl_get_graph_alias failed: ret = %d\n", ret);
         return;
     }
+
+#ifdef SEC_AUDIO_ADD_FOR_DEBUG
+    AGM_LOGI("GKV Alias %s\n", acdb_string);
+#else
     AGM_LOGD("GKV Alias %s\n", acdb_string);
+#endif
 }

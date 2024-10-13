@@ -573,7 +573,17 @@ static struct device_attribute *flip_cover_detector_attrs[] = {
 	NULL,
 };
 
-static bool check_fcd_dual_cal_matrix_support(struct device_node *np)
+void check_device_default_thd(struct device_node *np)
+{
+    int ret = of_property_read_u32(np, "fcd,attach_thd", &threshold_update);
+    if (ret < 0) {
+		pr_info("[FACTORY] %s: attach_thd not found, ret=%d\n", __func__, ret);
+        threshold_update = THRESHOLD;
+    }
+    pr_info("[FACTORY] %s: %d\n", __func__, threshold_update);
+}
+
+void check_fcd_dual_cal_matrix_support(struct device_node *np)
 {
 	int ret = of_property_read_u32(np, "fcd,dual_cal_matrix", &fcd_dual_cal_matrix);
 	if (ret < 0) {
@@ -582,8 +592,6 @@ static bool check_fcd_dual_cal_matrix_support(struct device_node *np)
 	}
 
 	pr_info("[FACTORY] %s: %d\n", __func__, fcd_dual_cal_matrix);
-
-	return fcd_available;
 }
 
 static bool check_flip_cover_detector_availability(void)
@@ -598,6 +606,7 @@ static bool check_flip_cover_detector_availability(void)
 		fcd_available = true;
 
 		check_fcd_dual_cal_matrix_support(np);
+        check_device_default_thd(np);
 	}
 
 	return fcd_available;

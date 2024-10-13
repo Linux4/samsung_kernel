@@ -229,34 +229,28 @@ static void five_cert_calc_hash_test(struct kunit *test)
 	KUNIT_EXPECT_EQ(test, rc, -EINVAL);
 }
 
+static void init_cert_data(uint8_t *target, const uint8_t *arr,
+	uint16_t arrSize, int *pos)
+{
+	uint16_t *size;
+
+	size = (uint16_t *)&target[*pos];
+	*size = arrSize;
+	*pos += sizeof(*size);
+	memcpy(target + *pos, arr, arrSize);
+	*pos += arrSize;
+}
+
 static int security_five_test_init(struct kunit *test)
 {
 	int pos = 0;
-	uint16_t *size;
 
-	size = (uint16_t *)&cert_data[pos];
-	*size = sizeof(hdr);
-	pos += sizeof(*size);
-	memcpy(cert_data + pos, hdr, sizeof(hdr));
-	pos += sizeof(hdr);
-
-	size = (uint16_t *)&cert_data[pos];
-	*size = sizeof(hsh);
-	pos += sizeof(*size);
-	memcpy(cert_data + pos, hsh, sizeof(hsh));
-	pos += sizeof(hsh);
-
-	size = (uint16_t *)&cert_data[pos];
-	*size = sizeof(lbl);
-	pos += sizeof(*size);
-	memcpy(cert_data + pos, lbl, sizeof(lbl));
-	pos += sizeof(lbl);
+	init_cert_data(cert_data, hdr, sizeof(hdr), &pos);
+	init_cert_data(cert_data, hsh, sizeof(hsh), &pos);
+	init_cert_data(cert_data, lbl, sizeof(lbl), &pos);
 
 	memcpy(cert_data_signed, cert_data, sizeof(cert_data));
-	size = (uint16_t *)&cert_data_signed[pos];
-	*size = sizeof(sgn);
-	pos += sizeof(*size);
-	memcpy(cert_data_signed + pos, sgn, sizeof(sgn));
+	init_cert_data(cert_data_signed, sgn, sizeof(sgn), &pos);
 
 	return 0;
 }

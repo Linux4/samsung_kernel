@@ -28,7 +28,6 @@
 #include "hwkmregs.h"
 #include "hwkm_serialize.h"
 #include "crypto-qti-ice-regs.h"
-
 #define ASYNC_CMD_HANDLING false
 
 // Maximum number of times to poll
@@ -66,7 +65,7 @@ static inline bool qti_hwkm_testb(void __iomem *ice_hwkm_mmio, u32 reg, u8 nr,
 	return true;
 }
 
-static inline unsigned int qti_hwkm_get_reg_data(void __iomem *ice_hwkm_mmio,
+unsigned int qti_hwkm_get_reg_data(void __iomem *ice_hwkm_mmio,
 						 u32 reg, u32 offset, u32 mask,
 						 enum hwkm_destination dest)
 {
@@ -75,6 +74,7 @@ static inline unsigned int qti_hwkm_get_reg_data(void __iomem *ice_hwkm_mmio,
 	val = qti_hwkm_readl(ice_hwkm_mmio, reg, dest);
 	return ((val & mask) >> offset);
 }
+EXPORT_SYMBOL(qti_hwkm_get_reg_data);
 
 static void print_err_info(struct tme_ext_err_info *err)
 {
@@ -189,7 +189,7 @@ static int qti_hwkm_check_bist_status(const struct ice_mmio_data *mmio_data)
 	return 0;
 }
 
-static int qti_hwkm_ice_init_sequence(const struct ice_mmio_data *mmio_data)
+int qti_hwkm_ice_init_sequence(const struct ice_mmio_data *mmio_data)
 {
 	int ret = 0;
 	u32 val = 0;
@@ -230,6 +230,7 @@ static int qti_hwkm_ice_init_sequence(const struct ice_mmio_data *mmio_data)
 
 	return ret;
 }
+EXPORT_SYMBOL(qti_hwkm_ice_init_sequence);
 
 static void qti_hwkm_enable_slave_receive_mode(
 					const struct ice_mmio_data *mmio_data)

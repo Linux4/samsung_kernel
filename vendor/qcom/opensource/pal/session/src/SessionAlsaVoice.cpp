@@ -346,7 +346,11 @@ int SessionAlsaVoice::getDeviceChannelInfo(Stream *s, uint16_t *channels)
         goto exit;
     }
 
+#ifdef SEC_AUDIO_BLE_OFFLOAD
+    if (dAttr.id == PAL_DEVICE_IN_BLUETOOTH_SCO_HEADSET || dAttr.id == PAL_DEVICE_IN_BLUETOOTH_BLE)
+#else
     if (dAttr.id == PAL_DEVICE_IN_BLUETOOTH_SCO_HEADSET)
+#endif
     {
         struct pal_media_config codecConfig;
         status = associatedDevices[idx]->getCodecConfig(&codecConfig);
@@ -355,7 +359,11 @@ int SessionAlsaVoice::getDeviceChannelInfo(Stream *s, uint16_t *channels)
             goto exit;
         }
         *channels = codecConfig.ch_info.channels;
+#ifdef SEC_AUDIO_BLE_OFFLOAD
+        PAL_DBG(LOG_TAG,"set devicePPMFC to match codec configuration for %d\n", dAttr.id);
+#else
         PAL_DBG(LOG_TAG,"set devicePPMFC to match codec configuration for SCO\n");
+#endif
     } else {
         *channels = dAttr.config.ch_info.channels;
     }
@@ -538,7 +546,11 @@ int SessionAlsaVoice::populate_rx_mfc_payload(Stream *s, uint32_t rx_mfc_tag)
         goto exit;
     }
 
+#ifdef SEC_AUDIO_BLE_OFFLOAD
+    if (dAttr.id == PAL_DEVICE_OUT_BLUETOOTH_SCO || dAttr.id == PAL_DEVICE_OUT_BLUETOOTH_BLE)
+#else
     if (dAttr.id == PAL_DEVICE_OUT_BLUETOOTH_SCO)
+#endif
     {
         struct pal_media_config codecConfig;
         status = associatedDevices[idx]->getCodecConfig(&codecConfig);
@@ -550,7 +562,11 @@ int SessionAlsaVoice::populate_rx_mfc_payload(Stream *s, uint32_t rx_mfc_tag)
         deviceData.sampleRate = codecConfig.sample_rate;
         deviceData.numChannel = codecConfig.ch_info.channels;
         deviceData.ch_info = nullptr;
+#ifdef SEC_AUDIO_BLE_OFFLOAD
+        PAL_DBG(LOG_TAG,"set devicePPMFC to match codec configuration for device %d\n", dAttr.id);
+#else
         PAL_DBG(LOG_TAG,"set devicePPMFC to match codec configuration for SCO\n");
+#endif
     } else {
         // update device pp configuration if virtual port is enabled
         if (rm->activeGroupDevConfig &&
@@ -750,11 +766,7 @@ int SessionAlsaVoice::start(Stream * s)
 
     if (status != 0) {
         PAL_ERR(LOG_TAG,"Exit Configuring Rx mfc failed with status %d", status);
-#ifdef SEC_AUDIO_EARLYDROP_PATCH
-        if (volume)
-            free(volume);
-#endif
-        return status;
+        goto err_pcm_open;
     }
     status = SessionAlsaUtils::setMixerParameter(mixer, pcmDevRxIds.at(0),
                                                  customPayload, customPayloadSize);
@@ -1114,6 +1126,9 @@ int SessionAlsaVoice::setParameters(Stream *s, int tagId, uint32_t param_id __un
                 PAL_ERR(LOG_TAG, "failed to get tty payload status %d", status);
                 goto exit;
             }
+#ifdef SEC_AUDIO_ADD_FOR_DEBUG
+            PAL_INFO(LOG_TAG, "set voice tty params status = %d", status);
+#endif
             break;
 
         case VOICE_HD_VOICE:
@@ -1431,10 +1446,8 @@ int SessionAlsaVoice::payloadTaged(Stream * s, configType type, int tag,
             ctl = mixer_get_ctl_by_name(mixer, tagCntrlName.str().data());
             if (!ctl) {
                 PAL_ERR(LOG_TAG, "Invalid mixer control: %s\n", tagCntrlName.str().data());
-#ifdef SEC_AUDIO_EARLYDROP_PATCH
                 if (tagConfig)
                     free(tagConfig);
-#endif
                 return -ENOENT;
             }
 
@@ -1688,6 +1701,9 @@ int SessionAlsaVoice::payloadSetTTYMode(uint8_t **payload, size_t *size, uint32_
 
     *size = payloadSize + padBytes;
     *payload = payloadInfo;
+#ifdef SEC_AUDIO_ADD_FOR_DEBUG
+    PAL_INFO(LOG_TAG, "vsid: 0x%x, mode: %d", vsid, mode);
+#endif
     return status;
 }
 

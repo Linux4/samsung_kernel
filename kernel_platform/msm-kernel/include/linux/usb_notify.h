@@ -125,6 +125,17 @@ enum otg_notify_data_role {
 	HNOTIFY_DFP,
 };
 
+enum usb_restrict_type {
+	USB_SECURE_RESTRICTED,
+	USB_SECURE_RELEASE,
+};
+
+enum usb_restrict_group {
+	USB_GROUP_AUDIO,
+	USB_GROUP_OTEHR,
+	USB_GROUP_MAX,
+};
+
 enum usb_certi_type {
 	USB_CERTI_UNSUPPORT_ACCESSORY,
 	USB_CERTI_NO_RESPONSE,
@@ -148,6 +159,16 @@ enum usb_current_state {
 	NOTIFY_USB_CONFIGURED,
 };
 
+enum usb_request_action_type {
+	USB_REQUEST_NOTHING,
+	USB_REQUEST_DUMPSTATE,
+};
+
+enum otg_notify_illegal_type {
+	NOTIFY_EVENT_AUDIO_DESCRIPTOR,
+	NOTIFY_EVENT_SECURE_DISCONNECTION,
+};
+
 struct otg_notify {
 	int vbus_detect_gpio;
 	int redriver_en_gpio;
@@ -160,6 +181,7 @@ struct otg_notify {
 	int disable_control;
 	int device_check_sec;
 	int pre_peri_delay_us;
+	int booting_delay_sync_usb;
 	int (*pre_gpio)(int gpio, int use);
 	int (*post_gpio)(int gpio, int use);
 	int (*vbus_drive)(bool enable);
@@ -208,12 +230,16 @@ extern bool is_snkdfp_usb_device_connected(struct otg_notify *n);
 extern int get_con_dev_max_speed(struct otg_notify *n);
 extern void set_con_dev_max_speed
 		(struct otg_notify *n, int speed);
+extern void set_request_action(struct otg_notify *n,unsigned request_action);
 extern int is_known_usbaudio(struct usb_device *dev);
 extern void set_usb_audio_cardnum(int card_num, int bundle, int attach);
 extern void send_usb_audio_uevent(struct usb_device *dev,
 		int cardnum, int attach);
 extern int send_usb_notify_uevent
 		(struct otg_notify *n, char *envp_ext[]);
+extern int detect_illegal_condition(int type);
+extern int check_usbaudio(struct usb_device *dev);
+extern int check_usbgroup(struct usb_device *dev);
 #if defined(CONFIG_USB_HW_PARAM)
 extern unsigned long long *get_hw_param(struct otg_notify *n,
 					enum usb_hw_param index);
@@ -229,6 +255,7 @@ extern void set_notify_data(struct otg_notify *n, void *data);
 extern struct otg_notify *get_otg_notify(void);
 extern int set_otg_notify(struct otg_notify *n);
 extern void put_otg_notify(struct otg_notify *n);
+extern void enable_usb_notify(void);
 #else
 static inline const char *event_string(enum otg_notify_events event)
 			{return NULL; }
@@ -262,6 +289,8 @@ static inline int get_con_dev_max_speed(struct otg_notify *n)
 			{return 0; }
 static inline void set_con_dev_max_speed
 		(struct otg_notify *n, int speed) {}
+static inline  void set_request_action
+		(struct otg_notify *n,unsigned request_action) {}
 static inline int is_known_usbaudio(struct usb_device *dev) {return 0; }
 static inline void set_usb_audio_cardnum(int card_num,
 		int bundle, int attach) {}
@@ -269,6 +298,9 @@ static inline void send_usb_audio_uevent(struct usb_device *dev,
 		int cardnum, int attach) {}
 static inline int send_usb_notify_uevent
 			(struct otg_notify *n, char *envp_ext[]) {return 0; }
+static inline int detect_illegal_condition(int type) {return 0; }
+static inline int check_usbaudio(struct usb_device *dev) {return 0; }
+static inline int check_usbgroup(struct usb_device *dev) {return 0; }
 #if defined(CONFIG_USB_HW_PARAM)
 static inline unsigned long long *get_hw_param(struct otg_notify *n,
 			enum usb_hw_param index) {return NULL; }
@@ -284,5 +316,6 @@ static inline void set_notify_data(struct otg_notify *n, void *data) {}
 static inline struct otg_notify *get_otg_notify(void) {return NULL; }
 static inline int set_otg_notify(struct otg_notify *n) {return 0; }
 static inline void put_otg_notify(struct otg_notify *n) {}
+extern inline void enable_usb_notify(void) {}
 #endif
 #endif /* __LINUX_USB_NOTIFY_H__ */

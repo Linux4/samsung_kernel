@@ -110,4 +110,10 @@ config HICCUP_CC_DISABLE
 		If you say yes here you will get support for
 		for the hiccup cc disable feature.
 
-
+config MUIC_LO_TA_LOW_CURRENT
+	bool "Using LO_TA_LOW_CURRENT"
+	depends on USE_MUIC
+	default n
+	help
+	  If you say yes here you will get support for
+		for the hiccup cc disable feature.

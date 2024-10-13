@@ -2118,8 +2118,8 @@
         <path name="spk" />
         <ctl name="Left AMP PCM Gain" value="18" />
         <ctl name="Right AMP PCM Gain" value="18" />
-        <ctl name="Left Digital PCM Volume" value="685" />
-        <ctl name="Right Digital PCM Volume" value="825" />
+        <ctl name="Left Digital PCM Volume" value="693" />
+        <ctl name="Right Digital PCM Volume" value="801" />
     </path>
 
     <path name="listenback-headphones">
@@ -2419,7 +2419,7 @@
 
     <path name="karaoke-sub-mic"> 
         <path name="sub-mic" /> 
-        <ctl name="TX_DEC1 Volume" value="103" /> 
+        <ctl name="TX_DEC1 Volume" value="100" /> 
     </path>
 
     <path name="listenback-main-mic">
@@ -2448,10 +2448,6 @@
         <ctl name="Left Digital PCM Volume" value="817" />
     </path>
 
-    <path name="call-handset-flip">
-        <path name="call-handset" />
-    </path>
-
     <path name="call-speaker">
         <path name="spk" />
         <ctl name="Left AMP PCM Gain" value="18" />
@@ -2466,10 +2462,6 @@
         <ctl name="Right AMP PCM Gain" value="18" />
         <ctl name="Left Digital PCM Volume" value="817" />
         <ctl name="Right Digital PCM Volume" value="817" />
-    </path>
-
-    <path name="call-speaker-flip">
-        <path name="call-speaker" />
     </path>
 
     <path name="call-headset">
@@ -2914,12 +2906,6 @@
         <ctl name="Left Digital PCM Volume" value="761" />
     </path>
 
-    <path name="loopback-incallmusic-speaker">
-        <path name="spk-mono-right" />
-        <ctl name="Right AMP PCM Gain" value="18" />
-        <ctl name="Right Digital PCM Volume" value="817" />
-    </path>
-
     <!-- TX part -->
     <path name="loopback-main-mic">
         <path name="main-mic" />
@@ -2955,9 +2941,8 @@
     </path>
 
     <path name="loopback-incallmusic-mic">
-        <path name="multi-mic" />
-        <ctl name="TX_DEC0 Volume" value="84" />
-        <ctl name="TX_DEC1 Volume" value="84" />
+        <path name="main-mic" />
+        <ctl name="TX_DEC0 Volume" value="0" />
     </path>
     <!-- end of Factory Scenario -->
 

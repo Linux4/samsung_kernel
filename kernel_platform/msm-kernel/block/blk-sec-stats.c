@@ -76,37 +76,69 @@ static struct pio_node others = {
 
 #define SECTORS2MB(x) ((x) / 2 / 1024)
 
-static struct gendisk *get_internal_disk(void)
+#define SCSI_DISK0_MAJOR 8
+#define MMC_BLOCK_MAJOR 179
+#define MAJOR8_DEV_NUM 16      /* maximum number of minor devices in scsi disk0 */
+#define SCSI_MINORS 16         /* first minor number of scsi disk0 */
+#define MMC_TARGET_DEV 16      /* number of mmc devices set of target (maximum 256) */
+#define MMC_MINORS 8           /* first minor number of mmc disk */
+
+static bool is_internal_bdev(struct block_device *dev)
 {
-	struct gendisk *gd = NULL;
-	struct block_device *bdev;
-	int idx;
 	int size_mb;
 
-	/* In some project which is powered by MediaTek AP, the internal
-	 * storage device is "sdc / MKDEV(8, 32)". So we have to try (8, 32)
-	 * before trying (179, 0).
-	 */
-	dev_t devno[] = {
-		MKDEV(8, 0),
-		MKDEV(8, 32),
-		MKDEV(179, 0),
-		MKDEV(0, 0)
-	};
+	if (bdev_is_partition(dev))
+		return false;
 
-	for (idx = 0; devno[idx] != MKDEV(0, 0); idx++) {
-		bdev = blkdev_get_by_dev(devno[idx], FMODE_READ, NULL);
-		if (!IS_ERR(bdev) && bdev->bd_disk) {
-			size_mb = SECTORS2MB(get_capacity(bdev->bd_disk));
+	if (dev->bd_disk->flags & GENHD_FL_REMOVABLE)
+		return false;
 
-			if (size_mb >= internal_min_size_mb) {
-				gd = bdev->bd_disk;
-				break;
-			}
-		}
+	size_mb = SECTORS2MB(get_capacity(dev->bd_disk));
+	if (size_mb >= internal_min_size_mb)
+		return true;
+
+	return false;
+}
+
+
+static struct gendisk *get_internal_disk(void)
+{
+	struct block_device *bdev;
+	struct gendisk *gd = NULL;
+	int idx;
+	dev_t devno = MKDEV(0, 0);
+
+	for (idx = 0; idx < MAJOR8_DEV_NUM; idx++) {
+		devno = MKDEV(SCSI_DISK0_MAJOR, SCSI_MINORS * idx);
+		bdev = blkdev_get_by_dev(devno, FMODE_READ, NULL);
+		if (IS_ERR(bdev))
+			continue;
+
+		if (bdev->bd_disk && is_internal_bdev(bdev))
+			gd = bdev->bd_disk;
+
+		blkdev_put(bdev, FMODE_READ);
+
+		if (gd)
+			return gd;
 	}
 
-	return gd;
+	for (idx = 0; idx < MMC_TARGET_DEV; idx++) {
+		devno = MKDEV(MMC_BLOCK_MAJOR, MMC_MINORS * idx);
+		bdev = blkdev_get_by_dev(devno, FMODE_READ, NULL);
+		if (IS_ERR(bdev))
+			continue;
+
+		if (bdev->bd_disk && is_internal_bdev(bdev))
+			gd = bdev->bd_disk;
+
+		blkdev_put(bdev, FMODE_READ);
+
+		if (gd)
+			return gd;
+	}
+
+	return NULL;
 }
 
 static inline int init_internal_disk_info(void)
@@ -218,12 +250,13 @@ static void add_pio_node(struct request *rq, unsigned int data_size,
 		pid_t tgid, const char *tg_name, u64 tg_start_time)
 {
 	struct pio_node *pio = NULL;
+	unsigned long flags;
 
 	if (pio_cnt >= MAX_PIO_NODE_NUM) {
 add_others:
-		spin_lock_bh(&others_pio_lock);
+		spin_lock_irqsave(&others_pio_lock, flags);
 		others.bytes[req_op(rq)] += data_size;
-		spin_unlock_bh(&others_pio_lock);
+		spin_unlock_irqrestore(&others_pio_lock, flags);
 		return;
 	}
 
@@ -245,9 +278,9 @@ add_others:
 
 	pio->bytes[req_op(rq)] = data_size;
 
-	spin_lock_bh(&pio_list_lock);
+	spin_lock_irqsave(&pio_list_lock, flags);
 	list_add(&pio->list, &pio_list);
-	spin_unlock_bh(&pio_list_lock);
+	spin_unlock_irqrestore(&pio_list_lock, flags);
 
 	pio_cnt++;
 }
@@ -256,18 +289,19 @@ static void free_pio_node(struct list_head *remove_list)
 {
 	struct pio_node *pio;
 	struct pio_node *pion;
+	unsigned long flags;
 
 	list_for_each_entry_safe(pio, pion, remove_list, list) {
 		list_del(&pio->list);
 		kmem_cache_free(pio_cache, pio);
 	}
 
-	spin_lock_bh(&others_pio_lock);
+	spin_lock_irqsave(&others_pio_lock, flags);
 	others.bytes[REQ_OP_READ] = 0;
 	others.bytes[REQ_OP_WRITE] = 0;
 	others.bytes[REQ_OP_FLUSH] = 0;
 	others.bytes[REQ_OP_DISCARD] = 0;
-	spin_unlock_bh(&others_pio_lock);
+	spin_unlock_irqrestore(&others_pio_lock, flags);
 
 	pio_cnt = 0;
 }
@@ -277,6 +311,7 @@ static void update_pio_node(struct request *rq, unsigned int data_size,
 {
 	struct pio_node *pio;
 	unsigned long size = 0;
+	unsigned long flags;
 	LIST_HEAD(remove_list);
 
 	if (pio_enabled == 0)
@@ -288,7 +323,7 @@ static void update_pio_node(struct request *rq, unsigned int data_size,
 
 	size = (req_op(rq) == REQ_OP_FLUSH) ? 1 : data_size;
 
-	spin_lock_bh(&pio_list_lock);
+	spin_lock_irqsave(&pio_list_lock, flags);
 	list_for_each_entry(pio, &pio_list, list) {
 		if (pio->tgid != tgid)
 			continue;
@@ -298,10 +333,10 @@ static void update_pio_node(struct request *rq, unsigned int data_size,
 		strncpy(pio->name, tg_name, TASK_COMM_LEN - 1);
 		pio->name[TASK_COMM_LEN - 1] = '\0';
 		pio->bytes[req_op(rq)] += size;
-		spin_unlock_bh(&pio_list_lock);
+		spin_unlock_irqrestore(&pio_list_lock, flags);
 		return;
 	}
-	spin_unlock_bh(&pio_list_lock);
+	spin_unlock_irqrestore(&pio_list_lock, flags);
 
 	add_pio_node(rq, data_size, tgid, tg_name, tg_start_time);
 }
@@ -359,11 +394,12 @@ static ssize_t pio_show(struct kobject *kobj, struct kobj_attribute *attr, char 
 {
 	struct pio_node *pio;
 	int len = 0;
+	unsigned long flags;
 	LIST_HEAD(remove_list);
 
-	spin_lock_bh(&pio_list_lock);
+	spin_lock_irqsave(&pio_list_lock, flags);
 	list_replace_init(&pio_list, &remove_list);
-	spin_unlock_bh(&pio_list_lock);
+	spin_unlock_irqrestore(&pio_list_lock, flags);
 
 	if (pio_cnt > SORT_PIO_NODE_NUM)
 		sort_pios(&remove_list);
@@ -375,21 +411,21 @@ static ssize_t pio_show(struct kobject *kobj, struct kobj_attribute *attr, char 
 					pio->tgid, pio->bytes[REQ_OP_READ] / 1024,
 					pio->bytes[REQ_OP_WRITE] / 1024,  pio->name);
 		} else {
-			spin_lock_bh(&others_pio_lock);
+			spin_lock_irqsave(&others_pio_lock, flags);
 			others.bytes[REQ_OP_READ] += pio->bytes[REQ_OP_READ];
 			others.bytes[REQ_OP_WRITE] += pio->bytes[REQ_OP_WRITE];
 			others.bytes[REQ_OP_FLUSH] += pio->bytes[REQ_OP_FLUSH];
 			others.bytes[REQ_OP_DISCARD] += pio->bytes[REQ_OP_DISCARD];
-			spin_unlock_bh(&others_pio_lock);
+			spin_unlock_irqrestore(&others_pio_lock, flags);
 		}
 	}
-	spin_lock_bh(&others_pio_lock);
+	spin_lock_irqsave(&others_pio_lock, flags);
 
 	if (others.bytes[REQ_OP_READ] + others.bytes[REQ_OP_WRITE])
 		len += scnprintf(buf + len, PAGE_SIZE - len, "%d %llu %llu %s\n",
 				others.tgid, others.bytes[REQ_OP_READ] / 1024,
 				others.bytes[REQ_OP_WRITE] / 1024,  others.name);
-	spin_unlock_bh(&others_pio_lock);
+	spin_unlock_irqrestore(&others_pio_lock, flags);
 
 	free_pio_node(&remove_list);
 
@@ -403,6 +439,7 @@ static ssize_t pio_enabled_store(struct kobject *kobj, struct kobj_attribute *at
 {
 	int enable = 0;
 	int ret;
+	unsigned long flags;
 	LIST_HEAD(remove_list);
 
 	ret = kstrtoint(buf, 10, &enable);
@@ -411,9 +448,9 @@ static ssize_t pio_enabled_store(struct kobject *kobj, struct kobj_attribute *at
 
 	pio_enabled = (enable >= 1) ? 1 : 0;
 
-	spin_lock_bh(&pio_list_lock);
+	spin_lock_irqsave(&pio_list_lock, flags);
 	list_replace_init(&pio_list, &remove_list);
-	spin_unlock_bh(&pio_list_lock);
+	spin_unlock_irqrestore(&pio_list_lock, flags);
 	free_pio_node(&remove_list);
 
 	pio_timeout = jiffies + msecs_to_jiffies(pio_duration_ms);

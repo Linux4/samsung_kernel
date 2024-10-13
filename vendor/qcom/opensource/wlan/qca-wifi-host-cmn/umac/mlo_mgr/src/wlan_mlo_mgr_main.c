@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -25,6 +26,8 @@
 #include <wlan_mlo_mgr_ap.h>
 #include <wlan_mlo_mgr_peer.h>
 #include <wlan_cm_public_struct.h>
+#include "wlan_mlo_mgr_msgq.h"
+#include <target_if_mlo_mgr.h>
 
 static void mlo_global_ctx_deinit(void)
 {
@@ -36,6 +39,7 @@ static void mlo_global_ctx_deinit(void)
 	if (qdf_list_empty(&mlo_mgr_ctx->ml_dev_list))
 		mlo_err("ML dev list is not empty");
 
+	mlo_msgq_free();
 	ml_peerid_lock_destroy(mlo_mgr_ctx);
 	ml_link_lock_destroy(mlo_mgr_ctx);
 	ml_aid_lock_destroy(mlo_mgr_ctx);
@@ -68,6 +72,54 @@ static void mlo_global_ctx_init(void)
 	ml_peerid_lock_create(mlo_mgr_ctx);
 	ml_link_lock_create(mlo_mgr_ctx);
 	ml_aid_lock_create(mlo_mgr_ctx);
+	mlo_mgr_ctx->mlo_is_force_primary_umac = 0;
+	mlo_msgq_init();
+}
+
+QDF_STATUS wlan_mlo_mgr_psoc_enable(struct wlan_objmgr_psoc *psoc)
+{
+	struct wlan_lmac_if_mlo_tx_ops *mlo_tx_ops;
+
+	if (!psoc) {
+		mlo_err("psoc is null");
+		return QDF_STATUS_E_NULL_VALUE;
+	}
+
+	mlo_tx_ops = target_if_mlo_get_tx_ops(psoc);
+	if (!mlo_tx_ops) {
+		mlo_err("tx_ops is null!");
+		return QDF_STATUS_E_NULL_VALUE;
+	}
+
+	if (!mlo_tx_ops->register_events) {
+		mlo_err("register_events function is null!");
+		return QDF_STATUS_E_NULL_VALUE;
+	}
+
+	return mlo_tx_ops->register_events(psoc);
+}
+
+QDF_STATUS wlan_mlo_mgr_psoc_disable(struct wlan_objmgr_psoc *psoc)
+{
+	struct wlan_lmac_if_mlo_tx_ops *mlo_tx_ops;
+
+	if (!psoc) {
+		mlo_err("psoc is null");
+		return QDF_STATUS_E_NULL_VALUE;
+	}
+
+	mlo_tx_ops = target_if_mlo_get_tx_ops(psoc);
+	if (!mlo_tx_ops) {
+		mlo_err("tx_ops is null!");
+		return QDF_STATUS_E_NULL_VALUE;
+	}
+
+	if (!mlo_tx_ops->unregister_events) {
+		mlo_err("unregister_events function is null!");
+		return QDF_STATUS_E_NULL_VALUE;
+	}
+
+	return mlo_tx_ops->unregister_events(psoc);
 }
 
 QDF_STATUS wlan_mlo_mgr_init(void)
@@ -272,6 +324,7 @@ static QDF_STATUS mlo_dev_ctx_init(struct wlan_objmgr_vdev *vdev)
 			qdf_mem_free(ml_dev);
 			return QDF_STATUS_E_NOMEM;
 		}
+		copied_conn_req_lock_create(ml_dev->sta_ctx);
 	} else if (wlan_vdev_mlme_get_opmode(vdev) == QDF_SAP_MODE) {
 		if (mlo_ap_ctx_init(ml_dev) != QDF_STATUS_SUCCESS) {
 			mlo_dev_lock_destroy(ml_dev);
@@ -349,6 +402,8 @@ static QDF_STATUS mlo_dev_ctx_deinit(struct wlan_objmgr_vdev *vdev)
 			if (ml_dev->sta_ctx->assoc_rsp.ptr)
 				qdf_mem_free(ml_dev->sta_ctx->assoc_rsp.ptr);
 
+			copied_conn_req_lock_destroy(ml_dev->sta_ctx);
+
 			qdf_mem_free(ml_dev->sta_ctx);
 		}
 		else if (wlan_vdev_mlme_get_opmode(vdev) == QDF_SAP_MODE)
@@ -396,4 +451,20 @@ QDF_STATUS wlan_mlo_mgr_vdev_destroyed_notification(struct wlan_objmgr_vdev *vde
 	status = mlo_dev_ctx_deinit(vdev);
 
 	return status;
+}
+
+QDF_STATUS wlan_mlo_mgr_update_mld_addr(struct qdf_mac_addr *old_mac,
+					struct qdf_mac_addr *new_mac)
+{
+	struct wlan_mlo_dev_context *ml_dev;
+
+	ml_dev = wlan_mlo_get_mld_ctx_by_mldaddr(old_mac);
+	if (!ml_dev) {
+		mlo_err("ML dev context not found for MLD:" QDF_MAC_ADDR_FMT,
+			QDF_MAC_ADDR_REF(old_mac->bytes));
+		return QDF_STATUS_E_INVAL;
+	}
+	qdf_copy_macaddr(&ml_dev->mld_addr, new_mac);
+
+	return QDF_STATUS_SUCCESS;
 }

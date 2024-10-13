@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -30,6 +31,7 @@
 #include <lim_assoc_utils.h>
 #include <wlan_mlo_mgr_peer.h>
 #include <lim_utils.h>
+#include <utils_mlo.h>
 
 /**
  * lim_send_mlo_ie_update - mlo ie is changed, populate new beacon template
@@ -381,18 +383,23 @@ void lim_mlo_set_mld_mac_peer(tpDphHashNode sta_ds,
 
 bool lim_is_mlo_conn(struct pe_session *session, tpDphHashNode sta_ds)
 {
+	bool mlo_conn = false;
+
 	if (!sta_ds) {
 		pe_err("sta ds is null");
-		return false;
+		return mlo_conn;
 	}
 
 	if (!session) {
 		pe_err("session is null");
-		return false;
+		return mlo_conn;
 	}
 
-	return sta_ds->mlmStaContext.eht_capable &&
-	       IS_DOT11_MODE_EHT(session->dot11mode);
+	if (wlan_vdev_mlme_is_mlo_vdev(session->vdev) &&
+	    !qdf_is_macaddr_zero((struct qdf_mac_addr *)sta_ds->mld_addr))
+		mlo_conn = true;
+
+	return mlo_conn;
 }
 
 void lim_set_mlo_recv_assoc(tpDphHashNode sta_ds, bool mlo_recv_assoc_frm)
@@ -424,13 +431,14 @@ QDF_STATUS lim_mlo_proc_assoc_req_frm(struct wlan_objmgr_vdev *vdev,
 	struct pe_session *session;
 	tSirMacAddr sa;
 	uint8_t sub_type;
-	uint16_t peer_aid = ml_peer->assoc_id;
 	uint32_t frame_len;
 	uint8_t *frm_body;
 	tpSirMacMgmtHdr pHdr;
 	tSirMacFrameCtl fc;
 	tpSirAssocReq assoc_req;
 	QDF_STATUS status;
+	qdf_size_t link_frame_len;
+	struct qdf_mac_addr link_bssid;
 
 	if (!vdev) {
 		pe_err("vdev is null");
@@ -501,19 +509,36 @@ QDF_STATUS lim_mlo_proc_assoc_req_frm(struct wlan_objmgr_vdev *vdev,
 	if (!assoc_req)
 		return QDF_STATUS_E_NOMEM;
 
-	status = lim_mlo_partner_assoc_req_parse(mac_ctx, sa, session,
-						 assoc_req, sub_type,
-						 frm_body, frame_len);
+	assoc_req->assoc_req_buf = qdf_nbuf_copy(buf);
+	if (!assoc_req->assoc_req_buf) {
+		pe_err("partner link assoc request buf clone failed");
+		qdf_mem_free(assoc_req);
+		return QDF_STATUS_E_NOMEM;
+	}
+	qdf_copy_macaddr(&link_bssid, (struct qdf_mac_addr *)session->bssId);
+	status = util_gen_link_assoc_req(
+				frm_body, frame_len, sub_type == LIM_REASSOC,
+				link_bssid,
+				qdf_nbuf_data(assoc_req->assoc_req_buf),
+				qdf_nbuf_len(assoc_req->assoc_req_buf),
+				&link_frame_len);
 	if (QDF_IS_STATUS_ERROR(status)) {
-		pe_warn("Assoc Req rejected: frame parsing error. source addr:"
+		pe_warn("Partner Assoc Req frame gen error. source addr:"
 			QDF_MAC_ADDR_FMT, QDF_MAC_ADDR_REF(sa));
+		lim_free_assoc_req_frm_buf(assoc_req);
 		qdf_mem_free(assoc_req);
 		return status;
 	}
 
-	return lim_proc_assoc_req_frm_cmn(mac_ctx, frm_body, frame_len,
-					  sub_type, session, sa, assoc_req,
-					  peer_aid);
+	qdf_nbuf_set_len(assoc_req->assoc_req_buf, link_frame_len);
+	assoc_req->assocReqFrame = qdf_nbuf_data(assoc_req->assoc_req_buf) +
+				   sizeof(*pHdr);
+	assoc_req->assocReqFrameLength = link_frame_len - sizeof(*pHdr);
+
+	qdf_copy_macaddr((struct qdf_mac_addr *)assoc_req->mld_mac,
+			 &ml_peer->peer_mld_addr);
+	return lim_proc_assoc_req_frm_cmn(mac_ctx, sub_type, session, sa,
+					  assoc_req, ml_peer->assoc_id);
 }
 
 void lim_mlo_ap_sta_assoc_suc(struct wlan_objmgr_peer *peer)
@@ -607,7 +632,8 @@ void lim_ap_mlo_sta_peer_ind(struct mac_context *mac,
 			ml_peer = wlan_mlo_get_mlpeer_by_aid(
 					pe_session->vdev->mlo_dev_ctx,
 					sta->assocId);
-			wlan_mlo_link_peer_attach(ml_peer, peer);
+			if (ml_peer)
+				wlan_mlo_link_peer_attach(ml_peer, peer, NULL);
 		}
 		wlan_objmgr_peer_release_ref(peer, WLAN_LEGACY_MAC_ID);
 	} else {
@@ -615,7 +641,9 @@ void lim_ap_mlo_sta_peer_ind(struct mac_context *mac,
 			ml_peer = wlan_mlo_get_mlpeer_by_aid(
 					pe_session->vdev->mlo_dev_ctx,
 					sta->assocId);
-			wlan_mlo_partner_peer_create_failed_notify(ml_peer);
+			if (ml_peer)
+				wlan_mlo_partner_peer_create_failed_notify(
+								ml_peer);
 		}
 	}
 }
@@ -710,6 +738,10 @@ void lim_mlo_delete_link_peer(struct pe_session *pe_session,
 	peer = wlan_objmgr_get_peer_by_mac(mac->psoc,
 					   sta_ds->staAddr,
 					   WLAN_LEGACY_MAC_ID);
+	if (!peer) {
+		pe_err("peer is null");
+		return;
+	}
 
 	wlan_mlo_link_peer_delete(peer);
 
@@ -746,6 +778,7 @@ QDF_STATUS lim_mlo_assoc_ind_upper_layer(struct mac_context *mac,
 		return status;
 	}
 
+	status = QDF_STATUS_SUCCESS;
 	for (link = 0; link < mlo_info->num_partner_links; link++) {
 		link_id = mlo_info->partner_link_info[link].link_id;
 		link_addr = &mlo_info->partner_link_info[link].link_addr;
@@ -754,7 +787,6 @@ QDF_STATUS lim_mlo_assoc_ind_upper_layer(struct mac_context *mac,
 		if (!lk_session) {
 			pe_err("link_session is NULL");
 			status = QDF_STATUS_E_FAILURE;
-			lim_mlo_release_vdev_ref(lk_session->vdev);
 			break;
 		}
 		sta = dph_lookup_hash_entry(mac, link_addr->bytes, &aid,
@@ -798,7 +830,7 @@ QDF_STATUS lim_mlo_assoc_ind_upper_layer(struct mac_context *mac,
 
 		sme_assoc_ind->messageType = eWNI_SME_ASSOC_IND_UPPER_LAYER;
 		lim_fill_sme_assoc_ind_params(mac, lim_assoc_ind, sme_assoc_ind,
-					      lk_session, false);
+					      lk_session, true);
 
 		qdf_mem_zero(&msg, sizeof(struct scheduler_msg));
 		msg.type = eWNI_SME_ASSOC_IND_UPPER_LAYER;
@@ -811,9 +843,10 @@ QDF_STATUS lim_mlo_assoc_ind_upper_layer(struct mac_context *mac,
 		lim_sys_process_mmh_msg_api(mac, &msg);
 
 		qdf_mem_free(lim_assoc_ind);
+		lim_free_assoc_req_frm_buf(
+				lk_session->parsedAssocReq[sta->assocId]);
 		qdf_mem_free(lk_session->parsedAssocReq[sta->assocId]);
 		lk_session->parsedAssocReq[sta->assocId] = NULL;
-		status = QDF_STATUS_SUCCESS;
 		lim_mlo_release_vdev_ref(lk_session->vdev);
 	}
 

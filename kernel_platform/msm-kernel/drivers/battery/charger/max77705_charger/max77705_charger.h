@@ -25,6 +25,7 @@
 #include <linux/regulator/machine.h>
 #include <linux/pm_wakeup.h>
 #include "../../common/sec_charging_common.h"
+#include <linux/types.h>
 
 enum {
 	CHIP_ID = 0,
@@ -35,6 +36,13 @@ enum {
 	SHIP_MODE_DISABLE = 0,
 	SHIP_MODE_EN_OP,
 	SHIP_MODE_EN,
+};
+
+enum {
+	REG_4500_UVLO_4700 = 0,
+	REG_4600_UVLO_4800,
+	REG_4700_UVLO_4900,
+	REG_4850_UVLO_5050,
 };
 
 ssize_t max77705_chg_show_attrs(struct device *dev,
@@ -100,6 +108,8 @@ ssize_t max77705_chg_store_attrs(struct device *dev,
 #define MAX77705_WCIN_DTLS_SHIFT	3
 #define MAX77705_CHGIN_DTLS             0x60
 #define MAX77705_CHGIN_DTLS_SHIFT       5
+#define MAX77705_SPSN_DTLS		0x06
+#define MAX77705_SPSN_DTLS_SHIFT	1
 
 /* MAX77705_CHG_REG_CHG_DTLS_01 */
 #define MAX77705_CHG_DTLS               0x0F
@@ -144,6 +154,10 @@ ssize_t max77705_chg_store_attrs(struct device *dev,
 #define CHG_CNFG_00_MODE_MASK		        (0x0F << CHG_CNFG_00_MODE_SHIFT)
 #define CHG_CNFG_00_WDTEN_SHIFT		        4
 #define CHG_CNFG_00_WDTEN_MASK		        (1 << CHG_CNFG_00_WDTEN_SHIFT)
+#define CHG_CNFG_00_SPSN_DET_EN_SHIFT		7
+#define CHG_CNFG_00_SPSN_DET_EN_MASK		(1 << CHG_CNFG_00_SPSN_DET_EN_SHIFT)
+#define MAX77705_SPSN_DET_ENABLE		0x01
+#define MAX77705_SPSN_DET_DISABLE		0x00
 
 /* MAX77705_CHG_REG_CHG_CNFG_00 MODE[3:0] */
 #define MAX77705_MODE_0_ALL_OFF						0x0
@@ -286,11 +300,13 @@ ssize_t max77705_chg_store_attrs(struct device *dev,
 #define CHG_CNFG_12_WCINSEL_SHIFT		6
 #define CHG_CNFG_12_WCINSEL_MASK		(0x1 << CHG_CNFG_12_WCINSEL_SHIFT)
 #define CHG_CNFG_12_VCHGIN_REG_MASK		(0x3 << 3)
+#define CHG_CNFG_12_VCHGIN_SHIFT		3
 #define CHG_CNFG_12_WCIN_REG_MASK		(0x3 << 1)
 #define CHG_CNFG_12_REG_DISKIP_SHIFT		0
 #define CHG_CNFG_12_REG_DISKIP_MASK		(0x1 << CHG_CNFG_12_REG_DISKIP_SHIFT)
 #define MAX77705_DISABLE_SKIP			0x1
 #define MAX77705_AUTO_SKIP			0x0
+#define CHG_CNFG_12_VCHGIN(val) (val << CHG_CNFG_12_VCHGIN_SHIFT)
 
 /* MAX77705_CHG_REG_CHG_SWI_INT */
 #define MAX77705_CLIENT_TREG_I			(1 << 0)
@@ -317,7 +333,6 @@ ssize_t max77705_chg_store_attrs(struct device *dev,
 
 #define REDUCE_CURRENT_STEP						100
 #define MINIMUM_INPUT_CURRENT					300
-#define SLOW_CHARGING_CURRENT_STANDARD          400
 
 #define WC_CURRENT_STEP		100
 #define WC_CURRENT_START	480
@@ -344,10 +359,13 @@ typedef struct max77705_charger_platform_data {
 	bool factory_wcin_irq;
 	bool user_wcin_irq;
 	bool enable_sysovlo_irq;
+	bool boosting_voltage_aicl;
 	int fsw;
 	bool enable_dpm;
 	int disqbat;
 	int dpm_icl;
+	int max_fcc;
+	int fac_vchgin_reg;
 
 	/* OVP/UVLO check */
 	int ovp_uvlo_check_type;
@@ -367,6 +385,8 @@ struct max77705_charger_data {
 
 	struct power_supply	*psy_chg;
 	struct power_supply	*psy_otg;
+
+	atomic_t	shutdown_cnt;
 
 	struct workqueue_struct *wqueue;
 	struct delayed_work	aicl_work;
@@ -416,8 +436,6 @@ struct max77705_charger_data {
 #if defined(CONFIG_USE_POGO)
 	int irq_wcin;
 #endif
-
-	int		irq_aicl_enabled;
 	int		wc_current;
 	int		wc_pre_current;
 

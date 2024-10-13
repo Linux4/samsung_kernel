@@ -126,6 +126,16 @@ config PROC_STLOG
 	depends on PROC_FSLOG
 	default y
 
+config PROC_RECLAIMER_LOG
+	bool "Enable reclaimer log"
+	depends on PROC_FSLOG
+	default n
+
+config PROC_PSI_LOG
+	bool "Enable psi log"
+	depends on PROC_FSLOG
+	default n
+
 config PROC_DLOG
 	bool "Enable delete logs for improving filesystem debug"
 	depends on PROC_FSLOG

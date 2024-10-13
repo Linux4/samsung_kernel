@@ -127,3 +127,12 @@ config USB_HOST_CERTIFICATION
 	 uevent includes information of notification
 	 The usb framework gets this uevent.
 	 It is made by samsung.
+
+config USB_INTERFACE_LPM_LIST
+	bool "USB interface class lpm Feature"
+	depends on USB
+	help
+	 The device needs to support L1 for audio class devices
+	 But L1 mode has some issues.
+	 So we will apply L1 mode to the device that has specific interface classes
+	 Now, It is only enabled for audio class.

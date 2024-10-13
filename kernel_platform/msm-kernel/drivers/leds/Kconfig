@@ -123,6 +123,13 @@ config LEDS_AW2013
 	  To compile this driver as a module, choose M here: the module
 	  will be called leds-aw2013.
 
+config LEDS_AW2016
+	tristate "LED Support for AW2016"
+	depends on LEDS_CLASS && I2C
+	help
+		this option enables support for the AW2016 RGB LED connected
+		through I2C. Say Y to enable support for the AW2016 LED
+
 config LEDS_BCM6328
 	tristate "LED Support for Broadcom BCM6328"
 	depends on LEDS_CLASS
@@ -897,7 +904,7 @@ config LEDS_SPI_BYTE
 config LEDS_TI_LMU_COMMON
 	tristate "LED driver for TI LMU"
 	depends on LEDS_CLASS
-	depends on REGMAP
+	select REGMAP
 	help
 	  Say Y to enable the LED driver for TI LMU devices.
 	  This supports common features between the TI LM3532, LM3631, LM3632,
@@ -981,6 +988,13 @@ config LEDS_S2MPB02
 	depends on LEDS_CLASS && MFD_S2MPB02 && REGULATOR_S2MPB02
 	help
 	  This option enables support for the LEDs on the S2MPB02.
+
+config LEDS_AW36518_FLASH
+	tristate "FLASH LED support for the AW36518"
+	def_tristate m
+	depends on LEDS_CLASS && I2C
+	help
+	  This option enables support for the LEDs on the AW36518_FLASH.
 
 comment "LED Triggers"
 source "drivers/leds/trigger/Kconfig"

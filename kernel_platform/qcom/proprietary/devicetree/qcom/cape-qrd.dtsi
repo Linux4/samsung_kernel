@@ -2,6 +2,7 @@
 #include <dt-bindings/input/input.h>
 #include "cape-pmic-overlay.dtsi"
 #include "waipio-thermal-overlay.dtsi"
+#include <dt-bindings/phy/qcom,usb3-4nm-qmp-combo.h>
 
 &soc {
 	gpio_keys {
@@ -157,7 +158,7 @@
 				0x4 0x6 0x6 0x4>;
 		flat-gain = /bits/ 8 <
 				/* Parameters for USB */
-				0x3 0x1 0x1 0x3
+				0x0 0x1 0x1 0x2
 				/* Parameters for DP */
 				0x0 0x3 0x3 0x0>;
 		output-comp = /bits/ 8 <
@@ -175,6 +176,12 @@
 
 &usb_qmp_dp_phy {
 	pinctrl-names = "unused";
+
+	qcom,qmp-phy-override-seq =
+		/* <reg_offset,	value> */
+		<USB3_DP_QSERDES_RXA_RX_MODE_01_HIGH4		0x0D
+		USB3_DP_QSERDES_TXB_TX_DRV_LVL			0x38
+		USB3_DP_QSERDES_RXB_RX_MODE_01_HIGH4		0x0D>;
 };
 
 &usb0 {
@@ -257,9 +264,16 @@
 		reset-gpio = <&pm8350c_gpios 7 GPIO_ACTIVE_HIGH>;
 		pinctrl-names = "default";
 		pinctrl-0 = <&eusb2_reset_ctrl_default>;
-		interrupt-parent = <&spmi_bus>;
-		interrupts = <0x2 0x8e 0x0 IRQ_TYPE_EDGE_RISING>;
-		interrupt-names = "eusb2_rptr_reset_gpio_irq";
+		qcom,param-override-seq =
+				/* Rx squelch detection threshold to 110mV; default is 125mV */
+				<0x40 0x06
+				/*
+				 * Tx Deemphasis to 2dB, Tx Deemphasis bit duration to 0.8UI;
+				 * default is 0 for both
+				 */
+				0x22 0x07
+				/* Output Voltage Swing to 550mV; default is 450mV */
+				0x64 0x08>;
 	};
 };
 
@@ -287,6 +301,24 @@
 		port {
 			usb_port0_connector: endpoint {
 				remote-endpoint = <&usb_port0>;
+			};
+		};
+	};
+};
+
+&thermal_zones {
+	pm8350b-bcl-lvl2 {
+		cooling-maps {
+			vbat_gpu2 {
+				cooling-device = <&msm_gpu 9 9>;
+			};
+		};
+	};
+
+	pm8350c-bcl-lvl2 {
+		cooling-maps {
+			vph_gpu2 {
+				cooling-device = <&msm_gpu 9 9>;
 			};
 		};
 	};

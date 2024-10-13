@@ -187,42 +187,6 @@ static int __rbcmd_remove_threaded(struct platform_device *pdev,
 	return 0;
 }
 
-#if IS_ENABLED(CONFIG_KUNIT) && IS_ENABLED(CONFIG_UML)
-static int __rbcmd_mock_parse_dt(struct builder *bd)
-{
-	struct qc_rbcmd_drvdata *drvdata =
-			container_of(bd, struct qc_rbcmd_drvdata, bd);
-
-	drvdata->use_on_reboot = false;
-	drvdata->use_on_restart = true;
-
-	return 0;
-}
-
-static const struct dev_builder __qc_rbcmd_mock_dev_builder[] = {
-	DEVICE_BUILDER(__rbcmd_mock_parse_dt, NULL),
-	DEVICE_BUILDER(sec_qc_rbcmd_init_on_reboot,
-		       sec_qc_rbcmd_exit_on_reboot),
-	DEVICE_BUILDER(sec_qc_rbcmd_init_on_restart,
-		       sec_qc_rbcmd_exit_on_restart),
-	DEVICE_BUILDER(sec_qc_rbcmd_register_panic_handle,
-		       sec_qc_rbcmd_unregister_panic_handle),
-	DEVICE_BUILDER(__rbcmd_probe_epilog, NULL),
-};
-
-int kunit_qc_rbcmd_mock_probe(struct platform_device *pdev)
-{
-	return __rbcmd_probe(pdev, __qc_rbcmd_mock_dev_builder,
-			ARRAY_SIZE(__qc_rbcmd_mock_dev_builder));
-}
-
-int kunit_qc_rbcmd_mock_remove(struct platform_device *pdev)
-{
-	return __rbcmd_remove(pdev, __qc_rbcmd_mock_dev_builder,
-			ARRAY_SIZE(__qc_rbcmd_mock_dev_builder));
-}
-#endif
-
 static const struct dev_builder __qc_rbcmd_dev_builder[] = {
 	DEVICE_BUILDER(__rbcmd_parse_dt, NULL),
 	DEVICE_BUILDER(__qc_rbcmd_register_panic_handle,

@@ -15,6 +15,9 @@
 //#include "../sec_input/sec_input.h"
 //#include <linux/samsung/sec_class.h>
 #include <linux/sec_class.h>
+#if IS_ENABLED(CONFIG_HALL_NOTIFIER)
+#include <linux/hall/hall_ic_notifier.h>
+#endif
 
 #define input_dbg(mode, dev, fmt, ...)						\
 ({										\
@@ -127,6 +130,10 @@ struct akm_info {
 
 	int cal_value[6];
 	bool calibrated;
+#if IS_ENABLED(CONFIG_HALL_NOTIFIER)
+	struct notifier_block hall_ic_nb;
+#endif
+	struct completion resume_done;
 };
 
 static int akm_setup_device_control(struct akm_info *info);

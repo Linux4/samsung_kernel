@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2016-2021 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -162,6 +163,10 @@ const struct nla_policy vendor_attr_policy[
 	[QCA_WLAN_VENDOR_ATTR_NDP_TRANSPORT_PROTOCOL] = {
 						.type = NLA_U8,
 						.len = sizeof(uint8_t)
+	},
+	[QCA_WLAN_VENDOR_ATTR_NDP_SERVICE_ID] = {
+						.type = NLA_U8,
+						.len = NDP_SERVICE_ID_LEN
 	},
 };
 
@@ -755,7 +760,6 @@ static int os_if_nan_process_ndp_initiator_req(struct wlan_objmgr_psoc *psoc,
  * Return: 0 on success or error code on failure
  */
 static int __os_if_nan_process_ndp_responder_req(struct wlan_objmgr_psoc *psoc,
-						 char *iface_name,
 						 struct nlattr **tb)
 {
 	int ret = 0;
@@ -763,6 +767,8 @@ static int __os_if_nan_process_ndp_responder_req(struct wlan_objmgr_psoc *psoc,
 	enum nan_datapath_state state;
 	struct wlan_objmgr_vdev *nan_vdev = NULL;
 	struct nan_datapath_responder_req req = {0};
+	char *iface_name;
+	int errno;
 
 	if (!tb[QCA_WLAN_VENDOR_ATTR_NDP_RESPONSE_CODE]) {
 		osif_err("ndp_rsp is unavailable");
@@ -771,6 +777,13 @@ static int __os_if_nan_process_ndp_responder_req(struct wlan_objmgr_psoc *psoc,
 	req.ndp_rsp = nla_get_u32(tb[QCA_WLAN_VENDOR_ATTR_NDP_RESPONSE_CODE]);
 
 	if (req.ndp_rsp == NAN_DATAPATH_RESPONSE_ACCEPT) {
+		errno = osif_nla_str(tb, QCA_WLAN_VENDOR_ATTR_NDP_IFACE_STR,
+				     &iface_name);
+
+		if (errno) {
+			osif_err("NAN data iface not provided");
+			return errno;
+		}
 		/* Check for an existing NAN interface */
 		nan_vdev = os_if_get_ndi_vdev_by_ifname(psoc, iface_name);
 		if (!nan_vdev) {
@@ -898,26 +911,17 @@ responder_req_failed:
 }
 
 static int os_if_nan_process_ndp_responder_req(struct wlan_objmgr_psoc *psoc,
-					       struct nlattr **tb)
+					       struct nlattr **tb,
+					       struct wireless_dev *wdev)
 {
-	struct net_device *net_dev;
 	struct osif_vdev_sync *vdev_sync;
-	char *ifname;
 	int errno;
 
-	errno = osif_nla_str(tb, QCA_WLAN_VENDOR_ATTR_NDP_IFACE_STR, &ifname);
+	errno = osif_vdev_sync_op_start(wdev->netdev, &vdev_sync);
 	if (errno)
 		return errno;
 
-	errno = osif_net_dev_from_ifname(psoc, ifname, &net_dev);
-	if (errno)
-		return errno;
-
-	errno = osif_vdev_sync_op_start(net_dev, &vdev_sync);
-	if (errno)
-		return errno;
-
-	errno = __os_if_nan_process_ndp_responder_req(psoc, ifname, tb);
+	errno = __os_if_nan_process_ndp_responder_req(psoc, tb);
 
 	osif_vdev_sync_op_stop(vdev_sync);
 
@@ -1017,7 +1021,8 @@ static int os_if_nan_process_ndp_end_req(struct wlan_objmgr_psoc *psoc,
 
 int os_if_nan_process_ndp_cmd(struct wlan_objmgr_psoc *psoc,
 			      const void *data, int data_len,
-			      bool is_ndp_allowed)
+			      bool is_ndp_allowed,
+			      struct wireless_dev *wdev)
 {
 	uint32_t ndp_cmd_type;
 	uint16_t transaction_id;
@@ -1055,6 +1060,16 @@ int os_if_nan_process_ndp_cmd(struct wlan_objmgr_psoc *psoc,
 
 	switch (ndp_cmd_type) {
 	case QCA_WLAN_VENDOR_ATTR_NDP_INTERFACE_CREATE:
+		/**
+		 * NDI creation is not allowed if NAN discovery is not running.
+		 * Allowing NDI creation when NAN discovery is not enabled may
+		 * lead to issues if NDI has to be started in a
+		 * 2GHz channel and if the target is not operating in DBS mode.
+		 */
+		if (!ucfg_is_nan_disc_active(psoc)) {
+			osif_err("NDI creation is not allowed when NAN discovery is not running");
+			return -EOPNOTSUPP;
+		}
 		return os_if_nan_process_ndi_create(psoc, tb);
 	case QCA_WLAN_VENDOR_ATTR_NDP_INTERFACE_DELETE:
 		return os_if_nan_process_ndi_delete(psoc, tb);
@@ -1069,7 +1084,7 @@ int os_if_nan_process_ndp_cmd(struct wlan_objmgr_psoc *psoc,
 			osif_err("Unsupported concurrency for NAN datapath");
 			return -EOPNOTSUPP;
 		}
-		return os_if_nan_process_ndp_responder_req(psoc, tb);
+		return os_if_nan_process_ndp_responder_req(psoc, tb, wdev);
 	case QCA_WLAN_VENDOR_ATTR_NDP_END_REQUEST:
 		if (!is_ndp_allowed) {
 			osif_err("Unsupported concurrency for NAN datapath");
@@ -1277,7 +1292,9 @@ static inline uint32_t osif_ndp_get_ndp_req_ind_len(
 		data_len += nla_total_size(event->scid.scid_len);
 	if (event->ndp_info.ndp_app_info_len)
 		data_len += nla_total_size(event->ndp_info.ndp_app_info_len);
-
+	if (event->is_service_id_present)
+		data_len += nla_total_size(vendor_attr_policy[
+				QCA_WLAN_VENDOR_ATTR_NDP_SERVICE_ID].len);
 	return data_len;
 }
 
@@ -1416,6 +1433,12 @@ static void os_if_ndp_indication_handler(struct wlan_objmgr_vdev *vdev,
 	if (event->is_ipv6_addr_present) {
 		if (nla_put(vendor_event, QCA_WLAN_VENDOR_ATTR_NDP_IPV6_ADDR,
 			    QDF_IPV6_ADDR_SIZE, event->ipv6_addr))
+			goto ndp_indication_nla_failed;
+	}
+
+	if (event->is_service_id_present) {
+		if (nla_put(vendor_event, QCA_WLAN_VENDOR_ATTR_NDP_SERVICE_ID,
+			    NDP_SERVICE_ID_LEN, event->service_id))
 			goto ndp_indication_nla_failed;
 	}
 

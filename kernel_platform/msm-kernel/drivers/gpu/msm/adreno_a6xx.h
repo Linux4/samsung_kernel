@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _ADRENO_A6XX_H_
@@ -82,6 +83,8 @@ struct adreno_a6xx_core {
 	u32 highest_bank_bit;
 	/** @ctxt_record_size: Size of the preemption record in bytes */
 	u64 ctxt_record_size;
+	/** @gmu_hub_clk_freq: Gmu hub interface clock frequency */
+	u64 gmu_hub_clk_freq;
 };
 
 #define SPTPRAC_POWERON_CTRL_MASK	0x00778000
@@ -368,6 +371,7 @@ int a6xx_ringbuffer_init(struct adreno_device *adreno_dev);
 extern const struct adreno_perfcounters adreno_a630_perfcounters;
 extern const struct adreno_perfcounters adreno_a6xx_perfcounters;
 extern const struct adreno_perfcounters adreno_a6xx_legacy_perfcounters;
+extern const struct adreno_perfcounters adreno_a6xx_hwsched_perfcounters;
 
 /**
  * a6xx_rdpm_mx_freq_update - Update the mx frequency
@@ -443,4 +447,12 @@ to_a6xx_gpudev(const struct adreno_gpudev *gpudev)
  * Reset the preemption records at the time of hard reset
  */
 void a6xx_reset_preempt_records(struct adreno_device *adreno_dev);
+
+/**
+ * a6xx_irq_pending - Check if there is any gpu irq pending
+ * @adreno_dev: Handle to the adreno device
+ *
+ * Return true if there is any gpu irq pending
+ */
+bool a6xx_irq_pending(struct adreno_device *adreno_dev);
 #endif

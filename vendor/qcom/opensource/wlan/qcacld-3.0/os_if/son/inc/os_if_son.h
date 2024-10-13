@@ -1,6 +1,7 @@
 
 /*
  * Copyright (c) 2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2021 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -32,6 +33,8 @@
 #include <wlan_reg_ucfg_api.h>
 #include <ieee80211_external.h>
 
+#define INVALID_WIDTH 0xFF
+
 /**
  * struct son_callbacks - struct containing callback to non-converged driver
  * @os_if_is_acs_in_progress: whether acs is in progress or not
@@ -46,6 +49,15 @@
  * @os_if_set_phymode: set phy mode
  * @os_if_get_phymode: get phy mode
  * @os_if_get_rx_nss: Gets number of RX spatial streams
+ * @os_if_set_acl_policy: set acl policy
+ * @os_if_get_acl_policy: get acl policy
+ * @os_if_add_acl_mac: add mac to acl
+ * @os_if_del_acl_mac: del mac from acl
+ * @os_if_kickout_mac: kickout sta with given mac
+ * @os_if_set_chwidth: set chan width
+ * @os_if_get_chwidth: get chan width
+ * @os_if_deauth_sta: Deauths the target peer
+ * @os_if_modify_acl: Add/Del target peer in ACL
  */
 struct son_callbacks {
 	uint32_t (*os_if_is_acs_in_progress)(struct wlan_objmgr_vdev *vdev);
@@ -70,6 +82,26 @@ struct son_callbacks {
 	enum ieee80211_phymode (*os_if_get_phymode)(
 					struct wlan_objmgr_vdev *vdev);
 	uint8_t (*os_if_get_rx_nss)(struct wlan_objmgr_vdev *vdev);
+	QDF_STATUS (*os_if_set_acl_policy)(struct wlan_objmgr_vdev *vdev,
+					   ieee80211_acl_cmd son_acl_policy);
+	ieee80211_acl_cmd (*os_if_get_acl_policy)(
+						struct wlan_objmgr_vdev *vdev);
+	int (*os_if_add_acl_mac)(struct wlan_objmgr_vdev *vdev,
+				 struct qdf_mac_addr *acl_mac);
+	int (*os_if_del_acl_mac)(struct wlan_objmgr_vdev *vdev,
+				 struct qdf_mac_addr *acl_mac);
+	int (*os_if_kickout_mac)(struct wlan_objmgr_vdev *vdev,
+				 struct qdf_mac_addr *acl_mac);
+	int (*os_if_set_chwidth)(struct wlan_objmgr_vdev *vdev,
+				 enum ieee80211_cwm_width son_chwidth);
+	enum ieee80211_cwm_width (*os_if_get_chwidth)(
+				struct wlan_objmgr_vdev *vdev);
+	void (*os_if_deauth_sta)(struct wlan_objmgr_vdev *vdev,
+				 uint8_t *peer_mac,
+				 bool ignore_frame);
+	void (*os_if_modify_acl)(struct wlan_objmgr_vdev *vdev,
+				 uint8_t *peer_mac,
+				 bool allow_auth);
 };
 
 /**
@@ -284,6 +316,24 @@ int os_if_son_set_phymode(struct wlan_objmgr_vdev *vdev,
 			  enum ieee80211_phymode mode);
 
 /**
+ * os_if_son_get_phy_stats() - get phy stats
+ * @vdev: vdev
+ * @phy_stats: phy stats
+ *
+ * Return: void
+ */
+void os_if_son_get_phy_stats(struct wlan_objmgr_vdev *vdev,
+			     struct ol_ath_radiostats *phy_stats);
+
+/**
+ * os_if_son_get_chan_util() - get chan utilization
+ * @vdev: vdev
+ *
+ * Return: chan utilization (0 - 100)
+ */
+uint8_t os_if_son_get_chan_util(struct wlan_objmgr_vdev *vdev);
+
+/**
  * os_if_son_pdev_ops() - Handles PDEV specific SON commands
  * @pdev: pdev
  * @type: SON command to handle
@@ -313,14 +363,15 @@ QDF_STATUS os_if_son_vdev_ops(struct wlan_objmgr_vdev *pdev,
  * os_if_son_peer_ops() - Handles PEER specific SON commands
  * @peer: peer
  * @type: SON command to handle
- * @data: Input Data
- * @ret: Output Data
+ * @data: Input Data. Pointer to wlan_mlme_peer_data
+ * @ret: Output Data. Pointer to wlan_mlme_peer_data
  *
  * Return: QDF_SUCCCESS_SUCCESS in case of success
  */
 QDF_STATUS os_if_son_peer_ops(struct wlan_objmgr_peer *peer,
 			      enum wlan_mlme_peer_param type,
-			      void *data, void *ret);
+			      union wlan_mlme_peer_data *data,
+			      union wlan_mlme_peer_data *ret);
 
 /**
  * os_if_son_scan_db_iterate() - get country code
@@ -370,4 +421,93 @@ QDF_STATUS os_if_son_cfg80211_reply(qdf_nbuf_t sk_buf);
  */
 bool os_if_son_vdev_is_wds(struct wlan_objmgr_vdev *vdev);
 
+/*
+ * os_if_son_set_acl_policy() - set acl policy
+ * @vdev: vdev
+ * @son_acl_policy: son acl policy. enum ieee80211_acl_cmd
+ *
+ * Return: QDF_STATUS
+ */
+QDF_STATUS os_if_son_set_acl_policy(struct wlan_objmgr_vdev *vdev,
+				    ieee80211_acl_cmd son_acl_policy);
+
+/**
+ * os_if_son_get_acl_policy() - get acl policy
+ * @vdev: vdev
+ *
+ * Return: acl policy. enum ieee80211_acl_cmd
+ */
+ieee80211_acl_cmd os_if_son_get_acl_policy(struct wlan_objmgr_vdev *vdev);
+
+/**
+ * os_if_son_add_acl_mac() - add mac to acl
+ * @vdev: vdev
+ * @acl_mac: mac to add
+ *
+ * Return: 0 on success, negative errno on failure
+ */
+int os_if_son_add_acl_mac(struct wlan_objmgr_vdev *vdev,
+			  struct qdf_mac_addr *acl_mac);
+
+/**
+ * os_if_son_del_acl_mac() - del mac from acl
+ * @vdev: vdev
+ * @acl_mac: mac to del
+ *
+ * Return: 0 on success, negative errno on failure
+ */
+int os_if_son_del_acl_mac(struct wlan_objmgr_vdev *vdev,
+			  struct qdf_mac_addr *acl_mac);
+
+/**
+ * os_if_son_kickout_mac() - kickout sta with given mac
+ * @vdev: vdev
+ * @acl_mac: sta mac to kickout
+ *
+ * Return: 0 on success, negative errno on failure
+ */
+int os_if_son_kickout_mac(struct wlan_objmgr_vdev *vdev,
+			  struct qdf_mac_addr *mac);
+
+/**
+ * os_if_son_set_chwidth() - set chan width
+ * @vdev: vdev
+ * @son_chwidth: son chan width
+ *
+ * Return: 0 on success, negative errno on failure
+ */
+int os_if_son_set_chwidth(struct wlan_objmgr_vdev *vdev,
+			  enum ieee80211_cwm_width son_chwidth);
+
+/**
+ * os_if_son_get_chwidth() - get chan width
+ * @vdev: vdev
+ *
+ * Return: son chan width
+ */
+enum ieee80211_cwm_width os_if_son_get_chwidth(struct wlan_objmgr_vdev *vdev);
+
+/**
+ * os_if_son_deauth_peer_sta - Deauths specified STA
+ * @vdev: vdev
+ * @peer_mac: Target peer MAC address
+ * @ignore_frame: True to silently deauth the peer
+ *
+ * Return: void
+ */
+void os_if_son_deauth_peer_sta(struct wlan_objmgr_vdev *vdev,
+			       uint8_t *peer_mac,
+			       bool ignore_frame);
+
+/**
+ * os_if_son_modify_acl - Updates ACL with given peer
+ * @vdev: vdev
+ * @peer_mac: Target peer MAC address
+ * @allow_auth: True to allow specified peer to connect
+ *
+ * Return: void
+ */
+void os_if_son_modify_acl(struct wlan_objmgr_vdev *vdev,
+			  uint8_t *peer_mac,
+			  bool allow_auth);
 #endif

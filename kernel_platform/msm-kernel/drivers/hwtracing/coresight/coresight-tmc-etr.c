@@ -2,6 +2,7 @@
 /*
  * Copyright(C) 2016 Linaro Limited. All rights reserved.
  * Author: Mathieu Poirier <mathieu.poirier@linaro.org>
+ * Copyright (c) 2022, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/atomic.h>
@@ -49,7 +50,8 @@ struct etr_perf_buffer {
 };
 
 /* Convert the perf index to an offset within the ETR buffer */
-#define PERF_IDX2OFF(idx, buf)	((idx) % ((buf)->nr_pages << PAGE_SHIFT))
+#define PERF_IDX2OFF(idx, buf)		\
+		((idx) % ((unsigned long)(buf)->nr_pages << PAGE_SHIFT))
 
 /* Lower limit for ETR hardware buffer */
 #define TMC_ETR_PERF_MIN_BUF_SIZE	SZ_1M
@@ -1024,7 +1026,7 @@ tmc_etr_buf_insert_barrier_packet(struct etr_buf *etr_buf, u64 offset)
 
 	len = tmc_etr_buf_get_data(etr_buf, offset,
 				   CORESIGHT_BARRIER_PKT_SIZE, &bufp);
-	if (WARN_ON(len < CORESIGHT_BARRIER_PKT_SIZE))
+	if (WARN_ON(len < 0 || len < CORESIGHT_BARRIER_PKT_SIZE))
 		return -EINVAL;
 	coresight_insert_barrier_packet(bufp);
 	return offset + CORESIGHT_BARRIER_PKT_SIZE;
@@ -1075,8 +1077,10 @@ static int  __tmc_etr_enable_hw(struct tmc_drvdata *drvdata)
 
 	/* Wait for TMCSReady bit to be set */
 	rc = tmc_wait_for_tmcready(drvdata);
-	if (rc)
+	if (rc) {
+		CS_LOCK(drvdata->base);
 		return rc;
+	}
 
 	writel_relaxed(etr_buf->size / 4, drvdata->base + TMC_RSZ);
 	writel_relaxed(TMC_MODE_CIRCULAR_BUFFER, drvdata->base + TMC_MODE);
@@ -1108,10 +1112,18 @@ static int  __tmc_etr_enable_hw(struct tmc_drvdata *drvdata)
 		writel_relaxed(sts, drvdata->base + TMC_STS);
 	}
 
-	writel_relaxed(TMC_FFCR_EN_FMT | TMC_FFCR_EN_TI |
-		       TMC_FFCR_FON_FLIN | TMC_FFCR_FON_TRIG_EVT |
-		       TMC_FFCR_TRIGON_TRIGIN,
-		       drvdata->base + TMC_FFCR);
+	if (drvdata->stop_on_flush) {
+		writel_relaxed(TMC_FFCR_EN_FMT | TMC_FFCR_EN_TI |
+			       TMC_FFCR_FON_FLIN | TMC_FFCR_FON_TRIG_EVT |
+			       TMC_FFCR_TRIGON_TRIGIN | TMC_FFCR_STOP_ON_FLUSH,
+			       drvdata->base + TMC_FFCR);
+	} else {
+		writel_relaxed(TMC_FFCR_EN_FMT | TMC_FFCR_EN_TI |
+			       TMC_FFCR_FON_FLIN | TMC_FFCR_FON_TRIG_EVT |
+			       TMC_FFCR_TRIGON_TRIGIN,
+			       drvdata->base + TMC_FFCR);
+	}
+
 	writel_relaxed(drvdata->trigger_cntr, drvdata->base + TMC_TRG);
 	tmc_enable_hw(drvdata);
 
@@ -1148,9 +1160,10 @@ static int tmc_etr_enable_hw(struct tmc_drvdata *drvdata,
 
 	drvdata->etr_buf = etr_buf;
 	rc = __tmc_etr_enable_hw(drvdata);
-	if (rc)
+	if (rc) {
+		drvdata->etr_buf = NULL;
 		coresight_disclaim_device(drvdata->csdev);
-
+	}
 	return rc;
 }
 
@@ -1226,6 +1239,7 @@ static void __tmc_etr_disable_hw(struct tmc_drvdata *drvdata)
 	CS_UNLOCK(drvdata->base);
 
 	tmc_flush_and_stop(drvdata);
+	tmc_disable_stop_on_flush(drvdata);
 	/*
 	 * When operating in sysFS mode the content of the buffer needs to be
 	 * read before the TMC is disabled.
@@ -1256,6 +1270,22 @@ static int tmc_enable_etr_sink_sysfs(struct coresight_device *csdev)
 	struct tmc_drvdata *drvdata = dev_get_drvdata(csdev->dev.parent);
 	struct etr_buf *sysfs_buf = NULL, *new_buf = NULL, *free_buf = NULL;
 
+	spin_lock_irqsave(&drvdata->spinlock, flags);
+	if (drvdata->reading || drvdata->mode == CS_MODE_PERF) {
+		ret = -EBUSY;
+		goto unlock_out;
+	}
+
+	/*
+	 * In sysFS mode we can have multiple writers per sink.  Since this
+	 * sink is already enabled no memory is needed and the HW need not be
+	 * touched, even if the buffer size has changed.
+	 */
+	if (drvdata->mode == CS_MODE_SYSFS) {
+		atomic_inc(csdev->refcnt);
+		goto unlock_out;
+	}
+
 	/*
 	 * If we are enabling the ETR from disabled state, we need to make
 	 * sure we have a buffer with the right size. The etr_buf is not reset
@@ -1264,7 +1294,6 @@ static int tmc_enable_etr_sink_sysfs(struct coresight_device *csdev)
 	 * buffer, provided the size matches. Any allocation has to be done
 	 * with the lock released.
 	 */
-	spin_lock_irqsave(&drvdata->spinlock, flags);
 	if ((drvdata->out_mode == TMC_ETR_OUT_MODE_MEM)
 		|| (drvdata->out_mode == TMC_ETR_OUT_MODE_USB &&
 			drvdata->usb_data->usb_mode ==
@@ -1285,21 +1314,6 @@ static int tmc_enable_etr_sink_sysfs(struct coresight_device *csdev)
 			/* Let's try again */
 			spin_lock_irqsave(&drvdata->spinlock, flags);
 		}
-	}
-
-	if (drvdata->reading || drvdata->mode == CS_MODE_PERF) {
-		ret = -EBUSY;
-		goto unlock_out;
-	}
-
-	/*
-	 * In sysFS mode we can have multiple writers per sink.  Since this
-	 * sink is already enabled no memory is needed and the HW need not be
-	 * touched, even if the buffer size has changed.
-	 */
-	if (drvdata->mode == CS_MODE_SYSFS) {
-		atomic_inc(csdev->refcnt);
-		goto unlock_out;
 	}
 
 	/*
@@ -1372,7 +1386,7 @@ alloc_etr_buf(struct tmc_drvdata *drvdata, struct perf_event *event,
 	 * than the size requested via sysfs.
 	 */
 	if ((nr_pages << PAGE_SHIFT) > drvdata->size) {
-		etr_buf = tmc_alloc_etr_buf(drvdata, (nr_pages << PAGE_SHIFT),
+		etr_buf = tmc_alloc_etr_buf(drvdata, ((ssize_t)nr_pages << PAGE_SHIFT),
 					    0, node, NULL);
 		if (!IS_ERR(etr_buf))
 			goto done;

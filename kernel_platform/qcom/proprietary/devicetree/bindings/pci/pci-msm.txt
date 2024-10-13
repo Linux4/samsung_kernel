@@ -102,6 +102,7 @@ Main node
 		- "perst-gpio"		PCIe reset signal line
 		- "wake-gpio"		PCIe wake signal line
 		- "qcom,ep-gpio" (opt)	PCIe endpoint specific signal line
+		- "card-presence-pin"   Device presence detect signal line
 
 - pinctrl-names:
 	Usage: required
@@ -275,6 +276,16 @@ interconnects:
 	Value type: <bool>
 	Definition: L1 sub-state (L1ss) is not supported
 
+- qcom,apss-based-l1ss-sleep:
+	Usage: optional
+	Value type: <bool>
+	Definition: Apss based L1ss sleep is supported
+
+- qcom,no-client-based-bw-voting:
+	Usage: optional
+	Value type: <bool>
+	Definition: client based bw voting is not supported
+
 - qcom,no-aux-clk-sync:
 	Usage: optional
 	Value type: <bool>
@@ -297,6 +308,11 @@ interconnects:
 	Value type: <u32>
 	Definition: L1.2 LTR threshold value to be multipled with scale to
 		define L1.2 latency tolerance reporting (LTR)
+
+- qcom,device-vendor-id:
+	Usage: optional
+	Value type: <u32>
+	Definition: Support Device-Vendor Id
 
 - qcom,slv-addr-space-size:
 	Usage: required

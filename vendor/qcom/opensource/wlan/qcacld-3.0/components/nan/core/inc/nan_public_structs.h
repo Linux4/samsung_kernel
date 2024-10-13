@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2017-2021 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -50,7 +51,7 @@ struct wlan_objmgr_vdev;
 #define NAN_PSEUDO_VDEV_ID CFG_TGT_NUM_VDEV
 
 #define NAN_SER_CMD_TIMEOUT 4000
-
+#define NDP_SERVICE_ID_LEN 6
 /**
  * enum nan_discovery_msg_type - NAN msg type
  * @NAN_GENERIC_REQ: Type for all the NAN requests other than enable/disable
@@ -712,6 +713,8 @@ struct nan_datapath_confirm_event {
  * @scid: security context identifier
  * @is_ipv6_addr_present: indicates if following ipv6 address is valid
  * @ipv6_addr: ipv6 address address used by ndp
+ * @is_service_id_present: indicates if service id is present
+ * @service_id: NDP service id
  */
 struct nan_datapath_indication_event {
 	struct wlan_objmgr_vdev *vdev;
@@ -727,6 +730,8 @@ struct nan_datapath_indication_event {
 	struct nan_datapath_scid scid;
 	bool is_ipv6_addr_present;
 	uint8_t ipv6_addr[QDF_IPV6_ADDR_SIZE];
+	bool is_service_id_present;
+	uint8_t service_id[NDP_SERVICE_ID_LEN];
 };
 
 /**
@@ -850,6 +855,7 @@ struct wlan_nan_rx_ops {
  * @sta_nan_ndi_ndi_allowed: 4 port concurrency of STA+NAN+NDI+NDI is supported
  * @ndi_txbf_supported: Target supports NAN Datapath with TX beamforming
  * by Fw or not.
+ * @mlo_sta_nan_ndi_allowed: MLO STA + NAN + NDI concurrency is supported
  */
 struct nan_tgt_caps {
 	uint32_t nan_conc_control:1;
@@ -860,6 +866,9 @@ struct nan_tgt_caps {
 	uint32_t nan_vdev_allowed:1;
 	uint32_t sta_nan_ndi_ndi_allowed:1;
 	uint32_t ndi_txbf_supported:1;
+#ifdef WLAN_FEATURE_11BE_MLO
+	uint32_t mlo_sta_nan_ndi_allowed:1;
+#endif
 };
 
 #endif

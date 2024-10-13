@@ -37,7 +37,7 @@ struct qcom_q6v5 {
 	bool running;
 
 	atomic_t ssr_in_prog;
-
+	spinlock_t silent_ssr_lock;
 	void (*handover)(struct qcom_q6v5 *q6v5);
 };
 

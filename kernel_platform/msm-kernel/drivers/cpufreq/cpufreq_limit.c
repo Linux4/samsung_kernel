@@ -48,9 +48,6 @@ static struct freq_qos_request max_req[NUM_CPUS][CFLM_MAX_ITEM];
 static struct freq_qos_request min_req[NUM_CPUS][CFLM_MAX_ITEM];
 static struct kobject *cflm_kobj;
 
-#define MAX_SILVER_BOOST 2
-#define MAX_SILVER_LIMIT 3
-
 struct freq_map {
 	unsigned int in;
 	unsigned int out;
@@ -98,8 +95,10 @@ struct cflm_parameter {
 	unsigned int	ltl_max_freq;
 
 	/* pre-defined value */
-	struct freq_map silver_boost_map[MAX_SILVER_BOOST];
-	struct freq_map silver_limit_map[MAX_SILVER_LIMIT];
+	struct freq_map *silver_boost_map;
+	unsigned int	boost_map_size;
+	struct freq_map *silver_limit_map;
+	unsigned int	limit_map_size;
 	unsigned int	silver_divider;
 
 	/* current freq in virtual table */
@@ -116,6 +115,7 @@ struct cflm_parameter {
 
 	/* voltage based clock */
 	bool		vol_based_clk;
+	int		vbf_offset;	/* gold clock offset for perf */
 };
 
 
@@ -128,22 +128,15 @@ static struct cflm_parameter param = {
 	.g_first		= 4,
 	.p_first		= 7,
 
-	.g_fmin_up		= 844800,	/* fixed gold clock for performance */
+	.g_fmin_up		= 0,	/* fixed gold clock for performance */
 
 	.ltl_min_freq		= 0,		/* will be auto updated */
 	.ltl_max_freq		= 0,		/* will be auto updated */
 	.big_min_freq		= 0,		/* will be auto updated */
 	.big_max_freq		= 0,		/* will be auto updated */
 
-	.silver_boost_map	= {
-		{2054400,  960000},
-		{ 940800,  844000},
-	},
-	.silver_limit_map	= {
-		{2995200, 1785600},
-		{2400000, 1478400},
-		{ 739200, 1363200},
-	},
+	.boost_map_size		= 0,
+	.limit_map_size		= 0,
 	.silver_divider		= 2,
 
 	.min_limit_val		= -1,
@@ -406,7 +399,7 @@ static bool cflm_max_lock_need_restore(void)
 
 	if (freq_input[CFLM_USERSPACE].min > 0) {
 		if (freq_input[CFLM_USERSPACE].min > (int)param.ltl_max_freq) {
-			pr_info("%s: userspace minlock (%d) > ltl max (%d)\n",
+			pr_debug("%s: userspace minlock (%d) > ltl max (%d)\n",
 					__func__, freq_input[CFLM_USERSPACE], param.ltl_max_freq);
 			return false;
 		}
@@ -414,7 +407,7 @@ static bool cflm_max_lock_need_restore(void)
 
 	if (freq_input[CFLM_TOUCH].min > 0) {
 		if (freq_input[CFLM_TOUCH].min > (int)param.ltl_max_freq) {
-			pr_info("%s: touch minlock (%d) > ltl max (%d)\n",
+			pr_debug("%s: touch minlock (%d) > ltl max (%d)\n",
 					__func__, freq_input[CFLM_TOUCH], param.ltl_max_freq);
 			return false;
 		}
@@ -430,7 +423,7 @@ static bool cflm_high_pri_min_lock_required(void)
 
 	if (freq_input[CFLM_USERSPACE].min > 0) {
 		if (freq_input[CFLM_USERSPACE].min > (int)param.ltl_max_freq) {
-			pr_info("%s: userspace minlock (%d) > ltl max (%d)\n",
+			pr_debug("%s: userspace minlock (%d) > ltl max (%d)\n",
 					__func__, freq_input[CFLM_USERSPACE], param.ltl_max_freq);
 			return true;
 		}
@@ -438,7 +431,7 @@ static bool cflm_high_pri_min_lock_required(void)
 
 	if (freq_input[CFLM_TOUCH].min > 0) {
 		if (freq_input[CFLM_TOUCH].min > (int)param.ltl_max_freq) {
-			pr_info("%s: touch minlock (%d) > ltl max (%d)\n",
+			pr_debug("%s: touch minlock (%d) > ltl max (%d)\n",
 					__func__, freq_input[CFLM_TOUCH], param.ltl_max_freq);
 			return true;
 		}
@@ -452,9 +445,16 @@ static unsigned int cflm_get_vol_matched_freq(unsigned int in_freq)
 	int i;
 	unsigned int out_freq = in_freq;
 
-	for (i = 0; i < cflm_vbf.count; i++) {
-		if (cflm_vbf.table[PRIME_CPU][i] >= in_freq) {
-			out_freq = cflm_vbf.table[GOLD_CPU][i];
+	if (param.vbf_offset > cflm_vbf.count) {
+		pr_err("%s: bad condition(off(%d), cnt(%d))",
+			__func__, param.vbf_offset, cflm_vbf.count);
+		return out_freq;
+	}
+
+	/* start from offset */
+	for (i = param.vbf_offset; i < cflm_vbf.count; i++) {
+		if (cflm_vbf.table[PRIME_CPU][i] <= in_freq) {
+			out_freq = cflm_vbf.table[GOLD_CPU][i - param.vbf_offset];
 			break;
 		}
 	}
@@ -468,7 +468,7 @@ static int cflm_get_silver_boost(int freq)
 {
 	int i;
 
-	for (i = 0; i < MAX_SILVER_BOOST; i++)
+	for (i = 0; i < param.boost_map_size; i++)
 		if (freq >= param.silver_boost_map[i].in)
 			return param.silver_boost_map[i].out;
 	return freq * param.silver_divider;
@@ -478,9 +478,12 @@ static int cflm_get_silver_limit(int freq)
 {
 	int i;
 
-	for (i = 0; i < MAX_SILVER_LIMIT; i++)
+	/* prime limit condition */
+	for (i = 0; i < param.limit_map_size; i++)
 		if (freq >= param.silver_limit_map[i].in)
-			return param.silver_limit_map[i].out;
+			return MIN(param.silver_limit_map[i].out, param.s_fmax);
+
+	/* silver limit condition */
 	return freq * param.silver_divider;
 }
 
@@ -536,14 +539,14 @@ static void cflm_freq_decision(int type, int new_min, int new_max)
 			new_min = param.ltl_min_freq;
 		}
 
-		pr_info("%s: new_min=%d, ltl_max=%d, over_limit=%d\n", __func__,
+		pr_debug("%s: new_min=%d, ltl_max=%d, over_limit=%d\n", __func__,
 				new_min, param.ltl_max_freq, param.over_limit);
 		if ((type == CFLM_USERSPACE || type == CFLM_TOUCH) &&
 			cflm_high_pri_min_lock_required()) {
 			if (freq_input[CFLM_USERSPACE].max > 0) {
 				need_update_user_max = true;
 				new_user_max = MAX((int)param.over_limit, freq_input[CFLM_USERSPACE].max);
-				pr_info("%s: override new_max %d => %d,  userspace_min=%d, touch_min=%d, ltl_max=%d\n",
+				pr_debug("%s: override new_max %d => %d,  userspace_min=%d, touch_min=%d, ltl_max=%d\n",
 						__func__, freq_input[CFLM_USERSPACE].max, new_user_max, freq_input[CFLM_USERSPACE].min,
 						freq_input[CFLM_TOUCH].min, param.ltl_max_freq);
 			}
@@ -573,7 +576,7 @@ static void cflm_freq_decision(int type, int new_min, int new_max)
 			if (freq_input[CFLM_USERSPACE].max > 0) {
 				need_update_user_max = true;
 				new_user_max = freq_input[CFLM_USERSPACE].max;
-				pr_info("%s: restore new_max => %d\n",
+				pr_debug("%s: restore new_max => %d\n",
 						__func__, new_user_max);
 			}
 		}
@@ -590,7 +593,7 @@ static void cflm_freq_decision(int type, int new_min, int new_max)
 			cflm_high_pri_min_lock_required()) {
 			need_update_user_max = true;
 			new_user_max = MAX((int)param.over_limit, freq_input[CFLM_USERSPACE].max);
-			pr_info("%s: force up new_max %d => %d, userspace_min=%d, touch_min=%d, ltl_max=%d\n",
+			pr_debug("%s: force up new_max %d => %d, userspace_min=%d, touch_min=%d, ltl_max=%d\n",
 					__func__, new_max, new_user_max, freq_input[CFLM_USERSPACE].min,
 					freq_input[CFLM_TOUCH].min, param.ltl_max_freq);
 		}
@@ -600,7 +603,7 @@ static void cflm_freq_decision(int type, int new_min, int new_max)
 			/* if silver clock is limited as fmax,
 			 * set promised clock for gold cluster
 			 */
-			if (new_max == param.s_fmax / param.silver_divider)
+			if ((new_max == param.s_fmax / param.silver_divider) && (param.g_fmin_up > 0))
 				g_max = param.g_fmin_up;
 			else
 				g_max = param.g_fmin;
@@ -635,9 +638,9 @@ static void cflm_freq_decision(int type, int new_min, int new_max)
 	}
 
 	if (need_update_user_max) {
-		pr_info("%s: update_user_max is true\n", __func__);
+		pr_debug("%s: update_user_max is true\n", __func__);
 		if (new_user_max > param.big_max_freq) {
-			pr_info("%s: too high freq(%d), set to %d\n",
+			pr_debug("%s: too high freq(%d), set to %d\n",
 			__func__, new_user_max, param.big_max_freq);
 			new_user_max = param.big_max_freq;
 		}
@@ -647,7 +650,7 @@ static void cflm_freq_decision(int type, int new_min, int new_max)
 			/* if silver clock is limited as fmax,
 			 * set promised clock for gold cluster
 			 */
-			if (new_user_max == param.s_fmax / param.silver_divider)
+			if ((new_user_max == param.s_fmax / param.silver_divider) && (param.g_fmin_up > 0))
 				g_max = param.g_fmin_up;
 			else
 				g_max = param.g_fmin;
@@ -818,6 +821,33 @@ static ssize_t limit_stat_show(struct kobject *kobj,
 	return len;
 }
 
+static ssize_t vbf_table_show(struct kobject *kobj,
+			struct kobj_attribute *attr, char *buf)
+{
+	ssize_t len = 0;
+	int i = 0;
+
+	if (!cflm_vbf.count)
+		return len;
+
+	if (param.vbf_offset > cflm_vbf.count) {
+		pr_err("%s: bad condition(off(%d), cnt(%d))",
+			__func__, param.vbf_offset, cflm_vbf.count);
+		return len;
+	}
+
+	for (i = param.vbf_offset; i < cflm_vbf.count; i++) {
+		len += snprintf(buf + len, MAX_BUF_SIZE, "%u - %u\n",
+			cflm_vbf.table[PRIME_CPU][i], cflm_vbf.table[GOLD_CPU][i - param.vbf_offset]);
+	}
+	len--;
+	len += snprintf(buf + len, MAX_BUF_SIZE, "\n");
+
+	pr_info("%s: %s\n", __func__, buf);
+
+	return len;
+}
+
 /* sysfs in /sys/power */
 static struct kobj_attribute cpufreq_table = {
 	.attr	= {
@@ -863,6 +893,15 @@ static struct kobj_attribute limit_stat = {
 	.show	= limit_stat_show,
 };
 
+static struct kobj_attribute vbf_table = {
+	.attr	= {
+		.name = "vbf_table",
+		.mode = 0444
+	},
+	.show	= vbf_table_show,
+	.store	= NULL,
+};
+
 int set_freq_limit(unsigned int id, unsigned int freq)
 {
 	if (lpcharge) {
@@ -900,7 +939,7 @@ const char *buf, size_t count)					\
 {								\
 	int ret;						\
 								\
-	ret = kstrtoint(buf, 0, &param.file_name);		\
+	ret = sscanf(buf, "%u", &param.file_name);				\
 	if (ret != 1)						\
 		return -EINVAL;					\
 								\
@@ -910,6 +949,14 @@ const char *buf, size_t count)					\
 show_one(sched_boost_type);
 store_one(sched_boost_type);
 cflm_attr_rw(sched_boost_type);
+
+/* votlage based */
+show_one(vol_based_clk);
+store_one(vol_based_clk);
+cflm_attr_rw(vol_based_clk);
+show_one(vbf_offset);
+store_one(vbf_offset);
+cflm_attr_rw(vbf_offset);
 
 static ssize_t show_cflm_info(struct kobject *kobj,
 		struct kobj_attribute *attr, char *buf)
@@ -935,7 +982,8 @@ static ssize_t show_cflm_info(struct kobject *kobj,
 			param.silver_divider, param.sched_boost_type);
 
 	len += snprintf(buf + len, MAX_BUF_SIZE - len,
-			"param: vbaedc(%d)\n", param.vol_based_clk);
+			"param: vbf(%d), offset(%d)\n",
+			param.vol_based_clk, param.vbf_offset);
 
 	for (i = 0; i < CFLM_MAX_ITEM; i++) {
 		len += snprintf(buf + len, MAX_BUF_SIZE - len,
@@ -958,7 +1006,10 @@ static struct attribute *cflm_attributes[] = {
 	&over_limit.attr,
 	&limit_stat.attr,
 	&cflm_info.attr,
+	&vbf_table.attr,
 	&sched_boost_type_attr.attr,
+	&vol_based_clk_attr.attr,
+	&vbf_offset_attr.attr,
 	NULL,
 };
 
@@ -967,15 +1018,47 @@ static struct attribute_group cflm_attr_group = {
 };
 
 #ifdef CONFIG_OF
-static void cflm_parse_dt(struct device_node *np)
+static void cflm_parse_dt(struct platform_device *pdev)
 {
-	if (!np) {
+	int size = 0;
+
+	if (!pdev->dev.of_node) {
 		pr_info("%s: no device tree\n", __func__);
 		return;
 	}
-	param.vol_based_clk = of_property_read_bool(np, "limit,vol_based_clk");
-	pr_info("%s: param: voltage based clock: %s\n",
-		__func__, param.vol_based_clk ? "true" : "false");
+
+	/* voltage based */
+	param.vol_based_clk = of_property_read_bool(pdev->dev.of_node, "limit,vol_based_clk");
+	of_property_read_u32(pdev->dev.of_node, "limit,vbf_offset", &param.vbf_offset);
+	pr_info("%s: param: voltage based clock: %s(offset %d)\n",
+		__func__, param.vol_based_clk ? "true" : "false", param.vbf_offset);
+
+	/* boost table */
+	of_get_property(pdev->dev.of_node, "limit,silver_boost_table", &size);
+	if (size) {
+		param.silver_boost_map = devm_kzalloc(&pdev->dev, size, GFP_KERNEL);
+		of_property_read_u32_array(pdev->dev.of_node, "limit,silver_boost_table",
+				(u32 *)param.silver_boost_map, size / sizeof(u32));
+
+		param.boost_map_size = size / sizeof(*param.silver_boost_map);
+	}
+	pr_info("%s: param: boost map size(%d)\n", __func__, param.boost_map_size);
+
+	/* limit table */
+	of_get_property(pdev->dev.of_node, "limit,silver_limit_table", &size);
+	if (size) {
+		param.silver_limit_map = devm_kzalloc(&pdev->dev, size, GFP_KERNEL);
+		of_property_read_u32_array(pdev->dev.of_node, "limit,silver_limit_table",
+				(u32 *)param.silver_limit_map, size / sizeof(u32));
+
+		param.limit_map_size = size / sizeof(*param.silver_limit_map);
+	}
+	pr_info("%s: param: limit map size(%d)\n", __func__, param.limit_map_size);
+
+	/* etc */
+	of_property_read_u32(pdev->dev.of_node, "limit,gold_fmin_up", &param.g_fmin_up);
+	of_property_read_u32(pdev->dev.of_node, "limit,little_max_freq", &param.ltl_max_freq);
+	pr_info("%s: param: g_fmin_up(%d), ltl_max_freq(%d)\n", __func__, param.g_fmin_up, param.ltl_max_freq);
 };
 #endif
 
@@ -1076,13 +1159,13 @@ int cflm_probe(struct platform_device *pdev)
 		return 0;
 	}
 
+#ifdef CONFIG_OF
+	cflm_parse_dt(pdev);
+#endif
+
 	ret = cflm_add_qos();
 	if (ret < 0)
 		goto policy_not_ready;
-	
-#ifdef CONFIG_OF
-	cflm_parse_dt(pdev->dev.of_node);
-#endif
 
 	cflm_kobj = kobject_create_and_add("cpufreq_limit",
 					&cpu_subsys.dev_root->kobj);

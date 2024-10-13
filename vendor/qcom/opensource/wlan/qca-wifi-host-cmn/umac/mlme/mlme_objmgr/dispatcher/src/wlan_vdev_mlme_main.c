@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2018-2021 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -125,6 +126,10 @@ static QDF_STATUS mlme_vdev_obj_create_handler(struct wlan_objmgr_vdev *vdev,
 		mlme_err("Legacy vdev object post creation failed");
 		goto ext_hdl_post_create_failed;
 	}
+
+	qdf_mem_set(vdev_mlme->mgmt.rate_info.ratemask_params,
+		    WLAN_VDEV_RATEMASK_TYPE_MAX *
+		    sizeof(struct vdev_ratemask_params), 0xFF);
 
 	return QDF_STATUS_SUCCESS;
 
@@ -299,3 +304,12 @@ QDF_STATUS wlan_vdev_mlme_deinit(void)
 
 	return QDF_STATUS_SUCCESS;
 }
+
+#ifdef WLAN_FEATURE_DYNAMIC_MAC_ADDR_UPDATE
+QDF_STATUS wlan_vdev_mlme_send_set_mac_addr(struct qdf_mac_addr mac_addr,
+					    struct qdf_mac_addr mld_addr,
+					    struct wlan_objmgr_vdev *vdev)
+{
+	return mlme_vdev_ops_send_set_mac_address(mac_addr, mld_addr, vdev);
+}
+#endif

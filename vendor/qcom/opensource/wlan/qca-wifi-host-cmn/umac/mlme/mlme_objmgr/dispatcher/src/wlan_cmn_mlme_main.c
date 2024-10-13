@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2019-2021 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -34,6 +35,9 @@ mlme_get_global_ops_cb glbl_ops_cb;
 struct mlme_cm_ops *glbl_cm_ops;
 osif_cm_get_global_ops_cb glbl_cm_ops_cb;
 
+struct mlme_twt_ops *glbl_twt_ops;
+osif_twt_get_global_ops_cb glbl_twt_ops_cb;
+
 static void mlme_cm_ops_init(void)
 {
 	if (glbl_cm_ops_cb)
@@ -44,6 +48,33 @@ static void mlme_cm_ops_deinit(void)
 {
 	if (glbl_cm_ops_cb)
 		glbl_cm_ops = NULL;
+}
+
+struct mlme_vdev_mgr_ops *glbl_vdev_mgr_ops;
+osif_vdev_mgr_get_global_ops_cb glbl_vdev_mgr_ops_cb;
+
+static void mlme_vdev_mgr_ops_init(void)
+{
+	if (glbl_vdev_mgr_ops_cb)
+		glbl_vdev_mgr_ops = glbl_vdev_mgr_ops_cb();
+}
+
+static void mlme_vdev_mgr_ops_deinit(void)
+{
+	if (glbl_vdev_mgr_ops_cb)
+		glbl_vdev_mgr_ops = NULL;
+}
+
+static void mlme_twt_ops_init(void)
+{
+	if (glbl_twt_ops_cb)
+		glbl_twt_ops = glbl_twt_ops_cb();
+}
+
+static void mlme_twt_ops_deinit(void)
+{
+	if (glbl_twt_ops_cb)
+		glbl_twt_ops = NULL;
 }
 
 QDF_STATUS wlan_cmn_mlme_init(void)
@@ -67,12 +98,22 @@ QDF_STATUS wlan_cmn_mlme_init(void)
 
 	mlme_cm_ops_init();
 
+	mlme_vdev_mgr_ops_init();
+
+	mlme_twt_ops_init();
+
 	return QDF_STATUS_SUCCESS;
 }
 
 QDF_STATUS wlan_cmn_mlme_deinit(void)
 {
 	QDF_STATUS status;
+
+	mlme_twt_ops_deinit();
+
+	mlme_vdev_mgr_ops_deinit();
+
+	mlme_cm_ops_deinit();
 
 	status = wlan_vdev_mlme_deinit();
 	if (status != QDF_STATUS_SUCCESS)
@@ -85,8 +126,6 @@ QDF_STATUS wlan_cmn_mlme_deinit(void)
 	status = wlan_psoc_mlme_deinit();
 	if (status != QDF_STATUS_SUCCESS)
 		return status;
-
-	mlme_cm_ops_deinit();
 
 	return QDF_STATUS_SUCCESS;
 }
@@ -313,6 +352,16 @@ QDF_STATUS mlme_cm_roam_start_ind(struct wlan_objmgr_vdev *vdev,
 
 	if ((glbl_ops) && glbl_ops->mlme_cm_ext_roam_start_ind_cb)
 		ret = glbl_ops->mlme_cm_ext_roam_start_ind_cb(vdev, req);
+
+	return ret;
+}
+
+QDF_STATUS mlme_cm_rso_stop_req(struct wlan_objmgr_vdev *vdev)
+{
+	QDF_STATUS ret = QDF_STATUS_E_NOSUPPORT;
+
+	if ((glbl_ops) && glbl_ops->mlme_cm_ext_rso_stop_cb)
+		ret = glbl_ops->mlme_cm_ext_rso_stop_cb(vdev);
 
 	return ret;
 }
@@ -551,6 +600,11 @@ void mlme_set_osif_cm_cb(osif_cm_get_global_ops_cb osif_cm_ops)
 	glbl_cm_ops_cb = osif_cm_ops;
 }
 
+void mlme_set_osif_twt_cb(osif_twt_get_global_ops_cb osif_twt_ops)
+{
+	glbl_twt_ops_cb = osif_twt_ops;
+}
+
 void mlme_set_ops_register_cb(mlme_get_global_ops_cb ops_cb)
 {
 	glbl_ops_cb = ops_cb;
@@ -573,3 +627,153 @@ bool mlme_max_chan_switch_is_set(struct wlan_objmgr_vdev *vdev)
 
 	return phy_config->max_chan_switch_ie;
 }
+
+void mlme_set_osif_vdev_mgr_cb(
+			osif_vdev_mgr_get_global_ops_cb mlme_vdev_mgr_osif_ops)
+{
+	glbl_vdev_mgr_ops_cb = mlme_vdev_mgr_osif_ops;
+}
+
+#ifdef WLAN_FEATURE_DYNAMIC_MAC_ADDR_UPDATE
+QDF_STATUS mlme_vdev_ops_send_set_mac_address(struct qdf_mac_addr mac_addr,
+					      struct qdf_mac_addr mld_addr,
+					      struct wlan_objmgr_vdev *vdev)
+{
+	QDF_STATUS ret = QDF_STATUS_E_FAILURE;
+
+	if (glbl_ops && glbl_ops->mlme_vdev_send_set_mac_addr)
+		ret = glbl_ops->mlme_vdev_send_set_mac_addr(mac_addr, mld_addr,
+							    vdev);
+
+	return ret;
+}
+
+void mlme_vdev_mgr_notify_set_mac_addr_response(uint8_t vdev_id,
+						uint8_t resp_status)
+{
+	if (glbl_vdev_mgr_ops &&
+	    glbl_vdev_mgr_ops->mlme_vdev_mgr_set_mac_addr_response)
+		glbl_vdev_mgr_ops->mlme_vdev_mgr_set_mac_addr_response(
+							vdev_id, resp_status);
+}
+#endif
+
+#if defined(WLAN_SUPPORT_TWT) && defined(WLAN_TWT_CONV_SUPPORTED)
+QDF_STATUS
+mlme_twt_osif_enable_complete_ind(struct wlan_objmgr_psoc *psoc,
+				  struct twt_enable_complete_event_param *event,
+				  void *context)
+{
+	QDF_STATUS ret = QDF_STATUS_SUCCESS;
+
+	if (glbl_twt_ops && glbl_twt_ops->mlme_twt_enable_complete_cb)
+		ret = glbl_twt_ops->mlme_twt_enable_complete_cb(psoc,
+								event, context);
+
+	return ret;
+}
+
+QDF_STATUS
+mlme_twt_osif_disable_complete_ind(struct wlan_objmgr_psoc *psoc,
+				 struct twt_disable_complete_event_param *event,
+				 void *context)
+{
+	QDF_STATUS ret = QDF_STATUS_SUCCESS;
+
+	if (glbl_twt_ops && glbl_twt_ops->mlme_twt_disable_complete_cb)
+		ret = glbl_twt_ops->mlme_twt_disable_complete_cb(psoc,
+								event, context);
+
+	return ret;
+}
+
+QDF_STATUS
+mlme_twt_osif_ack_complete_ind(struct wlan_objmgr_psoc *psoc,
+			       struct twt_ack_complete_event_param *event,
+			       void *context)
+{
+	QDF_STATUS ret = QDF_STATUS_SUCCESS;
+
+	if (glbl_twt_ops && glbl_twt_ops->mlme_twt_ack_complete_cb)
+		ret = glbl_twt_ops->mlme_twt_ack_complete_cb(psoc,
+							     event, context);
+
+	return ret;
+}
+
+QDF_STATUS
+mlme_twt_osif_setup_complete_ind(struct wlan_objmgr_psoc *psoc,
+				 struct twt_add_dialog_complete_event *event,
+				 bool renego)
+{
+	QDF_STATUS ret = QDF_STATUS_SUCCESS;
+
+	if (glbl_twt_ops && glbl_twt_ops->mlme_twt_setup_complete_cb)
+		ret = glbl_twt_ops->mlme_twt_setup_complete_cb(psoc, event,
+							       renego);
+
+	return ret;
+}
+
+QDF_STATUS
+mlme_twt_osif_teardown_complete_ind(struct wlan_objmgr_psoc *psoc,
+			    struct twt_del_dialog_complete_event_param *event)
+{
+	QDF_STATUS ret = QDF_STATUS_SUCCESS;
+
+	if (glbl_twt_ops && glbl_twt_ops->mlme_twt_teardown_complete_cb)
+		ret = glbl_twt_ops->mlme_twt_teardown_complete_cb(psoc, event);
+
+	return ret;
+}
+
+QDF_STATUS
+mlme_twt_osif_pause_complete_ind(struct wlan_objmgr_psoc *psoc,
+			    struct twt_pause_dialog_complete_event_param *event)
+{
+	QDF_STATUS ret = QDF_STATUS_SUCCESS;
+
+	if (glbl_twt_ops && glbl_twt_ops->mlme_twt_pause_complete_cb)
+		ret = glbl_twt_ops->mlme_twt_pause_complete_cb(psoc, event);
+
+	return ret;
+}
+
+QDF_STATUS
+mlme_twt_osif_resume_complete_ind(struct wlan_objmgr_psoc *psoc,
+			   struct twt_resume_dialog_complete_event_param *event)
+{
+	QDF_STATUS ret = QDF_STATUS_SUCCESS;
+
+	if (glbl_twt_ops && glbl_twt_ops->mlme_twt_resume_complete_cb)
+		ret = glbl_twt_ops->mlme_twt_resume_complete_cb(psoc, event);
+
+	return ret;
+}
+
+QDF_STATUS
+mlme_twt_osif_nudge_complete_ind(struct wlan_objmgr_psoc *psoc,
+			    struct twt_nudge_dialog_complete_event_param *event)
+{
+	QDF_STATUS ret = QDF_STATUS_SUCCESS;
+
+	if (glbl_twt_ops && glbl_twt_ops->mlme_twt_nudge_complete_cb)
+		ret = glbl_twt_ops->mlme_twt_nudge_complete_cb(psoc, event);
+
+	return ret;
+}
+
+QDF_STATUS
+mlme_twt_osif_notify_complete_ind(struct wlan_objmgr_psoc *psoc,
+				  struct twt_notify_event_param *event)
+{
+	QDF_STATUS ret = QDF_STATUS_SUCCESS;
+
+	if (glbl_twt_ops && glbl_twt_ops->mlme_twt_notify_complete_cb)
+		ret = glbl_twt_ops->mlme_twt_notify_complete_cb(psoc, event);
+
+	return ret;
+}
+
+#endif
+

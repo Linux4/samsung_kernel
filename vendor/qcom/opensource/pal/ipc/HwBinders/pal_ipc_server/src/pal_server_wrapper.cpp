@@ -640,16 +640,11 @@ exit:
 Return<void> PAL::ipc_pal_stream_read(const uint64_t streamHandle,
                                       const hidl_vec<PalBuffer>& inBuff_hidl,
                                       ipc_pal_stream_read_cb _hidl_cb) {
-    struct pal_buffer buf;
+    struct pal_buffer buf = {0};
     int32_t ret = 0;
     hidl_vec<PalBuffer> outBuff_hidl;
     uint32_t bufSize;
     const native_handle *allochandle = nullptr;
-
-#ifdef SEC_AUDIO_EARLYDROP_PATCH
-    buf.buffer = nullptr;
-    buf.metadata = nullptr;
-#endif
 
     bufSize = inBuff_hidl.data()->size;
     buf.buffer = (uint8_t *)calloc(1, bufSize);

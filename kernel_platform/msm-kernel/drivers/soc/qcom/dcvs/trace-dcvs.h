@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #if !defined(_TRACE_DCVS_H) || defined(TRACE_HEADER_MULTI_READ)
@@ -227,10 +228,10 @@ TRACE_EVENT(memlat_spm_update,
 		unsigned long max_spm_cpu_freq, unsigned long base_vote,
 		unsigned long spm_vote, unsigned long spm_vote_inc_steps,
 		unsigned long spm_max_vote_khz,
-		unsigned long avg_spm, unsigned long max_l2miss_ratio),
+		unsigned long avg_spm, unsigned long min_l2miss_ratio),
 
 	TP_ARGS(name, spm_cpu_freq, max_spm_cpu_freq, base_vote, spm_vote,
-		spm_vote_inc_steps, spm_max_vote_khz, avg_spm, max_l2miss_ratio),
+		spm_vote_inc_steps, spm_max_vote_khz, avg_spm, min_l2miss_ratio),
 
 	TP_STRUCT__entry(
 		__string(name, name)
@@ -241,7 +242,7 @@ TRACE_EVENT(memlat_spm_update,
 		__field(unsigned long, spm_vote_inc_steps)
 		__field(unsigned long, spm_max_vote_khz)
 		__field(unsigned long, avg_spm)
-		__field(unsigned long, max_l2miss_ratio)
+		__field(unsigned long, min_l2miss_ratio)
 	),
 
 	TP_fast_assign(
@@ -253,10 +254,10 @@ TRACE_EVENT(memlat_spm_update,
 		__entry->spm_vote_inc_steps = spm_vote_inc_steps;
 		__entry->spm_max_vote_khz = spm_max_vote_khz;
 		__entry->avg_spm = avg_spm;
-		__entry->max_l2miss_ratio = max_l2miss_ratio;
+		__entry->min_l2miss_ratio = min_l2miss_ratio;
 	),
 
-	TP_printk("dev: %s, spm_cpu_freq=%lu, max_spm_cpu_freq=%lu, base_vote=%lu, spm_vote=%lu, spm_vote_inc_steps=%lu, spm_max_vote_khz=%lu, avg_spm=%lu, max_l2miss_ratio=%lu",
+	TP_printk("dev: %s, spm_cpu_freq=%lu, max_spm_cpu_freq=%lu, base_vote=%lu, spm_vote=%lu, spm_vote_inc_steps=%lu, spm_max_vote_khz=%lu, avg_spm=%lu, min_l2miss_ratio=%lu",
 		__get_str(name),
 		__entry->spm_cpu_freq,
 		__entry->max_spm_cpu_freq,
@@ -265,7 +266,7 @@ TRACE_EVENT(memlat_spm_update,
 		__entry->spm_vote_inc_steps,
 		__entry->spm_max_vote_khz,
 		__entry->avg_spm,
-		__entry->max_l2miss_ratio)
+		__entry->min_l2miss_ratio)
 );
 
 TRACE_EVENT(bw_hwmon_debug,
@@ -304,6 +305,40 @@ TRACE_EVENT(bw_hwmon_debug,
 		__entry->hist_mem,
 		__entry->hyst_mbps,
 		__entry->hyst_len)
+);
+
+TRACE_EVENT(bwprof_last_sample,
+
+	TP_PROTO(const char *name, const char *client, ktime_t ts, u32 meas_mbps,
+			u32 max_mbps, u32 mem_freq),
+
+	TP_ARGS(name, client, ts, meas_mbps, max_mbps, mem_freq),
+
+	TP_STRUCT__entry(
+		__string(name, name)
+		__string(client, client)
+		__field(ktime_t, ts)
+		__field(u32, meas_mbps)
+		__field(u32, max_mbps)
+		__field(u32, mem_freq)
+	),
+
+	TP_fast_assign(
+		__assign_str(name, name);
+		__assign_str(client, client);
+		__entry->ts = ts;
+		__entry->meas_mbps = meas_mbps;
+		__entry->max_mbps = max_mbps;
+		__entry->mem_freq = mem_freq;
+	),
+
+	TP_printk("dev=%s client=%s ts=%llu meas_mbps=%u max_mbps=%u mem_freq=%u",
+		__get_str(name),
+		__get_str(client),
+		__entry->ts,
+		__entry->meas_mbps,
+		__entry->max_mbps,
+		__entry->mem_freq)
 );
 
 #endif /* _TRACE_DCVS_H */

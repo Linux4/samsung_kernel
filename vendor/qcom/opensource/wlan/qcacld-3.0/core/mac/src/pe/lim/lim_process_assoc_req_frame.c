@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2012-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -45,6 +45,7 @@
 #include "wlan_utility.h"
 #include "wlan_crypto_global_api.h"
 #include "lim_mlo.h"
+#include <son_api.h>
 
 /**
  * lim_convert_supported_channels - Parses channel support IE
@@ -229,35 +230,6 @@ static bool lim_chk_sa_da(struct mac_context *mac_ctx, tpSirMacMgmtHdr hdr,
 				      1, hdr->sa, sub_type, 0, session, false);
 	return false;
 }
-
-#ifdef WLAN_FEATURE_11BE_MLO
-QDF_STATUS lim_mlo_partner_assoc_req_parse(struct mac_context *mac_ctx,
-					   tSirMacAddr sa,
-					   struct pe_session *session,
-					   tpSirAssocReq assoc_req,
-					   uint8_t sub_type, uint8_t *frm_body,
-					   uint32_t frame_len)
-{
-	QDF_STATUS status;
-	uint8_t link_id;
-
-	link_id = wlan_vdev_get_link_id(session->vdev);
-	if (sub_type == LIM_ASSOC)
-		status = sir_convert_mlo_assoc_req_frame2_struct(mac_ctx,
-								 frm_body,
-								 frame_len,
-								 assoc_req,
-								 link_id);
-	else
-		status = sir_convert_mlo_reassoc_req_frame2_struct(mac_ctx,
-								   frm_body,
-								   frame_len,
-								   assoc_req,
-								   link_id);
-
-	return status;
-}
-#endif
 
 /**
  * lim_chk_assoc_req_parse_error() - checks for error in frame parsing
@@ -2210,7 +2182,8 @@ bool lim_send_assoc_ind_to_sme(struct mac_context *mac_ctx,
 	if (wlan_vdev_mlme_is_mlo_ap(session->vdev) &&
 	    assoc_req->eht_cap.present &&
 	    IS_DOT11_MODE_EHT(session->dot11mode) &&
-	    (partner_peer_idx || assoc_req->mlo_info.num_partner_links))
+	    (partner_peer_idx ||
+	     !qdf_is_macaddr_zero((struct qdf_mac_addr *)assoc_req->mld_mac)))
 		peer_idx = lim_assign_mlo_conn_idx(mac_ctx, session,
 						   partner_peer_idx);
 	else
@@ -2376,7 +2349,6 @@ QDF_STATUS lim_check_assoc_req(struct mac_context *mac_ctx,
 }
 
 QDF_STATUS lim_proc_assoc_req_frm_cmn(struct mac_context *mac_ctx,
-				      uint8_t *frm_body, uint32_t frame_len,
 				      uint8_t sub_type,
 				      struct pe_session *session,
 				      tSirMacAddr sa,
@@ -2392,7 +2364,11 @@ QDF_STATUS lim_proc_assoc_req_frm_cmn(struct mac_context *mac_ctx,
 	tpDphHashNode sta_ds = NULL;
 	bool dup_entry = false, force_1x1 = false;
 	QDF_STATUS status;
+	uint8_t *frm_body;
+	uint32_t frame_len;
 
+	frm_body = assoc_req->assocReqFrame;
+	frame_len = assoc_req->assocReqFrameLength;
 	lim_get_phy_mode(mac_ctx, &phy_mode, session);
 	limGetQosMode(session, &qos_mode);
 
@@ -2437,6 +2413,11 @@ QDF_STATUS lim_proc_assoc_req_frm_cmn(struct mac_context *mac_ctx,
 			goto error;
 		}
 	}
+
+	if (!lim_chk_assoc_req_parse_error(mac_ctx, sa, session,
+					   assoc_req, sub_type,
+					   frm_body, frame_len))
+		goto error;
 
 	if (!lim_chk_capab(mac_ctx, sa, session, assoc_req,
 			   sub_type, &local_cap))
@@ -2690,20 +2671,14 @@ void lim_process_assoc_req_frame(struct mac_context *mac_ctx,
 	if (!assoc_req)
 		return;
 
-	/* Parse Assoc Request frame */
-	if (!lim_chk_assoc_req_parse_error(mac_ctx, hdr->sa, session,
-					   assoc_req, sub_type,
-					   frm_body, frame_len))
-		goto error;
-
 	if (!lim_alloc_assoc_req_frm_buf(assoc_req,
 					 WMA_GET_QDF_NBUF(rx_pkt_info),
 					 WMA_GET_RX_MAC_HEADER_LEN(rx_pkt_info),
 					 frame_len))
 		goto error;
 
-	lim_proc_assoc_req_frm_cmn(mac_ctx, frm_body, frame_len, sub_type,
-				   session, hdr->sa, assoc_req, 0);
+	lim_proc_assoc_req_frm_cmn(mac_ctx, sub_type, session, hdr->sa,
+				   assoc_req, 0);
 
 	return;
 error:
@@ -2764,14 +2739,16 @@ static bool lim_fill_assoc_he_info(struct mac_context *mac_ctx,
 			else if (session_entry->ch_width == CH_WIDTH_40MHZ &&
 				 assoc_req->he_cap.chan_width_0 == 1)
 				assoc_ind->chan_info.info = MODE_11AX_HE40;
+			else
+				assoc_ind->chan_info.info = MODE_11AX_HE20;
 		} else {
 			if (session_entry->ch_width == CH_WIDTH_160MHZ &&
 				assoc_req->he_cap.chan_width_2 == 1)
 				assoc_ind->chan_info.info = MODE_11AX_HE160;
-			else if (session_entry->ch_width == CH_WIDTH_80MHZ &&
+			else if (session_entry->ch_width >= CH_WIDTH_80MHZ &&
 				 assoc_req->he_cap.chan_width_1 == 1)
 				assoc_ind->chan_info.info = MODE_11AX_HE80;
-			else if (session_entry->ch_width == CH_WIDTH_40MHZ &&
+			else if (session_entry->ch_width >= CH_WIDTH_40MHZ &&
 				 assoc_req->he_cap.chan_width_1 == 1)
 				assoc_ind->chan_info.info = MODE_11AX_HE40;
 			else
@@ -2957,7 +2934,7 @@ lim_convert_channel_width_enum(enum phy_ch_width ch_width)
 		return eHT_CHANNEL_WIDTH_160MHZ;
 	case CH_WIDTH_80P80MHZ:
 		return eHT_CHANNEL_WIDTH_80P80MHZ;
-#ifdef WLAN_FEATURE_11BE
+#if defined(WLAN_FEATURE_11BE)
 	case CH_WIDTH_320MHZ:
 		return eHT_CHANNEL_WIDTH_320MHZ;
 #endif
@@ -3270,6 +3247,12 @@ QDF_STATUS lim_send_mlm_assoc_ind(struct mac_context *mac_ctx,
 		 QDF_MAC_ADDR_FMT, session_entry->peSessionId,
 		 assoc_req->ssId.ssId, sub_type, sta_ds->assocId,
 		 QDF_MAC_ADDR_REF(sta_ds->staAddr));
+
+	wlan_son_ind_assoc_req_frm(session_entry->vdev, sta_ds->staAddr,
+				   assoc_req->reassocRequest,
+				   qdf_nbuf_data(assoc_req->assoc_req_buf),
+				   qdf_nbuf_len(assoc_req->assoc_req_buf),
+				   QDF_STATUS_SUCCESS);
 
 	if (sub_type == LIM_ASSOC || sub_type == LIM_REASSOC) {
 		temp = sizeof(tLimMlmAssocInd);

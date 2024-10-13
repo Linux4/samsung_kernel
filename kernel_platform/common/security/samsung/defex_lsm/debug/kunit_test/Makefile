@@ -8,6 +8,17 @@ SAFEPLACE_ENABLE=true
 IMMUTABLE_ENABLE=true
 LP_ENABLE=true
 UMH_RESTRICTION_ENABLE=true
+USER_BUILD=false
+
+ifeq (,$(TARGET_BUILD_VARIANT))
+    ifeq ($(CONFIG_SECURITY_DEFEX_USER),y)
+        USER_BUILD := true
+    endif
+else
+    ifeq ($(TARGET_BUILD_VARIANT),user)
+        USER_BUILD := true
+    endif
+endif
 
 ifneq ($(wildcard $(srctree)/include/crypto/internal/rsa.h),)
     $(warning [DEFEX] INTEGRITY_ENABLE)
@@ -29,12 +40,16 @@ SIGN_ENABLE=true
 # Immutable Feature is applied with permissive mode first.
 DEFEX_DEFINES := -DDEFEX_PERMISSIVE_IM
 
+# Integrity Feature is applied with permissive mode first.
+DEFEX_DEFINES += -DDEFEX_PERMISSIVE_INT
+
 ifeq ($(CONFIG_DEFEX_KERNEL_ONLY), y)
     DEFEX_DEFINES += -DDEFEX_KERNEL_ONLY
     ifeq ($(CONFIG_SAMSUNG_PRODUCT_SHIP), y)
         $(warning [DEFEX-KUNIT] Kernel_only & Ship)
     else
         $(warning [DEFEX-KUNIT] Kernel_only & Noship)
+        DEFEX_DEFINES += -DDEFEX_PERMISSIVE_INT
         DEFEX_DEFINES += -DDEFEX_PERMISSIVE_SP
         DEFEX_DEFINES += -DDEFEX_PERMISSIVE_IM
         DEFEX_DEFINES += -DDEFEX_PERMISSIVE_LP
@@ -85,17 +100,20 @@ ifeq ($(SIGN_ENABLE), true)
 endif
 endif
 
-ifneq (,$(filter userdebug eng, $(TARGET_BUILD_VARIANT)))
+ifeq ($(USER_BUILD), true)
+    $(warning [DEFEX] DEBUG_DISABLE)
+    ifeq ($(CONFIG_SECURITY_DSMS), y)
+        DEFEX_DEFINES += -DDEFEX_DSMS_ENABLE
+    endif
+else
+    $(warning [DEFEX] DEBUG_ENABLE)
     defex-y += defex_debug_test.o
+    DEFEX_DEFINES += -DDEFEX_PERMISSIVE_INT
     DEFEX_DEFINES += -DDEFEX_PERMISSIVE_SP
     DEFEX_DEFINES += -DDEFEX_PERMISSIVE_IM
     DEFEX_DEFINES += -DDEFEX_PERMISSIVE_LP
     DEFEX_DEFINES += -DDEFEX_DEBUG_ENABLE
     DEFEX_DEFINES += -DDEFEX_SYSFS_ENABLE
-else
-    ifeq ($(CONFIG_SECURITY_DSMS), y)
-        DEFEX_DEFINES += -DDEFEX_DSMS_ENABLE
-    endif
 endif
 
 # kunit tests options:

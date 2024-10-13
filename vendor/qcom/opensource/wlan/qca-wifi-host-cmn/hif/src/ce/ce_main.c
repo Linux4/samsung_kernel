@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2013-2021 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -54,7 +55,7 @@
 
 #if (defined(QCA_WIFI_QCA8074) || defined(QCA_WIFI_QCA6290) || \
 	defined(QCA_WIFI_QCA6018) || defined(QCA_WIFI_QCA5018) || \
-	defined(QCA_WIFI_WCN7850) || defined(QCA_WIFI_QCA9574)) && \
+	defined(QCA_WIFI_KIWI) || defined(QCA_WIFI_QCA9574)) && \
 	!defined(QCA_WIFI_SUPPORT_SRNG)
 #define QCA_WIFI_SUPPORT_SRNG
 #endif
@@ -1091,8 +1092,8 @@ static struct service_to_pipe target_service_to_ce_map_qca6750[] = {
 };
 #endif
 
-#if (defined(QCA_WIFI_WCN7850))
-static struct service_to_pipe target_service_to_ce_map_wcn7850[] = {
+#if (defined(QCA_WIFI_KIWI))
+static struct service_to_pipe target_service_to_ce_map_kiwi[] = {
 	{ WMI_DATA_VO_SVC, PIPEDIR_OUT, 3, },
 	{ WMI_DATA_VO_SVC, PIPEDIR_IN, 2, },
 	{ WMI_DATA_BK_SVC, PIPEDIR_OUT, 3, },
@@ -1108,13 +1109,13 @@ static struct service_to_pipe target_service_to_ce_map_wcn7850[] = {
 	{ HTT_DATA_MSG_SVC, PIPEDIR_OUT, 4, },
 	{ HTT_DATA_MSG_SVC, PIPEDIR_IN, 1, },
 #ifdef WLAN_FEATURE_WMI_DIAG_OVER_CE7
-	{ PACKET_LOG_SVC, PIPEDIR_IN, 5, },
+	{ WMI_CONTROL_DIAG_SVC, PIPEDIR_IN, 7, },
 #endif
 	/* (Additions here) */
 	{ 0, 0, 0, },
 };
 #else
-static struct service_to_pipe target_service_to_ce_map_wcn7850[] = {
+static struct service_to_pipe target_service_to_ce_map_kiwi[] = {
 };
 #endif
 
@@ -1356,10 +1357,10 @@ static void hif_select_service_to_pipe_map(struct hif_softc *scn,
 			*sz_tgt_svc_map_to_use =
 				sizeof(target_service_to_ce_map_qca6750);
 			break;
-		case TARGET_TYPE_WCN7850:
-			*tgt_svc_map_to_use = target_service_to_ce_map_wcn7850;
+		case TARGET_TYPE_KIWI:
+			*tgt_svc_map_to_use = target_service_to_ce_map_kiwi;
 			*sz_tgt_svc_map_to_use =
-				sizeof(target_service_to_ce_map_wcn7850);
+				sizeof(target_service_to_ce_map_kiwi);
 			break;
 		case TARGET_TYPE_QCA8074:
 			*tgt_svc_map_to_use = target_service_to_ce_map_qca8074;
@@ -1628,7 +1629,7 @@ bool ce_srng_based(struct hif_softc *scn)
 	case TARGET_TYPE_QCN9000:
 	case TARGET_TYPE_QCN6122:
 	case TARGET_TYPE_QCA5018:
-	case TARGET_TYPE_WCN7850:
+	case TARGET_TYPE_KIWI:
 	case TARGET_TYPE_QCN9224:
 	case TARGET_TYPE_QCA9574:
 		return true;
@@ -1904,6 +1905,7 @@ QDF_STATUS alloc_mem_ce_debug_hist_data(struct hif_softc *scn, uint32_t ce_id)
 			(uint8_t *)qdf_mem_malloc(CE_DEBUG_MAX_DATA_BUF_SIZE);
 		if (!event->data) {
 			hif_err_rl("ce debug data alloc failed");
+			scn->hif_ce_desc_hist.data_enable[ce_id] = false;
 			return QDF_STATUS_E_NOMEM;
 		}
 	}
@@ -1943,7 +1945,42 @@ void free_mem_ce_debug_hist_data(struct hif_softc *scn, uint32_t ce_id)
 
 #ifndef HIF_CE_DEBUG_DATA_DYNAMIC_BUF
 #if defined(HIF_CONFIG_SLUB_DEBUG_ON) || defined(HIF_CE_DEBUG_DATA_BUF)
-struct hif_ce_desc_event hif_ce_desc_history[CE_COUNT_MAX][HIF_CE_HISTORY_MAX];
+
+/* define below variables for crashscope parse */
+struct hif_ce_desc_event *hif_ce_desc_history[CE_COUNT_MAX];
+uint32_t hif_ce_history_max = HIF_CE_HISTORY_MAX;
+
+/**
+ * for debug build, it will enable ce history for all ce, but for
+ * perf build(if CONFIG_SLUB_DEBUG_ON is N), it only enable for
+ * ce2(wmi event) & ce3(wmi cmd) history.
+ */
+#if defined(CONFIG_SLUB_DEBUG_ON)
+#define CE_DESC_HISTORY_BUFF_CNT  CE_COUNT_MAX
+#define IS_CE_DEBUG_ONLY_FOR_CE2_CE3  FALSE
+#else
+#define CE_DESC_HISTORY_BUFF_CNT  2
+#define IS_CE_DEBUG_ONLY_FOR_CE2_CE3  TRUE
+#endif
+struct hif_ce_desc_event
+	hif_ce_desc_history_buff[CE_DESC_HISTORY_BUFF_CNT][HIF_CE_HISTORY_MAX];
+
+static struct hif_ce_desc_event *
+	hif_ce_debug_history_buf_get(unsigned int ce_id)
+{
+	hif_debug("get ce debug buffer ce_id %u, only_ce2/ce3=%d",
+		  ce_id, IS_CE_DEBUG_ONLY_FOR_CE2_CE3);
+	if (IS_CE_DEBUG_ONLY_FOR_CE2_CE3 &&
+	    (ce_id == CE_ID_2 || ce_id == CE_ID_3)) {
+		hif_ce_desc_history[ce_id] =
+			hif_ce_desc_history_buff[ce_id - CE_ID_2];
+	} else {
+		hif_ce_desc_history[ce_id] =
+			hif_ce_desc_history_buff[ce_id];
+	}
+
+	return hif_ce_desc_history[ce_id];
+}
 
 /**
  * alloc_mem_ce_debug_history() - Allocate CE descriptor history
@@ -1958,13 +1995,26 @@ alloc_mem_ce_debug_history(struct hif_softc *scn, unsigned int ce_id,
 {
 	struct ce_desc_hist *ce_hist = &scn->hif_ce_desc_hist;
 	QDF_STATUS status = QDF_STATUS_SUCCESS;
-	ce_hist->hist_ev[ce_id] = hif_ce_desc_history[ce_id];
-	ce_hist->enable[ce_id] = 1;
+
+	/* For perf build, return directly for non ce2/ce3 */
+	if (IS_CE_DEBUG_ONLY_FOR_CE2_CE3 &&
+	    ce_id != CE_ID_2 &&
+	    ce_id != CE_ID_3) {
+		ce_hist->enable[ce_id] = false;
+		ce_hist->data_enable[ce_id] = false;
+		return QDF_STATUS_SUCCESS;
+	}
+
+	ce_hist->hist_ev[ce_id] = hif_ce_debug_history_buf_get(ce_id);
+	ce_hist->enable[ce_id] = true;
 
 	if (src_nentries) {
 		status = alloc_mem_ce_debug_hist_data(scn, ce_id);
-		if (status != QDF_STATUS_SUCCESS)
+		if (status != QDF_STATUS_SUCCESS) {
+			ce_hist->enable[ce_id] = false;
+			ce_hist->hist_ev[ce_id] = NULL;
 			return status;
+		}
 	} else {
 		ce_hist->data_enable[ce_id] = false;
 	}
@@ -1983,7 +2033,10 @@ static void free_mem_ce_debug_history(struct hif_softc *scn, unsigned int ce_id)
 {
 	struct ce_desc_hist *ce_hist = &scn->hif_ce_desc_hist;
 
-	ce_hist->enable[ce_id] = 0;
+	if (!ce_hist->enable[ce_id])
+		return;
+
+	ce_hist->enable[ce_id] = false;
 	if (ce_hist->data_enable[ce_id]) {
 		ce_hist->data_enable[ce_id] = false;
 		free_mem_ce_debug_hist_data(scn, ce_id);
@@ -2033,7 +2086,7 @@ static void free_mem_ce_debug_history(struct hif_softc *scn, unsigned int CE_id)
 		free_mem_ce_debug_hist_data(scn, CE_id);
 	}
 
-	ce_hist->enable[CE_id] = 0;
+	ce_hist->enable[CE_id] = false;
 	qdf_mem_free(ce_hist->hist_ev[CE_id]);
 	ce_hist->hist_ev[CE_id] = NULL;
 }
@@ -3913,12 +3966,12 @@ void hif_ce_prepare_config(struct hif_softc *scn)
 
 		scn->ce_count = QCA_6750_CE_COUNT;
 		break;
-	case TARGET_TYPE_WCN7850:
-		hif_state->host_ce_config = host_ce_config_wlan_wcn7850;
-		hif_state->target_ce_config = target_ce_config_wlan_wcn7850;
+	case TARGET_TYPE_KIWI:
+		hif_state->host_ce_config = host_ce_config_wlan_kiwi;
+		hif_state->target_ce_config = target_ce_config_wlan_kiwi;
 		hif_state->target_ce_config_sz =
-					sizeof(target_ce_config_wlan_wcn7850);
-		scn->ce_count = WCN_7850_CE_COUNT;
+					sizeof(target_ce_config_wlan_kiwi);
+		scn->ce_count = KIWI_CE_COUNT;
 		break;
 	case TARGET_TYPE_ADRASTEA:
 		if (hif_is_attribute_set(scn, HIF_LOWDESC_CE_NO_PKTLOG_CFG)) {
