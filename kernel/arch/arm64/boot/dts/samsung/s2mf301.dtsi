@@ -1,0 +1,89 @@
+&pinctrl_0 {
+	if_pmic_irq: if_pmic_irq {
+		GPIO_CONFIG_PUD_DRV(AP,gpa0,gpa0,5, FUNC_INPUT_WAKEUP, PULL_UP, DRV_LV1);
+	};
+};
+
+&pinctrl_0 {
+	usbpd_irq: usbpd_irq {
+		GPIO_CONFIG_PUD_DRV(AP,gpa0,gpa0,1, FUNC_INPUT_WAKEUP, PULL_UP, DRV_LV1);
+	};
+};
+
+#if 0
+&${usbpd_vbus_discharging_parent} {
+	usbpd_vbus_discharging: usbpd_vbus_discharging {
+		GPIO_CONFIG_PUD_DRV(${usbpd_vbus_discharging_gpio}, FUNC_OUTPUT_LOW, PULL_DOWN, DRV_LV1);
+	};
+};
+#endif
+
+#if 0
+&${pogo_dock_parent} {
+	pogo_dock_int: pogo_dock_int {
+		GPIO_CONFIG_PUD_DRV(${pogo_gpio}, FUNC_INPUT_WAKEUP, PULL_NONE, DRV_LV1);
+	};
+};
+#endif
+
+&hsi2c_19 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+	status = "okay";
+	clock-frequency = <400000>;
+	samsung,i2c-max-bus-freq = <400000>;
+
+	s2mf301: s2mf301@3A {
+		status = "okay";
+		compatible = "samsung,s2mf301mfd";
+		reg = <0x3A>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&if_pmic_irq>;
+		s2mf301,irq-gpio = <SEC_GPIO_REF(AP,gpa0,gpa0,5) 1>;
+		s2mf301,wakeup;
+	};
+
+	usbpd-s2mf301@3C {
+		status = "okay";
+		compatible = "s2mf301-usbpd";
+		reg = <0x3C>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&usbpd_irq 
+#if 0
+						&usbpd_vbus_discharging
+#endif
+#if 0
+						&pogo_dock_int
+#endif
+						>;
+		usbpd,usbpd_int = <SEC_GPIO_REF(AP,gpa0,gpa0,1) 0>;
+#if 0
+		usbpd,vbus_discharging = <SEC_GPIO_REF(${usbpd_vbus_discharging_gpio}) 0>;
+#endif
+#if 0
+		pogo_dock_int = <SEC_GPIO_REF(${pogo_gpio}) 0>;
+#endif
+
+		pdic-manager {
+			/* sink */
+			pdic,max_power = <5000>;
+			pdic_op_power = <2500>;
+			pdic_max_voltage = <6000>;
+			pdic_max_current = <2000>;
+			pdic,min_current = <500>;
+
+			pdic,giveback = <0>;
+			pdic,usb_com_capable = <1>;
+			pdic,no_usb_suspend = <1>;
+
+			/* source */
+			source,max_voltage = <5000>;
+			source,min_voltage = <4000>;
+			source,max_power = <2500>;
+
+			/* sink cap */
+			sink,capable_max_voltage = <5000>;
+		};
+	};
+};
+

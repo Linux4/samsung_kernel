@@ -1,0 +1,8 @@
+config INPUT_ZM918_HAPTIC
+	tristate "Zinitix ZM918 Input Haptic Driver"
+	depends on I2C
+	help
+	  Say Y here if you have Zinitix ZM918 chip in your system.
+	  If unsure, say N.
+	  To compile this driver as a module, choose M here: the
+	  module will be called zm918 input haptic driver.

@@ -1,0 +1,172 @@
+// SPDX-License-Identifier: GPL-2.0
+/*
+ * Samsung GNSS interface device tree source
+ *
+ * Copyright (c) 2022 Samsung Electronics Co., Ltd.
+ *             http://www.samsung.com
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+#include <dt-bindings/interrupt-controller/s5e8845.h>
+#include <dt-bindings/soc/samsung/exynos-gnss.h>
+
+/ {
+	fragment@modemif {
+		target-path = "/";
+		__overlay__ {
+			#address-cells = <2>;
+			#size-cells = <1>;
+
+			gnssif {
+				status = "okay";
+				compatible = "samsung,exynos-gnss";
+
+				interrupt-parent = <&gic>;
+				interrupts = <GIC_SPI INTREQ__ALIVE_GNSS_ACTIVE IRQ_TYPE_LEVEL_HIGH>,
+					<GIC_SPI INTREQ__GNSS_WDOG_RESET IRQ_TYPE_LEVEL_HIGH>,
+					<GIC_SPI INTREQ__GNSS_WAKEUP_INT IRQ_TYPE_LEVEL_HIGH>,
+					<GIC_SPI INTREQ__GNSS_SW_INT IRQ_TYPE_EDGE_RISING>;
+				interrupt-names = "ACTIVE", "WATCHDOG", "WAKEUP", "SW_INIT";
+				shmem,name = "KEPLER";
+				device_node_name = "gnss_ipc";
+
+				/* Mailbox */
+				mbox_info = <&gnss_mailbox>;
+
+				/* ap2gnss */
+				mbx,int_bcmd = <0>;
+				mbx,int_req_fault_info = <1>;
+				mbx,int_ipc_msg = <2>;
+				mbx,int_ack_wake_set = <3>;
+				mbx,int_ack_wake_clr = <4>;
+
+				/* gnss2ap */
+				mbx,irq_bcmd = <0>;
+				mbx,irq_rsp_fault_info = <1>;
+				mbx,irq_ipc_msg = <2>;
+				mbx,irq_req_wake_clr = <4>;
+				mbx,irq_simple_lock = <15>;
+
+				mbx,reg_bcmd_ctrl = <0>, <1>, <2>, <3>;
+
+				/* Memory */
+				memory-region = <&gnss_rmem>;
+
+				reg_rx_ipc_msg = <1 5>;
+				reg_tx_ipc_msg = <1 4>;
+				reg_rx_head = <1 3>;
+				reg_rx_tail = <1 2>;
+				reg_tx_head = <1 1>;
+				reg_tx_tail = <1 0>;
+				fault_info = <1 0x200000 0x180000>;
+
+				shmem,code_offset = <0x00000000>;
+				shmem,code_allowed_size = <0x00580000>;
+				shmem,ipc_offset = <0x00580000>;
+				shmem,ipc_size = <0x00080000>;
+				shmem,ipc_rx_offset = <0x00000000>;
+				shmem,ipc_rx_size = <0x00040000>;
+				shmem,ipc_tx_offset = <0x00040000>;
+				shmem,ipc_tx_size = <0x0003FF80>;
+				shmem,ipc_reg_offset = <0x0007FF80>;
+				shmem,ipc_reg_size = <0x00000080>; /* can afford 32 regs */
+
+				/* PMU register offsets */
+				pmu,gnss_ctrl_ns = <0x3950>;
+				pmu,gnss_ctrl_s = <0x3954>;
+				pmu,gnss_stat = <0x3EC8>;
+				pmu,gnss_debug = <0x3ECC>;
+
+				/* BAAW */
+				baaw_configuration {
+					base_addr = <0x13FE0000>;
+					shift_bits = <4>;
+
+					window_0 { /* CP MailBox */
+						baaw,offset = <0x0>;
+						baaw,start = <0xB19C0000>;
+						baaw,end = <0xB19CFFFF>;
+						baaw,ap_start = <0x119C0000>;
+						baaw,authority = <ID_AW_AR>;
+					};
+					window_1 { /* APM Mailbox */
+						baaw,offset = <0x10>;
+						baaw,start = <0xB1A40000>;
+						baaw,end = <0xB1A4FFFF>;
+						baaw,ap_start = <0x11A40000>;
+						baaw,authority = <ID_AW_AR>;
+					};
+					window_2 { /* AP Mailbox */
+						baaw,offset = <0x20>;
+						baaw,start = <0xB1A50000>;
+						baaw,end = <0xB1A5FFFF>;
+						baaw,ap_start = <0x11A50000>;
+						baaw,authority = <ID_AW_AR>;
+					};
+					window_3 { /* CHUB Mailbox */
+						baaw,offset = <0x30>;
+						baaw,start = <0xB18E0000>;
+						baaw,end = <0xB18EFFFF>;
+						baaw,ap_start = <0x118E0000>;
+						baaw,authority = <ID_AW_AR>;
+					};
+					window_4 { /* WLBT Mailbox */
+						baaw,offset = <0x40>;
+						baaw,start = <0xB1BB0000>;
+						baaw,end = <0xB1BBFFFF>;
+						baaw,ap_start = <0x11BB0000>;
+						baaw,authority = <ID_AW_AR>;
+					};
+					window_5 { /* DRAM cached */
+						/* ap_start and size should match gnss_rmem */
+						baaw,offset = <0x50>;
+						baaw,start = <0x60000000>;
+						baaw,helper = <USE_SHMEM_ADDR_IDX>;
+						baaw,authority = <ID_AW_AR>;
+					};
+					window_6 { /* DRAM non-cached */
+						/* ap_start and size should match gnss_rmem */
+						baaw,offset = <0x60>;
+						baaw,start = <0xA0000000>;
+						baaw,helper = <USE_SHMEM_ADDR_IDX>;
+						baaw,authority = <ID_AW_AR>;
+					};
+					window_7 { /* Mailbox Shared SRAM */
+						baaw,offset = <0x70>;
+						baaw,start = <0xB18F0000>;
+						baaw,end = <0xB18FFFFF>;
+						baaw,ap_start = <0x118F0000>;
+						baaw,authority = <ID_AW_AR>;
+					};
+					 window_8 { /* CHUB SRAM */
+						baaw,offset = <0x80>;
+						baaw,start = <0xB1A0F000>;
+						baaw,end = <0xB1A0FFFF>;
+						baaw,ap_start = <0x11267000>;
+						baaw,authority = <ID_AW_AR>;
+					};
+				}; /* end of BAAW configuration */
+			}; /* end of gnssif */
+
+			gnss_mailbox: gnss_mailbox {
+				status = "okay";
+				compatible = "samsung,exynos-gnss-mailbox";
+
+				reg = <0x0 0x11A50000 0x200>; /* MAILBOX_AP_GNSS */
+
+				interrupt-parent = <&gic>;
+				interrupts = <GIC_SPI INTREQ__MAILBOX_GNSS2AP IRQ_TYPE_LEVEL_HIGH>;
+
+				mbox,name = "gnss_mailbox";
+				mbox,id = <0>;
+
+				num_shared_reg = <4>;
+				shared_reg_offset = <0x100>;
+				use_sw_reset_reg = <0>;
+			};
+		}; /* end of __overlay__ */
+	}; /* end of fragment */
+}; /* end of root */

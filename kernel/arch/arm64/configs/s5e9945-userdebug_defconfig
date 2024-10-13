@@ -1,0 +1,20 @@
+# SensorHub
+CONFIG_SHUB_DEBUG=y
+
+# printk and dmesg options
+CONFIG_PRINTK_PROCESS=y
+
+CONFIG_EXYNOS_DEBUG_TEST=m
+
+# Power Management
+CONFIG_PINCTRL_SEC_GPIO_DVS=m
+
+# Displayport test
+CONFIG_SEC_DISPLAYPORT_SELFTEST=y
+CONFIG_SEC_DISPLAYPORT_DBG=y
+
+#
+# please don't remove new line on this file
+#
+
+

@@ -1,0 +1,81 @@
+&pinctrl_0 {
+	dio8018_irq: dio8018_irq {
+		GPIO_CONFIG_PUD(AP,gpa0,gpa0,0, FUNC_INPUT, PULL_NONE);
+	};
+};
+
+&hsi2c_24 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+	status = "okay";
+
+	dio8018_pmic: dio8018_pmic@35{
+		compatible = "dioo,dio8018pmic";
+		reg = <0x35>;
+		dio8018,wakeup;
+		pinctrl-names = "default";
+		pinctrl-0 = <&dio8018_irq>;
+		dio8018,dio8018_int = <SEC_GPIO_REF(AP,gpa0,gpa0,0) 0>;
+		dio8018,dio8018_int_level = <0>;
+		dio8018,dio8018_int_outmode = <1>;
+
+		regulators {
+			reg_dio8018_ldo1: dio8018-ldo1 {
+				regulator-name = "VDDD_WIDE_1P1_V";
+				regulator-min-microvolt = <920000>;
+				regulator-max-microvolt = <1104000>;
+				
+				regulator-min-microamp = <1300000>;regulator-max-microamp = <1800000>;
+			};
+
+			reg_dio8018_ldo2: dio8018-ldo2 {
+				regulator-name = "VDDD_FRONT_1P05";
+				regulator-min-microvolt = <1056000>;
+				regulator-max-microvolt = <1056000>;
+				
+				regulator-min-microamp = <1300000>;regulator-max-microamp = <1800000>;
+			};
+	
+			reg_dio8018_ldo3: dio8018-ldo3 {
+				regulator-name = "VDDA_COMMON_2P8_V";
+				regulator-min-microvolt = <2700000>;
+				regulator-max-microvolt = <2900000>;
+				
+				regulator-min-microamp = <450000>;regulator-max-microamp = <650000>;
+			};
+
+			reg_dio8018_ldo4: dio8018-ldo4 {
+				regulator-name = "VDDA_WIDE_2P8_V";
+				regulator-min-microvolt = <2204000>;
+				regulator-max-microvolt = <2804000>;
+				
+				regulator-min-microamp = <450000>;regulator-max-microamp = <650000>;
+			};
+
+			reg_dio8018_ldo5: dio8018-ldo5 {
+				regulator-name = "VDDAF_WIDE_3P3";
+				regulator-min-microvolt = <3300000>;
+				regulator-max-microvolt = <3300000>;
+				
+				regulator-min-microamp = <650000>;regulator-max-microamp = <950000>;
+
+			};
+
+			reg_dio8018_ldo6: dio8018-ldo6 {
+				regulator-name = "VDDA_WIDE_1P8";
+				regulator-min-microvolt = <1804000>;
+				regulator-max-microvolt = <1804000>;
+				
+				regulator-min-microamp = <450000>;regulator-max-microamp = <650000>;
+			};
+
+			reg_dio8018_ldo7: dio8018-ldo7 {
+				regulator-name = "VDDOIS_WIDE_3P3";
+				regulator-min-microvolt = <3300000>;
+				regulator-max-microvolt = <3300000>;
+				
+				regulator-min-microamp = <650000>;regulator-max-microamp = <950000>;
+			};
+		};
+	};
+};

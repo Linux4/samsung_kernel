@@ -1,0 +1,8 @@
+#define of_irq_to_resource(node, i, res) kunit_of_irq_to_resource(node, i, res)
+#define devm_ioremap_resource(def, res)		((void *)0)
+#define platform_get_resource(DEV, OFFSET, OFFSET2)	kunit_platform_get_resource(OFFSET, OFFSET2)
+#define devm_kfree(DEV, PTR)			((void *)0)
+#define devm_request_irq(args...)		((void *)1)
+#define devm_free_irq(args...)			((void *)0)
+#define writel(args...)				((void *)0)
+#define readl(args...)				(0)

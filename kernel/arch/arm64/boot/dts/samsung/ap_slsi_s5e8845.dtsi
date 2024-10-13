@@ -1,0 +1,3 @@
+#include <dt-bindings/clock/s5e8845.h>
+#include <dt-bindings/interrupt-controller/s5e8845.h>
+#include "../../exynos/board/erd/erd8845-pmic.dtsi"

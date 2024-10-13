@@ -1,0 +1,12 @@
+&smd{
+	sec_cf_thermistor: sec_thermistor@3 {
+		compatible = "samsung,sec-thermistor";
+		status = "okay";
+		thermistor_name = "sec-cf-thermistor";
+		id = <3>;
+
+		io-channels = SEC_ADC(s2mpu15_gpadc,4);
+		io-channel-names = "adc-cf-temp";
+		io-channel-ranges;
+	};
+};

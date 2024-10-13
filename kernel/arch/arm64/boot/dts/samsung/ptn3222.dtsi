@@ -1,0 +1,55 @@
+/*
+ * Copyright (c) 2023 Samsung Electronics Co., Ltd.
+ *		http://www.samsung.com
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+&hsi2c_29 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+	status = "okay";
+	ptn3222-repeater@4F {
+		compatible = "ptn3222-repeater";
+		reg = <0x4F>;
+		status = "okay";
+		repeater_tune_param {
+			repeater_tune_cnt = /bits/ 8 <0x5>;
+			repeater_tune1 {
+				tune_name = "usb2_rx_control";
+				tune_value = /bits/ 8 <0x06 0x10>;
+			};
+			repeater_tune2 {
+				tune_name = "usb2_tx_control1";
+				tune_value = /bits/ 8 <0x07 0x22>;
+			};
+			repeater_tune3 {
+				tune_name = "usb2_tx_control2";
+				tune_value = /bits/ 8 <0x08 0x64>;
+			};
+			repeater_tune4 {
+				tune_name = "usb2_termination";
+				tune_value = /bits/ 8 <0x09 0x04>;
+			};
+			repeater_tune5 {
+				tune_name = "usb2_disconnect_threshold";
+				tune_value = /bits/ 8 <0x0a 0x00>;
+			};
+			repeater_tune6 {
+				tune_name = "squelch_delay_control";
+				tune_value = /bits/ 8 <0x17 0x5d>;
+			};
+			repeater_tune7 {
+				tune_name = "RSV";
+				tune_value = /bits/ 8 <0xff 0xff>;
+			};
+			repeater_tune8 {
+				tune_name = "RSV";
+				tune_value = /bits/ 8 <0xff 0xff>;
+			};
+		};
+	};
+};
+

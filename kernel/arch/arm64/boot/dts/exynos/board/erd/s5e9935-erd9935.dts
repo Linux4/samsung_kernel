@@ -1,0 +1,50 @@
+/*
+ * SAMSUNG S5E9935 board device tree source
+ *
+ * Copyright (c) 2022 Samsung Electronics Co., Ltd.
+ *		http://www.samsung.com
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+/dts-v1/;
+/plugin/;
+
+#include "s5e9935-erd9935_common.dtsi"
+#include "panel/samsung-emulation-video-panel.dtsi"
+#include "panel/samsung-s6e3had-1440-3200-command-panel.dtsi"
+
+#define BOARD_ID	0x0
+#define BOARD_REV	0x0
+
+/ {
+	compatible = "samsung,s5e9935", "samsung,ERD9935";
+	board_id = <BOARD_ID>;
+	board_rev = <BOARD_REV>;
+
+	fragment@model {
+		target-path = "/";
+		__overlay__ {
+			#address-cells = <2>;
+			#size-cells = <1>;
+
+			model = "Samsung ERD9935 board based on S5E9935";
+		}; /* end of __overlay__ */
+	}; /* end of fragment */
+}; /* end of root */
+
+&serial_0 {
+	status = "okay";
+};
+
+&drmdsim_0 {
+	drmpanel {
+		default-panel = "s6e3had_1440_3200_cmd";
+	};
+};
+
+&scsc_wifibt{
+	        board_rev = <BOARD_REV>;
+};

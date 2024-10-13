@@ -1,0 +1,12 @@
+#
+# please don't remove new line on this file
+#
+
+# SensorHub
+CONFIG_SHUB_DEBUG=y
+# Power Management
+CONFIG_PINCTRL_SEC_GPIO_DVS=m
+
+# Displayport test
+CONFIG_SEC_DISPLAYPORT_SELFTEST=y
+CONFIG_SEC_DISPLAYPORT_DBG=y

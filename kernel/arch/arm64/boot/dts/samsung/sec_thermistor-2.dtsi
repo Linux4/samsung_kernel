@@ -1,0 +1,49 @@
+&smd{
+	sec_wf_thermistor: sec_thermistor@2 {
+		compatible = "samsung,sec-thermistor";
+		status = "okay";
+		thermistor_name = "sec-wf-thermistor";
+		id = <2>;
+
+		io-channels = SEC_ADC(s2mpu15_gpadc,6);
+		io-channel-names = "adc-wf-temp";
+		io-channel-ranges;
+	};
+};
+
+/* /home/dpi/qb5_8815/workspace/P4_1716/android/kernel/kmodule/sec_pm/sec_thermistor/dts/sec_thermistor_lsi.a55x.dtsi */
+&sec_ap_thermistor {
+	adc_array = <269 319 374 443 519 613 727 854 995 1156
+		1334 1532 1748 1980 2220 2471 2711 2933 3140 3320
+		3472 3605 3715>;
+	temp_array = <900 850 800 750 700 650 600 550 500 450
+		400 350 300 250 200 150 100 50 0 (-50)
+		(-100) (-150) (-200)>;
+};
+
+&sec_pa_thermistor {
+	adc_array = <371 482 617 765 945 1152 1374 1614 1863 2106
+		2338 2554 2752 2930 3090 3233 3359 3474 3569 3644
+		3714 3767 3815>;
+	temp_array = <(-200) (-150) (-100) (-50) 0 50 100 150 200 250
+		300 350 400 450 500 550 600 650 700 750
+		800 850 900>;
+};
+
+&sec_wf_thermistor {
+	adc_array = <274 324 379 448 525 619 734 860 1002 1163
+		1342 1540 1756 1988 2230 2479 2718 2940 3147 3327
+		3475 3608 3718>;
+	temp_array = <900 850 800 750 700 650 600 550 500 450
+		400 350 300 250 200 150 100 50 0 (-50)
+		(-100) (-150) (-200)>;
+};
+
+&sec_cf_thermistor {
+	adc_array = <272 323 380 448 526 620 735 861 1003 1165
+		1343 1541 1758 1990 2231 2479 2719 2941 3147 3326
+		3479 3610 3719>;
+	temp_array = <900 850 800 750 700 650 600 550 500 450
+		400 350 300 250 200 150 100 50 0 (-50)
+		(-100) (-150) (-200)>;
+};

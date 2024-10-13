@@ -1,0 +1,12 @@
+
+# printk and dmesg options
+CONFIG_PRINTK_PROCESS=y
+
+# Watchdog Device Drivers
+CONFIG_S3C2410_BUILTIN_WATCHDOG=y
+
+#
+# please don't remove new line on this file
+#
+
+

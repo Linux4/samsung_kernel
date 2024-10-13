@@ -1,0 +1,275 @@
+/*
+ * Samsung Exynos SoC series Panel driver
+ *
+ * Copyright (c) 2020 Samsung Electronics Co., Ltd
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+#include <dt-bindings/display/panel-display.h>
+#include <dt-bindings/display/exynos-display.h>
+#include "../display_s6e3fc5_a55x_adaptive_mipi.dtsi"
+
+&dsim_modes {
+	1080x2340@120hs {
+		exynos,pmsk = <
+			0x05 0x90 0x01 0x4555 /* p m s k */
+			0x00 0x00 0x0 0x0
+			0x0 0x0 0x0 0x0
+			0x0 0x0
+			>;
+		exynos,hs-clk = <1108>;
+		exynos,esc-clk = <20>;
+		exynos,cmd_underrun_cnt = <2188>;
+	};
+	1080x2340@60phs {
+		exynos,pmsk = <
+			0x05 0x90 0x01 0x4555 /* p m s k */
+			0x00 0x00 0x0 0x0
+			0x0 0x0 0x0 0x0
+			0x0 0x0
+			>;
+		exynos,hs-clk = <1108>;
+		exynos,esc-clk = <20>;
+		exynos,cmd_underrun_cnt = <2188>;
+	};
+	1080x2340@60hs {
+		exynos,pmsk = <
+			0x05 0x90 0x01 0x4555 /* p m s k */
+			0x00 0x00 0x0 0x0
+			0x0 0x0 0x0 0x0
+			0x0 0x0
+			>;
+		exynos,hs-clk = <1108>;
+		exynos,esc-clk = <20>;
+		exynos,cmd_underrun_cnt = <7902>;
+	};
+	1080x2340@30ns {
+		exynos,pmsk = <
+			0x05 0x90 0x01 0x4555 /* p m s k */
+			0x00 0x00 0x0 0x0
+			0x0 0x0 0x0 0x0
+			0x0 0x0
+			>;
+		exynos,hs-clk = <1108>;
+		exynos,esc-clk = <20>;
+		exynos,cmd_underrun_cnt = <19330>;
+	};
+};
+
+&drmdsim_0 {
+	hs_pll_timing = <&dsim_hs_pll_timing>;
+};
+
+/ {
+	fragment@panel_display_mode {
+		target-path = "/";
+		__overlay__ {
+			a55x_fc5_panel_display_modes:
+			a55x_fc5_panel_display_modes {
+				native-mode = <&a55x_panel_display_mode_1080x2340_120hs>;
+				exposed-mode = <
+					&a55x_panel_display_mode_1080x2340_120hs
+					&a55x_panel_display_mode_1080x2340_60phs
+					&a55x_panel_display_mode_1080x2340_60hs
+					&a55x_panel_display_mode_1080x2340_30ns
+				>;
+
+				/* fhd */
+				a55x_panel_display_mode_1080x2340_120hs:
+				a55x_panel_display_mode_1080x2340_120hs {
+					id = PANEL_DISPLAY_MODE_1080x2340_120HS;
+					width = <1080>;
+					height = <2340>;
+					/* timing parameters */
+					refresh_rate = <120>;			/* logical refresh rate */
+					refresh_mode = <REFRESH_MODE_HS>;
+					panel_refresh_rate = <120>;		/* panel internal refresh rate */
+					panel_refresh_mode = <PANEL_REFRESH_MODE_HS>;
+					panel_te_st = <0>;				/* te rising */
+					panel_te_ed = <0>;				/* te falling */
+					panel_te_sw_skip_count = <0>;	/* s/w te modulation */
+					panel_te_hw_skip_count = <0>;	/* h/w te modulation */
+					panel_h_porch = <0 0 0>;
+					panel_v_porch = <16 0 0>;	/* panel vbp:12, vfp:4, but for ap vblank set vbp:12+4, vfp:0 */
+					/* dsc parameters */
+					dsc_en = <1>;			/* 0:Disable, 1:Enable */
+					dsc_cnt = <1>;			/* used DSC count */
+					dsc_slice_num = <2>;	/* count of dsc slice */
+					dsc_slice_w = <540>;	/* width of dsc slice */
+					dsc_slice_h = <30>;	/* height of dsc slice */
+					/* dsi parameters */
+					cmd_lp_ref = <2107>;
+				};
+
+				a55x_panel_display_mode_1080x2340_60phs:
+				a55x_panel_display_mode_1080x2340_60phs {
+					id = PANEL_DISPLAY_MODE_1080x2340_60HS_120HS_TE_SW_SKIP_1;
+					width = <1080>;
+					height = <2340>;
+					/* timing parameters */
+					refresh_rate = <60>;			/* logical refresh rate */
+					refresh_mode = <REFRESH_MODE_PASSIVE_HS>;
+					panel_refresh_rate = <120>;		/* panel internal refresh rate */
+					panel_refresh_mode = <PANEL_REFRESH_MODE_HS>;
+					panel_te_st = <0>;				/* te rising */
+					panel_te_ed = <0>;				/* te falling */
+					panel_te_sw_skip_count = <0>;	/* s/w te modulation */
+					panel_te_hw_skip_count = <1>;	/* h/w te modulation */
+					panel_h_porch = <0 0 0>;
+					panel_v_porch = <16 0 0>;	/* panel vbp:12, vfp:4, but for ap vblank set vbp:12+4, vfp:0 */
+					/* dsc parameters */
+					dsc_en = <1>;			/* 0:Disable, 1:Enable */
+					dsc_cnt = <1>;			/* used DSC count */
+					dsc_slice_num = <2>;	/* count of dsc slice */
+					dsc_slice_w = <540>;	/* width of dsc slice */
+					dsc_slice_h = <30>;	/* height of dsc slice */
+					/* dsi parameters */
+					cmd_lp_ref = <2107>;
+				};
+
+				a55x_panel_display_mode_1080x2340_60hs:
+				a55x_panel_display_mode_1080x2340_60hs {
+					id = PANEL_DISPLAY_MODE_1080x2340_60HS;
+					width = <1080>;
+					height = <2340>;
+					/* timing parameters */
+					refresh_rate = <60>;			/* logical refresh rate */
+					refresh_mode = <REFRESH_MODE_HS>;
+					panel_refresh_rate = <60>;		/* panel internal refresh rate */
+					panel_refresh_mode = <PANEL_REFRESH_MODE_HS>;
+					panel_te_st = <0>;				/* te rising */
+					panel_te_ed = <0>;				/* te falling */
+					panel_te_sw_skip_count = <0>;	/* s/w te modulation */
+					panel_te_hw_skip_count = <0>;	/* h/w te modulation */
+					panel_h_porch = <0 0 0>;
+					panel_v_porch = <2432 0 0>;	/* panel vbp:12, vfp:2420, but for ap vblank set vbp:12+2420, vfp:0 */
+					/* dsc parameters */
+					dsc_en = <1>;			/* 0:Disable, 1:Enable */
+					dsc_cnt = <1>;			/* used DSC count */
+					dsc_slice_num = <2>;	/* count of dsc slice */
+					dsc_slice_w = <540>;	/* width of dsc slice */
+					dsc_slice_h = <30>;	/* height of dsc slice */
+					/* dsi parameters */
+					cmd_lp_ref = <7991>;
+				};
+
+				a55x_panel_display_mode_1080x2340_30ns:
+				a55x_panel_display_mode_1080x2340_30ns {
+					id = PANEL_DISPLAY_MODE_1080x2340_30NS;
+					width = <1080>;
+					height = <2340>;
+					/* timing parameters */
+					refresh_rate = <30>;			/* logical refresh rate */
+					refresh_mode = <REFRESH_MODE_NS>;
+					panel_refresh_rate = <30>;		/* panel internal refresh rate */
+					panel_refresh_mode = <PANEL_REFRESH_MODE_NS>;
+					panel_te_st = <0>;				/* te rising */
+					panel_te_ed = <0>;				/* te falling */
+					panel_te_sw_skip_count = <0>;	/* s/w te modulation */
+					panel_te_hw_skip_count = <0>;	/* h/w te modulation */
+					panel_h_porch = <0 0 0>;
+					panel_v_porch = <16 0 0>;	/* panel vbp:12, vfp:4, but for ap vblank set vbp:12+4, vfp:0 */
+					/* dsc parameters */
+					dsc_en = <1>;			/* 0:Disable, 1:Enable */
+					dsc_cnt = <1>;			/* used DSC count */
+					dsc_slice_num = <2>;	/* count of dsc slice */
+					dsc_slice_w = <540>;	/* width of dsc slice */
+					dsc_slice_h = <30>;	/* height of dsc slice */
+					/* dsi parameters */
+					cmd_lp_ref = <19503>;
+					doze_mode;
+					panel_lp_mode;
+				};
+			};
+		};
+	};
+};
+
+
+/ {
+	fragment@panel_drv {
+		target-path = "/";
+		__overlay__ {
+			panel_drv_0: panel_drv_0 {
+				status = "okay";
+				compatible = "samsung,panel-drv";
+				panel,id = <0>;
+
+				s6e3fc5_a55x_power_ctrl:
+				s6e3fc5_a55x_power_ctrl {
+					actions {
+						fc5_a55x_vci_on: vci-on {
+							type = <PCTRL_REGULATOR_ENABLE>;
+							reg = <&ddi_vci>;
+						};
+						fc5_a55x_vdd3_on: vdd3-on {
+							type = <PCTRL_REGULATOR_ENABLE>;
+							reg = <&ddi_vdd3>;
+						};
+						fc5_a55x_vci_off: vci-off {
+							type = <PCTRL_REGULATOR_DISABLE>;
+							reg = <&ddi_vci>;
+						};
+						fc5_a55x_vdd3_off: vdd3-off {
+							type = <PCTRL_REGULATOR_DISABLE>;
+							reg = <&ddi_vdd3>;
+						};
+						fc5_a55x_delay_1ms: delay-1ms {
+							type = <PCTRL_DELAY_MSLEEP>;
+							value = <1>;
+						};
+						fc5_a55x_delay_11ms: delay-11ms {
+							type = <PCTRL_DELAY_MSLEEP>;
+							value = <11>;
+						};
+						fc5_a55x_reset_high: reset-high {
+							type = <PCTRL_GPIO_ENABLE>;
+							gpio = <&disp_reset>;
+						};
+						fc5_a55x_reset_low: reset-low {
+							type = <PCTRL_GPIO_DISABLE>;
+							gpio = <&disp_reset>;
+						};
+						fc5_a55x_vci_set_3p0: vci-set-3p0 {
+							type = <PCTRL_REGULATOR_SET_VOLTAGE>;
+							reg = <&ddi_vci>;
+							value = <3000000>;
+						};
+					};
+					sequences {
+						panel_boot_on = <&fc5_a55x_vci_set_3p0 &fc5_a55x_vci_on &fc5_a55x_vdd3_on>;
+						panel_power_on = <&fc5_a55x_vci_set_3p0 &fc5_a55x_vci_on &fc5_a55x_vdd3_on &fc5_a55x_delay_11ms &fc5_a55x_reset_high &fc5_a55x_delay_11ms>;
+						panel_power_off = <&fc5_a55x_reset_low &fc5_a55x_delay_1ms &fc5_a55x_vci_off &fc5_a55x_delay_11ms &fc5_a55x_vdd3_off>;
+					};
+				};
+
+				s6e3fc5_55x_ap:s6e3fc5_55x_ap {
+					/* S.LSI */
+					SLSI,size = <71 153>;       /* 70.524 x 152.802 */
+					SLSI,hdr_formats = <(HDR_FORMAT_HDR10 | HDR_FORMAT_HLG | HDR_FORMAT_HDR10P)>;
+					SLSI,hdr_max_luma = <4500000>;	/* 450 */
+					SLSI,hdr_max_avg_luma = <1200000>;	/* 120 */
+					SLSI,hdr_min_luma = <5>;		/* 0.0005 */
+				};
+
+				panels {
+					/* find s6e3fc5_a55x panel header */
+					s6e3fc5_a55x: s6e3fc5_a55x {
+						ap-vendor-setting = <&s6e3fc5_55x_ap>;
+						display-mode = <&a55x_fc5_panel_display_modes>;
+						power-ctrl = <&s6e3fc5_a55x_power_ctrl>;
+						dqe-suffix = "s6e3fc5_a55x";
+						sdp-adaptive-mipi = <&s6e3fc5_a55x_sdp_adaptive_mipi_info>;
+						id-mask = <
+							PANEL_ID(0x000000) PANEL_MASK(0x0000F0)
+						>;
+					};
+				};
+			};
+		};
+	};
+};
+

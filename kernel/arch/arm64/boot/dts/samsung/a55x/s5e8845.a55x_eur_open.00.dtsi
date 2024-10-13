@@ -1,0 +1,116 @@
+/*
+ * SAMSUNG S5E8845 board device tree source
+ *
+ * Copyright (c) 2023 Samsung Electronics Co., Ltd.
+ *		http://www.samsung.com
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+#include "s5e8845-a55x_common.dtsi"
+//#include "panel/samsung-emulation-video-panel.dtsi"
+//#include "../../exynos/board/panel/samsung-s6e3had-1080-2400-command-panel.dtsi"
+#include "camera/s5e8845-a55x-camera_00.dtsi"
+
+/ {
+	compatible = "samsung,A55X EUR OPEN", "samsung,S5E8845";
+
+	fragment@model {
+		target-path = "/";
+		__overlay__ {
+			#address-cells = <2>;
+			#size-cells = <1>;
+
+			model = "Samsung A55X EUR OPEN board based on S5E8845";
+
+			sound {
+				uaif1 {
+					format = "i2s";
+					cpu {
+						sound-dai = <&abox_uaif_1>;
+					};
+					codec {
+						sound-dai = <&tfa98xx_bottom 0 &tfa98xx_top 0>;
+					};
+				};
+			};
+		}; /* end of __overlay__ */
+	}; /* end of fragment */
+}; /* end of root */
+
+&serial_0 {
+	status = "okay";
+};
+
+&drmdsim_0 {
+        drmpanel {
+                default-panel = "s6e3had_1080_2400_cmd";
+        };
+};
+
+&pinctrl_1 {
+	rcv_amp_en;
+	spk_amp_en;
+
+	amp_en: amp-en {
+		samsung,pins ="gpm8-0";
+		samsung,pin-function = <1>;
+		samsung,pin-val = <1>;
+		samsung,pin-pud = <0>;
+		samsung,pin-con-pdn = <3>;
+		samsung,pin-pud-pdn = <0>;
+	};
+	rcv_amp_int: rcv-amp-int {
+		samsung,pins ="gpm5-0";
+		samsung,pin-function = <0xf>;
+		samsung,pin-pud = <0>;
+		samsung,pin-pud-pdn = <0>;
+	};
+	spk-amp-int {
+		samsung,pins ="gpm9-0";
+		samsung,pin-function = <0xf>;
+		samsung,pin-pud = <0>;
+		samsung,pin-pud-pdn = <0>;
+	};
+};
+
+&hsi2c_16 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+	status = "okay";
+	clock-frequency = <400000>;
+
+	tas25xx@48 {
+		status = "disabled";
+	};
+
+	tfa98xx_bottom: tfa98xx@34 {
+		#sound-dai-cells = <1>;
+		compatible = "tfa,tfa98xx";
+		reg = <0x34>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&amp_en &spk_amp_int>;
+		reset-gpio = <&gpm8 0 0>; /* on primary device */
+		irq-gpio = <&gpm9 0 0>;
+		dummy-cal = <5800>;
+		inchannel = <1>; /* right */
+		status = "okay";
+	};
+
+	tfa98xx_top: tfa98xx@35 {
+		#sound-dai-cells = <1>;
+		compatible = "tfa,tfa98xx";
+		reg = <0x35>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&rcv_amp_int>;
+		irq-gpio = <&gpm5 0 0>;
+		dummy-cal = <5900>;
+		inchannel = <0>; /* left */
+		status = "okay";
+	};
+};
+&abox {
+		samsung,conf-file-name = "abox_solution_rev00.conf", "abox_system.conf";
+};

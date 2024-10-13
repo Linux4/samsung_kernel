@@ -1,0 +1,69 @@
+// SPDX-License-Identifier: GPL-2.0
+/*
+ * Samsung GNSS interface device tree source
+ *
+ * Copyright (c) 2023 Samsung Electronics Co., Ltd.
+ *             http://www.samsung.com
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+/ {
+	fragment@modemif {
+		target-path = "/";
+		__overlay__ {
+			#address-cells = <2>;
+			#size-cells = <1>;
+
+			gnssif {
+				status = "okay";
+				compatible = "samsung,exynos-gnss";
+
+				device,name = "KEPLER";
+				device_node_name = "gnss_ipc";
+				pinctrl-names = "default";
+				pinctrl-0 = <&gnss_spi_irq>,
+					<&gnss_spi_int>;
+
+				gpio_gnss2ap_spi = <&gpa0 4 0x1>;
+				gpio_ap2gnss_spi = <&gpa0 7 0x1>;
+			}; /* end of gnssif */
+		}; /* end of __overlay__ */
+	}; /* end of fragment */
+}; /* end of root */
+
+&spi_7 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+	status = "okay";
+	swap-mode = <1>;
+	pinctrl-names = "default";
+	pinctrl-0 = <&spi7_bus &spi7_cs_func>;
+
+	gnss@0 {
+		compatible = "samsung,gnss-spi";
+		reg = <0>;
+		spi-max-frequency = <3125000>;
+		controller-data {
+			samsung,spi-feedback-delay = <0>;
+		};
+	};
+};
+
+&pinctrl_0 {
+	gnss_spi_int: gnss_spi_int {
+		samsung,pins = "gpa0-7";
+		samsung,pin-function = <0x1>;
+		samsung,pin-pud = <0>;
+		samsung,pin-drv = <0>;
+	};
+
+	gnss_spi_irq: gnss_spi_irq {
+		samsung,pins = "gpa0-4";
+		samsung,pin-function = <0xf>;
+		samsung,pin-pud = <1>;
+		samsung,pin-drv = <0>;
+	};
+};

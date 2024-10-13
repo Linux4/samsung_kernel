@@ -1,0 +1,17 @@
+# Power Management
+CONFIG_PINCTRL_SEC_GPIO_DVS=m
+CONFIG_SEC_PM_REGULATOR=m
+
+# printk and dmesg options
+CONFIG_PRINTK_PROCESS=y
+
+# Watchdog Device Drivers
+CONFIG_S3C2410_BUILTIN_WATCHDOG=y
+
+# SensorHub
+CONFIG_SHUB_DEBUG=y
+
+#
+# please don't remove new line on this file
+#
+

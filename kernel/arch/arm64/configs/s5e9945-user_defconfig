@@ -1,0 +1,9 @@
+# printk and dmesg options
+CONFIG_PRINTK_PROCESS=y
+
+#
+# please don't remove new line on this file
+#
+
+
+

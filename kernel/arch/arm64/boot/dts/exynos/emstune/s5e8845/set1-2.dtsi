@@ -1,0 +1,16 @@
+/ {
+	/* power-scenario mode - app boost */
+	set1_2: set@0102 {
+		tex {
+			top-app = <110>;
+			foreground = <110>;
+		};
+
+		ecs_dynamic { };
+
+		cgroup_boost {
+			top-app = <1>;
+			foreground = <1>;
+		};
+	};
+};

@@ -1,0 +1,44 @@
+/ {
+	/* camera mode - touch boost */
+	set5_1: set@501 {
+		/* Boosting margin applied to frequency selection */
+		freqboost {		/* LIT BIG */
+			top-app		= < 20  20>;
+			foreground	= < 10  10>;
+			camera-daemon	= < 20  20>;
+		};
+
+		frt {			/* LIT BIG */
+			active-ratio	= < 25   5>;
+		};
+
+		ecs { };
+
+		ecs_dynamic { };
+
+		tex {
+			top-app = <110>;
+			foreground = <110>;
+		};
+
+		support_uclamp {
+			enabled = <1>;
+		};
+
+		fclamp {
+			min-freq		= <533000 533000>;
+			min-target-period	= <     4      4>;
+			min-target-ratio	= <    20     20>;
+
+			max-freq		= <2050000 2750000>;
+			max-target-period	= <      4       4>;
+			max-target-ratio	= <     80      80>;
+
+			monitor-group {
+				top-app		= <1>;
+				foreground	= <1>;
+				camera-daemon	= <1>;
+			};
+		};
+	};
+};

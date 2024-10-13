@@ -1,0 +1,170 @@
+// SPDX-License-Identifier: GPL-2.0-only
+
+#include <dt-bindings/soc/samsung/exynos/debug-snapshot-def.h>
+
+/dts-v1/;
+/plugin/;
+
+&dpm {
+        #address-cells = <2>;
+        #size-cells = <1>;
+	version = <100>;
+
+	security {
+		cp_mem_not_clear	= <0>;
+		dbg_mem_enable		= <0>;
+		seh_enable		= <0>;
+		pm_test_enable		= <0>;
+		seclog_enable		= <0>;
+		sdm_enable		= <0>;
+	};
+
+	feature {
+	/* dump-mode support */
+		dump-mode {
+			enabled = <FULL_DUMP>;
+			file-support = <0>;
+			/* autometically entering fastboot mode in case of system crash */
+			fastboot-support = <1>;
+		};
+
+		event {
+			method = DSS_LOG_TASK,
+				 DSS_LOG_WORK,
+				 DSS_LOG_CPUIDLE,
+				 DSS_LOG_SUSPEND,
+				 DSS_LOG_IRQ,
+				 DSS_LOG_HRTIMER,
+				 DSS_LOG_REG,
+				 DSS_LOG_CLK,
+				 DSS_LOG_PMU,
+				 DSS_LOG_FREQ,
+				 DSS_LOG_DM,
+				 DSS_LOG_REGULATOR,
+				 DSS_LOG_THERMAL,
+				 DSS_LOG_ACPM,
+				 DSS_LOG_PRINTK;
+		};
+	};
+
+	policy {
+		exception {
+			pre_log		= <1>;
+			el1_da		= <GO_DEFAULT_ID>;
+			el1_ia 		= <GO_DEFAULT_ID>;
+			el1_undef 	= <GO_DEFAULT_ID>;
+			el1_sp_pc 	= <GO_DEFAULT_ID>;
+			el1_inv 	= <GO_DEFAULT_ID>;
+			el1_serror	= <GO_DEFAULT_ID>;
+		};
+
+	};
+}; /* end of dpm */
+
+&log_arrdumprst {
+	status = "no";
+};
+
+&log_first {
+	status = "no";
+};
+
+&log_kevents {
+	status = "no";
+};
+
+&log_kevents_small {
+	status = "ok";
+};
+
+&log_platform {
+	reg = <0x8 0xBD000000 0x200000>;
+};
+
+&log_s2d {
+	reg = <0 0xFCB11000 0x1000>;
+};
+
+&memlog_mem {
+	size = <0x350000>;
+};
+
+&memlogger_policy {
+	samsung,log-level = <2>;
+	samsung,file-default-status = <0>;
+	samsung,mem-constraint = <1>;
+	samsung,mem-to-file-allow = <0>;
+};
+
+&ehld_dbgc {
+	interval = <1000>;
+	warn-count = <5>;
+	judge = <0>;
+};
+
+&itmon {
+	/* S2D NOT default at User Binary */
+	err_tmout	= <GO_S2D_ID>;
+	err_prtchker	= <GO_S2D_ID>;
+	err_decerr	= <GO_S2D_ID>;
+	err_slverr	= <GO_S2D_ID>;
+	err_fatal	= <GO_DEFAULT_ID>;
+
+	customize {
+		/* Default Priority 	= 0,
+		   CPU Priority 	= 1,
+		   Others IP Priority 	= > 2 */
+		node0 {
+			node 			= "CLUSTER0_P";	/* CPU */
+			prio			= <1>;		/* 0 MIN ~ 7 MAX */
+			decerr_job 		= <GO_PANIC_ID>;
+			slverr_job 		= <GO_S2D_ID>;
+			tmout_job 		= <GO_S2D_ID>;
+		};
+		node1 {
+			node			= "MODEM_D0";	/* CP */
+			prio			= <2>;
+			irq_mask		= <1>;		/* Skip */
+			decerr_job		= <GO_DEFAULT_ID>;
+			slverr_job 		= <GO_S2D_ID>;
+			tmout_job 		= <GO_S2D_ID>;
+		};
+		node2 {
+			node			= "MODEM_D1";	/* CP */
+			prio			= <2>;
+			decerr_job		= <GO_DEFAULT_ID>;
+			slverr_job 		= <GO_DEFAULT_ID>;
+			tmout_job 		= <GO_S2D_ID>;
+		};
+		node3 {
+			node			= "MODEM_D2";	/* CP */
+			prio			= <2>;
+			irq_mask		= <1>;		/* Skip */
+			decerr_job		= <GO_DEFAULT_ID>;
+			slverr_job 		= <GO_S2D_ID>;
+			tmout_job 		= <GO_S2D_ID>;
+		};
+		node4 {
+			node 			= "HSI0_P";
+			prio 			= <2>;
+			decerr_job 		= <GO_S2D_ID>;
+			slverr_job 		= <GO_S2D_ID>;
+			tmout_job 		= <GO_S2D_ID>;
+		};
+		node5 {
+			node 			= "G3D_P";
+			prio 			= <2>;
+			decerr_job 		= <GO_S2D_ID>;
+			slverr_job 		= <GO_S2D_ID>;
+			tmout_job 		= <GO_S2D_ID>;
+		};
+		node6 {
+			node 			= "HSI1_P";
+			prio 			= <2>;
+			decerr_job 		= <GO_S2D_ID>;
+			slverr_job 		= <GO_S2D_ID>;
+			tmout_job 		= <GO_S2D_ID>;
+			tmout_val		= <0xFFFFFF>;
+		};
+	};
+};

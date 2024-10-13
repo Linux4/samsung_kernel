@@ -1,0 +1,24 @@
+KERNEL_DIR="kernel"
+. ${ROOT_DIR}/${KERNEL_DIR}/build.config.gki_kasan
+. ${ROOT_DIR}/projects/s5e8845/build.config.s5e8845.common
+
+VARIANT_CONFIG=""
+KASAN_CONFIG=${ROOT_DIR}/${KERNEL_DIR}/arch/arm64/configs/s5e8845_kasan.cfg
+VARIANT_DEFCONFIG=${ROOT_DIR}/${KERNEL_DIR}/arch/arm64/configs/${TARGET_SOC}-eng_defconfig
+PRE_DEFCONFIG_CMDS="KCONFIG_CONFIG=${ROOT_DIR}/${KERNEL_DIR}/arch/arm64/configs/${DEFCONFIG} ${ROOT_DIR}/${KERNEL_DIR}/scripts/kconfig/merge_config.sh -m -r ${ROOT_DIR}/${KERNEL_DIR}/arch/arm64/configs/gki_defconfig ${TARGET_BASE_CONFIG} ${FRAGMENT_CONFIG} ${VARIANT_CONFIG} ${VARIANT_DEFCONFIG} ${KASAN_CONFIG}"
+POST_DEFCONFIG_CMDS="update_kasan_config"
+
+function update_kasan_config() {
+    ${KERNEL_DIR}/scripts/config --file ${OUT_DIR}/.config \
+         -e CONFIG_KASAN \
+         -e CONFIG_KASAN_INLINE \
+         -e CONFIG_PANIC_ON_WARN_DEFAULT_ENABLE \
+         -d CONFIG_KASAN_OUTLINE \
+         --set-val CONFIG_FRAME_WARN 0 \
+         -d CFI \
+         -d CFI_PERMISSIVE \
+         -d CFI_CLANG \
+         -d SHADOW_CALL_STACK
+    (cd ${OUT_DIR} && \
+     make ${TOOL_ARGS} O=${OUT_DIR} olddefconfig)
+}

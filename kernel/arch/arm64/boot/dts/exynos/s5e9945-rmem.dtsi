@@ -1,0 +1,202 @@
+/*
+ * SAMSUNG EXYNOS device tree source for reserved-memory
+ *
+ * Copyright (c) 2023 Samsung Electronics Co., Ltd.
+ *             http://www.samsung.com
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+#include <dt-bindings/soc/samsung/s5e9945-seclog.h>
+
+/ {
+	reserved_memory: reserved-memory {
+		#address-cells = <2>;
+		#size-cells = <1>;
+		ranges;
+
+		abox_dbg: abox-dbg {
+			compatible = "exynos,abox_dbg";
+			size = <0x2900000>;
+			alloc-ranges = <0x0 0xc0000000 0x20000000>;
+		};
+
+		abox_slog: abox-slog {
+			compatible = "exynos,abox_slog";
+			size = <0x2800000>;
+			alloc-ranges = <0x0 0xc0000000 0x20000000>;
+		};
+
+		abox_rmem: abox-rmem {
+			compatible = "exynos,abox_rmem";
+			/* Size should be same with
+			 * CONFIG_SND_SOC_SAMSUNG_ABOX_DRAM_SIZE.
+			 */
+			reg = <0x8 0x8d800000 0x2800000>;
+		};
+
+		abox_rdma_compr: abox-rdma-compr {
+			compatible = "exynos,abox_rdma_compr_buffer";
+			size = <0x50000>;
+			alloc-ranges = <0x0 0xc0000000 0x20000000>;
+		};
+
+		dp_ado_rmem: dpado-rmem {
+			compatible = "exynos,dp_ado_rmem";
+			size = <0x100000>;
+			alloc-ranges = <0x0 0xC0000000 0x20000000>;
+		};
+
+		sgpu_rmem: sgpu_rmem {
+			compatible = "exynos,sgpu_rmem";
+			reg = <0x0 0x8ff00000 0x000e0000>;
+		};
+
+		log_backtrace: log_backtrace {
+			compatible = "log_backtrace";
+			alloc-ranges = <0x0 0x80000000 0x68000000>;
+			size = <0x2000>;
+		};
+
+		memlog_mem: memlog_region {
+			compatible = "shared-dma-pool";
+			no-map;
+			alloc-ranges = <0x0 0x80000000 0x68000000>;
+			size = <0x1000000>;
+		};
+
+		seclog_mem: seclog_mem {
+			compatible = "exynos,seclog";
+			reg = <0 SECLOG_LOG_BUF_BASE SECLOG_LOG_BUF_TOTAL_SIZE>;
+		};
+
+		debug_kinfo_reserved: debug_kinfo_reserved@fc910000 {
+			reg = <0 0xFC910000 0x00001000>;
+			no-map;
+		};
+
+		header: header {
+			compatible = "header";
+			reg = <0 0xFC900000 0x10000>;
+			no-map;
+		};
+		log_kernel: log_kernel {
+			compatible = "log_kernel";
+			reg = <0 0xFC911000 0x200000>;
+		};
+		log_s2d: log_s2d {
+			compatible = "log_s2d";
+			reg = <0 0xFCB11000 0x1E00000>;
+		};
+		log_arrdumprst: log_arrdumprst {
+			compatible = "log_arrdumprst";
+			reg = <0 0xFE911000 0x1520000>;
+		};
+
+		log_platform: log_platform {
+			compatible = "log_platform";
+			reg = <0x8 0xBD000000 0x400000>;
+		};
+		log_first: log_first {
+			compatible = "log_first";
+			reg = <0x8 0xBD400000 0x200000>;
+		};
+		log_kevents: log_kevents {
+			compatible = "log_kevents";
+			reg = <0x8 0xBD600000 0x510000>;
+		};
+		log_kevents_small: log_kevents_small {
+			compatible = "log_kevents";
+			reg = <0x8 0xBD600000 0xC9000>;
+			status = "no";
+		};
+
+		log_itmon: log_itmon {
+			reg = <0 0xFFFE0000 0x20000>;
+			no-map;
+		};
+
+		log_itmon_history: log_itmon_history {
+			compatible = "log_itmon_history";
+			reg = <0x8 0xBDB10000 0x1000>;
+		};
+
+		s2mpu_table: s2mpu_table {
+			compatible = "exynos,s2mpu_table";
+			reg = <0 0xC5000000 0x2C00000>;
+		};
+
+		contexthub_rmem: contexthub_rmem {
+			compatible = "samsung,exynos-contexthub";
+			size = <0x190000>;
+			alloc-ranges = <0x0 0xC0000000 0x40000000>;
+		};
+
+		ect_binary: ect_binary {
+			compatible = "exynos,ect_rmem";
+			reg = <0x0 0x90000000 0x000C4000>;
+		};
+
+		log_bcm: log_bcm {
+			compatible = "exynos,bcmdbg";
+			reg = <0 0xFBC00000 0x400000>;
+		};
+
+		log_ppc: log_ppc {
+			compatible = "exynos,ppc";
+			reg = <0 0xFC800000 0x100000>;
+		};
+
+		dnc_fw_mem: dnc-fw-mem {
+			compatible = "exynos,dnc_fw_mem";
+			reg = <0x8 0xBDC00000 0x800000>;
+		};
+
+		gnss_rmem: gnss_rmem {
+			compatible = "samsung,exynos-gnss";
+			reg = <0x8 0xAFF00000 0x00600000>;
+		};
+
+		cp_rmem: cp_rmem {
+			compatible = "exynos,modem_if";
+			reg = <0x8 0x80000000 0x0D800000>;
+			rmem_index = <0>;
+		};
+
+		cp_rmem1: cp_rmem1 {
+			compatible = "exynos,modem_if";
+			reg = <0x8 0x90000000 0x1DF00000>;
+			rmem_index = <1>;
+		};
+
+		mfc_fw_rmem: mfc_fw_rmem {
+			compatible = "shared-dma-pool";
+			size = <0x800000>;
+			alloc-ranges = <0x8 0xA0000000 0x40000000>;
+			reusable;
+		};
+
+		icpu_fw_rmem: icpu_fw_rmem {
+			compatible = "shared-dma-pool";
+			size = <0x1000000>;
+			alignment = <0x0 0x00010000>;
+			reusable;
+		};
+
+		/*wifibt_if: wifibt_if{
+			compatible = "exynos,wifibt_if";
+			size = <0x1000000>;
+		};*/
+
+		teegris_rmem: teegris_rmem {
+			compatible = "exynos,teegris_rmem";
+			reg = <0x0 0xED310000 0x2000>;
+		};
+	};
+
+	memlog_bl_base: memlog_bl_base {
+		samsung,bl-base = <0xFC900000>;
+		samsung,bl-offset = <0x290>;
+	};
+};

@@ -1,0 +1,66 @@
+#include <dt-bindings/display/exynos-display.h>
+#include <dt-bindings/display/exynos-mipi-display.h>
+
+&drmdsim_0 {
+	drmpanel {
+		samsung_emulation_video_panel: samsung_emulation_video_panel {
+			samsung,panel-name = "samsung emulation panel";
+
+			display-timings {
+				1080x2400@60 {
+					exynos,mode-type = <DRM_MODE_TYPE_DRIVER>;
+					exynos,refresh-rate = <60>;
+					exynos,hactive = <1080>;
+					exynos,hfront-porch = <20>;
+					exynos,hsync-len = <2>;
+					exynos,hback-porch = <20>;
+					exynos,vactive = <2400>;
+					exynos,vfront-porch = <20>;
+					exynos,vsync-len = <2>;
+					exynos,vback-porch = <20>;
+
+					exynos,mode-flags = <MIPI_DSI_MODE_VIDEO>;
+					exynos,bpc = <8>;
+					exynos,lp-mode = <0>;
+					exynos,dsc-en = <0>;
+
+					exynos,on-cmds = <
+						0x01 0x11 0x00
+						0x01 0x29 0x00
+						>;
+					exynos,off-cmds = <
+						0x01 0x10 0x00
+						0x01 0x28 0x00
+						>;
+				};
+				640x480@60 {
+					exynos,mode-type = <(DRM_MODE_TYPE_PREFERRED |
+							DRM_MODE_TYPE_DRIVER)>;
+					exynos,refresh-rate = <60>;
+					exynos,hactive = <640>;
+					exynos,hfront-porch = <20>;
+					exynos,hsync-len = <2>;
+					exynos,hback-porch = <20>;
+					exynos,vactive = <480>;
+					exynos,vfront-porch = <20>;
+					exynos,vsync-len = <2>;
+					exynos,vback-porch = <20>;
+
+					exynos,mode-flags = <MIPI_DSI_MODE_VIDEO>;
+					exynos,bpc = <8>;
+					exynos,lp-mode = <0>;
+					exynos,dsc-en = <0>;
+
+					exynos,on-cmds = <
+						0x01 0x11 0x00
+						0x01 0x29 0x00
+						>;
+					exynos,off-cmds = <
+						0x01 0x10 0x00
+						0x01 0x28 0x00
+						>;
+				};
+			};
+		};
+	};
+};

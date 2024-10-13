@@ -1,0 +1,98 @@
+/* SPDX-License-Identifier: GPL-2.0-only */
+/*
+ * EXYNOS M2M device tree source for M2M IP(MSCL, SMFC)
+ *
+ * Copyright (c) 2012 Samsung Electronics Co., Ltd.
+ *		http://www.samsung.com
+ */
+#include <dt-bindings/clock/s5e9945.h>
+#include <dt-bindings/interrupt-controller/s5e9945.h>
+#include <dt-bindings/soc/samsung/exynos_pm_qos.h>
+
+/ {
+	aliases {
+		smfc0 = &smfc_0;
+		smfc1 = &smfc_1;
+
+		scaler0 = &scaler_0;
+	};
+
+	smfc_0: smfc@27840000 {
+		compatible = "samsung,exynos8890-jpeg";
+		dma-coherent;
+		reg = <0x0 0x27840000 0x1000>;
+		interrupts = <0 INTREQ__M2M__JPEG0 IRQ_TYPE_LEVEL_HIGH>;
+		iommus = <&sysmmu_m2m_s0>;
+		samsung,iommu-group=<&iommu_group_mscl_smfc>;
+		core_dvfs_class = <PM_QOS_DEVICE_THROUGHPUT>;
+		smfc,int_qos_minlock = <800000>;
+		smfc,mif_qos_minlock = <1014000>;
+		smfc_bpc = <16>;
+		smfc_core_clk = <800000>;
+	};
+
+	smfc_1: smfc@27850000 {
+		compatible = "samsung,exynos8890-jpeg";
+		dma-coherent;
+		reg = <0x0 0x27850000 0x1000>;
+		interrupts = <0 INTREQ__M2M__JPEG1 IRQ_TYPE_LEVEL_HIGH>;
+		iommus = <&sysmmu_m2m_s0>;
+		samsung,iommu-group=<&iommu_group_mscl_smfc>;
+		core_dvfs_class = <PM_QOS_DEVICE_THROUGHPUT>;
+		smfc,int_qos_minlock = <800000>;
+		smfc,mif_qos_minlock = <1014000>;
+		smfc_bpc = <16>;
+		smfc_core_clk = <800000>;
+	};
+
+	scaler_0: scaler@27860000 {
+		compatible = "samsung,exynos5-scaler";
+		reg = <0x0 0x27860000 0x3000>;
+		interrupts = <0 INTREQ__M2M__M2M IRQ_TYPE_LEVEL_HIGH>;
+		clocks = <&clock GATE_M2M_QCH>;
+		clock-names = "gate";
+		itmon,master = "M2M_D";
+		itmon,dest = "M2M_P";
+		dma-coherent;
+		iommus = <&sysmmu_m2m_s0>;
+		samsung,iommu-group=<&iommu_group_mscl_smfc>;
+		samsung,tzmp;
+
+		#dma-address-cells = <1>;
+		#dma-size-cells = <1>;
+		dma-window = <0x0 0xE0000000>;
+
+		/* MIF (not used) | INT | MSCL_clock */
+		mscl_qos_table = < 0 800000 800000
+				   0 664000 664000
+				   0 533000 533000
+				   0 400000 400000
+				   0 350000 332000
+				   0 267000 267000
+				   0 200000 160000
+				   0 133000 88000 >;
+		/* bpp means, YUV420(12), YUV422(16), P010(24), RGB(32), SBWC(100) */
+		/* bpp | ppc * 100 | ppc * 100 with rotation */
+		mscl_ppc_table = <  12  479 484
+				    16  379 350
+				    24  414 399
+				    32  189 188
+				   100  468 433	>;
+		mscl_mif_ref = < 676000 >;
+		mscl_bw_ref = < 6075000 >;
+		mscl_dvfs_class = <PM_QOS_DEVICE_THROUGHPUT>;
+
+		#mscl-votf-address-cells = <1>;
+		#mscl-votf-size-cells = <1>;
+		mscl_votf_reg = < 0x27870000 0x10000 >;
+		/* <phandle to the vOTF target> <SFR_BASE_ADDR> <SFR_RANGE> <vOTF_SFR_BASE_ADDR> <vOTF_SFR_RANGE> */
+		samsung,mscl-votf_targets = < &drmdecon0 0x19900000 0x10000 0x19920000 0x10000
+					      &drmdecon0 0x19B00000 0x10000 0x19B20000 0x10000 >;
+
+		#address-cells = <2>;
+		#size-cells = <1>;
+		samsung,iommu-identity-map = <0x0 0x27870000 0x10000>,
+					     <0x0 0x19920000 0x10000>,
+					     <0x0 0x19B20000 0x10000>;
+	};
+};

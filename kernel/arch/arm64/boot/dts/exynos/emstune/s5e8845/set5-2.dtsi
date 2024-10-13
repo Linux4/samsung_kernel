@@ -1,0 +1,83 @@
+/ {
+	/* camera mode - app boost */
+	set5_2: set@502 {
+		frt {			/* LIT BIG */
+			active-ratio	= < 25   5>;
+		};
+
+		/* Ontime Migration */
+		ontime {
+			top-app		= <1>;
+			foreground	= <1>;
+			camera-daemon	= <1>;
+
+			domain0 {
+				cpus = "0-3";
+				lower-boundary = <0>;
+				upper-boundary = <21>;
+			};
+			domain1 {
+				cpus = "4-7";
+				lower-boundary = <8>;
+				upper-boundary = <66>;
+			};
+		};
+
+		ecs { };
+
+		ecs_dynamic { };
+
+		tex {
+			top-app = <110>;
+			foreground = <110>;
+		};
+
+		gsc {
+			up_threshold = <0>;
+
+			monitor-group {
+				top-app		= <1>;
+				foreground	= <1>;
+				camera-daemon	= <1>;
+			};
+		};
+
+		cpuidle_gov {
+			expired-ratio = < 50 50 >;
+		};
+
+		support_uclamp {
+			enabled = <1>;
+		};
+
+		fclamp {
+			min-freq		= <533000 533000>;
+			min-target-period	= <     4      4>;
+			min-target-ratio	= <    20     20>;
+
+			max-freq		= <2050000 2750000>;
+			max-target-period	= <      4       4>;
+			max-target-ratio	= <     80      80>;
+
+			monitor-group {
+				top-app		= <1>;
+				foreground	= <1>;
+				camera-daemon	= <1>;
+			};
+		};
+
+		cgroup_boost {
+			top-app = <1>;
+			foreground = <1>;
+			camera-daemon = <1>;
+		};
+
+		ntu {
+			foreground 		= <0>;
+			background		= <0>;
+			top-app			= <0>;
+			camera-daemon		= <0>;
+		};
+
+	};
+};

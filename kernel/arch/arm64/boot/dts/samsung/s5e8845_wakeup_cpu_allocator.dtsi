@@ -1,0 +1,23 @@
+/*
+ * SAMSUNG Device Tree Source
+ *
+ * Copyright (c) 2023 Samsung Electronics Co., Ltd.
+ *		http://www.samsung.com
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+/ {
+	fragment@sec_wakeup_cpu_allocator {
+		target-path = "/";
+		__overlay__ {
+			sec_wakeup_cpu_allocator {
+				compatible = "samsung,sec_wakeup_cpu_allocator";
+				start_cpu_num = <4>;
+				end_cpu_num = <7>;
+			};
+		};
+	};
+};

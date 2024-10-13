@@ -1,0 +1,207 @@
+# SPDX-License-Identifier: MIT
+config DRM_SGPU
+	tristate "Samsung GPU"
+	depends on DRM && MMU
+	select FW_LOADER
+	select DRM_DISPLAY_DP_HELPER
+	select DRM_DISPLAY_HELPER
+	select DRM_KMS_HELPER
+	select DRM_SCHED
+	select DRM_TTM
+	select DRM_TTM_HELPER
+	select POWER_SUPPLY
+	select HWMON
+	select BACKLIGHT_CLASS_DEVICE
+	select INTERVAL_TREE
+	select CHASH
+	select TRACE_GPU_MEM
+	help
+	  Choose this option if you have a recent SGPU.
+
+	  If M is selected, the module will be called sgpu.
+
+config DRM_SGPU_BUILTIN_FIRMWARE
+	bool "Enable use of built-in firmware"
+	depends on DRM_SGPU
+	default n
+	help
+	  Selecting this option enables linking firmware binaries into the driver.
+
+config DRM_SGPU_EMU_MODE
+	bool "Enable emulation mode"
+	depends on DRM_SGPU
+	default n
+	help
+	  Selecting this option enables emulation mode by default. Emulation
+	  mode is required for running on QEMU or hardware emulator.
+
+config DRM_SGPU_EMULATOR_WORKAROUND
+	bool "Enable emulation mode"
+	depends on DRM_SGPU
+	default n
+	help
+	  Selecting this option enables workaround for SoC emulators like
+	  Palladium and ZeBu. They emulate a lot of components of SoC but
+	  are missing some components that causes serious performance impact.
+	  The time in the emulators is also very different from the time in
+	  silicon. Select this option if you are compiling for ZeBu or
+	  Palladium.
+
+config DRM_SGPU_EXYNOS
+	bool "Enable Exynos related code"
+	depends on DRM_SGPU
+	default n
+	help
+	  This option is for SGPU in Exynos.
+
+config DRM_SGPU_DVFS
+	bool "Enable DVFS related code"
+	depends on DRM_SGPU
+	depends on PM_DEVFREQ
+	default n
+	help
+	  This option is for DVFS framework in SGPU
+
+config DRM_SGPU_AFM
+	bool "Enable GPU AFM feature"
+	depends on DRM_SGPU_DVFS
+	default n
+	help
+	  AFM is Adaptive Frequency Manager. PMIC assert AFM_WARN signal when
+	  over-current situation is detected. HTU_G3D receives this signal
+	  and makes interrupt notifying over-currency to KMD. GPU DVFS need to
+	  down the GPU frequency for ensuring GPU stability.
+	  GPU AFM driver lock the gpu's max frequency when PMIC AFM_WARN
+	  interrupt is occurred.
+
+config DRM_SGPU_WORKTIME
+	bool "Enable gpu_work_period"
+	depends on DRM_SGPU && FTRACE
+	default n
+	help
+	 From Android 14, GPU driver should provide the command
+	 "dumpsys gpu --gpuwork" to display the aggregated GPU work data
+	 returned by the power/gpu_work_period kernel tracepoint.
+
+config DRM_SGPU_VENDOR_HOOKS
+	bool "Enable VENDOR HOOKS function"
+	depends on DRM_SGPU
+	depends on ANDROID_VENDOR_HOOKS
+	default y
+	help
+	 At Android, GPU driver need to hook function that provides
+	 memory information using GPU. This option is enabled when
+	 "android_vh_show_mem" are incldued.
+
+config DRM_SGPU_FORCE_WRITECOMBINE
+	bool "Force all GPU buffers write-combining for non-coherenty GPU"
+	depends on DRM_SGPU_EXYNOS
+	default y
+	help
+	  If GPU does have memory coherent with the host CPUs, GPU drivers
+	  should make sure the GPU bufffers shared with CPU are coherent.
+	  The cost of extra SW overhead for memory coherency can be significant
+	  while the latency of an access to write-combining memory is dramatically
+	  slow. Set n if PAL is able to handle all memory coherency for cacheable
+	  buffer objects and performance impact of SW overhead for memory coherency
+	  is neglectable.
+
+config DRM_SGPU_GRAPHIC_MEMORY_RECLAIM
+	bool "Graphics Memory Reclamation"
+	depends on DRM_SGPU_EXYNOS
+	default y
+	help
+	  Choose this option to create sysfs files for reclaiming GEM buffers.
+
+config DRM_AMDGPU_GART_DEBUGFS
+	bool "Allow GART access through debugfs"
+	depends on DRM_SGPU
+	depends on DEBUG_FS
+	default n
+	help
+	  Selecting this option creates a debugfs file to inspect the mapped
+	  pages. Uses more memory for housekeeping, enable only for debugging.
+
+config DRM_AMDGPU_DUMP
+	bool "Enable AMDGPU GPU dump upon GPU hang"
+	depends on DRM_SGPU
+	default y
+	help
+	  Selecting this option enables support for persisting AMDGPU's
+	  different blocks register status upon GPU hang.
+
+config DRM_AMDGPU_GMC_DUMP
+	bool "Persist GMC block's status"
+	depends on DRM_AMDGPU_DUMP
+	default y
+	help
+	  Selecting this option enables support for persisting
+	  AMDGPU's GMC block register status upon GPU hang.
+
+config DRM_AMDGPU_GFX_DUMP
+	bool "Persist GFX block's status"
+	depends on DRM_AMDGPU_DUMP
+	default y
+	help
+	  Selecting this option enables support for persisting
+	  AMDGPU's GFX block register status upon GPU hang.
+
+config DRM_AMDGPU_COMPUTE_DUMP
+	bool "Persist COMPUTE block's status"
+	depends on DRM_AMDGPU_DUMP
+	default y
+	help
+	  Selecting this option enables support for persisting
+	  AMDGPU's COMPUTE block register status upon GPU hang.
+
+config DRM_AMDGPU_SDMA_DUMP
+	bool "Persist SDMA block's status"
+	depends on DRM_AMDGPU_DUMP
+	default y
+	help
+	  Selecting this option enables support for persisting
+	  AMDGPU's SDMA block register status upon GPU hang.
+
+choice
+	prompt "SGPU DRM dump's sink"
+	depends on DRM_AMDGPU_DUMP
+	default DRM_SGPU_DUMP_LOG
+	help
+	  Choose where to write the dump
+
+config DRM_SGPU_DUMP_LOG
+	bool "Dump to log"
+
+config DRM_SGPU_DUMP_PSTORE
+	bool "Dump to pstore"
+	depends on PSTORE
+	depends on DRM_DUMP
+
+endchoice
+
+config DRM_SGPU_BPMD
+	bool "Enable BPMD (Binary PostMortem Dump)"
+	depends on DRM_SGPU
+	default n
+	help
+	  This option is for SGPU BPMD.
+
+config DRM_SGPU_BPMD_FILE_DUMP
+	bool "Enable dumping BPMD data into a file"
+	depends on DRM_SGPU_BPMD
+	default n
+	help
+	  This option is for dumping SGPU BPMD data into a file in kernel.
+
+config DRM_SGPU_BPMD_OUTPUT_DEFAULT
+	string "Default path to BMPD's output"
+	depends on DRM_SGPU_BPMD
+	default "/tmp"
+	help
+	  Serves as a default value for the `bmpdpath` module parameter
+
+config DRM_SGPU_BPMD_MEMLOGGER_TEXT
+	bool "Enable dumping textual dump to memloger"
+	depends on EXYNOS_MEMORY_LOGGER
+	select DRM_SGPU_BPMD
+	default n

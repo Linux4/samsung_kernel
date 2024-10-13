@@ -1,0 +1,59 @@
+/ {
+	/* camera mode - default */
+	set5: set@500 {
+		/* Boosting margin applied to frequency selection */
+		freqboost {			/* LIT BIG */
+			top-app			= <  5   5>;
+		};
+
+		/* Ontime Migration */
+		ontime {
+			top-app		= <1>;
+			foreground	= <1>;
+			camera-daemon	= <1>;
+
+			domain0 {
+				cpus = "0-3";
+				lower-boundary = <0>;
+				upper-boundary = <60>;
+			};
+			domain1 {
+				cpus = "4-7";
+				lower-boundary = <30>;
+				upper-boundary = <100>;
+			};
+		};
+
+		ecs { };
+
+		ecs_dynamic {
+			dynamic-busy-ratio = <70 70>;
+			min-cpus = "0-5";
+		};
+
+		fclamp {
+			min-freq		= <533000 533000>;
+			min-target-period	= <     4      4>;
+			min-target-ratio	= <    20     20>;
+
+			max-freq		= <1536000 2016000>;
+			max-target-period	= <      4       4>;
+			max-target-ratio	= <     80      80>;
+
+			monitor-group {
+				top-app		= <1>;
+				foreground	= <1>;
+				camera-daemon	= <1>;
+			};
+		};
+
+		cpufreq_gov {
+				/* LIT BIG */
+			htask-boost = < 0 0 >;
+		};
+
+		support_uclamp {
+			enabled = <0>;
+		};
+	};
+};

@@ -1,0 +1,53 @@
+/ {
+	/* normal mode - default */
+	set0: set@0 {
+		/* Boosting margin applied to frequency selection */
+		freqboost {			/* LIT MED BIG */
+			top-app			= < 15  15  15>;
+		};
+
+		frt {	   	     		/* LIT MED BIG */
+			active-ratio		= < 25 100 100>;
+		};
+
+		/* Ontime Migration */
+		ontime {
+			domain0 {
+				cpus = "0-3";
+				lower-boundary = <0>;
+				upper-boundary = <31>;
+			};
+			domain1 {
+				cpus = "4-7";
+				lower-boundary = <8>;
+				upper-boundary = <66>;
+			};
+			domain2 {
+				cpus = "8";
+				lower-boundary = <43>;
+				upper-boundary = <100>;
+			};
+		};
+
+		ecs_dynamic {
+			dynamic-busy-ratio = <70 70 70>;
+		};
+
+
+		fclamp {
+			max-freq          = < 1152000       0       0>;
+			max-target-period = <       4       0       0>;
+			max-target-ratio  = <      80       0       0>;
+
+			monitor-group {
+				top-app         = <1>;
+				foreground      = <1>;
+			};
+		};
+
+		cpufreq_gov {
+				/* LIT MED BIG */
+			htask-boost = < 150 150 150 >;
+		};
+	};
+};

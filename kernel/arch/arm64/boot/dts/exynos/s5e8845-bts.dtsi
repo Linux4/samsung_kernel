@@ -1,0 +1,674 @@
+/*
+ * SAMSUNG EXYNOS SoC BTS device tree source
+ *
+ * Copyright (c) 2018 Samsung Electronics Co., Ltd.
+ *		http://www.samsung.com
+ *
+ * SAMSUNG EXYNOS SoC BTS device nodes are listed in this file.
+ * EXYNOS based board files should include this file.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ *
+ */
+
+#include <dt-bindings/soc/samsung/exynos-bts.h>
+#include <dt-bindings/soc/samsung/s5e8845-esca-ipc.h>
+
+/ {
+	exynos-bts {
+		compatible = "samsung,exynos-bts";
+		#address-cells = <2>;
+		#size-cells = <1>;
+		ranges;
+		esca-ipc-channel = <ESCA_IPC_PHY__SCI>;
+		vch_pd_calid = <0xB138000D>;
+
+		list-scen = "default",
+			"cp_throughput",
+			"mfc_uhd_10bit",
+			"g3d_heavy",
+			"g3d_performance",
+			"mfc_performance",
+			"camera_default",
+			"display_av1",
+			"npu_normal",
+			"npu_performance";
+
+	        /* num_channel, mif_bus_width, bus_width, mif_util, int_util*/
+	        bw_params = <2 8 16 65 70>;
+
+		/* SCI_LITE */
+		sci_lite_qurgent0 {
+			reg = <0x0 0x128D0024 0x4>;
+			status = "okay";
+			bts-type = <SMC_BTS>;
+		};
+
+		sci_lite_qurgent1 {
+			reg = <0x0 0x128D0028 0x4>;
+			status = "okay";
+			bts-type = <SMC_BTS>;
+		};
+
+		sci_lite_qurgent2 {
+			reg = <0x0 0x128D002C 0x4>;
+			status = "okay";
+			bts-type = <SMC_BTS>;
+		};
+
+		sci_lite_qos {
+			reg = <0x0 0x128D0030 0x4>;
+			status = "okay";
+			bts-type = <SMC_BTS>;
+		};
+
+		sci_lite_ar_token0 {
+			reg = <0x0 0x128D0054 0x4>;
+			status = "okay";
+			bts-type = <SMC_BTS>;
+		};
+
+		sci_lite_aw_token0 {
+			reg = <0x0 0x128D0058 0x4>;
+			status = "okay";
+			bts-type = <SMC_BTS>;
+		};
+
+		sci_lite_ar_token1 {
+			reg = <0x0 0x128D0060 0x4>;
+			status = "okay";
+			bts-type = <SMC_BTS>;
+		};
+
+		sci_lite_aw_token1 {
+			reg = <0x0 0x128D0064 0x4>;
+			status = "okay";
+			bts-type = <SMC_BTS>;
+		};
+
+		/* TREX_D_NOCL1A */
+		bts_d0_dpu {
+			reg = <0x0 0x14588000 0x80>;
+			status = "okay";
+			bts-type = <IP_BTS>;
+			default {
+				stat_on = <1>;
+				bypass = <0>;
+				arqos = <0x8>;
+				awqos = <0xF>;
+				qurgent_on = <1>;
+				qurgent_th_r = <0x20>;
+				qurgent_th_w = <0x20>;
+				blocking_on = <0>;
+			};
+			display_av1 {
+				stat_on = <1>;
+				bypass = <0>;
+				arqos = <0xA>;
+				awqos = <0xA>;
+				qurgent_on = <1>;
+				qurgent_th_r = <0x14>;
+				qurgent_th_w = <0x14>;
+				blocking_on = <0>;
+			};
+		};
+
+		bts_d1_dpu {
+			reg = <0x0 0x14588080 0x80>;
+			status = "okay";
+			bts-type = <IP_BTS>;
+			default {
+				stat_on = <1>;
+				bypass = <0>;
+				arqos = <0x8>;
+				awqos = <0xF>;
+				qurgent_on = <1>;
+				qurgent_th_r = <0x20>;
+				qurgent_th_w = <0x20>;
+				blocking_on = <0>;
+			};
+			display_av1 {
+				stat_on = <1>;
+				bypass = <0>;
+				arqos = <0xA>;
+				awqos = <0xA>;
+				qurgent_on = <1>;
+				qurgent_th_r = <0x14>;
+				qurgent_th_w = <0x14>;
+				blocking_on = <0>;
+			};
+		};
+
+		bts_usb {
+			reg = <0x0 0x14588100 0x80>;
+			status = "okay";
+			bts-type = <IP_BTS>;
+			default {
+				stat_on = <1>;
+				bypass = <0>;
+				arqos = <0x4>;
+				awqos = <0x4>;
+				qurgent_on = <0>;
+				blocking_on = <0>;
+			};
+		};
+
+		bts_psp {
+			reg = <0x0 0x14588200 0x80>;
+			status = "okay";
+			bts-type = <IP_BTS>;
+			default {
+				stat_on = <1>;
+				bypass = <0>;
+				arqos = <0x4>;
+				awqos = <0x4>;
+				rmo = <0x4>;
+				wmo = <0x4>;
+				qurgent_on = <0>;
+				blocking_on = <0>;
+			};
+		};
+
+		/* TREX_D_CAM(BLK_RGBP) */
+		bts_csis0 {
+			reg = <0x0 0x15798000 0x80>;
+			status = "okay";
+			bts-type = <IP_BTS>;
+			cal-pdid = <0xB138000D>;
+			default {
+				stat_on = <1>;
+				bypass = <0>;
+				arqos = <0xC>;
+				awqos = <0xF>;
+				qurgent_on = <1>;
+				qurgent_th_r = <0x14>;
+				qurgent_th_w = <0xD>;
+				blocking_on = <0>;
+			};
+		};
+
+		bts_csis1 {
+			reg = <0x0 0x15798080 0x80>;
+			status = "okay";
+			bts-type = <IP_BTS>;
+			cal-pdid = <0xB138000D>;
+			default {
+				stat_on = <1>;
+				bypass = <0>;
+				arqos = <0xC>;
+				awqos = <0xF>;
+				qurgent_on = <1>;
+				qurgent_th_r = <0x14>;
+				qurgent_th_w = <0xD>;
+				blocking_on = <0>;
+			};
+		};
+
+		bts_cstat0 {
+			reg = <0x0 0x15798100 0x80>;
+			status = "okay";
+			bts-type = <IP_BTS>;
+			cal-pdid = <0xB138000D>;
+			default {
+				stat_on = <1>;
+				bypass = <0>;
+				arqos = <0xC>;
+				awqos = <0xF>;
+				qurgent_on = <1>;
+				qurgent_th_r = <0x14>;
+				qurgent_th_w = <0xD>;
+				blocking_on = <0>;
+			};
+		};
+
+		bts_cstat1 {
+			reg = <0x0 0x15798180 0x80>;
+			status = "okay";
+			bts-type = <IP_BTS>;
+			cal-pdid = <0xB138000D>;
+			default {
+				stat_on = <1>;
+				bypass = <0>;
+				arqos = <0x4>;
+				awqos = <0x4>;
+				rmo = <0x20>;
+				wmo = <0x20>;
+				qurgent_on = <0>;
+				blocking_on = <0>;
+			};
+		};
+
+		bts_rgbp0 {
+			reg = <0x0 0x15798200 0x80>;
+			status = "okay";
+			bts-type = <IP_BTS>;
+			cal-pdid = <0xB138000D>;
+			default {
+				stat_on = <1>;
+				bypass = <0>;
+				arqos = <0x4>;
+				awqos = <0x4>;
+				rmo = <0x20>;
+				wmo = <0x20>;
+				qurgent_on = <0>;
+				blocking_on = <0>;
+			};
+		};
+
+		bts_rgbp1 {
+			reg = <0x0 0x15798280 0x80>;
+			status = "okay";
+			bts-type = <IP_BTS>;
+			cal-pdid = <0xB138000D>;
+			default {
+				stat_on = <1>;
+				bypass = <0>;
+				arqos = <0x4>;
+				awqos = <0x4>;
+				rmo = <0x20>;
+				wmo = <0x20>;
+				qurgent_on = <0>;
+				blocking_on = <0>;
+			};
+		};
+
+		bts_rgbp2 {
+			reg = <0x0 0x15798300 0x80>;
+			status = "okay";
+			bts-type = <IP_BTS>;
+			cal-pdid = <0xB138000D>;
+			default {
+				stat_on = <1>;
+				bypass = <0>;
+				arqos = <0x4>;
+				awqos = <0x4>;
+				rmo = <0x20>;
+				wmo = <0x20>;
+				qurgent_on = <0>;
+				blocking_on = <0>;
+			};
+		};
+
+		bts_rgbp3 {
+			reg = <0x0 0x15798380 0x80>;
+			status = "okay";
+			bts-type = <IP_BTS>;
+			cal-pdid = <0xB138000D>;
+			default {
+				stat_on = <1>;
+				bypass = <0>;
+				arqos = <0x4>;
+				awqos = <0x4>;
+				rmo = <0x20>;
+				wmo = <0x20>;
+				qurgent_on = <0>;
+				blocking_on = <0>;
+			};
+		};
+
+		bts_yuvp {
+			reg = <0x0 0x15798400 0x80>;
+			status = "okay";
+			bts-type = <IP_BTS>;
+			cal-pdid = <0xB138000D>;
+			default {
+				stat_on = <1>;
+				bypass = <0>;
+				arqos = <0x4>;
+				awqos = <0x4>;
+				rmo = <0x20>;
+				wmo = <0x20>;
+				qurgent_on = <0>;
+				blocking_on = <0>;
+			};
+		};
+
+		bts_icpu {
+			reg = <0x0 0x15798480 0x80>;
+			status = "okay";
+			bts-type = <IP_BTS>;
+			cal-pdid = <0xB138000D>;
+			default {
+				stat_on = <1>;
+				bypass = <0>;
+				arqos = <0x4>;
+				awqos = <0x4>;
+				rmo = <0x20>;
+				wmo = <0x20>;
+				qurgent_on = <0>;
+				blocking_on = <0>;
+			};
+		};
+
+		/* TREX_D_NOCL0 */
+		bts_g3d {
+			reg = <0x0 0x12A08000 0x80>;
+			status = "okay";
+			bts-type = <IP_BTS>;
+			default {
+				stat_on = <1>;
+				bypass = <0>;
+				arqos = <0x4>;
+				awqos = <0x4>;
+				rmo = <0x8>;
+				wmo = <0x4>;
+				qurgent_on = <0>;
+				blocking_on = <0>;
+			};
+			g3d_heavy {
+				stat_on = <1>;
+				bypass = <0>;
+				arqos = <0x4>;
+				awqos = <0x4>;
+				rmo = <0x40>;
+				wmo = <0x40>;
+			};
+			g3d_performance {
+				stat_on = <1>;
+				bypass = <0>;
+				arqos = <0x4>;
+				awqos = <0x4>;
+				rmo = <0x40>;
+				wmo = <0x40>;
+			};
+			camera_default {
+				stat_on = <1>;
+				bypass = <0>;
+				arqos = <0x4>;
+				awqos = <0x4>;
+				rmo = <0x8>;
+				wmo = <0x8>;
+				qurgent_on = <0>;
+				blocking_on = <0>;
+			};
+			display_av1 {
+				stat_on = <1>;
+				bypass = <0>;
+				arqos = <0x4>;
+				awqos = <0x4>;
+				rmo = <0x40>;
+				wmo = <0x40>;
+				qurgent_on = <0>;
+				blocking_on = <0>;
+			};
+		};
+
+		bts_d_dnc0 {
+			reg = <0x0 0x12A08080 0x80>;
+			status = "okay";
+			bts-type = <IP_BTS>;
+			default {
+				stat_on = <1>;
+				bypass = <0>;
+				arqos = <0x4>;
+				awqos = <0x4>;
+				rmo = <0x40>;
+				wmo = <0x40>;
+				qurgent_on = <0>;
+				blocking_on = <0>;
+			};
+			camera_default {
+				stat_on = <1>;
+				bypass = <0>;
+				arqos = <0x4>;
+				awqos = <0x4>;
+				rmo = <0x30>;
+				wmo = <0x30>;
+				qurgent_on = <0>;
+				blocking_on = <0>;
+			};
+		};
+
+		bts_d_dnc1 {
+			reg = <0x0 0x12A08100 0x80>;
+			status = "okay";
+			bts-type = <IP_BTS>;
+			default {
+				stat_on = <1>;
+				bypass = <0>;
+				arqos = <0x4>;
+				awqos = <0x4>;
+				rmo = <0x40>;
+				wmo = <0x40>;
+				qurgent_on = <0>;
+				blocking_on = <0>;
+			};
+			camera_default {
+				stat_on = <1>;
+				bypass = <0>;
+				arqos = <0x4>;
+				awqos = <0x4>;
+				rmo = <0x30>;
+				wmo = <0x30>;
+				qurgent_on = <0>;
+				blocking_on = <0>;
+			};
+		};
+
+		bts_d_aud {
+			reg = <0x0 0x12A08180 0x80>;
+			status = "okay";
+			bts-type = <IP_BTS>;
+			default {
+				stat_on = <1>;
+				bypass = <0>;
+				arqos = <0xC>;
+				awqos = <0xF>;
+				qurgent_on = <1>;
+				qurgent_th_r = <0x14>;
+				qurgent_th_w = <0x14>;
+				blocking_on = <0>;
+			};
+		};
+
+		bts_m2m0 {
+			reg = <0x0 0x12A08200 0x80>;
+			status = "okay";
+			bts-type = <IP_BTS>;
+			default {
+				stat_on = <1>;
+				bypass = <0>;
+				arqos = <0x4>;
+				awqos = <0x4>;
+				rmo = <0x10>;
+				wmo = <0x10>;
+				qurgent_on = <0>;
+				blocking_on = <0>;
+			};
+		};
+
+		bts_m2m1 {
+			reg = <0x0 0x12A08280 0x80>;
+			status = "okay";
+			bts-type = <IP_BTS>;
+			default {
+				stat_on = <1>;
+				bypass = <0>;
+				arqos = <0x4>;
+				awqos = <0x4>;
+				rmo = <0x10>;
+				wmo = <0x10>;
+				qurgent_on = <0>;
+				blocking_on = <0>;
+			};
+			camera_default {
+				stat_on = <1>;
+				bypass = <0>;
+				arqos = <0x4>;
+				awqos = <0x4>;
+				rmo = <0xA>;
+				wmo = <0xA>;
+				qurgent_on = <0>;
+				blocking_on = <0>;
+			};
+		};
+
+		bts_d0_modem {
+			reg = <0x0 0x12A08300 0x80>;
+			status = "okay";
+			bts-type = <IP_BTS>;
+			default {
+				stat_on = <1>;
+				bypass = <0>;
+				arqos = <0xC>;
+				awqos = <0xF>;
+				qurgent_on = <1>;
+				qurgent_th_r = <0x14>;
+				qurgent_th_w = <0x14>;
+				blocking_on = <0>;
+			};
+		};
+
+		bts_d1_modem {
+			reg = <0x0 0x12A08380 0x80>;
+			status = "okay";
+			bts-type = <IP_BTS>;
+			default {
+				stat_on = <1>;
+				bypass = <1>;
+				rmo = <0x14>;
+				wmo = <0x14>;
+				qurgent_on = <0>;
+				blocking_on = <0>;
+			};
+		};
+
+		bts_d2_modem {
+			reg = <0x0 0x12A08400 0x80>;
+			status = "okay";
+			bts-type = <IP_BTS>;
+			default {
+				stat_on = <1>;
+				bypass = <0>;
+				arqos = <0x4>;
+				awqos = <0x4>;
+				rmo = <0x14>;
+				wmo = <0x14>;
+				qurgent_on = <0>;
+				blocking_on = <0>;
+			};
+		};
+
+		bts_wlbt {
+			reg = <0x0 0x12A08480 0x80>;
+			status = "okay";
+			bts-type = <IP_BTS>;
+			default {
+				stat_on = <1>;
+				bypass = <0>;
+				arqos = <0x4>;
+				awqos = <0x4>;
+				rmo = <0x4>;
+				wmo = <0x4>;
+				qurgent_on = <0>;
+				blocking_on = <0>;
+			};
+		};
+
+		bts_hsi {
+			reg = <0x0 0x12A08500 0x80>;
+			status = "okay";
+			bts-type = <IP_BTS>;
+			default {
+				stat_on = <1>;
+				bypass = <0>;
+				arqos = <0x4>;
+				awqos = <0x4>;
+				rmo = <0x4>;
+				wmo = <0x4>;
+				qurgent_on = <0>;
+				blocking_on = <0>;
+			};
+		};
+
+		bts_mfc0 {
+			reg = <0x0 0x12A08580 0x80>;
+			status = "okay";
+			bts-type = <IP_BTS>;
+			default {
+				stat_on = <1>;
+				bypass = <0>;
+				arqos = <0x4>;
+				awqos = <0x4>;
+				rmo = <0x10>;
+				wmo = <0x10>;
+				qurgent_on = <0>;
+				blocking_on = <0>;
+			};
+			camera_default {
+				stat_on = <1>;
+				bypass = <0>;
+				arqos = <0x4>;
+				awqos = <0x4>;
+				rmo = <0xA>;
+				wmo = <0xA>;
+				qurgent_on = <0>;
+				blocking_on = <0>;
+			};
+			display_av1 {
+				stat_on = <1>;
+				bypass = <0>;
+				arqos = <0x4>;
+				awqos = <0x4>;
+				rmo = <0x40>;
+				wmo = <0x20>;
+				qurgent_on = <0>;
+				blocking_on = <0>;
+			};
+		};
+
+		bts_mfc1 {
+			reg = <0x0 0x12A08600 0x80>;
+			status = "okay";
+			bts-type = <IP_BTS>;
+			default {
+				stat_on = <1>;
+				bypass = <0>;
+				arqos = <0x4>;
+				awqos = <0x4>;
+				rmo = <0x10>;
+				wmo = <0x10>;
+				qurgent_on = <0>;
+				blocking_on = <0>;
+			};
+			camera_default {
+				stat_on = <1>;
+				bypass = <0>;
+				arqos = <0x4>;
+				awqos = <0x4>;
+				rmo = <0xA>;
+				wmo = <0xA>;
+				qurgent_on = <0>;
+				blocking_on = <0>;
+			};
+			display_av1 {
+				stat_on = <1>;
+				bypass = <0>;
+				arqos = <0x4>;
+				awqos = <0x4>;
+				rmo = <0x40>;
+				wmo = <0x20>;
+				qurgent_on = <0>;
+				blocking_on = <0>;
+			};
+		};
+
+		bts_peric {
+			reg = <0x0 0x12A08680 0x80>;
+			status = "okay";
+			bts-type = <IP_BTS>;
+			default {
+				stat_on = <1>;
+				bypass = <0>;
+				arqos = <0x4>;
+				awqos = <0x4>;
+				rmo = <0x4>;
+				wmo = <0x4>;
+				qurgent_on = <0>;
+				blocking_on = <0>;
+			};
+		};
+	};
+};

@@ -1,0 +1,26 @@
+
+&smd {
+	sec_vib_inputff {
+		status = "okay";
+		compatible = "sec_vib_inputff";
+
+		haptic,normal_ratio = <100>;
+		haptic,overdrive_ratio = <100>;
+#if 0
+		haptic,fold_string = "";
+
+		haptic,tent_open_ratio = <100>;
+		haptic,tent_close_ratio = <100>;
+
+		/* Fold open & close ratio required for vertial motor,
+		 * may not be required for Harizontal motor
+		 */
+		haptic,fold_open_ratio = <100>;
+		haptic,fold_close_ratio = <100>;
+#endif
+		haptic,high_temp_ref = <48>;
+		haptic,high_temp_ratio = <70>;
+		haptic,f0_cal_way = "AUTO";
+	};
+};
+

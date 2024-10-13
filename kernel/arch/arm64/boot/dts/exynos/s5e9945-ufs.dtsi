@@ -1,0 +1,128 @@
+// SPDX-License-Identifier: GPL-2.0-only
+//
+// Samsung's SoC UFS device tree source
+//
+// Copyright (C) 2020 Samsung Electronics Co., Ltd.
+
+//#include <dt-bindings/ufs/ufs.h>
+
+/ {
+	sysreg_ufs: sysreg_ufs@11020000 {
+			 compatible = "samsung,s5e9945-sysreg-ufs", "syscon";
+			 reg = <0x0 0x17020000 0x1000>;
+	};
+
+	ufs: ufs@17100000 {
+		/* ----------------------- */
+		/* 1. SYSTEM CONFIGURATION */
+		/* ----------------------- */
+		compatible ="samsung,exynos-ufs";
+		#address-cells = <2>;
+		#size-cells = <1>;
+		ranges;
+
+		reg =	<0x0 0x17100000 0x3000>,/* 0: HCI standard */
+			<0x0 0x17180000 0x8000>,/* 2: UNIPRO */
+			<0x0 0x171B0000 0xA014>,/* 3: UFS protector */
+                        <0x0 0x17104000 0x4000>,/* 4: phy */
+			<0x0 0x171A0000 0x7500>,/* 5: CPORT */
+			<0x0 0x171D0000 0x9400>,/* 6: PCS */
+			<0x0 0x17100400 0x600>,/* 7: MCQ */
+			<0x0 0x17140000 0x15100>; /* 8: SQD */
+		reg-names = "ufs_mem", "unipro", "fmp", "phy", "cport", "pcs", "mcq", "mcq_sqd";
+		interrupts = <GIC_SPI INTREQ__UFS_EMBD IRQ_TYPE_LEVEL_HIGH>,
+			   <GIC_SPI INTREQ__UFS_EMBD_MCQ0 IRQ_TYPE_LEVEL_HIGH>,
+			   <GIC_SPI INTREQ__UFS_EMBD_MCQ1 IRQ_TYPE_LEVEL_HIGH>,
+			   <GIC_SPI INTREQ__UFS_EMBD_MCQ2 IRQ_TYPE_LEVEL_HIGH>,
+			   <GIC_SPI INTREQ__UFS_EMBD_MCQ3 IRQ_TYPE_LEVEL_HIGH>,
+			   <GIC_SPI INTREQ__UFS_EMBD_MCQ4 IRQ_TYPE_LEVEL_HIGH>,
+			   <GIC_SPI INTREQ__UFS_EMBD_MCQ5 IRQ_TYPE_LEVEL_HIGH>,
+			   <GIC_SPI INTREQ__UFS_EMBD_MCQ6 IRQ_TYPE_LEVEL_HIGH>,
+			   <GIC_SPI INTREQ__UFS_EMBD_MCQ7 IRQ_TYPE_LEVEL_HIGH>;
+		pinctrl-names = "ufs_stat_wakeup", "ufs_stat_sleep";
+		pinctrl-0 = <&ufs_rst_n &ufs_refclk_out>;
+		pinctrl-1 = <&ufs_rst_sleep &ufs_refclk_sleep>;
+		clocks =
+			/* aclk clock */
+			<&clock GATE_UFS_EMBD_QCH>,
+			/* unipro clocks */
+			<&clock DOUT_CLKCMU_UFS_UFS_EMBD>;
+
+		clock-names =
+			/* aclk clocks */
+			"GATE_UFS_EMBD",
+			/* unipro clocks */
+			"UFS_EMBD";
+
+		/* need to set irq-affinity with MCQ mode */
+		mcq-irq,affinity = <4>;
+
+		/* board type for UFS CAL */
+		brd-for-cal = /bits/ 8 <2>;  /* (2:ERD, 32:UNIV) board */
+
+		/* ----------------------- */
+		/* 2. UFS COMMON           */
+		/* ----------------------- */
+		freq-table-hz = <0 0>, <0 0>;
+
+		/* ----------------------- */
+		/* 3. UFS EXYNOS           */
+		/* ----------------------- */
+
+		/* power mode change */
+		ufs,pmd-attr-lane = /bits/ 8 <2>;
+		ufs,pmd-attr-gear = /bits/ 8 <5>;
+
+                /* evt version for UFS CAL */
+		evt-ver = /bits/ 8 <1>;
+
+		gear-max-frequency = <332000000>;
+		/* DMA coherent callback, should be coupled with 'ufs-sys' */
+		dma-coherent;
+		/* UFS PHY isolation and TCXO control */
+		samsung,pmu-phandle = <&pmu_system_controller>;
+		/* UFS IO coherency  */
+		samsung,sysreg-phandle = <&sysreg_ufs>;
+		/* UFS quirk managing flags */
+//		fixed-prdt-req_list-ocs;
+		/* UFS support Auto hibern8 */
+		samsung,support-ah8;
+		/* UFS support SW_H8 during enable AH8 */
+		samsung,run-by-sw-h8;
+		/* gear scale flags */
+		samsung,ufs-gear-scale;
+		devfreq = <&devfreq_1>;
+		/* support always-on */
+		samsung,ufs-always-on;
+
+		/* ----------------------- */
+		/* 4. ADDITIONAL NODES     */
+		/* ----------------------- */
+
+		/* Node name: offset mask val */
+		ufs,phy_iso = <0x618 0x1 0x1>; /* UFS_BIT(0) */
+		ufs,iocc = <0x700 0x300000 0x300000>; /* (UFS_BIT(20) | UFS_BIT(21)) */
+		/* ufs,pad_retention = <0x3c0c 0x100 0x1>; */
+
+		/*
+		 * assigne CPU cores to each CQ when enable MCQ
+		 * It should be set to the number of SPI in the MCQ
+		 */
+		ufs,affinity-irq = <0 1 2 3 4 5 6 7>;
+
+		phy-tcxo-con {
+			offset = <0x3e10>; /* TCXO_BUF_CTRL */
+			mask = <0x8>;
+			val = <0x8>;
+		};
+
+		ufs-pm-qos {
+			freq-gear5-int = <533000>;
+			freq-int = <400000>;
+			perf-int = <664000>;
+			perf-mif = <3172000>;
+			cpufreq-qos-levels = <12 15 18 4>; /* (1536000, 2112000, 2112000) */
+		};
+
+	};
+};

@@ -1,0 +1,114 @@
+/*
+ * SAMSUNG S5E9945 board device tree source
+ *
+ * Copyright (c) 2023 Samsung Electronics Co., Ltd.
+ *		http://www.samsung.com
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+/ {
+	fragment@battery {
+		target-path = "/";
+		__overlay__ {
+            ifconn {
+                status = "okay";
+                compatible = "samsung,ifconn";
+                ifconn,usbpd = "s2mf301";
+                ifconn,muic = "s2mf301-muic";
+            };
+
+			battery {
+				status = "okay";
+				compatible = "samsung,s2m-battery";
+
+				pinctrl-names = "default";
+
+				battery,vendor = "SDI SDI";
+				battery,charger_name = "dc-manager";
+				battery,direct_charger_name = "s2mc501-direct-charger";
+				battery,switching_charger_name = "s2mf301-charger";
+				battery,fuelgauge_name = "s2mf301-fuelgauge";
+				battery,pmeter_name = "s2mf301-pmeter";
+				battery,technology = <2>; /* POWER_SUPPLY_TECHNOLOGY_LION */
+
+				battery,temp_high = <500>;
+				battery,temp_high_recovery = <450>;
+				battery,temp_low = <100>;
+				battery,temp_low_recovery = <150>;
+				battery,low_temp_limit = <100>;
+
+				battery,chg_float_voltage = <4350>;
+				battery,full_check_count = <3>;
+				battery,chg_full_vcell = <4360>;
+				battery,chg_recharge_vcell = <4300>;
+
+				battery,max_rawsoc = <1000>;
+				battery,max_rawsoc_offset = <10>;
+
+				battery,default_input_current = <1000>;
+				battery,default_charging_current = <1000>;
+				battery,default_full_check_current = <300>;
+
+				battery,max_input_current = <3000>;
+				battery,max_charging_current = <3000>;
+
+				battery,pdo_max_input_vol = <13000>; /* mV */
+				battery,pdo_max_chg_power = <25000>; /* mW */
+
+				/* Order of current setting must be same with
+				 * POWER_SUPPLY_TYPE_ of power_supply.h
+				 */
+				battery,input_current_limit =
+					<500 450 500 2000 500 1200 1500 1000 1000 1500
+					1000 500 500>;
+				battery,fast_charging_current =
+					<500 450 500 2000 500 1200 1500 1000 1000 3000
+					1000 500 500>;
+				battery,full_check_current =
+					<300 0 300 300 300 300 300 300 300 300
+					300 300 300>;
+				battery,input_current_limit_expand = <3000 1500 500 450>;
+				battery,fast_charging_current_expand =	<3000 3000 500 450>;
+				battery,full_check_current_expand = <300 300 300 0>;
+
+				battery,thermal_limit_level =
+					<600 700 800 900 1000 1100 1200>;
+
+				/* Battery parameter */
+				battery,battery_table3 =
+					<88 11 214 10 84 10 218 9 100 9
+					243 8 140 8 34 8 205 7 123 7
+					8 7 198 6 151 6 113 6 84 6
+					57 6 15 6 234 5 175 5 133 5
+					253 4 178 1 105 8 0 8 151 7
+					45 7 196 6 90 6 241 5 135 5
+					30 5 181 4 75 4 226 3 120 3
+					15 3 166 2 60 2 211 1 105 1
+					0 1 150 0 45 0 218 15>;
+
+				battery,battery_table4 =
+					<33 33 33 33 33 33 33 33 33 32
+					32 33 33 33 33 34 34 34 34 36
+					38 124>;
+
+				battery,batcap = <0x8C 0x44 0x23 0x11>; /* [0x0E] [0x0F] [0x10] [0x11] */
+				battery,accum = <0x8 0x00>; /* [0x45] [0x44] */
+
+				battery,soc_arr_val =
+					<10514 10000 9485 8970 8455 7941 7426 6911 6396 5882
+					5367 4852 4338 3823 3308 2793 2279 1764 1249 734
+					220 (-185)>;
+				battery,ocv_arr_val =
+					<44179 43544 42910 42315 41740 41188 40683 40167 39749 39351
+					38791 38469 38237 38054 37911 37778 37574 37390 37106 36900
+					36236 32120>;
+
+				battery,battery_param_ver = <0x03>;
+
+			};
+		};
+	};
+};

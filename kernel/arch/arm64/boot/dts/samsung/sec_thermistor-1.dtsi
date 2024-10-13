@@ -1,0 +1,12 @@
+&smd{
+	sec_pa_thermistor: sec_thermistor@1 {
+		compatible = "samsung,sec-thermistor";
+		status = "okay";
+		thermistor_name = "sec-pa-thermistor";
+		id = <1>;
+
+		io-channels = SEC_ADC(s2mpu15_gpadc,5);
+		io-channel-names = "adc-pa-temp";
+		io-channel-ranges;
+	};
+};

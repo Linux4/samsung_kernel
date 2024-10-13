@@ -1,0 +1,60 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * SAMSUNG EXYNOS SoC device tree source
+ *
+ * Copyright (c) 2019 Samsung Electronics Co., Ltd.
+ *		http://www.samsung.com
+ *
+ */
+
+/ {
+	dsim_modes: dsim_modes {
+		/*
+		 * exynos,property can be declared in both dsim_modes node and
+		 * the below nodes. The exynos,property of parent node is inherited to
+		 * child node only if child node don't have exynos,property.
+		 */
+		exynos,pmsk = <
+			0x5 0x5F 0x0 0x2EAB	/* p m s k */
+			0x0 0x0 0x0 0x0		/* mfr mrr sel_pf icp */
+			0x0 0x0 0x0 0x0		/* afc_enb extafc feed_en fsel */
+			0x0 0x0			/* fout_mask rsel */
+			>;
+		exynos,hs-clk = <1462>;
+		exynos,esc-clk = <20>;
+		1440x3200@30 {
+		        exynos,cmd_underrun_cnt = <8834>;
+		};
+		1440x3200@60 {
+		        exynos,cmd_underrun_cnt = <8834>;
+		};
+		1440x3200@120 {
+		        exynos,cmd_underrun_cnt = <1295>;
+		};
+		1440x3088@120 {
+		        exynos,cmd_underrun_cnt = <1295>;
+		};
+		1080x2400@30 {
+		        exynos,cmd_underrun_cnt = <11361>;
+		};
+		1080x2400@60 {
+		        exynos,cmd_underrun_cnt = <11361>;
+		};
+		1080x2400@120 {
+		        exynos,cmd_underrun_cnt = <3822>;
+		};
+		720x1600@30 {
+		        exynos,cmd_underrun_cnt = <13168>;
+		};
+		720x1600@60 {
+		        exynos,cmd_underrun_cnt = <13168>;
+		};
+		720x1600@120 {
+		        exynos,cmd_underrun_cnt = <5629>;
+		};
+		/* for zebu emulator */
+		640x480@60 {
+		        exynos,cmd_underrun_cnt = <5195>;
+		};
+	};
+};

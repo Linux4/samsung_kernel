@@ -1,0 +1,19 @@
+config EXYNOS_DEVICE_CAMERA_MODULE
+	bool "Use Camera modules"
+	depends on VIDEO_EXYNOS_PABLO_ISP
+	default y
+	help
+	  Select camera module.
+
+config PABLO_SENSOR_VC_VIDEO_NODE
+	bool "Use Pablo Sensor VC subdev video nodes"
+	depends on VIDEO_EXYNOS_PABLO_ISP
+	default n
+	help
+	  Select whether this SOC should give
+	  the interface to get the video buffer from user
+	  through physical V4L2 video node or not.
+	  When it set into 'false', the buffer should be delivered
+	  through LVN node interface.
+
+source "drivers/media/platform/exynos/camera/sensor/module_framework/Kconfig"

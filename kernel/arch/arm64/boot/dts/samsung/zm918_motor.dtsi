@@ -1,0 +1,48 @@
+/*
+ *
+ * SAMSUNG device tree source
+ *
+ * Copyright (c) 2022 Samsung Electronics Co., Ltd.
+ *		http://www.samsung.com
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+#if 0
+&${vib_gpio_en_parent} {
+	motor_en_default: motor-en {
+		GPIO_CONFIG(${vib_gpio_en}, FUNC_OUTPUT_HIGH);
+	};
+};
+#endif
+
+&hsi2c_14 {
+	status = "okay";
+	#address-cells = <1>;
+	#size-cells = <0>;
+	i2c-scl-hz = <400000>;
+
+	zm918_motor@0C{
+		compatible = "zm,zm918_haptic";
+		reg = <0x0C>;
+#if 0
+		pinctrl-names = "default";
+		pinctrl-0 = <&motor_en_default>;
+		zm918_motor,boost_en = <SEC_GPIO_REF(${vib_gpio_en}) 0>;
+#endif
+		zm918_motor,motor-type = "ACTUATOR_080935";
+#if 0
+		zm918_motor,regulator-name = "${vdd_motor}";
+		zm918_motor-supply = <&${vdd_motor}>;
+#endif
+		zm918_motor,drv-freq = <175>;
+		zm918_motor,reso-freq = <175>;
+		zm918_motor,cont_level = <0x36>;		/* default cont strength */
+		zm918_motor,fifo_level = <0x80>;		/* default fifo strength */
+		zm918,vib_mode = <3>;					/* Setting cont mode as default */
+		samsung,vib_type = "LINEAR_INDEX";
+	};
+};
+

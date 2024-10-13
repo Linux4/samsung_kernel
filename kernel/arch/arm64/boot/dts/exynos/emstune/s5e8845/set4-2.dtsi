@@ -1,0 +1,37 @@
+/ {
+	/* balance mode - app boost */
+	set4_2: set@0402{
+		/* Ontime Migration */
+		ontime {
+			foreground 	= <1>;
+			top-app		= <1>;
+
+			domain0 {
+				cpus = "0-3";
+				lower-boundary = <0>;
+				upper-boundary = <21>;
+			};
+			domain1 {
+				cpus = "4-7";
+				lower-boundary = <8>;
+				upper-boundary = <66>;
+			};
+		};
+
+		ecs_dynamic { };
+
+		tex {
+			top-app = <110>;
+			foreground = <110>;
+		};
+
+		ntu {
+			top-app		= <0>;
+		};
+
+		cgroup_boost {
+			top-app = <1>;
+			foreground = <1>;
+		};
+	};
+};

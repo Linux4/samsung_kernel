@@ -1,0 +1,38 @@
+/ {
+	/* camera mode - touch boost */
+	set5_1: set@501 {
+		/* Boosting margin applied to frequency selection */
+		freqboost {	   		/* LIT MED-L MED-H BIG */
+			top-app         	= < 30 30 30 30>;
+		};
+
+		/* Ontime Migration */
+		ontime {
+			foreground 	= <1>;
+			top-app		= <1>;
+
+			domain0 {
+				cpus = "0-3";
+				lower-boundary = <0>;
+				upper-boundary = <90>;
+			};
+			domain1 {
+				cpus = "4-6";
+				lower-boundary = <60>;
+				upper-boundary = <600>;
+			};
+			domain2 {
+				cpus = "7-8";
+				lower-boundary = <60>;
+				upper-boundary = <600>;
+			};
+			domain3 {
+				cpus = "9";
+				lower-boundary = <500>;
+				upper-boundary = <1024>;
+			};
+		};
+
+		ecs_dynamic { };
+	};
+};

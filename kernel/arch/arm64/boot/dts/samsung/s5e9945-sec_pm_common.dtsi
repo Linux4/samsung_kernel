@@ -1,0 +1,29 @@
+/*
+ * SAMSUNG S5E9945 Power Management device tree source
+ *
+ * Copyright (c) 2021 Samsung Electronics Co., Ltd.
+ *		http://www.samsung.com
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+*/
+
+/ {
+	fragment@model {
+		target-path = "/";
+		__overlay__ {
+			sec_pm_debug {
+				compatible = "samsung,sec-pm-debug";
+				status = "okay";
+			};
+
+			secgpio_dvs {
+				compatible = "samsung,s5e9945-secgpio-dvs";
+				status = "okay";
+			};
+		}; /* end of __overlay__ */
+	}; /* end of fragment */
+}; /* end of root */
+
+

@@ -1,0 +1,77 @@
+/ {
+/*
+	i3c_apm_pmic: syscon@12A60000 {
+		compatible = "i3c_apm_pmic", "syscon";
+		reg = <0x0 0x12A60000 0x1800>;
+	};
+
+	dbus_baaw: syscon@10820000 {
+		compatible = "dbus_baaw", "syscon";
+		reg = <0x0 0x10820000 0x4>;
+	};
+
+	pbus_baaw: syscon@10830000 {
+		compatible = "pbus_baaw", "syscon";
+		reg = <0x0 0x10830000 0x10000>;
+	};
+
+	wlbt_remap_base: syscon@10850000 {
+		compatible = "wlbt_remap", "syscon";
+		reg = <0x0 0x10850000 0x10000>;
+	};
+
+	boot_cfg: syscon@10860000 {
+		compatible = "boot_cfg", "syscon";
+		reg = <0x0 0x10860000 0x20000>;
+	};
+*/
+	scsc_wifibt: scsc_wifibt{
+		compatible = "samsung,scsc_wifibt";
+		memory-region = <&wifibt_if>;
+		gpios = <&gpc2 0 0x1 /* PMIC TO PMU */>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&wlbt_pmic_pinctrl &wlbt_wakeup_pinctrl>;
+		wlbt,wakeup_gpio = <&gpa3 4 0xf>;
+		/* Mailbox Registers */
+		//reg = <0x0 0x129D0000 0x180>,	/* WLAN MAILBOX */
+		//	<0x0 0x129E000 0x180>;	/* WPAN MAILBOX */
+
+		//reg = <0x0 0x20002000 0x10000>;
+		//reg-names = "wlbt_ramrp";
+
+		//SPI[18] 50 BLK_ALIVE INTREQ__ALIVE_WLBT_ACTIVE
+		//SPI[63] 95 BLK_ALIVE INTREQ__MAILBOX_
+		//SPI[64] 96 BLK_ALIVE INTREQ__MAILBOX_WPAN2AP
+		//SPI[195] 227 BLK_WLBT WB2AP_CFG_REQ
+		//SPI[196] 228 BLK_WLBT WB2AP_WDOG_RESET_REQ_IRQ
+		interrupts = <0 18 4>, <0 63 4>, <0 64 4>, <0 195 4>, <0 196 4>;
+		interrupt-names = "ALIVE", "MBOX_WLAN","MBOX_WPAN","CFG_REQ","WDOG";
+		samsung,syscon-phandle = <&pmu_system_controller>;
+		pci_ch_num = <0>;
+                acpm-ipc-channel = <2>;
+
+		/* MIF / INT / CL0 / CL1 / CL2 */
+		qos_table = <
+			421000 89000 400000 533000 533000 /* SCSC_QOS_MIN */
+			1539000 400000 1274000 1352000 1352000 /* SCSC_QOS_MED */
+			3172000 663000 2002000 2600000 2808000 /* SCSC_QOS_MAX */
+			>;
+
+		/* LOW / MID / HIGH / OVERRIDE */
+		cpu_table_napi = <
+			0 0 4 4 /* NP_RX_0 */
+			0 0 5 5 /* NP_RX_1 */
+			0 0 5 5 /* NP_TX_0 */
+			>;
+		cpu_table_rps = "00", "00", "40", "40";
+		/* mid_tput / high_tput */
+		threshold_table_napi = <0 50>;
+		threshold_table_rps =  <0 300>;
+	};
+
+	wpan: slsi_wpan {
+		compatible = "samsung,slsi-wpan";
+		status = "okay";
+		bt2ap-wakeup-gpio = <&gpa0 3 0xf>;
+	};
+};

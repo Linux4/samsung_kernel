@@ -1,0 +1,5 @@
+fs_type=erofs
+use_dynamic_partition_size=true
+partition_name=vendor_dlkm
+mount_point=vendor_dlkm
+selinux_fc=prebuilts/boot-artifacts/arm64/exynos/file_contexts

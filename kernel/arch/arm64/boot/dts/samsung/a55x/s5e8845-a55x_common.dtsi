@@ -1,0 +1,1162 @@
+/*
+ * SAMSUNG S5E8845 SoC device tree source
+ *
+ * Copyright (c) 2023 Samsung Electronics Co., Ltd.
+ *             http://www.samsung.com
+ *
+ * SAMSUNG S5E9945 SoC device nodes are listed in this file.
+ * EXYNOS based board files can include this file and provide
+ * values for board specfic bindings.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+#include <dt-bindings/clock/s5e8845.h>
+#include <dt-bindings/interrupt-controller/s5e8845.h>
+#include <dt-bindings/gpio/gpio.h>
+//#include "../../exynos/battery_data_erd8845_common_s2mf301.dtsi"
+#include "../../exynos/board/erd/s5e8845-erd8845-gnss.dtsi"
+//#include <dt-bindings/pci/pci.h>
+//#include "../../exynos/board/erd/camera/s5e8845-erd8845-camera.dtsi"
+#include "../../exynos/board/erd/s5e8845-cp-s5328ap-sipc.dtsi"
+#include "../s5e8845-sec_pm_common.dtsi"
+#include "../s5e8845_wakeup_cpu_allocator.dtsi"
+
+#define BOARD_ID	0x0
+
+/ {
+	compatible = "samsung,armv8", "samsung,s5e8845";
+	board_id = <BOARD_ID>;
+	board_rev = <0x0>;
+
+	fragment@model {
+		target-path = "/";
+		__overlay__ {
+			#address-cells = <2>;
+			#size-cells = <1>;
+
+			model = "Samsung S5E8845 board based on S5E8845";
+
+			gpio_keys {
+				status = "okay";
+				compatible = "gpio-keys";
+				pinctrl-names = "default";
+				pinctrl-0 = <&key_volup>;
+
+				button@3 {
+					label = "gpio-keys: KEY_VOLUMEUP";
+					linux,code = <115>;
+					gpios = <&gpa0 3 0xf>;
+				};
+			};
+
+			sec-reboot {
+				compatible = "samsung,sec-reboot";
+				samsung,syscon-phandle = <&pmu_system_controller>;
+				shutdown-offset = <0x3F90>; /* PS_HOLD_CONTROL */
+				shutdown-trigger = <0x100>; /* PS_HOLD_DATA_BIT */
+				magic-inform = <0xB8>; /* INFORM2 */
+				panic-inform = <0xBC>; /* INFORM3 */
+			};
+
+			vbat: vbat {
+				compatible = "regulator-fixed";
+				regulator-name = "VBAT";
+				regulator-min-microvolt = <4200000>;
+				regulator-max-microvolt = <4200000>;
+				regulator-boot-on;
+			};
+
+			dummy_audio_codec: audio-codec-dummy {
+				compatible = "snd-soc-dummy";
+				#sound-dai-cells = <0>;
+			};
+
+			dummy_audio_cpu: audio-cpu-dummy {
+				compatible = "samsung,dummy-cpu";
+				#sound-dai-cells = <0>;
+			};
+
+			abox_synchronized_ipc_ti: abox_synchronized_ipc_ti {
+				compatible = "samsung,abox-synchronized-ipc-ti";
+				#sound-dai-cells = <1>;
+				abox = <&abox>;
+				status = "okay";
+			};
+
+			sound {
+				compatible = "samsung,exynos8845-audio";
+
+				/* clock-names = "xclkout"; */
+				/* clocks = <&clock OSC_AUD>; */
+
+				MICBIAS1-supply = <&l30_reg>;
+				MICBIAS2-supply = <&l30_reg>;
+				MICBIAS3-supply = <&l30_reg>;
+
+				/* Trick for probe order */
+				//dmas = <&dp_dma0>;
+
+				samsung,routing =
+					"DMIC1", "MICBIAS1",
+					"DMIC2", "MICBIAS2",
+					"DMIC3", "MICBIAS3",
+					//"RECEIVER", "Left SPK",
+					//"SPEAKER", "Right SPK",
+					"BLUETOOTH SPK", "ABOX UAIF2 Playback",
+					"ABOX UAIF2 Capture", "BLUETOOTH MIC",
+					"BLUETOOTH SPK", "ABOX UAIF3 Playback",
+					"ABOX UAIF3 Capture", "BLUETOOTH MIC",
+					"USB SPK", "ABOX USB Playback",
+					"ABOX USB Capture", "USB MIC",
+					"FWD SPK", "ABOX FWD Playback",
+					"ABOX FWD Capture", "FWD MIC",
+					"VTS Virtual Output", "VTS Virtual Output Mux",
+					"PAD DPDM", "DMIC1",
+					"PAD DPDM", "DMIC2",
+					"PAD DPDM", "DMIC3";
+					//"PAD DPDM", "DMIC4";
+
+				samsung,aux = <&abox_effect &abox_tplg>;
+
+				rdma0 {
+					cpu {
+						sound-dai = <&abox_rdma_0 0>;
+					};
+					platform {
+						sound-dai = <&abox_rdma_0 0>;
+					};
+				};
+				rdma1 {
+					cpu {
+						sound-dai = <&abox_rdma_1 0>;
+					};
+					platform {
+						sound-dai = <&abox_rdma_1 0>;
+					};
+				};
+				rdma2 {
+					cpu {
+						sound-dai = <&abox_rdma_2 0>;
+					};
+					platform {
+						sound-dai = <&abox_rdma_2 0>;
+					};
+				};
+				rdma3 {
+					cpu {
+						sound-dai = <&abox_rdma_3 0>;
+					};
+					platform {
+						sound-dai = <&abox_rdma_3 0>;
+					};
+				};
+				rdma4 {
+					cpu {
+						sound-dai = <&abox_rdma_4 0>;
+					};
+					platform {
+						sound-dai = <&abox_rdma_4 0>;
+					};
+				};
+				rdma5 {
+					cpu {
+						sound-dai = <&abox_rdma_5 0>;
+					};
+					platform {
+						sound-dai = <&abox_rdma_5 0>;
+					};
+				};
+				rdma6 {
+					cpu {
+						sound-dai = <&abox_rdma_6 0>;
+					};
+					platform {
+						sound-dai = <&abox_rdma_6 0>;
+					};
+				};
+				rdma7 {
+					cpu {
+						sound-dai = <&abox_rdma_7 0>;
+					};
+					platform {
+						sound-dai = <&abox_rdma_7 0>;
+					};
+				};
+				rdma8 {
+					cpu {
+						sound-dai = <&abox_rdma_8 0>;
+					};
+					platform {
+						sound-dai = <&abox_rdma_8 0>;
+					};
+				};
+				rdma9 {
+					cpu {
+						sound-dai = <&abox_rdma_9 0>;
+					};
+					platform {
+						sound-dai = <&abox_rdma_9 0>;
+					};
+				};
+				rdma10 {
+					cpu {
+						sound-dai = <&abox_rdma_10 0>;
+					};
+					platform {
+						sound-dai = <&abox_rdma_10 0>;
+					};
+				};
+				rdma11 {
+					cpu {
+						sound-dai = <&abox_rdma_11 0>;
+					};
+					platform {
+						sound-dai = <&abox_rdma_11 0>;
+					};
+				};
+				rdma12 {
+					cpu {
+						sound-dai = <&abox_rdma_12 0>;
+					};
+					platform {
+						sound-dai = <&abox_rdma_12 0>;
+					};
+				};
+				rdma13 {
+					cpu {
+						sound-dai = <&abox_rdma_13 0>;
+					};
+					platform {
+						sound-dai = <&abox_rdma_13 0>;
+					};
+				};
+				rdma14 {
+					cpu {
+						sound-dai = <&abox_rdma_14 0>;
+					};
+					platform {
+						sound-dai = <&abox_rdma_14 0>;
+					};
+				};
+				rdma15 {
+					cpu {
+						sound-dai = <&abox_rdma_15 0>;
+					};
+					platform {
+						sound-dai = <&abox_rdma_15 0>;
+					};
+				};
+				wdma0 {
+					cpu {
+						sound-dai = <&abox_wdma_0 0>;
+					};
+					platform {
+						sound-dai = <&abox_wdma_0 0>;
+					};
+				};
+				wdma1 {
+					cpu {
+						sound-dai = <&abox_wdma_1 0>;
+					};
+					platform {
+						sound-dai = <&abox_wdma_1 0>;
+					};
+				};
+				wdma2 {
+					cpu {
+						sound-dai = <&abox_wdma_2 0>;
+					};
+					platform {
+						sound-dai = <&abox_wdma_2 0>;
+					};
+				};
+				wdma3 {
+					cpu {
+						sound-dai = <&abox_wdma_3 0>;
+					};
+					platform {
+						sound-dai = <&abox_wdma_3 0>;
+					};
+				};
+				wdma4 {
+					cpu {
+						sound-dai = <&abox_wdma_4 0>;
+					};
+					platform {
+						sound-dai = <&abox_wdma_4 0>;
+					};
+				};
+				wdma5 {
+					cpu {
+						sound-dai = <&abox_wdma_5 0>;
+					};
+					platform {
+						sound-dai = <&abox_wdma_5 0>;
+					};
+				};
+				wdma6 {
+					cpu {
+						sound-dai = <&abox_wdma_6 0>;
+					};
+					platform {
+						sound-dai = <&abox_wdma_6 0>;
+					};
+				};
+				wdma7 {
+					cpu {
+						sound-dai = <&abox_wdma_7 0>;
+					};
+					platform {
+						sound-dai = <&abox_wdma_7 0>;
+					};
+				};
+				wdma8 {
+					cpu {
+						sound-dai = <&abox_wdma_8 0>;
+					};
+					platform {
+						sound-dai = <&abox_wdma_8 0>;
+					};
+				};
+				wdma9 {
+					cpu {
+						sound-dai = <&abox_wdma_9 0>;
+					};
+					platform {
+						sound-dai = <&abox_wdma_9 0>;
+					};
+				};
+				wdma10 {
+					cpu {
+						sound-dai = <&abox_wdma_10 0>;
+					};
+					platform {
+						sound-dai = <&abox_wdma_10 0>;
+					};
+				};
+				wdma11 {
+					cpu {
+						sound-dai = <&abox_wdma_11 0>;
+					};
+					platform {
+						sound-dai = <&abox_wdma_11 0>;
+					};
+				};
+				vts0 {
+					cpu {
+						sound-dai = <&vts 0>;
+					};
+					platform {
+						sound-dai = <&vts_dma0>;
+					};
+				};
+				vts1 {
+					cpu {
+						sound-dai = <&vts 1>;
+					};
+					platform {
+						sound-dai = <&vts_dma1>;
+					};
+				};
+				/*
+				vts2 {
+					cpu {
+						sound-dai = <&vts 2>;
+					};
+					platform {
+						sound-dai = <&vts_dma2>;
+					};
+				};
+				*/
+				/*
+				dp0_audio {
+					cpu {
+						sound-dai = <&displayport_adma 0>;
+					};
+					platform {
+						sound-dai = <&dp_dma0>;
+					};
+				};
+				*/
+				dual0 {
+					cpu {
+						sound-dai = <&abox_dual_0>;
+					};
+					platform {
+						sound-dai = <&abox_dual_0>;
+					};
+				};
+				dual1 {
+					cpu {
+						sound-dai = <&abox_dual_1>;
+					};
+					platform {
+						sound-dai = <&abox_dual_1>;
+					};
+				};
+				dual2 {
+					cpu {
+						sound-dai = <&abox_dual_2>;
+					};
+					platform {
+						sound-dai = <&abox_dual_2>;
+					};
+				};
+				dual3 {
+					cpu {
+						sound-dai = <&abox_dual_3>;
+					};
+					platform {
+						sound-dai = <&abox_dual_3>;
+					};
+				};
+				dual4 {
+					cpu {
+						sound-dai = <&abox_dual_4>;
+					};
+					platform {
+						sound-dai = <&abox_dual_4>;
+					};
+				};
+				dual5 {
+					cpu {
+						sound-dai = <&abox_dual_5>;
+					};
+					platform {
+						sound-dai = <&abox_dual_5>;
+					};
+				};
+				dual6 {
+					cpu {
+						sound-dai = <&abox_dual_6>;
+					};
+					platform {
+						sound-dai = <&abox_dual_6>;
+					};
+				};
+				dual7 {
+					cpu {
+						sound-dai = <&abox_dual_7>;
+					};
+					platform {
+						sound-dai = <&abox_dual_7>;
+					};
+				};
+				dual8 {
+					cpu {
+						sound-dai = <&abox_dual_8>;
+					};
+					platform {
+						sound-dai = <&abox_dual_8>;
+					};
+				};
+				dual9 {
+					cpu {
+						sound-dai = <&abox_dual_9>;
+					};
+					platform {
+						sound-dai = <&abox_dual_9>;
+					};
+				};
+				dual10 {
+					cpu {
+						sound-dai = <&abox_dual_10>;
+					};
+					platform {
+						sound-dai = <&abox_dual_10>;
+					};
+				};
+				dual11 {
+					cpu {
+						sound-dai = <&abox_dual_11>;
+					};
+					platform {
+						sound-dai = <&abox_dual_11>;
+					};
+				};
+				ddma0 {
+					cpu {
+						sound-dai = <&abox_ddma_0>;
+					};
+					platform {
+						sound-dai = <&abox_ddma_0>;
+					};
+				};
+				ddma1 {
+					cpu {
+						sound-dai = <&abox_ddma_1>;
+					};
+					platform {
+						sound-dai = <&abox_ddma_1>;
+					};
+				};
+				ddma2 {
+					cpu {
+						sound-dai = <&abox_ddma_2>;
+					};
+					platform {
+						sound-dai = <&abox_ddma_2>;
+					};
+				};
+				ddma3 {
+					cpu {
+						sound-dai = <&abox_ddma_3>;
+					};
+					platform {
+						sound-dai = <&abox_ddma_3>;
+					};
+				};
+				ddma4 {
+					cpu {
+						sound-dai = <&abox_ddma_4>;
+					};
+					platform {
+						sound-dai = <&abox_ddma_4>;
+					};
+				};
+				ddma5 {
+					cpu {
+						sound-dai = <&abox_ddma_5>;
+					};
+					platform {
+						sound-dai = <&abox_ddma_5>;
+					};
+				};
+				uaif0 {
+					format = "i2s";
+					cpu {
+						sound-dai = <&abox_uaif_0>;
+					};
+				};
+				uaif1 {
+					format = "i2s";
+					cpu {
+						sound-dai = <&abox_uaif_1>;
+					};
+					codec {
+						sound-dai = <&tas25xx 0>;
+					};
+				};
+				uaif2 {
+					format = "i2s";
+					cpu {
+						sound-dai = <&abox_uaif_2>;
+					};
+				};
+				uaif3 {
+					format = "i2s";
+					cpu {
+						sound-dai = <&abox_uaif_3>;
+					};
+				};
+				uaif4 {
+					format = "dsp_a";
+					cpu {
+						sound-dai = <&abox_uaif_4>;
+					};
+				};
+				uaif5 {
+					format = "dsp_a";
+					cpu {
+						sound-dai = <&abox_uaif_5>;
+					};
+				};
+				uaif6 {
+					format = "dsp_a";
+					bitclock-master;
+					bitclock-inversion;
+					frame-master;
+
+					cpu {
+						sound-dai = <&abox_uaif_6>;
+					};
+					codec {
+						sound-dai = <&vts_s_lif 0>;
+					};
+				};
+				dsif0 {
+					format = "pdm";
+					cpu {
+						sound-dai = <&abox_dsif>;
+					};
+				};
+				udma_rd0 {
+					cpu {
+						sound-dai = <&abox_udma_rd_0>;
+					};
+				};
+				udma_wr0 {
+					cpu {
+						sound-dai = <&abox_udma_wr_0>;
+					};
+				};
+				udma_wr_dual0 {
+					cpu {
+						sound-dai = <&abox_udma_wr_dual_0>;
+					};
+				};
+				udma_wr_dbg0 {
+					cpu {
+						sound-dai = <&abox_udma_wr_debug_0>;
+					};
+				};
+				rdma0_be {
+					cpu {
+						sound-dai = <&abox_rdma_0 1>;
+					};
+					platform {
+						sound-dai = <&abox_rdma_0 1>;
+					};
+				};
+				rdma1_be {
+					cpu {
+						sound-dai = <&abox_rdma_1 1>;
+					};
+					platform {
+						sound-dai = <&abox_rdma_1 1>;
+					};
+				};
+				rdma2_be {
+					cpu {
+						sound-dai = <&abox_rdma_2 1>;
+					};
+					platform {
+						sound-dai = <&abox_rdma_2 1>;
+					};
+				};
+				rdma3_be {
+					cpu {
+						sound-dai = <&abox_rdma_3 1>;
+					};
+					platform {
+						sound-dai = <&abox_rdma_3 1>;
+					};
+				};
+				rdma4_be {
+					cpu {
+						sound-dai = <&abox_rdma_4 1>;
+					};
+					platform {
+						sound-dai = <&abox_rdma_4 1>;
+					};
+				};
+				rdma5_be {
+					cpu {
+						sound-dai = <&abox_rdma_5 1>;
+					};
+					platform {
+						sound-dai = <&abox_rdma_5 1>;
+					};
+				};
+				rdma6_be {
+					cpu {
+						sound-dai = <&abox_rdma_6 1>;
+					};
+					platform {
+						sound-dai = <&abox_rdma_6 1>;
+					};
+				};
+				rdma7_be {
+					cpu {
+						sound-dai = <&abox_rdma_7 1>;
+					};
+					platform {
+						sound-dai = <&abox_rdma_7 1>;
+					};
+				};
+				rdma8_be {
+					cpu {
+						sound-dai = <&abox_rdma_8 1>;
+					};
+					platform {
+						sound-dai = <&abox_rdma_8 1>;
+					};
+				};
+				rdma9_be {
+					cpu {
+						sound-dai = <&abox_rdma_9 1>;
+					};
+					platform {
+						sound-dai = <&abox_rdma_9 1>;
+					};
+				};
+				rdma10_be {
+					cpu {
+						sound-dai = <&abox_rdma_10 1>;
+					};
+					platform {
+						sound-dai = <&abox_rdma_10 1>;
+					};
+				};
+				rdma11_be {
+					cpu {
+						sound-dai = <&abox_rdma_11 1>;
+					};
+					platform {
+						sound-dai = <&abox_rdma_11 1>;
+					};
+				};
+				rdma12_be {
+					cpu {
+						sound-dai = <&abox_rdma_12 1>;
+					};
+					platform {
+						sound-dai = <&abox_rdma_12 1>;
+					};
+				};
+				rdma13_be {
+					cpu {
+						sound-dai = <&abox_rdma_13 1>;
+					};
+					platform {
+						sound-dai = <&abox_rdma_13 1>;
+					};
+				};
+				rdma14_be {
+					cpu {
+						sound-dai = <&abox_rdma_14 1>;
+					};
+					platform {
+						sound-dai = <&abox_rdma_14 1>;
+					};
+				};
+				rdma15_be {
+					cpu {
+						sound-dai = <&abox_rdma_15 1>;
+					};
+					platform {
+						sound-dai = <&abox_rdma_15 1>;
+					};
+				};
+				wdma0_be {
+					cpu {
+						sound-dai = <&abox_wdma_0 1>;
+					};
+					platform {
+						sound-dai = <&abox_wdma_0 1>;
+					};
+				};
+				wdma1_be {
+					cpu {
+						sound-dai = <&abox_wdma_1 1>;
+					};
+					platform {
+						sound-dai = <&abox_wdma_1 1>;
+					};
+				};
+				wdma2_be {
+					cpu {
+						sound-dai = <&abox_wdma_2 1>;
+					};
+					platform {
+						sound-dai = <&abox_wdma_2 1>;
+					};
+				};
+				wdma3_be {
+					cpu {
+						sound-dai = <&abox_wdma_3 1>;
+					};
+					platform {
+						sound-dai = <&abox_wdma_3 1>;
+					};
+				};
+				wdma4_be {
+					cpu {
+						sound-dai = <&abox_wdma_4 1>;
+					};
+					platform {
+						sound-dai = <&abox_wdma_4 1>;
+					};
+				};
+				wdma5_be {
+					cpu {
+						sound-dai = <&abox_wdma_5 1>;
+					};
+					platform {
+						sound-dai = <&abox_wdma_5 1>;
+					};
+				};
+				wdma6_be {
+					cpu {
+						sound-dai = <&abox_wdma_6 1>;
+					};
+					platform {
+						sound-dai = <&abox_wdma_6 1>;
+					};
+				};
+				wdma7_be {
+					cpu {
+						sound-dai = <&abox_wdma_7 1>;
+					};
+					platform {
+						sound-dai = <&abox_wdma_7 1>;
+					};
+				};
+				wdma8_be {
+					cpu {
+						sound-dai = <&abox_wdma_8 1>;
+					};
+					platform {
+						sound-dai = <&abox_wdma_8 1>;
+					};
+				};
+				wdma9_be {
+					cpu {
+						sound-dai = <&abox_wdma_9 1>;
+					};
+					platform {
+						sound-dai = <&abox_wdma_9 1>;
+					};
+				};
+				wdma10_be {
+					cpu {
+						sound-dai = <&abox_wdma_10 1>;
+					};
+					platform {
+						sound-dai = <&abox_wdma_10 1>;
+					};
+				};
+				wdma11_be {
+					cpu {
+						sound-dai = <&abox_wdma_11 1>;
+					};
+					platform {
+						sound-dai = <&abox_wdma_11 1>;
+					};
+				};
+				usb {
+					cpu {
+						sound-dai = <&abox 0>;
+					};
+				};
+				fwd {
+					cpu {
+						sound-dai = <&abox 1>;
+					};
+				};
+			}; /* end of sound */
+
+			abox_synchronized_ipc: abox_synchronized_ipc {
+				compatible = "samsung,abox-synchronized-ipc";
+				status = "disabled";
+				#sound-dai-cells = <1>;
+				abox = <&abox>;
+			};
+
+			sec-audio-sysfs {
+				compatible = "samsung,audio-sysfs";
+				status = "okay";
+				audio,no-earjack;
+				audio,num-amp = <2>;
+			};
+
+			sec-audio-debug {
+				compatible = "samsung,audio-debug";
+				status = "okay";
+
+				abox_dbg_size_min = <0x600000>;
+				abox_slog_size_min = <0x0>;
+			};
+
+			usb_hs_tune:hs_tune {
+				hs_tune_cnt = <7>;
+				/* value = <device host> */
+				hs_tune1 {
+					tune_name = "tx_pre_emp";
+					tune_value = <0x3 0x3>;
+				};
+
+				hs_tune2 {
+					tune_name = "tx_vref";
+					tune_value = <0xd 0xd>;
+				};
+
+				hs_tune3 {
+					tune_name = "rx_sqrx";
+					tune_value = <0x7 0x7>;
+				};
+
+				hs_tune4 {
+					tune_name = "utmi_clk";
+					tune_value = <0x1 0x1>;
+				};
+
+				hs_tune5 {
+					tune_name = "compdis";
+					tune_value = <0x7 0x7>;
+				};
+
+				hs_tune6 {
+					tune_name = "tx_res";
+					tune_value = <0x1 0x1>;
+				};
+
+				hs_tune7 {
+					tune_name = "tx_rise";
+					tune_value = <0x1 0x1>;
+				};
+			};
+
+		};
+
+	};
+};
+
+&chosen {
+	bootargs_ext = "";
+};
+
+&serial_0 {
+	status = "okay";
+};
+
+&pinctrl_1 {
+	rcv_amp_en: rcv-amp-en {
+		samsung,pins ="gpm8-0";
+		samsung,pin-function = <1>;
+		samsung,pin-val = <1>;
+		samsung,pin-pud = <0>;
+		samsung,pin-con-pdn = <3>;
+		samsung,pin-pud-pdn = <0>;
+	};
+	spk_amp_en: spk-amp-en {
+		samsung,pins ="gpm5-0";
+		samsung,pin-function = <1>;
+		samsung,pin-val = <1>;
+		samsung,pin-pud = <0>;
+		samsung,pin-con-pdn = <3>;
+		samsung,pin-pud-pdn = <0>;
+	};
+	spk_amp_int: spk-amp-int {
+		samsung,pins ="gpm9-0";
+		samsung,pin-function = <0xf>;
+		samsung,pin-pud = <3>;
+		samsung,pin-pud-pdn = <3>;
+	};
+	dmic_en: dmic-en {
+		samsung,pins ="gpm17-0";
+		samsung,pin-function = <1>;
+		samsung,pin-pud = <0>;
+		samsung,pin-val = <1>;
+	};
+	dmic_en_idle: dmic-en-idle {
+		samsung,pins ="gpm17-0";
+		samsung,pin-function = <1>;
+		samsung,pin-pud = <0>;
+		samsung,pin-val = <0>;
+	};
+};
+&vts {
+	pinctrl-names = "dmic0_default",
+		"dmic1_default",
+		"dmic2_default",
+		"amic0_default",
+		"amic1_default",
+		"amic2_default",
+		"dmic0_idle",
+		"dmic1_idle",
+		"dmic2_idle",
+		"default";
+	pinctrl-0 = <&dmic_bus_clk0 &dmic_pdm0_bus &dmic_en>;
+	pinctrl-1 = <&dmic_bus_clk2 &dmic_pdm2_bus &dmic_en>;
+	pinctrl-2 = <&dmic_bus_clk2 &dmic_pdm2_bus>;
+	pinctrl-3 = <&dmic_bus_clk0 &amic_pdm0_bus>;
+	pinctrl-4 = <&dmic_bus_clk1 &amic_pdm1_bus>;
+	pinctrl-5 = <&dmic_bus_clk2 &amic_pdm2_bus>;
+	pinctrl-6 = <&dmic_bus_clk0_idle &dmic_pdm0_idle &dmic_en_idle>;
+	pinctrl-7 = <&dmic_bus_clk2_idle &dmic_pdm2_idle &dmic_en_idle>;
+	pinctrl-8 = <&dmic_bus_clk2_idle &dmic_pdm2_idle>;
+	pinctrl-9 = <>;
+
+};
+/*
+&pinctrl_3 {
+
+	aud_i2s0_bus:aud-i2s0-bus {
+		samsung,pins = "gpb0-0", "gpb0-1", "gpb0-2", "gpb0-3";
+		samsung,pin-function = <2>;
+		samsung,pin-pud = <0>;
+	};
+
+	aud_i2s0_idle:aud-i2s0-idle {
+		samsung,pins = "gpb0-0", "gpb0-1", "gpb0-2", "gpb0-3";
+		samsung,pin-function = <0>;
+		samsung,pin-pud = <1>;
+	};
+
+	aud_i2s1_bus:aud-i2s1-bus {
+		samsung,pins = "gpb1-0", "gpb1-1", "gpb1-2", "gpb1-3";
+		samsung,pin-function = <2>;
+		samsung,pin-pud = <0>;
+	};
+
+	aud_i2s1_idle:aud-i2s1-idle {
+		samsung,pins = "gpb1-0", "gpb1-1", "gpb1-2", "gpb1-3";
+		samsung,pin-function = <0>;
+		samsung,pin-pud = <1>;
+	};
+
+	aud_codec_mclk:aud-codec-mclk {
+		samsung,pins = "gpb0-4";
+		samsung,pin-function = <2>;
+		samsung,pin-pud = <1>;
+	};
+
+	aud_codec_mclk_idle:aud-codec-mclk-idle {
+		samsung,pins = "gpb0-4";
+		samsung,pin-function = <0>;
+		samsung,pin-pud = <1>;
+	};
+};
+
+
+&abox_uaif_1 {
+	pinctrl-names = "active", "idle";
+	pinctrl-0 = <&aud_i2s1_bus>;
+	pinctrl-1 = <&aud_i2s1_idle>;
+};
+*/
+&abox {
+	samsung,conf-file-name = "abox_solution_ti.conf", "abox_system.conf";
+};
+
+&hsi2c_16 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+	status = "okay";
+	clock-frequency = <400000>;
+
+	tfa98xx@34 {
+		status = "disabled";
+	};
+
+	tfa98xx@35 {
+		status = "disabled";
+	};
+
+	tas25xx: tas25xx@48 {
+		pinctrl-names = "default";
+		pinctrl-0 = <&rcv_amp_en &spk_amp_en &spk_amp_int>;
+		#sound-dai-cells = <1>;
+		compatible = "ti,tas25xx";
+		reg = <0x48>;
+		ti,max-channels = <2>;
+		ti,channel-0 = <0x49>;
+		ti,channel-1 = <0x48>;
+		ti,reset-gpio = <&gpm8 0 0>;
+		ti,irq-gpio = <&gpm9 0 0>;
+		ti,reset-gpio2 = <&gpm5 0 0>;
+		status = "okay";
+	};
+
+};
+
+
+&hsi2c_28 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+	status = "ok";
+	clock-frequency = <400000>;
+	samsung,reset-before-trans;
+	samsung,stop-after-trans;	/* LSI IC ONLY */
+};
+
+&udc {
+	status = "okay";
+};
+
+&usbdrd_dwc3 {
+	status = "okay";
+	maximum-speed = "high-speed";
+	usb_audio_offloading = <1>;
+	abox = <&abox>;
+	samsung,abox-gic = <&abox_gic>;
+	xhci_use_uram_for_audio = <1>;
+
+	vdd12_usb-supply = <&l23_reg>;
+	vdd18_usb-supply = <&l4_reg>;
+	vdd33_usb-supply = <&l6_reg>;
+};
+
+&usbdrd_phy0 {
+	status = "okay";
+	hs_tune_param = <&usb_hs_tune>;
+
+	low_power_call = <1>;
+
+	vdd12_usb-supply = <&l23_reg>;
+	vdd18_usb-supply = <&l4_reg>;
+	vdd33_usb-supply = <&l6_reg>;
+};
+
+&pinctrl_0 {
+	key_volup: key-volup {
+		samsung,pins = "gpa0-3";
+		samsung,pin-function = <0xf>;
+		samsung,pin-pud = <3>;
+		samsung,pin-drv = <3>;
+	};
+	attn_irq: attn-irq {
+		samsung,pins = "gpc10-0";
+		samsung,pin-function = <0xf>;
+		samsung,pin-pud = <3>;
+		samsung,pin-drv = <3>;
+	};
+
+	attn_input: attn-input {
+		samsung,pins = "gpc10-0";
+		samsung,pin-function = <0>;
+		samsung,pin-pud = <1>;
+	};
+
+	dc_irq: dc-irq {
+		samsung,pins = "gpa0-6";
+		samsung,pin-function = <0>;
+		samsung,pin-pud = <0>;
+		samsung,pin-drv = <0>;
+	};
+};
+
+&drmdsim_0 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+	dsi-burst-cmd = <1>;
+	drmpanel {
+		compatible = "samsung,mcd-panel-samsung-drv";
+		/* reset, power */
+		reset-gpios = <&gpc5 0 GPIO_ACTIVE_HIGH>;
+		reg = <0>;
+	};
+};
+
+/* RCD */
+&drmdpp12 {
+	/* RCD BLOCK mode configurations, based on panel size*/
+	rcd_block_mode_en = <1>;
+
+	/* block mode start offset (x,y) */
+	rcd_block_mode_x  = <0>;
+	rcd_block_mode_y  = <128>;
+
+	/* block mode width & height from offset (x,y) */
+	rcd_block_mode_w  = <1080>;
+	rcd_block_mode_h  = <2084>;
+};
+
+&dwmmc_2 {
+	card-detect-invert;
+	sec-sd-slot-type = <3>; /* Hybrid Tray SD slot */
+};
+
+&ufs {
+	vcc-supply = <&l29_reg>;
+	vccq-supply = <&l31_reg>;
+};
+
+&cpif {
+	pinctrl-names = "default";
+		pinctrl-0 = <&tray_detect &usim1_en &usim2_en &fr1_rfic_reset &cp_ese_rst>;
+};

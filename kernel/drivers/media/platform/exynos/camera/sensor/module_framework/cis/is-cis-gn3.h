@@ -1,0 +1,549 @@
+/* SPDX-License-Identifier: GPL-2.0 */
+/*
+ * Samsung Exynos SoC series Sensor driver
+ *
+ *
+ * Copyright (c) 2021 Samsung Electronics Co., Ltd
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+#ifndef IS_CIS_GN3_H
+#define IS_CIS_GN3_H
+
+#include "is-cis.h"
+
+#define AEB_GN3_LUT0	0x0E10
+#define AEB_GN3_LUT1	0x0E1E
+
+#define AEB_GN3_OFFSET_CIT		0x0
+#define AEB_GN3_OFFSET_AGAIN	0x2
+#define AEB_GN3_OFFSET_DGAIN	0x4
+#define AEB_GN3_OFFSET_FLL		0x6
+
+#define GN3_RMS_CROP_SUPPORT_BDS_ON (0)
+
+#ifdef CONFIG_CAMERA_VENDOR_MCD
+#define CIS_CALIBRATION	1
+#else
+#define CIS_CALIBRATION	0
+#endif
+#if IS_ENABLED(CIS_CALIBRATION)
+enum gn3_endian {
+	GN3_LITTLE_ENDIAN = 0,
+	GN3_BIG_ENDIAN = 1,
+};
+#define GN3_ENDIAN(a, b, endian)  ((endian == GN3_BIG_ENDIAN) ? ((a << 8)|(b)) : ((a)|(b << 8)))
+
+#define GN3_BURST_WRITE	1
+#define GN3_CAL_ROW_LEN	(3)
+#define GN3_CAL_START_ADDR	(0)
+#define GN3_CAL_END_ADDR	(1)
+#define GN3_CAL_BURST_CHECK	(2)
+#endif
+
+#define GN3_IDCG_AF_HCG	1
+#if IS_ENABLED(GN3_IDCG_AF_HCG)
+#define GN3_IDCG_AF_FCI	(0x0107)
+#else
+#define GN3_IDCG_AF_FCI	(0x0108)
+#endif
+
+#define GN3_REMOSAIC_ZOOM_RATIO_X_2 20	/* x2.0 = 20 */
+
+#define ceil(n, d) ((n)/(d) + ((n)%(d) != 0))
+
+enum sensor_gn3_mode_enum {
+	SENSOR_GN3_8160X6120_27FPS,
+	SENSOR_GN3_7680X4320_30FPS,
+	SENSOR_GN3_4080X3060_30FPS_CROP_R10_BDS,
+	SENSOR_GN3_4080X3060_30FPS_CROP_R12_BDS,
+	SENSOR_GN3_4080X3060_60FPS_IDCG_R12,
+	SENSOR_GN3_4080X3060_60FPS_R10,
+	SENSOR_GN3_4080X3060_60FPS_R12,
+	SENSOR_GN3_4080X2720_60FPS_IDCG_R12,
+	SENSOR_GN3_4080X2720_60FPS_R10,
+	SENSOR_GN3_4080X2720_60FPS_R12,
+	SENSOR_GN3_4080X2296_60FPS_IDCG_R12,
+	SENSOR_GN3_4080X2296_60FPS_R10,
+	SENSOR_GN3_4080X2296_60FPS_R12,
+	SENSOR_GN3_4080X2296_120FPS_R10,
+	SENSOR_GN3_3840X2160_60FPS_R12,
+	SENSOR_GN3_3840X2160_60FPS_IDCG_R12,
+	SENSOR_GN3_3328X1872_120FPS,
+	SENSOR_GN3_2800X2100_30FPS_R12,
+	SENSOR_GN3_2800X2100_30FPS,
+	SENSOR_GN3_2040X1532_120FPS,
+	SENSOR_GN3_2040X1148_240FPS,
+	SENSOR_GN3_2040X1148_480FPS,
+	SENSOR_GN3_2040X1532_30FPS,
+	SENSOR_GN3_2040X1148_30FPS,
+	SENSOR_GN3_4080X3060_53FPS_LN2_R12,
+	SENSOR_GN3_4080X3060_53FPS_LN2_R10,
+	SENSOR_GN3_4080X2720_30FPS_LN2_R12,
+	SENSOR_GN3_4080X2720_30FPS_LN2_R10,
+	SENSOR_GN3_4080X2296_60FPS_LN2_R12,
+	SENSOR_GN3_4080X2296_60FPS_LN2_R10,
+	SENSOR_GN3_3840X2160_60FPS_LN2_R12,
+	SENSOR_GN3_4080X3060_26FPS_LN4_R12,
+	SENSOR_GN3_4080X3060_26FPS_LN4_R10,
+	SENSOR_GN3_4080X2296_30FPS_LN4_R12,
+	SENSOR_GN3_4080X2296_30FPS_LN4_R10,
+	SENSOR_GN3_3840X2160_30FPS_LN4_R12,
+	SENSOR_GN3_4080X3060_30FPS_CROP_R10,
+	SENSOR_GN3_4080X3060_30FPS_CROP_R12,
+	SENSOR_GN3_4080X2296_60FPS_CROP_R12,
+	SENSOR_GN3_3840X2160_60FPS_CROP_R12,
+	SENSOR_GN3_4080X2296_30FPS_CROP_R12_BDS,
+	SENSOR_GN3_4080X2296_60FPS_CROP_R10,
+
+	SENSOR_GN3_MODE_MAX,
+};
+
+#if IS_ENABLED(USE_CAMERA_SENSOR_RETENTION)
+enum sensor_gn3_load_sram_mode {
+	SENSOR_GN3_8160X6120_27FPS_R10_LOAD_SRAM,
+	SENSOR_GN3_7680X4320_30FPS_R10_LOAD_SRAM,
+	SENSOR_GN3_4080X3060_30FPS_CROP_R10_LOAD_SRAM,
+	SENSOR_GN3_4080X3060_30FPS_CROP_R12_LOAD_SRAM,
+	SENSOR_GN3_4080X2296_60FPS_CROP_R12_LOAD_SRAM,
+	SENSOR_GN3_3840X2160_60FPS_CROP_R12_LOAD_SRAM,
+	SENSOR_GN3_4080X2296_60FPS_CROP_R10_LOAD_SRAM,
+	SENSOR_GN3_2040X1148_240FPS_R10_LOAD_SRAM,
+	SENSOR_GN3_2040X1532_120FPS_R10_LOAD_SRAM,
+	SENSOR_GN3_4080X3060_30FPS_CROP_R12_BDS_LOAD_SRAM,
+	SENSOR_GN3_4080X3060_30FPS_CROP_R10_BDS_LOAD_SRAM,
+	SENSOR_GN3_4080X2296_30FPS_CROP_R12_BDS_LOAD_SRAM,
+	SENSOR_GN3_4080X3060_60FPS_R12_LOAD_SRAM,
+	SENSOR_GN3_4080X3060_60FPS_R10_LOAD_SRAM,
+	SENSOR_GN3_4080X2720_60FPS_R12_LOAD_SRAM,
+	SENSOR_GN3_4080X2720_60FPS_R10_LOAD_SRAM,
+	SENSOR_GN3_4080X2296_60FPS_R12_LOAD_SRAM,
+	SENSOR_GN3_4080X2296_60FPS_R10_LOAD_SRAM,
+	SENSOR_GN3_4080X2296_120FPS_R10_LOAD_SRAM,
+	SENSOR_GN3_3840X2160_60FPS_R12_LOAD_SRAM,
+	SENSOR_GN3_4080X3060_53FPS_LN2_R12_LOAD_SRAM,
+	SENSOR_GN3_4080X3060_53FPS_LN2_R10_LOAD_SRAM,
+	SENSOR_GN3_4080X2720_30FPS_LN2_R12_LOAD_SRAM,
+	SENSOR_GN3_4080X2720_30FPS_LN2_R10_LOAD_SRAM,
+	SENSOR_GN3_4080X2296_60FPS_LN2_R12_LOAD_SRAM,
+	SENSOR_GN3_4080X2296_60FPS_LN2_R10_LOAD_SRAM,
+	SENSOR_GN3_3840X2160_60FPS_LN2_R12_LOAD_SRAM,
+	SENSOR_GN3_4080X3060_26FPS_LN4_R12_LOAD_SRAM,
+	SENSOR_GN3_4080X3060_26FPS_LN4_R10_LOAD_SRAM,
+	SENSOR_GN3_4080X2296_30FPS_LN4_R12_LOAD_SRAM,
+	SENSOR_GN3_4080X2296_30FPS_LN4_R10_LOAD_SRAM,
+	SENSOR_GN3_3840X2160_30FPS_LN4_R12_LOAD_SRAM,
+	SENSOR_GN3_4080X3060_60FPS_IDCG_R12_LOAD_SRAM,
+	SENSOR_GN3_4080X2296_60FPS_IDCG_R12_LOAD_SRAM,
+	SENSOR_GN3_4080X2720_60FPS_IDCG_R12_LOAD_SRAM,
+	SENSOR_GN3_3840X2160_60FPS_IDCG_R12_LOAD_SRAM,
+
+	SENSOR_GN3_LOAD_SRAM_MAX,
+};
+#endif
+
+#define MODE_GROUP_BASE (100)
+#define MODE_GROUP_NONE	(MODE_GROUP_BASE + 1)
+#define MODE_GROUP_RMS	(MODE_GROUP_BASE + 2)
+enum sensor_gn3_mode_group_enum {
+	SENSOR_GN3_MODE_NORMAL,
+	SENSOR_GN3_MODE_IDCG,
+	SENSOR_GN3_MODE_LN2,
+	SENSOR_GN3_MODE_LN4,
+	SENSOR_GN3_MODE_RMS_CROP,
+	SENSOR_GN3_MODE_MODE_GROUP_MAX
+};
+u32 sensor_gn3_mode_groups[SENSOR_GN3_MODE_MODE_GROUP_MAX];
+
+enum sensor_gn3_rms_zoom_mode_enum {
+	SENSOR_GN3_RMS_ZOOM_MODE_NONE = 0,
+	SENSOR_GN3_RMS_ZOOM_MODE_X_17 = 17,
+	SENSOR_GN3_RMS_ZOOM_MODE_X_20 = 20,
+	SENSOR_GN3_RMS_ZOOM_MODE_MAX
+};
+u8 sensor_gn3_rms_zoom_mode[SENSOR_GN3_RMS_ZOOM_MODE_MAX];
+
+const u32 sensor_gn3_rms_binning_ratio[SENSOR_GN3_MODE_MAX] = {
+	[SENSOR_GN3_4080X3060_30FPS_CROP_R10_BDS] = 1200,
+	[SENSOR_GN3_4080X3060_30FPS_CROP_R12_BDS] = 1200,
+	[SENSOR_GN3_4080X3060_30FPS_CROP_R10] = 1000,
+	[SENSOR_GN3_4080X3060_30FPS_CROP_R12] = 1000,
+	[SENSOR_GN3_4080X2296_60FPS_CROP_R12] = 1000,
+	[SENSOR_GN3_3840X2160_60FPS_CROP_R12] = 1000,
+	[SENSOR_GN3_4080X2296_30FPS_CROP_R12_BDS] = 1200,
+	[SENSOR_GN3_4080X2296_60FPS_CROP_R10] = 1000,
+};
+
+#if IS_ENABLED(USE_CAMERA_SENSOR_RETENTION)
+#define GN3_FCI_NONE (0x00FF)
+#define SENSOR_GN3_LOAD_SRAM_IDX_NONE (-1)
+#define SENSOR_GN3_ABS_1_FAST_CHANGE_IDX (0x0103)
+
+struct sensor_gn3_specific_mode_retention_attr {
+	u32 fast_change_idx;
+	u32 load_sram_idx;
+};
+
+struct sensor_gn3_specific_mode_retention_attr sensor_gn3_spec_mode_retention_attr[SENSOR_GN3_MODE_MAX] = {
+	{0x0100,			SENSOR_GN3_8160X6120_27FPS_R10_LOAD_SRAM,		},//SENSOR_GN3_8160X6120_27FPS,
+	{0x0100,			SENSOR_GN3_7680X4320_30FPS_R10_LOAD_SRAM,		},//SENSOR_GN3_7680X4320_30FPS,
+	{0x0103,			SENSOR_GN3_4080X3060_30FPS_CROP_R10_BDS_LOAD_SRAM,	},//SENSOR_GN3_4080X3060_30FPS_CROP_R10_BDS,
+	{0x0103,			SENSOR_GN3_4080X3060_30FPS_CROP_R12_BDS_LOAD_SRAM,	},//SENSOR_GN3_4080X3060_30FPS_CROP_R12_BDS,
+	{GN3_IDCG_AF_FCI,	SENSOR_GN3_4080X3060_60FPS_IDCG_R12_LOAD_SRAM,	},//SENSOR_GN3_4080X3060_60FPS_IDCG_R12,
+	{0x0104,			SENSOR_GN3_4080X3060_60FPS_R10_LOAD_SRAM,		},//SENSOR_GN3_4080X3060_60FPS_R10,
+	{0x0104,			SENSOR_GN3_4080X3060_60FPS_R12_LOAD_SRAM,		},//SENSOR_GN3_4080X3060_60FPS_R12,
+	{GN3_IDCG_AF_FCI,	SENSOR_GN3_4080X2720_60FPS_IDCG_R12_LOAD_SRAM,	},//SENSOR_GN3_4080X2720_60FPS_IDCG_R12,
+	{0x0104,			SENSOR_GN3_4080X2720_60FPS_R10_LOAD_SRAM,		},//SENSOR_GN3_4080X2720_60FPS_R10,
+	{0x0104,			SENSOR_GN3_4080X2720_60FPS_R12_LOAD_SRAM,		},//SENSOR_GN3_4080X2720_60FPS_R12,
+	{GN3_IDCG_AF_FCI,	SENSOR_GN3_4080X2296_60FPS_IDCG_R12_LOAD_SRAM,	},//SENSOR_GN3_4080X2296_60FPS_IDCG_R12,
+	{0x0104,			SENSOR_GN3_4080X2296_60FPS_R10_LOAD_SRAM,		},//SENSOR_GN3_4080X2296_60FPS_R10,
+	{0x0104,			SENSOR_GN3_4080X2296_60FPS_R12_LOAD_SRAM,		},//SENSOR_GN3_4080X2296_60FPS_R12,
+	{0x0104,			SENSOR_GN3_4080X2296_120FPS_R10_LOAD_SRAM,		},//SENSOR_GN3_4080X2296_120FPS_R10,
+	{0x0104,			SENSOR_GN3_3840X2160_60FPS_R12_LOAD_SRAM,		},//SENSOR_GN3_3840X2160_60FPS_R12,
+	{GN3_IDCG_AF_FCI,	SENSOR_GN3_3840X2160_60FPS_IDCG_R12_LOAD_SRAM,	},//SENSOR_GN3_3840X2160_60FPS_IDCG_R12,
+	{GN3_FCI_NONE,		SENSOR_GN3_LOAD_SRAM_IDX_NONE,					},//SENSOR_GN3_3328X1872_120FPS,
+	{GN3_FCI_NONE,		SENSOR_GN3_LOAD_SRAM_IDX_NONE,					},//SENSOR_GN3_2800X2100_30FPS_R12,
+	{GN3_FCI_NONE,		SENSOR_GN3_LOAD_SRAM_IDX_NONE,					},//SENSOR_GN3_2800X2100_30FPS,
+	{0x0101,			SENSOR_GN3_2040X1532_120FPS_R10_LOAD_SRAM,		},//SENSOR_GN3_2040X1532_120FPS,
+	{0x0101,			SENSOR_GN3_2040X1148_240FPS_R10_LOAD_SRAM,		},//SENSOR_GN3_2040X1148_240FPS,
+	{0x0102,			SENSOR_GN3_LOAD_SRAM_IDX_NONE,					},//SENSOR_GN3_2040X1148_480FPS,
+	{GN3_FCI_NONE,		SENSOR_GN3_LOAD_SRAM_IDX_NONE,					},//SENSOR_GN3_2040X1532_30FPS,
+	{GN3_FCI_NONE,		SENSOR_GN3_LOAD_SRAM_IDX_NONE,					},//SENSOR_GN3_2040X1148_30FPS,
+
+	{0x0105,			SENSOR_GN3_4080X3060_53FPS_LN2_R12_LOAD_SRAM,	},//SENSOR_GN3_4080X3060_53FPS_LN2_R12,
+	{0x0105,			SENSOR_GN3_4080X3060_53FPS_LN2_R10_LOAD_SRAM,	},//SENSOR_GN3_4080X3060_53FPS_LN2_R10,
+	{0x0105,			SENSOR_GN3_4080X2720_30FPS_LN2_R12_LOAD_SRAM,	},//SENSOR_GN3_4080X2720_30FPS_LN2_R12,
+	{0x0105,			SENSOR_GN3_4080X2720_30FPS_LN2_R10_LOAD_SRAM,	},//SENSOR_GN3_4080X2720_30FPS_LN2_R10,
+	{0x0105,			SENSOR_GN3_4080X2296_60FPS_LN2_R12_LOAD_SRAM,	},//SENSOR_GN3_4080X2296_60FPS_LN2_R12,
+	{0x0105,			SENSOR_GN3_4080X2296_60FPS_LN2_R10_LOAD_SRAM,	},//SENSOR_GN3_4080X2296_60FPS_LN2_R10,
+	{0x0105,			SENSOR_GN3_3840X2160_60FPS_LN2_R12_LOAD_SRAM,	},//SENSOR_GN3_3840X2160_60FPS_LN2_R12,
+	{0x0106,			SENSOR_GN3_4080X3060_26FPS_LN4_R12_LOAD_SRAM,	},//SENSOR_GN3_4080X3060_26FPS_LN4_R12,
+	{0x0106,			SENSOR_GN3_4080X3060_26FPS_LN4_R10_LOAD_SRAM,	},//SENSOR_GN3_4080X3060_26FPS_LN4_R10,
+	{0x0106,			SENSOR_GN3_4080X2296_30FPS_LN4_R12_LOAD_SRAM,	},//SENSOR_GN3_4080X2296_30FPS_LN4_R12,
+	{0x0106,			SENSOR_GN3_4080X2296_30FPS_LN4_R10_LOAD_SRAM,	},//SENSOR_GN3_4080X2296_30FPS_LN4_R10,
+	{0x0106,			SENSOR_GN3_3840X2160_30FPS_LN4_R12_LOAD_SRAM,	},//SENSOR_GN3_3840X2160_30FPS_LN4_R12,
+	{0x0100,			SENSOR_GN3_4080X3060_30FPS_CROP_R10_LOAD_SRAM,	},//SENSOR_GN3_4080X3060_30FPS_CROP_R10,
+	{0x0100,			SENSOR_GN3_4080X3060_30FPS_CROP_R12_LOAD_SRAM,	},//SENSOR_GN3_4080X3060_30FPS_CROP_R12,
+	{0x0100,			SENSOR_GN3_4080X2296_60FPS_CROP_R12_LOAD_SRAM,	},//SENSOR_GN3_4080X2296_60FPS_CROP_R12,
+	{0x0100,			SENSOR_GN3_3840X2160_60FPS_CROP_R12_LOAD_SRAM,	},//SENSOR_GN3_3840X2160_60FPS_CROP_R12,
+	{0x0103,			SENSOR_GN3_4080X2296_30FPS_CROP_R12_BDS_LOAD_SRAM,	},//SENSOR_GN3_4080X2296_30FPS_CROP_R12_BDS,
+	{0x0100,			SENSOR_GN3_4080X2296_60FPS_CROP_R10_LOAD_SRAM,	},//SENSOR_GN3_4080X2296_60FPS_CROP_R10,
+};
+#endif
+
+static const u16 sensor_gn3_cis_dual_master_settings[] = {
+	0xFCFC,	0x4000,	0x02,
+	0x6000,	0x0005,	0x02,
+	0xFCFC,	0x4000,	0x02,
+	0x0A70,	0x0001,	0x02,
+	0x0A72,	0x0100,	0x02,
+	0x0A74,	0x0000,	0x02,
+	0x0A76,	0x0000,	0x02,
+	0x0A78,	0x0000,	0x02,
+	0x0A7A,	0x0000,	0x02,
+	0x0A7C,	0x0000,	0x02,
+	0xFCFC,	0x2000,	0x02,
+	0xFC56,	0x0000,	0x02,
+	0xFC40,	0x0000,	0x02,
+	0xFC42,	0x0000,	0x02,
+	0xFCD0,	0x0000,	0x02,
+	0xFC62,	0x0000,	0x02,
+	0xFC64,	0x0000,	0x02,
+	0x0F24,	0x0002,	0x02,
+	0xFCFC,	0x4000,	0x02,
+	0x6000,	0x0085,	0x02,
+};
+
+static const u16 sensor_gn3_cis_dual_slave_settings[] = {
+	0xFCFC,	0x4000,	0x02,
+	0x6000,	0x0005,	0x02,
+	0xFCFC,	0x4000,	0x02,
+	0x0A70,	0x0001,	0x02,
+	0x0A72,	0x0001,	0x02,
+	0x0A74,	0x0000,	0x02,
+	0x0A76,	0x0001,	0x02,
+	0x0A78,	0x0000,	0x02,
+	0x0A7A,	0x0000,	0x02,
+	0x0A7C,	0x0000,	0x02,
+	0xFCFC,	0x2000,	0x02,
+	0xFC56,	0x0000,	0x02,
+	0xFC40,	0x0001,	0x02,
+	0xFC42,	0x0000,	0x02,
+	0xFCD0,	0x003C,	0x02,
+	0xFC62,	0x0028,	0x02,
+	0xFC64,	0x0028,	0x02,
+	0x0F24,	0x0200,	0x02,
+	0xFCFC,	0x4000,	0x02,
+	0x6000,	0x0085,	0x02,
+};
+
+#if IS_ENABLED(CIS_CALIBRATION)
+static u16 sensor_gn3_pre_XTC[] = {
+	0xFCFC,	0x4000,	0x02,
+	0x6000,	0x0005,	0x02,
+	0x0100,	0x0003,	0x02,
+	IXC_DELAY_US(5000),
+	0xFCFC,	0x2000,	0x02,
+	0xDA62,	0x0000,	0x02,
+	0xDAA4,	0x123D,	0x02,
+	0xDA60,	0x0100,	0x02,
+	0xDAA2,	0x0001,	0x02,
+	0xDAAA,	0x0200,	0x02,
+	0xFCFC,	0x2002,	0x02,
+	0xFCFC,	0x4000,	0x02,
+#if IS_ENABLED(GN3_BURST_WRITE)
+	0x6004,	0x0001,	0x02,
+#endif
+	0x6028,	0x2002,	0x02,
+	0x602A,	0x8320,	0x02,
+};
+static u16 sensor_gn3_post_XTC[] = {
+	0xFCFC,	0x4000,	0x02,
+#if IS_ENABLED(GN3_BURST_WRITE)
+	0x6004,	0x0000,	0x02,
+#endif
+	0xFCFC,	0x4000,	0x02,
+	0xFE4A,	0x00A1,	0x02,
+	0x6000,	0x0085,	0x02,
+};
+#endif
+
+static const u16 sensor_gn3_enable_scramble[] = {
+	0xFCFC,	0x4000,	0x02,
+	0x6000,	0x0005,	0x02,
+	0xFCFC,	0x2000,	0x02,
+	0x30E2,	0x0100,	0x02,
+	0xFCFC,	0x4000,	0x02,
+	0x6000,	0x0085,	0x02,
+};
+
+static const u16 sensor_gn3_frame_duration_on[] = {
+	0xFCFC,	0x4000,	0x02,
+	0x6028,	0x2002,	0x02,
+	0x602A,	0x812A,	0x02,
+	0x6F12,	0x0101,	0x02,
+};
+
+static const u16 sensor_gn3_frame_duration_off[] = {
+	0xFCFC,	0x4000,	0x02,
+	0x6028,	0x2002,	0x02,
+	0x602A,	0x812A,	0x02,
+	0x6F12,	0x0001,	0x02,
+};
+
+static const u16 sensor_gn3_aeb_10bit_image_dt[] = {
+	0xFCFC, 0x4000, 0x02,
+	//bracketing_loop_mode_num_of_repetitions
+	0x0E02, 0x0000, 0x02,
+	//bracketing_selected_fields [0]:cit, [1]:Again, [5]:Dgain, [10]:FLL, [11]:image VC,DT, [12]:Y VC,DT
+	0x0E04, 0x1C23, 0x02,
+
+	//LUT1 - Long
+	0x0E1A, 0x0200, 0x02, // Y VC:0x02
+	0x0E1C, 0x2B00, 0x02, // Y DT:0x2B
+
+	//LUT2 - Short
+	0x0E28, 0x0300, 0x02, // Y VC:0x03
+	0x0E2A, 0x2B00, 0x02, // Y DT:0x2B
+
+	0x0E18, 0x002B, 0x02, // LUT1 - Long - image DT:0x2B
+	0x0E26, 0x012B, 0x02, // LUT2 - Short - image DT:0x2B
+};
+
+static const u16 sensor_gn3_aeb_12bit_image_dt[] = {
+	0xFCFC, 0x4000, 0x02,
+	//bracketing_loop_mode_num_of_repetitions
+	0x0E02, 0x0000, 0x02,
+	//bracketing_selected_fields [0]:cit, [1]:Again, [5]:Dgain, [10]:FLL, [11]:image VC,DT, [12]:Y VC,DT
+	0x0E04, 0x1C23, 0x02,
+
+	//LUT1 - Long
+	0x0E1A, 0x0200, 0x02, // Y VC:0x02
+	0x0E1C, 0x2B00, 0x02, // Y DT:0x2B
+
+	//LUT2 - Short
+	0x0E28, 0x0300, 0x02, // Y VC:0x03
+	0x0E2A, 0x2B00, 0x02, // Y DT:0x2B
+
+	0x0E18, 0x002C, 0x02, // LUT1 - Long - image DT:0x2C
+	0x0E26, 0x012C, 0x02, // LUT2 - Short - image DT:0x2C
+};
+
+static const u16 sensor_gn3_aeb_init_perframe_normal[] = {
+	0x0E10, 0x2D90, 0x02,
+	0x0E12, 0x0020, 0x02,
+	0x0E14, 0x0100, 0x02,
+	0x0E16, 0x2DA8, 0x02,
+
+	0x0E1E, 0x16C0, 0x02,
+	0x0E20, 0x0020, 0x02,
+	0x0E22, 0x0100, 0x02,
+	0x0E24, 0x16D4, 0x02,
+};
+
+static const u16 sensor_gn3_aeb_init_perframe_idcg[] = {
+	0x0E10, 0x1AA0, 0x02,
+	0x0E12, 0x0020, 0x02,
+	0x0E14, 0x0100, 0x02,
+	0x0E16, 0x1AB4, 0x02,
+
+	0x0E1E, 0x0D40, 0x02,
+	0x0E20, 0x0020, 0x02,
+	0x0E22, 0x0100, 0x02,
+	0x0E24, 0x0D5A, 0x02,
+};
+
+static const u16 sensor_gn3_aeb_on[] = {
+	0xFCFC, 0x4000, 0x02,
+	0x0E00, 0x0203, 0x02,
+};
+
+static const u16 sensor_gn3_aeb_off[] = {
+	0xFCFC, 0x4000, 0x02,
+	0x0E00, 0x0003, 0x02,
+};
+
+struct sensor_gn3_private_data {
+	const struct sensor_regs global;
+	const struct sensor_regs golden_cal;
+	const struct sensor_regs *retention;
+	u32 max_retention_num;
+	const struct sensor_regs *load_sram;
+	u32 max_load_sram_num;
+	const struct sensor_regs dual_master;
+	const struct sensor_regs dual_slave;
+	const struct sensor_regs pre_XTC;
+	const struct sensor_regs post_XTC;
+	const struct sensor_regs enable_scramble;
+	const struct sensor_regs frame_duration_on;
+	const struct sensor_regs frame_duration_off;
+	const struct sensor_regs aeb_on;
+	const struct sensor_regs aeb_off;
+	const struct sensor_regs aeb_10bit_image_dt;
+	const struct sensor_regs aeb_12bit_image_dt;
+	const struct sensor_regs aeb_init_perframe_normal;
+	const struct sensor_regs aeb_init_perframe_idcg;
+};
+
+struct sensor_gn3_private_runtime {
+	bool eeprom_cal_available;
+	bool first_entrance;
+	bool load_retention;
+	bool need_stream_on_retention;
+	s32 crop_shift_offset_x;
+	s32 crop_shift_offset_y;
+	bool crop_shift_enabled;
+	bool is_frame_duration_on;
+};
+
+static const struct sensor_reg_addr sensor_gn3_reg_addr = {
+	.fll = 0x0340,
+	.fll_aeb_long = AEB_GN3_LUT0 + AEB_GN3_OFFSET_FLL,
+	.fll_aeb_short = AEB_GN3_LUT1 + AEB_GN3_OFFSET_FLL,
+	.fll_shifter = 0x0702,
+	.cit = 0x0202,
+	.cit_aeb_long = AEB_GN3_LUT0 + AEB_GN3_OFFSET_CIT,
+	.cit_aeb_short = AEB_GN3_LUT1 + AEB_GN3_OFFSET_CIT,
+	.cit_shifter = 0x0704,
+	.again = 0x0204,
+	.again_aeb_long = AEB_GN3_LUT0 + AEB_GN3_OFFSET_AGAIN,
+	.again_aeb_short = AEB_GN3_LUT1 + AEB_GN3_OFFSET_AGAIN,
+	.dgain = 0x020E,
+	.dgain_aeb_long = AEB_GN3_LUT0 + AEB_GN3_OFFSET_DGAIN,
+	.dgain_aeb_short = AEB_GN3_LUT1 + AEB_GN3_OFFSET_DGAIN,
+	.group_param_hold = 0x0104,
+};
+
+struct sensor_gn3_rms_crop_info {
+	u32 align;
+	u32 w_4x2;
+	u32 h_4x2;
+	u32 x_min;
+	u32 y_min;
+	u32 x_4_3;
+	u32 y_4_3;
+	u32 x_4_3_size;
+	u32 y_4_3_size;
+	u32 start_x_4_3;
+	u32 start_y_4_3;
+	u32 max_x_4_3;
+	u32 max_y_4_3;
+	u32 x_16_9;
+	u32 y_16_9;
+	u32 x_16_9_size;
+	u32 y_16_9_size;
+	u32 start_x_16_9;
+	u32 start_y_16_9;
+	u32 max_x_16_9;
+	u32 max_y_16_9;
+	u32 crop_y_offset_margin;
+	u32 multiplier;
+	u16 page_set;
+	u16 indirect_page_set;
+	u16 indirect_addr_set;
+	u16 indirect_access;
+	u16 default_page;
+	u16 page;
+	u16 addr;
+	u16 bds_addr;
+	u16 bds_off_addr;
+	u16 x_start_addr;
+	u16 y_start_addr;
+	u16 x_end_addr;
+	u16 y_end_addr;
+	u16 x_crop_offset_addr;
+	u16 y_crop_offset_addr;
+};
+
+static const struct sensor_gn3_rms_crop_info sensor_gn3_rms_crop_info = {
+	.align = 32,
+	.w_4x2 = 4,
+	.h_4x2 = 2,
+	.x_min = 16,
+	.y_min = 0,
+	.x_4_3 = 112,
+	.y_4_3 = 120,
+	.x_4_3_size = 8159,
+	.y_4_3_size = 3135,
+	.start_x_4_3 = 1000,
+	.start_y_4_3 = 750,
+	.max_x_4_3 = 2000,
+	.max_y_4_3 = 1500,
+	.x_16_9 = 112,
+	.y_16_9 = 860,
+	.x_16_9_size = 8159,
+	.y_16_9_size = 2367,
+	.start_x_16_9 = 1000,
+	.start_y_16_9 = 563,
+	.max_x_16_9 = 2000,
+	.max_y_16_9 = 1126,
+	.crop_y_offset_margin = 68,
+	.multiplier = 100000,
+	.page_set = 0xFCFC,
+	.indirect_page_set = 0x6028,
+	.indirect_addr_set = 0x602A,
+	.indirect_access = 0x6F12,
+	.default_page = 0x4000,
+	.page = 0x2002,
+	.bds_addr = 0x728A,
+	.bds_off_addr = 0x5E56,
+	.x_start_addr = 0x0344,
+	.y_start_addr = 0x0346,
+	.x_end_addr = 0x0348,
+	.y_end_addr = 0x034A,
+	.x_crop_offset_addr = 0x0350,
+	.y_crop_offset_addr = 0x0352,
+};
+
+int sensor_gn3_cis_stream_on(struct v4l2_subdev *subdev);
+int sensor_gn3_cis_stream_off(struct v4l2_subdev *subdev);
+int sensor_gn3_cis_set_lownoise_mode_change(struct v4l2_subdev *subdev);
+int sensor_gn3_cis_set_remosaic_crop_shift(struct v4l2_subdev *subdev, u32 mode);
+#if IS_ENABLED(USE_CAMERA_SENSOR_RETENTION)
+int sensor_gn3_cis_retention_crc_check(struct v4l2_subdev *subdev);
+int sensor_gn3_cis_retention_prepare(struct v4l2_subdev *subdev);
+#endif
+#endif

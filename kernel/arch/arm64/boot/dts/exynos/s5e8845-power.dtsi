@@ -1,0 +1,51 @@
+/*
+ * SAMSUNG S5E8845 SoC DVFS Manager device tree source
+ *
+ * Copyright (c) 2023 Samsung Electronics Co., Ltd.
+ *		http://www.samsung.com
+ *
+ * SAMSUNG S5E8845 SoC device nodes are listed in this file.
+ * EXYNOS based board files can include this file and provide
+ * values for board specfic bindings.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+#include "s5e8845-dm.dtsi"
+#include "s5e8845-devfreq.dtsi"
+#include "s5e8845-thermal.dtsi"
+#include <dt-bindings/soc/samsung/s5e8845-esca-ipc.h>
+
+/ {
+	exynos-ect {
+		compatible = "samsung,exynos-ect";
+		memory-region = <&ect_binary>;
+	};
+
+	acpm_dvfs {
+		compatible = "samsung,exynos-acpm-dvfs";
+		esca-ipc-channel = <ESCA_IPC_PHY__NOTI_MIF>;
+	};
+
+	exynos-wow {
+		compatible = "samsung,exynos-wow";
+
+		reg = <0x0 0x12AB0000 0x1000>;
+
+		polling_delay = <60000>; /* ms */
+
+		wow-ip {
+			MIF0 {
+				bus_width = <16>;
+				nr_ppc = <2>;
+				nr_base = <1>;
+				reg_index = <0>;
+				ip_type = <0>;
+
+				use_latency;
+			};
+		};
+	};
+};

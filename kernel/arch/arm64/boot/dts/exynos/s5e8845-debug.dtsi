@@ -1,0 +1,234 @@
+// SPDX-License-Identifier: GPL-2.0-only
+
+#include <dt-bindings/interrupt-controller/s5e8845.h>
+#include <dt-bindings/input/linux-event-codes.h>
+
+/ {
+	dpm: dpm {
+	};
+
+	dss: dss {
+		compatible = "samsung,debug-snapshot";
+		panic_to_wdt = <0>;
+		last_kmsg = <1>;
+		hold-key = <KEY_VOLUMEDOWN>;
+		trigger-key = <KEY_POWER>;
+		scratch-offset = <0x190>; /* SYSIP_DAT0 */
+		scratch-bit = <6>;
+		console_kmsg = <1>;
+		freq_names = "LIT", "MID", "BIG", "INT", "MIF", "CAM",
+				"DISP", "INTCAM", "AUD", "MFC0", "NPU", "DSU",
+				"DNC", "CSIS", "ISP", "MFC1", "DSP", "ALIVE",
+				"CHUB", "VTS", "HSI0", "G3D", "M2M", "ICPU";
+		memory-region = <&header>, <&log_kernel>, <&log_s2d>,
+				<&log_first>, <&log_arrdumprst>, <&log_platform>,
+				<&log_kevents>, <&log_backtrace>, <&log_kevents_small>;
+	};
+
+	getcpustate {
+		compatible = "samsung,exynos-getcpustate";
+		core_pmustatus_offset = <0x1004>, <0x1084>, <0x1104>, <0x1184>,
+				      <0x1304>, <0x1384>, <0x1404>, <0x1484>;
+	};
+
+	dss-sfrdump {
+		compatible = "debug-snapshot,sfrdump";
+		/* -----------<< Example >>-------------------
+		dump-info {
+			#address-cells = <1>;
+			#size-cells = <1>;
+
+			gic-setenable {
+				reg = <0x11f01100 0x100>;
+			};
+			gic-setpend {
+				reg = <0x11f01200 0x100>;
+			};
+			gic-setactive {
+				reg = <0x11f01300 0x100>;
+			};
+		};
+		*/
+	};
+
+	dss-debug-kinfo {
+		compatible = "samsung,debug-snapshot-debug-kinfo";
+		memory-region = <&debug_kinfo_reserved>;
+	};
+
+	debug-kinfo {
+		compatible = "google,debug-kinfo";
+		memory-region = <&debug_kinfo_reserved>;
+	};
+
+	hardlockup-watchdog {
+		compatible = "samsung,hardlockup-watchdog";
+	};
+
+	exynos-debug-test {
+		compatible = "samsung,exynos-debug-test";
+		ps_hold_control_offset = <0x3F90>;
+		scratch-offset = <0x0190>; /* SYSIP_DAT0 */
+		dram-init-bit = <0x4>;
+		nr_cpu = <0x8>;
+		nr_little_cpu = <0x4>;
+		nr_mid_cpu = <0x0>;
+		nr_big_cpu = <0x4>;
+		little_cpu_start = <0x0>;
+		big_cpu_start = <0x4>;
+	};
+
+	memlogger: samsung,memlogger {
+		compatible = "samsung,memlogger";
+		memory-region = <&memlog_mem>;
+		samsung,bl-node = <&memlog_bl_base>;
+	};
+
+	memlogger_policy: samsung,memlog_policy {
+		samsung,log-level = <4>;
+		samsung,file-default-status = <1>;
+		samsung,mem-constraint = <0>;
+		samsung,mem-to-file-allow = <1>;
+	};
+
+	ecc_handler: exynos-ecc-handler {
+		compatible = "samsung,exynos-ecc-handler";
+		interrupts = <GIC_SPI INTREQ__CPUCL0_ERRIRQ_0 IRQ_TYPE_LEVEL_HIGH>,
+			<GIC_SPI INTREQ__CPUCL0_ERRIRQ_1 IRQ_TYPE_LEVEL_HIGH>,
+			<GIC_SPI INTREQ__CPUCL0_ERRIRQ_2 IRQ_TYPE_LEVEL_HIGH>,
+			<GIC_SPI INTREQ__CPUCL0_ERRIRQ_3 IRQ_TYPE_LEVEL_HIGH>,
+			<GIC_SPI INTREQ__CPUCL0_ERRIRQ_4 IRQ_TYPE_LEVEL_HIGH>,
+			<GIC_SPI INTREQ__CPUCL0_ERRIRQ_5 IRQ_TYPE_LEVEL_HIGH>,
+			<GIC_SPI INTREQ__CPUCL0_ERRIRQ_6 IRQ_TYPE_LEVEL_HIGH>,
+			<GIC_SPI INTREQ__CPUCL0_ERRIRQ_7 IRQ_TYPE_LEVEL_HIGH>,
+			<GIC_SPI INTREQ__CPUCL0_ERRIRQ_8 IRQ_TYPE_LEVEL_HIGH>,
+			<GIC_SPI INTREQ__CPUCL0_FAULTIRQ_0 IRQ_TYPE_LEVEL_HIGH>,
+			<GIC_SPI INTREQ__CPUCL0_FAULTIRQ_1 IRQ_TYPE_LEVEL_HIGH>,
+			<GIC_SPI INTREQ__CPUCL0_FAULTIRQ_2 IRQ_TYPE_LEVEL_HIGH>,
+			<GIC_SPI INTREQ__CPUCL0_FAULTIRQ_3 IRQ_TYPE_LEVEL_HIGH>,
+			<GIC_SPI INTREQ__CPUCL0_FAULTIRQ_4 IRQ_TYPE_LEVEL_HIGH>,
+			<GIC_SPI INTREQ__CPUCL0_FAULTIRQ_5 IRQ_TYPE_LEVEL_HIGH>,
+			<GIC_SPI INTREQ__CPUCL0_FAULTIRQ_6 IRQ_TYPE_LEVEL_HIGH>,
+			<GIC_SPI INTREQ__CPUCL0_FAULTIRQ_7 IRQ_TYPE_LEVEL_HIGH>,
+			<GIC_SPI INTREQ__CPUCL0_FAULTIRQ_8 IRQ_TYPE_LEVEL_HIGH>;
+		interrupt-names = "Uncorrectable errors Cache(L3) tag RAMs or SCU snoop filter RAMs",
+			"Core0, Uncorrectable errors in the L1 tag or dirty or L2 tag RAMs",
+			"Core1, Uncorrectable errors in the L1 tag or dirty or L2 tag RAMs",
+			"Core2, Uncorrectable errors in the L1 tag or dirty or L2 tag RAMs",
+			"Core3, Uncorrectable errors in the L1 tag or dirty or L2 tag RAMs",
+			"Core4, Uncorrectable errors in the L1 tag or dirty or L2 tag RAMs",
+			"Core5, Uncorrectable errors in the L1 tag or dirty or L2 tag RAMs",
+			"Core6, Uncorrectable errors in the L1 tag or dirty or L2 tag RAMs",
+			"Core7, Uncorrectable errors in the L1 tag or dirty or L2 tag RAMs",
+			"FAULTIRQ(Single bit flip 100 times) on the L3 data, tag or snoop filter RAMs",
+			"Core0, FAULTIRQ(Single bit flip 100 times) on the L1 data or tag RAMs",
+			"Core1, FAULTIRQ(Single bit flip 100 times) on the L1 data or tag RAMs",
+			"Core2, FAULTIRQ(Single bit flip 100 times) on the L1 data or tag RAMs",
+			"Core3, FAULTIRQ(Single bit flip 100 times) on the L1 data or tag RAMs",
+			"Core4, FAULTIRQ(Single bit flip 100 times) on the L1 data or tag RAMs",
+			"Core5, FAULTIRQ(Single bit flip 100 times) on the L1 data or tag RAMs",
+			"Core6, FAULTIRQ(Single bit flip 100 times) on the L1 data or tag RAMs",
+			"Core7, FAULTIRQ(Single bit flip 100 times) on the L1 data or tag RAMs";
+		interrupt-affinity = <0xff>, <0x1>, <0x2>, <0x4>, <0x8>,
+				<0x10>, <0x20>, <0x40>, <0x80>,
+				<0xff>, <0x1>, <0x2>, <0x4>, <0x8>,
+				<0x10>, <0x20>, <0x40>, <0x80>;
+		policy = <0x0>, <0x0>, <0x0>, <0x0>, <0x0>,
+		       <0x0>, <0x0>, <0x0>, <0x0>,
+		       <0x0>, <0x3>, <0x3>, <0x3>, <0x3>,
+		       <0x3>, <0x3>, <0x3>, <0x3>;
+	};
+
+	exynos-adv_tracer {
+		compatible = "samsung,exynos-adv-tracer";
+		reg = <0x0 0x118D0000 0x1000>;
+		reg-names = "mailbox";
+		interrupts = <GIC_SPI INTREQ__MAILBOX_DBGCORE2AP IRQ_TYPE_LEVEL_HIGH>;
+		status = "ok";
+		recovery {
+			chip_name = "s5e8845";
+			dbgc-cpu-conf = <0x3640>;
+			dbgc-cpu-status = <0x3644>;
+			rst-seq = <0x0018>;
+		};
+	};
+
+	s2d: exynos_adv_tracer_s2d {
+		compatible = "samsung,exynos-adv-tracer-s2d";
+		plugin-len = <3>;
+		plugin-name = "S2D";
+		pmu-burnin-ctrl = <0x3d48>;
+		sel-scanmode-bit = <25>;
+		dbgsel-sw-bit = <4>;
+		pmu-rst-seq = <0x0018>;
+		pmu-rst-seq-safe-mode-bit = <31>;
+		status = "ok";
+	};
+
+	exynos-ehld {
+		compatible = "samsung,exynos-ehld";
+		reg = <0 0x10880000 0x1000>,
+			<0 0x10890000 0x1000>,
+			<0 0x10860000 0x1000>,
+			<0 0x10870000 0x1000>;
+		cs_base = <0x4810000>;
+		version = <3>;
+		cpu0 {
+			dbg-offset = <0x000000>;
+		};
+		cpu1 {
+			dbg-offset = <0x100000>;
+		};
+		cpu2 {
+			dbg-offset = <0x200000>;
+		};
+		cpu3 {
+			dbg-offset = <0x300000>;
+		};
+		cpu4 {
+			dbg-offset = <0x400000>;
+		};
+		cpu5 {
+			dbg-offset = <0x500000>;
+		};
+		cpu6 {
+			dbg-offset = <0x600000>;
+		};
+		cpu7 {
+			dbg-offset = <0x700000>;
+		};
+
+		ehld_dbgc: dbgc {
+			/* IPC */
+			plugin-len = <4>;
+			plugin-name = "ELD";
+			support = <1>;
+			interval = <100>;
+			threshold = <0x5000000>;
+			judge = <1>;
+		};
+	};
+
+	itmon: exynos-itmon {
+		compatible = "samsung,exynos-itmon-v2";
+		memory-region = <&log_itmon>, <&log_itmon_history>;
+		interrupts = <GIC_SPI INTREQ__OR4_TREX_debugInterrupt IRQ_TYPE_LEVEL_HIGH>;
+		interrupt-affinity = <0xff>;
+		support-irq-oring;
+		status = "ok";
+	};
+
+	coresight {
+		compatible = "samsung,exynos-coresight";
+		dbg_base = <0x4810000>, <0x4910000>, <0x4A10000>, <0x4B10000>,
+			   <0x4C10000>, <0x4D10000>, <0x4E10000>, <0x4F10000>;
+		cti_base = <0x4820000>, <0x4920000>, <0x4A20000>, <0x4B20000>,
+			   <0x4C20000>, <0x4D20000>, <0x4E20000>, <0x4F20000>;
+		pmu_base = <0x4830000>, <0x4930000>, <0x4A30000>, <0x4B30000>,
+			   <0x4C30000>, <0x4D30000>, <0x4E30000>, <0x4F30000>;
+		gpr_base = <0x4001000>;
+		dbgack-mask = <0x1ff00000>;
+		halt = <0>;
+		retention = <0>;
+	};
+};

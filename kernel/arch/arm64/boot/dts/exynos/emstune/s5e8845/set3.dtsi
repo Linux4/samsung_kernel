@@ -1,0 +1,43 @@
+/ {
+	/* game mode - default */
+	set3: set@0300{
+		/* Ontime Migration */
+		ontime {
+			foreground	= <1>;
+			top-app		= <1>;
+
+			domain0 {
+				cpus = "0-3";
+				lower-boundary = <0>;
+				upper-boundary = <60>;
+			};
+			domain1 {
+				cpus = "4-7";
+				lower-boundary = <25>;
+				upper-boundary = <100>;
+			};
+		};
+
+		/* cpus_binding applied to core selection */
+		cpus_binding {
+			target-sched-class = <0x8>;	/* fair */
+
+			background	= "0-3";
+		};
+
+		fclamp {
+			monitor-group {
+				top-app         = <1>;
+			};
+		};
+
+		cpufreq_gov {
+				/* LIT BIG */
+			htask-boost = < 50 50 >;
+		};
+
+		support_uclamp {
+			enabled = <0>;
+		};
+	};
+};

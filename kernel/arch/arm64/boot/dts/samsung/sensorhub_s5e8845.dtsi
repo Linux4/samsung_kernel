@@ -1,0 +1,47 @@
+&contexthub_0 {
+	multi-os = "disabled";
+};
+
+/ {
+	fragment@model {
+		target-path = "/";
+		__overlay__ {
+			shub {
+				compatible = "shub";
+			};
+		};
+	};
+};
+
+/* /home/dpi/qb5_8815/workspace/P4_1716/android/kernel/kmodule/sensorhub/lsi/s5e8845/dts/sensorhub_s5e8845.a55x.dtsi */
+/ {
+	fragment@model {
+		target-path = "/";
+		__overlay__ {
+			shub {
+				acc-lsm6dsvtr-position = <0>;
+				mag-mxg4300s-position = <5>;
+				mag-mxg4300s-array = /bits/ 8 <41 227 2 184 255 98 2 36 34 156 0 48 0 108 0 85 39 223 0 0 0 0 0 0 0 0 0>;
+				mag-mxg4300s-cover-array = /bits/ 8 <41 227 2 184 255 98 2 36 34 156 0 48 0 108 0 85 39 223 0 0 0 0 0 0 0 0 0>;
+				light-position = /bits/ 32 <27 43 3 28 3 1>;
+				fcd-axis = <0>;
+				fcd-threshold = <(-700)>;
+				brightness-array-len = <11>;
+				brightness-array = /bits/ 32 <19 48 54 58 63 67 70 73 75 77 100>;
+			};
+		};
+	};
+};
+/* /home/dpi/qb5_8815/workspace/P4_1716/android/kernel/kmodule/sensorhub/lsi/s5e8845/dts/sensorhub_s5e8845.a55x.04.dtsi */
+/ {
+	fragment@model {
+		target-path = "/";
+		__overlay__ {
+			shub {
+				acc-lsm6dsvtr-position = <2>;
+				mag-mxg4300s-position = <4>;
+				mag-mxg4300s-array = /bits/ 8 <43 51 4 47 255 178 2 52 33 29 255 217 0 79 0 78 40 169 0 0 0 0 0 0 0 0 0>;
+			};
+		};
+	};
+};

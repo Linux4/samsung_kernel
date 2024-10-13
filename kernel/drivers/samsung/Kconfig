@@ -1,0 +1,68 @@
+
+menuconfig SEC_DEBUG
+	tristate "Enable Samsung Debugging features"
+	default n
+
+config SEC_BOOTSTAT
+	tristate "Enable TN Bootstat logging"
+	default n
+	help
+	  This adds support for Samsung boot-stat
+	  To compile this driver as a module, choose M here.
+
+config SEC_KEY_NOTIFIER
+	tristate "Enable Samsung key event notifier"
+	default n
+	help
+	  Samsung Key input event notifier
+
+config DRV_SAMSUNG
+	tristate "Samsung sec class/sysfs Feature"
+	default n
+	help
+	  Samsung sysfs name 'sec' directory create.
+
+config SEC_RELOC_GPIO
+	tristate "Samsung Legacy-Style Relocated GPIO Interface for Factory Mode"
+	default m
+	depends on SEC_FACTORY
+	help
+	  TODO: help is not ready.	  
+
+config SEC_FACTORY
+	bool "SAMSUNG Factory build option"
+	default n
+	select CNSS2_DEBUG	
+	select SHOW_ASV
+	help
+	  Include some codes for Factory binary.
+	  This option is enabled by Factory build option.
+	  In samsung build script, '-F' enables this option.
+
+config SEC_FACTORY_INTERPOSER
+	bool "Samsung Factory interposer binary"
+	default n
+	help
+	  Samsung Factory interposer binary.
+
+config SAMSUNG_PRODUCT_SHIP
+	bool "set up for product shipping"
+	default n
+	help
+	  This option is enabled by SHIP build option.
+	  In samsung build script, '-s' enables this option.
+
+source "drivers/samsung/pm/Kconfig"
+
+# drivers/samsung/Kconfig
+#
+# Copyright (c) 2010-2020 Samsung Electronics Co., Ltd.
+#               http://www.samsung.com/
+#
+# Licensed under GPLv2
+config SEC_REBOOT
+	tristate "Enable Samsung reboot features"
+	default n
+	help
+	  Samsung TN reboot extension Feature. Do additional work when reboot.
+

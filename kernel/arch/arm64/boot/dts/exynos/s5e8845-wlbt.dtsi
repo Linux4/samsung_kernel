@@ -1,0 +1,71 @@
+/ {
+	dbus_baaw: syscon@14420000 { /* refer MIF_BAAW_START0*/
+		compatible = "dbus_baaw", "syscon";
+		reg = <0x0 0x14420000 0x10000>;
+	};
+
+	pbus_baaw: syscon@14430000 { /* refer APM_BAAW_START0*/
+		compatible = "pbus_baaw", "syscon";
+		reg = <0x0 0x14430000 0x10000>;
+	};
+
+	wlbt_remap_base: syscon@14450000 {
+		compatible = "wlbt_remap", "syscon";
+		reg = <0x0 0x14450000 0x10000>;
+	};
+
+	boot_cfg: syscon@14460000 {
+		compatible = "boot_cfg", "syscon";
+		reg = <0x0 0x14460000 0x20000>;
+	};
+
+	pmu_system_controller: system-controller@11860000 {
+                compatible = "samsung,exynos991-pmu", "syscon";
+                reg = <0x0 0x11860000 0x10000>;
+        };
+
+	scsc_wifibt: scsc_wifibt@11B70000 {
+		compatible = "samsung,scsc_wifibt";
+		pinctrl-names = "default";
+		pinctrl-0 = <&fm_spdy_default>;
+		memory-region = <&wifibt_if>;
+		/* Mailbox Registers */
+		reg = <0x0 0x11B70000 0x180>,	/* WLAN MAILBOX */
+			<0x0 0x11B80000 0x180>,		/* WPAN MAILBOX */
+			<0x0 0x11BF0000 0x180>;		/* PMU MAILBOX */
+		//SPI[32] 64 BLK_ALIVE INTREQ__ALIVE_WLBT_ACTIVE
+		//SPI[51] 83 BLK_ALIVE INTREQ__MAILBOX_WLAN2AP
+		//SPI[52] 84 BLK_ALIVE INTREQ__MAILBOX_WLBT_PMU2AP
+		//SPI[53] 85 BLK_ALIVE INTREQ__MAILBOX_WPAN2AP
+		//SPI[447] 479 BLK_WLBT WB2AP_CFG_REQ
+		//SPI[452] 484 BLK_WLBT WB2AP_WDOG_RESET_REQ_IRQ
+		interrupts = <0 32 4>, <0 51 4>, <0 52 4>, <0 53 4>, <0 447 4>, <0 452 4>;
+		interrupt-names = "ALIVE", "MBOX_WLAN", "MBOX_PMU", "MBOX_WPAN","CFG_REQ","WDOG";
+		samsung,syscon-phandle = <&pmu_system_controller>;
+		samsung,dbus_baaw-syscon-phandle = <&dbus_baaw>;
+		samsung,pbus_baaw-syscon-phandle = <&pbus_baaw>;
+		samsung,wlbt_remap-syscon-phandle = <&wlbt_remap_base>;
+		//samsung,i3c_apm_pmic-syscon-phandle = <&i3c_apm_pmic>;
+		samsung,boot_cfg-syscon-phandle = <&boot_cfg>;
+
+		/* LOW / MID / HIGH / OVERRIDE LEVEL*/
+		cpu_table_napi = <
+			0 0 7 7 /* NP_RX_0 */
+			0 0 7 7 /* NP_RX_1 */
+			0 0 5 5 /* NP_TX_0 */
+			>;
+		cpu_table_rps = "00", "00", "40", "40";
+
+		/* mid_tput / high_tput */
+		threshold_table_napi = <0 50>;
+		threshold_table_rps =  <0 50>;
+		samsung,wlbt_hcf = <&wlbt_hw_ver>;
+	};
+
+	scsc_bt_qos {
+		compatible = "samsung,scsc_bt_qos";
+		samsung,qos_level_low = <1>;
+		samsung,qos_level_medium = <3>;
+		samsung,qos_level_high = <6>;
+	};
+};

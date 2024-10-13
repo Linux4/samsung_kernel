@@ -1,0 +1,80 @@
+#define ___count_args(_0, _1, _2, _3, _4, _5, _6, _7, _8, x, ...) x
+
+#define __count_args(...)					\
+	___count_args(__VA_ARGS__, 7, 6, 5, 4, 3, 2, 1, 0)
+
+#define PIN_AP_FUNC_INPUT		0x0
+#define PIN_AP_FUNC_OUTPUT		0x1
+#define PIN_AP_FUNC_OUTPUT_HIGH		0x1
+#define PIN_AP_FUNC_OUTPUT_LOW		0x1
+#define PIN_AP_FUNC_INPUT_WAKEUP	0xf
+
+#define PIN_AP_FUNC_PWM			0x2
+#define PIN_AP_FUNC_I2C			0x2
+
+#define PIN_PULL_NONE	0
+#define PIN_PULL_DOWN	1
+#define PIN_PULL_UP	3
+
+/*
+ * Typical GPIO
+ * 0x0 | 2 mA
+ * 0x1 | 4 mA
+ * 0x2 | 8 mA
+ * 0x3 | 12 mA
+ */
+
+#define PIN_AP_DRV_LV1	0x0
+#define PIN_AP_DRV_LV2	0x1
+#define PIN_AP_DRV_LV3	0x1
+#define PIN_AP_DRV_LV4	0x2
+#define PIN_AP_DRV_LV5	0x2
+#define PIN_AP_DRV_LV6	0x3
+#define PIN_AP_DRV_LV7	0x3
+#define PIN_AP_DRV_LV8	0x3
+
+#define PIN_EXPAND(pin) #pin
+
+#define GPIO_KEY_WAKEUP		gpio-key,wakeup
+#define GPIO_KEY_NONE		gpio-key,none
+#define GPIO_KEY_CAN_DISABLE	linux,can-disable
+
+#define SEC_GPIO(src, type, num)	PIN_EXPAND(type##-num)
+#define SEC_GPIO_REF(src, type, num)	&type num
+#define SEC_GPIO_NUM(src, type, num)	num
+#define SEC_GPIO_TYPE(src, type, num)	&type
+#define SEC_GPIO_PHANDLE_ACTIVE(src, type, num)	SEC_GPIO_PHANDLE(type, num, active)
+#define SEC_GPIO_PHANDLE_SLEEP(src, type, num)	SEC_GPIO_PHANDLE(type, num, sleep)
+#define SEC_GPIO_PHANDLE(type, num, mode)	type##_##num##_##mode
+
+#define GPIO_CONFIG(src, type, num, func)			GPIO_ ##src## _CONFIG(type, num, func)
+#define GPIO_CONFIG_PUD(src, type, num, func, pull)		GPIO_ ##src## _CONFIG_PUD(type, num, func, pull)
+#define GPIO_CONFIG_PUD_DRV(src, type, num, func, pull, drv)	GPIO_ ##src## _CONFIG_PUD_DRV(type, num, func, pull, drv)
+
+#define GPIO_AP_CONFIG(_type, _num, _func)		\
+	samsung,pins = SEC_GPIO(AP, _type, _num);	\
+	samsung,pin-function = <PIN_AP_ ##_func>
+
+#define GPIO_AP_CONFIG_PUD(_type, _num, _func, _pull)	\
+	samsung,pins = SEC_GPIO(AP, _type, _num);	\
+	samsung,pin-function = <PIN_AP_ ##_func>;	\
+	samsung,pin-pud = <PIN_ ##_pull>
+
+#define GPIO_AP_CONFIG_PUD_DRV(_type, _num, _func, _pull, _drv)	\
+	samsung,pins = SEC_GPIO(AP, _type, _num);		\
+	samsung,pin-function = <PIN_AP_ ##_func>;		\
+	samsung,pin-pud = <PIN_ ##_pull>;			\
+	samsung,pin-drv = <PIN_AP_ ##_drv>
+
+#define SEC_ADC(type, num) <&type num>
+#define SEC_ADC_OPT(type, num) ,<&type num>
+
+#define GPIO_KEY_CONFIG(_code, _gpio, _wakeup, _interval)	\
+	label = PIN_EXPAND(_code);							\
+	linux,code = <_code>;						\
+	gpios = <_gpio 0xf>;						\
+	GPIO_KEY_ ##_wakeup;						\
+	debounce-interval = <_interval>
+
+#define SEC_INTERFACE_REF(type, num)	&type num
+
