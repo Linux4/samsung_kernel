@@ -21,28 +21,18 @@
 
 int init_game_rotation_vector(bool en)
 {
+	int ret = 0;
 	struct shub_sensor *sensor = get_sensor(SENSOR_TYPE_GAME_ROTATION_VECTOR);
 
 	if (!sensor)
 		return 0;
 
 	if (en) {
-		strcpy(sensor->name, "game_rotation_vector_sensor");
-		sensor->receive_event_size = 17;
-		sensor->report_event_size = 17;
-		sensor->event_buffer.value = kzalloc(sensor->receive_event_size, GFP_KERNEL);
-		if (!sensor->event_buffer.value)
-			goto err_no_mem;
+		ret = init_default_func(sensor, "game_rotation_vector_sensor", 17, 17, 17);
 	} else {
-		kfree(sensor->event_buffer.value);
-		sensor->event_buffer.value = NULL;
+		destroy_default_func(sensor);
 	}
-	return 0;
 
-err_no_mem:
-	kfree(sensor->event_buffer.value);
-	sensor->event_buffer.value = NULL;
-
-	return -ENOMEM;
+	return ret;
 }
 

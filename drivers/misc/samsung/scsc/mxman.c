@@ -1381,7 +1381,7 @@ static void mxman_set_memlog_version(struct scsc_mif_abs *mif)
 		memlog_version_info = (struct scsc_memlog_version_info *)scsc_memlog_version_info_obj->vaddr;
 		mxman_get_fw_version(memlog_version_info->fw_version, SCSC_LOG_FW_VERSION_SIZE);
 		mxman_get_driver_version(memlog_version_info->host_version, SCSC_LOG_HOST_VERSION_SIZE);
-		memcpy(memlog_version_info->fapi_version, fapi_version, SCSC_LOG_FAPI_VERSION_SIZE);
+		snprintf(memlog_version_info->fapi_version, SCSC_LOG_FAPI_VERSION_SIZE, "%s", fapi_version);
 	}
 }
 #endif

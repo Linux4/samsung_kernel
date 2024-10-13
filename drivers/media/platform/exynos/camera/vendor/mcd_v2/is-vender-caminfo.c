@@ -798,7 +798,10 @@ static int is_vender_caminfo_ap2ap_cmd_get_cal_size(void __user *user_data)
 			}
 		}
 
-		info("%s : Original cal size is %d (0x%04X)", __func__, caminfo.cal_size, caminfo.cal_size);
+		caminfo.bank = specific->rom_bank[caminfo.camID];
+
+		info("%s : ROM[%d] Original cal size : %d (0x%04X), Bank : %d",
+				__func__, caminfo.camID, caminfo.cal_size, caminfo.cal_size, caminfo.bank);
 
 		if (copy_to_user(user_data, &caminfo, sizeof(caminfo_romdata_sec2lsi))) {
 			err("%s : failed to copy data to user", __func__);
@@ -857,7 +860,10 @@ static int is_vender_caminfo_ap2ap_cmd_get_cal_size_compat(compat_uptr_t user_da
 			}
 		}
 
-		info("%s : Original cal size is %d (0x%04X)", __func__, caminfo.cal_size, caminfo.cal_size);
+		caminfo.bank = specific->rom_bank[caminfo.camID];
+
+		info("%s : ROM[%d] Original cal size : %d (0x%04X), Bank : %d",
+				__func__, caminfo.camID, caminfo.cal_size, caminfo.cal_size, caminfo.bank);
 
 		if (copy_to_user((void __user *)compat_ptr(user_data), (void *)&caminfo, sizeof(caminfo_romdata_sec2lsi_compat))) {
 			err("%s : failed to copy data to user", __func__);

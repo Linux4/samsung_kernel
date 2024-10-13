@@ -2854,6 +2854,8 @@
 				pf_rreq_thrt_con = <0x8000>;
 				allow_mo_for_region = <0x00>;
 				pf_qos_timer = <0x50005 0x50005 0x50005 0x50005 0x50005 0x50005 0x50005 0x50005>;
+				pf_token_con = <0x00>;
+				pf_token_th = <0x00>;
 			};
 		};
 
@@ -2872,6 +2874,8 @@
 				pf_rreq_thrt_con = <0x8000>;
 				allow_mo_for_region = <0x00>;
 				pf_qos_timer = <0x50005 0x50005 0x50005 0x50005 0x50005 0x50005 0x50005 0x50005>;
+				pf_token_con = <0x00>;
+				pf_token_th = <0x00>;
 			};
 		};
 	};

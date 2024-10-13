@@ -13,13 +13,20 @@
  *
  */
 
-#ifndef __SHUB_OIS_H_
-#define __SHUB_OIS_H_
-struct ois_sensor_interface {
-	void *core;
-	void (*ois_func)(void *);
-};
+#ifndef __SHUB_LIGHT_IR_H__
+#define __SHUB_LIGHT_IR_H__
 
-void notify_ois_reset(void);
+#include <linux/types.h>
 
-#endif
+struct light_ir_event {
+	u32 irData;
+	u32 lightRed;
+	u32 lightGreen;
+	u32 lightBlue;
+	u32 lightWhite;
+	u16 irAgain;
+	u16 irAtime;
+} __attribute__((__packed__));
+
+
+#endif /* __SHUB_LIGHT_IR_H_ */

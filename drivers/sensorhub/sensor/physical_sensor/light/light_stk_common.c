@@ -25,25 +25,26 @@
 #include "../../../others/shub_panel.h"
 
 #define STK33512_NAME   "STK33512"
+#define STK33F11_NAME   "STK33F11"
 #define STK33512_VENDOR "Sitronix"
 
-int init_light_stk33512(void)
+int init_light_stk_common(void)
 {
 	struct light_data *data = get_sensor(SENSOR_TYPE_LIGHT)->data;
 
 	data->use_cal_data = true;
-
+	shub_info("light_use_cal_data true;");
 	return 0;
 }
 
-struct sensor_chipset_init_funcs light_stk33512_ops = {
-	.init = init_light_stk33512,
+struct sensor_chipset_init_funcs light_stk_common_ops = {
+	.init = init_light_stk_common,
 };
 
-struct sensor_chipset_init_funcs *get_light_stk33512_function_pointer(char *name)
+struct sensor_chipset_init_funcs *get_light_stk_common_function_pointer(char *name)
 {
-	if (strcmp(name, STK33512_NAME) != 0)
+	if (strstr(name, STK33F11_NAME) != NULL || strstr(name, STK33F11_NAME) != NULL)
+		return &light_stk_common_ops;
+	else
 		return NULL;
-
-	return &light_stk33512_ops;
 }

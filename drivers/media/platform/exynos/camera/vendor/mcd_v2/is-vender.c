@@ -614,6 +614,7 @@ int is_vender_probe(struct is_vender *vender)
 		specific->dualized_rom_client[i] = NULL;
 		specific->dualized_rom_cal_map_addr[i] = NULL;
 #endif
+		specific->rom_bank[i] = 0;
 	}
 
 	vender->private_data = specific;

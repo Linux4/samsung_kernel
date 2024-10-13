@@ -90,14 +90,14 @@ struct rom_ap2ap_standard_cal_data{
 	int32_t		rom_lsi_start_addr;
 	int32_t		rom_lsi_end_addr;
 
-	int32_t		rom_num_of_groups;
+	int32_t		rom_num_of_banks;
 	int32_t		rom_num_of_segments;
 
-	int32_t		rom_group_start_addr[JDM_MAX_SEG][JDM_MAX_GROUP];
+	int32_t		rom_bank_start_addr[JDM_MAX_SEG][JDM_MAX_GROUP];
 	int32_t		rom_seg_checksum_addr[JDM_MAX_SEG];
 	int32_t		rom_seg_checksum_len[JDM_MAX_SEG];
 	int32_t		rom_total_checksum_addr[JDM_MAX_GROUP];
-	int32_t		rom_seg_len[JDM_MAX_SEG];
+	int32_t		rom_seg_size[JDM_MAX_SEG];
 };
 
 struct is_vender_rom_addr {
@@ -265,7 +265,7 @@ struct is_vender_specific {
 #ifdef CONFIG_SENSOR_RETENTION_USE
 	bool			need_retention_init;
 #endif
-
+	u32			rom_bank[SENSOR_POSITION_MAX];
 };
 
 #endif

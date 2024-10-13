@@ -13,12 +13,27 @@
  *
  */
 
-#ifndef __SHUB_LIGHT_FACTORY_H_
-#define __SHUB_LIGHT_FACTORY_H_
+#include "../comm/shub_comm.h"
+#include "../sensormanager/shub_sensor.h"
+#include "../sensormanager/shub_sensor_manager.h"
+#include "../utility/shub_utility.h"
+#include "led_cover_event.h"
 
-#include <linux/device.h>
-#include <linux/types.h>
+#include <linux/slab.h>
 
-struct device_attribute **get_light_tcs3701_dev_attrs(char *name);
+int init_led_cover_event(bool en)
+{
+	int ret = 0;
+	struct shub_sensor *sensor = get_sensor(SENSOR_TYPE_LED_COVER_EVENT);
 
-#endif
+	if (!sensor)
+		return 0;
+
+	if (en) {
+		ret = init_default_func(sensor, "led_cover_event_sensor", 1, 1, sizeof(struct led_cover_event));
+	} else {
+		destroy_default_func(sensor);
+	}
+
+	return ret;
+}
