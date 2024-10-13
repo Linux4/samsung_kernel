@@ -1,0 +1,49 @@
+# SPDX-License-Identifier: GPL-2.0-only
+#
+# PMIC RTC class/drivers configuration
+#
+
+config RTC_SAMSUNG_PMIC
+	tristate "Samsung PMIC COMMON RTC"
+	depends on I2C
+	help
+	  If you say yes here you will get support for the
+	  RTC of Samsung PMIC series.
+	  This driver can also be built as a module. If so, the module
+	  will be called pmic-rtc.
+
+config RTC_DRV_S2MPS25
+	tristate "Samsung PMIC S2MPS25 RTC"
+	depends on MFD_S2MPS25
+	help
+	  If you say yes here you will get support for the
+	  RTC of Samsung PMIC series.
+	  This driver can also be built as a module. If so, the module
+	  will be called rtc-s2mps25.
+
+config RTC_DRV_S2MPS25_9935
+	tristate "Samsung PMIC S2MPS25 RTC for 9935"
+	depends on MFD_S2MPS25_9935
+	help
+	  If you say yes here you will get support for the
+	  RTC of Samsung PMIC series.
+	  This driver can also be built as a module. If so, the module
+	  will be called rtc-s2mps25.
+
+config RTC_DRV_S2MPU15_8535
+	tristate "Samsung PMIC S2MPU15 RTC for 8535"
+	depends on MFD_S2MPU15_8535
+	help
+	  If you say yes here you will get support for the
+	  RTC of Samsung PMIC series.
+	  This driver can also be built as a module. If so, the module
+	  will be called rtc-s2mps25.
+
+config RTC_DRV_S2MPU15_8835
+	tristate "Samsung PMIC S2MPU15 RTC for 8835"
+	depends on MFD_S2MPU15_8835
+	help
+	  If you say yes here you will get support for the
+	  RTC of Samsung PMIC series.
+	  This driver can also be built as a module. If so, the module
+	  will be called rtc-s2mps25.

@@ -1,0 +1,1 @@
+obj-$(CONFIG_CCIC_MAX77705)		+= max77705/
