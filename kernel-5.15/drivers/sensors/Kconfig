@@ -1,0 +1,63 @@
+#
+# grip sensors configuration
+#
+
+config SENSORS_SX9385
+	depends on I2C
+	tristate "SX9385 driver"
+	default n
+	help
+	  Say Y here if you use sx9385.
+	  This option enables grip sensors using
+	  SemTech sx9385 device driver.
+	  Say N here if you do not use sx938x.
+
+config SENSORS_SX9385_SUB
+	depends on I2C
+	tristate "SX9385 sub driver"
+	default n
+	help
+	  Say Y here if you use sx9385 sub.
+	  This option enables grip sensors using
+	  SemTech sx9385 sub device driver.
+	  Say N here if you do not use sx938x sub.
+
+config SENSORS_SX9385_SUB2
+	depends on I2C
+	tristate "SX9385 sub2 driver"
+	default n
+	help
+	  Say Y here if you use sx9385 sub2.
+	  This option enables grip sensors using
+	  SemTech sx9385 sub2 device driver.
+	  Say N here if you do not use sx938x sub2.
+
+config MULTI_CHANNEL
+	depends on I2C
+	tristate "MULTI_CHANNEL driver for grip 2ch"
+	default n
+	help
+	  Say Y here if you use model grip 2ch.
+
+config SENSORS_CORE_AP
+	tristate "Need to use Sensors core ap version"
+	default n
+	help
+	  Say Y here if you using sensors_core.c included under drivers/sensors etc.
+
+config SENSORS_COMMON_VDD_SUB
+	bool "SX9385 common VDD"
+	default n
+	help
+	  Say Y here if main and sub sx9385 use common VDD.
+	  This option enables function to control irq gpio of sub grip sensor
+	  in main grip sensor driver.
+
+
+config SENSORS_DUMP_DATA
+	tristate "Grip sensor dump log"
+	default n
+	help
+	  Enable grip dump log data
+	  This option activates log output of grip error data using sensordump_notifier.
+
