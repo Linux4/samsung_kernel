@@ -1185,6 +1185,7 @@
 				s2dos05,wakeup;
 				pinctrl-names = "default";
 				pinctrl-0 = <0x0a>;
+				sec_disp_pmic_name = "disp_pmic";
 				s2dos05,s2dos05_int = <0xffffffff 0x04 0x00>;
 				adc_mode = <0x02>;
 				adc_sync_mode = <0x02>;
@@ -10242,20 +10243,20 @@
 				kallsyms {
 					_stext = <0xffffffc0 0x10081000>;
 					_etext = <0xffffffc0 0x10f50000>;
-					kallsyms_offsets = <0xffffffc0 0x11342fb0>;
-					kallsyms_relative_base = <0xffffffc0 0x113c3880>;
-					kallsyms_num_syms = <0xffffffc0 0x113c3888>;
-					kallsyms_names = <0xffffffc0 0x113c3890>;
-					kallsyms_markers = <0xffffffc0 0x11680928>;
-					kallsyms_token_table = <0xffffffc0 0x11681138>;
-					kallsyms_token_index = <0xffffffc0 0x11681490>;
-					_sinittext = <0xffffffc0 0x11a10000>;
-					_einittext = <0xffffffc0 0x11a8d918>;
-					_end = <0xffffffc0 0x120d7000>;
+					kallsyms_offsets = <0xffffffc0 0x11343c48>;
+					kallsyms_relative_base = <0xffffffc0 0x113c4600>;
+					kallsyms_num_syms = <0xffffffc0 0x113c4608>;
+					kallsyms_names = <0xffffffc0 0x113c4610>;
+					kallsyms_markers = <0xffffffc0 0x11681ae8>;
+					kallsyms_token_table = <0xffffffc0 0x116822f8>;
+					kallsyms_token_index = <0xffffffc0 0x11682650>;
+					_sinittext = <0xffffffc0 0x11a20000>;
+					_einittext = <0xffffffc0 0x11a9da48>;
+					_end = <0xffffffc0 0x120e7000>;
 				};
 
 				kconstants {
-					swapper_pg_dir = <0xffffffc0 0x11a0f000>;
+					swapper_pg_dir = <0xffffffc0 0x11a10000>;
 				};
 			};
 		};
