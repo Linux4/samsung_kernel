@@ -1,0 +1,18 @@
+config SEC_GTA9P_PROJECT
+	default n
+	bool "Samsung GTA9P Project"
+	help
+	  Support for Samsung GTA9P Project
+
+config MACH_GTA9P_EUR_OPENX
+	default n
+	bool "Samsung GTA9P EUR OPENX"
+	help
+	  support for Samsung GTA9P EUR OPENX device.
+
+config MACH_GTA9PWIFI_EUR_OPEN
+	default n
+	bool "Samsung GTA9PWiFi EUR OPENX"
+	help
+	  support for Samsung GTA9PWiFi EUR OPENX device.
+

@@ -1,0 +1,71 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+menu "Wingtech Technologies, Inc. Charger and Fuel Gauge support"
+
+config WT_DISABLE_TEMP_CONTROL
+	tristate "CONFIG_WT_DISABLE_TEMP_CONTROL"
+config CHARGE_SGM41542
+        tristate "CONFIG_CHARGE_SGM41542 charger ic"
+        depends on I2C
+        help
+           Say Y here to enable support for charge with SGM41542 chips
+           connected over an I2C bus.
+
+config CHARGE_CX25890H
+	tristate "CONFIG_CHARGE_CX25890H charger ic"
+        depends on I2C
+	help
+	   Say Y here to enable support for charge with CX25890H chips
+	   connected over an I2C bus.
+
+config CHARGE_SC89890H
+	tristate "CONFIG_CHARGE_SC89890H charger ic"
+        depends on I2C
+	help
+	   Say Y here to enable support for charge with SC89890H chips
+	   connected over an I2C bus.
+
+config FG_CW2217
+	tristate "CONFIG_FG_CW2217 FG ic"
+        depends on I2C
+	help
+	   Say Y here to enable support for charge with CW2217 chips
+	   connected over an I2C bus.
+
+config FG_SD77428
+        tristate "CONFIG_FG_SD77428 FG ic"
+        depends on I2C
+        help
+           Say Y here to enable support for charge with SD77428 chips
+           connected over an I2C bus.
+
+config CHARGE_SY65153
+	tristate "CONFIG_CHARGE_SY65153 charger ic"
+        depends on I2C
+	help
+	   Say Y here to enable support for charge with SY65153 chips
+	   connected over an I2C bus.
+
+config WT_CHARGER
+	tristate "WT CHARGER CONTROL"
+        depends on I2C
+	help
+	  Say Y to include the support of WT_CHARGER Charge driver based on power
+	  supply framework.
+	  WT_CHARGER is a combo charger chip which can work in different modes:
+
+config AFC
+	bool "Using AFC device driver"
+	default n
+	help
+	  If you say yes here you will get support for
+	  the AFC device driver.
+
+# +P231018-03087 gudi.wt 20231025 fix eng adb prot
+config CHARGER_ENG
+	bool "S86801EA1"
+	help
+	  This enables support for S86801EA1 ENG.
+# -P231018-03087 gudi.wt 20231025 fix eng adb prot
+
+endmenu
