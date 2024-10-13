@@ -213,8 +213,13 @@ static int pub_crypto_recv_msg(struct sk_buff *skb, struct nlmsghdr *nlh)
 			result_t *result = (result_t *)data;
 			pub_crypto_request_t *req = NULL;
 
-			req = request_find(&g_pub_crypto_control, result->request_id);
+			if (skb->len < (NLMSG_HDRLEN + sizeof(result_t))) {
+				PUB_CRYPTO_LOGE("crypto_receive_msg: length error\n");
+				break;
+			}
 
+			spin_lock(&g_pub_crypto_control.lock);
+			req = request_find(&g_pub_crypto_control, result->request_id);
 			if(req) {
 				memcpy(&req->result, result, sizeof(result_t));
 				req->state = PUB_CRYPTO_REQ_FINISHED;
@@ -222,6 +227,7 @@ static int pub_crypto_recv_msg(struct sk_buff *skb, struct nlmsghdr *nlh)
 
 				memset(result, 0, sizeof(result_t));
 			}
+			spin_unlock(&g_pub_crypto_control.lock);
 			break;
 		}
 		default:
@@ -416,20 +422,15 @@ static pub_crypto_request_t *request_find(pub_crypto_control_t *con,
 		u32 request_id) {
 	struct list_head *entry;
 
-	spin_lock(&con->lock);
-
 	list_for_each(entry, &con->pending_list) {
 		 pub_crypto_request_t *req;
 		req = list_entry(entry, pub_crypto_request_t, list);
 		if (req->id == request_id) {
 			req_dump(req, "found");
 
-			spin_unlock(&con->lock);
 			return req;
 		}
 	}
-
-	spin_unlock(&con->lock);
 
 	PUB_CRYPTO_LOGE("Can't find request %d\n", request_id);
 	return NULL;
