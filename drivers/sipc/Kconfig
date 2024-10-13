@@ -1,0 +1,42 @@
+
+menu "SIPC modules"
+
+config SIPC
+	bool "Sprd IPC"
+	default n
+	help
+	  SIPC is a module for spreadtrum AP/CP communicaiton system.
+
+config SIPC_SPIPE
+	bool "sprd pipe driver based on SBUF"
+	default n
+	depends on SIPC
+	help
+	  This driver is a pipe driver base on SBUF, which create
+	  general pipes between AP & CP.
+
+config SIPC_SPOOL
+       bool "sprd pool driver based on SBLOCK"
+       default n
+       depends on SIPC
+       help
+        This driver is a pool driver base on SBLOCK, which create
+        general pools between AP & CP.
+
+config SIPC_SETH
+       bool "Sprd Ethernet driver"
+       default n
+       depends on SIPC
+       help
+         This driver supports the Spreadtrum Ethernet based on share
+         memory. Say Y here if you want to use it.
+
+config SIPC_STTY
+       bool "Sprd Stty driver"
+       default n
+       depends on SIPC
+       help
+         This driver supports the Spreadtrum Ethernet based on share
+         memory. Say Y here if you want to use it.
+
+endmenu

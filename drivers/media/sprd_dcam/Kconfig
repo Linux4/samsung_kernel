@@ -1,0 +1,48 @@
+if VIDEO_DCAM_SPRD
+choice
+	prompt "Camera resolution"
+	default CAMERA_5M
+
+config CAMERA_2M
+	bool "2M pixels"
+
+config CAMERA_3M
+	bool "3M pixels"
+
+config CAMERA_5M
+	bool "5M pixels"
+
+config CAMERA_8M
+	bool "8M pixels"
+
+
+endchoice
+
+choice
+	prompt "Camera capture mode"
+	default CAMERA_NON_ZSL
+
+config CAMERA_ZSL
+	bool "zsl capture"
+
+config CAMERA_NON_ZSL
+	bool "non zsl capture"
+
+endchoice
+
+choice
+	prompt "Sensor Output"
+	default SENSOR_OUTPUT_YUV
+
+config SENSOR_OUTPUT_RAW
+	bool "sensor outputs raw"
+
+config SENSOR_OUTPUT_YUV
+	bool "sensor outputs yuv"
+
+endchoice
+
+
+endif
+
+

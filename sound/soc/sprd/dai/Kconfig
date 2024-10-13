@@ -1,0 +1,19 @@
+menu "SPRD AUDIO DMA"
+config SND_SOC_SPRD_AUDIO_DMA
+	tristate
+
+config SND_SOC_SPRD_AUDIO_BUFFER_USE_IRAM
+	bool "Use IRAM when sound playback"
+	help
+	  Say Y if you want use IRAM replacment RAM when playback.
+	   sometimes, use IRAM maybe reduce power consumption.
+           but, it will cause system more busy, becuase the buffer smaller.
+
+config SND_SOC_SPRD_IRAM_BACKUP
+	bool "Backup IRAM when sound playback"
+	depends on SND_SOC_SPRD_AUDIO_BUFFER_USE_IRAM
+	help
+	  Say Y if you want backup IRAM when playback. sometimes,
+	   IRAM maybe shared with other modules,
+	   then you need to open this.
+endmenu

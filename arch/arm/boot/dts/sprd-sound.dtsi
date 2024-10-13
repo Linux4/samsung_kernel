@@ -1,0 +1,147 @@
+/*
+* Copyright (C) 2013 Spreadtrum Communication Incorporated
+*		http://www.spreadtrum.com/
+*
+* This program is free software; you can redistribute it and/or modify
+* it under the terms of the GNU General Public License version 2 as
+* published by the Free Software Foundation.
+*/
+
+/* This is the sprd audio default DTS */
+
+/ {
+	sprd-audio-devices {
+                compatible = "sprd,sound";
+		#address-cells = <1>;
+		#size-cells = <1>;
+
+		/* 1. codecs */
+        sprd_codec: sprd-codec {
+            compatible = "sprd,sprd-codec";
+            status = "disable";
+            sprd,def_da_fs = <44100>;
+            sprd,ap_irq = <164>;
+            sprd,dp_irq = <52>;
+        };
+
+		sprd_codec_v3: sprd-codec-v3 {
+			compatible = "sprd,sprd-codec-v3";
+			status = "disable";
+			sprd,def_da_fs = <44100>;
+			sprd,ap_irq = <164>;
+			sprd,dp_irq = <52>;
+		};
+
+		sprd_codec_v1: sprd-codec-v1 {
+			compatible = "sprd,sprd-codec-v1";
+			status = "disable";
+			sprd,def_da_fs = <44100>;
+			sprd,ap_irq = <103>;
+			sprd,dp_irq = <63>;
+		};
+
+		null_codec: null-codec {
+			compatible = "sprd,null-codec";
+		};
+
+		/* 2. cpu-dais */
+		vbc_r2p0: vbc-r2p0 {
+			compatible = "sprd,vbc-r2p0";
+			status = "disable";
+		};
+
+		vbc_r1p0: vbc-r1p0 {
+			compatible = "sprd,vbc-r1p0";
+			status = "disable";
+		};
+
+		vaudio: vaudio {
+			compatible = "sprd,vaudio";
+		};
+
+		pcm_def_config: bt-i2s-config {
+			sprd,def_pcm_config;
+		};
+
+		i2s_def_config: fm-i2s-config {
+		};
+
+		i2s0: i2s@0 {
+			compatible = "sprd,i2s";
+			status = "disable";
+                        sprd,dai_name = "i2s_bt_sco0";
+			sprd,id = <0>;
+			sprd,hw_port = <0>;
+			sprd,base = <0x70D00000 0xF537C000>;
+			sprd,dma_rx_no = <3>;
+			sprd,dma_tx_no = <4>;
+		};
+
+		i2s1: i2s@1 {
+			compatible = "sprd,i2s";
+			status = "disable";
+                        sprd,dai_name = "i2s_bt_sco1";
+			sprd,id = <1>;
+			sprd,hw_port = <1>;
+			sprd,base = <0x70E00000 0xF5380000>;
+			sprd,dma_rx_no = <5>;
+			sprd,dma_tx_no = <6>;
+		};
+
+		i2s2: i2s@2 {
+			compatible = "sprd,i2s";
+			status = "disable";
+                        sprd,dai_name = "i2s_bt_sco2";
+			sprd,id = <2>;
+			sprd,hw_port = <2>;
+			sprd,base = <0x70F00000 0xF5382000>;
+			sprd,dma_rx_no = <7>;
+			sprd,dma_tx_no = <8>;
+		};
+
+		i2s3: i2s@3 {
+			compatible = "sprd,i2s";
+			status = "disable";
+                        sprd,dai_name = "i2s_bt_sco3";
+			sprd,id = <3>;
+			sprd,hw_port = <3>;
+			sprd,base = <0x71000000 0xF5384000>;
+			sprd,dma_rx_no = <9>;
+			sprd,dma_tx_no = <10>;
+		};
+
+		/* 3. platform */
+		sprd_pcm: sprd-pcm-audio {
+			compatible = "sprd,sprd-pcm";
+		};
+
+		/* 4. machine */
+        vbc_sound0: sound@0 {
+            compatible = "sprd,vbc-r2p0-sprd-codec";
+            sprd,model = "sprdphone";
+            sprd,vaudio = <&vaudio>;
+            sprd,vbc = <&vbc_r2p0>;
+            sprd,codec = <&sprd_codec>;
+            sprd,pcm = <&sprd_pcm>;
+        };
+
+		vbc_sound1: sound@1 {
+			compatible = "sprd,vbc-r2p0-sprd-codec-v3";
+			sprd,model = "sprdphone";
+			sprd,vaudio = <&vaudio>;
+			sprd,vbc = <&vbc_r2p0>;
+			sprd,codec = <&sprd_codec_v3>;
+			sprd,pcm = <&sprd_pcm>;
+		};
+
+		i2s_sound: sound@2 {
+			compatible = "sprd,i2s-null-codec";
+			sprd,model = "all-i2s";
+			sprd,i2s = <&i2s0>, <&i2s1>, <&i2s2>, <&i2s3>;
+			sprd,codec = <&null_codec>;
+			sprd,pcm = <&sprd_pcm>;
+		};
+
+	};
+
+};
