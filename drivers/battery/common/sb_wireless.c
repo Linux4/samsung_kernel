@@ -22,6 +22,23 @@
 #define sbw_log(str, ...) pr_info("[SB-WIRELESS]:%s: "str, __func__, ##__VA_ARGS__)
 #define SBW_MODULE_NAME	"sb-wireless"
 
+const char *sb_wrl_op_mode_str(int op_mode)
+{
+	switch (op_mode) {
+	case WPC_OP_MODE_PPDE:
+		return "PPDE";
+	case WPC_OP_MODE_EPP:
+		return "EPP";
+	case WPC_OP_MODE_MPP:
+		return "MPP";
+	case WPC_OP_MODE_BPP:
+		return "BPP";
+	}
+
+	return "Unknown";
+}
+EXPORT_SYMBOL(sb_wrl_op_mode_str);
+
 struct sb_wireless {
 	struct notifier_block nb;
 

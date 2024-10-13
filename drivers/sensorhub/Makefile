@@ -129,8 +129,11 @@ ccflags-$(CONFIG_SHUB_MTK_SCP_INCLUDE) += -I$(srctree)/drivers/misc/mediatek/scp
 
 shub-$(CONFIG_SHUB_LSI) += vendor/shub_lsi.o
 
-ifneq (,$(filter y ,$(CONFIG_ARCH_EXYNOS) $(CONFIG_ARCH_MEDIATEK) $(CONFIG_MTK_TINYSYS_SCP_SUPPORT)))
+ifneq (,$(filter y ,$(CONFIG_ARCH_EXYNOS) $(CONFIG_ARCH_MEDIATEK) $(CONFIG_MTK_TINYSYS_SCP_SUPPORT) $(CONFIG_SHUB_KUNIT)))
 obj-$(CONFIG_SHUB) += shub.o
 endif
+
+obj-$(CONFIG_SHUB_TEST_FOR_ONLY_UML)			+= vendor/shub_dummy.o
+GCOV_PROFILE_shub.o		:= $(CONFIG_SHUB_KUNIT)
 
 obj-$(CONFIG_SHUB) += utility/sensor_core.o

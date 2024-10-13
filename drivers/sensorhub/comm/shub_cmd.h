@@ -33,11 +33,11 @@ typedef enum
 
 /* sub command */
 enum {
-	AP_SHUTDOWN = 0,
+	SCREEN_STATE = 0,
 	AP_RESUME,
 	AP_SUSPEND,
-	RTC_TIME,
-	LCD_LPM,
+	TIME_SYNC,
+	LCD_LPM, // Reserved
 	LCD_ON,
 	LCD_OFF,
 	POW_CONNECTED,

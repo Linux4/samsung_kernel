@@ -330,12 +330,13 @@ static int sm5714_fled_close_flash(void)
 		return -ENXIO;
 	}
 
+	mutex_lock(&fled->fled_mutex);
+
 	if (fled->pdata->led.pre_fled == false) {
 		pr_info("sm5714-fled: %s: already closed\n", __func__);
+		mutex_unlock(&fled->fled_mutex);
 		return 0;
 	}
-
-	mutex_lock(&fled->fled_mutex);
 
 	fled_set_mode(fled, FLED_MODE_OFF);
 	fled->flash_prepare_cnt--;
@@ -402,9 +403,11 @@ int32_t sm5714_fled_mode_ctrl(int state, uint32_t brightness)
 			pr_err("sm5714-fled: %s: SM5714_FLED_MODE_OFF(%d) failed\n", __func__, state);
 		else
 			pr_info("sm5714-fled: %s: SM5714_FLED_MODE_OFF(%d) done\n", __func__, state);
+		sm5714_fled_close_flash();
 		break;
 
 	case SM5714_FLED_MODE_MAIN_FLASH:
+		sm5714_fled_prepare_flash();
 		/* FlashLight Mode Flash */
 		if (brightness > 0)
 			ret = sm5714_fled_flash_on(iq_cur);
@@ -417,6 +420,7 @@ int32_t sm5714_fled_mode_ctrl(int state, uint32_t brightness)
 		break;
 
 	case SM5714_FLED_MODE_TORCH_FLASH: /* TORCH FLASH */
+		sm5714_fled_prepare_flash();
 		/* FlashLight Mode TORCH */
 		if (brightness > 0)
 			ret = sm5714_fled_torch_on(iq_cur);
@@ -429,6 +433,7 @@ int32_t sm5714_fled_mode_ctrl(int state, uint32_t brightness)
 		break;
 
 	case SM5714_FLED_MODE_PRE_FLASH: /* TORCH FLASH */
+		sm5714_fled_prepare_flash();
 		/* FlashLight Mode TORCH */
 		if (brightness > 0)
 			ret = sm5714_fled_torch_on(iq_cur);
@@ -655,6 +660,20 @@ static void sm5714_fled_init(struct sm5714_fled_data *fled)
 
 	mutex_init(&fled->fled_mutex);
 	fd_use = false;
+
+	mutex_lock(&fled->fled_mutex);
+
+	fled_set_mode(fled, FLED_MODE_OFF);
+#if IS_ENABLED(CONFIG_CHARGER_SM5714)
+	if (fled->flash_prepare_cnt == 0) {
+		fled_set_disable_push_event(SM5714_CHARGER_OP_EVENT_TORCH);
+		fled_set_disable_push_event(SM5714_CHARGER_OP_EVENT_FLASH);
+	}
+#endif
+	fled->pdata->led.pre_fled = false;
+
+	mutex_unlock(&fled->fled_mutex);
+
 	sm5714_fled_test_read(fled);
 	dev_info(fled->dev, "%s: flash init done\n", __func__);
 }

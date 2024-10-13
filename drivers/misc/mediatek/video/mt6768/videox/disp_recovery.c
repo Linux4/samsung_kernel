@@ -224,7 +224,13 @@ int _esd_check_config_handle_vdo(struct cmdqRecStruct *qhandle)
 
 	/* 6.flush instruction */
 	dprec_logger_start(DPREC_LOGGER_ESD_CMDQ, 0, 0);
+	cmdq_mbox_set_thread_timeout(
+		cmdq_helper_mbox_client((u32)qhandle->thread)->chan, 300);
 	ret = cmdqRecFlush(qhandle);
+	cmdq_mbox_set_thread_timeout(
+		cmdq_helper_mbox_client((u32)qhandle->thread)->chan,
+		CMDQ_TIMEOUT_DEFAULT);
+
 	dprec_logger_done(DPREC_LOGGER_ESD_CMDQ, 0, 0);
 	DISPINFO("[ESD]%s ret=%d\n", __func__, ret);
 	primary_display_manual_unlock();
@@ -730,8 +736,10 @@ int primary_display_esd_recovery(void)
 		mmprofile_log_ex(mmp_r, MMPROFILE_FLAG_PULSE, 0, 2);
 
 	}
+
 	/* blocking flush before stop trigger loop */
-	_blocking_flush();
+	if (bdg_is_bdg_connected() != 1)
+		_blocking_flush();
 
 	mmprofile_log_ex(mmp_r, MMPROFILE_FLAG_PULSE, 0, 3);
 

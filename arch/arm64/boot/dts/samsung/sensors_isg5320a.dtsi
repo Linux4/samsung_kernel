@@ -142,7 +142,7 @@
 
 #endif /*isg5320a_sub*/
 
-/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/sensors/isg5320a/dts/isg5320a_mtk.a34x.dtsi */
+/* /home/dpi/qb5_8815/workspace/P4_1716/android/kernel/kmodule/sensors/isg5320a/dts/isg5320a_mtk.a34x.dtsi */
 &isg5320a {
 	reg = <0x28>;
 	isg5320a,hallic_detect = <0>;

@@ -31,7 +31,7 @@
 	};
 };
 
-/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/input/touchscreen/goodix/berlin/dts/input-mtk-tsp-berlin.a34x.dtsi */
+/* /home/dpi/qb5_8815/workspace/P4_1716/android/kernel/kmodule/input/touchscreen/goodix/berlin/dts/input-mtk-tsp-berlin.a34x.dtsi */
 &tsp_goodix {
 	status = "okay";
 	/delete-property/ tsp_io_ldo-supply;
@@ -83,7 +83,7 @@
 #endif
 };
 
-/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/input/touchscreen/goodix/berlin/dts/input-mtk-tsp-berlin.a34x.01.dtsi */
+/* /home/dpi/qb5_8815/workspace/P4_1716/android/kernel/kmodule/input/touchscreen/goodix/berlin/dts/input-mtk-tsp-berlin.a34x.01.dtsi */
 &tsp_goodix {
 	sec,max_coords = <1080 2340>;
 	sec,firmware_name = "tsp_goodix/gt9895_a34x.bin";

@@ -1467,12 +1467,7 @@ static int ufs_mtk_pre_pwr_change(struct ufs_hba *hba,
 			adapt_val = PA_INITIAL_ADAPT;
 		else
 			adapt_val = PA_NO_ADAPT;
-#ifndef CONFIG_MACH_MT6877
-		// TODO: temporary disable the action to avoid boot fail for MT6877
-		ufshcd_dme_set(hba,
-					UIC_ARG_MIB(PA_TXHSADAPTTYPE),
-					adapt_val);
-#endif
+		ufshcd_dme_set(hba, UIC_ARG_MIB(PA_TXHSADAPTTYPE), adapt_val);
 	}
 	return ret;
 }

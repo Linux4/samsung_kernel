@@ -1937,6 +1937,10 @@ static inline bool kbase_device_is_cpu_coherent(struct kbase_device *kbdev)
 /* Maximum number of loops polling the GPU for a cache flush before we assume it must have completed */
 #define KBASE_CLEAN_CACHE_MAX_LOOPS     100000
 /* Maximum number of loops polling the GPU for an AS command to complete before we assume the GPU has hung */
-#define KBASE_AS_INACTIVE_MAX_LOOPS     100000000
+#if defined(CONFIG_MACH_MT6768)
+ #define KBASE_AS_INACTIVE_MAX_LOOPS     100000
+#else
+ #define KBASE_AS_INACTIVE_MAX_LOOPS     100000000
+#endif
 
 #endif				/* _KBASE_DEFS_H_ */

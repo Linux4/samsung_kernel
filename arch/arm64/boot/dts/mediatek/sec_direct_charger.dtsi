@@ -15,7 +15,7 @@
 };
 
 
-/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/battery/suwon/common/sec_direct_charger/dts/a34x/sec_direct_charger.dtsi */
+/* /home/dpi/qb5_8815/workspace/P4_1716/android/kernel/kmodule/battery/suwon/common/sec_direct_charger/dts/a34x/sec_direct_charger.dtsi */
 
 &smd {
 	pass-through {

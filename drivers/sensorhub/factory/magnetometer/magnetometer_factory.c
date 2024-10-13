@@ -26,6 +26,15 @@
 #include <linux/delay.h>
 #include <linux/slab.h>
 
+#if defined(CONFIG_SHUB_KUNIT)
+#include <kunit/mock.h>
+#define __mockable __weak
+#define __visible_for_testing
+#else
+#define __mockable
+#define __visible_for_testing static
+#endif
+
 /*************************************************************************/
 /* factory Sysfs                                                         */
 /*************************************************************************/
@@ -245,7 +254,7 @@ static DEVICE_ATTR_RO(dac);
 static DEVICE_ATTR_RO(status);
 static DEVICE_ATTR_RO(logging_data);
 
-static struct device_attribute *mag_attrs[] = {
+__visible_for_testing struct device_attribute *mag_attrs[] = {
 	&dev_attr_adc,
 	&dev_attr_dac,
 	&dev_attr_raw_data,

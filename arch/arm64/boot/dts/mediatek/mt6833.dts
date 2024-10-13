@@ -5651,14 +5651,15 @@
 #endif
 #if defined(CONFIG_TRUSTONIC_TRUSTED_UI) || \
 	defined(CONFIG_BLOWFISH_TUI_SUPPORT) || \
-	defined(CONFIG_TEEGRIS_TUI)
+	defined(CONFIG_TEEGRIS_TUI) || \
+	defined(CONFIG_SAMSUNG_TUI)
 		tui-size = <0 0x4000000>;
 #endif
 #ifdef CONFIG_MTK_SEC_VIDEO_PATH_SUPPORT
 		wfd-size = <0 0x4000000>;
 #endif
 #ifdef CONFIG_MTK_PROT_MEM_SUPPORT
-		prot-region-based-size = <0 0x8000000>;
+		prot-region-based-size = <0 0x8800000>;
 		iris-recognition-size = <0 0x10000000>;
 #endif
 #ifdef CONFIG_MTK_HAPP_MEM_SUPPORT

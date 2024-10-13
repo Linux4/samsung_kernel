@@ -588,6 +588,12 @@ struct mtk_ddp_comp *mtk_crtc_get_comp(struct drm_crtc *crtc,
 		DDPPR_ERR("invalid ddp mode:%d!\n", mtk_crtc->ddp_mode);
 		return NULL;
 	}
+
+	if (unlikely(path_id >= DDP_PATH_NR)) {
+		DDPPR_ERR("invalid path id:%u!\n", path_id);
+		return NULL;
+	}
+
 	return ddp_ctx[mtk_crtc->ddp_mode].ddp_comp[path_id][comp_idx];
 }
 
@@ -6871,7 +6877,7 @@ void mtk_crtc_vblank_irq(struct drm_crtc *crtc)
  *		hwc_pid, 0);
  *	mtk_drm_trace_c("%s", tag_name);
  */
-	mtk_drm_trace_c("%d|DISP-HW_Vsync|%lld",
+	mtk_drm_trace_c("%d|DISP-HW_Vsync|%d",
 		hwc_pid, 0);
 }
 
@@ -8635,6 +8641,9 @@ int mtk_crtc_path_switch(struct drm_crtc *crtc, unsigned int ddp_mode,
 	int index = drm_crtc_index(crtc);
 	bool need_wait;
 
+	if (ddp_mode > DDP_NO_USE)	/* ddp_mode wrong */
+		return 0;
+
 	CRTC_MMP_EVENT_START(index, path_switch, mtk_crtc->ddp_mode,
 			ddp_mode);
 
@@ -9138,15 +9147,14 @@ int mtk_crtc_enter_tui(struct drm_crtc *crtc)
 
 	DDPMSG("%s\n", __func__);
 
+	DDP_MUTEX_LOCK(&mtk_crtc->lock, __func__, __LINE__);
+
 	if (!mtk_crtc->enabled) {
 		DDPINFO("%s failed due to crtc disabled\n", __func__);
 		DDP_MUTEX_UNLOCK(&mtk_crtc->lock, __func__, __LINE__);
 		return -1;
 	}
 
-	DDP_MUTEX_LOCK(&mtk_crtc->lock, __func__, __LINE__);
-
-	mtk_crtc->crtc_blank = true;
 	mtk_disp_esd_check_switch(crtc, 0);
 
 	mtk_drm_set_idlemgr(crtc, 0, 0);
@@ -9167,10 +9175,21 @@ int mtk_crtc_enter_tui(struct drm_crtc *crtc)
 	if (i >= 60)
 		DDPPR_ERR("wait repaint %d\n", i);
 
+	DDP_MUTEX_LOCK(&mtk_crtc->lock, __func__, __LINE__);
+
+	if (!mtk_crtc->enabled) {
+		DDPINFO("%s failed due to crtc disabled\n", __func__);
+		DDP_MUTEX_UNLOCK(&mtk_crtc->lock, __func__, __LINE__);
+		return -1;
+	}
+
 	DDP_MUTEX_LOCK(&mtk_crtc->blank_lock, __func__, __LINE__);
 
 	/* TODO: HardCode select OVL0, maybe store in platform data */
 	priv->ddp_comp[DDP_COMPONENT_OVL0]->blank_mode = true;
+	mtk_crtc->crtc_blank = true;
+
+	DDP_MUTEX_UNLOCK(&mtk_crtc->blank_lock, __func__, __LINE__);
 
 	if (mtk_crtc_is_frame_trigger_mode(crtc)) {
 		mtk_drm_idlemgr_kick(__func__, crtc, 0);
@@ -9208,7 +9227,7 @@ int mtk_crtc_enter_tui(struct drm_crtc *crtc)
 
 	wake_up(&mtk_crtc->state_wait_queue);
 
-	DDP_MUTEX_UNLOCK(&mtk_crtc->blank_lock, __func__, __LINE__);
+	DDP_MUTEX_UNLOCK(&mtk_crtc->lock, __func__, __LINE__);
 
 	return 0;
 }
@@ -9228,7 +9247,17 @@ int mtk_crtc_exit_tui(struct drm_crtc *crtc)
 
 	mtk_crtc->crtc_blank = false;
 
+	DDP_MUTEX_UNLOCK(&mtk_crtc->blank_lock, __func__, __LINE__);
+
+	DDP_MUTEX_LOCK(&mtk_crtc->lock, __func__, __LINE__);
+
 	atomic_set(&priv->rollback_all, 0);
+
+	if (!mtk_crtc->enabled) {
+		DDPINFO("%s failed due to crtc disabled\n", __func__);
+		DDP_MUTEX_UNLOCK(&mtk_crtc->lock, __func__, __LINE__);
+		return -1;
+	}
 
 	if (mtk_crtc_is_frame_trigger_mode(crtc)) {
 
@@ -9262,11 +9291,7 @@ int mtk_crtc_exit_tui(struct drm_crtc *crtc)
 		cmdq_pkt_destroy(cmdq_handle2);
 	}
 
-	DDP_MUTEX_UNLOCK(&mtk_crtc->blank_lock, __func__, __LINE__);
-
 	wake_up(&mtk_crtc->state_wait_queue);
-
-	DDP_MUTEX_LOCK(&mtk_crtc->lock, __func__, __LINE__);
 
 	mtk_drm_set_idlemgr(crtc, 1, 0);
 

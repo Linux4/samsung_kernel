@@ -20,7 +20,7 @@
 	};
 };
 
-/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/battery/suwon/charger/mtk_charger/mtk_charger.a34x.dtsi */
+/* /home/dpi/qb5_8815/workspace/P4_1716/android/kernel/kmodule/battery/suwon/charger/mtk_charger/mtk_charger.a34x.dtsi */
 
 &smd {
 	mtk_charger: mtk-charger {
@@ -29,7 +29,7 @@
 	};
 };
 
-/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/battery/suwon/charger/mtk_charger/mtk_charger.a34x.01.dtsi */
+/* /home/dpi/qb5_8815/workspace/P4_1716/android/kernel/kmodule/battery/suwon/charger/mtk_charger/mtk_charger.a34x.01.dtsi */
 
 &smd {
 	mtk_charger: mtk-charger {

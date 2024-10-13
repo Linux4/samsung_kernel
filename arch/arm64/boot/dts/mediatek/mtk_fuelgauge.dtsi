@@ -776,7 +776,7 @@
 	};
 };
 
-/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/battery/suwon/fuelgauge/mtk_fuelgauge/mtk_fuelgauge.a34x.dtsi */
+/* /home/dpi/qb5_8815/workspace/P4_1716/android/kernel/kmodule/battery/suwon/fuelgauge/mtk_fuelgauge/mtk_fuelgauge.a34x.dtsi */
 &smd {
 	battery {
 		battery,fuelgauge_name = "mtk-fg-battery";

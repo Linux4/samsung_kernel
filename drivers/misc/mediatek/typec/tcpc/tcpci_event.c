@@ -808,6 +808,9 @@ void pd_put_recv_hard_reset_event(struct tcpc_device *tcpc)
 
 	mutex_lock(&tcpc->access_lock);
 
+	if (!tcpc->pd_pe_running)
+		goto out;
+
 	tcpci_notify_hard_reset_state(
 		tcpc, TCP_HRESET_SIGNAL_RECV);
 
@@ -818,9 +821,7 @@ void pd_put_recv_hard_reset_event(struct tcpc_device *tcpc)
 	store_usblog_notify(NOTIFY_EXTRA, (void *)&event, NULL);
 #endif
 
-	if ((!tcpc->pd_hard_reset_event_pending) &&
-		(!tcpc->pd_wait_pe_idle) &&
-		tcpc->pd_pe_running) {
+	if (!tcpc->pd_hard_reset_event_pending) {
 		__pd_event_buf_reset(tcpc, TCP_DPM_RET_DROP_RECV_HRESET);
 		__pd_put_hw_event(tcpc, PD_HW_RECV_HARD_RESET);
 		tcpc->pd_bist_mode = PD_BIST_MODE_DISABLE;
@@ -836,6 +837,7 @@ void pd_put_recv_hard_reset_event(struct tcpc_device *tcpc)
 	tcpc->pd_discard_pending = false;
 #endif	/* CONFIG_USB_PD_RETRY_CRC_DISCARD */
 
+out:
 	mutex_unlock(&tcpc->access_lock);
 }
 

@@ -32,9 +32,6 @@
 #if defined(CONFIG_DRV_SAMSUNG)
 #include <linux/sec_class.h>
 #endif
-#if defined(CONFIG_SEC_PARAM)
-#include <linux/sec_ext.h>
-#endif
 #include <linux/ktime.h>
 #include <linux/pinctrl/consumer.h>
 #include <mt-plat/v1/mtk_battery.h>
@@ -616,9 +613,6 @@ static ssize_t afc_disable_store(struct device *dev,
 {
 	struct gpio_afc_ddata *ddata = dev_get_drvdata(dev);
 	int param_val;
-#if defined(CONFIG_SEC_PARAM)
-	int ret = 0;
-#endif
 #ifdef CONFIG_BATTERY_SAMSUNG
 	union power_supply_propval psy_val;
 #endif
@@ -638,12 +632,6 @@ static ssize_t afc_disable_store(struct device *dev,
 	}
 
 	param_val = ddata->afc_disable ? '1' : '0';
-
-#if defined(CONFIG_SEC_PARAM)
-	ret = sec_set_param(CM_OFFSET + 1, ddata->afc_disable ? '1' : '0');
-	if (ret < 0)
-		pr_err("%s:sec_set_param failed\n", __func__);
-#endif
 
 #ifdef CONFIG_BATTERY_SAMSUNG
 	psy_val.intval = param_val;
@@ -705,12 +693,12 @@ static ssize_t adc_show(struct device *dev,
 	int result = 0;
 
 #if IS_ENABLED(CONFIG_TCPC_MT6360) && IS_ENABLED(CONFIG_PDIC_NOTIFIER)
-//temp	result = mt6360_usbid_check();
+	result = mt6360_usbid_check();
 #endif
 
 	pr_info("%s %d\n", __func__, result);
 
-	return sprintf(buf, "%d\n", !!result);
+	return sprintf(buf, "%d\n", result);
 }
 
 static ssize_t vbus_value_show(struct device *dev,
@@ -852,10 +840,9 @@ static int gpio_afc_probe(struct platform_device *pdev)
 	ddata->gpio_input = false;
 
 	g_ddata = ddata;
-	afc_mode = 0;
 
 #if defined(CONFIG_DRV_SAMSUNG)
-	ddata->afc_disable = (_get_afc_mode() == '1' ? 1 : 0);
+	ddata->afc_disable = (_get_afc_mode() == 0x31 ? 1 : 0);
 #ifdef CONFIG_BATTERY_SAMSUNG
 	psy_val.intval = ddata->afc_disable ? '1' : '0';
 	psy_do_property("battery", set, POWER_SUPPLY_EXT_PROP_HV_DISABLE, psy_val);

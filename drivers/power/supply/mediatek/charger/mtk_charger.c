@@ -82,6 +82,7 @@ extern int f_mode_battery;
 static struct charger_manager *pinfo;
 static struct list_head consumer_head = LIST_HEAD_INIT(consumer_head);
 static DEFINE_MUTEX(consumer_mutex);
+static DEFINE_MUTEX(pid_lock);
 
 struct tag_bootmode {
 	u32 size;
@@ -3498,10 +3499,12 @@ void scd_ctrl_cmd_from_user(void *nl_data, struct sc_nl_msg_t *ret_msg)
 
 	case SC_DAEMON_CMD_SET_DAEMON_PID:
 		{
+			mutex_lock(&pid_lock);
 			memcpy(&pinfo->sc.g_scd_pid, &msg->sc_data[0],
 				sizeof(pinfo->sc.g_scd_pid));
 			chr_err("[fr] SC_DAEMON_CMD_SET_DAEMON_PID = %d(first launch)\n",
 				pinfo->sc.g_scd_pid);
+			mutex_unlock(&pid_lock);
 		}
 	break;
 
@@ -3565,6 +3568,10 @@ static void sc_nl_send_to_user(u32 pid, int seq, struct sc_nl_msg_t *reply_msg)
 	if (!skb)
 		return;
 
+	if(pid == 0){
+		chr_err("[Netlink] pid : %d\n", pid);
+		return;
+	}
 	nlh = nlmsg_put(skb, pid, seq, 0, size, 0);
 	data = NLMSG_DATA(nlh);
 	memcpy(data, reply_msg, size);
@@ -3589,15 +3596,52 @@ static void chg_nl_data_handler(struct sk_buff *skb)
 	struct nlmsghdr *nlh;
 	struct sc_nl_msg_t *sc_msg, *sc_ret_msg;
 	int size = 0;
+	size_t fixed_part_size = offsetof(struct sc_nl_msg_t, sc_data);
+
+	if (skb->len < NLMSG_HDRLEN) {
+		chr_err("Received skb is too small\n");
+		return;
+	}
 
 	nlh = (struct nlmsghdr *)skb->data;
+	if (nlh->nlmsg_len < NLMSG_SPACE(sizeof(struct sc_nl_msg_t))) {
+		chr_err("Netlink message is too short.\n");
+		return;
+	}
+
 	pid = NETLINK_CREDS(skb)->pid;
 	uid = NETLINK_CREDS(skb)->uid;
 	seq = nlh->nlmsg_seq;
 
+	if (nlh->nlmsg_len < NLMSG_LENGTH(fixed_part_size)) {
+		chr_err("Netlink message is too short for sc_nl_msg_t header\n");
+		return;
+	}
+
+	if (nlh->nlmsg_len > skb->len) {
+		chr_err("Netlink message length exceeds skb length\n");
+		return;
+	}
+
 	data = NLMSG_DATA(nlh);
 
 	sc_msg = (struct sc_nl_msg_t *)data;
+
+	if (sc_msg->sc_data_len > SCD_NL_MSG_MAX_LEN) {
+		chr_err("sc_data_len exceeds SCD_NL_MSG_MAX_LEN\n");
+		return;
+	}
+
+	if (nlh->nlmsg_len < NLMSG_LENGTH(fixed_part_size + sc_msg->sc_data_len)) {
+		chr_err("Netlink message length is too short for sc_data\n");
+		return;
+	}
+
+	if (sc_msg->sc_ret_data_len > INT_MAX - SCD_NL_MSG_T_HDR_LEN) {
+		chr_err("Failed:sc_ret_data_len=%d maybe exceds INT_MAX\n",
+			sc_msg->sc_ret_data_len);
+		return;
+	}
 
 	size = sc_msg->sc_ret_data_len + SCD_NL_MSG_T_HDR_LEN;
 
@@ -3628,6 +3672,7 @@ static void chg_nl_data_handler(struct sk_buff *skb)
 
 void sc_select_charging_current(struct charger_manager *info, struct charger_data *pdata)
 {
+	mutex_lock(&pid_lock);
 	chr_err("sck: en:%d pid:%d %d %d %d %d %d thermal.dis:%d\n",
 			info->sc.enable,
 			info->sc.g_scd_pid,
@@ -3668,6 +3713,7 @@ void sc_select_charging_current(struct charger_manager *info, struct charger_dat
 		pinfo->sc.disable_in_this_plug == false && info->sc.sc_ibat != -1) {
 		pdata->charging_current_limit = info->sc.sc_ibat;
 	}
+	mutex_unlock(&pid_lock);
 }
 
 void sc_init(struct smartcharging *sc)
@@ -3733,6 +3779,7 @@ void sc_update(struct charger_manager *pinfo)
 int wakeup_sc_algo_cmd(struct scd_cmd_param_t_1 *data, int subcmd, int para1)
 {
 
+	mutex_lock(&pid_lock);
 	if (pinfo->sc.g_scd_pid != 0) {
 		struct sc_nl_msg_t *sc_msg;
 		int size = SCD_NL_MSG_T_HDR_LEN + sizeof(struct scd_cmd_param_t_1);
@@ -3751,8 +3798,10 @@ int wakeup_sc_algo_cmd(struct scd_cmd_param_t_1 *data, int subcmd, int para1)
 			if (size > PAGE_SIZE)
 				sc_msg = vmalloc(size);
 
-			if (sc_msg == NULL)
+			if (sc_msg == NULL){
+				mutex_unlock(&pid_lock);
 				return -1;
+			}
 		}
 
 		sc_update(pinfo);
@@ -3770,8 +3819,10 @@ int wakeup_sc_algo_cmd(struct scd_cmd_param_t_1 *data, int subcmd, int para1)
 
 		kvfree(sc_msg);
 
+		mutex_unlock(&pid_lock);
 		return 0;
 	}
+	mutex_unlock(&pid_lock);
 	chr_debug("pid is NULL\n");
 	return -1;
 }

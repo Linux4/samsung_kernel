@@ -399,7 +399,7 @@
 	};
 };
 
-/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/battery/suwon/charger/mtk_charger/mtk_charger.a34x.dtsi */
+/* /home/dpi/qb5_8815/workspace/P4_1716/android/kernel/kmodule/battery/suwon/charger/mtk_charger/mtk_charger.a34x.dtsi */
 
 &smd {
 	mtk_charger: mtk-charger {
@@ -408,7 +408,7 @@
 	};
 };
 
-/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/battery/suwon/charger/mtk_charger/mtk_charger.a34x.01.dtsi */
+/* /home/dpi/qb5_8815/workspace/P4_1716/android/kernel/kmodule/battery/suwon/charger/mtk_charger/mtk_charger.a34x.01.dtsi */
 
 &smd {
 	mtk_charger: mtk-charger {
@@ -1196,7 +1196,7 @@
 	};
 };
 
-/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/battery/suwon/fuelgauge/mtk_fuelgauge/mtk_fuelgauge.a34x.dtsi */
+/* /home/dpi/qb5_8815/workspace/P4_1716/android/kernel/kmodule/battery/suwon/fuelgauge/mtk_fuelgauge/mtk_fuelgauge.a34x.dtsi */
 &smd {
 	battery {
 		battery,fuelgauge_name = "mtk-fg-battery";
@@ -3946,7 +3946,7 @@ g_FG_PSEUDO100 =
 
 /* #include "../ap_mtk_mt6877_T.dtsi" */             /* From ap_mtk_mt6877_T.py */
 #include <dt-bindings/clock/mt6877-clk.h>
-/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/ap/mtk/mt6877/ap_mtk_mt6877_T.a34x_eur.03.dtsi */
+/* /home/dpi/qb5_8815/workspace/P4_1716/android/kernel/kmodule/ap/mtk/mt6877/ap_mtk_mt6877_T.a34x_eur.03.dtsi */
 #include "../../mediatek/k6877ttv1_64_titan_black_tiger/board_00.dts"
 #include "../../mediatek/k6877ttv1_64_titan_black_tiger/gpio_03.dtsi"
 
@@ -4050,7 +4050,7 @@ g_FG_PSEUDO100 =
 	};
 };
 
-/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/battery/suwon/charger/sm5451/sm5451_charger.a34x.dtsi */
+/* /home/dpi/qb5_8815/workspace/P4_1716/android/kernel/kmodule/battery/suwon/charger/sm5451/sm5451_charger.a34x.dtsi */
 &sm5451_charger {
 	sm5451,freq_byp = <0x1>; /* 375kHz */
 	sm5451,freq = <2>; /* 500kHz */
@@ -4194,7 +4194,7 @@ g_FG_PSEUDO100 =
 	};
 };
 
-/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/sec_pm/sec_thermistor/dts/sec_thermistor_mtk.a34x.03.dtsi */
+/* /home/dpi/qb5_8815/workspace/P4_1716/android/kernel/kmodule/sec_pm/sec_thermistor/dts/sec_thermistor_mtk.a34x.03.dtsi */
 &sec_ap_thermistor {
 	adc_array = <84 102 124 149 174 210 240 287 356 411
 				507 605 733 875 1061 1285 1519 1785 2086 2408
@@ -4871,7 +4871,7 @@ g_FG_PSEUDO100 =
 };
 
 
-/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/battery/suwon/common/sec_direct_charger/dts/a34x/sec_direct_charger.dtsi */
+/* /home/dpi/qb5_8815/workspace/P4_1716/android/kernel/kmodule/battery/suwon/common/sec_direct_charger/dts/a34x/sec_direct_charger.dtsi */
 
 &smd {
 	pass-through {
@@ -4902,15 +4902,32 @@ g_FG_PSEUDO100 =
 	};
 };
 #endif
+#if 0
+&${gpio_prox_ldo_en_parent} {
+	shub_prox_ldo_en: shub-prox-ldo-en {
+		samsung,pins = SEC_GPIO(${gpio_prox_ldo_en});
+		samsung,pin-function = <1>;
+		samsung,pin-pud = <0>;
+		samsung,pin-con-pdn = <3>;
+		samsung,pin-pud-pdn = <0>;
+	};
+};
+#endif
+
 / {
 	fragment@model {
 		target-path = "/";
 		__overlay__ {
 			shub {
-#if 0
-    			pinctrl-names = "default";
+				pinctrl-names = "default";
+#if 0 && 0
+				pinctrl-0 = <&shub_sensor_ldo_en &shub_prox_ldo_en>;
+#elif 0
 				pinctrl-0 = <&shub_sensor_ldo_en>;
+#elif 0
+				pinctrl-0 = <&shub_prox_ldo_en>;
 #endif
+
 #if 1
 				sensor-vdd-regulator = "VDD_SENSOR_1P8";
 #endif
@@ -4925,6 +4942,9 @@ g_FG_PSEUDO100 =
 
 #if 0
 				sensor-ldo-en = <SEC_GPIO_REF(${gpio_sensor_ldo_en}) 0>;
+#endif
+#if 0
+				prox-ldo-en = <SEC_GPIO_REF(${gpio_prox_ldo_en}) 0>;
 #endif
 			};
 		};
@@ -5218,7 +5238,7 @@ g_FG_PSEUDO100 =
 	};
 };
 
-/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/input/touchscreen/goodix/berlin/dts/input-mtk-tsp-berlin.a34x.dtsi */
+/* /home/dpi/qb5_8815/workspace/P4_1716/android/kernel/kmodule/input/touchscreen/goodix/berlin/dts/input-mtk-tsp-berlin.a34x.dtsi */
 &tsp_goodix {
 	status = "okay";
 	/delete-property/ tsp_io_ldo-supply;
@@ -5270,7 +5290,7 @@ g_FG_PSEUDO100 =
 #endif
 };
 
-/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/input/touchscreen/goodix/berlin/dts/input-mtk-tsp-berlin.a34x.01.dtsi */
+/* /home/dpi/qb5_8815/workspace/P4_1716/android/kernel/kmodule/input/touchscreen/goodix/berlin/dts/input-mtk-tsp-berlin.a34x.01.dtsi */
 &tsp_goodix {
 	sec,max_coords = <1080 2340>;
 	sec,firmware_name = "tsp_goodix/gt9895_a34x.bin";
@@ -5422,7 +5442,7 @@ g_FG_PSEUDO100 =
 
 #endif /*isg5320a_sub*/
 
-/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/sensors/isg5320a/dts/isg5320a_mtk.a34x.dtsi */
+/* /home/dpi/qb5_8815/workspace/P4_1716/android/kernel/kmodule/sensors/isg5320a/dts/isg5320a_mtk.a34x.dtsi */
 &isg5320a {
 	reg = <0x28>;
 	isg5320a,hallic_detect = <0>;
@@ -5711,12 +5731,12 @@ g_FG_PSEUDO100 =
 
 		battery,full_condition_type = <(SEC_BATTERY_FULL_CONDITION_NOTIMEFULL | SEC_BATTERY_FULL_CONDITION_VCELL)>;
 		battery,full_condition_soc = <93>;
-		battery,full_condition_vcell = <4250>;
+		/* battery,full_condition_vcell = FV - 50mV set when variable is parsed */
 
 		battery,recharge_check_count = <1>;
 		battery,recharge_condition_type = <SEC_BATTERY_RECHARGE_CONDITION_VCELL>;
 		battery,recharge_condition_soc = <98>;
-		battery,recharge_condition_vcell = <4280>;
+		/* battery,recharge_condition_vcell = FV - 70mV set when variable is parsed */
 
 		battery,charging_reset_time = <0>;
 
@@ -5728,7 +5748,7 @@ g_FG_PSEUDO100 =
 		battery,pre_wc_afc_input_current = <500>;
 
 		battery,swelling_high_rechg_voltage = <4000>;
-		battery,swelling_low_rechg_voltage = <4000>;
+		/*battery,swelling_low_rechg_voltage = FV - 150mA set when variable is parsed */
 
 		battery,siop_icl = <1200>;
 		battery,siop_fcc = <1800>;
@@ -5764,13 +5784,11 @@ g_FG_PSEUDO100 =
 		battery,wireless_otg_input_current = <900>;
 
 		/* Calculate Based on Offsets from float voltage, full_condition_vcell and recharge_condition_vcell */
-		/* if you want to use age_data_by_offset concept add battery,age_data_by_offset; */
+		/* if you want to use age_data_by_common_offset concept add battery,age_data_by_common_offset; */
 
 		battery,age_data_cycle = <0 300 400 700 1000>;
 		battery,age_data_full_condition_soc = <93 92 91 90 89>;
-		battery,age_data_chg_float_voltage_offset = <0 20 40 60 110>;
-		battery,age_data_full_condition_vcell_offset = <0 20 40 60 110>;
-		battery,age_data_recharge_condition_vcell_offset = <0 20 40 60 110>;
+		battery,age_data_common_offset = <0 20 40 110>;
 		/* battery,age_data_max_charging_current_offset = <0 100 200 300 400>; */
 
 		/* cycle, chg_float_voltage, recharge_condition_vcell, full_condition_vcell, full_condition_soc, step charging condition */
@@ -6102,7 +6120,7 @@ g_FG_PSEUDO100 =
 	};
 };
 
-/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/battery/suwon/common/dts/a34x/battery_common.dtsi */
+/* /home/dpi/qb5_8815/workspace/P4_1716/android/kernel/kmodule/battery/suwon/common/dts/a34x/battery_common.dtsi */
 #define MAX_FV 4440
 #define MAX_FCC 3000
 
@@ -6298,7 +6316,7 @@ g_FG_PSEUDO100 =
 	};
 };
 
-/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/sensorhub/mtk/mt6877_shub/dts/sensorhub_mt6877_shub.a34x.dtsi */
+/* /home/dpi/qb5_8815/workspace/P4_1716/android/kernel/kmodule/sensorhub/mtk/mt6877_shub/dts/sensorhub_mt6877_shub.a34x.dtsi */
 / {
 	fragment@model {
 		target-path = "/";
@@ -6325,7 +6343,7 @@ g_FG_PSEUDO100 =
 	};
 };
 
-/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/sensorhub/mtk/mt6877_shub/dts/sensorhub_mt6877_shub.a34x.03.dtsi */
+/* /home/dpi/qb5_8815/workspace/P4_1716/android/kernel/kmodule/sensorhub/mtk/mt6877_shub/dts/sensorhub_mt6877_shub.a34x.03.dtsi */
 / {
 	fragment@model {
 		target-path = "/";

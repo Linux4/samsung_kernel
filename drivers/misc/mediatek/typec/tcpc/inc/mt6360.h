@@ -408,4 +408,8 @@ enum mt6360_id_rupsel {
 #define MT6360_INFO(foramt, args...)
 #endif /* ENABLE_MT6360_DBG */
 
+#if IS_ENABLED(CONFIG_PDIC_NOTIFIER)
+extern int mt6360_usbid_check(void);
+#endif	/* CONFIG_PDIC_NOTIFIER */
+
 #endif /* #ifndef __LINUX_MT6360_H */

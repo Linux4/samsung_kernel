@@ -54,6 +54,7 @@
 	GENERATE(VOTER_FW)	\
 	GENERATE(VOTER_WL_TO_W)	\
 	GENERATE(VOTER_ABNORMAL_TA)	\
+	GENERATE(VOTER_PHM)	\
 	GENERATE(VOTER_MAX)
 
 #define GENERATE_ENUM(ENUM) ENUM,
@@ -107,6 +108,46 @@ do { \
 		break; \
 	} \
 	_sec_vote(vote, event, en, value, __func__, __LINE__); \
-} while (0) \
+} while (0)
 
+#define sec_vote_refreshf(name) \
+do { \
+	struct sec_vote *vote = find_vote(name); \
+\
+	if (!vote) { \
+		pr_err("%s: failed to find vote(%s)\n", __func__, (name)); \
+		break; \
+	} \
+	sec_vote_refresh(vote); \
+} while (0)
+
+#define get_sec_voter_statusf(name, id, value) ({ \
+int ret; \
+do { \
+	struct sec_vote *vote = find_vote(name); \
+\
+	if (!vote) { \
+		pr_err("%s: failed to find vote(%s)\n", __func__, (name)); \
+		ret = -EINVAL; \
+		break; \
+	} \
+	ret = get_sec_voter_status(vote, id, value); \
+} while (0); \
+ret; \
+})
+
+#define get_sec_vote_resultf(name) ({ \
+int ret; \
+do { \
+	struct sec_vote *vote = find_vote(name); \
+\
+	if (!vote) { \
+		pr_err("%s: failed to find vote(%s)\n", __func__, (name)); \
+		ret = -EINVAL; \
+		break; \
+	} \
+	ret = get_sec_vote_result(vote); \
+} while (0); \
+ret; \
+})
 #endif

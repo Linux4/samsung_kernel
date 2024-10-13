@@ -779,6 +779,7 @@ static void isg5320a_set_debug_work(struct isg5320a_data *data, bool enable,
 static void isg5320a_set_enable(struct isg5320a_data *data, int enable)
 {
 	u8 state;
+	u8 buf;
 	int ret = 0;
 
 	GRIP_INFO("\n");
@@ -828,7 +829,7 @@ static void isg5320a_set_enable(struct isg5320a_data *data, int enable)
 		}
 		input_sync(data->input_dev);
 
-		isg5320a_i2c_read(data, ISG5320A_IRQSRC_REG, &state, 1);
+		isg5320a_i2c_read(data, ISG5320A_IRQSRC_REG, &buf, 1);
 		isg5320a_i2c_write_one(data, ISG5320A_IRQFUNC_REG, ISG5320A_IRQ_ENABLE);
 
 		if (data->is_irq_active == false) {
@@ -2317,7 +2318,7 @@ static int isg5320a_probe(struct i2c_client *client,
 		goto err_sysfs_create_group;
 	}
 
-	ret = sensors_register(data->dev, data, sensor_attrs, (char *)isg5320a_module_name[data->ic_num]);
+	ret = sensors_register(&data->dev, data, sensor_attrs, (char *)isg5320a_module_name[data->ic_num]);
 	if (ret) {
 		GRIP_ERR("could not register sensor(%d).\n", ret);
 		goto err_sensor_register;

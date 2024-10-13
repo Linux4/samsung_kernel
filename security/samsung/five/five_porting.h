@@ -288,7 +288,7 @@ struct loop_device {
 	bool			idr_visible;
 };
 #else
-#include "../../../drivers/block/loop.h"
+#include "drivers/block/loop.h"
 #endif
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 0, 0)

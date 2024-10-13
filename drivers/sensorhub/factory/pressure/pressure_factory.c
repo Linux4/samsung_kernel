@@ -27,6 +27,15 @@
 #define PR_ABS_MAX 8388607 /* 24 bit 2'compl */
 #define PR_ABS_MIN -8388608
 
+#if defined(CONFIG_SHUB_KUNIT)
+#include <kunit/mock.h>
+#define __mockable __weak
+#define __visible_for_testing
+#else
+#define __mockable
+#define __visible_for_testing static
+#endif
+
 /*************************************************************************/
 /* factory Sysfs                                                         */
 /*************************************************************************/
@@ -72,7 +81,7 @@ static ssize_t sea_level_pressure_store(struct device *dev, struct device_attrib
 	return size;
 }
 
-static ssize_t pressure_cabratioin_show(struct device *dev, struct device_attribute *attr, char *buf)
+static ssize_t pressure_calibration_show(struct device *dev, struct device_attribute *attr, char *buf)
 {
 	struct shub_sensor *sensor = get_sensor(SENSOR_TYPE_PRESSURE);
 	struct pressure_event *sensor_value = (struct pressure_event *)(sensor->event_buffer.value);
@@ -82,7 +91,7 @@ static ssize_t pressure_cabratioin_show(struct device *dev, struct device_attrib
 	return sprintf(buf, "%d\n", sensor_value->pressure_cal);
 }
 
-static ssize_t pressure_cabratioin_store(struct device *dev, struct device_attribute *attr, const char *buf,
+static ssize_t pressure_calibration_store(struct device *dev, struct device_attribute *attr, const char *buf,
 					 size_t size)
 {
 	int pressure_cal = 0;
@@ -117,7 +126,7 @@ static ssize_t pressure_selftest_show(struct device *dev, struct device_attribut
 		goto exit;
 	}
 
-	shub_infof("%u", *buffer);
+	shub_infof("%d", *buffer);
 	ret = snprintf(buf, PAGE_SIZE, "%d", *buffer);
 
 exit:
@@ -159,12 +168,12 @@ static ssize_t pressure_sw_offset_store(struct device *dev, struct device_attrib
 
 static DEVICE_ATTR(name, S_IRUGO, name_show, NULL);
 static DEVICE_ATTR(vendor, S_IRUGO, vendor_show, NULL);
-static DEVICE_ATTR(calibration, S_IRUGO | S_IWUSR | S_IWGRP, pressure_cabratioin_show, pressure_cabratioin_store);
+static DEVICE_ATTR(calibration, S_IRUGO | S_IWUSR | S_IWGRP, pressure_calibration_show, pressure_calibration_store);
 static DEVICE_ATTR(sea_level_pressure, S_IWUSR | S_IWGRP, NULL, sea_level_pressure_store);
 static DEVICE_ATTR(selftest, S_IRUGO, pressure_selftest_show, NULL);
 static DEVICE_ATTR(sw_offset, S_IRUGO | S_IWUSR | S_IWGRP, pressure_sw_offset_show, pressure_sw_offset_store);
 
-static struct device_attribute *pressure_attrs[] = {
+__visible_for_testing struct device_attribute *pressure_attrs[] = {
 	&dev_attr_name,
 	&dev_attr_vendor,
 	&dev_attr_calibration,

@@ -361,7 +361,7 @@ bool imgsensor_get_sac_value_by_sensor_idx(int sensor_idx, u8 *ac_mode, u8 *ac_t
 	int32_t sac_mode_addr; //ac_mode
 	int32_t sac_time_addr; //ac_time
 
-	if (vendor_rom_addr[position] == NULL) {
+	if (position >= SENSOR_POSITION_MAX || vendor_rom_addr[position] == NULL) {
 		pr_err("[%s] fail, Rom addr is NULL\n", __func__);
 		return false;
 	}
@@ -2687,6 +2687,8 @@ bool imgsensor_get_adaptive_mipi_status(int position)
 	struct imgsensor_cam_info *cam_info;
 
 	position = map_position(position);
+	if (position >= CAM_INFO_MAX)
+		return false;
 	cam_info = &(cam_infos[position]);
 
 	return cam_info->use_adaptive_mipi;

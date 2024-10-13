@@ -40,6 +40,8 @@ void set_open_cal_result(int type, int result);
 void init_log_dump(void);
 int save_log_dump(char *dataframe, int *index, int frame_len);
 
+int shub_debug_level(void);
+
 #ifdef CONFIG_SHUB_DEBUG
 struct print_log_t {
 	struct list_head list;

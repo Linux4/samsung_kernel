@@ -1121,6 +1121,15 @@ void cam_ois_get_hall_position(unsigned int *targetPosition, unsigned int *hallP
 
 #if ENABLE_AOIS == 1
 	cam_ois_set_aois_fac_mode_on();
+	/* Handle A34X Multical Issue */
+	ret = cam_ois_i2c_write_one(i2c_client, MCU_I2C_SLAVE_W_ADDR, 0x0023, 0x06);
+	ret |= cam_ois_i2c_write_one(i2c_client, MCU_I2C_SLAVE_W_ADDR, 0x0025, 0x06);
+	ret |= cam_ois_i2c_write_one(i2c_client, MCU_I2C_SLAVE_W_ADDR, 0x0002, 0x02);
+	ret |= cam_ois_i2c_write_one(i2c_client, MCU_I2C_SLAVE_W_ADDR, 0x0000, 0x01);
+	if (ret < 0)
+		LOG_ERR("fail to set hall position before centering mode: %d", ret);
+
+	usleep_range(5000, 5100);
 #endif
 
 	LOG_INF(" - Centering mode ");
