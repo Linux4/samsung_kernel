@@ -1,0 +1,90 @@
+&spi1 {
+    status = "okay";
+    #address-cells = <1>;
+    #size-cells = <0>;
+    /delete-property/mediatek,pad-select;
+    mediatek,pad-select = <0>, <0>, <0>;
+    cs-gpios = <0>, <0>, <0>;
+
+    chipone_tddi@0 {
+        compatible = "chipone-tddi";
+        reg = <0>;
+        status = "okay";
+        spi-max-frequency = <10000000>;
+
+        /* Charger detect */
+        chipone,touch-charger-detect-enable;
+        chipone,touch-charger-detect-type = "notify"; /* notify, poll */
+        chipone,touch-charger-detect-psy-name = "mtk_charger_type";
+        chipone,touch-charger-detect-psp = "POWER_SUPPLY_PROP_ONLINE";
+        chipone,touch-charger-detect-psp-poll-interval = <1000>;
+
+        /* Earjack detect */
+        chipone,touch-earjack-detect-enable;
+        /* MTK:  /sys/bus/platform/drivers/Accdet_Driver/state,
+           Sprd: /sys/kernel/headset/state
+           QCOM: None, and disable it */
+        chipone,touch-earjack-state-filepath = "/sys/bus/platform/drivers/Accdet_Driver/state";
+        chipone,touch-earjack-poll-interval = <1000>;
+
+        /* selftest settings */
+        chipone_hlt_hkc,test-reset-pin;
+        //chipone_hlt_hkc,test-int-pin = N;
+        chipone_hlt_hkc,test-rawdata;
+        chipone_hlt_hkc,test-rawdata-frames = <1>;
+        chipone_hlt_hkc,rawdata-min = <1535>;
+        chipone_hlt_hkc,rawdata-max = <3561>;
+        chipone_hlt_hkc,test-noise;
+        chipone_hlt_hkc,test-noise-frames = <50>;
+        chipone_hlt_hkc,noise-max = <65>;
+        chipone_hlt_hkc,test-open;
+        chipone_hlt_hkc,open-min = <2500>;
+        chipone_hlt_hkc,test-short;
+        chipone_hlt_hkc,short-min = <350>;
+        chipone_hlt_hkc,test-compensate-cap;
+        chipone_hlt_hkc,compensate-cap-min = <1>;
+        chipone_hlt_hkc,compensate-cap-max = <126>;
+
+        /*chipone_hr_hr*/
+        chipone_hr_hr,test-reset-pin;
+        //chipone_hr_hr,test-int-pin = N;
+        chipone_hr_hr,test-rawdata;
+        chipone_hr_hr,test-rawdata-frames = <1>;
+        chipone_hr_hr,rawdata-min = <1419>;
+        chipone_hr_hr,rawdata-max = <3261>;
+        chipone_hr_hr,test-noise;
+        chipone_hr_hr,test-noise-frames = <50>;
+        chipone_hr_hr,noise-max = <65>;
+        chipone_hr_hr,test-open;
+        chipone_hr_hr,open-min = <2500>;
+        chipone_hr_hr,test-short;
+        chipone_hr_hr,short-min = <350>;
+        chipone_hr_hr,test-compensate-cap;
+        chipone_hr_hr,compensate-cap-min = <1>;
+        chipone_hr_hr,compensate-cap-max = <126>;
+    };
+
+    jadard@1 {
+        compatible = "jadard,jdcommon";
+        reg = <1>;
+        spi-max-frequency = <10000000>;
+        interrupt-parent = <&pio>;
+        interrupts = <10 0x2800>;
+        jadard,panel-sense-nums = <18 32>;
+        jadard,panel-coords = <0 720 0 1600>;
+        jadard,panel-max-points = <10>;
+        jadard,int-is-edge = <1>;
+        jadard,irq-gpio = <&pio 10 0x2008>;
+        jadard,rst-gpio = <&pio 172 0x00>;
+
+    };
+
+    /*hs03s_NM code for SR-AL5625-01-644 by fengzhigang at 20220414 start*/
+    galaxycore@2 {
+        compatible = "gcore,touchscreen";
+        reg = <2>;
+        status = "okay";
+        spi-max-frequency = <10000000>;
+    };
+    /*hs03s_NM code for SR-AL5625-01-644 by fengzhigang at 20220414 end*/
+};
