@@ -1,0 +1,106 @@
+/*
+ * SAMSUNG board device tree source
+ *
+ * Copyright (c) 2014 Samsung Electronics Co., Ltd.
+ *             http://www.samsung.com
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+*/
+
+/ {
+
+	mdm1: qcom,mdm1  {
+                compatible = "qcom,ext-mdm9x35";
+
+		pinctrl-names = "default";
+		pinctrl-0 = <&ap2mdm_errfatal &ap2mdm_soft_reset &ap2mdm_hostrdy &ap2mdm_status
+				&ap2mdm_hsic_ready &ap2mdm_vddmin>;
+
+                qcom,ramdump-delay-ms = <2000>;
+                qcom,ramdump-timeout-ms = <120000>;
+		qcom,sfr-query;
+		qcom,sysmon-subsys-id = <20>;
+		qcom,support-shutdown;
+
+		qcom,mdm2ap-errfatal-gpio = <&gpa3 0 0xf>;
+		qcom,ap2mdm-errfatal-gpio = <&gpa3 4 0x1>;
+		qcom,mdm2ap-status-gpio   = <&gpa1 0 0xf>;
+		qcom,ap2mdm-status-gpio   = <&gpf0 4 0x1>;
+		qcom,ap2mdm-soft-reset-gpio = <&gpf5 0 0x1>;
+		qcom,mdm2ap-pblrdy-gpio = <&gpf2 2 0xf>;
+		qcom,ap2mdm-vddmin-gpio = <&gpf2 1 0x1>;
+		qcom,mdm2ap-vddmin-gpio = <&gpf2 0 0x0>;
+		qcom,ap2mdm-hsic-ready-gpio = <&gpf2 3 0x1>;
+	};
+
+	mdmpm_pdata {
+                compatible = "qcom,mdm-hsic-pm";
+
+		/* TODO below gpio check */
+		qcom,ap2mdm-hostrdy-gpio = <&gpf3 3 0x1>; /* power active */
+		qcom,mdm2ap-devicerdy-gpio = <&gpa1 1 0x0>;/* power active */
+		qcom,mdm2ap-hostwake-gpio = <&gpa3 1 0xf>;
+
+		reg = <0x15510000 0x100>, /* EHCI */
+		      <0x15530000 0x100>, /* PHY */
+		      <0x105C0704 0xC>, /* PMU */
+		      <0x156E0204 0xC>; /* USB phy clk CMU_FSYS1 */
+	};
+
+ 	pinctrl@10580000{
+		ap2mdm_errfatal: ap2mdm_errfatal {
+			samsung,pins = "gpa3-4";
+			samsung,pin-function = <0x1>;	/* OUT */
+			samsung,pin-pud = <1>;			/* PULL DOWN */
+			samsung,pin-drv = <0>;
+		};
+	};
+ 	pinctrl@14870000{
+		ap2mdm_soft_reset: ap2mdm_soft_reset {
+			samsung,pins = "gpf5-0";
+			samsung,pin-function = <0x1>;	/* OUT */
+			samsung,pin-pud = <0>;			/* No PULL */
+			samsung,pin-drv = <0>;
+		};
+		ap2mdm_hostrdy: ap2mdm_hostrdy {
+			samsung,pins = "gpf3-3";
+			samsung,pin-function = <0x1>;	/* OUT */
+			samsung,pin-pud = <1>;			/* PULL DOWN */
+			samsung,pin-drv = <0>;
+		};
+		ap2mdm_status: ap2mdm_status {
+			samsung,pins = "gpf0-4";
+			samsung,pin-function = <0x1>;	/* OUT */
+			samsung,pin-pud = <3>;			/* PULL UP */
+			samsung,pin-drv = <3>;
+		};
+		ap2mdm_hsic_ready: ap2mdm_hsic_ready {
+			samsung,pins = "gpf2-3";
+			samsung,pin-function = <0x1>;	/* OUT */
+			samsung,pin-pud = <1>;			/* PULL DOWN */
+			samsung,pin-drv = <0>;
+		};
+
+		ap2mdm_vddmin: ap2mdm_vddmin {
+			samsung,pins = "gpf2-1";
+			samsung,pin-function = <0x1>;	/* OUT */
+			samsung,pin-pud = <1>;			/* PULL DOWN */
+			samsung,pin-drv = <0>;
+		};
+	};
+
+	mhi: qcom,mhi {
+		compatible = "qcom,msm_pcie";
+		mhi-device-wake-gpio = <&gpf4 2 0x1>;
+		esoc-names = "mdm";
+		esoc-0 = <&mdm1>;
+	};
+
+	pcie0@155C0000 {
+		status = "okay";
+	};
+
+};
+

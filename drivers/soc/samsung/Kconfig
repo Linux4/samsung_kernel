@@ -1,0 +1,11 @@
+#
+# EXYNOS Soc drivers
+#
+menuconfig SOC_SAMSUNG
+	bool "SAMSUNG SOC drivers support"
+
+if SOC_SAMSUNG
+config EXYNOS_CHIPID
+	bool "Exynos Chip ID Driver Support"
+	depends on ARCH_EXYNOS
+endif #SOC_SAMSUNG

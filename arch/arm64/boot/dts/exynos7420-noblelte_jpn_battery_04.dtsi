@@ -1,0 +1,18 @@
+/*
+ * SAMSUNG UNIVERSAL5433 board device tree source
+ *
+ * Copyright (c) 2013 Samsung Electronics Co., Ltd.
+ *		http://www.samsung.com
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+*/
+
+#include "exynos7420-noblelte_common_battery_04.dtsi"
+/ {
+		battery {
+				battery,temp_check_type = <0>; /* _BATTERY_TEMP_CHECK_TEMP */
+		};
+
+};

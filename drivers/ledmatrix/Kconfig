@@ -1,0 +1,14 @@
+#
+# ICE5_FPGA_LED_MATRIX
+#
+menu "LED MATRIX FPGA"
+
+config ICE5_FPGA_LED_MATRIX
+	tristate "ICE5 FPGA chip for LED MATRIX control"
+	default n
+	help
+	  Lattice FPGA can support LED MATRIX controller.
+	  The configuration will enable LED MATRIX feature.
+	  To compile this driver as a module, choose M here.
+	  If unsure, say N.
+endmenu

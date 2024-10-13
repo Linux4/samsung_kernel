@@ -1,0 +1,9 @@
+obj-$(CONFIG_EXYNOS_DECON_LCD) += dsim_panel.o
+obj-$(CONFIG_PANEL_AID_DIMMING) += dimming_core.o
+obj-$(CONFIG_EXYNOS_DECON_MDNIE_LITE)		+= mdnie_lite.o mdnie_tuning.o
+obj-$(CONFIG_EXYNOS_DECON_LCD_SYSFS)	+= lcd_sysfs.o
+obj-$(CONFIG_PANEL_S6E3HF2_DYNAMIC) += s6e3hf2_wqhd_lcd_ctrl.o dsim_backlight.o
+obj-$(CONFIG_PANEL_S6E3HA2_DYNAMIC) += s6e3ha2_s6e3ha0_wqhd_lcd_ctrl.o dsim_backlight.o
+obj-$(CONFIG_PANEL_S6E3HA3_DYNAMIC) += s6e3ha3_s6e3ha2_wqhd_lcd_ctrl.o dsim_backlight_dynamic.o
+obj-$(CONFIG_PANEL_S6E3HF3_DYNAMIC) += s6e3ha3_s6e3ha2_wqhd_lcd_ctrl.o dsim_backlight_dynamic.o
+obj-$(CONFIG_PANEL_S6E3FA3_A8XE) += s6e3fa3_a8xe_lcd_ctrl.o dsim_backlight_s6e3fa3_a8xe.o

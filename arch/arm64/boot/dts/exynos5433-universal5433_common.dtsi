@@ -1,0 +1,439 @@
+/*
+ * SAMSUNG UNIVERSAL5433 board device tree source
+ *
+ * Copyright (c) 2013 Samsung Electronics Co., Ltd.
+ *		http://www.samsung.com
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+#include "exynos5433.dtsi"
+
+/ {
+	spi_5: spi@141a0000 {
+		clocks = <&clock 2626>, <&clock 4083>; /* Workaround for SPI read in A5 */
+		clock-names = "spi", "spi_busclk0";    /* Must be removed later */
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		num-cs = <2>;
+
+		fimc_is_spi_0@0 {
+			compatible = "samsung,fimc_is_spi0";
+			spi-max-frequency = <50000000>;
+			reg = <0x0>;
+
+			controller-data {
+				cs-gpio = <&gpc0 6 0>;
+				samsung,spi-feedback-delay = <2>;
+			};
+		};
+
+		fimc_is_spi_1@1 {
+			compatible = "samsung,fimc_is_spi1";
+			fimc_is_spi_sclk = "gpc3-0";
+			fimc_is_spi_ssn = "gpc3-1";
+			fimc_is_spi_miso = "gpc3-2";
+			fimc_is_spi_mois = "gpc3-3";
+			spi-max-frequency = <50000000>;
+			reg = <0x1>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&fimc_is_comp_int>;
+
+			controller-data {
+				cs-gpio = <&gpc3 1 0>;
+				samsung,spi-feedback-delay = <3>;
+			};
+		};
+	};
+
+	hsi2c@14EC0000 {
+		status = "okay";
+		fimc_is_fan53555@60 {
+			compatible = "samsung,fimc_is_fan53555";
+			reg = <0x60>;
+			comp_en = <&gpf1 7 0x01>;
+			status = "okay";
+		};
+	};
+
+	/* Companion driver */
+	fimc_is_companion: fimc_is_companion@14180000 {
+		compatible = "samsung,exynos5-fimc-is-companion";
+		samsung,power-domain = <&pd_cam1>;
+		clock-names =
+			/* SENSOR0 MCLK */
+			"sclk_isp_sensor0",		/* 33 */
+			"mout_sclk_isp_sensor0",	/* 3066 */
+			"dout_sclk_isp_sensor0_a",	/* 4090 */
+			"dout_sclk_isp_sensor0_b",	/* 4091 */
+
+			"mout_bus_pll_user",		/* 3010 */
+			"oscclk",			/* 5000 */
+
+			/* SPI-ISP */
+			"sclk_isp_spi0_top",		/* 30 */
+			"sclk_isp_spi1_top",		/* 31 */
+			"mout_sclk_isp_spi0",		/* 3063 */
+			"mout_sclk_isp_spi1",		/* 3064 */
+
+			"gate_isp_spi1",		/* 2625 */
+			"gate_isp_spi0",		/* 2626 */
+			"dout_sclk_isp_spi0_a",		/* 4080 */
+			"dout_sclk_isp_spi0_b",		/* 4081 */
+			"dout_sclk_isp_spi1_a",		/* 4082 */
+			"dout_sclk_isp_spi1_b",		/* 4083 */
+
+			"mout_sclk_isp_spi0_user",	/* 3180 */
+			"mout_sclk_isp_spi1_user",	/* 3181 */
+
+			/* CMU TOP */
+			"dout_aclk_cam1_333",		/* 4047 */
+
+			/* USER_MUX_SEL */
+			"aclk_cam1_333",		/* 342 */
+			"mout_aclk_cam1_333_user",	/* 3225 */
+
+			/* MPWM */
+			"dout_pclk_cam1_166",		/* 4183 */
+			"dout_pclk_cam1_83",		/* 4184 */
+			"dout_sclk_isp_mpwm";		/* 4185 */
+		clocks =
+			/* SENSOR0 MCLK */
+			<&clock 33>,
+			<&clock 3066>,
+			<&clock 4090>,
+			<&clock 4091>,
+
+			<&clock 3010>,
+			<&clock 5000>,
+
+			/* SPI-ISP */
+			<&clock 30>,
+			<&clock 31>,
+			<&clock 3063>,
+			<&clock 3064>,
+
+			<&clock 2625>,
+			<&clock 2626>,
+			<&clock 4080>,
+			<&clock 4081>,
+			<&clock 4082>,
+			<&clock 4083>,
+
+			<&clock 3180>,
+			<&clock 3181>,
+
+			/* CMU TOP */
+			<&clock 4047>,
+
+			/* USER_MUX_SEL */
+			<&clock 342>,
+			<&clock 3225>,
+
+			/* MPWM */
+			<&clock 4183>,
+			<&clock 4184>,
+			<&clock 4185>;
+		pinctrl-names ="default", "ch0", "af0", "off0";
+		pinctrl-0 = <&fimc_is_ch0_mclk_off>;
+		pinctrl-1 = <&fimc_is_ch0_i2c &fimc_is_ch0_mclk>;
+		pinctrl-2 = <&fimc_is_ch0_i2c &fimc_is_ch0_mclk &fimc_is_ch1_i2c>;
+		pinctrl-3 = <&fimc_is_ch0_mclk_off>;
+
+		scenario = <0>;
+		mclk_ch = <0>;
+		gpios_cam_en = <&gpf4 7 0x1>;
+		gpio_reset = <&gpc0 4 0x1>;
+		gpios_comp_en = <&gpf1 7 0x1>; /* COMP_EN */
+		gpios_comp_reset = <&gpf5 7 0x1>; /* COMP_rstn */
+
+		status = "okay";
+	};
+
+	fimc_is_sensor0: fimc_is_sensor@12100000 {
+		scenario = <0>;
+		gpio_reset = <&gpc0 4 0x1>;
+		id = <0>;
+		mclk_ch = <0>;
+		csi_ch = <0>;
+		flite_ch = <0>;
+		i2c_ch = <0x100>;
+		i2c_addr = <0x3434>;
+		flash_first_gpio = <1>;
+		flash_second_gpio = <2>;
+		sensor_name = "imx240";
+		sensor_id = <104>;
+		is_bns = <1>;
+		status = "okay";
+	};
+
+	fimc_is_sensor1: fimc_is_sensor@12110000 {
+		pinctrl-names ="default", "ch1", "off1";
+		pinctrl-0 = <&fimc_is_ch2_mclk_off>;
+		pinctrl-1 = <&fimc_is_ch2_i2c &fimc_is_vision_i2c &fimc_is_ch2_mclk>;
+		pinctrl-2 = <&fimc_is_ch2_mclk_off>;
+
+		scenario = <0>;
+		gpio_reset = <&gpc0 3 0x1>;
+		gpio_standby = <&gpc0 0 0x1>;
+		id = <1>;
+		mclk_ch = <2>;
+		csi_ch = <1>;
+		flite_ch = <1>;
+		i2c_ch = <0x2>;
+		i2c_addr = <0x6A>;
+		sensor_name = "6d1";
+		sensor_id = <16>;
+		is_bns = <0>;
+		status = "okay";
+	};
+
+	fimc_is@14000000 {
+		interrupts = <0 165 0>; /* Remove ISP_GIC to use FIMC IS i2c channel in host */
+		companion_spi_channel = <0>;
+		use_vision = <0>;
+		use_sensor_dynamic_voltage_mode = <1>;
+		fimc_is_dvfs {
+			default_int = <400000>; /* L0 */
+			default_cam = <777000>; /* L0 */
+			default_mif = <825000>; /* L0 */
+			default_i2c = <0>;
+
+			front_preview_int = <267000>; /* L2 */
+			front_preview_cam = <111000>; /* L9 */
+			front_preview_mif = <543000>; /* L2 */
+			front_preview_i2c = <0>;
+
+			front_capture_int = <267000>; /* L2 */
+			front_capture_cam = <111000>; /* L9 */
+			front_capture_mif = <543000>; /* L2 */
+			front_capture_i2c = <0>;
+
+			front_camcording_int = <267000>; /* L2 */
+			front_camcording_cam = <111000>; /* L9 */
+			front_camcording_mif = <543000>; /* L2 */
+			front_camcording_i2c = <0>;
+
+			front_vt1_int = <200000>; /* L3 */
+			front_vt1_cam = <111000>; /* L9 */
+			front_vt1_mif = <543000>; /* L2 */
+			front_vt1_i2c = <0>;
+
+			front_vt2_int = <200000>; /* L3 */
+			front_vt2_cam = <111000>; /* L9 */
+			front_vt2_mif = <543000>; /* L2 */
+			front_vt2_i2c = <0>;
+
+			rear_preview_fhd_bns_off_int = <267000>; /* L2 */
+			rear_preview_fhd_bns_off_cam = <200000>; /* L8 */
+			rear_preview_fhd_bns_off_mif = <543000>; /* L2 */
+			rear_preview_fhd_bns_off_i2c = <0>;
+
+			rear_preview_fhd_int = <267000>; /* L2 */
+			rear_preview_fhd_cam = <333000>; /* L6 */
+			rear_preview_fhd_mif = <543000>; /* L2 */
+			rear_preview_fhd_i2c = <0>;
+
+			rear_preview_whd_int = <334000>; /* L1 */
+			rear_preview_whd_cam = <600000>; /* L2 */
+			rear_preview_whd_mif = <667000>; /* L1 */
+			rear_preview_whd_i2c = <0>;
+
+			rear_preview_uhd_int = <400000>; /* L0 */
+			rear_preview_uhd_cam = <666000>; /* L1 */
+			rear_preview_uhd_mif = <825000>; /* L0 */
+			rear_preview_uhd_i2c = <0>;
+
+			rear_capture_int = <400000>; /* L0 */
+			rear_capture_cam = <777000>; /* L0 */
+			rear_capture_mif = <667000>; /* L1 */
+			rear_capture_i2c = <0>;
+
+			rear_camcording_fhd_bns_off_int = <267000>; /* L2 */
+			rear_camcording_fhd_bns_off_cam = <580000>; /* L3 */
+			rear_camcording_fhd_bns_off_mif = <543000>; /* L2 */
+			rear_camcording_fhd_bns_off_i2c = <0>;
+
+			rear_camcording_fhd_int = <267000>; /* L2 */
+			rear_camcording_fhd_cam = <555000>; /* L4 */
+			rear_camcording_fhd_mif = <543000>; /* L2 */
+			rear_camcording_fhd_i2c = <0>;
+
+			rear_camcording_whd_int = <334000>; /* L1 */
+			rear_camcording_whd_cam = <600000>; /* L2 */
+			rear_camcording_whd_mif = <667000>; /* L1 */
+			rear_camcording_whd_i2c = <0>;
+
+			rear_camcording_uhd_int = <400000>; /* L0 */
+			rear_camcording_uhd_cam = <666000>; /* L1 */
+			rear_camcording_uhd_mif = <825000>; /* L0 */
+			rear_camcording_uhd_i2c = <0>;
+
+			dual_preview_int = <334000>; /* L1 */
+			dual_preview_cam = <444000>; /* L5 */
+			dual_preview_mif = <825000>; /* L0 */
+			dual_preview_i2c = <0>;
+
+			dual_capture_int = <400000>; /* L0 */
+			dual_capture_cam = <777000>; /* L0 */
+			dual_capture_mif = <825000>; /* L0 */
+			dual_capture_i2c = <0>;
+
+			dual_camcording_int = <334000>; /* L1 */
+			dual_camcording_cam = <444000>; /* L5 */
+			dual_camcording_mif = <825000>; /* L0 */
+			dual_camcording_i2c = <0>;
+
+			high_speed_fps_int = <400000>; /* L0 */
+			high_speed_fps_cam = <222000>; /* L7 */
+			high_speed_fps_mif = <825000>; /* L0 */
+			high_speed_fps_i2c = <0>;
+
+			dis_enable_int = <400000>; /* L0 */
+			dis_enable_cam = <777000>; /* L0 */
+			dis_enable_mif = <825000>; /* L0 */
+			dis_enable_i2c = <0>;
+
+			max_int = <400000>; /* L0 */
+			max_cam = <777000>; /* L0 */
+			max_mif = <825000>; /* L0 */
+			max_i2c = <0>;
+		};
+	};
+
+	pinctrl@14CC0000 {
+		fimc_is_ch0_i2c: fimc-is-ch0_i2c {
+			samsung,pins = "gpc2-1", "gpc2-0";
+			samsung,pin-function = <2>;
+			samsung,pin-pud = <0>;
+			samsung,pin-drv = <3>;
+		};
+		fimc_is_ch1_i2c: fimc-is-ch1-i2c {
+			samsung,pins = "gpc2-3", "gpc2-2";
+			samsung,pin-function = <2>;
+			samsung,pin-pud = <0>;
+			samsung,pin-drv = <3>;
+		};
+		fimc_is_i2c_0: fimc-is-i2c-0 {
+			samsung,pins = "gpc2-1", "gpc2-0";
+			samsung,pin-function = <2>;
+			samsung,pin-pud = <0>;
+			samsung,pin-drv = <3>;
+		};
+		fimc_is_flash: fimc-is-flash {
+			samsung,pins = "gpc0-2", "gpc0-1";
+			samsung,pin-function = <2>;
+			samsung,pin-pud = <0>;
+			samsung,pin-drv = <0>;
+		};
+		fimc_is_flash_host: fimc-is-flash-host {
+			samsung,pins = "gpc0-1";
+			samsung,pin-function = <1>;
+			samsung,pin-pud = <1>;
+			samsung,pin-drv = <0>;
+		};
+		fimc_is_flash_is: fimc-is-flash-is {
+			samsung,pins = "gpc0-1";
+			samsung,pin-function = <2>;
+			samsung,pin-pud = <1>;
+			samsung,pin-drv = <0>;
+		};
+		fimc_is_comp_int: fimc-is-comp-int {
+			samsung,pins = "gpc1-0";
+			samsung,pin-function = <3>;
+			samsung,pin-pud = <1>;
+			samsung,pin-drv = <0>;
+		};
+		fimc_is_ois: fimc-is-ois {
+			samsung,pins = "gpc2-3", "gpc2-2";
+			samsung,pin-function = <1>;
+			samsung,pin-pud = <0>;
+			samsung,pin-drv = <0>;
+		};
+		uart1_bus: uart1-bus {
+			samsung,pins = "gpd1-1", "gpd1-0";
+			samsung,pin-function = <2>;
+			samsung,pin-pud = <0>;
+		};
+		uart2_bus: uart2-bus {
+			samsung,pins = "gpd1-4", "gpd1-5";
+			samsung,pin-function = <2>;
+			samsung,pin-pud = <0>;
+		};
+		fimc_is_ch0_mclk: fimc-is-ch0_mclk {
+			samsung,pin-drv = <2>;
+		};
+		fimc_is_ch0_mclk_off: fimc-is-ch0_mclk_off {
+			samsung,pins = "gpd7-0";
+			samsung,pin-function = <1>;
+			samsung,pin-pud = <1>;
+			samsung,pin-drv = <2>;
+		};
+		fimc_is_vision_i2c: fimc-is-vision-i2c {
+			samsung,pins = "gpd1-3", "gpd1-2";
+			samsung,pin-function = <3>;
+			samsung,pin-pud = <0>;
+			samsung,pin-drv = <6>;
+		};
+		fimc_is_vision_gpio_i2c: fimc-is-vision-gpio-i2c {
+			samsung,pins = "gpd1-3", "gpd1-2";
+			samsung,pin-function = <0>;
+			samsung,pin-pud = <0>;
+			samsung,pin-drv = <0>;
+		};
+		fimc_is_ch2_i2c: fimc-is-ch2-i2c {
+			samsung,pins = "gpc2-5", "gpc2-4";
+			samsung,pin-function = <2>;
+			samsung,pin-pud = <0>;
+			samsung,pin-drv = <6>;
+		};
+		fimc_is_ch2_mclk: fimc-is-ch2-mclk {
+			samsung,pin-drv = <2>;
+		};
+		fimc_is_ch2_mclk_off: fimc-is-ch2_mclk_off {
+			samsung,pins = "gpd7-2";
+			samsung,pin-function = <1>;
+			samsung,pin-pud = <1>;
+			samsung,pin-drv = <2>;
+		};
+		fimc_is_spi_pin0: fimc-is-spi-pin0 {
+			samsung,pins = "gpc3-3", "gpc3-2", "gpc3-0";
+			samsung,pin-function = <0>;
+			samsung,pin-pud = <1>;
+			samsung,pin-drv = <2>;
+		};
+		fimc_is_spi_ssn0: fimc-is-spi-ssn0 {
+			samsung,pins = "gpc3-1", "gpc0-6";
+			samsung,pin-function = <0>;
+			samsung,pin-pud = <0>;
+			samsung,pin-drv = <2>;
+		};
+		fimc_is_ois_hsi2c_on: fimc-is-ois-hsi2c-on {
+			samsung,pins = "gpd1-3", "gpd1-2";
+			samsung,pin-function = <3>;
+			samsung,pin-pud = <0>;
+			samsung,pin-drv = <0>;
+		};
+		fimc_is_hsi2c_off: fimc-is-hsi2c-off {
+			samsung,pins = "gpd1-3", "gpd1-2";
+			samsung,pin-function = <0>;
+			samsung,pin-pud = <0>;
+			samsung,pin-drv = <3>;
+		};
+		fimc_is_ch1_i2c_off: fimc-is-ch1-i2c-off {
+			samsung,pins = "gpc2-3", "gpc2-2";
+			samsung,pin-function = <0>;
+			samsung,pin-pud = <0>;
+			samsung,pin-drv = <3>;
+		};
+		fimc_is_ch2_i2c_off: fimc-is-ch2-i2c-off {
+			samsung,pins = "gpc2-5", "gpc2-4";
+			samsung,pin-function = <0>;
+			samsung,pin-pud = <0>;
+			samsung,pin-drv = <6>;
+		};
+	};
+};

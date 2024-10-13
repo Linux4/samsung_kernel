@@ -1,0 +1,138 @@
+/*
+ * SAMSUNG EXYNOS7580 SoC device tree source
+ *
+ * Copyright (c) 2014 Samsung Electronics Co., Ltd.
+ *		http://www.samsung.com
+ *
+ * SAMSUNG EXYNOS7580 SoC device nodes are listed in this file.
+ * EXYNOS7420 based board files can include this file and provide
+ * values for board specfic bindings.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+/ {
+	NOC_BE_GROUP1@10510100 {
+		/* NRT - Group1 */
+		compatible = "samsung,exynos-noc";
+		reg = <0x0 0x10510100 0x0 0x100>;
+		interrupts  = <0 380 0>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		/* Group-bit description */
+		seq-bits = <0 8>;
+		sub-bits = <9 10>;
+		target-bits = <11 12>;
+		init-bits = <13 15>;
+
+		/* Group detail bit rescription */
+		faulten-bits = <0 0>;
+		errvld-bits = <0 0>;
+		errcld-bits = <0 0>;
+		errlog0-lock-bits = <0 0>;
+		errlog0-opc-bits = <1 4>;
+		errlog0-errcode-bits = <8 10>;
+		errlog0-len1-bits = <16 23>;
+		errlog0-format-bits = <31 31>;
+		errlog1-bits = <0 15>;
+		errlog2-bits = <0 0>;
+		errlog3-bits = <0 31>;
+		errlog4-bits = <0 3>;
+		errlog5-bits = <0 10>;
+
+		/* init, target, subrage detail description */
+		init-num = <8>;
+		target-num = <4>;
+		sub-num = <4>;
+		sub-array = <15>;
+		init-desc =	"AUD",
+				"FSYS",
+				"G3D",
+				"IMEM",
+				"ISP_NRT",
+				"MFC",
+				"MSCL",
+				"SRV_MIF_D_NRT";
+		target-desc =	"BUS_D_0",
+				"BUS_D_2",
+				"DREX_NRT",
+				"SRV_MIF_D_NRT";
+		sub-index = <8 16 20 21 22 23 24 32 40 48 56 72 88 104 124>;
+		sub-addr = <0x0 0x0 0x3000000 0x4000000 0x8000000 0x10000000 0x0 0x0 0x0 0x0 0x0 0x0 0x0 0x0 0x10510000>;
+		timeout {
+			#address-cells = <1>;
+			#size-cells = <1>;
+			timeout_cpu_s@0x10910100 {
+				nickname = "cpu-sfr-apb-timeout-path";
+				reg = <0x10910100 0x100>;
+				enabled = <1>;
+				enable-bit = <0>;
+			};
+			timeout_cpu_n@0x10910200 {
+				nickname = "cpu-noc-timeout-path";
+				reg = <0x10910200 0x100>;
+				enabled = <1>;
+				enable-bit = <0>;
+			};
+			timeout_apl_s@0x10810100 {
+				nickname = "apl-sfr-apb-timeout-path";
+				reg = <0x10810100 0x100>;
+				enabled = <1>;
+				enable-bit = <0>;
+			};
+			timeout_apl_n@0x10810200 {
+				nickname = "apl-noc-timeout-path";
+				reg = <0x10810200 0x100>;
+				enabled = <1>;
+				enable-bit = <0>;
+			};
+		};
+	};
+
+	NOC_HRT_GROUP2@10500400 {
+		/* RT */
+		compatible = "samsung,exynos-noc";
+		reg = <0x0 0x10500400 0x0 0x100>;
+		interrupts  = <0 381 0>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		/* Group-bit description */
+		seq-bits = <0 8>;
+		sub-bits = <0 0>;
+		target-bits = <9 9>;
+		init-bits = <10 21>;
+
+		/* Group detail bit rescription */
+		faulten-bits = <0 0>;
+		errvld-bits = <0 0>;
+		errcld-bits = <0 0>;
+		errlog0-lock-bits = <0 0>;
+		errlog0-opc-bits = <1 4>;
+		errlog0-errcode-bits = <8 10>;
+		errlog0-len1-bits = <16 23>;
+		errlog0-format-bits = <31 31>;
+		errlog1-bits = <0 20>;
+		errlog2-bits = <0 0>;
+		errlog3-bits = <0 31>;
+		errlog4-bits = <0 3>;
+		errlog5-bits = <0 10>;
+
+		/* init, target, subrage detail description */
+		init-num = <4>;
+		target-num = <2>;
+		sub-num = <2>;
+		sub-array = <3>;
+		init-desc =	"DISP",
+				"ISP_RT",
+				"SRV_MIF_D_1";
+		target-desc =	"MEM_D_1",
+				"SRV_MIF_D_1";
+		sub-index = <0 8 18>;
+		sub-addr = <0x0 0x0 0x10500000>;
+	};
+
+};
